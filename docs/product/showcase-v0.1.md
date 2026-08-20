@@ -31,7 +31,7 @@
 > `Scenarios/`** — stesso loader, stesso runner, stesso `result.json`, stesso `StateHash`. Costruirle una
 > pipeline propria significherebbe che la showcase gira su un percorso che il gioco non usa, ed è
 > esattamente il difetto che l'harness esiste per impedire. Spec:
-> [`../technical/test-automatico-unreal.md`](../technical/test-automatico-unreal.md).
+> [`../technical/tooling/test-automatico-unreal.md`](../technical/tooling/test-automatico-unreal.md).
 >
 > ### Punto risolto: sì, serve una Predictive Action vera
 >
@@ -43,7 +43,7 @@
 > **Non** si costruisce l'intero framework di trappole per la showcase: una sola fetta verticale, con il suo
 > scenario automatico.
 > **Epic**: **E15** di [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §5 · **CP 15.1–15.5**
-> **Sorgente**: [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md)
+> **Sorgente**: [`../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md`](../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md)
 > (handoff del 2026-08-07, consolidato qui — in caso di conflitto prevale questo file)
 
 Questo documento tiene separate tre cose che è facile confondere: **cosa il codice fa già**, **cosa la

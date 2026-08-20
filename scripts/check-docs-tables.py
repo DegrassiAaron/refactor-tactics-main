@@ -8,7 +8,7 @@ sopra: non sono una tabella, sono un paragrafo coi pipe in vista.
 
 La pagina servita da GitHub rendeva **una tabella con 11 righe** su 144. Centotrentatre righe
 di decisioni erano testo grezzo, e nessun gate lo vedeva: `check-docs-links.py` guarda i link,
-`check-docs-symbols.py` i simboli, `rt_shared_id.py` i duplicati di ID. La struttura di una
+`check-docs-symbols.py` i simboli, `check-docs-naming.py` i nomi. La struttura di una
 tabella non la guardava nessuno.
 
 E' un difetto che **ricompare da solo**: cresce quando il documento cresce, e chi aggiunge una
@@ -29,8 +29,10 @@ Il criterio non e' dedotto: e' stato validato contro il parser vero di GitHub
   - le righe dentro un code fence non sono tabelle.
 
 Esenzioni, per costruzione e non per elenco a mano — stesse cartelle di `check-docs-symbols.py`:
-`docs/archive/` e' storico, `docs/src/` e' input non consumato, `docs/roadmap/plans/` sono piani
-datati. Un documento storico puo' contenere una tabella rotta: descrive com'era.
+`docs/archive/` e' storico, `docs/research/` e' input non consumato, e `docs/roadmap/plans/` sono
+piani datati. Un documento storico puo' contenere una tabella rotta:
+descrive com'era. L'elenco vive **una volta sola**, in `EXEMPT_DIRS`: questa riga lo descrive e non
+lo duplica — un elenco scritto due volte diverge alla prima aggiunta.
 """
 import os
 import re
@@ -39,7 +41,15 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS = os.path.join(REPO, "docs")
 
-EXEMPT_DIRS = ("docs/archive/", "docs/src/", "docs/roadmap/plans/")
+# ⚠️ Esenzioni per **prefisso di path**: spostare un documento ne cambia la copertura in silenzio.
+# Misurato il 2026-08-17 con `EXEMPT_DIRS = ()`: lo scope passa da 165 a 404 documenti e il gate esce
+# 1 su sei file (i quattro PRD, oggi in `docs/research/prd/`, `docs/roadmap/plans/h5c7-flood-fill-spec.md`,
+# `docs/archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md`).
+# ➕ `docs/research/` dal 2026-08-18, ➖ `docs/src/` dal 2026-08-19 perche' svuotata: **165 documenti**
+# prima e dopo, che e' il modo di dimostrare che uno spostamento non ha spento un pezzo di gate.
+# Vedi la nota gemella in `check-docs-symbols.py`, che spiega anche perche' `docs/generated/` resta
+# **fuori**.
+EXEMPT_DIRS = ("docs/archive/", "docs/research/", "docs/roadmap/plans/")
 
 # Un delimitatore GFM: `|---|---|`, `| :--- | ---: |`, con o senza pipe ai bordi.
 DELIM_RE = re.compile(r"^\s*\|?(\s*:?-+:?\s*\|)+(\s*:?-+:?\s*)?\|?\s*$")

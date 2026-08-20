@@ -252,12 +252,11 @@ nodes:
   # Resta vero che `#512` e' un prerequisito DURO di `#170` (golden replay): il golden ha bisogno
   # delle decisioni di finestra come dato, e quell'arco non si tocca.
   #
-  # ⚠️ #955 e #956 non hanno una dipendenza tecnica su #954 — hanno un vincolo di **ownership**, e
-  # sono owner DIVERSI: #955 tocca `UI/` (track `client_tools`, #78) e #956 tocca
-  # `Map/RTHexMapActor.{h,cpp}` (track `content_editor`, #451). 🔴 Una stesura precedente di questo
-  # commento li attribuiva entrambi a `client_tools`, e la code review l'ha falsificata.
-  # Un blocco di write-set non e' topologia del lavoro e non si scrive qui (`parallel-batch.yaml`
-  # ne e' l'owner): il motivo per cui compaiono come `follows` e non come `requires`.
+  # ⚠️ #955 e #956 non hanno una dipendenza tecnica su #954: toccano file diversi — #955 `UI/`,
+  # #956 `Map/RTHexMapActor.{h,cpp}` — ed e' il motivo per cui compaiono come `follows` e non come
+  # `requires`. *(Fino al 2026-08-20 il vincolo era di ownership fra track del write-set di batch,
+  # che non e' topologia del lavoro e viveva altrove; `D-178` ha rimosso quel sistema. L'ordine
+  # resta consigliato perche' i tre lavori si sovrappongono, non perche' un lock lo imponga.)*
 
   - id: issue:954
     release: v0.1

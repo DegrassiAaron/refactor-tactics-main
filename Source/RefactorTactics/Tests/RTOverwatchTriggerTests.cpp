@@ -34,6 +34,15 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"   // serializzazione e hash: il replay della decisione
 #include "Turn/RTTurnRules.h"
+// #1158: il doppio `FIRE` si riproduce dal PERCORSO REALE — uno scenario costruito in memoria, non un file in
+// `Scenarios/` (la issue lo dichiara: «nessuno scenario nuovo»). Da qui arrivano il mondo, il runner e il
+// `TurnManager` da cui si legge il `TurnLog`, che e' la fonte autorevole su cui il difetto si misura.
+#include "EngineUtils.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "ScenarioHarness/RTTestScenario.h"
+#include "ScenarioHarness/RTTestResult.h"
+#include "Tests/RTWorldFixtures.h"
+#include "Turn/RTTurnManager.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1223,6 +1232,740 @@ bool FRTOverwatchSegmentedResolutionOverheadTest::RunTest(const FString&)
 		BulkMs, SteppedMs, SteppedMs - BulkMs,
 		BulkMs > 0.0 ? (SteppedMs - BulkMs) / BulkMs * 100.0 : 0.0,
 		WindowsOpened, URTReactionOpportunityLibrary::MaxPromptsPerReaction(), Repetitions));
+
+	return true;
+}
+
+
+/**
+ * DUE Overwatch di unita' diverse sullo stesso mover: il secondo `FIRE` non deve dichiarare un danno che non
+ * ha inflitto (#1158).
+ *
+ * Il difetto, misurato nella issue e non supposto: `ResolveReactionBoundary` costruisce i `Triggers` **una
+ * volta sola** prima del ciclo per-opportunity, e l'unico guard per iterazione e' `bCharged` — che e' **per
+ * watcher**, non per bersaglio. `ApplyReactionDecision` calcola poi `bFire` con `IsValid(Units[TargetIdx])` e
+ * **nessun `IsAlive()`**, mentre `ARTUnit::ApplyCombatState` dichiara di NON distruggere l'Actor alla morte
+ * («la rimozione VISIVA e la distruzione sono differite … cosi' il colpo mortale resta osservabile»). Quindi
+ * `IsValid` resta vero su un'unita' a 0 HP e il secondo `FIRE` esegue tutto il corpo — danno, charge spesa,
+ * `StopUnitInPlace`, e `Entry.Amount = Armed.Damage` nel TurnLog **autorevole**.
+ *
+ * ⚠️ **Si misura sul TurnLog e non sugli HP**, ed e' la differenza fra vedere il difetto e non vederlo: gli HP
+ * del bersaglio sono gia' a zero, quindi il secondo colpo non li cambia e una assertion sulla salute passerebbe
+ * anche col bug vivo. Cio' che il difetto rompe e' la **fonte autorevole**, che dichiara piu' danno di quanto
+ * ne sia stato inflitto.
+ *
+ * ⚠️ Lo scenario si costruisce in MEMORIA: la issue dichiara «nessuno scenario nuovo», e `Scenarios/` e'
+ * `integration_only`. Il percorso pero' e' quello vero — `URTScenarioRunner::Run` entra dagli stessi ingressi
+ * del giocatore — quindi qui non nasce nessun resolver parallelo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchSecondFireOnDownedTargetTest,
+	"RefactorTactics.Overwatch.SecondFireOnDownedTargetLogsNoDamage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
+{
+	// Due Wraith che guardano la STESSA cella da lati opposti: `MakeSuppressiveZone` costruisce una LINEA
+	// lungo il facing, quindi (-1,-1,0) cade nella zona di entrambi. Sono due WATCHER diversi sullo stesso
+	// bersaglio — quindi due opportunity — non due bersagli nello stesso passo, che darebbero una opportunity
+	// sola (`Overwatch.SimultaneousTargetsSingleOpportunity`).
+	FRTTestScenario Scenario;
+	Scenario.ScenarioId = TEXT("Unit.Overwatch.DoubleFireOnDownedTarget");
+	Scenario.Version = 2;
+	Scenario.Seed = 0;
+	Scenario.MapRadius = 5;
+
+	FRTScenarioUnit W1;
+	W1.Id = TEXT("W1");
+	W1.HeroId = TEXT("Hero.Wraith");
+	W1.TeamId = 1;
+	W1.Cell = FRTCellId(2, -1, 0);
+	W1.Facing = ERTHexDirection::W;
+	Scenario.Units.Add(W1);
+
+	FRTScenarioUnit W2;
+	W2.Id = TEXT("W2");
+	W2.HeroId = TEXT("Hero.Wraith");
+	W2.TeamId = 1;
+	W2.Cell = FRTCellId(-3, -1, 0);
+	W2.Facing = ERTHexDirection::E;
+	Scenario.Units.Add(W2);
+
+	// ⚠️ `Health` basso E DICHIARATO: serve che il PRIMO colpo abbatta il bersaglio, che e' la premessa
+	// dell'intero caso. Col valore di roster il mover sopravvivrebbe a entrambi i colpi e il difetto non
+	// avrebbe modo di manifestarsi — il test resterebbe verde su un bug vivo.
+	FRTScenarioUnit M1;
+	M1.Id = TEXT("M1");
+	M1.HeroId = TEXT("Hero.Gadget");
+	M1.TeamId = 0;
+	M1.Cell = FRTCellId(-2, 0, 0);
+	M1.Health = 10;
+	Scenario.Units.Add(M1);
+
+	FRTScenarioTurn Turn;
+	// La finestra live e' una capability: dichiararla e' cio' che distingue un `BLOCKED` onesto da un `Error`.
+	Turn.Requires.Add(TEXT("DecisionBoundary"));
+
+	FRTScenarioIntent ArmW1;
+	ArmW1.UnitId = TEXT("W1");
+	ArmW1.Ability = TEXT("Action.Overwatch");
+	Turn.Intents.Add(ArmW1);
+
+	FRTScenarioIntent ArmW2;
+	ArmW2.UnitId = TEXT("W2");
+	ArmW2.Ability = TEXT("Action.Overwatch");
+	Turn.Intents.Add(ArmW2);
+
+	FRTScenarioIntent MoveM1;
+	MoveM1.UnitId = TEXT("M1");
+	MoveM1.Move.Add(FRTCellId(-1, -1, 0));
+	Turn.Intents.Add(MoveM1);
+
+	// Entrambi rispondono `FIRE` sullo stesso bersaglio: e' la configurazione che [D-155] dichiara NORMALE in
+	// v0.1 — un umano comanda due unita', entrambe possono coprire lo stesso corridoio.
+	FRTScenarioDecision FireW1;
+	FireW1.Unit = TEXT("W1");
+	FireW1.Respond = TEXT("FIRE");
+	FireW1.Target = TEXT("M1");
+	Turn.Decisions.Add(FireW1);
+
+	FRTScenarioDecision FireW2;
+	FireW2.Unit = TEXT("W2");
+	FireW2.Respond = TEXT("FIRE");
+	FireW2.Target = TEXT("M1");
+	Turn.Decisions.Add(FireW2);
+
+	Scenario.Turns.Add(Turn);
+
+	// ⚠️ L'harness RIFIUTA uno scenario senza `expect` — «lo scenario passerebbe sempre» — ed è la stessa
+	// disciplina che vieta i test vacui. Qui le due assertion dicono qualcosa di vero e non banale: chi arma un
+	// Overwatch spende l'azione principale e **non si muove**, quindi i watcher devono trovarsi dove sono
+	// stati posati. La misura del difetto resta in C++ sotto, perché guarda il TurnLog e non lo stato finale.
+	FRTTestExpectation W1Stays;
+	W1Stays.Kind = ERTAssertionKind::UnitAtCell;
+	W1Stays.UnitId = TEXT("W1");
+	W1Stays.Cell = FRTCellId(2, -1, 0);
+	Scenario.Expect.Add(W1Stays);
+
+	FRTTestExpectation W2Stays;
+	W2Stays.Kind = ERTAssertionKind::UnitAtCell;
+	W2Stays.UnitId = TEXT("W2");
+	W2Stays.Cell = FRTCellId(-3, -1, 0);
+	Scenario.Expect.Add(W2Stays);
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World))
+	{
+		return false;
+	}
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+
+	// ⚠️ **`BLOCKED` non e' un successo**, e senza questa riga lo diventerebbe in silenzio: uno scenario che
+	// dichiara una capability indisponibile esce senza eseguire nulla, e ogni conteggio sotto darebbe zero —
+	// cioe' il difetto «non riprodotto» sarebbe indistinguibile da «assente».
+	// 🔴 **Si pretende `Pass`, non «diverso da `Blocked` e `Error`»**, e la differenza non e' pedanteria: con
+	// quel guard piu' debole un `Fail` passava in silenzio, cioe' le due `Expect` che l'harness obbliga a
+	// dichiarare potevano cadere tutte senza che il test se ne accorgesse — bastava che i due contatori sotto
+	// tornassero. Un domani in cui un'unita' che arma l'Overwatch potesse muoversi, questo test resterebbe
+	// verde su uno scenario rotto. Trovato da una code review.
+	TestEqual(FString::Printf(TEXT("lo scenario e' PASS (esito: %d · error: '%s' · blocked: '%s' · turni: %d)"),
+			static_cast<int32>(Result.Outcome), *Result.ErrorMessage, *Result.BlockedReason, Result.TurnsPlayed),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
+
+	ARTTurnManager* Manager = nullptr;
+	for (TActorIterator<ARTTurnManager> It(World); It; ++It)
+	{
+		Manager = *It;
+		break;
+	}
+
+	int32 FireEntries = 0;
+	int32 FireEntriesWithDamage = 0;
+	int32 FireEntriesWithoutTarget = 0;
+	if (TestNotNull(TEXT("il TurnManager e' nel mondo"), Manager))
+	{
+		for (const FRTTurnLogEntry& Entry : Manager->GetTurnLog())
+		{
+			if (Entry.Category != ERTLogCategory::ReactionDecision) { continue; }
+			if (Entry.Outcome != static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen)) { continue; }
+			++FireEntries;
+			if (Entry.Amount > 0) { ++FireEntriesWithDamage; }
+			if (Entry.SelectedTargetUnitId == INDEX_NONE) { ++FireEntriesWithoutTarget; }
+		}
+	}
+
+	// La premessa del caso: due watcher, due finestre, due `FIRE` scelti. Se questa cade, non e' il difetto ad
+	// essere assente — e' lo scenario a non descriverlo, e va corretto prima di leggere la riga dopo.
+	TestEqual(TEXT("due `FIRE` sono stati scelti, uno per watcher"), FireEntries, 2);
+
+	// 🔴 IL PUNTO: **uno solo** dei due ha inflitto danno. L'altro ha sparato a un bersaglio gia' a terra, e il
+	// TurnLog non deve dichiarare un danno che non e' stato inflitto.
+	TestEqual(TEXT("una sola voce dichiara danno: il secondo colpisce un bersaglio gia' abbattuto"),
+		FireEntriesWithDamage, 1);
+
+	// 🔴 **Ogni `FireChosen` deve NOMINARE il proprio bersaglio, anche quello che non ha colpito.**
+	// `ArmRecordedReactionDecisions` ricostruisce la risposta dal log — `FireResponse(SelectedTargetUnitId)` —
+	// quindi una voce senza bersaglio diventa `"FIRE:-1"`, che `IsResponseAllowed` rifiuta: rieseguendo la
+	// partita come Verifier si otterrebbe una divergenza spuria, `HoldRejected` al posto di `FireChosen` e un
+	// hash del turno diverso dall'originale. La prima stesura di questo fix aveva proprio quel difetto, e a
+	// trovarlo e' stata una code review: nessun test rieseguiva come Verifier una partita con due `FIRE`.
+	TestEqual(TEXT("ogni `FIRE` registrato nomina il bersaglio: la traccia resta rigiocabile"),
+		FireEntriesWithoutTarget, 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+
+// ─── E14.7 · Reaction Clash ([D-048], [D-049]) ──────────────────────────────────────────────────────────
+//
+// Il Clash e' logica su `AllowedResponses`: chi le produce — profilo d'eroe, condizione dichiarata, catalogo
+// — non lo riguarda. Per questo i test qui sotto costruiscono i partecipanti a mano invece di passare dal
+// `Brace`: il profilo e' D-047 e vive in `Ability/`, che questa track ha CHIESTO e non possiede.
+
+namespace
+{
+	/** Un partecipante con `N` risposte legali, sintetiche: qui conta la cardinalita', non il contenuto. */
+	FRTReactionParticipant MakeContender(int32 UnitId, int32 ResponseCount)
+	{
+		FRTReactionOpportunity Opp;
+		Opp.Key.TurnNumber = 3;
+		Opp.Key.MacroPhase = ERTMatchPhase::Move;
+		Opp.Key.OwnerId = UnitId;
+		Opp.Key.ReactionDefId = FName(TEXT("Action.Brace"));
+		for (int32 I = 0; I < ResponseCount; ++I)
+		{
+			Opp.AllowedResponses.Add(FString::Printf(TEXT("RESPONSE_%d"), I));
+		}
+		return FRTReactionParticipant(UnitId, Opp);
+	}
+}
+
+/**
+ * **Contested e' DERIVATO, non dichiarato** ([D-048], §3.1) — e la meta' negativa e' quella che conta.
+ *
+ * Non esiste un campo `Type = Clash` da leggere: il criterio e' *quanti partecipanti hanno una scelta vera*.
+ * Il test verifica le tre configurazioni che la spec distingue, e la seconda e' quella che §3.2 mette per
+ * iscritto in negativo: due partecipanti di cui **uno obbligato** non sono un Clash. Senza quel caso, un
+ * `IsContested` scritto come «ci sono due partecipanti» passerebbe — ed e' l'implementazione sbagliata piu'
+ * naturale da scrivere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashContestedIsDerivedTest,
+	"RefactorTactics.Clash.ContestedIsDerivedNotDeclared",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashContestedIsDerivedTest::RunTest(const FString&)
+{
+	// (a) due partecipanti con scelta vera ciascuno -> CONTESTED
+	{
+		FRTContestedBoundary B;
+		B.Participants = { MakeContender(1, 2), MakeContender(9, 3) };
+		TestTrue(TEXT("due partecipanti con >= 2 risposte ciascuno: contested"),
+			URTReactionOpportunityLibrary::IsContested(B));
+		TestEqual(TEXT("e sono due ad avere una scelta"),
+			URTReactionOpportunityLibrary::CountParticipantsWithChoice(B), 2);
+	}
+
+	// (b) LA META' NEGATIVA: due partecipanti, ma uno ha una risposta obbligata. §3.2 lo esclude per nome.
+	{
+		FRTContestedBoundary B;
+		B.Participants = { MakeContender(1, 2), MakeContender(9, 1) };
+		TestFalse(TEXT("un partecipante obbligato non fa un Clash: si degrada a single-responder"),
+			URTReactionOpportunityLibrary::IsContested(B));
+		TestEqual(TEXT("uno solo ha una scelta"),
+			URTReactionOpportunityLibrary::CountParticipantsWithChoice(B), 1);
+	}
+
+	// (c) e zero risposte non e' «una scelta»: e' il caso degenere, non il contested.
+	{
+		FRTContestedBoundary B;
+		B.Participants = { MakeContender(1, 0), MakeContender(9, 0) };
+		TestFalse(TEXT("nessuno con una scelta: nessun Clash"),
+			URTReactionOpportunityLibrary::IsContested(B));
+	}
+
+	// (d) il criterio NON e' il numero di partecipanti: tre partecipanti tutti obbligati restano non-contested.
+	{
+		FRTContestedBoundary B;
+		B.Participants = { MakeContender(1, 1), MakeContender(5, 1), MakeContender(9, 1) };
+		TestFalse(TEXT("tre partecipanti senza scelta non fanno un Clash"),
+			URTReactionOpportunityLibrary::IsContested(B));
+	}
+
+	return true;
+}
+
+/**
+ * L'ordine dei lock e' **canonico**, non di arrivo (§7.3).
+ *
+ * Il momento in cui ciascuno blocca la propria scelta e' precisamente cio' che §7.1 tiene non osservabile:
+ * se il TurnLog registrasse i due lock nell'ordine di arrivo, due esecuzioni della stessa partita
+ * produrrebbero tracce diverse e l'hash divergerebbe — la dipendenza dal tempo reale che l'invariante #4
+ * vieta.
+ *
+ * ⚠️ Il test costruisce l'array **al contrario** di proposito: con i partecipanti gia' in ordine passerebbe
+ * anche un'implementazione che non ordina affatto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashLockOrderIsCanonicalTest,
+	"RefactorTactics.Clash.LockOrderIsCanonicalNotArrival",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashLockOrderIsCanonicalTest::RunTest(const FString&)
+{
+	FRTContestedBoundary B;
+	B.Participants = { MakeContender(9, 2), MakeContender(1, 2) }; // arrivo: 9 poi 1
+
+	URTReactionOpportunityLibrary::SortParticipantsCanonically(B);
+
+	if (!TestEqual(TEXT("i partecipanti restano due"), B.Participants.Num(), 2)) { return false; }
+	TestEqual(TEXT("primo in ordine canonico"), B.Participants[0].UnitId, 1);
+	TestEqual(TEXT("secondo in ordine canonico"), B.Participants[1].UnitId, 9);
+
+	// Due ordinamenti dello stesso insieme danno la stessa sequenza: e' l'invariante che rende la traccia
+	// riproducibile, e si verifica ordinando una seconda volta un array gia' ordinato.
+	FRTContestedBoundary Again;
+	Again.Participants = { MakeContender(1, 2), MakeContender(9, 2) }; // arrivo opposto
+	URTReactionOpportunityLibrary::SortParticipantsCanonically(Again);
+	TestEqual(TEXT("l'ordine non dipende da come sono arrivati"),
+		Again.Participants[0].UnitId, B.Participants[0].UnitId);
+
+	return true;
+}
+
+/**
+ * Il reveal avviene **alla scadenza**, mai all'arrivo del secondo lock (§7.1).
+ *
+ * In un resolver che non dipende dal tempo reale la regola non puo' essere un timer: diventa «nessun esito
+ * e' osservabile finche' non hanno lockato tutti». Il test verifica le tre configurazioni, e la seconda e'
+ * quella che morde — **un lock su due non rivela niente**, nemmeno l'esito di chi ha gia' scelto.
+ *
+ * ⚠️ Se il reveal anticipasse, un giocatore saprebbe *quando* l'altro ha deciso: e' la latenza di decisione
+ * come lettura dell'avversario, che §7.1 esiste per negare. Qui si vede come assenza di dati.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashRevealIsFixedDeadlineTest,
+	"RefactorTactics.Clash.RevealIsFixedDeadline",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashRevealIsFixedDeadlineTest::RunTest(const FString&)
+{
+	using Lib = URTReactionOpportunityLibrary;
+
+	FRTContestedBoundary B;
+	B.Participants = { MakeContender(1, 2), MakeContender(9, 2) };
+
+	// (a) NESSUN lock: niente da rivelare.
+	{
+		const FRTClashResolution R = Lib::ResolveContestedBoundary(B, {});
+		TestFalse(TEXT("senza lock non si rivela niente"), R.bRevealed);
+		TestEqual(TEXT("e non c'e' alcun esito da leggere"), R.Outcomes.Num(), 0);
+	}
+
+	// (b) UN lock su due: e' il caso che la regola protegge. Chi ha lockato non deve poter essere dedotto.
+	{
+		const TArray<FRTContestedLock> Solo = { { 1, TEXT("RESPONSE_0"), ERTGrammarIntent::Read } };
+		const FRTClashResolution R = Lib::ResolveContestedBoundary(B, Solo);
+		TestFalse(TEXT("un lock su due NON rivela"), R.bRevealed);
+		TestEqual(TEXT("nessun esito"), R.Outcomes.Num(), 0);
+		TestEqual(TEXT("e nemmeno l'elenco di chi ha lockato"), R.UnitIds.Num(), 0);
+	}
+
+	// (c) entrambi: solo ora si rivela, e per tutti insieme.
+	{
+		const TArray<FRTContestedLock> Both = {
+			{ 1, TEXT("RESPONSE_0"), ERTGrammarIntent::Read },
+			{ 9, TEXT("RESPONSE_1"), ERTGrammarIntent::Stand }
+		};
+		const FRTClashResolution R = Lib::ResolveContestedBoundary(B, Both);
+		TestTrue(TEXT("con tutti i lock si rivela"), R.bRevealed);
+		TestEqual(TEXT("due esiti, uno per partecipante"), R.Outcomes.Num(), 2);
+		if (R.Outcomes.Num() == 2)
+		{
+			// READ batte STAND, e l'unita' 1 e' la prima in ordine canonico.
+			TestTrue(TEXT("chi ha letto vince"), R.Outcomes[0] == ERTClashOutcome::Win);
+			TestTrue(TEXT("e chi ha tenuto perde"), R.Outcomes[1] == ERTClashOutcome::Lose);
+		}
+	}
+
+	// (d) l'ORDINE DI ARRIVO non cambia l'esito: e' l'invariante #4. Gli stessi due lock, invertiti.
+	{
+		const TArray<FRTContestedLock> Ordine1 = {
+			{ 1, TEXT("RESPONSE_0"), ERTGrammarIntent::Read },
+			{ 9, TEXT("RESPONSE_1"), ERTGrammarIntent::Stand }
+		};
+		const TArray<FRTContestedLock> Ordine2 = {
+			{ 9, TEXT("RESPONSE_1"), ERTGrammarIntent::Stand },
+			{ 1, TEXT("RESPONSE_0"), ERTGrammarIntent::Read }
+		};
+		const FRTClashResolution R1 = Lib::ResolveContestedBoundary(B, Ordine1);
+		const FRTClashResolution R2 = Lib::ResolveContestedBoundary(B, Ordine2);
+
+		TestEqual(TEXT("stesso ordine canonico in uscita"), R2.UnitIds, R1.UnitIds);
+		TestTrue(TEXT("stesso esito per il primo"), R1.Outcomes[0] == R2.Outcomes[0]);
+		TestTrue(TEXT("stesso esito per il secondo"), R1.Outcomes[1] == R2.Outcomes[1]);
+	}
+
+	// (e) un lock di chi NON partecipa non apre il reveal, e uno duplicato non vale per due.
+	{
+		const TArray<FRTContestedLock> Estranei = {
+			{ 1, TEXT("RESPONSE_0"), ERTGrammarIntent::Read },
+			{ 1, TEXT("RESPONSE_1"), ERTGrammarIntent::Shift }, // duplicato dello stesso partecipante
+			{ 77, TEXT("RESPONSE_0"), ERTGrammarIntent::Stand } // non e' un partecipante
+		};
+		const FRTClashResolution R = Lib::ResolveContestedBoundary(B, Estranei);
+		TestFalse(TEXT("tre lock che non coprono i due partecipanti non rivelano"), R.bRevealed);
+	}
+
+	return true;
+}
+
+/**
+ * Il **pareggio** si applica una volta per partecipante, e non e' il fallimento di nessuno (§5).
+ *
+ * `Tie` non e' «nessuno dei due ha ottenuto qualcosa»: e' un esito dichiarato, che la maneuver traduce in
+ * effetti propri — per `Hold Ground` e' *«nessun displacement»*, che e' esattamente cio' che il difensore
+ * voleva. Il test verifica che **entrambi** lo ricevano, una volta ciascuno: un `Tie` applicato due volte
+ * allo stesso partecipante raddoppierebbe l'effetto della maneuver.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashTieAppliesOnceTest,
+	"RefactorTactics.Clash.TieAppliesOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashTieAppliesOnceTest::RunTest(const FString&)
+{
+	using Lib = URTReactionOpportunityLibrary;
+
+	FRTContestedBoundary B;
+	B.Participants = { MakeContender(3, 2), MakeContender(5, 2) };
+
+	// Stessa intenzione da entrambi: e' il pareggio.
+	const TArray<FRTContestedLock> Locks = {
+		{ 3, TEXT("RESPONSE_0"), ERTGrammarIntent::Shift },
+		{ 5, TEXT("RESPONSE_0"), ERTGrammarIntent::Shift }
+	};
+
+	const FRTClashResolution R = Lib::ResolveContestedBoundary(B, Locks);
+
+	if (!TestTrue(TEXT("il boundary si rivela"), R.bRevealed)) { return false; }
+	TestEqual(TEXT("un esito per partecipante, non di piu'"), R.Outcomes.Num(), 2);
+	TestEqual(TEXT("e un partecipante per esito"), R.UnitIds.Num(), 2);
+
+	int32 Ties = 0;
+	for (ERTClashOutcome O : R.Outcomes) { if (O == ERTClashOutcome::Tie) { ++Ties; } }
+	TestEqual(TEXT("entrambi pareggiano"), Ties, 2);
+
+	// Nessun partecipante compare due volte: e' cio' che «una volta sola» significa in pratica.
+	TestTrue(TEXT("i due esiti appartengono a due unita' diverse"), R.UnitIds[0] != R.UnitIds[1]);
+
+	return true;
+}
+
+/**
+ * **Ogni risposta che un profilo offre esiste come maneuver, e dichiara un'intenzione** (§5, §11).
+ *
+ * E' il test che tiene insieme le due metà di E14.7: `Ability/` dichiara **quali** risposte un eroe offre,
+ * `Turn/` dichiara **cosa sono**. Se le due liste divergessero — una risposta senza maneuver — il Clash
+ * confronterebbe un'intenzione inventata dal fallback, e nessuno se ne accorgerebbe: `FindManeuver`
+ * restituisce `STAND` per gli id sconosciuti, quindi il difetto sarebbe **silenzioso e verde**.
+ *
+ * ⚠️ Il test parte dal **catalogo dei profili** e non da una lista scritta qui: una lista a mano tornerebbe
+ * verde il giorno in cui qualcuno aggiunge un profilo e dimentica la maneuver — cioè esattamente il giorno
+ * in cui deve diventare rossa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashEveryResponseHasAManeuverTest,
+	"RefactorTactics.Clash.EveryProfileResponseHasAManeuver",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashEveryResponseHasAManeuverTest::RunTest(const FString&)
+{
+	using Lib = URTReactionOpportunityLibrary;
+
+	// Gli id noti al catalogo delle maneuver, per confronto.
+	TSet<FName> Known;
+	for (const FRTManeuverDef& M : Lib::GetManeuverCatalog()) { Known.Add(M.ManeuverId); }
+
+	int32 Checked = 0;
+	for (const FRTReactionProfileDef& Profile : URTCatalogLibrary::GetReactionProfileCatalog())
+	{
+		// Ogni risposta del profilo, `Hold Ground` compresa: si parte da cio' che l'eroe offre davvero.
+		for (const FString& Response : URTCatalogLibrary::BraceAllowedResponses(Profile.ProfileId))
+		{
+			++Checked;
+			const FName Id(*Response);
+			TestTrue(FString::Printf(TEXT("'%s' (profilo %s) esiste nel catalogo delle maneuver"),
+				*Response, *Profile.ProfileId.ToString()), Known.Contains(Id));
+		}
+	}
+
+	// Il conteggio impedisce al test di essere vacuo su un catalogo vuoto: tre profili, e `Glance` ne porta
+	// tre risposte contro le due degli altri due.
+	TestEqual(TEXT("le risposte controllate sono sette (2 + 2 + 3)"), Checked, 7);
+
+	// E la maneuver universale dichiara `STAND`: e' il fallback di §9 per il difensore, e se dichiarasse
+	// un'altra intenzione il timeout porterebbe in partita una scelta che nessuno ha fatto.
+	TestTrue(TEXT("`Hold Ground` e' STAND"),
+		Lib::FindManeuver(FName(TEXT("Hold Ground"))).Intent == ERTGrammarIntent::Stand);
+
+	// Le tre dei profili coprono tutte e tre le intenzioni: senza, la matrice avrebbe rami irraggiungibili
+	// col roster reale — un ciclo di cui il gioco userebbe solo un lato.
+	TSet<ERTGrammarIntent> Covered;
+	for (const FRTManeuverDef& M : Lib::GetManeuverCatalog()) { Covered.Add(M.Intent); }
+	TestEqual(TEXT("il roster copre tutte e tre le intenzioni della grammatica"), Covered.Num(), 3);
+
+	return true;
+}
+
+/**
+ * Il costo si consuma al **lock valido, anche perdendo** (§9).
+ *
+ * E' la regola che rende la scelta una scelta: senza, *«provo comunque, tanto se perdo non costa nulla»* la
+ * svuota — ed e' precisamente cio' che il Clash esiste per creare.
+ *
+ * ⚠️ Il test verifica **chi perde**, non chi vince: che il vincitore paghi e' l'aspettativa ingenua e
+ * passerebbe anche con un'implementazione che rimborsa lo sconfitto. La meta' che morde e' l'altra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashCostConsumedOnLockTest,
+	"RefactorTactics.Clash.CostConsumedOnLock",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashCostConsumedOnLockTest::RunTest(const FString&)
+{
+	using Lib = URTReactionOpportunityLibrary;
+
+	FRTContestedBoundary B;
+	B.Participants = { MakeContender(2, 2), MakeContender(8, 2) };
+
+	// L'unita' 2 legge, l'8 tiene: READ batte STAND, quindi 8 PERDE. Entrambe le maneuver hanno un costo.
+	FRTContestedLock Vincente(2, TEXT("RESPONSE_0"), ERTGrammarIntent::Read);
+	Vincente.bManeuverHasCost = true;
+	FRTContestedLock Perdente(8, TEXT("RESPONSE_1"), ERTGrammarIntent::Stand);
+	Perdente.bManeuverHasCost = true;
+
+	const TArray<FRTContestedLock> Locks = { Vincente, Perdente };
+	const FRTClashResolution R = Lib::ResolveContestedBoundary(B, Locks);
+	if (!TestTrue(TEXT("il boundary si rivela"), R.bRevealed)) { return false; }
+
+	const TArray<int32> Paganti = Lib::UnitsConsumingCost(Locks, R);
+
+	TestEqual(TEXT("pagano entrambi: vincitore e perdente"), Paganti.Num(), 2);
+	TestTrue(TEXT("chi ha PERSO paga lo stesso"), Paganti.Contains(8));
+	TestTrue(TEXT("e chi ha vinto anche"), Paganti.Contains(2));
+
+	// La policy diversa che §9 lascia dichiarare alla maneuver: dichiarata, e solo allora, il perdente non paga.
+	{
+		FRTContestedLock PerdenteRimborsato = Perdente;
+		PerdenteRimborsato.bRefundIfLost = true;
+		const TArray<FRTContestedLock> ConPolicy = { Vincente, PerdenteRimborsato };
+		const FRTClashResolution R2 = Lib::ResolveContestedBoundary(B, ConPolicy);
+		const TArray<int32> Paganti2 = Lib::UnitsConsumingCost(ConPolicy, R2);
+
+		TestEqual(TEXT("con la policy dichiarata paga solo il vincitore"), Paganti2.Num(), 1);
+		TestTrue(TEXT("ed e' il vincitore"), Paganti2.Contains(2));
+	}
+
+	// Una maneuver gratuita non consuma niente, e non e' la stessa cosa di una che rimborsa.
+	{
+		FRTContestedLock Gratuita(8, TEXT("RESPONSE_1"), ERTGrammarIntent::Stand); // bManeuverHasCost = false
+		const TArray<FRTContestedLock> ConGratuita = { Vincente, Gratuita };
+		const FRTClashResolution R3 = Lib::ResolveContestedBoundary(B, ConGratuita);
+		const TArray<int32> Paganti3 = Lib::UnitsConsumingCost(ConGratuita, R3);
+		TestEqual(TEXT("una maneuver senza costo non consuma"), Paganti3.Num(), 1);
+	}
+
+	// ⛔ E prima del reveal nessuno paga: il costo e' osservabile quanto un esito.
+	{
+		const TArray<FRTContestedLock> UnSolo = { Vincente };
+		const FRTClashResolution Parziale = Lib::ResolveContestedBoundary(B, UnSolo);
+		TestEqual(TEXT("prima del reveal nessuno consuma"),
+			Lib::UnitsConsumingCost(UnSolo, Parziale).Num(), 0);
+	}
+
+	return true;
+}
+
+/**
+ * Le voci di TurnLog nascono **al reveal**, tutte insieme e in ordine canonico (§10).
+ *
+ * 🔴 La meta' che morde e' la **negativa**: prima del reveal il boundary non lascia **una** voce. Se
+ * `ChoiceLocked` fosse scritto all'arrivo del lock, l'ordine delle righe direbbe chi ha deciso per primo —
+ * la latenza di decisione come informazione, che §7.1 esiste per negare. Il log e' un canale come un altro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashHiddenUntilRevealTest,
+	"RefactorTactics.Clash.HiddenUntilReveal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashHiddenUntilRevealTest::RunTest(const FString&)
+{
+	using Lib = URTReactionOpportunityLibrary;
+
+	FRTContestedBoundary B;
+	B.Key.TurnNumber = 4;
+	B.Key.MacroPhase = ERTMatchPhase::Move;
+	B.Key.OwnerId = 2;
+	B.Key.ReactionDefId = FName(TEXT("Action.Brace"));
+	B.Participants = { MakeContender(2, 2), MakeContender(8, 2) };
+
+	FRTContestedLock A(2, TEXT("RESPONSE_0"), ERTGrammarIntent::Read);
+	A.bManeuverHasCost = true;
+	const FRTContestedLock C(8, TEXT("RESPONSE_1"), ERTGrammarIntent::Stand);
+
+	// (a) LA META' NEGATIVA: con un lock su due, zero voci. Nemmeno l'apertura del boundary.
+	{
+		const TArray<FRTContestedLock> Parziali = { A };
+		const FRTClashResolution R = Lib::ResolveContestedBoundary(B, Parziali);
+		const TArray<FRTTurnLogEntry> Entries = Lib::MakeClashLogEntries(B, Parziali, R);
+		TestEqual(TEXT("prima del reveal il TurnLog non riceve una sola voce"), Entries.Num(), 0);
+	}
+
+	// (b) al reveal nascono tutte, e si contano per tipo invece che a occhio.
+	const TArray<FRTContestedLock> Locks = { A, C };
+	const FRTClashResolution R = Lib::ResolveContestedBoundary(B, Locks);
+	const TArray<FRTTurnLogEntry> Entries = Lib::MakeClashLogEntries(B, Locks, R);
+
+	auto CountEvent = [&Entries](ERTClashLogEvent Ev)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : Entries)
+		{
+			if (E.Category == ERTLogCategory::ReactionClash
+				&& static_cast<ERTClashLogEvent>(E.Outcome) == Ev) { ++N; }
+		}
+		return N;
+	};
+
+	TestEqual(TEXT("una apertura"), CountEvent(ERTClashLogEvent::OpportunityCreated), 1);
+	TestEqual(TEXT("due lock, uno per partecipante"), CountEvent(ERTClashLogEvent::ChoiceLocked), 2);
+	TestEqual(TEXT("un reveal"), CountEvent(ERTClashLogEvent::Revealed), 1);
+	TestEqual(TEXT("un confronto"), CountEvent(ERTClashLogEvent::Compared), 1);
+	TestEqual(TEXT("due esiti"), CountEvent(ERTClashLogEvent::OutcomeResolved), 2);
+	TestEqual(TEXT("un solo costo: una delle due maneuver e' gratuita"),
+		CountEvent(ERTClashLogEvent::CostConsumed), 1);
+
+	// Ogni voce porta l'identita' del boundary: senza, il replay non saprebbe a quale finestra appartengono.
+	const FString Expected = Lib::DeriveOpportunityId(B.Key);
+	int32 SenzaId = 0;
+	for (const FRTTurnLogEntry& E : Entries) { if (E.OpportunityId != Expected) { ++SenzaId; } }
+	TestEqual(TEXT("ogni voce nomina il proprio boundary"), SenzaId, 0);
+
+	// (c) i due `ChoiceLocked` sono in ordine CANONICO, non di arrivo: lo si prova invertendo i lock.
+	{
+		const TArray<FRTContestedLock> Invertiti = { C, A };
+		const FRTClashResolution R2 = Lib::ResolveContestedBoundary(B, Invertiti);
+		const TArray<FRTTurnLogEntry> E2 = Lib::MakeClashLogEntries(B, Invertiti, R2);
+
+		TArray<int32> Ordine1, Ordine2;
+		for (const FRTTurnLogEntry& E : Entries) {
+			if (static_cast<ERTClashLogEvent>(E.Outcome) == ERTClashLogEvent::ChoiceLocked) { Ordine1.Add(E.UnitId); } }
+		for (const FRTTurnLogEntry& E : E2) {
+			if (static_cast<ERTClashLogEvent>(E.Outcome) == ERTClashLogEvent::ChoiceLocked) { Ordine2.Add(E.UnitId); } }
+
+		TestEqual(TEXT("l'ordine dei lock nel log non dipende da chi e' arrivato prima"), Ordine2, Ordine1);
+		if (Ordine1.Num() == 2) { TestTrue(TEXT("ed e' crescente per UnitId"), Ordine1[0] < Ordine1[1]); }
+	}
+
+	return true;
+}
+
+/**
+ * La grammatica e' un **ciclo**: `READ > STAND > SHIFT > READ` ([D-049], §4.1).
+ *
+ * Le tre relazioni si verificano tutte e in **entrambi i versi** — se `A` batte `B`, `B` deve perdere contro
+ * `A` — piu' i tre pareggi. Senza l'antisimmetria una tabella che restituisse `+1` a chiunque passerebbe la
+ * meta' delle asserzioni.
+ *
+ * ⚠️ E si verifica che **nessuna intenzione domini**: ognuna vince una volta e perde una volta. E' la
+ * proprieta' che rende la scelta una lettura dell'avversario invece di un calcolo — se una dominasse, il
+ * Clash sarebbe risolto prima di cominciare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTClashGrammarIsACycleTest,
+	"RefactorTactics.Clash.GrammarIsACycle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTClashGrammarIsACycleTest::RunTest(const FString&)
+{
+	using Lib = URTReactionOpportunityLibrary;
+	const ERTGrammarIntent Stand = ERTGrammarIntent::Stand;
+	const ERTGrammarIntent Read  = ERTGrammarIntent::Read;
+	const ERTGrammarIntent Shift = ERTGrammarIntent::Shift;
+
+	TestEqual(TEXT("READ batte STAND"),  Lib::CompareGrammarIntents(Read, Stand),  1);
+	TestEqual(TEXT("STAND batte SHIFT"), Lib::CompareGrammarIntents(Stand, Shift), 1);
+	TestEqual(TEXT("SHIFT batte READ"),  Lib::CompareGrammarIntents(Shift, Read),  1);
+
+	// L'altro verso, che rende la matrice antisimmetrica invece che «vince sempre il primo argomento».
+	TestEqual(TEXT("STAND perde contro READ"),  Lib::CompareGrammarIntents(Stand, Read),  -1);
+	TestEqual(TEXT("SHIFT perde contro STAND"), Lib::CompareGrammarIntents(Shift, Stand), -1);
+	TestEqual(TEXT("READ perde contro SHIFT"),  Lib::CompareGrammarIntents(Read, Shift),  -1);
+
+	TestEqual(TEXT("STAND pareggia con se stesso"), Lib::CompareGrammarIntents(Stand, Stand), 0);
+	TestEqual(TEXT("READ pareggia con se stesso"),  Lib::CompareGrammarIntents(Read, Read),   0);
+	TestEqual(TEXT("SHIFT pareggia con se stesso"), Lib::CompareGrammarIntents(Shift, Shift), 0);
+
+	// Nessuna intenzione domina: ognuna vince esattamente una volta e perde esattamente una volta.
+	const ERTGrammarIntent All[] = { Stand, Read, Shift };
+	for (ERTGrammarIntent A : All)
+	{
+		int32 Wins = 0, Losses = 0;
+		for (ERTGrammarIntent B : All)
+		{
+			if (A == B) { continue; }
+			const int32 R = Lib::CompareGrammarIntents(A, B);
+			if (R > 0) { ++Wins; } else if (R < 0) { ++Losses; }
+		}
+		TestEqual(TEXT("ogni intenzione vince una volta sola"), Wins, 1);
+		TestEqual(TEXT("e perde una volta sola"), Losses, 1);
+	}
+
+	return true;
+}
+
+/**
+ * **La scelta sicura preferisce `HOLD` quando c'e', e altrimenti prende la prima** — e l'ordine dei due rami
+ * e' la regola, non un dettaglio di scrittura.
+ *
+ * 🔴 **Il caso che questo test esiste per impedire**: `DecisionOnTimeout` restituiva la costante `HOLD` e il
+ * commento dichiarava che «il valore non dipende dall'opportunity». Era vero finche' l'unico produttore di
+ * finestre era l'Overwatch; il `Brace` di [D-047] chiama la propria scelta sicura `Hold Ground`, e con la
+ * costante ognuna delle sue finestre sarebbe scaduta su una risposta **fuori** dalle proprie
+ * `AllowedResponses` — cioe' il resolver avrebbe applicato una risposta che lui stesso considera illegale.
+ *
+ * ⚠️ E la meta' che protegge l'Overwatch e' la prima: li' `HOLD` sta in **coda**, dopo i `FIRE:`. Una
+ * `SafeResponse` scritta come «prendi la prima» sparerebbe allo scadere della finestra, che e' esattamente
+ * cio' che ADR-0004 §3 vieta con l'argomento asimmetrico — un input mancato non spende una risorsa
+ * irreversibile. Le due meta' sono l'una il controllo dell'altra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSafeResponsePrefersHoldTest,
+	"RefactorTactics.Reactions.SafeResponsePrefersHoldWhenOffered",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSafeResponsePrefersHoldTest::RunTest(const FString&)
+{
+	using Lib = URTReactionOpportunityLibrary;
+
+	// (a) Vocabolario dell'Overwatch, nell'ordine REALE che `BuildOverwatchTriggers` produce: i `FIRE:` e
+	// `HOLD` in coda. La prima risposta e' uno sparo, e non dev'essere l'esito di una scadenza.
+	{
+		FRTReactionOpportunity Opp;
+		Opp.AllowedResponses = { Lib::FireResponse(7), Lib::FireResponse(9), Lib::HoldResponse() };
+
+		TestEqual(TEXT("con `HOLD` in coda la scelta sicura resta `HOLD`"),
+			Lib::SafeResponse(Opp), Lib::HoldResponse());
+		TestEqual(TEXT("e la scadenza non spara"),
+			Lib::DecisionOnTimeout(Opp).Response, Lib::HoldResponse());
+		TestEqual(TEXT("l'esito dice da dove viene"),
+			Lib::DecisionOnTimeout(Opp).Outcome, ERTReactionDecisionOutcome::HoldTimeout);
+	}
+
+	// (b) Vocabolario del `Brace`: nessun `HOLD`, e la scelta sicura e' la prima — che il catalogo tiene in
+	// testa proprio per questo. La risposta dev'essere LEGALE, ed e' l'asserzione che il caso richiede:
+	// un ripiego fuori dall'elenco sarebbe un `IsResponseAllowed` falso deciso dal resolver stesso.
+	{
+		FRTReactionOpportunity Opp;
+		Opp.AllowedResponses = URTCatalogLibrary::BraceExecutableResponses(TEXT("Profile.Sidestep"));
+
+		TestEqual(TEXT("senza `HOLD` la scelta sicura e' la prima"),
+			Lib::SafeResponse(Opp), FString(TEXT("Hold Ground")));
+		TestTrue(TEXT("ed e' una risposta LEGALE per quella finestra"),
+			Lib::IsResponseAllowed(Opp, Lib::SafeResponse(Opp)));
+		TestFalse(TEXT("mentre `HOLD` non lo sarebbe"),
+			Lib::IsResponseAllowed(Opp, Lib::HoldResponse()));
+	}
+
+	// (c) Elenco vuoto: nessuna prima da prendere, e non se ne inventa una. Con zero risposte
+	// `RequiresDecisionBoundary` e' falso, quindi quella finestra non si e' mai aperta.
+	{
+		FRTReactionOpportunity Opp;
+		TestEqual(TEXT("elenco vuoto: `HOLD`"), Lib::SafeResponse(Opp), Lib::HoldResponse());
+		TestFalse(TEXT("e nessun boundary si era aperto"), Lib::RequiresDecisionBoundary(Opp));
+	}
 
 	return true;
 }

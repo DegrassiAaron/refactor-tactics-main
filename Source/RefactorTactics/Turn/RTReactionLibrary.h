@@ -197,4 +197,35 @@ public:
 	 * stato di controllo. E' l'unico modo in cui il resolver deve confrontare due controlli fra loro.
 	 */
 	static int32 ControlSeverityRank(const FGameplayTag& Tag);
+
+	/**
+	 * La cella in cui `SIDESTEP` porta chi reagisce: **fuori dalla linea di spinta**, di una cella
+	 * ([D-047] §2.5-bis, `Profile.Sidestep`).
+	 *
+	 * 🔴 **Perche' non «lungo la linea», che e' come era scritta fino al 2026-08-19.** `SelfReposition`
+	 * allontana dalla sorgente, cioe' nella stessa direzione in cui la spinta voleva mandare l'unita' — e il
+	 * ramo `Status.Braced` blocca gia' la spinta a **qualunque** distanza. Il risultato era una risposta
+	 * **strettamente dominata**: `Hold Ground` teneva la cella, `SIDESTEP` la cedeva di una, con lo stesso
+	 * danno. Un decision boundary in cui una delle due opzioni e' sempre peggiore non e' una scelta, ed e'
+	 * peggio di nessun boundary — costa un prompt e non compra niente. Trovato da una code review.
+	 *
+	 * ∴ si esce dalla **linea**: candidate sono i vicini di `From` **meno** i due che stanno sulla linea —
+	 * quello verso cui la spinta spinge, e quello da cui arriva. Restano quattro celle, e la scelta fra loro
+	 * segue il precedente gia' in vigore per `Reaction.HazardEscape`
+	 * (`URTTerrainLibrary::FindEscapeCell`), invece di inventarne uno secondo:
+	 *
+	 *   1. **la cella che si ha DAVANTI**, se e' fra le candidate — cosi' la fuga e' prevedibile guardando il
+	 *      campo, senza conoscere l'ordine interno delle direzioni ([D-104]);
+	 *   2. altrimenti l'**ordine canonico** `E, NE, NW, W, SW, SE` — arbitrario per il giocatore ma
+	 *      DICHIARATO e stabile, quindi due situazioni identiche danno lo stesso scarto;
+	 *   3. se nessuna e' praticabile, **`From`**: chi chiama lo legge come «non c'e' dove scartare» e ripiega
+	 *      su `Hold Ground`. ⚠️ E' l'opposto di `EmergencyDash`, che in quel caso **si spreca**: li' una
+	 *      reazione si consuma, qui `Hold Ground` non e' una risorsa — chi sceglie di scartare non deve
+	 *      finire meno protetto di chi non ha scelto affatto.
+	 *
+	 * Praticabile = raggiungibile sul **grafo** (`GraphNeighbors`: archi e dislivelli contano, non i sei
+	 * vicini geometrici) e non occupata. Pura e fail-closed: senza mappa autorevole restituisce `From`.
+	 */
+	static FRTCellId FindSidestepCell(const URTHexMapAsset* Map, const FRTCellId& From,
+		const FRTCellId& PushFrom, ERTHexDirection Facing, const TArray<FRTCellId>& Occupied);
 };

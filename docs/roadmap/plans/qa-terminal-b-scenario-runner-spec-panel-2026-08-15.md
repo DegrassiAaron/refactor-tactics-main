@@ -4,7 +4,7 @@
 > correzioni sono nel commit che accompagna questo referto ·
 > **Data**: 2026-08-15
 > **HEAD della revisione**: `964e1b57` (`origin/main`), worktree `D:/rt-spatial`, working tree pulito
-> **Oggetto**: [`../../technical/qa-prompt-terminal-b-scenario-runner.md`](../../technical/qa-prompt-terminal-b-scenario-runner.md)
+> **Oggetto**: `../../technical/runbooks/qa-prompt-terminal-b-scenario-runner.md`
 > — **v2**, 199 righe, versionato con PR #900 (`79f61f92`, antenato di `main`).
 > **Panel**: Wiegers (lead) · Crispin · Adzic · Cockburn · Nygard · Fowler
 > **Modo**: critique · **Focus**: requirements + testing
@@ -280,7 +280,7 @@ capovolto rimisurando. La regola non ha eccezioni per chi la scrive.
 ## 5. Ciò che questo referto **non** ha applicato
 
 ✅ **Le due correzioni all'owner sono state applicate**, su decisione esplicita dell'autore del repository
-dopo la chiusura del referto. [`../../technical/test-automatico-unreal.md`](../../technical/test-automatico-unreal.md)
+dopo la chiusura del referto. [`../../technical/tooling/test-automatico-unreal.md`](../../technical/tooling/test-automatico-unreal.md)
 era indietro su due righe misurate:
 
 | Sezione | Diceva | Misura | Esito |

@@ -68,9 +68,9 @@ I **tre delta reali** sono assenze, e nessuna è nel testo del sorgente:
    **inverte**, ed è la ragione dell'ordine fra i due checkpoint.
 
 Le sole regole **nuove** sono di privacy e ownership: nemico non rilevato fuori dall'hover, ghost alleato
-in sola lettura. Owner: [`../../technical/spec-pointer-interaction.md`](../../technical/spec-pointer-interaction.md).
+in sola lettura. Owner: [`../../technical/systems/spec-pointer-interaction.md`](../../technical/systems/spec-pointer-interaction.md).
 
-Il contratto **eredita** anche una domanda rimasta orfana: [`../../technical/spec-hover-cella.md`](../../technical/spec-hover-cella.md)
+Il contratto **eredita** anche una domanda rimasta orfana: [`../../technical/systems/spec-hover-cella.md`](../../technical/systems/spec-hover-cella.md)
 è `HISTORICAL` dal pivot esagonale e nessun owner aveva raccolto *cosa succede sotto il cursore*.
 
 ## 4. Tre difetti che il sorgente non vedeva

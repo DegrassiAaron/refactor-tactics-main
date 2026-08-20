@@ -1,35 +1,27 @@
-# `docs/wiki/` — solo asset, nessuna pagina
+# `docs/wiki/` — vuota: qui non c'è più niente
 
-> `CURRENT` · **Aggiornato**: 2026-08-10 · **Decisione**: [D-076](../decisions/RT_PDR_00_Decision_Log.md)
+> `CURRENT` · **Aggiornato**: 2026-08-17 · **Decisione**: [D-076](../decisions/RT_PDR_00_Decision_Log.md)
 
-**Le pagine della Wiki non sono più qui.** La fonte è il clone pubblicato
-`refactor-tactics-main.wiki`: una sola copia, che è anche quella che il giocatore legge. Il
-repository ne aveva due e divergevano su 37 pagine su 43, in entrambe le direzioni, perché il deploy
-sincronizzava soltanto i blocchi `RT_FEATURE_STATUS` e mai il corpo.
-
-Per modificare una pagina si edita il clone. Per aggiornare i blocchi di stato:
+**Le pagine della Wiki non sono qui**: la fonte è il clone pubblicato `refactor-tactics-main.wiki`, una
+sola copia, che è anche quella che il giocatore legge. Per modificare una pagina si edita il clone; per
+aggiornare i blocchi di stato:
 
 ```
 python scripts/feature_registry.py deploy --wiki-root <clone> --write
 ```
 
-## Perché questa cartella esiste ancora
+**E dal 2026-08-17 non ci sono più nemmeno gli asset.** Questo README ha continuato per quattro giorni a
+elencare come presenti tre categorie di file che il commit `273c76a6` aveva già portato via:
 
-**Decisione dell'autore, 2026-08-10: gli asset restano qui.** La domanda — se archiviarli dopo la
-cancellazione delle pagine — è chiusa, e l'item corrispondente in
-[`wiki-consolidamento-2026-08-10.md`](../archive/roadmap-plans/wiki-consolidamento-2026-08-10.md) §"Fase 3"
-non è più aperto.
-
-Contiene materiale che **non è duplicato nel clone**:
-
-| Cosa | Perché resta |
+| Cosa dichiarava | Dov'è finito davvero |
 |---|---|
-| `RefactorTactics_Wiki_Infographics_v0.1/` (14 PNG) + `.zip` | Il clone pubblica la **v0.2**, con altri nomi e altri contenuti: verificato per hash, **zero** immagini in comune. Queste sono la v0.1, e non esistono altrove |
-| `wiki-manifest-v0.5.json` · `v0.6` · `v0.7` | Tre manifest in parallelo, nessuno dichiarato vincente |
+| `RefactorTactics_Wiki_Infographics_v0.1/` — 14 PNG | [`../research/wiki/v0.1/`](../research/wiki/README.md), divise per conformità del roster |
+| `RefactorTactics_Facing_Flows_v0.1/` — 7 PNG | [`../research/wiki/facing/`](../research/wiki/facing/README.md) |
+| `wiki-manifest-v0.5.json` · `v0.6` · `v0.7` | 🔴 **cancellati**, non spostati: esistono solo nella storia git |
 
-I nomi si somigliano (`05_Reazioni_e_Decision_Boundary.png` qui,
-`04_reazioni-decision-boundary.png` nel clone) e questo rende facile crederli duplicati: non lo sono.
-Prima di toglierne uno, confronta per **hash**, non per nome.
+⚠️ **Il file `.zip` che questo README citava non è mai stato un file del repository**: `.gitignore` esclude
+`docs/src/*.zip`. Vive nel checkout dell'autore e nient'altro lo vede.
 
-Le immagini delle fazioni sono invece sparite da qui perché erano **identiche** a quelle del clone —
-duplicati veri, verificati allo stesso modo.
+La cartella resta perché [D-076](../decisions/RT_PDR_00_Decision_Log.md) e più documenti la citano per
+nome, e un link che marcisce è il difetto che quella decisione esiste per impedire. La sua unica funzione
+oggi è dire dove guardare: [`../research/wiki/README.md`](../research/wiki/README.md).

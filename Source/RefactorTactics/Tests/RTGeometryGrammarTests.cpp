@@ -475,4 +475,336 @@ bool FRTGeometrySnapRejectsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #712 / seduta `U22`: LO SNAP SI AGGANCIA AI PUNTI NOTEVOLI, e la mano ha spazio per sbagliare.
+ *
+ * 🔴 Prima la tolleranza era **mezzo quanto di `Offset`**: 3,61 uu su una cella da 100, cioe' il 3,6% del
+ * raggio — pochi pixel in viewport. Misurato allora: al 4% di scarto comparivano i primi muri sul lato
+ * sbagliato, all'8% un gesto su tre non produceva niente, al 15% ne falliva il 61%. E il ghost restava
+ * VERDE, perche' il candidato era legale: era solo un altro.
+ *
+ * ⚠️ Il test misura il BACINO DI CATTURA, non una formula: perturba i due estremi in modo indipendente e
+ * pretende che il segmento resti quello giusto. E' l'unico modo di asserire «la mano ha spazio» — un
+ * `TestEqual` sull'implementazione dello snap direbbe solo che lo snap fa cio' che fa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSnapCatchesAWobblyHandTest,
+	"RefactorTactics.Geometry.SnapCatchesAWobblyHand",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSnapCatchesAWobblyHandTest::RunTest(const FString&)
+{
+	TArray<FVector2D> Boundary;
+	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, Boundary);
+	if (!TestEqual(TEXT("dodici punti di confine"), Boundary.Num(), RT_OccupancySectorCount))
+	{
+		return false;
+	}
+
+	// Lo scarto della mano che il test pretende di reggere. 15% del raggio e' il valore su cui la
+	// quantizzazione fine falliva il 61% dei gesti.
+	const double Wobble = static_cast<double>(TestHexSize) * 0.15;
+	const TArray<FVector2D> Nudges = {
+		{ +1, 0 }, { -1, 0 }, { 0, +1 }, { 0, -1 }, { +1, +1 }, { -1, -1 }, { +1, -1 }, { -1, +1 }
+	};
+
+	int32 Checked = 0;
+	for (int32 Edge = 0; Edge < 6; ++Edge)
+	{
+		// Il lato `Edge`, dai suoi due vertici: il gesto che l'autore fa per murare un lato.
+		const FVector2D V0 = Boundary[(2 * Edge) % RT_OccupancySectorCount];
+		const FVector2D V1 = Boundary[(2 * Edge + 2) % RT_OccupancySectorCount];
+
+		FRTGeometrySegment Exact;
+		if (!TestTrue(TEXT("il gesto preciso si aggancia"),
+			URTGeometryGrammarLibrary::SnapToGrammar(V0, V1, TestHexSize, Exact)))
+		{
+			continue;
+		}
+
+		for (const FVector2D& NudgeA : Nudges)
+		{
+			for (const FVector2D& NudgeB : Nudges)
+			{
+				FRTGeometrySegment Wobbly;
+				const bool bSnapped = URTGeometryGrammarLibrary::SnapToGrammar(
+					V0 + NudgeA * Wobble, V1 + NudgeB * Wobble, TestHexSize, Wobbly);
+
+				++Checked;
+				TestTrue(FString::Printf(TEXT("lato %d: il gesto storto si aggancia comunque"), Edge), bSnapped);
+				if (!bSnapped)
+				{
+					continue;
+				}
+
+				// La riga che il difetto faceva fallire: lo stesso muro, non un altro.
+				const bool bSame = Wobbly.Axis == Exact.Axis
+					&& Wobbly.Offset == Exact.Offset
+					&& FMath::Min(Wobbly.AlongStart, Wobbly.AlongEnd) == FMath::Min(Exact.AlongStart, Exact.AlongEnd)
+					&& FMath::Max(Wobbly.AlongStart, Wobbly.AlongEnd) == FMath::Max(Exact.AlongStart, Exact.AlongEnd);
+				TestTrue(FString::Printf(
+					TEXT("lato %d: uno scarto del 15%% del raggio da' ancora QUEL muro"), Edge), bSame);
+			}
+		}
+	}
+
+	TestEqual(TEXT("il test ha davvero provato 6 lati x 64 perturbazioni"), Checked, 6 * 64);
+	return true;
+}
+
+/**
+ * #712 / seduta `U22`: OGNI muro prodotto sta nell'alfabeto. Non «quasi ogni».
+ *
+ * 🔴 L'autore, dopo due correzioni: *«son capitati muri fuori dalla geometria consentita»*. Le stesure
+ * precedenti arrotondavano le coordinate del gesto e speravano che cadessero bene: bastava un estremo
+ * fuori dalla cella perche' l'altro finisse su un `Along` legale ma che non corrisponde a nessun punto
+ * notevole — un muro a mezz'aria.
+ *
+ * La ricerca ora **enumera le coppie di punti notevoli**, quindi l'alfabeto e' una proprieta' della
+ * costruzione. Questo test lo verifica dove conta: su gesti QUALSIASI, anche storti, corti, obliqui e
+ * mezzi fuori dalla cella — e pretende che l'esito sia sempre due punti notevoli su un asse.
+ *
+ * ⚠️ Sostituisce un test che pretendeva il RIFIUTO delle 24 coppie fuori asse. Il rewrite ha cambiato
+ * quella decisione: invece di rifiutare, si sceglie il muro legale piu' vicino. E' una scelta diversa e
+ * va detta — il rifiuto resta per il gesto senza lunghezza e per quello che non tocca la cella
+ * (`SnapRejectsWhatCannotBeLegal`), non per la giacitura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSnapAlwaysProducesAWallFromTheAlphabetTest,
+	"RefactorTactics.Geometry.SnapAlwaysProducesAWallFromTheAlphabet",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSnapAlwaysProducesAWallFromTheAlphabetTest::RunTest(const FString&)
+{
+	TArray<FVector2D> Boundary;
+	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, Boundary);
+
+	TArray<FVector2D> Notable;
+	Notable.Add(FVector2D::ZeroVector); // il centro e' il tredicesimo
+	Notable.Append(Boundary);
+
+	auto IsNotable = [&Notable](const FVector2D& P)
+	{
+		for (const FVector2D& Point : Notable)
+		{
+			if (Point.Equals(P, 0.5f))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	// Una griglia deterministica di gesti: raggi da 0 a due volte la cella, angoli ogni 17 gradi (primo
+	// con 360, quindi non ricade sulle direttrici). Non e' casuale — l'esito dev'essere riproducibile.
+	int32 Produced = 0;
+	int32 Refused = 0;
+	for (int32 AngleA = 0; AngleA < 360; AngleA += 17)
+	{
+		for (int32 AngleB = 0; AngleB < 360; AngleB += 43)
+		{
+			for (const double RadiusA : { 0.15, 0.55, 0.95, 1.40 })
+			{
+				for (const double RadiusB : { 0.30, 0.80, 1.10, 2.00 })
+				{
+					const double Ra = FMath::DegreesToRadians(static_cast<double>(AngleA));
+					const double Rb = FMath::DegreesToRadians(static_cast<double>(AngleB));
+					const FVector2D A(
+						RadiusA * TestHexSize * FMath::Cos(Ra), RadiusA * TestHexSize * FMath::Sin(Ra));
+					const FVector2D B(
+						RadiusB * TestHexSize * FMath::Cos(Rb), RadiusB * TestHexSize * FMath::Sin(Rb));
+
+					FRTGeometrySegment Segment;
+					if (!URTGeometryGrammarLibrary::SnapToGrammar(A, B, TestHexSize, Segment))
+					{
+						++Refused;
+						continue;
+					}
+					++Produced;
+
+					// 1. E' in grammatica. La rete di sicurezza che c'era gia'.
+					if (!TestTrue(TEXT("il segmento prodotto e' in grammatica"),
+						URTGeometryGrammarLibrary::ValidateSegment(Segment) == ERTGeometryViolation::None))
+					{
+						return false;
+					}
+
+					// 2. E i suoi DUE ESTREMI sono punti notevoli. E' la riga che il difetto faceva fallire,
+					//    ed e' l'unica formulazione di «dentro la geometria consentita» che si possa misurare.
+					const FRTOccupancyPolyline Line =
+						URTGeometryGrammarLibrary::ToPolyline(Segment, TestHexSize);
+					if (!TestEqual(TEXT("il segmento ha due estremi"), Line.Points.Num(), 2))
+					{
+						return false;
+					}
+					if (!TestTrue(FString::Printf(
+							TEXT("estremi su punti notevoli: (%.1f,%.1f)-(%.1f,%.1f) da gesto (%.0f,%.0f)-(%.0f,%.0f)"),
+							Line.Points[0].X, Line.Points[0].Y, Line.Points[1].X, Line.Points[1].Y,
+							A.X, A.Y, B.X, B.Y),
+						IsNotable(Line.Points[0]) && IsNotable(Line.Points[1])))
+					{
+						return false;
+					}
+				}
+			}
+		}
+	}
+
+	// Controprova: il test non passerebbe con uno snap che non produce mai niente.
+	TestTrue(TEXT("la maggior parte dei gesti produce un muro"), Produced > Refused * 4);
+	TestTrue(TEXT("e qualcuno viene rifiutato, altrimenti il rifiuto e' morto"), Refused > 0);
+	return true;
+}
+
+/**
+ * #712 / seduta `U22`: quante coppie di punti notevoli la GRAMMATICA sa esprimere.
+ *
+ * ⚠️ E' una proprieta' degli assi tattici, non dello snap, e per questo si misura senza passare da
+ * `SnapToGrammar`: delle 78 coppie, quelle che stanno su un asse comune sono **54**, e le altre **24**
+ * sono vertice ↔ punto medio non adiacente. I due numeri sono scritti perche' un cambio di grammatica li
+ * faccia cadere qui, e non a schermo tre giorni dopo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNotablePairsOnTacticalAxesTest,
+	"RefactorTactics.Geometry.NotablePairsOnTacticalAxes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNotablePairsOnTacticalAxesTest::RunTest(const FString&)
+{
+	TArray<FVector2D> Boundary;
+	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, Boundary);
+
+	TArray<FVector2D> Notable;
+	Notable.Add(FVector2D::ZeroVector);
+	Notable.Append(Boundary);
+
+	auto SharesAnAxis = [](const FVector2D& P, const FVector2D& Q)
+	{
+		for (int32 AxisIndex = 0; AxisIndex < RT_TacticalAxisCount; ++AxisIndex)
+		{
+			const ERTTacticalAxis Axis = static_cast<ERTTacticalAxis>(AxisIndex);
+			const FVector2D Along = URTGeometryGrammarLibrary::AxisPoint(Axis, TestHexSize) / RT_GeometryQuanta;
+			const FVector2D Perp =
+				URTGeometryGrammarLibrary::AxisPerpendicularPoint(Axis, TestHexSize) / RT_GeometryQuanta;
+
+			const double AlongP = FVector2D::DotProduct(P, Along) / Along.SizeSquared();
+			const double AlongQ = FVector2D::DotProduct(Q, Along) / Along.SizeSquared();
+			const double OffP = FVector2D::DotProduct(P, Perp) / Perp.SizeSquared();
+			const double OffQ = FVector2D::DotProduct(Q, Perp) / Perp.SizeSquared();
+
+			auto Whole = [](double V) { return FMath::Abs(V - FMath::RoundToDouble(V)) < 0.001; };
+			if (Whole(AlongP) && Whole(AlongQ) && Whole(OffP) && Whole(OffQ)
+				&& FMath::RoundToInt(OffP) == FMath::RoundToInt(OffQ)
+				&& FMath::RoundToInt(AlongP) != FMath::RoundToInt(AlongQ))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	int32 OnAxis = 0;
+	int32 OffAxis = 0;
+	for (int32 I = 0; I < Notable.Num(); ++I)
+	{
+		for (int32 J = I + 1; J < Notable.Num(); ++J)
+		{
+			SharesAnAxis(Notable[I], Notable[J]) ? ++OnAxis : ++OffAxis;
+		}
+	}
+
+	TestEqual(TEXT("coppie totali di punti notevoli"), OnAxis + OffAxis, 78);
+	TestEqual(TEXT("coppie esprimibili su un asse tattico"), OnAxis, 54);
+	TestEqual(TEXT("coppie che nessun asse porta"), OffAxis, 24);
+	return true;
+}
+
+/**
+ * #712 / seduta `U22`: TRASCINANDO LONTANO, IL MURO PARTE ANCORA DA DOVE HAI PREMUTO.
+ *
+ * 🔴 Non lo faceva. L'autore: *«continua a disegnare al centro degli esagoni e la linea non parte dal
+ * vertice iniziale, quando lo sposto lontano»*. Due difetti nella stessa riga, entrambi miei:
+ *
+ * ```text
+ * 1. l'aggancio dei due estremi era legato insieme  ->  se il secondo usciva dalla cella,
+ *                                                       il PRIMO perdeva il suo punto notevole
+ * 2. `Offset` era sempre la media dei due           ->  con un estremo lontano la media
+ *                                                       collassava a zero, cioe' al CENTRO
+ * ```
+ *
+ * Sono indipendenti, e per questo il test verifica **entrambe** le conseguenze: che il muro parta dal
+ * punto premuto, e che non finisca in mezzo alla cella.
+ *
+ * ⚠️ Il gesto di prova esce DAVVERO dalla cella (tre raggi), perche' e' li' che l'aggancio si spegneva.
+ * Un test con l'estremo appena fuori dal bordo non avrebbe visto niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSnapKeepsTheAnchorWhenDraggingFarTest,
+	"RefactorTactics.Geometry.SnapKeepsTheAnchorWhenDraggingFar",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSnapKeepsTheAnchorWhenDraggingFarTest::RunTest(const FString&)
+{
+	TArray<FVector2D> Boundary;
+	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, Boundary);
+	if (!TestEqual(TEXT("dodici punti di confine"), Boundary.Num(), RT_OccupancySectorCount))
+	{
+		return false;
+	}
+
+	// ⚠️ Il trascinamento NON deve essere radiale, e la prima stesura di questo test lo era: partendo da un
+	// punto e andando verso l'esterno lungo la sua stessa direzione si ottiene una retta che passa per il
+	// CENTRO — ed e' geometricamente giusto, non il difetto. Un gesto simile passava anche col codice
+	// rotto, perche' i due estremi hanno lo stesso offset e la media non sposta niente. Serve una direzione
+	// obliqua, che e' poi cio' che fa una mano: si preme su un vertice e si trascina altrove.
+	const TArray<double> ObliqueDegrees = { 20.0, -35.0, 70.0 };
+
+	int32 Checked = 0;
+	// ⚠️ E la pressione NON deve cadere esattamente sul punto notevole. La seconda stesura di questo test lo
+	// faceva, e la verifica di mutazione l'ha smontata: legando di nuovo insieme l'aggancio dei due estremi
+	// — il primo dei due difetti — **nessun test cadeva**, perche' su un'ancora esatta il punto agganciato
+	// e quello grezzo coincidono. Un gesto vero cade *vicino* al vertice, mai sopra.
+	const double AnchorWobble = static_cast<double>(TestHexSize) * 0.10;
+
+	for (int32 Index = 0; Index < Boundary.Num(); ++Index)
+	{
+		// Si preme su un punto notevole — vertice o punto medio, entrambi valgono come ancora.
+		const FVector2D Anchor = Boundary[Index];
+
+		for (const double Oblique : ObliqueDegrees)
+		{
+			// La pressione: vicino all'ancora, non sopra. Direzione dello scarto legata all'indice, cosi'
+			// l'esito resta deterministico e i dodici punti non ricevono tutti la stessa spinta.
+			const double WobbleAngle = FMath::DegreesToRadians(37.0 * Index);
+			const FVector2D Pressed(
+				Anchor.X + AnchorWobble * FMath::Cos(WobbleAngle),
+				Anchor.Y + AnchorWobble * FMath::Sin(WobbleAngle));
+
+			// E si trascina LONTANO e di traverso: tre raggi, fuori dalla cella, dove l'aggancio del
+			// secondo estremo si spegne per costruzione.
+			const double Base = FMath::Atan2(Anchor.Y, Anchor.X) + FMath::DegreesToRadians(Oblique);
+			const double Reach = static_cast<double>(TestHexSize) * 3.0;
+			const FVector2D Far(Reach * FMath::Cos(Base), Reach * FMath::Sin(Base));
+
+			FRTGeometrySegment Segment;
+			if (!TestTrue(FString::Printf(TEXT("punto %d a %.0f gradi: il gesto lungo si aggancia"),
+				Index, Oblique), URTGeometryGrammarLibrary::SnapToGrammar(Pressed, Far, TestHexSize, Segment)))
+			{
+				continue;
+			}
+
+			const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Segment, TestHexSize);
+			if (!TestEqual(FString::Printf(TEXT("punto %d a %.0f gradi: due estremi"), Index, Oblique),
+				Line.Points.Num(), 2))
+			{
+				continue;
+			}
+
+			++Checked;
+
+			// La riga che il difetto faceva fallire: il muro parte DAL PUNTO PREMUTO, non da dove la media
+			// fra i due offset lo faceva scivolare.
+			TestTrue(FString::Printf(TEXT("punto %d a %.0f gradi: il muro parte dall'ancora (%.1f,%.1f invece di %.1f,%.1f)"),
+				Index, Oblique, Line.Points[0].X, Line.Points[0].Y, Anchor.X, Anchor.Y),
+				Line.Points[0].Equals(Anchor, 0.5f));
+		}
+	}
+
+	TestEqual(TEXT("provati dodici punti per tre direzioni oblique"),
+		Checked, RT_OccupancySectorCount * ObliqueDegrees.Num());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

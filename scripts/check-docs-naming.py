@@ -60,6 +60,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -198,6 +199,27 @@ NAME_RE = re.compile(r"\b(" + "|".join(LEGACY) + r")\b")
 #   2. un marcatore su una riga **senza** nomi ritirati e' un **ERRORE**. Un'esenzione
 #      che sopravvive al proprio motivo e' esattamente il modo in cui questo gate ha
 #      perso il 37% di copertura: qui non puo' succedere in silenzio.
+# 🔑 **UNA forma sola, anche ora che il gate copre gli YAML (`#1109`).** I delimitatori
+# chiusi non sono uno stile: sono la ragione per cui questo marcatore non puo' essere
+# confuso con il contenuto del file che lo ospita. Funziona in tutti e tre i posti dove
+# serve — verificato: in un `.md`, dentro una `note:` YAML (che e' markdown), e **dentro
+# un commento YAML**, dove `# <!-- rename-exempt: ... -->` e' semplicemente testo del
+# commento.
+#
+# ⚠️ **Una seconda forma `# rename-exempt:` e' stata scritta e poi RITIRATA**, e il motivo
+# vale piu' del codice risparmiato: in un formato che non si sta parsando, «riga che inizia
+# per `#`» non significa «commento». Tre falsi negativi misurati, tutti raggiungibili da
+# testo che qualcuno scriverebbe in buona fede:
+#   · `# rename-exempt: ` con **uno spazio** dopo i due punti — il backtracking prendeva lo
+#     spazio come ragione, ed esentava la riga dopo. Un carattere invisibile ribaltava il
+#     gate da rosso a verde, senza diagnostica;
+#   · un **titolo markdown** dentro un block scalar `note: |` — contenuto, non commento —
+#     esentava la riga successiva. E' precisamente il pericolo che vietava la forma `#` nei
+#     `.md`: le note YAML *sono* markdown, quindi il divieto doveva valere anche li';
+#   · un `#` sulla **riga di continuazione** di uno scalare quotato multi-riga: ancora
+#     contenuto, accettato come marcatore.
+# Distinguerli davvero richiede un parser YAML. Una sintassi con delimitatori chiusi non ne
+# ha bisogno, ed e' la ragione per cui era gia' quella giusta.
 EXEMPT_MARKER = re.compile(r"<!--\s*rename-exempt:\s*(.+?)\s*-->")
 
 # «Questa riga ha ancora bisogno del marcatore?» — una domanda diversa da «questa riga
@@ -226,6 +248,10 @@ ANY_FORM = re.compile(
 
 
 def marked_lines(raw_lines: list[str]) -> dict[int, str]:
+    # ⚠️ `marker` e' OBBLIGATORIO, e la ragione e' un difetto vero: con un default
+    # `EXEMPT_MARKER` questa firma ha lasciato passare un call site su tre — il conteggio
+    # dei marcatori in `main()` — che continuava a leggere solo la forma markdown. Un
+    # parametro richiesto lo avrebbe reso un `TypeError` invece di un numero sbagliato.
     """`{numero_riga_1based: ragione}` per le righe marcate.
 
     Il marcatore vale in **due** posizioni, e la seconda non e' una comodita':
@@ -252,17 +278,26 @@ def marked_lines(raw_lines: list[str]) -> dict[int, str]:
         # destra — quindi attribuiva il marcatore alla riga SUCCESSIVA, che era vuota,
         # e lo dichiarava stantio. Un marcatore giusto, letto male, segnalato come rotto.
         senza_marcatore = EXEMPT_MARKER.sub("", line)
+        # Con l'alternanza i gruppi sono due e uno dei due e' `None`: la ragione e' il
+        # primo non nullo. Con il pattern singolo il comportamento non cambia.
+        reason = next((gr for gr in m.groups() if gr is not None), "")
         if ANY_FORM.search(senza_marcatore):
-            marked[i + 1] = m.group(1)
+            marked[i + 1] = reason
         elif i + 1 < len(raw_lines):
-            marked[i + 2] = m.group(1)
+            marked[i + 2] = reason
         else:
-            marked[i + 1] = m.group(1)  # ultima riga del file: vale per se'
+            marked[i + 1] = reason  # ultima riga del file: vale per se'
     return marked
 
 
 def scan(path: Path) -> list[tuple[int, str, str]]:
-    """Ritorna [(riga, nome, testo)] delle occorrenze player-facing NON marcate."""
+    """Ritorna [(riga, nome, testo)] delle occorrenze player-facing NON marcate.
+
+    🔑 La **ragione** del marcatore non viene mai scansionata, e non serve codice per
+    ottenerlo: `mask()` azzera i commenti HTML, e il marcatore *e'* un commento HTML.
+    Cosi' una motivazione che nomina la mappatura — «`D-130` dichiara «Flux» -> Gadget»,
+    cioe' la piu' naturale che esista — non fa rosso il gate mentre si esenta una riga.
+    """
     try:
         raw = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
@@ -319,18 +354,43 @@ def stale_markers(path: Path) -> list[tuple[int, str, str]]:
 ROOT_GOVERNANCE = ("CLAUDE.md", "AGENTS.md", "README.md")
 
 
-def markdown_files() -> list[Path]:
-    files = []
-    for name in ROOT_GOVERNANCE:
-        path = REPO / name
-        if path.is_file():
-            files.append(path)
-    for path in sorted(DOCS.rglob("*.md")):
+# Le estensioni protette. `.yaml` entra con `#1109`, e la ragione e' misurata: sotto
+# `docs/` i file YAML contengono **prosa lunga** — gli `steps` di `editor-sessions.yaml`,
+# i `notes` del feature registry, le note di `execution-graph.yaml` — scritta in
+# markdown e letta da persone. Il gate ne ha ignorate 5 per giorni, e in una di esse un
+# nome ritirato sopravviveva in una frase che descriveva **il presente**.
+#
+# 🔑 **La maschera markdown funziona sugli YAML senza modifiche, ed e' un fatto misurato
+# invece che una speranza**: delle 14 occorrenze grezze trovate all'apertura di `#1109`,
+# **10** erano gia' dentro backtick o fence e cadevano da sole. Non serve una maschera
+# YAML-specifica perche' in questo repository lo YAML *e'* un contenitore di markdown.
+# ⚠️ **`.yml` accanto a `.yaml`, e non e' zelo.** Alla data di `#1109` sotto `docs/` non
+# c'era nessun `.yml` — misurato — ed e' esattamente la condizione in cui una lacuna non
+# e' rossa e si legge come «pulito»: la stessa forma per cui `#1109` e' esistita.
+# `BARE_PATH` conosce gia' entrambe le grafie (`ya?ml`), quindi il repository sa che la
+# seconda e' viva.
+PROTECTED_SUFFIXES = (".md", ".yaml", ".yml")
+
+
+def docs_files() -> list[Path]:
+    """I file protetti: governance di root + tutto `docs/` con un suffisso protetto.
+
+    Una traversata sola, filtrata sul suffisso. Le tre `rglob()` per pattern che questa
+    funzione aveva prima costringevano a tenere **due** elenchi di estensioni allineati a
+    mano — e un'estensione aggiunta a uno solo dei due sarebbe stata *contata* nel referto
+    senza essere *protetta*: cioe' «conta come letto, non e' protetto», che e' la forma
+    esatta del difetto per cui `#1109` e' stata aperta.
+    """
+    files = [REPO / name for name in ROOT_GOVERNANCE if (REPO / name).is_file()]
+    for path in DOCS.rglob("*"):
+        if path.suffix not in PROTECTED_SUFFIXES or not path.is_file():
+            continue
         rel_parts = path.relative_to(DOCS).parts
         if rel_parts and rel_parts[0] in EXCLUDED_DIRS:
             continue
         files.append(path)
-    return files
+    return sorted(files)
+
 
 
 # --- la Wiki pubblicata (repo separato, D-076: il clone E' la fonte) ----------
@@ -396,7 +456,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    files = markdown_files()
+    files = docs_files()
     enforced_hits: dict[str, list[tuple[int, str, str]]] = {}
     backlog_hits: dict[str, list[tuple[int, str, str]]] = {}
     enforced_files = 0
@@ -420,14 +480,22 @@ def main() -> int:
     perimetro = ("governance di root + docs/, **nessuna cartella esclusa**"
                  if not EXCLUDED_DIRS
                  else f"governance di root + docs/, esclusi {'/'.join(EXCLUDED_DIRS)}")
-    print(f"File markdown normativi analizzati: {total_files} ({perimetro})")
+    # ⚠️ **Per ESTENSIONE, e non e' cosmesi** (`#1109`): questo gate ha stampato per giorni
+    # un totale unico che sommava 375 `.md` e **zero** `.yaml`, e quel numero si leggeva
+    # come copertura. Un conteggio aggregato rende «nessuna occorrenza» e «nessun file
+    # letto» indistinguibili — che e' la definizione di un gate cieco che rassicura.
+    per_suffix = Counter(f.suffix or "(senza estensione)" for f in files)
+    dettaglio = " · ".join(f"{n} {s}" for s, n in sorted(per_suffix.items()))
+    print(f"File normativi analizzati: {total_files} ({perimetro})")
+    print(f"  per estensione: {dettaglio}")
     if total_files:
         print(f"Protetti dal gate: {enforced_files}/{total_files} file"
               f" — copertura {enforced_files / total_files:.0%}"
               f" · esenti (registri datati): {total_files - enforced_files}")
     else:
         # Checkout parziale o `docs/` spostata: meglio dirlo che dividere per zero.
-        print("Nessun file markdown trovato sotto docs/ — controlla il checkout.")
+        print("Nessun file normativo trovato sotto docs/ — controlla il checkout."
+              f" (estensioni cercate: {', '.join(PROTECTED_SUFFIXES)})")
     print()
 
     if enforced_hits:

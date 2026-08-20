@@ -4,9 +4,9 @@
 > `Scenarios/` e le capability dichiarate in `RTScenarioSession.cpp`.
 > **Cosa è**: l'elenco corto di cosa si verifica da solo e cosa richiede una persona.
 > **Cosa non è**: l'owner. Il documento normativo — con la motivazione voce per voce e il subset
-> `RELEASE-V01` del gate `G9` — è [`../technical/scenario-map.md`](../technical/scenario-map.md).
+> `RELEASE-V01` del gate `G9` — è [`../technical/tooling/scenario-map.md`](../technical/tooling/scenario-map.md).
 > Le regole di identità e tag stanno in
-> [`../technical/scenario-index-e-tag.md`](../technical/scenario-index-e-tag.md).
+> [`../technical/tooling/scenario-index-e-tag.md`](../technical/tooling/scenario-index-e-tag.md).
 
 ⚠️ **La cartella non è la classe.** Uno scenario si classifica leggendo il suo `requires` e la disponibilità
 della capability, **mai** il percorso: le cartelle sono storage e non promettono nulla.
@@ -17,14 +17,13 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 <!-- RT_SHORTLIST_SCENARIOS:BEGIN -->
 
-**78 scenari versionati** — misurati su `Scenarios/`: **67** eseguibili · **11** `BLOCKED` per una capability assente · **66** dichiarati `planned` nel registry e non ancora scritti.
+**78 scenari versionati** — misurati su `Scenarios/`: **68** eseguibili · **10** `BLOCKED` per una capability assente · **66** dichiarati `planned` nel registry e non ancora scritti.
 
-**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `DecisionBoundary` · `DeclaredRotation` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `Structures`.
+**Capability disponibili oggi**, lette da `RTScenarioSession.cpp` (stanno nel codice, non nei dati: un JSON che se le dichiarasse da sé produrrebbe il primo verde bugiardo): `BotPlanning` · `Cover` · `CreateCover` · `DecisionBoundary` · `DeclaredRotation` · `Environment` · `EnvironmentalActionOwner` · `FixtureReference` · `PredictiveAction` · `Reaction` · `ReactionPlanning` · `ReactionProfile` · `Structures`.
 
 | Scenario `BLOCKED` | Capability che manca |
 |---|---|
 | `RT_Showcase_Relay_v01` | `InterceptRevalidation` · `Objective` |
-| `Spec.Brace.ProfileChangesResponse` | `ReactionProfile` |
 | `Spec.Clash.ReadBeatsStand` | `ReactionClash` |
 | `Spec.Clash.ShiftBeatsRead` | `ReactionClash` |
 | `Spec.Clash.StandBeatsShift` | `ReactionClash` |
@@ -110,7 +109,7 @@ della capability, **mai** il percorso: le cartelle sono storage e non promettono
 
 Quanti stiano in **A** e quanti in **B** non è derivabile dai file — è **dove sta l'oracolo**, e lo decide
 una persona. I conteggi qui sotto sono quelli di
-[`../technical/scenario-map.md`](../technical/scenario-map.md), misurati il **2026-08-09**; il totale del
+[`../technical/tooling/scenario-map.md`](../technical/tooling/scenario-map.md), misurati il **2026-08-09**; il totale del
 corpus e i bloccati sono invece generati in §1 e vincono sempre.
 
 | Classe | Chi esegue | Chi giudica | Quanti *(owner; `C` e fuori classe rimisurati il 2026-08-13)* |
@@ -202,7 +201,7 @@ Registro: [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md)
 > mancava *«Verifiche di mutazione»* per intero — e due erano indietro (Checklist `31`→`43`, Contenuto
 > `18`→`22`). ⚠️ Queste righe stanno **fuori** dal blocco `RT_SHORTLIST_SCENARIOS` generato: sono prosa a
 > mano in un file generato, e nessun `--check` le confronta con l'owner. Si rileggono da
-> [`../technical/scenario-map.md`](../technical/scenario-map.md) §5, con l'`awk` per sezione che sta lì.
+> [`../technical/tooling/scenario-map.md`](../technical/tooling/scenario-map.md) §5, con l'`awk` per sezione che sta lì.
 
 ## 6. Classe D — dichiarato, non eseguibile
 
@@ -244,7 +243,7 @@ validator — un piano che non diventa un file resta visibile invece di sparire.
 
 ### 6.3 Dichiarati e mai scritti · 4
 
-La *fascia D* di [`../technical/scenari-validazione-visiva.md`](../technical/scenari-validazione-visiva.md)
+La *fascia D* di [`../technical/runbooks/scenari-validazione-visiva.md`](../technical/runbooks/scenari-validazione-visiva.md)
 elenca 8 scenari `Visual.*` «scritti adesso»: **nessuno degli otto file esiste**. Quattro temi sono stati poi
 scritti come `Spec.*` — la forma migliore, una specifica eseguibile invece di una vetrina cieca. Restano
 scoperti `Visual.Facing.Cone`, `Visual.Intercept.Revalidation`, `Visual.CoverWindow.OpenFireSeal` e il quarto.

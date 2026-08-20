@@ -2,10 +2,10 @@
 
 > `CURRENT` · **Stato**: proposta operativa, misurata · **Data**: 2026-08-17
 > **HEAD misurato**: `9a1bd1d4` (`origin/main`)
-> **Owner del write-set**: [`../parallel-batch.yaml`](../parallel-batch.yaml) — questo documento
+> **Owner del write-set**: `../parallel-batch.yaml` — questo documento
 > **non** lo sostituisce. Se le due fonti divergono, vince il YAML: è lui che i gate leggono.
 > **Regola che governa**: [`D-139`](../../decisions/RT_PDR_00_Decision_Log.md) (write-set di batch +
-> Binary Asset Lease) · [`../../technical/workflow-parallel-claude.md`](../../technical/workflow-parallel-claude.md).
+> Binary Asset Lease) · `../../technical/tooling/workflow-parallel-claude.md`.
 > **Precedente**: [`quattro-processi-paralleli-triage-2026-08-14.md`](quattro-processi-paralleli-triage-2026-08-14.md),
 > che di 57 sezioni ne applicò **13** — e le §21–§27 furono respinte perché proponevano *un terzo
 > vocabolario di classificazione*. Questo documento non ne propone un quarto.

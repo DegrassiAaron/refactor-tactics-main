@@ -69,6 +69,12 @@ void URTErrorModalWidgetBase::ShowFromReport(const FRTStartupReport& Report)
 		if (Note.Outcome == Fatal)
 		{
 			ShowFor(Note);
+			// La fase arriva **solo** da qui: e' l'unica delle tre funzioni che arma ad avere un report.
+			// Dopo `ShowFor` e non prima, cosi' un modale che non si e' armato non porta nemmeno la fase.
+			if (IsArmed())
+			{
+				PhaseWhenArmed = Report.Phase;
+			}
 			return;
 		}
 	}

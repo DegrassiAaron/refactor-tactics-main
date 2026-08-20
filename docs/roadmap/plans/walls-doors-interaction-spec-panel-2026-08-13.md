@@ -48,7 +48,7 @@ come *stato del bordo*, `INTEGRATED`, con dodici test.
 | §7.D «A valida, B valida, A→B bloccata» | `BlocksBetween` legge il bordo, non la cella; `TruncatePathToTopology` ferma il path con `BlockedByTopology` | ✅ **esiste** per la porta; ⬜ manca per la **geometria cotta** (CP 23.7) |
 | §25 «deterministic sort, hash normalization» | `Structures.Door.OpsOrderIndependent`, `HexMap.DoorHashDeterminism`; `DoorId` entra in `RTMatchStateHash` | ✅ **esiste** |
 | §27 «Destruction: `Destroyed` può tornare `Closed`?» | Già deciso: `Destroyed` è **TERMINALE**, in tre punti del codice, e `Structures.Door.DestroyedStaysOpen` lo pinna | ✅ **già deciso** |
-| §6 scenari `WallCrossesCellStillStandable`, `FootprintCollisionBlocksCell`, `NinetyDegreeCornerBakesCorrectly` | Già in [`scenario-map.md`](../../technical/scenario-map.md) §pianificati, su `RT-FEAT-MAP-STANDABILITY`, CP 23.6 | ✅ **già mappati** |
+| §6 scenari `WallCrossesCellStillStandable`, `FootprintCollisionBlocksCell`, `NinetyDegreeCornerBakesCorrectly` | Già in [`scenario-map.md`](../../technical/tooling/scenario-map.md) §pianificati, su `RT-FEAT-MAP-STANDABILITY`, CP 23.6 | ✅ **già mappati** |
 | §9 scenari `ValidCellsBlockedTransition`, `DoorOpensTransition` | Idem, su `RT-FEAT-MAP-TRANSITION-CLEARANCE`, CP 23.7 | ✅ **già mappati** |
 
 > 🔴 **La lezione, e vale oltre questo handoff.** Un pacchetto di consolidamento è una **fotografia datata**, e

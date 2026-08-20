@@ -26,7 +26,8 @@ Per default **NON fanno parte del contesto autorevole**:
 
 - file allegati in chat o caricati esternamente in conversazioni precedenti;
 - copie locali/PDF degli stessi documenti se nel repository esiste una versione Markdown corrente;
-- `docs/src/` salvo richiesta esplicita di vision/north-star/provenienza;
+- `docs/research/` salvo richiesta esplicita di vision/north-star/provenienza — è la ex `docs/src/`,
+  svuotata il 2026-08-19 ([#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165));
 - `docs/archive/` salvo richiesta storica;
 - handoff/prompt temporanei, inclusi file root del tipo `*_Claude_*.md`, salvo che il task chieda proprio di consolidarli;
 - workbook di ricerca non canonici quando esiste un catalogo Markdown owner.
@@ -161,8 +162,15 @@ Il repository ne ha **due**, e nessuna gira in CI: i gate si eseguono **a mano**
 
 | | dove | cosa |
 |---|---|---|
-| **Python** | `scripts/` | `check-docs-links.py` · `check-docs-symbols.py` · `check-docs-tables.py` · `feature_registry.py` · `rt_shared_id.py` |
+| **Python** | `scripts/` | **ogni** `scripts/check-*.py` — `ls scripts/check-*.py` è l'elenco, e non si trascrive qui — più `feature_registry.py`, `rt_shared_id.py` e `docs_inventory.py`, che non seguono quel prefisso e vanno nominati |
 | **Node 22** | `tools/radar/` | rubrica dei rating e generatore SVG dei radar di personaggio |
+
+> 🔴 **Fino al 2026-08-19 questa tabella elencava i gate Python per nome, e ne conosceva tre su sei.**
+> Mancavano `check-docs-naming.py`, `check-capability-owners.py` e `check-equipment-defaults.py`, più
+> `docs_inventory.py`, che è nato dopo. È lo stesso difetto che `AGENTS.md` ha già pagato e corretto il
+> 2026-08-16, con la stessa causa: **un elenco scritto a mano dentro un documento non ha modo di
+> accorgersi di un file nuovo**, e chi aggiunge un gate non passa di qui. La forma `check-*` si aggiorna
+> da sé; i tre che non la seguono restano nominati, perché lì l'elenco è l'unica via.
 
 `tools/radar/` legge i cataloghi di bilanciamento, calcola i rating dei radar e produce gli SVG in
 [`characters/radar/`](characters/radar/), che sono **versionati con un gate**:
@@ -182,26 +190,21 @@ prezzo dichiarato di [D-108](decisions/RT_PDR_00_Decision_Log.md).
 Nessun `npm install`, nessun build step: Node 22 esegue TypeScript con type stripping e i test usano
 `node:test`, quindi `tools/` ha **zero dipendenze**.
 
-`scripts/rt_shared_id.py` è l'allocatore degli ID condivisi del Decision Log
-([D-135](decisions/RT_PDR_00_Decision_Log.md)): `D-nnn` **non si sceglie a mano**.
+Gli ID condivisi del Decision Log — `D-nnn` — si scelgono leggendo l'ultimo assegnato e si
+**riverificano prima del merge** ([D-178](decisions/RT_PDR_00_Decision_Log.md)):
 
 ```sh
-python scripts/rt_shared_id.py reserve D --reason "#621 bake"   # stampa l'ID da usare
-python scripts/rt_shared_id.py status                           # contatore e reservation del clone
-python scripts/rt_shared_id.py release D-134                    # cede un ID a chi lo usa gia' (non lo libera)
-python scripts/rt_shared_id.py check                            # exit 1 su duplicati o ID malformati
-git fetch --prune origin && python scripts/rt_shared_id.py audit-refs   # exit 1 se due rami collidono
-python scripts/test_rt_shared_id.py                             # 33 test, uno a venti processi
+git fetch --prune origin
+git grep -oh "D-[0-9]\+" origin/main -- docs/decisions/RT_PDR_00_Decision_Log.md | sort -V | tail -1
+gh pr list --state open      # una PR in volo puo' aver gia' rivendicato il numero
 ```
 
-L'atomicità copre tutti i worktree di **questo clone** — lock nel git common dir — e non altri cloni o
-altri PC: là `audit-refs` diagnostica prima del merge invece di prevenire. Meccanismo e recovery in
-[`technical/workflow-parallel-claude.md`](technical/workflow-parallel-claude.md).
-
-⚠️ **L'allocatore risolve la collisione di numerazione e nient'altro: due worktree possono ancora scrivere
-lo stesso file.** Per quello serve il write-set del batch — [`roadmap/parallel-batch.yaml`](roadmap/parallel-batch.yaml),
-[D-139](decisions/RT_PDR_00_Decision_Log.md) — con la regola *file non assegnato = STOP* e la **Binary
-Asset Lease** sui `.uasset`/`.umap`, che sono human-first ma non human-only.
+⚠️ **Questo è un controllo a vista, e il limite è dichiarato.** Fino al 2026-08-20 l'assegnazione era
+automatica — `scripts/rt_shared_id.py`, un allocatore con lock nel git common dir — perché il progetto
+aveva pagato **sedici** collisioni scegliendo i numeri a mano. Lo strumento è stato rimosso con
+[D-178](decisions/RT_PDR_00_Decision_Log.md) insieme al resto del sistema di lavoro parallelo: con una
+sola sessione per volta la finestra di race si chiude quasi tutta, ma resta aperta finché esistono PR
+non mergiate. Se una PR aperta rivendica lo stesso ID con una **tesi diversa**, rinumera la seconda.
 
 ### Riferimenti a checkpoint
 
@@ -234,8 +237,8 @@ Owner principali:
   Forced — percorre lo spazio) contro **`Transfer`** (Leap · Blink · Swap · Recall — cambia posizione senza
   percorrerlo); `Reaction` è una **causa**, non una famiglia. È l'unico documento che le confronta; i
   singoli restano owner di sé stessi
-- `docs/technical/spec-mappa-multilivello.md`
-- `docs/technical/spec-pathfinding-pf3-pf4.md`
+- `docs/technical/architecture/spec-mappa-multilivello.md`
+- `docs/technical/architecture/spec-pathfinding-pf3-pf4.md`
 - `docs/gameplay/spec-copertura-cp91.md` e successive spec CP9.x
 - `Source/RefactorTactics/Map/`
 - `Source/RefactorTactics/Pathfinding/`
@@ -245,12 +248,12 @@ Owner principali:
 
 Owner del **concetto e del confine**, dal 2026-08-17 ([D-154](decisions/RT_PDR_00_Decision_Log.md)):
 
-- `docs/technical/spec-tactical-designer.md` — cosa uno strumento d'editor ha il diritto di decidere, e cosa
+- `docs/technical/tooling/spec-tactical-designer.md` — cosa uno strumento d'editor ha il diritto di decidere, e cosa
   deve invece chiedere al gioco. Risponde a una domanda sola: *se l'editor e il runtime possono divergere,
   lo strumento ha perso il suo valore*. Contiene la scala di maturità `TD 0.1 … TD 1.0`, che è **maturità di
   uno strumento e non una release** — `TD 0.7` non ha niente a che vedere con `v0.7`
 - `docs/roadmap/editormap.shortlist.md` — quale seduta d'editor fare, e in che ordine (**generata**)
-- `docs/technical/scenario-map.md` — chi verifica cosa, fra macchina e persona
+- `docs/technical/tooling/scenario-map.md` — chi verifica cosa, fra macchina e persona
 - `Source/RefactorTacticsEditor/` — il mode e i cinque tool. ⚠️ **Ha test dal 2026-08-16** (`#993`,
   `Private/Tests/`): la frase «quel modulo non ha test», che vive ancora in due punti di
   `spec-hex-geometry-authoring.md`, è **superata**
@@ -271,7 +274,7 @@ Il workbook XLSX è **research**, non owner dei numeri vigenti.
 
 Carica:
 
-- `docs/technical/test-automatico-unreal.md`
+- `docs/technical/tooling/test-automatico-unreal.md`
 - `docs/product/showcase-v0.1.md`
 - `Scenarios/`
 - `Source/RefactorTactics/ScenarioHarness/`
@@ -284,8 +287,8 @@ Uno scenario `BLOCKED` è valido come specifica anticipata; `FAIL` indica un dif
 
 Carica:
 
-- `docs/technical/progettazione-hud.md`
-- `docs/technical/brief-planning-visuale.md`
+- `docs/technical/systems/progettazione-hud.md`
+- `docs/technical/systems/brief-planning-visuale.md`
 - `docs/gameplay/brief-conoscenza-parziale.md`
 - `Source/RefactorTactics/UI/`
 - `Source/RefactorTactics/Player/`
@@ -294,9 +297,9 @@ Carica:
 
 Carica:
 
-- `docs/technical/convenzioni-contenuti-ue.md`
-- `docs/technical/asset-map.md` — quali asset servono e quanti ne mancano (registro)
-- `docs/technical/spec-graybox-placement-contract.md` — quanto spazio occupa un asset di mappa, dov'è il
+- `docs/technical/tooling/convenzioni-contenuti-ue.md`
+- `docs/technical/tooling/asset-map.md` — quali asset servono e quanti ne mancano (registro)
+- `docs/technical/systems/spec-graybox-placement-contract.md` — quanto spazio occupa un asset di mappa, dov'è il
   suo pivot, come si legge il suo stato. ⚠️ Non è il clearance: *quanto grande posso modellare* non è
   *dove un'unità ci sta in piedi* (CP 23.6)
 - `Content/RT/`

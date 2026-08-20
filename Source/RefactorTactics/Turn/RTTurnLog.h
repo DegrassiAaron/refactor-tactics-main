@@ -14,7 +14,40 @@
  * gia' su disco.
  */
 UENUM(BlueprintType)
-enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing, Predictive, ReactionDecision };
+enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing, Predictive, ReactionDecision, ReactionClash };
+
+/**
+ * Gli eventi di un boundary **contested** (E14.7 §10, [D-048]). Viaggiano in `FRTTurnLogEntry::Outcome`
+ * delle voci di categoria `ReactionClash`.
+ *
+ * ⚠️ Categoria PROPRIA e non `ReactionDecision`, per la stessa ragione con cui quella si separo' da
+ * `Reaction`: `Outcome` e' un `uint8` il cui significato lo decide la categoria, e due enum diversi sotto la
+ * stessa categoria renderebbero il campo illeggibile senza sapere quale dei due intendeva chi ha scritto.
+ * Aggiunta in **coda**, come `Fallback`, `Reaction` e `ReactionDecision` prima: la categoria viaggia come
+ * `uint8`, quindi i file gia' su disco non cambiano significato e **la versione del formato non cambia**.
+ *
+ * 🔴 **Tutte queste voci si scrivono AL REVEAL, mai al lock**, ed e' la meta' di §7.1 che riguarda il log:
+ * *«in rete, nessun evento di scelta viene pubblicato prima del reveal»*. Se `ChoiceLocked` fosse scritto
+ * quando il lock arriva, l'**ordine delle voci** direbbe chi ha deciso per primo — cioe' esattamente la
+ * latenza di decisione che la scadenza fissa esiste per nascondere. Le due voci `ChoiceLocked` sono scritte
+ * insieme alle altre, in ordine **canonico** (§7.3) e non di arrivo.
+ */
+UENUM(BlueprintType)
+enum class ERTClashLogEvent : uint8
+{
+	/** Il boundary si e' aperto. `OpportunityId` lo identifica; `Amount` porta la cardinalita'. */
+	OpportunityCreated,
+	/** Un partecipante ha bloccato la propria scelta. Una voce per partecipante, in ordine canonico. */
+	ChoiceLocked,
+	/** La scadenza e' arrivata e le scelte sono state svelate insieme. */
+	Revealed,
+	/** Il confronto fra le due intenzioni. `UnitId` e `SelectedTargetUnitId` sono i due contendenti. */
+	Compared,
+	/** L'esito di un partecipante: `Amount` porta `ERTClashOutcome` (Win/Tie/Lose). */
+	OutcomeResolved,
+	/** Una maneuver con costo ha consumato la propria risorsa al lock valido (§9). */
+	CostConsumed
+};
 
 /**
  * Come si e' chiusa una finestra di reazione (CP 14.5): la risposta **e** il perche', in un valore solo.
@@ -34,9 +67,14 @@ enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environmen
  * per cui il campo esiste) o il danno (e il colpo non lascerebbe traccia nel TurnLog canonico, che e' il
  * difetto di `#625`). Incrociandoli qui, `Amount` resta la quantita' che dichiara di essere.
  *
- * Sono **sei** valori e non sette: un `FireImmediate` non puo' esistere, perche' `HOLD` e' sempre fra le
- * risposte legali e quindi cardinalita' <= 1 significa «solo HOLD». L'impossibile e' assente per costruzione,
- * non escluso da un commento.
+ * Sono **sette** valori dal 2026-08-19, e la ragione del settimo e' scritta accanto ad esso.
+ *
+ * ⚠️ **Questa riga diceva «sono SEI valori e non sette»**, e l'argomento che portava — *un `FireImmediate`
+ * non puo' esistere, perche' `HOLD` e' sempre fra le risposte legali e quindi cardinalita' <= 1 significa
+ * «solo HOLD»* — **regge ancora ed e' su un'altra cosa**: parla di cio' che il caso degenere puo' produrre,
+ * non del numero totale. Il conteggio invece era una misura, ed e' scaduto quando [D-047] ha aperto finestre
+ * il cui vocabolario non e' `FIRE`/`HOLD`. Corretto il numero, conservato l'argomento: un `FireImmediate`
+ * resta impossibile per costruzione.
  */
 UENUM(BlueprintType)
 enum class ERTReactionDecisionOutcome : uint8
@@ -52,7 +90,23 @@ enum class ERTReactionDecisionOutcome : uint8
 	/** La risposta arrivata non era fra le `AllowedResponses`: rifiutata, e sostituita dal default. */
 	HoldRejected,
 	/** Cardinalita' <= 1: non c'era niente da scegliere e nessuna finestra si e' aperta. */
-	HoldImmediate
+	HoldImmediate,
+	/**
+	 * Ha scelto una risposta **attiva che non e' `FIRE`**: il token sta in `FRTTurnLogEntry::ReactionResponse`
+	 * (E14.7, [D-047]). E' `SIDESTEP` oggi, e cio' che i profili aggiungeranno domani.
+	 *
+	 * 🔴 **Perche' non si riusa `HoldChosen`.** Sarebbe stato possibile — il token disambigua comunque in
+	 * rilettura — e avrebbe reso `LogEventCount` incapace di distinguere «ha tenuto la cella» da «ha
+	 * scartato». Uno scenario che conta gli esiti verificherebbe due comportamenti opposti sotto lo stesso
+	 * numero, ed e' esattamente il difetto per cui `ERTReactionOutcome::NotTriggered` esiste dal CP 5.1:
+	 * un esito che non si puo' contare separatamente e' un esito che non si puo' asserire.
+	 *
+	 * ⚠️ **In CODA all'enum, mai in mezzo**: i valori viaggiano come `uint8` nel formato serializzato, e
+	 * inserirlo prima di `HoldImmediate` rinumererebbe le tracce gia' scritte — che e' la regola dichiarata in
+	 * testa a questo file e la ragione per cui `Fallback`, `Reaction` e `ReactionDecision` sono in fondo a
+	 * `ERTLogCategory`.
+	 */
+	ResponseChosen
 };
 
 /**
@@ -560,6 +614,64 @@ struct FRTTurnLogEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	int32 SelectedTargetUnitId = INDEX_NONE;
 
+	/**
+	 * CHI era il bersaglio ORIGINALE, quando un colpo e' stato **redirezionato** (`#1060`). `INDEX_NONE` su
+	 * ogni voce che non redirige — che e' la verita': non c'e' stato nessun trasferimento.
+	 *
+	 * Oggi lo produce la sola interposizione (`ERTReactionTrigger::AllyHitByDirectAttack`): Riktor si mette
+	 * davanti a Wraith, e il colpo che era per Wraith lo incassa Riktor. `UnitId` dice **chi lo incassa** —
+	 * e' l'unita' che reagisce — quindi con questo campo la voce nomina entrambi i capi del trasferimento.
+	 *
+	 * 🔴 **Porta uno `StableUnitId`, come `UnitId` e a differenza di `SelectedTargetUnitId`**, che invece porta
+	 * l'indice di risoluzione. I due spazi di identificatori convivono in questa struct dalla v8, e la scelta
+	 * qui non e' stilistica: i due capi del trasferimento stanno nella **stessa voce**, e nominarli in spazi
+	 * diversi sarebbe illeggibile — sono entrambi `int32`, e su un'arena piccola i valori coincidono per caso,
+	 * quindi l'errore non si manifesterebbe finche' qualcuno non gioca una partita grande.
+	 *
+	 * ⚠️ **Un campo proprio e non la sola `SrcCell`**, benche' la cella del protetto sia scritta li'. E' la
+	 * stessa inferenza che [D-063] ha dichiarato non valida introducendo `UnitId`, e qui e' pure peggio: la
+	 * `SrcCell` di questa voce e' la cella di un'ALTRA unita', quindi chi legge deve gia' sapere che questa
+	 * voce e' un'interposizione per interpretarla. Un'assertion di scenario che risolvesse la cella
+	 * troverebbe l'occupante di fine turno, non chi era bersagliato al Blast.
+	 *
+	 * ⚠️ **NON entra nell'hash** ([D-063]): il trasferimento e' **gia' discriminato** da `SrcCell`, che
+	 * nell'hash c'e' — interporsi per Wraith invece che per Phase da' due celle diverse e quindi due hash
+	 * diversi. Questo campo rende quel fatto **leggibile** senza inferenza, non lo aggiunge. E' lo stesso
+	 * argomento di `BaseActionId` (funzione di `ActionId`) e di `Priority`: zero potere discriminante in piu',
+	 * e includerlo invaliderebbe in blocco gli hash golden per un dato che non discrimina nulla.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	int32 OriginalTargetUnitId = INDEX_NONE;
+
+	/**
+	 * Il **token della risposta** applicata a un decision boundary, quando non e' derivabile dall'esito
+	 * (E14.7, [D-047]). Vuoto altrimenti — che e' il caso di ogni finestra dell'Overwatch.
+	 *
+	 * 🔴 **Perche' un campo e non una deduzione.** `ArmRecordedReactionDecisions` ricostruisce la risposta
+	 * dall'`Outcome`: `FireChosen` -> `FIRE:<SelectedTargetUnitId>`, ogni altro esito -> `HOLD`. Regge finche'
+	 * il vocabolario e' chiuso, e quello dell'Overwatch lo e'. Il `Brace` apre finestre le cui risposte
+	 * vengono dal **catalogo** — `Hold Ground`, `SIDESTEP`, e quelle che i profili aggiungeranno — e per
+	 * quelle la deduzione non e' incompleta: e' **sbagliata**, perche' produrrebbe `HOLD`, che in una finestra
+	 * di `Brace` non e' nemmeno una risposta legale. Il replay la rifiuterebbe come «registrata illegale»,
+	 * accusando la traccia di un difetto del lettore.
+	 *
+	 * ⚠️ **Vuoto = «deducila come sempre»**, e questa e' la proprieta' che tiene l'Overwatch fuori dal
+	 * cambiamento: le sue voci non portano il token, si rileggono con la regola di prima, e una traccia
+	 * scritta ieri significa oggi la stessa cosa. Non e' un default di comodo — e' il ponte fra le due
+	 * versioni del formato.
+	 *
+	 * ⚠️ **NON entra nell'hash**, per lo stesso argomento di `BaseActionId` e `OriginalTargetUnitId`: la
+	 * decisione e' **gia' discriminata** da `Outcome` e — dove c'e' — da `SelectedTargetUnitId`, che l'hash
+	 * mescola. ⛔ La conseguenza va detta invece che taciuta: due risposte di profilo **diverse** con lo
+	 * stesso esito danno oggi lo stesso hash. Non e' un buco del determinismo — la risposta E' nella traccia,
+	 * e il replay la rilegge da qui — ma un `StateHash` uguale non prova piu' che la stessa risposta sia stata
+	 * scelta. Prova che lo **stato finale** coincide, che e' cio' che quell'hash ha sempre dichiarato di
+	 * misurare. Il giorno in cui servisse discriminare la scelta, il campo entra nell'hash e gli hash golden
+	 * si rifanno: e' una decisione, non un'omissione.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
+	FString ReactionResponse;
+
 	FRTTurnLogEntry() = default;
 };
 
@@ -663,7 +775,52 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * ripete perche' e' il difetto peggiore possibile per un formato versionato — il loader sceglie
 	 * l'interpretazione dal numero e non ha modo di accorgersi dello scambio.
 	 */
-	WithReactionDecision = 8
+	WithReactionDecision = 8,
+	/**
+	 * + `OriginalTargetUnitId` per voce (`#1060`): CHI era il bersaglio prima di un redirect. Il campo va in
+	 * coda, dopo `SelectedTargetUnitId`; nessuno dei precedenti si sposta.
+	 *
+	 * Serve perche' la feature dell'interposizione esiste dal `#200` e **non e' verificabile da uno scenario**:
+	 * `OriginalTargetEquals` ed `EffectiveTargetEquals` non avevano un dato su cui poggiare. Il bersaglio
+	 * effettivo era gia' leggibile (`UnitId`), l'originale no — viveva solo come `SrcCell`, cioe' come
+	 * inferenza che [D-063] vieta.
+	 *
+	 * Le tracce dalla 2 alla 8 restano LEGGIBILI, con `OriginalTargetUnitId` a `INDEX_NONE`: e' esattamente
+	 * cio' che quei byte dicevano, perche' in quelle versioni il redirect non era registrato.
+	 *
+	 * ✅ **Gli hash golden NON cambiano, e non e' un caso fortunato**: il campo sta fuori dall'hash per
+	 * costruzione (vedi la sua dichiarazione), quindi ogni traccia — con o senza interposizioni — conserva
+	 * l'hash che aveva. E' la differenza con la v8, che invece li fece cambiare per le tracce con decisioni.
+	 *
+	 * ⚠️ Il numero **9 e' stato verificato su tutti i ref**, come [D-070] impone dopo il caso della v6
+	 * rivendicata due volte: 44 ref esaminati leggendo `ERTTurnLogFormatVersion` in ciascuno — 8 e' il massimo
+	 * dichiarato ovunque, e nessuno rivendica il 9.
+	 */
+	WithRedirectOrigin = 9,
+	/**
+	 * + `ReactionResponse` per voce (E14.7, [D-047]): il **token** della risposta applicata a un decision
+	 * boundary, scritto come l'`ActionId` — lunghezza uint16 e byte UTF-8 in coda alla voce.
+	 *
+	 * 🔴 **Esiste perche' la risposta ha smesso di essere DERIVABILE dall'esito.** Con il solo Overwatch il
+	 * vocabolario era chiuso e la ricostruzione bastava: `FireChosen` -> `FIRE:<bersaglio>`, ogni altro esito
+	 * -> `HOLD`, ed e' cio' che `ArmRecordedReactionDecisions` fa. Il `Brace` di [D-047] apre finestre il cui
+	 * vocabolario viene dal **catalogo** (`Hold Ground`, `SIDESTEP`, e quelle che i profili aggiungeranno):
+	 * per quelle, ricostruire da un `uint8` significa indovinare. Il campo porta la risposta invece di
+	 * dedurla.
+	 *
+	 * ⚠️ **Vuoto quando la risposta E' derivabile**, e non e' un'ottimizzazione: e' cio' che tiene l'Overwatch
+	 * fuori da questo cambiamento. Una voce senza token si rilegge con la regola di sempre, quindi le tracce
+	 * dell'Overwatch — scritte prima o dopo questa versione — significano esattamente la stessa cosa.
+	 *
+	 * Le tracce in versione 2..9 restano LEGGIBILI, con `ReactionResponse` vuoto — che e' esattamente cio'
+	 * che quei byte dicevano. E **gli hash golden non cambiano**: il campo sta fuori dall'hash, per la stessa
+	 * ragione di `BaseActionId` e `OriginalTargetUnitId` — l'esito e il bersaglio, che l'hash gia' mescola,
+	 * discriminano gia' la decisione; il token la rende *leggibile*, non piu' distinguibile.
+	 *
+	 * ⚠️ Il numero **10 e' stato verificato su tutti i ref**, come [D-070] impone: 42 ref esaminati leggendo
+	 * `ERTTurnLogFormatVersion` in ciascuno — 9 e' il massimo dichiarato ovunque, e nessuno rivendica il 10.
+	 */
+	WithReactionResponse = 10
 };
 
 /**

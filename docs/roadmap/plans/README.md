@@ -21,16 +21,34 @@ Ogni file qui porta un **banner di stato** nella prima riga dopo il titolo. È l
 ⚠️ **I banner parlano due vocabolari.** Non è un difetto da sanare riscrivendo 24 documenti — è un fatto da
 dichiarare, perché la mappa serve a chi legge e la riscrittura no.
 
-| Banner | Vocabolario | Significa | Quanti *(2026-08-17)* |
-|---|---|---|--:|
-| `CURRENT` | canonico | Vive: quello che dice vale, salvo verifica sull'owner | 42 |
-| `SNAPSHOT` | canonico | Fotografia di una data. Resta qui finché è **l'ultima misura** del suo oggetto | 12 |
-| `📦 DELIVERED PLAN` | secondo | *Piano già eseguito, non normativo* — equivale a `HISTORICAL` | 14 |
-| `🧱 AS-BUILT` | secondo | *Specifica di ciò che fu consegnato* — equivale a `HISTORICAL` | 7 |
-| `DONE` · `PLAN`/consumato · `BRIEF` | secondo | Casi singoli, già consumati — equivalgono a `HISTORICAL` | 3 |
-| **nessun banner** | — | Il documento apre con una citazione che non ne dichiara uno | **1** |
+<!-- RT_PIANI_BANNER:BEGIN -->
 
-**79 documenti**, `README.md` escluso — ⚠️ **rimisurati dopo il merge**, non incrementati: questa cella e' andata fuori sincrono **tre volte in un giorno** perche' quattro rami hanno toccato la cartella senza vedersi. `42 + 12 + 14 + 7 + 3 + 1 = 79`, e la somma delle categorie e' il controllo che il totale da solo non offre.
+| Banner | Significa | Quanti |
+|---|---|--:|
+| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 42 |
+| `SNAPSHOT` | Fotografia di una data. **Resta qui** finche' e' l'ultima misura del suo oggetto | 12 |
+| `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | 2 |
+| **totale** | | **56** |
+
+In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **43**: quelli che il banner dichiarava gia' storici.
+
+<!-- RT_PIANI_BANNER:END -->
+
+> 🔵 **Dal 2026-08-19 questa tabella è generata**, e le note qui sotto restano perché la storia di
+> come ci si è arrivati vale più del numero. La cella è andata fuori sincrono **tre volte in un
+> giorno**, e il 2026-08-19 si contraddiceva ancora: diceva `79` in tabella e `# 75` nel comando in
+> fondo, con **1** documento senza banner dove i file ne avevano **2**. Il totale tornava lo stesso —
+> ed è il caso peggiore, perché una somma giusta fa credere corretti gli addendi.
+>
+> Il banner sta nei file, quindi si legge dai file:
+> `python scripts/docs_inventory.py --emit-plans`, e `--check` fallisce se qualcuno lo riscrive a
+> mano. ⚠️ **Dentro i due marcatori non si scrive**: rigenerare cancella, e cancella in silenzio.
+
+> 🔵 **2026-08-19 — 23 documenti hanno raggiunto l'archivio.** Portavano `DELIVERED PLAN`,
+> `AS-BUILT`, `DONE` o `BRIEF`, cioè i banner che questa pagina dichiara equivalenti a `HISTORICAL`,
+> e il README dell'archivio raccoglie esattamente quelli. I **12 `SNAPSHOT` non si sono mossi**: la
+> regola di questa pagina — *resta finché è l'ultima misura del suo oggetto* — è più fine di quella
+> scritta là, e fra due owner della stessa regola ha vinto il più preciso.
 
 > 🔵 **Rimisurato il 2026-08-17 dal ramo `docs/consolidamento-skill-plus`, e lo scarto era di uno.** La
 > cella diceva `77`; la cartella ne conteneva **78** prima che questo giro aggiungesse
@@ -65,8 +83,11 @@ dichiarare, perché la mappa serve a chi legge e la riscrittura no.
 I due totali si rimisurano eseguendo:
 
 ```sh
-ls docs/roadmap/plans/*.md | grep -v README | wc -l          # 75
-ls docs/archive/roadmap-plans/*.md | grep -v README | wc -l  # 20
+ls docs/roadmap/plans/*.md | grep -v README | wc -l          # il totale
+ls docs/archive/roadmap-plans/*.md | grep -v README | wc -l  # e quello dell'archivio
+# ⚠️ I due `#` non portano piu' un numero: erano commenti scritti a mano accanto al comando
+# che li produce, ed erano sbagliati — `75` contro `79` reali. Un numero accanto al suo
+# oracolo e' la forma piu' facile da lasciare indietro.
 
 # La ripartizione per banner — il numero che fino al 2026-08-16 nessun comando produceva.
 # Il banner sta nella PRIMA riga di citazione del file, e i vocabolari sono due.
@@ -130,7 +151,7 @@ deriva che questa sezione lo aggiunge a misurare.
 > **2**. Se uno solo atterrasse, questa cella direbbe `53` con la cartella a `59`.
 > **La lezione non è che il numero sia sbagliato — oggi è giusto — ma che la sua garanzia lo era**: una
 > previsione si legge con **due** comandi, `gh pr list` *e* `git ls-remote`/`git diff` sui branch remoti.
-> È scritto nell'intestazione di [`../parallel-batch.yaml`](../parallel-batch.yaml), ed è stato ignorato
+> È scritto nell'intestazione di `../parallel-batch.yaml`, ed è stato ignorato
 > nel documento che quel file esiste per proteggere. Trovato in code review.
 
 ✅ **Nessun `HISTORICAL` canonico resta qui**: dal 2026-08-14 vivono tutti in

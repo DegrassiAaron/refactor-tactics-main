@@ -113,19 +113,30 @@ public:
 	 *
 	 * ⚠️ **Bersaglio conteso = risoluzione rifiutata**, con reason code in `OutErrors` se fornito. Se uno
 	 * qualunque dei bersagli e' nominato anche da un'altra sorgente, l'esito e' vuoto: `INT-5` non ha deciso
-	 * la semantica di composizione, e risolvere comunque la deciderebbe qui. Si rifiuta l'INTERA risoluzione
-	 * e non il singolo bersaglio perche' l'operazione su N bersagli e' dichiarata **atomica**: applicarne una
-	 * parte sarebbe una seconda decisione che nessuno ha preso.
+	 * la semantica di composizione, e risolvere comunque la deciderebbe qui.
+	 *
+	 * 🔴 **Si rifiuta l'INTERA risoluzione, e la ragione NON e' piu' l'atomicita'.** Questa riga diceva
+	 * *«perche' l'operazione su N bersagli e' dichiarata atomica»*, e [D-150] (2026-08-16) ha fatto cadere
+	 * proprio quella premessa: si applicano i bersagli applicabili e si riporta l'esito degli altri. La
+	 * ragione vera e' un'altra e sopravvive alla decisione: cio' che `INT-5` non ha deciso e' **chi comanda**
+	 * quel bersaglio, non cosa fare dei bersagli rimasti. Un bersaglio conteso non ha un comandante
+	 * riconosciuto, quindi non risolve — e insieme a lui non risolve il binding che lo nomina, perche'
+	 * applicarne gli altri attribuirebbe a questa sorgente un'operazione parziale che nessuno le ha assegnato.
 	 */
 	static TArray<FRTStructureEdgeRef> ResolveInteractionTargets(const URTHexMapAsset* Map, FName SourceId,
 		TArray<FString>* OutErrors = nullptr);
 
 	/**
-	 * Errori del grafo di interazione: bersaglio inesistente e binding duplicato per la stessa sorgente.
+	 * Errori del grafo di interazione: bersaglio inesistente, binding duplicato per la stessa sorgente,
+	 * sorgente vuota, binding senza bersagli, sorgente che comanda se stessa, e **bersaglio-arco**.
 	 *
 	 * ⚠️ **Due sorgenti che nominano lo stesso bersaglio NON sono un errore qui**: e' `INT-5`, aperta, e il
 	 * dato deve poterla rappresentare. A rifiutarla e' la risoluzione con un reason code, non la validazione
 	 * d'asset — altrimenti una decisione aperta riceve risposta da un validator.
+	 *
+	 * ⚠️ **Un bersaglio che risolve un ARCO fallisce**, ed e' il «binding cross-layer» che lo Scope di #833
+	 * dichiara errore d'asset: gli archi sono l'unica struttura che collega layer diversi, e la risoluzione
+	 * comanda solo porte. Senza la regola l'asset sarebbe valido e l'`Interact` inerte, in silenzio.
 	 */
 	static TArray<FString> ValidateInteractionGraph(const URTHexMapAsset* Map);
 };

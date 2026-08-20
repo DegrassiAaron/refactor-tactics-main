@@ -183,11 +183,11 @@ il batch della §7 qui sotto.
 |---:|---|---|
 | 2 | rispettare release ed epic correnti | ✓ verificato: `E1`–`E45`, epic GitHub [#14](https://github.com/DegrassiAaron/refactor-tactics-main/issues/14)–[#778](https://github.com/DegrassiAaron/refactor-tactics-main/issues/778) |
 | 14 | Claude modifica asset solo tramite Unreal | `AGENTS.md` §Unreal: *«non spostarli da filesystem: Content Browser + Fix Up Redirectors»* |
-| 15 | preservare vault/Fab e ignore policy | [`convenzioni-contenuti-ue.md`](../../technical/convenzioni-contenuti-ue.md) + `.gitignore` |
+| 15 | preservare vault/Fab e ignore policy | [`convenzioni-contenuti-ue.md`](../../technical/tooling/convenzioni-contenuti-ue.md) + `.gitignore` |
 | 16 | le collisioni di ID sono un problema generale | `D-135`, sedici collisioni registrate nelle Note del Decision Log |
 | 17 | `rt_shared_id.py` è già la soluzione per `D-nnn` | ✓ esatto — `reserve` · `check` · `audit-refs` |
 | 19 | policy transitoria per namespace non supportati | `AGENTS.md` §Git: *«Restano a mano gli altri contatori — `Enn` e `XXX-n`: si verificano sul remote subito prima del merge»* |
-| 20 | più cloni: `fetch` + `check` + `audit-refs` prima del merge | `AGENTS.md` §Git, [`workflow-parallel-claude.md`](../../technical/workflow-parallel-claude.md) §8 |
+| 20 | più cloni: `fetch` + `check` + `audit-refs` prima del merge | `AGENTS.md` §Git, `workflow-parallel-claude.md` §8 |
 | 26 | EditorMap resta owner della coda umana | [`editor-sessions.yaml`](../editor-sessions.yaml) sorgente, [`editormap.shortlist.md`](../editormap.shortlist.md) vista generata |
 | 28 | GitHub è già l'ID del task, niente `SP-01` | `execution-graph.yaml` usa `issue:<numero>` come identità dei nodi |
 | 29 | nessun nuovo `Gxx` per il parallelismo | ✓ nessun gate nuovo introdotto |
@@ -238,7 +238,7 @@ tutti e tre erano righe che questo ramo aveva già dichiarato contese in `integr
 rimisurati col comando invece che scegliendo un lato — **72** e **52**, esattamente i valori previsti. Nessun
 file di codice, nessuna vista generata, nessuna scelta arbitraria.
 
-Ne segue la forma minima del meccanismo, in [`../parallel-batch.yaml`](../parallel-batch.yaml): un file che
+Ne segue la forma minima del meccanismo, in `../parallel-batch.yaml`: un file che
 descrive **il batch**, non lo stato delle feature — niente `status`, `done`, `progress`, conteggi di test.
 Lo stato resta nel Feature Registry e su GitHub.
 
@@ -345,7 +345,7 @@ quali coperti dalle categorie non assegnabili di questo batch — `integration_o
 occupata finché il worktree esiste: `git worktree list` e `gh pr list` rispondono a due domande diverse, e
 va guardata anche la prima.
 
-Il batch è in [`../parallel-batch.yaml`](../parallel-batch.yaml). In forma leggibile:
+Il batch è in `../parallel-batch.yaml`. In forma leggibile:
 
 ```text
 SPATIAL
@@ -387,7 +387,7 @@ applicato alla lettera: il conto giusto non è quante track hai riempito, è qua
 🔴 **La prima stesura assegnava `Source/RefactorTactics/ScenarioHarness/` a `simulation` mentre `wt-cap` la
 stava riscrivendo.** Il write-set di quel branch era stato **dichiarato a memoria** — «tiene
 `RTScenarioCorpusTests.cpp`» — invece che misurato col comando che la §12 di
-[`workflow-parallel-claude.md`](../../technical/workflow-parallel-claude.md) prescrive tre righe sopra:
+`workflow-parallel-claude.md` prescrive tre righe sopra:
 
 ```powershell
 git diff --name-only 84cbb70c...fix/capability-sconosciuta-non-e-blocked

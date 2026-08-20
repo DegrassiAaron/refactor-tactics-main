@@ -219,6 +219,72 @@ bool URTScenarioLoader::LoadFromFile(const FString& FilePath, FRTTestScenario& O
 
 namespace
 {
+	/**
+	 * Le regole di FORMA di una `decisions`: vocabolario di `respond`, presenza/assenza di `target`, e la
+	 * versione che quella forma richiede.
+	 *
+	 * 🔴 **Esiste perche' erano DUE copie, e sono divergite alla prima aggiunta.** Il parser
+	 * (`LoadFromString`) e il gate (`Validate`) portavano lo stesso controllo scritto due volte: aggiungendo
+	 * le risposte di profilo (E14.7 fetta 4) ne e' stata aggiornata **una sola**, e il corpus e' diventato
+	 * rosso con il messaggio della copia vecchia — «previste: FIRE, HOLD» — mentre il codice nuovo diceva
+	 * altro a dieci righe di distanza. Una funzione sola e' l'unica forma in cui non possono piu' dire cose
+	 * diverse. Il commento sotto `ValidateScenarioTurns` spiega perche' servono entrambi i chiamanti.
+	 */
+	bool ValidateDecisionForm(const FRTScenarioDecision& Decision, int32 ScenarioVersion, FString& OutError)
+	{
+		const bool bFire = Decision.Respond.Equals(TEXT("FIRE"), ESearchCase::CaseSensitive);
+		const bool bHold = Decision.Respond.Equals(TEXT("HOLD"), ESearchCase::CaseSensitive);
+
+		// Il vocabolario si CHIEDE al catalogo, non si riscrive qui: le risposte di un Reaction Profile
+		// (`Hold Ground`, `SIDESTEP`, …) sono legali quanto `FIRE`/`HOLD`, e l'elenco che le conosce e' uno
+		// solo — `URTCatalogLibrary`. Una seconda lista in questo file divergerebbe al primo profilo
+		// aggiunto, e a divergere sarebbe il GATE, cioe' il pezzo il cui mestiere e' accorgersene.
+		const bool bProfileResponse = !bFire && !bHold
+			&& URTCatalogLibrary::IsKnownReactionProfileResponse(Decision.Respond);
+
+		if (!bFire && !bHold && !bProfileResponse)
+		{
+			// L'elenco atteso si GENERA e si ORDINA, come per le chiavi di turno: scriverlo a mano
+			// significherebbe che il messaggio d'errore e il controllo possono dire cose diverse — ed e' il
+			// messaggio a essere letto quando qualcosa non torna.
+			TArray<FString> Expected = { TEXT("FIRE"), TEXT("HOLD") };
+			Expected.Append(URTCatalogLibrary::AllReactionProfileResponses());
+			Expected.Sort();
+			OutError = FString::Printf(TEXT("decisions: risposta '%s' sconosciuta (previste: %s)"),
+				*Decision.Respond, *FString::Join(Expected, TEXT(", ")));
+			return false;
+		}
+
+		// 🔴 **Anche questa forma deve DICHIARARE la versione che la ammette**, per la stessa ragione per cui
+		// `decisions` richiede la `2`: su una build a `SupportedVersion = 2` un file `version: 2` con
+		// `respond: "SIDESTEP"` passa il gate di versione e viene poi rifiutato con «risposta sconosciuta»,
+		// che accusa il FILE mentre il difetto e' la build. Il gate qui fa dire al messaggio la cosa giusta.
+		if (bProfileResponse && ScenarioVersion < 3)
+		{
+			OutError = FString::Printf(
+				TEXT("decisions: la risposta di profilo '%s' richiede \"version\": 3 (dichiarata: %d)"),
+				*Decision.Respond, ScenarioVersion);
+			return false;
+		}
+
+		// `target` obbligatorio con FIRE e VIETATO con tutto il resto. Il secondo divieto e' la meta' che
+		// conta: un bersaglio ignorato fa dichiarare allo scenario una cosa che non verifica. ⚠️ La condizione
+		// e' `!bFire` e non `bHold`: scritta sul solo `HOLD` avrebbe lasciato passare `SIDESTEP` con un
+		// `target`, cioe' avrebbe riaperto in silenzio proprio il caso che questo divieto chiude.
+		if (bFire && Decision.Target.IsEmpty())
+		{
+			OutError = FString::Printf(TEXT("decisions: 'FIRE' di '%s' richiede 'target'"), *Decision.Unit);
+			return false;
+		}
+		if (!bFire && !Decision.Target.IsEmpty())
+		{
+			OutError = FString::Printf(TEXT("decisions: '%s' non ammette 'target' (dichiarato '%s')"),
+				*Decision.Respond, *Decision.Target);
+			return false;
+		}
+		return true;
+	}
+
 	// --- Sezioni del formato scenario ------------------------------------------------------------
 	//
 	// Una funzione per sezione del JSON, nell'ordine in cui il documento le dichiara. Ciascuna torna
@@ -481,29 +547,14 @@ namespace
 							return false;
 						}
 
+						// La FORMA — vocabolario di `respond`, `target`, versione richiesta — sta in
+						// `ValidateDecisionForm`, condivisa con `Validate`. Erano due copie e sono divergite:
+						// vedi il commento di quella funzione.
+						if (!ValidateDecisionForm(Decision, OutScenario.Version, OutError))
+						{
+							return false;
+						}
 						const bool bFire = Decision.Respond.Equals(TEXT("FIRE"), ESearchCase::CaseSensitive);
-						const bool bHold = Decision.Respond.Equals(TEXT("HOLD"), ESearchCase::CaseSensitive);
-						if (!bFire && !bHold)
-						{
-							OutError = FString::Printf(
-								TEXT("decisions: risposta '%s' sconosciuta (previste: FIRE, HOLD)"),
-								*Decision.Respond);
-							return false;
-						}
-						// `target` obbligatorio con FIRE e VIETATO con HOLD. Il secondo divieto e' la meta' che
-						// conta: un bersaglio ignorato fa dichiarare allo scenario una cosa che non verifica.
-						if (bFire && Decision.Target.IsEmpty())
-						{
-							OutError = FString::Printf(
-								TEXT("decisions: 'FIRE' di '%s' richiede 'target'"), *Decision.Unit);
-							return false;
-						}
-						if (bHold && !Decision.Target.IsEmpty())
-						{
-							OutError = FString::Printf(
-								TEXT("decisions: 'HOLD' non ammette 'target' (dichiarato '%s')"), *Decision.Target);
-							return false;
-						}
 						// I nomi si risolvono QUI: un'unita' che non esiste e' uno scenario scritto male, non una
 						// capability mancante — e `Blocked` direbbe la seconda cosa. `units` e' letto sopra
 						// (riga ~247), quindi `FindUnit` ha gia' il roster.
@@ -861,6 +912,20 @@ namespace
 					Obj->TryGetBoolField(TEXT("value"), bAlive);
 					Exp.Value = bAlive ? 1 : 0;
 				}
+				// I due capi di un REDIRECT (#1060). `unit` obbligatorio in entrambe: senza, l'assertion
+				// confronterebbe un id vuoto e passerebbe o fallirebbe per un motivo che non e' quello scritto —
+				// lo stesso argomento con cui `UnitHpEquals` rifiuta un `value` mancante invece di indovinare 0.
+				else if (Type == TEXT("OriginalTargetEquals") || Type == TEXT("EffectiveTargetEquals"))
+				{
+					Exp.Kind = (Type == TEXT("OriginalTargetEquals"))
+						? ERTAssertionKind::OriginalTargetEquals
+						: ERTAssertionKind::EffectiveTargetEquals;
+					if (!Obj->TryGetStringField(TEXT("unit"), Exp.UnitId) || Exp.UnitId.IsEmpty())
+					{
+						OutError = FString::Printf(TEXT("assertion %s: manca il campo unit"), *Type);
+						return false;
+					}
+				}
 				else if (Type == TEXT("UnitFacing"))
 				{
 					Exp.Kind = ERTAssertionKind::UnitFacing;
@@ -943,7 +1008,10 @@ namespace
 				{
 					// Meglio rifiutare che ignorare: una assertion scritta male che venisse saltata in silenzio
 					// farebbe passare un test che non verifica nulla.
-					OutError = FString::Printf(TEXT("assertion sconosciuta: '%s' (previste: UnitAtCell, TurnsCompleted, UnitHpEquals, UnitAlive, UnitFacing, LogEventCount, LogEventOrder, LogEventAmount)"), *Type);
+					// ⚠️ L'elenco va tenuto allineato all'enum: chi scrive `OriginalTargetEqual` (senza la `s`)
+					// legge questa riga per capire cosa esiste, e un elenco stantio gli fa concludere che il
+					// vocabolario non c'e'. La v9 l'aveva dimenticato — trovato da una code review.
+					OutError = FString::Printf(TEXT("assertion sconosciuta: '%s' (previste: UnitAtCell, TurnsCompleted, UnitHpEquals, UnitAlive, UnitFacing, LogEventCount, LogEventOrder, LogEventAmount, OriginalTargetEquals, EffectiveTargetEquals)"), *Type);
 					return false;
 				}
 				OutScenario.Expect.Add(Exp);
@@ -1193,6 +1261,7 @@ namespace
 		return true;
 	}
 
+
 	/** `turns`: gli intenti nominano unita' che esistono e non pilotano a mano quelle affidate al bot. */
 	bool ValidateScenarioTurns(const FRTTestScenario& Scenario,
 		const TSet<FString>& SeenIds, const TSet<FString>& BotIds, FString& OutError)
@@ -1208,25 +1277,13 @@ namespace
 			// d'altro.
 			for (const FRTScenarioDecision& Decision : Turn.Decisions)
 			{
+				// La FORMA sta in `ValidateDecisionForm`, condivisa col parser: vedi il commento di quella
+				// funzione per la ragione — erano due copie e sono divergite.
+				if (!ValidateDecisionForm(Decision, Scenario.Version, OutError))
+				{
+					return false;
+				}
 				const bool bFire = Decision.Respond.Equals(TEXT("FIRE"), ESearchCase::CaseSensitive);
-				const bool bHold = Decision.Respond.Equals(TEXT("HOLD"), ESearchCase::CaseSensitive);
-				if (!bFire && !bHold)
-				{
-					OutError = FString::Printf(
-						TEXT("decisions: risposta '%s' sconosciuta (previste: FIRE, HOLD)"), *Decision.Respond);
-					return false;
-				}
-				if (bFire && Decision.Target.IsEmpty())
-				{
-					OutError = FString::Printf(TEXT("decisions: 'FIRE' di '%s' richiede 'target'"), *Decision.Unit);
-					return false;
-				}
-				if (bHold && !Decision.Target.IsEmpty())
-				{
-					OutError = FString::Printf(
-						TEXT("decisions: 'HOLD' non ammette 'target' (dichiarato '%s')"), *Decision.Target);
-					return false;
-				}
 				if (!SeenIds.Contains(Decision.Unit))
 				{
 					OutError = FString::Printf(TEXT("decisions: unita' '%s' non schierata"), *Decision.Unit);

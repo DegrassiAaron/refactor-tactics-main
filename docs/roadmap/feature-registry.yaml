@@ -115,6 +115,7 @@ features:
       - Visual.Core.PhaseOrder
     wiki_refs:
       - wiki:struttura-del-round
+      - wiki:il-turno-simultaneo
       - wiki:esempio-di-round
     pie_refs: [PIE-HEXPLAY-4, PIE-HEXPLAY-5]
     last_verified:
@@ -169,6 +170,8 @@ features:
     scenarios:
       - RT_Showcase_Relay_v01
     wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
       - wiki:regole-fondamentali
     last_verified:
       date: 2026-08-16
@@ -212,14 +215,16 @@ features:
     dependencies:
       - RT-FEAT-CORE-TURN
     owner_specs:
-      - docs/technical/spec-turnlog.md
-      - docs/technical/spec-turnlog-serialize.md
+      - docs/technical/architecture/spec-turnlog.md
+      - docs/technical/architecture/spec-turnlog-serialize.md
     issues: [81, 178, 307, 420]
     tests:
       - RefactorTactics.TurnLog.*
     scenarios:
       - Visual.Core.PhaseOrder
     wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
       - wiki:regole-fondamentali
     last_verified:
       date: 2026-08-10
@@ -254,13 +259,15 @@ features:
     dependencies:
       - RT-FEAT-CORE-TURNLOG
     owner_specs:
-      - docs/technical/spec-turnlog-serialize.md
+      - docs/technical/architecture/spec-turnlog-serialize.md
       - docs/decisions/adr-0009-replay-logico-canonico.md
     issues: [415, 469, 470, 471, 416, 490]
     tests:
       - RefactorTactics.Replay.*
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-10
       commit: b9c096c
@@ -306,6 +313,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -388,6 +396,7 @@ features:
           - Spec.TimeBank.TimeoutIgnoresPreferredResponse
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     wiki_note: >-
       Le **regole** sono decise (2026-08-09); i **valori** restano baseline di playtest.
       La Wiki non deve pubblicarli come definitivi finché §3.2 non li promuove.
@@ -431,9 +440,11 @@ features:
       campione di pacing deve includere il caso a **due unita' armate dello stesso giocatore**
       (`2 x MaxPromptsPerReaction x 3,0 s` = 18 s in un turno), o taratura e baseline descrivono un gioco
       che la v0.1 non gioca.
-      ⚠️ **La verifica PIE del Quick Confirm NON e' stata scritta**: `docs/technical/test-manuali-pie.md`
-      appartiene a un'altra track in `parallel-batch.yaml` e per `D-139` si aspetta il suo owner. Il testo
-      pronto sta nel DoD di #319 e in §11 della spec: e' un debito **nominato**, non una dimenticanza.
+      ⚠️ **La verifica PIE del Quick Confirm NON e' stata scritta**, e resta da fare: le due voci sono
+      `PIE-V01-PREFERRED` e `PIE-V01-PREFERREDSTALE`, col testo pronto nel DoD di #319 e in §11 della
+      spec — un debito **nominato**, non una dimenticanza. *(Fino al 2026-08-20
+      `docs/technical/test-manuali-pie.md` apparteneva a un'altra track del write-set di batch e si
+      aspettava il suo owner; `D-178` ha rimosso quel vincolo.)*
 
   - feature_id: RT-FEAT-CORE-PLAYBACK
     title: Playback della risoluzione
@@ -503,7 +514,7 @@ features:
     dependencies: []
     owner_specs:
       - docs/decisions/adr-0002-griglia-esagonale.md
-      - docs/technical/spec-mappa-multilivello.md
+      - docs/technical/architecture/spec-mappa-multilivello.md
     issues: [31, 687]
     tests:
       - RefactorTactics.Hex.*
@@ -550,8 +561,8 @@ features:
     dependencies:
       - RT-FEAT-MAP-HEXGRAPH
     owner_specs:
-      - docs/technical/spec-pathfinding.md
-      - docs/technical/spec-pathfinding-pf3-pf4.md
+      - docs/technical/architecture/spec-pathfinding.md
+      - docs/technical/architecture/spec-pathfinding-pf3-pf4.md
     issues: [32]
     tests:
       - RefactorTactics.HexPath.*
@@ -563,6 +574,7 @@ features:
       - Visual.Map.MultiLevel
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     pie_refs: [PIE-HEXPLAY-4, PIE-HEXPLAY-5]
     last_verified:
       date: 2026-08-08
@@ -600,7 +612,7 @@ features:
       # domanda con due modelli diversi — cerchio inscritto (D-071, qui, non implementato) e dodici
       # settori con soglie (#619, la', implementato) — e danno risposte diverse sulla stessa
       # geometria. Quale dei due scrive `bBlocksMovement` non e' deciso; l'innesco e' #621.
-      - docs/technical/spec-hex-geometry-authoring.md
+      - docs/technical/systems/spec-hex-geometry-authoring.md
       - docs/roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md
     issues: [324, 717]
     tests: []
@@ -611,6 +623,7 @@ features:
           - Spec.Map.NinetyDegreeCornerBakesCorrectly
     wiki_refs:
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     wiki_note: >-
       La pagina Wiki spiega il **principio** (la griglia non vincola i muri); il dato cotto e la pipeline di cottura non esistono ancora.
     notes: >
@@ -656,6 +669,7 @@ features:
           - Spec.Map.DoorOpensTransition
     wiki_refs:
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     wiki_note: >-
       Il caso «due celle valide, passaggio chiuso» è già spiegabile; il dato che lo esprime senza passare da una copertura non esiste ancora.
     notes: >
@@ -910,7 +924,7 @@ features:
     dependencies:
       - RT-FEAT-MAP-HEXGRAPH
     owner_specs:
-      - docs/technical/h6-4-hex-vision-spec.md
+      - docs/technical/systems/h6-4-hex-vision-spec.md
     issues: [34]
     tests:
       - RefactorTactics.HexVision.*
@@ -979,7 +993,7 @@ features:
       # facing, e facing nei micro-step = ultimo passo compiuto. Nessuno dei tre e' implementato.
       - docs/decisions/adr-0008-rotazione-e-policy-di-facing.md
       - docs/decisions/RT_PDR_00_Decision_Log.md
-      - docs/technical/spec-turnlog.md
+      - docs/technical/architecture/spec-turnlog.md
     issues: [175, 176, 177, 291, 341, 339, 726, 737]
     # La rotazione DICHIARATA (girarsi restando fermi) e' regola implementata ma senza produttore: nessun
     # input la scrive. Il gate `runtime` resta `done` perche' l'orientamento DERIVATO — quello che un'unita'
@@ -1047,6 +1061,7 @@ features:
       - Spec.Facing.StationaryDeclaredRotationApplies
     wiki_refs:
       - wiki:facing-e-direzionalita
+      - wiki:facing-e-direzionalita-scheda-dati
     # 🔴 Questa nota diceva «Decisione accettata (ADR-0005) ma **non implementata**: quello che leggi qui
     # descrive come funzionera', non come funziona oggi», e il 2026-08-13 era falsa da tempo — contraddetta
     # dai gate della sua stessa voce (`scenario: done`, `automation: done`, `runtime: partial`) e da nove
@@ -1281,7 +1296,7 @@ features:
       - RT-FEAT-MAP-PATHFINDING
     owner_specs:
       - docs/gameplay/spec-ponti-cp94.md
-      - docs/technical/spec-mappa-multilivello.md
+      - docs/technical/architecture/spec-mappa-multilivello.md
     issues: [72, 206]
     tests:
       - RefactorTactics.Structures.Bridge
@@ -1393,6 +1408,7 @@ features:
       - Visual.Combat.FallbackTargetMoved
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
       - wiki:collisioni
     last_verified:
       date: 2026-08-08
@@ -1486,13 +1502,42 @@ features:
       - Spec.Brace.PushBeyondGuardThreshold
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     wiki_note: >-
       Quattro azioni generiche su sette sono complete: `Wait`, `Move`, `BasicAttack`, `Guard`.
-      `Brace` funziona ma come reazione; `Interact` è a catalogo **senza effetto**; `Overwatch` non
-      esiste ancora.
+      `Brace` funziona ma come reazione; `Interact` dichiara l'apertura della porta ma non ha ancora
+      un produttore lato giocatore; di `Overwatch` il resolver costruisce le opportunity, e quello
+      che manca è la UI con cui rispondere.
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      # Rimisurata il 2026-08-17: il `wiki_note` era falso in DUE clausole su tre, ed e' il difetto
+      # che il consolidamento della Wiki ha aperto come `GAP-2` guardandone una sola. La forma del
+      # difetto conta piu' delle due righe: il `notes:` qui sotto e' stato aggiornato da D-148 lo
+      # stesso giorno, il `wiki_note` no — la nota INTERNA si corregge quando qualcuno lavora la
+      # feature, quella PUBBLICATA invecchia da sola, e nessun gate confronta le due.
+      #   · «`Interact` e' a catalogo **senza effetto**»: falso, in `RTCatalogLibrary.cpp` la riga
+      #     `Catalog.Add(ShippedAction(TEXT("Action.Interact") ...))` porta un `FRTActionEffectSpec`
+      #     con `ERTActionEffect::SetDoorState` verso `ERTHexDoorState::Open` ([D-148] + [D-151]).
+      #   · «`Overwatch` non esiste ancora»: falso, **e anche il `notes:` lo era** — diceva «nessun
+      #     ramo del resolver lo esegue ... il consumatore e' E14.5». CP 14.5 e' chiusa: misurata
+      #     l'unica chiamata a `BuildOverwatchTriggers` fuori dai test, dentro
+      #     `ARTTurnManager::ResolveReactionBoundary`.
+      #     Era la contraddizione con `RT-FEAT-REACTION-OVERWATCH`, verificata il 2026-08-16.
+      # 🔴 **Le due righe qui sopra citavano `RTTurnManager.cpp` alla riga 5257 e `RTCatalogLibrary.cpp`
+      # alla 819 — scritte qui senza i due punti, perche' un audit dei puntatori le rileggerebbe come
+      # riferimenti vivi e le segnalerebbe rotte ogni volta; sono citazioni di cio' che era, non indirizzi —
+      # e
+      # una code review le ha falsificate lo stesso giorno in cui sono state scritte.** Il primo
+      # puntatore era VERO quando l'ho misurato (`a3affe04`, file di 6002 righe) ed e' morto nel merge
+      # che ho fatto io sedici minuti dopo: lo split del Blast ha portato via 1253 righe, il file ne ha
+      # 4875 e la riga 5257 **non esiste piu'**. Il secondo non e' mai stato giusto: la 819 e' il
+      # COMMENTO che afferma la dichiarazione, non la dichiarazione — chi andava a verificare trovava
+      # una prosa che ripete la tesi invece del codice che la prova, ed e' il modo piu' insidioso di
+      # sbagliare una citazione, perche' a colpo d'occhio conferma. Entrambi ora citano il simbolo,
+      # come vuole la regola del repository: un numero di riga non fallisce mai, si limita a mentire.
+      # ⚠️ Rimisurato lo STATO delle tre azioni, non i gate: test e scenari non sono stati rieseguiti
+      # in questo giro, e restano `partial` come li aveva lasciati il 2026-08-08.
+      date: 2026-08-17
+      commit: a3affe04
     notes: >
       Delle sette azioni generiche di D-025, **quattro sono complete e testate**
       (`Wait`, `Move`, `BasicAttack`, `Guard`). Le altre tre non sono nello stesso stato, e la
@@ -1512,12 +1557,22 @@ features:
                     ⚠️ Resta fuori dal runtime **il produttore lato giocatore**: `HandleTargetEdge`
                     esiste (`#737`) ma nessun test lo lega a `Interact`, e quel test vive in
                     `RTPointerInteractionTests.cpp`, non assegnato (D-139).
-        · `Overwatch` **non è ancora un'azione**, ma dal 2026-08-10 non è più «non esiste»: E14.4
-                    ha portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i
-                    micro-step. Resta fuori dal runtime della partita per la stessa ragione di
-                    `Interact` — nessun ramo del resolver lo esegue — e il consumatore è E14.5.
-                    La riga precedente citava un `grep` che oggi restituisce codice: aggiornata
-                    perché una nota che descrive un'assenza smette di essere vera senza avvisare.
+        · `Overwatch` **non è ancora un'azione**, ma non è nemmeno più fuori dal runtime: E14.4 ha
+                    portato `BuildOverwatchTriggers`, che costruisce le opportunity lungo i
+                    micro-step, e ~~«nessun ramo del resolver lo esegue, il consumatore è E14.5»~~
+                    è **superato il 2026-08-17**: CP 14.5 è chiusa, e la chiamata — l'unica fuori
+                    dai test — vive in `ARTTurnManager::ResolveReactionBoundary`. Quello che manca
+                    ora è il **giocatore**: la finestra si apre e finisce nel TurnLog, ma la UI per
+                    rispondere è CP 14.6.
+                    Questa riga è stata riscritta **tre** volte dallo stesso difetto — descriveva
+                    un'assenza, e un'assenza smette di essere vera senza che nulla diventi rosso.
+                    La prima volta citava un `grep` che aveva iniziato a restituire codice; la
+                    seconda nominava un checkpoint che nel frattempo era stato chiuso; la terza —
+                    scritta per correggere le prime due — puntava a `RTTurnManager.cpp` alla riga 5257, ed è
+                    morta **nel merge dello stesso lavoro che la introduceva**, quando lo split del
+                    Blast ha accorciato il file di 1253 righe. Un puntatore a lavoro **futuro**
+                    invecchia come uno a lavoro assente, e un numero di riga invecchia più in fretta
+                    di entrambi: qui è sopravvissuto sedici minuti.
 
       I gate restano `partial` perché la feature davvero non è completa; `completed_by` dice
       **chi** la completa, così la stessa mancanza non viene contata due volte.
@@ -1566,6 +1621,7 @@ features:
       # scenario e' passato a `RT-FEAT-ACTION-SPATIAL-TRANSFER`, che e' cio' che dimostra davvero.
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1743,6 +1799,7 @@ features:
       - Combat.MoveIsFullWithoutSlow
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-09
       commit: 8a43866
@@ -1810,6 +1867,7 @@ features:
       - Spec.Movement.DashDiscardsPlannedMove
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
       - wiki:collisioni
     pie_refs: [PIE-HEXPLAY-4b, PIE-HEXPLAY-6c]
     last_verified:
@@ -1853,6 +1911,7 @@ features:
       - Spec.ActionEconomy.CooldownBlocksWithSlotFree
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -1905,6 +1964,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     notes: >
       🔴 **Decisa NO il 2026-08-12** — [D-114](../decisions/RT_PDR_00_Decision_Log.md), issue #604.
       L'economia del turno **resta a slot**: due azioni leggere non valgono una pesante, e senza una
@@ -1959,6 +2019,7 @@ features:
           - Spec.ActionEconomy.PathLengthChangesEffect
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     notes: >
       ✅ **`AE-2` ACCETTATA il 2026-08-12** — [D-116](../decisions/RT_PDR_00_Decision_Log.md), issue #606.
       Il profilo di movimento determina la **legalita'** e l'efficacia di un'azione. Modello a **soglia**
@@ -2026,6 +2087,7 @@ features:
           - Spec.ActionEconomy.OverwatchReservesMovementSlot
     wiki_refs:
       - wiki:planning-e-coordinazione
+      - wiki:planning-e-coordinazione-scheda-dati
     notes: >
       **Non e' bloccata su `AE-1`, e questa e' la sua ragione d'essere**: il buco esiste con qualunque
       modello di economia. ✅ **La fetta pura e' atterrata il 2026-08-12**:
@@ -2093,6 +2155,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -2187,6 +2250,7 @@ features:
       - Spec.Predictive.WhiffOnEmptyCell
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
       - docs/characters/v0.1/wraith.md
     last_verified:
       date: 2026-08-10
@@ -2303,7 +2367,9 @@ features:
       # Da `planned` a reale il 2026-08-12: le due ragioni che lo tenevano fuori sono cadute nello stesso
       # giorno — la chiave `loadout` (#602) e il produttore di `PlannedReactionAbility` (#601).
       - Spec.Reaction.AnchorCancelsPush
-    wiki_refs: []
+    wiki_refs:
+      - wiki:azioni-e-movimento
+      - wiki:azioni-e-movimento-scheda-dati
     last_verified:
       date: 2026-08-11
       commit: 891534c
@@ -2385,6 +2451,7 @@ features:
       - Visual.Reaction.Interposition
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
       - docs/characters/v0.1/riktor.md
       - docs/characters/v0.1/wraith.md
     last_verified:
@@ -2420,8 +2487,12 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: done
-      # ⚠️ Rappresentabile sì, riletta no: il Verifier ri-simula col resolver. Seam: **#886**.
-      replay_representable: partial
+      # ✅ **`done` dal 2026-08-18**: ~~rappresentabile sì, riletta no~~ — il seam **#886** è chiuso e il
+      # Verifier rilegge le decisioni dalla traccia invece di richiederle. Prova:
+      # `Replay.Verifier.ReactionDecisionsComeFromTheTrace` ri-simula senza decisore e ritrova lo stesso
+      # `StateHash`, e la sua terza esecuzione — senza traccia, stato **diverso** — impedisce al verde di
+      # essere vacuo.
+      replay_representable: done
     roadmap:
       epic: E14
       checkpoints: ["14.3"]
@@ -2448,6 +2519,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     last_verified:
       date: 2026-08-15
       commit: 53ec531f
@@ -2513,7 +2585,9 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
-      replay_representable: partial
+      # ✅ **`done` dal 2026-08-18** — il seam **#886** è chiuso: il Verifier rilegge le decisioni dalla
+      # traccia. Vedi la nota sotto per cosa questo NON copre (i 3,0 s restano senza lettore).
+      replay_representable: done
     roadmap:
       epic: E14
       checkpoints: ["14.5", "14.6"]
@@ -2537,6 +2611,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     pie_refs: [PIE-V01-OVERWATCH]
     last_verified:
       date: 2026-08-15
@@ -2562,6 +2637,17 @@ features:
       resolver, e `grep OpportunityId Source/` non trova consumatori fuori da serializzazione e
       test. Oggi regge **per assenza di decisore umano**: al primo `FIRE` umano di CP 14.6 diventa
       falsa con un resolver corretto. Seam: **#886**.
+      ✅ **2026-08-18 — il gate passa a `done`: il seam #886 è chiuso.** `AskReactionDecision`
+      consulta una mappa `OpportunityId → risposta` costruita dalla traccia, **dopo** il gate di
+      cardinalità e **al posto** dei rami «bot» e «decisore legato»; il collasso di [D-109] resta
+      ricalcolato. La riga qui sopra prevedeva che al primo `FIRE` umano la proprietà diventasse
+      falsa: quel `FIRE` ora è riproducibile senza decisore, e
+      `Replay.Verifier.RecordedResponseBeatsLiveDecider` lo dimostra **in negativo** — un decisore
+      collegato che risponderebbe `HOLD` non viene interrogato nemmeno una volta.
+      ⚠️ **Il gate riguarda la decisione, non i 3,0 s**: `FastReactionDuration` resta senza lettore e
+      la voce resta `IMPLEMENTING` per CP 14.6 (`#166`). Un `HoldTimeout` registrato si rilegge come
+      `HOLD` — è l'esito che era stato applicato — ma *quando* la finestra sia scaduta non è nella
+      traccia e non lo diventa qui.
       ⚠️ `automation: done` significa che la **copertura esiste** e non che la suite sia stata
       rieseguita dopo il merge: «842 verdi su 842» della PR è misurato sulla base **precedente**.
       Sull'albero unito è stata verificata la **compilazione** (`Result: Succeeded`, zero warning,
@@ -2616,9 +2702,14 @@ features:
       ui_wiki: partial
       packaged: todo
       network_privacy: todo
-      # ⚠️ `partial` e non `done`: la decisione **e' rappresentabile** nella traccia ed entra nell'hash,
-      # ma nessuno la **rilegge** — il Verifier di ADR-0009 ri-simula col resolver. Seam: **#886**.
-      replay_representable: partial
+      # ⚠️ ~~`partial` e non `done`: la decisione **e' rappresentabile** nella traccia ed entra nell'hash,
+      # ma nessuno la **rilegge** — il Verifier di ADR-0009 ri-simula col resolver. Seam: **#886**.~~
+      # ✅ **`done` dal 2026-08-18: il seam #886 e' chiuso e qualcuno rilegge.** La clausola che rendeva
+      # `partial` questo gate — «nessuno la rilegge» — e' l'unica cosa cambiata, ed e' il motivo per cui
+      # si barra tutta invece di emendarla. Il `FIRE` dell'Overwatch e' il caso verificato:
+      # `Spec.Overwatch.HoldThenFire` ri-simulato dalla sola traccia tronca il movimento come nella
+      # partita reale, e senza traccia non lo tronca — le due meta' insieme.
+      replay_representable: done
     roadmap:
       epic: E14
       checkpoints: ["14.4"]
@@ -2661,6 +2752,7 @@ features:
     wiki_refs:
       - wiki:overwatch
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     wiki_note: >-
       Le reazioni **preparate** esistono e funzionano in partita; l'**Overwatch interattivo** apre la finestra e la registra nel TurnLog dal 2026-08-14, ma nessun giocatore puo' ancora rispondere: la UI e' CP 14.6.
     last_verified:
@@ -2813,6 +2905,7 @@ features:
           - Spec.Brace.GlanceOffersOnlyLegalSides
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     wiki_note: >-
       `Hold Ground` — la risposta base — funziona gia' in partita; i profili d'eroe che ne dichiarano altre no.
     last_verified:
@@ -2915,6 +3008,7 @@ features:
           - Spec.Clash.Determinism
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     wiki_note: >-
       Decisa nella forma (D-048), **non implementata** e con la grammatica ancora in playtest.
     last_verified:
@@ -2965,6 +3059,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:reazioni-overwatch-e-previsioni
+      - wiki:reazioni-overwatch-e-previsioni-scheda-dati
     pie_refs: [PIE-V01-OVERWATCH]
     last_verified:
       date: 2026-08-08
@@ -3527,6 +3622,7 @@ features:
       - Spec.Perception.AllySpottingLetsYouShoot
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     wiki_note: >-
       Modello deciso per la v0.1 e **implementato** con CP 13.2: la conoscenza di squadra decide chi si
       puo' bersagliare. La coppia di scenari e' la specifica eseguibile del gate.
@@ -3580,6 +3676,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -3625,6 +3722,7 @@ features:
       - Spec.Perception.HeardNotSeen
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     last_verified:
       date: 2026-08-12
       commit: 9a92375
@@ -3683,6 +3781,7 @@ features:
     scenarios: []
     wiki_refs:
       - wiki:visibilita-rumore-e-informazione
+      - wiki:visibilita-rumore-e-informazione-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -3745,7 +3844,7 @@ features:
       checkpoints: ["11.1"]
     dependencies: []
     owner_specs:
-      - docs/technical/progettazione-hud.md
+      - docs/technical/systems/progettazione-hud.md
     # ⚠️ `77` è il checkpoint CP 11.1, e il suo DoD riguarda l'**HUD**: non contiene nulla di camera.
     # Resta perché `checkpoints: ["11.1"]` lo implica, ma è il legame nominale che il commento sui
     # `pie_refs` in testa a questo file descrive — stessa issue dichiarata da più feature. Le tre
@@ -3818,8 +3917,8 @@ features:
       - RT-FEAT-MAP-PATHFINDING
       - RT-FEAT-CORE-TURN
     owner_specs:
-      - docs/technical/progettazione-hud.md
-      - docs/technical/spec-hover-cella.md
+      - docs/technical/systems/progettazione-hud.md
+      - docs/technical/systems/spec-hover-cella.md
     issues: [77, 607]
     tests:
       - RefactorTactics.Preview.*
@@ -3875,9 +3974,9 @@ features:
       - RT-FEAT-UI-PLANNING
       - RT-FEAT-UI-ICON-LANGUAGE
     owner_specs:
-      - docs/technical/progettazione-hud.md
+      - docs/technical/systems/progettazione-hud.md
       # La ricetta d'Editor: cosa il codice NON puo' preparare, perche' i `.uasset` non si versionano.
-      - docs/technical/guida-screen-hud-umg.md
+      - docs/technical/runbooks/guida-screen-hud-umg.md
     issues: [613]
     tests:
       - RefactorTactics.HudViewModel.*
@@ -4006,7 +4105,7 @@ features:
       - RT-FEAT-UI-PLANNING
       - RT-FEAT-UI-SCREEN-HUD
     owner_specs:
-      - docs/technical/spec-pointer-interaction.md
+      - docs/technical/systems/spec-pointer-interaction.md
     issues: [705, 737]
     # 🔁 **Era vuoto di proposito fino al 2026-08-13 mattina**, e la ragione vale ancora per i nove nomi
     # che restano dichiarati nell'owner e non scritti: `validate` tratta un pattern senza corrispondenza
@@ -4130,7 +4229,7 @@ features:
       - RT-FEAT-UI-PLANNING
       - RT-FEAT-UI-CERTAINTY
     owner_specs:
-      - docs/technical/brief-planning-visuale.md
+      - docs/technical/systems/brief-planning-visuale.md
     issues: [172, 173]
     tests: []
     scenarios: []
@@ -4175,22 +4274,50 @@ features:
       - RT-FEAT-UI-PLANNING
       - RT-FEAT-NET-PRIVATE-PLANNING
     owner_specs:
-      - docs/technical/progettazione-hud.md
-      - docs/technical/brief-planning-visuale.md
+      - docs/technical/systems/progettazione-hud.md
+      - docs/technical/systems/brief-planning-visuale.md
     issues: [78]
+    # ⬆️ **Da 2 a 9 test il 2026-08-18, con la PR #1172.** I due che c'erano non sono sbagliati — coprono la
+    # privacy dell'intento, che è metà di questa feature — ma **nessuno dei due tocca la certezza**, che è
+    # ciò che il titolo promette. Lo scarto era già stato misurato in `parallel-batch.yaml` e lasciato «a chi
+    # riapre la track»: i test di CP 11.2 stanno tutti sotto `RefactorTactics.UI.`, che il pattern
+    # `RefactorTactics.Reactions.*` non raggiunge, quindi il DoD poteva diventare verde su GitHub e la
+    # feature restare muta nelle viste generate.
     tests:
       - RefactorTactics.Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed
       - RefactorTactics.Reactions.IntentViewSkipsDeadAndKeepsOrder
+      # La classificazione: quale campo del piano decide quale livello.
+      - RefactorTactics.UI.IntentCertaintyClassification
+      # Il DTO non popolato non afferma nessun livello (`Unknown = 0`, memoria azzerata compresa).
+      - RefactorTactics.UI.IntentViewDefaultsToUnknown
+      # Due scene che differiscono SOLO per i piani nemici danno lo stesso livello.
+      - RefactorTactics.UI.NoEnemyIntentExposed
+      # La resa: i tre livelli sono distinguibili a due a due, e seguono il campo invece dei flag.
+      - RefactorTactics.UI.IntentCertaintyRendering
+      - RefactorTactics.UI.ArmedReactionRendering
+      # Cio' che il giocatore legge: il `?` del piano, quello della reazione armata, lo scatto.
+      - RefactorTactics.UI.IntentLabelGrammar
+      # La geometria del tratteggio, col tetto che impedisce la regressione da proiezione degenere.
+      - RefactorTactics.UI.IntentDashSegments
     scenarios: []
     wiki_refs:
       - wiki:come-si-gioca
     pie_refs: [PIE-V01-INTENT]
     last_verified:
-      date: 2026-08-08
-      commit: 2094b86
+      date: 2026-08-18
+      commit: 0accdd4
     notes: >
-      Il filtro per squadra esiste ed è testato (confermato / previsto / incerto arrivano da lì),
-      ma la resa a schermo dei tre livelli è dentro CP 11.2, non chiuso.
+      Il filtro per squadra esiste ed è testato, e dal 2026-08-18 la resa a schermo dei tre livelli
+      esiste: `ARTHUD::ComposeIntentCertaintyStyle` traduce il livello in peso del tratto, densità del
+      tratteggio e `?`, e `ComposeIntentLabel` compone l'etichetta. La classificazione resta del
+      simulatore — la HUD legge `FRTIntentView::Certainty` e non la ricalcola, con un test che lo pinna
+      su una vista deliberatamente contraddittoria.
+      ⚠️ La gradazione NON passa dall'opacità: `AHUD::DrawLine` finisce in `FBatchedElements::AddLine`,
+      che forza `OpaqueColor.A = 1`, quindi su una linea di Canvas l'alpha è inerte. Chi tocca questa
+      resa lo sappia prima di provarci.
+      ⏳ Resta `PIE-V01-INTENT`, che è verifica umana e appartiene alla track `playtest`. E resta fuori
+      dalla v0.1 l'**icona di squadra** che la grammatica assegna al livello «previsto»: `ARTHUD` è un
+      Canvas senza percorso per le icone del catalogo, e quel pezzo appartiene al layer widget (#613).
 
   - feature_id: RT-FEAT-UI-WARNINGS
     title: Avvisi di collisione, fuoco amico e risorse
@@ -4218,7 +4345,7 @@ features:
     completed_by:
       - RT-FEAT-UI-CERTAINTY
     owner_specs:
-      - docs/technical/progettazione-hud.md
+      - docs/technical/systems/progettazione-hud.md
     issues: [77, 78]
     tests:
       - RefactorTactics.Preview.AllyInAreaIsFlagged
@@ -4260,7 +4387,7 @@ features:
     dependencies:
       - RT-FEAT-CORE-TURNLOG
     owner_specs:
-      - docs/technical/spec-turnlog.md
+      - docs/technical/architecture/spec-turnlog.md
     issues: [79]
     tests:
       - RefactorTactics.TurnLog.DescribeEntry
@@ -4314,7 +4441,7 @@ features:
       - RT-FEAT-UI-PLANNING
     owner_specs:
       - docs/decisions/RT_PDR_00_Decision_Log.md
-      - docs/technical/brief-icone-v01.md
+      - docs/technical/tooling/brief-icone-v01.md
     issues: [217, 218, 219, 220, 265, 266, 267, 268, 269, 637]
     tests:
       - RefactorTactics.IconCatalog.*
@@ -4411,7 +4538,7 @@ features:
     dependencies:
       - RT-FEAT-TEST-SCENARIO-HARNESS
     owner_specs:
-      - docs/technical/scenario-index-e-tag.md
+      - docs/technical/tooling/scenario-index-e-tag.md
     issues: [209]
     tests:
       - RefactorTactics.ScenarioIndex.*
@@ -4419,7 +4546,8 @@ features:
       - RefactorTactics.Scenario.ListIdsFromFiles
     scenarios:
       - Movement.Basic
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -4463,7 +4591,7 @@ features:
       checkpoints: ["46.1", "46.2"]
     dependencies: []
     owner_specs:
-      - docs/technical/spec-frontend-navigazione.md
+      - docs/technical/architecture/spec-frontend-navigazione.md
     issues: [936, 937]
     tests:
       - RefactorTactics.Frontend.*
@@ -4492,7 +4620,34 @@ features:
       vocabolario di reason** del repository: `ERTStartupOutcome` — nove valori misurati sui punti di
       uscita reali di `RTGameMode.cpp` — piu' `ERTLoadPhase`, `FRTStartupReport` e le tre classi base
       (`URTLoadingScreenWidgetBase`, `URTErrorModalWidgetBase`, `URTFallbackBannerWidgetBase`).
-      **15 test** `RefactorTactics.Startup.*`.
+      🔴 **Questa riga diceva «15 test `RefactorTactics.Startup.*`», e la misura ne trova 11.** Non e'
+      una regressione: `RTStartupReportTests.cpp` dichiara **11** test `Startup.*` **e 7** `Frontend.*`,
+      cioe' il file ne contiene di due prefissi e il conteggio originale li aveva sommati male. Rimisurato
+      il 2026-08-18 con due metodi che concordano — run headless (`Queue Empty 11 tests performed`,
+      11 `Success` e 0 `Fail`) e conteggio statico dei nomi dichiarati in `Tests/`.
+      ✅ **Totale E46: 41** — **30** `Frontend.*` + **11** `Startup.*`, misurati il 2026-08-18 (la riga
+      diceva 38 con 27 `Frontend.*`: i tre in piu' sono il `BACK` del modale, sotto).
+      ✅ **Il `BACK` del modale d'errore ha i suoi due esiti** (`URTFrontendNavigator::BackFromError`):
+      `ReturnMain` a partita viva, `CloseModal`+`PopScreen` durante il loading. Il discriminante non e' un
+      flag nuovo — e' `FRTStartupReport::Phase`, che valeva `Ready` solo a fondo allestimento e che
+      **nessuno leggeva**. Il widget espone il dato (`GetPhaseWhenArmed`), il navigatore decide: la regola
+      di dove si torna vive in un posto solo.
+      ⚠️ **Verificato per mutazione, e la mutazione ha trovato un test vacuo prima del commit**: invertendo
+      la condizione cadono **esattamente 2** test su 30 — e uno dei due, a profondita' 2, sarebbe rimasto
+      verde, perche' `PopScreen` e `ReturnMain` portano entrambi alla radice da li'. Riscritto a
+      profondita' 3, dove i due esiti si distinguono.
+      ⏳ **Il pulsante nel `.uasset` non e' ancora collegato**: `WBP_RT_ErrorModal` disegna `BACK` e non
+      chiama `BackFromError`. E' lavoro d'editor, richiede una lease, e finche' non e' fatto la voce del
+      DoD e' implementata in C++ e non esercitabile a schermo.
+      ✅ **CP 46.2 completo il 2026-08-18 con la seduta `U24`**, che ha consegnato **tutti e cinque** i
+      `WBP_RT_*`. I tre con classe base leggono il dato invece di comporlo; `WBP_RT_FrontendRoot` e
+      `WBP_RT_ModalLayer` non hanno una classe base — `RTFrontendWidgets.h` ne dichiara tre — quindi per
+      loro il criterio non e' l'ereditarieta' ma `no_widget_creates_widgets`, e il `done_when` della seduta
+      e' stato riscritto invece di essere spuntato: chiedeva a cinque widget una cosa che solo tre possono
+      fare. Le **otto** `verification` delle due Binary Asset Lease sono consuntivate — due headless, sei
+      dall'autore in editor, e ciascuna dichiara quale delle due.
+      ⏳ **Resta l'aggancio, non i widget**: nessuno chiama ancora `InitializeFrontend`, che e' di CP 46.3
+      (`#938`). Fino ad allora i cinque Blueprint esistono, sono provati e non li avvia nessuno.
       ⚠️ **`RTGameMode.{h,cpp}` sono entrati nel `writable` di questa track con una riallocazione
       dichiarata**: erano di `autobattle`, che ha chiuso `#954`. Il perimetro e' l'**emissione** — nessun
       esito di gioco cambia, il GameMode ripiega e rifiuta dove gia' lo faceva e in piu' lo **dichiara**.
@@ -4530,7 +4685,7 @@ features:
     dependencies:
       - RT-FEAT-UI-FRONTEND-SHELL
     owner_specs:
-      - docs/technical/spec-frontend-navigazione.md
+      - docs/technical/architecture/spec-frontend-navigazione.md
     issues: [938]
     tests: []
     scenarios: []
@@ -4570,7 +4725,7 @@ features:
       - RT-FEAT-MATCH-FORMAT
       - RT-FEAT-MATCH-END-CONDITIONS
     owner_specs:
-      - docs/technical/spec-frontend-navigazione.md
+      - docs/technical/architecture/spec-frontend-navigazione.md
     issues: [939, 940]
     tests: []
     scenarios: []
@@ -4612,7 +4767,7 @@ features:
     dependencies:
       - RT-FEAT-UI-FRONTEND-SHELL
     owner_specs:
-      - docs/technical/spec-frontend-navigazione.md
+      - docs/technical/architecture/spec-frontend-navigazione.md
     issues: [941]
     tests: []
     scenarios: []
@@ -4651,7 +4806,7 @@ features:
       - RT-FEAT-UI-FRONTEND-SHELL
       - RT-FEAT-REPLAY-ARCHIVE
     owner_specs:
-      - docs/technical/spec-frontend-navigazione.md
+      - docs/technical/architecture/spec-frontend-navigazione.md
       - docs/decisions/adr-0009-replay-logico-canonico.md
     issues: [472, 999]
     tests:
@@ -4686,7 +4841,7 @@ features:
       del ponte, e `11+6` e `47` dopo la seconda — che ha trovato meta' dei forwarder senza copertura. Sono
       giusti un'ora per volta.
       `runtime` e `automation` restano `partial`: da qui in su mancano le **due schermate** e il loro
-      `.uasset`, che vorranno una Binary Asset Lease, piu' il bootstrap del frontend — che pero' e' di
+      `.uasset`, che vanno costruiti in una seduta d'editor sola, piu' il bootstrap del frontend — che pero' e' di
       E46 (`#938`), non di questa feature. Un `done` direbbe che `#472` e' finita, e non lo e'.
 
       ⚠️ **Doppio conteggio dichiarato**: `RefactorTactics.Replay.ViewModel.*` e' assorbito dal pattern
@@ -4705,8 +4860,18 @@ features:
     status: DESIGNED
     gates:
       # L'owner del modello esiste da `D-152`: tassonomia, pivot, volume, grammatica degli stati.
-      # `partial` e non `done` perche' quattro domande restano aperte (`GBX-1..4`) e due di esse
-      # — l'inset e le soglie di integrita' — sono numeri che il documento si vieta di inventare.
+      # `partial` e non `done` perche' DUE domande restano aperte — `GBX-1` (l'inset) e `GBX-5` (l'ingombro
+      # dell'unita') — e condividono l'oracolo: si validano guardando, alla seduta U25.
+      # ⏱️ Dal 2026-08-18 sono due: `GBX-2`, `GBX-3` e `GBX-4` sono chiuse da `D-171`, `D-172` e `D-173`
+      # (#1188). Questa riga diceva «quattro domande restano aperte (`GBX-1..4`)» e aggiungeva che «due di
+      # esse — l'inset e le soglie di integrita' — sono numeri che il documento si vieta di inventare»: le
+      # soglie ORA sono decise, e sono una frazione del catalogo invece di un numero.
+      # 🔵 **E l'aritmetica non tornava, corretta il 2026-08-19**: la riga diceva «sono due e non quattro»
+      # dopo averne chiuse tre, cioe' 4 - 3 = 1. Le due aperte non sono un sottoinsieme di `GBX-1..4`:
+      # `GBX-5` e' nata il 2026-08-17 da `D-158`, DOPO che quell'insieme era stato scritto, e `GBX-6` e'
+      # stata chiusa da `D-163`. Un commento che esiste per essere verificato non puo' chiedere di fidarsi.
+      # ⚠️ `D-175` (2026-08-19) emenda `D-172` — «distrutto» esce dalla scaletta di lettura — ma NON
+      # riapre `GBX-3`: la domanda resta chiusa, cambia la formulazione della risposta. Il gate non si muove.
       spec: partial
       # Nessun dato: e' voluto e non e' un ritardo. La tassonomia e' un VOCABOLARIO, non un enum
       # (`D-152`), e le classi non entrano in niente di serializzato. `na` sarebbe falso pero':
@@ -4733,15 +4898,18 @@ features:
       - RT-FEAT-MAP-INTERACTIVE-EDGES
       - RT-FEAT-TOOL-MAP-EDITOR
     owner_specs:
-      - docs/technical/spec-graybox-placement-contract.md
-      - docs/technical/asset-map.md
-    # 1094 le quattro domande aperte (`GBX-1..4`) · 1095 la seduta U25 (volume + scena di validazione) ·
-    # 1096 le voci PIE, che sono bloccate da `D-139` e non da mancanza di contenuto.
+      - docs/technical/systems/spec-graybox-placement-contract.md
+      - docs/technical/tooling/asset-map.md
+    # 1094 le domande aperte del contratto — DUE dal 2026-08-18 (`GBX-1` e `GBX-5`), dopo che `GBX-2`,
+    # `GBX-3` e `GBX-4` sono state chiuse da `D-171`/`D-172`/`D-173` in #1188 · 1095 la seduta U25
+    # (volume + scena di validazione) · 1096 le voci PIE, che sono bloccate da `D-139` e non da mancanza
+    # di contenuto.
     issues: [1094, 1095, 1096]
     tests: []
     scenarios: []
     wiki_refs:
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     wiki_note: >
       La pagina spiega che la griglia non vincola i muri — cioe' il principio da cui discende
       `EdgeBound`. L'ingombro degli asset che stanno sulla griglia non e' spiegato da nessuna parte.
@@ -4774,10 +4942,10 @@ features:
 
       ⚠️ **Nessun gate difende questo contratto oggi**, ed e' dichiarato invece che sottinteso: e' la
       stessa condizione in cui `D-146` ha lasciato la ridondanza colore+forma. Le voci PIE non sono
-      state scritte perche' `test-manuali-pie.md` e' **assegnato a un'altra track** in
-      `parallel-batch.yaml` — per `D-139` si aspetta l'owner che lo tiene OGGI. ⚠️ Qui non c'e' un nome
-      di proposito: il proprietario e' cambiato **tre volte** il 2026-08-17 e il permesso mai. Il
-      contenuto delle voci vive nella issue.
+      state scritte e restano da scrivere; il loro contenuto vive in #1096. *(Fino al 2026-08-20
+      `test-manuali-pie.md` era assegnato a un'altra track del write-set di batch e le voci si potevano
+      solo proporre — il proprietario era cambiato tre volte in un giorno. `D-178` ha rimosso il
+      meccanismo, e il debito ora e' semplicemente aperto.)*
 
   - feature_id: RT-FEAT-UI-BOARD-GRAMMAR
     title: Grammatica visiva della board — colore e forma, mai solo il colore
@@ -4845,12 +5013,11 @@ features:
       col solo colore. Dichiarato in `D-146` invece che sottinteso — il primo consumatore che ne
       aggiunga una dovra' portarsi il controllo dietro.
 
-      ⚠️ **Vincolo di parallelismo, misurato e non dedotto dal nome della track**: i file di E47.3 sono
-      `Map/RTHexMapActor.{h,cpp}`, che stanno nel `writable` di **`content_editor`** — ACTIVE su `#451`
-      al 2026-08-16 — non di `client_tools`. 🔴 Una stesura precedente di questa nota scriveva
-      `client_tools` (`UI/`), e la code review l'ha falsificata: attribuire un file alla track sbagliata
-      fa credere che il blocco sia altrove, mentre `D-139` dice che si aspetta **quell'owner**.
-      (`parallel-batch.yaml`, `D-139`)
+      ⚠️ **I file di E47.3 sono `Map/RTHexMapActor.{h,cpp}`**, non `UI/` — misurato, non dedotto dal nome.
+      *(La nota registrava un vincolo di parallelismo: quei file stavano nel `writable` di
+      `content_editor`, ACTIVE su `#451` al 2026-08-16, e si aspettava quell'owner. Con `D-178` il
+      write-set di batch non esiste piu' e il blocco e' decaduto; l'attribuzione dei file resta utile
+      perche' dice dove si lavora davvero.)*
   # ─────────────────────────────────────────────────────────────────────────────
   # H. Characters / content
   # ─────────────────────────────────────────────────────────────────────────────
@@ -4986,8 +5153,8 @@ features:
       - RT-FEAT-CHAR-V01-ROSTER
       - RT-FEAT-CORE-PLAYBACK
     owner_specs:
-      - docs/technical/guida-animazioni-paragon.md
-      - docs/technical/spec-team-identity.md
+      - docs/technical/runbooks/guida-animazioni-paragon.md
+      - docs/technical/systems/spec-team-identity.md
       - docs/decisions/adr-0001-skeletal-unit.md
       # Owner del mapping identità RT -> slot asset Paragon (D-037).
       - docs/characters/paragon.md
@@ -5040,7 +5207,7 @@ features:
       (`ParentComponentOrVariableName` + `bIsParentComponentNative`, presenti nella name table di tutti
       e quattro): finché un componente nativo chiamato `Mesh` esiste — e esiste — la skeletal resta
       figlia di lui, che porta ancora `BaseMeshScale`. Riparentarla è un'apertura di editor, seduta
-      **U7**, con Binary Asset Lease. Il C++ toglie la causa per ciò che nasce d'ora in poi.
+      **U7**. Il C++ toglie la causa per ciò che nasce d'ora in poi.
 
       🔴 **E il «workaround World/Absolute Scale» che questa nota dava per applicato NON è negli asset.**
       Misurato sui quattro `.uasset`, cercando ogni stringa in ASCII **e** UTF-16LE:
@@ -5243,7 +5410,7 @@ features:
         # non spiegava PERCHE' nessun gate lo vedesse. La spiegazione e' quella qui sopra, ed e' la sua
         # che resta. Tre sessioni indipendenti sulla stessa riga in un giorno dicono che il difetto era
         # visibile a chiunque rigenerasse: e' la lacuna del gate, non la disattenzione di qualcuno.
-        # ➕ Tracciata: **#1110**. Una lacuna identificata che resta un commento YAML non entra in nessuna
+        # ➕ Tracciata: **#1109**, in lavorazione su **#1170** — il perimetro del gate si estende ai `.yaml` e questo file e' fra quelli che verra' a leggere. ⏱️ *Resta APERTA: «una issue e' finita quando e' stata mergiata», e finche' non lo e' questa riga descrive un difetto ancora vivo. (Il puntatore diceva `#1110`, duplicato di `#1109` aperto tre minuti dopo e chiuso come tale.)*. Una lacuna identificata che resta un commento YAML non entra in nessuna
         # coda — e' la regola «CREATE OR LINK, NEVER IGNORE» applicata a se' stessa.
         # ➕ E la **quarta** sessione, mergiando, non ha scelto un lato: le due note rispondono a domande
         # diverse — chi ha trovato il difetto e dove e' tracciato.
@@ -5395,7 +5562,9 @@ features:
       - RefactorTactics.MatchFormat.*
       - RefactorTactics.MapClass.*
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:che-cose-refactortactics
+      - wiki:la-tua-prima-partita
     last_verified:
       date: 2026-08-09
       commit: 0bbc4c5
@@ -5462,7 +5631,8 @@ features:
     tests:
       - RefactorTactics.Pacing.*
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:la-tua-prima-partita
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -5673,7 +5843,7 @@ features:
       # amico, penalita' sul collaterale, cella di fuga — e dichiara cosa NON sa ancora (Team Knowledge E13,
       # facing E16, reazioni E14). La spec H6.5 resta come storia `AS-BUILT` e non si riscrive.
       - docs/gameplay/spec-bot-hex.md
-      - docs/technical/h6-5-hex-bot-spec.md
+      - docs/technical/systems/h6-5-hex-bot-spec.md
     issues: [36, 202]
     tests:
       - RefactorTactics.HexBot.*
@@ -6028,12 +6198,12 @@ features:
       - RT-FEAT-CORE-TURN
       - RT-FEAT-CORE-DETERMINISM
     owner_specs:
-      - docs/technical/test-e-diagnosi.md
-      - docs/technical/scenari-validazione-visiva.md
+      - docs/technical/runbooks/test-e-diagnosi.md
+      - docs/technical/runbooks/scenari-validazione-visiva.md
       # Dal 2026-08-17 (D-154): il formato di questo harness e' il bersaglio dell'authoring visuale
       # di `RT-FEAT-TOOL-SCENARIO-COMPOSER`. `spec-tactical-designer.md` §5 elenca cosa il formato
       # esprime gia' e cosa no — serve a impedire che un editor futuro ne inventi un secondo.
-      - docs/technical/spec-tactical-designer.md
+      - docs/technical/tooling/spec-tactical-designer.md
     issues: [169, 542, 957]
     tests:
       - RefactorTactics.Scenario.*
@@ -6042,7 +6212,9 @@ features:
       - Movement.BasicFailsOnPurpose
       - Combat.BasicAttack
       - Spec.Harness.LogAssertionsReadTheTurnLog
-    wiki_refs: []
+    wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-11
       commit: eb3cc42
@@ -6104,7 +6276,9 @@ features:
       - RefactorTactics.Simulation.GoldenCorpusRejectsFormatMismatch
     scenarios:
       - RT_Showcase_Relay_v01
-    wiki_refs: []
+    wiki_refs:
+      - wiki:turnlog-e-determinismo
+      - wiki:turnlog-e-determinismo-scheda-dati
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -6150,7 +6324,7 @@ features:
       # Owner del CONCETTO e del confine editor/runtime, dal 2026-08-17 (D-154). Non duplica i due
       # sopra: quelli dicono quale seduta fare e cosa fu consegnato, questo dice cosa lo strumento
       # ha il diritto di decidere. Le sonde d'editor (`#711`, `#695`) sono lo stadio `TD 0.5`.
-      - docs/technical/spec-tactical-designer.md
+      - docs/technical/tooling/spec-tactical-designer.md
     issues: [567, 622, 623, 551, 552, 553, 554, 588, 695, 711]
     tests:
       - RefactorTactics.HexMap.ApplyBrushMerge
@@ -6197,7 +6371,7 @@ features:
       nell'editor e' una **seconda risposta** alla stessa domanda. I due test dell'editor coprono il
       proprio dominio — il costo che segue la superficie, il readout che non si aggiorna da solo — e
       nessuno dei due decide un esito di partita. Owner dell'argomento:
-      `docs/technical/spec-tactical-designer.md` §3.
+      `docs/technical/tooling/spec-tactical-designer.md` §3.
 
 
       La vista a livelli ha un terzo stato `Focus` (#565): istanze sul solo piano attivo, gli altri
@@ -6237,7 +6411,7 @@ features:
 
 
       **Serie viz editor: 4/4 chiusa il 2026-08-12, e `log_debug` avanza a `done` con lei.** Owner
-      del perimetro: `docs/technical/brief-editor-map-viz.md`. `#551` (superficie e costo leggibili),
+      del perimetro: `docs/technical/tooling/brief-editor-map-viz.md`. `#551` (superficie e costo leggibili),
       `#552` (volume dei blocchi, e «non si passa» distinto da «non si vede»), `#553` (coperture,
       porte e transizioni sui BORDI) e `#554` (le transizioni e la raggiungibilita') sono chiuse e
       mergiate — PR `#670`, `#673` e `#707`, commit `46d9ef5f`, `41e205f1`, `d9cfb9e3`, `2f3c53cf`,
@@ -6338,11 +6512,11 @@ features:
     owner_specs:
       # Owner tecnico del modello, creato il 2026-08-13: prima il tema viveva solo in referti,
       # archivio e registry. I tre sotto restano come provenienza della decisione, non come regola.
-      - docs/technical/spec-hex-geometry-authoring.md
+      - docs/technical/systems/spec-hex-geometry-authoring.md
       # Il confine editor/runtime che questa feature rispetta — la logica pura nel modulo runtime,
       # l'editor che la chiama — ha un owner proprio dal 2026-08-17 (D-154). `spec-hex-geometry-
       # authoring.md` resta l'owner del MODELLO; questo lo e' della REGOLA di collocazione.
-      - docs/technical/spec-tactical-designer.md
+      - docs/technical/tooling/spec-tactical-designer.md
       - docs/roadmap/plans/map-sketch-editor-spec-panel-2026-08-12.md
       - docs/roadmap/plans/mapeditor-integration-spec-panel-2026-08-12.md
       - docs/roadmap/plans/hexgeometry-editor-spec-panel-2026-08-13.md
@@ -6374,6 +6548,7 @@ features:
       # La pagina spiega dal 2026-08-13 il vocabolario dei dodici settori, che e' di questa feature:
       # sei direzioni per muoversi, dodici settori per MISURARE quanto una cella e' invasa.
       - wiki:griglia-e-geometria
+      - wiki:griglia-e-geometria-scheda-dati
     last_verified:
       # Rimisurato dopo D-125: il commit precedente (05bbe3dc, merge di #714) e' ANTENATO di c1c96a30,
       # cioe' la voce era stata verificata due ore prima della decisione che la cambia.
@@ -6475,7 +6650,7 @@ features:
     dependencies:
       - RT-FEAT-DATA-ASSET-PIPELINE
     owner_specs:
-      - docs/technical/test-automatico-unreal.md
+      - docs/technical/tooling/test-automatico-unreal.md
     issues: [30]
     tests:
       - RefactorTactics.Catalog.Validator*
@@ -6484,7 +6659,8 @@ features:
       - RefactorTactics.MatchFormat.ValidatorRejectsInvalidAsset
       - RefactorTactics.ScenarioIndex.DuplicateIdIsRejected
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -6562,13 +6738,14 @@ features:
     dependencies:
       - RT-FEAT-CORE-TURNLOG
     owner_specs:
-      - docs/technical/debug-vs-unreal.md
+      - docs/technical/runbooks/debug-vs-unreal.md
     issues: [80]
     tests:
       - RefactorTactics.Scenario.AutoRunOverrideIsNotSilent
       - RefactorTactics.Pacing.CsvRowMatchesHeader
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     pie_refs: [PIE-V01-DEBUG]
     last_verified:
       date: 2026-08-08
@@ -6606,13 +6783,14 @@ features:
       - docs/balance/RT_TestMatrix_v0.1.md
       # Dal 2026-08-17 (D-154): il guardrail «nessun punteggio opaco diventa un gate» e l'ordine
       # rispetto a D-102 — competence gate PRIMA del confronto a lotti — hanno un owner scritto.
-      - docs/technical/spec-tactical-designer.md
+      - docs/technical/tooling/spec-tactical-designer.md
     issues: [28, 543]
     tests:
       - RefactorTactics.Heroes.RosterIsBalanced
       - RefactorTactics.Catalog.ShippedCatalogMatchesAbilities
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     last_verified:
       date: 2026-08-08
       commit: 2094b86
@@ -6676,12 +6854,13 @@ features:
       - RT-FEAT-TOOL-MAP-EDITOR
       - RT-FEAT-UI-SCENARIO-BROWSER
     owner_specs:
-      - docs/technical/spec-tactical-designer.md
+      - docs/technical/tooling/spec-tactical-designer.md
       - docs/roadmap/plans/tactical-designer-consolidamento-2026-08-17.md
     issues: []
     tests: []
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:tactical-designer
     notes: >
       Il gap e' l'**authoring**, non il formato. `FRTTestScenario` esprime gia' unita' (cella,
       facing, HP, scudo, vista, loadout), turni con intent, **decisioni di finestra scriptate**
@@ -6734,7 +6913,7 @@ features:
       - RT-FEAT-TOOL-BALANCE-GROUND
       - RT-FEAT-DATA-ASSET-PIPELINE
     owner_specs:
-      - docs/technical/spec-tactical-designer.md
+      - docs/technical/tooling/spec-tactical-designer.md
       - docs/roadmap/plans/tactical-designer-consolidamento-2026-08-17.md
     issues: []
     tests: []
@@ -6794,7 +6973,7 @@ features:
       checkpoints: ["1.3"]
     dependencies: []
     owner_specs:
-      - docs/technical/convenzioni-contenuti-ue.md
+      - docs/technical/tooling/convenzioni-contenuti-ue.md
       # Gli ID stabili esistono e reggono. Il ritiro dei TRE legacy (`Action.Guard`, `Action.Activate`,
       # `Action.Sprint`) e' eseguito (#199); il piano che lo descriveva e' `HISTORICAL` dal D-134, che ha
       # rimosso il redirect invece di estenderlo — nessuna traccia versionata lo consumava.
@@ -6843,8 +7022,8 @@ features:
     dependencies:
       - RT-FEAT-DATA-STABLE-IDS
     owner_specs:
-      - docs/technical/spec-asset-pipeline.md
-      - docs/technical/convenzioni-contenuti-ue.md
+      - docs/technical/architecture/spec-asset-pipeline.md
+      - docs/technical/tooling/convenzioni-contenuti-ue.md
     issues: [28, 29]
     tests:
       - RefactorTactics.Catalog.*
@@ -6882,7 +7061,7 @@ features:
       - RT-FEAT-DATA-ASSET-PIPELINE
       - RT-FEAT-CORE-TURNLOG
     owner_specs:
-      - docs/technical/spec-turnlog-serialize.md
+      - docs/technical/architecture/spec-turnlog-serialize.md
     issues: [81]
     tests:
       - RefactorTactics.HexMap.SortAndDeterministicHash
@@ -7169,7 +7348,7 @@ features:
       - RT-FEAT-CORE-TURN
       - RT-FEAT-DATA-ASSET-PIPELINE
     owner_specs:
-      - docs/technical/convenzioni-contenuti-ue.md
+      - docs/technical/tooling/convenzioni-contenuti-ue.md
     issues: [85, 959]
     tests: []
     scenarios: []

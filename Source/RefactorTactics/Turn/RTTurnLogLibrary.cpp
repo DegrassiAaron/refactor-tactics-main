@@ -41,7 +41,47 @@ bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntr
 	// il resto e si distinguono solo qui.
 	if (A.OpportunityId != B.OpportunityId) { return A.OpportunityId < B.OpportunityId; }
 	if (A.ReactionInstanceId != B.ReactionInstanceId) { return A.ReactionInstanceId < B.ReactionInstanceId; }
-	return A.SelectedTargetUnitId < B.SelectedTargetUnitId;
+	if (A.SelectedTargetUnitId != B.SelectedTargetUnitId) { return A.SelectedTargetUnitId < B.SelectedTargetUnitId; }
+
+	// 🔴 **Il campo della v9 spareggia come tutti gli altri**, e la prima stesura lo aveva dimenticato — cioe'
+	// aveva rifatto il difetto che il commento in cima a questa funzione descrive per `UnitId` in v6. Oggi il
+	// caso non e' raggiungibile (con un solo produttore, `SrcCell` — la cella del protetto — rompe sempre la
+	// parita' prima di arrivare qui), ma l'assertion nuova dichiara di valere per «qualunque redirect che un
+	// giorno venisse aggiunto»: il primo che ne emettesse due pareggianti farebbe dipendere i **byte** del
+	// file, e il suo checksum, dall'ordine d'inserimento. `TArray::Sort` non e' stabile, e `D-SR-1` cadrebbe.
+	// Trovato da una code review; `TurnLog.CanonicalOrderCoversSerializedFields` esiste per questo.
+	if (A.OriginalTargetUnitId != B.OriginalTargetUnitId)
+	{
+		return A.OriginalTargetUnitId < B.OriginalTargetUnitId;
+	}
+
+	// 🔴 **E il campo della v10 spareggia come tutti gli altri.** Questa riga e' stata scritta **subito**, e
+	// non e' merito: e' che il commento qui sopra racconta la stessa svista fatta con la v9 — un campo
+	// SCRITTO da `SerializeTurnLog` che il confronto non guarda lascia due voci a pari merito, e `TArray::Sort`
+	// non e' stabile. Il file lo aveva gia' pagato una volta, e questa sarebbe stata la seconda.
+	//
+	// 🔴 **`Compare(..., CaseSensitive)` e NON `operator<`**, ed e' una correzione di una prima stesura che
+	// aveva rifatto il difetto di `FName::FastLess` descritto in cima a questa funzione — in un'altra forma.
+	// Misurato nel sorgente dell'engine: `FString::UEOpLessThan` e' `FPlatformString::Stricmp(...) < 0`, con
+	// un `@note case insensitive` esplicito (`UnrealString.h.inl:873`). Quindi `operator<` **non e' un ordine
+	// totale** sui byte: due token che differiscono solo per il caso pareggerebbero in entrambi i versi,
+	// resterebbero a pari merito, e `TArray::Sort` — che non e' stabile — deciderebbe secondo l'ordine
+	// d'inserimento. I byte del file e il suo checksum ne dipenderebbero: esattamente il buco di `D-SR-1` che
+	// questa riga esiste per chiudere.
+	//
+	// ⚠️ E il resto della pipeline confronta le risposte **case-sensitive** — `IsResponseAllowed` e
+	// `ClassifyChosenResponse` passano entrambe `ESearchCase::CaseSensitive`: con `operator<` due token che
+	// il resolver tratta come risposte DIVERSE sarebbero uguali per l'ordine canonico, cioe' due verita' sullo
+	// stesso dato.
+	//
+	// ⚠️ **Oggi il caso non e' raggiungibile, e la ragione va detta bene perche' la prima stesura la aveva
+	// scritta al contrario**: due voci che pareggiassero fin qui condividono l'`OpportunityId`, che porta
+	// l'`OwnerId` e il micro-step — quindi sono della stessa unita' nello stesso istante, e la `SrcCell` e'
+	// **identica**, non diversa. A separarle e' `ReactionInstanceId` per l'Overwatch; il produttore del
+	// `Brace` lo lascia a `INDEX_NONE`, quindi per lui nemmeno quello. Cio' che rende il caso irraggiungibile
+	// e' un'altra cosa, gia' scritta in `ResolveReactionBoundary`: un'unita' pianifica **una sola** abilita'
+	// per turno. La riga esiste per il giorno in cui quella premessa cadesse.
+	return A.ReactionResponse.Compare(B.ReactionResponse, ESearchCase::CaseSensitive) < 0;
 }
 
 void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
@@ -208,34 +248,48 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		const FString Who = Entry.ActionId.IsNone()
 			? FString(TEXT("overwatch")) : DescribeActionIdentity(Entry);
 
+		// 🔴 **«la reazione» e non «overwatch», dal 2026-08-20.** Ogni arma di questo `switch` diceva
+		// *overwatch* alla lettera, ed era vero finche' quello era l'unico produttore di decisioni. Con
+		// [D-047] le finestre le apre anche `Action.Brace`, e il testo avrebbe raccontato un Overwatch che non
+		// c'e' — «overwatch tiene il colpo» per un'unita' che si e' irrigidita. Il nome vero e' gia' in `Who`,
+		// che porta l'`ActionId`: il soggetto qui torna neutro e lascia parlare quello.
+		const TCHAR* const Soggetto = TEXT("la reazione");
+
 		switch (static_cast<ERTReactionDecisionOutcome>(Entry.Outcome))
 		{
 		case ERTReactionDecisionOutcome::FireChosen:
-			return FString::Printf(TEXT("%s -> %s: overwatch spara sull'unita' %d, %d danni (%s)"),
-				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.SelectedTargetUnitId,
+			return FString::Printf(TEXT("%s -> %s: %s spara sull'unita' %d, %d danni (%s)"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Soggetto, Entry.SelectedTargetUnitId,
 				Entry.Amount, *Who);
+		// La risposta di un profilo (E14.7): il TOKEN e' l'informazione, e senza di lui due decisioni diverse
+		// — tenere la cella o scartare — si leggerebbero identiche. E' lo stesso argomento con cui i cinque
+		// `Hold` qui sotto NON condividono un testo.
+		case ERTReactionDecisionOutcome::ResponseChosen:
+			return FString::Printf(TEXT("%s: %s risponde «%s» (%s)"),
+				*CellText(Entry.SrcCell), Soggetto,
+				Entry.ReactionResponse.IsEmpty() ? TEXT("?") : *Entry.ReactionResponse, *Who);
 		// I cinque `Hold` NON condividono un testo, ed e' il punto della voce: applicano tutti lo stesso
 		// effetto — nessuno — e rispondono in modo diverso all'unica domanda che il giocatore pone davvero,
 		// *perche' non ha sparato?*. Un «tiene il colpo» per tutti cancellerebbe proprio quella differenza.
 		case ERTReactionDecisionOutcome::HoldChosen:
-			return FString::Printf(TEXT("%s: overwatch tiene il colpo, resta armato (%s)"),
-				*CellText(Entry.SrcCell), *Who);
+			return FString::Printf(TEXT("%s: %s tiene il colpo, resta armata (%s)"),
+				*CellText(Entry.SrcCell), Soggetto, *Who);
 		case ERTReactionDecisionOutcome::HoldTimeout:
-			return FString::Printf(TEXT("%s: overwatch non risponde in tempo, resta armato (%s)"),
-				*CellText(Entry.SrcCell), *Who);
+			return FString::Printf(TEXT("%s: %s non risponde in tempo, resta armata (%s)"),
+				*CellText(Entry.SrcCell), Soggetto, *Who);
 		case ERTReactionDecisionOutcome::HoldNoDecider:
-			return FString::Printf(TEXT("%s: overwatch senza decisore, resta armato (%s)"),
-				*CellText(Entry.SrcCell), *Who);
+			return FString::Printf(TEXT("%s: %s senza decisore, resta armata (%s)"),
+				*CellText(Entry.SrcCell), Soggetto, *Who);
 		case ERTReactionDecisionOutcome::HoldRejected:
-			return FString::Printf(TEXT("%s: risposta non ammessa, overwatch resta armato (%s)"),
-				*CellText(Entry.SrcCell), *Who);
+			return FString::Printf(TEXT("%s: risposta non ammessa, %s resta armata (%s)"),
+				*CellText(Entry.SrcCell), Soggetto, *Who);
 		case ERTReactionDecisionOutcome::HoldImmediate:
-			return FString::Printf(TEXT("%s: nessun bersaglio ammesso, overwatch resta armato (%s)"),
-				*CellText(Entry.SrcCell), *Who);
+			return FString::Printf(TEXT("%s: nessun bersaglio ammesso, %s resta armata (%s)"),
+				*CellText(Entry.SrcCell), Soggetto, *Who);
 		}
 		// Un valore aggiunto in coda e non ancora tradotto: si dice cosi', invece di mentire su quale sia.
 		// Stessa disciplina di `ERTDisplacementBlockReason` piu' sopra.
-		return FString::Printf(TEXT("%s: overwatch, esito non tradotto (%s)"), *CellText(Entry.SrcCell), *Who);
+		return FString::Printf(TEXT("%s: %s, esito non tradotto (%s)"), *CellText(Entry.SrcCell), Soggetto, *Who);
 	}
 
 	// Orientamento: quando cambia, e chi lo ha letto (CP 16.1). Senza queste righe il combat log direbbe che
@@ -532,7 +586,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
 	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionDecision));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionResponse));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
@@ -565,6 +619,13 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 		AppendStringUtf8(Out, E.OpportunityId);
 		AppendI32LE(Out, E.ReactionInstanceId);
 		AppendI32LE(Out, E.SelectedTargetUnitId);
+		// v9: chi era il bersaglio PRIMA di un redirect (#1060). In coda, i campi precedenti non si spostano.
+		AppendI32LE(Out, E.OriginalTargetUnitId);
+		// v10: il token della risposta, quando non e' derivabile dall'esito (E14.7, [D-047]). Stringa con lo
+		// schema di `ActionId`, in coda: i campi precedenti non si spostano. **Vuota** per ogni finestra
+		// dell'Overwatch — la sua risposta si deduce, e una traccia scritta prima della v10 significa la
+		// stessa cosa di una scritta dopo.
+		AppendStringUtf8(Out, E.ReactionResponse);
 	}
 
 	// Checksum FNV di tutto cio' che precede (header + voci), in coda: rileva la corruzione del contenuto.
@@ -592,8 +653,14 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// altro valore e' rifiutato: interpretare byte di un formato ignoto produce un replay sbagliato in silenzio.
 	uint16 Version = 0;
 	if (!ReadU16LE(Bytes, Pos, Version)) { return false; }
-	const bool bHasReactionDecision =
-		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionDecision));
+	// v10 (E14.7, [D-047]): il token della risposta. Come per ogni estensione precedente, la versione nuova
+	// implica tutte quelle sotto — le versioni sono cumulative, non alternative.
+	const bool bHasReactionResponse =
+		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionResponse));
+	const bool bHasRedirectOrigin = bHasReactionResponse
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithRedirectOrigin));
+	const bool bHasReactionDecision = bHasRedirectOrigin
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionDecision));
 	const bool bHasPriority = bHasReactionDecision
 		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithPriority));
 	const bool bHasUnitId = bHasPriority
@@ -640,8 +707,15 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// + 2 byte di lunghezza per ogni stringa presente nel formato: ActionId da v3, BaseActionId da v5.
 	// + 12 byte fissi per UnitId, TurnNumber e GraphRevision da v6, + 4 per Priority da v7.
 	// + 2 di lunghezza per `OpportunityId` e 8 per i due interi della decisione, da v8.
+	// + 4 per `OriginalTargetUnitId` da v9, + 2 di lunghezza per `ReactionResponse` da v10. ⚠️ Va aggiornato
+	// a OGNI versione che allunga la voce, o il guard sottostima e lascia passare un `Count` piu' grande di
+	// quanto il buffer regga — che e' esattamente cio' che questo calcolo esiste per impedire. La prima
+	// stesura della v9 l'aveva dimenticato: 61 byte dichiarati contro 65 reali, il 6% di margine in meno su un
+	// controllo fail-closed. Trovato da una code review, ed e' il motivo per cui la v10 lo aggiorna **nello
+	// stesso commit** che allunga la voce, invece di lasciarlo a un giro successivo.
 	const int32 MinEntryBytes = FixedEntryBytes + (bHasActionId ? 2 : 0) + (bHasBaseActionId ? 2 : 0)
-		+ (bHasUnitId ? 12 : 0) + (bHasPriority ? 4 : 0) + (bHasReactionDecision ? 10 : 0);
+		+ (bHasUnitId ? 12 : 0) + (bHasPriority ? 4 : 0) + (bHasReactionDecision ? 10 : 0)
+		+ (bHasRedirectOrigin ? 4 : 0) + (bHasReactionResponse ? 2 : 0);
 	const int32 Remaining = Bytes.Num() - Pos;
 	if (Remaining < 0 || Count > static_cast<uint32>(Remaining / MinEntryBytes))
 	{
@@ -728,6 +802,31 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 		// Sotto la v8 i tre campi restano ai loro default — id vuoto, `INDEX_NONE` sui due interi — e qui non
 		// c'e' nemmeno la tentazione di dedurli: in quelle versioni nessuna finestra si apriva in partita, e
 		// una traccia senza decisioni e' completa cosi' com'e', non monca.
+		if (bHasRedirectOrigin)
+		{
+			if (!ReadI32LE(Bytes, Pos, E.OriginalTargetUnitId))
+			{
+				OutEntries.Reset();
+				return false;
+			}
+		}
+		// Sotto la v9 resta `INDEX_NONE`, e **non** si deduce dalla `SrcCell` risolvendo l'occupante — che pure
+		// sarebbe possibile. E' la stessa inferenza che D-063 vieta, e su una traccia storica sarebbe peggio:
+		// la cella dice dove il protetto stava al Blast, l'occupante di fine turno puo' essere un altro.
+		if (bHasReactionResponse)
+		{
+			if (!ReadStringUtf8(Bytes, Pos, E.ReactionResponse))
+			{
+				OutEntries.Reset();
+				return false;
+			}
+		}
+		// Sotto la v10 resta **vuoto**, ed e' la lettura giusta e non una perdita: in quelle versioni l'unico
+		// produttore di finestre era l'Overwatch, la cui risposta si **deduce** dall'esito. Un campo vuoto
+		// dice a `ArmRecordedReactionDecisions` «deducila come sempre», che e' esattamente cio' che quei byte
+		// significavano. ⚠️ Inventare qui un token — ricostruendolo dall'`Outcome` — sarebbe peggio che
+		// lasciarlo vuoto: farebbe sembrare esplicita una deduzione, e il lettore perderebbe la sola
+		// informazione che distingue le due epoche del formato.
 		OutEntries.Add(E);
 	}
 

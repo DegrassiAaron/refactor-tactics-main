@@ -22,7 +22,7 @@ proprietario della finestra, consuma la prima decisione non usata che lo nomina,
 Valgono per **ogni** task, senza ripeterli:
 
 - **Write-set.** Solo questi cinque path. Qualunque altro file è **STOP**, e si emenda
-  [`../parallel-batch.yaml`](../parallel-batch.yaml) **prima** di scrivere, mai dopo:
+  `../parallel-batch.yaml` **prima** di scrivere, mai dopo:
   `Source/RefactorTactics/ScenarioHarness/` · `Source/RefactorTactics/Tests/RTShowcaseScenarioTests.cpp` ·
   `Source/RefactorTactics/Tests/RTScenarioLoaderTests.cpp` · questo piano · il referto di design.
 - **`Scenarios/` è `integration_only`.** In fase A **nessun JSON del corpus si tocca**: gli scenari di prova

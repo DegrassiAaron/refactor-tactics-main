@@ -51,7 +51,7 @@
 > **Recepito**: E46 in v0.1 (6 checkpoint, epic
 > [#934](https://github.com/DegrassiAaron/refactor-tactics-main/issues/934)), quattro feature
 > `RT-FEAT-UI-FRONTEND-*`, l'owner
-> [`spec-frontend-navigazione.md`](../../../technical/spec-frontend-navigazione.md), e la sezione
+> [`spec-frontend-navigazione.md`](../../../technical/architecture/spec-frontend-navigazione.md), e la sezione
 > *«Il frontend oltre la v0.1»* di [`roadmap-post-v0.1.md`](../../../roadmap/roadmap-post-v0.1.md), che
 > riconcilia il §18 coi temi di release reali.
 

@@ -223,7 +223,76 @@ void ARTTurnManager::PlanBots()
 	EnsureMatchRoster();
 
 	TArray<ARTUnit*> Units;
-	const FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units); // solo unita' vive; Units[i].UnitId == i
+	const FRTHexSnapshot BaseSnapshot = MakeCurrentSnapshot(Units); // solo unita' vive; Units[i].UnitId == i
+
+	// #1088 — UNO SNAPSHOT DI PIANIFICAZIONE PER SQUADRA, e non era cosi'.
+	//
+	// Fino a qui ogni bot pianificava sullo stesso snapshot congelato prima del ciclo: la seconda unita' non
+	// sapeva cosa avesse scelto la prima, sceglieva la stessa cella, e la risoluzione simultanea le fermava
+	// entrambe (`BlockedContested`). Deterministico, quindi il turno dopo ricreava la contesa identica — e la
+	// partita si bloccava. Misurato sull'arena spedita: 24 contese in 12 turni, TUTTE fra compagni di
+	// squadra, zero mosse.
+	//
+	// ⛔ **Per squadra, e non e' un'ottimizzazione: e' fairness** (CP 13.5, `RT-FEAT-BOT-FAIRNESS`). Le
+	// prenotazioni sono informazione sui piani, e i piani di una squadra sono privati: con un solo snapshot
+	// condiviso un bot eviterebbe la cella dove sta per andare un AVVERSARIO, cioe' schiverebbe un intento
+	// che nessun giocatore puo' vedere. Due squadre che si contendono la stessa cella devono continuare a
+	// contendersela — quella e' una collisione legittima, e la risolve il resolver.
+	// ⚠️ Costruiti TUTTI in anticipo, e non su richiesta dentro il ciclo: un `Add` in corsa puo' riallocare
+	// la mappa e invalidare un riferimento gia' preso — e quel riferimento resterebbe vivo per l'intero corpo
+	// dell'iterazione. Con le squadre note prima, la mappa non viene piu' toccata mentre qualcuno la guarda.
+	TMap<int32, FRTHexSnapshot> PlanningSnapshots;
+	for (const ARTUnit* U : Units)
+	{
+		if (U && U->bIsBotControlled && !PlanningSnapshots.Contains(U->TeamId))
+		{
+			PlanningSnapshots.Add(U->TeamId, BaseSnapshot);
+		}
+	}
+
+	// Prenota nello snapshot della squadra la rotta che il bot ha appena scelto.
+	//
+	// 🔴 **LIMITE MISURATO, e va letto prima di credere che questa prenotazione basti.** Cio' che arriva
+	// all'esecuzione e' la DESTINAZIONE, non la rotta: `ResolveMovement` ricalcola il percorso su uno
+	// snapshot fresco, dove nessuna prenotazione esiste, quindi per ogni compagna dopo la prima la rotta
+	// eseguita puo' tornare a essere quella DIRETTA — proprio quella che la prenotazione aveva scartato.
+	// ∴ questa prenotazione garantisce **destinazioni distinte**, non **percorsi disgiunti**, e la meta' del
+	// difetto di #1088 fatta di collisioni di percorso (12 contese su 24) resta possibile in linea di
+	// principio. Sulla configurazione spedita non si osserva — misurato, `fermo: cella contesa` = 0 in 12
+	// round — ma «non osservato» non e' «impedito».
+	//
+	// ⛔ **Fissare qui `PlannedPath` NON e' la soluzione, ed e' stato provato**: `ResolveMovement` accetta un
+	// `PlannedPath` gia' pronto **senza** riapplicare l'occupazione fresca — la sua validazione autorevole
+	// vive nel ramo che ricalcola — e una rotta scelta in pianificazione e' vecchia di due fasi (Dash e Blast
+	// muovono, spingono e uccidono). Il risultato misurato e' **due unita' sulla stessa cella**
+	// (`HexMatch.TestArenaKeepsUnitsOnLegalCells`, turno 9). La correzione giusta e' far accumulare le rotte
+	// **dentro** `ResolveMovement`, dove l'occupazione e' fresca e varrebbe anche per le unita' umane: e'
+	// piu' larga di #1088 e va aperta a parte.
+	//
+	// ⚠️ **Solo il movimento NORMALE**, e la ragione e' la geometria: lo scatto ha traiettoria LINEARE mentre
+	// `ReservePlannedRoute` cammina il grafo, quindi per uno scatto prenoterebbe celle che non verranno
+	// attraversate. Della fase Dash si prenota la sola cella d'ARRIVO — vedi piu' sotto: e' li' che l'unita'
+	// si trovera' quando il Move gira, quindi e' l'unica che una compagna non deve poter scegliere.
+	auto ReserveNormalMove = [](FRTHexSnapshot& TeamSnapshot, ARTUnit* PlannedBot, int32 PlannedIdx)
+	{
+		if (!PlannedBot)
+		{
+			return;
+		}
+		if (PlannedBot->PlannedDashAbility != INDEX_NONE)
+		{
+			// Scatta: la rotta e' della fase Dash e non passa di qui, ma la cella su cui ATTERRA sara'
+			// occupata quando il Move risolve. Senza prenotarla, una compagna la sceglie come destinazione e
+			// al proprio turno di movimento trova la strada sbarrata: un turno speso per niente.
+			if (!(PlannedBot->PlannedDashCell == PlannedBot->Cell)
+				&& !TeamSnapshot.Occupancy.Contains(PlannedBot->PlannedDashCell))
+			{
+				TeamSnapshot.Occupancy.Add(PlannedBot->PlannedDashCell, PlannedIdx);
+			}
+			return;
+		}
+		URTHexBotLibrary::ReservePlannedRoute(TeamSnapshot, PlannedIdx, PlannedBot->PlannedCell);
+	};
 
 	// CP 13.5 — la conoscenza dev'esistere PRIMA che qualcuno ci pianifichi sopra. `ResolveCombat` la
 	// rinfresca a valle del Dash, cioe' DOPO: al primo turno sarebbe vuota, e un bot che pianifica su una
@@ -244,6 +313,18 @@ void ARTTurnManager::PlanBots()
 		Bot->PlannedAbilityIndex = INDEX_NONE;
 		Bot->PlannedPath.Reset();       // il bot pianifica destinazioni, non percorsi a waypoint
 		Bot->PlannedWaypoints.Reset();
+
+		// Lo snapshot su cui QUESTO bot pianifica: quello della sua squadra, che porta le prenotazioni delle
+		// compagne gia' passate di qui. Esistono tutti da prima del ciclo, quindi qui non si inserisce nulla
+		// e il riferimento non puo' essere invalidato da una riallocazione.
+		FRTHexSnapshot* TeamSnapshotPtr = PlanningSnapshots.Find(Bot->TeamId);
+		if (!TeamSnapshotPtr)
+		{
+			continue; // non puo' accadere: la mappa e' costruita sugli stessi bot che questo ciclo visita
+		}
+		// UN SOLO nome, e non due: un alias `const` accanto a uno scrivibile dichiarerebbe un'immutabilita'
+		// che non c'e' — la prenotazione a fine iterazione scrive proprio qui dentro.
+		FRTHexSnapshot& Snapshot = *TeamSnapshotPtr;
 
 		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' che lo RIMETTE IN PIEDI, la usa e salta il turno.
 		//
@@ -490,6 +571,9 @@ void ARTTurnManager::PlanBots()
 				}
 				Bot->PlannedCell = Best;
 			}
+			// #1088 — anche qui, ed e' il ramo che il difetto colpiva per primo: due compagne che cercano il
+			// contatto puntano ENTRAMBE la cella piu' vicina al centro, che e' una sola.
+			ReserveNormalMove(Snapshot, Bot, BotIdx);
 			continue; // niente da bersagliare: nessun attacco, nessuno scatto verso un nemico che non si conosce
 		}
 
@@ -515,7 +599,12 @@ void ARTTurnManager::PlanBots()
 			if (Units[j] && Units[j]->IsAlive() && Units[j]->TeamId != Bot->TeamId) { DashHostiles.Add(j); }
 		}
 
-		FRTHexSnapshot DashSnapshot = Snapshot;
+		// 🔴 **Dalla BASE, non dallo snapshot di squadra, e la differenza e' una fase.** Le prenotazioni
+		// descrivono dove le compagne andranno nel MOVE; il Dash risolve PRIMA del Move, quando quelle celle
+		// sono ancora vuote. Copiandole qui, `ResolveLinearMove` e `IsLinearReachable` — che trattano ogni
+		// occupante non ostile come un corpo solido — scarterebbero cariche e scatti perfettamente legali,
+		// in silenzio. La prenotazione e' del Move: che sia CONSUMATA solo dal Move.
+		FRTHexSnapshot DashSnapshot = BaseSnapshot;
 		if (bDashReady)
 		{
 			// Le candidate nascono da `ReachableCells`, che spende PUNTI MOVIMENTO (Dijkstra sui costi). Ma la
@@ -585,6 +674,7 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedCell = URTHexBotLibrary::BestKiteCell(Snapshot, BotIdx, NearestKnownCell);
 			AddLogEvent(FString::Printf(TEXT("%s: arretra -> (q=%d,r=%d,L%d)"),
 				*Bot->GetName(), Bot->PlannedCell.X, Bot->PlannedCell.Y, Bot->PlannedCell.Layer));
+			ReserveNormalMove(Snapshot, Bot, BotIdx);
 			continue;
 		}
 
@@ -656,8 +746,12 @@ void ARTTurnManager::PlanBots()
 			const int32 ImpactDamage = URTCatalogLibrary::FirstDamage(DashAb->Def);
 			for (int32 e = 0; e < Ctx.Enemies.Num(); ++e)
 			{
+				// Occupazione dalla BASE, come per `DashSnapshot`: la carica risolve nella fase Dash, e una
+				// cella prenotata per il Move di una compagna li' e' ancora vuota. Con `Snapshot.Occupancy`
+				// la traiettoria si fermerebbe su un corpo che non c'e' e la candidata sparirebbe in silenzio.
 				const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
-					Snapshot.Map, Bot->Cell, Ctx.Enemies[e], DashBudget, DashStyle, Snapshot.Occupancy, DashHostiles);
+					BaseSnapshot.Map, Bot->Cell, Ctx.Enemies[e], DashBudget, DashStyle,
+					BaseSnapshot.Occupancy, DashHostiles);
 
 				// Vale solo se l'impatto colpisce PROPRIO quel nemico: una traiettoria che ne incontra un altro
 				// prima e' una candidata diversa, e la genera il suo giro di ciclo.
@@ -769,6 +863,10 @@ void ARTTurnManager::PlanBots()
 				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
 				Best.DestCell == Bot->Cell ? TEXT(" (resta)") : TEXT("")));
 		}
+
+		// #1088 — l'ultima cosa che il bot fa: dichiarare alle compagne dove sta andando. Copre i quattro
+		// rami qui sopra; i due `continue` piu' in alto prenotano per conto proprio, perche' escono prima.
+		ReserveNormalMove(Snapshot, Bot, BotIdx);
 	}
 }
 
@@ -3882,10 +3980,57 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 	// Cardinalita' <= 1: nessuna finestra si apre e non si chiede niente a nessuno (ADR-0004 §2). Il caso
 	// arriva davvero — una condizione dichiarata che filtri via tutti i bersagli lascia il solo `HOLD` — ed e'
 	// cosi' che il regime *Conditional* emerge dai dati invece che da un enum di policy parallelo.
+	//
+	// ⚠️ **I sei ripieghi di questa funzione applicano `SafeResponse(Opportunity)` e non piu' la costante
+	// `HoldResponse()`** (2026-08-19, fetta 3 di E14.7). Per l'Overwatch **non cambia un esito**: `HOLD` e'
+	// sempre fra le sue risposte legali e `SafeResponse` la preferisce a qualunque altra. Cambia per il
+	// `Brace` di [D-047], che chiama la propria scelta sicura `Hold Ground`: con la costante, ognuno dei sei
+	// ripieghi avrebbe applicato una risposta **fuori** dalle sue `AllowedResponses` — cioe' un
+	// `IsResponseAllowed` falso su una decisione presa dal resolver stesso.
 	if (!URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity))
 	{
-		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 			ERTReactionDecisionOutcome::HoldImmediate);
+	}
+
+	// --- La TRACCIA, se questa e' una ri-simulazione (`#886`) --------------------------------------------
+	//
+	// Sta QUI e non una riga piu' su: sopra c'e' il collasso di [D-109], che e' una funzione pura dello stato
+	// e si RICALCOLA. Per quelle finestre la traccia contiene `HoldImmediate`, che non e' la scelta di
+	// nessuno — e' la constatazione che non c'era scelta — e rileggerlo farebbe dipendere una regola del gioco
+	// dalla traccia. Sta qui e non una riga piu' giu' perche' una risposta REGISTRATA batte il decisore
+	// corrente: sostituisce *chi decide*, non *se c'e' da decidere*.
+	if (RecordedDecisions.Num() > 0)
+	{
+		const FString Key = URTReactionOpportunityLibrary::DeriveOpportunityId(Opportunity.Key);
+		if (const FRTReactionDecision* Recorded = RecordedDecisions.Find(Key))
+		{
+			// Rifiutata anche se registrata, e non e' diffidenza verso la traccia: se una risposta che allora
+			// era legale oggi non lo e', le due esecuzioni hanno smesso di combaciare. Trattarla come un
+			// normale `HoldRejected` di gioco mascherebbe un difetto del resolver da esito di partita.
+			if (!URTReactionOpportunityLibrary::IsResponseAllowed(Opportunity, Recorded->Response))
+			{
+				ConsumedDecisionKeys.Add(Key);
+				VerificationDivergences.Add(FString::Printf(
+					TEXT("risposta registrata illegale nella ri-simulazione: '%s' non e' fra le AllowedResponses della finestra %s"),
+					*Recorded->Response, *Key));
+				return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
+					ERTReactionDecisionOutcome::HoldRejected);
+			}
+
+			ConsumedDecisionKeys.Add(Key);
+			return *Recorded;
+		}
+
+		// La ri-simulazione apre una finestra che la traccia non copre. L'esito applicato resta un `HOLD` —
+		// una finestra va pur risolta, e sparare qui spenderebbe una carica su un disaccordo — ma il fatto
+		// che ci sia stato un disaccordo NON si perde: e' [D-170], il giudizio sulla verifica esce da un
+		// canale che non e' il TurnLog. Senza questa riga il caso sarebbe indistinguibile da «nessuno ha
+		// risposto», cioe' da un successo.
+		VerificationDivergences.Add(FString::Printf(
+			TEXT("finestra non coperta dalla traccia: nessuna risposta registrata per %s"), *Key));
+		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
+			ERTReactionDecisionOutcome::HoldNoDecider);
 	}
 
 	// Il decisore INIETTATO ha la precedenza su tutto, bot compreso: e' il punto di sostituzione, e un test
@@ -3903,18 +4048,18 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 			// applicare risposte che l'altra rifiuta.
 			if (!URTReactionOpportunityLibrary::IsResponseAllowed(Opportunity, BotResponse))
 			{
-				return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+				return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 					ERTReactionDecisionOutcome::HoldRejected);
 			}
-			const bool bBotFires = URTReactionOpportunityLibrary::FireResponseTarget(BotResponse) != INDEX_NONE;
-			return FRTReactionDecision(BotResponse,
-				bBotFires ? ERTReactionDecisionOutcome::FireChosen : ERTReactionDecisionOutcome::HoldChosen);
+			// Stessa classificazione del decisore iniettato, e da UNA sola funzione: due punti che decidono
+			// «che cosa ha scelto» sono due regole, e divergerebbero al primo esito nuovo.
+			return FRTReactionDecision(BotResponse, ClassifyChosenResponse(Opportunity, BotResponse));
 		}
 
 		// Un'unita' umana senza UI: la finestra esiste e nessuno puo' rispondere. Fail-closed nel verso
 		// giusto — senza decisore la charge non si spende. Il contrario, sparare per default, spenderebbe una
 		// risorsa irreversibile per una configurazione mancante. La UI e' CP 14.6 (`#166`).
-		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 			ERTReactionDecisionOutcome::HoldNoDecider);
 	}
 
@@ -3937,13 +4082,122 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 	// non c'e' piu'.
 	if (!URTReactionOpportunityLibrary::IsResponseAllowed(Opportunity, Response))
 	{
-		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 			ERTReactionDecisionOutcome::HoldRejected);
 	}
 
-	const bool bFire = URTReactionOpportunityLibrary::FireResponseTarget(Response) != INDEX_NONE;
-	return FRTReactionDecision(Response,
-		bFire ? ERTReactionDecisionOutcome::FireChosen : ERTReactionDecisionOutcome::HoldChosen);
+	return FRTReactionDecision(Response, ClassifyChosenResponse(Opportunity, Response));
+}
+
+ERTReactionDecisionOutcome ARTTurnManager::ClassifyChosenResponse(
+	const FRTReactionOpportunity& Opportunity, const FString& Response)
+{
+	// Tre classi, e la terza e' nata con [D-047]: sparare, tenere la scelta sicura, oppure **scegliere
+	// qualcos'altro**. Fino al `Brace` la terza era vuota per costruzione — l'Overwatch offre `FIRE:<id>` e
+	// `HOLD`, e non c'e' un «altro» — quindi bastava un booleano.
+	if (URTReactionOpportunityLibrary::FireResponseTarget(Response) != INDEX_NONE)
+	{
+		return ERTReactionDecisionOutcome::FireChosen;
+	}
+
+	// ⚠️ **Il confronto e' con `SafeResponse`, non con la costante `HOLD`**, ed e' la stessa correzione che
+	// i sei ripieghi di questa funzione hanno gia' ricevuto: la scelta sicura di una finestra di `Brace` e'
+	// `Hold Ground`, e misurarla contro `HOLD` classificherebbe come «altro» proprio la risposta piu'
+	// conservativa che esista. Chi decide qual e' la scelta sicura e' l'opportunity, in un posto solo.
+	if (Response.Equals(URTReactionOpportunityLibrary::SafeResponse(Opportunity), ESearchCase::CaseSensitive))
+	{
+		return ERTReactionDecisionOutcome::HoldChosen;
+	}
+
+	// Una risposta attiva che non e' `FIRE`: il token la nomina in `FRTTurnLogEntry::ReactionResponse`, e
+	// l'esito esiste perche' `LogEventCount` possa contarla separatamente da chi ha tenuto la posizione.
+	return ERTReactionDecisionOutcome::ResponseChosen;
+}
+
+void ARTTurnManager::ArmRecordedReactionDecisions(const TArray<FRTTurnLogEntry>& TraceEntries)
+{
+	RecordedDecisions.Reset();
+	ConsumedDecisionKeys.Reset();
+	VerificationDivergences.Reset();
+
+	for (const FRTTurnLogEntry& Entry : TraceEntries)
+	{
+		if (Entry.Category != ERTLogCategory::ReactionDecision || Entry.OpportunityId.IsEmpty())
+		{
+			continue;
+		}
+
+		const ERTReactionDecisionOutcome Outcome = static_cast<ERTReactionDecisionOutcome>(Entry.Outcome);
+
+		// ⛔ Il collasso NON entra nella mappa. Quelle finestre non arrivano mai fin qui — le precede il gate
+		// di cardinalita' — quindi una voce `HoldImmediate` caricata resterebbe non consumata a fine corsa e
+		// verrebbe segnalata come orfana su una ri-simulazione riuscita. Scartarla in ingresso e' anche cio'
+		// che la rende inapplicabile per errore a una finestra che non e' la sua.
+		if (Outcome == ERTReactionDecisionOutcome::HoldImmediate)
+		{
+			continue;
+		}
+
+		// La risposta si LEGGE se la voce la porta, e si ricostruisce altrimenti.
+		//
+		// 🔴 **La ricostruzione da sola ha smesso di bastare con [D-047], e non era incompleta: era
+		// SBAGLIATA.** Regge finche' il vocabolario e' chiuso — l'Overwatch offre `FIRE:<id>` e `HOLD`, quindi
+		// l'esito basta a dire quale delle due sia stata applicata. Il `Brace` apre finestre le cui risposte
+		// vengono dal **catalogo** (`Hold Ground`, `SIDESTEP`, e quelle che i profili aggiungeranno): per
+		// quelle la ricostruzione produce `HOLD`, che in una finestra di `Brace` **non e' nemmeno una risposta
+		// legale**. Il ramo di sopra la rifiuterebbe come «registrata illegale», cioe' accuserebbe la traccia
+		// di un difetto del lettore — e il replay divergerebbe applicando la scelta sicura al posto dello
+		// scarto.
+		//
+		// ⚠️ **Il campo vuoto NON e' un dato mancante**: e' la dichiarazione che la risposta e' derivabile, ed
+		// e' cosi' che ogni traccia scritta prima della v10 continua a significare esattamente cio' che
+		// significava. L'Overwatch non scrive il token e non cambia di una riga.
+		const FString Response = !Entry.ReactionResponse.IsEmpty()
+			? Entry.ReactionResponse
+			: ((Outcome == ERTReactionDecisionOutcome::FireChosen)
+				? URTReactionOpportunityLibrary::FireResponse(Entry.SelectedTargetUnitId)
+				: FString(URTReactionOpportunityLibrary::HoldResponse()));
+
+		// ⚠️ Due voci con la STESSA chiave: `Add` sovrascriverebbe, e una risposta andrebbe persa senza che
+		// nessuno lo dica — cioe' il difetto che questa issue esiste per prevenire, spostato di un anello.
+		// Il caso non e' teorico: `FRTReactionOpportunityKey` non porta l'istanza della reaction, e
+		// `ResolveReactionBoundary` lo dichiara — due Overwatch della stessa unita' nello stesso micro-step
+		// ricadrebbero sulla stessa chiave. Oggi non si produce (un'unita' pianifica una sola abilita' per
+		// turno); il giorno in cui si producesse, la traccia diventerebbe ambigua e va **detto**, non
+		// arrotondato. La PRIMA vince: l'ordine della traccia e' canonico (`EntryLess`), quindi «la prima»
+		// e' una regola e non un caso.
+		if (const FRTReactionDecision* Existing = RecordedDecisions.Find(Entry.OpportunityId))
+		{
+			VerificationDivergences.Add(FString::Printf(
+				TEXT("traccia ambigua: due risposte registrate per %s ('%s' tenuta, '%s' scartata)"),
+				*Entry.OpportunityId, *Existing->Response, *Response));
+			continue;
+		}
+
+		RecordedDecisions.Add(Entry.OpportunityId, FRTReactionDecision(Response, Outcome));
+	}
+}
+
+void ARTTurnManager::ReportOrphanRecordedDecisions()
+{
+	// Ordinato per chiave prima di riportare: `TMap` non garantisce l'ordine di iterazione, e un verdetto che
+	// cambia riga a ogni esecuzione sarebbe un non-determinismo introdotto proprio dal codice che verifica il
+	// determinismo.
+	TArray<FString> Orphans;
+	for (const TPair<FString, FRTReactionDecision>& Pair : RecordedDecisions)
+	{
+		if (!ConsumedDecisionKeys.Contains(Pair.Key))
+		{
+			Orphans.Add(Pair.Key);
+		}
+	}
+	Orphans.Sort();
+
+	for (const FString& Key : Orphans)
+	{
+		VerificationDivergences.Add(FString::Printf(
+			TEXT("risposta registrata orfana: nessuna finestra ha reclamato %s"), *Key));
+	}
 }
 
 void ARTTurnManager::ApplyReactionDecision(const TArray<ARTUnit*>& Units, FRTMovementResolutionState& State,
@@ -3977,14 +4231,58 @@ void ARTTurnManager::ApplyReactionDecision(const TArray<ARTUnit*>& Units, FRTMov
 	Entry.Priority = URTCatalogLibrary::FindCoreAction(Armed.ActionId).Priority;
 
 	const int32 TargetIdx = URTReactionOpportunityLibrary::FireResponseTarget(Decision.Response);
+
+	// 🔴 **`IsAlive()` e non solo `IsValid()`** (#1158). `ARTUnit::ApplyCombatState` NON distrugge l'Actor alla
+	// morte e lo dichiara — «la rimozione VISIVA e la distruzione sono differite … cosi' il colpo mortale resta
+	// osservabile» — quindi `IsValid` resta **vero** su un'unita' a 0 HP. Senza questo guard, due Overwatch
+	// armati sullo stesso mover producevano due `FIRE`: il secondo colpiva un bersaglio gia' abbattuto dal
+	// primo e scriveva `Entry.Amount = Armed.Damage` nel TurnLog **autorevole**, cioe' un danno mai inflitto.
+	//
+	// I `Triggers` si costruiscono UNA volta prima del ciclo per-opportunity, e l'unico guard per iterazione e'
+	// `bCharged` — che e' per **watcher**, non per bersaglio: nessuno dei due impediva il caso.
+	//
+	// ⚠️ Il predicato e' quello che questo file usa gia' ovunque (`:182` con tanto di commento «un cadavere non
+	// vede e non si nasconde»), non un secondo criterio nuovo: la sua assenza qui era un'incoerenza, e nessun
+	// commento la difendeva.
+	const bool bTargetStanding = Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx])
+		&& Units[TargetIdx]->IsAlive();
 	const bool bFire = Decision.Outcome == ERTReactionDecisionOutcome::FireChosen
-		&& Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx]) && State.Pos.IsValidIndex(TargetIdx);
+		&& bTargetStanding && State.Pos.IsValidIndex(TargetIdx);
 
 	if (!bFire)
 	{
-		// `HOLD`, in tutte e cinque le sue forme: si perde l'OPPORTUNITY, non la reaction. `bCharged` resta
+		// ⚠️ **Qui finiscono DUE casi diversi, e vanno distinti perche' la charge si comporta diversamente.**
+		//
+		// (1) `HOLD`, in tutte e cinque le sue forme: si perde l'OPPORTUNITY, non la reaction. `bCharged` resta
 		// vero, quindi un micro-step successivo puo' ancora aprire una finestra nuova — ed e' precisamente
 		// cio' che rende possibile il bait: lascio passare il tank perche' penso che dietro arrivi di meglio.
+		//
+		// (2) `FIRE` scelto su un bersaglio **gia' abbattuto** (#1158). Non e' un `HOLD`: il giocatore ha
+		// premuto, e il log deve continuare a dirlo — `Entry.Outcome` resta `FireChosen`. Cio' che non deve
+		// dire e' un danno mai inflitto, quindi `Entry.Amount` resta a zero e non si tronca nessun movimento
+		// (il bersaglio non si muove piu' comunque).
+		//
+		// 🔴 **La charge in questo secondo caso si spende, ed e' STATUS QUO — non una decisione presa qui.**
+		// Prima di #1158 il ramo `FIRE` girava per intero anche sul bersaglio a terra, e `Armed.bCharged = false`
+		// con esso. Se il watcher debba spenderla o conservarla e' una domanda di **regola**, dichiarata fuori
+		// scope dalla issue e da decidere dall'owner di ADR-0004: le due letture — *ha sparato* contro *non
+		// c'era piu' niente da colpire* — sono entrambe difendibili. Conservarla qui sarebbe rispondere di
+		// iniziativa, e per giunta cambiando il comportamento osservabile insieme alla correzione del log.
+		if (Decision.Outcome == ERTReactionDecisionOutcome::FireChosen && !bTargetStanding)
+		{
+			Armed.bCharged = false;
+
+			// 🔴 **Il bersaglio va nominato anche quando non lo si colpisce**, e ometterlo rompeva il
+			// round-trip della traccia consegnato da `#886`. `ArmRecordedReactionDecisions` RICOSTRUISCE la
+			// risposta dal TurnLog — `FireResponse(Entry.SelectedTargetUnitId)` per ogni `FireChosen` — quindi
+			// una voce senza bersaglio produce `"FIRE:-1"`, che `IsResponseAllowed` rifiuta: la
+			// ri-simulazione registrerebbe una divergenza spuria, tornerebbe `HoldRejected` e cambierebbe
+			// l'hash del turno rispetto alla partita originale.
+			// ⚠️ Prima di #1158 il caso non esisteva perche' il ramo `FIRE` girava per intero e assegnava
+			// questo campo; separando i due rami il campo va assegnato **due volte**, non una. Trovato da una
+			// code review, non da un test: nessuno rieseguiva come Verifier una partita con due `FIRE`.
+			Entry.SelectedTargetUnitId = TargetIdx;
+		}
 		AppendLogEntry(Entry, WatchOwner);
 		return;
 	}

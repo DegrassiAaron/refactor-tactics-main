@@ -76,9 +76,9 @@ Tre osservazioni valgono più delle singole righe:
 | # | Tema | Cosa dice il pacchetto | Cosa dice HEAD | Fonte che prevale | Azione |
 |---|---|---|---|---|---|
 | 1 | **Tassonomia delle azioni generiche** | `ACTION-TAXONOMY-01`: «6 vs 8, baseline **8**», con `Guard` **e** `Activate` universali | **sette** voci: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`; `Activate` **assorbita** da `Interact` | [`D-025`](../../decisions/RT_PDR_00_Decision_Log.md) *(emenda `D-014`)* · [`DOC_CONFLICT_MATRIX` #27](../../DOC_CONFLICT_MATRIX.md) | **non applicare.** Il conflitto è già registrato e **chiuso**: il pacchetto lo riapre citando una `D-AUDIT-01` che non esiste nel Decision Log |
-| 2 | **Identità degli scenari** | Master Scenarios §5: una `PrimaryCategory` obbligatoria + `PurposeTags` secondari | **un asse solo**: `scenarioId` puntato + tag liberi, ID **staccato** dal percorso, indice che rifiuta gli ID ambigui | [`scenario-index-e-tag.md`](../../technical/scenario-index-e-tag.md), deciso 2026-08-08 (`#209`) | **non applicare.** La motivazione è scritta: separare tipologia e lente costringe a decidere per ogni parola in quale casella vive, e «la risposta onesta è spesso *entrambe*» |
+| 2 | **Identità degli scenari** | Master Scenarios §5: una `PrimaryCategory` obbligatoria + `PurposeTags` secondari | **un asse solo**: `scenarioId` puntato + tag liberi, ID **staccato** dal percorso, indice che rifiuta gli ID ambigui | [`scenario-index-e-tag.md`](../../technical/tooling/scenario-index-e-tag.md), deciso 2026-08-08 (`#209`) | **non applicare.** La motivazione è scritta: separare tipologia e lente costringe a decidere per ogni parola in quale casella vive, e «la risposta onesta è spesso *entrambe*» |
 | 3 | **Vocabolario di status** | Governance §5 propone 13 status (`IMPLEMENTED`, `IMPLEMENTED_PARTIAL`, `DATA_SPEC`, `FUTURE`, `HISTORICAL`…) | 10 status, **derivati dai gate** con regola deterministica e verificati dal validator | [`feature-registry.yaml`](../feature-registry.yaml) intestazione | **non applicare**: romperebbe `feature_registry.py validate`. I **gate** invece coincidono alla lettera (9 su 9) — quella parte è `CURRENT` |
-| 4 | **`TEAM READY 2/3`** | Kit HUD §3.5 lo prescrive come componente persistente | «non simulare un falso stato `TEAM READY 1/2` finché non è realmente supportato» | [`progettazione-hud.md:341`](../../technical/progettazione-hud.md) · UI Master §15 `UI-READY-01` | **non applicare.** Il conflitto è **interno al pacchetto**: il master corregge il kit. Prevale il master, che coincide col repository |
+| 4 | **`TEAM READY 2/3`** | Kit HUD §3.5 lo prescrive come componente persistente | «non simulare un falso stato `TEAM READY 1/2` finché non è realmente supportato» | [`progettazione-hud.md:341`](../../technical/systems/progettazione-hud.md) · UI Master §15 `UI-READY-01` | **non applicare.** Il conflitto è **interno al pacchetto**: il master corregge il kit. Prevale il master, che coincide col repository |
 | 5 | **Fog of War** | Kit HUD §11/§30/§31 struttura tre milestone attorno alla «Fog of War» | **non è FoW**: conoscenza parziale a tre livelli, geometria statica **nota** | [`DOC_CONFLICT_MATRIX` #13](../../DOC_CONFLICT_MATRIX.md) · [`brief-conoscenza-parziale.md`](../../gameplay/brief-conoscenza-parziale.md) D1 | **rinominare in sede di recepimento.** Anche qui il Map Master §29 corregge il kit |
 | 6 | **Eleggibilità per nome d'eroe** | Kit HUD §15: `Eligible: Gadget / Riktor` nel pannello interazione | le abilità hanno ownership singola, le sinergie sono **derivate**; nessuna dipendenza da `HeroId` | [`ADR-0006`](../../decisions/adr-0006-ownership-abilita-sinergie.md) · [`D-029`](../../decisions/RT_PDR_00_Decision_Log.md) | **non applicare.** Il modello corretto — capability, non nome — è nel Map Master §15-§18 e nel kit Interactive Map §3 |
 | 7 | **Schema della pagina personaggio** | Characters Master §20 propone 11 sezioni Wiki | il template ha 16 sezioni e un campo **obbligatorio** che il master non nomina: `Misplay / Failure State` | [`D-032`](../../decisions/RT_PDR_00_Decision_Log.md) · [`characters/_Template.md`](../../characters/_Template.md) | **non applicare** lo schema. Le 4 pagine v0.1 lo compilano già: sostituirlo perderebbe un criterio anti-clone |
@@ -167,7 +167,7 @@ Filtrato il rumore, resta materiale che il repository **non** ha:
 | 1 | **Modello capability/verb per gli elementi di mappa** — `Element → State · Capabilities · Verbs · Requirements · Effects` | nulla di equivalente; E10 CP 10.1 fa `Activate`/`Interact` su oggetto adiacente, senza grammatica | È la forma corretta della regola già decisa da `ADR-0006`: sostituisce il branch per eroe con un requisito dichiarato. Owner naturale: E9/E10 |
 | 2 | **State machine dichiarata per elemento** (`Generator: Off → Online → Overloaded → Destroyed`) | porte e ponti hanno spec proprie ([`spec-porte-cp93`](../../gameplay/spec-porte-cp93.md), [`spec-ponti-cp94`](../../gameplay/spec-ponti-cp94.md)), ma nessun modello comune | Generalizza due casi già costruiti invece di inventarne un terzo |
 | 3 | **Regola delle tre soluzioni** (un'affordance importante offre ≥3 approcci sensati) | assente | Guideline di level design con una motivazione verificabile: evita il personaggio obbligatorio. Da registrare come criterio, non come regola di runtime |
-| 4 | **Separazione griglia tattica / architettura fisica** con `AffectedTransitions[]` esplicite | [`spec-mappa-multilivello.md`](../../technical/spec-mappa-multilivello.md) copre il grafo, non il binding delle strutture | Impedisce che il resolver legga la geometria. ⚠️ ma vedi §8.1 sulla scala in metri |
+| 4 | **Separazione griglia tattica / architettura fisica** con `AffectedTransitions[]` esplicite | [`spec-mappa-multilivello.md`](../../technical/architecture/spec-mappa-multilivello.md) copre il grafo, non il binding delle strutture | Impedisce che il resolver legga la geometria. ⚠️ ma vedi §8.1 sulla scala in metri |
 | 5 | ~~`Wet(unit) ≠ Conductive(cell)` come invariante nominata~~ | ✅ **ha già un nome**: è `D2` di [`spec-propagazione-elettrica-cp83.md`](../../gameplay/spec-propagazione-elettrica-cp83.md), «la conduzione è della CELLA, mai dello stato dell'unità», con il test `Environment.Propagation.StopsAtNonConductive` | **Scartata dopo verifica.** Il pacchetto propone `ENV-001` come sigla nuova: sarebbe un secondo identificatore per una regola che ne ha già uno — lo stesso difetto che `D-033` ha respinto per `GenericActionModifier` |
 | 6 | **Warning centralizzato con severità** `Info · Warning · Block` e sorgente dichiarata | CP 11.6 richiede che i warning vengano dai reason code, non ne classifica la severità | Completa un DoD già scritto |
 | 7 | **Outcome Explanation** — inspector dell'evento distinto dal Combat Log | CP 11.3 ha il log con reason code; non ha il «perché è fallita» | Estensione naturale, stesso dato |
@@ -194,7 +194,7 @@ nome, o non entra.
 > ✅ **Deciso il 2026-08-09 dall'autore: entra come *scala d'arte*, con quel nome.** Vive nella pipeline dei
 > contenuti, non nei documenti di design, e non diventa una metrica di progetto: la metrica primaria resta
 > **temporale**. Chi dimensiona una mesh ha un riferimento; chi dimensiona una mappa continua a contare i
-> Move. Owner: [`convenzioni-contenuti-ue.md`](../../technical/convenzioni-contenuti-ue.md).
+> Move. Owner: [`convenzioni-contenuti-ue.md`](../../technical/tooling/convenzioni-contenuti-ue.md).
 
 ### 8.2 · `Activate` sopravvive come Stable ID: fino a quando?
 
@@ -259,8 +259,8 @@ I quattro rimasti hanno costi e rischi diversi:
 | [`roadmap/roadmap-v0.1.md`](../roadmap-v0.1.md) | CP 10.1 riscritta: titolo allineato a `D-025`, conseguenze topologiche dal Cleanup al **Blast**, link all'owner. Nota di tracciabilità sotto i rischi di E10 |
 | [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) | righe **53–56** + nota del sesto passaggio |
 | [`gameplay/spec-motore-azioni-e4.md`](../../gameplay/spec-motore-azioni-e4.md) | banner storico completato con `D-025`: diceva ancora «`Guard` non è più universale», superato |
-| [`technical/convenzioni-contenuti-ue.md`](../../technical/convenzioni-contenuti-ue.md) | §11-bis — la scala d'arte `≈ 1,5 m`, con il vincolo di §8.1: non è una metrica di design |
-| [`technical/spec-mappa-multilivello.md`](../../technical/spec-mappa-multilivello.md) | §7 rimanda al nuovo owner |
+| [`technical/convenzioni-contenuti-ue.md`](../../technical/tooling/convenzioni-contenuti-ue.md) | §11-bis — la scala d'arte `≈ 1,5 m`, con il vincolo di §8.1: non è una metrica di design |
+| [`technical/spec-mappa-multilivello.md`](../../technical/architecture/spec-mappa-multilivello.md) | §7 rimanda al nuovo owner |
 
 **Non toccati di proposito**: `feature-registry.yaml`/`.json`, `RT_PDR_00_Decision_Log.md`,
 `OPEN_DECISIONS.md`, `BP_GameMode.uasset`, `RTHeroCatalogLibrary.cpp` — tutti nel diff della sessione
@@ -269,7 +269,7 @@ parallela (§9.2).
 ### ✅ Fatto in questa sessione — cluster **UI / UX**
 
 L'esito è diverso dal cluster precedente, e vale la pena dirlo prima dell'elenco: **il documento HUD del
-repository è più avanzato del pacchetto.** [`technical/progettazione-hud.md`](../../technical/progettazione-hud.md) ha **50 sezioni** e
+repository è più avanzato del pacchetto.** [`technical/progettazione-hud.md`](../../technical/systems/progettazione-hud.md) ha **50 sezioni** e
 copre già, spesso con più precisione della fonte, tutto ciò che l'UI/UX Master e il kit HUD propongono come
 lavoro da fare:
 
@@ -293,7 +293,7 @@ Restavano **quattro** buchi veri, e sono le uniche aggiunte:
 
 | File | Che cosa |
 |---|---|
-| [`technical/progettazione-hud.md`](../../technical/progettazione-hud.md) §11-bis | **Decision Time Bank**: il documento non lo conosceva, ed è entrato in v0.1 come CP 14.8 il giorno prima. Rimanda a [`gameplay/spec-decision-time-bank.md`](../../gameplay/spec-decision-time-bank.md) §11 per i requisiti e aggiunge le tre trappole di presentazione |
+| [`technical/progettazione-hud.md`](../../technical/systems/progettazione-hud.md) §11-bis | **Decision Time Bank**: il documento non lo conosceva, ed è entrato in v0.1 come CP 14.8 il giorno prima. Rimanda a [`gameplay/spec-decision-time-bank.md`](../../gameplay/spec-decision-time-bank.md) §11 per i requisiti e aggiunge le tre trappole di presentazione |
 | idem §18-bis | **Interaction Inspector**: la superficie UI di CP 10.1, che senza questa PR non esisteva da nessuna parte. Tre corsie (disponibile · richiede capability · non disponibile) e reason code che non perdono conoscenza |
 | idem §47-bis | **Accessibilità**: il vincolo «non solo colore» era in tre punti diversi e non copriva il caso più stretto — la finestra da 3,0 s. Raccolto, con la prova in scala di grigi come verifica meccanica |
 | idem §50 | checklist DoD: due voci nuove che rendono verificabili le prime due |
@@ -408,14 +408,14 @@ porta in testa **«✅ RECEPITO il 2026-08-08»**: il master ne è il riassunto,
 
 | Proposta del master | Dove esisteva già |
 |---|---|
-| §0 tutti i producer passano dallo stesso path; niente `SetActorLocation`/`ApplyDamage` | [`test-automatico-unreal.md`](../../technical/test-automatico-unreal.md) · [`test-e-diagnosi.md`](../../technical/test-e-diagnosi.md) · `AGENTS.md` — **tre** punti |
+| §0 tutti i producer passano dallo stesso path; niente `SetActorLocation`/`ApplyDamage` | [`test-automatico-unreal.md`](../../technical/tooling/test-automatico-unreal.md) · [`test-e-diagnosi.md`](../../technical/runbooks/test-e-diagnosi.md) · `AGENTS.md` — **tre** punti |
 | §6 execution mode Visual · Fast · Headless | `test-automatico-unreal.md`, con l'**equivalenza fra i tre come test** |
 | §5 `PrimaryCategory` | ✗ respinta — riga 54 |
-| §7 Scenario Registry, Stable ScenarioId | [`scenario-index-e-tag.md`](../../technical/scenario-index-e-tag.md) (`#209`) |
+| §7 Scenario Registry, Stable ScenarioId | [`scenario-index-e-tag.md`](../../technical/tooling/scenario-index-e-tag.md) (`#209`) |
 | §9 relazione Feature ↔ Scenario obbligatoria | ✅ **resa eseguibile** dal cluster Governance: è il controllo dello scenario orfano |
 | §11 `result.json` strutturato · §14 determinismo | harness reale, `Simulation.DeterministicReplay` (100 iterazioni) |
 | §16 as-built CVar + GameMode, niente `ARTTestDirector` | riga **23-bis** di questa matrice, dal 2026-08-08 |
-| §17–§19 bot come producer di Intent, niente stato nascosto | [`avversario-bot.md`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/avversario-bot) «Il bot non vede più di te» · `PIE-AI-02` · banner di [`h6-5-hex-bot-spec.md`](../../technical/h6-5-hex-bot-spec.md) |
+| §17–§19 bot come producer di Intent, niente stato nascosto | [`avversario-bot.md`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/avversario-bot) «Il bot non vede più di te» · `PIE-AI-02` · banner di [`h6-5-hex-bot-spec.md`](../../technical/systems/h6-5-hex-bot-spec.md) |
 | §22 profilo del bot senza `if Hero ==` | `h6-5-hex-bot-spec.md` |
 | §25–§26 determinismo e decision trace | `avversario-bot.md` §«Se il bot fa una mossa che non capisci» |
 | §27 roadmap bot v0.1 → v1 → v2 | **E26** e **E28** di [`roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) |

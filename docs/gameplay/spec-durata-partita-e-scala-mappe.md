@@ -669,8 +669,9 @@ validator ne ha bisogno.
 ⛔ **La regola di autorizzazione per gruppi di controllo era scritta e è stata RIMOSSA prima del merge, in
 code review.** Erano due funzioni pure (`ControlGroupForUnit`, `CanPlayerControlUnitInGroup`) con il loro
 test, e non avevano **nessun chiamante**: l'assegnazione delle unità ai gruppi vive in `ARTGameMode` — dove
-stanno tutti e sei i consumatori runtime di `UnitsPerTeam` — e quel file appartiene a un'altra track in
-[`parallel-batch.yaml`](../roadmap/parallel-batch.yaml), quindi per **D-139** si aspetta il suo owner.
+stanno tutti e sei i consumatori runtime di `UnitsPerTeam`. *(Fino al 2026-08-20 quel file apparteneva a
+un'altra track del write-set di batch e si aspettava il suo owner; con
+[D-178](../decisions/RT_PDR_00_Decision_Log.md) il vincolo non esiste più.)*
 
 La ragione per cui sono uscite non è la prudenza: è una **regola scritta nel repository**, e sta nell'header
 che le ospitava. Il commento di `URTCombatLibrary::IsIntentVisibleTo` dice, di sé:

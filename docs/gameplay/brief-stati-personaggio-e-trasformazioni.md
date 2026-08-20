@@ -81,7 +81,7 @@ framework senza toccare il kit.
 
 1. **Lo stato è sempre visibile.** HUD, icona, silhouette, colore, e soprattutto **Action Ghost**: la forma
    deve essere leggibile in Planning, non scoperta in Resolution
-   ([`../technical/brief-planning-visuale.md`](../technical/brief-planning-visuale.md)).
+   ([`../technical/systems/brief-planning-visuale.md`](../technical/systems/brief-planning-visuale.md)).
 2. **Serve commitment.** Se `A → B → A` è gratuito ogni turno, il sistema è micro-ottimizzazione: costo in
    `Prep`, durata minima, cooldown o costo di risorsa.
 3. **Le fasi non si piegano.** Dichiarazione in Planning, risoluzione in `Prep`, effetti sulle fasi successive.
@@ -132,7 +132,7 @@ e comunque dipendente da **E14**) · il costo in action economy.
 
 Cinque scenari, **da scrivere quando E34 apre**: oggi descriverebbero un sistema che non esiste, e uno scenario
 che non gira è peggio di uno che manca — sembra copertura. Gli ID seguono la convenzione del corpus
-([`../technical/scenari-validazione-visiva.md`](../technical/scenari-validazione-visiva.md)).
+([`../technical/runbooks/scenari-validazione-visiva.md`](../technical/runbooks/scenari-validazione-visiva.md)).
 
 | ID | Cosa valida | Perché è questo, e non un altro |
 |---|---|---|
@@ -153,7 +153,7 @@ perché. Il TurnLog deve registrare le transizioni con gli stessi reason code ch
 parallelo.
 
 Gli eventi minimi, da nominare secondo le convenzioni del TurnLog esistente
-([`../technical/spec-turnlog.md`](../technical/spec-turnlog.md)):
+([`../technical/architecture/spec-turnlog.md`](../technical/architecture/spec-turnlog.md)):
 
 ```text
 StateRequested · StateActivated · StateRejected

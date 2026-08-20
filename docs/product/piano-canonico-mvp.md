@@ -3,7 +3,7 @@
 > **Stato**: canone di progetto · **Ultimo aggiornamento**: 2026-08-05
 > **Scopo**: raccogliere le decisioni operative vincolanti del gioco — invarianti, architettura, regole
 > numeriche — in un'unica specifica coerente. Questo documento è la **fonte di verità** per
-> l'implementazione. In caso di conflitto con i PRD in `docs/src/prd/`, prevale questo file.
+> l'implementazione. In caso di conflitto con i PRD in `docs/research/prd/`, prevale questo file.
 >
 > ⚠️ **Fase tutorial chiusa (2026-08-05)**: nato come riconciliazione dei due corsi (`02-Tutorial`,
 > `03-TutorialToMVP`) per costruire l'MVP, questo piano è ora il canone di un progetto di **prodotto**.
@@ -19,14 +19,14 @@
 | **Canonico (vincolante)** | *questo file* | Decisioni operative del progetto |
 | **Esecuzione** | [`roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) | Milestone, checkpoint, DoD misurabili, stato |
 | **Requisiti di lungo periodo** | [`../roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](../roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6, QA, rischi — direzione, non scope |
-| **Visione (north-star)** | i 3 PRD + «Intenti condivisi», in [`../src/prd/`](../src/) | Prodotto a lungo termine, **non** scope attuale |
+| **Visione (north-star)** | i 3 PRD + «Intenti condivisi», in [`../research/prd/`](../research/prd/) | Prodotto a lungo termine, **non** scope attuale |
 | **Storico / superato** | `00-Intro.pdf`, `01-StrutturaTutorial.pdf`, `02-Tutorial.pdf`, `03-TutorialToMVP.pdf` — **rimossi da `docs/src/` il 2026-08-07**, recuperabili dallo storico git | Brief e corsi da cui è nato il progetto (fase chiusa) |
 
 I 4 PRD descrivono un prodotto molto più ambizioso (4v4 competitivo, GAS, netcode avanzato,
 modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
 
 > ⚠️ **Formato cambiato il 2026-08-12**: i PRD erano **dieci PDF** in `docs/src/prd/`. Ora sono **quattro
-> Markdown tematici** ([indice](../src/)), per la regola di manutenzione PDR-00 §6 #5 /
+> Markdown tematici** ([indice](../research/prd/)), per la regola di manutenzione PDR-00 §6 #5 /
 > [D-009](../decisions/RT_PDR_00_Decision_Log.md). Posizione e autorità non cambiano: restano livello 8,
 > north-star, non normativi. I PDF restano nella storia Git.
 
@@ -133,7 +133,7 @@ in [`balance/`](../balance), non in questo documento: qui restano le **decisioni
 
 I 4 PRD (visione north-star) divergono su elementi *load-bearing* del path finding. Decisioni canoniche
 (prevalgono sui PDF); dettaglio e gate di implementazione in
-[`spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md).
+[`spec-pathfinding-pf3-pf4.md`](../technical/architecture/spec-pathfinding-pf3-pf4.md).
 
 - **Fasi del turno** — prevale lo schema già canonico (§3, `ERTMatchPhase`):
   `Planning → Prep → Dash → Blast → Move → Cleanup`. Gli schemi del "piano completo"
@@ -206,7 +206,7 @@ Principi non negoziabili (valgono anche in offline, per preparare il multiplayer
    >
    > **5 · Frame-rate — non applicabile, misurato e non ereditato.** #578 lo ipotizzava («il resolver è headless e non consuma `DeltaTime`»); la verifica lo conferma **in forma più stretta**. `ARTTurnManager::Tick` esiste e consuma `DeltaSeconds`, ma solo per `TickPlayback`, che fa esclusivamente presentazione: `SetVisualLocation`, montage, `AddLogEvent`, broadcast UI. `FinishPlayback` lo dichiara — *«Snap di sicurezza alle posizioni finali (la cella logica è già quella finale)»* — e `RTHexSimLibrary.h` apre con «Nessun Actor, nessun DeltaTime». A 30, 60 o 144 FPS cambia **quando** le cose appaiono, non **cosa** è successo: non c'è niente da misurare sullo stato finale. ⚠️ **Da rileggere se il playback acquisisce autorità** su qualunque esito.
    >
-   > **6 · Packaged — chiusa il 2026-08-16, eseguita e non descritta.** Confronto di `StateHash` fra build Development e Shipping, un cook solo e due binari perche' l'unica variabile resti la configurazione: **`PASS / stateHash 572184bb` da entrambe**, sullo stesso scenario `Movement.Collision`. ⚠️ **Le due cause che la bloccavano non erano «manca il codice», e la lezione vale piu' dell'esito.** (1) `Scenarios/` non entrava nel pacchetto — sono `.json` fuori da `Content/` — e ora ci entra con `+DirectoriesToAlwaysStageAsUFS=(Path="../Scenarios")`, dove il `Path` e' relativo a `Content/` e sbagliarlo **stagea zero file lasciando la build `SUCCESSFUL`**. (2) In Shipping `-dpcvars` e' **compilato fuori** (`DeviceProfileManager.cpp`, dentro `#if !UE_BUILD_SHIPPING`): serviva una porta d'ingresso che `UE_BUILD_SHIPPING` non tocchi, ed e' `-RTScenario=<Id>` letto con `FParse::Value` — terza sorgente fra la proprieta' del GameMode e la console. 🔴 **E in Shipping il report non e' dove lo cerchi**: `Saved/` e' redirezionata in `%LOCALAPPDATA%`, quindi cercandolo accanto all'eseguibile si trova un report invece di due e si conclude, a torto, che non abbia girato. ✅ **Prova controllata**: prima del flag la Shipping non scriveva nessun report in nessuna delle due cartelle; dopo, ne scrive uno con lo stesso hash della Development. La procedura operativa, coi comandi, sta in [`../technical/test-e-diagnosi.md`](../technical/test-e-diagnosi.md).
+   > **6 · Packaged — chiusa il 2026-08-16, eseguita e non descritta.** Confronto di `StateHash` fra build Development e Shipping, un cook solo e due binari perche' l'unica variabile resti la configurazione: **`PASS / stateHash 572184bb` da entrambe**, sullo stesso scenario `Movement.Collision`. ⚠️ **Le due cause che la bloccavano non erano «manca il codice», e la lezione vale piu' dell'esito.** (1) `Scenarios/` non entrava nel pacchetto — sono `.json` fuori da `Content/` — e ora ci entra con `+DirectoriesToAlwaysStageAsUFS=(Path="../Scenarios")`, dove il `Path` e' relativo a `Content/` e sbagliarlo **stagea zero file lasciando la build `SUCCESSFUL`**. (2) In Shipping `-dpcvars` e' **compilato fuori** (`DeviceProfileManager.cpp`, dentro `#if !UE_BUILD_SHIPPING`): serviva una porta d'ingresso che `UE_BUILD_SHIPPING` non tocchi, ed e' `-RTScenario=<Id>` letto con `FParse::Value` — terza sorgente fra la proprieta' del GameMode e la console. 🔴 **E in Shipping il report non e' dove lo cerchi**: `Saved/` e' redirezionata in `%LOCALAPPDATA%`, quindi cercandolo accanto all'eseguibile si trova un report invece di due e si conclude, a torto, che non abbia girato. ✅ **Prova controllata**: prima del flag la Shipping non scriveva nessun report in nessuna delle due cartelle; dopo, ne scrive uno con lo stesso hash della Development. La procedura operativa, coi comandi, sta in [`../technical/runbooks/test-e-diagnosi.md`](../technical/runbooks/test-e-diagnosi.md).
 5. **Server autoritativo** per ogni decisione di gameplay; il client calcola solo preview. Nell'MVP offline l'autorità è già isolata in `ARTTurnManager` (predisposizione al multiplayer).
 6. **Privacy dell'intento**: le intenzioni di pianificazione non raggiungono i client avversari — stato server + replica filtrata per squadra + autorizzazione server-side (invariante di `Intenti condivisi`). Nell'MVP offline: nessuna mossa avversaria mostrata/replicata durante la pianificazione.
    > **Esteso il 2026-08-08 da [D-021](../decisions/RT_PDR_00_Decision_Log.md)** — *anche il tempo è un canale*. La formulazione «payload filtrato per squadra» non copre le finestre di reazione: una **pausa osservabile** al decision boundary dice all'avversario che una finestra si è aperta, su quale micro-step e per quanto si è pensato, senza che un solo byte lo attraversi. La sospensione **logica** resta globale (serve al determinismo, [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §5); la **presentazione avversaria** non deve avere una pausa variabile correlata alla scelta altrui. Zero leak comprende ora payload **e** timing.
@@ -250,7 +250,7 @@ Principi non negoziabili (valgono anche in offline, per preparare il multiplayer
 
 > Questa tabella elenca le classi **load-bearing** citate dal canone, non tutte: al 2026-08-08 il comando qui
 > sopra ne restituisce **40**. La mappa completa e aggiornata è di
-> [`../technical/architettura-codice.md`](../technical/architettura-codice.md), che ne è l'owner — il canone
+> [`../technical/architecture/architettura-codice.md`](../technical/architecture/architettura-codice.md), che ne è l'owner — il canone
 > non deve diventare un secondo inventario da tenere sincronizzato.
 
 ### Convenzioni asset
@@ -263,7 +263,7 @@ Naming `<Tipo>_<Feature>_<Nome>_<Variante>`: `BP_` Blueprint · `BPC_` Component
 Gli asset proprietari vivono sotto **`/Game/RT/`** con organizzazione **feature-first** (un asset sta vicino
 alla feature che lo possiede; niente cartelle globali per tipo). Regole vincolanti — struttura, posizionamento,
 dipendenze consentite fra cartelle, procedura di spostamento e checklist —
-in **[`convenzioni-contenuti-ue.md`](../technical/convenzioni-contenuti-ue.md)**.
+in **[`convenzioni-contenuti-ue.md`](../technical/tooling/convenzioni-contenuti-ue.md)**.
 
 ### Layout del progetto (radice repo)
 
@@ -412,9 +412,9 @@ Esplicitamente **fuori** dall'MVP, in ordine di priorità indicativa (P0 → P3)
 Il documento più completo per il post-MVP è **«PRD e piano completo di sviluppo»** (45 pagine). *(Fino al
 2026-08-12 questa riga citava il path `docs/RefactorTactics_ Product Requirements Document e piano completo di
 sviluppo.pdf`, che non esisteva più da mesi.)* Il suo testo è ora distribuito per tema fra
-[`prd-visione-e-requisiti.md`](../src/prd/prd-visione-e-requisiti.md),
-[`prd-architettura-rete-e-intenti.md`](../src/prd/prd-architettura-rete-e-intenti.md) e
-[`prd-percorso-didattico-e-produzione.md`](../src/prd/prd-percorso-didattico-e-produzione.md); ciascuno apre
+[`prd-visione-e-requisiti.md`](../research/prd/prd-visione-e-requisiti.md),
+[`prd-architettura-rete-e-intenti.md`](../research/prd/prd-architettura-rete-e-intenti.md) e
+[`prd-percorso-didattico-e-produzione.md`](../research/prd/prd-percorso-didattico-e-produzione.md); ciascuno apre
 con una sezione che dice quali di questi punti sono **recuperabili** e quali **superati**.
 
 Rispetto ai 3 PRD aggiunge decisioni/specifiche non altrove presenti, da usare come riferimento quando le

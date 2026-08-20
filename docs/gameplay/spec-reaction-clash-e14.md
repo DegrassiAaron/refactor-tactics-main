@@ -5,8 +5,15 @@
 > [D-049](../decisions/RT_PDR_00_Decision_Log.md), prese dall'autore il **2026-08-09**.
 > **Dipende da**: [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) — questa spec ne è un'estensione,
 > non un secondo sistema di reazioni.
-> **Nessun runtime**: E14 non parte prima di E13, e questa specifica descrive come funzionerà, non come
-> funziona oggi. Lo stato verificabile vive in [`feature-registry.yaml`](../roadmap/feature-registry.yaml).
+> 🔴 **~~Nessun runtime~~ — falso dal 2026-08-19, e la riga è durata più del suo presupposto.** Diceva: *«E14
+> non parte prima di E13, e questa specifica descrive come funzionerà, non come funziona oggi»*. Il **Reaction
+> Profile di §2 gira in partita**: `Action.Brace` costruisce l'opportunity dal profilo dell'unità e apre il
+> decision boundary quando la cardinalità lo chiede (`RTTurnManager_Blast.cpp`, ramo `Status.Braced`), con
+> `Reactions.Brace.ProfileDecidesInPlay` a pinnarlo. Il **Reaction Clash di §3 non ha ancora runtime**: le sue
+> funzioni pure esistono (`IsContested`, `SortParticipantsCanonically`, `CompareGrammarIntents`) e nessun
+> punto del resolver le chiama. Lo stato verificabile vive in
+> [`feature-registry.yaml`](../roadmap/feature-registry.yaml), non in questa riga: è la seconda volta che una
+> frase di stato in testa a un documento invecchia senza che nessuna riga cambi.
 
 ## 1. Perché esiste
 
@@ -113,6 +120,87 @@ dedicato, nessuna eccezione nel modello unificato. Il tetto teorico di una resol
 
 ⚠️ **Nessun numero è deciso qui**: resistenza del `Brace`, Charge del `Grounding` e ampiezza della deviazione
 restano aperti come li elencava il triage del 2026-08-10. Sono bilanciamento, e si restringono al playtest.
+
+### 2.5-bis Cosa il resolver sa **eseguire** oggi — `D-176` *(2026-08-19, decisione d'autore)*
+
+> ⚠️ **La voce canonica di `D-176` non è ancora nel [Decision Log](../decisions/RT_PDR_00_Decision_Log.md),
+> e ora non c'è più niente che lo impedisca.** L'ID era stato riservato con l'allocatore, e la voce doveva
+> scriverla l'integrazione perché il Decision Log era `integration_only` nel write-set di batch. Quel
+> vincolo è caduto il 2026-08-20 con [D-178](../decisions/RT_PDR_00_Decision_Log.md): **`D-176` resta un
+> buco da colmare**, e l'atto è
+> [#1243](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1243). Finché non è chiuso il
+> contenuto autorevole è **questo paragrafo** — un link `D-176` al Decision Log sarebbe un rinvio a
+> vuoto, di quelli che non fanno cadere nessun gate.
+
+Una risposta del profilo si esprime con le primitive di §5, e **una risposta senza effetti dichiarati non
+viene offerta**. Le due domande sono diverse e vanno tenute separate:
+
+| Domanda | Chi risponde | Oggi |
+|---|---|---|
+| Cosa il profilo **dichiara** | `URTCatalogLibrary::BraceAllowedResponses` | 2 · 2 · 3, la cardinalità di [D-132] |
+| Cosa il resolver sa **eseguire** | `URTCatalogLibrary::BraceExecutableResponses` | **1 · 2 · 1** |
+
+La distanza fra le due colonne non è un difetto da correggere: è il registro delle due voci che questa spec
+dichiara aperte due paragrafi più su. `Profile.Grounding` e `Profile.Glance` sono contenuto **deciso** e
+restano nel catalogo; le loro risposte non hanno effetti perché «Charge del `Grounding`» e «ampiezza della
+deviazione» sono bilanciamento non deciso. Offrirle comunque aprirebbe una finestra su una scelta che il
+resolver non sa applicare — un prompt che ferma la resolution per non fare niente, e che nessun test
+distinguerebbe da uno che funziona. Chi chiude una delle due voci aggiunge gli effetti al catalogo, e
+`Reactions.Brace.DeclaredIsNotYetExecutable` diventa rosso per ricordarglielo.
+
+**`SIDESTEP` si esprime con `SelfReposition`, ampiezza 1.** Non è una primitiva nuova: è quella che
+[D-093](../decisions/RT_PDR_00_Decision_Log.md) ha creato perché nessun effetto sapeva spostare *chi
+reagisce*, ed è la stessa che `Reaction.EmergencyDash` e `Reaction.HazardEscape` già portano. Il `1` non è un
+numero nuovo per la stessa ragione. La scelta è vincolata da `BAS-4`, che dichiara questo profilo «nuovo, si
+chiama `Profile.Sidestep` e risponde al **Forced Movement**», nella stessa forma di `Riva.FlowReaction`
+(`Reposition 1`).
+
+**`SIDESTEP` esce dalla LINEA di spinta, non la percorre.**
+
+> 🔴 **Corretto il 2026-08-19, ed era un difetto di design e non di codice.** Questo paragrafo diceva:
+> *«`SelfReposition` allontana di una cella dalla linea di chi ha innescato … la scelta vera esiste contro le
+> spinte di 2»*, e l'alternativa perpendicolare era dichiarata **scartata**. Una code review ha misurato che
+> quella conclusione è falsa in entrambe le metà: il ramo `Status.Braced` blocca la spinta a **qualunque**
+> distanza — non guarda `KnockDist` — quindi contro la spinta di 2 `Hold Ground` tiene la cella mentre
+> `SIDESTEP` la cede. Con danno identico (§5: lo scarto non riduce nulla), `SIDESTEP` era **strettamente
+> dominato**: non esisteva un caso in cui convenisse. Un decision boundary in cui un'opzione è sempre
+> peggiore non è una scelta, ed è peggio di nessun boundary — costa un prompt e non compra niente.
+
+La destinazione è una cella **fuori dalla linea**: i vicini del bersaglio, meno i due che stanno sulla linea —
+quello verso cui la spinta spinge e quello da cui arriva. Restano quattro candidate, e le due sotto-decisioni
+seguono il precedente già in vigore per `Reaction.HazardEscape`
+(`URTTerrainLibrary::FindEscapeCell`) invece di aprirne uno secondo:
+
+| Domanda | Risposta | Perché |
+|---|---|---|
+| Quale delle quattro? | **la cella che si ha davanti**, se è fra le candidate | la scelta è prevedibile guardando il campo, senza conoscere l'ordine interno delle direzioni ([D-104]) |
+| E se il facing punta sulla linea? | **ordine canonico** `E, NE, NW, W, SW, SE` | arbitrario per il giocatore ma *dichiarato* e stabile: due situazioni identiche danno lo stesso scarto |
+| E se nessuna è praticabile? | **`Hold Ground`** | ⚠️ è l'opposto di `Reaction.EmergencyDash`, che in quel caso **si spreca**: là una reazione si consuma, qui `Hold Ground` non è una risorsa — chi sceglie di scartare non deve finire meno protetto di chi non ha scelto affatto |
+
+Praticabile = raggiungibile sul **grafo** (`GraphNeighbors`: archi e dislivelli contano, non i sei vicini
+geometrici) e non occupata. La funzione è `URTReactionLibrary::FindSidestepCell`, pura e fail-closed, pinnata
+da `Reactions.Brace.SidestepLeavesThePushLine` — che asserisce la **proprietà** («non sta sulla linea») e non
+una cella fissa, per non diventare rosso a ogni riordino delle direzioni.
+
+✅ **Conseguenza misurata**: `Spec.Brace.ProfileChangesResponse` ora **discrimina**. Con lo scarto lungo la
+linea le due celle coincidevano e togliere il ramo `Braced` lasciava lo scenario verde; ora la cella dello
+scarto `(1,2)` e quella della spinta `(1,3)` sono diverse, e la stessa mutazione fa cadere **due** assertion.
+
+**Se non c'è dove scartare si ripiega su `Hold Ground`**, e qui la regola è l'opposto di
+`Reaction.EmergencyDash` («se non c'è dove andare si spreca»): là una reazione si consuma, qui `Hold Ground`
+non è una risorsa. Chi sceglie di scartare non deve finire meno protetto di chi non ha scelto affatto.
+
+### 2.5-ter La **scelta sicura** non è la stringa `HOLD`
+
+`Timeout → HOLD` di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §3 è una regola sul
+*comportamento*, non sul token: il `Brace` chiama la propria scelta sicura `Hold Ground`, e per lui `HOLD` non
+è nemmeno una risposta legale. `URTReactionOpportunityLibrary::SafeResponse` la deriva dall'opportunity —
+`HOLD` quando è offerta, altrimenti la **prima** risposta — e l'ordine dei due rami è la regola: nell'Overwatch
+`HOLD` sta in **coda**, dopo i `FIRE:`, quindi «prendi la prima» farebbe **sparare** una finestra scaduta.
+
+⚠️ La responsabilità si sposta su chi *costruisce* le risposte: un produttore futuro che mettesse in testa una
+risposta costosa la renderebbe l'esito di ogni scadenza. È il vincolo che sostituisce la vecchia costante, ed
+è pinnato in entrambi i versi da `Reactions.SafeResponsePrefersHoldWhenOffered`.
 
 ### 2.6 La Preferred Response non tocca il profilo — [D-157](../decisions/RT_PDR_00_Decision_Log.md)
 
@@ -342,7 +430,7 @@ Non si introduce un tipo parallelo. `FRTReactionOpportunity` (ADR-0004 §2) si e
 ## 12. Scenari
 
 Categoria a **tag** (`clash`, `reactions`), non a categoria primaria: l'enum di categorie primarie è stato
-**scartato** in [`scenario-index-e-tag.md`](../technical/scenario-index-e-tag.md) §8. Il prefisso è il **modo**
+**scartato** in [`scenario-index-e-tag.md`](../technical/tooling/scenario-index-e-tag.md) §8. Il prefisso è il **modo**
 (`Spec` / `Visual`), com'è per ogni ScenarioId del repository.
 
 | ScenarioId | Dimostra |
@@ -360,6 +448,43 @@ Categoria a **tag** (`clash`, `reactions`), non a categoria primaria: l'enum di 
 Nascono **`BLOCKED`** e va bene: è la prassi del repository — una feature ha una forma eseguibile *prima* di
 essere costruita, come `Spec.Overwatch.HoldThenFire`. Il gate `requires` dichiara la capability mancante
 (`DecisionBoundary`, `ReactionClash`).
+
+> ✅ **`Spec.Brace.ProfileChangesResponse` è VERDE dal 2026-08-19** (E14.7 fetta 4): `ReactionProfile` è fra le
+> capability disponibili, e il file **esegue ciò che descrive** — un turno solo, con una `decisions` che
+> risponde `SIDESTEP` a una finestra che si apre davvero.
+> 🔴 **Questa riga diceva «il suo T2 non è più `intents: []`», e quel T2 non esiste**: lo scenario è a **un
+> turno**, perché `Action.Brace` dura 1 turno e ha cooldown 1 — al T2 lo stato è scaduto e l'azione non è
+> ridichiarabile. La frase descriveva il piano invece del file, ed era ripetuta identica in
+> `RTScenarioSession.cpp`: due sedi, una sola misura sbagliata.
+> ⚠️ **I quattro `Spec.Clash.*` restano `BLOCKED`** su `ReactionClash`, che è tuttora indisponibile — le sue
+> funzioni pure esistono e **nessun punto del resolver le chiama**. 🔴 Diceva «gli **otto**»: sono **quattro**
+> su disco (`ReadBeatsStand`, `StandBeatsShift`, `ShiftBeatsRead`, `TieAppliesOnce`) — contati con `ls`, non
+> letti dalla tabella di §12, che ne elenca dieci fra scritti e ancora da scrivere.
+
+### 12.1 Il vocabolario di `decisions` — versione **3** del formato scenario
+
+Uno scenario scripta la risposta a un boundary con `decisions[].respond`. Fino alla v2 il vocabolario era
+chiuso a `FIRE` / `HOLD`; dalla **v3** accetta anche le risposte di un Reaction Profile:
+
+```jsonc
+"decisions": [
+  { "unit": "V1", "respond": "FIRE", "target": "R1" },  // target OBBLIGATORIO
+  { "unit": "V1", "respond": "HOLD" },                  // e VIETATO con tutto il resto
+  { "unit": "R1", "respond": "SIDESTEP" }               // v3: risposta di profilo
+]
+```
+
+Tre proprietà, ciascuna con la ragione per cui non è un dettaglio:
+
+- **il vocabolario si chiede al catalogo** (`URTCatalogLibrary::AllReactionProfileResponses`), non si
+  riscrive nel loader: una seconda lista divergerebbe al primo profilo aggiunto, e a divergere sarebbe il
+  *gate* — cioè il pezzo il cui mestiere è accorgersene;
+- **il gate di versione fa dire al messaggio la cosa giusta**: senza, una build a `SupportedVersion = 2`
+  accetterebbe un file `version: 2` con `respond: "SIDESTEP"` e lo rifiuterebbe con «risposta sconosciuta»,
+  accusando il file mentre il difetto è la build;
+- **una risposta legale nel catalogo può non esserlo in quella finestra** — `SIDESTEP` chiesto a Riktor, che
+  non ha profilo. La session lo verifica con `IsResponseAllowed` e lo dichiara come nota del turno; senza,
+  il resolver produrrebbe un `HoldRejected` che nel referto somiglia a un `HOLD` voluto.
 
 ## 13. Metriche di playtest
 

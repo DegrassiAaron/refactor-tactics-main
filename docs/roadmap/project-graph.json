@@ -51,7 +51,6 @@
       "[RT-FEAT-ACTION-PLAN-VALIDATION] 1 scenario/i dichiarati planned: Spec.ActionEconomy.OverwatchReservesMovementSlot",
       "[RT-FEAT-ACTION-DELAYED] nessuna pagina Wiki collegata",
       "[RT-FEAT-ACTION-TRAPS] nessuna pagina Wiki collegata",
-      "[RT-FEAT-ACTION-EQUIPMENT] nessuna pagina Wiki collegata",
       "[RT-FEAT-REACTION-FAST] feature di gameplay TESTABLE senza scenario che la dimostri",
       "[RT-FEAT-REACTION-OVERWATCH] 3 scenario/i dichiarati planned: Spec.Overwatch.ConductiveDischargeUsesStandardConduction, Spec.Overwatch.PressurePushChangesResolvedPath, Spec.Overwatch.FrontlineFollowsFacing",
       "[RT-FEAT-REACTION-PROFILE] 3 scenario/i dichiarati planned: Spec.Brace.GroundingChargesOnDeclaredTerrain, Spec.Brace.SidestepRedirectsToLegalHexOnly, Spec.Brace.GlanceOffersOnlyLegalSides",
@@ -403,7 +402,7 @@
         },
         {
           "id": "PIE-HEX-VIZ-BORDI",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-VIZ-PORTE",
@@ -1382,8 +1381,8 @@
       "block": 6,
       "critical": false,
       "execution_lane": "pie",
-      "state": "⏳",
-      "queue_group": "READY",
+      "state": "✅",
+      "queue_group": "DONE",
       "produces": "verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato",
       "artifacts": [],
       "unblocked_by": [],
@@ -1400,11 +1399,11 @@
       "verifies": [
         {
           "id": "PIE-MAPED-LIGHT",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-MAPED-FRAME",
-          "state": "⏳"
+          "state": "✅"
         }
       ],
       "issues": [
@@ -1418,15 +1417,15 @@
       "block": 6,
       "critical": false,
       "execution_lane": "pie",
-      "state": "⏳",
-      "queue_group": "WAITING",
+      "state": "✅",
+      "queue_group": "DONE",
       "produces": "verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo",
       "artifacts": [],
       "unblocked_by": [
         {
           "ref": "U21",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "seduta"
         }
       ],
@@ -1439,19 +1438,19 @@
       "verifies": [
         {
           "id": "PIE-GEO-GHOST",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-GEO-SNAP",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-GEO-UNDO",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-GEO-RESIDUI",
-          "state": "⏳"
+          "state": "✅"
         }
       ],
       "issues": [
@@ -1465,8 +1464,8 @@
       "block": 6,
       "critical": false,
       "execution_lane": "pie",
-      "state": "🟡",
-      "queue_group": "READY",
+      "state": "✅",
+      "queue_group": "DONE",
       "produces": "i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/`",
       "artifacts": [
         {
@@ -1479,15 +1478,15 @@
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_LoadingScreen.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_FrontendRoot.uasset",
-          "tracked": false
+          "tracked": true
         },
         {
           "path": "Content/RT/UI/Framework/WBP_RT_ModalLayer.uasset",
-          "tracked": false
+          "tracked": true
         }
       ],
       "unblocked_by": [],
@@ -1501,7 +1500,7 @@
       "issues": [
         937
       ],
-      "done_when": "i cinque `.uasset` esistono, ereditano dalle classi base giuste e si aprono senza errori"
+      "done_when": "i cinque `.uasset` esistono e si aprono senza errori; i TRE con una classe base (`WBP_RT_FallbackBanner`, `WBP_RT_ErrorModal`, `WBP_RT_LoadingScreen`) ereditano da quella dichiarata e leggono il dato invece di comporlo; i DUE strutturali (`WBP_RT_FrontendRoot`, `WBP_RT_ModalLayer`) non creano ne' rimuovono widget"
     },
     {
       "id": "U25",
@@ -1516,8 +1515,8 @@
       "unblocked_by": [
         {
           "ref": "U21",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "seduta"
         }
       ],
@@ -1547,8 +1546,8 @@
       "unblocked_by": [
         {
           "ref": "U21",
-          "resolved": false,
-          "state": "⏳",
+          "resolved": true,
+          "state": "✅",
           "kind": "seduta"
         }
       ],
@@ -1564,6 +1563,30 @@
         711
       ],
       "done_when": "le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale"
+    },
+    {
+      "id": "U27",
+      "title": "Il pulsante BACK del modale d'errore, collegato al navigatore",
+      "block": 6,
+      "critical": false,
+      "execution_lane": "pie",
+      "state": "✅",
+      "queue_group": "DONE",
+      "produces": "il `BACK` di `WBP_RT_ErrorModal` che chiama `BackFromError` invece di essere disegnato e inerte",
+      "artifacts": [
+        {
+          "path": "Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset",
+          "tracked": true
+        }
+      ],
+      "unblocked_by": [],
+      "unblocks": [],
+      "shares_setup_with": [],
+      "verifies": [],
+      "issues": [
+        937
+      ],
+      "done_when": "il pulsante chiama `BackFromError(GetPhaseWhenArmed())` sul navigatore — non `PopScreen` ne' `ReturnMain` diretti — e il package si salva senza errori"
     }
   ],
   "editor_queue": {
@@ -1581,19 +1604,21 @@
     ],
     "READY": [
       "U18",
-      "U20",
-      "U21",
-      "U24"
+      "U20"
     ],
     "WAITING": [
       "U11",
       "U13",
       "U14",
       "U19",
-      "U16",
-      "U22"
+      "U16"
     ],
-    "DONE": []
+    "DONE": [
+      "U21",
+      "U22",
+      "U24",
+      "U27"
+    ]
   },
   "pie_entries": [
     {
@@ -1698,19 +1723,19 @@
     },
     {
       "id": "PIE-GEO-GHOST",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-GEO-RESIDUI",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-GEO-SNAP",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-GEO-UNDO",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX",
@@ -1814,7 +1839,7 @@
     },
     {
       "id": "PIE-HEX-VIZ-BORDI",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-VIZ-COSTO",
@@ -1898,11 +1923,11 @@
     },
     {
       "id": "PIE-MAPED-FRAME",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-MAPED-LIGHT",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-MP4",
@@ -2665,6 +2690,7 @@
     "PredictiveAction",
     "Reaction",
     "ReactionPlanning",
+    "ReactionProfile",
     "Structures"
   ],
   "execution": {

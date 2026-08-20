@@ -13,7 +13,7 @@
 > ⚠️ **Non applicare**: le 15 feature `MAP-INTERACTION-*` di §25 e i 12 `MAP-INTERACT-0xx` di §23 usano
 > convenzioni di ID che non sono quelle del progetto — il registro e' unico
 > ([`feature-registry.yaml`](../../../roadmap/feature-registry.yaml)) e gli ScenarioId seguono
-> [`scenario-index-e-tag.md`](../../../technical/scenario-index-e-tag.md). La mappatura capability→eroe di §3
+> [`scenario-index-e-tag.md`](../../../technical/tooling/scenario-index-e-tag.md). La mappatura capability→eroe di §3
 > contraddice [`ADR-0006`](../../../decisions/adr-0006-ownership-abilita-sinergie.md): il requisito e' la
 > capability, mai il nome dell'eroe.
 

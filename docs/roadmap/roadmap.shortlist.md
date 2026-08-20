@@ -30,7 +30,7 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E11** | 🟡 | 10 | 31/71 | Preview, input e playback esistono; ⏳ **Ghost Timeline** e i comandi `rt.Debug.*` completi |
 | **E12** | 🟡 | 7 | 32/49 | Replay deterministico su 100 ripetizioni ✅; ⏳ **packaged build**. Senza checksum e packaged non è v0.1 |
 | **E13** | 🟡 | 5 | 18/43 | La vista **decide**: da CP 13.2 un'azione offensiva non parte contro un bersaglio ignoto alla squadra, e un contatto solo `Incerto` si colpisce per cella. il **rumore** si propaga sul grafo (CP 13.3) ma nessuno lo **emette** ancora in partita — il produttore è CP 13.4. ⏳ **bot e HUD**, che la conoscenza non la consumano |
-| **E14** | 🟡 | 8 | 18/78 | CP 14.3/14.4/14.5 chiusi: l'opportunity ha un'**identità derivata**, l'Overwatch la produce a ogni micro-step riusando `FRTSuppressiveZone`, e il resolver **apre la finestra dentro il calcolo** — `FIRE` tronca il movimento residuo, la decisione entra nel TurnLog v8. ⏳ **nessuno può ancora rispondere**: manca la UI (CP 14.6), poi Clash e Time Bank |
+| **E14** | 🟡 | 8 | 21/78 | CP 14.3/14.4/14.5 chiusi: l'opportunity ha un'**identità derivata**, l'Overwatch la produce a ogni micro-step riusando `FRTSuppressiveZone`, e il resolver **apre la finestra dentro il calcolo** — `FIRE` tronca il movimento residuo, la decisione entra nel TurnLog v8. ⏳ **nessuno può ancora rispondere**: manca la UI (CP 14.6), poi Clash e Time Bank |
 | **E15** | 🟡 | 2 | 9/16 | La prova integrata: fixture, scenario e golden replay a hash stabile. **Consuma** i sistemi, non li anticipa |
 | **E16** | ✅ | 1 | 6/10 | Il facing è **stato di gioco**: deriva da Move e Dash, entra in snapshot/TurnLog/hash, e da dietro annulla copertura e `Guard` |
 | **E17** | 🟡 | 1 | 1/7 | **Misura, non produzione**: CP 17.1/17.2 chiusi — il 4v4 gioca e non diverge, resolver **2,319 ms/turno**, e l'`if (Num == 2)` che l'epic cercava **non esiste**. ⏳ CP 17.3 è PIE. **Non** è un gate di release |
@@ -129,6 +129,6 @@ giorno**: [#962](https://github.com/DegrassiAaron/refactor-tactics-main/issues/9
 | *A che punto è questa epic?* | [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 — misurata sui nomi dei test |
 | *A che punto è questa milestone?* | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) · [`milestonemap.shortlist.md`](milestonemap.shortlist.md) |
 | *Questa feature esiste?* | [`feature-registry.yaml`](feature-registry.yaml) · [`featuremap.shortlist.md`](featuremap.shortlist.md) |
-| *Chi verifica questa regola?* | [`../technical/scenario-map.md`](../technical/scenario-map.md) · [`scenariomap.shortlist.md`](scenariomap.shortlist.md) |
+| *Chi verifica questa regola?* | [`../technical/tooling/scenario-map.md`](../technical/tooling/scenario-map.md) · [`scenariomap.shortlist.md`](scenariomap.shortlist.md) |
 | *Quando la v0.1 è consegnabile?* | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) — gate `G1`–`G15` |
 | *Perché è stato deciso così?* | [`../decisions/RT_PDR_00_Decision_Log.md`](../decisions/RT_PDR_00_Decision_Log.md) + ADR |

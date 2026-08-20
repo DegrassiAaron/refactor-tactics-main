@@ -141,7 +141,7 @@ Il criterio 1 elenca **esattamente** quelle proprietà. Non è che sia sbagliato
 
 ⚠️ **E costruirlo davvero costa più di quanto sembri.** L'asset che il criterio implica è
 `Content/RT/Maps/Dev/L_HexArena/`, che è il prodotto di **U1 / [`#451`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451)**,
-una seduta diversa con una track diversa. In [`../parallel-batch.yaml`](../parallel-batch.yaml) la
+una seduta diversa con una track diversa. In `../parallel-batch.yaml` la
 **Binary Asset Lease** su quel percorso è dichiarata **non emessa**, e due `.uasset` non si fondono. Eseguire
 il criterio 1 alla lettera significa aprire una contesa su un binario per ottenere un terreno che il codice
 già fornisce.
@@ -199,7 +199,7 @@ al momento di eseguire — che è ciò che questo referto fa, e il motivo per cu
 ### F9 ⚠️ Il DoD non dice chi scrive il verdetto — e in questo lotto non è scrivibile da chiunque
 
 Il prodotto di `#38` sono gli **esiti**, e gli esiti si scrivono in `docs/technical/test-manuali-pie.md`.
-In [`../parallel-batch.yaml`](../parallel-batch.yaml) quel file è nel `writable` della track
+In `../parallel-batch.yaml` quel file è nel `writable` della track
 `content_editor` (`#451`), uscito da `integration_only` **per questo giro**. Una sessione che esegue `#38` e
 registra gli esiti scrive un file non assegnato: per **D-139** è STOP e riallocazione, non «solo questa riga».
 

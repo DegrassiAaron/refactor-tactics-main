@@ -85,13 +85,13 @@ CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
 | [`docs/roadmap/roadmap-v0.1.md`](docs/roadmap/roadmap-v0.1.md) | Release **v0.1**: 16 epic, 82 checkpoint, stato feature → file |
 | [`docs/roadmap/v0.1-definition-of-done.md`](docs/roadmap/v0.1-definition-of-done.md) | Gate di release, KPI, checklist di contenuto |
 | [`docs/roadmap/roadmap-checkpoint.md`](docs/roadmap/roadmap-checkpoint.md) | Milestone M6–M11 con DoD misurabile e stato |
-| [`docs/technical/architettura-codice.md`](docs/technical/architettura-codice.md) | Mappa delle classi C++ |
-| [`docs/technical/convenzioni-contenuti-ue.md`](docs/technical/convenzioni-contenuti-ue.md) | Struttura di `Content/`, naming, dipendenze |
+| [`docs/technical/architecture/architettura-codice.md`](docs/technical/architecture/architettura-codice.md) | Mappa delle classi C++ |
+| [`docs/technical/tooling/convenzioni-contenuti-ue.md`](docs/technical/tooling/convenzioni-contenuti-ue.md) | Struttura di `Content/`, naming, dipendenze |
 | [`docs/technical/test-manuali-pie.md`](docs/technical/test-manuali-pie.md) | Verifiche interattive in editor, per sessioni |
 | ADR [0002](docs/decisions/adr-0002-griglia-esagonale.md) · [0003](docs/decisions/adr-0003-modello-azioni-v01.md) · [0004](docs/decisions/adr-0004-finestre-di-reazione.md) | Pivot esagonale · modello azioni · finestre di reazione |
 | [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md) | Cosa aspetta una decisione, e perché non è deducibile |
 
-> ⚠️ I PRD in [`docs/src/prd/`](docs/src/) e il [corpus PDR](docs/archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md)
+> ⚠️ I PRD in [`docs/research/prd/`](docs/research/prd/) e il [corpus PDR](docs/archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md)
 > descrivono un prodotto più ambizioso dello scope corrente
 > e in parte si contraddicono. Le decisioni effettive sono riconciliate nel **piano canonico**, che ha la
 > precedenza; i conflitti noti sono registrati in
@@ -114,7 +114,7 @@ CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
    **click** su unità propria = selezione · **click** su cella = movimento · **click** su nemico = attacco ·
    **Spazio** = risolvi il turno (o attendi il timer di 30 s) · **R** = riavvia la partita.
 5. Test: **Tools → Session Frontend → Automation** → `RefactorTactics` → *Start Tests* (419 test).
-   Guida al debug in [`docs/technical/debug-vs-unreal.md`](docs/technical/debug-vs-unreal.md).
+   Guida al debug in [`docs/technical/runbooks/debug-vs-unreal.md`](docs/technical/runbooks/debug-vs-unreal.md).
 
 ### Asset di terze parti
 
@@ -133,7 +133,7 @@ Per averli:
 > ⚠️ Essendo dentro il repo, `git clean -fdx` **cancella** questi 48 GB (`-x` include i file ignorati).
 > Usare `git clean -fd`, oppure `git clean -fdx -e Content/FabAsset`.
 
-Regole complete: [`docs/technical/convenzioni-contenuti-ue.md`](docs/technical/convenzioni-contenuti-ue.md),
+Regole complete: [`docs/technical/tooling/convenzioni-contenuti-ue.md`](docs/technical/tooling/convenzioni-contenuti-ue.md),
 appendice B.
 
 ## Principi di sviluppo

@@ -110,5 +110,5 @@ dell'attacco. I codici di fase del catalogo sopravvivono come attributo dell'azi
 
 **Fonte**: il catalogo di bilanciamento v0.1 e il PDR-12, adottati con
 [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md). Erano due PDF; dal 2026-08-12 il loro testo è in
-[`prd-personaggi-azioni-e-bilanciamento.md`](../src/prd/prd-personaggi-azioni-e-bilanciamento.md) e
+[`prd-personaggi-azioni-e-bilanciamento.md`](../research/prd/prd-personaggi-azioni-e-bilanciamento.md) e
 [`RT_PDR_v0.1_consolidato.md`](../archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md).

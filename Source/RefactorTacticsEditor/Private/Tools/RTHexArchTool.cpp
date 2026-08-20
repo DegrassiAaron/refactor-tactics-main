@@ -14,13 +14,9 @@
 
 #define LOCTEXT_NAMESPACE "URTHexArchTool"
 
-namespace
-{
-	// Colore per tipo di transizione (solo visualizzazione).
-	// Colore per Kind e freccia stanno in `RTHexEditor` (RTHexEditorClick.h): li usa anche l'overlay, che
-	// mostra le transizioni SEMPRE e non solo mentre le si crea. Due definizioni dello stesso vocabolario
-	// visivo prima o poi divergono.
-}
+// Colore per Kind e freccia stanno in `RTHexEditor` (RTHexEditorClick.h): li usa anche l'overlay, che
+// mostra le transizioni SEMPRE e non solo mentre le si crea. Due definizioni dello stesso vocabolario
+// visivo prima o poi divergono.
 
 UInteractiveTool* URTHexArchToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
 {
@@ -102,34 +98,87 @@ namespace
 	{
 		switch (Reason)
 		{
-		case ERTArchPendingClose::ReClick:          return TEXT("re-click su una nuova cella From");
+		// «su una cella From» e non «su una NUOVA cella From»: `OnClicked` passa questo motivo anche quando
+		// si ri-clicca la cella gia' memorizzata, e l'aggettivo avrebbe affermato un cambio mai avvenuto.
+		case ERTArchPendingClose::ReClick:          return TEXT("re-click su una cella From");
 		case ERTArchPendingClose::Shutdown:         return TEXT("Shutdown del tool (cambio tool o uscita dal mode)");
 		case ERTArchPendingClose::Committed:        return TEXT("Commit: la transizione e' stata scritta");
 		case ERTArchPendingClose::ClearedByUser:    return TEXT("ClearArch dal pannello");
 		case ERTArchPendingClose::SwitchedToRemove: return TEXT("passaggio a Remove");
+		// `Count` e' un `case` esplicito perche' senza lo `switch` non copre l'enum e Clang emette
+		// `-Wswitch`. Non e' un motivo di chiusura: se compare nel log, qualcuno l'ha passata per errore.
+		case ERTArchPendingClose::Count:            return TEXT("<Count: sentinella, non un motivo di chiusura>");
 		}
 		return TEXT("<motivo non mappato>");
 	}
+
+	// ⚠️ **Su MSVC — il toolchain di questo progetto — questa e' la rete PRIMARIA, non la secondaria**:
+	// `-Wswitch` avvisa su Clang, ma C4062 e' spento per default e lo `switch` esaustivo qui sopra non
+	// protegge nulla. Da qui i due assert.
+	//
+	// ⚠️ **Si pinna il TOTALE, non la posizione dell'ultimo motivo**, e la differenza non e' di stile.
+	// Una relazione del tipo «l'ultimo motivo + 1 == Count» scatta solo per un inserimento **immediatamente
+	// prima** di `Count`: inserendo altrove — dopo `Shutdown`, per dire — tutti gli ordinali successivi
+	// scalano insieme e la relazione resta vera, quindi il motivo nuovo arriva a runtime senza `case` e il
+	// log degrada a `<motivo non mappato>`. Copriva una posizione su sei.
+	// Con il totale, qualunque inserimento fa fallire la compilazione.
+	// ⚠️ Resta scoperto un enumeratore appeso **dopo** `Count`: li' il totale non cambia, e senza reflection
+	// non c'e' difesa. `Count` deve restare l'ultimo — sta nel commento della sentinella.
+	// Se fallisce: aggiungi il `case`, POI aggiorna il numero. Mai il contrario.
+	static_assert(static_cast<uint8>(ERTArchPendingClose::Count) == 5,
+		"ERTArchPendingClose e' cambiato: aggiungi il case in ArchPendingCloseToString, POI aggiorna questo numero.");
 }
 
 /**
- * `#996`, passo 1. Questa funzione era l'unica del giro a NON loggare, mentre tutte le sue cinque chiamanti
- * loggano: quando un gizmo spariva, il registro conteneva tutto tranne la riga che diceva chi l'aveva chiuso.
+ * `#996`, passo 1: quando un gizmo sparisce, questa riga dice chi l'ha chiuso.
  *
- * ⚠️ **Il segnale piu' importante di questo log e' la sua ASSENZA.** Se al gesto che #996 descrive — modificare
- * la Transform Location dell'actor con un arco pendente — il gizmo sparisce e qui NON compare nessuna riga,
- * allora `DestroyPendingGizmo` non e' stata chiamata: il tool e' vivo, e la causa sta altrove. Un log che tace
- * e' un dato solo per chi sa che doveva parlare, e questo commento e' il posto dove sta scritto.
+ * ⚠️ **Chiusura vera e chiamata a vuoto hanno righe diverse, e non e' verbosita'.** Le chiamanti la invocano
+ * anche quando non c'e' niente da chiudere — `RemoveNearestArch` a ogni click in Remove, `OnClicked` al primo
+ * click in Add — e una riga unica avrebbe annunciato «passaggio a Remove» o «re-click» su transizioni mai
+ * avvenute, in un log il cui unico compito e' disambiguare.
  *
- * Per questo si stampano anche `bHasFrom` e la presenza del gizmo PRIMA di azzerarli: distinguono una
- * chiusura vera da una chiamata a vuoto, che le cinque chiamanti fanno regolarmente.
+ * ⚠️ **Entrambe a `Log`, e la scelta e' deliberata.** Il segnale piu' importante di `#996` e' l'ASSENZA di
+ * righe: se al gesto il gizmo sparisce e qui non compare nulla, `DestroyPendingGizmo` non e' stata chiamata
+ * e la causa sta altrove. Mettere il caso a vuoto a `Verbose` — che a verbosita' di default non si stampa —
+ * avrebbe reso il silenzio ambiguo fra «non chiamata» e «chiamata senza nulla di pendente», cioe' avrebbe
+ * tolto proprio la garanzia per cui il log esiste. Una riga in piu' per click a vuoto e' il prezzo, e non
+ * mente su cosa e' successo.
  */
 void URTHexArchTool::DestroyPendingGizmo(ERTArchPendingClose Reason)
 {
-	UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco: chiusura del pendente — %s (bHasFrom=%d, gizmo %s)."),
-		ArchPendingCloseToString(Reason),
-		bHasFrom ? 1 : 0,
-		Gizmo ? TEXT("presente") : TEXT("assente"));
+	// `Count` non e' un motivo: chi la passa ha sbagliato, e va detto dove succede invece di lasciarlo
+	// leggere a chi passa dal log.
+	ensureMsgf(Reason != ERTArchPendingClose::Count,
+		TEXT("DestroyPendingGizmo chiamata con la sentinella Count: passa un motivo vero."));
+
+	// `bHasFrom` da solo, e non `bHasFrom || Gizmo`: `OnClicked` alza il flag PRIMA di creare il gizmo e
+	// questa funzione li azzera insieme, quindi non esiste uno stato con gizmo e senza flag. Scriverli in
+	// disgiunzione suggerirebbe due segnali indipendenti che non ci sono.
+	// Letto PRIMA di azzerare: dopo, ogni chiamata sembrerebbe a vuoto.
+	const bool bCeraQualcosaDaChiudere = bHasFrom;
+
+	if (bCeraQualcosaDaChiudere)
+	{
+		// ⚠️ **`Gizmo != nullptr` NON dice che il gizmo esista**, ed e' la cosa che questa stessa issue ha
+		// misurato: il puntatore e' una `UPROPERTY` forte e sopravvive a `Shutdown()`, che azzera il
+		// `GizmoActor` dentro l'oggetto. Stampare «presente» su quel test farebbe dire alla riga il falso
+		// proprio nello scenario di `#996` — gizmo chiuso da fuori, poi `ClearArch`. Si legge `IsVisible()`,
+		// lo stesso criterio del rilevatore in `Render`.
+		// ⚠️ `bHasFrom` non si stampa: questo ramo esiste solo quando e' vero, quindi sarebbe un `1` fisso
+		// travestito da misura.
+		UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco: chiusura del pendente — %s (gizmo %s)."),
+			ArchPendingCloseToString(Reason),
+			(Gizmo && Gizmo->IsVisible()) ? TEXT("vivo") : TEXT("gia' chiuso da fuori"));
+	}
+	else
+	{
+		// ⚠️ **Il motivo NON si stampa qui**, ed e' il punto dell'AC 7. Le chiamanti passano il proprio
+		// motivo a prescindere: `RemoveNearestArch` manda `SwitchedToRemove` a ogni click in Remove e
+		// `OnClicked` manda `ReClick` anche al primo click. Riportarlo su una chiamata a vuoto farebbe
+		// comparire «passaggio a Remove» o «re-click» su transizioni mai avvenute — la sovraffermazione
+		// che questa riga esiste per togliere. Qui conta che la chiamata c'e' stata, non con che etichetta.
+		UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco: nessun pendente da chiudere (chiamata a vuoto)."));
+	}
 
 	if (GetToolManager() && GetToolManager()->GetPairedGizmoManager())
 	{
@@ -270,6 +319,24 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 	// Arco pendente (indipendente dall'asset).
 	if (bHasFrom)
 	{
+		// ⏳ **Qui va il rilevatore di «gizmo chiuso senza di noi» — `#996` AC 2/3, tracciato in `#1218`.**
+		// Non e' un buco da riempire alla prima occasione: la misura c'e', il disegno no.
+		//
+		// **Cosa si osserva.** Non `!Gizmo`: e' una `UPROPERTY` forte, tiene l'oggetto raggiungibile e non si
+		// azzera — `UInteractiveGizmoManager::DestroyGizmo` rilascia il proprio riferimento e non marca
+		// garbage. Cambia cio' che sta **dentro**: `UCombinedTransformGizmo::Shutdown()` fa
+		// `GizmoActor->Destroy(); GizmoActor = nullptr;` (UE 5.8.1). Quindi il segnale e' il `GizmoActor`,
+		// leggibile da `GetGizmoActor()` — e **non** da `IsVisible()`, che vale
+		// `IsValid(GizmoActor) && !IsHidden()` e confonde «distrutto» con «nascosto da `SetVisibility`».
+		//
+		// **Cosa resta da decidere, e perche' non si e' deciso qui.**
+		//  · dove agganciarsi: `Render` gira a ogni frame e non e' un canale di stato, mentre
+		//    `OnAboutToClearActiveTarget` e `OnVisibilityChanged` sono eventi esatti e senza latch;
+		//  · se limitarsi a osservare o **riparare**: oggi il pendente resterebbe disegnato, con
+		//    `Properties->bHasFrom` a `true` e `CommitArch()` capace di scrivere da un `To` stale.
+		// Sono scelte di comportamento — chi vince fra il gesto dell'autore e il recupero — e vanno prese
+		// col caso d'uso in mano, non dentro una funzione di disegno.
+
 		RTHexEditor::DrawHexMarker(PDI, FromWorld, MarkerRadius, FColor::Green);
 		if (bToValid)
 		{

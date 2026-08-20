@@ -4,7 +4,7 @@
 > **Questa è l'unica vista dello stato delle epic** (§2.1); la vista di esecuzione per milestone è
 > [`roadmap-checkpoint.md`](roadmap-checkpoint.md), che non lo duplica.
 > **Scope sorgente**: PDR-12 ([`RT_PDR_v0.1_consolidato.md`](../archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md))
-> + catalogo di bilanciamento v0.1 ([`prd-personaggi-azioni-e-bilanciamento.md`](../src/prd/prd-personaggi-azioni-e-bilanciamento.md))
+> + catalogo di bilanciamento v0.1 ([`prd-personaggi-azioni-e-bilanciamento.md`](../research/prd/prd-personaggi-azioni-e-bilanciamento.md))
 > **Decisione abilitante**: [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md)
 >
 > Questa è la vista **di release**: cosa deve esistere perché la v0.1 sia consegnabile.
@@ -188,7 +188,7 @@ Evidenza = i **nomi dei test**, che sono la prova di ciò che esiste:
 | **E19** Classe di mappa e composizione | 🟡 **parziale** | 5 test `MatchFormat.*` — il formato è un data asset validato, il fallback è **osservabile** e un asset non valido blocca il setup · ⏳ la mappa non dichiara ancora la propria **classe** né il formato le **unità per squadra** ([D-030](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E20** HUD Icon Language | 🟡 **parziale** | 5 test `IconCatalog.*` — ogni chiave risolve, l'ID duplicato e la chiave assente sono **errori di validazione**, la chiave sconosciuta cade sul fallback · ⏳ i widget non consumano ancora il catalogo |
 | **E21** Presentazione e leggibilità | 🟡 **parziale** | 4 test `Unit.*` (anello, colore di squadra, posa sul centro-cella, nome breve) + 4 `Camera.*` · ⏳ il grosso è **lavoro in editor** — mesh, animazioni, materiali — che non è testabile headless: vive nelle voci PIE della sessione C |
-| **E46** Frontend shell e ciclo di partita | 🟡 **CP 46.1 chiuso · 46.2 in C++** | **32 test** `Frontend.*` + `Startup.*` (`#936` e `#937`, 2026-08-16) — e di CP 46.2 manca solo il `.uasset`: il produttore delle fasi, l'ottavo vocabolario di reason (`ERTStartupOutcome`, nove valori misurati) e le tre classi base sono scritti e provati. **17 test** `Frontend.*` (`#936`) — back stack, modali, nessun dead-end verificato **per esplorazione con copertura misurata**, e il ciclo di vita dei widget. `FRTScreenStack` è un `USTRUCT` puro e `URTFrontendNavigator` un `UGameInstanceSubsystem`: è l'**unico** punto del codebase con `CreateWidget`/`AddToViewport`/`RemoveFromParent`, e la baseline era zero in tutto `Source/`. ⚠️ **La riga precedente diceva «zero test e zero codice … il repository non ha infrastruttura di test UI»**: la seconda metà era falsa già quando fu scritta — `RTScreenHudWidgetTests` (CP 11.7) prova widget headless — e la navigazione non è UI. ⏳ CP 46.2–46.6 · ⏳ i `WBP_RT_*`, che restano lavoro d'editor |
+| **E46** Frontend shell e ciclo di partita | 🟡 **CP 46.1 chiuso · 46.2 completo, in attesa di aggancio** | **38 test** `Frontend.*` + `Startup.*` — **27** e **11**, rimisurati il 2026-08-18 sull'albero unito con due metodi che concordano: run headless (`Queue Empty 27 tests performed` e `11`) e conteggio statico dei nomi dichiarati in `Tests/`. ⚠️ **La riga precedente diceva «32 test» e «di CP 46.2 manca solo il `.uasset`»**: il primo numero era di due giorni prima, il secondo è stato falsificato dalla seduta **U24**, che ha consegnato **tutti e cinque** i `WBP_RT_*` — i tre con classe base più `FrontendRoot` e `ModalLayer`, che non ne hanno una e per i quali il criterio è `no_widget_creates_widgets`. Le otto `verification` delle due Binary Asset Lease sono **consuntivate**: due headless (matrice incrociata delle classi base, e zero `AddToViewport`/`RemoveFromParent`/`CreateWidget` con controprova 2/1/3 sul navigatore), sei dall'autore in editor. ⏳ Resta l'**aggancio**: nessuno chiama ancora `InitializeFrontend`, che è di CP 46.3 (`#938`). **17 test** `Frontend.*` era la misura di `#936` — back stack, modali, nessun dead-end verificato **per esplorazione con copertura misurata**, e il ciclo di vita dei widget. `FRTScreenStack` è un `USTRUCT` puro e `URTFrontendNavigator` un `UGameInstanceSubsystem`: è l'**unico** punto del codebase con `CreateWidget`/`AddToViewport`/`RemoveFromParent`, e la baseline era zero in tutto `Source/`. ⚠️ **La riga precedente diceva «zero test e zero codice … il repository non ha infrastruttura di test UI»**: la seconda metà era falsa già quando fu scritta — `RTScreenHudWidgetTests` (CP 11.7) prova widget headless — e la navigazione non è UI. ⏳ CP 46.3–46.6 · ✅ i cinque `WBP_RT_*` sono consegnati (`U24`, 2026-08-18) |
 
 > 🔴 **E46 è stata aggiunta a questa tabella solo dopo una code review**, il 2026-08-16 — la vista generata
 > `roadmap.shortlist.md` la mostrava già come *«senza stato dichiarato nell'owner»*, cioè il generatore
@@ -413,9 +413,10 @@ silenzio.
 > registra come canonico: l'aggiunta di **E46** aveva lasciato indietro `roadmap.shortlist.md` (riga di prosa
 > **fuori** dai marker generati, quindi invisibile a `--check`), due righe di
 > [`roadmap-checkpoint.md`](roadmap-checkpoint.md) — una delle quali dichiara *«questa riga è una copia»* — e
-> `docs/README.md`. Le prime tre sono allineate qui; **`docs/README.md` no**, e non per dimenticanza: non è
-> nel `writable` di nessuna track di [`parallel-batch.yaml`](parallel-batch.yaml), e D-139 dice che un file
-> non assegnato è uno **stop**. Dichiara `21 epic, 100 checkpoint` e va corretto da chi lo possiede.
+> `docs/README.md`. Le prime tre sono allineate qui; **`docs/README.md` no**: dichiara
+> `21 epic, 100 checkpoint` e va corretto. *(Fino al 2026-08-20 non era nel `writable` di nessuna track
+> del write-set di batch, e `D-139` ne faceva uno **stop**. Con
+> [D-178](../decisions/RT_PDR_00_Decision_Log.md) il vincolo è caduto: resta la correzione da fare.)*
 > ⚠️ Il difetto non è aritmetico ed è lo stesso della nota qui sotto, un gradino più su: là divergevano §3 e
 > §5 *dentro* questo file, qui diverge questo file dalle sue quattro copie. **Nessun gate confronta un
 > totale in prosa con la sua fonte.**
@@ -460,11 +461,11 @@ silenzio.
 > totale non porta.)*
 
 *(era 12/59; **E13** ed **E14** aggiunte il 2026-08-07; il 2026-08-07,
-consolidando [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md):
+consolidando [`../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md`](../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md):
 **E15** showcase (5 CP), **CP 5.5** e **CP 6.7** per il debito delle reazioni d'eroe, **CP 14.2** per
 l'estrazione del micro-step; consolidando
 [`../archive/src/design/action-ghosts-fasi-fast-reactions.md`](../archive/src/design/action-ghosts-fasi-fast-reactions.md):
-**CP 11.5** e **CP 11.6** per il planning visuale → [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md);
+**CP 11.5** e **CP 11.6** per il planning visuale → [`brief-planning-visuale.md`](../technical/systems/brief-planning-visuale.md);
 **E16** orientamento → [ADR-0005](../decisions/adr-0005-orientamento.md), che chiude il punto aperto sul facing;
 il 2026-08-08, consolidando [`../archive/src/design/match-timing-e-scala-mappe.md`](../archive/src/design/match-timing-e-scala-mappe.md)
 e [`../archive/src/design/2026-08-08-hud-faction-icons.md`](../archive/src/design/2026-08-08-hud-faction-icons.md): **E19** e
@@ -968,8 +969,8 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 | **11.4** | Comandi `rt.Debug.*` | `rt.Debug.DrawGrid`, `DrawPaths`, `DrawCover`, `DrawIntent`, `DrawResolution`, `DumpSnapshot`, `DumpTurnLog`, `VerifyReplay` esistono e funzionano in PIE e in build Development; le celle mostrano `CellId`, `TerrainId`, `TraversalCost`, `OccupantId`, `HazardTags`, `CoverEdges`, `ChunkRevision` | `Debug.VerifyReplayDetectsDivergence` (test che introduce una divergenza e verifica che il comando la rilevi); `PIE-V01-DEBUG` |
 | **11.5** *(nuovo 2026-08-07)* | **Ghost Timeline**: preview del piano per fase | Un *Action Ghost* per fase (Prep · Dash · Blast · Move) mostra **dove** sarà l'unità e **da dove** agirà, non solo la destinazione. View model con una entry per fase (`Phase`, `UnitId`, `ActionId`, `PreviewOrigin`, `PreviewDestination`, `Facing`, `PoseId`, `TargetCells`, `AffectedCells`, `Certainty`) e **`ReactionPreview` separata dalla lista delle fasi** — la reaction non è una quinta fase. Origine, destinazione, celle bersaglio e area **coincidono con quelle che userebbe il resolver**: stesso A\*, stesso snapshot, nessuna seconda implementazione delle regole. Budget di presentazione: pooling di mesh/decal, nessun Actor persistente per preview, aggiornamento a frequenza limitata (**non** ogni Tick) | `Preview.GhostMatchesResolverPath`, `Preview.HitCellsMatchCombatShape`, `Preview.ReactionIsNotAPhaseEntry`, `Preview.ClearedWhenPlanIsCancelled` |
 | **11.6** *(nuovo 2026-08-07)* | **Scrubbing** delle fasi e ramo condizionale della reaction | Selezionando una fase il suo ghost si evidenzia e gli altri si attenuano, con origine, bersaglio, linea, AoE e copertura rilevante in evidenza; i **warning** (alleato sulla traiettoria, esposizione, collisione possibile) arrivano dallo stesso strato che produce i reason code del TurnLog — **mai** ricalcolati nel widget — e sono marcati *previsto*/*incerto*, mai *confermato*; la reaction armata compare come **ramo con `?`** accanto alla timeline | `Preview.AllyInAreaIsFlagged`, `Preview.WarningsComeFromResolverReasons`, `Preview.ArmedReactionRendersAsBranch`; `PIE-V01-GHOSTS` |
-| **11.7** *(nuovo 2026-08-12)* | **Screen HUD in UMG** (layer §4.1) | `WBP_RT_TacticalHUD` a schermo intero con zone Top/Left/Bottom/Right e **centro libero**, più `WBP_RT_TurnHeader`, `WBP_RT_TeamRoster`, `WBP_RT_SelectedUnitPanel`, `WBP_RT_ActionDock`/`WBP_RT_ActionSlot`. I widget **leggono un view model sanitizzato** e non ricalcolano formula, visibilità o reason code; nessuno referenzia una texture direttamente (D-031). ⚠️ **Non sostituisce `ARTHUD`**: il §4.2 di [`progettazione-hud.md`](../technical/progettazione-hud.md) — path, waypoint, Dash, AoE, friendly-fire, barre ancorate alle unità — resta in Canvas, dove la spec lo vuole (*«non devono essere realizzati come grandi widget HUD statici»*) | nessuna regressione in `RefactorTactics.HUD.*`; `PIE-V01-HUD` estesa all'ingombro del §4.1 |
-| **11.8** *(nuovo 2026-08-12)* | **Pointer Interaction Contract**: Hover · LMB · RMB | La matrice `oggetto sotto il puntatore × contesto × input → esito` è dichiarata in [`spec-pointer-interaction.md`](../technical/spec-pointer-interaction.md) e ogni combinazione produce uno degli **otto** esiti di un elenco chiuso (`NoOp`, `Inspect`, `Select`, `Preview`, `Confirm`, `Cancel`, `OpenContext`, `Blocked(reason)`). Il `PlayerController` acquisisce un **contesto esplicito** (`IdleSelection · Planning · Pathing · Targeting · ResolutionPlayback · ReactionWindow · Modal`) al posto della cascata di `if` sul tipo di Actor colpito; il resolver di hit restituisce un **target logico** (`FRTCellId` · `UnitId` · StableObjectId), mai una decisione di gameplay. Precedenza `Modal/Reaction UI > HUD > world tactical hit` esplicita e coperta da test. Ogni rifiuto porta un **reason code**: `Blocked` silenzioso è un difetto. *(Esteso il 2026-08-13)* Esiste uno stato **neutro** — nessuna abilità armata all'ingresso in Planning — e il click su un nemico **ispeziona** invece di pianificare ([D-128](../decisions/RT_PDR_00_Decision_Log.md)); `Targeting` porta un `TargetKind` (`Unit`/`Cell`/`Edge`/`Object`) dichiarato **dall'azione**, non scelto a parte; la precedenza **intra-mondo** è esplicita — in `Pathing` la cella vince sulla mesh di porta/ponte/hazard, in `Targeting`/`Cell` vince sull'unità che la occupa, e un ghost non è mai bersaglio; `RMB` segue un **ordine totale** di Back e non deseleziona mai l'unità; un elemento con più verbi legali produce `OpenContext`, non un `Confirm` implicito | `PlayerInput.HUDConsumesPointerBeforeWorld`, `PlayerInput.HoverNeverCommits`, `PlayerInput.RightClickCancelsPreviewOnly`, `PlayerInput.HiddenEnemyCannotBecomeHoverTarget`, `PlayerInput.AllyGhostIsReadOnly`, `PlayerInput.PlaybackRejectsPlanningInput`, `PlayerInput.ReactionWindowOwnsInputPriority`, `PlayerInput.LogicalMapObjectResolvedFromStableId`, `PlayerInput.NeutralEnemyClickDoesNotPlan`, `PlayerInput.ArmedAbilityThenEnemyClickPlans`, `PlayerInput.PathingCellWinsOverDoorMesh`, `PlayerInput.TargetCellIgnoresOccupyingUnit`, `PlayerInput.GhostIsNeverAGameplayTarget`, `PlayerInput.RightClickBackFollowsTotalOrder`, `PlayerInput.RightClickNeverDeselects`, `PlayerInput.MultiVerbElementOpensContext`; `PIE-V01-POINTER` |
+| **11.7** *(nuovo 2026-08-12)* | **Screen HUD in UMG** (layer §4.1) | `WBP_RT_TacticalHUD` a schermo intero con zone Top/Left/Bottom/Right e **centro libero**, più `WBP_RT_TurnHeader`, `WBP_RT_TeamRoster`, `WBP_RT_SelectedUnitPanel`, `WBP_RT_ActionDock`/`WBP_RT_ActionSlot`. I widget **leggono un view model sanitizzato** e non ricalcolano formula, visibilità o reason code; nessuno referenzia una texture direttamente (D-031). ⚠️ **Non sostituisce `ARTHUD`**: il §4.2 di [`progettazione-hud.md`](../technical/systems/progettazione-hud.md) — path, waypoint, Dash, AoE, friendly-fire, barre ancorate alle unità — resta in Canvas, dove la spec lo vuole (*«non devono essere realizzati come grandi widget HUD statici»*) | nessuna regressione in `RefactorTactics.HUD.*`; `PIE-V01-HUD` estesa all'ingombro del §4.1 |
+| **11.8** *(nuovo 2026-08-12)* | **Pointer Interaction Contract**: Hover · LMB · RMB | La matrice `oggetto sotto il puntatore × contesto × input → esito` è dichiarata in [`spec-pointer-interaction.md`](../technical/systems/spec-pointer-interaction.md) e ogni combinazione produce uno degli **otto** esiti di un elenco chiuso (`NoOp`, `Inspect`, `Select`, `Preview`, `Confirm`, `Cancel`, `OpenContext`, `Blocked(reason)`). Il `PlayerController` acquisisce un **contesto esplicito** (`IdleSelection · Planning · Pathing · Targeting · ResolutionPlayback · ReactionWindow · Modal`) al posto della cascata di `if` sul tipo di Actor colpito; il resolver di hit restituisce un **target logico** (`FRTCellId` · `UnitId` · StableObjectId), mai una decisione di gameplay. Precedenza `Modal/Reaction UI > HUD > world tactical hit` esplicita e coperta da test. Ogni rifiuto porta un **reason code**: `Blocked` silenzioso è un difetto. *(Esteso il 2026-08-13)* Esiste uno stato **neutro** — nessuna abilità armata all'ingresso in Planning — e il click su un nemico **ispeziona** invece di pianificare ([D-128](../decisions/RT_PDR_00_Decision_Log.md)); `Targeting` porta un `TargetKind` (`Unit`/`Cell`/`Edge`/`Object`) dichiarato **dall'azione**, non scelto a parte; la precedenza **intra-mondo** è esplicita — in `Pathing` la cella vince sulla mesh di porta/ponte/hazard, in `Targeting`/`Cell` vince sull'unità che la occupa, e un ghost non è mai bersaglio; `RMB` segue un **ordine totale** di Back e non deseleziona mai l'unità; un elemento con più verbi legali produce `OpenContext`, non un `Confirm` implicito | `PlayerInput.HUDConsumesPointerBeforeWorld`, `PlayerInput.HoverNeverCommits`, `PlayerInput.RightClickCancelsPreviewOnly`, `PlayerInput.HiddenEnemyCannotBecomeHoverTarget`, `PlayerInput.AllyGhostIsReadOnly`, `PlayerInput.PlaybackRejectsPlanningInput`, `PlayerInput.ReactionWindowOwnsInputPriority`, `PlayerInput.LogicalMapObjectResolvedFromStableId`, `PlayerInput.NeutralEnemyClickDoesNotPlan`, `PlayerInput.ArmedAbilityThenEnemyClickPlans`, `PlayerInput.PathingCellWinsOverDoorMesh`, `PlayerInput.TargetCellIgnoresOccupyingUnit`, `PlayerInput.GhostIsNeverAGameplayTarget`, `PlayerInput.RightClickBackFollowsTotalOrder`, `PlayerInput.RightClickNeverDeselects`, `PlayerInput.MultiVerbElementOpensContext`; `PIE-V01-POINTER` |
 
 > **CP 11.8 non è un redesign dell'input, ed è per questo che è tardi e non presto.** Nove delle sue dieci
 > regole **descrivono ciò che il codice fa già** — misurato il 2026-08-12 su `ee0da4b3`: `LMB` è
@@ -986,7 +987,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 > dell'hover (dipende da E13), e il ghost di un alleato è **sola lettura**. Sono scritte adesso perché è più
 > facile scriverle che toglierle dopo.
 >
-> ↩️ Riprende anche la domanda rimasta orfana di [`spec-hover-cella.md`](../technical/spec-hover-cella.md),
+> ↩️ Riprende anche la domanda rimasta orfana di [`spec-hover-cella.md`](../technical/systems/spec-hover-cella.md),
 > `HISTORICAL` dal pivot esagonale: *cosa succede sotto il cursore* non era stata riassegnata a nessun owner.
 
 > 🔁 **I delta sono diventati cinque il 2026-08-13**, misurati su `3cec1d57` consolidando due sorgenti oggi
@@ -1031,7 +1032,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 > nessuna delle sue voci: chiede contenuto informativo, e `ARTHUD` ne soddisfa già cinque su sei in Canvas.
 > Il delta di 11.1 è la terna MOVEMENT/MAIN/REACTION, i quattro test headless e il vocabolario `round`.
 
-> **CP 11.5/11.6 vengono da** [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md), che consolida
+> **CP 11.5/11.6 vengono da** [`brief-planning-visuale.md`](../technical/systems/brief-planning-visuale.md), che consolida
 > `../archive/src/design/action-ghosts-fasi-fast-reactions.md`. Il documento **conferma** sette
 > decisioni già canoniche (ordine delle fasi, Move ultima, Dash ≠ Move, privacy degli intenti, slow-motion
 > come presentazione, reaction decisa in resolution, renderer non autoritativo) e ne aggiunge una sola di
@@ -1076,7 +1077,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 > | Packaging Windows **Shipping** | ✅ `BUILD SUCCESSFUL` · 569 MB · binario 159 MB, avviato e attivo (223 MB RAM) |
 > | Partita completa **senza editor**, fino alla vittoria | ✅ `Partita finita: Vince il team 1 (rosso) - per eliminazione (round 6/12)` — 6 turni, zero crash |
 >
-> Ricetta in [`../technical/test-e-diagnosi.md`](../technical/test-e-diagnosi.md) §1. Note operative: il
+> Ricetta in [`../technical/runbooks/test-e-diagnosi.md`](../technical/runbooks/test-e-diagnosi.md) §1. Note operative: il
 > **cook Shipping non produce log** (`UE_LOG` a livello `Display` è compilato fuori), quindi la partita si
 > verifica sul pacchetto **Development**; e lanciare `Packaged/Windows/RefactorTactics.exe` avvia il
 > **launcher stub** da 168 KB — il binario vero sta in `RefactorTactics/Binaries/Win64/`.
@@ -1238,7 +1239,7 @@ cosa di `AllowedResponses ≤ 1` (ADR-0004 §2), che la deriva dai dati invece d
 
 **Obiettivo**: una partita dimostrativa 2v2 di 8 turni che sia allo stesso tempo **fixture d'integrazione,
 golden replay e demo**. Fonte:
-[`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md).
+[`../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md`](../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md).
 Scenario: `RT_Showcase_Relay_v01`, arena `L_Showcase_Relay`, `Gadget + Phase` vs `Riktor + Wraith`.
 
 **Regola dell'epic** — la showcase è un **consumer**: espone il gap → si costruisce il sistema generale nella
@@ -1374,7 +1375,7 @@ direzionale toglie protezioni già a catalogo invece di aggiungere danno.
 
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
-| **16.1** ✅ | Facing logico e derivazione dal movimento | `ERTHexDirection Facing` autorevole sull'unità, aggiornato su **tutta la timeline di [D-020](../decisions/RT_PDR_00_Decision_Log.md)** (`FacingStartOfRound → FacingAfterPrepActionTargeting → FacingAfterDash → FacingUsedByBlast → FacingUsedByOverwatch → FacingFinalAfterMove`): ogni consumatore legge il valore **autorevole più recente**, e `FacingFinalAfterMove` persiste nel round successivo. Direzioni legali per stile: `Linear*` → **una** (quella del movimento, derivata) · `Budget` → **tre** (ultimo passo e le due adiacenti, dichiarata) · `None` → **sei** (rotazione libera dichiarata, **non consuma slot**). Movimento **forzato**: ci si gira verso la cella d'origine dell'ultimo spostamento subito nell'ordine canonico; spostamento **ambientale** senza sorgente → invariato; un Move volontario successivo **vince**. Una rotazione dichiarata illegale è **rifiutata**, non corretta in silenzio. `Facing` entra in snapshot, TurnLog versionato e hash; poiché i valori per round sono **più di uno**, snapshot e TurnLog devono dire **quale** facing ha usato ciascun consumatore — un campo per turno non basta e renderebbe il replay non ricostruibile ([D-020](../decisions/RT_PDR_00_Decision_Log.md)). Ogni cambio produce un evento con **reason code**: i valori sono **nuovi** e vanno aggiunti all'enum esistente seguendo [`spec-turnlog.md`](../technical/spec-turnlog.md), che è l'owner — la sua revisione del 2026-08-03 esiste proprio perché una stesura precedente aveva **ipotizzato reason inesistenti**. Copertura minima: il facing usato da un movimento, da un'azione con bersaglio, da una reazione e da uno spostamento forzato dev'essere distinguibile nel log. La rotazione **dichiarata** è un intento e passa da `FilterForTeam`. La presentazione continua a interpolare lo yaw ma **atterra sul facing logico** a fine playback | `Facing.LinearMoveDerivesDirection`, `Facing.BudgetMoveAllowsLastStepPlusMinusOne`, `Facing.RejectsIllegalDeclaredRotation`, `Facing.StationaryUnitRotatesFreely`, `Facing.ForcedMovementFacesSource`, `Facing.EnvironmentalDisplacementKeepsFacing`, `Facing.VoluntaryMoveWinsOverForced`, `Facing.PermutationInvariant`, `Facing.IntentIsTeamFiltered`, `Facing.DashThenBlastUsesLatestValue`, `Facing.TargetChangeWithinRoundReorients`, `Facing.TurnLogNamesConsumerAndReason`, `Facing.RoundInheritsFinalFacing` |
+| **16.1** ✅ | Facing logico e derivazione dal movimento | `ERTHexDirection Facing` autorevole sull'unità, aggiornato su **tutta la timeline di [D-020](../decisions/RT_PDR_00_Decision_Log.md)** (`FacingStartOfRound → FacingAfterPrepActionTargeting → FacingAfterDash → FacingUsedByBlast → FacingUsedByOverwatch → FacingFinalAfterMove`): ogni consumatore legge il valore **autorevole più recente**, e `FacingFinalAfterMove` persiste nel round successivo. Direzioni legali per stile: `Linear*` → **una** (quella del movimento, derivata) · `Budget` → **tre** (ultimo passo e le due adiacenti, dichiarata) · `None` → **sei** (rotazione libera dichiarata, **non consuma slot**). Movimento **forzato**: ci si gira verso la cella d'origine dell'ultimo spostamento subito nell'ordine canonico; spostamento **ambientale** senza sorgente → invariato; un Move volontario successivo **vince**. Una rotazione dichiarata illegale è **rifiutata**, non corretta in silenzio. `Facing` entra in snapshot, TurnLog versionato e hash; poiché i valori per round sono **più di uno**, snapshot e TurnLog devono dire **quale** facing ha usato ciascun consumatore — un campo per turno non basta e renderebbe il replay non ricostruibile ([D-020](../decisions/RT_PDR_00_Decision_Log.md)). Ogni cambio produce un evento con **reason code**: i valori sono **nuovi** e vanno aggiunti all'enum esistente seguendo [`spec-turnlog.md`](../technical/architecture/spec-turnlog.md), che è l'owner — la sua revisione del 2026-08-03 esiste proprio perché una stesura precedente aveva **ipotizzato reason inesistenti**. Copertura minima: il facing usato da un movimento, da un'azione con bersaglio, da una reazione e da uno spostamento forzato dev'essere distinguibile nel log. La rotazione **dichiarata** è un intento e passa da `FilterForTeam`. La presentazione continua a interpolare lo yaw ma **atterra sul facing logico** a fine playback | `Facing.LinearMoveDerivesDirection`, `Facing.BudgetMoveAllowsLastStepPlusMinusOne`, `Facing.RejectsIllegalDeclaredRotation`, `Facing.StationaryUnitRotatesFreely`, `Facing.ForcedMovementFacesSource`, `Facing.EnvironmentalDisplacementKeepsFacing`, `Facing.VoluntaryMoveWinsOverForced`, `Facing.PermutationInvariant`, `Facing.IntentIsTeamFiltered`, `Facing.DashThenBlastUsesLatestValue`, `Facing.TargetChangeWithinRoundReorients`, `Facing.TurnLogNamesConsumerAndReason`, `Facing.RoundInheritsFinalFacing` |
 | **16.2** ✅ | Difesa direzionale: l'emisfero posteriore è scoperto | L'**arco frontale** è definito operativamente da `URTHexLibrary::HexCone(Cella, Neighbor(Cella, Facing), Range)` — **nessuna seconda geometria**. Un colpo la cui origine **non** è nell'arco frontale **annulla** la riduzione da **copertura bassa** (−10) e da **`Action.Guard`** (−15). `Deflect`, `Brace`, `Shield` e gli scudi restano validi da **ogni** direzione: proteggono la persona, non un lato. Nessun modificatore nuovo | `Combat.BackAttackIgnoresCover`, `Combat.BackAttackIgnoresGuard`, `Combat.FlankAttackKeepsCover`, `Combat.ShieldWorksFromAnyDirection` |
 
 **Consumatori negli altri epic** — non sono CP di E16, sono DoD emendate:
@@ -1399,7 +1400,7 @@ quello è il comportamento corretto e non va aggirato.
 Quindi CP 16.1 include l'estensione dello schema — campo di orientamento nell'intent e assertion sul facing —
 **prima** del corpus di scenari. Il corpus proposto dall'handoff del 2026-08-08 (venti casi `FACING-01`…`-20`)
 non è scrivibile prima, e non è stato scritto. Quando lo sarà, identità e tag seguono
-[`scenario-index-e-tag.md`](../technical/scenario-index-e-tag.md); una parte dei venti casi resta comunque
+[`scenario-index-e-tag.md`](../technical/tooling/scenario-index-e-tag.md); una parte dei venti casi resta comunque
 sospesa a decisioni aperte — reazioni che ruotano, `Interact`, status e terreno — elencate come `FAC-5`…`FAC-8`
 in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
 
@@ -1576,7 +1577,7 @@ pagine wiki illustrate. Stanno in [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md)
 
 **Dipendenze**: E11 (HUD, log e debug) — E20 va fatta **prima** che i widget di E11 siano scritti, o diventa
 un refactor invece di una fondazione. Le immagini sorgente sono in
-[`../src/design/hud/`](../src/design/hud/).
+[`../research/design/hud/`](../research/design/hud/).
 
 **Rischi**: il catalogo semantico è utile solo se le chiavi sono **stabili**. Rinominare `Status.Wet` dopo che
 scenari e test lo usano costa quanto rinominare un'azione a catalogo.
@@ -1635,7 +1636,7 @@ editor**, che nessun test automatico può chiudere.
 > pivot. Si toccano in un punto solo — l'elemento #3 del catalogo, il cilindro segnaposto — e lì il
 > precedente è già stato pagato: [`#593`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/593),
 > il root non neutro che stirava di `1.5x` ogni Skeletal Mesh agganciata sotto. Owner del modello:
-> [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md).
+> [`../technical/systems/spec-graybox-placement-contract.md`](../technical/systems/spec-graybox-placement-contract.md).
 
 **Gate di chiusura dell'epic**: la sessione C di [`test-manuali-pie.md`](../technical/test-manuali-pie.md)
 è verde · nessun cilindro nel gioco se non per asset mancante · una partita registrata (video o
@@ -1704,10 +1705,11 @@ file in `Source/**/UI*` tutti in-match, nessuna epic frontend fra E1–E45, zero
 > Il paragone con E21 regge solo per quella parte: là *«quello che manca è il lavoro in editor»* è vero
 > dell'intera epic, qui di una fetta.
 >
-> 🔴 **Le sei voci `PIE-V01-FRONTEND-*` non sono state create da questo consolidamento, e non per
-> dimenticanza**: [`test-manuali-pie.md`](../technical/test-manuali-pie.md) è nel `writable` della track
-> **`playtest`** — *«l'autore davanti a Unreal»* — secondo [`parallel-batch.yaml`](parallel-batch.yaml), e
-> D-139 dice che un file non assegnato è uno **stop**, non una «piccola fix».
+> 🔴 **Le sei voci `PIE-V01-FRONTEND-*` non sono state create da questo consolidamento.** Fino al
+> 2026-08-20 [`test-manuali-pie.md`](../technical/test-manuali-pie.md) era nel `writable` della track
+> `playtest` — *«l'autore davanti a Unreal»* — e `D-139` ne faceva uno **stop**. Con
+> [D-178](../decisions/RT_PDR_00_Decision_Log.md) quel vincolo non esiste più: **restano da creare**, e
+> l'atto è [#1242](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1242).
 > ⚠️ **La procedura non è aspettare**, ed è la track stessa a dirlo: *«le altre track producono, questa
 > giudica — chi finisce una feature che ha una voce `PIE-*` non scrive il proprio esito qui: lo **propone**
 > in handoff»*. Le sei voci si propongono quando il primo checkpoint produce qualcosa da guardare; oggi non
@@ -1838,8 +1840,9 @@ senza console di debug.
 **Dipendenze**: E2 (parità hex, chiusa), E10 (fine partita, `RT-FEAT-MATCH-END-CONDITIONS`
 `RELEASE_READY`), E15 per l'harness. E47.3 dipende da E21.3 per la taratura dei materiali, non viceversa.
 
-**Vincolo di parallelismo, rimisurato su [`parallel-batch.yaml`](parallel-batch.yaml) il 2026-08-16**
-([D-139](../decisions/RT_PDR_00_Decision_Log.md)) — i checkpoint sono **sette** da quando E47.2 ha
+**Stato dei checkpoint, rimisurato il 2026-08-16** *(la misura nasceva da un vincolo di parallelismo
+poi rimosso con [D-178](../decisions/RT_PDR_00_Decision_Log.md); i conteggi restano validi)* — i
+checkpoint sono **sette** da quando E47.2 ha
 scorporato il proprio passo 4 in **E47.7**, e **tre sono chiusi** (E47.1 · E47.2 · E47.5). Dei quattro
 aperti: **E47.4** è libero, **E47.6** è una riallocazione da una track IDLE, **E47.3** ed **E47.7**
 attendono una track `ACTIVE`.
@@ -2075,8 +2078,8 @@ Rilevati confrontando `roadmap-checkpoint.md` con il repository (2026-08-05):
 | [`adr-0005-orientamento.md`](../decisions/adr-0005-orientamento.md) | Decisione che abilita **E16**: il facing deriva dal movimento e decide difesa, percezione e reazioni |
 | [`spec-durata-partita-e-scala-mappe.md`](../gameplay/spec-durata-partita-e-scala-mappe.md) | **Durata, round e scala delle mappe**: target di partita, `RoundLimit` per formato, budget del round, classi di mappa e telemetria. Vincola **E10** (fine partita), **E11** (timer a HUD), **E14** (3 s) e il level design futuro |
 | [`showcase-v0.1.md`](../product/showcase-v0.1.md) | Scenario della showcase **E15**: canone corrente, target, delta di scope |
-| [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) · [`brief-overwatch-reazioni.md`](../gameplay/brief-overwatch-reazioni.md) · [`brief-ghiaccio.md`](../gameplay/brief-ghiaccio.md) · [`brief-planning-visuale.md`](../technical/brief-planning-visuale.md) | Brief di scoping: cosa entra in **E11**/**E13**/**E14** e cosa resta north-star |
-| [`../src/showcase/showcase-v0.1-integrazione-nel-codice.md`](../src/showcase/showcase-v0.1-integrazione-nel-codice.md) · [`../archive/src/design/action-ghosts-fasi-fast-reactions.md`](../archive/src/design/action-ghosts-fasi-fast-reactions.md) | Handoff e note di design (2026-08-07): **materiale sorgente**, consolidato qui — in caso di conflitto prevale questo file |
+| [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) · [`brief-overwatch-reazioni.md`](../gameplay/brief-overwatch-reazioni.md) · [`brief-ghiaccio.md`](../gameplay/brief-ghiaccio.md) · [`brief-planning-visuale.md`](../technical/systems/brief-planning-visuale.md) | Brief di scoping: cosa entra in **E11**/**E13**/**E14** e cosa resta north-star |
+| [`../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md`](../research/design/showcase/showcase-v0.1-integrazione-nel-codice.md) · [`../archive/src/design/action-ghosts-fasi-fast-reactions.md`](../archive/src/design/action-ghosts-fasi-fast-reactions.md) | Handoff e note di design (2026-08-07): **materiale sorgente**, consolidato qui — in caso di conflitto prevale questo file |
 | *questo file* | **Release v0.1**: epic, checkpoint, DoD per checkpoint |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release, KPI, checklist trasversale |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle issue (e mappa issue ↔ checkpoint) |

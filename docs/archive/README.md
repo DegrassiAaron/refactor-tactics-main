@@ -47,8 +47,8 @@ raccontava la storia di una cartella, dava indicazioni operative sbagliate al pr
 ### Se incontri un path `*.pdf` in un documento archiviato
 
 I ventitré PDF di `docs/` sono stati rimossi il **2026-08-12** e il loro testo vive in Markdown. I documenti
-archiviati che li citano — [`src/design/delayed-actions-e-phase-windows.md`](src/),
-[`src/handoff/roadmap-docs-test-e-showcase-v0.1.md`](src/),
+archiviati che li citano — [`research/design/delayed-actions-e-phase-windows.md`](src/),
+[`research/handoff/roadmap-docs-test-e-showcase-v0.1.md`](src/),
 [`gameplay/spec-terreni.md`](gameplay/spec-terreni.md) — **non sono stati riscritti**, per la regola qui sopra:
 quei documenti dicono da quali file provenivano, e nel momento in cui sono stati scritti quei file c'erano.
 
@@ -57,5 +57,5 @@ Dove sono finiti:
 | Path citato negli storici | Oggi |
 |---|---|
 | `docs/archive/pdr-v0.1/RT_PDR_NN_*.pdf` | [`pdr-v0.1/RT_PDR_v0.1_consolidato.md`](pdr-v0.1/RT_PDR_v0.1_consolidato.md), sezione `PDR-NN` |
-| `docs/src/prd/idee-base.pdf` · `prd-stampabile` · `prd-e-piano-di-sviluppo` · `prd-roadmap-e-percorso-didattico` | [`../src/prd/`](../src/), quattro documenti tematici |
+| `docs/src/prd/idee-base.pdf` · `prd-stampabile` · `prd-e-piano-di-sviluppo` · `prd-roadmap-e-percorso-didattico` | [`../research/prd/`](../research/prd/), quattro documenti tematici |
 | `docs/src/prd/sequenza-risoluzione-turno.pdf` | [`gameplay/sequenza-turno-exploratory.md`](gameplay/sequenza-turno-exploratory.md) — c'era già |

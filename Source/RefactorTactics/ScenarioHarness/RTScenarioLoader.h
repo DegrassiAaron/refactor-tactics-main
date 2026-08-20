@@ -25,7 +25,17 @@ public:
 	// restano a 1 e non si toccano — il gate confronta con `>`, quindi una versione piu' bassa e' sempre
 	// leggibile. Il verso che conta e' l'altro: una build vecchia deve RIFIUTARE uno scenario che non sa
 	// leggere invece di ignorarne i campi, e da `#926` gli scenari viaggiano dentro il pacchetto.
-	static constexpr int32 SupportedVersion = 2;
+	//
+	// 2 → 3 con `#314` fetta 4: `decisions.respond` accetta le risposte di un **Reaction Profile**
+	// (`Hold Ground`, `SIDESTEP`, …) oltre a `FIRE`/`HOLD`.
+	//
+	// ⚠️ **Il bump e' stato ARGOMENTATO e non dato per scontato, perche' il cambiamento e' solo espansivo**:
+	// nessun file `version: 2` valido oggi cambia significato, e la chiave `decisions` esisteva gia'. La
+	// ragione per cui si bumpa lo stesso e' il verso che conta — un file che usasse `respond: "SIDESTEP"`
+	// dichiarandosi `version: 2` verrebbe **accettato** da una build a `SupportedVersion = 2`, che poi lo
+	// rifiuterebbe con «risposta sconosciuta»: un messaggio che accusa il FILE mentre il difetto e' la build
+	// troppo vecchia. Con la `3` il rifiuto arriva dal gate di versione e dice la cosa giusta.
+	static constexpr int32 SupportedVersion = 3;
 
 	/**
 	 * Interpreta il testo JSON di uno scenario.

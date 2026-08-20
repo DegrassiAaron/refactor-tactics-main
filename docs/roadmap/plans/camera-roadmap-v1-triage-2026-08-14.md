@@ -88,7 +88,7 @@ premessa — «la camera oggi popping per collisione» — è falsa.
 
 | § handoff | Cosa propone | Dove è già scritto |
 |---|---|---|
-| 3.13 | «nessuna minimappa tradizionale obbligatoria per v0.1» | [`../../technical/progettazione-hud.md`](../../technical/progettazione-hud.md) §30, con quattro motivi fra cui «overview separata più leggibile» |
+| 3.13 | «nessuna minimappa tradizionale obbligatoria per v0.1» | [`../../technical/systems/progettazione-hud.md`](../../technical/systems/progettazione-hud.md) §30, con quattro motivi fra cui «overview separata più leggibile» |
 | 3.1 | «pan relativo alla camera» | `AddPlanarMovement` lo implementa, con la motivazione in commento |
 | 3.9 | «focus conserva zoom» | `FocusOn` «mantenendo la quota e lo zoom correnti» |
 ⚠️ §3.13 chiede di *«risolvere il conflitto minimap/Strategic View»*. **Non c'è nessun conflitto**: il
@@ -196,9 +196,9 @@ e il loro contenuto è già nell'handoff archiviato, che resta consultabile.
 ## 8. Cosa questo triage NON decide
 
 - **Le verifiche PIE della camera.** [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md)
-  è nel `writable` della track `content_editor` (#451) in [`../parallel-batch.yaml`](../parallel-batch.yaml):
+  è nel `writable` della track `content_editor` (#451) in `../parallel-batch.yaml`:
   non è mio, e una voce ⏳ scritta qui sarebbe una modifica al file di un'altra sessione.
-- **Gli scenari camera.** Zero voci oggi in [`../../technical/scenario-map.md`](../../technical/scenario-map.md);
+- **Gli scenari camera.** Zero voci oggi in [`../../technical/tooling/scenario-map.md`](../../technical/tooling/scenario-map.md);
   i 34 nomi proposti non seguono la convenzione del corpus. Il gap è registrato, il vocabolario no.
 - **Le soglie Strategic e le sensibilità di default.** Restano tuning senza consumatore.
 - **La Wiki.** `RT-FEAT-UI-TACTICAL-CAMERA` dichiara già `wiki:come-si-gioca` fra i propri `wiki_refs` —

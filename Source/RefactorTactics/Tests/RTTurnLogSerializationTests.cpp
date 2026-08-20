@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTReactionLibrary.h" // `ERTReactionOutcome`: l'esito che una voce di redirect porta (v9, #1060)
 #include "Core/RTTypes.h"
 #include "Algo/Reverse.h"
 #include "Misc/FileHelper.h"
@@ -927,6 +928,26 @@ bool FRTTurnLogCanonicalOrderCoversSerializedFieldsTest::RunTest(const FString&)
 	// E l'ordine deve essere ANTISIMMETRICO, non solo deterministico: due voci diverse non sono mai «uguali».
 	TestTrue(TEXT("A < B sull'unita'"), URTTurnLogLibrary::EntryLess(First, Second));
 	TestFalse(TEXT("e non B < A"), URTTurnLogLibrary::EntryLess(Second, First));
+
+	// 🔴 **Lo stesso pareggio sul campo della v10**, ed e' il caso che questo test NON copriva: verificava il
+	// solo `UnitId`, quindi era un esempio e non uno sweep — un campo serializzato aggiunto dopo poteva
+	// mancare dall'ordine canonico e restare verde. Il `ReactionResponse` e' l'ultimo arrivato, e questa
+	// coppia lo pinna come le altre.
+	FRTTurnLogEntry Scarto = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::ReactionDecision,
+		static_cast<uint8>(ERTReactionDecisionOutcome::ResponseChosen), FRTCellId(3, 3), FRTCellId(3, 3), 0);
+	Scarto.OpportunityId = TEXT("T1|P3|M0|U0|action.brace|S0");
+	Scarto.ReactionResponse = TEXT("SIDESTEP");
+	FRTTurnLogEntry Tiene = Scarto;
+	Tiene.ReactionResponse = TEXT("Hold Ground");
+
+	TArray<FRTTurnLogEntry> Su;   Su.Add(Scarto);  Su.Add(Tiene);
+	TArray<FRTTurnLogEntry> Giu;  Giu.Add(Tiene);  Giu.Add(Scarto);
+	TestTrue(TEXT("stessi byte anche quando a pareggiare e' il token della risposta"),
+		URTTurnLogLibrary::SerializeTurnLog(Su) == URTTurnLogLibrary::SerializeTurnLog(Giu));
+
+	// `Hold Ground` < `SIDESTEP` lessicograficamente: l'ordine e' quello delle stringhe, dichiarato e stabile.
+	TestTrue(TEXT("il token spareggia"), URTTurnLogLibrary::EntryLess(Tiene, Scarto));
+	TestFalse(TEXT("e in un verso solo"), URTTurnLogLibrary::EntryLess(Scarto, Tiene));
 	return true;
 }
 
@@ -1119,6 +1140,223 @@ bool FRTTurnLogLegacyWithoutPriorityTest::RunTest(const FString&)
 	// E la riga leggibile non mostra «p0»: zero significa «non dichiarata», non «priorita' zero».
 	TestFalse(TEXT("il combat log non stampa una priorita' che la traccia non aveva"),
 		URTTurnLogLibrary::DescribeEntry(Out[0]).Contains(TEXT("p0")));
+	return true;
+}
+
+/**
+ * `OriginalTargetUnitId` sopravvive al round-trip, resta FUORI dall'hash ed ENTRA nell'ordinamento (v9, #1060).
+ *
+ * ⚠️ **Le tre proprieta' vanno asserite insieme**, perche' si smentiscono a vicenda se una manca: un campo
+ * scritto e non ordinato lascia due voci a pari merito (e `TArray::Sort` non e' stabile, quindi i **byte** del
+ * file dipenderebbero dall'ordine d'inserimento); un campo ordinato ma dentro l'hash invaliderebbe i golden.
+ * E' la stessa terna che `Priority` asserisce per la v7, ed e' il modello che ogni versione ha seguito.
+ *
+ * 🔴 Questo test non c'era nella prima stesura della v9 — l'ha chiesto una code review, misurando che **zero**
+ * test in `Tests/` nominavano il campo. Un errore nell'ordine dei campi fra `Serialize` e `Deserialize`
+ * sarebbe stato silenzioso: la voce si sarebbe riletta con i valori scambiati e nessuno se ne sarebbe accorto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogRedirectOriginRoundTripTest,
+	"RefactorTactics.TurnLog.RedirectOriginSurvivesRoundTripAndStaysOutOfHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogRedirectOriginRoundTripTest::RunTest(const FString&)
+{
+	FRTTurnLogEntry E;
+	E.Phase = ERTMatchPhase::Blast;
+	E.Category = ERTLogCategory::Reaction;
+	E.Outcome = static_cast<uint8>(ERTReactionOutcome::Activated);
+	E.SrcCell = FRTCellId(2, 0);
+	E.TgtCell = FRTCellId(2, 1);
+	E.ActionId = FName(TEXT("Hero.Riktor.Interposition"));
+	E.UnitId = 3;                  // chi INCASSA: l'unita' che reagisce
+	E.OriginalTargetUnitId = 2;    // chi era il bersaglio PRIMA
+
+	TArray<FRTTurnLogEntry> In{ E };
+	const TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog(In, ERTLogTopology::Hex, NAME_None);
+
+	TArray<FRTTurnLogEntry> Out;
+	if (!TestTrue(TEXT("round-trip riuscito"),
+		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out, nullptr, nullptr))) { return false; }
+	if (!TestEqual(TEXT("una voce"), Out.Num(), 1)) { return false; }
+	TestEqual(TEXT("il bersaglio originale sopravvive alla serializzazione"), Out[0].OriginalTargetUnitId, 2);
+	// L'altro capo non si e' spostato: e' il controllo che prende uno scambio di campi in `Deserialize`.
+	TestEqual(TEXT("e chi ha incassato resta il suo"), Out[0].UnitId, 3);
+
+	FRTTurnLogEntry Other = E;
+	Other.OriginalTargetUnitId = 7;
+	TArray<FRTTurnLogEntry> OtherLog{ Other };
+
+	// FUORI dall'hash: il trasferimento e' gia' discriminato da `SrcCell`, che nell'hash c'e'.
+	TestEqual(TEXT("il bersaglio originale NON entra nell'hash: gli hash golden non cambiano"),
+		URTTurnLogLibrary::HashTurnLog(In), URTTurnLogLibrary::HashTurnLog(OtherLog));
+
+	// DENTRO l'ordinamento: e' un campo SCRITTO, quindi deve spareggiare.
+	TestTrue(TEXT("ma entra in EntryLess: la forma canonica resta definita"),
+		URTTurnLogLibrary::EntryLess(In[0], OtherLog[0]));
+	return true;
+}
+
+/**
+ * Una traccia in versione **8** resta leggibile dopo l'arrivo della v9, con `OriginalTargetUnitId = INDEX_NONE`.
+ *
+ * E il sentinella **non si riempie risolvendo `SrcCell`**, che pure sarebbe possibile: e' l'inferenza che
+ * [D-063] dichiara non valida, e su una traccia storica e' peggio — quella cella dice dove il protetto stava
+ * al Blast, e l'occupante di fine turno puo' essere un altro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogLegacyWithoutRedirectOriginTest,
+	"RefactorTactics.TurnLog.LegacyVersionWithoutRedirectOriginIsReadable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogLegacyWithoutRedirectOriginTest::RunTest(const FString&)
+{
+	TArray<uint8> Bytes;
+	auto U16 = [&Bytes](uint16 V) { Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); };
+	auto U32 = [&Bytes](uint32 V)
+	{
+		Bytes.Add(V & 0xFF); Bytes.Add((V >> 8) & 0xFF); Bytes.Add((V >> 16) & 0xFF); Bytes.Add((V >> 24) & 0xFF);
+	};
+	auto Str = [&Bytes, &U16](const char* S)
+	{
+		const int32 Len = FCStringAnsi::Strlen(S);
+		U16(static_cast<uint16>(Len));
+		for (int32 i = 0; i < Len; ++i) { Bytes.Add(static_cast<uint8>(S[i])); }
+	};
+
+	U32(0x4C545452u); // 'RTTL'
+	U16(static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionDecision)); // v8: tutto tranne il redirect
+	U16(static_cast<uint16>(ERTLogTopology::Hex));
+	Str("Format.Skirmish2v2");
+	U32(1);
+	Bytes.Add(static_cast<uint8>(ERTMatchPhase::Blast));
+	Bytes.Add(static_cast<uint8>(ERTLogCategory::Reaction));
+	Bytes.Add(static_cast<uint8>(ERTReactionOutcome::Activated));
+	U32(2); U32(0); U32(0);
+	U32(2); U32(1); U32(0);
+	U32(0);
+	Str("Hero.Riktor.Interposition");
+	Str("");
+	U32(3); U32(1); U32(0); // UnitId, TurnNumber, GraphRevision
+	U32(50);                // Priority (v7)
+	Str("");                // OpportunityId (v8)
+	U32(0xFFFFFFFFu);       // ReactionInstanceId = INDEX_NONE
+	U32(0xFFFFFFFFu);       // SelectedTargetUnitId = INDEX_NONE
+
+	uint32 H = 2166136261u;
+	for (const uint8 B : Bytes) { H ^= B; H *= 16777619u; }
+	U32(H);
+
+	TArray<FRTTurnLogEntry> Out;
+	TestTrue(TEXT("una traccia in versione 8 resta leggibile dopo la v9"),
+		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out, nullptr, nullptr));
+	if (!TestEqual(TEXT("una voce letta"), Out.Num(), 1)) { return false; }
+	TestEqual(TEXT("i campi della v8 sono preservati"), Out[0].UnitId, 3);
+	TestEqual(TEXT("il bersaglio originale resta INDEX_NONE: non si deduce dalla SrcCell"),
+		Out[0].OriginalTargetUnitId, static_cast<int32>(INDEX_NONE));
+	return true;
+}
+
+/**
+ * **Il round-trip del token della risposta (v10), e l'hash che NON cambia.**
+ *
+ * `ReactionResponse` sta fuori dall'hash per lo stesso argomento di `BaseActionId` e `OriginalTargetUnitId`:
+ * la decisione e' gia' discriminata da `Outcome` e — dove c'e' — da `SelectedTargetUnitId`, che l'hash
+ * mescola. Il token la rende *leggibile*, non piu' distinguibile.
+ *
+ * ⚠️ **La conseguenza e' asserita, non taciuta**: due risposte di profilo diverse con lo stesso esito danno
+ * lo **stesso** hash. Non e' un buco del determinismo — la risposta E' nella traccia e il replay la rilegge
+ * da li' — ma un `StateHash` uguale non prova piu' che la stessa risposta sia stata scelta: prova che lo
+ * stato finale coincide, che e' cio' che quell'hash ha sempre dichiarato di misurare. Se un giorno il campo
+ * entra nell'hash, questo test cade — ed e' il punto: la scelta e' deliberata e va ridiscussa, non cambiata
+ * di passaggio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogReactionResponseRoundTripTest,
+	"RefactorTactics.TurnLog.ReactionResponseSurvivesRoundTripAndStaysOutOfHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogReactionResponseRoundTripTest::RunTest(const FString&)
+{
+	FRTTurnLogEntry Entry;
+	Entry.Phase = ERTMatchPhase::Blast;
+	Entry.Category = ERTLogCategory::ReactionDecision;
+	Entry.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::ResponseChosen);
+	Entry.ActionId = FName(TEXT("Action.Brace"));
+	Entry.OpportunityId = TEXT("T1|P3|M0|U2|action.brace|S0");
+	Entry.ReactionResponse = TEXT("SIDESTEP");
+
+	const TArray<FRTTurnLogEntry> Log = { Entry };
+	TArray<FRTTurnLogEntry> Out;
+	if (!TestTrue(TEXT("round-trip riuscito"),
+		URTTurnLogLibrary::DeserializeTurnLog(URTTurnLogLibrary::SerializeTurnLog(Log), Out)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("una voce"), Out.Num(), 1)) { return false; }
+	TestEqual(TEXT("il token sopravvive al round-trip"), Out[0].ReactionResponse, FString(TEXT("SIDESTEP")));
+
+	// L'hash ignora il token: stessa voce con una risposta diversa, stesso hash.
+	FRTTurnLogEntry Altra = Entry;
+	Altra.ReactionResponse = TEXT("Hold Ground");
+	TestEqual(TEXT("l'hash NON cambia al cambiare del token"),
+		URTTurnLogLibrary::HashTurnLog({ Altra }), URTTurnLogLibrary::HashTurnLog(Log));
+
+	// E il controllo dell'altro verso: l'ESITO invece lo cambia, altrimenti l'asserzione sopra sarebbe vera
+	// per un hash che ignora tutto.
+	FRTTurnLogEntry EsitoDiverso = Entry;
+	EsitoDiverso.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::HoldChosen);
+	TestNotEqual(TEXT("ma l'esito si', quindi l'hash non ignora la decisione"),
+		URTTurnLogLibrary::HashTurnLog({ EsitoDiverso }), URTTurnLogLibrary::HashTurnLog(Log));
+
+	return true;
+}
+
+/**
+ * **Una traccia in versione 9 resta leggibile, col token VUOTO** — il gemello di
+ * `LegacyVersionWithoutBaseActionIdIsReadable`, e per la stessa ragione.
+ *
+ * 🔴 **E qui il vuoto significa qualcosa di preciso, non «dato mancante»**: dice *«la risposta e' derivabile
+ * dall'esito»*, che e' esattamente cio' che quei byte contenevano — nella v9 l'unico produttore di finestre
+ * era l'Overwatch, il cui vocabolario e' chiuso. `ArmRecordedReactionDecisions` legge il vuoto e ricostruisce
+ * come ha sempre fatto. Inventare qui un token — deducendolo dall'`Outcome` — farebbe sembrare **esplicita**
+ * una deduzione, e il lettore perderebbe la sola informazione che distingue le due epoche del formato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogLegacyWithoutReactionResponseTest,
+	"RefactorTactics.TurnLog.LegacyVersionWithoutReactionResponseIsReadable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
+{
+	// La v9 e' l'ULTIMA prima del token, quindi porta ogni altro campo: e' il caso che discrimina davvero —
+	// una v4 avrebbe saltato mezzo formato e non direbbe niente su questa estensione.
+	FRTTurnLogEntry Entry;
+	Entry.Phase = ERTMatchPhase::Move;
+	Entry.Category = ERTLogCategory::ReactionDecision;
+	Entry.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen);
+	Entry.ActionId = FName(TEXT("Action.Overwatch"));
+	Entry.OpportunityId = TEXT("T2|P4|M1|U0|action.overwatch|S0");
+	Entry.SelectedTargetUnitId = 3;
+
+	// Si serializza in v10 e si RETROCEDE l'intestazione a v9, togliendo i due byte di lunghezza del token in
+	// coda alla voce — cioe' si costruisce esattamente il file che una build vecchia avrebbe scritto.
+	TArray<uint8> Bytes = URTTurnLogLibrary::SerializeTurnLog({ Entry });
+	Bytes[4] = static_cast<uint8>(static_cast<uint16>(ERTTurnLogFormatVersion::WithRedirectOrigin) & 0xFF);
+	Bytes[5] = static_cast<uint8>((static_cast<uint16>(ERTTurnLogFormatVersion::WithRedirectOrigin) >> 8) & 0xFF);
+
+	// Il token vuoto occupa 2 byte di lunghezza, subito prima del checksum (4 byte). Si tolgono quei 2 e si
+	// ricalcola il checksum sul payload accorciato.
+	if (!TestTrue(TEXT("il file ha almeno checksum e token"), Bytes.Num() >= 6)) { return false; }
+	Bytes.RemoveAt(Bytes.Num() - 6, 2);
+	uint32 H = 2166136261u;
+	for (int32 i = 0; i < Bytes.Num() - 4; ++i) { H ^= Bytes[i]; H *= 16777619u; }
+	Bytes[Bytes.Num() - 4] = H & 0xFF;
+	Bytes[Bytes.Num() - 3] = (H >> 8) & 0xFF;
+	Bytes[Bytes.Num() - 2] = (H >> 16) & 0xFF;
+	Bytes[Bytes.Num() - 1] = (H >> 24) & 0xFF;
+
+	TArray<FRTTurnLogEntry> Out;
+	TestTrue(TEXT("una traccia in versione 9 resta leggibile"),
+		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out));
+	if (!TestEqual(TEXT("una voce letta"), Out.Num(), 1)) { return false; }
+	TestEqual(TEXT("l'esito e' preservato"), Out[0].Outcome,
+		static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen));
+	TestEqual(TEXT("e il bersaglio pure"), Out[0].SelectedTargetUnitId, 3);
+	TestTrue(TEXT("il token resta VUOTO: significa «deducila», non «manca»"),
+		Out[0].ReactionResponse.IsEmpty());
 	return true;
 }
 

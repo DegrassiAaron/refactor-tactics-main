@@ -4,7 +4,46 @@
 #include "Engine/DataAsset.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
+// `FRTGeometrySegment` per i muri interni (#712). ⚠️ L'inclusione va in QUESTA direzione e non nell'altra:
+// `RTGeometryGrammar.h` include gia' `RTHexCellData.h`, quindi mettere un segmento dentro la cella
+// chiuderebbe un ciclo. E' il motivo per cui i muri interni vivono sull'ASSET e non sulla cella.
+#include "Map/RTGeometryGrammar.h"
 #include "RTHexMapAsset.generated.h"
+
+/**
+ * UN MURO CHE NON GIACE SU NESSUN BORDO.
+ *
+ * ⚠️ Esiste perche' la copertura non basta, e la misura che lo dimostra e' di `#712` / seduta `U22`: una
+ * retta che taglia l'esagono passando per **due vertici opposti** attraversa una cella su tre per il
+ * centro, e nelle altre due giace sul confine. Tracciata sulla griglia e' quindi per due terzi un bordo —
+ * rappresentabile come `FRTHexCover` — e per un terzo una corda che non lo e'. Prima di questo tipo quel
+ * terzo veniva calcolato, disegnato come anteprima, e poi **buttato via in silenzio**.
+ *
+ * 🔑 **NON entra in `ComputeHash`**, ed e' la stessa scelta di `FRTHexCover::bGenerated` per la stessa
+ * ragione: il movimento e' **cella-a-cella** e un muro che sta dentro una cella non ne blocca nessuno.
+ * Due mappe che si giocano in modo identico non devono avere hash diversi solo perche' una ha una
+ * decorazione in piu' — sarebbe un falso positivo contro il KPI `replay divergence = 0`.
+ *
+ * ⛔ **Non tocca le regole, e non e' una svista**: vista e passo oggi non lo consultano. Il giorno in cui
+ * un muro interno dovra' bloccare la linea di vista, quella e' una decisione di gioco e va scritta come
+ * tale — e allora, ma solo allora, questo tipo entrera' nell'hash.
+ */
+USTRUCT(BlueprintType)
+struct FRTHexInteriorWall
+{
+	GENERATED_BODY()
+
+	/** La cella che lo contiene. Il segmento e' in coordinate LOCALI a questa cella, come nella grammatica. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")
+	FRTCellId Cell;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")
+	FRTGeometrySegment Segment;
+
+	FRTHexInteriorWall() = default;
+	FRTHexInteriorWall(const FRTCellId& InCell, const FRTGeometrySegment& InSegment)
+		: Cell(InCell), Segment(InSegment) {}
+};
 
 #if WITH_EDITOR
 /** L'asset e' cambiato per una via che i chiamanti non controllano (undo/redo, editing dal suo editor). */
@@ -104,12 +143,12 @@ public:
 	 * propri byte e' `FRTHexMapCustomVersion` (#687, D-137). Alzarlo senza aggiungere il valore
 	 * corrispondente all'enum non compila — e' voluto, vedi lo `static_assert` in `RTHexMapAsset.cpp`.
 	 *
-	 * Tutti i passi v1->v9 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
+	 * Tutti i passi v1->v10 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
 	 * significato. Il primo passo TRASFORMATIVO e' ora eseguibile — prima di #687 non lo era, perche' la
 	 * migrazione non partiva — ma resta il punto piu' delicato del formato: si scrive un
 	 * `if (FormatVersion < N)` per volta, in ordine, e lo si prova su un asset serializzato.
 	 */
-	static constexpr int32 CurrentFormatVersion = 9;
+	static constexpr int32 CurrentFormatVersion = 10;
 
 	/**
 	 * Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti.
@@ -162,6 +201,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TArray<FRTHexCellData> Cells;
 
+	/**
+	 * Muri che non giacciono su nessun bordo (formato v10, #712). Vedi `FRTHexInteriorWall`.
+	 *
+	 * ⚠️ **Vive qui e non dentro la cella**, e non e' una preferenza: `RTGeometryGrammar.h` include gia'
+	 * `RTHexCellData.h`, quindi un `FRTGeometrySegment` dentro la cella chiuderebbe un ciclo di include.
+	 *
+	 * ⚠️ **Ci finisce SOLO cio' che nessuna copertura puo' rappresentare.** Un segmento che chiude almeno
+	 * un bordo e' gia' descritto dalle sue coperture, e scriverlo anche qui creerebbe due verita' sullo
+	 * stesso muro — che e' la classe di difetto che questa seduta ha passato la giornata a smontare.
+	 * L'approssimazione dichiarata: un segmento che chiude un bordo **e** sporge dentro la cella e'
+	 * rappresentato dalla sola copertura, e la sua parte interna non viene conservata.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TArray<FRTHexInteriorWall> InteriorWalls;
+
 	/** Transizioni esplicite (archi verticali/speciali): scale, rampe, ponti, tunnel, ascensori. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TArray<FRTHexEdge> Transitions;
@@ -176,6 +230,22 @@ public:
 	 * ⚠️ L'array e' l'ordine AUTOREVOLE dei bersagli: `TargetIds` si applica come e' scritto, mai nell'ordine
 	 * di iterazione di una `TMap`/`TSet` (invariante n. 3). Chi rieditasse l'asset cambierebbe l'ordine di
 	 * applicazione, ed e' voluto: e' una scelta d'autore, non un dettaglio d'implementazione.
+	 *
+	 * ⚠️ **`N` non ha un tetto, ed e' dichiarato invece che lasciato scoprire.** Il DoD di #833 chiede l'uno o
+	 * l'altro: qui non c'e' limite perche' non c'e' un fallimento MISURATO che ne motivi uno. Cio' che la scala
+	 * poteva rompere e' l'ORDINE, e quello e' verificato — `InteractionGraph.OrderHoldsAtScale` prova quaranta
+	 * bersagli e pretende la sequenza dichiarata. Un tetto scritto senza un fallimento che lo giustifichi
+	 * rifiuterebbe asset legittimi in nome di una costante che nessuno sa spiegare.
+	 *
+	 * 🔴 **Il COSTO pero' non e' lineare, e questa riga lo diceva.** Affermava che «ne' la risoluzione ne'
+	 * l'applicazione degradano con la cardinalita', essendo entrambe scansioni lineari»: falso, e trovato da una
+	 * code review. `ApplyInteraction` chiama la commutazione **una volta per bersaglio**, e ogni chiamata
+	 * scandisce l'intero array delle celle due volte (gruppo + commutazione), quindi il costo va come
+	 * `bersagli × celle × porte`; la risoluzione paga `TargetIds × Bindings` per il controllo dei bersagli
+	 * contesi, piu' una scansione completa per ogni `FindDoorEdges`. La decisione di non mettere un tetto resta,
+	 * perche' poggia sull'assenza di un fallimento e non sul costo — ma il costo si dichiara invece di
+	 * affermarne uno comodo e non misurato. Se un giorno una mappa grande lo rendera' visibile, il rimedio e'
+	 * un indice, non un limite alla cardinalita' che un autore puo' scrivere.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TArray<FRTInteractionBinding> InteractionBindings;

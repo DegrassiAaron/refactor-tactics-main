@@ -79,6 +79,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName Weakness;
 
+	/**
+	 * Il **Reaction Profile** che questo eroe arma col `Brace` (E14.7, [D-047]). `None` = profilo base.
+	 *
+	 * ⚠️ E' un **riferimento**, non il profilo: il dato vive nel catalogo (`Profile.<Nome>`), e l'eroe lo
+	 * nomina. E' la forma letterale di «profilo come dato, non ramo nel resolver» — con le risposte scritte
+	 * qui, ogni eroe nuovo sarebbe una copia del contenuto invece che un puntatore a un'entita' condivisa, e
+	 * riassegnare un profilo costerebbe un rename in due posti.
+	 *
+	 * 🔵 **`None` non e' un valore mancante**: e' Riktor, e per lui e' la scelta giusta — `Hold Ground` fa
+	 * gia' cio' che un suo profilo avrebbe fatto, quindi la cardinalita' resta 1 e nessuna finestra si apre.
+	 * Per questo il campo **non** e' fra quelli che `ValidateHeroes` pretende: un eroe senza profilo e'
+	 * valido, a differenza di un eroe senza `Weakness`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FName ReactionProfileId;
+
 	/** Le azioni dell'eroe: attacco base (indice 0) + quattro abilita' fondamentali (indici 1-4). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	TArray<TObjectPtr<URTActionData>> Actions;

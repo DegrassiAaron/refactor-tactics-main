@@ -9,7 +9,7 @@
 > corrispondenza fra i personaggi Paragon e il roster canonico (Gadget · Phase · Riktor · Wraith) è stata
 > scelta**. Questo ADR non va letto come se il roster avesse già una resa visiva definitiva; la mappatura è
 > una voce aperta in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
-> **Contesto sorgente**: `/sc:spec-panel` → [`spec-asset-pipeline.md`](../technical/spec-asset-pipeline.md)
+> **Contesto sorgente**: `/sc:spec-panel` → [`spec-asset-pipeline.md`](../technical/architecture/spec-asset-pipeline.md)
 > Primo ADR del progetto (non esisteva convenzione ADR: questo file la inaugura; gli ADR vivono in `docs/decisions/` dal 2026-08-07).
 
 ## Contesto

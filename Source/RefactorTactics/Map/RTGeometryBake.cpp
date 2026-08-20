@@ -2,6 +2,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexOccupancyLibrary.h"
+#include "Map/RTHexLibrary.h" // DirectionForEdgeIndex: le due numerazioni dei bordi non coincidono
 
 // ⚠️ Namespace NOMINATO, non anonimo: `RTHexOccupancyLibrary.cpp` ha helper con gli stessi nomi nel suo
 // namespace anonimo, e nella unity build i due .cpp possono finire nella stessa unit di traduzione — dove
@@ -9,6 +10,16 @@
 // come i file erano raggruppati in quel momento.
 namespace RTGeometryBakeInternal
 {
+	/**
+	 * Il corpo condiviso da `BakeCell` e `AddSegmentsToCell`. Le due vie differiscono in UN passo — se le
+	 * coperture generate esistenti vengano rimosse prima di scrivere — e tenerle in una funzione sola e'
+	 * cio' che impedisce alle altre regole (mano che vince, `High` su `Low`, ordine di bordo crescente) di
+	 * divergere fra loro. Duplicare il corpo per cambiare una riga e' il modo in cui nascono i difetti che
+	 * questa seduta ha passato la giornata a rincorrere.
+	 */
+	int32 Bake(URTHexMapAsset* Map, const FRTCellId& CellId, const TArray<FRTGeometrySegment>& Segments,
+		float HexSize, bool bReplaceGenerated);
+
 	double Cross2D(const FVector2D& O, const FVector2D& A, const FVector2D& B)
 	{
 		return (A.X - O.X) * (B.Y - O.Y) - (A.Y - O.Y) * (B.X - O.X);
@@ -71,6 +82,46 @@ namespace RTGeometryBakeInternal
 			return Overlap > UE_KINDA_SMALL_NUMBER; // un solo punto in comune NON chiude il bordo
 		}
 
+		// ➕ IL MURO ARRIVA DA DENTRO E SI FERMA SUL BORDO.
+		//
+		// ⚠️ Senza questo caso un muro tracciato dal centro verso un lato non muraglia niente, e nemmeno un
+		// diametro completo da un lato a quello opposto: entrambi hanno un estremo APPOGGIATO sul bordo,
+		// che l'attraversamento proprio scarta perche' pretende segni strettamente opposti. Funzionava solo
+		// sbordando oltre la cella — misurato in `U22`, dove un muro lungo `1.5x` l'inraggio dava due
+		// coperture e lo stesso muro fermato sul bordo ne dava zero.
+		//
+		// 🔴 **L'estremo deve cadere STRETTAMENTE DENTRO il lato, non su un vertice**, ed e' `MSE-4`: ogni
+		// vertice appartiene a DUE lati, quindi accettarlo murerebbe anche il lato adiacente che il muro si
+		// limita a sfiorare. Ne segue, ed e' una conseguenza voluta e non un buco:
+		//
+		// ```text
+		// centro -> punto medio di un lato   1 copertura, su quel lato
+		// centro -> un vertice               nessuna copertura -> diventa un MURO INTERNO
+		// diametro fra due lati opposti      2 coperture
+		// diametro fra due vertici opposti   nessuna copertura -> diventa un MURO INTERNO
+		// ```
+		//
+		// ⚠️ **Le righe 2 e 4 dicevano «NIENTE, e il ghost lo mostra rosso», e il formato v10 le ha rese
+		// false nello stesso giorno in cui erano state scritte.** Una linea per due vertici opposti non
+		// giace su nessun bordo — quello resta vero, ed e' un limite del modello delle COPERTURE — ma da
+		// `#712` esiste `URTHexMapAsset::InteriorWalls`, dove quel muro viene conservato invece di sparire.
+		// Aggiornata invece di lasciata li': un commento che rassicura sulla meta' sbagliata e' il difetto
+		// che questa seduta ha gia' pagato due volte.
+		//
+		// 🔵 **La condizione e' UNA SOLA, e il vertice e' escluso da `D1 * D2 < 0`** — non da un controllo
+		// «strettamente dentro il lato» sulla posizione dell'estremo. La prima stesura ne aveva anche uno,
+		// e la verifica di mutazione ha dimostrato che era morto: rimosso il vincolo, **nessun test cadeva**.
+		// Il motivo e' geometrico e vale sempre: se un estremo del muro giace sulla retta del bordo, quel
+		// punto E' l'intersezione fra le due rette; e se i due vertici stanno da parti strettamente opposte
+		// del muro, l'intersezione cade strettamente fra loro. Un estremo su un vertice, invece, mette quel
+		// vertice SULLA retta del muro, quindi il suo segno e' zero e il prodotto non e' mai negativo.
+		// ⚠️ Una condizione implicata da un'altra non e' difesa in profondita': e' una riga che sembra
+		// proteggere `MSE-4` e non la protegge, cioe' il posto dove il prossimo smette di cercare.
+		if (D1 * D2 < 0 && (D3 == 0 || D4 == 0))
+		{
+			return true;
+		}
+
 		return false;
 	}
 }
@@ -91,9 +142,28 @@ void URTGeometryBakeLibrary::EdgesTouchedBy(const FRTGeometrySegment& Segment, f
 	TArray<FVector2D> Boundary;
 	URTHexOccupancyLibrary::SectorBoundaryPoints(HexSize, Boundary);
 
-	// Il lato `k` va dal vertice `2k` al vertice `2k+2`; la sua direzione e' `ERTHexDirection(k)` perche' il
-	// suo punto medio e' il confine `2k+1`, a `60k` gradi. Iterazione in ordine crescente: l'esito non
-	// dipende da come il segmento e' arrivato.
+	// Il lato geometrico `k` va dal vertice `2k` al vertice `2k+2`, e il suo punto medio e' il confine
+	// `2k+1`, a `60k` gradi.
+	//
+	// 🔴 **`k` NON e' `ERTHexDirection(k)`, e per quattro bordi su sei e' un'altra cosa.** Questa riga
+	// faceva un `static_cast` diretto, e la seduta `U22` ha visto il muro comparire sul lato opposto.
+	// Le due numerazioni girano in verso contrario:
+	//
+	// ```text
+	// bordo geometrico k        punto medio a 60k gradi   ->   0    60   120   180   240   300
+	// ERTHexDirection j         AxialDirection(j) punta a  ->   0   300   240   180   120    60
+	// ```
+	//
+	// `E` (0) e `W` (3) coincidono perche' sono i due punti fissi del rispecchiamento; i quattro diagonali
+	// si scambiano a coppie — `NE↔SE`, `NW↔SW`. La corrispondenza giusta e' quindi `j = (6 - k) % 6`.
+	//
+	// ⚠️ **Non e' un dettaglio di presentazione.** `ERTHexDirection` significa *«verso quel vicino»* — lo
+	// dicono `NeighborAcross` in `RTHexDoorLibrary` e la risoluzione della copertura in
+	// `RTHexCombatLibrary`, che cercano quale cella dell'anello sta in quella direzione. Una copertura
+	// scritta sul diagonale sbagliato blocca vista e passo **dal lato opposto** a quello disegnato.
+	//
+	// ⚠️ Il difetto e' sopravvissuto perche' i test della cottura usano tutti `E` o `W`, cioe' proprio i
+	// due casi in cui il rispecchiamento non si vede. `BakeCoverLandsTowardTheNeighbour` copre i sei.
 	for (int32 Edge = 0; Edge < 6; ++Edge)
 	{
 		const FVector2D& V0 = Boundary[(2 * Edge) % RT_OccupancySectorCount];
@@ -101,13 +171,33 @@ void URTGeometryBakeLibrary::EdgesTouchedBy(const FRTGeometrySegment& Segment, f
 
 		if (RTGeometryBakeInternal::SegmentClosesEdge(Line.Points[0], Line.Points[1], V0, V1))
 		{
-			OutEdges.Add(static_cast<ERTHexDirection>(Edge));
+			OutEdges.Add(URTHexLibrary::DirectionForEdgeIndex(Edge));
 		}
 	}
+
+	// L'ordine crescente e' parte del contratto dichiarato nell'header, e il rimappaggio lo romperebbe
+	// (produce 0,5,4,3,2,1). Si riordina qui invece di cambiare la promessa: due mappe uguali non devono
+	// differire per come le coperture ci sono finite dentro.
+	OutEdges.Sort([](const ERTHexDirection& A, const ERTHexDirection& B)
+	{
+		return static_cast<uint8>(A) < static_cast<uint8>(B);
+	});
 }
 
 int32 URTGeometryBakeLibrary::BakeCell(URTHexMapAsset* Map, const FRTCellId& CellId,
 	const TArray<FRTGeometrySegment>& Segments, float HexSize)
+{
+	return RTGeometryBakeInternal::Bake(Map, CellId, Segments, HexSize, /*bReplaceGenerated=*/ true);
+}
+
+int32 URTGeometryBakeLibrary::AddSegmentsToCell(URTHexMapAsset* Map, const FRTCellId& CellId,
+	const TArray<FRTGeometrySegment>& Segments, float HexSize)
+{
+	return RTGeometryBakeInternal::Bake(Map, CellId, Segments, HexSize, /*bReplaceGenerated=*/ false);
+}
+
+int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
+	const TArray<FRTGeometrySegment>& Segments, float HexSize, bool bReplaceGenerated)
 {
 	if (Map == nullptr)
 	{
@@ -122,9 +212,28 @@ int32 URTGeometryBakeLibrary::BakeCell(URTHexMapAsset* Map, const FRTCellId& Cel
 
 	FRTHexCellData Updated = *Existing;
 
-	// 1. Via le PROPRIE. Quelle a mano restano dove sono: e' cio' che rende il rebake idempotente senza
-	//    diventare distruttivo, ed e' la meta' di `D-131` che senza il campo non sarebbe esprimibile.
-	Updated.Covers.RemoveAll([](const FRTHexCover& Cover) { return Cover.bGenerated; });
+	// 1. Via le PROPRIE — **solo in rebake**. Quelle a mano restano dove sono: e' cio' che rende il rebake
+	//    idempotente senza diventare distruttivo, ed e' la meta' di `D-131` che senza il campo non sarebbe
+	//    esprimibile.
+	//    ⚠️ In modo ADDITIVO questo passo si salta, ed e' l'intera differenza fra le due vie. Il disegno
+	//    vede un gesto per volta e non possiede l'elenco dei segmenti della cella: farglielo eseguire
+	//    significava cancellare il muro precedente a ogni tratto — il difetto trovato in `U22` disegnando
+	//    due muri che condividono un vertice.
+	if (bReplaceGenerated)
+	{
+		Updated.Covers.RemoveAll([](const FRTHexCover& Cover) { return Cover.bGenerated; });
+	}
+
+	// 1-bis. I muri INTERNI, cioe' quelli che non chiudono nessun bordo (formato v10, #712).
+	//        ⚠️ Nessuna copertura puo' rappresentarli: una corda che taglia la cella passando per due
+	//        vertici opposti non giace su nessun confine. Prima venivano calcolati, disegnati come
+	//        anteprima e poi buttati via senza dirlo.
+	//        In rebake si azzerano insieme alle coperture generate, per lo stesso motivo e con la stessa
+	//        semantica: sono l'altra meta' di cio' che quel segmento ha prodotto.
+	if (bReplaceGenerated)
+	{
+		Map->InteriorWalls.RemoveAll([&CellId](const FRTHexInteriorWall& Wall) { return Wall.Cell == CellId; });
+	}
 
 	// 2. Che cosa murerebbero i segmenti correnti. `High` prevale su `Low` se due segmenti insistono sullo
 	//    stesso bordo: regola deterministica, invece di «vince l'ultimo arrivato».
@@ -132,7 +241,47 @@ int32 URTGeometryBakeLibrary::BakeCell(URTHexMapAsset* Map, const FRTCellId& Cel
 	for (const FRTGeometrySegment& Segment : Segments)
 	{
 		TArray<ERTHexDirection> Edges;
-		EdgesTouchedBy(Segment, HexSize, Edges);
+		URTGeometryBakeLibrary::EdgesTouchedBy(Segment, HexSize, Edges);
+
+		if (Edges.Num() == 0)
+		{
+			// Non chiude niente: e' un muro interno. Ci finisce SOLO cio' che nessuna copertura descrive —
+			// un segmento che chiude anche un solo bordo e' gia' rappresentato da quella, e scriverlo anche
+			// qui sarebbe una seconda verita' sullo stesso muro.
+			//
+			// 🔴 **«Non chiude bordi» non significa «e' valido».** `EdgesTouchedBy` esce con l'elenco vuoto
+			// anche su un segmento FUORI GRAMMATICA, perche' `ToPolyline` gli restituisce una polilinea
+			// vuota — quindi senza questo controllo i due casi finivano nello stesso ramo e un segmento
+			// illegale veniva serializzato nell'asset. Il tool non ci arriva (`SnapToGrammar` filtra a
+			// monte), ma questa e' una `UBlueprintFunctionLibrary`: la difesa a monte vale per un chiamante
+			// solo, e ce n'e' gia' un secondo il giorno in cui qualcuno chiama la libreria.
+			if (URTGeometryGrammarLibrary::ValidateSegment(Segment) != ERTGeometryViolation::None)
+			{
+				continue;
+			}
+
+			// ⚠️ Il confronto e' `operator==`, non una copia scritta a mano dei suoi campi. La prima stesura
+			// li elencava uno per uno e confrontava `AlongStart` con `AlongStart`: ma quell'operatore usa
+			// `Min`/`Max` sugli estremi, e il suo commento dice perche' — *«un segmento e' lo STESSO
+			// segmento anche percorso al contrario»*. Tracciando `V1→V2` e poi `V2→V1` il duplicato
+			// passava. Riscrivere a mano un confronto che esiste gia' e' esattamente il difetto che questa
+			// seduta ha inseguito otto volte.
+			// ⚠️ `WallType` si confronta a parte perche' `operator==` NON lo include: due muri sulla stessa
+			// giacitura ma di tipo diverso sono due muri, e la regola `High` su `Low` vale sui bordi, dove
+			// il bordo e' unico — qui la giacitura non lo e'.
+			const bool bAlready = Map->InteriorWalls.ContainsByPredicate(
+				[&CellId, &Segment](const FRTHexInteriorWall& Wall)
+				{
+					return Wall.Cell == CellId
+						&& Wall.Segment == Segment
+						&& Wall.Segment.WallType == Segment.WallType;
+				});
+			if (!bAlready)
+			{
+				Map->InteriorWalls.Add(FRTHexInteriorWall(CellId, Segment));
+			}
+			continue;
+		}
 
 		for (const ERTHexDirection Edge : Edges)
 		{
@@ -156,12 +305,29 @@ int32 URTGeometryBakeLibrary::BakeCell(URTHexMapAsset* Map, const FRTCellId& Cel
 			continue;
 		}
 
-		// Una copertura dipinta a mano vince: il bordo e' gia' suo, e il rebake non la sostituisce.
-		const bool bHandPainted = Updated.Covers.ContainsByPredicate(
+		// Chi c'e' gia' su questo bordo? Un bordo ha al massimo una copertura — invariante di `ValidateMap`.
+		FRTHexCover* Present = Updated.Covers.FindByPredicate(
 			[Edge](const FRTHexCover& Cover) { return Cover.Edge == Edge; });
-		if (bHandPainted)
+
+		if (Present != nullptr)
 		{
-			continue;
+			// Una copertura dipinta a mano vince sempre: il bordo e' gia' suo, e nessuna delle due vie la
+			// sostituisce.
+			if (!Present->bGenerated)
+			{
+				continue;
+			}
+
+			// ⚠️ Qui arriva SOLO la via additiva: in rebake le generate sono gia' state rimosse al passo 1,
+			// quindi `Present` non puo' essere generata. Una generata che incontra un nuovo segmento segue
+			// la stessa regola dei due segmenti sullo stesso bordo — `High` prevale su `Low` — invece di
+			// «vince l'ultimo arrivato», che renderebbe il risultato dipendente dall'ordine del disegno.
+			if (*Type == ERTHexCoverType::High && Present->Type != ERTHexCoverType::High)
+			{
+				Present->Type = ERTHexCoverType::High;
+				Present->Integrity = FRTHexCover::DefaultIntegrity(ERTHexCoverType::High);
+			}
+			continue; // niente da CONTARE: la copertura c'era gia', questo gesto non ne ha aggiunta una
 		}
 
 		FRTHexCover Cover(Edge, *Type, FRTHexCover::DefaultIntegrity(*Type));

@@ -17,9 +17,13 @@ Carica il contesto in questo ordine, **solo quando pertinente**:
 5. Stato/scope: `docs/roadmap/roadmap-checkpoint.md` + `docs/roadmap/roadmap-v0.1.md`.
 6. Feature: specifica owner + cataloghi `docs/balance/` + test + implementazione esistente.
 
-Usa search/grep prima di aprire file lunghi. `docs/src/` è input/north-star non ancora consumato: non usarlo
-come autorità implicita. `docs/archive/` è storico, e `docs/archive/src/` conserva i sorgenti già recepiti —
-utile per la provenienza, mai per la regola.
+Usa search/grep prima di aprire file lunghi. `docs/research/` è input/north-star non ancora consumato: non
+usarlo come autorità implicita. `docs/archive/` è storico, e `docs/archive/src/` conserva i sorgenti già
+recepiti — utile per la provenienza, mai per la regola.
+
+> ⚠️ **Era `docs/src/` fino al 2026-08-19, e quella cartella non esiste più** (`git ls-files docs/src` → zero,
+> [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165)). Chi seguiva questa riga
+> cercava una cartella vuota e non leggeva mai la casella di posta reale.
 
 Un `.pdf` non è **mai** autoritativo (**D-009**): resta fuori dal preflight e si apre solo per provenienza,
 rationale storico o confronto richiesto; se è l'export di una spec Markdown corrente, vince il Markdown. La
@@ -76,7 +80,7 @@ Tre trappole che questo repository ha già pagato:
 - **Prima di chiudere si riesegue il pass.** Una issue chiusa con tracking incoerenti è incompleta — e il
   DoD si consuntiva nel commento di chiusura, non spuntando il body.
 
-Owner della regola: [`docs/technical/issue-tracking-completeness.md`](docs/technical/issue-tracking-completeness.md).
+Owner della regola: [`docs/technical/tooling/issue-tracking-completeness.md`](docs/technical/tooling/issue-tracking-completeness.md).
 
 ## 4. Classifica il task
 
@@ -99,20 +103,16 @@ Per implementazioni non banali, preflight breve:
 - Niente branch per eroe nel core quando il comportamento può essere data-driven/componibile.
 - Nei test non aggirare il gameplay con `SetActorLocation`, `ApplyDamage` o `if (IsTest)` che salta la regola.
 - Non modificare `.uasset`/`.umap` a mano; i passi Editor restano verifiche manuali finché non eseguiti.
-  I binari sono **human-first, non human-only** (**D-139**): li tocchi solo con una **Binary Asset Lease**
-  esclusiva dichiarata nel batch, un holder per path, e solo attraverso Unreal. Due `.uasset` non si fondono.
+  I binari sono **human-first**: li tocchi solo su richiesta esplicita e attraverso Unreal. Due `.uasset`
+  non si fondono, quindi un binario si modifica da un lavoro solo per volta.
 - Prima di cancellare/rinominare cerca riferimenti C++, config, reflection, soft reference e Blueprint.
 - Un handoff/audit non è autorità e non autorizza da solo a implementare tutto ciò che contiene.
-- Lavoro parallelo: **una sessione esecutiva per worktree**. Se due task condividono una working
-  directory, dillo invece di conviverci.
-- **File non assegnato = STOP** (**D-139**): il path deve stare nel `writable` della tua track in
-  `docs/roadmap/parallel-batch.yaml`. Altrimenti ti fermi e lo dici — niente «solo questa piccola fix».
-  `integration_only` si aggiorna una volta in integrazione; una vista generata **segue la sorgente** —
-  la rigenera chi possiede la sorgente, e nessun altro. Il write-set di un branch aperto si **misura**
-  (`git diff --name-only origin/main...<branch>`), non si ricorda.
-- `D-nnn` non si sceglie a mano: `python scripts/rt_shared_id.py reserve D` — si usa l'ID che stampa
-  (**D-135**).
-- Prima del merge: `rt_shared_id.py check`, poi `git fetch --prune origin` e `audit-refs`.
+- **Sviluppo sequenziale** (**D-178**): una sessione esecutiva, una working directory, un branch alla
+  volta. Niente worktree per parallelizzare: un task troppo grosso si spezza in issue che si fanno in
+  fila. Se due task condividono una working directory, dillo invece di conviverci.
+- `D-nnn` si legge dall'ultimo assegnato nel Decision Log e si **riverifica prima del merge**: una PR
+  aperta che rivendica lo stesso ID con una tesi diversa è una collisione, e rinumeri la seconda.
+- Prima del merge: `git fetch --prune origin`, poi `gh pr list --state open` per gli ID in volo.
 
 ## 6. Decision Boundary
 

@@ -11,12 +11,13 @@
 
 ## Perché esiste
 
-Sette documenti di `docs/src/` prodotti il 2026-08-07/08 descrivono sistemi che **non stanno nella v0.1**:
+Sette documenti prodotti il 2026-08-07/08 nell'allora `docs/src/` — oggi in `docs/archive/src/` — descrivono
+sistemi che **non stanno nella v0.1**:
 roster a 8, Cover Window, architettura di muri e porte, formato competitivo 3v3, bot tattico ed esperto,
-mappe Operations. Finché sono rimasti solo lì, ogni sessione ha dovuto ridecidere da capo se una cosa fosse
-v0.1 o no. Questo file registra quella ripartizione una volta sola.
+mappe Operations. Finché sono rimasti solo nella casella d'ingresso, ogni sessione ha dovuto ridecidere da
+capo se una cosa fosse v0.1 o no. Questo file registra quella ripartizione una volta sola.
 
-**Fonti** (tutte in `docs/src/`, non normative — vedi [`../src/`](../src/)):
+**Fonti** (tutte in `docs/archive/src/`, non normative — vedi [`../archive/src/`](../archive/src/)):
 
 | Sorgente | Alimenta |
 |---|---|
@@ -152,7 +153,7 @@ applica invece di ridiscutere.
 > 🔑 **L'unica release che acquisisce un impegno nuovo è la v1.0**, e non in asset: **E45** è «un gate di
 > produzione, non una release di feature», ed è dove il contratto di ingombro e pivot **si congela** perché
 > l'arte finale possa sostituire il graybox senza cambiare le regole competitive. Il contratto vive in
-> [`../technical/spec-graybox-placement-contract.md`](../technical/spec-graybox-placement-contract.md).
+> [`../technical/systems/spec-graybox-placement-contract.md`](../technical/systems/spec-graybox-placement-contract.md).
 
 > **Numerazione continua.** Le epic proseguono da E18 (ultima della v0.1) senza azzerarsi per release: un
 > riferimento a «E23» resta univoco per sempre. Le due epic **E19** ed **E20** appartengono alla **v0.1** pur

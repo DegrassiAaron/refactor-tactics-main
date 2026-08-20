@@ -1,6 +1,13 @@
 {
   "schemaVersion": 2,
   "datasetVersion": "v0.4",
+  "_snapshot": {
+    "status": "HISTORICAL",
+    "describes": "lo stato del dataset v0.4, coppia di RefactorTactics_Characters_Wiki_Data_v0.4.xlsx",
+    "supersededBy": "D-130 — il roster v0.1 e' Gadget/Phase/Riktor/Wraith dal 2026-08-13",
+    "warning": "officialRoster.v0.1 e 4 voci di pages nominano il roster ritirato: 4 degli 11 path (v0.1/bastion|flux|riva|vektor.md) NON esistono piu'. Non sono un indice da seguire e non si correggono: riscriverli falsificherebbe cosa conteneva il dataset v0.4. Il roster corrente vive in docs/characters/v0.1/, l'indice in docs/characters/index.md.",
+    "annotatedOn": "2026-08-18"
+  },
   "narrativeFields": [
     "05_Hero_Mechanics.Descrizione_Wiki",
     "06_Abilities.Descrizione_Wiki",

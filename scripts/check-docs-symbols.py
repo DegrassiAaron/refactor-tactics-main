@@ -12,7 +12,10 @@ Uso:
 Esce con codice 1 se un documento normativo cita un simbolo assente da Source/.
 
 Esenzioni, per costruzione e non per elenco a mano:
-  - le cartelle di storico (`archive/`, `src/`, `roadmap/plans/`);
+  - le cartelle di storico e di input non consumato — l'elenco vive **una volta sola**, in
+    `EXEMPT_DIRS`: qui si dice cosa sono, non quali sono, perche' un elenco scritto due volte
+    diverge alla prima aggiunta (ed e' successo: `AGENTS.md` elencava i gate per nome e ne
+    conosceva tre su sei);
   - i documenti che dichiarano in testa di essere storici (banner ⚠️/📦/ℹ️ delle prime righe).
 Un documento che vuole citare API rimosse deve dirlo: e' esattamente la disciplina che il gate impone.
 """
@@ -24,7 +27,21 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS = os.path.join(REPO, "docs")
 SOURCE = os.path.join(REPO, "Source")
 
-EXEMPT_DIRS = ("docs/archive/", "docs/src/", "docs/roadmap/plans/")
+# ⚠️ Queste esenzioni sono per **prefisso di path**, quindi spostare un documento ne cambia la
+# copertura **senza che nessuno lo dica**. Misurato il 2026-08-17 con `EXEMPT_DIRS = ()`: lo scope
+# passa da 155 a 389 documenti e il gate esce 1 su due file (`docs/research/prd/prd-architettura-rete-e-intenti.md`,
+# `docs/roadmap/plans/replay-canonical-intent-triage-2026-08-17.md`). E' il rischio principale della
+# riorganizzazione di #1165, ed e' per questo che i nomi nuovi entrano qui **prima** che la cartella
+# esista — stessa disciplina dell'allowlist di `.gitignore`, dove la riga aggiunta dopo non fa niente
+# e non lo dice.
+#
+# ➕ `docs/research/` dal 2026-08-18, ➖ `docs/src/` dal 2026-08-19: la seconda e' stata svuotata dalle
+# fasi 2 e 3 di #1165 e non ha piu' file versionati. Cambia il nome, non la natura — resta materiale
+# che **non descrive il codice di oggi** — e la prova che la copertura non e' cambiata e' il numero:
+# **155 documenti** prima dello spostamento e 155 dopo. Un gate il cui scope cala stampa `OK` lo stesso.
+# ⛔ `docs/generated/` NON entra, ed e' deliberato: un artefatto generato che cita un simbolo
+# inesistente e' un difetto del **generatore**, e un gate che tace su di lui lo nasconde.
+EXEMPT_DIRS = ("docs/archive/", "docs/research/", "docs/roadmap/plans/")
 
 # Documenti che si dichiarano storici o propositivi: non descrivono il codice di oggi.
 EXEMPT_MARKERS = (

@@ -5,6 +5,167 @@
 #include "Combat/RTCombatLibrary.h" // DeflectDamageReduction: il numero della riduzione resta uno solo
 #include "Map/RTHexCellData.h"     // ERTHexDoorState: `Action.Interact` dichiara lo stato che chiede (D-151)
 
+TArray<FRTReactionProfileDef> URTCatalogLibrary::GetReactionProfileCatalog()
+{
+	// I tre profili di `spec-reaction-clash-e14.md` §2.5, e **tre e' il numero giusto**: Riktor non ne ha uno
+	// perche' `Hold Ground` fa gia' cio' che il suo `ANCHOR` avrebbe fatto. Vedi il commento della
+	// dichiarazione — qui non si ripete, si esegue.
+	//
+	// I token NON portano il prefisso d'eroe: `Profile.Sidestep` e non `Phase.Sidestep`. E' cio' che permette
+	// di riassegnare un profilo quando il roster cresce, senza che il rename tocchi un dato di gioco.
+	//
+	// ⚠️ **`static const`, e non e' micro-ottimizzazione**: questi dati sono costanti di compilazione, e la
+	// funzione e' sulla strada calda di tre chiamanti diversi — il loader la interroga **per decisione** (due
+	// volte sul ramo d'errore, per comporre il messaggio), l'harness **per finestra**, e il resolver **per
+	// unita' in `Brace` per Blast**. Senza lo `static` ogni giro ricostruiva tre `FRTReactionProfileDef` con
+	// i loro `TArray` annidati e le `FString`. Misurato da una code review, non supposto.
+	//
+	// 🔴 **Gli EFFETTI ci sono per uno solo dei tre, e le due assenze sono un registro.** `spec-reaction-clash-e14.md`
+	// §2.5 e [D-132] dichiarano aperti «Charge del `Grounding`» e «ampiezza della deviazione»: sono
+	// bilanciamento, e inventarli qui sarebbe deciderli di nascosto in un file di catalogo. Finche' restano
+	// aperti, `BraceExecutableResponses` non offre quelle due risposte — la cardinalita' DICHIARATA di [D-132]
+	// (2/2/3) non si muove di un valore, e il resolver non apre una finestra su una scelta che non sa
+	// applicare. Chi chiude una delle due voci aggiunge gli effetti qui, e non serve altro.
+	static const TArray<FRTReactionProfileDef> Catalog = {
+		{ FName(TEXT("Profile.Grounding")), { FRTReactionResponseDef(TEXT("GROUND"), {}) } },
+
+		// `SIDESTEP` si esprime con `SelfReposition`, e NON e' una primitiva scelta per comodita': `BAS-4`
+		// decide che questo profilo «risponde al **Forced Movement**» nella stessa forma di
+		// `Riva.FlowReaction`, cioe' `Reposition 1`. La stessa che `Reaction.EmergencyDash` e
+		// `Reaction.HazardEscape` gia' usano — quindi lo spostamento passa dai dieci passi di
+		// `ApplyForcedDisplacement` (causa nel TurnLog, hazard attraversati, facing, piano che segue) invece
+		// di essere un `SetActorLocation` di questa feature.
+		//
+		// ⚠️ **`1` non e' un numero nuovo**: e' l'`Amount` che quelle due reazioni portano da D-093. La
+		// «ampiezza della deviazione» che §2.5 lascia aperta riguarda `GLANCE`, non questo.
+		//
+		// 🔴 **La GEOMETRIA e' cambiata il 2026-08-19, e questo commento diceva il contrario.** Sosteneva che
+		// ci si allontana lungo la linea di chi spinge, e che «la scelta vera esiste contro le spinte di 2».
+		// Una code review ha misurato che e' falso: il ramo `Status.Braced` blocca la spinta a QUALUNQUE
+		// distanza, quindi contro la spinta di 2 `Hold Ground` tiene la cella e `SIDESTEP` la cedeva — a
+		// danno identico. Era una risposta **strettamente dominata**, cioe' un prompt che non compra niente.
+		// Ora lo scarto ESCE dalla linea: `URTReactionLibrary::FindSidestepCell`, spec §2.5-bis.
+		//
+		// ⚠️ **L'`Amount` non e' piu' una distanza e resta `1` di proposito**: uno scarto e' di una cella per
+		// definizione — «esci dalla linea» non ha un multiplo. Il valore serve al resolver per DISTINGUERE una
+		// risposta che sposta da una che non sposta, ed e' l'unico modo in cui il catalogo puo' dirlo senza un
+		// ramo per token. La primitiva resta quella di D-093, non ne nasce una nuova.
+		{ FName(TEXT("Profile.Sidestep")),  { FRTReactionResponseDef(TEXT("SIDESTEP"),
+			{ FRTActionEffectSpec(ERTActionEffect::SelfReposition, 1) }) } },
+
+		{ FName(TEXT("Profile.Glance")),    { FRTReactionResponseDef(TEXT("GLANCE LEFT"),  {}),
+		                                      FRTReactionResponseDef(TEXT("GLANCE RIGHT"), {}) } }
+	};
+	return Catalog;
+}
+
+FRTReactionProfileDef URTCatalogLibrary::FindReactionProfile(const FName& ProfileId)
+{
+	if (!ProfileId.IsNone())
+	{
+		for (const FRTReactionProfileDef& Def : GetReactionProfileCatalog())
+		{
+			if (Def.ProfileId == ProfileId)
+			{
+				return Def;
+			}
+		}
+	}
+
+	// Profilo base: id vuoto e nessuna risposta extra. Ci si arriva da due strade — chi non ne dichiara uno
+	// (Riktor) e chi ne dichiara uno che il catalogo non conosce — e l'esito e' lo stesso di proposito:
+	// cardinalita' 1, nessuna finestra. Inventare risposte per un profilo assente aprirebbe un boundary su
+	// scelte che il gioco non ha.
+	return FRTReactionProfileDef();
+}
+
+TArray<FString> URTCatalogLibrary::BraceAllowedResponses(const FName& ProfileId)
+{
+	// `Hold Ground` PRIMA e sempre: e' la risposta universale, ed e' anche il fallback che §9 assegna al
+	// difensore allo scadere della finestra. La sua posizione non e' estetica — un `AllowedResponses` il cui
+	// primo elemento non fosse la scelta sicura renderebbe l'ordine dell'array una regola implicita.
+	TArray<FString> Responses = { TEXT("Hold Ground") };
+	for (const FRTReactionResponseDef& Extra : FindReactionProfile(ProfileId).ExtraResponses)
+	{
+		// Il TOKEN, non gli effetti: questa funzione risponde a «cosa dichiara il profilo», ed e' la
+		// cardinalita' che [D-132] ha deciso. Filtrare qui per effetti disponibili farebbe dire al catalogo
+		// che Wraith ha una risposta sola, cioe' cambierebbe un contenuto deciso per una lacuna di runtime.
+		Responses.Add(Extra.Response);
+	}
+	return Responses;
+}
+
+TArray<FString> URTCatalogLibrary::BraceExecutableResponses(const FName& ProfileId)
+{
+	// `Hold Ground` c'e' sempre e per prima, come sopra: e' la risposta universale ed e' il fallback che §9
+	// assegna al difensore allo scadere della finestra. Non ha effetti dichiarati e non e' un'eccezione a
+	// questa funzione — il suo esito e' il ramo `Status.Braced` del resolver, che gira da CP 5.2.
+	TArray<FString> Responses = { TEXT("Hold Ground") };
+	for (const FRTReactionResponseDef& Extra : FindReactionProfile(ProfileId).ExtraResponses)
+	{
+		if (Extra.Effects.Num() > 0)
+		{
+			Responses.Add(Extra.Response);
+		}
+	}
+	return Responses;
+}
+
+TArray<FString> URTCatalogLibrary::AllReactionProfileResponses()
+{
+	// `static const` per la stessa ragione di `GetReactionProfileCatalog`: il loader interroga questa funzione
+	// **per ogni decisione**, e sul ramo d'errore una seconda volta per comporre il messaggio.
+	static const TArray<FString> All = []
+	{
+		// Si parte da `Hold Ground` perche' e' universale: appartiene a ogni profilo, compreso quello base, e
+		// nessuna voce del catalogo la elenca — per costruzione, come dichiara `FRTReactionProfileDef`.
+		TArray<FString> Responses = BraceAllowedResponses(NAME_None);
+
+		for (const FRTReactionProfileDef& Profile : GetReactionProfileCatalog())
+		{
+			for (const FRTReactionResponseDef& Extra : Profile.ExtraResponses)
+			{
+				// `AddUnique` e non `Add`: due profili possono offrire la stessa risposta — oggi non capita, e
+				// il giorno in cui capitasse un elenco con un duplicato farebbe stampare due volte lo stesso
+				// token nel messaggio d'errore del loader, che e' il posto in cui si va a leggere quando
+				// qualcosa non torna.
+				Responses.AddUnique(Extra.Response);
+			}
+		}
+		return Responses;
+	}();
+
+	return All;
+}
+
+bool URTCatalogLibrary::IsKnownReactionProfileResponse(const FString& Response)
+{
+	// Confronto esatto e case-sensitive, come `URTReactionOpportunityLibrary::IsResponseAllowed`: le due
+	// domande sono diverse — «esiste nel catalogo» contro «e' legale in questa finestra» — ma se una fosse
+	// piu' tollerante dell'altra ci sarebbe una risposta accettata dal loader e rifiutata dal resolver, cioe'
+	// uno scenario che si carica e poi non decide.
+	return AllReactionProfileResponses().ContainsByPredicate([&Response](const FString& Known)
+	{
+		return Known.Equals(Response, ESearchCase::CaseSensitive);
+	});
+}
+
+TArray<FRTActionEffectSpec> URTCatalogLibrary::BraceResponseEffects(const FName& ProfileId,
+	const FString& Response)
+{
+	for (const FRTReactionResponseDef& Extra : FindReactionProfile(ProfileId).ExtraResponses)
+	{
+		// Confronto ESATTO e case-sensitive, come `URTReactionOpportunityLibrary::IsResponseAllowed`: la
+		// risposta arriva da `AllowedResponses`, che questo stesso catalogo ha costruito, e una tolleranza qui
+		// significherebbe eseguire una risposta con un nome che il profilo non ha mai offerto.
+		if (Extra.Response.Equals(Response, ESearchCase::CaseSensitive))
+		{
+			return Extra.Effects;
+		}
+	}
+	return {};
+}
+
 ERTMatchPhase URTCatalogLibrary::MapResolutionPhase(ERTResolutionPhase Phase)
 {
 	// Funzione TOTALE: un caso per ogni valore dell'enum, nessun `default` che nasconda una fase dimenticata

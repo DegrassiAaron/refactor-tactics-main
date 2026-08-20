@@ -106,7 +106,7 @@ a 7, perché dipende dal fatto che **nessuna** azione ci arrivi.
 | Documento | Impatto |
 |---|---|
 | [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) §8 | «fog of war» è classificata north-star P1. Lo slice **non** è fog of war (la mappa statica resta nota), ma la distinzione va scritta, altrimenti sembra scope creep |
-| [`h6-4-hex-vision-spec.md`](../technical/h6-4-hex-vision-spec.md) §6 | dichiara `VisibleCells` fuori scope. Va aggiornata: lo slice la introduce |
+| [`h6-4-hex-vision-spec.md`](../technical/systems/h6-4-hex-vision-spec.md) §6 | dichiara `VisibleCells` fuori scope. Va aggiornata: lo slice la introduce |
 | [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md) | il fumo ha già una regola (`Obscured`, cap targeting a **2**). **Prevale il catalogo**: niente densità progressiva |
 | [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) | la frase «Riktor compra HP e resistenza con movimento **e vista**» diventa vera solo con questo slice; oggi è falsa |
 | `Core/RTGameplayTags.h` | `Status.Reveal` è già dichiarato e mai implementato: è il gancio naturale per «rivelato per un turno» |

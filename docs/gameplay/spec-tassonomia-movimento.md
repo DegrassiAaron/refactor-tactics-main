@@ -4,7 +4,7 @@
 > Creato il **2026-08-09** consolidando `RefactorTactics_Move_Consolidation_Claude.md` (kit d'autore).
 > Non sostituisce nessun documento: [`spec-dash.md`](spec-dash.md) resta owner del **Dash**,
 > [`spec-sequenza-turno.md`](spec-sequenza-turno.md) dell'**ordine delle fasi**,
-> [`../technical/spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md) del **grafo e dell'A\***.
+> [`../technical/architecture/spec-pathfinding-pf3-pf4.md`](../technical/architecture/spec-pathfinding-pf3-pf4.md) del **grafo e dell'A\***.
 > Qui vive ciò che nessuno di loro possiede: il confronto **fra le famiglie**.
 
 ## Perché esiste
@@ -300,7 +300,7 @@ perché il documento sembra più recente.
 | [`spec-sequenza-turno.md`](spec-sequenza-turno.md) | l'ordine delle fasi e dei boundary |
 | [`brief-azioni-generiche-overwatch.md`](brief-azioni-generiche-overwatch.md) | Overwatch e le sue policy |
 | [ADR-0005](../decisions/adr-0005-orientamento.md) | il facing come stato di gioco |
-| [`../technical/spec-pathfinding-pf3-pf4.md`](../technical/spec-pathfinding-pf3-pf4.md) | grafo, A\*, costi |
+| [`../technical/architecture/spec-pathfinding-pf3-pf4.md`](../technical/architecture/spec-pathfinding-pf3-pf4.md) | grafo, A\*, costi |
 | [`spec-economia-del-turno.md`](spec-economia-del-turno.md) | come il budget di movimento convive con gli **altri tre** limiti del turno. Quale slot occupa ciascuna famiglia resta la **§2** di questa pagina |
 | [`spec-compatibilita-azioni-movimento.md`](spec-compatibilita-azioni-movimento.md) | che il profilo scelto cambi **legalità ed efficacia** delle azioni: `AE-2`, chiusa da [D-116](../decisions/RT_PDR_00_Decision_Log.md) il 2026-08-12 col modello a **soglia** (`MinStability` contro `Stability`) |
 | *questa pagina* | il confronto **fra le famiglie** di movimento |
