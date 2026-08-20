@@ -612,4 +612,98 @@ bool FRTSnapRefusesPairsOffTheAxesTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #712 / seduta `U22`: TRASCINANDO LONTANO, IL MURO PARTE ANCORA DA DOVE HAI PREMUTO.
+ *
+ * 🔴 Non lo faceva. L'autore: *«continua a disegnare al centro degli esagoni e la linea non parte dal
+ * vertice iniziale, quando lo sposto lontano»*. Due difetti nella stessa riga, entrambi miei:
+ *
+ * ```text
+ * 1. l'aggancio dei due estremi era legato insieme  ->  se il secondo usciva dalla cella,
+ *                                                       il PRIMO perdeva il suo punto notevole
+ * 2. `Offset` era sempre la media dei due           ->  con un estremo lontano la media
+ *                                                       collassava a zero, cioe' al CENTRO
+ * ```
+ *
+ * Sono indipendenti, e per questo il test verifica **entrambe** le conseguenze: che il muro parta dal
+ * punto premuto, e che non finisca in mezzo alla cella.
+ *
+ * ⚠️ Il gesto di prova esce DAVVERO dalla cella (tre raggi), perche' e' li' che l'aggancio si spegneva.
+ * Un test con l'estremo appena fuori dal bordo non avrebbe visto niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSnapKeepsTheAnchorWhenDraggingFarTest,
+	"RefactorTactics.Geometry.SnapKeepsTheAnchorWhenDraggingFar",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSnapKeepsTheAnchorWhenDraggingFarTest::RunTest(const FString&)
+{
+	TArray<FVector2D> Boundary;
+	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, Boundary);
+	if (!TestEqual(TEXT("dodici punti di confine"), Boundary.Num(), RT_OccupancySectorCount))
+	{
+		return false;
+	}
+
+	// ⚠️ Il trascinamento NON deve essere radiale, e la prima stesura di questo test lo era: partendo da un
+	// punto e andando verso l'esterno lungo la sua stessa direzione si ottiene una retta che passa per il
+	// CENTRO — ed e' geometricamente giusto, non il difetto. Un gesto simile passava anche col codice
+	// rotto, perche' i due estremi hanno lo stesso offset e la media non sposta niente. Serve una direzione
+	// obliqua, che e' poi cio' che fa una mano: si preme su un vertice e si trascina altrove.
+	const TArray<double> ObliqueDegrees = { 20.0, -35.0, 70.0 };
+
+	int32 Checked = 0;
+	// ⚠️ E la pressione NON deve cadere esattamente sul punto notevole. La seconda stesura di questo test lo
+	// faceva, e la verifica di mutazione l'ha smontata: legando di nuovo insieme l'aggancio dei due estremi
+	// — il primo dei due difetti — **nessun test cadeva**, perche' su un'ancora esatta il punto agganciato
+	// e quello grezzo coincidono. Un gesto vero cade *vicino* al vertice, mai sopra.
+	const double AnchorWobble = static_cast<double>(TestHexSize) * 0.10;
+
+	for (int32 Index = 0; Index < Boundary.Num(); ++Index)
+	{
+		// Si preme su un punto notevole — vertice o punto medio, entrambi valgono come ancora.
+		const FVector2D Anchor = Boundary[Index];
+
+		for (const double Oblique : ObliqueDegrees)
+		{
+			// La pressione: vicino all'ancora, non sopra. Direzione dello scarto legata all'indice, cosi'
+			// l'esito resta deterministico e i dodici punti non ricevono tutti la stessa spinta.
+			const double WobbleAngle = FMath::DegreesToRadians(37.0 * Index);
+			const FVector2D Pressed(
+				Anchor.X + AnchorWobble * FMath::Cos(WobbleAngle),
+				Anchor.Y + AnchorWobble * FMath::Sin(WobbleAngle));
+
+			// E si trascina LONTANO e di traverso: tre raggi, fuori dalla cella, dove l'aggancio del
+			// secondo estremo si spegne per costruzione.
+			const double Base = FMath::Atan2(Anchor.Y, Anchor.X) + FMath::DegreesToRadians(Oblique);
+			const double Reach = static_cast<double>(TestHexSize) * 3.0;
+			const FVector2D Far(Reach * FMath::Cos(Base), Reach * FMath::Sin(Base));
+
+			FRTGeometrySegment Segment;
+			if (!TestTrue(FString::Printf(TEXT("punto %d a %.0f gradi: il gesto lungo si aggancia"),
+				Index, Oblique), URTGeometryGrammarLibrary::SnapToGrammar(Pressed, Far, TestHexSize, Segment)))
+			{
+				continue;
+			}
+
+			const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Segment, TestHexSize);
+			if (!TestEqual(FString::Printf(TEXT("punto %d a %.0f gradi: due estremi"), Index, Oblique),
+				Line.Points.Num(), 2))
+			{
+				continue;
+			}
+
+			++Checked;
+
+			// La riga che il difetto faceva fallire: il muro parte DAL PUNTO PREMUTO, non da dove la media
+			// fra i due offset lo faceva scivolare.
+			TestTrue(FString::Printf(TEXT("punto %d a %.0f gradi: il muro parte dall'ancora (%.1f,%.1f invece di %.1f,%.1f)"),
+				Index, Oblique, Line.Points[0].X, Line.Points[0].Y, Anchor.X, Anchor.Y),
+				Line.Points[0].Equals(Anchor, 0.5f));
+		}
+	}
+
+	TestEqual(TEXT("provati dodici punti per tre direzioni oblique"),
+		Checked, RT_OccupancySectorCount * ObliqueDegrees.Num());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

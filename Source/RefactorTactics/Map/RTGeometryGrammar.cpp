@@ -204,8 +204,14 @@ bool URTGeometryGrammarLibrary::SnapToGrammar(const FVector2D& LocalA, const FVe
 		return false; // due estremi sullo stesso punto notevole: non c'e' nessun muro da fare
 	}
 
-	const FVector2D SearchA = bBothOnNotablePoints ? SnappedA : LocalA;
-	const FVector2D SearchB = bBothOnNotablePoints ? SnappedB : LocalB;
+	// 🔴 **OGNI ESTREMO SI AGGANCIA PER CONTO SUO.** La prima stesura scriveva
+	// `bBothOnNotablePoints ? SnappedA : LocalA`, cioe' buttava via l'aggancio dell'estremo VICINO solo
+	// perche' l'altro era lontano — due decisioni indipendenti legate insieme per distrazione. L'effetto
+	// visto dall'autore: *«continua a disegnare al centro degli esagoni e la linea non parte dal vertice
+	// iniziale, quando lo sposto lontano»*. Trascinando fuori dalla cella il punto di partenza perdeva
+	// l'ancoraggio, e `Offset` tornava a essere una media che finiva quasi sempre a zero — cioe' il centro.
+	const FVector2D SearchA = bSnappedA ? SnappedA : LocalA;
+	const FVector2D SearchB = bSnappedB ? SnappedB : LocalB;
 
 	for (int32 AxisIndex = 0; AxisIndex < RT_TacticalAxisCount; ++AxisIndex)
 	{
@@ -230,9 +236,35 @@ bool URTGeometryGrammarLibrary::SnapToGrammar(const FVector2D& LocalA, const FVe
 
 		FRTGeometrySegment Candidate;
 		Candidate.Axis = Axis;
-		// Un solo offset per segmento: e' una retta, non una spezzata. La media e' cio' che minimizza
-		// l'errore quando il gesto non e' perfettamente parallelo all'asse.
-		Candidate.Offset = FMath::RoundToInt((OffsetA + OffsetB) * 0.5);
+
+		// Un solo offset per segmento: e' una retta, non una spezzata.
+		//
+		// 🔴 **Ma la media va usata solo quando NESSUN estremo e' ancorato.** Un estremo agganciato a un
+		// punto notevole e' una promessa — «il muro parte DA QUI» — e mediarlo con l'altro la rompe: basta
+		// che il gesto esca dalla cella perche' l'offset dell'ancora venga diluito fino a zero, cioe' fino
+		// al centro. E' il difetto che l'autore ha visto trascinando lontano.
+		//
+		// Non serve nessun controllo che la retta ci passi davvero: un punto notevole ha coordinate INTERE
+		// nel reticolo di ogni asse — misurato, sempre dentro `{0, ±6, ±9, ±12}` — quindi arrotondare il
+		// suo offset lo lascia dov'e'.
+		//
+		// ⚠️ `A` e' l'estremo della PRESSIONE e `B` quello del trascinamento (`UpdatePreview` passa
+		// `LocalStart` e `LocalEnd` in quest'ordine): l'asimmetria e' voluta, e in caso di dubbio comanda
+		// il punto da cui l'autore e' partito.
+		if (bSnappedA)
+		{
+			Candidate.Offset = FMath::RoundToInt(OffsetA);
+		}
+		else if (bSnappedB)
+		{
+			Candidate.Offset = FMath::RoundToInt(OffsetB);
+		}
+		else
+		{
+			// La media minimizza l'errore quando il gesto non e' parallelo all'asse e non c'e' nessuna
+			// ancora da rispettare: e' il caso del muro lungo che attraversa la cella da parte a parte.
+			Candidate.Offset = FMath::RoundToInt((OffsetA + OffsetB) * 0.5);
+		}
 		Candidate.AlongStart = FMath::RoundToInt(AlongA);
 		Candidate.AlongEnd = FMath::RoundToInt(AlongB);
 		Candidate.Layer = 0;
