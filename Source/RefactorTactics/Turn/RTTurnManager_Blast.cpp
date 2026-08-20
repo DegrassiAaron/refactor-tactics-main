@@ -1210,6 +1210,41 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				const FRTReactionDecision BraceDecision = AskReactionDecision(
 					BraceOpportunity, BraceOpportunity.Key.OwnerId, T->bIsBotControlled);
 
+				// ➕ **La decisione entra nel TurnLog** (v10, [D-047]), e non e' una rifinitura di
+				// diagnostica: senza questa voce la ri-simulazione **perde lo scarto**.
+				// `ArmRecordedReactionDecisions` non troverebbe la chiave, segnalerebbe «finestra non coperta
+				// dalla traccia» e applicherebbe la scelta sicura — quindi l'unita' che aveva scartato
+				// resterebbe ferma nel replay, e il Verifier accuserebbe la traccia di un difetto dello
+				// **scrittore**.
+				//
+				// ⚠️ **Solo se una finestra si e' aperta davvero.** Il caso degenere — profilo base,
+				// `HoldImmediate` — non produce voce, e non per risparmiare: `ArmRecordedReactionDecisions`
+				// **scarta in ingresso** gli `HoldImmediate`, quindi una voce del genere resterebbe non
+				// consumata a fine corsa e verrebbe riportata come **orfana** su una ri-simulazione riuscita.
+				// Scriverla sarebbe un falso allarme costruito qui e diagnosticato altrove.
+				if (BraceDecision.Outcome != ERTReactionDecisionOutcome::HoldImmediate)
+				{
+					FRTTurnLogEntry BraceEntry;
+					BraceEntry.Phase = ERTMatchPhase::Blast; // dove la finestra si e' aperta, non dove le
+					                                         // finestre si aprono di solito
+					BraceEntry.Category = ERTLogCategory::ReactionDecision;
+					BraceEntry.Outcome = static_cast<uint8>(BraceDecision.Outcome);
+					BraceEntry.ActionId = FName(TEXT("Action.Brace"));
+					BraceEntry.OpportunityId =
+						URTReactionOpportunityLibrary::DeriveOpportunityId(BraceOpportunity.Key);
+					BraceEntry.SrcCell = T->Cell;
+					BraceEntry.TgtCell = T->Cell;
+					BraceEntry.Priority = URTCatalogLibrary::FindCoreAction(BraceEntry.ActionId).Priority;
+
+					// 🔴 **Il TOKEN, che e' il motivo per cui la v10 esiste.** L'Overwatch lo lascia vuoto
+					// perche' la sua risposta si deduce dall'esito; qui no — `Hold Ground` e `SIDESTEP`
+					// condividerebbero `HoldChosen`/`ResponseChosen` senza dire QUALE, e il replay
+					// ricostruirebbe `HOLD`, che in questa finestra non e' nemmeno legale.
+					BraceEntry.ReactionResponse = BraceDecision.Response;
+
+					AppendLogEntry(BraceEntry, T);
+				}
+
 				// La risposta si traduce in primitive del catalogo effetti (`spec-reaction-clash-e14.md` §5) e
 				// non in un ramo per token: un `if (Response == "SIDESTEP")` qui sarebbe il branch per eroe che
 				// [D-047] esiste per togliere, scritto una riga sotto la funzione che lo evita.

@@ -2921,6 +2921,28 @@ tracks:
       - Source/RefactorTactics/Turn/RTTurnManager.h
       - Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp
       - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
+      # ➕ **Aggiunto in corsa, e la ragione e' un pattern del file e non una comodita'**: ogni estensione del
+      # formato ha li' il proprio `LegacyVersionWithout<X>IsReadable` — `ActionId`, `FormatId`,
+      # `BaseActionId`. Senza il gemello per la v10, «le tracce v≤9 restano leggibili» sarebbe
+      # un'affermazione del commento e non una proprieta' verificata. Misurato **non assegnato**.
+      - Source/RefactorTactics/Tests/RTTurnLogSerializationTests.cpp
+      # ➕ **Aggiunto in corsa dopo un tentativo fallito, e vale la pena dire quale.** La prima stesura del
+      # test del giro completo stava in `RTOverwatchTriggerTests.cpp` e chiamava `AskReactionDecision`
+      # direttamente: **non compila**, quel metodo e' `protected`. Rendere pubblico un metodo per farlo
+      # raggiungere da un test e' la soluzione che si scrive per prima e la peggiore — cambia il contratto
+      # della classe per una comodita' di verifica.
+      # ∴ il test si sposta qui, dove vive gia' la fixture `RunBracePushTurn` che fa girare un Blast vero, e
+      # verifica la **proprieta' osservabile** (l'unita' finisce nella stessa cella al replay) invece
+      # dell'interno. Misurato **non assegnato**.
+      - Source/RefactorTactics/Tests/RTDefensiveReactionTests.cpp
+      # ➕ **L'owner documentale del formato**, e il Tracking Impact Pass lo rende obbligatorio: chi estende il
+      # formato aggiorna la tabella che lo dichiara, o la spec resta a descrivere una versione che non esiste
+      # piu'. Misurato **non assegnato**.
+      # ⚠️ **Ed e' gia' stantia PRIMA di questo lavoro**: la tabella si ferma alla **v6** e la prosa dice
+      # «cresciuto **tre volte**», mentre le versioni sono nove. Non e' un difetto mio e non lo riparo tutto —
+      # ma aggiungere la v10 lasciando «tre volte» lo peggiorerebbe di uno, quindi la riga si corregge e le
+      # versioni mancanti entrano in tabella: costa poco e toglie un'affermazione falsa dall'owner.
+      - docs/technical/architecture/spec-turnlog-serialize.md
     # ➖ **I QUATTRO prestiti RIENTRANO col merge della PR #1217 (2026-08-19)**, e ognuno alla condizione che
     # era stata scritta aprendolo — non a una riscritta a posteriori per farla combaciare:
     #   · `Ability/RTCatalogLibrary.{h,cpp}` → tornano a **`spatial`**. Il perimetro usato e' dichiarato:

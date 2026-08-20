@@ -25,7 +25,12 @@ e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile 
 
 > ⚠️ **Allineamento 2026-08-10 — il formato in codice è `v6`.** Questa
 > sezione descrive la **v2**, che era il formato al momento della stesura. Da allora `ERTTurnLogFormatVersion`
-> è cresciuto **tre volte**, sempre in modo retrocompatibile:
+> è cresciuto **otto volte**, sempre in modo retrocompatibile:
+>
+> 🔴 **Diceva «tre volte» e la tabella si fermava alla v6**, mentre le versioni erano nove: un numero in prosa
+> scritto una volta e mai ricontato, e una tabella cresciuta meno del codice che descrive. Corretti entrambi
+> il 2026-08-20 aggiungendo la v10 — chi estende un formato aggiorna l'owner, o la spec descrive una versione
+> che non esiste più.
 >
 > | Versione | Cosa aggiunge | Nell'hash | Le tracce precedenti |
 > |---|---|---|---|
@@ -35,6 +40,10 @@ e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile 
 > | `WithFormatId = 4` | `FormatId` nell'**header** (CP 10.3), dopo i flags. Sta nell'header perché nelle voci sarebbe una costante ripetuta N volte | no | leggibili, `FormatId` neutro |
 > | `WithBaseActionId = 5` | `BaseActionId` per voce ([#354](https://github.com/DegrassiAaron/refactor-tactics-main/issues/354)): l'azione generica di cui `ActionId` è un profilo, scritta come l'ActionId | no — è una **funzione** di `ActionId`, che c'è già | leggibili, `BaseActionId` vuoto |
 > | `WithUnitId = 6` | `UnitId`, `TurnNumber` ([D-063](../../decisions/RT_PDR_00_Decision_Log.md)) e `GraphRevision` ([D-067](../../decisions/RT_PDR_00_Decision_Log.md)): tre int32 in coda alla voce, dopo `BaseActionId` | i primi due **no** — rendono la traccia spiegabile, non la discriminano. `GraphRevision` **sì**: due tracce possono differire solo per lei, ed è un'altra partita | leggibili, campi a `0` (`UnitId = 0` = nessuna unità) |
+> | `WithPriority = 7` | `Priority` per voce: un int32 in coda | no — è una funzione del catalogo, che `ActionId` già identifica | leggibili, `Priority = 0` |
+> | `WithReactionDecision = 8` | la decisione di una finestra: `OpportunityId` (stringa) + `ReactionInstanceId` e `SelectedTargetUnitId` (due int32), in coda | **sì** — due decisioni diverse sono due partite diverse | leggibili, id vuoto e interi a `INDEX_NONE` |
+> | `WithRedirectOrigin = 9` | `OriginalTargetUnitId` ([#1060](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1060)): chi era il bersaglio *prima* di un redirect, un int32 in coda | no — il redirect è **già** discriminato da `SrcCell`, che nell'hash c'è | leggibili, `INDEX_NONE`. ⚠️ **Non** si deduce risolvendo l'occupante della cella: [D-063](../../decisions/RT_PDR_00_Decision_Log.md) vieta quell'inferenza |
+> | `WithReactionResponse = 10` | `ReactionResponse` ([D-047](../../decisions/RT_PDR_00_Decision_Log.md)): il **token** della risposta applicata a un decision boundary, scritto come l'`ActionId`, in coda | no — la decisione è già discriminata da `Outcome` e `SelectedTargetUnitId`. ⚠️ Conseguenza dichiarata: due risposte di profilo diverse con lo stesso esito danno **lo stesso hash** — che resta ciò che quell'hash promette, cioè che lo *stato finale* coincide | leggibili, token **vuoto** — e il vuoto significa *«la risposta è derivabile dall'esito»*, che è esattamente ciò che quei byte contenevano |
 >
 > ⚠️ **Ogni campo che questo formato SCRIVE deve stare anche in `EntryLess`.** La forma canonica è definita
 > dall'ordinamento: un campo serializzato che il confronto non guarda lascia due voci a pari merito, e

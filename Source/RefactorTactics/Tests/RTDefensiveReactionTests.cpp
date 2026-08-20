@@ -833,6 +833,55 @@ namespace
 	 * `Hold Ground` sarebbero caduti al posto suo, facendo leggere una fixture rotta come un difetto del
 	 * `Brace`: il rosso sarebbe arrivato, ma indicando la cosa sbagliata.
 	 */
+	/**
+	 * Come `RunBracePushTurn`, ma **cattura la traccia** e sa girare in ri-simulazione.
+	 *
+	 * `Trace` non vuoto = replay: le decisioni si armano da li' e **nessun decisore viene collegato**, che e'
+	 * esattamente la condizione del Verifier — se il replay tornasse a chiedere a qualcuno, non starebbe
+	 * verificando la traccia, la starebbe riscrivendo.
+	 */
+	FRTCellId RunBraceTurnCapturing(const URTHeroData* DefenderHero, const TCHAR* Response,
+		const TArray<FRTTurnLogEntry>& Trace, TArray<FRTTurnLogEntry>& OutTrace, bool& bOutRan)
+	{
+		bOutRan = false;
+		OutTrace.Reset();
+		UWorld* World = MakeDefWorld();
+		if (!World) { return FRTCellId(); }
+		SpawnDefMap(World);
+
+		ARTUnit* Attaccante = SpawnDefUnit(World, 0, FRTCellId(0, 0, 0));
+		ARTUnit* Difensore  = SpawnDefHeroUnit(World, 1, FRTCellId(1, 0, 0), DefenderHero);
+		ARTTurnManager* TM  = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+		FRTCellId Result;
+		if (Attaccante && Difensore && TM)
+		{
+			const int32 Push = AddDefAbility(Attaccante, TEXT("Action.Push"));
+			Attaccante->PlannedAbilityIndex = Push;
+			Attaccante->PlannedAttackTarget = Difensore;
+			Difensore->ApplyStatus(TAG_Status_Braced, 1);
+			Difensore->PlannedAbilityIndex = INDEX_NONE;
+
+			if (Trace.Num() > 0)
+			{
+				TM->ArmRecordedReactionDecisions(Trace);
+			}
+			else if (Response)
+			{
+				TM->ReactionDecider.BindLambda(
+					[Response](const FRTReactionOpportunity&, int32) -> FString { return FString(Response); });
+			}
+
+			RunDefTurn(TM);
+			Result = Difensore->Cell;
+			OutTrace = TM->GetTurnLog();
+			bOutRan = true;
+		}
+
+		DestroyDefWorld(World);
+		return Result;
+	}
+
 	FRTCellId RunBracePushTurn(const URTHeroData* DefenderHero, const TCHAR* Response, int32& OutPrompts,
 		bool& bOutRan)
 	{
@@ -1068,6 +1117,76 @@ bool FRTSidestepLeavesTheLineTest::RunTest(const FString&)
 		URTReactionLibrary::FindSidestepCell(nullptr, Target, PushFrom, ERTHexDirection::NE, {}) == Target);
 
 	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * 🔵 **Il GIRO COMPLETO: la decisione del `Brace` entra nel TurnLog e il replay la riapplica.** È la
+ * proprietà per cui la v10 del formato esiste, e nessuna delle sue due metà da sola la dimostra.
+ *
+ * Fino al 2026-08-19 la decisione non lasciava traccia: in ri-simulazione `ArmRecordedReactionDecisions` non
+ * trovava la chiave, segnalava «finestra non coperta dalla traccia» e applicava la scelta sicura — l'unità
+ * che aveva scartato **restava ferma nel replay**, e il Verifier accusava la traccia di un difetto dello
+ * *scrittore*.
+ *
+ * ⚠️ **Il replay gira SENZA decisore collegato**, ed è la condizione che rende il test una verifica e non una
+ * ripetizione: se tornasse a chiedere a qualcuno non starebbe verificando la traccia, la starebbe
+ * riscrivendo. Tutto ciò che sa della scelta deve venire dai byte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceDecisionRoundTripsThroughTraceTest,
+	"RefactorTactics.Reactions.Brace.DecisionRoundTripsThroughTrace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceDecisionRoundTripsThroughTraceTest::RunTest(const FString&)
+{
+	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	if (!TestNotNull(TEXT("Phase, che porta `Profile.Sidestep`"), Phase)) { return false; }
+	const FRTCellId Start(1, 0, 0);
+
+	// --- 1. La partita: si sceglie `SIDESTEP`, e la traccia se ne accorge --------------------------------
+	TArray<FRTTurnLogEntry> Traccia;
+	bool bRan = false;
+	const FRTCellId Originale = RunBraceTurnCapturing(Phase, TEXT("SIDESTEP"), {}, Traccia, bRan);
+
+	if (!TestTrue(TEXT("il turno originale e' girato"), bRan)) { return false; }
+	TestTrue(TEXT("con `SIDESTEP` il difensore lascia la cella"), Originale != Start);
+
+	// La voce esiste, ed e' quella giusta: categoria, esito e **token**. Senza il token la riga successiva
+	// sarebbe verde con una traccia che non dice quale risposta sia stata scelta.
+	const FRTTurnLogEntry* Voce = Traccia.FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::ReactionDecision
+			&& E.ActionId == FName(TEXT("Action.Brace"));
+	});
+	if (!TestNotNull(TEXT("la decisione del `Brace` e' nel TurnLog"), (void*)Voce)) { return false; }
+	TestEqual(TEXT("l'esito distingue lo scarto dal tenere la cella"), Voce->Outcome,
+		static_cast<uint8>(ERTReactionDecisionOutcome::ResponseChosen));
+	TestEqual(TEXT("e il token nomina la risposta"), Voce->ReactionResponse, FString(TEXT("SIDESTEP")));
+
+	// --- 2. Il replay: stessa traccia, NESSUN decisore, stesso esito -------------------------------------
+	TArray<FRTTurnLogEntry> TracciaReplay;
+	bool bRanReplay = false;
+	const FRTCellId Replay = RunBraceTurnCapturing(Phase, /*Response*/ nullptr, Traccia, TracciaReplay, bRanReplay);
+
+	if (!TestTrue(TEXT("il replay e' girato"), bRanReplay)) { return false; }
+	TestTrue(TEXT("IL PUNTO: il replay riapplica lo scarto, non la scelta sicura"), Replay == Originale);
+	TestTrue(TEXT("e quindi non e' rimasto fermo"), Replay != Start);
+
+	// --- 3. La META' NEGATIVA, senza cui il test sopra sarebbe verde anche col token ignorato ------------
+	// La stessa traccia **privata del token**: è ciò che una v9 porterebbe. La ricostruzione dà `HOLD`, che
+	// per una finestra di `Brace` non è legale — quindi il replay NON deve riapplicare lo scarto.
+	TArray<FRTTurnLogEntry> SenzaToken = Traccia;
+	for (FRTTurnLogEntry& E : SenzaToken)
+	{
+		E.ReactionResponse.Empty();
+	}
+	TArray<FRTTurnLogEntry> Ignorata;
+	bool bRanSenza = false;
+	const FRTCellId SenzaTokenCell = RunBraceTurnCapturing(Phase, nullptr, SenzaToken, Ignorata, bRanSenza);
+
+	TestTrue(TEXT("il turno senza token e' girato"), bRanSenza);
+	TestTrue(TEXT("senza token lo scarto NON si riapplica: il token e' cio' che porta l'informazione"),
+		SenzaTokenCell == Start);
+
 	return true;
 }
 
