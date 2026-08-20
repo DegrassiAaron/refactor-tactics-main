@@ -6,7 +6,7 @@
 > **Oggetto**: [`#512`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/512) nel corpo
 > riscritto dallo spec panel del 2026-08-16 (`05:37Z`), **sei** voci di DoD.
 > **Owner del write-set**: track `simulation` in
-> [`../parallel-batch.yaml`](../parallel-batch.yaml) (`ACTIVE`, quattro path).
+> `../parallel-batch.yaml` (`ACTIVE`, quattro path).
 > **Riferimenti**: [`adr-0004-finestre-di-reazione.md`](../../decisions/adr-0004-finestre-di-reazione.md) ·
 > [`adr-0009-replay-logico-canonico.md`](../../decisions/adr-0009-replay-logico-canonico.md) ·
 > [`cp145-finestra-overwatch-spec-panel-2026-08-14.md`](cp145-finestra-overwatch-spec-panel-2026-08-14.md) ·

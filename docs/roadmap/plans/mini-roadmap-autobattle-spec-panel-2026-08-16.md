@@ -466,7 +466,7 @@ commenti su [#16](https://github.com/DegrassiAaron/refactor-tactics-main/issues/
 legge. `RT-FEAT-UI-BOARD-GRAMMAR` referenzia `wiki:mappa-terreni-e-ambiente`, che riceve il blocco
 `RT_FEATURE_STATUS` col deploy.
 
-**Non toccato, e dichiarato**: [`../parallel-batch.yaml`](../parallel-batch.yaml) — il lotto è `ACTIVE` e
+**Non toccato, e dichiarato**: `../parallel-batch.yaml` — il lotto è `ACTIVE` e
 un settimo write-set scritto da una sessione documentale è il difetto che quel file registra cinque volte ·
 `docs/README.md`, il cui totale epic/CP resta indietro perché non è nel `writable` di nessuna track
 (**#962**).

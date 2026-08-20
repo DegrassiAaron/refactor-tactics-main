@@ -151,7 +151,7 @@ deriva che questa sezione lo aggiunge a misurare.
 > **2**. Se uno solo atterrasse, questa cella direbbe `53` con la cartella a `59`.
 > **La lezione non è che il numero sia sbagliato — oggi è giusto — ma che la sua garanzia lo era**: una
 > previsione si legge con **due** comandi, `gh pr list` *e* `git ls-remote`/`git diff` sui branch remoti.
-> È scritto nell'intestazione di [`../parallel-batch.yaml`](../parallel-batch.yaml), ed è stato ignorato
+> È scritto nell'intestazione di `../parallel-batch.yaml`, ed è stato ignorato
 > nel documento che quel file esiste per proteggere. Trovato in code review.
 
 ✅ **Nessun `HISTORICAL` canonico resta qui**: dal 2026-08-14 vivono tutti in

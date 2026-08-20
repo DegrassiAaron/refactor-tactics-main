@@ -440,9 +440,10 @@ features:
       campione di pacing deve includere il caso a **due unita' armate dello stesso giocatore**
       (`2 x MaxPromptsPerReaction x 3,0 s` = 18 s in un turno), o taratura e baseline descrivono un gioco
       che la v0.1 non gioca.
-      ⚠️ **La verifica PIE del Quick Confirm NON e' stata scritta**: `docs/technical/test-manuali-pie.md`
-      appartiene a un'altra track in `parallel-batch.yaml` e per `D-139` si aspetta il suo owner. Il testo
-      pronto sta nel DoD di #319 e in §11 della spec: e' un debito **nominato**, non una dimenticanza.
+      ⚠️ **La verifica PIE del Quick Confirm NON e' stata scritta**, e resta da fare. Il testo pronto sta
+      nel DoD di #319 e in §11 della spec: e' un debito **nominato**, non una dimenticanza. *(Fino al
+      2026-08-20 `docs/technical/test-manuali-pie.md` apparteneva a un'altra track del write-set di
+      batch e si aspettava il suo owner; `D-178` ha rimosso quel vincolo.)*
 
   - feature_id: RT-FEAT-CORE-PLAYBACK
     title: Playback della risoluzione
@@ -4834,7 +4835,7 @@ features:
       del ponte, e `11+6` e `47` dopo la seconda — che ha trovato meta' dei forwarder senza copertura. Sono
       giusti un'ora per volta.
       `runtime` e `automation` restano `partial`: da qui in su mancano le **due schermate** e il loro
-      `.uasset`, che vorranno una Binary Asset Lease, piu' il bootstrap del frontend — che pero' e' di
+      `.uasset`, che vanno costruiti in una seduta d'editor sola, piu' il bootstrap del frontend — che pero' e' di
       E46 (`#938`), non di questa feature. Un `done` direbbe che `#472` e' finita, e non lo e'.
 
       ⚠️ **Doppio conteggio dichiarato**: `RefactorTactics.Replay.ViewModel.*` e' assorbito dal pattern
@@ -4935,10 +4936,10 @@ features:
 
       ⚠️ **Nessun gate difende questo contratto oggi**, ed e' dichiarato invece che sottinteso: e' la
       stessa condizione in cui `D-146` ha lasciato la ridondanza colore+forma. Le voci PIE non sono
-      state scritte perche' `test-manuali-pie.md` e' **assegnato a un'altra track** in
-      `parallel-batch.yaml` — per `D-139` si aspetta l'owner che lo tiene OGGI. ⚠️ Qui non c'e' un nome
-      di proposito: il proprietario e' cambiato **tre volte** il 2026-08-17 e il permesso mai. Il
-      contenuto delle voci vive nella issue.
+      state scritte e restano da scrivere; il loro contenuto vive nella issue. *(Fino al 2026-08-20
+      `test-manuali-pie.md` era assegnato a un'altra track del write-set di batch e le voci si potevano
+      solo proporre — il proprietario era cambiato tre volte in un giorno. `D-178` ha rimosso il
+      meccanismo, e il debito ora e' semplicemente aperto.)*
 
   - feature_id: RT-FEAT-UI-BOARD-GRAMMAR
     title: Grammatica visiva della board — colore e forma, mai solo il colore
@@ -5006,12 +5007,11 @@ features:
       col solo colore. Dichiarato in `D-146` invece che sottinteso — il primo consumatore che ne
       aggiunga una dovra' portarsi il controllo dietro.
 
-      ⚠️ **Vincolo di parallelismo, misurato e non dedotto dal nome della track**: i file di E47.3 sono
-      `Map/RTHexMapActor.{h,cpp}`, che stanno nel `writable` di **`content_editor`** — ACTIVE su `#451`
-      al 2026-08-16 — non di `client_tools`. 🔴 Una stesura precedente di questa nota scriveva
-      `client_tools` (`UI/`), e la code review l'ha falsificata: attribuire un file alla track sbagliata
-      fa credere che il blocco sia altrove, mentre `D-139` dice che si aspetta **quell'owner**.
-      (`parallel-batch.yaml`, `D-139`)
+      ⚠️ **I file di E47.3 sono `Map/RTHexMapActor.{h,cpp}`**, non `UI/` — misurato, non dedotto dal nome.
+      *(La nota registrava un vincolo di parallelismo: quei file stavano nel `writable` di
+      `content_editor`, ACTIVE su `#451` al 2026-08-16, e si aspettava quell'owner. Con `D-178` il
+      write-set di batch non esiste piu' e il blocco e' decaduto; l'attribuzione dei file resta utile
+      perche' dice dove si lavora davvero.)*
   # ─────────────────────────────────────────────────────────────────────────────
   # H. Characters / content
   # ─────────────────────────────────────────────────────────────────────────────
@@ -5201,7 +5201,7 @@ features:
       (`ParentComponentOrVariableName` + `bIsParentComponentNative`, presenti nella name table di tutti
       e quattro): finché un componente nativo chiamato `Mesh` esiste — e esiste — la skeletal resta
       figlia di lui, che porta ancora `BaseMeshScale`. Riparentarla è un'apertura di editor, seduta
-      **U7**, con Binary Asset Lease. Il C++ toglie la causa per ciò che nasce d'ora in poi.
+      **U7**. Il C++ toglie la causa per ciò che nasce d'ora in poi.
 
       🔴 **E il «workaround World/Absolute Scale» che questa nota dava per applicato NON è negli asset.**
       Misurato sui quattro `.uasset`, cercando ogni stringa in ASCII **e** UTF-16LE:

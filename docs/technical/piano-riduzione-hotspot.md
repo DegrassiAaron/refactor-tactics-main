@@ -1,8 +1,18 @@
 # Piano di riduzione degli hotspot — architettura e processo
 
+> ⛔ **Metà del mandato è decaduta il 2026-08-20.** Questa pagina nasceva per ridurre due cose insieme —
+> gli **hotspot architetturali** e il **costo di coordinamento** fra sessioni parallele. Con
+> [D-178](../decisions/RT_PDR_00_Decision_Log.md) il sistema di lavoro parallelo è stato rimosso e lo
+> sviluppo è tornato sequenziale: il secondo problema non esiste più, e con esso §3, §4 e §12, sostituite
+> da un tombstone perché altre sezioni le citano.
+>
+> **Resta valida per intero la parte architetturale** — `RTTurnManager` (§5), Scenario Harness (§6),
+> `RTGameMode` (§7), i confini runtime/editor (§10), la test architecture (§17). Le misure di riga
+> restano istantanee datate, come questa pagina ha sempre dichiarato: si rimisurano, non si citano.
+
 > **Che cos'è**
 >
-> Mandato operativo per ridurre incrementalmente hotspot e costo di coordinamento, senza mega-refactor e
+> Mandato operativo per ridurre incrementalmente gli hotspot architetturali, senza mega-refactor e
 > senza rallentare la v0.1.
 >
 > **Che cosa non è**: una fonte di verità sullo stato. Gli owner restano `docs/roadmap/*.yaml`, GitHub e i
@@ -58,7 +68,7 @@ Le correzioni di criterio non applicate qui sono elencate in §24.
 1. **Repository prima del documento.**
    - Leggere `AGENTS.md` e `CLAUDE.md`.
    - Eseguire §19 Fase A **per intero** prima di qualunque modifica.
-   - Owner correnti: `docs/roadmap/feature-registry.yaml` · `execution-graph.yaml` · `parallel-batch.yaml` ·
+   - Owner correnti: `docs/roadmap/feature-registry.yaml` · `execution-graph.yaml` ·
      `editor-sessions.yaml` · `docs/technical/test-manuali-pie.md` · issue GitHub coinvolte.
 
 2. **Versione Unreal.** Il `.uproject` dichiara `"EngineAssociation": "5.8"`; `CLAUDE.md` pinna **5.8.1**.
@@ -80,12 +90,11 @@ Le correzioni di criterio non applicate qui sono elencate in §24.
    > vivo che tocca gli stessi file — si è verificata puntualmente: `feat/cp75-selfreposition` e `#886` la
    > stanno pagando adesso.
 
-4. **D-139 / parallelismo.**
-   - Nessuna scrittura fuori dal `writable` della propria track.
-   - Nessuna modifica a `integration_only` da una track normale.
-   - Nessun `.uasset`/`.umap` senza Binary Asset Lease esclusiva.
-   - Una richiesta di release non è ownership.
-   - **Un file nuovo si dichiara prima di crearlo** — inclusa questa pagina.
+4. **Sviluppo sequenziale** *(era «D-139 / parallelismo» fino al 2026-08-20, ora
+   [D-178](../decisions/RT_PDR_00_Decision_Log.md))*.
+   - Una sessione esecutiva, una working directory, un branch alla volta.
+   - Nessun `.uasset`/`.umap` toccato da due lavori insieme: due binari non si fondono.
+   - Niente worktree aperti per parallelizzare.
 
 5. **Il gameplay reale resta l'unica pipeline.** Scenario Harness non diventa un simulatore alternativo.
    Nessun `SetActorLocation` / `ApplyDamage` / `if (IsTest)` che aggiri
@@ -348,225 +357,23 @@ produttore**. Uno scenario scritto prima sarebbe verde e bugiardo.
 
 ---
 
-# 3. Workstream — questa sezione NON introduce un vocabolario
+# 3–4. Workstream e tetto sul write-set — RIMOSSE
 
-> 🔴 **Correzione strutturale prima del merge.** La stesura di root, e la prima riscrittura di questa pagina,
-> nominavano i workstream `BASE` · `WS-A` · `WS-B` · `WS-C` · `WS-D`. **Sono stati rimossi.** Il repository ha
-> già una mappatura canonica dei processi paralleli sulle track reali:
+> ⛔ **Sezioni rimosse il 2026-08-20 con [D-178](../decisions/RT_PDR_00_Decision_Log.md).**
+>
+> **§3** rimandava alla mappatura canonica dei cinque processi paralleli — A (Spatial/World) ·
+> B (Simulation/Rules) · C (Client/Replay/Tools) · D (Content/Editor) · E (Jolly) — e definiva il
+> ruolo dell'**integratore**, che quella mappatura non conteneva. **§4** stabiliva che il tetto al
+> lavoro concorrente non è un conteggio di processi ma l'intersezione dei `writable`.
+>
+> Entrambe presupponevano il write-set di batch, che non esiste più. La mappatura A–E sopravvive
+> solo come vocabolario descrittivo dei domini, in
 > [`../roadmap/plans/cinque-processi-paralleli-2026-08-17.md`](../roadmap/plans/cinque-processi-paralleli-2026-08-17.md)
-> — `CURRENT`, con i processi **A** (Spatial/World) · **B** (Simulation/Rules) · **C** (Client/Replay/Tools) ·
-> **D** (Content/Editor) · **E** (Jolly), e l'assegnazione delle 79 issue `v0.1`.
+> — un piano datato, non una regola in vigore.
 >
-> Quel documento dichiara: *«Il precedente,* `quattro-processi-paralleli-triage-2026-08-14.md`*, di 57 sezioni
-> ne applicò 13 — e le §21–§27 furono respinte perché proponevano un terzo vocabolario di classificazione.
-> Questo documento non ne propone un quarto.»* Le sigle `WS-*` sarebbero state il **quinto**, e per la stessa
-> ragione non hanno diritto di esistere.
->
-> ⚠️ **L'argomento decisivo è che le lettere non coincidevano**: il mio `WS-A` era Simulation, che nella
-> mappatura canonica è **B**; il mio `WS-B` era Map, che è **A**. Due documenti con una «A» che significa cose
-> opposte è la forma peggiore di vocabolario concorrente — si legge come un riferimento e produce un errore
-> silenzioso. Da qui in avanti si usano **solo** le lettere di quel documento.
->
-> **Owner del write-set**: [`../roadmap/parallel-batch.yaml`](../roadmap/parallel-batch.yaml) — se le due fonti
-> divergono vince il YAML, perché è quello che i gate leggono. Regola che governa: **D-139** e
-> [`workflow-parallel-claude.md`](tooling/workflow-parallel-claude.md).
-
-Questa sezione aggiunge **una** cosa a quella mappatura, e solo una: il ruolo che i processi A–E **non
-contengono**.
-
-## L'integratore — il ruolo che A–E non contiene
-
-Nella mappatura canonica il quinto processo è **E, «Jolly»**, dichiarato `🔴 non dichiarato: un processo senza
-`writable` è, per D-139, un processo che deve fermarsi al primo file`. **E non è l'integratore**, e nessuno
-degli altri quattro lo è: A–D sono divisi per **materia**, e l'integrazione non è una materia.
-
-**Non implementa feature gameplay.** Responsabilità: fetch/rebase/merge · riconciliazione dei write-set ·
-binary leases · release requests · `integration_only` · viste generate sull'albero unito · preflight (§11) ·
-build · automation smoke · preparazione dei gate umani.
-
-### Perché non è una track — misurato
-
-| Fatto | Conseguenza |
-|---|---|
-| l'header del batch definisce `integration_only` come *«non ownership — una proprietà di questo batch»* | una track con quel `writable` viola la regola che la definisce |
-| `generated_only`: *«una vista non si assegna mai direttamente: segue la propria sorgente»*, e l'unica copia autoritativa è quella rigenerata **sull'albero unito** — *«passo 8 della chiusura del batch, non negoziabile»* | il passo 8 ha bisogno di un **soggetto**, non di un write-set |
-| `meta:` porta già `status`, `base_sha`, `reconciled_count: 9` | la riconciliazione è già un oggetto di prima classe |
-| `base_sha` (`86135adf`) è **31 PR indietro** rispetto a `origin/main` | il passo 8 non viene eseguito, e nessuno è in torto perché nessuno è di turno |
-
-### Forma adottata
-
-```yaml
-meta:
-  schema_version: 5          # bump obbligatorio: cambia il contratto, vedi la nota del file
-  integrator:
-    session: <chi è di turno>
-    base_sha: <sha su cui il batch è stato rimisurato>
-    reconciled_at: <timestamp>
-```
-
-Non ha `writable` perché non ne serve: i path che tocca non sono di nessuno **per costruzione**.
-`parallel-batch.yaml` è a sua volta `integration_only`, quindi questo campo lo scrive chi è di turno — la
-ricorsione è voluta e va detta, non nascosta.
-
-> **`OPEN-DECISION` — reversibile.** Due alternative, con il loro costo:
-> **(a) track registrata** — coerente con lo schema `tracks:`, ma nasce violando le due regole sopra.
-> **(c) sessione umana** con `branch: null`, come le sedute editor — funziona, ma confonde una seduta
-> (unità = un'apertura di Unreal) con un turno di integrazione (unità = un merge).
-> La scelta si registra con `python scripts/rt_shared_id.py reserve D` e una voce in
-> `docs/OPEN_DECISIONS.md`: **non scegliere un `D-nnn` a mano**. Fino a quel momento questa sezione è una
-> proposta, non un invariante.
-
-## Processo B — Simulation / Rules
-
-Ordine: **#886 → #166**. Dopo #886, #166 può introdurre UI e decisione umana senza rendere falso il replay
-verifier. Non iniziare un refactor generale di `RTTurnManager` dentro #886; se emerge un confine naturale,
-estrarre il minimo servizio necessario e solo se: riduce il diff · non cambia semantica · ha test
-equivalenti prima/dopo · il write-set lo consente.
-
-## Processo A — Spatial / World
-
-**Non apre e non si innesta: riparte da `main`.** Misurato su `94575ef4`:
-
-- la PR **#1112** è mergiata (`f82ad5f3`) e il ramo `feat/833-interaction-graph` **non esiste più** — `git ls-remote`
-  non lo elenca;
-- **#833 resta `OPEN`**, con `post-v0.1` e senza milestone: ciò che è atterrato non ha chiuso la issue;
-- la track `spatial` va rimisurata: il suo `branch:` nomina un ramo cancellato.
-
-Quindi il residuo di #833 **si misura su `main`**, non su un ramo:
-
-```bash
-# che cosa la issue dichiara ancora aperto, contro cio' che e' atterrato
-gh issue view 833 --json body            # le caselle del DoD, incluse quelle assorbite da #1014
-git log --oneline f82ad5f3 -1            # il merge che ha portato la prima fetta
-git grep -n SetDoorState -- Source/RefactorTactics/Ability/   # atteso: zero → l'anello manca ancora
-```
-
-⚠️ **Non dedurre il residuo dal `base_sha` del batch**: `86135adf` è **36 merge** dietro `origin/main`. Un write-set
-si misura contro la base **reale** del proprio ramo, e una track il cui `branch:` è stato cancellato non ha più
-una base — va riaperta, non ricalcolata.
-
-Obiettivo: completare la catena `Interact Source → Target` come **dato**, con relazione data-driven, ordine
-deterministico, reason code. Niente coppie hard-coded. Niente privacy fittizia prima che la rete la renda
-falsificabile.
-
-Fuori scope dichiarato: rete · UI remota · privacy futura · ascensori · circuiti · semantiche N→1 non decise.
-La UI è di CP 23.5 (`#834`).
-
-## Scenario / Golden — **non** è un processo, attraversa B e C
-
-⚠️ Questa è la ragione più forte per non aver inventato una sigla: il lavoro su scenario e golden **non ha un
-processo dedicato** nella mappatura canonica, e non dovrebbe averne uno. Le sue issue stanno in **B** (regole,
-TurnLog, assertion) e in **C** (Scenario Composer: #1114→#1117, dichiarati *runtime, non Editor*). Un quinto
-processo «Scenario» avrebbe creato un confine dove il vincolo reale è il **write-set**: `ScenarioHarness/` va
-intera a una sola track, e `Scenarios/` è `integration_only`.
-
-Target: **#170 — CP 15.4 — Golden replay degli 8 turni** (`OPEN`, `v0.1` + `checkpoint` + `P1`, milestone
-`v0.1 · Prova integrata`).
-
-#170 legge il proprio stato dagli owner. I prerequisiti `requires` **misurati** nel graph sono #512, #66,
-#75, #625, #649, #687 — più `issue:833` una volta eseguito §2bis. Verificare live anche **#1060**
-(`v0.1`, `P2`) e **#75** (`v0.1`, `checkpoint`, `P2`). **Non copiare qui il loro stato.**
-
-Responsabilità: estensioni del vocabolario di assertion **solo quando necessarie** · test discriminanti ·
-capability Scenario disponibili solo quando il percorso reale è eseguibile · golden solo quando tutti gli
-otto turni sono eseguiti **e** asseriti.
-
-```text
-scritto != eseguito != asserito
-```
-
-Un turno scritto ma non raggiunto non è copertura.
-
-## Processo D — Content / Editor *(l'autore davanti a Unreal)*
-
-Lane umana. Sedute rilevanti (owner: `docs/roadmap/editor-sessions.yaml`, che dichiara già
-`unblocks` / `unblocked_by` / `shares_setup_with` / `verifies`): **U21** luci graybox/framing → **U22**
-geometry ghost/snap/undo e **U25** cell placement volume, entrambe `unblocked_by: [U21]` e
-`shares_setup_with: [U21]`.
-
-Produce `.uasset`/`.umap`, esegue controlli visivi, registra QA manuale. **Non implementa regole del
-simulatore.**
-
----
-
-# 4. Il tetto non è un conteggio di processi — è il write-set
-
-> 🔴 **Seconda correzione strutturale.** La stesura di root prescriveva un tetto numerico —
-> «3 stream code + 1 lane umana + 1 integratore» — e la mappatura canonica lo **supera già**, con una
-> formulazione migliore:
->
-> > *«La regola del batch non è "un dominio per processo": è "un `writable` per processo, e i file condivisi si
-> > toccano una volta sola, in integrazione".»*
-> > — [`cinque-processi-paralleli-2026-08-17.md`](../roadmap/plans/cinque-processi-paralleli-2026-08-17.md) §1
->
-> E la misura che lo dimostra è nello stesso documento: la mattina del 2026-08-17 **tre PR si contendevano otto
-> file, e nessuna delle tre condivideva una riga di `Source/`**. Due sessioni su domini diversi collidono
-> comunque, perché scrivono lo stesso file di tracking. Contare i processi non prevede quella collisione;
-> misurare i `writable` sì.
->
-> **Quindi il tetto di questa pagina si riduce a un corollario**: più processi attivi ⇒ più probabile che due
-> `writable` si intersechino sui file di tracking. Il numero non è la regola, è un indicatore del rischio — e
-> il documento canonico osserva che la contesa non è sparita ma si è **concentrata** proprio su
-> `parallel-batch.yaml`, conteso da due sessioni che stanno entrambe *rilasciando* un write-set.
-
-Non massimizzare i branch: minimizzare il wall-clock **senza creare contention**.
-
-## Che cosa si conta, e cosa no
-
-> **Un worktree non è un processo, e un branch non è uno stream.** `git worktree list` elenca **directory di
-> lavoro**: una directory ferma non consuma il tetto, e tredici worktree contro cinque processi non sono una
-> violazione — sono tredici cartelle, alcune parcheggiate da giorni. Lo stesso vale per i rami: un ramo in
-> attesa di merge non muta niente. La sola dimensione che misura questo tetto sono le **track `ACTIVE`**, e
-> anche lì va detto come si conta una track *in chiusura*.
-
-Misurato su `94575ef4`, 2026-08-17:
-
-Le cinque track `ACTIVE` su `94575ef4`, con la loro composizione:
-
-| Track | Issue | `branch:` dichiarato | Esiste su `origin`? | Conta come |
-|---|---|---|---|---|
-| `spatial` | 833 | `feat/833-interaction-graph` | ❌ mergiato (PR #1112) | code/scenario |
-| `simulation` | 886 | `null` | — | code, **path chiesto e non posseduto** |
-| `frontend_shell` | 937 | `null` · seduta **U24** | — | **lane umana** |
-| `graybox_kit` | `null` | `fix/graybox-review-1099` | ❌ mergiato (PR #1104) | in **chiusura** — PR #1120 aperta |
-| `replay_ui` | 472 | `feat/1085-cap-fumo` | ❌ assente | in **rilascio** — PR #1113 aperta |
-
-Contesto (misure di supporto, **non** metriche del tetto): 9 rami vivi + `main`, 13 worktree, 2 PR aperte,
-15 track `IDLE`, `schema_version` 4, `reconciled_count` 9, `base_sha` a **36 merge** da `origin/main`.
-
-**Verdetto**: la lane umana è a posto (1/1), l'integratore **manca** (0/1 — è C4). Sulla dimensione
-code/scenario il conto dipende da una definizione che questo documento non dà: **quattro** se una track in
-chiusura conta, **due** se non conta. Due delle quattro hanno una PR aperta il cui scopo è chiudere o
-rilasciare, quindi il rientro è già in corso e non richiede di parcheggiare nessuno.
-
-⚠️ **Il difetto misurato non è il numero: è che «stream mutante attivo» non è definito.** Fino a quel momento
-il tetto di §4 non è falsificabile — due letture legittime danno 4 e 2, e nessuna è scorretta.
-Definizione proposta: *una track conta nel tetto se può ancora produrre un commit dentro il proprio `writable`;
-una track la cui unica PR aperta rimuove path o chiude la track non conta.*
-
-🔴 **E il dato che regge da solo**: **tre track su cinque nominano un `branch:` che non esiste su `origin`.**
-Con `base_sha` a 36 merge di distanza, il lockfile descrive un mondo che non c'è più — e un write-set letto da
-quei campi è un vincolo su rami cancellati. Questo va rimisurato prima di usare il file come autorità, e non è
-un problema di tetto: è la riconciliazione che manca (§3).
-
-Un tetto che lo stato corrente già viola, senza procedura di rientro, si legge come aspirazione e si comporta
-come rumore. La procedura:
-
-1. **Misurare** — `git ls-remote --heads origin` e `gh pr list --state open`, non la memoria del file.
-2. **Ordinare** per distanza dalla chiusura: una track il cui DoD è a un gate dalla fine **chiude prima**.
-   A parità, vince chi ha il write-set più piccolo (rientra più in fretta).
-3. **Parcheggiare, non abbandonare** — la track eccedente passa a `IDLE` **conservando** il proprio
-   `writable`: una track senza write-set è peggio di una track stantia, perché perde il vincolo che la
-   protegge.
-4. **Chi decide**: l'integratore di turno propone l'ordine nella riconciliazione; l'autore lo conferma.
-   Un branch aperto non si cancella per rientrare in un tetto.
-5. **Registrare** la ragione nel campo `note` della track parcheggiata, in forma **corta e misurabile**
-   (§12).
-
-Se rientrare richiede di chiudere il batch, quella è una decisione d'autore: `meta.note` già documenta i
-dati su cui prenderla.
-
----
+> ⚠️ **Ciò che resta vero e non dipendeva dal parallelismo**: `RTTurnManager` è un hotspot reale, e
+> la sequenza di riduzione sta in §5. I numeri di sezione restano perché diciotto rimandi interni
+> a §3 e §4 li citano.
 
 # 5. RTTurnManager — strangler refactor incrementale
 
@@ -732,7 +539,7 @@ Issue correlata: **#950** — `OPEN`, label `bug` + **`P3`**, nessuna milestone.
 ## Obiettivo
 
 Un singolo ingresso locale. Nome coerente con gli orchestratori esistenti — che sono **snake_case**
-(`rt_shared_id.py`, `feature_registry.py`), mentre i gate sono kebab (`check-docs-*.py`):
+(`feature_registry.py`, `docs_inventory.py`), mentre i gate sono kebab (`check-docs-*.py`):
 
 ```text
 scripts/rt_preflight.py
@@ -758,9 +565,9 @@ Gate presenti in `scripts/` su `94575ef4`, con l'esito **realmente eseguito** su
 | registry: coerenza | `python scripts/feature_registry.py validate` | **errori 0 · warning 45** |
 | registry: viste | `python scripts/feature_registry.py generate --check` | OK — 3 viste allineate |
 | registry: shortlist | `python scripts/feature_registry.py shortlist --check` | OK |
-| ID condivisi | `python scripts/rt_shared_id.py check` | OK — 150 dichiarazioni, 0 duplicati |
 
-Totale: **dieci invocazioni**, non otto.
+Totale: **nove invocazioni** *(erano dieci: il gate sugli ID condivisi è caduto con
+[D-178](../decisions/RT_PDR_00_Decision_Log.md), che ha rimosso `rt_shared_id.py`)*.
 
 ⚠️ **Due trappole misurate eseguendo davvero questa tabella**, e la prima era in questo documento:
 
@@ -820,31 +627,15 @@ Va documentato come **preflight locale/manuale**, e lo esegue l'integratore prim
 
 ---
 
-# 12. Parallel Batch — semplificare l'uso, non riscrivere il modello
+# 12. Parallel Batch — RIMOSSA
 
-Il modello D-139 resta corretto. Problema misurato: **5188 righe**, e il file è diventato anche diario e
-post-mortem.
-
-Non cambiare schema senza issue dedicata. Da subito:
-
-- note **corte e misurabili**;
-- le spiegazioni storiche lunghe vanno in referti/PR quando non servono più a decidere l'ownership corrente;
-- nel batch resta solo ciò che serve a decidere: status · issue · branch/worktree · `writable` · `excludes` ·
-  blocked paths · loans/release requests · binary leases · `derives_from` · motivazione **corrente**.
-
-```text
-parallel-batch.yaml = lockfile operativo del batch
-                    ≠ archivio storico generale
-```
-
-Se lo schema live richiede la provenienza in-place, **non rimuovere nulla arbitrariamente**: aprire una issue
-di processo, proporre una strategia di compattazione, farla approvare prima.
-
-⚠️ Aggiungere o **ridefinire** un campo bumpa `schema_version` (oggi **4**). Il file lo dichiara
-esplicitamente: si bumpa anche quando cambia il *significato* di un campo esistente, perché un consumatore
-pinnato non trova un campo sconosciuto da segnalare — legge quello giusto e conclude male.
-
----
+> ⛔ **Sezione rimossa il 2026-08-20 con [D-178](../decisions/RT_PDR_00_Decision_Log.md).**
+>
+> Conteneva le regole d'igiene di `docs/roadmap/parallel-batch.yaml` — note corte, niente diario
+> nel lockfile, bump di `schema_version` quando cambia il significato di un campo. Quel file non
+> esiste più: il sistema di lavoro parallelo è stato rimosso e lo sviluppo è tornato sequenziale.
+>
+> Il numero di sezione resta perché §12 è citato altrove in questa pagina.
 
 # 13. Naming / source-of-truth gates
 
@@ -990,8 +781,9 @@ Le tre trappole che questo repository ha già pagato:
 5. **Preflight locale** — collegare o assorbire **#950** se è l'owner corretto.
 6. **Naming gate su current sources** — solo dopo aver classificato quali YAML sono normativi.
 7. **QA handoff strutturato** — estendere `editor-sessions.yaml` (§14).
-8. **`meta.integrator` + `schema_version: 5`** — l'atto di §3, con il `D-nnn` riservato via
-   `rt_shared_id.py reserve D`.
+8. ~~**`meta.integrator` + `schema_version: 5`**~~ — decaduto con
+   [D-178](../decisions/RT_PDR_00_Decision_Log.md): era l'atto di §3, e il file che avrebbe modificato
+   non esiste più.
 
 Ogni issue creata da questo mandato porta nel proprio Tracking il rimando a questa pagina.
 
@@ -1068,12 +860,8 @@ git update-index --refresh >/dev/null 2>&1; git status --porcelain
 git ls-remote --heads origin
 gh pr list --state open --json number,headRefName,title
 
-# A5 — il mio write-set è dichiarato?  il path DEVE stare nel writable della mia track
-#      un write-set si MISURA, non si ricorda
+# A5 — che cosa sto toccando davvero?  si MISURA, non si ricorda
 git diff --name-only origin/main...HEAD
-
-# A6 — il lockfile è fresco?  atteso: piccolo
-git log --oneline <meta.base_sha>..origin/main --merges | wc -l
 
 # A7 — baseline dei gate: un --check rosso può essere PREESISTENTE
 python scripts/rt_preflight.py --check   # oppure i gate di §11 uno per uno
@@ -1121,9 +909,8 @@ ore, quindi la rimisura non è un consiglio.
 **Audit e ownership**
 
 - [ ] Fase A eseguita per intero, con i **valori ottenuti** nel report; A1 ha dato `0 <N>` e A3 vuoto.
-- [ ] `git diff --name-only origin/main...HEAD` ⊆ `writable` della propria track — **verificato riga per riga**.
-- [ ] nessun `.uasset`/`.umap` nel diff senza una Binary Asset Lease dichiarata nel batch.
-- [ ] le viste generate toccate sono **solo** quelle alimentate dalle sorgenti nel proprio `writable`.
+- [ ] `git diff --name-only origin/main...HEAD` letto **riga per riga**: nessun file entrato per sbaglio.
+- [ ] ogni vista generata toccata è stata **rigenerata dalla sua sorgente**, non modificata a mano.
 
 **Hotspot: non crescono**
 
@@ -1135,7 +922,6 @@ ore, quindi la rimisura non è un consiglio.
 - [ ] `wc -l Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp` ≤ **1318** *(file nuovo)*
 - [ ] `wc -l Source/RefactorTactics/ScenarioHarness/RTScenarioSession.cpp` ≤ **1653** *(era 1645)*
 - [ ] `wc -l Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.cpp` ≤ **1556** *(era 1459)*
-- [ ] `wc -l docs/roadmap/parallel-batch.yaml` ≤ **5611** *(era 5353)*
 
 > 🔴 **Due delle nuove soglie sono più ALTE delle vecchie, ed è un dato del piano, non una sconfitta
 > nascosta.** Estrarre funzioni aggiunge firme, doc-comment e preamboli: il Loader guadagna 97 righe per
@@ -1233,10 +1019,9 @@ Packaged smoke:
 
 `NOT RUN` quando non eseguito, con la ragione.
 
-## Parallelism / ownership
+## File toccati
 
-Write-set usato · lease · release request · file `integration_only` toccati e da chi · collisioni evitate ·
-viste rigenerate e da quale sorgente.
+Elenco misurato del diff · viste rigenerate e da quale sorgente · binari toccati, se ce ne sono.
 
 ## Debito rimasto
 

@@ -8,7 +8,7 @@ sopra: non sono una tabella, sono un paragrafo coi pipe in vista.
 
 La pagina servita da GitHub rendeva **una tabella con 11 righe** su 144. Centotrentatre righe
 di decisioni erano testo grezzo, e nessun gate lo vedeva: `check-docs-links.py` guarda i link,
-`check-docs-symbols.py` i simboli, `rt_shared_id.py` i duplicati di ID. La struttura di una
+`check-docs-symbols.py` i simboli, `check-docs-naming.py` i nomi. La struttura di una
 tabella non la guardava nessuno.
 
 E' un difetto che **ricompare da solo**: cresce quando il documento cresce, e chi aggiunge una

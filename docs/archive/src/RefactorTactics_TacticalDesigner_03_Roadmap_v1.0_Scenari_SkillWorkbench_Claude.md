@@ -45,7 +45,7 @@
 > è un nome di prodotto; la §31A.5 (`Power Budget`) perché non ha un consumatore e
 > [D-102](../../decisions/RT_PDR_00_Decision_Log.md) chiede il competence gate del bot prima di qualunque
 > misura di bilanciamento; la §74 (quattro branch paralleli) perché
-> [`parallel-batch.yaml`](../../roadmap/parallel-batch.yaml) governa già il write-set e non si aprono track
+> `parallel-batch.yaml` governa già il write-set e non si aprono track
 > per lavoro non cominciato.
 
 ---
