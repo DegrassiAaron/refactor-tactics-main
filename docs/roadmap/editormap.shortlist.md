@@ -75,7 +75,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **READY** — *Si puo' fare adesso, fuori percorso critico*
 
-- **U18** · Verifiche senza prerequisiti — 4/15 voci verdi
+- **U18** · Verifiche senza prerequisiti — 5/15 voci verdi
 - **U20** · Confine fra Guard e Brace — 0/1 voci verdi
 
 **WAITING** — *Aspetta codice*
@@ -97,7 +97,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 | | Seduta | Lane | Produce | Sbloccata da | Critico | Voci | Stato |
 |---|---|:--:|---|---|:--:|:--:|:--:|
-| **U18** | Verifiche senza prerequisiti | `PIE` | verdetto su quindici voci che non attendono nulla | — | no | 4/15 | 🟡 |
+| **U18** | Verifiche senza prerequisiti | `PIE` | verdetto su quindici voci che non attendono nulla | — | no | 5/15 | 🟡 |
 | **U1** | Mappa-arena hex | `ASSET` | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 6/7 | 🟡 |
 | **U2** | Partita hex, primo giro | `PIE` | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 7/8 | 🟡 |
 | **U3** | Input e pianificazione | `PIE` | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 1/4 | 🟡 |
@@ -135,7 +135,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **Sbloccata da**: — · **Percorso critico**: no
 **Produce**: verdetto su quindici voci che non attendono nulla
-**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ✅ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ✅ · `PIE-HEX-TRANS` ✅ · `PIE-HEX-LAYER-FOCUS` ⏳ · `PIE-HEX-LAYER-CLICK` ⏳ · `PIE-HEX-LAYER-PANEL` ⏳ · `PIE-V01-REACTCOND` ⏳ · `PIE-HEX-VIZ-BLOCCHI` ⏳ · `PIE-HEX-VIZ-COSTO` 🟡 · `PIE-HEX-VIZ-BORDI` ⏳ · `PIE-HEX-VIZ-PORTE` ⏳ · `PIE-HEX-VIZ-UNDO` ⏳ · `PIE-HEX-VIZ-TRANSIZIONI` ⏳
+**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ✅ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ✅ · `PIE-HEX-TRANS` ✅ · `PIE-HEX-LAYER-FOCUS` ⏳ · `PIE-HEX-LAYER-CLICK` ⏳ · `PIE-HEX-LAYER-PANEL` ⏳ · `PIE-V01-REACTCOND` ⏳ · `PIE-HEX-VIZ-BLOCCHI` ⏳ · `PIE-HEX-VIZ-COSTO` 🟡 · `PIE-HEX-VIZ-BORDI` ✅ · `PIE-HEX-VIZ-PORTE` ⏳ · `PIE-HEX-VIZ-UNDO` ⏳ · `PIE-HEX-VIZ-TRANSIZIONI` ⏳
 **Finita quando**: le quindici voci hanno esito reale nel registro
 
 **E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
@@ -177,9 +177,32 @@ L'ordine non e' arbitrario:
    > proiettato su quello attivo: lo scarto e' orizzontale e proporzionale a `LayerHeight`,
    > quindi guardando a picco vale zero e la voce passerebbe comunque, rotta o no.
 5. Le sei `PIE-HEX-VIZ-*` **in coda, e con un allestimento proprio**: sono l'unico gruppo di
-   questa seduta che non riusa l'asset del punto 3. Servono coperture e porte, quindi si parte
-   da `MakeCoverYardArena`; `-BLOCCHI` e `-COSTO` vogliono in piu' una cella costosa che blocca
-   anche la vista, e `-TRANSIZIONI` una piattaforma **senza** archi.
+   questa seduta che non riusa l'asset del punto 3.
+
+   > 🔴 **Questo passo diceva «servono coperture e porte, quindi si parte da
+   > `MakeCoverYardArena`», ed e' stato riscritto il 2026-08-17 dopo averlo misurato.** La fixture
+   > **non ha porte**: 37 celle di pavimento, una copertura alta e una bassa, e il suo commento
+   > dichiara *«nessuna superficie, di proposito»*. Copre `-BORDI` e nient'altro. Chi seguiva il
+   > passo alla lettera si allestiva UNA voce su sei e scopriva le altre cinque davanti allo
+   > schermo — il costo di una frase che nessun gate legge.
+
+   Da dove viene ciascun allestimento, misurato:
+
+   | Voce | Allestimento |
+   |---|---|
+   | `-BORDI` | `FixtureId = CoverYard` → `GenerateFixtureIntoAsset`. **Basta** |
+   | `-BLOCCHI` | **Paint**: una cella `bBlocksMovement`, una `bBlocksLineOfSight`, una con entrambi. Nessuna fixture ha il caso *solo-movimento* |
+   | `-COSTO` | **Paint**: `Surface=Rough` + `MoveCost=2` + `bBlocksLineOfSight` sulla **stessa** cella. Le `Rough` di `ArenaV01` non bloccano la vista |
+   | `-PORTE` | ⛔ **nessun tool porte esiste** (`grep -rn "Door" Source/RefactorTacticsEditor/` → zero). A mano nel Details dell'asset, poi si forza il ridisegno |
+   | `-UNDO` | qualsiasi cella dipinta, poi `Ctrl+Z`; poi salvare e riaprire il livello |
+   | `-TRANSIZIONI` | `ArenaV01` da' la piattaforma **collegata**; il gruppo **orfano** si dipinge su layer 1 senza archi |
+
+   > ⚠️ **Dopo aver scritto porte a mano nell'asset, il viewport non si aggiorna da solo.**
+   > `URTHexMapAsset` non fa override di `PostEditChangeProperty` — il solo `OnMapChanged.Broadcast()`
+   > sta in `PostEditUndo` — quindi l'actor non sa di dover ridisegnare. Si tocca una property
+   > qualsiasi dell'actor (`ActiveLayer` 0→1→0), che passa da `PostEditChangeProperty →
+   > RebuildInstances`. Senza, si guarda la geometria vecchia: l'ennesimo modo di segnare ❌ una
+   > voce **non allestita**.
 
    > ⚠️ **`PIE-HEX-VIZ-BLOCCHI` e `-COSTO` si guardano DALL'ALTO** — e' la vista di lavoro, ed
    > e' quella in cui il difetto del 2026-08-12 si vedeva: la lastra della vista era piu' alta
