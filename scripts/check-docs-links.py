@@ -341,6 +341,10 @@ def _parents(path):
 
 WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 WIKI_IMG_RE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
+# Le `## Fonti normative` della Wiki citano gli owner doc come **codice inline**, non come link:
+# `docs/gameplay/spec-sequenza-turno.md`. Sono riferimenti a tutti gli effetti — dicono al lettore
+# dove sta l'autorita' — ma non essendo link non li vede nessuno dei controlli qui sopra.
+FONTE_RE = re.compile(r"`(docs/[^`\s]+\.(?:md|ya?ml|json))`")
 
 
 def check_wiki_clone(wiki_root):
@@ -350,12 +354,25 @@ def check_wiki_clone(wiki_root):
     vede piu' e questo gate perderebbe l'area intera senza dire nulla. Un checker che smette di
     controllare qualcosa resta verde: e' il modo peggiore di perdere copertura.
 
-    Tre regole, tutte specifiche di come la Wiki indirizza:
+    Quattro regole, tutte specifiche di come la Wiki indirizza:
 
       - un `[[Nome|slug]]` risolve **per nome**, non per percorso: l'URL e' il solo basename;
       - i nomi devono essere globalmente unici, altrimenti due pagine si contendono lo stesso URL;
       - le immagini si risolvono dalla **radice** del clone, perche' la base relativa e' l'URL della
-        pagina, che e' piatto — non la posizione del file su disco.
+        pagina, che e' piatto — non la posizione del file su disco;
+      - le **fonti normative** citate in backtick devono esistere in *questo* repository.
+
+    La quarta e' del 2026-08-20 e nasce da un difetto che le prime tre non potevano vedere. Lo split
+    di `080d2e98` ha spostato 26 documenti — `docs/technical/` divisa in `architecture/`, `systems/`,
+    `tooling/`, `runbooks/` — e ha riscritto con cura ogni riferimento **interno** al repository. Le
+    `## Fonti normative` della Wiki citavano gli stessi percorsi, ma li citano come testo e vivono in
+    un altro repository: **11 percorsi morti su 12 pagine**, cinque delle quali gemelle. Chi apriva la
+    fonte normativa di determinismo, planning o griglia trovava un 404.
+
+    Nessun gate poteva accorgersene: quello del repository non conosce il clone, e i controlli qui
+    sopra cercano *link*, mentre una fonte normativa non e' un link. Non e' un caso limite ma la
+    conseguenza strutturale di due repository che si muovono separatamente — succedera' di nuovo al
+    prossimo move, ed e' esattamente il motivo per cui il controllo va qui e non in una passata a mano.
     """
     # Due strutture e non una: `pagine` risolve i `[[link]]` per nome, `tutte` tiene **ogni** file.
     # Con un dict solo, due pagine omonime ne lasciano una fuori dalla scansione — proprio nel caso
@@ -368,11 +385,24 @@ def check_wiki_clone(wiki_root):
     # filesystem case-sensitive. E' la stessa trappola che aveva lasciato scoperta
     # `Sinergie-e-Combinazioni.md` fino a PR #411. Verificato per mutazione: con `os.path.isfile` il
     # gate usciva 0 su quel riferimento.
+    # Solo cio' che **git traccia** nel clone: la Wiki pubblica i file committati, non la directory.
+    # Senza questo filtro il gate legge anche i referti di lavoro tenuti apposta fuori dal versionamento
+    # (`claudedocs/`, gitignorata) e li giudica come pagine — segnalando percorsi d'esempio che non
+    # devono esistere. Un gate che fallisce su file non pubblicati insegna a ignorarlo.
+    try:
+        pubblicati = set(subprocess.run(
+            ["git", "-C", wiki_root, "ls-files"], capture_output=True, text=True, check=True
+        ).stdout.split("\n")) - {""}
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pubblicati = None  # non e' un clone git: si controlla tutto, come prima
+
     pagine, tutte, asset, problemi = {}, [], set(), []
     for base, dirs, files in os.walk(wiki_root):
         dirs[:] = [d for d in dirs if d != ".git"]
         for name in sorted(files):
             relp = os.path.relpath(os.path.join(base, name), wiki_root).replace("\\", "/")
+            if pubblicati is not None and relp not in pubblicati:
+                continue
             asset.add(relp)
             if not name.endswith(".md"):
                 continue
@@ -417,10 +447,30 @@ def check_wiki_clone(wiki_root):
                 vicino = next((a for a in asset if a.lower() == src.lower()), None)
                 dettaglio = f" (nel clone c'e' `{vicino}`: differisce solo nel case)" if vicino else ""
                 problemi.append(f"{relp}:{riga} immagine inesistente: {src}{dettaglio}")
+        for m in FONTE_RE.finditer(text):
+            fonte = m.group(1)
+            # I blocchi recintati contengono esempi e modelli, non riferimenti reali — stessa ragione
+            # per cui li saltano i controlli qui sopra. E un `*` e' un glob citato in prosa
+            # (`docs/roadmap/*.shortlist.md`), non un file: non ha senso chiedergli di esistere.
+            if any(a <= m.start() < b for a, b in fences) or "*" in fonte:
+                continue
+            if not os.path.isfile(os.path.join(REPO, fonte)):
+                riga = text[: m.start()].count("\n") + 1
+                # Se il basename esiste altrove, il file e' stato **spostato**: dirlo qui evita di
+                # ripetere il `find` che serve ogni volta, ed e' il caso di gran lunga piu' frequente.
+                nome = os.path.basename(fonte)
+                spostato = next(
+                    (rel(os.path.join(b, nome))
+                     for b, ds, fs in os.walk(os.path.join(REPO, "docs"))
+                     if nome in fs and "archive" not in b.replace("\\", "/").split("/")),
+                    None)
+                dettaglio = f" — spostato in `{spostato}`?" if spostato else ""
+                problemi.append(f"{relp}:{riga} fonte normativa inesistente: {fonte}{dettaglio}")
 
     print(f"\nClone della Wiki: {len(tutte)} pagine · {wiki_root}")
     if not problemi:
-        print("OK — ogni [[link]] risolve, ogni immagine esiste, nessun nome duplicato.")
+        print("OK — ogni [[link]] risolve, ogni immagine esiste, ogni fonte normativa e' viva, "
+              "nessun nome duplicato.")
         return 0
     print(f"FALLITO — {len(problemi)} problemi nel clone:\n")
     for p in problemi:
