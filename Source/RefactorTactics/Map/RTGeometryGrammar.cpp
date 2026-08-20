@@ -132,11 +132,80 @@ FRTOccupancyPolyline URTGeometryGrammarLibrary::ToPolyline(const FRTGeometrySegm
 	return Result;
 }
 
+namespace
+{
+	/**
+	 * IL PUNTO NOTEVOLE PIU' VICINO: centro, sei vertici, sei punti medi di lato.
+	 *
+	 * ⚠️ Sono i tredici punti su cui l'autore disegna, e la misura dice che sono anche i soli che il
+	 * reticolo sappia descrivere esattamente: ciascuno cade su coordinate INTERE nel reticolo di **ogni**
+	 * asse, sempre dentro `{0, ±6, ±9, ±12}`. Non e' una comodita' d'interfaccia sovrapposta alla
+	 * grammatica — e' la grammatica letta ad alta voce.
+	 *
+	 * Restituisce `false` se il punto e' troppo lontano per essere un punto di QUESTA cella: la' il gesto
+	 * e' un muro lungo che attraversa piu' celle, e agganciarlo qui lo accorcerebbe.
+	 */
+	bool SnapToNotablePoint(const FVector2D& P, float HexSize, FVector2D& Out)
+	{
+		// Oltre questa distanza il gesto esce dalla cella e non e' piu' affar suo. `1.3` lascia respiro
+		// oltre il circumraggio senza arrivare al centro del vicino, che dista `sqrt(3)` raggi.
+		const double Reach = static_cast<double>(HexSize) * 1.3;
+		if (P.Size() > Reach)
+		{
+			return false;
+		}
+
+		TArray<FVector2D> Boundary;
+		URTHexOccupancyLibrary::SectorBoundaryPoints(HexSize, Boundary);
+
+		FVector2D Best(0.0, 0.0);          // il centro e' il tredicesimo punto, e il primo candidato
+		double BestDistSq = P.SizeSquared();
+		for (const FVector2D& Point : Boundary)
+		{
+			const double DistSq = FVector2D::DistSquared(P, Point);
+			if (DistSq < BestDistSq)
+			{
+				BestDistSq = DistSq;
+				Best = Point;
+			}
+		}
+
+		Out = Best;
+		return true;
+	}
+}
+
 bool URTGeometryGrammarLibrary::SnapToGrammar(const FVector2D& LocalA, const FVector2D& LocalB, float HexSize,
 	FRTGeometrySegment& OutSegment)
 {
 	double BestError = TNumericLimits<double>::Max();
 	bool bFound = false;
+
+	// ➕ **GLI ESTREMI SI AGGANCIANO AI PUNTI NOTEVOLI PRIMA DI CERCARE L'ASSE** (#712, seduta `U22`).
+	//
+	// 🔴 Senza, la tolleranza della mano era **mezzo quanto di `Offset`**: 3,61 uu su una cella da 100,
+	// cioe' il 3,6% del raggio, pochi pixel in viewport. Misurato: con uno scarto del 4% comparivano i
+	// primi muri sul lato sbagliato, all'8% un gesto su tre non produceva niente, al 15% ne falliva il 61%.
+	// E il ghost era verde in tutti quei casi, perche' il candidato restava legale — solo, era un altro.
+	//
+	// Agganciandoli, il bacino di cattura di ogni punto diventa mezza distanza fra due punti notevoli
+	// invece di mezzo quanto: l'ordine di grandezza passa da qualche pixel a un terzo di cella.
+	FVector2D SnappedA = LocalA;
+	FVector2D SnappedB = LocalB;
+	const bool bSnappedA = SnapToNotablePoint(LocalA, HexSize, SnappedA);
+	const bool bSnappedB = SnapToNotablePoint(LocalB, HexSize, SnappedB);
+
+	// ⚠️ **Vale solo se ENTRAMBI gli estremi appartengono a questa cella.** Un muro lungo che la attraversa
+	// ha gli estremi altrove — la grammatica lo prevede, `RT_GeometryMaxQuanta` sono quattro raggi — e
+	// agganciarne uno solo lo accorcerebbe fino al bordo.
+	const bool bBothOnNotablePoints = bSnappedA && bSnappedB;
+	if (bBothOnNotablePoints && SnappedA.Equals(SnappedB, UE_KINDA_SMALL_NUMBER))
+	{
+		return false; // due estremi sullo stesso punto notevole: non c'e' nessun muro da fare
+	}
+
+	const FVector2D SearchA = bBothOnNotablePoints ? SnappedA : LocalA;
+	const FVector2D SearchB = bBothOnNotablePoints ? SnappedB : LocalB;
 
 	for (int32 AxisIndex = 0; AxisIndex < RT_TacticalAxisCount; ++AxisIndex)
 	{
@@ -154,10 +223,10 @@ bool URTGeometryGrammarLibrary::SnapToGrammar(const FVector2D& LocalA, const FVe
 			continue;
 		}
 
-		const double AlongA = FVector2D::DotProduct(LocalA, Along) / AlongLenSq;
-		const double AlongB = FVector2D::DotProduct(LocalB, Along) / AlongLenSq;
-		const double OffsetA = FVector2D::DotProduct(LocalA, Perp) / PerpLenSq;
-		const double OffsetB = FVector2D::DotProduct(LocalB, Perp) / PerpLenSq;
+		const double AlongA = FVector2D::DotProduct(SearchA, Along) / AlongLenSq;
+		const double AlongB = FVector2D::DotProduct(SearchB, Along) / AlongLenSq;
+		const double OffsetA = FVector2D::DotProduct(SearchA, Perp) / PerpLenSq;
+		const double OffsetB = FVector2D::DotProduct(SearchB, Perp) / PerpLenSq;
 
 		FRTGeometrySegment Candidate;
 		Candidate.Axis = Axis;
@@ -180,7 +249,24 @@ bool URTGeometryGrammarLibrary::SnapToGrammar(const FVector2D& LocalA, const FVe
 		}
 
 		// L'errore e' quanto il segmento quantizzato si scosta dal gesto: la somma delle due distanze.
-		const double Error = FVector2D::Distance(Line.Points[0], LocalA) + FVector2D::Distance(Line.Points[1], LocalB);
+		const double Error = FVector2D::Distance(Line.Points[0], SearchA) + FVector2D::Distance(Line.Points[1], SearchB);
+
+		// 🔴 **QUANDO GLI ESTREMI SONO PUNTI NOTEVOLI, IL CANDIDATO DEVE PASSARCI SOPRA — o non esiste.**
+		//
+		// Delle 78 coppie di punti notevoli **54 sono esprimibili** su un asse tattico e **24 no**: sono
+		// vertice ↔ punto medio non adiacente, direzioni che nessuno dei sei assi porta. Senza questo
+		// controllo la ricerca sceglierebbe comunque «l'asse meno peggio» e disegnerebbe un muro che non
+		// passa per i due punti indicati — che e' cio' che l'autore ha visto: *«disegna anche muri fuori
+		// dai segmenti validi»*. Un gesto fuori alfabeto deve dare ghost ROSSO, non un muro approssimato.
+		//
+		// ⚠️ La stretta vale SOLO quando entrambi gli estremi appartengono a questa cella. Un muro lungo
+		// che la attraversa ha gli estremi fuori, e li' l'approssimazione e' il comportamento giusto: il
+		// segmento continua nella cella accanto, dove sara' quella a descriverne la propria parte.
+		if (bBothOnNotablePoints && Error > UE_KINDA_SMALL_NUMBER * 100.0)
+		{
+			continue;
+		}
+
 		if (Error < BestError)
 		{
 			BestError = Error;

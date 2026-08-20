@@ -6691,6 +6691,14 @@ tracks:
       - Source/RefactorTactics/Tests/RTHexMapTests.cpp
       - Source/RefactorTactics/Tests/RTHexOccupancyTests.cpp
       - Source/RefactorTactics/Tests/RTHexDoorTests.cpp
+      # ➕ **Lo SNAP, il 2026-08-20.** Non erano di nessuno. L'autore ha chiesto che il disegno si agganci
+      # ai **punti notevoli** — centro, sei vertici, sei punti medi — invece che al reticolo fine da 1/12,
+      # e la misura dice che l'alfabeto esiste gia': tutti e tredici cadono su valori INTERI del reticolo di
+      # ogni asse, sempre dentro `{0, ±6, ±9, ±12}`. Delle 78 coppie possibili, **54 sono esprimibili
+      # esattamente** e 24 no — sono vertice ↔ punto medio non adiacente, cioe' direzioni che non stanno su
+      # nessuno dei sei assi tattici. Quelle 24 devono diventare ghost rosso, non un muro approssimato.
+      - Source/RefactorTactics/Map/RTGeometryGrammar.cpp
+      - Source/RefactorTactics/Tests/RTGeometryGrammarTests.cpp
     derives_from: []
     binary_leases:
       # Riemessa **prima** di riaprire l'editor, come la prima volta. Sui FILE e non sulla cartella: la
