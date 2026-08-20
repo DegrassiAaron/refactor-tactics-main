@@ -4018,7 +4018,7 @@
       "completed_by": [],
       "owner_specs": [
         "docs/technical/systems/progettazione-hud.md",
-        "docs/technical/guida-screen-hud-umg.md"
+        "docs/technical/runbooks/guida-screen-hud-umg.md"
       ],
       "issues": [
         613
@@ -4597,7 +4597,7 @@
       "dependencies": [],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-frontend-navigazione.md"
+        "docs/technical/architecture/spec-frontend-navigazione.md"
       ],
       "issues": [
         936,
@@ -4654,7 +4654,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-frontend-navigazione.md"
+        "docs/technical/architecture/spec-frontend-navigazione.md"
       ],
       "issues": [
         938
@@ -4707,7 +4707,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-frontend-navigazione.md"
+        "docs/technical/architecture/spec-frontend-navigazione.md"
       ],
       "issues": [
         939,
@@ -4758,7 +4758,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-frontend-navigazione.md"
+        "docs/technical/architecture/spec-frontend-navigazione.md"
       ],
       "issues": [
         941
@@ -4807,7 +4807,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/spec-frontend-navigazione.md",
+        "docs/technical/architecture/spec-frontend-navigazione.md",
         "docs/decisions/adr-0009-replay-logico-canonico.md"
       ],
       "issues": [
@@ -5121,7 +5121,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/guida-animazioni-paragon.md",
+        "docs/technical/runbooks/guida-animazioni-paragon.md",
         "docs/technical/systems/spec-team-identity.md",
         "docs/decisions/adr-0001-skeletal-unit.md",
         "docs/characters/paragon.md"
@@ -6121,8 +6121,8 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/test-e-diagnosi.md",
-        "docs/technical/scenari-validazione-visiva.md",
+        "docs/technical/runbooks/test-e-diagnosi.md",
+        "docs/technical/runbooks/scenari-validazione-visiva.md",
         "docs/technical/tooling/spec-tactical-designer.md"
       ],
       "issues": [
@@ -6515,7 +6515,7 @@
       ],
       "completed_by": [],
       "owner_specs": [
-        "docs/technical/debug-vs-unreal.md"
+        "docs/technical/runbooks/debug-vs-unreal.md"
       ],
       "issues": [
         80

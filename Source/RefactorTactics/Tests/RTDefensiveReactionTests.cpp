@@ -17,6 +17,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Bot/RTHexBotLibrary.h" // DecideReactionResponse: la risposta del bot dev'essere legale anche sul `Brace`
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -730,6 +731,535 @@ bool FRTBraceRiktorHasNoProfileTest::RunTest(const FString&)
 	// roster in cui il profilo non esiste per nessuno — cioe' su una feature che non e' stata costruita.
 	TestEqual(TEXT("tre eroi del roster aprono la finestra sul `Brace`"), WithProfile, 3);
 	TestEqual(TEXT("e uno solo non la apre"), WithoutProfile, 1);
+
+	return true;
+}
+
+/**
+ * **Cio' che il profilo DICHIARA e cio' che il gioco sa ESEGUIRE oggi non coincidono, e la distanza si
+ * misura** ([D-132] contro `spec-reaction-clash-e14.md` §2.5).
+ *
+ * Non e' un difetto da correggere qui: `Profile.Grounding` e `Profile.Glance` sono contenuto **deciso**,
+ * mentre «Charge del `Grounding`» e «ampiezza della deviazione» sono dichiarati **aperti** dalla stessa spec.
+ * Finche' lo restano, quelle due risposte non hanno effetti e il resolver non le offre — offrire una scelta
+ * che non sa applicare significherebbe fermare la resolution per non fare niente.
+ *
+ * ⚠️ **Questo test e' scritto per DIVENTARE ROSSO quando una delle due voci si chiude**, ed e' il suo scopo:
+ * chi aggiunge gli effetti a `GROUND` aggiorna qui il conteggio e trova, nella riga accanto, che deve anche
+ * togliere la voce da `OPEN_DECISIONS.md`. Un test che dicesse solo `>= 1` lascerebbe la chiusura passare in
+ * silenzio, e la distanza fra i due elenchi tornerebbe implicita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceDeclaredIsNotYetExecutableTest,
+	"RefactorTactics.Reactions.Brace.DeclaredIsNotYetExecutable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceDeclaredIsNotYetExecutableTest::RunTest(const FString&)
+{
+	struct FCase { const TCHAR* ProfileId; int32 Declared; int32 Executable; const TCHAR* Why; };
+	const FCase Cases[] = {
+		{ TEXT("Profile.Grounding"), 2, 1, TEXT("Charge del Grounding: aperta, spec §2.5") },
+		{ TEXT("Profile.Sidestep"),  2, 2, TEXT("decisa da BAS-4: SelfReposition 1") },
+		{ TEXT("Profile.Glance"),    3, 1, TEXT("ampiezza della deviazione: aperta, spec §2.5") },
+	};
+
+	for (const FCase& C : Cases)
+	{
+		const FName Id(C.ProfileId);
+		TestEqual(FString::Printf(TEXT("%s: dichiarate (%s)"), C.ProfileId, C.Why),
+			URTCatalogLibrary::BraceAllowedResponses(Id).Num(), C.Declared);
+		TestEqual(FString::Printf(TEXT("%s: eseguibili"), C.ProfileId),
+			URTCatalogLibrary::BraceExecutableResponses(Id).Num(), C.Executable);
+
+		// `Hold Ground` apre entrambi gli elenchi e non ha effetti propri: il suo esito e' il ramo
+		// `Status.Braced` del resolver, che gira da CP 5.2 e che [D-047] dichiara invariato.
+		TestEqual(FString::Printf(TEXT("%s: `Hold Ground` non passa dal motore effetti"), C.ProfileId),
+			URTCatalogLibrary::BraceResponseEffects(Id, TEXT("Hold Ground")).Num(), 0);
+	}
+
+	// La meta' che conta per il resolver: **solo** Sidestep apre davvero una finestra oggi. Un test che
+	// contasse le sole cardinalita' dichiarate resterebbe verde anche se il cablaggio non esistesse.
+	int32 OpensInPlay = 0;
+	for (const FCase& C : Cases)
+	{
+		FRTReactionOpportunity Opp;
+		Opp.AllowedResponses = URTCatalogLibrary::BraceExecutableResponses(FName(C.ProfileId));
+		if (URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opp)) { ++OpensInPlay; }
+	}
+	TestEqual(TEXT("un solo profilo su tre apre la finestra in partita"), OpensInPlay, 1);
+
+	// E l'effetto di `SIDESTEP` e' la primitiva esistente, non una nuova: `SelfReposition 1`, la stessa che
+	// `Reaction.EmergencyDash` e `Reaction.HazardEscape` portano da D-093. Se qualcuno la sostituisse con un
+	// effetto proprio, il ramo del resolver che la legge continuerebbe a funzionare e la ragione per cui
+	// «nessun numero nuovo entra» sarebbe falsa senza che nulla diventi rosso.
+	const TArray<FRTActionEffectSpec> Sidestep =
+		URTCatalogLibrary::BraceResponseEffects(TEXT("Profile.Sidestep"), TEXT("SIDESTEP"));
+	if (TestEqual(TEXT("SIDESTEP dichiara un solo effetto"), Sidestep.Num(), 1))
+	{
+		TestTrue(TEXT("ed e' `SelfReposition`"), Sidestep[0].Effect == ERTActionEffect::SelfReposition);
+		TestEqual(TEXT("di una cella, come EmergencyDash e HazardEscape"), Sidestep[0].Amount, 1);
+	}
+
+	return true;
+}
+
+
+namespace
+{
+	/** Come `SpawnDefUnit`, ma l'eroe lo sceglie il chiamante: il profilo di reazione viene da li'. */
+	ARTUnit* SpawnDefHeroUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell, const URTHeroData* Hero)
+	{
+		if (!World || !Hero) { return nullptr; }
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->bIsBotControlled = false;
+		U->ConfigureFromHeroData(Hero);
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		U->PlannedCell = Cell;
+		return U;
+	}
+
+	/**
+	 * Un Blast in cui `Attaccante` spinge `Difensore`, che e' in `Brace`. **Una sola fixture per entrambe le
+	 * famiglie di test del `Brace`**, e i tre puntatori dicono cosa serve a chi chiama.
+	 *
+	 * 🔴 **Erano DUE funzioni quasi identiche**, e una code review ha misurato il costo: ~35 righe uguali —
+	 * mondo, mappa, due spawn, l'abilita', lo stato `Braced`, il giro del turno, la distruzione — che
+	 * differivano solo per come si ottiene la risposta. Qualunque modifica alla fixture (l'id della spinta, la
+	 * cella di partenza, la durata di `Status.Braced`) andava fatta due volte, e farla una sola volta avrebbe
+	 * lasciato le due famiglie a esercitare **setup diversi restando entrambe verdi**.
+	 *
+	 * `Trace` non nullo = **replay**: le decisioni si armano da li' e **nessun decisore viene collegato**, che
+	 * e' la condizione del Verifier — se il replay tornasse a chiedere a qualcuno non starebbe verificando la
+	 * traccia, la starebbe riscrivendo.
+	 *
+	 * Restituisce la cella in cui il difensore finisce, e `bOutRan` dice se il turno e' **davvero girato**.
+	 *
+	 * 🔴 **`bOutRan` esiste perche' senza di lui un fallimento di fixture passava per un successo.** La
+	 * versione precedente restituiva `FRTCellId()` — cioe' `(0,0,0)` — quando mondo, unita' o turn manager non
+	 * si costruivano, e l'asserzione che conta e' `ConScarto != Start`: il sentinella la **soddisfa**, quindi
+	 * «il difensore lascia la cella» diventava verde senza che nessuno si fosse mosso. I due casi
+	 * `Hold Ground` sarebbero caduti al posto suo, facendo leggere una fixture rotta come un difetto del
+	 * `Brace`: il rosso sarebbe arrivato, ma indicando la cosa sbagliata.
+	 */
+	FRTCellId RunBraceTurn(const URTHeroData* DefenderHero, const TCHAR* Response,
+		const TArray<FRTTurnLogEntry>* Trace, int32* OutPrompts, TArray<FRTTurnLogEntry>* OutTrace,
+		bool& bOutRan, TArray<FString>* OutDivergences = nullptr)
+	{
+		if (OutPrompts) { *OutPrompts = 0; }
+		if (OutTrace) { OutTrace->Reset(); }
+		if (OutDivergences) { OutDivergences->Reset(); }
+		bOutRan = false;
+
+		UWorld* World = MakeDefWorld();
+		if (!World) { return FRTCellId(); }
+		SpawnDefMap(World);
+
+		ARTUnit* Attaccante = SpawnDefUnit(World, 0, FRTCellId(0, 0, 0));
+		ARTUnit* Difensore  = SpawnDefHeroUnit(World, 1, FRTCellId(1, 0, 0), DefenderHero);
+		ARTTurnManager* TM  = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+		FRTCellId Result;
+		if (Attaccante && Difensore && TM)
+		{
+			const int32 Push = AddDefAbility(Attaccante, TEXT("Action.Push"));
+			Attaccante->PlannedAbilityIndex = Push;
+			Attaccante->PlannedAttackTarget = Difensore;
+			Difensore->ApplyStatus(TAG_Status_Braced, 1);
+			Difensore->PlannedAbilityIndex = INDEX_NONE;
+
+			if (Trace && Trace->Num() > 0)
+			{
+				TM->ArmRecordedReactionDecisions(*Trace);
+			}
+			else if (Response)
+			{
+				TM->ReactionDecider.BindLambda(
+					[Response, OutPrompts](const FRTReactionOpportunity&, int32) -> FString
+					{
+						// Conta le volte in cui la finestra ha chiesto davvero: e' la differenza fra «si apre»
+						// e «si committa da sola», che il solo esito non distingue.
+						if (OutPrompts) { ++(*OutPrompts); }
+						return FString(Response);
+					});
+			}
+
+			RunDefTurn(TM);
+			Result = Difensore->Cell;
+			if (OutTrace) { *OutTrace = TM->GetTurnLog(); }
+			// Il verdetto del Verifier esce con la cella: e' l'unico modo per distinguere «la traccia copriva
+			// la finestra» da «non la copriva e il ripiego e' finito per caso nello stesso posto». Senza,
+			// un test sul solo esito posizionale sarebbe verde anche col canale di verifica rotto.
+			if (OutDivergences) { *OutDivergences = TM->GetVerificationDivergences(); }
+			bOutRan = true; // il turno e' girato davvero: da qui in poi `Result` e' una misura, non un default
+		}
+
+		DestroyDefWorld(World);
+		return Result;
+	}
+
+	/** Il caso «gioca e conta i prompt», che e' quello della maggior parte dei test del `Brace`. */
+	FRTCellId RunBracePushTurn(const URTHeroData* DefenderHero, const TCHAR* Response, int32& OutPrompts,
+		bool& bOutRan)
+	{
+		return RunBraceTurn(DefenderHero, Response, /*Trace*/ nullptr, &OutPrompts, /*OutTrace*/ nullptr,
+			bOutRan);
+	}
+}
+
+/**
+ * 🔵 **Il Reaction Profile ha un consumatore in PARTITA** ([D-047], fetta 3 di E14.7).
+ *
+ * Fino al 2026-08-19 `BraceAllowedResponses` aveva **zero** chiamanti fuori dai test e
+ * `ARTUnit::ReactionProfileId` era trasportato e mai letto: un dato con produttore e senza consumatore, che
+ * e' il difetto che `#583` chiama per nome — «supera ogni test unitario, e il gioco non avra' mai una
+ * condizione da valutare». Questo test e' la prova che il profilo attraversa il resolver.
+ *
+ * ⚠️ **Le tre meta' non sono ridondanti, e nessuna da sola dimostra la proprieta'**:
+ * · con `SIDESTEP` il difensore si muove — se mancasse, il profilo sarebbe letto e ignorato;
+ * · con `Hold Ground` resta — se mancasse, «si e' mosso» proverebbe solo che la spinta lo ha spostato, cioe'
+ *   che il `Brace` ha smesso di funzionare;
+ * · **senza decisore** resta, e la finestra non e' stata chiesta a nessuno — e' il fail-closed di ADR-0004
+ *   §3 applicato al `Brace`: la scelta sicura e' `Hold Ground`, non il `HOLD` dell'Overwatch, che qui non
+ *   sarebbe nemmeno una risposta legale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceProfileDecidesInPlayTest,
+	"RefactorTactics.Reactions.Brace.ProfileDecidesInPlay",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceProfileDecidesInPlayTest::RunTest(const FString&)
+{
+	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	if (!TestNotNull(TEXT("Phase, che porta `Profile.Sidestep`"), Phase)) { return false; }
+	if (!TestTrue(TEXT("e il profilo e' quello atteso"),
+		Phase->ReactionProfileId == FName(TEXT("Profile.Sidestep")))) { return false; }
+
+	const FRTCellId Start(1, 0, 0);
+
+	int32 PromptsSidestep = 0; bool bRanSidestep = false;
+	const FRTCellId ConScarto = RunBracePushTurn(Phase, TEXT("SIDESTEP"), PromptsSidestep, bRanSidestep);
+	// ⚠️ `bRan` PRIMA della cella, e non e' pedanteria: con la fixture rotta il valore di ritorno e' `(0,0,0)`,
+	// che soddisfa `!= Start` — l'asserzione sotto sarebbe verde senza che nessuno si sia mosso.
+	TestTrue(TEXT("il turno con `SIDESTEP` e' girato davvero"), bRanSidestep);
+	TestTrue(TEXT("con `SIDESTEP` il difensore lascia la cella"), ConScarto != Start);
+	TestEqual(TEXT("e la finestra e' stata chiesta una volta"), PromptsSidestep, 1);
+
+	int32 PromptsHold = 0; bool bRanHold = false;
+	const FRTCellId ConHold = RunBracePushTurn(Phase, TEXT("Hold Ground"), PromptsHold, bRanHold);
+	TestTrue(TEXT("il turno con `Hold Ground` e' girato davvero"), bRanHold);
+	TestTrue(TEXT("con `Hold Ground` resta dov'era"), ConHold == Start);
+	TestEqual(TEXT("e la finestra e' stata chiesta anche qui"), PromptsHold, 1);
+
+	int32 PromptsNessuno = 0; bool bRanNessuno = false;
+	const FRTCellId SenzaDecisore = RunBracePushTurn(Phase, nullptr, PromptsNessuno, bRanNessuno);
+	TestTrue(TEXT("il turno senza decisore e' girato davvero"), bRanNessuno);
+	TestTrue(TEXT("senza decisore la scelta sicura tiene la posizione"), SenzaDecisore == Start);
+	TestEqual(TEXT("e nessuno e' stato interrogato"), PromptsNessuno, 0);
+
+	// 🔴 **La meta' che distingue «il profilo ha deciso» da «il `Brace` non si e' applicato», e senza la quale
+	// tutto il resto e' ambiguo.** Con una spinta di **1** la cella dello scarto coincide con quella in cui
+	// l'unita' sarebbe finita **subendo** la spinta: `SelfReposition` allontana lungo la stessa linea. Quindi
+	// «R1 si e' mosso» da solo NON prova che abbia scelto — proverebbe la stessa cosa se il ramo `Braced` non
+	// esistesse affatto. Il discriminante e' il **conteggio dei prompt**, che senza finestra resta a zero.
+	//
+	// ⚠️ E' il difetto che la code review ha trovato nello scenario gemello, dove la sola misura e' la cella:
+	// li' rimuovere il ramo `Braced` lascia tutte le assertion verdi. Qui no, ed e' questa riga a impedirlo —
+	// motivo per cui il test unitario e lo scenario non sono ridondanti.
+	TestEqual(TEXT("e la cella dello scarto coincide con quella della spinta subita (spinta 1): "
+		"e' il conteggio dei prompt a dire che c'e' stata una scelta"),
+		PromptsSidestep, 1);
+
+	// **La baseline**: Riktor non ha un profilo, quindi nessuna finestra si apre per lui e il decisore non
+	// viene mai chiamato — nemmeno se ne colleghi uno che risponderebbe `SIDESTEP`. E' la meta' che protegge
+	// tutto cio' che e' verde oggi: se il profilo base aprisse un prompt, ogni `Brace` della v0.1 ne
+	// aprirebbe uno.
+	const URTHeroData* Riktor = URTHeroCatalogLibrary::MakeRiktor();
+	if (TestNotNull(TEXT("Riktor"), Riktor))
+	{
+		int32 PromptsRiktor = 0; bool bRanRiktor = false;
+		const FRTCellId Piantato = RunBracePushTurn(Riktor, TEXT("SIDESTEP"), PromptsRiktor, bRanRiktor);
+		TestTrue(TEXT("il turno di Riktor e' girato davvero"), bRanRiktor);
+		TestTrue(TEXT("Riktor tiene la cella col comportamento base"), Piantato == Start);
+		TestEqual(TEXT("e nessuna finestra si e' aperta per lui"), PromptsRiktor, 0);
+	}
+
+	// 🔴 **Wraith e' la meta' che pinna QUALE dei due elenchi il resolver interroga.** `Profile.Glance`
+	// dichiara **tre** risposte ([D-132]) e nessuna delle due extra ha effetti, quindi le eseguibili sono
+	// una sola e nessuna finestra si apre. Con `BraceAllowedResponses` al posto di `BraceExecutableResponses`
+	// il resolver aprirebbe qui un prompt su `GLANCE LEFT`, che poi non saprebbe applicare — e senza questa
+	// meta' la sostituzione resterebbe verde, perche' l'unita' finirebbe comunque ferma.
+	const URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
+	if (TestNotNull(TEXT("Wraith"), Wraith))
+	{
+		int32 PromptsWraith = 0; bool bRanWraith = false;
+		const FRTCellId Fermo = RunBracePushTurn(Wraith, TEXT("GLANCE LEFT"), PromptsWraith, bRanWraith);
+		TestTrue(TEXT("il turno di Wraith e' girato davvero"), bRanWraith);
+		TestEqual(TEXT("nessuna finestra per un profilo senza effetti dichiarati"), PromptsWraith, 0);
+		TestTrue(TEXT("e il `Brace` di Wraith regge come sempre"), Fermo == Start);
+	}
+
+	return true;
+}
+
+/**
+ * 🔴 **`SIDESTEP` esce dalla LINEA di spinta, e non la percorre** ([D-047] §2.5-bis).
+ *
+ * E' la correzione di un difetto di **design**, non di codice: fino al 2026-08-19 lo scarto usava
+ * `HexKnockbackDestination`, che allontana dall'attaccante — cioe' mandava l'unita' **dove la spinta voleva
+ * mandarla**. Siccome il ramo `Status.Braced` blocca gia' la spinta a *qualunque* distanza, `Hold Ground`
+ * teneva la cella e `SIDESTEP` la cedeva, con lo **stesso danno**: una risposta strettamente dominata, cioe'
+ * un boundary che costa un prompt e non compra niente.
+ *
+ * ⚠️ **Questo test asserisce la proprieta' che rende la scelta una scelta**, e non una cella particolare: la
+ * destinazione **non sta sulla linea** — ne' dove la spinta spinge, ne' da dove arriva. Pinnare una cella
+ * fissa avrebbe legato il test all'ordine canonico invece che alla regola, e sarebbe diventato rosso a ogni
+ * riordino delle direzioni senza che nulla di sbagliato fosse accaduto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSidestepLeavesTheLineTest,
+	"RefactorTactics.Reactions.Brace.SidestepLeavesThePushLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSidestepLeavesTheLineTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnDefMap(World, 6);
+	const URTHexMapAsset* Map = MapActor ? MapActor->MapAsset : nullptr;
+	if (!TestNotNull(TEXT("mappa"), (void*)Map)) { DestroyDefWorld(World); return false; }
+
+	// Spinta da ovest verso est: chi spinge e' a (-1,0), il bersaglio a (0,0).
+	const FRTCellId PushFrom(-1, 0, 0);
+	const FRTCellId Target(0, 0, 0);
+
+	ERTHexDirection PushDir;
+	if (!TestTrue(TEXT("la linea di spinta ha una direzione"),
+		URTHexLibrary::DirectionTowards(PushFrom, Target, PushDir)))
+	{
+		DestroyDefWorld(World); return false;
+	}
+	const FRTCellId Ahead  = URTHexLibrary::Neighbor(Target, PushDir);
+	const FRTCellId Behind = URTHexLibrary::Neighbor(Target, URTHexLibrary::OppositeDirection(PushDir));
+
+	// (a) Campo libero: lo scarto esiste e NON sta sulla linea. E' la proprieta' che il difetto violava.
+	{
+		const FRTCellId Escape = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, ERTHexDirection::NE, /*Occupied*/ {});
+
+		TestTrue(TEXT("lo scarto porta via dalla cella"), Escape != Target);
+		TestTrue(TEXT("e NON dove la spinta spingeva"), Escape != Ahead);
+		TestTrue(TEXT("ne' verso chi spinge"), Escape != Behind);
+		TestTrue(TEXT("resta comunque adiacente"),
+			URTHexLibrary::Neighbors(Target).Contains(Escape));
+	}
+
+	// (b) **Il facing decide**, come per `Reaction.HazardEscape`: lo stesso identico caso con due
+	// orientamenti diversi da' due scarti diversi. Senza questa meta', «esce dalla linea» sarebbe compatibile
+	// con un ordine canonico che ignora il giocatore.
+	{
+		const FRTCellId VersoNE = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, ERTHexDirection::NE, {});
+		const FRTCellId VersoSE = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, ERTHexDirection::SE, {});
+
+		TestTrue(TEXT("guardando a NE si scarta a NE"),
+			VersoNE == URTHexLibrary::Neighbor(Target, ERTHexDirection::NE));
+		TestTrue(TEXT("guardando a SE si scarta a SE"),
+			VersoSE == URTHexLibrary::Neighbor(Target, ERTHexDirection::SE));
+		TestTrue(TEXT("e i due esiti differiscono davvero"), VersoNE != VersoSE);
+	}
+
+	// (c) **Il facing punta SULLA linea**: non si puo' obbedire, e si ripiega sull'ordine canonico — che e'
+	// comunque fuori dalla linea. E' il caso che distingue «preferisci il facing» da «segui il facing».
+	{
+		const FRTCellId Escape = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, PushDir, {});
+
+		TestTrue(TEXT("il facing sulla linea non viene obbedito"), Escape != Ahead);
+		TestTrue(TEXT("e nemmeno il suo opposto"), Escape != Behind);
+		TestTrue(TEXT("ma uno scarto si trova lo stesso"), Escape != Target);
+	}
+
+	// (d) **Tutte le uscite occupate**: si ripiega su `Hold Ground`, e chi chiama lo legge da `== From`.
+	// ⚠️ Si occupano i QUATTRO fuori linea; `Ahead` e `Behind` restano liberi di proposito — se la funzione
+	// li offrisse come scarto, questo caso passerebbe comunque e il difetto originale tornerebbe da qui.
+	{
+		TArray<FRTCellId> Occupied;
+		for (const FRTCellId& N : URTHexLibrary::Neighbors(Target))
+		{
+			if (N != Ahead && N != Behind) { Occupied.Add(N); }
+		}
+		TestEqual(TEXT("le uscite fuori linea sono quattro"), Occupied.Num(), 4);
+
+		const FRTCellId Escape = URTReactionLibrary::FindSidestepCell(
+			Map, Target, PushFrom, ERTHexDirection::NE, Occupied);
+		TestTrue(TEXT("senza uscite si tiene la posizione, non si ripiega sulla linea"), Escape == Target);
+	}
+
+	// (e) Fail-closed senza mappa autorevole, come `FindEscapeCell`.
+	TestTrue(TEXT("senza mappa non si scarta"),
+		URTReactionLibrary::FindSidestepCell(nullptr, Target, PushFrom, ERTHexDirection::NE, {}) == Target);
+
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * 🔵 **Il GIRO COMPLETO: la decisione del `Brace` entra nel TurnLog e il replay la riapplica.** È la
+ * proprietà per cui la v10 del formato esiste, e nessuna delle sue due metà da sola la dimostra.
+ *
+ * Fino al 2026-08-19 la decisione non lasciava traccia: in ri-simulazione `ArmRecordedReactionDecisions` non
+ * trovava la chiave, segnalava «finestra non coperta dalla traccia» e applicava la scelta sicura — l'unità
+ * che aveva scartato **restava ferma nel replay**, e il Verifier accusava la traccia di un difetto dello
+ * *scrittore*.
+ *
+ * ⚠️ **Il replay gira SENZA decisore collegato**, ed è la condizione che rende il test una verifica e non una
+ * ripetizione: se tornasse a chiedere a qualcuno non starebbe verificando la traccia, la starebbe
+ * riscrivendo. Tutto ciò che sa della scelta deve venire dai byte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceDecisionRoundTripsThroughTraceTest,
+	"RefactorTactics.Reactions.Brace.DecisionRoundTripsThroughTrace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceDecisionRoundTripsThroughTraceTest::RunTest(const FString&)
+{
+	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	if (!TestNotNull(TEXT("Phase, che porta `Profile.Sidestep`"), Phase)) { return false; }
+	const FRTCellId Start(1, 0, 0);
+
+	// --- 1. La partita: si sceglie `SIDESTEP`, e la traccia se ne accorge --------------------------------
+	TArray<FRTTurnLogEntry> Traccia;
+	bool bRan = false;
+	const FRTCellId Originale = RunBraceTurn(Phase, TEXT("SIDESTEP"), /*Trace*/ nullptr, /*OutPrompts*/ nullptr, &Traccia, bRan);
+
+	if (!TestTrue(TEXT("il turno originale e' girato"), bRan)) { return false; }
+	TestTrue(TEXT("con `SIDESTEP` il difensore lascia la cella"), Originale != Start);
+
+	// La voce esiste, ed e' quella giusta: categoria, esito e **token**. Senza il token la riga successiva
+	// sarebbe verde con una traccia che non dice quale risposta sia stata scelta.
+	const FRTTurnLogEntry* Voce = Traccia.FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::ReactionDecision
+			&& E.ActionId == FName(TEXT("Action.Brace"));
+	});
+	if (!TestNotNull(TEXT("la decisione del `Brace` e' nel TurnLog"), (void*)Voce)) { return false; }
+	TestEqual(TEXT("l'esito distingue lo scarto dal tenere la cella"), Voce->Outcome,
+		static_cast<uint8>(ERTReactionDecisionOutcome::ResponseChosen));
+	TestEqual(TEXT("e il token nomina la risposta"), Voce->ReactionResponse, FString(TEXT("SIDESTEP")));
+
+	// --- 2. Il replay: stessa traccia, NESSUN decisore, stesso esito -------------------------------------
+	TArray<FRTTurnLogEntry> TracciaReplay;
+	bool bRanReplay = false;
+	TArray<FString> Divergenze;
+	const FRTCellId Replay = RunBraceTurn(Phase, /*Response*/ nullptr, &Traccia, nullptr, &TracciaReplay,
+		bRanReplay, &Divergenze);
+
+	if (!TestTrue(TEXT("il replay e' girato"), bRanReplay)) { return false; }
+	TestTrue(TEXT("IL PUNTO: il replay riapplica lo scarto, non la scelta sicura"), Replay == Originale);
+	TestTrue(TEXT("e quindi non e' rimasto fermo"), Replay != Start);
+	// ⚠️ **La cella da sola non basta**, ed e' il rilievo di una code review: se un domani
+	// `DeriveOpportunityId` divergesse fra scrittura e replay — un campo nuovo nella chiave, un altro spazio
+	// di id — `AskReactionDecision` prenderebbe il ramo «finestra non coperta» e ripiegherebbe sulla scelta
+	// sicura. Le due asserzioni sopra resterebbero vere ogni volta che il ripiego finisce nella stessa cella,
+	// mentre il canale di verifica e' rotto. Il verdetto va letto.
+	TestEqual(TEXT("e il Verifier non segnala NIENTE: la traccia copriva davvero la finestra"),
+		Divergenze.Num(), 0);
+
+	// --- 3. La META' NEGATIVA, senza cui il test sopra sarebbe verde anche col token ignorato ------------
+	// La stessa traccia **privata del token**: è ciò che una v9 porterebbe. La ricostruzione dà `HOLD`, che
+	// per una finestra di `Brace` non è legale — quindi il replay NON deve riapplicare lo scarto.
+	TArray<FRTTurnLogEntry> SenzaToken = Traccia;
+	for (FRTTurnLogEntry& E : SenzaToken)
+	{
+		E.ReactionResponse.Empty();
+	}
+	TArray<FRTTurnLogEntry> Ignorata;
+	bool bRanSenza = false;
+	TArray<FString> DivergenzeSenza;
+	const FRTCellId SenzaTokenCell = RunBraceTurn(Phase, nullptr, &SenzaToken, nullptr, &Ignorata, bRanSenza,
+		&DivergenzeSenza);
+
+	TestTrue(TEXT("il turno senza token e' girato"), bRanSenza);
+	TestTrue(TEXT("senza token lo scarto NON si riapplica: il token e' cio' che porta l'informazione"),
+		SenzaTokenCell == Start);
+	// E il Verifier lo DICHIARA invece di lasciarlo dedurre dalla cella: la ricostruzione produce `HOLD`, che
+	// per questa finestra non e' legale. E' l'altro verso dell'asserzione sulle divergenze qui sopra — insieme
+	// dimostrano che quel conteggio misura qualcosa, invece di essere zero per costruzione.
+	TestTrue(TEXT("e il Verifier segnala la risposta registrata come illegale"), DivergenzeSenza.Num() > 0);
+
+	// --- 4. **Una lacuna della traccia NON si ripulisce da sola** ----------------------------------------
+	// Traccia non vuota — quindi si e' in ri-simulazione — ma che NON copre questa finestra: il resolver
+	// prende il ramo «finestra non coperta», segnala la divergenza e ripiega sulla scelta sicura.
+	//
+	// 🔴 **Il punto e' cosa NON deve finire nel TurnLog del replay.** Scrivendo li' una voce completa, quella
+	// finestra risulterebbe coperta: ridando il log del replay al Verifier, `ArmRecordedReactionDecisions`
+	// troverebbe la chiave e la corsa uscirebbe **pulita** — una traccia nota come incompleta si sarebbe
+	// lavata da sola in un giro. Una lacuna che sparisce e' peggio di una lacuna. Trovato da una code review.
+	FRTTurnLogEntry AltraFinestra;
+	AltraFinestra.Category = ERTLogCategory::ReactionDecision;
+	AltraFinestra.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::HoldChosen);
+	AltraFinestra.OpportunityId = TEXT("T9|P9|M9|U9|action.inesistente|S9");
+	const TArray<FRTTurnLogEntry> TracciaEstranea = { AltraFinestra };
+
+	TArray<FRTTurnLogEntry> LogDelReplay;
+	TArray<FString> DivergenzeLacuna;
+	bool bRanLacuna = false;
+	RunBraceTurn(Phase, nullptr, &TracciaEstranea, nullptr, &LogDelReplay, bRanLacuna, &DivergenzeLacuna);
+
+	TestTrue(TEXT("il turno con traccia estranea e' girato"), bRanLacuna);
+	TestTrue(TEXT("il Verifier dichiara la finestra non coperta"), DivergenzeLacuna.Num() > 0);
+
+	const bool bHaScrittoLaLacuna = LogDelReplay.ContainsByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::ReactionDecision
+			&& E.ActionId == FName(TEXT("Action.Brace"));
+	});
+	TestFalse(TEXT("e il log del replay NON registra la finestra scoperta come se fosse stata decisa"),
+		bHaScrittoLaLacuna);
+
+	return true;
+}
+
+/**
+ * 🔴 **Il BOT deve poter rispondere a una finestra di `Brace`, e la sua risposta dev'essere LEGALE.**
+ *
+ * `URTHexBotLibrary::DecideReactionResponse` cerca un `FIRE:` e altrimenti ripiega sulla scelta sicura. Fino
+ * al 2026-08-19 quel ripiego era la **costante** `HOLD`, che per una finestra di `Brace` non e' fra le
+ * `AllowedResponses` — `{Hold Ground, SIDESTEP}` — quindi il resolver la rifiutava con `HoldRejected`, cioe'
+ * l'esito riservato a una risposta **stale o inventata**. In v0.1, che e' **2v2 offline vs bot**, ogni
+ * unita' del bot in `Brace` con un profilo cadeva in quel caso: non un caso limite, il caso normale.
+ *
+ * ⚠️ **Il test verifica l'esito e non solo la stringa**: una risposta «giusta» che il resolver rifiuta
+ * produce lo stesso spostamento (nessuno) di una accettata, quindi guardare la cella non distinguerebbe il
+ * difetto. Cio' che cambia e' `ERTReactionDecisionOutcome`, ed e' quello che si legge qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceBotAnswerIsLegalTest,
+	"RefactorTactics.Reactions.Brace.BotAnswerIsLegal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceBotAnswerIsLegalTest::RunTest(const FString&)
+{
+	// La finestra che il `Brace` di Phase apre davvero, costruita dal catalogo e non a mano: se domani il
+	// vocabolario cambiasse, questo test cambierebbe con lui invece di pinnare una stringa morta.
+	FRTReactionOpportunity Opp;
+	Opp.AllowedResponses = URTCatalogLibrary::BraceExecutableResponses(TEXT("Profile.Sidestep"));
+	if (!TestTrue(TEXT("la finestra del `Brace` si apre davvero"),
+		URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opp))) { return false; }
+
+	const FString BotAnswer = URTHexBotLibrary::DecideReactionResponse(Opp);
+
+	TestTrue(TEXT("il bot risponde qualcosa"), !BotAnswer.IsEmpty());
+	TestTrue(TEXT("e la sua risposta e' LEGALE per quella finestra"),
+		URTReactionOpportunityLibrary::IsResponseAllowed(Opp, BotAnswer));
+	TestEqual(TEXT("ed e' la scelta sicura, cioe' `Hold Ground` e non `HOLD`"),
+		BotAnswer, FString(TEXT("Hold Ground")));
+
+	// L'altra meta': sull'Overwatch **niente cambia**. La stessa funzione, con un vocabolario che contiene
+	// `HOLD`, continua a preferire il `FIRE:` disponibile — la correzione non ha spostato il comportamento
+	// del bot dove funzionava.
+	FRTReactionOpportunity Overwatch;
+	Overwatch.AllowedResponses = {
+		URTReactionOpportunityLibrary::FireResponse(3),
+		URTReactionOpportunityLibrary::HoldResponse()
+	};
+	TestEqual(TEXT("sull'Overwatch il bot spara come sempre"),
+		URTHexBotLibrary::DecideReactionResponse(Overwatch),
+		URTReactionOpportunityLibrary::FireResponse(3));
 
 	return true;
 }

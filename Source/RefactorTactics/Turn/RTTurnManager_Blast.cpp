@@ -1064,6 +1064,22 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		// e da qui dipendono la sequenza del playback e quella del combat log.
 		TArray<ARTUnit*> KTargets;
 		TArray<FRTCellId> KFinal;
+
+		// Chi si e' spostato per SCELTA e non per la spinta ([D-047]): serve al solo verbo del log, che
+		// altrimenti racconterebbe «spinto» un'unita' che ha deciso di scartare. Il TurnLog esiste per dire
+		// QUALE difesa ha retto e quale no — un verbo sbagliato e' la stessa lacuna di `#420`, un livello sopra.
+		TSet<const ARTUnit*> Sidestepped;
+
+		// Lo spazio di id alive-only in cui vive `Key.OwnerId`, costruito **al piu' una volta per Blast** e
+		// solo se una finestra si apre davvero.
+		//
+		// 🔴 **Prima stava DENTRO il ciclo**, e una code review ha misurato il costo: `MakeCurrentSnapshot`
+		// fa un `GetAllActorsOfClass` sul livello, costruisce un `FRTHexSnapshot` che qui viene **buttato
+		// via**, e ordina — tutto questo per **ogni** unita' in `Brace`. Il caso di gran lunga piu' comune e'
+		// il profilo base (Riktor), dove `AskReactionDecision` risponde `HoldImmediate` senza mai leggere
+		// `OwnerId`: si pagava un giro completo per un valore che nessuno guardava.
+		TArray<ARTUnit*> BlastAliveUnits;
+
 		for (ARTUnit* T : Units)
 		{
 			const int32* Pushes = KnockCount.Find(T);
@@ -1137,6 +1153,177 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// una spinta >= 2 avrebbe lasciato `Brace` senza mestiere. Quel mestiere ora esiste.
 			if (T->HasStatus(TAG_Status_Braced))
 			{
+				// ➕ **[D-047], fetta 3 di E14.7: da qui il `Brace` non decide piu' da solo.** Le risposte
+				// legali vengono dal Reaction Profile che l'unita' porta, e la loro CARDINALITA' dice se si
+				// apre una finestra — con la regola che ADR-0004 §2 ha gia' (`AllowedResponses >= 2`), non con
+				// una nuova. E' il punto in cui `URTCatalogLibrary::BraceAllowedResponses` smette di essere un
+				// dato che leggono solo i test.
+				//
+				// ⚠️ **Col profilo base non cambia NIENTE, ed e' una proprieta' e non una fortuna**: l'elenco
+				// ha la sola `Hold Ground`, `RequiresDecisionBoundary` e' falso, `AskReactionDecision`
+				// restituisce subito `HoldImmediate` senza chiedere a nessuno, e si finisce nelle due righe di
+				// sempre. Nessun prompt e nessuna sospensione per chi si copre e basta — la voce di DoD «col
+				// profilo base nessun boundary si apre» e' vera per COSTRUZIONE, non per un `if` che la
+				// protegge.
+				FRTReactionOpportunity BraceOpportunity;
+				BraceOpportunity.Key.TurnNumber = TurnNumber;
+				BraceOpportunity.Key.MacroPhase = ERTMatchPhase::Blast; // la spinta si risolve qui, e la
+				                                                        // chiave dice la fase del TURNO
+				// 🔴 **`OwnerId` vive nello spazio di id di `MakeCurrentSnapshot`, NON in quello del Blast**, e
+				// la differenza non e' teorica: `GatherBlastUnits` aggiunge **ogni** `ARTUnit` senza filtrare
+				// (`Ctx.Units`), mentre `MakeCurrentSnapshot` scarta i morti — il suo commento lo dichiara,
+				// «i morti (es. nel Blast) non si muovono e non bloccano». Entrambi ordinano per cella, quindi
+				// **un solo caduto che ordina prima di questa unita' sposta di uno tutti gli indici a valle**.
+				//
+				// ⚠️ Ogni consumatore di `Key.OwnerId` assume lo spazio alive-only: `DecideScriptedResponse`
+				// risolve `RuntimeUnits[OwnerUnitId]` su un array preso da `MakeCurrentSnapshot`. Con l'indice
+				// del Blast, una partita in cui qualcuno e' gia' caduto risolverebbe l'unita' SBAGLIATA — la
+				// decisione scriptata non verrebbe riconosciuta e la finestra scadrebbe in `Hold Ground`, con
+				// l'harness che segnala «finestra scoperta» invece del difetto vero.
+				//
+				// L'Overwatch e' immune per costruzione — `ResolveMovement` costruisce il proprio `Units`
+				// **da** `MakeCurrentSnapshot` — e questo ramo era l'unico produttore nell'altro spazio.
+				// ⛔ Nessun test lo vedeva: gli scenari hanno tutte le unita' vive, e con zero morti i due
+				// spazi coincidono. Trovato da una code review, non dalla suite.
+				BraceOpportunity.Key.ReactionDefId = FName(TEXT("Action.Brace"));
+
+				// Le ESEGUIBILI, non le dichiarate: `Profile.Grounding` e `Profile.Glance` sono contenuto
+				// deciso da [D-132] e non hanno ancora effetti — offrirle qui aprirebbe una finestra su una
+				// scelta che il resolver non sa applicare, cioe' un prompt che ferma la resolution per non
+				// fare niente. La distanza fra i due elenchi e' misurata da un test, non lasciata implicita.
+				BraceOpportunity.AllowedResponses =
+					URTCatalogLibrary::BraceExecutableResponses(T->ReactionProfileId);
+
+				// L'`OwnerId` si calcola **solo se una finestra si apre**: sotto la soglia di ADR-0004 §2
+				// `AskReactionDecision` risponde `HoldImmediate` senza leggerlo, e costruire lo snapshot per
+				// quel caso e' lavoro speso per un valore che nessuno guarda. Le due domande sono in
+				// quest'ordine perche' la seconda dipende dalla prima.
+				if (URTReactionOpportunityLibrary::RequiresDecisionBoundary(BraceOpportunity))
+				{
+					if (BlastAliveUnits.Num() == 0)
+					{
+						MakeCurrentSnapshot(BlastAliveUnits);
+					}
+					BraceOpportunity.Key.OwnerId = BlastAliveUnits.IndexOfByKey(T);
+				}
+
+				const FRTReactionDecision BraceDecision = AskReactionDecision(
+					BraceOpportunity, BraceOpportunity.Key.OwnerId, T->bIsBotControlled);
+
+				// ➕ **La decisione entra nel TurnLog** (v10, [D-047]), e non e' una rifinitura di
+				// diagnostica: senza questa voce la ri-simulazione **perde lo scarto**.
+				// `ArmRecordedReactionDecisions` non troverebbe la chiave, segnalerebbe «finestra non coperta
+				// dalla traccia» e applicherebbe la scelta sicura — quindi l'unita' che aveva scartato
+				// resterebbe ferma nel replay, e il Verifier accuserebbe la traccia di un difetto dello
+				// **scrittore**.
+				//
+				// ⚠️ **Solo se una finestra si e' aperta davvero.** Il caso degenere — profilo base,
+				// `HoldImmediate` — non produce voce, e non per risparmiare: `ArmRecordedReactionDecisions`
+				// **scarta in ingresso** gli `HoldImmediate`, quindi una voce del genere resterebbe non
+				// consumata a fine corsa e verrebbe riportata come **orfana** su una ri-simulazione riuscita.
+				// Scriverla sarebbe un falso allarme costruito qui e diagnosticato altrove.
+				//
+				// 🔴 **E NON si scrive un `HoldNoDecider` prodotto DALLA ri-simulazione**, che e' un caso
+				// diverso e piu' insidioso. Quell'esito ha due significati: in partita «un'unita' umana senza
+				// UI», che e' un fatto da registrare; in replay «la traccia non copriva questa finestra», che
+				// e' la **diagnosi di una lacuna**. Scriverlo nel TurnLog del replay farebbe apparire coperta
+				// una finestra che non lo era: ridando quel log al Verifier, `ArmRecordedReactionDecisions`
+				// troverebbe la chiave, `IsResponseAllowed` passerebbe, e una traccia **nota come incompleta**
+				// si presenterebbe pulita. Una lacuna che sparisce dopo un giro e' peggio di una lacuna.
+				// ⚠️ `RecordedDecisions.Num() > 0` e' cio' che distingue i due significati, e non c'e' un altro
+				// modo: l'esito da solo non lo dice. Trovato da una code review.
+				const bool bResimulating = RecordedDecisions.Num() > 0;
+				const bool bLacunaDelReplay = bResimulating
+					&& BraceDecision.Outcome == ERTReactionDecisionOutcome::HoldNoDecider;
+
+				if (BraceDecision.Outcome != ERTReactionDecisionOutcome::HoldImmediate && !bLacunaDelReplay)
+				{
+					FRTTurnLogEntry BraceEntry;
+					BraceEntry.Phase = ERTMatchPhase::Blast; // dove la finestra si e' aperta, non dove le
+					                                         // finestre si aprono di solito
+					BraceEntry.Category = ERTLogCategory::ReactionDecision;
+					BraceEntry.Outcome = static_cast<uint8>(BraceDecision.Outcome);
+					// ⚠️ **Dalla CHIAVE, non da un secondo letterale.** La prima stesura riscriveva qui
+					// `FName(TEXT("Action.Brace"))`, mentre l'`OpportunityId` lo deriva da
+					// `Key.ReactionDefId` — una sola identita' con due sorgenti indipendenti. Il giorno in cui
+					// la chiave cambiasse (un `Brace` profilato, un rename di catalogo) la voce dichiarerebbe
+					// un'azione e l'id ne nominerebbe un'altra: niente smetterebbe di compilare, il replay
+					// continuerebbe a funzionare — aggancia solo l'`OpportunityId` — e a mentire sarebbe il
+					// solo testo del referto.
+					BraceEntry.ActionId = BraceOpportunity.Key.ReactionDefId;
+					BraceEntry.OpportunityId =
+						URTReactionOpportunityLibrary::DeriveOpportunityId(BraceOpportunity.Key);
+					BraceEntry.SrcCell = T->Cell;
+					BraceEntry.TgtCell = T->Cell;
+					BraceEntry.Priority = URTCatalogLibrary::FindCoreAction(BraceEntry.ActionId).Priority;
+
+					// 🔴 **Il TOKEN, che e' il motivo per cui la v10 esiste.** L'Overwatch lo lascia vuoto
+					// perche' la sua risposta si deduce dall'esito; qui no — `Hold Ground` e `SIDESTEP`
+					// condividerebbero `HoldChosen`/`ResponseChosen` senza dire QUALE, e il replay
+					// ricostruirebbe `HOLD`, che in questa finestra non e' nemmeno legale.
+					BraceEntry.ReactionResponse = BraceDecision.Response;
+
+					AppendLogEntry(BraceEntry, T);
+				}
+
+				// La risposta si traduce in primitive del catalogo effetti (`spec-reaction-clash-e14.md` §5) e
+				// non in un ramo per token: un `if (Response == "SIDESTEP")` qui sarebbe il branch per eroe che
+				// [D-047] esiste per togliere, scritto una riga sotto la funzione che lo evita.
+				// ⚠️ **Si ACCUMULA e non si assegna**, e i due `Max(0, …)` non sono prudenza generica: una
+				// risposta che dichiarasse due `SelfReposition` con un `=` avrebbe applicato solo l'ultima,
+				// silenziosamente e in un ordine deciso dal catalogo. Un `Amount` negativo — che nessun profilo
+				// scrive oggi — invertirebbe la direzione della fuga trasformando uno scarto in un avvicinamento.
+				// Nessuno dei due casi esiste nel catalogo attuale, ed e' proprio per questo che vanno chiusi
+				// qui: il giorno in cui esistessero, non lo direbbe nessun test.
+				int32 EscapeSteps = 0;
+				for (const FRTActionEffectSpec& Effect :
+					URTCatalogLibrary::BraceResponseEffects(T->ReactionProfileId, BraceDecision.Response))
+				{
+					if (Effect.Effect == ERTActionEffect::SelfReposition)
+					{
+						EscapeSteps += FMath::Max(0, Effect.Amount);
+					}
+				}
+
+				if (EscapeSteps > 0)
+				{
+					// 🔴 **Lo scarto NON si applica qui: entra in `KTargets` come una spinta qualunque.**
+					// Dentro questo ciclo le destinazioni degli altri bersagli si calcolano ancora sulle celle
+					// dello snapshot, e muovere un'unita' adesso le farebbe dipendere dall'ordine di
+					// iterazione — l'invariante #4. Passando di la' eredita anche il controllo di destinazione
+					// contesa, che dev'essere la stessa regola per tutti quelli che si muovono in questo Blast.
+					// 🔴 **FUORI dalla linea, non lungo di essa** — la correzione del 2026-08-19.
+					// `HexKnockbackDestination` allontana dall'attaccante, cioe' manda l'unita' **dove la
+					// spinta voleva**: e siccome il ramo `Braced` blocca gia' la spinta a qualunque distanza,
+					// `SIDESTEP` cedeva una cella per ottenere cio' che `Hold Ground` dava gratis. Una risposta
+					// strettamente dominata non e' una scelta, e un boundary che ne offre una costa un prompt
+					// senza comprare niente. `FindSidestepCell` esce dalla linea; le due sotto-decisioni —
+					// quale cella, e cosa vale se non ce n'e' nessuna — seguono il precedente di
+					// `Reaction.HazardEscape` invece di aprirne uno secondo.
+					//
+					// ⚠️ `EscapeSteps` non entra piu' nella geometria: uno scarto e' **di una cella** per
+					// definizione — «esci dalla linea» non ha un multiplo. Il valore resta letto perche' e' cio'
+					// che DISTINGUE una risposta che sposta da una che non sposta, ed e' l'unico modo in cui il
+					// catalogo puo' dirlo senza un ramo per token.
+					const FRTCellId Escape = URTReactionLibrary::FindSidestepCell(
+						Map, T->Cell, KnockFrom[T], T->Facing, KOccupied);
+					if (Escape != T->Cell)
+					{
+						KTargets.Add(T);
+						KFinal.Add(Escape);
+						Sidestepped.Add(T);
+						continue;
+					}
+
+					// Nessuna cella dove scartare — bordo, ostacolo, unita' dietro. Si ripiega sul
+					// comportamento base invece di sprecare la scelta, ed e' l'opposto di
+					// `Reaction.EmergencyDash` («se non c'e' dove andare si spreca»): li' una reazione si
+					// consuma, qui `Hold Ground` non e' una risorsa. Chi sceglie di scartare non deve finire
+					// meno protetto di chi non ha scelto affatto.
+					AddLogEvent(FString::Printf(
+						TEXT("%s: nessuna cella per scartare, tiene la posizione"), *T->GetName()));
+				}
+
 				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()));
 				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Braced, &PushCause);
 				continue;
@@ -1171,8 +1358,8 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			}
 
 			ARTUnit* T = KTargets[a];
-			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause, TEXT("Spinta"), Map,
-				ERTMatchPhase::Blast);
+			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause,
+				Sidestepped.Contains(T) ? TEXT("Scarto") : TEXT("Spinta"), Map, ERTMatchPhase::Blast);
 		}
 	}
 

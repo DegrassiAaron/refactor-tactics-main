@@ -229,7 +229,8 @@
 > archiviava un sesto sorgente e aveva scritto **53** applicando la formula cieca — indipendentemente, e
 > senza vedere questa correzione. Al merge il valore misurato col comando buono è **56**. Le due riscritture
 > sono la stessa lezione da due lati: la formula sbagliava *per struttura*, il totale sbagliava *per merge*.)*
-> Il primo lotto era in [`../../src/`](../../research/); ogni sorgente si sposta qui quando un owner documentale lo
+> Il primo lotto era in `docs/src/`, la cartella d'ingresso che oggi si chiama
+> [`docs/research/`](../../research/); ogni sorgente si sposta qui quando un owner documentale lo
 > ha recepito. Restano per **provenienza**: servono a ricostruire *da dove* è nata una decisione, non a deciderla.
 >
 > **Il testo originale non è stato riscritto.** Dove un sorgente conteneva un errore di fatto, la correzione è
@@ -337,7 +338,7 @@ Decision Log erano esenti anche le voci **nuove**, quelle che descrivono il rost
 
 | File | Oggetto | Recepito da |
 |---|---|---|
-| [`consolidamento-prd-source-of-truth.md`](handoff/consolidamento-prd-source-of-truth.md) | Consolidare PRD e source of truth | [`brief-consolidamento-documentale.md`](../../roadmap/plans/brief-consolidamento-documentale.md) |
+| [`consolidamento-prd-source-of-truth.md`](handoff/consolidamento-prd-source-of-truth.md) | Consolidare PRD e source of truth | [`brief-consolidamento-documentale.md`](../roadmap-plans/brief-consolidamento-documentale.md) |
 | [`scenario-browser-bp-gamemode.md`](handoff/scenario-browser-bp-gamemode.md) | Selettore scenari in `BP_GameMode` | [`scenario-index-e-tag.md`](../../technical/tooling/scenario-index-e-tag.md) |
 | [`scenario-harness-task-originale.md`](handoff/scenario-harness-task-originale.md) | Task originale dello Scenario Test Harness | [`test-automatico-unreal.md`](../../technical/tooling/test-automatico-unreal.md) |
 | [`roadmap-v0.1-prompt-originale.md`](handoff/roadmap-v0.1-prompt-originale.md) | Prompt da cui è nata la roadmap v0.1 | ADR-0003 |
@@ -391,7 +392,7 @@ dove è finita quella parte che è sopravvissuta al filtro.
 | [`2026-08-08-chat-cleanup-tracker-prima-versione.md`](handoff/2026-08-08-chat-cleanup-tracker-prima-versione.md) | *Meta* — la stessa cosa, una versione prima | ⛔ da ignorare: la seconda copia è più recente. Le due erano indistinguibili per nome |
 | [`2026-08-08-final-chat-cleanup-plan.md`](handoff/2026-08-08-final-chat-cleanup-plan.md) | *Meta* — piano di chiusura delle conversazioni | ⛔ riguarda il progetto ChatGPT, non il repository |
 | [`2026-08-11-bot-ai-team-planner-belief-e-tracking.md`](handoff/2026-08-11-bot-ai-team-planner-belief-e-tracking.md) | Bot/AI: team planner, belief, tracking | [`spec-bot-tattico.md`](../../gameplay/spec-bot-tattico.md) · `D-095`…`D-099` · [referto](../roadmap-plans/bot-ai-consolidamento-2026-08-11.md). ⚠️ **Quattro premesse di stato false**: nove feature `RT-FEAT-BOT-*` che non esistono, sei Epic «da creare» che esistevano già |
-| [`2026-08-11-battle-simulation-harness-unificato-e-release-bot.md`](handoff/2026-08-11-battle-simulation-harness-unificato-e-release-bot.md) | Battle Simulation, harness unificato, release del bot | [`test-e-diagnosi.md`](../../technical/test-e-diagnosi.md) §3-bis/3-ter · `D-101`, `D-102` · [referto](../roadmap-plans/bot-ai-consolidamento-2026-08-11.md) §9. ✅ **Il meglio calibrato dei due**: nomina i Feature ID e le Epic reali, e dice da sé di aggiornarli invece di moltiplicarli |
+| [`2026-08-11-battle-simulation-harness-unificato-e-release-bot.md`](handoff/2026-08-11-battle-simulation-harness-unificato-e-release-bot.md) | Battle Simulation, harness unificato, release del bot | [`test-e-diagnosi.md`](../../technical/runbooks/test-e-diagnosi.md) §3-bis/3-ter · `D-101`, `D-102` · [referto](../roadmap-plans/bot-ai-consolidamento-2026-08-11.md) §9. ✅ **Il meglio calibrato dei due**: nomina i Feature ID e le Epic reali, e dice da sé di aggiornarli invece di moltiplicarli |
 
 > ⬜ **Manca il tredicesimo.** `RT_Common_Actions_Master_Consolidation_v0.1.md` è ancora in
 > `docs/archive/consolidazione-chat-openai/`, **untracked e non recepito**: la decisione che lo bloccava è

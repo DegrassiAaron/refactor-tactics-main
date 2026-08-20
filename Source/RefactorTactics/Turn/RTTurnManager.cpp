@@ -3980,9 +3980,16 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 	// Cardinalita' <= 1: nessuna finestra si apre e non si chiede niente a nessuno (ADR-0004 §2). Il caso
 	// arriva davvero — una condizione dichiarata che filtri via tutti i bersagli lascia il solo `HOLD` — ed e'
 	// cosi' che il regime *Conditional* emerge dai dati invece che da un enum di policy parallelo.
+	//
+	// ⚠️ **I sei ripieghi di questa funzione applicano `SafeResponse(Opportunity)` e non piu' la costante
+	// `HoldResponse()`** (2026-08-19, fetta 3 di E14.7). Per l'Overwatch **non cambia un esito**: `HOLD` e'
+	// sempre fra le sue risposte legali e `SafeResponse` la preferisce a qualunque altra. Cambia per il
+	// `Brace` di [D-047], che chiama la propria scelta sicura `Hold Ground`: con la costante, ognuno dei sei
+	// ripieghi avrebbe applicato una risposta **fuori** dalle sue `AllowedResponses` — cioe' un
+	// `IsResponseAllowed` falso su una decisione presa dal resolver stesso.
 	if (!URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity))
 	{
-		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 			ERTReactionDecisionOutcome::HoldImmediate);
 	}
 
@@ -4007,7 +4014,7 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 				VerificationDivergences.Add(FString::Printf(
 					TEXT("risposta registrata illegale nella ri-simulazione: '%s' non e' fra le AllowedResponses della finestra %s"),
 					*Recorded->Response, *Key));
-				return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+				return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 					ERTReactionDecisionOutcome::HoldRejected);
 			}
 
@@ -4022,7 +4029,7 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 		// risposto», cioe' da un successo.
 		VerificationDivergences.Add(FString::Printf(
 			TEXT("finestra non coperta dalla traccia: nessuna risposta registrata per %s"), *Key));
-		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 			ERTReactionDecisionOutcome::HoldNoDecider);
 	}
 
@@ -4041,18 +4048,18 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 			// applicare risposte che l'altra rifiuta.
 			if (!URTReactionOpportunityLibrary::IsResponseAllowed(Opportunity, BotResponse))
 			{
-				return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+				return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 					ERTReactionDecisionOutcome::HoldRejected);
 			}
-			const bool bBotFires = URTReactionOpportunityLibrary::FireResponseTarget(BotResponse) != INDEX_NONE;
-			return FRTReactionDecision(BotResponse,
-				bBotFires ? ERTReactionDecisionOutcome::FireChosen : ERTReactionDecisionOutcome::HoldChosen);
+			// Stessa classificazione del decisore iniettato, e da UNA sola funzione: due punti che decidono
+			// «che cosa ha scelto» sono due regole, e divergerebbero al primo esito nuovo.
+			return FRTReactionDecision(BotResponse, ClassifyChosenResponse(Opportunity, BotResponse));
 		}
 
 		// Un'unita' umana senza UI: la finestra esiste e nessuno puo' rispondere. Fail-closed nel verso
 		// giusto — senza decisore la charge non si spende. Il contrario, sparare per default, spenderebbe una
 		// risorsa irreversibile per una configurazione mancante. La UI e' CP 14.6 (`#166`).
-		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 			ERTReactionDecisionOutcome::HoldNoDecider);
 	}
 
@@ -4075,13 +4082,36 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 	// non c'e' piu'.
 	if (!URTReactionOpportunityLibrary::IsResponseAllowed(Opportunity, Response))
 	{
-		return FRTReactionDecision(URTReactionOpportunityLibrary::HoldResponse(),
+		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 			ERTReactionDecisionOutcome::HoldRejected);
 	}
 
-	const bool bFire = URTReactionOpportunityLibrary::FireResponseTarget(Response) != INDEX_NONE;
-	return FRTReactionDecision(Response,
-		bFire ? ERTReactionDecisionOutcome::FireChosen : ERTReactionDecisionOutcome::HoldChosen);
+	return FRTReactionDecision(Response, ClassifyChosenResponse(Opportunity, Response));
+}
+
+ERTReactionDecisionOutcome ARTTurnManager::ClassifyChosenResponse(
+	const FRTReactionOpportunity& Opportunity, const FString& Response)
+{
+	// Tre classi, e la terza e' nata con [D-047]: sparare, tenere la scelta sicura, oppure **scegliere
+	// qualcos'altro**. Fino al `Brace` la terza era vuota per costruzione — l'Overwatch offre `FIRE:<id>` e
+	// `HOLD`, e non c'e' un «altro» — quindi bastava un booleano.
+	if (URTReactionOpportunityLibrary::FireResponseTarget(Response) != INDEX_NONE)
+	{
+		return ERTReactionDecisionOutcome::FireChosen;
+	}
+
+	// ⚠️ **Il confronto e' con `SafeResponse`, non con la costante `HOLD`**, ed e' la stessa correzione che
+	// i sei ripieghi di questa funzione hanno gia' ricevuto: la scelta sicura di una finestra di `Brace` e'
+	// `Hold Ground`, e misurarla contro `HOLD` classificherebbe come «altro» proprio la risposta piu'
+	// conservativa che esista. Chi decide qual e' la scelta sicura e' l'opportunity, in un posto solo.
+	if (Response.Equals(URTReactionOpportunityLibrary::SafeResponse(Opportunity), ESearchCase::CaseSensitive))
+	{
+		return ERTReactionDecisionOutcome::HoldChosen;
+	}
+
+	// Una risposta attiva che non e' `FIRE`: il token la nomina in `FRTTurnLogEntry::ReactionResponse`, e
+	// l'esito esiste perche' `LogEventCount` possa contarla separatamente da chi ha tenuto la posizione.
+	return ERTReactionDecisionOutcome::ResponseChosen;
 }
 
 void ARTTurnManager::ArmRecordedReactionDecisions(const TArray<FRTTurnLogEntry>& TraceEntries)
@@ -4108,12 +4138,25 @@ void ARTTurnManager::ArmRecordedReactionDecisions(const TArray<FRTTurnLogEntry>&
 			continue;
 		}
 
-		// La stringa si RICOSTRUISCE: il TurnLog porta l'esito e il bersaglio, non la risposta. Il `FIRE` e'
-		// l'unico esito con un bersaglio; gli altri cinque hanno applicato `HOLD`, per quanto diversa sia la
-		// storia che raccontano — ed e' la risposta, non l'esito, cio' da cui dipende il determinismo.
-		const FString Response = (Outcome == ERTReactionDecisionOutcome::FireChosen)
-			? URTReactionOpportunityLibrary::FireResponse(Entry.SelectedTargetUnitId)
-			: FString(URTReactionOpportunityLibrary::HoldResponse());
+		// La risposta si LEGGE se la voce la porta, e si ricostruisce altrimenti.
+		//
+		// 🔴 **La ricostruzione da sola ha smesso di bastare con [D-047], e non era incompleta: era
+		// SBAGLIATA.** Regge finche' il vocabolario e' chiuso — l'Overwatch offre `FIRE:<id>` e `HOLD`, quindi
+		// l'esito basta a dire quale delle due sia stata applicata. Il `Brace` apre finestre le cui risposte
+		// vengono dal **catalogo** (`Hold Ground`, `SIDESTEP`, e quelle che i profili aggiungeranno): per
+		// quelle la ricostruzione produce `HOLD`, che in una finestra di `Brace` **non e' nemmeno una risposta
+		// legale**. Il ramo di sopra la rifiuterebbe come «registrata illegale», cioe' accuserebbe la traccia
+		// di un difetto del lettore — e il replay divergerebbe applicando la scelta sicura al posto dello
+		// scarto.
+		//
+		// ⚠️ **Il campo vuoto NON e' un dato mancante**: e' la dichiarazione che la risposta e' derivabile, ed
+		// e' cosi' che ogni traccia scritta prima della v10 continua a significare esattamente cio' che
+		// significava. L'Overwatch non scrive il token e non cambia di una riga.
+		const FString Response = !Entry.ReactionResponse.IsEmpty()
+			? Entry.ReactionResponse
+			: ((Outcome == ERTReactionDecisionOutcome::FireChosen)
+				? URTReactionOpportunityLibrary::FireResponse(Entry.SelectedTargetUnitId)
+				: FString(URTReactionOpportunityLibrary::HoldResponse()));
 
 		// ⚠️ Due voci con la STESSA chiave: `Add` sovrascriverebbe, e una risposta andrebbe persa senza che
 		// nessuno lo dica — cioe' il difetto che questa issue esiste per prevenire, spostato di un anello.

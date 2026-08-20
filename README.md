@@ -114,7 +114,7 @@ CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
    **click** su unità propria = selezione · **click** su cella = movimento · **click** su nemico = attacco ·
    **Spazio** = risolvi il turno (o attendi il timer di 30 s) · **R** = riavvia la partita.
 5. Test: **Tools → Session Frontend → Automation** → `RefactorTactics` → *Start Tests* (419 test).
-   Guida al debug in [`docs/technical/debug-vs-unreal.md`](docs/technical/debug-vs-unreal.md).
+   Guida al debug in [`docs/technical/runbooks/debug-vs-unreal.md`](docs/technical/runbooks/debug-vs-unreal.md).
 
 ### Asset di terze parti
 

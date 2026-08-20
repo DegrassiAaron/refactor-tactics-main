@@ -151,6 +151,33 @@ namespace
 			// sono E14.7 e stanno nell'elenco qui sotto: dichiarare disponibile la finestra non dichiara
 			// disponibile la scelta.
 			TEXT("DecisionBoundary"),
+
+			// ➕ **`ReactionProfile` SCENDE qui il 2026-08-19 con la fetta 4 di `#314`**, e le tre condizioni
+			// che la riga di sopra prescriveva sono soddisfatte tutte e tre — verificate, non assunte:
+			//   · il **runtime** esiste: `RTTurnManager_Blast.cpp`, ramo `Status.Braced`, costruisce
+			//     l'opportunity da `URTCatalogLibrary::BraceExecutableResponses(Unit->ReactionProfileId)` e
+			//     chiede la decisione. Pinnato da `Reactions.Brace.ProfileDecidesInPlay`;
+			//   · i **DATI per rispondere** esistono: `decisions.respond` accetta le risposte di profilo da
+			//     questa stessa fetta. E' la lezione scritta quattro righe piu' su — scoprire una capability
+			//     senza i dati che la rendono rispondibile produce finestre a cui nessuno risponde — e qui
+			//     capability e vocabolario atterrano nello **stesso commit**, come fece la fase A;
+			//   · lo scenario **esegue davvero cio' che descrive**: `Spec.Brace.ProfileChangesResponse` non ha
+			//     piu' un turno con `intents: []`, e la sua `decisions` risponde `SIDESTEP` a una finestra che
+			//     si apre per davvero. Senza questo, scoprirla avrebbe fatto passare da `Blocked` a verde un
+			//     turno vuoto — il difetto esatto che la nota di `ReactionProfile` nell'elenco di sotto
+			//     registrava, e che sarebbe stato ironico ripetere chiudendola.
+			//     🔴 **Questa riga diceva «il T2 e' pieno» e il T2 NON ESISTE PIU'**: lo stesso commit che la
+			//     scriveva ha ridotto lo scenario a **un turno solo**, perche' `Action.Brace` dura 1 turno e ha
+			//     cooldown 1 — al T2 lo stato e' scaduto e l'azione non e' ridichiarabile. Il commento
+			//     descriveva il piano, non il file; chi fosse andato a cercare quel T2 per riderivare la
+			//     condizione non avrebbe potuto dire se fosse soddisfatta o abbandonata in silenzio.
+			//
+			// ⚠️ **`ReactionClash` NON scende, e la riga di sotto che dice «chi la chiude sposta ENTRAMBI i
+			// nomi» va letta come prescrizione, non come misura**: sposta entrambi chi chiude `#314`, e questa
+			// fetta non la chiude. Il Clash ha oggi le sue funzioni pure — `ResolveContestedBoundary`,
+			// `MakeClashLogEntries` — e **nessun punto del resolver le chiama**: un turno che chiedesse
+			// `ReactionClash` non troverebbe niente da eseguire.
+			TEXT("ReactionProfile"),
 		};
 		return Available;
 	}
@@ -204,7 +231,12 @@ namespace
 			//
 			// L'owner e' **E14.7 (`#314`)**, che porta `Reaction Profile` e `Reaction Clash` insieme. Chi la
 			// chiude sposta ENTRAMBI i nomi, non solo questo.
-			TEXT("ReactionProfile"),          // owner: #314
+			// ➖ **USCITA il 2026-08-19 con la fetta 4: `ReactionProfile` e' fra le DISPONIBILI**, e le ragioni
+			// stanno accanto alla sua voce là sopra. Il testo qui resta come registro di ciò che ha bloccato
+			// quello scenario per tre giorni, e di come la fase B evitò di sbloccarlo per la ragione sbagliata.
+			// ⚠️ **«Chi la chiude sposta ENTRAMBI i nomi» era una prescrizione e resta vera per `#314`**, che è
+			// ancora OPEN: `ReactionClash` è tuttora qui sotto perché la sua macchina non ha chiamanti nel
+			// resolver. Chi chiude la issue sposta anche quello.
 			// 🔵 **`owner:` e' chi la SPOSTERA' fra le disponibili, non chi ha scritto la feature**, e questa
 			// riga e' il caso che ha costretto a distinguerlo. La feature esiste ed e' chiusa — `#200`,
 			// rivalidazione della geometria sul bersaglio effettivo (D-017), CLOSED 4/4, con tre test che la
@@ -1294,7 +1326,64 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 
 		if (D.Respond.Equals(TEXT("HOLD"), ESearchCase::CaseSensitive))
 		{
+			// ⚠️ **Anche `HOLD` si verifica contro la finestra, dal 2026-08-19.** Sembra la risposta che non
+			// puo' mai essere illegale, e con il solo Overwatch lo era davvero — `BuildOverwatchTriggers` la
+			// aggiunge sempre. Il `Brace` di [D-047] ha rotto quella premessa: le sue risposte sono
+			// `{Hold Ground, SIDESTEP}` e `HOLD` non c'e'. Senza questo controllo uno scenario che scrivesse
+			// `respond: "HOLD"` su una finestra di `Brace` la vedeva **consumata e contata come applicata**
+			// (`applied=1`, `unused=0`, nessuna nota, esito `PASS`) mentre il resolver la rifiutava con
+			// `HoldRejected` — cioe' esattamente il «un test smette di verificare senza dirlo» che il ramo
+			// delle risposte di profilo, dieci righe piu' giu', era stato scritto per impedire.
+			// 💡 La correzione era stata applicata al ramo nuovo e non al suo gemello: un criterio applicato a
+			// meta' e' come non applicarlo, perche' l'esito verde arriva comunque dalla strada scoperta.
+			if (!URTReactionOpportunityLibrary::IsResponseAllowed(
+				Opportunity, URTReactionOpportunityLibrary::HoldResponse()))
+			{
+				const FString Motivo = FString::Printf(
+					TEXT("turno %d: '%s' risponde 'HOLD', che non e' fra le risposte legali della sua finestra")
+					TEXT(" (una finestra di `Brace` usa 'Hold Ground')"),
+					TurnIndex + 1, *D.Unit);
+				if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
+				Notes.Add(Motivo);
+				// ⚠️ **Consumata, benche' rifiutata**, e senza incrementare `ScriptedDecisionsApplied`: la
+				// decisione E' stata abbinata alla sua finestra: cio' che e' fallito e' la risposta. Lasciandola
+				// non consumata, il residuo di fine turno aggiungeva una **seconda** nota che diceva l'opposto —
+				// «nessuna finestra si e' aperta per quell'unita'» — e chi legge il referto si trovava due
+				// diagnosi contraddittorie dello stesso fallimento, con la seconda che manda a cercare una
+				// finestra mancante che invece c'era.
+				PendingConsumed[Index] = true;
+				return FString();
+			}
 			return Consuma(URTReactionOpportunityLibrary::HoldResponse());
+		}
+
+		// ➕ **E14.7 fetta 4: le risposte di un Reaction Profile passano LETTERALI.** `Hold Ground`,
+		// `SIDESTEP` e le altre non hanno un bersaglio da tradurre e non hanno un token di runtime: sono gia'
+		// esattamente le stringhe che `URTCatalogLibrary::BraceAllowedResponses` mette in `AllowedResponses`,
+		// quindi `IsResponseAllowed` le riconosce senza conversione. E' il contrario di `FIRE:`, che esiste
+		// perche' lo scenario NON puo' scrivere un id di runtime.
+		//
+		// ⚠️ **Si verifica che la risposta sia legale in QUESTA finestra, e non basta che il catalogo la
+		// conosca**: il loader ha gia' rifiutato i refusi, ma un profilo sbagliato — `SIDESTEP` chiesto a
+		// Riktor, che non ce l'ha — supererebbe il loader e arriverebbe qui. Senza questo controllo
+		// `IsResponseAllowed` la rifiuterebbe nel resolver producendo un `HoldRejected`, che nel referto
+		// somiglia a un HOLD voluto: il difetto che la traduzione fallita di `FIRE` ha gia' pagato una volta,
+		// dieci righe piu' su.
+		if (URTCatalogLibrary::IsKnownReactionProfileResponse(D.Respond))
+		{
+			if (!URTReactionOpportunityLibrary::IsResponseAllowed(Opportunity, D.Respond))
+			{
+				const FString Motivo = FString::Printf(
+					TEXT("turno %d: '%s' risponde '%s', che non e' fra le risposte legali della sua finestra"),
+					TurnIndex + 1, *D.Unit, *D.Respond);
+				if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
+				Notes.Add(Motivo);
+				// Consumata benche' rifiutata, per la stessa ragione del gemello sopra: la decisione ha trovato
+				// la propria finestra, e una seconda nota sul residuo direbbe il contrario.
+				PendingConsumed[Index] = true;
+				return FString();
+			}
+			return Consuma(D.Respond);
 		}
 		// `FIRE`: il token porta l'id di RUNTIME, che e' esattamente cio' che lo scenario non poteva scrivere.
 		// Stesso spazio di id del proprietario — l'indice nell'array di risoluzione, non lo `StableUnitId`.

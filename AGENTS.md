@@ -39,8 +39,12 @@ Carica solo il contesto necessario, ma non saltare queste fonti quando pertinent
    `*.shortlist.md`) sono **generate**: si rigenerano, non si editano.
 8. Issue/task corrente, specifica di feature, cataloghi in `docs/balance/`, test e codice esistente.
 
-`docs/src/` contiene i sorgenti **non ancora consumati** (PRD di visione, dataset, media): **non è fonte
-normativa per default**. *(Dal 2026-08-12 sono Markdown: in `docs/` non c'è più prosa in formato binario —
+`docs/research/` contiene i sorgenti **non ancora consumati** (PRD di visione, dataset, media): **non è fonte
+normativa per default**. *(Era `docs/src/` fino al 2026-08-19: quel nome era ambiguo in un repository che ha
+anche `Source/`, e la cartella teneva quattro cose diverse — oggi la ricerca sta in `docs/research/` e gli
+output generati in `docs/generated/`,
+[#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165).)*
+*(Dal 2026-08-12 sono Markdown: in `docs/` non c'è più prosa in formato binario —
 [D-009](docs/decisions/RT_PDR_00_Decision_Log.md).)* `docs/archive/` è storico — e dal 2026-08-08 include
 [`docs/archive/src/`](docs/archive/src/README.md), dove finiscono i sorgenti **già recepiti** (design, handoff,
 audit) con l'indice di chi li possiede oggi. Se cerchi la provenienza di una regola, è lì; se cerchi la regola,
@@ -224,7 +228,7 @@ validazione · serializzazione/replay · privacy intenti.
   *(Corretto il 2026-08-16: la riga diceva «`.github/` non esiste», e dal 2026-08-16 è falsa —
   `.github/ISSUE_TEMPLATE/` esiste e precompila il blocco `## Tracking`. La decisione proteggeva la **CI**,
   non la cartella, e l'oracolo che la verificava — `git ls-tree … -- .github/` in
-  [`qa-prompt-terminal-b`](docs/technical/qa-prompt-terminal-b-scenario-runner.md) — è stato ristretto a
+  [`qa-prompt-terminal-b`](docs/technical/runbooks/qa-prompt-terminal-b-scenario-runner.md) — è stato ristretto a
   `workflows/` nello stesso commit. Un template non esegue niente; un workflow sì. Precedente del
   2026-08-12: diceva «è vuota», che induceva a cercare una cartella inesistente.)*
 - ⚠️ **`tools/radar/` non è solo documentazione.** I rating si calcolano dai cataloghi di bilanciamento
@@ -260,7 +264,7 @@ viste generate e si trova due volte.
 Il pass si **riesegue prima di chiudere**: una Issue chiusa con tracking incoerenti è incompleta.
 
 Regola completa, con le dodici categorie e cosa scrivere in ciascuna:
-[`docs/technical/issue-tracking-completeness.md`](docs/technical/issue-tracking-completeness.md).
+[`docs/technical/tooling/issue-tracking-completeness.md`](docs/technical/tooling/issue-tracking-completeness.md).
 
 ## Git
 

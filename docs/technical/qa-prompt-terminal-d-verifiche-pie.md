@@ -2,9 +2,9 @@
 
 > **Scopo**: il mandato operativo della sessione che sta **davanti a Unreal** e giudica ciò che nessuna
 > macchina decide. Uno di quattro — gli altri sono il core deterministico
-> ([`qa-prompt-terminal-a-determinismo.md`](qa-prompt-terminal-a-determinismo.md)), lo Scenario Runner
-> ([`qa-prompt-terminal-b-scenario-runner.md`](qa-prompt-terminal-b-scenario-runner.md)) e l'architettura QA
-> ([`qa-prompt-terminal-c-architettura-qa.md`](qa-prompt-terminal-c-architettura-qa.md)).
+> ([`qa-prompt-terminal-a-determinismo.md`](runbooks/qa-prompt-terminal-a-determinismo.md)), lo Scenario Runner
+> ([`qa-prompt-terminal-b-scenario-runner.md`](runbooks/qa-prompt-terminal-b-scenario-runner.md)) e l'architettura QA
+> ([`qa-prompt-terminal-c-architettura-qa.md`](runbooks/qa-prompt-terminal-c-architettura-qa.md)).
 > `CURRENT` · **Ultimo aggiornamento**: 2026-08-16 · **v1**
 > ⚠️ **Scritto ex novo**, ancorato alle misure di `origin/main` del 2026-08-16. Nasce con le tre lezioni
 > che gli spec panel di Terminal A e B hanno reso vincolanti per tutti — e con una quarta, che questo

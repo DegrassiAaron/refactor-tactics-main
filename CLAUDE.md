@@ -17,9 +17,13 @@ Carica il contesto in questo ordine, **solo quando pertinente**:
 5. Stato/scope: `docs/roadmap/roadmap-checkpoint.md` + `docs/roadmap/roadmap-v0.1.md`.
 6. Feature: specifica owner + cataloghi `docs/balance/` + test + implementazione esistente.
 
-Usa search/grep prima di aprire file lunghi. `docs/src/` è input/north-star non ancora consumato: non usarlo
-come autorità implicita. `docs/archive/` è storico, e `docs/archive/src/` conserva i sorgenti già recepiti —
-utile per la provenienza, mai per la regola.
+Usa search/grep prima di aprire file lunghi. `docs/research/` è input/north-star non ancora consumato: non
+usarlo come autorità implicita. `docs/archive/` è storico, e `docs/archive/src/` conserva i sorgenti già
+recepiti — utile per la provenienza, mai per la regola.
+
+> ⚠️ **Era `docs/src/` fino al 2026-08-19, e quella cartella non esiste più** (`git ls-files docs/src` → zero,
+> [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165)). Chi seguiva questa riga
+> cercava una cartella vuota e non leggeva mai la casella di posta reale.
 
 Un `.pdf` non è **mai** autoritativo (**D-009**): resta fuori dal preflight e si apre solo per provenienza,
 rationale storico o confronto richiesto; se è l'export di una spec Markdown corrente, vince il Markdown. La
@@ -76,7 +80,7 @@ Tre trappole che questo repository ha già pagato:
 - **Prima di chiudere si riesegue il pass.** Una issue chiusa con tracking incoerenti è incompleta — e il
   DoD si consuntiva nel commento di chiusura, non spuntando il body.
 
-Owner della regola: [`docs/technical/issue-tracking-completeness.md`](docs/technical/issue-tracking-completeness.md).
+Owner della regola: [`docs/technical/tooling/issue-tracking-completeness.md`](docs/technical/tooling/issue-tracking-completeness.md).
 
 ## 4. Classifica il task
 
