@@ -3660,8 +3660,17 @@ tracks:
       # come Base Color. `M_Global_Tint` è parametrico — un colore per MID — e non distingue due istanze
       # dello stesso componente. È un `.uasset`: lavoro umano, in Unreal, con lease. Senza quello il colore
       # resta invisibile per quanto codice ci sia, e va detto adesso invece che scoperto a schermo.
-      - Source/RefactorTactics/Map/RTHexMapActor.h
-      - Source/RefactorTactics/Map/RTHexMapActor.cpp
+      # ➖ **`RTHexMapActor.h` e `.cpp` RILASCIATI il 2026-08-20 e passati a `geometry_gesture` (#712).**
+      # Il rilascio si scrive, non si deduce dallo `status: IDLE` — è la regola che questo file applica ai
+      # sette claim stantii di `#1165`. Le misure che lo giustificano, tutte e tre nello stesso verso:
+      # · `#451`, la issue di questa track, è **CLOSED** dal 2026-08-16T05:38:04Z — chiesto a GitHub, non
+      #   letto da questa nota, che sull'argomento si è già data del bugiardo una volta;
+      # · `feat/451-u1-voci-hex-mode` **non esiste più** su `origin` — `git ls-remote --heads` non lo trova;
+      # · `D:/rt-content` è su `ba302b6b`, cioè `origin/main`, e `git status --porcelain` è **vuoto** dopo
+      #   `update-index --refresh` — nessun lavoro in volo su quei due file, misurato e non supposto.
+      # ⚠️ **Il resto del `writable` di questa track NON è rilasciato**: la stessa prova varrebbe, ma un
+      # rilascio in blocco su una necessità che nessuno ha è la lease sull'arena di `U21` rifatta in grande.
+      # Si rilascia ciò che serve a chi lo prende, e questa track resta la titolare di tutto il resto.
       # File nuovo, quindi conteso da nessuno per costruzione. Sta qui e non in `RTHexMapTests.cpp` — che
       # sarebbe il posto naturale — perche' quel file non e' assegnato a questa track: un modulo e il suo
       # test si toccano insieme, ma «insieme» non autorizza a prendersi un file che non si ha.
@@ -6563,7 +6572,32 @@ tracks:
       quindi la misura del 18 non valeva piu' niente. Esito: **zero** lease sui due path, e i binari sono
       ancora byte-identici alla baseline. Il branch e' stato riallineato su `origin/main` e il rebase
       **verificato invece che creduto pulito**: zero track perse, 38 righe aggiunte, solo la mia.
-    writable: []
+      ➕ **Write-set aperto il 2026-08-20: la seduta ha smesso di essere solo osservazione.** `U22` ha
+      trovato che le celle si vedono come **dischi** — sono istanze di `/Engine/BasicShapes/Cylinder`
+      appiattito (`RTHexMapActor.cpp:104`), mentre il contorno evidenziato viene da `HexCorners`
+      (`60k−30°`) disegnato come linee. Due percorsi diversi per la stessa forma: è per questo che il
+      bordo è un esagono e il pieno un cerchio. La correzione costruisce il prisma **in codice** a partire
+      da `HexCorners`, così i due non possono più divergere, e un test lo asserisce.
+      ⚠️ **Nessun `.uasset` nuovo, ed è una scelta contro l'alternativa più facile.** Una mesh autorata in
+      Modeling Mode sarebbe stata più rapida, ma sarebbe un binario in più da leasare — e due `.uasset`
+      non si fondono. Il prisma generato è codice: si diffa, si testa, e non contende niente a nessuno.
+      🔵 **`RefactorTactics.Build.cs` NON va toccato**, ed è stato verificato invece che assunto:
+      `MeshDescription` e `StaticMeshDescription` sono in `PublicDependencyModuleNames` di
+      `Engine.Build.cs` (righe 105-106), quindi arrivano già per transitività. Senza quella misura questa
+      correzione avrebbe chiesto un file `integration_only`, e sarebbe stata rimandata per niente.
+      ➕ **Due file arrivano da `content_editor` con un rilascio scritto**, non presi perché la track era
+      `IDLE`: `#451` chiusa, branch sparito, `D:/rt-content` pulito su `main`. La misura sta nella nota
+      di quella track, accanto ai path che restano suoi.
+    writable:
+      # Non assegnati a nessuna track prima d'ora — il che NON vuol dire liberi da prendere in silenzio:
+      # `D-139` chiede che un path stia nel `writable` di chi ci scrive, e l'assenza di un proprietario è
+      # una dichiarazione mancante, non un permesso.
+      - Source/RefactorTactics/Map/RTHexLibrary.h
+      - Source/RefactorTactics/Map/RTHexLibrary.cpp
+      - Source/RefactorTactics/Tests/RTHexTests.cpp
+      # Rilasciati da `content_editor` il 2026-08-20, con le tre misure scritte nella sua nota.
+      - Source/RefactorTactics/Map/RTHexMapActor.h
+      - Source/RefactorTactics/Map/RTHexMapActor.cpp
     derives_from: []
     binary_leases:
       # Riemessa **prima** di riaprire l'editor, come la prima volta. Sui FILE e non sulla cartella: la
