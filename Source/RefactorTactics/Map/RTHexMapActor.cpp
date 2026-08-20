@@ -4,6 +4,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Map/RTArenaCriteriaLibrary.h"
+#include "Map/RTGeometryGrammar.h" // ToPolyline: i muri interni si disegnano dal loro segmento (#712)
 #include "Components/InstancedStaticMeshComponent.h"
 #include "DrawDebugHelpers.h" // anteprima di pianificazione (presentazione, non logica)
 #include "EngineUtils.h" // TActorIterator
@@ -796,6 +797,53 @@ void ARTHexMapActor::RebuildInstances()
 					|| Door.State == ERTHexDoorState::Locked);
 				AddEdgePanel(Door.Edge, bBlocking ? RTDoorClosedHeight : RTDoorOpenHeight);
 			}
+		}
+	}
+
+	// MURI INTERNI (formato v10, #712): non stanno su un bordo, quindi non passano da `AddEdgePanel`.
+	//
+	// ⚠️ Stanno sull'ASSET e non nella cella, quindi il ciclo e' qui fuori e non dentro quello sopra: un
+	// muro interno non appartiene alla cella nel modo in cui ci appartengono coperture e porte — la cella
+	// non lo conosce.
+	// ⚠️ Il pannello NON e' orientato con `EdgeRotation`, che deriva l'angolo dai due centri di cella:
+	// qui non c'e' nessun vicino da guardare, la giacitura e' quella del segmento e basta.
+	if (EdgeFeatures && MapAsset)
+	{
+		for (const FRTHexInteriorWall& Wall : MapAsset->InteriorWalls)
+		{
+			const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Wall.Segment, UseHexSize);
+			if (Line.Points.Num() < 2)
+			{
+				continue; // segmento fuori grammatica: non produce geometria, quindi non se ne disegna
+			}
+
+			const FRTHexCellData* Data = MapAsset->FindCell(Wall.Cell);
+			const double CellTop = Data ? static_cast<double>(Data->Height) : 0.0;
+			const FVector Centre = URTHexLibrary::AxialToWorld(Wall.Cell, GetActorLocation(), UseHexSize, UseLayerH);
+
+			const FVector2D A = Line.Points[0];
+			const FVector2D B = Line.Points[1];
+			const double Length = FVector2D::Distance(A, B);
+			if (Length <= UE_KINDA_SMALL_NUMBER)
+			{
+				continue;
+			}
+
+			const float PanelHeight = (Wall.Segment.WallType == ERTHexCoverType::High)
+				? RTCoverHighHeight : RTCoverLowHeight;
+
+			const FVector2D Mid = (A + B) * 0.5;
+			const FVector PanelCentre(
+				Centre.X + Mid.X,
+				Centre.Y + Mid.Y,
+				Centre.Z + CellTop + RTCellTopZ + PanelHeight * 0.5);
+
+			// Il cubo engine e' 100 uu per lato: X sottile (spessore), Y lungo il muro, Z l'altezza — le
+			// stesse convenzioni dei pannelli di bordo, cosi' i due si leggono come la stessa cosa.
+			const FRotator Yaw(0.0, FMath::RadiansToDegrees(FMath::Atan2(B.Y - A.Y, B.X - A.X)), 0.0);
+			const FTransform PanelXf(Yaw, PanelCentre,
+				FVector(RTEdgePanelThickness, Length / 100.f, PanelHeight / 100.f));
+			EdgeFeatures->AddInstance(PanelXf, /*bWorldSpace=*/ true);
 		}
 	}
 }

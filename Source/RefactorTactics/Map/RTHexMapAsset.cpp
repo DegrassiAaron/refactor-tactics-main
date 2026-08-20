@@ -747,6 +747,9 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 	// v8 -> v9 (#832, CP 23.3): porte e archi guadagnano un nome pubblico stabile (`StableId`). Il default
 	// (`NAME_None`) e' cio' che una mappa scritta prima gia' era — nessuna struttura nominata — quindi anche
 	// qui non c'e' niente da convertire, e nessun nome viene inventato da una ricarica.
+	// v9 -> v10 (#712, seduta `U22`): la mappa guadagna i MURI INTERNI, la geometria che non giace su nessun
+	// bordo. L'elenco nasce vuoto, ed e' cio' che una mappa scritta prima gia' era: quei muri non si potevano
+	// disegnare, e il segmento che li avrebbe descritti veniva scartato dalla cottura senza dirlo.
 	// In nessuno di questi c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
 	// si comporta esattamente come prima — quindi la migrazione si limita a dichiarare la versione. Il giorno
 	// in cui una migrazione dovra' TRASFORMARE dati, il posto e' questo, un `if (FormatVersion < N)` per

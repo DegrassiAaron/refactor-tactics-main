@@ -627,7 +627,9 @@ bool FRTWallReachingAnEdgeClosesItTest::RunTest(const FString&)
 				static_cast<int32>(Edges[0]), DirIndex);
 		}
 
-		// 2. Centro -> vertice: NIENTE. Il vertice appartiene a due lati (`MSE-4`).
+		// 2. Centro -> vertice: nessuna COPERTURA, perche' il vertice appartiene a due lati (`MSE-4`).
+		//    ⚠️ Non vuol dire «niente»: dal formato v10 quel segmento diventa un muro interno, e lo
+		//    asserisce `InteriorWallIsKeptAndDoesNotHash`. Qui si misura solo che non chiude bordi.
 		const FVector2D Vertex(HexSize * FMath::Cos(Mid + Deg30), HexSize * FMath::Sin(Mid + Deg30));
 		EdgesFor(Centre, Vertex, Edges);
 		TestEqual(FString::Printf(TEXT("centro -> vertice presso %d: nessuna copertura"), DirIndex),
@@ -663,6 +665,94 @@ bool FRTWallReachingAnEdgeClosesItTest::RunTest(const FString&)
 		EdgesFor(A, B, Edges);
 		TestEqual(TEXT("diametro fra vertici opposti: nessuna copertura esprimibile"), Edges.Num(), 0);
 	}
+
+	return true;
+}
+
+/**
+ * #712 / seduta `U22`: un muro che non giace su nessun bordo viene CONSERVATO, non buttato via.
+ *
+ * 🔴 Prima spariva in silenzio. Un segmento che non chiude bordi non produce coperture, e non c'era nessun
+ * altro posto dove metterlo: veniva calcolato, disegnato come anteprima, e perso al rilascio. Il caso non
+ * e' esotico — e' quello che l'autore ha chiesto: una retta che taglia l'esagono passando per due vertici
+ * opposti. Tracciata sulla griglia attraversa **una cella su tre** per il centro.
+ *
+ * ⚠️ Il test asserisce anche cio' che NON deve finirci: un segmento che chiude un bordo e' gia' descritto
+ * dalla sua copertura, e scriverlo anche fra i muri interni sarebbe una seconda verita' sullo stesso muro.
+ *
+ * ⚠️ E asserisce che l'hash NON cambia. E' la stessa scelta di `bGenerated` e per la stessa ragione: il
+ * movimento e' cella-a-cella, un muro dentro una cella non ne blocca nessuno, e due mappe che si giocano
+ * in modo identico non devono avere hash diversi — sarebbe un falso positivo contro `replay divergence = 0`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteriorWallIsKeptAndDoesNotHashTest,
+	"RefactorTactics.Geometry.InteriorWallIsKeptAndDoesNotHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInteriorWallIsKeptAndDoesNotHashTest::RunTest(const FString&)
+{
+	constexpr float HexSize = 100.f;
+	const double Deg30 = PI / 6.0;
+
+	// La corda per due vertici opposti: quella che l'autore voleva disegnare e che nessuna copertura regge.
+	FRTGeometrySegment Chord;
+	{
+		const FVector2D A(HexSize * FMath::Cos(Deg30), HexSize * FMath::Sin(Deg30));
+		const FVector2D B(-A.X, -A.Y);
+		if (!TestTrue(TEXT("la corda si aggancia alla grammatica"),
+			URTGeometryGrammarLibrary::SnapToGrammar(A, B, HexSize, Chord)))
+		{
+			return false;
+		}
+		Chord.WallType = ERTHexCoverType::High;
+
+		TArray<ERTHexDirection> Edges;
+		URTGeometryBakeLibrary::EdgesTouchedBy(Chord, HexSize, Edges);
+		TestEqual(TEXT("e non chiude nessun bordo: e' il motivo per cui serve un posto nuovo"),
+			Edges.Num(), 0);
+	}
+
+	URTHexMapAsset* Map = MakeOneCellMap();
+	const uint32 HashBefore = Map->ComputeHash();
+
+	URTGeometryBakeLibrary::AddSegmentsToCell(Map, BakeOrigin, { Chord }, HexSize);
+
+	TestEqual(TEXT("il muro interno e' conservato"), Map->InteriorWalls.Num(), 1);
+	TestEqual(TEXT("nessuna copertura, perche' non chiude bordi"),
+		URTGeometryBakeLibrary::CountGeneratedCovers(Map, BakeOrigin), 0);
+	if (Map->InteriorWalls.Num() == 1)
+	{
+		TestTrue(TEXT("appartiene alla cella disegnata"), Map->InteriorWalls[0].Cell == BakeOrigin);
+	}
+
+	// Ripassare sopra non duplica: un muro identico e' lo stesso muro.
+	URTGeometryBakeLibrary::AddSegmentsToCell(Map, BakeOrigin, { Chord }, HexSize);
+	TestEqual(TEXT("ridisegnarlo non lo duplica"), Map->InteriorWalls.Num(), 1);
+
+	// L'hash NON cambia: non e' dato di gioco.
+	TestEqual(TEXT("l'hash della mappa non cambia"), Map->ComputeHash(), HashBefore);
+
+	// Un muro SU un bordo non finisce fra gli interni: e' gia' descritto dalla sua copertura.
+	{
+		const FRTCellId Origin{ 0, 0, 0 };
+		const FVector Here = URTHexLibrary::AxialToWorld(Origin, FVector::ZeroVector, HexSize, 0.f);
+		const FVector There = URTHexLibrary::AxialToWorld(
+			URTHexLibrary::Neighbor(Origin, ERTHexDirection::NE), FVector::ZeroVector, HexSize, 0.f);
+		const double Mid = FMath::Atan2(There.Y - Here.Y, There.X - Here.X);
+
+		FRTGeometrySegment OnEdge;
+		URTGeometryGrammarLibrary::SnapToGrammar(
+			FVector2D(HexSize * FMath::Cos(Mid - Deg30), HexSize * FMath::Sin(Mid - Deg30)),
+			FVector2D(HexSize * FMath::Cos(Mid + Deg30), HexSize * FMath::Sin(Mid + Deg30)),
+			HexSize, OnEdge);
+
+		URTHexMapAsset* Other = MakeOneCellMap();
+		URTGeometryBakeLibrary::AddSegmentsToCell(Other, BakeOrigin, { OnEdge }, HexSize);
+		TestEqual(TEXT("un muro su un bordo non entra fra gli interni"), Other->InteriorWalls.Num(), 0);
+		TestNotNull(TEXT("ed e' descritto dalla sua copertura"), FindCover(Other, ERTHexDirection::NE));
+	}
+
+	// Il rebake li azzera insieme alle coperture generate: sono l'altra meta' dello stesso prodotto.
+	URTGeometryBakeLibrary::BakeCell(Map, BakeOrigin, {}, HexSize);
+	TestEqual(TEXT("il rebake a vuoto toglie anche i muri interni"), Map->InteriorWalls.Num(), 0);
 
 	return true;
 }

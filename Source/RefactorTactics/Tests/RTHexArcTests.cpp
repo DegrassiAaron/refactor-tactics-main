@@ -337,7 +337,7 @@ bool FRTArcMigrationTest::RunTest(const FString&)
 		URTHexMapAsset::CurrentFormatVersion);
 	// Il numero e' pinnato di proposito: un bump di formato deve far cadere un test, non passare inosservato.
 	// v9 (#832) aggiunge l'identita' stabile delle strutture; nessun dato precedente cambia significato.
-	TestEqual(TEXT("la versione corrente e' la 9"), URTHexMapAsset::CurrentFormatVersion, 9);
+	TestEqual(TEXT("la versione corrente e' la 10"), URTHexMapAsset::CurrentFormatVersion, 10);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2);
 

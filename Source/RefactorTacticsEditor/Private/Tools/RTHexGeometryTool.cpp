@@ -266,15 +266,27 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 		TArray<ERTHexDirection> Edges;
 		URTGeometryBakeLibrary::EdgesTouchedBy(Preview, HexSize, Edges);
 
-		// Il segmento resta, ma SOTTILE e in secondo piano: serve ancora a far vedere che lo snap sta
-		// scattando sulle direttrici — che e' l'altra meta' di cio' che l'autore deve leggere — senza piu'
-		// spacciarsi per il risultato.
+		// Il segmento resta disegnato, e il suo COLORE dice che mestiere fa in questo gesto:
+		//
+		// ```text
+		// chiude dei bordi   argento e sottile   e' una guida: il risultato sono i bordi verdi
+		// non ne chiude nessuno  verde e spesso  E' LUI il risultato: diventera' un muro interno
+		// ```
+		//
+		// ⚠️ Il secondo caso era ROSSO fino al formato v9, e allora era giusto: un segmento che non chiudeva
+		// bordi non produceva niente, perche' non c'era dove scriverlo. Da `#712` c'e' — `InteriorWalls` —
+		// quindi rosso direbbe il falso. Il rosso resta a cio' che e' davvero fuori grammatica.
 		const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Preview, HexSize);
 		if (Line.Points.Num() >= 2)
 		{
 			const FVector A(Centre.X + Line.Points[0].X, Centre.Y + Line.Points[0].Y, Z);
 			const FVector B(Centre.X + Line.Points[1].X, Centre.Y + Line.Points[1].Y, Z);
-			PDI->DrawLine(A, B, Edges.Num() > 0 ? FColor::Silver : FColor::Red, SDPG_Foreground, 1.0f);
+
+			const bool bIsInterior = Edges.Num() == 0;
+			const float InteriorThickness = (Preview.WallType == ERTHexCoverType::High) ? 6.0f : 3.0f;
+			PDI->DrawLine(A, B,
+				bIsInterior ? FColor::Green : FColor::Silver, SDPG_Foreground,
+				bIsInterior ? InteriorThickness : 1.0f);
 		}
 
 		if (Edges.Num() > 0)

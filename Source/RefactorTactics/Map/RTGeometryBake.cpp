@@ -96,13 +96,17 @@ namespace RTGeometryBakeInternal
 		//
 		// ```text
 		// centro -> punto medio di un lato   1 copertura, su quel lato
-		// centro -> un vertice               NIENTE, e il ghost lo mostra rosso
+		// centro -> un vertice               nessuna copertura -> diventa un MURO INTERNO
 		// diametro fra due lati opposti      2 coperture
-		// diametro fra due vertici opposti   NIENTE: tocca il perimetro solo sui vertici
+		// diametro fra due vertici opposti   nessuna copertura -> diventa un MURO INTERNO
 		// ```
 		//
-		// L'ultima riga e' un limite del MODELLO, non di questa regola: una copertura vive su un bordo, e
-		// una linea per due vertici opposti non giace su nessun bordo. Non e' esprimibile come copertura.
+		// ⚠️ **Le righe 2 e 4 dicevano «NIENTE, e il ghost lo mostra rosso», e il formato v10 le ha rese
+		// false nello stesso giorno in cui erano state scritte.** Una linea per due vertici opposti non
+		// giace su nessun bordo — quello resta vero, ed e' un limite del modello delle COPERTURE — ma da
+		// `#712` esiste `URTHexMapAsset::InteriorWalls`, dove quel muro viene conservato invece di sparire.
+		// Aggiornata invece di lasciata li': un commento che rassicura sulla meta' sbagliata e' il difetto
+		// che questa seduta ha gia' pagato due volte.
 		//
 		// 🔵 **La condizione e' UNA SOLA, e il vertice e' escluso da `D1 * D2 < 0`** — non da un controllo
 		// «strettamente dentro il lato» sulla posizione dell'estremo. La prima stesura ne aveva anche uno,
@@ -220,6 +224,17 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 		Updated.Covers.RemoveAll([](const FRTHexCover& Cover) { return Cover.bGenerated; });
 	}
 
+	// 1-bis. I muri INTERNI, cioe' quelli che non chiudono nessun bordo (formato v10, #712).
+	//        ⚠️ Nessuna copertura puo' rappresentarli: una corda che taglia la cella passando per due
+	//        vertici opposti non giace su nessun confine. Prima venivano calcolati, disegnati come
+	//        anteprima e poi buttati via senza dirlo.
+	//        In rebake si azzerano insieme alle coperture generate, per lo stesso motivo e con la stessa
+	//        semantica: sono l'altra meta' di cio' che quel segmento ha prodotto.
+	if (bReplaceGenerated)
+	{
+		Map->InteriorWalls.RemoveAll([&CellId](const FRTHexInteriorWall& Wall) { return Wall.Cell == CellId; });
+	}
+
 	// 2. Che cosa murerebbero i segmenti correnti. `High` prevale su `Low` se due segmenti insistono sullo
 	//    stesso bordo: regola deterministica, invece di «vince l'ultimo arrivato».
 	TMap<ERTHexDirection, ERTHexCoverType> Wanted;
@@ -227,6 +242,27 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 	{
 		TArray<ERTHexDirection> Edges;
 		URTGeometryBakeLibrary::EdgesTouchedBy(Segment, HexSize, Edges);
+
+		if (Edges.Num() == 0)
+		{
+			// Non chiude niente: e' un muro interno. Ci finisce SOLO cio' che nessuna copertura descrive —
+			// un segmento che chiude anche un solo bordo e' gia' rappresentato da quella, e scriverlo anche
+			// qui sarebbe una seconda verita' sullo stesso muro.
+			const bool bAlready = Map->InteriorWalls.ContainsByPredicate(
+				[&CellId, &Segment](const FRTHexInteriorWall& Wall)
+				{
+					return Wall.Cell == CellId
+						&& Wall.Segment.Axis == Segment.Axis
+						&& Wall.Segment.Offset == Segment.Offset
+						&& Wall.Segment.AlongStart == Segment.AlongStart
+						&& Wall.Segment.AlongEnd == Segment.AlongEnd;
+				});
+			if (!bAlready)
+			{
+				Map->InteriorWalls.Add(FRTHexInteriorWall(CellId, Segment));
+			}
+			continue;
+		}
 
 		for (const ERTHexDirection Edge : Edges)
 		{
