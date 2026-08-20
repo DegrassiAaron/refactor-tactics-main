@@ -75,7 +75,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **READY** — *Si puo' fare adesso, fuori percorso critico*
 
-- **U18** · Verifiche senza prerequisiti — 5/15 voci verdi
+- **U18** · Verifiche senza prerequisiti — 8/15 voci verdi
 - **U20** · Confine fra Guard e Brace — 0/1 voci verdi
 
 **WAITING** — *Aspetta codice*
@@ -97,7 +97,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 | | Seduta | Lane | Produce | Sbloccata da | Critico | Voci | Stato |
 |---|---|:--:|---|---|:--:|:--:|:--:|
-| **U18** | Verifiche senza prerequisiti | `PIE` | verdetto su quindici voci che non attendono nulla | — | no | 5/15 | 🟡 |
+| **U18** | Verifiche senza prerequisiti | `PIE` | verdetto su quindici voci che non attendono nulla | — | no | 8/15 | 🟡 |
 | **U1** | Mappa-arena hex | `ASSET` | `DA_HexMap_Arena` e `L_HexArena`, committati | M6.0 | sì | 6/7 | 🟡 |
 | **U2** | Partita hex, primo giro | `PIE` | verdetto su allestimento e movimento | M6.1, M6.2 | sì | 7/8 | 🟡 |
 | **U3** | Input e pianificazione | `PIE` | verdetto su selezione, budget e anteprima del percorso | M6.3 | sì | 1/4 | 🟡 |
@@ -135,7 +135,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 **Sbloccata da**: — · **Percorso critico**: no
 **Produce**: verdetto su quindici voci che non attendono nulla
-**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ✅ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ✅ · `PIE-HEX-TRANS` ✅ · `PIE-HEX-LAYER-FOCUS` ⏳ · `PIE-HEX-LAYER-CLICK` ⏳ · `PIE-HEX-LAYER-PANEL` ⏳ · `PIE-V01-REACTCOND` ⏳ · `PIE-HEX-VIZ-BLOCCHI` ⏳ · `PIE-HEX-VIZ-COSTO` 🟡 · `PIE-HEX-VIZ-BORDI` ✅ · `PIE-HEX-VIZ-PORTE` ⏳ · `PIE-HEX-VIZ-UNDO` ⏳ · `PIE-HEX-VIZ-TRANSIZIONI` ⏳
+**Verifichi**: `PIE-PREVIEW-AREA` ✅ · `PIE-V01-MATCHEND` ✅ · `PIE-TEST-CONSOLE` 🟡 · `PIE-HEX-LAYER` ✅ · `PIE-HEX-TRANS` ✅ · `PIE-HEX-LAYER-FOCUS` ✅ · `PIE-HEX-LAYER-CLICK` ✅ · `PIE-HEX-LAYER-PANEL` ✅ · `PIE-V01-REACTCOND` ⏳ · `PIE-HEX-VIZ-BLOCCHI` ⏳ · `PIE-HEX-VIZ-COSTO` 🟡 · `PIE-HEX-VIZ-BORDI` ✅ · `PIE-HEX-VIZ-PORTE` ⏳ · `PIE-HEX-VIZ-UNDO` ⏳ · `PIE-HEX-VIZ-TRANSIZIONI` ⏳
 **Finita quando**: le quindici voci hanno esito reale nel registro
 
 **E' la sola seduta che non attende nulla**: nessun checkpoint da chiudere, nessuna seduta
