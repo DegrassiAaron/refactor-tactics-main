@@ -491,4 +491,79 @@ bool FRTBakeCoverLandsTowardTheNeighbourTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #712 / seduta `U22`: due muri che condividono un vertice restano DUE.
+ *
+ * 🔴 Il difetto, trovato disegnando: il secondo tratto faceva sparire il primo. `BakeCell` rimuove tutte
+ * le coperture generate della cella prima di riscrivere — contratto di **rebake**, giusto per chi possiede
+ * l'elenco completo dei segmenti — e il tool d'editor ne possiede uno solo, perche' di un gesto per volta
+ * e' tutto cio' che vede. Il commento sopra la chiamata diceva *«non accumula e non cancella»*, che era
+ * vero delle coperture a mano e falso di quelle generate: il commento piu' pericoloso non e' quello
+ * assente, e' quello che rassicura sulla meta' sbagliata.
+ *
+ * ⚠️ Il test tiene INSIEME le due proprieta', perche' separate si contraddicono senza che si veda:
+ * la via additiva accumula fra gesti diversi, e `BakeCell` continua a NON accumulare fra rebake. Sono due
+ * contratti diversi, e il difetto e' nato dall'averne usato uno al posto dell'altro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAddSegmentsKeepsPreviousWallsTest,
+	"RefactorTactics.Geometry.AddSegmentsKeepsPreviousWalls",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAddSegmentsKeepsPreviousWallsTest::RunTest(const FString&)
+{
+	constexpr float HexSize = 100.f;
+
+	// Due lati ADIACENTI, quindi con un vertice in comune: e' il caso che l'autore ha segnalato.
+	auto WallOnDirection = [](ERTHexDirection Dir, ERTHexCoverType Type) -> FRTGeometrySegment
+	{
+		const FRTCellId Origin{ 0, 0, 0 };
+		const FVector Here = URTHexLibrary::AxialToWorld(Origin, FVector::ZeroVector, HexSize, 0.f);
+		const FVector There = URTHexLibrary::AxialToWorld(
+			URTHexLibrary::Neighbor(Origin, Dir), FVector::ZeroVector, HexSize, 0.f);
+		const double Mid = FMath::Atan2(There.Y - Here.Y, There.X - Here.X);
+		const double Deg30 = PI / 6.0;
+
+		FRTGeometrySegment Out;
+		URTGeometryGrammarLibrary::SnapToGrammar(
+			FVector2D(HexSize * FMath::Cos(Mid - Deg30), HexSize * FMath::Sin(Mid - Deg30)),
+			FVector2D(HexSize * FMath::Cos(Mid + Deg30), HexSize * FMath::Sin(Mid + Deg30)),
+			HexSize, Out);
+		Out.WallType = Type;
+		return Out;
+	};
+
+	const FRTGeometrySegment First = WallOnDirection(ERTHexDirection::NE, ERTHexCoverType::High);
+	const FRTGeometrySegment Second = WallOnDirection(ERTHexDirection::NW, ERTHexCoverType::High);
+
+	// --- la via ADDITIVA: due gesti, due muri -----------------------------------------------------------
+	{
+		URTHexMapAsset* Map = MakeOneCellMap();
+		URTGeometryBakeLibrary::AddSegmentsToCell(Map, BakeOrigin, { First }, HexSize);
+		TestNotNull(TEXT("dopo il primo gesto il muro NE c'e'"), FindCover(Map, ERTHexDirection::NE));
+
+		URTGeometryBakeLibrary::AddSegmentsToCell(Map, BakeOrigin, { Second }, HexSize);
+		TestNotNull(TEXT("dopo il secondo gesto il muro NW c'e'"), FindCover(Map, ERTHexDirection::NW));
+		// La riga che il difetto faceva fallire.
+		TestNotNull(TEXT("e il muro NE del primo gesto e' ANCORA li'"), FindCover(Map, ERTHexDirection::NE));
+		TestEqual(TEXT("due coperture generate, non una"),
+			URTGeometryBakeLibrary::CountGeneratedCovers(Map, BakeOrigin), 2);
+
+		// Ripassare lo stesso segmento non accumula: un bordo ha al massimo una copertura.
+		URTGeometryBakeLibrary::AddSegmentsToCell(Map, BakeOrigin, { First }, HexSize);
+		TestEqual(TEXT("ripassare sopra non aggiunge una terza"),
+			URTGeometryBakeLibrary::CountGeneratedCovers(Map, BakeOrigin), 2);
+	}
+
+	// --- e `BakeCell` NON cambia: il suo contratto di rebake regge ancora --------------------------------
+	{
+		URTHexMapAsset* Map = MakeOneCellMap();
+		URTGeometryBakeLibrary::BakeCell(Map, BakeOrigin, { First }, HexSize);
+		URTGeometryBakeLibrary::BakeCell(Map, BakeOrigin, { Second }, HexSize);
+		TestNull(TEXT("il rebake sostituisce: il muro NE non c'e' piu'"), FindCover(Map, ERTHexDirection::NE));
+		TestEqual(TEXT("una sola copertura generata dopo il rebake"),
+			URTGeometryBakeLibrary::CountGeneratedCovers(Map, BakeOrigin), 1);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

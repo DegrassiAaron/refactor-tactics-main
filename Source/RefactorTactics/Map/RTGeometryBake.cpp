@@ -10,6 +10,16 @@
 // come i file erano raggruppati in quel momento.
 namespace RTGeometryBakeInternal
 {
+	/**
+	 * Il corpo condiviso da `BakeCell` e `AddSegmentsToCell`. Le due vie differiscono in UN passo — se le
+	 * coperture generate esistenti vengano rimosse prima di scrivere — e tenerle in una funzione sola e'
+	 * cio' che impedisce alle altre regole (mano che vince, `High` su `Low`, ordine di bordo crescente) di
+	 * divergere fra loro. Duplicare il corpo per cambiare una riga e' il modo in cui nascono i difetti che
+	 * questa seduta ha passato la giornata a rincorrere.
+	 */
+	int32 Bake(URTHexMapAsset* Map, const FRTCellId& CellId, const TArray<FRTGeometrySegment>& Segments,
+		float HexSize, bool bReplaceGenerated);
+
 	double Cross2D(const FVector2D& O, const FVector2D& A, const FVector2D& B)
 	{
 		return (A.X - O.X) * (B.Y - O.Y) - (A.Y - O.Y) * (B.X - O.X);
@@ -137,6 +147,18 @@ void URTGeometryBakeLibrary::EdgesTouchedBy(const FRTGeometrySegment& Segment, f
 int32 URTGeometryBakeLibrary::BakeCell(URTHexMapAsset* Map, const FRTCellId& CellId,
 	const TArray<FRTGeometrySegment>& Segments, float HexSize)
 {
+	return RTGeometryBakeInternal::Bake(Map, CellId, Segments, HexSize, /*bReplaceGenerated=*/ true);
+}
+
+int32 URTGeometryBakeLibrary::AddSegmentsToCell(URTHexMapAsset* Map, const FRTCellId& CellId,
+	const TArray<FRTGeometrySegment>& Segments, float HexSize)
+{
+	return RTGeometryBakeInternal::Bake(Map, CellId, Segments, HexSize, /*bReplaceGenerated=*/ false);
+}
+
+int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
+	const TArray<FRTGeometrySegment>& Segments, float HexSize, bool bReplaceGenerated)
+{
 	if (Map == nullptr)
 	{
 		return 0;
@@ -150,9 +172,17 @@ int32 URTGeometryBakeLibrary::BakeCell(URTHexMapAsset* Map, const FRTCellId& Cel
 
 	FRTHexCellData Updated = *Existing;
 
-	// 1. Via le PROPRIE. Quelle a mano restano dove sono: e' cio' che rende il rebake idempotente senza
-	//    diventare distruttivo, ed e' la meta' di `D-131` che senza il campo non sarebbe esprimibile.
-	Updated.Covers.RemoveAll([](const FRTHexCover& Cover) { return Cover.bGenerated; });
+	// 1. Via le PROPRIE — **solo in rebake**. Quelle a mano restano dove sono: e' cio' che rende il rebake
+	//    idempotente senza diventare distruttivo, ed e' la meta' di `D-131` che senza il campo non sarebbe
+	//    esprimibile.
+	//    ⚠️ In modo ADDITIVO questo passo si salta, ed e' l'intera differenza fra le due vie. Il disegno
+	//    vede un gesto per volta e non possiede l'elenco dei segmenti della cella: farglielo eseguire
+	//    significava cancellare il muro precedente a ogni tratto — il difetto trovato in `U22` disegnando
+	//    due muri che condividono un vertice.
+	if (bReplaceGenerated)
+	{
+		Updated.Covers.RemoveAll([](const FRTHexCover& Cover) { return Cover.bGenerated; });
+	}
 
 	// 2. Che cosa murerebbero i segmenti correnti. `High` prevale su `Low` se due segmenti insistono sullo
 	//    stesso bordo: regola deterministica, invece di «vince l'ultimo arrivato».
@@ -160,7 +190,7 @@ int32 URTGeometryBakeLibrary::BakeCell(URTHexMapAsset* Map, const FRTCellId& Cel
 	for (const FRTGeometrySegment& Segment : Segments)
 	{
 		TArray<ERTHexDirection> Edges;
-		EdgesTouchedBy(Segment, HexSize, Edges);
+		URTGeometryBakeLibrary::EdgesTouchedBy(Segment, HexSize, Edges);
 
 		for (const ERTHexDirection Edge : Edges)
 		{
@@ -184,12 +214,29 @@ int32 URTGeometryBakeLibrary::BakeCell(URTHexMapAsset* Map, const FRTCellId& Cel
 			continue;
 		}
 
-		// Una copertura dipinta a mano vince: il bordo e' gia' suo, e il rebake non la sostituisce.
-		const bool bHandPainted = Updated.Covers.ContainsByPredicate(
+		// Chi c'e' gia' su questo bordo? Un bordo ha al massimo una copertura — invariante di `ValidateMap`.
+		FRTHexCover* Present = Updated.Covers.FindByPredicate(
 			[Edge](const FRTHexCover& Cover) { return Cover.Edge == Edge; });
-		if (bHandPainted)
+
+		if (Present != nullptr)
 		{
-			continue;
+			// Una copertura dipinta a mano vince sempre: il bordo e' gia' suo, e nessuna delle due vie la
+			// sostituisce.
+			if (!Present->bGenerated)
+			{
+				continue;
+			}
+
+			// ⚠️ Qui arriva SOLO la via additiva: in rebake le generate sono gia' state rimosse al passo 1,
+			// quindi `Present` non puo' essere generata. Una generata che incontra un nuovo segmento segue
+			// la stessa regola dei due segmenti sullo stesso bordo — `High` prevale su `Low` — invece di
+			// «vince l'ultimo arrivato», che renderebbe il risultato dipendente dall'ordine del disegno.
+			if (*Type == ERTHexCoverType::High && Present->Type != ERTHexCoverType::High)
+			{
+				Present->Type = ERTHexCoverType::High;
+				Present->Integrity = FRTHexCover::DefaultIntegrity(ERTHexCoverType::High);
+			}
+			continue; // niente da CONTARE: la copertura c'era gia', questo gesto non ne ha aggiunta una
 		}
 
 		FRTHexCover Cover(Edge, *Type, FRTHexCover::DefaultIntegrity(*Type));

@@ -6645,6 +6645,15 @@ tracks:
       # direzioni dove il rispecchiamento è invisibile. La lacuna era nella scelta dei casi, non nel rigore.
       - Source/RefactorTactics/Map/RTGeometryBake.cpp
       - Source/RefactorTactics/Tests/RTGeometryBakeTests.cpp
+      # ➕ **L'header entra il 2026-08-20, dopo il `.cpp`**, perché il difetto successivo trovato in seduta
+      # chiede una funzione NUOVA e non una riga cambiata: disegnare un secondo muro che condivide un
+      # vertice cancellava il primo. `BakeCell` rimuove tutte le coperture generate della cella e riscrive
+      # solo i segmenti ricevuti — contratto di **rebake**, corretto per chi possiede l'elenco completo — e
+      # il tool gliene passa uno solo, perché di un gesto per volta è tutto ciò che ha.
+      # ⚠️ Il contratto di `BakeCell` **non si tocca**: `D-131` e `FRTBakeIsIdempotentTest` dipendono dal
+      # fatto che rieseguire il bake non accumuli. Si aggiunge una via additiva accanto, con un nome che
+      # dice cosa fa, invece di cambiare il significato di una funzione che qualcun altro usa già bene.
+      - Source/RefactorTactics/Map/RTGeometryBake.h
     derives_from: []
     binary_leases:
       # Riemessa **prima** di riaprire l'editor, come la prima volta. Sui FILE e non sulla cartella: la

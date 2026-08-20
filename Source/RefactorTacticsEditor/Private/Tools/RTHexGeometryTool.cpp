@@ -195,9 +195,19 @@ void URTHexGeometryTool::OnClickRelease(const FInputDeviceRay& ReleasePos)
 	const FScopedTransaction Transaction(LOCTEXT("BakeGeometry", "Disegna geometria"));
 	Map->Modify();
 
-	// LA COTTURA NON E' QUI: e' quella di #621, chiamata. Idempotente per `D-131`, quindi ridisegnare sopra
-	// non accumula e non cancella cio' che l'autore ha dipinto a mano.
-	Properties->LastBakedCovers = URTGeometryBakeLibrary::BakeCell(Map, ActiveCell, { Preview }, HexSize);
+	// LA COTTURA NON E' QUI: e' quella di #621, chiamata.
+	//
+	// 🔴 Questa riga chiamava `BakeCell`, e il commento che le stava sopra diceva *«idempotente per D-131,
+	// quindi ridisegnare sopra non accumula e non cancella cio' che l'autore ha dipinto a mano»*. Vero
+	// sulle coperture a MANO, e falso sulle generate: `BakeCell` le rimuove tutte prima di riscrivere,
+	// perche' ha un contratto di rebake — «questi segmenti sono lo stato completo della cella». Il tool ne
+	// possiede uno solo, quindi ogni tratto cancellava il precedente. Trovato in `U22` disegnando due muri
+	// che condividono un vertice: il secondo faceva sparire il primo.
+	//
+	// La via additiva non cambia `BakeCell`, che per il suo chiamante e' giusta: aggiunge un ingresso per
+	// chi vede un gesto per volta.
+	Properties->LastBakedCovers =
+		URTGeometryBakeLibrary::AddSegmentsToCell(Map, ActiveCell, { Preview }, HexSize);
 
 	Actor->RebuildInstances();
 }
