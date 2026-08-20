@@ -82,6 +82,42 @@ namespace RTGeometryBakeInternal
 			return Overlap > UE_KINDA_SMALL_NUMBER; // un solo punto in comune NON chiude il bordo
 		}
 
+		// ➕ IL MURO ARRIVA DA DENTRO E SI FERMA SUL BORDO.
+		//
+		// ⚠️ Senza questo caso un muro tracciato dal centro verso un lato non muraglia niente, e nemmeno un
+		// diametro completo da un lato a quello opposto: entrambi hanno un estremo APPOGGIATO sul bordo,
+		// che l'attraversamento proprio scarta perche' pretende segni strettamente opposti. Funzionava solo
+		// sbordando oltre la cella — misurato in `U22`, dove un muro lungo `1.5x` l'inraggio dava due
+		// coperture e lo stesso muro fermato sul bordo ne dava zero.
+		//
+		// 🔴 **L'estremo deve cadere STRETTAMENTE DENTRO il lato, non su un vertice**, ed e' `MSE-4`: ogni
+		// vertice appartiene a DUE lati, quindi accettarlo murerebbe anche il lato adiacente che il muro si
+		// limita a sfiorare. Ne segue, ed e' una conseguenza voluta e non un buco:
+		//
+		// ```text
+		// centro -> punto medio di un lato   1 copertura, su quel lato
+		// centro -> un vertice               NIENTE, e il ghost lo mostra rosso
+		// diametro fra due lati opposti      2 coperture
+		// diametro fra due vertici opposti   NIENTE: tocca il perimetro solo sui vertici
+		// ```
+		//
+		// L'ultima riga e' un limite del MODELLO, non di questa regola: una copertura vive su un bordo, e
+		// una linea per due vertici opposti non giace su nessun bordo. Non e' esprimibile come copertura.
+		//
+		// 🔵 **La condizione e' UNA SOLA, e il vertice e' escluso da `D1 * D2 < 0`** — non da un controllo
+		// «strettamente dentro il lato» sulla posizione dell'estremo. La prima stesura ne aveva anche uno,
+		// e la verifica di mutazione ha dimostrato che era morto: rimosso il vincolo, **nessun test cadeva**.
+		// Il motivo e' geometrico e vale sempre: se un estremo del muro giace sulla retta del bordo, quel
+		// punto E' l'intersezione fra le due rette; e se i due vertici stanno da parti strettamente opposte
+		// del muro, l'intersezione cade strettamente fra loro. Un estremo su un vertice, invece, mette quel
+		// vertice SULLA retta del muro, quindi il suo segno e' zero e il prodotto non e' mai negativo.
+		// ⚠️ Una condizione implicata da un'altra non e' difesa in profondita': e' una riga che sembra
+		// proteggere `MSE-4` e non la protegge, cioe' il posto dove il prossimo smette di cercare.
+		if (D1 * D2 < 0 && (D3 == 0 || D4 == 0))
+		{
+			return true;
+		}
+
 		return false;
 	}
 }

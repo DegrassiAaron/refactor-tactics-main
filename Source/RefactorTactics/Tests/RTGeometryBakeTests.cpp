@@ -566,4 +566,105 @@ bool FRTAddSegmentsKeepsPreviousWallsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #712 / seduta `U22`: un muro che ARRIVA su un bordo lo chiude, anche se si ferma li'.
+ *
+ * 🔴 Prima no. `SegmentClosesEdge` pretendeva un attraversamento **proprio** — segni strettamente opposti —
+ * e un estremo appoggiato sul bordo e' un contatto, non una traversata. Conseguenza misurata: un muro dal
+ * centro a un lato non muraglia nulla, e nemmeno un diametro da un lato a quello opposto. Funzionava solo
+ * **sbordando**: lo stesso muro lungo `1.5x` l'inraggio dava due coperture, fermato sul bordo ne dava zero.
+ *
+ * ⚠️ Il test include i due casi che devono restare a ZERO, e non sono dimenticanze:
+ * il vertice e' condiviso da due lati (`MSE-4`), quindi un estremo li' non chiude ne' l'uno ne' l'altro; e
+ * un diametro fra vertici opposti tocca il perimetro **solo** sui vertici. Quest'ultimo e' un limite del
+ * MODELLO — una copertura vive su un bordo, e quella linea non giace su nessun bordo — non una scelta di
+ * questa regola. Asserirlo qui impedisce che qualcuno lo "aggiusti" reintroducendo l'ambiguita'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWallReachingAnEdgeClosesItTest,
+	"RefactorTactics.Geometry.WallReachingAnEdgeClosesIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTWallReachingAnEdgeClosesItTest::RunTest(const FString&)
+{
+	constexpr float HexSize = 100.f;
+	const double Deg30 = PI / 6.0;
+
+	// La giacitura del lato condiviso col vicino `Dir`, derivata dal mondo e non da una tabella.
+	auto EdgeMidAngle = [](ERTHexDirection Dir)
+	{
+		const FRTCellId Origin{ 0, 0, 0 };
+		const FVector Here = URTHexLibrary::AxialToWorld(Origin, FVector::ZeroVector, HexSize, 0.f);
+		const FVector There = URTHexLibrary::AxialToWorld(
+			URTHexLibrary::Neighbor(Origin, Dir), FVector::ZeroVector, HexSize, 0.f);
+		return FMath::Atan2(There.Y - Here.Y, There.X - Here.X);
+	};
+
+	auto EdgesFor = [](const FVector2D& A, const FVector2D& B, TArray<ERTHexDirection>& Out)
+	{
+		FRTGeometrySegment Seg;
+		Out.Reset();
+		if (URTGeometryGrammarLibrary::SnapToGrammar(A, B, HexSize, Seg))
+		{
+			URTGeometryBakeLibrary::EdgesTouchedBy(Seg, HexSize, Out);
+		}
+	};
+
+	const double InRadius = HexSize * FMath::Cos(Deg30);
+	const FVector2D Centre(0.0, 0.0);
+	TArray<ERTHexDirection> Edges;
+
+	for (int32 DirIndex = 0; DirIndex < 6; ++DirIndex)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(DirIndex);
+		const double Mid = EdgeMidAngle(Dir);
+
+		// 1. Centro -> punto medio del lato: una copertura, su QUEL lato.
+		const FVector2D EdgeMid(InRadius * FMath::Cos(Mid), InRadius * FMath::Sin(Mid));
+		EdgesFor(Centre, EdgeMid, Edges);
+		TestEqual(FString::Printf(TEXT("centro -> lato %d: una copertura"), DirIndex), Edges.Num(), 1);
+		if (Edges.Num() == 1)
+		{
+			TestEqual(FString::Printf(TEXT("centro -> lato %d: e' quel lato"), DirIndex),
+				static_cast<int32>(Edges[0]), DirIndex);
+		}
+
+		// 2. Centro -> vertice: NIENTE. Il vertice appartiene a due lati (`MSE-4`).
+		const FVector2D Vertex(HexSize * FMath::Cos(Mid + Deg30), HexSize * FMath::Sin(Mid + Deg30));
+		EdgesFor(Centre, Vertex, Edges);
+		TestEqual(FString::Printf(TEXT("centro -> vertice presso %d: nessuna copertura"), DirIndex),
+			Edges.Num(), 0);
+	}
+
+	// 3. Diametro fra due lati OPPOSTI: due coperture, e sono i due lati opposti.
+	for (int32 DirIndex = 0; DirIndex < 3; ++DirIndex)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(DirIndex);
+		const double Mid = EdgeMidAngle(Dir);
+		const FVector2D A(InRadius * FMath::Cos(Mid), InRadius * FMath::Sin(Mid));
+		const FVector2D B(-A.X, -A.Y);
+
+		EdgesFor(A, B, Edges);
+		TestEqual(FString::Printf(TEXT("diametro lato %d: due coperture"), DirIndex), Edges.Num(), 2);
+		if (Edges.Num() == 2)
+		{
+			TestTrue(FString::Printf(TEXT("diametro lato %d: include il lato tracciato"), DirIndex),
+				Edges.Contains(Dir));
+			TestTrue(FString::Printf(TEXT("diametro lato %d: include l'opposto"), DirIndex),
+				Edges.Contains(URTHexLibrary::OppositeDirection(Dir)));
+		}
+	}
+
+	// 4. Diametro fra due VERTICI opposti: niente, ed e' un limite del modello.
+	for (int32 K = 0; K < 3; ++K)
+	{
+		const double Angle = Deg30 + K * (PI / 3.0);
+		const FVector2D A(HexSize * FMath::Cos(Angle), HexSize * FMath::Sin(Angle));
+		const FVector2D B(-A.X, -A.Y);
+
+		EdgesFor(A, B, Edges);
+		TestEqual(TEXT("diametro fra vertici opposti: nessuna copertura esprimibile"), Edges.Num(), 0);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
