@@ -63,6 +63,32 @@ bool URTHexGeometryTool::ProjectToCellPlane(const FInputDeviceRay& Ray, FVector&
 	return true;
 }
 
+namespace
+{
+	/**
+	 * Il gesto, tagliato in un segmento per ogni cella che attraversa.
+	 *
+	 * ⚠️ E' una funzione LIBERA e non un metodo, ed e' una scelta di confine: `RTHexGeometryTool.h` sta nel
+	 * `writable` di un'altra track, e aggiungere una firma la' significherebbe prendersi un file per una
+	 * riga. Tutto cio' che serve arriva come parametro.
+	 */
+	void GestureAcrossCells(const FRTCellId& ActiveCell, const FVector2D& LocalStart, const FVector2D& LocalEnd,
+		const FVector& Origin, float HexSize, float LayerHeight,
+		TArray<URTHexLibrary::FRTCellSegment>& Out)
+	{
+		// I due estremi sono relativi ad `ActiveCell`: si torna in mondo una volta sola, qui, e da li' in
+		// poi ogni cella riceve le proprie coordinate locali dal taglio.
+		const FVector Centre = URTHexLibrary::AxialToWorld(ActiveCell, Origin, HexSize, LayerHeight);
+		const FVector2D WorldStart(Centre.X + LocalStart.X, Centre.Y + LocalStart.Y);
+		const FVector2D WorldEnd(Centre.X + LocalEnd.X, Centre.Y + LocalEnd.Y);
+
+		// La soglia scarta le celle sfiorate a un angolo. Un decimo del raggio sta sotto la distanza fra
+		// due punti notevoli, quindi non puo' buttare via una porzione che avrebbe prodotto un muro vero.
+		URTHexLibrary::SplitSegmentAcrossCells(WorldStart, WorldEnd, Origin, HexSize, ActiveCell.Layer,
+			HexSize * 0.1f, Out);
+	}
+}
+
 void URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
 {
 	bPreviewValid = false;
@@ -206,8 +232,27 @@ void URTHexGeometryTool::OnClickRelease(const FInputDeviceRay& ReleasePos)
 	//
 	// La via additiva non cambia `BakeCell`, che per il suo chiamante e' giusta: aggiunge un ingresso per
 	// chi vede un gesto per volta.
-	Properties->LastBakedCovers =
-		URTGeometryBakeLibrary::AddSegmentsToCell(Map, ActiveCell, { Preview }, HexSize);
+	//
+	// ➕ **E il gesto attraversa PIU' CELLE.** Prima si cuoceva solo `ActiveCell`, quella della pressione:
+	// un muro tracciato lungo tre esagoni ne riempiva uno e si fermava — *«non si estende oltre il primo
+	// esagono»*. La grammatica e' definita per cella, quindi il gesto va tagliato una volta per ciascuna e
+	// agganciato ai punti notevoli di quella: `SplitSegmentAcrossCells` fa il taglio, il resto e' il ciclo.
+	TArray<URTHexLibrary::FRTCellSegment> Pieces;
+	GestureAcrossCells(ActiveCell, LocalStart, LocalEnd, Origin, HexSize, LayerHeight, Pieces);
+
+	int32 Baked = 0;
+	for (const URTHexLibrary::FRTCellSegment& Piece : Pieces)
+	{
+		FRTGeometrySegment Segment;
+		if (!URTGeometryGrammarLibrary::SnapToGrammar(Piece.LocalStart, Piece.LocalEnd, HexSize, Segment))
+		{
+			continue; // in questa cella il gesto non produce niente di legale: le altre non ne soffrono
+		}
+		Segment.Layer = Piece.Cell.Layer;
+		Segment.WallType = Properties->WallType;
+		Baked += URTGeometryBakeLibrary::AddSegmentsToCell(Map, Piece.Cell, { Segment }, HexSize);
+	}
+	Properties->LastBakedCovers = Baked;
 
 	Actor->RebuildInstances();
 }
@@ -244,73 +289,88 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 		return;
 	}
 
-	const FVector Centre = URTHexLibrary::AxialToWorld(ActiveCell, Origin, HexSize, LayerHeight);
-	const double Z = Centre.Z + 2.0; // appena sopra il piano, per non essere mangiato dal terreno
+	const double Z = URTHexLibrary::AxialToWorld(ActiveCell, Origin, HexSize, LayerHeight).Z + 2.0;
 
-	// IL GHOST MOSTRA CIO' CHE VERRA' COTTO, NON IL SEGMENTO.
+	// ➕ **IL GHOST SEGUE IL GESTO SU TUTTE LE CELLE**, come la cottura. Prima disegnava solo `ActiveCell`,
+	// quindi trascinando oltre il primo esagono l'anteprima si fermava mentre il gesto continuava — e da
+	// quando la cottura attraversa le celle, un ghost fermo alla prima direbbe il falso su cio' che sta
+	// per succedere. Lo stesso taglio, chiamato dalle stesse righe: e' l'unico modo perche' non divergano.
+	TArray<URTHexLibrary::FRTCellSegment> Pieces;
+	GestureAcrossCells(ActiveCell, LocalStart, LocalEnd, Origin, HexSize, LayerHeight, Pieces);
+
+	// IL GHOST MOSTRA CIO' CHE VERRA' COTTO, NON IL SEGMENTO — e ora su OGNI cella attraversata.
 	//
-	// 🔴 Prima mostrava il segmento quantizzato in verde ogni volta che la grammatica lo accettava, e
-	// `U22` ha misurato che quella promessa era falsa: il risultato della cottura non e' un segmento, e'
-	// un insieme di **coperture sui bordi** (`EdgesTouchedBy`). Le due cose divergono, e non di poco —
-	// `Offset` e' quantizzato in dodicesimi della perpendicolare, cioe' 7,22 uu su una cella da 100, quindi
-	// mezzo quanto (3,61 uu, pochi pixel in viewport) basta a portare la linea DENTRO o FUORI la cella.
-	// A `Offset = 11` attraversa due lati che non hai tracciato; a `13` non ne attraversa nessuno. Misurato:
-	// con uno scarto della mano del 4% del raggio si vedono i primi muri sul lato sbagliato, all'8% un
-	// gesto su tre non produce niente. E il ghost, in tutti quei casi, era VERDE.
+	// 🔴 Prima mostrava il segmento quantizzato in verde ogni volta che la grammatica lo accettava, e `U22`
+	// ha misurato che quella promessa era falsa: il risultato della cottura non e' un segmento, e' un
+	// insieme di **coperture sui bordi** (`EdgesTouchedBy`).
 	//
-	// Quindi la regola cambia di soggetto, ed e' l'unica che l'autore possa usare:
-	//   verde = QUESTI bordi diventeranno coperture · rosso = non verra' creato niente.
-	// Un segmento legale che non chiude nessun bordo e' rosso, perche' e' cio' che produce: niente.
+	// La regola, per ciascuna cella che il gesto attraversa:
+	//
+	// ```text
+	// bordi chiusi          verdi e spessi     e' il risultato: quelle coperture verranno create
+	// segmento sui bordi    argento e sottile  e' una guida: mostra che lo snap sta scattando
+	// nessun bordo chiuso   verde e spesso     E' LUI il risultato: diventera' un muro interno
+	// gesto fuori grammatica  rosso            non verra' creato niente
+	// ```
+	//
+	// ⚠️ Il ciclo e' lo STESSO di `OnClickRelease`, con la stessa chiamata a `GestureAcrossCells` e allo
+	// snap. Non e' ripetizione da togliere: e' l'unica forma in cui anteprima e risultato non possono
+	// divergere, che e' il difetto che questa seduta ha inseguito sei volte.
 	if (bPreviewValid)
 	{
-		TArray<ERTHexDirection> Edges;
-		URTGeometryBakeLibrary::EdgesTouchedBy(Preview, HexSize, Edges);
+		const float Thickness = (Properties->WallType == ERTHexCoverType::High) ? 6.0f : 3.0f;
 
-		// Il segmento resta disegnato, e il suo COLORE dice che mestiere fa in questo gesto:
-		//
-		// ```text
-		// chiude dei bordi   argento e sottile   e' una guida: il risultato sono i bordi verdi
-		// non ne chiude nessuno  verde e spesso  E' LUI il risultato: diventera' un muro interno
-		// ```
-		//
-		// ⚠️ Il secondo caso era ROSSO fino al formato v9, e allora era giusto: un segmento che non chiudeva
-		// bordi non produceva niente, perche' non c'era dove scriverlo. Da `#712` c'e' — `InteriorWalls` —
-		// quindi rosso direbbe il falso. Il rosso resta a cio' che e' davvero fuori grammatica.
-		const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Preview, HexSize);
-		if (Line.Points.Num() >= 2)
+		for (const URTHexLibrary::FRTCellSegment& Piece : Pieces)
 		{
-			const FVector A(Centre.X + Line.Points[0].X, Centre.Y + Line.Points[0].Y, Z);
-			const FVector B(Centre.X + Line.Points[1].X, Centre.Y + Line.Points[1].Y, Z);
+			FRTGeometrySegment Segment;
+			if (!URTGeometryGrammarLibrary::SnapToGrammar(Piece.LocalStart, Piece.LocalEnd, HexSize, Segment))
+			{
+				continue; // in questa cella non produce niente: le altre si disegnano lo stesso
+			}
+			Segment.WallType = Properties->WallType;
 
-			const bool bIsInterior = Edges.Num() == 0;
-			const float InteriorThickness = (Preview.WallType == ERTHexCoverType::High) ? 6.0f : 3.0f;
-			PDI->DrawLine(A, B,
-				bIsInterior ? FColor::Green : FColor::Silver, SDPG_Foreground,
-				bIsInterior ? InteriorThickness : 1.0f);
-		}
+			const FVector CellCentre = URTHexLibrary::AxialToWorld(Piece.Cell, Origin, HexSize, LayerHeight);
+			const FVector Base(CellCentre.X, CellCentre.Y, Z);
 
-		if (Edges.Num() > 0)
-		{
+			TArray<ERTHexDirection> Edges;
+			URTGeometryBakeLibrary::EdgesTouchedBy(Segment, HexSize, Edges);
+
+			const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Segment, HexSize);
+			if (Line.Points.Num() >= 2)
+			{
+				const FVector A(Base.X + Line.Points[0].X, Base.Y + Line.Points[0].Y, Z);
+				const FVector B(Base.X + Line.Points[1].X, Base.Y + Line.Points[1].Y, Z);
+
+				const bool bIsInterior = Edges.Num() == 0;
+				PDI->DrawLine(A, B, bIsInterior ? FColor::Green : FColor::Silver, SDPG_Foreground,
+					bIsInterior ? Thickness : 1.0f);
+			}
+
+			if (Edges.Num() == 0)
+			{
+				continue;
+			}
+
 			// I sei vertici da `HexCorners`: la stessa funzione che disegna il contorno della cella e che
 			// costruisce il prisma, quindi il ghost non puo' finire su un esagono diverso da quello vero.
-			const TArray<FVector> Corners = URTHexLibrary::HexCorners(FVector(Centre.X, Centre.Y, Z), HexSize);
-			if (Corners.Num() == 6)
+			const TArray<FVector> Corners = URTHexLibrary::HexCorners(Base, HexSize);
+			if (Corners.Num() != 6)
 			{
-				// Il muro pieno piu' spesso del muretto: la differenza di tipo si legge senza aprire il pannello.
-				const float Thickness = (Preview.WallType == ERTHexCoverType::High) ? 6.0f : 3.0f;
-				for (const ERTHexDirection Edge : Edges)
+				continue;
+			}
+
+			for (const ERTHexDirection Edge : Edges)
+			{
+				// ⚠️ `Edge` e' una direzione di VICINATO, i vertici sono numerati per ANGOLO, e le due non
+				// coincidono su quattro bordi. `EdgeIndexForDirection` e' l'unico posto dove quella
+				// conversione vive: la prima stesura di questo blocco faceva `static_cast<int32>(Edge)` e
+				// disegnava il diagonale rispecchiato — lo stesso errore della cottura, nel verso opposto,
+				// che e' esattamente cio' che succede quando una formula viene ricopiata.
+				const int32 Index = URTHexLibrary::EdgeIndexForDirection(Edge);
+				if (Corners.IsValidIndex(Index))
 				{
-					// ⚠️ `Edge` e' una direzione di VICINATO, i vertici sono numerati per ANGOLO, e le due
-					// non coincidono su quattro bordi. `EdgeIndexForDirection` e' l'unico posto dove quella
-					// conversione vive: la prima stesura di questo blocco faceva `static_cast<int32>(Edge)`
-					// e disegnava il diagonale rispecchiato — lo stesso errore della cottura, nel verso
-					// opposto, che e' esattamente cio' che succede quando la formula viene ricopiata.
-					const int32 Index = URTHexLibrary::EdgeIndexForDirection(Edge);
-					if (Corners.IsValidIndex(Index))
-					{
-						PDI->DrawLine(Corners[Index], Corners[(Index + 1) % 6], FColor::Green,
-							SDPG_Foreground, Thickness);
-					}
+					PDI->DrawLine(Corners[Index], Corners[(Index + 1) % 6], FColor::Green,
+						SDPG_Foreground, Thickness);
 				}
 			}
 		}
@@ -318,6 +378,7 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 	else
 	{
 		// Il gesto grezzo, in rosso: si vede DOVE si sta tracciando anche quando non produce nulla di legale.
+		const FVector Centre = URTHexLibrary::AxialToWorld(ActiveCell, Origin, HexSize, LayerHeight);
 		const FVector A(Centre.X + LocalStart.X, Centre.Y + LocalStart.Y, Z);
 		const FVector B(Centre.X + LocalEnd.X, Centre.Y + LocalEnd.Y, Z);
 		PDI->DrawLine(A, B, FColor::Red, SDPG_Foreground, 2.0f);

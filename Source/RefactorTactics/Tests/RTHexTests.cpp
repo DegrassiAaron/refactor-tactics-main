@@ -904,6 +904,107 @@ bool FRTInteriorWallPanelFollowsTheSegmentTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #712 / seduta `U22`: un muro lungo diventa UNA CATENA SENZA BUCHI, una porzione per cella.
+ *
+ * 🔴 L'autore: *«non si estende oltre il primo esagono»*. Il tool cuoceva solo la cella della pressione, e
+ * dopo l'aggancio ai punti notevoli anche la geometria restava confinata li' — quei punti sono di quella
+ * cella. La grammatica dei muri e' definita PER CELLA e non sa niente dei vicini: un muro lungo tre celle
+ * e' quindi tre segmenti, e questo e' il taglio che li produce.
+ *
+ * ⚠️ La proprieta' che conta non e' «quante porzioni», e' la **continuita'**: la fine di una porzione deve
+ * essere l'inizio della successiva, in coordinate-mondo. Un taglio che perde un pezzo fra due celle
+ * produrrebbe un muro coi buchi, e il conteggio delle porzioni resterebbe giusto — e' il modo in cui un
+ * test sul numero non vede il difetto che conta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSegmentSplitAcrossCellsIsContinuousTest,
+	"RefactorTactics.Hex.SegmentSplitAcrossCellsIsContinuous",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSegmentSplitAcrossCellsIsContinuousTest::RunTest(const FString&)
+{
+	constexpr float HexSize = 100.f;
+	const FVector Origin = FVector::ZeroVector;
+
+	// --- 1. un gesto tutto dentro una cella resta una porzione sola ---------------------------------
+	{
+		TArray<URTHexLibrary::FRTCellSegment> Pieces;
+		URTHexLibrary::SplitSegmentAcrossCells(
+			FVector2D(-20.0, -10.0), FVector2D(20.0, 10.0), Origin, HexSize, 0, HexSize * 0.1f, Pieces);
+
+		TestEqual(TEXT("dentro una cella: una porzione"), Pieces.Num(), 1);
+		if (Pieces.Num() == 1)
+		{
+			TestTrue(TEXT("ed e' la cella d'origine"), Pieces[0].Cell == FRTCellId(0, 0, 0));
+			TestTrue(TEXT("con gli estremi del gesto"),
+				Pieces[0].LocalStart.Equals(FVector2D(-20.0, -10.0), 0.5f)
+				&& Pieces[0].LocalEnd.Equals(FVector2D(20.0, 10.0), 0.5f));
+		}
+	}
+
+	// --- 2. un gesto lungo attraversa piu' celle, e la catena non ha buchi --------------------------
+	// Piu' giaciture, perche' un taglio puo' funzionare lungo un asse e perdere pezzi di traverso.
+	const TArray<double> Directions = { 0.0, 23.0, 60.0, 91.0, 137.0 };
+	for (const double Degrees : Directions)
+	{
+		const double Rad = FMath::DegreesToRadians(Degrees);
+		const double Reach = static_cast<double>(HexSize) * 4.0;
+		const FVector2D Start(-Reach * FMath::Cos(Rad), -Reach * FMath::Sin(Rad));
+		const FVector2D End(Reach * FMath::Cos(Rad), Reach * FMath::Sin(Rad));
+
+		TArray<URTHexLibrary::FRTCellSegment> Pieces;
+		URTHexLibrary::SplitSegmentAcrossCells(Start, End, Origin, HexSize, 0, HexSize * 0.1f, Pieces);
+
+		if (!TestTrue(FString::Printf(TEXT("a %.0f gradi il gesto lungo tocca piu' celle"), Degrees),
+			Pieces.Num() >= 3))
+		{
+			continue;
+		}
+
+		// Le celle sono tutte diverse: una porzione per cella, non due.
+		TSet<FString> Seen;
+		FVector2D PreviousEndWorld = FVector2D::ZeroVector;
+		bool bFirst = true;
+
+		for (const URTHexLibrary::FRTCellSegment& Piece : Pieces)
+		{
+			const FString Key = FString::Printf(TEXT("%d,%d,%d"), Piece.Cell.X, Piece.Cell.Y, Piece.Cell.Layer);
+			TestFalse(FString::Printf(TEXT("a %.0f gradi la cella %s compare una volta sola"), Degrees, *Key),
+				Seen.Contains(Key));
+			Seen.Add(Key);
+
+			const FVector Centre = URTHexLibrary::AxialToWorld(Piece.Cell, Origin, HexSize, 0.f);
+			const FVector2D CellCentre(Centre.X, Centre.Y);
+			const FVector2D StartWorld = CellCentre + Piece.LocalStart;
+			const FVector2D EndWorld = CellCentre + Piece.LocalEnd;
+
+			// LA CONTINUITA': dove finisce una, comincia la successiva.
+			if (!bFirst)
+			{
+				const double Gap = FVector2D::Distance(PreviousEndWorld, StartWorld);
+				TestTrue(FString::Printf(
+					TEXT("a %.0f gradi la catena non ha buchi fra le celle (scarto %.2f uu)"), Degrees, Gap),
+					Gap < 0.5);
+			}
+			bFirst = false;
+			PreviousEndWorld = EndWorld;
+
+			// E ogni porzione sta DENTRO la propria cella: gli estremi non escono dal circumraggio.
+			TestTrue(FString::Printf(TEXT("a %.0f gradi la porzione sta dentro la sua cella"), Degrees),
+				Piece.LocalStart.Size() <= static_cast<double>(HexSize) + 0.5
+				&& Piece.LocalEnd.Size() <= static_cast<double>(HexSize) + 0.5);
+		}
+
+		// E la catena copre il gesto da capo a fondo, invece di fermarsi alla prima cella.
+		const FVector FirstCentre = URTHexLibrary::AxialToWorld(Pieces[0].Cell, Origin, HexSize, 0.f);
+		const double Covered = FVector2D::Distance(
+			FVector2D(FirstCentre.X, FirstCentre.Y) + Pieces[0].LocalStart, PreviousEndWorld);
+		TestTrue(FString::Printf(TEXT("a %.0f gradi la catena copre il gesto (%.0f di %.0f uu)"),
+			Degrees, Covered, 2.0 * Reach), Covered > 2.0 * Reach * 0.9);
+	}
+
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
