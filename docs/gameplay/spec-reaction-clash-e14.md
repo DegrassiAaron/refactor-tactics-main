@@ -127,8 +127,10 @@ restano aperti come li elencava il triage del 2026-08-10. Sono bilanciamento, e 
 > e ora non c'è più niente che lo impedisca.** L'ID era stato riservato con l'allocatore, e la voce doveva
 > scriverla l'integrazione perché il Decision Log era `integration_only` nel write-set di batch. Quel
 > vincolo è caduto il 2026-08-20 con [D-178](../decisions/RT_PDR_00_Decision_Log.md): **`D-176` resta un
-> buco da colmare**, e finché non lo è il contenuto autorevole è **questo paragrafo** — un link `D-176`
-> al Decision Log sarebbe un rinvio a vuoto, di quelli che non fanno cadere nessun gate.
+> buco da colmare**, e l'atto è
+> [#1243](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1243). Finché non è chiuso il
+> contenuto autorevole è **questo paragrafo** — un link `D-176` al Decision Log sarebbe un rinvio a
+> vuoto, di quelli che non fanno cadere nessun gate.
 
 Una risposta del profilo si esprime con le primitive di §5, e **una risposta senza effetti dichiarati non
 viene offerta**. Le due domande sono diverse e vanno tenute separate:

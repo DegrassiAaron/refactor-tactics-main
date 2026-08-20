@@ -440,10 +440,11 @@ features:
       campione di pacing deve includere il caso a **due unita' armate dello stesso giocatore**
       (`2 x MaxPromptsPerReaction x 3,0 s` = 18 s in un turno), o taratura e baseline descrivono un gioco
       che la v0.1 non gioca.
-      ⚠️ **La verifica PIE del Quick Confirm NON e' stata scritta**, e resta da fare. Il testo pronto sta
-      nel DoD di #319 e in §11 della spec: e' un debito **nominato**, non una dimenticanza. *(Fino al
-      2026-08-20 `docs/technical/test-manuali-pie.md` apparteneva a un'altra track del write-set di
-      batch e si aspettava il suo owner; `D-178` ha rimosso quel vincolo.)*
+      ⚠️ **La verifica PIE del Quick Confirm NON e' stata scritta**, e resta da fare: le due voci sono
+      `PIE-V01-PREFERRED` e `PIE-V01-PREFERREDSTALE`, col testo pronto nel DoD di #319 e in §11 della
+      spec — un debito **nominato**, non una dimenticanza. *(Fino al 2026-08-20
+      `docs/technical/test-manuali-pie.md` apparteneva a un'altra track del write-set di batch e si
+      aspettava il suo owner; `D-178` ha rimosso quel vincolo.)*
 
   - feature_id: RT-FEAT-CORE-PLAYBACK
     title: Playback della risoluzione
@@ -4936,7 +4937,7 @@ features:
 
       ⚠️ **Nessun gate difende questo contratto oggi**, ed e' dichiarato invece che sottinteso: e' la
       stessa condizione in cui `D-146` ha lasciato la ridondanza colore+forma. Le voci PIE non sono
-      state scritte e restano da scrivere; il loro contenuto vive nella issue. *(Fino al 2026-08-20
+      state scritte e restano da scrivere; il loro contenuto vive in #1096. *(Fino al 2026-08-20
       `test-manuali-pie.md` era assegnato a un'altra track del write-set di batch e le voci si potevano
       solo proporre — il proprietario era cambiato tre volte in un giorno. `D-178` ha rimosso il
       meccanismo, e il debito ora e' semplicemente aperto.)*

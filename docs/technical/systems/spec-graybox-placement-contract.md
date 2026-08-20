@@ -771,7 +771,8 @@ contando ferite. Le verifiche di questo dominio sono **manuali**, di classe **C*
 > ⚠️ **Il vincolo che le bloccava è decaduto il 2026-08-20.** Fino ad allora `test-manuali-pie.md` era
 > assegnato a un'altra track del write-set di batch, e scriverci da qui violava `D-139`. Con
 > [D-178](../../decisions/RT_PDR_00_Decision_Log.md) il sistema di lavoro parallelo è stato rimosso: non
-> c'è più un proprietario da cui farsi cedere il path. **Restano da scrivere, e ora nulla lo impedisce.**
+> c'è più un proprietario da cui farsi cedere il path. **Restano da scrivere, e ora nulla lo impedisce** —
+> [#1096](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1096).
 >
 > **Il nome dell'owner non si scrive qui, e il paragrafo sotto dice perché**: è cambiato tre volte in un
 > giorno, e ogni nome inciso in questa riga sarebbe invecchiato in silenzio. Si legge nel batch.

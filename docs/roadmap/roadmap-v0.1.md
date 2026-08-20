@@ -1708,7 +1708,8 @@ file in `Source/**/UI*` tutti in-match, nessuna epic frontend fra E1–E45, zero
 > 🔴 **Le sei voci `PIE-V01-FRONTEND-*` non sono state create da questo consolidamento.** Fino al
 > 2026-08-20 [`test-manuali-pie.md`](../technical/test-manuali-pie.md) era nel `writable` della track
 > `playtest` — *«l'autore davanti a Unreal»* — e `D-139` ne faceva uno **stop**. Con
-> [D-178](../decisions/RT_PDR_00_Decision_Log.md) quel vincolo non esiste più: **restano da creare.**
+> [D-178](../decisions/RT_PDR_00_Decision_Log.md) quel vincolo non esiste più: **restano da creare**, e
+> l'atto è [#1242](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1242).
 > ⚠️ **La procedura non è aspettare**, ed è la track stessa a dirlo: *«le altre track producono, questa
 > giudica — chi finisce una feature che ha una voce `PIE-*` non scrive il proprio esito qui: lo **propone**
 > in handoff»*. Le sei voci si propongono quando il primo checkpoint produce qualcosa da guardare; oggi non

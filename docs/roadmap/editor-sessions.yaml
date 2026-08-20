@@ -454,9 +454,9 @@ sessions:
       squadra col bot»), ed e' proprio per questo che appartiene a U6 e non qui.
 
       ⚠️ **Le voci nuove — `PIE-V01-BOARD`, `PIE-V01-PACKAGED` — non sono state aperte, e restano da
-      scrivere.** *(Fino al 2026-08-20 `docs/technical/test-manuali-pie.md` stava nel `writable` della
-      track `playtest` e non lo si poteva toccare da qui; con `D-178` il write-set di batch e' stato
-      rimosso e non c'e' piu' un owner da attendere.)*
+      scrivere — l'atto e' #1242.** *(Fino al 2026-08-20 `docs/technical/test-manuali-pie.md` stava nel
+      `writable` della track `playtest` e non lo si poteva toccare da qui; con `D-178` il write-set di
+      batch e' stato rimosso e non c'e' piu' un owner da attendere.)*
       🔴 L'attribuzione sbagliata e' stata ereditata dal corpo di E46, che porta lo stesso errore, ed e'
       stata trovata in code review. Cambia la conseguenza pratica: **`playtest` e' IDLE**, quindi il
       blocco non e' un'attesa su una sessione viva ma una **riallocazione da dichiarare** — che e' una
@@ -1242,7 +1242,7 @@ sessions:
       ⚠️ **`verifies: []` non e' una dimenticanza**, ed e' lo stesso caso di `U24`: le voci PIE di questo
       dominio **non esistono** — misurato, `grep -c "PIE-GBX" ../technical/test-manuali-pie.md` da' **0**.
       *(Fino al 2026-08-20 quel registro era assegnato a un'altra track e le voci si potevano solo
-      proporre; `D-178` ha rimosso il vincolo, quindi ora si scrivono.)* Finche' non ci sono,
+      proporre; `D-178` ha rimosso il vincolo, quindi ora si scrivono — #1096.)* Finche' non ci sono,
       questa seduta produce una scena e non chiude nessuna voce del registro.
       ⚠️ **`artifacts: []` per la ragione di `U21`**: l'oracolo degli artefatti e' `git ls-files`, che sa
       dire se un path **esiste** e non se e' stato modificato.
