@@ -6523,7 +6523,7 @@ tracks:
     derives_from: []
     binary_leases: []
   geometry_gesture:
-    status: IDLE
+    status: ACTIVE
     issue: 712
     branch: docs/1013-u22-seduta
     worktree: "D:/rt-u22"
@@ -6557,9 +6557,33 @@ tracks:
       in esclusiva a nessuno scopo, e chi ne avesse bisogno bloccato senza sapere perche'. E' l'errore
       gia' pagato in `U21` con `BINARY-GH623-ARENA-CELLS`, emessa su una necessita' dedotta e mai usata.
       Riemetterla costa **un commit**: le quattro voci `PIE-GEO-*` restano ⏳ e la seduta resta da fare.
+      ➕ **Riattivata il 2026-08-20, ed e' quel commit.** La lease e' riemessa da zero invece che ripescata:
+      `base_sha` nuovo (`ba302b6b`, `origin/main` **dopo** un `git fetch`, non quello di due giorni fa), e
+      contesa rimisurata sulla versione corrente del file — che nel frattempo era cresciuta di **606 righe**,
+      quindi la misura del 18 non valeva piu' niente. Esito: **zero** lease sui due path, e i binari sono
+      ancora byte-identici alla baseline. Il branch e' stato riallineato su `origin/main` e il rebase
+      **verificato invece che creduto pulito**: zero track perse, 38 righe aggiunte, solo la mia.
     writable: []
     derives_from: []
-    binary_leases: []
+    binary_leases:
+      # Riemessa **prima** di riaprire l'editor, come la prima volta. Sui FILE e non sulla cartella: la
+      # seduta disegna, quindi tocca l'asset mappa; il `.umap` e' nella lease per la ragione opposta —
+      # `PIE-GEO-RESIDUI` chiede di verificare che **non** cambi, e un path che si controlla e' un path
+      # che si prenota.
+      - key: "BINARY-GH712-GEOMETRY-GESTURE"
+        issue: 712
+        base_sha: "ba302b6b487eaa4c86d36196705861a669e0d7a8"
+        operation: modify
+        paths:
+          - Content/RT/Maps/Dev/L_DevSandbox/Data/DA_Format_Scratch.uasset
+          - Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap
+        verification:
+          - load_in_editor
+          # ⚠️ La verifica che discrimina, e va nel verso opposto a ogni altra lease di questo file: il
+          # `.umap` deve risultare **NON modificato** a fine seduta. Se cambia, la geometria si sta
+          # salvando nel livello invece che nell'asset, ed e' il difetto che `PIE-GEO-RESIDUI` cerca.
+          - umap_unchanged_after_session
+          - git_status_clean_after_commit
 
   scenario_vocab:
     # ➕ **Track NUOVA, nata il 2026-08-18 da una collisione fra due sessioni** — e la collisione è il motivo
