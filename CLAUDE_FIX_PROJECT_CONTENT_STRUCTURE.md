@@ -39,9 +39,8 @@ Leggi nell'ordine:
 10. `docs/technical/architecture/spec-asset-pipeline.md` se esiste
 11. `docs/roadmap/feature-registry.yaml`
 12. `docs/roadmap/execution-graph.yaml`
-13. `docs/roadmap/parallel-batch.yaml` se il lavoro è parallelo
-14. `README.md`
-15. `.gitignore`
+13. `README.md`
+14. `.gitignore`
 16. `.gitattributes`
 
 Verifica in particolare le decisioni più recenti che hanno superato regole precedenti, incluse D-130, D-134, D-135, D-136 e D-139. Se un ID è stato rinumerato, segui la tesi/contenuto della decisione, non il numero isolato.
@@ -154,8 +153,7 @@ Audit almeno:
 - Content feature-first;
 - Feature Registry;
 - viste generate;
-- Binary Asset Lease;
-- write-set/worktree;
+- binari Unreal, un lavoro per volta;
 - Git LFS;
 - scenari;
 - numeri canonici;
@@ -171,7 +169,7 @@ Deve:
 - imporre lettura di `AGENTS.md` + owner;
 - contenere solo pin operativi ad alto rischio;
 - riflettere la decisione più recente su naming/Stable ID/redirect;
-- ricordare Binary Asset Lease e write-set;
+- ricordare che i binari si toccano da un lavoro solo per volta;
 - ricordare che le viste generate non si editano.
 
 Rimuovi policy superate e numeri volatili hardcoded.
@@ -296,16 +294,16 @@ Niente `status` duplicato manualmente se esiste già una source of truth.
 
 Non introdurre nuove tassonomie di lane/track se `execution-graph.yaml` possiede già il concetto.
 
-## 13. Binary Asset Lease / D-139
+## 13. Binari Unreal — D-178
 
 Se tocchi `.uasset` o `.umap`:
-- verifica `parallel-batch.yaml`;
-- verifica write-set;
-- usa Binary Asset Lease esclusiva;
-- un holder per path;
-- niente binary merge;
+- un lavoro solo per volta su quel path;
+- niente binary merge: due `.uasset` non si fondono, uno dei due si rifà a mano;
 - niente rename da filesystem;
 - per mappe considera la package family/cartella quando necessario.
+
+*(Fino al 2026-08-20 la regola passava per una Binary Asset Lease dichiarata in
+`docs/roadmap/parallel-batch.yaml`; `D-178` ha rimosso il meccanismo, non il vincolo fisico.)*
 
 Se non hai lease, STOP sulla parte binaria. Puoi completare docs/script e lasciare una lista precisa dei passaggi Editor.
 

@@ -335,10 +335,11 @@ Il gate `automation` di `RT-FEAT-UI-FRONTEND-SHELL` passa quindi da `todo` a `do
 consegnata; gli altri restano `todo` finché il loro checkpoint non produce codice.
 
 Le sei voci previste — `PIE-V01-FRONTEND-NAV`, `-ERROR`, `-MAIN`, `-PLAY`, `-RESULT`, `-PAUSE` — **non
-esistono ancora**, e non per dimenticanza: [`test-manuali-pie.md`](../test-manuali-pie.md) non è di questa
-sessione. Dal 2026-08-16 appartiene alla track **`playtest`** — *«l'autore davanti a Unreal»* — secondo
-[`parallel-batch.yaml`](../../roadmap/parallel-batch.yaml), e D-139 dice che un file non assegnato è uno
-**stop**, non una «piccola fix».
+esistono ancora**. Fino al 2026-08-20 il motivo era un vincolo di assegnazione:
+[`test-manuali-pie.md`](../test-manuali-pie.md) apparteneva alla track `playtest` del write-set di batch
+— *«l'autore davanti a Unreal»* — e `D-139` vietava di scriverci da un'altra sessione. Con
+[D-178](../../decisions/RT_PDR_00_Decision_Log.md) quel sistema non esiste più: **le sei voci restano da
+scrivere, e ora nulla lo impedisce** — [#1242](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1242).
 
 ⚠️ **La procedura non è aspettare**, ed è la track stessa a dirlo: *«Le altre track producono, questa
 giudica. Chi finisce una feature che ha una voce `PIE-*` non scrive il proprio esito qui: lo **propone** in

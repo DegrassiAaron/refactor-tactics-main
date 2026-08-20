@@ -13,22 +13,18 @@
 
 ## Perché cinque documenti sono ancora al primo livello
 
-**Due sono bloccati da [D-139](../decisions/RT_PDR_00_Decision_Log.md)**, e il blocco è reale:
-`test-manuali-pie.md` e `qa-prompt-terminal-d-verifiche-pie.md` stanno nel `writable` della track
-`playtest`, che è viva davvero — issue
-[#1013](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1013) **aperta**, branch
-`docs/1013-seduta-u18` presente sul remoto, e un secondo ramo che sta modificando proprio il primo dei
-due. Vanno in [`runbooks/`](runbooks/) quando quella track rilascia, ed è un `git mv` di due righe.
+**Uno è `test-manuali-pie.md`**, e ora nulla lo trattiene: va in [`runbooks/`](runbooks/), ed è un
+`git mv` di una riga più i riferimenti entranti.
 
-> 🔵 **`runbooks/` è stata aperta il 2026-08-19 con dieci documenti su dodici.** La fase 4 l'aveva
-> tenuta chiusa perché *sette* erano assegnati; rimisurato, **cinque di quei sette erano claim
-> stantii**: `content_editor` è `IDLE` con la issue #451 **chiusa**, `frontend_shell` è `IDLE` **senza
-> issue**, e nessuna delle due ha un branch. I loro path sono stati rilasciati — *un rilascio si
-> scrive* — e con essi sono tornati a casa anche `spec-frontend-navigazione.md` (`architecture/`) e
-> `issue-tracking-completeness.md` (`tooling/`).
+> 🔵 **`runbooks/` è stata aperta il 2026-08-19 con dieci documenti su dodici.** Restava fuori perché
+> due erano assegnati ad altre track del write-set di batch — `test-manuali-pie.md` e
+> `qa-prompt-terminal-d-verifiche-pie.md`, entrambi di `playtest`.
 >
-> Dieci su dodici non è mezza cartella: i due mancanti sono **nominati qui, con la issue che li
-> tiene**. È la differenza fra uno stato parziale e uno stato ignoto.
+> ⚠️ **Il 2026-08-20 sono cadute entrambe le ragioni**, e per motivi diversi:
+> [D-178](../decisions/RT_PDR_00_Decision_Log.md) ha rimosso il write-set di batch, quindi non esiste
+> più una track che tenga un path; e `qa-prompt-terminal-d-verifiche-pie.md` **è stato eliminato** con
+> gli altri tre mandati-terminale, che senza il parallelismo non avevano più un soggetto. Resta un solo
+> documento da spostare, e lo spostamento non è ancora stato fatto.
 
 **Tre sono piani, e non hanno ancora una casa.** `piano-migrazione-roster.md`,
 `piano-migrazione-stable-id.md` e `piano-riduzione-hotspot.md` non sono specifiche: sono piani di

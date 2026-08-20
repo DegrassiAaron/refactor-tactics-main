@@ -190,26 +190,21 @@ prezzo dichiarato di [D-108](decisions/RT_PDR_00_Decision_Log.md).
 Nessun `npm install`, nessun build step: Node 22 esegue TypeScript con type stripping e i test usano
 `node:test`, quindi `tools/` ha **zero dipendenze**.
 
-`scripts/rt_shared_id.py` è l'allocatore degli ID condivisi del Decision Log
-([D-135](decisions/RT_PDR_00_Decision_Log.md)): `D-nnn` **non si sceglie a mano**.
+Gli ID condivisi del Decision Log — `D-nnn` — si scelgono leggendo l'ultimo assegnato e si
+**riverificano prima del merge** ([D-178](decisions/RT_PDR_00_Decision_Log.md)):
 
 ```sh
-python scripts/rt_shared_id.py reserve D --reason "#621 bake"   # stampa l'ID da usare
-python scripts/rt_shared_id.py status                           # contatore e reservation del clone
-python scripts/rt_shared_id.py release D-134                    # cede un ID a chi lo usa gia' (non lo libera)
-python scripts/rt_shared_id.py check                            # exit 1 su duplicati o ID malformati
-git fetch --prune origin && python scripts/rt_shared_id.py audit-refs   # exit 1 se due rami collidono
-python scripts/test_rt_shared_id.py                             # 33 test, uno a venti processi
+git fetch --prune origin
+git grep -oh "D-[0-9]\+" origin/main -- docs/decisions/RT_PDR_00_Decision_Log.md | sort -V | tail -1
+gh pr list --state open      # una PR in volo puo' aver gia' rivendicato il numero
 ```
 
-L'atomicità copre tutti i worktree di **questo clone** — lock nel git common dir — e non altri cloni o
-altri PC: là `audit-refs` diagnostica prima del merge invece di prevenire. Meccanismo e recovery in
-[`technical/workflow-parallel-claude.md`](technical/tooling/workflow-parallel-claude.md).
-
-⚠️ **L'allocatore risolve la collisione di numerazione e nient'altro: due worktree possono ancora scrivere
-lo stesso file.** Per quello serve il write-set del batch — [`roadmap/parallel-batch.yaml`](roadmap/parallel-batch.yaml),
-[D-139](decisions/RT_PDR_00_Decision_Log.md) — con la regola *file non assegnato = STOP* e la **Binary
-Asset Lease** sui `.uasset`/`.umap`, che sono human-first ma non human-only.
+⚠️ **Questo è un controllo a vista, e il limite è dichiarato.** Fino al 2026-08-20 l'assegnazione era
+automatica — `scripts/rt_shared_id.py`, un allocatore con lock nel git common dir — perché il progetto
+aveva pagato **sedici** collisioni scegliendo i numeri a mano. Lo strumento è stato rimosso con
+[D-178](decisions/RT_PDR_00_Decision_Log.md) insieme al resto del sistema di lavoro parallelo: con una
+sola sessione per volta la finestra di race si chiude quasi tutta, ma resta aperta finché esistono PR
+non mergiate. Se una PR aperta rivendica lo stesso ID con una **tesi diversa**, rinumera la seconda.
 
 ### Riferimenti a checkpoint
 

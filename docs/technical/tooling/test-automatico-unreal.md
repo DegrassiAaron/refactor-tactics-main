@@ -303,12 +303,12 @@ numero finto.
 | **Politica per le Fast Reaction** | ✅ **chiusa il 2026-08-16 con `#512`** (PR #1016). Diceva: *«quando E14 introdurrà le finestre, uno scenario dovrà poter dichiarare la risposta attesa (`FIRE`/`HOLD`/timeout) come dato, altrimenti diventa non deterministico»* — ed è la condizione che si è avverata. Oggi `turns[].decisions` è quel dato (§4, `"version": 2`), nessun timer reale la attraversa, e il decisore è iniettabile con la precedenza al test. ⏳ Resta di **fase B** la sola capability `DecisionBoundary`: scoprirla senza le `decisions` negli scenari che la chiedono li farebbe girare con finestre a cui nessuno risponde |
 | **Nessun bypass** | invariante permanente: se un giorno un percorso di test saltasse il resolver, i test smetterebbero di misurare il gioco |
 
-🔴 **Nessuna di queste quattro voci è iniziabile da una sessione che possiede solo `ScenarioHarness/`**, e
-va detto qui perché è questa la tabella che un mandato legge come lista di lavoro. Misurato il 2026-08-15:
-la prima è in **stallo** — chiede uno scenario, e `Scenarios/` è `integration_only` in
-[`../../roadmap/parallel-batch.yaml`](../../roadmap/parallel-batch.yaml); la seconda è una **precondizione**, non
+🔴 **Tre di queste quattro voci non sono un lavoro iniziabile**, e va detto qui perché è questa la tabella
+che un mandato legge come lista di lavoro. Misurato il 2026-08-15: la seconda è una **precondizione**, non
 un task; la terza dipende da **E14**, che non è atterrato; la quarta è un'**invariante**, che si rispetta e
-non si chiude.
+non si chiude. *(La prima era in stallo perché `Scenarios/` risultava `integration_only` nel write-set di
+batch: con [D-178](../../decisions/RT_PDR_00_Decision_Log.md) quel vincolo è caduto e la voce è
+iniziabile — chiede uno scenario, e va scritto.)*
 
 ∴ **il lavoro eseguibile è al §10**, non qui: sono estensioni di `RTScenarioLoader` e `RTTestScenario.h`.
 Chi arriva a questa tabella cercando da dove partire, parta da lì.

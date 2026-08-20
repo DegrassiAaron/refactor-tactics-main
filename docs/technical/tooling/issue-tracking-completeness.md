@@ -161,7 +161,8 @@ Se durante la Issue si decide qualcosa che cambia un'invariante, sceglie fra due
 regola competitiva o la resolution order, tocca networking/privacy o una convenzione dati, o influenza più
 feature: **crea o aggiorna la Decision/ADR**. Nessun ADR per dettagli implementativi banali.
 
-⚠️ `D-nnn` **non si sceglie a mano**: `python scripts/rt_shared_id.py reserve D`.
+⚠️ `D-nnn` si legge dall'ultimo assegnato nel Decision Log e si **riverifica prima del merge**: una PR
+aperta può aver già preso il numero ([D-178](../../decisions/RT_PDR_00_Decision_Log.md)).
 
 ### 10 · UI / UX
 

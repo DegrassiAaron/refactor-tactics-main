@@ -96,9 +96,10 @@ GENERATI = {
 # un contratto scritto due volte diverge alla prima aggiunta, ed e' il difetto che questo repository
 # ha gia' pagato con l'elenco dei gate in `AGENTS.md` — sei gate, tre conosciuti.
 #
-# ⚠️ Perche' non vive in `parallel-batch.yaml`, che ha gia' un `generated_only` con `derives_from`:
-# quel file **si riscrive a ogni batch** e lo dichiara in testa («vive quanto il batch, non e' un
-# registro storico»). Un contratto che scade quando finisce un lotto di sessioni non e' un contratto.
+# ⚠️ Fino al 2026-08-20 l'alternativa era `parallel-batch.yaml`, che aveva un `generated_only` con
+# `derives_from`: ma quel file si riscriveva a ogni batch e lo dichiarava in testa («vive quanto il
+# batch, non e' un registro storico»). Un contratto che scade con un lotto di sessioni non e' un
+# contratto — e infatti quel file non esiste piu' (`D-178`).
 # Li' resta la sua funzione di governance — *questi path non si assegnano* — e qui la provenienza.
 #
 # `check` e' il comando che dice se l'output e' allineato alla sorgente. `None` significa **che non

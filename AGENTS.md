@@ -164,10 +164,10 @@ possiede livelli di conoscenza su unità/eventi.
 - Naming e dipendenze contenuti: **`docs/technical/tooling/convenzioni-contenuti-ue.md`** è normativo.
 - Terze parti/Paragon restano fuori da `/Game/RT` salvo pipeline esplicitamente documentata.
 - Non modificare `.uasset`/`.umap` a mano e non spostarli da filesystem: usare Content Browser + Fix Up Redirectors.
-- I binari Unreal sono **human-first, non human-only** ([D-139](docs/decisions/RT_PDR_00_Decision_Log.md)):
-  l'autore davanti all'Editor è l'holder predefinito, e una sessione Claude li tocca solo con una **Binary
-  Asset Lease** esclusiva dichiarata nel batch. Un holder per path, e due `.uasset` **non si fondono**: un
-  conflitto binario è una delle due versioni da rifare a mano dentro Unreal.
+- I binari Unreal sono **human-first**: l'autore davanti all'Editor è l'holder predefinito, e una
+  sessione Claude li tocca solo su richiesta esplicita, attraverso Unreal. Due `.uasset` **non si
+  fondono**: un conflitto binario è una delle due versioni da rifare a mano dentro l'Editor, quindi
+  un binario si modifica da un lavoro solo per volta.
 - Non versionare `Binaries/`, `DerivedDataCache/`, `Intermediate/`, `Saved/`, `.vs/`, segreti o output locali.
 
 ## Metodo di lavoro
@@ -214,8 +214,8 @@ validazione · serializzazione/replay · privacy intenti.
 - **Il repository ha due toolchain, e nessuna gira in CI**: Python in `scripts/` e **Node 22** in
   `tools/radar/` — rubrica dei rating e generatore SVG dei radar di personaggio.
   I gate Python sono **ogni `scripts/check-*.py`** (sei il 2026-08-16 — `ls scripts/check-*.py` è
-  l'elenco, e non si trascrive qui), più `feature_registry.py validate|generate|shortlist` e
-  `rt_shared_id.py check`, che non seguono quel prefisso e vanno nominati.
+  l'elenco, e non si trascrive qui), più `feature_registry.py validate|generate|shortlist`, che non
+  segue quel prefisso e va nominato.
   *(Riscritto il 2026-08-16: questa riga elencava i gate **per nome** e ne conosceva **tre su sei**.
   Mancavano `check-docs-naming.py`, `check-capability-owners.py` — atterrata con `#1043` lo stesso
   giorno — e `check-equipment-defaults.py`. Non è una svista ripetuta tre volte: un elenco scritto a
@@ -227,8 +227,7 @@ validazione · serializzazione/replay · privacy intenti.
   build step senza chiedere: `tools/radar/` ha **zero dipendenze** apposta.
   *(Corretto il 2026-08-16: la riga diceva «`.github/` non esiste», e dal 2026-08-16 è falsa —
   `.github/ISSUE_TEMPLATE/` esiste e precompila il blocco `## Tracking`. La decisione proteggeva la **CI**,
-  non la cartella, e l'oracolo che la verificava — `git ls-tree … -- .github/` in
-  [`qa-prompt-terminal-b`](docs/technical/runbooks/qa-prompt-terminal-b-scenario-runner.md) — è stato ristretto a
+  non la cartella, e l'oracolo che la verificava — `git ls-tree … -- .github/` — è stato ristretto a
   `workflows/` nello stesso commit. Un template non esegue niente; un workflow sì. Precedente del
   2026-08-12: diceva «è vuota», che induceva a cercare una cartella inesistente.)*
 - ⚠️ **`tools/radar/` non è solo documentazione.** I rating si calcolano dai cataloghi di bilanciamento
@@ -276,75 +275,39 @@ Repository: `DegrassiAaron/refactor-tactics-main`.
 - Niente commit, push, merge, force, delete remoti o operazioni distruttive senza richiesta esplicita.
 - Non confondere “ho modificato i file” con “ho verificato build/PIE/packaged” (§*Test e Definition of Done*).
 
-### Una sessione esecutiva = un worktree
+### Una sessione per volta
 
-Due sessioni nella stessa working directory si scrivono addosso: stesso file, stesso `git status`, branch
-cambiato sotto i piedi dell'altra. Se te ne accorgi, **non «gestirlo con attenzione»**: dillo, e la task
-va spostata in un worktree dedicato.
+Lo sviluppo è **sequenziale**: una sessione esecutiva, una working directory, un branch alla volta
+([D-178](docs/decisions/RT_PDR_00_Decision_Log.md)). Non spezzare un lavoro fra più sessioni
+contemporanee, e non aprire worktree per parallelizzare: se un task è troppo grosso, si spezza in
+issue che si fanno **in fila**.
 
-```powershell
-git worktree add ..\rt-wt-621 -b feat/621-geometry-bake origin/main
-```
+Due sessioni nella stessa working directory continuano a scriversi addosso — stesso file, stesso
+`git status`, branch cambiato sotto i piedi dell'altra. Se te ne accorgi, **non «gestirlo con
+attenzione»**: fermati e dillo.
 
-Non creare né distruggere worktree senza richiesta esplicita: vale la regola non distruttiva qui sopra.
+### ID condivisi: `D-nnn`, `Enn`, `XXX-n`
 
-### File non assegnato = STOP
-
-Il worktree isola la working directory, non il repository: due sessioni possono ancora scrivere lo stesso
-file, e finora l'unica difesa era che se ne accorgesse il merge. Un lotto di sessioni parallele dichiara
-prima chi scrive cosa in [`docs/roadmap/parallel-batch.yaml`](docs/roadmap/parallel-batch.yaml)
-([D-139](docs/decisions/RT_PDR_00_Decision_Log.md)).
-
-Prima di modificare un file, il path deve appartenere al `writable` della tua track. Altrimenti **ci si
-ferma** e si registra una richiesta di riallocazione: non si fa «solo questa piccola fix». Vale per C++,
-docs, scripts, Config, `.uasset`, `.umap`, test e output generati.
-
-Tre categorie non si assegnano: `integration_only` si aggiorna **una volta** in integrazione;
-`generated_only` **segue la propria sorgente** — chi possiede la sorgente rigenera quella vista, ed è
-l'unico a poterlo fare; se due track alimentano la **stessa** vista non è un conflitto (`Tests/` lo è per
-quasi tutte), ma nessuna delle due copie è autoritativa finché non si rigenera sull'albero unito; `preexisting` sono i branch già vivi, che non fanno parte del batch ma lo determinano. Il
-write-set di un branch aperto si **misura**, mai si intuisce — dichiararlo a memoria ha già prodotto una
-collisione al primo batch:
+Tre contatori vivono in documenti diversi e nessuno li assegna. Il numero si legge dall'ultimo
+assegnato e si **riverifica subito prima del merge**, perché la risposta a *«qual è il primo numero
+libero»* scade mentre lavori:
 
 ```powershell
-git worktree list
-gh pr list --state open
-git diff --name-only origin/main...<branch>
-```
-
-### `D-nnn` non si sceglie a mano
-
-```powershell
-python scripts/rt_shared_id.py reserve D --reason "<issue/task>"
-```
-
-Stampa l'ID da usare, e **si usa esattamente quello**. È vietato dedurlo — *«l'ultimo è D-135, quindi
-prendo D-136»* è la race, non la sua mitigazione: due sessioni che leggono lo stesso stato scelgono lo
-stesso numero, e il progetto ne ha pagate **sedici** ([D-135](docs/decisions/RT_PDR_00_Decision_Log.md),
-tutte registrate in fondo al Decision Log, più una su `E21`).
-
-L'allocatore è atomico fra tutti i worktree di **questo clone** e considera già preso ogni ID che compaia
-in un working tree, in un branch locale o in uno remoto — anche non committato, anche non mergiato. Non
-copre altri cloni o altri PC: per quelli c'è `audit-refs`, che diagnostica invece di prevenire.
-
-Prima della consegna, i due gate (il `fetch` è tuo, lo script non fa rete):
-
-```powershell
-python scripts/rt_shared_id.py check
 git fetch --prune origin
-python scripts/rt_shared_id.py audit-refs
+git grep -oh "D-[0-9]\+" origin/main -- docs/decisions/RT_PDR_00_Decision_Log.md | sort -V | tail -1
+gh pr list --state open
+gh issue list --search "EPIC in:title"
 ```
 
-Se `audit-refs` è rosso, **rinumera prima del merge**: `reserve` per un ID nuovo, rimandi corretti per
-coppia `(file, riga)` — mai con una sostituzione globale — contenuto invariato. Se l'altra è già su
-`main`, rinumeri la **seconda** e la registri nelle Note.
+Un branch aperto e un working tree non committato sono rivendicazioni quanto un merge. Se una PR in
+volo dichiara lo stesso ID con una **tesi diversa**, rinumera la seconda: rimandi corretti per coppia
+`(file, riga)` — mai con una sostituzione globale — contenuto invariato. Se l'altra è già su `main`,
+la seconda sei tu, e la registri nelle Note.
 
-⚠️ Restano a mano gli altri contatori condivisi — numeri di **epic** (`Enn`) e ID di decisione aperta
-(`XXX-n`): si verificano sul remote (`gh issue list --search "EPIC in:title"`) subito prima del merge,
-perché il controllo *«qual è il primo numero libero»* scade mentre lavori. L'estensione dell'allocatore a
-questi namespace è deliberatamente rimandata a dopo che `D-nnn` avrà dimostrato il meccanismo.
-
-Meccanismo, recovery e cleanup: [`docs/technical/tooling/workflow-parallel-claude.md`](docs/technical/tooling/workflow-parallel-claude.md).
+⚠️ **Limite noto, non aggirato**: questo è un controllo a vista, e il progetto ha già pagato sedici
+collisioni con lo stesso metodo prima di automatizzarlo. Con una sola sessione per volta la finestra
+di race si chiude quasi tutta, ma resta aperta finché esistono PR non mergiate — perciò il `fetch`
+prima del merge non è facoltativo.
 
 ## Lingua
 

@@ -25,7 +25,7 @@
 > l'unico `ToJson` del modulo serializza `FRTTestResult`, non lo scenario. `SC-1` non era un duplicato.
 >
 > ⚠️ **Ciò che non è entrato**: il §10 (parallelizzazione) proponeva due lane e un elenco di file da non
-> toccare in contemporanea — è governato da [`parallel-batch.yaml`](../../roadmap/parallel-batch.yaml), che
+> toccare in contemporanea — è governato da `parallel-batch.yaml`, che
 > lo fa con un write-set misurabile invece che con una raccomandazione. Il §5.1 e il §13 (scope guard)
 > descrivono correttamente il repository e non avevano niente da applicare.
 

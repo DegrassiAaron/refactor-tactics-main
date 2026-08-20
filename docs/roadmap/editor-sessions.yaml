@@ -453,11 +453,10 @@ sessions:
       domanda. `PIE-HEXPLAY-10` invece la dichiara nella propria precondizione («almeno un'unita' per
       squadra col bot»), ed e' proprio per questo che appartiene a U6 e non qui.
 
-      ⚠️ **Le voci nuove — `PIE-V01-BOARD`, `PIE-V01-PACKAGED` — non sono state aperte, e l'owner del
-      file NON e' quello che questa riga diceva.** `docs/technical/test-manuali-pie.md` sta nel `writable`
-      della track **`playtest`**, non di `content_editor`: misurato su `parallel-batch.yaml`, dove
-      `content_editor` (#451) possiede i tool dell'editor e `RTHexMapActor`, e `playtest` possiede
-      `test-manuali-pie.md` insieme al proprio mandato `qa-prompt-terminal-d-verifiche-pie.md`.
+      ⚠️ **Le voci nuove — `PIE-V01-BOARD`, `PIE-V01-PACKAGED` — non sono state aperte, e restano da
+      scrivere — l'atto e' #1242.** *(Fino al 2026-08-20 `docs/technical/test-manuali-pie.md` stava nel
+      `writable` della track `playtest` e non lo si poteva toccare da qui; con `D-178` il write-set di
+      batch e' stato rimosso e non c'e' piu' un owner da attendere.)*
       🔴 L'attribuzione sbagliata e' stata ereditata dal corpo di E46, che porta lo stesso errore, ed e'
       stata trovata in code review. Cambia la conseguenza pratica: **`playtest` e' IDLE**, quindi il
       blocco non e' un'attesa su una sessione viva ma una **riallocazione da dichiarare** — che e' una
@@ -547,9 +546,10 @@ sessions:
          > **(b) RIPARENTA** la skeletal sotto `SceneRoot`.
          > **(c) Solo allora TOGLI** l'eventuale compensazione, che a quel punto e' davvero ridondante.
 
-         ⚠️ **Questa seduta non ha una voce PIE che la falsifichi**, e non se ne aggiunge una da qui:
-         `docs/technical/test-manuali-pie.md` e' nel `writable` della track `playtest` (D-139). La
-         registra chi possiede quel file, e l'invariante da scrivere e' una sola: *a schermo, un
+         ⚠️ **Questa seduta non ha una voce PIE che la falsifichi**, e va aggiunta. *(Fino al 2026-08-20
+         non si poteva scriverla da qui: `docs/technical/test-manuali-pie.md` era nel `writable` della
+         track `playtest`; `D-178` ha rimosso quel vincolo.)* L'invariante da scrivere e' una sola: *a
+         schermo, un
          personaggio selezionato non cambia dimensione e non e' piu' alto della sua silhouette a riposo*.
       7. Registra ciascuno in **`HeroUnitClasses`** del `RTGameMode` — `TMap` con chiave l'`HeroId`
          (`Hero.Gadget` → `BP_Unit_Gadget`, …). ⚠️ **E' il passo che sbaglia in silenzio**:
@@ -986,10 +986,11 @@ sessions:
       legge solo dopo aver alzato l'esposizione a mano, allora non si legge — e le altre tre sedute
       che ereditano questo allestimento vedrebbero altro. Un `Post Process Volume` **unbound** nel
       livello e' lo scope giusto.
-      ⛔ **NON toccare `Config/DefaultEngine.ini`** per l'auto-exposure di progetto: `Config/` e'
-      `integration_only` in `parallel-batch.yaml`, e cambiare un default di progetto per un banco di
-      prove distruttive e' il caso che `#926` ha gia' respinto — «paga un binario e cambia il
-      comportamento predefinito del gioco che si distribuisce».
+      ⛔ **NON toccare `Config/DefaultEngine.ini`** per l'auto-exposure di progetto: cambiare un default
+      di progetto per un banco di prove distruttive e' il caso che `#926` ha gia' respinto — «paga un
+      binario e cambia il comportamento predefinito del gioco che si distribuisce». *(La riga citava
+      anche `Config/` come `integration_only` nel batch: quel vincolo e' decaduto con `D-178`, la
+      ragione di merito no.)*
       **3. Il verdetto e' un'orbita, non uno screenshot.** Gira attorno alla mappa e guarda le facce
       che il sole non prende: superficie, marcatori blocca-movimento/blocca-vista e contorni dei
       piani di contesto devono restare distinguibili **da ogni angolo**.
@@ -1000,8 +1001,10 @@ sessions:
       binario sbagliato.
       **5. Salva e committa.** L'oracolo e' `git status` sui due package, non «l'ho salvato»: questo
       repository ha gia' avuto asset presenti su disco e non versionati.
-      ⚠️ **Lease binaria obbligatoria prima di salvare** — `BINARY-GH623-DEVSANDBOX-LIGHTING` in
-      `parallel-batch.yaml`. Due `.umap` non si fondono, e quattro sedute usano questo livello.
+      ⚠️ **Una seduta per volta su questo livello.** Due `.umap` non si fondono, e quattro sedute usano
+      lo stesso allestimento: chi lo apre lo tiene finche' non ha salvato e committato. *(Fino al
+      2026-08-20 la regola passava per una Binary Asset Lease dichiarata nel batch; `D-178` ha rimosso
+      quel meccanismo, il fatto fisico che lo motivava no.)*
 
   - id: U22
     title: Il gesto dell'autore — ghost, snap e Undo del tool Geometry
@@ -1075,8 +1078,9 @@ sessions:
       ─────
       ➕ **Seduta aperta il 2026-08-16, a lavoro gia' cominciato**: i widget si stavano costruendo e il
       tracking non li nominava — ne' qui, ne' come `binary_leases`. `grep -n "WBP_RT_" editor-sessions.yaml`
-      dava **zero**, e nessuna lease copriva `Content/RT/UI/`. Un `.uasset` senza lease e' il caso che
-      `D-139` esiste per impedire: due binari non si fondono.
+      dava **zero**, e nessuna lease copriva `Content/RT/UI/`. *(Il meccanismo delle lease e' stato rimosso
+      con `D-178`; il rischio che intercettava resta: due binari non si fondono, quindi un `.uasset` si
+      tocca da un lavoro solo per volta.)*
       **Cosa costruire e in che ordine** sta in [`../technical/runbooks/guida-frontend-umg.md`](../technical/runbooks/guida-frontend-umg.md),
       che e' l'owner del *come*; la spec del *cosa* e' `spec-frontend-navigazione.md`. Qui c'e' solo
       l'esistenza della seduta e il suo write-set.
@@ -1143,9 +1147,10 @@ sessions:
 
       **Prima di aprire l'editor — tre condizioni, tutte e tre bloccanti.**
 
-      · ⛔ **Binary Asset Lease** su `Content/RT/Maps/Dev/L_DevSandbox/`, dichiarata nel batch prima di
-      toccare il livello (`D-139`). **Quattro** sedute dichiarano lo stesso allestimento — `U21`, `U22`,
-      `U25`, `U26` — e due aperte insieme sullo stesso `.umap` producono due versioni che non si fondono.
+      · ⛔ **Una seduta per volta** su `Content/RT/Maps/Dev/L_DevSandbox/`. **Quattro** sedute dichiarano
+      lo stesso allestimento — `U21`, `U22`, `U25`, `U26` — e due aperte insieme sullo stesso `.umap`
+      producono due versioni che non si fondono. *(Era una Binary Asset Lease dichiarata nel batch fino
+      al 2026-08-20; `D-178` ha rimosso il meccanismo, non il vincolo.)*
       E' l'unica delle tre la cui omissione **distrugge lavoro**.
       · ✅ **`GBX-2` chiusa il 2026-08-18** da `D-171` (#1188): `Locked` si distingue da `Closed` con una
       **traversa in rilievo** modellata sul pannello, quindi sono due mesh e non una ricolorata. Questa
@@ -1235,11 +1240,9 @@ sessions:
       validazione** che mette in campo unita', copertura bassa e alta, muro, porta nei suoi stati, acqua e
       ghiaccio, e li guarda a tre distanze di camera.
       ⚠️ **`verifies: []` non e' una dimenticanza**, ed e' lo stesso caso di `U24`: le voci PIE di questo
-      dominio **non esistono** — misurato, `grep -c "PIE-GBX" ../technical/test-manuali-pie.md` da' **0** —
-      e quel registro e' assegnato a un'altra track in `parallel-batch.yaml`. Le voci si
-      **propongono**, non si scrivono da fuori: per `D-139` si aspetta l'owner che lo tiene OGGI — il
-      proprietario e' cambiato tre volte il 2026-08-17, il permesso mai, ed e' per questo che qui non
-      c'e' un nome. Finche' non ci sono,
+      dominio **non esistono** — misurato, `grep -c "PIE-GBX" ../technical/test-manuali-pie.md` da' **0**.
+      *(Fino al 2026-08-20 quel registro era assegnato a un'altra track e le voci si potevano solo
+      proporre; `D-178` ha rimosso il vincolo, quindi ora si scrivono — #1096.)* Finche' non ci sono,
       questa seduta produce una scena e non chiude nessuna voce del registro.
       ⚠️ **`artifacts: []` per la ragione di `U21`**: l'oracolo degli artefatti e' `git ls-files`, che sa
       dire se un path **esiste** e non se e' stato modificato.
@@ -1275,8 +1278,8 @@ sessions:
       ⏱️ **Aggiornato il 2026-08-18**: questa riga diceva *«dichiarare artefatti prima che `GBX-4` scelga il
       percorso»* e chiudeva con *«e' il primo effetto utile della chiusura di `GBX-4`»* — cioe' **prevedeva**
       questo aggiornamento. `GBX-4` e' chiusa (`D-173`, #1188) e l'allowlist esiste, quindi il vincolo sugli
-      artefatti non e' piu' il percorso: e' la scala, che aspetta #1155. Delle due condizioni resta in piedi
-      solo quella sulle voci PIE, che dipende da `D-139` e non da questa seduta.
+      artefatti non e' piu' il percorso: e' la scala, che aspetta #1155. *(La seconda condizione era sulle
+      voci PIE e dipendeva da `D-139`: con `D-178` e' decaduta, e quelle voci ora si scrivono.)*
       ⚠️ ID assegnato prima del merge: `U25`, con `U24` come massimo misurato su `main` **e su tutti i
       diciassette branch locali e gli undici remoti**. Chi arriva secondo rinumera, non contende.
 

@@ -765,11 +765,14 @@ contando ferite. Le verifiche di questo dominio sono **manuali**, di classe **C*
 [`scenario-map.md`](../tooling/scenario-map.md), e il loro registro è
 [`test-manuali-pie.md`](../test-manuali-pie.md).
 
-> 🔴 **Le voci PIE di questo contratto non sono ancora scritte, e il motivo è un vincolo di parallelismo,
-> non una dimenticanza.** `test-manuali-pie.md` è **assegnato a un'altra track** in
-> [`parallel-batch.yaml`](../../roadmap/parallel-batch.yaml): per `D-139` scriverci da qui sarebbe la
-> «piccola fix» su un file di qualcun altro. Il contenuto delle voci è pronto e vive nella issue di
-> validazione visiva del kit.
+> 🔴 **Le voci PIE di questo contratto non sono ancora scritte.** Il contenuto è pronto e vive nella
+> issue di validazione visiva del kit.
+>
+> ⚠️ **Il vincolo che le bloccava è decaduto il 2026-08-20.** Fino ad allora `test-manuali-pie.md` era
+> assegnato a un'altra track del write-set di batch, e scriverci da qui violava `D-139`. Con
+> [D-178](../../decisions/RT_PDR_00_Decision_Log.md) il sistema di lavoro parallelo è stato rimosso: non
+> c'è più un proprietario da cui farsi cedere il path. **Restano da scrivere, e ora nulla lo impedisce** —
+> [#1096](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1096).
 >
 > **Il nome dell'owner non si scrive qui, e il paragrafo sotto dice perché**: è cambiato tre volte in un
 > giorno, e ogni nome inciso in questa riga sarebbe invecchiato in silenzio. Si legge nel batch.
@@ -780,10 +783,9 @@ contando ferite. Le verifiche di questo dominio sono **manuali**, di classe **C*
 > il path è **tornato a `playtest`**, che è `IDLE` — e in questo file `writable` su una track `IDLE`
 > significa **prenotato**, non libero.
 >
-> **Il proprietario è cambiato, il permesso no.** La condizione di sblocco non è mai stata «la issue X
-> chiude»: è che la track proprietaria **rilasci il path o lo ceda**. Chi legge questa riga apra
-> [`parallel-batch.yaml`](../../roadmap/parallel-batch.yaml) e guardi chi lo tiene **oggi** — la risposta è
-> cambiata tre volte in un giorno, e ogni volta un nome scritto qui sarebbe invecchiato in silenzio.
+> *(Fino al 2026-08-20 questa riga diceva: «il proprietario è cambiato, il permesso no — la condizione
+> di sblocco è che la track proprietaria rilasci il path». Conservata come provenienza: spiega perché le
+> voci sono rimaste non scritte così a lungo, e non va letta come una procedura ancora in vigore.)*
 
 Quello che una verifica dovrà mostrare, senza HUD e senza selezione:
 

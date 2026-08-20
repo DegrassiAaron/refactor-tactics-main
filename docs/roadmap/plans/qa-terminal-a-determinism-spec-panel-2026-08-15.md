@@ -47,7 +47,7 @@ Tutte le misure su `28df2a96` = `origin/main`, worktree pulito.
 ### C1 — L'ownership è dichiarata a una granularità che il repository non usa
 
 **FOWLER** — Il documento definisce un confine per *cartella*, su cartelle che non esistono. Il
-repository definisce i confini **per file**: [`../parallel-batch.yaml`](../parallel-batch.yaml) elenca i
+repository definisce i confini **per file**: `../parallel-batch.yaml` elenca i
 test uno per uno, e registra esplicitamente il caso opposto — *«`Tests/RTCameraPawnTests.cpp` non è nel
 `writable` di nessuna»*. Un confine dichiarato a una granularità diversa da quella del meccanismo non è
 un confine più largo: è un confine che non morde.

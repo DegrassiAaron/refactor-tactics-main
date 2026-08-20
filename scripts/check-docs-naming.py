@@ -355,8 +355,8 @@ ROOT_GOVERNANCE = ("CLAUDE.md", "AGENTS.md", "README.md")
 
 
 # Le estensioni protette. `.yaml` entra con `#1109`, e la ragione e' misurata: sotto
-# `docs/` i file YAML contengono **prosa lunga** — le `note:` di `parallel-batch.yaml`,
-# gli `steps` di `editor-sessions.yaml`, i `notes` del feature registry — scritta in
+# `docs/` i file YAML contengono **prosa lunga** — gli `steps` di `editor-sessions.yaml`,
+# i `notes` del feature registry, le note di `execution-graph.yaml` — scritta in
 # markdown e letta da persone. Il gate ne ha ignorate 5 per giorni, e in una di esse un
 # nome ritirato sopravviveva in una frase che descriveva **il presente**.
 #

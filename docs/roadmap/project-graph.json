@@ -1417,8 +1417,8 @@
       "block": 6,
       "critical": false,
       "execution_lane": "pie",
-      "state": "⏳",
-      "queue_group": "READY",
+      "state": "✅",
+      "queue_group": "DONE",
       "produces": "verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo",
       "artifacts": [],
       "unblocked_by": [
@@ -1438,19 +1438,19 @@
       "verifies": [
         {
           "id": "PIE-GEO-GHOST",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-GEO-SNAP",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-GEO-UNDO",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-GEO-RESIDUI",
-          "state": "⏳"
+          "state": "✅"
         }
       ],
       "issues": [
@@ -1604,8 +1604,7 @@
     ],
     "READY": [
       "U18",
-      "U20",
-      "U22"
+      "U20"
     ],
     "WAITING": [
       "U11",
@@ -1616,6 +1615,7 @@
     ],
     "DONE": [
       "U21",
+      "U22",
       "U24",
       "U27"
     ]
@@ -1723,19 +1723,19 @@
     },
     {
       "id": "PIE-GEO-GHOST",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-GEO-RESIDUI",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-GEO-SNAP",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-GEO-UNDO",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX",

@@ -4,7 +4,7 @@
 > correzioni sono nel commit che accompagna questo referto ·
 > **Data**: 2026-08-15
 > **HEAD della revisione**: `964e1b57` (`origin/main`), worktree `D:/rt-spatial`, working tree pulito
-> **Oggetto**: [`../../technical/runbooks/qa-prompt-terminal-b-scenario-runner.md`](../../technical/runbooks/qa-prompt-terminal-b-scenario-runner.md)
+> **Oggetto**: `../../technical/runbooks/qa-prompt-terminal-b-scenario-runner.md`
 > — **v2**, 199 righe, versionato con PR #900 (`79f61f92`, antenato di `main`).
 > **Panel**: Wiegers (lead) · Crispin · Adzic · Cockburn · Nygard · Fowler
 > **Modo**: critique · **Focus**: requirements + testing

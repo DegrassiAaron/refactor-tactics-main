@@ -413,9 +413,10 @@ silenzio.
 > registra come canonico: l'aggiunta di **E46** aveva lasciato indietro `roadmap.shortlist.md` (riga di prosa
 > **fuori** dai marker generati, quindi invisibile a `--check`), due righe di
 > [`roadmap-checkpoint.md`](roadmap-checkpoint.md) — una delle quali dichiara *«questa riga è una copia»* — e
-> `docs/README.md`. Le prime tre sono allineate qui; **`docs/README.md` no**, e non per dimenticanza: non è
-> nel `writable` di nessuna track di [`parallel-batch.yaml`](parallel-batch.yaml), e D-139 dice che un file
-> non assegnato è uno **stop**. Dichiara `21 epic, 100 checkpoint` e va corretto da chi lo possiede.
+> `docs/README.md`. Le prime tre sono allineate qui; **`docs/README.md` no**: dichiara
+> `21 epic, 100 checkpoint` e va corretto. *(Fino al 2026-08-20 non era nel `writable` di nessuna track
+> del write-set di batch, e `D-139` ne faceva uno **stop**. Con
+> [D-178](../decisions/RT_PDR_00_Decision_Log.md) il vincolo è caduto: resta la correzione da fare.)*
 > ⚠️ Il difetto non è aritmetico ed è lo stesso della nota qui sotto, un gradino più su: là divergevano §3 e
 > §5 *dentro* questo file, qui diverge questo file dalle sue quattro copie. **Nessun gate confronta un
 > totale in prosa con la sua fonte.**
@@ -1704,10 +1705,11 @@ file in `Source/**/UI*` tutti in-match, nessuna epic frontend fra E1–E45, zero
 > Il paragone con E21 regge solo per quella parte: là *«quello che manca è il lavoro in editor»* è vero
 > dell'intera epic, qui di una fetta.
 >
-> 🔴 **Le sei voci `PIE-V01-FRONTEND-*` non sono state create da questo consolidamento, e non per
-> dimenticanza**: [`test-manuali-pie.md`](../technical/test-manuali-pie.md) è nel `writable` della track
-> **`playtest`** — *«l'autore davanti a Unreal»* — secondo [`parallel-batch.yaml`](parallel-batch.yaml), e
-> D-139 dice che un file non assegnato è uno **stop**, non una «piccola fix».
+> 🔴 **Le sei voci `PIE-V01-FRONTEND-*` non sono state create da questo consolidamento.** Fino al
+> 2026-08-20 [`test-manuali-pie.md`](../technical/test-manuali-pie.md) era nel `writable` della track
+> `playtest` — *«l'autore davanti a Unreal»* — e `D-139` ne faceva uno **stop**. Con
+> [D-178](../decisions/RT_PDR_00_Decision_Log.md) quel vincolo non esiste più: **restano da creare**, e
+> l'atto è [#1242](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1242).
 > ⚠️ **La procedura non è aspettare**, ed è la track stessa a dirlo: *«le altre track producono, questa
 > giudica — chi finisce una feature che ha una voce `PIE-*` non scrive il proprio esito qui: lo **propone**
 > in handoff»*. Le sei voci si propongono quando il primo checkpoint produce qualcosa da guardare; oggi non
@@ -1838,8 +1840,9 @@ senza console di debug.
 **Dipendenze**: E2 (parità hex, chiusa), E10 (fine partita, `RT-FEAT-MATCH-END-CONDITIONS`
 `RELEASE_READY`), E15 per l'harness. E47.3 dipende da E21.3 per la taratura dei materiali, non viceversa.
 
-**Vincolo di parallelismo, rimisurato su [`parallel-batch.yaml`](parallel-batch.yaml) il 2026-08-16**
-([D-139](../decisions/RT_PDR_00_Decision_Log.md)) — i checkpoint sono **sette** da quando E47.2 ha
+**Stato dei checkpoint, rimisurato il 2026-08-16** *(la misura nasceva da un vincolo di parallelismo
+poi rimosso con [D-178](../decisions/RT_PDR_00_Decision_Log.md); i conteggi restano validi)* — i
+checkpoint sono **sette** da quando E47.2 ha
 scorporato il proprio passo 4 in **E47.7**, e **tre sono chiusi** (E47.1 · E47.2 · E47.5). Dei quattro
 aperti: **E47.4** è libero, **E47.6** è una riallocazione da una track IDLE, **E47.3** ed **E47.7**
 attendono una track `ACTIVE`.

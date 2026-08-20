@@ -205,7 +205,7 @@ def test_marcatore_html_esenta_la_riga_in_markdown():
 
 
 def test_marcatore_html_esenta_dentro_una_nota_yaml():
-    """Le `note:` di `parallel-batch.yaml` sono markdown: chi ci scrive usa `<!-- -->`."""
+    """Le note lunghe dei YAML sotto `docs/` sono markdown: chi ci scrive usa `<!-- -->`."""
     with tempfile.TemporaryDirectory() as tmp:
         root = _tree(Path(tmp), {
             "docs/roadmap/batch.yaml":

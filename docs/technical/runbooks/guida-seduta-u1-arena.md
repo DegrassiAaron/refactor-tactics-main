@@ -8,30 +8,18 @@
 > **Owner degli esiti**: [`test-manuali-pie.md`](../test-manuali-pie.md) — le sette voci si scrivono lì.
 
 > ⚠️ **Revisione 2026-08-17** — [#868](https://github.com/DegrassiAaron/refactor-tactics-main/issues/868).
-> Tre punti della procedura precedevano **D-139** (write-set di batch e Binary Asset Lease, del 2026-08-14) e
-> dicevano di fare qualcosa che oggi non si può fare, o di misurare la mappa sbagliata: il salvataggio di
-> §10b, il *dove* rilanciare `rt.Arena.Check`, e il rimedio «rigenera». Corretti qui sotto, ciascuno accanto
-> alla propria regola. I tell delle sette voci **non cambiano**.
+> Tre punti della procedura dicevano di fare qualcosa che oggi non si può fare, o di misurare la mappa
+> sbagliata: il salvataggio di §10b, il *dove* rilanciare `rt.Arena.Check`, e il rimedio «rigenera».
+> Corretti qui sotto, ciascuno accanto alla propria regola. I tell delle sette voci **non cambiano**.
+> *(La revisione nasceva dall'arrivo di `D-139`; quella decisione è stata superata da `D-178` il
+> 2026-08-20, ma le tre correzioni restano valide per ragioni loro.)*
 
 Una sola apertura dell'editor. Sette passi per costruire, sette voci da verificare, un comando per sapere se
 l'arena rispetta i tre criteri prima di committarla.
 
-⚠️ **`L_HexArena` è già committata** (dall'11 agosto) e **non va risalvata**: **nessuna Binary Asset Lease
-copre quel path**. Si verifica in un comando, e la risposta è un elenco vuoto:
-
-```sh
-python - <<'EOF'
-import yaml
-d = yaml.safe_load(open('docs/roadmap/parallel-batch.yaml', encoding='utf-8'))
-print([l['key'] for t in d['tracks'].values()
-       for l in (t.get('binary_leases') or [])
-       for p in l['paths'] if 'L_HexArena' in p])
-EOF
-```
-
-Chi dovrà modificare quei package **emette una lease nuova** sul proprio `base_sha` — è un atto di batch, non
-una decisione della seduta. I §1–§9 descrivono come l'arena **è nata** e restano validi su una mappa nuova;
-su questa non si rieseguono.
+⚠️ **`L_HexArena` è già committata** (dall'11 agosto) e **non va risalvata.** Chi dovrà modificare quei
+package lo fa in una seduta d'editor dedicata, da solo: due `.umap` non si fondono. I §1–§9 descrivono come
+l'arena **è nata** e restano validi su una mappa nuova; su questa non si rieseguono.
 
 ---
 

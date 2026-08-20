@@ -1157,7 +1157,7 @@ in ordine di peso:
    `URTHudViewModel` è interamente `BlueprintPure`: **cinque viste, zero comandi**. Un controllo che
    *scrive* avrebbe richiesto di aprire una porta di scrittura in quel contratto, cioè una decisione
    architetturale, dentro un checkpoint che il suo stesso DoD dichiara «solo presentazione».
-2. Un `WBP_RT_*` nuovo costa un `.uasset` — quindi una Binary Asset Lease e passi manuali in Editor —
+2. Un `WBP_RT_*` nuovo costa un `.uasset` — quindi una seduta d'editor dedicata e passi manuali —
    per un controllo che è un numero e un tasto.
 
 **Quando questa deviazione va sciolta**: quando lo Screen HUD §4.1 acquisisce un percorso di *comando*

@@ -196,7 +196,7 @@ e il loro contenuto è già nell'handoff archiviato, che resta consultabile.
 ## 8. Cosa questo triage NON decide
 
 - **Le verifiche PIE della camera.** [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md)
-  è nel `writable` della track `content_editor` (#451) in [`../parallel-batch.yaml`](../parallel-batch.yaml):
+  è nel `writable` della track `content_editor` (#451) in `../parallel-batch.yaml`:
   non è mio, e una voce ⏳ scritta qui sarebbe una modifica al file di un'altra sessione.
 - **Gli scenari camera.** Zero voci oggi in [`../../technical/tooling/scenario-map.md`](../../technical/tooling/scenario-map.md);
   i 34 nomi proposti non seguono la convenzione del corpus. Il gap è registrato, il vocabolario no.

@@ -63,12 +63,14 @@ tutti i file che hanno il marcatore» perché un generatore riscrivesse un docum
 falsificasse la storia. Il marcatore resta perché l'archivio non si corregge; questa riga esiste
 perché la prossima persona non lo scopra da sola.
 
-## Perché il contratto vive qui e non in `parallel-batch.yaml`
+## Perché il contratto vive qui
 
-Quel file ha già un `generated_only` con `derives_from`, e continua ad averlo: è **governance del
-lotto** — *questi path non si assegnano, seguono la sorgente*. Ma si riscrive a ogni batch, e lo
-dichiara in testa: «vive quanto il batch, non è un registro storico». Un contratto che scade quando
-finisce un lotto di sessioni non è un contratto.
+Fino al 2026-08-20 questa domanda aveva un'alternativa: `parallel-batch.yaml`, il write-set del lotto di
+sessioni parallele, aveva un `generated_only` con `derives_from` che diceva *«questi path non si
+assegnano, seguono la sorgente»*. Era **governance del lotto**, e si riscriveva a ogni batch — «vive
+quanto il batch, non è un registro storico». Un contratto che scade quando finisce un lotto di sessioni
+non è un contratto, e infatti quel file non esiste più
+([D-178](../decisions/RT_PDR_00_Decision_Log.md)).
 
 Qui c'è la **provenienza**, che non scade. E siccome due elenchi della stessa cosa divergono alla prima
 aggiunta — questo repository l'ha già pagato con i gate elencati per nome in `AGENTS.md`, sei di cui
