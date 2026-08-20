@@ -133,6 +133,28 @@ public:
 	static TArray<FVector> HexCorners(const FVector& Center, float Radius);
 
 	/**
+	 * PONTE FRA LE DUE NUMERAZIONI DEI BORDI, che nel progetto sono due e non coincidono.
+	 *
+	 * - **geometrica**: il bordo `k` va da `HexCorners[k]` a `HexCorners[k+1]`, punto medio a `60k` gradi.
+	 *   La usano il perimetro, `SectorBoundaryPoints` e il ghost del Geometry tool.
+	 * - **di vicinato**: `ERTHexDirection(j)` e' la direzione di `AxialDirection(j)`, cioe' dove sta il
+	 *   vicino. La usano `Neighbor`, `NeighborAcross`, le porte, il combattimento e `FRTHexCover::Edge`.
+	 *
+	 * Girano in verso opposto: `E` e `W` coincidono, i quattro diagonali sono scambiati a coppie
+	 * (`NE↔SE`, `NW↔SW`). Il difetto che ha reso necessarie queste due funzioni e' `#712`: la cottura
+	 * faceva un `static_cast` da una all'altra e scriveva la copertura sul lato sbagliato per quattro
+	 * bordi su sei — e i test non lo vedevano perche' usavano solo `E` e `W`, i due punti fissi.
+	 *
+	 * ⚠️ **Chi converte deve chiamare queste, non riscrivere `(6 - k) % 6`.** Due copie della stessa
+	 * formula sono esattamente il modo in cui il difetto e' nato.
+	 * `RefactorTactics.Hex.EdgeIndexMatchesNeighbourDirection` le verifica derivandole dal mondo.
+	 */
+	static ERTHexDirection DirectionForEdgeIndex(int32 EdgeIndex);
+
+	/** L'inverso di `DirectionForEdgeIndex`. E' la stessa operazione: il rispecchiamento e' un'involuzione. */
+	static int32 EdgeIndexForDirection(ERTHexDirection Dir);
+
+	/**
 	 * Media dei centri-mondo delle celle indicate: il punto da inquadrare per un gruppo (es. la squadra del
 	 * giocatore all'avvio). Insieme vuoto -> `Origin`. Indipendente dall'ordine dell'input.
 	 */

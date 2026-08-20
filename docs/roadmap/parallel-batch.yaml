@@ -6632,6 +6632,19 @@ tracks:
       # ⚠️ Solo il `.cpp` entra: `Render` non aggiunge membri, e prendere anche l'header significherebbe
       # prenotare un file che questa correzione non apre.
       - Source/RefactorTacticsEditor/Private/Tools/RTHexGeometryTool.cpp
+      # 🔴 **Entrano il 2026-08-20 per un difetto di CORRETTEZZA, non di presentazione.** Il ghost corretto
+      # ha reso visibile che la cottura scrive la copertura sul lato **sbagliato**: `EdgesTouchedBy` numera
+      # i bordi per angolo crescente (il bordo `k` ha il punto medio a `60k°`) e fa un `static_cast` diretto
+      # a `ERTHexDirection`, che invece numera per **direzione di vicinato** — e le due girano in verso
+      # opposto. Misurato: `E` e `W` coincidono, i quattro diagonali sono scambiati a coppie
+      # (`NE↔SE`, `NW↔SW`), **4 bordi su 6 in disaccordo**.
+      # ⚠️ Non è un difetto grafico: `NeighborAcross` e `RTHexCombatLibrary` leggono `Cover.Edge` come
+      # direzione di vicinato, quindi una copertura cotta su un diagonale blocca vista e passo **dal lato
+      # opposto** a quello disegnato.
+      # ⚠️ **I test esistenti non potevano vederlo**: tutti e sette usano `E` o `W`, cioè esattamente le due
+      # direzioni dove il rispecchiamento è invisibile. La lacuna era nella scelta dei casi, non nel rigore.
+      - Source/RefactorTactics/Map/RTGeometryBake.cpp
+      - Source/RefactorTactics/Tests/RTGeometryBakeTests.cpp
     derives_from: []
     binary_leases:
       # Riemessa **prima** di riaprire l'editor, come la prima volta. Sui FILE e non sulla cartella: la

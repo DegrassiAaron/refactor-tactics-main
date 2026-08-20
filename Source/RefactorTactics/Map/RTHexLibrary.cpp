@@ -308,6 +308,23 @@ TArray<FVector> URTHexLibrary::HexCorners(const FVector& Center, float Radius)
 	return Corners;
 }
 
+ERTHexDirection URTHexLibrary::DirectionForEdgeIndex(int32 EdgeIndex)
+{
+	// Rispecchiamento attorno all'asse X: il bordo geometrico `k` ha il punto medio a `60k` gradi, mentre
+	// `AxialDirection(j)` punta a `-60j`. `E` (0) e `W` (3) restano fermi perche' sono i due punti fissi.
+	// Il modulo positivo regge anche un indice fuori intervallo, che altrimenti diventerebbe un cast a un
+	// enum inesistente.
+	const int32 Wrapped = ((EdgeIndex % 6) + 6) % 6;
+	return static_cast<ERTHexDirection>((6 - Wrapped) % 6);
+}
+
+int32 URTHexLibrary::EdgeIndexForDirection(ERTHexDirection Dir)
+{
+	// Stessa operazione: un rispecchiamento e' l'inverso di se' stesso. Scritta come chiamata invece che
+	// ricopiata, cosi' se la convenzione cambia c'e' un posto solo da cambiare.
+	return static_cast<int32>(DirectionForEdgeIndex(static_cast<int32>(Dir)));
+}
+
 float URTHexLibrary::DistanceRayToSegment(const FVector& RayOrigin, const FVector& RayDir, const FVector& A, const FVector& B)
 {
 	// Closest points tra semi-retta (s>=0, dir unitaria) e segmento (t in [0,1]). Adattato da Ericson, con doppio clamp.

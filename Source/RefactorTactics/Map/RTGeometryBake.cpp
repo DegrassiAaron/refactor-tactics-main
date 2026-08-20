@@ -2,6 +2,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexOccupancyLibrary.h"
+#include "Map/RTHexLibrary.h" // DirectionForEdgeIndex: le due numerazioni dei bordi non coincidono
 
 // ⚠️ Namespace NOMINATO, non anonimo: `RTHexOccupancyLibrary.cpp` ha helper con gli stessi nomi nel suo
 // namespace anonimo, e nella unity build i due .cpp possono finire nella stessa unit di traduzione — dove
@@ -91,9 +92,28 @@ void URTGeometryBakeLibrary::EdgesTouchedBy(const FRTGeometrySegment& Segment, f
 	TArray<FVector2D> Boundary;
 	URTHexOccupancyLibrary::SectorBoundaryPoints(HexSize, Boundary);
 
-	// Il lato `k` va dal vertice `2k` al vertice `2k+2`; la sua direzione e' `ERTHexDirection(k)` perche' il
-	// suo punto medio e' il confine `2k+1`, a `60k` gradi. Iterazione in ordine crescente: l'esito non
-	// dipende da come il segmento e' arrivato.
+	// Il lato geometrico `k` va dal vertice `2k` al vertice `2k+2`, e il suo punto medio e' il confine
+	// `2k+1`, a `60k` gradi.
+	//
+	// 🔴 **`k` NON e' `ERTHexDirection(k)`, e per quattro bordi su sei e' un'altra cosa.** Questa riga
+	// faceva un `static_cast` diretto, e la seduta `U22` ha visto il muro comparire sul lato opposto.
+	// Le due numerazioni girano in verso contrario:
+	//
+	// ```text
+	// bordo geometrico k        punto medio a 60k gradi   ->   0    60   120   180   240   300
+	// ERTHexDirection j         AxialDirection(j) punta a  ->   0   300   240   180   120    60
+	// ```
+	//
+	// `E` (0) e `W` (3) coincidono perche' sono i due punti fissi del rispecchiamento; i quattro diagonali
+	// si scambiano a coppie — `NE↔SE`, `NW↔SW`. La corrispondenza giusta e' quindi `j = (6 - k) % 6`.
+	//
+	// ⚠️ **Non e' un dettaglio di presentazione.** `ERTHexDirection` significa *«verso quel vicino»* — lo
+	// dicono `NeighborAcross` in `RTHexDoorLibrary` e la risoluzione della copertura in
+	// `RTHexCombatLibrary`, che cercano quale cella dell'anello sta in quella direzione. Una copertura
+	// scritta sul diagonale sbagliato blocca vista e passo **dal lato opposto** a quello disegnato.
+	//
+	// ⚠️ Il difetto e' sopravvissuto perche' i test della cottura usano tutti `E` o `W`, cioe' proprio i
+	// due casi in cui il rispecchiamento non si vede. `BakeCoverLandsTowardTheNeighbour` copre i sei.
 	for (int32 Edge = 0; Edge < 6; ++Edge)
 	{
 		const FVector2D& V0 = Boundary[(2 * Edge) % RT_OccupancySectorCount];
@@ -101,9 +121,17 @@ void URTGeometryBakeLibrary::EdgesTouchedBy(const FRTGeometrySegment& Segment, f
 
 		if (RTGeometryBakeInternal::SegmentClosesEdge(Line.Points[0], Line.Points[1], V0, V1))
 		{
-			OutEdges.Add(static_cast<ERTHexDirection>(Edge));
+			OutEdges.Add(URTHexLibrary::DirectionForEdgeIndex(Edge));
 		}
 	}
+
+	// L'ordine crescente e' parte del contratto dichiarato nell'header, e il rimappaggio lo romperebbe
+	// (produce 0,5,4,3,2,1). Si riordina qui invece di cambiare la promessa: due mappe uguali non devono
+	// differire per come le coperture ci sono finite dentro.
+	OutEdges.Sort([](const ERTHexDirection& A, const ERTHexDirection& B)
+	{
+		return static_cast<uint8>(A) < static_cast<uint8>(B);
+	});
 }
 
 int32 URTGeometryBakeLibrary::BakeCell(URTHexMapAsset* Map, const FRTCellId& CellId,

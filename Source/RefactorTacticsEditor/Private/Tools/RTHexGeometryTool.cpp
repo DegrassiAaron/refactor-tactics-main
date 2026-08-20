@@ -269,9 +269,7 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 		if (Edges.Num() > 0)
 		{
-			// I sei vertici da `HexCorners`: il bordo `k` va dal vertice `k` al `k+1`, perche' entrambi
-			// nascono dalla stessa convenzione pointy-top (primo vertice a -30 gradi). Non e' una seconda
-			// copia della geometria — e' la stessa funzione che disegna il contorno della cella e che
+			// I sei vertici da `HexCorners`: la stessa funzione che disegna il contorno della cella e che
 			// costruisce il prisma, quindi il ghost non puo' finire su un esagono diverso da quello vero.
 			const TArray<FVector> Corners = URTHexLibrary::HexCorners(FVector(Centre.X, Centre.Y, Z), HexSize);
 			if (Corners.Num() == 6)
@@ -280,7 +278,12 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 				const float Thickness = (Preview.WallType == ERTHexCoverType::High) ? 6.0f : 3.0f;
 				for (const ERTHexDirection Edge : Edges)
 				{
-					const int32 Index = static_cast<int32>(Edge);
+					// ⚠️ `Edge` e' una direzione di VICINATO, i vertici sono numerati per ANGOLO, e le due
+					// non coincidono su quattro bordi. `EdgeIndexForDirection` e' l'unico posto dove quella
+					// conversione vive: la prima stesura di questo blocco faceva `static_cast<int32>(Edge)`
+					// e disegnava il diagonale rispecchiato — lo stesso errore della cottura, nel verso
+					// opposto, che e' esattamente cio' che succede quando la formula viene ricopiata.
+					const int32 Index = URTHexLibrary::EdgeIndexForDirection(Edge);
 					if (Corners.IsValidIndex(Index))
 					{
 						PDI->DrawLine(Corners[Index], Corners[(Index + 1) % 6], FColor::Green,

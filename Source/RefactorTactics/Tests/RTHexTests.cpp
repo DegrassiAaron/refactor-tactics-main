@@ -782,57 +782,63 @@ bool FRTCellPrismMatchesHexCornersTest::RunTest(const FString&)
 }
 
 /**
- * #712 / seduta `U22`: il ghost disegna i bordi che la cottura produrra', e per farlo assume che il bordo
- * `ERTHexDirection(k)` vada da `HexCorners[k]` a `HexCorners[k+1]`.
+ * #712 / seduta `U22`: il ponte fra le due numerazioni dei bordi e' quello vero, e lo dice la geometria.
  *
- * ⚠️ Quell'assunzione e' l'intera correzione. `EdgesTouchedBy` indicizza i lati sul perimetro a **dodici**
- * punti di `SectorBoundaryPoints` (vertici in posizione pari, punti medi in posizione dispari), mentre il
- * ghost disegna sui **sei** vertici di `HexCorners`: due numerazioni diverse che oggi coincidono perche'
- * entrambe partono dal vertice a -30 gradi. Se una delle due cambiasse origine, il ghost mostrerebbe con
- * assoluta sicurezza il bordo sbagliato — e nessun altro test se ne accorgerebbe, perche' ciascuna delle
- * due resterebbe corretta per conto suo. E' la stessa forma del difetto che questa seduta ha trovato.
+ * 🔴 **La prima stesura di questo test fissava la convenzione SBAGLIATA.** Asseriva che un gesto sul lato
+ * geometrico `k` producesse `ERTHexDirection(k)`, cioe' esattamente il `static_cast` che era il difetto:
+ * i due sistemi girano in verso opposto e coincidono solo su `E` e `W`. Il test passava perche' ricopiava
+ * l'errore invece di misurarlo — la stessa forma di cecita' dei sette test della cottura, che usavano solo
+ * quelle due direzioni.
  *
- * Il test lo verifica nel verso che conta: un gesto tracciato ESATTAMENTE sul lato `k` deve produrre
- * `k` e nient'altro, per tutti e sei.
+ * Ora l'atteso viene dal **mondo** e non da una tabella: il bordo che guarda il vicino `D` e' quello il cui
+ * punto medio giace nella direzione di `AxialToWorld(Neighbor(cell, D))`. Se le due numerazioni cambiassero
+ * verso, questo test cadrebbe; se cambiassero **insieme e coerentemente**, resterebbe verde — che e'
+ * esattamente cio' che deve fare.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGhostEdgeIndexingMatchesHexCornersTest,
-	"RefactorTactics.Hex.GhostEdgeIndexingMatchesHexCorners",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEdgeIndexMatchesNeighbourDirectionTest,
+	"RefactorTactics.Hex.EdgeIndexMatchesNeighbourDirection",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTGhostEdgeIndexingMatchesHexCornersTest::RunTest(const FString&)
+bool FRTEdgeIndexMatchesNeighbourDirectionTest::RunTest(const FString&)
 {
 	constexpr float HexSize = 100.f;
+	const FRTCellId Cell{ 0, 0, 0 };
 	const TArray<FVector> Corners = URTHexLibrary::HexCorners(FVector::ZeroVector, HexSize);
 	if (!TestEqual(TEXT("sei vertici"), Corners.Num(), 6))
 	{
 		return false;
 	}
 
-	for (int32 Edge = 0; Edge < 6; ++Edge)
+	const FVector Here = URTHexLibrary::AxialToWorld(Cell, FVector::ZeroVector, HexSize, 0.f);
+
+	for (int32 DirIndex = 0; DirIndex < 6; ++DirIndex)
 	{
-		const FVector& From = Corners[Edge];
-		const FVector& To = Corners[(Edge + 1) % 6];
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(DirIndex);
 
-		// Il gesto: dal vertice `k` al vertice `k+1`, cioe' esattamente lungo il lato che il ghost
-		// disegnerebbe per questa direzione.
-		FRTGeometrySegment Snapped;
-		const bool bSnapped = URTGeometryGrammarLibrary::SnapToGrammar(
-			FVector2D(From.X, From.Y), FVector2D(To.X, To.Y), HexSize, Snapped);
+		// Dove sta davvero il vicino, in coordinate-mondo.
+		const FVector There = URTHexLibrary::AxialToWorld(
+			URTHexLibrary::Neighbor(Cell, Dir), FVector::ZeroVector, HexSize, 0.f);
+		const double NeighbourAngle = FMath::Atan2(There.Y - Here.Y, There.X - Here.X);
 
-		if (!TestTrue(FString::Printf(TEXT("il lato %d si aggancia alla grammatica"), Edge), bSnapped))
+		// Il bordo geometrico che la libreria dice corrispondere a quella direzione.
+		const int32 EdgeIndex = URTHexLibrary::EdgeIndexForDirection(Dir);
+		if (!TestTrue(FString::Printf(TEXT("indice di bordo valido per %d"), DirIndex),
+			Corners.IsValidIndex(EdgeIndex)))
 		{
 			continue;
 		}
 
-		TArray<ERTHexDirection> Touched;
-		URTGeometryBakeLibrary::EdgesTouchedBy(Snapped, HexSize, Touched);
+		// Il punto medio di quel bordo deve guardare nella stessa direzione del vicino.
+		const FVector Mid = (Corners[EdgeIndex] + Corners[(EdgeIndex + 1) % 6]) * 0.5;
+		const double MidAngle = FMath::Atan2(Mid.Y, Mid.X);
+		const double Delta = FMath::Abs(FMath::UnwindRadians(MidAngle - NeighbourAngle));
 
-		TestEqual(FString::Printf(TEXT("il lato %d mura un bordo solo"), Edge), Touched.Num(), 1);
-		if (Touched.Num() == 1)
-		{
-			// L'uguaglianza che il ghost usa: l'indice del bordo E l'indice del vertice sono lo stesso.
-			TestEqual(FString::Printf(TEXT("il lato %d mura proprio se stesso"), Edge),
-				static_cast<int32>(Touched[0]), Edge);
-		}
+		TestTrue(FString::Printf(
+			TEXT("il bordo %d guarda il vicino %d (scarto %.2f gradi)"),
+			EdgeIndex, DirIndex, FMath::RadiansToDegrees(Delta)), Delta < 0.01);
+
+		// E il ponte deve essere invertibile: e' un rispecchiamento, quindi e' involutivo.
+		TestEqual(FString::Printf(TEXT("il ponte per %d e' invertibile"), DirIndex),
+			static_cast<int32>(URTHexLibrary::DirectionForEdgeIndex(EdgeIndex)), DirIndex);
 	}
 
 	return true;

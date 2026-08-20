@@ -424,4 +424,71 @@ bool FRTBakeTouchesOnlyTheInvestedRegionTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #712 / seduta `U22`: la copertura cotta finisce sul lato che guarda IL VICINO GIUSTO.
+ *
+ * 🔴 Non lo faceva. `EdgesTouchedBy` numerava i bordi per angolo crescente e li passava a
+ * `ERTHexDirection` con un `static_cast`, ma quell'enum numera per **direzione di vicinato** e le due
+ * girano in verso opposto: `E` e `W` coincidono, i quattro diagonali erano scambiati a coppie. Una
+ * copertura disegnata a `NE` finiva a `SE`, e siccome `NeighborAcross` e `RTHexCombatLibrary` leggono
+ * `Cover.Edge` come «verso quel vicino», bloccava vista e passo **dal lato opposto**.
+ *
+ * ⚠️ **I sette test qui sopra non potevano vederlo**: usano tutti `E` o `W`, cioe' esattamente i due punti
+ * fissi del rispecchiamento. Il difetto non e' sopravvissuto a un test debole — e' sopravvissuto alla
+ * scelta dei casi, che e' un modo piu' silenzioso di non coprire.
+ *
+ * Il test lega l'esito alla geometria del mondo invece che a una tabella: per ogni direzione costruisce il
+ * muro sul lato **condiviso con quel vicino**, e pretende quella direzione. Una tabella di attesi
+ * ricopierebbe la convenzione che sta verificando.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBakeCoverLandsTowardTheNeighbourTest,
+	"RefactorTactics.Geometry.BakeCoverLandsTowardTheNeighbour",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBakeCoverLandsTowardTheNeighbourTest::RunTest(const FString&)
+{
+	constexpr float HexSize = 100.f;
+
+	for (int32 DirIndex = 0; DirIndex < 6; ++DirIndex)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(DirIndex);
+
+		// Il lato condiviso col vicino `Dir`: il suo punto medio sta a meta' strada fra i due centri, e i
+		// suoi due estremi sono i vertici a +-30 gradi da quella giacitura. Tutto derivato dal mondo.
+		const FVector Here = URTHexLibrary::AxialToWorld(BakeOrigin, FVector::ZeroVector, HexSize, 0.f);
+		const FVector There = URTHexLibrary::AxialToWorld(
+			URTHexLibrary::Neighbor(BakeOrigin, Dir), FVector::ZeroVector, HexSize, 0.f);
+
+		const double MidAngle = FMath::Atan2(There.Y - Here.Y, There.X - Here.X);
+		const double Deg30 = PI / 6.0;
+		const FVector2D A(HexSize * FMath::Cos(MidAngle - Deg30), HexSize * FMath::Sin(MidAngle - Deg30));
+		const FVector2D B(HexSize * FMath::Cos(MidAngle + Deg30), HexSize * FMath::Sin(MidAngle + Deg30));
+
+		FRTGeometrySegment Wall;
+		if (!TestTrue(FString::Printf(TEXT("il lato verso %d si aggancia alla grammatica"), DirIndex),
+			URTGeometryGrammarLibrary::SnapToGrammar(A, B, HexSize, Wall)))
+		{
+			continue;
+		}
+		Wall.WallType = ERTHexCoverType::High;
+
+		TArray<ERTHexDirection> Touched;
+		URTGeometryBakeLibrary::EdgesTouchedBy(Wall, HexSize, Touched);
+		TestEqual(FString::Printf(TEXT("il lato verso %d mura un bordo solo"), DirIndex), Touched.Num(), 1);
+		if (Touched.Num() != 1)
+		{
+			continue;
+		}
+		TestEqual(FString::Printf(TEXT("il muro verso %d mura proprio quel lato"), DirIndex),
+			static_cast<int32>(Touched[0]), DirIndex);
+
+		// E la stessa cosa attraverso la cottura vera, non solo attraverso il calcolo dei bordi.
+		URTHexMapAsset* Map = MakeOneCellMap();
+		URTGeometryBakeLibrary::BakeCell(Map, BakeOrigin, { Wall }, HexSize);
+		TestNotNull(FString::Printf(TEXT("la cottura scrive la copertura verso %d"), DirIndex),
+			FindCover(Map, Dir));
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
