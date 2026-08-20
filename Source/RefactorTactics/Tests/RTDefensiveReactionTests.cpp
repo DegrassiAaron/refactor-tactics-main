@@ -820,9 +820,18 @@ namespace
 	}
 
 	/**
-	 * Un Blast in cui `Attaccante` spinge `Difensore`, che e' in `Brace`. `Response` e' cio' che il decisore
-	 * risponde alla finestra; `nullptr` significa **nessun decisore collegato**, che e' il caso di un'unita'
-	 * umana senza UI.
+	 * Un Blast in cui `Attaccante` spinge `Difensore`, che e' in `Brace`. **Una sola fixture per entrambe le
+	 * famiglie di test del `Brace`**, e i tre puntatori dicono cosa serve a chi chiama.
+	 *
+	 * 🔴 **Erano DUE funzioni quasi identiche**, e una code review ha misurato il costo: ~35 righe uguali —
+	 * mondo, mappa, due spawn, l'abilita', lo stato `Braced`, il giro del turno, la distruzione — che
+	 * differivano solo per come si ottiene la risposta. Qualunque modifica alla fixture (l'id della spinta, la
+	 * cella di partenza, la durata di `Status.Braced`) andava fatta due volte, e farla una sola volta avrebbe
+	 * lasciato le due famiglie a esercitare **setup diversi restando entrambe verdi**.
+	 *
+	 * `Trace` non nullo = **replay**: le decisioni si armano da li' e **nessun decisore viene collegato**, che
+	 * e' la condizione del Verifier — se il replay tornasse a chiedere a qualcuno non starebbe verificando la
+	 * traccia, la starebbe riscrivendo.
 	 *
 	 * Restituisce la cella in cui il difensore finisce, e `bOutRan` dice se il turno e' **davvero girato**.
 	 *
@@ -833,18 +842,15 @@ namespace
 	 * `Hold Ground` sarebbero caduti al posto suo, facendo leggere una fixture rotta come un difetto del
 	 * `Brace`: il rosso sarebbe arrivato, ma indicando la cosa sbagliata.
 	 */
-	/**
-	 * Come `RunBracePushTurn`, ma **cattura la traccia** e sa girare in ri-simulazione.
-	 *
-	 * `Trace` non vuoto = replay: le decisioni si armano da li' e **nessun decisore viene collegato**, che e'
-	 * esattamente la condizione del Verifier — se il replay tornasse a chiedere a qualcuno, non starebbe
-	 * verificando la traccia, la starebbe riscrivendo.
-	 */
-	FRTCellId RunBraceTurnCapturing(const URTHeroData* DefenderHero, const TCHAR* Response,
-		const TArray<FRTTurnLogEntry>& Trace, TArray<FRTTurnLogEntry>& OutTrace, bool& bOutRan)
+	FRTCellId RunBraceTurn(const URTHeroData* DefenderHero, const TCHAR* Response,
+		const TArray<FRTTurnLogEntry>* Trace, int32* OutPrompts, TArray<FRTTurnLogEntry>* OutTrace,
+		bool& bOutRan, TArray<FString>* OutDivergences = nullptr)
 	{
+		if (OutPrompts) { *OutPrompts = 0; }
+		if (OutTrace) { OutTrace->Reset(); }
+		if (OutDivergences) { OutDivergences->Reset(); }
 		bOutRan = false;
-		OutTrace.Reset();
+
 		UWorld* World = MakeDefWorld();
 		if (!World) { return FRTCellId(); }
 		SpawnDefMap(World);
@@ -862,67 +868,42 @@ namespace
 			Difensore->ApplyStatus(TAG_Status_Braced, 1);
 			Difensore->PlannedAbilityIndex = INDEX_NONE;
 
-			if (Trace.Num() > 0)
+			if (Trace && Trace->Num() > 0)
 			{
-				TM->ArmRecordedReactionDecisions(Trace);
+				TM->ArmRecordedReactionDecisions(*Trace);
 			}
 			else if (Response)
 			{
 				TM->ReactionDecider.BindLambda(
-					[Response](const FRTReactionOpportunity&, int32) -> FString { return FString(Response); });
-			}
-
-			RunDefTurn(TM);
-			Result = Difensore->Cell;
-			OutTrace = TM->GetTurnLog();
-			bOutRan = true;
-		}
-
-		DestroyDefWorld(World);
-		return Result;
-	}
-
-	FRTCellId RunBracePushTurn(const URTHeroData* DefenderHero, const TCHAR* Response, int32& OutPrompts,
-		bool& bOutRan)
-	{
-		OutPrompts = 0;
-		bOutRan = false;
-		UWorld* World = MakeDefWorld();
-		if (!World) { return FRTCellId(); }
-		SpawnDefMap(World);
-
-		ARTUnit* Attaccante = SpawnDefUnit(World, 0, FRTCellId(0, 0, 0));
-		ARTUnit* Difensore  = SpawnDefHeroUnit(World, 1, FRTCellId(1, 0, 0), DefenderHero);
-		ARTTurnManager* TM  = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-
-		FRTCellId Result;
-		if (Attaccante && Difensore && TM)
-		{
-			const int32 Push = AddDefAbility(Attaccante, TEXT("Action.Push"));
-			Attaccante->PlannedAbilityIndex = Push;
-			Attaccante->PlannedAttackTarget = Difensore;
-			Difensore->ApplyStatus(TAG_Status_Braced, 1);
-			Difensore->PlannedAbilityIndex = INDEX_NONE;
-
-			if (Response)
-			{
-				TM->ReactionDecider.BindLambda(
-					[Response, &OutPrompts](const FRTReactionOpportunity&, int32) -> FString
+					[Response, OutPrompts](const FRTReactionOpportunity&, int32) -> FString
 					{
 						// Conta le volte in cui la finestra ha chiesto davvero: e' la differenza fra «si apre»
 						// e «si committa da sola», che il solo esito non distingue.
-						++OutPrompts;
+						if (OutPrompts) { ++(*OutPrompts); }
 						return FString(Response);
 					});
 			}
 
 			RunDefTurn(TM);
 			Result = Difensore->Cell;
+			if (OutTrace) { *OutTrace = TM->GetTurnLog(); }
+			// Il verdetto del Verifier esce con la cella: e' l'unico modo per distinguere «la traccia copriva
+			// la finestra» da «non la copriva e il ripiego e' finito per caso nello stesso posto». Senza,
+			// un test sul solo esito posizionale sarebbe verde anche col canale di verifica rotto.
+			if (OutDivergences) { *OutDivergences = TM->GetVerificationDivergences(); }
 			bOutRan = true; // il turno e' girato davvero: da qui in poi `Result` e' una misura, non un default
 		}
 
 		DestroyDefWorld(World);
 		return Result;
+	}
+
+	/** Il caso «gioca e conta i prompt», che e' quello della maggior parte dei test del `Brace`. */
+	FRTCellId RunBracePushTurn(const URTHeroData* DefenderHero, const TCHAR* Response, int32& OutPrompts,
+		bool& bOutRan)
+	{
+		return RunBraceTurn(DefenderHero, Response, /*Trace*/ nullptr, &OutPrompts, /*OutTrace*/ nullptr,
+			bOutRan);
 	}
 }
 
@@ -1145,7 +1126,7 @@ bool FRTBraceDecisionRoundTripsThroughTraceTest::RunTest(const FString&)
 	// --- 1. La partita: si sceglie `SIDESTEP`, e la traccia se ne accorge --------------------------------
 	TArray<FRTTurnLogEntry> Traccia;
 	bool bRan = false;
-	const FRTCellId Originale = RunBraceTurnCapturing(Phase, TEXT("SIDESTEP"), {}, Traccia, bRan);
+	const FRTCellId Originale = RunBraceTurn(Phase, TEXT("SIDESTEP"), /*Trace*/ nullptr, /*OutPrompts*/ nullptr, &Traccia, bRan);
 
 	if (!TestTrue(TEXT("il turno originale e' girato"), bRan)) { return false; }
 	TestTrue(TEXT("con `SIDESTEP` il difensore lascia la cella"), Originale != Start);
@@ -1165,11 +1146,20 @@ bool FRTBraceDecisionRoundTripsThroughTraceTest::RunTest(const FString&)
 	// --- 2. Il replay: stessa traccia, NESSUN decisore, stesso esito -------------------------------------
 	TArray<FRTTurnLogEntry> TracciaReplay;
 	bool bRanReplay = false;
-	const FRTCellId Replay = RunBraceTurnCapturing(Phase, /*Response*/ nullptr, Traccia, TracciaReplay, bRanReplay);
+	TArray<FString> Divergenze;
+	const FRTCellId Replay = RunBraceTurn(Phase, /*Response*/ nullptr, &Traccia, nullptr, &TracciaReplay,
+		bRanReplay, &Divergenze);
 
 	if (!TestTrue(TEXT("il replay e' girato"), bRanReplay)) { return false; }
 	TestTrue(TEXT("IL PUNTO: il replay riapplica lo scarto, non la scelta sicura"), Replay == Originale);
 	TestTrue(TEXT("e quindi non e' rimasto fermo"), Replay != Start);
+	// ⚠️ **La cella da sola non basta**, ed e' il rilievo di una code review: se un domani
+	// `DeriveOpportunityId` divergesse fra scrittura e replay — un campo nuovo nella chiave, un altro spazio
+	// di id — `AskReactionDecision` prenderebbe il ramo «finestra non coperta» e ripiegherebbe sulla scelta
+	// sicura. Le due asserzioni sopra resterebbero vere ogni volta che il ripiego finisce nella stessa cella,
+	// mentre il canale di verifica e' rotto. Il verdetto va letto.
+	TestEqual(TEXT("e il Verifier non segnala NIENTE: la traccia copriva davvero la finestra"),
+		Divergenze.Num(), 0);
 
 	// --- 3. La META' NEGATIVA, senza cui il test sopra sarebbe verde anche col token ignorato ------------
 	// La stessa traccia **privata del token**: è ciò che una v9 porterebbe. La ricostruzione dà `HOLD`, che
@@ -1181,11 +1171,47 @@ bool FRTBraceDecisionRoundTripsThroughTraceTest::RunTest(const FString&)
 	}
 	TArray<FRTTurnLogEntry> Ignorata;
 	bool bRanSenza = false;
-	const FRTCellId SenzaTokenCell = RunBraceTurnCapturing(Phase, nullptr, SenzaToken, Ignorata, bRanSenza);
+	TArray<FString> DivergenzeSenza;
+	const FRTCellId SenzaTokenCell = RunBraceTurn(Phase, nullptr, &SenzaToken, nullptr, &Ignorata, bRanSenza,
+		&DivergenzeSenza);
 
 	TestTrue(TEXT("il turno senza token e' girato"), bRanSenza);
 	TestTrue(TEXT("senza token lo scarto NON si riapplica: il token e' cio' che porta l'informazione"),
 		SenzaTokenCell == Start);
+	// E il Verifier lo DICHIARA invece di lasciarlo dedurre dalla cella: la ricostruzione produce `HOLD`, che
+	// per questa finestra non e' legale. E' l'altro verso dell'asserzione sulle divergenze qui sopra — insieme
+	// dimostrano che quel conteggio misura qualcosa, invece di essere zero per costruzione.
+	TestTrue(TEXT("e il Verifier segnala la risposta registrata come illegale"), DivergenzeSenza.Num() > 0);
+
+	// --- 4. **Una lacuna della traccia NON si ripulisce da sola** ----------------------------------------
+	// Traccia non vuota — quindi si e' in ri-simulazione — ma che NON copre questa finestra: il resolver
+	// prende il ramo «finestra non coperta», segnala la divergenza e ripiega sulla scelta sicura.
+	//
+	// 🔴 **Il punto e' cosa NON deve finire nel TurnLog del replay.** Scrivendo li' una voce completa, quella
+	// finestra risulterebbe coperta: ridando il log del replay al Verifier, `ArmRecordedReactionDecisions`
+	// troverebbe la chiave e la corsa uscirebbe **pulita** — una traccia nota come incompleta si sarebbe
+	// lavata da sola in un giro. Una lacuna che sparisce e' peggio di una lacuna. Trovato da una code review.
+	FRTTurnLogEntry AltraFinestra;
+	AltraFinestra.Category = ERTLogCategory::ReactionDecision;
+	AltraFinestra.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::HoldChosen);
+	AltraFinestra.OpportunityId = TEXT("T9|P9|M9|U9|action.inesistente|S9");
+	const TArray<FRTTurnLogEntry> TracciaEstranea = { AltraFinestra };
+
+	TArray<FRTTurnLogEntry> LogDelReplay;
+	TArray<FString> DivergenzeLacuna;
+	bool bRanLacuna = false;
+	RunBraceTurn(Phase, nullptr, &TracciaEstranea, nullptr, &LogDelReplay, bRanLacuna, &DivergenzeLacuna);
+
+	TestTrue(TEXT("il turno con traccia estranea e' girato"), bRanLacuna);
+	TestTrue(TEXT("il Verifier dichiara la finestra non coperta"), DivergenzeLacuna.Num() > 0);
+
+	const bool bHaScrittoLaLacuna = LogDelReplay.ContainsByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::ReactionDecision
+			&& E.ActionId == FName(TEXT("Action.Brace"));
+	});
+	TestFalse(TEXT("e il log del replay NON registra la finestra scoperta come se fosse stata decisa"),
+		bHaScrittoLaLacuna);
 
 	return true;
 }

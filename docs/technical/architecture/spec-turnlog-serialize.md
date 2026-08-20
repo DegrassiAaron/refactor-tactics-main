@@ -23,14 +23,17 @@ e porta il KPI «Replay divergence = 0» a ✅ (traccia salvabile, ricaricabile 
   e il marcatore `ERTLogTopology` nei flags dell'header distingue i due) + `Amount` (int32). Nessun float.
 - `URTTurnLogLibrary::{EntryLess, SortTurnLog, HashTurnLog}` (FNV-1a 32-bit, permutazione-invariante) `ff5e079`.
 
-> ⚠️ **Allineamento 2026-08-10 — il formato in codice è `v6`.** Questa
+> ⚠️ **Allineamento 2026-08-19 — il formato in codice è `v10`.** Questa
 > sezione descrive la **v2**, che era il formato al momento della stesura. Da allora `ERTTurnLogFormatVersion`
 > è cresciuto **otto volte**, sempre in modo retrocompatibile:
 >
-> 🔴 **Diceva «tre volte» e la tabella si fermava alla v6**, mentre le versioni erano nove: un numero in prosa
-> scritto una volta e mai ricontato, e una tabella cresciuta meno del codice che descrive. Corretti entrambi
-> il 2026-08-20 aggiungendo la v10 — chi estende un formato aggiorna l'owner, o la spec descrive una versione
-> che non esiste più.
+> 🔴 **Questo banner ha già mentito due volte, e la seconda l'ha corretta una code review.** Diceva «cresciuto
+> *tre volte*» con la tabella ferma alla **v6** mentre le versioni erano nove — un numero in prosa scritto una
+> volta e mai ricontato. Il giro che ha aggiunto la v10 ha corretto la prosa e la tabella **e ha lasciato in
+> piedi il titolo**, che continuava a dichiarare `v6` tre righe sopra la riga `WithReactionResponse = 10`:
+> cioè ha rifatto, nella stessa modifica, il difetto che dichiarava di stare riparando. Le tre affermazioni —
+> titolo, conteggio, tabella — vanno lette **insieme**, perché è la loro somma che qualcuno usa per sapere a
+> che versione sta scrivendo.
 >
 > | Versione | Cosa aggiunge | Nell'hash | Le tracce precedenti |
 > |---|---|---|---|

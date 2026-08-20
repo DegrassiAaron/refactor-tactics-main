@@ -1222,14 +1222,35 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				// **scarta in ingresso** gli `HoldImmediate`, quindi una voce del genere resterebbe non
 				// consumata a fine corsa e verrebbe riportata come **orfana** su una ri-simulazione riuscita.
 				// Scriverla sarebbe un falso allarme costruito qui e diagnosticato altrove.
-				if (BraceDecision.Outcome != ERTReactionDecisionOutcome::HoldImmediate)
+				//
+				// 🔴 **E NON si scrive un `HoldNoDecider` prodotto DALLA ri-simulazione**, che e' un caso
+				// diverso e piu' insidioso. Quell'esito ha due significati: in partita «un'unita' umana senza
+				// UI», che e' un fatto da registrare; in replay «la traccia non copriva questa finestra», che
+				// e' la **diagnosi di una lacuna**. Scriverlo nel TurnLog del replay farebbe apparire coperta
+				// una finestra che non lo era: ridando quel log al Verifier, `ArmRecordedReactionDecisions`
+				// troverebbe la chiave, `IsResponseAllowed` passerebbe, e una traccia **nota come incompleta**
+				// si presenterebbe pulita. Una lacuna che sparisce dopo un giro e' peggio di una lacuna.
+				// ⚠️ `RecordedDecisions.Num() > 0` e' cio' che distingue i due significati, e non c'e' un altro
+				// modo: l'esito da solo non lo dice. Trovato da una code review.
+				const bool bResimulating = RecordedDecisions.Num() > 0;
+				const bool bLacunaDelReplay = bResimulating
+					&& BraceDecision.Outcome == ERTReactionDecisionOutcome::HoldNoDecider;
+
+				if (BraceDecision.Outcome != ERTReactionDecisionOutcome::HoldImmediate && !bLacunaDelReplay)
 				{
 					FRTTurnLogEntry BraceEntry;
 					BraceEntry.Phase = ERTMatchPhase::Blast; // dove la finestra si e' aperta, non dove le
 					                                         // finestre si aprono di solito
 					BraceEntry.Category = ERTLogCategory::ReactionDecision;
 					BraceEntry.Outcome = static_cast<uint8>(BraceDecision.Outcome);
-					BraceEntry.ActionId = FName(TEXT("Action.Brace"));
+					// ⚠️ **Dalla CHIAVE, non da un secondo letterale.** La prima stesura riscriveva qui
+					// `FName(TEXT("Action.Brace"))`, mentre l'`OpportunityId` lo deriva da
+					// `Key.ReactionDefId` — una sola identita' con due sorgenti indipendenti. Il giorno in cui
+					// la chiave cambiasse (un `Brace` profilato, un rename di catalogo) la voce dichiarerebbe
+					// un'azione e l'id ne nominerebbe un'altra: niente smetterebbe di compilare, il replay
+					// continuerebbe a funzionare — aggancia solo l'`OpportunityId` — e a mentire sarebbe il
+					// solo testo del referto.
+					BraceEntry.ActionId = BraceOpportunity.Key.ReactionDefId;
 					BraceEntry.OpportunityId =
 						URTReactionOpportunityLibrary::DeriveOpportunityId(BraceOpportunity.Key);
 					BraceEntry.SrcCell = T->Cell;

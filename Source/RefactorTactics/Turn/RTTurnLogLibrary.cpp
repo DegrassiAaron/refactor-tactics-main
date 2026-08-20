@@ -60,13 +60,28 @@ bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntr
 	// SCRITTO da `SerializeTurnLog` che il confronto non guarda lascia due voci a pari merito, e `TArray::Sort`
 	// non e' stabile. Il file lo aveva gia' pagato una volta, e questa sarebbe stata la seconda.
 	//
-	// ⚠️ **Oggi il caso non e' raggiungibile, e va detto invece di lasciarlo credere protetto**: due decisioni
-	// che pareggiassero fin qui avrebbero lo stesso `OpportunityId`, che porta l'`OwnerId` — quindi sarebbero
-	// della stessa unita' nello stesso micro-step, e la `SrcCell` avrebbe gia' rotto la parita'. La riga esiste
-	// per il giorno in cui un secondo produttore di finestre emettesse due risposte diverse su una chiave
-	// condivisa: allora i **byte** del file, e il suo checksum, dipenderebbero dall'ordine d'inserimento, e
-	// `D-SR-1` cadrebbe senza che nulla diventi rosso.
-	return A.ReactionResponse < B.ReactionResponse;
+	// 🔴 **`Compare(..., CaseSensitive)` e NON `operator<`**, ed e' una correzione di una prima stesura che
+	// aveva rifatto il difetto di `FName::FastLess` descritto in cima a questa funzione — in un'altra forma.
+	// Misurato nel sorgente dell'engine: `FString::UEOpLessThan` e' `FPlatformString::Stricmp(...) < 0`, con
+	// un `@note case insensitive` esplicito (`UnrealString.h.inl:873`). Quindi `operator<` **non e' un ordine
+	// totale** sui byte: due token che differiscono solo per il caso pareggerebbero in entrambi i versi,
+	// resterebbero a pari merito, e `TArray::Sort` — che non e' stabile — deciderebbe secondo l'ordine
+	// d'inserimento. I byte del file e il suo checksum ne dipenderebbero: esattamente il buco di `D-SR-1` che
+	// questa riga esiste per chiudere.
+	//
+	// ⚠️ E il resto della pipeline confronta le risposte **case-sensitive** — `IsResponseAllowed` e
+	// `ClassifyChosenResponse` passano entrambe `ESearchCase::CaseSensitive`: con `operator<` due token che
+	// il resolver tratta come risposte DIVERSE sarebbero uguali per l'ordine canonico, cioe' due verita' sullo
+	// stesso dato.
+	//
+	// ⚠️ **Oggi il caso non e' raggiungibile, e la ragione va detta bene perche' la prima stesura la aveva
+	// scritta al contrario**: due voci che pareggiassero fin qui condividono l'`OpportunityId`, che porta
+	// l'`OwnerId` e il micro-step — quindi sono della stessa unita' nello stesso istante, e la `SrcCell` e'
+	// **identica**, non diversa. A separarle e' `ReactionInstanceId` per l'Overwatch; il produttore del
+	// `Brace` lo lascia a `INDEX_NONE`, quindi per lui nemmeno quello. Cio' che rende il caso irraggiungibile
+	// e' un'altra cosa, gia' scritta in `ResolveReactionBoundary`: un'unita' pianifica **una sola** abilita'
+	// per turno. La riga esiste per il giorno in cui quella premessa cadesse.
+	return A.ReactionResponse.Compare(B.ReactionResponse, ESearchCase::CaseSensitive) < 0;
 }
 
 void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
@@ -233,34 +248,48 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		const FString Who = Entry.ActionId.IsNone()
 			? FString(TEXT("overwatch")) : DescribeActionIdentity(Entry);
 
+		// 🔴 **«la reazione» e non «overwatch», dal 2026-08-20.** Ogni arma di questo `switch` diceva
+		// *overwatch* alla lettera, ed era vero finche' quello era l'unico produttore di decisioni. Con
+		// [D-047] le finestre le apre anche `Action.Brace`, e il testo avrebbe raccontato un Overwatch che non
+		// c'e' — «overwatch tiene il colpo» per un'unita' che si e' irrigidita. Il nome vero e' gia' in `Who`,
+		// che porta l'`ActionId`: il soggetto qui torna neutro e lascia parlare quello.
+		const TCHAR* const Soggetto = TEXT("la reazione");
+
 		switch (static_cast<ERTReactionDecisionOutcome>(Entry.Outcome))
 		{
 		case ERTReactionDecisionOutcome::FireChosen:
-			return FString::Printf(TEXT("%s -> %s: overwatch spara sull'unita' %d, %d danni (%s)"),
-				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.SelectedTargetUnitId,
+			return FString::Printf(TEXT("%s -> %s: %s spara sull'unita' %d, %d danni (%s)"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Soggetto, Entry.SelectedTargetUnitId,
 				Entry.Amount, *Who);
+		// La risposta di un profilo (E14.7): il TOKEN e' l'informazione, e senza di lui due decisioni diverse
+		// — tenere la cella o scartare — si leggerebbero identiche. E' lo stesso argomento con cui i cinque
+		// `Hold` qui sotto NON condividono un testo.
+		case ERTReactionDecisionOutcome::ResponseChosen:
+			return FString::Printf(TEXT("%s: %s risponde «%s» (%s)"),
+				*CellText(Entry.SrcCell), Soggetto,
+				Entry.ReactionResponse.IsEmpty() ? TEXT("?") : *Entry.ReactionResponse, *Who);
 		// I cinque `Hold` NON condividono un testo, ed e' il punto della voce: applicano tutti lo stesso
 		// effetto — nessuno — e rispondono in modo diverso all'unica domanda che il giocatore pone davvero,
 		// *perche' non ha sparato?*. Un «tiene il colpo» per tutti cancellerebbe proprio quella differenza.
 		case ERTReactionDecisionOutcome::HoldChosen:
-			return FString::Printf(TEXT("%s: overwatch tiene il colpo, resta armato (%s)"),
-				*CellText(Entry.SrcCell), *Who);
+			return FString::Printf(TEXT("%s: %s tiene il colpo, resta armata (%s)"),
+				*CellText(Entry.SrcCell), Soggetto, *Who);
 		case ERTReactionDecisionOutcome::HoldTimeout:
-			return FString::Printf(TEXT("%s: overwatch non risponde in tempo, resta armato (%s)"),
-				*CellText(Entry.SrcCell), *Who);
+			return FString::Printf(TEXT("%s: %s non risponde in tempo, resta armata (%s)"),
+				*CellText(Entry.SrcCell), Soggetto, *Who);
 		case ERTReactionDecisionOutcome::HoldNoDecider:
-			return FString::Printf(TEXT("%s: overwatch senza decisore, resta armato (%s)"),
-				*CellText(Entry.SrcCell), *Who);
+			return FString::Printf(TEXT("%s: %s senza decisore, resta armata (%s)"),
+				*CellText(Entry.SrcCell), Soggetto, *Who);
 		case ERTReactionDecisionOutcome::HoldRejected:
-			return FString::Printf(TEXT("%s: risposta non ammessa, overwatch resta armato (%s)"),
-				*CellText(Entry.SrcCell), *Who);
+			return FString::Printf(TEXT("%s: risposta non ammessa, %s resta armata (%s)"),
+				*CellText(Entry.SrcCell), Soggetto, *Who);
 		case ERTReactionDecisionOutcome::HoldImmediate:
-			return FString::Printf(TEXT("%s: nessun bersaglio ammesso, overwatch resta armato (%s)"),
-				*CellText(Entry.SrcCell), *Who);
+			return FString::Printf(TEXT("%s: nessun bersaglio ammesso, %s resta armata (%s)"),
+				*CellText(Entry.SrcCell), Soggetto, *Who);
 		}
 		// Un valore aggiunto in coda e non ancora tradotto: si dice cosi', invece di mentire su quale sia.
 		// Stessa disciplina di `ERTDisplacementBlockReason` piu' sopra.
-		return FString::Printf(TEXT("%s: overwatch, esito non tradotto (%s)"), *CellText(Entry.SrcCell), *Who);
+		return FString::Printf(TEXT("%s: %s, esito non tradotto (%s)"), *CellText(Entry.SrcCell), Soggetto, *Who);
 	}
 
 	// Orientamento: quando cambia, e chi lo ha letto (CP 16.1). Senza queste righe il combat log direbbe che

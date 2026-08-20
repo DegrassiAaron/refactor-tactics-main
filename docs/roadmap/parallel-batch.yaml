@@ -2916,11 +2916,18 @@ tracks:
     # una versione di formato, che tratta come risorsa contesa.
     writable:
       - Source/RefactorTactics/Turn/RTTurnLog.h
-      - Source/RefactorTactics/Turn/RTTurnLogLibrary.h
+      # ➖ **`RTTurnLogLibrary.h` TOLTO il 2026-08-20 da una code review: rivendicato e mai scritto.** Il
+      # `.cpp` e' bastato — il campo nuovo vive in `RTTurnLog.h`, e la serializzazione non ha aggiunto firme.
+      # Un path rivendicato per niente non e' prudenza: e' uno **STOP che un'altra track paga** senza che
+      # nessuno stia scrivendo, e il write-set si **misura** (`git diff --name-only origin/main...<branch>`)
+      # invece di prevederlo.
       - Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp
       - Source/RefactorTactics/Turn/RTTurnManager.h
       - Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp
-      - Source/RefactorTactics/Tests/RTOverwatchTriggerTests.cpp
+      # ➖ **`Tests/RTOverwatchTriggerTests.cpp` TOLTO il 2026-08-20 dalla stessa code review**, e qui la
+      # rivendicazione era pure autocontraddittoria: il commento poco piu' giu' dichiara che il test scritto
+      # li' e' stato **spostato altrove** perche' non compilava. Un path tenuto per un tentativo abbandonato
+      # blocca una track viva in cambio di niente.
       # ➕ **Aggiunto in corsa, e la ragione e' un pattern del file e non una comodita'**: ogni estensione del
       # formato ha li' il proprio `LegacyVersionWithout<X>IsReadable` — `ActionId`, `FormatId`,
       # `BaseActionId`. Senza il gemello per la v10, «le tracce v≤9 restano leggibili» sarebbe
