@@ -4447,7 +4447,8 @@ features:
       - RefactorTactics.IconCatalog.*
       - RefactorTactics.Heroes.HeroIdsMatchRoster
     scenarios: []
-    wiki_refs: []
+    wiki_refs:
+      - wiki:icone-e-colori
     last_verified:
       date: 2026-08-12
       commit: 2471a37
