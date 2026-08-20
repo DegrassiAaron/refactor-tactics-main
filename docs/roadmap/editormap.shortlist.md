@@ -52,13 +52,13 @@ quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
 
 <!-- RT_SHORTLIST_EDITOR:BEGIN -->
 
-**27 sedute** — ✅ **3** · 🟡 **12** · ⏳ **6** · **6** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
+**27 sedute** — ✅ **4** · 🟡 **12** · ⏳ **5** · **6** senza stato derivabile (non dichiarano ne' voci ne' artefatti: il codice sotto non esiste ancora).
 
 Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) e da `git ls-files` sugli artefatti. Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci.
 
 ### My Editor Queue
 
-**BLOCKING** 10 · **READY** 3 · **WAITING** 5 · **DONE** 3. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
+**BLOCKING** 10 · **READY** 2 · **WAITING** 5 · **DONE** 4. **Derivata**, non dichiarata: `unblocked_by` risolto dice se si puo' cominciare, `critical` se blocca la v0.1, lo stato se e' finita. Un checkpoint 🟡 conta come risolto — gli manca la verifica che porti tu; una **seduta** prerequisito no, perche' a meta' non ha ancora prodotto il suo artefatto.
 
 **BLOCKING** — *Blocca la v0.1, e si puo' fare adesso*
 
@@ -77,7 +77,6 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 
 - **U18** · Verifiche senza prerequisiti — 4/15 voci verdi
 - **U20** · Confine fra Guard e Brace — 0/1 voci verdi
-- **U22** · Il gesto dell'autore — ghost, snap e Undo del tool Geometry — 0/4 voci verdi
 
 **WAITING** — *Aspetta codice*
 
@@ -90,6 +89,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 **DONE** — *Finite*
 
 - **U21** · Luci del graybox e inquadratura della mappa ✅
+- **U22** · Il gesto dell'autore — ghost, snap e Undo del tool Geometry ✅
 - **U24** · I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root ✅
 - **U27** · Il pulsante BACK del modale d'errore, collegato al navigatore ✅
 
@@ -119,7 +119,7 @@ Stato **derivato**, mai dichiarato: dalle voci `PIE-*` di [`../technical/test-ma
 | **U17** | Release v0.1 | `PIE` | build Windows Development e Shipping, e una partita giocata senza editor | E12 | sì | — | — |
 | **U20** | Confine fra Guard e Brace | `PIE` | verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere | E5.2 | no | 0/1 | ⏳ |
 | **U21** | Luci del graybox e inquadratura della mappa | `PIE` | verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato | — | no | 2/2 | ✅ |
-| **U22** | Il gesto dell'autore — ghost, snap e Undo del tool Geometry | `PIE` | verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo | U21 | no | 0/4 | ⏳ |
+| **U22** | Il gesto dell'autore — ghost, snap e Undo del tool Geometry | `PIE` | verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo | U21 | no | 4/4 | ✅ |
 | **U24** | I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root | `PIE` | i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/` | — | no | — | ✅ |
 | **U25** | Il volume di posa della cella, e la scena che dice se il graybox si legge | `PIE` | verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor | U21 | no | — | — |
 | **U26** | La griglia di lavoro e la sonda di movimento nell'editor | `PIE` | verdetto su leggibilita' della griglia di lavoro e della sonda di movimento | U21 | no | — | — |
@@ -734,11 +734,11 @@ E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
 > Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e questo repository non modifica `.umap` da riga di comando. ⚠️ `artifacts` e' VUOTO di proposito, benche' la seduta committi un livello. L'oracolo degli artefatti e' `git ls-files`, che sa dire se un path esiste e non se e' stato MODIFICATO: `L_DevSandbox.umap` e' gia' tracciato da mesi, quindi dichiararlo qui farebbe derivare 🟡 («parte fatta») su una seduta non ancora aperta. Lo stato deriva dalle due voci PIE, che sono la cosa che davvero non esiste ancora. Il livello committato resta nella DoD della issue. ⚠️ Il sorgente chiedeva anche di ricostruire la navigazione della camera (MMB pan, RMB orbit, wheel zoom, WASD, F focus). **Il viewport di Unreal le fornisce gia' tutte**, e un `UEdMode` non possiede la camera del viewport: `RTCameraPawn` e' la camera di GIOCO, un oggetto diverso. Resta solo l'inquadratura della mappa, che e' `PIE-MAPED-FRAME`. ⚠️ ID assegnato al merge: preso `U21` con `U20` come ultimo su `main`. Chi arriva secondo rinumera, non contende. --- **COSA FAI** — i passi stanno qui perche' nessuna guida copre ancora l'illuminazione: la checklist di `convenzioni-contenuti-ue.md` §12 riguarda dove va un asset, non come si accende una scena. Stessa ragione per cui `U1` e `U16` portano i propri. **0. Misura il prerequisito invece di assumerlo.** Entrambe le voci PIE chiedono celle su **≥2 layer**, e `PIE-MAPED-FRAME` chiede anche celle **lontane dall'origine**. Se `L_DevSandbox` non le ha, dipingile prima: tool **Paint** con `BrushRadius` alto per il piano 0, `ActiveLayer=1` per il secondo, tool **Arch** per una transizione. `rt.Arena.Check` dice se la mappa ha celle; la vista `Focus` dice se i piani sono due. Cosi' facendo cambia anche `Data/DA_HexMap_Sandbox.uasset`, ed e' il motivo per cui la lease copre **entrambi** i package. **1. Le luci, e perche' sono piu' di una.** Il criterio di `PIE-MAPED-LIGHT` vieta esattamente *«una meta' leggibile e una no»*, che e' la firma di una **sola** luce direzionale: la faccia opposta al sole non riceve niente. Serve quindi anche una sorgente ambientale che riempia l'ombra, e qualcosa che quella sorgente possa raccogliere. Il sorgente proponeva `Directional Light` + `Sky Light` + `Sky Atmosphere`: la combinazione e' ragionevole, ma il criterio e' l'**orbita**, non la lista degli attori — chi la ottiene con meno pezzi ha comunque ragione. **2. L'esposizione si fissa NEL LIVELLO, non nella viewport.** Il prerequisito dice *«nessuna modifica all'esposizione della viewport»*, e non e' un dettaglio procedurale: se la scena si legge solo dopo aver alzato l'esposizione a mano, allora non si legge — e le altre tre sedute che ereditano questo allestimento vedrebbero altro. Un `Post Process Volume` **unbound** nel livello e' lo scope giusto. ⛔ **NON toccare `Config/DefaultEngine.ini`** per l'auto-exposure di progetto: `Config/` e' `integration_only` in `parallel-batch.yaml`, e cambiare un default di progetto per un banco di prove distruttive e' il caso che `#926` ha gia' respinto — «paga un binario e cambia il comportamento predefinito del gioco che si distribuisce». **3. Il verdetto e' un'orbita, non uno screenshot.** Gira attorno alla mappa e guarda le facce che il sole non prende: superficie, marcatori blocca-movimento/blocca-vista e contorni dei piani di contesto devono restare distinguibili **da ogni angolo**. **4. `PIE-MAPED-FRAME` nella stessa apertura.** Con il mode Hex Map attivo, premi **`Home`**: la vista deve portare dentro **tutte** le celle, comprese quelle sui layer diversi da `ActiveLayer` e quelle lontane dall'origine. ⚠️ Il comando arriva con `#623` parte B: serve un editor compilato **dopo** quel merge, o il tasto non fa niente e il verdetto sarebbe sul binario sbagliato. **5. Salva e committa.** L'oracolo e' `git status` sui due package, non «l'ho salvato»: questo repository ha gia' avuto asset presenti su disco e non versionati. ⚠️ **Lease binaria obbligatoria prima di salvare** — `BINARY-GH623-DEVSANDBOX-LIGHTING` in `parallel-batch.yaml`. Due `.umap` non si fondono, e quattro sedute usano questo livello.
 
-#### U22 · Il gesto dell'autore — ghost, snap e Undo del tool Geometry ⏳
+#### U22 · Il gesto dell'autore — ghost, snap e Undo del tool Geometry ✅
 
 **Sbloccata da**: U21 · **Preparazione condivisa con**: U21, U25, U26 · **Percorso critico**: no
 **Produce**: verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo
-**Verifichi**: `PIE-GEO-GHOST` ⏳ · `PIE-GEO-SNAP` ⏳ · `PIE-GEO-UNDO` ⏳ · `PIE-GEO-RESIDUI` ⏳
+**Verifichi**: `PIE-GEO-GHOST` ✅ · `PIE-GEO-SNAP` ✅ · `PIE-GEO-UNDO` ✅ · `PIE-GEO-RESIDUI` ✅
 **Finita quando**: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
 
 > Nasce da #712, il gesto dell'autore. La seduta esiste perche' QUATTRO voci del suo DoD non sono osservabili headless: ghost, snap, Undo e residui vivono nell'occhio di chi disegna, non in una asserzione. La parte verificabile e' gia' nel runtime — `SnapToGrammar` con i suoi due test, `ValidateSegment` con i cinque di #620, `BakeCell` con i sette di #621 — e il tool d'editor NON contiene una sola regola: misurato, tre chiamate al runtime e zero logica duplicata. ⚠️ `unblocked_by: [U21]` non e' una dipendenza tecnica ma pratica: `L_DevSandbox` va illuminato prima, o il ghost si valuta su una scena in cui non si vede niente — e il verdetto direbbe piu' sulle luci che sul tool. ⚠️ `PIE-GEO-RESIDUI` chiede anche un `git status` pulito sul `.umap`: la geometria non si salva nel livello, ed e' l'unico modo di accorgersene: nessun test headless apre un `.umap`. ⚠️ ID assegnato prima del merge: `U22`, con `U21` come ultimo su `main` e su tutti i branch remoti. Chi arriva secondo rinumera, non contende.
