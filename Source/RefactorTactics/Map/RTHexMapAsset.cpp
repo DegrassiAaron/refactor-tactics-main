@@ -4,6 +4,8 @@
 // `ValidateMap` chiama le regole del grafo di interazione invece di riscriverle: `URTStructureIdentityLibrary`
 // e' l'unico punto di lettura da nome a struttura (#832), e un secondo validator sarebbe una doppia verita'.
 #include "Map/RTStructureIdentityLibrary.h"
+// I muri interni si validano con le stesse funzioni che li producono: grammatica e cottura (#712, v10).
+#include "Map/RTGeometryBake.h"
 #include "Serialization/CustomVersion.h"
 
 const FGuid FRTHexMapCustomVersion::GUID(0x7A3C1E44, 0x9B2D4F10, 0xA6E85C37, 0x1D0F62B9);
@@ -644,6 +646,58 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 	// sorgente che non comanda nulla. Le regole erano il valore dichiarato del lavoro e nessun percorso di
 	// produzione poteva attivarle.
 	Errors.Append(URTStructureIdentityLibrary::ValidateInteractionGraph(this));
+
+	// I MURI INTERNI (formato v10, #712). Ogni altro array d'autore ha le sue regole qui dentro — celle,
+	// coperture, porte, transizioni, `StableId` — e il campo nuovo era l'unico senza.
+	//
+	// ⚠️ Non e' zelo: il campo e' `EditAnywhere`, quindi il Property Editor ci arriva senza passare da
+	// `AddSegmentsToCell`. Le difese scritte nella cottura valgono per **un** chiamante; queste per l'asset.
+	for (int32 Index = 0; Index < InteriorWalls.Num(); ++Index)
+	{
+		const FRTHexInteriorWall& Wall = InteriorWalls[Index];
+
+		// 1. Orfano: un muro in una cella che non esiste. Stessa regola di `Transitions`.
+		if (FindCell(Wall.Cell) == nullptr)
+		{
+			Errors.Add(FString::Printf(TEXT("Error: muro interno %d su cella inesistente %s"),
+				Index, *Wall.Cell.ToString()));
+		}
+
+		// 2. Fuori grammatica.
+		const ERTGeometryViolation Violation = URTGeometryGrammarLibrary::ValidateSegment(Wall.Segment);
+		if (Violation != ERTGeometryViolation::None)
+		{
+			Errors.Add(FString::Printf(TEXT("Error: muro interno %d fuori grammatica su %s (violazione %d)"),
+				Index, *Wall.Cell.ToString(), static_cast<int32>(Violation)));
+		}
+
+		// 3. Duplicato. Confronto con `operator==`, che tratta gli estremi come coppia NON ordinata: senza,
+		//    lo stesso muro percorso al contrario passerebbe — ed e' il difetto che una code review ha
+		//    trovato nella cottura, dove il confronto era stato riscritto a mano campo per campo.
+		for (int32 Previous = 0; Previous < Index; ++Previous)
+		{
+			if (InteriorWalls[Previous].Cell == Wall.Cell && InteriorWalls[Previous].Segment == Wall.Segment)
+			{
+				Errors.Add(FString::Printf(TEXT("Error: muro interno %d duplicato di %d su %s"),
+					Index, Previous, *Wall.Cell.ToString()));
+				break;
+			}
+		}
+
+		// 4. L'INVARIANTE dichiarato nell'header: ci finisce solo cio' che nessuna copertura descrive. Un
+		//    segmento che chiude un bordo e' gia' rappresentato dalla sua copertura, e scriverlo anche qui
+		//    sarebbe una seconda verita' sullo stesso muro — che e' la ragione per cui questo campo ha un
+		//    perimetro invece di essere «i segmenti della cella».
+		TArray<ERTHexDirection> Edges;
+		URTGeometryBakeLibrary::EdgesTouchedBy(Wall.Segment, HexSize, Edges);
+		if (Edges.Num() > 0)
+		{
+			Errors.Add(FString::Printf(
+				TEXT("Error: muro interno %d su %s chiude %d bordi: e' una copertura, non un muro interno"),
+				Index, *Wall.Cell.ToString(), Edges.Num()));
+		}
+	}
+
 	return Errors;
 }
 
@@ -747,6 +801,9 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 	// v8 -> v9 (#832, CP 23.3): porte e archi guadagnano un nome pubblico stabile (`StableId`). Il default
 	// (`NAME_None`) e' cio' che una mappa scritta prima gia' era — nessuna struttura nominata — quindi anche
 	// qui non c'e' niente da convertire, e nessun nome viene inventato da una ricarica.
+	// v9 -> v10 (#712, seduta `U22`): la mappa guadagna i MURI INTERNI, la geometria che non giace su nessun
+	// bordo. L'elenco nasce vuoto, ed e' cio' che una mappa scritta prima gia' era: quei muri non si potevano
+	// disegnare, e il segmento che li avrebbe descritti veniva scartato dalla cottura senza dirlo.
 	// In nessuno di questi c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
 	// si comporta esattamente come prima — quindi la migrazione si limita a dichiarare la versione. Il giorno
 	// in cui una migrazione dovra' TRASFORMARE dati, il posto e' questo, un `if (FormatVersion < N)` per

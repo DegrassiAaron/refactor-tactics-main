@@ -133,6 +133,63 @@ public:
 	static TArray<FVector> HexCorners(const FVector& Center, float Radius);
 
 	/**
+	 * PONTE FRA LE DUE NUMERAZIONI DEI BORDI, che nel progetto sono due e non coincidono.
+	 *
+	 * - **geometrica**: il bordo `k` va da `HexCorners[k]` a `HexCorners[k+1]`, punto medio a `60k` gradi.
+	 *   La usano il perimetro, `SectorBoundaryPoints` e il ghost del Geometry tool.
+	 * - **di vicinato**: `ERTHexDirection(j)` e' la direzione di `AxialDirection(j)`, cioe' dove sta il
+	 *   vicino. La usano `Neighbor`, `NeighborAcross`, le porte, il combattimento e `FRTHexCover::Edge`.
+	 *
+	 * Girano in verso opposto: `E` e `W` coincidono, i quattro diagonali sono scambiati a coppie
+	 * (`NE↔SE`, `NW↔SW`). Il difetto che ha reso necessarie queste due funzioni e' `#712`: la cottura
+	 * faceva un `static_cast` da una all'altra e scriveva la copertura sul lato sbagliato per quattro
+	 * bordi su sei — e i test non lo vedevano perche' usavano solo `E` e `W`, i due punti fissi.
+	 *
+	 * ⚠️ **Chi converte deve chiamare queste, non riscrivere `(6 - k) % 6`.** Due copie della stessa
+	 * formula sono esattamente il modo in cui il difetto e' nato.
+	 * `RefactorTactics.Hex.EdgeIndexMatchesNeighbourDirection` le verifica derivandole dal mondo.
+	 */
+	static ERTHexDirection DirectionForEdgeIndex(int32 EdgeIndex);
+
+	/** L'inverso di `DirectionForEdgeIndex`. E' la stessa operazione: il rispecchiamento e' un'involuzione. */
+	static int32 EdgeIndexForDirection(ERTHexDirection Dir);
+
+	/**
+	 * La porzione di un gesto che cade dentro UNA cella, nelle coordinate locali di quella cella.
+	 *
+	 * La grammatica dei muri e' definita per cella: `SnapToGrammar` ragiona sui punti notevoli di un
+	 * esagono, e non sa niente dei suoi vicini. Un muro tracciato lungo tre celle e' quindi **tre**
+	 * segmenti, uno per cella, e questo tipo e' come si dicono.
+	 */
+	struct FRTCellSegment
+	{
+		FRTCellId Cell;
+		FVector2D LocalStart = FVector2D::ZeroVector;
+		FVector2D LocalEnd = FVector2D::ZeroVector;
+	};
+
+	/**
+	 * TAGLIA UN GESTO IN UN SEGMENTO PER OGNI CELLA CHE ATTRAVERSA.
+	 *
+	 * ⚠️ Nasce da un limite visto a schermo (`#712`, seduta `U22`): *«non si estende oltre il primo
+	 * esagono»*. Il tool cuoceva soltanto la cella della pressione, quindi un muro lungo ne riempiva una e
+	 * si fermava — e dopo l'aggancio ai punti notevoli anche la geometria restava confinata li', perche'
+	 * quei punti sono di quella cella.
+	 *
+	 * Ogni porzione e' **ritagliata sull'esagono** della propria cella, quindi i suoi estremi cadono sul
+	 * perimetro: sono gia' i punti che `SnapToGrammar` sa agganciare, ed e' cio' che rende la catena
+	 * continua invece di lasciare buchi fra una cella e l'altra.
+	 *
+	 * Ordine di percorrenza dal primo estremo al secondo, e deterministico: chi cuoce non deve dipendere
+	 * dall'ordine di iterazione di niente.
+	 *
+	 * Le porzioni piu' corte di `MinLength` sono scartate — un gesto che sfiora l'angolo di una cella non
+	 * ci disegna un muro lungo zero.
+	 */
+	static void SplitSegmentAcrossCells(const FVector2D& WorldStart, const FVector2D& WorldEnd,
+		const FVector& Origin, float HexSize, int32 Layer, float MinLength, TArray<FRTCellSegment>& Out);
+
+	/**
 	 * Media dei centri-mondo delle celle indicate: il punto da inquadrare per un gruppo (es. la squadra del
 	 * giocatore all'avvio). Insieme vuoto -> `Origin`. Indipendente dall'ordine dell'input.
 	 */

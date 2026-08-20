@@ -135,57 +135,127 @@ FRTOccupancyPolyline URTGeometryGrammarLibrary::ToPolyline(const FRTGeometrySegm
 bool URTGeometryGrammarLibrary::SnapToGrammar(const FVector2D& LocalA, const FVector2D& LocalB, float HexSize,
 	FRTGeometrySegment& OutSegment)
 {
+	// UN MURO CONNETTE DUE PUNTI NOTEVOLI. Non «si avvicina a due punti notevoli»: li congiunge.
+	//
+	// 🔴 Questa funzione ha avuto tre stesure in un giorno, e le prime due cercavano l'asse migliore
+	// arrotondando le coordinate del gesto. Il difetto sopravvissuto a entrambe, visto dall'autore:
+	// *«son capitati muri fuori dalla geometria consentita»*. Con un solo estremo dentro la cella, l'altro
+	// finiva su un `AlongEnd` qualunque — un intero legale ma che non corrisponde a nessun punto notevole —
+	// e il muro si fermava a mezz'aria.
+	//
+	// La ricerca non arrotonda piu': **enumera le coppie di punti notevoli** e sceglie quella piu' vicina al
+	// gesto. L'alfabeto diventa cosi' una proprieta' della costruzione invece di un vincolo da ricordare, e
+	// non esiste piu' un modo di produrre un muro fuori da esso. Costa 13x13x6 prove, cioe' niente.
+	//
+	// I tredici punti sono centro, sei vertici, sei punti medi di lato. La misura che li rende un alfabeto e
+	// non una preferenza: ciascuno cade su coordinate INTERE nel reticolo di **ogni** asse, sempre dentro
+	// `{0, ±6, ±9, ±12}`. Delle 78 coppie, **54** stanno su un asse tattico e 24 no.
+	TArray<FVector2D> Notable;
+	Notable.Reserve(RT_OccupancySectorCount + 1);
+	Notable.Add(FVector2D::ZeroVector); // il centro
+	{
+		TArray<FVector2D> Boundary;
+		URTHexOccupancyLibrary::SectorBoundaryPoints(HexSize, Boundary);
+		Notable.Append(Boundary);
+	}
+
+	// ⚠️ Il gesto deve toccare QUESTA cella. Se entrambi gli estremi sono lontani si tratta di un muro lungo
+	// che la attraversa e basta: quel caso non appartiene a questa cella e non si aggancia ai suoi punti —
+	// se ne occupera' la cella in cui l'autore ha davvero premuto.
+	const double Reach = static_cast<double>(HexSize) * 1.3;
+	if (LocalA.Size() > Reach && LocalB.Size() > Reach)
+	{
+		return false;
+	}
+
+	// ⚠️ **Un gesto senza lunghezza non e' un muro**, e va fermato QUI. La ricerca per coppie non se ne
+	// accorgerebbe da sola: due estremi coincidenti restano due punti, e la coppia di punti notevoli piu'
+	// vicina esiste comunque — quindi un semplice clic senza trascinamento produrrebbe un muro.
+	// `SnapRejectsWhatCannotBeLegal` lo pinna dal 2026-08-16, ed e' caduto al primo giro di questo rewrite:
+	// la vecchia stesura ci arrivava per un'altra strada (`AlongStart == AlongEnd` bocciato da
+	// `ValidateSegment`), che enumerando le coppie non passa piu'.
+	if (LocalA.Equals(LocalB, UE_KINDA_SMALL_NUMBER))
+	{
+		return false;
+	}
+
 	double BestError = TNumericLimits<double>::Max();
 	bool bFound = false;
 
-	for (int32 AxisIndex = 0; AxisIndex < RT_TacticalAxisCount; ++AxisIndex)
+	for (int32 First = 0; First < Notable.Num(); ++First)
 	{
-		const ERTTacticalAxis Axis = static_cast<ERTTacticalAxis>(AxisIndex);
-
-		// Le due direzioni sono ortogonali ma NON della stessa lunghezza — una punta a un vertice, l'altra a
-		// un punto medio di lato. La proiezione divide quindi per il quadrato di ciascuna, non per uno.
-		const FVector2D Along = AxisPoint(Axis, HexSize) / RT_GeometryQuanta;
-		const FVector2D Perp = AxisPerpendicularPoint(Axis, HexSize) / RT_GeometryQuanta;
-
-		const double AlongLenSq = Along.SizeSquared();
-		const double PerpLenSq = Perp.SizeSquared();
-		if (AlongLenSq <= UE_KINDA_SMALL_NUMBER || PerpLenSq <= UE_KINDA_SMALL_NUMBER)
+		for (int32 Second = 0; Second < Notable.Num(); ++Second)
 		{
-			continue;
-		}
+			if (First == Second)
+			{
+				continue; // due estremi sullo stesso punto: nessun muro da fare
+			}
 
-		const double AlongA = FVector2D::DotProduct(LocalA, Along) / AlongLenSq;
-		const double AlongB = FVector2D::DotProduct(LocalB, Along) / AlongLenSq;
-		const double OffsetA = FVector2D::DotProduct(LocalA, Perp) / PerpLenSq;
-		const double OffsetB = FVector2D::DotProduct(LocalB, Perp) / PerpLenSq;
+			// L'orientamento conta: `First` e' l'estremo della PRESSIONE, `Second` quello del trascinamento.
+			// Entrambe le assegnazioni vengono provate, perche' i due indici scorrono tutte le coppie in
+			// entrambi i versi, e vince quella che si scosta meno dal gesto.
+			const FVector2D& Start = Notable[First];
+			const FVector2D& End = Notable[Second];
+			const double Error = FVector2D::Distance(Start, LocalA) + FVector2D::Distance(End, LocalB);
+			if (Error >= BestError)
+			{
+				continue; // gia' peggiore del migliore: inutile cercargli un asse
+			}
 
-		FRTGeometrySegment Candidate;
-		Candidate.Axis = Axis;
-		// Un solo offset per segmento: e' una retta, non una spezzata. La media e' cio' che minimizza
-		// l'errore quando il gesto non e' perfettamente parallelo all'asse.
-		Candidate.Offset = FMath::RoundToInt((OffsetA + OffsetB) * 0.5);
-		Candidate.AlongStart = FMath::RoundToInt(AlongA);
-		Candidate.AlongEnd = FMath::RoundToInt(AlongB);
-		Candidate.Layer = 0;
+			for (int32 AxisIndex = 0; AxisIndex < RT_TacticalAxisCount; ++AxisIndex)
+			{
+				const ERTTacticalAxis Axis = static_cast<ERTTacticalAxis>(AxisIndex);
 
-		if (ValidateSegment(Candidate) != ERTGeometryViolation::None)
-		{
-			continue; // un candidato illegale non e' un candidato: niente lunghezza zero, niente fuori bordi
-		}
+				// Le due direzioni sono ortogonali ma NON della stessa lunghezza — una punta a un vertice,
+				// l'altra a un punto medio di lato. La proiezione divide quindi per il quadrato di ciascuna.
+				const FVector2D Along = AxisPoint(Axis, HexSize) / RT_GeometryQuanta;
+				const FVector2D Perp = AxisPerpendicularPoint(Axis, HexSize) / RT_GeometryQuanta;
 
-		const FRTOccupancyPolyline Line = ToPolyline(Candidate, HexSize);
-		if (Line.Points.Num() < 2)
-		{
-			continue;
-		}
+				const double AlongLenSq = Along.SizeSquared();
+				const double PerpLenSq = Perp.SizeSquared();
+				if (AlongLenSq <= UE_KINDA_SMALL_NUMBER || PerpLenSq <= UE_KINDA_SMALL_NUMBER)
+				{
+					continue;
+				}
 
-		// L'errore e' quanto il segmento quantizzato si scosta dal gesto: la somma delle due distanze.
-		const double Error = FVector2D::Distance(Line.Points[0], LocalA) + FVector2D::Distance(Line.Points[1], LocalB);
-		if (Error < BestError)
-		{
-			BestError = Error;
-			OutSegment = Candidate;
-			bFound = true;
+				const double AlongStart = FVector2D::DotProduct(Start, Along) / AlongLenSq;
+				const double AlongEnd = FVector2D::DotProduct(End, Along) / AlongLenSq;
+				const double OffsetStart = FVector2D::DotProduct(Start, Perp) / PerpLenSq;
+				const double OffsetEnd = FVector2D::DotProduct(End, Perp) / PerpLenSq;
+
+				// I due punti devono stare sulla STESSA retta di questo asse, e cadere su coordinate intere.
+				// Sono le 24 coppie su 78 che nessun asse tattico porta: vertice contro punto medio non
+				// adiacente. Qui vengono scartate, e il ghost restera' rosso invece di inventare un muro.
+				auto IsWhole = [](double Value)
+				{
+					return FMath::Abs(Value - FMath::RoundToDouble(Value)) < 0.001;
+				};
+				if (!IsWhole(AlongStart) || !IsWhole(AlongEnd) || !IsWhole(OffsetStart) || !IsWhole(OffsetEnd))
+				{
+					continue;
+				}
+				if (FMath::RoundToInt(OffsetStart) != FMath::RoundToInt(OffsetEnd))
+				{
+					continue;
+				}
+
+				FRTGeometrySegment Candidate;
+				Candidate.Axis = Axis;
+				Candidate.Offset = FMath::RoundToInt(OffsetStart);
+				Candidate.AlongStart = FMath::RoundToInt(AlongStart);
+				Candidate.AlongEnd = FMath::RoundToInt(AlongEnd);
+				Candidate.Layer = 0;
+
+				if (ValidateSegment(Candidate) != ERTGeometryViolation::None)
+				{
+					continue;
+				}
+
+				BestError = Error;
+				OutSegment = Candidate;
+				bFound = true;
+				break; // trovato l'asse di questa coppia: gli altri darebbero lo stesso muro
+			}
 		}
 	}
 

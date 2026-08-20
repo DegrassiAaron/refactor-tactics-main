@@ -73,6 +73,20 @@ struct FRTHexMapCustomVersion
 		 */
 		StructureIdentity = 9,
 
+		/**
+		 * #712 (seduta `U22`): la mappa guadagna i **muri interni**, la geometria che non giace su nessun
+		 * bordo e che quindi nessuna copertura puo' rappresentare.
+		 *
+		 * ⚠️ Nasce da una misura, non da un desiderio di completezza: una retta che taglia l'esagono
+		 * passando per due vertici opposti attraversa **una cella su tre** per il centro, e nelle altre due
+		 * giace sul confine. Tracciata sulla griglia, quindi, e' per due terzi un bordo — esprimibile — e
+		 * per un terzo una corda che non lo e'. Prima di questo campo quel terzo spariva in silenzio.
+		 *
+		 * Passo DICHIARATIVO come tutti i precedenti: l'elenco nasce vuoto, e una mappa scritta prima non
+		 * aveva muri interni perche' non si potevano disegnare.
+		 */
+		InteriorWalls = 10,
+
 		// -----<le versioni nuove si aggiungono SOPRA questa riga>------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

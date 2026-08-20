@@ -77,6 +77,37 @@ public:
 	static int32 BakeCell(URTHexMapAsset* Map, const FRTCellId& CellId,
 		const TArray<FRTGeometrySegment>& Segments, float HexSize);
 
+	/**
+	 * COME `BakeCell`, MA NON CANCELLA LE COPERTURE GENERATE GIA' PRESENTI.
+	 *
+	 * ⚠️ Serve al **gesto di disegno**, che e' un chiamante di natura diversa da quella per cui `BakeCell`
+	 * e' stata scritta. `BakeCell` ha un contratto di *rebake*: «questi segmenti sono lo stato generato
+	 * completo della cella», e per onorarlo deve prima buttare via il proprio. E' corretto per chi possiede
+	 * l'elenco dei segmenti — un rigeneratore — ed e' cio' che rende TOGLIERE un segmento un'operazione
+	 * possibile.
+	 *
+	 * Il tool d'editor non e' quel chiamante: vede **un gesto per volta** e non ha nessun elenco. Usando
+	 * `BakeCell` cancellava il muro precedente a ogni tratto — trovato in seduta `U22` disegnando due muri
+	 * che condividono un vertice, dove il secondo faceva sparire il primo.
+	 *
+	 * Le altre regole restano identiche, perche' sono le stesse:
+	 *
+	 * ```text
+	 * copertura a mano sul bordo   vince sempre, non viene sostituita
+	 * copertura generata sul bordo High prevale su Low, altrimenti resta
+	 * ordine di scrittura          per bordo crescente, non per ordine dei segmenti
+	 * ```
+	 *
+	 * ⚠️ **Non e' l'opposto di idempotente**: ripassare lo stesso segmento non accumula nulla, perche' un
+	 * bordo ha al massimo una copertura. Cio' che perde rispetto a `BakeCell` e' la capacita' di far
+	 * sparire una copertura togliendo il segmento — che e' esattamente il potere che al disegno non serve
+	 * e che gli faceva danno.
+	 *
+	 * Restituisce quante coperture ha aggiunto **questo** gesto, non quante ne ha la cella.
+	 */
+	static int32 AddSegmentsToCell(URTHexMapAsset* Map, const FRTCellId& CellId,
+		const TArray<FRTGeometrySegment>& Segments, float HexSize);
+
 	/** Quante coperture generate porta una cella. Serve ai test e al conteggio della regione investita. */
 	static int32 CountGeneratedCovers(const URTHexMapAsset* Map, const FRTCellId& CellId);
 };

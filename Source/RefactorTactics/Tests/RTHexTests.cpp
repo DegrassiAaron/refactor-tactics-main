@@ -2,6 +2,12 @@
 #include "Map/RTCellId.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexMapActor.h"          // GetCellPrismMesh: la mesh generata della cella (#712 / U22)
+#include "Map/RTGeometryGrammar.h"      // SnapToGrammar: il ghost parte da qui
+#include "Map/RTGeometryBake.h"         // EdgesTouchedBy: e finisce qui
+#include "Engine/StaticMesh.h"
+#include "StaticMeshResources.h"        // FStaticMeshRenderData / FPositionVertexBuffer
+#include "PhysicsEngine/BodySetup.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Terrain/RTTerrainData.h"
 
@@ -673,6 +679,329 @@ bool FRTHexSurfaceColorTest::RunTest(const FString&)
 				static_cast<int32>(S)),
 			Distance(URTHexLibrary::SurfaceColor(S), URTHexLibrary::BlockedCellColor()) >= 60);
 	}
+	return true;
+}
+
+/**
+ * #712 / seduta `U22`: il pieno della cella e il contorno evidenziato devono nascere dalla STESSA
+ * definizione di esagono.
+ *
+ * ⚠️ Il difetto che questo test chiude e' stato visto a schermo, non trovato qui: le celle si vedevano come
+ * dischi perche' erano istanze di `/Engine/BasicShapes/Cylinder`, mentre il contorno veniva da `HexCorners`.
+ * Due percorsi per la stessa forma, e nessuna asserzione che li tenesse insieme — quindi il bordo era un
+ * esagono e il pieno un cerchio, per quanto entrambi fossero "giusti" ciascuno per conto suo.
+ *
+ * Il test non chiede che la mesh *sia* esagonale: chiede che i suoi vertici **coincidano** con quelli di
+ * `HexCorners`. E' la differenza fra verificare una forma e verificare che due disegni non possano divergere.
+ *
+ * ⚠️ Sta in `RTHexTests.cpp` e non in `RTHexMapActorTests.cpp`, che sarebbe il posto naturale: quel file e'
+ * nel `writable` di `content_editor`, e «il modulo e il suo test si toccano insieme» non autorizza a
+ * prendersi un file che non si ha.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellPrismMatchesHexCornersTest,
+	"RefactorTactics.Hex.CellPrismMatchesHexCorners",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellPrismMatchesHexCornersTest::RunTest(const FString&)
+{
+	UStaticMesh* Mesh = ARTHexMapActor::GetCellPrismMesh();
+	if (!TestNotNull(TEXT("il prisma della cella si costruisce"), Mesh))
+	{
+		return false;
+	}
+
+	// Le misure ereditate dal cilindro sostituito: `PlanarScale` divide per 50, e i lift di debug-line si
+	// appoggiano a una mezza-altezza di 50. Se cambiano qui senza cambiare la', ogni quota si sposta in
+	// silenzio — ed e' il motivo per cui il test le asserisce invece di leggerle dalla mesh.
+	constexpr float ExpectedRadius = 50.f;
+	constexpr float ExpectedHalfHeight = 50.f;
+
+	const TArray<FVector> Expected = URTHexLibrary::HexCorners(FVector::ZeroVector, ExpectedRadius);
+	TestEqual(TEXT("l'atteso ha sei vertici"), Expected.Num(), 6);
+
+	auto KeyOf = [](double X, double Y) { return FString::Printf(TEXT("%.2f,%.2f"), X, Y); };
+
+	TSet<FString> ExpectedKeys;
+	for (const FVector& Corner : Expected)
+	{
+		ExpectedKeys.Add(KeyOf(Corner.X, Corner.Y));
+	}
+
+	// --- la mesh che si VEDE ---------------------------------------------------------------------------
+	const FStaticMeshRenderData* Render = Mesh->GetRenderData();
+	if (!TestTrue(TEXT("la mesh ha render data"), Render != nullptr && Render->LODResources.Num() > 0))
+	{
+		return false;
+	}
+
+	const FPositionVertexBuffer& Positions = Render->LODResources[0].VertexBuffers.PositionVertexBuffer;
+	TestTrue(TEXT("la mesh ha vertici"), Positions.GetNumVertices() > 0);
+
+	TSet<FString> MeshKeys;
+	double MinZ = TNumericLimits<double>::Max();
+	double MaxZ = TNumericLimits<double>::Lowest();
+	for (uint32 Index = 0; Index < Positions.GetNumVertices(); ++Index)
+	{
+		const FVector3f P = Positions.VertexPosition(Index);
+		MeshKeys.Add(KeyOf(P.X, P.Y));
+		MinZ = FMath::Min(MinZ, static_cast<double>(P.Z));
+		MaxZ = FMath::Max(MaxZ, static_cast<double>(P.Z));
+	}
+
+	// I vertici sono duplicati per faccia (ogni poligono ha le proprie istanze): conta quanti sono DISTINTI
+	// in pianta, che e' l'unica cosa che descrive la forma vista dall'alto.
+	TestEqual(TEXT("sei posizioni distinte in pianta"), MeshKeys.Num(), 6);
+	TestTrue(TEXT("i vertici della mesh sono quelli di HexCorners"), MeshKeys.Difference(ExpectedKeys).IsEmpty());
+	TestTrue(TEXT("faccia superiore a +50"), FMath::IsNearlyEqual(MaxZ, static_cast<double>(ExpectedHalfHeight), 0.01));
+	TestTrue(TEXT("faccia inferiore a -50"), FMath::IsNearlyEqual(MinZ, static_cast<double>(-ExpectedHalfHeight), 0.01));
+
+	// --- la forma che si CLICCA ------------------------------------------------------------------------
+	// Il pick della cella e' un trace su collisione semplice e ricava la cella dall'indice dell'istanza: se
+	// questa forma diverge da quella vista, si clicca una cella e se ne seleziona un'altra. Va asserita
+	// separatamente proprio perche' nulla, nel codice, obbliga le due a coincidere.
+	UBodySetup* Body = Mesh->GetBodySetup();
+	if (!TestNotNull(TEXT("il prisma ha un body setup"), Body))
+	{
+		return false;
+	}
+	TestEqual(TEXT("una sola forma convessa"), Body->AggGeom.ConvexElems.Num(), 1);
+	if (Body->AggGeom.ConvexElems.Num() != 1)
+	{
+		return false;
+	}
+
+	TSet<FString> HullKeys;
+	for (const FVector& P : Body->AggGeom.ConvexElems[0].VertexData)
+	{
+		HullKeys.Add(KeyOf(P.X, P.Y));
+	}
+	TestEqual(TEXT("dodici vertici nello scafo convesso"), Body->AggGeom.ConvexElems[0].VertexData.Num(), 12);
+	TestTrue(TEXT("la collisione ha la stessa pianta della mesh"), HullKeys.Difference(ExpectedKeys).IsEmpty());
+	TestEqual(TEXT("e le stesse sei posizioni"), HullKeys.Num(), 6);
+
+	return true;
+}
+
+/**
+ * #712 / seduta `U22`: il ponte fra le due numerazioni dei bordi e' quello vero, e lo dice la geometria.
+ *
+ * 🔴 **La prima stesura di questo test fissava la convenzione SBAGLIATA.** Asseriva che un gesto sul lato
+ * geometrico `k` producesse `ERTHexDirection(k)`, cioe' esattamente il `static_cast` che era il difetto:
+ * i due sistemi girano in verso opposto e coincidono solo su `E` e `W`. Il test passava perche' ricopiava
+ * l'errore invece di misurarlo — la stessa forma di cecita' dei sette test della cottura, che usavano solo
+ * quelle due direzioni.
+ *
+ * Ora l'atteso viene dal **mondo** e non da una tabella: il bordo che guarda il vicino `D` e' quello il cui
+ * punto medio giace nella direzione di `AxialToWorld(Neighbor(cell, D))`. Se le due numerazioni cambiassero
+ * verso, questo test cadrebbe; se cambiassero **insieme e coerentemente**, resterebbe verde — che e'
+ * esattamente cio' che deve fare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEdgeIndexMatchesNeighbourDirectionTest,
+	"RefactorTactics.Hex.EdgeIndexMatchesNeighbourDirection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEdgeIndexMatchesNeighbourDirectionTest::RunTest(const FString&)
+{
+	constexpr float HexSize = 100.f;
+	const FRTCellId Cell{ 0, 0, 0 };
+	const TArray<FVector> Corners = URTHexLibrary::HexCorners(FVector::ZeroVector, HexSize);
+	if (!TestEqual(TEXT("sei vertici"), Corners.Num(), 6))
+	{
+		return false;
+	}
+
+	const FVector Here = URTHexLibrary::AxialToWorld(Cell, FVector::ZeroVector, HexSize, 0.f);
+
+	for (int32 DirIndex = 0; DirIndex < 6; ++DirIndex)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(DirIndex);
+
+		// Dove sta davvero il vicino, in coordinate-mondo.
+		const FVector There = URTHexLibrary::AxialToWorld(
+			URTHexLibrary::Neighbor(Cell, Dir), FVector::ZeroVector, HexSize, 0.f);
+		const double NeighbourAngle = FMath::Atan2(There.Y - Here.Y, There.X - Here.X);
+
+		// Il bordo geometrico che la libreria dice corrispondere a quella direzione.
+		const int32 EdgeIndex = URTHexLibrary::EdgeIndexForDirection(Dir);
+		if (!TestTrue(FString::Printf(TEXT("indice di bordo valido per %d"), DirIndex),
+			Corners.IsValidIndex(EdgeIndex)))
+		{
+			continue;
+		}
+
+		// Il punto medio di quel bordo deve guardare nella stessa direzione del vicino.
+		const FVector Mid = (Corners[EdgeIndex] + Corners[(EdgeIndex + 1) % 6]) * 0.5;
+		const double MidAngle = FMath::Atan2(Mid.Y, Mid.X);
+		const double Delta = FMath::Abs(FMath::UnwindRadians(MidAngle - NeighbourAngle));
+
+		TestTrue(FString::Printf(
+			TEXT("il bordo %d guarda il vicino %d (scarto %.2f gradi)"),
+			EdgeIndex, DirIndex, FMath::RadiansToDegrees(Delta)), Delta < 0.01);
+
+		// E il ponte deve essere invertibile: e' un rispecchiamento, quindi e' involutivo.
+		TestEqual(FString::Printf(TEXT("il ponte per %d e' invertibile"), DirIndex),
+			static_cast<int32>(URTHexLibrary::DirectionForEdgeIndex(EdgeIndex)), DirIndex);
+	}
+
+	return true;
+}
+
+/**
+ * #712 / seduta `U22`: il pannello di un muro interno GIACE sul segmento che lo ha generato.
+ *
+ * 🔴 Non ci giaceva. La prima stesura orientava il pannello con lo yaw preso dall'angolo del muro, ma la
+ * convenzione dei pannelli — quella che `EdgeRotation` segue per i bordi — mette lo **spessore sulla X** e
+ * la **lunghezza sulla Y**. Il muro veniva quindi disegnato ruotato di un angolo retto rispetto al gesto, e
+ * se n'e' accorto l'autore guardando lo schermo: *«i muri non seguono i vertici e il centro dell'esagono»*.
+ *
+ * ⚠️ E' la stessa forma di tutti gli altri difetti di questa seduta: due convenzioni che devono accordarsi
+ * e nessuna asserzione che le tenga insieme. Il test lega il pannello al segmento invece di ricopiare
+ * l'angolo atteso — un `TestEqual` su `+90` verificherebbe la formula contro se' stessa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteriorWallPanelFollowsTheSegmentTest,
+	"RefactorTactics.HexMap.InteriorWallPanelFollowsTheSegment",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInteriorWallPanelFollowsTheSegmentTest::RunTest(const FString&)
+{
+	const FVector CellCentre(1000.0, -250.0, 40.0);
+	constexpr float PanelHeight = 55.f;
+	constexpr float PanelThickness = 0.10f;
+
+	// Piu' giaciture, perche' un errore di 90 gradi su un caso solo puo' passare per caso.
+	const TArray<double> Angles = { 0.0, 30.0, 60.0, 90.0, 137.0, 210.0 };
+	for (const double Degrees : Angles)
+	{
+		const double Rad = FMath::DegreesToRadians(Degrees);
+		const double Half = 45.0;
+		const FVector2D A(-Half * FMath::Cos(Rad), -Half * FMath::Sin(Rad));
+		const FVector2D B(+Half * FMath::Cos(Rad), +Half * FMath::Sin(Rad));
+
+		const FTransform Panel = ARTHexMapActor::InteriorWallPanel(A, B, CellCentre, PanelHeight, PanelThickness);
+
+		// 1. Il pannello e' CENTRATO sul segmento, in pianta.
+		const FVector2D Mid = (A + B) * 0.5;
+		TestTrue(FString::Printf(TEXT("a %.0f gradi il pannello e' centrato sul muro"), Degrees),
+			FMath::IsNearlyEqual(Panel.GetLocation().X, CellCentre.X + Mid.X, 0.01)
+			&& FMath::IsNearlyEqual(Panel.GetLocation().Y, CellCentre.Y + Mid.Y, 0.01));
+
+		// 2. L'asse che PORTA LA LUNGHEZZA e' parallelo al muro. E' la riga che il difetto faceva fallire:
+		//    con lo yaw lungo il muro questo asse risultava perpendicolare.
+		const FVector AlongPanel = Panel.GetUnitAxis(EAxis::Y);
+		const FVector2D AlongWall = (B - A).GetSafeNormal();
+		const double Dot = FMath::Abs(AlongPanel.X * AlongWall.X + AlongPanel.Y * AlongWall.Y);
+		TestTrue(FString::Printf(TEXT("a %.0f gradi la lunghezza del pannello segue il muro (|dot| %.3f)"),
+			Degrees, Dot), Dot > 0.999);
+
+		// 3. E lo SPESSORE gli e' perpendicolare, che e' l'altra meta' della stessa affermazione.
+		const FVector Thick = Panel.GetUnitAxis(EAxis::X);
+		const double DotThick = FMath::Abs(Thick.X * AlongWall.X + Thick.Y * AlongWall.Y);
+		TestTrue(FString::Printf(TEXT("a %.0f gradi lo spessore e' perpendicolare (|dot| %.3f)"),
+			Degrees, DotThick), DotThick < 0.001);
+
+		// 4. La scala sulla Y rende il cubo lungo quanto il muro (il cubo engine e' 100 uu per lato).
+		TestTrue(FString::Printf(TEXT("a %.0f gradi il pannello e' lungo quanto il muro"), Degrees),
+			FMath::IsNearlyEqual(Panel.GetScale3D().Y * 100.0, FVector2D::Distance(A, B), 0.01));
+	}
+
+	return true;
+}
+
+/**
+ * #712 / seduta `U22`: un muro lungo diventa UNA CATENA SENZA BUCHI, una porzione per cella.
+ *
+ * 🔴 L'autore: *«non si estende oltre il primo esagono»*. Il tool cuoceva solo la cella della pressione, e
+ * dopo l'aggancio ai punti notevoli anche la geometria restava confinata li' — quei punti sono di quella
+ * cella. La grammatica dei muri e' definita PER CELLA e non sa niente dei vicini: un muro lungo tre celle
+ * e' quindi tre segmenti, e questo e' il taglio che li produce.
+ *
+ * ⚠️ La proprieta' che conta non e' «quante porzioni», e' la **continuita'**: la fine di una porzione deve
+ * essere l'inizio della successiva, in coordinate-mondo. Un taglio che perde un pezzo fra due celle
+ * produrrebbe un muro coi buchi, e il conteggio delle porzioni resterebbe giusto — e' il modo in cui un
+ * test sul numero non vede il difetto che conta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSegmentSplitAcrossCellsIsContinuousTest,
+	"RefactorTactics.Hex.SegmentSplitAcrossCellsIsContinuous",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSegmentSplitAcrossCellsIsContinuousTest::RunTest(const FString&)
+{
+	constexpr float HexSize = 100.f;
+	const FVector Origin = FVector::ZeroVector;
+
+	// --- 1. un gesto tutto dentro una cella resta una porzione sola ---------------------------------
+	{
+		TArray<URTHexLibrary::FRTCellSegment> Pieces;
+		URTHexLibrary::SplitSegmentAcrossCells(
+			FVector2D(-20.0, -10.0), FVector2D(20.0, 10.0), Origin, HexSize, 0, HexSize * 0.1f, Pieces);
+
+		TestEqual(TEXT("dentro una cella: una porzione"), Pieces.Num(), 1);
+		if (Pieces.Num() == 1)
+		{
+			TestTrue(TEXT("ed e' la cella d'origine"), Pieces[0].Cell == FRTCellId(0, 0, 0));
+			TestTrue(TEXT("con gli estremi del gesto"),
+				Pieces[0].LocalStart.Equals(FVector2D(-20.0, -10.0), 0.5f)
+				&& Pieces[0].LocalEnd.Equals(FVector2D(20.0, 10.0), 0.5f));
+		}
+	}
+
+	// --- 2. un gesto lungo attraversa piu' celle, e la catena non ha buchi --------------------------
+	// Piu' giaciture, perche' un taglio puo' funzionare lungo un asse e perdere pezzi di traverso.
+	const TArray<double> Directions = { 0.0, 23.0, 60.0, 91.0, 137.0 };
+	for (const double Degrees : Directions)
+	{
+		const double Rad = FMath::DegreesToRadians(Degrees);
+		const double Reach = static_cast<double>(HexSize) * 4.0;
+		const FVector2D Start(-Reach * FMath::Cos(Rad), -Reach * FMath::Sin(Rad));
+		const FVector2D End(Reach * FMath::Cos(Rad), Reach * FMath::Sin(Rad));
+
+		TArray<URTHexLibrary::FRTCellSegment> Pieces;
+		URTHexLibrary::SplitSegmentAcrossCells(Start, End, Origin, HexSize, 0, HexSize * 0.1f, Pieces);
+
+		if (!TestTrue(FString::Printf(TEXT("a %.0f gradi il gesto lungo tocca piu' celle"), Degrees),
+			Pieces.Num() >= 3))
+		{
+			continue;
+		}
+
+		// Le celle sono tutte diverse: una porzione per cella, non due.
+		TSet<FString> Seen;
+		FVector2D PreviousEndWorld = FVector2D::ZeroVector;
+		bool bFirst = true;
+
+		for (const URTHexLibrary::FRTCellSegment& Piece : Pieces)
+		{
+			const FString Key = FString::Printf(TEXT("%d,%d,%d"), Piece.Cell.X, Piece.Cell.Y, Piece.Cell.Layer);
+			TestFalse(FString::Printf(TEXT("a %.0f gradi la cella %s compare una volta sola"), Degrees, *Key),
+				Seen.Contains(Key));
+			Seen.Add(Key);
+
+			const FVector Centre = URTHexLibrary::AxialToWorld(Piece.Cell, Origin, HexSize, 0.f);
+			const FVector2D CellCentre(Centre.X, Centre.Y);
+			const FVector2D StartWorld = CellCentre + Piece.LocalStart;
+			const FVector2D EndWorld = CellCentre + Piece.LocalEnd;
+
+			// LA CONTINUITA': dove finisce una, comincia la successiva.
+			if (!bFirst)
+			{
+				const double Gap = FVector2D::Distance(PreviousEndWorld, StartWorld);
+				TestTrue(FString::Printf(
+					TEXT("a %.0f gradi la catena non ha buchi fra le celle (scarto %.2f uu)"), Degrees, Gap),
+					Gap < 0.5);
+			}
+			bFirst = false;
+			PreviousEndWorld = EndWorld;
+
+			// E ogni porzione sta DENTRO la propria cella: gli estremi non escono dal circumraggio.
+			TestTrue(FString::Printf(TEXT("a %.0f gradi la porzione sta dentro la sua cella"), Degrees),
+				Piece.LocalStart.Size() <= static_cast<double>(HexSize) + 0.5
+				&& Piece.LocalEnd.Size() <= static_cast<double>(HexSize) + 0.5);
+		}
+
+		// E la catena copre il gesto da capo a fondo, invece di fermarsi alla prima cella.
+		const FVector FirstCentre = URTHexLibrary::AxialToWorld(Pieces[0].Cell, Origin, HexSize, 0.f);
+		const double Covered = FVector2D::Distance(
+			FVector2D(FirstCentre.X, FirstCentre.Y) + Pieces[0].LocalStart, PreviousEndWorld);
+		TestTrue(FString::Printf(TEXT("a %.0f gradi la catena copre il gesto (%.0f di %.0f uu)"),
+			Degrees, Covered, 2.0 * Reach), Covered > 2.0 * Reach * 0.9);
+	}
+
 	return true;
 }
 

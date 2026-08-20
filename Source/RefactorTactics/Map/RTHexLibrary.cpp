@@ -308,6 +308,123 @@ TArray<FVector> URTHexLibrary::HexCorners(const FVector& Center, float Radius)
 	return Corners;
 }
 
+ERTHexDirection URTHexLibrary::DirectionForEdgeIndex(int32 EdgeIndex)
+{
+	// Rispecchiamento attorno all'asse X: il bordo geometrico `k` ha il punto medio a `60k` gradi, mentre
+	// `AxialDirection(j)` punta a `-60j`. `E` (0) e `W` (3) restano fermi perche' sono i due punti fissi.
+	// Il modulo positivo regge anche un indice fuori intervallo, che altrimenti diventerebbe un cast a un
+	// enum inesistente.
+	const int32 Wrapped = ((EdgeIndex % 6) + 6) % 6;
+	return static_cast<ERTHexDirection>((6 - Wrapped) % 6);
+}
+
+int32 URTHexLibrary::EdgeIndexForDirection(ERTHexDirection Dir)
+{
+	// Stessa operazione: un rispecchiamento e' l'inverso di se' stesso. Scritta come chiamata invece che
+	// ricopiata, cosi' se la convenzione cambia c'e' un posto solo da cambiare.
+	return static_cast<int32>(DirectionForEdgeIndex(static_cast<int32>(Dir)));
+}
+
+void URTHexLibrary::SplitSegmentAcrossCells(const FVector2D& WorldStart, const FVector2D& WorldEnd,
+	const FVector& Origin, float HexSize, int32 Layer, float MinLength, TArray<FRTCellSegment>& Out)
+{
+	Out.Reset();
+
+	const FVector2D Delta = WorldEnd - WorldStart;
+	const double Length = Delta.Size();
+	if (Length <= UE_KINDA_SMALL_NUMBER || HexSize <= 0.f)
+	{
+		return;
+	}
+
+	// QUALI CELLE. Si campiona lungo il gesto e si raccolgono le celle distinte, in ordine di incontro.
+	// ⚠️ Il passo e' un quarto del raggio, e non e' una cifra scelta a occhio: la corda piu' corta che una
+	// retta puo' tagliare dentro un esagono e' comunque piu' lunga di questo passo, quindi il campionamento
+	// non puo' saltare una cella che il gesto attraversa davvero. Le celle sfiorate a un angolo — dove la
+	// corda tende a zero — vengono scartate piu' sotto da `MinLength`, che e' il posto giusto per farlo.
+	const double Step = static_cast<double>(HexSize) * 0.25;
+	const int32 Samples = FMath::Max(2, FMath::CeilToInt(Length / Step) + 1);
+
+	TArray<FRTCellId> Visited;
+	for (int32 Index = 0; Index < Samples; ++Index)
+	{
+		const double T = static_cast<double>(Index) / static_cast<double>(Samples - 1);
+		const FVector2D Point = WorldStart + Delta * T;
+		const FRTCellId Cell = WorldToAxial(FVector(Point.X, Point.Y, 0.0), Origin, HexSize, Layer);
+		if (Visited.Num() == 0 || !(Visited.Last() == Cell))
+		{
+			Visited.AddUnique(Cell);
+		}
+	}
+
+	// RITAGLIO. L'esagono e' convesso, quindi il taglio e' l'intersezione di sei semipiani: si restringe
+	// l'intervallo `[T0, T1]` un lato per volta. Nessun caso speciale per gli angoli, e nessuna divisione
+	// quando il gesto e' parallelo a un lato.
+	for (const FRTCellId& Cell : Visited)
+	{
+		const FVector Centre = AxialToWorld(Cell, Origin, HexSize, 0.f);
+		const FVector2D Local(Centre.X, Centre.Y);
+		const TArray<FVector> Corners = HexCorners(FVector(Local.X, Local.Y, 0.0), HexSize);
+		if (Corners.Num() != 6)
+		{
+			continue;
+		}
+
+		double T0 = 0.0;
+		double T1 = 1.0;
+		bool bOutside = false;
+
+		for (int32 Edge = 0; Edge < 6 && !bOutside; ++Edge)
+		{
+			const FVector2D V0(Corners[Edge].X, Corners[Edge].Y);
+			const FVector2D V1(Corners[(Edge + 1) % 6].X, Corners[(Edge + 1) % 6].Y);
+
+			// Normale uscente del lato. `HexCorners` enumera i vertici in ordine di angolo crescente, quindi
+			// «dentro» sta sempre dallo stesso lato: la costanza e' quello che serve, non il verso.
+			const FVector2D EdgeDir = V1 - V0;
+			const FVector2D Normal(EdgeDir.Y, -EdgeDir.X);
+
+			const double NumeratorStart = FVector2D::DotProduct(Normal, WorldStart - V0);
+			const double Denominator = FVector2D::DotProduct(Normal, Delta);
+
+			if (FMath::Abs(Denominator) <= UE_KINDA_SMALL_NUMBER)
+			{
+				// Parallelo a questo lato: o e' tutto dentro il semipiano, o e' tutto fuori.
+				bOutside = NumeratorStart > UE_KINDA_SMALL_NUMBER;
+				continue;
+			}
+
+			const double T = -NumeratorStart / Denominator;
+			if (Denominator > 0.0)
+			{
+				T1 = FMath::Min(T1, T); // il gesto ESCE da questo lato
+			}
+			else
+			{
+				T0 = FMath::Max(T0, T); // il gesto ENTRA da questo lato
+			}
+		}
+
+		if (bOutside || T1 <= T0)
+		{
+			continue; // il campionamento aveva incluso una cella che il ritaglio esatto smentisce
+		}
+
+		const FVector2D ClippedStart = WorldStart + Delta * T0;
+		const FVector2D ClippedEnd = WorldStart + Delta * T1;
+		if (FVector2D::Distance(ClippedStart, ClippedEnd) < static_cast<double>(MinLength))
+		{
+			continue; // sfiorata a un angolo: non ci si disegna un muro
+		}
+
+		FRTCellSegment Piece;
+		Piece.Cell = Cell;
+		Piece.LocalStart = ClippedStart - Local;
+		Piece.LocalEnd = ClippedEnd - Local;
+		Out.Add(Piece);
+	}
+}
+
 float URTHexLibrary::DistanceRayToSegment(const FVector& RayOrigin, const FVector& RayDir, const FVector& A, const FVector& B)
 {
 	// Closest points tra semi-retta (s>=0, dir unitaria) e segmento (t in [0,1]). Adattato da Ericson, con doppio clamp.
