@@ -237,19 +237,57 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 	const FVector Centre = URTHexLibrary::AxialToWorld(ActiveCell, Origin, HexSize, LayerHeight);
 	const double Z = Centre.Z + 2.0; // appena sopra il piano, per non essere mangiato dal terreno
 
-	// IL GHOST. Verde = questo gesto produrra' un segmento legale; rosso = non lo produrra'. La differenza si
-	// vede PRIMA del rilascio, che e' l'unica cosa che rende la grammatica una regola invece di una sorpresa.
+	// IL GHOST MOSTRA CIO' CHE VERRA' COTTO, NON IL SEGMENTO.
+	//
+	// 🔴 Prima mostrava il segmento quantizzato in verde ogni volta che la grammatica lo accettava, e
+	// `U22` ha misurato che quella promessa era falsa: il risultato della cottura non e' un segmento, e'
+	// un insieme di **coperture sui bordi** (`EdgesTouchedBy`). Le due cose divergono, e non di poco —
+	// `Offset` e' quantizzato in dodicesimi della perpendicolare, cioe' 7,22 uu su una cella da 100, quindi
+	// mezzo quanto (3,61 uu, pochi pixel in viewport) basta a portare la linea DENTRO o FUORI la cella.
+	// A `Offset = 11` attraversa due lati che non hai tracciato; a `13` non ne attraversa nessuno. Misurato:
+	// con uno scarto della mano del 4% del raggio si vedono i primi muri sul lato sbagliato, all'8% un
+	// gesto su tre non produce niente. E il ghost, in tutti quei casi, era VERDE.
+	//
+	// Quindi la regola cambia di soggetto, ed e' l'unica che l'autore possa usare:
+	//   verde = QUESTI bordi diventeranno coperture · rosso = non verra' creato niente.
+	// Un segmento legale che non chiude nessun bordo e' rosso, perche' e' cio' che produce: niente.
 	if (bPreviewValid)
 	{
+		TArray<ERTHexDirection> Edges;
+		URTGeometryBakeLibrary::EdgesTouchedBy(Preview, HexSize, Edges);
+
+		// Il segmento resta, ma SOTTILE e in secondo piano: serve ancora a far vedere che lo snap sta
+		// scattando sulle direttrici — che e' l'altra meta' di cio' che l'autore deve leggere — senza piu'
+		// spacciarsi per il risultato.
 		const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Preview, HexSize);
 		if (Line.Points.Num() >= 2)
 		{
 			const FVector A(Centre.X + Line.Points[0].X, Centre.Y + Line.Points[0].Y, Z);
 			const FVector B(Centre.X + Line.Points[1].X, Centre.Y + Line.Points[1].Y, Z);
+			PDI->DrawLine(A, B, Edges.Num() > 0 ? FColor::Silver : FColor::Red, SDPG_Foreground, 1.0f);
+		}
 
-			// Il muro pieno piu' spesso del muretto: la differenza di tipo si legge senza aprire il pannello.
-			const float Thickness = (Preview.WallType == ERTHexCoverType::High) ? 6.0f : 3.0f;
-			PDI->DrawLine(A, B, FColor::Green, SDPG_Foreground, Thickness);
+		if (Edges.Num() > 0)
+		{
+			// I sei vertici da `HexCorners`: il bordo `k` va dal vertice `k` al `k+1`, perche' entrambi
+			// nascono dalla stessa convenzione pointy-top (primo vertice a -30 gradi). Non e' una seconda
+			// copia della geometria — e' la stessa funzione che disegna il contorno della cella e che
+			// costruisce il prisma, quindi il ghost non puo' finire su un esagono diverso da quello vero.
+			const TArray<FVector> Corners = URTHexLibrary::HexCorners(FVector(Centre.X, Centre.Y, Z), HexSize);
+			if (Corners.Num() == 6)
+			{
+				// Il muro pieno piu' spesso del muretto: la differenza di tipo si legge senza aprire il pannello.
+				const float Thickness = (Preview.WallType == ERTHexCoverType::High) ? 6.0f : 3.0f;
+				for (const ERTHexDirection Edge : Edges)
+				{
+					const int32 Index = static_cast<int32>(Edge);
+					if (Corners.IsValidIndex(Index))
+					{
+						PDI->DrawLine(Corners[Index], Corners[(Index + 1) % 6], FColor::Green,
+							SDPG_Foreground, Thickness);
+					}
+				}
+			}
 		}
 	}
 	else

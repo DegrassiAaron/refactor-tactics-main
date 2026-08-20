@@ -3788,8 +3788,24 @@ tracks:
       - Source/RefactorTacticsEditor/Private/Tools/RTHexSelectTool.cpp
       - Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.h
       - Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.cpp
+      # ➖ **`RTHexGeometryTool.{h,cpp}` RILASCIATI il 2026-08-20 e passati a `geometry_gesture` (#712)**,
+      # secondo rilascio da questa track nella stessa giornata e per la stessa ragione misurata. `U22` ha
+      # trovato disegnando che il ghost e la cottura non descrivono la stessa cosa, e la correzione scelta
+      # dall'autore — il ghost mostra i **bordi** che verranno cotti invece del segmento — vive qui dentro.
+      # Le misure, rifatte oggi e non ricopiate da stamattina:
+      # · `#451` **CLOSED**, richiesto a GitHub;
+      # · nessun branch remoto il cui **nome** contenga `451` — ⚠️ la prima misura usava
+      #   `git ls-remote | grep -c 451` e contava **1**: matchava le tre cifre dentro uno **SHA**
+      #   (`ac716507e21c57451995473caff1c0b091a22bcc`). Filtrare su `awk '{print $2}'` prima di cercare;
+      # · `D:/rt-content` **non è più un worktree**: la cartella esiste ma `git -C` risponde *«not a git
+      #   repository»* ed è sparita da `git worktree list`. È stata smontata fra stamattina e adesso.
+      #   ⚠️ Anche qui la prima misura mentiva: il comando usciva in **errore** e il `wc -l` a valle
+      #   leggeva **0**, cioè «nessuna riga sporca». Un errore letto come un'assenza.
+      # ⚠️ Restano a questa track gli altri quattro tool (`Select`, `Paint`, `Arch`, `Fill`): stessa prova,
+      # ma nessuno li sta prendendo, e un rilascio senza destinatario è solo un elenco più corto.
+      # ⚠️ **E resta l'header del Geometry tool**, qui sotto: la correzione tocca solo `Render`, che non
+      # aggiunge membri. Rilasciare anche il `.h` sarebbe cedere un file che nessuno apre.
       - Source/RefactorTacticsEditor/Private/Tools/RTHexGeometryTool.h
-      - Source/RefactorTacticsEditor/Private/Tools/RTHexGeometryTool.cpp
       # ✂️ **`RTHexEditorMode.{h,cpp}` RIALLOCATI a `map_framing` il 2026-08-17** (`#623` parte B). La nota
       # in testa a questa track diceva *«rilasciarlo è una decisione separata e appartiene a chi riapre la
       # seduta, non a chi ne misura lo stato»*: `U21` è quella seduta, e questa è quella decisione.
@@ -6612,6 +6628,10 @@ tracks:
       # Rilasciati da `content_editor` il 2026-08-20, con le tre misure scritte nella sua nota.
       - Source/RefactorTactics/Map/RTHexMapActor.h
       - Source/RefactorTactics/Map/RTHexMapActor.cpp
+      # Secondo rilascio da `content_editor`, stessa giornata: il ghost che mostra i bordi vive qui.
+      # ⚠️ Solo il `.cpp` entra: `Render` non aggiunge membri, e prendere anche l'header significherebbe
+      # prenotare un file che questa correzione non apre.
+      - Source/RefactorTacticsEditor/Private/Tools/RTHexGeometryTool.cpp
     derives_from: []
     binary_leases:
       # Riemessa **prima** di riaprire l'editor, come la prima volta. Sui FILE e non sulla cartella: la

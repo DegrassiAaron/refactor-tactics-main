@@ -3,6 +3,8 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapActor.h"          // GetCellPrismMesh: la mesh generata della cella (#712 / U22)
+#include "Map/RTGeometryGrammar.h"      // SnapToGrammar: il ghost parte da qui
+#include "Map/RTGeometryBake.h"         // EdgesTouchedBy: e finisce qui
 #include "Engine/StaticMesh.h"
 #include "StaticMeshResources.h"        // FStaticMeshRenderData / FPositionVertexBuffer
 #include "PhysicsEngine/BodySetup.h"
@@ -775,6 +777,63 @@ bool FRTCellPrismMatchesHexCornersTest::RunTest(const FString&)
 	TestEqual(TEXT("dodici vertici nello scafo convesso"), Body->AggGeom.ConvexElems[0].VertexData.Num(), 12);
 	TestTrue(TEXT("la collisione ha la stessa pianta della mesh"), HullKeys.Difference(ExpectedKeys).IsEmpty());
 	TestEqual(TEXT("e le stesse sei posizioni"), HullKeys.Num(), 6);
+
+	return true;
+}
+
+/**
+ * #712 / seduta `U22`: il ghost disegna i bordi che la cottura produrra', e per farlo assume che il bordo
+ * `ERTHexDirection(k)` vada da `HexCorners[k]` a `HexCorners[k+1]`.
+ *
+ * ⚠️ Quell'assunzione e' l'intera correzione. `EdgesTouchedBy` indicizza i lati sul perimetro a **dodici**
+ * punti di `SectorBoundaryPoints` (vertici in posizione pari, punti medi in posizione dispari), mentre il
+ * ghost disegna sui **sei** vertici di `HexCorners`: due numerazioni diverse che oggi coincidono perche'
+ * entrambe partono dal vertice a -30 gradi. Se una delle due cambiasse origine, il ghost mostrerebbe con
+ * assoluta sicurezza il bordo sbagliato — e nessun altro test se ne accorgerebbe, perche' ciascuna delle
+ * due resterebbe corretta per conto suo. E' la stessa forma del difetto che questa seduta ha trovato.
+ *
+ * Il test lo verifica nel verso che conta: un gesto tracciato ESATTAMENTE sul lato `k` deve produrre
+ * `k` e nient'altro, per tutti e sei.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGhostEdgeIndexingMatchesHexCornersTest,
+	"RefactorTactics.Hex.GhostEdgeIndexingMatchesHexCorners",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGhostEdgeIndexingMatchesHexCornersTest::RunTest(const FString&)
+{
+	constexpr float HexSize = 100.f;
+	const TArray<FVector> Corners = URTHexLibrary::HexCorners(FVector::ZeroVector, HexSize);
+	if (!TestEqual(TEXT("sei vertici"), Corners.Num(), 6))
+	{
+		return false;
+	}
+
+	for (int32 Edge = 0; Edge < 6; ++Edge)
+	{
+		const FVector& From = Corners[Edge];
+		const FVector& To = Corners[(Edge + 1) % 6];
+
+		// Il gesto: dal vertice `k` al vertice `k+1`, cioe' esattamente lungo il lato che il ghost
+		// disegnerebbe per questa direzione.
+		FRTGeometrySegment Snapped;
+		const bool bSnapped = URTGeometryGrammarLibrary::SnapToGrammar(
+			FVector2D(From.X, From.Y), FVector2D(To.X, To.Y), HexSize, Snapped);
+
+		if (!TestTrue(FString::Printf(TEXT("il lato %d si aggancia alla grammatica"), Edge), bSnapped))
+		{
+			continue;
+		}
+
+		TArray<ERTHexDirection> Touched;
+		URTGeometryBakeLibrary::EdgesTouchedBy(Snapped, HexSize, Touched);
+
+		TestEqual(FString::Printf(TEXT("il lato %d mura un bordo solo"), Edge), Touched.Num(), 1);
+		if (Touched.Num() == 1)
+		{
+			// L'uguaglianza che il ghost usa: l'indice del bordo E l'indice del vertice sono lo stesso.
+			TestEqual(FString::Printf(TEXT("il lato %d mura proprio se stesso"), Edge),
+				static_cast<int32>(Touched[0]), Edge);
+		}
+	}
 
 	return true;
 }
