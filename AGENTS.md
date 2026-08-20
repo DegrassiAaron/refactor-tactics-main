@@ -43,7 +43,8 @@ Carica solo il contesto necessario, ma non saltare queste fonti quando pertinent
 normativa per default**. *(Era `docs/src/` fino al 2026-08-19: quel nome era ambiguo in un repository che ha
 anche `Source/`, e la cartella teneva quattro cose diverse — oggi la ricerca sta in `docs/research/` e gli
 output generati in `docs/generated/`,
-[#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165).)* *(Dal 2026-08-12 sono Markdown: in `docs/` non c'è più prosa in formato binario —
+[#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165).)*
+*(Dal 2026-08-12 sono Markdown: in `docs/` non c'è più prosa in formato binario —
 [D-009](docs/decisions/RT_PDR_00_Decision_Log.md).)* `docs/archive/` è storico — e dal 2026-08-08 include
 [`docs/archive/src/`](docs/archive/src/README.md), dove finiscono i sorgenti **già recepiti** (design, handoff,
 audit) con l'indice di chi li possiede oggi. Se cerchi la provenienza di una regola, è lì; se cerchi la regola,
