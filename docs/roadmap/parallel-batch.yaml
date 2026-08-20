@@ -1966,8 +1966,23 @@ tracks:
     # che **non entra nel TurnLog** — quindi una ri-simulazione la perde e il Verifier accusa una traccia
     # mancante invece dello scrittore mancante — e il ramo della **trazione senza un `Braced`**, che lascia
     # `Profile.Sidestep` senza finestra contro `Action.Pull`.
-    status: IDLE
-    issue: null
+    # ➕ **Riattivata il 2026-08-19 sul SECONDO dei tre residui che la riga sopra elenca**: la decisione del
+    # `Brace` che non entra nel TurnLog. Non e' una issue nuova — resta `#314`, che e' `OPEN` proprio su
+    # questi.
+    # 🔵 **Perche' questo residuo e non gli altri due, misurato invece che scelto per comodita'.** Il Clash
+    # senza chiamanti chiede di generalizzare il boundary alla fase Blast, che e' lavoro di **CP 14.6** e apre
+    # decisioni di pacing che questo CP non possiede; il ramo della trazione e' una domanda di REGOLA — se
+    # `Profile.Sidestep` risponda a `Action.Pull` lo dice l'owner di ADR-0004, non chi implementa. Questo
+    # invece e' un difetto **chiuso in se'**: la traccia non registra una decisione che il resolver ha preso,
+    # e chi lo legge non deve decidere niente di nuovo.
+    # ⛔ **Cio' che rende le due meta' NON separabili, e perche' non si consegna solo la scrittura**: la
+    # rilettura ricostruisce la risposta dall'`Outcome` con due soli rami — `FireChosen -> FIRE:<id>`, tutto
+    # il resto -> `HOLD`. Per una finestra di `Brace` `HOLD` **non e' legale**, quindi scrivere la voce senza
+    # sistemare la rilettura porterebbe il replay da «finestra non coperta dalla traccia» a «risposta
+    # registrata ILLEGALE» — un messaggio che accusa la traccia mentre la traccia e' corretta. Misurato
+    # leggendo `ArmRecordedReactionDecisions`, non supposto.
+    status: ACTIVE
+    issue: 314
     # ➕ **Riattivata il 2026-08-17 su `#886`** — il Verifier rilegge le decisioni di reazione dal TurnLog.
     # ⛔ **Ed è ACTIVE con un path ~~CHIESTO~~ RILASCIATO e non posseduto**: finché `Turn/RTTurnManager.{h,cpp}` non entra
     # nel `writable` qui sotto vale **STOP**, e `#886` non è iniziata. La track non è però ferma: i due file
@@ -2195,7 +2210,11 @@ tracks:
     # che questo file distingue: «nessun branch vivo, il lavoro è in `main`». ⚠️ La cancellazione è stata
     # **fatta a mano e verificata**: `gh pr merge` senza `--delete-branch` lascia il ramo in piedi, e questa
     # track ha già pagato una volta il comando che dice una cosa mentre il server ne dice un'altra.
-    branch: null
+    # ➕ **Riscritto il 2026-08-19 con la riattivazione**: `feat/314-turnlog-decisione-brace`, nato da
+    # `origin/main` @ `ba302b6b`. ⚠️ Dichiarato **prima del push**, quindi oggi è invisibile a
+    # `git ls-remote`: scriverlo qui è la sola cosa che lo renda misurabile da un'altra sessione — il difetto
+    # che questa track ha già pagato due volte a proprio danno.
+    branch: feat/314-turnlog-decisione-brace
     # ⚠️ Il worktree resta in piedi fra una track e l'altra: tiene `Binaries/` e `Intermediate/` costruiti, e
     # cancellarlo costa una ricompilazione intera — che per questo giro sarebbe **due**, visto che servono i
     # target `Game` Development e Shipping oltre all'Editor.
@@ -2883,7 +2902,54 @@ tracks:
     #     `MakeCurrentSnapshot` (alive-only), non in quello del Blast — e i due divergono al primo caduto;
     #   · `Bot/RTHexBotLibrary.cpp` era entrato per **una riga**, il ripiego di `DecideReactionResponse` da
     #     `HoldResponse()` a `SafeResponse()`. Chi lo riprende per il bot non eredita nient'altro.
-    writable: []
+    # ➕ **SEI path rivendicati il 2026-08-19 per il TurnLog della decisione del `Brace`.** Tutti misurati
+    # **non assegnati** — `grep` del path su tutti i `writable`, `writable_on_loan`, `integration_only` e
+    # `generated_only` → zero occorrenze in campo, rifatto su `ba302b6b` e non ereditato dal giro precedente.
+    # ⚠️ **`RTTurnLog.h` porta una richiesta STANTIA che non è mia da chiudere, e va detta**: `replay_ui` ha
+    # una `release_requested` verso **`spatial`** per questo path (per `#1077`, gli stati nel TurnLog), ma il
+    # `writable` di `spatial` **non lo contiene più** — la richiesta punta a un proprietario che non lo è.
+    # Registrata perché la prossima riconciliazione la trovi misurata invece di riscoprirla.
+    # 🔴 **E quella richiesta contiene un avvertimento che vale ANCHE per questo lavoro**: due branch che
+    # aggiungono entrambi *in coda* a un enum del formato producono lo **stesso indice per valori diversi**.
+    # Qui si aggiunge `ERTTurnLogFormatVersion = 10`; verificato prima di prenderla che nessuna PR aperta e
+    # nessun commit la rivendichi (`gh pr list`, `git log -S`) — è la disciplina che questo file chiede per
+    # una versione di formato, che tratta come risorsa contesa.
+    writable:
+      - Source/RefactorTactics/Turn/RTTurnLog.h
+      # ➖ **`RTTurnLogLibrary.h` TOLTO il 2026-08-20 da una code review: rivendicato e mai scritto.** Il
+      # `.cpp` e' bastato — il campo nuovo vive in `RTTurnLog.h`, e la serializzazione non ha aggiunto firme.
+      # Un path rivendicato per niente non e' prudenza: e' uno **STOP che un'altra track paga** senza che
+      # nessuno stia scrivendo, e il write-set si **misura** (`git diff --name-only origin/main...<branch>`)
+      # invece di prevederlo.
+      - Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp
+      - Source/RefactorTactics/Turn/RTTurnManager.h
+      - Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp
+      # ➖ **`Tests/RTOverwatchTriggerTests.cpp` TOLTO il 2026-08-20 dalla stessa code review**, e qui la
+      # rivendicazione era pure autocontraddittoria: il commento poco piu' giu' dichiara che il test scritto
+      # li' e' stato **spostato altrove** perche' non compilava. Un path tenuto per un tentativo abbandonato
+      # blocca una track viva in cambio di niente.
+      # ➕ **Aggiunto in corsa, e la ragione e' un pattern del file e non una comodita'**: ogni estensione del
+      # formato ha li' il proprio `LegacyVersionWithout<X>IsReadable` — `ActionId`, `FormatId`,
+      # `BaseActionId`. Senza il gemello per la v10, «le tracce v≤9 restano leggibili» sarebbe
+      # un'affermazione del commento e non una proprieta' verificata. Misurato **non assegnato**.
+      - Source/RefactorTactics/Tests/RTTurnLogSerializationTests.cpp
+      # ➕ **Aggiunto in corsa dopo un tentativo fallito, e vale la pena dire quale.** La prima stesura del
+      # test del giro completo stava in `RTOverwatchTriggerTests.cpp` e chiamava `AskReactionDecision`
+      # direttamente: **non compila**, quel metodo e' `protected`. Rendere pubblico un metodo per farlo
+      # raggiungere da un test e' la soluzione che si scrive per prima e la peggiore — cambia il contratto
+      # della classe per una comodita' di verifica.
+      # ∴ il test si sposta qui, dove vive gia' la fixture `RunBracePushTurn` che fa girare un Blast vero, e
+      # verifica la **proprieta' osservabile** (l'unita' finisce nella stessa cella al replay) invece
+      # dell'interno. Misurato **non assegnato**.
+      - Source/RefactorTactics/Tests/RTDefensiveReactionTests.cpp
+      # ➕ **L'owner documentale del formato**, e il Tracking Impact Pass lo rende obbligatorio: chi estende il
+      # formato aggiorna la tabella che lo dichiara, o la spec resta a descrivere una versione che non esiste
+      # piu'. Misurato **non assegnato**.
+      # ⚠️ **Ed e' gia' stantia PRIMA di questo lavoro**: la tabella si ferma alla **v6** e la prosa dice
+      # «cresciuto **tre volte**», mentre le versioni sono nove. Non e' un difetto mio e non lo riparo tutto —
+      # ma aggiungere la v10 lasciando «tre volte» lo peggiorerebbe di uno, quindi la riga si corregge e le
+      # versioni mancanti entrano in tabella: costa poco e toglie un'affermazione falsa dall'owner.
+      - docs/technical/architecture/spec-turnlog-serialize.md
     # ➖ **I QUATTRO prestiti RIENTRANO col merge della PR #1217 (2026-08-19)**, e ognuno alla condizione che
     # era stata scritta aprendolo — non a una riscritta a posteriori per farla combaciare:
     #   · `Ability/RTCatalogLibrary.{h,cpp}` → tornano a **`spatial`**. Il perimetro usato e' dichiarato:
@@ -2896,7 +2962,25 @@ tracks:
     #   · `Scenarios/Spec/Brace/ProfileChangesResponse.json` → torna a **`integration_only`**. ⚠️ Questa riga
     #     era stata cancellata **una volta di troppo presto**, sul branch che il file lo scriveva ancora — una
     #     code review l'ha rimessa. Ora si cancella davvero, ed e' l'integrazione a farlo.
-    writable_on_loan: []
+    # ➕ **Prestito aperto il 2026-08-19, e chiesto invece che preso.** `Turn/RTTurnManager.cpp` è di
+    # **`bot_stalemate`** (`#1088`), che questo file dichiara `ACTIVE`: `CLAUDE.md` §5 lo rende uno **STOP**,
+    # e un path con due holder viola `D-139`. Serve perché le **due** funzioni da toccare vivono lì —
+    # `ApplyReactionDecision` (scrive la voce) e `ArmRecordedReactionDecisions` (la rilegge), e le due metà
+    # non sono separabili: la ragione è in testa alla track.
+    # ✅ **Cosa rende il prestito difendibile, misurato e non dedotto dai domini**:
+    #   · l'intersezione a livello di **funzione è vuota** — `bot_stalemate` scrive dentro `PlanBots`
+    #     (righe 223-746 del suo diff), questo lavoro dentro `ApplyReactionDecision` e
+    #     `ArmRecordedReactionDecisions`, oltre tremila righe più giù;
+    #   · è **lo stesso argomento** con cui quella track ha accettato il file da `simulation` il 2026-08-19,
+    #     e con cui `simulation` glielo ha ceduto. Riusarlo al contrario è coerenza, non convenienza;
+    #   · il suo ramo `probe/1088-chi-contende` **non esiste più su `origin`** — mergiato con la PR **#1213** —
+    #     e il worktree `D:/rt-1015` è tornato su `main`. La track è `ACTIVE` con un branch che non c'è.
+    # ⚠️ **`ACTIVE` resta il suo stato e non tocca a me cambiarlo**: `#1088` è `OPEN`, e una track ferma non è
+    # una track chiusa. Il prestito rientra al merge, non alla prima occasione comoda.
+    writable_on_loan:
+      - path: Source/RefactorTactics/Turn/RTTurnManager.cpp
+        from: bot_stalemate
+        returns_when: "col merge della PR di questo lavoro, o prima se `#1088` riparte e lo richiede"
     release_requested: []
     # ⬇️ Il testo della richiesta ritirata resta qui sotto come **provenienza**, sotto una chiave che nessun
     # consumatore legge: dice perché due file sono in prestito invece che rilasciati, ed è la parte che
