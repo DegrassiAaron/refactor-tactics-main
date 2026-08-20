@@ -6594,6 +6594,14 @@ tracks:
       ➕ **Due file arrivano da `content_editor` con un rilascio scritto**, non presi perché la track era
       `IDLE`: `#451` chiusa, branch sparito, `D:/rt-content` pulito su `main`. La misura sta nella nota
       di quella track, accanto ai path che restano suoi.
+      ✅ **Chiuso il 2026-08-20 con la verifica che il test NON poteva dare.** La suite dice `1069/1069` e la
+      mutazione (prisma ruotato di 30°) fa cadere esattamente le due asserzioni che devono proteggerlo — ma
+      misura la **pianta**, non da che parte guardano i triangoli: con winding invertito le celle
+      sparirebbero, e il test resterebbe verde. Guardato a schermo dall'autore, e passa su tre punti: celle
+      esagonali piene e visibili · contorno evidenziato che ci si appoggia **senza sporgere agli spigoli**
+      (cioè le due definizioni coincidono anche a occhio, non solo in `TestEqual`) · pick corretto **anche
+      vicino a uno spigolo**, che è la prova dello scafo convesso esatto. `.umap` e asset **intatti**:
+      `md5sum -c` verde su entrambi dopo la sessione, `git status` pulito.
     writable:
       # Non assegnati a nessuna track prima d'ora — il che NON vuol dire liberi da prendere in silenzio:
       # `D-139` chiede che un path stia nel `writable` di chi ci scrive, e l'assenza di un proprietario è
