@@ -9,6 +9,17 @@
 #include "EngineUtils.h" // TActorIterator
 #include "UObject/ConstructorHelpers.h"
 #include "RefactorTactics.h"
+// Prisma esagonale generato (`GetCellPrismMesh`).
+// 🔴 `MeshDescription` e `StaticMeshDescription` sono dipendenze DIRETTE in `RefactorTactics.Build.cs`, e la
+// riga qui prima diceva il contrario: «sono in `PublicDependencyModuleNames` di `Engine.Build.cs`, quindi
+// arrivano per transitivita'». La premessa e' vera — ci sono davvero, righe 105-106 — e la conclusione e'
+// falsa: quell'elenco propaga gli **include path**, non risolve i simboli di un modulo a valle. La build lo
+// ha detto in nove `LNK2019`. Verificare l'elenco sbagliato assomiglia molto a verificare.
+#include "Engine/StaticMesh.h"
+#include "MeshDescription.h"
+#include "StaticMeshAttributes.h"
+#include "PhysicsEngine/BodySetup.h"
+#include "UObject/StrongObjectPtr.h"
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
 #endif
@@ -18,9 +29,9 @@
 namespace
 {
 	/**
-	 * Geometria del disco che rappresenta una cella. Il cilindro dell'engine ha mezza-altezza 50 uu ed e'
-	 * CENTRATO sull'origine: con `RTCellFlatScale` la sua faccia superiore sta a `RTCellTopZ` sopra il centro
-	 * della cella.
+	 * Geometria del disco che rappresenta una cella. Il prisma di `GetCellPrismMesh` ha mezza-altezza 50 uu ed
+	 * e' CENTRATO sull'origine — le stesse convenzioni del cilindro engine che ha sostituito, deliberatamente:
+	 * con `RTCellFlatScale` la sua faccia superiore sta a `RTCellTopZ` sopra il centro della cella.
 	 *
 	 * Perche' sono costanti condivise e non numeri sparsi: le linee di debug disegnate SOTTO `RTCellTopZ`
 	 * finiscono dentro il disco e diventano invisibili. E' successo davvero — il contorno della superficie era
@@ -29,6 +40,14 @@ namespace
 	 */
 	constexpr float RTCellFlatScale = 0.05f;
 	constexpr float RTCellTopZ = 50.f * RTCellFlatScale; // 2.5 uu
+
+	/**
+	 * Le due misure del prisma della cella, e non sono libere: `PlanarScale` divide per **50**, e i lift di
+	 * debug-line si appoggiano a una mezza-altezza di **50**. Sono le misure del cilindro engine sostituito —
+	 * cambiarle qui muoverebbe in silenzio ogni quota gia' tarata.
+	 */
+	constexpr float RTCellPrismRadius = 50.f;
+	constexpr float RTCellPrismHalfHeight = 50.f;
 
 	/**
 	 * Geometria dei volumi che mostrano le regole, in frazione del raggio della cella.
@@ -81,6 +100,114 @@ namespace
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
 }
 
+UStaticMesh* ARTHexMapActor::GetCellPrismMesh()
+{
+	// Una sola mesh per l'intero processo: la costruzione tocca il disco zero volte e il risultato non dipende
+	// da chi chiama. `TStrongObjectPtr` la tiene fuori dalla portata del GC senza `AddToRoot` a mano, che
+	// nessuno ricorderebbe di bilanciare.
+	static TStrongObjectPtr<UStaticMesh> Cached;
+	if (Cached.IsValid())
+	{
+		return Cached.Get();
+	}
+
+	// ⚠️ I vertici vengono da `HexCorners`, NON da un secondo `cos(60k-30)` scritto qui. E' l'intero punto
+	// della correzione: il pieno e il contorno evidenziato devono nascere dalla stessa funzione, o torneranno
+	// a divergere come nel difetto che questa mesh chiude.
+	const TArray<FVector> Corners = URTHexLibrary::HexCorners(FVector::ZeroVector, RTCellPrismRadius);
+	if (Corners.Num() != 6)
+	{
+		return nullptr;
+	}
+
+	FMeshDescription Description;
+	FStaticMeshAttributes Attributes(Description);
+	Attributes.Register();
+
+	TVertexAttributesRef<FVector3f> Positions = Attributes.GetVertexPositions();
+
+	TArray<FVertexID> Top;
+	TArray<FVertexID> Bottom;
+	Top.Reserve(6);
+	Bottom.Reserve(6);
+	for (int32 Corner = 0; Corner < 6; ++Corner)
+	{
+		const FVertexID TopId = Description.CreateVertex();
+		Positions[TopId] = FVector3f(
+			static_cast<float>(Corners[Corner].X), static_cast<float>(Corners[Corner].Y), RTCellPrismHalfHeight);
+		Top.Add(TopId);
+
+		const FVertexID BottomId = Description.CreateVertex();
+		Positions[BottomId] = FVector3f(
+			static_cast<float>(Corners[Corner].X), static_cast<float>(Corners[Corner].Y), -RTCellPrismHalfHeight);
+		Bottom.Add(BottomId);
+	}
+
+	const FPolygonGroupID Group = Description.CreatePolygonGroup();
+	Attributes.GetPolygonGroupMaterialSlotNames()[Group] = TEXT("Default");
+
+	auto AddFace = [&Description, Group](const TArray<FVertexID>& Ring)
+	{
+		TArray<FVertexInstanceID> Instances;
+		Instances.Reserve(Ring.Num());
+		for (const FVertexID Vertex : Ring)
+		{
+			Instances.Add(Description.CreateVertexInstance(Vertex));
+		}
+		Description.CreatePolygon(Group, Instances);
+	};
+
+	// Faccia superiore nell'ordine di `HexCorners`, inferiore rovesciata, e sei fianchi che chiudono il solido.
+	AddFace(Top);
+
+	TArray<FVertexID> BottomReversed = Bottom;
+	Algo::Reverse(BottomReversed);
+	AddFace(BottomReversed);
+
+	for (int32 Edge = 0; Edge < 6; ++Edge)
+	{
+		const int32 Next = (Edge + 1) % 6;
+		AddFace(TArray<FVertexID>{ Bottom[Edge], Bottom[Next], Top[Next], Top[Edge] });
+	}
+
+	UStaticMesh* Mesh = NewObject<UStaticMesh>(GetTransientPackage(), TEXT("RT_CellHexPrism"), RF_Transient);
+	Mesh->GetStaticMaterials().Add(FStaticMaterial());
+
+	UStaticMesh::FBuildMeshDescriptionsParams Params;
+	Params.bFastBuild = true;          // obbligatorio fuori dall'Editor: senza, la build a runtime non gira
+	Params.bMarkPackageDirty = false;  // transiente: non c'e' package da sporcare
+	Params.bCommitMeshDescription = false;
+	Mesh->BuildFromMeshDescriptions({ &Description }, Params);
+
+	// COLLISIONE ESPLICITA, e non e' rifinitura: il pick della cella e' un `GetHitResultUnderCursor` con
+	// `bTraceComplex = false`, e la cella si ricava dall'INDICE DELL'ISTANZA colpita. Con una collisione
+	// approssimata un colpo vicino allo spigolo restituirebbe la cella sbagliata — un difetto che si vede
+	// solo cliccando, cioe' il piu' caro da trovare. Un prisma esagonale e' convesso, quindi il suo scafo
+	// convesso e' la forma ESATTA: qui la collisione e' piu' precisa di quella del cilindro sostituito.
+	Mesh->CreateBodySetup();
+	if (UBodySetup* Body = Mesh->GetBodySetup())
+	{
+		Body->AggGeom.ConvexElems.Reset();
+
+		FKConvexElem Hull;
+		Hull.VertexData.Reserve(12);
+		for (const FVector& Corner : Corners)
+		{
+			Hull.VertexData.Add(FVector(Corner.X, Corner.Y, +RTCellPrismHalfHeight));
+			Hull.VertexData.Add(FVector(Corner.X, Corner.Y, -RTCellPrismHalfHeight));
+		}
+		Hull.UpdateElemBox();
+		Body->AggGeom.ConvexElems.Add(Hull);
+
+		Body->CollisionTraceFlag = CTF_UseSimpleAsComplex;
+		Body->InvalidatePhysicsData();
+		Body->CreatePhysicsMeshes();
+	}
+
+	Cached.Reset(Mesh);
+	return Mesh;
+}
+
 ARTHexMapActor::ARTHexMapActor()
 {
 	// Tick abilitabile ma SPENTO all'avvio: si accende solo quando c'e' un'anteprima da disegnare
@@ -100,7 +227,10 @@ ARTHexMapActor::ARTHexMapActor()
 	// impostarlo dopo lascerebbe le istanze gia' aggiunte senza spazio dove scrivere.
 	Cells->NumCustomDataFloats = 3;
 
-	// Fallback graybox: cilindro engine (appiattito a disco in RebuildInstances).
+	// Segnaposto di COSTRUZIONE, sostituito dal prisma esagonale al primo `RebuildInstances` — che
+	// `OnConstruction` chiama sempre, quindi a schermo questo cilindro non arriva mai.
+	// ⚠️ Resta perche' `GetCellPrismMesh()` NON puo' essere chiamata da un costruttore: crea una `UObject` e
+	// costruisce collisione, cioe' lavoro che nel costruttore del CDO non si fa. Il fallback vero e' li'.
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	if (CylinderMesh.Succeeded())
 	{
@@ -460,10 +590,18 @@ void ARTHexMapActor::RebuildInstances()
 		return;
 	}
 
-	// Mesh configurabile con fallback (nessun materiale/mesh obbligatorio hardcoded).
-	if (UStaticMesh* Mesh = CellMesh.LoadSynchronous())
+	// Mesh configurabile con fallback. Il fallback e' il prisma esagonale generato, NON piu' il cilindro
+	// engine: quello restava un disco, ed e' il difetto che `U22` ha visto a schermo. `CellMesh` continua a
+	// vincere se qualcuno l'ha assegnata — la configurabilita' non si perde, cambia solo cosa succede quando
+	// nessuno configura niente, che e' il caso di ogni livello esistente.
+	UStaticMesh* CellShape = CellMesh.LoadSynchronous();
+	if (CellShape == nullptr)
 	{
-		Cells->SetStaticMesh(Mesh);
+		CellShape = GetCellPrismMesh();
+	}
+	if (CellShape != nullptr)
+	{
+		Cells->SetStaticMesh(CellShape);
 	}
 
 	// Dopo `SetStaticMesh`, che riporta gli slot ai materiali della mesh: invertire l'ordine perderebbe
@@ -489,14 +627,16 @@ void ARTHexMapActor::RebuildInstances()
 	// trascina — e una BFS sull'intero grafo a ogni cella dipinta sarebbe lavoro sprecato per un dato che
 	// serve solo a chi guarda l'overlay, e solo se e' acceso.
 	bUnreachableDirty = true;
+	// Rilievo e blocchi seguono la stessa forma delle celle: sono volumi annidati DENTRO l'esagono
+	// (`RTVolumeRelief`, `RTVolumeBlocker`), e un cilindro dentro un prisma si vedrebbe sporgere agli spigoli.
 	if (Relief)
 	{
-		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { Relief->SetStaticMesh(Mesh); }
+		if (CellShape != nullptr) { Relief->SetStaticMesh(CellShape); }
 		Relief->ClearInstances();
 	}
 	if (Blockers)
 	{
-		if (UStaticMesh* Mesh = CellMesh.LoadSynchronous()) { Blockers->SetStaticMesh(Mesh); }
+		if (CellShape != nullptr) { Blockers->SetStaticMesh(CellShape); }
 		Blockers->ClearInstances();
 	}
 	if (EdgeFeatures)

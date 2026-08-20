@@ -29,6 +29,14 @@ public class RefactorTactics : ModuleRules
 			"SlateCore"
 		});
 
+		// #712 / seduta `U22`: `ARTHexMapActor::GetCellPrismMesh` costruisce in codice il prisma esagonale
+		// della cella, invece di istanziare `/Engine/BasicShapes/Cylinder` — che si vedeva come un disco.
+		// ⚠️ Servono da questo modulo anche se `Engine.Build.cs` li elenca gia' fra le proprie
+		// `PublicDependencyModuleNames`: quell'elenco propaga gli include path, non risolve i simboli a
+		// valle. Toglierli non rompe la compilazione, rompe il LINK — nove `LNK2019` su `FMeshDescription`,
+		// `FStaticMeshAttributes::Register` e `MeshAttribute::Vertex::Position`.
+		PrivateDependencyModuleNames.AddRange(new string[] { "MeshDescription", "StaticMeshDescription" });
+
 		// Json/JsonUtilities: scenari di test e report machine-readable dello Scenario Harness
 		// (Test/RTScenarioLoader, Test/RTTestReportWriter). Sono moduli engine standard, disponibili anche
 		// in build packaged: il harness deve poter girare headless da riga di comando, non solo in Editor.

@@ -6581,10 +6581,16 @@ tracks:
       ⚠️ **Nessun `.uasset` nuovo, ed è una scelta contro l'alternativa più facile.** Una mesh autorata in
       Modeling Mode sarebbe stata più rapida, ma sarebbe un binario in più da leasare — e due `.uasset`
       non si fondono. Il prisma generato è codice: si diffa, si testa, e non contende niente a nessuno.
-      🔵 **`RefactorTactics.Build.cs` NON va toccato**, ed è stato verificato invece che assunto:
-      `MeshDescription` e `StaticMeshDescription` sono in `PublicDependencyModuleNames` di
-      `Engine.Build.cs` (righe 105-106), quindi arrivano già per transitività. Senza quella misura questa
-      correzione avrebbe chiesto un file `integration_only`, e sarebbe stata rimandata per niente.
+      🔴 **`RefactorTactics.Build.cs` VA toccato, e questa riga diceva il contrario.** Sosteneva che
+      `MeshDescription` e `StaticMeshDescription` arrivassero per transitività perché stanno in
+      `PublicDependencyModuleNames` di `Engine.Build.cs` — e ci stanno davvero, righe 105-106: la premessa
+      era vera, la conclusione no. Quell'elenco propaga gli **include path**; non risolve i simboli di un
+      modulo a valle. La build lo ha detto in **nove `LNK2019`**, e la riga era stata scritta con l'aria di
+      una misura: avevo verificato l'elenco sbagliato, che assomiglia molto a verificare.
+      ➕ Le due dipendenze entrano quindi in `RefactorTactics.Build.cs`, che è `integration_only`. **Non è
+      uno STOP**: la nota di `.gitignore` in quell'elenco dichiara perché la categoria esiste — *«tenerlo in
+      un `writable` significa che tutte le altre track devono chiedere il permesso per una riga»*. Qui la
+      riga è propria di questa track, e senza non c'è link.
       ➕ **Due file arrivano da `content_editor` con un rilascio scritto**, non presi perché la track era
       `IDLE`: `#451` chiusa, branch sparito, `D:/rt-content` pulito su `main`. La misura sta nella nota
       di quella track, accanto ai path che restano suoi.

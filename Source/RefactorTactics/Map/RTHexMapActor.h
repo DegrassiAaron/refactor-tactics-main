@@ -51,9 +51,28 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")
 	TObjectPtr<URTHexMapAsset> MapAsset;
 
-	/** Mesh della cella (fallback: cilindro engine appiattito = disco graybox). */
+	/** Mesh della cella. Se assente si usa il prisma esagonale di `GetCellPrismMesh`. */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
 	TSoftObjectPtr<UStaticMesh> CellMesh;
+
+	/**
+	 * Il prisma esagonale con cui si disegna una cella: mesh **generata in codice**, condivisa da tutte le
+	 * istanze e costruita una volta sola.
+	 *
+	 * ⚠️ Nasce da un difetto visto a schermo nella seduta `U22`: le celle si vedevano come **dischi**, perche'
+	 * erano istanze di `/Engine/BasicShapes/Cylinder` mentre il contorno evidenziato veniva da `HexCorners`.
+	 * Due percorsi diversi per la stessa forma, quindi il bordo era un esagono e il pieno un cerchio. Qui i
+	 * vertici arrivano da `URTHexLibrary::HexCorners`: **la stessa funzione**, non una seconda copia della
+	 * convenzione pointy-top, ed e' cio' che impedisce ai due disegni di divergere di nuovo.
+	 *
+	 * Convenzioni ereditate dal cilindro che sostituisce, per non spostare niente di quanto gia' tarato:
+	 * circumraggio **50 uu** (`PlanarScale` divide per 50) e Z **centrato** in `[-50, +50]` (vedi il commento
+	 * su `RTCellFlatScale`). Cambiarle muoverebbe ogni lift di debug-line insieme al disco.
+	 *
+	 * 🔵 Generata invece che autorata come `.uasset`: un binario in piu' sarebbe un path da leasare, e due
+	 * `.uasset` non si fondono. Questa si diffa e si testa.
+	 */
+	static UStaticMesh* GetCellPrismMesh();
 
 	/**
 	 * Materiale delle celle: legge i tre `PerInstanceCustomData` che `RebuildInstances` scrive e li usa come

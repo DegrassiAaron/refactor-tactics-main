@@ -2,6 +2,10 @@
 #include "Map/RTCellId.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexMapActor.h"          // GetCellPrismMesh: la mesh generata della cella (#712 / U22)
+#include "Engine/StaticMesh.h"
+#include "StaticMeshResources.h"        // FStaticMeshRenderData / FPositionVertexBuffer
+#include "PhysicsEngine/BodySetup.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Terrain/RTTerrainData.h"
 
@@ -673,6 +677,105 @@ bool FRTHexSurfaceColorTest::RunTest(const FString&)
 				static_cast<int32>(S)),
 			Distance(URTHexLibrary::SurfaceColor(S), URTHexLibrary::BlockedCellColor()) >= 60);
 	}
+	return true;
+}
+
+/**
+ * #712 / seduta `U22`: il pieno della cella e il contorno evidenziato devono nascere dalla STESSA
+ * definizione di esagono.
+ *
+ * ⚠️ Il difetto che questo test chiude e' stato visto a schermo, non trovato qui: le celle si vedevano come
+ * dischi perche' erano istanze di `/Engine/BasicShapes/Cylinder`, mentre il contorno veniva da `HexCorners`.
+ * Due percorsi per la stessa forma, e nessuna asserzione che li tenesse insieme — quindi il bordo era un
+ * esagono e il pieno un cerchio, per quanto entrambi fossero "giusti" ciascuno per conto suo.
+ *
+ * Il test non chiede che la mesh *sia* esagonale: chiede che i suoi vertici **coincidano** con quelli di
+ * `HexCorners`. E' la differenza fra verificare una forma e verificare che due disegni non possano divergere.
+ *
+ * ⚠️ Sta in `RTHexTests.cpp` e non in `RTHexMapActorTests.cpp`, che sarebbe il posto naturale: quel file e'
+ * nel `writable` di `content_editor`, e «il modulo e il suo test si toccano insieme» non autorizza a
+ * prendersi un file che non si ha.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellPrismMatchesHexCornersTest,
+	"RefactorTactics.Hex.CellPrismMatchesHexCorners",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellPrismMatchesHexCornersTest::RunTest(const FString&)
+{
+	UStaticMesh* Mesh = ARTHexMapActor::GetCellPrismMesh();
+	if (!TestNotNull(TEXT("il prisma della cella si costruisce"), Mesh))
+	{
+		return false;
+	}
+
+	// Le misure ereditate dal cilindro sostituito: `PlanarScale` divide per 50, e i lift di debug-line si
+	// appoggiano a una mezza-altezza di 50. Se cambiano qui senza cambiare la', ogni quota si sposta in
+	// silenzio — ed e' il motivo per cui il test le asserisce invece di leggerle dalla mesh.
+	constexpr float ExpectedRadius = 50.f;
+	constexpr float ExpectedHalfHeight = 50.f;
+
+	const TArray<FVector> Expected = URTHexLibrary::HexCorners(FVector::ZeroVector, ExpectedRadius);
+	TestEqual(TEXT("l'atteso ha sei vertici"), Expected.Num(), 6);
+
+	auto KeyOf = [](double X, double Y) { return FString::Printf(TEXT("%.2f,%.2f"), X, Y); };
+
+	TSet<FString> ExpectedKeys;
+	for (const FVector& Corner : Expected)
+	{
+		ExpectedKeys.Add(KeyOf(Corner.X, Corner.Y));
+	}
+
+	// --- la mesh che si VEDE ---------------------------------------------------------------------------
+	const FStaticMeshRenderData* Render = Mesh->GetRenderData();
+	if (!TestTrue(TEXT("la mesh ha render data"), Render != nullptr && Render->LODResources.Num() > 0))
+	{
+		return false;
+	}
+
+	const FPositionVertexBuffer& Positions = Render->LODResources[0].VertexBuffers.PositionVertexBuffer;
+	TestTrue(TEXT("la mesh ha vertici"), Positions.GetNumVertices() > 0);
+
+	TSet<FString> MeshKeys;
+	double MinZ = TNumericLimits<double>::Max();
+	double MaxZ = TNumericLimits<double>::Lowest();
+	for (uint32 Index = 0; Index < Positions.GetNumVertices(); ++Index)
+	{
+		const FVector3f P = Positions.VertexPosition(Index);
+		MeshKeys.Add(KeyOf(P.X, P.Y));
+		MinZ = FMath::Min(MinZ, static_cast<double>(P.Z));
+		MaxZ = FMath::Max(MaxZ, static_cast<double>(P.Z));
+	}
+
+	// I vertici sono duplicati per faccia (ogni poligono ha le proprie istanze): conta quanti sono DISTINTI
+	// in pianta, che e' l'unica cosa che descrive la forma vista dall'alto.
+	TestEqual(TEXT("sei posizioni distinte in pianta"), MeshKeys.Num(), 6);
+	TestTrue(TEXT("i vertici della mesh sono quelli di HexCorners"), MeshKeys.Difference(ExpectedKeys).IsEmpty());
+	TestTrue(TEXT("faccia superiore a +50"), FMath::IsNearlyEqual(MaxZ, static_cast<double>(ExpectedHalfHeight), 0.01));
+	TestTrue(TEXT("faccia inferiore a -50"), FMath::IsNearlyEqual(MinZ, static_cast<double>(-ExpectedHalfHeight), 0.01));
+
+	// --- la forma che si CLICCA ------------------------------------------------------------------------
+	// Il pick della cella e' un trace su collisione semplice e ricava la cella dall'indice dell'istanza: se
+	// questa forma diverge da quella vista, si clicca una cella e se ne seleziona un'altra. Va asserita
+	// separatamente proprio perche' nulla, nel codice, obbliga le due a coincidere.
+	UBodySetup* Body = Mesh->GetBodySetup();
+	if (!TestNotNull(TEXT("il prisma ha un body setup"), Body))
+	{
+		return false;
+	}
+	TestEqual(TEXT("una sola forma convessa"), Body->AggGeom.ConvexElems.Num(), 1);
+	if (Body->AggGeom.ConvexElems.Num() != 1)
+	{
+		return false;
+	}
+
+	TSet<FString> HullKeys;
+	for (const FVector& P : Body->AggGeom.ConvexElems[0].VertexData)
+	{
+		HullKeys.Add(KeyOf(P.X, P.Y));
+	}
+	TestEqual(TEXT("dodici vertici nello scafo convesso"), Body->AggGeom.ConvexElems[0].VertexData.Num(), 12);
+	TestTrue(TEXT("la collisione ha la stessa pianta della mesh"), HullKeys.Difference(ExpectedKeys).IsEmpty());
+	TestEqual(TEXT("e le stesse sei posizioni"), HullKeys.Num(), 6);
+
 	return true;
 }
 
