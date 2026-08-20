@@ -1,7 +1,7 @@
 # Asset map — quali asset servono, chi li produce, quali esistono
 
-> `CURRENT` · **Creato**: 2026-08-13 · **Owner**: questo file — è il **registro degli asset di contenuto**
-> attesi dal progetto, release per release.
+> `CURRENT` · **Creato**: 2026-08-13 · **Ultima misura**: 2026-08-17 (`a4a393b6`) · **Owner**: questo file —
+> è il **registro degli asset di contenuto** attesi dal progetto, release per release.
 >
 > **Cosa non è.** Non è l'owner di percorsi e naming: quello è
 > [`convenzioni-contenuti-ue.md`](convenzioni-contenuti-ue.md), che è normativo e da cui questo file **deriva**
@@ -58,13 +58,25 @@ PY
 un'affermazione falsa (§2). Un comando che itera solo la lista attesa non può scoprire ciò che la
 lista non prevede: le due direzioni si controllano separatamente.
 
-**Misurato il 2026-08-13** su `HEAD` `515c5c88`: **17 attesi · 13 committati · 4 non nel repository**.
+**Misurato il 2026-08-17** su `HEAD` `a4a393b6`: **21 attesi · 16 committati · 0 su disco · 5 assenti**.
 
-⚠️ **Dei quattro mancanti, uno esiste sul disco di chi ha aperto la PR** (`ABP_Gadget.uasset`) e tre no.
-Quella distinzione **non è riproducibile**: chi clona ed esegue il comando qui sopra legge
-`0 su disco · 4 assenti`, e non è cambiato niente nel repository. Lo stato 🟡 è un fatto di una
-macchina, non del progetto — utile a chi sviluppa, inutile a chiunque altro, e per questo la cifra che
-conta è **13 su 17**.
+*(Prima misura, 2026-08-13 su `515c5c88`: 17 attesi · 13 committati · 4 mancanti. I quattro path nuovi
+sono `Core/Grid/M_HexCell.uasset` e i tre `UI/Framework/WBP_RT_*` di **U24**; tre dei quattro sono già
+committati.)*
+
+🔴 **Il 🟡 non è durato quattro giorni, e non è stato committato: è stato cancellato.** Il 13 agosto
+`ABP_Gadget.uasset` esisteva sul disco di chi sviluppa e non era nel repository. Oggi non esiste più
+da nessuna parte, e nessun commit lo ha mai contenuto — `git log` non lo conosce. Un `.uasset` mai
+aggiunto all'indice è **untracked**, e `git clean -fd` — il comando che questo stesso documento
+raccomanda in §5 per non cancellare i pack — lo porta via senza chiedere: `-e Content/FabAsset`
+protegge i 48 GB di terze parti, non il file da 73 KB che stavi costruendo dentro `Content/RT/`.
+
+Questo **rafforza** la ragione per cui la cifra che conta è quella dei committati, e la sposta: il 🟡
+non è soltanto *inutile a chi clona*, è **volatile anche per chi sviluppa**. La riga d'allowlist era
+già lì dal 2026-08-11, quindi `git add` avrebbe funzionato in qualsiasi momento: mancava solo il
+gesto. **Il momento di committare un asset è quando lo si salva la prima volta**, non quando è finito
+— un anim BP a metà, committato, si riprende; lo stesso file non committato è un lavoro che nessun
+`git` può restituire. È il perimetro della seduta **U8**, che dopo la cancellazione riparte da zero.
 
 ⚠️ **Tre file tracciati stanno fuori dall'allowlist**: `Content/.gitkeep`,
 `Content/RT_UI_AssetPack_FromHUD/README.md` e `.../manifest.json`. Non sono `.uasset` — le regole di
@@ -76,7 +88,7 @@ conta è **13 su 17**.
 
 ## 2. v0.1 — misurata
 
-I 17 path che il repository dichiara di volere. La colonna **Seduta** dice chi lo produce, secondo
+I 21 path che il repository dichiara di volere. La colonna **Seduta** dice chi lo produce, secondo
 `editor-sessions.yaml`; `—` significa che nessuna seduta lo rivendica (esisteva prima che le sedute
 fossero un dato).
 
@@ -86,7 +98,7 @@ fossero un dato).
 | `Characters/Phase/Blueprints/BP_Unit_Phase.uasset` | Unità giocabile | **U7** | ✅ committato |
 | `Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset` | Unità giocabile | **U7** | ✅ committato |
 | `Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset` | Unità giocabile | **U7** | ✅ committato |
-| `Characters/Gadget/Animation/ABP_Gadget.uasset` | Animazione | **U8** | 🟡 su disco, non committato |
+| `Characters/Gadget/Animation/ABP_Gadget.uasset` | Animazione | **U8** | ⏳ assente — *era «su disco» il 13-08, cancellato senza essere mai committato (§1)* |
 | `Characters/Phase/Animation/ABP_Phase.uasset` | Animazione | **U8** | ⏳ assente |
 | `Characters/Riktor/Animation/ABP_Riktor.uasset` | Animazione | **U8** | ⏳ assente |
 | `Characters/Wraith/Animation/ABP_Wraith.uasset` | Animazione | **U8** | ⏳ assente |
@@ -98,19 +110,31 @@ fossero un dato).
 | `Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.uasset` | Mappa | — | ✅ committato |
 | `Maps/Dev/L_Prototype/L_Prototype.umap` | Mappa | — | ✅ committato |
 | `Core/Framework/BP_GameMode.uasset` | Framework | — | ✅ committato |
+| `Core/Grid/M_HexCell.uasset` | Materiale griglia | — | ✅ committato |
 | `Art/GlobalMaterials/M_Global_Tint.uasset` | Materiale globale | — | ✅ committato |
+| `UI/Framework/WBP_RT_FallbackBanner.uasset` | Frontend | **U24** | ✅ committato |
+| `UI/Framework/WBP_RT_ErrorModal.uasset` | Frontend | **U24** | ✅ committato |
+| `UI/Framework/WBP_RT_LoadingScreen.uasset` | Frontend | **U24** | ⏳ assente |
 
-**Quel che resta della v0.1 è una sola cosa: le quattro animazioni.** `ABP_Gadget` esiste sul disco di chi
-sviluppa e non è committato — il caso peggiore dei tre, perché il gioco funziona in locale e si rompe per
-chiunque cloni. Le altre tre non esistono. È esattamente il perimetro della seduta **U8**, ed è l'unica
-famiglia della v0.1 con lavoro aperto.
+**Quel che resta della v0.1 sono due famiglie, non una.** Le **quattro animazioni** di **U8**: nessuna
+esiste, e `ABP_Gadget` è tornato indietro invece di avanzare (§1). Più il **frontend** di **U24**, dove
+`WBP_RT_LoadingScreen` è l'unico dei tre in allowlist a non esistere ancora — e dove due asset che la
+seduta dichiara non hanno affatto una riga d'allowlist (§2.1).
+
+⚠️ **`M_HexCell.uasset` non è rivendicato da nessuna seduta.** È in allowlist e committato, ma
+`editor-sessions.yaml` non lo nomina: come i cinque path storici marcati `—`, esiste senza che una
+seduta ne risponda. Non è un difetto da correggere qui — è un buco della fonte, e si chiude lì.
 
 ### 2.1 Famiglie attese che non hanno una riga d'allowlist
 
-**Quattro** cose che la v0.1 richiede e per cui **`git add` tace**, perché nessuna riga di `.gitignore` le
-riammette. È l'unico predicato vero di tutte e quattro: il *percorso* ce l'hanno in due (le icone lo hanno
-deciso, i sorgenti icona esistono già sul disco), la *seduta* in altre due (U21, U25). Non sono
-dimenticanze di questo file: sono buchi delle fonti, e vanno chiusi lì.
+**Cinque** cose che la v0.1 richiede e per cui **`git add` tace**, perché nessuna riga di `.gitignore` le
+riammette. È l'unico predicato vero di tutte e cinque: il *percorso* ce l'hanno in tre (le icone lo hanno
+deciso, i sorgenti icona esistono già sul disco, i due `WBP_RT_*` lo portano scritto negli `artifacts` di
+U24), la *seduta* in tre (U21, U25, U24). Non sono dimenticanze di questo file: sono buchi delle fonti, e
+vanno chiusi lì.
+
+La quinta riga è **l'unica con entrambi**, ed è per questo la più vicina a mordere: percorso esatto e
+seduta che la rivendica, e comunque `git add` tace.
 
 > ⚠️ *Questa frase ha sbagliato **tre volte** e ogni correzione ne ha riletta una parte sola: prima il
 > numero («Due» con tre righe), poi il predicato «né in una seduta» (falso per U21 e U25), poi «manca il
@@ -122,6 +146,7 @@ dimenticanze di questo file: sono buchi delle fonti, e vanno chiusi lì.
 | **Icone dell'HUD** | E20 · E11 | L'**insieme** richiesto è derivato e cresce da solo — `URTIconLibrary::RequiredIconIds()` lo compone dalle fasi volontarie e dal catalogo azioni *realmente in codice*, gate `RTIconCatalogTests` — ma **path e naming sono già decisi**: `/Game/RT/UI/Icons/`, `T_UI_Icon_<Categoria>_<Nome>` ([`brief-icone-v01.md`](brief-icone-v01.md) §33–34). Manca solo la riga d'allowlist, ed è un problema concreto: chi importa le texture al path già deciso fa `git add`, git tace, e le icone restano locali |
 | **Sorgenti icona già sul disco** | E20 | `Content/RT_UI_AssetPack_FromHUD/` contiene **30 PNG** (`icons/I_Guard.png`, `I_Overwatch.png`, …) più `buttons/`, `panels/`, `tiles/`, `warnings/` e un `manifest.json` con box e margini 9-slice. Di tutto il kit **il repository traccia due file**: `README.md` e `manifest.json`. I trenta PNG no. È la famiglia più vicina a essere pronta, e la sola che nessuna riga d'allowlist prevede |
 | **Livello illuminato del graybox** | seduta **U21** | U21 dichiara di produrre «il livello illuminato **committato**», ma ha `artifacts: []`: nessuno sa quale file sarà, quindi non può entrare nell'allowlist prima della seduta |
+| **`WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer`** | seduta **U24** ([#937](https://github.com/DegrassiAaron/refactor-tactics-main/issues/937)) | U24 dichiara **cinque** `.uasset` fra i suoi `artifacts`; l'allowlist ne riammette **tre** (`FallbackBanner`, `ErrorModal`, `LoadingScreen`, righe 124–126 del `.gitignore`). Per gli altri due il path è già scritto e la seduta esiste: manca solo la riga, quindi chi li salverà al percorso giusto farà `git add` e git tacerà. ⚠️ È la stessa dinamica che ha appena cancellato `ABP_Gadget` (§1) con una differenza che peggiora le cose: là la riga c'era e mancava il gesto, qui **manca la riga**, e il gesto non basterebbe |
 | **Kit graybox degli oggetti di mappa** | `RT-FEAT-UI-GRAYBOX-KIT` · `D-152` · seduta **U25** ([#1095](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1095)) | La famiglia è **decisa e senza percorso** — l'unica delle quattro a cui manchi davvero, oltre alla riga d'allowlist. ⚠️ **A differenza di U21 qui la seduta esiste già**, e la riga la nomina: la lacuna non è «chi lo produce» ma «dove va». Il contratto esiste ([`spec-graybox-placement-contract.md`](../systems/spec-graybox-placement-contract.md)) e dice *che forma* devono avere gli asset; le convenzioni §5 non hanno una riga per un kit graybox di **oggetti** — coprono la griglia (`/Game/RT/World/Grid/`, dove `Generation/` sono i *generatori*) e le mappe, non le primitive riusabili che ci stanno sopra. Il percorso è `GBX-4` in [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), e si chiude **prima** della seduta che produce il primo asset, non dopo: è la riga 1 di §6 |
 
 ---
@@ -232,7 +257,11 @@ lo stesso comando.)*
 Tre righe, in quest'ordine. Saltarne una produce un difetto silenzioso, e per ognuna è già successo:
 
 1. **`.gitignore`** — la riga `!Content/RT/…` con il path esatto. Senza, `git add` tace e l'asset resta
-   locale: è lo stato di `ABP_Gadget` oggi.
+   locale: è lo stato di `WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer` oggi (§2.1).
+   *(Fino al 2026-08-17 questa riga citava `ABP_Gadget`, ed era l'esempio sbagliato: la sua riga
+   d'allowlist esiste dall'11 agosto. Non era rimasto locale per una regola mancante, ma per un `git add`
+   mai eseguito — due cause diverse che producono lo stesso sintomo, e solo la seconda si è portata via
+   il file.)*
 2. **`editor-sessions.yaml`** — l'asset va fra gli `artifacts` della seduta che lo produce, **come
    stringa di path e nient'altro**. Senza, nessuna vista sa che quell'asset è atteso: è il caso di
    **U21**.
@@ -246,6 +275,13 @@ Tre righe, in quest'ordine. Saltarne una produce un difetto silenzioso, e per og
 ⚠️ **Un rename tocca tutte e tre.** Le convenzioni lo dichiarano già per il caso `<CharacterId>`: gli otto
 path degli artefatti sono elencati **per esteso** nell'allowlist, quindi un rename li rende muti senza che
 niente fallisca.
+
+🔴 **E poi c'è il gesto che nessuna delle tre righe copre: `git add` alla prima salvata.** Le tre righe
+rendono l'asset *committabile*; non lo committano. Fra il momento in cui l'editor scrive il `.uasset` e
+il momento in cui qualcuno lo aggiunge all'indice, quel file è **untracked** — e un `git clean -fd`, che
+in questo progetto si esegue di routine per non toccare i pack, lo cancella senza traccia recuperabile.
+Non aspettare che l'asset sia finito: un lavoro a metà committato è un lavoro a metà, un lavoro a metà
+non committato è un lavoro perso. `ABP_Gadget` è costato una seduta per impararlo.
 
 ---
 
