@@ -209,6 +209,35 @@ UStaticMesh* ARTHexMapActor::GetCellPrismMesh()
 	return Mesh;
 }
 
+FTransform ARTHexMapActor::InteriorWallPanel(const FVector2D& LocalA, const FVector2D& LocalB,
+	const FVector& CellCentreWorld, float PanelHeight, float PanelThickness)
+{
+	const FVector2D Along = LocalB - LocalA;
+	const double Length = Along.Size();
+	if (Length <= UE_KINDA_SMALL_NUMBER)
+	{
+		return FTransform::Identity;
+	}
+
+	const FVector2D Mid = (LocalA + LocalB) * 0.5;
+	const FVector PanelCentre(
+		CellCentreWorld.X + Mid.X,
+		CellCentreWorld.Y + Mid.Y,
+		CellCentreWorld.Z + RTCellTopZ + PanelHeight * 0.5);
+
+	// 🔴 **+90 gradi, e togliendoli il muro esce di traverso.** Il cubo engine e' 100 uu per lato e la
+	// convenzione dei pannelli — quella che `EdgeRotation` gia' segue — mette lo SPESSORE sulla X e la
+	// LUNGHEZZA sulla Y. Lo yaw deve quindi puntare la X **perpendicolare** al muro, non lungo di esso.
+	// La prima stesura usava l'angolo del muro e basta: a schermo i muri interni comparivano ruotati di un
+	// angolo retto rispetto al gesto, ed e' cosi' che l'autore se n'e' accorto.
+	const double AlongDegrees = FMath::RadiansToDegrees(FMath::Atan2(Along.Y, Along.X));
+	const FRotator Rotation(0.0, AlongDegrees + 90.0, 0.0);
+
+	// Y porta la lunghezza (il cubo e' 100 uu, quindi la scala e' `Length / 100`), X lo spessore, Z l'altezza.
+	return FTransform(Rotation, PanelCentre,
+		FVector(PanelThickness, Length / 100.0, static_cast<double>(PanelHeight) / 100.0));
+}
+
 ARTHexMapActor::ARTHexMapActor()
 {
 	// Tick abilitabile ma SPENTO all'avvio: si accende solo quando c'e' un'anteprima da disegnare
@@ -832,18 +861,10 @@ void ARTHexMapActor::RebuildInstances()
 			const float PanelHeight = (Wall.Segment.WallType == ERTHexCoverType::High)
 				? RTCoverHighHeight : RTCoverLowHeight;
 
-			const FVector2D Mid = (A + B) * 0.5;
-			const FVector PanelCentre(
-				Centre.X + Mid.X,
-				Centre.Y + Mid.Y,
-				Centre.Z + CellTop + RTCellTopZ + PanelHeight * 0.5);
-
-			// Il cubo engine e' 100 uu per lato: X sottile (spessore), Y lungo il muro, Z l'altezza — le
-			// stesse convenzioni dei pannelli di bordo, cosi' i due si leggono come la stessa cosa.
-			const FRotator Yaw(0.0, FMath::RadiansToDegrees(FMath::Atan2(B.Y - A.Y, B.X - A.X)), 0.0);
-			const FTransform PanelXf(Yaw, PanelCentre,
-				FVector(RTEdgePanelThickness, Length / 100.f, PanelHeight / 100.f));
-			EdgeFeatures->AddInstance(PanelXf, /*bWorldSpace=*/ true);
+			const FVector CellBase(Centre.X, Centre.Y, Centre.Z + CellTop);
+			EdgeFeatures->AddInstance(
+				InteriorWallPanel(A, B, CellBase, PanelHeight, RTEdgePanelThickness),
+				/*bWorldSpace=*/ true);
 		}
 	}
 }

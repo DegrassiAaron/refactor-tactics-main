@@ -75,6 +75,25 @@ public:
 	static UStaticMesh* GetCellPrismMesh();
 
 	/**
+	 * La trasformazione del pannello di un muro interno, dai due estremi del segmento in coordinate LOCALI
+	 * alla cella.
+	 *
+	 * 🔴 Sta qui, pura e statica, perche' la prima stesura era dentro `RebuildInstances` e sbagliava di
+	 * **90 gradi**: metteva lo yaw LUNGO il muro, mentre nella convenzione dei pannelli (cubo engine da
+	 * 100 uu) la X e' lo SPESSORE e la Y la lunghezza — quindi il muro veniva disegnato di traverso rispetto
+	 * al gesto. L'errore e' della stessa famiglia di tutti gli altri di `#712`: due convenzioni che devono
+	 * accordarsi e nessuna asserzione che le tenga insieme.
+	 *
+	 * `EdgeRotation` fa la stessa cosa per i bordi e la fa gia' giusta — il suo asse X punta al VICINO, cioe'
+	 * perpendicolare al bordo — ma non e' riusabile qui: deriva l'angolo dai due centri di cella, e un muro
+	 * interno non ha nessun vicino da guardare.
+	 *
+	 * `RefactorTactics.HexMap.InteriorWallPanelFollowsTheSegment` lo verifica.
+	 */
+	static FTransform InteriorWallPanel(const FVector2D& LocalA, const FVector2D& LocalB,
+		const FVector& CellCentreWorld, float PanelHeight, float PanelThickness);
+
+	/**
 	 * Materiale delle celle: legge i tre `PerInstanceCustomData` che `RebuildInstances` scrive e li usa come
 	 * colore, cosi' ogni cella si legge per superficie. Se assente, l'ISM tiene il materiale della mesh e le
 	 * celle restano grigie — degrado silenzioso, non un errore.

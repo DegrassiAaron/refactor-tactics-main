@@ -844,6 +844,66 @@ bool FRTEdgeIndexMatchesNeighbourDirectionTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #712 / seduta `U22`: il pannello di un muro interno GIACE sul segmento che lo ha generato.
+ *
+ * 🔴 Non ci giaceva. La prima stesura orientava il pannello con lo yaw preso dall'angolo del muro, ma la
+ * convenzione dei pannelli — quella che `EdgeRotation` segue per i bordi — mette lo **spessore sulla X** e
+ * la **lunghezza sulla Y**. Il muro veniva quindi disegnato ruotato di un angolo retto rispetto al gesto, e
+ * se n'e' accorto l'autore guardando lo schermo: *«i muri non seguono i vertici e il centro dell'esagono»*.
+ *
+ * ⚠️ E' la stessa forma di tutti gli altri difetti di questa seduta: due convenzioni che devono accordarsi
+ * e nessuna asserzione che le tenga insieme. Il test lega il pannello al segmento invece di ricopiare
+ * l'angolo atteso — un `TestEqual` su `+90` verificherebbe la formula contro se' stessa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteriorWallPanelFollowsTheSegmentTest,
+	"RefactorTactics.HexMap.InteriorWallPanelFollowsTheSegment",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInteriorWallPanelFollowsTheSegmentTest::RunTest(const FString&)
+{
+	const FVector CellCentre(1000.0, -250.0, 40.0);
+	constexpr float PanelHeight = 55.f;
+	constexpr float PanelThickness = 0.10f;
+
+	// Piu' giaciture, perche' un errore di 90 gradi su un caso solo puo' passare per caso.
+	const TArray<double> Angles = { 0.0, 30.0, 60.0, 90.0, 137.0, 210.0 };
+	for (const double Degrees : Angles)
+	{
+		const double Rad = FMath::DegreesToRadians(Degrees);
+		const double Half = 45.0;
+		const FVector2D A(-Half * FMath::Cos(Rad), -Half * FMath::Sin(Rad));
+		const FVector2D B(+Half * FMath::Cos(Rad), +Half * FMath::Sin(Rad));
+
+		const FTransform Panel = ARTHexMapActor::InteriorWallPanel(A, B, CellCentre, PanelHeight, PanelThickness);
+
+		// 1. Il pannello e' CENTRATO sul segmento, in pianta.
+		const FVector2D Mid = (A + B) * 0.5;
+		TestTrue(FString::Printf(TEXT("a %.0f gradi il pannello e' centrato sul muro"), Degrees),
+			FMath::IsNearlyEqual(Panel.GetLocation().X, CellCentre.X + Mid.X, 0.01)
+			&& FMath::IsNearlyEqual(Panel.GetLocation().Y, CellCentre.Y + Mid.Y, 0.01));
+
+		// 2. L'asse che PORTA LA LUNGHEZZA e' parallelo al muro. E' la riga che il difetto faceva fallire:
+		//    con lo yaw lungo il muro questo asse risultava perpendicolare.
+		const FVector AlongPanel = Panel.GetUnitAxis(EAxis::Y);
+		const FVector2D AlongWall = (B - A).GetSafeNormal();
+		const double Dot = FMath::Abs(AlongPanel.X * AlongWall.X + AlongPanel.Y * AlongWall.Y);
+		TestTrue(FString::Printf(TEXT("a %.0f gradi la lunghezza del pannello segue il muro (|dot| %.3f)"),
+			Degrees, Dot), Dot > 0.999);
+
+		// 3. E lo SPESSORE gli e' perpendicolare, che e' l'altra meta' della stessa affermazione.
+		const FVector Thick = Panel.GetUnitAxis(EAxis::X);
+		const double DotThick = FMath::Abs(Thick.X * AlongWall.X + Thick.Y * AlongWall.Y);
+		TestTrue(FString::Printf(TEXT("a %.0f gradi lo spessore e' perpendicolare (|dot| %.3f)"),
+			Degrees, DotThick), DotThick < 0.001);
+
+		// 4. La scala sulla Y rende il cubo lungo quanto il muro (il cubo engine e' 100 uu per lato).
+		TestTrue(FString::Printf(TEXT("a %.0f gradi il pannello e' lungo quanto il muro"), Degrees),
+			FMath::IsNearlyEqual(Panel.GetScale3D().Y * 100.0, FVector2D::Distance(A, B), 0.01));
+	}
+
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
