@@ -840,6 +840,17 @@ void ARTHexMapActor::RebuildInstances()
 	{
 		for (const FRTHexInteriorWall& Wall : MapAsset->InteriorWalls)
 		{
+			// 🔴 **Il filtro dei layer va applicato anche qui.** Celle, coperture e porte lo ereditano dal
+			// ciclo principale — le ultime due tramite `EdgeSources`, popolato solo per le celle filtrate —
+			// ma questo ciclo legge l'asset direttamente, quindi non eredita niente. Senza, in `ActiveOnly`
+			// o `Focus` un muro interno di un altro piano comparirebbe come pannello **fluttuante**, senza
+			// la cella che lo contiene: un'anteprima che mostra un piano e ci mette dentro la geometria di
+			// un altro.
+			if (!PassesLayerFilter(Wall.Cell.Layer))
+			{
+				continue;
+			}
+
 			const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Wall.Segment, UseHexSize);
 			if (Line.Points.Num() < 2)
 			{

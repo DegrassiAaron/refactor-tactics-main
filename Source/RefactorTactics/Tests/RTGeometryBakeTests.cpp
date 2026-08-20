@@ -757,4 +757,109 @@ bool FRTInteriorWallIsKeptAndDoesNotHashTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #712 / seduta `U22`: le quattro reti che al muro interno mancavano, trovate da una code review.
+ *
+ * 🔴 Il campo `InteriorWalls` (v10) era arrivato senza le difese che ogni altro array d'autore ha. Nessuna
+ * produceva divergenza di gioco — non entra nell'hash — ma tutte e quattro erano **lo stesso difetto che
+ * questa PR dichiara di combattere**: una convenzione che esiste da un'altra parte e non viene chiamata.
+ *
+ * ⚠️ La prima e' la piu' istruttiva. Il dedup confrontava i campi del segmento **a mano**, uno per uno,
+ * mentre `FRTGeometrySegment::operator==` esiste, usa `Min`/`Max` sugli estremi e porta scritto perche':
+ * *«un segmento e' lo STESSO segmento anche percorso al contrario»*. Tracciando `V1→V2` e poi `V2→V1` il
+ * duplicato passava. Riscrivere a mano un confronto che c'e' gia' e' come nascono i difetti di questa
+ * seduta — e stavolta l'ho fatto io mentre li correggevo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInteriorWallHygieneTest,
+	"RefactorTactics.Geometry.InteriorWallHygiene",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInteriorWallHygieneTest::RunTest(const FString&)
+{
+	constexpr float HexSize = 100.f;
+	const double Deg30 = PI / 6.0;
+
+	// La corda per due vertici opposti: non chiude bordi, quindi e' un muro interno.
+	const FVector2D A(HexSize * FMath::Cos(Deg30), HexSize * FMath::Sin(Deg30));
+	const FVector2D B(-A.X, -A.Y);
+
+	FRTGeometrySegment Forward;
+	FRTGeometrySegment Backward;
+	if (!TestTrue(TEXT("la corda si aggancia in entrambi i versi"),
+		URTGeometryGrammarLibrary::SnapToGrammar(A, B, HexSize, Forward)
+		&& URTGeometryGrammarLibrary::SnapToGrammar(B, A, HexSize, Backward)))
+	{
+		return false;
+	}
+	Forward.WallType = ERTHexCoverType::High;
+	Backward.WallType = ERTHexCoverType::High;
+
+	// I due sono lo STESSO muro percorso al contrario: gli estremi sono scambiati, e se non lo fossero il
+	// test non proverebbe niente.
+	TestTrue(TEXT("i due versi hanno gli estremi scambiati"),
+		Forward.AlongStart == Backward.AlongEnd && Forward.AlongEnd == Backward.AlongStart);
+
+	// --- 1. il muro percorso al contrario NON e' un secondo muro -----------------------------------
+	{
+		URTHexMapAsset* Map = MakeOneCellMap();
+		URTGeometryBakeLibrary::AddSegmentsToCell(Map, BakeOrigin, { Forward }, HexSize);
+		URTGeometryBakeLibrary::AddSegmentsToCell(Map, BakeOrigin, { Backward }, HexSize);
+		TestEqual(TEXT("lo stesso muro al contrario non si duplica"), Map->InteriorWalls.Num(), 1);
+	}
+
+	// --- 2. un segmento fuori grammatica non viene scritto ------------------------------------------
+	// ⚠️ `EdgesTouchedBy` esce con l'elenco vuoto ANCHE su un segmento illegale, quindi senza la
+	//    rivalidazione i due casi finivano nello stesso ramo.
+	{
+		URTHexMapAsset* Map = MakeOneCellMap();
+		FRTGeometrySegment Broken = Forward;
+		Broken.AlongEnd = Broken.AlongStart; // lunghezza zero: `ZeroLength`
+		TestTrue(TEXT("il segmento di prova e' davvero illegale"),
+			URTGeometryGrammarLibrary::ValidateSegment(Broken) != ERTGeometryViolation::None);
+
+		URTGeometryBakeLibrary::AddSegmentsToCell(Map, BakeOrigin, { Broken }, HexSize);
+		TestEqual(TEXT("un segmento fuori grammatica non diventa un muro interno"),
+			Map->InteriorWalls.Num(), 0);
+	}
+
+	// --- 3. `ValidateMap` vede i quattro modi in cui un muro interno puo' essere sbagliato ----------
+	{
+		URTHexMapAsset* Map = MakeOneCellMap();
+		Map->HexSize = HexSize;
+
+		// (a) sano: nessun errore. Senza questa controprova il test passerebbe con un validator che
+		//     segnala sempre.
+		Map->InteriorWalls.Add(FRTHexInteriorWall(BakeOrigin, Forward));
+		TestEqual(TEXT("un muro interno sano non produce errori"), Map->ValidateMap().Num(), 0);
+
+		// (b) orfano: cella inesistente.
+		Map->InteriorWalls.Add(FRTHexInteriorWall(FRTCellId(9, 9, 0), Forward));
+		TestTrue(TEXT("un muro interno su cella inesistente e' segnalato"), Map->ValidateMap().Num() > 0);
+		Map->InteriorWalls.Pop();
+
+		// (c) duplicato, e per giunta al contrario: e' il caso che il dedup a mano lasciava passare.
+		Map->InteriorWalls.Add(FRTHexInteriorWall(BakeOrigin, Backward));
+		TestTrue(TEXT("un duplicato al contrario e' segnalato"), Map->ValidateMap().Num() > 0);
+		Map->InteriorWalls.Pop();
+
+		// (d) l'invariante: un segmento che chiude un bordo e' una COPERTURA, e qui non ci va.
+		const FRTCellId Origin{ 0, 0, 0 };
+		const FVector Here = URTHexLibrary::AxialToWorld(Origin, FVector::ZeroVector, HexSize, 0.f);
+		const FVector There = URTHexLibrary::AxialToWorld(
+			URTHexLibrary::Neighbor(Origin, ERTHexDirection::NE), FVector::ZeroVector, HexSize, 0.f);
+		const double Mid = FMath::Atan2(There.Y - Here.Y, There.X - Here.X);
+
+		FRTGeometrySegment OnEdge;
+		URTGeometryGrammarLibrary::SnapToGrammar(
+			FVector2D(HexSize * FMath::Cos(Mid - Deg30), HexSize * FMath::Sin(Mid - Deg30)),
+			FVector2D(HexSize * FMath::Cos(Mid + Deg30), HexSize * FMath::Sin(Mid + Deg30)),
+			HexSize, OnEdge);
+
+		Map->InteriorWalls.Add(FRTHexInteriorWall(BakeOrigin, OnEdge));
+		TestTrue(TEXT("un muro che chiude un bordo non puo' stare fra gli interni"),
+			Map->ValidateMap().Num() > 0);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

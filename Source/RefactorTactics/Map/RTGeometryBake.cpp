@@ -248,14 +248,33 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 			// Non chiude niente: e' un muro interno. Ci finisce SOLO cio' che nessuna copertura descrive —
 			// un segmento che chiude anche un solo bordo e' gia' rappresentato da quella, e scriverlo anche
 			// qui sarebbe una seconda verita' sullo stesso muro.
+			//
+			// 🔴 **«Non chiude bordi» non significa «e' valido».** `EdgesTouchedBy` esce con l'elenco vuoto
+			// anche su un segmento FUORI GRAMMATICA, perche' `ToPolyline` gli restituisce una polilinea
+			// vuota — quindi senza questo controllo i due casi finivano nello stesso ramo e un segmento
+			// illegale veniva serializzato nell'asset. Il tool non ci arriva (`SnapToGrammar` filtra a
+			// monte), ma questa e' una `UBlueprintFunctionLibrary`: la difesa a monte vale per un chiamante
+			// solo, e ce n'e' gia' un secondo il giorno in cui qualcuno chiama la libreria.
+			if (URTGeometryGrammarLibrary::ValidateSegment(Segment) != ERTGeometryViolation::None)
+			{
+				continue;
+			}
+
+			// ⚠️ Il confronto e' `operator==`, non una copia scritta a mano dei suoi campi. La prima stesura
+			// li elencava uno per uno e confrontava `AlongStart` con `AlongStart`: ma quell'operatore usa
+			// `Min`/`Max` sugli estremi, e il suo commento dice perche' — *«un segmento e' lo STESSO
+			// segmento anche percorso al contrario»*. Tracciando `V1→V2` e poi `V2→V1` il duplicato
+			// passava. Riscrivere a mano un confronto che esiste gia' e' esattamente il difetto che questa
+			// seduta ha inseguito otto volte.
+			// ⚠️ `WallType` si confronta a parte perche' `operator==` NON lo include: due muri sulla stessa
+			// giacitura ma di tipo diverso sono due muri, e la regola `High` su `Low` vale sui bordi, dove
+			// il bordo e' unico — qui la giacitura non lo e'.
 			const bool bAlready = Map->InteriorWalls.ContainsByPredicate(
 				[&CellId, &Segment](const FRTHexInteriorWall& Wall)
 				{
 					return Wall.Cell == CellId
-						&& Wall.Segment.Axis == Segment.Axis
-						&& Wall.Segment.Offset == Segment.Offset
-						&& Wall.Segment.AlongStart == Segment.AlongStart
-						&& Wall.Segment.AlongEnd == Segment.AlongEnd;
+						&& Wall.Segment == Segment
+						&& Wall.Segment.WallType == Segment.WallType;
 				});
 			if (!bAlready)
 			{
