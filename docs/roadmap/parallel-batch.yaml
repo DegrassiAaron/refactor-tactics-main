@@ -1796,6 +1796,15 @@ tracks:
       - Source/RefactorTactics/Map/RTStructureIdentityLibrary.h
       - Source/RefactorTactics/Map/RTStructureIdentityLibrary.cpp
       - Source/RefactorTactics/Map/RTHexCellData.h
+      # ⬅️ **RESTITUITI da `geometry_gesture` il 2026-08-20**, alla chiusura di `#712` (PR #1235,
+      # `0c4edefe`). Erano stati ceduti per decisione dell'autore mentre `#833` era **OPEN**, e OPEN e'
+      # rimasta: il prestito finisce col lavoro che lo motivava.
+      # ⚠️ Chi riprende `#833` li trova cambiati: `URTHexMapAsset` ha il campo `InteriorWalls` e il formato
+      # e' salito a **10**. `RTHexDoorTests.cpp` porta solo la guardia sulla versione, aggiornata da 9 a 10
+      # insieme alle altre tre.
+      - Source/RefactorTactics/Map/RTHexMapAsset.h
+      - Source/RefactorTactics/Map/RTHexMapAsset.cpp
+      - Source/RefactorTactics/Tests/RTHexDoorTests.cpp
       # ⬅️ I due qui sotto venivano da `state_hash`, che li dichiara rilasciati nella propria nota.
       # ➖ **CEDUTI a `geometry_gesture` (#712) il 2026-08-20 per DECISIONE DELL'AUTORE**, e questa riga dice
       # esattamente questo invece di travestirla da rilascio tecnico. ⚠️ **Il claim NON era stantio**:
@@ -6560,8 +6569,8 @@ tracks:
     derives_from: []
     binary_leases: []
   geometry_gesture:
-    status: ACTIVE
-    issue: 712
+    status: IDLE
+    issue: null
     branch: docs/1013-u22-seduta
     worktree: "D:/rt-u22"
     session: U22
@@ -6630,96 +6639,36 @@ tracks:
       (cioè le due definizioni coincidono anche a occhio, non solo in `TestEqual`) · pick corretto **anche
       vicino a uno spigolo**, che è la prova dello scafo convesso esatto. `.umap` e asset **intatti**:
       `md5sum -c` verde su entrambi dopo la sessione, `git status` pulito.
-    writable:
-      # Non assegnati a nessuna track prima d'ora — il che NON vuol dire liberi da prendere in silenzio:
-      # `D-139` chiede che un path stia nel `writable` di chi ci scrive, e l'assenza di un proprietario è
-      # una dichiarazione mancante, non un permesso.
-      - Source/RefactorTactics/Map/RTHexLibrary.h
-      - Source/RefactorTactics/Map/RTHexLibrary.cpp
-      - Source/RefactorTactics/Tests/RTHexTests.cpp
-      # Rilasciati da `content_editor` il 2026-08-20, con le tre misure scritte nella sua nota.
-      - Source/RefactorTactics/Map/RTHexMapActor.h
-      - Source/RefactorTactics/Map/RTHexMapActor.cpp
-      # Secondo rilascio da `content_editor`, stessa giornata: il ghost che mostra i bordi vive qui.
-      # ⚠️ Solo il `.cpp` entra: `Render` non aggiunge membri, e prendere anche l'header significherebbe
-      # prenotare un file che questa correzione non apre.
-      - Source/RefactorTacticsEditor/Private/Tools/RTHexGeometryTool.cpp
-      # 🔴 **Entrano il 2026-08-20 per un difetto di CORRETTEZZA, non di presentazione.** Il ghost corretto
-      # ha reso visibile che la cottura scrive la copertura sul lato **sbagliato**: `EdgesTouchedBy` numera
-      # i bordi per angolo crescente (il bordo `k` ha il punto medio a `60k°`) e fa un `static_cast` diretto
-      # a `ERTHexDirection`, che invece numera per **direzione di vicinato** — e le due girano in verso
-      # opposto. Misurato: `E` e `W` coincidono, i quattro diagonali sono scambiati a coppie
-      # (`NE↔SE`, `NW↔SW`), **4 bordi su 6 in disaccordo**.
-      # ⚠️ Non è un difetto grafico: `NeighborAcross` e `RTHexCombatLibrary` leggono `Cover.Edge` come
-      # direzione di vicinato, quindi una copertura cotta su un diagonale blocca vista e passo **dal lato
-      # opposto** a quello disegnato.
-      # ⚠️ **I test esistenti non potevano vederlo**: tutti e sette usano `E` o `W`, cioè esattamente le due
-      # direzioni dove il rispecchiamento è invisibile. La lacuna era nella scelta dei casi, non nel rigore.
-      - Source/RefactorTactics/Map/RTGeometryBake.cpp
-      - Source/RefactorTactics/Tests/RTGeometryBakeTests.cpp
-      # ➕ **L'header entra il 2026-08-20, dopo il `.cpp`**, perché il difetto successivo trovato in seduta
-      # chiede una funzione NUOVA e non una riga cambiata: disegnare un secondo muro che condivide un
-      # vertice cancellava il primo. `BakeCell` rimuove tutte le coperture generate della cella e riscrive
-      # solo i segmenti ricevuti — contratto di **rebake**, corretto per chi possiede l'elenco completo — e
-      # il tool gliene passa uno solo, perché di un gesto per volta è tutto ciò che ha.
-      # ⚠️ Il contratto di `BakeCell` **non si tocca**: `D-131` e `FRTBakeIsIdempotentTest` dipendono dal
-      # fatto che rieseguire il bake non accumuli. Si aggiunge una via additiva accanto, con un nome che
-      # dice cosa fa, invece di cambiare il significato di una funzione che qualcun altro usa già bene.
-      - Source/RefactorTactics/Map/RTGeometryBake.h
-      # ➕ **Ceduti da `spatial` il 2026-08-20, per decisione dell'autore e non per claim stantio** — la
-      # misura sta nella nota di quella track, `#833` compresa, che e' **OPEN**. Servono perche' l'autore
-      # ha chiesto muri che tagliano l'esagono passando per due vertici opposti, e quella linea **non e' un
-      # bordo**: tracciata sulla griglia attraversa una cella su tre per il centro e nelle altre due giace
-      # sul confine. Misurato cella per cella. La copertura vive su un bordo, quindi la corda non e'
-      # esprimibile — serve un posto nuovo dove metterla.
-      # ⚠️ Sta sull'ASSET e non sulla cella: `RTGeometryGrammar.h` include gia' `RTHexCellData.h`, quindi
-      # un `FRTGeometrySegment` dentro la cella chiuderebbe un ciclo di include. `RTHexCellData.h` resta
-      # percio' a `spatial`, che se lo tiene.
-      - Source/RefactorTactics/Map/RTHexMapAsset.h
-      - Source/RefactorTactics/Map/RTHexMapAsset.cpp
-      # Non era di nessuno, e va preso lo stesso: lo `static_assert` in `RTHexMapAsset.cpp` obbliga ad
-      # alzare i due numeri **nello stesso commit**, quindi il file entra per costruzione insieme all'asset.
-      - Source/RefactorTactics/Map/RTHexMapCustomVersion.h
-      # ➕ **I quattro file delle GUARDIE sulla versione**, e non e' scope che si allarga: ciascuno contiene
-      # un `TestEqual(CurrentFormatVersion, 9)` messo li' apposta perche' chi alza la versione debba
-      # passare di qui e accorgersene. Hanno funzionato — sono caduti tutti e quattro al primo giro — e
-      # onorarli significa aggiornarli.
-      # ⚠️ **`RTHexDoorTests.cpp` era di `spatial`**, come i due file dell'asset: e' la stessa cessione,
-      # scoperta dopo. Lo dichiaro invece di infilarlo di nascosto in un commit che parla d'altro. Gli
-      # altri tre non erano di nessuno.
-      - Source/RefactorTactics/Tests/RTHexArcTests.cpp
-      - Source/RefactorTactics/Tests/RTHexMapTests.cpp
-      - Source/RefactorTactics/Tests/RTHexOccupancyTests.cpp
-      - Source/RefactorTactics/Tests/RTHexDoorTests.cpp
-      # ➕ **Lo SNAP, il 2026-08-20.** Non erano di nessuno. L'autore ha chiesto che il disegno si agganci
-      # ai **punti notevoli** — centro, sei vertici, sei punti medi — invece che al reticolo fine da 1/12,
-      # e la misura dice che l'alfabeto esiste gia': tutti e tredici cadono su valori INTERI del reticolo di
-      # ogni asse, sempre dentro `{0, ±6, ±9, ±12}`. Delle 78 coppie possibili, **54 sono esprimibili
-      # esattamente** e 24 no — sono vertice ↔ punto medio non adiacente, cioe' direzioni che non stanno su
-      # nessuno dei sei assi tattici. Quelle 24 devono diventare ghost rosso, non un muro approssimato.
-      - Source/RefactorTactics/Map/RTGeometryGrammar.cpp
-      - Source/RefactorTactics/Tests/RTGeometryGrammarTests.cpp
+      ✅ **CHIUSA il 2026-08-20 con la PR #1235** (merge `0c4edefe`), verificata lato server e non
+      dall'output del comando: 17 commit, 20 file, `+2346 / −94`, suite **1084/1084**. Il write-set e'
+      atterrato identico — `git diff HEAD origin/main` sui path della track e' **vuoto**.
+      🔵 **Otto difetti**, sette dei quali visti a schermo dall'autore, e tutti con la stessa forma: due
+      convenzioni che devono accordarsi e nessuna asserzione che le tenga insieme. Il piu' grave non era
+      grafico — `EdgesTouchedBy` numerava i bordi per angolo e faceva un `static_cast` a `ERTHexDirection`,
+      che numera per vicinato: **4 bordi su 6 in disaccordo**, quindi una copertura su un diagonale
+      bloccava vista e passo **dal lato opposto**. ⚠️ I dati gia' cotti su un diagonale vanno riverificati.
+      ➕ Formato asset **v10** (`InteriorWalls`) e il ghost che mostra il risultato invece del gesto.
+      ➖ **La lease e' rilasciata**: `L_DevSandbox.umap` e `DA_Format_Scratch.uasset` tornano liberi. Sono
+      rimasti **byte-identici** per tutta la seduta — `md5sum -c` verde a ogni chiusura d'editor — perche'
+      il lavoro e' finito in `Source/`, non nei binari. La verifica `umap_unchanged_after_session` ha
+      quindi risposto sì, ed era la meta' del `done_when` di `U22`.
+      ⚠️ **Restano fuori**: i quattro esiti `PIE-GEO-*` non sono scritti (il registro e' di `playtest`), il
+      testo dei criteri `GHOST` e `SNAP` descrive la semantica **precedente** del ghost, e `PIE-GEO-RESIDUI`
+      e' parziale — manca se la linea di anteprima sopravviva al cambio di tool. `#712` resta **aperta**.
+    # ➖ **Write-set rilasciato alla chiusura.** I diciotto path sono atterrati in `main` e non
+    # appartengono piu' a questa track. Dove vanno **non e' uniforme**, e la differenza e' quella con cui
+    # erano arrivati:
+    # · **Tornano a `spatial`** — `RTHexMapAsset.{h,cpp}` e `RTHexDoorTests.cpp`. Erano suoi, ceduti per
+    #   decisione dell'autore mentre `#833` era e resta **OPEN**: restituirli e' il minimo, e chi riprende
+    #   quel mandato li ritrova col campo nuovo e il formato a 10.
+    # · **Restano liberi e non assegnati** — tutti gli altri quindici. ⚠️ Compresi i tre che venivano da
+    #   `content_editor` (`RTHexMapActor.{h,cpp}`, `RTHexGeometryTool.cpp`): restituirli a una track la cui
+    #   issue `#451` e' **CLOSED** ricostruirebbe il claim stantio che questa seduta ha appena smontato.
+    #   Un path libero e' una dichiarazione mancante; un path prenotato da un mandato chiuso e' peggio,
+    #   perche' sembra una decisione.
+    writable: []
     derives_from: []
-    binary_leases:
-      # Riemessa **prima** di riaprire l'editor, come la prima volta. Sui FILE e non sulla cartella: la
-      # seduta disegna, quindi tocca l'asset mappa; il `.umap` e' nella lease per la ragione opposta —
-      # `PIE-GEO-RESIDUI` chiede di verificare che **non** cambi, e un path che si controlla e' un path
-      # che si prenota.
-      - key: "BINARY-GH712-GEOMETRY-GESTURE"
-        issue: 712
-        base_sha: "ba302b6b487eaa4c86d36196705861a669e0d7a8"
-        operation: modify
-        paths:
-          - Content/RT/Maps/Dev/L_DevSandbox/Data/DA_Format_Scratch.uasset
-          - Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap
-        verification:
-          - load_in_editor
-          # ⚠️ La verifica che discrimina, e va nel verso opposto a ogni altra lease di questo file: il
-          # `.umap` deve risultare **NON modificato** a fine seduta. Se cambia, la geometria si sta
-          # salvando nel livello invece che nell'asset, ed e' il difetto che `PIE-GEO-RESIDUI` cerca.
-          - umap_unchanged_after_session
-          - git_status_clean_after_commit
-
+    binary_leases: []
   scenario_vocab:
     # ➕ **Track NUOVA, nata il 2026-08-18 da una collisione fra due sessioni** — e la collisione è il motivo
     # per cui esiste, non un incidente da nascondere. Due sessioni hanno riattivato `simulation` nello stesso
