@@ -3049,7 +3049,18 @@ tracks:
     # ⛔ **Due esiti della verifica NON sono lavoro di questa track e restano a chi li possiede**: che il
     # giocatore non possa armare una reazione (la quinta abilità non ha un tasto — tocca l'input), e che il
     # criterio della voce chieda tre livelli quando in partita due sono raggiungibili (tocca il registro PIE).
-    status: ACTIVE
+    #
+    # 🔻 **`ACTIVE` → `IDLE` il 2026-08-20, a lavoro consegnato.** La PR #1209 è in `main`: `D-177` registra
+    # la matrice, §16 la porta dove è normativa, e la resa implementa il terzo stile di linea — puntinato —
+    # che la spec prevedeva e che nessuna stesura aveva mai reso. Suite **1071/1071** sull'albero fuso.
+    # ⛔ **`issue: 78` RESTA valorizzata, e la track NON è finita: la resa consegnata non è mai stata vista
+    # da un occhio umano.** Le sedute PIE hanno bocciato la **prima** implementazione e approvato con riserva
+    # la **seconda**; quella mergiata è la **terza**. I test coprono che i due stili esistano e siano distinti
+    # con un margine, ma «distinguibile a un metro dallo schermo» non è misurabile headless — è la ragione per
+    # cui `PIE-V01-INTENT` esiste, ed è scritto nel corpo della PR invece che taciuto.
+    # ⚠️ E resta l'altro blocco, che non è di questa track: `Confirmed` **non è producibile da input**, quindi
+    # in partita la scala a tre livelli ne mostra due. Tracciato su `#1013`.
+    status: IDLE
     issue: 78
     # ═══ CONSOLIDAMENTO del 2026-08-16, misurato su `origin/main` @ `9f2be669` dopo `git fetch --prune`.
     # Il registro dei quattro significati precedenti di `branch:` resta sotto, come provenienza; questo
@@ -3150,8 +3161,14 @@ tracks:
     # sessione viva da scavalcare, quindi la presa è legittima — ma lo è per questa ragione, non per quella
     # che c'era scritta. ⚠️ Chi riaprisse `#451` trova il proprio `mandate_worktree` occupato: si negozia
     # allora, e questa riga serve perché la scoperta non arrivi a lavoro cominciato.
-    branch: fix/78-grammatica-leggibile
-    worktree: "D:/rt-client"
+    # 🔻 **Chiusa il 2026-08-20 col merge della PR #1209** (`292a3f98`): `fix/78-grammatica-leggibile` è
+    # mergiato e cancellato lato server, e i due campi tornano `null` con lo stesso significato di sempre —
+    # il branch dichiarato non esiste più.
+    # ⬅️ **`D:/rt-client` torna libero**, e stavolta c'è un candidato che lo aspetta: `content_editor` lo
+    # dichiara in `mandate_worktree` (misurato, non ricordato). È `IDLE` con `branch: null`, quindi non
+    # c'era nessuno da scavalcare quando l'ho preso — ma chi riapre `#451` lo trova disponibile.
+    branch: null           # mergiato con PR #1209 (2026-08-20T08:20:41Z), assente da `git ls-remote`
+    worktree: null         # `D:/rt-client` libero: nessuna track ACTIVE lo dichiara
     # ═══ `blocked_by: 904` e `blocked_paths` RIMOSSI il 2026-08-16: **#904 è `MERGED`** (`95d2d39f`,
     # `12:05:41Z`). Lo schema di questi campi lo prescrive alla lettera — *«si cancella al **merge**, non
     # alla lettura: una `blocked_by` su una PR già `MERGED` è una contraddizione decidibile»* — e sono
@@ -3398,9 +3415,13 @@ tracks:
     # implementato, «previsto» resta tratteggiata come la tabella prescrive e la distinzione da «incerto» la
     # porta la punteggiatura. Il prestito serve quindi a **registrare la matrice**, non a rinegoziare la
     # grammatica: `D-177`, riservato con `rt_shared_id.py reserve D` e non scelto a mano.
-    writable_on_loan:
-      - docs/decisions/RT_PDR_00_Decision_Log.md
-      - docs/technical/systems/progettazione-hud.md
+    # ↩️ **PRESTITO RESTITUITO il 2026-08-20 col merge della PR #1209** (`292a3f98`, verificato lato server).
+    # I due path erano stati presi da `integration_only` per registrare `D-177` e portare la matrice in §16 —
+    # una decisione che bloccava il merge, che è il caso per cui il campo esiste. Il lavoro è in `main`,
+    # quindi tornano dove stavano: la restituzione era l'obbligo dichiarato all'apertura, e questa riga la
+    # esegue invece di lasciarla scadere alla riscrittura del batch.
+    # ⚠️ Erano `docs/decisions/RT_PDR_00_Decision_Log.md` e `docs/technical/systems/progettazione-hud.md`.
+    writable_on_loan: []
     binary_leases: []
 
   content_editor:
