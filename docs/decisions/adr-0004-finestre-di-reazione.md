@@ -144,6 +144,36 @@ ha una definizione e l'Overwatch sparerebbe a unità che la squadra non percepis
 > un canale diverso dichiara anche la propria soglia. Ciò che resta vietato a tutti è sparare a una posizione
 > **dedotta** senza alcun contatto (`Resonance Shot`, north-star).
 
+> **Precisazione 2026-08-17 — [D-169](RT_PDR_00_Decision_Log.md): cosa rende falso `ReactionStillArmed`.**
+> Il quarto termine della condizione era l'unico senza un elenco, e CP 14.6 ne chiedeva uno che nominava
+> quattro eventi — due dei quali non esistono nel gioco.
+>
+> | Evento | `ReactionStillArmed` | Perché |
+> |---|---|---|
+> | **KO del proprietario** | ❌ falso | già vero nel codice dal CP 14.5: il watcher caduto viene saltato, «in silenzio, come per la predittiva» |
+> | **Charge già spesa** | ❌ falso | `Charges = 1` (§8): `bCharged` **è** questo termine |
+> | **Cap dei prompt raggiunto** | ❌ falso | §8, `MaxPromptsPerReaction`: una reaction che ha esaurito le proprie domande non entra fra quelle valutate |
+> | **Movimento forzato del proprietario** | ✅ **resta vero** | il watcher **rilocalizza**: si ricostruisce a ogni micro-step dalla cella corrente, col facing **dichiarato** all'armamento. Guarda dal punto nuovo, nella stessa direzione |
+>
+> ⚠️ **La riga del movimento forzato è la sola che decide qualcosa di nuovo**, e conferma il comportamento
+> esistente invece di cambiarlo. Il motivo è scritto accanto al codice che lo produce: *«un watcher costruito
+> una volta nel Prep avrebbe la LOS di tre celle fa»*. Farlo decadere avrebbe dovuto argomentare contro
+> [ADR-0005](adr-0005-orientamento.md) §4c — il facing si dichiara e non cambia dopo l'impegno — e nessuno
+> lo ha fatto.
+>
+> ⚠️ **La rilocalizzazione non è sempre innocua, e va detto qui invece che scoperto al playtest.** La zona
+> si traccia con `LineCells`, che si ferma quando la cella successiva è fuori mappa o blocca la vista. Un
+> watcher spinto **contro un muro o sul bordo** conserva `ReactionStillArmed` ma ottiene `Zone.Cells` **vuota**,
+> e `BuildOverwatchTriggers` lo salta (`if (!Watcher.bArmed || Watcher.Zone.Cells.Num() == 0) continue;`): la
+> reaction resta armata e non controlla niente, per quel micro-step. Non è una deroga alla riga sopra — è la
+> stessa regola vista da una posizione senza linea — ma è il caso in cui «guarda dal punto nuovo» non produce
+> nulla da guardare. Trovato in code review, **non coperto da test**: sta a CP 14.6 decidere se una zona vuota
+> per spinta meriti una voce nel TurnLog, perché oggi è indistinguibile da un turno senza bersagli.
+>
+> ⛔ **`Stun` e `Disarm` non compaiono in questa tabella perché non esistono**: il catalogo degli stati è
+> `Braced · Burning · Electrified · Exposed · Guarded · Marked · Obscured · Reveal · Root · Slow · Wet`.
+> Rientreranno insieme allo stato che li porta, e questa tabella guadagnerà due righe — non prima.
+
 ### 7. Visibilità della finestra *(risolve §8.1)*
 
 - **Decide** solo il proprietario della reaction.
@@ -287,7 +317,7 @@ contiene **solo il presente** — mai trigger futuri, percorsi futuri, opportuni
 | `Overwatch.RequiresDetection` | contatto `Incerto` (fumo oltre 2, o solo rumore) **non** arma il trigger |
 | `Overwatch.OpportunityLeaksNoFuture` | la opportunity non contiene trigger, percorsi o posizioni future |
 | `Overwatch.HoldKeepsArmed` | `HOLD` perde l'opportunità, non la reaction |
-| `Overwatch.CancelledByStun` · `…ByForcedMovement` | l'overwatch armato non è garantito fino a fine turno |
+| ~~`Overwatch.CancelledByStun` · `…ByForcedMovement`~~ → `Reactions.ArmedZoneFollowsCurrentCell` | 🔴 **Riga corretta il 2026-08-17 ([D-169](RT_PDR_00_Decision_Log.md)), ed era falsa due volte.** *(a)* Diceva «l'overwatch armato non è garantito fino a fine turno» per il **movimento forzato**, cioè l'opposto di ciò che §6 stabilisce: il watcher spinto **rilocalizza**. *(b)* Citava due test che **non sono mai esistiti** — `grep -rn "CancelledByStun\|ByForcedMovement" Source/` dà zero — e nessun gate lo vede, perché `check-docs-symbols.py` non risolve i nomi delle automation test. Il pin vero verifica che la zona sia funzione di *(cella, facing)*; `Stun` e `Disarm` escono con lo stato che non esiste |
 
 Checkpoint in [`roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) epic **E14** (CP 14.1–14.5); questo ADR **è** il CP 14.1.
 

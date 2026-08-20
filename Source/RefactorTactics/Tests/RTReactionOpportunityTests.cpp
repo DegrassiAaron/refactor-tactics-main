@@ -1,6 +1,11 @@
-// L'identita' di una `ReactionOpportunity` (CP 14.3).
+// Proprieta' pure di una `ReactionOpportunity`: identita' (CP 14.3) e geometria della zona armata (CP 14.6).
 //
-// Il punto di questo file e' UNO: l'id di una opportunity si DERIVA dai sei campi che la individuano, e non
+// 🔴 L'intestazione diceva «Il punto di questo file e' UNO», e ha smesso di essere vera quando CP 14.6 ci ha
+// aggiunto un test di geometria — messo qui perche' la sua casa naturale, `RTOverwatchTriggerTests.cpp`,
+// appartiene a un'altra track (`D-139`). Corretta invece di lasciata: chi cerca la geometria dell'Overwatch
+// non guarderebbe in un file che si dichiara sugli id.
+//
+// Il primo punto resta: l'id di una opportunity si DERIVA dai sei campi che la individuano, e non
 // si genera. Un GUID runtime sarebbe piu' comodo e romperebbe il replay in silenzio — due esecuzioni dello
 // stesso scenario darebbero id diversi, quindi hash diversi, e la divergenza si presenterebbe come un difetto
 // del resolver invece che come cio' che e': un identificatore che non e' una funzione del suo stato.
@@ -11,6 +16,10 @@
 #include "Unit/RTUnit.h"
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTReactionOpportunityTypes.h"
+#include "Combat/RTOffensiveActionLibrary.h"  // MakeSuppressiveZone: la stessa geometria del resolver
+#include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h"                 // Neighbor: il facing dichiarato diventa una cella
+#include "Map/RTHexMapAsset.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -27,6 +36,59 @@ namespace
 		Key.ReactionDefId = TEXT("Action.Counter");
 		Key.Seq = 0;
 		return Key;
+	}
+
+	/**
+	 * Nomi distinti per file: la unity build condivide la translation unit.
+	 *
+	 * ⚠️ **Duplicato di `MakeOverwatchMap` in `RTOverwatchTriggerTests.cpp`**, e non per scelta: quel file e'
+	 * di un'altra track. Debito dichiarato — la soluzione giusta e' un header di fixture condiviso, non una
+	 * terza copia, e va fatta quando i due file tornano alla stessa persona.
+	 */
+	URTHexMapAsset* MakeZoneFollowMap()
+	{
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), /*Radius*/ 6))
+		{
+			M->AddOrUpdateCell(FRTHexCellData(Id));
+		}
+		M->SortCells();
+		return M;
+	}
+
+	/**
+	 * Un watcher costruito **esattamente come lo costruisce il resolver**: zona da `MakeSuppressiveZone`,
+	 * origine nella cella passata, direzione ricavata dal facing DICHIARATO con `Neighbor`.
+	 *
+	 * Ricopiare la geometria a mano renderebbe il test verde su una zona che il gioco non produce piu'.
+	 *
+	 * ⚠️ I tre identificatori sono **distinti**, e non e' pedanteria: nel resolver `Zone.OwnerUnitId` e'
+	 * l'indice in `Units`, `StableUnitId` e' l'id stabile dell'unita', e `ReactionInstanceId` e' l'indice in
+	 * `ArmedOverwatches` — tre cose diverse. Passarli uguali renderebbe la fixture cieca proprio alla classe di
+	 * difetto che `RTTurnManager.cpp` documenta accanto al ciclo: due Overwatch della stessa unita' che
+	 * ricadono sullo stesso indice.
+	 */
+	FRTOverwatchWatcher MakeZoneFollowWatcher(const URTHexMapAsset* Map, const FRTCellId& From,
+		ERTHexDirection Facing, int32 OwnerIdx, int32 StableId, int32 InstanceId)
+	{
+		FRTOverwatchWatcher W;
+		W.Zone = URTOffensiveActionLibrary::MakeSuppressiveZone(Map, OwnerIdx, /*OwnerTeamId*/ 0, From,
+			URTHexLibrary::Neighbor(From, Facing), /*RangeCells*/ 4, /*Damage*/ 1);
+		W.OwnerCell = From;
+		W.ReactionDefId = TEXT("Action.Overwatch");
+		W.StableUnitId = StableId;
+		W.ReactionInstanceId = InstanceId;
+		W.TeamAwareness.Add(9, ERTAwareness::Detected);
+		return W;
+	}
+
+	FRTSuppressionMover MakeZoneFollowMover(int32 UnitId, const TArray<FRTCellId>& Path)
+	{
+		FRTSuppressionMover M;
+		M.UnitId = UnitId;
+		M.TeamId = 1;
+		M.Path = Path;
+		return M;
 	}
 }
 
@@ -307,6 +369,101 @@ bool FRTReactionConditionPlanTest::RunTest(const FString&)
 		GEngine->DestroyWorldContext(World);
 	}
 	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return true;
+}
+
+/**
+ * CP 14.6 (**D-169**) — **la zona di un Overwatch armato e' funzione di *(cella corrente, facing dichiarato)*.**
+ * Un watcher spinto **rilocalizza**: la linea controllata si sposta con lui e resta puntata dove aveva
+ * dichiarato.
+ *
+ * ## Perche' esiste
+ *
+ * Il DoD di `#166` chiedeva che il movimento forzato **invalidasse** l'overwatch armato. Il codice fa il
+ * contrario e lo motiva: `ResolveReactionBoundary` ricostruisce il watcher a **ogni micro-step** dalla cella
+ * in `State.Pos`, *«un watcher costruito una volta nel Prep avrebbe la LOS di tre celle fa»*. `D-169`
+ * conferma quel comportamento come regola — e una regola senza test e' prosa.
+ *
+ * ## Le due variabili, separate
+ *
+ * Le asserzioni variano **una cosa per volta**: prima la cella a facing fisso, poi il facing a cella fissa.
+ * 🔴 La prima stesura di questo test variava solo la cella, e la code review ha osservato che
+ * un'implementazione che ignorasse `Armed.Facing` mirando sempre a est le sarebbe passata sotto — mentre
+ * `D-169` cita questo test come cio' che pinna *anche* il facing.
+ *
+ * ## ⚠️ Cosa NON copre
+ *
+ * È la meta' **pura**: data la coppia, la zona ne e' funzione. Che sia `ResolveReactionBoundary` a passare
+ * `State.Pos[OwnerIdx]` e `Armed.Facing` vive in `RTTurnManager` e nel file di test che lo esercita, **di
+ * altre track**. Finche' manca, questo pin non prova che il resolver usi la cella corrente — prova che, se la
+ * usa, la zona la segue.
+ *
+ * 🔴 **E non pinna «la reaction resta armata»**, che pure e' parte di `D-169`: `bArmed` lo scrive il
+ * chiamante e `BuildOverwatchTriggers` riceve i watcher per `const&`, quindi qualunque asserzione su quel
+ * campo rileggerebbe cio' che il test stesso ha appena scritto. La prima stesura ne conteneva una, ed era
+ * tautologica — esattamente il difetto che il commit dichiarava di evitare. Rimossa: quella meta' si verifica
+ * solo dove `bArmed` viene deciso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArmedZoneFollowsCurrentCellTest,
+	"RefactorTactics.Reactions.ArmedZoneFollowsCurrentCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArmedZoneFollowsCurrentCellTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeZoneFollowMap();
+	if (!TestNotNull(TEXT("mappa di prova"), Map)) { return false; }
+
+	const FRTCellId Origin(0, 0, 0);
+	const FRTCellId Pushed(0, 2, 0);   // due celle piu' in la', come dopo una spinta
+
+	// I tre corridoi: est da (0,0), est da (0,2), e nord-est da (0,0). Tre celle ciascuno, tutte dentro il
+	// raggio 6 della mappa — la piu' lontana e' (3,-3), a distanza 3.
+	const TArray<FRTCellId> EastFromOrigin = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
+	const TArray<FRTCellId> EastFromPushed = { FRTCellId(1, 2, 0), FRTCellId(2, 2, 0), FRTCellId(3, 2, 0) };
+	const TArray<FRTCellId> NorthEastFromOrigin = { FRTCellId(1, -1, 0), FRTCellId(2, -2, 0), FRTCellId(3, -3, 0) };
+
+	auto TriggerCount = [Map](const FRTOverwatchWatcher& W, const TArray<FRTCellId>& Path)
+	{
+		return URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+			Map, /*TurnNumber*/ 4, { W }, { MakeZoneFollowMover(9, Path) }).Num();
+	};
+
+	// --- 1. LA CELLA cambia, il facing no --------------------------------------------------------------
+	const FRTOverwatchWatcher AtOrigin =
+		MakeZoneFollowWatcher(Map, Origin, ERTHexDirection::E, /*OwnerIdx*/ 0, /*StableId*/ 41, /*InstanceId*/ 0);
+	const FRTOverwatchWatcher AtPushed =
+		MakeZoneFollowWatcher(Map, Pushed, ERTHexDirection::E, /*OwnerIdx*/ 1, /*StableId*/ 41, /*InstanceId*/ 0);
+
+	// Il conteggio e' **esatto**: tre celle controllate percorse in tre micro-step danno tre opportunity, come
+	// pinna `Overwatch.TriggersPerMicroStep` sullo stesso percorso. Un `> 0` lascerebbe verde una regressione
+	// che si ferma alla prima — ed e' proprio il difetto che quel test fratello esiste per prendere.
+	TestEqual(TEXT("premessa: dalla cella iniziale la zona copre il proprio corridoio, per intero"),
+		TriggerCount(AtOrigin, EastFromOrigin), 3);
+
+	TestEqual(TEXT("spinto, copre per intero il corridoio davanti alla NUOVA cella"),
+		TriggerCount(AtPushed, EastFromPushed), 3);
+
+	// L'asserzione che distingue «la zona segue» da «la zona si aggiunge».
+	TestEqual(TEXT("e non copre piu' quello davanti alla cella di partenza"),
+		TriggerCount(AtPushed, EastFromOrigin), 0);
+
+	TestEqual(TEXT("simmetrica: il watcher fermo non copre il corridoio dell'altro"),
+		TriggerCount(AtOrigin, EastFromPushed), 0);
+
+	// --- 2. IL FACING cambia, la cella no --------------------------------------------------------------
+	const FRTOverwatchWatcher AtOriginFacingNE =
+		MakeZoneFollowWatcher(Map, Origin, ERTHexDirection::NE, /*OwnerIdx*/ 0, /*StableId*/ 41, /*InstanceId*/ 1);
+
+	TestEqual(TEXT("stessa cella, facing NE: copre il corridoio nord-est per intero"),
+		TriggerCount(AtOriginFacingNE, NorthEastFromOrigin), 3);
+
+	// Senza questa, un'implementazione che ignorasse il facing e mirasse sempre a est passerebbe tutto il
+	// resto del test: e' la meta' della regola che `D-169` chiama «col facing DICHIARATO all'armamento».
+	TestEqual(TEXT("e NON copre piu' quello a est, che pure parte dalla stessa cella"),
+		TriggerCount(AtOriginFacingNE, EastFromOrigin), 0);
+
+	TestEqual(TEXT("simmetrica: il watcher a est non copre il corridoio nord-est"),
+		TriggerCount(AtOrigin, NorthEastFromOrigin), 0);
+
 	return true;
 }
 

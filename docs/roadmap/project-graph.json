@@ -2890,7 +2890,8 @@
         "state_note": "nessuna fonte offline: il checkpoint non dichiara il glifo",
         "feature_ids": [
           "RT-FEAT-REACTION-FAST",
-          "RT-FEAT-REACTION-FAST-ACTION"
+          "RT-FEAT-REACTION-FAST-ACTION",
+          "RT-FEAT-REACTION-OPPORTUNITY"
         ],
         "provides": [],
         "incoming": [
