@@ -760,6 +760,44 @@ Tre stati principali:
 - `?`;
 - area di incertezza.
 
+## Su quali elementi la certezza può variare — la matrice ([D-177](../../decisions/RT_PDR_00_Decision_Log.md))
+
+⚠️ **Le tre liste qui sopra assegnano uno stile a ciascun livello e presuppongono che ogni livello abbia
+gli elementi su cui applicarlo. Non è vero**, ed è costato tre riscritture della resa prima che qualcuno lo
+misurasse. Questa tabella è parte della grammatica quanto le liste: chi implementa la legge **prima**.
+
+| elemento | condizione di disegno in `ARTHUD` | livelli su cui può comparire |
+|---|---|---|
+| **etichetta** | c'è un piano | **Confirmed · Predicted · Uncertain** |
+| **linea al bersaglio** | `if (View.bHasTarget)` | **Predicted · Uncertain** |
+| rotta | `if (View.bMoving)` | solo Uncertain |
+| destinazione | `if (View.bMoving)` | solo Uncertain |
+| waypoint | vedi nota *(b)* | quasi sempre Uncertain |
+| preview scatto | `if (View.bDashing)` | solo Uncertain |
+
+Da cui tre conseguenze operative:
+
+1. **`Confirmed` non disegna nessuna linea** — non entra in nessuno dei tre `if` — quindi ogni stile di
+   linea assegnato a quel livello è *inosservabile*. Lo distingue il **contenuto dell'etichetta**, che è
+   l'unico elemento presente a tutti e tre i livelli: non nomina un bersaglio e non porta il `?`.
+2. **L'unico confronto grafico reale è `Predicted` contro `Uncertain`**, sulla linea al bersaglio. È anche
+   l'**87 %** dei casi (`Predicted` 51,1 % + `Uncertain` 36,1 %, misurati su 133 intenti in 76 scenari), e
+   va portato dalla distinzione **tratteggiata ⟶ puntinata** che le liste già prevedono.
+3. **Gli elementi mono-livello non si graduano.** Attenuare la rotta o la destinazione non distingue nulla —
+   sono sempre incerte — e costa solo leggibilità.
+
+⚠️ **Due casi limite, misurati sul codice e non dedotti**, che invalidano la lettura ingenua di due righe:
+
+- *(a)* **`Confirmed` non significa «senza bersaglio».** Un'abilità ad area pianificata su una **cella**
+  imposta `PlannedAttackCell` e lascia `PlannedAttackTarget` nullo, mentre `ARTHUD` calcola `bHasTarget`
+  solo dal target-unità: quel piano è classificato `Confirmed` pur avendo un bersaglio. Oggi si rende come
+  un `Guard`, e il DTO non porta la cella bersagliata.
+- *(b)* **I waypoint stanno fuori da `if (bMoving)`**, e il piano può conservarli con la destinazione
+  riportata sulla cella di partenza: possono quindi comparire su un intento *non* incerto.
+
+Nessuno dei due è chiuso: sono dichiarati qui perché la prossima resa li incontri prima di scrivere, invece
+di scoprirli in review.
+
 ## 16.1 Separare i significati
 
 Non usare il solo colore per codificare contemporaneamente:

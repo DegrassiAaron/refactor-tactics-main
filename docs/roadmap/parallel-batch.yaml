@@ -3034,7 +3034,22 @@ tracks:
     # stesso registra come *«il primo in cui il confine morde su una registrazione invece che su
     # un'implementazione»*. `IDLE` con `issue` valorizzata dice esattamente questo — la issue è viva, la
     # seduta no — ed è la stessa forma di `unit_presentation` con `#593`.
-    status: IDLE
+    #
+    # 🔺 **RIAPERTA il 2026-08-19: la verifica PIE ha BOCCIATO la resa, e il difetto è in questo write-set.**
+    # `PIE-V01-INTENT` è stata eseguita con una persona alla tastiera e il verdetto è *«si somigliano
+    # troppo»*: gli intenti si vedono, ma «previsto» e «incerto» non si distinguono a colpo d'occhio.
+    # Referto completo su `#1013`, dove vive il registro — questa track non ce lo scrive.
+    # ⚠️ **Non è una regressione né una scoperta esterna: è la stessa decisione sbagliata due volte.** Quando
+    # la code review ha dimostrato che l'alpha è inerte sulle linee (`AddLine` forza `OpaqueColor.A = 1`), la
+    # gradazione è stata spostata su spessore e densità del tratteggio — due canali deboli — mentre quella
+    # riga dell'engine tocca **solo l'alpha** e lascia intatto l'**RGB**. Il canale forte era lì.
+    # ✅ **La seduta ha anche detto cosa FUNZIONA**, ed è la metà che vale di più: *«le linee tratteggiate si
+    # vedevano»*. Il tratteggio come canale regge; il difetto era averlo esteso a **entrambi** i livelli che
+    # portano una linea, così che non separasse più niente.
+    # ⛔ **Due esiti della verifica NON sono lavoro di questa track e restano a chi li possiede**: che il
+    # giocatore non possa armare una reazione (la quinta abilità non ha un tasto — tocca l'input), e che il
+    # criterio della voce chieda tre livelli quando in partita due sono raggiungibili (tocca il registro PIE).
+    status: ACTIVE
     issue: 78
     # ═══ CONSOLIDAMENTO del 2026-08-16, misurato su `origin/main` @ `9f2be669` dopo `git fetch --prune`.
     # Il registro dei quattro significati precedenti di `branch:` resta sotto, come provenienza; questo
@@ -3122,8 +3137,21 @@ tracks:
     # aprire questa sessione, e chi riapre R6 (`#472`) o rientra su `#78` per la verifica PIE lo ridichiara
     # allora. Una directory di lavoro non si tiene prenotata fra due sessioni — è la stessa ragione per cui
     # è stata ceduta, applicata nel verso opposto.
-    branch: null           # mergiato con PR #1172 (2026-08-18T08:25:42Z), assente da `git ls-remote`
-    worktree: null         # `D:/rt-client` esiste ma nessuna track lo rivendica: è libero
+    # 🔺 **Riempiti di nuovo il 2026-08-19 con la riapertura.** `fix/78-grammatica-leggibile` è aperto su
+    # `origin/main` @ `215559f5`, e il worktree è ancora `D:/rt-client`.
+    # 🔴 **La prima stesura di questa riga portava una misura FALSA, ed è stata trovata dalla code review.**
+    # Diceva *«`worktree` era `null` su tutte le track, e nessuna lo dichiarava»*: falso su entrambe le
+    # clausole. Interrogato col parser, **22** track hanno `worktree` non-null, e `content_editor` nomina
+    # proprio questo path in **`mandate_worktree: "D:/rt-client"`** (riga del suo blocco). Avevo misurato la
+    # riga di *questa* track e scritto una conclusione su *tutto il file* — l'errore di soggetto che questo
+    # repository ha già pagato altrove.
+    # ✅ **Cosa regge della decisione, rimisurato**: `content_editor` è `IDLE` con `branch: null` e il suo
+    # `worktree` operativo è `D:/rt-content`; nessuna track `ACTIVE` dichiara `D:/rt-client`. Non c'era una
+    # sessione viva da scavalcare, quindi la presa è legittima — ma lo è per questa ragione, non per quella
+    # che c'era scritta. ⚠️ Chi riaprisse `#451` trova il proprio `mandate_worktree` occupato: si negozia
+    # allora, e questa riga serve perché la scoperta non arrivi a lavoro cominciato.
+    branch: fix/78-grammatica-leggibile
+    worktree: "D:/rt-client"
     # ═══ `blocked_by: 904` e `blocked_paths` RIMOSSI il 2026-08-16: **#904 è `MERGED`** (`95d2d39f`,
     # `12:05:41Z`). Lo schema di questi campi lo prescrive alla lettera — *«si cancella al **merge**, non
     # alla lettura: una `blocked_by` su una PR già `MERGED` è una contraddizione decidibile»* — e sono
@@ -3358,6 +3386,21 @@ tracks:
       - source: Source/RefactorTactics/Tests/RTIntentPrivacyTests.cpp
         only_if: "rinomini o cancelli un test citato in `tests:` dal registry (misurato: 2 su 4)"
         regenerates: [docs/roadmap/project-graph.json]
+    # ➕ **PRESTITO aperto il 2026-08-19, per la ragione per cui il campo esiste: una decisione che blocca.**
+    # La code review ha misurato che questo lavoro stava **invertendo una regola normativa in silenzio** —
+    # `progettazione-hud.md` §16 assegna a «previsto» la linea *tratteggiata*, e il codice le dava la *piena* —
+    # senza aprire nessun `D-nnn`, che `CLAUDE.md` §3 elenca fra le dodici categorie del Tracking Impact Pass.
+    # Una regola violata dal codice che la implementa non aspetta la chiusura del batch: e' il precedente di
+    # `spatial` su `#726` con `docs/OPEN_DECISIONS.md`, e la forma e' la stessa.
+    # ⚠️ **Obbligo di restituzione alla chiusura**: i due path tornano in `integration_only`, dove sono oggi.
+    # ✅ **E l'inversione non serve piu'**: rileggendo §16 per intero, la spec prevede **tre** stili di linea
+    # distinti — solida · tratteggiata · **puntinata/fading** — e il terzo non era mai stato reso. Con quello
+    # implementato, «previsto» resta tratteggiata come la tabella prescrive e la distinzione da «incerto» la
+    # porta la punteggiatura. Il prestito serve quindi a **registrare la matrice**, non a rinegoziare la
+    # grammatica: `D-177`, riservato con `rt_shared_id.py reserve D` e non scelto a mano.
+    writable_on_loan:
+      - docs/decisions/RT_PDR_00_Decision_Log.md
+      - docs/technical/systems/progettazione-hud.md
     binary_leases: []
 
   content_editor:

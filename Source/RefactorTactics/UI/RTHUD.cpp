@@ -158,18 +158,36 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 	case ERTIntentCertainty::Confirmed:
 		// «Linea piena · ghost pienamente leggibile · nessun `?`». Niente da alleggerire: l'unita' sta ferma
 		// e non punta niente, quindi non c'e' un avversario che possa smentirla entro questo turno.
+		// ⚠️ **Questi valori non raggiungono nessun `DrawLine`, ed e' un fatto della matrice, non un difetto.**
+		// `Confirmed` e' fermo, senza bersaglio e senza scatto: non entra in `if (bMoving)` ne' in
+		// `if (bHasTarget)` ne' in `if (bDashing)`, quindi non ha geometria da disegnare. Restano valori
+		// **sicuri** per il caso in cui un giorno un elemento nuovo comparisse a questo livello — non una
+		// promessa che oggi si veda qualcosa. Cio' che distingue `Confirmed` a schermo e' il CONTENUTO
+		// dell'etichetta: non nomina nessun bersaglio, e non porta il `?`.
 		Style.LineThickness = 2.5f;
 		Style.bDashedLine = false;
 		Style.DashDutyCycle = 1.f;
+		Style.DashPeriodPx = 18.f;   // irrilevante con la linea piena: tenuto coerente con `Predicted`
 		Style.bUncertaintyMark = false;
 		break;
 
 	case ERTIntentCertainty::Predicted:
 		// «Linea tratteggiata · ghost attenuato». Il collegamento al bersaglio vale nello snapshot corrente:
 		// il tratteggio dice «adesso e' valido», non «andra' cosi'».
+		// 🔺 **Linea PIENA, ed e' il cambiamento che questa revisione porta.** Prima era tratteggiata come
+		// `Uncertain`, e i due livelli restavano separati da un pixel di spessore: la verifica PIE li ha
+		// bocciati. Il collegamento al bersaglio e' l'**unico** elemento su cui questi due livelli
+		// coesistono, e ora e' pieno per uno e tratteggiato per l'altro — il canale che un occhio umano ha
+		// confermato di vedere, speso sull'87 % dei casi reali.
+		// «Linea tratteggiata», §16 alla lettera. 🔺 **Torna TRATTEGGIATA il 2026-08-19, e la stesura
+		// precedente la dava PIENA — cioe' invertiva una regola normativa in silenzio**, trovato dalla code
+		// review. L'inversione era nata per separarla da `Uncertain`, che allora era tratteggiata anche lei;
+		// non serve piu', perche' `Uncertain` ha ora lo stile **puntinato** che §16 le assegna e che nessuna
+		// stesura aveva mai reso. Trattini lunghi: periodo `18` px con `0,6` acceso.
 		Style.LineThickness = 2.f;
 		Style.bDashedLine = true;
-		Style.DashDutyCycle = 0.5f;
+		Style.DashDutyCycle = 0.6f;
+		Style.DashPeriodPx = 18.f;
 		Style.bUncertaintyMark = false;
 		break;
 
@@ -184,9 +202,20 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 		// default sono anch'essi i valori del livello incerto, per la ragione scritta sulla dichiarazione.
 		// La ridondanza e' voluta perche' questo ramo dica cosa disegna anche a chi non risale all'header —
 		// e se un giorno divergessero, e' `IntentCertaintyRendering` a cadere, non lo schermo in silenzio.
+		// Tratteggiata: ogni linea di questo livello dipende da una scelta che l'avversario puo' ancora fare.
+		// ⚠️ Vale sia per il collegamento al bersaglio — dove **decide**, contro la linea piena di
+		// `Predicted` — sia per la rotta, dove non distingue niente perche' le rotte sono tutte incerte. La
+		// seconda non e' una gradazione mascherata: e' un'affermazione vera su una classe intera, e non
+		// toglie leggibilita' a un confronto che non esiste.
+		// «Linea puntinata/fading», §16 — **il terzo stile, reso qui per la prima volta**. Punti fitti:
+		// periodo `7` px con `0,35` acceso, contro i trattini da `18`/`0,6` di `Predicted`. E' la
+		// distinzione che la grammatica prevedeva dall'inizio e che nessuna stesura aveva implementato,
+		// costringendole a cercare un secondo canale — prima l'opacita' (inerte), poi lo spessore
+		// (bocciato in PIE), poi il colore (gia' occupato dall'identita' di squadra).
 		Style.LineThickness = 1.25f;
 		Style.bDashedLine = true;
-		Style.DashDutyCycle = 0.3f;
+		Style.DashDutyCycle = 0.35f;
+		Style.DashPeriodPx = 7.f;
 		Style.bUncertaintyMark = true;
 		break;
 	}
@@ -200,7 +229,7 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 }
 
 TArray<TPair<FVector2D, FVector2D>> ARTHUD::ComposeDashSegments(const FVector2D& A, const FVector2D& B,
-	float DutyCycle)
+	float DutyCycle, float PeriodPx)
 {
 	// Linea piena: un segmento solo, e nessun costo aggiunto rispetto a prima di CP 11.2.
 	if (DutyCycle >= 1.f)
@@ -210,10 +239,10 @@ TArray<TPair<FVector2D, FVector2D>> ARTHUD::ComposeDashSegments(const FVector2D&
 
 	const float Len = FVector2D::Distance(A, B);
 
-	// Periodo del tratteggio **in pixel di schermo**, non nel mondo: un tratteggio calcolato in world space si
-	// infittirebbe con la distanza fino a tornare pieno, cioe' «previsto» si leggerebbe come «confermato»
-	// sulle unita' lontane.
-	const float PeriodPx = 14.f;
+	// Il periodo arriva dallo stile ed e' in pixel di **schermo**: un segno calcolato in world space si
+	// infittirebbe con la distanza fino a tornare pieno, e i due stili — trattini e punti — convergerebbero
+	// proprio sulle unita' lontane, dove servono di piu'.
+	const float Period = FMath::Max(2.f, PeriodPx);
 
 	// 🔴 **Il tetto e' la ragione per cui questa funzione esiste.** `UCanvas::Project` divide per una `W` solo
 	// *clampata* a `UE_KINDA_SMALL_NUMBER`: una cella pochi centimetri davanti al piano della camera passa il
@@ -222,7 +251,7 @@ TArray<TPair<FVector2D, FVector2D>> ARTHUD::ComposeDashSegments(const FVector2D&
 	// migliaio di pixel di diagonale, quindi oltre questo numero di tratti non c'e' piu' niente da vedere —
 	// il tetto toglie lavoro invisibile, non dettaglio.
 	const int32 MaxSteps = 512;
-	const int32 Steps = FMath::Clamp(FMath::RoundToInt(Len / PeriodPx), 1, MaxSteps);
+	const int32 Steps = FMath::Clamp(FMath::RoundToInt(Len / Period), 1, MaxSteps);
 
 	TArray<TPair<FVector2D, FVector2D>> Segments;
 	Segments.Reserve(Steps);
@@ -560,8 +589,13 @@ void ARTHUD::DrawHUD()
 		auto DrawIntentLine = [this](const FVector2D& A, const FVector2D& B, const FLinearColor& C,
 			const FRTIntentCertaintyStyle& S)
 		{
+			// ⚠️ **Il colore arriva INTATTO, ed e' una scelta.** In questa HUD il colore e' gia' l'identita'
+			// di squadra — ciano contro giallo — e una stesura precedente lo sbiadiva secondo la certezza,
+			// togliendo croma a ogni unita' in movimento per un confronto che su quell'elemento non esiste.
+			// Due semantiche sullo stesso canale, e la seconda pagata dalla prima. Qui la certezza parla col
+			// tratteggio, che e' libero.
 			const float Duty = S.bDashedLine ? S.DashDutyCycle : 1.f;
-			for (const TPair<FVector2D, FVector2D>& Seg : ComposeDashSegments(A, B, Duty))
+			for (const TPair<FVector2D, FVector2D>& Seg : ComposeDashSegments(A, B, Duty, S.DashPeriodPx))
 			{
 				DrawLine(Seg.Key.X, Seg.Key.Y, Seg.Value.X, Seg.Value.Y, C, S.LineThickness);
 			}
@@ -690,12 +724,17 @@ void ARTHUD::DrawHUD()
 
 			// Linea verso il bersaglio d'attacco pianificato (dalla CELLA del bersaglio, non dal suo Actor).
 			//
-			// ⚠️ **E' l'UNICO elemento grafico su cui il livello varia davvero, e quindi l'unico che la
-			// gradazione informa.** Un bersaglio senza movimento e' `Predicted`, un bersaglio mentre ci si
-			// sposta e' `Uncertain`: qui il tratto passa da 2,0 a 1,25 e il tratteggio da mezzo a un terzo
-			// acceso, e la differenza si vede. La rotta e la destinazione, invece, esistono solo quando
-			// l'unita' si muove — cioe' sempre allo stesso livello. `Predicted` e' anche il livello piu'
-			// frequente, misurato al 51,1%.
+			// ⚠️ **E' l'UNICO elemento grafico su cui il livello varia davvero, e quindi l'unico che una
+			// distinzione informa.** Un bersaglio senza movimento e' `Predicted`, un bersaglio mentre ci si
+			// sposta e' `Uncertain`: qui la linea passa da **piena** a **tratteggiata**, ed e' il canale che
+			// la seduta PIE del 2026-08-19 ha confermato visibile. La rotta e la destinazione, invece,
+			// esistono solo quando l'unita' si muove — cioe' sempre allo stesso livello.
+			// 🔴 **Questo commento diceva «il tratto passa da 2,0 a 1,25 e il tratteggio da mezzo a un terzo
+			// acceso, e la differenza si vede»**: e' esattamente la tesi che quella seduta ha BOCCIATO, ed e'
+			// rimasta scritta accanto al codice che descriveva mentre l'intestazione della struct, 600 righe
+			// piu' su, gia' diceva il contrario. Trovato dalla code review. Chi cercava se lo spessore possa
+			// portare un confronto trovava per primo la risposta sbagliata.
+			// I due livelli qui coprono l'**87 %** dei casi reali (`Predicted` 51,1 % + `Uncertain` 36,1 %).
 			if (View.bHasTarget && HeadScreen.Z > 0.f)
 			{
 				const FVector TgtScreen = Project(HexCellWorld(View.TargetCell, Origin, HexSize, LayerH) + FVector(0.f, 0.f, WorldHeadOffset));

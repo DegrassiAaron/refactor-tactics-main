@@ -356,29 +356,60 @@ bool FRTIntentCertaintyRenderingTest::RunTest(const FString&)
 	// `AHUD::DrawLine` finisce in `FBatchedElements::AddLine`, che forza `OpaqueColor.A = 1` — quindi
 	// asserire l'alpha significava misurare un campo che l'engine butta via, con il test verde e lo schermo
 	// invariato. Lo spessore l'engine lo rispetta.
-	TestNotEqual(TEXT("confermato e previsto non si disegnano uguali"),
-		Confirmed.LineThickness, Predicted.LineThickness);
-	TestNotEqual(TEXT("previsto e incerto non si disegnano uguali"),
-		Predicted.LineThickness, Uncertain.LineThickness);
-	TestNotEqual(TEXT("confermato e incerto non si disegnano uguali"),
-		Confirmed.LineThickness, Uncertain.LineThickness);
+	// 🔴 **Riscritti il 2026-08-19, dopo che la verifica PIE ha BOCCIATO una resa che questi assert
+	// dichiaravano corretta.** Dicevano `TestNotEqual` sullo spessore: `2,0 != 1,25` e' vero, e il test era
+	// verde mentre un occhio davanti allo schermo diceva *«si somigliano troppo»*. **«Diverso» non e'
+	// «distinguibile»**, ed e' la sola cosa che un test headless non puo' misurare da solo — ma puo'
+	// misurare che la differenza stia su un canale che ha superato una verifica umana, e con quale margine.
+	//
+	// 🔴 **E la seconda stesura sbagliava un livello piu' su, dove nessun assert arrivava.** Assegnava a ogni
+	// coppia il suo canale, ma **una delle tre coppie non e' osservabile**: `Confirmed` non disegna nessuna
+	// linea — non entra in `if (bMoving)`, ne' in `if (bHasTarget)`, ne' in `if (bDashing)` — quindi il
+	// canale «piena contro tratteggiata» assegnato a `Confirmed` vs `Predicted` non arriva mai a schermo.
+	// Restava un solo confronto grafico vero, e gli era stato dato il colore, che qui e' gia' occupato
+	// dall'identita' di squadra. Trovato dalla code review leggendo le condizioni di disegno.
+	//
+	// Il test segue quindi la MATRICE, non i livelli:
 
-	// 2. E la grammatica del 2026-08-07 nei suoi tre elementi, uno per livello.
-	TestFalse(TEXT("confermato: linea piena"), Confirmed.bDashedLine);
-	TestTrue(TEXT("previsto: linea tratteggiata"), Predicted.bDashedLine);
-	// 🔴 **Questo assert mancava, e il buco era proprio sul livello piu' frequente.** Senza, un
-	// `case Uncertain:` con `bDashedLine = false` lasciava verdi TUTTI gli assert dei due test: le coppie
-	// guardano lo spessore, il `?` guarda un altro campo, e il solo `bDashedLine == true` si raggiungeva
-	// passando da `Unknown`. Trovato dalla code review contando cosa sopravvive a una mutazione.
-	TestTrue(TEXT("incerto: linea tratteggiata"), Uncertain.bDashedLine);
+	// · `Predicted` vs `Uncertain` → **l'unico confronto grafico che esiste**, sulla linea al bersaglio, che
+	//   e' il solo elemento su cui due livelli coesistono. Lo porta il tratteggio: canale libero (nessun
+	//   altro lo usa) e confermato da un occhio umano — *«le linee tratteggiate si vedevano»*.
+	// ⚠️ **Entrambi tratteggiati, e li separa il PASSO del segno** — trattini contro punti, cioe' i due stili
+	// distinti che `progettazione-hud.md` §16 assegna ai due livelli e che nessuna stesura aveva reso: le
+	// prime due davano a tutti e due lo stesso tratteggio, poi cercavano un secondo canale per distinguerli
+	// (l'opacita', inerte; lo spessore, bocciato in PIE; il colore, gia' occupato dalla squadra).
+	// 🔴 Un `TestNotEqual` su `bDashedLine` **non direbbe niente qui**, ed e' la trappola in cui la stesura
+	// precedente e' caduta invertendo la grammatica per creare una disuguaglianza su quel flag.
+	TestTrue(TEXT("previsto: tratteggiata, come §16 prescrive"), Predicted.bDashedLine);
+	TestTrue(TEXT("incerto: tratteggiata anch'essa"), Uncertain.bDashedLine);
+	TestTrue(TEXT("previsto e incerto: li separa il PASSO del segno, trattini contro punti"),
+		Predicted.DashPeriodPx >= Uncertain.DashPeriodPx * 2.f);
 
-	// Il tratto si alleggerisce nella stessa direzione in cui il livello si indebolisce, su entrambi i canali
-	// che l'engine rende davvero: piu' sottile E piu' rado.
-	TestTrue(TEXT("previsto e' attenuato, non dissolto"),
-		Predicted.LineThickness < Confirmed.LineThickness && Predicted.LineThickness > Uncertain.LineThickness);
-	TestTrue(TEXT("confermato e' continuo"), Confirmed.DashDutyCycle >= 1.f);
-	TestTrue(TEXT("e il tratteggio si dirada col livello"),
-		Uncertain.DashDutyCycle < Predicted.DashDutyCycle && Predicted.DashDutyCycle < Confirmed.DashDutyCycle);
+	// · `Confirmed` vs gli altri due → **non ha un confronto grafico, e il test lo dice invece di fingerlo.**
+	//   Si distingue dal CONTENUTO dell'etichetta, che e' l'unico elemento presente a tutti e tre i livelli:
+	//   non nomina nessun bersaglio e non porta il `?`. Lo verifica `IntentLabelGrammar`, che dal 2026-08-19
+	//   costruisce anche una vista `Predicted` — prima non lo faceva, e la distinzione che questo commento
+	//   delegava non era coperta da nessun assert della suite. Trovato dalla code review.
+	TestFalse(TEXT("confermato: linea piena, §16 alla lettera"), Confirmed.bDashedLine);
+
+	// Lo spessore resta e accompagna, ma non porta da solo nessun confronto: e' quello che la seduta ha
+	// insegnato. Pinnato come rinforzo — spinge nella stessa direzione del canale che decide.
+	TestTrue(TEXT("il tratto dell'incerto e' piu' sottile, a rinforzo"),
+		Uncertain.LineThickness < Predicted.LineThickness);
+
+	// 🔴 **`ColorSaturation` NON esiste piu', e la sua assenza e' parte della specifica.** Il colore in questa
+	// HUD e' l'identita' di squadra; spenderlo per la certezza toglieva croma a ogni unita' in movimento per
+	// un confronto che su quell'elemento non esiste. Se qualcuno lo reintroduce, questo commento e la matrice
+	// sull'intestazione della struct sono il posto dove leggere perche' era stato tolto.
+
+	// 2. Coerenza fra i campi del segno. ⚠️ **Un congiunto per assert**, cosi' il log dice QUALE mutazione ha
+	//    colpito: la stesura precedente combinava flag e soglia in un solo `TestTrue`, e lo stesso errore
+	//    produceva due righe rosse per una causa sola. Trovato dalla code review.
+	TestFalse(TEXT("confermato: la linea non e' tratteggiata"), Confirmed.bDashedLine);
+	TestTrue(TEXT("confermato: e il duty e' pieno, o uscirebbe spezzata"), Confirmed.DashDutyCycle >= 1.f);
+	TestTrue(TEXT("previsto: il duty tiene i trattini leggibili"), Predicted.DashDutyCycle >= 0.5f);
+	TestTrue(TEXT("incerto: il duty e' piu' basso, cosi' il segno legge come punto"),
+		Uncertain.DashDutyCycle < Predicted.DashDutyCycle);
 
 	// 3. Il `?` appartiene al SOLO livello incerto. E' l'elemento piu' facile da spargere ovunque «per
 	//    prudenza», e un `?` su tutto non dice piu' niente.
@@ -400,6 +431,7 @@ bool FRTIntentCertaintyRenderingTest::RunTest(const FString&)
 		Contradictory.PlannedCell = FRTCellId(5, 0);
 		const FRTIntentCertaintyStyle S = ARTHUD::ComposeIntentCertaintyStyle(Contradictory);
 		TestEqual(TEXT("la resa segue il livello, non i flag del piano"), S.LineThickness, Confirmed.LineThickness);
+		TestEqual(TEXT("con la linea del livello, non dei flag"), S.bDashedLine, Confirmed.bDashedLine);
 		TestFalse(TEXT("e non inventa un ? che il livello non chiede"), S.bUncertaintyMark);
 	}
 
@@ -410,6 +442,7 @@ bool FRTIntentCertaintyRenderingTest::RunTest(const FString&)
 		TestNotEqual(TEXT("il livello mai calcolato non si disegna come confermato"),
 			S.LineThickness, Confirmed.LineThickness);
 		TestTrue(TEXT("e non promette una linea piena"), S.bDashedLine);
+		TestTrue(TEXT("ne' il ? di chi non sa: quello lo porta"), S.bUncertaintyMark);
 	}
 	return true;
 }
@@ -491,6 +524,34 @@ bool FRTArmedReactionLabelTest::RunTest(const FString&)
 		TestTrue(TEXT("un piano incerto lo porta"), Label(Moving).Contains(TEXT("?")));
 	}
 
+	// 🔴 **`Confirmed` contro `Predicted`: l'unico canale che li separa, e non era coperto da NESSUN assert.**
+	// I due livelli hanno la stessa struct di stile — `Confirmed` non disegna linee, quindi non c'e' niente
+	// da distinguere graficamente — e la distinzione vive tutta nel CONTENUTO dell'etichetta: uno nomina un
+	// bersaglio, l'altro no. `IntentCertaintyRendering` delegava qui la verifica, e qui non c'era: nessun
+	// caso costruiva una vista `Predicted`. Rompendo il primo ramo di `ComposeIntentLabel` — fargli ignorare
+	// `bHasTarget` — i due livelli diventavano indistinguibili su OGNI canale e la suite restava verde.
+	// Trovato dalla code review.
+	{
+		FRTIntentView Still;
+		Still.bIsAlly = true;
+		Still.Certainty = ERTIntentCertainty::Confirmed;
+		Still.ActionName = FText::FromString(TEXT("Guardia"));
+
+		FRTIntentView Aiming = Still;
+		Aiming.Certainty = ERTIntentCertainty::Predicted;
+		Aiming.bHasTarget = true;
+		Aiming.TargetCell = FRTCellId(3, -1);
+
+		const FString Confirmed = Label(Still);
+		const FString Predicted = Label(Aiming);
+		TestNotEqual(TEXT("confermato e previsto NON si leggono uguali"), Confirmed, Predicted);
+		TestTrue(TEXT("previsto nomina la cella del bersaglio"), Predicted.Contains(TEXT("q=3")));
+		TestFalse(TEXT("confermato no"), Confirmed.Contains(TEXT("q=3")));
+		// Nessuno dei due porta il `?`: quello separa l'incerto, non questi due.
+		TestFalse(TEXT("e nessuno dei due porta il ?"),
+			Confirmed.Contains(TEXT("?")) || Predicted.Contains(TEXT("?")));
+	}
+
 	// 🔴 **La voce di DoD «la reazione armata e' resa con la grammatica incerto» non aveva NESSUN test**: il
 	// `?` viveva in un `Printf` dentro `DrawHUD`, e toglierlo lasciava la suite verde. Qui l'etichetta e' un
 	// valore, quindi il glifo si asserisce.
@@ -530,6 +591,18 @@ bool FRTArmedReactionLabelTest::RunTest(const FString&)
 	return true;
 }
 
+// 🔴 **Qui viveva `RefactorTactics.UI.IntentCertaintyTint`, RIMOSSO il 2026-08-19 con la funzione che
+// verificava.** Copriva `ApplyCertaintyTint`, che sbiadiva il colore di squadra secondo la certezza: quel
+// canale non era disponibile — in questa HUD il colore E' l'identita' di squadra — e veniva speso anche
+// sulle rotte, che sono `Uncertain` per costruzione. La distinzione la porta ora il tratteggio.
+// ⚠️ **Due dei suoi assert erano vacui, ed e' un difetto che vale piu' del test.** Quello sull'alpha
+// confrontava `Faded.A` con `Team.A` su un colore di prova con `A = 1`: un'implementazione che scrivesse
+// `1.f` a mano passava. E la tolleranza sulla luminanza (`0,01`) era ~15 volte piu' larga della deviazione
+// prodotta dalla mutazione che doveva catturare — i pesi percettivi sostituiti da una media aritmetica
+// danno uno scarto di `0,00065`. Entrambi trovati dalla code review, non da una run rossa.
+// Se un giorno il colore torna a essere un canale libero, il test torna con una sonda ad alpha != 1 e una
+// tolleranza dell'ordine di `1e-4`.
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashSegmentsTest,
 	"RefactorTactics.UI.IntentDashSegments",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -541,7 +614,7 @@ bool FRTDashSegmentsTest::RunTest(const FString&)
 	// Linea piena: un segmento solo. E' anche la garanzia che il livello «confermato» non paghi il costo del
 	// tratteggio, perche' prima di CP 11.2 quella stessa geometria costava esattamente una `DrawLine`.
 	{
-		const TArray<TPair<FVector2D, FVector2D>> Full = ARTHUD::ComposeDashSegments(A, B, 1.f);
+		const TArray<TPair<FVector2D, FVector2D>> Full = ARTHUD::ComposeDashSegments(A, B, 1.f, 14.f);
 		if (!TestEqual(TEXT("duty pieno: un segmento solo"), Full.Num(), 1)) { return false; }
 		TestEqual(TEXT("che e' il segmento intero"), Full[0].Value, B);
 	}
@@ -549,8 +622,8 @@ bool FRTDashSegmentsTest::RunTest(const FString&)
 	// Tratteggiata: piu' segmenti, e ciascuno copre la frazione ACCESA del proprio periodo. Il duty si legge
 	// dalla geometria, non da un campo: e' cio' che distingue «attenuato» da «dissolto» a schermo.
 	{
-		const TArray<TPair<FVector2D, FVector2D>> Half = ARTHUD::ComposeDashSegments(A, B, 0.5f);
-		const TArray<TPair<FVector2D, FVector2D>> Thin = ARTHUD::ComposeDashSegments(A, B, 0.3f);
+		const TArray<TPair<FVector2D, FVector2D>> Half = ARTHUD::ComposeDashSegments(A, B, 0.5f, 14.f);
+		const TArray<TPair<FVector2D, FVector2D>> Thin = ARTHUD::ComposeDashSegments(A, B, 0.3f, 14.f);
 		if (!TestTrue(TEXT("il tratteggio spezza il segmento"), Half.Num() > 1)) { return false; }
 		TestEqual(TEXT("stesso periodo, stesso numero di tratti"), Thin.Num(), Half.Num());
 
@@ -565,7 +638,7 @@ bool FRTDashSegmentsTest::RunTest(const FString&)
 	// frame — una regressione che questo lavoro avrebbe introdotto. Trovato dalla code review.
 	{
 		const TArray<TPair<FVector2D, FVector2D>> Absurd =
-			ARTHUD::ComposeDashSegments(FVector2D(-1.e6f, 0.f), FVector2D(1.e6f, 0.f), 0.5f);
+			ARTHUD::ComposeDashSegments(FVector2D(-1.e6f, 0.f), FVector2D(1.e6f, 0.f), 0.5f, 14.f);
 		TestTrue(TEXT("una proiezione degenere non produce centinaia di migliaia di tratti"),
 			Absurd.Num() <= 512);
 		TestTrue(TEXT("ma nemmeno zero"), Absurd.Num() >= 1);
@@ -573,7 +646,7 @@ bool FRTDashSegmentsTest::RunTest(const FString&)
 
 	// Un segmento degenere non deve dividere per zero ne' restituire una lista vuota.
 	{
-		const TArray<TPair<FVector2D, FVector2D>> Point = ARTHUD::ComposeDashSegments(A, A, 0.5f);
+		const TArray<TPair<FVector2D, FVector2D>> Point = ARTHUD::ComposeDashSegments(A, A, 0.5f, 14.f);
 		TestEqual(TEXT("un punto resta un tratto"), Point.Num(), 1);
 	}
 	return true;
