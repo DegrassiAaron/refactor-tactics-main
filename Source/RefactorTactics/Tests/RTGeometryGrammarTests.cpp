@@ -551,22 +551,26 @@ bool FRTSnapCatchesAWobblyHandTest::RunTest(const FString&)
 }
 
 /**
- * #712 / seduta `U22`: fuori alfabeto NON si disegna, si dice di no.
+ * #712 / seduta `U22`: OGNI muro prodotto sta nell'alfabeto. Non «quasi ogni».
  *
- * 🔴 L'autore: *«disegna anche muri fuori dai segmenti validi»*. La ricerca sceglieva sempre «l'asse meno
- * peggio» e produceva un muro che non passava per i due punti indicati.
+ * 🔴 L'autore, dopo due correzioni: *«son capitati muri fuori dalla geometria consentita»*. Le stesure
+ * precedenti arrotondavano le coordinate del gesto e speravano che cadessero bene: bastava un estremo
+ * fuori dalla cella perche' l'altro finisse su un `Along` legale ma che non corrisponde a nessun punto
+ * notevole — un muro a mezz'aria.
  *
- * Delle 78 coppie di punti notevoli, **54 stanno su un asse tattico e 24 no** — sono vertice ↔ punto medio
- * non adiacente. Quelle 24 non sono un caso limite: sono un quarto dei gesti possibili, e devono dare
- * ghost rosso.
+ * La ricerca ora **enumera le coppie di punti notevoli**, quindi l'alfabeto e' una proprieta' della
+ * costruzione. Questo test lo verifica dove conta: su gesti QUALSIASI, anche storti, corti, obliqui e
+ * mezzi fuori dalla cella — e pretende che l'esito sia sempre due punti notevoli su un asse.
  *
- * ⚠️ Il test non elenca le 24 a mano: le **deriva**, chiedendo alla grammatica se il candidato passa per i
- * due punti. Una tabella di attesi ricopierebbe l'implementazione che sta verificando.
+ * ⚠️ Sostituisce un test che pretendeva il RIFIUTO delle 24 coppie fuori asse. Il rewrite ha cambiato
+ * quella decisione: invece di rifiutare, si sceglie il muro legale piu' vicino. E' una scelta diversa e
+ * va detta — il rifiuto resta per il gesto senza lunghezza e per quello che non tocca la cella
+ * (`SnapRejectsWhatCannotBeLegal`), non per la giacitura.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSnapRefusesPairsOffTheAxesTest,
-	"RefactorTactics.Geometry.SnapRefusesPairsOffTheAxes",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSnapAlwaysProducesAWallFromTheAlphabetTest,
+	"RefactorTactics.Geometry.SnapAlwaysProducesAWallFromTheAlphabet",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTSnapRefusesPairsOffTheAxesTest::RunTest(const FString&)
+bool FRTSnapAlwaysProducesAWallFromTheAlphabetTest::RunTest(const FString&)
 {
 	TArray<FVector2D> Boundary;
 	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, Boundary);
@@ -575,40 +579,137 @@ bool FRTSnapRefusesPairsOffTheAxesTest::RunTest(const FString&)
 	Notable.Add(FVector2D::ZeroVector); // il centro e' il tredicesimo
 	Notable.Append(Boundary);
 
-	int32 Accepted = 0;
-	int32 Refused = 0;
+	auto IsNotable = [&Notable](const FVector2D& P)
+	{
+		for (const FVector2D& Point : Notable)
+		{
+			if (Point.Equals(P, 0.5f))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
 
+	// Una griglia deterministica di gesti: raggi da 0 a due volte la cella, angoli ogni 17 gradi (primo
+	// con 360, quindi non ricade sulle direttrici). Non e' casuale — l'esito dev'essere riproducibile.
+	int32 Produced = 0;
+	int32 Refused = 0;
+	for (int32 AngleA = 0; AngleA < 360; AngleA += 17)
+	{
+		for (int32 AngleB = 0; AngleB < 360; AngleB += 43)
+		{
+			for (const double RadiusA : { 0.15, 0.55, 0.95, 1.40 })
+			{
+				for (const double RadiusB : { 0.30, 0.80, 1.10, 2.00 })
+				{
+					const double Ra = FMath::DegreesToRadians(static_cast<double>(AngleA));
+					const double Rb = FMath::DegreesToRadians(static_cast<double>(AngleB));
+					const FVector2D A(
+						RadiusA * TestHexSize * FMath::Cos(Ra), RadiusA * TestHexSize * FMath::Sin(Ra));
+					const FVector2D B(
+						RadiusB * TestHexSize * FMath::Cos(Rb), RadiusB * TestHexSize * FMath::Sin(Rb));
+
+					FRTGeometrySegment Segment;
+					if (!URTGeometryGrammarLibrary::SnapToGrammar(A, B, TestHexSize, Segment))
+					{
+						++Refused;
+						continue;
+					}
+					++Produced;
+
+					// 1. E' in grammatica. La rete di sicurezza che c'era gia'.
+					if (!TestTrue(TEXT("il segmento prodotto e' in grammatica"),
+						URTGeometryGrammarLibrary::ValidateSegment(Segment) == ERTGeometryViolation::None))
+					{
+						return false;
+					}
+
+					// 2. E i suoi DUE ESTREMI sono punti notevoli. E' la riga che il difetto faceva fallire,
+					//    ed e' l'unica formulazione di «dentro la geometria consentita» che si possa misurare.
+					const FRTOccupancyPolyline Line =
+						URTGeometryGrammarLibrary::ToPolyline(Segment, TestHexSize);
+					if (!TestEqual(TEXT("il segmento ha due estremi"), Line.Points.Num(), 2))
+					{
+						return false;
+					}
+					if (!TestTrue(FString::Printf(
+							TEXT("estremi su punti notevoli: (%.1f,%.1f)-(%.1f,%.1f) da gesto (%.0f,%.0f)-(%.0f,%.0f)"),
+							Line.Points[0].X, Line.Points[0].Y, Line.Points[1].X, Line.Points[1].Y,
+							A.X, A.Y, B.X, B.Y),
+						IsNotable(Line.Points[0]) && IsNotable(Line.Points[1])))
+					{
+						return false;
+					}
+				}
+			}
+		}
+	}
+
+	// Controprova: il test non passerebbe con uno snap che non produce mai niente.
+	TestTrue(TEXT("la maggior parte dei gesti produce un muro"), Produced > Refused * 4);
+	TestTrue(TEXT("e qualcuno viene rifiutato, altrimenti il rifiuto e' morto"), Refused > 0);
+	return true;
+}
+
+/**
+ * #712 / seduta `U22`: quante coppie di punti notevoli la GRAMMATICA sa esprimere.
+ *
+ * ⚠️ E' una proprieta' degli assi tattici, non dello snap, e per questo si misura senza passare da
+ * `SnapToGrammar`: delle 78 coppie, quelle che stanno su un asse comune sono **54**, e le altre **24**
+ * sono vertice ↔ punto medio non adiacente. I due numeri sono scritti perche' un cambio di grammatica li
+ * faccia cadere qui, e non a schermo tre giorni dopo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNotablePairsOnTacticalAxesTest,
+	"RefactorTactics.Geometry.NotablePairsOnTacticalAxes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNotablePairsOnTacticalAxesTest::RunTest(const FString&)
+{
+	TArray<FVector2D> Boundary;
+	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, Boundary);
+
+	TArray<FVector2D> Notable;
+	Notable.Add(FVector2D::ZeroVector);
+	Notable.Append(Boundary);
+
+	auto SharesAnAxis = [](const FVector2D& P, const FVector2D& Q)
+	{
+		for (int32 AxisIndex = 0; AxisIndex < RT_TacticalAxisCount; ++AxisIndex)
+		{
+			const ERTTacticalAxis Axis = static_cast<ERTTacticalAxis>(AxisIndex);
+			const FVector2D Along = URTGeometryGrammarLibrary::AxisPoint(Axis, TestHexSize) / RT_GeometryQuanta;
+			const FVector2D Perp =
+				URTGeometryGrammarLibrary::AxisPerpendicularPoint(Axis, TestHexSize) / RT_GeometryQuanta;
+
+			const double AlongP = FVector2D::DotProduct(P, Along) / Along.SizeSquared();
+			const double AlongQ = FVector2D::DotProduct(Q, Along) / Along.SizeSquared();
+			const double OffP = FVector2D::DotProduct(P, Perp) / Perp.SizeSquared();
+			const double OffQ = FVector2D::DotProduct(Q, Perp) / Perp.SizeSquared();
+
+			auto Whole = [](double V) { return FMath::Abs(V - FMath::RoundToDouble(V)) < 0.001; };
+			if (Whole(AlongP) && Whole(AlongQ) && Whole(OffP) && Whole(OffQ)
+				&& FMath::RoundToInt(OffP) == FMath::RoundToInt(OffQ)
+				&& FMath::RoundToInt(AlongP) != FMath::RoundToInt(AlongQ))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	int32 OnAxis = 0;
+	int32 OffAxis = 0;
 	for (int32 I = 0; I < Notable.Num(); ++I)
 	{
 		for (int32 J = I + 1; J < Notable.Num(); ++J)
 		{
-			FRTGeometrySegment Segment;
-			if (!URTGeometryGrammarLibrary::SnapToGrammar(Notable[I], Notable[J], TestHexSize, Segment))
-			{
-				++Refused;
-				continue;
-			}
-
-			++Accepted;
-
-			// Cio' che «accettato» deve significare: il muro passa DAVVERO per i due punti indicati.
-			const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Segment, TestHexSize);
-			if (!TestEqual(TEXT("un segmento accettato ha due punti"), Line.Points.Num(), 2))
-			{
-				continue;
-			}
-			const bool bThrough =
-				(Line.Points[0].Equals(Notable[I], 0.5f) && Line.Points[1].Equals(Notable[J], 0.5f))
-				|| (Line.Points[0].Equals(Notable[J], 0.5f) && Line.Points[1].Equals(Notable[I], 0.5f));
-			TestTrue(FString::Printf(
-				TEXT("la coppia %d-%d e' accettata SOLO se il muro ci passa sopra"), I, J), bThrough);
+			SharesAnAxis(Notable[I], Notable[J]) ? ++OnAxis : ++OffAxis;
 		}
 	}
 
-	// I due numeri misurati sull'alfabeto, scritti perche' un cambio di grammatica li faccia cadere qui e
-	// non a schermo tre giorni dopo.
-	TestEqual(TEXT("coppie esprimibili sugli assi tattici"), Accepted, 54);
-	TestEqual(TEXT("coppie fuori alfabeto, che devono dare ghost rosso"), Refused, 24);
+	TestEqual(TEXT("coppie totali di punti notevoli"), OnAxis + OffAxis, 78);
+	TestEqual(TEXT("coppie esprimibili su un asse tattico"), OnAxis, 54);
+	TestEqual(TEXT("coppie che nessun asse porta"), OffAxis, 24);
 	return true;
 }
 
