@@ -687,6 +687,70 @@ struct FRTTestScenario
 	UPROPERTY()
 	bool bExpectSameAcrossVariants = false;
 
+	/**
+	 * **Free-run** (CP 47.4): gioca fino alla condizione di fine partita invece di enumerare i turni.
+	 *
+	 * Una partita autobattle non sa in anticipo quanti turni durera', e scriverne il numero nel file
+	 * significherebbe dichiarare cio' che lo scenario dovrebbe misurare: un `turns` lungo 12 su una partita
+	 * che si decide al 21 non produce un verdetto sulla partita, produce un verdetto sul 12.
+	 *
+	 * ⚠️ **Non apre un secondo modo di eseguire uno scenario**: il ciclo e' lo stesso di sempre — piani sulle
+	 * unita', `PlanBotsForTest()`, `LockInAndResolve()` — con la sola differenza di **chi decide quando
+	 * fermarsi**. Il seam dei `DecisionProvider` di [D-101] (`#542`) resta la sua issue: questo checkpoint non
+	 * aggiunge il terzo appiglio che quella previene, ne riusa il primo.
+	 *
+	 * Con `freeRun` il file NON elenca turni (`turns` vuoto) e ogni unita' e' `bot`: gli intent non li scrive
+	 * nessuno, e un'unita' non-bot resterebbe ferma per tutta la partita senza che nulla lo dica.
+	 */
+	UPROPERTY()
+	bool bFreeRun = false;
+
+	/**
+	 * Tetto di turni di un free-run: **guardia di sicurezza, non una regola di gioco** — come il
+	 * `MaxTurns = 40` di `HexMatch.PlaysToCompletion`.
+	 *
+	 * ⚠️ **Raggiungerlo e' un `Fail`, non un `Pass`**: il tetto esiste perche' un test appeso somiglia a un
+	 * test lento, e una partita che non finisce e' un difetto del gioco — quello misurato da `#1088`, dove
+	 * dodici round di soli spostamenti finivano in pareggio. Un tetto che producesse `Pass` renderebbe verde
+	 * esattamente lo stallo che questo scenario esiste per cogliere.
+	 *
+	 * Si **dichiara nel file** e non ha un default silenzioso: un tetto invisibile e' un tetto che nessuno
+	 * rivede quando la durata delle partite cambia.
+	 */
+	UPROPERTY()
+	int32 MaxTurns = 0;
+
+	/**
+	 * Quante volte eseguire lo **stesso** scenario confrontando le tracce, byte per byte. `1` = una sola
+	 * esecuzione, il caso normale.
+	 *
+	 * E' il veicolo del corpus di determinismo (E47.5): stesso allestimento ⇒ stesso TurnLog, sempre. A
+	 * differenza di `variants` — che cambiano un ingresso per vedere se l'esito si muove — qui **non cambia
+	 * niente**, e il confronto misura l'altra proprieta': che a parita' di tutto l'esito non si muova.
+	 *
+	 * ⚠️ Incompatibile con `variants`, e non per pigrizia: due cicli annidati produrrebbero N×M tracce di cui
+	 * meta' differiscono per costruzione, e un confronto che mescola le due domande non risponde a nessuna.
+	 */
+	UPROPERTY()
+	int32 RepeatCount = 1;
+
+	/**
+	 * Capability richieste dall'**intero** scenario, valutate prima del primo turno (`freeRun` soltanto).
+	 *
+	 * ⚠️ Esiste perche' un free-run **non ha turni** su cui appendere un `requires`, ed e' la stessa distinzione
+	 * che `FRTScenarioTurn::Requires` fa da sempre, nel solo punto in cui il free-run poteva perderla.
+	 *
+	 * 🔴 **Senza questa chiave l'esito non sarebbe un rosso, sarebbe un VERDE** — misurato con una mutazione:
+	 * disattivando il blocco, `AutoBattle.Objective` gioca la partita fino all'eliminazione e esce **`Pass` in
+	 * 10 turni**. Un file che dichiara «fine partita per obiettivo» verificherebbe una fine per **eliminazione**
+	 * e nessuno andrebbe a guardarlo. Un `Fail` sarebbe stato meno grave: almeno si vede.
+	 *
+	 * Vietata senza `freeRun`: li' il posto del requisito e' il turno, e un secondo posto sarebbe una seconda
+	 * verita' che diverge al primo edit di una sola.
+	 */
+	UPROPERTY()
+	TArray<FString> Requires;
+
 	/** Trova un'unita' per ID di scenario. Nullptr se assente. */
 	const FRTScenarioUnit* FindUnit(const FString& InId) const
 	{

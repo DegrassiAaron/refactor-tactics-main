@@ -35,7 +35,13 @@ public:
 	// dichiarandosi `version: 2` verrebbe **accettato** da una build a `SupportedVersion = 2`, che poi lo
 	// rifiuterebbe con «risposta sconosciuta»: un messaggio che accusa il FILE mentre il difetto e' la build
 	// troppo vecchia. Con la `3` il rifiuto arriva dal gate di versione e dice la cosa giusta.
-	static constexpr int32 SupportedVersion = 3;
+	// 3 → 4 con `#957`: le chiavi del **free-run** (`freeRun`, `maxTurns`, `repeatCount`, `requires` di
+	// scenario). Il bump segue lo stesso ragionamento della `3`, e qui il verso che conta morde piu' forte:
+	// una build a `SupportedVersion = 3` **ignorerebbe** `freeRun` e leggerebbe un file con `turns` vuoto —
+	// cioe' uno scenario che verifica il solo stato iniziale. Non uscirebbe rosso: uscirebbe **verde**, senza
+	// aver giocato un turno. Un verde per assenza di partita e' il peggiore degli esiti, perche' nessuno va a
+	// guardarlo. Con la `4` il rifiuto arriva dal gate di versione e nomina la build.
+	static constexpr int32 SupportedVersion = 4;
 
 	/**
 	 * Interpreta il testo JSON di uno scenario.

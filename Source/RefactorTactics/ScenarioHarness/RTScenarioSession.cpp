@@ -685,7 +685,37 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		DecisionSource = TEXT("none");
 	}
 
-	if (Scenario.Turns.Num() == 0)
+	// Le capability dell'INTERO scenario (free-run, CP 47.4): si valutano una volta qui, perche' un free-run
+	// non ha turni su cui appenderle. Stesse due passate e stesso ordine di `BeginTurn` — prima il refuso
+	// (`Error`, colpa di chi scrive), poi l'attesa (`Blocked`, colpa di nessuno) — e per la stessa ragione:
+	// chiedendo prima la disponibilita', un nome sbagliato si nasconderebbe dietro il `Blocked` di un altro.
+	for (const FString& Required : Scenario.Requires)
+	{
+		if (!IsCapabilityKnown(Required))
+		{
+			ErroredBy = FString::Printf(
+				TEXT("requires di scenario: la capability '%s' non esiste. Non e' un'attesa: e' un nome che ")
+				TEXT("nessun elenco dichiara, quindi lo scenario e' scritto male. I nomi validi stanno in ")
+				TEXT("`RTScenarioSession.cpp`, `AvailableCapabilities()` e `KnownUnavailableCapabilities()`."),
+				*Required);
+			Finish();
+			return true;
+		}
+	}
+	for (const FString& Required : Scenario.Requires)
+	{
+		if (!IsCapabilityAvailable(Required))
+		{
+			BlockedBy = FString::Printf(TEXT("scenario: manca la capability '%s'"), *Required);
+			Finish();
+			return true;
+		}
+	}
+
+	// ⚠️ `bFreeRun` esclude questo ramo, e non e' un dettaglio: in free-run `turns` e' vuoto **per
+	// costruzione**, quindi senza la condizione lo scenario finirebbe qui — zero turni giocati, nessuna
+	// partita, e un `Pass` per assenza di partita.
+	if (Scenario.Turns.Num() == 0 && !Scenario.bFreeRun)
 	{
 		// Uno scenario senza turni e' legittimo: verifica solo lo stato iniziale.
 		Finish();
@@ -1025,11 +1055,18 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 void FRTScenarioSession::BeginTurn()
 {
 	ARTTurnManager* TM = TurnManager.Get();
-	if (!TM || !Scenario.Turns.IsValidIndex(TurnIndex))
+	if (!TM || (!Scenario.bFreeRun && !Scenario.Turns.IsValidIndex(TurnIndex)))
 	{
 		Finish();
 		return;
 	}
+
+	// In FREE-RUN non esiste un turno da leggere: gli intent non li scrive nessuno e i requisiti sono dello
+	// scenario, gia' valutati in `Start()`. Il resto del corpo — azzeramento dei piani, pianificazione dei
+	// bot, `LockInAndResolve` — resta identico, ed e' cio' che tiene **una sola** strada di esecuzione: se il
+	// free-run avesse un ciclo suo, un verde su uno scenario a turni non direbbe piu' niente sull'altro.
+	static const FRTScenarioTurn EmptyTurn;
+	const FRTScenarioTurn& Turn = Scenario.bFreeRun ? EmptyTurn : Scenario.Turns[TurnIndex];
 
 	// PRIMA passata: un nome che il vocabolario non conosce e' un refuso di chi ha scritto lo scenario, non
 	// un'attesa del gioco — `Error`, che ha precedenza su tutto (vedi `ErroredBy`).
@@ -1038,7 +1075,7 @@ void FRTScenarioSession::BeginTurn()
 	// stare accanto a una capability legittimamente assente, e chiedendo prima la disponibilita' il refuso si
 	// nasconderebbe dietro il `Blocked` dell'altra senza che nulla lo dica. E' esattamente il caso che ha
 	// tenuto invisibile `Facing` in `RT_Showcase_Relay_v01` turno 4: `["DecisionBoundary", "Facing"]`.
-	for (const FString& Required : Scenario.Turns[TurnIndex].Requires)
+	for (const FString& Required : Turn.Requires)
 	{
 		if (!IsCapabilityKnown(Required))
 		{
@@ -1055,7 +1092,7 @@ void FRTScenarioSession::BeginTurn()
 	// Il turno chiede qualcosa che il gioco non sa ancora fare? Ci si ferma QUI, dichiarando cosa manca.
 	// Non si gioca "quel che si puo'" del turno: un turno a meta' produrrebbe uno stato che non corrisponde
 	// ne' al gioco di oggi ne' a quello di domani, e ogni assertion successiva mentirebbe.
-	for (const FString& Required : Scenario.Turns[TurnIndex].Requires)
+	for (const FString& Required : Turn.Requires)
 	{
 		if (!IsCapabilityAvailable(Required))
 		{
@@ -1069,7 +1106,7 @@ void FRTScenarioSession::BeginTurn()
 	// turno 1 rimasta in coda risponderebbe a una finestra del turno 2, e lo scenario direbbe una cosa che
 	// non ha scritto. Sta dopo i due controlli sulle capability perche' un turno che non si gioca non ha
 	// finestre da servire.
-	PendingDecisions = Scenario.Turns[TurnIndex].Decisions;
+	PendingDecisions = Turn.Decisions;
 	PendingConsumed.Init(false, PendingDecisions.Num());
 	AppliedDecisionDescs.Reset();
 	// Lo snapshot si ricattura al primo boundary di QUESTO turno: fra un turno e l'altro le unita' muoiono e
@@ -1106,7 +1143,12 @@ void FRTScenarioSession::BeginTurn()
 	}
 
 	// Gli intent del turno diventano piani sulle unita': e' la parte lunga, e sta in una funzione propria.
-	ApplyScenarioIntents(*TM);
+	// In free-run non ce ne sono — `TurnIndex` non indicizza niente e ogni unita' e' guidata dal bot, che
+	// pianifica poche righe piu' sotto dallo stesso ingresso di sempre.
+	if (!Scenario.bFreeRun)
+	{
+		ApplyScenarioIntents(*TM);
+	}
 
 	// Uno scenario scritto male non si gioca: fermarsi qui evita di produrre uno stato che nessuna assertion
 	// puo' interpretare, e soprattutto evita di riportarlo come se fosse un verdetto sul gioco.
@@ -1241,7 +1283,15 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 
 			++TurnIndex;
 			Result.TurnsPlayed = TurnIndex;
-			if (TurnIndex >= Scenario.Turns.Num())
+			// Chi decide che non c'e' un altro turno: il FILE quando i turni sono enumerati, la PARTITA in
+			// free-run. Li' l'unica cosa che ferma la sessione da sola e' il tetto: la fine partita la coglie
+			// `PauseBeforeTurn` al giro successivo, dallo stesso controllo che serve anche a uno scenario a
+			// turni la cui partita si decide prima dell'ultimo — un secondo controllo qui sarebbe la copia che
+			// smette di essere aggiornata.
+			const bool bNoMoreTurns = Scenario.bFreeRun
+				? (TurnIndex >= Scenario.MaxTurns)
+				: (TurnIndex >= Scenario.Turns.Num());
+			if (bNoMoreTurns)
 			{
 				Finish();
 			}
@@ -1530,6 +1580,45 @@ void FRTScenarioSession::Finish()
 	// E' la stessa distinzione del commento sulla precedenza: cio' che ha girato conta, cio' che il blocco ha
 	// impedito no. Con zero turni giocati non c'e' nessuno stato da misurare — solo l'assenza di partita.
 	const bool bBlocked = !BlockedBy.IsEmpty() && Result.TurnsPlayed == 0;
+
+	// FREE-RUN: «la partita e' arrivata alla fine» e' un'ASSERTION, non un esito speciale (CP 47.4).
+	//
+	// ⚠️ Ed e' la scelta che fa cadere il tetto dalla parte giusta. Un tetto raggiunto che producesse `Pass`
+	// renderebbe verde esattamente lo stallo di `#1088` — dodici round di soli spostamenti, zero combattimento,
+	// pareggio allo scadere; un tetto che producesse `Error` direbbe «scenario scritto male» di un difetto del
+	// GIOCO. Come assertion cade in `Fail` per la catena di precedenza che c'e' gia', e porta con se' expected
+	// e actual come tutte le altre.
+	//
+	// Sta PRIMA delle `expect` dichiarate perche' e' la loro premessa: se la partita non e' finita, cio' che
+	// segue misura uno stato intermedio, e leggerlo per primo dice subito quale delle due cose e' successa.
+	if (Scenario.bFreeRun && !bBlocked)
+	{
+		const ARTTurnManager* TM = TurnManager.Get();
+		const bool bEnded = TM && TM->GetPhase() == ERTMatchPhase::MatchEnded;
+
+		FRTAssertionResult A;
+		// `Kind` resta al default: questa assertion non e' dichiarabile da un file — la genera il free-run —
+		// e nessun tipo nuovo la renderebbe piu' vera. Stesso precedente di `SameTurnLogAcrossVariants`.
+		A.Description = TEXT("MatchReachedEnd");
+		A.Expected = FString::Printf(TEXT("fine partita entro %d turni"), Scenario.MaxTurns);
+		A.Turn = Result.TurnsPlayed;
+		A.bPassed = bEnded;
+
+		if (bEnded)
+		{
+			const FRTMatchResult Match = TM->GetMatchResult();
+			A.Actual = FString::Printf(TEXT("%s %s, al turno %d"),
+				*URTTurnRules::DescribeOutcome(Match.Outcome),
+				*URTTurnRules::DescribeEndReason(Match.Reason),
+				Result.TurnsPlayed);
+		}
+		else
+		{
+			A.Actual = FString::Printf(TEXT("ancora in corso dopo %d turni — il tetto non e' una fine partita"),
+				Result.TurnsPlayed);
+		}
+		Result.Assertions.Add(A);
+	}
 
 	for (const FRTTestExpectation& Exp : Scenario.Expect)
 	{

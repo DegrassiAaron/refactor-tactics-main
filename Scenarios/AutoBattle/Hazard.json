@@ -1,0 +1,27 @@
+{
+  "scenarioId": "AutoBattle.Hazard",
+  "tags": ["autobattle", "freerun", "bot", "environment", "gadget", "phase", "riktor", "wraith"],
+  "version": 4,
+  "seed": 0,
+  "fixture": "RelayLite",
+
+  "_nota": "CP 47.4: 2v2 bot contro bot su un campo che FA MALE. `RelayLite` porta gia' la spina d'acqua conduttiva al centro, fuoco, ghiaccio, fumo e rough — in coppie speculari, cosi' nessun esito e' attribuibile al lato.",
+
+  "_nota_perche_una_fixture": "Uno scenario NON puo' dichiarare la superficie di una cella: `FRTScenarioCell` esprime ostacoli, costo, blocco della vista e sovrapprezzo, non `ERTHexSurface`. Un campo `surface` sarebbe stata una migrazione del formato dentro un checkpoint che non la chiede — e la geometria canonica di `RelayLite` vive gia' in un posto solo, protetto dai suoi test. Riferirla invece di duplicarla e' la stessa disciplina di `Spec.Environment.ElectricPropagation`.",
+
+  "_nota_spawn": "Le squadre partono agli estremi (raggio 5), fuori da ogni patch: tutte le superfici di `RelayLite` stanno entro raggio 2. Chi attraversa il centro lo fa perche' il pianificatore lo ha scelto, non perche' ci e' nato sopra.",
+
+  "freeRun": true,
+  "maxTurns": 40,
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-4, 2, 0], "bot": true },
+    { "id": "A2", "hero": "Hero.Phase",  "team": 0, "cell": [-4, 3, 0], "bot": true },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [4, -2, 0], "bot": true },
+    { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [4, -3, 0], "bot": true }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}

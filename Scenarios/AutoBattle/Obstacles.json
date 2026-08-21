@@ -1,0 +1,39 @@
+{
+  "scenarioId": "AutoBattle.Obstacles",
+  "tags": ["autobattle", "freerun", "bot", "map", "gadget", "phase", "riktor", "wraith"],
+  "version": 4,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "CP 47.4: lo stesso 2v2 di `AutoBattle.OpenField` su un campo che NON e' liscio. Una sola arena configurabile, non una mappa nuova: `cells` riscrive le poche celle che interessano, il resto resta pavimento a costo 1.",
+
+  "_nota_perche_esiste": "Lo stallo di `#1088` si riproduceva su DUE geometrie con ostacoli e spariva sull'esagono libero. Un corpus autobattle fatto di sole arene lisce non avrebbe potuto vederlo: e' la coppia dei due file a rendere la differenza attribuibile alla geometria invece che al caso.",
+
+  "_nota_ostacoli": "Sparsi e mai in fila: un muro continuo dividerebbe il campo in due meta' che non si incontrano, e il tetto verrebbe raggiunto per la geometria invece che per un difetto del gioco — un rosso vero su una domanda che nessuno ha fatto. Il muro alla vista sta al centro e resta ATTRAVERSABILE.",
+
+  "freeRun": true,
+  "maxTurns": 40,
+
+  "cells": [
+    { "cell": [-1, -1, 0], "blocksMovement": true },
+    { "cell": [1, 1, 0], "blocksMovement": true },
+    { "cell": [-2, 3, 0], "blocksMovement": true },
+    { "cell": [2, -3, 0], "blocksMovement": true },
+    { "cell": [0, 0, 0], "blocksLineOfSight": true },
+    { "cell": [0, -1, 0], "blocksLineOfSight": true },
+    { "cell": [0, 1, 0], "blocksLineOfSight": true },
+    { "cell": [-1, 2, 0], "moveCost": 3 },
+    { "cell": [1, -2, 0], "moveCost": 3 }
+  ],
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-4, 2, 0], "bot": true },
+    { "id": "A2", "hero": "Hero.Phase",  "team": 0, "cell": [-4, 3, 0], "bot": true },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [4, -2, 0], "bot": true },
+    { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [4, -3, 0], "bot": true }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}
