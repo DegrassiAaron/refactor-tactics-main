@@ -1,9 +1,15 @@
 # Spec — Project Control Center: la dashboard è una UI, non una sesta verità
 
-> `CURRENT` · **Spec viva** · **Data**: 2026-08-10
-> `RT-FEAT-TOOL-CONTROL-CENTER` e' **`IMPLEMENTING`** nel Feature Registry: questa spec descrive lavoro
-> in corso, non un ricordo. ⚠️ Il vincolo che porta resta in vigore — la dashboard e' una **UI sopra gli
-> artefatti generati**, non una sesta verita': nessun dato nasce li'.
+> ⛔ `STORICO` · **Data**: 2026-08-10 · **Decaduta il 2026-08-21 con
+> [D-181](../../decisions/RT_PDR_00_Decision_Log.md)**
+>
+> **Il componente che questa spec descrive non esiste più.** `docs/control-center/` è uscito dal
+> repository insieme al Feature Registry e a `project-graph.json` che lo alimentavano. Quanto segue —
+> compresi i «passi 1–8 eseguiti, resta il 9» di §11 — è il **ricordo** di un lavoro interrotto, non
+> lavoro in corso: non ripartire da qui senza riaprire D-181.
+>
+> ⚠️ **Il vincolo che porta resta vero e vale per il prossimo cruscotto**: una dashboard è una **UI
+> sopra artefatti generati**, non una sesta verità — nessun dato nasce lì.
 >
 > **Stato**: Bozza in revisione (design) · **Data**: 2026-08-10 · **Branch**: `docs/consolidamento-roadmap`
 > **Esito di**: `/sc:spec-panel --mode critique` — panel Wiegers · Cockburn · Adzic · Fowler · Newman · Nygard · Crispin

@@ -249,16 +249,22 @@ namespace
 			// `EffectiveTargetEquals` non esistono fra i tipi di assertion, e `ERTReactionOutcome` non ha un
 			// esito che distingua il redirect. Chi sposta questa capability deve costruirli prima, altrimenti
 			// il turno si accende e nessuno puo' verificare che rediriga sul bersaglio giusto.
-			// ⚠️ Con `owner: #200` questa riga era il difetto che `check-capability-owners.py --online` esiste
-			// per trovare: dichiarata non disponibile con l'owner CHIUSO. Il gate l'ha trovata al primo giro.
+			// ⚠️ Con `owner: #200` questa riga era il difetto che `check-capability-owners.py --online` esisteva
+			// per trovare: dichiarata non disponibile con l'owner CHIUSO. Il gate la trovo' al primo giro.
+			// 🔴 **Quel gate e' uscito con D-182 il 2026-08-21**: un `owner:` che punta a una issue chiusa
+			// mentre la capability resta non disponibile oggi non lo segnala piu' nessuno. Chi tocca questi
+			// commenti controlli lo stato della issue a mano.
 			TEXT("InterceptRevalidation"),    // owner: #1060
 			TEXT("Objective"),                // owner: #75
 			TEXT("Perception"),               // owner: #151
 			// Le tre che la prosa non nominava, chieste da `Spec/Movement/`: `SpatialTrigger` (tripwire che
 			// scatta attraversando un bordo), `SemanticTrigger` (trigger che distingue Dash da Move) e
 			// `Teleport` (spostamento che non attraversa le celle intermedie). Restano fuori per lo stesso
-			// criterio delle altre — nessun produttore in partita — e sono documentate in
-			// `docs/roadmap/scenariomap.shortlist.md`, che le elenca accanto agli scenari che le chiedono.
+			// criterio delle altre — nessun produttore in partita.
+			// ⚠️ **Non c'e' piu' un documento che le elenchi.** Stavano in `scenariomap.shortlist.md`, una
+			// vista GENERATA dal registro degli scenari, uscita con D-181 il 2026-08-21. Verificato: i tre
+			// nomi non compaiono in nessun `.md` del repository. Da qui in poi questa lista **e'** la
+			// dichiarazione, e `Spec/Movement/` e' chi le chiede.
 			TEXT("SpatialTrigger"),           // owner: #704
 			TEXT("SemanticTrigger"),          // owner: #704
 			TEXT("Teleport"),                 // owner: #704

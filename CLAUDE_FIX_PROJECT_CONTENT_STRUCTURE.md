@@ -12,7 +12,7 @@ Baseline da verificare su HEAD:
 - Scenari testuali in `Scenarios/`, non in `Content/`.
 - Sorgenti non importati in Unreal in `SourceAssets/`.
 - `.uasset` e `.umap` si modificano/spostano solo tramite Unreal/Content Browser/API Editor.
-- Feature Registry e viste derivate non vanno duplicate.
+- ~~Feature Registry e viste derivate non vanno duplicate.~~ ⛔ Decaduto con **D-181** (2026-08-21): il registry e le sue viste sono usciti dal repository.
 - Git LFS va descritto secondo lo stato reale del repository corrente, non per memoria.
 
 ## 0. Preflight obbligatorio
@@ -323,12 +323,19 @@ Controlli desiderati:
 Esegui i gate realmente presenti, con le firme correnti, ad esempio:
 
 ```bash
-python scripts/check-docs-links.py
-python scripts/check-docs-symbols.py
-python scripts/check-docs-naming.py --check
-python scripts/feature_registry.py validate
-python scripts/feature_registry.py generate --check
+node tools/radar/generate.ts --check
+node tools/radar/wiki-alt.ts --wiki-root <clone> --check
+node --test "tools/radar/**/*.test.ts"
 ```
+
+> ⛔ **Questa lista era di cinque comandi e ne restano due**, più la suite. Il 2026-08-21 sono usciti il
+> Feature Registry (**D-181**) e l'intera cartella `scripts/` (**D-182**): i cinque gate documentali, i
+> due controlli sui dati di gioco e i due generatori.
+>
+> ⚠️ **La prima stesura di questa nota diceva «sette comandi» e «ne resta uno», e sbagliava entrambi i
+> numeri**: la lista cancellata ne aveva cinque, e i `--check` vivi sono due — `generate.ts` guarda gli
+> SVG, `wiki-alt.ts` gli alt sulla Wiki, e il primo **non** copre il secondo. Un numero in prosa dentro
+> il paragrafo che esiste per dire quanta copertura si è persa: contarlo costa una riga.
 
 Poi:
 - verifica viste generate;

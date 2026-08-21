@@ -705,10 +705,15 @@ bool FRTDefaultWeaponVariantsTest::RunTest(const FString&)
  * Il roster si legge da `GetHeroIds()` e non si trascrive: un quinto eroe senza default deve far rosso
  * senza che nessuno aggiorni il test. È la stessa disciplina di `Heroes.EveryActionHasADisplayName`.
  *
- * ⚠️ I **valori** non sono qui: la loro fonte è §4 del catalogo equipaggiamento, e a tenerli d'accordo col
- * C++ è `scripts/check-equipment-defaults.py`. Duplicarli anche qui creerebbe la terza copia, cioè il
- * difetto che il DoD di `#63` nomina per primo — *«una copia diverge, e questo repository l'ha già pagato
- * quattro volte»*. Questo test verifica la **forma** e la **legalità**; il gate verifica i valori.
+ * ⚠️ I **valori** non sono qui: la loro fonte è §4 del catalogo equipaggiamento. Duplicarli anche qui
+ * creerebbe la terza copia, cioè il difetto che il DoD di `#63` nomina per primo — *«una copia diverge,
+ * e questo repository l'ha già pagato quattro volte»*. Questo test verifica la **forma** e la
+ * **legalità**.
+ *
+ * 🔴 **E i valori, dal 2026-08-21, non li verifica nessuno.** Li teneva d'accordo col catalogo
+ * `scripts/check-equipment-defaults.py`, uscito con **D-182**. La ragione per cui questo test si ferma
+ * alla forma era *«il gate verifica i valori»*, e quella metà della frase è diventata falsa: la scelta
+ * di non duplicare resta giusta, ma oggi lascia i valori **scoperti**, non coperti altrove.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefaultLoadoutTest,
 	"RefactorTactics.Equipment.DefaultLoadoutIsOnePerSlotForEveryHero",

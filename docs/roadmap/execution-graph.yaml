@@ -4,8 +4,10 @@
 # cosa**. Tutto il resto — stato delle feature, delle issue, dei checkpoint, delle sedute, degli
 # scenari — resta dei rispettivi owner, e questo file NON lo ripete.
 #
-# La vista leggibile e' il tab «Execution Map» del Control Center, alimentato da
-# `project-graph.json`. Nessuno dei due si modifica a mano.
+# ⛔ **Questo file non ha piu' una vista.** Era il tab «Execution Map» del Control Center, alimentato da
+# `project-graph.json`: entrambi sono usciti il 2026-08-21 (D-181), col Feature Registry che li
+# generava. Nessuno script legge questo file. Resta perche' la topologia scritta qui — chi blocca chi —
+# non e' ricavabile da nessun'altra parte, non perche' qualcosa la consumi.
 #
 # ## Cosa NON va scritto qui
 #

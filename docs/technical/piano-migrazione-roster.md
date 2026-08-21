@@ -130,6 +130,8 @@ per la stessa cosa.
 > [#752](https://github.com/DegrassiAaron/refactor-tactics-main/issues/752) sono chiuse per questo. La
 > numerazione qui sotto è **quella nuova**; fra parentesi la vecchia, perché le issue #753–#757 la citano.
 
+> ⛔ **La colonna «Gate» è storica.** `check-docs-naming.py` è stato rimosso con **D-182** il 2026-08-21: registra con che cosa ogni fetta fu verificata quando la migrazione era in corso, non un comando eseguibile oggi. Le cinque fette sono chiuse.
+
 | # | Fetta | Tocca la serializzazione? | Dipende da | Gate |
 |---:|---|---|---|---|
 | 1 *(era 3)* | **`HeroId` + simboli C++**: `Hero.Flux` → `Hero.Gadget` e i quattro `MakeFlux`/`MakeRiva`/`MakeBastion`/`MakeVektor`; 4 file di test rinominati | no | — | `Unit.CanonicalHeroIdHasNoLegacyName` sostituisce `ShortHeroNameFromStableId` | <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
@@ -139,7 +141,7 @@ per la stessa cosa.
 | 5 *(era 7)* | **Wiki** (repo separato): 4 PNG **rigenerati e poi** rinominati, pagine rigenerate da un checkout col registry aggiornato | — | 2 | `deploy --wiki-root` da albero allineato — 🔴 **non copre i pixel**, vedi sotto |
 
 🔴 **Il gate della fetta 5 non può chiuderla.** `deploy --wiki-root` sincronizza i blocchi
-`RT_FEATURE_STATUS` e non guarda dentro le immagini; `check-docs-naming.py` analizza `.md`, e un PNG non è
+`RT_FEATURE_STATUS` e non guardava dentro le immagini; `check-docs-naming.py` analizzava `.md`, e un PNG non è
 un `.md`. Le quattro card `images/roster/26…29_*-card-v0.1.png` del clone portano il nome legacy **come
 titolo stampato** — verificato aprendole il 2026-08-18 — quindi questa fetta si dichiara chiusa mentre il
 giocatore continua a leggere i nomi vecchi. Finché la rigenerazione non precede il rename, il verde di
@@ -207,7 +209,7 @@ che non ripristina la provenienza ma dice a chi legge cosa cercare. Da decidere 
 ## 7. Definition of Done del piano
 
 - [ ] `grep -roE "Gadget|Phase|Riktor|Wraith" Source/ docs/ Scenarios/ | wc -l` → **0**
-- [ ] `check-docs-naming.py --check` verde **con zero esenzioni** dichiarate nello script
+- [ ] ~~`check-docs-naming.py --check` verde **con zero esenzioni** dichiarate nello script~~ — ⛔ criterio **non verificabile** da **D-182** (2026-08-21): lo script è stato rimosso. Un nome legacy che ricompare oggi non lo segnala nessuno, ed è esattamente ciò che questo piano temeva
 - [ ] Suite verde, con il conto dei test **misurato sul branch**, non copiato da qui
 - [ ] I 5 ID di test rinominati esistono con il nome nuovo e il registry li cita
 - [ ] Il confronto hard-coded del bonus `Wet` (`RTTurnManager.cpp`) nomina il token nuovo

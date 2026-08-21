@@ -854,8 +854,10 @@ prototipi va **dal più leggero al più invasivo** — `Phase · Flow` non tocca
 > La Wiki li mostra, i `wiki_refs` sono popolati e il Balance ha i suoi SVG: **otto artefatti**, Profile
 > e Balance per ognuno dei quattro eroi.
 >
-> ⚠️ **Il gate resta locale, e non è una mancanza**: questo repository non usa CI — `check-docs-links.py`,
-> `check-docs-symbols.py` e `feature_registry.py validate` girano tutti a mano. `--check` è documentato
+> ⛔ **Non c'è più nessun gate**: `check-docs-links.py`, `check-docs-symbols.py` e `docs_inventory.py`
+> giravano a mano perché questo repository non usa CI, e sono usciti con **D-182** il 2026-08-21
+> (`feature_registry.py validate` era già uscito con **D-181**, lo stesso giorno). Resta il solo
+> `node tools/radar/generate.ts --check`. `--check` è documentato
 > in [`../balance/README.md`](../balance/README.md), dove i cataloghi si modificano. Il prezzo dichiarato
 > è che protegge solo chi lo esegue.
 

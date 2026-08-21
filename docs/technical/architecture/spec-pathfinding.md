@@ -6,7 +6,7 @@
 
 > Prodotta da un panel di revisione specifiche (`/sc:spec-panel`) il **2026-08-02**.
 > Autorità: subordinata a [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) e [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md).
-> I riferimenti ai PDF sono la **visione north-star**, non lo scope MVP (vedi CLAUDE.md, fonte di verità §4).
+> I riferimenti ai PDF sono la **visione north-star**, non lo scope MVP (vedi `CLAUDE.md`, §*Context protocol* — la gerarchia delle fonti).
 
 ## Ambito deciso
 

@@ -155,11 +155,12 @@ sopra**, che erano già l'autorità: il grafo diceva *dove guardare*, non *cosa 
 
 ### Le due toolchain
 
-Il repository ne ha **due**, e nessuna gira in CI: i gate si eseguono **a mano**.
+⛔ **Ne resta una.** `scripts/` è stata rimossa il 2026-08-21 (**D-182**) con i suoi nove script e i due
+file di test: cinque gate documentali, due controlli sui dati di gioco, due generatori.
 
 | | dove | cosa |
 |---|---|---|
-| **Python** | `scripts/` | **ogni** `scripts/check-*.py` — `ls scripts/check-*.py` è l'elenco, e non si trascrive qui — più `feature_registry.py`, `rt_shared_id.py` e `docs_inventory.py`, che non seguono quel prefisso e vanno nominati |
+| ~~**Python**~~ | ~~`scripts/`~~ | ⛔ **rimossa con D-182** il 2026-08-21: i cinque gate documentali, i due controlli sui dati di gioco e i due generatori. ⚠️ Resta **un** file Python versionato, `tools/icons-downloader/paragon_skill_icons_downloader.py`: e' un downloader, non un gate |
 | **Node 22** | `tools/radar/` | rubrica dei rating e generatore SVG dei radar di personaggio |
 
 > 🔴 **Fino al 2026-08-19 questa tabella elencava i gate Python per nome, e ne conosceva tre su sei.**
@@ -249,7 +250,7 @@ Owner del **concetto e del confine**, dal 2026-08-17 ([D-154](decisions/RT_PDR_0
   deve invece chiedere al gioco. Risponde a una domanda sola: *se l'editor e il runtime possono divergere,
   lo strumento ha perso il suo valore*. Contiene la scala di maturità `TD 0.1 … TD 1.0`, che è **maturità di
   uno strumento e non una release** — `TD 0.7` non ha niente a che vedere con `v0.7`
-- `docs/roadmap/editormap.shortlist.md` — quale seduta d'editor fare, e in che ordine (**generata**)
+- `docs/technical/test-manuali-pie.md` — quale seduta d'editor fare, e con quale esito. ⛔ La vista che ne ordinava la coda — `editormap.shortlist.md` — è uscita con **D-181** il 2026-08-21: l'ordine oggi si legge in `docs/roadmap/editor-sessions.yaml`, che ne è la sorgente, e nessuna vista lo aggrega
 - `docs/technical/tooling/scenario-map.md` — chi verifica cosa, fra macchina e persona
 - `Source/RefactorTacticsEditor/` — il mode e i cinque tool. ⚠️ **Ha test dal 2026-08-16** (`#993`,
   `Private/Tests/`): la frase «quel modulo non ha test», che vive ancora in due punti di

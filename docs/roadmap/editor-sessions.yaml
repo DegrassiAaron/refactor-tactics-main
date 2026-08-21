@@ -1,7 +1,15 @@
 # Sedute in editor — la sorgente della EditorMap
 #
-# Owner dei DATI delle sedute U*. La vista leggibile e' `editormap.shortlist.md`, GENERATA da
-# `python scripts/feature_registry.py shortlist`: non si modifica a mano.
+# Owner dei DATI delle sedute U*.
+#
+# ⛔ **Questo file non ha piu' una vista, e non ha piu' un consumatore.** La vista leggibile era
+# `editormap.shortlist.md`, generata da `feature_registry.py shortlist`: entrambi sono usciti dal
+# repository il 2026-08-21 (D-181). **Nessuno script legge questo file**, e da D-182 nel repository non
+# c'e' piu' nemmeno uno script che lo cammini come testo generico: `scripts/` e' stata rimossa.
+#
+# ⚠️ Chi aggiunge una seduta oggi scrive in un file che nessuno rende. Resta perche' il CONTENUTO vale
+# — 27 sedute con passi, prerequisiti e artefatti, scritti a mano — non perche' qualcosa lo consumi.
+# L'esito delle voci `PIE-*` vive in `docs/technical/test-manuali-pie.md`, che lo rende leggibile.
 #
 # Regola che questo file esiste per far rispettare (R-6 della spec):
 #   qui si citano gli **ID** delle voci PIE, mai il loro esito atteso.
@@ -68,7 +76,8 @@
 # inventarne il DoD sarebbe una metrica falsa. Si completano quando la loro epic si apre.
 
 meta:
-  source_of: docs/roadmap/editormap.shortlist.md
+  # `source_of` rimosso con D-181: la vista che generava non esiste piu'.
+  source_of: null
   registry: docs/technical/test-manuali-pie.md
   issue: 371
   blocks:

@@ -36,10 +36,11 @@ canonico perché è l'owner corrente. Regola estesa in [`AGENTS.md`](AGENTS.md).
   (**D-120**). I nomi legacy sono **usciti dal repository** (**D-130**): gli `Hero.<Nome>` sono stati
   rinominati e i venti token abilità sono atterrati su `Hero.<Nome>.<Abilità>` **senza redirect** — **D-134**
   ha cancellato `ResolveLegacyActionId`, quindi non esiste una doppia verità da risolvere in lettura.
-  ✅ Le cinque fette del piano sono chiuse (#753–#757) e il gate è verde **senza esenzioni**: oggi un nome
+  ✅ Le cinque fette del piano sono chiuse (#753–#757) e il gate **era** verde senza esenzioni: un nome
   legacy che ricompare è un difetto, non un residuo da tollerare —
   [`docs/technical/piano-migrazione-roster.md`](docs/technical/piano-migrazione-roster.md).
-  Gate: `python scripts/check-docs-naming.py --check`.
+  ⛔ Il gate che lo controllava — `scripts/check-docs-naming.py` — è uscito con **D-182** (2026-08-21):
+  oggi un nome legacy che ricompare non lo segnala nessuno.
 - Fasi: `Planning → Prep → Dash → Blast → Move → Cleanup`; Move normale resta dopo Blast.
 - Un solo substrato: `FRTCellId`; no gameplay quadrato parallelo.
 - **No GAS nella v0.1**: `URTActionData` / `URTHeroData` / `URTEquipmentData`.

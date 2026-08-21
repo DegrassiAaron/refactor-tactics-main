@@ -1,6 +1,12 @@
 # Piano di riduzione degli hotspot — architettura e processo
 
-> ⛔ **Metà del mandato è decaduta il 2026-08-20.** Questa pagina nasceva per ridurre due cose insieme —
+> ⛔ **E dal 2026-08-21 è decaduta anche la parte sul TOOLING.** [D-181](../decisions/RT_PDR_00_Decision_Log.md)
+> ha rimosso il Feature Registry e [D-182](../decisions/RT_PDR_00_Decision_Log.md) l'intera cartella
+> `scripts/`: **nessuno** dei comandi citati in questa pagina — §11, §13 e le checklist — è più
+> eseguibile, e le misure che riportano sono una fotografia di ciò che il repository verificava fino a
+> quel giorno. Restano come storico del ragionamento, non come prescrizione.
+>
+> ⛔ **Metà del mandato era già decaduta il 2026-08-20.** Questa pagina nasceva per ridurre due cose insieme —
 > gli **hotspot architetturali** e il **costo di coordinamento** fra sessioni parallele. Con
 > [D-178](../decisions/RT_PDR_00_Decision_Log.md) il sistema di lavoro parallelo è stato rimosso e lo
 > sviluppo è tornato sequenziale: il secondo problema non esiste più, e con esso §3, §4 e §12, sostituite
@@ -56,7 +62,7 @@ cita.
 | — | le sigle `BASE`/`WS-*` sono un vocabolario nuovo | esiste già `cinque-processi-paralleli-2026-08-17.md` con i processi **A–E**, e il repo ne ha **già respinto** uno concorrente | §3/§4 **deferiscono**: nessuna sigla propria |
 | M1 | DoD con 18 caselle non falsificabili | — | §20 ha baseline numeriche datate |
 | M3 | elenco preflight scritto a mano | omette ≥3 gate reali | §11 lo **deriva** e stampa `MISSING` |
-| M7 | §16 crea issue senza Tracking Impact Pass | CLAUDE.md §3 lo rende obbligatorio | §16 lo impone |
+| ~~M7~~ | ~~§16 crea issue senza Tracking Impact Pass~~ | ⛔ decaduto con **D-181** (2026-08-21): il pass non esiste più, e `CLAUDE.md` non ha più la sezione che lo imponeva | — |
 
 Corretti anche due **fatti** misurati imprecisi (non criteri): §10 e §1 — vedi le rispettive sezioni.
 Le correzioni di criterio non applicate qui sono elencate in §24.
@@ -552,6 +558,8 @@ Il preflight **non inventa regole**: orchestra gate esistenti.
 La stesura di root elencava sei gate in forma generica e ne ometteva almeno tre reali. Un preflight che
 dichiara verde su un sottoinsieme è peggio della sua assenza: sposta la fiducia senza spostare la copertura.
 
+⛔ **Tutta questa sezione è storica dal 2026-08-21.** `scripts/` è stata rimossa con [D-182](../decisions/RT_PDR_00_Decision_Log.md): i nove script e i due file di test non esistono più, quindi nessuno dei comandi qui sotto è eseguibile. Resta come misura datata di cosa il repository verificava, e di quanto costava verificarlo.
+
 Gate presenti in `scripts/` su `94575ef4`, con l'esito **realmente eseguito** su albero pulito:
 
 | Gate | Comando | Baseline |
@@ -562,12 +570,20 @@ Gate presenti in `scripts/` su `94575ef4`, con l'esito **realmente eseguito** su
 | tabelle | `python scripts/check-docs-tables.py` | OK — 164 doc |
 | capability owners | `python scripts/check-capability-owners.py` | OK — 9 non disponibili, 0 senza owner ⚠️ **parziale** |
 | equipment defaults | `python scripts/check-equipment-defaults.py` | OK — 4 eroi, 12 confronti, 0 divergenze |
-| registry: coerenza | `python scripts/feature_registry.py validate` | **errori 0 · warning 45** |
-| registry: viste | `python scripts/feature_registry.py generate --check` | OK — 3 viste allineate |
-| registry: shortlist | `python scripts/feature_registry.py shortlist --check` | OK |
+| ~~registry: coerenza~~ | ~~`feature_registry.py validate`~~ | ⛔ **D-181** |
+| ~~registry: viste~~ | ~~`feature_registry.py generate --check`~~ | ⛔ **D-181** |
+| ~~registry: shortlist~~ | ~~`feature_registry.py shortlist --check`~~ | ⛔ **D-181** |
+| ~~inventario dei generati~~ | ~~`docs_inventory.py --check`~~ | ⛔ **D-182** |
 
-Totale: **nove invocazioni** *(erano dieci: il gate sugli ID condivisi è caduto con
-[D-178](../decisions/RT_PDR_00_Decision_Log.md), che ha rimosso `rt_shared_id.py`)*.
+Totale: **zero** invocazioni Python. Erano dieci: una è caduta con
+[D-178](../decisions/RT_PDR_00_Decision_Log.md) (`rt_shared_id.py`), tre con
+[D-181](../decisions/RT_PDR_00_Decision_Log.md) (il registry) e le restanti **sei** con
+[D-182](../decisions/RT_PDR_00_Decision_Log.md), che ha rimosso l'intera cartella `scripts/`.
+
+> ⚠️ **La riga precedente diceva «sei invocazioni» mentre la tabella ne aveva sette vive, e prescriveva
+> di rimisurare con `ls scripts/check-*.py` — una cartella cancellata nello stesso commit.** Un numero
+> scritto invece che contato, e un rimedio più morto del numero che voleva correggere. Oggi si misura
+> con `ls tools/radar/*.ts`, e i `--check` vivi sono **due**.
 
 ⚠️ **Due trappole misurate eseguendo davvero questa tabella**, e la prima era in questo documento:
 
@@ -757,7 +773,7 @@ misurato il difetto.
 > ⛔ **Decaduta il 2026-08-21 con [D-181](../decisions/RT_PDR_00_Decision_Log.md).** Il Tracking Impact Pass e il Feature Registry sono usciti dal repository: non c'è più un blocco `## Tracking` obbligatorio, né un registro delle feature da tenere allineato. È la **seconda** metà di questa pagina che decade — la prima l'aveva già persa D-178 — e resta come storico del ragionamento, non come prescrizione.
 
 
-`CLAUDE.md` §3 e `docs/technical/issue-tracking-completeness.md` lo impongono su ogni issue creata, spezzata o
+~~`CLAUDE.md` §3 e `docs/technical/issue-tracking-completeness.md` lo imponevano~~ — ⛔ **entrambi i puntatori sono morti**: la sezione è stata rimossa e rinumerata, il file cancellato (**D-181**). Il testo che segue descrive un obbligo che valeva su ogni issue creata, spezzata o
 modificata nella sostanza. Il blocco `## Tracking` di `.github/ISSUE_TEMPLATE/task.md` **si riempie, non si
 cancella**: dodici categorie — milestone/epic · Feature Map · Scenario Map · test · Editor Map · asset ·
 content/data · Wiki/docs · ADR/Decision · UI/UX · debug/observability · dipendenze.

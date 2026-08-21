@@ -33,11 +33,14 @@ Carica solo il contesto necessario, ma non saltare queste fonti quando pertinent
 4. **`docs/OPEN_DECISIONS.md`** — non decidere al posto del progetto.
 5. **`docs/roadmap/roadmap-checkpoint.md`** — stato di esecuzione misurato e milestone M6–M11.
 6. **`docs/roadmap/roadmap-v0.1.md`** — scope e gate della release v0.1.
-7. **`docs/roadmap/feature-registry.yaml`** — lo stato di una feature vive **qui e in nessun altro posto**.
-   `status` è **derivato** dai gate, non dichiarato; roadmap, Wiki e workbook referenziano il `feature_id` e
-   leggono lo stato, non lo copiano. Le viste (`feature-registry.json`, `project-graph.json`, le cinque
-   `*.shortlist.md`) sono **generate**: si rigenerano, non si editano.
-8. Issue/task corrente, specifica di feature, cataloghi in `docs/balance/`, test e codice esistente.
+7. Issue/task corrente, specifica di feature, cataloghi in `docs/balance/`, test e codice esistente.
+
+> ⛔ **Il passo 7 era `feature-registry.yaml`, e diceva che «lo stato di una feature vive qui e in nessun
+> altro posto». Quel file non esiste più** dal 2026-08-21
+> ([D-181](docs/decisions/RT_PDR_00_Decision_Log.md)): il Feature Registry, le sue cinque `*.shortlist.md`
+> e le due viste JSON sono usciti dal repository. ⚠️ **Non c'è un sostituto, e va detto**: lo stato di una
+> feature non ha più un owner unico — si ricava dal codice, dai test e dalla roadmap scritta a mano, che
+> sono tre fonti e non una. Il rischio che quel passo chiudeva è tornato aperto, per scelta.
 
 `docs/research/` contiene i sorgenti **non ancora consumati** (PRD di visione, dataset, media): **non è fonte
 normativa per default**. *(Era `docs/src/` fino al 2026-08-19: quel nome era ambiguo in un repository che ha
@@ -212,22 +215,24 @@ validazione · serializzazione/replay · privacy intenti.
   Vale soprattutto prima di dichiarare una **verifica di mutazione**: se il test atteso non era in lista, il
   suo «non è caduto» non significa niente — e adesso nessuno script te lo dice.
 - Le verifiche PIE/Editor non sono verdi finché qualcuno non le ha realmente eseguite.
-- **Il repository ha due toolchain, e nessuna gira in CI**: Python in `scripts/` e **Node 22** in
-  `tools/radar/` — rubrica dei rating e generatore SVG dei radar di personaggio.
-  I gate Python sono **ogni `scripts/check-*.py`** (`ls scripts/check-*.py` è l'elenco, e non si
-  trascrive qui) più `scripts/docs_inventory.py --check`, che non segue quel prefisso e va nominato.
-  *(`feature_registry.py validate|generate|shortlist` stava qui fino al 2026-08-21: rimosso con **D-181**.)*
-  *(Riscritto il 2026-08-16: questa riga elencava i gate **per nome** e ne conosceva **tre su sei**.
-  Mancavano `check-docs-naming.py`, `check-capability-owners.py` — atterrata con `#1043` lo stesso
-  giorno — e `check-equipment-defaults.py`. Non è una svista ripetuta tre volte: un elenco scritto a
-  mano dentro un documento non ha modo di accorgersi di un file nuovo, e chi aggiunge un gate non
-  passa di qui. La forma `check-*` si aggiorna da sé; il numero accanto è una misura datata, non una
-  seconda lista.)*
-  I gate si eseguono **a mano**, ed è una scelta:
+- ⛔ **Il repository non ha più gate Python.** Restano **Node 22** in `tools/radar/` — rubrica dei
+  rating, generatore SVG dei radar e allineatore degli alt sulla Wiki — e un solo file Python
+  versionato, `tools/icons-downloader/paragon_skill_icons_downloader.py`, che è un **downloader** e non
+  un gate. I `--check` vivi sono **due**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi) e `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), piu' la suite `node --test` di `tools/radar/`, **57 test**.
+  La cartella `scripts/` è stata **rimossa** il 2026-08-21 (**D-182**): con lei sono usciti i nove
+  script Python e i loro test — i cinque gate documentali (link, nomi, simboli, tabelle, inventario),
+  i due controlli sui dati di gioco (`check-capability-owners`, `check-equipment-defaults`) e i due
+  generatori (`build-icon-assets`, `build-state-matrices-xlsx`).
+  ⚠️ **Ciò che si perde va saputo**: nessuno verifica più che un link risolva, che un'etichetta non
+  menta, che i dati di equipaggiamento combacino col C++, né che le **296 icone** di
+  `docs/generated/icons/` corrispondano alla geometria che le ha prodotte — quella geometria era
+  dichiarata dentro `build-icon-assets.py` ed è uscita con lui. È una scelta di fase: il progetto è in
+  sviluppo, e il costo di mantenere i gate superava quello di non averli.
+  Ciò che resta si esegue **a mano**, ed è una scelta:
   **`.github/workflows/` non esiste, e la sua assenza è deliberata.** Non introdurre CI, package manager o
   build step senza chiedere: `tools/radar/` ha **zero dipendenze** apposta.
   *(Corretto il 2026-08-16: la riga diceva «`.github/` non esiste», e dal 2026-08-16 è falsa —
-  `.github/ISSUE_TEMPLATE/` esiste e precompila il blocco `## Tracking`. La decisione proteggeva la **CI**,
+  `.github/ISSUE_TEMPLATE/` esiste e precompilava il blocco `## Tracking` fino al 2026-08-21, quando **D-181** l'ha tolto. La decisione proteggeva la **CI**,
   non la cartella, e l'oracolo che la verificava — `git ls-tree … -- .github/` — è stato ristretto a
   `workflows/` nello stesso commit. Un template non esegue niente; un workflow sì. Precedente del
   2026-08-12: diceva «è vuota», che induceva a cercare una cartella inesistente.)*

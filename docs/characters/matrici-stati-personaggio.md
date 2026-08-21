@@ -18,17 +18,16 @@ declassato a `RESEARCH` da [D-023](../decisions/RT_PDR_00_Decision_Log.md), che 
 numeri sui cataloghi markdown. Mettere qui una matrice di design in formato binario ricreerebbe il problema che
 D-023 ha chiuso: un file non diffabile, non revisionabile in PR e che nessun gate può controllare.
 
-Il markdown è quindi la **fonte**; chi ha bisogno del foglio lo genera:
-
-```bash
-python scripts/build-state-matrices-xlsx.py     # legge questo file, scrive un .xlsx non versionato
-```
+Il markdown è quindi la **fonte**. ⛔ **Il foglio non si genera più**: lo scriveva
+`scripts/build-state-matrices-xlsx.py`, rimosso con **D-182** il 2026-08-21. Chi ha bisogno di
+un `.xlsx` lo costruisce a mano da qui, sapendo che diventa una **seconda copia** senza nessuno
+che la tenga allineata.
 
 Così `RecommendedCandidate`, `DesignStatus` e `TargetVersion` non possono divergere fra documento e workbook —
 il requisito §14B — perché esiste una sola copia scritta a mano.
 
-> **Matrix 6 (Feature Traceability) non è qui.** È in costruzione come registro dedicato,
-> `docs/roadmap/feature-registry.{json,yaml}` con `scripts/feature_registry.py`. Duplicarla qui creerebbe
+> **Matrix 6 (Feature Traceability) non è qui, e non è più da nessuna parte.** Era in costruzione come registro dedicato,
+> `docs/roadmap/feature-registry.{json,yaml}` — ⛔ rimosso con **D-181**. Duplicarla qui creerebbe
 > esattamente la seconda verità che quel registro esiste per evitare.
 
 ---

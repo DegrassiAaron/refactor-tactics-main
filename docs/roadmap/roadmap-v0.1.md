@@ -193,15 +193,15 @@ collo di bottiglia non è il codice di gioco: è la **verifica interattiva** —
 > Con **E16 chiusa il 2026-08-09** il prerequisito di E13 non c'è più: la premessa del bot cambia **una sola
 > volta**, nell'ordine giusto, come chiedeva il registro dei rischi.
 
-### 2.2 Le feature che le epic implementano — generata dal Feature Registry
+### 2.2 ~~Le feature che le epic implementano~~ — rimossa
 
-Questa tabella **non si aggiorna a mano**: la riscrive
-`python scripts/feature_registry.py wiki` leggendo
-`feature-registry.yaml`, che è l'unica sorgente dello stato per feature. Le due
-viste rispondono a domande diverse — l'epic dice *quando si lavora*, la feature dice *cosa esiste* — e
-tenerle sincronizzate a mano è il modo in cui questo repository ha già prodotto quattro numeri sbagliati.
+⛔ **Questa sezione era una tabella generata, e non esiste più** dal 2026-08-21
+([D-181](../decisions/RT_PDR_00_Decision_Log.md)). La riscriveva `feature_registry.py`, che è uscito dal
+repository insieme a `feature-registry.yaml`.
 
-Il registry e il suo modello sono documentati in `feature-registry.md`.
+⚠️ **La ragione per cui esisteva resta valida**: l'epic dice *quando si lavora*, la feature dice *cosa
+esiste*, e tenere le due viste sincronizzate a mano è il modo in cui questo repository ha già prodotto
+quattro numeri sbagliati. Oggi la seconda vista non c'è — non è che sia tornata manuale.
 
 > **La tabella feature-per-epic e' stata rimossa** con il Feature Registry che la generava
 > (**D-181**, 2026-08-21). Le epic e il loro stato restano in §2.1, che e' scritto a mano ed e'
@@ -1632,8 +1632,9 @@ con una configurazione, lasciando il default dov'è.
 
 > ⚠️ **`PIE-V01-BOARD` e `PIE-V01-PACKAGED` non esistono in
 > [`test-manuali-pie.md`](../technical/test-manuali-pie.md)**, ed è dichiarato qui perché un ID di voce PIE
-> **non è un link**: `check-docs-links.py` non lo vede, quindi una citazione a una voce inesistente passa
-> ogni gate. Il file è nel `writable` della track `playtest` (IDLE) e per [D-139](../decisions/RT_PDR_00_Decision_Log.md)
+> **non è un link**: `check-docs-links.py` non lo vedeva, quindi una citazione a una voce inesistente
+> passava ogni gate. ⛔ Da **D-182** (2026-08-21) non c'è più nemmeno quel gate, e la lacuna si è allargata
+> dagli ID di voce PIE a **ogni** link. Il file è nel `writable` della track `playtest` (IDLE) e per [D-139](../decisions/RT_PDR_00_Decision_Log.md)
 > le due voci si aprono con una **riallocazione dichiarata** — che è la stessa condizione in cui **E46** ha
 > lasciato le proprie sei `PIE-V01-FRONTEND-*`. La seduta [U23](editor-sessions.yaml) lo registra.
 >
@@ -1653,8 +1654,8 @@ con una configurazione, lasciando il default dov'è.
 > 2026-08-16 da uno spec panel su [#512](https://github.com/DegrassiAaron/refactor-tactics-main/issues/512).
 > La prosa (qui, nel registry, in `scenario-map.md` e nel referto) scriveva **#542**;
 > [`execution-graph.yaml`](execution-graph.yaml) scriveva **`issue:512 --requires--> issue:957`**. Nessun
-> gate lo vedeva: entrambe le issue esistono e sono aperte, quindi `check-docs-links` è verde e il
-> validator del grafo pure.
+> gate lo vedeva: entrambe le issue esistono e sono aperte, quindi `check-docs-links` era verde e il
+> validator del grafo pure. ⛔ Oggi nessuno dei due esiste (**D-181**, **D-182**).
 >
 > **Sono tre cose distinte, e il codice lo dice meglio di quanto lo dicesse questa pagina.**
 > `RTTurnManager.h:603`: *«Non è il seam dei `DecisionProvider` di [D-101] (`#542`, v0.2), né il
@@ -1935,6 +1936,6 @@ Rilevati confrontando `roadmap-checkpoint.md` con il repository (2026-08-05):
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release, KPI, checklist trasversale |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle issue (e mappa issue ↔ checkpoint) |
 | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) | **Esecuzione**: stato delle milestone M6–M11 |
-| `editormap.shortlist.md` | **Operativo in editor**: sedute di authoring e verifica, generata da [`editor-sessions.yaml`](editor-sessions.yaml) |
+| ~~`editormap.shortlist.md`~~ | ⛔ **Rimossa con D-181**; la sorgente resta senza vista. Dichiarava: sedute di authoring e verifica, generata da [`editor-sessions.yaml`](editor-sessions.yaml) |
 | [`test-manuali-pie.md`](../technical/test-manuali-pie.md) | Verifiche interattive, sessioni A–E |
 | `docs/balance/` | Cataloghi azioni/terreni/equipaggiamento/eroi/test (creati in CP 1.2) |

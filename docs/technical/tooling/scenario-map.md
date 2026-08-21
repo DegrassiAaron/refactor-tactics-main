@@ -89,7 +89,7 @@ Totale corpus versionato: **78** scenari (`A 46 + B 21 + D-bloccati 11`) — *ri
 > **27** mentre il totale sotto continuava a sommare `A 26`; la riga `D` diceva **9** bloccati e **21**
 > pianificati quando erano **12** e **29**. Le tre misure sopra — corpus, `Visual`, `Spec` — vengono dai
 > comandi della §7; il numero dei `planned` e la ripartizione eseguibili/bloccati vengono da
-> `feature_registry.py shortlist`, che li calcola dalla stessa sorgente invece di ricopiarli.
+> ⛔ li calcolava `feature_registry.py shortlist`, uscito con **D-181** il 2026-08-21: oggi non c'è un generatore che li ricavi dalla sorgente, e i numeri in prosa tornano copie.
 > **Gli elenchi di dettaglio delle §3, §4 e §6.1 non sono stati rimisurati in questa sessione**: le tre PR
 > mergiate il 2026-08-10 hanno aggiunto scenari di movimento e predittivi che vanno ancora attribuiti alla
 > loro classe voce per voce. Il totale è vero, la sua scomposizione per file no.
@@ -135,9 +135,9 @@ Totale corpus versionato: **78** scenari (`A 46 + B 21 + D-bloccati 11`) — *ri
 > correzioni sono state calcolate su rami diversi nello stesso pomeriggio e riconciliate al merge — che è
 > il motivo per cui il totale ora si misura invece di sommarlo.
 >
-> Da qui in avanti i tre numeri si **misurano**: `python scripts/feature_registry.py shortlist` li scrive
+> ⛔ **Non più.** Da qui in avanti i tre numeri **non si misurano con un generatore**: lo scriveva
 > in `../../roadmap/scenariomap.shortlist.md` §1 leggendo `Scenarios/`
-> e le capability dichiarate in `RTScenarioSession.cpp`, e `shortlist --check` fallisce se divergono.
+> e le capability dichiarate in `RTScenarioSession.cpp`, e `shortlist --check` falliva se divergevano. ⛔ Entrambi usciti con **D-181**.
 > **La ripartizione A/B/C resta umana** — dipende da dove sta l'oracolo, non dai file — ed è il motivo per
 > cui questa pagina continua a esistere.
 
@@ -350,7 +350,7 @@ utile: **`previewUnit` è presentazione e non cambia l'esito**, verificato da
 > dovuto ricordarsi di «promuoverli» — è la differenza fra uno scenario-spec e una nota in un documento.
 
 I **nove** rimasti (l'elenco misurato è in
-`../../roadmap/scenariomap.shortlist.md` §1, generato):
+`scenariomap.shortlist.md` §1 — ⛔ file rimosso con **D-181**):
 
 | ScenarioId | `requires` | Epic che lo accende |
 |---|---|---|
@@ -374,7 +374,7 @@ I **nove** rimasti (l'elenco misurato è in
 ### 6.2 Pianificati nel Feature Registry — non ancora scritti · **63**
 
 Dichiarati in `feature-registry.yaml` sotto `scenarios: {planned: [...]}`, il che li fa comparire come
-**warning** in `feature_registry.py validate`. Il warning è il meccanismo: un piano che non diventa un file
+**warning** in `feature_registry.py validate`. ⛔ Quel validator è uscito con **D-181** (2026-08-21) e il warning con lui: oggi non c'è meccanismo. Era questo: un piano che non diventa un file
 resta visibile invece di sparire.
 
 > 🔴 **Questa cella diceva `56` ed era ferma di sette, misurato il 2026-08-16.** Non è una svista di

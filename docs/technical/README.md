@@ -56,7 +56,7 @@ di quale disciplina parla. Della disciplina rispondono i link.
 | **etichette** che nominavano il path vecchio con il target giusto | 149 |
 | `owner_specs` del Feature Registry — un contratto **macchina**, non prosa | 41 |
 
-Le prime tre righe sono i «tre modi» che [`check-docs-links.py`](../../scripts/check-docs-links.py)
+Le prime tre righe sono i «tre modi» che `check-docs-links.py` *(rimosso con **D-182**)*
 elenca da solo, e la quarta è quella che nessun controllo sui soli target vede. La quinta è la più
 insidiosa: `feature_registry.py validate` è uscito **1 con 39 errori** `owner spec inesistente`, e
 nessun gate sui link lo avrebbe detto — un `owner_spec` non è un link Markdown.
