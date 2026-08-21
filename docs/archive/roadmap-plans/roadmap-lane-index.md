@@ -80,7 +80,7 @@ gh issue view <N> --json body --jq '.body' | head -20
 [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md) e `editor-sessions.yaml`.
 
 ⚠️ **Le viste generate non si toccano**: `featuremap.shortlist.md`, `scenariomap.shortlist.md` ed
-[`../../roadmap/editormap.shortlist.md`](../../roadmap/editormap.shortlist.md) portano l'intestazione `GENERATA` e si
+`../../roadmap/editormap.shortlist.md` portano l'intestazione `GENERATA` e si
 riscrivono con `python scripts/feature_registry.py shortlist`. Questi cinque file **non** sono
 generati, e per questo non sono autorità.
 

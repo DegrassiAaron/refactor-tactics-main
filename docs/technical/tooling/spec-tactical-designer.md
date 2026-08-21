@@ -11,7 +11,7 @@ Questo documento risponde a **una** domanda: *quali strumenti d'authoring esisto
 diritto di decidere, e che cosa devono invece chiedere al gioco?*
 
 > ⚠️ **Non è un tracker.** Lo stato di implementazione vive nel
-> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) e nelle issue. Le sedute vivono in
+> `feature-registry.yaml` e nelle issue. Le sedute vivono in
 > [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml). Se una riga di questo file dichiara uno stato,
 > è un difetto.
 
@@ -294,7 +294,7 @@ Due regole che il repository ha già pagato per imparare:
 
 - **Una verifica PIE che non appartiene a una seduta tende a non essere mai eseguita.** Le sedute vivono in
   [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml) e la vista è
-  [`editormap.shortlist.md`](../../roadmap/editormap.shortlist.md), **generata**.
+  `editormap.shortlist.md`, **generata**.
 - **Un test importante deve essere dimostrato capace di diventare rosso.** Si rompe *una* mutazione per
   volta e deve cadere esattamente il test che protegge quella regola — se ne cadono zero, il test non
   verificava; se ne cadono cinque, non si sa quale.
@@ -305,8 +305,8 @@ Due regole che il repository ha già pagato per imparare:
 
 | Domanda | Fonte |
 |---|---|
-| A che punto è una capability | [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) e le viste generate |
-| Quale seduta d'editor fare, e in che ordine | [`editormap.shortlist.md`](../../roadmap/editormap.shortlist.md) |
+| A che punto è una capability | `feature-registry.yaml` e le viste generate |
+| Quale seduta d'editor fare, e in che ordine | `editormap.shortlist.md` |
 | Chi verifica cosa fra macchina e persona | [`scenario-map.md`](scenario-map.md) |
 | Quali domande di modello sono aperte | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
 | Che lavoro è aperto adesso | l'epic [#1105](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1105) e le sue sub-issue |

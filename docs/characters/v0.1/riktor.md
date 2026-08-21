@@ -7,37 +7,6 @@
 > **Roster status:** Release v0.1  
 > **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Riktor** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
 
-<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-REACTION-PREPARED -->
-
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-REACTION-PREPARED` · Release: `v0.1` · Roadmap: `E5.1, E5.2, E5.3, E5.4, E5.5`  
-> Stato: **INTEGRATED** · Gate: `7/9`  
-> Scenario: `Combat.CounterStrikesBack`  
-> Verificato il `2026-08-08` su `2094b86`
-
-<!-- RT_FEATURE_STATUS:END RT-FEAT-REACTION-PREPARED -->
-
-<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-MAP-DYNAMIC-COVER -->
-
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-MAP-DYNAMIC-COVER` · Release: `v0.1` · Roadmap: `E9.5`  
-> Stato: **INTEGRATED** · Gate: `7/9`  
-> Scenario: `Spec.Cover.TemporaryCoverExpires`  
-> Le coperture si **erigono, si spostano e scadono** in partita (CP 9.5). Resta da riscrivere la pagina wiki delle coperture, che descrive solo il dato di mappa.  
-> Verificato il `2026-08-09` su `b5e295a`
-
-<!-- RT_FEATURE_STATUS:END RT-FEAT-MAP-DYNAMIC-COVER -->
-
-<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V01-ROSTER -->
-
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-CHAR-V01-ROSTER` · Release: `v0.1` · Roadmap: `E6.1, E6.2, E6.3, E6.4, E6.5, E6.6, E6.7`  
-> Stato: **INTEGRATED** · Gate: `6/8`  
-> Scenario: `Combat.BasicAttack`  
-> Verificato il `2026-08-08` su `2094b86`
-
-<!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V01-ROSTER -->
-
 ## Panoramica
 
 Guardian/architetto del campo: crea e riconfigura coperture, controlla gli spazi e si interpone per gli alleati.

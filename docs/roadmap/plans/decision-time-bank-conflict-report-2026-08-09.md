@@ -20,7 +20,7 @@ Consultati a HEAD:
 | [`decisions/adr-0004-finestre-di-reazione.md`](../../decisions/adr-0004-finestre-di-reazione.md) | owner canonico delle finestre di reazione, con gli emendamenti D-021, D-047, D-048 |
 | [`gameplay/spec-reaction-clash-e14.md`](../../gameplay/spec-reaction-clash-e14.md) | owner dell'estensione *contested* (E14.7) |
 | [`roadmap/roadmap-v0.1.md`](../roadmap-v0.1.md) · [`roadmap/v0.1-issue-plan.md`](../v0.1-issue-plan.md) | epic E14 = `#152`, CP 14.1–14.6 = `#161`–`#166`; CP 14.7 e 14.8 **senza issue** |
-| [`roadmap/feature-registry.yaml`](../feature-registry.yaml) | FeatureId reali |
+| `roadmap/feature-registry.yaml` | FeatureId reali |
 | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) · [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) | decisioni aperte e conflitti già registrati |
 | [`product/piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) | scope MVP |
 | [`technical/architettura-codice.md`](../../technical/architecture/architettura-codice.md) | stato di implementazione di E14 |
@@ -94,7 +94,7 @@ Il kit chiede di cercare sei formulazioni specifiche. Esito:
 ## 5. FeatureId — reali contro citati
 
 Il kit §23 elenca nove FeatureId come «già note da verificare». Verifica su
-[`feature-registry.yaml`](../feature-registry.yaml):
+`feature-registry.yaml`:
 
 | FeatureId citato | Esiste | Nota |
 |---|---|---|

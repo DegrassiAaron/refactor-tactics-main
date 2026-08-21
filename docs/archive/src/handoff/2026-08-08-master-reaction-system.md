@@ -27,7 +27,7 @@
 > | Overwatch: economia dell'azione, profili | [`brief-overwatch-reazioni.md`](../../../gameplay/brief-overwatch-reazioni.md) · [`brief-azioni-generiche-overwatch.md`](../../../gameplay/brief-azioni-generiche-overwatch.md) |
 > | Ordine delle fasi | [`spec-sequenza-turno.md`](../../../gameplay/spec-sequenza-turno.md) |
 > | Famiglie di movimento e trigger spaziali | [`spec-tassonomia-movimento.md`](../../../gameplay/spec-tassonomia-movimento.md) |
-> | **Stato verificabile** di ogni feature | [`feature-registry.yaml`](../../../roadmap/feature-registry.yaml) |
+> | **Stato verificabile** di ogni feature | `feature-registry.yaml` |
 >
 > **Revisione 1 → 2**: vedi il [Changelog](#changelog) in fondo. Nove correzioni, tre delle quali erano
 > conflitti col canone che avrebbero cambiato il gioco.

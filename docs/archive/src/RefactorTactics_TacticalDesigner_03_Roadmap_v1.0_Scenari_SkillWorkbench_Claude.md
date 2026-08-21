@@ -6,7 +6,7 @@
 > — non un modulo, non una epic per pannello e non una seconda numerazione di release. Con esso: il
 > checkpoint **M9.4** in [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md), le due feature
 > `RT-FEAT-TOOL-SCENARIO-COMPOSER` e `RT-FEAT-TOOL-SKILL-WORKBENCH` in
-> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml), un'**epic di processo senza numero `E`**
+> `feature-registry.yaml`, un'**epic di processo senza numero `E`**
 > [#1105](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1105) (la numerazione `E` è quella delle release, e questo strumento è `out_of_release_scope`: stessa forma di
 > [#839](https://github.com/DegrassiAaron/refactor-tactics-main/issues/839) e
 > [#422](https://github.com/DegrassiAaron/refactor-tactics-main/issues/422)), la seduta **U26** in

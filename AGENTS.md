@@ -206,16 +206,17 @@ validazione · serializzazione/replay · privacy intenti.
   dalla test policy.
 - **Non hardcodare il numero totale dei test nei documenti**: misuralo sul branch/HEAD quando serve.
 - **Un numero di test in una PR sono due numeri**: «N eseguiti su M dichiarati». Una run può eseguirne meno
-  di quanti ne esistono restando verde (`#486`): verifica con
-  `python scripts/feature_registry.py suite --run-log Saved/Logs/RefactorTactics.log`, che esce 1 sui buchi.
+  di quanti ne esistono restando verde (`#486`). ⛔ **Il comando che lo verificava non esiste più**:
+  `feature_registry.py suite --run-log` confrontava i test *dichiarati* con quelli *eseguiti* ed è uscito
+  col Feature Registry il 2026-08-21 (**D-181**). Oggi il confronto si fa a mano leggendo il filtro nel log.
   Vale soprattutto prima di dichiarare una **verifica di mutazione**: se il test atteso non era in lista, il
-  suo «non è caduto» non significa niente.
+  suo «non è caduto» non significa niente — e adesso nessuno script te lo dice.
 - Le verifiche PIE/Editor non sono verdi finché qualcuno non le ha realmente eseguite.
 - **Il repository ha due toolchain, e nessuna gira in CI**: Python in `scripts/` e **Node 22** in
   `tools/radar/` — rubrica dei rating e generatore SVG dei radar di personaggio.
-  I gate Python sono **ogni `scripts/check-*.py`** (sei il 2026-08-16 — `ls scripts/check-*.py` è
-  l'elenco, e non si trascrive qui), più `feature_registry.py validate|generate|shortlist`, che non
-  segue quel prefisso e va nominato.
+  I gate Python sono **ogni `scripts/check-*.py`** (`ls scripts/check-*.py` è l'elenco, e non si
+  trascrive qui) più `scripts/docs_inventory.py --check`, che non segue quel prefisso e va nominato.
+  *(`feature_registry.py validate|generate|shortlist` stava qui fino al 2026-08-21: rimosso con **D-181**.)*
   *(Riscritto il 2026-08-16: questa riga elencava i gate **per nome** e ne conosceva **tre su sei**.
   Mancavano `check-docs-naming.py`, `check-capability-owners.py` — atterrata con `#1043` lo stesso
   giorno — e `check-equipment-defaults.py`. Non è una svista ripetuta tre volte: un elenco scritto a
@@ -246,24 +247,6 @@ validazione · serializzazione/replay · privacy intenti.
 DoD applicabile: compila Game+Editor · test mirati + regressione pertinente · determinismo/authority/privacy
 preservati · TurnLog/reason code sufficienti · docs aggiornate · nessun warning/file generato/secret nuovo ·
 verifica packaged quando richiesta dal checkpoint.
-
-## Issue: il Tracking Impact Pass
-
-Una Issue non è un elemento isolato. Quando ne **crei, spezzi o modifichi nella sostanza** una, il resto del
-progetto ne registra gli effetti: milestone/epic, Feature Map, Scenario Map, test, Editor Map, asset,
-content/data, Wiki/docs, ADR/Decision, UI/UX, debug/observability, dipendenze.
-
-> **CREATE OR LINK, NEVER IGNORE.** Cerca prima un elemento esistente, collegalo, aggiornalo se lo scope
-> cambia, crealo solo se manca davvero, e dichiara `N/A` quando non si applica.
-
-Il blocco `## Tracking` è precompilato da [`.github/ISSUE_TEMPLATE/task.md`](.github/ISSUE_TEMPLATE/task.md):
-`N/A` è valido, un campo cancellato no. Non inventare voci per riempire un campo — un duplicato sporca le
-viste generate e si trova due volte.
-
-Il pass si **riesegue prima di chiudere**: una Issue chiusa con tracking incoerenti è incompleta.
-
-Regola completa, con le dodici categorie e cosa scrivere in ciascuna:
-[`docs/technical/tooling/issue-tracking-completeness.md`](docs/technical/tooling/issue-tracking-completeness.md).
 
 ## Git
 

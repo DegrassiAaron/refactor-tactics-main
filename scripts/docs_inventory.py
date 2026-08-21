@@ -86,7 +86,7 @@ AREE_GREZZE = ("docs/research/", "docs/archive/")
 GENERATI = {
     "docs/generated/icons/": "scripts/build-icon-assets.py",
     "docs/characters/radar/": "tools/radar/generate.ts",
-    "docs/roadmap/charts/": "scripts/feature_registry.py",
+    # `docs/roadmap/charts/` e' uscita il 2026-08-21 (D-181) col Feature Registry che la generava.
 }
 
 # --- Il contratto degli artefatti generati ---------------------------------------------------------
@@ -106,41 +106,6 @@ GENERATI = {
 # esiste**, ed e' un'informazione, non una lacuna da nascondere: e' l'unico modo per accorgersi che un
 # artefatto versionato non ha modo di dichiararsi stantio.
 CONTRATTI = [
-    {
-        "output": "docs/roadmap/feature-registry.json",
-        "generatore": "scripts/feature_registry.py",
-        "comando": "python scripts/feature_registry.py generate",
-        "check": "python scripts/feature_registry.py generate --check",
-        "sorgenti": ["docs/roadmap/feature-registry.yaml"],
-        "consumatori": ["docs/control-center/", "docs/roadmap/project-graph.json"],
-    },
-    {
-        "output": "docs/roadmap/project-graph.json",
-        "generatore": "scripts/feature_registry.py",
-        "comando": "python scripts/feature_registry.py generate",
-        "check": "python scripts/feature_registry.py generate --check",
-        "sorgenti": ["docs/roadmap/feature-registry.yaml", "docs/roadmap/editor-sessions.yaml",
-                     "docs/roadmap/execution-graph.yaml", "docs/roadmap/roadmap-v0.1.md",
-                     "docs/roadmap/roadmap-checkpoint.md", "Scenarios/"],
-        "consumatori": ["docs/control-center/", "Wiki: Stato del progetto"],
-    },
-    {
-        "output": "docs/roadmap/charts/roadmap-map.svg",
-        "generatore": "scripts/feature_registry.py",
-        "comando": "python scripts/feature_registry.py generate",
-        "check": "python scripts/feature_registry.py generate --check",
-        "sorgenti": ["docs/roadmap/feature-registry.yaml"],
-        "consumatori": ["docs/roadmap/roadmap-v0.1.md"],
-    },
-    {
-        "output": "docs/roadmap/*.shortlist.md",
-        "generatore": "scripts/feature_registry.py",
-        "comando": "python scripts/feature_registry.py shortlist",
-        "check": None,
-        "sorgenti": ["docs/roadmap/feature-registry.yaml", "docs/roadmap/editor-sessions.yaml",
-                     "docs/roadmap/roadmap-v0.1.md", "Scenarios/"],
-        "consumatori": ["lettura umana in code review — sono le viste che restano nel repository"],
-    },
     {
         "output": "docs/characters/radar/*.svg",
         "generatore": "tools/radar/generate.ts",
@@ -163,14 +128,13 @@ CONTRATTI = [
 # Blocchi generati DENTRO un documento scritto a mano: il file e' authored, la porzione fra i due
 # marcatori no. E' la forma piu' facile da rompere — rigenerare cancella la prosa che qualcuno ha
 # scritto dentro il blocco, e un `--check` che confronta il file intero non lo distingue.
-BLOCCHI_GENERATI = {
-    "RT_SUITE_COUNT": ("python scripts/feature_registry.py suite",
-                       ["docs/README.md", "docs/roadmap/roadmap-v0.1.md"]),
-    "RT_FEATURE_BY_EPIC": ("python scripts/feature_registry.py generate",
-                           ["docs/roadmap/roadmap-v0.1.md"]),
-    "RT_FEATURE_STATUS": ("python scripts/feature_registry.py deploy",
-                          ["docs/characters/index.md", "docs/characters/v0.1/*.md"]),
-}
+# ⛔ **Vuoto dal 2026-08-21 (D-181), e non e' una lacuna.** I tre blocchi che vivevano qui —
+# `RT_SUITE_COUNT`, `RT_FEATURE_BY_EPIC`, `RT_FEATURE_STATUS` — erano tutti del Feature Registry, che
+# e' stato rimosso: i 21 blocchi che avevano seminato dentro `docs/characters/`, `docs/README.md` e
+# `roadmap-v0.1.md` sono usciti con lui. Il meccanismo resta perche' la forma tornera': un blocco
+# generato dentro un documento authored e' la piu' facile da rompere, e va dichiarata qui il giorno
+# in cui qualcuno ne scrive uno.
+BLOCCHI_GENERATI = {}
 
 # Duplicati esatti dichiarati: SHA-256 -> ragione. NON e' un'esenzione, e' una **promessa datata**:
 # il gate la verifica al contrario, e una voce che non corrisponde piu' a un gruppo vivo lo fa

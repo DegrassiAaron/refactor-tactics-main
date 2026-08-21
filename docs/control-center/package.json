@@ -1,9 +1,0 @@
-{
-  "name": "rt-control-center",
-  "private": true,
-  "type": "module",
-  "description": "Dichiara ES module per node --test. Nessuna dipendenza: la pagina non ha build.",
-  "scripts": {
-    "test": "node --test ."
-  }
-}

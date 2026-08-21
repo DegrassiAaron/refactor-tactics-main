@@ -30,7 +30,7 @@ Misure ottenute confrontando i due tree a blocchi generati rimossi, non citate d
 
 `docs/wiki/` **non è un duplicato** del clone: è un fork bidirezionale. L'architettura dichiarata —
 `DEPLOY.md` nel clone e `deploy_name()` / `apply_wiki_deploy()` in
-[`../../../scripts/feature_registry.py`](../../../scripts/feature_registry.py) — prevede
+`../../../scripts/feature_registry.py` — prevede
 sorgente → deploy, ma il flusso trasporta **solo i blocchi `RT_FEATURE_STATUS`**. Tutta la prosa è
 copiata a mano, in entrambe le direzioni, e ha divergito.
 
@@ -61,7 +61,7 @@ intercetta. `scripts/check-docs-symbols.py` non copre gli elenchi di azioni in p
 3. **Nessuno esegue il check.** 13 pagine pubblicate portano blocchi di stato derivati da uno stato
    vecchio; il repository è allineato (`wiki --check` → «pagine gia' allineate»), il clone no.
 4. **Il processo non ha una casa.** È descritto solo dentro
-   [`../../roadmap/feature-registry.md`](../../roadmap/feature-registry.md), che è un documento **generato**.
+   `../../roadmap/feature-registry.md`, che è un documento **generato**.
 
 ### Difetto latente da correggere
 

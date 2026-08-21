@@ -18,7 +18,7 @@
 > | §5 — porte `Open` / `Closed` | `ERTHexDoorState{Open, Closed, Locked, Destroyed}` + `DoorId` — [`spec-porte-cp93.md`](../../../gameplay/spec-porte-cp93.md) |
 > | §3 — terreni `Concrete / Metal / Dirt / Grass / Water / Ice / Rubble` | Le otto superfici di CP 8.1 — [`spec-terreni-e8.md`](../../../gameplay/spec-terreni-e8.md) |
 > | §11 — `MovementProfileId ∈ {Standard, Heavy, Agile}` | `Move / Sprint / Charge`, profilo dell'**azione** ([D-015](../../../decisions/RT_PDR_00_Decision_Log.md)) |
-> | §16, §26, §28 — `RTMapDefinition`, 5 epic, 29 feature entry, ScenarioId `MAP-ED-*` | `URTHexMapAsset` a `FormatVersion=4`; epic a numerazione unica; [`feature-registry.yaml`](../../../roadmap/feature-registry.yaml) come unico registro |
+> | §16, §26, §28 — `RTMapDefinition`, 5 epic, 29 feature entry, ScenarioId `MAP-ED-*` | `URTHexMapAsset` a `FormatVersion=4`; epic a numerazione unica; `feature-registry.yaml` come unico registro |
 >
 > **Il testo originale non è stato riscritto** — è la convenzione di questa cartella. Quello che il brief
 > coglie davvero, e che il repository non ha, è **una sola cosa**: la sonda di movimento nell'editor

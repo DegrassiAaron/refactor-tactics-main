@@ -7,7 +7,7 @@
 >
 > **Recepito da**: [`../../../gameplay/spec-bot-tattico.md`](../../../gameplay/spec-bot-tattico.md) (owner
 > nuovo) · [`../../../decisions/RT_PDR_00_Decision_Log.md`](../../../decisions/RT_PDR_00_Decision_Log.md)
-> `D-095`–`D-099` · [`../../../roadmap/feature-registry.yaml`](../../../roadmap/feature-registry.yaml) ·
+> `D-095`–`D-099` · `../../../roadmap/feature-registry.yaml` ·
 > referto di consolidamento
 > [`../../roadmap-plans/bot-ai-consolidamento-2026-08-11.md`](../../roadmap-plans/bot-ai-consolidamento-2026-08-11.md).
 >

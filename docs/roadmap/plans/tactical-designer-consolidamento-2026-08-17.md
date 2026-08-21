@@ -6,7 +6,7 @@
 > più il criterio con cui ogni sua sezione è stata accolta, ridotta o respinta.
 > **Cosa non è**: una fonte di stato. Il modello vive in
 > [`../../technical/tooling/spec-tactical-designer.md`](../../technical/tooling/spec-tactical-designer.md), lo stato nel
-> [`../feature-registry.yaml`](../feature-registry.yaml) e nelle issue.
+> `../feature-registry.yaml` e nelle issue.
 
 ---
 

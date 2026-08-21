@@ -96,7 +96,7 @@ Non sono rifiniture: sono **sezioni intere**. `Reaction Clash`, `La tua riserva 
 | `deploy_name` | deve risolvere la forma `wiki:` |
 | comando `feature_registry.py wiki` | oggi rigenera i blocchi **dentro `docs/wiki/`**: senza quella cartella non ha più un bersaglio |
 | `docs/wiki/feature-status.md` | è generato e deploya su `Stato-delle-feature.md`: resta solo la seconda |
-| [`feature-registry.md`](../../roadmap/feature-registry.md) | owner dello schema: la riga su `wiki_refs` va riscritta |
+| `feature-registry.md` | owner dello schema: la riga su `wiki_refs` va riscritta |
 | `check-docs-links.py` | oggi valida i link relativi dentro `docs/wiki/`: perde un'area |
 
 ## 4. Ordine, e perché conta

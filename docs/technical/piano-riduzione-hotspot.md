@@ -752,7 +752,10 @@ Shipping packaged · partita conclusa fuori dall'Editor.
 **Prima cercare su GitHub.** Non duplicare. Cercare **per sintomo**, non per titolo: una issue può avere già
 misurato il difetto.
 
-## Tracking Impact Pass — obbligatorio, non opzionale
+## ~~Tracking Impact Pass — obbligatorio, non opzionale~~
+
+> ⛔ **Decaduta il 2026-08-21 con [D-181](../decisions/RT_PDR_00_Decision_Log.md).** Il Tracking Impact Pass e il Feature Registry sono usciti dal repository: non c'è più un blocco `## Tracking` obbligatorio, né un registro delle feature da tenere allineato. È la **seconda** metà di questa pagina che decade — la prima l'aveva già persa D-178 — e resta come storico del ragionamento, non come prescrizione.
+
 
 `CLAUDE.md` §3 e `docs/technical/issue-tracking-completeness.md` lo impongono su ogni issue creata, spezzata o
 modificata nella sostanza. Il blocco `## Tracking` di `.github/ISSUE_TEMPLATE/task.md` **si riempie, non si

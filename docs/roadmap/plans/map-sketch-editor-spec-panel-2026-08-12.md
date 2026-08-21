@@ -328,7 +328,7 @@ una numerazione — e sopravvive come tale nell'ordine delle issue di §9.
 crearne UNA soltanto»*. Ne esisteva una, [`roadmap-editor.md`](../roadmap-editor.md), ed è `HISTORICAL` dal
 2026-08-08 — ritirata perché era *«la terza vista di stato da tenere allineata a mano»*. È tornata il
 2026-08-10 **generata**: le sedute vivono in `editor-sessions.yaml` e la vista è
-[`editormap.shortlist.md`](../editormap.shortlist.md), prodotta da `feature_registry.py shortlist`.
+`editormap.shortlist.md`, prodotta da `feature_registry.py shortlist`.
 
 Creare oggi «una roadmap editor consolidata» scritta a mano significherebbe **rifare l'errore che quel
 ritiro ha corretto**, tre giorni dopo che era stato corretto. Per questo qui non nasce nessun documento di
@@ -421,10 +421,10 @@ cuocere) non sono deducibili da qui.
 | [`../../archive/src/handoff/2026-08-12-map-sketch-editor.md`](../../archive/src/handoff/2026-08-12-map-sketch-editor.md) | Il sorgente revisionato — **provenienza, non regola** |
 | [`map-editor-brief-spec-panel-2026-08-09.md`](map-editor-brief-spec-panel-2026-08-09.md) | **Il predecessore**: stessa tesi, stesso metodo, verdetto ⛔. Le sue sei `PROPOSED` mai aperte sono §1.1 |
 | [`triage-grid-geometry-water-2026-08-10.md`](triage-grid-geometry-water-2026-08-10.md) | Terzo sorgente sullo stesso perimetro; `GEO-1`…`GEO-3` |
-| [`../feature-registry.yaml`](../feature-registry.yaml) | Owner dello stato di ogni feature citata qui |
+| `../feature-registry.yaml` | Owner dello stato di ogni feature citata qui |
 | [`../roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) | Owner di **E23**, che §4.1 anticipa in parte |
 | [`../roadmap-checkpoint.md`](../roadmap-checkpoint.md) | Owner di **M9**, dove vive il residuo dell'editor |
-| [`../editormap.shortlist.md`](../editormap.shortlist.md) · `editor-sessions.yaml` | La vista **generata** delle sedute — §7.2 |
+| `../editormap.shortlist.md` · `editor-sessions.yaml` | La vista **generata** delle sedute — §7.2 |
 | [`../../technical/tooling/brief-editor-map-viz.md`](../../technical/tooling/brief-editor-map-viz.md) | Owner della visualizzazione in editor — §23 del prompt è suo |
 | [`../../technical/tooling/scenario-map.md`](../../technical/tooling/scenario-map.md) | Owner della ripartizione automatico/umano che §21 ignora |
 | [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md) | Registro delle voci `PIE-*` — dove finiscono davvero i tre «scenari» di §21 |

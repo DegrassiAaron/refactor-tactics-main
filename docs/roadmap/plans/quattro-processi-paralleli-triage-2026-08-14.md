@@ -188,7 +188,7 @@ il batch della §7 qui sotto.
 | 17 | `rt_shared_id.py` è già la soluzione per `D-nnn` | ✓ esatto — `reserve` · `check` · `audit-refs` |
 | 19 | policy transitoria per namespace non supportati | `AGENTS.md` §Git: *«Restano a mano gli altri contatori — `Enn` e `XXX-n`: si verificano sul remote subito prima del merge»* |
 | 20 | più cloni: `fetch` + `check` + `audit-refs` prima del merge | `AGENTS.md` §Git, `workflow-parallel-claude.md` §8 |
-| 26 | EditorMap resta owner della coda umana | [`editor-sessions.yaml`](../editor-sessions.yaml) sorgente, [`editormap.shortlist.md`](../editormap.shortlist.md) vista generata |
+| 26 | EditorMap resta owner della coda umana | [`editor-sessions.yaml`](../editor-sessions.yaml) sorgente, `editormap.shortlist.md` vista generata |
 | 28 | GitHub è già l'ID del task, niente `SP-01` | `execution-graph.yaml` usa `issue:<numero>` come identità dei nodi |
 | 29 | nessun nuovo `Gxx` per il parallelismo | ✓ nessun gate nuovo introdotto |
 | 44 | riallineare il tracking ecosystem | ✓ i 14 path verificati, nessuno incoerente (§8) |

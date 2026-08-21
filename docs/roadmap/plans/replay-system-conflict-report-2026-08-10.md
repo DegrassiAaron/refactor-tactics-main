@@ -27,7 +27,7 @@ Consultati a HEAD:
 | `Source/RefactorTactics/Tests/RTSimulationDeterminismTests.cpp` | le 100 ripetizioni di CP 12.1 |
 | [`technical/spec-turnlog.md`](../../technical/architecture/spec-turnlog.md) · [`spec-turnlog-serialize.md`](../../technical/architecture/spec-turnlog-serialize.md) | owner documentali; `D-TL-*`, `D-SR-*` |
 | [`decisions/adr-0004-finestre-di-reazione.md`](../../decisions/adr-0004-finestre-di-reazione.md) | timeout `HOLD`, finestra 3,0 s, snapshot a inizio segmento |
-| [`roadmap/feature-registry.yaml`](../feature-registry.yaml) | FeatureId reali e gate |
+| `roadmap/feature-registry.yaml` | FeatureId reali e gate |
 | [`roadmap/roadmap-v0.1.md`](../roadmap-v0.1.md) | epic E12, E15 e le tranche `S0`…`S10` |
 | [`roadmap/roadmap-checkpoint.md`](../roadmap-checkpoint.md) | milestone M10, M11 |
 | [`roadmap/roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) | v0.2 / v0.3 / v0.4 |

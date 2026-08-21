@@ -7,36 +7,6 @@
 > **Roster status:** Release v0.1  
 > **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Phase** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
 
-<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-SYSTEMIC-COMBOS -->
-
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-ENV-SYSTEMIC-COMBOS` · Release: `v0.1` · Roadmap: `E8.5`  
-> Stato: **INTEGRATED** · Gate: `7/9`  
-> Scenario: `Visual.Combat.WaterElectric`  
-> Verificato il `2026-08-08` su `2094b86`
-
-<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-SYSTEMIC-COMBOS -->
-
-<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-ENV-WATER -->
-
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-ENV-WATER` · Release: `v0.1` · Roadmap: `E8.1, E8.4`  
-> Stato: **INTEGRATED** · Gate: `6/9`  
-> Scenario: `Visual.Environment.WetExtinguishesFire`  
-> Verificato il `2026-08-08` su `2094b86`
-
-<!-- RT_FEATURE_STATUS:END RT-FEAT-ENV-WATER -->
-
-<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V01-ROSTER -->
-
-> **Stato di sviluppo** — generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-CHAR-V01-ROSTER` · Release: `v0.1` · Roadmap: `E6.1, E6.2, E6.3, E6.4, E6.5, E6.6, E6.7`  
-> Stato: **INTEGRATED** · Gate: `6/8`  
-> Scenario: `Combat.BasicAttack`  
-> Verificato il `2026-08-08` su `2094b86`
-
-<!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V01-ROSTER -->
-
 ## Panoramica
 
 Support/controller dell'acqua: bagna bersagli, cura, riposiziona e prepara il terreno per interazioni sistemiche e sinergie di squadra.

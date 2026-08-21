@@ -1,16 +1,5 @@
 # Steel
 
-<!-- RT_FEATURE_STATUS:BEGIN RT-FEAT-CHAR-V02-ROSTER -->
-
-> ⚠️ **Progettata, non implementata.** Questa pagina descrive una meccanica **decisa e documentata** che il gioco **non esegue ancora**: oggi non è giocabile. Blocco generato dal Feature Registry, non modificare a mano.  
-> Feature: `RT-FEAT-CHAR-V02-ROSTER` · Release: `v0.2` · Roadmap: `E35`  
-> Stato: **DESIGNED** · Gate: `0/8`  
-> Scenario: `—`  
-> Pagina di **progetto**: il personaggio non ha dato di gioco a runtime. L'epic e' **E35** (`#322`), aperta: cio' che manca e' l'implementazione, non il tracciamento.  
-> Verificato il `2026-08-08` su `2094b86`
-
-<!-- RT_FEATURE_STATUS:END RT-FEAT-CHAR-V02-ROSTER -->
-
 ![Steel — Paragon asset base](../images/paragon/steel.png)
 
 > 🧪 **Stato repository:** personaggio pianificato per **v0.2**. I valori sono `DATA_SPEC` / `DESIGN_SPEC`: servono a design, bilanciamento e Wiki, ma **non sono ancora runtime canonico v0.1**. Le finestre Fast Reaction storiche richiedono review prima dell'implementazione.

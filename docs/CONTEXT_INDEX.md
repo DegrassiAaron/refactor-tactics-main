@@ -148,13 +148,10 @@ Carica:
 
 Non usare un handoff come prova che una feature sia implementata.
 
-**Per orientarti prima di leggere**: `docs/roadmap/project-graph.json` è il grafo del progetto in forma
-macchina — diagnostica, gate di release, epic/milestone/checkpoint, sedute in editor, voci PIE, scenari —
-generato insieme a `feature-registry.json` da `python scripts/feature_registry.py generate`. Serve a sapere
-**dove guardare**; gli owner qui sopra restano l'autorità. La sua vista umana è
-`docs/control-center/` (`python -m http.server`, poi `/docs/control-center/`).
-
-⚠️ Entrambi sono **generati**: se il `.yaml` è più recente, sono vecchi. Nel dubbio, `generate --check`.
+⛔ **Non esiste più un grafo del progetto in forma macchina.** `project-graph.json`,
+`feature-registry.json` e il Project Control Center che li leggeva sono usciti il 2026-08-21
+(**D-181**), insieme al Feature Registry che li generava. Per orientarti restano **gli owner qui
+sopra**, che erano già l'autorità: il grafo diceva *dove guardare*, non *cosa è vero*.
 
 ### Le due toolchain
 

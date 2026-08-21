@@ -136,7 +136,7 @@ Totale corpus versionato: **78** scenari (`A 46 + B 21 + D-bloccati 11`) — *ri
 > il motivo per cui il totale ora si misura invece di sommarlo.
 >
 > Da qui in avanti i tre numeri si **misurano**: `python scripts/feature_registry.py shortlist` li scrive
-> in [`../../roadmap/scenariomap.shortlist.md`](../../roadmap/scenariomap.shortlist.md) §1 leggendo `Scenarios/`
+> in `../../roadmap/scenariomap.shortlist.md` §1 leggendo `Scenarios/`
 > e le capability dichiarate in `RTScenarioSession.cpp`, e `shortlist --check` fallisce se divergono.
 > **La ripartizione A/B/C resta umana** — dipende da dove sta l'oracolo, non dai file — ed è il motivo per
 > cui questa pagina continua a esistere.
@@ -350,7 +350,7 @@ utile: **`previewUnit` è presentazione e non cambia l'esito**, verificato da
 > dovuto ricordarsi di «promuoverli» — è la differenza fra uno scenario-spec e una nota in un documento.
 
 I **nove** rimasti (l'elenco misurato è in
-[`../../roadmap/scenariomap.shortlist.md`](../../roadmap/scenariomap.shortlist.md) §1, generato):
+`../../roadmap/scenariomap.shortlist.md` §1, generato):
 
 | ScenarioId | `requires` | Epic che lo accende |
 |---|---|---|
@@ -519,13 +519,14 @@ resta visibile invece di sparire.
 > numero è andato fuori sincrono un'altra volta: ogni ramo aveva ricalcolato il totale sulla **propria** base,
 > uno diceva 28 e l'altro 29, e nessuno dei due era giusto sull'unione.
 >
-> **Si rimisura con il generatore, non con un comando scritto a mano.** Il `python -c` che questa nota portava
-> prima **sottoconta**: cammina solo le voci `- planned:` in forma di lista e non vede la forma `planned:` a
-> chiave nuda, che nel registry esiste in tre punti. Dava **24** dove il vero numero è **34**.
+> ⛔ **Il numero non si rimisura più con un generatore.** `feature_registry.py shortlist` e
+> `scenariomap.shortlist.md` sono usciti il 2026-08-21 (**D-181**) col Feature Registry, e con loro il
+> registro degli scenari pianificati da cui il conteggio si ricavava.
 >
-> ```bash
-> python scripts/feature_registry.py shortlist   # scrive il numero in scenariomap.shortlist.md
-> ```
+> ⚠️ **E un comando scritto a mano qui aveva già sbagliato**: il `python -c` che questa nota portava prima
+> del generatore camminava solo le voci `- planned:` in forma di lista e non vedeva la forma `planned:` a
+> chiave nuda — dava **24** dove il vero numero era **34**. Chi ne riscrive uno parta da lì, e conti
+> **entrambe** le forme.
 
 | ScenarioId pianificato | Feature | Release |
 |---|---|---|
@@ -584,8 +585,8 @@ resta visibile invece di sparire.
 
 > 🔴 **La lezione è la forma del difetto, non i numeri.** `#318` e `#361` sono state chiuse il 2026-08-09 e la
 > terza assertion è atterrata poche ore dopo; le righe che le dichiaravano bloccanti sono rimaste in **quattro**
-> derivati — questa sezione, il commento di [`feature-registry.yaml`](../../roadmap/feature-registry.yaml),
-> [`scenariomap.shortlist.md`](../../roadmap/scenariomap.shortlist.md) §6.2 e il «prerequisito bloccante» di
+> derivati — questa sezione, il commento di `feature-registry.yaml`,
+> `scenariomap.shortlist.md` §6.2 e il «prerequisito bloccante» di
 > [`#319`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/319) — per **quattro giorni**, tutte
 > con lo stesso numero sbagliato. Chiudere l'issue che porta una capability non chiude le righe che la
 > dichiaravano assente: quelle si cercano per **numero di issue**, non per argomento.
@@ -842,7 +843,7 @@ del criterio, non una svista.
 > `editor-sessions.yaml`, l'assegnazione **c'è per tutte e nove**: l'affermazione era vera quando è stata
 > scritta e nessuno l'ha rimisurata dopo che U11 e U15 sono nate. Il prossimo passo di G9 è **eseguirle**.
 > Il conteggio delle voci davvero orfane — 55, nessuna nel subset — vive in
-> [`../../roadmap/editormap.shortlist.md`](../../roadmap/editormap.shortlist.md), che è coerente con questa misura.
+> `../../roadmap/editormap.shortlist.md`, che è coerente con questa misura.
 
 `PIE-FACING-1` è entrata col merge di E16, e non per completezza: dal CP 16.2 l'emisfero posteriore è
 **scoperto**, quindi il facing decide il danno. Un orientamento visibile diverso da quello che il resolver ha
@@ -878,7 +879,7 @@ e stanno qui perché «tutte le feature della v0.1» non diventi un traguardo ch
 | **Il frontend non ha copertura di nessuna classe, e le sue sei voci di classe C non sono scrivibili da chi le ha specificate** *(2026-08-16)* — le quattro feature `RT-FEAT-UI-FRONTEND-*` di **E46** nascono con `scenario: na` e `automation: todo`: ~~il repository non ha infrastruttura di test UI, quindi non esiste né uno scenario né un automation test che istanzi un widget e ne verifichi la navigazione~~ 🔴 **falso dal 2026-08-16**: CP 46.1 ([`#936`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/936)) ha prodotto **17 automation test** che fanno esattamente questo — istanziano un widget e verificano la navigazione, senza `.uasset`. Resta vero che **nessuno scenario** copre il frontend, ed è corretto: uno scenario descrive una partita, e il menu non è in partita (`scenario: na` nel registry) | Oggi **nessuno**, perché E46 è `SPECIFIED` e non c'è codice. Il buco si apre al primo checkpoint implementato: i sei DoD nominano `PIE-V01-FRONTEND-NAV`, `-ERROR`, `-MAIN`, `-PLAY`, `-RESULT`, `-PAUSE`, e **nessuna di quelle voci esiste nel registro**. ⚠️ Non sono state create per un vincolo di processo, non per dimenticanza: [`test-manuali-pie.md`](../test-manuali-pie.md) appartiene dal 2026-08-16 alla track **`playtest`** e D-139 dice che un file non assegnato è uno **stop**. La procedura non è aspettare: quella track dichiara che *«chi finisce una feature che ha una voce `PIE-*` non scrive il proprio esito qui: lo **propone** in handoff»*. Le sei voci si propongono quando il primo checkpoint di E46 produce qualcosa da guardare. Finché non succede i conteggi della §2 e della §5 **non** includono E46, il che è corretto: contarle sarebbe dichiarare un registro che non le contiene | [`spec-frontend-navigazione.md`](../architecture/spec-frontend-navigazione.md) §8 · [D-144](../../decisions/RT_PDR_00_Decision_Log.md) |
 | **Nessuna assertion sul determinismo** — e non deve esserci: `HashTurnLog` **ordina** prima di mescolare, quindi è invariante per permutazione e non vede l'ordine; un hash letterale in un JSON si romperebbe alla prima voce nuova del log | `Spec.Clash.Determinism` va scritto sull'ordine (`LogEventOrder`), non su un checksum. Il determinismo vero si verifica **eseguendo due volte**: è una proprietà del runner | `test-automatico-unreal.md` §5.1 |
 | **Un'aspettativa non dichiara la propria natura, e questo è ciò che manca al Tactical Designer** *(2026-08-17, [D-154](../../decisions/RT_PDR_00_Decision_Log.md))* — `ERTAssertionKind` dice **cosa** si verifica (`UnitAtCell`, `LogEventCount`, …), non **di che natura** è l'aspettativa. Le quattro nature sono distinte in [`spec-tactical-designer.md`](spec-tactical-designer.md) §7 — invariante forte · aspettativa di design · soglia di bilanciamento · osservazione di telemetria — e nel formato non esistono | Oggi **nessuno**: con un corpus intero scritto a mano da chi conosce il proprio caso, la distinzione vive nella testa dell'autore. Il buco si apre al primo confronto `baseline ↔ variante`, quando qualcosa dovrà **classificare** una differenza: una soglia di bilanciamento superata è un'informazione, un'invariante caduta è un difetto, e trattarle uguali produce l'errore in entrambi i versi — un nerf che sembra una regressione, o una regressione archiviata come nerf. ⚠️ **Non si chiude con una convenzione sui nomi**: dedurre la natura dal prefisso dello `ScenarioId` sarebbe lo string matching fragile proprio dove serve robustezza. È un DoD di `RT-FEAT-TOOL-SKILL-WORKBENCH`, non un lavoro separato | [`spec-tactical-designer.md`](spec-tactical-designer.md) §7 · `RTTestScenario.h` |
-| **Le due feature del Tactical Designer nascono con `scenario: todo` e zero scenari, ed è corretto** *(2026-08-17)* — `RT-FEAT-TOOL-SCENARIO-COMPOSER` e `RT-FEAT-TOOL-SKILL-WORKBENCH` sono `DESIGNED`, senza codice e senza issue aperte | Nessuno **oggi**, e il conteggio della §2 non le include — contarle dichiarerebbe un corpus che non esiste. ⚠️ Quando atterreranno, la loro copertura è di **classe A** e non B: *«l'authoring visuale produce lo stesso `FRTTestScenario` di una fixture scritta a mano»* è una proprietà di **round-trip**, che una macchina giudica meglio di un occhio. La classe C resta per la sola **leggibilità** della timeline, e vive nella seduta **U26** | [`spec-tactical-designer.md`](spec-tactical-designer.md) §9 · [`../../roadmap/feature-registry.yaml`](../../roadmap/feature-registry.yaml) |
+| **Le due feature del Tactical Designer nascono con `scenario: todo` e zero scenari, ed è corretto** *(2026-08-17)* — `RT-FEAT-TOOL-SCENARIO-COMPOSER` e `RT-FEAT-TOOL-SKILL-WORKBENCH` sono `DESIGNED`, senza codice e senza issue aperte | Nessuno **oggi**, e il conteggio della §2 non le include — contarle dichiarerebbe un corpus che non esiste. ⚠️ Quando atterreranno, la loro copertura è di **classe A** e non B: *«l'authoring visuale produce lo stesso `FRTTestScenario` di una fixture scritta a mano»* è una proprietà di **round-trip**, che una macchina giudica meglio di un occhio. La classe C resta per la sola **leggibilità** della timeline, e vive nella seduta **U26** | [`spec-tactical-designer.md`](spec-tactical-designer.md) §9 · `../../roadmap/feature-registry.yaml` |
 
 ## 10. Rapporto con gli altri documenti
 
@@ -888,5 +889,5 @@ e stanno qui perché «tutte le feature della v0.1» non diventi un traguardo ch
 | [`scenari-validazione-visiva.md`](../runbooks/scenari-validazione-visiva.md) | **Owner** della classe B: cosa si guarda, con quale fixture e quali numeri |
 | [`scenario-index-e-tag.md`](scenario-index-e-tag.md) | **Owner** dell'identità: `ScenarioId`, tag, redirect, indice |
 | [`../../roadmap/v0.1-definition-of-done.md`](../../roadmap/v0.1-definition-of-done.md) | **Consumer**: G9 punta al subset di §8 |
-| [`../../roadmap/feature-registry.yaml`](../../roadmap/feature-registry.yaml) | **Consumer e sorgente**: il gate `scenario` di una feature è `done` solo se uno scenario la **dimostra**; gli `planned` di §6.2 vengono da lì |
+| `../../roadmap/feature-registry.yaml` | **Consumer e sorgente**: il gate `scenario` di una feature è `done` solo se uno scenario la **dimostra**; gli `planned` di §6.2 vengono da lì |
 | [`test-e-diagnosi.md`](../runbooks/test-e-diagnosi.md) | Come si scrive ed esegue uno scenario, e come si legge un report fallito |

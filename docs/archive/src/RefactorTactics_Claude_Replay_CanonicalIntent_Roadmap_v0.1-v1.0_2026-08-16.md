@@ -7,7 +7,7 @@
 > **Non si applica**: si legge per sapere da dove viene una decisione. Le fonti autorevoli restano
 > [`adr-0009-replay-logico-canonico.md`](../../decisions/adr-0009-replay-logico-canonico.md),
 > [`adr-0004-finestre-di-reazione.md`](../../decisions/adr-0004-finestre-di-reazione.md) e
-> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml).
+> `feature-registry.yaml`.
 >
 > **Triage**: [`replay-canonical-intent-triage-2026-08-17.md`](../../roadmap/plans/replay-canonical-intent-triage-2026-08-17.md)
 > — matrice delle otto proposte: `PROPOSED 1 · ALREADY DECIDED 2 · OPEN ISSUE 1 · DEFERRED 3 · REJECTED 1`.

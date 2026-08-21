@@ -49,7 +49,7 @@ Le immagini sono **artefatti di design**, non fonti normative. Il canone resta n
 | **F4** | ✅ allineata | `#164` (CP 14.4) è **chiusa**; il lavoro vivo è [#165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/165). Il diagramma dice correttamente che detection e LOS sono controlli **separati** dal facing e che non esiste snap a 180° |
 | **F5** | ⚠️ **PROPOSED** | `RotateSteps ±N`, `SetDirection`, `FaceAwayFromSource` **non esistono** in `ERTActionEffect`: è `FAC-14`, aperta. Usabile solo come direzione di design, mai come catalogo |
 | **F6** | ✅ allineata | Server authoritative, preview team sanitizzata, nessun planned facing avversario, last-known su perdita di LOS. Coerente con ADR-0005 §5 |
-| **F7** | 🔴 **snapshot datata 2026-08-13**, non una dashboard | Conteneva già almeno due righe superate quando è stata importata: `#164` vi compare `PLANNED` ma è **chiusa**, e `Spec.Facing.TurningPathUsesLastCompletedStep` vi compare `MISSING` ma **esiste da oggi**. La legenda `GREEN/PLANNED/PARTIAL/MISSING/BLOCKED` è **visuale** e non è il vocabolario del registry: lo stato vivo si legge da [`feature-registry.yaml`](../../../roadmap/feature-registry.yaml) e da [`scenariomap.shortlist.md`](../../../roadmap/scenariomap.shortlist.md), che sono generati |
+| **F7** | 🔴 **snapshot datata 2026-08-13**, non una dashboard | Conteneva già almeno due righe superate quando è stata importata: `#164` vi compare `PLANNED` ma è **chiusa**, e `Spec.Facing.TurningPathUsesLastCompletedStep` vi compare `MISSING` ma **esiste da oggi**. La legenda `GREEN/PLANNED/PARTIAL/MISSING/BLOCKED` è **visuale** e non è il vocabolario del registry: lo stato vivo si legge da `feature-registry.yaml` e da `scenariomap.shortlist.md`, che sono generati |
 
 ## Nel clone Wiki
 

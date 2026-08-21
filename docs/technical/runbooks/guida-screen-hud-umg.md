@@ -159,5 +159,5 @@ Quando i sei Blueprint esistono e l'HUD è agganciato, esegui **`PIE-V01-HUD`**
 leggibilità delle barre, ingombro, coerenza visiva durante il playback, e il **centro libero** che nessun
 test automatico può guardare.
 
-I gate di `RT-FEAT-UI-SCREEN-HUD` in [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) restano
+I gate di `RT-FEAT-UI-SCREEN-HUD` in `feature-registry.yaml` restano
 `partial` finché quel passo non è fatto: **lo stato vive lì**, non in questo file.

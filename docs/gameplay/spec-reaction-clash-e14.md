@@ -12,7 +12,7 @@
 > `Reactions.Brace.ProfileDecidesInPlay` a pinnarlo. Il **Reaction Clash di §3 non ha ancora runtime**: le sue
 > funzioni pure esistono (`IsContested`, `SortParticipantsCanonically`, `CompareGrammarIntents`) e nessun
 > punto del resolver le chiama. Lo stato verificabile vive in
-> [`feature-registry.yaml`](../roadmap/feature-registry.yaml), non in questa riga: è la seconda volta che una
+> `feature-registry.yaml`, non in questa riga: è la seconda volta che una
 > frase di stato in testa a un documento invecchia senza che nessuna riga cambi.
 
 ## 1. Perché esiste

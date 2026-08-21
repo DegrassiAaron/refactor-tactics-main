@@ -31,7 +31,7 @@ numero.
 | Percorsi e naming dentro `Content/` | [`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md) |
 | Quali asset esistono e quanti mancano | [`asset-map.md`](../tooling/asset-map.md) |
 | Principi di pipeline: presentazione-only, riferimenti soft, licenze | [`spec-asset-pipeline.md`](../architecture/spec-asset-pipeline.md) |
-| Stato di avanzamento | [`../../roadmap/feature-registry.yaml`](../../roadmap/feature-registry.yaml) |
+| Stato di avanzamento | `../../roadmap/feature-registry.yaml` |
 
 > ⚠️ **Non è un tracker.** Se una riga di questo file dichiara uno stato di implementazione, è un difetto.
 

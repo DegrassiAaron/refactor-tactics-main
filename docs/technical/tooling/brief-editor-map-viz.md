@@ -4,7 +4,7 @@
 > **Nato da**: la seduta U1 del 2026-08-10 ([#451](https://github.com/DegrassiAaron/refactor-tactics-main/issues/451)), costruendo `L_HexArena`
 > **Non è** [`E21`](../../roadmap/roadmap-v0.1.md): quella è la leggibilità **in partita**, per il giocatore
 > **Lo stato non vive qui**: è in `RT-FEAT-TOOL-MAP-EDITOR` del
-> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml), gate `log_debug`. Questo brief dice
+> `feature-registry.yaml`, gate `log_debug`. Questo brief dice
 > *cosa serve e perché*; quanto ne esiste lo dice il registry.
 
 > ## ✅ Serie chiusa 4/4 — 2026-08-12

@@ -3,7 +3,7 @@
 > `HISTORICAL` · **Materiale NON autorevole**, archiviato il **2026-08-16** dopo il consolidamento.
 > **Non si applica**: si legge per sapere da dove viene una decisione. Le fonti autorevoli restano
 > [`RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md),
-> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) e le due roadmap.
+> `feature-registry.yaml` e le due roadmap.
 >
 > **Recepito da**: `D-145` (execution slice, epic **E47**, nessuna milestone nuova) · `D-146` (grammatica
 > visiva derivata, encoding ridondante) · epic [#952](https://github.com/DegrassiAaron/refactor-tactics-main/issues/952)
