@@ -1,6 +1,12 @@
 # Piano di riduzione degli hotspot — architettura e processo
 
-> ⛔ **Metà del mandato è decaduta il 2026-08-20.** Questa pagina nasceva per ridurre due cose insieme —
+> ⛔ **E dal 2026-08-21 è decaduta anche la parte sul TOOLING.** [D-181](../decisions/RT_PDR_00_Decision_Log.md)
+> ha rimosso il Feature Registry e [D-182](../decisions/RT_PDR_00_Decision_Log.md) l'intera cartella
+> `scripts/`: **nessuno** dei comandi citati in questa pagina — §11, §13 e le checklist — è più
+> eseguibile, e le misure che riportano sono una fotografia di ciò che il repository verificava fino a
+> quel giorno. Restano come storico del ragionamento, non come prescrizione.
+>
+> ⛔ **Metà del mandato era già decaduta il 2026-08-20.** Questa pagina nasceva per ridurre due cose insieme —
 > gli **hotspot architetturali** e il **costo di coordinamento** fra sessioni parallele. Con
 > [D-178](../decisions/RT_PDR_00_Decision_Log.md) il sistema di lavoro parallelo è stato rimosso e lo
 > sviluppo è tornato sequenziale: il secondo problema non esiste più, e con esso §3, §4 e §12, sostituite

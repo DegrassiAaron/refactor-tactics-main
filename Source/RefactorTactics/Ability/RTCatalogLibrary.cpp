@@ -686,8 +686,11 @@ FName URTCatalogLibrary::DefaultWeaponVariantFor(const FName& HeroId)
 FName URTCatalogLibrary::DefaultGadgetFor(const FName& HeroId)
 {
 	// Fonte: **§4 di `docs/balance/RT_EquipmentCatalog_v0.1.md`**, colonna «Gadget». Le righe qui sotto sono
-	// una COPIA di quella tabella, e la parola conta: il markdown decide, il C++ esegue. A impedire che
-	// divergano in silenzio e' `scripts/check-equipment-defaults.py`, che confronta le due per ID.
+	// una COPIA di quella tabella, e la parola conta: il markdown decide, il C++ esegue.
+	//
+	// 🔴 **Nulla impedisce piu' che divergano in silenzio.** Le confrontava per ID
+	// `scripts/check-equipment-defaults.py`, rimosso con **D-182** il 2026-08-21: la copia c'e' ancora,
+	// il guardiano no. Chi cambia un valore qui apra §4 del catalogo, e viceversa.
 	//
 	// ⚠️ Il catalogo motiva per esteso la sola variante d'arma (D-089). Per gadget e moduli dichiara la
 	// scelta senza argomentarla, e qui NON si inventa una motivazione che la fonte non da': si scrive cosa

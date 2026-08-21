@@ -1632,8 +1632,9 @@ con una configurazione, lasciando il default dov'è.
 
 > ⚠️ **`PIE-V01-BOARD` e `PIE-V01-PACKAGED` non esistono in
 > [`test-manuali-pie.md`](../technical/test-manuali-pie.md)**, ed è dichiarato qui perché un ID di voce PIE
-> **non è un link**: `check-docs-links.py` non lo vede, quindi una citazione a una voce inesistente passa
-> ogni gate. Il file è nel `writable` della track `playtest` (IDLE) e per [D-139](../decisions/RT_PDR_00_Decision_Log.md)
+> **non è un link**: `check-docs-links.py` non lo vedeva, quindi una citazione a una voce inesistente
+> passava ogni gate. ⛔ Da **D-182** (2026-08-21) non c'è più nemmeno quel gate, e la lacuna si è allargata
+> dagli ID di voce PIE a **ogni** link. Il file è nel `writable` della track `playtest` (IDLE) e per [D-139](../decisions/RT_PDR_00_Decision_Log.md)
 > le due voci si aprono con una **riallocazione dichiarata** — che è la stessa condizione in cui **E46** ha
 > lasciato le proprie sei `PIE-V01-FRONTEND-*`. La seduta [U23](editor-sessions.yaml) lo registra.
 >
@@ -1653,8 +1654,8 @@ con una configurazione, lasciando il default dov'è.
 > 2026-08-16 da uno spec panel su [#512](https://github.com/DegrassiAaron/refactor-tactics-main/issues/512).
 > La prosa (qui, nel registry, in `scenario-map.md` e nel referto) scriveva **#542**;
 > [`execution-graph.yaml`](execution-graph.yaml) scriveva **`issue:512 --requires--> issue:957`**. Nessun
-> gate lo vedeva: entrambe le issue esistono e sono aperte, quindi `check-docs-links` è verde e il
-> validator del grafo pure.
+> gate lo vedeva: entrambe le issue esistono e sono aperte, quindi `check-docs-links` era verde e il
+> validator del grafo pure. ⛔ Oggi nessuno dei due esiste (**D-181**, **D-182**).
 >
 > **Sono tre cose distinte, e il codice lo dice meglio di quanto lo dicesse questa pagina.**
 > `RTTurnManager.h:603`: *«Non è il seam dei `DecisionProvider` di [D-101] (`#542`, v0.2), né il

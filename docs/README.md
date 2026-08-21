@@ -227,7 +227,7 @@ chiusa il 2026-08-19): stesso contenuto, nome che dice cos'è invece di dove nas
 handoff, pipeline di icone e kit non consumati, cioè quattro cose diverse sotto un nome che non ne
 descrive nessuna.
 
-⚠️ **La posizione governa i gate, non solo la leggibilità.** `check-docs-symbols.py` e
+⚠️ **La posizione governava i gate, non solo la leggibilità** — ⛔ fino a **D-182** (2026-08-21), che li ha rimossi. La regola resta come criterio di collocazione, e nessuno la verifica più. `check-docs-symbols.py` e
 `check-docs-tables.py` esentano **per prefisso di path**: `archive/`, `research/`, `roadmap/plans/`. Spostare un documento dentro o fuori da uno di questi ne cambia la copertura **senza
 che nessuno lo dica** — misurato, con `EXEMPT_DIRS = ()` il primo passa da 155 a 389 documenti e il
 secondo da 165 a 404, ed entrambi diventano rossi. Chi sposta una cartella aggiorna `EXEMPT_DIRS` nello

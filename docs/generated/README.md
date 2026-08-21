@@ -41,9 +41,11 @@ della sorgente. Dove c'è scritto **nessuno**, quell'artefatto non ha modo di di
 riga non è una lacuna nascosta, è la lacuna **scritta**. ⛔ Le cinque `*.shortlist.md` erano l'unico
 caso `nessuno`, e sono uscite con **D-181**: oggi ogni riga della tabella ha un `--check`.
 
-⚠️ **Un `--check` può esistere ed essere morto.** `build-icon-assets.py --check` esce `1` da prima
-della fase 2 di [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165), per una
-causa sua: cerca un simbolo C++ che `Source/` non ha più. È
+⚠️ **Un `--check` poteva esistere ed essere morto** — e ora quello non esiste affatto.
+`build-icon-assets.py --check` usciva `1` da prima della fase 2 di
+[#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165), per una causa sua: cercava
+un simbolo C++ che `Source/` non ha più. ⛔ Lo script è uscito con **D-182** il 2026-08-21, quindi il
+`--check` morto è diventato un `--check` assente — le 296 icone restano, senza modo di verificarle. Era
 [#1198](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1198), e finché è aperta i 296
 master non hanno un oracolo. Averlo scritto in tabella non basta: il gate verifica che il generatore
 **implementi** davvero l'opzione che dichiara, non che il comando esca `0`.

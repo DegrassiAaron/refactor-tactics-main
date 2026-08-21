@@ -198,7 +198,7 @@ la riparazione che sembrava ovvia:
 > **Non correggerlo cella per cella.** Un workbook rattoppato diventerebbe una falsa fonte corrente,
 > che è peggio di uno dichiaratamente vecchio.
 
-E `scripts/build-state-matrices-xlsx.py` lo aveva scritto ancora prima: *«il progetto ha tre `.xlsx` e
+E `scripts/build-state-matrices-xlsx.py` — ⛔ rimosso con **D-182** — lo aveva scritto ancora prima: *«il progetto ha tre `.xlsx` e
 **nessuno script li legge**: sono dump di consultazione»* — non diffabili, non revisionabili in PR,
 invisibili ai gate.
 

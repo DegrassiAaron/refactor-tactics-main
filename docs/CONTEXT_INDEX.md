@@ -160,7 +160,7 @@ file di test: cinque gate documentali, due controlli sui dati di gioco, due gene
 
 | | dove | cosa |
 |---|---|---|
-| ~~**Python**~~ | ~~`scripts/`~~ | ⛔ rimossa con **D-182** — più `feature_registry.py`, `rt_shared_id.py` e `docs_inventory.py`, che non seguono quel prefisso e vanno nominati |
+| ~~**Python**~~ | ~~`scripts/`~~ | ⛔ **rimossa con D-182** il 2026-08-21: i cinque gate documentali, i due controlli sui dati di gioco e i due generatori. Non resta nessuno script Python nel repository |
 | **Node 22** | `tools/radar/` | rubrica dei rating e generatore SVG dei radar di personaggio |
 
 > 🔴 **Fino al 2026-08-19 questa tabella elencava i gate Python per nome, e ne conosceva tre su sei.**

@@ -355,8 +355,12 @@ public:
 	 * una validazione fallita tre livelli piu' in la'.
 	 *
 	 * ⚠️ **La fonte autorevole e' §4 di `docs/balance/RT_EquipmentCatalog_v0.1.md`**, non queste tabelle:
-	 * il C++ ne e' una copia, e a impedirle di divergere in silenzio e' `scripts/check-equipment-defaults.py`.
-	 * Il gate generale markdown↔C++ resta `#576`, aperta.
+	 * il C++ ne e' una copia.
+	 *
+	 * 🔴 **E dal 2026-08-21 nulla impedisce che divergano.** A confrontarle era
+	 * `scripts/check-equipment-defaults.py`, uscito con **D-182** insieme all'intera cartella `scripts/`.
+	 * Chi tocca queste righe o §4 del catalogo deve rileggere **l'altra** copia a mano: non c'e' piu' un
+	 * comando che lo dica. Il gate generale markdown↔C++ resta `#576`, aperta.
 	 */
 	static TArray<FName> DefaultLoadoutFor(const FName& HeroId);
 
