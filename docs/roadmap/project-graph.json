@@ -365,7 +365,7 @@
         },
         {
           "id": "PIE-TEST-CONSOLE",
-          "state": "🟡"
+          "state": "❌"
         },
         {
           "id": "PIE-HEX-LAYER",
@@ -393,7 +393,7 @@
         },
         {
           "id": "PIE-HEX-VIZ-BLOCCHI",
-          "state": "✅"
+          "state": "❌"
         },
         {
           "id": "PIE-HEX-VIZ-COSTO",
@@ -476,7 +476,7 @@
         },
         {
           "id": "PIE-HEX-MODE-H",
-          "state": "🟡"
+          "state": "❌"
         },
         {
           "id": "PIE-HEX-MODE-L",
@@ -1786,7 +1786,7 @@
     },
     {
       "id": "PIE-HEX-MODE-H",
-      "state": "🟡"
+      "state": "❌"
     },
     {
       "id": "PIE-HEX-MODE-I",
@@ -1834,7 +1834,7 @@
     },
     {
       "id": "PIE-HEX-VIZ-BLOCCHI",
-      "state": "✅"
+      "state": "❌"
     },
     {
       "id": "PIE-HEX-VIZ-BORDI",
@@ -2018,7 +2018,7 @@
     },
     {
       "id": "PIE-TEST-CONSOLE",
-      "state": "🟡"
+      "state": "❌"
     },
     {
       "id": "PIE-TEST-VISUAL",
