@@ -59,7 +59,6 @@
       "[RT-FEAT-ENV-ICE-ENGINE] nessuna pagina Wiki collegata",
       "[RT-FEAT-PERCEPTION-MEMORY] feature di gameplay TESTABLE senza scenario che la dimostri",
       "[RT-FEAT-UI-POINTER-INTERACTION] 6 scenario/i dichiarati planned: Visual.UI.SelectMoveCancel, Visual.UI.TargetEnemyConfirmCancel, Visual.UI.DoorHoverAndInteract, Visual.UI.AllyIntentInspectReadOnly, Visual.UI.ReactionWindowPreemptsWorldInput, Spec.Privacy.HiddenEnemyHoverNoLeak",
-      "[RT-FEAT-UI-ICON-LANGUAGE] nessuna pagina Wiki collegata",
       "[RT-FEAT-UI-FRONTEND-SHELL] nessuna pagina Wiki collegata",
       "[RT-FEAT-UI-FRONTEND-MAIN-MENU] nessuna pagina Wiki collegata",
       "[RT-FEAT-UI-FRONTEND-MATCH-FLOW] nessuna pagina Wiki collegata",
@@ -378,15 +377,15 @@
         },
         {
           "id": "PIE-HEX-LAYER-FOCUS",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-LAYER-CLICK",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-LAYER-PANEL",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-V01-REACTCOND",
@@ -394,11 +393,11 @@
         },
         {
           "id": "PIE-HEX-VIZ-BLOCCHI",
-          "state": "⏳"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-VIZ-COSTO",
-          "state": "🟡"
+          "state": "✅"
         },
         {
           "id": "PIE-HEX-VIZ-BORDI",
@@ -410,11 +409,11 @@
         },
         {
           "id": "PIE-HEX-VIZ-UNDO",
-          "state": "⏳"
+          "state": "🟡"
         },
         {
           "id": "PIE-HEX-VIZ-TRANSIZIONI",
-          "state": "⏳"
+          "state": "✅"
         }
       ],
       "issues": [
@@ -1747,15 +1746,15 @@
     },
     {
       "id": "PIE-HEX-LAYER-CLICK",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-LAYER-FOCUS",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-LAYER-PANEL",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-MODE-A",
@@ -1835,7 +1834,7 @@
     },
     {
       "id": "PIE-HEX-VIZ-BLOCCHI",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-VIZ-BORDI",
@@ -1843,7 +1842,7 @@
     },
     {
       "id": "PIE-HEX-VIZ-COSTO",
-      "state": "🟡"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-VIZ-PORTE",
@@ -1851,11 +1850,11 @@
     },
     {
       "id": "PIE-HEX-VIZ-TRANSIZIONI",
-      "state": "⏳"
+      "state": "✅"
     },
     {
       "id": "PIE-HEX-VIZ-UNDO",
-      "state": "⏳"
+      "state": "🟡"
     },
     {
       "id": "PIE-HEXPLAY-1",
