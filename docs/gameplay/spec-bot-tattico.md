@@ -38,7 +38,7 @@ Vietato, e ciascun divieto ha un motivo che non è estetico:
 
 | Divieto | Perché |
 |---|---|
-| `SetActorLocation` / `ApplyDamage` dal bot | Bypassa il resolver, cioè l'unica autorità. È già la regola dei test (`CLAUDE.md` §4) e vale a maggior ragione per un giocatore artificiale |
+| `SetActorLocation` / `ApplyDamage` dal bot | Bypassa il resolver, cioè l'unica autorità. È già la regola dei test (`CLAUDE.md`, §*Guardrail Claude*) e vale a maggior ragione per un giocatore artificiale |
 | Un secondo simulatore nel planner | Due implementazioni della stessa regola divergono, e la seconda non ha né TurnLog né hash |
 | Leggere lo stato autorevole nemico | §2 |
 | Ordine di `TMap`/`TSet` come tie-break | Non è un ordine, è un dettaglio di implementazione della hash table |

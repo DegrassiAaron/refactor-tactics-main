@@ -12,7 +12,7 @@ Baseline da verificare su HEAD:
 - Scenari testuali in `Scenarios/`, non in `Content/`.
 - Sorgenti non importati in Unreal in `SourceAssets/`.
 - `.uasset` e `.umap` si modificano/spostano solo tramite Unreal/Content Browser/API Editor.
-- Feature Registry e viste derivate non vanno duplicate.
+- ~~Feature Registry e viste derivate non vanno duplicate.~~ ⛔ Decaduto con **D-181** (2026-08-21): il registry e le sue viste sono usciti dal repository.
 - Git LFS va descritto secondo lo stato reale del repository corrente, non per memoria.
 
 ## 0. Preflight obbligatorio
@@ -323,12 +323,14 @@ Controlli desiderati:
 Esegui i gate realmente presenti, con le firme correnti, ad esempio:
 
 ```bash
-python scripts/check-docs-links.py
-python scripts/check-docs-symbols.py
-python scripts/check-docs-naming.py --check
-python scripts/feature_registry.py validate
-python scripts/feature_registry.py generate --check
+node tools/radar/generate.ts --check
 ```
+
+> ⛔ **Questa lista era di sette comandi e ne resta uno.** Il 2026-08-21 sono usciti il Feature Registry
+> (**D-181**) e l'intera cartella `scripts/` (**D-182**): i cinque gate documentali, i due controlli sui
+> dati di gioco e i due generatori. Resta il solo `--check` di `tools/radar/`. ⚠️ Una «validazione
+> finale» che gira un comando su sette non è la stessa cosa che girarne sette: chi usa questo mandato
+> lo sappia.
 
 Poi:
 - verifica viste generate;

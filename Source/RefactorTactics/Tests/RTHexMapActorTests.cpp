@@ -288,7 +288,7 @@ namespace
 	 *
 	 * ⚠️ **Presuppone che il nome identifichi UN componente**, che e' vero per costruzione: i quattro ISM
 	 * di `ARTHexMapActor` sono `CreateDefaultSubobject` distinti. Non c'e' quindi dipendenza dall'ordine di
-	 * `GetComponents` — che itera un `TSet` e non e' ordinato (`CLAUDE.md` §5). Se un giorno esistessero due
+	 * `GetComponents` — che itera un `TSet` e non e' ordinato (`CLAUDE.md`, §*Guardrail Claude*). Se un giorno esistessero due
 	 * omonimi, questa funzione andrebbe cambiata, non il chiamante.
 	 *
 	 * ⚠️ `PickIgnoresGeometryThatIsNotTheGrid` ha ancora la propria passata: vive **sopra** questo namespace

@@ -39,7 +39,8 @@ canonico perché è l'owner corrente. Regola estesa in [`AGENTS.md`](AGENTS.md).
   ✅ Le cinque fette del piano sono chiuse (#753–#757) e il gate è verde **senza esenzioni**: oggi un nome
   legacy che ricompare è un difetto, non un residuo da tollerare —
   [`docs/technical/piano-migrazione-roster.md`](docs/technical/piano-migrazione-roster.md).
-  Gate: `python scripts/check-docs-naming.py --check`.
+  ⛔ Il gate che lo controllava — `scripts/check-docs-naming.py` — è uscito con **D-182** (2026-08-21):
+  oggi un nome legacy che ricompare non lo segnala nessuno.
 - Fasi: `Planning → Prep → Dash → Blast → Move → Cleanup`; Move normale resta dopo Blast.
 - Un solo substrato: `FRTCellId`; no gameplay quadrato parallelo.
 - **No GAS nella v0.1**: `URTActionData` / `URTHeroData` / `URTEquipmentData`.

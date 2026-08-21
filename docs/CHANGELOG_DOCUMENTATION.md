@@ -653,7 +653,7 @@ grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cp
 
 ### Gate anti-deriva
 
-Nuovo: [`scripts/check-docs-symbols.py`](../scripts/check-docs-symbols.py). Fallisce se un inventario di classi
+Nuovo: `scripts/check-docs-symbols.py` *(rimosso con **D-182** il 2026-08-21)*. Fallisce se un inventario di classi
 in un documento normativo cita un simbolo non **dichiarato** in `Source/`. È la sola parte della «Fase G» del
 documento sorgente che si possa automatizzare in modo affidabile: i link rotti si vedono, un simbolo inesistente
 no.

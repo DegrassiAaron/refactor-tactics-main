@@ -193,15 +193,15 @@ collo di bottiglia non è il codice di gioco: è la **verifica interattiva** —
 > Con **E16 chiusa il 2026-08-09** il prerequisito di E13 non c'è più: la premessa del bot cambia **una sola
 > volta**, nell'ordine giusto, come chiedeva il registro dei rischi.
 
-### 2.2 Le feature che le epic implementano — generata dal Feature Registry
+### 2.2 ~~Le feature che le epic implementano~~ — rimossa
 
-Questa tabella **non si aggiorna a mano**: la riscrive
-`python scripts/feature_registry.py wiki` leggendo
-`feature-registry.yaml`, che è l'unica sorgente dello stato per feature. Le due
-viste rispondono a domande diverse — l'epic dice *quando si lavora*, la feature dice *cosa esiste* — e
-tenerle sincronizzate a mano è il modo in cui questo repository ha già prodotto quattro numeri sbagliati.
+⛔ **Questa sezione era una tabella generata, e non esiste più** dal 2026-08-21
+([D-181](../decisions/RT_PDR_00_Decision_Log.md)). La riscriveva `feature_registry.py`, che è uscito dal
+repository insieme a `feature-registry.yaml`.
 
-Il registry e il suo modello sono documentati in `feature-registry.md`.
+⚠️ **La ragione per cui esisteva resta valida**: l'epic dice *quando si lavora*, la feature dice *cosa
+esiste*, e tenere le due viste sincronizzate a mano è il modo in cui questo repository ha già prodotto
+quattro numeri sbagliati. Oggi la seconda vista non c'è — non è che sia tornata manuale.
 
 > **La tabella feature-per-epic e' stata rimossa** con il Feature Registry che la generava
 > (**D-181**, 2026-08-21). Le epic e il loro stato restano in §2.1, che e' scritto a mano ed e'

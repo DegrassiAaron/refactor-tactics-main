@@ -50,11 +50,13 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 
 > **Terza vista, aggiunta il 2026-08-08: il Feature Registry.** Questa tabella dice a che punto sono le
 > **milestone**, [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 a che punto sono le **epic**. Nessuna delle due
-> risponde a «la copertura direzionale funziona?» — la domanda che si fa chi legge la Wiki. Quella risposta
-> vive in `feature-registry.yaml`, per **feature**, con lo stato derivato da gate
-> verificabili invece che scritto a mano. Le tre viste non si duplicano: la terza è l'unica che la Wiki e i
-> workbook leggono, e il suo stato è generato. Modello e comandi in
-> `feature-registry.md`.
+> rispondeva a «la copertura direzionale funziona?» — la domanda che si fa chi legge la Wiki.
+>
+> ⛔ **Quella terza vista non esiste più** dal 2026-08-21
+> ([D-181](../decisions/RT_PDR_00_Decision_Log.md)): `feature-registry.yaml`, le sue viste generate e il
+> loro modello sono usciti dal repository. Le viste sono **due**, ed entrambe scritte a mano: questa
+> tabella per le milestone, `roadmap-v0.1.md` §2.1 per le epic. ⚠️ **Alla domanda per feature oggi non
+> risponde nessuno**, e non è una svista: è il costo dichiarato in D-181.
 
 **Suite automatica**: `Source/RefactorTactics/Tests/`. **Il numero vive in un posto solo** —
 [`roadmap-v0.1.md`](roadmap-v0.1.md) §2, con commit e data — e qui non si duplica: era duplicato in due viste,

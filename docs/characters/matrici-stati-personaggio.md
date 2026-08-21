@@ -21,7 +21,7 @@ D-023 ha chiuso: un file non diffabile, non revisionabile in PR e che nessun gat
 Il markdown è quindi la **fonte**; chi ha bisogno del foglio lo genera:
 
 ```bash
-python scripts/build-state-matrices-xlsx.py     # legge questo file, scrive un .xlsx non versionato
+# ⛔ python scripts/build-state-matrices-xlsx.py  — rimosso con D-182 (2026-08-21)     # legge questo file, scrive un .xlsx non versionato
 ```
 
 Così `RecommendedCandidate`, `DesignStatus` e `TargetVersion` non possono divergere fra documento e workbook —

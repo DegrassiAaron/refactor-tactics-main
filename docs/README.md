@@ -143,7 +143,7 @@ invarianti del canone. **Quali sono aperte?** [`OPEN_DECISIONS.md`](OPEN_DECISIO
 **📦 Piano consegnato**.
 
 **Quali test verificano le regole?** Sotto `Source/RefactorTactics/Tests/`. Il numero **si misura, non si cita
-a memoria** — questo file l'ha già sbagliato cinque volte, ed è il motivo per cui adesso è generato:
+a memoria** — questo file l'ha già sbagliato cinque volte.
 
 > **Il conteggio della suite si misura sul branch corrente**, non si cita da qui: era un
 > blocco generato, e il generatore e' stato rimosso il 2026-08-21 (**D-181**). L'ultimo
@@ -171,13 +171,12 @@ docs/
 ├── wiki/        **vuota**: le pagine di gioco vivono nel clone pubblicato (D-076). Resta un puntatore
 ├── characters/  pagine personaggio: v0.1, v0.2, candidati Paragon — **un kit per pagina**
 │   └── radar/   gli otto SVG generati da `tools/radar/`: output, non si editano
-├── control-center/  la vista web sopra gli artefatti generati dal Feature Registry
 ├── research/    non normativo: PRD di visione, design, handoff — la ex `src/`, col nome che lo dice
 │   ├── prd/        i quattro PRD tematici + il prompt del pivot esagonale
 │   ├── design/     icone, showcase, griglie stampabili
 │   └── handoff/    prompt e consegne di sessione, non ancora consumati
 ├── generated/   **output**, non ricerca: ha un generatore committato e non si edita
-│   └── icons/      i master iconografici di `scripts/build-icon-assets.py`
+│   └── icons/      296 master iconografici — ⛔ il generatore che li produceva è uscito con D-182
 └── archive/     materiale superato
     ├── src/        i sorgenti già recepiti: design, handoff, audit
     └── pdr-v0.1/   il corpus PDR v0.1, consolidato in un Markdown
@@ -218,7 +217,7 @@ dicono già; la cartella no, e finché non lo dice l'etichetta va cercata un fil
 | Natura | Dove sta | Chi la scrive | Cosa succede se la si edita |
 |---|---|---|---|
 | **authored** | `product/` · `gameplay/` · `technical/` · `balance/` · `decisions/` · `characters/` | una persona | è il posto giusto: qui si cambia una regola |
-| **generated** | `generated/` · `roadmap/*.shortlist.md` · `roadmap/*.json` · `roadmap/charts/` · `characters/radar/` | un generatore | **si perde alla rigenerazione**: si corregge la sorgente |
+| **generated** | `generated/` · `characters/radar/` | un generatore | **si perde alla rigenerazione**: si corregge la sorgente |
 | **research** | `research/` | chiunque, senza gate | non decide niente, e non risolve un conflitto |
 | **archive** | `archive/` | nessuno: si conserva | riscriverla falsifica la storia |
 
@@ -271,7 +270,8 @@ come se fosse la specifica di oggi.
 `docs/` è fatta di immagini più che di prosa — il 2026-08-17 erano **464 file su 888 e il 93,8% dei byte** —
 e fino ad allora nessun gate sapeva dire quante fossero, chi le usasse, quali fossero la stessa immagine due
 volte. Il numero di oggi lo dice
-[`scripts/docs_inventory.py`](../scripts/docs_inventory.py); qui stanno le tre regole.
+un gate che è stato rimosso con **D-182** il 2026-08-21; qui restano le tre regole, che valgono
+ancora anche senza qualcuno che le verifichi.
 
 **1. Un'immagine sta accanto al suo owner.** Un riferimento visuale di una spec vive nella cartella di
 quella spec (`technical/img/`, `characters/images/`), non in una cartella di immagini globale. Se l'owner
@@ -294,121 +294,28 @@ Per le immagini *non* governate da un generatore, il nome è `<topic>--<vista>.<
 (`infografic` accanto a `infographic` è una coppia che esiste davvero, in
 `research/design/systems-map/`).
 
-### Gate anti-deriva
+### ~~Gate anti-deriva~~ — ritirati il 2026-08-21
 
-```bash
-python scripts/check-docs-symbols.py
-```
+⛔ **I gate non esistono più.** La cartella `scripts/` è stata rimossa con
+[D-182](decisions/RT_PDR_00_Decision_Log.md): con lei sono usciti i nove script Python e i due file di
+test. Questa sezione ne documentava cinque — simboli, tabelle, link, nomi, inventario — più i due
+controlli sui dati di gioco e i due generatori.
 
-Fallisce se un **inventario di classi** in un documento normativo cita un simbolo `URT*`/`ART*`/`FRT*`/`ERT*`
-che non è **dichiarato** in `Source/`. Nasce dal difetto D1: il canone elencava quattro classi su dieci rimosse
-dal codice, e restava leggibile e falso.
+⚠️ **Ciò che nessuno verifica più**, e va saputo invece che riscoperto:
 
-Il gate è deliberatamente **stretto**: controlla solo le righe di tabella la cui prima cella è un simbolo — la
-forma in cui un documento afferma «questo esiste oggi». Non controlla la prosa, dove lo stesso simbolo può
-comparire come storia («è stato rimosso») o come proposta («il DoD introduce…»): distinguerli lessicalmente
-non è affidabile, e un gate che sbaglia viene disattivato al terzo falso positivo. Sono esentati i documenti
-storici, i brief propositivi e le cartelle `archive/`, `research/`, `roadmap/plans/`.
-
-### Gate delle tabelle
-
-```bash
-python scripts/check-docs-tables.py          # controlla
-python scripts/check-docs-tables.py --fix    # rimuove le righe vuote che spezzano
-```
-
-Fallisce se un documento normativo contiene **righe di tabella che GitHub non renderà in una tabella**. In
-GFM una riga vuota **termina** la tabella, e le righe `| … |` successive non hanno più un'intestazione sopra:
-diventano un paragrafo coi pipe in vista.
-
-Nasce da [#870](https://github.com/DegrassiAaron/refactor-tactics-main/issues/870): il Decision Log rendeva
-**11 righe su 144**, e centotrentatré decisioni erano testo grezzo. Il documento appariva intero nel sorgente
-e mutilato sulla pagina — nessun altro gate lo vedeva.
-
-Controlla anche i **byte di controllo**, che fermano il rendering a metà pagina: un solo `NUL` faceva rendere
-**zero** delle cinque tabelle di `asset-map.md`.
-
-Il criterio non è dedotto ma **validato contro il parser vero di GitHub** (`POST /markdown`) su tutti i 155
-documenti che contengono un pipe: stesso verdetto ovunque. Tre euristiche più semplici erano cadute prima —
-contare i pipe segnalava `labels=v0.1|epic|P0`, ignorare i blockquote segnalava ogni ADR con un banner in
-testa, e trattare un blocco contiguo di righe `|` come tabella segnalava i comandi di shell andati a capo.
-
-```bash
-python scripts/check-docs-links.py          # e python scripts/check-docs-links.py --known
-```
-
-Il gemello: un **link** punta a qualcosa che esiste, ed è etichettato per quello che è. Nasce dal
-consolidamento del 2026-08-08, che spostando 25 sorgenti ha rotto i link in tre modi — e solo il primo era
-ovvio. Controlla quattro cose:
-
-| Controllo | Cosa becca |
+| non più controllato | il difetto che tornava |
 |---|---|
-| Target inesistente | Il link rotto classico, tipicamente dopo uno spostamento |
-| **Etichetta che mente** | ``[`../vecchio/x.md`](../nuovo/x.md)``: il link funziona, il testo no. Erano **36** dopo lo spostamento, e nessun controllo sui soli target li vede |
-| Target **non versionato** | Esiste sulla tua macchina e su nessun'altra: committalo o togli il link |
-| Debito **stantio** | Una voce di `DEBITO_NOTO` che è tornata a funzionare: va tolta, o nasconderà la prossima |
+| **link** | un target inesistente, e un'etichetta che mostra un percorso vecchio mentre il link funziona — erano **36** dopo un solo spostamento |
+| **simboli** | un documento che cita una classe o un metodo che non esiste nel codice |
+| **tabelle** | una riga vuota che spezza una tabella, e una cella con una pipe non escapata |
+| **nomi** | un identificatore legacy che ricompare — il gate che chiudeva **D-130** |
+| **inventario** | un'immagine incorporata e assente, un duplicato esatto non dichiarato, un'orfana fuori area grezza |
+| **dati di gioco** | equipaggiamento e capability che non combaciano più con `Source/` |
+| **provenienza** | le **296 icone** di `generated/icons/` non hanno più il generatore che ne dichiarava la geometria |
 
-`DEBITO_NOTO` **non è un'esenzione**: è una promessa datata, con la sua ragione accanto, e il gate la verifica
-al contrario. **Oggi è vuoto**, e va tenuto vuoto; il meccanismo resta perché un gate senza via d'uscita viene
-disattivato *per intero* al primo blocco legittimo.
+Le regole che i gate facevano rispettare **restano scritte** qui sopra e nei documenti owner: quello
+che manca è chi le verifica. È una scelta di fase — il progetto è in sviluppo, e il costo di
+mantenerli superava quello di non averli. Il punto da riaprire è **D-182**.
 
-Ignora i link **citati** (avvolti in backtick) e quelli dentro **blocchi recintati**. Non è una comodità: in un
-```` ```md ```` un `![img](…)` è un modello da incollare altrove, e i suoi path sono relativi alla
-**destinazione**. È l'errore in cui il gate è cascato da solo alla prima esecuzione, segnalando i due esempi
-scritti in questa pagina.
-
-Non controlla **ancoraggi** (`#sezione`) né **URL esterni**: il primo richiederebbe di riprodurre la
-slugificazione di GitHub su titoli con accenti ed emoji, il secondo la rete. Stessa disciplina dell'altro
-gate — meglio stretto e creduto che largo e ignorato.
-
-⛔ **E dal 2026-08-21 non controlla il clone della Wiki** ([D-180](decisions/RT_PDR_00_Decision_Log.md)).
-Fino al 2026-08-20 `--wiki-root` estendeva il gate a quel repository; l'opzione è stata rimossa e ora
-`argparse` la **rifiuta** con `exit 2`, invece di ignorarla come farebbe con un flag qualsiasi. Escono
-quattro regole: i `[[Nome|slug]]` risolti per nome, i **nomi di pagina duplicati** — due pagine omonime si
-contendono lo stesso URL, e ci si appoggiava `wiki_page_by_name()` in `feature_registry.py` — le immagini
-risolte dalla radice del clone, e le **fonti normative** citate in backtick, la regola nata il 2026-08-20
-dopo che uno split di documenti aveva lasciato **11 percorsi morti su 12 pagine**.
-
-Sul clone resta **un solo gate**, e guarda i nomi dei file, non i link:
-`python scripts/check-docs-naming.py --check --wiki-root <clone>`.
-
-### Gate dell'inventario
-
-```bash
-python scripts/docs_inventory.py                                    # il report
-python scripts/docs_inventory.py --check --wiki-root <clone>        # exit 1 se un invariante cade
-python scripts/test_docs_inventory.py                               # i test della regola
-```
-
-Il terzo gate documentale, e il primo che guarda le **immagini**. Verifica tre cose, tutte di sola
-contabilità e tutte vere il giorno in cui è nato:
-
-| Invariante | Cosa becca |
-|---|---|
-| Nessuna immagine incorporata e mancante | Un `![…](x.png)` che punta a un file che non c'è. `check-docs-links.py` lo vede già; qui il messaggio dice **quale documento** la incorpora |
-| Nessun duplicato esatto taciuto | Due path, stesso SHA-256. Un duplicato legittimo esiste — si dichiara in `DUPLICATI_NOTI` **con la ragione e la data** — uno taciuto no |
-| Nessuna orfana fuori dall'area grezza | Un'immagine che nessuno referenzia, in una cartella di owner |
-| Il contratto dei generati dice il vero | Un output dichiarato senza generatore, o un `--check` promesso e non implementato |
-
-`DUPLICATI_NOTI` e `ORFANE_NOTE` **non sono esenzioni**: sono promesse datate che il gate verifica al
-contrario, e una voce che non corrisponde più a niente lo fa fallire. Stessa disciplina di `DEBITO_NOTO`.
-
-Due avvertenze, entrambe imparate sbagliando:
-
-- **`--wiki-root` non è opzionale per il terzo invariante.** Il clone è un repository separato
-  ([D-076](decisions/RT_PDR_00_Decision_Log.md)) e incorpora gli otto radar più `roadmap-map.svg` via URL
-  assoluto: senza, nove immagini risultano orfane e non lo sono. La prima esecuzione le ha perse tutte e
-  nove. Senza il clone lo script **dice** che quella metà non è stata eseguita, invece di stampare `OK`.
-- **La somiglianza non è una prova, e una famiglia-template la batte.** I candidati near-duplicate sono
-  candidati: le 38 card di `characters/images/paragon/` sono generate dallo stesso layout e hanno prodotto
-  **558 falsi positivi su 562**, perché un hash percettivo misura la cornice e non il soggetto. Si
-  escludono per **dichiarazione** (`FAMIGLIE_TEMPLATE`), mai alzando una soglia.
-
-Pillow è **facoltativo**: senza, dimensioni e hash percettivi non si calcolano, lo script lo dichiara, e i
-quattro invarianti restano verificabili.
-
-Il quarto ha un owner leggibile: [`generated/README.md`](generated/README.md) tiene la tabella
-`source → generator → output → consumer` per **ogni** artefatto generato di `docs/`, ovunque viva — i
-radar in `characters/`, le shortlist in `roadmap/`, e i tre blocchi che stanno **dentro** documenti
-scritti a mano. La tabella non si scrive a mano: nasce da `CONTRATTI` nell'auditor
-(`--emit-contract`), perché due elenchi della stessa cosa divergono alla prima aggiunta.
+Resta un solo `--check`, e non è Python: `node tools/radar/generate.ts --check`, che dice se i radar
+degli SVG sono indietro rispetto ai cataloghi di `balance/`.

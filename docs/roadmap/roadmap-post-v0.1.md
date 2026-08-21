@@ -855,7 +855,7 @@ prototipi va **dal più leggero al più invasivo** — `Phase · Flow` non tocca
 > e Balance per ognuno dei quattro eroi.
 >
 > ⚠️ **Il gate resta locale, e non è una mancanza**: questo repository non usa CI — `check-docs-links.py`,
-> `check-docs-symbols.py` e `feature_registry.py validate` girano tutti a mano. `--check` è documentato
+> `check-docs-symbols.py` e `docs_inventory.py --check` girano tutti a mano *(`feature_registry.py validate` stava qui fino a **D-181**, 2026-08-21)*. `--check` è documentato
 > in [`../balance/README.md`](../balance/README.md), dove i cataloghi si modificano. Il prezzo dichiarato
 > è che protegge solo chi lo esegue.
 

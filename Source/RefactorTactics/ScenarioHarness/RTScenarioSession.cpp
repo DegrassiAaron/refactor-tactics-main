@@ -258,7 +258,7 @@ namespace
 			// scatta attraversando un bordo), `SemanticTrigger` (trigger che distingue Dash da Move) e
 			// `Teleport` (spostamento che non attraversa le celle intermedie). Restano fuori per lo stesso
 			// criterio delle altre — nessun produttore in partita — e sono documentate in
-			// `docs/roadmap/scenariomap.shortlist.md`, che le elenca accanto agli scenari che le chiedono.
+			// `docs/technical/tooling/scenario-map.md`, che le elenca accanto agli scenari che le chiedono.
 			TEXT("SpatialTrigger"),           // owner: #704
 			TEXT("SemanticTrigger"),          // owner: #704
 			TEXT("Teleport"),                 // owner: #704
