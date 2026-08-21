@@ -34,7 +34,7 @@ capo se una cosa fosse v0.1 o no. Questo file registra quella ripartizione una v
 | Release | Nome | Tema | Epic | Formato di gioco |
 |---|---|---|---|---|
 | **v0.1** | Vertical slice | Il turno simultaneo funziona e si vede | E1–E21 | Skirmish 2v2 vs bot |
-| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22–E26 · **E35** · **E36** · **E38** · **E39** | Standard 3v3 |
+| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22 · E24–E26 · **E35** · **E36** · **E38** · **E39** | Standard 3v3 |
 | **v0.3** | Informazione | Quello che non sai vale quanto quello che fai | E27–E29 · **E33** | Standard 3v3 |
 | **v0.4** | Operations | Partite lunghe su mappe grandi | E30–E32 · **E34** · **E37** | Operations 4v4+ |
 | **v0.5** | Online Foundation | Il turno simultaneo regge la rete | **E40** | Standard 3v3 online, lobby privata |
@@ -43,6 +43,10 @@ capo se una cosa fosse v0.1 o no. Questo file registra quella ripartizione una v
 | **v0.8** | Beta / Balance | Le partite si misurano a lotti, e la misura dice cosa vale | **E43** | 3v3 + batch bot-vs-bot |
 | **v0.9** | Release Candidate | Niente di nuovo: quello che c'è deve reggere | **E44** | Feature freeze |
 | **v1.0** | Launch | Una partita competitiva completa su infrastruttura di produzione | **E45** | Standard 3v3 ranked |
+
+> ⚠️ **`E22 · E24–E26` e non `E22–E26`: il buco è E23, ed è voluto.** L'epic è stata **anticipata alla v0.1** il 2026-08-17 (`D-160`), lo dichiarano la propria sezione qui sotto (*«⛔ E23 NON È PIÙ DI QUESTA RELEASE»*) e la riga `E23` di [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1. Finché la cella diceva `E22–E26` l'**intervallo continuava a rivendicarla**, e la contraddizione era invisibile a `grep`: la stringa `E23` non compare in una riga che la contiene. Costo misurato — `feature_registry.py` leggeva `E23 → v0.2`, quindi le **cinque** feature che dichiarano `release: v0.1` ed `epic: E23` finivano nella tabella dei *disallineati* di `roadmap-v0.1.md` invece che sotto la propria epic, e `wiki --check` — che è una condizione del gate **G15** — restava rosso.
+> 
+> **Questa riga non è un indice esaustivo delle epic v0.1**: `E46` ed `E47` sono v0.1 e non compaiono qui. L'owner delle epic della v0.1 è `roadmap-v0.1.md` §2.1; questa tabella dichiara ciò che sta **oltre** la v0.1, ed E23 ne è uscita.
 
 > **Le sei release da v0.5 a v1.0 sono state aggiunte il 2026-08-13**
 > ([D-136](../decisions/RT_PDR_00_Decision_Log.md)). Fino a quel giorno questo documento chiudeva qui

@@ -290,10 +290,10 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E14** | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | SPECIFIED | 1/9 |
 |  | `RT-FEAT-CORE-DECISION-TIME-BANK` — Decision Time Bank (budget di decisione per giocatore) | SPECIFIED | 1/10 |
 |  | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | SPECIFIED | 1/10 |
-|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | TESTABLE | 5/10 |
+|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | TESTABLE | 6/10 |
 |  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/10 |
-|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 4/10 |
-|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | TESTABLE | 5/10 |
+|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 5/10 |
+|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | TESTABLE | 6/10 |
 |  | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | IMPLEMENTING | 1/9 |
 | **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
 |  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
@@ -304,6 +304,11 @@ Il registry e il suo modello sono documentati in [`feature-registry.md`](feature
 | **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
 | **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |
 |  | `RT-FEAT-UI-GRAYBOX-KIT` — Graybox Kit — contratto di ingombro, pivot e presentazione degli oggetti di mappa | DESIGNED | 0/5 |
+| **E23** | `RT-FEAT-MAP-INTERACTION-GRAPH` — Interaction graph: la relazione sorgente -> bersaglio e' un dato | DESIGNED | 0/10 |
+|  | `RT-FEAT-MAP-STANDABILITY` — Standability derivata da anchor, footprint e clearance | DESIGNED | 0/8 |
+|  | `RT-FEAT-MAP-STRUCTURE-IDENTITY` — Identita' stabile di una struttura attraverso cook, scenari e replay | DESIGNED | 0/8 |
+|  | `RT-FEAT-MAP-TRANSITION-CLEARANCE` — Validità della transizione distinta da quella della cella | DESIGNED | 0/8 |
+|  | `RT-FEAT-UI-STRUCTURE-READABILITY` — Leggibilita' delle strutture: etichette tattiche e relazioni sorgente/bersaglio | DESIGNED | 0/7 |
 | **E46** | `RT-FEAT-UI-FRONTEND-MAIN-MENU` — Main Menu, e l'avvio del pacchetto | SPECIFIED | 1/5 |
 |  | `RT-FEAT-UI-FRONTEND-MATCH-FLOW` — Play, Result e il ritorno al menu | SPECIFIED | 1/6 |
 |  | `RT-FEAT-UI-FRONTEND-PAUSE` — Pause, e lo smontaggio della partita | SPECIFIED | 1/5 |
