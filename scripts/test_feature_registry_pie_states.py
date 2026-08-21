@@ -27,7 +27,7 @@ Uso:
 
 VERIFICA DI MUTAZIONE (2026-08-21, una rottura per volta, da rifare se questo file cambia):
 
-1. `PIE_RESULT_GLYPHS` senza `❌`      -> cadono `test_primo_glifo_vince` e
+1. `RESULT_GLYPHS` senza `❌`      -> cadono `test_primo_glifo_vince` e
                                           `test_seduta_tutta_rossa_non_e_da_cominciare`;
 2. `PIE_EXECUTED_GLYPHS` senza `❌`    -> cadono `test_seduta_tutta_rossa_non_e_da_cominciare` e
                                           `test_ogni_esito_diverso_da_aperto_conta_come_eseguito`;
@@ -36,7 +36,7 @@ VERIFICA DI MUTAZIONE (2026-08-21, una rottura per volta, da rifare se questo fi
 ⚠️ Questa nota e' stata riscritta **due volte sulla misura**, e vale la pena dire perche'. Diceva
 prima che la mutazione (1) abbatteva anche il test della seduta: falso allora, perche' quel test
 costruisce gli stati a mano e non passava dal parser. Poi il codice e' cambiato — la condizione del
-🟡 non enumera piu' i glifi, li **deriva** da `PIE_RESULT_GLYPHS` — e con la derivazione la (1) lo
+🟡 non enumera piu' i glifi, li **deriva** da `RESULT_GLYPHS` — e con la derivazione la (1) lo
 abbatte davvero. Una nota di mutazione scritta a memoria invecchia al primo refactoring: si rilancia,
 non si ricopia.
 """
@@ -128,10 +128,10 @@ class SessionState(unittest.TestCase):
         E' il difetto che la prima stesura di #1249 lasciava in piedi: riparato il rosso, la
         condizione del 🟡 enumerava ✅ 🟡 ❌ e `⌫` cadeva nel `return "⏳"` finale — «da fare» per un
         lavoro dichiarato **rimosso dal repo**. Il test gira su tutti i glifi dichiarati invece che
-        su una lista scritta a mano: chi ne aggiunge uno a `PIE_RESULT_GLYPHS` senza pensare a
+        su una lista scritta a mano: chi ne aggiunge uno a `RESULT_GLYPHS` senza pensare a
         `session_state()` lo vede fallire qui.
         """
-        for glifo in sorted(set(fr.PIE_RESULT_GLYPHS) - {"⏳", "✅"}):
+        for glifo in sorted(set(fr.RESULT_GLYPHS) - {"⏳", "✅"}):
             self.assertEqual(self._stato(glifo, glifo), "🟡",
                              "una seduta di sole voci %s non e' «da cominciare»" % glifo)
 
@@ -191,7 +191,7 @@ class RegistroReale(unittest.TestCase):
     def test_ogni_voce_vale_il_primo_glifo_della_propria_cella(self):
         entries = fr.pie_entries()
         for voce, cella in self._celle().items():
-            atteso = next((c for c in cella if c in fr.PIE_RESULT_GLYPHS), "")
+            atteso = next((c for c in cella if c in fr.RESULT_GLYPHS), "")
             self.assertEqual(entries.get(voce), atteso,
                              "%s: la cella apre con %r" % (voce, atteso))
 

@@ -89,77 +89,92 @@
     {
       "id": "G1",
       "request": "Build **Editor** + **Game Development** + **Game Shipping** senza warning nuovi",
-      "state": "⏳"
+      "state": "⏳",
+      "glyph": "⏳"
     },
     {
       "id": "G2",
       "request": "Suite automation completa verde",
-      "state": "⏳"
+      "state": "⏳",
+      "glyph": "⏳"
     },
     {
       "id": "G3",
       "request": "I 10 test nominati dal catalogo esistono — **nove con quei nomi, uno rinominato di proposito**",
-      "state": "⏳"
+      "state": "⏳",
+      "glyph": "⏳"
     },
     {
       "id": "G4",
       "request": "Determinismo: 100 ripetizioni, checksum identico",
-      "state": "⏳"
+      "state": "⏳",
+      "glyph": "⏳"
     },
     {
       "id": "G5",
       "request": "Nessun gameplay quadrato residuo",
-      "state": "⏳"
+      "state": "⏳",
+      "glyph": "⏳"
     },
     {
       "id": "G6",
       "request": "ID stabili e unici per azioni, terreni, equipaggiamento, eroi",
-      "state": "⏳"
+      "state": "⏳",
+      "glyph": "⏳"
     },
     {
       "id": "G7",
       "request": "Nessun float in costi, priorità, danni",
-      "state": "⏳"
+      "state": "⏳",
+      "glyph": "⏳"
     },
     {
       "id": "G8",
       "request": "Nessun intento avversario replicato",
-      "state": "⏳"
+      "state": "⏳",
+      "glyph": "⏳"
     },
     {
       "id": "G9",
       "request": "Il **subset `RELEASE-V01`** delle verifiche manuali è eseguito",
-      "state": "⏳ **2 verdi · 7 parziali · 8 aperte** (2026-08-09)"
+      "state": "⏳ **2 verdi · 7 parziali · 8 aperte** (2026-08-09)",
+      "glyph": "⏳"
     },
     {
       "id": "G10",
       "request": "Partita completa 2v2 su mappa multilivello, dall'avvio alla vittoria",
-      "state": "⏳"
+      "state": "⏳",
+      "glyph": "⏳"
     },
     {
       "id": "G11",
       "request": "KPI misurati e registrati (anche fuori target)",
-      "state": "⏳"
+      "state": "⏳",
+      "glyph": "⏳"
     },
     {
       "id": "G12",
       "request": "Packaging Windows Development **e** Shipping",
-      "state": "✅ **2026-08-16** (#923): `BUILD SUCCESSFUL`, un cook e due binari · Development 336 MB · Shipping 167 MB · `.pak` 10,8 MB"
+      "state": "✅ **2026-08-16** (#923): `BUILD SUCCESSFUL`, un cook e due binari · Development 336 MB · Shipping 167 MB · `.pak` 10,8 MB",
+      "glyph": "✅"
     },
     {
       "id": "G13",
       "request": "Partita giocabile **senza editor** dalla build packaged",
-      "state": "🟡 **2026-08-10**: partita completa fino alla vittoria sul pacchetto Development (`round 6/12`, per eliminazione, zero crash) — ma sull'**arena di test**. Riserva sotto"
+      "state": "🟡 **2026-08-10**: partita completa fino alla vittoria sul pacchetto Development (`round 6/12`, per eliminazione, zero crash) — ma sull'**arena di test**. Riserva sotto",
+      "glyph": "🟡"
     },
     {
       "id": "G14",
       "request": "Documentazione allineata",
-      "state": "⏳"
+      "state": "⏳",
+      "glyph": "⏳"
     },
     {
       "id": "G15",
       "request": "Tracciabilità delle feature verificabile",
-      "state": "⏳"
+      "state": "⏳",
+      "glyph": "⏳"
     }
   ],
   "epics": {

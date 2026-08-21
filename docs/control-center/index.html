@@ -326,7 +326,9 @@ function overview(view) {
   const blocked = feats.filter((f) => f.status === 'BLOCKED').length;
   const issues = new Set(feats.flatMap((f) => f.issues)).size;
   const gates = GRAPH.release_gates || [];
-  const green = gates.filter((g) => g.state.startsWith('✅')).length;
+  // Il glifo arriva calcolato da `project-graph.json`: una quarta regola qui accanto alle tre
+  // di `feature_registry.py` e' come sono nati i due numeri divergenti del 2026-08-21 (#1251).
+  const green = gates.filter((g) => g.glyph === '✅').length;
   const q = GRAPH.editor_queue || {};
 
   view.append(el('div', { className: 'stats' }, [

@@ -1007,7 +1007,10 @@ def render_control_center_page(data, graph):
     nessun conteggio nasce qui, e nessuna regola di stato viene riapplicata.
     """
     gates = graph.get("release_gates") or []
-    green = sum(1 for g in gates if g.get("state") == "✅")
+    # ⚠️ Il glifo arriva **calcolato** dal grafo. Qui c'era `g.get("state") == "✅"`, e la cella di
+    # un gate verde non e' mai uguale al glifo — porta data ed evidenza — quindi questa pagina
+    # pubblicava `0` mentre la shortlist pubblicava `1`, sugli stessi quindici gate (#1251).
+    green = sum(1 for g in gates if g.get("glyph") == "✅")
     queue = graph.get("editor_queue") or {}
     sessions = {s["id"]: s for s in (graph.get("editor_sessions") or [])}
     execution = graph.get("execution") or None
@@ -2218,7 +2221,8 @@ SHORTLIST_FILES = {
 # I simboli di stato in uso nei documenti di roadmap. `⌫` dichiara «rimosso dal repo».
 STATUS_GLYPHS = "✅🟡⏳⌫"
 
-# Gli esiti del registro PIE sono un vocabolario DIVERSO, e tenerli separati non e' pignoleria:
+# Gli esiti di una VERIFICA sono un vocabolario diverso da quello di roadmap, e tenerli separati
+# non e' pignoleria:
 # `test-manuali-pie.md` dichiara quattro esiti — ✅ 🟡 ❌ ⏳ — mentre le tabelle di roadmap
 # dichiarano avanzamento. I due insiemi divergono in entrambe le direzioni, misurato il 2026-08-21:
 # `⌫` non compare NEMMENO UNA VOLTA fra le 150 voci PIE, e `❌` non compare in nessuna riga di stato
@@ -2231,16 +2235,41 @@ STATUS_GLYPHS = "✅🟡⏳⌫"
 #
 # `⌫` resta qui benche' oggi nessuna voce PIE lo usi: toglierlo renderebbe muta una voce che domani
 # lo dichiarasse, che e' esattamente il difetto che questa riga ripara.
-PIE_RESULT_GLYPHS = "✅🟡❌⏳⌫"
+#
+# 🔴 Il nome ha perso il prefisso `PIE_` il 2026-08-21 (#1251): il registro PIE non era il solo a
+# dichiarare esiti. Anche i **gate di release** della Definition of Done possono fallire, e
+# `release_gates()` li leggeva con l'alfabeto di roadmap. Un gate rosso la cui nota non citasse
+# altri glifi non conteneva nulla di riconoscibile: `state` restava `""` e la tabella stampava `—`,
+# cioe' il gate USCIVA dal conteggio invece di comparire fallito — nel momento in cui quella vista
+# conta di piu'. Un secondo alfabeto identico accanto a questo sarebbe divergito al primo che ne
+# tocca uno solo, quindi qui ce n'e' uno e i due lettori lo condividono.
+RESULT_GLYPHS = "✅🟡❌⏳⌫"
 
 # «Questa voce e' stata toccata», derivato invece che riscritto a mano — ed e' il rimedio a un
 # difetto che la prima stesura di #1249 riparava per il solo `❌`: `session_state()` enumerava i
 # glifi uno per uno, quindi ogni esito FUORI da quell'elenco ricadeva nel `return "⏳"` finale.
 # Riparare il rosso e lasciare l'elenco lasciava in piedi lo stesso buco per `⌫` — verificato:
 # una seduta con voci tutte `⌫` dava ⏳, cioe' «mai cominciata», per un lavoro dichiarato rimosso.
-# Derivandolo, il buco non si riapre al prossimo glifo: chi ne aggiunge uno a `PIE_RESULT_GLYPHS`
+# Derivandolo, il buco non si riapre al prossimo glifo: chi ne aggiunge uno a `RESULT_GLYPHS`
 # lo trova gia' classificato come eseguito, che e' il default prudente.
-PIE_EXECUTED_GLYPHS = frozenset(PIE_RESULT_GLYPHS) - {"⏳"}
+PIE_EXECUTED_GLYPHS = frozenset(RESULT_GLYPHS) - {"⏳"}
+
+
+def result_glyph(cell):
+    """L'esito dichiarato da una cella: il **primo** glifo di `RESULT_GLYPHS` che vi compare.
+
+    La posizione e' la regola, e non e' una preferenza di stile: una nota onesta cita i glifi della
+    propria storia. Nel registro PIE sei celle contengono `❌` e solo tre lo **sono** — le altre
+    scrivono *«il ❌ del 2026-08-18»* e sono verdi o aperte; nella Definition of Done la cella di G13
+    apre 🟡 e cita il `✅` che le manca. Cercare il glifo *ovunque* legge verdi entrambe le famiglie.
+
+    Restituisce `""` quando la cella non dichiara nessun esito: e' un'informazione, non un errore, e
+    chi la riceve deve renderla visibile invece di lasciarla cadere.
+    """
+    for char in cell:
+        if char in RESULT_GLYPHS:
+            return char
+    return ""
 
 
 def epic_status():
@@ -2340,7 +2369,28 @@ def post_v01_epics():
 
 
 def release_gates():
-    """I gate `G1`-`G15` dalla Definition of Done: id, richiesta e stato dichiarato."""
+    """I gate `G1`-`G15` dalla Definition of Done: id, richiesta, cella di stato e **glifo**.
+
+    Il glifo e' il quarto termine perche' altrimenti ognuno se lo ricava per conto proprio, ed e'
+    esattamente quello che era successo: il 2026-08-21 quattro lettori applicavano quattro regole
+    diverse allo stesso fatto, e due numeri **pubblicati** si contraddicevano (#1251).
+
+    | lettore | regola | verdi |
+    |---|---|---|
+    | `render_shortlist_gates` | `"✅" in state` — sottostringa | 1 |
+    | `render_control_center_page` (Wiki) | `state == "✅"` — uguaglianza | **0** |
+    | `docs/control-center/index.html` | `state.startsWith('✅')` | 1 |
+
+    `milestonemap.shortlist.md` stampava «15 gate · verdi: **1**» e la pagina Wiki «**0** gate di
+    release verdi su 15» **lo stesso giorno**, sullo stesso documento: la cella di G12 e'
+    `✅ **2026-08-16** (#923): …`, che contiene il verde ma non gli e' mai uguale. Nessuna delle tre
+    regole era quella dichiarata da #1249 per gli esiti — il **primo glifo** — e nessun gate poteva
+    accorgersene, perche' i generati vengono confrontati con la propria rigenerazione.
+
+    ⛔ Non contare i verdi con `"✅" in cella`. La cella di stato di un gate porta note della stessa
+    forma delle voci PIE (*«🟡 …: il ✅ dello Shipping manca»*), e la sottostringa le legge verdi.
+    La regola e' la posizione, qui come nel registro PIE.
+    """
     if not os.path.isfile(DOD_V01):
         return []
     text = open(DOD_V01, encoding="utf-8").read()
@@ -2352,11 +2402,14 @@ def release_gates():
         cells = [c for c in cells if c]
         request = cells[0] if cells else ""
         state = ""
+        # ⚠️ `RESULT_GLYPHS` e non `STATUS_GLYPHS`: un gate DICHIARA UN ESITO, e un esito puo'
+        # essere rosso. Con l'alfabeto di roadmap una cella che apriva con `❌` senza citare altri
+        # glifi non conteneva niente di riconosciuto, e il gate spariva dalla vista come `—`.
         for cell in reversed(cells):
-            if any(g in cell for g in STATUS_GLYPHS):
+            if any(g in cell for g in RESULT_GLYPHS):
                 state = cell
                 break
-        gates.append((gate_id, request, state))
+        gates.append((gate_id, request, state, result_glyph(state)))
     return gates
 
 
@@ -2753,15 +2806,22 @@ def render_shortlist_gates(_data):
     gates = release_gates()
     if not gates:
         return wrap_block(marker, ["> ⚠️ Nessun gate letto da `v0.1-definition-of-done.md` §3."])
-    green = sum(1 for _id, _req, state in gates if "✅" in state)
+    green = sum(1 for _id, _req, _state, glyph in gates if glyph == "✅")
+    failed = sum(1 for _id, _req, _state, glyph in gates if glyph == "❌")
+    # I falliti si dichiarano accanto ai verdi, come le sedute dal 2026-08-21 (#1249): `verdi: 1`
+    # da solo dice «ne restano quattordici da fare», e per un gate rosso e' falso — e' stato
+    # verificato ed e' andato male. Sono due fatti diversi e la riga li tiene distinti.
+    head = f"**{len(gates)} gate** · verdi: **{green}**"
+    if failed:
+        head += f" · **{failed} ❌**"
     lines = [
-        f"**{len(gates)} gate** · verdi: **{green}**. Stato letto da "
+        head + ". Stato letto da "
         f"[`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3.",
         "",
         "| Gate | Cosa chiede | Stato |",
         "|:--:|---|---|",
     ]
-    for gate_id, request, state in gates:
+    for gate_id, request, state, _glyph in gates:
         lines.append(f"| **{gate_id}** | {request} | {state or '—'} |")
     return wrap_block(marker, lines)
 
@@ -2793,7 +2853,7 @@ def pie_entries():
     ⚠️ **Questa docstring era vera nell'intento e falsa nell'effetto**, e la differenza e' costata
     tre voci: il ciclo prende il primo glifo *riconosciuto*, non il primo glifo. Con l'alfabeto di
     roadmap — che non contiene `❌` — una cella che apriva con il rosso lo attraversava senza
-    vederlo e si fermava sul primo ✅ della nota. `PIE_RESULT_GLYPHS` chiude lo scarto fra le due
+    vederlo e si fermava sul primo ✅ della nota. `RESULT_GLYPHS` chiude lo scarto fra le due
     letture (#1249).
 
     ⛔ Non sostituire la scansione con `if "❌" in cella`: sei celle contengono il rosso e solo tre
@@ -2813,12 +2873,7 @@ def pie_entries():
         match = re.match(r"\*\*(PIE-[A-Za-z0-9.\-]+)\*\*", cells[0])
         if not match:
             continue
-        state = ""
-        for char in cells[-1]:
-            if char in PIE_RESULT_GLYPHS:
-                state = char
-                break
-        entries[match.group(1)] = state
+        entries[match.group(1)] = result_glyph(cells[-1])
     return entries
 
 
@@ -2859,7 +2914,7 @@ def session_state(session, pie, tracked):
     ⛔ **Non riscrivere il predicato come elenco di uguaglianze.** La prima stesura contava a mano
     ✅, 🟡 e ❌, e lasciava `⌫` fuori: una seduta con voci tutte «rimosse dal repo» tornava ⏳ — lo
     stesso difetto, per un glifo diverso. Derivato, si chiude anche per il prossimo esito che
-    qualcuno aggiungera' a `PIE_RESULT_GLYPHS`.
+    qualcuno aggiungera' a `RESULT_GLYPHS`.
 
     Decisione del 2026-08-21 (#1249): nessun quinto glifo. ✅ solo se tutte le voci sono verdi e
     gli artefatti tracciati; ⏳ solo se **nessuna** voce e' stata eseguita; 🟡 in ogni altro caso,
@@ -4671,8 +4726,8 @@ def build_graph(registry):
             "milestone_conflicts": [
                 {"milestone": m, "declared": a, "also": b} for m, a, b in milestone_conflicts],
         },
-        "release_gates": [{"id": gid, "request": req, "state": state}
-                          for gid, req, state in release_gates()],
+        "release_gates": [{"id": gid, "request": req, "state": state, "glyph": glyph}
+                          for gid, req, state, glyph in release_gates()],
         "epics": epics,
         "milestones": milestones,
         "checkpoints": checkpoints,
