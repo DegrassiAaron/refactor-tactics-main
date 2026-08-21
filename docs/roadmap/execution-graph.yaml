@@ -61,8 +61,13 @@ meta:
   note: >-
     Quattro catene reali invece di tutto il backlog: se non si leggono nel Control Center, non si
     legge nemmeno la v0.1 intera. Le catene A, B e C sono state verificate su GitHub il 2026-08-13;
-    la catena D — Mini Autobattle, issue #954-#959 — il 2026-08-16, giorno in cui quelle issue sono
-    nate. ⚠️ La riga diceva «Tre catene» con quattro gia' presenti, e la data di verifica valeva per
+    la catena D — Mini Autobattle: #954-#959 e #542, piu' #1069 e #1088 dal 2026-08-21 — verificata il
+    2026-08-16, giorno in cui le **sette** issue di E47 sono nate (#954-#959 e #1015, quest'ultima
+    scorporata da E47.2 e senza un nodo qui). ⚠️ *La riga ha detto «le sei issue di E47»: falso, sono
+    sette. La stesura precedente diceva «quelle issue», che era esatto perche' rinviava all'intervallo
+    enumerato — restringere un pronome corretto a un numero sbagliato e' il modo in cui una riga di
+    audit smette di essere verificabile.*
+    ⚠️ La riga diceva «Tre catene» con quattro gia' presenti, e la data di verifica valeva per
     un insieme che non conteneva le sei issue nuove: due affermazioni che nessun gate confronta con
     i dati sotto, trovate in code review. Chi aggiunge una catena aggiorna QUESTA riga.
 
@@ -304,6 +309,20 @@ nodes:
     domain_group: tooling_data_qa
     checkpoint: E47.6
 
+  # ➕ 2026-08-21 — i due difetti che bloccano E47.6 entrano nel grafo. Non sono checkpoint: sono le
+  # ragioni per cui il DoD di #959 oggi non e' raggiungibile, e finche' non erano nodi la catena D
+  # dichiarava eseguibile un lavoro che non lo e'.
+  # `tooling_data_qa` e non `objectives_match`, benche' il sintomo sia una partita che non finisce:
+  # l'header di questo file registra che «le feature del bot hanno `area: Tools`», e le tre cause
+  # candidate di #1088 — linea di tiro, pathing, pesi di utility — sono tutte del bot.
+  - id: issue:1088
+    release: v0.1
+    domain_group: tooling_data_qa
+
+  - id: issue:1069
+    release: v0.1
+    domain_group: tooling_data_qa
+
   # ➕ **2026-08-17 — `#833` entra nel grafo.** Decisione d'autore: la issue e' **v0.1** (label `v0.1`,
   # milestone `v0.1 · Mondo giocabile`, e `RT-FEAT-MAP-INTERACTION-GRAPH` passa a `release: v0.1`).
   # Prima non esisteva come nodo, quindi la sua topologia non era verificabile: un documento la
@@ -406,6 +425,27 @@ relations:
     to: issue:959
     type: requires
 
+  # ➕ 2026-08-21 — le due dipendenze che decidono se E47.6 e' ESEGUIBILE, e che non erano nel grafo.
+  # Il corpo di #959 elencava «E47.1, E47.3» e si fermava li': nessuna delle due e' la ragione per cui
+  # oggi non c'e' niente da registrare.
+  - from: issue:1088
+    to: issue:959
+    type: requires
+    rationale: >-
+      Il DoD di #959 chiede una partita «dall'avvio alla vittoria». #1088 misura un **pareggio 12/12
+      con zero eventi Combat** sulla configurazione spedita, riprodotto su DUE arene diverse (64 e 65
+      celle). Finche' resta aperta, l'esecuzione di #959 produce l'evidenza di un pareggio: e' un
+      blocco sul merito, non un ordine di lavoro.
+
+  - from: issue:1069
+    to: issue:959
+    type: requires
+    rationale: >-
+      Il DoD di #959 chiede una mappa esagonale multilivello e dichiara «non sull'arena generata di
+      test: e' precisamente la riserva che G13 dichiara». #1069 e' il `BP_GameMode` spedito con
+      `MapSource = GeneratedTestArena`, cioe' proprio quella. Registrare senza chiuderla riprodurrebbe
+      la riserva invece di toglierla, e G13 resterebbe 🟡.
+
   - from: issue:955
     to: issue:958
     type: requires
@@ -474,16 +514,20 @@ relations:
     to: issue:955
     type: follows
     rationale: >-
-      Nessuna dipendenza tecnica: e' un vincolo di ownership del write-set (`Source/RefactorTactics/UI/`
-      appartiene alla track `client_tools`, #78). L'ordine e' un risparmio, non un prerequisito.
+      Nessuna dipendenza tecnica, e la ragione originale — ownership del write-set,
+      `Source/RefactorTactics/UI/` alla track `client_tools` (#78) — e' **decaduta con D-178**. Il
+      risparmio che resta e' il setup: il ritmo di playback si giudica su una partita che gira da sola,
+      quindi averla gia' accesa evita di allestirla due volte. ⚠️ Entrambe le issue sono chiuse: l'arco
+      e' storico e non puo' piu' scattare — si tiene per la provenienza, non per la coda.
 
   - from: issue:954
     to: issue:956
     type: follows
     rationale: >-
-      Vincolo di ownership su un'ALTRA track: `Map/RTHexMapActor.{h,cpp}` appartiene a
-      `content_editor` (#451), non a `client_tools`. E la board si giudica su una partita che gira
-      da sola, il che rende l'ordine un risparmio e non un prerequisito.
+      Nessuna dipendenza tecnica. La ragione originale era un vincolo di ownership su un'ALTRA track
+      (`Map/RTHexMapActor.{h,cpp}` a `content_editor`, #451) ed e' **decaduta con D-178**: il write-set
+      di batch non esiste piu' e #451 e' chiusa. Resta vero cio' che il rationale diceva a lato: la
+      board si giudica su una partita che gira da sola, quindi l'ordine e' un risparmio.
 
   # Related — navigazione, mai readiness
   - from: issue:593

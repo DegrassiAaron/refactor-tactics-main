@@ -422,7 +422,7 @@ sessions:
     shares_setup_with: [U2, U3, U4, U5]
     verifies: [PIE-HEXPLAY-8, PIE-HEXPLAY-10, PIE-HEXPLAY-4b, PIE-FACING-1]
     issues: []
-    done_when: le nove voci `PIE-HEXPLAY` sono verdi, rilette tutte insieme
+    done_when: le voci `PIE-HEXPLAY` sono verdi, rilette tutte insieme — sono **15** righe, non nove, e tre lo sono gia'
     unblocks: [U16, U19, M6.8]
     steps: |
       Percorso che usa la transizione fra layer 0 e 1 — l'unita' deve **cambiare quota**, non
@@ -452,10 +452,20 @@ sessions:
     unblocked_by: [E47.1, E47.3]
     shares_setup_with: []
     verifies: []
-    issues: [959]
+    issues: [959, 1088, 1069]
     done_when: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
     unblocks: []
     steps: |
+      ⛔ **NON PRENOTARE QUESTA SEDUTA OGGI (2026-08-21).** `unblocked_by` dice `E47.1, E47.3` e sarebbe
+      una lettura READY, ma il campo ammette solo checkpoint, epic e sedute: i due blocchi veri sono
+      **difetti aperti** e non hanno una forma in cui scriverli li'. Stanno in `issues:` accanto a #959 e
+      sono archi `requires` in `execution-graph.yaml`.
+      **#1088** — sulla configurazione spedita la partita non presidiata fa **12 round, zero `Combat`,
+      pareggio**, su due arene diverse: non esiste una vittoria da registrare, che e' cio' che questa
+      seduta produce. **#1069** — il `BP_GameMode` spedito forza `MapSource = GeneratedTestArena`, cioe'
+      proprio l'arena che il passo qui sotto esclude. Chi apre l'editor prima che siano chiuse spende una
+      seduta per filmare un pareggio sull'arena sbagliata.
+
       Attivare la modalita' non presidiata (**E47.1**), avviare su **mappa esagonale multilivello** — non
       sull'arena generata di test: e' precisamente la riserva che G13 dichiara — e **guardare**.
       Registrare video o sequenza di screenshot **piu'** il log della sessione, poi ripetere sul pacchetto
@@ -470,8 +480,10 @@ sessions:
       il video non porta i reason code. La DoD chiede evidenza allegata, e nessuno dei due da solo la
       soddisfa per intero.
 
-      ⚠️ **`unblocks: []` non e' una dimenticanza.** Questa seduta **non sblocca U6**: le nove voci
-      `PIE-HEXPLAY` restano da eseguire una per una, ciascuna con la propria domanda. E47 cambia il
+      ⚠️ **`unblocks: []` non e' una dimenticanza.** Questa seduta **non sblocca U6**: le voci
+      `PIE-HEXPLAY` non ancora verdi restano da eseguire una per una, ciascuna con la propria domanda.
+      *(Diceva «le nove»: la famiglia ha **15** righe e **tre** sono gia' ✅ — `-1`, `-3`, `-5`.
+      Misurato il 2026-08-21.)* E47 cambia il
       **costo** di eseguirle — da «gioca una partita intera» a «guardala» — non la loro natura, ed e'
       scritto qui perche' la coda non la mostri come una scorciatoia verso M6.8.
 
@@ -486,14 +498,19 @@ sessions:
       squadra col bot»), ed e' proprio per questo che appartiene a U6 e non qui.
 
       ⚠️ **Le voci nuove — `PIE-V01-BOARD`, `PIE-V01-PACKAGED` — non sono state aperte, e restano da
-      scrivere — l'atto e' #1242.** *(Fino al 2026-08-20 `docs/technical/test-manuali-pie.md` stava nel
+      scrivere — l'atto e' #1262.** *(Fino al 2026-08-20 `docs/technical/test-manuali-pie.md` stava nel
       `writable` della track `playtest` e non lo si poteva toccare da qui; con `D-178` il write-set di
       batch e' stato rimosso e non c'e' piu' un owner da attendere.)*
-      🔴 L'attribuzione sbagliata e' stata ereditata dal corpo di E46, che porta lo stesso errore, ed e'
-      stata trovata in code review. Cambia la conseguenza pratica: **`playtest` e' IDLE**, quindi il
-      blocco non e' un'attesa su una sessione viva ma una **riallocazione da dichiarare** — che e' una
-      cosa che si puo' fare oggi, non domani. Le due voci si aprono col prossimo batch, insieme alle sei
-      `PIE-V01-FRONTEND-*` che E46 ha lasciato nella stessa condizione.
+      🔴 L'attribuzione della TRACK e' stata ereditata dal corpo di E46, che portava lo stesso errore — oggi corretto anche li' —, ed
+      e' stata trovata in code review. Cambiava la conseguenza pratica: **`playtest` era IDLE**, quindi il
+      blocco non era un'attesa su una sessione viva ma una **riallocazione da dichiarare**. ⛔ Questione
+      chiusa da `D-178`: non c'e' piu' ne' la track ne' il batch in cui riallocare.
+      🔴 **E l'atto era #1242, che non le copre: corretto il 2026-08-21.** E' un secondo errore di
+      attribuzione, indipendente dal primo. Quella issue ha per criterio
+      `grep -c "PIE-V01-FRONTEND" ... = 6` e dichiara fuori scope «le altre voci PIE mancanti», quindi le
+      due voci di E47 erano **orfane** invece che rinviate. Sembrava sufficiente perche' le sei
+      `PIE-V01-FRONTEND-*` di E46 stavano nella stessa condizione e avevano davvero un atto: la
+      somiglianza fra i due casi ha nascosto che solo uno dei due fosse coperto. Ora lo sono entrambi.
 
       ⚠️ ID assegnato prima del merge: `U23`, con `U22` come ultimo su `main` e su tutti i branch remoti
       misurati il 2026-08-16 (`git show origin/<branch>:docs/roadmap/editor-sessions.yaml`). Chi arriva

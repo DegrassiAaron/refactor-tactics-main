@@ -1602,8 +1602,12 @@ il numero si legge quindi da questa riga.
 nuove. Porta il **modo di osservarle**, e lo fa perché quattro gate della release dipendono oggi dalla
 pazienza di chi tiene il mouse:
 
-- le nove voci `PIE-HEXPLAY-1..9` sono ⏳ e sono l'unica cosa che tiene aperta **M6**
-  ([`roadmap-checkpoint.md`](roadmap-checkpoint.md): *«ciò che la tiene aperta non è un'epic ma il playtest»*);
+- le voci `PIE-HEXPLAY` sono l'unica cosa che tiene aperta **M6**
+  ([`roadmap-checkpoint.md`](roadmap-checkpoint.md): *«ciò che la tiene aperta non è un'epic ma il playtest»*).
+  ⚠️ *Questa riga diceva «le nove voci `PIE-HEXPLAY-1..9` sono ⏳»: falso in entrambe le metà. Misurate sul
+  registro il 2026-08-21, le righe della famiglia sono **15** — le nove numerate più `-3b`, `-4b`, `-6b`,
+  `-6c`, `-10`, `-11` — e delle nove numerate **tre sono ✅** (`-1`, `-3`, `-5`). Il corpo di
+  [#16](https://github.com/DegrassiAaron/refactor-tactics-main/issues/16) lo registrava già;*
 - il gate di chiusura di **E2** è *«`PIE-HEXPLAY-1..9` tutte ✅ e una partita 2v2 completa fino alla vittoria»*;
 - **G10** chiede un *«playtest registrato (log o video)»* ed è ⏳;
 - **G13** è 🟡 con riserva scritta: la partita packaged è stata completata *«sull'arena di test»*.
@@ -1625,18 +1629,28 @@ con una configurazione, lasciando il default dov'è.
 | **E47.1** ⏳ | Modalità non presidiata | Una configurazione — non un default nuovo — mette **entrambe** le squadre sotto il bot e accorcia `PlanningSeconds`. Premuto Play e non toccato più nulla, compare un vincitore; il TurnLog ha almeno una voce `Move` e una `Combat` per round giocato. **`Heroes.SpawnFromData` resta verde** | `RefactorTactics.Match.Autobattle.*` — da creare |
 | **E47.2** ✅ | Ritmo osservabile | Velocità `x1 · x2 · x4` con **stesso risultato logico**, composta col tetto: `Max(Viewer, Cap)`. Il confronto è sul **TurnLog canonico turno per turno**, non su `StateHash` — l'hash è permutazione-invariante e non esprime divergenze d'ordine. ⚠️ Il DoD chiedeva un test `Playback.SpeedDoesNotChangeOutcome` **nuovo**: sarebbe stato un secondo file con gli stessi helper, e le varianti sono entrate in quello che esisteva | ✅ `Match.Autobattle.DeterminismIsIndependentOfPlayback` (7 varianti) + `Playback.EffectiveSpeed` |
 | **E47.7** ✅ | Il controllo in HUD | Chiuso il 2026-08-17 ([#1015](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1015), PR #1028). Tasto `V` in `ARTHUD`: cicla `x1 · x2 · x4`, e l'etichetta dichiara **due** numeri quando il tetto vince — `x2 -> x3 (tetto)` — perché `Max(Viewer, Cap)` fa divergere scelta ed effettiva per costruzione. Superficie **Canvas + Enhanced Input**, non un widget §4.1: quel contratto nega al widget il puntatore al `ARTTurnManager`, quindi il controllo avrebbe dovuto aprirvi una porta di scrittura — deviazione dichiarata in `progettazione-hud.md` §29.1 | ✅ `HUD.PlaybackSpeed*` (3, con verifica di mutazione) · `Match.Autobattle.DeterminismIsIndependentOfPlayback` **invariato** · ⏳ `PIE-V01-PLAYSPEED` resta aperta: eseguita solo con gli aggiramenti di [#1069](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1069) e [#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088) |
-| **E47.3** ⏳ | Grammatica visiva della board | Ogni categoria leggibile da **due** canali, `colore + forma` ([D-146](../decisions/RT_PDR_00_Decision_Log.md)). La legenda è **derivata** da superficie, coperture di bordo ed entità obiettivo: zero `enum` nuovi, nessuna migrazione di formato | ⏳ `PIE-V01-BOARD` — **voce da creare**, vedi sotto |
+| **E47.3** ⏳ | Grammatica visiva della board | Ogni categoria leggibile da **due** canali, `colore + forma` ([D-146](../decisions/RT_PDR_00_Decision_Log.md)). La legenda è **derivata** da superficie, coperture di bordo ed entità obiettivo: zero `enum` nuovi, nessuna migrazione di formato. **Baseline misurata** (2026-08-21, dettaglio in [D-146](../decisions/RT_PDR_00_Decision_Log.md)): riapplicando alla **luminanza** la soglia del gate che già esiste, delle sue **45** asserzioni ne cadono **9** — 7 delle 36 coppie di superfici e **2 dei 9 confronti col marcatore di blocco**, dove `Rough` collassa col rosso di «non ci si passa» con entrambe le conversioni provate. ⚠️ **Il criterio non è azzerare quel numero ritoccando le tinte** — [D-146](../decisions/RT_PDR_00_Decision_Log.md) mette la tavolozza fuori scope, *«il vincolo è la ridondanza, non la tavolozza»*, e un colore ritarato senza secondo canale non chiude niente. Le 9 sono la **lista minima** delle distinzioni per cui la forma non è opzionale: il criterio è **0 coppie indistinguibili a tutti i canali accesi**, misurato sullo screenshot in scala di grigi | ⏳ `PIE-V01-BOARD` — voce da creare, [#1262](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1262) · estensione di `RefactorTactics.Hex.SurfaceColorsAreDistinguishable`, che è la sede del gate |
 | **E47.4** ✅ | Scenario autobattle free-run | Chiuso il 2026-08-21 ([#957](https://github.com/DegrassiAaron/refactor-tactics-main/issues/957)). `freeRun` + `maxTurns` + `repeatCount` + `requires` di scenario, formato alla **v4**. **Estende** l'harness esistente e non aggiunge appigli: `BeginTurn` legge un turno vuoto e chiama lo stesso `PlanBotsForTest()`, quindi la strada di esecuzione resta **una**. 🔴 Il tetto raggiunto è un **`Fail`** e arriva come assertion generata `MatchReachedEnd`: un tetto verde renderebbe invisibile lo stallo di [#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088). ⚠️ Il seam di [D-101](../decisions/RT_PDR_00_Decision_Log.md) ([#542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/542)) resta aperto e **lo seguiva**, non lo bloccava: le decisioni continuano a entrare dall'unico appiglio esistente | ✅ `RefactorTactics.Scenario.FreeRun.*` (7) · i quattro `AutoBattle.*` versionati ed eseguiti dal corpus: **OpenField 10 turni, Hazard 12, Obstacles 14** con un vincitore, **Objective `BLOCKED`** sulla capability `Objective` |
 | **E47.5** ⏳ | Corpus di determinismo dell'autobattle | `PermutationTest` · `PlaybackIndependence` · `NoPath` (fallback legale, nessun deadlock) · `AllWait` (il turno termina) · `SimultaneousKO` (politica esplicita) · `TurnLimit`. **`DifferentSeedVariation` è fuori**: contraddirebbe `Simulation.SeedIsDeclaredAndUnconsumed`, che è verde (D-145 §5) | estende `RefactorTactics.Simulation.*` |
-| **E47.6** ⏳ | La partita registrata | La partita non presidiata è eseguita e **registrata** in PIE e sulla build packaged: è l'evidenza che `G10` chiede e la riserva che `G13` dichiara | `PIE-HEXPLAY-*` (esistono) + ⏳ `PIE-V01-PACKAGED` — **voce da creare** |
+| **E47.6** ⏳ | La partita registrata | La partita non presidiata è eseguita e **registrata** in PIE e sulla build packaged: è l'evidenza che `G10` chiede e la riserva che `G13` dichiara. 🔴 **Non eseguibile oggi**: il DoD chiede una partita *fino alla vittoria*, e [#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088) misura un **pareggio 12/12 con zero `Combat`** sulla configurazione spedita, su due arene. E il DoD chiede una mappa che **non** sia l'arena di prova, che [#1069](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1069) rende il default. Registrare prima produrrebbe l'evidenza di un pareggio | `PIE-HEXPLAY-*` (esistono) + ⏳ `PIE-V01-PACKAGED` — voce da creare, [#1262](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1262) |
 
 > ⚠️ **`PIE-V01-BOARD` e `PIE-V01-PACKAGED` non esistono in
 > [`test-manuali-pie.md`](../technical/test-manuali-pie.md)**, ed è dichiarato qui perché un ID di voce PIE
 > **non è un link**: `check-docs-links.py` non lo vedeva, quindi una citazione a una voce inesistente
 > passava ogni gate. ⛔ Da **D-182** (2026-08-21) non c'è più nemmeno quel gate, e la lacuna si è allargata
-> dagli ID di voce PIE a **ogni** link. Il file è nel `writable` della track `playtest` (IDLE) e per [D-139](../decisions/RT_PDR_00_Decision_Log.md)
-> le due voci si aprono con una **riallocazione dichiarata** — che è la stessa condizione in cui **E46** ha
-> lasciato le proprie sei `PIE-V01-FRONTEND-*`. La seduta [U23](editor-sessions.yaml) lo registra.
+> dagli ID di voce PIE a **ogni** link.
+>
+> ✅ **Il blocco che teneva chiuse le due voci è caduto il 2026-08-20, e questa nota lo dichiarava ancora.**
+> Fino a `D-178` il file era nel `writable` della track `playtest` e le due voci si aprivano «con una
+> riallocazione dichiarata» per [D-139](../decisions/RT_PDR_00_Decision_Log.md). Oggi `D-139` è ritirata per
+> intero, `parallel-batch.yaml` non esiste più e non c'è nessun owner da attendere: **le due voci si
+> scrivono**. La seduta [U23](editor-sessions.yaml) è già stata corretta e lo registra.
+> 🔴 **E l'atto che U23 nominava — [#1242](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1242)
+> — non le copriva**: il suo criterio conta le sole `PIE-V01-FRONTEND-*` e dichiara fuori scope «le altre
+> voci PIE mancanti». `PIE-V01-BOARD` e `PIE-V01-PACKAGED` erano quindi **orfane**, non rinviate. Corretto il
+> 2026-08-21: l'atto è [#1262](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1262), e U23 lo
+> nomina. Le sei `PIE-V01-FRONTEND-*` di **E46** stavano nella stessa condizione e avevano davvero la propria
+> issue: è la somiglianza fra i due casi che ha fatto sembrare sufficiente l'attribuzione a #1242.
 >
 > 🔴 **La colonna del glifo esisteva già ed era vuota su tutti e sei.** §4.3 dice che l'assenza *vale* ⏳, ma
 > il generatore del grafo la legge come `UNKNOWN` e la propaga a valle: con sei checkpoint non annotati
