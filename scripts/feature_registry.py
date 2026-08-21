@@ -2218,6 +2218,30 @@ SHORTLIST_FILES = {
 # I simboli di stato in uso nei documenti di roadmap. `⌫` dichiara «rimosso dal repo».
 STATUS_GLYPHS = "✅🟡⏳⌫"
 
+# Gli esiti del registro PIE sono un vocabolario DIVERSO, e tenerli separati non e' pignoleria:
+# `test-manuali-pie.md` dichiara quattro esiti — ✅ 🟡 ❌ ⏳ — mentre le tabelle di roadmap
+# dichiarano avanzamento. I due insiemi divergono in entrambe le direzioni, misurato il 2026-08-21:
+# `⌫` non compare NEMMENO UNA VOLTA fra le 150 voci PIE, e `❌` non compare in nessuna riga di stato
+# di `roadmap-checkpoint.md` o `roadmap-v0.1.md`.
+#
+# Finche' `pie_entries()` ha letto gli esiti con l'alfabeto di roadmap, il rosso era invisibile: non
+# trovandolo, la scansione tirava avanti e restituiva il primo glifo della PROSA — «da ❌ a ✅»
+# diventava ✅. Tre voci su 150 erano lette male, tutte e tre fallite, e nessun gate poteva dirlo
+# perche' i generati venivano confrontati con la propria rigenerazione (#1249).
+#
+# `⌫` resta qui benche' oggi nessuna voce PIE lo usi: toglierlo renderebbe muta una voce che domani
+# lo dichiarasse, che e' esattamente il difetto che questa riga ripara.
+PIE_RESULT_GLYPHS = "✅🟡❌⏳⌫"
+
+# «Questa voce e' stata toccata», derivato invece che riscritto a mano — ed e' il rimedio a un
+# difetto che la prima stesura di #1249 riparava per il solo `❌`: `session_state()` enumerava i
+# glifi uno per uno, quindi ogni esito FUORI da quell'elenco ricadeva nel `return "⏳"` finale.
+# Riparare il rosso e lasciare l'elenco lasciava in piedi lo stesso buco per `⌫` — verificato:
+# una seduta con voci tutte `⌫` dava ⏳, cioe' «mai cominciata», per un lavoro dichiarato rimosso.
+# Derivandolo, il buco non si riapre al prossimo glifo: chi ne aggiunge uno a `PIE_RESULT_GLYPHS`
+# lo trova gia' classificato come eseguito, che e' il default prudente.
+PIE_EXECUTED_GLYPHS = frozenset(PIE_RESULT_GLYPHS) - {"⏳"}
+
 
 def epic_status():
     """Stato per epic, letto da `roadmap-v0.1.md` §2.1 — che ne e' l'unico owner.
@@ -2765,6 +2789,16 @@ def pie_entries():
     Il marcatore e' il **primo** glifo dell'ultima cella. Cercarlo ovunque nella cella conta
     come verde una voce 🟡 il cui testo cita un ✅ nella propria storia: e' il difetto che il
     comando `awk` del registro ha gia' pagato, ed e' per questo che usa `match` + `substr`.
+
+    ⚠️ **Questa docstring era vera nell'intento e falsa nell'effetto**, e la differenza e' costata
+    tre voci: il ciclo prende il primo glifo *riconosciuto*, non il primo glifo. Con l'alfabeto di
+    roadmap — che non contiene `❌` — una cella che apriva con il rosso lo attraversava senza
+    vederlo e si fermava sul primo ✅ della nota. `PIE_RESULT_GLYPHS` chiude lo scarto fra le due
+    letture (#1249).
+
+    ⛔ Non sostituire la scansione con `if "❌" in cella`: sei celle contengono il rosso e solo tre
+    lo sono. `PIE-HEX-VIZ-COSTO`, `PIE-HEX-VIZ-BORDI` e `PIE-V01-REACTCOND` lo **citano** nella
+    propria nota (*«il ❌ del 2026-08-18»*) e sono ✅, ✅ e ⏳: la posizione e' la regola.
     """
     entries = {}
     if not os.path.isfile(PIE_REGISTRY):
@@ -2781,7 +2815,7 @@ def pie_entries():
             continue
         state = ""
         for char in cells[-1]:
-            if char in STATUS_GLYPHS:
+            if char in PIE_RESULT_GLYPHS:
                 state = char
                 break
         entries[match.group(1)] = state
@@ -2814,6 +2848,24 @@ def session_state(session, pie, tracked):
     Regola dura: un artefatto non tracciato impedisce il verde **qualunque cosa** dicano le voci.
     Una seduta che non dichiara ne' voci ne' artefatti resta senza stato: e' un'informazione
     onesta — il codice sotto non esiste ancora — non un buco da riempire con un simbolo inventato.
+
+    ⚠️ **Il ⏳ e' l'unico esito che significa «nessuno ha ancora guardato»**, e per questo la
+    condizione del 🟡 chiede `PIE_EXECUTED_GLYPHS` invece di enumerare i glifi. Senza, una seduta
+    le cui voci sono TUTTE ❌ cadrebbe nel `return "⏳"` finale — cioe' *«mai cominciata»*, in mezzo
+    alle sedute che nessuno ha aperto. Misurato: col solo alfabeto riparato quel caso passa da ✅ a
+    ⏳, che e' una seconda bugia in direzione opposta. Il lavoro e' stato fatto **ed e' andato
+    male**: sono due fatti diversi, e ⏳ ne racconta un terzo che non e' successo.
+
+    ⛔ **Non riscrivere il predicato come elenco di uguaglianze.** La prima stesura contava a mano
+    ✅, 🟡 e ❌, e lasciava `⌫` fuori: una seduta con voci tutte «rimosse dal repo» tornava ⏳ — lo
+    stesso difetto, per un glifo diverso. Derivato, si chiude anche per il prossimo esito che
+    qualcuno aggiungera' a `PIE_RESULT_GLYPHS`.
+
+    Decisione del 2026-08-21 (#1249): nessun quinto glifo. ✅ solo se tutte le voci sono verdi e
+    gli artefatti tracciati; ⏳ solo se **nessuna** voce e' stata eseguita; 🟡 in ogni altro caso,
+    ❌ compreso — il rosso lo dichiara il conteggio, non lo stato. Le due misure che rendono la
+    scelta gratuita: lo stato decide solo `DONE` contro le altre code (`session_queue`), e per
+    sbloccare un'altra seduta serve comunque il ✅ pieno (`resolve_prerequisite`).
     """
     verifies = session.get("verifies") or []
     artifacts = session.get("artifacts") or []
@@ -2821,13 +2873,44 @@ def session_state(session, pie, tracked):
         return "—"
     states = [pie.get(v, "") for v in verifies]
     green = sum(1 for s in states if s == "✅")
-    partial = sum(1 for s in states if s == "🟡")
+    executed = any(s in PIE_EXECUTED_GLYPHS for s in states)
     done_artifacts = [a for a in artifacts if a in tracked]
     if green == len(verifies) and len(done_artifacts) == len(artifacts):
         return "✅"
-    if green or partial or done_artifacts:
+    if executed or done_artifacts:
         return "🟡"
     return "⏳"
+
+
+def session_counts(session, pie):
+    """Quante voci verdi su quante, e quante **fallite**: `("10/15", 2)`.
+
+    Due punti stampavano questo rapporto con lo stesso codice copiato — la coda e la tabella delle
+    sedute — e la regola nuova sarebbe finita in due posti, cioe' sarebbe divergita al primo che ne
+    tocca uno solo. Qui sta una volta.
+
+    Il secondo termine esiste perche' `10/15` da solo dice *«ne restano cinque da eseguire»*, e per
+    due di quelle cinque e' falso: sono state eseguite e hanno trovato un difetto. Rieseguirle prima
+    del fix e' tempo speso a riconfermare un rosso noto — la distinzione che chi legge la coda per
+    decidere cosa fare oggi non puo' ricavare da nessun'altra parte della riga.
+    """
+    verifies = session.get("verifies") or []
+    if not verifies:
+        return "—", 0
+    green = sum(1 for v in verifies if pie.get(v) == "✅")
+    failed = sum(1 for v in verifies if pie.get(v) == "❌")
+    return f"{green}/{len(verifies)}", failed
+
+
+def failed_suffix(failed):
+    """`" · 2 ❌"` oppure stringa vuota. La RESA del secondo termine, in un posto solo.
+
+    `session_counts()` aveva unificato il conteggio e lasciato copiata la presentazione: due
+    renderer scrivevano a mano lo stesso `f" · {failed} ❌"`. Cambiare separatore, glifo o spaziatura
+    in uno solo avrebbe fatto divergere la coda dalla tabella — cioe' la divergenza che quella
+    funzione dichiarava di aver rimosso.
+    """
+    return f" · {failed} ❌" if failed else ""
 
 
 def checkpoint_status():
@@ -3142,7 +3225,14 @@ def session_queue(sessions, states, checkpoints, epics, milestones):
 
 
 def render_editor_queue(sessions, states, ratios):
-    """Le righe della coda. Ogni voce dice cosa sblocca: e' la ragione per farla adesso."""
+    """Le righe della coda. Ogni voce dice cosa sblocca: e' la ragione per farla adesso.
+
+    `ratios` mappa id di seduta -> **coppia** `(rapporto, fallite)`, cio' che restituisce
+    `session_counts()`: era una stringa fino a #1249 e il cambio di forma non si vede nella firma.
+    Chi costruisce un `ratios` a mano con i vecchi valori — `{"U1": "6/7"}` — non prende un errore
+    parlante: prende uno spacchettamento di due caratteri, o un `ValueError` su un rapporto piu'
+    lungo. Il default difensivo e' `("—", 0)`.
+    """
     checkpoints = checkpoint_status()
     epics = epic_status()
     milestones, _conflicts = milestone_status()
@@ -3173,17 +3263,22 @@ def render_editor_queue(sessions, states, ratios):
         for session, blockers in entries:
             sid = session.get("id")
             head = f"- **{sid or NO_SESSION_ID_MD}** · {session.get('title')}"
+            # Il rosso si stampa PRIMA di smistare per gruppo: una seduta parcheggiata in WAITING
+            # puo' avere voci gia' fallite, e nel ramo `else` quel numero non l'avrebbe mai visto.
+            # Oggi nessuna WAITING ne ha, quindi la lacuna sarebbe restata invisibile fino al primo
+            # caso reale — nella vista che esiste per rispondere a «quale seduta faccio adesso».
+            _ratio, failed = ratios.get(sid, ("—", 0))
             if group == "WAITING":
                 waits = ", ".join(
                     f"`{ref}`{'' if state is None else ' ' + state}" if state is not None
                     else f"`{ref}` **non risolve**" for ref, state in blockers)
-                head += f" — attende {waits}"
+                head += f"{failed_suffix(failed)} — attende {waits}"
             elif group == "DONE":
                 head += " ✅"
             else:
-                ratio = ratios.get(sid)
+                ratio = _ratio
                 if ratio and ratio != "—":
-                    head += f" — {ratio} voci verdi"
+                    head += f" — {ratio} voci verdi{failed_suffix(failed)}"
                 if session.get("unblocks"):
                     head += f" · sblocca {', '.join(session['unblocks'])}"
             lines.append(head)
@@ -3228,9 +3323,7 @@ def render_shortlist_editor(_data):
                     f"artefatti: il codice sotto non esiste ancora)")
     ratios = {}
     for session in sessions:
-        verifies = session.get("verifies") or []
-        green = sum(1 for v in verifies if pie.get(v) == "✅")
-        ratios[session.get("id")] = f"{green}/{len(verifies)}" if verifies else "—"
+        ratios[session.get("id")] = session_counts(session, pie)
 
     lines = [
         summary + ".",
@@ -3248,11 +3341,12 @@ def render_shortlist_editor(_data):
         "|---|---|:--:|---|---|:--:|:--:|:--:|",
     ]
     for session in sessions:
-        verifies = session.get("verifies") or []
-        green = sum(1 for v in verifies if pie.get(v) == "✅")
-        ratio = f"{green}/{len(verifies)}" if verifies else "—"
-        unblocked = ", ".join(session.get("unblocked_by") or []) or "—"
         sid = session.get("id")
+        # Da `ratios`, non ricalcolato: la tabella e la coda leggono LO STESSO valore, quindi non
+        # possono divergere sui numeri nemmeno per un errore futuro in uno dei due punti.
+        ratio, failed = ratios.get(sid, ("—", 0))
+        ratio = f"{ratio}{failed_suffix(failed)}"
+        unblocked = ", ".join(session.get("unblocked_by") or []) or "—"
         lines.append(
             f"| **{sid or NO_SESSION_ID_MD}** | {session.get('title')} | "
             f"`{session_lane(session).upper()}` | "
