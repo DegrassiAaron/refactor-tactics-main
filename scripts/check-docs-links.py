@@ -21,11 +21,6 @@ incollare altrove, con i path relativi alla **destinazione**, non a chi lo conti
 Uso:
     python scripts/check-docs-links.py             # dalla radice del repo
     python scripts/check-docs-links.py --known     # elenca il debito dichiarato e la sua ragione
-    python scripts/check-docs-links.py --wiki-root <clone>   # anche i [[link]] della Wiki pubblicata
-
-Dal 2026-08-10 (D-076) le pagine di gioco non stanno piu' in `docs/wiki/` ma nel clone, che e' un
-repository separato: `--wiki-root` estende il gate a quell'area, che altrimenti non la controlla
-piu' nessuno — e senza dirlo, perche' `git ls-files` semplicemente non elenca quei file.
 
 Piu' una quinta, che non riguarda i link ma vive qui perche' questo e' l'unico gate che **legge** i
 documenti: i **marker di conflitto git** rimasti dentro un file. Vedi `CONFLITTO_RE` per il perche' sta
@@ -45,8 +40,25 @@ Cosa NON controlla, deliberatamente:
     positivo. Meglio stretto e creduto che largo e ignorato;
   - gli **URL esterni**: richiederebbero rete, quindi un gate non deterministico;
   - i file **non tracciati**: si controlla cio' che e' nel repository, non la propria copia di lavoro.
-    E' anche cio' che rende sensato il controllo #3 (vedi `NON_VERSIONATO`).
+    E' anche cio' che rende sensato il controllo #3 (vedi `NON_VERSIONATO`);
+  - ⛔ **il clone della Wiki**, da **D-180** (2026-08-21). Dal 2026-08-10 (D-076) le pagine di gioco
+    vivono in un repository separato che `git ls-files` non elenca, e fino al 2026-08-20 `--wiki-root`
+    estendeva il gate a quell'area. Non ci arriva piu'. Escono **quattro** regole, non una:
+
+      * i `[[Nome|slug]]` risolti **per nome** e non per percorso;
+      * i **nomi di pagina globalmente unici** — due pagine omonime si contendono lo stesso URL
+        `/wiki/<stem>`. ⚠️ Ci si appoggiava `wiki_page_by_name()` in `feature_registry.py`, che
+        sceglie la prima in ordine alfabetico: una collisione manda il blocco `RT_FEATURE_STATUS`
+        sulla pagina sbagliata, e adesso **nessuno la segnala**;
+      * le **immagini** risolte dalla radice del clone, perche' l'URL di una pagina Wiki e' piatto;
+      * le **fonti normative** citate in backtick — la regola nata il 2026-08-20 dopo che lo split
+        `080d2e98` aveva lasciato **11 percorsi morti su 12 pagine**.
+
+    Sul clone resta il solo `check-docs-naming.py --check --wiki-root <clone>`, che guarda i **nomi**
+    dei file e non i link. Non riproporre `--wiki-root` qui senza riaprire D-180: ricomparirebbe come
+    «piccola aggiunta» la superficie che e' stata tolta di proposito.
 """
+import argparse
 import os
 import re
 import subprocess
@@ -185,7 +197,7 @@ def label_resolves(label, base):
     return os.path.exists(os.path.normpath(os.path.join(root, label)))
 
 
-def main():
+def main(args):
     tracked = tracked_files()
     if not tracked:
         print("ERRORE: git non elenca file — percorso sbagliato?", file=sys.stderr)
@@ -247,7 +259,7 @@ def main():
                 if not label_resolves(lab.split("#")[0], base):
                     etichette.append((src, riga, lab, target))
 
-    if "--known" in sys.argv:
+    if args.known:
         print(f"Debito dichiarato ({len(DEBITO_NOTO)}):")
         for f, why in DEBITO_NOTO.items():
             print(f"    {f}\n        {why}\n        link rotti tollerati ora: {debito_visto[f]}")
@@ -313,24 +325,6 @@ def main():
     return 1
 
 
-def _wiki_root_arg():
-    """`--wiki-root <path>` o `--wiki-root=<path>`, se passato. Il clone e' un altro repository:
-    non si indovina.
-
-    **Entrambe le forme, e non e' pedanteria.** La prima versione riconosceva solo i due token
-    separati: `--wiki-root=/path` finiva in `sys.argv` come un token solo, `"--wiki-root" in
-    sys.argv` era falso, e il controllo sul clone veniva **saltato in silenzio** — stesso output e
-    stesso exit 0 del caso «flag non passato». Cioe' esattamente il fallimento che questo gate esiste
-    per impedire, causato dalla sintassi con cui lo si invoca.
-    """
-    for i, arg in enumerate(sys.argv):
-        if arg == "--wiki-root":
-            return sys.argv[i + 1] if i + 1 < len(sys.argv) else ""
-        if arg.startswith("--wiki-root="):
-            return arg[len("--wiki-root="):]
-    return None
-
-
 def _parents(path):
     """Tutte le directory che contengono `path`, in forma relativa al repo."""
     d = os.path.dirname(path)
@@ -339,152 +333,38 @@ def _parents(path):
         d = os.path.dirname(d)
 
 
-WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
-WIKI_IMG_RE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
-# Le `## Fonti normative` della Wiki citano gli owner doc come **codice inline**, non come link:
-# `docs/gameplay/spec-sequenza-turno.md`. Sono riferimenti a tutti gli effetti — dicono al lettore
-# dove sta l'autorita' — ma non essendo link non li vede nessuno dei controlli qui sopra.
-FONTE_RE = re.compile(r"`(docs/[^`\s]+\.(?:md|ya?ml|json))`")
+def _parse_args():
+    """Gli argomenti passano da `argparse`, e non da `"--x" in sys.argv`.
 
+    ⛔ **Un argomento sconosciuto deve costare un errore, non essere ignorato.** La lettura a mano
+    guardava le stringhe che conosceva e lasciava cadere tutto il resto, quindi `--wikiroot /clone`
+    — un refuso di una riga — eseguiva la scansione del solo repository e stampava un verdetto
+    normale: chi l'aveva scritto credeva di aver controllato anche il clone. E' la stessa forma di
+    difetto che questo gate esiste per trovare, applicata a se stesso.
 
-def check_wiki_clone(wiki_root):
-    """Gli stessi controlli, sul clone della Wiki — che e' un **altro repository**.
-
-    Serve da D-076: le pagine di gioco non stanno piu' in `docs/wiki/`, quindi `git ls-files` non le
-    vede piu' e questo gate perderebbe l'area intera senza dire nulla. Un checker che smette di
-    controllare qualcosa resta verde: e' il modo peggiore di perdere copertura.
-
-    Quattro regole, tutte specifiche di come la Wiki indirizza:
-
-      - un `[[Nome|slug]]` risolve **per nome**, non per percorso: l'URL e' il solo basename;
-      - i nomi devono essere globalmente unici, altrimenti due pagine si contendono lo stesso URL;
-      - le immagini si risolvono dalla **radice** del clone, perche' la base relativa e' l'URL della
-        pagina, che e' piatto — non la posizione del file su disco;
-      - le **fonti normative** citate in backtick devono esistere in *questo* repository.
-
-    La quarta e' del 2026-08-20 e nasce da un difetto che le prime tre non potevano vedere. Lo split
-    di `080d2e98` ha spostato 26 documenti — `docs/technical/` divisa in `architecture/`, `systems/`,
-    `tooling/`, `runbooks/` — e ha riscritto con cura ogni riferimento **interno** al repository. Le
-    `## Fonti normative` della Wiki citavano gli stessi percorsi, ma li citano come testo e vivono in
-    un altro repository: **11 percorsi morti su 12 pagine**, cinque delle quali gemelle. Chi apriva la
-    fonte normativa di determinismo, planning o griglia trovava un 404.
-
-    Nessun gate poteva accorgersene: quello del repository non conosce il clone, e i controlli qui
-    sopra cercano *link*, mentre una fonte normativa non e' un link. Non e' un caso limite ma la
-    conseguenza strutturale di due repository che si muovono separatamente — succedera' di nuovo al
-    prossimo move, ed e' esattamente il motivo per cui il controllo va qui e non in una passata a mano.
+    Trovato in code review su PR #1256, che ha anche misurato la contraddizione peggiore: il
+    comando registrato come **prova** di D-180 era `check-docs-links.py --check`, e `--check` non
+    e' mai esistito su questo script. Funzionava perche' veniva buttato via. `parse_args()` lo
+    rifiuta, e i gate fratelli — `check-docs-naming.py`, `docs_inventory.py` — lo fanno gia'.
     """
-    # Due strutture e non una: `pagine` risolve i `[[link]]` per nome, `tutte` tiene **ogni** file.
-    # Con un dict solo, due pagine omonime ne lasciano una fuori dalla scansione — proprio nel caso
-    # in cui qualcosa e' gia' andato storto. Verificato per mutazione: con un `Guida/coperture.md`
-    # duplicato, la versione a dict sola segnalava il duplicato e non apriva nessuno dei due file.
-    #
-    # `asset` esiste per lo stesso motivo per cui `wiki_pages()` in `feature_registry.py` e'
-    # case-sensitive: `os.path.isfile` su Windows **non distingue le maiuscole**, quindi un
-    # `images/Factions/Conflux.png` passerebbe qui e servirebbe un 404 sulla Wiki, che gira su un
-    # filesystem case-sensitive. E' la stessa trappola che aveva lasciato scoperta
-    # `Sinergie-e-Combinazioni.md` fino a PR #411. Verificato per mutazione: con `os.path.isfile` il
-    # gate usciva 0 su quel riferimento.
-    # Solo cio' che **git traccia** nel clone: la Wiki pubblica i file committati, non la directory.
-    # Senza questo filtro il gate legge anche i referti di lavoro tenuti apposta fuori dal versionamento
-    # (`claudedocs/`, gitignorata) e li giudica come pagine — segnalando percorsi d'esempio che non
-    # devono esistere. Un gate che fallisce su file non pubblicati insegna a ignorarlo.
-    try:
-        pubblicati = set(subprocess.run(
-            ["git", "-C", wiki_root, "ls-files"], capture_output=True, text=True, check=True
-        ).stdout.split("\n")) - {""}
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pubblicati = None  # non e' un clone git: si controlla tutto, come prima
-
-    pagine, tutte, asset, problemi = {}, [], set(), []
-    for base, dirs, files in os.walk(wiki_root):
-        dirs[:] = [d for d in dirs if d != ".git"]
-        for name in sorted(files):
-            relp = os.path.relpath(os.path.join(base, name), wiki_root).replace("\\", "/")
-            if pubblicati is not None and relp not in pubblicati:
-                continue
-            asset.add(relp)
-            if not name.endswith(".md"):
-                continue
-            stem = os.path.splitext(name)[0]
-            if stem in pagine:
-                problemi.append(f"nome duplicato: {relp} e {pagine[stem]} — stesso URL /wiki/{stem}")
-            pagine[stem] = relp
-            tutte.append(relp)
-
-    for relp in sorted(tutte):
-        text = open(os.path.join(wiki_root, relp), encoding="utf-8", errors="replace").read()
-        fences = _fence_spans(text)
-        for m in WIKILINK_RE.finditer(text):
-            if any(a <= m.start() < b for a, b in fences):
-                continue
-            # `[[Etichetta|slug]]`: il bersaglio e' l'ultimo campo. Il backslash e' l'escape della
-            # pipe dentro le celle di tabella, dove `|` chiuderebbe la colonna.
-            target = m.group(1).split("|")[-1].replace("\\", "").strip()
-            riga = text[: m.start()].count("\n") + 1
-            if target not in pagine:
-                problemi.append(f"{relp}:{riga} [[{m.group(1)}]] -> pagina inesistente: {target}")
-            # Dentro una cella di tabella la `|` va escapata, perche' GitHub taglia la riga in
-            # colonne **prima** di riconoscere il wikilink: `[[Conflux|conflux]]` diventa due celle,
-            # `[[Conflux` e `conflux]]`, e il link non esiste piu'. Verificato sulla Wiki pubblicata:
-            # la tabella «Mappa del roster» di `Fazioni` mostrava il nome della fazione spezzato in
-            # due colonne. Erano 66 righe su 14 pagine, tutte con il link risolvibile — per questo il
-            # controllo qui sopra le dichiarava a posto e nessuno se ne accorgeva.
-            if text[: m.start()].rsplit("\n", 1)[-1].lstrip().startswith("|") and "\\|" not in m.group(1):
-                if "|" in m.group(1):
-                    problemi.append(
-                        f"{relp}:{riga} [[{m.group(1)}]] e' in una cella di tabella e la pipe non e' "
-                        "escapata: scrivi `[[Etichetta\\|slug]]`, altrimenti la riga si spezza")
-        for m in WIKI_IMG_RE.finditer(text):
-            src = m.group(1)
-            if src.startswith(SKIP_SCHEMES) or any(a <= m.start() < b for a, b in fences):
-                continue
-            riga = text[: m.start()].count("\n") + 1
-            if src.startswith("../") or src.startswith("/"):
-                problemi.append(f"{relp}:{riga} immagine con path relativo alla cartella: {src} — "
-                                "sulla Wiki la base e' la radice, non il file")
-            elif src not in asset:
-                vicino = next((a for a in asset if a.lower() == src.lower()), None)
-                dettaglio = f" (nel clone c'e' `{vicino}`: differisce solo nel case)" if vicino else ""
-                problemi.append(f"{relp}:{riga} immagine inesistente: {src}{dettaglio}")
-        for m in FONTE_RE.finditer(text):
-            fonte = m.group(1)
-            # I blocchi recintati contengono esempi e modelli, non riferimenti reali — stessa ragione
-            # per cui li saltano i controlli qui sopra. E un `*` e' un glob citato in prosa
-            # (`docs/roadmap/*.shortlist.md`), non un file: non ha senso chiedergli di esistere.
-            if any(a <= m.start() < b for a, b in fences) or "*" in fonte:
-                continue
-            if not os.path.isfile(os.path.join(REPO, fonte)):
-                riga = text[: m.start()].count("\n") + 1
-                # Se il basename esiste altrove, il file e' stato **spostato**: dirlo qui evita di
-                # ripetere il `find` che serve ogni volta, ed e' il caso di gran lunga piu' frequente.
-                nome = os.path.basename(fonte)
-                spostato = next(
-                    (rel(os.path.join(b, nome))
-                     for b, ds, fs in os.walk(os.path.join(REPO, "docs"))
-                     if nome in fs and "archive" not in b.replace("\\", "/").split("/")),
-                    None)
-                dettaglio = f" — spostato in `{spostato}`?" if spostato else ""
-                problemi.append(f"{relp}:{riga} fonte normativa inesistente: {fonte}{dettaglio}")
-
-    print(f"\nClone della Wiki: {len(tutte)} pagine · {wiki_root}")
-    if not problemi:
-        print("OK — ogni [[link]] risolve, ogni immagine esiste, ogni fonte normativa e' viva, "
-              "nessun nome duplicato.")
-        return 0
-    print(f"FALLITO — {len(problemi)} problemi nel clone:\n")
-    for p in problemi:
-        print(f"  {p}")
-    return 1
+    ap = argparse.ArgumentParser(
+        prog="check-docs-links.py",
+        description="Gate anti-deriva sui link dei documenti versionati. Senza argomenti esegue "
+                    "il controllo ed esce 1 se qualcosa e' rotto.")
+    ap.add_argument("--known", action="store_true",
+                    help="elenca il debito dichiarato e la sua ragione")
+    # `--wiki-root` non e' un argomento: e' un messaggio d'errore. Registrarlo qui invece di
+    # lasciarlo cadere fra gli sconosciuti serve a dire **perche'** e' sparito, a chi rilancia il
+    # comando documentato fino al 2026-08-20 — vedi D-180.
+    ap.add_argument("--wiki-root", metavar="PATH", help=argparse.SUPPRESS)
+    args = ap.parse_args()
+    if args.wiki_root is not None:
+        ap.error("--wiki-root non esiste piu': dal 2026-08-21 (D-180) questo gate si ferma al "
+                 "repository. Sul clone della Wiki resta il solo "
+                 "`check-docs-naming.py --check --wiki-root`; i link, i nomi duplicati e le fonti "
+                 "normative non li controlla piu' nessuno.")
+    return args
 
 
 if __name__ == "__main__":
-    code = main()
-    root = _wiki_root_arg()
-    if root is not None:
-        if not root or not os.path.isdir(root):
-            print(f"\n--wiki-root non e' una directory: {root or '(mancante)'}", file=sys.stderr)
-            code = code or 2
-        else:
-            code = check_wiki_clone(root) or code
-    sys.exit(code)
+    sys.exit(main(_parse_args()))

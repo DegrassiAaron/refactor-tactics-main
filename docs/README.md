@@ -390,6 +390,17 @@ Non controlla **ancoraggi** (`#sezione`) né **URL esterni**: il primo richieder
 slugificazione di GitHub su titoli con accenti ed emoji, il secondo la rete. Stessa disciplina dell'altro
 gate — meglio stretto e creduto che largo e ignorato.
 
+⛔ **E dal 2026-08-21 non controlla il clone della Wiki** ([D-180](decisions/RT_PDR_00_Decision_Log.md)).
+Fino al 2026-08-20 `--wiki-root` estendeva il gate a quel repository; l'opzione è stata rimossa e ora
+`argparse` la **rifiuta** con `exit 2`, invece di ignorarla come farebbe con un flag qualsiasi. Escono
+quattro regole: i `[[Nome|slug]]` risolti per nome, i **nomi di pagina duplicati** — due pagine omonime si
+contendono lo stesso URL, e ci si appoggiava `wiki_page_by_name()` in `feature_registry.py` — le immagini
+risolte dalla radice del clone, e le **fonti normative** citate in backtick, la regola nata il 2026-08-20
+dopo che uno split di documenti aveva lasciato **11 percorsi morti su 12 pagine**.
+
+Sul clone resta **un solo gate**, e guarda i nomi dei file, non i link:
+`python scripts/check-docs-naming.py --check --wiki-root <clone>`.
+
 ### Gate dell'inventario
 
 ```bash
