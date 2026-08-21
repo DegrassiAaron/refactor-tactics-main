@@ -1,6 +1,48 @@
 #include "Frontend/RTFrontendWidgets.h"
+// Per `GConfig`/`GGameIni`: la label di versione legge `ProjectVersion` da `DefaultGame.ini` invece di
+// portarsi dietro una costante che il bump non aggiorna.
+#include "Misc/ConfigCacheIni.h"
 
 #define LOCTEXT_NAMESPACE "RTFrontend"
+
+// ─── Main Menu ───────────────────────────────────────────────────────────────────────────────────
+
+FText URTMainMenuWidgetBase::GetVersionLabel() const
+{
+	FString Version;
+	GConfig->GetString(TEXT("/Script/EngineSettings.GeneralProjectSettings"),
+		TEXT("ProjectVersion"), Version, GGameIni);
+
+	if (Version.IsEmpty())
+	{
+		// ⚠️ **Vuoto e non un ripiego.** La tentazione sarebbe restituire «versione sconosciuta» o il
+		// default `1.0.0.0` che UE usa altrove: entrambi sono un numero plausibile al posto di un dato
+		// mancante, cioe' il difetto che questa label esiste per evitare. Uno spazio vuoto si nota; una
+		// versione sbagliata no.
+		return FText::GetEmpty();
+	}
+
+	return FText::Format(LOCTEXT("VersionLabel", "v{0}"), FText::FromString(Version));
+}
+
+bool URTMainMenuWidgetBase::IsSettingsComingSoon() const
+{
+	// v0.1: la voce esiste, il contenuto no. Una costante e non una lettura da configurazione, perche' non
+	// e' un'impostazione — e' lo stato di avanzamento del pannello, e cambiera' scrivendo il pannello.
+	return true;
+}
+
+FText URTMainMenuWidgetBase::GetSettingsNoticeText() const
+{
+	if (!IsSettingsComingSoon())
+	{
+		// Il pannello vero non ha niente da annunciare: la riga sparisce da se', senza che il Blueprint
+		// debba ricordarsi di nasconderla.
+		return FText::GetEmpty();
+	}
+
+	return LOCTEXT("SettingsComingSoon", "Impostazioni: in arrivo in una versione successiva");
+}
 
 // ─── Loading ─────────────────────────────────────────────────────────────────────────────────────
 

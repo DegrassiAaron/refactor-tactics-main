@@ -11,12 +11,39 @@
 
 class UUserWidget;
 
-// ⚠️ **`FRTScreenBinding` e' stata rimossa in code review**: era una `USTRUCT` con `ScreenId` +
-// `WidgetClass` e **zero consumatori** — il navigatore usa `TMap<FName, TSoftClassPtr<UUserWidget>>`.
-// Portava anche `EditAnywhere` e un `meta = (AllowAbstract)` che non configuravano niente. Un tipo esposto
-// all'editor che nessuno legge e' peggio di un tipo assente: sembra il modo previsto di dichiarare le
-// schermate, e non lo e'. Quando servira' un array configurabile da `.ini` o da data asset, si riscrive
-// insieme al suo lettore.
+/**
+ * Una schermata dichiarata in configurazione: **il nome, e cosa disegnarlo** (CP 46.3, `#938`).
+ *
+ * ⚠️ **Questo tipo era stato rimosso in code review a CP 46.1, ed e' tornato adesso — non per
+ * ripensamento, ma alla condizione che quella rimozione aveva scritto.** La nota diceva: *«era una
+ * `USTRUCT` con `ScreenId` + `WidgetClass` e zero consumatori […] Quando servira' un array configurabile
+ * da `.ini` o da data asset, si riscrive insieme al suo lettore»*. Il lettore adesso c'e' ed e'
+ * `RegisterScreensFromConfig`, che senza questo tipo non avrebbe niente da leggere: `UPROPERTY(Config)`
+ * sa deserializzare un array di `USTRUCT`, non una `TMap`.
+ *
+ * ⚠️ **Niente `EditAnywhere`, e la differenza rispetto alla prima stesura e' il punto**: questi campi si
+ * scrivono in `DefaultGame.ini`, non in un pannello. Esporli all'editor rifarebbe l'errore per cui il tipo
+ * era stato tolto — sembrare il modo previsto di dichiarare le schermate senza esserlo.
+ */
+USTRUCT()
+struct FRTScreenBinding
+{
+	GENERATED_BODY()
+
+	/** Il nome della schermata. Vuoto significa **scartata**: un id assente non e' indirizzabile. */
+	UPROPERTY(Config)
+	FName ScreenId;
+
+	/**
+	 * La classe del widget da presentare.
+	 *
+	 * ⚠️ `TSoftClassPtr` e non `TSubclassOf`: registrare una schermata **non deve caricare** il suo
+	 * `.uasset`. E' cio' che permette a `RegisterScreens` di girare in un test headless prima che i
+	 * `WBP_RT_*` esistano — e i binari sono lavoro d'editor, quindi quel «prima» dura giorni, non minuti.
+	 */
+	UPROPERTY(Config)
+	TSoftClassPtr<UUserWidget> WidgetClass;
+};
 
 /**
  * **L'unico owner del flow del frontend** (CP 46.1, #936).
@@ -45,12 +72,55 @@ class UUserWidget;
  *   click in partita*.
  * - **Non contiene regole di gioco.** Nessuna schermata legge o scrive lo stato del resolver.
  */
-UCLASS()
+UCLASS(Config = Game)
 class REFACTORTACTICS_API URTFrontendNavigator : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 
 public:
+	/**
+	 * **L'unica cosa che il GameMode del frontend deve sapere** (CP 46.3): registra i binding dichiarati
+	 * in configurazione e apre la radice.
+	 *
+	 * ⚠️ **L'ordine e' la ragione per cui questa funzione esiste**, invece di lasciare due chiamate dentro
+	 * un `BeginPlay`. `InitializeFrontend` presenta la radice **subito**: se i binding non fossero ancora
+	 * arrivati, `SyncPresentation` uscirebbe alla prima riga e lascerebbe lo stack corretto sopra uno
+	 * schermo vuoto — di nuovo un fallimento indistinguibile dal successo. Dentro un `BeginPlay`
+	 * quell'ordine sarebbe una convenzione da ricordare; qui e' una riga sola e un test lo verifica.
+	 *
+	 * ⚠️ **Non la chiama il subsystem da se'.** Un `UGameInstanceSubsystem` nasce con la `GameInstance`,
+	 * cioe' su **ogni** mappa: auto-avviarsi metterebbe il Main Menu sopra una partita in corso. Chi apre
+	 * il frontend e' la mappa del frontend, tramite `ARTFrontendGameMode`.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Frontend")
+	ERTNavResult StartFrontend();
+
+	/**
+	 * Registra i binding dichiarati in `DefaultGame.ini`, e restituisce **quanti ne sono entrati davvero**.
+	 *
+	 * Sezione `[/Script/RefactorTactics.RTFrontendNavigator]`, una riga `+Screens=(...)` per schermata.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Frontend")
+	int32 RegisterScreensFromConfig();
+
+	/**
+	 * Registra un elenco di binding, e restituisce **quanti ne sono entrati**.
+	 *
+	 * ⚠️ **Il valore di ritorno non e' una comodita'.** Le voci incomplete vengono scartate in silenzio —
+	 * e' l'unico comportamento sensato per un `.ini`, dove un refuso non deve impedire l'avvio — quindi il
+	 * conteggio e' l'unico segnale che distingue «registrate tutte» da «registrate alcune». Un chiamante
+	 * che lo ignora non si accorge di un frontend senza schermate finche' non guarda lo schermo.
+	 */
+	int32 RegisterScreens(const TArray<FRTScreenBinding>& InScreens);
+
+	/**
+	 * Le schermate che hanno un binding, per i test e per la diagnostica.
+	 *
+	 * Stesso ruolo di `GetStack()`, e stessa scelta: accessor C++ semplice e **non** `UFUNCTION`, perche'
+	 * la superficie Blueprint del navigatore descrive la navigazione, non il suo inventario.
+	 */
+	TArray<FName> GetRegisteredScreenIds() const;
+
 	/**
 	 * Dichiara la radice e apre la prima schermata. **Va chiamata prima di ogni altra cosa**: senza radice
 	 * lo stack non ha uno stato legale, e `ReturnMain` non avrebbe dove tornare.
@@ -166,6 +236,15 @@ private:
 
 	UPROPERTY()
 	TMap<FName, TSoftClassPtr<UUserWidget>> Bindings;
+
+	/**
+	 * Le schermate dichiarate in `DefaultGame.ini`. **Non sono i binding**: sono cio' che
+	 * `RegisterScreensFromConfig` legge per produrli, e restano com'erano scritte anche dopo che una voce
+	 * incompleta e' stata scartata. Tenerle separate e' cio' che permette di rileggere la configurazione
+	 * senza perdere le registrazioni fatte a mano da un Blueprint.
+	 */
+	UPROPERTY(Config)
+	TArray<FRTScreenBinding> Screens;
 
 	/** I widget istanziati, per nome. Sopravvivono al pop finche' `SyncPresentation` non li smonta. */
 	UPROPERTY()

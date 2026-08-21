@@ -2,6 +2,11 @@
 
 #include "Blueprint/UserWidget.h"
 #include "Engine/GameInstance.h"
+// Per `RTScreenIds::Main`: la radice del frontend ha un nome canonico, e `StartFrontend` lo usa invece di
+// riscrivere `TEXT("Main")` — un refuso qui non produrrebbe un errore ma una schermata che non disegna.
+#include "Frontend/RTFrontendScreenIds.h"
+// Per `LogRT`: `StartFrontend` avvisa quando la configurazione non ha prodotto nessuna schermata.
+#include "RefactorTactics.h"
 
 namespace
 {
@@ -35,6 +40,69 @@ void URTFrontendNavigator::RegisterScreen(FName ScreenId, TSoftClassPtr<UUserWid
 	{
 		Bindings.Add(ScreenId, WidgetClass);
 	}
+}
+
+ERTNavResult URTFrontendNavigator::StartFrontend()
+{
+	const int32 Registered = RegisterScreensFromConfig();
+
+	if (Registered == 0)
+	{
+		// ⚠️ Un avviso e non un rifiuto, e la scelta e' deliberata: senza binding la navigazione **funziona**
+		// — lo stack si muove, `GetCurrentScreen()` risponde — e semplicemente non disegna niente. Rifiutare
+		// qui renderebbe il frontend inavviabile in un test headless, che e' proprio il caso in cui i
+		// `.uasset` non esistono e non devono esistere. Cio' che non deve succedere e' che nessuno se ne
+		// accorga: uno schermo nero senza una riga di log e' indistinguibile da un difetto di rendering.
+		UE_LOG(LogRT, Warning,
+			TEXT("Frontend avviato senza schermate registrate: [/Script/RefactorTactics.RTFrontendNavigator] ")
+			TEXT("non dichiara nessun `+Screens=` valido, quindi lo schermo restera' vuoto"));
+	}
+
+	// Registrare **prima**, aprire dopo: `InitializeFrontend` presenta subito la radice, e con i binding
+	// ancora assenti `SyncPresentation` uscirebbe alla prima riga lasciando lo stack corretto sopra uno
+	// schermo vuoto.
+	return InitializeFrontend(RTScreenIds::Main);
+}
+
+int32 URTFrontendNavigator::RegisterScreensFromConfig()
+{
+	// `LoadConfig` esplicito invece di affidarsi ai valori ereditati dal CDO: quando questa funzione viene
+	// chiamata, cio' che conta e' cosa dice il `.ini` **adesso**, e una riga in piu' toglie la domanda.
+	LoadConfig();
+	return RegisterScreens(Screens);
+}
+
+int32 URTFrontendNavigator::RegisterScreens(const TArray<FRTScreenBinding>& InScreens)
+{
+	int32 Registered = 0;
+
+	for (const FRTScreenBinding& Binding : InScreens)
+	{
+		// Le due incompletezze si scartano insieme ma non sono lo stesso difetto: un id vuoto non e'
+		// indirizzabile, una classe nulla lo e' e non disegna niente — che e' peggio, perche' produce una
+		// navigazione che riesce sopra uno schermo immobile.
+		if (Binding.ScreenId.IsNone() || Binding.WidgetClass.IsNull())
+		{
+			continue;
+		}
+
+		// Passa da `RegisterScreen` invece di scrivere in `Bindings`: il controllo sull'id resta in un
+		// posto solo, come il filtro sui non-fatali di `URTErrorModalWidgetBase::ShowFor`.
+		RegisterScreen(Binding.ScreenId, Binding.WidgetClass);
+		++Registered;
+	}
+
+	return Registered;
+}
+
+TArray<FName> URTFrontendNavigator::GetRegisteredScreenIds() const
+{
+	// ⚠️ **L'ordine non e' dichiarato**, e chi legge non deve dipenderne: le chiavi arrivano da una `TMap`,
+	// e il progetto vieta esplicitamente di appoggiarsi all'ordine di `TMap`/`TSet`. Serve a sapere *se* una
+	// schermata c'e', non in che posizione.
+	TArray<FName> Ids;
+	Bindings.GetKeys(Ids);
+	return Ids;
 }
 
 ERTNavResult URTFrontendNavigator::PushScreen(FName ScreenId)

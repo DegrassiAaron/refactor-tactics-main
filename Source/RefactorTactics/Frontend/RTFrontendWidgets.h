@@ -42,6 +42,55 @@
  */
 
 /**
+ * Il **Main Menu** (CP 46.3, `#938`): la schermata da cui il pacchetto avvia.
+ *
+ * ⚠️ **Qui non ci sono i tre pulsanti.** `PLAY · SETTINGS · QUIT` sono widget dentro
+ * `WBP_RT_MainMenu.uasset`, e la loro disposizione, il focus visibile e la percorribilita' da tastiera
+ * sono lavoro d'editor: restano di `PIE-V01-FRONTEND-MAIN`, che e' l'unico posto in cui si puo' dire se
+ * un bordo di focus si vede. Questa classe dichiara **cosa il menu puo' leggere**.
+ *
+ * ⚠️ **E non naviga**, come le altre tre di questo file: i pulsanti chiamano `URTFrontendNavigator`, che
+ * e' gia' `BlueprintCallable`. L'invariante 1 di CP 46.1 dice che il flow ha un owner solo, e un widget
+ * che scegliesse la destinazione sarebbe il secondo.
+ */
+UCLASS(BlueprintType)
+class REFACTORTACTICS_API URTMainMenuWidgetBase : public UUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	/**
+	 * La riga di versione da mostrare a schermo. E' la voce *«version/build label leggibile»* del DoD.
+	 *
+	 * ⚠️ **Non e' una costante.** Legge `ProjectVersion` da `DefaultGame.ini`, e la ragione e' il modo in
+	 * cui questa riga marcisce: una label letterale resta identica dopo il bump, e l'unico segnale che
+	 * qualcosa non torna arriva mesi dopo, da chi segnala un difetto su una build che crede di essere
+	 * un'altra. Una versione che mente e' peggio di una versione assente.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	FText GetVersionLabel() const;
+
+	/**
+	 * `true` finche' `SETTINGS` non ha contenuto — cioe' per tutta la v0.1.
+	 *
+	 * La voce **esiste comunque**: il DoD la vuole perche' il back stack la attraversi, e perche' il menu
+	 * non cambi forma in v0.2. Cio' che questo flag governa e' se il pannello si dichiara.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	bool IsSettingsComingSoon() const;
+
+	/**
+	 * Cosa dice `SETTINGS` quando non ha contenuto. Vuoto quando il pannello e' vero.
+	 *
+	 * ⚠️ **Il testo nasce qui e non nel Blueprint**, per la stessa ragione di `GetPhaseText()`: un pulsante
+	 * che non fa nulla **senza dirlo** e' il dead-end che il DoD vieta, e lasciare la frase al `.uasset`
+	 * significherebbe che il rispetto di quella regola dipende da chi ha disegnato il widget.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	FText GetSettingsNoticeText() const;
+};
+
+/**
  * La schermata di **attesa**: mostra la fase raggiunta, e nient'altro.
  *
  * ⚠️ **Nessuna percentuale, e nessun testo scritto a mano.** La fase e' un dato (`ERTLoadPhase`) prodotto
