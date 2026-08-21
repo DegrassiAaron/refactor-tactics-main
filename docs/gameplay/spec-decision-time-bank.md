@@ -704,7 +704,7 @@ esistono** e non vanno creati: i temi sono già coperti.
 **FeatureId nuovo**: `RT-FEAT-CORE-DECISION-TIME-BANK` — «core» e non «reaction» perché il bank è proprietà del
 **giocatore** e serve ogni Decision Window, incluse quelle che non sono reazioni.
 Status iniziale: `SPECIFIED`, release `v0.1`, roadmap `E14.8`. Lo status **si deriva dai gate**, non si scrive
-a mano: vedi [`feature-registry.yaml`](../roadmap/feature-registry.yaml) e il suo validator.
+a mano: vedi `feature-registry.yaml` e il suo validator.
 
 **Roadmap**: **CP 14.8** dentro E14 (`#152`), dopo CP 14.7. Non serve un'epic nuova: E14 è già l'owner delle
 Decision Window, e il pacing ha il suo owner in `RT-FEAT-MATCH-PACING`.

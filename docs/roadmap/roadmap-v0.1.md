@@ -122,34 +122,9 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 
 **Suite automatica**: **si misura, non si cita — e da qui in avanti nemmeno si scrive.**
 
-<!-- RT_SUITE_COUNT:BEGIN -->
-**875 test unici in 107 file** — **875 eseguiti su 875 dichiarati, 0 falliti**, misurati su `02db66b2`. ➕ **E dieci di questi girano anche dentro un pacchetto** (`#83`, CP 12.3): i dieci vincolanti del catalogo (§6) portano `ClientContext` oltre a `EditorContext`, e in una build Development pacchettizzata danno `10 tests performed`, 10 su 10 verdi. ⚠️ Gli altri 865 restano `EditorContext` **di proposito**: riflaggarli tutti sarebbe un mega-refactor su 107 file, e alcuni potrebbero dipendere dall'Editor in modi che si scoprono solo eseguendoli.
-
-Generato da `python scripts/feature_registry.py suite`: **non si aggiorna a mano**. Era scritto a mano in due documenti ed è divergito cinque volte.
-
-| Area | Test | Cosa fissa |
-|---|---:|---|
-| `Hex*` (mappa, path, vision, bot, blast, move, match) | 126 | Coordinate, A\*, LOS, bot, partita completa |
-| `Actions.*` | 71 | Ordine per priorità, permutazione-invarianza, fallback, mappatura di fase |
-| `Terrain.*` · `Status.*` · `Environment.*` | 41 | Superfici, stati temporanei, propagazione elettrica, fuoco/acqua |
-| `Combat.*` · `HexCombat.*` | 40 | Danno dopo scudo, forme, LOS, niente fuoco amico |
-| `Reactions.*` | 34 | Attivazione singola, trigger puro, reazioni componibili, privacy |
-| `HexSim.*` | 33 | Snapshot, budget, collisioni simultanee, **replay divergence 0** |
-| `Match*` (allestimento, formato, fine partita) | 33 | Le tre vie di fine partita e il `RoundLimit` da formato |
-| `Heroes.*` | 34 | I 4 eroi corrispondono al catalogo, trade-off delle varianti |
-| `TurnLog.*` | 49 | Hash permutazione-invariante, serializzazione versionata, checksum |
-| `Scenario.*` · `ScenarioIndex.*` | 66 | Harness: PASS/FAIL/ERROR/**BLOCKED**, identità e tag, niente bypass |
-| `Structures.*` | 26 | Porte come bordo (E9.3), ponti come arco (E9.4) |
-| `Playback.*` · `Preview.*` · `PlayerInput.*` · `ShowcaseRelay.*` · `Camera.*` | 49 | Presentazione e input: non decidono, riproducono |
-| `Unit.*` · `Turn.*` · `Simulation.*` · `Movement.*` | 29 | Stato unità, **ciclo di vita dei piani**, determinismo del replay |
-| `Cover.*` | 20 | Copertura bassa e alta, bordi, danno a struttura e distruzione |
-| `Catalog.*` | 8 | Invarianti del catalogo: solo interi, slot dichiarati, ID stabili |
-| `Pacing.*` | 7 | Pacing del turno misurato |
-| `Perf.*` | 4 | Path mediana **0,025 ms** · resolver **0,41 ms/turno** |
-| **totale** | **670** | |
-
-> ⚠️ Test fuori da ogni area dichiarata: `RefactorTactics.Arena.ArenaV01MeetsAllThreeCriteria`, `RefactorTactics.Arena.CostBiteNeedsExpensiveCellAndOverBudget`, `RefactorTactics.Arena.CoverageNeedsBlockedSightNotJustBlockingCells`, `RefactorTactics.Arena.CriterionAndOverlayCountTheSameCells`, `RefactorTactics.Arena.DerivedSpawnsMatchMatchSetup`, `RefactorTactics.Arena.GeneratedTestArenaIsMeasurable`, `RefactorTactics.Arena.RemovingTheOnlyTransitionIsolatesThePlatform`, `RefactorTactics.Arena.TwoRoutesNeedDisjointSimilarCostDifferentExposure`
-<!-- RT_SUITE_COUNT:END -->
+> **Il conteggio della suite si misura sul branch corrente**, non si cita da qui: era un
+> blocco generato, e il generatore e' stato rimosso il 2026-08-21 (**D-181**). L'ultimo
+> valore pubblicato — *875 test in 107 file* — era gia' fermo mentre la suite ne contava 903.
 
 > Questo numero è già stato sbagliato quattro volte, e la storia vale più della cifra: due viste sono arrivate
 > a un merge con **due numeri diversi ed entrambi corretti alla propria base** (394 in 61 alla chiusura di
@@ -222,144 +197,15 @@ collo di bottiglia non è il codice di gioco: è la **verifica interattiva** —
 
 Questa tabella **non si aggiorna a mano**: la riscrive
 `python scripts/feature_registry.py wiki` leggendo
-[`feature-registry.yaml`](feature-registry.yaml), che è l'unica sorgente dello stato per feature. Le due
+`feature-registry.yaml`, che è l'unica sorgente dello stato per feature. Le due
 viste rispondono a domande diverse — l'epic dice *quando si lavora*, la feature dice *cosa esiste* — e
 tenerle sincronizzate a mano è il modo in cui questo repository ha già prodotto quattro numeri sbagliati.
 
-Il registry e il suo modello sono documentati in [`feature-registry.md`](feature-registry.md).
+Il registry e il suo modello sono documentati in `feature-registry.md`.
 
-<!-- RT_FEATURE_BY_EPIC:BEGIN -->
-
-| Epic | Feature | Stato | Gate |
-|---|---|---|---:|
-| **E1** | `RT-FEAT-DATA-ASSET-PIPELINE` — Primary Data Asset e cataloghi | RELEASE_READY | 5/6 |
-|  | `RT-FEAT-DATA-STABLE-IDS` — ID stabili e versioni dei contenuti | RELEASE_READY | 5/6 |
-|  | `RT-FEAT-TOOL-BALANCE-GROUND` — Banco di prova del bilanciamento | IMPLEMENTING | 3/6 |
-|  | `RT-FEAT-TOOL-VALIDATION` — Validator di dati, mappe e documenti | DONE | 5/5 |
-| **E2** | `RT-FEAT-ACTION-DASH-DISPLACEMENT` — Dash e spostamento forzato | RELEASE_READY | 8/9 |
-|  | `RT-FEAT-BOT-BASE` — Bot a utility scoring deterministico | RELEASE_READY | 7/8 |
-|  | `RT-FEAT-CORE-TURN` — Pipeline del turno simultaneo | RELEASE_READY | 8/9 |
-|  | `RT-FEAT-MAP-HEXGRAPH` — FRTCellId e grafo esagonale multilivello | RELEASE_READY | 8/9 |
-|  | `RT-FEAT-MAP-LOS` — LOS, targeting e traiettoria separati | RELEASE_READY | 6/7 |
-|  | `RT-FEAT-MAP-PATHFINDING` — A* esagonale autorevole | RELEASE_READY | 6/7 |
-| **E4** | `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES` — Profili di attacco base per eroe | RELEASE_READY | 7/9 |
-|  | `RT-FEAT-ACTION-COOLDOWNS` — Cooldown ed economia delle risorse | TESTABLE | 6/9 |
-|  | `RT-FEAT-ACTION-ENGINE` — Motore delle azioni a priorità intera | RELEASE_READY | 8/9 |
-|  | `RT-FEAT-ACTION-GENERIC` — Azioni generiche del catalogo — completata da `RT-FEAT-REACTION-OVERWATCH`, `RT-FEAT-OBJECTIVE-SYSTEM` | IMPLEMENTING | 3/9 |
-|  | `RT-FEAT-ACTION-MOVE-PROFILES` — Profili di movimento (Move, Sprint, Charge) | RELEASE_READY | 8/9 |
-| **E5** | `RT-FEAT-NET-PRIVATE-PLANNING` — Intenti privati per squadra | TESTABLE | 5/8 |
-|  | `RT-FEAT-REACTION-PREPARED` — Reazioni preparate in planning | INTEGRATED | 7/9 |
-| **E6** | `RT-FEAT-CHAR-V01-ROSTER` — Roster v0.1 — Gadget, Phase, Riktor, Wraith | INTEGRATED | 6/8 |
-| **E7** | `RT-FEAT-ACTION-EQUIPMENT` — Equipaggiamento e loadout | IMPLEMENTING | 1/8 |
-| **E8** | `RT-FEAT-ENV-ELECTRIC` — Propagazione elettrica sul grafo dell'acqua | INTEGRATED | 6/9 |
-|  | `RT-FEAT-ENV-FIRE` — Fuoco e terreno dinamico | INTEGRATED | 7/9 |
-|  | `RT-FEAT-ENV-ICE` — Ghiaccio e scivolamento | INTEGRATED | 6/9 |
-|  | `RT-FEAT-ENV-STATUS` — Stati temporanei legati alla cella | INTEGRATED | 6/9 |
-|  | `RT-FEAT-ENV-STEAM` — Fumo e copertura visiva | INTEGRATED | 6/9 |
-|  | `RT-FEAT-ENV-SYSTEMIC-COMBOS` — Interazioni sistemiche producer/consumer | INTEGRATED | 7/9 |
-|  | `RT-FEAT-ENV-TERRAIN` — Otto terreni con costi e proprietà | INTEGRATED | 6/9 |
-|  | `RT-FEAT-ENV-WATER` — Acqua e stato Wet | INTEGRATED | 6/9 |
-| **E9** | `RT-FEAT-MAP-COVER` — Copertura direzionale per bordo | INTEGRATED | 6/8 |
-|  | `RT-FEAT-MAP-DYNAMIC-COVER` — Copertura modificabile e pannello cinetico | INTEGRATED | 7/9 |
-|  | `RT-FEAT-MAP-HIGH-GROUND` — Altura senza bonus numerico alla vista | INTEGRATED | 6/8 |
-|  | `RT-FEAT-MAP-INTERACTIVE-EDGES` — Porte e bordi commutabili | INTEGRATED | 7/9 |
-|  | `RT-FEAT-MAP-SPECIAL-TRANSITIONS` — Ponti, archi e transizioni multilivello | INTEGRATED | 7/9 |
-| **E10** | `RT-FEAT-MATCH-END-CONDITIONS` — Fine partita a tre vie | RELEASE_READY | 7/9 |
-|  | `RT-FEAT-OBJECTIVE-SYSTEM` — Obiettivi dinamici in mappa | IMPLEMENTING | 2/9 |
-| **E11** | `RT-FEAT-CORE-PLAYBACK` — Playback della risoluzione | INTEGRATED | 5/7 |
-|  | `RT-FEAT-TOOL-DEBUG-CONSOLE` — Comandi console rt.Debug e rt.Test | IMPLEMENTING | 3/6 |
-|  | `RT-FEAT-UI-ACTION-GHOSTS` — Action Ghosts e Ghost Timeline | SPECIFIED | 1/8 |
-|  | `RT-FEAT-UI-CERTAINTY` — Livelli di certezza degli intenti alleati | IMPLEMENTING | 3/8 |
-|  | `RT-FEAT-UI-COMBAT-LOG` — Combat log e spiegabilità | RELEASE_READY | 6/7 |
-|  | `RT-FEAT-UI-PLANNING` — HUD di planning, selezione e preview | RELEASE_READY | 6/7 |
-|  | `RT-FEAT-UI-POINTER-INTERACTION` — Contratto del puntatore — Hover, LMB, RMB | IMPLEMENTING | 1/8 |
-|  | `RT-FEAT-UI-SCREEN-HUD` — Screen HUD in UMG (layer §4.1) | IMPLEMENTING | 1/7 |
-|  | `RT-FEAT-UI-TACTICAL-CAMERA` — Camera tattica | IMPLEMENTING | 2/6 |
-|  | `RT-FEAT-UI-WARNINGS` — Avvisi di collisione, fuoco amico e risorse — completata da `RT-FEAT-UI-CERTAINTY` | IMPLEMENTING | 3/7 |
-| **E12** | `RT-FEAT-CORE-DETERMINISM` — Snapshot e resolver deterministico | INTEGRATED | 6/8 |
-|  | `RT-FEAT-CORE-TURNLOG` — TurnLog, reason code, hash e replay | RELEASE_READY | 7/8 |
-|  | `RT-FEAT-DATA-HASH` — Hash di regole e contenuti | RELEASE_READY | 5/7 |
-|  | `RT-FEAT-MATCH-PACING` — Pacing del turno e del match | TESTABLE | 5/8 |
-|  | `RT-FEAT-PROD-PACKAGED` — Verifica su build packaged | IMPLEMENTING | 2/6 |
-|  | `RT-FEAT-PROD-PERFORMANCE` — Budget di performance misurati | IMPLEMENTING | 3/6 |
-| **E13** | `RT-FEAT-BOT-FAIRNESS` — Il bot pianifica sulla conoscenza della sua squadra | TESTABLE | 3/7 |
-|  | `RT-FEAT-PERCEPTION-MEMORY` — Memoria del contatto e ultima posizione nota | TESTABLE | 4/9 |
-|  | `RT-FEAT-PERCEPTION-NOISE` — Rumore e percezione acustica | SPECIFIED | 3/9 |
-|  | `RT-FEAT-PERCEPTION-TEAM-KNOWLEDGE` — TeamKnowledge e informazione parziale | TESTABLE | 5/9 |
-|  | `RT-FEAT-PERCEPTION-VISION` — Vista, facing e livelli di consapevolezza | IMPLEMENTING | 3/9 |
-| **E14** | `RT-FEAT-CORE-DECISION-BOUNDARY` — Risoluzione segmentata con Decision Boundary | SPECIFIED | 1/9 |
-|  | `RT-FEAT-CORE-DECISION-TIME-BANK` — Decision Time Bank (budget di decisione per giocatore) | SPECIFIED | 1/10 |
-|  | `RT-FEAT-REACTION-CLASH` — Reaction Clash (opportunity contested) | SPECIFIED | 1/10 |
-|  | `RT-FEAT-REACTION-FAST` — Fast Reaction con finestra limitata | TESTABLE | 6/10 |
-|  | `RT-FEAT-REACTION-FAST-ACTION` — Fast Action come continuazione della propria azione | DESIGNED | 0/10 |
-|  | `RT-FEAT-REACTION-OPPORTUNITY` — Modello Opportunity → Commit | IMPLEMENTING | 5/10 |
-|  | `RT-FEAT-REACTION-OVERWATCH` — Overwatch universale profilabile | TESTABLE | 6/10 |
-|  | `RT-FEAT-REACTION-PROFILE` — Reaction Profile armato da Brace | IMPLEMENTING | 1/9 |
-| **E15** | `RT-FEAT-TEST-GOLDEN` — Golden replay e showcase «Il Relè» | IMPLEMENTING | 3/8 |
-|  | `RT-FEAT-TEST-SCENARIO-HARNESS` — Scenario Test Harness automatizzato | INTEGRATED | 6/8 |
-| **E16** | `RT-FEAT-MAP-FACING` — Facing come stato di gioco autorevole — completata da `RT-FEAT-UI-PLANNING` | IMPLEMENTING | 6/10 |
-| **E17** | `RT-FEAT-STRESS-4V4` — Validazione di stress 4v4 | IMPLEMENTING | 1/7 |
-| **E18** | `RT-FEAT-ACTION-PREDICTIVE` — Predictive Action, thin slice | INTEGRATED | 7/9 |
-| **E19** | `RT-FEAT-MATCH-FORMAT` — Formato di partita e classe di mappa | TESTABLE | 5/8 |
-| **E20** | `RT-FEAT-UI-ICON-LANGUAGE` — HUD Icon Language | IMPLEMENTING | 1/7 |
-| **E21** | `RT-FEAT-CHAR-PRESENTATION` — Presentazione dei personaggi (mesh, animazioni, anelli) | IMPLEMENTING | 1/7 |
-|  | `RT-FEAT-UI-GRAYBOX-KIT` — Graybox Kit — contratto di ingombro, pivot e presentazione degli oggetti di mappa | DESIGNED | 0/5 |
-| **E23** | `RT-FEAT-MAP-INTERACTION-GRAPH` — Interaction graph: la relazione sorgente -> bersaglio e' un dato | DESIGNED | 0/10 |
-|  | `RT-FEAT-MAP-STANDABILITY` — Standability derivata da anchor, footprint e clearance | DESIGNED | 0/8 |
-|  | `RT-FEAT-MAP-STRUCTURE-IDENTITY` — Identita' stabile di una struttura attraverso cook, scenari e replay | DESIGNED | 0/8 |
-|  | `RT-FEAT-MAP-TRANSITION-CLEARANCE` — Validità della transizione distinta da quella della cella | DESIGNED | 0/8 |
-|  | `RT-FEAT-UI-STRUCTURE-READABILITY` — Leggibilita' delle strutture: etichette tattiche e relazioni sorgente/bersaglio | DESIGNED | 0/7 |
-| **E46** | `RT-FEAT-UI-FRONTEND-MAIN-MENU` — Main Menu, e l'avvio del pacchetto | SPECIFIED | 1/5 |
-|  | `RT-FEAT-UI-FRONTEND-MATCH-FLOW` — Play, Result e il ritorno al menu | SPECIFIED | 1/6 |
-|  | `RT-FEAT-UI-FRONTEND-PAUSE` — Pause, e lo smontaggio della partita | SPECIFIED | 1/5 |
-|  | `RT-FEAT-UI-FRONTEND-SHELL` — Frontend root, navigation controller e stati comuni | IMPLEMENTING | 1/6 |
-|  | `RT-FEAT-UI-REPLAY-VIEWER` — Replay viewer — la lista delle partite e una riproduzione che dice dove si e' | IMPLEMENTING | 1/5 |
-| **E47** | `RT-FEAT-MATCH-AUTOBATTLE` — Partita non presidiata — bot contro bot, dall'avvio al vincitore — completata da `RT-FEAT-CORE-PLAYBACK`, `RT-FEAT-UI-BOARD-GRAMMAR` | IMPLEMENTING | 3/8 |
-|  | `RT-FEAT-UI-BOARD-GRAMMAR` — Grammatica visiva della board — colore e forma, mai solo il colore | IMPLEMENTING | 0/7 |
-
-> ⚠️ **Feature con una release e senza epic** — lavoro dentro lo scope di una release che nessuna
-> epic copre e che nessuno ha dichiarato fuori scope.
->
-> Per la **v0.1** questa tabella **deve restare vuota**: se compare una riga, o le si assegna
-> un'epic o si dichiara `out_of_release_scope` con un motivo. Per le release successive una riga
-> significa *«l'epic non è ancora aperta»*, che è legittimo ma non deve essere silenzioso: la
-> motivazione va nelle `notes` della feature, ed è il posto dove il prossimo audit la cerca.
-> ⚠️ Fino al 2026-08-13 il filtro guardava la sola v0.1, quindi le righe post-v0.1 non
-> comparivano affatto — non perché fossero assegnate, ma perché nessuno le contava.
-
-> La colonna **Release** è quella che distingue i due casi, e senza di lei la riga d'errore
-> e quella legittima si leggono identiche: `v0.1` va corretta, il resto va motivato.
-
-| Feature | Release | Vista | Stato | Gate |
-|---|---|---|---|---:|
-| `RT-FEAT-ACTION-SUPERS` — Ultimate e azioni ad alto impegno | v0.2 | — | IMPLEMENTING | 0/9 |
-| `RT-FEAT-CHAR-AUXILIARY-UNITS` — Unità ausiliarie (pet, evocazioni, gadget) | v0.2 | — | DESIGNED | 0/9 |
-| `RT-FEAT-CHAR-TRANSFORMATION` — Stati di personaggio, stance e trasformazioni | v0.2 | — | DESIGNED | 0/9 |
-| `RT-FEAT-ENV-ICE-ENGINE` — Motore del ghiaccio (momentum, rottura, prone) | v0.2 | — | DESIGNED | 0/9 |
-| `RT-FEAT-FACTION-SCENARIOS` — Scenari di cooperazione per fazione | v0.2 | — | DESIGNED | 0/7 |
-| `RT-FEAT-ACTION-DELAYED` — Delayed Action ai boundary di fase | v0.3 | — | DESIGNED | 0/9 |
-| `RT-FEAT-ACTION-TRAPS` — Trappole e gambit tattici | v0.3 | — | IDEA | 0/9 |
-
-**Fuori dalla vista di release, per decisione** — esiste, è tracciato, ma non è contenuto
-della v0.1. Dichiararlo è tracciabilità quanto assegnare un'epic: quello che non va bene è il
-silenzio.
-
-| Feature | Vista | Perché fuori scope |
-|---|---|---|
-| `RT-FEAT-TOOL-MAP-EDITOR` — Editor mode della mappa esagonale | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. Tracciato da M9 e dalla EditorMap, non dalle epic della v0.1. |
-| `RT-FEAT-TOOL-MAP-GEOMETRY` — Geometria architettonica quantizzata e cottura in dati di cella | M9 | Strumento d'editor: non entra nella build di gioco e non ha un gate di release. E' l'ANTICIPAZIONE dichiarata della meta' di authoring di E23.1 (v0.2), decisa il 2026-08-12; l'epic #324 NON si apre, e la logica di transizione resta sua. |
-| `RT-FEAT-UI-SCENARIO-BROWSER` — Selettore e indice degli scenari | — | Tooling di test nato dall'issue `#209`: serve a chi sviluppa, non è contenuto della release. Già costruito e coperto da test; nessun gate della v0.1 dipende da lui. |
-
-> ⚠️ **Feature la cui epic appartiene a un'altra release** — la feature dichiara una release,
-> la sua epic ne dichiara un'altra, e le due non si conciliano indovinando. Non compare nella
-> tabella qui sopra (che è la vista della **v0.1**) e non è un buco: è una **contraddizione fra
-> due campi**, e va risolta scegliendo quale dei due mente.
-
-| Feature | Release dichiarata | Epic | Release dell'epic |
-|---|---|---|---|
-| `RT-FEAT-REPLAY-ARCHIVE` — Replay Archive — recorder, Player e indice delle partite | v0.2 | **E12** | v0.1 |
-
-<!-- RT_FEATURE_BY_EPIC:END -->
+> **La tabella feature-per-epic e' stata rimossa** con il Feature Registry che la generava
+> (**D-181**, 2026-08-21). Le epic e il loro stato restano in §2.1, che e' scritto a mano ed e'
+> sempre stato l'owner; le feature non hanno piu' un registro.
 
 ---
 
@@ -385,7 +231,7 @@ silenzio.
 | **E16** | Orientamento e direzionalità | P1 | 2 | L'orientamento smette di essere presentazione: decide difesa, percezione e reazioni con una sola primitiva geometrica (`HexCone`). È **prerequisito di E13**. ⚠️ **Emendato il 2026-08-13 da [D-126](../decisions/RT_PDR_00_Decision_Log.md)**: `HexCone` resta la **geometria** condivisa dai tre consumatori — che non cambiano — ma **non è più la primitiva semantica** del facing, che sono le sei direzioni relative. Il cono è strettamente contenuto nell'insieme dei tre lati frontali (**45** celle di divergenza su raggio `1..10`, tutte nello stesso verso — diceva `50`, cifra della regola a linea poi scartata, corretta da [D-147](../decisions/RT_PDR_00_Decision_Log.md)), quindi sostituirlo sarebbe un buff difensivo: il runtime della relazione a sei lati è [#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726), **post-v0.1**. ⚠️ **«Zero numeri nuovi» non vale più dal 2026-08-10**: [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) accetta la rotazione come **capacità del personaggio** e introduce **otto** numeri (2 per eroe). Il vanto era di ADR-0005, che su questo è superato |
 | **E17** | Validazione di stress 4v4 | P3 | 3 | Misura, non produzione: dove si rompe il sistema con **otto unità** (resolver, leggibilità, prompt di reazione, TurnLog). Mirror del roster core, **dopo E15**. Non decide il formato principale ([D-011](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E18** | Predictive Action — thin slice | P2 | 2 | Il pilastro della **predizione** diventa percepibile con **una sola** azione: decisa in Planning, risolta a un boundary deterministico, **senza input live** ([D-016](../decisions/RT_PDR_00_Decision_Log.md)). Il framework di trap resta fuori |
-| **E19** | Classe di mappa e composizione | P2 | 2 | `URTMatchFormatData` **esiste già**, e i due buchi misurati sono **chiusi** (2026-08-09, `#215`/`#216`): la mappa dichiara la propria `MapClass` e il formato dichiara `UnitsPerTeam`, entrambi con consumatori runtime. Dal 2026-08-10 `Format.Skirmish2v2` è **spedito da C++** (`#375`), come le istanze di azioni ed eroi: il formato canonico non dipende più da un `.uasset` che il repository non contiene. **Lo stato autorevole è in [`feature-registry.yaml`](feature-registry.yaml) (`RT-FEAT-MATCH-FORMAT`)**, non in questa riga |
+| **E19** | Classe di mappa e composizione | P2 | 2 | `URTMatchFormatData` **esiste già**, e i due buchi misurati sono **chiusi** (2026-08-09, `#215`/`#216`): la mappa dichiara la propria `MapClass` e il formato dichiara `UnitsPerTeam`, entrambi con consumatori runtime. Dal 2026-08-10 `Format.Skirmish2v2` è **spedito da C++** (`#375`), come le istanze di azioni ed eroi: il formato canonico non dipende più da un `.uasset` che il repository non contiene. **Lo stato autorevole è in `feature-registry.yaml` (`RT-FEAT-MATCH-FORMAT`)**, non in questa riga |
 | **E20** | HUD Icon Language | P2 | 3 | Le icone sono un **catalogo semantico**, non texture referenziate nei widget: E11 costruisce l'HUD adesso, e riscrivere ogni widget dopo costa più del file di dati in più ([D-031](../decisions/RT_PDR_00_Decision_Log.md)) |
 | **E21** | Presentazione e leggibilità | P1 | 3 | Il gioco smette di essere cilindri colorati. Era l'unico lavoro **dentro** lo scope di release che nessuna epic copriva: viveva solo nella milestone M8, e il Feature Registry lo ha reso visibile il 2026-08-08 |
 | **E23** | Muri, porte e interaction graph | P1 | 7 | **Anticipata dalla v0.2 il 2026-08-17** ([D-160](../decisions/RT_PDR_00_Decision_Log.md)). Non è scope nuovo: **metà è già passata** — `E23.3` (identità stabile attraverso il cook) è chiuso con [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832), e `E23.4` (interaction graph) è in corso su [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833), la cui prima fetta è già in `main`. L'anticipazione è in parte una **presa d'atto**: il lavoro stava atterrando in v0.1 mentre l'epic dichiarava v0.2, e cinque owner si contraddicevano. ⚠️ La milestone `v0.2 · Struttura e finestre` porta il vincolo *«nessuna epic di questa milestone si apre prima che i 15 gate della v0.1 siano verdi»*: E23 **esce** da quella milestone, quindi il vincolo non le si applica più — e la sua descrizione è stata corretta lato GitHub |
@@ -2089,6 +1935,6 @@ Rilevati confrontando `roadmap-checkpoint.md` con il repository (2026-08-05):
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release, KPI, checklist trasversale |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle issue (e mappa issue ↔ checkpoint) |
 | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) | **Esecuzione**: stato delle milestone M6–M11 |
-| [`editormap.shortlist.md`](editormap.shortlist.md) | **Operativo in editor**: sedute di authoring e verifica, generata da [`editor-sessions.yaml`](editor-sessions.yaml) |
+| `editormap.shortlist.md` | **Operativo in editor**: sedute di authoring e verifica, generata da [`editor-sessions.yaml`](editor-sessions.yaml) |
 | [`test-manuali-pie.md`](../technical/test-manuali-pie.md) | Verifiche interattive, sessioni A–E |
 | `docs/balance/` | Cataloghi azioni/terreni/equipaggiamento/eroi/test (creati in CP 1.2) |

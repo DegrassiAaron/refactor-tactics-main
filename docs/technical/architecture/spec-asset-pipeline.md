@@ -374,7 +374,7 @@ calendario. `RT-FEAT-CHAR-PRESENTATION` è la feature che porta le unità da `AC
 > [`asset-map.md`](../tooling/asset-map.md) §1 fa fra ✅ *committato* e 🟡 *su disco*.
 
 > ⚠️ **Cosa queste lane NON sono.** Non un tracker: lo stato vive nel
-> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) e nelle sedute di
+> `feature-registry.yaml` e nelle sedute di
 > [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml). Non una tassonomia di dati: **zero enum**,
 > come per la placement taxonomy. Sono un **vocabolario** per dire a che punto è una cosa, e servono
 > soprattutto a non confondere «manca l'asset» con «l'asset c'è ma è grezzo».

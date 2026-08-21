@@ -4,11 +4,11 @@
 
 **Le pagine della Wiki non sono qui**: la fonte è il clone pubblicato `refactor-tactics-main.wiki`, una
 sola copia, che è anche quella che il giocatore legge. Per modificare una pagina si edita il clone; per
-aggiornare i blocchi di stato:
+aggiornare una pagina si edita il clone e basta.
 
-```
-python scripts/feature_registry.py deploy --wiki-root <clone> --write
-```
+> ⛔ **Il deploy dei blocchi di stato non esiste più** dal 2026-08-21 (**D-181**): usciva dal Feature
+> Registry, che è stato rimosso. ⚠️ Le pagine `Stato-delle-feature` e `Stato-del-progetto` restano
+> **pubblicate sul clone e non si aggiornano più**: vanno ritirate a mano.
 
 **E dal 2026-08-17 non ci sono più nemmeno gli asset.** Questo README ha continuato per quattro giorni a
 elencare come presenti tre categorie di file che il commit `273c76a6` aveva già portato via:

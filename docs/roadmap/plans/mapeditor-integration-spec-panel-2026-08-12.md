@@ -330,8 +330,8 @@ cosa. Delle tredici righe di §1, cinque sono scadute in due ore.
 | [`../../archive/src/handoff/2026-08-12-mapeditor-roadmap-issue-integration.md`](../../archive/src/handoff/2026-08-12-mapeditor-roadmap-issue-integration.md) | Il sorgente revisionato — **provenienza, non regola** |
 | [`map-sketch-editor-spec-panel-2026-08-12.md`](map-sketch-editor-spec-panel-2026-08-12.md) | **Il predecessore diretto**: apre `#619`…`#623` e lascia `P7` scoperta. §R6 di qui la chiude |
 | [`map-editor-brief-spec-panel-2026-08-09.md`](map-editor-brief-spec-panel-2026-08-09.md) | Dove `P7` — la sonda di movimento — fu proposta la prima volta |
-| [`../feature-registry.yaml`](../feature-registry.yaml) | Owner dello stato di ogni feature citata |
-| [`../editor-sessions.yaml`](../editor-sessions.yaml) · [`../editormap.shortlist.md`](../editormap.shortlist.md) | Owner delle sedute e vista **generata** — §R8 non ne crea una terza |
+| `../feature-registry.yaml` | Owner dello stato di ogni feature citata |
+| [`../editor-sessions.yaml`](../editor-sessions.yaml) · `../editormap.shortlist.md` | Owner delle sedute e vista **generata** — §R8 non ne crea una terza |
 | [`../roadmap-checkpoint.md`](../roadmap-checkpoint.md) | Owner di **M9**, che ha già `M9.1`…`M9.3` |
 | [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md) | Owner delle voci `PIE-*` e dei loro esiti |
 | [`../../technical/tooling/brief-editor-map-viz.md`](../../technical/tooling/brief-editor-map-viz.md) | Owner della visualizzazione in editor |

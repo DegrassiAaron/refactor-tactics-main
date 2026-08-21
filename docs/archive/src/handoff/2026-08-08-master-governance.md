@@ -6,7 +6,7 @@
 > Triage: [`consolidamento-chat-openai-triage-2026-08-09.md`](../../../roadmap/plans/consolidamento-chat-openai-triage-2026-08-09.md) §«cluster Governance».
 >
 > Il master descrive in gran parte cose che il repository ha gia', e spesso meglio. **I nove gate di §4
-> coincidono alla lettera** con quelli di [`feature-registry.yaml`](../../../roadmap/feature-registry.yaml):
+> coincidono alla lettera** con quelli di `feature-registry.yaml`:
 > quella sezione si cita, non si riscrive. Cio' che mancava davvero — la relazione Feature ↔ Scenario resa
 > **eseguibile** — e' oggi il controllo dello scenario orfano.
 >

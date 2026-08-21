@@ -189,7 +189,7 @@ restano nelle milestone esistenti.
 | §15 | corpus di determinismo | gate **G4** + `docs/technical/qa-prompt-terminal-a-determinismo.md` + `RefactorTactics.Replay.Verifier.ResimulationIsDeterministic` |
 | §16 | vertical slice v0.1 | epic **`#14`** *«Vertical slice 2v2 su hex — release v0.1»* |
 | §19 | manifest di ownership per batch | `docs/roadmap/parallel-batch.yaml` (**D-139**), con Binary Asset Lease sui `.uasset` |
-| §22 | formato «EDITOR CHECKPOINT #N» | `docs/roadmap/editor-sessions.yaml` → [`editormap.shortlist.md`](../editormap.shortlist.md) + `docs/technical/test-manuali-pie.md` |
+| §22 | formato «EDITOR CHECKPOINT #N» | `docs/roadmap/editor-sessions.yaml` → `editormap.shortlist.md` + `docs/technical/test-manuali-pie.md` |
 | §26 | Feature Map con 16 voci | **15 delle 16 esistono** nel registry (§6.1) |
 | §32 | Definition of Done in 10 punti | DoD trasversale + gate `G1`–`G15` di [`../v0.1-definition-of-done.md`](../v0.1-definition-of-done.md) |
 
@@ -441,7 +441,7 @@ una partita osservabile, e **richiede un'allocazione prima di cominciare**, non 
 | `plans/mini-roadmap-autobattle-spec-panel-2026-08-16.md` | questo referto, nuovo |
 | [`../roadmap-v0.1.md`](../roadmap-v0.1.md) | riga **E47** in §3 · sezione **E47** in §5 con sei checkpoint · quattro righe nuove in §2 (i buchi misurati) · totale rimisurato · riga «Tracciata su GitHub» aggiunta anche a **E46**, che ne era priva e faceva fallire un gate |
 | [`../roadmap-checkpoint.md`](../roadmap-checkpoint.md) | riga **E47** nella tabella epic→milestone · effetto su **M6** · tre copie del totale epic/CP riallineate |
-| [`../feature-registry.yaml`](../feature-registry.yaml) | **due feature nuove** (`RT-FEAT-MATCH-AUTOBATTLE`, `RT-FEAT-UI-BOARD-GRAMMAR`) · **quattro** feature esistenti guadagnano una `issues:` — `CORE-PLAYBACK` (955), `TEST-SCENARIO-HARNESS` (957), `CORE-DETERMINISM` (958), `PROD-PACKAGED` (959) |
+| `../feature-registry.yaml` | **due feature nuove** (`RT-FEAT-MATCH-AUTOBATTLE`, `RT-FEAT-UI-BOARD-GRAMMAR`) · **quattro** feature esistenti guadagnano una `issues:` — `CORE-PLAYBACK` (955), `TEST-SCENARIO-HARNESS` (957), `CORE-DETERMINISM` (958), `PROD-PACKAGED` (959) |
 | [`../execution-graph.yaml`](../execution-graph.yaml) | **catena D**: sei nodi (`issue:954`–`issue:959`), cinque `requires`, due `follows` · `meta.note` corretta da «tre catene» a quattro |
 | [`../editor-sessions.yaml`](../editor-sessions.yaml) | seduta **U23**, la partita registrata |
 | [`../../technical/tooling/scenario-map.md`](../../technical/tooling/scenario-map.md) | i quattro `AutoBattle.*` `planned` · conteggio dei `planned` rimisurato e **dotato di un comando**, che non aveva |

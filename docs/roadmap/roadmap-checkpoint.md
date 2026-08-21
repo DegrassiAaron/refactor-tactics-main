@@ -51,10 +51,10 @@ Legenda: ✅ fatto e verificato · 🟡 fatto in parte (vedi nota) · ⏳ da far
 > **Terza vista, aggiunta il 2026-08-08: il Feature Registry.** Questa tabella dice a che punto sono le
 > **milestone**, [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 a che punto sono le **epic**. Nessuna delle due
 > risponde a «la copertura direzionale funziona?» — la domanda che si fa chi legge la Wiki. Quella risposta
-> vive in [`feature-registry.yaml`](feature-registry.yaml), per **feature**, con lo stato derivato da gate
+> vive in `feature-registry.yaml`, per **feature**, con lo stato derivato da gate
 > verificabili invece che scritto a mano. Le tre viste non si duplicano: la terza è l'unica che la Wiki e i
 > workbook leggono, e il suo stato è generato. Modello e comandi in
-> [`feature-registry.md`](feature-registry.md).
+> `feature-registry.md`.
 
 **Suite automatica**: `Source/RefactorTactics/Tests/`. **Il numero vive in un posto solo** —
 [`roadmap-v0.1.md`](roadmap-v0.1.md) §2, con commit e data — e qui non si duplica: era duplicato in due viste,
@@ -93,12 +93,9 @@ log. Su un albero ricostruito da zero girano tutti — il difetto era nell'alber
 
 Quando un numero di test finisce in una PR, misura **entrambi** i lati:
 
-```bash
-python scripts/feature_registry.py suite --run-log Saved/Logs/RefactorTactics.log
-```
-
-Legge il filtro dal log, quindi funziona anche su una run parziale, e **esce 1** se un test dichiarato nel
-perimetro non è stato eseguito. Il numero da riportare è **«N eseguiti su M dichiarati»**: un totale solo non
+⛔ **Il comando che lo faceva è stato rimosso** il 2026-08-21 (**D-181**): `feature_registry.py suite
+--run-log` leggeva il filtro dal log, funzionava anche su una run parziale, e usciva **1** se un test
+dichiarato nel perimetro non era stato eseguito. Oggi il confronto si fa leggendo il filtro a mano. Il numero da riportare è **«N eseguiti su M dichiarati»**: un totale solo non
 sa esprimere questo difetto, ed è il motivo per cui due PR di quel giorno hanno scritto in buona fede
 «633/633 verdi» su una suite da 634.
 
@@ -316,7 +313,7 @@ stantia (test di invalidazione) · le regole ambientali sono coperte da test pur
 >
 > Al 2026-08-17 `TD 0.1` è quasi chiuso e i suoi residui sono `#622`, `#623` e `#712` — cioè **tre** sedute
 > (`U21`, `U22`, `U26`) e una fetta di codice. Gli stadi da `TD 0.2` in poi hanno owner nel
-> [Feature Registry](feature-registry.yaml) (`RT-FEAT-TOOL-SCENARIO-COMPOSER`,
+> Feature Registry (`RT-FEAT-TOOL-SCENARIO-COMPOSER`,
 > `RT-FEAT-TOOL-SKILL-WORKBENCH`) e **nessuna issue aperta**: si aprono quando `TD 0.1` chiude, o la loro
 > prima riga sarebbe «serve un consumatore che non esiste». La metà di **misura** — batch, metriche,
 > confronto su suite — resta di **E43** (v0.8) e non si duplica qui.
@@ -447,7 +444,7 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | Documento | Ruolo |
 |---|---|
 | [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) | **Canone**: decisioni vincolanti, invarianti, regole numeriche |
-| [`feature-registry.yaml`](feature-registry.yaml) · [`feature-registry.md`](feature-registry.md) | **Prodotto**: stato per *feature* (non per milestone né per epic), derivato da gate verificabili. Unica sorgente dello stato che Wiki e workbook leggono |
+| `feature-registry.yaml` · `feature-registry.md` | **Prodotto**: stato per *feature* (non per milestone né per epic), derivato da gate verificabili. Unica sorgente dello stato che Wiki e workbook leggono |
 | [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 23 epic, 112 checkpoint, mappatura con queste milestone + **§2.1 stato misurato**. ⚠️ Il totale si legge **di lì**: questa riga è una copia, e il 2026-08-12 era indietro di cinque. 🔴 **Ed è rimasta indietro una seconda volta** — E46, 2026-08-16: la copia è stata aggiornata solo perché una code review ha eseguito `grep -rn "21 epic" docs/`. Delle **cinque** copie vive di quel totale, l'aggiunta di un'epic ne aggiorna **una** (l'owner), e nessun gate confronta le altre quattro. 🔴 **E una terza volta, lo stesso giorno, per la stessa ragione**: **E47** è atterrata poche ore dopo E46 e le quattro copie erano di nuovo ferme. Tre su quattro sono state riallineate a mano; `docs/README.md` **no**, perché non è nel `writable` di nessuna track e [D-139](../decisions/RT_PDR_00_Decision_Log.md) dice che un file non assegnato è uno **stop**. Il difetto strutturale ha ora un numero: [#962](https://github.com/DegrassiAaron/refactor-tactics-main/issues/962) |
 | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) | **Release v0.2 → v0.4**: epic `E22`–`E35`. Non apre lavoro finché i gate della v0.1 non sono verdi |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release `G1`–`G15`, KPI, checklist di contenuto |
@@ -464,7 +461,7 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) | Modello azioni del catalogo v0.1 sulle macro-fasi di Atlas |
 | [`convenzioni-contenuti-ue.md`](../technical/tooling/convenzioni-contenuti-ue.md) | **Normativo**: struttura di `Content/`, naming, dipendenze fra cartelle, spostamenti |
 | *questo file* | **Esecuzione**: milestone, checkpoint, DoD, stato |
-| [`editormap.shortlist.md`](editormap.shortlist.md) | **Operativo in editor**: sedute di authoring e verifica, ordine e dipendenze verso i checkpoint — **generata** da [`editor-sessions.yaml`](editor-sessions.yaml) |
+| `editormap.shortlist.md` | **Operativo in editor**: sedute di authoring e verifica, ordine e dipendenze verso i checkpoint — **generata** da [`editor-sessions.yaml`](editor-sessions.yaml) |
 | [`hex-map-roadmap.md`](hex-map-roadmap.md) | **Dettaglio tecnico** della linea esagonale H0–H6.5 (consegnate) e del residuo editor H5 |
 | [`RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | **Requisiti** di lungo periodo (fasi F0–F6, QA, rischi) — direzione, non scope |
 | [`test-manuali-pie.md`](../technical/test-manuali-pie.md) | Verifiche interattive in editor, per sessioni |

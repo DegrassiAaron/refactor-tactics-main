@@ -10,7 +10,7 @@
 >
 > | Serve | Si legge |
 > |---|---|
-> | **Quale seduta fare, e in che ordine** | [`editormap.shortlist.md`](editormap.shortlist.md) — **la vista, generata** |
+> | **Quale seduta fare, e in che ordine** | `editormap.shortlist.md` — **la vista, generata** |
 > | Cosa va verificato in editor, e cosa è già verificato | [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) — **il registro** |
 > | Cosa conviene fare prima | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) — **le priorità** |
 > | Come si lancia una sessione di verifica | [`../technical/runbooks/debug-vs-unreal.md`](../technical/runbooks/debug-vs-unreal.md) |
@@ -21,9 +21,10 @@
 > ## ✅ È tornata, generata — 2026-08-10
 >
 > La condizione posta qui sopra è stata soddisfatta: le sedute vivono in
-> [`editor-sessions.yaml`](editor-sessions.yaml) e la vista è **generata** da
-> `python scripts/feature_registry.py shortlist`, quinta della famiglia `*.shortlist.md`. Nessun simbolo di
-> stato è più scritto a mano: ✅/🟡/⏳ arrivano dalle voci `PIE-*` e da `git ls-files` sugli artefatti.
+> [`editor-sessions.yaml`](editor-sessions.yaml), che **resta**. ⛔ **La vista generata no**: era
+> `editormap.shortlist.md`, ed è uscita col Feature Registry il 2026-08-21 (**D-181**). I simboli di stato
+> ✅/🟡/⏳ arrivavano dalle voci `PIE-*` e da `git ls-files`; oggi lo stato di una seduta si legge in
+> `test-manuali-pie.md`, che ne è sempre stato l'owner, e nessuna vista lo aggrega più.
 > Nello stesso passaggio le **sessioni A–G** sono uscite dal registro e si sono fuse con le sedute `U*`:
 > erano lo stesso concetto in due file. Issue
 > [`#371`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/371).

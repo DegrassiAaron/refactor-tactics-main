@@ -4,7 +4,7 @@
 > Checkpoint **CP 11.8** ([#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705)),
 > epic **E11** ([#25](https://github.com/DegrassiAaron/refactor-tactics-main/issues/25)) —
 > [`roadmap-v0.1.md`](../../roadmap/roadmap-v0.1.md) §5 → E11.
-> Feature: `RT-FEAT-UI-POINTER-INTERACTION` in [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) —
+> Feature: `RT-FEAT-UI-POINTER-INTERACTION` in `feature-registry.yaml` —
 > **lo stato vive lì**, non in questo file.
 
 Questo documento fissa **prima del codice** una sola tabella:

@@ -332,14 +332,14 @@ Il caso vero è un altro, ed è un ritrovamento: il danno da **`Status.Burning`*
 lo spieghi, e il codice lo ammette (*«l'eliminazione da hazard non ha un beat di playback … la nasconde il
 catch-all di `ConcludeTurn`»*). È la differenza fra `log_debug` (l'esito è **osservabile**) e
 `replay_representable` (la voce **basta a ricostruirlo**), ed è la regola 7 in
-[`../feature-registry.md`](../feature-registry.md) §4.
+`../feature-registry.md` §4.
 
 **2. `REP-1` è in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md)** (§7C): chi può leggere una traccia
 archiviata. Registrata come domanda **senza consumatore** — la v0.1 è offline — con il default prudente in
 vigore fino alla decisione e tre inneschi osservabili. ⚠️ ID `REP-`, non `REPLAY-`: `REPLAY-01`…`REPLAY-09`
 sono i **rischi** del §32 del kit di consolidamento, e il prefisso era già occupato.
 
-**3. La checklist a cinque caselle è in [`../feature-registry.md`](../feature-registry.md) §4.2** (§7B), e
+**3. La checklist a cinque caselle è in `../feature-registry.md` §4.2** (§7B), e
 qui il referto **si è corretto**: aveva proposto di innestarla su `G1`–`G15`, ma quelli sono criteri di
 release già falsificabili, e il posto giusto è dove i gate vivono. Mappata sui gate esistenti, la checklist
 ha rivelato che **la casella scoperta non è il replay** — su cui il sorgente insisteva per tre milestone — ma

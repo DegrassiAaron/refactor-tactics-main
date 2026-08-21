@@ -146,4 +146,4 @@ non dipende dal tempo reale: la presentazione può rallentare, la simulazione no
 | Cooldown della v0.1, valori a catalogo | [`../balance/RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) |
 | Roster a 8 e fazioni v0.2 | **E35** di [`../roadmap/roadmap-post-v0.1.md`](../roadmap/roadmap-post-v0.1.md) |
 | Stati e trasformazioni del personaggio | [`brief-stati-personaggio-e-trasformazioni.md`](brief-stati-personaggio-e-trasformazioni.md) (E34) |
-| Stato di avanzamento | [`../roadmap/feature-registry.yaml`](../roadmap/feature-registry.yaml) |
+| Stato di avanzamento | `../roadmap/feature-registry.yaml` |

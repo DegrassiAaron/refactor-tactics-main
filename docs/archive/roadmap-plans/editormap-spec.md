@@ -2,7 +2,7 @@
 
 > `HISTORICAL` · **Spec consegnata** · **Data**: 2026-08-10
 > Diceva *«Bozza in revisione · Branch: da aprire»*: la vista **esiste**
-> ([`../../roadmap/editormap.shortlist.md`](../../roadmap/editormap.shortlist.md), generata), quindi la bozza e' stata
+> (`../../roadmap/editormap.shortlist.md`, generata), quindi la bozza e' stata
 > consegnata e il generatore e' l'owner. Il documento resta per il **perche'** del formato.
 >
 > **Stato**: Bozza in revisione (design) · **Data**: 2026-08-10 · **Branch**: da aprire

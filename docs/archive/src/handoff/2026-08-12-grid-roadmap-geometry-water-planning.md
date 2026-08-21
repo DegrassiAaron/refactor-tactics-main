@@ -5,7 +5,7 @@
 > ⛔ **`R0`–`R11` con venticinque work item numerati è una roadmap manuale che duplica il Feature Registry** —
 > l'errore che il brief HexGeometry, revisionato lo stesso giorno, elenca al suo §40 fra quelli da non fare.
 > Le otto feature che questo documento vuole tracciare **esistono già** in
-> [`feature-registry.yaml`](../../../roadmap/feature-registry.yaml) con i loro gate e il loro stato derivato:
+> `feature-registry.yaml` con i loro gate e il loro stato derivato:
 > `RT-FEAT-MAP-WATER-DYNAMICS`, `RT-FEAT-MAP-STRUCTURAL`, `RT-FEAT-MAP-VERTICALITY`, `RT-FEAT-UI-PLANNING`,
 > `RT-FEAT-UI-CERTAINTY`, `RT-FEAT-UI-ACTION-GHOSTS`, `RT-FEAT-TOOL-MAP-EDITOR`, `RT-FEAT-TOOL-MAP-GEOMETRY`.
 > Il §16 introduce inoltre un **terzo** vocabolario di milestone (`G`, `M`, `V`, `S`, `W`, `E`, `I`, `U`, `Q`)

@@ -4,7 +4,7 @@
 > **Cosa è**: l'indice del **criterio**, non dei contenuti. Dice come capire, aprendo un file di questa
 > cartella, se quello che afferma vale ancora.
 > **Cosa non è**: una fonte di stato. Nessun documento qui è owner di qualcosa — gli owner sono
-> [`../../decisions/`](../../decisions/RT_PDR_00_Decision_Log.md), [`../feature-registry.yaml`](../feature-registry.yaml),
+> [`../../decisions/`](../../decisions/RT_PDR_00_Decision_Log.md), `../feature-registry.yaml`,
 > [`../roadmap-checkpoint.md`](../roadmap-checkpoint.md) e [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md).
 
 ## Il criterio è il banner, non la data

@@ -161,7 +161,7 @@ Sei revisori, un focus ciascuno. Le citazioni sono ricostruzioni della metodolog
 
 | # | §  | Il brief dice | Il canone dice | Esito |
 |---|---|---|---|---|
-| **C1** | §17, §23, §26, §28 | Cinque release di Map Editor (v0.1–v0.5), 5 epic, 61 issue, 29 feature entry | La numerazione delle epic è **unica e condivisa** (E1–E35, assegnata **al merge** — [D-039](../../decisions/RT_PDR_00_Decision_Log.md)); lo stato di una feature vive **solo** in [`feature-registry.yaml`](../feature-registry.yaml), verificato da `scripts/feature_registry.py validate` | **Non applicabile come scritto.** Un "Map Editor v0.1" accanto alla release v0.1 è ambiguo al primo riferimento incrociato |
+| **C1** | §17, §23, §26, §28 | Cinque release di Map Editor (v0.1–v0.5), 5 epic, 61 issue, 29 feature entry | La numerazione delle epic è **unica e condivisa** (E1–E35, assegnata **al merge** — [D-039](../../decisions/RT_PDR_00_Decision_Log.md)); lo stato di una feature vive **solo** in `feature-registry.yaml`, verificato da `scripts/feature_registry.py validate` | **Non applicabile come scritto.** Un "Map Editor v0.1" accanto alla release v0.1 è ambiguo al primo riferimento incrociato |
 | **C2** | §1.3, §4 | I muri sono geometria world-space e **derivano** occupazione, transizione e LOS | **E23.1** (v0.2): «la logica di transizione **non legge la mesh**: legge archi e stati». [`hex-map-roadmap.md`](../hex-map-roadmap.md): *no float in coord/hash*, *dati indipendenti da Actor/mesh* | **Ammissibile solo come authoring che cuoce dati.** Vedi §4 |
 | **C3** | §5 | Porte `Open` / `Closed` | `ERTHexDoorState{Open, Closed, Locked, Destroyed}` + `DoorId` per il portone atomico ([`spec-porte-cp93.md`](../../gameplay/spec-porte-cp93.md), E23.2) | **Regressione.** Perde l'apertura autorizzata (CP 10.1) e la terminalità |
 | **C4** | §11 | `MovementProfileId ∈ {Standard, Heavy, Agile}` | `RT-FEAT-ACTION-MOVE-PROFILES` = **Move, Sprint, Charge** — profilo dell'**azione**, con [D-015](../../decisions/RT_PDR_00_Decision_Log.md) «Sprint non è Dash» | **Collisione di nome su assi diversi.** L'asse archetipo dell'unità è legittimo, il nome no |
@@ -347,7 +347,7 @@ e `CreateWater`: manca il collegamento. Tracciato nella issue `#353`, non qui.
 | Documento | Ruolo rispetto a questa revisione |
 |---|---|
 | [`../../archive/src/handoff/2026-08-09-map-editor-roadmap.md`](../../archive/src/handoff/2026-08-09-map-editor-roadmap.md) | Il sorgente revisionato — **provenienza, non regola** |
-| [`../feature-registry.yaml`](../feature-registry.yaml) | Owner dello stato di ogni feature citata qui |
+| `../feature-registry.yaml` | Owner dello stato di ogni feature citata qui |
 | [`../roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) | Owner di **E23** — muri, porte e interaction graph (v0.2) |
 | [`../roadmap-checkpoint.md`](../roadmap-checkpoint.md) | Owner di **M9**, dove vive il residuo dell'editor |
 | [`../../gameplay/spec-porte-cp93.md`](../../gameplay/spec-porte-cp93.md) · [`spec-terreni-e8.md`](../../gameplay/spec-terreni-e8.md) · [`spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md) | Owner delle tre aree che il brief ridefinisce |

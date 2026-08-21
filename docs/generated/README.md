@@ -19,18 +19,11 @@ shortlist in `roadmap/`, e due blocchi vivono **dentro** documenti scritti a man
 
 | Output | Generatore | Comando | `--check` | Sorgenti |
 |---|---|---|---|---|
-| `docs/roadmap/feature-registry.json` | `scripts/feature_registry.py` | `python scripts/feature_registry.py generate` | `python scripts/feature_registry.py generate --check` | `docs/roadmap/feature-registry.yaml` |
-| `docs/roadmap/project-graph.json` | `scripts/feature_registry.py` | `python scripts/feature_registry.py generate` | `python scripts/feature_registry.py generate --check` | `docs/roadmap/feature-registry.yaml` · `docs/roadmap/editor-sessions.yaml` · `docs/roadmap/execution-graph.yaml` · `docs/roadmap/roadmap-v0.1.md` · `docs/roadmap/roadmap-checkpoint.md` · `Scenarios/` |
-| `docs/roadmap/charts/roadmap-map.svg` | `scripts/feature_registry.py` | `python scripts/feature_registry.py generate` | `python scripts/feature_registry.py generate --check` | `docs/roadmap/feature-registry.yaml` |
-| `docs/roadmap/*.shortlist.md` | `scripts/feature_registry.py` | `python scripts/feature_registry.py shortlist` | **nessuno** | `docs/roadmap/feature-registry.yaml` · `docs/roadmap/editor-sessions.yaml` · `docs/roadmap/roadmap-v0.1.md` · `Scenarios/` |
 | `docs/characters/radar/*.svg` | `tools/radar/generate.ts` | `node tools/radar/generate.ts` | `node tools/radar/generate.ts --check` | `docs/balance/` |
 | `docs/generated/icons/` | `scripts/build-icon-assets.py` | `python scripts/build-icon-assets.py` | `python scripts/build-icon-assets.py --check` | `scripts/build-icon-assets.py (la geometria e' dichiarata nel generatore)` · `Source/RefactorTactics/Ability/RTCatalogLibrary.cpp` |
 
 | Blocco | Comando | Dentro |
 |---|---|---|
-| `RT_FEATURE_BY_EPIC` | `python scripts/feature_registry.py generate` | `docs/roadmap/roadmap-v0.1.md` |
-| `RT_FEATURE_STATUS` | `python scripts/feature_registry.py deploy` | `docs/characters/index.md` · `docs/characters/v0.1/*.md` |
-| `RT_SUITE_COUNT` | `python scripts/feature_registry.py suite` | `docs/README.md` · `docs/roadmap/roadmap-v0.1.md` |
 
 <!-- RT_CONTRATTO_GENERATI:END -->
 

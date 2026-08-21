@@ -343,4 +343,4 @@ convenzione reale al momento di scriverli.
 | Tassonomia delle azioni generiche | [`brief-azioni-generiche-overwatch.md`](brief-azioni-generiche-overwatch.md) · [`D-025`](../decisions/RT_PDR_00_Decision_Log.md) |
 | Conoscenza di squadra e rumore | [`brief-conoscenza-parziale.md`](brief-conoscenza-parziale.md) |
 | Finestre di reazione innescate da interazioni | [`../decisions/adr-0004-finestre-di-reazione.md`](../decisions/adr-0004-finestre-di-reazione.md) · E14 |
-| Stato di avanzamento | [`../roadmap/feature-registry.yaml`](../roadmap/feature-registry.yaml) |
+| Stato di avanzamento | `../roadmap/feature-registry.yaml` |

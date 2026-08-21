@@ -3,7 +3,7 @@
 > `CURRENT` come **verbale datato**, non come vista di stato. Registra cosa è stato verificato, cosa era già
 > a posto e le quattro correzioni applicate. Lo stato vero resta nei suoi owner:
 > [`roadmap-checkpoint.md`](../roadmap-checkpoint.md) · [`roadmap-v0.1.md`](../roadmap-v0.1.md) ·
-> [`feature-registry.yaml`](../feature-registry.yaml) · [`v0.1-definition-of-done.md`](../v0.1-definition-of-done.md).
+> `feature-registry.yaml` · [`v0.1-definition-of-done.md`](../v0.1-definition-of-done.md).
 > **Misurato su** `main @ 918f54c`, branch `docs/consolidamento-roadmap`.
 
 ## 1. Cosa era già consolidato

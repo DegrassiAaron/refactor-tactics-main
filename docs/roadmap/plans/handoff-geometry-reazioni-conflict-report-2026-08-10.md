@@ -6,7 +6,7 @@
 >
 > Questo file non è autorità. È il **verbale del triage**: le decisioni che ne escono vivono nel
 > [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md), gli stati nel
-> [Feature Registry](../feature-registry.yaml), le domande aperte in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md).
+> Feature Registry, le domande aperte in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md).
 
 ## 0. Il risultato in una riga
 
@@ -101,7 +101,7 @@ Legenda: `ALIGNED` il canone lo dice già · `DUP` ha già un owner · `CONFLICT
 | 23 | Aggiornamenti roadmap | `PROC` | → §8 |
 | 24 | Feature map | `PROC` | → §8. ⚠️ i nomi `Feature.Map.*` non sono la convenzione: è `RT-FEAT-<AREA>-<NOME>` |
 | **25** | Scenario map `GEO-001`, `REACT-010`… | **`CONFLICT`** | → **C3** |
-| 26 | Editor map | `DUP` | [`editormap.shortlist.md`](../editormap.shortlist.md) + [`editor-sessions.yaml`](../editor-sessions.yaml) |
+| 26 | Editor map | `DUP` | `editormap.shortlist.md` + [`editor-sessions.yaml`](../editor-sessions.yaml) |
 | 27 | Wiki | `PROC` | → §7 |
 | 28 | Documenti da consolidare | `PROC` | → §8 |
 | **29** | Tre ADR da creare | **`CONFLICT`** | → **C5** |

@@ -4,7 +4,7 @@
 > **Cosa è**: il referto di consumo di
 > [`../../archive/src/RefactorTactics_Camera_Roadmap_v1.0_Claude_Consolidation_2026-08-14.md`](../../archive/src/RefactorTactics_Camera_Roadmap_v1.0_Claude_Consolidation_2026-08-14.md)
 > — cosa di quell'handoff è entrato nel repository, cosa era già in vigore, cosa era falso e perché.
-> **Cosa non è**: una roadmap. Gli owner restano [`../feature-registry.yaml`](../feature-registry.yaml),
+> **Cosa non è**: una roadmap. Gli owner restano `../feature-registry.yaml`,
 > [`../roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) e
 > [`../../decisions/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md).
 
@@ -35,7 +35,7 @@ Registry, che dichiara `automation: todo` e `tests: []` su una feature coperta d
 ### 3.1 Sei Feature ID su tredici non esistono
 
 L'handoff §1 chiede di auditare tredici `feature_id`. Cercati in
-[`../feature-registry.yaml`](../feature-registry.yaml) — 110 feature, `grep` sul campo `feature_id`:
+`../feature-registry.yaml` — 110 feature, `grep` sul campo `feature_id`:
 
 | Citato | Esiste | Nel repository |
 |---|:--:|---|

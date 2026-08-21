@@ -13,7 +13,7 @@
 > già disegnato e ciò che va costruito.
 > **Cosa non è**: l'owner della UI. Il documento normativo resta
 > [`progettazione-hud.md`](../../technical/systems/progettazione-hud.md); lo stato delle feature resta
-> [`feature-registry.yaml`](../feature-registry.yaml).
+> `feature-registry.yaml`.
 
 ---
 

@@ -3,7 +3,7 @@
 > `CURRENT` · **Applicato**: 2026-08-09 · **HEAD**: `d41d36c` (`origin/main`)
 > **Cosa è**: la quarta vista del progetto — quella che si guarda **su GitHub**, non nei documenti.
 > **Cosa non è**: una nuova fonte di stato. Lo stato di una feature resta in
-> [`feature-registry.yaml`](../feature-registry.yaml), quello delle epic in [`roadmap-v0.1.md`](../roadmap-v0.1.md) §2.1,
+> `feature-registry.yaml`, quello delle epic in [`roadmap-v0.1.md`](../roadmap-v0.1.md) §2.1,
 > quello delle milestone di esecuzione in [`roadmap-checkpoint.md`](../roadmap-checkpoint.md). Qui si dichiara solo
 > **come le issue sono raggruppate** e **quando una milestone si chiude**.
 
@@ -46,7 +46,7 @@ Tre schemi erano possibili. La scelta è stata registrata perché non è ovvia.
 Le milestone GitHub **non si chiamano mai `M6`…`M11`**.
 
 Il repository ha già due gerarchie che si chiamano entrambe «milestone» — le release v0.1–v0.4 e le milestone
-di esecuzione M6–M11 — e [`feature-registry.yaml`](../feature-registry.yaml) lo dichiara: *«i due spazi di
+di esecuzione M6–M11 — e `feature-registry.yaml` lo dichiara: *«i due spazi di
 numerazione **collidono** — CP 10.1 è "Activate e Interact" in E10 e "listen server" in M10»*. Introdurre
 `M8` come nome di milestone GitHub aggiungerebbe una **terza** ambiguità in uno strumento che non ha modo di
 disambiguare. I nomi sono quindi `<release> · <fetta>`.

@@ -8,7 +8,7 @@
 > ogni path. Non è l'owner dei principi di pipeline (presentazione-only, riferimenti soft con fallback,
 > licenze): quello è [`spec-asset-pipeline.md`](../architecture/spec-asset-pipeline.md). Non è l'owner dello stato delle
 > sedute in editor: quello è [`../../roadmap/editor-sessions.yaml`](../../roadmap/editor-sessions.yaml), reso in
-> [`../../roadmap/editormap.shortlist.md`](../../roadmap/editormap.shortlist.md).
+> `../../roadmap/editormap.shortlist.md`.
 >
 > Nasce perché quelle tre fonti, insieme, **non rispondono a una domanda**: *quali asset servono e quanti ne
 > mancano*. `convenzioni-contenuti-ue.md` §4 lo dichiara esplicitamente — «questo documento non è un

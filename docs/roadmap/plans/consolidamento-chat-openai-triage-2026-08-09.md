@@ -77,7 +77,7 @@ Tre osservazioni valgono più delle singole righe:
 |---|---|---|---|---|---|
 | 1 | **Tassonomia delle azioni generiche** | `ACTION-TAXONOMY-01`: «6 vs 8, baseline **8**», con `Guard` **e** `Activate` universali | **sette** voci: `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`; `Activate` **assorbita** da `Interact` | [`D-025`](../../decisions/RT_PDR_00_Decision_Log.md) *(emenda `D-014`)* · [`DOC_CONFLICT_MATRIX` #27](../../DOC_CONFLICT_MATRIX.md) | **non applicare.** Il conflitto è già registrato e **chiuso**: il pacchetto lo riapre citando una `D-AUDIT-01` che non esiste nel Decision Log |
 | 2 | **Identità degli scenari** | Master Scenarios §5: una `PrimaryCategory` obbligatoria + `PurposeTags` secondari | **un asse solo**: `scenarioId` puntato + tag liberi, ID **staccato** dal percorso, indice che rifiuta gli ID ambigui | [`scenario-index-e-tag.md`](../../technical/tooling/scenario-index-e-tag.md), deciso 2026-08-08 (`#209`) | **non applicare.** La motivazione è scritta: separare tipologia e lente costringe a decidere per ogni parola in quale casella vive, e «la risposta onesta è spesso *entrambe*» |
-| 3 | **Vocabolario di status** | Governance §5 propone 13 status (`IMPLEMENTED`, `IMPLEMENTED_PARTIAL`, `DATA_SPEC`, `FUTURE`, `HISTORICAL`…) | 10 status, **derivati dai gate** con regola deterministica e verificati dal validator | [`feature-registry.yaml`](../feature-registry.yaml) intestazione | **non applicare**: romperebbe `feature_registry.py validate`. I **gate** invece coincidono alla lettera (9 su 9) — quella parte è `CURRENT` |
+| 3 | **Vocabolario di status** | Governance §5 propone 13 status (`IMPLEMENTED`, `IMPLEMENTED_PARTIAL`, `DATA_SPEC`, `FUTURE`, `HISTORICAL`…) | 10 status, **derivati dai gate** con regola deterministica e verificati dal validator | `feature-registry.yaml` intestazione | **non applicare**: romperebbe `feature_registry.py validate`. I **gate** invece coincidono alla lettera (9 su 9) — quella parte è `CURRENT` |
 | 4 | **`TEAM READY 2/3`** | Kit HUD §3.5 lo prescrive come componente persistente | «non simulare un falso stato `TEAM READY 1/2` finché non è realmente supportato» | [`progettazione-hud.md:341`](../../technical/systems/progettazione-hud.md) · UI Master §15 `UI-READY-01` | **non applicare.** Il conflitto è **interno al pacchetto**: il master corregge il kit. Prevale il master, che coincide col repository |
 | 5 | **Fog of War** | Kit HUD §11/§30/§31 struttura tre milestone attorno alla «Fog of War» | **non è FoW**: conoscenza parziale a tre livelli, geometria statica **nota** | [`DOC_CONFLICT_MATRIX` #13](../../DOC_CONFLICT_MATRIX.md) · [`brief-conoscenza-parziale.md`](../../gameplay/brief-conoscenza-parziale.md) D1 | **rinominare in sede di recepimento.** Anche qui il Map Master §29 corregge il kit |
 | 6 | **Eleggibilità per nome d'eroe** | Kit HUD §15: `Eligible: Gadget / Riktor` nel pannello interazione | le abilità hanno ownership singola, le sinergie sono **derivate**; nessuna dipendenza da `HeroId` | [`ADR-0006`](../../decisions/adr-0006-ownership-abilita-sinergie.md) · [`D-029`](../../decisions/RT_PDR_00_Decision_Log.md) | **non applicare.** Il modello corretto — capability, non nome — è nel Map Master §15-§18 e nel kit Interactive Map §3 |
@@ -124,7 +124,7 @@ Tre documenti dicono ancora l'opposto, in quattro punti:
 
 | File | Riga | Testo |
 |---|---|---|
-| [`feature-registry.yaml`](../feature-registry.yaml) | 1638 | `wiki_note`: «nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale» |
+| `feature-registry.yaml` | 1638 | `wiki_note`: «nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale» |
 | [`acqua-e-elettricita` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/acqua-e-elettricita) | 11 · 71 | stessa affermazione, propagata dal `wiki_note` e ripetuta in prosa |
 | [`characters/v0.1/gadget.md`](../../characters/v0.1/gadget.md) | 26 | stessa affermazione, nella pagina dell'eroe che **ora la possiede** |
 
@@ -312,7 +312,7 @@ Come per l'UI, il pacchetto descrive in gran parte cose che il repository ha gi�
 | §2 classificazione dei documenti (8 stati) | **7 tag**, con la motivazione: `CANONICAL · CURRENT · AS-BUILT · DELIVERED PLAN · HISTORICAL · RESEARCH · OPEN`. Il repository ha `CANONICAL` e `DELIVERED PLAN`, che il master non ha, e spiega **perché un `AS-BUILT` superato non è un difetto da correggere** |
 | §4 gate del Feature Registry | ✅ **coincidono alla lettera**, 9 su 9 |
 | §5 vocabolario di status | ✗ conflitto già registrato — riga 55 |
-| §7 «Feature Registry = inventory, Roadmap = delivery order» | è l'intestazione stessa di [`feature-registry.yaml`](../feature-registry.yaml): «lo stato vive QUI e in nessun altro posto» |
+| §7 «Feature Registry = inventory, Roadmap = delivery order» | è l'intestazione stessa di `feature-registry.yaml`: «lo stato vive QUI e in nessun altro posto» |
 | §13 Definition of Done globale | i gate, più [`v0.1-definition-of-done.md`](../v0.1-definition-of-done.md) |
 | §15 viste generate | `feature_registry.py generate · wiki · workbook`, con `--check` come gate |
 | §19 workbook `RESEARCH` | [`D-023`](../../decisions/RT_PDR_00_Decision_Log.md) |
@@ -331,9 +331,9 @@ quelli che le tre macchine fanno davvero.
 
 | File | Che cosa |
 |---|---|
-| [`scripts/feature_registry.py`](../../../scripts/feature_registry.py) | **controllo nuovo**: nessuno `ScenarioId` senza una feature che lo rivendichi. Errore, non avviso, per simmetria con «`planned` ma presente» |
-| [`roadmap/feature-registry.yaml`](../feature-registry.yaml) | i **6 scenari orfani** su 54 attaccati alla feature che dimostrano; `wiki_note` di `RT-FEAT-ENV-ELECTRIC` corretta (§5) |
-| [`roadmap/feature-registry.md`](../feature-registry.md) | il controllo nuovo documentato, con il perché è un errore |
+| `scripts/feature_registry.py` | **controllo nuovo**: nessuno `ScenarioId` senza una feature che lo rivendichi. Errore, non avviso, per simmetria con «`planned` ma presente» |
+| `roadmap/feature-registry.yaml` | i **6 scenari orfani** su 54 attaccati alla feature che dimostrano; `wiki_note` di `RT-FEAT-ENV-ELECTRIC` corretta (§5) |
+| `roadmap/feature-registry.md` | il controllo nuovo documentato, con il perché è un errore |
 | `feature-registry.json` · `wiki/feature-status.md` · `wiki/meccaniche/acqua-e-elettricita.md` · `characters/v0.1/gadget.md` | **rigenerati** dalla sorgente |
 | gli stessi due file, in prosa | le due frasi **scritte a mano** che ripetevano l'affermazione superata, che nessun generatore poteva raggiungere |
 

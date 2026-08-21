@@ -11,7 +11,7 @@
 > **Tracciata da**: `RT-FEAT-TOOL-CONTROL-CENTER` nel registry — `release: future`, fuori dai gate della v0.1.
 > **§9 è decisa** (2026-08-10, con l'autore); di **§11 sono eseguiti i passi 1–8**: contratto dati, gate,
 > config, pagina, filtri, viste, coda e test. Resta il **9** — `CONTEXT_INDEX.md` e i puntatori di ingresso.
-> **Implementazione**: [`../../control-center/`](../../control-center/README.md).
+> **Implementazione**: `../../control-center/`.
 
 ## 1. Perché l'handoff non si applica alla lettera
 

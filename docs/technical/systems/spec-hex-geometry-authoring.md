@@ -11,7 +11,7 @@ Questo documento risponde a **una** domanda: *cosa succede fra il gesto con cui 
 il dato che il resolver legge per dire «non si passa»?*
 
 > ⚠️ **Non è un tracker.** Lo stato di implementazione vive nel
-> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) e nelle issue. Qui c'è il **modello**: cosa
+> `feature-registry.yaml` e nelle issue. Qui c'è il **modello**: cosa
 > significano le cose e perché sono separate. Se una riga di questo file dichiara uno stato, è un difetto.
 
 ---
@@ -26,7 +26,7 @@ il dato che il resolver legge per dire «non si passa»?*
 | Superfici, stati, propagazione | [`../../gameplay/spec-terreni-e8.md`](../../gameplay/spec-terreni-e8.md) |
 | LOS e forme di targeting | [`h6-4-hex-vision-spec.md`](h6-4-hex-vision-spec.md) |
 | Visualizzazione in editor: cosa serve vedere e perché | [`brief-editor-map-viz.md`](../tooling/brief-editor-map-viz.md) |
-| Stato di avanzamento | [`../../roadmap/feature-registry.yaml`](../../roadmap/feature-registry.yaml) |
+| Stato di avanzamento | `../../roadmap/feature-registry.yaml` |
 
 ---
 
@@ -158,7 +158,7 @@ dalle altre.
 
 I simboli: `FRTGeometrySegment` (l'authority), `ERTTacticalAxis`, `ERTGeometryViolation` e
 `URTGeometryGrammarLibrary` in `Source/RefactorTactics/Map/RTGeometryGrammar.h`. Lo stato di avanzamento
-vive nel [`feature-registry.yaml`](../../roadmap/feature-registry.yaml) e nelle issue, non qui — §1.
+vive nel `feature-registry.yaml` e nelle issue, non qui — §1.
 
 ---
 

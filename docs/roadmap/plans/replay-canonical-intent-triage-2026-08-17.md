@@ -7,7 +7,7 @@
 > [`../../archive/src/`](../../archive/src/RefactorTactics_Claude_Replay_CanonicalIntent_Roadmap_v0.1-v1.0_2026-08-16.md).
 > **Owner delle regole**: [`adr-0009-replay-logico-canonico.md`](../../decisions/adr-0009-replay-logico-canonico.md) ·
 > [`adr-0004-finestre-di-reazione.md`](../../decisions/adr-0004-finestre-di-reazione.md) ·
-> [`../feature-registry.yaml`](../feature-registry.yaml). Questo referto non è owner di niente.
+> `../feature-registry.yaml`. Questo referto non è owner di niente.
 > **Particolarità**: il sorgente si dichiara *«HEAD osservato `557fdb88`»* e chiede di non fidarsene.
 > Applicato alla lettera — e la verifica ha spostato **più della metà** del documento dalla colonna
 > «da fare» a «già fatto o già in corso».

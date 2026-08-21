@@ -7,7 +7,7 @@
 > [`../../archive/src/`](../../archive/src/RefactorTactics_SkillPlus_Claude_Handoff_2026-08-17.md).
 > **Owner delle regole**: [`spec-ownership-abilita-interazioni-sinergie.md`](../../gameplay/spec-ownership-abilita-interazioni-sinergie.md) ·
 > [`adr-0006-ownership-abilita-sinergie.md`](../../decisions/adr-0006-ownership-abilita-sinergie.md) ·
-> [`../feature-registry.yaml`](../feature-registry.yaml). Questo referto non è owner di niente.
+> `../feature-registry.yaml`. Questo referto non è owner di niente.
 > **Particolarità**: il sorgente chiede al §27 una *«consolidation matrix obbligatoria»* prima di
 > qualunque scrittura. È stata prodotta — e ha ribaltato il verdetto.
 

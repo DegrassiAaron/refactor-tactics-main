@@ -4,7 +4,7 @@
 > `HISTORICAL` · **Materiale NON autorevole**, archiviato il **2026-08-17** dopo il consolidamento.
 > **Non si applica**: si legge per sapere da dove viene una decisione. Le fonti autorevoli sono
 > [`spec-tactical-designer.md`](../../technical/tooling/spec-tactical-designer.md) — l'owner del concetto — e
-> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml).
+> `feature-registry.yaml`.
 >
 > **Recepito in due tempi, e vale la pena dirlo perché non è la forma solita.** La parte concettuale —
 > owner documentale, `D-154`, epic [#1105](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1105),

@@ -5,7 +5,7 @@
 > **Non si applica**: si legge per sapere da dove viene una decisione. Le fonti autorevoli sono
 > [`spec-ownership-abilita-interazioni-sinergie.md`](../../gameplay/spec-ownership-abilita-interazioni-sinergie.md),
 > [`adr-0006-ownership-abilita-sinergie.md`](../../decisions/adr-0006-ownership-abilita-sinergie.md) e
-> [`feature-registry.yaml`](../../roadmap/feature-registry.yaml).
+> `feature-registry.yaml`.
 >
 > **Matrice di riconciliazione**: [`skill-plus-consolidamento-2026-08-17.md`](../../roadmap/plans/skill-plus-consolidamento-2026-08-17.md)
 > — `REUSE 6 · CREATE 1 · LINK 2 · DEFER 5 · CONFLICT 1 · NOT NEEDED 1`.

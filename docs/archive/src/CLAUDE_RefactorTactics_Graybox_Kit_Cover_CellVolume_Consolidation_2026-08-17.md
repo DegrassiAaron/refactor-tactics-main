@@ -4,7 +4,7 @@
 > **Non si applica**: si legge per sapere da dove viene una decisione. Le fonti autorevoli restano
 > [`RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md),
 > [`spec-graybox-placement-contract.md`](../../technical/systems/spec-graybox-placement-contract.md) — l'owner nato
-> da qui — e [`feature-registry.yaml`](../../roadmap/feature-registry.yaml).
+> da qui — e `feature-registry.yaml`.
 >
 > **Recepito da**: `D-152` (contratto di ingombro, pivot e presentazione) · `D-153` (innesto sulla release
 > ladder canonica, nessuna epic nuova) · feature `RT-FEAT-UI-GRAYBOX-KIT` · `GBX-1`…`GBX-4` in
