@@ -137,7 +137,7 @@ Totale corpus versionato: **78** scenari (`A 46 + B 21 + D-bloccati 11`) — *ri
 >
 > ⛔ **Non più.** Da qui in avanti i tre numeri **non si misurano con un generatore**: lo scriveva
 > in `../../roadmap/scenariomap.shortlist.md` §1 leggendo `Scenarios/`
-> e le capability dichiarate in `RTScenarioSession.cpp`, e `shortlist --check` fallisce se divergono.
+> e le capability dichiarate in `RTScenarioSession.cpp`, e `shortlist --check` falliva se divergevano. ⛔ Entrambi usciti con **D-181**.
 > **La ripartizione A/B/C resta umana** — dipende da dove sta l'oracolo, non dai file — ed è il motivo per
 > cui questa pagina continua a esistere.
 

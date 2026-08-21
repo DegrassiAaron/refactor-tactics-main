@@ -130,6 +130,8 @@ per la stessa cosa.
 > [#752](https://github.com/DegrassiAaron/refactor-tactics-main/issues/752) sono chiuse per questo. La
 > numerazione qui sotto è **quella nuova**; fra parentesi la vecchia, perché le issue #753–#757 la citano.
 
+> ⛔ **La colonna «Gate» è storica.** `check-docs-naming.py` è stato rimosso con **D-182** il 2026-08-21: registra con che cosa ogni fetta fu verificata quando la migrazione era in corso, non un comando eseguibile oggi. Le cinque fette sono chiuse.
+
 | # | Fetta | Tocca la serializzazione? | Dipende da | Gate |
 |---:|---|---|---|---|
 | 1 *(era 3)* | **`HeroId` + simboli C++**: `Hero.Flux` → `Hero.Gadget` e i quattro `MakeFlux`/`MakeRiva`/`MakeBastion`/`MakeVektor`; 4 file di test rinominati | no | — | `Unit.CanonicalHeroIdHasNoLegacyName` sostituisce `ShortHeroNameFromStableId` | <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->

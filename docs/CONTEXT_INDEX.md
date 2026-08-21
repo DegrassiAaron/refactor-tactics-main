@@ -160,7 +160,7 @@ file di test: cinque gate documentali, due controlli sui dati di gioco, due gene
 
 | | dove | cosa |
 |---|---|---|
-| ~~**Python**~~ | ~~`scripts/`~~ | ⛔ **rimossa con D-182** il 2026-08-21: i cinque gate documentali, i due controlli sui dati di gioco e i due generatori. Non resta nessuno script Python nel repository |
+| ~~**Python**~~ | ~~`scripts/`~~ | ⛔ **rimossa con D-182** il 2026-08-21: i cinque gate documentali, i due controlli sui dati di gioco e i due generatori. ⚠️ Resta **un** file Python versionato, `tools/icons-downloader/paragon_skill_icons_downloader.py`: e' un downloader, non un gate |
 | **Node 22** | `tools/radar/` | rubrica dei rating e generatore SVG dei radar di personaggio |
 
 > 🔴 **Fino al 2026-08-19 questa tabella elencava i gate Python per nome, e ne conosceva tre su sei.**

@@ -446,7 +446,7 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | Documento | Ruolo |
 |---|---|
 | [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) | **Canone**: decisioni vincolanti, invarianti, regole numeriche |
-| `feature-registry.yaml` · `feature-registry.md` | **Prodotto**: stato per *feature* (non per milestone né per epic), derivato da gate verificabili. Unica sorgente dello stato che Wiki e workbook leggono |
+| ~~`feature-registry.yaml`~~ · ~~`feature-registry.md`~~ | ⛔ **Rimossi con D-181** (2026-08-21). Dichiaravano: stato per *feature* (non per milestone né per epic), derivato da gate verificabili. Unica sorgente dello stato che Wiki e workbook leggono |
 | [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: 23 epic, 112 checkpoint, mappatura con queste milestone + **§2.1 stato misurato**. ⚠️ Il totale si legge **di lì**: questa riga è una copia, e il 2026-08-12 era indietro di cinque. 🔴 **Ed è rimasta indietro una seconda volta** — E46, 2026-08-16: la copia è stata aggiornata solo perché una code review ha eseguito `grep -rn "21 epic" docs/`. Delle **cinque** copie vive di quel totale, l'aggiunta di un'epic ne aggiorna **una** (l'owner), e nessun gate confronta le altre quattro. 🔴 **E una terza volta, lo stesso giorno, per la stessa ragione**: **E47** è atterrata poche ore dopo E46 e le quattro copie erano di nuovo ferme. Tre su quattro sono state riallineate a mano; `docs/README.md` **no**, perché non è nel `writable` di nessuna track e [D-139](../decisions/RT_PDR_00_Decision_Log.md) dice che un file non assegnato è uno **stop**. Il difetto strutturale ha ora un numero: [#962](https://github.com/DegrassiAaron/refactor-tactics-main/issues/962) |
 | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) | **Release v0.2 → v0.4**: epic `E22`–`E35`. Non apre lavoro finché i gate della v0.1 non sono verdi |
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release `G1`–`G15`, KPI, checklist di contenuto |
@@ -463,7 +463,7 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | [`adr-0003-modello-azioni-v01.md`](../decisions/adr-0003-modello-azioni-v01.md) | Modello azioni del catalogo v0.1 sulle macro-fasi di Atlas |
 | [`convenzioni-contenuti-ue.md`](../technical/tooling/convenzioni-contenuti-ue.md) | **Normativo**: struttura di `Content/`, naming, dipendenze fra cartelle, spostamenti |
 | *questo file* | **Esecuzione**: milestone, checkpoint, DoD, stato |
-| `editormap.shortlist.md` | **Operativo in editor**: sedute di authoring e verifica, ordine e dipendenze verso i checkpoint — **generata** da [`editor-sessions.yaml`](editor-sessions.yaml) |
+| ~~`editormap.shortlist.md`~~ | ⛔ **Rimossa con D-181.** La sorgente `editor-sessions.yaml` resta, senza vista. Dichiarava: sedute di authoring e verifica, ordine e dipendenze verso i checkpoint — **generata** da [`editor-sessions.yaml`](editor-sessions.yaml) |
 | [`hex-map-roadmap.md`](hex-map-roadmap.md) | **Dettaglio tecnico** della linea esagonale H0–H6.5 (consegnate) e del residuo editor H5 |
 | [`RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | **Requisiti** di lungo periodo (fasi F0–F6, QA, rischi) — direzione, non scope |
 | [`test-manuali-pie.md`](../technical/test-manuali-pie.md) | Verifiche interattive in editor, per sessioni |

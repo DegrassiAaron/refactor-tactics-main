@@ -230,9 +230,11 @@ descrive nessuna.
 ⚠️ **La posizione governava i gate, non solo la leggibilità** — ⛔ fino a **D-182** (2026-08-21), che li ha rimossi. La regola resta come criterio di collocazione, e nessuno la verifica più. `check-docs-symbols.py` e
 `check-docs-tables.py` esentano **per prefisso di path**: `archive/`, `research/`, `roadmap/plans/`. Spostare un documento dentro o fuori da uno di questi ne cambia la copertura **senza
 che nessuno lo dica** — misurato, con `EXEMPT_DIRS = ()` il primo passa da 155 a 389 documenti e il
-secondo da 165 a 404, ed entrambi diventano rossi. Chi sposta una cartella aggiorna `EXEMPT_DIRS` nello
-stesso commit, e verifica che il **numero di documenti controllati non cali**: un gate il cui scope
-collassa stampa `OK` lo stesso.
+secondo da 165 a 404, ed entrambi diventavano rossi.
+⛔ **La prescrizione che seguiva non è più eseguibile**: diceva di aggiornare `EXEMPT_DIRS` nello stesso
+commit e di verificare che il numero di documenti controllati non calasse — `EXEMPT_DIRS` viveva dentro
+`check-docs-symbols.py` e `check-docs-tables.py`, rimossi con **D-182**. La lezione che la motivava
+resta, e vale per il prossimo gate: **un gate il cui scope collassa stampa `OK` lo stesso.**
 
 ---
 
@@ -313,9 +315,25 @@ controlli sui dati di gioco e i due generatori.
 | **dati di gioco** | equipaggiamento e capability che non combaciano più con `Source/` |
 | **provenienza** | le **296 icone** di `generated/icons/` non hanno più il generatore che ne dichiarava la geometria |
 
-Le regole che i gate facevano rispettare **restano scritte** qui sopra e nei documenti owner: quello
-che manca è chi le verifica. È una scelta di fase — il progetto è in sviluppo, e il costo di
+### Le discipline che i gate portavano con sé
+
+⚠️ **Non erano nei comandi, erano nei loro dati** — e sarebbero uscite col codice se non fossero
+riscritte qui. Valgono ancora, e valgono per il prossimo gate che qualcuno scriva:
+
+- **Un'esenzione dichiarata è una promessa datata, non un permesso.** `DEBITO_NOTO`, `DUPLICATI_NOTI`,
+  `ORFANE_NOTE` non esentavano: il gate le verificava **al contrario**, e una voce che non
+  corrispondeva più a niente lo faceva fallire. Un'esenzione che non sa invalidarsi nasconde il
+  difetto successivo.
+- **La somiglianza non è una prova, e una famiglia-template la batte.** I candidati near-duplicate
+  restavano candidati: le 38 card di `characters/images/paragon/`, generate dallo stesso layout,
+  hanno prodotto **558 falsi positivi su 562**, perché un hash percettivo misura la cornice e non il
+  soggetto. Si escludevano per **dichiarazione** (`FAMIGLIE_TEMPLATE`), mai alzando una soglia.
+- **Un gate il cui scope collassa stampa `OK` lo stesso.** Il numero di documenti controllati era
+  parte del risultato, non un dettaglio del report.
+- **Un'etichetta può mentire mentre il link funziona.** ``[`../vecchio/x.md`](../nuovo/x.md)``: erano
+  **36** dopo un solo spostamento, e nessun controllo sui soli target le vede.
+
+Queste **restano scritte**; quello che manca è chi le verifica. È una scelta di fase — il progetto è in sviluppo, e il costo di
 mantenerli superava quello di non averli. Il punto da riaprire è **D-182**.
 
-Resta un solo `--check`, e non è Python: `node tools/radar/generate.ts --check`, che dice se i radar
-degli SVG sono indietro rispetto ai cataloghi di `balance/`.
+Restano **due** `--check`, e nessuno dei due è Python: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi) e `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), piu' la suite `node --test` di `tools/radar/`, **57 test**.

@@ -324,13 +324,18 @@ Esegui i gate realmente presenti, con le firme correnti, ad esempio:
 
 ```bash
 node tools/radar/generate.ts --check
+node tools/radar/wiki-alt.ts --wiki-root <clone> --check
+node --test "tools/radar/**/*.test.ts"
 ```
 
-> ⛔ **Questa lista era di sette comandi e ne resta uno.** Il 2026-08-21 sono usciti il Feature Registry
-> (**D-181**) e l'intera cartella `scripts/` (**D-182**): i cinque gate documentali, i due controlli sui
-> dati di gioco e i due generatori. Resta il solo `--check` di `tools/radar/`. ⚠️ Una «validazione
-> finale» che gira un comando su sette non è la stessa cosa che girarne sette: chi usa questo mandato
-> lo sappia.
+> ⛔ **Questa lista era di cinque comandi e ne restano due**, più la suite. Il 2026-08-21 sono usciti il
+> Feature Registry (**D-181**) e l'intera cartella `scripts/` (**D-182**): i cinque gate documentali, i
+> due controlli sui dati di gioco e i due generatori.
+>
+> ⚠️ **La prima stesura di questa nota diceva «sette comandi» e «ne resta uno», e sbagliava entrambi i
+> numeri**: la lista cancellata ne aveva cinque, e i `--check` vivi sono due — `generate.ts` guarda gli
+> SVG, `wiki-alt.ts` gli alt sulla Wiki, e il primo **non** copre il secondo. Un numero in prosa dentro
+> il paragrafo che esiste per dire quanta copertura si è persa: contarlo costa una riga.
 
 Poi:
 - verifica viste generate;

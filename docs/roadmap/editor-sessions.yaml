@@ -4,8 +4,8 @@
 #
 # ⛔ **Questo file non ha piu' una vista, e non ha piu' un consumatore.** La vista leggibile era
 # `editormap.shortlist.md`, generata da `feature_registry.py shortlist`: entrambi sono usciti dal
-# repository il 2026-08-21 (D-181). Nessuno script legge questo file — `check-docs-naming.py` e
-# `docs_inventory.py` lo camminano come testo generico, cosa che fanno con ogni `.yaml` sotto `docs/`.
+# repository il 2026-08-21 (D-181). **Nessuno script legge questo file**, e da D-182 nel repository non
+# c'e' piu' nemmeno uno script che lo cammini come testo generico: `scripts/` e' stata rimossa.
 #
 # ⚠️ Chi aggiunge una seduta oggi scrive in un file che nessuno rende. Resta perche' il CONTENUTO vale
 # — 27 sedute con passi, prerequisiti e artefatti, scritti a mano — non perche' qualcosa lo consumi.

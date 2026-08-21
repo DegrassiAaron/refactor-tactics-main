@@ -38,8 +38,10 @@ committate e nessuno può più dire se corrispondono alla geometria che le ha pr
 
 **`--check` è la colonna che conta.** Dice se esiste un modo di scoprire che l'output è più vecchio
 della sorgente. Dove c'è scritto **nessuno**, quell'artefatto non ha modo di dichiararsi stantio: la
-riga non è una lacuna nascosta, è la lacuna **scritta**. ⛔ Le cinque `*.shortlist.md` erano l'unico
-caso `nessuno`, e sono uscite con **D-181**: oggi ogni riga della tabella ha un `--check`.
+riga non è una lacuna nascosta, è la lacuna **scritta**. ⛔ Le cinque `*.shortlist.md` erano l'unico caso
+`nessuno` **dichiarato**, e sono uscite con **D-181**. ⚠️ Oggi il caso peggiore è un altro: la riga
+`docs/generated/icons/` non ha `nessuno` ma un `—`, perché il generatore stesso è stato rimosso. Delle
+due righe rimaste, **una sola** ha un `--check` vivo.
 
 ⚠️ **Un `--check` poteva esistere ed essere morto** — e ora quello non esiste affatto.
 `build-icon-assets.py --check` usciva `1` da prima della fase 2 di

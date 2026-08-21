@@ -215,8 +215,10 @@ validazione · serializzazione/replay · privacy intenti.
   Vale soprattutto prima di dichiarare una **verifica di mutazione**: se il test atteso non era in lista, il
   suo «non è caduto» non significa niente — e adesso nessuno script te lo dice.
 - Le verifiche PIE/Editor non sono verdi finché qualcuno non le ha realmente eseguite.
-- ⛔ **Il repository ha UNA toolchain, e non ha più gate automatici.** Resta **Node 22** in
-  `tools/radar/` — rubrica dei rating e generatore SVG dei radar di personaggio, con `--check`.
+- ⛔ **Il repository non ha più gate Python.** Restano **Node 22** in `tools/radar/` — rubrica dei
+  rating, generatore SVG dei radar e allineatore degli alt sulla Wiki — e un solo file Python
+  versionato, `tools/icons-downloader/paragon_skill_icons_downloader.py`, che è un **downloader** e non
+  un gate. I `--check` vivi sono **due**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi) e `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), piu' la suite `node --test` di `tools/radar/`, **57 test**.
   La cartella `scripts/` è stata **rimossa** il 2026-08-21 (**D-182**): con lei sono usciti i nove
   script Python e i loro test — i cinque gate documentali (link, nomi, simboli, tabelle, inventario),
   i due controlli sui dati di gioco (`check-capability-owners`, `check-equipment-defaults`) e i due

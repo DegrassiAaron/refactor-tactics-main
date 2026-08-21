@@ -573,12 +573,17 @@ Gate presenti in `scripts/` su `94575ef4`, con l'esito **realmente eseguito** su
 | ~~registry: coerenza~~ | ~~`feature_registry.py validate`~~ | ⛔ **D-181** |
 | ~~registry: viste~~ | ~~`feature_registry.py generate --check`~~ | ⛔ **D-181** |
 | ~~registry: shortlist~~ | ~~`feature_registry.py shortlist --check`~~ | ⛔ **D-181** |
-| inventario dei generati | `python scripts/docs_inventory.py --check` | *(non era in questa tabella)* |
+| ~~inventario dei generati~~ | ~~`docs_inventory.py --check`~~ | ⛔ **D-182** |
 
-Totale: **sei invocazioni** *(erano dieci: il gate sugli ID condivisi è caduto con
-[D-178](../decisions/RT_PDR_00_Decision_Log.md), che ha rimosso `rt_shared_id.py`; le **tre** del registry
-con [D-181](../decisions/RT_PDR_00_Decision_Log.md), il 2026-08-21. ⚠️ Il conteggio di questa riga è già
-invecchiato due volte: **misuralo con `ls scripts/check-*.py`**, non leggerlo qui)*.
+Totale: **zero** invocazioni Python. Erano dieci: una è caduta con
+[D-178](../decisions/RT_PDR_00_Decision_Log.md) (`rt_shared_id.py`), tre con
+[D-181](../decisions/RT_PDR_00_Decision_Log.md) (il registry) e le restanti **sei** con
+[D-182](../decisions/RT_PDR_00_Decision_Log.md), che ha rimosso l'intera cartella `scripts/`.
+
+> ⚠️ **La riga precedente diceva «sei invocazioni» mentre la tabella ne aveva sette vive, e prescriveva
+> di rimisurare con `ls scripts/check-*.py` — una cartella cancellata nello stesso commit.** Un numero
+> scritto invece che contato, e un rimedio più morto del numero che voleva correggere. Oggi si misura
+> con `ls tools/radar/*.ts`, e i `--check` vivi sono **due**.
 
 ⚠️ **Due trappole misurate eseguendo davvero questa tabella**, e la prima era in questo documento:
 
