@@ -316,6 +316,166 @@ namespace
 		}
 		return Lines;
 	}
+
+	/**
+	 * Riversa il risultato di UNA esecuzione nell'aggregato: assertion e note col loro `[etichetta]` davanti,
+	 * il massimo dei turni, e le quattro grandezze delle decisioni di finestra (`#512`).
+	 *
+	 * 🔴 **Esiste perche' la seconda copia aveva gia' perso un campo.** Questo blocco viveva solo dentro il
+	 * ciclo delle varianti; `RunRepeated` lo ha ricopiato e ha omesso `LastScriptedResponse`, quindi uno
+	 * scenario con `repeatCount` che scripta una decisione riportava `lastScriptedResponse: ""` accanto a un
+	 * `scriptedDecisionsApplied` diverso da zero — due campi dello stesso referto che si contraddicono. Il
+	 * commento della versione originale lo diceva gia': senza queste righe il `result.json` «direbbe il falso
+	 * proprio nel file per cui i campi sono stati aggiunti». Da qui in poi c'e' un posto solo da aggiornare
+	 * quando nasce un campo nuovo.
+	 */
+	void AppendRunInto(FRTTestResult& Aggregate, const FRTTestResult& RunResult, const FString& Label)
+	{
+		for (const FRTAssertionResult& Assertion : RunResult.Assertions)
+		{
+			FRTAssertionResult Renamed = Assertion;
+			Renamed.Description = FString::Printf(TEXT("[%s] %s"), *Label, *Assertion.Description);
+			Aggregate.Assertions.Add(Renamed);
+		}
+		for (const FString& Note : RunResult.Notes)
+		{
+			Aggregate.Notes.Add(FString::Printf(TEXT("[%s] %s"), *Label, *Note));
+		}
+		Aggregate.TurnsPlayed = FMath::Max(Aggregate.TurnsPlayed, RunResult.TurnsPlayed);
+
+		Aggregate.ScriptedDecisionsApplied += RunResult.ScriptedDecisionsApplied;
+		Aggregate.ScriptedDecisionsUnused += RunResult.ScriptedDecisionsUnused;
+		if (RunResult.DecisionSource != TEXT("none"))
+		{
+			Aggregate.DecisionSource = RunResult.DecisionSource;
+		}
+		if (!RunResult.LastScriptedResponse.IsEmpty())
+		{
+			Aggregate.LastScriptedResponse = RunResult.LastScriptedResponse;
+		}
+	}
+
+	/**
+	 * `repeatCount` (CP 47.4): N esecuzioni **identiche** dello stesso scenario, confrontate fra loro.
+	 *
+	 * E' il veicolo del corpus di determinismo (E47.5) e la domanda che pone e' l'opposto di quella delle
+	 * varianti: li' si cambia un ingresso per vedere se l'esito si muove, qui non si cambia niente per vedere
+	 * se sta fermo. Il confronto e' su **due** grandezze e non su una:
+	 *
+	 *   · il **TurnLog** serializzato, turno per turno — cio' che e' SUCCESSO, byte per byte;
+	 *   · lo **StateHash** finale — cio' che ne e' RIMASTO.
+	 *
+	 * ⚠️ Nessuna delle due basta da sola, ed e' misurato: un TurnLog identico non prova che lo stato finale lo
+	 * sia (il log non registra tutto cio' che un digest copre), e lo StateHash da solo *«sarebbe rimasto verde
+	 * su #990»* — dove la divergenza compariva al turno 2 e lo stato finale tornava lo stesso.
+	 */
+	FRTTestResult RunRepeated(UWorld* World, const FRTTestScenario& Scenario)
+	{
+		// Ogni giro e' una esecuzione SINGOLA: senza questo azzeramento `Run` rientrerebbe qui per sempre.
+		FRTTestScenario Once = Scenario;
+		Once.RepeatCount = 1;
+
+		FRTTestResult Aggregate;
+		Aggregate.ScenarioId = Scenario.ScenarioId;
+		Aggregate.Seed = Scenario.Seed;
+		Aggregate.Outcome = ERTTestOutcome::Pass;
+
+		TArray<TArray<FRTTurnTrace>> TracesByRun;
+		TArray<uint32> HashByRun;
+		TracesByRun.Reserve(Scenario.RepeatCount);
+		HashByRun.Reserve(Scenario.RepeatCount);
+
+		for (int32 I = 0; I < Scenario.RepeatCount; ++I)
+		{
+			// Stessa precauzione delle varianti, e per la stessa ragione: un residuo qui produrrebbe due
+			// partite diverse per un motivo che non e' la ripetizione, e il confronto attribuirebbe la
+			// differenza — o l'uguaglianza — alla cosa sbagliata.
+			if (const int32 Residue = CountUnitsInWorld(World))
+			{
+				return MakeErrorResult(Scenario, FString::Printf(
+					TEXT("ripetizione %d: %d unita' sono rimaste nel mondo dall'esecuzione precedente"),
+					I + 1, Residue));
+			}
+
+			const FRTTestResult RunResult = URTScenarioRunner::RunSingle(World, Once, /*bTearDownAfter=*/ true);
+
+			AppendRunInto(Aggregate, RunResult, FString::Printf(TEXT("run %d"), I + 1));
+
+			if (RunResult.Outcome == ERTTestOutcome::Error)
+			{
+				Aggregate.Outcome = ERTTestOutcome::Error;
+				Aggregate.ErrorMessage = FString::Printf(TEXT("ripetizione %d: %s"), I + 1, *RunResult.ErrorMessage);
+				return Aggregate;
+			}
+			if (RunResult.Outcome == ERTTestOutcome::Blocked)
+			{
+				Aggregate.Outcome = ERTTestOutcome::Blocked;
+				Aggregate.BlockedReason = FString::Printf(TEXT("ripetizione %d: %s"), I + 1, *RunResult.BlockedReason);
+				return Aggregate;
+			}
+			if (RunResult.Outcome == ERTTestOutcome::Fail)
+			{
+				Aggregate.Outcome = ERTTestOutcome::Fail;
+			}
+
+			TracesByRun.Add(RunResult.TurnTraces);
+			HashByRun.Add(RunResult.StateHash);
+		}
+
+		// Le tracce e l'hash della PRIMA esecuzione finiscono nel report: a differenza delle varianti, qui
+		// sono le stesse di tutte le altre — o il confronto qui sotto e' rosso, e il report dice quale voce
+		// differisce.
+		Aggregate.TurnTraces = TracesByRun[0];
+		Aggregate.StateHash = HashByRun[0];
+
+		for (int32 I = 1; I < TracesByRun.Num(); ++I)
+		{
+			bool bSameLog = (TracesByRun[I].Num() == TracesByRun[0].Num());
+			for (int32 T = 0; bSameLog && T < TracesByRun[0].Num(); ++T)
+			{
+				bSameLog = (TracesByRun[I][T].Bytes == TracesByRun[0][T].Bytes);
+			}
+
+			FRTAssertionResult SameLog;
+			SameLog.Description = FString::Printf(TEXT("SameTurnLogAcrossRuns(1 vs %d)"), I + 1);
+			SameLog.Expected = FString::Printf(TEXT("%d turni identici byte per byte"), TracesByRun[0].Num());
+			SameLog.Actual = bSameLog
+				? FString::Printf(TEXT("%d turni identici"), TracesByRun[I].Num())
+				: FString::Printf(TEXT("%d turni, almeno uno diverso"), TracesByRun[I].Num());
+			SameLog.bPassed = bSameLog;
+			SameLog.Turn = Aggregate.TurnsPlayed;
+			Aggregate.Assertions.Add(SameLog);
+
+			if (!bSameLog)
+			{
+				Aggregate.Outcome = ERTTestOutcome::Fail;
+				// Le righe che differiscono, turno per turno: senza, il rosso e' un numero contro un numero.
+				for (int32 T = 0; T < FMath::Min(TracesByRun[0].Num(), TracesByRun[I].Num()); ++T)
+				{
+					for (const FString& Line : DiffEntries(TracesByRun[0][T].Bytes, TracesByRun[I][T].Bytes))
+					{
+						const FString Note = FString::Printf(TEXT("run %d, turno %d, %s"), I + 1, T + 1, *Line);
+						Aggregate.Notes.Add(Note);
+						UE_LOG(LogRT, Warning, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *Note);
+					}
+				}
+			}
+
+			FRTAssertionResult SameHash;
+			SameHash.Description = FString::Printf(TEXT("SameStateHashAcrossRuns(1 vs %d)"), I + 1);
+			SameHash.Expected = FString::Printf(TEXT("%u"), HashByRun[0]);
+			SameHash.Actual = FString::Printf(TEXT("%u"), HashByRun[I]);
+			SameHash.bPassed = (HashByRun[I] == HashByRun[0]);
+			SameHash.Turn = Aggregate.TurnsPlayed;
+			Aggregate.Assertions.Add(SameHash);
+			if (!SameHash.bPassed)
+			{
+				Aggregate.Outcome = ERTTestOutcome::Fail;
+			}
+		}
+
+		return Aggregate;
+	}
 }
 
 FRTTestResult URTScenarioRunner::RunSingle(UWorld* World, const FRTTestScenario& Scenario,
@@ -335,7 +495,12 @@ FRTTestResult URTScenarioRunner::RunSingle(UWorld* World, const FRTTestScenario&
 
 	// Tetto complessivo: la sessione ha gia' il suo per turno, questo protegge dal caso in cui non avanzi
 	// affatto. Un test appeso somiglia a un test lento, e la differenza si scopre solo aspettando.
-	const int32 MaxSteps = MaxResolveTicks * (Scenario.Turns.Num() + 2);
+	//
+	// In free-run i turni non sono enumerati e `Turns.Num()` e' zero: senza `MaxTurns` questo tetto varrebbe
+	// due turni, e la partita verrebbe troncata dal RUNNER prima che la sessione possa dire se e' finita —
+	// un `Fail` su «ancora in corso» che non parlerebbe del gioco ma di questa riga.
+	const int32 PlannedTurns = Scenario.bFreeRun ? Scenario.MaxTurns : Scenario.Turns.Num();
+	const int32 MaxSteps = MaxResolveTicks * (PlannedTurns + 2);
 	for (int32 I = 0; I < MaxSteps && !Session.IsFinished(); ++I)
 	{
 		Session.Step(0.05f, /*bPumpTurnManager=*/ true);
@@ -351,6 +516,16 @@ FRTTestResult URTScenarioRunner::RunSingle(UWorld* World, const FRTTestScenario&
 
 FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scenario)
 {
+	// `repeatCount` viene PRIMA delle varianti e non ci si combina: il loader rifiuta i due insieme, e questa
+	// riga e' il lato eseguibile di quel rifiuto. Le due domande sono opposte — le varianti cambiano un
+	// ingresso per vedere se l'esito si muove, le ripetizioni non cambiano niente per vedere se sta fermo — e
+	// un ciclo annidato produrrebbe tracce che differiscono per costruzione: il confronto non risponderebbe a
+	// nessuna delle due.
+	if (Scenario.RepeatCount > 1)
+	{
+		return RunRepeated(World, Scenario);
+	}
+
 	if (Scenario.Variants.Num() == 0)
 	{
 		return RunSingle(World, Scenario, /*bTearDownAfter=*/ false);
@@ -382,33 +557,10 @@ FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scena
 		const FRTTestResult VariantResult = RunSingle(World, VariantScenario, /*bTearDownAfter=*/ true);
 
 		// Le assertion di tutte le varianti finiscono nel report, col nome davanti: senza, un rosso direbbe
-		// «UnitHpEquals(BAIT)» senza dire in quale delle due partite.
-		for (const FRTAssertionResult& Assertion : VariantResult.Assertions)
-		{
-			FRTAssertionResult Renamed = Assertion;
-			Renamed.Description = FString::Printf(TEXT("[%s] %s"), *Variant.Name, *Assertion.Description);
-			Aggregate.Assertions.Add(Renamed);
-		}
-		for (const FString& Note : VariantResult.Notes)
-		{
-			Aggregate.Notes.Add(FString::Printf(TEXT("[%s] %s"), *Variant.Name, *Note));
-		}
-		Aggregate.TurnsPlayed = FMath::Max(Aggregate.TurnsPlayed, VariantResult.TurnsPlayed);
-
-		// Le tre grandezze delle decisioni di finestra (#512) si SOMMANO fra le varianti, e la provenienza si
-		// propaga: senza queste righe l'aggregato uscirebbe con `"decisionSource": "none"` e i contatori a
-		// zero anche per uno scenario che ne applica due per variante — cioe' il `result.json` direbbe il
-		// falso proprio nel file per cui i campi sono stati aggiunti.
-		Aggregate.ScriptedDecisionsApplied += VariantResult.ScriptedDecisionsApplied;
-		Aggregate.ScriptedDecisionsUnused += VariantResult.ScriptedDecisionsUnused;
-		if (VariantResult.DecisionSource != TEXT("none"))
-		{
-			Aggregate.DecisionSource = VariantResult.DecisionSource;
-		}
-		if (!VariantResult.LastScriptedResponse.IsEmpty())
-		{
-			Aggregate.LastScriptedResponse = VariantResult.LastScriptedResponse;
-		}
+		// «UnitHpEquals(BAIT)» senza dire in quale delle due partite. Le quattro grandezze delle decisioni di
+		// finestra (#512) si sommano nello stesso passaggio — vedi `AppendRunInto`, che e' l'unico posto in cui
+		// vive questa aggregazione da quando la sua seconda copia ha perso un campo.
+		AppendRunInto(Aggregate, VariantResult, Variant.Name);
 
 		// Un `Error` e un `Blocked` fermano tutto: le varianti restanti direbbero la stessa cosa, e un
 		// confronto fra tracce incomplete non significa niente.

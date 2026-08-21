@@ -304,8 +304,13 @@ void ARTGameMode::BeginPlay()
 		case RTScenarioEntry::EWinner::CommandLine:     Source = TEXT("riga di comando -RTScenario="); break;
 		case RTScenarioEntry::EWinner::Property:        break;
 		}
-		UE_LOG(LogRT, Warning, TEXT("[RT-Test] AUTO-RUN %s (da: %s): %d turni, pausa %.1fs — avanza un passo per frame"),
-			*TestScenario, Source, Scenario.Turns.Num(), ScenarioTurnPauseSeconds);
+		// ⚠️ Un free-run non enumera turni: `Turns.Num()` li' vale **zero**, e questa riga annuncerebbe «0 turni»
+		// un istante prima di giocarne dieci. La riga esiste perche' chi guarda possa dire «sta girando quello
+		// che ho scelto io» senza dedurlo dallo schermo, quindi dire il falso la rende peggio che assente.
+		const int32 TurniAnnunciati = Scenario.bFreeRun ? Scenario.MaxTurns : Scenario.Turns.Num();
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] AUTO-RUN %s (da: %s): %s%d turni, pausa %.1fs — avanza un passo per frame"),
+			*TestScenario, Source, Scenario.bFreeRun ? TEXT("free-run, tetto ") : TEXT(""),
+			TurniAnnunciati, ScenarioTurnPauseSeconds);
 
 		ScenarioSession = MakeShared<FRTScenarioSession>();
 		ScenarioSession->TurnPauseSeconds = ScenarioTurnPauseSeconds;

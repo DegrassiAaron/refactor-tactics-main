@@ -349,6 +349,10 @@ tabella di redirect stanno in [`scenario-index-e-tag.md`](../tooling/scenario-in
 | `health` · `shield` · `visionRange` | *(opzionale)* condizione iniziale al posto di quella del roster. Assenti = valori dell'eroe |
 | `variants` | *(opzionale)* rigioca lo scenario spostando alcune unità — vedi sotto |
 | `expectSameAcrossVariants` | *(opzionale)* le varianti devono produrre lo **stesso** TurnLog |
+| `freeRun` | *(opzionale)* gioca **fino alla fine partita** invece di enumerare i turni — vedi sotto |
+| `maxTurns` | tetto di sicurezza del free-run, obbligatorio con `freeRun` e vietato senza |
+| `repeatCount` | *(opzionale)* esegue lo scenario N volte e confronta le tracce. `1` = una sola |
+| `requires` | *(opzionale, solo `freeRun`)* capability richieste dall'**intero** scenario |
 | `expect` | assertion; **almeno una**, altrimenti lo scenario passerebbe sempre |
 
 ### `bot` — chi decide l'intent
@@ -401,6 +405,69 @@ sposta nulla, due varianti omonime, un'unità spostata sopra un'altra.
 > ⚠️ **`expectSameAcrossVariants` da solo non basta**: due partite in cui non succede niente hanno TurnLog
 > identici. Serve accanto una `expect` che dimostri che qualcosa è successo — in `Spec.Bot.HiddenEnemyFairness`
 > è `LogEventCount(Combat.Hit) = 1`.
+
+### `freeRun` — la partita decide quando finire *(CP 47.4)*
+
+```json
+"freeRun": true,
+"maxTurns": 40,
+"units": [
+  { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-4, 2, 0], "bot": true },
+  { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [4, -2, 0], "bot": true }
+]
+```
+
+Una partita autobattle **non sa in anticipo quanti turni durerà**, e scriverne il numero nel file
+significherebbe dichiarare ciò che lo scenario dovrebbe misurare. Con `freeRun` il file non elenca turni: la
+sessione ne gioca uno dopo l'altro finché il turn manager non entra in `MatchEnded`.
+
+Le regole, tutte rifiutate dal loader quando violate:
+
+- `turns` dev'essere **vuoto** — o decide la partita, o decide il file;
+- **ogni** unità è `bot` — in free-run gli intent non li scrive nessuno, e un'unità umana resterebbe ferma per
+  tutta la partita senza dirlo;
+- `maxTurns` si **dichiara**, è positivo e non supera `URTScenarioRunner::MaxTurnsHardCap` (100).
+
+> 🔴 **Raggiungere il tetto è un `FAIL`, non un `PASS`.** Il tetto è una guardia di sicurezza, non una regola di
+> gioco: una partita che non finisce è il difetto misurato in
+> [`#1088`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088) — dodici round di soli
+> spostamenti, zero combattimento, pareggio allo scadere. Un tetto che producesse verde renderebbe invisibile
+> esattamente ciò che deve cogliere.
+
+Il verdetto arriva come **assertion generata**, `MatchReachedEnd`, con l'esito nel campo `actual`
+(`"Vince il team 0 per eliminazione, al turno 21"`): così porta atteso e ottenuto come tutte le altre, invece
+di essere un codice d'uscita che costringe a rieseguire per capire.
+
+#### `requires` di scenario
+
+`requires` vive sul **turno**, e un free-run non ha turni. `AutoBattle.Objective` è il caso: chiede
+`Objective`, che è un nome **noto e non disponibile** (owner `#75`), ed esce `BLOCKED` senza giocare un turno.
+
+> 🔴 **Senza la chiave di scenario l'esito non sarebbe un rosso, sarebbe un verde.** Misurato disattivando il
+> blocco: quel file gioca la partita fino all'eliminazione ed esce **`PASS` in 10 turni**. Dichiarerebbe «fine
+> partita per obiettivo» verificando una fine per **eliminazione** — e a un verde non va a guardare nessuno.
+
+Fuori dal free-run la chiave è rifiutata: lì il posto del requisito è il turno, e due posti per la stessa
+dichiarazione divergono al primo edit di uno solo.
+
+#### `repeatCount` — la domanda opposta a `variants`
+
+```json
+"repeatCount": 3
+```
+
+Le varianti cambiano un ingresso per vedere se l'esito **si muove**; `repeatCount` non cambia niente per
+vedere se **sta fermo**. È il veicolo del corpus di determinismo (E47.5), e il confronto è su due grandezze:
+il **TurnLog** serializzato turno per turno (`SameTurnLogAcrossRuns`) e lo **StateHash** finale
+(`SameStateHashAcrossRuns`).
+
+Nessuna delle due basta da sola, ed è misurato: il log non registra tutto ciò che il digest copre, e lo
+`StateHash` da solo *«sarebbe rimasto verde su #990»*, dove la divergenza compariva al turno 2 e lo stato
+finale tornava lo stesso.
+
+> ⚠️ Le due chiavi **non si combinano**: il loader rifiuta `repeatCount` insieme a `variants`. Un ciclo
+> annidato produrrebbe N×M tracce di cui metà differiscono per costruzione, e un confronto che mescola le due
+> domande non risponde a nessuna.
 
 ### `seed` — dichiarato, non consumato
 
@@ -460,6 +527,10 @@ ostacolo** (una situazione che il gioco non produrrebbe mai) vengono rifiutate c
 | `Combat.CounterStrikesBack` | una reazione **armata** scatta e colpisce chi ha colpito |
 | `Combat.NoCounterWhenUnarmed` | senza armarla, la stessa reazione non scatta |
 | `Movement.SwapRejectedByPlanning` | **caratterizzazione**: due unità adiacenti *non* si scambiano di posto, perché la pianificazione rifiuta un percorso verso una cella occupata (vedi §12) |
+| `AutoBattle.OpenField` | **free-run**: 2v2 bot contro bot su campo aperto, giocato fino alla fine partita |
+| `AutoBattle.Obstacles` | lo stesso 2v2 su un campo con ostacoli, muri e fango — lo stallo di `#1088` si formava con la geometria, non senza |
+| `AutoBattle.Hazard` | lo stesso 2v2 sulla fixture `RelayLite`: acqua conduttiva, fuoco, ghiaccio, fumo |
+| `AutoBattle.Objective` | **BLOCKED**: fine partita per obiettivo, che aspetta la capability `Objective` (owner `#75`) |
 
 ### Scenari di caratterizzazione
 

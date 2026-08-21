@@ -1,4 +1,5 @@
 #include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioRunner.h" // MaxTurnsHardCap: il tetto assoluto che un file non puo' superare
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
@@ -1104,6 +1105,75 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 
 	Root->TryGetBoolField(TEXT("expectSameAcrossVariants"), OutScenario.bExpectSameAcrossVariants);
 
+	// Free-run (CP 47.4). Nessun default silenzioso su `maxTurns`: la sua assenza resta 0 e `Validate` la
+	// rifiuta con un motivo, invece di far girare la partita sotto un tetto che il file non dichiara.
+	//
+	// 🔴 **Ogni chiave si legge in DUE tempi — «c'e'?» e «e' del tipo giusto?» — e la seconda domanda e' quella
+	// che conta.** Un `TryGet*` da solo restituisce `false` sia per una chiave assente sia per una chiave del
+	// tipo sbagliato, e le due cose qui hanno esiti opposti: `"requires": "Objective"` (stringa invece di
+	// array) lascerebbe `Requires` vuoto, e `AutoBattle.Objective` — che senza quel blocco gioca fino
+	// all'eliminazione — uscirebbe **`Pass` in 10 turni** dichiarando di misurare l'obiettivo. E' il verde
+	// falso che questa chiave esiste per impedire, prodotto da un refuso di battitura.
+	//
+	// Stessa disciplina che `turns`, `decisions` e `intents` applicano gia' ai propri oggetti: le chiavi
+	// sconosciute sono un errore, e un tipo sbagliato non e' un'assenza.
+	auto LeggiCampoTipizzato = [&Root, &OutError](const TCHAR* Key, auto&& Reader, const TCHAR* Expected) -> bool
+	{
+		if (!Root->HasField(Key))
+		{
+			return true;
+		}
+		if (!Reader())
+		{
+			OutError = FString::Printf(TEXT("%s: il valore dev'essere %s"), Key, Expected);
+			return false;
+		}
+		return true;
+	};
+
+	if (!LeggiCampoTipizzato(TEXT("freeRun"),
+		[&] { return Root->TryGetBoolField(TEXT("freeRun"), OutScenario.bFreeRun); },
+		TEXT("un booleano"))) { return false; }
+	if (!LeggiCampoTipizzato(TEXT("maxTurns"),
+		[&] { return Root->TryGetNumberField(TEXT("maxTurns"), OutScenario.MaxTurns); },
+		TEXT("un intero"))) { return false; }
+	if (!LeggiCampoTipizzato(TEXT("repeatCount"),
+		[&] { return Root->TryGetNumberField(TEXT("repeatCount"), OutScenario.RepeatCount); },
+		TEXT("un intero"))) { return false; }
+
+	const TArray<TSharedPtr<FJsonValue>>* RequiresJson = nullptr;
+	if (!LeggiCampoTipizzato(TEXT("requires"),
+		[&] { return Root->TryGetArrayField(TEXT("requires"), RequiresJson); },
+		TEXT("un array di nomi di capability"))) { return false; }
+	if (RequiresJson)
+	{
+		for (const TSharedPtr<FJsonValue>& Value : *RequiresJson)
+		{
+			FString Capability;
+			if (!Value.IsValid() || !Value->TryGetString(Capability) || Capability.IsEmpty())
+			{
+				OutError = TEXT("requires: ogni voce dev'essere il nome non vuoto di una capability");
+				return false;
+			}
+			OutScenario.Requires.Add(Capability);
+		}
+	}
+
+	// 🔴 **E il formato deve DICHIARARE la versione che le ammette**, come `decisions` con la `2` e le risposte
+	// di profilo con la `3`. Il bump di `SupportedVersion` guarda nel verso «build vecchia, file nuovo»; questo
+	// controllo guarda nell'altro — un file che usa la semantica della v4 dichiarandosi v1 mentirebbe a ogni
+	// lettore e a ogni strumento, e su una build vecchia verrebbe letto come uno scenario con `turns` vuoto,
+	// cioe' verde senza aver giocato.
+	const bool bUsaChiaviV4 = OutScenario.bFreeRun || OutScenario.MaxTurns != 0
+		|| OutScenario.RepeatCount != 1 || OutScenario.Requires.Num() > 0;
+	if (bUsaChiaviV4 && OutScenario.Version < 4)
+	{
+		OutError = FString::Printf(
+			TEXT("'freeRun'/'maxTurns'/'repeatCount'/'requires' richiedono \"version\": 4 (dichiarata: %d)"),
+			OutScenario.Version);
+		return false;
+	}
+
 	return Validate(OutScenario, OutError);
 }
 
@@ -1574,6 +1644,108 @@ namespace
 		}
 		return true;
 	}
+
+	/**
+	 * Le regole del **free-run** (CP 47.4), e le tre che valgono al contrario: un campo del free-run scritto
+	 * in uno scenario a turni e' un campo che non conta, e un campo che c'e' e non conta e' il modo in cui uno
+	 * scenario dice una cosa e ne verifica un'altra.
+	 */
+	bool ValidateScenarioFreeRun(const FRTTestScenario& Scenario, const TSet<FString>& BotIds, FString& OutError)
+	{
+		if (Scenario.RepeatCount < 1)
+		{
+			OutError = FString::Printf(TEXT("repeatCount dev'essere almeno 1 (era %d)"), Scenario.RepeatCount);
+			return false;
+		}
+		// E un tetto anche di sopra, per la stessa ragione per cui `maxTurns` ne ha uno: centomila ripetizioni
+		// passerebbero la validazione e bloccherebbero il corpus senza una diagnostica.
+		if (Scenario.RepeatCount > URTScenarioRunner::MaxRepeatCount)
+		{
+			OutError = FString::Printf(
+				TEXT("repeatCount %d oltre il tetto del runner (%d): un corpus di determinismo si misura con ")
+				TEXT("poche ripetizioni, non con una suite che non finisce"),
+				Scenario.RepeatCount, URTScenarioRunner::MaxRepeatCount);
+			return false;
+		}
+		if (Scenario.RepeatCount > 1 && Scenario.Variants.Num() > 0)
+		{
+			OutError = TEXT("repeatCount e variants insieme: le varianti cambiano un ingresso, repeatCount non ")
+				TEXT("cambia niente — mescolarli darebbe tracce che differiscono per costruzione e un ")
+				TEXT("confronto che non risponde a nessuna delle due domande");
+			return false;
+		}
+
+		if (!Scenario.bFreeRun)
+		{
+			// I due campi che il free-run porta con se' non hanno significato senza di lui: rifiutarli qui e'
+			// cio' che impedisce a un file di dichiarare una guardia che nessuno applichera'.
+			if (Scenario.MaxTurns != 0)
+			{
+				OutError = FString::Printf(
+					TEXT("maxTurns (%d) senza freeRun: il numero di turni lo dice gia' `turns`, e una guardia ")
+					TEXT("che nessuno applica e' peggio di una guardia assente"), Scenario.MaxTurns);
+				return false;
+			}
+			if (Scenario.Requires.Num() > 0)
+			{
+				OutError = TEXT("requires di scenario senza freeRun: li' il posto del requisito e' il turno ")
+					TEXT("(`turns[].requires`), e due posti per la stessa dichiarazione divergono al primo edit");
+				return false;
+			}
+			return true;
+		}
+
+		if (Scenario.Turns.Num() > 0)
+		{
+			OutError = FString::Printf(
+				TEXT("freeRun con %d turni enumerati: o la partita decide quando finire, o lo dice il file — ")
+				TEXT("insieme dicono due cose e ne eseguono una"), Scenario.Turns.Num());
+			return false;
+		}
+		if (Scenario.MaxTurns <= 0)
+		{
+			OutError = TEXT("freeRun senza maxTurns: il tetto e' una guardia di sicurezza e si dichiara nel ")
+				TEXT("file — un tetto invisibile e' un tetto che nessuno rivede");
+			return false;
+		}
+		// Il tetto del FILE non puo' scavalcare quello del RUNNER. `MaxTurnsHardCap` esisteva dal primo giorno
+		// dell'harness — «uno scenario non deve poter girare all'infinito» — ed era una costante **dichiarata e
+		// mai letta**: nessun chiamante in tutto `Source/`. Il free-run e' il primo caso in cui un file puo'
+		// davvero chiedere una partita senza fine, quindi e' anche il primo che le da' un consumatore.
+		if (Scenario.MaxTurns > URTScenarioRunner::MaxTurnsHardCap)
+		{
+			OutError = FString::Printf(
+				TEXT("maxTurns %d oltre il tetto del runner (%d): un tetto che il runner non sa applicare non ")
+				TEXT("e' una guardia"), Scenario.MaxTurns, URTScenarioRunner::MaxTurnsHardCap);
+			return false;
+		}
+
+		// `previewUnit` e' inerte in free-run e va rifiutata invece di ignorata: `ApplyPreviewSelection` scrive
+		// il piano d'attacco del **turno 1** per farne comparire l'anteprima, e un free-run non ha un turno 1 da
+		// cui leggerlo. Accettarla darebbe un campo che c'e' e non fa niente, e l'unico segnale sarebbe
+		// l'ASSENZA dell'anteprima — indistinguibile da un'anteprima che non funziona.
+		if (!Scenario.PreviewUnit.IsEmpty())
+		{
+			OutError = TEXT("previewUnit con freeRun: l'anteprima si costruisce dal piano del primo turno, e un ")
+				TEXT("free-run non ne dichiara nessuno");
+			return false;
+		}
+
+		// Ogni unita' al bot. Un'unita' non-bot in free-run non ha nessuno che le scriva l'intent — non c'e'
+		// un turno da cui leggerlo — e resterebbe ferma per tutta la partita: uno scenario che dichiara un 2v2
+		// e ne gioca meta' produrrebbe un esito vero su una premessa falsa.
+		for (const FRTScenarioUnit& Unit : Scenario.Units)
+		{
+			if (!BotIds.Contains(Unit.Id))
+			{
+				OutError = FString::Printf(
+					TEXT("freeRun con l'unita' '%s' non guidata dal bot: in un free-run gli intent non li ")
+					TEXT("scrive nessuno, e quell'unita' resterebbe ferma senza dirlo"), *Unit.Id);
+				return false;
+			}
+		}
+		return true;
+	}
 }
 
 bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutError)
@@ -1608,6 +1780,8 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 	if (!ValidateScenarioTurns(Scenario, SeenIds, BotIds, OutError)) { return false; }
 	if (!ValidateScenarioExpectations(Scenario, SeenIds, OutError)) { return false; }
 	if (!ValidateScenarioVariants(Scenario, bUsesFixture, SeenIds, OutError)) { return false; }
+	// Dopo le unita' perche' legge `BotIds`, e dopo le varianti perche' una delle sue regole le nomina.
+	if (!ValidateScenarioFreeRun(Scenario, BotIds, OutError)) { return false; }
 
 	return true;
 }

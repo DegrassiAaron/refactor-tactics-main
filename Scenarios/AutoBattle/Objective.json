@@ -1,0 +1,28 @@
+{
+  "scenarioId": "AutoBattle.Objective",
+  "tags": ["autobattle", "freerun", "bot", "objectives", "gadget", "phase", "riktor", "wraith"],
+  "version": 4,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "CP 47.4: la partita che finisce per OBIETTIVO invece che per eliminazione. Oggi e' `BLOCKED`, e lo dichiara: `Objective` e' un nome NOTO e non ancora disponibile (owner `#75`) — in mappa non esiste nessun oggetto da attivare, benche' `Match.EndsOnObjective` sappia gia' chiudere la partita.",
+
+  "_nota_requires_di_scenario": "⚠️ `requires` sta a livello di SCENARIO e non di turno perche' un free-run **non ha turni** su cui appenderlo. 🔴 Senza questa chiave l'esito non sarebbe un rosso ma un VERDE, e la mutazione lo ha misurato: disattivando il blocco questo file gioca fino all'eliminazione ed esce `PASS` in 10 turni — dichiarando «fine partita per obiettivo» mentre verifica una fine per eliminazione. `BLOCKED` e' l'unico esito che dice la verita': lo scenario aspetta, e nomina cosa.",
+
+  "_nota_perche_versionarlo_ora": "E' il meccanismo che permette di versionare uno scenario PRIMA dei suoi sistemi. Chi chiude `#75` non deve ricordarsi di scrivere questo file: lo trova gia' qui, si accende da solo, e a quel punto le sue `expect` vanno completate con la condizione di vittoria per obiettivo.",
+
+  "freeRun": true,
+  "maxTurns": 40,
+  "requires": ["Objective"],
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-4, 2, 0], "bot": true },
+    { "id": "A2", "hero": "Hero.Phase",  "team": 0, "cell": [-4, 3, 0], "bot": true },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [4, -2, 0], "bot": true },
+    { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [4, -3, 0], "bot": true }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}
