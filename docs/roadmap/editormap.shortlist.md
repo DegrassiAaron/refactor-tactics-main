@@ -34,17 +34,33 @@ scritta»* — ed è la condizione che questo file soddisfa: nessun simbolo qui 
 
 | | Quando |
 |---|---|
-| ⏳ | nessuna voce verde, nessun artefatto tracciato |
+| ⏳ | **nessuna voce è stata eseguita** e nessun artefatto è tracciato |
 | 🟡 | aperta, parte fatta — oppure una verifica è andata storta |
 | ✅ | **tutte** le voci verdi **e** tutti gli artefatti tracciati da `git` |
 | — | non dichiara né voci né artefatti: il codice sotto non esiste ancora |
+
+⚠️ La riga del ⏳ diceva *«nessuna voce verde»*: falso dal 2026-08-21, e la differenza è tutta lì.
+Una seduta le cui voci sono **tutte fallite** non ha voci verdi, ma non è «da cominciare» — è stata
+fatta ed è andata male. `session_state()` chiede ora che nessuna voce sia stata *eseguita*, dove
+eseguita significa qualunque esito diverso da ⏳ ([#1249](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1249)).
 
 Un artefatto non tracciato impedisce il verde qualunque cosa dicano le voci. E `git add` su un `.uasset` non
 basta: `.gitignore` esclude `Content/**/*.uasset` e riammette i singoli file con un `!` esplicito — un asset
 fuori dall'allowlist non viene tracciato, **in silenzio**.
 
-**Quando una verifica va storta**: la voce resta ⏳ nel registro con una **nota datata** — convenzione che
-quel documento già usa. Nessun simbolo nuovo. La seduta scende a 🟡 da sola.
+**Quando una verifica va storta**: la voce prende **❌ con una nota datata** nel registro, e la seduta scende
+a 🟡 da sola. Il conteggio lo dichiara a parte — `10/15 voci verdi · 2 ❌` — perché `10/15` da solo direbbe
+*«ne restano cinque da eseguire»*, e per due di quelle cinque sarebbe falso: sono state eseguite e hanno
+trovato un difetto. Rieseguirle prima del fix è tempo speso a riconfermare un rosso noto.
+
+> 🔴 **Questa riga prescriveva l'opposto fino al 2026-08-21**: *«la voce resta ⏳ con una nota datata. Nessun
+> simbolo nuovo.»* Non era una convenzione alternativa, era un difetto con due facce. `test-manuali-pie.md`
+> dichiara **quattro** esiti da sempre e ne conta tre come ❌; e chi avesse seguito questa riga avrebbe
+> registrato il prossimo fallimento come ⏳, cioè come *«nessuno l'ha ancora guardata»* — rendendolo
+> invisibile a chi sceglie cosa fare. La seduta *non* «scendeva a 🟡 da sola»: fino a
+> [#1249](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1249) il rosso veniva letto ✅ o 🟡 a
+> seconda di quale glifo la nota citasse per primo, e `PIE-HEX-VIZ-BLOCCHI` è stato contato **fra i verdi**
+> della seduta che l'aveva appena aperto.
 
 ---
 

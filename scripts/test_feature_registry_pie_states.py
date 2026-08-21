@@ -25,20 +25,24 @@ Uso:
     python scripts/test_feature_registry_pie_states.py       # dalla radice del repo
     python -m unittest discover -s scripts -p "test_*.py"
 
-VERIFICA DI MUTAZIONE (eseguita il 2026-08-21, una rottura per volta, da rifare se questo file
-cambia). Servono **due** mutazioni perche' i difetti riparati sono due, in due funzioni diverse:
+VERIFICA DI MUTAZIONE (2026-08-21, una rottura per volta, da rifare se questo file cambia):
 
-1. togliendo `❌` da `PIE_RESULT_GLYPHS` cadono `test_primo_glifo_vince` e
-   `test_le_voci_rosse_del_registro_sono_lette_rosse` — e **nessun altro**;
-2. togliendo `or failed` dalla condizione del 🟡 in `session_state()` cade
-   `test_seduta_tutta_rossa_non_e_da_cominciare` — e nessun altro.
+1. `PIE_RESULT_GLYPHS` senza `❌`      -> cadono `test_primo_glifo_vince` e
+                                          `test_seduta_tutta_rossa_non_e_da_cominciare`;
+2. `PIE_EXECUTED_GLYPHS` senza `❌`    -> cadono `test_seduta_tutta_rossa_non_e_da_cominciare` e
+                                          `test_ogni_esito_diverso_da_aperto_conta_come_eseguito`;
+3. `PIE_EXECUTED_GLYPHS` senza `⌫`    -> cade `test_ogni_esito_diverso_da_aperto_conta_come_eseguito`.
 
-⚠️ Questa nota diceva che la mutazione (1) abbatteva anche il test della seduta tutta rossa: falso,
-misurato. Quel test costruisce gli stati a mano e non passa dal parser, quindi la prima mutazione lo
-lascia verde. Due difetti in due funzioni vogliono due mutazioni: una sola avrebbe lasciato
-`session_state()` senza rete, ed e' proprio il punto dove il fix minimo avrebbe spostato la bugia.
+⚠️ Questa nota e' stata riscritta **due volte sulla misura**, e vale la pena dire perche'. Diceva
+prima che la mutazione (1) abbatteva anche il test della seduta: falso allora, perche' quel test
+costruisce gli stati a mano e non passava dal parser. Poi il codice e' cambiato — la condizione del
+🟡 non enumera piu' i glifi, li **deriva** da `PIE_RESULT_GLYPHS` — e con la derivazione la (1) lo
+abbatte davvero. Una nota di mutazione scritta a memoria invecchia al primo refactoring: si rilancia,
+non si ricopia.
 """
+import io
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -102,15 +106,34 @@ class SessionState(unittest.TestCase):
     def test_seduta_tutta_rossa_non_e_da_cominciare(self):
         """Il caso che il fix del solo alfabeto avrebbe rotto in direzione opposta.
 
-        Prima di #1249 una seduta tutta ❌ risultava **✅** (i rossi erano letti verdi) e finiva in
-        `DONE`. Riparando il solo parser sarebbe caduta nel `return "⏳"` finale, cioe' «mai
-        cominciata»: due bugie opposte, e nessuna delle due dice che il lavoro e' stato fatto ed e'
-        andato male.
+        Prima di #1249 il glifo di una voce rossa era **quello che la sua nota citava per primo**,
+        non un valore fisso: misurato sul registro con il vecchio alfabeto, `PIE-HEX-VIZ-BLOCCHI`
+        risultava ✅ e `PIE-HEX-MODE-H` e `PIE-TEST-CONSOLE` 🟡. ⚠️ Questa docstring diceva «i rossi
+        erano letti verdi»: vero per una riga su tre, e la generalizzazione avrebbe fatto cercare
+        al prossimo lettore un difetto piu' semplice di quello che era. Una seduta di sole voci
+        come `BLOCCHI` finiva in `DONE`; una di sole voci come `MODE-H` restava 🟡 in BLOCKING.
+
+        Riparando il solo parser il caso «tutte ❌» sarebbe caduto nel `return "⏳"` finale, cioe'
+        «mai cominciata»: la bugia opposta, e nessuna delle due dice che il lavoro e' stato fatto
+        ed e' andato male.
         """
         self.assertEqual(self._stato("❌", "❌"), "🟡")
 
     def test_una_rossa_impedisce_il_verde(self):
         self.assertEqual(self._stato("✅", "✅", "❌"), "🟡")
+
+    def test_ogni_esito_diverso_da_aperto_conta_come_eseguito(self):
+        """`⌫` non e' ne' verde ne' rosso, e non deve ricadere in «mai cominciata».
+
+        E' il difetto che la prima stesura di #1249 lasciava in piedi: riparato il rosso, la
+        condizione del 🟡 enumerava ✅ 🟡 ❌ e `⌫` cadeva nel `return "⏳"` finale — «da fare» per un
+        lavoro dichiarato **rimosso dal repo**. Il test gira su tutti i glifi dichiarati invece che
+        su una lista scritta a mano: chi ne aggiunge uno a `PIE_RESULT_GLYPHS` senza pensare a
+        `session_state()` lo vede fallire qui.
+        """
+        for glifo in sorted(set(fr.PIE_RESULT_GLYPHS) - {"⏳", "✅"}):
+            self.assertEqual(self._stato(glifo, glifo), "🟡",
+                             "una seduta di sole voci %s non e' «da cominciare»" % glifo)
 
     def test_tutte_verdi_resta_verde(self):
         self.assertEqual(self._stato("✅", "✅"), "✅")
@@ -138,20 +161,53 @@ class SessionCounts(unittest.TestCase):
 
 
 class RegistroReale(unittest.TestCase):
-    """Gira sul repository, perche' la proprieta' e' «oggi le viste non mentono su questi tre»."""
+    """Gira sul repository, perche' la proprieta' e' «oggi le viste non mentono».
 
-    def test_le_voci_rosse_del_registro_sono_lette_rosse(self):
-        entries = fr.pie_entries()
-        rosse = sorted(k for k, v in entries.items() if v == "❌")
-        self.assertIn("PIE-HEX-VIZ-BLOCCHI", rosse)
-        self.assertIn("PIE-HEX-MODE-H", rosse)
-        self.assertIn("PIE-TEST-CONSOLE", rosse)
+    ⚠️ **Asserisce la REGOLA, non i valori di oggi.** La prima stesura pinnava per nome i tre rossi
+    (`BLOCCHI`, `MODE-H`, `TEST-CONSOLE`) e i tre verdi che li citano: un test cosi' diventa rosso
+    quando #1246 chiude e `BLOCCHI` passa a ✅ — cioe' **quando il progetto va bene** — e il
+    fallimento accuserebbe il parser mentre e' il dato ad essere cambiato. E' il difetto che questo
+    repository conosce come *«un DoD con numeri letterali invecchia da solo»*, applicato a un test.
 
-    def test_le_voci_che_citano_il_rosso_non_sono_rosse(self):
+    La proprieta' vera e' che per **ogni** voce lo stato coincide col primo glifo della sua cella,
+    qualunque esso sia oggi.
+    """
+
+    def _celle(self):
+        """(id, ultima cella) letti dal registro, senza passare da `pie_entries()`."""
+        celle = {}
+        with io.open(fr.PIE_REGISTRY, encoding="utf-8") as fh:
+            for line in fh:
+                if not line.startswith("| **PIE-"):
+                    continue
+                cells = [c.strip() for c in line.strip().strip("|").split("|")]
+                if len(cells) < 2:
+                    continue
+                m = re.match(r"\*\*(PIE-[A-Za-z0-9.\-]+)\*\*", cells[0])
+                if m:
+                    celle[m.group(1)] = cells[-1]
+        return celle
+
+    def test_ogni_voce_vale_il_primo_glifo_della_propria_cella(self):
         entries = fr.pie_entries()
-        self.assertEqual(entries.get("PIE-HEX-VIZ-COSTO"), "✅")
-        self.assertEqual(entries.get("PIE-HEX-VIZ-BORDI"), "✅")
-        self.assertEqual(entries.get("PIE-V01-REACTCOND"), "⏳")
+        for voce, cella in self._celle().items():
+            atteso = next((c for c in cella if c in fr.PIE_RESULT_GLYPHS), "")
+            self.assertEqual(entries.get(voce), atteso,
+                             "%s: la cella apre con %r" % (voce, atteso))
+
+    def test_nessuna_voce_e_rossa_per_via_di_una_citazione(self):
+        """Il simmetrico sul repository: una cella che CITA ❌ senza aprirci non e' rossa.
+
+        Non nomina le voci: le trova. Oggi sono tre e domani possono essere altre, ma la relazione
+        — cita il glifo, non lo dichiara — non cambia.
+        """
+        entries = fr.pie_entries()
+        citanti = [v for v, cella in self._celle().items()
+                   if "❌" in cella and not cella.lstrip().startswith("❌")]
+        self.assertTrue(citanti, "nessuna cella cita ❌: la proprieta' non e' esercitata")
+        for voce in citanti:
+            self.assertNotEqual(entries.get(voce), "❌",
+                                "%s cita ❌ nella nota ma non lo dichiara" % voce)
 
     def test_ogni_voce_ha_un_glifo(self):
         """Nessuna voce muta: una cella senza marcatore riconosciuto e' un esito che sparisce."""
