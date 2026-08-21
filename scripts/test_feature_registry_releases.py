@@ -24,7 +24,9 @@ e su una fixture sintetica non direbbe nulla. Il test 3 usa dati costruiti a man
 disallineamento che il repository non deve avere.
 """
 import os
+import re
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -352,6 +354,248 @@ class ShortlistEpicTableIsTheV01View(unittest.TestCase):
         block = fr.render_shortlist_epics(self._data())
         self.assertNotIn("Senza stato dichiarato nell'owner", block,
                          "l'avviso chiede a §2.1 righe che §2.1 non puo' avere")
+
+
+class ReleaseGatesReadTheirOwnAlphabet(unittest.TestCase):
+    """Un gate che fallisce si legge `❌`, e la nota che cita un altro glifo non lo sposta.
+
+    E' il gemello, sul reader dei gate, del difetto che #1249 ha tolto da `pie_entries()`:
+    `release_gates()` cercava lo stato con l'alfabeto di **roadmap** — che dichiara avanzamento e
+    non contiene `❌` — quindi una cella che apriva col rosso non conteneva nessun glifo
+    riconosciuto, `state` restava `""` e il gate spariva dalla tabella come `—`. Un gate di release
+    che fallisce e' esattamente l'informazione per cui quella vista esiste.
+
+    Il secondo difetto stava a valle: `"✅" in state` cercava il verde **ovunque** nella cella, e
+    la cella di stato di un gate porta note della stessa forma delle voci PIE — `🟡 …: il ✅ dello
+    Shipping manca`. La regola e' la **posizione**, come per il registro PIE.
+    """
+
+    # La forma e' quella reale di `v0.1-definition-of-done.md` §3: quattro colonne, e la cella di
+    # stato che porta glifo + data + nota. Le note citano un glifo diverso dal proprio stato perche'
+    # e' la forma NORMALE di una nota onesta in questo documento, non un caso limite.
+    FIXTURE = """## 3. Gate di release della v0.1
+
+| # | Gate | Come si verifica | Stato |
+|---|---|---|---|
+| **G1** | Determinismo: 100 ripetizioni | `Replay.Verifier.ResimulationIsDeterministic` | ❌ **2026-08-21** (#999): checksum divergente al giro 7 — il ✅ del 2026-08-16 valeva su cinque ripetizioni |
+| **G2** | Packaging Windows | `RunUAT BuildCookRun` | ✅ **2026-08-16** (#923): `BUILD SUCCESSFUL` |
+| **G3** | Partita senza editor | avvio + partita verificati | 🟡 **2026-08-10**: fino alla vittoria sul pacchetto Development; il ✅ dello Shipping manca |
+| **G4** | Suite automation completa verde | elenco test + esito | ⏳ |
+| **G5** | Nessun intento avversario replicato | `Reactions.IntentNotVisibleToEnemy` | ❌ **2026-08-21** (#999): l'intento arriva al client avversario |
+"""
+
+    def setUp(self):
+        self._original = fr.DOD_V01
+        handle, self._path = tempfile.mkstemp(suffix=".md", text=True)
+        os.close(handle)
+        with open(self._path, "w", encoding="utf-8") as out:
+            out.write(self.FIXTURE)
+        fr.DOD_V01 = self._path
+
+    def tearDown(self):
+        fr.DOD_V01 = self._original
+        os.unlink(self._path)
+
+    def _glyphs(self):
+        return {gate_id: glyph for gate_id, _req, _state, glyph in fr.release_gates()}
+
+    def test_a_failed_gate_is_read_red_and_not_empty(self):
+        # Il difetto originale: `state = ""` e la tabella stampava `—`, cioe' il gate USCIVA dal
+        # conteggio invece di comparire fallito.
+        self.assertEqual(self._glyphs()["G1"], "❌")
+
+    def test_a_failed_gate_keeps_its_state_cell(self):
+        cells = {gate_id: state for gate_id, _req, state, _glyph in fr.release_gates()}
+        self.assertTrue(cells["G1"].startswith("❌"),
+                        f"la cella di stato di G1 e' andata persa: {cells['G1']!r}")
+
+    def test_a_note_citing_green_does_not_turn_the_gate_green(self):
+        glyphs = self._glyphs()
+        self.assertEqual(glyphs["G3"], "🟡")
+        self.assertEqual(glyphs["G1"], "❌")
+
+    def test_the_green_count_is_one_not_three(self):
+        # Con la sottostringa sarebbero tre: G1, G2 e G3 contengono tutte un ✅.
+        block = fr.render_shortlist_gates(None)
+        self.assertIn("verdi: **1**", block,
+                      f"il conteggio dei verdi non e' 1:\n{block}")
+
+    def test_a_bare_red_gate_is_not_lost(self):
+        """G5 e' rosso e la sua nota **non cita nessun altro glifo**: e' il caso che spariva.
+
+        La distinzione conta, ed e' misurata sul codice di `main`: G1 e G5 sono entrambi falliti,
+        ma G1 sopravviveva alla lettura — per il `✅` che la sua nota **cita** — e finiva contato
+        *verde*, mentre G5 non conteneva nessun glifo dell'alfabeto di roadmap, quindi `state`
+        restava `""` e la riga si stampava `—`. Due gate rossi, due errori opposti, stessa tabella.
+        """
+        self.assertEqual(self._glyphs()["G5"], "❌")
+
+    def test_the_view_declares_the_failed_gates(self):
+        block = fr.render_shortlist_gates(None)
+        self.assertIn("2 ❌", block,
+                      f"i gate falliti non sono dichiarati nella riga di intestazione:\n{block}")
+
+    def test_no_gate_renders_as_a_dash(self):
+        block = fr.render_shortlist_gates(None)
+        rows = [line for line in block.splitlines() if line.startswith("| **G")]
+        self.assertEqual(len(rows), 5)
+        for row in rows:
+            self.assertFalse(row.rstrip().endswith("| — |"),
+                             f"un gate e' uscito dal conteggio invece di leggersi:\n{row}")
+
+    def test_mutation_removing_red_from_the_alphabet_breaks_the_first_test(self):
+        """Verifica di mutazione dichiarata dal DoD di #1251, eseguita qui e non a mano."""
+        original = fr.RESULT_GLYPHS
+        try:
+            fr.RESULT_GLYPHS = original.replace("❌", "")
+            self.assertNotEqual(self._glyphs().get("G1"), "❌",
+                                "l'alfabeto mutato legge ancora il rosso: il test non discrimina")
+        finally:
+            fr.RESULT_GLYPHS = original
+        self.assertEqual(self._glyphs()["G1"], "❌", "ripristino non pulito")
+
+
+class EveryGateConsumerAgrees(unittest.TestCase):
+    """Quattro lettori, **una** regola — e sul repository reale danno lo stesso numero.
+
+    🔴 Non e' un'invariante teorica: il 2026-08-21, su `main`, i quattro consumatori di
+    `release_gates()` applicavano quattro regole diverse allo stesso fatto, e due numeri
+    **pubblicati** si contraddicevano.
+
+    | consumatore | regola | verdi |
+    |---|---|---|
+    | `render_shortlist_gates` | `"✅" in state` (sottostringa) | 1 |
+    | `render_control_center_page` (Wiki) | `state == "✅"` (uguaglianza) | **0** |
+    | `docs/control-center/index.html` | `state.startsWith('✅')` | 1 |
+    | `release_gates` | alfabeto senza `❌` | — |
+
+    `milestonemap.shortlist.md` stampava «15 gate · verdi: **1**», la pagina Wiki
+    `Stato-del-progetto.md` «**0** gate di release verdi su 15»: la cella di G12 e' `✅ **2026-08-16**
+    (#923): …`, quindi non e' mai **uguale** a `"✅"`. Il glifo si calcola una volta sola e i lettori
+    lo leggono; questo test e' il gate che tiene chiusa la porta.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        # Il percorso reale, non un payload sintetico: la proprieta' e' *«le viste pubblicate
+        # concordano»*, e su dati costruiti a mano non direbbe nulla.
+        registry = fr.load_registry()
+        cls.data = fr.build_json(registry)
+        cls.graph = fr.build_graph(registry)
+
+    def setUp(self):
+        self.gates = fr.release_gates()
+        self.graph_gates = self.graph["release_gates"]
+
+    def test_the_real_definition_of_done_is_readable(self):
+        self.assertTrue(self.gates, "nessun gate letto da v0.1-definition-of-done.md §3")
+
+    def test_no_gate_lost_its_glyph(self):
+        senza = [gid for gid, _req, _state, glyph in self.gates if not glyph]
+        self.assertEqual(senza, [], f"gate senza glifo riconosciuto: {senza}")
+
+    def test_shortlist_and_wiki_publish_the_same_number(self):
+        green = sum(1 for _gid, _req, _state, glyph in self.gates if glyph == "✅")
+        shortlist = fr.render_shortlist_gates(None)
+        self.assertIn(f"verdi: **{green}**", shortlist)
+        wiki = fr.render_control_center_page(self.data, self.graph)
+        self.assertIn(f"**{green} gate di release verdi su {len(self.gates)}**", wiki,
+                      "la pagina Wiki pubblica un numero diverso dalla shortlist")
+
+    def test_the_graph_carries_the_glyph_so_no_reader_re_derives_it(self):
+        # Il JS del Control Center legge lo stesso campo invece di riapplicare una quarta regola.
+        self.assertTrue(self.graph_gates, "il grafo non porta nessun gate")
+        for entry in self.graph_gates:
+            self.assertIn("glyph", entry)
+        js = open(os.path.join(fr.REPO, "docs", "control-center", "index.html"),
+                  encoding="utf-8").read()
+        self.assertNotIn("g.state.startsWith('✅')", js,
+                         "il Control Center deriva ancora il verde per conto proprio")
+        self.assertIn("g.glyph === '✅'", js)
+
+
+class ReleaseGatesParseTheirRowHonestly(unittest.TestCase):
+    """Tre difetti del parser trovati in code review su PR #1253, verificati con una probe.
+
+    Erano **preesistenti**, ma questa PR li rendeva peggiori invece di lasciarli fermi: dichiara
+    «il glifo si calcola una volta sola», quindi da qui in poi una lettura sbagliata non resta in
+    una vista — si propaga a tutte e quattro.
+    """
+
+    # ⚠️ Raw string: la cella di G18 contiene un backslash **letterale**, come nel documento vero.
+    # Senza `r`, Python lo interpreta come sequenza di escape e la fixture smette di riprodurre il
+    # caso che il test esiste per coprire.
+    FIXTURE = r"""## 3. Gate di release della v0.1
+
+| # | Gate | Come si verifica | Stato |
+|---|---|---|---|
+| **G16** | Cella di stato vuota | vedi il ✅ di G12, stesso comando |  |
+| **G17** | Glifo fuori alfabeto | comando | ⬛ sconosciuto |
+| **G18** | Nota che cita una pipe | comando | ❌ **2026-08-21**: `grep -c 'a \| b'` trova 3 occorrenze |
+| **G19** | Verde vero | comando | ✅ **2026-08-16** (#923): `BUILD SUCCESSFUL` |
+"""
+
+    def setUp(self):
+        self._original = fr.DOD_V01
+        handle, self._path = tempfile.mkstemp(suffix=".md")
+        with os.fdopen(handle, "w", encoding="utf-8") as out:
+            out.write(self.FIXTURE)
+        self.addCleanup(os.unlink, self._path)
+        self.addCleanup(setattr, fr, "DOD_V01", self._original)
+        fr.DOD_V01 = self._path
+
+    def _gates(self):
+        return {gid: (state, glyph) for gid, _req, state, glyph in fr.release_gates()}
+
+    def test_an_empty_status_cell_is_not_green(self):
+        """G16 non ha ancora un verdetto, e veniva contato **verde**.
+
+        `cells = [c for c in cells if c]` buttava via la cella vuota, poi la scansione a ritroso
+        ripiegava sulla cella dell'**evidenza** — che cita il `✅` di G12 — e la pubblicava come se
+        fosse l'esito. La cella di stato e' l'ULTIMA: se e' vuota, l'informazione e' che manca.
+        """
+        state, glyph = self._gates()["G16"]
+        self.assertEqual(glyph, "", f"un gate senza verdetto e' letto {glyph!r}")
+        self.assertEqual(state, "", f"lo stato ha ripiegato sull'evidenza: {state!r}")
+
+    def test_an_empty_status_cell_renders_as_a_dash_not_as_the_evidence(self):
+        block = fr.render_shortlist_gates(None)
+        row = next(l for l in block.splitlines() if l.startswith("| **G16**"))
+        self.assertNotIn("vedi il ✅ di G12", row,
+                         f"la colonna Stato pubblica l'evidenza come esito:\n{row}")
+        self.assertTrue(row.rstrip().endswith("| — |"), row)
+
+    def test_an_escaped_pipe_in_the_note_does_not_truncate_the_state(self):
+        r"""Lo split sulla `|` grezza tagliava la nota a meta'.
+
+        ⚠️ Non e' un caso di laboratorio: la cella di **G9** contiene gia' `\|` dentro un comando
+        `grep`, e una nota rossa che cita un comando e' la forma normale. `\|` rende il markdown, ma
+        non cambia il carattere su cui lo split lavora.
+        """
+        state, glyph = self._gates()["G18"]
+        self.assertEqual(glyph, "❌")
+        self.assertIn("trova 3 occorrenze", state,
+                      f"la nota e' stata troncata sulla pipe escapata: {state!r}")
+
+    def test_the_rendered_row_keeps_its_three_columns(self):
+        block = fr.render_shortlist_gates(None)
+        for line in block.splitlines():
+            if not line.startswith("| **G"):
+                continue
+            # `| a | b | c |` -> cinque segmenti, coi due estremi vuoti.
+            cols = re.split(r"(?<!\\)\|", line)
+            self.assertEqual(len(cols), 5,
+                             f"riga a {len(cols) - 2} colonne dentro una tabella a 3:\n{line}")
+
+    def test_the_failed_count_is_rendered_by_the_shared_helper(self):
+        """`failed_suffix()` esiste per tenere questa resa in **un** posto, e la sua docstring lo dice.
+
+        La prima stesura di questa PR ne aveva scritta una terza copia a mano, in grassetto: gia'
+        divergente dalle sedute (`· 2 ❌` contro `· **2 ❌**`) nel commit che dichiarava di renderle
+        uguali. Il test asserisce la resa **condivisa**, non una sottostringa che le accetta entrambe.
+        """
+        block = fr.render_shortlist_gates(None)
+        self.assertIn(f"verdi: **1**{fr.failed_suffix(1)}", block, block.splitlines()[2])
 
 
 if __name__ == "__main__":

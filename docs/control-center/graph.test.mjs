@@ -201,6 +201,21 @@ test('CONTRATTO — i due artefatti hanno la forma che la pagina assume', () => 
   assert.equal(registry.count, registry.features.length);
 });
 
+test('CONTRATTO — ogni gate di release porta il glifo, che la pagina legge invece di riderivarlo', () => {
+  // 🔴 Il campo non e' decorativo. `index.html` contava i verdi con `g.state.startsWith('✅')`, che
+  // su un artefatto malformato **grida**; dal 2026-08-21 (#1251) legge `g.glyph === '✅'`, che su un
+  // artefatto stantio vale `undefined !== '✅'` e pubblica `0/15` **in silenzio**. Un checkout che
+  // precede quella PR, una cache del browser o una rigenerazione con lo script vecchio bastano.
+  // Senza questa riga se ne accorgerebbe solo `generate --check`, che gira a mano e non in CI.
+  const graph = readJson('docs/roadmap/project-graph.json');
+  assert.ok(graph.release_gates.length > 0, 'nessun gate nel grafo');
+  for (const gate of graph.release_gates) {
+    for (const key of ['id', 'request', 'state', 'glyph']) {
+      assert.ok(key in gate, `il gate ${gate.id} non dichiara ${key}`);
+    }
+  }
+});
+
 test('CONTRATTO — nessun feature_id duplicato', () => {
   const registry = readJson('docs/roadmap/feature-registry.json');
   const ids = registry.features.map((f) => f.feature_id);
