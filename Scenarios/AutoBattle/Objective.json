@@ -1,6 +1,6 @@
 {
   "scenarioId": "AutoBattle.Objective",
-  "tags": ["autobattle", "freerun", "bot", "objective", "gadget", "phase", "riktor", "wraith"],
+  "tags": ["autobattle", "freerun", "bot", "objectives", "gadget", "phase", "riktor", "wraith"],
   "version": 4,
   "seed": 0,
   "mapRadius": 5,

@@ -318,6 +318,44 @@ namespace
 	}
 
 	/**
+	 * Riversa il risultato di UNA esecuzione nell'aggregato: assertion e note col loro `[etichetta]` davanti,
+	 * il massimo dei turni, e le quattro grandezze delle decisioni di finestra (`#512`).
+	 *
+	 * 🔴 **Esiste perche' la seconda copia aveva gia' perso un campo.** Questo blocco viveva solo dentro il
+	 * ciclo delle varianti; `RunRepeated` lo ha ricopiato e ha omesso `LastScriptedResponse`, quindi uno
+	 * scenario con `repeatCount` che scripta una decisione riportava `lastScriptedResponse: ""` accanto a un
+	 * `scriptedDecisionsApplied` diverso da zero — due campi dello stesso referto che si contraddicono. Il
+	 * commento della versione originale lo diceva gia': senza queste righe il `result.json` «direbbe il falso
+	 * proprio nel file per cui i campi sono stati aggiunti». Da qui in poi c'e' un posto solo da aggiornare
+	 * quando nasce un campo nuovo.
+	 */
+	void AppendRunInto(FRTTestResult& Aggregate, const FRTTestResult& RunResult, const FString& Label)
+	{
+		for (const FRTAssertionResult& Assertion : RunResult.Assertions)
+		{
+			FRTAssertionResult Renamed = Assertion;
+			Renamed.Description = FString::Printf(TEXT("[%s] %s"), *Label, *Assertion.Description);
+			Aggregate.Assertions.Add(Renamed);
+		}
+		for (const FString& Note : RunResult.Notes)
+		{
+			Aggregate.Notes.Add(FString::Printf(TEXT("[%s] %s"), *Label, *Note));
+		}
+		Aggregate.TurnsPlayed = FMath::Max(Aggregate.TurnsPlayed, RunResult.TurnsPlayed);
+
+		Aggregate.ScriptedDecisionsApplied += RunResult.ScriptedDecisionsApplied;
+		Aggregate.ScriptedDecisionsUnused += RunResult.ScriptedDecisionsUnused;
+		if (RunResult.DecisionSource != TEXT("none"))
+		{
+			Aggregate.DecisionSource = RunResult.DecisionSource;
+		}
+		if (!RunResult.LastScriptedResponse.IsEmpty())
+		{
+			Aggregate.LastScriptedResponse = RunResult.LastScriptedResponse;
+		}
+	}
+
+	/**
 	 * `repeatCount` (CP 47.4): N esecuzioni **identiche** dello stesso scenario, confrontate fra loro.
 	 *
 	 * E' il veicolo del corpus di determinismo (E47.5) e la domanda che pone e' l'opposto di quella delle
@@ -361,23 +399,7 @@ namespace
 
 			const FRTTestResult RunResult = URTScenarioRunner::RunSingle(World, Once, /*bTearDownAfter=*/ true);
 
-			for (const FRTAssertionResult& Assertion : RunResult.Assertions)
-			{
-				FRTAssertionResult Renamed = Assertion;
-				Renamed.Description = FString::Printf(TEXT("[run %d] %s"), I + 1, *Assertion.Description);
-				Aggregate.Assertions.Add(Renamed);
-			}
-			for (const FString& Note : RunResult.Notes)
-			{
-				Aggregate.Notes.Add(FString::Printf(TEXT("[run %d] %s"), I + 1, *Note));
-			}
-			Aggregate.TurnsPlayed = FMath::Max(Aggregate.TurnsPlayed, RunResult.TurnsPlayed);
-			Aggregate.ScriptedDecisionsApplied += RunResult.ScriptedDecisionsApplied;
-			Aggregate.ScriptedDecisionsUnused += RunResult.ScriptedDecisionsUnused;
-			if (RunResult.DecisionSource != TEXT("none"))
-			{
-				Aggregate.DecisionSource = RunResult.DecisionSource;
-			}
+			AppendRunInto(Aggregate, RunResult, FString::Printf(TEXT("run %d"), I + 1));
 
 			if (RunResult.Outcome == ERTTestOutcome::Error)
 			{
@@ -535,33 +557,10 @@ FRTTestResult URTScenarioRunner::Run(UWorld* World, const FRTTestScenario& Scena
 		const FRTTestResult VariantResult = RunSingle(World, VariantScenario, /*bTearDownAfter=*/ true);
 
 		// Le assertion di tutte le varianti finiscono nel report, col nome davanti: senza, un rosso direbbe
-		// «UnitHpEquals(BAIT)» senza dire in quale delle due partite.
-		for (const FRTAssertionResult& Assertion : VariantResult.Assertions)
-		{
-			FRTAssertionResult Renamed = Assertion;
-			Renamed.Description = FString::Printf(TEXT("[%s] %s"), *Variant.Name, *Assertion.Description);
-			Aggregate.Assertions.Add(Renamed);
-		}
-		for (const FString& Note : VariantResult.Notes)
-		{
-			Aggregate.Notes.Add(FString::Printf(TEXT("[%s] %s"), *Variant.Name, *Note));
-		}
-		Aggregate.TurnsPlayed = FMath::Max(Aggregate.TurnsPlayed, VariantResult.TurnsPlayed);
-
-		// Le tre grandezze delle decisioni di finestra (#512) si SOMMANO fra le varianti, e la provenienza si
-		// propaga: senza queste righe l'aggregato uscirebbe con `"decisionSource": "none"` e i contatori a
-		// zero anche per uno scenario che ne applica due per variante — cioe' il `result.json` direbbe il
-		// falso proprio nel file per cui i campi sono stati aggiunti.
-		Aggregate.ScriptedDecisionsApplied += VariantResult.ScriptedDecisionsApplied;
-		Aggregate.ScriptedDecisionsUnused += VariantResult.ScriptedDecisionsUnused;
-		if (VariantResult.DecisionSource != TEXT("none"))
-		{
-			Aggregate.DecisionSource = VariantResult.DecisionSource;
-		}
-		if (!VariantResult.LastScriptedResponse.IsEmpty())
-		{
-			Aggregate.LastScriptedResponse = VariantResult.LastScriptedResponse;
-		}
+		// «UnitHpEquals(BAIT)» senza dire in quale delle due partite. Le quattro grandezze delle decisioni di
+		// finestra (#512) si sommano nello stesso passaggio — vedi `AppendRunInto`, che e' l'unico posto in cui
+		// vive questa aggregazione da quando la sua seconda copia ha perso un campo.
+		AppendRunInto(Aggregate, VariantResult, Variant.Name);
 
 		// Un `Error` e un `Blocked` fermano tutto: le varianti restanti direbbero la stessa cosa, e un
 		// confronto fra tracce incomplete non significa niente.

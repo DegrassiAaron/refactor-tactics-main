@@ -472,6 +472,24 @@ bool FRTScenarioKnownCapabilitiesTest::RunTest(const FString&)
 				}
 			}
 		}
+
+		// ⚠️ **E le capability dichiarate dall'INTERO scenario** (`freeRun`, CP 47.4). Sono un secondo sito di
+		// dichiarazione, e per un free-run e' l'unico: il ciclo qui sopra gira a vuoto per costruzione, perche'
+		// quei file non hanno turni. Senza queste righe l'unico modo di scoprire un refuso in un `requires` di
+		// scenario sarebbe eseguirlo — cioe' esattamente l'ordine che questo gate esiste per battere — e
+		// l'oracolo `Controllate > 0` non se ne accorgerebbe, restando verde sulle voci di turno degli altri.
+		for (const FString& Required : Scenario.Requires)
+		{
+			++Controllate;
+			if (!FRTScenarioSession::IsKnownCapability(Required))
+			{
+				AddError(FString::Printf(
+					TEXT("%s: la capability di scenario '%s' non esiste in nessuno dei due elenchi di ")
+					TEXT("`RTScenarioSession.cpp`. O e' un refuso, o e' un nome nuovo da dichiarare la' ")
+					TEXT("prima di usarlo qui."),
+					*Id, *Required));
+			}
+		}
 	}
 
 	// Il conteggio e' l'oracolo: se un domani `Requires` smettesse di essere popolato dal loader, il ciclo

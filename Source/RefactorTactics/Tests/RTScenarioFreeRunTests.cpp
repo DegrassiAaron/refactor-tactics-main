@@ -39,47 +39,40 @@ namespace
 	}
 
 	/**
-	 * Il 2v2 bot-contro-bot su cui girano questi test, con la GEOMETRIA di `HexMatch.PlaysToCompletion`:
-	 * arena di raggio 5, squadre agli angoli opposti in diagonale, dove la distanza esagonale conta davvero.
+	 * Il 2v2 bot-contro-bot su cui girano questi test: **il file versionato** `AutoBattle.OpenField`, con il
+	 * solo `maxTurns` sovrascritto.
 	 *
-	 * Riferirsi a quella configurazione invece di inventarne una non e' pigrizia: e' l'unico allestimento del
-	 * repository di cui si sappia, misurato, che la partita si decide — e un free-run che non finisse per la
-	 * geometria direbbe `Fail` parlando dell'arena invece che del free-run.
+	 * ⚠️ **Non una copia scritta in C++**, e la differenza non e' di stile: una copia dello stesso allestimento
+	 * diverge in silenzio al primo edit del file — si sposta un'unita' nel JSON e i test continuano a misurare
+	 * il vecchio, dicendo di caratterizzare lo scenario spedito. Caricarlo significa anche che ogni test qui
+	 * passa dalla stessa validazione del corpus: `LoadFromFile` chiama `Validate`, quindi un file rotto fallisce
+	 * dicendo cosa, invece di produrre un `Fail` di gioco.
+	 *
+	 * Il `maxTurns` resta un parametro perche' e' cio' che i casi limite devono poter muovere: il file dichiara
+	 * la sua guardia, il test ne dichiara un'altra per vedere cosa succede quando la si tocca. **`0` lascia
+	 * quella del file** — che e' il caso di chi vuole misurare lo scenario spedito com'e'.
 	 */
-	FRTTestScenario MakeAutobattleScenario(int32 MaxTurns)
+	bool LoadAutobattleScenario(FAutomationTestBase& Test, int32 MaxTurns, FRTTestScenario& Out)
 	{
-		FRTTestScenario S;
-		S.ScenarioId = TEXT("FreeRun.Fixture");
-		S.Version = 4;
-		S.MapRadius = 5;
-		S.bFreeRun = true;
-		S.MaxTurns = MaxTurns;
-
-		auto AddBot = [&S](const TCHAR* Id, const TCHAR* Hero, int32 Team, const FRTCellId& Cell)
+		FString ResolveError;
+		const FString Path = URTScenarioIndex::ResolvePath(TEXT("AutoBattle.OpenField"), ResolveError);
+		if (Path.IsEmpty())
 		{
-			FRTScenarioUnit U;
-			U.Id = Id;
-			U.HeroId = FName(Hero);
-			U.TeamId = Team;
-			U.Cell = Cell;
-			U.bBotControlled = true;
-			S.Units.Add(U);
-		};
+			Test.AddError(FString::Printf(TEXT("AutoBattle.OpenField non risolto: %s"), *ResolveError));
+			return false;
+		}
 
-		AddBot(TEXT("A1"), TEXT("Hero.Gadget"), 0, FRTCellId(-4, 2, 0));
-		AddBot(TEXT("A2"), TEXT("Hero.Phase"),  0, FRTCellId(-4, 3, 0));
-		AddBot(TEXT("B1"), TEXT("Hero.Riktor"), 1, FRTCellId(4, -2, 0));
-		AddBot(TEXT("B2"), TEXT("Hero.Wraith"), 1, FRTCellId(4, -3, 0));
-
-		// ⚠️ L'`expect` serve anche a un free-run, e la regola non e' stata rilassata per fargli spazio: «almeno
-		// una assertion, altrimenti lo scenario passerebbe sempre» vale identica. `MatchReachedEnd` la genera la
-		// sessione, e una regola che accettasse un file vuoto perche' «tanto una assertion arriva dopo» sposterebbe
-		// il gate dal file al runtime — cioe' lo toglierebbe a chi scrive lo scenario.
-		FRTTestExpectation Played;
-		Played.Kind = ERTAssertionKind::TurnsCompleted;
-		Played.Value = 1;
-		S.Expect.Add(Played);
-		return S;
+		FString LoadError;
+		if (!URTScenarioLoader::LoadFromFile(Path, Out, LoadError))
+		{
+			Test.AddError(FString::Printf(TEXT("AutoBattle.OpenField non si carica: %s"), *LoadError));
+			return false;
+		}
+		if (MaxTurns > 0)
+		{
+			Out.MaxTurns = MaxTurns;
+		}
+		return true;
 	}
 
 	/** L'assertion generata dal free-run, per descrizione. Nullptr se il free-run non l'ha prodotta. */
@@ -118,52 +111,11 @@ namespace
 }
 
 /**
- * Il caso nominale: quattro bot, nessun turno enumerato, e la partita arriva a una fine.
- *
- * Verifica anche che il free-run abbia giocato PIU' di un turno: uno scenario che finisse al primo darebbe
- * `Pass` senza aver dimostrato che il ciclo si ripete, ed e' il modo in cui un free-run puo' essere verde e
- * vuoto insieme.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFreeRunPlaysToMatchEndTest,
-	"RefactorTactics.Scenario.FreeRun.PlaysToMatchEnd",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTFreeRunPlaysToMatchEndTest::RunTest(const FString&)
-{
-	const FRTTestScenario Scenario = MakeAutobattleScenario(/*MaxTurns=*/ 40);
-
-	FString ValidationError;
-	if (!TestTrue(TEXT("lo scenario free-run e' valido"), URTScenarioLoader::Validate(Scenario, ValidationError)))
-	{
-		AddError(ValidationError);
-		return false;
-	}
-
-	UWorld* World = MakeFreeRunWorld();
-	if (!TestNotNull(TEXT("world"), World)) { return false; }
-	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
-	DestroyFreeRunWorld(World);
-
-	TestEqual(TEXT("esito"), Result.OutcomeString(), FString(TEXT("PASS")));
-	TestTrue(FString::Printf(TEXT("piu' di un turno giocato (ne ha giocati %d)"), Result.TurnsPlayed),
-		Result.TurnsPlayed > 1);
-	TestTrue(FString::Printf(TEXT("il tetto non e' stato raggiunto (%d < 40)"), Result.TurnsPlayed),
-		Result.TurnsPlayed < 40);
-
-	const FRTAssertionResult* Reached = FindMatchReachedEnd(Result);
-	if (!TestNotNull(TEXT("il free-run genera l'assertion MatchReachedEnd"), Reached))
-	{
-		return false;
-	}
-	TestTrue(FString::Printf(TEXT("la partita e' finita: %s"), *Reached->Actual), Reached->bPassed);
-	return true;
-}
-
-/**
  * 🔴 **Il tetto raggiunto e' un `Fail`, non un `Pass`.**
  *
- * Stesso allestimento del test qui sopra — che si decide ben oltre il secondo turno — con `maxTurns = 2`. La
- * partita e' ancora in corso quando la sessione si ferma, e l'unica risposta corretta e' rossa: una partita
- * che non finisce e' un difetto del GIOCO, ed e' il difetto che `#1088` ha misurato.
+ * Lo scenario spedito `AutoBattle.OpenField` — che si decide al decimo turno — con `maxTurns = 2`. La partita
+ * e' ancora in corso quando la sessione si ferma, e l'unica risposta corretta e' rossa: una partita che non
+ * finisce e' un difetto del GIOCO, ed e' il difetto che `#1088` ha misurato.
  *
  * ⚠️ Il `Fail` deve arrivare **dall'assertion**, non da un codice d'esito speciale: e' cio' che porta nel
  * report l'atteso e l'ottenuto, e che distingue «non e' finita» da «lo scenario e' scritto male» (`Error`).
@@ -173,7 +125,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFreeRunCapIsFailTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFreeRunCapIsFailTest::RunTest(const FString&)
 {
-	const FRTTestScenario Scenario = MakeAutobattleScenario(/*MaxTurns=*/ 2);
+	FRTTestScenario Scenario;
+	if (!LoadAutobattleScenario(*this, /*MaxTurns=*/ 2, Scenario)) { return false; }
 
 	UWorld* World = MakeFreeRunWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
@@ -209,7 +162,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFreeRunRepeatDeterminismTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFreeRunRepeatDeterminismTest::RunTest(const FString&)
 {
-	FRTTestScenario Scenario = MakeAutobattleScenario(/*MaxTurns=*/ 40);
+	FRTTestScenario Scenario;
+	if (!LoadAutobattleScenario(*this, /*MaxTurns=*/ 40, Scenario)) { return false; }
 	Scenario.RepeatCount = 2;
 
 	FString ValidationError;
@@ -278,7 +232,8 @@ bool FRTFreeRunScenarioRequiresTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: 'Objective' e' comunque un nome noto"),
 		FRTScenarioSession::IsKnownCapability(TEXT("Objective")));
 
-	FRTTestScenario Scenario = MakeAutobattleScenario(/*MaxTurns=*/ 40);
+	FRTTestScenario Scenario;
+	if (!LoadAutobattleScenario(*this, /*MaxTurns=*/ 40, Scenario)) { return false; }
 	Scenario.Requires.Add(TEXT("Objective"));
 
 	UWorld* World = MakeFreeRunWorld();
@@ -306,7 +261,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFreeRunUnknownCapabilityTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFreeRunUnknownCapabilityTest::RunTest(const FString&)
 {
-	FRTTestScenario Scenario = MakeAutobattleScenario(/*MaxTurns=*/ 40);
+	FRTTestScenario Scenario;
+	if (!LoadAutobattleScenario(*this, /*MaxTurns=*/ 40, Scenario)) { return false; }
 	Scenario.Requires.Add(TEXT("ObjectiveTypo"));
 
 	UWorld* World = MakeFreeRunWorld();
@@ -341,25 +297,35 @@ bool FRTFreeRunValidationTest::RunTest(const FString&)
 			Error.Contains(MustMention));
 	};
 
+	// Il free-run ben formato da cui partono i casi: si carica UNA volta e ogni caso ne rompe una cosa sola.
+	FRTTestScenario Valido;
+	if (!LoadAutobattleScenario(*this, /*MaxTurns=*/ 40, Valido)) { return false; }
+	auto ConTetto = [&Valido](int32 MaxTurns)
+	{
+		FRTTestScenario S = Valido;
+		S.MaxTurns = MaxTurns;
+		return S;
+	};
+
 	// Il free-run e i turni enumerati dicono due cose e ne eseguono una.
 	{
-		FRTTestScenario S = MakeAutobattleScenario(40);
+		FRTTestScenario S = ConTetto(40);
 		S.Turns.Add(FRTScenarioTurn());
 		Rejects(TEXT("freeRun con turni"), S, TEXT("freeRun con 1 turni"));
 	}
 	// Un tetto che il file non dichiara e' un tetto che nessuno rivede.
 	{
-		FRTTestScenario S = MakeAutobattleScenario(0);
+		FRTTestScenario S = ConTetto(0);
 		Rejects(TEXT("freeRun senza maxTurns"), S, TEXT("maxTurns"));
 	}
 	// Oltre il tetto del runner la guardia non e' applicabile.
 	{
-		FRTTestScenario S = MakeAutobattleScenario(URTScenarioRunner::MaxTurnsHardCap + 1);
+		FRTTestScenario S = ConTetto(URTScenarioRunner::MaxTurnsHardCap + 1);
 		Rejects(TEXT("maxTurns oltre l'hard cap"), S, TEXT("tetto del runner"));
 	}
 	// Un'unita' non-bot in free-run non ha nessuno che le scriva l'intent.
 	{
-		FRTTestScenario S = MakeAutobattleScenario(40);
+		FRTTestScenario S = ConTetto(40);
 		S.Units[0].bBotControlled = false;
 		Rejects(TEXT("free-run con un'unita' umana"), S, TEXT("non guidata dal bot"));
 	}
@@ -398,51 +364,59 @@ bool FRTFreeRunValidationTest::RunTest(const FString&)
 		Rejects(TEXT("repeatCount con variants"), S, TEXT("repeatCount e variants insieme"));
 	}
 	{
-		FRTTestScenario S = MakeAutobattleScenario(40);
+		FRTTestScenario S = ConTetto(40);
 		S.RepeatCount = 0;
 		Rejects(TEXT("repeatCount zero"), S, TEXT("almeno 1"));
 	}
 
-	// E il caso valido resta valido: un validator che rifiutasse tutto passerebbe i sette casi qui sopra.
+	// Un tetto di ripetizioni che il runner non sa applicare non e' una guardia.
+	{
+		FRTTestScenario S = ConTetto(40);
+		S.RepeatCount = URTScenarioRunner::MaxRepeatCount + 1;
+		Rejects(TEXT("repeatCount oltre il tetto"), S, TEXT("oltre il tetto del runner"));
+	}
+	// Un campo di presentazione che in free-run non puo' fare niente.
+	{
+		FRTTestScenario S = ConTetto(40);
+		S.PreviewUnit = TEXT("A1");
+		Rejects(TEXT("previewUnit con freeRun"), S, TEXT("previewUnit con freeRun"));
+	}
+
+	// E il caso valido resta valido: un validator che rifiutasse tutto passerebbe i dieci casi qui sopra.
+	//
+	// ⚠️ `Error` si legge DOPO la chiamata che lo scrive, e in una variabile: leggerlo dentro l'argomento
+	// messaggio della stessa `TestTrue` che invoca `Validate` e' indeterminatamente sequenziato — il messaggio
+	// stamperebbe una stringa vuota **proprio quando il test fallisce**, cioe' l'unica volta in cui serve.
 	{
 		FString Error;
-		const FRTTestScenario S = MakeAutobattleScenario(40);
-		TestTrue(FString::Printf(TEXT("il free-run ben formato e' accettato (%s)"), *Error),
-			URTScenarioLoader::Validate(S, Error));
+		const bool bValido = URTScenarioLoader::Validate(Valido, Error);
+		TestTrue(FString::Printf(TEXT("il free-run ben formato e' accettato (%s)"), *Error), bValido);
 	}
 	return true;
 }
 
 /**
- * Lo scenario VERSIONATO `AutoBattle.OpenField` arriva a un vincitore.
+ * Il caso NOMINALE del free-run, sullo scenario versionato: `AutoBattle.OpenField` arriva a un vincitore.
  *
  * `EveryShippedScenarioRuns` lo esegue gia', ma accetta `BLOCKED` per costruzione: non potrebbe distinguere
- * «la partita si e' decisa» da «lo scenario aspetta qualcosa». Qui la domanda e' quella, e vale la pena
- * chiederla su un file versionato invece che su un allestimento scritto nel test — e' la differenza fra
- * verificare il gioco e verificare il proprio setup.
+ * «la partita si e' decisa» da «lo scenario aspetta qualcosa». Qui la domanda e' quella.
+ *
+ * ⚠️ Verifica anche che i turni giocati siano **piu' di uno e meno del tetto**: una partita decisa al primo
+ * turno darebbe `Pass` senza aver dimostrato che il ciclo si ripete — verde e vuoto insieme — e un tetto
+ * raggiunto sarebbe il caso di `CapReachedIsFailNotPass`, che vive nel suo test.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFreeRunShippedOpenFieldTest,
 	"RefactorTactics.Scenario.FreeRun.ShippedOpenFieldReachesAWinner",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFreeRunShippedOpenFieldTest::RunTest(const FString&)
 {
-	FString ResolveError;
-	const FString Path = URTScenarioIndex::ResolvePath(TEXT("AutoBattle.OpenField"), ResolveError);
-	if (Path.IsEmpty())
-	{
-		AddError(FString::Printf(TEXT("AutoBattle.OpenField non risolto: %s"), *ResolveError));
-		return false;
-	}
-
 	FRTTestScenario Scenario;
-	FString LoadError;
-	if (!URTScenarioLoader::LoadFromFile(Path, Scenario, LoadError))
-	{
-		AddError(FString::Printf(TEXT("AutoBattle.OpenField non si carica: %s"), *LoadError));
-		return false;
-	}
+	// Il tetto del FILE, non uno del test: qui si misura lo scenario spedito com'e'.
+	if (!LoadAutobattleScenario(*this, /*MaxTurns=*/ 0, Scenario)) { return false; }
+	const int32 TettoDelFile = Scenario.MaxTurns;
 	TestTrue(TEXT("e' dichiarato free-run"), Scenario.bFreeRun);
 	TestEqual(TEXT("non enumera turni"), Scenario.Turns.Num(), 0);
+	TestTrue(TEXT("il file dichiara il proprio tetto"), TettoDelFile > 0);
 
 	UWorld* World = MakeFreeRunWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
@@ -450,6 +424,10 @@ bool FRTFreeRunShippedOpenFieldTest::RunTest(const FString&)
 	DestroyFreeRunWorld(World);
 
 	TestEqual(TEXT("esito"), Result.OutcomeString(), FString(TEXT("PASS")));
+	TestTrue(FString::Printf(TEXT("piu' di un turno giocato (ne ha giocati %d)"), Result.TurnsPlayed),
+		Result.TurnsPlayed > 1);
+	TestTrue(FString::Printf(TEXT("il tetto non e' stato raggiunto (%d < %d)"), Result.TurnsPlayed, TettoDelFile),
+		Result.TurnsPlayed < TettoDelFile);
 
 	const FRTAssertionResult* Reached = FindMatchReachedEnd(Result);
 	if (!TestNotNull(TEXT("MatchReachedEnd"), Reached)) { return false; }

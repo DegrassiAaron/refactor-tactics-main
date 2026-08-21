@@ -1065,7 +1065,11 @@ void FRTScenarioSession::BeginTurn()
 	// scenario, gia' valutati in `Start()`. Il resto del corpo — azzeramento dei piani, pianificazione dei
 	// bot, `LockInAndResolve` — resta identico, ed e' cio' che tiene **una sola** strada di esecuzione: se il
 	// free-run avesse un ciclo suo, un verde su uno scenario a turni non direbbe piu' niente sull'altro.
-	static const FRTScenarioTurn EmptyTurn;
+	//
+	// ⚠️ Locale e NON `static`: `FRTScenarioTurn` possiede tre `TArray`, e un contenitore statico di funzione
+	// esegue il proprio distruttore al teardown degli statici C++ — dopo che `FMalloc` puo' essere gia' stato
+	// smontato. Un valore sempre vuoto non guadagna niente dalla cache, e tre `TArray` vuoti non allocano.
+	const FRTScenarioTurn EmptyTurn;
 	const FRTScenarioTurn& Turn = Scenario.bFreeRun ? EmptyTurn : Scenario.Turns[TurnIndex];
 
 	// PRIMA passata: un nome che il vocabolario non conosce e' un refuso di chi ha scritto lo scenario, non
@@ -1591,7 +1595,13 @@ void FRTScenarioSession::Finish()
 	//
 	// Sta PRIMA delle `expect` dichiarate perche' e' la loro premessa: se la partita non e' finita, cio' che
 	// segue misura uno stato intermedio, e leggerlo per primo dice subito quale delle due cose e' successa.
-	if (Scenario.bFreeRun && !bBlocked)
+	//
+	// ⚠️ **E vale per gli `Error` quanto per i `Blocked`**, che `bBlocked` da solo non copre: uno scenario con
+	// un refuso nel `requires` non gioca nemmeno un turno, e un `MatchReachedEnd` rosso li' accuserebbe il
+	// GIOCO di non aver finito una partita che nessuno ha giocato. E' la stessa regola che il commento qui
+	// sopra dichiara per le `expect` — cio' che ha girato conta, cio' che non e' partito no.
+	const bool bNonHaGiocato = !ErroredBy.IsEmpty() && Result.TurnsPlayed == 0;
+	if (Scenario.bFreeRun && !bBlocked && !bNonHaGiocato)
 	{
 		const ARTTurnManager* TM = TurnManager.Get();
 		const bool bEnded = TM && TM->GetPhase() == ERTMatchPhase::MatchEnded;

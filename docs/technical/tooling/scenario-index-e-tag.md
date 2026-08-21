@@ -87,9 +87,33 @@ domanda «cosa ho già dichiarato e non ho ancora fatto».
 > Il vocabolario **vero** resta `URTScenarioIndex::ListTags`. Si rilegge senza aprire l'editor:
 >
 > ```bash
-> grep -ho '"tags": \[[^]]*\]' Scenarios/*.json Scenarios/*/*.json Scenarios/*/*/*.json \
->   | grep -o '"[a-z0-9-]*"' | grep -v '^"tags"$' | sort -u | tr -d '"'
+> python - <<'PY'
+> import json, os
+> tags = set()
+> for root, _, names in os.walk("Scenarios"):
+>     for n in (x for x in names if x.endswith(".json") and not x.startswith("_")):
+>         with open(os.path.join(root, n), encoding="utf-8-sig") as f:
+>             tags.update(json.load(f).get("tags", []))
+> print(len(tags), sorted(tags))
+> PY
 > ```
+>
+> 🔴 **Il comando qui sopra era un `grep` a tre glob, e sbagliava per difetto** *(corretto il 2026-08-21)*:
+> `grep -ho '"tags": \[[^]]*\]'` pretende la parentesi aperta e quella chiusa **sulla stessa riga**, quindi
+> perdeva ogni file con l'array dei tag formattato su più righe. Misurato: **46** contro i **48** veri, e i due
+> mancanti erano `relay` e `showcase` — cioè due dei tre che il paragrafo qui sopra cita come esempio del
+> drift. Un comando che serve a smentire una fotografia stantia non può avere un punto cieco proprio sui file
+> che l'hanno resa stantia. Interrogare il JSON **come JSON** non ha quel punto cieco.
+>
+> ⏱️ **Rimisurato il 2026-08-21 dopo CP 47.4** ([#957](https://github.com/DegrassiAaron/refactor-tactics-main/issues/957)):
+> **48** tag distinti — i quattro `AutoBattle.*` ne portano due nuovi (`autobattle`, `freerun`) e riusano gli
+> altri, `objectives` compreso, che al primo tentativo era stato scritto `objective` al singolare e sarebbe
+> stato il quarto caso di drift di questa stessa lista.
+>
+> ⚠️ **La soglia dichiarata due paragrafi più su è superata da un pezzo**: «sotto le quaranta voci è
+> sufficiente; oltre, si aggiunge un controllo contro un elenco» — e siamo a 48 senza che quel controllo
+> esista. La condizione è scattata, non è una previsione: tracciata su
+> [#1261](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1261).
 >
 > Che il conteggio sia raddoppiato senza che nessuno se ne accorgesse è la conferma della soglia dichiarata
 > sopra: sotto le quaranta voci la tendina basta a sé stessa, ma **questa riga** va rimisurata col comando

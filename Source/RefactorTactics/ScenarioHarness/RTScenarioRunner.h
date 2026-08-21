@@ -61,6 +61,26 @@ public:
 	/** Numero massimo di tick di risoluzione per turno: tetto di sicurezza, non una regola di gioco. */
 	static constexpr int32 MaxResolveTicks = 400;
 
-	/** Tetto di turni oltre il quale il runner si ferma dichiarando `Error`: uno scenario non deve poter girare all'infinito. */
+	/**
+	 * Tetto di turni che un FILE non puo' superare: uno scenario non deve poter girare all'infinito.
+	 *
+	 * 🔴 **Questo commento diceva «oltre il quale il runner si ferma dichiarando `Error`», ed era falso**:
+	 * ne' `Run` ne' `RunSingle` hanno mai letto questa costante — `git grep MaxTurnsHardCap -- Source` dava un
+	 * solo risultato, la sua stessa dichiarazione. Il consumatore esiste da `#957` ed e'
+	 * `URTScenarioLoader::Validate`, che rifiuta un `maxTurns` piu' grande: e' un tetto sul FORMATO, non un
+	 * comportamento del runner. La differenza conta per chi costruisce uno scenario **in memoria** senza
+	 * passare dal loader — i test lo fanno — perche' li' nessuno lo applica.
+	 */
 	static constexpr int32 MaxTurnsHardCap = 100;
+
+	/**
+	 * Quante volte al massimo un file puo' chiedere di rigiocare lo stesso scenario (`repeatCount`).
+	 *
+	 * Stessa natura di `MaxTurnsHardCap` e stessa ragione: senza, `"repeatCount": 100000` passerebbe la
+	 * validazione e farebbe girare centomila partite complete dentro `EveryShippedScenarioRuns` — un blocco
+	 * senza diagnostica, in un harness il cui principio dichiarato e' che un test appeso non deve somigliare a
+	 * un test lento. Cento ripetizioni sono gia' due ordini di grandezza oltre il corpus di determinismo, che
+	 * ne usa due.
+	 */
+	static constexpr int32 MaxRepeatCount = 100;
 };

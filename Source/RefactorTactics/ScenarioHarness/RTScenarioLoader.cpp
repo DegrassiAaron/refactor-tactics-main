@@ -1107,12 +1107,45 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 
 	// Free-run (CP 47.4). Nessun default silenzioso su `maxTurns`: la sua assenza resta 0 e `Validate` la
 	// rifiuta con un motivo, invece di far girare la partita sotto un tetto che il file non dichiara.
-	Root->TryGetBoolField(TEXT("freeRun"), OutScenario.bFreeRun);
-	Root->TryGetNumberField(TEXT("maxTurns"), OutScenario.MaxTurns);
-	Root->TryGetNumberField(TEXT("repeatCount"), OutScenario.RepeatCount);
+	//
+	// 🔴 **Ogni chiave si legge in DUE tempi — «c'e'?» e «e' del tipo giusto?» — e la seconda domanda e' quella
+	// che conta.** Un `TryGet*` da solo restituisce `false` sia per una chiave assente sia per una chiave del
+	// tipo sbagliato, e le due cose qui hanno esiti opposti: `"requires": "Objective"` (stringa invece di
+	// array) lascerebbe `Requires` vuoto, e `AutoBattle.Objective` — che senza quel blocco gioca fino
+	// all'eliminazione — uscirebbe **`Pass` in 10 turni** dichiarando di misurare l'obiettivo. E' il verde
+	// falso che questa chiave esiste per impedire, prodotto da un refuso di battitura.
+	//
+	// Stessa disciplina che `turns`, `decisions` e `intents` applicano gia' ai propri oggetti: le chiavi
+	// sconosciute sono un errore, e un tipo sbagliato non e' un'assenza.
+	auto LeggiCampoTipizzato = [&Root, &OutError](const TCHAR* Key, auto&& Reader, const TCHAR* Expected) -> bool
+	{
+		if (!Root->HasField(Key))
+		{
+			return true;
+		}
+		if (!Reader())
+		{
+			OutError = FString::Printf(TEXT("%s: il valore dev'essere %s"), Key, Expected);
+			return false;
+		}
+		return true;
+	};
+
+	if (!LeggiCampoTipizzato(TEXT("freeRun"),
+		[&] { return Root->TryGetBoolField(TEXT("freeRun"), OutScenario.bFreeRun); },
+		TEXT("un booleano"))) { return false; }
+	if (!LeggiCampoTipizzato(TEXT("maxTurns"),
+		[&] { return Root->TryGetNumberField(TEXT("maxTurns"), OutScenario.MaxTurns); },
+		TEXT("un intero"))) { return false; }
+	if (!LeggiCampoTipizzato(TEXT("repeatCount"),
+		[&] { return Root->TryGetNumberField(TEXT("repeatCount"), OutScenario.RepeatCount); },
+		TEXT("un intero"))) { return false; }
 
 	const TArray<TSharedPtr<FJsonValue>>* RequiresJson = nullptr;
-	if (Root->TryGetArrayField(TEXT("requires"), RequiresJson))
+	if (!LeggiCampoTipizzato(TEXT("requires"),
+		[&] { return Root->TryGetArrayField(TEXT("requires"), RequiresJson); },
+		TEXT("un array di nomi di capability"))) { return false; }
+	if (RequiresJson)
 	{
 		for (const TSharedPtr<FJsonValue>& Value : *RequiresJson)
 		{
@@ -1124,6 +1157,21 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 			}
 			OutScenario.Requires.Add(Capability);
 		}
+	}
+
+	// 🔴 **E il formato deve DICHIARARE la versione che le ammette**, come `decisions` con la `2` e le risposte
+	// di profilo con la `3`. Il bump di `SupportedVersion` guarda nel verso «build vecchia, file nuovo»; questo
+	// controllo guarda nell'altro — un file che usa la semantica della v4 dichiarandosi v1 mentirebbe a ogni
+	// lettore e a ogni strumento, e su una build vecchia verrebbe letto come uno scenario con `turns` vuoto,
+	// cioe' verde senza aver giocato.
+	const bool bUsaChiaviV4 = OutScenario.bFreeRun || OutScenario.MaxTurns != 0
+		|| OutScenario.RepeatCount != 1 || OutScenario.Requires.Num() > 0;
+	if (bUsaChiaviV4 && OutScenario.Version < 4)
+	{
+		OutError = FString::Printf(
+			TEXT("'freeRun'/'maxTurns'/'repeatCount'/'requires' richiedono \"version\": 4 (dichiarata: %d)"),
+			OutScenario.Version);
+		return false;
 	}
 
 	return Validate(OutScenario, OutError);
@@ -1609,6 +1657,16 @@ namespace
 			OutError = FString::Printf(TEXT("repeatCount dev'essere almeno 1 (era %d)"), Scenario.RepeatCount);
 			return false;
 		}
+		// E un tetto anche di sopra, per la stessa ragione per cui `maxTurns` ne ha uno: centomila ripetizioni
+		// passerebbero la validazione e bloccherebbero il corpus senza una diagnostica.
+		if (Scenario.RepeatCount > URTScenarioRunner::MaxRepeatCount)
+		{
+			OutError = FString::Printf(
+				TEXT("repeatCount %d oltre il tetto del runner (%d): un corpus di determinismo si misura con ")
+				TEXT("poche ripetizioni, non con una suite che non finisce"),
+				Scenario.RepeatCount, URTScenarioRunner::MaxRepeatCount);
+			return false;
+		}
 		if (Scenario.RepeatCount > 1 && Scenario.Variants.Num() > 0)
 		{
 			OutError = TEXT("repeatCount e variants insieme: le varianti cambiano un ingresso, repeatCount non ")
@@ -1659,6 +1717,17 @@ namespace
 			OutError = FString::Printf(
 				TEXT("maxTurns %d oltre il tetto del runner (%d): un tetto che il runner non sa applicare non ")
 				TEXT("e' una guardia"), Scenario.MaxTurns, URTScenarioRunner::MaxTurnsHardCap);
+			return false;
+		}
+
+		// `previewUnit` e' inerte in free-run e va rifiutata invece di ignorata: `ApplyPreviewSelection` scrive
+		// il piano d'attacco del **turno 1** per farne comparire l'anteprima, e un free-run non ha un turno 1 da
+		// cui leggerlo. Accettarla darebbe un campo che c'e' e non fa niente, e l'unico segnale sarebbe
+		// l'ASSENZA dell'anteprima — indistinguibile da un'anteprima che non funziona.
+		if (!Scenario.PreviewUnit.IsEmpty())
+		{
+			OutError = TEXT("previewUnit con freeRun: l'anteprima si costruisce dal piano del primo turno, e un ")
+				TEXT("free-run non ne dichiara nessuno");
 			return false;
 		}
 
