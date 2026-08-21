@@ -486,14 +486,19 @@ sessions:
       squadra col bot»), ed e' proprio per questo che appartiene a U6 e non qui.
 
       ⚠️ **Le voci nuove — `PIE-V01-BOARD`, `PIE-V01-PACKAGED` — non sono state aperte, e restano da
-      scrivere — l'atto e' #1242.** *(Fino al 2026-08-20 `docs/technical/test-manuali-pie.md` stava nel
+      scrivere — l'atto e' #1262.** *(Fino al 2026-08-20 `docs/technical/test-manuali-pie.md` stava nel
       `writable` della track `playtest` e non lo si poteva toccare da qui; con `D-178` il write-set di
       batch e' stato rimosso e non c'e' piu' un owner da attendere.)*
-      🔴 L'attribuzione sbagliata e' stata ereditata dal corpo di E46, che porta lo stesso errore, ed e'
-      stata trovata in code review. Cambia la conseguenza pratica: **`playtest` e' IDLE**, quindi il
-      blocco non e' un'attesa su una sessione viva ma una **riallocazione da dichiarare** — che e' una
-      cosa che si puo' fare oggi, non domani. Le due voci si aprono col prossimo batch, insieme alle sei
-      `PIE-V01-FRONTEND-*` che E46 ha lasciato nella stessa condizione.
+      🔴 L'attribuzione della TRACK e' stata ereditata dal corpo di E46, che porta lo stesso errore, ed
+      e' stata trovata in code review. Cambiava la conseguenza pratica: **`playtest` era IDLE**, quindi il
+      blocco non era un'attesa su una sessione viva ma una **riallocazione da dichiarare**. ⛔ Questione
+      chiusa da `D-178`: non c'e' piu' ne' la track ne' il batch in cui riallocare.
+      🔴 **E l'atto era #1242, che non le copre: corretto il 2026-08-21.** E' un secondo errore di
+      attribuzione, indipendente dal primo. Quella issue ha per criterio
+      `grep -c "PIE-V01-FRONTEND" ... = 6` e dichiara fuori scope «le altre voci PIE mancanti», quindi le
+      due voci di E47 erano **orfane** invece che rinviate. Sembrava sufficiente perche' le sei
+      `PIE-V01-FRONTEND-*` di E46 stavano nella stessa condizione e avevano davvero un atto: la
+      somiglianza fra i due casi ha nascosto che solo uno dei due fosse coperto. Ora lo sono entrambi.
 
       ⚠️ ID assegnato prima del merge: `U23`, con `U22` come ultimo su `main` e su tutti i branch remoti
       misurati il 2026-08-16 (`git show origin/<branch>:docs/roadmap/editor-sessions.yaml`). Chi arriva
