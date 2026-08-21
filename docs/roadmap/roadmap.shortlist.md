@@ -38,12 +38,13 @@ Legenda: ✅ chiusa · 🟡 parziale · ⏳ non iniziata · `—` nessuno stato 
 | **E19** | 🟡 | 1 | 5/8 | Due buchi misurati: la mappa non dichiara la propria **classe**, il formato non dichiara le **unità per squadra** |
 | **E20** | 🟡 | 1 | 1/7 | Le icone come **catalogo semantico**, non texture nei widget: va fatto *mentre* E11 costruisce l'HUD |
 | **E21** | 🟡 | 2 | 1/12 | Il gioco smette di essere cilindri colorati — mesh, animazioni, anelli team/selezione |
+| **E23** | — | 5 | 0/41 | — |
 | **E46** | 🟡 | 5 | 5/27 | — |
 | **E47** | — | 2 | 3/15 | — |
 
-**23 epic** · stato da [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 · gate dal Feature Registry.
+**24 epic** · stato da [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1 · gate dal Feature Registry.
 
-> ⚠️ **Senza stato dichiarato nell'owner**: **E47**. §2.1 non le copre — non è una svista di questa vista, è una riga che manca là.
+> ⚠️ **Senza stato dichiarato nell'owner**: **E23**, **E47**. §2.1 non le copre — non è una svista di questa vista, è una riga che manca là.
 
 <!-- RT_SHORTLIST_EPICS:END -->
 
@@ -90,7 +91,6 @@ giorno**: [#962](https://github.com/DegrassiAaron/refactor-tactics-main/issues/9
 | Step | Rel. | Issue | Feature | In una riga |
 |---|:--:|---|--:|---|
 | **E22** Cover Window: OPEN → FIRE → SEAL · P1 | v0.2 | `#323` | — | La copertura diventa una finestra temporale, non uno stato fisso |
-| **E23** Muri, porte e interaction graph · P1 | v0.2 | `#324` | 5 | Il grafo di interazione generalizza il bordo commutabile di E9 |
 | **E24** Formato Standard 3v3 · P1 | v0.2 | `#325` | — | La baseline competitiva dichiarata (4v4 resta stress test) |
 | **E25** Icon Language completo · P2 | v0.2 | `#265` | — | Estensione di E20 all'intero HUD |
 | **E26** Tactical Bot v1 · P1 | v0.2 | `#326` | 1 | Il bot usa conoscenza parziale e reazioni |
@@ -114,7 +114,9 @@ giorno**: [#962](https://github.com/DegrassiAaron/refactor-tactics-main/issues/9
 | **E44** Feature freeze, e ciò che regge · P0 | v0.9 | `#777` | — | — |
 | **E45** Un gate di produzione, non una release di feature · P0 | v1.0 | `#778` | — | — |
 
-**24 epic** su 9 release (v0.2 · v0.3 · v0.4 · v0.5 · v0.6 · v0.7 · v0.8 · v0.9 · v1.0) · release, titolo e issue da [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) · Feature dal Feature Registry.
+**23 epic** su 9 release (v0.2 · v0.3 · v0.4 · v0.5 · v0.6 · v0.7 · v0.8 · v0.9 · v1.0) · release, titolo e issue da [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) · Feature dal Feature Registry.
+
+> ⚠️ **Con una sezione ma senza release**: **E23**. La tabella «Le release» non le assegna, e la posizione del testo non e' un'assegnazione: la decisione manca nell'owner, non qui.
 
 > ⚠️ **Epic non ancora aperte**: 7 feature post-v0.1 (v0.2 **5** · v0.3 **2**) hanno `roadmap.epic` nullo; **20** la dichiarano. Un campo nullo qui non e' piu' un limite dello schema — dal 2026-08-13 le epic post-v0.1 sono scrivibili — quindi significa **l'epic non e' ancora aperta**, e la motivazione va nelle `notes` della feature. Le contraddizioni fra release della feature e release della sua epic sono diagnosticate dalla §2.2 di [`roadmap-v0.1.md`](roadmap-v0.1.md), che ha una tabella apposta.
 

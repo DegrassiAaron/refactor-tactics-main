@@ -4,7 +4,7 @@
 <text x="22" y="66" fill="#8b949e" font-size="11">epic nella figura</text>
 <text x="274" y="48" fill="#e6edf3" font-size="26" font-weight="700">85</text>
 <text x="274" y="66" fill="#8b949e" font-size="11">dipendenze fra epic</text>
-<text x="526" y="48" fill="#e6edf3" font-size="26" font-weight="700">70</text>
+<text x="526" y="48" fill="#e6edf3" font-size="26" font-weight="700">68</text>
 <text x="526" y="66" fill="#8b949e" font-size="11">attraversano corsia o release</text>
 <text x="778" y="48" fill="#e6edf3" font-size="26" font-weight="700">67/101</text>
 <text x="778" y="66" fill="#8b949e" font-size="11">checkpoint chiusi</text>
@@ -37,11 +37,11 @@
 <line x1="1108" y1="130" x2="1108" y2="1417" stroke="#30363d" stroke-width="1"/>
 <line x1="22" y1="124" x2="1260" y2="124" stroke="#30363d" stroke-width="1"/>
 <text x="22" y="148" fill="#e6edf3" font-size="16" font-weight="700">v0.1</text>
-<text x="22" y="166" fill="#8b949e" font-size="10">22 epic</text>
+<text x="22" y="166" fill="#8b949e" font-size="10">23 epic</text>
 <text x="22" y="180" fill="#8b949e" font-size="10">67/101 CP</text>
 <line x1="22" y1="493" x2="1260" y2="493" stroke="#30363d" stroke-width="1"/>
 <text x="22" y="517" fill="#e6edf3" font-size="16" font-weight="700">v0.2</text>
-<text x="22" y="535" fill="#8b949e" font-size="10">6 epic</text>
+<text x="22" y="535" fill="#8b949e" font-size="10">5 epic</text>
 <text x="22" y="549" fill="#8b949e" font-size="10">0/0 CP</text>
 <line x1="22" y1="728" x2="1260" y2="728" stroke="#30363d" stroke-width="1"/>
 <text x="22" y="752" fill="#e6edf3" font-size="16" font-weight="700">v0.3</text>
@@ -74,13 +74,13 @@
 <path d="M 1181.0 198.0 C 1181.0 570.7, 1181.0 943.3, 1181.0 1316.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 1114.0 169.0 C 962.0 169.0, 962.0 236.0, 810.0 236.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 1114.0 169.0 C 816.0 169.0, 816.0 437.0, 518.0 437.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
-<path d="M 1114.0 169.0 C 743.0 169.0, 743.0 303.0, 372.0 303.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 1114.0 169.0 C 743.0 169.0, 743.0 370.0, 372.0 370.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 956.0 169.0 C 1035.0 169.0, 1035.0 236.0, 1114.0 236.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <path d="M 956.0 169.0 C 992.0 169.0, 932.0 303.0, 968.0 303.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <path d="M 889.0 198.0 C 889.0 245.7, 889.0 293.3, 889.0 341.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <path d="M 1035.0 198.0 C 1035.0 222.0, 1035.0 183.0, 1035.0 207.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <path d="M 968.0 169.0 C 889.0 169.0, 889.0 169.0, 810.0 169.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
-<path d="M 968.0 169.0 C 670.0 169.0, 670.0 538.0, 372.0 538.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 968.0 169.0 C 670.0 169.0, 670.0 303.0, 372.0 303.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <path d="M 226.0 169.0 C 670.0 169.0, 670.0 169.0, 1114.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 226.0 169.0 C 597.0 169.0, 597.0 169.0, 968.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 226.0 169.0 C 305.0 169.0, 305.0 169.0, 384.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
@@ -107,16 +107,16 @@
 <path d="M 372.0 236.0 C 408.0 236.0, 348.0 169.0, 384.0 169.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 372.0 236.0 C 743.0 236.0, 743.0 236.0, 1114.0 236.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 305.0 265.0 C 305.0 306.7, 305.0 98.3, 305.0 140.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
-<path d="M 305.0 265.0 C 305.0 346.3, 305.0 427.7, 305.0 509.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 305.0 265.0 C 305.0 289.0, 305.0 250.0, 305.0 274.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 238.0 236.0 C 202.0 236.0, 262.0 773.0, 226.0 773.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 238.0 236.0 C 202.0 236.0, 262.0 941.0, 226.0 941.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 372.0 236.0 C 408.0 236.0, 348.0 303.0, 384.0 303.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 372.0 236.0 C 597.0 236.0, 597.0 370.0, 822.0 370.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 372.0 236.0 C 408.0 236.0, 348.0 370.0, 384.0 370.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
-<path d="M 305.0 265.0 C 305.0 289.0, 305.0 250.0, 305.0 274.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 305.0 265.0 C 305.0 290.3, 305.0 315.7, 305.0 341.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
+<path d="M 305.0 265.0 C 305.0 312.7, 305.0 360.3, 305.0 408.0" fill="none" stroke="#3fb950" stroke-width="1.6" opacity="0.55"/>
 <path d="M 1035.0 265.0 C 1035.0 306.7, 1035.0 98.3, 1035.0 140.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
-<path d="M 968.0 236.0 C 670.0 236.0, 670.0 538.0, 372.0 538.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 968.0 236.0 C 670.0 236.0, 670.0 303.0, 372.0 303.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <path d="M 1181.0 567.0 C 1181.0 648.3, 1181.0 729.7, 1181.0 811.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <path d="M 1181.0 567.0 C 1181.0 816.7, 1181.0 1066.3, 1181.0 1316.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <path d="M 1181.0 802.0 C 1181.0 826.0, 1181.0 787.0, 1181.0 811.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
@@ -144,14 +144,14 @@
 <path d="M 743.0 265.0 C 743.0 480.7, 743.0 696.3, 743.0 912.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <path d="M 676.0 236.0 C 597.0 236.0, 597.0 303.0, 518.0 303.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <path d="M 676.0 236.0 C 597.0 236.0, 597.0 437.0, 518.0 437.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
-<path d="M 372.0 303.0 C 408.0 303.0, 348.0 538.0, 384.0 538.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
-<path d="M 372.0 303.0 C 408.0 303.0, 348.0 303.0, 384.0 303.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
-<path d="M 372.0 303.0 C 597.0 303.0, 597.0 370.0, 822.0 370.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
-<path d="M 372.0 370.0 C 597.0 370.0, 597.0 169.0, 822.0 169.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
-<path d="M 305.0 399.0 C 305.0 485.3, 305.0 53.7, 305.0 140.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
-<path d="M 372.0 370.0 C 524.0 370.0, 524.0 169.0, 676.0 169.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
-<path d="M 305.0 399.0 C 305.0 435.7, 305.0 472.3, 305.0 509.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 372.0 370.0 C 408.0 370.0, 348.0 538.0, 384.0 538.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 372.0 370.0 C 408.0 370.0, 348.0 303.0, 384.0 303.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <path d="M 372.0 370.0 C 597.0 370.0, 597.0 370.0, 822.0 370.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 372.0 437.0 C 597.0 437.0, 597.0 169.0, 822.0 169.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 305.0 466.0 C 305.0 574.7, 305.0 31.3, 305.0 140.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 372.0 437.0 C 524.0 437.0, 524.0 169.0, 676.0 169.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 305.0 466.0 C 305.0 530.0, 305.0 210.0, 305.0 274.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
+<path d="M 372.0 437.0 C 597.0 437.0, 597.0 370.0, 822.0 370.0" fill="none" stroke="#3fb950" stroke-width="0.7" opacity="0.2"/>
 <rect x="92" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#f85149" stroke-width="1.5"/>
 <text x="100" y="158" fill="#e6edf3" font-size="14" font-weight="700">E12<tspan fill="#8b949e" font-weight="400" font-size="11"> P0 +2</tspan></text>
 <text x="218" y="158" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#26</tspan><tspan fill="#3fb950" font-weight="700"> →9</tspan></text>
@@ -183,25 +183,25 @@
 <text x="246" y="257" fill="#8b949e" font-size="10">7/8 CP</text>
 <rect x="292" y="251" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="292" y="251" width="63" height="4" rx="2" fill="#e6edf3"/>
-<rect x="238" y="274" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
-<text x="246" y="292" fill="#e6edf3" font-size="14" font-weight="700">E8<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
-<text x="364" y="292" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#22</tspan><tspan fill="#3fb950" font-weight="400"> →3</tspan></text>
-<text x="246" y="308" fill="#e6edf3" font-size="11">Terreni, stati e amb…</text>
-<text x="246" y="324" fill="#8b949e" font-size="10">5/5 CP</text>
-<rect x="292" y="318" width="72" height="4" rx="2" fill="#30363d"/>
-<rect x="292" y="318" width="72" height="4" rx="2" fill="#e6edf3"/>
-<rect x="238" y="341" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#58a6ff" stroke-width="1.5"/>
-<text x="246" y="359" fill="#e6edf3" font-size="14" font-weight="700">E9<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
-<text x="364" y="359" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#23</tspan><tspan fill="#3fb950" font-weight="400"> →5</tspan></text>
-<text x="246" y="375" fill="#e6edf3" font-size="11">Coperture e strutture</text>
+<rect x="238" y="274" width="134" height="58" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
+<text x="246" y="292" fill="#e6edf3" font-size="14" font-weight="700">E23<tspan fill="#8b949e" font-weight="400" font-size="11"> P1 +1</tspan></text>
+<text x="364" y="292" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#324</tspan></text>
+<text x="246" y="308" fill="#e6edf3" font-size="11">Muri, porte e intera…</text>
+<text x="246" y="324" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="238" y="341" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#db6d28" stroke-width="1.5"/>
+<text x="246" y="359" fill="#e6edf3" font-size="14" font-weight="700">E8<tspan fill="#8b949e" font-weight="400" font-size="11"> P1</tspan></text>
+<text x="364" y="359" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#22</tspan><tspan fill="#3fb950" font-weight="400"> →3</tspan></text>
+<text x="246" y="375" fill="#e6edf3" font-size="11">Terreni, stati e amb…</text>
 <text x="246" y="391" fill="#8b949e" font-size="10">5/5 CP</text>
 <rect x="292" y="385" width="72" height="4" rx="2" fill="#30363d"/>
 <rect x="292" y="385" width="72" height="4" rx="2" fill="#e6edf3"/>
-<rect x="238" y="509" width="134" height="58" rx="6" fill="#161b22" stroke="#db6d28" stroke-width="1.5"/>
-<text x="246" y="527" fill="#e6edf3" font-size="14" font-weight="700">E23<tspan fill="#8b949e" font-weight="400" font-size="11"> P1 +1</tspan></text>
-<text x="364" y="527" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#324</tspan></text>
-<text x="246" y="543" fill="#e6edf3" font-size="11">Muri, porte e intera…</text>
-<text x="246" y="559" fill="#8b949e" font-size="10">0/0 CP</text>
+<rect x="238" y="408" width="134" height="58" rx="6" fill="#1f6f3f" stroke="#58a6ff" stroke-width="1.5"/>
+<text x="246" y="426" fill="#e6edf3" font-size="14" font-weight="700">E9<tspan fill="#8b949e" font-weight="400" font-size="11"> P2</tspan></text>
+<text x="364" y="426" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#23</tspan><tspan fill="#3fb950" font-weight="400"> →5</tspan></text>
+<text x="246" y="442" fill="#e6edf3" font-size="11">Coperture e strutture</text>
+<text x="246" y="458" fill="#8b949e" font-size="10">5/5 CP</text>
+<rect x="292" y="452" width="72" height="4" rx="2" fill="#30363d"/>
+<rect x="292" y="452" width="72" height="4" rx="2" fill="#e6edf3"/>
 <rect x="384" y="140" width="134" height="58" rx="6" fill="#8a6d1f" stroke="#58a6ff" stroke-width="1.5"/>
 <text x="392" y="158" fill="#e6edf3" font-size="14" font-weight="700">E14<tspan fill="#8b949e" font-weight="400" font-size="11"> P2 +1</tspan></text>
 <text x="510" y="158" font-size="10" text-anchor="end"><tspan fill="#8b949e" font-weight="400">#152</tspan><tspan fill="#3fb950" font-weight="400"> →1</tspan></text>
