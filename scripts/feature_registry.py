@@ -1033,8 +1033,12 @@ def render_control_center_page(data, graph):
         "",
         "## Quanto manca alla v0.1",
         "",
+        # ⚠️ La riga diceva «un gate `na` esce dal denominatore»: e' la regola dei gate delle
+        # **feature** (`gates_applicable`), e i gate di release non hanno un `na` — il denominatore
+        # e' `len(gates)`, sempre. La pagina dichiarava un filtro che il proprio numero non applica.
         f"**{green} gate di release verdi su {len(gates)}**. Il progresso si legge `N/M`, mai in",
-        "percentuale: un gate `na` esce dal denominatore invece di gonfiare la frazione.",
+        "percentuale. Il denominatore sono **tutti** i gate dichiarati da §3: un gate di release non",
+        "ha uno stato «non applicabile», quindi nessuno esce dalla frazione.",
         "",
         "| Gate | Cosa chiede | Stato |",
         "|---|---|:--:|",
@@ -2397,18 +2401,22 @@ def release_gates():
     gates = []
     for row in re.findall(r"^\| \*\*(G\d+)\*\* \|(.+)$", text, re.M):
         gate_id, rest = row
-        cells = [c.strip() for c in rest.split("|")]
-        # `| id | richiesta | evidenza | stato |` — l'ultima cella piena e' lo stato.
-        cells = [c for c in cells if c]
+        # ⛔ Non `rest.split("|")`. Una cella puo' contenere una pipe **escapata**, e la cella di
+        # G9 lo fa gia': `grep -c '^\| \*\*PIE-...'`. Lo split grezzo tagliava la nota a meta' —
+        # `\|` rende il markdown, ma non cambia il carattere su cui lo split lavora.
+        parts = re.split(r"(?<!\\)\|", rest)
+        if parts and not parts[-1].strip():
+            parts.pop()                     # la pipe che chiude la riga, non una cella
+        cells = [c.strip() for c in parts]
         request = cells[0] if cells else ""
-        state = ""
-        # ⚠️ `RESULT_GLYPHS` e non `STATUS_GLYPHS`: un gate DICHIARA UN ESITO, e un esito puo'
-        # essere rosso. Con l'alfabeto di roadmap una cella che apriva con `❌` senza citare altri
-        # glifi non conteneva niente di riconosciuto, e il gate spariva dalla vista come `—`.
-        for cell in reversed(cells):
-            if any(g in cell for g in RESULT_GLYPHS):
-                state = cell
-                break
+        # ⛔ Non «l'ultima cella *piena*», e non una scansione a ritroso. `| id | richiesta |
+        # evidenza | stato |`: lo stato e' l'ULTIMA cella, anche quando e' **vuota**. Scartare le
+        # vuote faceva ripiegare la lettura sulla cella dell'evidenza, che cita i glifi di altri
+        # gate: un gate senza verdetto veniva letto ✅ e pubblicato verde in tutte e quattro le
+        # viste, con il testo dell'evidenza al posto dell'esito. Trovato in code review su PR #1253.
+        # Una cella di stato vuota e' un'informazione — «questo gate non ha ancora un verdetto» —
+        # e va resa visibile, non sostituita con la prima cosa che le somiglia.
+        state = cells[-1] if len(cells) > 1 else ""
         gates.append((gate_id, request, state, result_glyph(state)))
     return gates
 
@@ -2811,9 +2819,11 @@ def render_shortlist_gates(_data):
     # I falliti si dichiarano accanto ai verdi, come le sedute dal 2026-08-21 (#1249): `verdi: 1`
     # da solo dice «ne restano quattordici da fare», e per un gate rosso e' falso — e' stato
     # verificato ed e' andato male. Sono due fatti diversi e la riga li tiene distinti.
-    head = f"**{len(gates)} gate** · verdi: **{green}**"
-    if failed:
-        head += f" · **{failed} ❌**"
+    #
+    # ⛔ La RESA passa da `failed_suffix()`, che esiste per tenerla in un posto solo. La prima
+    # stesura di questa funzione ne scriveva a mano una terza copia, in grassetto: gia' divergente
+    # dalle sedute (`· 2 ❌` contro `· **2 ❌**`) nel commit che dichiarava di renderle uguali.
+    head = f"**{len(gates)} gate** · verdi: **{green}**{failed_suffix(failed)}"
     lines = [
         head + ". Stato letto da "
         f"[`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3.",

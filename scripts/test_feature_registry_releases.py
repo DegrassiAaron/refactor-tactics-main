@@ -24,6 +24,7 @@ e su una fixture sintetica non direbbe nulla. Il test 3 usa dati costruiti a man
 disallineamento che il repository non deve avere.
 """
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -511,6 +512,90 @@ class EveryGateConsumerAgrees(unittest.TestCase):
         self.assertNotIn("g.state.startsWith('✅')", js,
                          "il Control Center deriva ancora il verde per conto proprio")
         self.assertIn("g.glyph === '✅'", js)
+
+
+class ReleaseGatesParseTheirRowHonestly(unittest.TestCase):
+    """Tre difetti del parser trovati in code review su PR #1253, verificati con una probe.
+
+    Erano **preesistenti**, ma questa PR li rendeva peggiori invece di lasciarli fermi: dichiara
+    «il glifo si calcola una volta sola», quindi da qui in poi una lettura sbagliata non resta in
+    una vista — si propaga a tutte e quattro.
+    """
+
+    # ⚠️ Raw string: la cella di G18 contiene un backslash **letterale**, come nel documento vero.
+    # Senza `r`, Python lo interpreta come sequenza di escape e la fixture smette di riprodurre il
+    # caso che il test esiste per coprire.
+    FIXTURE = r"""## 3. Gate di release della v0.1
+
+| # | Gate | Come si verifica | Stato |
+|---|---|---|---|
+| **G16** | Cella di stato vuota | vedi il ✅ di G12, stesso comando |  |
+| **G17** | Glifo fuori alfabeto | comando | ⬛ sconosciuto |
+| **G18** | Nota che cita una pipe | comando | ❌ **2026-08-21**: `grep -c 'a \| b'` trova 3 occorrenze |
+| **G19** | Verde vero | comando | ✅ **2026-08-16** (#923): `BUILD SUCCESSFUL` |
+"""
+
+    def setUp(self):
+        self._original = fr.DOD_V01
+        handle, self._path = tempfile.mkstemp(suffix=".md")
+        with os.fdopen(handle, "w", encoding="utf-8") as out:
+            out.write(self.FIXTURE)
+        self.addCleanup(os.unlink, self._path)
+        self.addCleanup(setattr, fr, "DOD_V01", self._original)
+        fr.DOD_V01 = self._path
+
+    def _gates(self):
+        return {gid: (state, glyph) for gid, _req, state, glyph in fr.release_gates()}
+
+    def test_an_empty_status_cell_is_not_green(self):
+        """G16 non ha ancora un verdetto, e veniva contato **verde**.
+
+        `cells = [c for c in cells if c]` buttava via la cella vuota, poi la scansione a ritroso
+        ripiegava sulla cella dell'**evidenza** — che cita il `✅` di G12 — e la pubblicava come se
+        fosse l'esito. La cella di stato e' l'ULTIMA: se e' vuota, l'informazione e' che manca.
+        """
+        state, glyph = self._gates()["G16"]
+        self.assertEqual(glyph, "", f"un gate senza verdetto e' letto {glyph!r}")
+        self.assertEqual(state, "", f"lo stato ha ripiegato sull'evidenza: {state!r}")
+
+    def test_an_empty_status_cell_renders_as_a_dash_not_as_the_evidence(self):
+        block = fr.render_shortlist_gates(None)
+        row = next(l for l in block.splitlines() if l.startswith("| **G16**"))
+        self.assertNotIn("vedi il ✅ di G12", row,
+                         f"la colonna Stato pubblica l'evidenza come esito:\n{row}")
+        self.assertTrue(row.rstrip().endswith("| — |"), row)
+
+    def test_an_escaped_pipe_in_the_note_does_not_truncate_the_state(self):
+        r"""Lo split sulla `|` grezza tagliava la nota a meta'.
+
+        ⚠️ Non e' un caso di laboratorio: la cella di **G9** contiene gia' `\|` dentro un comando
+        `grep`, e una nota rossa che cita un comando e' la forma normale. `\|` rende il markdown, ma
+        non cambia il carattere su cui lo split lavora.
+        """
+        state, glyph = self._gates()["G18"]
+        self.assertEqual(glyph, "❌")
+        self.assertIn("trova 3 occorrenze", state,
+                      f"la nota e' stata troncata sulla pipe escapata: {state!r}")
+
+    def test_the_rendered_row_keeps_its_three_columns(self):
+        block = fr.render_shortlist_gates(None)
+        for line in block.splitlines():
+            if not line.startswith("| **G"):
+                continue
+            # `| a | b | c |` -> cinque segmenti, coi due estremi vuoti.
+            cols = re.split(r"(?<!\\)\|", line)
+            self.assertEqual(len(cols), 5,
+                             f"riga a {len(cols) - 2} colonne dentro una tabella a 3:\n{line}")
+
+    def test_the_failed_count_is_rendered_by_the_shared_helper(self):
+        """`failed_suffix()` esiste per tenere questa resa in **un** posto, e la sua docstring lo dice.
+
+        La prima stesura di questa PR ne aveva scritta una terza copia a mano, in grassetto: gia'
+        divergente dalle sedute (`· 2 ❌` contro `· **2 ❌**`) nel commit che dichiarava di renderle
+        uguali. Il test asserisce la resa **condivisa**, non una sottostringa che le accetta entrambe.
+        """
+        block = fr.render_shortlist_gates(None)
+        self.assertIn(f"verdi: **1**{fr.failed_suffix(1)}", block, block.splitlines()[2])
 
 
 if __name__ == "__main__":
