@@ -22,13 +22,6 @@ Uso:
     python scripts/check-docs-links.py             # dalla radice del repo
     python scripts/check-docs-links.py --known     # elenca il debito dichiarato e la sua ragione
 
-⛔ **Questo gate si ferma al repository, e il clone della Wiki e' fuori** (D-180, 2026-08-21). Dal
-2026-08-10 (D-076) le pagine di gioco vivono in un repository separato che `git ls-files` non
-elenca: fino al 2026-08-21 `--wiki-root` estendeva il controllo a quell'area, e da qui in poi no.
-Il costo e' dichiarato e non scoperto dopo — la copertura persa e' quella che aveva trovato **11
-percorsi morti su 12 pagine** dopo lo split di `080d2e98`. Non riproporre l'opzione senza riaprire
-D-180: ricomparirebbe come «piccola aggiunta» la stessa superficie che e' stata tolta di proposito.
-
 Piu' una quinta, che non riguarda i link ma vive qui perche' questo e' l'unico gate che **legge** i
 documenti: i **marker di conflitto git** rimasti dentro un file. Vedi `CONFLITTO_RE` per il perche' sta
 in questo script e per quale dei tre marker e' deliberatamente escluso.
@@ -47,8 +40,25 @@ Cosa NON controlla, deliberatamente:
     positivo. Meglio stretto e creduto che largo e ignorato;
   - gli **URL esterni**: richiederebbero rete, quindi un gate non deterministico;
   - i file **non tracciati**: si controlla cio' che e' nel repository, non la propria copia di lavoro.
-    E' anche cio' che rende sensato il controllo #3 (vedi `NON_VERSIONATO`).
+    E' anche cio' che rende sensato il controllo #3 (vedi `NON_VERSIONATO`);
+  - ⛔ **il clone della Wiki**, da **D-180** (2026-08-21). Dal 2026-08-10 (D-076) le pagine di gioco
+    vivono in un repository separato che `git ls-files` non elenca, e fino al 2026-08-20 `--wiki-root`
+    estendeva il gate a quell'area. Non ci arriva piu'. Escono **quattro** regole, non una:
+
+      * i `[[Nome|slug]]` risolti **per nome** e non per percorso;
+      * i **nomi di pagina globalmente unici** — due pagine omonime si contendono lo stesso URL
+        `/wiki/<stem>`. ⚠️ Ci si appoggiava `wiki_page_by_name()` in `feature_registry.py`, che
+        sceglie la prima in ordine alfabetico: una collisione manda il blocco `RT_FEATURE_STATUS`
+        sulla pagina sbagliata, e adesso **nessuno la segnala**;
+      * le **immagini** risolte dalla radice del clone, perche' l'URL di una pagina Wiki e' piatto;
+      * le **fonti normative** citate in backtick — la regola nata il 2026-08-20 dopo che lo split
+        `080d2e98` aveva lasciato **11 percorsi morti su 12 pagine**.
+
+    Sul clone resta il solo `check-docs-naming.py --check --wiki-root <clone>`, che guarda i **nomi**
+    dei file e non i link. Non riproporre `--wiki-root` qui senza riaprire D-180: ricomparirebbe come
+    «piccola aggiunta» la superficie che e' stata tolta di proposito.
 """
+import argparse
 import os
 import re
 import subprocess
@@ -187,7 +197,7 @@ def label_resolves(label, base):
     return os.path.exists(os.path.normpath(os.path.join(root, label)))
 
 
-def main():
+def main(args):
     tracked = tracked_files()
     if not tracked:
         print("ERRORE: git non elenca file — percorso sbagliato?", file=sys.stderr)
@@ -249,7 +259,7 @@ def main():
                 if not label_resolves(lab.split("#")[0], base):
                     etichette.append((src, riga, lab, target))
 
-    if "--known" in sys.argv:
+    if args.known:
         print(f"Debito dichiarato ({len(DEBITO_NOTO)}):")
         for f, why in DEBITO_NOTO.items():
             print(f"    {f}\n        {why}\n        link rotti tollerati ora: {debito_visto[f]}")
@@ -323,18 +333,38 @@ def _parents(path):
         d = os.path.dirname(d)
 
 
+def _parse_args():
+    """Gli argomenti passano da `argparse`, e non da `"--x" in sys.argv`.
+
+    ⛔ **Un argomento sconosciuto deve costare un errore, non essere ignorato.** La lettura a mano
+    guardava le stringhe che conosceva e lasciava cadere tutto il resto, quindi `--wikiroot /clone`
+    — un refuso di una riga — eseguiva la scansione del solo repository e stampava un verdetto
+    normale: chi l'aveva scritto credeva di aver controllato anche il clone. E' la stessa forma di
+    difetto che questo gate esiste per trovare, applicata a se stesso.
+
+    Trovato in code review su PR #1256, che ha anche misurato la contraddizione peggiore: il
+    comando registrato come **prova** di D-180 era `check-docs-links.py --check`, e `--check` non
+    e' mai esistito su questo script. Funzionava perche' veniva buttato via. `parse_args()` lo
+    rifiuta, e i gate fratelli — `check-docs-naming.py`, `docs_inventory.py` — lo fanno gia'.
+    """
+    ap = argparse.ArgumentParser(
+        prog="check-docs-links.py",
+        description="Gate anti-deriva sui link dei documenti versionati. Senza argomenti esegue "
+                    "il controllo ed esce 1 se qualcosa e' rotto.")
+    ap.add_argument("--known", action="store_true",
+                    help="elenca il debito dichiarato e la sua ragione")
+    # `--wiki-root` non e' un argomento: e' un messaggio d'errore. Registrarlo qui invece di
+    # lasciarlo cadere fra gli sconosciuti serve a dire **perche'** e' sparito, a chi rilancia il
+    # comando documentato fino al 2026-08-20 — vedi D-180.
+    ap.add_argument("--wiki-root", metavar="PATH", help=argparse.SUPPRESS)
+    args = ap.parse_args()
+    if args.wiki_root is not None:
+        ap.error("--wiki-root non esiste piu': dal 2026-08-21 (D-180) questo gate si ferma al "
+                 "repository. Sul clone della Wiki resta il solo "
+                 "`check-docs-naming.py --check --wiki-root`; i link, i nomi duplicati e le fonti "
+                 "normative non li controlla piu' nessuno.")
+    return args
 
 
 if __name__ == "__main__":
-    # ⛔ `--wiki-root` e' stato RIMOSSO (D-180, 2026-08-21) e qui viene rifiutato invece che
-    # ignorato. Un argomento sconosciuto che `argv` non guarda produrrebbe un verde: chi rilancia
-    # il comando documentato fino a ieri crederebbe di aver controllato il clone. Un gate che
-    # smette di controllare qualcosa restando verde e' il modo peggiore di perdere copertura —
-    # e questa riga esiste perche' la perdita di copertura, qui, e' deliberata e va detta.
-    _rimossa = [a for a in sys.argv[1:] if a == "--wiki-root" or a.startswith("--wiki-root=")]
-    if _rimossa:
-        print("--wiki-root non esiste piu': dal 2026-08-21 (D-180) questo gate si ferma al",
-              "repository e il clone della Wiki non e' piu' controllato da nessuno.",
-              file=sys.stderr)
-        sys.exit(2)
-    sys.exit(main())
+    sys.exit(main(_parse_args()))

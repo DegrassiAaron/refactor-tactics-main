@@ -1406,9 +1406,17 @@ def wiki_page_by_name(wiki_root, page_name):
     ordine in CPython non e' stabile fra run diversi. Finche' D-076 non e' atterrata questa funzione
     serviva solo a un controllo booleano di esistenza e il percorso restituito veniva scartato; ora
     decide **in quale file** scrivere il blocco di stato e come classificare una riga del workbook.
-    Con due pagine omonime — che `check-docs-links.py --wiki-root` segnala come errore, perche' si
-    contendono lo stesso URL — un ordine casuale farebbe scrivere in un file diverso a run diverse,
-    senza che nulla lo dica. E' la stessa regola che il progetto applica a `TMap`/`TSet` in C++.
+    Con due pagine omonime — che si contendono lo stesso URL `/wiki/<stem>` — un ordine casuale
+    farebbe scrivere in un file diverso a run diverse, senza che nulla lo dica. E' la stessa regola
+    che il progetto applica a `TMap`/`TSet` in C++.
+
+    🔴 **E l'ordine e' tutto cio' che resta.** Questa riga diceva *«due pagine omonime, che
+    `check-docs-links.py --wiki-root` segnala come errore»*, e dal 2026-08-21 (**D-180**) quel gate
+    non esiste piu': la rilevazione dei nomi duplicati nel clone era sua, ed era l'unica. L'ordine
+    stabile rende la scelta **riproducibile**, non **giusta** — con una collisione questa funzione
+    prende la prima in ordine alfabetico e ci scrive dentro il blocco `RT_FEATURE_STATUS`, lasciando
+    l'altra pagina indietro. Nessun gate lo dira'. Chi vede un blocco di stato sulla pagina sbagliata
+    cerchi qui, e non un difetto del deploy.
     """
     for rel in sorted(wiki_pages(wiki_root)):
         if os.path.splitext(os.path.basename(rel))[0] == page_name:
