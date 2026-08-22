@@ -497,8 +497,12 @@ sessions:
       domanda. `PIE-HEXPLAY-10` invece la dichiara nella propria precondizione («almeno un'unita' per
       squadra col bot»), ed e' proprio per questo che appartiene a U6 e non qui.
 
-      ⚠️ **Le voci nuove — `PIE-V01-BOARD`, `PIE-V01-PACKAGED` — non sono state aperte, e restano da
-      scrivere — l'atto e' #1262.** *(Fino al 2026-08-20 `docs/technical/test-manuali-pie.md` stava nel
+      ✅ **Le voci `PIE-V01-BOARD` e `PIE-V01-PACKAGED` ESISTONO dal 2026-08-22** (#1262), entrambe ⏳.
+      Restano fuori da `verifies:` perche' nessuna delle due e' eseguibile oggi: la prima aspetta il
+      canale forma (#956), la seconda e' bloccata da #1088 e #1069. Scrivere una voce non la esegue.
+      *(Il testo qui sotto e' la storia di come sono arrivate, e si tiene per la provenienza.)*
+      ⚠️ **Le voci nuove — `PIE-V01-BOARD`, `PIE-V01-PACKAGED` — non erano state aperte, e restavano da
+      scrivere — l'atto e' stato #1262.** *(Fino al 2026-08-20 `docs/technical/test-manuali-pie.md` stava nel
       `writable` della track `playtest` e non lo si poteva toccare da qui; con `D-178` il write-set di
       batch e' stato rimosso e non c'e' piu' un owner da attendere.)*
       🔴 L'attribuzione della TRACK e' stata ereditata dal corpo di E46, che portava lo stesso errore — oggi corretto anche li' —, ed
