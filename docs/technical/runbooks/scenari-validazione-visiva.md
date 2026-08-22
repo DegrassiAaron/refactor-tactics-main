@@ -82,8 +82,11 @@ test sul layout: copiarle in un JSON creerebbe una seconda geometria che nessuno
 
 ### `RelayLite` — l'arena di servizio (raggio 5, 91 celle, simmetrica)
 
-È la tavolozza giusta per quasi tutta la fascia A: contiene ogni superficie, in coppie speculari `(q,r)` /
-`(-q,-r)`, su spazio abbondante.
+È la tavolozza giusta per quasi tutta la fascia A: coppie speculari `(q,r)` / `(-q,-r)`, su spazio
+abbondante. ⚠️ **Non contiene però *ogni* superficie**, come questa riga ha dichiarato fino al
+2026-08-22 — la tabella qui sotto lo smentiva già da sola: manca **`HighGround`**, che sta solo in
+`RelayBasin`. È la ragione per cui la grammatica visiva di `CP 47.3` si giudica là e non qui
+([#1267](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1267)).
 
 | Superficie | Celle |
 |---|---|
@@ -99,7 +102,13 @@ un movimento che non deve incontrare nulla.
 
 ### `RelayBasin` — la showcase (45 celle, righe `r=-3..3`)
 
-Serve quando l'elemento da guardare è **di bordo**, e sta solo qui:
+Serve quando l'elemento da guardare è **di bordo** — e, dal 2026-08-22, anche quando è la **grammatica
+visiva delle superfici**: è l'unica fixture con tutte e quattro quelle che `D-183` chiede di
+distinguere per forma, `Conductive · Ice · Smoke · HighGround`. ⛔ Per vederla in partita non basta
+scriverla nell'asset: serve `rt.Map.Source = LevelAsset`, altrimenti il GameMode la sostituisce con
+l'arena di prova all'avvio.
+
+Qui sta solo:
 
 - **copertura bassa** sul lato nord di `(0,0)`;
 - **porta chiusa** sul bordo `(0,1)` → `(1,1)`;
