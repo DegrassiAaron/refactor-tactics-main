@@ -364,7 +364,14 @@ bool FRTShowcaseLiteDeterminismTest::RunTest(const FString&)
 namespace
 {
 	/** Le celle non-`Floor` del Relay Basin. Ogni cella compare UNA volta sola: e' la verifica di coerenza
-	 *  richiesta dall'handoff §7, e qui e' una proprieta' del tipo, non un controllo da ricordare. */
+	 *  richiesta dall'handoff §7, e qui e' una proprieta' del tipo, non un controllo da ricordare.
+	 *
+	 *  ⚠️ **NOVE di queste celle hanno un secondo committente, e non e' lo showcase**: le due `Smoke`, le
+	 *  due `Conductive`, le due `HighGround` e le tre `Ice` sono le quattro superfici che `D-146`/`D-183`
+	 *  chiedono di rendere distinguibili per FORMA (CP 47.3, #956), ed erano l'unica ragione per cui questa
+	 *  e' la sola fixture su cui quella verifica si puo' eseguire — `MakeTestArena` nomina il solo `Rough`
+	 *  e `MakeArenaV01` solo `Floor` e `Rough` (#1267). Toglierne una da qui non rompe soltanto lo scenario
+	 *  degli otto turni: lascia `PIE-V01-BOARD` senza un caso da guardare, e nessun test lo direbbe. */
 	TArray<FRTShowcaseExpectedSurface> BasinExpectedSurfaces()
 	{
 		return {
