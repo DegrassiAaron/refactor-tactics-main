@@ -112,7 +112,7 @@ public:
 	// meccanismo giusto: `FCustomVersionRegistry`, come in `Map/RTHexMapCustomVersion.h`, che ha gia' il suo
 	// test a due binari da imitare. Un numero di versione da solo non protegge niente.
 
-	/** Numero massimo di round. Valore corrente del 2v2 v0.1; banda 10-14, cap 14-16 (spec §6). */
+	/** Numero massimo di round. Valore iniziale del 2v2 v0.1; banda 10-14, cap 14-16 (spec §6). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
 	int32 RoundLimit = 12;
 

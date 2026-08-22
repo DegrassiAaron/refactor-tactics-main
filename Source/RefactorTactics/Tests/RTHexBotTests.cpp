@@ -284,7 +284,9 @@ bool FRTHexBotElevationInvariantTest::RunTest(const FString&)
 	//
 	// ⚠️ **Il CDO non e' l'ultima parola.** `ARTGameMode` riusa un `ARTTurnManager` gia' presente nel livello
 	// invece di spawnarlo, quindi un'istanza piazzata in un `.umap` con `WElevation` modificato in editor
-	// sopravvive al cambio di default C++ e questo test non la vedrebbe. Copre quel caso `PIE-BOT-WEIGHTS`.
+	// sopravvive al cambio di default C++ e questo test non la vedrebbe. ⏳ **Nessuna voce PIE lo copre**:
+	// va aperta, e verificarlo richiede l'editor — i `.umap` sono pacchetti compressi e un grep non prova
+	// nulla. Finche' non esiste, questo e' un buco dichiarato e non presidiato.
 	const FRTHexBotContext Defaults;
 	TestEqual(TEXT("le due sorgenti di WElevation coincidono"),
 		GetDefault<ARTTurnManager>()->WElevation, Defaults.WElevation);
