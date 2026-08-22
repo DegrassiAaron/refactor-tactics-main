@@ -1648,4 +1648,147 @@ bool FRTAutobattleSameSeedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #1088 — LA MAPPA NON E' LA CAUSA: sulla sorgente che il giocatore ottiene, i bot ingaggiano al turno 2.
+ *
+ * Nato come riproduttore dello stallo, **e' diventato la sua confutazione** — ed e' il suo valore. #1088
+ * elencava tre cause candidate, «nessuna misurata»: la linea di tiro interrotta dalla geometria, il pathing
+ * che non trova una cella da cui sparare, i pesi dell'utility. Questo test le esclude tutte e tre.
+ *
+ * La differenza con `Match.Autobattle.PlaysToCompletionWithoutInput` e' UNA riga, ed e' il criterio 3 di
+ * #1088: quel test allestisce la board con `SpawnAutobattleMap`, un esagono **liscio** costruito nel test.
+ * Qui la mappa arriva da `MapSource = GeneratedTestArena`, cioe' da `ARTGameMode::ApplyMapSource` — 65
+ * celle con tre ostacoli, una fascia `Rough` e **il muro di cinque celle che blocca la vista su `q=0`**,
+ * che e' l'unica differenza geometrica fra le due arene.
+ *
+ * **Misurato il 2026-08-22, ed e' il numero che sposta l'indagine**: `primo Combat al turno 2 · 19 voci
+ * Combat · 49 Move · 12 turni`. Con il muro, con lo spawn del GameMode, con la stessa sorgente di mappa:
+ * i bot **ingaggiano**. Quindi lo stallo di #1088 non e' spiegato dalla board.
+ *
+ * ⛔ **Dove NON cercare piu', e perche'.** La geometria blocca davvero la linea di tiro — riprodotto:
+ * le unita' si fermano a distanza 3 e la linea fra loro attraversa il muro — ma non basta: l'attacco vale
+ * solo dalla cella in cui il bot si trova nel Blast (il `Move` risolve DOPO), e il movimento rapido
+ * lineare offre comunque celle da cui sparare. L'aritmetica dei pesi le premia. Il bot le usa.
+ *
+ * 🔴 **Dove cercare invece.** Questo test istanzia `ARTGameMode`, la classe C++. La partita usa
+ * **`BP_GameMode`**, che serializza due proprieta' che il C++ non ha: `MapSource = GeneratedTestArena` e
+ * `MatchFormat = /Game/RT/Maps/Dev/L_DevSandbox/Data/DA_Format_Rotto` — un asset **non versionato e
+ * assente da questo clone**, cioe' un puntatore rotto. E' esattamente cio' che #1069 descrive. Un difetto
+ * che vive in un `.uasset` non e' riproducibile da un test C++ che quel `.uasset` non carica: e' la
+ * ragione per cui #1088 e' aperta da giorni con tre ipotesi e nessuna misura.
+ *
+ * ⚠️ Il test resta **verde** e va tenuto: e' la regressione che impedisce di tornare a incolpare la mappa,
+ * e il suo `AddInfo` stampa il turno del primo colpo — se un domani superasse i 12 round del formato, il
+ * giocatore vedrebbe un pareggio senza che nessuna asserzione cambi. Per questo il turno e' asserito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleEngagesOnShippedMapSourceTest,
+	"RefactorTactics.Match.Autobattle.EngagesOnTheShippedMapSource",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	FRTScopedAutobattleCVars CVarGuard;
+	FRTScopedAutobattleCommandLine CmdGuard;
+	CVarGuard.SetMode(-1);
+	CmdGuard.Clear();
+
+	// La mappa NON si costruisce qui: si lascia che sia il GameMode a produrla dalla propria sorgente, che
+	// e' il punto del test. L'actor entra vuoto, `ApplyMapSource` gli assegna `MakeTestArena`.
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("GameMode"), GameMode) || !TestNotNull(TEXT("TurnManager"), TM)
+		|| !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// I due Warning che l'allestimento emette sono la scelta dichiarata, non un difetto — e vanno attesi
+	// PRIMA che l'azione li produca: registrati dopo, il framework li conta come non avvenuti.
+	AddExpectedError(TEXT("MapSource=GeneratedTestArena"), EAutomationExpectedErrorFlags::Contains, 1);
+	AddExpectedError(TEXT("AUTOBATTLE"), EAutomationExpectedErrorFlags::Contains, 1);
+
+	GameMode->MapSource = ERTMapSource::GeneratedTestArena;
+	GameMode->bAutobattle = true;
+	GameMode->SetupHexMatch(HexMap);
+
+	// La board deve essere quella con il muro, o il test misurerebbe un'altra partita.
+	if (!TestNotNull(TEXT("il GameMode ha prodotto una mappa"), HexMap->MapAsset.Get()))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	int32 SightBlockers = 0;
+	for (const FRTHexCellData& Cell : HexMap->MapAsset->Cells)
+	{
+		if (Cell.bBlocksLineOfSight) { ++SightBlockers; }
+	}
+	TestEqual(TEXT("la board e' l'arena di prova: cinque celle bloccano la vista"), SightBlockers, 5);
+
+	for (ARTUnit* Unit : CollectAutobattleUnits(World))
+	{
+		if (!Unit->HasActorBegunPlay()) { Unit->DispatchBeginPlay(); }
+	}
+	if (!TestEqual(TEXT("nessuna unita' aspetta una mano umana"), CountAutobattleHumanUnits(World), 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Tetto di sicurezza, non una regola: serve a fallire invece di girare all'infinito.
+	const int32 MaxTurns = 40;
+	int32 TurnsPlayed = 0;
+	int32 CombatEntries = 0;
+	int32 MoveEntries = 0;
+	int32 FirstCombatTurn = 0;   // il turno del PRIMO colpo: se cade oltre il RoundLimit reale, in partita non si vede mai
+
+	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && TurnsPlayed < MaxTurns)
+	{
+		TM->PlanBotsForTest();
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+		++TurnsPlayed;
+
+		for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+		{
+			if (Entry.Category == ERTLogCategory::Combat)
+			{
+				++CombatEntries;
+				if (FirstCombatTurn == 0) { FirstCombatTurn = TurnsPlayed; }
+			}
+			if (Entry.Category == ERTLogCategory::Move)   { ++MoveEntries; }
+		}
+	}
+
+	// Il movimento c'e' anche nello stallo — le unita' si avvicinano e poi si fermano. E' la meta' che NON
+	// distingue una partita viva da una bloccata, e si misura per rendere leggibile il fallimento.
+	TestTrue(TEXT("i bot si muovono"), MoveEntries > 0);
+
+	// 🔴 L'ASSERZIONE CHE OGGI FALLISCE, ed e' il difetto: su questa sorgente di mappa i bot non ingaggiano
+	// mai. Misurato il 2026-08-17: dodici round, ZERO `Combat`, pareggio allo scadere.
+	TestTrue(FString::Printf(
+		TEXT("su MapSource=GeneratedTestArena i bot ingaggiano: %d voci Combat in %d turni (attese > 0)"),
+		CombatEntries, TurnsPlayed), CombatEntries > 0);
+
+	// E il DoD di E47.1 chiede una conclusione per eliminazione, non per esaurimento dei round.
+	TestTrue(FString::Printf(TEXT("la partita si decide entro il tetto: %d turni giocati"), TurnsPlayed),
+		TM->GetPhase() == ERTMatchPhase::MatchEnded);
+
+	// 🔴 IL NUMERO CHE CONTA: in partita il formato chiude a 12 round. Se il primo colpo cade dopo, il
+	// giocatore vede solo il pareggio di #1088 — e questo test, che ha un tetto piu' alto, non lo mostrerebbe.
+	AddInfo(FString::Printf(TEXT("primo Combat al turno %d · %d voci Combat · %d Move · %d turni totali"),
+		FirstCombatTurn, CombatEntries, MoveEntries, TurnsPlayed));
+	TestTrue(FString::Printf(TEXT("il primo colpo arriva entro i 12 round del formato: turno %d"), FirstCombatTurn),
+		FirstCombatTurn > 0 && FirstCombatTurn <= 12);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
