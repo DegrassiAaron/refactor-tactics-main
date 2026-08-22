@@ -1644,11 +1644,11 @@ con una configurazione, lasciando il default dov'è.
 > ⛔ Da **D-182** (2026-08-21) non c'è più nemmeno quel gate, e la lacuna si è allargata dagli ID di voce
 > PIE a **ogni** link — quindi la stessa citazione oggi non la vedrebbe comunque nessuno.*
 >
-> ✅ **Il blocco che teneva chiuse le due voci è caduto il 2026-08-20, e questa nota lo dichiarava ancora.**
-> Fino a `D-178` il file era nel `writable` della track `playtest` e le due voci si aprivano «con una
-> riallocazione dichiarata» per [D-139](../decisions/RT_PDR_00_Decision_Log.md). Oggi `D-139` è ritirata per
-> intero, `parallel-batch.yaml` non esiste più e non c'è nessun owner da attendere: **le due voci si
-> scrivono**. La seduta [U23](editor-sessions.yaml) è già stata corretta e lo registra.
+> ✅ *Il blocco che le teneva chiuse era caduto il 2026-08-20, e questa nota lo dichiarava ancora: fino a
+> `D-178` il file stava nel `writable` della track `playtest` e le due voci si aprivano «con una
+> riallocazione dichiarata» per [D-139](../decisions/RT_PDR_00_Decision_Log.md). `D-139` è ritirata per
+> intero e `parallel-batch.yaml` non esiste più — **non c'era più nessun owner da attendere, e infatti il
+> 2026-08-22 sono state scritte**. La seduta [U23](editor-sessions.yaml) lo registra.*
 > 🔴 **E l'atto che U23 nominava — [#1242](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1242)
 > — non le copriva**: il suo criterio conta le sole `PIE-V01-FRONTEND-*` e dichiara fuori scope «le altre
 > voci PIE mancanti». `PIE-V01-BOARD` e `PIE-V01-PACKAGED` erano quindi **orfane**, non rinviate. Corretto il
