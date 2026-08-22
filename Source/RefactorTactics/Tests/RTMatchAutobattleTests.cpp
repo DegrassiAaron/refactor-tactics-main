@@ -1755,6 +1755,7 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	TMap<int32, int32> StillStreak;       // turni consecutivi senza muoversi
 	int32 LongestStillStreak = 0;
 	int32 SampledUnits = 0;               // unita' DISTINTE campionate: se collassano, l'oracolo e' vacuo
+	const int32 InitialRosterSize = CollectAutobattleUnits(World).Num();   // prima che qualcuno cada
 
 	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && TurnsPlayed < MaxTurns)
 	{
@@ -1773,15 +1774,26 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 		// l'assegna, quindi una regressione nell'ordine di allestimento farebbe collassare le quattro unita'
 		// su una chiave sola. Le celle si sovrascriverebbero a vicenda, nessuna sequenza crescerebbe, e
 		// l'oracolo di #1088 passerebbe verde su un campo interamente parcheggiato.
+		// ⚠️ **Un turno in cui si combatte non conta come parcheggio.** Restare fermi per sparare e' condotta
+		// tattica legittima — un duello a distanza in cui gli HP calano ogni turno e' una partita che
+		// AVANZA — e senza questa distinzione l'oracolo andrebbe rosso proprio sul comportamento che il bot
+		// dovrebbe avere. Lo stato assorbente di #1088 e' l'immobilita' STERILE, non l'immobilita'.
+		bool bCombatThisTurn = false;
+		for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+		{
+			if (Entry.Category == ERTLogCategory::Combat) { bCombatThisTurn = true; break; }
+		}
+
 		TSet<int32> SeenIds;
 		for (const ARTUnit* Unit : CollectAutobattleUnits(World))
 		{
-			SeenIds.Add(Unit->StableUnitId);
 			if (!Unit->IsAlive()) { continue; }
+			SeenIds.Add(Unit->StableUnitId);   // dopo il filtro: la guardia deve misurare la stessa popolazione
 			const int32 Id = Unit->StableUnitId;
 			int32& Streak = StillStreak.FindOrAdd(Id);
 			const FRTCellId* Last = LastCell.Find(Id);
-			Streak = (Last != nullptr && *Last == Unit->Cell) ? Streak + 1 : 0;
+			const bool bStill = (Last != nullptr && *Last == Unit->Cell) && !bCombatThisTurn;
+			Streak = bStill ? Streak + 1 : 0;
 			LongestStillStreak = FMath::Max(LongestStillStreak, Streak);
 			LastCell.Add(Id, Unit->Cell);
 		}
@@ -1845,13 +1857,22 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	// distingue una partita che avanza da una in orbita — a distinguerle e' se qualcuno smette di muoversi.
 	//
 	// Misurato: col bonus di quota assoluto, Riktor saliva sulla piattaforma al turno 3 e restava sulla
-	// stessa cella fino al 12, cioe' **dieci turni consecutivi**. La soglia e' generosa di proposito —
-	// restare fermi per sparare e' legittimo, restare fermi mezza partita no.
+	// stessa cella fino al 12, cioe' **dieci turni consecutivi**.
+	//
+	// ⚠️ **LIMITE DICHIARATO: questo oracolo vede i punti fissi, non i cicli.** Un'unita' che oscillasse
+	// fra due celle si muoverebbe ogni turno, la sequenza resterebbe a zero, e la partita potrebbe
+	// pareggiare lo stesso — e' uno stato assorbente di periodo 2, altrettanto sterile e invisibile qui.
+	// Il ciclo misurato in #1088 aveva periodo 3 sui Blast ma le POSIZIONI erano ferme, quindi questo
+	// oracolo lo coglie; un difetto futuro con posizioni oscillanti no.
 	// ⚠️ **La soglia si deriva dal formato, come quella del primo colpo.** Era il letterale `5`, in un test
 	// che trenta righe sotto argomenta che i letterali invecchiano: con un `RoundLimit` corto — il ripiego ne
 	// ha portato 5 fino al 2026-08-10 — la sequenza piu' lunga possibile e' `TurnsPlayed - 1` e l'asserzione
 	// diventa vera per costruzione, cioe' l'oracolo di #1088 passa senza misurare nulla.
-	const int32 MaxLegitimateStillTurns = FMath::Max(2, FormatRoundLimit / 3);
+	// ⚠️ Una costante sola per entrambe le soglie: erano due espressioni identiche a trentasette righe di
+	// distanza, ciascuna col proprio commento che la diceva «la soglia sorella». Ritarandone una, l'altra
+	// sarebbe rimasta indietro con la prova scritta che erano allineate.
+	const int32 EarlyMatchFraction = FMath::Max(2, FormatRoundLimit / 3);
+	const int32 MaxLegitimateStillTurns = EarlyMatchFraction;
 
 	// La soglia deve restare falsificabile: se nessuna sequenza potesse superarla, il verde non direbbe nulla.
 	//
@@ -1865,9 +1886,17 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 		MaxLegitimateStillTurns, FormatRoundLimit),
 		MaxLegitimateStillTurns < FormatRoundLimit - 1);
 
-	TestTrue(FString::Printf(
-		TEXT("l'oracolo ha campionato unita' distinte: %d (StableUnitId assegnati)"), SampledUnits),
-		SampledUnits >= 2);
+	// ⚠️ **Contro il roster INIZIALE, non contro i superstiti.** La guardia nominava «le quattro unita'
+	// collassate su una chiave sola» e ne catturava solo il collasso totale: con due unita' che condividono
+	// un `StableUnitId` il conteggio dava 3, passava, e la cella di una sovrascriveva quella dell'altra — la
+	// parcheggiata non faceva mai crescere la sequenza.
+	//
+	// 🔴 E il roster va preso PRIMA della partita: `CollectAutobattleUnits` a fine match ritorna i
+	// superstiti, quindi confrontare con lui dava «4 distinte su 2» — una guardia rossa su un dato giusto.
+	TestEqual(FString::Printf(
+		TEXT("l'oracolo ha campionato ogni unita' del roster: %d distinte su %d schierate"),
+		SampledUnits, InitialRosterSize),
+		SampledUnits, InitialRosterSize);
 
 	TestTrue(FString::Printf(
 		TEXT("nessuna unita' si parcheggia: piu' lunga sequenza ferma %d turni (limite %d) — %s - %s al turno %d"),
@@ -1886,9 +1915,7 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	//
 	// La soglia e' una FRAZIONE del limite, non un letterale: sopravvive a un cambio di formato e resta
 	// falsificabile. Un terzo e' generoso — misurato, il primo colpo cade al turno 2 su 12.
-	// Floor a 2 come la soglia sorella: con `RoundLimit` 5 — il valore che il formato spedito portava fino
-	// al 2026-08-10 — un floor a 1 pretenderebbe il primo colpo al turno 1, e la misura reale e' il 2.
-	const int32 FirstBloodDeadline = FMath::Max(2, FormatRoundLimit / 3);
+	const int32 FirstBloodDeadline = EarlyMatchFraction;
 	AddInfo(FString::Printf(TEXT("primo Combat al turno %d · %d voci Combat · %d Move · %d turni totali"),
 		FirstCombatTurn, CombatEntries, MoveEntries, TurnsPlayed));
 	TestTrue(FString::Printf(

@@ -205,7 +205,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotElevationTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexBotElevationTest::RunTest(const FString&)
 {
-	URTHexMapAsset* M = MakeBotMap(3);
+	URTHexMapAsset* M = MakeLayeredBotMap(3, 3);   // le celle in quota devono esistere nell'asset
 	FRTHexBotContext Ctx;
 	Ctx.Origin = FRTCellId(0, 0, 0);
 	Ctx.WElevation = 20;
@@ -278,6 +278,23 @@ bool FRTHexBotElevationInvariantTest::RunTest(const FString&)
 		TEXT("scendere di %d layer per una cella batte restare (WElevation %d, WApproach %d): scelto (%d,%d,L%d)"),
 		MaxLayerSupported, Ctx.WElevation, Ctx.WApproach, Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer),
 		Best.DestCell == CloserCell);
+
+	// 🔴 **E vale per il KITER, che e' il ramo in cui l'invariante era vuoto.** Sopra la distanza di
+	// sicurezza non si applicava alcun termine di distanza, quindi l'elevazione era l'unico termine
+	// posizionale e restare in quota vinceva con qualunque peso — `WApproach` non era in gioco, quindi
+	// `WElevation * MaxLayer < WApproach` non diceva niente. `MakeCtx` lascia `KiteStandoff` a 0, percio'
+	// il caso va costruito: senza questa meta' il test pinna solo la mischia mentre header e spec
+	// dichiarano l'invariante senza condizioni.
+	FRTHexBotContext KiterCtx = Ctx;
+	KiterCtx.KiteStandoff = 3;   // Phase: `PressureJet` portata 5 -> `DeriveKiteStandoff` 3
+	TArray<FRTHexBotPlan> KiterCandidates;
+	KiterCandidates.Add(MakePlanFrom(StayCell, StayCell));
+	KiterCandidates.Add(MakePlanFrom(StayCell, CloserCell));
+	const FRTHexBotPlan KiterBest = URTHexBotLibrary::ChooseBestPlan(M, KiterCandidates, KiterCtx);
+	TestTrue(FString::Printf(
+		TEXT("anche il kiter scende invece di parcheggiarsi in quota: scelto (%d,%d,L%d)"),
+		KiterBest.DestCell.X, KiterBest.DestCell.Y, KiterBest.DestCell.Layer),
+		KiterBest.DestCell == CloserCell);
 
 	// E le due sorgenti dei pesi devono coincidere: `PlanBots` copia le UPROPERTY di `ARTTurnManager` sopra
 	// i default della struct, quindi tarare solo i secondi non muove nulla di cio' che il giocatore vede.

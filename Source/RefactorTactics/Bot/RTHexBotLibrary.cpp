@@ -179,10 +179,27 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 	{
 		if (Context.KiteStandoff > 0)
 		{
-			// Kiter: penalita' proporzionale a quanto si resta SOTTO la distanza di sicurezza.
+			// Kiter: la distanza di sicurezza e' un OTTIMO, non un pavimento. Sotto costa
+			// `WKiteViolation` per cella; sopra costa `WApproach` per cella, cioe' quanto costa a un
+			// mischia stare lontano. A `MinDist == KiteStandoff` entrambi i termini valgono zero.
+			//
+			// 🔴 **Il ramo `else` non c'era, e lasciava un buco che l'invariante di #1088 non copriva.**
+			// Sopra lo standoff nessun termine di distanza si applicava, quindi per un kiter l'elevazione
+			// diventava l'UNICO termine posizionale: restare in quota batteva scendere con qualunque
+			// `WElevation > 0`, e `WElevation * MaxLayer < WApproach` non proteggeva nulla — `WApproach`
+			// non era nemmeno in gioco. Il conto su Phase (`PressureJet` portata 5 -> standoff 3), su una
+			// mappa dove puo' salire: restare a L1 e distanza 4 valeva `+WElevation`, scendere valeva 0.
+			//
+			// ⚠️ Non toglie il kiting: allontanarsi OLTRE la distanza utile e' sempre stato inutile, e ora
+			// costa. Il comportamento «resta a standoff e spara» e' esattamente il punto in cui entrambi i
+			// termini si annullano.
 			if (MinDist < Context.KiteStandoff)
 			{
 				Score -= Context.WKiteViolation * (Context.KiteStandoff - MinDist);
+			}
+			else
+			{
+				Score -= Context.WApproach * (MinDist - Context.KiteStandoff);
 			}
 		}
 		else
@@ -206,10 +223,12 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 	// E' stato scritto, misurato e tolto il 2026-08-22 — con la forma relativa e `WElevation` 20 il
 	// parcheggio si riproduce identico (`-40` contro `-50`, stesso ordine di `-20` contro `-30`).
 	//
-	// ⛔ **E non si condiziona a `bHasAttack`**: i piani con attacco non nascono solo da fermo — il ramo
-	// `Charge` porta `DestCell = Linear.Final` e il ramo Dash usa uno snapshot con budget non nullo — ma
-	// il ramo di riposizionamento normale nasce con `Range 0`, quindi senza attacco. Una guardia cosi'
-	// toglierebbe al bot la sola candidata con cui puo' SALIRE in quota, che e' la ragione del peso.
+	// ⛔ **E non si condiziona a `bHasAttack`.** La ragione NON e' che il bot perderebbe la candidata con cui
+	// sale — quella resta: `BuildCandidates` emette un piano di solo movimento per OGNI cella raggiungibile,
+	// prima di qualunque controllo di gittata. E' che il bonus finirebbe quasi solo sui piani che NON si
+	// muovono: i piani con attacco nascono in gran parte da `StaySnapshot` con `MoveBudget = 0`, cioe' dalla
+	// cella attuale. La guardia avrebbe premiato lo stare fermi — la stessa asimmetria dello stato
+	// assorbente, condizionata.
 	//
 	// ⚠️ **INVARIANTE: `WElevation * MaxLayer < WApproach`.** E' l'unica difesa reale, ed e' un vincolo
 	// numerico: nessuna forma rende il difetto impossibile, perche' un bonus di posizione sufficientemente

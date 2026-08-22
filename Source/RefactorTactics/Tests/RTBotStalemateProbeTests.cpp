@@ -826,7 +826,9 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 			T.AddInfo(FString::Printf(TEXT("[%s] turno %2d: cella %s contesa da %s -> %s, destinazioni %s"),
 				Label, Turn, *ContestedCell[i].ToString(), *Who,
 				bSameTeam ? TEXT("STESSA squadra") : TEXT("squadre DIVERSE"),
-				bSharedDestination ? TEXT("CONDIVISA") : TEXT("DIVERSE (collisione di percorso)")));
+				bSharedDestination
+				? (bSharedWithinTeam ? TEXT("CONDIVISA fra COMPAGNI") : TEXT("CONDIVISA fra avversari"))
+				: TEXT("DIVERSE (collisione di percorso)")));
 		}
 
 		if (MovedThisTurn > 0)
@@ -849,9 +851,10 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 	}
 
 	T.AddInfo(FString::Printf(
-		TEXT("[%s] TOTALI: contese %d (stessa squadra %d, squadre diverse %d | destinazione identica %d, diversa %d) | turni con almeno una mossa %d/12 | primo turno fermo %d | bloccate da unita' ferma %d"),
+		TEXT("[%s] TOTALI: contese %d (stessa squadra %d, squadre diverse %d | destinazione condivisa %d di cui FRA COMPAGNI %d, diversa %d) | turni con almeno una mossa %d/12 | primo turno fermo %d | bloccate da unita' ferma %d"),
 		Label, Out.Contests, Out.SameTeamContests, Out.CrossTeamContests,
-		Out.ContestsWithSameDestination, Out.ContestsWithDifferentDestination, Out.TurnsWithAnyMove,
+		Out.ContestsWithSameDestination, Out.SameTeamContestsWithSameDestination,
+		Out.ContestsWithDifferentDestination, Out.TurnsWithAnyMove,
 		Out.FirstFrozenTurn, Out.BlockedByUnitEvents));
 
 	return Out;
@@ -983,6 +986,16 @@ bool FRTBotStalemateTeamPlanningBreaksItTest::RunTest(const FString&)
 		TEXT("e nella run con prenotazione restano contese di percorso: %d (prima ce n'erano %d)"),
 		After.ContestsWithDifferentDestination, Before.ContestsWithDifferentDestination),
 		After.ContestsWithDifferentDestination > 0);
+
+	// ⚠️ **Un tetto sul TOTALE, che si era perso.** `After.Contests == 0` e' stato tolto perche' pretendeva
+	// zero contese di ogni specie — anche quelle fra avversari, che la prenotazione non previene. Ma
+	// toglierlo ha lasciato il totale senza limite: una regressione che triplicasse le collisioni di
+	// percorso soddisfarebbe tutte le asserzioni rimaste, e `ContestsWithDifferentDestination > 0` e'
+	// addirittura PIU' soddisfatta quanto peggio va. Il tetto giusto non e' zero: e' «meno di prima».
+	TestTrue(FString::Printf(
+		TEXT("la pianificazione di squadra riduce le contese totali: %d -> %d"),
+		Before.Contests, After.Contests),
+		After.Contests < Before.Contests);
 
 	TestTrue(TEXT("e le unita' si muovono davvero"), After.TurnsWithAnyMove > 0);
 
