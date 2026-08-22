@@ -145,13 +145,15 @@ struct FRTHexBotContext
 	UPROPERTY() int32 WThreat = 100;
 	UPROPERTY() int32 WKiteViolation = 50;
 	UPROPERTY() int32 WApproach = 10;
-	/** Bonus per la quota (Layer) della cella: premia l'alta quota. */
 	/**
-	 * ⚠️ **INVARIANTE: `WElevation < WApproach`** (#1088). Sopra quella soglia esiste sempre una distanza
-	 * oltre la quale restare in quota batte scendere di un layer per avvicinarsi di una cella, e il bot
-	 * si parcheggia. Pinnato da `HexBot.ElevationNeverOutweighsClosingOneCell`.
+	 * Bonus per il GUADAGNO di quota rispetto a `Origin`, non per la quota posseduta: restare in alto vale
+	 * zero, salire paga (#1088).
+	 *
+	 * ⚠️ **INVARIANTE: `WElevation * MaxLayer < WApproach`.** Sopra quella soglia scendere per avvicinarsi
+	 * non conviene, i punteggi pareggiano e il tie-break «restare vince» riapre il parcheggio. Pinnato da
+	 * `HexBot.ElevationNeverOutweighsClosingOneCell`, che lo misura su `ScorePlan`.
 	 */
-	UPROPERTY() int32 WElevation = 5;
+	UPROPERTY() int32 WElevation = 4;
 };
 
 /**

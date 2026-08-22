@@ -756,11 +756,17 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 			// diventerebbe vera per costruzione invece che per misura.
 			//
 			// Chi punta quella cella nel proprio prossimo passo la sta contendendo, qualunque esito abbia poi.
+			// ⚠️ **Le destinazioni si confrontano PER SQUADRA, e non e' un dettaglio.** Confrontandole fra
+			// tutti i contendenti, bastava un avversario con una destinazione propria per far risultare
+			// «diverse» una contesa fra due compagne che puntavano la STESSA cella — cioe' proprio il
+			// difetto che la prenotazione deve chiudere, riclassificato in silenzio nell'altra colonna.
+			// Trovato in code review: con `ContestsWithSameDestination == 0` come unico oracolo, una
+			// regressione della prenotazione sarebbe passata verde.
 			FString Who;
 			int32 PerTeam[2] = { 0, 0 };
-			FRTCellId FirstDestination;
-			bool bHaveFirst = false;
-			bool bAllSameDestination = true;
+			FRTCellId FirstDestination[2];
+			bool bHaveFirst[2] = { false, false };
+			bool bSameDestinationWithinTeam = false;
 			for (int32 j = 0; j < Units.Num(); ++j)
 			{
 				const int32 StepJ = Resolved[j].Entered.Num();
@@ -771,10 +777,14 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 					Who.IsEmpty() ? TEXT("") : TEXT(", "),
 					Units[j].Id, Units[j].Team, *Planned[j].ToString(),
 					static_cast<int32>(Resolved[j].Outcome));
-				if (Units[j].Team == 0 || Units[j].Team == 1) { ++PerTeam[Units[j].Team]; }
-				if (!bHaveFirst) { FirstDestination = Planned[j]; bHaveFirst = true; }
-				else if (!(Planned[j] == FirstDestination)) { bAllSameDestination = false; }
+
+				const int32 Team = Units[j].Team;
+				if (Team != 0 && Team != 1) { continue; }
+				++PerTeam[Team];
+				if (!bHaveFirst[Team]) { FirstDestination[Team] = Planned[j]; bHaveFirst[Team] = true; }
+				else if (Planned[j] == FirstDestination[Team]) { bSameDestinationWithinTeam = true; }
 			}
+			const bool bAllSameDestination = bSameDestinationWithinTeam;
 
 			// Cross-team richiede contendenti da ENTRAMBE le squadre. Un gruppo con un solo contendente non e'
 			// una contesa: e' un difetto del censimento, e va detto invece di essere classificato.
@@ -934,6 +944,16 @@ bool FRTBotStalemateTeamPlanningBreaksItTest::RunTest(const FString&)
 	TestTrue(FString::Printf(
 		TEXT("e la premessa non e' vacua: una alla volta ce n'erano %d"), Before.ContestsWithSameDestination),
 		Before.ContestsWithSameDestination > 0);
+
+	// ⚠️ **L'altra meta' non resta scoperta.** Le collisioni di percorso sono fuori dalla portata della
+	// prenotazione delle destinazioni — questo file lo dichiara cinquanta righe sopra — ma «fuori portata»
+	// non significa «non misurato»: se sparissero anche loro, a essere cambiato sarebbe il modello, non la
+	// prenotazione, e il test direbbe il falso restando verde.
+	TestTrue(FString::Printf(
+		TEXT("e le collisioni di percorso restano misurate: %d -> %d"),
+		Before.ContestsWithDifferentDestination, After.ContestsWithDifferentDestination),
+		Before.ContestsWithDifferentDestination > 0);
+
 	TestTrue(TEXT("e le unita' si muovono davvero"), After.TurnsWithAnyMove > 0);
 
 	return true;

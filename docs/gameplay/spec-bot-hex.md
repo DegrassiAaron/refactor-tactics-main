@@ -82,7 +82,11 @@ kiter (KiteStandoff > 0), se dist < standoff:   Score -= WKiteViolation × (stan
 mischia (KiteStandoff == 0):                     Score -= WApproach × dist
 ```
 
-E infine `Score += WElevation × Layer` della cella: a parità di tutto, l'alta quota vince.
+E infine `Score += WElevation × (Layer_destinazione − Layer_origine)`: a parità di tutto, **guadagnare**
+quota vince — non possederla. ⚠️ Il termine era assoluto sulla cella di destinazione fino al 2026-08-22
+([#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088)), e un'unità già in alto lo
+incassava ogni turno anche restando ferma: si formava uno **stato assorbente**, misurato come dieci turni
+consecutivi sulla stessa cella. Reso relativo, restare vale zero e il punto fisso non si forma.
 
 ### 3e. I pesi
 
@@ -94,7 +98,7 @@ E infine `Score += WElevation × Layer` della cella: a parità di tutto, l'alta 
 | `WThreat` | 100 | esposizione al tiro nemico, per nemico |
 | `WKiteViolation` | 50 | per cella sotto lo standoff del kiter |
 | `WApproach` | 10 | per cella di distanza, per chi è in mischia |
-| `WElevation` | 20 | per layer di quota |
+| `WElevation` | 5 | per layer **guadagnato** rispetto all'origine |
 
 Sono **interi bilanciabili senza toccare la logica**. La scala relativa fra `WThreat` e `WDamage` è nota
 essere un punto dolente: vedi [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149), che

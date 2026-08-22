@@ -420,15 +420,20 @@ public:
 	int32 WApproach = 10;
 
 	/**
-	 * Bonus per la quota (Layer) della cella da cui si SPARA: premia l'alta quota (tiro oltre coperture
-	 * basse, +danno). Si applica solo ai piani con attacco — `URTHexBotLibrary::ScorePlan`.
+	 * Bonus per il GUADAGNO di quota rispetto alla cella di partenza — non per la quota posseduta: premia
+	 * salire per il tiro oltre coperture basse, e restare in alto vale zero (`URTHexBotLibrary::ScorePlan`).
 	 *
-	 * ⚠️ **INVARIANTE: `WElevation < WApproach`** (#1088), e questa e' la sorgente che vince in partita:
+	 * **Vale 4 e non 5 perche' l'invariante si misura sul caso peggiore**: le arene generate usano due layer
+	 * (`MaxLayer` 1) e li' anche 5 reggeva, ma con tre layer `5 x 2 = 10` pareggia `WApproach` e il tie-break
+	 * «mossa minima» riapre il parcheggio. Misurato: `-40` contro `-40`, esattamente pari.
+	 *
+	 * ⚠️ **INVARIANTE: `WElevation * MaxLayer < WApproach`** (#1088), e questa e' la sorgente che vince in
+	 * partita:
 	 * `PlanBots` copia questi valori nel `FRTHexBotContext`, quindi cambiare il default della struct
 	 * senza cambiare questo non muove nulla di cio' che il giocatore vede.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
-	int32 WElevation = 5;
+	int32 WElevation = 4;
 
 	/**
 	 * Snapshot dello stato corrente della partita (unita' VIVE del livello + mappa autorevole).

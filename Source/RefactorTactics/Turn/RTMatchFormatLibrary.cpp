@@ -180,6 +180,9 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// insieme al 21 che sostituisce. 15 e' oltre anche il massimo della banda 2v2, quindi il 14 che una
 	// misura headless suggeriva era giusto per il banco e falso per il gioco — quel percorso e' piu' corto
 	// di quello reale. Il numero vive in un posto solo, sotto: qui c'e' il rimando.
+	//
+	// ---
+	//
 	// Il 5 precedente era un valore da test, e si dichiarava «una scelta di ritmo, non un ripiego»: era una
 	// motivazione scritta senza confrontarla con D-010, che diceva gia' il contrario. A falsificarla e' stato
 	// il primo playtest al PIE — partita 2v2 su `GeneratedTestArena` finita
@@ -225,6 +228,9 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// legittimo che quella voce dichiara. Il 15 sostituisce il 21 come misura corrente e ne eredita lo
 	// statuto: **non ammissibile** come evidenza di bilanciamento per D-102, quindi non diventa
 	// `ExpectedRounds` — che resta **10**, e che a 15 renderebbe comunque il formato invalido.
+	//
+	// ---
+	//
 	// Soglia obiettivo ZERO, e non e' pigrizia: **nessuno assegna punti**. `ARTTurnManager::AddTeamScore`
 	// esiste e funziona, ma il suo unico chiamante in tutto il repository e' un test — nel runtime non ci sono
 	// obiettivi che producano punteggio. Una soglia > 0 dichiarerebbe una via di vittoria IRRAGGIUNGIBILE, cioe'

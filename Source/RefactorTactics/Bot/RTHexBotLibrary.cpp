@@ -192,37 +192,34 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 		}
 	}
 
-	// Elevazione: premia la quota alta della cella da cui si SPARA — non la quota su cui si siede.
+	// Elevazione: premia il GUADAGNO di quota, non la quota posseduta.
 	//
-	// 🔴 La guardia `bHasAttack` chiude lo stato assorbente misurato in #1088. Il bonus era assoluto sulla
-	// destinazione, quindi un'unita' gia' in quota lo incassava ogni turno anche restando ferma: su
-	// `GeneratedTestArena` Riktor saliva sulla piattaforma al turno 3 e non scendeva piu' fino al 12, e il
-	// conto lo spiega — restare valeva `+WElevation - WApproach*4 = -20`, scendere avvicinandosi di una
-	// cella valeva `-WApproach*3 = -30`. Nessuna mossa unilaterale migliorava il punteggio: un punto fisso,
-	// non una preferenza subottimale.
+	// 🔴 **Il termine era ASSOLUTO sulla destinazione, e produceva uno stato assorbente** (#1088): un'unita'
+	// gia' in alto lo incassava ogni turno anche restando ferma. Misurato su `GeneratedTestArena`: Riktor
+	// saliva sulla piattaforma al turno 3 e non scendeva fino al 12, perche' restare valeva
+	// `+WElevation - WApproach*4 = -20` contro `-WApproach*3 = -30` dello scendere. Nessuna mossa unilaterale
+	// migliorava il punteggio: un punto fisso, non una preferenza subottimale.
 	//
-	// La giustificazione del bonus era gia' scritta e chiedeva questa condizione — «tiro oltre coperture
-	// basse, +danno»: senza tiro, quella ragione non si applica. Un'unita' che non attacca non guadagna
-	// nulla dallo stare in alto, quindi l'unico modo di guadagnare torna a essere avvicinarsi o colpire.
+	// Reso RELATIVO all'origine, il difetto non e' curato ma **impossibile**: restare vale `Layer - Layer = 0`
+	// e non incassa nulla, quindi qualunque cella che avvicina batte lo stare fermi. Salire continua a pagare,
+	// che e' la ragione dichiarata del peso — «tiro oltre coperture basse, +danno» — e il pre-posizionamento
+	// in quota resta possibile: senza di lui nessuna candidata di MOVIMENTO potrebbe mai guadagnare quota,
+	// perche' il ramo 1 di `BuildCandidates` nasce con `Range 0` e quindi senza attacco.
 	//
-	// ➕ **E la seconda meta' della condizione: `Enemies` vuoto.** Con la sola guardia `bHasAttack`, un bot
-	// che non conosce nessun bersaglio ha TUTTE le candidate a punteggio zero — niente attacco, niente
-	// minaccia, e `WApproach` non si applica perche' `MinDist` resta indefinito senza nemici. A parita' il
-	// tie-break di `ChooseBestPlan` fa vincere la mossa minima, quindi il bot non si muove piu': misurato dal
-	// probe di #1088, `0/4 mosse` e `percepiti 0` per dodici turni su entrambe le pianificazioni.
+	// ⛔ **Non si condiziona a `bHasAttack`, ed e' stato provato.** I piani con attacco nascono da
+	// `StaySnapshot` con `MoveBudget = 0` (`RTTurnManager.cpp`), cioe' dalla cella attuale: una guardia
+	// sull'attacco avrebbe reso il bonus un premio per NON muoversi — la stessa asimmetria, condizionata.
 	//
-	// ⚠️ Il bonus di quota era, di fatto, l'unico motore di esplorazione del bot al buio. La regola che
-	// tiene insieme le due meta' e' una sola: **la quota vale per sparare o per vedere**. Se il contatto ce
-	// l'hai gia' e non spari, non vale — ed e' li' che si formava lo stato assorbente.
+	// ⛔ **E non si condiziona a «non conosce nemici»**: `PlanBots` intercetta quel caso molto prima
+	// (`if (Ctx.Enemies.Num() == 0) { ... continue; }`, il ramo che avvicina al centro della mappa), quindi
+	// un simile ramo qui sarebbe codice morto in produzione. Sarebbe anche un bonus numerico legato alla
+	// VISTA, che `CLAUDE.md` esclude dalla v0.1.
 	//
-	// 🔴 Oggi in partita la seconda meta' non morde: il bot conosce le posizioni avversarie e `Enemies` non
-	// e' mai vuoto. Mordera' con **E13** (conoscenza parziale), che e' aperta — il probe lo ha anticipato
-	// perche' modella gia' la Team Knowledge.
-	const bool bKnowsAnyEnemy = Context.Enemies.Num() > 0;
-	if (Plan.bHasAttack || !bKnowsAnyEnemy)
-	{
-		Score += Context.WElevation * Plan.DestCell.Layer;
-	}
+	// ⚠️ **INVARIANTE: `WElevation * MaxLayer < WApproach`** — pinnato da
+	// `HexBot.ElevationNeverOutweighsClosingOneCell`, che lo misura su `ScorePlan`. Sopra quella soglia
+	// scendere di `MaxLayer` per avvicinarsi di una cella non conviene, i punteggi pareggiano e il tie-break
+	// «restare vince» riapre il parcheggio da un'altra porta.
+	Score += Context.WElevation * (Plan.DestCell.Layer - Context.Origin.Layer);
 
 	return Score;
 }

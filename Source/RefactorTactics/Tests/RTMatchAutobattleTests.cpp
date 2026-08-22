@@ -1661,25 +1661,28 @@ bool FRTAutobattleSameSeedTest::RunTest(const FString&)
  * celle con tre ostacoli, una fascia `Rough` e **il muro di cinque celle che blocca la vista su `q=0`**,
  * che e' l'unica differenza geometrica fra le due arene.
  *
- * **Misurato il 2026-08-22, ed e' il numero che sposta l'indagine**: `primo Combat al turno 2 · 19 voci
- * Combat · 49 Move · 12 turni`. Con il muro, con lo spawn del GameMode, con la stessa sorgente di mappa:
- * i bot **ingaggiano**. Quindi lo stallo di #1088 non e' spiegato dalla board.
+ * **Misurato il 2026-08-22**: con il muro, con lo spawn del GameMode, con la stessa sorgente di mappa, i
+ * bot **ingaggiano** — il turno del primo colpo e le voci di log stanno nell'`AddInfo`, non qui: un numero
+ * scritto in un commento invecchia da solo e questo file ne ha gia' portati due superati.
+ * Quindi lo stallo di #1088 non era spiegato dalla board.
  *
- * ⛔ **Dove NON cercare piu', e perche'.** La geometria blocca davvero la linea di tiro — riprodotto:
- * le unita' si fermano a distanza 3 e la linea fra loro attraversa il muro — ma non basta: l'attacco vale
- * solo dalla cella in cui il bot si trova nel Blast (il `Move` risolve DOPO), e il movimento rapido
- * lineare offre comunque celle da cui sparare. L'aritmetica dei pesi le premia. Il bot le usa.
+ * ✅ **La causa vera, trovata dopo**: il bonus di quota di `URTHexBotLibrary::ScorePlan` era un termine
+ * ASSOLUTO sulla destinazione, quindi un'unita' gia' in alto lo incassava anche restando ferma. Riktor
+ * saliva sulla piattaforma al turno 3 e non scendeva fino al 12. Reso relativo all'origine, restare vale
+ * zero e il punto fisso non si forma.
  *
- * 🔴 **Dove cercare invece.** Questo test istanzia `ARTGameMode`, la classe C++. La partita usa
- * **`BP_GameMode`**, che serializza due proprieta' che il C++ non ha: `MapSource = GeneratedTestArena` e
- * `MatchFormat = /Game/RT/Maps/Dev/L_DevSandbox/Data/DA_Format_Rotto` — un asset **non versionato e
- * assente da questo clone**, cioe' un puntatore rotto. E' esattamente cio' che #1069 descrive. Un difetto
- * che vive in un `.uasset` non e' riproducibile da un test C++ che quel `.uasset` non carica: e' la
- * ragione per cui #1088 e' aperta da giorni con tre ipotesi e nessuna misura.
+ * ⛔ **Dove NON cercare, e perche' — due piste che sembravano buone e non lo erano.**
+ * La geometria blocca davvero la linea di tiro — le unita' si fermano a distanza 3 e la linea fra loro
+ * attraversa il muro — ma non basta: l'attacco vale dalla cella in cui il bot si trova nel Blast, e il
+ * movimento rapido lineare offre comunque celle da cui sparare.
+ * E il `BP_GameMode` di #1069 — che serializza `MapSource` e un `MatchFormat` rotto — era la pista che
+ * questo commento indicava come «dove cercare invece»: era sbagliata. Il difetto viveva nel C++, e questo
+ * test lo riproduceva gia'; a nasconderlo era il suo oracolo, non la sua copertura.
  *
- * ⚠️ Il test resta **verde** e va tenuto: e' la regressione che impedisce di tornare a incolpare la mappa,
- * e il suo `AddInfo` stampa il turno del primo colpo — se un domani superasse i 12 round del formato, il
- * giocatore vedrebbe un pareggio senza che nessuna asserzione cambi. Per questo il turno e' asserito.
+ * ⚠️ Il test va tenuto: e' la regressione che impedisce di tornare a incolpare la mappa, e le sue
+ * asserzioni ora misurano che la partita **avanzi** — primo colpo entro il primo terzo del formato, e
+ * nessuna unita' parcheggiata. Il vincitore non si pretende: [D-184] dichiara il pareggio allo scadere un
+ * esito legittimo della v0.1.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleEngagesOnShippedMapSourceTest,
 	"RefactorTactics.Match.Autobattle.EngagesOnTheShippedMapSource",
@@ -1786,25 +1789,22 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	// distingue una partita viva da una bloccata, e si misura per rendere leggibile il fallimento.
 	TestTrue(TEXT("i bot si muovono"), MoveEntries > 0);
 
-	// 🔴 L'ASSERZIONE CHE OGGI FALLISCE, ed e' il difetto: su questa sorgente di mappa i bot non ingaggiano
-	// mai. Misurato il 2026-08-17: dodici round, ZERO `Combat`, pareggio allo scadere.
+	// L'ingaggio, che il 2026-08-17 non avveniva: dodici round, ZERO `Combat`, pareggio allo scadere.
+	// ✅ Oggi avviene — misurato dopo la correzione dello stato assorbente (#1088), primo colpo al turno 2.
 	TestTrue(FString::Printf(
 		TEXT("su MapSource=GeneratedTestArena i bot ingaggiano: %d voci Combat in %d turni (attese > 0)"),
 		CombatEntries, TurnsPlayed), CombatEntries > 0);
 
-	// E il DoD di E47.1 chiede una conclusione per eliminazione, non per esaurimento dei round.
+	// La partita deve CHIUDERSI da sola, non esaurire il tetto di sicurezza del test.
 	//
-	// 🔴 L'ORACOLO E' `Reason`, NON `Phase` — e la differenza e' esattamente il difetto di #1088.
-	// `Phase = MatchEnded` si imposta per QUALUNQUE esito diverso da `InProgress` (`RTTurnManager.cpp`,
-	// ramo `PendingResult.Outcome != ERTMatchOutcome::InProgress`), e `ERTMatchOutcome` contiene `Draw`
-	// (`RTTurnRules.h`): un pareggio allo scadere dei round passava l'asserzione precedente, che leggeva
-	// la fase. Il commento prometteva l'eliminazione e il codice non la verificava.
-	//
-	// L'idioma giusto era gia' in questo file, in `Match.Autobattle.PlaysToCompletionWithoutInput`:
-	// «una partita chiusa dal limite di round e' la partita bloccata che il DoD chiede di distinguere,
-	// non una demo riuscita». Il test che copre la sorgente SPEDITA usava l'oracolo piu' debole dei due.
+	// ⚠️ **Questa riga legge `Phase`, e va bene solo perche' misura questo**: che il ciclo sia finito per una
+	// regola e non per `MaxTurns`. NON dice nulla sull'esito — `MatchEnded` si imposta per qualunque
+	// `Outcome != InProgress`, `Draw` compreso — e l'oracolo dell'esito e' piu' sotto, sull'avanzamento.
+	// Prima di #1088 questa riga ERA l'oracolo, con un commento che prometteva l'eliminazione: e' il difetto
+	// che questo file esiste per non ripetere.
 	const FRTMatchResult Result = TM->GetMatchResult();
-	TestTrue(FString::Printf(TEXT("la partita si decide entro il tetto: %d turni giocati"), TurnsPlayed),
+	TestTrue(FString::Printf(TEXT("la partita si chiude per una regola, non per il tetto: %d turni giocati"),
+		TurnsPlayed),
 		TM->GetPhase() == ERTMatchPhase::MatchEnded);
 
 	// ⛔ **NON si pretende un vincitore, e non e' una rinuncia: e' [D-184]** (2026-08-22), che dichiara il
@@ -1836,18 +1836,28 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 		LongestStillStreak <= MaxLegitimateStillTurns);
 	AddInfo(FString::Printf(TEXT("piu' lunga sequenza ferma: %d turni"), LongestStillStreak));
 
-	// 🔴 IL NUMERO CHE CONTA: se il primo colpo cade oltre il limite del formato, in partita il giocatore
-	// vede solo il pareggio di #1088 — e questo test, che ha un tetto piu' alto, non lo mostrerebbe.
+	// 🔴 IL NUMERO CHE CONTA: il primo colpo deve cadere PRESTO, non solo cadere.
 	//
-	// ⚠️ Il limite si CHIEDE al formato invece di scriverlo qui: era `<= 12` a mano, e il 2026-08-22 il
-	// formato e' passato a 14 (#1088). Un numero letterale in un'asserzione invecchia da solo e nessun gate
-	// se ne accorge, perche' resta verde mentre smette di misurare la cosa che nomina.
+	// ⚠️ **`<= RoundLimit` sarebbe stata una tautologia**, ed e' stata scritta e tolta il 2026-08-22:
+	// `URTTurnRules` chiude la partita quando `RoundNumber >= RoundLimit`, quindi `TurnsPlayed` non puo'
+	// superarlo e `FirstCombatTurn <= TurnsPlayed <= RoundLimit` e' vero per costruzione. L'unica meta'
+	// falsificabile restava `> 0`, gia' coperta da `CombatEntries > 0`.
+	//
+	// La soglia e' una FRAZIONE del limite, non un letterale: sopravvive a un cambio di formato e resta
+	// falsificabile. Un terzo e' generoso — misurato, il primo colpo cade al turno 2 su 12.
 	const int32 FormatRoundLimit = TM->GetMatchRules().RoundLimit;
+	if (!TestTrue(TEXT("il formato e' stato applicato: RoundLimit positivo"), FormatRoundLimit > 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const int32 FirstBloodDeadline = FMath::Max(1, FormatRoundLimit / 3);
 	AddInfo(FString::Printf(TEXT("primo Combat al turno %d · %d voci Combat · %d Move · %d turni totali"),
 		FirstCombatTurn, CombatEntries, MoveEntries, TurnsPlayed));
-	TestTrue(FString::Printf(TEXT("il primo colpo arriva entro i %d round del formato: turno %d"),
-		FormatRoundLimit, FirstCombatTurn),
-		FirstCombatTurn > 0 && FirstCombatTurn <= FormatRoundLimit);
+	TestTrue(FString::Printf(
+		TEXT("il primo colpo arriva entro il primo terzo del formato (turno %d, limite %d di %d round)"),
+		FirstCombatTurn, FirstBloodDeadline, FormatRoundLimit),
+		FirstCombatTurn > 0 && FirstCombatTurn <= FirstBloodDeadline);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
