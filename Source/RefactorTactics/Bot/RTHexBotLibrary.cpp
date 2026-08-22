@@ -192,34 +192,34 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 		}
 	}
 
-	// Elevazione: premia il GUADAGNO di quota, non la quota posseduta.
+	// Elevazione: premia la quota della cella di destinazione.
 	//
-	// 🔴 **Il termine era ASSOLUTO sulla destinazione, e produceva uno stato assorbente** (#1088): un'unita'
-	// gia' in alto lo incassava ogni turno anche restando ferma. Misurato su `GeneratedTestArena`: Riktor
-	// saliva sulla piattaforma al turno 3 e non scendeva fino al 12, perche' restare valeva
-	// `+WElevation - WApproach*4 = -20` contro `-WApproach*3 = -30` dello scendere. Nessuna mossa unilaterale
-	// migliorava il punteggio: un punto fisso, non una preferenza subottimale.
+	// 🔴 **QUI SI E' FORMATO LO STATO ASSORBENTE DI #1088, e la difesa e' UN NUMERO — non questa formula.**
+	// Il termine compete con l'avvicinamento: finche' `WElevation * Layer` supera quello che `WApproach`
+	// rende scendendo, restare in alto batte muoversi e il bot si parcheggia. Misurato su
+	// `GeneratedTestArena` con `WElevation` 20: Riktor saliva sulla piattaforma al turno 3 e non scendeva
+	// fino al 12 — restare valeva `+20 - 40 = -20` contro `-30` dello scendere.
 	//
-	// Reso RELATIVO all'origine, il difetto non e' curato ma **impossibile**: restare vale `Layer - Layer = 0`
-	// e non incassa nulla, quindi qualunque cella che avvicina batte lo stare fermi. Salire continua a pagare,
-	// che e' la ragione dichiarata del peso — «tiro oltre coperture basse, +danno» — e il pre-posizionamento
-	// in quota resta possibile: senza di lui nessuna candidata di MOVIMENTO potrebbe mai guadagnare quota,
-	// perche' il ramo 1 di `BuildCandidates` nasce con `Range 0` e quindi senza attacco.
+	// ⛔ **Non si prova a renderlo RELATIVO all'origine: sarebbe un no-op.** `Context.Origin` e' fisso per
+	// l'intera chiamata di `ChooseBestPlan`, quindi `- WElevation * Origin.Layer` e' la stessa costante
+	// sottratta a OGNI candidata: sposta tutti i punteggi e non cambia ne' l'argmax ne' il tie-break.
+	// E' stato scritto, misurato e tolto il 2026-08-22 — con la forma relativa e `WElevation` 20 il
+	// parcheggio si riproduce identico (`-40` contro `-50`, stesso ordine di `-20` contro `-30`).
 	//
-	// ⛔ **Non si condiziona a `bHasAttack`, ed e' stato provato.** I piani con attacco nascono da
-	// `StaySnapshot` con `MoveBudget = 0` (`RTTurnManager.cpp`), cioe' dalla cella attuale: una guardia
-	// sull'attacco avrebbe reso il bonus un premio per NON muoversi — la stessa asimmetria, condizionata.
+	// ⛔ **E non si condiziona a `bHasAttack`**: i piani con attacco non nascono solo da fermo — il ramo
+	// `Charge` porta `DestCell = Linear.Final` e il ramo Dash usa uno snapshot con budget non nullo — ma
+	// il ramo di riposizionamento normale nasce con `Range 0`, quindi senza attacco. Una guardia cosi'
+	// toglierebbe al bot la sola candidata con cui puo' SALIRE in quota, che e' la ragione del peso.
 	//
-	// ⛔ **E non si condiziona a «non conosce nemici»**: `PlanBots` intercetta quel caso molto prima
-	// (`if (Ctx.Enemies.Num() == 0) { ... continue; }`, il ramo che avvicina al centro della mappa), quindi
-	// un simile ramo qui sarebbe codice morto in produzione. Sarebbe anche un bonus numerico legato alla
-	// VISTA, che `CLAUDE.md` esclude dalla v0.1.
+	// ⚠️ **INVARIANTE: `WElevation * MaxLayer < WApproach`.** E' l'unica difesa reale, ed e' un vincolo
+	// numerico: nessuna forma rende il difetto impossibile, perche' un bonus di posizione sufficientemente
+	// grande batte sempre l'avvicinamento. Pinnato da `HexBot.ElevationNeverOutweighsClosingOneCell`, che
+	// lo misura confrontando l'ESITO di `ChooseBestPlan` — non il punteggio di un piano isolato, che puo'
+	// cambiare senza che l'ordinamento si muova.
 	//
-	// ⚠️ **INVARIANTE: `WElevation * MaxLayer < WApproach`** — pinnato da
-	// `HexBot.ElevationNeverOutweighsClosingOneCell`, che lo misura su `ScorePlan`. Sopra quella soglia
-	// scendere di `MaxLayer` per avvicinarsi di una cella non conviene, i punteggi pareggiano e il tie-break
-	// «restare vince» riapre il parcheggio da un'altra porta.
-	Score += Context.WElevation * (Plan.DestCell.Layer - Context.Origin.Layer);
+	// 🔴 **Quindi `WElevation` e' modificabile in editor a proprio rischio** (`PIE-BU2b` lo documenta come
+	// workflow): alzarlo oltre l'invariante riapre lo stato assorbente, e nessun gate lo impedisce.
+	Score += Context.WElevation * Plan.DestCell.Layer;
 
 	return Score;
 }

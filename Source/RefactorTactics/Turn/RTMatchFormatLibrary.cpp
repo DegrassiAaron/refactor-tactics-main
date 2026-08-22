@@ -204,9 +204,11 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// tavolino — ed e' lo stesso valore che `PIE-HEXPLAY-10` porta come dato di riferimento.
 	// Tenerlo uguale a 12 avrebbe dichiarato di nuovo che ci si aspetta di arrivare allo scadere.
 	//
-	// 🔴 **Il 10 e' una misura del 2026-08-06, e la realta' di oggi e' 21.** Dopo la correzione del deadlock
-	// di #1088 (PR #1213), una partita reale sulla configurazione spedita si decide al round **21**
-	// (`Vince il team 0 (blu) - per eliminazione (round 21/40)`, registrata in #149). Con `RoundLimit` 12 la
+	// 🔴 **Il 10 e' una misura del 2026-08-06, e la realta' di oggi e' 15.** Dopo la correzione del deadlock
+	// di #1088 (PR #1213) una partita reale sulla configurazione spedita si decideva al round **21**
+	// (registrata in #149); dopo la correzione dello stato assorbente della stessa issue, rimisurata sullo
+	// stesso percorso, si decide al round **15** (`Vince il team 0 (blu) - per eliminazione (round 15/40)`,
+	// 2026-08-22). Il 21 resta scritto perche' e' il numero che D-184 cita. Con `RoundLimit` 12 la
 	// via normale di chiusura e' quindi tornata a essere il **pareggio allo scadere** — l'esito che il
 	// passaggio da 5 a 12 aveva tolto di mezzo, ricomparso da un'altra porta.
 	//
@@ -217,17 +219,15 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// certificato sulle capability che lo producono. Il 21 dice cosa succede, non se sia giusto.
 	//
 	// ∴ **D-184** decide che il pareggio allo scadere e' un esito legittimo della v0.1 invece di ritarare
-	// un numero su un dato inammissibile. Il `10` resta il target di design; il `21` resta qui accanto
-	// perche' chi arriva dopo non debba ri-misurarlo — ed e' anche la ragione per cui il gate di
+	// un numero su un dato inammissibile. Il `10` resta il target di design; la misura corrente (**15**, e
+	// il 21 da cui viene) resta qui accanto perche' chi arriva dopo non debba ri-misurarla — ed e' anche
+	// la ragione per cui il gate di
 	// `ValidateFormat` oggi tace: e' cieco su una misura scaduta, non su una regola sbagliata.
 	//
-	// ➕ **E quel 21 e' sceso a 15** (#1088, 2026-08-22): rimisurato sullo STESSO percorso — `-game
-	// -RTAutobattle`, configurazione spedita, tetto 40 — dopo la correzione dello stato assorbente del bonus
-	// di quota. Sei round in meno, e **nulla di cio' che D-184 decide si muove**: 15 e' comunque oltre il
-	// limite di 12, quindi sul default la partita finisce pari allo scadere e il pareggio resta l'esito
-	// legittimo che quella voce dichiara. Il 15 sostituisce il 21 come misura corrente e ne eredita lo
-	// statuto: **non ammissibile** come evidenza di bilanciamento per D-102, quindi non diventa
-	// `ExpectedRounds` — che resta **10**, e che a 15 renderebbe comunque il formato invalido.
+	// ⚠️ **Nulla di cio' che D-184 decide si muove col 15**: e' comunque oltre il limite di 12, quindi sul
+	// default la partita finisce pari allo scadere e il pareggio resta l'esito legittimo che quella voce
+	// dichiara. Il 15 eredita lo statuto del 21: **non ammissibile** come evidenza di bilanciamento per
+	// D-102, quindi non diventa `ExpectedRounds` — che a 15 renderebbe anche il formato invalido.
 	//
 	// ---
 	//

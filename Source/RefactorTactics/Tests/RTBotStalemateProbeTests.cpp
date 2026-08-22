@@ -762,11 +762,17 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 			// difetto che la prenotazione deve chiudere, riclassificato in silenzio nell'altra colonna.
 			// Trovato in code review: con `ContestsWithSameDestination == 0` come unico oracolo, una
 			// regressione della prenotazione sarebbe passata verde.
+			// ⚠️ **Si cerca una COPPIA che condivide la destinazione, non «tutte uguali».** Con `FirstDestination`
+			// per squadra si confrontava ogni contendente col PRIMO soltanto: tre unita' con destinazioni
+			// A, B, B non producevano nessuna coincidenza, e la coppia B/B finiva in «collisione di percorso».
+			// Oggi il probe e' 2v2 e non si vede; il ciclo pero' e' generico su `Units.Num()`.
+			//
+			// ⚠️ E la coincidenza si cerca **anche fra squadre diverse**: due avversari che puntano la stessa
+			// cella finale sono una contesa di destinazione, e classificarla «di percorso» era falso.
 			FString Who;
 			int32 PerTeam[2] = { 0, 0 };
-			FRTCellId FirstDestination[2];
-			bool bHaveFirst[2] = { false, false };
-			bool bSameDestinationWithinTeam = false;
+			TArray<FRTCellId> SeenDestinations;
+			bool bSharedDestination = false;
 			for (int32 j = 0; j < Units.Num(); ++j)
 			{
 				const int32 StepJ = Resolved[j].Entered.Num();
@@ -781,10 +787,9 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 				const int32 Team = Units[j].Team;
 				if (Team != 0 && Team != 1) { continue; }
 				++PerTeam[Team];
-				if (!bHaveFirst[Team]) { FirstDestination[Team] = Planned[j]; bHaveFirst[Team] = true; }
-				else if (Planned[j] == FirstDestination[Team]) { bSameDestinationWithinTeam = true; }
+				if (SeenDestinations.Contains(Planned[j])) { bSharedDestination = true; }
+				else { SeenDestinations.Add(Planned[j]); }
 			}
-			const bool bAllSameDestination = bSameDestinationWithinTeam;
 
 			// Cross-team richiede contendenti da ENTRAMBE le squadre. Un gruppo con un solo contendente non e'
 			// una contesa: e' un difetto del censimento, e va detto invece di essere classificato.
@@ -798,13 +803,13 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 			const bool bSameTeam = (PerTeam[0] == 0) || (PerTeam[1] == 0);
 			++Out.Contests;
 			if (bSameTeam) { ++Out.SameTeamContests; } else { ++Out.CrossTeamContests; }
-			if (bAllSameDestination) { ++Out.ContestsWithSameDestination; }
+			if (bSharedDestination) { ++Out.ContestsWithSameDestination; }
 			else { ++Out.ContestsWithDifferentDestination; }
 
 			T.AddInfo(FString::Printf(TEXT("[%s] turno %2d: cella %s contesa da %s -> %s, destinazioni %s"),
 				Label, Turn, *ContestedCell[i].ToString(), *Who,
 				bSameTeam ? TEXT("STESSA squadra") : TEXT("squadre DIVERSE"),
-				bAllSameDestination ? TEXT("IDENTICHE") : TEXT("DIVERSE (collisione di percorso)")));
+				bSharedDestination ? TEXT("CONDIVISA") : TEXT("DIVERSE (collisione di percorso)")));
 		}
 
 		if (MovedThisTurn > 0)
@@ -945,14 +950,16 @@ bool FRTBotStalemateTeamPlanningBreaksItTest::RunTest(const FString&)
 		TEXT("e la premessa non e' vacua: una alla volta ce n'erano %d"), Before.ContestsWithSameDestination),
 		Before.ContestsWithSameDestination > 0);
 
-	// ⚠️ **L'altra meta' non resta scoperta.** Le collisioni di percorso sono fuori dalla portata della
-	// prenotazione delle destinazioni — questo file lo dichiara cinquanta righe sopra — ma «fuori portata»
-	// non significa «non misurato»: se sparissero anche loro, a essere cambiato sarebbe il modello, non la
-	// prenotazione, e il test direbbe il falso restando verde.
+	// ⚠️ **L'altra meta' non resta scoperta, e il predicato guarda `After`.** Le collisioni di percorso sono
+	// fuori dalla portata della prenotazione delle destinazioni — questo file lo dichiara cinquanta righe
+	// sopra — ma se sparissero anche loro, `ContestsWithSameDestination == 0` diventerebbe vero per assenza
+	// di contese e non per merito della prenotazione: il test direbbe il falso restando verde.
+	//
+	// 🔴 Scritto la prima volta su `Before`, che e' l'altra run: non poteva rilevare il difetto che nomina.
 	TestTrue(FString::Printf(
-		TEXT("e le collisioni di percorso restano misurate: %d -> %d"),
-		Before.ContestsWithDifferentDestination, After.ContestsWithDifferentDestination),
-		Before.ContestsWithDifferentDestination > 0);
+		TEXT("e nella run con prenotazione restano contese di percorso: %d (prima ce n'erano %d)"),
+		After.ContestsWithDifferentDestination, Before.ContestsWithDifferentDestination),
+		After.ContestsWithDifferentDestination > 0);
 
 	TestTrue(TEXT("e le unita' si muovono davvero"), After.TurnsWithAnyMove > 0);
 

@@ -1807,6 +1807,13 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 		TurnsPlayed),
 		TM->GetPhase() == ERTMatchPhase::MatchEnded);
 
+	const int32 FormatRoundLimit = TM->GetMatchRules().RoundLimit;
+	if (!TestTrue(TEXT("il formato e' stato applicato: RoundLimit positivo"), FormatRoundLimit > 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
 	// ⛔ **NON si pretende un vincitore, e non e' una rinuncia: e' [D-184]** (2026-08-22), che dichiara il
 	// pareggio allo scadere un esito legittimo della v0.1 e toglie «compare un vincitore» dal DoD di E47.1
 	// sul free-run del default. L'evidenza di una partita fino alla vittoria viene da uno SCENARIO costruito
@@ -1827,7 +1834,18 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	// Misurato: col bonus di quota assoluto, Riktor saliva sulla piattaforma al turno 3 e restava sulla
 	// stessa cella fino al 12, cioe' **dieci turni consecutivi**. La soglia e' generosa di proposito —
 	// restare fermi per sparare e' legittimo, restare fermi mezza partita no.
-	const int32 MaxLegitimateStillTurns = 5;
+	// ⚠️ **La soglia si deriva dal formato, come quella del primo colpo.** Era il letterale `5`, in un test
+	// che trenta righe sotto argomenta che i letterali invecchiano: con un `RoundLimit` corto — il ripiego ne
+	// ha portato 5 fino al 2026-08-10 — la sequenza piu' lunga possibile e' `TurnsPlayed - 1` e l'asserzione
+	// diventa vera per costruzione, cioe' l'oracolo di #1088 passa senza misurare nulla.
+	const int32 MaxLegitimateStillTurns = FMath::Max(2, FormatRoundLimit / 3);
+
+	// E la soglia deve restare falsificabile SU QUESTA run: se nessuna sequenza potesse superarla, il verde
+	// non direbbe niente.
+	TestTrue(FString::Printf(
+		TEXT("la soglia e' raggiungibile: limite %d, turni giocati %d"), MaxLegitimateStillTurns, TurnsPlayed),
+		MaxLegitimateStillTurns < TurnsPlayed - 1);
+
 	TestTrue(FString::Printf(
 		TEXT("nessuna unita' si parcheggia: piu' lunga sequenza ferma %d turni (limite %d) — %s - %s al turno %d"),
 		LongestStillStreak, MaxLegitimateStillTurns,
@@ -1845,12 +1863,6 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	//
 	// La soglia e' una FRAZIONE del limite, non un letterale: sopravvive a un cambio di formato e resta
 	// falsificabile. Un terzo e' generoso — misurato, il primo colpo cade al turno 2 su 12.
-	const int32 FormatRoundLimit = TM->GetMatchRules().RoundLimit;
-	if (!TestTrue(TEXT("il formato e' stato applicato: RoundLimit positivo"), FormatRoundLimit > 0))
-	{
-		RTWorldFixtures::DestroyWorld(World);
-		return false;
-	}
 	const int32 FirstBloodDeadline = FMath::Max(1, FormatRoundLimit / 3);
 	AddInfo(FString::Printf(TEXT("primo Combat al turno %d · %d voci Combat · %d Move · %d turni totali"),
 		FirstCombatTurn, CombatEntries, MoveEntries, TurnsPlayed));

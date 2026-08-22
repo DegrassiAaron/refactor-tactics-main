@@ -26,6 +26,24 @@ namespace
 		return M;
 	}
 
+	/**
+	 * Come `MakeBotMap`, piu' una colonna di celle REALI sui layer 1..`Layers`-1 sopra l'origine e sopra la
+	 * cella (1,0). Serve a `HexBot.ElevationNeverOutweighsClosingOneCell`: quel test valuta piani su celle in
+	 * quota, e su una mappa a un solo layer li valuterebbe su celle **che l'asset non contiene** — oggi passa
+	 * lo stesso solo perche' nessun ramo di `ScorePlan` interroga la mappa quando `EnemyRanges[0] == 0`.
+	 */
+	URTHexMapAsset* MakeLayeredBotMap(int32 Radius, int32 Layers)
+	{
+		URTHexMapAsset* M = MakeBotMap(Radius);
+		for (int32 L = 1; L < Layers; ++L)
+		{
+			M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, L)));
+			M->AddOrUpdateCell(FRTHexCellData(FRTCellId(1, 0, L)));
+		}
+		M->SortCells();
+		return M;
+	}
+
 	void BlockBotSight(URTHexMapAsset* Map, const FRTCellId& Id)
 	{
 		FRTHexCellData Data = Map->FindCell(Id) ? *Map->FindCell(Id) : FRTHexCellData(Id);
@@ -184,57 +202,66 @@ bool FRTHexBotElevationTest::RunTest(const FString&)
 	TestTrue(TEXT("salire vale di piu' che restare a terra"), High > Ground);
 	TestEqual(TEXT("bonus proporzionale ai layer GUADAGNATI"), High - Ground, 40);
 
-	// 🔴 LA META' CHE CHIUDE #1088: partendo GIA' in quota, restarci non incassa nulla — il termine assoluto
-	// invece la pagava ogni turno, ed e' cio' che formava lo stato assorbente. Stessa cella, stesso layer,
-	// due origini diverse: cambia solo il guadagno.
-	FRTHexBotContext FromHigh = Ctx;
-	FromHigh.Origin = FRTCellId(0, 0, 2);
-	const int32 StayHigh = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 2)), FromHigh);
-	TestEqual(TEXT("restare in quota non incassa nulla"), StayHigh, 0);
-	const int32 Descend = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 0)), FromHigh);
-	TestEqual(TEXT("e scendere costa il guadagno perduto"), Descend, -40);
+	// ⚠️ **Il punteggio di un piano ISOLATO non dice come si comporta il bot**, e questo test misura solo
+	// quello: fra due candidate conta la DIFFERENZA, e una costante aggiunta a entrambe non muove nulla.
+	// E' l'errore che il 2026-08-22 ha prodotto un fix inerte (#1088): rendere il termine relativo a
+	// `Context.Origin` cambia ogni punteggio della stessa quantita' — `Origin` e' fisso per l'intera
+	// chiamata di `ChooseBestPlan` — quindi l'ordinamento resta identico e il parcheggio si riproduce.
+	// La proprieta' che conta e' pinnata da `ElevationNeverOutweighsClosingOneCell`, che confronta ESITI.
 	return true;
 }
 
 /**
- * L'INVARIANTE, misurato su `ScorePlan` e non sui pesi (#1088). Il bonus di quota si incassa una volta per
- * layer guadagnato; l'avvicinamento si incassa per cella. Se scendere di `MaxLayer` per guadagnare UNA cella
- * non paga, i due punteggi pareggiano e il tie-break «mossa minima da Origin» di `ChooseBestPlan` fa vincere
- * restare: il parcheggio rientra da un'altra porta.
+ * L'INVARIANTE, e si misura sull'ESITO di `ChooseBestPlan` (#1088).
  *
- * ⚠️ **Si misura chiamando `ScorePlan`, non confrontando `WElevation < WApproach`.** Quel confronto e' un
- * PROXY della formula: resterebbe verde se la formula cambiasse (elevazione quadratica, avvicinamento non
- * lineare) mentre l'invariante che nomina cade. Ed e' anche insufficiente, perche' ignora `MaxLayer`.
+ * Il bonus di quota compete con l'avvicinamento: se scendere di `MaxLayer` per guadagnare UNA cella non
+ * paga, il bot resta in alto e si parcheggia. Non c'e' una forma che lo renda impossibile — un bonus di
+ * posizione abbastanza grande batte sempre l'avvicinamento — quindi la difesa e' questo vincolo numerico,
+ * e va misurato dove il comportamento si decide.
+ *
+ * ⚠️ **Su `ChooseBestPlan` e non su `ScorePlan`**: due punteggi confrontati a mano ignorano il tie-break
+ * («a parita', mossa minima da `Origin`»), che e' proprio il meccanismo che fa vincere il restare quando
+ * i punteggi pareggiano. Il caso `-40` contro `-40` misurato il 2026-08-22 sarebbe passato inosservato.
+ *
+ * 🔴 **`MaxLayer` e' un limite DICHIARATO, non garantito**: `FRTCellId::Layer` e' un `int32` senza cap, e
+ * nessun validator di mappa ne impone uno. Una mappa d'autore a quattro livelli renderebbe `4 x 3 = 12`
+ * maggiore di `WApproach`, e questo test resterebbe verde perche' misura il caso che dichiara. Chi aggiunge
+ * layer oltre `MaxLayerSupported` deve rivedere i pesi o aggiungere il cap al formato mappa.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotElevationInvariantTest,
 	"RefactorTactics.HexBot.ElevationNeverOutweighsClosingOneCell",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexBotElevationInvariantTest::RunTest(const FString&)
 {
-	// Due layer: il caso peggiore per l'invariante e' la discesa piu' lunga che la mappa consente.
-	URTHexMapAsset* M = MakeBotMap(4);
-	const int32 MaxLayer = 2;
+	// Le arene generate usano due layer (`MaxLayer` 1); tre e' il caso peggiore che ponti e multilivello
+	// di E9 rendono plausibile senza che nessuno lo dichiari.
+	const int32 MaxLayerSupported = 2;
+	URTHexMapAsset* M = MakeLayeredBotMap(4, MaxLayerSupported + 1);
 
-	// Nemico a distanza 4 dall'origine in quota; scendere avvicina di UNA cella. E' il conto minimo: se
-	// nemmeno il guadagno di una cella batte la quota persa, nessun guadagno lo fa.
-	FRTHexBotContext Ctx = MakeCtx(FRTCellId(0, 0, MaxLayer), FRTCellId(4, 0, 0), /*range*/ 0, /*hp*/ 1000);
+	FRTHexBotContext Ctx = MakeCtx(FRTCellId(0, 0, MaxLayerSupported), FRTCellId(4, 0, 0), /*range*/ 0, /*hp*/ 1000);
 	Ctx.WElevation = GetDefault<ARTTurnManager>()->WElevation;
 	Ctx.WApproach = GetDefault<ARTTurnManager>()->WApproach;
 
-	const int32 Stay = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(0, 0, MaxLayer)), Ctx);
-	const int32 Closer = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 0)), Ctx);
+	// Due sole candidate, e la domanda e' quale vince: restare in quota, o scendere avvicinandosi di una
+	// cella. Passano da `ChooseBestPlan`, quindi il tie-break e' incluso nel verdetto.
+	const FRTCellId StayCell(0, 0, MaxLayerSupported);
+	const FRTCellId CloserCell(1, 0, 0);
+	TArray<FRTHexBotPlan> Candidates;
+	Candidates.Add(MakePlan(StayCell));
+	Candidates.Add(MakePlan(CloserCell));
+	const FRTHexBotPlan Best = URTHexBotLibrary::ChooseBestPlan(M, Candidates, Ctx);
+
 	TestTrue(FString::Printf(
-		TEXT("scendere di %d layer per una cella batte restare: %d contro %d (WElevation %d, WApproach %d)"),
-		MaxLayer, Closer, Stay, Ctx.WElevation, Ctx.WApproach),
-		Closer > Stay);
+		TEXT("scendere di %d layer per una cella batte restare (WElevation %d, WApproach %d): scelto (%d,%d,L%d)"),
+		MaxLayerSupported, Ctx.WElevation, Ctx.WApproach, Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer),
+		Best.DestCell == CloserCell);
 
 	// E le due sorgenti dei pesi devono coincidere: `PlanBots` copia le UPROPERTY di `ARTTurnManager` sopra
 	// i default della struct, quindi tarare solo i secondi non muove nulla di cio' che il giocatore vede.
 	//
 	// ⚠️ **Il CDO non e' l'ultima parola.** `ARTGameMode` riusa un `ARTTurnManager` gia' presente nel livello
 	// invece di spawnarlo, quindi un'istanza piazzata in un `.umap` con `WElevation` modificato in editor
-	// sopravvive al cambio di default C++ e questo test non la vedrebbe. Verificarlo richiede aprire i
-	// pacchetti: e' una voce PIE, non un'asserzione headless.
+	// sopravvive al cambio di default C++ e questo test non la vedrebbe. Copre quel caso `PIE-BOT-WEIGHTS`.
 	const FRTHexBotContext Defaults;
 	TestEqual(TEXT("le due sorgenti di WElevation coincidono"),
 		GetDefault<ARTTurnManager>()->WElevation, Defaults.WElevation);

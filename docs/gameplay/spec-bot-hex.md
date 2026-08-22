@@ -82,11 +82,19 @@ kiter (KiteStandoff > 0), se dist < standoff:   Score -= WKiteViolation × (stan
 mischia (KiteStandoff == 0):                     Score -= WApproach × dist
 ```
 
-E infine `Score += WElevation × (Layer_destinazione − Layer_origine)`: a parità di tutto, **guadagnare**
-quota vince — non possederla. ⚠️ Il termine era assoluto sulla cella di destinazione fino al 2026-08-22
-([#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088)), e un'unità già in alto lo
-incassava ogni turno anche restando ferma: si formava uno **stato assorbente**, misurato come dieci turni
-consecutivi sulla stessa cella. Reso relativo, restare vale zero e il punto fisso non si forma.
+E infine `Score += WElevation × Layer` della cella di destinazione: a parità di tutto, l'alta quota vince.
+
+⚠️ **Qui si è formato lo stato assorbente di [#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088)**,
+e la difesa è **un numero, non la formula**. Il termine compete con l'avvicinamento: finché `WElevation × Layer`
+supera quello che `WApproach` rende scendendo, restare in alto batte muoversi. Misurato con `WElevation` 20:
+un'unità saliva sulla piattaforma al turno 3 e non scendeva fino al 12.
+
+⛔ **Renderlo relativo all'origine non serve, ed è stato provato**: `Origin` è fisso per l'intera scelta,
+quindi sottrarne il contributo sposta ogni candidata della stessa costante e non cambia l'ordinamento.
+
+⚠️ **INVARIANTE: `WElevation × MaxLayer < WApproach`.** È l'unica difesa reale, pinnata da
+`HexBot.ElevationNeverOutweighsClosingOneCell`. Alzare `WElevation` in editor oltre quella soglia — che
+`PIE-BU2b` documenta come workflow — riapre lo stato assorbente, e nessun gate lo impedisce.
 
 ### 3e. I pesi
 
@@ -98,7 +106,7 @@ consecutivi sulla stessa cella. Reso relativo, restare vale zero e il punto fiss
 | `WThreat` | 100 | esposizione al tiro nemico, per nemico |
 | `WKiteViolation` | 50 | per cella sotto lo standoff del kiter |
 | `WApproach` | 10 | per cella di distanza, per chi è in mischia |
-| `WElevation` | 5 | per layer **guadagnato** rispetto all'origine |
+| `WElevation` | 4 | per layer di quota — vincolato da `WElevation × MaxLayer < WApproach` (#1088) |
 
 Sono **interi bilanciabili senza toccare la logica**. La scala relativa fra `WThreat` e `WDamage` è nota
 essere un punto dolente: vedi [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149), che
