@@ -176,16 +176,10 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// dichiara inammissibile finche' il bot non e' certificato. In piu' riaprirebbe D-010 e muoverebbe
 	// `InitialBank` via [D-056].
 	//
-	// ➕ **Il numero che D-184 cita e' cambiato, e va annotato senza cambiare la decisione.** D-184 misura
-	// *«round 21/40»* su `-game -RTAutobattle`, configurazione spedita. Rimisurato sullo STESSO percorso dopo
-	// la correzione del bonus di quota: **round 15/40**. Sei round in meno, e la conclusione di D-184 non si
-	// muove — 15 e' comunque oltre il limite, quindi sul default la partita finisce pari allo scadere e il
-	// pareggio resta l'esito legittimo che quella decisione dichiara.
-	//
-	// ⚠️ **Da questo NON segue che 14 basterebbe**: 15 e' oltre anche il massimo della banda 2v2. Una misura
-	// headless nel test automation dava 14 ed e' un percorso piu' corto di quello reale — tarare sul banco
-	// sbagliato produce un numero giusto per la misura e falso per il gioco.
-	//
+	// ⚠️ **E non basterebbe nemmeno**: la misura corrente e' **round 15**, annotata accanto a `ExpectedRounds`
+	// insieme al 21 che sostituisce. 15 e' oltre anche il massimo della banda 2v2, quindi il 14 che una
+	// misura headless suggeriva era giusto per il banco e falso per il gioco — quel percorso e' piu' corto
+	// di quello reale. Il numero vive in un posto solo, sotto: qui c'e' il rimando.
 	// Il 5 precedente era un valore da test, e si dichiarava «una scelta di ritmo, non un ripiego»: era una
 	// motivazione scritta senza confrontarla con D-010, che diceva gia' il contrario. A falsificarla e' stato
 	// il primo playtest al PIE — partita 2v2 su `GeneratedTestArena` finita
@@ -204,10 +198,6 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// il limite stesso, perche' il limite ERA la fine attesa; con 12 la fine attesa torna a essere
 	// l'**eliminazione**, e il limite la rete di sicurezza dietro di essa. Il 10 e' il dato misurato
 	// headless il 2026-08-06 (bot contro bot: la partita si decide al turno 10), non un numero scelto a
-	// ⚠️ **Il 21 annotato qui sopra e' sceso a 15** (#1088, 2026-08-22), rimisurato sullo stesso percorso dopo
-	// la correzione del bonus di quota. Resta un dato **non ammissibile** come evidenza di bilanciamento per
-	// [D-102], quindi non diventa il nuovo `ExpectedRounds` — che resta **10**, target di design, e che
-	// mettere a 15 renderebbe comunque il formato invalido (`ExpectedRounds > RoundLimit`).
 	// tavolino — ed e' lo stesso valore che `PIE-HEXPLAY-10` porta come dato di riferimento.
 	// Tenerlo uguale a 12 avrebbe dichiarato di nuovo che ci si aspetta di arrivare allo scadere.
 	//
@@ -227,6 +217,14 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// un numero su un dato inammissibile. Il `10` resta il target di design; il `21` resta qui accanto
 	// perche' chi arriva dopo non debba ri-misurarlo — ed e' anche la ragione per cui il gate di
 	// `ValidateFormat` oggi tace: e' cieco su una misura scaduta, non su una regola sbagliata.
+	//
+	// ➕ **E quel 21 e' sceso a 15** (#1088, 2026-08-22): rimisurato sullo STESSO percorso — `-game
+	// -RTAutobattle`, configurazione spedita, tetto 40 — dopo la correzione dello stato assorbente del bonus
+	// di quota. Sei round in meno, e **nulla di cio' che D-184 decide si muove**: 15 e' comunque oltre il
+	// limite di 12, quindi sul default la partita finisce pari allo scadere e il pareggio resta l'esito
+	// legittimo che quella voce dichiara. Il 15 sostituisce il 21 come misura corrente e ne eredita lo
+	// statuto: **non ammissibile** come evidenza di bilanciamento per D-102, quindi non diventa
+	// `ExpectedRounds` — che resta **10**, e che a 15 renderebbe comunque il formato invalido.
 	// Soglia obiettivo ZERO, e non e' pigrizia: **nessuno assegna punti**. `ARTTurnManager::AddTeamScore`
 	// esiste e funziona, ma il suo unico chiamante in tutto il repository e' un test — nel runtime non ci sono
 	// obiettivi che producano punteggio. Una soglia > 0 dichiarerebbe una via di vittoria IRRAGGIUNGIBILE, cioe'
