@@ -141,6 +141,12 @@ public:
 	 * Dichiara la radice e apre la prima schermata. **Va chiamata prima di ogni altra cosa**: senza radice
 	 * lo stack non ha uno stato legale, e `ReturnMain` non avrebbe dove tornare.
 	 *
+	 * ⚠️ **Smonta e dimentica i widget della sessione precedente.** Non e' una navigazione: e' l'inizio di
+	 * una sessione nuova, e i widget vivi appartengono al mondo in cui sono stati costruiti. Chi la chiama
+	 * come un «assicurati di essere alla radice» idempotente paga una ricostruzione completa e **perde
+	 * scroll, selezione e campi di testo** di ogni schermata gia' aperta — vedi `FindLiveWidget`.
+	 * `Bindings` invece sopravvive: `StartFrontendFrom` registra e *poi* inizializza.
+	 *
 	 * ⚠️ **Restituisce l'esito, e la prima stesura era `void`.** Con un `RootScreenId` vuoto il navigatore
 	 * restava muto: ogni `PushScreen` successivo rispondeva `Ok` — lo stack si muove — ma nessun widget
 	 * compariva mai, perche' `SyncPresentation` esce subito. Un fallimento indistinguibile dal successo e'
@@ -230,6 +236,16 @@ public:
 	 * indovinarlo.
 	 *
 	 * Chi vuole sapere se un widget e' visibile chiede `IsInViewport()` al widget.
+	 *
+	 * ⚠️ **La cache muore a `InitializeFrontend`**, e il paragrafo qui sopra vale **dentro** una sessione.
+	 * Una sessione nuova ricostruisce tutto, perche' i widget vecchi appartengono a un mondo smontato.
+	 *
+	 * 🔴 **Cio' che NON e' coperto, e va saputo**: `ReturnMain`, `PushScreen` e `ShowModal` raggiungono
+	 * `PresentWidget` **senza** passare da `InitializeFrontend`. Se fra la costruzione di un widget e una
+	 * di quelle chiamate il mondo e' cambiato — per esempio `BackFromError(Ready)` dopo un cambio di
+	 * livello — la cache restituisce ancora l'istanza vecchia. La correzione robusta guarda il **confine
+	 * del mondo** (`FWorldDelegates::OnWorldCleanup`, o una validazione dentro `PresentWidget`) invece di
+	 * un solo chiamante, ed e' piu' larga di CP 46.3. Trovato in code review su PR #1272.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Frontend")
 	UUserWidget* FindLiveWidget(FName ScreenId) const;

@@ -620,9 +620,14 @@ bool FRTMainMenuNoticeVisibilityFollowsTheFlagTest::RunTest(const FString&)
  * **dentro** una sessione di frontend. `InitializeFrontend` non e' una navigazione — e' l'inizio di una
  * sessione nuova, e `LiveWidgets` era l'unico stato che non veniva azzerato insieme allo stack.
  *
- * ⚠️ **Serve un mondo vero**: senza, `CreateWidget` non costruisce e il test non avrebbe soggetto. Se in
- * questo ambiente non costruisce, il test lo dichiara invece di asserire su due `nullptr` — che sarebbero
- * «uguali» e lo farebbero passare per la ragione sbagliata.
+ * ⚠️ **La meta' gemella di questa regola sta in `RTFrontendNavigationTests.cpp`**
+ * (`NavigatorCreatesAndReusesWidgets`, che asserisce il riuso *dentro* una sessione). Le due si leggono
+ * insieme: la cache vale fra `Push` e `Pop`, non fra due `InitializeFrontend`. Chi ne trova una sola vede
+ * meta' del contratto.
+ *
+ * ⚠️ **La prima stesura di questa nota diceva «serve un mondo vero, senza CreateWidget non costruisce».**
+ * Falso: la gemella costruisce widget **senza mondo**. Il mondo qui non serve a far costruire, serve a
+ * dare al widget un mondo da cui restare orfano — che e' il difetto. Trovato in code review.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendRestartDoesNotReuseStaleWidgetsTest,
 	"RefactorTactics.Frontend.RestartDoesNotReuseStaleWidgets",
@@ -643,25 +648,93 @@ bool FRTFrontendRestartDoesNotReuseStaleWidgetsTest::RunTest(const FString&)
 	TestEqual(TEXT("primo avvio"), Nav->InitializeFrontend(RTScreenIds::Main), ERTNavResult::Ok);
 
 	UUserWidget* First = Nav->FindLiveWidget(RTScreenIds::Main);
-	if (!First)
+	// 🔴 **`TestNotNull` PRIMA della via d'uscita, e la prima stesura non ce l'aveva.** Senza, un ambiente
+	// in cui `CreateWidget` smette di costruire avrebbe reso questo test verde per sempre senza asserire
+	// nulla — cioe' esattamente il «verde per la ragione sbagliata» che la sua docstring dichiara di
+	// evitare. La gemella in `RTFrontendNavigationTests.cpp` l'assertion ce l'ha; questa l'aveva persa.
+	// Trovato in code review.
+	if (!TestNotNull(TEXT("il primo avvio ha prodotto un widget"), First))
 	{
 		AddInfo(TEXT("CreateWidget non ha costruito in questo ambiente: riuso non verificabile qui"));
 		DestroyFrontendWorld(World, GI);
-		return true;
+		return false;
 	}
+
+	// ⚠️ **Ancorato per la durata del test.** Dopo il secondo `InitializeFrontend` nessuna `UPROPERTY`
+	// riferisce piu' il primo widget: un GC nel mezzo — e le run di automation collezionano — lo lascerebbe
+	// penzolante, e l'allocatore potrebbe riusare quello slot per il widget nuovo. `Second == First`
+	// farebbe fallire il test su un'implementazione **corretta**. Trovato in code review.
+	// `AddToRoot` e' il modo che questo repository usa gia' per ancorare un oggetto in un test (le
+	// `UGameInstance` degli helper qui sopra fanno lo stesso).
+	First->AddToRoot();
 
 	TestEqual(TEXT("secondo avvio"), Nav->InitializeFrontend(RTScreenIds::Main), ERTNavResult::Ok);
 
 	UUserWidget* Second = Nav->FindLiveWidget(RTScreenIds::Main);
 	if (!TestNotNull(TEXT("il secondo avvio produce un widget"), Second))
 	{
+		First->RemoveFromRoot();
 		DestroyFrontendWorld(World, GI);
 		return false;
 	}
 
-	TestNotEqual(TEXT("e non e' l'istanza del primo avvio"), Second, First);
+	// 🔴 **Che il primo sia USCITO dal viewport e' la meta' che distingue `DismissAllWidgets` da un
+	// `LiveWidgets.Reset()` nudo**, e la prima stesura non la asseriva: svuotando la mappa senza smontare,
+	// questo test sarebbe rimasto verde mentre il menu vecchio restava disegnato **sotto** quello nuovo —
+	// un esito peggiore del difetto che la correzione chiude. Trovato in code review.
+	TestFalse(TEXT("il primo e' uscito dal viewport"), First->IsInViewport());
 
+	TestNotEqual(TEXT("e non e' l'istanza del primo avvio"),
+		static_cast<const void*>(Second), static_cast<const void*>(First));
+
+	First->RemoveFromRoot();
 	DestroyFrontendWorld(World, GI);
+	return true;
+}
+
+/**
+ * **Riaprire il frontend riesce, e lo dichiara.**
+ *
+ * 🔴 Regressione mia, introdotta correggendo il conteggio dei duplicati su PR #1264 e trovata dalla code
+ * review di #1272 — cioe' dal giro dopo. `RegisterScreens` chiedeva `Bindings.Contains(...)`, che interroga
+ * la mappa **persistente**: al secondo avvio del frontend ogni schermata risultava «gia' legata», quindi
+ *
+ *  - il conteggio tornava **0** e `StartFrontend` rispondeva **`false`** su un menu aperto correttamente;
+ *  - il log accusava il `.ini` di dichiarare due volte schermate che compaiono **una** volta sola;
+ *  - e ci aggiungeva «avviato senza schermate registrate», che era la conclusione sbagliata della catena.
+ *
+ * ⚠️ **Il difetto sta esattamente sul percorso che questa PR esiste per riparare**: `Main Menu -> partita
+ * -> Main Menu` e' il ciclo di CP 46.5, ed e' il secondo avvio. La correzione dei widget stantii sarebbe
+ * arrivata insieme a un chiamante che riceveva `false` e a un log che lo mandava a cercare nel `.ini`.
+ *
+ * Un duplicato e' due righe **nella stessa dichiarazione**, non la stessa schermata dichiarata due volte in
+ * due momenti diversi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendStartsAgainAfterFirstSessionTest,
+	"RefactorTactics.Frontend.StartsAgainAfterFirstSession",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendStartsAgainAfterFirstSessionTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeMainMenuNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseMainMenuNavigator(GI); return false; }
+
+	TArray<FRTScreenBinding> Bindings;
+	Bindings.Add(MakeMainMenuBinding(RTScreenIds::Main));
+	Bindings.Add(MakeMainMenuBinding(RTScreenIds::Settings));
+
+	TestTrue(TEXT("il primo avvio riesce"), Nav->StartFrontendFrom(Bindings));
+
+	// ⚠️ Nessun `AddExpectedMessage` qui, ed e' la meta' che conta: se il secondo avvio tornasse a emettere
+	// «dichiarata due volte» o «senza schermate registrate», quei warning **non dichiarati** farebbero
+	// fallire il test. E' l'asserzione sul log che l'assenza di un'aspettativa rende possibile.
+	TestTrue(TEXT("e il secondo pure, sulle stesse schermate"), Nav->StartFrontendFrom(Bindings));
+
+	TestEqual(TEXT("la radice e' ancora il Main Menu"), Nav->GetCurrentScreen(), RTScreenIds::Main);
+	TestEqual(TEXT("e le schermate registrate restano due"),
+		Nav->GetRegisteredScreenIds().Num(), 2);
+
+	ReleaseMainMenuNavigator(GI);
 	return true;
 }
 
