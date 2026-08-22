@@ -1744,6 +1744,9 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	int32 CombatEntries = 0;
 	int32 MoveEntries = 0;
 	int32 FirstCombatTurn = 0;   // il turno del PRIMO colpo: se cade oltre il RoundLimit reale, in partita non si vede mai
+	TMap<int32, FRTCellId> LastCell;      // ultima cella vista, per unita'
+	TMap<int32, int32> StillStreak;       // turni consecutivi senza muoversi
+	int32 LongestStillStreak = 0;
 
 	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && TurnsPlayed < MaxTurns)
 	{
@@ -1754,6 +1757,19 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 			TM->Tick(0.05f);
 		}
 		++TurnsPlayed;
+
+		// Immobilita' per unita', turno per turno: e' la firma dello stato assorbente di #1088, e va
+		// raccolta qui perche' a fine partita le posizioni non raccontano piu' il percorso.
+		for (const ARTUnit* Unit : CollectAutobattleUnits(World))
+		{
+			if (!Unit->IsAlive()) { continue; }
+			const int32 Id = Unit->StableUnitId;
+			int32& Streak = StillStreak.FindOrAdd(Id);
+			const FRTCellId* Last = LastCell.Find(Id);
+			Streak = (Last != nullptr && *Last == Unit->Cell) ? Streak + 1 : 0;
+			LongestStillStreak = FMath::Max(LongestStillStreak, Streak);
+			LastCell.Add(Id, Unit->Cell);
+		}
 
 		for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
 		{
@@ -1790,12 +1806,35 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	const FRTMatchResult Result = TM->GetMatchResult();
 	TestTrue(FString::Printf(TEXT("la partita si decide entro il tetto: %d turni giocati"), TurnsPlayed),
 		TM->GetPhase() == ERTMatchPhase::MatchEnded);
-	TestEqual(FString::Printf(
-		TEXT("e si decide per ELIMINAZIONE, non per esaurimento dei round: %s - %s al turno %d"),
+
+	// ⛔ **NON si pretende un vincitore, e non e' una rinuncia: e' [D-184]** (2026-08-22), che dichiara il
+	// pareggio allo scadere un esito legittimo della v0.1 e toglie «compare un vincitore» dal DoD di E47.1
+	// sul free-run del default. L'evidenza di una partita fino alla vittoria viene da uno SCENARIO costruito
+	// per risolversi (#959), non da qui.
+	//
+	// 🔴 **Ma il difetto di #1088 resta falsificabile, e il discriminante e' questo.** Un pareggio allo
+	// scadere in cui il campo si e' consumato e' l'esito che D-184 accetta; un pareggio in cui nessuno cade
+	// e' lo STATO ASSORBENTE — il bot parcheggiato in quota che non conclude mai. La differenza non e' nella
+	// via di chiusura, che in entrambi i casi e' `RoundLimit`: e' se la partita **avanza**.
+	//
+	// ⚠️ E non basta contare le voci `Combat`: la run che ha aperto #1088 ne aveva 19 in 12 turni **con una
+	// sola caduta**, cioe' si sparava senza decidere nulla. Le eliminazioni sono la misura che il volume di
+	// fuoco non sa dare.
+	// ⚠️ **La prima stesura di questa asserzione contava le unita' in piedi (`< 4`) ed era VACUA**: col
+	// difetto presente ne cadeva una lo stesso, quindi `3 < 4` passava. Il conteggio dei caduti non
+	// distingue una partita che avanza da una in orbita — a distinguerle e' se qualcuno smette di muoversi.
+	//
+	// Misurato: col bonus di quota assoluto, Riktor saliva sulla piattaforma al turno 3 e restava sulla
+	// stessa cella fino al 12, cioe' **dieci turni consecutivi**. La soglia e' generosa di proposito —
+	// restare fermi per sparare e' legittimo, restare fermi mezza partita no.
+	const int32 MaxLegitimateStillTurns = 5;
+	TestTrue(FString::Printf(
+		TEXT("nessuna unita' si parcheggia: piu' lunga sequenza ferma %d turni (limite %d) — %s - %s al turno %d"),
+		LongestStillStreak, MaxLegitimateStillTurns,
 		*URTTurnRules::DescribeOutcome(Result.Outcome),
-		*URTTurnRules::DescribeEndReason(Result.Reason),
-		TurnsPlayed),
-		Result.Reason, ERTMatchEndReason::Elimination);
+		*URTTurnRules::DescribeEndReason(Result.Reason), TurnsPlayed),
+		LongestStillStreak <= MaxLegitimateStillTurns);
+	AddInfo(FString::Printf(TEXT("piu' lunga sequenza ferma: %d turni"), LongestStillStreak));
 
 	// 🔴 IL NUMERO CHE CONTA: se il primo colpo cade oltre il limite del formato, in partita il giocatore
 	// vede solo il pareggio di #1088 — e questo test, che ha un tetto piu' alto, non lo mostrerebbe.

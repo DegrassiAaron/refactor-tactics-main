@@ -167,21 +167,24 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 
 	URTMatchFormatData* Format = NewObject<URTMatchFormatData>();
 	Format->FormatId = Skirmish2v2FormatId;
-	// RoundLimit 14 — allineato a **D-010**, che consolida `RoundLimit` **10-14 in 2v2** (16-20 in 3v3): 14 e'
-	// il MASSIMO dell'intervallo del formato che questo catalogo descrive. Portato qui da 5 il 2026-08-10 e
-	// da 12 il 2026-08-22 (#1088).
+	// RoundLimit 12 — allineato a **D-010**, che consolida `RoundLimit` **10-14 in 2v2** (16-20 in 3v3): 12 e'
+	// il centro dell'intervallo del formato che questo catalogo descrive. Portato qui da 5 il 2026-08-10.
 	//
-	// 🔴 **Il 12 e' salito a 14 su una misura, e la misura ha margine ZERO.** Sciolto lo stato assorbente del
-	// bot (bonus di quota condizionato all'attacco, `URTHexBotLibrary::ScorePlan`), la partita non presidiata
-	// su `GeneratedTestArena` si decide **per eliminazione al turno 14** — con 12 finiva `Pareggio - allo
-	// scadere` in un 1v1 con il perdente a 24 HP e in calo di ~16 per turno. E' la stessa dinamica che aveva
-	// gia' portato il 5 a 12: la via NORMALE di chiusura era diventata il pareggio a vantaggio netto.
+	// ⛔ **E resta 12 anche dopo la correzione dello stato assorbente del 2026-08-22 (#1088), per decisione.**
+	// [D-184] vieta esattamente questa mossa: alzare `RoundLimit` per accomodare una durata bot-contro-bot e'
+	// l'inferenza «l'eroe e' debole» al posto di «il bot non sa giocarla» con un altro cappello, e [D-102] la
+	// dichiara inammissibile finche' il bot non e' certificato. In piu' riaprirebbe D-010 e muoverebbe
+	// `InitialBank` via [D-056].
 	//
-	// ⚠️ **La riserva, dichiarata invece che scoperta a consuntivo**: 14 e' esattamente il turno in cui quella
-	// partita finisce, su UNA arena e UNA configurazione. Non c'e' margine, e non e' stabilito che 14 sia la
-	// durata TIPICA — solo che e' quella misurata qui. Se il contenuto cresce ancora, questo numero non ha
-	// dove salire: D-010 lo dichiara massimo della banda 2v2, e oltre serve rivedere la decisione, non il
-	// numero.
+	// ➕ **Il numero che D-184 cita e' cambiato, e va annotato senza cambiare la decisione.** D-184 misura
+	// *«round 21/40»* su `-game -RTAutobattle`, configurazione spedita. Rimisurato sullo STESSO percorso dopo
+	// la correzione del bonus di quota: **round 15/40**. Sei round in meno, e la conclusione di D-184 non si
+	// muove — 15 e' comunque oltre il limite, quindi sul default la partita finisce pari allo scadere e il
+	// pareggio resta l'esito legittimo che quella decisione dichiara.
+	//
+	// ⚠️ **Da questo NON segue che 14 basterebbe**: 15 e' oltre anche il massimo della banda 2v2. Una misura
+	// headless nel test automation dava 14 ed e' un percorso piu' corto di quello reale — tarare sul banco
+	// sbagliato produce un numero giusto per la misura e falso per il gioco.
 	//
 	// Il 5 precedente era un valore da test, e si dichiarava «una scelta di ritmo, non un ripiego»: era una
 	// motivazione scritta senza confrontarla con D-010, che diceva gia' il contrario. A falsificarla e' stato
@@ -193,7 +196,7 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// ⚠️ `RoundLimit` non e' solo la fine della partita: **D-056** ne deriva `InitialBank`
 	// (`RoundLimit x (MaxWindow - Grace)`), quindi questo numero muove anche il time bank. La formula si tara
 	// a CP 14.6 e li' va riletta con 12, non con 5.
-	Format->RoundLimit = 14;
+	Format->RoundLimit = 12;
 	// `ExpectedRounds` non lo legge nessun codice di gioco: e' un target di design, e il suo unico lettore
 	// e' il validator, che rifiuta un formato in cui i round attesi superano il limite.
 	//
@@ -201,11 +204,10 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// il limite stesso, perche' il limite ERA la fine attesa; con 12 la fine attesa torna a essere
 	// l'**eliminazione**, e il limite la rete di sicurezza dietro di essa. Il 10 e' il dato misurato
 	// headless il 2026-08-06 (bot contro bot: la partita si decide al turno 10), non un numero scelto a
-	// ⚠️ **RIMISURARE (#1088, 2026-08-22): quel 10 oggi non regge.** La stessa partita headless, sulla stessa
-	// arena, si decide al turno **14**. Il 10 resta scritto perche' non ho una seconda misura con cui
-	// sostituirlo, e mettere 14 lo renderebbe pari al `RoundLimit` — cioe' proprio la condizione che questo
-	// commento descrive come sbagliata: il limite tornerebbe a essere la fine attesa invece della rete di
-	// sicurezza dietro di essa. Serve una campagna su piu' arene e piu' seed, non un terzo aneddoto.
+	// ⚠️ **Il 21 annotato qui sopra e' sceso a 15** (#1088, 2026-08-22), rimisurato sullo stesso percorso dopo
+	// la correzione del bonus di quota. Resta un dato **non ammissibile** come evidenza di bilanciamento per
+	// [D-102], quindi non diventa il nuovo `ExpectedRounds` — che resta **10**, target di design, e che
+	// mettere a 15 renderebbe comunque il formato invalido (`ExpectedRounds > RoundLimit`).
 	// tavolino — ed e' lo stesso valore che `PIE-HEXPLAY-10` porta come dato di riferimento.
 	// Tenerlo uguale a 12 avrebbe dichiarato di nuovo che ci si aspetta di arrivare allo scadere.
 	// Soglia obiettivo ZERO, e non e' pigrizia: **nessuno assegna punti**. `ARTTurnManager::AddTeamScore`
@@ -234,7 +236,7 @@ FRTMatchRules URTMatchFormatLibrary::MakeFallbackRules()
 {
 	FRTMatchRules Rules;
 	Rules.FormatId = FallbackFormatId;
-	Rules.RoundLimit = 14;
+	Rules.RoundLimit = 12;
 	Rules.ScoreToWin = 0;
 	// Il ripiego copre l'ASSENZA del formato, e deve produrre la partita del vertical slice: 2v2 su mappa
 	// Skirmish. Un ripiego che non dichiarasse la composizione fallirebbe la propria validazione, e la (D1)

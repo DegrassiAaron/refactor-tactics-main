@@ -114,7 +114,7 @@ public:
 
 	/** Numero massimo di round. Valore corrente del 2v2 v0.1; banda 10-14, cap 14-16 (spec §6). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Match")
-	int32 RoundLimit = 14;
+	int32 RoundLimit = 12;
 
 	/**
 	 * Round attesi per una partita di questo formato. **Nessun codice di gioco lo legge**: e' un target di
