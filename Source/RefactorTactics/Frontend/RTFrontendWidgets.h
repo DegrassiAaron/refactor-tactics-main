@@ -42,6 +42,91 @@
  */
 
 /**
+ * Il **Main Menu** (CP 46.3, `#938`): la schermata da cui il pacchetto avvia.
+ *
+ * ⚠️ **Qui non ci sono i tre pulsanti.** `PLAY · SETTINGS · QUIT` sono widget dentro
+ * `WBP_RT_MainMenu.uasset`, e la loro disposizione, il focus visibile e la percorribilita' da tastiera
+ * sono lavoro d'editor: restano di `PIE-V01-FRONTEND-MAIN`, che e' l'unico posto in cui si puo' dire se
+ * un bordo di focus si vede. Questa classe dichiara **cosa il menu puo' leggere**.
+ *
+ * ⚠️ **E non naviga**, come le altre tre di questo file: i pulsanti chiamano `URTFrontendNavigator`, che
+ * e' gia' `BlueprintCallable`. L'invariante 1 di CP 46.1 dice che il flow ha un owner solo, e un widget
+ * che scegliesse la destinazione sarebbe il secondo.
+ */
+UCLASS(BlueprintType)
+class REFACTORTACTICS_API URTMainMenuWidgetBase : public UUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	/**
+	 * La riga di versione da mostrare a schermo. E' la voce *«version/build label leggibile»* del DoD.
+	 *
+	 * ⚠️ **Non e' una costante.** Legge `ProjectVersion` da `DefaultGame.ini`, e la ragione e' il modo in
+	 * cui questa riga marcisce: una label letterale resta identica dopo il bump, e l'unico segnale che
+	 * qualcosa non torna arriva mesi dopo, da chi segnala un difetto su una build che crede di essere
+	 * un'altra. Una versione che mente e' peggio di una versione assente.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	FText GetVersionLabel() const;
+
+private:
+	/** Legge `ProjectVersion` e compone la riga. Chiamata **una volta**: vedi `CachedVersionLabel`. */
+	static FText BuildVersionLabel();
+
+	/**
+	 * La label gia' composta.
+	 *
+	 * ⚠️ `mutable` perche' `GetVersionLabel()` e' `const` — e lo e' giustamente, dato che non cambia nulla
+	 * di osservabile. Il valore non dipende dal ciclo di vita del widget, quindi un calcolo pigro batte
+	 * `NativeOnInitialized`: non obbliga chi deriva la classe a ricordarsi di chiamare `Super`.
+	 */
+	mutable TOptional<FText> CachedVersionLabel;
+
+public:
+
+	/**
+	 * `true` finche' `SETTINGS` non ha contenuto — cioe' per tutta la v0.1.
+	 *
+	 * La voce **esiste comunque**: il DoD la vuole perche' il back stack la attraversi, e perche' il menu
+	 * non cambi forma in v0.2. Cio' che questo flag governa e' se il pannello si dichiara.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	static bool IsSettingsComingSoon();
+
+	/**
+	 * Cosa dice `SETTINGS` quando non ha contenuto. Vuoto quando il pannello e' vero.
+	 *
+	 * ⚠️ **Il testo nasce qui e non nel Blueprint**, per la stessa ragione di `GetPhaseText()`: un pulsante
+	 * che non fa nulla **senza dirlo** e' il dead-end che il DoD vieta, e lasciare la frase al `.uasset`
+	 * significherebbe che il rispetto di quella regola dipende da chi ha disegnato il widget.
+	 *
+	 * 🔴 **`static`, e la prima stesura non lo era.** Trovato in code review: il runbook diceva di derivare
+	 * `WBP_RT_SettingsPanel` da `UUserWidget` e di mostrarci questa frase — impossibile, perche' su una
+	 * `UUserWidget` la funzione non esiste. Chi costruiva il pannello non l'avrebbe trovata nella palette e
+	 * avrebbe scritto la stringa a mano, cioe' proprio cio' che questo file vieta. Statica e' chiamabile da
+	 * **qualunque** Blueprint, e i due posti che devono dire la stessa cosa — la voce del menu e il pannello
+	 * che si apre — la leggono dallo stesso punto.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	static FText GetSettingsNoticeText();
+
+	/**
+	 * La visibilita' della riga *coming soon*, gia' nel tipo che il binding di `Visibility` accetta.
+	 *
+	 * 🔴 **Mancava, ed e' la quarta volta.** `GetLoadingVisibility` spiega il problema per le altre tre
+	 * classi di questo file — un `bool` non compare nel menu dei binding di `Visibility`, che vuole un
+	 * `ESlateVisibility`, quindi **chi cerca non lo trova** — e chiude dicendo che *«averne risolta una sola
+	 * avrebbe lasciato le altre due a far perdere tempo nello stesso identico punto»*. La classe nuova era
+	 * stata aggiunta senza. Trovato in code review.
+	 *
+	 * `Collapsed` e non `Hidden`, come il banner: una riga assente non deve occupare spazio nel layout.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	static ESlateVisibility GetSettingsNoticeVisibility();
+};
+
+/**
  * La schermata di **attesa**: mostra la fase raggiunta, e nient'altro.
  *
  * ⚠️ **Nessuna percentuale, e nessun testo scritto a mano.** La fase e' un dato (`ERTLoadPhase`) prodotto

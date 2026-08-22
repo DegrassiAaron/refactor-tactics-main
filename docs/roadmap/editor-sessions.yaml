@@ -1426,3 +1426,59 @@ sessions:
       dichiara nessuna lease: questa seduta non li apre e non li prenota.
       ⚠️ ID assegnato prima del merge: `U27`, con `U26` come massimo misurato su `main` **e su tutti i
       diciotto branch remoti**, non solo sul proprio. Chi arriva secondo rinumera, non contende.
+
+  - id: U28
+    title: Il Main Menu, il pannello *coming soon* e la mappa da cui il pacchetto avvia
+    block: 6
+    critical: false
+    # ⚠️ `false` **come U24 e U27**, ed e' una decisione presa e non un default lasciato cadere. Il
+    # checkpoint e' P1 v0.1, quindi la tentazione e' `true`; ma in questo file `critical` marca le sedute
+    # che bloccano il **gameplay** — arena, partita, input, combat, bot — e le tre sedute del frontend
+    # stanno insieme dall'altra parte. Cambiare regola per una sola delle tre renderebbe la colonna
+    # illeggibile senza rendere piu' urgente il lavoro.
+    produces: il Main Menu, il pannello impostazioni dichiarato *coming soon*, e la mappa del frontend
+    artifacts:
+      - Content/RT/UI/Framework/WBP_RT_MainMenu.uasset
+      - Content/RT/UI/Framework/WBP_RT_SettingsPanel.uasset
+      - Content/RT/Maps/Shared/L_Frontend/L_Frontend.umap
+    unblocked_by: []
+    # Vuoto per la stessa ragione di `U24`: il C++ che questa seduta consuma — `URTMainMenuWidgetBase`,
+    # `ARTFrontendGameMode`, `StartFrontend` — arriva con la **stessa** issue, non da un checkpoint a monte.
+    shares_setup_with: []
+    verifies: []
+    issues: [938]
+    done_when: >-
+      i due `.uasset` esistono sotto `/Game/RT/UI/Framework/` **con esattamente i nomi dichiarati in
+      `DefaultGame.ini`**; `WBP_RT_MainMenu` eredita da `URTMainMenuWidgetBase` e legge `GetVersionLabel`
+      invece di scrivere la versione a mano; la mappa del frontend esiste e ha `RTFrontendGameMode` come
+      GameMode Override; in PIE il menu compare, si percorre da tastiera, e in **scala di grigi** si
+      distingue quale voce ha il focus
+    unblocks: [E46.4]
+    notes: >-
+      ➕ **Aperta per la meta' d'editor di `#938`.** Il C++ e' consegnato e provato: otto test
+      `RefactorTactics.Frontend.*` coprono la label di versione, la dichiarazione *coming soon*, la
+      registrazione delle schermate da `.ini` (comprese le voci incomplete, che si scartano **senza
+      contare**) e l'aggancio del GameMode. Quel che manca e' cio' che nessun test headless puo' produrre:
+      i widget e la mappa.
+      Passi in
+      [`guida-frontend-main-menu-umg.md`](../technical/runbooks/guida-frontend-main-menu-umg.md).
+      ⛔ **I nomi degli asset non sono liberi.** `Config/DefaultGame.ini` dichiara gia'
+      `WBP_RT_MainMenu` e `WBP_RT_SettingsPanel` sotto `/Game/RT/UI/Framework/`. Un nome diverso **non
+      produce un errore**: la registrazione riesce lo stesso — un `TSoftClassPtr` e' un percorso e non
+      carica — la navigazione risponde `Ok`, e lo schermo resta vuoto. E' il fallimento indistinguibile dal
+      successo, e chi lo cerca parte dal posto sbagliato perche' tutto sembra a posto.
+      ⚠️ **La categoria della mappa e' una proposta, non una decisione.** `Content/RT/Maps/` ha
+      `Dev/ · VerticalSlice/ · Shared/` e nessuna delle tre e' ovviamente giusta per un frontend:
+      `Shared/` e' la meno sbagliata. Se scegli diversamente, **aggiorna il path in `artifacts` qui
+      sopra**: da **D-181** nessuno script cammina piu' questo file, quindi un path sbagliato non fa
+      fallire niente — resta semplicemente scritto, e mente a chi legge. E' il motivo per cui va corretto
+      a mano, non il contrario.
+      ⚠️ **`GameDefaultMap` non e' committato, di proposito.** La riga che fa avviare il **pacchetto** dal
+      menu punterebbe oggi a una mappa che non esiste, e un `GameDefaultMap` rotto e' un progetto che non
+      si apre. Si scrive dopo il `.umap`, ed e' al §6 della guida.
+      ⚠️ **`verifies: []` come `U24`**: le sei voci `PIE-V01-FRONTEND-*` non esistono ancora. Non e' piu'
+      un blocco di assegnazione — quello e' decaduto con **D-178** — ma restano lavoro di `#1242`, non di
+      questa seduta.
+      ⚠️ ID assegnato prima del merge: `U28`, con `U27` come massimo misurato su `main` **e su tutti i
+      branch remoti**, PR `#1263` compresa (che tocca questo file alla riga ~486 e non aggiunge sedute).
+      Chi arriva secondo rinumera, non contende.

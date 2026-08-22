@@ -15,6 +15,8 @@
 // Per `ERTLoadPhase`: il `BACK` del modale d'errore sceglie fra `PopScreen` e `ReturnMain` guardando la
 // fase raggiunta dall'allestimento, che e' un dato d'avvio e non di navigazione (CP 46.2).
 #include "Frontend/RTStartupReport.h"
+// Per `RTScreenIds::Main` / `::Settings`: i nomi canonici delle due schermate vere (CP 46.3).
+#include "Frontend/RTFrontendScreenIds.h"
 #include "Engine/GameInstance.h"
 #include "Blueprint/UserWidget.h"
 // Solo per avere una `UUserWidget` **concreta** da istanziare: `UUserWidget` e' `Abstract`.
@@ -24,9 +26,18 @@
 
 namespace
 {
-	const FName Main(TEXT("Main"));
+	// ⚠️ **`Main` e `Settings` non sono piu' scritte qui**: sono schermate vere del frontend, e il loro nome
+	// canonico vive in `RTFrontendScreenIds.h` da CP 46.3. Questo blocco era l'unico posto in cui `"Main"`
+	// compariva, ed e' la ragione per cui quell'header esiste — lasciarci la copia avrebbe reso falsa la
+	// sua stessa motivazione, e un rename del nome canonico avrebbe continuato a compilare qui asserendo
+	// contro il letterale vecchio. Trovato in code review.
+	const FName& Main = RTScreenIds::Main;
+	const FName& Settings = RTScreenIds::Settings;
+
+	// Questi tre invece restano locali: sono nomi **di comodo per i test**, non schermate dichiarate. Il
+	// navigatore accetta qualunque `FName` non vuoto, ed e' esattamente cio' che serve per provare lo
+	// stack senza legarlo alle schermate che il gioco spedisce.
 	const FName Play(TEXT("Play"));
-	const FName Settings(TEXT("Settings"));
 	const FName ConfirmQuit(TEXT("ConfirmQuit"));
 	const FName ErrorModal(TEXT("Error"));
 }

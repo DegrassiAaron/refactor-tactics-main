@@ -115,8 +115,16 @@ difetto che le note sono una lista per evitare.
 
 ## 5. Le tre regole che il codice non può importi
 
-Valgono per la superficie C++; un Blueprint può sempre aggirarle, e nessun gate lo impedisce perché i
-`.uasset` non sono versionati. Sono qui perché siano una scelta consapevole.
+Valgono per la superficie C++; un Blueprint può sempre aggirarle. Sono qui perché siano una scelta
+consapevole.
+
+🔴 **La ragione che questa riga dava è scaduta il 2026-08-18, e ne aveva una diversa.** Diceva *«nessun
+gate lo impedisce perché i `.uasset` non sono versionati in questo repository»*: i cinque `WBP_RT_*` **sono
+versionati** (PR #1178), ed esiste anche un gate — `RTFrontendWidgetAssetTests.cpp` apre i package e
+verifica i binding dentro di essi. La riserva **regge lo stesso**, perché un test sui binding non impedisce
+a un Blueprint di disegnare una stringa propria, ma regge per un motivo diverso: il primo era un'assenza di
+infrastruttura, il secondo è un limite di ciò che si verifica. La stessa correzione è annotata in
+`RTFrontendWidgets.h`.
 
 ### 5.1 🔴 Non scrivere il testo di un errore nel Blueprint
 
@@ -211,8 +219,12 @@ nell'ordine.
 
 ## 7. Cosa NON costruire adesso
 
-- **`WBP_RT_MainMenu`, `WBP_RT_ResultScreen`, `WBP_RT_PauseMenu`** — sono di `#938`, `#940`, `#941`, e
-  hanno DoD propri. Costruirli ora significherebbe farlo senza la spec del loro checkpoint.
+- ~~**`WBP_RT_MainMenu`**~~ → **adesso sì**: CP 46.3 gli ha dato una spec e una classe base
+  (`URTMainMenuWidgetBase`), e i passi sono in
+  [`guida-frontend-main-menu-umg.md`](guida-frontend-main-menu-umg.md). Questa riga diceva di non
+  costruirlo *«senza la spec del suo checkpoint»* — la condizione era giusta, ed è stata soddisfatta.
+- **`WBP_RT_ResultScreen`, `WBP_RT_PauseMenu`** — sono di `#940` e `#941`, e hanno DoD propri. Costruirli
+  ora significherebbe farlo senza la spec del loro checkpoint.
 - **Un secondo root dell'HUD in-match.** `WBP_RT_TacticalHUD` esiste già ed è quello: `Frontend != In-Match
   HUD` vale in entrambi i versi.
 - **Uno stile condiviso**, se non serve a queste tre schermate. `UI/Styles/` nasce quando c'è qualcosa da
