@@ -233,6 +233,13 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	// --- Superfici ----------------------------------------------------------------------------------------
 	// Ogni cella compare UNA volta: e' la coerenza che la specifica chiede di verificare, e qui e' garantita
 	// dalla forma della tabella invece che da un controllo da ricordare.
+	//
+	// ⚠️ **Questa tabella ha un secondo committente oltre allo scenario a otto turni** (#1267): `Conductive`,
+	// `Ice`, `Smoke` e `HighGround` sono le quattro superfici che `D-183` chiede di distinguere per FORMA
+	// (CP 47.3, #956), e Basin e' la sola fixture che le contenga tutte — le altre rendono `Floor` piu'
+	// `Rough` e nient'altro. L'invariante e' **almeno una cella per ciascuna delle quattro**, non tutte e
+	// nove: le due `HighGround` sono le insostituibili, perche' sono le uniche che `RelayLite` non ha.
+	// Chi cambia una superficie qui guardi anche quel checkpoint, non solo il turno che stava sistemando.
 	struct FBasinPatch { FRTCellId Cell; ERTHexSurface Surface; };
 	static const FBasinPatch Patches[] = {
 		// Corridoio ovest: Gadget ci passa al turno 1, `MistVeil` ne aggiunge al turno 5.
