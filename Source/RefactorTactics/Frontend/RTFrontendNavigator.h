@@ -31,7 +31,7 @@ struct FRTScreenBinding
 	GENERATED_BODY()
 
 	/** Il nome della schermata. Vuoto significa **scartata**: un id assente non e' indirizzabile. */
-	UPROPERTY(Config)
+	UPROPERTY()
 	FName ScreenId;
 
 	/**
@@ -41,7 +41,7 @@ struct FRTScreenBinding
 	 * `.uasset`. E' cio' che permette a `RegisterScreens` di girare in un test headless prima che i
 	 * `WBP_RT_*` esistano — e i binari sono lavoro d'editor, quindi quel «prima» dura giorni, non minuti.
 	 */
-	UPROPERTY(Config)
+	UPROPERTY()
 	TSoftClassPtr<UUserWidget> WidgetClass;
 };
 
@@ -93,7 +93,23 @@ public:
 	 * il frontend e' la mappa del frontend, tramite `ARTFrontendGameMode`.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Frontend")
-	ERTNavResult StartFrontend();
+	bool StartFrontend();
+
+	/**
+	 * Avvia il frontend da un **elenco esplicito** invece che dalla configurazione. E' il corpo di
+	 * `StartFrontend`, separato dalla lettura del `.ini`.
+	 *
+	 * ⚠️ **Non e' `BlueprintCallable`, e la prima stesura ci aveva provato.** L'avevo giustificata come «la
+	 * via Blueprint» citando il commento di `RegisterScreen` — *«popolate da configurazione o da Blueprint
+	 * all'avvio»* — ma quella via **esiste gia'**: `RegisterScreen` e' esposta da CP 46.1. UHT ha rifiutato
+	 * la firma (`TArray<FRTScreenBinding>` non e' un tipo Blueprint), e la correzione giusta non era marcare
+	 * la struct `BlueprintType`: sarebbe stata l'esposizione senza consumatori per cui questo stesso tipo
+	 * era stato rimosso la prima volta.
+	 *
+	 * Resta C++ puro perche' e' cio' che rende **verificabile** il contratto di `StartFrontend`: senza un
+	 * modo di passare un elenco vuoto, il ramo «zero schermate» si proverebbe solo manomettendo `GConfig`.
+	 */
+	bool StartFrontendFrom(const TArray<FRTScreenBinding>& InScreens);
 
 	/**
 	 * Registra i binding dichiarati in `DefaultGame.ini`, e restituisce **quanti ne sono entrati davvero**.

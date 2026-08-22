@@ -70,6 +70,21 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
 	FText GetVersionLabel() const;
 
+private:
+	/** Legge `ProjectVersion` e compone la riga. Chiamata **una volta**: vedi `CachedVersionLabel`. */
+	static FText BuildVersionLabel();
+
+	/**
+	 * La label gia' composta.
+	 *
+	 * ⚠️ `mutable` perche' `GetVersionLabel()` e' `const` — e lo e' giustamente, dato che non cambia nulla
+	 * di osservabile. Il valore non dipende dal ciclo di vita del widget, quindi un calcolo pigro batte
+	 * `NativeOnInitialized`: non obbliga chi deriva la classe a ricordarsi di chiamare `Super`.
+	 */
+	mutable TOptional<FText> CachedVersionLabel;
+
+public:
+
 	/**
 	 * `true` finche' `SETTINGS` non ha contenuto — cioe' per tutta la v0.1.
 	 *
@@ -77,7 +92,7 @@ public:
 	 * non cambi forma in v0.2. Cio' che questo flag governa e' se il pannello si dichiara.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
-	bool IsSettingsComingSoon() const;
+	static bool IsSettingsComingSoon();
 
 	/**
 	 * Cosa dice `SETTINGS` quando non ha contenuto. Vuoto quando il pannello e' vero.
@@ -85,9 +100,30 @@ public:
 	 * ⚠️ **Il testo nasce qui e non nel Blueprint**, per la stessa ragione di `GetPhaseText()`: un pulsante
 	 * che non fa nulla **senza dirlo** e' il dead-end che il DoD vieta, e lasciare la frase al `.uasset`
 	 * significherebbe che il rispetto di quella regola dipende da chi ha disegnato il widget.
+	 *
+	 * 🔴 **`static`, e la prima stesura non lo era.** Trovato in code review: il runbook diceva di derivare
+	 * `WBP_RT_SettingsPanel` da `UUserWidget` e di mostrarci questa frase — impossibile, perche' su una
+	 * `UUserWidget` la funzione non esiste. Chi costruiva il pannello non l'avrebbe trovata nella palette e
+	 * avrebbe scritto la stringa a mano, cioe' proprio cio' che questo file vieta. Statica e' chiamabile da
+	 * **qualunque** Blueprint, e i due posti che devono dire la stessa cosa — la voce del menu e il pannello
+	 * che si apre — la leggono dallo stesso punto.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
-	FText GetSettingsNoticeText() const;
+	static FText GetSettingsNoticeText();
+
+	/**
+	 * La visibilita' della riga *coming soon*, gia' nel tipo che il binding di `Visibility` accetta.
+	 *
+	 * 🔴 **Mancava, ed e' la quarta volta.** `GetLoadingVisibility` spiega il problema per le altre tre
+	 * classi di questo file — un `bool` non compare nel menu dei binding di `Visibility`, che vuole un
+	 * `ESlateVisibility`, quindi **chi cerca non lo trova** — e chiude dicendo che *«averne risolta una sola
+	 * avrebbe lasciato le altre due a far perdere tempo nello stesso identico punto»*. La classe nuova era
+	 * stata aggiunta senza. Trovato in code review.
+	 *
+	 * `Collapsed` e non `Hidden`, come il banner: una riga assente non deve occupare spazio nel layout.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	static ESlateVisibility GetSettingsNoticeVisibility();
 };
 
 /**

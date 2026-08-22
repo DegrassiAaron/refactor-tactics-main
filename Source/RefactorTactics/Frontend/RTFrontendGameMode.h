@@ -39,6 +39,27 @@ class REFACTORTACTICS_API ARTFrontendGameMode : public AGameModeBase
 
 public:
 	/**
+	 * 🔴 **Esiste perche' senza di lui il menu non era cliccabile.** Trovato in code review: questa classe
+	 * non aveva costruttore, quindi ereditava i default di `AGameModeBase` — fra cui `DefaultPawnClass =
+	 * ADefaultPawn::StaticClass()` (`GameModeBase.cpp:71`). Su una mappa di menu significa un pawn volante
+	 * che possiede il giocatore e un mouse-look che cattura il cursore, mentre `bShowMouseCursor` resta
+	 * falso perche' ad accenderlo e' `ARTPlayerController`, che e' il controller della **partita**.
+	 * Il DoD di #938 chiede tre voci *«navigabili da mouse e tastiera»*: erano incliccabili.
+	 */
+	ARTFrontendGameMode();
+
+	/**
+	 * Prepara il controller del giocatore per un menu: cursore visibile e input verso la UI.
+	 *
+	 * ⚠️ **Pubblica e statica invece che chiusa dentro `PostLogin`**, per la stessa ragione di
+	 * `StartFrontendForThisGame`: dentro l'hook sarebbe verificabile solo in PIE, e questo e' un requisito
+	 * del DoD, non un dettaglio. Qui un test spawna un `APlayerController` vero e le chiede cio' che il DoD
+	 * chiede alla mappa.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Frontend")
+	static void ConfigureMenuInput(APlayerController* PlayerController);
+
+	/**
 	 * Avvia il frontend per questa partita. `true` se il menu si e' aperto.
 	 *
 	 * ⚠️ **Restituisce `bool` e non `ERTNavResult`, ed e' una scelta.** I due modi in cui questa funzione
@@ -57,4 +78,13 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+
+	/**
+	 * Il momento in cui il controller esiste davvero.
+	 *
+	 * ⚠️ **Non `BeginPlay`**: quando il GameMode comincia, il giocatore locale puo' non essersi ancora
+	 * unito, quindi non c'e' nessun controller da configurare. `PostLogin` e' l'hook che l'engine chiama
+	 * con il controller in mano, ed e' l'unico posto in cui la configurazione del cursore arriva sempre.
+	 */
+	virtual void PostLogin(APlayerController* NewPlayer) override;
 };

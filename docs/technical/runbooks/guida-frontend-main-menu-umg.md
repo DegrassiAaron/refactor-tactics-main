@@ -107,9 +107,16 @@ non sai dire quale voce è selezionata, il requisito non è soddisfatto.
 
 ## 4. `WBP_RT_SettingsPanel`
 
-**Classe padre**: `UUserWidget` (non serve una base C++: questo pannello non legge nulla di suo).
+**Classe padre**: `UUserWidget` (non serve una base C++: questo pannello non ha stato proprio).
 
 Contenuto in v0.1: **la frase di `GetSettingsNoticeText()` e un `BACK`**. Nient'altro.
+
+⚠️ **`GetSettingsNoticeText()` e `IsSettingsComingSoon()` sono funzioni *statiche***, quindi si chiamano da
+qualunque Blueprint senza derivare da `URTMainMenuWidgetBase` — nella palette compaiono senza bisogno di un
+object pin. È deliberato: la voce del menu e il pannello che si apre devono dire la **stessa** frase, e
+leggerla dallo stesso punto è l'unico modo di garantirlo. (La prima stesura di questa guida diceva di
+derivare da `UUserWidget` mostrando una funzione che allora era d'istanza: non sarebbe stata chiamabile, e
+chi costruiva il pannello avrebbe scritto la stringa a mano — cioè ciò che `RTFrontendWidgets.h` vieta.)
 
 ⚠️ **Perché una schermata vuota è comunque una schermata.** La tentazione è disabilitare il pulsante
 SETTINGS e non costruire il pannello. È il dead-end che il DoD vieta: *«un pulsante che non fa nulla senza
@@ -169,11 +176,16 @@ percorso se hai scelto un'altra categoria al §5.
 
 **In PIE**, aprendo la mappa del frontend:
 
-1. Il menu **compare**. Se lo sfondo c'è e il menu no → GameMode Override (§5) o nomi degli asset (§2).
+1. Il menu **compare**, e il **cursore si vede**. Se lo sfondo c'è e il menu no, il log lo dice: cerca
+   `Schermata 'Main': la classe widget ... non si carica` (nome sbagliato, §2) oppure
+   `Frontend non avviato` (GameMode Override mancante, §5). ⚠️ Nessuno dei due casi resta silenzioso:
+   se non trovi né l'uno né l'altro, il problema è il layout dentro il `.uasset`.
 2. `PLAY · SETTINGS · QUIT` sono percorribili **senza mouse**, e in **scala di grigi** si vede quale è
    selezionata (§3).
-3. La label mostra `v0.1.0`. Se mostra `v1.0.0.0` stai leggendo il default dell'engine, non
-   `ProjectVersion`.
+3. La label mostra `v0.1.0`. Se è **vuota**, `ProjectVersion` non è stata letta: cercala in
+   `Saved/Logs/RefactorTactics.log`, dove compare `ProjectVersion assente in [...] di DefaultGame.ini`.
+   ⚠️ La label **non ripiega mai su un numero plausibile**: una versione sbagliata è peggio di una assente,
+   quindi il sintomo è uno spazio bianco, non `v1.0.0.0`.
 4. `SETTINGS` apre il pannello, il pannello **dice** che è in arrivo, e `BACK` riporta al menu.
 5. `QUIT` chiude.
 

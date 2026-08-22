@@ -26,6 +26,11 @@
 #include "Frontend/RTFrontendGameMode.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
+// Il mondo di prova: `RTWorldFixtures::MakeWorld()`/`DestroyWorld()`, gia' usate da sette file di test.
+#include "Tests/RTWorldFixtures.h"
+// Per verificare che il GameMode del frontend NON porti il pawn volante di `AGameModeBase`.
+#include "GameFramework/DefaultPawn.h"
+#include "GameFramework/PlayerController.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -37,29 +42,28 @@ namespace
 	 * ⚠️ **La `GameInstance` non e' un dettaglio di allestimento: e' il soggetto del test.** Il navigatore e'
 	 * un `UGameInstanceSubsystem`, quindi il GameMode lo raggiunge *attraverso* la `GameInstance` del mondo —
 	 * e un mondo senza `GameInstance` e' esattamente il caso in cui quel percorso si rompe.
+	 *
+	 * ⚠️ **Il mondo lo costruisce `RTWorldFixtures::MakeWorld()`, non questo file.** La prima stesura ne riscriveva il
+	 * corpo — `CreateWorld` + `CreateNewWorldContext` — che e' esattamente la duplicazione per cui
+	 * `RTWorldFixtures.h` e' stato estratto, e che sette file usano gia'. Trovato in code review. Qui resta
+	 * solo cio' che quella fixture non fa: attaccare la `GameInstance`.
 	 */
 	UWorld* MakeFrontendWorld(UGameInstance*& OutGI, bool bWithGameInstance = true)
 	{
 		OutGI = nullptr;
 
-		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
-		if (!World || !GEngine)
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!World || !bWithGameInstance)
 		{
 			return World;
 		}
 
-		FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
-		Ctx.SetCurrentWorld(World);
-
-		if (bWithGameInstance)
+		OutGI = NewObject<UGameInstance>(GetTransientPackage());
+		if (OutGI)
 		{
-			OutGI = NewObject<UGameInstance>(GetTransientPackage());
-			if (OutGI)
-			{
-				OutGI->AddToRoot();
-				OutGI->Init();
-				World->SetGameInstance(OutGI);
-			}
+			OutGI->AddToRoot();
+			OutGI->Init();
+			World->SetGameInstance(OutGI);
 		}
 
 		return World;
@@ -67,16 +71,42 @@ namespace
 
 	void DestroyFrontendWorld(UWorld* World, UGameInstance* GI)
 	{
-		if (World && GEngine)
-		{
-			GEngine->DestroyWorldContext(World);
-			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
-		}
+		RTWorldFixtures::DestroyWorld(World);
 		if (GI)
 		{
 			GI->Shutdown();
 			GI->RemoveFromRoot();
 		}
+	}
+
+	/**
+	 * I `WBP_RT_*` del frontend **non esistono ancora** — sono lavoro d'editor (seduta U28) — quindi ogni
+	 * test che arriva alla presentazione produce un tentativo di caricamento che fallisce.
+	 *
+	 * ⚠️ **Si dichiara invece di lasciarlo passare.** Trovato in code review: la docstring di questo file
+	 * sosteneva che i test non caricassero nulla, ed era vero solo per la *registrazione* — `StartFrontend`
+	 * apre subito la radice, e `PresentWidget` risolve il `TSoftClassPtr`. Il log ne portava la prova
+	 * (`Failed to find object .../WBP_RT_MainMenu_C`) mentre i test uscivano verdi: output sporco che
+	 * nessuno guardava. Dichiararlo rende il rumore un'aspettativa, e un rumore **diverso** un fallimento.
+	 */
+	void ExpectMissingFrontendAssets(FAutomationTestBase& Test)
+	{
+		// `0` = «una o piu' volte»: il warning del progetto e' **deterministico**, perche' ogni test parte da
+		// un navigatore nuovo con `LiveWidgets` vuota e ripassa da `LoadSynchronous`. Se un giorno smettesse
+		// di comparire, il test lo direbbe — ed e' cio' che serve, dato che quel warning e' l'unico segnale
+		// di un nome sbagliato nel `.ini`.
+		Test.AddExpectedMessage(TEXT("non si carica"),
+			ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ 0);
+
+		// ⚠️ **`-1` = «ignora», e la prima stesura ci aveva messo `0`.** Il messaggio dell'engine e'
+		// **dedotto una volta per processo**: `LogUObjectGlobals` lo emette al primo lookup fallito e tace
+		// per tutti i successivi, quindi *quale* test lo veda dipende dall'ordine della run, non dal test.
+		// Asserirne la presenza faceva fallire ogni test tranne il primo — misurato: la suite completa e'
+		// passata da 0 a 1 fallimento, e il fallimento diceva testualmente *«did not occur»* su un test che
+		// non aveva alcun modo di farlo occorrere. Un'aspettativa che dipende dall'ordine non e'
+		// un'aspettativa.
+		Test.AddExpectedMessage(TEXT("Failed to find object"),
+			ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ -1);
 	}
 
 	URTFrontendNavigator* MakeMainMenuNavigator(UGameInstance*& OutGI)
@@ -263,10 +293,17 @@ bool FRTNavigatorSkipsIncompleteBindingsTest::RunTest(const FString&)
  * ci fossero ancora `SyncPresentation` uscirebbe alla prima riga lasciando lo stack corretto e lo schermo
  * vuoto. Dentro un `BeginPlay` quell'ordine sarebbe una convenzione da ricordare; qui e' provato.
  *
- * ⚠️ Cosa NON prova, ed e' dichiarato: che i `WBP_RT_*` nominati nel `.ini` **esistano**. Un
- * `TSoftClassPtr` e' un percorso, e registrarlo non lo carica — di proposito, perche' i binari sono
- * lavoro d'editor e questo test deve poter girare prima che esistano. Che il percorso risolva e' di
- * `RTFrontendWidgetAssetTests.cpp`, che apre i package davvero.
+ * 🔴 **La prima stesura di questa nota diceva che il test non carica nulla, e non era vero.** Registrare
+ * davvero non carica — un `TSoftClassPtr` e' un percorso — ma `StartFrontend` **apre subito la radice**, e
+ * `PresentWidget` risolve il percorso. Il log lo diceva (`Failed to find object .../WBP_RT_MainMenu_C`)
+ * mentre il test usciva verde: output sporco che nessuno guardava. Trovato in code review, e adesso il
+ * rumore e' dichiarato da `ExpectMissingFrontendAssets`, cosi' un rumore **diverso** fa fallire.
+ *
+ * ⚠️ **E nessun gate verifica che quei percorsi risolvano.** La nota rimandava a
+ * `RTFrontendWidgetAssetTests.cpp`, che pero' apre solo i tre package di CP 46.2: le due schermate nuove
+ * non sono coperte da niente finche' gli `.uasset` non esistono (seduta U28). Cio' che copre il caso a
+ * runtime e' il warning di `PresentWidget`, che nomina schermata e percorso invece di lasciare uno
+ * schermo nero.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNavigatorStartFrontendOpensMainTest,
 	"RefactorTactics.Frontend.NavigatorStartFrontendOpensMain",
@@ -277,7 +314,9 @@ bool FRTNavigatorStartFrontendOpensMainTest::RunTest(const FString&)
 	URTFrontendNavigator* Nav = MakeMainMenuNavigator(GI);
 	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseMainMenuNavigator(GI); return false; }
 
-	TestEqual(TEXT("il frontend parte"), Nav->StartFrontend(), ERTNavResult::Ok);
+	ExpectMissingFrontendAssets(*this);
+
+	TestTrue(TEXT("il frontend parte"), Nav->StartFrontend());
 
 	TestEqual(TEXT("la radice e' il Main Menu"), Nav->GetCurrentScreen(), RTScreenIds::Main);
 	TestEqual(TEXT("profondita' 1"), Nav->GetDepth(), 1);
@@ -308,7 +347,13 @@ bool FRTMainMenuSettingsIsReachableAndReversibleTest::RunTest(const FString&)
 	URTFrontendNavigator* Nav = MakeMainMenuNavigator(GI);
 	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseMainMenuNavigator(GI); return false; }
 
-	Nav->StartFrontend();
+	ExpectMissingFrontendAssets(*this);
+
+	if (!TestTrue(TEXT("premessa: il frontend e' partito"), Nav->StartFrontend()))
+	{
+		ReleaseMainMenuNavigator(GI);
+		return false;
+	}
 
 	TestEqual(TEXT("SETTINGS si apre"), Nav->PushScreen(RTScreenIds::Settings), ERTNavResult::Ok);
 	TestEqual(TEXT("ed e' la schermata corrente"), Nav->GetCurrentScreen(), RTScreenIds::Settings);
@@ -350,6 +395,8 @@ bool FRTFrontendGameModeStartsTheFrontendTest::RunTest(const FString&)
 		DestroyFrontendWorld(World, GI);
 		return false;
 	}
+
+	ExpectMissingFrontendAssets(*this);
 
 	TestTrue(TEXT("il frontend parte"), GameMode->StartFrontendForThisGame());
 
@@ -399,6 +446,158 @@ bool FRTFrontendGameModeWithoutNavigatorSaysNoTest::RunTest(const FString&)
 	TestFalse(TEXT("il frontend non parte, e lo dichiara"), GameMode->StartFrontendForThisGame());
 
 	DestroyFrontendWorld(World, GI);
+	return true;
+}
+
+/**
+ * Il GameMode del frontend **non porta il pawn volante di `AGameModeBase`**.
+ *
+ * 🔴 Trovato in code review, ed era il difetto che rendeva il DoD irraggiungibile. `ARTFrontendGameMode`
+ * non aveva costruttore, quindi ereditava i default di `AGameModeBase` — `DefaultPawnClass =
+ * ADefaultPawn::StaticClass()` (`GameModeBase.cpp:71`). Su una mappa di menu significa: un pawn volante
+ * possiede il giocatore, il mouse-look cattura il cursore, e `bShowMouseCursor` resta **falso** perche'
+ * nessuno lo accende — `ARTPlayerController` lo fa, ma quello e' il controller della **partita**.
+ *
+ * Il DoD di #938 chiede `PLAY · SETTINGS · QUIT` *«navigabili da mouse e tastiera»*: con un cursore che
+ * non si disegna, i tre pulsanti non sono cliccabili. Nessun test lo copriva, e il difetto sarebbe
+ * comparso solo davanti a chi apriva la mappa in editor.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendGameModeHasNoFlyingPawnTest,
+	"RefactorTactics.Frontend.FrontendGameModeHasNoFlyingPawn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendGameModeHasNoFlyingPawnTest::RunTest(const FString&)
+{
+	const ARTFrontendGameMode* Defaults = GetDefault<ARTFrontendGameMode>();
+	if (!TestNotNull(TEXT("il CDO esiste"), Defaults)) { return false; }
+
+	TestNotEqual(TEXT("il menu non eredita il pawn volante di AGameModeBase"),
+		Defaults->DefaultPawnClass, TSubclassOf<APawn>(ADefaultPawn::StaticClass()));
+	TestNull(TEXT("e su una mappa di menu non possiede nessun pawn"),
+		Defaults->DefaultPawnClass.Get());
+
+	return true;
+}
+
+/**
+ * Il frontend **accende il cursore**, altrimenti i pulsanti non si cliccano.
+ *
+ * ⚠️ Sta in una funzione pubblica e non dentro `PostLogin` per la stessa ragione di
+ * `StartFrontendForThisGame`: dentro l'hook sarebbe verificabile solo in PIE. Qui il test spawna un
+ * `APlayerController` vero e chiede alla funzione cio' che il DoD chiede alla mappa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendGameModeShowsTheCursorTest,
+	"RefactorTactics.Frontend.FrontendGameModeShowsTheCursor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendGameModeShowsTheCursorTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	UWorld* World = MakeFrontendWorld(GI);
+	if (!TestNotNull(TEXT("il mondo esiste"), World)) { DestroyFrontendWorld(World, GI); return false; }
+
+	APlayerController* PC = World->SpawnActor<APlayerController>();
+	if (!TestNotNull(TEXT("il controller esiste"), PC)) { DestroyFrontendWorld(World, GI); return false; }
+
+	TestFalse(TEXT("premessa: il cursore parte spento"), PC->bShowMouseCursor);
+
+	ARTFrontendGameMode::ConfigureMenuInput(PC);
+
+	TestTrue(TEXT("il frontend lo accende"), PC->bShowMouseCursor);
+
+	DestroyFrontendWorld(World, GI);
+	return true;
+}
+
+/**
+ * Senza schermate registrate il frontend **dichiara di non essere partito**.
+ *
+ * 🔴 Trovato in code review. `StartFrontend` calcolava il conteggio, ne faceva un warning, e poi
+ * restituiva `InitializeFrontend(Main)` — cioe' `Ok`. `StartFrontendForThisGame` rispondeva `true` sopra
+ * uno schermo nero: il fallimento indistinguibile dal successo che questo file argomenta contro in tre
+ * punti diversi. Il conteggio che l'header chiama *«l'unico segnale»* veniva prodotto e buttato.
+ *
+ * ⚠️ **Lo stack si inizializza lo stesso**, e non e' una svista: senza binding la navigazione resta
+ * legale — e' cio' che `NavigationWorksWithoutWidgetBindings` verifica dal CP 46.1. A cambiare e' solo
+ * cosa *si risponde a chi ha chiesto di avviare*: `false`, perche' il menu non si e' aperto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartFrontendWithoutScreensSaysNoTest,
+	"RefactorTactics.Frontend.StartFrontendWithoutScreensSaysNo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartFrontendWithoutScreensSaysNoTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeMainMenuNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseMainMenuNavigator(GI); return false; }
+
+	AddExpectedMessage(TEXT("senza schermate registrate"),
+		ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ 1);
+
+	TestEqual(TEXT("zero binding registrati"), Nav->RegisterScreens(TArray<FRTScreenBinding>()), 0);
+	TestFalse(TEXT("e allora il frontend non e' partito"), Nav->StartFrontendFrom(TArray<FRTScreenBinding>()));
+
+	ReleaseMainMenuNavigator(GI);
+	return true;
+}
+
+/**
+ * Due `+Screens=` con lo **stesso id** non contano due volte.
+ *
+ * 🔴 Trovato in code review, e in modo indipendente rileggendo il diff. `RegisterScreen` fa
+ * `Bindings.Add`, che **sovrascrive**: due righe con `ScreenId="Main"` producono un binding solo, mentre
+ * il conteggio ne dichiarava due. Il valore di ritorno esiste per distinguere «registrate tutte» da
+ * «registrate alcune», e in questo caso diceva la prima mentendo.
+ *
+ * ⚠️ Il duplicato **non e' un errore fatale** — l'ultimo vince, che e' la regola dei `.ini` a strati e
+ * va lasciata funzionare. Cio' che non deve fare e' passare inosservato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNavigatorDoesNotCountDuplicateScreenIdsTwiceTest,
+	"RefactorTactics.Frontend.NavigatorDoesNotCountDuplicateScreenIdsTwice",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNavigatorDoesNotCountDuplicateScreenIdsTwiceTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeMainMenuNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseMainMenuNavigator(GI); return false; }
+
+	AddExpectedMessage(TEXT("dichiarata due volte"),
+		ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ 1);
+
+	TArray<FRTScreenBinding> Bindings;
+	Bindings.Add(MakeMainMenuBinding(RTScreenIds::Main));
+	Bindings.Add(MakeMainMenuBinding(RTScreenIds::Main));
+	Bindings.Add(MakeMainMenuBinding(RTScreenIds::Settings));
+
+	TestEqual(TEXT("tre righe, due schermate"), Nav->RegisterScreens(Bindings), 2);
+	TestEqual(TEXT("e il conteggio combacia con i binding veri"),
+		Nav->GetRegisteredScreenIds().Num(), 2);
+
+	ReleaseMainMenuNavigator(GI);
+	return true;
+}
+
+/**
+ * La riga *coming soon* ha una **visibilita' collegabile**, non solo un `bool`.
+ *
+ * 🔴 Trovato in code review, ed e' la quarta volta che questo file incontra lo stesso ostacolo:
+ * `RTFrontendWidgets.h` lo spiega tre volte — un `bool` non compare nel menu dei binding di `Visibility`,
+ * che vuole un `ESlateVisibility`, quindi chi cerca **non lo trova**. Il commento di `GetLoadingVisibility`
+ * dice testualmente *«averne risolta una sola avrebbe lasciato le altre due a far perdere tempo nello
+ * stesso identico punto»*, e la classe nuova era stata aggiunta senza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMainMenuNoticeVisibilityFollowsTheFlagTest,
+	"RefactorTactics.Frontend.MainMenuNoticeVisibilityFollowsTheFlag",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMainMenuNoticeVisibilityFollowsTheFlagTest::RunTest(const FString&)
+{
+	URTMainMenuWidgetBase* Menu = NewObject<URTMainMenuWidgetBase>(GetTransientPackage());
+	if (!TestNotNull(TEXT("il widget base esiste"), Menu)) { return false; }
+
+	// `Collapsed` e non `Hidden`, come il banner: una riga assente non deve occupare spazio nel layout.
+	TestEqual(TEXT("coming soon: la riga si vede"),
+		Menu->GetSettingsNoticeVisibility(),
+		Menu->IsSettingsComingSoon() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+	TestEqual(TEXT("e oggi e' Visible, perche' in v0.1 il flag e' acceso"),
+		Menu->GetSettingsNoticeVisibility(), ESlateVisibility::Visible);
+
 	return true;
 }
 

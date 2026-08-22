@@ -12,6 +12,11 @@
  * nome deve comparire nel `.ini` che dichiara i binding, nel codice che apre la radice e nei test che lo
  * verificano, e tre stringhe scritte a mano in tre punti sono tre occasioni di scriverne una diversa.
  *
+ * 🔴 **Quel blocco e' stato ritirato insieme a questo header, e la prima stesura non l'aveva fatto.**
+ * Trovato in code review: restava una copia dei letterali proprio nel file che questa motivazione cita,
+ * quindi un rename del nome canonico avrebbe continuato a compilare li' asserendo contro il vecchio. Una
+ * giustificazione che descrive una duplicazione ancora in piedi e' peggio di nessuna giustificazione.
+ *
  * ⚠️ **Un id sbagliato non e' un errore rumoroso**: `PushScreen(TEXT("Mian"))` restituisce `Ok` — lo stack
  * accetta qualunque `FName` non vuoto — e semplicemente non disegna niente, perche' nessun binding porta
  * quel nome. E' il fallimento indistinguibile dal successo che `ERTNavResult` esiste per impedire, e qui
