@@ -23,7 +23,7 @@ Tutto quello che sta sotto il layout. Non devi scrivere codice: devi costruire c
 | `URTFrontendNavigator::StartFrontend()` — registra le schermate e apre la radice | ✅ |
 | `RTScreenIds::Main` / `::Settings` — i nomi canonici | ✅ |
 | I binding schermata → widget in `Config/DefaultGame.ini` | ✅ |
-| `WBP_RT_MainMenu`, `WBP_RT_SettingsPanel` | ❌ **tuoi** |
+| `WBP_RT_MenuEntry`, `WBP_RT_MainMenu`, `WBP_RT_SettingsPanel` | ❌ **tuoi** |
 | La mappa del frontend | ❌ **tua** |
 | `GameDefaultMap` in `Config/DefaultEngine.ini` | ❌ **tuo** (§6) |
 
@@ -49,6 +49,44 @@ successo, e cercarlo parte dal posto sbagliato perché tutto sembra funzionare.
 
 Quindi: **`WBP_RT_MainMenu` e `WBP_RT_SettingsPanel`, dentro `/Game/RT/UI/Framework/`.** Esattamente così.
 Il prefisso è `WBP_RT_`, non `WBP_` (decisione di CP 11.7).
+
+---
+
+## 2-bis. `WBP_RT_MenuEntry` — la voce di menu, e perché serve
+
+🔴 **`FButtonStyle` non ha uno stato «Focused».** Misurato in `SlateTypes.h:508`: gli stati sono
+`Normal · Hovered · Pressed · Disabled`, e basta. Con un `UButton` nudo la voce del DoD *«il focus non è
+distinguibile dal solo colore»* **non è soddisfacibile** — non esiste uno stile di focus da riempire.
+
+La via che esiste: `UUserWidget` espone `OnAddedToFocusPath` e `OnRemovedFromFocusPath`
+(`UserWidget.h:586,595`), e la *focus path* include un widget anche quando il focus è su un suo **figlio**.
+Quindi ogni voce è un widget proprio.
+
+**Classe padre**: `UserWidget`.
+
+```text
+WBP_RT_MenuEntry
+└── Overlay
+    ├── Border          ← FocusMarker · Visibility = Collapsed · Is Variable ✔
+    └── Button          ← ClickArea · Is Focusable ✔
+        └── TextBlock   ← Label · Is Variable ✔
+```
+
+| Elemento | |
+|---|---|
+| Variabile `EntryLabel` (**Text**) | Instance Editable ✔ · Expose on Spawn ✔ |
+| `Event Pre Construct` | → `Label` → `Set Text` ← `EntryLabel`. **PreConstruct**, così l'etichetta si vede anche nel Designer |
+| Event Dispatcher `OnEntryClicked` | chiamato da `On Clicked (ClickArea)` |
+| `On Added To Focus Path` | → `FocusMarker` → `Set Visibility` → `Visible` |
+| `On Removed From Focus Path` | → `FocusMarker` → `Set Visibility` → `Collapsed` |
+| Funzione `FocusEntry` | → `ClickArea` → `Set Keyboard Focus` |
+
+⚠️ **Il marcatore deve sopravvivere alla scala di grigi**: un bordo, uno spostamento, una freccia. Una
+tinta diversa non basta, ed è il motivo per cui questo widget esiste.
+
+⚠️ **`FocusEntry` non è un di più.** Quando un widget entra nel viewport la tastiera resta sul **viewport
+di gioco**: finché nessuno ha il focus, `Tab` non ha una posizione da cui muoversi e il menu sembra non
+rispondere mentre è tutto collegato. Il Main Menu la chiama da `Event Construct` sulla prima voce.
 
 ---
 

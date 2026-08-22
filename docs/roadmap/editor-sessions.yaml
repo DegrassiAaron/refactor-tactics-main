@@ -1438,6 +1438,7 @@ sessions:
     # illeggibile senza rendere piu' urgente il lavoro.
     produces: il Main Menu, il pannello impostazioni dichiarato *coming soon*, e la mappa del frontend
     artifacts:
+      - Content/RT/UI/Framework/WBP_RT_MenuEntry.uasset
       - Content/RT/UI/Framework/WBP_RT_MainMenu.uasset
       - Content/RT/UI/Framework/WBP_RT_SettingsPanel.uasset
       - Content/RT/Maps/Shared/L_Frontend/L_Frontend.umap
@@ -1462,6 +1463,16 @@ sessions:
       i widget e la mappa.
       Passi in
       [`guida-frontend-main-menu-umg.md`](../technical/runbooks/guida-frontend-main-menu-umg.md).
+      🔴 **Gli asset erano TRE e sono QUATTRO**, e la differenza e' emersa a meta' seduta: `FButtonStyle`
+      ha `Normal · Hovered · Pressed · Disabled` e **nessuno stato di focus**
+      (`SlateTypes.h:508`), quindi con un `UButton` nudo la voce del DoD *«il focus non e' distinguibile
+      dal solo colore»* non e' soddisfacibile — non c'e' un posto dove metterlo. Serve
+      `WBP_RT_MenuEntry`, che usa `OnAddedToFocusPath`/`OnRemovedFromFocusPath` (`UserWidget.h:586,595`)
+      per accendere un marcatore. La prima stesura di questa seduta non lo elencava.
+      ⚠️ **E il focus iniziale va dato a mano**: entrando nel viewport la tastiera resta sul viewport di
+      gioco, non passa alla UI da sola. Finche' nessuno ha il focus, `Tab` non ha da dove muoversi — il
+      menu sembra non rispondere mentre e' tutto collegato. Lo risolve una chiamata a `Set Keyboard Focus`
+      da `Event Construct`.
       ⛔ **I nomi degli asset non sono liberi.** `Config/DefaultGame.ini` dichiara gia'
       `WBP_RT_MainMenu` e `WBP_RT_SettingsPanel` sotto `/Game/RT/UI/Framework/`. Un nome diverso **non
       produce un errore**: la registrazione riesce lo stesso — un `TSoftClassPtr` e' un percorso e non
@@ -1482,3 +1493,24 @@ sessions:
       ⚠️ ID assegnato prima del merge: `U28`, con `U27` come massimo misurato su `main` **e su tutti i
       branch remoti**, PR `#1263` compresa (che tocca questo file alla riga ~486 e non aggiunge sedute).
       Chi arriva secondo rinumera, non contende.
+      ─────
+      🔄 **SOSPESA il 2026-08-22 — i quattro asset esistono e il menu compare in PIE.** Verificato:
+      cursore visibile, tre voci, label `v0.1.0`, e il focus si sposta con `Tab`. Misurato sui byte dei
+      package: `GetVersionLabel` 1 · `PushScreen` 2 · `PopScreen` 2 ·
+      `GetSettingsNoticeText`/`Visibility` 2 ciascuna, e — in **entrambi** i widget — `StartFrontend`,
+      `InitializeFrontend`, `ReturnMain` a **zero**: il menu non naviga da se'. Nessun evento su
+      `EntryPlay`, che e' CP 46.4 e non questa seduta.
+      `GameDefaultMap` punta al menu (`DefaultEngine.ini`), scritta ora che la mappa e' versionata.
+      ⛔ **Cosa RESTA, e va ripreso da qui:**
+      **(1)** il focus **non e' abbastanza visibile** — dichiarato dall'autore, non da un test. Il
+      marcatore attuale e' un `Border` che compare, e in scala di grigi dipende tutto dal contrasto di
+      luminanza. Il segnale che non fallisce e' il **movimento**: `Set Render Translation` sulla voce col
+      focus, che nessun trattamento del colore puo' cancellare. Finche' non e' fatto, la voce del DoD
+      *«il focus non e' distinguibile dal solo colore»* **non e' soddisfatta**.
+      **(2)** il giro `SETTINGS -> BACK` e `QUIT` non e' stato percorso.
+      **(3)** l'avvio del **pacchetto** non e' stato provato — ed e' la verifica che conta per `G13`,
+      perche' chiede «senza editor».
+      ⚠️ Gli asset sono stati committati **prima** che la seduta chiudesse, di proposito: fino a quel
+      momento esistevano su una macchina sola e `git status` non li mostrava nemmeno, perche'
+      `Content/**/*.uasset` li ignorava. Il rischio di perderli era piu' concreto di quello di committare
+      lavoro incompleto.

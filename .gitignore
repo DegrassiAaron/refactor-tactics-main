@@ -56,6 +56,29 @@ Content/**/*.mp3
 Content/**/*.ogg
 Content/**/*.txt
 
+# ---- ECCEZIONE: UI e mappe di RT SONO versionate (2026-08-22) ----
+# Il blocco qui sopra nasce per non far pesare il repository, e la ragione resta valida per meshes,
+# texture e pack di terze parti. Ma non vale per questi: **500 KB in tutto** — 8 asset UI e 4 mappe con
+# i loro dati — contro i ~48 GB di `Content/FabAsset/`, che e' il costo che quella regola evita davvero.
+#
+# Il motivo per cui devono entrare: sono **lavoro d'autore non riproducibile**. Un widget e una mappa si
+# ricostruiscono solo rifacendoli a mano, e finche' restano ignorati esistono su una macchina sola.
+#
+# ⚠️ **Questo non e' un cambio di rotta: e' la stessa politica, resa automatica.** Piu' in basso ci sono
+# gia' otto negazioni scritte **una per asset** (`L_Prototype`, `L_DevSandbox`, `L_HexArena` e i loro
+# dati): la decisione di versionare UI e mappe era gia' presa, e veniva applicata a mano. Il difetto di
+# quella forma e' che dimenticare la riga **non produce nessun segnale** — l'asset semplicemente non entra
+# nel repository, e te ne accorgi il giorno in cui qualcun altro apre la mappa e non la trova. Le tre
+# righe qui sotto tolgono quel passo da ricordare. Le negazioni per-file restano: sono ridondanti e
+# innocue, e raccontano quali asset sono entrati e quando.
+#
+# ⚠️ Le negazioni funzionano perche' sopra sono esclusi **file** (`Content/**/*.uasset`) e non
+# **directory**: git non attraversa una directory esclusa, e una negazione al suo interno sarebbe muta.
+# E' la stessa ragione per cui `/Content/FabAsset/` e' scritto con la barra finale.
+!Content/RT/UI/**/*.uasset
+!Content/RT/Maps/**/*.umap
+!Content/RT/Maps/**/*.uasset
+
 # ---- Asset di terze parti scaricati da Fab (2026-08-06) ----
 # I pack stanno NEL progetto sotto Content/FabAsset/ ma NON nel repo: chi clona se li scarica da Fab
 # e li mette li' (procedura nel README e in convenzioni-contenuti-ue.md, appendice B).
