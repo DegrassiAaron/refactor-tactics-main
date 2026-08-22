@@ -2,6 +2,11 @@
 
 #include "Blueprint/UserWidget.h"
 #include "Engine/GameInstance.h"
+// Per `RTScreenIds::Main`: la radice del frontend ha un nome canonico, e `StartFrontend` lo usa invece di
+// riscrivere `TEXT("Main")` — un refuso qui non produrrebbe un errore ma una schermata che non disegna.
+#include "Frontend/RTFrontendScreenIds.h"
+// Per `LogRT`: `StartFrontend` avvisa quando la configurazione non ha prodotto nessuna schermata.
+#include "RefactorTactics.h"
 
 namespace
 {
@@ -35,6 +40,99 @@ void URTFrontendNavigator::RegisterScreen(FName ScreenId, TSoftClassPtr<UUserWid
 	{
 		Bindings.Add(ScreenId, WidgetClass);
 	}
+}
+
+bool URTFrontendNavigator::StartFrontend()
+{
+	// `LoadConfig` esplicito invece di affidarsi ai valori ereditati dal CDO: quando questa funzione viene
+	// chiamata, cio' che conta e' cosa dice il `.ini` **adesso**, e una riga in piu' toglie la domanda.
+	LoadConfig();
+	return StartFrontendFrom(Screens);
+}
+
+bool URTFrontendNavigator::StartFrontendFrom(const TArray<FRTScreenBinding>& InScreens)
+{
+	const int32 Registered = RegisterScreens(InScreens);
+
+	if (Registered == 0)
+	{
+		// ⚠️ Un avviso e non un rifiuto, e la scelta e' deliberata: senza binding la navigazione **funziona**
+		// — lo stack si muove, `GetCurrentScreen()` risponde — e semplicemente non disegna niente. Rifiutare
+		// qui renderebbe il frontend inavviabile in un test headless, che e' proprio il caso in cui i
+		// `.uasset` non esistono e non devono esistere. Cio' che non deve succedere e' che nessuno se ne
+		// accorga: uno schermo nero senza una riga di log e' indistinguibile da un difetto di rendering.
+		UE_LOG(LogRT, Warning,
+			TEXT("Frontend avviato senza schermate registrate: nessun `+Screens=` valido in ")
+			TEXT("[/Script/RefactorTactics.RTFrontendNavigator], quindi lo schermo restera' vuoto"));
+	}
+
+	// Registrare **prima**, aprire dopo: `InitializeFrontend` presenta subito la radice, e con i binding
+	// ancora assenti `SyncPresentation` uscirebbe alla prima riga lasciando lo stack corretto sopra uno
+	// schermo vuoto.
+	const ERTNavResult Opened = InitializeFrontend(RTScreenIds::Main);
+
+	// ⚠️ **Le due condizioni si contano entrambe, e la prima stesura ne restituiva solo la seconda.**
+	// Trovato in code review: con zero schermate registrate `InitializeFrontend` risponde comunque `Ok` —
+	// lo stack e' legale senza binding, ed e' voluto da CP 46.1 — quindi il chiamante riceveva un successo
+	// sopra uno schermo nero. Il conteggio veniva calcolato, loggato e **buttato**: esattamente il segnale
+	// che l'header dichiara essere «l'unico» a distinguere un frontend vuoto da uno vivo.
+	return Registered > 0 && Opened == ERTNavResult::Ok;
+}
+
+int32 URTFrontendNavigator::RegisterScreensFromConfig()
+{
+	LoadConfig();
+	return RegisterScreens(Screens);
+}
+
+int32 URTFrontendNavigator::RegisterScreens(const TArray<FRTScreenBinding>& InScreens)
+{
+	int32 Registered = 0;
+
+	for (const FRTScreenBinding& Binding : InScreens)
+	{
+		// Le due incompletezze si scartano insieme ma non sono lo stesso difetto: un id vuoto non e'
+		// indirizzabile, una classe nulla lo e' e non disegna niente — che e' peggio, perche' produce una
+		// navigazione che riesce sopra uno schermo immobile.
+		if (Binding.ScreenId.IsNone() || Binding.WidgetClass.IsNull())
+		{
+			continue;
+		}
+
+		// ⚠️ **Il conteggio segue i binding, non le righe lette.** `RegisterScreen` fa `Bindings.Add`, che
+		// **sovrascrive**: due righe con lo stesso `ScreenId` producono un binding solo. Contarle entrambe
+		// faceva dire «registrate tutte» a un `.ini` in cui una schermata era sparita — trovato in code
+		// review, ed e' il difetto che il valore di ritorno esiste per rendere impossibile.
+		// Il duplicato **non e' fatale**: l'ultimo vince, che e' la regola dei `.ini` a strati e va lasciata
+		// funzionare. Cio' che non deve fare e' passare in silenzio.
+		const bool bAlreadyBound = Bindings.Contains(Binding.ScreenId);
+
+		// Passa da `RegisterScreen` invece di scrivere in `Bindings`: il controllo sull'id resta in un
+		// posto solo, come il filtro sui non-fatali di `URTErrorModalWidgetBase::ShowFor`.
+		RegisterScreen(Binding.ScreenId, Binding.WidgetClass);
+
+		if (bAlreadyBound)
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("Schermata '%s' dichiarata due volte: vince l'ultima riga, la precedente e' persa"),
+				*Binding.ScreenId.ToString());
+			continue;
+		}
+
+		++Registered;
+	}
+
+	return Registered;
+}
+
+TArray<FName> URTFrontendNavigator::GetRegisteredScreenIds() const
+{
+	// ⚠️ **L'ordine non e' dichiarato**, e chi legge non deve dipenderne: le chiavi arrivano da una `TMap`,
+	// e il progetto vieta esplicitamente di appoggiarsi all'ordine di `TMap`/`TSet`. Serve a sapere *se* una
+	// schermata c'e', non in che posizione.
+	TArray<FName> Ids;
+	Bindings.GetKeys(Ids);
+	return Ids;
 }
 
 ERTNavResult URTFrontendNavigator::PushScreen(FName ScreenId)
@@ -146,6 +244,17 @@ void URTFrontendNavigator::PresentWidget(FName ScreenId, int32 ZOrder)
 		UClass* WidgetClass = Binding->LoadSynchronous();
 		if (!WidgetClass)
 		{
+			// ⚠️ **Un binding che non risolve e' diverso da un binding assente**, e fino alla code review
+			// uscivano dalla stessa porta in silenzio. L'assenza e' normale — un test headless non ha
+			// `.uasset` — ma un percorso *dichiarato* che non carica e' quasi sempre un nome sbagliato nel
+			// `.ini`, ed e' la trappola che `guida-frontend-main-menu-umg.md` §2 chiama «quella che costa di
+			// piu'»: la registrazione riesce, la navigazione risponde `Ok`, e lo schermo resta vuoto.
+			// L'unico segnale era un `LogUObjectGlobals: Failed to find object` che non nomina ne' la
+			// schermata ne' il file da correggere.
+			UE_LOG(LogRT, Warning,
+				TEXT("Schermata '%s': la classe widget '%s' non si carica — controlla il percorso in ")
+				TEXT("[/Script/RefactorTactics.RTFrontendNavigator] di DefaultGame.ini. Lo schermo restera' vuoto"),
+				*ScreenId.ToString(), *Binding->ToString());
 			return;
 		}
 

@@ -1,6 +1,74 @@
 #include "Frontend/RTFrontendWidgets.h"
+// Per `GConfig`/`GGameIni`: la label di versione legge `ProjectVersion` da `DefaultGame.ini` invece di
+// portarsi dietro una costante che il bump non aggiorna.
+#include "Misc/ConfigCacheIni.h"
 
 #define LOCTEXT_NAMESPACE "RTFrontend"
+
+// ─── Main Menu ───────────────────────────────────────────────────────────────────────────────────
+
+FText URTMainMenuWidgetBase::GetVersionLabel() const
+{
+	// 🔴 **Calcolata una volta sola, e la prima stesura la ricalcolava a ogni chiamata.** Trovato in code
+	// review: questa e' `BlueprintPure` e il runbook la collega allo slot `Text` di un `TextBlock` — un
+	// **property binding di UMG viene valutato a ogni frame**. Erano 60 letture di `GConfig`, 60 copie di
+	// `FString` e 60 `FText::Format` al secondo per un valore che non puo' cambiare a runtime.
+	// `mutable` invece di `NativeOnInitialized`: il valore non dipende dal ciclo di vita del widget, e un
+	// calcolo pigro non obbliga chi deriva la classe a ricordarsi di chiamare `Super`.
+	if (!CachedVersionLabel.IsSet())
+	{
+		CachedVersionLabel = BuildVersionLabel();
+	}
+
+	return CachedVersionLabel.GetValue();
+}
+
+FText URTMainMenuWidgetBase::BuildVersionLabel()
+{
+	FString Version;
+	GConfig->GetString(TEXT("/Script/EngineSettings.GeneralProjectSettings"),
+		TEXT("ProjectVersion"), Version, GGameIni);
+
+	if (Version.IsEmpty())
+	{
+		// ⚠️ **Vuoto e non un ripiego.** La tentazione sarebbe restituire «versione sconosciuta» o il
+		// default `1.0.0.0` che UE usa altrove: entrambi sono un numero plausibile al posto di un dato
+		// mancante, cioe' il difetto che questa label esiste per evitare. Uno spazio vuoto si nota; una
+		// versione sbagliata no.
+		//
+		// 🔴 **Ma silenzioso no.** Trovato in code review: senza questa riga la label spariva dallo schermo
+		// e nessun log lo diceva, mentre `StartFrontend` avvisa per molto meno. E il runbook indicava un
+		// sintomo che questo codice **non puo' produrre** (*«se mostra v1.0.0.0 stai leggendo il default
+		// dell'engine»*): chi indagava cercava la cosa sbagliata.
+		UE_LOG(LogRT, Warning,
+			TEXT("ProjectVersion assente in [/Script/EngineSettings.GeneralProjectSettings] di ")
+			TEXT("DefaultGame.ini: il Main Menu non mostrera' nessuna versione"));
+		return FText::GetEmpty();
+	}
+
+	return FText::Format(LOCTEXT("VersionLabel", "v{0}"), FText::FromString(Version));
+}
+
+bool URTMainMenuWidgetBase::IsSettingsComingSoon()
+{
+	// v0.1: la voce esiste, il contenuto no. Una costante e non una lettura da configurazione, perche' non
+	// e' un'impostazione — e' lo stato di avanzamento del pannello, e cambiera' scrivendo il pannello.
+	return true;
+}
+
+FText URTMainMenuWidgetBase::GetSettingsNoticeText()
+{
+	// ⚠️ **Nessun ramo per il caso «pannello vero».** La prima stesura ne aveva uno, guardato da
+	// `IsSettingsComingSoon()` che e' un `return true` letterale: codice irraggiungibile, e un commento che
+	// descriveva un comportamento inesistente. Trovato in code review. Quando il pannello arrivera', il
+	// ramo si scrive insieme allo stato che lo rende raggiungibile — e a un test che lo esercita.
+	return LOCTEXT("SettingsComingSoon", "Impostazioni: in arrivo in una versione successiva");
+}
+
+ESlateVisibility URTMainMenuWidgetBase::GetSettingsNoticeVisibility()
+{
+	return IsSettingsComingSoon() ? ESlateVisibility::Visible : ESlateVisibility::Collapsed;
+}
 
 // ─── Loading ─────────────────────────────────────────────────────────────────────────────────────
 
