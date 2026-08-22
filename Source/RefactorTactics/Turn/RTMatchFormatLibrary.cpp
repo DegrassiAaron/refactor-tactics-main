@@ -190,6 +190,23 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// headless il 2026-08-06 (bot contro bot: la partita si decide al turno 10), non un numero scelto a
 	// tavolino — ed e' lo stesso valore che `PIE-HEXPLAY-10` porta come dato di riferimento.
 	// Tenerlo uguale a 12 avrebbe dichiarato di nuovo che ci si aspetta di arrivare allo scadere.
+	//
+	// 🔴 **Il 10 e' una misura del 2026-08-06, e la realta' di oggi e' 21.** Dopo la correzione del deadlock
+	// di #1088 (PR #1213), una partita reale sulla configurazione spedita si decide al round **21**
+	// (`Vince il team 0 (blu) - per eliminazione (round 21/40)`, registrata in #149). Con `RoundLimit` 12 la
+	// via normale di chiusura e' quindi tornata a essere il **pareggio allo scadere** — l'esito che il
+	// passaggio da 5 a 12 aveva tolto di mezzo, ricomparso da un'altra porta.
+	//
+	// ⚠️ **Il 21 NON si scrive qui, e non e' pigrizia.** Primo: renderebbe il formato **invalido**, perche'
+	// `ValidateFormat` rifiuta `ExpectedRounds > RoundLimit` — e la regola avrebbe ragione, dato che il
+	// formato dichiarerebbe una durata che non puo' raggiungere. Secondo, e piu' importante: **D-102**
+	// dichiara che un risultato bot-contro-bot non e' evidenza di bilanciamento finche' il bot non e'
+	// certificato sulle capability che lo producono. Il 21 dice cosa succede, non se sia giusto.
+	//
+	// ∴ **D-184** decide che il pareggio allo scadere e' un esito legittimo della v0.1 invece di ritarare
+	// un numero su un dato inammissibile. Il `10` resta il target di design; il `21` resta qui accanto
+	// perche' chi arriva dopo non debba ri-misurarlo — ed e' anche la ragione per cui il gate di
+	// `ValidateFormat` oggi tace: e' cieco su una misura scaduta, non su una regola sbagliata.
 	// Soglia obiettivo ZERO, e non e' pigrizia: **nessuno assegna punti**. `ARTTurnManager::AddTeamScore`
 	// esiste e funziona, ma il suo unico chiamante in tutto il repository e' un test — nel runtime non ci sono
 	// obiettivi che producano punteggio. Una soglia > 0 dichiarerebbe una via di vittoria IRRAGGIUNGIBILE, cioe'
