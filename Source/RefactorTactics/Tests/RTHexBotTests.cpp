@@ -95,6 +95,12 @@ namespace
 		return P;
 	}
 
+	/**
+	 * ⚠️ `FromCell` resta al default `(0,0,0)`: va bene finche' l'origine del contesto e' quella, e NON va
+	 * bene altrove — `ScorePlan` legge `Plan.FromCell` (`ArrivalFacingOf`), quindi un piano che parte da una
+	 * cella su cui l'unita' non e' mai stata produce un facing inventato. Per le origini diverse c'e'
+	 * `MakePlanFrom`.
+	 */
 	FRTHexBotPlan MakePlan(const FRTCellId& Dest, bool bAttack = false, int32 Damage = 0, int32 TargetHealth = 0)
 	{
 		FRTHexBotPlan P;
@@ -103,6 +109,14 @@ namespace
 		P.TargetIndex = bAttack ? 0 : INDEX_NONE;
 		P.AttackDamage = Damage;
 		P.TargetHealth = TargetHealth;
+		return P;
+	}
+
+	/** Come `MakePlan`, ma dichiara da DOVE si parte: obbligatorio quando `Ctx.Origin` non e' `(0,0,0)`. */
+	FRTHexBotPlan MakePlanFrom(const FRTCellId& From, const FRTCellId& Dest)
+	{
+		FRTHexBotPlan P = MakePlan(Dest);
+		P.FromCell = From;
 		return P;
 	}
 }
@@ -196,18 +210,27 @@ bool FRTHexBotElevationTest::RunTest(const FString&)
 	Ctx.Origin = FRTCellId(0, 0, 0);
 	Ctx.WElevation = 20;
 
-	// Il bonus e' RELATIVO all'origine (#1088): misura il GUADAGNO di quota, non la quota posseduta.
+	// Il bonus e' ASSOLUTO sulla quota della destinazione, e cresce col layer.
 	const int32 Ground = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 0)), Ctx);
 	const int32 High = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 2)), Ctx);
-	TestTrue(TEXT("salire vale di piu' che restare a terra"), High > Ground);
-	TestEqual(TEXT("bonus proporzionale ai layer GUADAGNATI"), High - Ground, 40);
+	TestTrue(TEXT("la quota alta vale di piu'"), High > Ground);
+	TestEqual(TEXT("bonus proporzionale al layer"), High - Ground, 40);
 
-	// ⚠️ **Il punteggio di un piano ISOLATO non dice come si comporta il bot**, e questo test misura solo
-	// quello: fra due candidate conta la DIFFERENZA, e una costante aggiunta a entrambe non muove nulla.
-	// E' l'errore che il 2026-08-22 ha prodotto un fix inerte (#1088): rendere il termine relativo a
-	// `Context.Origin` cambia ogni punteggio della stessa quantita' — `Origin` e' fisso per l'intera
-	// chiamata di `ChooseBestPlan` — quindi l'ordinamento resta identico e il parcheggio si riproduce.
-	// La proprieta' che conta e' pinnata da `ElevationNeverOutweighsClosingOneCell`, che confronta ESITI.
+	// 🔴 **E la quota si paga anche PARTENDO da li', che e' il cuore di #1088.** Con `Origin` a layer 0 le
+	// due forme — assoluta e relativa all'origine — danno lo stesso numero, quindi questo test da solo non
+	// distingue niente: e' il motivo per cui la forma relativa e' passata per un fix. Partendo da L2, la
+	// differenza si vede.
+	FRTHexBotContext FromHigh = Ctx;
+	FromHigh.Origin = FRTCellId(0, 0, 2);
+	const int32 StayHigh = URTHexBotLibrary::ScorePlan(
+		M, MakePlanFrom(FRTCellId(0, 0, 2), FRTCellId(0, 0, 2)), FromHigh);
+	TestEqual(TEXT("restare in quota incassa il bonus: e' il termine che forma lo stato assorbente"),
+		StayHigh, 40);
+
+	// ⚠️ **Questo test misura punteggi, non comportamento.** Fra due candidate conta la DIFFERENZA, e una
+	// costante aggiunta a entrambe non muove l'esito: e' l'errore che il 2026-08-22 ha prodotto un fix
+	// inerte (#1088). Cio' che decide e' pinnato da `ElevationNeverOutweighsClosingOneCell`, che confronta
+	// l'esito di `ChooseBestPlan`.
 	return true;
 }
 
@@ -247,8 +270,8 @@ bool FRTHexBotElevationInvariantTest::RunTest(const FString&)
 	const FRTCellId StayCell(0, 0, MaxLayerSupported);
 	const FRTCellId CloserCell(1, 0, 0);
 	TArray<FRTHexBotPlan> Candidates;
-	Candidates.Add(MakePlan(StayCell));
-	Candidates.Add(MakePlan(CloserCell));
+	Candidates.Add(MakePlanFrom(StayCell, StayCell));
+	Candidates.Add(MakePlanFrom(StayCell, CloserCell));
 	const FRTHexBotPlan Best = URTHexBotLibrary::ChooseBestPlan(M, Candidates, Ctx);
 
 	TestTrue(FString::Printf(

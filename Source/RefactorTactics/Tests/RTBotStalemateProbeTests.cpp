@@ -669,6 +669,14 @@ namespace
 		// quindi si contano separate invece di dedurre l'una dall'altra.
 		int32 ContestsWithSameDestination = 0;
 		int32 ContestsWithDifferentDestination = 0;
+		/**
+		 * Il sottoinsieme che la prenotazione PUO' chiudere: due COMPAGNE sulla stessa destinazione.
+		 *
+		 * ⚠️ Separato da `ContestsWithSameDestination` perche' quello conta anche le coincidenze fra
+		 * avversari, che nessuna pianificazione di squadra previene — asserirlo `== 0` farebbe fallire il
+		 * test su una condizione di cui la feature non risponde.
+		 */
+		int32 SameTeamContestsWithSameDestination = 0;
 	};
 }
 
@@ -756,12 +764,15 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 			// diventerebbe vera per costruzione invece che per misura.
 			//
 			// Chi punta quella cella nel proprio prossimo passo la sta contendendo, qualunque esito abbia poi.
-			// ⚠️ **Le destinazioni si confrontano PER SQUADRA, e non e' un dettaglio.** Confrontandole fra
-			// tutti i contendenti, bastava un avversario con una destinazione propria per far risultare
-			// «diverse» una contesa fra due compagne che puntavano la STESSA cella — cioe' proprio il
-			// difetto che la prenotazione deve chiudere, riclassificato in silenzio nell'altra colonna.
-			// Trovato in code review: con `ContestsWithSameDestination == 0` come unico oracolo, una
-			// regressione della prenotazione sarebbe passata verde.
+			// ⚠️ **Si contano DUE coincidenze, e servono a due cose diverse.**
+			//
+			//   `bSharedDestination`  — fra contendenti QUALSIASI: descrive la contesa e alimenta il log.
+			//                           Ristretta ai soli compagni classificava «collisione di percorso»
+			//                           due avversari che puntavano la stessa cella, il che e' falso.
+			//   `bSharedWithinTeam`   — fra COMPAGNI: e' il sottoinsieme che la prenotazione puo' chiudere,
+			//                           ed e' l'unico su cui un oracolo puo' pretendere zero. Sulla prima
+			//                           il test avrebbe fallito per una coincidenza fra avversari, che
+			//                           nessuna pianificazione di squadra previene.
 			// ⚠️ **Si cerca una COPPIA che condivide la destinazione, non «tutte uguali».** Con `FirstDestination`
 			// per squadra si confrontava ogni contendente col PRIMO soltanto: tre unita' con destinazioni
 			// A, B, B non producevano nessuna coincidenza, e la coppia B/B finiva in «collisione di percorso».
@@ -772,7 +783,9 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 			FString Who;
 			int32 PerTeam[2] = { 0, 0 };
 			TArray<FRTCellId> SeenDestinations;
+			TArray<FRTCellId> SeenPerTeam[2];
 			bool bSharedDestination = false;
+			bool bSharedWithinTeam = false;
 			for (int32 j = 0; j < Units.Num(); ++j)
 			{
 				const int32 StepJ = Resolved[j].Entered.Num();
@@ -789,6 +802,9 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 				++PerTeam[Team];
 				if (SeenDestinations.Contains(Planned[j])) { bSharedDestination = true; }
 				else { SeenDestinations.Add(Planned[j]); }
+
+				if (SeenPerTeam[Team].Contains(Planned[j])) { bSharedWithinTeam = true; }
+				else { SeenPerTeam[Team].Add(Planned[j]); }
 			}
 
 			// Cross-team richiede contendenti da ENTRAMBE le squadre. Un gruppo con un solo contendente non e'
@@ -805,6 +821,7 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 			if (bSameTeam) { ++Out.SameTeamContests; } else { ++Out.CrossTeamContests; }
 			if (bSharedDestination) { ++Out.ContestsWithSameDestination; }
 			else { ++Out.ContestsWithDifferentDestination; }
+			if (bSharedWithinTeam) { ++Out.SameTeamContestsWithSameDestination; }
 
 			T.AddInfo(FString::Printf(TEXT("[%s] turno %2d: cella %s contesa da %s -> %s, destinazioni %s"),
 				Label, Turn, *ContestedCell[i].ToString(), *Who,
@@ -944,11 +961,17 @@ bool FRTBotStalemateTeamPlanningBreaksItTest::RunTest(const FString&)
 	//     sono due rotte diverse che passano dalla stessa cella».
 	//
 	// ∴ il criterio che misura la prenotazione e' `ContestsWithSameDestination`, e li' il risultato e' netto.
-	TestEqual(TEXT("con la pianificazione di squadra nessuna contesa sulla stessa destinazione"),
-		After.ContestsWithSameDestination, 0);
+	// ⚠️ **L'oracolo guarda le contese FRA COMPAGNI, non tutte.** `ContestsWithSameDestination` conta anche
+	// le coincidenze fra avversari, che la prenotazione non previene per costruzione — il commento sopra lo
+	// dichiara, e asserirlo `== 0` avrebbe fatto fallire il test su una condizione di cui la feature non
+	// risponde. E' la stessa specie di difetto che questo file ha gia' corretto una volta: un'asserzione
+	// piu' larga della propria tesi.
+	TestEqual(TEXT("con la pianificazione di squadra nessuna contesa fra COMPAGNI sulla stessa destinazione"),
+		After.SameTeamContestsWithSameDestination, 0);
 	TestTrue(FString::Printf(
-		TEXT("e la premessa non e' vacua: una alla volta ce n'erano %d"), Before.ContestsWithSameDestination),
-		Before.ContestsWithSameDestination > 0);
+		TEXT("e la premessa non e' vacua: una alla volta ce n'erano %d"),
+		Before.SameTeamContestsWithSameDestination),
+		Before.SameTeamContestsWithSameDestination > 0);
 
 	// ⚠️ **L'altra meta' non resta scoperta, e il predicato guarda `After`.** Le collisioni di percorso sono
 	// fuori dalla portata della prenotazione delle destinazioni — questo file lo dichiara cinquanta righe

@@ -420,14 +420,21 @@ public:
 	int32 WApproach = 10;
 
 	/**
-	 * Bonus per il GUADAGNO di quota rispetto alla cella di partenza — non per la quota posseduta: premia
-	 * salire per il tiro oltre coperture basse, e restare in alto vale zero (`URTHexBotLibrary::ScorePlan`).
+	 * Bonus per la quota (`Layer`) della cella di destinazione: premia l'alta quota — tiro oltre coperture
+	 * basse, piu' danno (`URTHexBotLibrary::ScorePlan`).
+	 *
+	 * 🔴 **E' il termine in cui si e' formato lo stato assorbente di #1088**, perche' compete con
+	 * l'avvicinamento: restare in alto continua a incassarlo, quindi sopra una certa soglia batte muoversi.
+	 * ⛔ Renderlo relativo alla cella di partenza NON aiuta e non va riprovato — `Origin` e' fisso per
+	 * l'intera scelta, quindi sposta ogni candidata della stessa costante: scritto, misurato e tolto il
+	 * 2026-08-22.
 	 *
 	 * **Vale 4 e non 5 perche' l'invariante si misura sul caso peggiore**: le arene generate usano due layer
 	 * (`MaxLayer` 1) e li' anche 5 reggeva, ma con tre layer `5 x 2 = 10` pareggia `WApproach` e il tie-break
 	 * «mossa minima» riapre il parcheggio. Misurato: `-40` contro `-40`, esattamente pari.
 	 *
-	 * ⚠️ **INVARIANTE: `WElevation * MaxLayer < WApproach`** (#1088), e questa e' la sorgente che vince in
+	 * ⚠️ **INVARIANTE: `WElevation * MaxLayer < WApproach`** — l'unica difesa reale, perche' nessuna forma
+	 * rende il difetto impossibile. Alzarlo da qui in editor lo riapre. Questa e' la sorgente che vince in
 	 * partita:
 	 * `PlanBots` copia questi valori nel `FRTHexBotContext`, quindi cambiare il default della struct
 	 * senza cambiare questo non muove nulla di cio' che il giocatore vede.
