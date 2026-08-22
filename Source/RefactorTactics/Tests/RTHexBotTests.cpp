@@ -7,6 +7,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTHexSim.h"
+#include "Turn/RTTurnManager.h" // l'invariante WElevation<WApproach si misura su ENTRAMBE le sorgenti (#1088)
 #include "Turn/RTHexSimLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -173,14 +174,70 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotElevationTest,
 bool FRTHexBotElevationTest::RunTest(const FString&)
 {
 	URTHexMapAsset* M = MakeBotMap(3);
-	FRTHexBotContext Ctx;
-	Ctx.Origin = FRTCellId(0, 0);
+	// ⚠️ Il contesto porta un nemico NOTO, e non e' un dettaglio: il bonus di quota si applica anche senza
+	// attacco quando il bot non conosce bersagli — «la quota vale per sparare o per vedere». Con `Enemies`
+	// vuoto questo test misurerebbe l'altro ramo e la meta' interessante resterebbe scoperta.
+	FRTHexBotContext Ctx = MakeCtx(FRTCellId(0, 0), FRTCellId(3, 0), /*range*/ 0, /*hp*/ 1000);
 	Ctx.WElevation = 20;
 
-	const int32 Ground = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 0)), Ctx);
-	const int32 High = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 2)), Ctx);
-	TestTrue(TEXT("la quota alta vale di piu'"), High > Ground);
-	TestEqual(TEXT("bonus proporzionale al layer"), High - Ground, 40);
+	// Con attacco la quota paga, e in proporzione al layer: e' la ragione dichiarata del bonus.
+	const int32 GroundAtk = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 0), true, 0, 100), Ctx);
+	const int32 HighAtk = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 2), true, 0, 100), Ctx);
+	TestTrue(TEXT("la quota alta vale di piu' quando si spara"), HighAtk > GroundAtk);
+	TestEqual(TEXT("bonus proporzionale al layer"), HighAtk - GroundAtk, 40);
+
+	// 🔴 SENZA attacco la quota NON paga, ed e' la meta' che chiude lo stato assorbente di #1088: un'unita'
+	// gia' in alto non incassa piu' nulla per restarci, quindi «restare fermi» smette di battere
+	// «avvicinarsi». Questa asserzione e' il contratto nuovo — prima il bonus era assoluto sulla
+	// destinazione e valeva anche per un piano che non colpisce nessuno.
+	const int32 GroundIdle = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 0)), Ctx);
+	const int32 HighIdle = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 2)), Ctx);
+	TestEqual(TEXT("senza attacco la quota non cambia il punteggio"), HighIdle, GroundIdle);
+
+	// 🔴 L'ALTRO RAMO: senza bersagli noti la quota torna a pagare anche a un piano che non attacca — e'
+	// l'unico termine che rompe la parita' fra le candidate, e senza di lui il tie-break «restare vince»
+	// immobilizza il bot al buio (misurato dal probe di #1088).
+	FRTHexBotContext Blind;
+	Blind.Origin = FRTCellId(0, 0);
+	Blind.WElevation = 20;
+	const int32 BlindGround = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 0)), Blind);
+	const int32 BlindHigh = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 2)), Blind);
+	TestEqual(TEXT("senza bersagli noti la quota paga anche a un piano che non attacca"),
+		BlindHigh - BlindGround, 40);
+	return true;
+}
+
+/**
+ * L'INVARIANTE, non il numero (#1088). Il bonus di quota e' un termine di POSIZIONE e si incassa ogni
+ * turno; l'avvicinamento e' MARGINALE e si incassa per cella. Finche' il primo supera il secondo esiste
+ * sempre una distanza oltre la quale restare in alto batte scendere di un layer per avvicinarsi di una
+ * cella — e li' il bot si parcheggia, perche' nessuna mossa unilaterale migliora il punteggio.
+ *
+ * ⚠️ Si misura su ENTRAMBE le sorgenti dei pesi, e la seconda e' quella che vince in partita: `PlanBots`
+ * copia le UPROPERTY di `ARTTurnManager` dentro il `FRTHexBotContext`, quindi tarare solo i default della
+ * struct lascerebbe il comportamento reale invariato. E' l'errore in cui l'indagine di #1088 e' gia'
+ * inciampata una volta, su `RoundLimit`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotElevationInvariantTest,
+	"RefactorTactics.HexBot.ElevationNeverOutweighsClosingOneCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotElevationInvariantTest::RunTest(const FString&)
+{
+	const FRTHexBotContext Defaults;
+	TestTrue(FString::Printf(
+		TEXT("default della struct: WElevation %d < WApproach %d"), Defaults.WElevation, Defaults.WApproach),
+		Defaults.WElevation < Defaults.WApproach);
+
+	const ARTTurnManager* TM = GetDefault<ARTTurnManager>();
+	if (!TestNotNull(TEXT("CDO del TurnManager"), TM)) { return false; }
+	TestTrue(FString::Printf(
+		TEXT("sorgente autoritativa: WElevation %d < WApproach %d"), TM->WElevation, TM->WApproach),
+		TM->WElevation < TM->WApproach);
+
+	// E le due sorgenti devono dire lo stesso: se divergono, il test unitario misura un bot che in partita
+	// non esiste.
+	TestEqual(TEXT("le due sorgenti di WElevation coincidono"), TM->WElevation, Defaults.WElevation);
+	TestEqual(TEXT("le due sorgenti di WApproach coincidono"), TM->WApproach, Defaults.WApproach);
 	return true;
 }
 

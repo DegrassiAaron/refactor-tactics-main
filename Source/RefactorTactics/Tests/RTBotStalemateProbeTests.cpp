@@ -913,8 +913,27 @@ bool FRTBotStalemateTeamPlanningBreaksItTest::RunTest(const FString&)
 	AddInfo(FString::Printf(TEXT("contese: %d -> %d | turni con almeno una mossa: %d -> %d"),
 		Before.Contests, After.Contests, Before.TurnsWithAnyMove, After.TurnsWithAnyMove));
 
-	// Le due righe che dicono che lo stallo e' sciolto: nessuna contesa fra compagni, e il campo si muove.
-	TestEqual(TEXT("con la pianificazione di squadra le contese spariscono"), After.Contests, 0);
+	// Le righe che dicono che lo stallo e' sciolto: sparisce cio' che la prenotazione PUO' far sparire, e il
+	// campo si muove.
+	//
+	// 🔴 **L'asserzione era piu' larga della propria tesi, ed e' caduta il 2026-08-22** (#1088) quando il
+	// bot ha smesso di parcheggiarsi e ha ricominciato a muoversi: chiedeva `After.Contests == 0`, cioe'
+	// ZERO contese di ogni specie, mentre il commento sopra di lei diceva «nessuna contesa **fra compagni**».
+	// Misurato dopo: `contese 3 (stessa squadra 2, squadre diverse 1 | destinazione identica 0, diversa 3)`.
+	//
+	// Nessuna delle tre e' un difetto della prenotazione:
+	//   - **1 e' fra squadre diverse**, e nessuna pianificazione di squadra la previene per costruzione —
+	//     due avversari non si coordinano;
+	//   - **2 sono fra compagni ma su destinazioni DIVERSE**, cioe' collisioni di percorso. Questo file lo
+	//     aveva gia' scritto cinquanta righe sopra: «l'altra meta' non e' una questione di destinazioni:
+	//     sono due rotte diverse che passano dalla stessa cella».
+	//
+	// ∴ il criterio che misura la prenotazione e' `ContestsWithSameDestination`, e li' il risultato e' netto.
+	TestEqual(TEXT("con la pianificazione di squadra nessuna contesa sulla stessa destinazione"),
+		After.ContestsWithSameDestination, 0);
+	TestTrue(FString::Printf(
+		TEXT("e la premessa non e' vacua: una alla volta ce n'erano %d"), Before.ContestsWithSameDestination),
+		Before.ContestsWithSameDestination > 0);
 	TestTrue(TEXT("e le unita' si muovono davvero"), After.TurnsWithAnyMove > 0);
 
 	return true;

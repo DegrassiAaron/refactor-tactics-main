@@ -419,9 +419,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
 	int32 WApproach = 10;
 
-	/** Bonus per la quota (Layer) della cella: premia l'alta quota (tiro oltre coperture basse, +danno). */
+	/**
+	 * Bonus per la quota (Layer) della cella da cui si SPARA: premia l'alta quota (tiro oltre coperture
+	 * basse, +danno). Si applica solo ai piani con attacco — `URTHexBotLibrary::ScorePlan`.
+	 *
+	 * ⚠️ **INVARIANTE: `WElevation < WApproach`** (#1088), e questa e' la sorgente che vince in partita:
+	 * `PlanBots` copia questi valori nel `FRTHexBotContext`, quindi cambiare il default della struct
+	 * senza cambiare questo non muove nulla di cio' che il giocatore vede.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
-	int32 WElevation = 20;
+	int32 WElevation = 5;
 
 	/**
 	 * Snapshot dello stato corrente della partita (unita' VIVE del livello + mappa autorevole).

@@ -1777,15 +1777,38 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 		CombatEntries, TurnsPlayed), CombatEntries > 0);
 
 	// E il DoD di E47.1 chiede una conclusione per eliminazione, non per esaurimento dei round.
+	//
+	// 🔴 L'ORACOLO E' `Reason`, NON `Phase` — e la differenza e' esattamente il difetto di #1088.
+	// `Phase = MatchEnded` si imposta per QUALUNQUE esito diverso da `InProgress` (`RTTurnManager.cpp`,
+	// ramo `PendingResult.Outcome != ERTMatchOutcome::InProgress`), e `ERTMatchOutcome` contiene `Draw`
+	// (`RTTurnRules.h`): un pareggio allo scadere dei round passava l'asserzione precedente, che leggeva
+	// la fase. Il commento prometteva l'eliminazione e il codice non la verificava.
+	//
+	// L'idioma giusto era gia' in questo file, in `Match.Autobattle.PlaysToCompletionWithoutInput`:
+	// «una partita chiusa dal limite di round e' la partita bloccata che il DoD chiede di distinguere,
+	// non una demo riuscita». Il test che copre la sorgente SPEDITA usava l'oracolo piu' debole dei due.
+	const FRTMatchResult Result = TM->GetMatchResult();
 	TestTrue(FString::Printf(TEXT("la partita si decide entro il tetto: %d turni giocati"), TurnsPlayed),
 		TM->GetPhase() == ERTMatchPhase::MatchEnded);
+	TestEqual(FString::Printf(
+		TEXT("e si decide per ELIMINAZIONE, non per esaurimento dei round: %s - %s al turno %d"),
+		*URTTurnRules::DescribeOutcome(Result.Outcome),
+		*URTTurnRules::DescribeEndReason(Result.Reason),
+		TurnsPlayed),
+		Result.Reason, ERTMatchEndReason::Elimination);
 
-	// 🔴 IL NUMERO CHE CONTA: in partita il formato chiude a 12 round. Se il primo colpo cade dopo, il
-	// giocatore vede solo il pareggio di #1088 — e questo test, che ha un tetto piu' alto, non lo mostrerebbe.
+	// 🔴 IL NUMERO CHE CONTA: se il primo colpo cade oltre il limite del formato, in partita il giocatore
+	// vede solo il pareggio di #1088 — e questo test, che ha un tetto piu' alto, non lo mostrerebbe.
+	//
+	// ⚠️ Il limite si CHIEDE al formato invece di scriverlo qui: era `<= 12` a mano, e il 2026-08-22 il
+	// formato e' passato a 14 (#1088). Un numero letterale in un'asserzione invecchia da solo e nessun gate
+	// se ne accorge, perche' resta verde mentre smette di misurare la cosa che nomina.
+	const int32 FormatRoundLimit = TM->GetMatchRules().RoundLimit;
 	AddInfo(FString::Printf(TEXT("primo Combat al turno %d · %d voci Combat · %d Move · %d turni totali"),
 		FirstCombatTurn, CombatEntries, MoveEntries, TurnsPlayed));
-	TestTrue(FString::Printf(TEXT("il primo colpo arriva entro i 12 round del formato: turno %d"), FirstCombatTurn),
-		FirstCombatTurn > 0 && FirstCombatTurn <= 12);
+	TestTrue(FString::Printf(TEXT("il primo colpo arriva entro i %d round del formato: turno %d"),
+		FormatRoundLimit, FirstCombatTurn),
+		FirstCombatTurn > 0 && FirstCombatTurn <= FormatRoundLimit);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

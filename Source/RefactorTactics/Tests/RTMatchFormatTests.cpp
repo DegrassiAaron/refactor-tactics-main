@@ -134,7 +134,7 @@ bool FRTMatchFormatShippedIsValidTest::RunTest(const FString&)
 	// 12 e' il centro dei **10-14 in 2v2** che D-010 consolida. Era 5 fino al 2026-08-10: un valore da test
 	// che contraddiceva quella decisione, falsificato dal primo playtest al PIE (partita chiusa in pareggio
 	// allo scadere dei round con una squadra in vantaggio 2 contro 1).
-	TestEqual(TEXT("RoundLimit 12, allineato a D-010"), Shipped->RoundLimit, 12);
+	TestEqual(TEXT("RoundLimit 14, il massimo della banda 2v2 di D-010"), Shipped->RoundLimit, 14);
 	// I round ATTESI stanno sotto il limite, e non ci coincidono: con 12 la fine attesa torna a essere
 	// l'eliminazione — 10 e' il dato misurato headless il 2026-08-06 — e il limite la rete dietro di essa.
 	// Il validator rifiuta solo il caso opposto, round attesi OLTRE il limite.
@@ -178,7 +178,7 @@ bool FRTMatchFormatFallbackRulesAreValidTest::RunTest(const FString&)
 		Fallback.FormatId, MakeValidFormat()->FormatId);
 
 	// Il ripiego resta una partita giocabile: il valore iniziale del 2v2 v0.1 (banda 10-14, spec §6).
-	TestEqual(TEXT("RoundLimit di ripiego"), Fallback.RoundLimit, 12);
+	TestEqual(TEXT("RoundLimit di ripiego, allineato al formato spedito"), Fallback.RoundLimit, 14);
 
 	// E deve superare lo stesso validator degli asset: un ripiego che non passa la propria validazione
 	// sarebbe una regola che il gioco applica ma non accetterebbe da un designer.

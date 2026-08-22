@@ -192,8 +192,37 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 		}
 	}
 
-	// Elevazione: premia la quota alta della cella di destinazione (vantaggio di tiro/posizione).
-	Score += Context.WElevation * Plan.DestCell.Layer;
+	// Elevazione: premia la quota alta della cella da cui si SPARA — non la quota su cui si siede.
+	//
+	// 🔴 La guardia `bHasAttack` chiude lo stato assorbente misurato in #1088. Il bonus era assoluto sulla
+	// destinazione, quindi un'unita' gia' in quota lo incassava ogni turno anche restando ferma: su
+	// `GeneratedTestArena` Riktor saliva sulla piattaforma al turno 3 e non scendeva piu' fino al 12, e il
+	// conto lo spiega — restare valeva `+WElevation - WApproach*4 = -20`, scendere avvicinandosi di una
+	// cella valeva `-WApproach*3 = -30`. Nessuna mossa unilaterale migliorava il punteggio: un punto fisso,
+	// non una preferenza subottimale.
+	//
+	// La giustificazione del bonus era gia' scritta e chiedeva questa condizione — «tiro oltre coperture
+	// basse, +danno»: senza tiro, quella ragione non si applica. Un'unita' che non attacca non guadagna
+	// nulla dallo stare in alto, quindi l'unico modo di guadagnare torna a essere avvicinarsi o colpire.
+	//
+	// ➕ **E la seconda meta' della condizione: `Enemies` vuoto.** Con la sola guardia `bHasAttack`, un bot
+	// che non conosce nessun bersaglio ha TUTTE le candidate a punteggio zero — niente attacco, niente
+	// minaccia, e `WApproach` non si applica perche' `MinDist` resta indefinito senza nemici. A parita' il
+	// tie-break di `ChooseBestPlan` fa vincere la mossa minima, quindi il bot non si muove piu': misurato dal
+	// probe di #1088, `0/4 mosse` e `percepiti 0` per dodici turni su entrambe le pianificazioni.
+	//
+	// ⚠️ Il bonus di quota era, di fatto, l'unico motore di esplorazione del bot al buio. La regola che
+	// tiene insieme le due meta' e' una sola: **la quota vale per sparare o per vedere**. Se il contatto ce
+	// l'hai gia' e non spari, non vale — ed e' li' che si formava lo stato assorbente.
+	//
+	// 🔴 Oggi in partita la seconda meta' non morde: il bot conosce le posizioni avversarie e `Enemies` non
+	// e' mai vuoto. Mordera' con **E13** (conoscenza parziale), che e' aperta — il probe lo ha anticipato
+	// perche' modella gia' la Team Knowledge.
+	const bool bKnowsAnyEnemy = Context.Enemies.Num() > 0;
+	if (Plan.bHasAttack || !bKnowsAnyEnemy)
+	{
+		Score += Context.WElevation * Plan.DestCell.Layer;
+	}
 
 	return Score;
 }

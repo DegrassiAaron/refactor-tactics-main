@@ -277,7 +277,7 @@ bool FRTMatchFormatFallbackObservableTest::RunTest(const FString&)
 	// ...e dichiara di stare girando sul RIPIEGO, con un'identita' che nessun formato d'autore puo' usare.
 	TestEqual(TEXT("il formato in vigore e' quello di ripiego"),
 		TurnManager->GetMatchRules().FormatId, URTMatchFormatLibrary::FallbackFormatId);
-	TestEqual(TEXT("con il RoundLimit del ripiego"), TurnManager->GetMatchRules().RoundLimit, 12);
+	TestEqual(TEXT("con il RoundLimit del ripiego"), TurnManager->GetMatchRules().RoundLimit, 14);
 
 	DestroyFormatWorld(World);
 	return true;
@@ -310,13 +310,13 @@ bool FRTMatchFormatShippedInMatchTest::RunTest(const FString&)
 		Rules.FormatId, URTMatchFormatLibrary::Skirmish2v2FormatId);
 	TestNotEqual(TEXT("e l'identita' NON e' quella riservata al ripiego"),
 		Rules.FormatId, URTMatchFormatLibrary::FallbackFormatId);
-	// I numeri del catalogo: se qualcuno li cambia, questo test lo dice. Ha gia' fatto il suo mestiere una
-	// volta — era `RoundLimit 5` fino al 2026-08-10, ed e' caduto quando il valore e' salito a 12 per
-	// allinearsi a D-010 (10-14 in 2v2).
-	// ⚠️ Da qui in poi il RoundLimit **non distingue piu'** questo formato dal ripiego, che vale 12 anche lui:
+	// I numeri del catalogo: se qualcuno li cambia, questo test lo dice. Ha gia' fatto il suo mestiere DUE
+	// volte — era `RoundLimit 5` fino al 2026-08-10, caduto quando il valore e' salito a 12 per allinearsi a
+	// D-010 (10-14 in 2v2); ed e' ricaduto il 2026-08-22 sul passaggio a 14 (#1088).
+	// ⚠️ Da qui in poi il RoundLimit **non distingue piu'** questo formato dal ripiego, che vale 14 anche lui:
 	// a separarli resta la sola identita', verificata dalle due asserzioni qui sopra. Non e' una perdita di
 	// copertura — il numero non era un discriminante affidabile — ma chi legge deve saperlo.
-	TestEqual(TEXT("RoundLimit 12, allineato a D-010"), Rules.RoundLimit, 12);
+	TestEqual(TEXT("RoundLimit 14, il massimo della banda 2v2 di D-010"), Rules.RoundLimit, 14);
 	TestEqual(TEXT("due unita' per squadra"), Rules.UnitsPerTeam, 2);
 
 	DestroyFormatWorld(World);
