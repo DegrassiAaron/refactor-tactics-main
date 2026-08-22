@@ -192,7 +192,33 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 		}
 	}
 
-	// Elevazione: premia la quota alta della cella di destinazione (vantaggio di tiro/posizione).
+	// Elevazione: premia la quota della cella di destinazione.
+	//
+	// 🔴 **QUI SI E' FORMATO LO STATO ASSORBENTE DI #1088, e la difesa e' UN NUMERO — non questa formula.**
+	// Il termine compete con l'avvicinamento: finche' `WElevation * Layer` supera quello che `WApproach`
+	// rende scendendo, restare in alto batte muoversi e il bot si parcheggia. Misurato su
+	// `GeneratedTestArena` con `WElevation` 20: Riktor saliva sulla piattaforma al turno 3 e non scendeva
+	// fino al 12 — restare valeva `+20 - 40 = -20` contro `-30` dello scendere.
+	//
+	// ⛔ **Non si prova a renderlo RELATIVO all'origine: sarebbe un no-op.** `Context.Origin` e' fisso per
+	// l'intera chiamata di `ChooseBestPlan`, quindi `- WElevation * Origin.Layer` e' la stessa costante
+	// sottratta a OGNI candidata: sposta tutti i punteggi e non cambia ne' l'argmax ne' il tie-break.
+	// E' stato scritto, misurato e tolto il 2026-08-22 — con la forma relativa e `WElevation` 20 il
+	// parcheggio si riproduce identico (`-40` contro `-50`, stesso ordine di `-20` contro `-30`).
+	//
+	// ⛔ **E non si condiziona a `bHasAttack`**: i piani con attacco non nascono solo da fermo — il ramo
+	// `Charge` porta `DestCell = Linear.Final` e il ramo Dash usa uno snapshot con budget non nullo — ma
+	// il ramo di riposizionamento normale nasce con `Range 0`, quindi senza attacco. Una guardia cosi'
+	// toglierebbe al bot la sola candidata con cui puo' SALIRE in quota, che e' la ragione del peso.
+	//
+	// ⚠️ **INVARIANTE: `WElevation * MaxLayer < WApproach`.** E' l'unica difesa reale, ed e' un vincolo
+	// numerico: nessuna forma rende il difetto impossibile, perche' un bonus di posizione sufficientemente
+	// grande batte sempre l'avvicinamento. Pinnato da `HexBot.ElevationNeverOutweighsClosingOneCell`, che
+	// lo misura confrontando l'ESITO di `ChooseBestPlan` — non il punteggio di un piano isolato, che puo'
+	// cambiare senza che l'ordinamento si muova.
+	//
+	// 🔴 **Quindi `WElevation` e' modificabile in editor a proprio rischio** (`PIE-BU2b` lo documenta come
+	// workflow): alzarlo oltre l'invariante riapre lo stato assorbente, e nessun gate lo impedisce.
 	Score += Context.WElevation * Plan.DestCell.Layer;
 
 	return Score;

@@ -145,8 +145,15 @@ struct FRTHexBotContext
 	UPROPERTY() int32 WThreat = 100;
 	UPROPERTY() int32 WKiteViolation = 50;
 	UPROPERTY() int32 WApproach = 10;
-	/** Bonus per la quota (Layer) della cella: premia l'alta quota. */
-	UPROPERTY() int32 WElevation = 20;
+	/**
+	 * Bonus per la quota (`Layer`) della cella di destinazione (#1088).
+	 *
+	 * ⚠️ **INVARIANTE: `WElevation * MaxLayer < WApproach`.** Sopra quella soglia scendere per avvicinarsi
+	 * non conviene, i punteggi pareggiano e il tie-break «restare vince» riapre il parcheggio. Pinnato da
+	 * `HexBot.ElevationNeverOutweighsClosingOneCell`, che lo misura sull'ESITO di `ChooseBestPlan` — non sul
+	 * punteggio di un piano isolato, che non vede il tie-break.
+	 */
+	UPROPERTY() int32 WElevation = 4;
 };
 
 /**

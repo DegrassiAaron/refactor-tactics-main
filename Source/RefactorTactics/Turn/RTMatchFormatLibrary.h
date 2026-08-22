@@ -79,7 +79,7 @@ public:
 	static const FName Skirmish2v2FormatId;
 
 	/**
-	 * Regole di RIPIEGO, valide secondo lo stesso validator: `RoundLimit` 12, cioe' il valore iniziale del
+	 * Regole di RIPIEGO, valide secondo lo stesso validator: `RoundLimit` 12, cioe' il valore corrente del
 	 * 2v2 v0.1 (spec §6), e l'identita' riservata `FallbackFormatId`.
 	 *
 	 * Le ritorna soltanto: non le applica e non decide nulla. Chi ripiega e' `ARTGameMode`, che lo dichiara

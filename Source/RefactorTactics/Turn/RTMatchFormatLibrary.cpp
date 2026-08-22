@@ -170,6 +170,19 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// RoundLimit 12 — allineato a **D-010**, che consolida `RoundLimit` **10-14 in 2v2** (16-20 in 3v3): 12 e'
 	// il centro dell'intervallo del formato che questo catalogo descrive. Portato qui da 5 il 2026-08-10.
 	//
+	// ⛔ **E resta 12 anche dopo la correzione dello stato assorbente del 2026-08-22 (#1088), per decisione.**
+	// [D-184] vieta esattamente questa mossa: alzare `RoundLimit` per accomodare una durata bot-contro-bot e'
+	// l'inferenza «l'eroe e' debole» al posto di «il bot non sa giocarla» con un altro cappello, e [D-102] la
+	// dichiara inammissibile finche' il bot non e' certificato. In piu' riaprirebbe D-010 e muoverebbe
+	// `InitialBank` via [D-056].
+	//
+	// ⚠️ **E non basterebbe nemmeno**: la misura corrente e' **round 15**, annotata accanto a `ExpectedRounds`
+	// insieme al 21 che sostituisce. 15 e' oltre anche il massimo della banda 2v2, quindi il 14 che una
+	// misura headless suggeriva era giusto per il banco e falso per il gioco — quel percorso e' piu' corto
+	// di quello reale. Il numero vive in un posto solo, sotto: qui c'e' il rimando.
+	//
+	// ---
+	//
 	// Il 5 precedente era un valore da test, e si dichiarava «una scelta di ritmo, non un ripiego»: era una
 	// motivazione scritta senza confrontarla con D-010, che diceva gia' il contrario. A falsificarla e' stato
 	// il primo playtest al PIE — partita 2v2 su `GeneratedTestArena` finita
@@ -191,9 +204,11 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// tavolino — ed e' lo stesso valore che `PIE-HEXPLAY-10` porta come dato di riferimento.
 	// Tenerlo uguale a 12 avrebbe dichiarato di nuovo che ci si aspetta di arrivare allo scadere.
 	//
-	// 🔴 **Il 10 e' una misura del 2026-08-06, e la realta' di oggi e' 21.** Dopo la correzione del deadlock
-	// di #1088 (PR #1213), una partita reale sulla configurazione spedita si decide al round **21**
-	// (`Vince il team 0 (blu) - per eliminazione (round 21/40)`, registrata in #149). Con `RoundLimit` 12 la
+	// 🔴 **Il 10 e' una misura del 2026-08-06, e la realta' di oggi e' 15.** Dopo la correzione del deadlock
+	// di #1088 (PR #1213) una partita reale sulla configurazione spedita si decideva al round **21**
+	// (registrata in #149); dopo la correzione dello stato assorbente della stessa issue, rimisurata sullo
+	// stesso percorso, si decide al round **15** (`Vince il team 0 (blu) - per eliminazione (round 15/40)`,
+	// 2026-08-22). Il 21 resta scritto perche' e' il numero che D-184 cita. Con `RoundLimit` 12 la
 	// via normale di chiusura e' quindi tornata a essere il **pareggio allo scadere** — l'esito che il
 	// passaggio da 5 a 12 aveva tolto di mezzo, ricomparso da un'altra porta.
 	//
@@ -204,9 +219,18 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// certificato sulle capability che lo producono. Il 21 dice cosa succede, non se sia giusto.
 	//
 	// ∴ **D-184** decide che il pareggio allo scadere e' un esito legittimo della v0.1 invece di ritarare
-	// un numero su un dato inammissibile. Il `10` resta il target di design; il `21` resta qui accanto
-	// perche' chi arriva dopo non debba ri-misurarlo — ed e' anche la ragione per cui il gate di
+	// un numero su un dato inammissibile. Il `10` resta il target di design; la misura corrente (**15**, e
+	// il 21 da cui viene) resta qui accanto perche' chi arriva dopo non debba ri-misurarla — ed e' anche
+	// la ragione per cui il gate di
 	// `ValidateFormat` oggi tace: e' cieco su una misura scaduta, non su una regola sbagliata.
+	//
+	// ⚠️ **Nulla di cio' che D-184 decide si muove col 15**: e' comunque oltre il limite di 12, quindi sul
+	// default la partita finisce pari allo scadere e il pareggio resta l'esito legittimo che quella voce
+	// dichiara. Il 15 eredita lo statuto del 21: **non ammissibile** come evidenza di bilanciamento per
+	// D-102, quindi non diventa `ExpectedRounds` — che a 15 renderebbe anche il formato invalido.
+	//
+	// ---
+	//
 	// Soglia obiettivo ZERO, e non e' pigrizia: **nessuno assegna punti**. `ARTTurnManager::AddTeamScore`
 	// esiste e funziona, ma il suo unico chiamante in tutto il repository e' un test — nel runtime non ci sono
 	// obiettivi che producano punteggio. Una soglia > 0 dichiarerebbe una via di vittoria IRRAGGIUNGIBILE, cioe'
