@@ -1493,3 +1493,24 @@ sessions:
       ⚠️ ID assegnato prima del merge: `U28`, con `U27` come massimo misurato su `main` **e su tutti i
       branch remoti**, PR `#1263` compresa (che tocca questo file alla riga ~486 e non aggiunge sedute).
       Chi arriva secondo rinumera, non contende.
+      ─────
+      🔄 **SOSPESA il 2026-08-22 — i quattro asset esistono e il menu compare in PIE.** Verificato:
+      cursore visibile, tre voci, label `v0.1.0`, e il focus si sposta con `Tab`. Misurato sui byte dei
+      package: `GetVersionLabel` 1 · `PushScreen` 2 · `PopScreen` 2 ·
+      `GetSettingsNoticeText`/`Visibility` 2 ciascuna, e — in **entrambi** i widget — `StartFrontend`,
+      `InitializeFrontend`, `ReturnMain` a **zero**: il menu non naviga da se'. Nessun evento su
+      `EntryPlay`, che e' CP 46.4 e non questa seduta.
+      `GameDefaultMap` punta al menu (`DefaultEngine.ini`), scritta ora che la mappa e' versionata.
+      ⛔ **Cosa RESTA, e va ripreso da qui:**
+      **(1)** il focus **non e' abbastanza visibile** — dichiarato dall'autore, non da un test. Il
+      marcatore attuale e' un `Border` che compare, e in scala di grigi dipende tutto dal contrasto di
+      luminanza. Il segnale che non fallisce e' il **movimento**: `Set Render Translation` sulla voce col
+      focus, che nessun trattamento del colore puo' cancellare. Finche' non e' fatto, la voce del DoD
+      *«il focus non e' distinguibile dal solo colore»* **non e' soddisfatta**.
+      **(2)** il giro `SETTINGS -> BACK` e `QUIT` non e' stato percorso.
+      **(3)** l'avvio del **pacchetto** non e' stato provato — ed e' la verifica che conta per `G13`,
+      perche' chiede «senza editor».
+      ⚠️ Gli asset sono stati committati **prima** che la seduta chiudesse, di proposito: fino a quel
+      momento esistevano su una macchina sola e `git status` non li mostrava nemmeno, perche'
+      `Content/**/*.uasset` li ignorava. Il rischio di perderli era piu' concreto di quello di committare
+      lavoro incompleto.
