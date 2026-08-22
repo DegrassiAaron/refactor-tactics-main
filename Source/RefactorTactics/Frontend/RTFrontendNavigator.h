@@ -244,6 +244,15 @@ private:
 	/** Toglie dallo schermo il widget di `ScreenId`, se c'e'. */
 	void DismissWidget(FName ScreenId);
 
+	/**
+	 * Smonta e **dimentica** tutti i widget istanziati.
+	 *
+	 * Chiamata da `InitializeFrontend` — una sessione nuova non eredita i widget della precedente, che
+	 * appartengono a un mondo ormai smontato — e da `Deinitialize`. In un posto solo perche' le due sedi
+	 * divergerebbero al primo widget che richiede un passo di pulizia in piu'.
+	 */
+	void DismissAllWidgets();
+
 	/** Riallinea cio' che e' a schermo con lo stack: e' l'unico punto in cui la presentazione cambia. */
 	void SyncPresentation();
 

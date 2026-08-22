@@ -28,10 +28,38 @@ ERTNavResult URTFrontendNavigator::InitializeFrontend(FName RootScreenId)
 		return ERTNavResult::InvalidScreen;
 	}
 
+	// ⚠️ **I widget del frontend precedente si buttano, e non e' un'ottimizzazione mancata.**
+	// Questo subsystem sopravvive al cambio di livello **apposta** — e' cio' che permette a `ReturnMain` di
+	// funzionare dopo una partita — ma i widget dentro `LiveWidgets` appartengono al **mondo in cui sono
+	// stati costruiti**. Al secondo ingresso nel frontend (`Main Menu -> partita -> Main Menu`, il ciclo di
+	// CP 46.5) `PresentWidget` trovava l'istanza vecchia, saltava `CreateWidget`, e chiamava
+	// `AddToViewport` su un widget il cui mondo era stato smontato. Trovato in code review su PR #1264.
+	//
+	// ⚠️ **Non contraddice la cache dichiarata da CP 46.1**: quella vale fra `PushScreen` e `PopScreen`,
+	// cioe' **dentro** una sessione. `InitializeFrontend` non e' una navigazione, e' l'inizio di una
+	// sessione nuova — e `LiveWidgets` era l'unico stato che non veniva azzerato insieme allo stack.
+	//
+	// ⚠️ **`Bindings` NON si tocca**, ed e' la differenza con `Deinitialize`: `StartFrontendFrom` registra
+	// e *poi* inizializza, quindi azzerarli qui butterebbe via le schermate appena dichiarate.
+	DismissAllWidgets();
+
 	Stack = FRTScreenStack(RootScreenId);
 	bInitialized = true;
 	SyncPresentation();
 	return ERTNavResult::Ok;
+}
+
+void URTFrontendNavigator::DismissAllWidgets()
+{
+	// Le chiavi si copiano prima: `DismissWidget` non modifica la mappa, ma iterarla mentre si chiama
+	// qualcosa che puo' rientrare nel navigatore e' il difetto che `PresentWidget` documenta gia'.
+	TArray<FName> Live;
+	LiveWidgets.GetKeys(Live);
+	for (const FName& Id : Live)
+	{
+		DismissWidget(Id);
+	}
+	LiveWidgets.Reset();
 }
 
 void URTFrontendNavigator::RegisterScreen(FName ScreenId, TSoftClassPtr<UUserWidget> WidgetClass)
@@ -350,13 +378,9 @@ void URTFrontendNavigator::SyncPresentation()
 
 void URTFrontendNavigator::Deinitialize()
 {
-	TArray<FName> Live;
-	LiveWidgets.GetKeys(Live);
-	for (const FName& Id : Live)
-	{
-		DismissWidget(Id);
-	}
-	LiveWidgets.Reset();
+	// Lo stesso smontaggio di `InitializeFrontend`, in un posto solo: le due sedi divergerebbero al primo
+	// widget che richiede un passo di pulizia in piu'.
+	DismissAllWidgets();
 	Bindings.Reset();
 	bInitialized = false;
 

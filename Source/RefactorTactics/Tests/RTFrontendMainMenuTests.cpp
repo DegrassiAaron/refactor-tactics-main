@@ -601,4 +601,68 @@ bool FRTMainMenuNoticeVisibilityFollowsTheFlagTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Un nuovo avvio del frontend non riusa i widget del precedente.**
+ *
+ * 🔴 Trovato in code review su PR #1264, e **non corretto in quel giro**: il difetto e' rimasto scritto in
+ * un commento di PR e in nessuna issue, che e' il modo in cui un modo di guasto noto viene riscoperto da
+ * zero sei mesi dopo.
+ *
+ * Il navigatore e' un `UGameInstanceSubsystem` **apposta**, per sopravvivere al cambio di livello: e' cio'
+ * che permette a `ReturnMain` di funzionare dopo una partita. Ma la stessa proprieta' fa sopravvivere
+ * `LiveWidgets`, e i widget dentro appartengono al **mondo in cui sono stati costruiti**. Al secondo
+ * ingresso nel frontend — `Main Menu -> partita -> Main Menu`, cioe' il ciclo di CP 46.5 —
+ * `PresentWidget` trovava l'istanza vecchia, saltava `CreateWidget` e chiamava `AddToViewport` su un
+ * widget il cui mondo era stato smontato.
+ *
+ * ⚠️ **Non contraddice la cache dichiarata da CP 46.1.** Quel commento dice che i widget *«restano
+ * istanziati dopo un `Pop`»*, ed e' vero e resta vero: la cache serve fra `PushScreen` e `PopScreen`, cioe'
+ * **dentro** una sessione di frontend. `InitializeFrontend` non e' una navigazione — e' l'inizio di una
+ * sessione nuova, e `LiveWidgets` era l'unico stato che non veniva azzerato insieme allo stack.
+ *
+ * ⚠️ **Serve un mondo vero**: senza, `CreateWidget` non costruisce e il test non avrebbe soggetto. Se in
+ * questo ambiente non costruisce, il test lo dichiara invece di asserire su due `nullptr` — che sarebbero
+ * «uguali» e lo farebbero passare per la ragione sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendRestartDoesNotReuseStaleWidgetsTest,
+	"RefactorTactics.Frontend.RestartDoesNotReuseStaleWidgets",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendRestartDoesNotReuseStaleWidgetsTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	UWorld* World = MakeFrontendWorld(GI);
+	if (!TestNotNull(TEXT("il mondo esiste"), World)) { DestroyFrontendWorld(World, GI); return false; }
+	if (!TestNotNull(TEXT("il mondo ha una GameInstance"), GI)) { DestroyFrontendWorld(World, GI); return false; }
+
+	URTFrontendNavigator* Nav = GI->GetSubsystem<URTFrontendNavigator>();
+	if (!TestNotNull(TEXT("il navigatore esiste"), Nav)) { DestroyFrontendWorld(World, GI); return false; }
+
+	Nav->RegisterScreen(RTScreenIds::Main,
+		TSoftClassPtr<UUserWidget>(URTScreenHudWidgetBase::StaticClass()));
+
+	TestEqual(TEXT("primo avvio"), Nav->InitializeFrontend(RTScreenIds::Main), ERTNavResult::Ok);
+
+	UUserWidget* First = Nav->FindLiveWidget(RTScreenIds::Main);
+	if (!First)
+	{
+		AddInfo(TEXT("CreateWidget non ha costruito in questo ambiente: riuso non verificabile qui"));
+		DestroyFrontendWorld(World, GI);
+		return true;
+	}
+
+	TestEqual(TEXT("secondo avvio"), Nav->InitializeFrontend(RTScreenIds::Main), ERTNavResult::Ok);
+
+	UUserWidget* Second = Nav->FindLiveWidget(RTScreenIds::Main);
+	if (!TestNotNull(TEXT("il secondo avvio produce un widget"), Second))
+	{
+		DestroyFrontendWorld(World, GI);
+		return false;
+	}
+
+	TestNotEqual(TEXT("e non e' l'istanza del primo avvio"), Second, First);
+
+	DestroyFrontendWorld(World, GI);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
