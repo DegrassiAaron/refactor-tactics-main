@@ -251,6 +251,10 @@ ERTNavResult URTFrontendNavigator::StartMatch()
 	// percorso di avvio, che e' il vincolo del DoD.
 	PendingMatchLevel = MatchLevel;
 	UE_LOG(LogRT, Log, TEXT("[RT] Avvio partita: chiesto il livello '%s'"), *MatchLevel);
+
+	// ⚠️ **Dopo aver scritto la richiesta, non prima.** Un ascoltatore che consuma dentro il callback deve
+	// trovarla: invertire le due righe darebbe un consumatore a mani vuote e una richiesta che resta li'.
+	OnMatchRequested.Broadcast(MatchLevel);
 	return ERTNavResult::Ok;
 }
 
