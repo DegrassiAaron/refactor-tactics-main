@@ -27,6 +27,20 @@ void ARTFrontendGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 	StartFrontendForThisGame();
+
+	// 🔴 **Senza questa iscrizione il consumatore era codice morto**, e otto test verdi non lo vedevano:
+	// li chiamavano tutti `ListenForMatchRequests` a mano. In PIE `PLAY` scriveva la richiesta, la
+	// annunciava a zero ascoltatori, e il sintomo arrivava sbagliato — il `PLAY` *successivo* veniva
+	// rifiutato con «richiesta mai consumata», che punta il dito su chi non consuma invece che su chi non
+	// si e' mai iscritto. Trovato in code review.
+	//
+	// ⚠️ **Non e' subordinata all'esito di `StartFrontendForThisGame`**: sono due cose diverse, e legarle
+	// farebbe saltare l'ascolto per un motivo che con l'ascolto non c'entra. La guardia sul navigatore
+	// nullo sta gia' dentro `ListenForMatchRequests`.
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		ListenForMatchRequests(GameInstance->GetSubsystem<URTFrontendNavigator>());
+	}
 }
 
 void ARTFrontendGameMode::PostLogin(APlayerController* NewPlayer)

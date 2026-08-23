@@ -1110,4 +1110,63 @@ bool FRTFrontendGameModeConsumesTheRequestTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **`BeginPlay` aggancia il consumatore da solo.**
+ *
+ * E' il difetto che otto test verdi non vedevano: lo chiamavano tutti `ListenForMatchRequests` a mano,
+ * quindi provavano che il consumatore *funziona* e mai che qualcuno lo *colleghi*. In PIE `PLAY` scriveva
+ * la richiesta, la annunciava a zero ascoltatori, e nulla si apriva — con un sintomo che punta altrove: il
+ * `PLAY` successivo veniva rifiutato con «richiesta mai consumata», che accusa chi non consuma invece di
+ * chi non si e' mai iscritto. Trovato in code review.
+ *
+ * ⚠️ **Qui `ListenForMatchRequests` non si chiama**, ed e' tutto il punto: se comparisse, il test
+ * tornerebbe a provare il consumatore e il difetto resterebbe invisibile una seconda volta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendBeginPlayHooksTheConsumerTest,
+	"RefactorTactics.Frontend.BeginPlayHooksTheMatchConsumer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendBeginPlayHooksTheConsumerTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		ReleaseNavigator(GI);
+		return false;
+	}
+
+	Nav->RegisterScreensFromConfig();
+	Nav->InitializeFrontend(RTScreenIds::Main);
+	Nav->MatchLevel = TEXT("/Game/RT/Maps/Dev/L_HexArena/L_HexArena");
+
+	World->SetGameInstance(GI);
+	World->InitializeActorsForPlay(FURL());
+
+	ARTFrontendGameModeForTest* GameMode = World->SpawnActor<ARTFrontendGameModeForTest>();
+	if (!TestNotNull(TEXT("il GameMode del frontend esiste"), GameMode))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		ReleaseNavigator(GI);
+		return false;
+	}
+
+	// L'unico gesto: far partire il ciclo di vita. Nessuna iscrizione a mano.
+	if (!GameMode->HasActorBegunPlay()) { GameMode->DispatchBeginPlay(); }
+
+	TestEqual(TEXT("l'avvio passa"), Nav->StartMatch(), ERTNavResult::Ok);
+	if (TestEqual(TEXT("il GameMode si era iscritto da solo, e ha aperto"), GameMode->OpenedLevels.Num(), 1))
+	{
+		TestEqual(TEXT("il livello dichiarato"), GameMode->OpenedLevels[0], Nav->MatchLevel);
+	}
+	TestTrue(TEXT("e la richiesta non resta pendente"), Nav->ConsumePendingMatchLevel().IsEmpty());
+
+	RTWorldFixtures::DestroyWorld(World);
+	ReleaseNavigator(GI);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
