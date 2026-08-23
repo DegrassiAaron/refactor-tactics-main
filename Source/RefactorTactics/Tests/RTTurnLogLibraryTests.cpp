@@ -114,4 +114,127 @@ bool FRTTurnLogDescribeTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `TurnLog.InflictedDamageExcludesWhatItSays` — le esclusioni documentate di `IsDamageInflictedByActor`
+ * hanno un test, invece di vivere in un commento (`#1150`).
+ *
+ * 🔴 **Senza questo, la meta' del predicato non era coperta.** L'unico test del lavoro era uno scenario
+ * d'integrazione che esercita `Hit` e le due cause ambientali: cambiare `TerrainBonus` in `default:`, o
+ * aggiungere `Healed` agli accettati — che gonfierebbe ogni aggregazione dell'importo curato — lasciava la
+ * suite intera verde. Trovato in code review.
+ *
+ * ⚠️ Voci costruite a mano di proposito: qui si misura il PREDICATO, non chi scrive le voci. Che qualcuno
+ * le scriva davvero lo prova `Actions.Hazard.SufferedAndInflictedAreTellableApart`, sul percorso vero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInflictedDamagePredicateTest,
+	"RefactorTactics.TurnLog.InflictedDamageExcludesWhatItSays",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInflictedDamagePredicateTest::RunTest(const FString&)
+{
+	// Un colpo qualunque: attore dichiarato, celle diverse, esito di danno.
+	auto Colpo = [](ERTCombatOutcome Esito)
+	{
+		FRTTurnLogEntry E;
+		E.Category = ERTLogCategory::Combat;
+		E.Outcome = static_cast<uint8>(Esito);
+		E.UnitId = 7;
+		E.SrcCell = FRTCellId(0, 0, 0);
+		E.TgtCell = FRTCellId(1, 0, 0);
+		E.Amount = 20;
+		E.ActionId = FName(TEXT("Hero.Wraith.PulseShot"));
+		return E;
+	};
+
+	// I QUATTRO che contano.
+	TestTrue(TEXT("Hit e' danno inflitto"),
+		URTTurnLogLibrary::IsDamageInflictedByActor(Colpo(ERTCombatOutcome::Hit)));
+	TestTrue(TEXT("ShieldAbsorbed lo e' (il colpo e' arrivato, lo scudo l'ha retto)"),
+		URTTurnLogLibrary::IsDamageInflictedByActor(Colpo(ERTCombatOutcome::ShieldAbsorbed)));
+	TestTrue(TEXT("Lethal lo e'"),
+		URTTurnLogLibrary::IsDamageInflictedByActor(Colpo(ERTCombatOutcome::Lethal)));
+	TestTrue(TEXT("TerrainBonus lo e': e' un colpo a segno, con un bonus di posizione"),
+		URTTurnLogLibrary::IsDamageInflictedByActor(Colpo(ERTCombatOutcome::TerrainBonus)));
+
+	// I DUE esclusi, e per ragioni opposte.
+	TestFalse(TEXT("Healed no: ha un agente vero, ma non e' danno"),
+		URTTurnLogLibrary::IsDamageInflictedByActor(Colpo(ERTCombatOutcome::Healed)));
+	TestFalse(TEXT("NoLineOfSight no: ha agente e categoria giusti, e zero danno"),
+		URTTurnLogLibrary::IsDamageInflictedByActor(Colpo(ERTCombatOutcome::NoLineOfSight)));
+
+	// Lo ZERO non e' un attore.
+	{
+		FRTTurnLogEntry Anonima = Colpo(ERTCombatOutcome::Hit);
+		Anonima.UnitId = 0;
+		TestFalse(TEXT("`UnitId == 0` significa «nessuna unita' dichiarata», non un attore"),
+			URTTurnLogLibrary::IsDamageInflictedByActor(Anonima));
+	}
+
+	// Le due CAUSE ambientali, e la rete che le prende anche se l'elenco non le conosce.
+	{
+		FRTTurnLogEntry Terreno = Colpo(ERTCombatOutcome::Hit);
+		Terreno.ActionId = FName(TEXT("Terrain.Fire"));
+		Terreno.TgtCell = Terreno.SrcCell;
+		TestTrue(TEXT("Terrain.* e' ambientale"), URTTurnLogLibrary::IsEnvironmentalDamage(Terreno));
+		TestFalse(TEXT("e non e' danno inflitto"), URTTurnLogLibrary::IsDamageInflictedByActor(Terreno));
+
+		FRTTurnLogEntry Stato = Colpo(ERTCombatOutcome::Hit);
+		Stato.ActionId = FName(TEXT("Status.Burning"));
+		Stato.TgtCell = Stato.SrcCell;
+		TestTrue(TEXT("Status.Burning e' ambientale"), URTTurnLogLibrary::IsEnvironmentalDamage(Stato));
+
+		// 🔴 **La rete: una causa ambientale che l'elenco NON conosce.** E' il caso di `#1077`, che sta
+		// portando gli stati nel TurnLog. Senza `SrcCell == TgtCell` questa voce risulterebbe danno
+		// INFLITTO, cioe' accreditata a chi la subisce — il verso pericoloso.
+		FRTTurnLogEntry Ignota = Colpo(ERTCombatOutcome::Hit);
+		Ignota.ActionId = FName(TEXT("Status.Poison"));
+		Ignota.TgtCell = Ignota.SrcCell;
+		TestTrue(TEXT("una causa ambientale ignota fallisce CHIUSO, non aperto"),
+			URTTurnLogLibrary::IsEnvironmentalDamage(Ignota));
+		TestFalse(TEXT("e non viene accreditata a chi la subisce"),
+			URTTurnLogLibrary::IsDamageInflictedByActor(Ignota));
+	}
+
+	// Le altre due categorie che portano danno inflitto, e i loro esiti che non lo portano.
+	{
+		FRTTurnLogEntry Previsione;
+		Previsione.Category = ERTLogCategory::Predictive;
+		Previsione.UnitId = 7;
+		Previsione.SrcCell = FRTCellId(0, 0, 0);
+		Previsione.TgtCell = FRTCellId(2, 0, 0);
+		Previsione.Amount = 16;
+		Previsione.Outcome = static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched);
+		TestTrue(TEXT("una previsione azzeccata e' danno inflitto"),
+			URTTurnLogLibrary::IsDamageInflictedByActor(Previsione));
+		Previsione.Outcome = static_cast<uint8>(ERTPredictiveOutcome::PredictionWhiffed);
+		TestFalse(TEXT("un whiff no: la voce esiste, il danno non c'e'"),
+			URTTurnLogLibrary::IsDamageInflictedByActor(Previsione));
+
+		FRTTurnLogEntry Overwatch;
+		Overwatch.Category = ERTLogCategory::ReactionDecision;
+		Overwatch.UnitId = 7;
+		Overwatch.SrcCell = FRTCellId(0, 0, 0);
+		Overwatch.TgtCell = FRTCellId(2, 0, 0);
+		Overwatch.Amount = 12;
+		Overwatch.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen);
+		TestTrue(TEXT("un overwatch che spara e' danno inflitto"),
+			URTTurnLogLibrary::IsDamageInflictedByActor(Overwatch));
+		Overwatch.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::HoldChosen);
+		TestFalse(TEXT("chi tiene il fuoco non infligge niente"),
+			URTTurnLogLibrary::IsDamageInflictedByActor(Overwatch));
+	}
+
+	// Una categoria che non porta danno: `Fallback` mette in `Amount` un `ERTActionInvalidReason`, non un
+	// numero di punti vita. Un predicato «Amount > 0» sommerebbe codici di errore.
+	{
+		FRTTurnLogEntry Fallback;
+		Fallback.Category = ERTLogCategory::Fallback;
+		Fallback.UnitId = 7;
+		Fallback.Amount = 3;
+		TestFalse(TEXT("Fallback non e' danno inflitto"),
+			URTTurnLogLibrary::IsDamageInflictedByActor(Fallback));
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

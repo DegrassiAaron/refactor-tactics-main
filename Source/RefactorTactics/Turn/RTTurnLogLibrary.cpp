@@ -1,6 +1,7 @@
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo del fallback, leggibile nel log
 #include "Turn/RTReactionLibrary.h" // ERTReactionOutcome: l'esito di una reazione, leggibile nel log
+#include "Core/RTGameplayTags.h" // TAG_Status_Burning: la causa ambientale si CHIEDE al tag, non si riscrive
 #include "Misc/FileHelper.h"
 
 bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
@@ -89,6 +90,99 @@ void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
 	Entries.Sort([](const FRTTurnLogEntry& A, const FRTTurnLogEntry& B) { return EntryLess(A, B); });
 }
 
+bool URTTurnLogLibrary::IsEnvironmentalDamage(const FRTTurnLogEntry& Entry)
+{
+	if (Entry.Category != ERTLogCategory::Combat || Entry.UnitId == 0)
+	{
+		return false;
+	}
+
+	// 1) La CAUSA dichiarata. `Status.Burning` arriva dal tag e non da un letterale: il produttore scrive
+	//    `TAG_Status_Burning.GetTag().GetTagName()`, e due stringhe uguali per abitudine divergono al primo
+	//    rename (`D-098`). La prima stesura di questa funzione aveva tolto il letterale del prefisso e
+	//    lasciato questo — meta' del difetto corretta. Trovato in code review.
+	//
+	//    ⚠️ Il confronto e' CASE-INSENSITIVE in entrambi i rami. `FName::ToString()` non e' stabile nel caso
+	//    fuori dall'editor (`WITH_CASE_PRESERVING_NAME`): restituisce il caso della PRIMA registrazione di
+	//    quel comparison name, che una traccia deserializzata o uno scenario possono aver fissato altrove.
+	//    Un `CaseSensitive` qui sarebbe verde in automation e falso nel pacchettizzato.
+	const FString Causa = Entry.ActionId.ToString();
+	if (Causa.StartsWith(TerrainCausePrefix(), ESearchCase::IgnoreCase)
+		|| Entry.ActionId == TAG_Status_Burning.GetTag().GetTagName())
+	{
+		return true;
+	}
+
+	// 2) La RETE, e serve perche' l'elenco qui sopra fallisce APERTO. Una causa ambientale nuova — `#1077`
+	//    sta portando gli stati nel TurnLog — che nessuno aggiungesse a (1) verrebbe classificata come danno
+	//    INFLITTO, cioe' accreditata a chi la subisce: il verso pericoloso, e senza che niente lo segnali.
+	//    Trovato in code review.
+	//
+	//    La forma di una voce ambientale e' che le due celle COINCIDONO: chi subisce e' anche il «soggetto».
+	//    Un attacco non puo' averle uguali — `SrcCell` e' la cella di chi colpisce, `TgtCell` quella di chi
+	//    e' colpito.
+	//
+	//    ⛔ **NON e' il discriminante primario, ed e' importante che resti secondo.** `AppendLogEntry`
+	//    dichiara che `SrcCell` non identifica l'unita', con tre controesempi; costruirci sopra la regola
+	//    sarebbe l'inferenza che il formato ha smesso di sostenere quando `UnitId` e' nato (`D-063`). Qui
+	//    serve solo a far fallire CHIUSO cio' che l'elenco non conosce.
+	//
+	//    ⚠️ **Un falso positivo noto**: un'area con fuoco amico che investa la cella di chi la lancia
+	//    produce `SrcCell == TgtCell` su un danno che l'attore ha davvero inflitto. Contarlo come «subito»
+	//    sottostima il danno inflitto invece di gonfiarlo — la direzione innocua fra le due — e la
+	//    alternativa (fallire aperto su ogni status nuovo) e' peggiore.
+	return Entry.SrcCell == Entry.TgtCell;
+}
+
+bool URTTurnLogLibrary::IsDamageInflictedByActor(const FRTTurnLogEntry& Entry)
+{
+	// «Nessuna unita' dichiarata» non e' un attore: `AppendLogEntry` scrive `0` quando l'attore e' `nullptr`,
+	// e diversi siti di combattimento possono passarlo. Senza questa guardia un'aggregazione per unita'
+	// produce un'unita' fantasma `0` che regge danno vero. Trovato in code review.
+	if (Entry.UnitId == 0 || IsEnvironmentalDamage(Entry))
+	{
+		return false;
+	}
+
+	// 🔴 **Il danno inflitto NON vive solo in `Combat`, e la prima stesura lo assumeva.** Overwatch lo scrive
+	// come `ReactionDecision` (`Entry.Amount = Armed.Damage`, attore `WatchOwner`) e la previsione come
+	// `Predictive` (attore `Shooter`): entrambi danno vero, inflitto dall'unita' in `UnitId`. Filtrando la
+	// sola `Combat`, chi aggrega otteneva **zero** per un `InterceptShot` andato a segno — lo stesso «numero
+	// plausibile e sbagliato» che `#1150` esiste per impedire, nel verso opposto. Trovato in code review.
+	//
+	// ⚠️ **L'esito si legge per categoria, e `Amount` da solo non basta.** In `Fallback` quel campo porta un
+	// `ERTActionInvalidReason`, non un danno: un predicato «`Amount > 0`» sommerebbe codici di errore.
+	switch (Entry.Category)
+	{
+	case ERTLogCategory::Combat:
+		switch (static_cast<ERTCombatOutcome>(Entry.Outcome))
+		{
+		// I quattro esiti che portano danno inflitto. `Healed` e `NoLineOfSight` restano fuori, e non e'
+		// ovvio in nessuno dei due: la cura ha un agente vero ma non e' danno; un attacco fermato dalla
+		// copertura ha agente e categoria giusti, e zero danno. Contarli sbaglierebbe in versi opposti.
+		case ERTCombatOutcome::Hit:
+		case ERTCombatOutcome::ShieldAbsorbed:
+		case ERTCombatOutcome::Lethal:
+		case ERTCombatOutcome::TerrainBonus:
+			return true;
+		default:
+			return false;
+		}
+
+	case ERTLogCategory::Predictive:
+		// Solo la previsione AZZECCATA porta danno: sul whiff la voce esiste — ed e' giusto, dice dove si e'
+		// scommesso — ma `Amount` non e' un danno inflitto.
+		return static_cast<ERTPredictiveOutcome>(Entry.Outcome) == ERTPredictiveOutcome::TriggerMatched;
+
+	case ERTLogCategory::ReactionDecision:
+		// L'Overwatch che SPARA. Le altre decisioni della finestra — `HOLD`, il timeout — non portano danno.
+		return static_cast<ERTReactionDecisionOutcome>(Entry.Outcome) == ERTReactionDecisionOutcome::FireChosen;
+
+	default:
+		return false;
+	}
+}
+
 FString URTTurnLogLibrary::DescribeActionIdentity(const FRTTurnLogEntry& Entry)
 {
 	// «azione base + profilo» quando la voce sa dirlo (D-033), altrimenti il solo ActionId. La forma con la
@@ -117,35 +211,6 @@ TArray<FString> URTTurnLogLibrary::DescribeTurnLog(TArray<FRTTurnLogEntry> Entri
 		Lines.Add(DescribeEntry(Entry));
 	}
 	return Lines;
-}
-
-bool URTTurnLogLibrary::IsEnvironmentalDamage(const FRTTurnLogEntry& Entry)
-{
-	if (Entry.Category != ERTLogCategory::Combat)
-	{
-		return false;
-	}
-	const FString Causa = Entry.ActionId.ToString();
-	return Causa.StartsWith(TerrainCausePrefix(), ESearchCase::CaseSensitive)
-		|| Causa == TEXT("Status.Burning");
-}
-
-bool URTTurnLogLibrary::IsDamageInflictedByActor(const FRTTurnLogEntry& Entry)
-{
-	if (Entry.Category != ERTLogCategory::Combat || IsEnvironmentalDamage(Entry))
-	{
-		return false;
-	}
-	switch (static_cast<ERTCombatOutcome>(Entry.Outcome))
-	{
-	case ERTCombatOutcome::Hit:
-	case ERTCombatOutcome::ShieldAbsorbed:
-	case ERTCombatOutcome::Lethal:
-	case ERTCombatOutcome::TerrainBonus:
-		return true;
-	default:
-		return false;
-	}
 }
 
 FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
