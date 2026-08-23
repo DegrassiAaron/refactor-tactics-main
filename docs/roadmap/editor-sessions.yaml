@@ -452,10 +452,16 @@ sessions:
     unblocked_by: [E47.1, E47.3]
     shares_setup_with: []
     verifies: []
-    issues: [959, 1088, 1069]
+    issues: [959, 1088, 1069, 79, 1296]
     done_when: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
     unblocks: []
     steps: |
+      ✅ **PRENOTABILE dal 2026-08-23**, con una domanda d'autore da sciogliere PRIMA di aprire l'editor
+      (vedi «Cosa si filma»). I blocchi erano **quattro**, e sono tutti chiusi: **#1088** (i bot
+      ingaggiano), **#1069** (la mappa d'autore si carica invece di essere scavalcata), **#79 fetta A**
+      (il log di sessione deriva dal `TurnLog`, quindi porta reason code, `ActionId` e coordinate) e
+      **#1296** (i bot non oscillano piu' fra due celle, e la partita si decide).
+      *(Il testo che segue e' la storia del blocco, e si tiene per la provenienza.)*
       ⛔ **NON PRENOTARE QUESTA SEDUTA OGGI (2026-08-21).** `unblocked_by` dice `E47.1, E47.3` e sarebbe
       una lettura READY, ma il campo ammette solo checkpoint, epic e sedute: i due blocchi veri sono
       **difetti aperti** e non hanno una forma in cui scriverli li'. Stanno in `issues:` accanto a #959 e
@@ -465,6 +471,27 @@ sessions:
       seduta produce. **#1069** — il `BP_GameMode` spedito forza `MapSource = GeneratedTestArena`, cioe'
       proprio l'arena che il passo qui sotto esclude. Chi apre l'editor prima che siano chiuse spende una
       seduta per filmare un pareggio sull'arena sbagliata.
+
+      🔴 **COSA SI FILMA — la sola cosa ancora da decidere, e non la decide chi esegue.** Le due opzioni
+      misurate il 2026-08-23:
+      **(a) free-run sull'asset d'autore.** `L_HexArena` con `DA_HexMap_Arena`, `rt.Map.Source =
+      LevelAsset`, poi `-RTAutobattle` (o la proprieta' del GameMode). E' la mappa che la precondizione di
+      `PIE-V01-PACKAGED` nomina. Misurato: **pareggio allo scadere 12/12**, 25 voci `Combat`. Esito
+      legittimo per `D-184`, ma **non** la vittoria che il criterio chiede.
+      **(b) scenario `AutoBattle.ArenaV01`.** In editor: console `rt.Test.Scenario AutoBattle.ArenaV01`,
+      poi Play — il GameMode allestisce lo scenario al posto della partita normale, avanza un passo per
+      frame e centra la camera. Misurato: **vince il team 0 per eliminazione al turno 19**, 33 voci
+      `Combat` con `ActionId`, profilo, priorita' e coordinate. E' cio' che `D-184` prescrive — l'evidenza
+      «alla vittoria» viene da uno scenario costruito per risolversi — sulla **stessa geometria** della
+      mappa d'autore (`ArenaV01`: 61 celle di raggio 4 piu' la piattaforma a `L=1`; la partita sull'asset
+      d'autore annuncia le stesse 64 celle e sale sulla stessa `(3,-3,L1)`). ⚠️ Ma la mappa e' **costruita
+      da codice**, non l'asset d'autore: uno scenario non puo' caricare un `.uasset`. Se «non sull'arena
+      generata di test» si legge come «non `TestArena`», (b) passa; se si legge come «solo l'asset
+      d'autore», (b) non passa e il DoD resta aperto sul punto 1.
+      ⚠️ **Trappola misurata, e vale per (b) da riga di comando**: headless con frame rate scatenato la
+      sessione consuma i 400 tick di `MaxResolveTicks` prima che il playback in tempo reale finisca, ed
+      esce `ERROR: il turno 1 non ha finito di risolvere entro 400 passi`. Con `-useFixedTimeStep -fps=60`
+      esce PASS in 19 turni. **In PIE il problema non si pone**, perche' il frame rate e' reale.
 
       Attivare la modalita' non presidiata (**E47.1**), avviare su **mappa esagonale multilivello** — non
       sull'arena generata di test: e' precisamente la riserva che G13 dichiara — e **guardare**.
