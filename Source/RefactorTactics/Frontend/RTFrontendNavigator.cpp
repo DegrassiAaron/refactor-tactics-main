@@ -227,6 +227,39 @@ ERTNavResult URTFrontendNavigator::ReturnMain()
 	return Result;
 }
 
+ERTNavResult URTFrontendNavigator::StartMatch()
+{
+	// La causa dell'avvio precedente non sopravvive a questo: un modale che mostrasse un errore vecchio
+	// sarebbe peggio di nessun modale.
+	LastMatchStartFailure.Reset();
+
+	if (MatchLevel.IsEmpty())
+	{
+		// ⛔ **Rumoroso, non silenzioso.** Il DoD di #939 lo chiede per primo, e il progetto conosce gia' il
+		// costo del contrario: un percorso che non risolve produce «un fallimento indistinguibile dal
+		// successo», e #1277 ha misurato che il log da solo non lo coglie.
+		LastMatchStartFailure = TEXT("MatchLevel non e' configurato: nessun livello da aprire per la partita. "
+			"Si dichiara in DefaultGame.ini, sezione [/Script/RefactorTactics.RTFrontendNavigator].");
+		UE_LOG(LogRT, Error, TEXT("[RT] Avvio partita rifiutato — %s"), *LastMatchStartFailure);
+		ShowModal(RTScreenIds::ErrorModal);
+		return ERTNavResult::InvalidScreen;
+	}
+
+	// Da qui in poi e' una RICHIESTA: chi ha il mondo la consuma e apre il livello. Il navigatore non tocca
+	// la scena, e la partita resta allestita da `ARTGameMode` col formato spedito da C++ — nessun secondo
+	// percorso di avvio, che e' il vincolo del DoD.
+	PendingMatchLevel = MatchLevel;
+	UE_LOG(LogRT, Log, TEXT("[RT] Avvio partita: chiesto il livello '%s'"), *MatchLevel);
+	return ERTNavResult::Ok;
+}
+
+FString URTFrontendNavigator::ConsumePendingMatchLevel()
+{
+	FString Consumed = MoveTemp(PendingMatchLevel);
+	PendingMatchLevel.Reset();
+	return Consumed;
+}
+
 ERTNavResult URTFrontendNavigator::BackFromError(ERTLoadPhase PhaseWhenArmed)
 {
 	// A partita viva si **smonta**. `ReturnMain` porta via anche i modali, quindi non serve chiuderli
