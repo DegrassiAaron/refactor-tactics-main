@@ -901,4 +901,48 @@ bool FRTFrontendStartMatchRequestsTheLevelOnceTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Una richiesta mai consumata NON passa in silenzio.
+ *
+ * 🔴 **E' il costo dichiarato della forma decisione/esecuzione**, e senza questo test resterebbe una
+ * dichiarazione: il navigatore chiede l'apertura e qualcun altro la esegue, quindi se l'aggancio non viene
+ * collegato `PLAY` non fa nulla — e il difetto vivrebbe nell'ASSENZA di una chiamata, che nessun grep trova
+ * e nessun gate vede. La scelta fra le due forme e' stata fatta sapendo questo; la guardia e' cio' che
+ * impedisce al costo di diventare silenzioso.
+ *
+ * Il segnale piu' tempestivo e' un secondo `PLAY`: se la richiesta precedente e' ancora li', nessuno l'ha
+ * presa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendUnconsumedMatchRequestIsLoudTest,
+	"RefactorTactics.Frontend.UnconsumedMatchRequestIsLoud",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendUnconsumedMatchRequestIsLoudTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { return false; }
+
+	Nav->MatchLevel = TEXT("/Game/RT/Maps/Dev/L_HexArena/L_HexArena");
+
+	TestEqual(TEXT("il primo avvio passa"), Nav->StartMatch(), ERTNavResult::Ok);
+
+	// Nessuno consuma: e' il caso in prova. L'`Error` e' voluto, quindi si dichiara.
+	AddExpectedError(TEXT("non e' mai stata consumata"), EAutomationExpectedErrorFlags::Contains, 1);
+
+	TestEqual(TEXT("il secondo avvio e' rifiutato: la richiesta e' ancora li'"),
+		Nav->StartMatch(), ERTNavResult::InvalidScreen);
+	TestTrue(TEXT("e lo dice con un modale"), Nav->IsModalOpen());
+	TestTrue(TEXT("la causa nomina il consumatore mancante"),
+		Nav->GetLastMatchStartFailure().Contains(TEXT("ConsumePendingMatchLevel")));
+
+	// ⚠️ Consumata la richiesta, un nuovo avvio deve tornare possibile: la guardia protegge, non blocca.
+	Nav->ConsumePendingMatchLevel();
+	Nav->CloseModal();
+	TestEqual(TEXT("consumata la richiesta, si riparte"), Nav->StartMatch(), ERTNavResult::Ok);
+
+	Nav->ConsumePendingMatchLevel();   // pulita, per non far scattare la rete in Deinitialize
+	ReleaseNavigator(GI);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

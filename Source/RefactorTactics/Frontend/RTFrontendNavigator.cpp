@@ -245,6 +245,22 @@ ERTNavResult URTFrontendNavigator::StartMatch()
 		return ERTNavResult::InvalidScreen;
 	}
 
+	// 🔴 **Una richiesta ancora pendente e' la prova che nessuno l'ha consumata.**
+	//
+	// E' il costo dichiarato di questa forma: il navigatore decide e qualcun altro esegue, quindi se
+	// l'aggancio non viene collegato `PLAY` non fa nulla — e il difetto vivrebbe nell'ASSENZA di una
+	// chiamata, che nessun grep trova e nessun gate vede. E' la famiglia di difetti che #1277 ha misurato
+	// («un fallimento indistinguibile dal successo»), e qui non si accetta in silenzio: si dichiara.
+	if (!PendingMatchLevel.IsEmpty())
+	{
+		LastMatchStartFailure = FString::Printf(
+			TEXT("la richiesta precedente per '%s' non e' mai stata consumata: nessuno chiama "
+				 "ConsumePendingMatchLevel, quindi il livello non viene aperto."), *PendingMatchLevel);
+		UE_LOG(LogRT, Error, TEXT("[RT] Avvio partita rifiutato — %s"), *LastMatchStartFailure);
+		ShowModal(RTScreenIds::ErrorModal);
+		return ERTNavResult::InvalidScreen;
+	}
+
 	// Da qui in poi e' una RICHIESTA: chi ha il mondo la consuma e apre il livello. Il navigatore non tocca
 	// la scena, e la partita resta allestita da `ARTGameMode` col formato spedito da C++ — nessun secondo
 	// percorso di avvio, che e' il vincolo del DoD.
@@ -428,6 +444,15 @@ void URTFrontendNavigator::SyncPresentation()
 
 void URTFrontendNavigator::Deinitialize()
 {
+	// ⚠️ Ultima rete: una richiesta che sopravvive alla sessione non e' stata consumata da nessuno. Arriva
+	// tardi per correggere qualcosa, ma lascia una traccia invece del nulla.
+	if (!PendingMatchLevel.IsEmpty())
+	{
+		UE_LOG(LogRT, Error,
+			TEXT("[RT] Il frontend si chiude con una richiesta di partita mai consumata: '%s'. "
+				 "Il consumatore di ConsumePendingMatchLevel non e' collegato."), *PendingMatchLevel);
+	}
+
 	// Lo stesso smontaggio di `InitializeFrontend`, in un posto solo: le due sedi divergerebbero al primo
 	// widget che richiede un passo di pulizia in piu'.
 	DismissAllWidgets();
