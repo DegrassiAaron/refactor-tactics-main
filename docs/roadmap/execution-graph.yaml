@@ -329,6 +329,13 @@ nodes:
     release: v0.1
     checkpoint: E11.3
 
+  # ➕ 2026-08-23 — il quarto blocco di E47.6, e il primo trovato eseguendo lo scenario invece della partita.
+  # `tooling_data_qa` come #1088 e #1069, e per la stessa ragione dell'header: le feature del bot hanno
+  # `area: Tools`, e questa e' una decisione del bot.
+  - id: issue:1296
+    release: v0.1
+    domain_group: tooling_data_qa
+
   # ➕ **2026-08-17 — `#833` entra nel grafo.** Decisione d'autore: la issue e' **v0.1** (label `v0.1`,
   # milestone `v0.1 · Mondo giocabile`, e `RT-FEAT-MAP-INTERACTION-GRAPH` passa a `release: v0.1`).
   # Prima non esisteva come nodo, quindi la sua topologia non era verificabile: un documento la
@@ -451,6 +458,23 @@ relations:
       test: e' precisamente la riserva che G13 dichiara». #1069 e' il `BP_GameMode` spedito con
       `MapSource = GeneratedTestArena`, cioe' proprio quella. Registrare senza chiuderla riprodurrebbe
       la riserva invece di toglierla, e G13 resterebbe 🟡.
+
+  # ➕ 2026-08-23 — il QUARTO blocco di E47.6. I tre precedenti erano condizioni per registrare; questo e'
+  # una condizione perche' ci sia qualcosa da registrare.
+  - from: issue:1296
+    to: issue:959
+    type: requires
+    rationale: >-
+      Il DoD di #959 chiede una partita «dall'avvio alla vittoria». Chiuse #1088 e #1069 la partita non
+      presidiata arriva al pareggio allo scadere — esito legittimo per D-184, che pero' manda l'evidenza
+      «alla vittoria» su uno SCENARIO costruito per risolversi. Misurato il 2026-08-23: sulla geometria
+      della mappa d'autore (fixture `ArenaV01`, la stessa forma di `DA_HexMap_Arena`) il 2v2 non si decide
+      nemmeno con un tetto di 40 turni — 32 turni di 1v1 con due sole voci `Combat`, perche' il bot alterna
+      fra `(1,-1,L0)` e la piattaforma `(3,-3,L1)` trentasette volte. Il ciclo lo genera il filtro di
+      dominio del livello 2 di #1287, che si accende solo quando il bot NON vede: appena vede si spegne, e
+      la cella cieca torna la migliore in linea d'aria. Finche' resta aperta non esiste una vittoria da
+      registrare su mappa multilivello, che e' precisamente cio' che il DoD esclude di surrogare con
+      l'arena di prova.
 
   # ➕ 2026-08-23 — il terzo blocco di E47.6, trovato eseguendo la partita invece di leggerla.
   - from: issue:79

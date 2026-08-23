@@ -52,20 +52,21 @@ namespace
 	 * la sua guardia, il test ne dichiara un'altra per vedere cosa succede quando la si tocca. **`0` lascia
 	 * quella del file** — che e' il caso di chi vuole misurare lo scenario spedito com'e'.
 	 */
-	bool LoadAutobattleScenario(FAutomationTestBase& Test, int32 MaxTurns, FRTTestScenario& Out)
+	bool LoadAutobattleScenarioById(FAutomationTestBase& Test, const TCHAR* Id, int32 MaxTurns,
+		FRTTestScenario& Out)
 	{
 		FString ResolveError;
-		const FString Path = URTScenarioIndex::ResolvePath(TEXT("AutoBattle.OpenField"), ResolveError);
+		const FString Path = URTScenarioIndex::ResolvePath(Id, ResolveError);
 		if (Path.IsEmpty())
 		{
-			Test.AddError(FString::Printf(TEXT("AutoBattle.OpenField non risolto: %s"), *ResolveError));
+			Test.AddError(FString::Printf(TEXT("%s non risolto: %s"), Id, *ResolveError));
 			return false;
 		}
 
 		FString LoadError;
 		if (!URTScenarioLoader::LoadFromFile(Path, Out, LoadError))
 		{
-			Test.AddError(FString::Printf(TEXT("AutoBattle.OpenField non si carica: %s"), *LoadError));
+			Test.AddError(FString::Printf(TEXT("%s non si carica: %s"), Id, *LoadError));
 			return false;
 		}
 		if (MaxTurns > 0)
@@ -73,6 +74,12 @@ namespace
 			Out.MaxTurns = MaxTurns;
 		}
 		return true;
+	}
+
+	/** L'allestimento storico di questo file: `AutoBattle.OpenField`. */
+	bool LoadAutobattleScenario(FAutomationTestBase& Test, int32 MaxTurns, FRTTestScenario& Out)
+	{
+		return LoadAutobattleScenarioById(Test, TEXT("AutoBattle.OpenField"), MaxTurns, Out);
 	}
 
 	/** L'assertion generata dal free-run, per descrizione. Nullptr se il free-run non l'ha prodotta. */
@@ -434,6 +441,58 @@ bool FRTFreeRunShippedOpenFieldTest::RunTest(const FString&)
 	TestTrue(FString::Printf(TEXT("la partita si decide: %s"), *Reached->Actual), Reached->bPassed);
 	// Un pareggio allo scadere sarebbe una fine partita, ma non un vincitore: e' il caso di `#1088`, e qui
 	// dev'essere escluso per nome.
+	TestFalse(FString::Printf(TEXT("non e' un pareggio allo scadere: %s"), *Reached->Actual),
+		Reached->Actual.Contains(TEXT("allo scadere")));
+	return true;
+}
+
+/**
+ * **Lo scenario da cui #959 prende l'evidenza arriva a un VINCITORE, e su una mappa multilivello.**
+ *
+ * Gemello di `ShippedOpenFieldReachesAWinner`, e la ragione per cui non basta quello: `OpenField` gira su
+ * `mapRadius`, cioe' un campo generato a **un solo layer**. Il DoD di
+ * [#959](https://github.com/DegrassiAaron/refactor-tactics-main/issues/959) chiede una partita «dall'avvio
+ * alla vittoria» su **mappa esagonale multilivello** e non sull'arena generata di test — e delle due
+ * fixture con piu' di un layer, `TestArena` e' esclusa per nome dal DoD stesso. Resta `ArenaV01`, che e'
+ * la geometria del `DA_HexMap_Arena` d'autore: 61 celle di raggio 4 piu' la piattaforma a `L=1`.
+ *
+ * ⚠️ **Il caso discriminante e' proprio il pareggio.** `D-184` dichiara legittimo il pareggio allo scadere
+ * del free-run spedito, e questo test lo esclude PER NOME: un'evidenza che filma un pareggio non e'
+ * l'evidenza che `G10` e `G13` chiedono. Misurato il 2026-08-23: **vince il team 0 per eliminazione al
+ * turno 19**.
+ *
+ * ⚠️ **19 e' oltre il `RoundLimit` 12 di `Format.Skirmish2v2`, e non e' una contraddizione**: la sessione
+ * di scenario non assegna un `MatchFormat` — il log dice `formato None` — quindi a fermare la partita c'e'
+ * il solo tetto del file. E' esattamente cio' che `D-184` prescrive: lo scenario si risolve, il formato
+ * spedito non si ritara.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFreeRunArenaV01Test,
+	"RefactorTactics.Scenario.FreeRun.ArenaV01ReachesAWinner",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFreeRunArenaV01Test::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadAutobattleScenarioById(*this, TEXT("AutoBattle.ArenaV01"), /*MaxTurns=*/ 0, Scenario))
+	{
+		return false;
+	}
+	const int32 TettoDelFile = Scenario.MaxTurns;
+	TestTrue(TEXT("e' dichiarato free-run"), Scenario.bFreeRun);
+	TestEqual(TEXT("riferisce la fixture multilivello"), Scenario.Fixture, FString(TEXT("ArenaV01")));
+
+	UWorld* World = MakeFreeRunWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyFreeRunWorld(World);
+
+	TestEqual(TEXT("esito"), Result.OutcomeString(), FString(TEXT("PASS")));
+	TestTrue(FString::Printf(TEXT("il tetto non e' stato raggiunto (%d < %d)"), Result.TurnsPlayed, TettoDelFile),
+		Result.TurnsPlayed < TettoDelFile);
+
+	const FRTAssertionResult* Reached = FindMatchReachedEnd(Result);
+	if (!TestNotNull(TEXT("MatchReachedEnd"), Reached)) { return false; }
+	AddInfo(FString::Printf(TEXT("turni giocati: %d · esito: %s"), Result.TurnsPlayed, *Reached->Actual));
+	TestTrue(FString::Printf(TEXT("la partita si decide: %s"), *Reached->Actual), Reached->bPassed);
 	TestFalse(FString::Printf(TEXT("non e' un pareggio allo scadere: %s"), *Reached->Actual),
 		Reached->Actual.Contains(TEXT("allo scadere")));
 	return true;

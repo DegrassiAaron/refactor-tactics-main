@@ -1,0 +1,35 @@
+{
+  "scenarioId": "AutoBattle.ArenaV01",
+  "tags": ["autobattle", "freerun", "bot", "map", "multilayer", "gadget", "phase", "riktor", "wraith"],
+  "version": 4,
+  "seed": 0,
+  "fixture": "ArenaV01",
+
+  "_nota": "CP 47.6: lo scenario da cui viene l'evidenza «dall'avvio alla vittoria» che #959 allega a G10 e G13. Gli altri tre free-run di questa cartella girano su un campo PIATTO — `mapRadius` genera un solo layer, e `Hazard` riferisce `RelayLite`, che e' anch'essa a un piano. Il DoD di #959 chiede una mappa esagonale MULTILIVELLO: nessuno dei tre poteva produrla.",
+
+  "_nota_perche_questa_fixture": "`ArenaV01` e' la geometria di `MakeArenaV01` — 61 celle di raggio 4 piu' tre sul layer 1, collegate da UNA transizione da (3,-3,0). E' la stessa forma che `DA_HexMap_Arena` porta nel livello `L_HexArena`: la partita non presidiata su quella mappa annuncia «64 celle» e le unita' salgono a (3,-3,1). ⚠️ La corrispondenza e' MISURATA sul conteggio e sulla piattaforma, non dimostrata cella per cella: uno scenario non puo' caricare un `.uasset` d'autore — `FRTTestScenario` conosce `fixture` per nome oppure `mapRadius`, e nient'altro. Chi pretende l'asset d'autore filma in PIE, non qui.",
+
+  "_nota_perche_non_l_arena_di_prova": "L'altra fixture multilivello e' `TestArena`, cioe' `MakeTestArena`: e' precisamente «l'arena generata di test» che il DoD di #959 esclude per nome, ed e' la riserva che G13 dichiara. Riferirla qui avrebbe riprodotto la riserva invece di toglierla.",
+
+  "_nota_spawn": "Le quattro celle sono quelle che `PickStartCells` deriva sulla mappa d'autore, misurate sulla partita non presidiata del 2026-08-23: Gadget (-4,0), Phase (-4,1), Riktor (4,0), Wraith (4,-1). Scriverle invece di derivarle e' cio' che rende lo scenario una configurazione DICHIARATA — si sa cosa contiene, mentre di un free-run si spera l'esito.",
+
+  "_nota_terminazione": "Misurata il 2026-08-23: **vince il team 0 per eliminazione al turno 19**, e il test che la rimisura a ogni run e' `Scenario.FreeRun.ArenaV01ReachesAWinner`, che esclude PER NOME il pareggio allo scadere. ⚠️ 19 e' oltre il `RoundLimit` 12 del formato spedito: la sessione di scenario non assegna un `MatchFormat` — il log dice `formato None` — quindi a fermare la partita c'e' il solo tetto del file. E' cio' che D-184 prescrive: lo scenario si risolve, il formato spedito non si ritara.",
+
+  "_nota_come_si_guarda": "In editor: `rt.Test.Scenario AutoBattle.ArenaV01`, poi Play — il GameMode allestisce lo scenario invece della partita normale, avanza **un passo per frame** e centra la camera sul campo. Da riga di comando: `-RTScenario=AutoBattle.ArenaV01`. ⚠️ **Trappola misurata**: headless con frame rate scatenato la sessione consuma i 400 tick di `MaxResolveTicks` prima che il playback in tempo reale finisca, ed esce `ERROR: il turno 1 non ha finito di risolvere entro 400 passi`. Non e' un difetto dello scenario: con `-useFixedTimeStep -fps=60` la stessa riga di comando esce PASS in 19 turni. In PIE il problema non si pone.",
+
+  "_nota_tetto": "40, come `OpenField` e come il `MaxTurns` di `HexMatch.PlaysToCompletion`. Raggiungerlo e' un FAIL: `MatchReachedEnd` e' un'assertion del free-run, non un esito speciale. ⚠️ E il tetto NON e' il `RoundLimit` del formato: `Format.Skirmish2v2` ne dichiara 12, e sulla mappa d'autore la partita non presidiata finisce li' PARI — esito legittimo per D-184, ma non l'evidenza che questo checkpoint deve allegare.",
+
+  "freeRun": true,
+  "maxTurns": 40,
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-4, 0, 0], "bot": true },
+    { "id": "A2", "hero": "Hero.Phase",  "team": 0, "cell": [-4, 1, 0], "bot": true },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [4, 0, 0], "bot": true },
+    { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [4, -1, 0], "bot": true }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}
