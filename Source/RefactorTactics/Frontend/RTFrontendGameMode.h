@@ -98,7 +98,6 @@ public:
 
 protected:
 	/** Riceve l'annuncio, consuma la richiesta e apre. */
-	UFUNCTION()
 	void HandleMatchRequested(const FString& LevelName);
 
 	/**

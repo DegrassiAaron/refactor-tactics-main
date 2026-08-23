@@ -94,7 +94,7 @@ void ARTFrontendGameMode::ListenForMatchRequests(URTFrontendNavigator* Navigator
 	// `AddUniqueDynamic` e non `AddDynamic`: `BeginPlay` puo' correre piu' di una volta sullo stesso
 	// GameMode in editor, e due iscrizioni aprirebbero il livello due volte.
 	ListenedNavigator = Navigator;
-	Navigator->OnMatchRequested.AddUniqueDynamic(this, &ARTFrontendGameMode::HandleMatchRequested);
+	Navigator->OnMatchRequested.AddUObject(this, &ARTFrontendGameMode::HandleMatchRequested);
 }
 
 void ARTFrontendGameMode::HandleMatchRequested(const FString& LevelName)

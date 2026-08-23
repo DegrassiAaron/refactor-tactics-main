@@ -1010,7 +1010,7 @@ bool FRTFrontendStartMatchAnnouncesTheRequestTest::RunTest(const FString&)
 	// Un ascoltatore che si comporta come il consumatore vero: sente, consuma, e registra cosa ha visto.
 	URTFrontendMatchListenerForTest* Listener = NewObject<URTFrontendMatchListenerForTest>();
 	Listener->Nav = Nav;
-	Nav->OnMatchRequested.AddDynamic(Listener, &URTFrontendMatchListenerForTest::OnRequested);
+	FDelegateHandle Handle = Nav->OnMatchRequested.AddUObject(Listener, &URTFrontendMatchListenerForTest::OnRequested);
 
 	TestEqual(TEXT("l'avvio passa"), Nav->StartMatch(), ERTNavResult::Ok);
 
@@ -1024,7 +1024,7 @@ bool FRTFrontendStartMatchAnnouncesTheRequestTest::RunTest(const FString&)
 	TestEqual(TEXT("e si puo' rigiocare"), Nav->StartMatch(), ERTNavResult::Ok);
 	Nav->ConsumePendingMatchLevel();
 
-	Nav->OnMatchRequested.RemoveDynamic(Listener, &URTFrontendMatchListenerForTest::OnRequested);
+	Nav->OnMatchRequested.Remove(Handle);
 	ReleaseNavigator(GI);
 	return true;
 }
