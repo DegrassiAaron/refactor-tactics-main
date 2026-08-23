@@ -10,6 +10,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Frontend/RTStartupReport.h"
 #include "RTGameMode.h"
 #include "Unit/RTUnit.h"
 
@@ -206,13 +207,16 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroSpawnFailClosedTest,
-	"RefactorTactics.Heroes.SpawnFailsClosedWithoutData",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroSpawnDuplicateTest,
+	"RefactorTactics.Heroes.DuplicateHeroEntersOnlyOnce",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHeroSpawnFailClosedTest::RunTest(const FString&)
+bool FRTHeroSpawnDuplicateTest::RunTest(const FString&)
 {
-	// Un HeroId che non esiste nel catalogo non produce un'unita' con statistiche di default: non produce
-	// NIENTE. Un'unita' mancante si diagnostica; una coi numeri di default, che sembrano plausibili, no.
+	// ⚠️ **Questo test si chiamava `SpawnFailsClosedWithoutData` e copriva due difetti insieme**: un
+	// `HeroId` inesistente e uno ripetuto. La prima meta' e' uscita con `#1069`, che ha cambiato la regola:
+	// un eroe non risolto non lascia piu' entrare «solo gli eroi validi» — ferma l'allestimento, e ha i suoi
+	// due test (`UnknownHeroInFormationAbortsSetup`, `UnknownHeroIsDeclaredFatal`). Resta la meta' che la
+	// regola non ha toccato, e resta qui perche' nessun altro test la copre.
 	UWorld* World = MakeRosterWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
@@ -224,15 +228,15 @@ bool FRTHeroSpawnFailClosedTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Due modi diversi di sbagliare una formazione: un eroe che non esiste, e uno schierato DUE volte.
-	// Nessuno dei due deve mettere in campo un'unita' senza dati o una copia che condivide le azioni.
-	GameMode->Team0Heroes = { TEXT("Hero.Nonexistent"), TEXT("Hero.Gadget") };
+	// Gadget in ENTRAMBE le squadre: la formazione dichiara quattro slot, ma i nomi distinti sono tre.
+	// Due unita' che condividessero un `URTHeroData` ricaricherebbero insieme le stesse azioni.
+	GameMode->Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Phase") };
 	GameMode->Team1Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Wraith") };
 
 	GameMode->SetupHexMatch(HexMap);
 
 	const TArray<ARTUnit*> Units = CollectRosterUnits(World);
-	TestEqual(TEXT("solo i due eroi validi entrano in campo"), Units.Num(), 2);
+	TestEqual(TEXT("tre unita' in campo: la copia non entra"), Units.Num(), 3);
 
 	TSet<FName> InPlay;
 	for (const ARTUnit* Unit : Units) { InPlay.Add(Unit->HeroId); }
@@ -369,6 +373,99 @@ bool FRTSpawnedUnitLoadoutTest::RunTest(const FString&)
 			*Unit->HeroId.ToString()),
 			Unit->NumAbilities(), 5 + URTCatalogLibrary::GetGenericActionIds().Num() + 2);
 	}
+
+	DestroyRosterWorld(World);
+	return true;
+}
+
+
+/**
+ * #1069 criterio 3 — un eroe che il catalogo non conosce FERMA l'allestimento.
+ *
+ * Prima faceva `continue` con un Warning: la partita si allestiva **a meta'** e in campo restavano le
+ * unita' risolte. E' lo stesso dato che il conteggio della formazione controlla venti righe sopra con
+ * `Error` + partita non allestita — la formazione dichiara CHI gioca, e un CHI inesistente non e' una
+ * partita piu' piccola: e' una formazione che nessuno onora.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnknownHeroAbortsSetupTest,
+	"RefactorTactics.Heroes.UnknownHeroInFormationAbortsSetup",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnknownHeroAbortsSetupTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRosterWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = SpawnRosterMap(World);
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("GameMode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		DestroyRosterWorld(World);
+		return false;
+	}
+
+	// Il CONTEGGIO resta quello del formato — due per squadra — cosi' la guardia che si esercita e' quella
+	// del nome. Con una formazione piu' corta si fermerebbe prima, sulla cardinalita', e questo test
+	// direbbe verde senza aver mai toccato il ramo che copre.
+	GameMode->Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.NonEsiste") };
+
+	AddExpectedError(TEXT("non e' nel catalogo eroi"), EAutomationExpectedErrorFlags::Contains, 1);
+	GameMode->SetupHexMatch(HexMap);
+
+	// **Zero, non tre.** Gadget precede il nome ignoto e la squadra 1 e' intatta: senza la guardia in campo
+	// resterebbero TRE unita', ed e' quel numero — una partita che parte e sembra normale — a rendere il
+	// difetto invisibile a chi guarda lo schermo invece di contare i pezzi.
+	TestEqual(TEXT("nessuna unita' in campo"), CollectRosterUnits(World).Num(), 0);
+
+	DestroyRosterWorld(World);
+	return true;
+}
+
+/**
+ * #1069 criterio 3, seconda meta': fermarsi **e dirlo**.
+ *
+ * Un `return` muto lascerebbe il rapporto d'avvio senza fatale, quindi nessun modale: il giocatore
+ * vedrebbe una schermata vuota senza una causa. `ERTStartupOutcome` esiste per questo, ed e' un elenco
+ * chiuso — l'esito nuovo si dichiara li' prima di emetterlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnknownHeroIsDeclaredFatalTest,
+	"RefactorTactics.Heroes.UnknownHeroIsDeclaredFatal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnknownHeroIsDeclaredFatalTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRosterWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = SpawnRosterMap(World);
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("GameMode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		DestroyRosterWorld(World);
+		return false;
+	}
+
+	GameMode->Team1Heroes = { TEXT("Hero.Riktor"), TEXT("Hero.NonEsiste") };
+
+	AddExpectedError(TEXT("non e' nel catalogo eroi"), EAutomationExpectedErrorFlags::Contains, 1);
+	GameMode->SetupHexMatch(HexMap);
+
+	const FRTStartupReport& Report = GameMode->GetStartupReport();
+
+	TestEqual(TEXT("l'avvio dichiara il fatale"),
+		URTStartupReportLibrary::FindFatal(Report), ERTStartupOutcome::RosterHeroMissing);
+	TestNotEqual(TEXT("e non arriva a Ready"), Report.Phase, ERTLoadPhase::Ready);
+
+	// Il dettaglio NOMINA l'eroe: senza, il modale direbbe «un eroe non risolto» e chi legge dovrebbe
+	// andare a cercare quale nei log. E' la stessa regola del `Detail` degli altri esiti.
+	bool bNomeNelDettaglio = false;
+	for (const FRTStartupNote& Note : Report.Notes)
+	{
+		if (Note.Outcome == ERTStartupOutcome::RosterHeroMissing
+			&& Note.Detail.Contains(TEXT("Hero.NonEsiste")))
+		{
+			bNomeNelDettaglio = true;
+		}
+	}
+	TestTrue(TEXT("il dettaglio nomina l'eroe non risolto"), bNomeNelDettaglio);
 
 	DestroyRosterWorld(World);
 	return true;

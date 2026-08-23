@@ -736,10 +736,36 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 		}
 	}
 
+	// Le formazioni si risolvono TUTTE prima che entri in campo qualcuno (#1069). Prima la guardia stava
+	// dentro il ciclo di spawn e faceva `continue`: un nome sbagliato produceva una partita allestita a
+	// META', con le unita' risolte in campo e le altre no — e a schermo sembrava una partita normale.
+	// E' lo stesso dato che il controllo del conteggio qui sopra protegge dall'altro lato, e riceve lo
+	// stesso trattamento: `Error` e nessuna unita' spawnata.
+	TArray<TArray<const URTHeroData*>> Lineups;
 	for (int32 TeamId = 0; TeamId < Formations.Num(); ++TeamId)
 	{
+		TArray<const URTHeroData*>& Lineup = Lineups.AddDefaulted_GetRef();
 		for (const FName& HeroId : *Formations[TeamId])
 		{
+			const URTHeroData* Hero = FindHero(HeroId);
+			if (Hero == nullptr)
+			{
+				UE_LOG(LogRT, Error,
+					TEXT("[RT] '%s' non e' nel catalogo eroi: partita non allestita. Correggi Team%dHeroes, "
+						 "o aggiungi l'eroe al catalogo."),
+					*HeroId.ToString(), TeamId);
+				StartupReport.Add(ERTStartupOutcome::RosterHeroMissing, HeroId.ToString());
+				return;
+			}
+			Lineup.Add(Hero);
+		}
+	}
+
+	for (int32 TeamId = 0; TeamId < Formations.Num(); ++TeamId)
+	{
+		for (int32 Slot = 0; Slot < Lineups[TeamId].Num(); ++Slot)
+		{
+			const FName& HeroId = (*Formations[TeamId])[Slot];
 			if (CellIndex >= Start.Num())
 			{
 				UE_LOG(LogRT, Warning, TEXT("[RT] Celle di partenza insufficienti: %s non entra in campo"),
@@ -753,15 +779,7 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 				continue;
 			}
 
-			const URTHeroData* Hero = FindHero(HeroId);
-			if (Hero == nullptr)
-			{
-				UE_LOG(LogRT, Warning, TEXT("[RT] %s non e' nel catalogo eroi: nessuna unita' spawnata"),
-					*HeroId.ToString());
-				continue;
-			}
-
-			SpawnHero(TeamId, Hero, Start[CellIndex], Origin, HexSize, LayerHeight);
+			SpawnHero(TeamId, Lineups[TeamId][Slot], Start[CellIndex], Origin, HexSize, LayerHeight);
 			Spawned.Add(HeroId);
 			++CellIndex;
 		}

@@ -12,6 +12,7 @@ bool URTStartupReportLibrary::IsFatal(ERTStartupOutcome Outcome)
 	case ERTStartupOutcome::FormatAssetInvalid:
 	case ERTStartupOutcome::ShippedFormatInvalid:
 	case ERTStartupOutcome::FormatMapMismatch:
+	case ERTStartupOutcome::RosterHeroMissing:
 		return true;
 
 	case ERTStartupOutcome::Ok:
@@ -72,6 +73,8 @@ FText URTStartupReportLibrary::DescribeOutcome(ERTStartupOutcome Outcome)
 		return LOCTEXT("ShippedFormatInvalid", "Il formato spedito col gioco non e' valido.");
 	case ERTStartupOutcome::FormatMapMismatch:
 		return LOCTEXT("FormatMapMismatch", "Formato e mappa non combaciano.");
+	case ERTStartupOutcome::RosterHeroMissing:
+		return LOCTEXT("RosterHeroMissing", "Un eroe della formazione non e' nel catalogo: partita non allestita.");
 
 	case ERTStartupOutcome::UsingTestArena:
 		return LOCTEXT("UsingTestArena", "Arena di PROVA generata: non e' una mappa di gioco.");
