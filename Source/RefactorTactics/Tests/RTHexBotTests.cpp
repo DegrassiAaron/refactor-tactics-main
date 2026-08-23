@@ -7,6 +7,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTHexSim.h"
+#include "Turn/RTTurnManager.h" // l'invariante WElevation<WApproach si misura su ENTRAMBE le sorgenti (#1088)
 #include "Turn/RTHexSimLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -20,6 +21,24 @@ namespace
 		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
 		{
 			M->AddOrUpdateCell(FRTHexCellData(Id));
+		}
+		M->SortCells();
+		return M;
+	}
+
+	/**
+	 * Come `MakeBotMap`, piu' una colonna di celle REALI sui layer 1..`Layers`-1 sopra l'origine e sopra la
+	 * cella (1,0). Serve a `HexBot.ElevationNeverOutweighsClosingOneCell`: quel test valuta piani su celle in
+	 * quota, e su una mappa a un solo layer li valuterebbe su celle **che l'asset non contiene** — oggi passa
+	 * lo stesso solo perche' nessun ramo di `ScorePlan` interroga la mappa quando `EnemyRanges[0] == 0`.
+	 */
+	URTHexMapAsset* MakeLayeredBotMap(int32 Radius, int32 Layers)
+	{
+		URTHexMapAsset* M = MakeBotMap(Radius);
+		for (int32 L = 1; L < Layers; ++L)
+		{
+			M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, L)));
+			M->AddOrUpdateCell(FRTHexCellData(FRTCellId(1, 0, L)));
 		}
 		M->SortCells();
 		return M;
@@ -76,6 +95,12 @@ namespace
 		return P;
 	}
 
+	/**
+	 * ⚠️ `FromCell` resta al default `(0,0,0)`: va bene finche' l'origine del contesto e' quella, e NON va
+	 * bene altrove — `ScorePlan` legge `Plan.FromCell` (`ArrivalFacingOf`), quindi un piano che parte da una
+	 * cella su cui l'unita' non e' mai stata produce un facing inventato. Per le origini diverse c'e'
+	 * `MakePlanFrom`.
+	 */
 	FRTHexBotPlan MakePlan(const FRTCellId& Dest, bool bAttack = false, int32 Damage = 0, int32 TargetHealth = 0)
 	{
 		FRTHexBotPlan P;
@@ -84,6 +109,14 @@ namespace
 		P.TargetIndex = bAttack ? 0 : INDEX_NONE;
 		P.AttackDamage = Damage;
 		P.TargetHealth = TargetHealth;
+		return P;
+	}
+
+	/** Come `MakePlan`, ma dichiara da DOVE si parte: obbligatorio quando `Ctx.Origin` non e' `(0,0,0)`. */
+	FRTHexBotPlan MakePlanFrom(const FRTCellId& From, const FRTCellId& Dest)
+	{
+		FRTHexBotPlan P = MakePlan(Dest);
+		P.FromCell = From;
 		return P;
 	}
 }
@@ -164,6 +197,27 @@ bool FRTHexBotKiterVsMeleeTest::RunTest(const FString&)
 	const int32 KiterTooClose = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(3, 0)), Ctx);   // dist 1
 	TestTrue(TEXT("il kiter preferisce restare alla distanza di sicurezza"), KiterAtStandoff > KiterTooClose);
 	TestEqual(TEXT("alla distanza di sicurezza nessuna penalita'"), KiterAtStandoff, 0);
+
+	// 🔴 **Oltre lo standoff si paga per riavvicinarsi, ed e' il ramo che chiude #1088.** Non esisteva:
+	// sopra la distanza di sicurezza nessun termine di distanza si applicava, quindi per un kiter
+	// l'elevazione restava l'unico termine posizionale e restare in quota vinceva con qualunque
+	// `WElevation > 0`. Senza queste due righe, cancellare il ramo lascia il test verde.
+	//
+	// ⚠️ Le celle si scelgono per distanza dal NEMICO, non dall'origine: `Enemy` sta a (4,0), quindi (0,0)
+	// dista 4 e (-1,0) dista 5. Sbagliare riferimento porta la candidata sotto lo standoff, dove a rispondere
+	// e' `WKiteViolation` e non il ramo in prova.
+	const int32 KiterOneBeyond = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(0, 0)), Ctx);   // dist 4
+	TestEqual(TEXT("una cella oltre lo standoff costa WApproach"), KiterOneBeyond, -Ctx.WApproach);
+
+	const int32 KiterTwoBeyond = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(-1, 0)), Ctx);  // dist 5
+	TestEqual(TEXT("e due celle ne costano il doppio"), KiterTwoBeyond, -2 * Ctx.WApproach);
+
+	TestTrue(TEXT("quindi il kiter torna verso la distanza di sicurezza invece di allontanarsi"),
+		KiterAtStandoff > KiterOneBeyond && KiterOneBeyond > KiterTwoBeyond);
+
+	// ⚠️ **E il costo dichiarato**: allontanarsi oltre lo standoff paga, quindi un kiter con portata
+	// maggiore dello standoff rinuncia a parte della propria gittata. E' la scelta di #1088 — un bot che
+	// non conclude e' un difetto, due celle di gittata sono bilanciamento (#149).
 	return true;
 }
 
@@ -172,15 +226,117 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotElevationTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexBotElevationTest::RunTest(const FString&)
 {
-	URTHexMapAsset* M = MakeBotMap(3);
+	URTHexMapAsset* M = MakeLayeredBotMap(3, 3);   // le celle in quota devono esistere nell'asset
 	FRTHexBotContext Ctx;
-	Ctx.Origin = FRTCellId(0, 0);
+	Ctx.Origin = FRTCellId(0, 0, 0);
 	Ctx.WElevation = 20;
 
+	// Il bonus e' ASSOLUTO sulla quota della destinazione, e cresce col layer.
 	const int32 Ground = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 0)), Ctx);
 	const int32 High = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(1, 0, 2)), Ctx);
 	TestTrue(TEXT("la quota alta vale di piu'"), High > Ground);
 	TestEqual(TEXT("bonus proporzionale al layer"), High - Ground, 40);
+
+	// 🔴 **E la quota si paga anche PARTENDO da li', che e' il cuore di #1088.** Con `Origin` a layer 0 le
+	// due forme — assoluta e relativa all'origine — danno lo stesso numero, quindi questo test da solo non
+	// distingue niente: e' il motivo per cui la forma relativa e' passata per un fix. Partendo da L2, la
+	// differenza si vede.
+	FRTHexBotContext FromHigh = Ctx;
+	FromHigh.Origin = FRTCellId(0, 0, 2);
+	const int32 StayHigh = URTHexBotLibrary::ScorePlan(
+		M, MakePlanFrom(FRTCellId(0, 0, 2), FRTCellId(0, 0, 2)), FromHigh);
+	TestEqual(TEXT("restare in quota incassa il bonus: e' il termine che forma lo stato assorbente"),
+		StayHigh, 40);
+
+	// ⚠️ **Questo test misura punteggi, non comportamento.** Fra due candidate conta la DIFFERENZA, e una
+	// costante aggiunta a entrambe non muove l'esito: e' l'errore che il 2026-08-22 ha prodotto un fix
+	// inerte (#1088). Cio' che decide e' pinnato da `ElevationNeverOutweighsClosingOneCell`, che confronta
+	// l'esito di `ChooseBestPlan`.
+	return true;
+}
+
+/**
+ * L'INVARIANTE, e si misura sull'ESITO di `ChooseBestPlan` (#1088).
+ *
+ * Il bonus di quota compete con l'avvicinamento: se scendere di `MaxLayer` per guadagnare UNA cella non
+ * paga, il bot resta in alto e si parcheggia. Non c'e' una forma che lo renda impossibile — un bonus di
+ * posizione abbastanza grande batte sempre l'avvicinamento — quindi la difesa e' questo vincolo numerico,
+ * e va misurato dove il comportamento si decide.
+ *
+ * ⚠️ **Su `ChooseBestPlan` e non su `ScorePlan`**: due punteggi confrontati a mano ignorano il tie-break
+ * («a parita', mossa minima da `Origin`»), che e' proprio il meccanismo che fa vincere il restare quando
+ * i punteggi pareggiano. Il caso `-40` contro `-40` misurato il 2026-08-22 sarebbe passato inosservato.
+ *
+ * 🔴 **`MaxLayer` e' un limite DICHIARATO, non garantito**: `FRTCellId::Layer` e' un `int32` senza cap, e
+ * nessun validator di mappa ne impone uno. Una mappa d'autore a quattro livelli renderebbe `4 x 3 = 12`
+ * maggiore di `WApproach`, e questo test resterebbe verde perche' misura il caso che dichiara. Chi aggiunge
+ * layer oltre `MaxLayerSupported` deve rivedere i pesi o aggiungere il cap al formato mappa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotElevationInvariantTest,
+	"RefactorTactics.HexBot.ElevationNeverOutweighsClosingOneCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotElevationInvariantTest::RunTest(const FString&)
+{
+	// Le arene generate usano due layer (`MaxLayer` 1); tre e' il caso peggiore che ponti e multilivello
+	// di E9 rendono plausibile senza che nessuno lo dichiari.
+	const int32 MaxLayerSupported = 2;
+	URTHexMapAsset* M = MakeLayeredBotMap(4, MaxLayerSupported + 1);
+
+	FRTHexBotContext Ctx = MakeCtx(FRTCellId(0, 0, MaxLayerSupported), FRTCellId(4, 0, 0), /*range*/ 0, /*hp*/ 1000);
+	Ctx.WElevation = GetDefault<ARTTurnManager>()->WElevation;
+	Ctx.WApproach = GetDefault<ARTTurnManager>()->WApproach;
+
+	// Due sole candidate, e la domanda e' quale vince: restare in quota, o scendere avvicinandosi di una
+	// cella. Passano da `ChooseBestPlan`, quindi il tie-break e' incluso nel verdetto.
+	const FRTCellId StayCell(0, 0, MaxLayerSupported);
+	const FRTCellId CloserCell(1, 0, 0);
+	TArray<FRTHexBotPlan> Candidates;
+	Candidates.Add(MakePlanFrom(StayCell, StayCell));
+	Candidates.Add(MakePlanFrom(StayCell, CloserCell));
+	const FRTHexBotPlan Best = URTHexBotLibrary::ChooseBestPlan(M, Candidates, Ctx);
+
+	TestTrue(FString::Printf(
+		TEXT("scendere di %d layer per una cella batte restare (WElevation %d, WApproach %d): scelto (%d,%d,L%d)"),
+		MaxLayerSupported, Ctx.WElevation, Ctx.WApproach, Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer),
+		Best.DestCell == CloserCell);
+
+	// 🔴 **E vale per il KITER, che e' il ramo in cui l'invariante era vuoto.** Sopra la distanza di
+	// sicurezza non si applicava alcun termine di distanza, quindi l'elevazione era l'unico termine
+	// posizionale e restare in quota vinceva con qualunque peso — `WApproach` non era in gioco, quindi
+	// `WElevation * MaxLayer < WApproach` non diceva niente. `MakeCtx` lascia `KiteStandoff` a 0, percio'
+	// il caso va costruito: senza questa meta' il test pinna solo la mischia mentre header e spec
+	// dichiarano l'invariante senza condizioni.
+	FRTHexBotContext KiterCtx = Ctx;
+	KiterCtx.KiteStandoff = 3;   // Phase: `PressureJet` portata 5 -> `DeriveKiteStandoff` 3
+	TArray<FRTHexBotPlan> KiterCandidates;
+	KiterCandidates.Add(MakePlanFrom(StayCell, StayCell));
+	KiterCandidates.Add(MakePlanFrom(StayCell, CloserCell));
+	const FRTHexBotPlan KiterBest = URTHexBotLibrary::ChooseBestPlan(M, KiterCandidates, KiterCtx);
+	TestTrue(FString::Printf(
+		TEXT("anche il kiter scende invece di parcheggiarsi in quota: scelto (%d,%d,L%d)"),
+		KiterBest.DestCell.X, KiterBest.DestCell.Y, KiterBest.DestCell.Layer),
+		KiterBest.DestCell == CloserCell);
+
+	// E le due sorgenti dei pesi devono coincidere: `PlanBots` copia le UPROPERTY di `ARTTurnManager` sopra
+	// i default della struct, quindi tarare solo i secondi non muove nulla di cio' che il giocatore vede.
+	//
+	// ⚠️ **Il CDO non e' l'ultima parola.** `ARTGameMode` riusa un `ARTTurnManager` gia' presente nel livello
+	// invece di spawnarlo, quindi un'istanza piazzata in un `.umap` con `WElevation` modificato in editor
+	// sopravvive al cambio di default C++ e questo test non la vedrebbe. ⏳ Presidiato da **#1276**, che
+	// apre la voce PIE: verificarlo richiede l'editor, perche' i `.umap` sono pacchetti compressi e un grep
+	// non prova nulla in nessuna delle due direzioni.
+	// ✅ **La deriva fra le due sorgenti non e' piu' rilevabile: e' impossibile.** `ARTTurnManager` derivava
+	// i sei pesi da altrettanti letterali scritti a mano, e questa coppia di asserzioni li confrontava DOPO
+	// il fatto — su due dei sei. Ora ogni default e' `FRTHexBotContext{}.W*`, quindi c'e' una sorgente sola
+	// e le righe qui sotto verificano il legame, non una coincidenza fortunata.
+	const FRTHexBotContext Defaults;
+	const ARTTurnManager* CDO = GetDefault<ARTTurnManager>();
+	TestEqual(TEXT("WKill deriva dalla struct"), CDO->WKill, Defaults.WKill);
+	TestEqual(TEXT("WDamage deriva dalla struct"), CDO->WDamage, Defaults.WDamage);
+	TestEqual(TEXT("WThreat deriva dalla struct"), CDO->WThreat, Defaults.WThreat);
+	TestEqual(TEXT("WKiteViolation deriva dalla struct"), CDO->WKiteViolation, Defaults.WKiteViolation);
+	TestEqual(TEXT("WApproach deriva dalla struct"), CDO->WApproach, Defaults.WApproach);
+	TestEqual(TEXT("WElevation deriva dalla struct"), CDO->WElevation, Defaults.WElevation);
 	return true;
 }
 

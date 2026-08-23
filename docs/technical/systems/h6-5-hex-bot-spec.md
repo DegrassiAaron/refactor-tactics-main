@@ -47,7 +47,9 @@ l'archetipo, bonus di elevazione, scelta deterministica.
 - `ScorePlan(Map, Plan, Context)` → intero. Nell'ordine: `WDamage × danno` (+`WKill` se il colpo uccide);
   −`WThreat` per **ogni nemico** che raggiunge la cella con la propria gittata **e** ha LOS su di essa;
   poi, sulla distanza dal nemico più vicino, −`WKiteViolation × (standoff − dist)` se kiter sotto la soglia
-  oppure −`WApproach × dist` se mischia; infine +`WElevation × Layer`.
+  oppure −`WApproach × (dist − portata)` se kiter oltre la propria portata (dentro la banda utile è
+  indifferente), oppure −`WApproach × dist` se mischia; infine +`WElevation × Layer`, vincolato da
+  `WElevation × MaxLayer < WApproach` — sopra quella soglia il bot si parcheggia in quota (#1088).
 - `ChooseBestPlan(Map, Candidates, Context)` — punteggio massimo; a parità **mossa minima** da `Origin`, poi
   `StableLess` sulla cella. Nessuna candidata → resta a `Origin`.
 - `BuildCandidates(Snapshot, UnitId, Context)` — per ogni cella raggiungibile: una candidata senza attacco e una

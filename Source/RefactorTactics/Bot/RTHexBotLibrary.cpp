@@ -179,10 +179,44 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 	{
 		if (Context.KiteStandoff > 0)
 		{
-			// Kiter: penalita' proporzionale a quanto si resta SOTTO la distanza di sicurezza.
+			// Kiter: la distanza di sicurezza e' un OTTIMO, non un pavimento. Sotto costa
+			// `WKiteViolation` per cella; sopra costa `WApproach` per cella, cioe' quanto costa a un
+			// mischia stare lontano. A `MinDist == KiteStandoff` entrambi i termini valgono zero.
+			//
+			// 🔴 **Il ramo `else` non c'era, e lasciava un buco che l'invariante di #1088 non copriva.**
+			// Sopra lo standoff nessun termine di distanza si applicava, quindi per un kiter l'elevazione
+			// diventava l'UNICO termine posizionale: restare in quota batteva scendere con qualunque
+			// `WElevation > 0`, e `WElevation * MaxLayer < WApproach` non proteggeva nulla — `WApproach`
+			// non era nemmeno in gioco. Il conto su Phase (`PressureJet` portata 5 -> standoff 3), su una
+			// mappa dove puo' salire: restare a L1 e distanza 4 valeva `+WElevation`, scendere valeva 0.
+			//
+			// ⚠️ Non toglie il kiting: allontanarsi OLTRE la distanza utile e' sempre stato inutile, e ora
+			// costa. Il comportamento «resta a standoff e spara» e' esattamente il punto in cui entrambi i
+			// termini si annullano.
 			if (MinDist < Context.KiteStandoff)
 			{
 				Score -= Context.WKiteViolation * (Context.KiteStandoff - MinDist);
+			}
+			else
+			{
+				// 🔴 **La penalita' parte dallo STANDOFF, e costa al kiter due celle di gittata.** Il costo si
+				// dichiara qui perche' e' una scelta, non una svista: Phase (`PressureJet` portata 5 ->
+				// standoff 3) si avvicinera' fino a 3 invece di sparare da 5, cioe' dentro la portata 4 di
+				// Gadget e Wraith. `DeriveKiteStandoff` dice che «chi colpisce da lontano ha qualcosa da
+				// guadagnare a restare lontano», e questo termine gliene toglie una parte.
+				//
+				// ⚠️ **L'alternativa e' stata scritta e MISURATA, e riapre il difetto.** Facendo partire la
+				// penalita' dalla portata invece che dallo standoff, la banda `[standoff, portata]` resta
+				// piatta — e li' l'elevazione torna a essere l'unico termine posizionale, quindi il kiter si
+				// parcheggia in quota esattamente come prima. Provato il 2026-08-23:
+				// `ElevationNeverOutweighsClosingOneCell` e' tornato rosso con `scelto (0,0,L2)`.
+				//
+				// ∴ le due cose sono incompatibili con un termine di distanza: o il kiter tiene la gittata e
+				// puo' parcheggiarsi, o scende e non si parcheggia. Si sceglie la seconda perche' un bot che
+				// non conclude la partita e' un difetto, mentre due celle di gittata sono bilanciamento — e
+				// il bilanciamento del bot ha la sua sede in #149, dove serve il banco di prova che D-102
+				// richiede.
+				Score -= Context.WApproach * (MinDist - Context.KiteStandoff);
 			}
 		}
 		else
@@ -192,7 +226,35 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 		}
 	}
 
-	// Elevazione: premia la quota alta della cella di destinazione (vantaggio di tiro/posizione).
+	// Elevazione: premia la quota della cella di destinazione.
+	//
+	// 🔴 **QUI SI E' FORMATO LO STATO ASSORBENTE DI #1088, e la difesa e' UN NUMERO — non questa formula.**
+	// Il termine compete con l'avvicinamento: finche' `WElevation * Layer` supera quello che `WApproach`
+	// rende scendendo, restare in alto batte muoversi e il bot si parcheggia. Misurato su
+	// `GeneratedTestArena` con `WElevation` 20: Riktor saliva sulla piattaforma al turno 3 e non scendeva
+	// fino al 12 — restare valeva `+20 - 40 = -20` contro `-30` dello scendere.
+	//
+	// ⛔ **Non si prova a renderlo RELATIVO all'origine: sarebbe un no-op.** `Context.Origin` e' fisso per
+	// l'intera chiamata di `ChooseBestPlan`, quindi `- WElevation * Origin.Layer` e' la stessa costante
+	// sottratta a OGNI candidata: sposta tutti i punteggi e non cambia ne' l'argmax ne' il tie-break.
+	// E' stato scritto, misurato e tolto il 2026-08-22 — con la forma relativa e `WElevation` 20 il
+	// parcheggio si riproduce identico (`-40` contro `-50`, stesso ordine di `-20` contro `-30`).
+	//
+	// ⛔ **E non si condiziona a `bHasAttack`.** La ragione NON e' che il bot perderebbe la candidata con cui
+	// sale — quella resta: `BuildCandidates` emette un piano di solo movimento per OGNI cella raggiungibile,
+	// prima di qualunque controllo di gittata. E' che il bonus finirebbe quasi solo sui piani che NON si
+	// muovono: i piani con attacco nascono in gran parte da `StaySnapshot` con `MoveBudget = 0`, cioe' dalla
+	// cella attuale. La guardia avrebbe premiato lo stare fermi — la stessa asimmetria dello stato
+	// assorbente, condizionata.
+	//
+	// ⚠️ **INVARIANTE: `WElevation * MaxLayer < WApproach`.** E' l'unica difesa reale, ed e' un vincolo
+	// numerico: nessuna forma rende il difetto impossibile, perche' un bonus di posizione sufficientemente
+	// grande batte sempre l'avvicinamento. Pinnato da `HexBot.ElevationNeverOutweighsClosingOneCell`, che
+	// lo misura confrontando l'ESITO di `ChooseBestPlan` — non il punteggio di un piano isolato, che puo'
+	// cambiare senza che l'ordinamento si muova.
+	//
+	// 🔴 **Quindi `WElevation` e' modificabile in editor a proprio rischio** (`PIE-BU2b` lo documenta come
+	// workflow): alzarlo oltre l'invariante riapre lo stato assorbente, e nessun gate lo impedisce.
 	Score += Context.WElevation * Plan.DestCell.Layer;
 
 	return Score;

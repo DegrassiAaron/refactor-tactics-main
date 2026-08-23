@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Core/RTTypes.h"
+#include "Bot/RTHexBotLibrary.h" // i pesi del bot hanno UNA sorgente: i default della struct
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTResolvedEvent.h"
 #include "Turn/RTTurnLog.h"
@@ -401,27 +402,50 @@ public:
 	// coincidono con quelli della struct: a parita' di valori il comportamento e' invariato.
 	/** Bonus se l'attacco pianificato UCCIDE il bersaglio: domina la scelta (focus-fire letale). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
-	int32 WKill = 10000;
+	int32 WKill = FRTHexBotContext{}.WKill;
 
 	/** Peso del danno inflitto dall'attacco (focus-fire: a parita' d'altro, piu' danno = meglio). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
-	int32 WDamage = 10;
+	int32 WDamage = FRTHexBotContext{}.WDamage;
 
 	/** Penalita' per ogni nemico che puo' colpire la cella scelta (evita di esporsi al tiro). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
-	int32 WThreat = 100;
+	int32 WThreat = FRTHexBotContext{}.WThreat;
 
 	/** Penalita' (kiter) proporzionale a quanto si sta SOTTO la distanza di sicurezza (standoff). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
-	int32 WKiteViolation = 50;
+	int32 WKiteViolation = FRTHexBotContext{}.WKiteViolation;
 
-	/** Penalita' (mischia) proporzionale alla distanza dal nemico: chiudere la distanza e' meglio. */
+	/**
+	 * Penalita' proporzionale alla distanza: dal nemico per la MISCHIA, dalla propria portata per il
+	 * KITER (dentro la banda utile e' indifferente). ⚠️ Il tooltip diceva «(mischia)» e non era piu'
+	 * vero dal 2026-08-23: questo peso governa l'avvicinamento di ogni unita', kiter compresi.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
-	int32 WApproach = 10;
+	int32 WApproach = FRTHexBotContext{}.WApproach;
 
-	/** Bonus per la quota (Layer) della cella: premia l'alta quota (tiro oltre coperture basse, +danno). */
+	/**
+	 * Bonus per la quota (`Layer`) della cella di destinazione: premia l'alta quota — tiro oltre coperture
+	 * basse, piu' danno (`URTHexBotLibrary::ScorePlan`).
+	 *
+	 * 🔴 **E' il termine in cui si e' formato lo stato assorbente di #1088**, perche' compete con
+	 * l'avvicinamento: restare in alto continua a incassarlo, quindi sopra una certa soglia batte muoversi.
+	 * ⛔ Renderlo relativo alla cella di partenza NON aiuta e non va riprovato — `Origin` e' fisso per
+	 * l'intera scelta, quindi sposta ogni candidata della stessa costante: scritto, misurato e tolto il
+	 * 2026-08-22.
+	 *
+	 * **Vale 4 e non 5 perche' l'invariante si misura sul caso peggiore**: le arene generate usano due layer
+	 * (`MaxLayer` 1) e li' anche 5 reggeva, ma con tre layer `5 x 2 = 10` pareggia `WApproach` e il tie-break
+	 * «mossa minima» riapre il parcheggio. Misurato: `-40` contro `-40`, esattamente pari.
+	 *
+	 * ⚠️ **INVARIANTE: `WElevation * MaxLayer < WApproach`** — l'unica difesa reale, perche' nessuna forma
+	 * rende il difetto impossibile. Alzarlo da qui in editor lo riapre. Questa e' la sorgente che vince in
+	 * partita:
+	 * `PlanBots` copia questi valori nel `FRTHexBotContext`, quindi cambiare il default della struct
+	 * senza cambiare questo non muove nulla di cio' che il giocatore vede.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
-	int32 WElevation = 20;
+	int32 WElevation = FRTHexBotContext{}.WElevation;
 
 	/**
 	 * Snapshot dello stato corrente della partita (unita' VIVE del livello + mappa autorevole).

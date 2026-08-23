@@ -145,8 +145,15 @@ struct FRTHexBotContext
 	UPROPERTY() int32 WThreat = 100;
 	UPROPERTY() int32 WKiteViolation = 50;
 	UPROPERTY() int32 WApproach = 10;
-	/** Bonus per la quota (Layer) della cella: premia l'alta quota. */
-	UPROPERTY() int32 WElevation = 20;
+	/**
+	 * Bonus per la quota (`Layer`) della cella di destinazione (#1088).
+	 *
+	 * ⚠️ **INVARIANTE: `WElevation * MaxLayer < WApproach`.** Sopra quella soglia scendere per avvicinarsi
+	 * non conviene, i punteggi pareggiano e il tie-break «restare vince» riapre il parcheggio. Pinnato da
+	 * `HexBot.ElevationNeverOutweighsClosingOneCell`, che lo misura sull'ESITO di `ChooseBestPlan` — non sul
+	 * punteggio di un piano isolato, che non vede il tie-break.
+	 */
+	UPROPERTY() int32 WElevation = 4;
 };
 
 /**
@@ -181,16 +188,24 @@ public:
 	 * Riktor (3) chiudono la distanza. Se la soglia va spostata, e' questa riga: il resto del bot legge
 	 * `FRTHexBotContext::KiteStandoff` e non sa da dove venga.
 	 */
+	/**
+	 * Quante celle separano lo standoff dalla portata di tiro. `DeriveKiteStandoff` lo SOTTRAE dalla portata
+	 * per ricavare lo standoff; `ScorePlan` lo RIAGGIUNGE per sapere da dove il kiter smette di essere
+	 * indifferente alla distanza. I due usi devono restare legati: se qui diventasse 3 e li' restasse 2, il
+	 * kiter pagherebbe per sparare dalla propria portata massima — il difetto misurato il 2026-08-23.
+	 */
+	static constexpr int32 KiterStandoffMargin = 2;
+
 	static int32 DeriveKiteStandoff(int32 AttackRangeCells)
 	{
 		constexpr int32 KiterMinRange = 5;
-		return AttackRangeCells >= KiterMinRange ? AttackRangeCells - 2 : 0;
+		return AttackRangeCells >= KiterMinRange ? AttackRangeCells - KiterStandoffMargin : 0;
 	}
 
 	/**
 	 * Utility score (intero) di una candidata: focus-fire (danno + bonus se uccide), meno la minaccia subita
 	 * nella cella di destinazione (solo dai nemici che hanno gittata E linea di vista: la copertura protegge),
-	 * meno la penalita' di posizionamento (kiter sotto standoff / mischia lontana), piu' il bonus di quota.
+	 * meno la penalita' di posizionamento (kiter sotto standoff o oltre la propria portata / mischia lontana), piu' il bonus di quota.
 	 */
 	static int32 ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context);
 
