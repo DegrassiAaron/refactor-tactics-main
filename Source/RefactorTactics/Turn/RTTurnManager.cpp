@@ -24,6 +24,7 @@
 #include "Bot/RTHexBotLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Turn/RTFacingLibrary.h"
+#include "Map/RTHexVisionLibrary.h"
 #include "Turn/RTHexSimLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -532,41 +533,124 @@ void ARTTurnManager::PlanBots()
 		// e' geometria pubblica — zero informazione nascosta. Non e' una ricerca intelligente e non pretende
 		// di esserlo: i goal veri (`SecureObjective`, `GatherInformation`) sono E26, e questo ramo e' il posto
 		// in cui atterreranno. Deterministica: distanza minima dal centro, poi `StableLess`.
-		if (Ctx.Enemies.Num() == 0)
+		// **Livello 3 di #1287: la condizione si estende da «non so dove sia nessuno» a «non ho nessuno che
+		// posso ingaggiare».**
+		//
+		// Il caso che mancava: contatto NOTO ma non raggiungibile in modo utile. Misurato sulla mappa
+		// d'autore — le due squadre si fermano ai lati dell'ostacolo centrale, che blocca vista e passo, a due
+		// e tre celle di distanza in linea d'aria. `Ctx.Enemies` non e' vuoto, quindi questo ramo non entrava;
+		// e il punteggio, che misura la distanza in linea d'aria, diceva «sei vicino, resta». Dodici turni,
+		// 42 voci di TurnLog su 48 con esito `Stayed`, zero `Combat`.
+		bool bQualcunoDaIngaggiare = false;
+		if (Ctx.Enemies.Num() > 0 && Snapshot.Map)
+		{
+			for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, BotIdx))
+			{
+				for (const FRTCellId& KnownEnemy : Ctx.Enemies)
+				{
+					if (URTHexVisionLibrary::HasLineOfSight(Snapshot.Map, R.Cell, KnownEnemy))
+					{
+						bQualcunoDaIngaggiare = true;
+						break;
+					}
+				}
+				if (bQualcunoDaIngaggiare) { break; }
+			}
+		}
+
+		if (Ctx.Enemies.Num() == 0 || !bQualcunoDaIngaggiare)
 		{
 			if (Snapshot.Map && Snapshot.Map->Cells.Num() > 0)
 			{
-				// Centro = la cella piu' vicina al baricentro intero delle celle. `Cells` e' ordinato
-				// (`SortCells`), quindi il baricentro e la scelta non dipendono dall'ordine di scoperta.
-				int64 SumX = 0, SumY = 0;
-				for (const FRTHexCellData& C : Snapshot.Map->Cells) { SumX += C.Id.X; SumY += C.Id.Y; }
-				const int32 N = Snapshot.Map->Cells.Num();
-				const FRTCellId Barycentre(static_cast<int32>(SumX / N), static_cast<int32>(SumY / N), 0);
-
-				FRTCellId SeekCell = Snapshot.Map->Cells[0].Id;
-				int32 BestToBary = MAX_int32;
-				for (const FRTHexCellData& C : Snapshot.Map->Cells)
+				// **Il PUNTO DI OSSERVAZIONE (#1287)**, quando un contatto noto esiste ma non e' ingaggiabile: la
+				// cella percorribile piu' vicina PER CAMMINO da cui quel contatto si vedrebbe.
+				//
+				// ⚠️ **Per cammino e non in linea d'aria**, ed e' la differenza fra funzionare e no: con un
+				// ostacolo in mezzo la meta e' geometricamente vicina e topologicamente lontana, e minimizzare la
+				// distanza in linea d'aria incastra il bot contro il muro — che e' il difetto originale, ripetuto
+				// un livello piu' in la'.
+				//
+				// ⚠️ Usa la MEMORIA del contatto (`FRTLastKnownContact`, CP 13.4), non le posizioni vere: il bot
+				// va dove ha visto qualcuno, non dove qualcuno e'.
+				//
+				// ⛔ Non e' un pattern di ricerca: niente memoria di dove ha gia' guardato, niente settori, niente
+				// coordinamento. Quelli sono E26 (#326), e chiedono stato per unita' che il bot oggi non ha.
+				FRTCellId SeekCell;
+				bool bHaMeta = false;
+				if (Ctx.Enemies.Num() > 0)
 				{
-					const int32 D = URTHexLibrary::HexDistance(C.Id, Barycentre);
-					if (D < BestToBary || (D == BestToBary && URTHexLibrary::StableLess(C.Id, SeekCell)))
+					int32 MiglioreCosto = MAX_int32;
+					for (const FRTHexCellData& C : Snapshot.Map->Cells)
 					{
-						BestToBary = D;
-						SeekCell = C.Id;
+						if (C.bBlocksMovement) { continue; }
+						bool bVede = false;
+						for (const FRTCellId& KnownEnemy : Ctx.Enemies)
+						{
+							if (URTHexVisionLibrary::HasLineOfSight(Snapshot.Map, C.Id, KnownEnemy)) { bVede = true; break; }
+						}
+						if (!bVede) { continue; }
+
+						const FRTHexPathResult Verso = URTHexSimLibrary::FindPathForUnit(Snapshot, BotIdx, C.Id);
+						if (Verso.Path.Num() == 0) { continue; } // irraggiungibile: non e' una meta
+						if (Verso.TotalCost < MiglioreCosto
+							|| (Verso.TotalCost == MiglioreCosto && URTHexLibrary::StableLess(C.Id, SeekCell)))
+						{
+							MiglioreCosto = Verso.TotalCost;
+							SeekCell = C.Id;
+							bHaMeta = true;
+						}
 					}
 				}
 
-				// Fra le celle raggiungibili, quella che avvicina di piu' al centro. Restare e' ammesso e
-				// vince a parita': e' lo stesso criterio di `ChooseBestPlan` (a parita' di punteggio, mossa
-				// minima), quindi un bot gia' al centro non oscilla.
-				FRTCellId Best = Bot->Cell;
-				int32 BestDistance = URTHexLibrary::HexDistance(Bot->Cell, SeekCell);
-				for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, BotIdx))
+				if (!bHaMeta)
 				{
-					const int32 D = URTHexLibrary::HexDistance(R.Cell, SeekCell);
-					if (D < BestDistance || (D == BestDistance && URTHexLibrary::StableLess(R.Cell, Best)))
+					// Nessun contatto noto, o nessuna cella lo vede: il CENTRO, la condotta di CP 13.5. Geometria
+					// pubblica, zero informazione nascosta.
+					int64 SumX = 0, SumY = 0;
+					for (const FRTHexCellData& C : Snapshot.Map->Cells) { SumX += C.Id.X; SumY += C.Id.Y; }
+					const int32 N = Snapshot.Map->Cells.Num();
+					const FRTCellId Barycentre(static_cast<int32>(SumX / N), static_cast<int32>(SumY / N), 0);
+
+					SeekCell = Snapshot.Map->Cells[0].Id;
+					int32 BestToBary = MAX_int32;
+					for (const FRTHexCellData& C : Snapshot.Map->Cells)
 					{
-						BestDistance = D;
-						Best = R.Cell;
+						// ⚠️ **Percorribile**, e l'assenza di questo filtro ha fermato l'intera partita. Su
+						// `L_HexArena` il baricentro e' `(0,0)`, che blocca il passo: la meta era una cella in cui
+						// non si puo' entrare, quindi nessun cammino, quindi nessun passo. Il codice precedente si
+						// AVVICINAVA alla meta e sopravviveva a una meta impenetrabile; seguire un cammino no.
+						if (C.bBlocksMovement) { continue; }
+						const int32 D = URTHexLibrary::HexDistance(C.Id, Barycentre);
+						if (D < BestToBary || (D == BestToBary && URTHexLibrary::StableLess(C.Id, SeekCell)))
+						{
+							BestToBary = D;
+							SeekCell = C.Id;
+						}
+					}
+				}
+
+				// **Si SEGUE il cammino**, non si minimizza una distanza: il prefisso percorribile entro il
+				// budget. Restare vince a parita' (cammino vuoto = si e' gia' a destinazione).
+				FRTCellId Best = Bot->Cell;
+				const FRTHexPathResult Rotta = URTHexSimLibrary::FindPathForUnit(Snapshot, BotIdx, SeekCell);
+				const TArray<FRTCellId> Passi = URTHexSimLibrary::TruncatePathToBudget(Snapshot, BotIdx, Rotta.Path);
+				if (Passi.Num() > 1)
+				{
+					Best = Passi.Last();
+				}
+				else
+				{
+					// Nessun cammino: ci si AVVICINA, che e' la condotta di CP 13.5 e non richiede che la meta sia
+					// raggiungibile. Restare vince a parita', quindi un bot gia' al punto migliore non oscilla.
+					int32 BestDistance = URTHexLibrary::HexDistance(Bot->Cell, SeekCell);
+					for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, BotIdx))
+					{
+						const int32 D = URTHexLibrary::HexDistance(R.Cell, SeekCell);
+						if (D < BestDistance || (D == BestDistance && URTHexLibrary::StableLess(R.Cell, Best)))
+						{
+							BestDistance = D;
+							Best = R.Cell;
+						}
 					}
 				}
 				Bot->PlannedCell = Best;
