@@ -4,6 +4,8 @@
 #include "GameFramework/GameModeBase.h"
 #include "RTFrontendGameMode.generated.h"
 
+
+class URTFrontendNavigator;
 /**
  * Il GameMode della **mappa del frontend** (CP 46.3, `#938`): l'unica cosa che apre il menu.
  *
@@ -75,6 +77,42 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Frontend")
 	bool StartFrontendForThisGame();
+
+	/**
+	 * Si mette in ascolto delle richieste di partita del navigatore (CP 46.4, #939).
+	 *
+	 * ⚠️ **Pubblica invece che chiusa dentro `BeginPlay`**, per la stessa ragione di
+	 * `StartFrontendForThisGame`: dentro l'hook sarebbe verificabile solo in PIE, e l'aggancio e' il punto
+	 * la cui ASSENZA `URTFrontendNavigator::StartMatch` segnala al `PLAY` successivo. Un test che non
+	 * potesse esercitarlo lascerebbe scoperto proprio quel difetto.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Frontend")
+	void ListenForMatchRequests(URTFrontendNavigator* Navigator);
+
+	/**
+	 * Apre il livello di partita. **Virtual perche' e' il seam dei test**: `UGameplayStatics::OpenLevel` in
+	 * un test aprirebbe davvero un livello, quindi il punto sostituibile sta dove l'apertura avviene e non
+	 * a monte — cosi' iscrizione, consumo e livello passato restano verificati headless.
+	 */
+	virtual void OpenMatchLevel(const FString& LevelName);
+
+protected:
+	/** Riceve l'annuncio, consuma la richiesta e apre. */
+	UFUNCTION()
+	void HandleMatchRequested(const FString& LevelName);
+
+	/**
+	 * Il navigatore che si sta ascoltando.
+	 *
+	 * ⚠️ **Si tiene invece di ricercarlo dalla `GameInstance`**: chi consuma dev'essere lo STESSO che ha
+	 * annunciato. Cercarlo a ogni callback funziona finche' ce n'e' uno solo, e smette di funzionare appena
+	 * non e' cosi' — misurato: il primo test spawnava il GameMode in un mondo la cui `GameInstance` non era
+	 * quella del navigatore, e il consumo trovava le mani vuote.
+	 */
+	UPROPERTY()
+	TObjectPtr<URTFrontendNavigator> ListenedNavigator;
+
+public:
 
 protected:
 	virtual void BeginPlay() override;

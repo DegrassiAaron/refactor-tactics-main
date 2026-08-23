@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "Frontend/RTFrontendNavigator.h"
+#include "Frontend/RTFrontendGameMode.h"
 #include "RTFrontendMatchListenerForTest.generated.h"
 
 /**
@@ -42,5 +43,28 @@ public:
 		{
 			bConsumedSomething = !Nav->ConsumePendingMatchLevel().IsEmpty();
 		}
+	}
+};
+
+/**
+ * `ARTFrontendGameMode` che REGISTRA l'apertura invece di eseguirla (CP 46.4, #939).
+ *
+ * ⚠️ **`OpenMatchLevel` e' virtual per questo**: `UGameplayStatics::OpenLevel` in un test aprirebbe davvero
+ * un livello, quindi il seam sta dove l'apertura avviene e non altrove. E' lo stesso criterio che
+ * `RTFrontendGameMode.h` applica gia' a `ConfigureMenuInput` e `StartFrontendForThisGame` — «dentro l'hook
+ * sarebbe verificabile solo in PIE, e questo e' un requisito del DoD, non un dettaglio».
+ */
+UCLASS()
+class ARTFrontendGameModeForTest : public ARTFrontendGameMode
+{
+	GENERATED_BODY()
+
+public:
+	/** I livelli di cui e' stata chiesta l'apertura, in ordine. */
+	TArray<FString> OpenedLevels;
+
+	virtual void OpenMatchLevel(const FString& LevelName) override
+	{
+		OpenedLevels.Add(LevelName);
 	}
 };
