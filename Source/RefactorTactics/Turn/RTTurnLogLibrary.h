@@ -64,6 +64,59 @@ public:
 	static FString DescribeEntry(const FRTTurnLogEntry& Entry);
 
 	/**
+	 * Prefisso dell'`ActionId` che dichiara una **causa di terreno** (`Terrain.Fire`, `Terrain.Ice`, ...).
+	 *
+	 * Vive qui e non nel `TurnManager` perche' lo condividono chi SCRIVE la voce e chi la INTERROGA: due
+	 * letterali uguali per abitudine sono la seconda verita' che `D-098` vieta, e diverge il giorno in cui
+	 * uno dei due cambia.
+	 */
+	static const TCHAR* TerrainCausePrefix() { return TEXT("Terrain."); }
+
+	/**
+	 * La voce e' **danno AMBIENTALE**, cioe' una di quelle in cui `UnitId` porta chi SUBISCE (`#1150`).
+	 *
+	 * Sono due, e la loro causa sta nell'`ActionId`: `Terrain.<Surface>` all'ingresso (`#1067`) e
+	 * `Status.Burning` nel Cleanup (`#625`). La seconda si CHIEDE a `TAG_Status_Burning`, non si riscrive.
+	 *
+	 * ⚠️ **L'elenco delle cause fallirebbe APERTO, e per questo non e' solo un elenco.** Una causa nuova —
+	 * `#1077` sta portando gli stati nel TurnLog — che nessuno aggiungesse qui verrebbe classificata come
+	 * danno INFLITTO, cioe' accreditata a chi la subisce: il verso pericoloso. La rete e' la forma della
+	 * voce, `SrcCell == TgtCell`, che un attacco non puo' avere. ⛔ Resta **secondaria** di proposito:
+	 * `AppendLogEntry` dichiara che `SrcCell` non identifica l'unita', e farne la regola sarebbe l'inferenza
+	 * che il formato ha smesso di sostenere quando `UnitId` e' nato (`D-063`).
+	 *
+	 * ⚠️ Falso positivo noto, e la sua direzione: un'area con fuoco amico che investa la cella di chi la
+	 * lancia viene contata come «subita». Sottostima il danno inflitto invece di gonfiarlo.
+	 */
+	static bool IsEnvironmentalDamage(const FRTTurnLogEntry& Entry);
+
+	/**
+	 * La voce e' **danno che `UnitId` ha inflitto a qualcun altro**: la domanda di chi aggrega il danno per
+	 * unita', e la ragione per cui `#1150` esiste.
+	 *
+	 * 🔴 **Il danno inflitto NON vive solo in `Combat`.** Overwatch lo scrive come `ReactionDecision`
+	 * (`FireChosen`, attore `WatchOwner`) e la previsione come `Predictive` (`TriggerMatched`, attore
+	 * `Shooter`). Filtrare la sola `Combat` restituiva **zero** per un `InterceptShot` andato a segno — lo
+	 * stesso numero plausibile e sbagliato che questa API esiste per impedire, nel verso opposto.
+	 *
+	 * ⚠️ **L'esito si legge per categoria, e `Amount` da solo non basta**: in `Fallback` quel campo porta un
+	 * `ERTActionInvalidReason`, non un danno. Un predicato «`Amount > 0`» sommerebbe codici di errore.
+	 *
+	 * ⚠️ **`UnitId == 0` e' falso**, sempre: lo zero significa «nessuna unita' dichiarata», e un predicato
+	 * che si chiama «inflitto da un attore» non puo' essere vero dove l'attore non c'e'.
+	 *
+	 * ⚠️ **`Healed` e `NoLineOfSight` restano fuori** e non e' ovvio in nessuno dei due: la cura ha un agente
+	 * vero — `UnitId` e' chi cura — ma non e' danno; un attacco fermato dalla copertura ha agente e categoria
+	 * giusti, e zero danno inflitto. Contarli darebbe due numeri sbagliati in versi opposti.
+	 *
+	 * ⛔ **I due predicati NON partizionano il TurnLog**: si escludono ma non esauriscono. `Healed`,
+	 * `NoLineOfSight` e ogni categoria non di danno non soddisfano nessuno dei due, e un consumatore che
+	 * sottraesse l'uno dall'altro contando su una partizione otterrebbe un residuo che non e' danno subito.
+	 */
+	static bool IsDamageInflictedByActor(const FRTTurnLogEntry& Entry);
+
+
+	/**
 	 * Il TurnLog intero in forma leggibile: una riga per voce, nell'ordine CANONICO.
 	 *
 	 * E' la meta' che mancava a `DescribeEntry`, ed e' la ragione per cui #79 chiede un log «coerente col

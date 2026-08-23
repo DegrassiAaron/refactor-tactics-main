@@ -11,6 +11,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTReactionLibrary.h"
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h" // #1150: «inflitto» si chiede al predicato, non si deduce dalle celle
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
@@ -125,12 +126,21 @@ namespace
 		MapActor->MapAsset->SortCells();
 	}
 
-	/** Danno registrato dal TurnLog sulla cella indicata (-1 se nessuna voce di combattimento la nomina). */
+	/**
+	 * Danno **inflitto da qualcuno** e registrato dal TurnLog sulla cella indicata (-1 se nessuna voce).
+	 *
+	 * 🔴 **Prima chiedeva solo `Category == Combat && TgtCell == Cell`, ed era l'inferenza sbagliata**
+	 * (`#1150`). Le voci ambientali — `Terrain.<Surface>` e `Status.Burning` — hanno `SrcCell == TgtCell ==`
+	 * la cella di chi subisce, e `SortTurnLog` ordina per cella prima che per azione: un bersaglio che stia
+	 * sul fuoco mentre viene colpito restituiva **il danno dell'hazard** invece di quello del colpo, e il
+	 * test lo avrebbe riportato come una regressione dell'intercetto. Oggi qui non capita perche' nessuno di
+	 * questi allestimenti mette fuoco sotto il bersaglio; domani basta una cella. Trovato in code review.
+	 */
 	int32 LoggedCombatDamageOn(const ARTTurnManager* TM, const FRTCellId& Cell)
 	{
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 		{
-			if (E.Category == ERTLogCategory::Combat && E.TgtCell == Cell) { return E.Amount; }
+			if (E.TgtCell == Cell && URTTurnLogLibrary::IsDamageInflictedByActor(E)) { return E.Amount; }
 		}
 		return -1;
 	}
