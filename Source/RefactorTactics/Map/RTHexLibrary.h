@@ -201,6 +201,22 @@ public:
 	static FColor SurfaceColor(ERTHexSurface Surface);
 
 	/**
+	 * Il SECONDO canale di una superficie: quanti anelli concentrici incide il suo glifo (`D-183`).
+	 *
+	 * `0` significa «nessun glifo», non «glifo vuoto»: cinque superfici su nove restano mono-canale, ed e' una
+	 * scelta dichiarata nel criterio 1 di `#956` — i quattro segni chiudono le collisioni misurate che le
+	 * riguardano.
+	 *
+	 * ⚠️ **DERIVATO dalla superficie, mai memorizzato sulla cella.** E' cio' che tiene insieme il canale forma
+	 * con il vincolo «nessun campo nuovo, nessuna migrazione di formato»: se diventasse un dato, l'hash della
+	 * mappa cambierebbe e ogni `.uasset` andrebbe risalvato.
+	 *
+	 * Intero e non float perche' il gate lo asserisce: due superfici si separano se il colore le separa OPPURE
+	 * se questo numero differisce, e un confronto fra interi non ha tolleranze da scegliere.
+	 */
+	static int32 SurfaceRingCount(ERTHexSurface Surface);
+
+	/**
 	 * Altezza (uu) del RILIEVO con cui l'editor mostra quanto costa attraversare una cella: il profilo della
 	 * mappa racconta dove si rallenta, senza aprire un pannello.
 	 *

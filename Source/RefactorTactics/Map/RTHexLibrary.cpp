@@ -217,13 +217,58 @@ FBox URTHexLibrary::CellsBoundsWorld(const TArray<FRTHexCellData>& Cells, const 
 	return Box;
 }
 
+int32 URTHexLibrary::SurfaceRingCount(ERTHexSurface Surface)
+{
+	// I quattro segni di `D-183`, per numero di anelli concentrici. L'area cresce col conteggio — 9,7% /
+	// 18,4% / 26,2% / 32,9% della faccia — quindi il canale si legge a picco come contrasto d'AREA, che e'
+	// la sola cosa che la seduta U18 ha misurato leggibile dall'alto (`PIE-HEX-VIZ-COSTO` ✅ contro
+	// `PIE-HEX-VIZ-BLOCCHI` ❌, dove «la differenza e' una proporzione che la vista di lavoro azzera»).
+	//
+	// ⚠️ `switch` esplicito e senza `default`: quando qualcuno aggiungera' una decima superficie, il
+	// compilatore chiedera' **che segno ha** invece di darle zero in silenzio. Un `default` qui renderebbe
+	// ogni superficie nuova mono-canale per omissione — ed e' il difetto che il gate esiste per impedire.
+	switch (Surface)
+	{
+	case ERTHexSurface::Smoke:       return 1;
+	case ERTHexSurface::HighGround:  return 2;
+	case ERTHexSurface::Conductive:  return 3;
+	case ERTHexSurface::Ice:         return 4;
+
+	// Mono-canale per SCELTA, non per omissione (criterio 1 di #956): i quattro segni chiudono le
+	// collisioni misurate che le riguardano.
+	case ERTHexSurface::Floor:
+	case ERTHexSurface::ShallowWater:
+	case ERTHexSurface::Rough:
+	case ERTHexSurface::Fire:
+	case ERTHexSurface::Void:
+		return 0;
+	}
+
+	return 0;
+}
+
 FColor URTHexLibrary::SurfaceColor(ERTHexSurface Surface)
 {
 	// Tinte scelte per essere distinguibili fra loro e dal rosso del blocco (test:
 	// Hex.SurfaceColorsAreDistinguishable). Cambiandone una, quel test dice subito se si e' persa la leggibilita'.
 	switch (Surface)
 	{
-	case ERTHexSurface::ShallowWater: return FColor(60, 120, 255);
+	// ⚠️ **G alzato da 120 a 145 il 2026-08-23** (#956), e il numero e' derivato, non scelto a occhio.
+	// A `(60,120,255)` la luminanza Rec.601 valeva **117,5** contro i **107,4** di `Rough`: 10,1 di distanza
+	// su una soglia di 20, cioe' due superfici comuni indistinguibili in una board vista in scala di grigi —
+	// e nessuna delle due riceve un glifo, quindi il canale forma non le separa.
+	//
+	// La coppia non compariva fra le esenzioni della issue: la spec dichiarava «5 collisioni su 7 chiuse» e
+	// ne nominava UNA sola come residua. L'ha trovata il gate, non una rilettura.
+	//
+	// Le cinque superfici senza glifo occupano `Void 85 · Rough 107 · ShallowWater 117 · Fire 157 · Floor 160`.
+	// Con `Floor~Fire` esente servono quattro slot a distanza 20: **60 punti su ~75 disponibili**. `+25` su G
+	// porta la luminanza a **132**, a 24,6 da `Rough` e 25,1 da `Fire` — l'unico punto che non stringe
+	// nessun'altra coppia. Abbassare `Rough` invece l'avrebbe schiacciata su `Void`, che dista gia' solo 22.
+	//
+	// Il criterio 6 di #956 autorizza il ritocco: «i colori restano placeholder sostituibili, il vincolo e' la
+	// ridondanza, non la tavolozza».
+	case ERTHexSurface::ShallowWater: return FColor(60, 145, 255);
 	case ERTHexSurface::Rough:        return FColor(140, 100, 60);
 	case ERTHexSurface::Fire:         return FColor(255, 130, 40);
 	case ERTHexSurface::Conductive:   return FColor(80, 230, 230);

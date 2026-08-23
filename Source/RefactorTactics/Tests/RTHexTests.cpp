@@ -679,6 +679,60 @@ bool FRTHexSurfaceColorTest::RunTest(const FString&)
 				static_cast<int32>(S)),
 			Distance(URTHexLibrary::SurfaceColor(S), URTHexLibrary::BlockedCellColor()) >= 60);
 	}
+
+	// ── CP 47.3 (#956): il SECONDO canale ──────────────────────────────────────────────────────────
+	//
+	// 🔴 **La guardia che mancava.** L'elenco qui sopra e' scritto a mano perche' l'enum non dichiara
+	// `TEnumRange`, e finora nulla lo teneva allineato: una decima superficie sarebbe nata SCOPERTA da
+	// entrambi i canali, senza che un solo test cadesse. E' il difetto che `AllOutcomes` ha gia' pagato per
+	// `ERTStartupOutcome`, dove la lista a mano e l'enum avevano divergito.
+	const UEnum* SurfaceEnum = StaticEnum<ERTHexSurface>();
+	if (TestNotNull(TEXT("l'enum delle superfici e' riflesso"), SurfaceEnum))
+	{
+		// `NumEnums()` include il `_MAX` sintetico che UHT aggiunge: si sottrae.
+		TestEqual(TEXT("l'elenco di questo test copre TUTTE le superfici dell'enum"),
+			SurfaceEnum->NumEnums() - 1, All.Num());
+	}
+
+	// Luminanza Rec.601: e' la conversione con cui si guarda uno screenshot in scala di grigi, ed e' li' che
+	// #956 ha misurato **7 coppie su 36** collassate — una board che si legge a colori e non si legge senza.
+	auto Luma = [](const FColor& C)
+	{
+		return 0.299f * C.R + 0.587f * C.G + 0.114f * C.B;
+	};
+
+	// La soglia e' **derivata da quella del colore, non scelta**: su due grigi la somma per canale vale tre
+	// volte la differenza di luminanza, quindi `60 / 3 = 20`. Un secondo numero arbitrario avrebbe reso il
+	// gate piu' severo o piu' lasco senza che nessuno sapesse dire di quanto.
+	const float LumaThreshold = 60.f / 3.f;
+
+	for (int32 I = 0; I < All.Num(); ++I)
+	{
+		for (int32 J = I + 1; J < All.Num(); ++J)
+		{
+			// ⛔ **L'unica esenzione, dichiarata invece che scoperta a consuntivo** (criterio 2 di #956):
+			// `Floor~Fire` collassa in entrambe le conversioni e nessuna delle due riceve un glifo. Per
+			// quella coppia la regola del titolo — «colore E forma» — non e' rinviata: NON SI APPLICA.
+			const bool bEsente =
+				(All[I] == ERTHexSurface::Floor && All[J] == ERTHexSurface::Fire)
+				|| (All[I] == ERTHexSurface::Fire && All[J] == ERTHexSurface::Floor);
+			if (bEsente) { continue; }
+
+			const float DLuma = FMath::Abs(Luma(URTHexLibrary::SurfaceColor(All[I]))
+				- Luma(URTHexLibrary::SurfaceColor(All[J])));
+			const bool bFormaSepara =
+				URTHexLibrary::SurfaceRingCount(All[I]) != URTHexLibrary::SurfaceRingCount(All[J]);
+
+			// **Colore OPPURE forma**, non «i quattro glifi sono diversi»: e' la regola di `D-146` applicata
+			// alla coppia, e l'unica che dica qualcosa su una board vista in scala di grigi.
+			TestTrue(*FString::Printf(
+					TEXT("superfici %d e %d: separate in scala di grigi (dLuma %.1f, soglia %.1f) o dalla forma (%d vs %d)"),
+					static_cast<int32>(All[I]), static_cast<int32>(All[J]), DLuma, LumaThreshold,
+					URTHexLibrary::SurfaceRingCount(All[I]), URTHexLibrary::SurfaceRingCount(All[J])),
+				DLuma >= LumaThreshold || bFormaSepara);
+		}
+	}
+
 	return true;
 }
 
