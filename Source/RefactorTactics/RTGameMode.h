@@ -353,6 +353,18 @@ private:
 	bool ApplyMatchFormat(ARTTurnManager* TurnManager, const URTHexMapAsset* Map, FRTMatchRules& OutRules);
 
 	/**
+	 * Porta il verdetto di fine partita alla schermata di Result (CP 46.5, `#940` · `#939`).
+	 *
+	 * ⚠️ **Sta qui e non nel `TurnManager`** perché questo è l'unico punto che conosce sia il turno sia il
+	 * frontend: la simulazione annuncia il verdetto che ha già dato, e non deve sapere che esista una UI.
+	 *
+	 * ⚠️ **E non ricalcola niente**: passa a `ShowResult` il `FRTMatchResult` ricevuto, che è la stessa
+	 * regola per cui il view model legge invece di ridare il verdetto.
+	 */
+	UFUNCTION()
+	void HandleMatchEnded(const FRTMatchResult& Result, const FRTMatchState& State);
+
+	/**
 	 * Spawna l'eroe con l'`HeroId` dato. `Hero == nullptr` non spawna nulla (fail-closed): un'unita' con
 	 * statistiche di default al posto di un eroe sarebbe piu' difficile da diagnosticare di un'unita' assente.
 	 */

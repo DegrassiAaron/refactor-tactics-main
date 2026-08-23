@@ -9,6 +9,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Turn/RTTurnManager.h"
+#include "Frontend/RTFrontendNavigator.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
@@ -591,6 +592,16 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	FRTMatchRules Rules;
 	ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+
+	// 🔴 **L'iscrizione all'annuncio di fine partita.** E' il punto in cui questo GameMode incontra il
+	// `TurnManager`, quindi e' qui che si mette in ascolto: `BeginPlay` sarebbe troppo presto — il
+	// `TurnManager` puo' non esistere ancora — e legarsi piu' tardi vorrebbe dire cercarlo una seconda volta.
+	// `AddUniqueDynamic` perche' un allestimento ripetuto non deve aprire due Result.
+	if (TurnManager)
+	{
+		TurnManager->OnMatchEnded.AddUniqueDynamic(this, &ARTGameMode::HandleMatchEnded);
+	}
+
 	if (!ApplyMatchFormat(TurnManager, HexMap->MapAsset, Rules))
 	{
 		// ⚠️ La fase resta a `Scenario`, non torna a `Idle`: **dove** ci si e' fermati e' l'informazione
@@ -1070,4 +1081,25 @@ FString ARTGameMode::GetScenarioBannerText() const
 
 	return FString::Printf(TEXT("SCENARIO %s [%s]  -  %s  -  la partita normale NON e' allestita"),
 		*ScenarioId, Source, *Esito);
+}
+
+void ARTGameMode::HandleMatchEnded(const FRTMatchResult& Result, const FRTMatchState& State)
+{
+	UGameInstance* GameInstance = GetGameInstance();
+	URTFrontendNavigator* Navigator = GameInstance ? GameInstance->GetSubsystem<URTFrontendNavigator>() : nullptr;
+	if (!Navigator)
+	{
+		// ⚠️ Non e' un errore: uno scenario headless o un test di simulazione girano senza frontend, e la
+		// partita deve poter finire lo stesso. Chi ha bisogno del Result e' il gioco, non il resolver.
+		UE_LOG(LogRT, Verbose,
+			TEXT("[RT] Partita finita senza frontend: nessuna schermata di Result da aprire."));
+		return;
+	}
+
+	const ERTNavResult NavResult = Navigator->ShowResult(Result, State);
+	if (NavResult != ERTNavResult::Ok)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT] Fine partita: il Result non si e' aperto (%s)."),
+			*UEnum::GetValueAsString(NavResult));
+	}
 }
