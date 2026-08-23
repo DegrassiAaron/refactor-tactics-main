@@ -79,6 +79,13 @@ Content/**/*.txt
 !Content/RT/Maps/**/*.umap
 !Content/RT/Maps/**/*.uasset
 
+# ⛔ ...ma NON gli scratch d'editor. La negazione qui sopra e' generica, e il suo rovescio non era stato
+# considerato: rendeva committabile ogni artefatto usa-e-getta salvato sotto `Maps/` durante una seduta PIE.
+# Misurato il 2026-08-23: `_Scratch/NewDataAsset.uasset` — il salvataggio di PIE-HEX-TRANS del 2026-08-16,
+# untracked sul disco da una settimana — e' entrato in un commit di test C++ al primo `git add -A`, in una
+# PR che non lo nominava. Un `.uasset` non si fonde, e nessuno sa se e' sicuro cancellarlo.
+Content/RT/Maps/**/_Scratch/
+
 # ---- Asset di terze parti scaricati da Fab (2026-08-06) ----
 # I pack stanno NEL progetto sotto Content/FabAsset/ ma NON nel repo: chi clona se li scarica da Fab
 # e li mette li' (procedura nel README e in convenzioni-contenuti-ue.md, appendice B).
