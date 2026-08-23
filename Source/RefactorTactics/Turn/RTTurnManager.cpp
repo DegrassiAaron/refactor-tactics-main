@@ -1259,6 +1259,9 @@ void ARTTurnManager::LockInAndResolve()
 	MatchState.Team1Score = Team1Score;
 	MatchState.RoundNumber = TurnNumber;
 	PendingResult = URTTurnRules::EvaluateMatchEnd(MatchState, MatchRules);
+	// Lo stato su cui il verdetto e' stato dato viaggia con lui: `OnMatchEnded` lo annuncia da
+	// `ConcludeTurn`, e ricostruirlo la' sarebbe un secondo calcolo che puo' divergere da questo.
+	PendingState = MatchState;
 
 	// Il playback di QUESTO turno parte da zero anche se non verra' riprodotto: senza, il ramo senza
 	// playback lascerebbe il valore del turno precedente e la misura leggerebbe una durata mai avvenuta.
@@ -2087,6 +2090,20 @@ void ARTTurnManager::ConcludeTurn()
 		// questa riga non venisse mai eseguita — crash, uscita — il manifest resterebbe non chiuso, ed e'
 		// esattamente cosi' che un archivio parziale si riconosce.
 		CloseReplayArchive();
+
+		// 🔴 **L'annuncio di fine partita, ed e' l'unica cosa che collega il turno alla schermata di
+		// Result.** Senza, `URTFrontendNavigator::ShowResult` restava senza chiamanti: esisteva, era
+		// testata, e a fine partita non la invocava nessuno — il DoD di `#939` chiede «dopo la partita si
+		// arriva a CP 46.5, non al desktop».
+		//
+		// ⚠️ **Qui la simulazione non conosce il frontend**, e non deve: annuncia il verdetto che ha gia'
+		// dato e chi ascolta decide. `ARTGameMode` apre il Result; uno scenario headless non ascolta, e
+		// per lui non cambia niente.
+		//
+		// ⚠️ **Dopo `CloseReplayArchive`**: chi ascolta puo' voler leggere la traccia, e un manifest
+		// ancora aperto la descriverebbe come una partita in corso.
+		OnMatchEnded.Broadcast(PendingResult, PendingState);
+
 		return; // niente nuovo turno
 	}
 
