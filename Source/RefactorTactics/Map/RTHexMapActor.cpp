@@ -48,6 +48,19 @@ namespace
 	 * cambiarle qui muoverebbe in silenzio ogni quota gia' tarata.
 	 */
 	constexpr float RTCellPrismRadius = 50.f;
+
+	/**
+	 * Il glifo di superficie (`#956`, `D-183`), in FRAZIONI DEL RAGGIO e mai in uu: con `#1155`
+	 * (`HexSize` -> 150) le proporzioni si conservano, mentre scritte assolute il segno passerebbe dal 5,3%
+	 * al 3,5% del raggio — il difetto che `D-163` registra per le altezze.
+	 *
+	 * `0,95` e' il bordo del disco, ricavato dal CODICE e non dal commento della scala annidata: quello
+	 * dichiara 0,85 per il contorno di superficie, che a runtime sta invece a 0,90 (`DrawRing`).
+	 */
+	constexpr float RTGlyphOuterScale = 0.95f;
+	constexpr float RTGlyphThickness = 0.0526f;
+	constexpr float RTGlyphGap = 0.0421f;
+	constexpr int32 RTGlyphMaxRings = 4;
 	constexpr float RTCellPrismHalfHeight = 50.f;
 
 	/**
@@ -99,6 +112,90 @@ namespace
 	constexpr float RTLiftSurface = RTCellTopZ + 0.5f;  // contorno della superficie (contesto)
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
+}
+
+UStaticMesh* ARTHexMapActor::GetCellGlyphMesh(int32 RingCount)
+{
+	// Mono-canale per SCELTA (criterio 1 di #956): cinque superfici su nove non ricevono un segno, e
+	// `nullptr` lo dice meglio di una mesh vuota — chi la montasse pagherebbe un ISM per zero pixel.
+	if (RingCount <= 0 || RingCount > RTGlyphMaxRings)
+	{
+		return nullptr;
+	}
+
+	// Una cache PER CONTEGGIO, con la disciplina di `GetCellPrismMesh`: `TStrongObjectPtr` tiene le mesh
+	// fuori dalla portata del GC senza `AddToRoot` a mano.
+	static TStrongObjectPtr<UStaticMesh> Cached[RTGlyphMaxRings];
+	if (Cached[RingCount - 1].IsValid())
+	{
+		return Cached[RingCount - 1].Get();
+	}
+
+	FMeshDescription Description;
+	FStaticMeshAttributes Attributes(Description);
+	Attributes.Register();
+	TVertexAttributesRef<FVector3f> Positions = Attributes.GetVertexPositions();
+
+	const FPolygonGroupID Group = Description.CreatePolygonGroup();
+	Attributes.GetPolygonGroupMaterialSlotNames()[Group] = TEXT("Default");
+
+	// Gli anelli crescono VERSO L'INTERNO dal bordo del disco: l'anello `i` occupa
+	// `[Outer - i*(Thickness+Gap) - Thickness, Outer - i*(Thickness+Gap)]`. Con le costanti di `D-183` i
+	// raggi interni cadono a 0,90 / 0,80 / 0,71 / 0,61 — i numeri della sua tabella.
+	for (int32 Ring = 0; Ring < RingCount; ++Ring)
+	{
+		const float OuterScale = RTGlyphOuterScale - Ring * (RTGlyphThickness + RTGlyphGap);
+		const float InnerScale = OuterScale - RTGlyphThickness;
+
+		// ⚠️ I vertici vengono da `HexCorners`, NON da un secondo `cos(60k-30)` scritto qui: e' il vincolo
+		// che `#712` ha pagato a schermo, dove il bordo era un esagono e il pieno un cerchio.
+		const TArray<FVector> OuterCorners = URTHexLibrary::HexCorners(FVector::ZeroVector, RTCellPrismRadius * OuterScale);
+		const TArray<FVector> InnerCorners = URTHexLibrary::HexCorners(FVector::ZeroVector, RTCellPrismRadius * InnerScale);
+		if (OuterCorners.Num() != 6 || InnerCorners.Num() != 6)
+		{
+			return nullptr;
+		}
+
+		TArray<FVertexID> OuterIds;
+		TArray<FVertexID> InnerIds;
+		for (int32 Corner = 0; Corner < 6; ++Corner)
+		{
+			const FVertexID O = Description.CreateVertex();
+			Positions[O] = FVector3f(static_cast<float>(OuterCorners[Corner].X),
+				static_cast<float>(OuterCorners[Corner].Y), 0.f);
+			OuterIds.Add(O);
+
+			const FVertexID I = Description.CreateVertex();
+			Positions[I] = FVector3f(static_cast<float>(InnerCorners[Corner].X),
+				static_cast<float>(InnerCorners[Corner].Y), 0.f);
+			InnerIds.Add(I);
+		}
+
+		// La corona: sei quad fra i due esagoni. Piatta — il glifo e' INCISO nella faccia, non un volume:
+		// a picco si legge come area, ed e' l'unico canale che la seduta U18 ha misurato leggibile dall'alto.
+		for (int32 Edge = 0; Edge < 6; ++Edge)
+		{
+			const int32 Next = (Edge + 1) % 6;
+			TArray<FVertexInstanceID> Instances;
+			for (const FVertexID V : { InnerIds[Edge], InnerIds[Next], OuterIds[Next], OuterIds[Edge] })
+			{
+				Instances.Add(Description.CreateVertexInstance(V));
+			}
+			Description.CreatePolygon(Group, Instances);
+		}
+	}
+
+	UStaticMesh* Mesh = NewObject<UStaticMesh>(GetTransientPackage(),
+		*FString::Printf(TEXT("RT_CellGlyph_%d"), RingCount), RF_Transient);
+	Mesh->GetStaticMaterials().Add(FStaticMaterial());
+
+	UStaticMesh::FBuildMeshDescriptionsParams Params;
+	Params.bBuildSimpleCollision = false;
+	Params.bFastBuild = true;
+	Mesh->BuildFromMeshDescriptions({ &Description }, Params);
+
+	Cached[RingCount - 1].Reset(Mesh);
+	return Mesh;
 }
 
 UStaticMesh* ARTHexMapActor::GetCellPrismMesh()

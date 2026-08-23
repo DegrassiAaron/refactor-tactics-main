@@ -75,6 +75,25 @@ public:
 	static UStaticMesh* GetCellPrismMesh();
 
 	/**
+	 * Mesh del GLIFO di superficie (`#956`, `D-183`): `RingCount` corone esagonali concentriche, piatte.
+	 *
+	 * E' il secondo canale della board — colore E forma — e si legge a picco come **contrasto d'area**: 9,7% /
+	 * 18,4% / 26,2% / 32,9% della faccia per uno / due / tre / quattro anelli. E' l'unico criterio che la
+	 * seduta U18 ha misurato leggibile dall'alto (`PIE-HEX-VIZ-COSTO` ✅ contro `PIE-HEX-VIZ-BLOCCHI` ❌,
+	 * dove «la differenza e' una proporzione che la vista di lavoro azzera»).
+	 *
+	 * Gli anelli crescono VERSO L'INTERNO dal bordo del disco (`0,95` del raggio), con spessore e gap come
+	 * **frazioni del raggio** e non in uu: con `#1155` (`HexSize` -> 150) le proporzioni si conservano, mentre
+	 * scritti assoluti il glifo passerebbe dal 5,3% al 3,5% del raggio — il difetto che `D-163` registra per
+	 * le altezze.
+	 *
+	 * `RingCount <= 0` restituisce `nullptr`: cinque superfici su nove sono mono-canale per scelta.
+	 * Una cache per conteggio, come `GetCellPrismMesh`, e i vertici chiesti a `URTHexLibrary::HexCorners` —
+	 * mai a un secondo `cos(60k-30)` scritto qui, che e' il difetto di `#712`.
+	 */
+	static UStaticMesh* GetCellGlyphMesh(int32 RingCount);
+
+	/**
 	 * La trasformazione del pannello di un muro interno, dai due estremi del segmento in coordinate LOCALI
 	 * alla cella.
 	 *

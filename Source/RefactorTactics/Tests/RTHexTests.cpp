@@ -752,6 +752,86 @@ bool FRTHexSurfaceColorTest::RunTest(const FString&)
  * nel `writable` di `content_editor`, e «il modulo e il suo test si toccano insieme» non autorizza a
  * prendersi un file che non si ha.
  */
+
+/**
+ * #956 / `D-183`: le corone del glifo nascono dagli STESSI vertici della cella.
+ *
+ * ⚠️ E' il test di `#712` applicato al secondo canale, e per la stessa ragione: due disegni della stessa
+ * forma divergono appena qualcuno riscrive `cos(60k-30)` invece di chiedere a `HexCorners`. Li' il bordo
+ * era un esagono e il pieno un cerchio; qui il glifo sarebbe ruotato rispetto alla cella che incide.
+ *
+ * Verifica anche i RAGGI, perche' e' li' che vive la leggibilita': gli anelli crescono verso l'interno dal
+ * bordo del disco (`0,95`), e i raggi interni che ne risultano — `0,90 / 0,80 / 0,71 / 0,61` — sono i
+ * numeri che `D-183` ha scelto guardando l'area, non lo spessore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlyphMeshMatchesHexCornersTest,
+	"RefactorTactics.Hex.GlyphMeshMatchesHexCorners",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGlyphMeshMatchesHexCornersTest::RunTest(const FString&)
+{
+	constexpr float Radius = 50.f;
+	constexpr float Outer = 0.95f;
+	constexpr float Thickness = 0.0526f;
+	constexpr float Gap = 0.0421f;
+
+	// Mono-canale per scelta: nessun glifo, non un glifo vuoto.
+	TestNull(TEXT("zero anelli non produce mesh"), ARTHexMapActor::GetCellGlyphMesh(0));
+
+	for (int32 Rings = 1; Rings <= 4; ++Rings)
+	{
+		UStaticMesh* Mesh = ARTHexMapActor::GetCellGlyphMesh(Rings);
+		if (!TestNotNull(*FString::Printf(TEXT("il glifo a %d anelli si costruisce"), Rings), Mesh))
+		{
+			continue;
+		}
+
+		// I raggi attesi: per ogni anello, esterno e interno.
+		//
+		// ⚠️ **Confronto con TOLLERANZA, non per chiave stringa.** La prima stesura usava `%.2f` come fa il
+		// test del prisma, e cadeva su 4 vertici su 24: li' i raggi sono tondi (50), qui no (44,87), e un
+		// valore che cade a meta' del centesimo arrotonda in modo diverso fra i due percorsi di calcolo. Il
+		// difetto era nel metodo di verifica, non nella geometria.
+		TArray<FVector2D> Expected;
+		for (int32 I = 0; I < Rings; ++I)
+		{
+			const float RingOuter = Outer - I * (Thickness + Gap);
+			for (const float R : { RingOuter, RingOuter - Thickness })
+			{
+				for (const FVector& C : URTHexLibrary::HexCorners(FVector::ZeroVector, Radius * R))
+				{
+					Expected.Add(FVector2D(C.X, C.Y));
+				}
+			}
+		}
+
+		const FStaticMeshRenderData* Render = Mesh->GetRenderData();
+		if (!TestTrue(*FString::Printf(TEXT("il glifo a %d anelli ha render data"), Rings),
+			Render != nullptr && Render->LODResources.Num() > 0))
+		{
+			continue;
+		}
+
+		const FPositionVertexBuffer& Buffer = Render->LODResources[0].VertexBuffers.PositionVertexBuffer;
+		int32 Fuori = 0;
+		for (uint32 V = 0; V < Buffer.GetNumVertices(); ++V)
+		{
+			const FVector3f P = Buffer.VertexPosition(V);
+			bool bTrovato = false;
+			for (const FVector2D& E : Expected)
+			{
+				// 0,05 uu su un raggio di 50: un millesimo. Separa l'errore di arrotondamento da un vertice
+				// che sta su un raggio DIVERSO — i raggi adiacenti distano 2,6 uu, cinquanta volte tanto.
+				if (FMath::Abs(P.X - E.X) < 0.05 && FMath::Abs(P.Y - E.Y) < 0.05) { bTrovato = true; break; }
+			}
+			if (!bTrovato) { ++Fuori; }
+		}
+		TestEqual(*FString::Printf(
+			TEXT("glifo a %d anelli: ogni vertice sta su un raggio di HexCorners (fuori: %d su %u)"),
+			Rings, Fuori, Buffer.GetNumVertices()), Fuori, 0);	}
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellPrismMatchesHexCornersTest,
 	"RefactorTactics.Hex.CellPrismMatchesHexCorners",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
