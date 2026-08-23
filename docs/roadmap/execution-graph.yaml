@@ -323,6 +323,12 @@ nodes:
     release: v0.1
     domain_group: tooling_data_qa
 
+  # ➕ 2026-08-23 — `#79` entra nel grafo per la SUA meta' del DoD di E47.6, non come checkpoint di E11.
+  # Non c'era, e la sua assenza rendeva la catena D piu' corta di quanto e'.
+  - id: issue:79
+    release: v0.1
+    checkpoint: E11.3
+
   # ➕ **2026-08-17 — `#833` entra nel grafo.** Decisione d'autore: la issue e' **v0.1** (label `v0.1`,
   # milestone `v0.1 · Mondo giocabile`, e `RT-FEAT-MAP-INTERACTION-GRAPH` passa a `release: v0.1`).
   # Prima non esisteva come nodo, quindi la sua topologia non era verificabile: un documento la
@@ -445,6 +451,22 @@ relations:
       test: e' precisamente la riserva che G13 dichiara». #1069 e' il `BP_GameMode` spedito con
       `MapSource = GeneratedTestArena`, cioe' proprio quella. Registrare senza chiuderla riprodurrebbe
       la riserva invece di toglierla, e G13 resterebbe 🟡.
+
+  # ➕ 2026-08-23 — il terzo blocco di E47.6, trovato eseguendo la partita invece di leggerla.
+  - from: issue:79
+    to: issue:959
+    type: requires
+    rationale: >-
+      Il DoD di #959 chiede che l'evidenza mostri «almeno un evento `Combat` a schermo E la riga di log
+      col reason code corrispondente allo stesso turno» — ed e' la ragione dichiarata per cui pretende
+      video E log invece di uno solo dei due. Quella seconda meta' oggi non e' producibile: il
+      combattimento vive nel `TurnLog` come `ERTLogCategory::Combat`, il log di sessione non lo stampa
+      — l'unica riga di fase nel codice e' `Fase Move: risolte %d unita'` (`RTTurnManager.cpp:4749`) —
+      e nessuno dei dodici comandi `rt.*` espone il TurnLog di una partita viva (`rt.Test.DumpResult`
+      serve gli scenari). Misurato il 2026-08-23 su `L_HexArena` con `-RTAutobattle`: dodici round,
+      unita' che si muovono e si avvicinano fino a due celle, e nessun modo di sapere da fuori se si
+      siano colpite.
+
 
   - from: issue:955
     to: issue:958

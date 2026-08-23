@@ -64,6 +64,19 @@ public:
 	static FString DescribeEntry(const FRTTurnLogEntry& Entry);
 
 	/**
+	 * Il TurnLog intero in forma leggibile: una riga per voce, nell'ordine CANONICO.
+	 *
+	 * E' la meta' che mancava a `DescribeEntry`, ed e' la ragione per cui #79 chiede un log «coerente col
+	 * TurnLog serializzato: stesse informazioni, stesso ordine». Finche' le righe leggibili nascono sparse
+	 * durante la risoluzione e il TurnLog nasce altrove, i due sono due produttori indipendenti: coincidono
+	 * per abitudine, non per costruzione, e nessuno se ne accorge il giorno in cui smettono.
+	 *
+	 * Ordina con `SortTurnLog` prima di descrivere, cosi' la sequenza non dipende dall'ordine di arrivo.
+	 * Pura: nessun Actor, nessuno stato.
+	 */
+	static TArray<FString> DescribeTurnLog(TArray<FRTTurnLogEntry> Entries);
+
+	/**
 	 * L'identita' dell'azione di una voce, come **azione base + profilo** quando la voce sa dirlo:
 	 * `Action.BasicAttack · Riktor.ImpactShot`. E' la forma che [D-033](../../../docs/decisions/RT_PDR_00_Decision_Log.md)
 	 * chiede — «spiegabile nel TurnLog come azione base + profilo» — e senza di essa una traccia dice solo
