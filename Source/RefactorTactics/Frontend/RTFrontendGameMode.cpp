@@ -2,6 +2,7 @@
 
 #include "Frontend/RTFrontendNavigator.h"
 #include "Engine/GameInstance.h"
+#include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
 #include "RefactorTactics.h"
 
@@ -26,6 +27,20 @@ void ARTFrontendGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 	StartFrontendForThisGame();
+
+	// 🔴 **Senza questa iscrizione il consumatore era codice morto**, e otto test verdi non lo vedevano:
+	// li chiamavano tutti `ListenForMatchRequests` a mano. In PIE `PLAY` scriveva la richiesta, la
+	// annunciava a zero ascoltatori, e il sintomo arrivava sbagliato — il `PLAY` *successivo* veniva
+	// rifiutato con «richiesta mai consumata», che punta il dito su chi non consuma invece che su chi non
+	// si e' mai iscritto. Trovato in code review.
+	//
+	// ⚠️ **Non e' subordinata all'esito di `StartFrontendForThisGame`**: sono due cose diverse, e legarle
+	// farebbe saltare l'ascolto per un motivo che con l'ascolto non c'entra. La guardia sul navigatore
+	// nullo sta gia' dentro `ListenForMatchRequests`.
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		ListenForMatchRequests(GameInstance->GetSubsystem<URTFrontendNavigator>());
+	}
 }
 
 void ARTFrontendGameMode::PostLogin(APlayerController* NewPlayer)
@@ -79,4 +94,42 @@ bool ARTFrontendGameMode::StartFrontendForThisGame()
 
 	// L'esito e' del navigatore: qui non si ridecide niente, si riporta.
 	return Navigator->StartFrontend();
+}
+
+void ARTFrontendGameMode::ListenForMatchRequests(URTFrontendNavigator* Navigator)
+{
+	if (!Navigator)
+	{
+		UE_LOG(LogRT, Error,
+			TEXT("[RT] Nessun navigatore da ascoltare: PLAY non aprirebbe nulla."));
+		return;
+	}
+
+	// `AddUniqueDynamic` e non `AddDynamic`: `BeginPlay` puo' correre piu' di una volta sullo stesso
+	// GameMode in editor, e due iscrizioni aprirebbero il livello due volte.
+	ListenedNavigator = Navigator;
+	Navigator->OnMatchRequested.AddUniqueDynamic(this, &ARTFrontendGameMode::HandleMatchRequested);
+}
+
+void ARTFrontendGameMode::HandleMatchRequested(const FString& LevelName)
+{
+	// ⚠️ Si CONSUMA, non si legge: la richiesta deve sparire, altrimenti il `PLAY` successivo viene
+	// rifiutato dalla guardia che segnala l'aggancio mancante — e l'aggancio invece c'e'.
+	const FString Consumed = ListenedNavigator ? ListenedNavigator->ConsumePendingMatchLevel() : FString();
+
+	if (Consumed.IsEmpty())
+	{
+		// L'annuncio e' arrivato ma la richiesta non c'era: e' l'ordine invertito che il contratto vieta.
+		UE_LOG(LogRT, Error,
+			TEXT("[RT] Annuncio di partita per '%s' senza richiesta pendente: nulla da aprire."), *LevelName);
+		return;
+	}
+
+	OpenMatchLevel(Consumed);
+}
+
+void ARTFrontendGameMode::OpenMatchLevel(const FString& LevelName)
+{
+	UE_LOG(LogRT, Log, TEXT("[RT] Apertura del livello di partita: '%s'"), *LevelName);
+	UGameplayStatics::OpenLevel(this, FName(*LevelName));
 }
