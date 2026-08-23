@@ -34,6 +34,7 @@ public:
 	/** Se al momento dell'annuncio la richiesta era davvero pendente e consumabile. */
 	bool bConsumedSomething = false;
 
+	UFUNCTION()
 	void OnRequested(const FString& LevelName)
 	{
 		++Calls;

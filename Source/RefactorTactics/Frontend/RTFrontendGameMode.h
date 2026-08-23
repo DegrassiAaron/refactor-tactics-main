@@ -97,7 +97,15 @@ public:
 	virtual void OpenMatchLevel(const FString& LevelName);
 
 protected:
-	/** Riceve l'annuncio, consuma la richiesta e apre. */
+	/**
+	 * Riceve l'annuncio, consuma la richiesta e apre.
+	 *
+	 * ⚠️ **`UFUNCTION` perché il delegate è dinamico**, e il delegate è dinamico perché è
+	 * `BlueprintAssignable`: il frontend è fatto di Blueprint, e un annuncio che solo il C++ può ascoltare
+	 * chiuderebbe fuori proprio chi lo userà. Un giro di indagine l'aveva reso non-dinamico per provare se
+	 * la reflection c'entrasse col mancato recapito — non c'entrava, e il cambio è stato annullato.
+	 */
+	UFUNCTION()
 	void HandleMatchRequested(const FString& LevelName);
 
 	/**

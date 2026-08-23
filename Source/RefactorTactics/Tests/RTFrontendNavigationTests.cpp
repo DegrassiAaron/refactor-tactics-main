@@ -1010,7 +1010,7 @@ bool FRTFrontendStartMatchAnnouncesTheRequestTest::RunTest(const FString&)
 	// Un ascoltatore che si comporta come il consumatore vero: sente, consuma, e registra cosa ha visto.
 	URTFrontendMatchListenerForTest* Listener = NewObject<URTFrontendMatchListenerForTest>();
 	Listener->Nav = Nav;
-	FDelegateHandle Handle = Nav->OnMatchRequested.AddUObject(Listener, &URTFrontendMatchListenerForTest::OnRequested);
+	Nav->OnMatchRequested.AddUniqueDynamic(Listener, &URTFrontendMatchListenerForTest::OnRequested);
 
 	TestEqual(TEXT("l'avvio passa"), Nav->StartMatch(), ERTNavResult::Ok);
 
@@ -1024,7 +1024,7 @@ bool FRTFrontendStartMatchAnnouncesTheRequestTest::RunTest(const FString&)
 	TestEqual(TEXT("e si puo' rigiocare"), Nav->StartMatch(), ERTNavResult::Ok);
 	Nav->ConsumePendingMatchLevel();
 
-	Nav->OnMatchRequested.Remove(Handle);
+	Nav->OnMatchRequested.RemoveDynamic(Listener, &URTFrontendMatchListenerForTest::OnRequested);
 	ReleaseNavigator(GI);
 	return true;
 }
@@ -1060,6 +1060,22 @@ bool FRTFrontendGameModeConsumesTheRequestTest::RunTest(const FString&)
 	Nav->RegisterScreensFromConfig();
 	Nav->InitializeFrontend(RTScreenIds::Main);
 	Nav->MatchLevel = TEXT("/Game/RT/Maps/Dev/L_HexArena/L_HexArena");
+
+	// 🔴 **Il mondo deve aver inizializzato i suoi actor, o il broadcast non arriva — e non lo dice.**
+	// `AActor::ProcessEvent` scarta ogni evento se `GetWorld()->AreActorsInitialized()` è falso, e un
+	// delegate **dinamico** invoca proprio da lì. Misurato: senza questa riga il flag è `0` e il GameMode
+	// non riceve niente, mentre un `UObject` legato allo stesso delegate riceve — perché passa da
+	// `UObject::ProcessEvent`, che quella guardia non ce l'ha.
+	//
+	// ⚠️ **Non basta `DispatchBeginPlay()` sull'actor**, che era il tentativo naturale e falso: misurato
+	// `HasActorBegunPlay=1` insieme ad `AreActorsInitialized=0`. Il flag è del **mondo**, non dell'actor,
+	// e le due domande si somigliano abbastanza da far cercare per ore dalla parte sbagliata.
+	// ⚠️ **E la `GameInstance` va legata al mondo prima**, o il `GameMode` che ora riceve davvero l'evento
+	// si ferma sul suo primo controllo: «questa mappa non ha una GameInstance, e il navigatore vive lì».
+	// In produzione la mappa ce l'ha sempre; qui il navigatore nasceva in una GI scollegata dal mondo, ed
+	// era una differenza che nessuno vedeva finché il broadcast non arrivava a destinazione.
+	World->SetGameInstance(GI);
+	World->InitializeActorsForPlay(FURL());
 
 	ARTFrontendGameModeForTest* GameMode = World->SpawnActor<ARTFrontendGameModeForTest>();
 	if (!TestNotNull(TEXT("il GameMode del frontend esiste"), GameMode))

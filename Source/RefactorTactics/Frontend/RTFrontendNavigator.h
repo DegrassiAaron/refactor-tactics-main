@@ -56,7 +56,7 @@ struct FRTScreenBinding
  * ⛔ **Serve perche' il consumatore non puo' SAPERE quando.** Senza annuncio dovrebbe interrogare lo stato
  * a ogni frame, e `CLAUDE.md` vieta il Tick per decidere sequencing.
  */
-DECLARE_MULTICAST_DELEGATE_OneParam(FRTOnMatchRequested, const FString& /*LevelName*/);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTOnMatchRequested, const FString&, LevelName);
 
 /**
  * **L'unico owner del flow del frontend** (CP 46.1, #936).
@@ -219,6 +219,7 @@ public:
 	ERTNavResult StartMatch();
 
 	/** Annuncio di `StartMatch`: la richiesta e' pendente e attende chi la consuma. */
+	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Frontend")
 	FRTOnMatchRequested OnMatchRequested;
 
 	/**
