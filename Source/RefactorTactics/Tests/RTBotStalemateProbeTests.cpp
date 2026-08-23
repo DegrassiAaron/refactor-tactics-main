@@ -963,7 +963,8 @@ bool FRTBotStalemateTeamPlanningBreaksItTest::RunTest(const FString&)
 	//     aveva gia' scritto cinquanta righe sopra: «l'altra meta' non e' una questione di destinazioni:
 	//     sono due rotte diverse che passano dalla stessa cella».
 	//
-	// ∴ il criterio che misura la prenotazione e' `ContestsWithSameDestination`, e li' il risultato e' netto.
+	// ∴ il criterio che misura la prenotazione e' `SameTeamContestsWithSameDestination`, e li' il risultato
+	// e' netto. **Non** `ContestsWithSameDestination`, che conta anche le coincidenze fra avversari.
 	// ⚠️ **L'oracolo guarda le contese FRA COMPAGNI, non tutte.** `ContestsWithSameDestination` conta anche
 	// le coincidenze fra avversari, che la prenotazione non previene per costruzione — il commento sopra lo
 	// dichiara, e asserirlo `== 0` avrebbe fatto fallire il test su una condizione di cui la feature non

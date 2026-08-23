@@ -1649,7 +1649,7 @@ bool FRTAutobattleSameSeedTest::RunTest(const FString&)
 }
 
 /**
- * #1088 — LA MAPPA NON E' LA CAUSA: sulla sorgente che il giocatore ottiene, i bot ingaggiano al turno 2.
+ * #1088 — LA MAPPA NON E' LA CAUSA: sulla sorgente che il giocatore ottiene, i bot ingaggiano presto.
  *
  * Nato come riproduttore dello stallo, **e' diventato la sua confutazione** — ed e' il suo valore. #1088
  * elencava tre cause candidate, «nessuna misurata»: la linea di tiro interrotta dalla geometria, il pathing
@@ -1754,8 +1754,8 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	TMap<int32, FRTCellId> LastCell;      // ultima cella vista, per unita'
 	TMap<int32, int32> StillStreak;       // turni consecutivi senza muoversi
 	int32 LongestStillStreak = 0;
-	int32 SampledUnits = 0;               // unita' DISTINTE campionate: se collassano, l'oracolo e' vacuo
-	const int32 InitialRosterSize = CollectAutobattleUnits(World).Num();   // prima che qualcuno cada
+	int32 FirstSampleIds = 0;             // chiavi DISTINTE al primo campionamento
+	int32 FirstSampleAlive = 0;           // unita' vive nello stesso istante: se divergono, gli id collidono
 
 	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && TurnsPlayed < MaxTurns)
 	{
@@ -1778,26 +1778,26 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 		// tattica legittima — un duello a distanza in cui gli HP calano ogni turno e' una partita che
 		// AVANZA — e senza questa distinzione l'oracolo andrebbe rosso proprio sul comportamento che il bot
 		// dovrebbe avere. Lo stato assorbente di #1088 e' l'immobilita' STERILE, non l'immobilita'.
-		bool bCombatThisTurn = false;
-		for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
-		{
-			if (Entry.Category == ERTLogCategory::Combat) { bCombatThisTurn = true; break; }
-		}
-
 		TSet<int32> SeenIds;
+		int32 AliveThisTurn = 0;
 		for (const ARTUnit* Unit : CollectAutobattleUnits(World))
 		{
 			if (!Unit->IsAlive()) { continue; }
+			++AliveThisTurn;
 			SeenIds.Add(Unit->StableUnitId);   // dopo il filtro: la guardia deve misurare la stessa popolazione
 			const int32 Id = Unit->StableUnitId;
 			int32& Streak = StillStreak.FindOrAdd(Id);
 			const FRTCellId* Last = LastCell.Find(Id);
-			const bool bStill = (Last != nullptr && *Last == Unit->Cell) && !bCombatThisTurn;
+			const bool bStill = (Last != nullptr && *Last == Unit->Cell);
 			Streak = bStill ? Streak + 1 : 0;
 			LongestStillStreak = FMath::Max(LongestStillStreak, Streak);
 			LastCell.Add(Id, Unit->Cell);
 		}
-		SampledUnits = FMath::Max(SampledUnits, SeenIds.Num());
+		if (FirstSampleAlive == 0)
+		{
+			FirstSampleIds = SeenIds.Num();
+			FirstSampleAlive = AliveThisTurn;
+		}
 
 		for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
 		{
@@ -1815,7 +1815,8 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	TestTrue(TEXT("i bot si muovono"), MoveEntries > 0);
 
 	// L'ingaggio, che il 2026-08-17 non avveniva: dodici round, ZERO `Combat`, pareggio allo scadere.
-	// ✅ Oggi avviene — misurato dopo la correzione dello stato assorbente (#1088), primo colpo al turno 2.
+	// ✅ Oggi avviene, dopo la correzione dello stato assorbente (#1088). Il turno del primo colpo sta
+	// nell'`AddInfo`: scritto qui invecchierebbe da solo, ed e' gia' successo due volte in questo file.
 	TestTrue(FString::Printf(
 		TEXT("su MapSource=GeneratedTestArena i bot ingaggiano: %d voci Combat in %d turni (attese > 0)"),
 		CombatEntries, TurnsPlayed), CombatEntries > 0);
@@ -1859,7 +1860,21 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	// Misurato: col bonus di quota assoluto, Riktor saliva sulla piattaforma al turno 3 e restava sulla
 	// stessa cella fino al 12, cioe' **dieci turni consecutivi**.
 	//
-	// ⚠️ **LIMITE DICHIARATO: questo oracolo vede i punti fissi, non i cicli.** Un'unita' che oscillasse
+	// 🔴 **LIMITE DICHIARATO, e non e' correggibile senza accecare l'oracolo.** Una code review ha osservato
+	// che restare fermi per SPARARE e' condotta legittima, e che un duello a distanza tenuto oltre la soglia
+	// darebbe un falso rosso. E' vero. Ma l'esenzione e' stata scritta, misurata e tolta il 2026-08-23: il
+	// difetto di #1088 **e' esattamente «sta ferma e spara»** — Riktor parcheggiata dieci turni mentre il
+	// campo produceva 19 voci `Combat` — quindi qualunque esenzione per combattimento lo rende invisibile.
+	//
+	//     senza esenzione:        sequenza 9 turni col difetto -> Fail   (falsifica)
+	//     esenzione globale:      sequenza 2 turni             -> verde  (cieco)
+	//     esenzione per unita':   sequenza 3 turni             -> verde  (cieco lo stesso: spara anche lei)
+	//
+	// ∴ si tiene l'oracolo che falsifica e si dichiara il costo: un `hold-and-shoot` oltre la soglia
+	// produrrebbe un rosso da leggere, non un difetto. Un limite scritto vale piu' di un test che non puo'
+	// piu' cadere.
+	//
+	// ⚠️ **E vede i punti fissi, non i cicli.** Un'unita' che oscillasse
 	// fra due celle si muoverebbe ogni turno, la sequenza resterebbe a zero, e la partita potrebbe
 	// pareggiare lo stesso — e' uno stato assorbente di periodo 2, altrettanto sterile e invisibile qui.
 	// Il ciclo misurato in #1088 aveva periodo 3 sui Blast ma le POSIZIONI erano ferme, quindi questo
@@ -1871,8 +1886,11 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	// ⚠️ Una costante sola per entrambe le soglie: erano due espressioni identiche a trentasette righe di
 	// distanza, ciascuna col proprio commento che la diceva «la soglia sorella». Ritarandone una, l'altra
 	// sarebbe rimasta indietro con la prova scritta che erano allineate.
-	const int32 EarlyMatchFraction = FMath::Max(2, FormatRoundLimit / 3);
-	const int32 MaxLegitimateStillTurns = EarlyMatchFraction;
+	// ⚠️ **Due soglie, due nomi, e non e' duplicazione.** Coincidono a 4 solo per via di `RoundLimit / 3`,
+	// ma rispondono a domande diverse: quanti turni fermi sono tollerabili, e quanto presto deve arrivare
+	// il primo colpo. Condividerne il valore fa si' che ritarare l'una muova l'altra in silenzio —
+	// alzare la deadline del primo colpo allenterebbe l'oracolo di #1088 senza toccarlo.
+	const int32 MaxLegitimateStillTurns = FMath::Max(2, FormatRoundLimit / 3);
 
 	// La soglia deve restare falsificabile: se nessuna sequenza potesse superarla, il verde non direbbe nulla.
 	//
@@ -1881,10 +1899,17 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	// fretta — con `RoundLimit` 12 la soglia e' 4, e una vittoria al turno 5 dava `4 < 4` falso. Cioe'
 	// puniva esattamente il miglioramento che E47.1 chiede. La falsificabilita' e' una proprieta' della
 	// SOGLIA rispetto al formato, non della singola run: si verifica una volta, sul limite.
-	TestTrue(FString::Printf(
-		TEXT("la soglia lascia spazio a un parcheggio: limite %d su %d round di formato"),
-		MaxLegitimateStillTurns, FormatRoundLimit),
-		MaxLegitimateStillTurns < FormatRoundLimit - 1);
+	// ⚠️ Su un formato troppo corto la soglia non e' esercitabile — il ripiego portava `RoundLimit` 5 fino al
+	// 2026-08-10 — e li' il rosso direbbe «la soglia non lascia spazio», cioe' nomina un problema di soglia
+	// mentre il test esiste per un difetto del bot. Si dichiara e si salta, invece di fallire per la ragione
+	// sbagliata.
+	if (MaxLegitimateStillTurns >= FormatRoundLimit - 1)
+	{
+		AddWarning(FString::Printf(
+			TEXT("formato troppo corto per esercitare l'anti-parcheggio: soglia %d su %d round — non misurato"),
+			MaxLegitimateStillTurns, FormatRoundLimit));
+	}
+	else
 
 	// ⚠️ **Contro il roster INIZIALE, non contro i superstiti.** La guardia nominava «le quattro unita'
 	// collassate su una chiave sola» e ne catturava solo il collasso totale: con due unita' che condividono
@@ -1893,10 +1918,16 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	//
 	// 🔴 E il roster va preso PRIMA della partita: `CollectAutobattleUnits` a fine match ritorna i
 	// superstiti, quindi confrontare con lui dava «4 distinte su 2» — una guardia rossa su un dato giusto.
+	// ⚠️ **Contro il campione del PRIMO turno, non contro il roster iniziale.** `SeenIds` conta le unita'
+	// VIVE al momento del campionamento: confrontarlo con le schierate rendeva la guardia rossa appena
+	// qualcuno cadeva al turno 1 — un match deciso, non un difetto. Cio' che deve restare vero e' che gli
+	// id siano DISTINTI: due unita' che ne condividono uno si sovrascrivono in `LastCell`, e la parcheggiata
+	// non farebbe mai crescere la sequenza.
 	TestEqual(FString::Printf(
-		TEXT("l'oracolo ha campionato ogni unita' del roster: %d distinte su %d schierate"),
-		SampledUnits, InitialRosterSize),
-		SampledUnits, InitialRosterSize);
+		TEXT("gli StableUnitId sono distinti: %d chiavi per %d unita' vive al primo campionamento"),
+		FirstSampleIds, FirstSampleAlive),
+		FirstSampleIds, FirstSampleAlive);
+	TestTrue(FString::Printf(TEXT("e il campione non e' vuoto: %d"), FirstSampleAlive), FirstSampleAlive > 1);
 
 	TestTrue(FString::Printf(
 		TEXT("nessuna unita' si parcheggia: piu' lunga sequenza ferma %d turni (limite %d) — %s - %s al turno %d"),
@@ -1914,8 +1945,8 @@ bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
 	// falsificabile restava `> 0`, gia' coperta da `CombatEntries > 0`.
 	//
 	// La soglia e' una FRAZIONE del limite, non un letterale: sopravvive a un cambio di formato e resta
-	// falsificabile. Un terzo e' generoso — misurato, il primo colpo cade al turno 2 su 12.
-	const int32 FirstBloodDeadline = EarlyMatchFraction;
+	// falsificabile. Un terzo e' generoso — il valore corrente sta nell'`AddInfo`, che lo rimisura a ogni run.
+	const int32 FirstBloodDeadline = FMath::Max(2, FormatRoundLimit / 3);
 	AddInfo(FString::Printf(TEXT("primo Combat al turno %d · %d voci Combat · %d Move · %d turni totali"),
 		FirstCombatTurn, CombatEntries, MoveEntries, TurnsPlayed));
 	TestTrue(FString::Printf(

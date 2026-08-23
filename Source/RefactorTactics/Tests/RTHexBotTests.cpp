@@ -197,6 +197,27 @@ bool FRTHexBotKiterVsMeleeTest::RunTest(const FString&)
 	const int32 KiterTooClose = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(3, 0)), Ctx);   // dist 1
 	TestTrue(TEXT("il kiter preferisce restare alla distanza di sicurezza"), KiterAtStandoff > KiterTooClose);
 	TestEqual(TEXT("alla distanza di sicurezza nessuna penalita'"), KiterAtStandoff, 0);
+
+	// 🔴 **Oltre lo standoff si paga per riavvicinarsi, ed e' il ramo che chiude #1088.** Non esisteva:
+	// sopra la distanza di sicurezza nessun termine di distanza si applicava, quindi per un kiter
+	// l'elevazione restava l'unico termine posizionale e restare in quota vinceva con qualunque
+	// `WElevation > 0`. Senza queste due righe, cancellare il ramo lascia il test verde.
+	//
+	// ⚠️ Le celle si scelgono per distanza dal NEMICO, non dall'origine: `Enemy` sta a (4,0), quindi (0,0)
+	// dista 4 e (-1,0) dista 5. Sbagliare riferimento porta la candidata sotto lo standoff, dove a rispondere
+	// e' `WKiteViolation` e non il ramo in prova.
+	const int32 KiterOneBeyond = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(0, 0)), Ctx);   // dist 4
+	TestEqual(TEXT("una cella oltre lo standoff costa WApproach"), KiterOneBeyond, -Ctx.WApproach);
+
+	const int32 KiterTwoBeyond = URTHexBotLibrary::ScorePlan(M, MakePlan(FRTCellId(-1, 0)), Ctx);  // dist 5
+	TestEqual(TEXT("e due celle ne costano il doppio"), KiterTwoBeyond, -2 * Ctx.WApproach);
+
+	TestTrue(TEXT("quindi il kiter torna verso la distanza di sicurezza invece di allontanarsi"),
+		KiterAtStandoff > KiterOneBeyond && KiterOneBeyond > KiterTwoBeyond);
+
+	// ⚠️ **E il costo dichiarato**: allontanarsi oltre lo standoff paga, quindi un kiter con portata
+	// maggiore dello standoff rinuncia a parte della propria gittata. E' la scelta di #1088 — un bot che
+	// non conclude e' un difetto, due celle di gittata sono bilanciamento (#149).
 	return true;
 }
 
@@ -304,11 +325,18 @@ bool FRTHexBotElevationInvariantTest::RunTest(const FString&)
 	// sopravvive al cambio di default C++ e questo test non la vedrebbe. ⏳ Presidiato da **#1276**, che
 	// apre la voce PIE: verificarlo richiede l'editor, perche' i `.umap` sono pacchetti compressi e un grep
 	// non prova nulla in nessuna delle due direzioni.
+	// ✅ **La deriva fra le due sorgenti non e' piu' rilevabile: e' impossibile.** `ARTTurnManager` derivava
+	// i sei pesi da altrettanti letterali scritti a mano, e questa coppia di asserzioni li confrontava DOPO
+	// il fatto — su due dei sei. Ora ogni default e' `FRTHexBotContext{}.W*`, quindi c'e' una sorgente sola
+	// e le righe qui sotto verificano il legame, non una coincidenza fortunata.
 	const FRTHexBotContext Defaults;
-	TestEqual(TEXT("le due sorgenti di WElevation coincidono"),
-		GetDefault<ARTTurnManager>()->WElevation, Defaults.WElevation);
-	TestEqual(TEXT("le due sorgenti di WApproach coincidono"),
-		GetDefault<ARTTurnManager>()->WApproach, Defaults.WApproach);
+	const ARTTurnManager* CDO = GetDefault<ARTTurnManager>();
+	TestEqual(TEXT("WKill deriva dalla struct"), CDO->WKill, Defaults.WKill);
+	TestEqual(TEXT("WDamage deriva dalla struct"), CDO->WDamage, Defaults.WDamage);
+	TestEqual(TEXT("WThreat deriva dalla struct"), CDO->WThreat, Defaults.WThreat);
+	TestEqual(TEXT("WKiteViolation deriva dalla struct"), CDO->WKiteViolation, Defaults.WKiteViolation);
+	TestEqual(TEXT("WApproach deriva dalla struct"), CDO->WApproach, Defaults.WApproach);
+	TestEqual(TEXT("WElevation deriva dalla struct"), CDO->WElevation, Defaults.WElevation);
 	return true;
 }
 

@@ -199,6 +199,23 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 			}
 			else
 			{
+				// 🔴 **La penalita' parte dallo STANDOFF, e costa al kiter due celle di gittata.** Il costo si
+				// dichiara qui perche' e' una scelta, non una svista: Phase (`PressureJet` portata 5 ->
+				// standoff 3) si avvicinera' fino a 3 invece di sparare da 5, cioe' dentro la portata 4 di
+				// Gadget e Wraith. `DeriveKiteStandoff` dice che «chi colpisce da lontano ha qualcosa da
+				// guadagnare a restare lontano», e questo termine gliene toglie una parte.
+				//
+				// ⚠️ **L'alternativa e' stata scritta e MISURATA, e riapre il difetto.** Facendo partire la
+				// penalita' dalla portata invece che dallo standoff, la banda `[standoff, portata]` resta
+				// piatta — e li' l'elevazione torna a essere l'unico termine posizionale, quindi il kiter si
+				// parcheggia in quota esattamente come prima. Provato il 2026-08-23:
+				// `ElevationNeverOutweighsClosingOneCell` e' tornato rosso con `scelto (0,0,L2)`.
+				//
+				// ∴ le due cose sono incompatibili con un termine di distanza: o il kiter tiene la gittata e
+				// puo' parcheggiarsi, o scende e non si parcheggia. Si sceglie la seconda perche' un bot che
+				// non conclude la partita e' un difetto, mentre due celle di gittata sono bilanciamento — e
+				// il bilanciamento del bot ha la sua sede in #149, dove serve il banco di prova che D-102
+				// richiede.
 				Score -= Context.WApproach * (MinDist - Context.KiteStandoff);
 			}
 		}

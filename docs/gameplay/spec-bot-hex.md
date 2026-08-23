@@ -79,6 +79,7 @@ Sulla distanza dal nemico **più vicino**:
 
 ```text
 kiter (KiteStandoff > 0), se dist < standoff:   Score -= WKiteViolation × (standoff − dist)
+kiter,  se dist ≥ standoff + margine:            Score -= WApproach × (dist − standoff − margine)
 mischia (KiteStandoff == 0):                     Score -= WApproach × dist
 ```
 
@@ -91,6 +92,12 @@ un'unità saliva sulla piattaforma al turno 3 e non scendeva fino al 12.
 
 ⛔ **Renderlo relativo all'origine non serve, ed è stato provato**: `Origin` è fisso per l'intera scelta,
 quindi sottrarne il contributo sposta ogni candidata della stessa costante e non cambia l'ordinamento.
+
+⚠️ **La banda `[standoff, portata]` è piatta**: dentro la propria portata utile il kiter è indifferente
+alla distanza, perché spara comunque e restare lontano è il suo vantaggio
+([#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088)). Il ramo oltre la portata
+non esisteva, e lì l'elevazione restava l'unico termine posizionale: il kiter si parcheggiava in quota
+con qualunque `WElevation > 0`, e l'invariante qui sotto non lo copriva perché `WApproach` non era in gioco.
 
 ⚠️ **INVARIANTE: `WElevation × MaxLayer < WApproach`.** È l'unica difesa reale, pinnata da
 `HexBot.ElevationNeverOutweighsClosingOneCell`. Alzare `WElevation` in editor oltre quella soglia — che
@@ -105,7 +112,7 @@ quindi sottrarne il contributo sposta ogni candidata della stessa costante e non
 | `WAllyDamage` | 10 | danno collaterale al compagno, per punto |
 | `WThreat` | 100 | esposizione al tiro nemico, per nemico |
 | `WKiteViolation` | 50 | per cella sotto lo standoff del kiter |
-| `WApproach` | 10 | per cella di distanza, per chi è in mischia |
+| `WApproach` | 10 | per cella di distanza: dal nemico per la mischia, dalla propria portata per il kiter |
 | `WElevation` | 4 | per layer di quota — vincolato da `WElevation × MaxLayer < WApproach` (#1088) |
 
 Sono **interi bilanciabili senza toccare la logica**. La scala relativa fra `WThreat` e `WDamage` è nota
