@@ -131,7 +131,11 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 				FRTTurnLogEntry Hazard;
 				Hazard.Phase = InPhase;
 				Hazard.Category = ERTLogCategory::Combat;
-				Hazard.ActionId = FName(*FString::Printf(TEXT("Terrain.%s"),
+				// Il prefisso arriva dalla libreria del TurnLog e non da un letterale: lo condivide con
+				// `IsEnvironmentalDamage`, che su questa causa decide se `UnitId` sia chi agisce o chi subisce
+				// (`#1150`). Due letterali uguali per abitudine divergono al primo che cambia (`D-098`).
+				Hazard.ActionId = FName(*FString::Printf(TEXT("%s%s"),
+					URTTurnLogLibrary::TerrainCausePrefix(),
 					*StaticEnum<ERTHexSurface>()->GetNameStringByValue((int64)CellData->Surface)));
 				// La cella che ha colpito, che qui **e' davvero la causa** — al contrario del `Burning`, che
 				// segue l'unita' anche fuori dal fuoco. `TgtCell` e' la stessa: chi subisce ci sta sopra.

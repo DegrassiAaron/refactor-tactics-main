@@ -18,6 +18,7 @@
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
+#include "Turn/RTTurnLogLibrary.h" // #1150: i predicati che dichiarano chi ha inflitto e chi ha subito
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
@@ -1909,6 +1910,122 @@ bool FRTHazardTerrainDeathLogTest::RunTest(const FString&)
 		if (E.ActionId == FName(TEXT("Status.Burning"))) { ++Burning; }
 	}
 	TestEqual(TEXT("morta all'ingresso, non nel Cleanup"), Burning, 0);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * `Actions.Hazard.SufferedAndInflictedAreTellableApart` — lo stesso `UnitId`, nello stesso turno, subisce il
+ * fuoco **e** colpisce qualcuno: le due voci devono essere distinguibili (`#1150`).
+ *
+ * 🔴 **E' il difetto latente reso falsificabile.** `UnitId` significa «chi ha AGITO» (`AppendLogEntry`), ma
+ * il danno ambientale lo **inverte** e ci mette chi subisce — deliberatamente, perche' in un hazard non c'e'
+ * un attaccante e lo `0` direbbe «nessuno» su un evento che un soggetto ce l'ha. Finche' le due voci non
+ * convivono su una stessa unita', l'inversione non ha conseguenze visibili; qui convivono, e chi somma il
+ * danno *inflitto* per `UnitId` filtrando su `Category == Combat` ottiene un numero **plausibile e
+ * sbagliato** che nessun errore segnala.
+ *
+ * ⚠️ **La domanda si fa con il predicato, non con le celle.** Entrambe le voci ambientali hanno
+ * `SrcCell == TgtCell`, ed e' vero — ma `AppendLogEntry` dichiara con tre controesempi che `SrcCell` non
+ * identifica l'unita', e costruirci sopra un filtro sarebbe l'inferenza che il formato ha smesso di
+ * sostenere quando `UnitId` e' nato (`D-063`).
+ *
+ * ⚠️ Percorso vero: il fuoco lo accende `Action.Ignite` e il danno arriva nel Cleanup, come in partita.
+ * Una voce costruita a mano proverebbe che la struct si compila, non che qualcuno la scrive.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHazardSufferedVsInflictedTest,
+	"RefactorTactics.Actions.Hazard.SufferedAndInflictedAreTellableApart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHazardSufferedVsInflictedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	SpawnEnvMap(World);
+	ARTUnit* Incendiario = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Bruciato = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!Incendiario || !Bruciato || !TM) { DestroyEnvWorld(World); return false; }
+
+	// Salute fissata dal test e non ereditata dal catalogo: entrambi devono SOPRAVVIVERE al turno, altrimenti
+	// una delle due voci non nasce e il confronto non esiste. Stessa cura di `BurningLeavesACanonicalEntry`.
+	Incendiario->Shield = 0;
+	Incendiario->Health = 200;
+	Bruciato->Shield = 0;
+	Bruciato->Health = 200;
+
+	// Nello stesso turno: l'uno incendia l'altro, e l'altro colpisce con l'attacco base (slot 0).
+	PlanEnvAction(Incendiario, TEXT("Action.Ignite"), Bruciato);
+	Bruciato->PlannedAbilityIndex = 0;
+	Bruciato->PlannedAttackTarget = Incendiario;
+	RunEnvTurn(TM);
+
+	// Premessa: se non convivono, il test non misura la distinzione — misura la loro assenza.
+	int32 Subite = 0;
+	int32 Inflitte = 0;
+	int32 SommaIngenua = 0;      // «tutto il Combat con il mio UnitId»
+	int32 SommaCorretta = 0;     // solo cio' che ho inflitto
+	int32 SommaSubita = 0;
+	bool bCausaTerreno = false;
+	bool bCausaStato = false;
+	FRTTurnLogEntry VoceSubita;
+	FRTTurnLogEntry VoceInflitta;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category != ERTLogCategory::Combat || E.UnitId != Bruciato->StableUnitId) { continue; }
+		SommaIngenua += E.Amount;
+		if (URTTurnLogLibrary::IsEnvironmentalDamage(E))
+		{
+			++Subite;
+			SommaSubita += E.Amount;
+			VoceSubita = E;
+			if (E.ActionId.ToString().StartsWith(URTTurnLogLibrary::TerrainCausePrefix())) { bCausaTerreno = true; }
+			if (E.ActionId == FName(TEXT("Status.Burning"))) { bCausaStato = true; }
+		}
+		if (URTTurnLogLibrary::IsDamageInflictedByActor(E))
+		{
+			++Inflitte;
+			SommaCorretta += E.Amount;
+			VoceInflitta = E;
+		}
+	}
+
+	AddInfo(FString::Printf(TEXT("voci con UnitId=%d: subite=%d inflitte=%d | somma ingenua=%d, corretta=%d"),
+		Bruciato->StableUnitId, Subite, Inflitte, SommaIngenua, SommaCorretta));
+
+	// ➕ **Le voci ambientali sono DUE, e la scoperta e' del test**: accendere il fuoco su una cella occupata
+	// produce il danno d'ingresso `Terrain.Fire` (`#1067`) **e** il tick di `Status.Burning` nel Cleanup
+	// (`#625`). La prima stesura ne asseriva una e cadeva li'. Averle entrambe rende questo test la copertura
+	// di **tutta** la tassonomia di `IsEnvironmentalDamage`, non di meta': se un domani una delle due causa
+	// smettesse di essere riconosciuta, il conto cadrebbe qui.
+	if (!TestEqual(TEXT("premessa: le due voci ambientali sulla stessa unita'"), Subite, 2)
+		|| !TestTrue(TEXT("premessa: almeno una voce inflitta sulla stessa unita'"), Inflitte >= 1))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+	TestTrue(TEXT("il predicato riconosce la causa di TERRENO"), bCausaTerreno);
+	TestTrue(TEXT("e la causa di STATO"), bCausaStato);
+
+	// Le due voci portano lo STESSO soggetto e ruoli opposti: e' il cuore del difetto.
+	TestEqual(TEXT("stesso UnitId sulle due voci"), VoceSubita.UnitId, VoceInflitta.UnitId);
+	TestEqual(TEXT("la voce subita ha per bersaglio se stessa"), VoceSubita.TgtCell, Bruciato->Cell);
+	TestEqual(TEXT("la voce inflitta ha per bersaglio l'altro"), VoceInflitta.TgtCell, Incendiario->Cell);
+
+	// I due predicati si escludono: nessuna voce e' insieme subita e inflitta.
+	TestFalse(TEXT("la voce ambientale non e' danno inflitto"),
+		URTTurnLogLibrary::IsDamageInflictedByActor(VoceSubita));
+	TestFalse(TEXT("la voce d'attacco non e' danno ambientale"),
+		URTTurnLogLibrary::IsEnvironmentalDamage(VoceInflitta));
+
+	// 🔴 **L'asserto che rende il difetto falsificabile.** Senza il predicato la somma include il danno che
+	// l'unita' ha subito, e il numero resta plausibile: nessuna eccezione, nessun valore assurdo.
+	TestTrue(*FString::Printf(
+		TEXT("la somma ingenua sopravvaluta l'inflitto: %d contro %d (differenza %d, il danno subito)"),
+		SommaIngenua, SommaCorretta, SommaIngenua - SommaCorretta),
+		SommaIngenua > SommaCorretta);
+	TestEqual(TEXT("e la differenza e' esattamente il danno ambientale subito"),
+		SommaIngenua - SommaCorretta, SommaSubita);
 
 	DestroyEnvWorld(World);
 	return true;

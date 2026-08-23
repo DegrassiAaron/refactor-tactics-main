@@ -119,6 +119,35 @@ TArray<FString> URTTurnLogLibrary::DescribeTurnLog(TArray<FRTTurnLogEntry> Entri
 	return Lines;
 }
 
+bool URTTurnLogLibrary::IsEnvironmentalDamage(const FRTTurnLogEntry& Entry)
+{
+	if (Entry.Category != ERTLogCategory::Combat)
+	{
+		return false;
+	}
+	const FString Causa = Entry.ActionId.ToString();
+	return Causa.StartsWith(TerrainCausePrefix(), ESearchCase::CaseSensitive)
+		|| Causa == TEXT("Status.Burning");
+}
+
+bool URTTurnLogLibrary::IsDamageInflictedByActor(const FRTTurnLogEntry& Entry)
+{
+	if (Entry.Category != ERTLogCategory::Combat || IsEnvironmentalDamage(Entry))
+	{
+		return false;
+	}
+	switch (static_cast<ERTCombatOutcome>(Entry.Outcome))
+	{
+	case ERTCombatOutcome::Hit:
+	case ERTCombatOutcome::ShieldAbsorbed:
+	case ERTCombatOutcome::Lethal:
+	case ERTCombatOutcome::TerrainBonus:
+		return true;
+	default:
+		return false;
+	}
+}
+
 FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 {
 	auto CellText = [](const FRTCellId& Cell)

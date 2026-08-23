@@ -50,6 +50,46 @@ public:
 	 * ⚠️ NON coincide con i campi dell'hash: `UnitId` e `TurnNumber` stanno qui e non in `MixEntryFields`.
 	 * Chi vuole «uguali per l'hash» non usi questa funzione (vedi `GoldenEntriesMatch`).
 	 */
+	/**
+	 * Prefisso dell'`ActionId` che dichiara una **causa di terreno** (`Terrain.Fire`, `Terrain.Ice`, ...).
+	 *
+	 * Vive qui e non nel `TurnManager` perche' lo condividono chi SCRIVE la voce e chi la INTERROGA: due
+	 * letterali uguali per abitudine sono la seconda verita' che `D-098` vieta, e diverge il giorno in cui
+	 * uno dei due cambia.
+	 */
+	static const TCHAR* TerrainCausePrefix() { return TEXT("Terrain."); }
+
+	/**
+	 * La voce e' **danno AMBIENTALE**, cioe' una di quelle in cui `UnitId` porta chi SUBISCE (`#1150`).
+	 *
+	 * Sono due, e la loro causa sta nell'`ActionId`: `Terrain.<Surface>` all'ingresso (`#1067`) e
+	 * `Status.Burning` nel Cleanup (`#625`).
+	 *
+	 * ⚠️ **Si riconosce dalla CAUSA, non dalle celle.** Entrambe hanno `SrcCell == TgtCell`, ed e' vero — ma
+	 * `SrcCell` non identifica l'unita' (`AppendLogEntry` lo dichiara con tre controesempi: voci ambientali,
+	 * interposizione, e la cella dopo un Dash). Un predicato costruito sulle celle sarebbe esattamente
+	 * l'inferenza che il formato ha smesso di sostenere quando `UnitId` e' nato (`D-063`).
+	 *
+	 * ⚠️ **La tassonomia e' un ELENCO, e va esteso a mano.** E' il prezzo della scelta di `#1150`: se un
+	 * giorno un altro status infliggera' danno — `#1077` sta portando gli stati nel TurnLog — la sua causa va
+	 * aggiunta qui, e questo commento e' il posto in cui chi lo fa lo scopre. Un prefisso `Status.` largo
+	 * catturerebbe anche un'abilita' che si chiami cosi', ed e' il motivo per cui non c'e'.
+	 */
+	static bool IsEnvironmentalDamage(const FRTTurnLogEntry& Entry);
+
+	/**
+	 * La voce e' **danno che `UnitId` ha inflitto a qualcun altro**: la domanda di chi aggrega il danno per
+	 * unita', e la ragione per cui `#1150` esiste.
+	 *
+	 * Vero solo se tutte e tre: categoria `Combat`; esito fra i quattro che portano danno inflitto
+	 * (`Hit`, `ShieldAbsorbed`, `Lethal`, `TerrainBonus`); causa non ambientale.
+	 *
+	 * ⚠️ **`Healed` e `NoLineOfSight` restano fuori** e non e' ovvio in nessuno dei due casi: la cura ha un
+	 * agente vero — `UnitId` e' chi cura — ma non e' danno; un attacco fermato dalla copertura ha l'agente e
+	 * la categoria giusti, e zero danno inflitto. Contarli darebbe due numeri sbagliati in versi opposti.
+	 */
+	static bool IsDamageInflictedByActor(const FRTTurnLogEntry& Entry);
+
 	static bool EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B);
 
 	/** Ordina il TurnLog in place con EntryLess (ordine totale deterministico). */
