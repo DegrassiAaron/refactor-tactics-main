@@ -86,7 +86,7 @@ bool FRTStartupOutcomeIsAlwaysClassifiedTest::RunTest(const FString&)
  * lavoro.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupFatalSetTest,
-	"RefactorTactics.Startup.FatalOutcomesAreTheThreeThatRefuseToStart",
+	"RefactorTactics.Startup.FatalOutcomesRefuseToStart",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTStartupFatalSetTest::RunTest(const FString&)
 {
@@ -96,6 +96,10 @@ bool FRTStartupFatalSetTest::RunTest(const FString&)
 		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::ShippedFormatInvalid));
 	TestTrue(TEXT("formato e mappa non combaciano"),
 		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::FormatMapMismatch));
+	// ⚠️ Il quarto, da #1069. Il nome del test diceva «TheThree» e sarebbe diventato falso qui: un numero
+	// nel nome di un elenco che cresce mente al primo esito nuovo, e questo e' il primo.
+	TestTrue(TEXT("eroe della formazione fuori catalogo"),
+		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::RosterHeroMissing));
 
 	// I ripieghi NON sono fatali: e' la meta' che il DoD originale non vedeva, e che un modale
 	// nasconderebbe dietro un pulsante `BACK` invece di mostrarla in partita.
