@@ -11,4 +11,5 @@ namespace RTScreenIds
 	// ⚠️ La stringa e' `Error` e non `ErrorModal`: e' quella che i test di navigazione usavano gia' come
 	// costante locale, e cambiarla avrebbe rinominato un modale per allineare un identificatore C++.
 	const FName ErrorModal(TEXT("Error"));
+	const FName Result(TEXT("Result"));
 }

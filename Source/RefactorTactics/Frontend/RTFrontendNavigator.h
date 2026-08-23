@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Frontend/RTScreenStack.h"
+#include "Frontend/RTMatchResultViewModel.h"
 // Per `ERTLoadPhase`, che `BackFromError` prende come parametro. E' l'unico punto in cui la navigazione
 // tocca un tipo d'avvio, e la direzione della dipendenza e' voluta: il flow legge un dato dello startup,
 // mai il contrario — `RTStartupReport.h` non sa che esista un navigatore.
@@ -231,6 +232,46 @@ public:
 	FString ConsumePendingMatchLevel();
 
 	/**
+	 * Apre la schermata di fine partita con il risultato **canonico** (CP 46.5, `#940`).
+	 *
+	 * ⛔ **Non calcola niente.** Prende il verdetto già dato — la condizione di fine partita è di E10 e il
+	 * TurnLog ne è il registro — e lo traduce nella vista che il widget legge. Il DoD lo chiede alla UI:
+	 * *«un secondo calcolo nel widget sarebbe una seconda autorità che può divergere»*, e la regola vale
+	 * uguale un livello più in basso: se il navigatore ricalcolasse, il widget leggerebbe comunque un
+	 * secondo numero.
+	 *
+	 * ⚠️ **Il risultato si scrive prima del push, e si annulla se il push fallisce.** L'ordine è lo stesso
+	 * di `StartMatch` e per la stessa ragione: `PushScreen` presenta il widget in modo *sincrono*, e
+	 * `AddToViewport` esegue `Construct` — che è dove un widget legge `GetMatchResult()` per popolare i
+	 * testi. Scrivere dopo il push significava mostrargli `InProgress` e round 0 alla prima apertura.
+	 * Il rollback tiene la garanzia opposta: un risultato non resta dietro una schermata mai aperta.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	ERTNavResult ShowResult(const FRTMatchResult& InResult, const FRTMatchState& InState);
+
+	/**
+	 * Ciò che la schermata di fine partita mostra.
+	 *
+	 * ⚠️ Vuoto finché una partita non è finita, **e di nuovo vuoto appena si torna al menu**: non è un
+	 * archivio dell'ultima partita, è ciò che il Result sta mostrando adesso.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	const FRTMatchResultViewModel& GetMatchResult() const { return MatchResult; }
+
+	/**
+	 * `PLAY AGAIN`: ripercorre CP 46.4.
+	 *
+	 * ⚠️ **Passa dallo stesso `StartMatch`**, non da una seconda via d'avvio. Due percorsi che chiedono una
+	 * partita sarebbero due posti in cui la guardia `MatchRequestNotConsumed` può mancare, e la ragione per
+	 * cui quella guardia esiste è che una richiesta non consumata è un avvio silenziosamente perduto.
+	 *
+	 * Svuota lo stack **prima** di ripartire: un `Result` lasciato sotto sarebbe raggiungibile col `Back`
+	 * dalla partita nuova, che è il dead-end vietato da CP 46.1.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	ERTNavResult PlayAgain();
+
+	/**
 	 * Il livello del vertical slice, da `DefaultGame.ini`.
 	 *
 	 * ⚠️ **Sta qui e non in `DefaultEngine.ini`**: `GameDefaultMap` dichiara da dove il PACCHETTO avvia —
@@ -353,6 +394,16 @@ private:
 	/** Richiesta pendente di apertura livello: la produce `StartMatch`, la consuma chi ha il mondo. */
 	UPROPERTY()
 	FString PendingMatchLevel;
+
+	/**
+	 * L'ultimo risultato mostrato.
+	 *
+	 * ⚠️ **Azzerato da `ReturnMain`**, che è il punto comune alle due uscite del Result: `MAIN MENU` lo è
+	 * direttamente, `PLAY AGAIN` ci passa attraverso. Prometterlo di `PlayAgain` soltanto era falso —
+	 * `MAIN MENU` seguito da `PLAY` lasciava il risultato vecchio leggibile per tutta la partita nuova.
+	 */
+	UPROPERTY()
+	FRTMatchResultViewModel MatchResult;
 
 
 	/** I widget istanziati, per nome. Sopravvivono al pop finche' `SyncPresentation` non li smonta. */

@@ -226,6 +226,17 @@ ERTNavResult URTFrontendNavigator::ReturnMain()
 {
 	const ERTNavResult Result = Stack.ReturnMain();
 	SyncPresentation();
+
+	// 🔴 **L'azzeramento sta QUI, non solo in `PlayAgain`.** Il DoD descrive due uscite dal Result, e
+	// `MAIN MENU` e' questa: senza la riga, un risultato sopravviveva al ritorno al menu e a tutta la
+	// partita successiva avviata da `PLAY`, perche' `StartMatch` diretto non passa da `PlayAgain`.
+	// Il commento del campo prometteva «vuoto finche' una partita non e' finita» e non era vero.
+	// Trovato in review.
+	//
+	// ⚠️ **Dopo `SyncPresentation`, non prima**: lo smontaggio del widget esegue `NativeDestruct`, e un
+	// widget che leggesse il proprio dato mentre si chiude deve vedere cio' che stava mostrando — e' la
+	// stessa ragione per cui `ShowResult` scrive prima di presentare, applicata all'uscita.
+	MatchResult = FRTMatchResultViewModel{};
 	return Result;
 }
 
@@ -297,6 +308,59 @@ ERTNavResult URTFrontendNavigator::RejectMatchStart(ERTStartupOutcome Outcome, c
 	}
 
 	return ERTNavResult::InvalidScreen;
+}
+
+ERTNavResult URTFrontendNavigator::ShowResult(const FRTMatchResult& InResult, const FRTMatchState& InState)
+{
+	// 🔴 **Il risultato si scrive PRIMA del push, e la versione precedente faceva il contrario.**
+	// La motivazione era «nessuno legge durante il push» — ed e' falsa, con la confutazione gia' scritta
+	// in questo file: `PushScreen` chiama `SyncPresentation` in modo sincrono, e il commento di
+	// `PresentWidget` dice che sia `CreateWidget` (`NativeOnInitialized`) sia `AddToViewport`
+	// (`NativeConstruct` e l'evento Blueprint `Construct`) «possono richiamare il navigatore — tutte le
+	// sue funzioni sono `BlueprintCallable`». `GetMatchResult()` e' `BlueprintPure`, ed e' l'unico canale
+	// che il widget ha: leggerlo nel proprio `Construct` e' il modo naturale di popolare i testi.
+	// Scrivendo dopo, quella lettura vedeva `InProgress` / round 0 alla PRIMA apertura. Trovato in review.
+	//
+	// ⛔ **Questo ordine NON e' coperto da un test, e il perche' e' misurato.** Servirebbe un widget sonda
+	// che legga nel proprio `NativeOnInitialized`, e in un test headless quel momento non arriva mai:
+	// `PresentWidget` chiama `CreateWidget(GI, ...)`, il widget viene costruito — `FindLiveWidget` lo
+	// trova, della classe giusta — ma nasce senza mondo e `Initialize()` esce prima dell'hook. Provato con
+	// `MakeNavigator`, con `MakeFrontendWorld`, e legando a mano `FWorldContext::OwningGameInstance`:
+	// `mondo=NO`, `BirthCount=0` in tutti e tre. La correzione resta perche' la premessa vecchia e'
+	// **confutata leggendo il codice** — `SyncPresentation` e' sincrona e `PresentWidget` lo documenta —
+	// non perche' un verde lo dimostri. La prova sta a `PIE-V01-FRONTEND-RESULT`, che e' da creare.
+	const FRTMatchResultViewModel Previous = MatchResult;
+	MatchResult = FRTMatchResultViewModel::From(InResult, InState);
+
+	const ERTNavResult NavResult = PushScreen(RTScreenIds::Result);
+	if (NavResult != ERTNavResult::Ok)
+	{
+		// ⚠️ Il rollback tiene la garanzia che l'ordine sbagliato voleva: un risultato non deve restare
+		// dietro una schermata mai aperta, o la partita dopo lo rileggerebbe come fresco.
+		MatchResult = Previous;
+		UE_LOG(LogRT, Warning, TEXT("[RT] Fine partita: il Result non si e' aperto (%s), risultato non registrato."),
+			*UEnum::GetValueAsString(NavResult));
+		return NavResult;
+	}
+
+	UE_LOG(LogRT, Log, TEXT("[RT] Fine partita al round %d: %s"),
+		MatchResult.RoundNumber, *UEnum::GetValueAsString(MatchResult.Outcome));
+	return ERTNavResult::Ok;
+}
+
+ERTNavResult URTFrontendNavigator::PlayAgain()
+{
+	// L'ordine conta: prima si smonta il Result, poi si chiede la partita. Al contrario, un `StartMatch`
+	// rifiutato lascerebbe l'utente sul Result con un modale d'errore sopra — che e' il posto giusto per
+	// vederlo — ma lo stack sarebbe gia' stato svuotato da sotto.
+	const ERTNavResult Cleared = ReturnMain();
+	if (Cleared != ERTNavResult::Ok)
+	{
+		return Cleared;
+	}
+
+	// (il risultato l'ha gia' azzerato `ReturnMain`, che e' il punto comune alle due uscite)
+	return StartMatch();
 }
 
 FString URTFrontendNavigator::ConsumePendingMatchLevel()
