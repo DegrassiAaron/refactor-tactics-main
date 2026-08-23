@@ -1953,6 +1953,17 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 
 void ARTTurnManager::ConcludeTurn()
 {
+	// CP 11.3 (#79): il log leggibile si DERIVA dal TurnLog, che e' l'autorita'. Qui e non in
+	// `LockInAndResolve`, perche' quella esce da due rami — playback o conclusione immediata — e solo questo
+	// punto li attraversa entrambi: emettere di la' significherebbe nessuna riga nelle partite con playback.
+	//
+	// ⚠️ Prima le righe nascevano da 59 `AddLogEvent` sparse nella risoluzione, e il TurnLog nasceva altrove:
+	// due produttori indipendenti coincidono per abitudine, non per costruzione. Misurato su una partita di
+	// dodici turni: zero righe su cosa il bot avesse deciso, zero su chi avesse colpito chi.
+	for (const FString& Line : URTTurnLogLibrary::DescribeTurnLog(TurnLog))
+	{
+		AddLogEvent(Line);
+	}
 	// PRIMA di tutto il resto: a partita finita questa funzione esce anticipatamente, e il turno che
 	// decide la partita e' proprio quello che non verrebbe mai misurato.
 	ClosePacingSample();
