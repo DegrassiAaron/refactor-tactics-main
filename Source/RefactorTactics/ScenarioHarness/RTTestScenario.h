@@ -626,7 +626,8 @@ struct FRTTestScenario
 	int32 Seed = 0;
 
 	/**
-	 * **Fixture di mappa riferita per nome** (`RelayBasin`, `RelayLite`, `TestArena`). Vuoto = si genera
+	 * **Fixture di mappa riferita per nome** (`RelayBasin`, `RelayLite`, `TestArena`, `ArenaV01`,
+	 * `CoverYard` — l'elenco autorevole e' `URTMatchSetupLibrary::MakeFixtureArena`). Vuoto = si genera
 	 * l'arena da `MapRadius`, come prima.
 	 *
 	 * Riferire invece di duplicare non e' economia di righe: la geometria canonica vive in UN posto solo,

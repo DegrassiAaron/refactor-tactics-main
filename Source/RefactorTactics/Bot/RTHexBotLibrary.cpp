@@ -7,7 +7,7 @@
 #include "Turn/RTFacingLibrary.h" // CP 13.5: il facing d'arrivo si deriva con la regola, non a mano
 #include "Turn/RTHexSimLibrary.h"
 #include "Pathfinding/RTHexPath.h" // ERTHexPathStatus: una prenotazione fallita si distingue da una vuota
-#include "Pathfinding/RTHexPathLibrary.h" // la distanza di avvicinamento si misura PER CAMMINO (#1287 strato 1)
+#include "Pathfinding/RTHexPathLibrary.h" // `GraphNeighbors`: l'avvicinamento si misura in PASSI sul grafo (#1287 strato 1)
 #include "RefactorTactics.h"       // LogRT
 
 namespace
@@ -22,33 +22,113 @@ namespace
 	 * quindi appena il filtro si spegne il bot ci torna. Misurato su `L_HexArena` il 2026-08-23: otto
 	 * alternanze in dodici turni, e la partita che non si decide in quaranta.
 	 *
-	 * ⚠️ **Sono PASSI, non costo.** `TotalCost` somma il `MoveCost` del terreno, e usarlo qui cambierebbe la
-	 * scala di `WApproach` su ogni mappa con fango o ghiaccio — cioe' bilanciamento, che ha la sua sede in
-	 * #149 e non qui. Con i passi, su un campo aperto senza ostacoli il numero coincide **esattamente** con
-	 * `HexDistance`: ogni punteggio gia' pinnato resta quello di prima, e a muoversi e' solo cio' che sta
-	 * dietro un muro.
+	 * 🔴 **BFS a peso uniforme, e NON `FindPath`.** La prima stesura leggeva `Path.Num() - 1` da
+	 * `URTHexPathLibrary::FindPath`, che e' un A* sul COSTO (`GScore` accumula `TotalMoveCost`): quel numero
+	 * e' la lunghezza del percorso a costo minimo, che su una mappa con terreni diversi **non e' il numero
+	 * di passi**. Su `ArenaV01` non e' un caso limite — entrambe le porte sono `Rough`, costo 2 — e il
+	 * commento prometteva «passi, non costo» consegnando l'opposto. Trovato in code review.
+	 *
+	 * ⚠️ **Sono passi e non costo per una ragione di scala.** Il costo somma il `MoveCost` del terreno e
+	 * cambierebbe la taratura di `WApproach` su ogni mappa con fango o ghiaccio — cioe' bilanciamento, che
+	 * ha la sua sede in #149 e non qui. Con i passi, su un campo a costo uniforme il numero coincide
+	 * **esattamente** con `HexDistance` quando non ci sono ostacoli: ogni punteggio gia' pinnato resta
+	 * quello di prima, e a muoversi e' solo cio' che sta dietro un muro.
+	 *
+	 * ⚠️ **Il grafo si percorre AL CONTRARIO.** `GraphNeighbors(C)` da' le celle raggiungibili DA `C`, e a
+	 * servire qui e' `dist(X -> Goal)` per ogni `X`. Una BFS in avanti dal goal risponderebbe a
+	 * `dist(Goal -> X)`, che coincide solo se ogni arco e' bidirezionale — vero per i vicini planari, **non
+	 * garantito** per le transizioni, che `FRTHexEdge` esprime come archi orientati. Si costruisce quindi
+	 * l'adiacenza inversa e da li' si parte: cosi' una rampa a senso unico da' il numero giusto invece di
+	 * uno plausibile.
 	 *
 	 * ⚠️ **Il ripiego e' la distanza esagonale, e non e' neutro**: quando il cammino non esiste — grafo
 	 * disconnesso, bersaglio murato — nessun avvicinamento e' possibile, e qualunque numero qui e' una
 	 * finzione. Si sceglie quello di prima perche' e' l'unico che non introduce un comportamento nuovo in un
 	 * caso che questo lavoro non ha misurato.
 	 */
-	int32 ApproachSteps(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
+	const TMap<FRTCellId, int32>* StepsToGoalField(const URTHexMapAsset* Map, const FRTCellId& Goal)
 	{
 		if (Map == nullptr)
 		{
-			return URTHexLibrary::HexDistance(From, To);
+			return nullptr;
 		}
+
+		// Cache di una voce sola, per (mappa, revisione, goal).
+		//
+		// ⚠️ **Serve alla scala, non all'eleganza.** `ChooseBestPlan` chiama `ScorePlan` una volta per
+		// candidata, e `BuildCandidates` emette un piano per ogni cella raggiungibile PIU' uno per ogni
+		// coppia (cella, nemico): senza cache si ricalcolerebbe lo stesso campo un centinaio di volte per
+		// unita' per turno. Con la cache le BFS effettive sono una per nemico.
+		//
+		// ⚠️ La chiave include `Revision` perche' la mappa cambia IN PARTITA — una porta che si apre, un
+		// ponte che compare — ed e' esattamente il campo che l'asset espone per invalidare le cache. Senza,
+		// il bot continuerebbe a misurare la mappa di due turni fa.
+		struct FCampo
+		{
+			const URTHexMapAsset* Map = nullptr;
+			int32 Revision = -1;
+			FRTCellId Goal;
+			TMap<FRTCellId, int32> Passi;
+		};
+		static thread_local FCampo Cache;
+
+		if (Cache.Map == Map && Cache.Revision == Map->Revision && Cache.Goal == Goal)
+		{
+			return &Cache.Passi;
+		}
+
+		// Adiacenza INVERSA: per ogni arco `C -> N` del grafo, qui si registra `N -> C`.
+		TMap<FRTCellId, TArray<FRTCellId>> Inversa;
+		for (const FRTHexCellData& Cella : Map->Cells)
+		{
+			for (const TPair<FRTCellId, int32>& Arco : URTHexPathLibrary::GraphNeighbors(Map, Cella.Id))
+			{
+				Inversa.FindOrAdd(Arco.Key).Add(Cella.Id);
+			}
+		}
+
+		Cache.Map = Map;
+		Cache.Revision = Map->Revision;
+		Cache.Goal = Goal;
+		Cache.Passi.Reset();
+		Cache.Passi.Add(Goal, 0);
+
+		TArray<FRTCellId> Coda;
+		Coda.Add(Goal);
+		for (int32 I = 0; I < Coda.Num(); ++I)
+		{
+			const FRTCellId Corrente = Coda[I];
+			const int32 Passo = Cache.Passi[Corrente] + 1;
+			if (const TArray<FRTCellId>* Precedenti = Inversa.Find(Corrente))
+			{
+				for (const FRTCellId& Prec : *Precedenti)
+				{
+					if (!Cache.Passi.Contains(Prec))
+					{
+						Cache.Passi.Add(Prec, Passo);
+						Coda.Add(Prec);
+					}
+				}
+			}
+		}
+
+		return &Cache.Passi;
+	}
+
+	int32 ApproachSteps(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
+	{
 		if (From == To)
 		{
 			return 0;
 		}
-		const FRTHexPathResult Path = URTHexPathLibrary::FindPath(Map, From, To);
-		if (Path.Status != ERTHexPathStatus::Success || Path.Path.Num() < 2)
+		if (const TMap<FRTCellId, int32>* Campo = StepsToGoalField(Map, To))
 		{
-			return URTHexLibrary::HexDistance(From, To);
+			if (const int32* Passi = Campo->Find(From))
+			{
+				return *Passi;
+			}
 		}
-		return Path.Path.Num() - 1;
+		return URTHexLibrary::HexDistance(From, To);
 	}
 
 	/** Unita' di combattimento «leggera»: al calcolo della copertura servono cella e orientamento, nient'altro. */

@@ -41,13 +41,26 @@ namespace RTAuthoredEngagement
 	}
 
 	/**
-	 * L'unita' ha COLPITO da questa cella in questo turno?
+	 * L'unita' ha COLPITO QUALCUN ALTRO da questa cella in questo turno?
 	 *
 	 * 🔴 **E' la meta' che all'oracolo del parcheggio mancava.** `#1088` definisce il difetto come «dodici
 	 * round di **soli spostamenti**, zero combattimento»: cio' che non e' legittimo e' stare fermi **senza
 	 * produrre nulla**. Contando solo la cella, un kiter che presidia la propria distanza di tiro e spara
 	 * risulta identico a un'unita' in stallo — e sulla mappa d'autore Gadget fa esattamente questo:
 	 * dieci turni su `(-1,1,L0)`, sei voci `Combat` partite di li' e un'eliminazione al turno 11.
+	 *
+	 * 🔴 **`ERTLogCategory::Combat` NON vuol dire «attacco», e la prima stesura di questa funzione lo
+	 * assumeva.** La categoria porta anche il danno da terreno (`RTTurnManager.cpp:133`, `SrcCell` e
+	 * `TgtCell` entrambe la cella di chi subisce), il tick di `Status.Burning` (`:1167`, idem — «le due
+	 * celle sono DOVE SI TROVA chi brucia») e la cura (`:1430`, `Outcome = Healed`). Con il solo confronto
+	 * su `SrcCell`, un'unita' ferma **dentro il fuoco** risultava aver attaccato, e l'oracolo di #1088
+	 * diventava cieco proprio sullo stallo che deve vedere. Trovato in code review.
+	 *
+	 * Un colpo si riconosce da due cose insieme: l'esito e' uno dei quattro **danni inflitti**, e le due
+	 * celle sono **diverse** — perche' hazard, burning e autocura hanno `SrcCell == TgtCell`.
+	 *
+	 * ⚠️ `NoLineOfSight` resta FUORI dalla lista, ed e' deliberato: un'unita' che ogni turno pianifica un
+	 * colpo che la copertura ferma, e non si sposta, e' il difetto di #1287 — non un'unita' che agisce.
 	 *
 	 * ⚠️ Si legge il `TurnLog`, che e' l'autorita' (CP 11.3): dedurre l'attacco dagli HP del bersaglio
 	 * sarebbe una seconda verita', e non distinguerebbe il colpo assorbito dal colpo non sferrato.
@@ -57,9 +70,19 @@ namespace RTAuthoredEngagement
 		if (!TM) { return false; }
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 		{
-			if (E.Category == ERTLogCategory::Combat && E.SrcCell == Cella)
+			if (E.Category != ERTLogCategory::Combat || E.SrcCell != Cella || E.TgtCell == Cella)
 			{
+				continue;
+			}
+			switch (static_cast<ERTCombatOutcome>(E.Outcome))
+			{
+			case ERTCombatOutcome::Hit:
+			case ERTCombatOutcome::ShieldAbsorbed:
+			case ERTCombatOutcome::Lethal:
+			case ERTCombatOutcome::TerrainBonus:
 				return true;
+			default:
+				break;
 			}
 		}
 		return false;
@@ -142,6 +165,17 @@ bool FRTAuthoredMapNobodyParksTest::RunTest(const FString&)
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
 		{
 			TM->Tick(0.05f);
+		}
+		// 🔴 **Il tetto di 400 tick non e' una fine turno, e prima usciva in silenzio.** Esaurito il budget
+		// il ciclo terminava lo stesso, le celle venivano lette a turno mezzo applicato e il
+		// `LockInAndResolve` successivo si impilava sopra: l'oracolo misurava posizioni che non sono mai
+		// state uno stato di fine turno. Che il budget si esaurisca non e' teorico — lo scenario
+		// `AutoBattle.ArenaV01` lo documenta da riga di comando. Trovato in code review.
+		if (!TestFalse(*FString::Printf(TEXT("il turno %d ha finito di risolvere entro 400 tick"), Turni + 1),
+			TM->IsResolving()))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
 		}
 		++Turni;
 
@@ -247,6 +281,17 @@ bool FRTAuthoredMapNoOscillationTest::RunTest(const FString&)
 		{
 			TM->Tick(0.05f);
 		}
+		// 🔴 **Il tetto di 400 tick non e' una fine turno, e prima usciva in silenzio.** Esaurito il budget
+		// il ciclo terminava lo stesso, le celle venivano lette a turno mezzo applicato e il
+		// `LockInAndResolve` successivo si impilava sopra: l'oracolo misurava posizioni che non sono mai
+		// state uno stato di fine turno. Che il budget si esaurisca non e' teorico — lo scenario
+		// `AutoBattle.ArenaV01` lo documenta da riga di comando. Trovato in code review.
+		if (!TestFalse(*FString::Printf(TEXT("il turno %d ha finito di risolvere entro 400 tick"), Turni + 1),
+			TM->IsResolving()))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
 		++Turni;
 
 		for (const ARTUnit* U : RTAuthoredEngagement::LiveUnits(World))
@@ -266,9 +311,24 @@ bool FRTAuthoredMapNoOscillationTest::RunTest(const FString&)
 	int32 Peggiore = 0;
 	for (const TPair<int32, int32>& P : Ritorni) { Peggiore = FMath::Max(Peggiore, P.Value); }
 
-	// La stessa soglia del parcheggio (`RoundLimit / 3`), e per la stessa ragione: un ritorno isolato e'
-	// un percorso, una serie e' un ciclo.
-	const int32 Limite = FMath::Max(1, MaxTurni / 3);
+	// 🔴 **La soglia si deriva dai turni GIOCATI, non dalla costante.** Con `MaxTurni / 3` il limite restava
+	// 4 anche quando la partita finiva prima, e un ritorno di periodo due e' osservabile solo dal terzo
+	// turno: una partita decisa al quinto ne poteva produrre al massimo tre e passava **per aritmetica**.
+	// Poiche' lo scopo di questo lavoro e' proprio far decidere prima la partita, il fix avrebbe potuto
+	// rendere vacuo il proprio test. Trovato in code review.
+	const int32 Limite = FMath::Max(1, Turni / 3);
+
+	// E la premessa va asserita, non sperata: senza abbastanza turni l'oracolo non puo' cadere, e un verde
+	// li' non dice niente.
+	const int32 TurniMinimi = 6;
+	if (!TestTrue(*FString::Printf(
+		TEXT("la partita e' durata abbastanza perche' l'oracolo possa cadere (%d turni, minimo %d)"),
+		Turni, TurniMinimi), Turni >= TurniMinimi))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
 	AddInfo(FString::Printf(TEXT("turni giocati: %d  |  piu' ritorni di periodo due su una unita': %d (limite %d)"),
 		Turni, Peggiore, Limite));
 

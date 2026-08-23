@@ -28,9 +28,20 @@ namespace
 
 	/**
 	 * Come `MakeBotMap`, piu' una colonna di celle REALI sui layer 1..`Layers`-1 sopra l'origine e sopra la
-	 * cella (1,0). Serve a `HexBot.ElevationNeverOutweighsClosingOneCell`: quel test valuta piani su celle in
-	 * quota, e su una mappa a un solo layer li valuterebbe su celle **che l'asset non contiene** — oggi passa
-	 * lo stesso solo perche' nessun ramo di `ScorePlan` interroga la mappa quando `EnemyRanges[0] == 0`.
+	 * cella (1,0), **collegate al piano di sotto da una transizione per livello**.
+	 *
+	 * 🔴 **Le transizioni mancavano, e senza di loro il test qui sotto misurava un'altra cosa.** La prima
+	 * stesura aggiungeva le celle e basta: nessun arco fra i layer, quindi `GraphNeighbors` non ne conosce
+	 * nessuno. Da quando l'avvicinamento si misura in passi sul grafo, `ApproachSteps` verso una cella in
+	 * quota rispondeva `NoPath` e ripiegava su `HexDistance` — che il layer lo ignora. Il risultato:
+	 * `ElevationNeverOutweighsClosingOneCell`, cioe' l'UNICO test che pinna l'invariante
+	 * `WElevation * MaxLayer < WApproach`, passava esercitando il ripiego invece della metrica nuova.
+	 * Trovato in code review.
+	 *
+	 * ⚠️ **Il costo dell'arco e' 1**, non 2 come sulla piattaforma di `ArenaV01`: qui interessa che il
+	 * grafo sia CONNESSO, e un costo diverso da uno mescolerebbe due domande nello stesso test.
+	 * ⚠️ Il commento precedente diceva che «nessun ramo di `ScorePlan` interroga la mappa quando
+	 * `EnemyRanges[0] == 0`»: non e' piu' vero, `ApproachSteps` la interroga sempre.
 	 */
 	URTHexMapAsset* MakeLayeredBotMap(int32 Radius, int32 Layers)
 	{
@@ -39,6 +50,8 @@ namespace
 		{
 			M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, L)));
 			M->AddOrUpdateCell(FRTHexCellData(FRTCellId(1, 0, L)));
+			M->AddTransition(FRTCellId(0, 0, L - 1), FRTCellId(0, 0, L), /*Cost=*/ 1);
+			M->AddTransition(FRTCellId(1, 0, L - 1), FRTCellId(1, 0, L), /*Cost=*/ 1);
 		}
 		M->SortCells();
 		return M;

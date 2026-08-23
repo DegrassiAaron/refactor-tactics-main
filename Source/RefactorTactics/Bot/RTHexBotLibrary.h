@@ -159,12 +159,17 @@ struct FRTHexBotContext
 /**
  * Decisioni del bot su griglia ESAGONALE: logica pura, nessun Actor, solo interi (invariante #4).
  * Politica ereditata dal bot quadrato che ha sostituito (rimosso al CP 7.2) — focus-fire, minaccia mitigata
- * dalla copertura, kiting o avvicinamento, bonus di elevazione — con distanza esagonale e linea di vista
- * letta dall'asset mappa.
+ * dalla copertura, kiting o avvicinamento, bonus di elevazione — con linea di vista letta dall'asset mappa.
+ *
+ * ⚠️ **La MINACCIA si misura in distanza esagonale, l'AVVICINAMENTO in PASSI sul grafo** (dal 2026-08-23,
+ * #1296): un proiettile non cammina, un'unita' si'. Questa riga diceva «distanza esagonale» per entrambi, ed
+ * era la premessa che ha prodotto il ciclo di periodo due sulla mappa d'autore.
  *
  * Le mosse candidate arrivano da URTHexSimLibrary::ReachableCells, che ha gia' applicato budget di movimento,
- * celle bloccate, unita' occupanti e archi verticali: il bot non rifa' pathfinding e non puo' proporre mosse
- * illegali. Vedi docs/technical/h6-5-hex-bot-spec.md.
+ * celle bloccate, unita' occupanti e archi verticali: il bot **non propone mosse illegali**. ⚠️ Diceva anche
+ * «non rifa' pathfinding», e non e' piu' vero: `ScorePlan` percorre il grafo per misurare l'avvicinamento. La
+ * differenza che regge e' un'altra — il bot non sceglie il PERCORSO, sceglie la destinazione.
+ * Vedi docs/gameplay/spec-bot-hex.md.
  */
 UCLASS()
 class REFACTORTACTICS_API URTHexBotLibrary : public UBlueprintFunctionLibrary

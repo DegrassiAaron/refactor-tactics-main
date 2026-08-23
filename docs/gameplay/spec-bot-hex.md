@@ -78,10 +78,30 @@ muro davanti non minaccia.
 Sulla distanza dal nemico **più vicino**:
 
 ```text
-kiter (KiteStandoff > 0), se dist < standoff:   Score -= WKiteViolation × (standoff − dist)
-kiter,  se dist ≥ standoff + margine:            Score -= WApproach × (dist − standoff − margine)
-mischia (KiteStandoff == 0):                     Score -= WApproach × dist
+kiter (KiteStandoff > 0), se passi < standoff:   Score -= WKiteViolation × (standoff − passi)
+kiter,  se passi ≥ standoff:                     Score -= WApproach × (passi − standoff)
+mischia (KiteStandoff == 0):                     Score -= WApproach × passi
 ```
+
+🔴 **`passi` è la distanza sul GRAFO, non in linea d'aria** (dal 2026-08-23,
+[#1296](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1296)). Una BFS a peso uniforme
+sull'adiacenza inversa di `GraphNeighbors`: una cella dietro un muro è lontana quanto costa aggirarlo, e non
+due passi. Sono **passi e non costo** — il costo sommerebbe il `MoveCost` del terreno e ritarerebbe
+`WApproach` su ogni mappa con fango o ghiaccio, che è bilanciamento e ha la sua sede in
+[#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149). Su campo aperto senza ostacoli il
+numero coincide **esattamente** con `HexDistance`.
+
+⚠️ **`MinDist` non è più limitato dal raggio della mappa**, e la conseguenza va detta: prima
+`WApproach × dist` non poteva superare `WThreat`, quindi stare sotto tiro pesava sempre più di una cella di
+avvicinamento; con i passi un aggiramento lungo può superarlo. **Nessun test lo pinna**, ed è una domanda di
+bilanciamento aperta.
+
+⚠️ **Il `margine` non c'è più nella seconda riga**, e non è una svista di questa revisione: la penalità parte
+dallo **standoff** dal fix di [#1287](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1287),
+che lo dichiara nel codice — far partire la penalità dalla portata lascia piatta la banda
+`[standoff, portata]`, e lì l'elevazione torna a essere l'unico termine posizionale. Questa riga era rimasta
+indietro. ⚠️ `KiterStandoffMargin` in `RTHexBotLibrary.h` dichiara ancora che «`ScorePlan` lo RIAGGIUNGE»:
+**è falso**, la costante serve solo a `DeriveKiteStandoff`.
 
 E infine `Score += WElevation × Layer` della cella di destinazione: a parità di tutto, l'alta quota vince.
 
