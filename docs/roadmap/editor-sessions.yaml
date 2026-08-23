@@ -472,8 +472,11 @@ sessions:
       proprio l'arena che il passo qui sotto esclude. Chi apre l'editor prima che siano chiuse spende una
       seduta per filmare un pareggio sull'arena sbagliata.
 
-      🔴 **COSA SI FILMA — la sola cosa ancora da decidere, e non la decide chi esegue.** Le due opzioni
-      misurate il 2026-08-23:
+      ✅ **COSA SI FILMA — deciso dall'autore il 2026-08-23: ENTRAMBE, e si dichiara la differenza.** Il
+      free-run mostra la configurazione che il giocatore ottiene, lo scenario porta la vittoria che G10 e
+      G13 chiedono; nessuna delle due copre l'altra, e presentarne una sola avrebbe taciuto meta' della
+      verita'. Quattro registrazioni: due partite per due ambienti. La sequenza passo per passo sta in
+      `plans/u23-sequenza-seduta-2026-08-23.md`. Le due opzioni, misurate lo stesso giorno:
       **(a) free-run sull'asset d'autore.** `L_HexArena` con `DA_HexMap_Arena`, `rt.Map.Source =
       LevelAsset`, poi `-RTAutobattle` (o la proprieta' del GameMode). E' la mappa che la precondizione di
       `PIE-V01-PACKAGED` nomina. Misurato: **pareggio allo scadere 12/12**, 25 voci `Combat`. Esito
@@ -485,9 +488,10 @@ sessions:
       «alla vittoria» viene da uno scenario costruito per risolversi — sulla **stessa geometria** della
       mappa d'autore (`ArenaV01`: 61 celle di raggio 4 piu' la piattaforma a `L=1`; la partita sull'asset
       d'autore annuncia le stesse 64 celle e sale sulla stessa `(3,-3,L1)`). ⚠️ Ma la mappa e' **costruita
-      da codice**, non l'asset d'autore: uno scenario non puo' caricare un `.uasset`. Se «non sull'arena
-      generata di test» si legge come «non `TestArena`», (b) passa; se si legge come «solo l'asset
-      d'autore», (b) non passa e il DoD resta aperto sul punto 1.
+      da codice**, non l'asset d'autore: uno scenario non puo' caricare un `.uasset`. Registrando entrambe, la lettura di «non
+      sull'arena generata di test» non va piu' decisa in astratto: se (b) vale, il punto 1 e' soddisfatto;
+      se non vale, resta agli atti che sull'asset d'autore l'esito e' un pareggio — che e' l'informazione
+      che il DoD vuole non perdere.
       ⚠️ **Trappola misurata, e vale per (b) da riga di comando**: headless con frame rate scatenato la
       sessione consuma i 400 tick di `MaxResolveTicks` prima che il playback in tempo reale finisca, ed
       esce `ERROR: il turno 1 non ha finito di risolvere entro 400 passi`. Con `-useFixedTimeStep -fps=60`
