@@ -113,6 +113,66 @@ deduce**: il criterio per distinguere «due scope» da «un duplicato» è una s
 
 ---
 
+## Aperta — come il bot sceglie fra vedere e avvicinarsi, dalla code review di `#1296` del 2026-08-23
+
+Origine: [`#1296`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1296), PR
+[`#1297`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1297) e la code review che l'ha
+seguita. La misura sotto viene da `L_HexArena` con `DA_HexMap_Arena`, la mappa che la partita carica.
+
+Il bot non ha alcun termine che dica **«da qui posso ingaggiare»**. Il punteggio misura danno, minaccia,
+distanza e quota; la linea di tiro entra solo come condizione della minaccia *subita*. Finora la lacuna è
+stata coperta due volte, e in due modi che si escludono:
+
+| | come | cosa produce |
+|---|---|---|
+| [`#1287`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1287) (2026-08-23, mattina) | **filtro sul dominio**: se non puoi colpire **e non vedi già nessuno**, restano solo le celle da cui si vede | **oscillazione di periodo due** — il filtro è acceso quando sei cieco e spento appena vedi, quindi la cella cieca torna candidata nello stesso istante. Misurato: otto alternanze in dodici turni, e la partita che non si decide in quaranta |
+| [`#1296`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1296) (2026-08-23, sera) | **niente filtro**, e l'avvicinamento misurato in **passi sul grafo** invece che in linea d'aria | **parcheggio cieco** — una cella senza linea di tiro può essere l'ottimo globale. Misurato su Gadget al turno 5: `standoff 3`, distanza 4, LoS assente, `resta (-1,1,L0) score = -10` contro `-20` della migliore fra le **24** celle che vedono. Sette turni fermi senza sparare |
+
+🔴 **La giustificazione con cui il filtro è stato tolto è vera solo a metà, e la metà falsa è il difetto.**
+Diceva: *«una cella dietro un muro adesso è lontana, e il punteggio la scarta da solo»*. Vale per i blocchi
+al **passo**; non vale per i blocchi alla **vista**, dove la metrica non mente affatto — Gadget è davvero a
+quattro passi — e semplicemente non vede. `ArenaV01` ha entrambi: la barriera centrale ferma passo e vista,
+lo schermo meridionale `(2,1,0)`/`(3,1,0)` ferma **solo la vista**, e `ERTHexSurface::Smoke` ha la stessa
+forma con `MoveCost` 1.
+
+⚠️ **I due difetti non sono lo stesso difetto con due nomi.** Sulla mappa d'autore Gadget è inerte circa
+sette turni su dodici in **entrambe** le versioni: con il filtro lo esprime muovendosi fra tre celle, senza
+filtro stando fermo. `Match.Autobattle.NobodyParksOnTheAuthoredMap` vede solo la seconda forma,
+`Match.Autobattle.NobodyOscillatesOnTheAuthoredMap` solo la prima — e **nessuna delle due configurazioni
+passa entrambi**.
+
+**Una terza forma esiste, ed è misurata sulla carta ma non implementata**: un **termine di punteggio sulla
+destinazione** — penalità `WBlind` per una cella senza linea di tiro verso un contatto noto, applicata
+quando il piano non contiene un attacco. Non oscilla perché guarda **dove vai**, non **da dove parti**:
+
+    Gadget T5          cieca -10 - W    vede -20      con W > 10 si sposta e spara
+    Riktor su (1,-1)   cieca -20 - W    vede -36      con W > 16 sale sulla piattaforma
+    Riktor sulla piattaforma            vede -36      resta: nessun ciclo
+
+E conserva ciò che `#1287` aveva comprato — attraversare una zona cieca per **avvicinarsi** resta possibile
+quando accorcia di più di `W / WApproach` passi, cioè è una scelta tarabile invece di un divieto.
+
+⛔ **Ma è un peso nuovo nel bot**, e `#1287` aveva scartato per iscritto l'approccio *«aggiungere un secondo
+punteggio»* a favore della restrizione del dominio. Rovesciare quel giudizio con l'evidenza è legittimo;
+farlo di lato dentro una PR di correzione no — il bilanciamento del bot ha la sua sede in
+[`#149`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149) e [D-102](decisions/RT_PDR_00_Decision_Log.md).
+
+| ID | Domanda | Perché non si deduce |
+|----|---------|----------------------|
+| `BOT-1` | La capacità di **ingaggiare da una cella** entra nel punteggio come **termine** (`WBlind`), oppure resta una **restrizione del dominio** delle candidate? | Sono due modelli diversi, non due implementazioni della stessa cosa. **Termine**: componibile con gli altri, tarabile, e permette lo scambio *«vado cieco perché accorcio di tre passi»* — al prezzo di un peso in più da bilanciare, e `#1287` lo aveva scartato. **Dominio**: nessun peso nuovo e nessun bilanciamento da rifare, ma è una scelta binaria che non sa esprimere quello scambio — ed è la forma che ha prodotto l'oscillazione. ⚠️ Nessuna delle due si ricava dai documenti: la spec owner [`gameplay/spec-bot-hex.md`](gameplay/spec-bot-hex.md) §3d elenca i termini del punteggio e **non nomina la linea di tiro** fra di essi, quindi non dice se appartenga a quella lista o al filtro a monte. Innesco: la prima issue che voglia far passare entrambi gli oracoli della mappa d'autore |
+| `BOT-2` | Se la risposta a `BOT-1` è «termine»: quanto vale `WBlind`, e **chi lo pinna**? | I due casi misurati danno un limite inferiore — `> 16` per coprire entrambi — e nient'altro. Il limite superiore è una scelta di gioco: più alto è, meno il bot accetta di attraversare una zona cieca per chiudere la distanza, che è precisamente il comportamento che `#1287` è andato a comprare. ⚠️ **E c'è un secondo ordinamento già mosso e non pinnato**: da `#1296` `MinDist` non è più limitato dal raggio della mappa, quindi `WApproach × MinDist` può superare `WThreat` — prima non poteva, e nessun test lo verifica. Un peso nuovo entra in una scala che ha appena smesso di avere un tetto noto. Dipendente da `BOT-1` |
+
+**Cosa blocca oggi**: la PR `#1297` lascia `Match.Autobattle.NobodyParksOnTheAuthoredMap` **rosso** (7 turni
+fermi su limite 4) e non è mergiabile finché `BOT-1` non è decisa. `#959` (CP 47.6) resta eseguibile solo
+sul free-run in pareggio: lo scenario `AutoBattle.ArenaV01` arriva alla vittoria **con** il fix di `#1296`,
+e senza torna a non decidersi.
+
+Tracciata su GitHub: [`#1300`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1300)
+(`question`) — aperta **nello stesso commit** di questa voce, perché una decisione aperta che vive solo in
+un documento non entra in nessuna coda di lavoro.
+
+---
+
 ## Aperta — la varietà pseudo-casuale, dal consolidamento Mini Autobattle del 2026-08-16
 
 Origine: [`archive/src/RefactorTactics_Mini_Roadmap_v01_Autobattle_Claude_Consolidation_2026-08-16.md`](archive/src/README.md)
