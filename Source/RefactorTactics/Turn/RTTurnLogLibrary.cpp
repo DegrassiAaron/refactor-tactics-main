@@ -307,7 +307,14 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			return FString::Printf(TEXT("%s: risposta non ammessa, %s resta armata (%s)"),
 				*CellText(Entry.SrcCell), Soggetto, *Who);
 		case ERTReactionDecisionOutcome::HoldImmediate:
-			return FString::Printf(TEXT("%s: nessun bersaglio ammesso, %s resta armata (%s)"),
+			return FString::Printf(TEXT("%s: nessuna scelta possibile, %s resta armata (%s)"),
+				*CellText(Entry.SrcCell), Soggetto, *Who);
+		// ⚠️ Distinto da `HoldImmediate` perche' dice la CAUSA e non solo la constatazione (#583, [D-109]):
+		// la' non c'era scelta, qui non c'e' perche' la condizione dichiarata ha escluso i bersagli.
+		// Il testo vecchio di `HoldImmediate` — «nessun bersaglio ammesso» — descriveva in realta' QUESTO caso,
+		// ed e' passato a «nessuna scelta possibile», che e' cio' che quell'esito significa davvero.
+		case ERTReactionDecisionOutcome::HoldCollapsedByCondition:
+			return FString::Printf(TEXT("%s: nessun bersaglio soddisfa la condizione, %s resta armata (%s)"),
 				*CellText(Entry.SrcCell), Soggetto, *Who);
 		}
 		// Un valore aggiunto in coda e non ancora tradotto: si dice cosi', invece di mentire su quale sia.
