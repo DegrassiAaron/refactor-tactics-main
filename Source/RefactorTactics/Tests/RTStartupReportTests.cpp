@@ -29,6 +29,7 @@ namespace
 		ERTStartupOutcome::FormatAssetInvalid,
 		ERTStartupOutcome::ShippedFormatInvalid,
 		ERTStartupOutcome::FormatMapMismatch,
+		ERTStartupOutcome::RosterHeroMissing,
 		ERTStartupOutcome::UsingTestArena,
 		ERTStartupOutcome::UsingDemoArena,
 		ERTStartupOutcome::LevelMapMissing,

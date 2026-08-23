@@ -71,6 +71,14 @@ enum class ERTStartupOutcome : uint8
 	ShippedFormatInvalid,
 	/** Formato e mappa non combaciano (CP 19.1): un 3v3 su una mappa 2v2 non e' una partita piu' stretta. */
 	FormatMapMismatch,
+	/**
+	 * Un eroe della formazione non e' nel catalogo (`#1069`): l'allestimento si ferma.
+	 *
+	 * ⚠️ **Fatale, e prima non lo era**: la guardia faceva `continue` con un Warning, quindi la partita
+	 * partiva con le unita' risolte e senza le altre. E' lo stesso dato che `FormatMapMismatch` protegge
+	 * dall'altro lato — quanti ne schiera il formato — e riceve lo stesso trattamento.
+	 */
+	RosterHeroMissing,
 
 	// ── Degradati: la partita parte, ma non e' quella che si crede ──────────────────────────────────
 
