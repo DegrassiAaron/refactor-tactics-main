@@ -104,6 +104,21 @@ FString URTTurnLogLibrary::DescribeActionIdentity(const FRTTurnLogEntry& Entry)
 	return FString::Printf(TEXT("%s · %s"), *Entry.BaseActionId.ToString(), *Entry.ActionId.ToString());
 }
 
+TArray<FString> URTTurnLogLibrary::DescribeTurnLog(TArray<FRTTurnLogEntry> Entries)
+{
+	// Per VALORE e ordinato qui dentro: la sequenza leggibile non deve dipendere dall'ordine in cui le voci
+	// sono arrivate, e ordinare la copia evita di riordinare il TurnLog del chiamante come effetto collaterale.
+	SortTurnLog(Entries);
+
+	TArray<FString> Lines;
+	Lines.Reserve(Entries.Num());
+	for (const FRTTurnLogEntry& Entry : Entries)
+	{
+		Lines.Add(DescribeEntry(Entry));
+	}
+	return Lines;
+}
+
 FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 {
 	auto CellText = [](const FRTCellId& Cell)
@@ -152,7 +167,15 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			default:                                         Reason = TEXT("spinta annullata"); break;
 			}
 			break;
-		default:                                Reason = TEXT("resta"); break;
+		// L'esito piu' FREQUENTE di tutti, e finche' e' stato un `default` era indistinguibile da un valore
+		// che nessuno ha tradotto: dodici turni di autobattle producevano solo righe «resta», e non si poteva
+		// sapere se fosse una scelta o un esito ignoto (#79, misurato il 2026-08-23).
+		case ERTMoveOutcome::Stayed:            Reason = TEXT("resta"); break;
+		// Un valore aggiunto in coda all'enum e non tradotto qui: si legge lo stesso e DICE di non essere
+		// tradotto, invece di travestirsi da «resta». Chi lo incontra sa dove guardare.
+		default:
+			return FString::Printf(TEXT("esito di movimento non tradotto (%d) %s"),
+				Entry.Outcome, *CellText(Entry.SrcCell));
 		}
 
 		// PERCHE' si e' mossa (#307): l'azione che ha causato lo spostamento, quando la voce la dichiara.

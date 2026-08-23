@@ -1054,8 +1054,21 @@ protected:
 	/** Rotte (celle) percorse da ogni unita' che si e' mossa nell'ultima risoluzione. */
 	TArray<TArray<FRTCellId>> LastMoveRoutes;
 
+	/**
+	 * Quante righe di log il manager conserva.
+	 *
+	 * ⚠️ **Sei non bastano da CP 11.3 (#79)**, e il numero non e' estetico: da quando il log leggibile si
+	 * DERIVA dal TurnLog (`ConcludeTurn`), un turno solo ne produce quante sono le sue voci — movimenti,
+	 * colpi, reazioni, effetti d'ambiente. Con la finestra a sei, le righe del turno appena risolto
+	 * spingevano fuori quelle emesse durante la risoluzione, e il DoD di #79 — «ogni esito deve essere
+	 * spiegabile leggendo il log» — diventava insoddisfacibile per costruzione. Trovato da un test che
+	 * cercava «Status.Wet da terreno» e non lo trovava piu' (`Terrain.Status.LogMatchesState`).
+	 *
+	 * Questa e' la memoria del MANAGER, non quanto ne mostra il widget: quante righe stanno a schermo lo
+	 * decide l'HUD (CP 11.1), che puo' mostrarne meno senza che il log le perda.
+	 */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Turn")
-	int32 MaxLogLines = 6;
+	int32 MaxLogLines = 60;
 
 	/** Durata della fase di pianificazione; allo scadere scatta il lock-in automatico. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
