@@ -477,6 +477,23 @@ protected:
 	TObjectPtr<UInstancedStaticMeshComponent> EdgeFeatures;
 
 	/**
+	 * Il GLIFO di superficie (`#956`, `D-183`): il secondo canale della board, colore E forma.
+	 *
+	 * **Quattro componenti e non uno**, perche' un ISM porta una sola mesh e i quattro segni sono quattro
+	 * mesh — una per conteggio di anelli. L'indice e' `RingCount - 1`.
+	 *
+	 * Portano custom data come `Cells`, e sono gli unici due a farlo: il colore del glifo e' una costante
+	 * scura, mentre rilievo, blocchi e bordi restano col materiale di default per la ragione gia' scritta
+	 * sopra — tingerli direbbe una cosa falsa.
+	 *
+	 * `NoCollision` e `CastShadow = false` come gli altri tre: sono strumenti di lettura, non scenografia.
+	 */
+	// ⚠️ Niente `BlueprintReadOnly`: UHT rifiuta un array statico esposto a Blueprint. Resta `VisibleAnywhere`,
+	// che e' cio' che serve — questi componenti si guardano nel dettaglio dell'attore, non si leggono da BP.
+	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> SurfaceGlyphs[4];
+
+	/**
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:
 	 * viene rigenerato da RebuildInstances a ogni costruzione dell'actor.
 	 */

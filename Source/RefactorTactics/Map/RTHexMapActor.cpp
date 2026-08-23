@@ -110,6 +110,8 @@ namespace
 
 	/** Quote di disegno, tutte sopra la faccia del disco e in ordine di priorita' di lettura. */
 	constexpr float RTLiftSurface = RTCellTopZ + 0.5f;  // contorno della superficie (contesto)
+	constexpr float RTLiftGlyph = RTCellTopZ + 0.3f;    // glifo di superficie (#956): inciso nella faccia,
+	                                                    // sotto il contorno, sopra il disco
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
 }
@@ -348,7 +350,10 @@ ARTHexMapActor::ARTHexMapActor()
 	Cells->SetCollisionResponseToAllChannels(ECR_Block);
 
 	// Tre float per istanza: il colore della superficie, che `RebuildInstances` scrive per ogni cella.
-	// ⚠️ Da soli non si vedono. Servono a un materiale che legga `PerInstanceCustomData` come Base Color;
+	// ⚠️ Da soli non si vedono. Servono a un materiale che legga `PerInstanceCustomData`; in `M_HexCell` il
+	// canale e' l'**Emissive**, non il Base Color — verificato nel grafo del materiale il 2026-08-23 (#956).
+	// La differenza si vede a schermo: un emissive e' auto-illuminato, quindi la board si legge uguale con
+	// qualunque luce di scena, ed e' il motivo per cui `PIE-DEBUG-CELLS` non dipende dall'illuminazione;
 	// col materiale di default della mesh engine le celle restano grigie e questi float sono inerti.
 	// Sta qui e non in `RebuildInstances` perche' `AddInstance` alloca i float alla creazione dell'istanza:
 	// impostarlo dopo lascerebbe le istanze gia' aggiunte senza spazio dove scrivere.
@@ -400,6 +405,23 @@ ARTHexMapActor::ARTHexMapActor()
 	if (CubeMesh.Succeeded())
 	{
 		EdgeFeatures->SetStaticMesh(CubeMesh.Object);
+	}
+
+	// I quattro glifi di superficie (#956, `D-183`). Stessa disciplina degli altri tre — nessuna collisione,
+	// nessuna ombra — piu' i custom data, che qui servono: il colore del segno arriva per istanza come per
+	// `Cells`, ed e' l'unico altro componente a portarli.
+	//
+	// ⚠️ La MESH non si assegna qui: `GetCellGlyphMesh` la costruisce a runtime, e chiamarla nel costruttore
+	// del CDO creerebbe oggetti transitori durante la fase di caricamento delle classi.
+	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
+	{
+		SurfaceGlyphs[Ring] = CreateDefaultSubobject<UInstancedStaticMeshComponent>(
+			*FString::Printf(TEXT("SurfaceGlyph%d"), Ring + 1));
+		SurfaceGlyphs[Ring]->SetupAttachment(Cells);
+		SurfaceGlyphs[Ring]->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		SurfaceGlyphs[Ring]->SetCollisionResponseToAllChannels(ECR_Ignore);
+		SurfaceGlyphs[Ring]->CastShadow = false;
+		SurfaceGlyphs[Ring]->NumCustomDataFloats = 3;
 	}
 }
 
@@ -749,6 +771,23 @@ void ARTHexMapActor::RebuildInstances()
 	Cells->ClearInstances();
 	InstanceCells.Reset();
 
+	// I glifi si ricostruiscono con le celle: `RebuildInstances` gira a ogni pennellata, e istanze vecchie
+	// resterebbero appese a superfici che nel frattempo sono cambiate.
+	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
+	{
+		if (!SurfaceGlyphs[Ring]) { continue; }
+		SurfaceGlyphs[Ring]->ClearInstances();
+		if (UStaticMesh* GlyphMesh = GetCellGlyphMesh(Ring + 1))
+		{
+			SurfaceGlyphs[Ring]->SetStaticMesh(GlyphMesh);
+		}
+		// Dopo `SetStaticMesh`, che riporta gli slot ai materiali della mesh — stesso ordine di `Cells`.
+		if (UMaterialInterface* GlyphMat = CellMaterial.LoadSynchronous())
+		{
+			SurfaceGlyphs[Ring]->SetMaterial(0, GlyphMat);
+		}
+	}
+
 	// Celle isolate: si INVALIDA soltanto, il calcolo lo fa `GetUnreachableCells` alla prima richiesta.
 	// RebuildInstances viene chiamata a ogni OnClickDrag del pennello — molte volte al secondo mentre si
 	// trascina — e una BFS sull'intero grafo a ogni cella dipinta sarebbe lavoro sprecato per un dato che
@@ -846,7 +885,8 @@ void ARTHexMapActor::RebuildInstances()
 		// Colore della superficie, per ISTANZA. La tavolozza e' `URTHexLibrary::SurfaceColor` — la stessa che
 		// disegna l'anello dell'overlay e il marker dell'editor: una cella non puo' avere due colori a seconda
 		// di chi la guarda.
-		// ⚠️ `SurfaceColor` restituisce un `FColor` sRGB a 8 bit, il materiale legge Base Color **lineare**.
+		// ⚠️ `SurfaceColor` restituisce un `FColor` sRGB a 8 bit, il materiale legge **lineare** — sul canale
+		// **Emissive** di `M_HexCell`, non sul Base Color come questo commento ha dichiarato fino al 2026-08-23.
 		// `FromSRGBColor` fa la conversione; dividere per 255 darebbe tinte slavate, e lo sbaglio si vedrebbe
 		// solo mettendo la mesh accanto al proprio anello.
 		const FLinearColor CellColor = FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(Surfaces[I]));
@@ -856,6 +896,38 @@ void ARTHexMapActor::RebuildInstances()
 		// buffer 3N volte, e `RebuildInstances` gira a ogni OnClickDrag del pennello.
 		Cells->SetCustomDataValue(InstanceIndex, 2, CellColor.B,
 			/*bMarkRenderStateDirty=*/ I == CellIds.Num() - 1);
+
+		// ── Il GLIFO di superficie (#956): il secondo canale ────────────────────────────────────────
+		//
+		// Cinque superfici su nove non ne ricevono uno, ed e' una scelta dichiarata: `SurfaceRingCount`
+		// restituisce zero e qui non si monta niente.
+		const int32 Rings = URTHexLibrary::SurfaceRingCount(Surfaces[I]);
+		if (Rings > 0 && Rings <= RTGlyphMaxRings && SurfaceGlyphs[Rings - 1])
+		{
+			// La scala NON include il fattore 0.95 di `PlanarScale`: la mesh se lo porta gia' dentro
+			// (`RTGlyphOuterScale`), e applicarlo due volte stringerebbe il segno del 10% senza che nessun
+			// test lo veda — resterebbe proporzionato, solo piu' piccolo del previsto.
+			const float GlyphScale = UseHexSize / 50.f;
+			FVector GlyphCenter = World;
+			GlyphCenter.Z += RTLiftGlyph;
+			const FTransform GlyphXf(FRotator::ZeroRotator, GlyphCenter,
+				FVector(GlyphScale, GlyphScale, 1.f));
+			const int32 GlyphIndex = SurfaceGlyphs[Rings - 1]->AddInstance(GlyphXf, /*bWorldSpace=*/ true);
+
+			// ⚠️ La conversione sRGB->lineare si RIPETE qui, non si eredita: e' lo stesso contratto di `Cells`
+			// — il materiale legge lineare sul canale Emissive — e un secondo sito che se la dimenticasse
+			// darebbe un grigio slavato che si nota solo mettendo il glifo accanto alla propria cella.
+			//
+			// La costante scura viene da `D-183`, che l'ha scelta misurando: contrasto **160 / 165** sul
+			// quartetto e distanza **60 / 65** dalla faccia piu' vicina, mentre bianco e derivato-per-0,5
+			// cadevano DENTRO la gamma delle superfici. E' un placeholder, e `PIE-V01-BOARD` e' il posto in
+			// cui verra' rimessa in discussione.
+			const FLinearColor GlyphColor = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
+			SurfaceGlyphs[Rings - 1]->SetCustomDataValue(GlyphIndex, 0, GlyphColor.R);
+			SurfaceGlyphs[Rings - 1]->SetCustomDataValue(GlyphIndex, 1, GlyphColor.G);
+			SurfaceGlyphs[Rings - 1]->SetCustomDataValue(GlyphIndex, 2, GlyphColor.B,
+				/*bMarkRenderStateDirty=*/ I == CellIds.Num() - 1);
+		}
 
 		// Rilievo del costo: un blocco alto quanto il SOVRAPPREZZO della cella. Il pavimento non ne produce
 		// nessuno — una mappa senza terreni costosi resta piatta, ed e' giusto: non c'e' niente da segnalare.
