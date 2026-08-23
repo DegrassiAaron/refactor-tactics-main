@@ -213,18 +213,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
 	FString ConsumePendingMatchLevel();
 
-	/** La causa dell'ultimo avvio rifiutato, per il modale. Vuota se l'ultimo avvio e' riuscito. */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
-	const FString& GetLastMatchStartFailure() const { return LastMatchStartFailure; }
-
 	/**
 	 * Il livello del vertical slice, da `DefaultGame.ini`.
 	 *
 	 * ⚠️ **Sta qui e non in `DefaultEngine.ini`**: `GameDefaultMap` dichiara da dove il PACCHETTO avvia —
 	 * il menu — e non quale partita il menu apre. Erano due dati diversi nello stesso posto, e finche' non
 	 * si e' scritto questo il secondo non esisteva affatto.
+	 *
+	 * ⛔ **Niente `EditAnywhere` ne' `BlueprintReadWrite`**, per la stessa ragione scritta su
+	 * `FRTScreenBinding`: questo campo si scrive in `DefaultGame.ini`, non in un pannello. Esporlo
+	 * sembrerebbe il modo previsto di dichiararlo senza esserlo — e un valore scritto da Blueprint verrebbe
+	 * comunque sovrascritto dal `LoadConfig()` del prossimo `StartFrontend`.
 	 */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Frontend")
+	UPROPERTY(Config)
 	FString MatchLevel;
 
 	/** La schermata in cima. */
@@ -324,13 +325,18 @@ private:
 	UPROPERTY(Config)
 	TArray<FRTScreenBinding> Screens;
 
+	/**
+	 * Rifiuta un avvio partita: log, modale ARMATO con l'esito, e il valore di ritorno per chi ha chiesto.
+	 *
+	 * Il motivo e' un `ERTStartupOutcome`, non una stringa: il testo lo compone `DescribeOutcome`, che e'
+	 * localizzato e filtra i non-fatali.
+	 */
+	ERTNavResult RejectMatchStart(ERTStartupOutcome Outcome, const FString& Detail);
+
 	/** Richiesta pendente di apertura livello: la produce `StartMatch`, la consuma chi ha il mondo. */
 	UPROPERTY()
 	FString PendingMatchLevel;
 
-	/** Causa dell'ultimo avvio rifiutato, mostrata dal modale. */
-	UPROPERTY()
-	FString LastMatchStartFailure;
 
 	/** I widget istanziati, per nome. Sopravvivono al pop finche' `SyncPresentation` non li smonta. */
 	UPROPERTY()

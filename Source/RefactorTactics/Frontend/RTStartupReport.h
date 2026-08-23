@@ -94,6 +94,22 @@ enum class ERTStartupOutcome : uint8
 	/** La mappa del livello e' assente o **senza celle**: si ripiega sull'arena demo. */
 	LevelMapMissing,
 	/**
+	 * `MatchLevel` non e' configurato: `PLAY` non sa quale livello aprire (CP 46.4, #939).
+	 *
+	 * 🔴 **Fatale, a differenza di `LevelMapMissing`**, e la differenza e' il ripiego: li' la mappa manca ma
+	 * l'arena demo la sostituisce, qui non c'e' niente da aprire e la partita non parte. Un esito senza
+	 * ripiego che non fosse fatale lascerebbe il modale disarmato, cioe' un fallimento invisibile.
+	 */
+	MatchLevelUnset,
+	/**
+	 * `MatchLevel` e' configurato ma la richiesta precedente non e' stata consumata (CP 46.4, #939).
+	 *
+	 * ⚠️ Non e' un errore di configurazione: e' un aggancio mancante nel codice — nessuno chiama
+	 * `ConsumePendingMatchLevel`. Ha un esito proprio perche' la causa e la correzione sono diverse da
+	 * quelle di `MatchLevelUnset`, e un modale che le confondesse manderebbe a controllare il file sbagliato.
+	 */
+	MatchRequestNotConsumed,
+	/**
 	 * Nessun formato assegnato **ne' spedito**: regole di ripiego.
 	 *
 	 * ⚠️ **Ramo raro**: `Format.Skirmish2v2` e' spedito da C++ (`9f44570d`), quindi in una build normale

@@ -1,4 +1,6 @@
 #include "Frontend/RTFrontendNavigator.h"
+#include "Frontend/RTFrontendWidgets.h"   // URTErrorModalWidgetBase: il modale si ARMA, non si mostra e basta
+#include "Frontend/RTStartupReport.h"    // DescribeOutcome: il testo del motivo vive li'
 
 #include "Blueprint/UserWidget.h"
 #include "Engine/GameInstance.h"
@@ -229,36 +231,19 @@ ERTNavResult URTFrontendNavigator::ReturnMain()
 
 ERTNavResult URTFrontendNavigator::StartMatch()
 {
-	// La causa dell'avvio precedente non sopravvive a questo: un modale che mostrasse un errore vecchio
-	// sarebbe peggio di nessun modale.
-	LastMatchStartFailure.Reset();
-
 	if (MatchLevel.IsEmpty())
 	{
-		// ⛔ **Rumoroso, non silenzioso.** Il DoD di #939 lo chiede per primo, e il progetto conosce gia' il
-		// costo del contrario: un percorso che non risolve produce «un fallimento indistinguibile dal
-		// successo», e #1277 ha misurato che il log da solo non lo coglie.
-		LastMatchStartFailure = TEXT("MatchLevel non e' configurato: nessun livello da aprire per la partita. "
-			"Si dichiara in DefaultGame.ini, sezione [/Script/RefactorTactics.RTFrontendNavigator].");
-		UE_LOG(LogRT, Error, TEXT("[RT] Avvio partita rifiutato — %s"), *LastMatchStartFailure);
-		ShowModal(RTScreenIds::ErrorModal);
-		return ERTNavResult::InvalidScreen;
+		return RejectMatchStart(ERTStartupOutcome::MatchLevelUnset, TEXT("MatchLevel"));
 	}
 
 	// 🔴 **Una richiesta ancora pendente e' la prova che nessuno l'ha consumata.**
 	//
 	// E' il costo dichiarato di questa forma: il navigatore decide e qualcun altro esegue, quindi se
 	// l'aggancio non viene collegato `PLAY` non fa nulla — e il difetto vivrebbe nell'ASSENZA di una
-	// chiamata, che nessun grep trova e nessun gate vede. E' la famiglia di difetti che #1277 ha misurato
-	// («un fallimento indistinguibile dal successo»), e qui non si accetta in silenzio: si dichiara.
+	// chiamata, che nessun grep trova e nessun gate vede.
 	if (!PendingMatchLevel.IsEmpty())
 	{
-		LastMatchStartFailure = FString::Printf(
-			TEXT("la richiesta precedente per '%s' non e' mai stata consumata: nessuno chiama "
-				 "ConsumePendingMatchLevel, quindi il livello non viene aperto."), *PendingMatchLevel);
-		UE_LOG(LogRT, Error, TEXT("[RT] Avvio partita rifiutato — %s"), *LastMatchStartFailure);
-		ShowModal(RTScreenIds::ErrorModal);
-		return ERTNavResult::InvalidScreen;
+		return RejectMatchStart(ERTStartupOutcome::MatchRequestNotConsumed, PendingMatchLevel);
 	}
 
 	// Da qui in poi e' una RICHIESTA: chi ha il mondo la consuma e apre il livello. Il navigatore non tocca
@@ -269,11 +254,52 @@ ERTNavResult URTFrontendNavigator::StartMatch()
 	return ERTNavResult::Ok;
 }
 
+ERTNavResult URTFrontendNavigator::RejectMatchStart(ERTStartupOutcome Outcome, const FString& Detail)
+{
+	// ⛔ **Il motivo NON si compone qui.** `RTFrontendWidgets.h` lo dichiara: «Il widget non compone il
+	// motivo. Non esiste un accessor che restituisca una `FString` libera da mostrare: si legge
+	// `ERTStartupOutcome` e si chiede il testo a `DescribeOutcome`».
+	//
+	// Una prima stesura di CP 46.4 aveva un `GetLastMatchStartFailure()` che restituiva esattamente quella
+	// FString libera — un canale d'errore parallelo a quello che CP 46.2 aveva progettato per impedirlo, e
+	// che perdeva localizzazione, filtro sui non-fatali, split Shipping-safe e `PhaseWhenArmed`. Trovato in
+	// code review, e questa funzione e' cio' che resta di quel percorso: un esito tipizzato e un dettaglio.
+	UE_LOG(LogRT, Error, TEXT("[RT] Avvio partita rifiutato — %s (%s)"),
+		*URTStartupReportLibrary::DescribeOutcome(Outcome).ToString(), *Detail);
+
+	const ERTNavResult ModalResult = ShowModal(RTScreenIds::ErrorModal);
+	if (ModalResult != ERTNavResult::Ok)
+	{
+		// ⚠️ Il rifiuto del modale non si ingoia: `RTScreenStack.h` dice «ogni rifiuto porta un motivo, un
+		// `Blocked` silenzioso e' un difetto». Se il modale non si e' aperto, chi chiama deve saperlo —
+		// altrimenti «rifiutato e riportato» e «rifiutato e ingoiato» hanno lo stesso valore di ritorno.
+		UE_LOG(LogRT, Error,
+			TEXT("[RT] ...e il modale d'errore non si e' aperto: la causa non e' a schermo."));
+		return ModalResult;
+	}
+
+	// Il widget esiste solo DOPO `ShowModal`, che lo presenta: e' `PresentWidget` a costruirlo.
+	if (URTErrorModalWidgetBase* Modal = Cast<URTErrorModalWidgetBase>(FindLiveWidget(RTScreenIds::ErrorModal)))
+	{
+		Modal->ShowForOutcome(Outcome, Detail);
+	}
+	else
+	{
+		// Il binding manca o non e' un modale d'errore: senza questa riga il menu resterebbe disabilitato
+		// sotto un modale invisibile — il soft-lock trovato in code review.
+		UE_LOG(LogRT, Error,
+			TEXT("[RT] ...e il modale d'errore non e' armabile: controlla il binding 'Error' in "
+				 "DefaultGame.ini. La schermata sotto resta disabilitata."));
+	}
+
+	return ERTNavResult::InvalidScreen;
+}
+
 FString URTFrontendNavigator::ConsumePendingMatchLevel()
 {
-	FString Consumed = MoveTemp(PendingMatchLevel);
-	PendingMatchLevel.Reset();
-	return Consumed;
+	// `MoveTemp` svuota gia' la sorgente: un `Reset()` dopo sarebbe codice morto, e farebbe dubitare quale
+	// delle due righe fa il lavoro.
+	return MoveTemp(PendingMatchLevel);
 }
 
 ERTNavResult URTFrontendNavigator::BackFromError(ERTLoadPhase PhaseWhenArmed)
