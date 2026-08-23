@@ -23,9 +23,9 @@ Tutto quello che sta sotto il layout. Non devi scrivere codice: devi costruire c
 | `URTFrontendNavigator::StartFrontend()` — registra le schermate e apre la radice | ✅ |
 | `RTScreenIds::Main` / `::Settings` — i nomi canonici | ✅ |
 | I binding schermata → widget in `Config/DefaultGame.ini` | ✅ |
-| `WBP_RT_MenuEntry`, `WBP_RT_MainMenu`, `WBP_RT_SettingsPanel` | ❌ **tuoi** |
-| La mappa del frontend | ❌ **tua** |
-| `GameDefaultMap` in `Config/DefaultEngine.ini` | ❌ **tuo** (§6) |
+| `WBP_RT_MenuEntry`, `WBP_RT_MainMenu`, `WBP_RT_SettingsPanel` | ✅ **versionati dal 2026-08-22** (U28, #1275) |
+| La mappa del frontend (`L_Frontend`) | ✅ **versionata dal 2026-08-22** (U28, #1275) |
+| `GameDefaultMap` in `Config/DefaultEngine.ini` | ✅ **punta a `L_Frontend` dal 2026-08-22** |
 
 Otto test automatici coprono il lato C++ (`RefactorTactics.Frontend.*`). Quello che **nessun test può
 dire** è se un bordo di focus si vede, ed è la ragione per cui questa guida esiste.
@@ -42,10 +42,17 @@ dire** è se un bordo di focus si vede, ed è la ragione per cui questa guida es
 +Screens=(ScreenId="Settings",WidgetClass="/Game/RT/UI/Framework/WBP_RT_SettingsPanel.WBP_RT_SettingsPanel_C")
 ```
 
-Se l'asset che crei ha un nome o un percorso anche solo leggermente diverso, **non succede niente di
-rumoroso**: la registrazione riesce comunque — un `TSoftClassPtr` è un percorso, e registrarlo non lo
-carica — la navigazione risponde `Ok`, e lo schermo resta vuoto. È un fallimento indistinguibile dal
-successo, e cercarlo parte dal posto sbagliato perché tutto sembra funzionare.
+Se l'asset che crei ha un nome o un percorso anche solo leggermente diverso, **a runtime non succede
+niente di rumoroso**: la registrazione riesce comunque — un `TSoftClassPtr` è un percorso, e registrarlo
+non lo carica — la navigazione risponde `Ok`, e lo schermo resta vuoto.
+
+✅ **Ma dal 2026-08-23 la suite lo dice** ([#1277](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1277)):
+`RefactorTactics.Frontend.EveryConfiguredScreenLoads` itera ogni voce `+Screens=` e pretende che il widget
+si costruisca. Un refuso fa cadere quel test.
+
+⚠️ **Non fidarti del log**: il warning «non si carica» è un `Warning`, e in automation un warning non fa
+fallire una run — misurato, con un path storpiato la suite restava verde. A coglierlo è l'asserzione sul
+widget, non il messaggio.
 
 Quindi: **`WBP_RT_MainMenu` e `WBP_RT_SettingsPanel`, dentro `/Game/RT/UI/Framework/`.** Esattamente così.
 Il prefisso è `WBP_RT_`, non `WBP_` (decisione di CP 11.7).

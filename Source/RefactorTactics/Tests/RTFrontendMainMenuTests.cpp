@@ -80,29 +80,28 @@ namespace
 	}
 
 	/**
-	 * I `WBP_RT_*` del frontend **non esistono ancora** — sono lavoro d'editor (seduta U28) — quindi ogni
-	 * test che arriva alla presentazione produce un tentativo di caricamento che fallisce.
+	 * Rumore d'engine dichiarato, perche' un rumore **diverso** faccia fallire.
 	 *
-	 * ⚠️ **Si dichiara invece di lasciarlo passare.** Trovato in code review: la docstring di questo file
-	 * sosteneva che i test non caricassero nulla, ed era vero solo per la *registrazione* — `StartFrontend`
-	 * apre subito la radice, e `PresentWidget` risolve il `TSoftClassPtr`. Il log ne portava la prova
-	 * (`Failed to find object .../WBP_RT_MainMenu_C`) mentre i test uscivano verdi: output sporco che
-	 * nessuno guardava. Dichiararlo rende il rumore un'aspettativa, e un rumore **diverso** un fallimento.
+	 * ⚠️ **Storia, perche' spiega cosa NON copre.** Fino al 2026-08-22 i `WBP_RT_*` non erano versionati:
+	 * `PresentWidget` risolveva un `TSoftClassPtr` che non caricava, il log portava
+	 * `Failed to find object .../WBP_RT_MainMenu_C` e i test uscivano verdi — output sporco che nessuno
+	 * guardava. Questa funzione dichiarava quel rumore, incluso un `AddExpectedMessage` sul warning
+	 * «non si carica» con la nota: *«se un giorno smettesse di comparire, il test lo direbbe»*.
 	 *
-	 * ✅ **E il 2026-08-23 quel rumore e' sparito, come questa funzione prevedeva.** L'aspettativa sul
-	 * warning «non si carica» diceva: *«se un giorno smettesse di comparire, il test lo direbbe»*. I widget
-	 * sono entrati nel repository con la seduta U28 (#1275), il caricamento riesce, e i tre test che la
-	 * chiamavano sono diventati rossi su `main` — [#1277]. Il test ha fatto il proprio mestiere: ha
-	 * segnalato che la premessa era cambiata.
+	 * ✅ **Il 2026-08-23 e' successo**: i widget sono entrati con la seduta U28 (#1275), il caricamento
+	 * riesce, e i tre test sono diventati rossi su `main` (#1277). L'aspettativa e' stata rimossa.
 	 *
-	 * ⛔ L'aspettativa e' quindi **rimossa, non allentata**: dichiararla `-1` («ignora») avrebbe reso muto
-	 * proprio il segnale che serve, perche' un nome sbagliato nel `.ini` riemette lo stesso warning. Ora un
-	 * «non si carica» e' un errore non atteso, cioe' un fallimento — che e' il comportamento giusto ora che
-	 * gli asset ci sono.
+	 * 🔴 **E rimuoverla NON bastava — misurato.** Tolta l'aspettativa e storpiato il path nel `.ini`, la
+	 * suite frontend e' rimasta **45/45 verde**: «non si carica» e' un `Warning`, e in automation un
+	 * warning non atteso **non fa fallire** una run — solo un `Error` lo fa. Quindi il log non e' mai stato
+	 * un oracolo: era rumore, e basta.
+	 *
+	 * ∴ cio' che copre il caso e' `TestScreenIsLive`, non questa funzione. Qui resta solo il silenziatore
+	 * su `Failed to find object`, che l'engine emette **una volta per processo** per qualunque lookup
+	 * fallito — vedi la nota sotto sul perche' e' `-1` e non `0`.
 	 */
 	void ExpectFrontendAssetNoise(FAutomationTestBase& Test)
 	{
-
 		// ⚠️ **`-1` = «ignora», e la prima stesura ci aveva messo `0`.** Il messaggio dell'engine e'
 		// **dedotto una volta per processo**: `LogUObjectGlobals` lo emette al primo lookup fallito e tace
 		// per tutti i successivi, quindi *quale* test lo veda dipende dall'ordine della run, non dal test.
@@ -112,10 +111,28 @@ namespace
 		// un'aspettativa.
 		Test.AddExpectedMessage(TEXT("Failed to find object"),
 			ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ -1);
+
+		// ⚠️ **Il rumore e' CAMBIATO quando gli asset sono arrivati, e la dichiarazione lo segue.** Prima
+		// `PresentWidget` usciva su `LoadSynchronous() == nullptr` e non arrivava mai a `AddToViewport`;
+		// ora ci arriva, e l'engine logga `The widget '...' does not have a World.` perche' la
+		// `UGameInstance` di questi test non ha un `WorldContext`. Misurato il 2026-08-23: **26 occorrenze
+		// per run**, nessuna dichiarata.
+		//
+		// ⛔ Non e' un difetto da correggere qui: e' la ragione per cui questi test provano il CARICAMENTO
+		// e non il disegno — `AddToViewport` senza World non mette nulla a schermo, e verificarlo davvero
+		// e' lavoro d'editor. Dichiararlo mantiene la promessa di questo file: un rumore **diverso** deve
+		// far fallire.
+		Test.AddExpectedMessage(TEXT("does not have a World"),
+			ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ -1);
 	}
 
 	/**
-	 * Il widget della schermata e' stato PRESENTATO, non solo registrato.
+	 * Il path della schermata RISOLVE e il widget e' stato costruito.
+	 *
+	 * ⛔ **Non dice che sia a schermo**, e il nome non lo promette: `LiveWidgets` e' una cache che
+	 * sopravvive al `Pop` (`RTFrontendNavigationTests` lo asserisce: «il widget uscito resta istanziato»),
+	 * e in questi test `AddToViewport` non mette nulla a schermo perche' la `UGameInstance` non ha un
+	 * `WorldContext`. Chiamarla dopo un `PopScreen` darebbe quindi un verde che non significa niente.
 	 *
 	 * 🔴 **Senza questa verifica un refuso nel `.ini` passa in silenzio, e l'ho misurato** ([#1277]): tolta
 	 * l'aspettativa sul warning «non si carica», ho storpiato il path di `WBP_RT_MainMenu` in
@@ -387,6 +404,10 @@ bool FRTMainMenuSettingsIsReachableAndReversibleTest::RunTest(const FString&)
 
 	TestEqual(TEXT("il Back riporta al menu"), Nav->PopScreen(), ERTNavResult::Ok);
 	TestEqual(TEXT("siamo di nuovo sul Main Menu"), Nav->GetCurrentScreen(), RTScreenIds::Main);
+	// Il DoD di questo test e' «il BACK riporta al menu», e un menu il cui path non risolve non e' un menu:
+	// senza questa riga il test restava verde con `WBP_RT_MainMenu` storpiato — ed e' la ragione per cui la
+	// verifica di mutazione contava DUE fallimenti invece di tre.
+	TestScreenIsLive(*this, Nav, RTScreenIds::Main);
 
 	ReleaseMainMenuNavigator(GI);
 	return true;
@@ -760,6 +781,52 @@ bool FRTFrontendStartsAgainAfterFirstSessionTest::RunTest(const FString&)
 	TestEqual(TEXT("la radice e' ancora il Main Menu"), Nav->GetCurrentScreen(), RTScreenIds::Main);
 	TestEqual(TEXT("e le schermate registrate restano due"),
 		Nav->GetRegisteredScreenIds().Num(), 2);
+
+	ReleaseMainMenuNavigator(GI);
+	return true;
+}
+
+/**
+ * OGNI voce `+Screens=` del `.ini` punta a un widget che carica — non solo le due che i test di
+ * navigazione attraversano.
+ *
+ * 🔴 **Il livello giusto e' la lista, non le schermate che qualcun altro visita.** `TestScreenIsLive` copre
+ * `Main` e `Settings` perche' i test di navigazione ci passano; una terza riga aggiunta domani con un
+ * refuso non la vedrebbe nessuno — `RegisterScreensFromConfig` la registra (un `TSoftClassPtr` e' un
+ * percorso), `PushScreen` risponde `Ok`, `PresentWidget` emette un `Warning` che NON fa fallire la run
+ * (misurato in #1277: path storpiato, suite 45/45 verde), e resta uno schermo vuoto.
+ *
+ * Questo test itera la `UPROPERTY(Config)` che ne e' l'owner, quindi cresce da solo col `.ini`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendEveryConfiguredScreenLoadsTest,
+	"RefactorTactics.Frontend.EveryConfiguredScreenLoads",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendEveryConfiguredScreenLoadsTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeMainMenuNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseMainMenuNavigator(GI); return false; }
+
+	// ⚠️ **`StartFrontend` e non la sola registrazione**: registrare associa un id a un percorso, ma e' la
+	// PRESENTAZIONE che costruisce il widget — e senza radice aperta `PushScreen` non ci arriva. La prima
+	// stesura si fermava a `RegisterScreensFromConfig` e falliva su ogni schermata, misurando l'assenza del
+	// proprio allestimento invece dei path.
+	TestTrue(TEXT("il frontend parte"), Nav->StartFrontend());
+
+	const TArray<FName> Registered = Nav->GetRegisteredScreenIds();
+	// ⚠️ Non-vacuita': senza questa riga il ciclo sotto passerebbe su una lista vuota.
+	TestTrue(FString::Printf(TEXT("ci sono schermate da verificare: %d"), Registered.Num()),
+		Registered.Num() >= 2);
+
+	for (const FName ScreenId : Registered)
+	{
+		// ⚠️ La radice e' gia' aperta da `MakeMainMenuNavigator`, quindi ripusharla non e' `Ok`: si verifica
+		// che NON sia `InvalidScreen`, che e' l'unico esito che direbbe «questo id non e' registrato».
+		const ERTNavResult Result = Nav->PushScreen(ScreenId);
+		TestTrue(*FString::Printf(TEXT("'%s' e' una schermata registrata"), *ScreenId.ToString()),
+			Result != ERTNavResult::InvalidScreen);
+		TestScreenIsLive(*this, Nav, ScreenId);
+	}
 
 	ReleaseMainMenuNavigator(GI);
 	return true;
