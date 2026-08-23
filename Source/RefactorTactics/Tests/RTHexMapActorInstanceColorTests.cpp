@@ -16,7 +16,8 @@
  * Il colore della superficie arriva alla singola ISTANZA, non al componente.
  *
  * Cosa NON verifica, e va detto: che a schermo si veda qualcosa. I custom data sono inerti finche' il
- * materiale della mesh non legge `PerInstanceCustomData` come Base Color, e col materiale di default del
+ * materiale della mesh non legge `PerInstanceCustomData` — in `M_HexCell` sull'**Emissive**, non sul Base
+ * Color come questa riga ha dichiarato fino al 2026-08-23 (#956) — e col materiale di default del
  * motore le celle restano grigie comunque. Quel pezzo e' un `.uasset` e si verifica a occhio.
  * Qui si prova l'unica cosa che il codice puo' sbagliare da solo: quale colore finisce su quale istanza.
  */
@@ -105,7 +106,8 @@ bool FRTHexMapActorInstanceColorTest::RunTest(const FString&)
 
 	for (int32 I = 0; I < Expected.Num(); ++I)
 	{
-		// La conversione e' parte del contratto: `SurfaceColor` e' sRGB a 8 bit, il Base Color e' lineare.
+		// La conversione e' parte del contratto: `SurfaceColor` e' sRGB a 8 bit, il canale del materiale e'
+		// lineare. (Il canale e' l'Emissive: verificato nel grafo di `M_HexCell` il 2026-08-23.)
 		// Un `/255.f` al posto di `FromSRGBColor` passerebbe un test scritto sullo stesso errore, quindi
 		// l'atteso si costruisce dalla tavolozza + la conversione dichiarata, non dai numeri.
 		const FLinearColor Want = FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(Expected[I]));

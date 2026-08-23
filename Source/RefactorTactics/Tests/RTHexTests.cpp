@@ -679,6 +679,60 @@ bool FRTHexSurfaceColorTest::RunTest(const FString&)
 				static_cast<int32>(S)),
 			Distance(URTHexLibrary::SurfaceColor(S), URTHexLibrary::BlockedCellColor()) >= 60);
 	}
+
+	// ── CP 47.3 (#956): il SECONDO canale ──────────────────────────────────────────────────────────
+	//
+	// 🔴 **La guardia che mancava.** L'elenco qui sopra e' scritto a mano perche' l'enum non dichiara
+	// `TEnumRange`, e finora nulla lo teneva allineato: una decima superficie sarebbe nata SCOPERTA da
+	// entrambi i canali, senza che un solo test cadesse. E' il difetto che `AllOutcomes` ha gia' pagato per
+	// `ERTStartupOutcome`, dove la lista a mano e l'enum avevano divergito.
+	const UEnum* SurfaceEnum = StaticEnum<ERTHexSurface>();
+	if (TestNotNull(TEXT("l'enum delle superfici e' riflesso"), SurfaceEnum))
+	{
+		// `NumEnums()` include il `_MAX` sintetico che UHT aggiunge: si sottrae.
+		TestEqual(TEXT("l'elenco di questo test copre TUTTE le superfici dell'enum"),
+			SurfaceEnum->NumEnums() - 1, All.Num());
+	}
+
+	// Luminanza Rec.601: e' la conversione con cui si guarda uno screenshot in scala di grigi, ed e' li' che
+	// #956 ha misurato **7 coppie su 36** collassate — una board che si legge a colori e non si legge senza.
+	auto Luma = [](const FColor& C)
+	{
+		return 0.299f * C.R + 0.587f * C.G + 0.114f * C.B;
+	};
+
+	// La soglia e' **derivata da quella del colore, non scelta**: su due grigi la somma per canale vale tre
+	// volte la differenza di luminanza, quindi `60 / 3 = 20`. Un secondo numero arbitrario avrebbe reso il
+	// gate piu' severo o piu' lasco senza che nessuno sapesse dire di quanto.
+	const float LumaThreshold = 60.f / 3.f;
+
+	for (int32 I = 0; I < All.Num(); ++I)
+	{
+		for (int32 J = I + 1; J < All.Num(); ++J)
+		{
+			// ⛔ **L'unica esenzione, dichiarata invece che scoperta a consuntivo** (criterio 2 di #956):
+			// `Floor~Fire` collassa in entrambe le conversioni e nessuna delle due riceve un glifo. Per
+			// quella coppia la regola del titolo — «colore E forma» — non e' rinviata: NON SI APPLICA.
+			const bool bEsente =
+				(All[I] == ERTHexSurface::Floor && All[J] == ERTHexSurface::Fire)
+				|| (All[I] == ERTHexSurface::Fire && All[J] == ERTHexSurface::Floor);
+			if (bEsente) { continue; }
+
+			const float DLuma = FMath::Abs(Luma(URTHexLibrary::SurfaceColor(All[I]))
+				- Luma(URTHexLibrary::SurfaceColor(All[J])));
+			const bool bFormaSepara =
+				URTHexLibrary::SurfaceRingCount(All[I]) != URTHexLibrary::SurfaceRingCount(All[J]);
+
+			// **Colore OPPURE forma**, non «i quattro glifi sono diversi»: e' la regola di `D-146` applicata
+			// alla coppia, e l'unica che dica qualcosa su una board vista in scala di grigi.
+			TestTrue(*FString::Printf(
+					TEXT("superfici %d e %d: separate in scala di grigi (dLuma %.1f, soglia %.1f) o dalla forma (%d vs %d)"),
+					static_cast<int32>(All[I]), static_cast<int32>(All[J]), DLuma, LumaThreshold,
+					URTHexLibrary::SurfaceRingCount(All[I]), URTHexLibrary::SurfaceRingCount(All[J])),
+				DLuma >= LumaThreshold || bFormaSepara);
+		}
+	}
+
 	return true;
 }
 
@@ -698,6 +752,86 @@ bool FRTHexSurfaceColorTest::RunTest(const FString&)
  * nel `writable` di `content_editor`, e «il modulo e il suo test si toccano insieme» non autorizza a
  * prendersi un file che non si ha.
  */
+
+/**
+ * #956 / `D-183`: le corone del glifo nascono dagli STESSI vertici della cella.
+ *
+ * ⚠️ E' il test di `#712` applicato al secondo canale, e per la stessa ragione: due disegni della stessa
+ * forma divergono appena qualcuno riscrive `cos(60k-30)` invece di chiedere a `HexCorners`. Li' il bordo
+ * era un esagono e il pieno un cerchio; qui il glifo sarebbe ruotato rispetto alla cella che incide.
+ *
+ * Verifica anche i RAGGI, perche' e' li' che vive la leggibilita': gli anelli crescono verso l'interno dal
+ * bordo del disco (`0,95`), e i raggi interni che ne risultano — `0,90 / 0,80 / 0,71 / 0,61` — sono i
+ * numeri che `D-183` ha scelto guardando l'area, non lo spessore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGlyphMeshMatchesHexCornersTest,
+	"RefactorTactics.Hex.GlyphMeshMatchesHexCorners",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGlyphMeshMatchesHexCornersTest::RunTest(const FString&)
+{
+	constexpr float Radius = 50.f;
+	constexpr float Outer = 0.95f;
+	constexpr float Thickness = 0.0526f;
+	constexpr float Gap = 0.0421f;
+
+	// Mono-canale per scelta: nessun glifo, non un glifo vuoto.
+	TestNull(TEXT("zero anelli non produce mesh"), ARTHexMapActor::GetCellGlyphMesh(0));
+
+	for (int32 Rings = 1; Rings <= 4; ++Rings)
+	{
+		UStaticMesh* Mesh = ARTHexMapActor::GetCellGlyphMesh(Rings);
+		if (!TestNotNull(*FString::Printf(TEXT("il glifo a %d anelli si costruisce"), Rings), Mesh))
+		{
+			continue;
+		}
+
+		// I raggi attesi: per ogni anello, esterno e interno.
+		//
+		// ⚠️ **Confronto con TOLLERANZA, non per chiave stringa.** La prima stesura usava `%.2f` come fa il
+		// test del prisma, e cadeva su 4 vertici su 24: li' i raggi sono tondi (50), qui no (44,87), e un
+		// valore che cade a meta' del centesimo arrotonda in modo diverso fra i due percorsi di calcolo. Il
+		// difetto era nel metodo di verifica, non nella geometria.
+		TArray<FVector2D> Expected;
+		for (int32 I = 0; I < Rings; ++I)
+		{
+			const float RingOuter = Outer - I * (Thickness + Gap);
+			for (const float R : { RingOuter, RingOuter - Thickness })
+			{
+				for (const FVector& C : URTHexLibrary::HexCorners(FVector::ZeroVector, Radius * R))
+				{
+					Expected.Add(FVector2D(C.X, C.Y));
+				}
+			}
+		}
+
+		const FStaticMeshRenderData* Render = Mesh->GetRenderData();
+		if (!TestTrue(*FString::Printf(TEXT("il glifo a %d anelli ha render data"), Rings),
+			Render != nullptr && Render->LODResources.Num() > 0))
+		{
+			continue;
+		}
+
+		const FPositionVertexBuffer& Buffer = Render->LODResources[0].VertexBuffers.PositionVertexBuffer;
+		int32 Fuori = 0;
+		for (uint32 V = 0; V < Buffer.GetNumVertices(); ++V)
+		{
+			const FVector3f P = Buffer.VertexPosition(V);
+			bool bTrovato = false;
+			for (const FVector2D& E : Expected)
+			{
+				// 0,05 uu su un raggio di 50: un millesimo. Separa l'errore di arrotondamento da un vertice
+				// che sta su un raggio DIVERSO — i raggi adiacenti distano 2,6 uu, cinquanta volte tanto.
+				if (FMath::Abs(P.X - E.X) < 0.05 && FMath::Abs(P.Y - E.Y) < 0.05) { bTrovato = true; break; }
+			}
+			if (!bTrovato) { ++Fuori; }
+		}
+		TestEqual(*FString::Printf(
+			TEXT("glifo a %d anelli: ogni vertice sta su un raggio di HexCorners (fuori: %d su %u)"),
+			Rings, Fuori, Buffer.GetNumVertices()), Fuori, 0);	}
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellPrismMatchesHexCornersTest,
 	"RefactorTactics.Hex.CellPrismMatchesHexCorners",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
