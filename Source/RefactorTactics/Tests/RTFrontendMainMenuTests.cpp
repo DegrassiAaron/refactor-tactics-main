@@ -88,15 +88,20 @@ namespace
 	 * apre subito la radice, e `PresentWidget` risolve il `TSoftClassPtr`. Il log ne portava la prova
 	 * (`Failed to find object .../WBP_RT_MainMenu_C`) mentre i test uscivano verdi: output sporco che
 	 * nessuno guardava. Dichiararlo rende il rumore un'aspettativa, e un rumore **diverso** un fallimento.
+	 *
+	 * ✅ **E il 2026-08-23 quel rumore e' sparito, come questa funzione prevedeva.** L'aspettativa sul
+	 * warning «non si carica» diceva: *«se un giorno smettesse di comparire, il test lo direbbe»*. I widget
+	 * sono entrati nel repository con la seduta U28 (#1275), il caricamento riesce, e i tre test che la
+	 * chiamavano sono diventati rossi su `main` — [#1277]. Il test ha fatto il proprio mestiere: ha
+	 * segnalato che la premessa era cambiata.
+	 *
+	 * ⛔ L'aspettativa e' quindi **rimossa, non allentata**: dichiararla `-1` («ignora») avrebbe reso muto
+	 * proprio il segnale che serve, perche' un nome sbagliato nel `.ini` riemette lo stesso warning. Ora un
+	 * «non si carica» e' un errore non atteso, cioe' un fallimento — che e' il comportamento giusto ora che
+	 * gli asset ci sono.
 	 */
-	void ExpectMissingFrontendAssets(FAutomationTestBase& Test)
+	void ExpectFrontendAssetNoise(FAutomationTestBase& Test)
 	{
-		// `0` = «una o piu' volte»: il warning del progetto e' **deterministico**, perche' ogni test parte da
-		// un navigatore nuovo con `LiveWidgets` vuota e ripassa da `LoadSynchronous`. Se un giorno smettesse
-		// di comparire, il test lo direbbe — ed e' cio' che serve, dato che quel warning e' l'unico segnale
-		// di un nome sbagliato nel `.ini`.
-		Test.AddExpectedMessage(TEXT("non si carica"),
-			ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ 0);
 
 		// ⚠️ **`-1` = «ignora», e la prima stesura ci aveva messo `0`.** Il messaggio dell'engine e'
 		// **dedotto una volta per processo**: `LogUObjectGlobals` lo emette al primo lookup fallito e tace
@@ -107,6 +112,25 @@ namespace
 		// un'aspettativa.
 		Test.AddExpectedMessage(TEXT("Failed to find object"),
 			ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ -1);
+	}
+
+	/**
+	 * Il widget della schermata e' stato PRESENTATO, non solo registrato.
+	 *
+	 * 🔴 **Senza questa verifica un refuso nel `.ini` passa in silenzio, e l'ho misurato** ([#1277]): tolta
+	 * l'aspettativa sul warning «non si carica», ho storpiato il path di `WBP_RT_MainMenu` in
+	 * `DefaultGame.ini` e la suite frontend e' rimasta **45/45 verde**. Il motivo e' che quel messaggio e'
+	 * un `Warning`, e un warning non atteso non fa fallire una run di automation: solo un `Error` lo fa.
+	 *
+	 * ∴ la registrazione non basta come oracolo — `TSoftClassPtr` e' un percorso, e registrarne uno
+	 * inesistente riesce. Cio' che distingue un binding vivo da un nome sbagliato e' se `PresentWidget` ha
+	 * prodotto un `UUserWidget`, ed e' quello che si chiede qui.
+	 */
+	void TestScreenIsLive(FAutomationTestBase& Test, URTFrontendNavigator* Nav, FName ScreenId)
+	{
+		Test.TestNotNull(*FString::Printf(
+			TEXT("la schermata '%s' ha un widget vivo: il suo path nel .ini risolve"), *ScreenId.ToString()),
+			Nav ? Nav->FindLiveWidget(ScreenId) : nullptr);
 	}
 
 	URTFrontendNavigator* MakeMainMenuNavigator(UGameInstance*& OutGI)
@@ -297,7 +321,7 @@ bool FRTNavigatorSkipsIncompleteBindingsTest::RunTest(const FString&)
  * davvero non carica — un `TSoftClassPtr` e' un percorso — ma `StartFrontend` **apre subito la radice**, e
  * `PresentWidget` risolve il percorso. Il log lo diceva (`Failed to find object .../WBP_RT_MainMenu_C`)
  * mentre il test usciva verde: output sporco che nessuno guardava. Trovato in code review, e adesso il
- * rumore e' dichiarato da `ExpectMissingFrontendAssets`, cosi' un rumore **diverso** fa fallire.
+ * rumore e' dichiarato da `ExpectFrontendAssetNoise`, cosi' un rumore **diverso** fa fallire.
  *
  * ⚠️ **E nessun gate verifica che quei percorsi risolvano.** La nota rimandava a
  * `RTFrontendWidgetAssetTests.cpp`, che pero' apre solo i tre package di CP 46.2: le due schermate nuove
@@ -314,11 +338,12 @@ bool FRTNavigatorStartFrontendOpensMainTest::RunTest(const FString&)
 	URTFrontendNavigator* Nav = MakeMainMenuNavigator(GI);
 	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseMainMenuNavigator(GI); return false; }
 
-	ExpectMissingFrontendAssets(*this);
+	ExpectFrontendAssetNoise(*this);
 
 	TestTrue(TEXT("il frontend parte"), Nav->StartFrontend());
 
 	TestEqual(TEXT("la radice e' il Main Menu"), Nav->GetCurrentScreen(), RTScreenIds::Main);
+	TestScreenIsLive(*this, Nav, RTScreenIds::Main);
 	TestEqual(TEXT("profondita' 1"), Nav->GetDepth(), 1);
 	TestFalse(TEXT("e dalla radice non si torna indietro"), Nav->CanGoBack());
 
@@ -347,7 +372,7 @@ bool FRTMainMenuSettingsIsReachableAndReversibleTest::RunTest(const FString&)
 	URTFrontendNavigator* Nav = MakeMainMenuNavigator(GI);
 	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseMainMenuNavigator(GI); return false; }
 
-	ExpectMissingFrontendAssets(*this);
+	ExpectFrontendAssetNoise(*this);
 
 	if (!TestTrue(TEXT("premessa: il frontend e' partito"), Nav->StartFrontend()))
 	{
@@ -357,6 +382,7 @@ bool FRTMainMenuSettingsIsReachableAndReversibleTest::RunTest(const FString&)
 
 	TestEqual(TEXT("SETTINGS si apre"), Nav->PushScreen(RTScreenIds::Settings), ERTNavResult::Ok);
 	TestEqual(TEXT("ed e' la schermata corrente"), Nav->GetCurrentScreen(), RTScreenIds::Settings);
+	TestScreenIsLive(*this, Nav, RTScreenIds::Settings);
 	TestTrue(TEXT("da qui si torna indietro"), Nav->CanGoBack());
 
 	TestEqual(TEXT("il Back riporta al menu"), Nav->PopScreen(), ERTNavResult::Ok);
@@ -396,7 +422,7 @@ bool FRTFrontendGameModeStartsTheFrontendTest::RunTest(const FString&)
 		return false;
 	}
 
-	ExpectMissingFrontendAssets(*this);
+	ExpectFrontendAssetNoise(*this);
 
 	TestTrue(TEXT("il frontend parte"), GameMode->StartFrontendForThisGame());
 
@@ -404,6 +430,7 @@ bool FRTFrontendGameModeStartsTheFrontendTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("il navigatore esiste"), Nav)) { DestroyFrontendWorld(World, GI); return false; }
 
 	TestEqual(TEXT("e la schermata aperta e' il Main Menu"), Nav->GetCurrentScreen(), RTScreenIds::Main);
+	TestScreenIsLive(*this, Nav, RTScreenIds::Main);
 	TestEqual(TEXT("alla radice, senza niente sotto"), Nav->GetDepth(), 1);
 
 	DestroyFrontendWorld(World, GI);
