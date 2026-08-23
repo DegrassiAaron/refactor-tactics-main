@@ -365,6 +365,53 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 			Out.Add(Attack);
 		}
 	}
+
+	// **Livello 2 di #1287: se non si puo' colpire, si va almeno DOVE SI VEDE.**
+	//
+	// Senza questo filtro il bot che ha perso il tiro sceglie col punteggio geometrico, che misura la
+	// distanza in linea d'aria dal contatto noto: una cella cieca a due passi batte una che vede a tre, e il
+	// turno dopo il bot e' di nuovo senza tiro. E' l'oscillazione fra «cerca» e «avvicinati» — due modi che
+	// si rimpallano per sempre. Restringere il DOMINIO invece di aggiungere un secondo punteggio la spezza
+	// senza stato: uscire dalla ricerca non puo' riportare su una cella cieca, perche' quelle non sono piu'
+	// candidate.
+	//
+	// ⚠️ Non tocca `WApproach` ne' lo standoff: il punteggio resta uno solo, cambia su cosa sceglie. E' la
+	// ragione per cui il bilanciamento del kiting (#149) non si riapre.
+	bool bQualcunoColpisce = false;
+	for (const FRTHexBotPlan& P : Out)
+	{
+		if (P.bHasAttack) { bQualcunoColpisce = true; break; }
+	}
+	// ⚠️ **Solo se il bot NON VEDE GIA' nessuno**, e la restrizione mancante e' costata un parcheggio.
+	// Applicato a chiunque non possa colpire, il filtro toglieva al bot la possibilita' di ATTRAVERSARE una
+	// zona cieca per avvicinarsi: chi vedeva il nemico ma era fuori portata restava fra le celle con vista
+	// invece di chiudere la distanza. Misurato da `Match.Autobattle.EngagesOnTheShippedMapSource`, l'oracolo
+	// di #1088: «piu' lunga sequenza ferma 7 turni, limite 4». Un secondo stato assorbente, introdotto dalla
+	// difesa contro il primo.
+	bool bVedeGia = false;
+	for (int32 I = 0; I < NumEnemies && !bVedeGia; ++I)
+	{
+		bVedeGia = URTHexVisionLibrary::HasLineOfSight(Snapshot.Map, Context.Origin, Context.Enemies[I]);
+	}
+
+	if (!bQualcunoColpisce && !bVedeGia && NumEnemies > 0)
+	{
+		TArray<FRTHexBotPlan> ConTiro;
+		for (const FRTHexBotPlan& P : Out)
+		{
+			for (int32 I = 0; I < NumEnemies; ++I)
+			{
+				if (URTHexVisionLibrary::HasLineOfSight(Snapshot.Map, P.DestCell, Context.Enemies[I]))
+				{
+					ConTiro.Add(P);
+					break;
+				}
+			}
+		}
+		// Se nessuna vede, `Out` resta intero: la scelta passa al livello 3 (ricerca), che e' del chiamante.
+		if (ConTiro.Num() > 0) { return ConTiro; }
+	}
+
 	return Out;
 }
 
