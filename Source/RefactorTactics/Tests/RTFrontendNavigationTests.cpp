@@ -17,6 +17,7 @@
 #include "Frontend/RTStartupReport.h"
 // Per `RTScreenIds::Main` / `::Settings`: i nomi canonici delle due schermate vere (CP 46.3).
 #include "Frontend/RTFrontendScreenIds.h"
+#include "Frontend/RTFrontendWidgets.h"   // URTErrorModalWidgetBase: il modale si verifica ARMATO
 #include "Engine/GameInstance.h"
 #include "Blueprint/UserWidget.h"
 // Solo per avere una `UUserWidget` **concreta** da istanziare: `UUserWidget` e' `Abstract`.
@@ -825,6 +826,159 @@ bool FRTBackFromErrorHasNoDeadEndTest::RunTest(const FString&)
 	TestEqual(TEXT("coperte tutte le fasi dichiarate da ERTLoadPhase"),
 		Covered, (int32)ERTLoadPhase::Ready + 1);
 
+	return true;
+}
+
+// =================================================================================================
+// CP 46.4 (#939) — `PLAY` avvia il vertical slice, e un avvio impossibile lo DICE
+// =================================================================================================
+
+/**
+ * Senza un livello di partita configurato, `StartMatch` fallisce **rumorosamente**: error modal con la
+ * causa, non un ritorno silenzioso al menu.
+ *
+ * 🔴 **E' il difetto che il DoD di #939 nomina per primo**, e il progetto ne ha gia' una famiglia: un
+ * percorso che non risolve produce «un fallimento indistinguibile dal successo» (il `.ini` delle
+ * schermate lo dichiara, e #1277 ha misurato che il log da solo non lo coglie). Qui il livello arriva
+ * dalla stessa sede — una `UPROPERTY(Config)` — quindi lo stesso refuso e' possibile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendStartMatchWithoutLevelFailsLoudTest,
+	"RefactorTactics.Frontend.StartMatchWithoutLevelFailsLoud",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendStartMatchWithoutLevelFailsLoudTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseNavigator(GI); return false; }
+
+	// 🔴 **`InitializeFrontend` e non solo `MakeNavigator`.** Senza radice lo stack e' nello stato che
+	// `RTScreenStack.h` documenta come illegale, `SyncPresentation` esce alla prima riga, e il test
+	// asserirebbe su un navigatore che non presenta nulla: la prima stesura faceva cosi' e non poteva
+	// vedere ne' il binding mancante ne' il modale disarmato — entrambi trovati in code review.
+	Nav->RegisterScreensFromConfig();
+	Nav->InitializeFrontend(RTScreenIds::Main);
+
+	Nav->MatchLevel.Reset();   // nessun livello dichiarato: e' il caso in prova
+
+	// ⚠️ **L'`Error` a log e' il comportamento voluto, quindi si DICHIARA.** «Rumoroso» significa proprio
+	// questo: un avvio rifiutato lascia una traccia di livello Error, che in automation fa fallire il test
+	// se non e' attesa. Senza questa riga il test cadrebbe sul proprio successo — misurato scrivendolo.
+	AddExpectedError(TEXT("Avvio partita rifiutato"), EAutomationExpectedErrorFlags::Contains, 1);
+	AddExpectedMessage(TEXT("does not have a World"),
+		ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ -1);
+
+	const ERTNavResult Result = Nav->StartMatch();
+	TestEqual(TEXT("l'avvio e' rifiutato"), Result, ERTNavResult::InvalidScreen);
+	TestTrue(TEXT("e lo dice con un modale, invece di tornare in silenzio al menu"), Nav->IsModalOpen());
+
+	// 🔴 **Il modale dev'essere ARMATO, non solo aperto.** `GetModalVisibility` restituisce `Collapsed`
+	// finche' `IsArmed()` e' falso, quindi un modale presentato ma non armato e' invisibile — e la
+	// schermata sotto resta disabilitata: un soft-lock. La prima stesura asseriva su una `FString` privata
+	// del navigatore, che nessuno in produzione leggeva.
+	URTErrorModalWidgetBase* Modal = Cast<URTErrorModalWidgetBase>(
+		Nav->FindLiveWidget(RTScreenIds::ErrorModal));
+	if (TestNotNull(TEXT("il modale d'errore e' stato presentato: il binding esiste"), Modal))
+	{
+		TestTrue(TEXT("ed e' ARMATO, quindi visibile"), Modal->IsArmed());
+		TestEqual(TEXT("con l'esito giusto"), Modal->GetOutcome(), ERTStartupOutcome::MatchLevelUnset);
+	}
+
+	TestTrue(TEXT("e nessun livello e' stato chiesto"), Nav->ConsumePendingMatchLevel().IsEmpty());
+
+	ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * Con un livello dichiarato, `StartMatch` chiede di aprirlo — **una volta sola**.
+ *
+ * ⚠️ **Il navigatore non apre il livello, lo CHIEDE.** Non ha un mondo (`UGameInstance` senza
+ * `WorldContext` nei test, e per costruzione e' un subsystem che non tocca la scena), quindi decide *cosa*
+ * e *quando* e lascia l'apertura a chi il mondo ce l'ha. Non e' un secondo percorso di avvio: e' lo stesso
+ * percorso in due meta', e la partita resta allestita da `ARTGameMode` col formato spedito da C++.
+ *
+ * `Consume` e non `Get`: una richiesta letta due volte aprirebbe il livello due volte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendStartMatchRequestsTheLevelOnceTest,
+	"RefactorTactics.Frontend.StartMatchRequestsTheLevelOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendStartMatchRequestsTheLevelOnceTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseNavigator(GI); return false; }
+
+	Nav->RegisterScreensFromConfig();
+	Nav->InitializeFrontend(RTScreenIds::Main);
+	Nav->MatchLevel = TEXT("/Game/RT/Maps/Dev/L_HexArena/L_HexArena");
+
+	TestEqual(TEXT("l'avvio e' accettato"), Nav->StartMatch(), ERTNavResult::Ok);
+	TestFalse(TEXT("nessun modale d'errore"), Nav->IsModalOpen());
+
+	const FString First = Nav->ConsumePendingMatchLevel();
+	TestEqual(TEXT("il livello chiesto e' quello dichiarato"), First, Nav->MatchLevel);
+	TestTrue(TEXT("e la richiesta si consuma: una seconda lettura non riapre nulla"),
+		Nav->ConsumePendingMatchLevel().IsEmpty());
+
+	ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * Una richiesta mai consumata NON passa in silenzio.
+ *
+ * 🔴 **E' il costo dichiarato della forma decisione/esecuzione**, e senza questo test resterebbe una
+ * dichiarazione: il navigatore chiede l'apertura e qualcun altro la esegue, quindi se l'aggancio non viene
+ * collegato `PLAY` non fa nulla — e il difetto vivrebbe nell'ASSENZA di una chiamata, che nessun grep trova
+ * e nessun gate vede. La scelta fra le due forme e' stata fatta sapendo questo; la guardia e' cio' che
+ * impedisce al costo di diventare silenzioso.
+ *
+ * Il segnale piu' tempestivo e' un secondo `PLAY`: se la richiesta precedente e' ancora li', nessuno l'ha
+ * presa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendUnconsumedMatchRequestIsLoudTest,
+	"RefactorTactics.Frontend.UnconsumedMatchRequestIsLoud",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendUnconsumedMatchRequestIsLoudTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseNavigator(GI); return false; }
+
+	Nav->RegisterScreensFromConfig();
+	Nav->InitializeFrontend(RTScreenIds::Main);
+	Nav->MatchLevel = TEXT("/Game/RT/Maps/Dev/L_HexArena/L_HexArena");
+
+	TestEqual(TEXT("il primo avvio passa"), Nav->StartMatch(), ERTNavResult::Ok);
+
+	// Nessuno consuma: e' il caso in prova. L'`Error` e' voluto, quindi si dichiara.
+	//
+	// ⚠️ Il testo arriva da `DescribeOutcome`, non da una stringa composta qui: e' il punto del canale
+	// unico, e infatti la prima stesura attendeva la propria frase e non quella localizzata.
+	AddExpectedError(TEXT("Avvio partita rifiutato"), EAutomationExpectedErrorFlags::Contains, 1);
+
+	// Il modale ora si costruisce davvero, quindi `AddToViewport` logga su una GameInstance senza World.
+	// Dichiarato come nell'altro file di test del frontend: un rumore DIVERSO deve far fallire.
+	AddExpectedMessage(TEXT("does not have a World"),
+		ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ -1);
+
+	TestEqual(TEXT("il secondo avvio e' rifiutato: la richiesta e' ancora li'"),
+		Nav->StartMatch(), ERTNavResult::InvalidScreen);
+	TestTrue(TEXT("e lo dice con un modale"), Nav->IsModalOpen());
+	if (URTErrorModalWidgetBase* Modal2 = Cast<URTErrorModalWidgetBase>(
+		Nav->FindLiveWidget(RTScreenIds::ErrorModal)))
+	{
+		TestEqual(TEXT("e l'esito distingue l'aggancio mancante dalla config assente"),
+			Modal2->GetOutcome(), ERTStartupOutcome::MatchRequestNotConsumed);
+	}
+
+	// ⚠️ Consumata la richiesta, un nuovo avvio deve tornare possibile: la guardia protegge, non blocca.
+	Nav->ConsumePendingMatchLevel();
+	Nav->CloseModal();
+	TestEqual(TEXT("consumata la richiesta, si riparte"), Nav->StartMatch(), ERTNavResult::Ok);
+
+	Nav->ConsumePendingMatchLevel();   // pulita, per non far scattare la rete in Deinitialize
+	ReleaseNavigator(GI);
 	return true;
 }
 

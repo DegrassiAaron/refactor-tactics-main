@@ -30,6 +30,10 @@ namespace
 		ERTStartupOutcome::ShippedFormatInvalid,
 		ERTStartupOutcome::FormatMapMismatch,
 		ERTStartupOutcome::RosterHeroMissing,
+		// I due di CP 46.4 (#939): fatali, perche' senza livello o senza consumatore la partita non parte
+		// e non c'e' ripiego — a differenza di `LevelMapMissing`, che l'arena demo sostituisce.
+		ERTStartupOutcome::MatchLevelUnset,
+		ERTStartupOutcome::MatchRequestNotConsumed,
 		ERTStartupOutcome::UsingTestArena,
 		ERTStartupOutcome::UsingDemoArena,
 		ERTStartupOutcome::LevelMapMissing,

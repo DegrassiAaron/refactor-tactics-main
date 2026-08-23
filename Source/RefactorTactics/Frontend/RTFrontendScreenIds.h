@@ -47,4 +47,15 @@ namespace RTScreenIds
 	 * del menu invece della stessa con dentro qualcosa.
 	 */
 	REFACTORTACTICS_API extern const FName Settings;
+
+	/**
+	 * Il modale d'errore d'avvio.
+	 *
+	 * ✅ **E' il modale ricorrente che la nota qui sopra aspettava.** Diceva: «un modale nasce da una
+	 * condizione e il suo nome appartiene a chi lo arma — quando E46 avra' un modale ricorrente, avra' anche
+	 * un posto dove metterlo, e sara' questo». `StartMatch` (CP 46.4) lo arma da C++ su un avvio rifiutato,
+	 * quindi il nome non appartiene piu' a un solo chiamante: era una costante locale nei test, e due
+	 * stringhe uguali scritte in due posti sono un refuso in attesa.
+	 */
+	REFACTORTACTICS_API extern const FName ErrorModal;
 }

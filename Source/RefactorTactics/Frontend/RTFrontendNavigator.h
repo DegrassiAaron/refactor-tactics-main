@@ -190,6 +190,44 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Frontend")
 	ERTNavResult BackFromError(ERTLoadPhase PhaseWhenArmed);
 
+	/**
+	 * `PLAY`: chiede di avviare il vertical slice (CP 46.4, #939).
+	 *
+	 * ⛔ **Non apre il livello, lo CHIEDE.** Questo subsystem non ha un mondo — vive sulla `GameInstance` e
+	 * per contratto non tocca la scena — quindi decide *cosa* e *quando*, e l'apertura resta a chi il mondo
+	 * ce l'ha, via `ConsumePendingMatchLevel`. Non e' un secondo percorso di avvio: e' lo stesso percorso
+	 * in due meta', e la partita resta allestita da `ARTGameMode` col formato spedito da C++.
+	 *
+	 * Su `MatchLevel` vuoto **fallisce rumorosamente**: modale d'errore con la causa, non un ritorno
+	 * silenzioso al menu. E' il primo punto del DoD, e il progetto ha gia' la famiglia di difetti che
+	 * quel silenzio produce — un percorso che non risolve e' «un fallimento indistinguibile dal successo».
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	ERTNavResult StartMatch();
+
+	/**
+	 * Il livello che `StartMatch` ha chiesto di aprire, e lo AZZERA.
+	 *
+	 * ⚠️ `Consume` e non `Get`: una richiesta letta due volte aprirebbe il livello due volte.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	FString ConsumePendingMatchLevel();
+
+	/**
+	 * Il livello del vertical slice, da `DefaultGame.ini`.
+	 *
+	 * ⚠️ **Sta qui e non in `DefaultEngine.ini`**: `GameDefaultMap` dichiara da dove il PACCHETTO avvia —
+	 * il menu — e non quale partita il menu apre. Erano due dati diversi nello stesso posto, e finche' non
+	 * si e' scritto questo il secondo non esisteva affatto.
+	 *
+	 * ⛔ **Niente `EditAnywhere` ne' `BlueprintReadWrite`**, per la stessa ragione scritta su
+	 * `FRTScreenBinding`: questo campo si scrive in `DefaultGame.ini`, non in un pannello. Esporlo
+	 * sembrerebbe il modo previsto di dichiararlo senza esserlo — e un valore scritto da Blueprint verrebbe
+	 * comunque sovrascritto dal `LoadConfig()` del prossimo `StartFrontend`.
+	 */
+	UPROPERTY(Config)
+	FString MatchLevel;
+
 	/** La schermata in cima. */
 	UFUNCTION(BlueprintPure, Category = "Frontend")
 	FName GetCurrentScreen() const { return Stack.CurrentScreen(); }
@@ -286,6 +324,19 @@ private:
 	 */
 	UPROPERTY(Config)
 	TArray<FRTScreenBinding> Screens;
+
+	/**
+	 * Rifiuta un avvio partita: log, modale ARMATO con l'esito, e il valore di ritorno per chi ha chiesto.
+	 *
+	 * Il motivo e' un `ERTStartupOutcome`, non una stringa: il testo lo compone `DescribeOutcome`, che e'
+	 * localizzato e filtra i non-fatali.
+	 */
+	ERTNavResult RejectMatchStart(ERTStartupOutcome Outcome, const FString& Detail);
+
+	/** Richiesta pendente di apertura livello: la produce `StartMatch`, la consuma chi ha il mondo. */
+	UPROPERTY()
+	FString PendingMatchLevel;
+
 
 	/** I widget istanziati, per nome. Sopravvivono al pop finche' `SyncPresentation` non li smonta. */
 	UPROPERTY()

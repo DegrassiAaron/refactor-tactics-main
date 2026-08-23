@@ -13,6 +13,10 @@ bool URTStartupReportLibrary::IsFatal(ERTStartupOutcome Outcome)
 	case ERTStartupOutcome::ShippedFormatInvalid:
 	case ERTStartupOutcome::FormatMapMismatch:
 	case ERTStartupOutcome::RosterHeroMissing:
+	// I due di CP 46.4: senza livello non c'e' partita da avviare, e senza consumatore non parte comunque.
+	// A differenza di `LevelMapMissing` non hanno ripiego, quindi sono fatali.
+	case ERTStartupOutcome::MatchLevelUnset:
+	case ERTStartupOutcome::MatchRequestNotConsumed:
 		return true;
 
 	case ERTStartupOutcome::Ok:
@@ -75,6 +79,13 @@ FText URTStartupReportLibrary::DescribeOutcome(ERTStartupOutcome Outcome)
 		return LOCTEXT("FormatMapMismatch", "Formato e mappa non combaciano.");
 	case ERTStartupOutcome::RosterHeroMissing:
 		return LOCTEXT("RosterHeroMissing", "Un eroe della formazione non e' nel catalogo: partita non allestita.");
+
+	case ERTStartupOutcome::MatchLevelUnset:
+		return LOCTEXT("MatchLevelUnset",
+			"Nessun livello di partita configurato: controlla MatchLevel in DefaultGame.ini.");
+	case ERTStartupOutcome::MatchRequestNotConsumed:
+		return LOCTEXT("MatchRequestNotConsumed",
+			"La richiesta di partita precedente non e' stata raccolta: l'avvio non e' collegato.");
 
 	case ERTStartupOutcome::UsingTestArena:
 		return LOCTEXT("UsingTestArena", "Arena di PROVA generata: non e' una mappa di gioco.");
