@@ -1029,3 +1029,127 @@ bool FRTFrontendStartMatchAnnouncesTheRequestTest::RunTest(const FString&)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+// ---------------------------------------------------------------------------------------------------
+// CP 46.5 (#940) — la schermata di fine partita, e le due uscite che ne partono.
+// ---------------------------------------------------------------------------------------------------
+
+/**
+ * `ShowResult` porta il risultato canonico a schermo — e lo scrive **solo se la schermata si apre**.
+ *
+ * ⚠️ **L'ordine e' l'opposto di `StartMatch`, e non e' una svista.** La' il `PendingMatchLevel` si scrive
+ * *prima* del broadcast perche' l'ascoltatore lo legge durante il broadcast. Qui nessuno legge durante il
+ * push, quindi la scrittura puo' aspettare l'esito — e deve: un risultato memorizzato mentre la schermata
+ * resta chiusa e' uno stato che nessuno mostra e che la partita successiva rileggerebbe come fresco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendShowResultTest,
+	"RefactorTactics.Frontend.ShowResultOpensTheScreenAndStoresTheOutcome",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendShowResultTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseNavigator(GI); return false; }
+
+	Nav->InitializeFrontend(Main);
+	TestFalse(TEXT("prima della partita non c'e' nessun risultato"), Nav->GetMatchResult().bIsFinished);
+
+	FRTMatchResult Canonical;
+	Canonical.Outcome = ERTMatchOutcome::Team1Wins;
+	Canonical.Reason = ERTMatchEndReason::Elimination;
+	FRTMatchState State;
+	State.RoundNumber = 9;
+
+	TestEqual(TEXT("il Result si apre"), Nav->ShowResult(Canonical, State), ERTNavResult::Ok);
+	TestEqual(TEXT("ed e' la schermata corrente"), Nav->GetCurrentScreen(), RTScreenIds::Result);
+	TestTrue(TEXT("il risultato c'e'"), Nav->GetMatchResult().bIsFinished);
+	TestEqual(TEXT("con il vincitore canonico"), Nav->GetMatchResult().WinningTeamId, 1);
+	TestEqual(TEXT("e i round giocati"), Nav->GetMatchResult().RoundNumber, 9);
+
+	// 🔴 Con un modale aperto il push e' rifiutato — e allora il risultato NON si scrive.
+	Nav->ReturnMain();
+	Nav->ShowModal(ConfirmQuit);
+	FRTMatchResult Other;
+	Other.Outcome = ERTMatchOutcome::Team0Wins;
+	FRTMatchState OtherState;
+	OtherState.RoundNumber = 4;
+	TestEqual(TEXT("bloccato dal modale"), Nav->ShowResult(Other, OtherState), ERTNavResult::BlockedByModal);
+	TestEqual(TEXT("e il risultato di prima non e' stato sovrascritto"),
+		Nav->GetMatchResult().RoundNumber, 9);
+
+	ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * `PLAY AGAIN` ripercorre CP 46.4 — **lo stesso** `StartMatch`, non una seconda via d'avvio.
+ *
+ * ⚠️ E svuota il risultato prima di ripartire. Un Result stantio che sopravvive alla partita nuova sarebbe
+ * la seconda autorita' che il DoD vieta al widget, spostata di un livello: la schermata leggerebbe un dato
+ * fresco all'apparenza e vecchio di una partita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendPlayAgainTest,
+	"RefactorTactics.Frontend.PlayAgainClearsTheResultAndRequestsAMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendPlayAgainTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseNavigator(GI); return false; }
+
+	Nav->MatchLevel = TEXT("/Game/RT/Maps/Dev/L_Test/L_Test");
+	Nav->InitializeFrontend(Main);
+
+	FRTMatchResult Canonical;
+	Canonical.Outcome = ERTMatchOutcome::Team0Wins;
+	FRTMatchState State;
+	State.RoundNumber = 6;
+	Nav->ShowResult(Canonical, State);
+
+	TestEqual(TEXT("PLAY AGAIN accettato"), Nav->PlayAgain(), ERTNavResult::Ok);
+	TestEqual(TEXT("si riparte dalla radice, non da sopra il Result"), Nav->GetCurrentScreen(), Main);
+	TestFalse(TEXT("e senza back stack"), Nav->CanGoBack());
+	TestFalse(TEXT("il risultato vecchio e' sparito"), Nav->GetMatchResult().bIsFinished);
+	TestEqual(TEXT("il risultato vecchio e' sparito davvero, round azzerati"),
+		Nav->GetMatchResult().RoundNumber, 0);
+	TestEqual(TEXT("ed e' passato da CP 46.4: la richiesta di livello c'e'"),
+		Nav->ConsumePendingMatchLevel(), Nav->MatchLevel);
+
+	ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * `MAIN MENU` chiude la partita: dal menu, `Back` non ci rientra.
+ *
+ * ⚠️ **Non duplica `ReturnMainClearsScreensAndModals` ne' la sonda generativa**, che provano la proprieta'
+ * su stack costruiti a mano e su 50 stati casuali. Qui il soggetto e' il percorso reale del DoD — `Result`
+ * raggiunto da `ShowResult` — e la domanda e' quella del criterio: dopo `MAIN MENU`, `CanGoBack()` e' falso.
+ * Se un domani `ShowResult` cambiasse il modo di impilare, la sonda generativa non se ne accorgerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendMainMenuFromResultTest,
+	"RefactorTactics.Frontend.MainMenuFromResultCannotGoBackIntoTheMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendMainMenuFromResultTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseNavigator(GI); return false; }
+
+	Nav->InitializeFrontend(Main);
+	FRTMatchResult Canonical;
+	Canonical.Outcome = ERTMatchOutcome::Draw;
+	Canonical.Reason = ERTMatchEndReason::RoundLimit;
+	FRTMatchState State;
+	State.RoundNumber = 12;
+	Nav->ShowResult(Canonical, State);
+	TestTrue(TEXT("dal Result si tornerebbe indietro"), Nav->CanGoBack());
+
+	TestEqual(TEXT("MAIN MENU"), Nav->ReturnMain(), ERTNavResult::Ok);
+	TestEqual(TEXT("siamo al menu"), Nav->GetCurrentScreen(), Main);
+	TestFalse(TEXT("e il Back non rientra nella partita conclusa"), Nav->CanGoBack());
+	TestEqual(TEXT("lo stack e' profondo uno"), Nav->GetDepth(), 1);
+
+	ReleaseNavigator(GI);
+	return true;
+}

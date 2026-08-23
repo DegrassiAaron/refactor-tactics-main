@@ -58,4 +58,15 @@ namespace RTScreenIds
 	 * stringhe uguali scritte in due posti sono un refuso in attesa.
 	 */
 	REFACTORTACTICS_API extern const FName ErrorModal;
+
+	/**
+	 * La schermata di fine partita (CP 46.5, `#940`).
+	 *
+	 * ⚠️ **È una schermata, non un modale**, ed è la ragione per cui sta accanto a `Main` invece che
+	 * accanto a `ErrorModal`. Un modale sospende il `Back` e lascia sotto di sé lo stato da cui è nato; qui
+	 * la partita è finita e sotto non c'è niente a cui tornare. Il DoD lo dice dal lato dell'utente:
+	 * *«dal menu, `Back` non deve poter rientrare in una partita conclusa»* — ed è `ReturnMain`, non
+	 * `CloseModal`, a garantirlo.
+	 */
+	REFACTORTACTICS_API extern const FName Result;
 }

@@ -299,6 +299,39 @@ ERTNavResult URTFrontendNavigator::RejectMatchStart(ERTStartupOutcome Outcome, c
 	return ERTNavResult::InvalidScreen;
 }
 
+ERTNavResult URTFrontendNavigator::ShowResult(const FRTMatchResult& InResult, const FRTMatchState& InState)
+{
+	// ⚠️ Il push per primo: se e' rifiutato — un modale aperto, uno stack non valido — il risultato non
+	// deve restare in memoria dietro una schermata che nessuno ha visto.
+	const ERTNavResult NavResult = PushScreen(RTScreenIds::Result);
+	if (NavResult != ERTNavResult::Ok)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT] Fine partita: il Result non si e' aperto (%s), risultato non registrato."),
+			*UEnum::GetValueAsString(NavResult));
+		return NavResult;
+	}
+
+	MatchResult = FRTMatchResultViewModel::From(InResult, InState);
+	UE_LOG(LogRT, Log, TEXT("[RT] Fine partita al round %d: %s"),
+		MatchResult.RoundNumber, *UEnum::GetValueAsString(MatchResult.Outcome));
+	return ERTNavResult::Ok;
+}
+
+ERTNavResult URTFrontendNavigator::PlayAgain()
+{
+	// L'ordine conta: prima si smonta il Result, poi si chiede la partita. Al contrario, un `StartMatch`
+	// rifiutato lascerebbe l'utente sul Result con un modale d'errore sopra — che e' il posto giusto per
+	// vederlo — ma lo stack sarebbe gia' stato svuotato da sotto.
+	const ERTNavResult Cleared = ReturnMain();
+	if (Cleared != ERTNavResult::Ok)
+	{
+		return Cleared;
+	}
+
+	MatchResult = FRTMatchResultViewModel{};
+	return StartMatch();
+}
+
 FString URTFrontendNavigator::ConsumePendingMatchLevel()
 {
 	// `MoveTemp` svuota gia' la sorgente: un `Reset()` dopo sarebbe codice morto, e farebbe dubitare quale
