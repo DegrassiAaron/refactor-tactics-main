@@ -1066,8 +1066,9 @@ bool FRTFrontendShowResultTest::RunTest(const FString&)
 	TestEqual(TEXT("con il vincitore canonico"), Nav->GetMatchResult().WinningTeamId, 1);
 	TestEqual(TEXT("e i round giocati"), Nav->GetMatchResult().RoundNumber, 9);
 
-	// 🔴 Con un modale aperto il push e' rifiutato — e allora il risultato NON si scrive.
-	Nav->ReturnMain();
+	// 🔴 Con un modale aperto il push e' rifiutato — e allora il risultato nuovo si annulla, lasciando in
+	// piedi quello di prima. ⚠️ **Senza passare da `ReturnMain`**, che azzera: da li' il confronto
+	// misurerebbe l'azzeramento invece del rollback, e i due sono difetti diversi.
 	Nav->ShowModal(ConfirmQuit);
 	FRTMatchResult Other;
 	Other.Outcome = ERTMatchOutcome::Team0Wins;
@@ -1150,6 +1151,49 @@ bool FRTFrontendMainMenuFromResultTest::RunTest(const FString&)
 	TestFalse(TEXT("e il Back non rientra nella partita conclusa"), Nav->CanGoBack());
 	TestEqual(TEXT("lo stack e' profondo uno"), Nav->GetDepth(), 1);
 
+	ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * 🔴 **`MAIN MENU` non lascia dietro il risultato della partita finita.**
+ *
+ * L'azzeramento viveva solo in `PlayAgain`, ma il DoD descrive **due** uscite dal Result e `MAIN MENU` e'
+ * `ReturnMain` chiamato dal widget. Il percorso che restava scoperto: partita 1 finisce → `MAIN MENU` →
+ * `PLAY`, che e' `StartMatch` diretto e non passa da `PlayAgain` → il risultato della partita 1 restava
+ * leggibile per tutta la partita 2. Trovato in review.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendMainMenuClearsTheResultTest,
+	"RefactorTactics.Frontend.MainMenuLeavesNoStaleResultBehind",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendMainMenuClearsTheResultTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseNavigator(GI); return false; }
+
+	Nav->MatchLevel = TEXT("/Game/RT/Maps/Dev/L_Test/L_Test");
+	Nav->InitializeFrontend(Main);
+
+	FRTMatchResult First;
+	First.Outcome = ERTMatchOutcome::Team0Wins;
+	FRTMatchState FirstState;
+	FirstState.RoundNumber = 8;
+	Nav->ShowResult(First, FirstState);
+	TestEqual(TEXT("il risultato della prima partita c'e'"), Nav->GetMatchResult().RoundNumber, 8);
+
+	TestEqual(TEXT("MAIN MENU"), Nav->ReturnMain(), ERTNavResult::Ok);
+	TestFalse(TEXT("e il risultato non sopravvive al ritorno al menu"), Nav->GetMatchResult().bIsFinished);
+	TestEqual(TEXT("azzerato davvero"), Nav->GetMatchResult().RoundNumber, 0);
+
+	// Il percorso completo: PLAY dal menu e' `StartMatch` diretto, e non deve resuscitare niente.
+	TestEqual(TEXT("PLAY riparte"), Nav->StartMatch(), ERTNavResult::Ok);
+	TestFalse(TEXT("durante la partita nuova non c'e' un esito vecchio"),
+		Nav->GetMatchResult().bIsFinished);
+
+	// ⚠️ La richiesta va consumata: `Deinitialize` segnala come **errore** un avvio mai raccolto, ed e' la
+	// guardia di CP 46.4 che fa il suo lavoro — non un rumore da zittire.
+	Nav->ConsumePendingMatchLevel();
 	ReleaseNavigator(GI);
 	return true;
 }

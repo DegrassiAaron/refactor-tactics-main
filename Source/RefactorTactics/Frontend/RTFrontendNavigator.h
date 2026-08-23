@@ -240,15 +240,21 @@ public:
 	 * uguale un livello più in basso: se il navigatore ricalcolasse, il widget leggerebbe comunque un
 	 * secondo numero.
 	 *
-	 * ⚠️ **Il risultato si scrive solo se la schermata si apre**, ed è l'ordine opposto a `StartMatch`. Là
-	 * la richiesta precede il broadcast perché l'ascoltatore la legge *durante* il broadcast; qui nessuno
-	 * legge durante il push, quindi la scrittura può aspettare l'esito — e deve, perché un risultato
-	 * memorizzato dietro una schermata mai aperta è uno stato che la partita dopo rileggerebbe come fresco.
+	 * ⚠️ **Il risultato si scrive prima del push, e si annulla se il push fallisce.** L'ordine è lo stesso
+	 * di `StartMatch` e per la stessa ragione: `PushScreen` presenta il widget in modo *sincrono*, e
+	 * `AddToViewport` esegue `Construct` — che è dove un widget legge `GetMatchResult()` per popolare i
+	 * testi. Scrivere dopo il push significava mostrargli `InProgress` e round 0 alla prima apertura.
+	 * Il rollback tiene la garanzia opposta: un risultato non resta dietro una schermata mai aperta.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
 	ERTNavResult ShowResult(const FRTMatchResult& InResult, const FRTMatchState& InState);
 
-	/** Ciò che la schermata di fine partita mostra. Vuoto finché una partita non è finita. */
+	/**
+	 * Ciò che la schermata di fine partita mostra.
+	 *
+	 * ⚠️ Vuoto finché una partita non è finita, **e di nuovo vuoto appena si torna al menu**: non è un
+	 * archivio dell'ultima partita, è ciò che il Result sta mostrando adesso.
+	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
 	const FRTMatchResultViewModel& GetMatchResult() const { return MatchResult; }
 
@@ -389,7 +395,13 @@ private:
 	UPROPERTY()
 	FString PendingMatchLevel;
 
-	/** L'ultimo risultato mostrato. Azzerato da `PlayAgain`, perché una partita nuova non ha esito. */
+	/**
+	 * L'ultimo risultato mostrato.
+	 *
+	 * ⚠️ **Azzerato da `ReturnMain`**, che è il punto comune alle due uscite del Result: `MAIN MENU` lo è
+	 * direttamente, `PLAY AGAIN` ci passa attraverso. Prometterlo di `PlayAgain` soltanto era falso —
+	 * `MAIN MENU` seguito da `PLAY` lasciava il risultato vecchio leggibile per tutta la partita nuova.
+	 */
 	UPROPERTY()
 	FRTMatchResultViewModel MatchResult;
 
