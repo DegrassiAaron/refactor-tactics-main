@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractPackageRefs, toContentPaths, findUntrackedRefs } from './refs.ts';
+import { extractPackageRefs, toContentPaths, findUntrackedRefs, findStaleExceptions } from './refs.ts';
 
 /** Un `.uasset` non e' un formato di testo, ma i package path vivono nella name table come stringhe
  *  ASCII terminate da NUL: e' cosi' che `/Game/RT/Maps/Dev/L_DevSandbox/Data/DA_Format_Rotto` e'
@@ -77,4 +77,45 @@ test('un asset che cita se stesso non si segnala da solo', () => {
     [],
   );
   assert.deepEqual(findings, []);
+});
+
+// ── Eccezioni per singolo riferimento (#1280) ────────────────────────────────────────────────
+
+test('un riferimento dichiarato noto non e\' una segnalazione', () => {
+  const known = [{ asset: 'Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap', ref: '/Game/Maps/L_Prototype', why: 'metadato, non dipendenza' }];
+  const findings = findUntrackedRefs(
+    [{ asset: 'Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap', refs: ['/Game/Maps/L_Prototype'] }],
+    new Set(),
+    [],
+    known,
+  );
+  assert.deepEqual(findings, []);
+});
+
+test('l\'eccezione vale per QUEL file, non per chiunque citi lo stesso path', () => {
+  // Un prefisso in `ALLOWED_PREFIXES` copre un'intera famiglia per decisione; una coppia copre un
+  // singolo residuo misurato. Se domani un altro asset acquisisse lo stesso path, sarebbe un fatto
+  // nuovo — e il gate deve dirlo invece di ereditare il permesso.
+  const known = [{ asset: 'Content/a.umap', ref: '/Game/Maps/L_Prototype', why: 'misurato su a' }];
+  const findings = findUntrackedRefs(
+    [{ asset: 'Content/b.umap', refs: ['/Game/Maps/L_Prototype'] }],
+    new Set(),
+    [],
+    known,
+  );
+  assert.deepEqual(findings, [{ asset: 'Content/b.umap', ref: '/Game/Maps/L_Prototype' }]);
+});
+
+test('un\'eccezione che non copre piu\' niente viene segnalata', () => {
+  // Il caso che questo gate esiste per non diventare: un permesso che sopravvive alla ragione che lo
+  // giustificava. Se il metadato sparisse a un risalvataggio, l'eccezione resterebbe a dire il falso.
+  const known = [{ asset: 'Content/a.umap', ref: '/Game/Maps/Sparito', why: 'misurato' }];
+  const stale = findStaleExceptions([{ asset: 'Content/a.umap', refs: ['/Game/RT/Vivo'] }], known);
+  assert.deepEqual(stale, known);
+});
+
+test('un\'eccezione ancora necessaria non e\' stale', () => {
+  const known = [{ asset: 'Content/a.umap', ref: '/Game/Maps/L_Prototype', why: 'misurato' }];
+  const stale = findStaleExceptions([{ asset: 'Content/a.umap', refs: ['/Game/Maps/L_Prototype'] }], known);
+  assert.deepEqual(stale, []);
 });
