@@ -493,21 +493,22 @@ bool FRTReplayVerifierAmbiguousTraceTest::RunTest(const FString&)
 /**
  * Una finestra COLLASSATA ricalcola il proprio esito e non consulta la traccia (`#886`, voce 2 — [D-109]).
  *
- * `Spec.Overwatch.ConditionCollapsesToHold` produce `HoldImmediate`: la condizione dichiarata filtra via
+ * `Spec.Overwatch.ConditionCollapsesToHold` produce `HoldCollapsedByCondition` (era `HoldImmediate` fino
+ * al 2026-08-23, #583): la condizione dichiarata filtra via
  * ogni bersaglio, resta il solo `HOLD`, e `RequiresDecisionBoundary` — che e' `AllowedResponses >= 2` — e'
  * falso. Quell'esito non e' la scelta di nessuno: e' la constatazione che non c'era scelta, e rileggerlo
  * dalla traccia farebbe dipendere una regola del gioco da un file.
  *
  * Il test ha DUE meta', e la seconda e' nata da una verifica di mutazione fallita: con la sola traccia
  * originale, spostare la consultazione PRIMA del gate non faceva cadere niente. La ragione era che la
- * traccia di questo scenario contiene **solo** `HoldImmediate`, che la costruzione scarta: la mappa restava
+ * traccia di questo scenario contiene **solo** esiti di collasso, che la costruzione scarta: la mappa restava
  * vuota, il ramo non veniva nemmeno raggiunto, e «non consulta la traccia» era vero per assenza di traccia.
  *
  *     (a) traccia ORIGINALE      -> verdetto VUOTO. Se le voci del collasso finissero nella mappa
  *                                   resterebbero non consumate — nessuna finestra le chiede — e sarebbero
  *                                   riportate come orfane su una ri-simulazione riuscita
  *     (b) traccia PERTURBATA     -> la voce del collasso diventa un `FIRE`. Se qualcuno la consultasse,
- *                                   l'esito smetterebbe di essere `HoldImmediate`; e la chiave, che nessuna
+ *                                   l'esito smetterebbe di essere un collasso; e la chiave, che nessuna
  *                                   finestra reclama, dev'essere segnalata orfana
  *
  * ⚠️ Nella (b) il verdetto NON e' vuoto, ed e' corretto che non lo sia: una traccia che porta una risposta
@@ -533,8 +534,12 @@ bool FRTReplayVerifierCollapsedWindowTest::RunTest(const FString&)
 	}
 
 	const TArray<FRTTurnLogEntry> Traccia = AllEntries(A);
-	const int32 Collassi = CountOutcome(Traccia, ERTReactionDecisionOutcome::HoldImmediate);
-	if (!TestTrue(TEXT("la traccia porta almeno un HoldImmediate, o il test non verifica niente"), Collassi > 0))
+	// ⚠️ **`HoldCollapsedByCondition` e non piu' `HoldImmediate`** (2026-08-23, #583): i due erano lo stesso
+	// valore, e sono stati separati perche' `HoldImmediate` copriva due meccanismi — il collasso da condizione
+	// e la finestra che nasce con una risposta sola per costruzione. Questo test vuole il PRIMO: e' quello che
+	// si ricalcola come funzione pura dello stato, e la ragione per cui la traccia non va riletta.
+	const int32 Collassi = CountOutcome(Traccia, ERTReactionDecisionOutcome::HoldCollapsedByCondition);
+	if (!TestTrue(TEXT("la traccia porta almeno un collasso da condizione, o il test non verifica niente"), Collassi > 0))
 	{
 		return false;
 	}
@@ -545,7 +550,7 @@ bool FRTReplayVerifierCollapsedWindowTest::RunTest(const FString&)
 	TestEqual(FString::Printf(TEXT("il collasso ricalcolato da' lo stesso stato (%08x vs %08x)"),
 		B.StateHash, A.StateHash), B.StateHash, A.StateHash);
 	TestEqual(TEXT("e sempre lo stesso numero di collassi"),
-		CountOutcome(AllEntries(B), ERTReactionDecisionOutcome::HoldImmediate), Collassi);
+		CountOutcome(AllEntries(B), ERTReactionDecisionOutcome::HoldCollapsedByCondition), Collassi);
 	TestEqual(TEXT("nessuna divergenza: le voci del collasso non entrano nella mappa e non restano orfane"),
 		Divergenze.Num(), 0);
 	if (Divergenze.Num() > 0)
@@ -556,13 +561,13 @@ bool FRTReplayVerifierCollapsedWindowTest::RunTest(const FString&)
 	// (b) traccia PERTURBATA: la voce del collasso diventa un `FIRE`. E' la meta' che discrimina, perche'
 	// costringe la mappa a NON essere vuota — e una mappa vuota rende «non consulta la traccia» vero per
 	// assenza di traccia, cioe' vacuo. Con la consultazione spostata prima del gate, questa finestra
-	// smetterebbe di produrre `HoldImmediate`.
+	// smetterebbe di produrre un esito di collasso.
 	TArray<FRTTurnLogEntry> Tentatrice = Traccia;
 	FString ChiaveCollasso;
 	for (FRTTurnLogEntry& E : Tentatrice)
 	{
 		if (E.Category == ERTLogCategory::ReactionDecision
-			&& static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::HoldImmediate)
+			&& static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::HoldCollapsedByCondition)
 		{
 			ChiaveCollasso = E.OpportunityId;
 			E.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen);
@@ -579,8 +584,8 @@ bool FRTReplayVerifierCollapsedWindowTest::RunTest(const FString&)
 
 	TestEqual(FString::Printf(TEXT("il FIRE registrato NON viene applicato: stesso stato (%08x vs %08x)"),
 		C.StateHash, A.StateHash), C.StateHash, A.StateHash);
-	TestEqual(TEXT("e la finestra collassata produce ancora HoldImmediate"),
-		CountOutcome(AllEntries(C), ERTReactionDecisionOutcome::HoldImmediate), Collassi);
+	TestEqual(TEXT("e la finestra collassata produce ancora HoldCollapsedByCondition"),
+		CountOutcome(AllEntries(C), ERTReactionDecisionOutcome::HoldCollapsedByCondition), Collassi);
 	TestEqual(TEXT("nessun FIRE nella ri-simulazione"),
 		CountOutcome(AllEntries(C), ERTReactionDecisionOutcome::FireChosen), 0);
 

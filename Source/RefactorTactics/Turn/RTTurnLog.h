@@ -106,7 +106,28 @@ enum class ERTReactionDecisionOutcome : uint8
 	 * testa a questo file e la ragione per cui `Fallback`, `Reaction` e `ReactionDecision` sono in fondo a
 	 * `ERTLogCategory`.
 	 */
-	ResponseChosen
+	ResponseChosen,
+	/**
+	 * L'opportunity e' collassata perche' la **condizione dichiarata in pianificazione** ([D-109]) ha tolto
+	 * risposte fino a lasciarne una: nessuna finestra si apre, e il commit e' immediato.
+	 *
+	 * 🔴 **Perche' non basta `HoldImmediate`.** Quello dice «non c'era scelta», che e' la constatazione e non
+	 * la causa: ci si arriva anche dal **profilo base**, dove `AskReactionDecision` risponde senza mai leggere
+	 * la condizione (`RTTurnManager_Blast.cpp`, il caso di Riktor in `Brace`). Uno scenario che contasse
+	 * `HoldImmediate` verificherebbe **due meccanismi diversi sotto lo stesso numero** — ed e' testualmente il
+	 * difetto che il commento di `ResponseChosen` qui sopra descrive: «un esito che non si puo' contare
+	 * separatamente e' un esito che non si puo' asserire».
+	 *
+	 * E' la seconda voce di DoD di `#583`, ridimensionata dopo che `#886` e' atterrata: la **riproducibilita'**
+	 * e' coperta — il Verifier rilegge l'esito registrato e il collasso si ricalcola come funzione pura dello
+	 * stato — quindi resta la sola **spiegabilita'**, che un esito distinguibile soddisfa senza toccare il
+	 * formato. La casella chiedeva un campo nel TurnLog: sarebbe costato una versione di formato, l'estensione
+	 * di `EntryLess` e il rifacimento dei golden, per dire meno di questo.
+	 *
+	 * ⚠️ **In CODA all'enum, mai in mezzo**, per la stessa ragione di `ResponseChosen`: i valori viaggiano come
+	 * `uint8` nel formato serializzato, e inserirlo prima rinumererebbe le tracce gia' scritte.
+	 */
+	HoldCollapsedByCondition
 };
 
 /**

@@ -4084,8 +4084,28 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 	// `IsResponseAllowed` falso su una decisione presa dal resolver stesso.
 	if (!URTReactionOpportunityLibrary::RequiresDecisionBoundary(Opportunity))
 	{
+		// **Perche' non c'era scelta**, non solo che non c'era (#583, [D-109]).
+		//
+		// Un'opportunity dell'Overwatch nasce **solo** dove qualcuno e' entrato nella zona, e
+		// `BuildOverwatchTriggers` le da' un `FireResponse` per ogni bersaglio che SODDISFA la condizione, piu'
+		// `HOLD` sempre. Quindi una finestra dell'Overwatch rimasta col solo `HOLD` significa una cosa sola:
+		// c'erano bersagli e la condizione dichiarata li ha esclusi tutti.
+		//
+		// ⚠️ **Si deduce da `AllowedResponses`, non dai bersagli**: `FRTReactionOpportunity` porta la chiave e
+		// le risposte, mentre `TargetUnitIds` vive sul trigger, che qui non arriva. Ed e' meglio cosi' — la
+		// deduzione usa quello che il decisore vede davvero.
+		//
+		// ⚠️ **Non e' il caso di una finestra che nasce con una risposta sola per costruzione**: il profilo base
+		// del `Brace` porta la propria risposta sicura dal catalogo (`Hold Ground`), non il `HOLD`
+		// dell'Overwatch, e resta `HoldImmediate`. Il confronto e' con `HoldResponse()`, cioe' con la funzione
+		// che quel valore lo SCRIVE — non con una costante riscritta qui.
+		const bool bCollassoDaCondizione =
+			Opportunity.AllowedResponses.Num() == 1
+			&& Opportunity.AllowedResponses[0] == URTReactionOpportunityLibrary::HoldResponse();
 		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
-			ERTReactionDecisionOutcome::HoldImmediate);
+			bCollassoDaCondizione
+				? ERTReactionDecisionOutcome::HoldCollapsedByCondition
+				: ERTReactionDecisionOutcome::HoldImmediate);
 	}
 
 	// --- La TRACCIA, se questa e' una ri-simulazione (`#886`) --------------------------------------------
@@ -4225,10 +4245,17 @@ void ARTTurnManager::ArmRecordedReactionDecisions(const TArray<FRTTurnLogEntry>&
 		const ERTReactionDecisionOutcome Outcome = static_cast<ERTReactionDecisionOutcome>(Entry.Outcome);
 
 		// ⛔ Il collasso NON entra nella mappa. Quelle finestre non arrivano mai fin qui — le precede il gate
-		// di cardinalita' — quindi una voce `HoldImmediate` caricata resterebbe non consumata a fine corsa e
+		// di cardinalita' — quindi una voce di collasso caricata resterebbe non consumata a fine corsa e
 		// verrebbe segnalata come orfana su una ri-simulazione riuscita. Scartarla in ingresso e' anche cio'
 		// che la rende inapplicabile per errore a una finestra che non e' la sua.
-		if (Outcome == ERTReactionDecisionOutcome::HoldImmediate)
+		//
+		// ⚠️ **Sono DUE esiti dal 2026-08-23** (#583): `HoldCollapsedByCondition` per il collasso da condizione
+		// dichiarata, `HoldImmediate` per la finestra che nasce con una risposta sola. Entrambi si ricalcolano
+		// come funzione pura dello stato, quindi entrambi si scartano qui — e dimenticarne uno non produce un
+		// errore di compilazione ma una **risposta orfana**, che e' come il test `CollapsedWindowIgnoresTheTrace`
+		// l'ha trovato: «nessuna finestra ha reclamato T2|P4|M0|U1|action.overwatch|S0».
+		if (Outcome == ERTReactionDecisionOutcome::HoldImmediate
+			|| Outcome == ERTReactionDecisionOutcome::HoldCollapsedByCondition)
 		{
 			continue;
 		}
