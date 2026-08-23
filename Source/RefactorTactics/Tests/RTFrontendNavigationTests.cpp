@@ -17,7 +17,8 @@
 #include "Frontend/RTStartupReport.h"
 // Per `RTScreenIds::Main` / `::Settings`: i nomi canonici delle due schermate vere (CP 46.3).
 #include "Frontend/RTFrontendScreenIds.h"
-#include "Frontend/RTFrontendWidgets.h"   // URTErrorModalWidgetBase: il modale si verifica ARMATO
+#include "Frontend/RTFrontendWidgets.h"
+#include "RTFrontendMatchListenerForTest.h"   // URTErrorModalWidgetBase: il modale si verifica ARMATO
 #include "Engine/GameInstance.h"
 #include "Blueprint/UserWidget.h"
 // Solo per avere una `UUserWidget` **concreta** da istanziare: `UUserWidget` e' `Abstract`.
@@ -978,6 +979,51 @@ bool FRTFrontendUnconsumedMatchRequestIsLoudTest::RunTest(const FString&)
 	TestEqual(TEXT("consumata la richiesta, si riparte"), Nav->StartMatch(), ERTNavResult::Ok);
 
 	Nav->ConsumePendingMatchLevel();   // pulita, per non far scattare la rete in Deinitialize
+	ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * `StartMatch` ANNUNCIA la richiesta: chi ha il mondo la sente e la consuma.
+ *
+ * 🔴 **Senza l'annuncio il consumatore non saprebbe QUANDO.** Il navigatore decide, ma chi apre il livello
+ * — `ARTFrontendGameMode`, che il mondo ce l'ha — non ha modo di accorgersi che il giocatore ha premuto
+ * PLAY: dovrebbe interrogare lo stato a ogni frame, e `CLAUDE.md` vieta il Tick per il sequencing.
+ *
+ * ⚠️ Il broadcast avviene DOPO che la richiesta e' pendente: un ascoltatore che consuma dentro il callback
+ * deve trovarla, non anticiparla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendStartMatchAnnouncesTheRequestTest,
+	"RefactorTactics.Frontend.StartMatchAnnouncesTheRequest",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendStartMatchAnnouncesTheRequestTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav)) { ReleaseNavigator(GI); return false; }
+
+	Nav->RegisterScreensFromConfig();
+	Nav->InitializeFrontend(RTScreenIds::Main);
+	Nav->MatchLevel = TEXT("/Game/RT/Maps/Dev/L_HexArena/L_HexArena");
+
+	// Un ascoltatore che si comporta come il consumatore vero: sente, consuma, e registra cosa ha visto.
+	URTFrontendMatchListenerForTest* Listener = NewObject<URTFrontendMatchListenerForTest>();
+	Listener->Nav = Nav;
+	Nav->OnMatchRequested.AddDynamic(Listener, &URTFrontendMatchListenerForTest::OnRequested);
+
+	TestEqual(TEXT("l'avvio passa"), Nav->StartMatch(), ERTNavResult::Ok);
+
+	TestEqual(TEXT("l'ascoltatore e' stato avvisato una volta"), Listener->Calls, 1);
+	TestEqual(TEXT("e con il livello dichiarato"), Listener->SeenLevel, Nav->MatchLevel);
+	TestTrue(TEXT("la richiesta era gia' pendente quando l'ha sentita: ha potuto consumarla"),
+		Listener->bConsumedSomething);
+	TestTrue(TEXT("e dopo il consumo non resta nulla"), Nav->ConsumePendingMatchLevel().IsEmpty());
+
+	// ⚠️ Non-vacuita': un secondo PLAY deve poter ripartire, cioe' il consumo ha davvero liberato lo stato.
+	TestEqual(TEXT("e si puo' rigiocare"), Nav->StartMatch(), ERTNavResult::Ok);
+	Nav->ConsumePendingMatchLevel();
+
+	Nav->OnMatchRequested.RemoveDynamic(Listener, &URTFrontendMatchListenerForTest::OnRequested);
 	ReleaseNavigator(GI);
 	return true;
 }

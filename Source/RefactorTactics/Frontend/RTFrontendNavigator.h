@@ -46,6 +46,19 @@ struct FRTScreenBinding
 };
 
 /**
+ * `PLAY` e' stato premuto e la richiesta e' PENDENTE: chi ha il mondo la consuma e apre il livello.
+ *
+ * ⚠️ **L'ordine e' parte del contratto**: il broadcast avviene DOPO che `PendingMatchLevel` e' scritto,
+ * cosi' un ascoltatore che consuma dentro il callback la trova. E' verificato, perche' l'ordine inverso
+ * darebbe un consumatore che non trova nulla e una richiesta che resta li' — cioe' il difetto che la
+ * guardia di `StartMatch` segnala al `PLAY` successivo.
+ *
+ * ⛔ **Serve perche' il consumatore non puo' SAPERE quando.** Senza annuncio dovrebbe interrogare lo stato
+ * a ogni frame, e `CLAUDE.md` vieta il Tick per decidere sequencing.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTOnMatchRequested, const FString&, LevelName);
+
+/**
  * **L'unico owner del flow del frontend** (CP 46.1, #936).
  *
  * Possiede lo stack logico (`FRTScreenStack`) e ne traduce le transizioni in widget. E' l'unico punto del
@@ -204,6 +217,10 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
 	ERTNavResult StartMatch();
+
+	/** Annuncio di `StartMatch`: la richiesta e' pendente e attende chi la consuma. */
+	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Frontend")
+	FRTOnMatchRequested OnMatchRequested;
 
 	/**
 	 * Il livello che `StartMatch` ha chiesto di aprire, e lo AZZERA.
