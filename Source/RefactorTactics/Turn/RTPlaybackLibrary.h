@@ -48,6 +48,23 @@ public:
 		float CellsPerSecond, float PhaseBeatSeconds, float AttackShowSeconds);
 
 	/**
+	 * Quanti colpi devono essere GIA' MOSTRATI dopo PhaseElapsed secondi di fase Blast: il primo esce
+	 * subito, e ogni AttackShowSeconds successivi ne compare un altro, fino a NumAttacks.
+	 * = Min(NumAttacks, 1 + Floor(PhaseElapsed/AttackShowSeconds)).
+	 * AttackShowSeconds <= 0 significa "nessuno scaglionamento": escono tutti insieme.
+	 *
+	 * E' il contro-termine di EstimatePlaybackSeconds, che nella durata riserva gia'
+	 * NumAttacks*AttackShowSeconds: la stima mostrata a chi guarda e il ritmo con cui i colpi
+	 * compaiono devono venire dalla stessa formula, o la barra promette un tempo che la
+	 * riproduzione non usa (#911).
+	 * ⚠️ Poiche' il primo colpo esce a t=0, N colpi occupano N-1 intervalli: l'ultimo compare a
+	 * (N-1)*AttackShowSeconds, un beat prima che la durata riservata alla fase finisca. Quel beat
+	 * e' il tempo di lettura dell'ultimo colpo, non un residuo da recuperare.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static int32 AttacksToShow(int32 NumAttacks, float PhaseElapsed, float AttackShowSeconds);
+
+	/**
 	 * Fattore di accelerazione per rientrare nel tetto di durata: 1 se gia' entro il cap
 	 * (o se il cap non e' positivo), altrimenti EstimatedSeconds/MaxSeconds (>= 1).
 	 */

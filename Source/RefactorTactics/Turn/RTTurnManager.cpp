@@ -5161,12 +5161,15 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			}
 		}
 	}
-	else if (Ph == ERTMatchPhase::Blast)
+	// ⚠️ `if`, NON `else if`: il Blast fa DUE cose insieme — scivolare (knockback, sopra) e rivelare i
+	// colpi. Con l'else il secondo ramo era irraggiungibile, perche' il primo cattura gia' Blast, e
+	// AttackShowSeconds non aveva alcun effetto: i colpi uscivano tutti nello stesso frame dal blocco
+	// di finalizzazione (#911). E' la stessa struttura a due `if` che quel blocco usa piu' sotto.
+	if (Ph == ERTMatchPhase::Blast)
 	{
 		// Rivela i colpi in serie (uno ogni AttackShowSeconds) per leggibilita' del danno.
-		const int32 ShouldShow = (AttackShowSeconds > 0.f)
-			? FMath::Min(PlaybackAttacks.Num(), 1 + FMath::FloorToInt(PlaybackPhaseElapsed / AttackShowSeconds))
-			: PlaybackAttacks.Num();
+		const int32 ShouldShow = URTPlaybackLibrary::AttacksToShow(
+			PlaybackAttacks.Num(), PlaybackPhaseElapsed, AttackShowSeconds);
 		while (AttacksShown < ShouldShow)
 		{
 			const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];

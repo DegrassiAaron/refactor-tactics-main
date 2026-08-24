@@ -145,4 +145,70 @@ bool FRTPlaybackEffectiveSpeedTest::RunTest(const FString&)
 	return true;
 }
 
+// --- AttacksToShow --------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackAttackStaggerTest,
+	"RefactorTactics.Playback.AttacksToShowStagger",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackAttackStaggerTest::RunTest(const FString&)
+{
+	// Quattro colpi, uno ogni mezzo secondo.
+	TestEqual(TEXT("a fase appena iniziata il primo colpo e' gia' uscito"),
+		URTPlaybackLibrary::AttacksToShow(4, 0.f, 0.5f), 1);
+	TestEqual(TEXT("appena prima del secondo beat siamo ancora a uno"),
+		URTPlaybackLibrary::AttacksToShow(4, 0.49f, 0.5f), 1);
+	TestEqual(TEXT("sul beat esce il secondo"),
+		URTPlaybackLibrary::AttacksToShow(4, 0.5f, 0.5f), 2);
+	TestEqual(TEXT("dopo tre beat sono tre"),
+		URTPlaybackLibrary::AttacksToShow(4, 1.0f, 0.5f), 3);
+	TestEqual(TEXT("oltre la fine non se ne inventano altri"),
+		URTPlaybackLibrary::AttacksToShow(4, 10.f, 0.5f), 4);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackAttackShowSecondsHasEffectTest,
+	"RefactorTactics.Playback.AttackShowSecondsHasEffect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackAttackShowSecondsHasEffectTest::RunTest(const FString&)
+{
+	// 🔴 E' il criterio che #911 chiedeva: con due valori diversi di AttackShowSeconds il numero di
+	// colpi visibili NELLO STESSO ISTANTE deve differire. Finche' il ramo che scagliona era
+	// irraggiungibile il campo non aveva alcun effetto, e questa asserzione sarebbe stata l'unica a
+	// dirlo: gli altri test misurano la formula, questo misura che il parametro conti.
+	const int32 Fast = URTPlaybackLibrary::AttacksToShow(4, 1.0f, 0.5f);
+	const int32 Slow = URTPlaybackLibrary::AttacksToShow(4, 1.0f, 1.0f);
+	TestEqual(TEXT("un secondo a mezzo secondo per colpo -> tre"), Fast, 3);
+	TestEqual(TEXT("un secondo a un secondo per colpo -> due"), Slow, 2);
+	TestTrue(TEXT("AttackShowSeconds cambia quanti colpi si vedono"), Fast > Slow);
+
+	// ⚠️ N colpi occupano N-1 INTERVALLI, non N: il primo esce a fase appena iniziata. Con 4 colpi a
+	// mezzo secondo l'ultimo compare a 1.5 s, mentre DurationForPlaybackPhase riserva al Blast
+	// NumAttacks*AttackShowSeconds = 2.0 s. Il beat che avanza non e' uno spreco: e' il tempo in cui
+	// l'ultimo colpo resta leggibile prima che la fase chiuda. Misurato, non dedotto: la prima
+	// stesura di questo test asseriva che a 1.99 s ne mancasse ancora uno, ed era falso.
+	TestEqual(TEXT("l'ultimo colpo esce dopo N-1 intervalli"),
+		URTPlaybackLibrary::AttacksToShow(4, 3 * 0.5f, 0.5f), 4);
+	TestEqual(TEXT("un istante prima ne manca uno"),
+		URTPlaybackLibrary::AttacksToShow(4, 3 * 0.5f - 0.01f, 0.5f), 3);
+	TestEqual(TEXT("la durata riservata al Blast lascia un beat di coda, e nessun colpo in sospeso"),
+		URTPlaybackLibrary::AttacksToShow(4, 4 * 0.5f, 0.5f), 4);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackAttackStaggerDegenerateTest,
+	"RefactorTactics.Playback.AttacksToShowDegenerate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackAttackStaggerDegenerateTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("nessun colpo -> niente da mostrare"),
+		URTPlaybackLibrary::AttacksToShow(0, 1.f, 0.5f), 0);
+	TestEqual(TEXT("scaglionamento disattivato (0) -> tutti insieme"),
+		URTPlaybackLibrary::AttacksToShow(3, 0.f, 0.f), 3);
+	TestEqual(TEXT("scaglionamento negativo -> tutti insieme, non un crash"),
+		URTPlaybackLibrary::AttacksToShow(3, 0.f, -1.f), 3);
+	TestEqual(TEXT("tempo negativo -> il primo colpo, non zero ne' un indice fuori range"),
+		URTPlaybackLibrary::AttacksToShow(3, -5.f, 0.5f), 1);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
