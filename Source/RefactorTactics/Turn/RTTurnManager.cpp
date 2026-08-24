@@ -5161,7 +5161,13 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			}
 		}
 	}
-	else if (Ph == ERTMatchPhase::Blast)
+	// ⚠️ `if`, NON `else if`: nel Blast servono ENTRAMBE le cose. La spinta (knockback) e' un movimento e
+	// va interpolata dal ramo qui sopra, i colpi vanno scaglionati da questo. Scritto come `else if`, il
+	// Blast veniva catturato dalla prima condizione e questo blocco non partiva mai — `AttacksShown`
+	// restava 0 per tutta la fase e i colpi uscivano tutti insieme dalla finalizzazione, con
+	// `AttackShowSeconds` senza alcun effetto (#911). E' la stessa forma che il blocco di finalizzazione
+	// qui sotto ha sempre avuto: due `if` separati, non un'alternativa.
+	if (Ph == ERTMatchPhase::Blast)
 	{
 		// Rivela i colpi in serie (uno ogni AttackShowSeconds) per leggibilita' del danno.
 		const int32 ShouldShow = (AttackShowSeconds > 0.f)
