@@ -349,6 +349,42 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 		}
 	}
 
+	// «DA QUI POSSO INGAGGIARE» — lo specchio offensivo della minaccia qui sopra (#1300, D-185).
+	//
+	// La minaccia penalizza le celle da cui il NEMICO puo' colpirti; questo premia quelle da cui TU vedi
+	// un contatto noto. Le due condizioni non sono la stessa cosa nemmeno quando la geometria e' simmetrica:
+	// la minaccia chiede anche la gittata avversaria, e questo chiede solo la linea di tiro, perche' una
+	// cella da cui si vede e' dove si potra' sparare **il turno prossimo** — le candidate di movimento
+	// nascono con `AttackRange = 0` per costruzione, dato che il Move viene dopo il Blast.
+	//
+	// 🔴 **Il decadimento non e' un dettaglio del termine: e' il termine.** Un bonus posizionale fisso sulla
+	// linea di tiro paga per GUARDARE, e la cella che massimizza il guardare e' una vedetta da cui non si
+	// spara: lo stato assorbente di #1088 sotto un altro nome. Misurato il 2026-08-24, intero per intero,
+	// non esiste alcun valore fisso che passi entrambi gli oracoli di parcheggio — l'arena generata cade da
+	// 7, la mappa d'autore si sblocca da 11, e in mezzo sono rossi tutti e due.
+	//
+	// ⚠️ **Solo sui piani senza attacco**, e non e' una guardia difensiva: un piano che spara vale gia'
+	// `WDamage * danno`, due ordini di grandezza sopra, quindi il bonus li' non cambierebbe nessun
+	// ordinamento e renderebbe soltanto il termine piu' difficile da leggere.
+	//
+	// ⚠️ **La linea si chiede nel verso OFFENSIVO** (`DestCell -> nemico`), lo stesso di `BuildCandidates`.
+	// Non e' pedanteria: `HexLine` costruisce la linea sul layer del TIRATORE, quindi fra piani diversi i
+	// due versi non coincidono — su `DA_HexMap_Arena` ci sono 91 coppie asimmetriche su 2016, tutte fra
+	// layer diversi, e dalla piattaforma L1 si vedono 64 celle su 64.
+	if (!Plan.bHasAttack && Context.WEngage > 0)
+	{
+		for (const FRTCellId& Enemy : Context.Enemies)
+		{
+			if (URTHexVisionLibrary::HasLineOfSight(Map, Plan.DestCell, Enemy))
+			{
+				// Una volta sola: e' «posso ingaggiare», non «quanti ne vedo». Contare i nemici visti
+				// renderebbe il termine una seconda misura del focus-fire, che ha gia' il suo peso.
+				Score += FMath::Max(0, Context.WEngage - Context.WEngageDecay * Context.IdleTurns);
+				break;
+			}
+		}
+	}
+
 	// Elevazione: premia la quota della cella di destinazione.
 	//
 	// 🔴 **QUI SI E' FORMATO LO STATO ASSORBENTE DI #1088, e la difesa e' UN NUMERO — non questa formula.**
