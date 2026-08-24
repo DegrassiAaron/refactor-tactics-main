@@ -154,17 +154,72 @@ struct FRTHexBotContext
 	 * punteggio di un piano isolato, che non vede il tie-break.
 	 */
 	UPROPERTY() int32 WElevation = 4;
+
+	/**
+	 * Bonus per una cella da cui si VEDE un contatto noto, quando il piano non contiene un attacco
+	 * (#1300, D-185). E' il termine che risponde a «da qui posso ingaggiare», e che la spec elencava fra i
+	 * termini del punteggio **senza nominare la linea di tiro**.
+	 *
+	 * ⚠️ **Guarda DOVE VAI, non da dove parti**, ed e' cio' che lo distingue dal filtro sul dominio di
+	 * #1287: quel filtro si accendeva quando eri cieco e si spegneva appena vedevi, cioe' era un ciclo di
+	 * periodo due. Qui la condizione sta sulla destinazione, e uscire dalla ricerca non riporta indietro.
+	 *
+	 * ⚠️ **Vale solo sui piani SENZA attacco.** Un piano che spara vale gia' `WDamage * danno`, cioe' due
+	 * ordini di grandezza in piu': aggiungerci un bonus di posizione non cambierebbe nulla e renderebbe il
+	 * termine illeggibile.
+	 */
+	UPROPERTY() int32 WEngage = 15;
+
+	/**
+	 * Quanto `WEngage` CALA per ogni turno consecutivo in cui l'unita' non ingaggia (`IdleTurns`).
+	 *
+	 * 🔴 **Non e' una rifinitura: senza decadimento il termine non funziona a NESSUN peso.** Un bonus
+	 * posizionale sulla linea di tiro paga per *guardare*, e la cella che massimizza il guardare e' una
+	 * vedetta in quota da cui non si spara — lo stato assorbente di #1088 con un nome nuovo. Misurato
+	 * intero per intero il 2026-08-24: `Match.Autobattle.EngagesOnTheGeneratedTestArena` cade **da `W = 7`**
+	 * (dove `WElevation * MaxLayer + W < WApproach` lo prevede) e `NobodyParksOnTheAuthoredMap` si sblocca
+	 * solo **da `W = 11`**. La finestra e' **vuota**, e fra 7 e 10 sono rossi entrambi.
+	 *
+	 * Con il decadimento la vedetta vale molto appena ci arrivi e sempre meno finche' resti senza sparare:
+	 * e' l'unica forma misurata che fa passare i due oracoli di parcheggio **insieme**.
+	 *
+	 * ⚠️ **La coppia si tara sull'ESITO, non con una formula: non e' il rapporto a decidere.** Misurati
+	 * quattro punti — `15/5` ✅ e `20/10` ✅, `20/5` 🔴 e `30/10` 🔴 — e `30/10` e `15/5` muoiono entrambi
+	 * dopo tre turni dando esiti opposti. Si spedisce `15/5`, il punto su cui e' girata la suite intera, e
+	 * a pinnarlo e' `HexBot.EngageBonusFadesWithIdleTurns` sull'ESITO di `ChooseBestPlan`. La taratura fine
+	 * resta bilanciamento: #149 e D-102.
+	 */
+	UPROPERTY() int32 WEngageDecay = 5;
+
+	/**
+	 * Da quanti turni consecutivi il piano scelto per questa unita' **non contiene un attacco**. E' la
+	 * memoria per unita' che `E26` (#326) portera' per intero; qui ne entra il minimo che serve al termine
+	 * qui sopra.
+	 *
+	 * ⚠️ **Conta l'INTENTO, non l'esito**: si azzera quando il bot *pianifica* un attacco, non quando il
+	 * colpo va a segno. E' la memoria che il bot ha di se' stesso, e ricostruirla dal TurnLog farebbe
+	 * dipendere la pianificazione dalla risoluzione del turno prima.
+	 *
+	 * ⚠️ **Chi la tiene e' `ARTTurnManager`, non `ARTUnit`**, per la stessa ragione per cui il kiting non
+	 * sta sull'eroe: e' un comportamento del BOT, e un'unita' che muovi tu non lo consulta mai.
+	 */
+	UPROPERTY() int32 IdleTurns = 0;
 };
 
 /**
  * Decisioni del bot su griglia ESAGONALE: logica pura, nessun Actor, solo interi (invariante #4).
  * Politica ereditata dal bot quadrato che ha sostituito (rimosso al CP 7.2) — focus-fire, minaccia mitigata
- * dalla copertura, kiting o avvicinamento, bonus di elevazione — con distanza esagonale e linea di vista
- * letta dall'asset mappa.
+ * dalla copertura, kiting o avvicinamento, bonus di elevazione — con linea di vista letta dall'asset mappa.
+ *
+ * ⚠️ **La MINACCIA si misura in distanza esagonale, l'AVVICINAMENTO in PASSI sul grafo** (dal 2026-08-23,
+ * #1296): un proiettile non cammina, un'unita' si'. Questa riga diceva «distanza esagonale» per entrambi, ed
+ * era la premessa che ha prodotto il ciclo di periodo due sulla mappa d'autore.
  *
  * Le mosse candidate arrivano da URTHexSimLibrary::ReachableCells, che ha gia' applicato budget di movimento,
- * celle bloccate, unita' occupanti e archi verticali: il bot non rifa' pathfinding e non puo' proporre mosse
- * illegali. Vedi docs/technical/h6-5-hex-bot-spec.md.
+ * celle bloccate, unita' occupanti e archi verticali: il bot **non propone mosse illegali**. ⚠️ Diceva anche
+ * «non rifa' pathfinding», e non e' piu' vero: `ScorePlan` percorre il grafo per misurare l'avvicinamento. La
+ * differenza che regge e' un'altra — il bot non sceglie il PERCORSO, sceglie la destinazione.
+ * Vedi docs/gameplay/spec-bot-hex.md.
  */
 UCLASS()
 class REFACTORTACTICS_API URTHexBotLibrary : public UBlueprintFunctionLibrary

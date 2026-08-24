@@ -66,8 +66,9 @@ public:
 	 * convenzione pointy-top, ed e' cio' che impedisce ai due disegni di divergere di nuovo.
 	 *
 	 * Convenzioni ereditate dal cilindro che sostituisce, per non spostare niente di quanto gia' tarato:
-	 * circumraggio **50 uu** (`PlanarScale` divide per 50) e Z **centrato** in `[-50, +50]` (vedi il commento
-	 * su `RTCellFlatScale`). Cambiarle muoverebbe ogni lift di debug-line insieme al disco.
+	 * circumraggio **`RTCellPrismRadius`** (`PlanarScale` divide per quello) e Z **centrato**, cioe' le
+	 * costanti di [`Map/RTMapVisuals.h`](RTMapVisuals.h) — dove sono uscite dal namespace anonimo con #983.
+	 * Cambiarle muoverebbe ogni lift di debug-line insieme al disco.
 	 *
 	 * 🔵 Generata invece che autorata come `.uasset`: un binario in piu' sarebbe un path da leasare, e due
 	 * `.uasset` non si fondono. Questa si diffa e si testa.

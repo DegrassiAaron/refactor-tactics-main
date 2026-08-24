@@ -93,6 +93,48 @@ TArray<FRTCellId> ARTTurnManager::CellsEnteredAlong(const TArray<FRTCellId>& Pat
 	return Entered;
 }
 
+/**
+ * La voce di NASCITA di uno stato (#1077), costruita in UN posto solo.
+ *
+ * 🔴 **Era copiata in tre siti, e i tre sono derivati esattamente nei campi che non condividevano** —
+ * trovato in code review: la fase, la cella e la regola del sentinella. Un helper non e' eleganza qui,
+ * e' il punto in cui quelle tre regole stanno scritte una volta.
+ *
+ * ⚠️ **La regola del sentinella sta QUI**: `ApplyStatus` accetta `PersistentWhileOnCell` (-1) da
+ * qualunque chiamante, e -1 **non e' una durata**. La forma di vita finisce nell'esito e `Amount` porta
+ * un conteggio solo quando un conteggio esiste — prima lo garantiva il solo sito del terreno, quindi la
+ * spec lo dichiarava per tutti e valeva per uno su tre.
+ */
+FRTTurnLogEntry ARTTurnManager::MakeStatusBirthEntry(ERTMatchPhase InPhase, FGameplayTag Tag, const FRTCellId& Cell,
+	int32 RequestedTurns, bool bFromTerrain)
+{
+	FRTTurnLogEntry E;
+	E.Phase = InPhase;
+	E.Category = ERTLogCategory::Status;
+	E.ActionId = Tag.GetTagName();
+	E.SrcCell = Cell;
+	E.TgtCell = Cell;
+	const bool bLegatoAllaCella = (RequestedTurns == ARTUnit::PersistentWhileOnCell);
+	E.Amount = bLegatoAllaCella ? 0 : RequestedTurns;
+	E.Outcome = static_cast<uint8>(bLegatoAllaCella
+		? ERTStatusOutcome::AppliedWhileOnCell
+		: (bFromTerrain ? ERTStatusOutcome::AppliedByTerrain : ERTStatusOutcome::AppliedByAction));
+	return E;
+}
+
+/** La voce di MORTE di uno stato: revoca (una mossa) o scadenza (il tempo). Sempre nel Cleanup. */
+FRTTurnLogEntry ARTTurnManager::MakeStatusDeathEntry(FGameplayTag Tag, const FRTCellId& Cell, ERTStatusOutcome Outcome)
+{
+	FRTTurnLogEntry E;
+	E.Phase = ERTMatchPhase::Cleanup;
+	E.Category = ERTLogCategory::Status;
+	E.ActionId = Tag.GetTagName();
+	E.SrcCell = Cell;
+	E.TgtCell = Cell;
+	E.Outcome = static_cast<uint8>(Outcome);
+	return E;
+}
+
 void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUnit* Unit,
 	const TArray<FRTCellId>& Entered, ERTMatchPhase InPhase)
 {
@@ -161,6 +203,22 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 					? ARTUnit::PersistentWhileOnCell
 					: Effect.StatusDuration;
 				Unit->ApplyStatus(Effect.StatusTag, Duration);
+				// #1077: la NASCITA dello stato entra nel TurnLog. La forma di vita sta nell'esito, non in
+				// `Amount`: `PersistentWhileOnCell` vale -1 e non e' una durata.
+				// ⚠️ **`InPhase`, non il membro `Phase`**: durante la Cleanup il membro vale `Planning` — la
+				// firma di questa funzione lo dichiara in otto righe, e la prima stesura di questa voce le
+				// aveva ignorate. Un `Fire` che concede `Burning` nella Cleanup avrebbe scritto una fase mai
+				// avvenuta, per giunta dentro l'hash del turno. Trovato in code review.
+				// ⚠️ E la cella e' `Cell`, quella del ciclo che ha concesso lo stato, non `Unit->Cell`:
+				// `ResolveMovement` chiama qui DOPO `PlaceOnCell`, quindi il membro e' gia' la cella finale
+				// e uno stato preso a meta' percorso sarebbe stato ancorato all'arrivo. La voce `Hazard`
+				// venti righe sopra usa `Cell` per la stessa ragione.
+				if (Duration == ARTUnit::PersistentWhileOnCell || Duration > 0)
+				{
+					FRTTurnLogEntry Nato = MakeStatusBirthEntry(InPhase, Effect.StatusTag, Cell, Duration,
+						/*bFromTerrain=*/ true);
+					AppendLogEntry(Nato, Unit);
+				}
 				AddLogEvent(FString::Printf(TEXT("%s: %s da terreno"), *Unit->GetName(), *Effect.StatusTag.ToString()));
 			}
 		}
@@ -425,6 +483,11 @@ void ARTTurnManager::PlanBots()
 		Ctx.WKiteViolation = WKiteViolation;
 		Ctx.WApproach = WApproach;
 		Ctx.WElevation = WElevation;
+		Ctx.WEngage = WEngage;
+		Ctx.WEngageDecay = WEngageDecay;
+		// La memoria per unita' del termine di ingaggio: quanti turni consecutivi questa unita' non
+		// pianifica un attacco (#1300, D-185). Si aggiorna piu' sotto, a piano scelto.
+		Ctx.IdleTurns = BotIdleTurns.FindRef(Bot->StableUnitId);
 
 		TArray<int32> EnemyUnitIndex; // parallelo a Ctx.Enemies: indice dell'unita' in Units
 		ARTUnit* Nearest = nullptr;
@@ -906,6 +969,18 @@ void ARTTurnManager::PlanBots()
 			? Units[EnemyUnitIndex[Best.TargetIndex]] : nullptr;
 		const int32 Score = URTHexBotLibrary::ScorePlan(Snapshot.Map, Best, Ctx);
 
+		// La memoria si aggiorna UNA VOLTA per round: `PlanBotsForTest()` e `LockInAndResolve()`
+		// pianificano entrambi lo stesso round, e senza guardia il decadimento andrebbe al doppio.
+		{
+			int32& UltimoRound = BotIdleRound.FindOrAdd(Bot->StableUnitId, -1);
+			if (UltimoRound != TurnNumber)
+			{
+				UltimoRound = TurnNumber;
+				int32& TurniInerti = BotIdleTurns.FindOrAdd(Bot->StableUnitId, 0);
+				TurniInerti = Best.bHasAttack ? 0 : TurniInerti + 1;
+			}
+		}
+
 		if (bIsCharge && Target && Ctx.Enemies.IsValidIndex(Best.TargetIndex))
 		{
 			// CARICA: si punta la cella del bersaglio e la fase Dash si ferma addosso a lui registrando
@@ -1230,14 +1305,42 @@ void ARTTurnManager::LockInAndResolve()
 			if (CleanupMap)
 			{
 				const FRTHexCellData* CellData = CleanupMap->FindCell(Unit->Cell);
-				Unit->RevokeCellBoundStatusesNotIn(CellData
+				// #1077: la REVOCA e' una morte con una causa — l'unita' ha lasciato la cella che lo
+				// sosteneva — ed e' diversa dalla scadenza qui sotto. Un replay che le confondesse non
+				// saprebbe dire se il giocatore ha fatto qualcosa o se e' solo passato il tempo.
+				// ⚠️ I tag arrivano gia' ordinati per nome: l'ordine di `CellBoundStatuses` e' quello di una
+				// `TSet`, e farci dipendere l'ordine delle voci renderebbe l'hash del turno instabile.
+				for (const FGameplayTag& Revocato : Unit->RevokeCellBoundStatusesNotIn(CellData
 					? URTTerrainLibrary::CellBoundStatusesFor(CellData->Surface)
-					: TSet<FGameplayTag>());
+					: TSet<FGameplayTag>()))
+				{
+					// ⚠️ **Solo se lo stato e' finito DAVVERO.** `HasStatus` e' vero se il tag sta nei turni a
+					// termine **oppure** fra quelli legati alla cella: un'unita' bagnata dall'acqua bassa e
+					// anche da `PressureJet` conserva il `Wet` a termine quando lascia la pozza, e annunciarne
+					// la revoca sarebbe una morte mai avvenuta — la stessa specie di bugia che #1077 esiste
+					// per togliere. Trovato in code review.
+					if (!Unit->HasStatus(Revocato))
+					{
+						FRTTurnLogEntry Morto = MakeStatusDeathEntry(Revocato, Unit->Cell, ERTStatusOutcome::Revoked);
+						AppendLogEntry(Morto, Unit);
+					}
+				}
 			}
 
 			Unit->Energy = URTCombatLibrary::GainEnergy(Unit->Energy, Unit->EnergyPerTurn, Unit->MaxEnergy);
 			Unit->ExpireTemporaryShield(); // la protezione delle abilita' di supporto vale un turno solo
-			Unit->TickStatuses();
+			// #1077: la SCADENZA. Nessuno ha fatto niente, e' finito il conteggio — e anche qui i tag
+			// arrivano ordinati, perche' vengono da una `TMap`.
+			for (const FGameplayTag& Scaduto : Unit->TickStatuses())
+			{
+				// Simmetrico della revoca: il conteggio e' finito, ma se la cella lo sostiene ancora lo stato
+				// c'e' e non e' scaduto niente di osservabile.
+				if (!Unit->HasStatus(Scaduto))
+				{
+					FRTTurnLogEntry Morto = MakeStatusDeathEntry(Scaduto, Unit->Cell, ERTStatusOutcome::Expired);
+					AppendLogEntry(Morto, Unit);
+				}
+			}
 			Unit->TickCooldowns();
 
 			// Il piano di REAZIONE si azzera QUI, e non piu' nel pass che lo legge (`#505`). Con D-092 i punti
@@ -2802,6 +2905,16 @@ void ARTTurnManager::ResolvePrep()
 			break;
 		case ERTActionEffect::Status:
 			Target->ApplyStatus(Event.StatusTag, Event.Amount);
+			// #1077: nascita da AZIONE — l'esito la distingue dal terreno.
+			// ⚠️ Solo se lo stato e' stato DAVVERO applicato: `ApplyStatus` esce senza toccare niente con
+			// `Turns <= 0`, e una voce scritta comunque farebbe ricostruire a un replay uno stato che la
+			// simulazione non ha mai concesso. Trovato in code review.
+			if (Event.Amount == ARTUnit::PersistentWhileOnCell || Event.Amount > 0)
+			{
+				FRTTurnLogEntry Nato = MakeStatusBirthEntry(Phase, Event.StatusTag, Target->Cell, Event.Amount,
+					/*bFromTerrain=*/ false);
+				AppendLogEntry(Nato, Target);
+			}
 			AddLogEvent(FString::Printf(TEXT("%s: stato applicato"), *Target->GetName()));
 			break;
 		default:
@@ -3109,6 +3222,14 @@ void ARTTurnManager::ResolveDash()
 			if (Event.Kind == ERTActionEffect::Status)
 			{
 				Unit->ApplyStatus(Event.StatusTag, Event.Amount);
+				// #1077: nascita da AZIONE, sul percorso del movimento lineare. Stessa guardia del sito
+				// del Prep: nessuna voce se `ApplyStatus` non ha applicato niente.
+				if (Event.Amount == ARTUnit::PersistentWhileOnCell || Event.Amount > 0)
+				{
+					FRTTurnLogEntry Nato = MakeStatusBirthEntry(Phase, Event.StatusTag, Unit->Cell, Event.Amount,
+						/*bFromTerrain=*/ false);
+					AppendLogEntry(Nato, Unit);
+				}
 				AddLogEvent(FString::Printf(TEXT("%s: %s per %d turno/i"),
 					*Unit->GetName(), *Event.StatusTag.ToString(), Event.Amount));
 			}
@@ -3436,6 +3557,14 @@ void ARTTurnManager::ResolveCombat()
 			if (Spec.Effect == ERTActionEffect::Status && Spec.StatusTag == TAG_Status_Marked)
 			{
 				Units[Hit.TargetId]->ApplyMarkedBy(Units[Hit.AttackerId]->TeamId, Spec.StatusDuration);
+				// #1077: anche questa e' una nascita, e senza la sua voce il Cleanup avrebbe registrato la
+				// scadenza di un tag che il log non aveva mai visto comparire. Trovato in code review.
+				if (Spec.StatusDuration > 0)
+				{
+					FRTTurnLogEntry Nato = MakeStatusBirthEntry(Phase, TAG_Status_Marked.GetTag(),
+						Units[Hit.TargetId]->Cell, Spec.StatusDuration, /*bFromTerrain=*/ false);
+					AppendLogEntry(Nato, Units[Hit.TargetId]);
+				}
 				IncomingMarkPriority[Hit.TargetId] = FMath::Min(IncomingMarkPriority[Hit.TargetId], Def.Priority);
 			}
 			// Il bagnato si REGISTRA e basta: applicarlo qui lo farebbe scadere nel Cleanup come prima, e

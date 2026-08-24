@@ -374,19 +374,51 @@ bool ARTUnit::RemoveStatus(FGameplayTag Tag)
 	return true;
 }
 
-void ARTUnit::RevokeCellBoundStatusesNotIn(const TSet<FGameplayTag>& Sustained)
+namespace
 {
+	/**
+	 * Ordina i tag per NOME, e non e' cosmesi (#1077).
+	 *
+	 * 🔴 I due contenitori da cui questi tag escono sono una `TSet` e una `TMap`: il loro ordine di
+	 * iterazione non e' una proprieta' del gioco. Consegnarlo cosi' com'e' al TurnLog farebbe dipendere
+	 * l'ORDINE DELLE VOCI dall'implementazione del contenitore, quindi l'hash del turno cambierebbe fra
+	 * due esecuzioni identiche — l'invariante «niente dipendenza dall'ordine di `TMap`/`TSet`» esiste per
+	 * questo, e `HashTurnLogOrdered` esiste per renderlo visibile quando succede.
+	 */
+	void OrdinaPerNome(TArray<FGameplayTag>& Tags)
+	{
+		// 🔴 **`FName::Compare` e NON `FString::operator<`**, ed e' una correzione di code review: la prima
+		// stesura rifaceva, in un'altra forma, il difetto che `RTTurnLogLibrary.cpp` documenta a proprie
+		// spese — `FString::UEOpLessThan` e' `FPlatformString::Stricmp(...) < 0`, quindi **non e' un ordine
+		// totale** sui byte. Due tag che differiscono solo per il caso pareggerebbero in entrambi i versi,
+		// resterebbero a pari merito, e `TArray::Sort` — che non e' stabile — deciderebbe secondo l'ordine
+		// di iterazione del contenitore: esattamente il non-determinismo che questa funzione esiste per
+		// togliere. In piu' `Compare` non alloca due `FString` per confronto.
+		Tags.Sort([](const FGameplayTag& A, const FGameplayTag& B)
+		{
+			return A.GetTagName().Compare(B.GetTagName()) < 0;
+		});
+	}
+}
+
+TArray<FGameplayTag> ARTUnit::RevokeCellBoundStatusesNotIn(const TSet<FGameplayTag>& Sustained)
+{
+	TArray<FGameplayTag> Revocati;
 	for (auto It = CellBoundStatuses.CreateIterator(); It; ++It)
 	{
 		if (!Sustained.Contains(*It))
 		{
+			Revocati.Add(*It);
 			It.RemoveCurrent();
 		}
 	}
+	OrdinaPerNome(Revocati);
+	return Revocati;
 }
 
-void ARTUnit::TickStatuses()
+TArray<FGameplayTag> ARTUnit::TickStatuses()
 {
+	TArray<FGameplayTag> Scaduti;
 	for (auto It = StatusTurns.CreateIterator(); It; ++It)
 	{
 		if (--It.Value() <= 0)
@@ -395,9 +427,12 @@ void ARTUnit::TickStatuses()
 			{
 				MarkedByTeam = INDEX_NONE; // scaduto senza essere speso: la provenienza scade con lui
 			}
+			Scaduti.Add(It.Key());
 			It.RemoveCurrent();
 		}
 	}
+	OrdinaPerNome(Scaduti);
+	return Scaduti;
 }
 
 int32 ARTUnit::GetEffectiveMoveRange() const

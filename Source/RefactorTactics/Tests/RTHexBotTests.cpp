@@ -6,6 +6,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexVisionLibrary.h" // #1300: la premessa del termine di ingaggio si asserisce, non si spera
 #include "Turn/RTHexSim.h"
 #include "Turn/RTTurnManager.h" // l'invariante WElevation<WApproach si misura su ENTRAMBE le sorgenti (#1088)
 #include "Turn/RTHexSimLibrary.h"
@@ -28,9 +29,20 @@ namespace
 
 	/**
 	 * Come `MakeBotMap`, piu' una colonna di celle REALI sui layer 1..`Layers`-1 sopra l'origine e sopra la
-	 * cella (1,0). Serve a `HexBot.ElevationNeverOutweighsClosingOneCell`: quel test valuta piani su celle in
-	 * quota, e su una mappa a un solo layer li valuterebbe su celle **che l'asset non contiene** — oggi passa
-	 * lo stesso solo perche' nessun ramo di `ScorePlan` interroga la mappa quando `EnemyRanges[0] == 0`.
+	 * cella (1,0), **collegate al piano di sotto da una transizione per livello**.
+	 *
+	 * 🔴 **Le transizioni mancavano, e senza di loro il test qui sotto misurava un'altra cosa.** La prima
+	 * stesura aggiungeva le celle e basta: nessun arco fra i layer, quindi `GraphNeighbors` non ne conosce
+	 * nessuno. Da quando l'avvicinamento si misura in passi sul grafo, `ApproachSteps` verso una cella in
+	 * quota rispondeva `NoPath` e ripiegava su `HexDistance` — che il layer lo ignora. Il risultato:
+	 * `ElevationNeverOutweighsClosingOneCell`, cioe' l'UNICO test che pinna l'invariante
+	 * `WElevation * MaxLayer < WApproach`, passava esercitando il ripiego invece della metrica nuova.
+	 * Trovato in code review.
+	 *
+	 * ⚠️ **Il costo dell'arco e' 1**, non 2 come sulla piattaforma di `ArenaV01`: qui interessa che il
+	 * grafo sia CONNESSO, e un costo diverso da uno mescolerebbe due domande nello stesso test.
+	 * ⚠️ Il commento precedente diceva che «nessun ramo di `ScorePlan` interroga la mappa quando
+	 * `EnemyRanges[0] == 0`»: non e' piu' vero, `ApproachSteps` la interroga sempre.
 	 */
 	URTHexMapAsset* MakeLayeredBotMap(int32 Radius, int32 Layers)
 	{
@@ -39,6 +51,8 @@ namespace
 		{
 			M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, L)));
 			M->AddOrUpdateCell(FRTHexCellData(FRTCellId(1, 0, L)));
+			M->AddTransition(FRTCellId(0, 0, L - 1), FRTCellId(0, 0, L), /*Cost=*/ 1);
+			M->AddTransition(FRTCellId(1, 0, L - 1), FRTCellId(1, 0, L), /*Cost=*/ 1);
 		}
 		M->SortCells();
 		return M;
@@ -156,6 +170,13 @@ bool FRTHexBotCoverTest::RunTest(const FString&)
 	FRTHexBotContext Ctx = MakeCtx(Exposed, Enemy, /*range*/ 5, /*hp*/ 100);
 	Ctx.KiteStandoff = 0;
 	Ctx.WApproach = 0; // isola il contributo della minaccia
+	// 🔴 **E isola anche il termine di ingaggio** (#1300, D-185), per la stessa ragione dell'`WApproach`
+	// qui sopra: su campo aperto ogni cella vede il nemico, quindi il bonus varrebbe su TUTTE le celle
+	// tranne quella coperta e i due zeri assoluti che questo test pinna diventerebbero `+WEngage`.
+	// ⚠️ Non e' un indebolimento: quei due zeri dicono cosa fa la MINACCIA, e la minaccia non e' cambiata.
+	// Col termine acceso i numeri sarebbero `−85` sotto tiro e `+15` fuori gittata — l'ordinamento regge,
+	// gli assoluti no. Il termine ha il proprio oracolo in `EngageBonusFadesWithIdleTurns`.
+	Ctx.WEngage = 0;
 
 	URTHexMapAsset* Open = MakeBotMap(4);
 	const int32 UnderFire = URTHexBotLibrary::ScorePlan(Open, MakePlan(Exposed), Ctx);
@@ -184,6 +205,12 @@ bool FRTHexBotKiterVsMeleeTest::RunTest(const FString&)
 	URTHexMapAsset* M = MakeBotMap(5);
 	const FRTCellId Enemy(4, 0);
 	FRTHexBotContext Ctx = MakeCtx(FRTCellId(0, 0), Enemy, /*range*/ 0, /*hp*/ 100);
+	// 🔴 **Il termine di ingaggio si spegne qui** (#1300, D-185): la mappa e' aperta, quindi da ogni cella
+	// si vede il nemico e il bonus sarebbe una costante `+WEngage` su tutte e cinque le candidate. Non
+	// sposterebbe nessuno degli ordinamenti in prova — misurato: `0 → +15`, `−10 → +5`, `−20 → −5`, e la
+	// riga «il kiter torna verso la distanza di sicurezza» resta vera — ma renderebbe i tre valori
+	// ASSOLUTI qui sotto la somma di due termini, cioe' un numero che si muove quando si tara l'altro.
+	Ctx.WEngage = 0;
 
 	// Mischia: piu' vicino = meglio.
 	Ctx.KiteStandoff = 0;
@@ -218,6 +245,72 @@ bool FRTHexBotKiterVsMeleeTest::RunTest(const FString&)
 	// ⚠️ **E il costo dichiarato**: allontanarsi oltre lo standoff paga, quindi un kiter con portata
 	// maggiore dello standoff rinuncia a parte della propria gittata. E' la scelta di #1088 — un bot che
 	// non conclude e' un difetto, due celle di gittata sono bilanciamento (#149).
+	return true;
+}
+
+/**
+ * **Il bonus di ingaggio compra la deviazione quando il bot e' fresco, e smette di pagare quando e' fermo.**
+ *
+ * E' l'oracolo di `WEngage`/`WEngageDecay` (#1300, `D-185`), e misura l'**ESITO** di `ChooseBestPlan` — non
+ * il punteggio di un piano isolato, che cambierebbe senza che l'ordinamento si muova. Stessa disciplina di
+ * `ElevationNeverOutweighsClosingOneCell`, e per la stessa ragione: la difesa contro lo stato assorbente e'
+ * un rapporto fra numeri, non una forma, quindi va misurata dove il rapporto decide qualcosa.
+ *
+ * 🔴 **Senza questo test `WEngageDecay = 0` non lo noterebbe nessuno**, e il termine tornerebbe alla forma
+ * puramente posizionale — quella per cui **non esiste alcun peso** che passi entrambi gli oracoli di
+ * parcheggio (misurato intero per intero il 2026-08-24: l'arena generata cade da `W = 7`, la mappa d'autore
+ * si sblocca da `W = 11`).
+ *
+ * L'allestimento evita la geometria a memoria: le due candidate si passano a mano, e la **precondizione si
+ * asserisce** invece di sperarla — senza il termine deve vincere la cella cieca, e il divario dev'essere
+ * minore del bonus fresco, altrimenti il test passerebbe anche con un bonus che non serve a niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotEngageFadesTest,
+	"RefactorTactics.HexBot.EngageBonusFadesWithIdleTurns",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotEngageFadesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(4);
+	const FRTCellId Enemy(4, 0);
+	BlockBotSight(M, FRTCellId(2, 0)); // schermo sull'asse: chi sta dietro non vede (e passa lo stesso)
+
+	const FRTCellId Cieca(1, 0);    // piu' vicina al nemico, ma lo schermo le toglie la linea di tiro
+	const FRTCellId CheVede(1, -1); // vede il nemico, e costa un passo in piu'
+
+	// Gittata nemica 0: nessuna minaccia, cosi' restano in campo solo avvicinamento e ingaggio.
+	FRTHexBotContext Ctx = MakeCtx(FRTCellId(0, 0), Enemy, /*EnemyRange*/ 0, /*EnemyHealth*/ 100);
+	Ctx.KiteStandoff = 0;
+	Ctx.WElevation = 0;
+
+	// --- la premessa, asserita ---------------------------------------------------------------------
+	TestFalse(TEXT("la cella vicina e' cieca"), URTHexVisionLibrary::HasLineOfSight(M, Cieca, Enemy));
+	TestTrue(TEXT("l'altra vede il nemico"), URTHexVisionLibrary::HasLineOfSight(M, CheVede, Enemy));
+
+	FRTHexBotContext Senza = Ctx;
+	Senza.WEngage = 0;
+	const int32 PuraCieca = URTHexBotLibrary::ScorePlan(M, MakePlan(Cieca), Senza);
+	const int32 PuraCheVede = URTHexBotLibrary::ScorePlan(M, MakePlan(CheVede), Senza);
+	TestTrue(TEXT("senza il termine vincerebbe la cella cieca"), PuraCieca > PuraCheVede);
+	TestTrue(TEXT("e il divario e' colmabile dal bonus fresco"), PuraCieca - PuraCheVede < Ctx.WEngage);
+
+	// --- l'esito -----------------------------------------------------------------------------------
+	TArray<FRTHexBotPlan> Candidate;
+	Candidate.Add(MakePlan(Cieca));
+	Candidate.Add(MakePlan(CheVede));
+
+	Ctx.IdleTurns = 0;
+	TestTrue(TEXT("da fresco il bot paga il passo in piu' per vedere"),
+		URTHexBotLibrary::ChooseBestPlan(M, Candidate, Ctx).DestCell == CheVede);
+
+	// Abbastanza turni perche' il bonus sia sceso a zero: `ceil(WEngage / WEngageDecay)`.
+	Ctx.IdleTurns = FMath::DivideAndRoundUp(Ctx.WEngage, FMath::Max(1, Ctx.WEngageDecay));
+	TestTrue(TEXT("da fermo da abbastanza turni smette di pagarlo, e si avvicina"),
+		URTHexBotLibrary::ChooseBestPlan(M, Candidate, Ctx).DestCell == Cieca);
+
+	// ⚠️ E il decadimento non va sotto zero: un'unita' inerte da venti turni non deve PAGARE per vedere.
+	Ctx.IdleTurns = 20;
+	TestEqual(TEXT("il bonus non diventa mai una penalita'"),
+		URTHexBotLibrary::ScorePlan(M, MakePlan(CheVede), Ctx), PuraCheVede);
 	return true;
 }
 

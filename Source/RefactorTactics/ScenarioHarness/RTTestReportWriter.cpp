@@ -150,13 +150,46 @@ bool URTTestReportWriter::Write(const FRTTestResult& Result, const FString& RunI
 
 FString URTTestReportWriter::FindLatestRunDirectory(const FString& ScenarioId)
 {
+	// 🔴 **Ordinava per NOME e prendeva l'ultimo, e non e' la stessa cosa che «la piu' recente»** (#1154).
+	// Fra soli nomi `YYYYMMDD-hhmmss` i due ordini coincidono — ed e' per questo che il difetto e' vissuto
+	// invisibile — ma basta UNA cartella con un nome diverso per romperli: in ASCII `s` (0x73) viene dopo
+	// `2` (0x32), quindi `selftest` era l'ultima per costruzione e lo sarebbe rimasta per qualunque
+	// timestamp futuro. Osservato in PIE il 2026-08-17: `rt.Test.Run` scriveva in `20260817-172722` e
+	// `rt.Test.DumpResult` stampava `selftest`, un report di due giorni prima.
+	//
+	// ⚠️ **Non e' diagnostica assente: e' diagnostica che MENTE.** Il contenuto di `selftest` era identico a
+	// quello del run appena eseguito, quindi chi confrontava il JSON concludeva che il comando funzionasse;
+	// al secondo run della stessa sessione avrebbe mostrato un valore diverso da quello reale, spacciandolo
+	// per l'ultimo.
+	//
+	// ⛔ **Cancellare `selftest` non era il rimedio**: e' il primo che viene in mente e nasconde il difetto
+	// lasciandolo intatto — la prossima cartella non-timestamp (`latest`, `baseline`, un nome a mano) lo
+	// farebbe riemergere identico, e senza nessuno che se ne accorga.
 	const FString ScenarioDir = FPaths::Combine(RunsRoot(), ScenarioId);
 	TArray<FString> Runs;
 	IFileManager::Get().FindFiles(Runs, *(ScenarioDir / TEXT("*")), /*Files=*/ false, /*Directories=*/ true);
-	if (Runs.Num() == 0)
+
+	// La recenza si misura sul `result.json`, non sulla cartella: e' il file che la run produce, ed e' quello
+	// che `DumpResult` andra' a leggere. Una cartella senza report non e' una run leggibile e resta fuori —
+	// stampare un percorso che non contiene niente sarebbe la stessa diagnostica bugiarda in un'altra forma.
+	FString Migliore;
+	FDateTime QuandoMigliore = FDateTime::MinValue();
+	for (const FString& Run : Runs)
 	{
-		return FString();
+		const FString Report = FPaths::Combine(ScenarioDir, Run, TEXT("result.json"));
+		const FDateTime Quando = IFileManager::Get().GetTimeStamp(*Report);
+		if (Quando == FDateTime::MinValue())
+		{
+			continue; // niente report: non e' una run che si possa stampare
+		}
+		// ⚠️ A parita' di istante vince il nome piu' alto, e la riga serve: la granularita' del timestamp del
+		// filesystem non e' infinita, e due run nello stesso secondo lascerebbero l'esito all'ordine di
+		// enumerazione di `FindFiles` — cioe' non deterministico.
+		if (Migliore.IsEmpty() || Quando > QuandoMigliore || (Quando == QuandoMigliore && Run > Migliore))
+		{
+			Migliore = Run;
+			QuandoMigliore = Quando;
+		}
 	}
-	Runs.Sort();
-	return FPaths::Combine(ScenarioDir, Runs.Last());
+	return Migliore.IsEmpty() ? FString() : FPaths::Combine(ScenarioDir, Migliore);
 }

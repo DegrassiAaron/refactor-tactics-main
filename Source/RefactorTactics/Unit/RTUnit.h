@@ -7,6 +7,7 @@
 #include "Ability/RTActionDef.h" // ERTMovementStyle: le rotazioni legali sono una proprieta' dello STILE
 #include "Turn/RTDeclaredCondition.h" // la condizione dichiarata vive nel piano dell'unita'
 #include "Selection/RTSelectable.h"
+#include "Map/RTMapVisuals.h" // #983: RTCellTopZ si include invece di ricopiarlo in un commento
 #include "RTUnit.generated.h"
 
 class UStaticMeshComponent;
@@ -527,8 +528,19 @@ public:
 	 */
 	bool RemoveStatus(FGameplayTag Tag);
 
-	/** Decrementa la durata di tutti gli status A TERMINE; rimuove quelli scaduti. Non tocca i persistenti. */
-	void TickStatuses();
+	/**
+	 * Decrementa la durata di tutti gli status A TERMINE; rimuove quelli scaduti. Non tocca i persistenti.
+	 *
+	 * **Restituisce i tag SCADUTI**, ordinati per nome (#1077). ⚠️ L'ordine e' esplicito e non quello di
+	 * `StatusTurns`: e' una `TMap`, e far dipendere da lei l'ordine delle voci del TurnLog violerebbe
+	 * l'invariante «niente dipendenza dall'ordine di `TMap`/`TSet`» — con la conseguenza concreta che
+	 * l'hash del turno cambierebbe fra due esecuzioni identiche, che e' precisamente cio' che
+	 * `HashTurnLogOrdered` esiste per rendere visibile.
+	 *
+	 * ⚠️ **Restituisce invece di scrivere sul log**, e non e' un dettaglio: `ARTUnit` il TurnLog non ce
+	 * l'ha, ed e' la ragione per cui questo momento era muto. Chi lo registra e' il TurnManager.
+	 */
+	TArray<FGameplayTag> TickStatuses();
 
 	/**
 	 * Revoca gli stati legati alla cella che la cella corrente non sostiene piu' (Cleanup, CP 8.2).
@@ -538,7 +550,7 @@ public:
 	 * Una durata esplicita in corso sullo stesso tag sopravvive: la revoca toglie solo la parte "finche'
 	 * sulla cella".
 	 */
-	void RevokeCellBoundStatusesNotIn(const TSet<FGameplayTag>& Sustained);
+	TArray<FGameplayTag> RevokeCellBoundStatusesNotIn(const TSet<FGameplayTag>& Sustained);
 
 	/**
 	 * Range di movimento tenendo conto degli status: **solo `Root`**, che lo azzera.
@@ -723,14 +735,29 @@ public:
 	 * debug disegnate SOTTO `RTCellTopZ` finiscono dentro il disco e diventano invisibili. E' successo
 	 * davvero»* — trovato in code review, non a schermo.
 	 *
-	 * ⚠️ **Il legame con `RTCellTopZ` non e' verificato da un compilatore**: quella costante vive in un
-	 * namespace anonimo di `RTHexMapActor.cpp`, che appartiene a un'altra track. `Unit.RingClearsCellDisc`
-	 * pinna il numero da questo lato; condividere la costante e' [#983].
+	 * ✅ **Il legame con `RTCellTopZ` lo verifica ora il compilatore** (#983): quella costante e' uscita dal
+	 * namespace anonimo di `RTHexMapActor.cpp` ed e' in `Map/RTMapVisuals.h`, quindi la disuguaglianza qui
+	 * sopra si puo' asserire invece di raccontarla. Prima questa riga diceva che il legame *non* era
+	 * verificato e rimandava a #983, e il numero `2.5` viveva in un commento su entrambi i lati.
 	 */
 	static constexpr float RingGroundClearance = 1.8f;
 
-	/** Semi-altezza di un anello a terra: cilindro engine (50) per la sua scala Z (0.02). */
-	static constexpr float RingHalfHeight = 1.f;
+	/** Semi-altezza di un anello a terra: il prisma della cella (`RTCellPrismRadius`) per la sua scala Z. */
+	static constexpr float RingGroundFlatScale = 0.02f;
+	static constexpr float RingHalfHeight = RTCellPrismRadius * RingGroundFlatScale;
+
+	/**
+	 * 🔴 **L'invariante che rende visibile l'anello, verificata alla compilazione.**
+	 *
+	 * ⚠️ **Copre il margine, non la formula**: qui la quota-mondo del centro dell'anello si semplifica in
+	 * `RingGroundClearance` — `RingLocalZ` restituisce `-VisualZOffset + RingGroundClearance`, e il pivot
+	 * si somma — ma quella funzione vive nel `.cpp` e non e' `constexpr`, quindi non entra in uno
+	 * `static_assert`. Se cambia LEI, questa riga resta verde e a cadere e'
+	 * `RefactorTactics.Unit.RingClearsCellDisc`, che la chiama davvero per entrambi i pivot. Le due guardie
+	 * servono a cose diverse e nessuna delle due sostituisce l'altra.
+	 */
+	static_assert(RingGroundClearance + RingHalfHeight > RTCellTopZ,
+		"L'anello a terra finirebbe DENTRO il disco della cella e sparirebbe a schermo (#593, #983).");
 
 	/**
 	 * Offset Z LOCALE per portare un anello a terra (`TeamRing`/`SelectionRing`) al piano della cella.

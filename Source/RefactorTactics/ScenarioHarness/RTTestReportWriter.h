@@ -39,6 +39,13 @@ public:
 	 */
 	static bool Write(const FRTTestResult& Result, const FString& RunId, FString& OutDirectory, FString& OutError);
 
-	/** Cartella dell'ultima run di uno scenario (la piu' recente per nome, che e' cronologico). Vuota se non ce ne sono. */
+	/**
+	 * Cartella della run PIU' RECENTE di uno scenario, per tempo di scrittura del suo `result.json`. Vuota se
+	 * non ce n'e' nessuna leggibile.
+	 *
+	 * 🔴 Questa riga diceva *«la piu' recente per nome, che e' cronologico»*, ed era la premessa falsa del
+	 * difetto (#1154): vale solo finche' TUTTE le cartelle hanno un nome `YYYYMMDD-hhmmss`, e una sola
+	 * cartella con un nome diverso — `selftest` — la rendeva l'ultima per sempre.
+	 */
 	static FString FindLatestRunDirectory(const FString& ScenarioId);
 };

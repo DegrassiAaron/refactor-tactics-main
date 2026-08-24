@@ -1365,3 +1365,73 @@ bool FRTScenarioRedirectVocabularyTest::RunTest(const FString&)
 
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+/**
+ * **`FindLatestRunDirectory` restituisce la run piu' recente NEL TEMPO, non l'ultima per nome** (#1154).
+ *
+ * 🔴 **La cartella con un nome non-timestamp e' l'ingrediente che fa cadere il test sull'implementazione
+ * vecchia, e senza di lei il test passerebbe comunque**: fra soli nomi `YYYYMMDD-hhmmss` l'ordine
+ * lessicografico coincide con quello cronologico, ed e' esattamente la ragione per cui il difetto e'
+ * sopravvissuto fino al 2026-08-17. `selftest` comincia per `s`, che in ASCII viene dopo `2`: ordinando per
+ * nome era l'ultima per costruzione, e lo sarebbe rimasta per qualunque timestamp futuro.
+ *
+ * ⚠️ **Verificato per mutazione**: rimettendo `Runs.Sort(); return Runs.Last();` questo test cade con
+ * `selftest` al posto della run recente. Non e' dedotto — e' il criterio di accettazione dell'issue.
+ *
+ * ⚠️ Scrive sotto `Saved/RTTests/`, che non e' versionato, e **cancella l'albero** alla fine: un residuo
+ * qui non e' innocuo, perche' e' precisamente una cartella in piu' in mezzo alle run vere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLatestRunIsTheMostRecentTest,
+	"RefactorTactics.Scenario.LatestRunIsTheMostRecentNotTheLastByName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLatestRunIsTheMostRecentTest::RunTest(const FString&)
+{
+	IFileManager& Fs = IFileManager::Get();
+	const FString ScenarioId = TEXT("RefactorTactics.Probe.LatestRunDirectory");
+	const FString ScenarioDir = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RTTests"), ScenarioId);
+	Fs.DeleteDirectory(*ScenarioDir, /*RequireExists=*/ false, /*Tree=*/ true);
+
+	// Tre run: due col nome a timestamp e una col nome a mano. `Recente` e' la piu' nuova nel tempo, e
+	// `selftest` e' quella che l'ordinamento per nome sceglierebbe.
+	const FDateTime Adesso = FDateTime::UtcNow();
+	struct FRun { const TCHAR* Nome; FTimespan Eta; };
+	const FRun Runs[] = {
+		{ TEXT("20260808-145922"), FTimespan::FromDays(9) },
+		{ TEXT("selftest"),        FTimespan::FromDays(2) },
+		{ TEXT("20260817-172722"), FTimespan::FromMinutes(1) },
+	};
+	for (const FRun& Run : Runs)
+	{
+		const FString Dir = FPaths::Combine(ScenarioDir, Run.Nome);
+		if (!TestTrue(FString::Printf(TEXT("cartella creata: %s"), Run.Nome), Fs.MakeDirectory(*Dir, true)))
+		{
+			return false;
+		}
+		const FString Report = FPaths::Combine(Dir, TEXT("result.json"));
+		if (!TestTrue(TEXT("report scritto"), FFileHelper::SaveStringToFile(FString(TEXT("{}")), *Report)))
+		{
+			return false;
+		}
+		Fs.SetTimeStamp(*Report, Adesso - Run.Eta);
+	}
+
+	const FString Trovata = URTTestReportWriter::FindLatestRunDirectory(ScenarioId);
+	TestEqual(TEXT("torna la run piu' recente nel tempo"),
+		FPaths::GetCleanFilename(Trovata), FString(TEXT("20260817-172722")));
+	// La riga che falsifica l'implementazione vecchia, scritta a parte perche' e' quella che conta.
+	TestNotEqual(TEXT("e NON l'ultima in ordine di nome"),
+		FPaths::GetCleanFilename(Trovata), FString(TEXT("selftest")));
+
+	// Una cartella senza `result.json` non e' una run stampabile: `DumpResult` andrebbe a leggere il nulla.
+	const FString Vuota = FPaths::Combine(ScenarioDir, TEXT("99999999-999999"));
+	Fs.MakeDirectory(*Vuota, true);
+	TestEqual(TEXT("una cartella senza report non vince, per quanto il suo nome sia alto"),
+		FPaths::GetCleanFilename(URTTestReportWriter::FindLatestRunDirectory(ScenarioId)),
+		FString(TEXT("20260817-172722")));
+
+	// Nessuna run: percorso vuoto, non una cartella inventata.
+	Fs.DeleteDirectory(*ScenarioDir, /*RequireExists=*/ false, /*Tree=*/ true);
+	TestTrue(TEXT("senza run il percorso e' vuoto"),
+		URTTestReportWriter::FindLatestRunDirectory(ScenarioId).IsEmpty());
+	return true;
+}

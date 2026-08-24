@@ -86,6 +86,54 @@ deve comparire: un'azione che non fa nulla in silenzio è peggio di una che fall
 `ERTLogCategory::Environment` è aggiunta **in coda** all'enum, come `Fallback` e `Reaction` prima di lei: le
 tracce già scritte restano leggibili.
 
+### D6-bis — e lo **stato** ha una categoria sua, con tre momenti (#1077)
+
+Uno stato temporaneo nasce, dura e finisce, e fino al 2026-08-24 il TurnLog **non registrava nessuno dei tre
+momenti**: il replay vedeva un'unità cominciare a bruciare senza sapere perché, e smettere senza sapere se
+fosse uscita dal fuoco o se fosse scaduta la durata.
+
+`ERTLogCategory::Status` — in coda, come le altre — con `ERTStatusOutcome`:
+
+| esito | cosa dice | `Amount` |
+|---|---|---|
+| `AppliedByAction` | nato da un'azione | i turni dichiarati |
+| `AppliedByTerrain` | nato dal terreno (`Fire` → `Burning` per 2, #1067) | i turni dichiarati |
+| `AppliedWhileOnCell` | nato dal terreno e **legato alla cella** | `0` — qui una durata non esiste |
+| `Revoked` | l'unità ha **lasciato** la cella che lo sosteneva | — |
+| `Expired` | il conteggio è finito | — |
+
+🔴 **`Revoked` ed `Expired` sono due cause diverse dello stesso effetto**, ed è metà del valore: un replay che
+le confondesse non saprebbe dire se il giocatore ha fatto qualcosa o se è solo passato il tempo.
+
+⚠️ **`Amount` non porta mai `-1`.** `ApplyStatus` accetta `ARTUnit::PersistentWhileOnCell`, che vale `-1` e
+**non è una durata**: la forma di vita sta nell'**esito**, non in un numero da interpretare.
+
+⚠️ **Il tag dello stato viaggia in `ActionId`**, come il `Burning` di #625 — non è una convenzione nuova.
+
+🔴 **Il limite dichiarato: `Revoked` ed `Expired` non sono TUTTI i modi in cui uno stato finisce.** Trovato
+in code review, e scritto qui invece che nascosto — tre percorsi di rimozione restano **muti**, perché
+`ERTStatusOutcome` non ha un esito per «tolto da un altro effetto»:
+
+| percorso | dove | cosa vede il replay |
+|---|---|---|
+| l'acqua spegne il fuoco | `ARTUnit::ApplyStatus`, `Wet` rimuove `Burning` | il `Burning` sparisce senza una voce |
+| `Action.Cleanse` | `RemoveStatus` | idem |
+| il marchio speso | `RTTurnManager`, consumo di `Marked` | idem |
+
+∴ un'unità che cammina dal fuoco nell'acqua bassa smette di bruciare e il TurnLog è **muto come prima**. È
+una lacuna del **modello**, non dei siti di chiamata, e chiuderla vuol dire aggiungere un esito.
+[#1077](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1077) copre le due morti che nomina;
+la terza ha la sua sede in [#1314](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1314).
+
+⚠️ **`Amount` porta la durata RICHIESTA, non quella residua**: `ApplyStatus` fa
+`Current = FMath::Max(Current, Turns)`, quindi riapplicare uno stato più corto lascia la durata lunga ma
+registra il numero piccolo. Anche questa è dichiarata, non risolta.
+
+⚠️ **`TickStatuses` e `RevokeCellBoundStatusesNotIn` restituiscono i tag rimossi, ordinati per nome.** Vivono
+su `ARTUnit`, che il TurnLog non ce l'ha — è la ragione strutturale per cui quei due momenti erano muti — e
+l'ordine è esplicito perché i due contenitori sono una `TMap` e una `TSet`: farci dipendere l'ordine delle
+voci renderebbe l'hash del turno instabile fra esecuzioni identiche.
+
 ## 3. Test
 
 | Test | Cosa fisserebbe se cadesse |
@@ -93,6 +141,8 @@ tracce già scritte restano leggibili.
 | `Environment.WaterExtinguishesFire` *(nome vincolante, catalogo §15)* | l'acqua non spegne il fuoco, o il log non lo distingue |
 | `Environment.Fire.DoesNotIgniteWaterOrMetal` | il fuoco attecchisce dove non deve; conta anche le superfici combustibili del catalogo |
 | `Environment.ChangesAppearInTurnLog` | accensione, durata (2 turni) e ripristino non sono osservabili |
+| `Environment.Status.BirthAndExpiryAppearInTurnLog` | la nascita di uno stato e la sua **scadenza** non sono osservabili |
+| `Environment.Status.RevocationAppearsInTurnLog` | la **revoca** uscendo dalla cella non è osservabile, o si confonde con la scadenza |
 
 `MatchSetup.MapSourceLevelAssetKeepsAuthoredMap` è stato **sostituito, non cancellato**: verificava l'identità
 del puntatore (`MapAsset == Authored`), ora verifica il **contenuto** (stesso `ComputeHash`) e in più che la
