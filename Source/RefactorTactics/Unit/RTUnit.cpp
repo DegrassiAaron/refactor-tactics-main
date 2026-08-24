@@ -374,19 +374,44 @@ bool ARTUnit::RemoveStatus(FGameplayTag Tag)
 	return true;
 }
 
-void ARTUnit::RevokeCellBoundStatusesNotIn(const TSet<FGameplayTag>& Sustained)
+namespace
 {
+	/**
+	 * Ordina i tag per NOME, e non e' cosmesi (#1077).
+	 *
+	 * 🔴 I due contenitori da cui questi tag escono sono una `TSet` e una `TMap`: il loro ordine di
+	 * iterazione non e' una proprieta' del gioco. Consegnarlo cosi' com'e' al TurnLog farebbe dipendere
+	 * l'ORDINE DELLE VOCI dall'implementazione del contenitore, quindi l'hash del turno cambierebbe fra
+	 * due esecuzioni identiche — l'invariante «niente dipendenza dall'ordine di `TMap`/`TSet`» esiste per
+	 * questo, e `HashTurnLogOrdered` esiste per renderlo visibile quando succede.
+	 */
+	void OrdinaPerNome(TArray<FGameplayTag>& Tags)
+	{
+		Tags.Sort([](const FGameplayTag& A, const FGameplayTag& B)
+		{
+			return A.GetTagName().ToString() < B.GetTagName().ToString();
+		});
+	}
+}
+
+TArray<FGameplayTag> ARTUnit::RevokeCellBoundStatusesNotIn(const TSet<FGameplayTag>& Sustained)
+{
+	TArray<FGameplayTag> Revocati;
 	for (auto It = CellBoundStatuses.CreateIterator(); It; ++It)
 	{
 		if (!Sustained.Contains(*It))
 		{
+			Revocati.Add(*It);
 			It.RemoveCurrent();
 		}
 	}
+	OrdinaPerNome(Revocati);
+	return Revocati;
 }
 
-void ARTUnit::TickStatuses()
+TArray<FGameplayTag> ARTUnit::TickStatuses()
 {
+	TArray<FGameplayTag> Scaduti;
 	for (auto It = StatusTurns.CreateIterator(); It; ++It)
 	{
 		if (--It.Value() <= 0)
@@ -395,9 +420,12 @@ void ARTUnit::TickStatuses()
 			{
 				MarkedByTeam = INDEX_NONE; // scaduto senza essere speso: la provenienza scade con lui
 			}
+			Scaduti.Add(It.Key());
 			It.RemoveCurrent();
 		}
 	}
+	OrdinaPerNome(Scaduti);
+	return Scaduti;
 }
 
 int32 ARTUnit::GetEffectiveMoveRange() const
