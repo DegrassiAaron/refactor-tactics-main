@@ -425,6 +425,11 @@ void ARTTurnManager::PlanBots()
 		Ctx.WKiteViolation = WKiteViolation;
 		Ctx.WApproach = WApproach;
 		Ctx.WElevation = WElevation;
+		Ctx.WEngage = WEngage;
+		Ctx.WEngageDecay = WEngageDecay;
+		// La memoria per unita' del termine di ingaggio: quanti turni consecutivi questa unita' non
+		// pianifica un attacco (#1300, D-185). Si aggiorna piu' sotto, a piano scelto.
+		Ctx.IdleTurns = BotIdleTurns.FindRef(Bot->StableUnitId);
 
 		TArray<int32> EnemyUnitIndex; // parallelo a Ctx.Enemies: indice dell'unita' in Units
 		ARTUnit* Nearest = nullptr;
@@ -905,6 +910,18 @@ void ARTTurnManager::PlanBots()
 		ARTUnit* Target = (Best.bHasAttack && EnemyUnitIndex.IsValidIndex(Best.TargetIndex))
 			? Units[EnemyUnitIndex[Best.TargetIndex]] : nullptr;
 		const int32 Score = URTHexBotLibrary::ScorePlan(Snapshot.Map, Best, Ctx);
+
+		// La memoria si aggiorna UNA VOLTA per round: `PlanBotsForTest()` e `LockInAndResolve()`
+		// pianificano entrambi lo stesso round, e senza guardia il decadimento andrebbe al doppio.
+		{
+			int32& UltimoRound = BotIdleRound.FindOrAdd(Bot->StableUnitId, -1);
+			if (UltimoRound != TurnNumber)
+			{
+				UltimoRound = TurnNumber;
+				int32& TurniInerti = BotIdleTurns.FindOrAdd(Bot->StableUnitId, 0);
+				TurniInerti = Best.bHasAttack ? 0 : TurniInerti + 1;
+			}
+		}
 
 		if (bIsCharge && Target && Ctx.Enemies.IsValidIndex(Best.TargetIndex))
 		{

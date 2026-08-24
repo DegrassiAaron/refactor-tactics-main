@@ -29,7 +29,8 @@ descriverebbe la forma di una sola abilità.
 
 ## 3. Utility scoring — `ScorePlan`
 
-Punteggio intero, somma di quattro contributi. La geometria dell'attacco viene da
+Punteggio intero, somma di **cinque** contributi — il quinto è il termine di ingaggio, entrato con
+[`D-185`](../decisions/RT_PDR_00_Decision_Log.md) e assente da questa lista fino al 2026-08-24. La geometria dell'attacco viene da
 `URTHexCombatLibrary::HexHitCells`, **la stessa che usa il resolver**: il bot non stima una forma propria,
 legge quella vera.
 
@@ -123,7 +124,45 @@ con qualunque `WElevation > 0`, e l'invariante qui sotto non lo copriva perché 
 `HexBot.ElevationNeverOutweighsClosingOneCell`. Alzare `WElevation` in editor oltre quella soglia — che
 `PIE-BU2b` documenta come workflow — riapre lo stato assorbente, e nessun gate lo impedisce.
 
-### 3e. I pesi
+### 3e. «Da qui posso ingaggiare» — lo specchio offensivo della minaccia
+
+Sui piani **senza attacco**, per una cella da cui si vede almeno un contatto noto:
+
+```text
+Score += max(0, WEngage − WEngageDecay × IdleTurns)
+```
+
+`IdleTurns` è da quanti turni consecutivi il piano scelto per quell'unità **non contiene un attacco** — la
+memoria per unità che [`E26`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/326) porterà per
+intero, e di cui qui entra il minimo indispensabile. Conta l'**intento**, non l'esito: si azzera quando il bot
+*pianifica* un colpo, non quando il colpo va a segno.
+
+🔴 **Il decadimento non è una rifinitura: è il termine.** Un bonus posizionale fisso sulla linea di tiro paga
+per *guardare*, e la cella che massimizza il guardare è una **vedetta da cui non si spara** — lo stato
+assorbente di [#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088) sotto un altro nome.
+Misurato intero per intero il 2026-08-24 ([#1300](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1300)):
+`Match.Autobattle.EngagesOnTheGeneratedTestArena` cade **da `W = 7`**, `NobodyParksOnTheAuthoredMap` si
+sblocca **da `W = 11`**, e fra 7 e 10 sono rossi **entrambi**. La finestra del termine senza memoria è vuota.
+
+⚠️ **Guarda dove VAI, non da dove parti**, ed è ciò che lo separa dal filtro sul dominio di
+[#1287](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1287): quello si accendeva quando eri
+cieco e si spegneva appena vedevi — un ciclo di periodo due, misurato in otto alternanze su dodici turni.
+
+⚠️ **Vale una volta sola per candidata**, non una per nemico visto: è «posso ingaggiare», non «quanti ne
+vedo». Contarli renderebbe il termine una seconda misura del focus-fire, che ha già il suo peso.
+
+⚠️ **La linea si chiede nel verso offensivo** (`destinazione → nemico`), lo stesso di `BuildCandidates`, e la
+differenza è misurabile: `HexLine` costruisce la linea sul layer del **tiratore**, quindi fra piani diversi i
+due versi non coincidono — su `DA_HexMap_Arena` sono **91 coppie asimmetriche su 2016**, tutte fra layer
+diversi, e dalle tre celle della piattaforma L1 si vedono **64 celle su 64**.
+
+⚠️ **La coppia `WEngage`/`WEngageDecay` si tara sull'ESITO, e non è il loro rapporto a decidere**: misurati
+`15/5` ✅ e `20/10` ✅ contro `20/5` 🔴 e `30/10` 🔴 — e `30/10` e `15/5` si azzerano entrambi dopo tre turni.
+Pinnata da `HexBot.EngageBonusFadesWithIdleTurns`, che misura la scelta di `ChooseBestPlan` fresco contro
+inerte; la taratura fine resta bilanciamento, sede [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149)
+e [D-102](../decisions/RT_PDR_00_Decision_Log.md).
+
+### 3f. I pesi
 
 | Peso | Default | Cosa governa |
 |---|---:|---|
@@ -134,6 +173,8 @@ con qualunque `WElevation > 0`, e l'invariante qui sotto non lo copriva perché 
 | `WKiteViolation` | 50 | per cella sotto lo standoff del kiter |
 | `WApproach` | 10 | per cella di distanza: dal nemico per la mischia, dalla propria portata per il kiter |
 | `WElevation` | 4 | per layer di quota — vincolato da `WElevation × MaxLayer < WApproach` (#1088) |
+| `WEngage` | 15 | bonus per una cella da cui si vede un contatto noto, sui piani senza attacco (`D-185`) |
+| `WEngageDecay` | 5 | quanto quel bonus cala per ogni turno consecutivo senza ingaggiare — **zero lo riporta alla forma che non passa gli oracoli** |
 
 Sono **interi bilanciabili senza toccare la logica**. La scala relativa fra `WThreat` e `WDamage` è nota
 essere un punto dolente: vedi [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149), che
