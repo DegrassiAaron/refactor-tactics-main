@@ -132,8 +132,25 @@ Verificata anche nel visivo. Si rilegge in U6.
   ```
   Waypoint (4,0,L0)  rifiutato: cella occupata da un'altra unita' (RTUnit_0)        ← 5 occorrenze
   ```
-- Resta: **un solo gesto** — cliccare una cella **fuori dalla mappa**. `rifiutato: cella fuori dalla mappa`
-  ha ancora **0** occorrenze su entrambi i log. Poi la voce chiude.
+  ✅ **Terza run (23:35): il quarto rifiuto non arriva, e non arriverà mai.** `rifiutato: cella fuori dalla
+  mappa` resta a **0** su tutti e tre i log, ed è stato provato. Non è un gesto mancato: **non è
+  riproducibile in partita**.
+  - `OnSelect` esce **in silenzio** quando il raggio non colpisce nulla — `if (!GetHitResultUnderCursor(...)
+    || !Hit.GetActor()) { return; }` — senza log e senza toccare il piano;
+  - la sola geometria cliccabile della mappa è `Cells`, un `UInstancedStaticMeshComponent` con
+    `QueryOnly` + `Block` che ha **un'istanza per cella esistente**. `Relief`, `Blockers` ed `EdgeFeatures`
+    sono `NoCollision`. Quindi **ogni hit sulla mappa produce una cella valida**, e una cella fuori mappa non
+    è generabile col mouse.
+  - Il test headless che il registro cita per questo caso —
+    `RefactorTactics.PlayerInput.WaypointClicksBuildAndRejectPlans`, verificato esistere in
+    `RTPlayerInteractionTests.cpp:67` — lo copre chiamando `HandleClickOnCell(FRTCellId(99,99,0))`
+    **direttamente**, cioè bypassando il raycast. È l'unico modo di raggiungere quel ramo.
+- Esito finale: ✅ **per quanto è osservabile**. Tre rifiuti su quattro visti in partita col motivo giusto,
+  budget cumulativo, undo, piano intatto. Il quarto è **coperto solo headless**, per la stessa ragione
+  strutturale del cono in `-6b`.
+- ⚠️ **Da riportare nella voce del registro**, che oggi elenca «fuori mappa» fra i rifiuti attesi senza
+  dichiararne l'irriproducibilità: un esito atteso non raggiungibile impedisce alla voce di chiudersi per
+  sempre — è già successo a `-5` (scambio A↔B) e a `-6c` (`Guardian.Sweep`).
   Vedi anche `OSS-1` (#877), che nasce da questa stessa osservazione ma **non** appartiene a questa voce.
 
 **`PIE-HEXPLAY-3b`** — il rifiuto dice il motivo giusto · *partenza* 🟡
@@ -208,9 +225,24 @@ guardando la partita? La run precedente durava 5 round — «un lampo» — e no
 Barre HP/scudo/energia, timer, fase, combat log invariati; anteprima **ciano**, marker waypoint, preview
 scatto **magenta**, traccia **grigia** post-lock sui centri esagonali e coincidenti col percorso eseguito;
 reason code con coordinate assiali; **`Home`** ricentra.
-- Esito:
-- Evidenza:
-- Resta:
+- Esito: 🔴 **la voce non è eseguibile come dichiarata, e va spaccata in due.** Riferito in seduta:
+  *«l'HUD so già che non c'è»* — verificato sul codice, ed è vero per una ragione strutturale:
+  · `UI/RTScreenHudWidgets.h` dichiara **sette classi base C++** e scrive lui stesso che *«qui non c'è
+    layout: il `.uasset` `WBP_RT_*` fa aspetto e disposizione»*;
+  · **`Content/RT/UI` non esiste** e nessun `.uasset` di UI è tracciato — la stessa forma dei `BP_Unit_*`
+    che diventano cilindri;
+  · e non manca solo il Blueprint: **nessun `CreateWidget` né `AddToViewport`** compare in tutto
+    `Source/RefactorTactics/`. Manca anche chi lo metterebbe a schermo.
+  L'owner esiste già ed è aperto: **#613 — CP 11.7 · Screen HUD in UMG**. Nessuna issue nuova da aprire.
+- ⚠️ **Finding sulla voce**: dichiara *«eseguibile da CP 6.7»*, e per metà del proprio contenuto è falso —
+  la metà HUD dipende da **CP 11.7**. Una precondizione sbagliata è ciò che tiene una voce ⏳ per sempre:
+  chi la legge crede di poterla eseguire e scopre solo a partita avviata che non c'è nulla da guardare.
+  Da riportare a chi possiede il registro, insieme alla proposta di dividerla in `-9a` (anteprima piani,
+  eseguibile oggi) e `-9b` (HUD, bloccata da #613).
+- Evidenza: la metà **anteprima** è invece osservabile ora, e in parte già confermata da `-3` (anteprima
+  ciano coincidente col percorso eseguito, marker dei waypoint).
+- Resta: `-9a` — preview **magenta** dello scatto, traccia **grigia** post-lock, e **`Home`** che ricentra.
+  Tre cose osservabili in una manciata di secondi. `-9b` non è materia di questa seduta.
 
 **`PIE-AI-01`…`05`** — comportamento del bot · *partenza* ⏳ (cinque voci)
 Intent sempre legali, nessun rifiuto silenzioso, e lo **score breakdown** che spiega *perché* — copertura,
@@ -224,9 +256,25 @@ letale, hazard — invece di un totale opaco.
 **`PIE-HEXPLAY-8`** — movimento via arco · *partenza* 🟡
 **Manca il playback**: l'unità **sale di quota** (`LayerHeight`) attraversando la transizione, invece di
 scivolare sul piano. ⚠️ «Rimuovi l'arco» **non si fa qui**: la transizione è generata da codice.
-- Esito:
-- Evidenza:
-- Resta:
+- Esito: ✅ **la metà PIE è verificata — 2026-08-14, quarta run.** Confermato a schermo dall'utente:
+  l'unità **sale di quota lungo il percorso**, attraversando la transizione, invece di scivolare sul piano e
+  saltare in alto all'arrivo. È esattamente ciò che la voce chiede al playback e che i test headless non
+  possono mostrare.
+- Evidenza: **il log non ha il canale per dimostrarlo, e va detto**: le righe di movimento **riuscito** non
+  riportano le coordinate — nel file compaiono con la quota solo i fallimenti (`fermo: cella contesa
+  (q=..,L=0)`), le reazioni e l'utility del bot. Gli unici `L1` presenti sono i due tentativi **rifiutati
+  per budget** del turno di avvicinamento:
+  ```
+  Waypoint (2,-1,L1) rifiutato: oltre il budget (gia' spesi 2 di 5) per RTUnit_0
+  Waypoint (2,0,L1)  rifiutato: oltre il budget (gia' spesi 3 di 5) per RTUnit_0
+  ```
+  Il verdetto di questa voce è **visivo per costruzione**: appartiene a chi guarda, non al file.
+  ⚠️ Sono serviti **due turni**: con 5 MP la piattaforma non è raggiungibile in uno solo dalla posizione di
+  partenza. Non è un difetto — è aritmetica, e va scritto perché la prossima seduta non lo riscopra.
+- Resta: **il crollo del ponte**, che è la seconda metà della voce e **non è osservabile in questa seduta** —
+  su `GeneratedTestArena` la transizione è generata da `MakeTestArena` e non c'è un arco da rimuovere (§0
+  della sequenza). Vive su un asset mappa vero, cioè **U1/U13**, ed è coperta headless da
+  `Structures.Bridge.RemovalBreaksPath` e `…NoTeleportOnRemoval`.
 
 **`PIE-HEXPLAY-4b`** — scatto su hex · *partenza* ⏳
 La fase Dash esiste e **precede** il Blast (già osservato). **Manca il visivo**: l'unità scivola lungo la
@@ -313,6 +361,26 @@ riferito che non esiste. Non la correggo — non è di questa seduta — ma la s
 
 **Nessuna issue aperta**: non c'è niente da riparare. Se si volesse *cambiare* il design — camera che segue
 la selezione — sarebbe una decisione, non un fix, e andrebbe posta come tale.
+
+### `OSS-4` — le abilità non hanno nome: il log dice «usa &nbsp; su» → **#892**
+
+**Osservato il 2026-08-15**, mentre si cercava la linea di tiro:
+
+```
+[RT] RTUnit_0: abilita' attiva ->
+[RT] Piano: RTUnit_0 usa  su RTUnit_3
+```
+
+**Causa misurata**: `MakeHeroAction` — l'unico costruttore delle azioni d'eroe — popola `ActionId`, fase,
+priorità, portata, cooldown, effetti, slot, shape, area, power, e **mai `DisplayName`**. Nel catalogo:
+**16 azioni create, 0 con nome**. Le otto stringhe leggibili che esistono sono le **varianti
+d'equipaggiamento** (due per eroe), impostate a mano fuori dal costruttore — ed è ciò che rende il difetto
+invisibile a chi legge il file: i nomi ci sono, ma non sulle azioni che si usano in partita.
+
+⚠️ **Non è cosmetico in questa seduta**: `-6b` chiede di distinguere **linea** da **area**, `-6c` vuole
+`PressureJet` o `Ram` e non un'altra, `-3b` verifica il messaggio «non pronta» — che con il nome vuoto
+diventa `[RT]  non pronta (…)`. E con l'HUD assente (#613) il log è **l'unico** canale di feedback.
+Effetto concreto: due rifiuti con portate diverse (`max 4` e `max 5`) senza poter dire quali abilità fossero.
 
 ### `OSS-3` — `F` porta la vista fuori dalla mappa → **#887**
 
