@@ -5,6 +5,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Unit/RTUnit.h"
+#include "Map/RTMapVisuals.h" // #983: si include invece di fidarsi della transitivita' di RTUnit.h
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -118,19 +119,24 @@ bool FRTRingLocalZTest::RunTest(const FString&)
  * invece che dal disco: faccia dell'anello a `2.0`, mezza unita' sotto. La suite era **verde**, perche'
  * nessun test guardava da questo lato.
  *
- * ⚠️ **Il `2.5` e' scritto qui a mano**, e la ragione va detta: `RTCellTopZ` e' `constexpr` in un
- * namespace anonimo di `Map/RTHexMapActor.cpp`, quindi non e' raggiungibile. Il numero e' quindi una
- * SECONDA copia, e il giorno in cui lo spessore del disco cambia questo test non se ne accorge — e' il
- * limite dichiarato di [#983], non una svista.
+ * ✅ **Il `2.5` non e' piu' scritto qui a mano** (#983): `RTCellTopZ` e' uscito dal namespace anonimo di
+ * `Map/RTHexMapActor.cpp` e vive in `Map/RTMapVisuals.h`, quindi il giorno in cui lo spessore del disco
+ * cambia questo test se ne accorge. Prima questa riga dichiarava di essere una seconda copia e ne accettava
+ * il limite.
+ *
+ * ⚠️ **E non e' diventato ridondante rispetto allo `static_assert` accanto a `RingGroundClearance`**: quello
+ * copre il margine con i numeri, questo chiama `RingLocalZ` per **entrambi** i pivot — cilindro e skeletal —
+ * cioe' misura la formula che lo `static_assert` deve semplificare per poter esistere.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRingClearsCellDiscTest,
 	"RefactorTactics.Unit.RingClearsCellDisc",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTRingClearsCellDiscTest::RunTest(const FString&)
 {
-	// Copia locale di `RTCellTopZ` (Map/RTHexMapActor.cpp): 50 uu di raggio del cilindro engine per la
-	// scala piatta 0.05.
-	constexpr float FacciaDelDisco = 50.f * 0.05f; // 2.5
+	// ✅ **Non e' piu' una copia**: `RTCellTopZ` arriva da `Map/RTMapVisuals.h` (#983). Prima questo numero
+	// era un `50.f * 0.05f` scritto qui, che dichiarava sé stesso come seconda copia perche' l'originale
+	// viveva in un namespace anonimo e non era raggiungibile.
+	constexpr float FacciaDelDisco = RTCellTopZ;
 
 	// Quota-mondo del bordo SUPERIORE dell'anello, per un'unita' col pivot al centro (cilindro).
 	const float BordoSuperiore = 90.f + ARTUnit::RingLocalZ(90.f) + ARTUnit::RingHalfHeight;

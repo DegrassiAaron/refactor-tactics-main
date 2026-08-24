@@ -1229,12 +1229,13 @@ sessions:
       cella** prima dello spessore del disco, quindi su una cella elevata la faccia sta piu' in alto di
       quanto una formula a termine singolo suggerisca. Chi disegna a quota fissa affonda il volume in ogni
       cella rialzata.
-      · ⚠️ **La costante dello spessore non e' raggiungibile**: `RTCellTopZ` e' `constexpr` in un namespace
-      anonimo, e condividerla e'
-      [#983](https://github.com/DegrassiAaron/refactor-tactics-main/issues/983), **aperta**. Qualunque
-      valore si usi qui e' una copia a mano che nessun compilatore verifica — e le altre due copie che
-      esistono in `Source/` non stanno meglio: il test che dovrebbe pinnarle confronta **due copie a mano**
-      fra loro. Vale la pena leggere `#983` prima di scegliere un numero.
+      · ✅ **La costante dello spessore e' raggiungibile** da
+      [#983](https://github.com/DegrassiAaron/refactor-tactics-main/issues/983): `RTCellTopZ` e' uscito dal
+      namespace anonimo e vive in `Map/RTMapVisuals.h`, quindi si include invece di ricopiarlo. Le due copie
+      che esistevano in `Source/` sono sparite — il test non ne confronta piu' una a mano con l'altra — e la
+      disuguaglianza degli anelli e' uno `static_assert`. ⚠️ Resta vero l'avviso qui sopra, che e' un'altra
+      cosa: la quota della faccia **non e' una costante sola**, perche' su una cella elevata ci si somma
+      l'altezza della cella.
 
       **I passi.**
 
