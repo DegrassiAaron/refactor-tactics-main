@@ -21,6 +21,7 @@
 #include "StaticMeshAttributes.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "UObject/StrongObjectPtr.h"
+#include "Map/RTMapVisuals.h" // #983: le misure del disco stanno scritte una volta sola
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
 #endif
@@ -30,24 +31,20 @@
 namespace
 {
 	/**
-	 * Geometria del disco che rappresenta una cella. Il prisma di `GetCellPrismMesh` ha mezza-altezza 50 uu ed
-	 * e' CENTRATO sull'origine — le stesse convenzioni del cilindro engine che ha sostituito, deliberatamente:
-	 * con `RTCellFlatScale` la sua faccia superiore sta a `RTCellTopZ` sopra il centro della cella.
+	 * Geometria del disco che rappresenta una cella. Il prisma di `GetCellPrismMesh` ha mezza-altezza
+	 * `RTCellPrismRadius` ed e' CENTRATO sull'origine — le stesse convenzioni del cilindro engine che ha
+	 * sostituito, deliberatamente: con `RTCellFlatScale` la sua faccia superiore sta a `RTCellTopZ` sopra il
+	 * centro della cella.
 	 *
-	 * Perche' sono costanti condivise e non numeri sparsi: le linee di debug disegnate SOTTO `RTCellTopZ`
-	 * finiscono dentro il disco e diventano invisibili. E' successo davvero — il contorno della superficie era
-	 * a 2.0 con la faccia a 2.5, quindi fango e acqua non si vedevano mentre i marcatori a 3.0 si vedevano.
-	 * Legare i lift a questa costante fa si' che cambiare lo spessore del disco non riapra il difetto.
+	 * 🔴 **Le tre costanti sono uscite da questo namespace anonimo con #983**, e ora vivono in
+	 * `Map/RTMapVisuals.h`: qui non le vedeva nessun altro modulo, quindi chi doveva posarci sopra qualcosa
+	 * ricopiava il numero. Il commento che spiegava perche' sono condivise — le linee di debug disegnate
+	 * SOTTO `RTCellTopZ` finiscono dentro il disco e diventano invisibili, ed **e' successo davvero** — e'
+	 * andato con loro, che e' il posto in cui serve a chi le include.
+	 *
+	 * Legare i lift a `RTCellTopZ` continua a fare si' che cambiare lo spessore del disco non riapra il
+	 * difetto: le tre quote qui sotto non cambiano di una unita'.
 	 */
-	constexpr float RTCellFlatScale = 0.05f;
-	constexpr float RTCellTopZ = 50.f * RTCellFlatScale; // 2.5 uu
-
-	/**
-	 * Le due misure del prisma della cella, e non sono libere: `PlanarScale` divide per **50**, e i lift di
-	 * debug-line si appoggiano a una mezza-altezza di **50**. Sono le misure del cilindro engine sostituito —
-	 * cambiarle qui muoverebbe in silenzio ogni quota gia' tarata.
-	 */
-	constexpr float RTCellPrismRadius = 50.f;
 
 	/**
 	 * Il glifo di superficie (`#956`, `D-183`), in FRAZIONI DEL RAGGIO e mai in uu: con `#1155`

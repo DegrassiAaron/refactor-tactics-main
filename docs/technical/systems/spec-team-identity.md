@@ -93,8 +93,12 @@ nome del simbolo (`OnSelected`, `ApplyTeamColor`) lo trova `grep`, e non scade.
   `Clearance + 1.0 > 2.5`, cioè `> 1.5`. Una stesura aveva messo `1.0` — bordo a `2.0`, mezza unità **dentro**
   un disco opaco: anello di squadra e anello di selezione invisibili, con la suite **verde**, perché nessun
   test guardava da quel lato. Oggi lo falsifica `RefactorTactics.Unit.RingClearsCellDisc`.
-  ⚠️ `RTCellTopZ` è `constexpr` in un namespace anonimo di `Map/RTHexMapActor.cpp`: il `2.5` qui e nel test è
-  una **seconda copia**, e condividere la costante è **#983**.
+  ✅ **Chiuso da #983**: `RTCellTopZ` è uscito dal namespace anonimo di `Map/RTHexMapActor.cpp` e vive in
+  [`Map/RTMapVisuals.h`](../../../Source/RefactorTactics/Map/RTMapVisuals.h). Il test non ricopia più il
+  `2.5`, e la disuguaglianza `Clearance + 1.0 > 2.5` è ora uno **`static_assert`** accanto a
+  `RingGroundClearance`: la stesura sbagliata di `#593` **non compila**, verificato per mutazione.
+  ⚠️ Lo `static_assert` copre il margine, non la formula di `RingLocalZ` — quella resta pinnata dal test, che
+  la chiama per entrambi i pivot. Le due guardie non si sostituiscono.
 
 ## 5. Fallback & invarianti
 
