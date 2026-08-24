@@ -903,12 +903,21 @@ sessions:
     shares_setup_with: []
     verifies: [PIE-V01-MATCHLEN, PIE-V01-READY, PIE-V01-OVERWATCH, PIE-V01-MAPSCALE]
     issues: [84]
-    done_when: le quattro voci hanno un numero registrato, anche fuori target
+    done_when: >-
+      le TRE voci eseguibili hanno un numero registrato, anche fuori target —
+      `PIE-V01-MATCHLEN`, `PIE-V01-READY`, `PIE-V01-MAPSCALE`. `PIE-V01-OVERWATCH` NON entra,
+      perche' il passo 4 la rinvia a E14 che non e' fra i prerequisiti, e pretenderla renderebbe
+      questo done_when irraggiungibile (`D-187`)
     unblocks: [E12.4]
     steps: |
       **Non e' una seduta di caccia ai difetti: e' una seduta di misura.** Si gioca **una partita
       intera fino alla fine**, senza fermarsi a indagare, e si annotano i numeri. Serve un cronometro
       e `bRecordPacing` attivo sul `TurnManager` (il CSV finisce in `Saved/RT/`, fuori dal versionamento).
+
+      ⚠️ **I prerequisiti sono CINQUE, e sono quelli di `unblocked_by`** — `U6, U1, U5, U7, U8`
+      (`D-187`). Le due condizioni qui sotto spiegano perche' `U5`, `U7` e `U8` ci sono; **non sono
+      l'elenco**. `U1` produce l'arena che il passo 1 misura — il criterio delle due rotte e' definito
+      in **U1 passo 7** — e `U6` e' la partita intera che questa seduta gioca.
 
       ⚠️ **Non anticiparla** (deciso con l'autore il 2026-08-10). Aspetta **due** condizioni, ed e' il
       motivo per cui `U5` e `U8` sono fra i suoi prerequisiti:
