@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-18
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-24
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -14,6 +14,22 @@
 > pratica di ogni sezione, e fra le due si è corretta la regola.
 
 ---
+
+## Aperte — i prerequisiti della seduta `U19`, dallo spec panel su `CP 12.4` del 2026-08-24
+
+Origine: lo spec panel su [`#84`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) (PR [`#1313`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1313)) e la sua riverifica del
+2026-08-24. Le due domande erano già state **trovate** e scritte nel corpo di `#84`. Un corpo di issue non è
+una sede: non ha stato, non si chiude, e la prossima sessione che pianifica `U19` le ritrova solo se apre
+quella issue. ⚠️ È la stessa forma del difetto che `#1313` denunciava in chiusura — *«una correzione resta
+dove nasce»* — applicata a una **domanda** invece che a una correzione.
+
+Nessuna delle due è deducibile dai documenti: due fonti si contraddicono senza gerarchia, ed è il criterio
+d'ingresso di questo file.
+
+| ID | Domanda | Esito, e l'istruttoria che ci è arrivata sotto |
+|---|---|---|
+| `KPI-1` | I prerequisiti della seduta **`U19`** sono **cinque** o **tre**? | ⏳ **Aperta il 2026-08-24.** Le fonti sono **tre e dicono due cose**, e due delle tre stanno **nello stesso record**: *(a)* `docs/roadmap/editor-sessions.yaml` dichiara `U19.unblocked_by: [U6, U1, U5, U7, U8]` — **cinque**; *(b)* il campo `steps` dello stesso `U19` scrive *«Aspetta **due** condizioni, ed è il motivo per cui `U5` e `U8` sono fra i suoi prerequisiti»* e ne motiva **tre**, `U5` `U7` `U8`; *(c)* la nota §4 di [`v0.1-definition-of-done.md`](roadmap/v0.1-definition-of-done.md) (righe 202-204) nomina le stesse **tre**. La differenza fra le liste è `U6` e `U1`, cioè **la partita completa e l'arena**: non sono due formulazioni della stessa risposta, sono due risposte diverse a *«cosa deve esistere prima di misurare il ritmo»*. ⚠️ **Va decisa prima di pianificare la seduta**: deciderla dopo significa scegliere la lista che giustifica la data già scelta. ⛔ Chi la chiude aggiorna **tutte e tre** le fonti — la divergenza fra `unblocked_by` e la prosa accanto è precisamente ciò che l'ha prodotta. Consuma: [`#84`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) |
+| `KPI-2` | **`E14`** entra in `U19.unblocked_by`, o il `done_when` della seduta si restringe? | ⏳ **Aperta il 2026-08-24.** Il passo 4 di `U19` dice *«Solo dopo **E14**: ripeti con un'unità in Overwatch e giudica la finestra da 3 s»*, e `PIE-V01-OVERWATCH` è una delle **quattro** voci che `verifies` elenca. Ma `E14` fra i cinque `unblocked_by` **non c'è**, quindi il `done_when` — *«le quattro voci hanno un numero registrato, anche fuori target»* — **non è raggiungibile** dall'insieme che oggi dichiara la seduta sbloccabile. Le due uscite: `E14` entra fra i prerequisiti, e `U19` si sposta più in là; oppure il `done_when` scende a **tre** voci e la riga Overwatch della tabella KPI prende un ⏳ con owner `E14`. ⚠️ **Non è la stessa domanda di `KPI-1`**: quella chiede *quali sedute*, questa se un'**epic** possa comparire in una lista che oggi contiene solo sedute — e la risposta vale per ogni altro `unblocked_by` del file |
 
 ## ✅ Chiuse il 2026-08-13 da `D-137` — la versione di formato che non viaggiava
 
