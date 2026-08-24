@@ -214,6 +214,19 @@ validazione · serializzazione/replay · privacy intenti.
   col Feature Registry il 2026-08-21 (**D-181**). Oggi il confronto si fa a mano leggendo il filtro nel log.
   Vale soprattutto prima di dichiarare una **verifica di mutazione**: se il test atteso non era in lista, il
   suo «non è caduto» non significa niente — e adesso nessuno script te lo dice.
+- 🔴 **Una console variable in testa a `-ExecCmds` fa saltare l'intera coda di automation**, ed è il caso
+  estremo della riga qui sopra: «N eseguiti su M dichiarati» con **N = 0**. Con
+  `-ExecCmds="rt.Qualcosa 1; Automation RunTests <filtro>; Quit"` l'editor esegue la prima voce — la CVar
+  compare nel log come `rt.Qualcosa = "1"` — e all'automation **non arriva**: nessuna riga
+  `LogAutomationCommandLine`, nessun test registrato, e il file finisce a metà avvio somigliando a una run
+  riuscita. Misurato il 2026-08-24 su due run consecutive, headless `-unattended -nullrhi`
+  ([#1300](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1300)).
+  ⚠️ **Come ci si accorge**: nel log devono esserci `Found <n> automation tests based on '<filtro>'` e, in
+  fondo, `**** TEST COMPLETE. EXIT CODE: <n> ****`. Se manca la prima, la run non ha misurato niente.
+  ✅ Le impostazioni che servono al test si passano dalla **riga di comando** e si leggono con
+  `FParse::Value(FCommandLine::Get(), TEXT("RTQualcosa="), Out)`: così dentro `-ExecCmds` resta solo la coda
+  di automation. ⚠️ Misurato con una CVar in **prima** posizione: che una voce non-CVar in testa faccia lo
+  stesso non è stato provato.
 - Le verifiche PIE/Editor non sono verdi finché qualcuno non le ha realmente eseguite.
 - ⛔ **Il repository non ha più gate Python.** Restano **Node 22** in `tools/radar/` — rubrica dei
   rating, generatore SVG dei radar e allineatore degli alt sulla Wiki — e un solo file Python
