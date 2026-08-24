@@ -4,7 +4,15 @@
 #include "Map/RTCellId.h"
 #include "RTHexCellData.generated.h"
 
-/** Tipi di superficie iniziali (prepara i dati senza sovraestendere: la simulazione ambientale arriva dopo). */
+/**
+ * Superficie della cella. Le nove voci sono quelle che la simulazione ambientale **applica davvero**: costi e
+ * stati stanno in `spec-terreni-e8.md` e nei test di `E8`, non qui — questo enum e' il vocabolario, non la
+ * regola. `Void` non e' a catalogo e cade su `FRTTerrainDef()`.
+ *
+ * ⚠️ Diceva *«tipi iniziali … la simulazione ambientale arriva dopo»*, e l'epic **E8 e' chiusa dal
+ * 2026-08-07**: terreni, stati temporanei, propagazione elettrica, terreno dinamico. Il futuro che quella
+ * frase annunciava era gia' passato (#1320).
+ */
 UENUM(BlueprintType)
 enum class ERTHexSurface : uint8
 {
@@ -20,8 +28,15 @@ enum class ERTHexSurface : uint8
 };
 
 /**
- * Tipo di copertura su UN bordo di cella. `High` (CP 9.2) si aggiungera' in CODA: estendere un enum non e'
- * una migrazione di formato, inventare oggi un valore che nessuna regola sa applicare lo sarebbe.
+ * Tipo di copertura su UN bordo di cella.
+ *
+ * ⚠️ **I valori nuovi vanno in CODA**, e la ragione vale ancora per il prossimo che ne aggiungera' uno:
+ * estendere un enum non e' una migrazione di formato — riordinarlo si', perche' il valore serializzato e'
+ * l'indice. E un valore che nessuna regola sa ancora applicare non si inventa: si aggiunge quando la regola
+ * esiste.
+ *
+ * ⚠️ Questa frase diceva *«`High` (CP 9.2) si aggiungera' in coda»* **al futuro**, e `High` e' qui sotto —
+ * in coda — dal 2026-08-07. L'argomento era giusto e il tempo verbale no (#1320).
  */
 UENUM(BlueprintType)
 enum class ERTHexCoverType : uint8

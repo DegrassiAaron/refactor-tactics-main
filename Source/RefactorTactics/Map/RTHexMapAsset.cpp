@@ -448,8 +448,11 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 			}
 			else if (Cover.Integrity <= 0)
 			{
-				// Un riparo a zero punti struttura e' un riparo gia' distrutto: va tolto, non tenuto a 0
-				// (CP 9.2 lo scalera' davvero, e vorra' trovare solo coperture in piedi).
+				// Un riparo a zero punti struttura e' un riparo gia' distrutto: va tolto, non tenuto a 0.
+				// Chi lo scala e' `URTHexCoverLibrary::ApplyStructureDamage`, e a zero RIMUOVE l'entry invece
+				// di lasciarla: quindi questo caso non lo produce il gioco, lo produce solo la mano che
+				// autora. ⚠️ Diceva «CP 9.2 lo scalera' davvero» al futuro, e CP 9.2 e' chiuso dal
+				// 2026-08-07 (#1320).
 				Errors.Add(FString::Printf(TEXT("Error: copertura con integrita' %d su %s"),
 					Cover.Integrity, *C.Id.ToString()));
 			}
