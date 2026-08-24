@@ -1649,7 +1649,20 @@ bool FRTAutobattleSameSeedTest::RunTest(const FString&)
 }
 
 /**
- * #1088 — LA MAPPA NON E' LA CAUSA: sulla sorgente che il giocatore ottiene, i bot ingaggiano presto.
+ * #1088 — LA MAPPA NON E' LA CAUSA: sull'arena di prova generata, i bot ingaggiano presto.
+ *
+ * 🔴 **Si chiamava `EngagesOnTheShippedMapSource`, e quel nome e' diventato falso.** Diceva «sorgente
+ * spedita» perche' quando e' nato il `BP_GameMode` portava `MapSource = GeneratedTestArena`; dopo
+ * `#1069` la sorgente spedita e' `LevelAsset`, cioe' la mappa d'autore, e questo test continua a forzare
+ * l'arena generata — la riga `GameMode->MapSource = ERTMapSource::GeneratedTestArena` e' il punto del
+ * test, non un dettaglio. Rinominato il 2026-08-23: misura l'arena generata, e ora lo dice.
+ *
+ * ⚠️ **Il contenuto NON e' stato riscritto, ed e' una scelta misurata.** Le sue sei asserzioni non sono
+ * coperte da nessun altro: che la board sia davvero l'arena di prova (cinque celle che bloccano la vista),
+ * che nessuna unita' aspetti una mano umana, che i bot si muovano E ingaggino, che la partita si chiuda
+ * per una REGOLA e non per il tetto del test, e che il formato sia stato applicato. I due test sulla mappa
+ * d'autore misurano parcheggio e oscillazione, non l'ingaggio. Rinominare era il rimedio; riscrivere
+ * avrebbe buttato via la confutazione di #1088 su quella geometria.
  *
  * Nato come riproduttore dello stallo, **e' diventato la sua confutazione** — ed e' il suo valore. #1088
  * elencava tre cause candidate, «nessuna misurata»: la linea di tiro interrotta dalla geometria, il pathing
@@ -1688,10 +1701,10 @@ bool FRTAutobattleSameSeedTest::RunTest(const FString&)
  * nessuna unita' parcheggiata. Il vincitore non si pretende: [D-184] dichiara il pareggio allo scadere un
  * esito legittimo della v0.1.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleEngagesOnShippedMapSourceTest,
-	"RefactorTactics.Match.Autobattle.EngagesOnTheShippedMapSource",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleEngagesOnGeneratedTestArenaTest,
+	"RefactorTactics.Match.Autobattle.EngagesOnTheGeneratedTestArena",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTAutobattleEngagesOnShippedMapSourceTest::RunTest(const FString&)
+bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 {
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }

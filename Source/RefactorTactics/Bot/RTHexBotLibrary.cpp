@@ -385,7 +385,7 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 	// ⚠️ **Solo se il bot NON VEDE GIA' nessuno**, e la restrizione mancante e' costata un parcheggio.
 	// Applicato a chiunque non possa colpire, il filtro toglieva al bot la possibilita' di ATTRAVERSARE una
 	// zona cieca per avvicinarsi: chi vedeva il nemico ma era fuori portata restava fra le celle con vista
-	// invece di chiudere la distanza. Misurato da `Match.Autobattle.EngagesOnTheShippedMapSource`, l'oracolo
+	// invece di chiudere la distanza. Misurato da `Match.Autobattle.EngagesOnTheGeneratedTestArena`, l'oracolo
 	// di #1088: «piu' lunga sequenza ferma 7 turni, limite 4». Un secondo stato assorbente, introdotto dalla
 	// difesa contro il primo.
 	bool bVedeGia = false;
