@@ -163,7 +163,11 @@ namespace
 		int32 N = 0;
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 		{
-			if (E.ActionId == FName(TEXT("Status.Burning"))
+				// ⚠️ **La categoria fa parte del selettore da #1077**: da quando lo stato ha un vocabolario
+				// suo, `ActionId == Status.Burning` non identifica piu' una voce sola — nascita, revoca e
+				// scadenza portano lo stesso tag. Qui si cerca il DANNO, che e' `Combat`.
+			if (E.Category == ERTLogCategory::Combat
+				&& E.ActionId == FName(TEXT("Status.Burning"))
 				&& E.UnitId == UnitId
 				&& E.Outcome == static_cast<uint8>(Outcome))
 			{
@@ -1619,7 +1623,9 @@ bool FRTHazardBurningLogTest::RunTest(const FString&)
 	FRTTurnLogEntry Voce;
 	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 	{
-		if (E.ActionId == FName(TEXT("Status.Burning")))
+		// ⚠️ La categoria fa parte del selettore da #1077: il tag da solo non identifica piu' una voce
+		// sola, perche' nascita/revoca/scadenza dello stato lo portano anch'esse. Qui si cerca il DANNO.
+		if (E.Category == ERTLogCategory::Combat && E.ActionId == FName(TEXT("Status.Burning")))
 		{
 			++Trovate;
 			Voce = E;
@@ -1837,7 +1843,8 @@ bool FRTHazardTerrainEntryLogTest::RunTest(const FString&)
 	int32 Burning = 0;
 	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 	{
-		if (E.ActionId == FName(TEXT("Status.Burning"))) { ++Burning; }
+		// #1077: solo il DANNO, non i tre momenti della vita dello stato, che portano lo stesso tag.
+		if (E.Category == ERTLogCategory::Combat && E.ActionId == FName(TEXT("Status.Burning"))) { ++Burning; }
 	}
 	TestEqual(TEXT("e accanto c'e' quella del Burning, distinta"), Burning, 1);
 
@@ -1907,7 +1914,8 @@ bool FRTHazardTerrainDeathLogTest::RunTest(const FString&)
 	int32 Burning = 0;
 	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 	{
-		if (E.ActionId == FName(TEXT("Status.Burning"))) { ++Burning; }
+		// #1077: solo il DANNO, non i tre momenti della vita dello stato, che portano lo stesso tag.
+		if (E.Category == ERTLogCategory::Combat && E.ActionId == FName(TEXT("Status.Burning"))) { ++Burning; }
 	}
 	TestEqual(TEXT("morta all'ingresso, non nel Cleanup"), Burning, 0);
 

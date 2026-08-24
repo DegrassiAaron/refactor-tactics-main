@@ -527,8 +527,19 @@ public:
 	 */
 	bool RemoveStatus(FGameplayTag Tag);
 
-	/** Decrementa la durata di tutti gli status A TERMINE; rimuove quelli scaduti. Non tocca i persistenti. */
-	void TickStatuses();
+	/**
+	 * Decrementa la durata di tutti gli status A TERMINE; rimuove quelli scaduti. Non tocca i persistenti.
+	 *
+	 * **Restituisce i tag SCADUTI**, ordinati per nome (#1077). ⚠️ L'ordine e' esplicito e non quello di
+	 * `StatusTurns`: e' una `TMap`, e far dipendere da lei l'ordine delle voci del TurnLog violerebbe
+	 * l'invariante «niente dipendenza dall'ordine di `TMap`/`TSet`» — con la conseguenza concreta che
+	 * l'hash del turno cambierebbe fra due esecuzioni identiche, che e' precisamente cio' che
+	 * `HashTurnLogOrdered` esiste per rendere visibile.
+	 *
+	 * ⚠️ **Restituisce invece di scrivere sul log**, e non e' un dettaglio: `ARTUnit` il TurnLog non ce
+	 * l'ha, ed e' la ragione per cui questo momento era muto. Chi lo registra e' il TurnManager.
+	 */
+	TArray<FGameplayTag> TickStatuses();
 
 	/**
 	 * Revoca gli stati legati alla cella che la cella corrente non sostiene piu' (Cleanup, CP 8.2).
@@ -538,7 +549,7 @@ public:
 	 * Una durata esplicita in corso sullo stesso tag sopravvive: la revoca toglie solo la parte "finche'
 	 * sulla cella".
 	 */
-	void RevokeCellBoundStatusesNotIn(const TSet<FGameplayTag>& Sustained);
+	TArray<FGameplayTag> RevokeCellBoundStatusesNotIn(const TSet<FGameplayTag>& Sustained);
 
 	/**
 	 * Range di movimento tenendo conto degli status: **solo `Root`**, che lo azzera.

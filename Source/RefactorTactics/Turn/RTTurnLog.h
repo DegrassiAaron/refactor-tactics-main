@@ -14,7 +14,7 @@
  * gia' su disco.
  */
 UENUM(BlueprintType)
-enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing, Predictive, ReactionDecision, ReactionClash };
+enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing, Predictive, ReactionDecision, ReactionClash, Status };
 
 /**
  * Gli eventi di un boundary **contested** (E14.7 §10, [D-048]). Viaggiano in `FRTTurnLogEntry::Outcome`
@@ -208,6 +208,50 @@ enum class ERTFacingOutcome : uint8
  *
  * `Amount` della voce porta i turni di durata; `TgtCell` la cella modificata; `ActionId` chi l'ha causata.
  */
+/**
+ * I tre momenti della vita di uno stato temporaneo (#1077). Viaggiano in `FRTTurnLogEntry::Outcome`
+ * delle voci di categoria `Status`, e il tag dello stato viaggia in `ActionId` — come il `Burning` di
+ * #625, che e' il precedente di come si nomina uno stato nel log.
+ *
+ * 🔴 **Categoria PROPRIA e non `Environment`**, e la regola non e' nuova: la porta gia'
+ * `ERTClashLogEvent` — *«`Outcome` e' un `uint8` il cui significato lo decide la categoria, e due enum
+ * diversi sotto la stessa categoria renderebbero il campo illeggibile senza sapere quale dei due
+ * intendeva chi ha scritto»*. `ERTEnvironmentOutcome` parla di **superfici e coperture**: metterci
+ * dentro gli stati direbbe che uno stato e' un fatto della cella, vero per il `Burning` da terreno e
+ * **falso** per uno stato applicato da un'azione, che sono due dei tre siti.
+ *
+ * ⚠️ Aggiunta in **coda** a `ERTLogCategory`, come `Fallback`, `Reaction`, `ReactionDecision` e
+ * `ReactionClash` prima: la categoria viaggia come `uint8`, quindi i file gia' su disco non cambiano
+ * significato e **la versione del formato non cambia**. Cambiano gli **hash** dei turni in cui uno stato
+ * nasce o muore, che e' un'altra compatibilita' — l'issue le confondeva.
+ *
+ * 🔴 **La causa e la forma di vita stanno nell'esito, non in un numero.** `ApplyStatus` accetta un
+ * conteggio di turni **oppure** `ARTUnit::PersistentWhileOnCell`, che vale `-1` e **non e' una durata**:
+ * scriverlo in `Amount` darebbe a un replay «meno un turno» da interpretare. Il legame alla cella e'
+ * quindi un esito a se', e `Amount` porta una durata solo quando una durata c'e'.
+ */
+UENUM(BlueprintType)
+enum class ERTStatusOutcome : uint8
+{
+	/** Applicato da un'AZIONE, per un numero dichiarato di turni: `Amount` e' quel numero. */
+	AppliedByAction,
+	/** Applicato dal TERRENO, per un numero dichiarato di turni (`Fire` da' `Burning` per 2, #1067). */
+	AppliedByTerrain,
+	/**
+	 * Applicato dal terreno e LEGATO ALLA CELLA: dura finche' ci resti sopra, e `Amount` vale `0` perche'
+	 * qui una durata non esiste. ⚠️ E' l'unico caso in cui `Amount` non e' un conteggio.
+	 */
+	AppliedWhileOnCell,
+	/**
+	 * REVOCATO: l'unita' ha lasciato la cella che lo sosteneva. La causa e' una **mossa del giocatore**, ed
+	 * e' cio' che lo separa da `Expired`: un replay che li confondesse non saprebbe dire se qualcuno ha
+	 * fatto qualcosa o se e' semplicemente passato il tempo.
+	 */
+	Revoked,
+	/** SCADUTO: il conteggio dei turni e' arrivato a zero. Nessuno ha fatto niente, e' finito il tempo. */
+	Expired
+};
+
 UENUM(BlueprintType)
 enum class ERTEnvironmentOutcome : uint8
 {
@@ -465,7 +509,8 @@ struct FRTTurnLogEntry
 
 	/**
 	 * Valore dell'enum di categoria: `ERTMoveOutcome` se Move, `ERTCombatOutcome` se Combat, `ERTFallbackOutcome`
-	 * se Fallback, `ERTReactionOutcome` se Reaction, `ERTFacingOutcome` se Facing. Intero: no float (#4).
+	 * se Fallback, `ERTReactionOutcome` se Reaction, `ERTFacingOutcome` se Facing, `ERTStatusOutcome` se
+	 * Status (#1077). Intero: no float (#4).
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	uint8 Outcome = 0;

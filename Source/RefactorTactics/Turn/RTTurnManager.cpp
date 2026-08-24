@@ -161,6 +161,22 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 					? ARTUnit::PersistentWhileOnCell
 					: Effect.StatusDuration;
 				Unit->ApplyStatus(Effect.StatusTag, Duration);
+				// #1077: la NASCITA dello stato entra nel TurnLog. La forma di vita sta nell'esito, non in
+				// `Amount`: `PersistentWhileOnCell` vale -1 e non e' una durata.
+				{
+					FRTTurnLogEntry Nato;
+					Nato.Phase = Phase;
+					Nato.Category = ERTLogCategory::Status;
+					Nato.ActionId = Effect.StatusTag.GetTagName();
+					Nato.SrcCell = Unit->Cell;
+					Nato.TgtCell = Unit->Cell;
+					const bool bLegatoAllaCella = (Duration == ARTUnit::PersistentWhileOnCell);
+					Nato.Amount = bLegatoAllaCella ? 0 : Duration;
+					Nato.Outcome = static_cast<uint8>(bLegatoAllaCella
+						? ERTStatusOutcome::AppliedWhileOnCell
+						: ERTStatusOutcome::AppliedByTerrain);
+					AppendLogEntry(Nato, Unit);
+				}
 				AddLogEvent(FString::Printf(TEXT("%s: %s da terreno"), *Unit->GetName(), *Effect.StatusTag.ToString()));
 			}
 		}
@@ -1230,14 +1246,41 @@ void ARTTurnManager::LockInAndResolve()
 			if (CleanupMap)
 			{
 				const FRTHexCellData* CellData = CleanupMap->FindCell(Unit->Cell);
-				Unit->RevokeCellBoundStatusesNotIn(CellData
+				// #1077: la REVOCA e' una morte con una causa — l'unita' ha lasciato la cella che lo
+				// sosteneva — ed e' diversa dalla scadenza qui sotto. Un replay che le confondesse non
+				// saprebbe dire se il giocatore ha fatto qualcosa o se e' solo passato il tempo.
+				// ⚠️ I tag arrivano gia' ordinati per nome: l'ordine di `CellBoundStatuses` e' quello di una
+				// `TSet`, e farci dipendere l'ordine delle voci renderebbe l'hash del turno instabile.
+				for (const FGameplayTag& Revocato : Unit->RevokeCellBoundStatusesNotIn(CellData
 					? URTTerrainLibrary::CellBoundStatusesFor(CellData->Surface)
-					: TSet<FGameplayTag>());
+					: TSet<FGameplayTag>()))
+				{
+					FRTTurnLogEntry Morto;
+					Morto.Phase = ERTMatchPhase::Cleanup;
+					Morto.Category = ERTLogCategory::Status;
+					Morto.ActionId = Revocato.GetTagName();
+					Morto.SrcCell = Unit->Cell;
+					Morto.TgtCell = Unit->Cell;
+					Morto.Outcome = static_cast<uint8>(ERTStatusOutcome::Revoked);
+					AppendLogEntry(Morto, Unit);
+				}
 			}
 
 			Unit->Energy = URTCombatLibrary::GainEnergy(Unit->Energy, Unit->EnergyPerTurn, Unit->MaxEnergy);
 			Unit->ExpireTemporaryShield(); // la protezione delle abilita' di supporto vale un turno solo
-			Unit->TickStatuses();
+			// #1077: la SCADENZA. Nessuno ha fatto niente, e' finito il conteggio — e anche qui i tag
+			// arrivano ordinati, perche' vengono da una `TMap`.
+			for (const FGameplayTag& Scaduto : Unit->TickStatuses())
+			{
+				FRTTurnLogEntry Morto;
+				Morto.Phase = ERTMatchPhase::Cleanup;
+				Morto.Category = ERTLogCategory::Status;
+				Morto.ActionId = Scaduto.GetTagName();
+				Morto.SrcCell = Unit->Cell;
+				Morto.TgtCell = Unit->Cell;
+				Morto.Outcome = static_cast<uint8>(ERTStatusOutcome::Expired);
+				AppendLogEntry(Morto, Unit);
+			}
 			Unit->TickCooldowns();
 
 			// Il piano di REAZIONE si azzera QUI, e non piu' nel pass che lo legge (`#505`). Con D-092 i punti
@@ -2802,6 +2845,18 @@ void ARTTurnManager::ResolvePrep()
 			break;
 		case ERTActionEffect::Status:
 			Target->ApplyStatus(Event.StatusTag, Event.Amount);
+			{
+				// #1077: nascita da AZIONE — l'esito la distingue dal terreno, che e' il punto 4 del DoD.
+				FRTTurnLogEntry Nato;
+				Nato.Phase = Phase;
+				Nato.Category = ERTLogCategory::Status;
+				Nato.ActionId = Event.StatusTag.GetTagName();
+				Nato.SrcCell = Target->Cell;
+				Nato.TgtCell = Target->Cell;
+				Nato.Amount = Event.Amount;
+				Nato.Outcome = static_cast<uint8>(ERTStatusOutcome::AppliedByAction);
+				AppendLogEntry(Nato, Target);
+			}
 			AddLogEvent(FString::Printf(TEXT("%s: stato applicato"), *Target->GetName()));
 			break;
 		default:
@@ -3109,6 +3164,18 @@ void ARTTurnManager::ResolveDash()
 			if (Event.Kind == ERTActionEffect::Status)
 			{
 				Unit->ApplyStatus(Event.StatusTag, Event.Amount);
+				{
+					// #1077: nascita da AZIONE, sul percorso del movimento lineare.
+					FRTTurnLogEntry Nato;
+					Nato.Phase = Phase;
+					Nato.Category = ERTLogCategory::Status;
+					Nato.ActionId = Event.StatusTag.GetTagName();
+					Nato.SrcCell = Unit->Cell;
+					Nato.TgtCell = Unit->Cell;
+					Nato.Amount = Event.Amount;
+					Nato.Outcome = static_cast<uint8>(ERTStatusOutcome::AppliedByAction);
+					AppendLogEntry(Nato, Unit);
+				}
 				AddLogEvent(FString::Printf(TEXT("%s: %s per %d turno/i"),
 					*Unit->GetName(), *Event.StatusTag.ToString(), Event.Amount));
 			}

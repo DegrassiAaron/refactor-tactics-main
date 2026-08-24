@@ -106,6 +106,22 @@ namespace
 		return Data ? Data->Surface : ERTHexSurface::Floor;
 	}
 
+	/** Voci di categoria `Status` con quell'esito e quel tag (#1077). */
+	int32 CountFwStatusEntries(const ARTTurnManager* TM, ERTStatusOutcome Outcome, FGameplayTag Tag)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Status
+				&& E.Outcome == static_cast<uint8>(Outcome)
+				&& E.ActionId == Tag.GetTagName())
+			{
+				++N;
+			}
+		}
+		return N;
+	}
+
 	int32 CountFwEnvironmentEntries(const ARTTurnManager* TM, ERTEnvironmentOutcome Outcome)
 	{
 		int32 N = 0;
@@ -270,3 +286,154 @@ bool FRTEnvironmentChangesInTurnLogTest::RunTest(const FString&)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+/**
+ * **Uno stato a termine nasce e SCADE, e il TurnLog registra entrambi i momenti** (#1077).
+ *
+ * Prima di questa issue nessuno dei tre momenti della vita di uno stato aveva una voce: il replay vedeva
+ * un'unita' cominciare a bruciare senza sapere perche', e smettere senza sapere se fosse uscita dal fuoco o
+ * se fosse scaduta la durata. Le due cause hanno esiti distinti, ed e' meta' del valore dell'issue.
+ *
+ * ⚠️ **L'unita' ESCE dal fuoco prima che il `Burning` finisca**, e non e' un dettaglio dell'allestimento: e'
+ * l'avvertenza di #1067 — `Fire` concede `Burning` con durata **2**, non col legame alla cella, quindi lo
+ * stato SOPRAVVIVE alla cella che l'ha dato. Se l'unita' restasse sul fuoco, il terreno riapplicherebbe lo
+ * stato ogni turno e la scadenza non arriverebbe mai: il test misurerebbe la propria pazienza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusBirthAndExpiryInTurnLogTest,
+	"RefactorTactics.Environment.Status.BirthAndExpiryAppearInTurnLog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusBirthAndExpiryInTurnLogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeFwWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	TMap<FRTCellId, ERTHexSurface> Surfaces;
+	Surfaces.Add(FRTCellId(1, 0), ERTHexSurface::Fire);
+	SpawnFwMap(World, Surfaces);
+
+	ARTUnit* Unit = SpawnFwUnit(World, 0, FRTCellId(0, 0));
+	// ⚠️ **Serve un avversario, anche se non fa niente**: con una squadra sola la partita finisce per
+	// eliminazione al primo Cleanup, e dal secondo turno `LockInAndResolve` non risolve piu' nulla. Il
+	// sintomo e' un piano che resta non consumato, non un errore — misurato prima di scrivere questa riga.
+	ARTUnit* Inerte = SpawnFwUnit(World, 1, FRTCellId(-3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), Unit) || !TestNotNull(TEXT("avversario"), Inerte) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyFwWorld(World);
+		return false;
+	}
+
+	// T1: entra nel fuoco.
+	Unit->PlannedCell = FRTCellId(1, 0);
+	RunFwTurn(TM);
+	if (!TestTrue(TEXT("l'unita' e' entrata nel fuoco"), Unit->Cell == FRTCellId(1, 0)))
+	{
+		DestroyFwWorld(World);
+		return false;
+	}
+	TestTrue(TEXT("e sta bruciando"), Unit->HasStatus(TAG_Status_Burning));
+	TestEqual(TEXT("la NASCITA e' nel TurnLog, e dice che viene dal terreno"),
+		CountFwStatusEntries(TM, ERTStatusOutcome::AppliedByTerrain, TAG_Status_Burning), 1);
+
+	// E la voce porta la durata: senza, un replay non sa quanto durera'.
+	bool bConDurata = false;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Status
+			&& E.Outcome == static_cast<uint8>(ERTStatusOutcome::AppliedByTerrain)
+			&& E.ActionId == TAG_Status_Burning.GetTag().GetTagName()
+			&& E.Amount > 0
+			&& E.TgtCell == FRTCellId(1, 0))
+		{
+			bConDurata = true;
+		}
+	}
+	TestTrue(TEXT("con la cella e una durata positiva"), bConDurata);
+
+	// T2 e oltre: esce dal fuoco e aspetta che il conteggio finisca.
+	Unit->PlannedCell = FRTCellId(0, 0);
+	RunFwTurn(TM);
+	TestTrue(TEXT("e' uscita dal fuoco"), Unit->Cell == FRTCellId(0, 0));
+
+	int32 Giri = 0;
+	while (Unit->HasStatus(TAG_Status_Burning) && Giri < 6)
+	{
+		Unit->PlannedCell = Unit->Cell;
+		RunFwTurn(TM);
+		++Giri;
+	}
+	TestFalse(TEXT("il Burning e' finito da solo"), Unit->HasStatus(TAG_Status_Burning));
+	TestEqual(TEXT("e la SCADENZA e' una voce distinta"),
+		CountFwStatusEntries(TM, ERTStatusOutcome::Expired, TAG_Status_Burning), 1);
+	TestEqual(TEXT("che non e' una revoca: nessuno ha lasciato una cella che lo sosteneva"),
+		CountFwStatusEntries(TM, ERTStatusOutcome::Revoked, TAG_Status_Burning), 0);
+
+	DestroyFwWorld(World);
+	return true;
+}
+
+/**
+ * **Uno stato LEGATO ALLA CELLA nasce e viene REVOCATO uscendo, e le due voci lo dicono** (#1077).
+ *
+ * E' l'altra meta' della distinzione: qui la causa della fine e' una **mossa del giocatore**, non il tempo.
+ * Un replay che confondesse revoca e scadenza non saprebbe dire se qualcuno ha fatto qualcosa.
+ *
+ * ⚠️ **`Amount` vale zero, ed e' voluto**: `ApplyStatus` riceve `ARTUnit::PersistentWhileOnCell`, che vale
+ * `-1` e **non e' una durata**. Scriverlo nel log darebbe a chi rilegge «meno un turno» da interpretare, ed
+ * e' per questo che la forma di vita sta nell'ESITO — `AppliedWhileOnCell` — e non in un numero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusRevocationInTurnLogTest,
+	"RefactorTactics.Environment.Status.RevocationAppearsInTurnLog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusRevocationInTurnLogTest::RunTest(const FString&)
+{
+	UWorld* World = MakeFwWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	TMap<FRTCellId, ERTHexSurface> Surfaces;
+	Surfaces.Add(FRTCellId(1, 0), ERTHexSurface::ShallowWater);
+	SpawnFwMap(World, Surfaces);
+
+	ARTUnit* Unit = SpawnFwUnit(World, 0, FRTCellId(0, 0));
+	// Come sopra: senza un avversario la partita finisce al primo Cleanup e il secondo turno non risolve.
+	ARTUnit* Inerte = SpawnFwUnit(World, 1, FRTCellId(-3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), Unit) || !TestNotNull(TEXT("avversario"), Inerte) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyFwWorld(World);
+		return false;
+	}
+
+	Unit->PlannedCell = FRTCellId(1, 0);
+	RunFwTurn(TM);
+	if (!TestTrue(TEXT("l'unita' e' entrata in acqua"), Unit->Cell == FRTCellId(1, 0)))
+	{
+		DestroyFwWorld(World);
+		return false;
+	}
+	TestTrue(TEXT("ed e' bagnata"), Unit->HasStatus(TAG_Status_Wet));
+	TestEqual(TEXT("la nascita dice che lo stato e' LEGATO ALLA CELLA"),
+		CountFwStatusEntries(TM, ERTStatusOutcome::AppliedWhileOnCell, TAG_Status_Wet), 1);
+
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Status
+			&& E.Outcome == static_cast<uint8>(ERTStatusOutcome::AppliedWhileOnCell))
+		{
+			TestEqual(TEXT("e non porta una durata, perche' qui una durata non esiste"), E.Amount, 0);
+		}
+	}
+
+	// Esce: la cella non lo sostiene piu'.
+	Unit->PlannedCell = FRTCellId(0, 0);
+	RunFwTurn(TM);
+	TestTrue(TEXT("e' uscita dall'acqua"), Unit->Cell == FRTCellId(0, 0));
+	TestFalse(TEXT("non e' piu' bagnata"), Unit->HasStatus(TAG_Status_Wet));
+	TestEqual(TEXT("la REVOCA e' registrata"),
+		CountFwStatusEntries(TM, ERTStatusOutcome::Revoked, TAG_Status_Wet), 1);
+	TestEqual(TEXT("e non e' una scadenza: il conteggio non c'entra"),
+		CountFwStatusEntries(TM, ERTStatusOutcome::Expired, TAG_Status_Wet), 0);
+
+	DestroyFwWorld(World);
+	return true;
+}
