@@ -160,7 +160,7 @@ private:
 	void OnAbility1(const FInputActionValue& Value);
 	void OnAbility2(const FInputActionValue& Value);
 	void OnAbility3(const FInputActionValue& Value);
-	void OnAbility4(const FInputActionValue& Value); // seleziona lo scatto (4a abilita')
+	void OnAbility4(const FInputActionValue& Value); // seleziona la 4a abilita' dell'eroe, qualunque essa sia
 	void OnUndoWaypoint(const FInputActionValue& Value);
 	void OnCyclePlaybackSpeed(const FInputActionValue& Value);
 	void OnRecenter(const FInputActionValue& Value);
