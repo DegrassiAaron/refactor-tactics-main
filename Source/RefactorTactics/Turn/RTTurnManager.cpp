@@ -131,7 +131,11 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 				FRTTurnLogEntry Hazard;
 				Hazard.Phase = InPhase;
 				Hazard.Category = ERTLogCategory::Combat;
-				Hazard.ActionId = FName(*FString::Printf(TEXT("Terrain.%s"),
+				// Il prefisso arriva dalla libreria del TurnLog e non da un letterale: lo condivide con
+				// `IsEnvironmentalDamage`, che su questa causa decide se `UnitId` sia chi agisce o chi subisce
+				// (`#1150`). Due letterali uguali per abitudine divergono al primo che cambia (`D-098`).
+				Hazard.ActionId = FName(*FString::Printf(TEXT("%s%s"),
+					URTTurnLogLibrary::TerrainCausePrefix(),
 					*StaticEnum<ERTHexSurface>()->GetNameStringByValue((int64)CellData->Surface)));
 				// La cella che ha colpito, che qui **e' davvero la causa** — al contrario del `Burning`, che
 				// segue l'unita' anche fuori dal fuoco. `TgtCell` e' la stessa: chi subisce ci sta sopra.
@@ -1188,12 +1192,16 @@ void ARTTurnManager::LockInAndResolve()
 				Burning.Outcome = static_cast<uint8>(
 					URTCombatLibrary::ClassifyCombatOutcome(HpPrima, Burn.Health, /*AttackerDmgBonus*/ 0));
 				// ⚠️ Il soggetto e' chi SUBISCE, ed e' prescritto dal DoD di `#625` — «l'unita' che la subisce
-				// in `UnitId` (non `0`: c'e' un soggetto)». Va saputo che **inverte** la convenzione di
-				// `AppendLogEntry` («chi ha AGITO»), che la voce d'attacco rispetta passando l'attaccante:
-				// un consumatore che sommasse il danno INFLITTO per `UnitId` filtrando su `Category ==
-				// Combat` accrediterebbe a chi brucia gli 8 danni fatti a se' stesso. Oggi nessuno lo fa,
-				// e la scelta e' della issue; se un giorno servisse distinguerli, il posto e' un esito
-				// dedicato — non un commento. Sollevato in code review, e lasciato com'e' di proposito.
+				// in `UnitId` (non `0`: c'e' un soggetto)». **Inverte** la convenzione di `AppendLogEntry`
+				// («chi ha AGITO»), che la voce d'attacco rispetta passando l'attaccante.
+				//
+				// ✅ **Chiusa da `#1150`, e le due righe che c'erano qui sono scadute.** Dicevano «oggi
+				// nessuno lo fa» — falso: `URTTurnLogLibrary::IsDamageInflictedByActor` e' il consumatore, e
+				// questa causa e' una di quelle che `IsEnvironmentalDamage` riconosce. E indicavano come
+				// rimedio «un esito dedicato»: misurato, non c'e' posto — `Outcome` e' un solo `uint8` e
+				// porta gia' la GRAVITA', quindi un valore «ambientale» toglierebbe `Lethal` a chi muore
+				// bruciato. La convenzione e' dichiarata su `FRTTurnLogEntry::UnitId`, dove chi legge il
+				// campo la trova.
 				AppendLogEntry(Burning, Unit);
 
 				// ⚠️ `AddLogEvent` **resta**, e non e' ridondanza: e' la vista leggibile a schermo, il TurnLog

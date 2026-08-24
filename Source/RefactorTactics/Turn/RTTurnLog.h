@@ -536,6 +536,24 @@ struct FRTTurnLogEntry
 	 *
 	 * ⚠️ **NON entra nell'hash** ([D-063](../../../docs/decisions/RT_PDR_00_Decision_Log.md)): serve a rendere
 	 * la traccia spiegabile, non a discriminarla. Stesso ragionamento di `FormatId` e `BaseActionId`.
+	 *
+	 * 🔴 **DUE VOCI INVERTONO QUESTA CONVENZIONE, e chi legge il campo deve saperlo QUI** (`#1150`). Il danno
+	 * ambientale — `Status.Burning` nel Cleanup (`#625`) e `Terrain.<Surface>` all'ingresso (`#1067`) — mette
+	 * in `UnitId` **chi SUBISCE**, non chi ha agito. L'inversione e' deliberata e prescritta dal DoD di
+	 * `#625`: in un danno ambientale non c'e' un attaccante, e lo `0` direbbe «nessuna unita' dichiarata» su
+	 * un evento che ha un soggetto solo e ovvio.
+	 *
+	 * **Conseguenza per chi consuma**: sommare il danno *inflitto* per `UnitId` filtrando su
+	 * `Category == Combat` accredita a chi brucia i danni fatti a se' stesso — un numero **plausibile e
+	 * sbagliato**, che nessun errore segnala. La domanda si fa con
+	 * `URTTurnLogLibrary::IsDamageInflictedByActor`, che porta la tassonomia in un posto solo; dedurla dalle
+	 * celle e' l'inferenza che il commento qui sopra dichiara invalida — `SrcCell` non identifica l'unita'.
+	 *
+	 * ⚠️ **Perche' non un esito dedicato**, che il commento di `#625` indicava come «il posto»: `Outcome` e'
+	 * un solo `uint8` e porta gia' la GRAVITA' (`Hit`/`ShieldAbsorbed`/`Lethal`) su tutti e quattro i siti di
+	 * danno. Un valore per «ambientale» la sostituirebbe, e un morto bruciato smetterebbe di essere `Lethal`
+	 * — la classificazione che `ClassifyCombatOutcome` esiste per non sbagliare, e che il log leggibile rende
+	 * come «*N danni, eliminata*». Misurato su `#1150`, e per questo la scelta e' stata la dichiarazione.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	int32 UnitId = 0;
