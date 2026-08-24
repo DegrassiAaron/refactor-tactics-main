@@ -1170,9 +1170,12 @@ sessions:
       `CreateWidget` con controprova **2/1/3** sul navigatore), sei eseguite dall'autore in editor —
       `load_in_editor` e `save_without_errors` non sono surrogabili da un test, perche' caricare la
       generated class non e' aprire il Blueprint.
-      ⚠️ **`verifies: []` resta vero e resta il punto scomodo**: `PIE-V01-FRONTEND-NAV` e `-ERROR` non
-      esistono ancora, e quel registro e' di `playtest` — le voci si **propongono in handoff**. Questa
-      seduta ha prodotto asset e non ha chiuso nessuna voce del registro, esattamente come dichiarava.
+      ⚠️ **`verifies: []` resta vero, e dal 2026-08-24 per un'altra ragione.** Diceva: *«`PIE-V01-FRONTEND-NAV`
+      e `-ERROR` non esistono ancora, e quel registro e' di `playtest` — le voci si propongono in handoff»*.
+      Nessuna delle due meta' regge piu': la track e' uscita con **D-178**, e le sei voci sono state scritte
+      con **#1242**. Il campo resta vuoto perche' **questa seduta e' chiusa e non le ha eseguite** — un
+      `verifies` non dichiara cosa una seduta poteva verificare, ma cosa ha guardato. `-NAV` e `-MAIN` sono
+      ora su **U28**, che e' la prima seduta capace di eseguirle.
       ⏳ **Cio' che resta non e' d'editor**: nessuno chiama `InitializeFrontend`, che e' di CP 46.3
       (`#938`). I cinque Blueprint esistono, sono provati, e non li avvia nessuno.
       🔴 **La seduta e' chiusa, `#937` NO — e le due cose sono state confuse per un merge.** Una voce del
@@ -1196,6 +1199,9 @@ sessions:
       `grep -c "PIE-V01-FRONTEND" docs/technical/test-manuali-pie.md` da' **0** — e quel registro
       appartiene alla track `playtest`. Le voci si **propongono** in handoff, non si scrivono da fuori:
       finche' non ci sono, questa seduta produce asset e non chiude nessuna voce del registro.
+      ⌫ **Superato il 2026-08-24**: lo stesso comando da' ora **6** (#1242), e la track non esiste piu'
+      (D-178). Il paragrafo resta come provenienza — spiega perche' le voci sono mancate cosi' a lungo — e
+      la lettura in vigore e' quella nel blocco `CHIUSA` qui sopra.
       ⚠️ **Il primo e il secondo widget si verificano subito, il terzo no.** Il dato del banner lo produce
       gia' `ARTGameMode` e quello del modale si forza con un formato invalido; il `LoadingScreen` ha il suo
       dato ma un allestimento **istantaneo**, quindi a schermo non si vede — la guida lo dice al suo §6, e
@@ -1502,7 +1508,15 @@ sessions:
     # Vuoto per la stessa ragione di `U24`: il C++ che questa seduta consuma — `URTMainMenuWidgetBase`,
     # `ARTFrontendGameMode`, `StartFrontend` — arriva con la **stessa** issue, non da un checkpoint a monte.
     shares_setup_with: []
-    verifies: []
+    verifies: [PIE-V01-FRONTEND-NAV, PIE-V01-FRONTEND-MAIN]
+    # ➕ Le due voci esistono dal 2026-08-24 (#1242) e questa e' la prima seduta che puo' eseguirle:
+    # `-MAIN` perche' il menu lo produce lei, `-NAV` perche' e' la stessa issue a chiamare
+    # `InitializeFrontend` — senza aggancio il navigatore non presenta nulla e il layout non si guarda.
+    # ⚠️ `-ERROR` e `-PLAY` restano SENZA seduta, ed e' dichiarato invece che nascosto: entrambe diventano
+    # eseguibili con questo stesso aggancio, ma nessuna delle due e' prodotta da una seduta d'editor —
+    # assegnarle qui allungherebbe un `done_when` altrui su lavoro che non e' suo. Chi apre U28 puo'
+    # proporle nello stesso pomeriggio; la regola «una voce che non sta in una seduta non viene eseguita
+    # mai» resta scoperta per due voci, e vale la pena saperlo prima di chiudere E46.
     issues: [938]
     done_when: >-
       i due `.uasset` esistono sotto `/Game/RT/UI/Framework/` **con esattamente i nomi dichiarati in
@@ -1586,7 +1600,9 @@ sessions:
     # `FRTMatchResultViewModel`, `URTFrontendNavigator::ShowResult`/`GetMatchResult`/`PlayAgain`, e
     # l'annuncio `ARTTurnManager::OnMatchEnded` che apre la schermata a fine partita.
     shares_setup_with: []
-    verifies: []
+    verifies: [PIE-V01-FRONTEND-RESULT]
+    # ➕ La voce esiste dal 2026-08-24 (#1242). Finche' `WBP_RT_ResultScreen` non c'e', la schermata si apre
+    # e a schermo non compare nulla: e' questa seduta a renderla guardabile, e quindi a poterla eseguire.
     issues: [940]
     done_when: >-
       `WBP_RT_ResultScreen` esiste sotto `/Game/RT/UI/Framework/` **con esattamente il nome che andrà in
@@ -1636,7 +1652,12 @@ sessions:
     # adesso c'è, ed è nominata in `notes`. Il campo resta perché registra *perché* la seduta è arrivata
     # dopo le altre due, non perché blocchi ancora.
     shares_setup_with: []
-    verifies: []
+    verifies: [PIE-V01-FRONTEND-PAUSE]
+    # ➕ La voce esiste dal 2026-08-24 (#1242). ⚠️ Copre solo la parte che si guarda — i tre pulsanti, e che
+    # l'uscita non lasci una partita viva dietro il menu. Il criterio forte di CP 46.6 («la pausa non tocca
+    # la simulazione») NON e' suo: l'oracolo e' la sequenza degli hash del TurnLog su una partita
+    # abbandonata a meta', e vive nei test. Una voce PIE che rivendicasse quel criterio lo renderebbe un
+    # giudizio a occhio.
     issues: [941]
     done_when: >-
       `WBP_RT_PauseMenu` esiste sotto `/Game/RT/UI/Framework/` con la sua voce in `DefaultGame.ini`; i tre
