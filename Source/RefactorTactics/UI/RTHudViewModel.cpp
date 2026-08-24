@@ -5,6 +5,8 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h" // l'autorita' su quale slot consuma un'azione
+#include "Core/RTGameplayTags.h"      // TAG_Status_Reveal: cosa rende un piano visibile all'avversario
+#include "Turn/RTIntentPrivacyLibrary.h"
 
 FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnManager)
 {
@@ -174,4 +176,44 @@ TArray<FRTUnitCardView> URTHudViewModel::BuildTeamRoster(const TArray<ARTUnit*>&
 		}
 	}
 	return Roster;
+}
+
+TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray<AActor*>& Actors)
+{
+	TArray<FRTPlannedIntent> Authoritative;
+	Authoritative.Reserve(Actors.Num());
+	for (AActor* Actor : Actors)
+	{
+		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		if (!Unit || !Unit->IsAlive()) { continue; }
+
+		const URTActionData* Planned = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		const URTActionData* Reaction = Unit->GetAbility(Unit->PlannedReactionAbility);
+
+		FRTPlannedIntent Intent;
+		Intent.OwnerCell = Unit->Cell;
+		Intent.TeamId = Unit->TeamId;
+		Intent.bAlive = true;
+		Intent.bRevealed = Unit->HasStatus(TAG_Status_Reveal);
+		Intent.bMoving = (Unit->PlannedCell != Unit->Cell);
+		Intent.PlannedCell = Unit->PlannedCell;
+		Intent.ActionName = Planned ? Planned->DisplayName : FText::GetEmpty();
+		Intent.bHasTarget = (Unit->PlannedAttackTarget != nullptr && Unit->PlannedAttackTarget->IsAlive());
+		Intent.TargetCell = Intent.bHasTarget ? Unit->PlannedAttackTarget->Cell : Unit->Cell;
+		Intent.ReactionName = Reaction ? Reaction->DisplayName : FText::GetEmpty();
+		Intent.PlannedPath = Unit->PlannedPath;
+		Intent.PlannedWaypoints = Unit->PlannedWaypoints;
+		Intent.bDashing = (Unit->PlannedDashAbility != INDEX_NONE);
+		Intent.DashCell = Unit->PlannedDashCell;
+		// Rotazione dichiarata (D-020, #291): finora `bDeclaresRotation` e `DeclaredFacing` restavano ai
+		// default perche' nessuno li valorizzava, e `FilterForTeam` filtrava un campo sempre vuoto.
+		Intent.bDeclaresRotation = Unit->bDeclaresPlannedFacing;
+		Intent.DeclaredFacing = Unit->PlannedFacing;
+		if (const URTActionData* DashAb = Unit->GetAbility(Unit->PlannedDashAbility))
+		{
+			Intent.DashStyle = DashAb->Def.MovementStyle;
+		}
+		Authoritative.Add(Intent);
+	}
+	return Authoritative;
 }

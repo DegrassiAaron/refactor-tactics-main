@@ -545,41 +545,11 @@ void ARTHUD::DrawHUD()
 		const int32 PlayerTeam = 0; // il giocatore controlla il team 0 (blu)
 
 		// 1. RACCOGLI i piani autorevoli (in rete: lato server, mai spediti cosi' come sono).
-		TArray<FRTPlannedIntent> Authoritative;
-		Authoritative.Reserve(Actors.Num());
-		for (AActor* Actor : Actors)
-		{
-			const ARTUnit* Unit = Cast<ARTUnit>(Actor);
-			if (!Unit || !Unit->IsAlive()) { continue; }
-
-			const URTActionData* Planned = Unit->GetAbility(Unit->PlannedAbilityIndex);
-			const URTActionData* Reaction = Unit->GetAbility(Unit->PlannedReactionAbility);
-
-			FRTPlannedIntent Intent;
-			Intent.OwnerCell = Unit->Cell;
-			Intent.TeamId = Unit->TeamId;
-			Intent.bAlive = true;
-			Intent.bRevealed = Unit->HasStatus(TAG_Status_Reveal);
-			Intent.bMoving = (Unit->PlannedCell != Unit->Cell);
-			Intent.PlannedCell = Unit->PlannedCell;
-			Intent.ActionName = Planned ? Planned->DisplayName : FText::GetEmpty();
-			Intent.bHasTarget = (Unit->PlannedAttackTarget != nullptr && Unit->PlannedAttackTarget->IsAlive());
-			Intent.TargetCell = Intent.bHasTarget ? Unit->PlannedAttackTarget->Cell : Unit->Cell;
-			Intent.ReactionName = Reaction ? Reaction->DisplayName : FText::GetEmpty();
-			Intent.PlannedPath = Unit->PlannedPath;
-			Intent.PlannedWaypoints = Unit->PlannedWaypoints;
-			Intent.bDashing = (Unit->PlannedDashAbility != INDEX_NONE);
-			Intent.DashCell = Unit->PlannedDashCell;
-			// Rotazione dichiarata (D-020, #291): finora `bDeclaresRotation` e `DeclaredFacing` restavano ai
-			// default perche' nessuno li valorizzava, e `FilterForTeam` filtrava un campo sempre vuoto.
-			Intent.bDeclaresRotation = Unit->bDeclaresPlannedFacing;
-			Intent.DeclaredFacing = Unit->PlannedFacing;
-			if (const URTActionData* DashAb = Unit->GetAbility(Unit->PlannedDashAbility))
-			{
-				Intent.DashStyle = DashAb->Def.MovementStyle;
-			}
-			Authoritative.Add(Intent);
-		}
+		// ⚠️ Il ciclo che li costruiva stava qui fino al 2026-08-24 ed e' ora in `URTHudViewModel`: lo
+		// condivide con `rt.Debug.DrawIntent` (CP 11.4, #80), che deve mostrare **gli stessi** intenti che
+		// questa HUD disegna. Con due costruzioni separate, un campo aggiunto a `FRTPlannedIntent` finirebbe
+		// in una sola delle due.
+		const TArray<FRTPlannedIntent> Authoritative = URTHudViewModel::BuildAuthoritativeIntents(Actors);
 
 		// 2. FILTRA per l'osservatore. Da qui in giu' lo stato completo non si tocca piu'.
 		const TArray<FRTIntentView> Views = URTIntentPrivacyLibrary::FilterForTeam(PlayerTeam, Authoritative);
