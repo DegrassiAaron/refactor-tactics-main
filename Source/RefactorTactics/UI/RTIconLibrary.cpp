@@ -43,9 +43,13 @@ TArray<FName> URTIconLibrary::RequiredIconIds()
 		}
 	}
 
-	// AZIONI — quelle che il catalogo generico dichiara davvero. Non la lista canonica dei documenti: se
-	// `Action.Overwatch` non e' ancora in codice (arriva con E14), pretenderne l'icona significherebbe
-	// chiedere un disegno per qualcosa che nessuno puo' pianificare.
+	// AZIONI — quelle che il catalogo generico dichiara davvero, non la lista canonica dei documenti: chiedere
+	// il disegno di un'icona per un'azione che nessuno puo' ancora pianificare e' un debito senza soggetto.
+	// La sorgente e' il catalogo, quindi la lista si adegua da sola: `Action.Overwatch` e' entrato
+	// (`RTCatalogLibrary.cpp`, CP 14.5, azione SPEDITA) e la sua icona e' pretesa da qui senza che questa riga
+	// cambiasse.
+	// ⚠️ Diceva *«se `Action.Overwatch` non e' ancora in codice (arriva con E14)»*: l'azione **c'e'** — quel
+	// che resta a E14 e' l'infrastruttura interattiva, non l'azione (#1322).
 	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
 	{
 		if (!Def.ActionId.IsNone())

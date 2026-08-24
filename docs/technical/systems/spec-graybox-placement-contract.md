@@ -441,9 +441,21 @@ l'ordine di valutazione è parte della regola. Si legge dall'alto e **il primo c
 Dato: una entry di `Covers` — cioè una copertura che ESISTE.
 
 1. Critico      stessa geometria + marcatore forte  Integrity * 3 <= DefaultIntegrity(Type)
-2. Danneggiato  stessa geometria + marcatore        Integrity <  DefaultIntegrity(Type)
+2. Ridotto      stessa geometria + marcatore        Integrity <  DefaultIntegrity(Type)
 3. Intatto      geometria piena, corpo neutro       altrimenti
 ```
+
+🔵 **`Ridotto` si chiamava `Danneggiato` fino a [`D-186`](../../decisions/RT_PDR_00_Decision_Log.md)**
+(2026-08-24), e il cambio non è cosmetico: le tre letture dichiarano quanto una copertura è **forte rispetto
+al catalogo del proprio tipo**, non se qualcuno l'ha colpita. *«Danneggiato»* affermava una causa, ed era
+**falsa** per un pannello `Adaptive` appena eretto — che nasce a `25` contro un catalogo `30` perché la
+fragilità è il prezzo della rotazione gratuita, non perché l'abbia colpito qualcosa.
+⚠️ **Le soglie non cambiano**, e `DefaultIntegrity` resta il catalogo: cambia il nome della lettura, non il
+metro. Le occorrenze di «danneggiato» che restano più in basso sono **dentro i blockquote di code
+review**: raccontano la prima stesura con le parole che aveva allora, e restano.
+⚠️ **Una terza NON era storica ed è stata corretta**: l'argomento su ¼ descrive al presente cosa
+farebbe la soglia scartata, quindi sotto `D-186` quella `Low` a `10` resta «ridotta». La prima
+stesura di questa nota le dichiarava storiche tutte e tre — trovato nel panel della stessa PR.
 
 **«Distrutto» NON è in questa scaletta, e a toglierlo è `D-175`.** Non è una lettura del dato di mappa: è la
 transizione `ERTEnvironmentOutcome::CoverDestroyed`
@@ -546,7 +558,7 @@ concordare fra chi modella e chi legge.
 ([`RTHexCoverTests.cpp`](../../../Source/RefactorTactics/Tests/RTHexCoverTests.cpp)), quindi le sequenze reali
 sono `High 50 → 30 → 10 → 0` e `Low 30 → 10 → 0`. Con ⅓ «critico» cade **sull'ultimo passo prima di zero su
 entrambi i tipi**, cioè significa *un altro colpo e cade*. La misura **esclude ¼**: lì una `Low` a `10` resta
-«danneggiata» (`10 > 7`) e cadrebbe senza mai mostrare lo stato più forte, che su metà del catalogo non si
+«ridotta» (`10 > 7`) e cadrebbe senza mai mostrare lo stato più forte, che su metà del catalogo non si
 vedrebbe.
 
 > ⚠️ **Ciò che la misura NON fa è selezionare ⅓ contro ½, e la prima stesura lo sosteneva.** Su queste due
@@ -556,26 +568,57 @@ vedrebbe.
 > anticiparsi. È un argomento di design, non una misura, e chiamarlo «misurato invece che scelto» era
 > vendere come discriminante un esperimento che discrimina solo contro ¼. Trovato in code review.
 
-⚠️ **Un residuo noto, dichiarato invece che scoperto a valle**: `FRTHexCover` ha il default di costruttore
-`InIntegrity = 30` **fisso e indipendente dal `Type`**
-([`RTHexCellData.h`](../../../Source/RefactorTactics/Map/RTHexCellData.h)), mentre `DefaultIntegrity(High)` è
-`50`. Una `High` autorata così — `FRTHexCover(Edge, ERTHexCoverType::High)`, che è ciò che si ottiene
-aggiungendo una entry a mano — nasce a `30` e per questa regola legge **«danneggiato» senza essere stata
-colpita**. Il difetto è nel costruttore, non nella lettura — il costruttore accetta il `Type` e **ignora** la
-funzione che sa cosa quel tipo vale — ed è tracciato in
-[#1194](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1194) invece di essere aggirato qui,
-perché `Map/RTHexCellData.h` è nel write-set della track `spatial`.
+✅ **Chiuso da [`D-186`](../../decisions/RT_PDR_00_Decision_Log.md) il 2026-08-24, e i due produttori non erano
+lo stesso difetto** — è la ragione per cui #1194 chiedeva *una* scelta e ne servivano **due**.
 
-⚠️ **E i produttori sono DUE, non uno — misurato il 2026-08-19.** Il secondo non passa dal costruttore:
-`Hero.Riktor.KineticPanel.Adaptive` dichiara `Integrity` **25** nei propri `Parameters`
-([`RTHeroCatalogLibrary.cpp`](../../../Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp)) e
-`ARTTurnManager` lo applica come `Low`, il cui default è `30` — quindi un pannello adattivo appena eretto
-legge **«danneggiato» senza essere stato colpito**, esattamente come la `High` autorata a mano.
-`RTEnvironmentActionTests.cpp` lo pinna alla creazione e due turni dopo, e
-[`riktor.md`](../../characters/v0.1/riktor.md) dichiara che `Adaptive` *«scende a 25»*: la fragilità **è** il
-prezzo della rotazione gratuita, quindi il numero non è un refuso. ∴ le due opzioni che #1194 aveva scritto
-per il costruttore **non chiudono questo caso** — la variante passa il valore esplicitamente — e la scelta
-è stata riportata là, dove si prende una volta sola.
+**Il dato — il costruttore.** `FRTHexCover` dichiarava `InIntegrity = 30` **fisso e indipendente dal `Type`**,
+quindi `FRTHexCover(Edge, ERTHexCoverType::High)` nasceva a `30`, il **60%** del proprio catalogo. Accettava il
+tipo e **ignorava** la funzione che sa cosa quel tipo vale. Ora il default deriva dal tipo, con sentinella
+`UseCatalogIntegrity` (negativa, perché `0` è un'integrità legittima). ⚠️ Misurato prima di cambiarlo: degli
+**undici** siti che omettono il parametro **uno solo** cambia valore, ed è un test che conta pannelli per
+bordo.
+
+🔴 **E il costruttore non è tutto il percorso: l'autoraggio dall'EDITOR resta aperto** — [#1317](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1317). Chi
+aggiunge una entry `Covers` nel dettaglio di un `URTHexMapAsset` non passa dal costruttore a due argomenti: la
+struct nasce da `FRTHexCover()`, cioè `Low`/`30`, e cambiare `Type` in `High` **non ricalcola niente**, perché
+l'asset non ha un `PostEditChangeProperty`. `ValidateMap` non lo vede: la sua guardia è `Integrity <= 0`.
+⚠️ La prima stesura di questo blocco scriveva che il costruttore era *«ciò che si ottiene aggiungendo a mano
+una entry `Covers`»* — vero per il C++, **falso per il pannello dei dettagli**, che è il modo in cui si autora
+davvero una mappa. Trovato nel panel della stessa PR.
+
+⚠️ **Misurato il 2026-08-24, e il difetto non ha soggetto: in tutti i map asset versionati esiste UNA
+copertura, e non è sotto catalogo.** `DA_HexMap_Arena` ne ha **zero** su 64 celle, `DA_HexMap_Sandbox` è
+vuoto, `DA_HexMap_Scratch_Basin` ne ha **una** su 45 — e quella viene da una fixture C++, che passa da
+`DefaultIntegrity(Type)`. **Nessuno ha ancora autorato una copertura a mano in questo repository**, ed è la
+ragione per cui il difetto è sopravvissuto invisibile: il percorso che lo produce non è ancora stato battuto.
+
+∴ **il meccanismo NON si chiude, e la scelta è dichiarata invece che scoperta a valle.** Una guardia in
+`ValidateMap` dovrebbe essere un *warning* — `D-186` dichiara **legittima** una copertura sotto catalogo,
+`Adaptive` nasce a `25` di proposito — e un `PostEditChangeProperty` rischierebbe di riscrivere un valore
+voluto: si pagherebbero entrambi per zero casi. Al loro posto c'è un **oracolo** che li guarda:
+`RefactorTactics.HexMap.AuthoredCoversAreNotBelowCatalog` ([`RTHexMapTests.cpp`](../../../Source/RefactorTactics/Tests/RTHexMapTests.cpp)),
+che conta le coperture dei tre asset e fallisce sulla prima che nasca sotto il proprio catalogo.
+⛔ **Rileva, non previene**: il giorno in cui un autore ne scrive una, il test lo dice — non glielo impedisce.
+Se quel giorno arriva più di una volta, la guardia torna decidibile e la sede è [#1317](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1317).
+
+**L'etichetta — il vocabolario.** `Hero.Riktor.KineticPanel.Adaptive` dichiara `Integrity` **25** contro un
+catalogo `Low` di `30`, e quel numero è **voluto**: [`riktor.md`](../../characters/v0.1/riktor.md) dice che
+*«scende a 25»*, la fragilità **è** il prezzo della rotazione gratuita. Lì il dato è giusto e a sbagliare era
+la parola: *«danneggiato»* afferma che qualcuno l'ha colpita. Le soglie di `D-172` **non cambiano**; la
+lettura si chiama ora **`ridotto`**, e le tre dichiarano **forza relativa al catalogo del tipo**, non una
+storia di colpi:
+
+```text
+critico   Integrity * 3 <= DefaultIntegrity(Type)
+ridotto   Integrity < DefaultIntegrity(Type)
+intatto   altrimenti
+```
+
+⛔ **Le coperture già scritte in un `.uasset` non si toccano**: una `High` autorata a `30` continua a valere
+`30`, e sotto questo vocabolario legge «ridotta» — che è **vero**. È anche la ragione per cui non si è scelta
+la terza via di #1194, l'integrità di **nascita** registrata nella struct: costa un campo, una versione di
+formato e una migrazione, **e non avrebbe chiuso il produttore 1** — una `High` nata a `30` risulterebbe
+«intatta», cioè l'etichetta diventerebbe giusta e la copertura resterebbe più debole del 40% senza ragione.
 
 ⚠️ **Resta presentazione, e la frazione è ciò che lo garantisce**: la lettura non entra nel resolver, non
 cambia la riduzione del danno — che è di `Combat/` — e non entra in `ComputeHash`. Se il balance muove

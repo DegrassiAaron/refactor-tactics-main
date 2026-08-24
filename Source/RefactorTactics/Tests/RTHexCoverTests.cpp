@@ -730,4 +730,47 @@ bool FRTCoverDamageCarriesAttackerTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Una copertura costruita col default nasce al proprio valore di CATALOGO, qualunque sia il tipo**
+ * (#1194, `D-186`).
+ *
+ * 🔴 **Nessun test lo confrontava, ed e' la ragione per cui l'incoerenza e' sopravvissuta.** Il costruttore
+ * dichiarava `InIntegrity = 30` fisso e indipendente dal `Type`: `FRTHexCover(Edge, High)` nasceva a **30**,
+ * il 60% del suo catalogo, senza che nulla l'avesse colpita. Accettava il tipo e ignorava la funzione che sa
+ * cosa quel tipo vale.
+ *
+ * ⚠️ **Questo test copre il COSTRUTTORE, non l'autoraggio dall'editor**: chi aggiunge una entry `Covers`
+ * nel dettaglio di un `URTHexMapAsset` costruisce con `FRTHexCover()` — `Low`/30 — e cambiare `Type` in
+ * `High` non ricalcola niente. Quel percorso e' aperto, ed e' #1317.
+ *
+ * ⚠️ **Il confronto e' col catalogo, non coi letterali `30` e `50`**: scriverli qui creerebbe la terza copia
+ * degli stessi numeri, che e' la specie di difetto che questa issue chiude.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverDefaultMatchesCatalogTest,
+	"RefactorTactics.Cover.DefaultIntegrityMatchesCatalog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverDefaultMatchesCatalogTest::RunTest(const FString&)
+{
+	for (const ERTHexCoverType Tipo : { ERTHexCoverType::Low, ERTHexCoverType::High })
+	{
+		const FRTHexCover Costruita(ERTHexDirection::E, Tipo);
+		TestEqual(*FString::Printf(TEXT("il default del tipo %d e' quello di catalogo"),
+			static_cast<int32>(Tipo)), Costruita.Integrity, FRTHexCover::DefaultIntegrity(Tipo));
+	}
+
+	// E i due tipi non valgono lo stesso: senza questa riga il test passerebbe anche su un catalogo piatto,
+	// cioe' proprio col difetto che chiude.
+	TestTrue(TEXT("la copertura alta vale piu' della bassa"),
+		FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)
+			> FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low));
+
+	// Un valore ESPLICITO resta quello chiesto, e `0` non e' la sentinella: una copertura a zero e' il caso
+	// che `ValidateMap` deve rifiutare, e confonderlo con «prendi il catalogo» lo renderebbe inscrivibile.
+	TestEqual(TEXT("un valore esplicito non viene sostituito"),
+		FRTHexCover(ERTHexDirection::E, ERTHexCoverType::High, 12).Integrity, 12);
+	TestEqual(TEXT("e zero resta zero"),
+		FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low, 0).Integrity, 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

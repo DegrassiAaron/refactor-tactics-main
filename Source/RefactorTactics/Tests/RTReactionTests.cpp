@@ -20,9 +20,16 @@
 
 /**
  * Infrastruttura dello slot reazione (CP 5.1): trigger valutato sullo snapshot del Blast, nessuna attesa nel
- * resolver, massimo un'attivazione per turno. `Action.Counter` e' il veicolo reale del checkpoint (rileva e
- * registra il trigger), ma il contrattacco da 16 danni NON e' ancora applicato: arriva con CP 5.2, sulla
- * stessa pipeline — vedi RTCatalogLibrary.cpp.
+ * resolver, massimo un'attivazione per turno. `Action.Counter` e' il veicolo reale del checkpoint.
+ *
+ * ⚠️ **Il contrattacco da 16 danni E' applicato**, e questa riga diceva il contrario. `RTTurnManager.cpp`
+ * riempie `Out.CounterAttacks` quando il trigger scatta e poi fa `Attacks.Append(Reactions.CounterAttacks)`:
+ * il danno entra nella pipeline degli attacchi come ogni altro colpo. *(`Reaction.CounterShot`, la variante
+ * d'equipaggiamento, ne fa **14** — «invece dei 16 di `Action.Counter`», e il catalogo lo dichiara.)*
+ *
+ * 🔴 **Diceva *«NON e' ancora applicato: arriva con CP 5.2»*, e il difetto era peggiore che altrove perche'
+ * sta in un TEST**: chi legge un docstring per sapere cosa il test copre riceve una descrizione del sistema,
+ * e qui la descrizione era vecchia di mesi senza che niente potesse dirlo (#1322).
  */
 namespace
 {

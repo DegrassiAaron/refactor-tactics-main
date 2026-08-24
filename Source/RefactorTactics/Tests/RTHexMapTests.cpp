@@ -1178,4 +1178,109 @@ bool FRTHexMapPinnedDefaultsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Nessuna copertura AUTORATA nasce sotto il catalogo del proprio tipo** (#1317).
+ *
+ * 🔴 **Il fix di [#1194] copre il costruttore, e il costruttore non e' il percorso d'autoraggio.** Chi
+ * aggiunge una entry `Covers` dal pannello dei dettagli di un `URTHexMapAsset` non chiama
+ * `FRTHexCover(Edge, Type)`: la struct nasce da `FRTHexCover()` — `Low`/`30` — e cambiare `Type` in `High`
+ * **non ricalcola niente**, perche' l'asset non ha un `PostEditChangeProperty`. `ValidateMap` non lo vede:
+ * la sua guardia e' `Integrity <= 0`, e `30` la passa. Una `High` cosi' autorata vale il **60%** del proprio
+ * catalogo e sotto `D-186` legge «ridotta» appena nata.
+ *
+ * ⚠️ **Questo test RILEVA, non previene**, ed e' una scelta: la prevenzione costerebbe una regola nuova in
+ * `ValidateMap` — che dovrebbe essere un warning, perche' `D-186` dichiara **legittima** una copertura sotto
+ * catalogo (`Adaptive` nasce a `25` di proposito) — oppure un hook di editor che rischia di sovrascrivere un
+ * valore voluto. Il difetto vive negli **asset versionati**, e sono tre: un oracolo che li guarda costa meno
+ * di una regola e non puo' sovrascrivere niente.
+ *
+ * ⛔ **L'elenco dei path e' MANUALE**, come per `SerializedAssetMigratesWithoutGainingData` qui sopra: chi
+ * committa un quarto map asset lo aggiunge qui, e finche' non lo fa questo test non lo guarda. Un
+ * `UObjectLibrary` scoprirebbe anche i futuri, ma dipende dall'AssetRegistry popolato e sarebbe verde per
+ * vacuita' il giorno in cui non lo trovasse — cioe' proprio il modo in cui un gate smette di guardare senza
+ * dirlo.
+ *
+ * 🔴 **MISURATO il 2026-08-24, e il difetto non ha soggetto: in tutti e tre gli asset esiste UNA copertura.**
+ * `DA_HexMap_Arena` ne ha **zero** su 64 celle, `DA_HexMap_Sandbox` e' vuoto, `DA_HexMap_Scratch_Basin` ne ha
+ * **una** su 45 celle — e non e' sotto catalogo. Il difetto e' reale nel meccanismo e **assente nei dati**:
+ * nessuno ha ancora autorato una copertura a mano in questo repository.
+ *
+ * ⛔ **Per questo la guardia anti-vacuita' NON e' `Totale > 0`, ed e' una correzione.** La prima stesura di
+ * questo test la scriveva cosi', e sarebbe stata appesa a quell'unica copertura — che vive in `_Scratch`,
+ * l'asset che `GenerateFixtureIntoAsset` **sovrascrive** a ogni rigenerazione. Una fixture senza coperture, e
+ * il test sarebbe diventato **rosso senza che niente si fosse rotto**. Un gate che dipende da un asset
+ * volatile misura la volatilita', non l'invariante.
+ *
+ * ✅ **La guardia e' invece una MUTAZIONE**: si costruisce una `High` a `30` — esattamente cio' che l'editor
+ * produce oggi — e si verifica che il predicato la riconosca. Cosi' il test non e' vacuo nemmeno il giorno in
+ * cui gli asset non offrono un soggetto, e se `DefaultIntegrity` o il confronto cambiassero lo direbbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAuthoredCoversNotBelowCatalogTest,
+	"RefactorTactics.HexMap.AuthoredCoversAreNotBelowCatalog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAuthoredCoversNotBelowCatalogTest::RunTest(const FString&)
+{
+	// I tre `URTHexMapAsset` versionati al 2026-08-24 (`git ls-files "Content/**/*.uasset"`).
+	const TCHAR* PercorsiAsset[] =
+	{
+		TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.DA_HexMap_Arena"),
+		TEXT("/Game/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.DA_HexMap_Sandbox"),
+		TEXT("/Game/RT/Maps/Dev/_Scratch/DA_HexMap_Scratch_Basin.DA_HexMap_Scratch_Basin"),
+	};
+
+	int32 Totale = 0;
+	int32 SottoCatalogo = 0;
+	for (const TCHAR* Percorso : PercorsiAsset)
+	{
+		URTHexMapAsset* Mappa = LoadObject<URTHexMapAsset>(nullptr, Percorso);
+
+		// Se un asset sparisse il test deve FALLIRE, non essere saltato: un oracolo che perde il proprio
+		// soggetto e resta verde e' peggio di un oracolo assente.
+		if (!TestNotNull(*FString::Printf(TEXT("l'asset committato si carica: %s"), Percorso), Mappa))
+		{
+			continue;
+		}
+
+		int32 PerAsset = 0;
+		for (const FRTHexCellData& Cella : Mappa->Cells)
+		{
+			for (const FRTHexCover& Copertura : Cella.Covers)
+			{
+				++Totale;
+				++PerAsset;
+				const int32 Catalogo = FRTHexCover::DefaultIntegrity(Copertura.Type);
+				if (Copertura.Integrity < Catalogo)
+				{
+					++SottoCatalogo;
+					AddError(FString::Printf(
+						TEXT("%s: la cella %s ha sul bordo %d una copertura di tipo %d a %d, sotto il proprio ")
+						TEXT("catalogo %d — sotto D-186 legge «ridotta» senza che nulla l'abbia colpita (#1317)"),
+						Percorso, *Cella.Id.ToString(), static_cast<int32>(Copertura.Edge),
+						static_cast<int32>(Copertura.Type), Copertura.Integrity, Catalogo));
+				}
+			}
+		}
+		AddInfo(FString::Printf(TEXT("%s: %d celle, %d coperture"), Percorso, Mappa->NumCells(), PerAsset));
+	}
+
+	// LA MISURA che #1317 chiede come primo criterio: quante coperture esistono negli asset versionati, e
+	// quante di quelle nascono gia' sotto il catalogo del proprio tipo.
+	AddInfo(FString::Printf(TEXT("coperture autorate: %d — di cui sotto catalogo: %d"), Totale, SottoCatalogo));
+
+	TestEqual(TEXT("nessuna copertura autorata nasce sotto il catalogo del proprio tipo"), SottoCatalogo, 0);
+
+	// **Guardia per MUTAZIONE, al posto di un `Totale > 0` che dipenderebbe da un asset volatile.** Questa e'
+	// la copertura che il pannello dei dettagli produce oggi: struct costruita di default — `Low`/`30` — e poi
+	// `Type` portato a `High` a mano, senza che nulla ricalcoli l'integrita'. Se il predicato qui sopra
+	// smettesse di riconoscerla, il test resterebbe verde per la ragione sbagliata.
+	FRTHexCover DallEditor;
+	DallEditor.Type = ERTHexCoverType::High;
+	TestEqual(TEXT("la struct di default nasce al catalogo della Low"),
+		FRTHexCover().Integrity, FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low));
+	TestTrue(TEXT("e una High autorata cosi' e' sotto il proprio catalogo: il rilevatore la vede"),
+		DallEditor.Integrity < FRTHexCover::DefaultIntegrity(DallEditor.Type));
+	return true;
+}
+
+
 #endif // WITH_DEV_AUTOMATION_TESTS
