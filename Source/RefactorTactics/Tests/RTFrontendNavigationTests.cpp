@@ -1169,7 +1169,11 @@ bool FRTFrontendBeginPlayHooksTheConsumerTest::RunTest(const FString&)
 	return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS
+// ⚠️ **L'`#endif` della guardia sta in FONDO al file, e non qui.** Stava qui, e i quattro test qui sotto
+// (CP 46.5 (#940), entrati il 2026-08-23 con la PR #1292) sono finiti FUORI: in Editor e in Development `WITH_DEV_AUTOMATION_TESTS`
+// vale 1 e nessuno se ne accorge, in **Shipping** vale 0 — gli helper del namespace anonimo spariscono, i
+// test restano, e la build muore con `C3861: identificatore non trovato`. Chi aggiunge un test in fondo a
+// questo file scrive DOPO l'ultima riga: e' il posto naturale, quindi la guardia deve chiudersi li'.
 
 // ---------------------------------------------------------------------------------------------------
 // CP 46.5 (#940) — la schermata di fine partita, e le due uscite che ne partono.
@@ -1338,3 +1342,5 @@ bool FRTFrontendMainMenuClearsTheResultTest::RunTest(const FString&)
 	ReleaseNavigator(GI);
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS
