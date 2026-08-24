@@ -1364,7 +1364,11 @@ bool FRTScenarioRedirectVocabularyTest::RunTest(const FString&)
 }
 
 
-#endif // WITH_DEV_AUTOMATION_TESTS
+// ⚠️ **L'`#endif` della guardia sta in FONDO al file, e non qui.** Stava qui, e i un test qui sotto
+// (#1154, entrato il 2026-08-24 con la PR #1312) sono finiti FUORI: in Editor e in Development `WITH_DEV_AUTOMATION_TESTS`
+// vale 1 e nessuno se ne accorge, in **Shipping** vale 0 — gli helper del namespace anonimo spariscono, i
+// test restano, e la build muore con `C3861: identificatore non trovato`. Chi aggiunge un test in fondo a
+// questo file scrive DOPO l'ultima riga: e' il posto naturale, quindi la guardia deve chiudersi li'.
 
 /**
  * **`FindLatestRunDirectory` restituisce la run piu' recente NEL TEMPO, non l'ultima per nome** (#1154).
@@ -1435,3 +1439,5 @@ bool FRTScenarioLatestRunIsTheMostRecentTest::RunTest(const FString&)
 		URTTestReportWriter::FindLatestRunDirectory(ScenarioId).IsEmpty());
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS
