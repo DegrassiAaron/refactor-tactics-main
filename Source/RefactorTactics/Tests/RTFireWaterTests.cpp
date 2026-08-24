@@ -285,7 +285,7 @@ bool FRTEnvironmentChangesInTurnLogTest::RunTest(const FString&)
 	return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS
+
 
 /**
  * **Uno stato a termine nasce e SCADE, e il TurnLog registra entrambi i momenti** (#1077).
@@ -437,3 +437,5 @@ bool FRTStatusRevocationInTurnLogTest::RunTest(const FString&)
 	DestroyFwWorld(World);
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

@@ -387,9 +387,16 @@ namespace
 	 */
 	void OrdinaPerNome(TArray<FGameplayTag>& Tags)
 	{
+		// 🔴 **`FName::Compare` e NON `FString::operator<`**, ed e' una correzione di code review: la prima
+		// stesura rifaceva, in un'altra forma, il difetto che `RTTurnLogLibrary.cpp` documenta a proprie
+		// spese — `FString::UEOpLessThan` e' `FPlatformString::Stricmp(...) < 0`, quindi **non e' un ordine
+		// totale** sui byte. Due tag che differiscono solo per il caso pareggerebbero in entrambi i versi,
+		// resterebbero a pari merito, e `TArray::Sort` — che non e' stabile — deciderebbe secondo l'ordine
+		// di iterazione del contenitore: esattamente il non-determinismo che questa funzione esiste per
+		// togliere. In piu' `Compare` non alloca due `FString` per confronto.
 		Tags.Sort([](const FGameplayTag& A, const FGameplayTag& B)
 		{
-			return A.GetTagName().ToString() < B.GetTagName().ToString();
+			return A.GetTagName().Compare(B.GetTagName()) < 0;
 		});
 	}
 }
