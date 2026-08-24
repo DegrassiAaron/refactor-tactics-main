@@ -27,8 +27,13 @@ Tutto quello che sta sotto il layout. Non devi scrivere codice: devi costruire c
 | La mappa del frontend (`L_Frontend`) | ✅ **versionata dal 2026-08-22** (U28, #1275) |
 | `GameDefaultMap` in `Config/DefaultEngine.ini` | ✅ **punta a `L_Frontend` dal 2026-08-22** |
 
-Otto test automatici coprono il lato C++ (`RefactorTactics.Frontend.*`). Quello che **nessun test può
-dire** è se un bordo di focus si vede, ed è la ragione per cui questa guida esiste.
+**16 test** in `RTFrontendMainMenuTests.cpp` coprono il lato C++. ⚠️ *Questa riga diceva «Otto test
+automatici … (`RefactorTactics.Frontend.*`)», che nominava il namespace dando il conteggio di un file — e
+il numero era anche invecchiato.* Il namespace ne conta **74** in tutto; rimisura invece di citare:
+`git grep -h -o '"RefactorTactics\.Frontend\.[A-Za-z0-9_]*"' -- Source/RefactorTactics/Tests | sort -u | wc -l`.
+
+Quello che **nessun test può dire** è se un bordo di focus si vede, ed è la ragione per cui questa guida
+esiste.
 
 ---
 
