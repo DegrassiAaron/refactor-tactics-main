@@ -1592,6 +1592,9 @@ sessions:
       esito dopo il ritorno al menu — cioè lo smontaggio non lascia stato vivo
     unblocks: []
     notes: >-
+      📖 **La guida della seduta è
+      [`guida-frontend-pause-umg.md`](../technical/runbooks/guida-frontend-pause-umg.md)**: layout, i tre
+      collegamenti, il focus, e la trappola di `ESC` in PIE.
       ✅ **Sbloccata il 2026-08-23: `#941` ha consegnato il C++.** L'API che i pulsanti devono chiamare è
       `URTFrontendNavigator::ResumeMatch()`, `OpenSettings()` e `RequestReturnToMainMenu()` — tre funzioni
       `BlueprintCallable`, nessun id di schermata da scrivere a mano nel grafo (`OpenSettings` esiste
