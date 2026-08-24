@@ -1169,8 +1169,6 @@ bool FRTFrontendBeginPlayHooksTheConsumerTest::RunTest(const FString&)
 	return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS
-
 // ---------------------------------------------------------------------------------------------------
 // CP 46.5 (#940) — la schermata di fine partita, e le due uscite che ne partono.
 // ---------------------------------------------------------------------------------------------------
@@ -1338,3 +1336,5 @@ bool FRTFrontendMainMenuClearsTheResultTest::RunTest(const FString&)
 	ReleaseNavigator(GI);
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS
