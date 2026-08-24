@@ -157,10 +157,58 @@ punteggio»* a favore della restrizione del dominio. Rovesciare quel giudizio co
 farlo di lato dentro una PR di correzione no — il bilanciamento del bot ha la sua sede in
 [`#149`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149) e [D-102](decisions/RT_PDR_00_Decision_Log.md).
 
+✅ **Implementata e misurata il 2026-08-24 — otto forme, e nessuna gratis**
+([#1300](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1300#issuecomment-5393465886)).
+🔴 La riga qui sopra dice *«misurata sulla carta ma non implementata»*, ed è **falsa da quella data**: la
+forma «termine» è stata scritta e rimisurata otto volte sullo stesso banco a modalità — `WBlind` compresa —
+e ciò che la carta non poteva vedere è **dove** cade.
+
+| forma | esito sui sette oracoli |
+|---|---|
+| `WBlind`, penalità sulla cella cieca | mappa d'autore ✅, ma **tre** rossi: le due di copertura e l'arena generata |
+| lo stesso **col segno invertito** (bonus a chi vede) | salva `PlanUnitSeeksCover`, restano rossi `ScoreThreatRespectsCover` e l'arena generata |
+| **intento derivato** in `ChooseBestPlan` (nessuna candidata attacca) | copertura intatta, ma parcheggio **6** su limite 4 |
+| penalità solo dove la cecità **non è copertura** | nessun effetto misurabile su queste due mappe |
+| simmetrico di §3c sulla **propria gittata** | copertura rotta e scenario `ArenaV01` che non si decide più in 40 turni |
+| **differenziale** (bonus solo a chi cambia cella) | i sette oracoli passano con `W` fra **11 e 16** — ma la suite intera **scambia** il rosso: cade `HexBot.ScoreKiterVsMelee` |
+| bonus solo se si **guadagna** vista | è la condizione di `#1287` in forma di peso, e si comporta come `#1287`: non compra la deviazione, e oscilla |
+| **memoria per unità**: bonus che **decade** con i turni senza ingaggiare | ✅ l'unica che fa passare **i due oracoli di parcheggio insieme** — sei su sette a `W=15 D=5` e a `W=20 D=10`. Sulla suite intera due rossi, entrambi su **valori assoluti** e nessun ordinamento (`0 → +15`, `−10 → +5`, `−20 → −5`) |
+
+Quattro reperti che cambiano il **costo** della decisione, non la decisione:
+
+1. **`HexBot.ScoreThreatRespectsCover` pinna due zeri** — la cella coperta *e* la cella esposta fuori dalla
+   gittata nemica valgono entrambe `0` — quindi un termine posizionale sulla linea di tiro ne sposta uno
+   **qualunque sia il segno**. Rispondere «termine» costa la riscrittura di quel test, e quel costo la riga
+   `BOT-1` non lo elenca.
+2. **Un termine guardato da `AttackRange > 0` sarebbe morto in partita.** `Ctx.AttackRange` non viene mai
+   assegnato sul contesto con cui `PlanBots` chiama `ChooseBestPlan`/`ScorePlan` — le due sole occorrenze
+   sono su `LocalCtx` — e per le candidate di **movimento** vale `0` per costruzione, perché il Move viene
+   dopo il Blast. Sarebbe acceso solo nei test unitari: suite verde, zero mosse cambiate.
+3. **Per il termine posizionale la finestra del peso è vuota**, misurata intero per intero: l'arena
+   generata cade **da `W = 7`** — dove `WElevation × MaxLayer + W < WApproach` lo prevede — e la mappa
+   d'autore si sblocca **da `W = 11`**. Fra 7 e 10 sono rossi **entrambi**.
+4. **La linea di tiro è simmetrica solo dentro un layer.** Su `DA_HexMap_Arena`: **0** asimmetrie su 2016
+   coppie dello stesso piano, **91** fra piani diversi, e dalle tre celle della piattaforma L1 si vedono
+   **64 celle su 64** contro le 28–36 degli spawn a terra — `HexLine` costruisce la linea sul layer del
+   tiratore. È lì che ogni forma posizionale manda il bot, e da lì non spara.
+
+🔴 **E il quinto reperto è quello che sposta la domanda verso `E26`.** Il termine posizionale **senza
+memoria** non fa passare i due oracoli di parcheggio a **nessun** peso; il differenziale li fa passare
+pagando il **movimento** invece dell'ingaggio, e infatti inverte un ordinamento di `ScoreKiterVsMelee`. La
+forma con **memoria per unità** — un bonus che decade con i turni senza ingaggiare, cioè il campo di stato
+che [`E26`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/326) porterebbe — li fa passare
+entrambi, e i due rossi che lascia sulla suite intera sono **solo valori assoluti**: nessun ordinamento
+misurato si inverte. ⚠️ Ma **non gioca meglio**: sulla mappa d'autore i colpi calano da 17 a 13 e lo
+scenario `ArenaV01` passa dal turno 19 al 21. Passa gli oracoli, non li batte.
+
+⚠️ **La decisione resta aperta**: la misura dice quanto costa ciascuna via, non quale prendere. In
+particolare `BOT-2` cresce di un parametro se la risposta è «memoria»: **peso e decadimento**, e i quattro
+punti misurati dicono che non è il loro rapporto a decidere.
+
 | ID | Domanda | Perché non si deduce |
 |----|---------|----------------------|
-| `BOT-1` | La capacità di **ingaggiare da una cella** entra nel punteggio come **termine** (`WBlind`), oppure resta una **restrizione del dominio** delle candidate? | Sono due modelli diversi, non due implementazioni della stessa cosa. **Termine**: componibile con gli altri, tarabile, e permette lo scambio *«vado cieco perché accorcio di tre passi»* — al prezzo di un peso in più da bilanciare, e `#1287` lo aveva scartato. **Dominio**: nessun peso nuovo e nessun bilanciamento da rifare, ma è una scelta binaria che non sa esprimere quello scambio — ed è la forma che ha prodotto l'oscillazione. ⚠️ Nessuna delle due si ricava dai documenti: la spec owner [`gameplay/spec-bot-hex.md`](gameplay/spec-bot-hex.md) §3d elenca i termini del punteggio e **non nomina la linea di tiro** fra di essi, quindi non dice se appartenga a quella lista o al filtro a monte. Innesco: la prima issue che voglia far passare entrambi gli oracoli della mappa d'autore |
-| `BOT-2` | Se la risposta a `BOT-1` è «termine»: quanto vale `WBlind`, e **chi lo pinna**? | I due casi misurati danno un limite inferiore — `> 16` per coprire entrambi — e nient'altro. Il limite superiore è una scelta di gioco: più alto è, meno il bot accetta di attraversare una zona cieca per chiudere la distanza, che è precisamente il comportamento che `#1287` è andato a comprare. ⚠️ **E c'è un secondo ordinamento già mosso e non pinnato**: da `#1296` `MinDist` non è più limitato dal raggio della mappa, quindi `WApproach × MinDist` può superare `WThreat` — prima non poteva, e nessun test lo verifica. Un peso nuovo entra in una scala che ha appena smesso di avere un tetto noto. Dipendente da `BOT-1` |
+| `BOT-1` | La capacità di **ingaggiare da una cella** entra nel punteggio come **termine** (`WBlind`), oppure resta una **restrizione del dominio** delle candidate? | Sono due modelli diversi, non due implementazioni della stessa cosa. **Termine**: componibile con gli altri, tarabile, e permette lo scambio *«vado cieco perché accorcio di tre passi»* — al prezzo di un peso in più da bilanciare, e `#1287` lo aveva scartato. **Dominio**: nessun peso nuovo e nessun bilanciamento da rifare, ma è una scelta binaria che non sa esprimere quello scambio — ed è la forma che ha prodotto l'oscillazione. ⚠️ Nessuna delle due si ricava dai documenti: la spec owner [`gameplay/spec-bot-hex.md`](gameplay/spec-bot-hex.md) §3d elenca i termini del punteggio e **non nomina la linea di tiro** fra di essi, quindi non dice se appartenga a quella lista o al filtro a monte. ⚠️ **Dalla misura del 2026-08-24**: entrambe le opzioni sono state implementate, e nessuna passa i sette oracoli — ma è emerso un **terzo asse che la domanda non contiene**, *posizionale* contro *differenziale*, cioè se il termine paga lo **stare** in una cella o l'**entrarci**. Solo il differenziale passa i sette oracoli, e lo fa pagando il **movimento** invece dell'ingaggio. Innesco: la prima issue che voglia far passare entrambi gli oracoli della mappa d'autore |
+| `BOT-2` | Se la risposta a `BOT-1` è «termine»: quanto vale `WBlind`, e **chi lo pinna**? | I due casi misurati danno un limite inferiore — `> 16` per coprire entrambi — e nient'altro. Il limite superiore è una scelta di gioco: più alto è, meno il bot accetta di attraversare una zona cieca per chiudere la distanza, che è precisamente il comportamento che `#1287` è andato a comprare. ⚠️ **E c'è un secondo ordinamento già mosso e non pinnato**: da `#1296` `MinDist` non è più limitato dal raggio della mappa, quindi `WApproach × MinDist` può superare `WThreat` — prima non poteva, e nessun test lo verifica. Un peso nuovo entra in una scala che ha appena smesso di avere un tetto noto. ⚠️ **Il limite superiore non è più solo una scelta di gioco**: misurato il 2026-08-24, per il termine **posizionale** non esiste alcun valore che passi entrambi gli oracoli di parcheggio — arena generata rossa da `W = 7`, mappa d'autore verde solo da `W = 11` — mentre per la forma **differenziale** la finestra è `11 ≤ W ≤ 16`, con numeri identici in tutto l'intervallo. Il limite inferiore *«> 16»* di questa riga viene dai due casi sulla carta; sull'oracolo la soglia misurata è `W = 11`. Dipendente da `BOT-1` |
 
 **Cosa blocca oggi**: la PR `#1297` lascia `Match.Autobattle.NobodyParksOnTheAuthoredMap` **rosso** (7 turni
 fermi su limite 4) e non è mergiabile finché `BOT-1` non è decisa. `#959` (CP 47.6) resta eseguibile solo
