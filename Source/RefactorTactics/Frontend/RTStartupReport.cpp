@@ -17,6 +17,10 @@ bool URTStartupReportLibrary::IsFatal(ERTStartupOutcome Outcome)
 	// A differenza di `LevelMapMissing` non hanno ripiego, quindi sono fatali.
 	case ERTStartupOutcome::MatchLevelUnset:
 	case ERTStartupOutcome::MatchRequestNotConsumed:
+	// I due di CP 46.6, gemelli dei precedenti dall'altro capo del ciclo: senza livello del frontend non
+	// c'e' dove tornare, e senza consumatore il ritorno non avviene. Nessuno dei due ha un ripiego.
+	case ERTStartupOutcome::FrontendLevelUnset:
+	case ERTStartupOutcome::FrontendReturnNotConsumed:
 		return true;
 
 	case ERTStartupOutcome::Ok:
@@ -97,6 +101,13 @@ FText URTStartupReportLibrary::DescribeOutcome(ERTStartupOutcome Outcome)
 		return LOCTEXT("UsingFallbackFormat", "Formato di RIPIEGO: nessun formato dichiarato in vigore.");
 	case ERTStartupOutcome::NoTurnManager:
 		return LOCTEXT("NoTurnManager", "Nessun TurnManager: il formato non e' stato applicato.");
+
+	case ERTStartupOutcome::FrontendLevelUnset:
+		return LOCTEXT("FrontendLevelUnset",
+			"Nessun livello di menu configurato: controlla FrontendLevel in DefaultGame.ini.");
+	case ERTStartupOutcome::FrontendReturnNotConsumed:
+		return LOCTEXT("FrontendReturnNotConsumed",
+			"Il ritorno al menu precedente non e' stato raccolto: lo smontaggio non e' collegato.");
 	}
 
 	return FText::GetEmpty();

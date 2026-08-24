@@ -95,6 +95,17 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> PlaybackSpeedAction;
 
+	/**
+	 * `ESC`: apre e chiude il menu di pausa (CP 46.6, `#941`).
+	 *
+	 * ⚠️ **Nessun `.uasset`, come tutti i fratelli**: gli `UInputAction` di questo controller nascono da
+	 * `NewObject` in `BuildInputMappings`, quindi aggiungere un tasto e' C++ e non lavoro d'editor. Vale la
+	 * pena scriverlo perche' la conclusione opposta — «serve un Input Action, quindi serve una seduta» —
+	 * avrebbe rimandato l'intero checkpoint a un binario che non serve.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PauseAction;
+
 	/** Attore attualmente selezionato (se implementa IRTSelectable). */
 	UPROPERTY()
 	TObjectPtr<AActor> SelectedActor;
@@ -239,6 +250,20 @@ public:
 	/** Che forma di bersaglio chiede l'azione armata. `None` se non c'e' targeting in corso. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	ERTPointerTargetKind GetPointerTargetKind() const;
+
+	/**
+	 * `ESC`: apre la pausa se e' chiusa, la chiude se e' aperta.
+	 *
+	 * ⚠️ **Un toggle e non due tasti**, perche' e' cosi' che `ESC` si comporta ovunque — e perche' il
+	 * navigatore rifiuta un secondo `ShowPause` con `ScreenIsAlreadyOnStack`: senza il toggle, la seconda
+	 * pressione produrrebbe un rifiuto invece della cosa che il giocatore si aspetta.
+	 *
+	 * ⛔ **Non tocca la simulazione.** Chiama il navigatore e basta: nessun `SetPause`, nessuna dilatazione
+	 * del tempo. E' il vincolo offline-only di CP 46.6, e sta qui perche' questo e' l'unico punto in cui una
+	 * pressione di tasto potrebbe diventare una sospensione.
+	 */
+	UFUNCTION()
+	void OnTogglePause();
 
 	/**
 	 * §5.5 — applica il Back e dichiara **quale livello** ha smontato.

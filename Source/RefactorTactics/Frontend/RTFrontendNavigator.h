@@ -60,6 +60,20 @@ struct FRTScreenBinding
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTOnMatchRequested, const FString&, LevelName);
 
 /**
+ * `RETURN TO MAIN MENU` e' stato premuto e lo smontaggio e' PENDENTE: chi ha il mondo lo consuma e apre il
+ * livello del frontend (CP 46.6, `#941`).
+ *
+ * ⚠️ **Gemello di `FRTOnMatchRequested`, e la simmetria e' voluta**: sono i due versi dello stesso confine
+ * — il navigatore decide, chi ha un mondo esegue. Un solo delegate per entrambi avrebbe fatto decidere al
+ * consumatore *quale* dei due versi stesse guardando, in base al nome del livello ricevuto.
+ *
+ * ⛔ **I due consumatori non sono lo stesso Actor.** `PLAY` lo raccoglie `ARTFrontendGameMode`, che vive
+ * sulla mappa del menu; il ritorno lo raccoglie `ARTGameMode`, che vive sulla mappa di partita. Sono due
+ * mondi, e per un intero checkpoint questo secondo lato non aveva nessuno.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTOnReturnToFrontendRequested, const FString&, LevelName);
+
+/**
  * **L'unico owner del flow del frontend** (CP 46.1, #936).
  *
  * Possiede lo stack logico (`FRTScreenStack`) e ne traduce le transizioni in widget. E' l'unico punto del
@@ -271,6 +285,126 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
 	ERTNavResult PlayAgain();
 
+	// ---- CP 46.6 · Pause e smontaggio (`#941`) --------------------------------------------------------
+
+	/**
+	 * `ESC` in partita: apre il menu di pausa.
+	 *
+	 * ⛔ **Non sospende niente, ed e' il vincolo del DoD reso codice.** Nessun `SetPause`, nessun
+	 * `SetGlobalTimeDilation`, nessun flag nel `TurnManager`: il turno simultaneo non avanza da solo —
+	 * `CLAUDE.md` vieta il Tick per decidere sequencing — quindi «in pausa» significa *soltanto* che una
+	 * schermata copre la partita e le toglie il puntatore.
+	 *
+	 * E' cosi' che *«la differenza va preservata nell'architettura, non scoperta in v0.5»* diventa
+	 * verificabile invece che promessa: cio' che in rete non potra' esistere e' **fermare il tempo di
+	 * tutti**, e qui non si ferma alcun tempo. `Surrender`/`Leave Match` saranno un'altra cosa perche'
+	 * toccheranno la simulazione; questa no. Il criterio e' un comando, e cerca la CHIAMATA:
+	 *
+	 *     git grep -n "SetPause(\|SetGlobalTimeDilation(" -- Source/ \
+	 *       | grep -vE "^[^:]+:[0-9]+:[[:space:]]*(//|\*|/\*)"        ->  zero righe (2026-08-23)
+	 *
+	 * ⚠️ **Il filtro sui commenti non e' un vezzo, ed e' la seconda correzione di questa riga.** La prima
+	 * stesura cercava `SetPause` nudo e trovava i tre commenti che nominano il token in prosa; la seconda
+	 * aggiungeva la parentesi e trovava **se stessa**, perche' il comando documentato contiene il proprio
+	 * pattern. Un criterio che si auto-invalida appena qualcuno lo scrive non e' un criterio: qui si
+	 * confrontano le *chiamate*, e le righe di commento escono dal conteggio.
+	 *
+	 * ⚠️ **Chi toglie l'input al mondo non e' questo subsystem**: `ARTPlayerController::GetPointerContext`
+	 * legge `IsPauseOpen()` e risponde `ERTPointerContext::Modal`. La precedenza dell'input e' di CP 11.8 —
+	 * *«quando quegli owner arrivano, aggiungono il proprio ramo qui»*, dice quel file, e la pausa e' il
+	 * primo owner che arriva. Il navigatore espone uno stato; non decide chi consuma un click.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	ERTNavResult ShowPause();
+
+	/**
+	 * `RESUME`: chiude la pausa e restituisce la partita.
+	 *
+	 * ⚠️ **Non c'e' stato da ripristinare, ed e' il motivo per cui il criterio del DoD e' soddisfatto per
+	 * costruzione.** *«`RESUME` restituisce l'input alla partita nello stato esatto in cui era»*: selezione,
+	 * waypoint e abilita' armata vivono in `ARTPlayerController` e **nessuno li ha toccati** — il contesto
+	 * `Modal` e' *derivato*, non memorizzato, quindi appena la pausa si chiude `GetPointerContext()` torna a
+	 * calcolare da quei tre come prima. Una pausa che avesse salvato e ripristinato lo stato avrebbe creato
+	 * la copia che puo' divergere; qui non esiste copia.
+	 *
+	 * ⚠️ **Chiude anche il `SETTINGS` aperto dalla pausa**, se e' in cima: la pausa e' la schermata a cui
+	 * il `RESUME` appartiene, e ripristina il mondo da qualunque profondita' sopra di essa. Senza, `RESUME`
+	 * premuto da dentro Settings sarebbe un `Back` travestito.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	ERTNavResult ResumeMatch();
+
+	/**
+	 * La pausa e' nello stack? **`true` anche quando `SETTINGS` le sta sopra.**
+	 *
+	 * ⚠️ Non e' `GetCurrentScreen() == Pause`, e la differenza e' osservabile: da `Pause` si apre
+	 * `Settings`, e in quel momento la partita sotto deve restare ugualmente non interattiva. Con il
+	 * confronto sulla cima, aprire le impostazioni avrebbe restituito il puntatore al mondo.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
+	bool IsPauseOpen() const;
+
+	/**
+	 * `SETTINGS`: apre **lo stesso pannello di CP 46.3**, dal menu principale come dalla pausa.
+	 *
+	 * ⛔ **Esiste per il «non una seconda copia» del DoD.** Senza, un widget dovrebbe chiamare
+	 * `PushScreen("Settings")` scrivendo l'id a mano — e `RTFrontendScreenIds.h` dice cosa costa: un
+	 * `PushScreen(TEXT("Setings"))` risponde `Ok`, non disegna niente, e nessun compilatore lo vede. Da
+	 * Blueprint le costanti C++ non sono raggiungibili, quindi il posto giusto per il nome e' dietro una
+	 * funzione invece che dentro un nodo.
+	 *
+	 * ⚠️ **Non deduplica, e non deve**: `Settings` aperto dal Main e `Settings` aperto dalla Pause sono
+	 * la stessa schermata con due ritorni diversi, ed e' `FRTScreenStack` a tenerli distinti — collassarli
+	 * manderebbe il `Back` nel posto sbagliato.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	ERTNavResult OpenSettings();
+
+	/**
+	 * `RETURN TO MAIN MENU`: **smonta la partita** e chiede il livello del frontend.
+	 *
+	 * ⛔ **Non e' `ReturnMain()`, e la differenza e' l'intero checkpoint.** `ReturnMain` muove lo stack e
+	 * azzera il risultato: dopo di esso il menu si disegna **sopra una partita ancora viva**, che e'
+	 * esattamente lo stato che CP 46.2 dichiara *«vietato da CP 46.6»*. Fino a `#941` nessun percorso del
+	 * codebase riapriva il livello del frontend — misurato: l'unico `OpenLevel` verso un livello nominato
+	 * era quello che apre la *partita*.
+	 *
+	 * ⚠️ **Chiede, non apre**, per la stessa ragione di `StartMatch`: questo subsystem non ha un mondo. Il
+	 * consumatore e' `ARTGameMode` via `ConsumePendingFrontendLevel`.
+	 *
+	 * ⚠️ **Passa da `ReturnMain()` prima di chiedere**, cosi' che «tornare alla radice» abbia un solo
+	 * significato e un solo posto — compreso l'azzeramento del risultato. Il widget `Main` che ne nasce vive
+	 * per un frame nel mondo che sta per morire e lo smonta `OnWorldCleanup`: e' spreco, non un difetto, e
+	 * il costo alternativo sarebbe una seconda definizione di «radice».
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	ERTNavResult RequestReturnToMainMenu();
+
+	/** Annuncio di `RequestReturnToMainMenu`: lo smontaggio e' pendente e attende chi lo esegue. */
+	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Frontend")
+	FRTOnReturnToFrontendRequested OnReturnToFrontendRequested;
+
+	/**
+	 * Il livello del frontend che il ritorno ha chiesto di aprire, e lo AZZERA.
+	 *
+	 * ⚠️ `Consume` e non `Get`, come per la partita: una richiesta letta due volte aprirebbe il livello
+	 * due volte.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	FString ConsumePendingFrontendLevel();
+
+	/**
+	 * Il livello del menu, da `DefaultGame.ini`.
+	 *
+	 * ⚠️ **Non si legge `GameDefaultMap`**, benche' oggi punti allo stesso `.umap`. Quella chiave e' di
+	 * `GameMapsSettings` e dichiara **da dove il pacchetto avvia**: farne dipendere il ritorno al menu
+	 * legherebbe una transizione di gioco a un'impostazione di packaging, e le due smetterebbero di
+	 * coincidere il primo giorno in cui una build di test avvia altrove. E' la stessa separazione gia'
+	 * scelta per `MatchLevel`, applicata all'altro verso.
+	 */
+	UPROPERTY(Config)
+	FString FrontendLevel;
+
 	/**
 	 * Il livello del vertical slice, da `DefaultGame.ini`.
 	 *
@@ -347,6 +481,21 @@ public:
 	UUserWidget* FindLiveWidget(FName ScreenId) const;
 
 	// ~UGameInstanceSubsystem
+	/**
+	 * Si iscrive al **confine del mondo**, e non fa altro.
+	 *
+	 * 🔴 **Chiude un difetto che questo header dichiarava e che nessuno aveva ancora incontrato.**
+	 * `FindLiveWidget` lo descrive cosi': *«`ReturnMain`, `PushScreen` e `ShowModal` raggiungono
+	 * `PresentWidget` senza passare da `InitializeFrontend`. Se fra la costruzione di un widget e una di
+	 * quelle chiamate il mondo e' cambiato, la cache restituisce ancora l'istanza vecchia. La correzione
+	 * robusta guarda il confine del mondo (`FWorldDelegates::OnWorldCleanup`) […] ed e' piu' larga di
+	 * CP 46.3»*. CP 46.6 e' il primo checkpoint che quel confine lo attraversa **per progetto** invece che
+	 * per ipotesi: `RETURN TO MAIN MENU` cambia mondo ogni volta che viene premuto.
+	 *
+	 * ⛔ **Non auto-avvia il frontend**: un subsystem nasce su *ogni* mappa, e aprire il Main Menu da qui lo
+	 * metterebbe sopra una partita in corso. Chi apre il frontend resta `ARTFrontendGameMode`.
+	 */
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
 private:
@@ -394,6 +543,34 @@ private:
 	/** Richiesta pendente di apertura livello: la produce `StartMatch`, la consuma chi ha il mondo. */
 	UPROPERTY()
 	FString PendingMatchLevel;
+
+	/** Rifiuta un ritorno al menu: log, modale ARMATO con l'esito, e il valore di ritorno per chi ha chiesto. */
+	ERTNavResult RejectReturnToMain(ERTStartupOutcome Outcome, const FString& Detail);
+
+	/**
+	 * Apre il modale d'errore e lo ARMA con l'esito: la meta' comune ai due rifiuti.
+	 *
+	 * ⚠️ **Estratta, non riscritta**: i due chiamanti differiscono solo per la riga di log, e sono proprio
+	 * i passi *dopo* — il modale che non si apre, il binding che non e' un modale d'errore — quelli che una
+	 * seconda copia lascerebbe indietro. Erano gia' costati un soft-lock una volta.
+	 */
+	ERTNavResult ArmErrorModal(ERTStartupOutcome Outcome, const FString& Detail);
+
+	/** Richiesta pendente di ritorno al menu: la produce `RequestReturnToMainMenu`, la consuma `ARTGameMode`. */
+	UPROPERTY()
+	FString PendingFrontendLevel;
+
+	/**
+	 * Il mondo sta per essere distrutto: la cache dei widget muore con lui.
+	 *
+	 * ⚠️ **Filtra sulla `GameInstance`**: `OnWorldCleanup` e' globale e in editor scatta anche per mondi
+	 * che non hanno niente a che fare con questa sessione — un mondo di test, una preview. Smontare su tutti
+	 * cancellerebbe il menu vivo perche' qualcun altro ha chiuso una finestra.
+	 */
+	void HandleWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
+
+	/** Handle dell'iscrizione a `FWorldDelegates::OnWorldCleanup`, per disiscriversi in `Deinitialize`. */
+	FDelegateHandle WorldCleanupHandle;
 
 	/**
 	 * L'ultimo risultato mostrato.

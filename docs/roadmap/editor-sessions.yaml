@@ -1576,9 +1576,10 @@ sessions:
     artifacts:
       - Content/RT/UI/Framework/WBP_RT_PauseMenu.uasset
     unblocked_by: [E46.6]
-    # ⚠️ **NON è vuoto come U28 e U29, ed è la differenza che conta**: il C++ di CP 46.6 non esiste
-    # ancora. Questa seduta è l'unica delle tre del frontend che dipende da lavoro non ancora scritto —
-    # aprirla prima significherebbe disegnare un widget contro un'API immaginata.
+    # ✅ **La dipendenza è soddisfatta dal 2026-08-23** (`#941`). Questa riga diceva «il C++ di CP 46.6 non
+    # esiste ancora: aprirla prima significherebbe disegnare un widget contro un'API immaginata» — l'API
+    # adesso c'è, ed è nominata in `notes`. Il campo resta perché registra *perché* la seduta è arrivata
+    # dopo le altre due, non perché blocchi ancora.
     shares_setup_with: []
     verifies: []
     issues: [941]
@@ -1589,11 +1590,23 @@ sessions:
       esito dopo il ritorno al menu — cioè lo smontaggio non lascia stato vivo
     unblocks: []
     notes: >-
-      ⛔ **Bloccata finché `#941` non consegna il C++**, e la riga `unblocked_by: [E46.6]` lo dice invece
-      di lasciarlo capire. Il DoD di CP 46.6 ha un criterio che nessun widget può soddisfare da solo —
-      *«stesso seed, stesso esito dopo il ritorno al menu»* — perché parla di stato che sopravvive, non di
-      pulsanti: è lavoro di simulazione e di ciclo di vita, e va provato headless prima che una schermata
-      lo mostri.
+      ✅ **Sbloccata il 2026-08-23: `#941` ha consegnato il C++.** L'API che i pulsanti devono chiamare è
+      `URTFrontendNavigator::ResumeMatch()`, `OpenSettings()` e `RequestReturnToMainMenu()` — tre funzioni
+      `BlueprintCallable`, nessun id di schermata da scrivere a mano nel grafo (`OpenSettings` esiste
+      proprio per questo: da Blueprint le costanti C++ non sono raggiungibili, e un `PushScreen("Setings")`
+      risponde `Ok` senza disegnare niente).
+      ⚠️ **La voce `+Screens=(ScreenId="Pause",…)` in `DefaultGame.ini` è di QUESTA seduta**, e `#941` non
+      l'ha scritta di proposito: senza l'asset avrebbe fatto fallire
+      `RefactorTactics.Frontend.EveryConfiguredScreenLoads`, che esige che ogni riga di quel blocco punti a
+      un widget che carica. Va aggiunta insieme al `.uasset`, non prima.
+      ⚠️ **In PIE `ESC` è anche lo STOP della sessione**, e la precedenza è dell'editor: per vedere la pausa
+      serve togliere la spunta a *Editor Preferences → Level Editor → Play → «Escape» key stops PIE*, oppure
+      guardarla in una build packaged. Non è un difetto del binding.
+      ⛔ *Il criterio forte non è di questa seduta.* Il DoD di CP 46.6 chiede stato che non sopravvive, non
+      pulsanti: è già provato headless da `RefactorTactics.Frontend.SameOutcomeAfterReturnToMainMenu`, con
+      controprova. Qui resta da verificare che i tre pulsanti chiamino quell'API e non una via propria.
+      ⚠️ *Questa nota diceva «stesso seed, stesso esito»: la clausola del DoD è **inerte**, perché il
+      progetto non ha alcun RNG (`RefactorTactics.Simulation.SeedIsDeclaredAndUnconsumed`).*
       ➕ Aperta ora, insieme a `U29`, perché i due widget mancanti di E46 erano dichiarati in tre punti
       diversi — `editor-sessions.yaml:1152`, la guida UMG e la roadmap — e in nessun piano. Un limite
       ripetuto in tre posti e pianificato in zero è il modo in cui resta fermo.

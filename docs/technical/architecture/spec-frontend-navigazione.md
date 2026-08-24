@@ -109,7 +109,7 @@ dichiarata lì e non si risolve in questo documento.
 
 Un solo owner del flow. I widget **non** si creano e non si distruggono a vicenda.
 
-### 3.1 Le cinque operazioni
+### 3.1 Le cinque operazioni, e le due transizioni che non lo sono
 
 | Operazione | Semantica |
 |---|---|
@@ -118,6 +118,24 @@ Un solo owner del flow. I widget **non** si creano e non si distruggono a vicend
 | `ShowModal(M)` | `M` sopra la schermata corrente, che smette di ricevere input |
 | `CloseModal()` | chiude il modal in cima; l'input torna alla schermata sotto |
 | `ReturnMain()` | **svuota** lo stack e torna alla radice |
+
+⚠️ **`ReturnMain()` è una transizione di *stack*, e questa tabella lo diceva senza dirlo.** Fino a CP 46.6
+non esisteva nient'altro, e la conseguenza è stata un difetto reale: chiamato da dentro una partita,
+`ReturnMain()` disegna il menu **sopra una partita ancora viva** — lo stato che §7 vieta. Valeva anche per
+il `MAIN MENU` di CP 46.5: il suo DoD era vero dello stack e falso del mondo.
+
+Le due operazioni che cambiano **mondo** stanno perciò a parte, e hanno una forma diversa — *chiedono*
+invece di eseguire, perché il navigatore è un `UGameInstanceSubsystem` e per contratto non tocca la scena:
+
+| Richiesta | Chi la raccoglie | Verso |
+|---|---|---|
+| `StartMatch()` / `PlayAgain()` → `OnMatchRequested` | `ARTFrontendGameMode` sulla mappa del menu, **e `ARTGameMode`** dentro una partita | menu → partita |
+| `RequestReturnToMainMenu()` → `OnReturnToFrontendRequested` | `ARTGameMode` | partita → menu |
+
+⛔ **I due consumatori non sono lo stesso Actor, e questo è ciò che era sfuggito.** Il Result si apre
+*dentro* il livello di partita, dove `ARTFrontendGameMode` non esiste: fino a CP 46.6 `PLAY AGAIN`
+annunciava a zero ascoltatori, e il `PLAY` successivo veniva rifiutato da `MatchRequestNotConsumed`. La
+guardia funzionava; mancava il consumatore.
 
 ### 3.2 Le invarianti, e come si verificano
 
@@ -128,6 +146,12 @@ Un solo owner del flow. I widget **non** si creano e non si distruggono a vicend
 3. **La radice non ha `Back`.** `PopScreen()` sulla radice è un no-op, non un'uscita dal gioco.
 4. **Un modal per volta**, e mentre è aperto la schermata sotto non riceve input.
 5. **`ReturnMain()` svuota lo stack**: dal menu, `Back` non deve poter rientrare in una partita conclusa.
+6. **I widget non sopravvivono al mondo che li ha costruiti** (CP 46.6). `LiveWidgets` è una cache, e
+   `PresentWidget` è raggiungibile senza passare da `InitializeFrontend`: dopo un cambio di livello
+   restituirebbe istanze di un mondo distrutto. Il navigatore si iscrive a `FWorldDelegates::OnWorldCleanup`
+   e smonta — filtrando sulla propria `GameInstance`, perché quel delegate è globale e un mondo altrui che
+   muore non deve svuotare il menu di questa sessione. Verificato da
+   `RefactorTactics.Frontend.WidgetCacheDiesWithItsWorld`, in entrambi i versi.
 
 ### 3.3 ⚠️ Il confine con CP 11.8, che è il rischio principale
 
@@ -306,9 +330,58 @@ fermare il tempo di tutti perché un giocatore ha premuto `ESC`. Ciò che la sos
 La conseguenza è architetturale e va rispettata **adesso**: la pausa non entra in un contratto condiviso
 col futuro codice di rete. Scoprirlo in v0.5 costerebbe un refactor del flow.
 
+✅ **Come è stata rispettata** (CP 46.6, `#941`). «Offline-only» qui significa una cosa precisa e
+misurabile: **la pausa non tocca la simulazione**. Nessun `SetPause`, nessuna dilatazione del tempo,
+nessun flag nel `TurnManager` — il turno simultaneo non avanza da solo, quindi «in pausa» vuol dire
+soltanto che una schermata copre la partita e le toglie il puntatore. Ciò che in rete non potrà esistere è
+**fermare il tempo di tutti**, e qui non si ferma alcun tempo; `Surrender`/`Leave Match` saranno un'altra
+cosa perché toccheranno la simulazione. Due criteri, non una promessa:
+
+- `RefactorTactics.Frontend.PauseLeavesNoTraceInTheSimulation` — una partita giocata *attraversando* la
+  pausa è identica turno per turno a una giocata senza mai aprirla;
+- il comando, che cerca le **chiamate** e scarta i commenti (un pattern nudo troverebbe la prosa che
+  nomina i token, e con la parentesi troverebbe sé stesso):
+
+```sh
+git grep -n "SetPause(\|SetGlobalTimeDilation(" -- Source/ \
+  | grep -vE "^[^:]+:[0-9]+:[[:space:]]*(//|\*|/\*)"        # → zero righe (2026-08-23)
+```
+
+**La pausa è una schermata, non un modale**, e la scelta era già scritta a CP 46.1 in `RTScreenStack.h`:
+*«`Settings` aperto dal Main e `Settings` aperto dalla Pause sono la stessa schermata con due ritorni
+diversi»*. Con un modale aperto `PushScreen` risponde `BlockedByModal`, quindi il criterio *«`SETTINGS`
+apre lo stesso pannello di CP 46.3 — non una seconda copia»* sarebbe stato **irrealizzabile**: l'unica via
+sarebbe stata un secondo widget, cioè la copia che il DoD vieta.
+
+**`RESUME` non ripristina niente, e per costruzione.** Selezione, waypoint e abilità armata vivono in
+`ARTPlayerController` e nessuno li tocca: `ERTPointerContext::Modal` è *derivato* — `GetPointerContext()`
+legge `IsPauseOpen()` dal navigatore invece di tenerne copia — quindi appena la pausa esce dallo stack il
+contesto torna a calcolarsi da quei tre come prima. Una pausa che avesse salvato e ripristinato lo stato
+avrebbe creato la copia che diverge. È anche il primo produttore del contesto `Modal`, che CP 11.8 aveva
+dichiarato e lasciato senza: *«quando quegli owner arrivano, aggiungono il proprio ramo qui»*.
+
 **DoD del ritorno al menu**, verificabile invece che dichiarato: si torna al menu, si riavvia una partita
-**con lo stesso seed**, e l'esito coincide con quello di una partita avviata da fresco. Se diverge,
-qualcosa è sopravvissuto allo smontaggio.
+e l'esito coincide con quello di una partita avviata da fresco. Se diverge, qualcosa è sopravvissuto allo
+smontaggio.
+
+⚠️ **Questa riga diceva «con lo stesso seed», e quella clausola è INERTE.** Il progetto non ha alcun RNG:
+`RTTestScenario.h` lo dichiara (*«Seed dichiarato ma non consumato»*) e
+`RefactorTactics.Simulation.SeedIsDeclaredAndUnconsumed` lo prova. Il determinismo qui viene
+dall'ordinamento canonico, non da un seme — ciò che morde è il **confronto degli esiti**, e leggere la
+clausola alla lettera porta a scrivere un test che passa un numero credendo che faccia il lavoro. La
+formulazione resta corretta il giorno in cui un RNG entrerà nel resolver; oggi non aggiunge nulla.
+
+**L'oracolo** è la sequenza degli hash del TurnLog turno per turno (`HashTurnLogOrdered`), non «chi ha
+vinto»: due partite possono avere lo stesso vincitore e traiettorie diverse. E il confronto si fa su una
+partita **abbandonata a metà** — a partita conclusa il Cleanup ha già ripulito quasi tutto, e il caso
+facile sarebbe anche quello cieco. `RefactorTactics.Frontend.SameOutcomeAfterReturnToMainMenu` porta la
+propria **controprova**: allestisce una seconda partita *senza* smontare la prima e verifica che l'oracolo
+la distingua, perché un test di uguaglianza su un sistema senza stato vivo passerebbe senza provare nulla.
+
+**Ciò che sopravvive a `OpenLevel` è un elenco corto e noto** — i subsystem della `GameInstance` — ed è per
+questo che il DoD può chiedere «nessuno stato vivo» invece di elencare cose da azzerare: tutto il resto
+(`ARTTurnManager`, le `ARTUnit`, il GameMode) muore col mondo. Dentro il navigatore, `ReturnMain()` azzera
+il risultato e `OnWorldCleanup` smonta i widget (invariante 6 di §3.2).
 
 ---
 

@@ -12,4 +12,5 @@ namespace RTScreenIds
 	// costante locale, e cambiarla avrebbe rinominato un modale per allineare un identificatore C++.
 	const FName ErrorModal(TEXT("Error"));
 	const FName Result(TEXT("Result"));
+	const FName Pause(TEXT("Pause"));
 }

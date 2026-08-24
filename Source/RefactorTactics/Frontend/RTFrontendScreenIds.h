@@ -69,4 +69,21 @@ namespace RTScreenIds
 	 * `CloseModal`, a garantirlo.
 	 */
 	REFACTORTACTICS_API extern const FName Result;
+
+	/**
+	 * Il menu di pausa (CP 46.6, `#941`).
+	 *
+	 * ⚠️ **E' una schermata, non un modale, e la scelta era gia' scritta.** `RTScreenStack.h` la dichiarava
+	 * prima che questo id esistesse: *«`Settings` aperto dal Main e `Settings` aperto dalla **Pause** sono
+	 * la stessa schermata con due ritorni diversi»*. Un modale avrebbe reso il DoD irrealizzabile — con un
+	 * modale aperto `PushScreen` risponde `BlockedByModal`, quindi il `SETTINGS` della pausa non potrebbe
+	 * aprire *lo stesso pannello di CP 46.3*: dovrebbe essere un secondo widget, che e' cio' che il DoD
+	 * vieta con «non una seconda copia».
+	 *
+	 * ⛔ **Non sospende niente.** Questa schermata copre la partita e le toglie il puntatore; il turno resta
+	 * dov'era perche' non avanza da solo. E' il vincolo offline-only del DoD reso architettura invece che
+	 * promessa: cio' che in v0.5 non potra' esistere e' *fermare il tempo di tutti*, e qui non si ferma
+	 * niente — vedi `URTFrontendNavigator::ShowPause`.
+	 */
+	REFACTORTACTICS_API extern const FName Pause;
 }

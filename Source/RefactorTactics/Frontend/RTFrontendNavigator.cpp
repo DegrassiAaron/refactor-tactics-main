@@ -4,6 +4,8 @@
 
 #include "Blueprint/UserWidget.h"
 #include "Engine/GameInstance.h"
+// Per `FWorldDelegates::OnWorldCleanup`: la cache dei widget muore col mondo che li ha costruiti.
+#include "Engine/World.h"
 // Per `RTScreenIds::Main`: la radice del frontend ha un nome canonico, e `StartFrontend` lo usa invece di
 // riscrivere `TEXT("Main")` — un refuso qui non produrrebbe un errore ma una schermata che non disegna.
 #include "Frontend/RTFrontendScreenIds.h"
@@ -282,6 +284,22 @@ ERTNavResult URTFrontendNavigator::RejectMatchStart(ERTStartupOutcome Outcome, c
 	UE_LOG(LogRT, Error, TEXT("[RT] Avvio partita rifiutato — %s (%s)"),
 		*URTStartupReportLibrary::DescribeOutcome(Outcome).ToString(), *Detail);
 
+	return ArmErrorModal(Outcome, Detail);
+}
+
+ERTNavResult URTFrontendNavigator::RejectReturnToMain(ERTStartupOutcome Outcome, const FString& Detail)
+{
+	// Stesso trattamento del rifiuto d'avvio, e per la stessa ragione: un `RETURN TO MAIN MENU` che non fa
+	// niente e non dice niente e' il soft-lock che CP 46.1 chiama dead-end — con l'aggravante che qui il
+	// giocatore e' dentro una partita e crede di averla lasciata.
+	UE_LOG(LogRT, Error, TEXT("[RT] Ritorno al menu rifiutato — %s (%s)"),
+		*URTStartupReportLibrary::DescribeOutcome(Outcome).ToString(), *Detail);
+
+	return ArmErrorModal(Outcome, Detail);
+}
+
+ERTNavResult URTFrontendNavigator::ArmErrorModal(ERTStartupOutcome Outcome, const FString& Detail)
+{
 	const ERTNavResult ModalResult = ShowModal(RTScreenIds::ErrorModal);
 	if (ModalResult != ERTNavResult::Ok)
 	{
@@ -361,6 +379,112 @@ ERTNavResult URTFrontendNavigator::PlayAgain()
 
 	// (il risultato l'ha gia' azzerato `ReturnMain`, che e' il punto comune alle due uscite)
 	return StartMatch();
+}
+
+// ======================================================================================================
+// CP 46.6 · Pause e smontaggio (`#941`)
+// ======================================================================================================
+
+ERTNavResult URTFrontendNavigator::ShowPause()
+{
+	// ⚠️ Non e' idempotente di proposito: due `Pause` impilate sarebbero due voci di stack e **un solo
+	// widget**, e il `RESUME` ne toglierebbe una lasciando l'altra a coprire la partita.
+	if (IsPauseOpen())
+	{
+		return ERTNavResult::ScreenIsAlreadyOnStack;
+	}
+
+	// ⛔ **Qui finisce cio' che la pausa fa alla partita: niente.** Nessun `SetPause`, nessuna dilatazione
+	// del tempo, nessun flag nel `TurnManager`. E' il vincolo offline-only del DoD, e resta verificabile
+	// con un grep invece che con una promessa.
+	return PushScreen(RTScreenIds::Pause);
+}
+
+ERTNavResult URTFrontendNavigator::ResumeMatch()
+{
+	if (!IsPauseOpen())
+	{
+		return ERTNavResult::NoPauseOpen;
+	}
+
+	// I modali aperti sopra vanno chiusi **prima**: con un modale aperto `PopScreen` risponde
+	// `BlockedByModal`, e il giocatore resterebbe dentro il modale con la partita sotto — il dead-end.
+	while (IsModalOpen())
+	{
+		const ERTNavResult Closed = CloseModal();
+		if (Closed != ERTNavResult::Ok)
+		{
+			return Closed;
+		}
+	}
+
+	// Si risale finche' la pausa non e' uscita dallo stack: il `SETTINGS` aperto DALLA pausa se ne va con
+	// lei. Senza questo giro, `RESUME` premuto da dentro le impostazioni sarebbe un `Back` travestito, e
+	// il giocatore tornerebbe alla pausa credendo di aver ripreso la partita.
+	//
+	// ⚠️ **Non puo' ciclare all'infinito**: `PopScreen` o riduce la profondita' o restituisce un rifiuto
+	// che esce di qui — e sulla radice restituisce `BlockedAtRoot`.
+	ERTNavResult Result = ERTNavResult::Ok;
+	while (IsPauseOpen())
+	{
+		Result = PopScreen();
+		if (Result != ERTNavResult::Ok)
+		{
+			return Result;
+		}
+	}
+
+	return Result;
+}
+
+bool URTFrontendNavigator::IsPauseOpen() const
+{
+	// ⚠️ **Contenuta nello stack, non in cima.** Da `Pause` si apre `Settings`, e in quel momento la
+	// partita sotto deve restare ugualmente senza puntatore: con il confronto sulla cima, aprire le
+	// impostazioni avrebbe restituito l'input al mondo.
+	return Stack.GetScreens().Contains(RTScreenIds::Pause);
+}
+
+ERTNavResult URTFrontendNavigator::OpenSettings()
+{
+	return PushScreen(RTScreenIds::Settings);
+}
+
+ERTNavResult URTFrontendNavigator::RequestReturnToMainMenu()
+{
+	if (FrontendLevel.IsEmpty())
+	{
+		return RejectReturnToMain(ERTStartupOutcome::FrontendLevelUnset, TEXT("FrontendLevel"));
+	}
+
+	// 🔴 Una richiesta ancora pendente e' la prova che nessuno l'ha consumata — gemella della guardia di
+	// `StartMatch`, e nata dallo stesso difetto: il consumatore vive in un altro file e puo' non esserci.
+	if (!PendingFrontendLevel.IsEmpty())
+	{
+		return RejectReturnToMain(ERTStartupOutcome::FrontendReturnNotConsumed, PendingFrontendLevel);
+	}
+
+	// «Tornare alla radice» ha un solo significato e un solo posto, azzeramento del risultato compreso.
+	const ERTNavResult Cleared = ReturnMain();
+	if (Cleared != ERTNavResult::Ok)
+	{
+		return Cleared;
+	}
+
+	PendingFrontendLevel = FrontendLevel;
+	UE_LOG(LogRT, Log, TEXT("[RT] Ritorno al menu: chiesto il livello '%s'"), *FrontendLevel);
+
+	// ⚠️ Dopo aver scritto la richiesta, non prima: un ascoltatore che consuma dentro il callback deve
+	// trovarla.
+	OnReturnToFrontendRequested.Broadcast(FrontendLevel);
+	return ERTNavResult::Ok;
+}
+
+FString URTFrontendNavigator::ConsumePendingFrontendLevel()
+{
+	FString Consumed;
+	Swap(Consumed, PendingFrontendLevel);
+	return Consumed;
 }
 
 FString URTFrontendNavigator::ConsumePendingMatchLevel()
@@ -536,8 +660,42 @@ void URTFrontendNavigator::SyncPresentation()
 	}
 }
 
+void URTFrontendNavigator::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+
+	// 🔴 **Il confine del mondo, non un chiamante alla volta.** `FindLiveWidget` documentava il difetto e
+	// indicava questa correzione: i widget vivi appartengono al mondo che li ha costruiti, e `ReturnMain`,
+	// `PushScreen` e `ShowModal` raggiungono `PresentWidget` senza passare da `InitializeFrontend`. Con
+	// `RETURN TO MAIN MENU` il mondo cambia a ogni ritorno, quindi la cache stantia smette di essere
+	// un'ipotesi e diventa il percorso normale.
+	WorldCleanupHandle = FWorldDelegates::OnWorldCleanup.AddUObject(this, &URTFrontendNavigator::HandleWorldCleanup);
+}
+
+void URTFrontendNavigator::HandleWorldCleanup(UWorld* World, bool /*bSessionEnded*/, bool /*bCleanupResources*/)
+{
+	// ⚠️ **Solo i mondi di QUESTA sessione.** `OnWorldCleanup` e' globale: in editor scatta anche per mondi
+	// che con questa `GameInstance` non c'entrano — un mondo di test, una preview, un'altra sessione PIE.
+	// Senza il filtro, chiudere una finestra qualsiasi svuoterebbe il menu vivo.
+	if (!World || World->GetGameInstance() != GetGameInstance())
+	{
+		return;
+	}
+
+	// Non e' una navigazione: lo stack resta com'e'. Si butta cio' che e' legato al mondo, e chi apre il
+	// livello successivo ricostruira' da `InitializeFrontend`.
+	DismissAllWidgets();
+}
+
 void URTFrontendNavigator::Deinitialize()
 {
+	// Prima di tutto il resto: un delegate globale che punta a un subsystem morto e' un crash differito.
+	if (WorldCleanupHandle.IsValid())
+	{
+		FWorldDelegates::OnWorldCleanup.Remove(WorldCleanupHandle);
+		WorldCleanupHandle.Reset();
+	}
+
 	// ⚠️ Ultima rete: una richiesta che sopravvive alla sessione non e' stata consumata da nessuno. Arriva
 	// tardi per correggere qualcosa, ma lascia una traccia invece del nulla.
 	if (!PendingMatchLevel.IsEmpty())
@@ -545,6 +703,17 @@ void URTFrontendNavigator::Deinitialize()
 		UE_LOG(LogRT, Error,
 			TEXT("[RT] Il frontend si chiude con una richiesta di partita mai consumata: '%s'. "
 				 "Il consumatore di ConsumePendingMatchLevel non e' collegato."), *PendingMatchLevel);
+	}
+
+	// ⚠️ **La stessa rete per il verso opposto, e mancava.** La prima stesura di CP 46.6 controllava solo
+	// `PendingMatchLevel`: una richiesta di RITORNO mai consumata sarebbe uscita dalla sessione in silenzio,
+	// cioe' proprio il difetto — un aggancio scollegato — che questa diagnostica esiste per nominare.
+	// Trovato da un test rosso, che dichiarava un messaggio che nessuno emetteva.
+	if (!PendingFrontendLevel.IsEmpty())
+	{
+		UE_LOG(LogRT, Error,
+			TEXT("[RT] Il frontend si chiude con un ritorno al menu mai consumato: '%s'. "
+				 "Il consumatore di ConsumePendingFrontendLevel non e' collegato."), *PendingFrontendLevel);
 	}
 
 	// Lo stesso smontaggio di `InitializeFrontend`, in un posto solo: le due sedi divergerebbero al primo

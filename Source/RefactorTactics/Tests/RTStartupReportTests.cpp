@@ -38,7 +38,16 @@ namespace
 		ERTStartupOutcome::UsingDemoArena,
 		ERTStartupOutcome::LevelMapMissing,
 		ERTStartupOutcome::UsingFallbackFormat,
-		ERTStartupOutcome::NoTurnManager
+		ERTStartupOutcome::NoTurnManager,
+		// I due di CP 46.6 (#941), gemelli dei precedenti dall'altro capo del ciclo: senza livello del
+		// frontend non c'e' dove tornare, e senza consumatore il ritorno non avviene. Nessuno dei due ha un
+		// ripiego, quindi sono fatali come `MatchLevelUnset`.
+		//
+		// 🔑 **Il controllo in fondo a questo file li ha pretesi**, ed e' esattamente il suo lavoro:
+		// aggiunti all'enum e dimenticati qui, la suite e' diventata rossa con «i test conoscono TUTTI i
+		// valori dell'enum: 12, ma era 14». Senza, avrebbe continuato a dire «ogni esito» provandone dodici.
+		ERTStartupOutcome::FrontendLevelUnset,
+		ERTStartupOutcome::FrontendReturnNotConsumed
 	};
 }
 

@@ -119,7 +119,26 @@ enum class ERTStartupOutcome : uint8
 	 */
 	UsingFallbackFormat,
 	/** Nessun `ARTTurnManager` nel livello: il formato non ha destinatario e non e' stato applicato. */
-	NoTurnManager
+	NoTurnManager,
+
+	/**
+	 * `FrontendLevel` non e' configurato: `RETURN TO MAIN MENU` non sa quale livello aprire (CP 46.6, #941).
+	 *
+	 * 🔴 **Fatale, e senza ripiego.** Non si puo' «tornare al menu approssimativamente»: se il livello non
+	 * e' dichiarato, l'unica alternativa a un errore rumoroso e' un pulsante che non fa niente — cioe' il
+	 * soft-lock che il DoD di CP 46.1 chiama dead-end. Stessa forma e stessa ragione di `MatchLevelUnset`.
+	 */
+	FrontendLevelUnset,
+
+	/**
+	 * `RETURN TO MAIN MENU` e' gia' stato chiesto e nessuno ha raccolto la richiesta (CP 46.6, #941).
+	 *
+	 * ⚠️ Gemello di `MatchRequestNotConsumed`, e per lo stesso motivo ha un esito proprio: la causa non e'
+	 * nel `.ini` ma nel codice — nessuno chiama `ConsumePendingFrontendLevel`. Nel ciclo di partita il
+	 * consumatore e' `ARTGameMode`, non `ARTFrontendGameMode`: sono due mondi diversi, e per un intero
+	 * checkpoint questo lato del confine non aveva nessuno.
+	 */
+	FrontendReturnNotConsumed
 };
 
 /**
