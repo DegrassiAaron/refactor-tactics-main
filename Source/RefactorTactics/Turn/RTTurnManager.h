@@ -1159,6 +1159,23 @@ protected:
 	 */
 	void AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor);
 
+	/**
+	 * Le due voci di ciclo di vita di uno stato (#1077), costruite in UN posto solo.
+	 *
+	 * 🔴 **Erano copiate in cinque siti, e i cinque sono derivati esattamente nei campi che non
+	 * condividevano** — la fase, la cella e la regola del sentinella. Trovato in code review, ed e' la
+	 * causa comune di tre rilievi distinti: un helper qui non e' eleganza, e' il punto in cui quelle regole
+	 * stanno scritte una volta.
+	 *
+	 * ⚠️ **Statiche e dichiarate qui** perche' servono anche a `RTTurnManager_Blast.cpp`, che e' un'altra
+	 * unita' di traduzione dello stesso `ARTTurnManager`: un helper in un namespace anonimo del `.cpp` non
+	 * ci arriverebbe, ed e' il motivo per cui una delle nascite era rimasta senza voce.
+	 */
+	static FRTTurnLogEntry MakeStatusBirthEntry(ERTMatchPhase InPhase, FGameplayTag Tag, const FRTCellId& Cell,
+		int32 RequestedTurns, bool bFromTerrain);
+	static FRTTurnLogEntry MakeStatusDeathEntry(FGameplayTag Tag, const FRTCellId& Cell,
+		ERTStatusOutcome Outcome);
+
 	/** Revisione del grafo di mappa ADESSO: sale durante la risoluzione, quindi si legge a ogni emissione. */
 	int32 CurrentGraphRevision() const;
 

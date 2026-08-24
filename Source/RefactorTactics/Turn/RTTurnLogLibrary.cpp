@@ -292,6 +292,33 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 
 	// Fallback: cosa e' successo all'azione che non era piu' eseguibile. Il motivo per cui non lo era viaggia
 	// in `Amount` (ERTActionInvalidReason): una riga che dice «annullata» senza dire da cosa non insegna nulla.
+	// 🔴 **Senza questo ramo una voce `Status` cadeva nell'interpretazione di combattimento** (#1077,
+	// trovato in code review): `Outcome` e' un `uint8` il cui significato lo decide la CATEGORIA, quindi
+	// `AppliedWhileOnCell` (2) veniva letto come `ERTCombatOutcome::Lethal` e un'unita' che si era solo
+	// bagnata compariva nel referto come *«0 danni, eliminata (Status.Wet)»*. Un rapporto di divergenza del
+	// corpus golden che mente e' peggio di uno che tace.
+	if (Entry.Category == ERTLogCategory::Status)
+	{
+		const FString Dove = CellText(Entry.SrcCell);
+		const FString Quale = Entry.ActionId.IsNone() ? TEXT("(stato senza tag)") : *Entry.ActionId.ToString();
+		switch (static_cast<ERTStatusOutcome>(Entry.Outcome))
+		{
+		case ERTStatusOutcome::AppliedByAction:
+			return FString::Printf(TEXT("%s: %s per %d turno/i, da un'azione"), *Dove, *Quale, Entry.Amount);
+		case ERTStatusOutcome::AppliedByTerrain:
+			return FString::Printf(TEXT("%s: %s per %d turno/i, dal terreno"), *Dove, *Quale, Entry.Amount);
+		case ERTStatusOutcome::AppliedWhileOnCell:
+			return FString::Printf(TEXT("%s: %s finche' resta sulla cella"), *Dove, *Quale);
+		case ERTStatusOutcome::Revoked:
+			return FString::Printf(TEXT("%s: %s revocato, ha lasciato la cella"), *Dove, *Quale);
+		case ERTStatusOutcome::Expired:
+			return FString::Printf(TEXT("%s: %s scaduto"), *Dove, *Quale);
+		default:
+			return FString::Printf(TEXT("%s: esito di stato non tradotto (%d) su %s"),
+				*Dove, Entry.Outcome, *Quale);
+		}
+	}
+
 	if (Entry.Category == ERTLogCategory::Fallback)
 	{
 		const TCHAR* What = TEXT("");

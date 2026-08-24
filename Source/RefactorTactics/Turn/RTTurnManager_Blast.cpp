@@ -1517,6 +1517,15 @@ void ARTTurnManager::ApplyControlStatuses(FRTBlastContext& Ctx)
 		if (IsValid(Slowed) && Slowed->IsAlive())
 		{
 			Slowed->ApplyStatus(StatusTags[i], StatusDurations[i]);
+			// #1077: la nascita entra nel TurnLog anche da qui. Senza, il Cleanup avrebbe registrato la
+			// scadenza di uno stato che il log non aveva mai visto nascere — un replay che legge una morte
+			// senza nascita e' l'asimmetria che quell'issue esiste per chiudere. Trovato in code review.
+			if (StatusDurations[i] == ARTUnit::PersistentWhileOnCell || StatusDurations[i] > 0)
+			{
+				FRTTurnLogEntry Nato = MakeStatusBirthEntry(Phase, StatusTags[i], Slowed->Cell,
+					StatusDurations[i], /*bFromTerrain=*/ false);
+				AppendLogEntry(Nato, Slowed);
+			}
 			AddLogEvent(FString::Printf(TEXT("Status: %s"), *Slowed->GetName()));
 		}
 	}

@@ -172,6 +172,7 @@ const UEnum* URTScenarioLoader::OutcomeEnumForCategory(ERTLogCategory Category)
 	case ERTLogCategory::Reaction:    return StaticEnum<ERTReactionOutcome>();
 	case ERTLogCategory::Environment: return StaticEnum<ERTEnvironmentOutcome>();
 	case ERTLogCategory::Facing:      return StaticEnum<ERTFacingOutcome>();
+	case ERTLogCategory::Status:      return StaticEnum<ERTStatusOutcome>(); // #1077
 	// ➕ **Le due che mancavano, aggiunte il 2026-08-16.** Erano le piu' NUOVE — `Predictive` (E18) e
 	// `ReactionDecision` (CP 14.5) — e sono rimaste fuori per omissione, non per una scelta: sei categorie
 	// su otto erano asseribili e due no, senza che nessuno potesse scrivere il perche'.

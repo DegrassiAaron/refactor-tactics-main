@@ -110,6 +110,25 @@ le confondesse non saprebbe dire se il giocatore ha fatto qualcosa o se è solo 
 
 ⚠️ **Il tag dello stato viaggia in `ActionId`**, come il `Burning` di #625 — non è una convenzione nuova.
 
+🔴 **Il limite dichiarato: `Revoked` ed `Expired` non sono TUTTI i modi in cui uno stato finisce.** Trovato
+in code review, e scritto qui invece che nascosto — tre percorsi di rimozione restano **muti**, perché
+`ERTStatusOutcome` non ha un esito per «tolto da un altro effetto»:
+
+| percorso | dove | cosa vede il replay |
+|---|---|---|
+| l'acqua spegne il fuoco | `ARTUnit::ApplyStatus`, `Wet` rimuove `Burning` | il `Burning` sparisce senza una voce |
+| `Action.Cleanse` | `RemoveStatus` | idem |
+| il marchio speso | `RTTurnManager`, consumo di `Marked` | idem |
+
+∴ un'unità che cammina dal fuoco nell'acqua bassa smette di bruciare e il TurnLog è **muto come prima**. È
+una lacuna del **modello**, non dei siti di chiamata, e chiuderla vuol dire aggiungere un esito.
+[#1077](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1077) copre le due morti che nomina;
+la terza ha la sua sede in [#1314](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1314).
+
+⚠️ **`Amount` porta la durata RICHIESTA, non quella residua**: `ApplyStatus` fa
+`Current = FMath::Max(Current, Turns)`, quindi riapplicare uno stato più corto lascia la durata lunga ma
+registra il numero piccolo. Anche questa è dichiarata, non risolta.
+
 ⚠️ **`TickStatuses` e `RevokeCellBoundStatusesNotIn` restituiscono i tag rimossi, ordinati per nome.** Vivono
 su `ARTUnit`, che il TurnLog non ce l'ha — è la ragione strutturale per cui quei due momenti erano muti — e
 l'ordine è esplicito perché i due contenitori sono una `TMap` e una `TSet`: farci dipendere l'ordine delle
