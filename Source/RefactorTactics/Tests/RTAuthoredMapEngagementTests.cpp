@@ -1,9 +1,14 @@
 // #1287 — sulla mappa d'autore i bot si fermano a due celle e non sparano.
 //
-// Il test di ingaggio esistente, `Match.Autobattle.EngagesOnTheShippedMapSource`, imposta
-// `MapSource = GeneratedTestArena`: misura l'arena generata, non la mappa che la partita carica. Dopo
-// #1069 il `MapSource` spedito e' `LevelAsset`, quindi quel test guarda una configurazione che non e'
-// piu' quella spedita — ed e' il buco da cui questo difetto e' passato.
+// Il test di ingaggio che esisteva quando questo file e' nato imposta `MapSource = GeneratedTestArena`:
+// misura l'arena generata, non la mappa che la partita carica. Dopo #1069 il `MapSource` spedito e'
+// `LevelAsset`, quindi quel test guardava una configurazione che non e' piu' quella spedita — ed e' il
+// buco da cui questo difetto e' passato.
+//
+// ✅ **Chiuso il 2026-08-23, in due mosse.** Quel test si chiamava `EngagesOnTheShippedMapSource` e ora
+// si chiama `EngagesOnTheGeneratedTestArena`: il contenuto resta — le sue sei asserzioni su quella
+// geometria non sono coperte da nessun altro — ed e' il NOME che era diventato falso. E l'ingaggio sulla
+// mappa d'autore, che non aveva nessun oracolo, ce l'ha qui sotto: `EngagesOnTheAuthoredMap`.
 //
 // Misurato prima del fix, 12 turni su `L_HexArena`: 42 voci `Stayed` su 48, zero `Combat`, unita' ferme
 // nove e dieci turni sulla stessa cella. La mappa ha un ostacolo al centro che blocca vista e passo, e il
@@ -20,6 +25,7 @@
 #include "RTGameMode.h"
 #include "RTWorldFixtures.h"
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h" // #1150: «inflitto» si chiede al predicato, non si deduce dalla categoria
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 
@@ -39,83 +45,33 @@ namespace RTAuthoredEngagement
 		}
 		return Units;
 	}
-
-	/**
-	 * L'unita' ha COLPITO QUALCUN ALTRO da questa cella in questo turno?
-	 *
-	 * 🔴 **E' la meta' che all'oracolo del parcheggio mancava.** `#1088` definisce il difetto come «dodici
-	 * round di **soli spostamenti**, zero combattimento»: cio' che non e' legittimo e' stare fermi **senza
-	 * produrre nulla**. Contando solo la cella, un kiter che presidia la propria distanza di tiro e spara
-	 * risulta identico a un'unita' in stallo — e sulla mappa d'autore Gadget fa esattamente questo:
-	 * dieci turni su `(-1,1,L0)`, sei voci `Combat` partite di li' e un'eliminazione al turno 11.
-	 *
-	 * 🔴 **`ERTLogCategory::Combat` NON vuol dire «attacco», e la prima stesura di questa funzione lo
-	 * assumeva.** La categoria porta anche il danno da terreno (`RTTurnManager.cpp:133`, `SrcCell` e
-	 * `TgtCell` entrambe la cella di chi subisce), il tick di `Status.Burning` (`:1167`, idem — «le due
-	 * celle sono DOVE SI TROVA chi brucia») e la cura (`:1430`, `Outcome = Healed`). Con il solo confronto
-	 * su `SrcCell`, un'unita' ferma **dentro il fuoco** risultava aver attaccato, e l'oracolo di #1088
-	 * diventava cieco proprio sullo stallo che deve vedere. Trovato in code review.
-	 *
-	 * Un colpo si riconosce da due cose insieme: l'esito e' uno dei quattro **danni inflitti**, e le due
-	 * celle sono **diverse** — perche' hazard, burning e autocura hanno `SrcCell == TgtCell`.
-	 *
-	 * ⚠️ `NoLineOfSight` resta FUORI dalla lista, ed e' deliberato: un'unita' che ogni turno pianifica un
-	 * colpo che la copertura ferma, e non si sposta, e' il difetto di #1287 — non un'unita' che agisce.
-	 *
-	 * ⚠️ Si legge il `TurnLog`, che e' l'autorita' (CP 11.3): dedurre l'attacco dagli HP del bersaglio
-	 * sarebbe una seconda verita', e non distinguerebbe il colpo assorbito dal colpo non sferrato.
-	 */
-	bool HaColpitoDa(const ARTTurnManager* TM, const FRTCellId& Cella)
-	{
-		if (!TM) { return false; }
-		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
-		{
-			if (E.Category != ERTLogCategory::Combat || E.SrcCell != Cella || E.TgtCell == Cella)
-			{
-				continue;
-			}
-			switch (static_cast<ERTCombatOutcome>(E.Outcome))
-			{
-			case ERTCombatOutcome::Hit:
-			case ERTCombatOutcome::ShieldAbsorbed:
-			case ERTCombatOutcome::Lethal:
-			case ERTCombatOutcome::TerrainBonus:
-				return true;
-			default:
-				break;
-			}
-		}
-		return false;
-	}
 }
 
 /**
  * **Sulla mappa che si gioca, nessuno si parcheggia.**
  *
- * Stesso oracolo di #1088 e di `D-184` — nessuna unita' viva ferma sulla stessa cella oltre
+ * Stesso oracolo di #1088 e di `D-184` — nessuna unita' viva **inerte** sulla stessa cella oltre
  * `RoundLimit / 3` — applicato alla mappa d'autore invece che all'arena generata. Il pareggio allo
- * scadere resta un esito legittimo: cio' che non lo e' e' stare fermi.
+ * scadere resta un esito legittimo: cio' che non lo e' e' stare fermi senza fare niente.
  *
  * ⚠️ **«Fermi» vuol dire INERTI, e la precisazione e' del 2026-08-23.** La prima stesura contava i turni
- * sulla stessa cella e basta, quindi accusava di stallo anche un kiter che presidia la propria distanza
- * di tiro e spara — che e' il comportamento che `ScorePlan` dichiara corretto («resta a standoff e spara
- * e' esattamente il punto in cui entrambi i termini si annullano»). #1088 definisce il difetto come
- * «soli spostamenti, **zero combattimento**»: il colpo e' meta' della definizione, e mancava.
- * ⛔ **Non e' un indebolimento**, ed e' verificato per mutazione: rimettendo il difetto di #1287 —
- * la distanza in linea d'aria al posto dei passi — questo test torna rosso, perche' li' le unita'
- * stanno ferme **e** non sparano (42 voci `resta` su 48, zero `Combat`).
+ * sulla stessa cella e basta, quindi accusava di stallo anche un kiter che presidia la propria distanza di
+ * tiro e spara — il comportamento che `ScorePlan` dichiara corretto («resta a standoff e spara e'
+ * esattamente il punto in cui entrambi i termini si annullano»). #1088 definisce il difetto come «soli
+ * spostamenti, **zero combattimento**»: il colpo e' meta' della definizione, e mancava.
+ * ⛔ **Non e' un indebolimento**, ed e' verificato per mutazione: rimettendo il difetto di #1287 — la
+ * distanza in linea d'aria al posto dei passi — questo test torna rosso, perche' li' le unita' stanno
+ * ferme **e** non sparano.
  *
  * 🔴 **NON e' il rilevatore di OSCILLAZIONE, benche' lo dichiarasse.** Questa riga diceva che un bot che
- * alterna fra «cerca» e «avvicinati» «tornerebbe sulle stesse celle» e che la sequenza per unita' lo
- * mostra. Il suo oracolo conta i turni **consecutivi sulla stessa cella** — `Ferma` si azzera appena la
- * cella cambia — quindi un'alternanza `A->B->A->B` lo lascia a zero e passa sempre. Misurato il
- * 2026-08-23 su `L_HexArena`: Riktor alterna fra `(1,-1,L0)` e la piattaforma `(3,-3,L1)` **otto volte in
- * dodici turni**, e questo test resta verde. L'oscillazione ha il suo oracolo in
- * `NobodyOscillatesOnTheAuthoredMap`, qui sotto: quel che questo test misura e' il **parcheggio**, e per
- * quello basta e vale.
+ * alterna fra «cerca» e «avvicinati» «tornerebbe sulle stesse celle». Il suo oracolo conta i turni
+ * **consecutivi sulla stessa cella** — il contatore si azzera appena la cella cambia — quindi un'alternanza
+ * `A->B->A->B` lo lascia a zero e passa sempre. Misurato il 2026-08-23 su `L_HexArena`: Riktor alterna fra
+ * `(1,-1,L0)` e la piattaforma `(3,-3,L1)` **otto volte in dodici turni**, e questo test resta verde.
+ * L'oscillazione ha il suo oracolo in `NobodyOscillatesOnTheAuthoredMap`, qui sotto.
  *
- * ⚠️ Il fatto che faccia girare una partita resta necessario — entrambi i difetti sono di sequenza, non
- * di singola decisione — ma non e' sufficiente: e' l'ORACOLO a decidere cosa una sequenza rivela.
+ * ⚠️ Che faccia girare una partita resta necessario — entrambi i difetti sono di sequenza, non di singola
+ * decisione — ma non e' sufficiente: e' l'ORACOLO a decidere cosa una sequenza rivela.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAuthoredMapNobodyParksTest,
 	"RefactorTactics.Match.Autobattle.NobodyParksOnTheAuthoredMap",
@@ -166,11 +122,8 @@ bool FRTAuthoredMapNobodyParksTest::RunTest(const FString&)
 		{
 			TM->Tick(0.05f);
 		}
-		// 🔴 **Il tetto di 400 tick non e' una fine turno, e prima usciva in silenzio.** Esaurito il budget
-		// il ciclo terminava lo stesso, le celle venivano lette a turno mezzo applicato e il
-		// `LockInAndResolve` successivo si impilava sopra: l'oracolo misurava posizioni che non sono mai
-		// state uno stato di fine turno. Che il budget si esaurisca non e' teorico — lo scenario
-		// `AutoBattle.ArenaV01` lo documenta da riga di comando. Trovato in code review.
+		// Il tetto di 400 tick non e' una fine turno: esaurito il budget le celle verrebbero lette a turno
+		// mezzo applicato, e il `LockInAndResolve` successivo si impilerebbe sopra. Si asserisce.
 		if (!TestFalse(*FString::Printf(TEXT("il turno %d ha finito di risolvere entro 400 tick"), Turni + 1),
 			TM->IsResolving()))
 		{
@@ -183,9 +136,19 @@ bool FRTAuthoredMapNobodyParksTest::RunTest(const FString&)
 		{
 			const int32 Id = U->GetUniqueID();
 			const FRTCellId* Prev = Ultima.Find(Id);
-			const bool bInerte = Prev && *Prev == U->Cell
-				&& !RTAuthoredEngagement::HaColpitoDa(TM, U->Cell);
-			if (bInerte) { Ferma.FindOrAdd(Id) += 1; }
+			// ⚠️ **Inerte, non solo fermo.** Un turno conta solo se l'unita' non ha nemmeno colpito, e il
+			// predicato lo chiede a `#1150`: la categoria `Combat` porta anche il fuoco e il terreno, dove
+			// `UnitId` e' chi SUBISCE, quindi un conteggio per categoria direbbe «ha agito» di chi brucia fermo.
+			bool bHaColpito = false;
+			for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+			{
+				if (E.UnitId == U->StableUnitId && URTTurnLogLibrary::IsDamageInflictedByActor(E))
+				{
+					bHaColpito = true;
+					break;
+				}
+			}
+			if (Prev && *Prev == U->Cell && !bHaColpito) { Ferma.FindOrAdd(Id) += 1; }
 			else { Ferma.FindOrAdd(Id) = 0; }
 			int32& Record = PiuLunga.FindOrAdd(Id);
 			Record = FMath::Max(Record, Ferma[Id]);
@@ -204,6 +167,124 @@ bool FRTAuthoredMapNobodyParksTest::RunTest(const FString&)
 	TestTrue(*FString::Printf(
 		TEXT("nessuna unita' si parcheggia sulla mappa d'autore: piu' lunga sequenza ferma %d turni (limite %d)"),
 		Peggiore, Limite), Peggiore <= Limite);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Sulla mappa che si gioca, i bot si COLPISCONO.**
+ *
+ * 🔴 **Era il buco piu' grande dei tre, e nessuno lo copriva.** L'unico oracolo dell'ingaggio del
+ * repository e' `Match.Autobattle.EngagesOnTheGeneratedTestArena`, che forza `GeneratedTestArena`: dopo
+ * `#1069` quella non e' piu' la sorgente che il giocatore ottiene. Gli altri due test di questo file
+ * misurano il **parcheggio** e l'**oscillazione**, cioe' due modi di non concludere — nessuno dei due dice
+ * se qualcuno abbia colpito. Sulla mappa d'autore si poteva quindi tornare a zero `Combat` con tutta la
+ * suite verde, che e' esattamente lo stato di `#1088`.
+ *
+ * ⚠️ **L'oracolo e' «qualcuno ha INFLITTO danno», non «esiste una voce `Combat`».** La categoria porta
+ * anche il danno da terreno e il tick di `Status.Burning`, in cui `UnitId` e' chi SUBISCE (`#1150`): un
+ * conteggio per categoria direbbe «ingaggiano» di quattro unita' che bruciano ferme. Si chiede a
+ * `URTTurnLogLibrary::IsDamageInflictedByActor`, che e' il posto dove quella tassonomia vive.
+ *
+ * 🔴 **Cosa questo test NON e', e va detto perche' il nome invita a crederlo.** NON e' la rete di `#1287`.
+ * Misurato il 2026-08-23 riportando `RTHexBotLibrary.cpp` a PRIMA di quel fix: `NobodyParksOnTheAuthoredMap`
+ * diventa rosso (dieci turni fermi) e **questo resta verde**, con dodici colpi inflitti. Il consuntivo di
+ * `#1287` riporta «zero `Combat`» su dodici turni, ma quella misura viene dalla partita in gioco
+ * (`-RTAutobattle`, con timer e formato); qui il mondo e' di prova e l'esito e' un altro. Chi cerchera' il
+ * guardiano dello stallo di `#1287` lo trova nel parcheggio, non qui.
+ *
+ * ✅ **Cio' che difende davvero, verificato per mutazione**: togliendo le candidate d'attacco da
+ * `BuildCandidates` — un bot che non propone mai un colpo — questo test cade con `0 colpi in 12 turni`, e
+ * con lui il gemello sull'arena generata. E' il confine fra «si colpiscono» e «non si colpiscono», che
+ * sulla mappa che si gioca non aveva **nessun** oracolo: parcheggio e oscillazione misurano due modi di non
+ * concludere, non se qualcuno abbia colpito.
+ *
+ * ⚠️ **La soglia e' `> 0` e non di piu', deliberatamente.** Il test gemello sull'arena generata pretende
+ * anche il primo colpo entro il primo terzo del formato; qui il primo colpo misurato cade **oltre** quel
+ * terzo, e pinnarlo sarebbe scrivere in un test un numero di bilanciamento che nessuno ha deciso. Cio' che
+ * questa voce difende e' il confine fra «si colpiscono» e «non si colpiscono»: il turno del primo colpo sta
+ * nell'`AddInfo`, dove invecchia senza rompere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAuthoredMapEngagesTest,
+	"RefactorTactics.Match.Autobattle.EngagesOnTheAuthoredMap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAuthoredMapEngagesTest::RunTest(const FString&)
+{
+	const TCHAR* AssetPath = TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.DA_HexMap_Arena");
+	URTHexMapAsset* Authored = Cast<URTHexMapAsset>(StaticLoadObject(URTHexMapAsset::StaticClass(), nullptr, AssetPath));
+	if (!TestNotNull(TEXT("la mappa d'autore si carica"), Authored)) { return false; }
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("GameMode"), GameMode) || !TestNotNull(TEXT("TurnManager"), TM)
+		|| !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	HexMap->MapAsset = Authored;
+	GameMode->MapSource = ERTMapSource::LevelAsset;
+	GameMode->bAutobattle = true;
+	GameMode->SetupHexMatch(HexMap);
+
+	if (!TestEqual(TEXT("quattro unita' in campo"), RTAuthoredEngagement::LiveUnits(World).Num(), 4))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	int32 Colpi = 0;
+	int32 PrimoColpoAlTurno = 0;
+	int32 DannoInflitto = 0;
+	TSet<int32> Attaccanti;
+
+	const int32 MaxTurni = 12;
+	int32 Turni = 0;
+	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Turni < MaxTurni)
+	{
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+		// Il tetto di 400 tick non e' una fine turno: esaurito il budget, le voci lette sarebbero di un turno
+		// mezzo applicato. Si asserisce invece di uscire in silenzio.
+		if (!TestFalse(*FString::Printf(TEXT("il turno %d ha finito di risolvere entro 400 tick"), Turni + 1),
+			TM->IsResolving()))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+		++Turni;
+
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (!URTTurnLogLibrary::IsDamageInflictedByActor(E)) { continue; }
+			++Colpi;
+			DannoInflitto += E.Amount;
+			Attaccanti.Add(E.UnitId);
+			if (PrimoColpoAlTurno == 0) { PrimoColpoAlTurno = Turni; }
+		}
+	}
+
+	AddInfo(FString::Printf(
+		TEXT("turni giocati: %d · colpi inflitti: %d (%d danni) · primo colpo al turno %d · attaccanti distinti: %d"),
+		Turni, Colpi, DannoInflitto, PrimoColpoAlTurno, Attaccanti.Num()));
+
+	TestTrue(*FString::Printf(
+		TEXT("sulla mappa d'autore i bot si colpiscono: %d colpi inflitti in %d turni (attesi > 0)"),
+		Colpi, Turni), Colpi > 0);
+
+	// Un solo attaccante sarebbe un ingaggio a senso unico, e passerebbe la riga qui sopra: e' il caso in
+	// cui una squadra spara e l'altra non risponde mai. Misurato, rispondono entrambe.
+	TestTrue(*FString::Printf(TEXT("e a colpire non e' una sola unita': %d attaccanti distinti"),
+		Attaccanti.Num()), Attaccanti.Num() >= 2);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

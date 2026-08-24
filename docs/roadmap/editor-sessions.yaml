@@ -1181,7 +1181,8 @@ sessions:
       nessuno — l'aggancio e' di **CP 46.3** (`#938`). Fino ad allora questi Blueprint si provano solo a
       mano, chiamando le funzioni da un livello di prova.
       ⛔ **Fuori da questa seduta**: `WBP_RT_MainMenu`, `WBP_RT_ResultScreen` e `WBP_RT_PauseMenu` sono di
-      `#938`, `#940` e `#941` · `WBP_RT_TacticalHUD` e' l'HUD in-match e ha gia' il suo root (CP 11.7) ·
+      `#938`, `#940` e `#941` — e da 2026-08-23 hanno una seduta ciascuno: `U28`, `U29`, `U30`. Fino ad
+      allora erano dichiarati fuori scope in tre documenti e pianificati in nessuno · `WBP_RT_TacticalHUD` e' l'HUD in-match e ha gia' il suo root (CP 11.7) ·
       le due schermate del replay (`WBP_RT_MatchHistory`, `WBP_RT_ReplayViewer`) sono di `#472`, e
       aspettano una lease propria.
       🔴 **Il `done_when` chiedeva ai cinque widget una cosa che solo tre possono fare, e riscriverlo e'
@@ -1545,3 +1546,85 @@ sessions:
       momento esistevano su una macchina sola e `git status` non li mostrava nemmeno, perche'
       `Content/**/*.uasset` li ignorava. Il rischio di perderli era piu' concreto di quello di committare
       lavoro incompleto.
+
+  - id: U29
+    title: La schermata di fine partita, che legge il verdetto invece di ridarlo
+    block: 6
+    critical: false
+    # `false` come le tre sedute del frontend (U24, U27, U28): in questo file `critical` marca ciò che
+    # blocca il **gameplay** — arena, partita, input, combat, bot. Il frontend sta dall'altra parte, e
+    # cambiare regola per una seduta sola renderebbe la colonna illeggibile.
+    produces: il widget di fine partita, con esito, vincitore e numero di round letti dal risultato canonico
+    artifacts:
+      - Content/RT/UI/Framework/WBP_RT_ResultScreen.uasset
+    unblocked_by: []
+    # Vuoto come U28: il C++ che questa seduta consuma arriva con la **stessa** issue. È già in `main` —
+    # `FRTMatchResultViewModel`, `URTFrontendNavigator::ShowResult`/`GetMatchResult`/`PlayAgain`, e
+    # l'annuncio `ARTTurnManager::OnMatchEnded` che apre la schermata a fine partita.
+    shares_setup_with: []
+    verifies: []
+    issues: [940]
+    done_when: >-
+      `WBP_RT_ResultScreen` esiste sotto `/Game/RT/UI/Framework/` **con esattamente il nome che andrà in
+      `DefaultGame.ini`**, e la voce `+Screens=(ScreenId="Result",...)` è aggiunta; il widget **legge**
+      `GetMatchResult()` e non calcola nulla da sé — nessun conteggio di unità vive, nessun confronto di
+      punteggi nel grafo; mostra le tre cose che il DoD chiede (esito, vincitore, numero di round) e
+      distingue il **pareggio** da una vittoria, perché `bHasWinner` e `WinningTeamId` sono informazioni
+      diverse e un `INDEX_NONE` che scivolasse a `0` direbbe «vince il team 0»; i due pulsanti chiamano
+      `PlayAgain()` e `ReturnMain()` del navigatore, **non** una seconda via d'avvio; in PIE una partita
+      giocata fino alla fine apre questa schermata da sola, e `PLAY AGAIN` ne comincia un'altra
+    unblocks: []
+    notes: >-
+      ➕ **Aperta per la metà d'editor di `#940`.** Il C++ è consegnato e provato: la navigazione, la
+      lettura del verdetto e l'aggancio a fine partita sono in `main` e coperti da test. Quel che manca è
+      ciò che nessun test headless può produrre — il widget.
+      ⚠️ **Non esiste una classe base C++ per questa schermata**, ed è una differenza rispetto a
+      `WBP_RT_MainMenu`/`WBP_RT_ErrorModal`/`WBP_RT_LoadingScreen`/`WBP_RT_FallbackBanner`, che ne hanno
+      una in `RTFrontendWidgets.h`. Il criterio *«eredita dalla classe base giusta»* qui sarebbe **vacuo**
+      — è la stessa lezione che U28 ha imparato a metà seduta sui suoi due widget strutturali. Il canale è
+      `URTFrontendNavigator::GetMatchResult()`, che è `BlueprintPure`: il widget lo chiama e basta.
+      🔴 **La riga che conta è «legge, non ricalcola», e non è un dettaglio di stile.** Il DoD di `#940`
+      la mette così: *«un secondo calcolo nel widget sarebbe una seconda autorità che può divergere»*. La
+      condizione di fine partita è di E10 e il TurnLog ne è il registro; qui si mostra un verdetto già
+      dato. Un grafo che contasse le unità vive per decidere il vincitore darebbe la risposta giusta quasi
+      sempre — ed è proprio questo che lo rende pericoloso.
+      ⚠️ **La voce in `DefaultGame.ini` si aggiunge INSIEME all'asset, non prima.** Una voce che punta a un
+      widget inesistente fa cadere `EveryConfiguredScreenLoads` (`#1277`), e il gate resta verde oggi
+      soltanto perché quella riga non c'è ancora.
+      ⚠️ **`GetMatchResult()` va letto quando il widget nasce.** `ShowResult` scrive il risultato *prima*
+      di presentare, apposta: la versione iniziale faceva il contrario e un widget che legge nel proprio
+      `Construct` avrebbe visto `InProgress` e round 0 alla prima apertura. Quell'ordine **non è coperto da
+      un test** — in un test headless il widget nasce senza mondo e `Initialize()` esce prima di
+      `NativeOnInitialized`, misurato con tre approcci diversi — quindi la prova sta qui, in PIE.
+      ⏳ `PIE-V01-FRONTEND-RESULT` è **da creare**: le voci del registro playtest si propongono in handoff,
+      e questa seduta è il posto naturale da cui farlo.
+
+  - id: U30
+    title: Il menu di pausa, e lo smontaggio che non lascia stato vivo
+    block: 6
+    critical: false
+    produces: il menu di pausa, con ripresa e uscita al menu principale
+    artifacts:
+      - Content/RT/UI/Framework/WBP_RT_PauseMenu.uasset
+    unblocked_by: [E46.6]
+    # ⚠️ **NON è vuoto come U28 e U29, ed è la differenza che conta**: il C++ di CP 46.6 non esiste
+    # ancora. Questa seduta è l'unica delle tre del frontend che dipende da lavoro non ancora scritto —
+    # aprirla prima significherebbe disegnare un widget contro un'API immaginata.
+    shares_setup_with: []
+    verifies: []
+    issues: [941]
+    done_when: >-
+      `WBP_RT_PauseMenu` esiste sotto `/Game/RT/UI/Framework/` con la sua voce in `DefaultGame.ini`; i
+      pulsanti chiamano l'API che `#941` avrà consegnato, non una via propria; in PIE la pausa si apre e si
+      chiude durante una partita, e **il criterio forte del DoD è verificabile lì**: stesso seed, stesso
+      esito dopo il ritorno al menu — cioè lo smontaggio non lascia stato vivo
+    unblocks: []
+    notes: >-
+      ⛔ **Bloccata finché `#941` non consegna il C++**, e la riga `unblocked_by: [E46.6]` lo dice invece
+      di lasciarlo capire. Il DoD di CP 46.6 ha un criterio che nessun widget può soddisfare da solo —
+      *«stesso seed, stesso esito dopo il ritorno al menu»* — perché parla di stato che sopravvive, non di
+      pulsanti: è lavoro di simulazione e di ciclo di vita, e va provato headless prima che una schermata
+      lo mostri.
+      ➕ Aperta ora, insieme a `U29`, perché i due widget mancanti di E46 erano dichiarati in tre punti
+      diversi — `editor-sessions.yaml:1152`, la guida UMG e la roadmap — e in nessun piano. Un limite
+      ripetuto in tre posti e pianificato in zero è il modo in cui resta fermo.

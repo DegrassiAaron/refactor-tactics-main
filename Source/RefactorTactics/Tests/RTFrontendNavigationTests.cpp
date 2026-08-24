@@ -18,7 +18,8 @@
 // Per `RTScreenIds::Main` / `::Settings`: i nomi canonici delle due schermate vere (CP 46.3).
 #include "Frontend/RTFrontendScreenIds.h"
 #include "Frontend/RTFrontendWidgets.h"
-#include "RTFrontendMatchListenerForTest.h"   // URTErrorModalWidgetBase: il modale si verifica ARMATO
+#include "RTFrontendMatchListenerForTest.h"
+#include "RTWorldFixtures.h"   // URTErrorModalWidgetBase: il modale si verifica ARMATO
 #include "Engine/GameInstance.h"
 #include "Blueprint/UserWidget.h"
 // Solo per avere una `UUserWidget` **concreta** da istanziare: `UUserWidget` e' `Abstract`.
@@ -1009,7 +1010,7 @@ bool FRTFrontendStartMatchAnnouncesTheRequestTest::RunTest(const FString&)
 	// Un ascoltatore che si comporta come il consumatore vero: sente, consuma, e registra cosa ha visto.
 	URTFrontendMatchListenerForTest* Listener = NewObject<URTFrontendMatchListenerForTest>();
 	Listener->Nav = Nav;
-	Nav->OnMatchRequested.AddDynamic(Listener, &URTFrontendMatchListenerForTest::OnRequested);
+	Nav->OnMatchRequested.AddUniqueDynamic(Listener, &URTFrontendMatchListenerForTest::OnRequested);
 
 	TestEqual(TEXT("l'avvio passa"), Nav->StartMatch(), ERTNavResult::Ok);
 
@@ -1024,6 +1025,146 @@ bool FRTFrontendStartMatchAnnouncesTheRequestTest::RunTest(const FString&)
 	Nav->ConsumePendingMatchLevel();
 
 	Nav->OnMatchRequested.RemoveDynamic(Listener, &URTFrontendMatchListenerForTest::OnRequested);
+	ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * Il consumatore VERO: `ARTFrontendGameMode` sente l'annuncio, consuma la richiesta e apre il livello.
+ *
+ * 🔴 **E' l'aggancio la cui assenza la guardia di `StartMatch` segnala.** Finche' non esisteva, `PLAY`
+ * produceva una richiesta che nessuno raccoglieva: questo test e' cio' che impedisce di tornarci senza
+ * accorgersene.
+ *
+ * ⚠️ **`OpenMatchLevel` e' sostituita, non eseguita**: `UGameplayStatics::OpenLevel` in un test aprirebbe
+ * davvero un livello. Il seam sta dove l'apertura avviene, cosi' il resto della catena — iscrizione,
+ * consumo, livello passato — resta verificato headless.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendGameModeConsumesTheRequestTest,
+	"RefactorTactics.Frontend.GameModeConsumesTheMatchRequest",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendGameModeConsumesTheRequestTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		ReleaseNavigator(GI);
+		return false;
+	}
+
+	Nav->RegisterScreensFromConfig();
+	Nav->InitializeFrontend(RTScreenIds::Main);
+	Nav->MatchLevel = TEXT("/Game/RT/Maps/Dev/L_HexArena/L_HexArena");
+
+	// 🔴 **Il mondo deve aver inizializzato i suoi actor, o il broadcast non arriva — e non lo dice.**
+	// `AActor::ProcessEvent` scarta ogni evento se `GetWorld()->AreActorsInitialized()` è falso, e un
+	// delegate **dinamico** invoca proprio da lì. Misurato: senza questa riga il flag è `0` e il GameMode
+	// non riceve niente, mentre un `UObject` legato allo stesso delegate riceve — perché passa da
+	// `UObject::ProcessEvent`, che quella guardia non ce l'ha.
+	//
+	// ⚠️ **Non basta `DispatchBeginPlay()` sull'actor**, che era il tentativo naturale e falso: misurato
+	// `HasActorBegunPlay=1` insieme ad `AreActorsInitialized=0`. Il flag è del **mondo**, non dell'actor,
+	// e le due domande si somigliano abbastanza da far cercare per ore dalla parte sbagliata.
+	// ⚠️ **E la `GameInstance` va legata al mondo prima**, o il `GameMode` che ora riceve davvero l'evento
+	// si ferma sul suo primo controllo: «questa mappa non ha una GameInstance, e il navigatore vive lì».
+	// In produzione la mappa ce l'ha sempre; qui il navigatore nasceva in una GI scollegata dal mondo, ed
+	// era una differenza che nessuno vedeva finché il broadcast non arrivava a destinazione.
+	World->SetGameInstance(GI);
+	World->InitializeActorsForPlay(FURL());
+
+	ARTFrontendGameModeForTest* GameMode = World->SpawnActor<ARTFrontendGameModeForTest>();
+	if (!TestNotNull(TEXT("il GameMode del frontend esiste"), GameMode))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		ReleaseNavigator(GI);
+		return false;
+	}
+
+	// ⚠️ Un actor spawnato in un mondo di prova non ha ancora ricevuto `BeginPlay`, e un delegate dinamico
+	// salta i target che l'engine non considera pronti: gli altri test di questo repository lo fanno per lo
+	// stesso motivo.
+	if (!GameMode->HasActorBegunPlay()) { GameMode->DispatchBeginPlay(); }
+	GameMode->ListenForMatchRequests(Nav);
+
+	TestEqual(TEXT("l'avvio passa"), Nav->StartMatch(), ERTNavResult::Ok);
+
+	if (TestEqual(TEXT("il GameMode ha chiesto UNA apertura"), GameMode->OpenedLevels.Num(), 1))
+	{
+		TestEqual(TEXT("e del livello dichiarato"), GameMode->OpenedLevels[0], Nav->MatchLevel);
+	}
+	TestTrue(TEXT("e la richiesta e' stata CONSUMATA: non ne resta traccia"),
+		Nav->ConsumePendingMatchLevel().IsEmpty());
+
+	// ⚠️ Non-vacuita': il secondo `PLAY` deve passare, cioe' il consumo ha davvero liberato lo stato — se
+	// il GameMode avesse solo letto senza consumare, qui la guardia rifiuterebbe.
+	TestEqual(TEXT("e si puo' rigiocare"), Nav->StartMatch(), ERTNavResult::Ok);
+	TestEqual(TEXT("con una seconda apertura"), GameMode->OpenedLevels.Num(), 2);
+
+	RTWorldFixtures::DestroyWorld(World);
+	ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * 🔴 **`BeginPlay` aggancia il consumatore da solo.**
+ *
+ * E' il difetto che otto test verdi non vedevano: lo chiamavano tutti `ListenForMatchRequests` a mano,
+ * quindi provavano che il consumatore *funziona* e mai che qualcuno lo *colleghi*. In PIE `PLAY` scriveva
+ * la richiesta, la annunciava a zero ascoltatori, e nulla si apriva — con un sintomo che punta altrove: il
+ * `PLAY` successivo veniva rifiutato con «richiesta mai consumata», che accusa chi non consuma invece di
+ * chi non si e' mai iscritto. Trovato in code review.
+ *
+ * ⚠️ **Qui `ListenForMatchRequests` non si chiama**, ed e' tutto il punto: se comparisse, il test
+ * tornerebbe a provare il consumatore e il difetto resterebbe invisibile una seconda volta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFrontendBeginPlayHooksTheConsumerTest,
+	"RefactorTactics.Frontend.BeginPlayHooksTheMatchConsumer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFrontendBeginPlayHooksTheConsumerTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il subsystem esiste"), Nav))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		ReleaseNavigator(GI);
+		return false;
+	}
+
+	Nav->RegisterScreensFromConfig();
+	Nav->InitializeFrontend(RTScreenIds::Main);
+	Nav->MatchLevel = TEXT("/Game/RT/Maps/Dev/L_HexArena/L_HexArena");
+
+	World->SetGameInstance(GI);
+	World->InitializeActorsForPlay(FURL());
+
+	ARTFrontendGameModeForTest* GameMode = World->SpawnActor<ARTFrontendGameModeForTest>();
+	if (!TestNotNull(TEXT("il GameMode del frontend esiste"), GameMode))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		ReleaseNavigator(GI);
+		return false;
+	}
+
+	// L'unico gesto: far partire il ciclo di vita. Nessuna iscrizione a mano.
+	if (!GameMode->HasActorBegunPlay()) { GameMode->DispatchBeginPlay(); }
+
+	TestEqual(TEXT("l'avvio passa"), Nav->StartMatch(), ERTNavResult::Ok);
+	if (TestEqual(TEXT("il GameMode si era iscritto da solo, e ha aperto"), GameMode->OpenedLevels.Num(), 1))
+	{
+		TestEqual(TEXT("il livello dichiarato"), GameMode->OpenedLevels[0], Nav->MatchLevel);
+	}
+	TestTrue(TEXT("e la richiesta non resta pendente"), Nav->ConsumePendingMatchLevel().IsEmpty());
+
+	RTWorldFixtures::DestroyWorld(World);
 	ReleaseNavigator(GI);
 	return true;
 }

@@ -155,6 +155,16 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FRTAttackPlaybackSignature, ARTUn
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRTPlaybackFinishedSignature);
 
 /**
+ * La partita è finita, con il verdetto e lo stato che lo motiva (CP 46.5, `#940`).
+ *
+ * ⚠️ **È un annuncio, non un comando**, ed è la ragione per cui esiste invece di far chiamare al
+ * `TurnManager` la schermata di fine partita: la simulazione non deve conoscere il frontend. Chi ascolta
+ * decide cosa farne — `ARTGameMode` apre il Result, uno scenario headless non ascolta e non cambia nulla.
+ * È la stessa forma di `URTFrontendNavigator::OnMatchRequested`: chi sa annuncia, chi può agire consuma.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FRTOnMatchEndedSignature, const FRTMatchResult&, Result, const FRTMatchState&, State);
+
+/**
  * Orchestratore del turno: tiene fase e numero di turno e, al lock-in, risolve il turno (logica sincrona,
  * autoritativa) e poi ne RIPRODUCE nel tempo la risoluzione (playback) per rendere il round osservabile.
  * L'animazione legge eventi gia' risolti: non decide nulla (invariante #1).
@@ -332,6 +342,15 @@ public:
 	// --- Presentazione (Blueprint) -------------------------------------------------------------
 	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Playback")
 	FRTPhasePlaybackSignature OnPhasePlaybackStarted;
+
+	/**
+	 * Annuncio di fine partita. Emesso una volta sola, quando la fase diventa `MatchEnded`.
+	 *
+	 * ⚠️ **Dopo che l'archivio del replay è chiuso**, non prima: chi ascolta può voler leggere la traccia,
+	 * e un manifest ancora aperto la descriverebbe come una partita in corso.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Match")
+	FRTOnMatchEndedSignature OnMatchEnded;
 
 	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Playback")
 	FRTUnitPlaybackSignature OnUnitMoveStarted;
@@ -1185,6 +1204,15 @@ private:
 
 	/** Esito + via calcolati nel Cleanup e consumati da ConcludeTurn (che chiude o apre il round dopo). */
 	FRTMatchResult PendingResult;
+
+	/**
+	 * Lo stato su cui il verdetto è stato dato, conservato accanto ad esso.
+	 *
+	 * ⚠️ Serve perché `OnMatchEnded` lo annuncia da `ConcludeTurn`, mentre il calcolo avviene nel Cleanup:
+	 * senza, il conteggio dei round andrebbe ricostruito al momento dell'annuncio, e sarebbe un secondo
+	 * calcolo che può divergere da quello che ha deciso l'esito.
+	 */
+	FRTMatchState PendingState;
 
 	/** Regole di formato in vigore. Default: nessun limite di round, nessuna soglia (solo eliminazione). */
 	FRTMatchRules MatchRules;
