@@ -157,11 +157,11 @@ punteggio»* a favore della restrizione del dominio. Rovesciare quel giudizio co
 farlo di lato dentro una PR di correzione no — il bilanciamento del bot ha la sua sede in
 [`#149`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149) e [D-102](decisions/RT_PDR_00_Decision_Log.md).
 
-✅ **Implementata e misurata il 2026-08-24 — sette forme, e nessuna pulita**
+✅ **Implementata e misurata il 2026-08-24 — otto forme, e nessuna gratis**
 ([#1300](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1300#issuecomment-5393465886)).
 🔴 La riga qui sopra dice *«misurata sulla carta ma non implementata»*, ed è **falsa da quella data**: la
-forma «termine» è stata scritta due volte — `WBlind` da sola, poi altre sei varianti sullo stesso banco a
-modalità — e ciò che la carta non poteva vedere è **dove** cade.
+forma «termine» è stata scritta e rimisurata otto volte sullo stesso banco a modalità — `WBlind` compresa —
+e ciò che la carta non poteva vedere è **dove** cade.
 
 | forma | esito sui sette oracoli |
 |---|---|
@@ -172,6 +172,7 @@ modalità — e ciò che la carta non poteva vedere è **dove** cade.
 | simmetrico di §3c sulla **propria gittata** | copertura rotta e scenario `ArenaV01` che non si decide più in 40 turni |
 | **differenziale** (bonus solo a chi cambia cella) | i sette oracoli passano con `W` fra **11 e 16** — ma la suite intera **scambia** il rosso: cade `HexBot.ScoreKiterVsMelee` |
 | bonus solo se si **guadagna** vista | è la condizione di `#1287` in forma di peso, e si comporta come `#1287`: non compra la deviazione, e oscilla |
+| **memoria per unità**: bonus che **decade** con i turni senza ingaggiare | ✅ l'unica che fa passare **i due oracoli di parcheggio insieme** — sei su sette a `W=15 D=5` e a `W=20 D=10`. Sulla suite intera due rossi, entrambi su **valori assoluti** e nessun ordinamento (`0 → +15`, `−10 → +5`, `−20 → −5`) |
 
 Quattro reperti che cambiano il **costo** della decisione, non la decisione:
 
@@ -191,7 +192,18 @@ Quattro reperti che cambiano il **costo** della decisione, non la decisione:
    **64 celle su 64** contro le 28–36 degli spawn a terra — `HexLine` costruisce la linea sul layer del
    tiratore. È lì che ogni forma posizionale manda il bot, e da lì non spara.
 
-⚠️ **La decisione resta aperta**: la misura dice quanto costa ciascuna via, non quale prendere.
+🔴 **E il quinto reperto è quello che sposta la domanda verso `E26`.** Il termine posizionale **senza
+memoria** non fa passare i due oracoli di parcheggio a **nessun** peso; il differenziale li fa passare
+pagando il **movimento** invece dell'ingaggio, e infatti inverte un ordinamento di `ScoreKiterVsMelee`. La
+forma con **memoria per unità** — un bonus che decade con i turni senza ingaggiare, cioè il campo di stato
+che [`E26`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/326) porterebbe — li fa passare
+entrambi, e i due rossi che lascia sulla suite intera sono **solo valori assoluti**: nessun ordinamento
+misurato si inverte. ⚠️ Ma **non gioca meglio**: sulla mappa d'autore i colpi calano da 17 a 13 e lo
+scenario `ArenaV01` passa dal turno 19 al 21. Passa gli oracoli, non li batte.
+
+⚠️ **La decisione resta aperta**: la misura dice quanto costa ciascuna via, non quale prendere. In
+particolare `BOT-2` cresce di un parametro se la risposta è «memoria»: **peso e decadimento**, e i quattro
+punti misurati dicono che non è il loro rapporto a decidere.
 
 | ID | Domanda | Perché non si deduce |
 |----|---------|----------------------|
