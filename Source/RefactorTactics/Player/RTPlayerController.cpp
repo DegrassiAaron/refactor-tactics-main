@@ -266,11 +266,12 @@ void ARTPlayerController::BuildInputMappings()
 	// Riavvio partita (Boolean): tasto R (attivo solo a match concluso).
 	MappingContext->MapKey(RestartAction, EKeys::R);
 
-	// Selezione abilita' (Boolean): tasti 1/2/3.
+	// Selezione abilita' (Boolean): tasti 1-4 -> indici 0-3 dell'elenco dell'unita' selezionata.
+	// Il tasto sceglie una POSIZIONE, non un'azione: quale abilita' occupi l'indice N dipende dall'eroe.
 	MappingContext->MapKey(Ability1Action, EKeys::One);
 	MappingContext->MapKey(Ability2Action, EKeys::Two);
 	MappingContext->MapKey(Ability3Action, EKeys::Three);
-	MappingContext->MapKey(Ability4Action, EKeys::Four); // scatto
+	MappingContext->MapKey(Ability4Action, EKeys::Four);
 
 	// Annulla l'ultimo waypoint della path composita (tasto destro del mouse o Backspace).
 	MappingContext->MapKey(UndoAction, EKeys::RightMouseButton);
@@ -1040,10 +1041,13 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 	}
 }
 
+// Selezionano per INDICE, non per azione. Uno scatto e' un'abilita' di fase `ERTResolutionPhase::Dash`
+// (nel roster ce n'e' una, `Hero.Phase.FluidTrail`) e non ha un tasto dedicato: sta dove la mette il
+// suo eroe. Un commento che promettesse un'azione a un tasto invecchierebbe al primo cambio di roster.
 void ARTPlayerController::OnAbility1(const FInputActionValue& Value) { SelectAbilityForCurrent(0); }
 void ARTPlayerController::OnAbility2(const FInputActionValue& Value) { SelectAbilityForCurrent(1); }
 void ARTPlayerController::OnAbility3(const FInputActionValue& Value) { SelectAbilityForCurrent(2); }
-void ARTPlayerController::OnAbility4(const FInputActionValue& Value) { SelectAbilityForCurrent(3); } // scatto
+void ARTPlayerController::OnAbility4(const FInputActionValue& Value) { SelectAbilityForCurrent(3); }
 
 void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 {
