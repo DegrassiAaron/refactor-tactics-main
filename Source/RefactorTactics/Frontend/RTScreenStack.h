@@ -34,8 +34,26 @@ enum class ERTNavResult : uint8
 	 * viene disabilitato in quanto «schermata sotto un modale» mentre **e'** il modale. Il pulsante di
 	 * chiusura diventa inerte e l'unica uscita e' un `ReturnMain` chiamato da fuori: e' il dead-end che
 	 * il DoD di CP 46.1 vieta.
+	 *
+	 * ⚠️ **Il nome e' piu' generale della sua prima causa, e CP 46.6 usa la seconda**: `ShowPause` con la
+	 * pausa gia' nello stack risponde con questo esito. La ragione e' la stessa — un `FName` per un widget,
+	 * quindi due `Pause` impilate sarebbero due voci di stack e un widget solo, e il `RESUME` ne
+	 * smonterebbe una lasciando l'altra a coprire la partita.
 	 */
-	ScreenIsAlreadyOnStack
+	ScreenIsAlreadyOnStack,
+
+	/**
+	 * `ResumeMatch` senza una pausa aperta (CP 46.6, `#941`).
+	 *
+	 * ⚠️ **L'elenco e' dichiarato chiuso, ed eccolo esteso esplicitamente** — stessa procedura di
+	 * `ScreenIsAlreadyOnStack`. Serve per la stessa ragione per cui `NoModalOpen` e' distinto da `Ok`: un
+	 * `RESUME` che non aveva niente da chiudere e un `RESUME` riuscito non devono avere lo stesso valore di
+	 * ritorno, o un doppio invio mangerebbe la schermata sotto.
+	 *
+	 * ⛔ Non e' `NoModalOpen`: la pausa e' una **schermata**, e confonderli manderebbe chi indaga a cercare
+	 * un modale che non c'e' mai stato.
+	 */
+	NoPauseOpen
 };
 
 /**

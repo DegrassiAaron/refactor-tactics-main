@@ -234,6 +234,29 @@ void ARTGameMode::BeginPlay()
 		return;
 	}
 
+	// 🔴 **Il lato di partita del confine col frontend (CP 46.6).** Sta in `BeginPlay` e non in
+	// `SetupHexMatch` perche' non ha niente a che vedere con l'allestimento della mappa: vale anche in uno
+	// scenario auto-run, dove la partita normale non viene allestita affatto e il `return` piu' sotto
+	// salterebbe l'iscrizione.
+	if (UGameInstance* GameInstance = GetGameInstance())
+	{
+		URTFrontendNavigator* Navigator = GameInstance->GetSubsystem<URTFrontendNavigator>();
+		ListenForLevelRequests(Navigator);
+
+		// 🔴 **La partita si DICHIARA al flow, e non farlo produceva due dead-end** (vedi
+		// `RTScreenIds::Match`). Il navigatore sopravvive al cambio di livello ma il suo stack no: senza
+		// questa riga restava `[Main]` — la radice lasciata dal menu — e `RESUME` ripresentava il Main Menu
+		// **sopra la partita viva**; oppure restava vuoto, avviando il gioco direttamente su `L_HexArena`,
+		// e `ESC` impilava `Pause` come radice da cui `ResumeMatch` non usciva piu'.
+		//
+		// ⚠️ **Dopo `ListenForLevelRequests` e non prima**: un `EnterMatch` che fallisse non deve portarsi
+		// via l'iscrizione, che con lo stato del flow non c'entra.
+		if (Navigator)
+		{
+			Navigator->EnterMatch();
+		}
+	}
+
 	// Mappa esagonale: usa quella presente nel livello o ne crea una all'origine (graybox demo).
 	ARTHexMapActor* HexMap = Cast<ARTHexMapActor>(
 		UGameplayStatics::GetActorOfClass(this, ARTHexMapActor::StaticClass()));
@@ -1081,6 +1104,74 @@ FString ARTGameMode::GetScenarioBannerText() const
 
 	return FString::Printf(TEXT("SCENARIO %s [%s]  -  %s  -  la partita normale NON e' allestita"),
 		*ScenarioId, Source, *Esito);
+}
+
+void ARTGameMode::ListenForLevelRequests(URTFrontendNavigator* Navigator)
+{
+	if (!Navigator)
+	{
+		// ⚠️ **Non e' un errore, e la differenza con `ARTFrontendGameMode` e' voluta.** Li' un navigatore
+		// assente significa un menu che non aprirebbe niente; qui uno scenario headless o un test di
+		// simulazione girano senza frontend, e la partita deve poter girare lo stesso.
+		UE_LOG(LogRT, Verbose,
+			TEXT("[RT] Partita senza frontend: nessuna richiesta di livello da raccogliere."));
+		return;
+	}
+
+	// `AddUniqueDynamic`: `BeginPlay` puo' correre piu' di una volta sullo stesso GameMode in editor, e due
+	// iscrizioni aprirebbero il livello due volte.
+	Navigator->OnMatchRequested.AddUniqueDynamic(this, &ARTGameMode::HandleMatchRequested);
+	Navigator->OnReturnToFrontendRequested.AddUniqueDynamic(this, &ARTGameMode::HandleReturnToFrontendRequested);
+}
+
+void ARTGameMode::HandleMatchRequested(const FString& LevelName)
+{
+	UGameInstance* GameInstance = GetGameInstance();
+	URTFrontendNavigator* Navigator = GameInstance ? GameInstance->GetSubsystem<URTFrontendNavigator>() : nullptr;
+
+	// Si CONSUMA, non si legge: una richiesta che resta li' fa rifiutare il `PLAY` successivo con
+	// «mai consumata», che punta il dito su chi non consuma invece che su chi non si e' iscritto.
+	const FString Consumed = Navigator ? Navigator->ConsumePendingMatchLevel() : FString();
+	if (Consumed.IsEmpty())
+	{
+		// ⚠️ «di partita» e' il consumatore, non l'evento: `ARTFrontendGameMode` emette la riga gemella dal
+		// mondo del menu, e senza questa distinzione il log non dice quale dei due ha parlato.
+		UE_LOG(LogRT, Error,
+			TEXT("[RT] PLAY AGAIN dal mondo di partita: annuncio per '%s' senza richiesta pendente, "
+				 "nulla da aprire."), *LevelName);
+		return;
+	}
+
+	UE_LOG(LogRT, Log, TEXT("[RT] PLAY AGAIN: riapertura del livello di partita '%s'"), *Consumed);
+	OpenLevelByName(Consumed);
+}
+
+void ARTGameMode::HandleReturnToFrontendRequested(const FString& LevelName)
+{
+	UGameInstance* GameInstance = GetGameInstance();
+	URTFrontendNavigator* Navigator = GameInstance ? GameInstance->GetSubsystem<URTFrontendNavigator>() : nullptr;
+
+	const FString Consumed = Navigator ? Navigator->ConsumePendingFrontendLevel() : FString();
+	if (Consumed.IsEmpty())
+	{
+		UE_LOG(LogRT, Error,
+			TEXT("[RT] Annuncio di ritorno al menu per '%s' senza richiesta pendente: nulla da aprire."),
+			*LevelName);
+		return;
+	}
+
+	// ⛔ **Qui la partita finisce davvero, e non perche' qualcuno la spenga**: cambiare livello distrugge il
+	// mondo, e con lui `ARTTurnManager`, le `ARTUnit` e questo stesso GameMode. E' il motivo per cui il DoD
+	// puo' chiedere «nessuno stato vivo» invece di un elenco di cose da azzerare: cio' che vive nel mondo se
+	// ne va con il mondo, e cio' che sopravvive — i subsystem della `GameInstance` — e' un elenco corto e
+	// noto. Il navigatore l'ha gia' ripulito in `ReturnMain`, e i suoi widget li smonta `OnWorldCleanup`.
+	UE_LOG(LogRT, Log, TEXT("[RT] RETURN TO MAIN MENU: smontaggio della partita, apertura di '%s'"), *Consumed);
+	OpenLevelByName(Consumed);
+}
+
+void ARTGameMode::OpenLevelByName(const FString& LevelName)
+{
+	UGameplayStatics::OpenLevel(this, FName(*LevelName));
 }
 
 void ARTGameMode::HandleMatchEnded(const FRTMatchResult& Result, const FRTMatchState& State)

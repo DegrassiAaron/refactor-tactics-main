@@ -95,6 +95,17 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> PlaybackSpeedAction;
 
+	/**
+	 * `ESC`: apre e chiude il menu di pausa (CP 46.6, `#941`).
+	 *
+	 * ⚠️ **Nessun `.uasset`, come tutti i fratelli**: gli `UInputAction` di questo controller nascono da
+	 * `NewObject` in `BuildInputMappings`, quindi aggiungere un tasto e' C++ e non lavoro d'editor. Vale la
+	 * pena scriverlo perche' la conclusione opposta — «serve un Input Action, quindi serve una seduta» —
+	 * avrebbe rimandato l'intero checkpoint a un binario che non serve.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PauseAction;
+
 	/** Attore attualmente selezionato (se implementa IRTSelectable). */
 	UPROPERTY()
 	TObjectPtr<AActor> SelectedActor;
@@ -239,6 +250,38 @@ public:
 	/** Che forma di bersaglio chiede l'azione armata. `None` se non c'e' targeting in corso. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	ERTPointerTargetKind GetPointerTargetKind() const;
+
+	/**
+	 * `ESC`: apre la pausa se e' chiusa, la chiude se e' aperta.
+	 *
+	 * ⚠️ **Un toggle e non due tasti**, perche' e' cosi' che `ESC` si comporta ovunque — e perche' il
+	 * navigatore rifiuta un secondo `ShowPause` con `ScreenIsAlreadyOnStack`: senza il toggle, la seconda
+	 * pressione produrrebbe un rifiuto invece della cosa che il giocatore si aspetta.
+	 *
+	 * ⛔ **Non tocca la simulazione.** Chiama il navigatore e basta: nessun `SetPause`, nessuna dilatazione
+	 * del tempo. E' il vincolo offline-only di CP 46.6, e sta qui perche' questo e' l'unico punto in cui una
+	 * pressione di tasto potrebbe diventare una sospensione.
+	 */
+	UFUNCTION()
+	void OnTogglePause();
+
+	/**
+	 * **Una schermata bloccante copre la partita**: nessun input di gioco deve arrivare al mondo.
+	 *
+	 * 🔴 **Esiste perche' il contesto `Modal` da solo NON toglieva niente, e per un'intera revisione la
+	 * pausa e' stata una promessa.** `GetPointerContext()` era letto da tre soli consumatori —
+	 * `HandleTargetCell`, `HandleTargetUnit`, `HandleDeclareFacing`, cioe' i **click sul mondo** — mentre
+	 * `OnLockIn` (Spazio), `OnSelect`, `OnRestart`, `OnAbility1..4` e `OnUndoWaypoint` non lo guardavano
+	 * affatto. Con la pausa aperta, **Spazio risolveva il turno dietro la schermata**. Il DoD dice «una
+	 * schermata copre la partita e le toglie il puntatore»: era vero del puntatore e falso della tastiera.
+	 * Trovato in code review sulla PR #1304.
+	 *
+	 * ⚠️ **Non blocca la CAMERA**, ed e' deliberato: pan, zoom, orbita e recenter non toccano il piano ne'
+	 * la simulazione. Bloccare anche quelli sarebbe un contratto piu' largo di quello che serve, e la
+	 * precedenza dichiarata da CP 11.8 parla di *chi consuma un click*, non di chi muove la vista.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
+	bool IsGameplayInputBlocked() const;
 
 	/**
 	 * §5.5 — applica il Back e dichiara **quale livello** ha smontato.

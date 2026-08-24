@@ -12,6 +12,7 @@
 class ARTUnit;
 class ARTHexMapActor;
 class ARTTurnManager;
+class URTFrontendNavigator;
 class URTHeroData;
 class URTHexMapAsset;
 class URTMatchFormatData;
@@ -363,6 +364,50 @@ private:
 	 */
 	UFUNCTION()
 	void HandleMatchEnded(const FRTMatchResult& Result, const FRTMatchState& State);
+
+	// ---- CP 46.6 · il lato di partita del confine col frontend (`#941`) -------------------------------
+public:
+
+	/**
+	 * Si iscrive alle richieste di livello del navigatore. **Pubblica e separata da `BeginPlay`** per essere
+	 * verificabile headless, come `SetupHexMatch`.
+	 *
+	 * ⚠️ **Il `public:` qui sopra non e' decorativo, e la prima stesura lo aveva dimenticato**: questo
+	 * blocco cadeva dentro l'unico `private:` del file, quindi la frase «pubblica … per essere verificabile»
+	 * descriveva una funzione che un test non poteva chiamare. Trovato in code review sulla PR #1304 — una
+	 * giustificazione che descrive il contrario di cio' che il codice fa e' peggio di nessuna.
+	 *
+	 * 🔴 **Chiude un confine che per un intero checkpoint aveva un solo lato.** `ARTFrontendGameMode`
+	 * raccoglie `OnMatchRequested` **sulla mappa del menu**; dentro una partita quel GameMode non esiste,
+	 * quindi fino a `#941`:
+	 *
+	 * - `RETURN TO MAIN MENU` non aveva alcun consumatore — e infatti non esisteva: `ReturnMain()` muoveva
+	 *   lo stack e lasciava la partita viva **sotto** il menu, lo stato che CP 46.2 dichiara vietato;
+	 * - `PLAY AGAIN` dal Result — che si apre **dentro** il livello di partita — annunciava a zero
+	 *   ascoltatori, e il `PLAY` successivo veniva rifiutato da `MatchRequestNotConsumed`.
+	 *
+	 * ⚠️ **La chiama `BeginPlay`, e non basta un test che la chiami a mano.** E' la lezione di `#939`: otto
+	 * test verdi non videro che il consumatore non era collegato a niente, perche' lo collegavano tutti da
+	 * se'. Un test deve arrivarci passando dal ciclo di vita.
+	 */
+	void ListenForLevelRequests(URTFrontendNavigator* Navigator);
+
+	/** `PLAY AGAIN` dal Result: si consuma la richiesta e si riapre il livello di partita. */
+	UFUNCTION()
+	void HandleMatchRequested(const FString& LevelName);
+
+	/** `RETURN TO MAIN MENU`: si consuma la richiesta e si apre il livello del menu — la partita muore col mondo. */
+	UFUNCTION()
+	void HandleReturnToFrontendRequested(const FString& LevelName);
+
+	/**
+	 * Apre un livello. **Virtual perche' e' il seam dei test**, esattamente come
+	 * `ARTFrontendGameMode::OpenMatchLevel`: `UGameplayStatics::OpenLevel` in un mondo di prova non porta da
+	 * nessuna parte, e senza questo punto il consumatore si potrebbe provare solo in PIE.
+	 */
+	virtual void OpenLevelByName(const FString& LevelName);
+
+private:
 
 	/**
 	 * Spawna l'eroe con l'`HeroId` dato. `Hero == nullptr` non spawna nulla (fail-closed): un'unita' con

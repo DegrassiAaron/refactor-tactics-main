@@ -16,6 +16,10 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
+// CP 46.6 (#941): `ESC` apre il menu di pausa, e il contesto `Modal` del puntatore LEGGE lo stato del
+// navigatore invece di tenerne una copia.
+#include "Frontend/RTFrontendNavigator.h"
+#include "Engine/GameInstance.h"
 #include "UI/RTHUD.h" // CP 47.7: la scala x1/x2/x4 e' vocabolario di presentazione e vive nell'HUD
 #include "Core/RTTypes.h"
 #include "RefactorTactics.h"
@@ -210,6 +214,10 @@ void ARTPlayerController::BuildInputMappings()
 	PlaybackSpeedAction = NewObject<UInputAction>(this, TEXT("IA_CyclePlaybackSpeed"));
 	PlaybackSpeedAction->ValueType = EInputActionValueType::Boolean;
 
+	// CP 46.6 (#941): il menu di pausa.
+	PauseAction = NewObject<UInputAction>(this, TEXT("IA_Pause"));
+	PauseAction->ValueType = EInputActionValueType::Boolean;
+
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Tactical"));
 
 	// Pan (Axis2D): D=+X, A=-X, W=+Y (Swizzle YXZ), S=-Y (Swizzle YXZ + Negate).
@@ -280,6 +288,15 @@ void ARTPlayerController::BuildInputMappings()
 	// costa al massimo due pressioni per arrivare ovunque.
 	// `V` e' libero: verificato sull'elenco completo dei `MapKey` di questa funzione.
 	MappingContext->MapKey(PlaybackSpeedAction, EKeys::V);
+
+	// `ESC`: la pausa (CP 46.6).
+	//
+	// ⚠️ **In PIE questo tasto e' anche lo STOP della sessione**, e la precedenza e' dell'editor: chi
+	// verifica la pausa in `PIE-V01-FRONTEND-PAUSE` deve togliere la spunta a *Editor Preferences → Level
+	// Editor → Play → "Escape" key stops PIE*, oppure guardare la pausa in una build packaged. Non e' un
+	// difetto del binding, ed e' scritto qui perche' altrimenti si scopre davanti a una sessione che si
+	// chiude e si conclude che il tasto non e' collegato.
+	MappingContext->MapKey(PauseAction, EKeys::Escape);
 }
 
 void ARTPlayerController::BeginPlay()
@@ -332,6 +349,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
 		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
 		EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
+		EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePause);
 	}
 	else
 	{
@@ -515,6 +533,12 @@ namespace
 
 void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 {
+	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	// Attivita' generica: aggiorna i tempi anche quando il click non produce nulla. Un click a vuoto
 	// e' comunque il giocatore che sta lavorando, e serve a non scambiarlo per un giocatore assente.
 	if (ARTTurnManager* TM = PacingTurnManager(this))
@@ -882,6 +906,12 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 
 void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 {
+	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	if (ARTTurnManager* TurnManager = Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
 	{
 		// Durante il playback lo stesso tasto (Spazio) salta la risoluzione; altrimenti chiude la pianificazione.
@@ -922,6 +952,12 @@ void ARTPlayerController::OnCyclePlaybackSpeed(const FInputActionValue& Value)
 
 void ARTPlayerController::OnRestart(const FInputActionValue& Value)
 {
+	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	// Riavvia la partita solo quando è conclusa: ricarica il livello corrente.
 	const ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
@@ -938,6 +974,13 @@ ARTUnit* ARTPlayerController::GetSelectedUnit() const
 
 void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 {
+	// Le quattro `OnAbility*` sono one-liner che passano di qui: la guardia sta nel punto comune invece
+	// che ripetuta quattro volte, cosi' un quinto tasto abilita' la eredita per costruzione.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit)
 	{
@@ -1004,6 +1047,12 @@ void ARTPlayerController::OnAbility4(const FInputActionValue& Value) { SelectAbi
 
 void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 {
+	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit || Unit->PlannedWaypoints.Num() == 0)
 	{
@@ -1063,12 +1112,60 @@ void ARTPlayerController::RebuildPlannedPath()
 // Contratto del puntatore (CP 11.8) — owner: docs/technical/spec-pointer-interaction.md
 // ======================================================================================================
 
+void ARTPlayerController::OnTogglePause()
+{
+	UGameInstance* GameInstance = GetGameInstance();
+	URTFrontendNavigator* Navigator = GameInstance ? GameInstance->GetSubsystem<URTFrontendNavigator>() : nullptr;
+	if (!Navigator)
+	{
+		// Senza frontend non c'e' pausa da aprire: uno scenario headless o una mappa di prova girano cosi',
+		// e `ESC` semplicemente non fa niente. `Verbose` e non `Warning`: e' il caso normale li'.
+		UE_LOG(LogRT, Verbose, TEXT("[RT] ESC senza frontend: nessun menu di pausa da aprire."));
+		return;
+	}
+
+	// ⚠️ **Il toggle guarda lo stato del navigatore, non un flag locale.** Un `bPaused` qui sarebbe una
+	// seconda verita' che diverge dal primo `RETURN TO MAIN MENU` — che smonta la pausa senza passare da
+	// questo controller, e anzi distrugge questo controller.
+	const ERTNavResult Result = Navigator->IsPauseOpen() ? Navigator->ResumeMatch() : Navigator->ShowPause();
+	if (Result != ERTNavResult::Ok)
+	{
+		UE_LOG(LogRT, Warning, TEXT("[RT] ESC: la pausa non ha cambiato stato (%s)."),
+			*UEnum::GetValueAsString(Result));
+	}
+}
+
+bool ARTPlayerController::IsGameplayInputBlocked() const
+{
+	// Si legge il contesto invece di ri-chiedere al navigatore: il contratto del puntatore e' l'autorita'
+	// su *chi consuma un input*, e un secondo interrogante produrrebbe due risposte da tenere allineate.
+	return GetPointerContext() == ERTPointerContext::Modal;
+}
+
 ERTPointerContext ARTPlayerController::GetPointerContext() const
 {
-	// ⚠️ `ReactionWindow` e `Modal` non compaiono, e non e' una dimenticanza: nessuno li produce ancora.
-	// La finestra di reazione e' E14, il modale e' lo Screen HUD (#613). Mettere qui un flag che nessuno
-	// scrive avrebbe creato un campo senza produttore — il difetto che questo stesso checkpoint ha appena
-	// finito di documentare in §2.1 dell'owner. Quando quegli owner arrivano, aggiungono il proprio ramo.
+	// ⚠️ `ReactionWindow` non compare ancora: nessuno lo produce, ed e' E14. Mettere qui un flag che nessuno
+	// scrive creerebbe un campo senza produttore — il difetto che questo stesso checkpoint ha finito di
+	// documentare in §2.1 dell'owner.
+	//
+	// ✅ **`Modal` invece adesso ha il suo produttore, ed e' il primo ad arrivare come questo commento
+	// prevedeva** (*«quando quegli owner arrivano, aggiungono il proprio ramo»*): il menu di pausa di
+	// CP 46.6. Precede ogni altro ramo perche' la precedenza dichiarata dal contratto e'
+	// `Modal/Reaction UI > HUD > world` — con la pausa a schermo nessun click deve raggiungere il mondo,
+	// qualunque cosa sia selezionata.
+	//
+	// ⛔ **Si LEGGE uno stato, non se ne tiene una copia.** Il contesto e' derivato per scelta, e un
+	// `bPauseOpen` qui sarebbe la seconda verita' che diverge — la stessa ragione per cui selezione,
+	// waypoint e abilita' armata non sono duplicati. E' anche il motivo per cui `RESUME` non deve
+	// ripristinare niente: appena la pausa esce dallo stack, questa funzione ricalcola com'era.
+	if (const UGameInstance* GameInstance = GetGameInstance())
+	{
+		const URTFrontendNavigator* Navigator = GameInstance->GetSubsystem<URTFrontendNavigator>();
+		if (Navigator && Navigator->IsPauseOpen())
+		{
+			return ERTPointerContext::Modal;
+		}
+	}
 
 	// Il playback sovrascrive tutto: dal primo segmento risolto al Cleanup nessun input cambia il piano.
 	//
@@ -1175,10 +1272,23 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 		break;
 
 	case ERTPointerBackStep::ReactionFallback:
-	case ERTPointerBackStep::Modal:
-		// Nessun produttore: vedi la nota in `GetPointerContext`. L'ordine e' dichiarato e testato nella
+		// Nessun produttore: la finestra di reazione e' E14. L'ordine e' dichiarato e testato nella
 		// libreria pura; l'effetto arrivera' col proprio owner.
 		break;
+
+	case ERTPointerBackStep::Modal:
+		// 🔴 **Ha un produttore dal 2026-08-24 — la pausa di CP 46.6 — e finche' non l'ha avuto questo ramo
+		// era innocuo. Adesso no**: cadeva insieme a `ReactionFallback` e usciva con `Step != None`, quindi
+		// la coda di questa funzione scriveva `RecordPlanningInput(Click)` nel `TurnManager`. Un `BACK`
+		// premuto **a partita in pausa** sporcava la telemetria di ritmo che `PIE-V01-MATCHLEN` legge, e
+		// contraddiceva il criterio del checkpoint — *«la pausa non tocca la simulazione»* — in un punto che
+		// nessuno guardava. Trovato in code review sulla PR #1304.
+		//
+		// ⛔ **E non chiude la pausa**: il `BACK` del contratto del puntatore smonta stati di *pianificazione*
+		// (inspector, targeting, waypoint). La pausa e' del navigatore, e la chiude `ESC` o il pulsante
+		// `RESUME` — dare a questo ramo un'uscita dal menu sarebbe la seconda autorita' sulla navigazione
+		// che l'invariante 1 di CP 46.1 vieta.
+		return ERTPointerBackStep::None;
 
 	default:
 		break;

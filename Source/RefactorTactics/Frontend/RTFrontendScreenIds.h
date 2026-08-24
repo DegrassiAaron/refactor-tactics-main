@@ -69,4 +69,50 @@ namespace RTScreenIds
 	 * `CloseModal`, a garantirlo.
 	 */
 	REFACTORTACTICS_API extern const FName Result;
+
+	/**
+	 * Il menu di pausa (CP 46.6, `#941`).
+	 *
+	 * ⚠️ **E' una schermata, non un modale, e la scelta era gia' scritta.** `RTScreenStack.h` la dichiarava
+	 * prima che questo id esistesse: *«`Settings` aperto dal Main e `Settings` aperto dalla **Pause** sono
+	 * la stessa schermata con due ritorni diversi»*. Un modale avrebbe reso il DoD irrealizzabile — con un
+	 * modale aperto `PushScreen` risponde `BlockedByModal`, quindi il `SETTINGS` della pausa non potrebbe
+	 * aprire *lo stesso pannello di CP 46.3*: dovrebbe essere un secondo widget, che e' cio' che il DoD
+	 * vieta con «non una seconda copia».
+	 *
+	 * ⛔ **Non sospende niente.** Questa schermata copre la partita e le toglie il puntatore; il turno resta
+	 * dov'era perche' non avanza da solo. E' il vincolo offline-only del DoD reso architettura invece che
+	 * promessa: cio' che in v0.5 non potra' esistere e' *fermare il tempo di tutti*, e qui non si ferma
+	 * niente — vedi `URTFrontendNavigator::ShowPause`.
+	 */
+	REFACTORTACTICS_API extern const FName Pause;
+
+	/**
+	 * **La partita in corso: una schermata SENZA widget** (CP 46.6, `#941`).
+	 *
+	 * 🔴 **Esiste perche' la sua assenza produceva due dead-end**, entrambi trovati in code review sulla
+	 * PR #1304 e riprodotti a mano.
+	 *
+	 * Il navigatore sopravvive al cambio di livello, ma il suo stack no: durante una partita restava
+	 * `[Main]` — la radice lasciata dal menu — oppure **vuoto**, se il gioco era partito direttamente sulla
+	 * mappa di partita (PIE su `L_HexArena`, il workflow di `PIE-HEXPLAY-*`). Da li':
+	 *
+	 * - `RESUME` faceva `PopScreen` e `SyncPresentation` presentava la cima — cioe' **il Main Menu sopra la
+	 *   partita viva**, esattamente lo stato che CP 46.2 dichiara vietato. Il `RESUME` *apriva* il menu;
+	 * - su stack vuoto `ShowPause` impilava `Pause` come **radice**, e da una radice non si torna indietro:
+	 *   `ResumeMatch` rispondeva `BlockedAtRoot` per sempre, con `IsPauseOpen()` bloccata a `true` e il
+	 *   puntatore inchiodato in `Modal` per il resto della sessione. Senza niente a schermo.
+	 *
+	 * La correzione non e' una guardia in piu': e' **dire al navigatore che la partita e' uno stato del
+	 * flow**. `ARTGameMode` chiama `EnterMatch()`, lo stack diventa `[Match]`, e i due difetti spariscono
+	 * insieme — c'e' sempre una radice legale sotto la pausa, e tornarci non disegna niente.
+	 *
+	 * ⛔ **Non ha, e non deve avere, un binding in `DefaultGame.ini`.** «Nessun widget» e' la sua
+	 * definizione, non una lacuna: `PresentWidget` esce alla prima riga quando un id non ha binding, ed e'
+	 * cio' che rende questa schermata *la partita che si vede sotto*. Darle un widget metterebbe qualcosa
+	 * sopra il gioco a ogni `RESUME`.
+	 * ⚠️ Per la stessa ragione **non compare** in `RefactorTactics.Frontend.EveryConfiguredScreenLoads`:
+	 * quel test itera le voci del `.ini`, e questa non e' una di quelle.
+	 */
+	REFACTORTACTICS_API extern const FName Match;
 }
