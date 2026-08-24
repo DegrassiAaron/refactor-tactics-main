@@ -52,8 +52,28 @@ struct FRTHexCover
 	ERTHexCoverType Type = ERTHexCoverType::Low;
 
 	/**
-	 * Punti struttura del riparo (catalogo v0.1: 30 per la copertura bassa). Il consumatore di questo turno
-	 * e' `ValidateMap` (un riparo a 0 non e' un riparo); la DISTRUZIONE arriva con CP 9.2, che lo scalera'.
+	 * Punti struttura del riparo. Il valore di catalogo per tipo lo da' `DefaultIntegrity` qui sotto — non si
+	 * ripete qui, perche' un numero scritto due volte diverge (#1194).
+	 *
+	 * **Chi lo scala e' `URTHexCoverLibrary::ApplyStructureDamage`**, attraverso `DamageFace`
+	 * ([`RTHexCoverLibrary.cpp`](RTHexCoverLibrary.cpp)): sottrae, e **quando arriva a zero rimuove l'entry**
+	 * invece di lasciarla a `0` — quindi una copertura a zero non sopravvive a un danno, e il caso esiste solo
+	 * nel dato AUTORATO. Ogni passaggio produce un `FRTCoverDamageResult{RemainingIntegrity, bDestroyed}`, ed
+	 * e' quello che entra nel TurnLog: l'esito osservabile e' l'evento, non questo campo.
+	 *
+	 * I consumatori sono TRE, non uno:
+	 * 1. `ApplyStructureDamage` — lo scala, ed e' il produttore dell'esito;
+	 * 2. `URTHexMapAsset::ValidateMap` — rifiuta `Integrity <= 0`, cioe' il riparo che non ripara;
+	 * 3. `URTHexMapAsset::ComputeHash` e `RTMatchStateHash` — **il campo entra nell'hash di stato**, quindi e'
+	 *    dato deterministico e non decorazione. ⚠️ Da non confondere con `D-172`/`D-186`, dove a restare fuori
+	 *    dall'hash e' la LETTURA di presentazione (`critico · ridotto · intatto`), non il numero.
+	 *
+	 * 🔴 **Questo commento prometteva la distruzione «con CP 9.2, che lo scalera'» — al futuro, e CP 9.2 era
+	 * chiuso dal 2026-08-07** ([#70](https://github.com/DegrassiAaron/refactor-tactics-main/issues/70)). La
+	 * frase e' stata trascritta in quattro documenti prima che qualcuno la verificasse (#1099, corretti in
+	 * #1104), e il generatore e' rimasto qui fino a #1107: un commento invecchia come la prosa e **non
+	 * fallisce mai** — nessun gate lo vede, nessun test lo contraddice. Per questo ora nomina i **simboli**
+	 * invece di un checkpoint: un simbolo si cerca, e se sparisce il compilatore lo dice.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	int32 Integrity = 30;
