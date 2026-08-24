@@ -38,6 +38,22 @@ float URTPlaybackLibrary::EstimatePlaybackSeconds(int32 MaxMoveSegments, int32 N
 	return MoveSeconds + AttackSeconds + BeatSeconds;
 }
 
+int32 URTPlaybackLibrary::AttacksToShow(int32 NumAttacks, float PhaseElapsed, float AttackShowSeconds)
+{
+	if (NumAttacks <= 0)
+	{
+		return 0;
+	}
+	if (AttackShowSeconds <= 0.f)
+	{
+		return NumAttacks; // nessuno scaglionamento richiesto: la fase li mostra tutti insieme
+	}
+	// Il primo colpo esce a fase appena iniziata (1 + ...): scaglionare non deve ritardare l'inizio,
+	// altrimenti una fase con un colpo solo resterebbe muta per tutta AttackShowSeconds.
+	const float Elapsed = FMath::Max(0.f, PhaseElapsed);
+	return FMath::Min(NumAttacks, 1 + FMath::FloorToInt(Elapsed / AttackShowSeconds));
+}
+
 float URTPlaybackLibrary::SpeedMultiplierForCap(float EstimatedSeconds, float MaxSeconds)
 {
 	if (MaxSeconds <= 0.f || EstimatedSeconds <= MaxSeconds)
