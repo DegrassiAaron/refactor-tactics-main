@@ -871,7 +871,7 @@ sessions:
     unblocked_by: [U6, U1, U5, U7, U8]
     shares_setup_with: []
     verifies: [PIE-V01-MATCHLEN, PIE-V01-READY, PIE-V01-OVERWATCH, PIE-V01-MAPSCALE]
-    issues: []
+    issues: [84]
     done_when: le quattro voci hanno un numero registrato, anche fuori target
     unblocks: []
     steps: |
@@ -906,6 +906,11 @@ sessions:
       campione** (un solo giocatore, che e' l'autore) e **con l'etichetta 2v2**: i target di 25–30 min
       sono del 3v3 Standard, che in v0.1 non esiste. Un esagono r=4 e' **Skirmish** per costruzione.
       Nasce dalla sessione F del registro, che nessuna seduta U copriva.
+
+      L'atto che consuma questi numeri e' **#84** (`CP 12.4`), e fino al 2026-08-24 le due specifiche
+      non si conoscevano: `issues:` era vuoto qui, e #84 dichiarava una sola dipendenza — #83, che e'
+      chiusa — quindi **sembrava sbloccata e non lo era**. I prerequisiti veri di quelle righe sono i
+      cinque di `unblocked_by:` qui sopra, non #83. Trovato dallo spec panel su #84.
 
   - id: U16
     title: Misura dei KPI
