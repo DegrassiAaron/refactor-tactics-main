@@ -1584,8 +1584,10 @@ sessions:
     verifies: []
     issues: [941]
     done_when: >-
-      `WBP_RT_PauseMenu` esiste sotto `/Game/RT/UI/Framework/` con la sua voce in `DefaultGame.ini`; i
-      pulsanti chiamano l'API che `#941` avrà consegnato, non una via propria; in PIE la pausa si apre e si
+      `WBP_RT_PauseMenu` esiste sotto `/Game/RT/UI/Framework/` con la sua voce in `DefaultGame.ini`; i tre
+      pulsanti chiamano `ResumeMatch()`, `OpenSettings()` e `RequestReturnToMainMenu()` — **non**
+      `ReturnMain()`, che muove lo stack e non smonta la partita, e non un `PushScreen` con l'id scritto a
+      mano nel grafo; in PIE la pausa si apre e si
       chiude durante una partita, e **il criterio forte del DoD è verificabile lì**: stesso seed, stesso
       esito dopo il ritorno al menu — cioè lo smontaggio non lascia stato vivo
     unblocks: []

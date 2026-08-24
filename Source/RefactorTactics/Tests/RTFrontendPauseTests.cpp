@@ -31,6 +31,9 @@
 // Una `UUserWidget` concreta da registrare: `UUserWidget` e' `Abstract` e `CreateWidget` la rifiuta.
 #include "UI/RTScreenHudWidgets.h"
 #include "RTGameMode.h"
+// CP 46.6: il predicato che decide se l'input di gioco arriva al mondo mentre una schermata lo copre.
+#include "Player/RTPlayerController.h"
+#include "Player/RTPointerInteraction.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Map/RTHexMapActor.h"
@@ -204,13 +207,108 @@ bool FRTPauseRefusalsCarryTheirReasonTest::RunTest(const FString&)
 	TestEqual(TEXT("RESUME senza pausa aperta"), Nav->ResumeMatch(), ERTNavResult::NoPauseOpen);
 
 	TestEqual(TEXT("ESC apre"), Nav->ShowPause(), ERTNavResult::Ok);
+	const int32 DepthWithPause = Nav->GetDepth();
+
 	TestEqual(TEXT("un secondo ESC non impila una seconda pausa"),
 		Nav->ShowPause(), ERTNavResult::ScreenIsAlreadyOnStack);
-	TestEqual(TEXT("e la profondita' non e' cambiata"), Nav->GetCurrentScreen(), RTScreenIds::Pause);
+
+	// 🔴 **La PROFONDITA', non la cima.** Questa riga diceva «e la profondita' non e' cambiata» e
+	// controllava `GetCurrentScreen()`, che resta `Pause` **anche se** una seconda `Pause` fosse stata
+	// impilata: togliendo la guardia da `ShowPause` il test sarebbe rimasto verde asserendo il contrario di
+	// cio' che il suo messaggio prometteva. Trovato in code review sulla PR #1304.
+	TestEqual(TEXT("e la profondita' non e' cambiata davvero"), Nav->GetDepth(), DepthWithPause);
+	TestEqual(TEXT("con la pausa ancora in cima"), Nav->GetCurrentScreen(), RTScreenIds::Pause);
 
 	TestEqual(TEXT("RESUME chiude"), Nav->ResumeMatch(), ERTNavResult::Ok);
 	TestEqual(TEXT("e un secondo RESUME non mangia la schermata sotto"),
 		Nav->ResumeMatch(), ERTNavResult::NoPauseOpen);
+
+	RTPauseTestsLocal::ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * 🔴 **`RESUME` restituisce la PARTITA, non il Main Menu.**
+ *
+ * Il difetto che questo test esiste per impedire era vivo e invisibile: il navigatore sopravvive al cambio
+ * di livello ma il suo stack no, quindi durante una partita restava `[Main]` — la radice lasciata dal menu.
+ * `ResumeMatch` faceva `PopScreen`, `SyncPresentation` presentava la cima, e la cima era **il Main Menu**:
+ * il `RESUME` *apriva* il menu sopra la partita viva, cioe' lo stato che CP 46.2 dichiara vietato.
+ *
+ * ⚠️ **`FRTResumeReturnsTheMatchFromAnyDepthTest` non poteva vederlo**, e la differenza fra i due test e'
+ * la lezione: quello asserisce `GetDepth()` e `IsPauseOpen()` — che erano **corretti** — mentre il difetto
+ * stava in *cosa c'e' a schermo*. Uno stack giusto e uno schermo sbagliato hanno lo stesso valore di
+ * ritorno. Qui si guarda il widget.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResumeDoesNotOpenTheMainMenuTest,
+	"RefactorTactics.Frontend.ResumeDoesNotOpenTheMainMenu",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResumeDoesNotOpenTheMainMenuTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = RTPauseTestsLocal::MakeStartedNavigator(GI);
+	if (!TestNotNull(TEXT("il navigatore esiste"), Nav)) { RTPauseTestsLocal::ReleaseNavigator(GI); return false; }
+
+	// Il menu ha girato: la sua radice e il suo widget esistono, come dopo un `PLAY` vero.
+	TestEqual(TEXT("si parte dal menu"), Nav->GetCurrentScreen(), RTScreenIds::Main);
+	TestNotNull(TEXT("e il Main Menu e' a schermo"), Nav->FindLiveWidget(RTScreenIds::Main));
+
+	// La partita comincia, e lo DICE al flow.
+	TestEqual(TEXT("EnterMatch"), Nav->EnterMatch(), ERTNavResult::Ok);
+	TestEqual(TEXT("la radice adesso e' la partita"), Nav->GetCurrentScreen(), RTScreenIds::Match);
+	TestNull(TEXT("e il Main Menu non e' piu' a schermo"), Nav->FindLiveWidget(RTScreenIds::Main));
+
+	Nav->ShowPause();
+	TestEqual(TEXT("ESC apre la pausa"), Nav->GetCurrentScreen(), RTScreenIds::Pause);
+
+	TestEqual(TEXT("RESUME"), Nav->ResumeMatch(), ERTNavResult::Ok);
+
+	// 🔴 Le due asserzioni che valgono il test.
+	TestEqual(TEXT("si torna alla PARTITA"), Nav->GetCurrentScreen(), RTScreenIds::Match);
+	TestNull(TEXT("e il Main Menu NON e' stato presentato sopra la partita"),
+		Nav->FindLiveWidget(RTScreenIds::Main));
+	TestFalse(TEXT("la pausa e' chiusa"), Nav->IsPauseOpen());
+
+	RTPauseTestsLocal::ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * 🔴 **`ESC` su una partita avviata senza passare dal menu non inchioda niente.**
+ *
+ * E' il workflow `PIE-HEXPLAY-*`: si preme Play direttamente su `L_HexArena` e il frontend non parte mai.
+ * Li' lo stack del navigatore e' **vuoto** (`FRTScreenStack` default-costruito, `bInitialized == false`), e
+ * `ShowPause` vi impilava `Pause` come **radice**. Da una radice non si torna indietro: `ResumeMatch`
+ * rispondeva `BlockedAtRoot`, `IsPauseOpen()` restava `true` per sempre, e il puntatore restava in `Modal`
+ * per il resto della sessione — **con lo schermo vuoto**, perche' `SyncPresentation` esce subito quando
+ * `bInitialized` e' falso. Un blocco totale e silenzioso.
+ *
+ * La correzione non e' una guardia: e' `EnterMatch()`, che da' alla partita una radice legale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPauseSurvivesAMatchStartedWithoutTheMenuTest,
+	"RefactorTactics.Frontend.PauseSurvivesAMatchStartedWithoutTheMenu",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPauseSurvivesAMatchStartedWithoutTheMenuTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = RTPauseTestsLocal::MakeNavigator(GI);
+	if (!TestNotNull(TEXT("il navigatore esiste"), Nav)) { RTPauseTestsLocal::ReleaseNavigator(GI); return false; }
+
+	// ⚠️ **Nessuno `StartFrontend`**: e' il punto del test. Lo stack e' quello default-costruito.
+	TestEqual(TEXT("si parte da uno stack vuoto, come in PIE diretto"), Nav->GetDepth(), 0);
+
+	// Cio' che `ARTGameMode::BeginPlay` fa adesso.
+	TestEqual(TEXT("la partita dichiara se stessa"), Nav->EnterMatch(), ERTNavResult::Ok);
+	TestEqual(TEXT("e adesso una radice c'e'"), Nav->GetDepth(), 1);
+
+	TestEqual(TEXT("ESC apre"), Nav->ShowPause(), ERTNavResult::Ok);
+	TestTrue(TEXT("la pausa e' aperta"), Nav->IsPauseOpen());
+
+	// 🔴 L'asserzione che il difetto rendeva impossibile: la pausa si CHIUDE.
+	TestEqual(TEXT("RESUME chiude, invece di rispondere BlockedAtRoot"),
+		Nav->ResumeMatch(), ERTNavResult::Ok);
+	TestFalse(TEXT("e la partita torna senza schermate sopra"), Nav->IsPauseOpen());
+	TestEqual(TEXT("con la partita come radice"), Nav->GetCurrentScreen(), RTScreenIds::Match);
 
 	RTPauseTestsLocal::ReleaseNavigator(GI);
 	return true;
@@ -249,6 +347,45 @@ bool FRTReturnToMainMenuRequestsTheFrontendLevelTest::RunTest(const FString&)
 		Nav->ConsumePendingFrontendLevel(), FString(RTPauseTestsLocal::FrontendLevelName));
 	TestEqual(TEXT("e consumarla la azzera: due letture non aprono due livelli"),
 		Nav->ConsumePendingFrontendLevel(), FString());
+
+	RTPauseTestsLocal::ReleaseNavigator(GI);
+	return true;
+}
+
+/**
+ * Lo stesso ritorno, ma **da dentro una partita** — che e' il caso reale, e l'altro non lo copre.
+ *
+ * ⚠️ **La differenza e' la radice.** Il test qui sopra parte dal menu, dove la radice e' `Main` e
+ * `ReturnMain()` presenta il menu: giusto li', e cieco al difetto. In partita la radice e' `Match`, e per
+ * un'intera revisione era ancora `Main`: `RequestReturnToMainMenu` **presentava il Main Menu sopra la
+ * partita viva** nel frame che precede il cambio di livello.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReturnToMainMenuFromAMatchDrawsNothingTest,
+	"RefactorTactics.Frontend.ReturnToMainMenuFromAMatchDrawsNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReturnToMainMenuFromAMatchDrawsNothingTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = RTPauseTestsLocal::MakeStartedNavigator(GI);
+	if (!TestNotNull(TEXT("il navigatore esiste"), Nav)) { RTPauseTestsLocal::ReleaseNavigator(GI); return false; }
+
+	Nav->EnterMatch();
+	Nav->ShowPause();
+	Nav->OpenSettings();
+
+	TestEqual(TEXT("RETURN TO MAIN MENU dalla partita"), Nav->RequestReturnToMainMenu(), ERTNavResult::Ok);
+
+	// 🔴 Le asserzioni che il difetto rendeva false.
+	TestEqual(TEXT("si torna alla radice della partita, non al menu"),
+		Nav->GetCurrentScreen(), RTScreenIds::Match);
+	TestNull(TEXT("e il Main Menu NON e' stato disegnato sopra la partita che sta per morire"),
+		Nav->FindLiveWidget(RTScreenIds::Main));
+
+	// ⚠️ E soprattutto: la pausa se n'e' andata. Se restasse, con i widget smontati il giocatore avrebbe
+	// l'input bloccato e nessuna schermata — il dead-end che una revisione intermedia aveva introdotto.
+	TestFalse(TEXT("la pausa e' chiusa: nessun blocco dell'input senza schermate"), Nav->IsPauseOpen());
+	TestEqual(TEXT("e il livello del menu e' stato chiesto"),
+		Nav->ConsumePendingFrontendLevel(), FString(RTPauseTestsLocal::FrontendLevelName));
 
 	RTPauseTestsLocal::ReleaseNavigator(GI);
 	return true;
@@ -459,6 +596,64 @@ bool FRTWidgetCacheDiesWithItsWorldTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **La pausa toglie l'input di gioco, e per un'intera revisione non lo toglieva.**
+ *
+ * `ERTPointerContext::Modal` era letto da tre soli consumatori — i **click sul mondo** — mentre `OnLockIn`
+ * (Spazio), `OnSelect`, `OnRestart`, `OnAbility1..4` e `OnUndoWaypoint` non lo guardavano: con la pausa
+ * aperta, **Spazio risolveva il turno dietro la schermata**. Il DoD dice «una schermata copre la partita e
+ * le toglie il puntatore», ed era vero del puntatore e falso della tastiera. Trovato in code review.
+ *
+ * ⚠️ **Si prova il PREDICATO, non i singoli handler**, e la scelta e' deliberata: `IsGameplayInputBlocked()`
+ * e' il punto comune che tutti consultano, e un test per ciascun tasto proverebbe otto volte la stessa
+ * cosa restando cieco al nono tasto che qualcuno aggiungera'. Che i chiamanti lo consultino davvero e'
+ * verificabile con un grep, ed e' scritto qui perche' resti un criterio e non un ricordo:
+ *
+ *     git grep -n "IsGameplayInputBlocked()" -- Source/RefactorTactics/Player/
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPauseBlocksGameplayInputTest,
+	"RefactorTactics.Frontend.PauseBlocksGameplayInput",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPauseBlocksGameplayInputTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	UGameInstance* GI = nullptr;
+	URTFrontendNavigator* Nav = RTPauseTestsLocal::MakeStartedNavigator(GI);
+	if (!TestNotNull(TEXT("il navigatore esiste"), Nav))
+	{
+		RTPauseTestsLocal::ReleaseNavigator(GI); RTWorldFixtures::DestroyWorld(World); return false;
+	}
+	World->SetGameInstance(GI);
+	Nav->EnterMatch();
+
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("il PlayerController"), PC))
+	{
+		RTPauseTestsLocal::ReleaseNavigator(GI); RTWorldFixtures::DestroyWorld(World); return false;
+	}
+
+	TestFalse(TEXT("a partita scoperta l'input passa"), PC->IsGameplayInputBlocked());
+	TestNotEqual(TEXT("e il contesto non e' Modal"), PC->GetPointerContext(), ERTPointerContext::Modal);
+
+	Nav->ShowPause();
+	TestTrue(TEXT("con la pausa aperta l'input di gioco e' bloccato"), PC->IsGameplayInputBlocked());
+	TestEqual(TEXT("e il contesto e' Modal"), PC->GetPointerContext(), ERTPointerContext::Modal);
+
+	// ⚠️ **Anche con `SETTINGS` sopra**: la partita sotto non torna interattiva perche' si e' scesi di una
+	// schermata. E' la ragione per cui `IsPauseOpen()` guarda tutto lo stack e non la sola cima.
+	Nav->OpenSettings();
+	TestTrue(TEXT("e resta bloccato anche dentro le impostazioni"), PC->IsGameplayInputBlocked());
+
+	Nav->ResumeMatch();
+	TestFalse(TEXT("RESUME lo restituisce"), PC->IsGameplayInputBlocked());
+
+	RTPauseTestsLocal::ReleaseNavigator(GI);
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 // ─── Il criterio forte del DoD ───────────────────────────────────────────────────────────────────────
 
 namespace RTPauseTestsLocal
@@ -603,9 +798,22 @@ bool FRTPauseLeavesNoTraceInTheSimulationTest::RunTest(const FString&)
  * ha gia' ripulito quasi tutto, e il test piu' facile da scrivere sarebbe anche quello cieco. Il caso che
  * rivela lo stato vivo e' `ESC` con unita' mosse e intenti in volo.
  *
- * 🔴 **Con la controprova, perche' un test di uguaglianza su un sistema senza stato vivo passerebbe senza
- * provare niente**: la seconda meta' allestisce una partita **senza** smontare la prima, e verifica che
- * l'oracolo la distingua. Se non lo facesse, l'uguaglianza qui sopra non significherebbe nulla.
+ * ⚠️ **Cosa questo test NON prova, e va detto invece che lasciato intendere.** Le due partite girano in
+ * mondi nuovi di zecca, quindi l'unica cosa che potrebbe farle divergere e' stato trattenuto dalla
+ * `GameInstance` — e oggi **nessun subsystem alimenta la simulazione**: ne' il navigatore ne' il viewer di
+ * replay sono letti da `ARTTurnManager`. L'uguaglianza (c) sarebbe quindi vera **anche togliendo del tutto
+ * lo smontaggio**, ed e' una **rete** per il giorno in cui qualcuno metta stato di partita in un subsystem,
+ * non la dimostrazione che lo smontaggio avviene. Trovato in code review sulla PR #1304: la prima stesura
+ * di questa nota prometteva il contrario.
+ *
+ * ✅ **Cio' che davvero prova lo smontaggio e' il cambio di livello**, ed e' verificato altrove:
+ * `MatchGameModeConsumesBothLevelRequests` (il livello viene aperto, e il mondo con dentro `TurnManager` e
+ * unita' muore con lui) e `WidgetCacheDiesWithItsWorld` (cio' che sopravvive nel navigatore viene buttato).
+ *
+ * 🔴 **La controprova (d) resta, e dice una cosa piu' modesta di quanto sembrasse**: che l'oracolo
+ * distingue una partita avviata **sopra una viva** — cioe' che gli hash non sono costanti e il confronto in
+ * (c) non e' vacuo per costruzione dell'oracolo. Non dimostra che catturerebbe un sopravvissuto nella
+ * `GameInstance`, perche' un tale sopravvissuto oggi non e' costruibile.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSameOutcomeAfterReturnToMainMenuTest,
 	"RefactorTactics.Frontend.SameOutcomeAfterReturnToMainMenu",
@@ -652,7 +860,8 @@ bool FRTSameOutcomeAfterReturnToMainMenuTest::RunTest(const FString&)
 	TestTrue(TEXT("e turno per turno e' identica a una partita avviata da fresco: nessuno stato e' sopravvissuto"),
 		DopoIlRitorno == Riferimento);
 
-	// (d) 🔴 CONTROPROVA. Senza lo smontaggio l'oracolo deve accorgersene, o (c) non prova niente.
+	// (d) CONTROPROVA — sull'ORACOLO, non sullo smontaggio: gli hash devono distinguere due partite diverse,
+	// altrimenti l'uguaglianza in (c) sarebbe vera per costruzione. Vedi la nota sopra su cosa non copre.
 	UWorld* StillAliveWorld = nullptr;
 	RTPauseTestsLocal::PlayMatchInFreshWorld(GI, TurniPrimaDiMollare, &StillAliveWorld);
 	if (TestNotNull(TEXT("la partita che NON viene smontata esiste"), StillAliveWorld))
@@ -682,7 +891,7 @@ bool FRTSameOutcomeAfterReturnToMainMenuTest::RunTest(const FString&)
 				++Turni;
 			}
 
-			TestFalse(TEXT("l'oracolo DISTINGUE una partita avviata sopra una viva: non e' un test vacuo"),
+			TestFalse(TEXT("l'oracolo DISTINGUE una partita avviata sopra una viva: gli hash non sono costanti"),
 				Sporca == Riferimento);
 		}
 

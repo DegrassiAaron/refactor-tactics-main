@@ -533,6 +533,12 @@ namespace
 
 void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 {
+	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	// Attivita' generica: aggiorna i tempi anche quando il click non produce nulla. Un click a vuoto
 	// e' comunque il giocatore che sta lavorando, e serve a non scambiarlo per un giocatore assente.
 	if (ARTTurnManager* TM = PacingTurnManager(this))
@@ -900,6 +906,12 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 
 void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 {
+	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	if (ARTTurnManager* TurnManager = Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
 	{
 		// Durante il playback lo stesso tasto (Spazio) salta la risoluzione; altrimenti chiude la pianificazione.
@@ -940,6 +952,12 @@ void ARTPlayerController::OnCyclePlaybackSpeed(const FInputActionValue& Value)
 
 void ARTPlayerController::OnRestart(const FInputActionValue& Value)
 {
+	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	// Riavvia la partita solo quando è conclusa: ricarica il livello corrente.
 	const ARTTurnManager* TurnManager =
 		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
@@ -956,6 +974,13 @@ ARTUnit* ARTPlayerController::GetSelectedUnit() const
 
 void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 {
+	// Le quattro `OnAbility*` sono one-liner che passano di qui: la guardia sta nel punto comune invece
+	// che ripetuta quattro volte, cosi' un quinto tasto abilita' la eredita per costruzione.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit)
 	{
@@ -1022,6 +1047,12 @@ void ARTPlayerController::OnAbility4(const FInputActionValue& Value) { SelectAbi
 
 void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 {
+	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit || Unit->PlannedWaypoints.Num() == 0)
 	{
@@ -1102,6 +1133,13 @@ void ARTPlayerController::OnTogglePause()
 		UE_LOG(LogRT, Warning, TEXT("[RT] ESC: la pausa non ha cambiato stato (%s)."),
 			*UEnum::GetValueAsString(Result));
 	}
+}
+
+bool ARTPlayerController::IsGameplayInputBlocked() const
+{
+	// Si legge il contesto invece di ri-chiedere al navigatore: il contratto del puntatore e' l'autorita'
+	// su *chi consuma un input*, e un secondo interrogante produrrebbe due risposte da tenere allineate.
+	return GetPointerContext() == ERTPointerContext::Modal;
 }
 
 ERTPointerContext ARTPlayerController::GetPointerContext() const
@@ -1234,10 +1272,23 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 		break;
 
 	case ERTPointerBackStep::ReactionFallback:
-	case ERTPointerBackStep::Modal:
-		// Nessun produttore: vedi la nota in `GetPointerContext`. L'ordine e' dichiarato e testato nella
+		// Nessun produttore: la finestra di reazione e' E14. L'ordine e' dichiarato e testato nella
 		// libreria pura; l'effetto arrivera' col proprio owner.
 		break;
+
+	case ERTPointerBackStep::Modal:
+		// 🔴 **Ha un produttore dal 2026-08-24 — la pausa di CP 46.6 — e finche' non l'ha avuto questo ramo
+		// era innocuo. Adesso no**: cadeva insieme a `ReactionFallback` e usciva con `Step != None`, quindi
+		// la coda di questa funzione scriveva `RecordPlanningInput(Click)` nel `TurnManager`. Un `BACK`
+		// premuto **a partita in pausa** sporcava la telemetria di ritmo che `PIE-V01-MATCHLEN` legge, e
+		// contraddiceva il criterio del checkpoint — *«la pausa non tocca la simulazione»* — in un punto che
+		// nessuno guardava. Trovato in code review sulla PR #1304.
+		//
+		// ⛔ **E non chiude la pausa**: il `BACK` del contratto del puntatore smonta stati di *pianificazione*
+		// (inspector, targeting, waypoint). La pausa e' del navigatore, e la chiude `ESC` o il pulsante
+		// `RESUME` — dare a questo ramo un'uscita dal menu sarebbe la seconda autorita' sulla navigazione
+		// che l'invariante 1 di CP 46.1 vieta.
+		return ERTPointerBackStep::None;
 
 	default:
 		break;

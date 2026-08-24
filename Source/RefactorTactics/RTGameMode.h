@@ -366,10 +366,16 @@ private:
 	void HandleMatchEnded(const FRTMatchResult& Result, const FRTMatchState& State);
 
 	// ---- CP 46.6 · il lato di partita del confine col frontend (`#941`) -------------------------------
+public:
 
 	/**
 	 * Si iscrive alle richieste di livello del navigatore. **Pubblica e separata da `BeginPlay`** per essere
 	 * verificabile headless, come `SetupHexMatch`.
+	 *
+	 * ⚠️ **Il `public:` qui sopra non e' decorativo, e la prima stesura lo aveva dimenticato**: questo
+	 * blocco cadeva dentro l'unico `private:` del file, quindi la frase «pubblica … per essere verificabile»
+	 * descriveva una funzione che un test non poteva chiamare. Trovato in code review sulla PR #1304 — una
+	 * giustificazione che descrive il contrario di cio' che il codice fa e' peggio di nessuna.
 	 *
 	 * 🔴 **Chiude un confine che per un intero checkpoint aveva un solo lato.** `ARTFrontendGameMode`
 	 * raccoglie `OnMatchRequested` **sulla mappa del menu**; dentro una partita quel GameMode non esiste,
@@ -400,6 +406,8 @@ private:
 	 * nessuna parte, e senza questo punto il consumatore si potrebbe provare solo in PIE.
 	 */
 	virtual void OpenLevelByName(const FString& LevelName);
+
+private:
 
 	/**
 	 * Spawna l'eroe con l'`HeroId` dato. `Hero == nullptr` non spawna nulla (fail-closed): un'unita' con

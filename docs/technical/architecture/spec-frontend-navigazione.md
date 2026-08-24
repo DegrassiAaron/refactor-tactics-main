@@ -132,6 +132,31 @@ invece di eseguire, perché il navigatore è un `UGameInstanceSubsystem` e per c
 | `StartMatch()` / `PlayAgain()` → `OnMatchRequested` | `ARTFrontendGameMode` sulla mappa del menu, **e `ARTGameMode`** dentro una partita | menu → partita |
 | `RequestReturnToMainMenu()` → `OnReturnToFrontendRequested` | `ARTGameMode` | partita → menu |
 
+### 3.1-bis La partita è uno stato del flow, non la sua assenza
+
+⚠️ **`RTScreenIds::Match` è una schermata senza widget**, e `ARTGameMode::BeginPlay` la dichiara con
+`EnterMatch()`. Sembra una formalità: non lo è, e la sua assenza ha prodotto **due dead-end** trovati in
+code review su [#1304](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1304).
+
+Il navigatore sopravvive al cambio di livello, ma il suo **stack** descrive ancora il menu. Durante una
+partita restava `[Main]` — o **vuoto**, se il gioco era partito direttamente sulla mappa di gioco
+(`PIE-HEXPLAY-*`). Da lì:
+
+| Stack in partita | `ESC` | `RESUME` |
+|---|---|---|
+| `[Main]` (dal menu) | `[Main, Pause]` ✅ | `PopScreen` → `SyncPresentation` presenta la cima = **il Main Menu sopra la partita viva** |
+| vuoto (PIE diretto) | `[Pause]` — la pausa è la **radice**, e non si disegna (`bInitialized == false`) | `BlockedAtRoot` **per sempre**: pausa inchiodata, puntatore in `Modal`, schermo vuoto |
+
+Con `[Match]` come radice entrambi spariscono: c'è sempre una radice legale sotto la pausa, e tornarci non
+disegna nulla perché quell'id **non ha un binding**. Non è una lacuna del `.ini` — è la sua definizione, e
+per questo `Match` non compare in `EveryConfiguredScreenLoads`.
+
+⚠️ **È anche ciò che rende sicuro `ReturnMain()` dentro una partita**, e quindi `RequestReturnToMainMenu`.
+Una revisione intermedia aveva provato a smontare a mano invece di navigare: produceva un blocco
+dell'input **senza schermate** quando nessuno consumava la richiesta, e un rifiuto d'errore **muto** —
+`bInitialized` a `false` impedisce a `SyncPresentation` di presentare il modale. Due difetti peggiori di
+quello che voleva evitare, colti dai test.
+
 ⛔ **I due consumatori non sono lo stesso Actor, e questo è ciò che era sfuggito.** Il Result si apre
 *dentro* il livello di partita, dove `ARTFrontendGameMode` non esiste: fino a CP 46.6 `PLAY AGAIN`
 annunciava a zero ascoltatori, e il `PLAY` successivo veniva rifiutato da `MatchRequestNotConsumed`. La
@@ -352,6 +377,22 @@ git grep -n "SetPause(\|SetGlobalTimeDilation(" -- Source/ \
 diversi»*. Con un modale aperto `PushScreen` risponde `BlockedByModal`, quindi il criterio *«`SETTINGS`
 apre lo stesso pannello di CP 46.3 — non una seconda copia»* sarebbe stato **irrealizzabile**: l'unica via
 sarebbe stata un secondo widget, cioè la copia che il DoD vieta.
+
+🔴 **E toglie l'input davvero, cosa che per un'intera revisione non faceva.**
+`ERTPointerContext::Modal` era letto da tre soli consumatori — `HandleTargetCell`, `HandleTargetUnit`,
+`HandleDeclareFacing`, cioè i **click sul mondo** — mentre `OnLockIn` (Spazio), `OnSelect`, `OnRestart`,
+`OnAbility1..4` e `OnUndoWaypoint` non lo guardavano affatto: **Spazio risolveva il turno dietro la
+schermata di pausa**. Il criterio *«una schermata copre la partita e le toglie il puntatore»* era vero del
+puntatore e falso della tastiera. Il punto comune è ora `ARTPlayerController::IsGameplayInputBlocked()`,
+e che i chiamanti lo consultino è un grep:
+
+```sh
+git grep -n "IsGameplayInputBlocked()" -- Source/RefactorTactics/Player/
+```
+
+⚠️ **La camera resta libera** — pan, zoom, orbita, recenter — e la scelta è deliberata: non toccano il
+piano né la simulazione, e la precedenza dichiarata da CP 11.8 parla di *chi consuma un click*, non di chi
+muove la vista.
 
 **`RESUME` non ripristina niente, e per costruzione.** Selezione, waypoint e abilità armata vivono in
 `ARTPlayerController` e nessuno li tocca: `ERTPointerContext::Modal` è *derivato* — `GetPointerContext()`

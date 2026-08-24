@@ -240,7 +240,21 @@ void ARTGameMode::BeginPlay()
 	// salterebbe l'iscrizione.
 	if (UGameInstance* GameInstance = GetGameInstance())
 	{
-		ListenForLevelRequests(GameInstance->GetSubsystem<URTFrontendNavigator>());
+		URTFrontendNavigator* Navigator = GameInstance->GetSubsystem<URTFrontendNavigator>();
+		ListenForLevelRequests(Navigator);
+
+		// 🔴 **La partita si DICHIARA al flow, e non farlo produceva due dead-end** (vedi
+		// `RTScreenIds::Match`). Il navigatore sopravvive al cambio di livello ma il suo stack no: senza
+		// questa riga restava `[Main]` — la radice lasciata dal menu — e `RESUME` ripresentava il Main Menu
+		// **sopra la partita viva**; oppure restava vuoto, avviando il gioco direttamente su `L_HexArena`,
+		// e `ESC` impilava `Pause` come radice da cui `ResumeMatch` non usciva piu'.
+		//
+		// ⚠️ **Dopo `ListenForLevelRequests` e non prima**: un `EnterMatch` che fallisse non deve portarsi
+		// via l'iscrizione, che con lo stato del flow non c'entra.
+		if (Navigator)
+		{
+			Navigator->EnterMatch();
+		}
 	}
 
 	// Mappa esagonale: usa quella presente nel livello o ne crea una all'origine (graybox demo).
@@ -1120,8 +1134,11 @@ void ARTGameMode::HandleMatchRequested(const FString& LevelName)
 	const FString Consumed = Navigator ? Navigator->ConsumePendingMatchLevel() : FString();
 	if (Consumed.IsEmpty())
 	{
+		// ⚠️ «di partita» e' il consumatore, non l'evento: `ARTFrontendGameMode` emette la riga gemella dal
+		// mondo del menu, e senza questa distinzione il log non dice quale dei due ha parlato.
 		UE_LOG(LogRT, Error,
-			TEXT("[RT] Annuncio di partita per '%s' senza richiesta pendente: nulla da aprire."), *LevelName);
+			TEXT("[RT] PLAY AGAIN dal mondo di partita: annuncio per '%s' senza richiesta pendente, "
+				 "nulla da aprire."), *LevelName);
 		return;
 	}
 

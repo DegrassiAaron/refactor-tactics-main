@@ -266,6 +266,24 @@ public:
 	void OnTogglePause();
 
 	/**
+	 * **Una schermata bloccante copre la partita**: nessun input di gioco deve arrivare al mondo.
+	 *
+	 * 🔴 **Esiste perche' il contesto `Modal` da solo NON toglieva niente, e per un'intera revisione la
+	 * pausa e' stata una promessa.** `GetPointerContext()` era letto da tre soli consumatori —
+	 * `HandleTargetCell`, `HandleTargetUnit`, `HandleDeclareFacing`, cioe' i **click sul mondo** — mentre
+	 * `OnLockIn` (Spazio), `OnSelect`, `OnRestart`, `OnAbility1..4` e `OnUndoWaypoint` non lo guardavano
+	 * affatto. Con la pausa aperta, **Spazio risolveva il turno dietro la schermata**. Il DoD dice «una
+	 * schermata copre la partita e le toglie il puntatore»: era vero del puntatore e falso della tastiera.
+	 * Trovato in code review sulla PR #1304.
+	 *
+	 * ⚠️ **Non blocca la CAMERA**, ed e' deliberato: pan, zoom, orbita e recenter non toccano il piano ne'
+	 * la simulazione. Bloccare anche quelli sarebbe un contratto piu' largo di quello che serve, e la
+	 * precedenza dichiarata da CP 11.8 parla di *chi consuma un click*, non di chi muove la vista.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
+	bool IsGameplayInputBlocked() const;
+
+	/**
 	 * §5.5 — applica il Back e dichiara **quale livello** ha smontato.
 	 *
 	 * Restituisce il livello invece di `void` perche' l'ordine e' la cosa da provare: un test che guarda solo

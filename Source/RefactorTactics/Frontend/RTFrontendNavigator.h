@@ -314,6 +314,25 @@ public:
 	 * *«quando quegli owner arrivano, aggiungono il proprio ramo qui»*, dice quel file, e la pausa e' il
 	 * primo owner che arriva. Il navigatore espone uno stato; non decide chi consuma un click.
 	 */
+	/**
+	 * **La partita e' cominciata**: la radice del flow diventa `RTScreenIds::Match`, e a schermo non c'e'
+	 * niente (quell'id non ha un widget, per definizione).
+	 *
+	 * 🔴 **Senza questa chiamata la pausa aveva due dead-end**, e li ha avuti per un'intera revisione —
+	 * vedi la nota su `RTScreenIds::Match`, che li descrive entrambi. In breve: lo stack restava quello del
+	 * menu (`[Main]`) o vuoto, quindi `RESUME` ripresentava il Main Menu **sopra la partita**, e su stack
+	 * vuoto la pausa diventava una radice da cui non si esce.
+	 *
+	 * ⚠️ **La chiama `ARTGameMode::BeginPlay`, non il navigatore da se'.** Chi sa che una partita e'
+	 * cominciata e' chi ha il mondo, ed e' la stessa direzione di dipendenza di `InitializeFrontend`: il
+	 * subsystem non indovina in che livello si trova.
+	 *
+	 * ⚠️ **Vale anche quando il frontend non e' MAI partito** — PIE direttamente su `L_HexArena` — ed e'
+	 * anzi il caso che l'ha resa necessaria: li' non esisteva alcuno stack, e `ESC` ne creava uno storto.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	ERTNavResult EnterMatch();
+
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
 	ERTNavResult ShowPause();
 
@@ -373,9 +392,14 @@ public:
 	 * consumatore e' `ARTGameMode` via `ConsumePendingFrontendLevel`.
 	 *
 	 * ⚠️ **Passa da `ReturnMain()` prima di chiedere**, cosi' che «tornare alla radice» abbia un solo
-	 * significato e un solo posto — compreso l'azzeramento del risultato. Il widget `Main` che ne nasce vive
-	 * per un frame nel mondo che sta per morire e lo smonta `OnWorldCleanup`: e' spreco, non un difetto, e
-	 * il costo alternativo sarebbe una seconda definizione di «radice».
+	 * significato e un solo posto — azzeramento del risultato compreso. In partita quella radice e'
+	 * `Match`, che **non ha un widget**: tornarci smonta la pausa e non disegna nulla, e a ricostruire il
+	 * menu e' `ARTFrontendGameMode::BeginPlay` nel mondo nuovo.
+	 *
+	 * 🔴 **Finche' la radice in partita era `Main`, quella chiamata presentava il Main Menu SOPRA la
+	 * partita viva** — trovato in code review sulla PR #1304, ed e' la ragione per cui esiste `EnterMatch`.
+	 * La correzione sta li', non qui: una revisione intermedia aveva invece smontato a mano da questa
+	 * funzione, e produceva un blocco dell'input senza schermate e un rifiuto d'errore muto.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
 	ERTNavResult RequestReturnToMainMenu();

@@ -13,4 +13,5 @@ namespace RTScreenIds
 	const FName ErrorModal(TEXT("Error"));
 	const FName Result(TEXT("Result"));
 	const FName Pause(TEXT("Pause"));
+	const FName Match(TEXT("Match"));
 }

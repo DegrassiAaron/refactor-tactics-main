@@ -385,6 +385,13 @@ ERTNavResult URTFrontendNavigator::PlayAgain()
 // CP 46.6 · Pause e smontaggio (`#941`)
 // ======================================================================================================
 
+ERTNavResult URTFrontendNavigator::EnterMatch()
+{
+	// E' `InitializeFrontend` con un'altra radice, e non una terza via: la partita e' l'inizio di una
+	// sessione di flow come lo e' il menu — widget della precedente buttati, stack nuovo, radice legale.
+	return InitializeFrontend(RTScreenIds::Match);
+}
+
 ERTNavResult URTFrontendNavigator::ShowPause()
 {
 	// ⚠️ Non e' idempotente di proposito: due `Pause` impilate sarebbero due voci di stack e **un solo
@@ -447,6 +454,21 @@ bool URTFrontendNavigator::IsPauseOpen() const
 
 ERTNavResult URTFrontendNavigator::OpenSettings()
 {
+	// ⚠️ **La stessa guardia di `ShowPause`, e per lo stesso motivo**: la presentazione tiene **un widget
+	// per `FName`**, quindi un doppio click su `SETTINGS` impilerebbe due voci per un solo widget — e il
+	// primo `BACK` ne toglierebbe una lasciando le impostazioni a schermo, cioe' un pulsante che sembra
+	// rotto. Trovato in code review sulla PR #1304.
+	//
+	// ⛔ **La deduplica NON va messa in `FRTScreenStack::PushScreen`**, benche' sia la sede piu' alta: lo
+	// stack non deduplica **per decisione** — *«`Settings` aperto dal Main e `Settings` aperto dalla Pause
+	// sono la stessa schermata con due ritorni diversi»* — e `Frontend.SameScreenPushedTwiceKeepsTwoReturns`
+	// lo asserisce. Cio' che va impedito e' la ripetizione **consecutiva**, che non ha un secondo ritorno da
+	// conservare perche' il ritorno sarebbe a se stessa.
+	if (Stack.CurrentScreen() == RTScreenIds::Settings)
+	{
+		return ERTNavResult::ScreenIsAlreadyOnStack;
+	}
+
 	return PushScreen(RTScreenIds::Settings);
 }
 
@@ -465,6 +487,23 @@ ERTNavResult URTFrontendNavigator::RequestReturnToMainMenu()
 	}
 
 	// «Tornare alla radice» ha un solo significato e un solo posto, azzeramento del risultato compreso.
+	//
+	// ✅ **Ed e' sicuro PERCHE' `EnterMatch` ha messo `Match` come radice.** Prima non lo era: con la
+	// radice a `Main`, `SyncPresentation` presentava il **Main Menu sopra la partita viva** nel frame che
+	// precede il cambio di livello — il difetto trovato in code review sulla PR #1304. Adesso la radice in
+	// partita e' una schermata **senza widget**, quindi tornarci smonta la pausa e non disegna niente; dal
+	// menu, dove la radice e' `Main`, presenta il menu, che e' giusto.
+	//
+	// ⛔ **E NON si smonta a mano.** Una revisione intermedia aveva sostituito questa riga con
+	// `bInitialized = false; DismissAllWidgets();`, e produceva due difetti **peggiori** di quello che
+	// voleva evitare — entrambi colti dai test, non dal ragionamento:
+	//
+	//   (a) lo stack restava dov'era, quindi con `Pause` ancora dentro l'input di gioco restava bloccato
+	//       **senza niente a schermo** se nessuno consumava la richiesta: lo stesso dead-end di F2, un
+	//       livello piu' in la';
+	//   (b) con `bInitialized` a `false`, `RejectReturnToMain` non poteva piu' presentare il modale
+	//       d'errore — `SyncPresentation` esce alla prima riga — e il rifiuto diventava **muto**, che e'
+	//       esattamente cio' che quel modale esiste per impedire.
 	const ERTNavResult Cleared = ReturnMain();
 	if (Cleared != ERTNavResult::Ok)
 	{
@@ -482,9 +521,9 @@ ERTNavResult URTFrontendNavigator::RequestReturnToMainMenu()
 
 FString URTFrontendNavigator::ConsumePendingFrontendLevel()
 {
-	FString Consumed;
-	Swap(Consumed, PendingFrontendLevel);
-	return Consumed;
+	// `MoveTemp` come il gemello quattro righe piu' su: due primitive diverse per lo stesso move-and-clear
+	// costringono chi legge a chiedersi se la differenza significhi qualcosa.
+	return MoveTemp(PendingFrontendLevel);
 }
 
 FString URTFrontendNavigator::ConsumePendingMatchLevel()
@@ -684,6 +723,14 @@ void URTFrontendNavigator::HandleWorldCleanup(UWorld* World, bool /*bSessionEnde
 
 	// Non e' una navigazione: lo stack resta com'e'. Si butta cio' che e' legato al mondo, e chi apre il
 	// livello successivo ricostruira' da `InitializeFrontend`.
+	//
+	// ⚠️ **`bInitialized` cade PRIMA, come in `InitializeFrontend`**, e la prima stesura lo saltava —
+	// trovato in code review sulla PR #1304, ed e' lo stesso difetto che quella funzione documenta come
+	// *«trovato in code review su PR #1272»*: `DismissWidget` esegue `RemoveFromParent` -> `NativeDestruct`
+	// -> l'evento Blueprint `Destruct`, e ogni funzione di questo navigatore e' `BlueprintCallable`. Un
+	// widget che navigasse da li' rientrerebbe in `SyncPresentation` **dentro un mondo in `CleanupWorld`**,
+	// creando un widget che il `LiveWidgets.Reset()` subito dopo dimenticherebbe.
+	bInitialized = false;
 	DismissAllWidgets();
 }
 
@@ -718,9 +765,13 @@ void URTFrontendNavigator::Deinitialize()
 
 	// Lo stesso smontaggio di `InitializeFrontend`, in un posto solo: le due sedi divergerebbero al primo
 	// widget che richiede un passo di pulizia in piu'.
+	//
+	// ⚠️ **E nello stesso ORDINE**: il flag cade prima dello smontaggio, non dopo. Qui era invertito, e la
+	// finestra di rientranza era la stessa di `HandleWorldCleanup` — un `Destruct` che naviga mentre
+	// `bInitialized` e' ancora `true`.
+	bInitialized = false;
 	DismissAllWidgets();
 	Bindings.Reset();
-	bInitialized = false;
 
 	Super::Deinitialize();
 }
