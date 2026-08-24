@@ -90,7 +90,19 @@ FRTDebugReplayVerdict URTDebugReportLibrary::VerifyReplay(const TArray<uint8>& G
 		// divergenza resta rilevata ma non localizzata, e il verdetto lo dice invece di tacerlo.
 		if (GoldenEntries.Num() > 0)
 		{
-			const int32 TurnNumber = GoldenEntries[0].TurnNumber;
+			// ⚠️ Il turno da riportare e' quello della **voce che diverge**, non `GoldenEntries[0]`: una
+			// traccia copre piu' round, e un'etichetta presa dalla prima voce manderebbe a guardare il
+			// round sbagliato — proprio dalla funzione il cui compito e' dire DOVE.
+			int32 TurnNumber = GoldenEntries[0].TurnNumber;
+			for (int32 i = 0; i < GoldenEntries.Num(); ++i)
+			{
+				if (!Actual.IsValidIndex(i) ||
+					!URTTurnLogLibrary::GoldenEntriesMatch(GoldenEntries[i], Actual[i]))
+				{
+					TurnNumber = GoldenEntries[i].TurnNumber;
+					break;
+				}
+			}
 			Verdict.FirstDivergence = URTTurnLogLibrary::DescribeFirstDivergence(TurnNumber, GoldenEntries, Actual);
 			Verdict.Lines.Add(FString::Printf(TEXT("[RT]   prima divergenza: %s"), *Verdict.FirstDivergence));
 		}
@@ -143,10 +155,20 @@ FString URTDebugReportLibrary::DescribeCell(const FRTHexCellData& Cell, int32 Oc
 	// Gli stati che la superficie impone a chi ci sta sopra. Derivati, non memorizzati — ed e' la
 	// ragione per cui questa riga risponde a «perche' quell'unita' e' bagnata?», che il solo nome
 	// della superficie non spiega a chi non conosce il catalogo terreni a memoria.
+	//
+	// 🔴 **`CellBoundStatusesFor` da sola non basta, e l'header di `RTTerrainLibrary` lo dice per esteso**:
+	// restituisce i soli stati SOSTENUTI (durata 0), mentre `Burning` ha durata 2 e non compare — *«una
+	// cella in fiamme risulterebbe innocua»*. Una stesura precedente di questa funzione faceva esattamente
+	// l'errore che quel commento avverte di non fare, sulla superficie piu' pericolosa del catalogo.
+	// `IsHazardousSurface` esiste per questa domanda e chiede al catalogo, non a un elenco scritto qui.
 	TArray<FString> Tags;
 	for (const FGameplayTag& Tag : URTTerrainLibrary::CellBoundStatusesFor(Cell.Surface))
 	{
 		Tags.Add(Tag.ToString());
+	}
+	if (URTTerrainLibrary::IsHazardousSurface(Cell.Surface))
+	{
+		Line += TEXT(" PERICOLOSA");
 	}
 	if (Tags.Num() > 0)
 	{

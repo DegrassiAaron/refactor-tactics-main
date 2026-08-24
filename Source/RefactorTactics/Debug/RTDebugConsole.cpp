@@ -109,11 +109,28 @@ static void RTDebugVerifyReplayCommand(const TArray<FString>& Args, UWorld* Worl
 		return;
 	}
 
-	// ⚠️ Il riferimento in VOCI non c'e': dal file arrivano byte, e deserializzarli qui duplicherebbe il
-	// loader. La divergenza viene quindi rilevata ma non localizzata, e il verdetto lo dichiara da se'
-	// invece di lasciar credere che non ci fosse niente da dire.
+	// 🔴 **Il contesto si LEGGE dal file, non si assume.** Una stesura precedente passava
+	// `ERTLogTopology::Hex` e `NAME_None` fissi: `CompareSerializedTraces` guarda il formato **prima** del
+	// contenuto (`RTTurnLogLibrary.cpp:1037`) e ogni traccia registrata porta il `FormatId` vero del
+	// formato di partita — quindi il comando rispondeva `FormatMismatch` su qualunque replay reale e non
+	// poteva **mai** rilevare una divergenza. Il test non se ne accorgeva perche' chiama la funzione pura,
+	// dove il formato lo passa il chiamante.
+	//
+	// `DeserializeTurnLog` e' il loader del progetto, e' pubblico, e restituisce insieme le voci, la
+	// topologia e il formato: le tre cose che servono qui. Le voci servono anche a LOCALIZZARE la
+	// divergenza, che senza di esse resterebbe solo annunciata.
+	TArray<FRTTurnLogEntry> GoldenEntries;
+	ERTLogTopology Topology = ERTLogTopology::Hex;
+	FName FormatId = NAME_None;
+	if (!URTTurnLogLibrary::DeserializeTurnLog(GoldenBytes, GoldenEntries, &Topology, &FormatId))
+	{
+		Ar.Logf(TEXT("[RT] La traccia di riferimento non e' leggibile: %s"), *Args[0]);
+		Ar.Log(TEXT("[RT]   (magic, versione, topologia non riconosciuta o buffer troncato)"));
+		return;
+	}
+
 	const FRTDebugReplayVerdict Verdict = URTDebugReportLibrary::VerifyReplay(
-		GoldenBytes, /*GoldenEntries*/ {}, TM->GetTurnLog(), ERTLogTopology::Hex, NAME_None);
+		GoldenBytes, GoldenEntries, TM->GetTurnLog(), Topology, FormatId);
 	LogAll(Ar, Verdict.Lines);
 }
 
@@ -141,11 +158,18 @@ static void RTDebugDrawIntentCommand(const TArray<FString>& Args, UWorld* World,
 }
 
 // ---------------------------------------------------------------------------------------------------
-// I comandi di OVERLAY
+// I comandi di ISPEZIONE della scena
 //
-// Il contenuto delle etichette e' testo, e come tale si verifica headless; che compaia a schermo e'
-// `PIE-V01-DEBUG` (seduta U15). Qui i comandi stampano l'inventario **e** accendono il disegno, cosi' una
-// sessione senza viewport resta utile.
+// 🔴 **Stampano, non disegnano — e va detto qui invece che scoperto in PIE.** Una stesura precedente di
+// questa intestazione affermava che «accendono il disegno»: falso, nessuno dei tre tocca uno stato di
+// overlay. L'unico comando che disegna davvero e' `rt.Debug.DrawCells`, che chiama
+// `SetCellOverlayEnabled` (`Map/RTHexOverlayConsole.cpp`).
+//
+// ⏳ **Conseguenza dichiarata**: il DoD di #80 chiede comandi che disegnino, e `PIE-V01-DEBUG` lo
+// verifichera' a schermo. Per `DrawPaths`, `DrawCover` e `DrawResolution` quel lavoro **non e' fatto**:
+// l'overlay grafico richiede un consumatore in `ARTHexMapActor` sul modello di `DrawCellOverlay`, e
+// finche' non esiste questi tre rispondono in console. Il nome resta `Draw*` perche' e' quello che il DoD
+// nomina; il comportamento e' descritto qui e nella help string di ciascuno.
 // ---------------------------------------------------------------------------------------------------
 
 static void RTDebugDrawCoverCommand(const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
@@ -184,6 +208,11 @@ static void RTDebugDrawPathsCommand(const TArray<FString>& Args, UWorld* World, 
 		Ar.Log(TEXT("[RT] Nessun percorso: la partita non ha ancora risolto un movimento."));
 		return;
 	}
+	// ⚠️ **L'indice NON e' un `UnitId`, e non e' nemmeno l'indice dell'unita'.** `LastMoveRoutes` e'
+	// COMPATTATO: `RTTurnManager.cpp` vi aggiunge una voce solo quando `Entered.Num() > 0`, quindi con le
+	// unita' 0 e 2 in movimento e la 1 ferma i due percorsi sono `#0` e `#1`. Una stesura precedente
+	// stampava «unita %d» su questo indice e nominava un'unita' che non si era mossa. La prima cella del
+	// percorso dice **da dove** parte, ed e' l'unico aggancio corretto disponibile qui.
 	for (int32 i = 0; i < Routes.Num(); ++i)
 	{
 		FString Path;
@@ -192,9 +221,11 @@ static void RTDebugDrawPathsCommand(const TArray<FString>& Args, UWorld* World, 
 			if (!Path.IsEmpty()) { Path += TEXT(" -> "); }
 			Path += Cell.ToString();
 		}
-		Ar.Logf(TEXT("[RT]   unita %d: %s"), i, Path.IsEmpty() ? TEXT("(ferma)") : *Path);
+		Ar.Logf(TEXT("[RT]   percorso #%d (da %s): %s"), i,
+			Routes[i].Num() > 0 ? *Routes[i][0].ToString() : TEXT("?"), *Path);
 	}
-	Ar.Logf(TEXT("[RT] Percorsi dell'ultima risoluzione: %d."), Routes.Num());
+	Ar.Logf(TEXT("[RT] Percorsi dell'ultima risoluzione: %d — solo le unita' che si sono MOSSE."),
+		Routes.Num());
 }
 
 static void RTDebugDrawResolutionCommand(const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
@@ -206,20 +237,32 @@ static void RTDebugDrawResolutionCommand(const TArray<FString>& Args, UWorld* Wo
 		TM->GetTurnNumber(), *StaticEnum<ERTMatchPhase>()->GetNameStringByValue(
 			static_cast<int64>(TM->GetPhase())));
 
-	// Le voci dell'ultimo round soltanto: un dump dell'intera partita e' `rt.Debug.DumpTurnLog`, e
+	// Le voci dell'ultimo round RISOLTO: un dump dell'intera partita e' `rt.Debug.DumpTurnLog`, e
 	// ripeterlo qui renderebbe i due comandi indistinguibili nell'uso.
+	//
+	// 🔴 **Il round da mostrare non e' `GetTurnNumber()`**, ed e' il difetto che questa riga aveva:
+	// `++TurnNumber` avviene alla FINE della risoluzione, subito prima di `StartPlanningTimer()`. Chi apre
+	// la console per capire cosa e' appena successo si trova gia' nel round successivo, e il filtro
+	// `== GetTurnNumber()` restituiva sempre l'insieme vuoto — tranne durante la risoluzione, cioe'
+	// esattamente quando nessuno puo' digitare. Il round giusto e' il massimo presente nel log.
 	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
-	const int32 Round = TM->GetTurnNumber();
+	if (Log.Num() == 0)
+	{
+		Ar.Log(TEXT("[RT]   nessun round risolto in questa partita."));
+		return;
+	}
+	int32 LastResolved = Log[0].TurnNumber;
+	for (const FRTTurnLogEntry& E : Log)
+	{
+		LastResolved = FMath::Max(LastResolved, E.TurnNumber);
+	}
+
 	TArray<FRTTurnLogEntry> ThisRound;
 	for (const FRTTurnLogEntry& E : Log)
 	{
-		if (E.TurnNumber == Round) { ThisRound.Add(E); }
+		if (E.TurnNumber == LastResolved) { ThisRound.Add(E); }
 	}
-	if (ThisRound.Num() == 0)
-	{
-		Ar.Log(TEXT("[RT]   nessuna voce per questo round."));
-		return;
-	}
+	Ar.Logf(TEXT("[RT]   ultimo round risolto: %d."), LastResolved);
 	LogAll(Ar, URTDebugReportLibrary::DescribeTurnLogEntries(ThisRound));
 }
 
@@ -244,21 +287,27 @@ static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugVerifyReplay(
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawIntent(
 	TEXT("rt.Debug.DrawIntent"),
-	TEXT("Gli intenti VISIBILI a un osservatore: rt.Debug.DrawIntent [team]. Passa dal filtro di squadra, "
-		 "quindi non mostra i piani avversari nemmeno a chi esegue il comando."),
+	TEXT("Gli intenti visibili a un osservatore: rt.Debug.DrawIntent [team], default 0. Compone dalla vista "
+		 "filtrata da FilterForTeam, mai dai piani grezzi. ATTENZIONE: il team e' un ARGOMENTO, quindi "
+		 "'DrawIntent 1' mostra i piani del team 1 come farebbe il team 1 — e' uno strumento di sviluppo "
+		 "locale, dove chi lo esegue possiede gia' tutto lo stato. In rete (M10) dovra' essere lato server "
+		 "o non esistere."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugDrawIntentCommand));
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawCover(
 	TEXT("rt.Debug.DrawCover"),
-	TEXT("Le celle che dichiarano una copertura, col bordo, il tipo e l'integrita'."),
+	TEXT("ELENCA in console le celle che dichiarano una copertura, col bordo, il tipo e l'integrita'. "
+		 "Non disegna: l'overlay grafico e' solo di rt.Debug.DrawCells."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugDrawCoverCommand));
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawPaths(
 	TEXT("rt.Debug.DrawPaths"),
-	TEXT("I percorsi dell'ultima risoluzione, cella per cella."),
+	TEXT("ELENCA in console i percorsi dell'ultima risoluzione, cella per cella — solo le unita' che si "
+		 "sono mosse. Non disegna."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugDrawPathsCommand));
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawResolution(
 	TEXT("rt.Debug.DrawResolution"),
-	TEXT("Il round corrente: fase e voci di TurnLog del solo round in corso."),
+	TEXT("ELENCA in console le voci di TurnLog dell'ultimo round RISOLTO, piu' fase e round correnti. "
+		 "Non disegna."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugDrawResolutionCommand));

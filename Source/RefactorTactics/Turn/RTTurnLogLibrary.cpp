@@ -1082,10 +1082,11 @@ namespace
 	 * Passa dalla `HashTurnLogOrdered` di una voce sola invece di elencare i campi a mano: cosi' l'elenco
 	 * resta uno solo (`MixEntryFields`) e non puo' divergere in silenzio da quello vero.
 	 */
-	bool GoldenEntriesMatch(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
-	{
-		return URTTurnLogLibrary::HashTurnLogOrdered({ A }) == URTTurnLogLibrary::HashTurnLogOrdered({ B });
-	}
+}
+
+bool URTTurnLogLibrary::GoldenEntriesMatch(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
+{
+	return URTTurnLogLibrary::HashTurnLogOrdered({ A }) == URTTurnLogLibrary::HashTurnLogOrdered({ B });
 }
 
 FString URTTurnLogLibrary::DescribeFirstDivergence(int32 TurnNumber, const TArray<FRTTurnLogEntry>& Golden,

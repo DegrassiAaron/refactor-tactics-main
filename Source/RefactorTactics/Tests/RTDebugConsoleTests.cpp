@@ -180,6 +180,20 @@ bool FRTDebugVerifyReplayDetectsDivergenceTest::RunTest(const FString&)
 			V.FirstDivergence.IsEmpty());
 	}
 
+	// 2b — La divergenza va etichettata col turno della VOCE che diverge. `MakeTrace` copre i turni 1 e 2
+	// e qui cambia l'ultima voce, che e' del turno **2**: una stesura precedente riportava sempre
+	// `GoldenEntries[0].TurnNumber`, cioe' mandava al round sbagliato proprio dalla funzione il cui
+	// compito e' dire dove. Il test discrimina fra le due forme.
+	{
+		TArray<FRTTurnLogEntry> Actual = Golden;
+		Actual.Last().Amount = Golden.Last().Amount + 1;
+
+		const FRTDebugReplayVerdict V = URTDebugReportLibrary::VerifyReplay(
+			GoldenBytes, Golden, Actual, ERTLogTopology::Hex, Format);
+		TestTrue(TEXT("la divergenza nomina il turno 2, non il turno della prima voce"),
+			V.FirstDivergence.Contains(TEXT("turno 2")) || V.FirstDivergence.Contains(TEXT("Turno 2")));
+	}
+
 	// 3 — Due formati diversi non sono due tracce in disaccordo: sono due tracce non confrontabili.
 	// Uno strumento che qui dicesse `Divergence` manderebbe a cercare un difetto di simulazione che non
 	// c'e'. `ERTTraceComparison` distingue gia' i due casi, e il comando riporta la distinzione invece di
@@ -247,6 +261,63 @@ bool FRTDebugNamespaceDeclaresAllCommandsTest::RunTest(const FString&)
 	// cancellando un comando buono.
 	TestTrue(TEXT("rt.Debug.Pacing resta, benche' fuori dagli otto del DoD"),
 		Registered.Contains(TEXT("rt.Debug.Pacing")));
+	return true;
+}
+
+/**
+ * La catena che `rt.Debug.VerifyReplay` percorre davvero: **serializza → scrivi → rileggi → confronta**.
+ *
+ * 🔴 Esiste per un difetto che i test non vedevano, trovato in code review. Il comando passava
+ * `ERTLogTopology::Hex` e `NAME_None` FISSI invece di leggerli dalla traccia. Poiche'
+ * `CompareSerializedTraces` guarda il formato **prima** del contenuto e ogni replay registrato porta il
+ * `FormatId` vero della partita, il comando rispondeva `FormatMismatch` su qualunque traccia reale e non
+ * poteva mai rilevare una divergenza. `VerifyReplayDetectsDivergence` restava verde perche' chiama la
+ * funzione pura, dove il formato lo passa il chiamante: **il difetto viveva esattamente nello spazio fra
+ * il test e il comando.**
+ *
+ * Questo test chiude quello spazio senza aprire il gioco: percorre la stessa catena del wrapper —
+ * `DeserializeTurnLog` per il contesto, poi `VerifyReplay` — su una traccia con un `FormatId` realistico.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDebugVerifyReplayReadsContextFromTheTraceTest,
+	"RefactorTactics.Debug.VerifyReplayReadsContextFromTheTrace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDebugVerifyReplayReadsContextFromTheTraceTest::RunTest(const FString&)
+{
+	// Un formato REALE, non `NAME_None`: e' la condizione in cui il difetto si manifestava.
+	const FName Format(TEXT("Format.Skirmish2v2"));
+	const TArray<FRTTurnLogEntry> Live = MakeTrace();
+	const TArray<uint8> OnDisk = URTTurnLogLibrary::SerializeTurnLog(Live, ERTLogTopology::Hex, Format);
+
+	// Il contesto si LEGGE dalla traccia, come fa il comando.
+	TArray<FRTTurnLogEntry> GoldenEntries;
+	ERTLogTopology Topology = ERTLogTopology::Square;   // volutamente SBAGLIATO: dev'essere sovrascritto
+	FName ReadFormat = NAME_None;                       // idem
+	if (!TestTrue(TEXT("la traccia si rilegge"),
+		URTTurnLogLibrary::DeserializeTurnLog(OnDisk, GoldenEntries, &Topology, &ReadFormat)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("e dichiara il proprio formato"), ReadFormat, Format);
+	TestEqual(TEXT("e la propria topologia"),
+		static_cast<int32>(Topology), static_cast<int32>(ERTLogTopology::Hex));
+
+	// Con il contesto letto, una partita identica coincide. Col contesto ASSUNTO (`NAME_None`) questo
+	// darebbe `FormatMismatch`, ed e' precisamente cio' che il comando faceva.
+	{
+		const FRTDebugReplayVerdict V = URTDebugReportLibrary::VerifyReplay(
+			OnDisk, GoldenEntries, Live, Topology, ReadFormat);
+		TestEqual(TEXT("stessa partita, stesso formato letto: coincidono"),
+			static_cast<int32>(V.Comparison), static_cast<int32>(ERTTraceComparison::Identical));
+	}
+
+	// CONTROPROVA della controprova: assumere il formato invece di leggerlo riproduce il difetto. Se un
+	// domani qualcuno rimette una costante nel wrapper, questa riga dice cosa succede.
+	{
+		const FRTDebugReplayVerdict V = URTDebugReportLibrary::VerifyReplay(
+			OnDisk, GoldenEntries, Live, ERTLogTopology::Hex, NAME_None);
+		TestEqual(TEXT("assumere NAME_None su una traccia con formato da' FormatMismatch"),
+			static_cast<int32>(V.Comparison), static_cast<int32>(ERTTraceComparison::FormatMismatch));
+	}
 	return true;
 }
 
