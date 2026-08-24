@@ -467,6 +467,25 @@ public:
 	int32 WElevation = FRTHexBotContext{}.WElevation;
 
 	/**
+	 * Bonus per una cella da cui si VEDE un contatto noto, sui piani senza attacco (#1300, D-185): il
+	 * termine che risponde a «da qui posso ingaggiare».
+	 *
+	 * ⚠️ **Non si alza senza alzare anche il decadimento.** Da solo e' un bonus posizionale, e sopra
+	 * `WApproach - WElevation * MaxLayer` riapre lo stato assorbente di #1088 su una cella che vede — con i
+	 * default, gia' da `7`. E' `WEngageDecay` a renderlo sostenibile.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WEngage = FRTHexBotContext{}.WEngage;
+
+	/**
+	 * Quanto `WEngage` cala per ogni turno consecutivo senza ingaggiare. **Zero disattiva la memoria e
+	 * riporta il termine alla forma che non passa gli oracoli**: la coppia si tara insieme, e l'esito lo
+	 * pinna `HexBot.EngageBonusFadesWithIdleTurns`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Bot")
+	int32 WEngageDecay = FRTHexBotContext{}.WEngageDecay;
+
+	/**
 	 * Snapshot dello stato corrente della partita (unita' VIVE del livello + mappa autorevole).
 	 * `OutUnits[i]` e' l'unita' con `UnitId == i`: e' la chiave con cui rileggere gli esiti.
 	 *
@@ -1220,6 +1239,26 @@ private:
 	/** Progresso obiettivo per squadra. Alimentato da AddTeamScore, letto dalla regola di fine partita. */
 	int32 Team0Score = 0;
 	int32 Team1Score = 0;
+
+	/**
+	 * La memoria per unita' del termine di ingaggio (#1300, D-185), per `StableUnitId`.
+	 *
+	 * `BotIdleTurns` conta da quanti turni consecutivi il piano scelto per quell'unita' non contiene un
+	 * attacco; `BotIdleRound` ricorda in quale round il conteggio e' gia' stato aggiornato.
+	 *
+	 * ⚠️ **La guardia sul round serve davvero**: `PlanBotsForTest()` seguito da `LockInAndResolve()`
+	 * pianifica **due volte lo stesso round**, e senza di lei il contatore correrebbe al doppio della
+	 * velocita' nei test che usano il primo e non negli altri — cioe' il decadimento misurerebbe una
+	 * partita diversa a seconda di chi la guarda.
+	 *
+	 * ⚠️ **Vive qui e non in una `static`**: l'automation gira molte partite nello stesso processo, e uno
+	 * stato statico le farebbe ereditare la memoria l'una dall'altra. Vive qui e non su `ARTUnit` perche'
+	 * e' bookkeeping del bot, come il kiting: un'unita' che muove il giocatore non lo consulta mai.
+	 * ⚠️ **Non se ne itera mai l'ordine** (solo `FindRef`/`FindOrAdd`): l'invariante «niente dipendenza
+	 * dall'ordine di `TMap`» resta intatta.
+	 */
+	TMap<int32, int32> BotIdleTurns;
+	TMap<int32, int32> BotIdleRound;
 
 	TArray<FRTMoveAnim> MoveAnims;          // derivati dagli eventi Move
 	TArray<FRTResolvedEvent> PlaybackAttacks; // eventi Attack, mostrati in serie nel Blast

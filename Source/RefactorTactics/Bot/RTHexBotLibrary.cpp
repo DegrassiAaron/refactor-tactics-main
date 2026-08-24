@@ -7,10 +7,130 @@
 #include "Turn/RTFacingLibrary.h" // CP 13.5: il facing d'arrivo si deriva con la regola, non a mano
 #include "Turn/RTHexSimLibrary.h"
 #include "Pathfinding/RTHexPath.h" // ERTHexPathStatus: una prenotazione fallita si distingue da una vuota
+#include "Pathfinding/RTHexPathLibrary.h" // `GraphNeighbors`: l'avvicinamento si misura in PASSI sul grafo (#1287 strato 1)
 #include "RefactorTactics.h"       // LogRT
 
 namespace
 {
+	/**
+	 * Quanti PASSI separano davvero due celle sul grafo della mappa.
+	 *
+	 * 🔴 **E' lo strato 1 di #1287, che quel fix ha nominato e non ha toccato.** Il suo consuntivo scrive
+	 * «La metrica mente: `(-1,1)` e `(1,-1)` distano 2, ma sono ai lati opposti di `(0,0)`, che blocca vista
+	 * e passo» — e poi ha corretto gli strati 2 e 3, cioe' il dominio delle candidate e la meta della ricerca.
+	 * Il risultato e' stato un ciclo di periodo due: la cella cieca resta la piu' vicina IN LINEA D'ARIA,
+	 * quindi appena il filtro si spegne il bot ci torna. Misurato su `L_HexArena` il 2026-08-23: otto
+	 * alternanze in dodici turni, e la partita che non si decide in quaranta.
+	 *
+	 * 🔴 **BFS a peso uniforme, e NON `FindPath`.** La prima stesura leggeva `Path.Num() - 1` da
+	 * `URTHexPathLibrary::FindPath`, che e' un A* sul COSTO (`GScore` accumula `TotalMoveCost`): quel numero
+	 * e' la lunghezza del percorso a costo minimo, che su una mappa con terreni diversi **non e' il numero
+	 * di passi**. Su `ArenaV01` non e' un caso limite — entrambe le porte sono `Rough`, costo 2 — e il
+	 * commento prometteva «passi, non costo» consegnando l'opposto. Trovato in code review.
+	 *
+	 * ⚠️ **Sono passi e non costo per una ragione di scala.** Il costo somma il `MoveCost` del terreno e
+	 * cambierebbe la taratura di `WApproach` su ogni mappa con fango o ghiaccio — cioe' bilanciamento, che
+	 * ha la sua sede in #149 e non qui. Con i passi, su un campo a costo uniforme il numero coincide
+	 * **esattamente** con `HexDistance` quando non ci sono ostacoli: ogni punteggio gia' pinnato resta
+	 * quello di prima, e a muoversi e' solo cio' che sta dietro un muro.
+	 *
+	 * ⚠️ **Il grafo si percorre AL CONTRARIO.** `GraphNeighbors(C)` da' le celle raggiungibili DA `C`, e a
+	 * servire qui e' `dist(X -> Goal)` per ogni `X`. Una BFS in avanti dal goal risponderebbe a
+	 * `dist(Goal -> X)`, che coincide solo se ogni arco e' bidirezionale — vero per i vicini planari, **non
+	 * garantito** per le transizioni, che `FRTHexEdge` esprime come archi orientati. Si costruisce quindi
+	 * l'adiacenza inversa e da li' si parte: cosi' una rampa a senso unico da' il numero giusto invece di
+	 * uno plausibile.
+	 *
+	 * ⚠️ **Il ripiego e' la distanza esagonale, e non e' neutro**: quando il cammino non esiste — grafo
+	 * disconnesso, bersaglio murato — nessun avvicinamento e' possibile, e qualunque numero qui e' una
+	 * finzione. Si sceglie quello di prima perche' e' l'unico che non introduce un comportamento nuovo in un
+	 * caso che questo lavoro non ha misurato.
+	 */
+	const TMap<FRTCellId, int32>* StepsToGoalField(const URTHexMapAsset* Map, const FRTCellId& Goal)
+	{
+		if (Map == nullptr)
+		{
+			return nullptr;
+		}
+
+		// Cache di una voce sola, per (mappa, revisione, goal).
+		//
+		// ⚠️ **Serve alla scala, non all'eleganza.** `ChooseBestPlan` chiama `ScorePlan` una volta per
+		// candidata, e `BuildCandidates` emette un piano per ogni cella raggiungibile PIU' uno per ogni
+		// coppia (cella, nemico): senza cache si ricalcolerebbe lo stesso campo un centinaio di volte per
+		// unita' per turno. Con la cache le BFS effettive sono una per nemico.
+		//
+		// ⚠️ La chiave include `Revision` perche' la mappa cambia IN PARTITA — una porta che si apre, un
+		// ponte che compare — ed e' esattamente il campo che l'asset espone per invalidare le cache. Senza,
+		// il bot continuerebbe a misurare la mappa di due turni fa.
+		struct FCampo
+		{
+			const URTHexMapAsset* Map = nullptr;
+			int32 Revision = -1;
+			FRTCellId Goal;
+			TMap<FRTCellId, int32> Passi;
+		};
+		static thread_local FCampo Cache;
+
+		if (Cache.Map == Map && Cache.Revision == Map->Revision && Cache.Goal == Goal)
+		{
+			return &Cache.Passi;
+		}
+
+		// Adiacenza INVERSA: per ogni arco `C -> N` del grafo, qui si registra `N -> C`.
+		TMap<FRTCellId, TArray<FRTCellId>> Inversa;
+		for (const FRTHexCellData& Cella : Map->Cells)
+		{
+			for (const TPair<FRTCellId, int32>& Arco : URTHexPathLibrary::GraphNeighbors(Map, Cella.Id))
+			{
+				Inversa.FindOrAdd(Arco.Key).Add(Cella.Id);
+			}
+		}
+
+		Cache.Map = Map;
+		Cache.Revision = Map->Revision;
+		Cache.Goal = Goal;
+		Cache.Passi.Reset();
+		Cache.Passi.Add(Goal, 0);
+
+		TArray<FRTCellId> Coda;
+		Coda.Add(Goal);
+		for (int32 I = 0; I < Coda.Num(); ++I)
+		{
+			const FRTCellId Corrente = Coda[I];
+			const int32 Passo = Cache.Passi[Corrente] + 1;
+			if (const TArray<FRTCellId>* Precedenti = Inversa.Find(Corrente))
+			{
+				for (const FRTCellId& Prec : *Precedenti)
+				{
+					if (!Cache.Passi.Contains(Prec))
+					{
+						Cache.Passi.Add(Prec, Passo);
+						Coda.Add(Prec);
+					}
+				}
+			}
+		}
+
+		return &Cache.Passi;
+	}
+
+	int32 ApproachSteps(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
+	{
+		if (From == To)
+		{
+			return 0;
+		}
+		if (const TMap<FRTCellId, int32>* Campo = StepsToGoalField(Map, To))
+		{
+			if (const int32* Passi = Campo->Find(From))
+			{
+				return *Passi;
+			}
+		}
+		return URTHexLibrary::HexDistance(From, To);
+	}
+
 	/** Unita' di combattimento «leggera»: al calcolo della copertura servono cella e orientamento, nient'altro. */
 	FRTHexCombatUnit CombatProbe(const FRTCellId& Cell, ERTHexDirection Facing)
 	{
@@ -143,6 +263,9 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 	int32 MinDist = MAX_int32;
 	for (int32 I = 0; I < NumEnemies; ++I)
 	{
+		// ⚠️ **Due distanze, e la differenza e' di merito.** La MINACCIA e' geometrica — un proiettile
+		// non cammina, e chi spara ha bisogno di gittata e linea di tiro, non di un percorso. L'AVVICINAMENTO
+		// no: quello lo si paga in passi, ed e' la correzione dello strato 1 di #1287.
 		const int32 Dist = URTHexLibrary::HexDistance(Plan.DestCell, Context.Enemies[I]);
 		if (Dist <= Context.EnemyRanges[I]
 			&& URTHexVisionLibrary::HasLineOfSight(Map, Context.Enemies[I], Plan.DestCell))
@@ -172,7 +295,7 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 				Score -= Context.WDamage * FMath::Max(0, CoverHere - CoverKept);
 			}
 		}
-		MinDist = FMath::Min(MinDist, Dist);
+		MinDist = FMath::Min(MinDist, ApproachSteps(Map, Plan.DestCell, Context.Enemies[I]));
 	}
 
 	if (MinDist != MAX_int32)
@@ -223,6 +346,42 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 		{
 			// Mischia: penalita' proporzionale alla distanza (chiudere la distanza e' meglio).
 			Score -= Context.WApproach * MinDist;
+		}
+	}
+
+	// «DA QUI POSSO INGAGGIARE» — lo specchio offensivo della minaccia qui sopra (#1300, D-185).
+	//
+	// La minaccia penalizza le celle da cui il NEMICO puo' colpirti; questo premia quelle da cui TU vedi
+	// un contatto noto. Le due condizioni non sono la stessa cosa nemmeno quando la geometria e' simmetrica:
+	// la minaccia chiede anche la gittata avversaria, e questo chiede solo la linea di tiro, perche' una
+	// cella da cui si vede e' dove si potra' sparare **il turno prossimo** — le candidate di movimento
+	// nascono con `AttackRange = 0` per costruzione, dato che il Move viene dopo il Blast.
+	//
+	// 🔴 **Il decadimento non e' un dettaglio del termine: e' il termine.** Un bonus posizionale fisso sulla
+	// linea di tiro paga per GUARDARE, e la cella che massimizza il guardare e' una vedetta da cui non si
+	// spara: lo stato assorbente di #1088 sotto un altro nome. Misurato il 2026-08-24, intero per intero,
+	// non esiste alcun valore fisso che passi entrambi gli oracoli di parcheggio — l'arena generata cade da
+	// 7, la mappa d'autore si sblocca da 11, e in mezzo sono rossi tutti e due.
+	//
+	// ⚠️ **Solo sui piani senza attacco**, e non e' una guardia difensiva: un piano che spara vale gia'
+	// `WDamage * danno`, due ordini di grandezza sopra, quindi il bonus li' non cambierebbe nessun
+	// ordinamento e renderebbe soltanto il termine piu' difficile da leggere.
+	//
+	// ⚠️ **La linea si chiede nel verso OFFENSIVO** (`DestCell -> nemico`), lo stesso di `BuildCandidates`.
+	// Non e' pedanteria: `HexLine` costruisce la linea sul layer del TIRATORE, quindi fra piani diversi i
+	// due versi non coincidono — su `DA_HexMap_Arena` ci sono 91 coppie asimmetriche su 2016, tutte fra
+	// layer diversi, e dalla piattaforma L1 si vedono 64 celle su 64.
+	if (!Plan.bHasAttack && Context.WEngage > 0)
+	{
+		for (const FRTCellId& Enemy : Context.Enemies)
+		{
+			if (URTHexVisionLibrary::HasLineOfSight(Map, Plan.DestCell, Enemy))
+			{
+				// Una volta sola: e' «posso ingaggiare», non «quanti ne vedo». Contare i nemici visti
+				// renderebbe il termine una seconda misura del focus-fire, che ha gia' il suo peso.
+				Score += FMath::Max(0, Context.WEngage - Context.WEngageDecay * Context.IdleTurns);
+				break;
+			}
 		}
 	}
 
@@ -366,51 +525,25 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 		}
 	}
 
-	// **Livello 2 di #1287: se non si puo' colpire, si va almeno DOVE SI VEDE.**
+	// ⛔ **QUI STAVA IL «LIVELLO 2» DI #1287, e con la metrica corretta la sua premessa non esiste piu'.**
 	//
-	// Senza questo filtro il bot che ha perso il tiro sceglie col punteggio geometrico, che misura la
-	// distanza in linea d'aria dal contatto noto: una cella cieca a due passi batte una che vede a tre, e il
-	// turno dopo il bot e' di nuovo senza tiro. E' l'oscillazione fra «cerca» e «avvicinati» — due modi che
-	// si rimpallano per sempre. Restringere il DOMINIO invece di aggiungere un secondo punteggio la spezza
-	// senza stato: uscire dalla ricerca non puo' riportare su una cella cieca, perche' quelle non sono piu'
-	// candidate.
+	// Filtrava le candidate alle sole celle DA CUI SI VEDE, e solo quando il bot non poteva colpire **e non
+	// vedeva gia' nessuno**. La sua giustificazione era scritta: «senza questo filtro il bot che ha perso il
+	// tiro sceglie col punteggio geometrico, che misura la distanza in linea d'aria dal contatto noto: una
+	// cella cieca a due passi batte una che vede a tre». Vero finche' l'avvicinamento si misurava in linea
+	// d'aria; falso da quando si misura in PASSI (`ApproachSteps`), perche' una cella dietro un muro adesso
+	// **e' lontana**, e il punteggio la scarta da solo.
 	//
-	// ⚠️ Non tocca `WApproach` ne' lo standoff: il punteggio resta uno solo, cambia su cosa sceglie. E' la
-	// ragione per cui il bilanciamento del kiting (#149) non si riapre.
-	bool bQualcunoColpisce = false;
-	for (const FRTHexBotPlan& P : Out)
-	{
-		if (P.bHasAttack) { bQualcunoColpisce = true; break; }
-	}
-	// ⚠️ **Solo se il bot NON VEDE GIA' nessuno**, e la restrizione mancante e' costata un parcheggio.
-	// Applicato a chiunque non possa colpire, il filtro toglieva al bot la possibilita' di ATTRAVERSARE una
-	// zona cieca per avvicinarsi: chi vedeva il nemico ma era fuori portata restava fra le celle con vista
-	// invece di chiudere la distanza. Misurato da `Match.Autobattle.EngagesOnTheGeneratedTestArena`, l'oracolo
-	// di #1088: «piu' lunga sequenza ferma 7 turni, limite 4». Un secondo stato assorbente, introdotto dalla
-	// difesa contro il primo.
-	bool bVedeGia = false;
-	for (int32 I = 0; I < NumEnemies && !bVedeGia; ++I)
-	{
-		bVedeGia = URTHexVisionLibrary::HasLineOfSight(Snapshot.Map, Context.Origin, Context.Enemies[I]);
-	}
-
-	if (!bQualcunoColpisce && !bVedeGia && NumEnemies > 0)
-	{
-		TArray<FRTHexBotPlan> ConTiro;
-		for (const FRTHexBotPlan& P : Out)
-		{
-			for (int32 I = 0; I < NumEnemies; ++I)
-			{
-				if (URTHexVisionLibrary::HasLineOfSight(Snapshot.Map, P.DestCell, Context.Enemies[I]))
-				{
-					ConTiro.Add(P);
-					break;
-				}
-			}
-		}
-		// Se nessuna vede, `Out` resta intero: la scelta passa al livello 3 (ricerca), che e' del chiamante.
-		if (ConTiro.Num() > 0) { return ConTiro; }
-	}
+	// 🔴 **E la condizione lo rendeva un ciclo di periodo due.** Il commento affermava che restringere il
+	// dominio «spezza l'oscillazione fra cerca e avvicinati senza introdurre stato», perche' «uscire dalla
+	// ricerca non puo' riportare su una cella cieca: quelle non sono piu' candidate». Uscire dalla ricerca
+	// significa pero' `bVedeGia == true`, e con quella condizione il filtro **e' spento**: le celle cieche
+	// tornano candidate nello stesso istante. Misurato su `L_HexArena` il 2026-08-23 — Riktor fra
+	// `(1,-1,L0)` e la piattaforma `(3,-3,L1)`, otto alternanze in dodici turni — e pinnato da
+	// `Match.Autobattle.NobodyOscillatesOnTheAuthoredMap`.
+	//
+	// ⚠️ **Il livello 3 resta** (`PlanBots`, punto di osservazione): risponde a una domanda diversa — dove
+	// andare quando NON si sa dove sia nessuno — e non e' quella che ha prodotto il ciclo.
 
 	return Out;
 }
