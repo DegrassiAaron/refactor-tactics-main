@@ -1592,6 +1592,9 @@ sessions:
       esito dopo il ritorno al menu — cioè lo smontaggio non lascia stato vivo
     unblocks: []
     notes: >-
+      📋 **La checklist di §5 della guida è la bozza di `PIE-V01-FRONTEND-PAUSE`**, che nel registro non
+      esiste ancora (atto `#1242`) benché due commenti C++ la nominino già. `verifies: []` resta vuoto
+      perché la voce non c'è: l'esito di questa seduta è ciò che la propone, in handoff.
       📖 **La guida della seduta è
       [`guida-frontend-pause-umg.md`](../technical/runbooks/guida-frontend-pause-umg.md)**: layout, i tre
       collegamenti, il focus, e la trappola di `ESC` in PIE.
