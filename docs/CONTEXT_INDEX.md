@@ -87,7 +87,11 @@ HEAD osservato durante la creazione di questo indice: `e2bb0fc84733b50b47ec2d629
 
 Difetti/attenzioni emersi dal corpus più recente:
 
-- `PushResistance` è presente nei dati ma manca ancora un consumer nella spinta (`#241`).
+- `PushResistance` **ha** un consumer dal 2026-08-08 — `RTTurnManager.cpp`, pass degli effetti del Blast —
+  ed è una **soglia**, non una sottrazione ([D-038](decisions/RT_PDR_00_Decision_Log.md), che dichiara di
+  correggere [`#241`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/241), chiusa lo stesso
+  giorno). È però **dormiente**: [D-075](decisions/RT_PDR_00_Decision_Log.md) l'ha portata a `0` su tutto il
+  roster, quindi nessuna spinta la incontra sopra zero. *Dormiente e assente non sono la stessa cosa.*
 - La combo documentata `Phase PressureJet → Gadget` nello stesso Blast non funziona come descritto per il timing degli snapshot/fasi; lo scenario end-to-end funzionante usa acqua già disponibile prima del Blast (`#242`).
 
 Per lo stato aggiornato, prevalgono sempre `docs/roadmap/roadmap-v0.1.md`, `docs/roadmap/roadmap-checkpoint.md`, issue correnti e test/code del HEAD.
