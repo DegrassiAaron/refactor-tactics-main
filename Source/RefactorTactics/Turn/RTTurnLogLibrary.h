@@ -52,6 +52,17 @@ public:
 	 */
 	static bool EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B);
 
+	/**
+	 * Due voci sono la STESSA voce per il confronto di un golden: uguali secondo l'hash, non secondo
+	 * l'ordinamento.
+	 *
+	 * ⚠️ **Esposta il 2026-08-24 (CP 11.4, `#80`)**, e prima viveva in un namespace anonimo — mentre il
+	 * commento di `EntryLess` qui sopra vi rimandava gia' per nome. Chi lo leggeva cercava una funzione che
+	 * non poteva chiamare, e chi doveva sapere DOVE due tracce divergono finiva per riscriverne il
+	 * criterio: due definizioni di «stessa voce» che nessun test confronta fra loro.
+	 */
+	static bool GoldenEntriesMatch(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B);
+
 	/** Ordina il TurnLog in place con EntryLess (ordine totale deterministico). */
 	static void SortTurnLog(TArray<FRTTurnLogEntry>& Entries);
 

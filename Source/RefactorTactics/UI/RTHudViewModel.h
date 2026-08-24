@@ -4,8 +4,12 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Turn/RTTurnRules.h"
 #include "Ability/RTActionDef.h" // ERTActionSlot: la vista dei cooldown raggruppa per slot
+// `FRTPlannedIntent` serve COMPLETO, non in forward declaration: `BuildAuthoritativeIntents` lo
+// restituisce dentro un `TArray` per valore, e il distruttore del container pretende il tipo definito.
+#include "Turn/RTIntentPrivacyLibrary.h"
 #include "RTHudViewModel.generated.h"
 
+class AActor;
 class ARTTurnManager;
 class ARTUnit;
 
@@ -235,4 +239,19 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static TArray<FRTAbilityCooldownView> BuildAbilityCooldowns(const ARTUnit* Unit);
+
+	/**
+	 * I piani **autorevoli** di tutte le unita' vive, non filtrati per nessun osservatore.
+	 *
+	 * 🔴 **Il valore di ritorno non si mostra a nessuno cosi' com'e'**: passa da
+	 * `URTIntentPrivacyLibrary::FilterForTeam`, che e' il punto in cui l'invariante #6 diventa vera. Il
+	 * nome dice `Authoritative` per questo — in rete (M10) e' lo stato lato server.
+	 *
+	 * ⚠️ **Estratta da `ARTHUD::DrawHUD` il 2026-08-24 (CP 11.4, `#80`), e la ragione vale piu' del
+	 * refactoring**: `rt.Debug.DrawIntent` deve mostrare *gli stessi* intenti che la HUD disegna. Con due
+	 * costruzioni separate, il giorno in cui un campo si aggiunge a `FRTPlannedIntent` — com'e' successo a
+	 * `bDeclaresRotation` con #291 — una delle due lo dimentica, e lo strumento di debug mente proprio
+	 * sulla cosa che si sta debuggando. Una sola sede, due chiamanti.
+	 */
+	static TArray<FRTPlannedIntent> BuildAuthoritativeIntents(const TArray<AActor*>& Actors);
 };
