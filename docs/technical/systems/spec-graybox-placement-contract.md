@@ -451,8 +451,11 @@ al catalogo del proprio tipo**, non se qualcuno l'ha colpita. *«Danneggiato»* 
 **falsa** per un pannello `Adaptive` appena eretto — che nasce a `25` contro un catalogo `30` perché la
 fragilità è il prezzo della rotazione gratuita, non perché l'abbia colpito qualcosa.
 ⚠️ **Le soglie non cambiano**, e `DefaultIntegrity` resta il catalogo: cambia il nome della lettura, non il
-metro. Le occorrenze di «danneggiato» più in basso in questa sezione sono **storiche** — raccontano la prima
-stesura con le parole che aveva allora — e restano.
+metro. Le occorrenze di «danneggiato» che restano più in basso sono **dentro i blockquote di code
+review**: raccontano la prima stesura con le parole che aveva allora, e restano.
+⚠️ **Una terza NON era storica ed è stata corretta**: l'argomento su ¼ descrive al presente cosa
+farebbe la soglia scartata, quindi sotto `D-186` quella `Low` a `10` resta «ridotta». La prima
+stesura di questa nota le dichiarava storiche tutte e tre — trovato nel panel della stessa PR.
 
 **«Distrutto» NON è in questa scaletta, e a toglierlo è `D-175`.** Non è una lettura del dato di mappa: è la
 transizione `ERTEnvironmentOutcome::CoverDestroyed`
@@ -555,7 +558,7 @@ concordare fra chi modella e chi legge.
 ([`RTHexCoverTests.cpp`](../../../Source/RefactorTactics/Tests/RTHexCoverTests.cpp)), quindi le sequenze reali
 sono `High 50 → 30 → 10 → 0` e `Low 30 → 10 → 0`. Con ⅓ «critico» cade **sull'ultimo passo prima di zero su
 entrambi i tipi**, cioè significa *un altro colpo e cade*. La misura **esclude ¼**: lì una `Low` a `10` resta
-«danneggiata» (`10 > 7`) e cadrebbe senza mai mostrare lo stato più forte, che su metà del catalogo non si
+«ridotta» (`10 > 7`) e cadrebbe senza mai mostrare lo stato più forte, che su metà del catalogo non si
 vedrebbe.
 
 > ⚠️ **Ciò che la misura NON fa è selezionare ⅓ contro ½, e la prima stesura lo sosteneva.** Su queste due
@@ -569,11 +572,19 @@ vedrebbe.
 lo stesso difetto** — è la ragione per cui #1194 chiedeva *una* scelta e ne servivano **due**.
 
 **Il dato — il costruttore.** `FRTHexCover` dichiarava `InIntegrity = 30` **fisso e indipendente dal `Type`**,
-quindi `FRTHexCover(Edge, ERTHexCoverType::High)` — ciò che si ottiene aggiungendo a mano una entry `Covers` —
-nasceva a `30`, il **60%** del proprio catalogo. Accettava il tipo e **ignorava** la funzione che sa cosa quel
-tipo vale. Ora il default deriva dal tipo, con sentinella `UseCatalogIntegrity` (negativa, perché `0` è
-un'integrità legittima). ⚠️ Misurato prima di cambiarlo: dei nove siti che omettono il parametro **uno solo**
-cambia valore, ed è un test che conta pannelli per bordo.
+quindi `FRTHexCover(Edge, ERTHexCoverType::High)` nasceva a `30`, il **60%** del proprio catalogo. Accettava il
+tipo e **ignorava** la funzione che sa cosa quel tipo vale. Ora il default deriva dal tipo, con sentinella
+`UseCatalogIntegrity` (negativa, perché `0` è un'integrità legittima). ⚠️ Misurato prima di cambiarlo: degli
+**undici** siti che omettono il parametro **uno solo** cambia valore, ed è un test che conta pannelli per
+bordo.
+
+🔴 **E il costruttore non è tutto il percorso: l'autoraggio dall'EDITOR resta aperto** — [#1317](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1317). Chi
+aggiunge una entry `Covers` nel dettaglio di un `URTHexMapAsset` non passa dal costruttore a due argomenti: la
+struct nasce da `FRTHexCover()`, cioè `Low`/`30`, e cambiare `Type` in `High` **non ricalcola niente**, perché
+l'asset non ha un `PostEditChangeProperty`. `ValidateMap` non lo vede: la sua guardia è `Integrity <= 0`.
+⚠️ La prima stesura di questo blocco scriveva che il costruttore era *«ciò che si ottiene aggiungendo a mano
+una entry `Covers`»* — vero per il C++, **falso per il pannello dei dettagli**, che è il modo in cui si autora
+davvero una mappa. Trovato nel panel della stessa PR.
 
 **L'etichetta — il vocabolario.** `Hero.Riktor.KineticPanel.Adaptive` dichiara `Integrity` **25** contro un
 catalogo `Low` di `30`, e quel numero è **voluto**: [`riktor.md`](../../characters/v0.1/riktor.md) dice che

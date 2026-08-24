@@ -737,8 +737,11 @@ bool FRTCoverDamageCarriesAttackerTest::RunTest(const FString&)
  * 🔴 **Nessun test lo confrontava, ed e' la ragione per cui l'incoerenza e' sopravvissuta.** Il costruttore
  * dichiarava `InIntegrity = 30` fisso e indipendente dal `Type`: `FRTHexCover(Edge, High)` nasceva a **30**,
  * il 60% del suo catalogo, senza che nulla l'avesse colpita. Accettava il tipo e ignorava la funzione che sa
- * cosa quel tipo vale — ed e' anche cio' che si ottiene aggiungendo a mano una entry `Covers` a un map
- * asset, che e' il modo in cui si autora una mappa.
+ * cosa quel tipo vale.
+ *
+ * ⚠️ **Questo test copre il COSTRUTTORE, non l'autoraggio dall'editor**: chi aggiunge una entry `Covers`
+ * nel dettaglio di un `URTHexMapAsset` costruisce con `FRTHexCover()` — `Low`/30 — e cambiare `Type` in
+ * `High` non ricalcola niente. Quel percorso e' aperto, ed e' #1317.
  *
  * ⚠️ **Il confronto e' col catalogo, non coi letterali `30` e `50`**: scriverli qui creerebbe la terza copia
  * degli stessi numeri, che e' la specie di difetto che questa issue chiude.

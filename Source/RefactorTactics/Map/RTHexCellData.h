@@ -96,6 +96,13 @@ struct FRTHexCover
 	 * ⚠️ **Negativa, e non zero**: `0` e' un'integrita' legittima — `RTHexCoverTests` costruisce
 	 * deliberatamente una copertura a zero per verificare che `ValidateMap` la rifiuti — quindi usarlo come
 	 * sentinella renderebbe impossibile scrivere quel caso.
+	 *
+	 * ⚠️ **Ma e' PUBBLICA, e attraversa `URTHexCoverLibrary::AddCover`**, che inoltra il proprio
+	 * `Integrity` senza validarlo (`RTHexCoverLibrary.cpp`). Un `-1` che arrivi da li' non e' piu' un dato
+	 * invalido che `ValidateMap` respinge (`Cover.Integrity <= 0`, `RTHexMapAsset.cpp`): e' un **comando**, e
+	 * produce una copertura a catalogo in silenzio. Oggi l'unico chiamante e' `ARTTurnManager` con
+	 * `Op.Integrity` d'autore, dove il valore mancante e' `0` e non `-1` — quindi il rischio e' dichiarato,
+	 * non corso.
 	 */
 	static constexpr int32 UseCatalogIntegrity = -1;
 
@@ -105,12 +112,17 @@ struct FRTHexCover
 	 * 🔴 **Il default DERIVA dal tipo, e prima non lo faceva.** Il costruttore dichiarava
 	 * `InIntegrity = 30` fisso: `FRTHexCover(Edge, ERTHexCoverType::High)` costruiva una copertura alta a
 	 * **30**, cioe' il **60%** del suo valore di catalogo, senza che nulla l'avesse colpita — accettava il
-	 * `Type` e **ignorava la funzione che sa cosa quel tipo vale**. E' anche cio' che si otteneva
-	 * aggiungendo a mano una entry `Covers` in un map asset, che e' il modo in cui si autora una mappa.
+	 * `Type` e **ignorava la funzione che sa cosa quel tipo vale**.
 	 *
-	 * ⚠️ **Misurato prima di cambiarlo** (#1194): dei nove siti che omettono `InIntegrity`, **uno solo**
-	 * cambia valore — `RTHexMapActorTests.cpp`, l'unico che passa `High` — e quel test conta pannelli per
-	 * bordo, non integrita'. Tutti gli altri passano `Low` o `None`, per cui il catalogo vale 30 come prima.
+	 * ⚠️ **Misurato prima di cambiarlo** (#1194): degli **undici** siti che omettono `InIntegrity`,
+	 * **uno solo** cambia valore — `RTHexMapActorTests.cpp:457`, l'unico che passa `High` — e quel test conta
+	 * pannelli per bordo, non integrita'. Gli altri dieci passano `Low`, `None` o niente, per cui il catalogo
+	 * vale 30 come prima. *(Sono siti di CHIAMATA: `RTHexMapTests.cpp:427` sta in un ciclo e ne produce sei.)*
+	 *
+	 * 🔴 **Questo NON copre l'autoraggio dall'EDITOR, che e' il percorso piu' battuto** (#1317). Chi
+	 * aggiunge una entry `Covers` nel dettaglio di un `URTHexMapAsset` non passa di qui: la struct nasce da
+	 * `FRTHexCover()` — `Low`/30 — e cambiare `Type` in `High` non ricalcola niente, perche' l'asset non ha
+	 * un `PostEditChangeProperty`. `ValidateMap` non lo vede: la sua guardia e' `Integrity <= 0`.
 	 *
 	 * ⛔ **Le coperture gia' scritte in un `.uasset` non si toccano**: sono byte su disco, e una `High`
 	 * autorata a 30 resta a 30. Sotto il vocabolario di `D-186` si legge **«ridotta»**, che e' vero — e' piu'
