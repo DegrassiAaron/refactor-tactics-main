@@ -399,7 +399,7 @@ produce non è quello della v0.1.
 |---|---|---|
 | ~~**A — partita hex avviata**~~ | ✅ **eseguito il 2026-08-24**: quattro chiuse, `PIE-FACING-1` bloccata dai cilindri | — |
 | **B — un turno pianificato e risolto** | `PIE-HEXPLAY-4` · `PIE-V01-LOG` | piani impostati e lock-in con **Spazio**; per il log serve un turno **con un fallback e una modifica ambientale** |
-| **C — mappa con una geometria precisa** | `PIE-HEXPLAY-6` · `-8` | una cella `bBlocksLineOfSight` fra attaccante e bersaglio; due layer collegati da una transizione — `DA_HexMap_Arena` ne ha almeno due, e lo pinna `SerializedAssetMigratesWithoutGainingData` |
+| **C — mappa con una geometria precisa** | `PIE-HEXPLAY-6` 🟡 · `-8` | ✅ **Non serve allestire a mano: gli scenari esistono e portano con sé arena, unità e piani** — `rt.Test.Scenario <Id>` e Play. `Combat.BlockedByWall` ✅ *(fatto il 2026-08-24, `PASS 3/3`)* · `Combat.LineHitsThrough` · `Visual.Map.HighGroundNoBonus` · `Visual.Map.MultiLevel` · `Spec.Map.BridgeBreaksThePath`. ⚠️ Ciò che resta umano è il **giudizio**: che dal log si capisca *perché* il colpo non parte, e che il playback porti l'unità alla quota giusta |
 | **D — partita lunga col bot** | `PIE-HEXPLAY-10` | ⚠️ vedi sopra: sul default finisce **pari**. Da eseguire su uno scenario, o da riscrivere |
 
 ⛔ **`PIE-V01-ROSTER` non entra in nessun allestimento** finché la sua precondizione non è riscritta.
