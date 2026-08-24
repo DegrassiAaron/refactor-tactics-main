@@ -586,6 +586,21 @@ l'asset non ha un `PostEditChangeProperty`. `ValidateMap` non lo vede: la sua gu
 una entry `Covers`»* — vero per il C++, **falso per il pannello dei dettagli**, che è il modo in cui si autora
 davvero una mappa. Trovato nel panel della stessa PR.
 
+⚠️ **Misurato il 2026-08-24, e il difetto non ha soggetto: in tutti i map asset versionati esiste UNA
+copertura, e non è sotto catalogo.** `DA_HexMap_Arena` ne ha **zero** su 64 celle, `DA_HexMap_Sandbox` è
+vuoto, `DA_HexMap_Scratch_Basin` ne ha **una** su 45 — e quella viene da una fixture C++, che passa da
+`DefaultIntegrity(Type)`. **Nessuno ha ancora autorato una copertura a mano in questo repository**, ed è la
+ragione per cui il difetto è sopravvissuto invisibile: il percorso che lo produce non è ancora stato battuto.
+
+∴ **il meccanismo NON si chiude, e la scelta è dichiarata invece che scoperta a valle.** Una guardia in
+`ValidateMap` dovrebbe essere un *warning* — `D-186` dichiara **legittima** una copertura sotto catalogo,
+`Adaptive` nasce a `25` di proposito — e un `PostEditChangeProperty` rischierebbe di riscrivere un valore
+voluto: si pagherebbero entrambi per zero casi. Al loro posto c'è un **oracolo** che li guarda:
+`RefactorTactics.HexMap.AuthoredCoversAreNotBelowCatalog` ([`RTHexMapTests.cpp`](../../../Source/RefactorTactics/Tests/RTHexMapTests.cpp)),
+che conta le coperture dei tre asset e fallisce sulla prima che nasca sotto il proprio catalogo.
+⛔ **Rileva, non previene**: il giorno in cui un autore ne scrive una, il test lo dice — non glielo impedisce.
+Se quel giorno arriva più di una volta, la guardia torna decidibile e la sede è [#1317](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1317).
+
 **L'etichetta — il vocabolario.** `Hero.Riktor.KineticPanel.Adaptive` dichiara `Integrity` **25** contro un
 catalogo `Low` di `30`, e quel numero è **voluto**: [`riktor.md`](../../characters/v0.1/riktor.md) dice che
 *«scende a 25»*, la fragilità **è** il prezzo della rotazione gratuita. Lì il dato è giusto e a sbagliare era
