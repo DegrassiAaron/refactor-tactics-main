@@ -57,6 +57,10 @@ struct FRTHexCover
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
 	int32 Integrity = 30;
+	// ⚠️ Il default del campo vale per la struct costruita di default e per cio' che si rilegge da un asset
+	// vecchio, dove `Type` e' `Low`: deve restare lo stesso numero del catalogo, e a dirlo e' il compilatore
+	// invece di due letterali che si somigliano (#1194). Non si scrive `DefaultIntegrity(Low)` qui perche'
+	// la funzione e' dichiarata piu' sotto.
 
 	/**
 	 * PROVENIENZA: questa copertura l'ha prodotta la cottura della geometria (`#621`), non la mano di un
@@ -86,11 +90,49 @@ struct FRTHexCover
 		return Type == ERTHexCoverType::High ? 50 : 30;
 	}
 
+	/**
+	 * Sentinella del costruttore: «prendi il valore di catalogo del tipo» (#1194, `D-186`).
+	 *
+	 * ⚠️ **Negativa, e non zero**: `0` e' un'integrita' legittima — `RTHexCoverTests` costruisce
+	 * deliberatamente una copertura a zero per verificare che `ValidateMap` la rifiuti — quindi usarlo come
+	 * sentinella renderebbe impossibile scrivere quel caso.
+	 */
+	static constexpr int32 UseCatalogIntegrity = -1;
+
 	FRTHexCover() = default;
+
+	/**
+	 * 🔴 **Il default DERIVA dal tipo, e prima non lo faceva.** Il costruttore dichiarava
+	 * `InIntegrity = 30` fisso: `FRTHexCover(Edge, ERTHexCoverType::High)` costruiva una copertura alta a
+	 * **30**, cioe' il **60%** del suo valore di catalogo, senza che nulla l'avesse colpita — accettava il
+	 * `Type` e **ignorava la funzione che sa cosa quel tipo vale**. E' anche cio' che si otteneva
+	 * aggiungendo a mano una entry `Covers` in un map asset, che e' il modo in cui si autora una mappa.
+	 *
+	 * ⚠️ **Misurato prima di cambiarlo** (#1194): dei nove siti che omettono `InIntegrity`, **uno solo**
+	 * cambia valore — `RTHexMapActorTests.cpp`, l'unico che passa `High` — e quel test conta pannelli per
+	 * bordo, non integrita'. Tutti gli altri passano `Low` o `None`, per cui il catalogo vale 30 come prima.
+	 *
+	 * ⛔ **Le coperture gia' scritte in un `.uasset` non si toccano**: sono byte su disco, e una `High`
+	 * autorata a 30 resta a 30. Sotto il vocabolario di `D-186` si legge **«ridotta»**, che e' vero — e' piu'
+	 * debole di una `High` di catalogo — invece di «danneggiata», che direbbe che l'ha colpita qualcuno.
+	 */
 	explicit FRTHexCover(ERTHexDirection InEdge, ERTHexCoverType InType = ERTHexCoverType::Low,
-		int32 InIntegrity = 30)
-		: Edge(InEdge), Type(InType), Integrity(InIntegrity) {}
+		int32 InIntegrity = UseCatalogIntegrity)
+		: Edge(InEdge), Type(InType),
+		  Integrity(InIntegrity == UseCatalogIntegrity ? DefaultIntegrity(InType) : InIntegrity) {}
 };
+
+/**
+ * Il default del CAMPO `Integrity` e quello di catalogo della `Low` devono restare lo stesso numero (#1194):
+ * il campo vale per la struct costruita di default e per cio' che si rilegge da un asset vecchio, dove `Type`
+ * e' `Low`. A dirlo e' il compilatore invece di due letterali che si somigliano.
+ *
+ * ⚠️ **Sta FUORI dalla struct e non dentro**, ed e' una correzione: uno `static_assert` a scope di classe si
+ * valuta prima che la classe sia completa, quindi non puo' chiamare una `constexpr` membro della classe
+ * stessa — `error C2131`. Qui la classe c'e' tutta.
+ */
+static_assert(FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low) == 30,
+	"Il default del campo Integrity e quello di catalogo della Low devono restare lo stesso numero (#1194).");
 
 /**
  * Stato di una porta su un bordo (CP 9.3). `Closed` e `Locked` bloccano allo stesso modo passo e vista: la
