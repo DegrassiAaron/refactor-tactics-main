@@ -311,6 +311,14 @@ con un reason di restrizione di terreno, e Riktor corregge prima del Commit.
 *Expected*: il fuoco si spegne; la propagazione elettrica è ordinata e **non colpisce due volte** per lo stesso
 evento; la scivolata su ghiaccio è deterministica; `EnvironmentChanged` nel TurnLog.
 
+> ⚠️ **Vincolo d'ordine, misurato il 2026-08-24** ([#1111](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1111)).
+> Acqua e scarica **non si compongono dentro un turno** se sono due intenti dello stesso turno: l'unico
+> produttore d'acqua autorizzato è `Gadget.Sprinkler` = `Action.CreateWater`, che è `Environment` e quindi
+> risolve nel **Cleanup**, mentre `Hero.Gadget.LinearDischarge` è `Attack` e risolve nel **Blast** — e il
+> Blast precede il Cleanup. Scritti insieme, la scarica legge un bersaglio non ancora bagnato.
+> ✅ **Il modello che funziona è già in questo documento**: §T2 fa entrare il bersaglio nell'acqua **nel
+> Dash**. Chi riempie il T7 sceglie fra quello e due turni distinti — la scelta è aperta, il vincolo no.
+
 > **Cos'è «combo» qui** ([D-029](../decisions/RT_PDR_00_Decision_Log.md)). Questo turno è uno **scenario
 > dimostrativo di interazioni sistemiche**, non una combo di squadra: Phase e Gadget non condividono un'abilità e
 > non ricevono un bonus perché sono insieme. Phase pubblica uno stato (`Wet` / acqua sulla cella), il sistema
