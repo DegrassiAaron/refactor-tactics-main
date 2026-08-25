@@ -214,12 +214,27 @@ La colonna **Vista** smette di essere inerte: con lo slice di conoscenza parzial
 Nessuna azione del roster supera la vista di chi la usa (max `range` 5 su vista minima 5), quindi il vincolo
 non riduce la gittata di nessuno: la vista lunga vale **anticipo d'informazione**, non danno.
 
-| Eroe | Vista | Ruolo | Risorsa firma | Ricarica su | Cap |
-|---|---:|---|---|---|---:|
-| Gadget | 7 | Controller | Carica Conduttiva | interazione elettrica | 4 |
-| Phase | 5 | Support | Riserva Idrica | interazione con acqua | 4 |
-| Riktor | 5 | Guardian | Integrità Strutturale | Cleanup | 4 |
-| Wraith | 6 | Striker | Slancio | movimento eseguito | 4 |
+| Eroe | Vista | Soglia d'udito | Ruolo | Risorsa firma | Ricarica su | Cap |
+|---|---:|---:|---|---|---|---:|
+| Gadget | 7 | 5 | Controller | Carica Conduttiva | interazione elettrica | 4 |
+| Phase | 5 | 3 | Support | Riserva Idrica | interazione con acqua | 4 |
+| Riktor | 5 | 3 | Guardian | Integrità Strutturale | Cleanup | 4 |
+| Wraith | 6 | 5 | Striker | Slancio | movimento eseguito | 4 |
+
+> 🔊 **La `Soglia d'udito` si legge al contrario delle altre colonne: più bassa, meglio si sente.** È la
+> soglia sotto la quale un rumore **non** viene percepito, sulla stessa scala `0-10` dell'intensità delle
+> azioni (`Wait 0 · Sprint 5 · Dash 6 · esplosione 10`), ed è ciò che rende confrontabili i due lati di
+> `IsAudible(ReceivedNoise, HearingThreshold)`. Un `3` è un orecchio fine, un `5` un orecchio normale.
+>
+> ⚠️ **L'udito COMPENSA la vista, non la segue** ([D-041](../decisions/RT_PDR_00_Decision_Log.md)): chi vede
+> lontano sente meno, chi vede poco sente bene — così è una seconda via all'informazione e non un secondo
+> `Range visivo`. Le due colonne sono anti-monotone di proposito, e sul roster v0.1 Phase e Riktor
+> condividono entrambi i valori.
+>
+> *(Entrata in catalogo il 2026-08-25 con [#686](https://github.com/DegrassiAaron/refactor-tactics-main/issues/686):
+> era un numero di bilanciamento che viveva **solo** in `RTHeroCatalogLibrary.cpp`, fuori dall'autorità che
+> [D-023](../decisions/RT_PDR_00_Decision_Log.md) assegna ai cataloghi. Il valore non cambia: è quello che il
+> gioco applica da D-041.)*
 
 I restanti parametri di percezione (`Detection`, `Identification`, `Stealth`, `Tracking`, firme) sono
 inizializzati **al valore più basso disponibile, uguale per tutti** (Detection 48, Identification 45,

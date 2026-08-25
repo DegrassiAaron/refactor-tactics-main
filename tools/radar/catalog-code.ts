@@ -46,6 +46,8 @@ export interface HeroStats {
   pushResistance: number;
   affinity: string;
   weakness: string;
+  /** Soglia sotto la quale un rumore NON si sente: piu' bassa, meglio si sente (D-041, #686). */
+  hearingThreshold: number;
 }
 
 /** Il campo C++ che porta ciascuna statistica. */
@@ -56,6 +58,7 @@ const CPP_FIELDS: Record<string, keyof HeroStats> = {
   PushResistance: 'pushResistance',
   Affinity: 'affinity',
   Weakness: 'weakness',
+  HearingThreshold: 'hearingThreshold',
 };
 
 /** `Gadget->MaxHealth = 90;` · `Gadget->Affinity = TEXT("Affinity.Electricity");`
@@ -227,7 +230,7 @@ export interface Divergence {
 export interface Comparison {
   divergences: Divergence[];
   /** Quante estrazioni ha prodotto ciascun lato. */
-  coverage: { sections: number; summary: number; cpp: number };
+  coverage: { sections: number; summary: number; perception: number; cpp: number };
 }
 
 const ALL_FIELDS: (keyof HeroStats)[] = [
@@ -237,6 +240,7 @@ const ALL_FIELDS: (keyof HeroStats)[] = [
   'pushResistance',
   'affinity',
   'weakness',
+  'hearingThreshold',
 ];
 
 function count(m: Map<string, Partial<HeroStats>>): number {
@@ -259,9 +263,12 @@ export function compare(
   sections: Map<string, Partial<HeroStats>>,
   summary: Map<string, Partial<HeroStats>>,
   cpp: Map<string, Partial<HeroStats>>,
+  perception: Map<string, Partial<HeroStats>> = new Map(),
 ): Comparison {
   const divergences: Divergence[] = [];
-  const heroes = [...new Set([...sections.keys(), ...summary.keys(), ...cpp.keys()])].sort();
+  const heroes = [
+    ...new Set([...sections.keys(), ...summary.keys(), ...perception.keys(), ...cpp.keys()]),
+  ].sort();
 
   for (const hero of heroes) {
     for (const field of ALL_FIELDS) {
@@ -269,8 +276,10 @@ export function compare(
       const s = sections.get(hero)?.[field];
       const t = summary.get(hero)?.[field];
       const c = cpp.get(hero)?.[field];
+      const p = perception.get(hero)?.[field];
       if (s !== undefined) values['schede'] = s;
       if (t !== undefined) values['tabella §5'] = t;
+      if (p !== undefined) values['tabella §5.1'] = p;
       if (c !== undefined) values['C++'] = c;
 
       const distinct = new Set(Object.values(values));
@@ -280,7 +289,12 @@ export function compare(
 
   return {
     divergences,
-    coverage: { sections: count(sections), summary: count(summary), cpp: count(cpp) },
+    coverage: {
+      sections: count(sections),
+      summary: count(summary),
+      perception: count(perception),
+      cpp: count(cpp),
+    },
   };
 }
 
@@ -297,15 +311,23 @@ function main() {
 
   const sections = parseCatalogSections(catalog);
   const summary = parseSummaryTable(catalog);
+  const perception = parsePerceptionTable(catalog);
   // Il C++ dichiara anche altre struct: si tengono solo gli eroi che il catalogo conosce, altrimenti
   // una variabile locale qualsiasi con un campo omonimo entrerebbe nel confronto.
   const cpp = new Map([...parseCpp(cppText)].filter(([hero]) => sections.has(hero)));
 
-  const { divergences, coverage } = compare(sections, summary, cpp);
+  const { divergences, coverage } = compare(sections, summary, cpp, perception);
 
-  const want = { sections: EXPECT_HEROES * 6, summary: EXPECT_HEROES * 5, cpp: EXPECT_HEROES * 6 };
+  // Ogni lato ha i propri campi: le schede ne portano sei, il confronto §5 cinque (niente `Debolezza`),
+  // §5.1 solo la soglia d'udito, il C++ tutti e sette.
+  const want = {
+    sections: EXPECT_HEROES * 6,
+    summary: EXPECT_HEROES * 5,
+    perception: EXPECT_HEROES * 1,
+    cpp: EXPECT_HEROES * 7,
+  };
   const short: string[] = [];
-  for (const side of ['sections', 'summary', 'cpp'] as const) {
+  for (const side of ['sections', 'summary', 'perception', 'cpp'] as const) {
     if (coverage[side] < want[side]) short.push(`${side}: ${coverage[side]}/${want[side]}`);
   }
 
@@ -313,7 +335,8 @@ function main() {
   // distinguibile da uno che non guarda.
   console.error(
     `campi confrontati — schede ${coverage.sections}/${want.sections} · ` +
-      `tabella §5 ${coverage.summary}/${want.summary} · C++ ${coverage.cpp}/${want.cpp}`,
+      `tabella §5 ${coverage.summary}/${want.summary} · ` +
+      `tabella §5.1 ${coverage.perception}/${want.perception} · C++ ${coverage.cpp}/${want.cpp}`,
   );
 
   if (short.length > 0) {
@@ -327,7 +350,7 @@ function main() {
   }
 
   if (divergences.length === 0) {
-    console.error(`le tre fonti concordano su tutti i campi dei ${sections.size} eroi`);
+    console.error(`le quattro fonti concordano su tutti i campi dei ${sections.size} eroi`);
     return;
   }
 
@@ -348,4 +371,31 @@ function main() {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
+}
+
+/** La tabella `### 5.1 Percezione e risorsa firma`, che porta la **soglia d'udito**.
+ *
+ *  E' un quarto lato e non una colonna in piu': l'udito non sta nelle schede §1-§4 ne' nel confronto
+ *  rapido §5, e fino al 2026-08-25 non stava in nessun catalogo — viveva **solo** in
+ *  `RTHeroCatalogLibrary.cpp`, fuori dall'autorita' che D-023 assegna ai cataloghi (#686).
+ *
+ *  Si legge **solo** cio' che questa tabella possiede da sola. La `Vista` c'e' anche qui, ma il suo owner
+ *  sono le schede: confrontarla due volte dallo stesso documento non aggiunge un lato, aggiunge rumore. */
+export function parsePerceptionTable(text: string): Map<string, Partial<HeroStats>> {
+  const out = new Map<string, Partial<HeroStats>>();
+  const lines = text.split('\n');
+  const start = lines.findIndex((l) => /^\|\s*Eroe\s*\|\s*Vista\s*\|\s*Soglia/.test(l));
+  if (start === -1) return out;
+  const end = lines.findIndex((l, i) => i > start && l.trim() === '');
+
+  for (const line of lines.slice(start, end === -1 ? undefined : end)) {
+    const cells = line.split('|').map((c) => c.trim());
+    if (cells.length < 8) continue;
+    const hero = cells[1]!;
+    // Stesso discriminante strutturale del §5: una riga di dati ha un intero in colonna `Vista`.
+    if (!/^-?\d+$/.test(cells[2] ?? '')) continue;
+    const n = (cells[3] ?? '').match(/-?\d+/);
+    if (n) out.set(hero, { hearingThreshold: Number(n[0]) });
+  }
+  return out;
 }
