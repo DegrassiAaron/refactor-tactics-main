@@ -127,48 +127,67 @@ procedura sugli altri tre.
 
 ---
 
-## AS.4a — Locomozione Idle ↔ Run (obiettivo: Gideon corre nel Move)
+## AS.4a — Locomozione Idle ↔ Run (obiettivo: i quattro eroi corrono nel Move)
 
-### 1. Crea l'Animation Blueprint
-- Content Browser ▸ `Blueprints/Units` ▸ tasto destro ▸ **Animation ▸ Animation Blueprint**.
-- Skeleton: **`Gideon_Skeleton`**. Nome: **`ABP_Gideon`**.
+🔴 **Questa sezione è stata riscritta il 2026-08-25 ([#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288)), e la versione precedente mandava a sbattere in tre punti.**
+Diceva `ABP_Gideon` e `BP_Unit_Guardian`: il primo è un pack **fuori roster** (D-120 dice Gadget · Phase ·
+Riktor · Wraith), il secondo è un Blueprint che **non esiste più** — in `Content/RT/Characters/` ci sono i
+quattro `BP_Unit_<Eroe>` e nient'altro. E soprattutto pilotava una variabile `bIsMoving` **agganciando i
+delegate del TurnManager dentro ogni BP_Unit**, con bind, branch `Unit == self` e cast: quel wiring va
+rifatto per ogni personaggio ed è superato da `bIsMovingVisually`, che il TurnManager scrive già
+sull'unità. La via vecchia resta leggibile nella storia di questo file, non qui.
 
-### 2. Variabile di stato
-- In `ABP_Gideon` ▸ pannello **My Blueprint** ▸ **+ Variable** ▸ bool **`bIsMoving`**.
+### 1. Crea l'Animation Blueprint — uno per eroe
+- Content Browser ▸ `Content/RT/Characters/<Eroe>/Blueprints` ▸ tasto destro ▸ **Animation ▸ Animation Blueprint**.
+- Skeleton: quello **del pack**, e si prende **dalla mesh, non dal nome del file** (è l'errore già costato una
+  correzione in [AS.3](#as3--animazioni-con-paragon-niente-retargeting)). Nome: **`ABP_<Eroe>`** — `ABP_Gadget`, `ABP_Phase`,
+  `ABP_Riktor`, `ABP_Wraith`.
+
+### 2. Lo stato arriva dall'unità, non da un wiring per personaggio
+`ARTUnit::bIsMovingVisually` è `BlueprintReadOnly` e lo **scrive il TurnManager**: lo accende quando l'unità
+parte nel Move o nel Dash, lo spegne a fine risoluzione e su ogni unità rimossa. L'AnimBP lo legge, e questo è
+tutto il collegamento che serve — **uguale per ogni personaggio, nessun bind, nessun branch**.
+
+- `ABP_<Eroe>` ▸ **My Blueprint** ▸ **+ Variable** ▸ bool **`bIsMoving`** (è la copia locale che le transizioni
+  leggono: le condizioni di transizione non possono seguire un cast).
+- **Event Graph** ▸ **Event Blueprint Update Animation**:
+  - 🔴 **`Get Owning Actor`, NON `Try Get Pawn Owner`.** `ARTUnit` deriva da **`AActor`**, non da `APawn`:
+    `Try Get Pawn Owner` è il nodo che ogni tutorial usa, qui restituisce **null**, il cast fallisce e la
+    macchina a stati resta in `Idle` **senza un errore, senza un warning e senza un log**. Se le mesh non
+    corrono, è questo.
+  - `Get Owning Actor` ▸ **Cast To `RTUnit`** ▸ `Get bIsMovingVisually` ▸ **Set `bIsMoving`**.
+  - Lascia il cast **non puro** e non gestire il ramo di fallimento: un'unità che non è un `RTUnit` non
+    esiste in partita, e un default `false` è già la risposta giusta.
 
 ### 3. AnimGraph: macchina a stati Idle/Run
 - Apri **AnimGraph** ▸ tasto destro ▸ **Add New State Machine** (nome `Locomotion`) ▸ collega la sua uscita a **Output Pose**.
 - Doppio clic sulla state machine:
-  - **Entry** → nuovo stato **Idle**: dentro trascina l'anim **`Idle`** ▸ collega a **Output Animation Pose**.
-  - Nuovo stato **Run**: dentro l'anim **`Jog_Fwd`** ▸ Output Animation Pose.
-  - ⚠️ **I due nomi valgono per Gideon.** Per i pack del roster prendili dalla riga *Idle* e *Corsa* di
-    [AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster): su Gadget la corsa è `Run_Fwd`, su Wraith l'idle è
-    `Idle_NonCombat`.
-  - Transizione **Idle → Run**: doppio clic sulla freccia ▸ condizione **`bIsMoving` == true** (trascina `bIsMoving` → `Return Value` del Can Enter Transition).
+  - **Entry** → nuovo stato **Idle**: dentro trascina la clip *Idle* ▸ collega a **Output Animation Pose**.
+  - Nuovo stato **Run**: dentro la clip *Corsa* ▸ Output Animation Pose.
+  - ⚠️ **Le clip si prendono dalla riga *Idle* e *Corsa* di
+    [AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster), pack per pack.** Non si deducono: su Gadget la corsa
+    è `Run_Fwd` e non `Jog_Fwd`, su Wraith l'idle è `Idle_NonCombat`.
+  - Transizione **Idle → Run**: doppio clic sulla freccia ▸ condizione **`bIsMoving` == true** (trascina
+    `bIsMoving` → `Return Value` del Can Enter Transition).
   - Transizione **Run → Idle**: condizione **`bIsMoving` == false** (usa un nodo **NOT**).
 - **Compile ▸ Save**.
 
 ### 4. Collega l'AnimBP alla mesh
-- Apri `BP_Unit_Guardian` ▸ seleziona lo **Skeletal Mesh Component** ▸ Details ▸ **Animation**:
+- Apri `BP_Unit_<Eroe>` ▸ seleziona lo **Skeletal Mesh Component** ▸ Details ▸ **Animation**:
   - **Animation Mode = Use Animation Blueprint**
-  - **Anim Class = `ABP_Gideon`**
+  - **Anim Class = `ABP_<Eroe>`**
 - (Rimuovi l'eventuale "Use Animation Asset ▸ Idle" messo prima: ora comanda l'AnimBP.)
+- ⚠️ **Un Blueprint per volta.** Due `.uasset` non si fondono: se una seconda sessione ha lo stesso file
+  aperto, uno dei due lavori si perde senza conflitto e senza avviso.
 
-### 5. Pilota `bIsMoving` dai delegate del playback (in `BP_Unit_Guardian`, Event Graph)
-Il `TurnManager` emette gli eventi del playback. L'unità vi si aggancia e muove la propria animazione.
+**Verifica (PIE)**: al lock-in del turno, durante la fase **Move** l'unità passa a `Jog_Fwd` (`Run_Fwd` per
+Gadget) mentre scorre lungo il percorso, e torna a `Idle` a fine risoluzione. Voce `PIE-AS4a`.
 
-- **Event BeginPlay**:
-  - **Get Actor Of Class** (`RTTurnManager`) → promuovi a variabile **`TurnManager`**.
-    (Il `TurnManager` ora è spawnato **prima** delle unità — fix applicato — quindi esiste già: niente Delay.)
-  - Da `TurnManager` trascina e **Bind Event to On Unit Move Started** → crea evento custom **`OnMoveStarted (Unit)`**.
-  - Idem **Bind Event to On Resolve Playback Finished** → **`OnResolveFinished`**.
-- **`OnMoveStarted (Unit)`**: **Branch** `Unit == self` (nodo *Equal (Object)*):
-  - True → Skeletal Mesh Component ▸ **Get Anim Instance** ▸ **Cast To `ABP_Gideon`** ▸ **Set `bIsMoving` = true**.
-- **`OnResolveFinished`**: Get Anim Instance ▸ Cast To `ABP_Gideon` ▸ **Set `bIsMoving` = false** (tutti tornano idle a fine round).
-- **Compile ▸ Save**.
-
-**Verifica (PIE)**: al lock-in del turno, durante la fase **Move** Gideon dovrebbe passare a **`Jog_Fwd`** mentre
-scorre lungo il percorso, e tornare a **`Idle`** a fine risoluzione.
+⚠️ **Che il flag si accenda e si spenga nei momenti giusti è già coperto headless** da
+`RTPlaybackPhaseTests` — «nel Dash l'unità che scatta è in corsa», «nel Blast non è più in corsa», «a fine
+risoluzione nessuna corsa residua». Quei test misurano il **contratto** che l'AnimBP consuma, non
+l'animazione: se al PIE la mesh non corre mentre quei test sono verdi, il difetto è nell'AnimBP — quasi
+sempre il `Try Get Pawn Owner` del passo 2 — e non nel C++.
 
 ---
 
@@ -185,11 +204,13 @@ solo i 3 eventi nel BP (uniforme per ogni personaggio; se un evento non è imple
    - **Per il roster della v0.1**, clip di partenza dalle righe *Attacco*, *Colpito* e *Morte* di
      [AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster). Il nome del montaggio segue il **pack** come tutto il
      resto (`AM_Gadget_Attack`, `AM_Gadget_Hit`, `AM_Gadget_Death`, e così per Phase, Riktor, Wraith), e le
-     sette caselle che non si chiamano come ci si aspetta stanno lì: `Hitreact_Fwd` con la `r` minuscola per
+     **sei** caselle che non si chiamano come ci si aspetta stanno lì — *questa riga diceva «sette»
+     fino al 2026-08-25, e la tabella di [AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster) ne conta
+     **sei**, coerente con il suo «14 su 20»; qui ne sono elencate tre* — `Hitreact_Fwd` con la `r` minuscola per
      Gadget, `Death` nudo per Phase, `Death_Forward` per Wraith.
 2. **Slot** in `ABP_Gideon`/`ABP_Sparrow` ▸ AnimGraph: inserisci un nodo **Slot 'DefaultSlot'** tra la State
    Machine `Locomotion` e l'Output Pose (i montaggi vanno in override su idle/run).
-3. **BP_Unit** (Guardian/Ranger) ▸ Event Graph: aggiungi gli eventi (tasto destro ▸ cerca il nome) e collega
+3. **`BP_Unit_<Eroe>`** (Gadget · Phase · Riktor · Wraith — ⚠️ *diceva "Guardian/Ranger": quei due Blueprint non esistono*) ▸ Event Graph: aggiungi gli eventi (tasto destro ▸ cerca il nome) e collega
    ciascuno a un **Play Anim Montage** (target: lo Skeletal Mesh Component):
    - **Event Play Attack Montage** → `AM_…_Attack`
    - **Event Play Hit Montage** → `AM_…_Hit`
@@ -211,6 +232,15 @@ avanti) è credibile in ogni direzione. Solo presentazione: non tocca la logica.
 ---
 
 ## Ripetere per il Ranger (Sparrow) — via duplicato
+
+🔴 **Sezione storica dal 2026-08-25: il *metodo* del duplicato regge, i suoi cinque passi no.** Sparrow è
+fuori dal roster ([D-120](../../decisions/RT_PDR_00_Decision_Log.md)); `BP_Unit_Guardian` e `BP_Unit_Ranger` **non
+esistono** — in `Content/RT/Characters/` ci sono i quattro `BP_Unit_<Eroe>`; il passo 4 rincorre un problema che
+[AS.4a](#as4a--locomozione-idle--run-obiettivo-i-quattro-eroi-corrono-nel-move) ha eliminato (con `bIsMovingVisually` nel
+BP_Unit non c'è nessun cast all'AnimBP da correggere); e il passo 5 assegna una `Ranger Unit Class` che il
+GameMode non ha — oggi è `HeroUnitClasses`, e dal 2026-08-25 la popola il costruttore C++
+([#287](https://github.com/DegrassiAaron/refactor-tactics-main/issues/287)). **Per il quinto eroe segui AS.4a**, che
+è già scritta per ripetersi.
 
 Sparrow ha uno **skeleton diverso** (`Sparrow_Skeleton`) → serve un nuovo AnimBP, ma si riusa il BP unità:
 
