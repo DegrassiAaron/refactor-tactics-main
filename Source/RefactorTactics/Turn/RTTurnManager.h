@@ -1162,6 +1162,9 @@ protected:
 	/** Applica uno status e registra la voce se cosi' facendo ha SPENTO un `Burning` (#1314). */
 	void ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Turns);
 
+	/** L'invariante dei pesi si verifica una volta per partita, sull'istanza viva (#1276). */
+	bool bBotWeightInvariantChecked = false;
+
 	/**
 	 * Le due voci di ciclo di vita di uno stato (#1077), costruite in UN posto solo.
 	 *

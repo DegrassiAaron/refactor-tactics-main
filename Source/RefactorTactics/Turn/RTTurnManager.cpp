@@ -291,6 +291,48 @@ void ARTTurnManager::PlanBots()
 	UE_LOG(LogRT, Log, TEXT("[RT] Pesi bot: WKill=%d WDamage=%d WThreat=%d WKiteViolation=%d WApproach=%d WElevation=%d"),
 		WKill, WDamage, WThreat, WKiteViolation, WApproach, WElevation);
 
+	// 🔴 **L'invariante si verifica sull'ISTANZA, e una volta per partita** (`#1276`).
+	//
+	// `WElevation * MaxLayer < WApproach` e' l'unica difesa contro lo stato assorbente di `#1088` — il bot
+	// che si parcheggia in quota e la partita che non si decide. L'header lo dichiara accanto al campo, e
+	// dichiara anche il modo di riaprirlo: *«alzarlo da qui in editor lo riapre»*.
+	//
+	// ⚠️ **Il test che lo pinna legge `GetDefault<ARTTurnManager>()`, cioe' il CDO.** Ma `ARTGameMode`
+	// RIUSA un `ARTTurnManager` gia' presente nel livello invece di spawnarlo, e un'istanza piazzata
+	// serializza i propri `UPROPERTY` nel `.umap`: un livello che portasse ancora `WElevation = 20`
+	// riaprirebbe il difetto **mentre il test resta verde**. Un test non puo' vederlo — non carica i
+	// livelli — quindi il presidio sta qui, dove i pesi e la mappa sono entrambi quelli veri.
+	//
+	// ⚠️ E vale anche per `MaxLayer`: l'invariante non e' una proprieta' dei soli pesi, ma del loro rapporto
+	// con la mappa in gioco. Gli stessi pesi reggono su due layer e cedono su tre.
+	if (!bBotWeightInvariantChecked)
+	{
+		bBotWeightInvariantChecked = true;
+
+		FVector InvOrigin; float InvHexSize; float InvLayerH;
+		if (const URTHexMapAsset* Map = GetHexContext(InvOrigin, InvHexSize, InvLayerH))
+		{
+			int32 MaxLayer = 0;
+			for (const FRTHexCellData& Cell : Map->Cells)
+			{
+				MaxLayer = FMath::Max(MaxLayer, Cell.Id.Layer);
+			}
+
+			if (WElevation * MaxLayer >= WApproach)
+			{
+				// Fail-loud e non fail-closed: la partita si gioca lo stesso, ma chi raccoglie una misura di
+				// bilanciamento deve sapere che questa non vale. Un peso serializzato invisibile falserebbe
+				// qualunque numero raccolto su `#149`.
+				UE_LOG(LogRT, Error,
+					TEXT("[RT] INVARIANTE PESI BOT VIOLATA: WElevation(%d) * MaxLayer(%d) = %d >= WApproach(%d). "
+						 "Il bot puo' parcheggiarsi in quota (#1088) e la partita puo' non decidersi. "
+						 "Controlla i pesi sull'ARTTurnManager di QUESTO livello: un'istanza serializzata nel "
+						 ".umap vince sui default C++."),
+					WElevation, MaxLayer, WElevation * MaxLayer, WApproach);
+			}
+		}
+	}
+
 	// Stesso snapshot autorevole del movimento e dell'input: mappa, occupazione e budget congelati.
 	// Le mosse candidate nascono da ReachableCells, quindi il bot NON puo' proporre una mossa illegale
 	// (niente celle inesistenti, bloccate, occupate o fuori budget) e non rifa' pathfinding per conto suo.
