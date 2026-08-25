@@ -13,6 +13,11 @@
 > Corretti qui sotto, ciascuno accanto alla propria regola. I tell delle sette voci **non cambiano**.
 > *(La revisione nasceva dall'arrivo di `D-139`; quella decisione è stata superata da `D-178` il
 > 2026-08-20, ma le tre correzioni restano valide per ragioni loro.)*
+>
+> ✅ **Chiusa il 2026-08-25.** Due residui che la revisione non aveva raggiunto: §10 apriva ancora
+> con *«sull'arena appena costruita»*, contro il vincolo dichiarato tre righe più su; e l'output
+> d'esempio di §8 non diceva **di quale mappa** fosse — sono i numeri della generata, ed è
+> esattamente il modo in cui un conteggio letterale insegna la mappa sbagliata.
 
 Una sola apertura dell'editor. Sette passi per costruire, sette voci da verificare, un comando per sapere se
 l'arena rispetta i tre criteri prima di committarla.
@@ -164,7 +169,11 @@ Non serve stimarli a occhio. Con l'arena nel livello, in console (`ò` o `~`):
 rt.Arena.Check
 ```
 
-Misura l'asset e stampa i numeri:
+Misura l'asset e stampa i numeri. ⚠️ **L'esempio qui sotto è il verdetto della mappa di ripiego
+generata**, non dell'arena — si riconosce dai suoi stessi numeri, gli stessi che il paragrafo
+*Termine di paragone* attribuisce a `MakeTestArena`. Serve a mostrare la **forma** dell'output:
+per sapere quale mappa hai davanti non contare le celle, leggi se il log ha annunciato
+`MapSource=GeneratedTestArena`.
 
 ```
 [RT] Criteri dell'arena su 65 celle (budget 5, rapporto max 1.50, scarto minimo 15%):
@@ -205,8 +214,9 @@ danno.
 
 ## 10. Le sette voci
 
-Si verificano nella stessa apertura, sull'arena appena costruita. Gli esiti si scrivono in
-[`test-manuali-pie.md`](../test-manuali-pie.md).
+Si verificano in **una sola apertura**, sull'arena che è già in `main` — non su una appena costruita:
+i §1–§9 raccontano come è nata, e su questa non si rieseguono (vedi il vincolo in testa alla pagina).
+Gli esiti si scrivono in [`test-manuali-pie.md`](../test-manuali-pie.md).
 
 | Voce | Cosa guardi | Tool |
 |---|---|---|
