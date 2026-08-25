@@ -91,3 +91,69 @@ test('una tabella dentro un code fence non e codice da controllare', () => {
   assert.deepEqual(findOrphanRows(md), []);
   assert.deepEqual(findBrokenRows(md), []);
 });
+
+// ---------------------------------------------------------------------------------------------
+// Code fence: la maschera deve CHIUDERSI, e non deve mai spegnere il controllo
+// ---------------------------------------------------------------------------------------------
+
+test('un fence NON chiuso non spegne i controlli fino a fine file', () => {
+  // Regressione trovata in code review: mascherare da un fence aperto fino a EOF toglieva a
+  // `findBrokenRows` una riga che su `main` vedeva. Un backtick perso disattivava il gate, con
+  // `--check` a zero — esattamente il difetto che questo file esiste per impedire.
+  const md = [
+    '```js',
+    'const x = 1;',
+    '',
+    '| A | B | C |',
+    '|---|---|---|',
+    '| 1 | 2 |',
+    '',
+    '| voce isolata |',
+  ].join('\n');
+
+  assert.deepEqual(findBrokenRows(md).map((b) => b.line), [6]);
+  assert.deepEqual(findOrphanRows(md).map((o) => o.line), [8]);
+});
+
+test('una riga isolata DOPO un fence chiuso viene vista', () => {
+  // Il buco nella prima verifica di mutazione: la fixture non aveva righe `|` dopo la chiusura,
+  // quindi `open = true` (maschera che non si chiude mai) passava tutti i test.
+  const md = ['```markdown', '| citata | non conta |', '```', '', '| orfana vera |'].join('\n');
+
+  assert.deepEqual(findOrphanRows(md).map((o) => o.line), [5]);
+});
+
+test('un marcatore diverso non chiude il fence', () => {
+  // Caso reale nel repository: `~~~~ water ~~~~` dentro un blocco ```text invertiva la maschera,
+  // e da li' in poi il file veniva letto al contrario — contenuto saltato, esempi controllati.
+  const md = ['```text', '~~~~ water ~~~~', '| A | B |', '```', '', '| X | Y |', '|---|---|'].join('\n');
+
+  assert.deepEqual(findOrphanRows(md), []);
+});
+
+// ---------------------------------------------------------------------------------------------
+// GFM: le pipe ai bordi sono opzionali
+// ---------------------------------------------------------------------------------------------
+
+test('una tabella senza pipe ai bordi e valida e non va segnalata', () => {
+  // GFM rende tutte e tre. Segnalarle sarebbe il falso positivo che toglie credibilita' al gate:
+  // l'euristica «solo righe che cominciano con |» produceva falsi NEGATIVI, innocui; trasformarla
+  // in falsi allarmi e' un peggioramento.
+  for (const rows of [
+    ['| A | B |', '--- | ---', '| 1 | 2 |'],
+    ['A | B', '|---|---|', '| 1 | 2 |'],
+    ['| A | B |', '|---|---|', '1 | 2', '| 3 | 4 |'],
+  ]) {
+    assert.deepEqual(findOrphanRows(rows.join('\n')), [], rows[1]);
+  }
+});
+
+test('un delimitatore ha almeno un trattino per cella, e le celle vuote non bastano', () => {
+  // `| - | - |` E' valido per GFM: la spec chiede celle il cui unico contenuto siano trattini e
+  // due punti, senza un minimo di tre. `|   |   |` invece non lo e', e va trattato da riga di dati.
+  assert.deepEqual(findOrphanRows(['| **D-1** | x |', '| - | - |'].join('\n')), []);
+  assert.deepEqual(
+    findOrphanRows(['| **D-1** | x |', '|   |   |'].join('\n')).map((o) => o.line),
+    [1, 2],
+  );
+});

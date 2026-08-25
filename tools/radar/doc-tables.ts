@@ -58,11 +58,26 @@ function countCells(line: string): number {
   return Math.max(0, parts.length - 2);
 }
 
-/** Apertura o chiusura di un blocco di codice: ``` oppure ~~~, anche indentati. */
-const FENCE = /^\s*(```|~~~)/;
+/** Apertura o chiusura di un blocco di codice: almeno tre backtick o tre tilde, anche indentati.
+ *  Il marcatore e la sua LUNGHEZZA contano: un fence si chiude solo con lo stesso carattere e almeno
+ *  altrettanti caratteri (CommonMark §4.5). */
+const FENCE = /^\s*(`{3,}|~{3,})/;
 
-/** La riga separatrice di una tabella GFM: `|---|---|`, con allineamenti opzionali (`|:--|--:|`). */
-const DELIMITER = /^\|[\s:|-]+\|?\s*$/;
+/** La riga separatrice di una tabella GFM.
+ *
+ *  ⚠️ **GFM non chiede tre trattini per cella**: la spec dice «celle il cui unico contenuto sono
+ *  trattini e, opzionalmente, due punti». `| - | - |` e' quindi valido, e segnalarlo sarebbe un falso
+ *  positivo. Cio' che NON e' valido e' una cella **vuota**: `|   |   |` non ha trattini ed e' una riga
+ *  di dati, non un delimitatore — che e' il caso in cui il vecchio regex, permissivo su tutta la
+ *  classe `[\s:|-]`, certificava come tabella due righe orfane. */
+function isDelimiterRow(line: string): boolean {
+  const parts = line.split(CELL);
+  // I frammenti ai bordi sono vuoti quando la riga comincia o finisce con `|`: le pipe di bordo sono
+  // opzionali in GFM, quindi si scartano solo se effettivamente vuoti.
+  if (parts.length >= 2 && parts[0]!.trim() === '') parts.shift();
+  if (parts.length >= 1 && parts[parts.length - 1]!.trim() === '') parts.pop();
+  return parts.length > 0 && parts.every((c) => /^:?-+:?$/.test(c.trim()));
+}
 
 /** Quali righe stanno DENTRO un blocco di codice, e vanno ignorate da ogni controllo.
  *
@@ -75,16 +90,56 @@ const DELIMITER = /^\|[\s:|-]+\|?\s*$/;
  *  cambierebbero nulla, ma marcarle rende la maschera leggibile da sola. */
 function fencedMask(lines: string[]): boolean[] {
   const mask = new Array<boolean>(lines.length).fill(false);
-  let open = false;
+  let marker: string | null = null; // il fence APERTO: carattere e lunghezza
+
   for (let k = 0; k < lines.length; k++) {
-    if (FENCE.test(lines[k]!)) {
-      open = !open;
-      mask[k] = true;
-      continue;
+    const m = FENCE.exec(lines[k]!);
+    if (m) {
+      const found = m[1]!;
+      if (marker === null) {
+        marker = found;
+        mask[k] = true;
+        continue;
+      }
+      // Chiude solo lo stesso carattere, lungo almeno quanto l'apertura. Senza questo controllo un
+      // `~~~~ water ~~~~` dentro un blocco ```text inverte la maschera per tutto il resto del file —
+      // e nel repository esiste gia' un documento fatto cosi'.
+      if (found[0] === marker[0] && found.length >= marker.length) {
+        marker = null;
+        mask[k] = true;
+        continue;
+      }
     }
-    mask[k] = open;
+    mask[k] = marker !== null;
   }
+
+  // ⚠️ **Un fence rimasto aperto rende la maschera inaffidabile da li' a fine file**, e il modo in cui
+  // sbaglia e' il peggiore: SPEGNE i controlli invece di accenderli, quindi un backtick perso
+  // basterebbe a far uscire `0` su un documento rotto. Non ci si fida: si torna a controllare tutto,
+  // che e' il comportamento che questo file aveva prima di conoscere i fence. Lo sbilanciamento e'
+  // segnalato a parte da `findUnbalancedFence`, cosi' non resta muto.
+  if (marker !== null) return new Array<boolean>(lines.length).fill(false);
   return mask;
+}
+
+/** La riga che apre un fence mai chiuso, se c'e'. Un documento in questo stato non e' controllabile
+ *  con sicurezza, ed e' un difetto in se': va detto, non aggirato. */
+export function findUnbalancedFence(text: string): number | null {
+  const lines = text.split('\n');
+  let marker: string | null = null;
+  let openedAt = -1;
+  for (let k = 0; k < lines.length; k++) {
+    const m = FENCE.exec(lines[k]!);
+    if (!m) continue;
+    const found = m[1]!;
+    if (marker === null) {
+      marker = found;
+      openedAt = k;
+    } else if (found[0] === marker[0] && found.length >= marker.length) {
+      marker = null;
+    }
+  }
+  return marker === null ? null : openedAt + 1;
 }
 
 export function findBrokenRows(text: string): BrokenRow[] {
@@ -161,24 +216,35 @@ export function findOrphanRows(text: string): OrphanRow[] {
   const lines = text.split('\n');
   const fenced = fencedMask(lines);
   const out: OrphanRow[] = [];
-  let i = 0;
 
-  while (i < lines.length) {
-    if (!lines[i]!.startsWith('|') || fenced[i]) {
-      i++;
-      continue;
+  // ⚠️ **Si parte dal DELIMITATORE, non dalle righe con una pipe.** Cercare «tutte le righe che
+  // contengono `|`» sembra la generalizzazione giusta — in GFM le pipe ai bordi sono opzionali — ed e'
+  // stata misurata: **393 falsi positivi**, su prosa che cita `Attack | Ability` fra backtick e su ogni
+  // tabella dentro un blockquote, dove le righe cominciano con `>`. Una tabella invece esiste **se e
+  // solo se** ha una riga delimitatore: partendo di li' l'appartenenza si calcola senza indovinare, e
+  // le tabelle senza pipe ai bordi rientrano da sole.
+  const inTable = new Array<boolean>(lines.length).fill(false);
+  for (let k = 0; k < lines.length; k++) {
+    if (fenced[k] || !isDelimiterRow(lines[k]!)) continue;
+    // L'intestazione e' la riga subito sopra, se c'e' ed e' piena: senza di lei il delimitatore e'
+    // orfano quanto una riga qualsiasi.
+    const header = k - 1;
+    if (header < 0 || fenced[header] || lines[header]!.trim() === '') continue;
+    inTable[header] = true;
+    inTable[k] = true;
+    // I dati scendono finche' le righe restano piene e contengono una pipe.
+    for (let j = k + 1; j < lines.length && !fenced[j] && lines[j]!.trim() !== '' && CELL.test(lines[j]!); j++) {
+      inTable[j] = true;
     }
-    const start = i;
-    while (i + 1 < lines.length && lines[i + 1]!.startsWith('|') && !fenced[i + 1]) i++;
-    const end = i;
+  }
 
-    const isTable = end - start >= 1 && DELIMITER.test(lines[start + 1]!);
-    if (!isTable) {
-      for (let j = start; j <= end; j++) {
-        out.push({ line: j + 1, text: lines[j]!.slice(0, 160) });
-      }
+  // Orfana = comincia con `|` — quindi il markdown la renderebbe come riga di tabella — ma non
+  // appartiene a nessuna. Il criterio resta stretto di proposito: allargarlo alle righe che contengono
+  // una pipe **in mezzo** e' esattamente cio' che ha prodotto i 393.
+  for (let k = 0; k < lines.length; k++) {
+    if (!fenced[k] && lines[k]!.startsWith('|') && !inTable[k]) {
+      out.push({ line: k + 1, text: lines[k]!.slice(0, 160) });
     }
-    i = end + 1;
   }
   return out;
 }
@@ -207,56 +273,91 @@ function main() {
 
   // Stessi tre documenti di governance della radice che copre `doc-links.ts`, e per la stessa ragione.
   const ROOT_DOCS = ['AGENTS.md', 'CLAUDE.md', 'README.md'];
-  // `archive/` e' storico, `research/` e' input north-star non ancora consumato: CLAUDE.md dichiara
-  // che non e' autorita' implicita, e le sue tabelle arrivano da documenti IMPORTATI. Le dodici righe
-  // orfane misurate il 2026-08-25 stanno tutte li', in un solo PRD — correggerle sarebbe cosmetica su
-  // materiale che il progetto non possiede, e il gate nascerebbe rosso su qualcosa che nessuno
-  // sistemera'.
-  const SKIP = ['archive', 'research'];
   const files = [
     ...ROOT_DOCS.map((e) => join(REPO_ROOT, e)).filter((p) => existsSync(p)),
-    ...markdownFiles(DOCS_DIR).filter((f) => {
-      const top = relative(DOCS_DIR, f).split(sep)[0] ?? '';
-      return withArchive ? top !== 'research' : !SKIP.includes(top);
-    }),
+    ...markdownFiles(DOCS_DIR).filter(
+      (f) => withArchive || (relative(DOCS_DIR, f).split(sep)[0] ?? '') !== 'archive',
+    ),
   ];
 
-  const problems: string[] = [];
+  /** `research/` e' input north-star non ancora consumato (CLAUDE.md): non e' autorita' implicita, e le
+   *  sue tabelle arrivano da documenti IMPORTATI. Le **dodici** righe orfane misurate stanno tutte li',
+   *  in un solo PRD, e correggerle sarebbe cosmetica su materiale che il progetto non possiede.
+   *
+   *  ⚠️ **Esce dalle sole ORFANE, non dal controllo di larghezza**: li' i difetti misurati sono **zero**,
+   *  quindi toglierlo dalla scansione perderebbe 38 documenti senza guadagnare niente — e la
+   *  giustificazione qui sopra copre le orfane, non la larghezza. */
+  const skipsOrphans = (f: string) => (relative(DOCS_DIR, f).split(sep)[0] ?? '') === 'research';
+
+  const widthProblems: string[] = [];
+  const orphanProblems: string[] = [];
+  const fenceProblems: string[] = [];
   let tables = 0;
 
   for (const file of files) {
     const rel = relative(REPO_ROOT, file).split(sep).join('/');
     const text = readFileSync(file, 'utf8');
-    // Conta le tabelle per poter dichiarare la copertura, non solo i difetti. Salta i blocchi dentro
-    // un code fence: un esempio citato non e' una tabella del documento, e contarlo gonfierebbe una
-    // copertura che nessun controllo esercita.
+    // Conta le tabelle per poter dichiarare la copertura, non solo i difetti. Si contano i
+    // **delimitatori**, perche' ogni tabella ne ha esattamente uno: contare gli inizi di blocco
+    // includerebbe fra le «tabelle esaminate» proprio i blocchi che `findOrphanRows` sta dichiarando
+    // NON essere tabelle, e il numero non si potrebbe leggere come «tabelle verificate».
     const lines = text.split('\n');
     const fenced = fencedMask(lines);
     tables += lines.filter(
-      (l, k) => l.startsWith('|') && !fenced[k] && !((lines[k - 1] ?? '').startsWith('|') && !fenced[k - 1]),
+      (l, k) => !fenced[k] && isDelimiterRow(l) && k > 0 && !fenced[k - 1] && lines[k - 1]!.trim() !== '',
     ).length;
-    for (const b of findBrokenRows(text)) {
-      problems.push(`${rel}:${b.line}: ${b.cells} celle invece di ${b.expected}\n      ${b.text}`);
+    const openedAt = findUnbalancedFence(text);
+    if (openedAt !== null) {
+      fenceProblems.push(`${rel}:${openedAt}: blocco di codice aperto e mai chiuso`);
     }
-    for (const o of findOrphanRows(text)) {
-      problems.push(`${rel}:${o.line}: riga fuori da ogni tabella (manca il delimitatore)\n      ${o.text}`);
+    for (const b of findBrokenRows(text)) {
+      widthProblems.push(`${rel}:${b.line}: ${b.cells} celle invece di ${b.expected}\n      ${b.text}`);
+    }
+    if (!skipsOrphans(file)) {
+      for (const o of findOrphanRows(text)) {
+        orphanProblems.push(`${rel}:${o.line}: non appartiene a nessuna tabella\n      ${o.text}`);
+      }
     }
   }
 
   console.error(
     `tabelle esaminate: ${tables} in ${files.length} documenti` +
-      ` (docs/research/ sempre escluso${withArchive ? '' : ', docs/archive/ escluso: passa --with-archive'})`,
+      (withArchive ? '' : ' (docs/archive/ escluso: passa --with-archive)') +
+      ' · in docs/research/ si controlla la larghezza, non le righe orfane',
   );
 
-  if (problems.length === 0) {
-    console.error('tutte le righe di tabella hanno la larghezza delle sorelle');
+  if (widthProblems.length + orphanProblems.length + fenceProblems.length === 0) {
+    console.error('ogni riga sta in una tabella, e ha la larghezza delle sorelle');
     return;
   }
-  console.error(`\n${problems.length} righe rompono la loro tabella:\n  ${problems.join('\n  ')}`);
-  console.error(
-    `\n⚠️ Due cause, e si correggono diversamente: una pipe **mancante** fonde due colonne, una pipe **in` +
-      ` più** viene quasi sempre da codice inline con \`||\` o \`|\` non escapati — lì si scrive \`\\|\`.`,
-  );
+
+  // I tre difetti si correggono in modi diversi, quindi si stampano separati: un rimedio dato per il
+  // difetto sbagliato manda chi legge a escapare una pipe quando gli manca un delimitatore.
+  if (widthProblems.length > 0) {
+    console.error(
+      `\n${widthProblems.length} righe non hanno la larghezza delle sorelle:\n  ${widthProblems.join('\n  ')}`,
+    );
+    console.error(
+      `\n⚠️ Due cause: una pipe **mancante** fonde due colonne, una pipe **in più** viene quasi sempre da` +
+        ` codice inline con \`||\` o \`|\` non escapati — lì si scrive \`\\|\`.`,
+    );
+  }
+  if (orphanProblems.length > 0) {
+    console.error(
+      `\n${orphanProblems.length} righe non appartengono a nessuna tabella:\n  ${orphanProblems.join('\n  ')}`,
+    );
+    console.error(
+      `\n⚠️ Il markdown le rende come TESTO, pipe a vista. Di solito manca la riga \`|---|---|\`, oppure` +
+        ` una riga vuota ha staccato la riga dalla sua tabella: si toglie la riga vuota.`,
+    );
+  }
+  if (fenceProblems.length > 0) {
+    console.error(`\n${fenceProblems.length} blocchi di codice non chiusi:\n  ${fenceProblems.join('\n  ')}`);
+    console.error(
+      `\n⚠️ Finché restano aperti il resto del documento non è controllabile con sicurezza, e questo` +
+        ` controllo torna a esaminare tutto invece di fidarsi — quindi qui possono comparire esempi citati.`,
+    );
+  }
   if (check) process.exit(1);
 }
 
