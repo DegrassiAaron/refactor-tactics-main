@@ -117,7 +117,7 @@ milestone corrente (coerente con la regola di scope in `CLAUDE.md`).
 | Abilità realmente condivise | `/Game/RT/Abilities/{Shared,Targeting,Effects,Cues}/` | |
 | Mappe | `/Game/RT/Maps/<Category>/<MapName>/` | una cartella per mappa |
 | UI | `/Game/RT/UI/<funzione>/` | divisa per funzione, non per tipo tecnico |
-| Dati di feature | vicino alla feature | `Characters/Gadget/Data/DA_Hero_Flux` — cartella del pack, nome dell'**eroe** (§5b) |
+| Dati di feature | vicino alla feature | `Characters/Gadget/Data/DA_Hero_Gadget` — cartella del pack, nome dell'**eroe** (§5b) |
 | Dati globali e cataloghi | `/Game/RT/Data/` | `Data/Catalogs/DA_HeroCatalog`, `Data/Rulesets/DA_Ruleset_Dev` |
 
 ⚠️ **Due cartelle si chiamano `Graybox`, e la regola che decide quale usare esiste già — non è una nuova
@@ -152,7 +152,7 @@ esso l'errore di aprire la cartella sbagliata.
 Vale per la cartella e per gli asset di **presentazione**: `Characters/Gadget/Blueprints/BP_Unit_Gadget`,
 `Characters/Gadget/Animation/ABP_Gadget`.
 
-**Eccezione: i dati restano intitolati all'eroe.** `DA_Hero_Flux` sta in `Characters/Gadget/Data/` ma non
+**Eccezione: i dati restano intitolati all'eroe.** `DA_Hero_Gadget` sta in `Characters/Gadget/Data/` ma non
 diventa `DA_Hero_Gadget`. Un data asset eroe descrive *statistiche e abilità*, che non dipendono dalla mesh:
 se Gadget cambiasse base visuale, quel file resterebbe valido parola per parola. Lo stesso vale per `HeroId`,
 che in C++ è e resta `Hero.Gadget`. La mappatura fra i due mondi è **D-037**, tabella owner in
@@ -184,7 +184,7 @@ Formato: `<Tipo>_<Feature>_<Nome>_<Variante>`.
 | `Curve_` | Curve | | `L_` | Level |
 | `IMC_` / `IA_` | Input Mapping Context / Action | | | |
 
-Esempi validi: `BP_Grid_HexGenerator`, `WBP_Planning_ActionBar`, `DA_Ability_Flux_ArcShot`,
+Esempi validi: `BP_Grid_HexGenerator`, `WBP_Planning_ActionBar`, `DA_Ability_Gadget_ArcShot`,
 `MI_Grid_HexPreview_Valid`, `L_DevSandbox`.
 
 **Vietati**: `BP_Test2`, `BP_Final`, `NewMaterial`, `Hero_v3`, `MappaDefinitiva`. Niente numeri di versione,
@@ -444,7 +444,7 @@ l'asset appartiene all'archetipo di gioco — che può cambiare mesh senza cambi
 **`ABP_Guardian`** e **`ABP_Ranger`**.~~
 
 > 🗄️ **Superata da [§5b](#5b-characterid-è-il-nome-del-pack-non-delleroe-dal-2026-08-11)** (2026-08-11): la
-> regola è ora **l'opposto** — il nome segue il **pack**, quindi `ABP_Gadget`, non `ABP_Flux`. Il paragrafo
+> regola è ora **l'opposto** — il nome segue il **pack**, quindi `ABP_Gadget`, non `ABP_Flux`. Il paragrafo <!-- rename-exempt: la riga contrappone la regola nuova alla vecchia: sostituirla la renderebbe muta -->
 > resta come registro di CP 6.0. ⚠️ Era rimasto attivo per tre sezioni dopo che la riga gemella della tabella
 > A.2 era già stata barrata: due regole opposte vive nello stesso documento **normativo**, trovate dalla
 > code review della PR #483.

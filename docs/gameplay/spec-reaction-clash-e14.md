@@ -152,7 +152,7 @@ distinguerebbe da uno che funziona. Chi chiude una delle due voci aggiunge gli e
 [D-093](../decisions/RT_PDR_00_Decision_Log.md) ha creato perché nessun effetto sapeva spostare *chi
 reagisce*, ed è la stessa che `Reaction.EmergencyDash` e `Reaction.HazardEscape` già portano. Il `1` non è un
 numero nuovo per la stessa ragione. La scelta è vincolata da `BAS-4`, che dichiara questo profilo «nuovo, si
-chiama `Profile.Sidestep` e risponde al **Forced Movement**», nella stessa forma di `Riva.FlowReaction`
+chiama `Profile.Sidestep` e risponde al **Forced Movement**», nella stessa forma di `Hero.Phase.FlowReaction`
 (`Reposition 1`).
 
 **`SIDESTEP` esce dalla LINEA di spinta, non la percorre.**

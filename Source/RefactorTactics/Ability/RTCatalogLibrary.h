@@ -21,7 +21,7 @@ class URTActionData;
  * dimenticanza**: `spec-reaction-clash-e14.md` §2.5 e [D-132] lasciano esplicitamente aperti «Charge del
  * `Grounding`» e «ampiezza della deviazione». `Profile.Sidestep` ce l'ha perche' `BAS-4` lo ha deciso — «e'
  * nuovo, si chiama `Profile.Sidestep` e risponde al **Forced Movement**», nella stessa forma di
- * `Riva.FlowReaction` (`Reposition 1`) — e si esprime con `SelfReposition`, la primitiva che
+ * `Hero.Phase.FlowReaction` (`Reposition 1`) — e si esprime con `SelfReposition`, la primitiva che
  * `Reaction.EmergencyDash` e `Reaction.HazardEscape` gia' usano. Nessun numero nuovo entra qui.
  */
 USTRUCT()

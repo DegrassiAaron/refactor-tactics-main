@@ -31,7 +31,7 @@ TArray<FRTReactionProfileDef> URTCatalogLibrary::GetReactionProfileCatalog()
 
 		// `SIDESTEP` si esprime con `SelfReposition`, e NON e' una primitiva scelta per comodita': `BAS-4`
 		// decide che questo profilo «risponde al **Forced Movement**» nella stessa forma di
-		// `Riva.FlowReaction`, cioe' `Reposition 1`. La stessa che `Reaction.EmergencyDash` e
+		// `Hero.Phase.FlowReaction`, cioe' `Reposition 1`. La stessa che `Reaction.EmergencyDash` e
 		// `Reaction.HazardEscape` gia' usano — quindi lo spostamento passa dai dieci passi di
 		// `ApplyForcedDisplacement` (causa nel TurnLog, hazard attraversati, facing, piano che segue) invece
 		// di essere un `SetActorLocation` di questa feature.

@@ -307,7 +307,7 @@ mancante, variante senza svantaggio) e accettare i tuoi.
 
 > **Conflitto da risolvere in CP 1.3, non qui.** `roadmap-v0.1.md` CP 1.3 chiede asset `PDA_*`;
 > `convenzioni-contenuti-ue.md` §6 — documento **normativo** — assegna il prefisso `DA_` ai Data Asset e porta
-> `DA_Hero_Flux` come esempio (§5). Le due fonti non concordano: va deciso in CP 1.3 e riflesso in una sola di
+> `DA_Hero_Gadget` come esempio (§5). Le due fonti non concordano: va deciso in CP 1.3 e riflesso in una sola di
 > esse. Anche la collocazione va fissata lì: §5 dà la regola (dati di feature vicino alla feature, cataloghi
 > globali in `/Game/RT/Data/`), non l'elenco.
 

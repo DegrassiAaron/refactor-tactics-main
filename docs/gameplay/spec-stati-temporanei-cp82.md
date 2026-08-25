@@ -146,7 +146,7 @@ tutte le altre.
 |---|---|---|---|
 | **1** | Durata sentinella in `ARTUnit` + revoca nel Cleanup; il catalogo terreni smette di essere inerte | `Status.PersistsWhileOnCell`, `Status.RevokedOnLeavingCell`, `Status.ExpiresInCleanup` | ✅ |
 | **2** | `Burning`: 8 danni nel Cleanup, 2 turni, prima dei KO | `Status.Burning.DamagesInCleanup`, `Status.Burning.ExpiresAfterTwoTurns`, `Status.Burning.DefeatCountsThisTurn` | ✅ |
-| **3** | `Wet` rimuove `Burning` + cablaggio del +8 di Gadget | `Status.WetRemovesBurning`, `Status.Wet.AmplifiesFluxDischarge` (integrazione) | ✅ |
+| **3** | `Wet` rimuove `Burning` + cablaggio del +8 di Gadget | `Status.WetRemovesBurning`, `Status.Wet.AmplifiesGadgetDischarge` (integrazione) | ✅ |
 | **4** | `Marked`: pass a priorità e consumo dal primo colpo alleato (chiude `#137`) | `Status.Marked.AllyHitConsumesBonus`, `Status.Marked.EnemyHitDoesNotConsume` | ✅ |
 | **5** | `Obscured` reale + `Electrified` dichiarato | `Status.Obscured.AppliedBySmokeWithoutChangingGate` | ✅ |
 | **6** | Documentazione: cataloghi, `spec-terreni-e8.md` §6-bis, roadmap (entrambe le viste), PR | — | ✅ |
