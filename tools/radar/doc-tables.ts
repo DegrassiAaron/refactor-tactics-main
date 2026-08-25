@@ -60,8 +60,17 @@ const CELL = /(?<!\\)\|/;
 /** Le celle VERE: `split` produce anche i due frammenti vuoti ai bordi (`| a | b |` -> `['', a, b, '']`),
  *  e riportarli come celle darebbe a chi legge un numero che non corrisponde a cio' che vede. */
 function countCells(line: string): number {
-  const parts = line.split(CELL);
-  return Math.max(0, parts.length - 2);
+  // ⚠️ Le pipe di bordo sono **opzionali** in GFM, e per un periodo questo contatore ne assumeva due
+  // (`parts.length - 2`) mentre il resto del file usava `cellsOf`: una riga valida senza pipe finale
+  // veniva segnalata come difetto di larghezza. Due nozioni di «cella» nello stesso file sono una di
+  // troppo.
+  return cellsOf(line).length;
+}
+
+/** Il testo di una riga per il rapporto: senza il ritorno a capo dei file CRLF, che altrimenti finisce
+ *  nell'output del gate e consuma un carattere del budget di troncamento. */
+function excerpt(line: string): string {
+  return line.replace(/\r$/, '').slice(0, 160);
 }
 
 /** Il marcatore di un fence, se la riga ne apre o chiude uno: almeno tre backtick o tre tilde, fino a
@@ -84,6 +93,15 @@ function fenceMarker(line: string): string | null {
   return marker;
 }
 
+/** Una riga che può CHIUDERE un fence: il solo marcatore, senza info string (CommonMark §4.5).
+ *
+ *  ⚠️ Senza, un `~~~~ acqua ~~~~` chiude un blocco aperto con `~~~` — la stessa inversione di maschera
+ *  già corretta per i marcatori *diversi*, ma con lo **stesso** marcatore, che nessuna delle due regole
+ *  precedenti intercettava. */
+function isBareFence(line: string): boolean {
+  return /^ {0,3}(`{3,}|~{3,})[ \t]*\r?$/.test(line);
+}
+
 /** L'inizio di un altro blocco, che in GFM CHIUDE una tabella tanto quanto una riga vuota: titolo ATX,
  *  linea orizzontale (`---`, `***`, `___`), citazione, elenco, o un fence.
  *
@@ -95,7 +113,10 @@ function isBlockStart(line: string): boolean {
   return (
     /^#{1,6}(\s|$)/.test(t) || // titolo ATX
     /^(-{3,}|\*{3,}|_{3,})$/.test(t) || // linea orizzontale
+    /^={2,}\s*$/.test(t) || // sottolineatura setext
     /^>/.test(t) || // citazione
+    /^([-*+]|\d{1,9}[.)])(\s|$)/.test(t) || // elenco puntato o numerato
+    /^</.test(t) || // blocco HTML
     fenceMarker(line) !== null
   );
 }
@@ -103,7 +124,11 @@ function isBlockStart(line: string): boolean {
 /** Le celle di una riga. Le pipe di bordo sono **opzionali** in GFM, quindi i frammenti ai bordi si
  *  scartano solo quando sono effettivamente vuoti. */
 function cellsOf(line: string): string[] {
-  const parts = line.split(CELL);
+  // ⚠️ **Un commento HTML in coda non è una cella**: non si rende, e questo repository lo usa come
+  // marcatore di riga (`<!-- rename-exempt: … -->`) su **62** righe misurate. Contarlo faceva
+  // apparire quelle righe con una cella in più delle sorelle — sessantadue falsi positivi contro le
+  // **due** righe senza pipe finale che esistono in tutto `docs/`, entrambe in contesti già esclusi.
+  const parts = line.replace(/<!--[\s\S]*?-->\s*$/, '').split(CELL);
   if (parts.length >= 2 && parts[0]!.trim() === '') parts.shift();
   if (parts.length >= 1 && parts[parts.length - 1]!.trim() === '') parts.pop();
   return parts;
@@ -151,7 +176,7 @@ function fencedMask(lines: string[]): boolean[] {
       // Chiude solo lo stesso carattere, lungo almeno quanto l'apertura. Senza questo controllo un
       // `~~~~ water ~~~~` dentro un blocco ```text inverte la maschera per tutto il resto del file —
       // e nel repository esiste gia' un documento fatto cosi'.
-      if (found[0] === marker[0] && found.length >= marker.length) {
+      if (found[0] === marker[0] && found.length >= marker.length && isBareFence(lines[k]!)) {
         marker = null;
         mask[k] = true;
         continue;
@@ -181,7 +206,7 @@ export function findUnbalancedFence(text: string): number | null {
     if (marker === null) {
       marker = found;
       openedAt = k;
-    } else if (found[0] === marker[0] && found.length >= marker.length) {
+    } else if (found[0] === marker[0] && found.length >= marker.length && isBareFence(lines[k]!)) {
       marker = null;
     }
   }
@@ -191,17 +216,22 @@ export function findUnbalancedFence(text: string): number | null {
 export function findBrokenRows(text: string): BrokenRow[] {
   const lines = text.split('\n');
   const fenced = fencedMask(lines);
+  // ⚠️ **La larghezza si misura solo DENTRO una tabella.** Una riga che non appartiene a nessuna non è
+  // «larga in modo sbagliato»: è fuori posto, e ha un rimedio diverso. Senza questo filtro la stessa
+  // riga finiva in entrambe le liste con due consigli contraddittori — il difetto che la separazione
+  // dei messaggi doveva chiudere.
+  const inTable = tableMask(lines, fenced);
   const out: BrokenRow[] = [];
   let i = 0;
 
   while (i < lines.length) {
-    if (!lines[i]!.startsWith('|') || fenced[i]) {
+    if (!lines[i]!.startsWith('|') || fenced[i] || !inTable[i]) {
       i++;
       continue;
     }
     // Una tabella è un blocco di righe consecutive che cominciano con `|`.
     const start = i;
-    while (i + 1 < lines.length && lines[i + 1]!.startsWith('|') && !fenced[i + 1]) i++;
+    while (i + 1 < lines.length && lines[i + 1]!.startsWith('|') && !fenced[i + 1] && inTable[i + 1]) i++;
     const end = i;
 
     // La larghezza attesa è quella della MAGGIORANZA, non quella dell'intestazione: se a essere
@@ -226,7 +256,7 @@ export function findBrokenRows(text: string): BrokenRow[] {
       for (let j = start; j <= end; j++) {
         const n = countCells(lines[j]!);
         if (n !== expected) {
-          out.push({ line: j + 1, cells: n, expected, text: lines[j]!.slice(0, 160) });
+          out.push({ line: j + 1, cells: n, expected, text: excerpt(lines[j]!) });
         }
       }
     }
@@ -243,32 +273,11 @@ export interface OrphanRow {
   text: string;
 }
 
-/** Le righe `|` che non formano una tabella GFM.
- *
- *  Il problema che chiude: `findBrokenRows` confronta le righe di un blocco **fra loro**, quindi non
- *  ha nulla da dire su un blocco di una riga sola — e una riga di tabella isolata e' proprio il caso
- *  in cui il difetto e' totale, non parziale. E' successo il **2026-08-25**: una voce del Decision Log
- *  inserita dopo la riga vuota che chiudeva la tabella e' passata per verificata, con `--check` a `0`.
- *
- *  La regola e' una sola, e copre tre difetti diversi: **un blocco e' una tabella se ha almeno due
- *  righe e la SECONDA e' un delimitatore**. Cadono la riga isolata, l'intestazione staccata dal
- *  proprio `|---|` da una riga vuota, e il delimitatore rimasto solo.
- *
- *  ⚠️ **Non e' il controllo di larghezza con una soglia diversa**: quello chiede «questa riga ha le
- *  celle delle sorelle?», questo chiede «questa riga ha delle sorelle?». Tenerli separati e' anche il
- *  motivo per cui il primo puo' continuare a tacere sui blocchi corti, dove una maggioranza non
- *  esiste e sceglierla sarebbe indovinare. */
-export function findOrphanRows(text: string): OrphanRow[] {
-  const lines = text.split('\n');
-  const fenced = fencedMask(lines);
-  const out: OrphanRow[] = [];
-
-  // ⚠️ **Si parte dal DELIMITATORE, non dalle righe con una pipe.** Cercare «tutte le righe che
-  // contengono `|`» sembra la generalizzazione giusta — in GFM le pipe ai bordi sono opzionali — ed e'
-  // stata misurata: **393 falsi positivi**, su prosa che cita `Attack | Ability` fra backtick e su ogni
-  // tabella dentro un blockquote, dove le righe cominciano con `>`. Una tabella invece esiste **se e
-  // solo se** ha una riga delimitatore: partendo di li' l'appartenenza si calcola senza indovinare, e
-  // le tabelle senza pipe ai bordi rientrano da sole.
+/** Quali righe appartengono a una tabella GFM. Una sola definizione, usata da **entrambi** i controlli:
+ *  la larghezza ha senso solo dentro una tabella, e una riga che non sta in nessuna non e' «larga in
+ *  modo sbagliato» — e' fuori posto, che e' un difetto diverso con un rimedio diverso. Tenerne due
+ *  copie faceva finire la stessa riga in due liste con due rimedi contraddittori. */
+function tableMask(lines: string[], fenced: boolean[]): boolean[] {
   const inTable = new Array<boolean>(lines.length).fill(false);
   for (let k = 0; k < lines.length; k++) {
     if (fenced[k] || !isDelimiterRow(lines[k]!)) continue;
@@ -293,12 +302,20 @@ export function findOrphanRows(text: string): OrphanRow[] {
     }
   }
 
-  // Orfana = comincia con `|` — quindi il markdown la renderebbe come riga di tabella — ma non
-  // appartiene a nessuna. Il criterio resta stretto di proposito: allargarlo alle righe che contengono
-  // una pipe **in mezzo** e' esattamente cio' che ha prodotto i 393.
+  return inTable;
+}
+
+/** Orfana = comincia con `|` — quindi il markdown la renderebbe come riga di tabella — ma non appartiene
+ *  a nessuna. Il criterio resta stretto di proposito: allargarlo alle righe che contengono una pipe **in
+ *  mezzo** e' esattamente cio' che ha prodotto i 393 falsi positivi misurati. */
+export function findOrphanRows(text: string): OrphanRow[] {
+  const lines = text.split('\n');
+  const fenced = fencedMask(lines);
+  const inTable = tableMask(lines, fenced);
+  const out: OrphanRow[] = [];
   for (let k = 0; k < lines.length; k++) {
     if (!fenced[k] && lines[k]!.startsWith('|') && !inTable[k]) {
-      out.push({ line: k + 1, text: lines[k]!.slice(0, 160) });
+      out.push({ line: k + 1, text: excerpt(lines[k]!) });
     }
   }
   return out;

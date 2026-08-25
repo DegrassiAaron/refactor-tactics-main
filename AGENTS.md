@@ -230,7 +230,9 @@ validazione · serializzazione/replay · privacy intenti.
   sviluppo, e il costo di mantenere i gate superava quello di non averli.
   ✅ **Link, etichette e tabelle sono tornati coperti il 2026-08-25** con `doc-links.ts` e `doc-tables.ts`, in Node e dentro la
   toolchain che D-182 aveva già preservato: non riapre la decisione, ne ripara la conseguenza più
-  costosa. Copre `docs/` più `AGENTS.md`, `CLAUDE.md` e `README.md`. ⚠️ **Con `--with-archive`
+  costosa. Copre `docs/` più `AGENTS.md`, `CLAUDE.md` e `README.md` — con una sola eccezione dichiarata:
+  in `docs/research/` `doc-tables.ts` controlla la larghezza ma **non** le righe fuori da ogni tabella,
+  perché è materiale importato e non ancora consumato. ⚠️ **Con `--with-archive`
   `doc-tables.ts` esce `1`, e non da oggi**: `docs/archive/` è storico e porta righe rotte che nessuno
   correggerà, quindi resta fuori dal giro normale. *Questa riga dichiarava «verde anche con
   `--with-archive`» ed era già falsa; il conteggio si misura eseguendo il comando, e non si trascrive

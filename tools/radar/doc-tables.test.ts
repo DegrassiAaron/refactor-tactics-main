@@ -92,6 +92,15 @@ test('una tabella dentro un code fence non e codice da controllare', () => {
   assert.deepEqual(findBrokenRows(md), []);
 });
 
+test('la maschera dei fence vale anche per il controllo di larghezza', () => {
+  // ⚠️ L'asserzione su `findBrokenRows` del test qui sopra e' VACUA: il suo blocco citato ha una riga
+  // sola, e quel controllo tace comunque sui blocchi di meno di tre righe. Servono tre righe di
+  // larghezza diversa perche' l'asserzione possa fallire.
+  const md = ['```markdown', '| a | b | c |', '|---|---|---|', '| 1 | 2 |', '```'].join('\n');
+
+  assert.deepEqual(findBrokenRows(md), []);
+});
+
 // ---------------------------------------------------------------------------------------------
 // Code fence: la maschera deve CHIUDERSI, e non deve mai spegnere il controllo
 // ---------------------------------------------------------------------------------------------
@@ -237,4 +246,67 @@ test('i documenti CRLF si comportano come quelli LF', () => {
     findOrphanRows(crlf(['| A | B |', '|---|---|', '| 1 | 2 |', '', '| staccata |'])).map((o) => o.line),
     [5],
   );
+});
+
+// ---------------------------------------------------------------------------------------------
+// Coerenza fra i due controlli, e altri modi in cui GFM chiude una tabella
+// ---------------------------------------------------------------------------------------------
+
+test('anche la larghezza conta le celle con i bordi opzionali', () => {
+  // I due controlli usavano due nozioni diverse di «cella»: `findOrphanRows` sapeva che le pipe di
+  // bordo sono opzionali, `findBrokenRows` no — quindi una riga valida senza pipe finale veniva
+  // segnalata come difetto di larghezza su un documento che il markdown rende benissimo.
+  const md = ['| A | B |', '|---|---|', '| 1 | 2 |', '| 3 | 4', '| 5 | 6 |'].join('\n');
+
+  assert.deepEqual(findBrokenRows(md), []);
+});
+
+test('un elenco, un blocco HTML o un titolo setext chiudono la tabella', () => {
+  // Il docstring di `isBlockStart` prometteva anche l'elenco e non lo implementava: le righe dopo
+  // venivano assorbite nella tabella, e l'orfana spariva.
+  for (const breaker of ['- una voce di elenco', '1. voce numerata', '<div>', '===']) {
+    assert.deepEqual(
+      findOrphanRows(['| A | B |', '|---|---|', '| 1 | 2 |', breaker, '| ORFANA |'].join('\n'))
+        .map((o) => o.line),
+      [5],
+      breaker,
+    );
+  }
+});
+
+test('un fence si chiude solo con il marcatore nudo, senza info string', () => {
+  // CommonMark §4.5: la riga di chiusura non porta info string. Senza il controllo, un
+  // `~~~~ acqua ~~~~` chiudeva un blocco `~~~` — stessa inversione di maschera gia' corretta per i
+  // marcatori diversi, ma con lo stesso marcatore.
+  const md = ['~~~', '| dentro codice |', '~~~~ acqua ~~~~', '| dentro codice 2 |', '~~~'].join('\n');
+
+  assert.deepEqual(findOrphanRows(md), []);
+  assert.equal(findUnbalancedFence(md), null);
+});
+
+test('una riga gia segnalata come orfana non e anche un difetto di larghezza', () => {
+  // Due rimedi contraddittori sulla stessa riga sono la ragione per cui i messaggi sono separati:
+  // se una riga non sta in nessuna tabella, «non ha la larghezza delle sorelle» non la descrive.
+  const md = ['| a | b | c |', '| d | e |', '| f | g | h |'].join('\n');
+
+  assert.deepEqual(findOrphanRows(md).map((o) => o.line), [1, 2, 3]);
+  assert.deepEqual(findBrokenRows(md), []);
+});
+
+test('il testo riportato non porta il ritorno a capo dei file CRLF', () => {
+  const [row] = findOrphanRows('| orfana |\r\n');
+  assert.equal(row!.text, '| orfana |');
+});
+
+test('un commento HTML in coda non e una cella', () => {
+  // Convenzione viva del repository: `<!-- rename-exempt: … -->` chiude 62 righe di tabella misurate.
+  // Non si rende, quindi contarlo faceva apparire quelle righe con una cella in piu' delle sorelle.
+  const md = [
+    '| ID | Domanda | Risposta |',
+    '|---|---|---|',
+    '| `A-1` | prima | seconda | <!-- rename-exempt: misura datata -->',
+    '| `A-2` | terza | quarta |',
+  ].join('\n');
+
+  assert.deepEqual(findBrokenRows(md), []);
 });
