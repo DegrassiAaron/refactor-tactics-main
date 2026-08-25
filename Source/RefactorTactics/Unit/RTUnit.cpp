@@ -13,6 +13,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/ArrowComponent.h"
 #include "Unit/RTUnitAnimInstance.h"
 
 ARTUnit::ARTUnit()
@@ -97,6 +98,16 @@ ARTUnit::ARTUnit()
 	// Il grafo di locomozione vive in C++ (`#288`): nessun `.uasset` da duplicare, e le clip per eroe sono
 	// dati versionati invece che grafi dentro quattro binari da ~700 KB.
 	UnitAnimClass = URTUnitAnimInstance::StaticClass();
+
+	// Freccia di orientamento: figlia del ROOT, quindi segue l'attore e non la mesh. E' la differenza fra
+	// le due che dice se `MeshYawOffset` e' giusto.
+	FacingArrow = CreateDefaultSubobject<UArrowComponent>(TEXT("FacingArrow"));
+	FacingArrow->SetupAttachment(SceneRoot);
+	FacingArrow->SetUsingAbsoluteScale(true);
+	FacingArrow->ArrowSize = 1.2f;
+	FacingArrow->ArrowLength = 90.f;
+	FacingArrow->ArrowColor = FColor(255, 210, 30);
+	FacingArrow->SetHiddenInGame(false); // di default un ArrowComponent si vede solo in editor
 }
 
 void ARTUnit::BeginPlay()
@@ -107,6 +118,8 @@ void ARTUnit::BeginPlay()
 	SyncAbilityCooldowns();
 	ApplyTeamColor();
 	ApplyUnitAnimClass();
+	ApplyMeshYawOffset();
+	ApplyFacingArrow();
 }
 
 void ARTUnit::ApplyUnitAnimClass()
@@ -139,6 +152,34 @@ void ARTUnit::ApplyUnitAnimClass()
 
 		Skeletal->SetAnimInstanceClass(UnitAnimClass);
 	}
+}
+
+void ARTUnit::ApplyMeshYawOffset()
+{
+	// La compensazione che `ACharacter` fa nel proprio costruttore e che qui non c'era: la skeletal e'
+	// modellata rivolta lungo +Y, il forward dell'attore e' +X.
+	TArray<USkeletalMeshComponent*> Skeletals;
+	GetComponents<USkeletalMeshComponent>(Skeletals);
+	for (USkeletalMeshComponent* Skeletal : Skeletals)
+	{
+		if (Skeletal != nullptr && Skeletal->GetSkeletalMeshAsset() != nullptr)
+		{
+			Skeletal->SetRelativeRotation(FRotator(0.f, MeshYawOffset, 0.f));
+		}
+	}
+}
+
+void ARTUnit::ApplyFacingArrow()
+{
+	if (FacingArrow == nullptr)
+	{
+		return;
+	}
+	FacingArrow->SetHiddenInGame(!bShowFacingArrow);
+
+	// A terra come gli anelli, e sopra il disco della cella per la stessa ragione: sotto `RTCellTopZ`
+	// finirebbe DENTRO il disco e non si vedrebbe.
+	FacingArrow->SetRelativeLocation(FVector(0.f, 0.f, TeamRingLocalZ(VisualZOffset) + RingStackSeparation));
 }
 
 void ARTUnit::ApplyCombatState(int32 NewHealth, int32 NewShield)

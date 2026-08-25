@@ -11,6 +11,7 @@
 #include "RTUnit.generated.h"
 
 class UStaticMeshComponent;
+class UArrowComponent;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class URTActionData;
@@ -674,6 +675,35 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	TSubclassOf<UAnimInstance> UnitAnimClass;
 
+	/**
+	 * 🔴 **Rotazione della MESH rispetto al forward dell'attore, in gradi di yaw.**
+	 *
+	 * Le skeletal di personaggio si modellano quasi sempre rivolte lungo **+Y**, mentre il forward di un
+	 * attore Unreal e' **+X**. `ACharacter` compensa la differenza ruotando il proprio mesh component di
+	 * `-90` — e' nel suo costruttore, e per questo la maggior parte dei progetti non incontra mai il
+	 * problema. `ARTUnit` deriva da `AActor`: quella compensazione non c'e' mai stata, e il personaggio
+	 * corre di traverso rispetto alla direzione di marcia.
+	 *
+	 * ⚠️ **E' un parametro perche' dipende dal pack**, non una costante: si applica al componente skeletal
+	 * e si corregge guardando la freccia di `FacingArrow`, che punta sempre lungo il forward dell'attore.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	float MeshYawOffset = -90.f;
+
+	/**
+	 * Freccia a terra che mostra **dove l'unita' e' rivolta**, cioe' il forward dell'attore.
+	 *
+	 * Serve a separare due difetti che a schermo si assomigliano: una mesh ruotata rispetto all'attore
+	 * (`MeshYawOffset`) e un facing logico sbagliato. La freccia segue l'ATTORE — e' figlia del root —
+	 * quindi se punta dove ci si aspetta ma il personaggio guarda altrove, il difetto e' nell'offset.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TObjectPtr<UArrowComponent> FacingArrow;
+
+	/** La freccia si vede in partita. Spegnila quando la presentazione non ne ha piu' bisogno. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	bool bShowFacingArrow = true;
+
 	/** Posiziona l'unita' al centro-mondo della cella esagonale, con la base appoggiata al piano. */
 	void PlaceOnCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight);
 
@@ -846,6 +876,12 @@ protected:
 	 * gia' una propria `Anim Class`. Un'unita' col solo cilindro segnaposto non ha niente da animare.
 	 */
 	void ApplyUnitAnimClass();
+
+	/** Compensa l'orientamento con cui la skeletal e' modellata (vedi MeshYawOffset). */
+	void ApplyMeshYawOffset();
+
+	/** Visibilita' e quota della freccia di orientamento. */
+	void ApplyFacingArrow();
 
 	void ApplyTeamColor();
 
