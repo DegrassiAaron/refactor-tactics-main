@@ -15,25 +15,6 @@
 
 ---
 
-## Aperta — la rimovibilita' di `Electrified`, dallo spec panel del 2026-08-25
-
-Origine: lo spec panel su [`#1324`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324),
-scorporata in [`#1389`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1389). Registrata anche
-come riga **76** della [matrice dei conflitti](DOC_CONFLICT_MATRIX.md), che per questo caso prescrive
-esattamente questo file: *«o si registra `SUPERSEDED` con la fonte che prevale, o diventa una voce di
-`OPEN_DECISIONS.md`. Mai una scelta implicita.»*
-
-Due cataloghi di bilanciamento di **pari grado** si contraddicono, e nessuno prevale sull'altro — che e' il
-criterio d'ingresso di questo file. ⚠️ **Non e' la domanda di `#1324`**: quella chiede se il tag
-`Status.Electrified` debba avere un consumatore o uscire dal codice. Questa sopravvive a entrambe le
-risposte — se anche il tag uscisse, il catalogo azioni continuerebbe a promettere una rimozione impossibile.
-
-| ID | Domanda | Perche' serve una risposta |
-|---|---|---|
-| `STA-5` | `Cleanse` rimuove `Electrified`, che il catalogo terreni dichiara **istantaneo**. Quale delle due righe dice il vero? | **Uno stato istantaneo non e' rimovibile**: non esiste una finestra in cui esista da togliere. `Cleanse` risolve nel Blast (controllo, priorita' 25, prima del danno), la propagazione elettrica registra nel Cleanup, e un evento senza durata non ha un corpo su cui agire. Finche' resta cosi', elencare `Electrified` in `PlannedCleansePriority` offre al giocatore **in pianificazione** un'opzione che non togliera' mai nulla — una scelta dominata, proprio dove la clausola *«nessuna scelta implicita»* della stessa riga esiste per evitarle. Le due uscite: **(a)** `Electrified` esce dalla lista dei candidati di `Cleanse` perche' istantaneo; **(b)** acquisisce una durata nel catalogo terreni e smette di esserlo. ⚠️ **La (b) va contro l'argomento conservato in `#1324`** — *«dargli una durata inventata per farlo sembrare vivo sarebbe peggio di un dato dichiaratamente inerte»* — e deve rispondergli, non ignorarlo. ⚠️ **E il «Limite v0.1» del catalogo azioni va corretto in entrambi i casi**: *«in E8 bastera' rendere pianificabili i due nuovi stati»* e' vero per `Burning`, che una durata ce l'ha (**2** turni), e falso per `Electrified`. 🔴 **Nessun test la falsifica**: `RefactorTactics.Reactions.Cleanse.*` esercita `Root`, `Marked` ed `Exposed`, i tre che esistono oggi |
-
----
-
 ## ✅ Chiuse il 2026-08-24 da `D-187` — i prerequisiti della seduta `U19` e il suo `done_when`
 
 Origine: lo spec panel su [`#84`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) (PR [`#1313`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1313)) e la sua riverifica del

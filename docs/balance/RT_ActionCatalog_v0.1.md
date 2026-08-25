@@ -431,11 +431,30 @@ dagli effetti di controllo privi di danno.
 **Cleanse** — rimuove **un solo** stato fra `Burning`, `Electrified`, `Rooted`, `Marked`, `Exposed`. La priorità
 di rimozione è scelta dal giocatore **durante il planning** (non a runtime: nessuna scelta implicita).
 
-> **Limite v0.1**: `Burning` ed `Electrified` non esistono ancora come stato di unità (sono ambiente, epic E8 /
-> CP 8.2), quindi oggi `Cleanse` opera sui soli `Rooted`/`Marked`/`Exposed`. Il meccanismo scorre una lista di
-> tag dichiarata nel piano: in E8 basterà rendere pianificabili i due nuovi stati, senza toccare il resolver.
-> Senza un ordine dichiarato **non rimuove nulla** (fail-closed): "nessuna scelta implicita" significa che il
-> resolver non sceglie al posto del giocatore neppure quando il candidato sarebbe uno solo.
+> 🔴 **Il «Limite v0.1» che stava qui era stantio su entrambi gli stati che nominava** — corretto il
+> 2026-08-25, [`#1389`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1389). Diceva:
+> *«`Burning` ed `Electrified` non esistono ancora come stato di unità (sono ambiente, epic E8 / CP 8.2),
+> quindi oggi `Cleanse` opera sui soli `Rooted`/`Marked`/`Exposed`… in E8 basterà rendere pianificabili i due
+> nuovi stati, senza toccare il resolver»*. Misurato, nessuna delle due metà regge:
+>
+> - **`Burning` è già rimovibile oggi, e non aspetta E8.** Il fuoco lo applica con durata `2`
+>   (`URTTerrainLibrary`), quindi entra in `StatusTurns`; `ARTUnit::RemoveStatus` toglie qualunque tag
+>   presente. Se il piano lo elenca, `Cleanse` lo rimuove — oggi.
+> - **`Electrified` non sarà rimovibile, perché non viene mai applicato.**
+>   [`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) **§D6** lo decide
+>   — *«Applicarlo produrrebbe uno stato senza durata e senza consumatore… **Non si applica**»* — e
+>   [`spec-stati-temporanei-cp82.md`](../gameplay/spec-stati-temporanei-cp82.md) **§D3** lo dichiara
+>   istantaneo, quindi fuori da `StatusTurns`. ⚠️ La voce resta qui sopra come **inerte dichiarata**:
+>   toglierla dall'elenco è una scelta di catalogo e appartiene al suo owner, non a questa correzione.
+>
+> ✅ **Quel che resta vero, e va letto con precisione**: senza un ordine dichiarato `Cleanse` **non rimuove
+> nulla** (fail-closed). «Nessuna scelta implicita» vincola il **resolver** — *«indovinare per conto del
+> giocatore è esattamente ciò che il catalogo vieta»* (`RTTurnManager_Blast.cpp`) — e **non** la forma
+> dell'elenco dei candidati: elencare uno stato che l'unità non ha è già coperto, e non è un difetto.
+> Pinnato da `RefactorTactics.Reactions.Cleanse.NoImplicitChoice`, che dichiara `Exposed` su un'unità che ha
+> solo `Root` e verifica che non venga tolto nulla.
+>
+> ⚠️ L'ordinamento prima del danno lo decide il **codice 30** (controllo) del catalogo, non la priorità `25`.
 
 ---
 
