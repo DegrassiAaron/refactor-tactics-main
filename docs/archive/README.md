@@ -47,10 +47,31 @@ raccontava la storia di una cartella, dava indicazioni operative sbagliate al pr
 ### Se incontri un path `*.pdf` in un documento archiviato
 
 I ventitré PDF di `docs/` sono stati rimossi il **2026-08-12** e il loro testo vive in Markdown. I documenti
-archiviati che li citano — [`research/design/delayed-actions-e-phase-windows.md`](src/),
-[`research/handoff/roadmap-docs-test-e-showcase-v0.1.md`](src/),
+archiviati che li citano — [`src/design/delayed-actions-e-phase-windows.md`](src/design/delayed-actions-e-phase-windows.md),
+[`src/handoff/roadmap-docs-test-e-showcase-v0.1.md`](src/handoff/roadmap-docs-test-e-showcase-v0.1.md),
 [`gameplay/spec-terreni.md`](gameplay/spec-terreni.md) — **non sono stati riscritti**, per la regola qui sopra:
 quei documenti dicono da quali file provenivano, e nel momento in cui sono stati scritti quei file c'erano.
+
+> ⌫ **Le prime due etichette sono state rotte da una correzione, non lasciate indietro da uno spostamento.**
+> Dicevano `src/design/…` e `src/handoff/…` — **giuste**, perché in questo file un path relativo parte da
+> `docs/archive/` — finché il commit `8d5f2db7` (2026-08-19), il cui titolo è *«docs/src esce dagli elenchi
+> che la nominavano»*, non vi ha applicato `src/ → research/`. Ripristinate il 2026-08-25
+> ([#1232](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1232)), con l'`href` completato al
+> **file** invece che alla cartella — cioè nella forma che il terzo elemento della stessa frase,
+> `gameplay/spec-terreni.md`, aveva già.
+>
+> 🔑 **La causa è che esistono DUE `src/`, e solo una è stata svuotata.** `docs/src/` era la casella di posta
+> dei sorgenti e [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165) l'ha svuotata;
+> `docs/archive/src/` è **questa**, i sorgenti già recepiti, ed è corrente — `CLAUDE.md` la cita come *«utile
+> per la provenienza, mai per la regola»*. Le due condividono un segmento di path e **un'etichetta relativa
+> non dichiara la propria base**: in quell'elenco `src/` non nominava `docs/src/`, e il rename l'ha
+> attraversata comunque.
+>
+> ⚠️ **E non era l'unico segmento condiviso.** Misurate le sottocartelle di qui contro quelle di `docs/`,
+> gli omonimi **oggi** sono `gameplay/` e `technical/`; `src/` lo era fino a #1165. Un `sed` su un path che
+> non distingue la base colpisce anche quelli, e **nessuno dei due produce un link rotto** — solo
+> un'etichetta che mente, che è la classe che [`../README.md`](../README.md) nomina e che da **D-182**
+> nessun gate vede. Chi rifà una sostituzione qui la esegua **per riga intera**, non per segmento.
 
 Dove sono finiti:
 
