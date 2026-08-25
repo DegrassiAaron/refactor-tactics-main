@@ -239,9 +239,11 @@ ARTGameMode::ARTGameMode()
 	// ⚠️ **Resta `EditAnywhere`, quindi questo e' un DEFAULT e non un vincolo**: `BP_GameMode` puo' ancora
 	// scavalcare una voce o svuotare la mappa, ed e' la via per provare un personaggio senza ricompilare.
 	{
+		// `Succeeded()` non e' const (fa `!!*Class`), quindi il finder si legge dal solo campo `Class`:
+		// e' la stessa condizione, e permette di passare il finder per riferimento costante.
 		auto Assegna = [this](const TCHAR* HeroId, const ConstructorHelpers::FClassFinder<ARTUnit>& Finder)
 		{
-			if (Finder.Succeeded() && Finder.Class != nullptr)
+			if (Finder.Class != nullptr)
 			{
 				HeroUnitClasses.Add(FName(HeroId), Finder.Class);
 			}
