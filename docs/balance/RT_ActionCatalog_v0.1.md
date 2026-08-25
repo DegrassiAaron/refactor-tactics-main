@@ -92,16 +92,33 @@ Le **sette** azioni che ogni eroe possiede, indipendentemente dal kit
 Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
 ```
 
-| ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Range | CD | Fallback | Interr. |
-|---|---|---|---|---:|---:|---|---:|---|---|
-| `Action.Wait` | Attesa | — | Move | 20 | 100 | — | 0 | — | no |
-| `Action.Move` | Movimento | Movimento | **Move** | 20 | 50 | 5 MP | 0 | `Fallback.Stop` | sì |
-| `Action.BasicAttack` | Attacco base | Principale | Blast | 40 | 50 | arma | 0 | `Fallback.Cancel` | sì |
-| `Action.Guard` | Guardia | Principale | **Prep** | 10 | 40 | self | 0 | `Fallback.Cancel` | no |
-| `Action.Brace` | Irrigidimento | Principale | **Prep** | 10 | 30 | 0 | 1 | `Fallback.Cancel` | no |
-| `Action.Interact` | Interagisci | Principale | Blast | 40 | 80 | 1 | 0 | `Fallback.Cancel` | sì |
-| `Action.Overwatch` | Guardia reattiva | Principale | **Prep** *(arma)* | 10 | 45 | cono da facing | 0 | `Fallback.Cancel` | no |
-| `Action.Activate` | ~~Attiva~~ | — | — | 40 | 70 | 1 | 0 | — | — |
+| ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Range | CD | Rumore | Fallback | Interr. |
+|---|---|---|---|---:|---:|---|---:|---:|---|---|
+| `Action.Wait` | Attesa | — | Move | 20 | 100 | — | 0 | 0 | — | no |
+| `Action.Move` | Movimento | Movimento | **Move** | 20 | 50 | 5 MP | 0 | — | `Fallback.Stop` | sì |
+| `Action.BasicAttack` | Attacco base | Principale | Blast | 40 | 50 | arma | 0 | — | `Fallback.Cancel` | sì |
+| `Action.Guard` | Guardia | Principale | **Prep** | 10 | 40 | self | 0 | — | `Fallback.Cancel` | no |
+| `Action.Brace` | Irrigidimento | Principale | **Prep** | 10 | 30 | 0 | 1 | — | `Fallback.Cancel` | no |
+| `Action.Interact` | Interagisci | Principale | Blast | 40 | 80 | 1 | 0 | — | `Fallback.Cancel` | sì |
+| `Action.Overwatch` | Guardia reattiva | Principale | **Prep** *(arma)* | 10 | 45 | cono da facing | 0 | — | `Fallback.Cancel` | no |
+| `Action.Activate` | ~~Attiva~~ | — | — | 40 | 70 | 1 | 0 | — | — | — |
+
+> 🔊 **`Rumore` è l'intensità dell'evento sonoro sulla scala `0-10` di
+> [D-041](../decisions/RT_PDR_00_Decision_Log.md)**, la stessa su cui vive la `Soglia d'udito` degli eroi
+> ([`RT_HeroCatalog_v0.1.md`](RT_HeroCatalog_v0.1.md) §5.1): è ciò che rende confrontabili i due lati di
+> `IsAudible(ReceivedNoise, HearingThreshold)`.
+>
+> ⚠️ **Un `—` non è «silenzioso»: è «non ancora deciso».** D-041 dichiara **tre** valori — `Wait 0`,
+> `Sprint 5`, `Dash 6` — più «esplosione 10», che non è un'azione. Le altre intensità **non esistono in
+> nessuna fonte**, e non si inventano qui: la domanda ha un ID, **`AE-8`** in
+> [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), accanto ad `AE-5` che copre il profilo `Sneak`.
+>
+> 🔴 **Le abilità firma non ricevono un'intensità propria, ed è una scelta, non una dimenticanza**
+> ([#690](https://github.com/DegrassiAaron/refactor-tactics-main/issues/690)). Sarebbero **24** numeri
+> nuovi, nessuno derivabile da una fonte corrente, per un canale che **oggi non ha un produttore**:
+> `FRTNoiseEvent::Intensity` non è assegnata da nessuna parte fuori dai test. Inventarli sarebbe
+> ribilanciare, e questa colonna **sposta dati esistenti, non ne crea**. Se un'abilità dovrà suonare
+> diversamente dall'azione che la porta, la domanda si apre allora, con la sua evidenza.
 
 **`Overwatch` è universale e compete con l'azione offensiva.** L'economia è
 `Attack` **oppure** `Ability` **oppure** `Overwatch`, mai sommate, salvo eccezione dichiarata da un'abilità
@@ -179,7 +196,7 @@ Blast. Cambiano distanza, rumore ed esposizione — non l'economia del turno.
 
 | Profilo | Budget | Note |
 |---|---|---|
-| `MovementMode.Sneak` | **non specificato** | Costo, portata e rumore **non sono definiti da nessuna fonte corrente**. Non si inventano: [issue di bilanciamento](../OPEN_DECISIONS.md) |
+| `MovementMode.Sneak` | **non specificato** | Costo, portata e rumore **non sono definiti da nessuna fonte corrente**. Non si inventano: la domanda è **[`AE-5`](../OPEN_DECISIONS.md)** — *«Con quali numeri esiste il profilo `Sneak`?»*, l'unico dei quattro profili senza budget |
 | `MovementMode.Move` | **5 MP** | il profilo neutro |
 | `MovementMode.Sprint` | **8 MP** | conserva un trade-off reale, vedi sotto |
 | `MovementMode.Withdraw` | **2 MP** | **non si sceglie**: lo impone l'`Overwatch` ([D-070](../decisions/RT_PDR_00_Decision_Log.md)) |
@@ -237,13 +254,13 @@ fretta è ciò che permette di sparare da un'altra parte nello stesso turno.
 `Reposition` sono **movimento** — schivi e ti resta l'azione principale, ma non ti muovi ancora. `Charge` è
 **un attacco** che ti porta addosso al bersaglio: occupa la **principale**, e il movimento ti resta.
 
-| ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Distanza | CD | Fallback | Interr. |
-|---|---|---|---|---:|---:|---|---:|---|---|
-| `Action.Sprint` *(vedi §2.1)* | Scatto lungo | Movimento + Principale ⚠️ | **Dash** ⚠️ | 20 | 60 | 8 MP | 0 | `Fallback.Stop` | sì |
-| `Action.Dash` | Scatto | **Movimento** | **Dash** | 20 | 30 | 3 celle | 1 | `Fallback.Stop` | sì |
-| `Action.Charge` | Carica | Principale | **Dash** | 20/30 | 35 | 3 celle | 2 | `Fallback.Stop` | sì |
-| `Action.Leap` | Balzo | **Movimento** | **Dash** | 20 | 25 | 3 celle | 2 | `Fallback.Stop` | sì |
-| `Action.Reposition` | Riposizionamento | **Movimento** | **Dash** | 20 | 40 | 2 celle | 1 | `Fallback.Stop` | sì |
+| ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Distanza | CD | Rumore | Fallback | Interr. |
+|---|---|---|---|---:|---:|---|---:|---:|---|---|
+| `Action.Sprint` *(vedi §2.1)* | Scatto lungo | Movimento + Principale ⚠️ | **Dash** ⚠️ | 20 | 60 | 8 MP | 0 | 5 | `Fallback.Stop` | sì |
+| `Action.Dash` | Scatto | **Movimento** | **Dash** | 20 | 30 | 3 celle | 1 | 6 | `Fallback.Stop` | sì |
+| `Action.Charge` | Carica | Principale | **Dash** | 20/30 | 35 | 3 celle | 2 | — | `Fallback.Stop` | sì |
+| `Action.Leap` | Balzo | **Movimento** | **Dash** | 20 | 25 | 3 celle | 2 | — | `Fallback.Stop` | sì |
+| `Action.Reposition` | Riposizionamento | **Movimento** | **Dash** | 20 | 40 | 2 celle | 1 | — | `Fallback.Stop` | sì |
 
 **Sprint** — fornisce 8 MP · occupa il **solo slot movimento** ([D-028](../decisions/RT_PDR_00_Decision_Log.md),
 coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` (**+5** al primo danno diretto ricevuto). ⚠️ **Durata: da `1` a `2` turni** con [D-116](../decisions/RT_PDR_00_Decision_Log.md) — non è un ribilanciamento, è la contropartita della migrazione di fase: con lo Sprint dopo il Blast, un `Exposed` che scade nel Cleanup dello stesso turno non incontrerebbe mai un attacco.
