@@ -379,4 +379,38 @@ bool FRTCatalogFastMovementIsFoundAsDashTest::RunTest(const FString&)
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRingsAreNotCoplanarTest,
+	"RefactorTactics.Unit.RingsAreNotCoplanar",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRingsAreNotCoplanarTest::RunTest(const FString&)
+{
+	// 🔴 **Il difetto che questo test esiste per fermare si vedeva solo a schermo.** `TeamRing` (raggio
+	// `1.6`) e `SelectionRing` (raggio `1.9`) sono concentrici e stavano alla STESSA quota: con la stessa
+	// semi-altezza le facce superiori coincidevano nella corona interna, e l'unita' selezionata lampeggiava
+	// fra colore di squadra e colore di selezione. Nessun test lo intercettava.
+	for (const float Pivot : { 0.f, 90.f })   // piedi (skeletal) e centro (cilindro): valgono entrambi
+	{
+		const float Team = ARTUnit::TeamRingLocalZ(Pivot);
+		const float Selezione = ARTUnit::SelectionRingLocalZ(Pivot);
+
+		// (1) Non complanari, e con un margine grande almeno quanto la semi-altezza di un anello: una
+		// separazione piu' piccola dello spessore lascerebbe le facce dentro la stessa fascia di profondita'.
+		TestTrue(*FString::Printf(TEXT("pivot %.0f: le facce non coincidono"), Pivot),
+			FMath::Abs(Team - Selezione) >= ARTUnit::RingHalfHeight);
+
+		// (2) E il TEAM sta SOPRA: il colore di squadra e' l'informazione permanente e deve restare leggibile
+		// al centro; la selezione fa da cornice esterna, dove il TeamRing non arriva. Invertirli passerebbe
+		// il controllo (1) e nasconderebbe l'identita' di squadra a ogni unita' selezionata.
+		TestTrue(*FString::Printf(TEXT("pivot %.0f: il TeamRing sta sopra"), Pivot), Team > Selezione);
+
+		// (3) E il piu' BASSO dei due emerge comunque dal disco della cella. Senza questa riga, separare le
+		// quote abbassando il SelectionRing passerebbe (1) e (2) e lo farebbe sprofondare nel disco: il
+		// margine e' `RingGroundClearance + RingHalfHeight - RTCellTopZ`, cioe' **0.3**.
+		TestTrue(*FString::Printf(TEXT("pivot %.0f: anche il piu' basso emerge dal disco"), Pivot),
+			Pivot + Selezione + ARTUnit::RingHalfHeight > RTCellTopZ);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -182,6 +182,19 @@ float ARTUnit::RingLocalZ(float VisualZOffset)
 	return -VisualZOffset + RingGroundClearance;
 }
 
+float ARTUnit::TeamRingLocalZ(float VisualZOffset)
+{
+	// Sopra il SelectionRing: nella corona interna vince il colore di SQUADRA, che e' l'informazione
+	// permanente; la selezione resta leggibile come cornice esterna, dove il TeamRing non arriva.
+	return RingLocalZ(VisualZOffset) + RingStackSeparation;
+}
+
+float ARTUnit::SelectionRingLocalZ(float VisualZOffset)
+{
+	// Alla quota-terra di riferimento. NON si scende sotto: il margine sul disco della cella e' 0.3.
+	return RingLocalZ(VisualZOffset);
+}
+
 void ARTUnit::ApplyTeamColor()
 {
 	const FLinearColor TeamColor = TeamColorFor(TeamId, Team0Color, Team1Color);
@@ -202,14 +215,20 @@ void ARTUnit::ApplyTeamColor()
 	}
 
 	// Quota dei due anelli a terra: compensa il solo VisualZOffset — sotto un root unitario non c'e' scala
-	// da dividere. Calcolata UNA volta: i due anelli stanno per contratto alla stessa quota, e due chiamate
-	// separate si desincronizzano al primo che cambia (code review di #593).
-	const float RingZ = RingLocalZ(VisualZOffset);
+	// da dividere.
+	//
+	// 🔴 **Le due quote sono DIVERSE dal 2026-08-25, e devono esserlo**: erano lo stesso valore, i due
+	// dischi sono concentrici e le loro facce coincidevano — a schermo l'unita' selezionata lampeggiava fra
+	// il colore di squadra e quello di selezione. Restano pero' derivate dalla stessa sorgente
+	// (`RingLocalZ`), che e' la ragione per cui il valore era uno solo: due chiamate indipendenti si
+	// desincronizzano al primo che cambia (code review di #593).
+	const float TeamRingZ = TeamRingLocalZ(VisualZOffset);
+	const float SelectionRingZ = SelectionRingLocalZ(VisualZOffset);
 
 	// Anello di team: colorato se M_TeamRing c'e', altrimenti nascosto (fallback: resta il colore sul cilindro).
 	if (TeamRing)
 	{
-		TeamRing->SetRelativeLocation(FVector(0.f, 0.f, RingZ));
+		TeamRing->SetRelativeLocation(FVector(0.f, 0.f, TeamRingZ));
 		if (UMaterialInterface* RingBase = TeamRingMaterial.LoadSynchronous())
 		{
 			RingDynMaterial = UMaterialInstanceDynamic::Create(RingBase, this);
@@ -223,11 +242,11 @@ void ARTUnit::ApplyTeamColor()
 		}
 	}
 
-	// Anello di selezione: stessa quota-terra del TeamRing, colore di selezione. Resta NASCOSTO finche'
+	// Anello di selezione: quota-terra di riferimento (il TeamRing gli sta sopra), colore di selezione. Resta NASCOSTO finche'
 	// OnSelected non lo mostra. Senza materiale di selezione non compare (fallback come il TeamRing).
 	if (SelectionRing)
 	{
-		SelectionRing->SetRelativeLocation(FVector(0.f, 0.f, RingZ)); // stessa quota, stesso valore
+		SelectionRing->SetRelativeLocation(FVector(0.f, 0.f, SelectionRingZ)); // sotto il TeamRing, non complanare
 		if (UMaterialInterface* SelBase = SelectionRingMaterial.LoadSynchronous())
 		{
 			SelectionRingDynMaterial = UMaterialInstanceDynamic::Create(SelBase, this);
