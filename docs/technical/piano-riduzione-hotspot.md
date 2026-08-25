@@ -95,6 +95,9 @@ Le correzioni di criterio non applicate qui sono elencate in §24.
    > regola esiste — un refactor grande consuma il tempo della v0.1 e produce un conflitto per ogni branch
    > vivo che tocca gli stessi file — si è verificata puntualmente: `feat/cp75-selfreposition` e `#886` la
    > stanno pagando adesso.
+   > *(⌫ 2026-08-25: `feat/cp75-selfreposition` non lo paga più — è stato potato dopo che `SelfReposition`
+   > è atterrato in `main` per altra via. La regola resta, l'esempio è scaduto: il conflitto c'è stato, e
+   > si è risolto abbandonando il branch invece che mergiandolo, che è il suo costo pagato per intero.)*
 
 4. **Sviluppo sequenziale** *(era «D-139 / parallelismo» fino al 2026-08-20, ora
    [D-178](../decisions/RT_PDR_00_Decision_Log.md))*.
@@ -1302,10 +1305,12 @@ condivise» era falsa, e nessuna rilettura l'avrebbe smentita.
   ristretto all'emissione degli eventi. Prenderlo avrebbe richiesto una release request. §7 sconsiglia
   comunque di spaccarlo per la v0.1, e la misura è d'accordo: 16 definizioni, la più grande 205 righe —
   non ha il difetto degli altri tre.
-- ⛔ **Conflitto vivo**: `feat/cp75-selfreposition` tocca `Turn/RTTurnManager.cpp` con **+67 righe**.
-  Questo lavoro ne sposta ~1300 dello stesso file. Nessuna strategia automatica risolve il merge:
-  l'ordine sensato è far atterrare `cp75` **prima**, perché il suo diff è di due ordini di grandezza più
-  piccolo.
+- ⌫ **Conflitto rientrato il 2026-08-25.** Diceva: *«Conflitto vivo: `feat/cp75-selfreposition` tocca
+  `Turn/RTTurnManager.cpp` con +67 righe … l'ordine sensato è far atterrare `cp75` prima»*. Quel branch
+  è stato **potato**, e non perché si sia rinunciato al suo contenuto: `SelfReposition` è in `main` con
+  enum, **applicazione** (`RTTurnManager.cpp`, ramo `ERTActionEffect::SelfReposition`), riconoscimento in
+  `RTReactionLibrary` e test in due file. Il WIP dichiarava *«enum ed evento fatti, l'applicazione NO»* ed
+  è stato superato per altra via. Nessun ordine di atterraggio da rispettare.
 - ⚠️ **`#886` resta bloccata** finché la track tiene i path: `simulation` è ACTIVE proprio su quella issue.
   `AskReactionDecision` — il punto esatto che `#886` deve toccare — non è fra le funzioni estratte e non ha
   cambiato una riga, quindi il conflitto è di posizione nel file, non di semantica.

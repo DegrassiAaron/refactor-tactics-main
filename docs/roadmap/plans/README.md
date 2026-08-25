@@ -149,6 +149,15 @@ deriva che questa sezione lo aggiunge a misurare.
 > vivi aggiungono file proprio qui: `wip/icon-visual-language` **8** (fra cui `roadmap_lane_1..5.md` e
 > `roadmap-lane-index.md`), `docs/lane-6-7` **8**, `docs/five-lane-roadmap` **6**, `docs/lane-7-vault`
 > **2**. Se uno solo atterrasse, questa cella direbbe `53` con la cartella a `59`.
+> ⌫ **Nessuno dei quattro esiste più** *(2026-08-25)*: `wip/icon-visual-language` è atterrato con
+> [#909](https://github.com/DegrassiAaron/refactor-tactics-main/pull/909) il 2026-08-15, gli altri tre
+> sono stati **potati** dopo aver misurato che il loro contenuto era già in `main` o in archivio. Il
+> conteggio non si muove: la lezione qui sotto sì, ed è l'unica cosa che questo blocco doveva lasciare.
+> 🔴 **E uno dei quattro ha fatto proprio ciò che questa riga temeva.** `wip/icon-visual-language` **è**
+> atterrato, il giorno dopo che quei sei file erano stati archiviati, e li ha **riportati in questa
+> cartella** — dove stanno tuttora, in doppione e in una versione più vecchia di quella archiviata
+> ([#1350](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1350)). La previsione era giusta,
+> il numero pure; a mancare è stato il controllo **dopo** il merge.
 > **La lezione non è che il numero sia sbagliato — oggi è giusto — ma che la sua garanzia lo era**: una
 > previsione si legge con **due** comandi, `gh pr list` *e* `git ls-remote`/`git diff` sui branch remoti.
 > È scritto nell'intestazione di `../parallel-batch.yaml`, ed è stato ignorato
