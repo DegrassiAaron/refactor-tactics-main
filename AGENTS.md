@@ -218,16 +218,21 @@ validazione · serializzazione/replay · privacy intenti.
 - ⛔ **Il repository non ha più gate Python.** Restano **Node 22** in `tools/radar/` — rubrica dei
   rating, generatore SVG dei radar e allineatore degli alt sulla Wiki — e un solo file Python
   versionato, `tools/icons-downloader/paragon_skill_icons_downloader.py`, che è un **downloader** e non
-  un gate. I `--check` vivi sono **due**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi) e `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), piu' la suite `node --test` di `tools/radar/`, **57 test**.
+  un gate. I `--check` vivi sono **tre**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi), `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring) e `node tools/radar/doc-links.ts --check` (i percorsi citati dai documenti), piu' la suite `node --test` di `tools/radar/` — si lancia **da dentro la cartella**, `node --test tools/radar/` fallisce con `MODULE_NOT_FOUND`.
   La cartella `scripts/` è stata **rimossa** il 2026-08-21 (**D-182**): con lei sono usciti i nove
   script Python e i loro test — i cinque gate documentali (link, nomi, simboli, tabelle, inventario),
   i due controlli sui dati di gioco (`check-capability-owners`, `check-equipment-defaults`) e i due
   generatori (`build-icon-assets`, `build-state-matrices-xlsx`).
-  ⚠️ **Ciò che si perde va saputo**: nessuno verifica più che un link risolva, che un'etichetta non
-  menta, che i dati di equipaggiamento combacino col C++, né che le **296 icone** di
+  ⚠️ **Ciò che si perde va saputo**: nessuno verifica più che i dati di equipaggiamento combacino col
+  C++, né che le **296 icone** di
   `docs/generated/icons/` corrispondano alla geometria che le ha prodotte — quella geometria era
   dichiarata dentro `build-icon-assets.py` ed è uscita con lui. È una scelta di fase: il progetto è in
   sviluppo, e il costo di mantenere i gate superava quello di non averli.
+  ✅ **Link ed etichette sono tornati coperti il 2026-08-25** con `doc-links.ts`, in Node e dentro la
+  toolchain che D-182 aveva già preservato: non riapre la decisione, ne ripara la conseguenza più
+  costosa. Copre `docs/` più `AGENTS.md`, `CLAUDE.md` e `README.md`, ed è verde anche con
+  `--with-archive`. Ciò che **non** copre è nel suo docstring — ancore, URL, percorsi in prosa, e gli
+  altri Markdown della radice, che sono materiale importato — e va letto prima di fidarsene.
   Ciò che resta si esegue **a mano**, ed è una scelta:
   **`.github/workflows/` non esiste, e la sua assenza è deliberata.** Non introdurre CI, package manager o
   build step senza chiedere: `tools/radar/` ha **zero dipendenze** apposta.
@@ -244,6 +249,8 @@ validazione · serializzazione/replay · privacy intenti.
   ```sh
   node tools/radar/generate.ts --check   # exit 1 se divergono
   node tools/radar/generate.ts           # riscrive gli otto SVG
+  node tools/radar/doc-links.ts --check  # exit 1 se un percorso citato non risolve
+  cd tools/radar && node --test          # la suite: da dentro la cartella, non dalla radice
   ```
 
   Zero dipendenze: Node 22 esegue TypeScript con type stripping, i test usano `node:test`. Gli SVG
