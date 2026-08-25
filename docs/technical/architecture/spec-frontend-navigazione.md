@@ -448,17 +448,23 @@ non per rinuncia**.
 Il gate `automation` di `RT-FEAT-UI-FRONTEND-SHELL` passa quindi da `todo` a `done` per la parte
 consegnata; gli altri restano `todo` finché il loro checkpoint non produce codice.
 
-Le sei voci previste — `PIE-V01-FRONTEND-NAV`, `-ERROR`, `-MAIN`, `-PLAY`, `-RESULT`, `-PAUSE` — **non
-esistono ancora**. Fino al 2026-08-20 il motivo era un vincolo di assegnazione:
-[`test-manuali-pie.md`](../test-manuali-pie.md) apparteneva alla track `playtest` del write-set di batch
-— *«l'autore davanti a Unreal»* — e `D-139` vietava di scriverci da un'altra sessione. Con
-[D-178](../../decisions/RT_PDR_00_Decision_Log.md) quel sistema non esiste più: **le sei voci restano da
-scrivere, e ora nulla lo impedisce** — [#1242](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1242).
+✅ **Le sei voci esistono dal 2026-08-24** — `PIE-V01-FRONTEND-NAV`, `-ERROR`, `-MAIN`, `-PLAY`,
+`-RESULT`, `-PAUSE`, una per checkpoint, in [`test-manuali-pie.md`](../test-manuali-pie.md)
+([#1242](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1242)). Fino al 2026-08-20 il motivo
+per cui non c'erano era un vincolo di assegnazione: quel registro apparteneva alla track `playtest` del
+write-set di batch — *«l'autore davanti a Unreal»* — e `D-139` vietava di scriverci da un'altra sessione.
+[D-178](../../decisions/RT_PDR_00_Decision_Log.md) ha rimosso quel sistema, e restava solo il lavoro.
 
-⚠️ **La procedura non è aspettare**, ed è la track stessa a dirlo: *«Le altre track producono, questa
-giudica. Chi finisce una feature che ha una voce `PIE-*` non scrive il proprio esito qui: lo **propone** in
-handoff.»* Le sei voci si propongono quando il primo checkpoint di E46 arriva a qualcosa da guardare —
-prima non c'è nulla da verificare, perché E46 è `SPECIFIED` e non c'è codice.
+⚠️ **Scritte non vuol dire eseguite, e la differenza è tutta qui.** Nascono tutte e sei ⏳ e **nessuna è
+eseguibile oggi**: quattro aspettano un `.uasset` (`WBP_RT_MainMenu` → U28, `WBP_RT_ResultScreen` → U29,
+`WBP_RT_PauseMenu` → U30) e due aspettano che qualcuno chiami `InitializeFrontend`, che è **CP 46.3**. Ciò
+che cambia è che i DoD di E46 non nominano più verifiche assenti dal registro — il debito che questa
+sezione dichiarava è chiuso, la verifica no.
+
+⚠️ **Due voci non stanno in nessuna seduta**: `-ERROR` e `-PLAY`. Diventano eseguibili con l'aggancio di
+CP 46.3, ma non sono prodotte da una seduta d'editor, e assegnarle a U28 allungherebbe un `done_when` che
+non è loro. La regola del registro — *«una voce che non sta in una seduta non viene eseguita mai»* — resta
+scoperta per quelle due, ed è scritto qui perché non si scopra chiudendo E46.
 
 *(La prima stesura di questo paragrafo attribuiva il file a `content_editor` su `#451`: era vero fino al
 2026-08-16, quando la track `playtest` è nata proprio per dargli un proprietario stabile.)*
