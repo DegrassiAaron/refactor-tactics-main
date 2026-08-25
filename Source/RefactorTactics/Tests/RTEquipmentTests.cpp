@@ -1079,8 +1079,13 @@ bool FRTVariantReachesTheLegacyMirrorsTest::RunTest(const FString&)
 	URTActionData* GadgetBasic = Gadget->Actions[0];
 	const int32 CooldownPrima = GadgetBasic->CooldownTurns;
 	URTCatalogLibrary::EquipWeaponVariant(GadgetBasic, Overcharge);
+	// L'atteso si DERIVA dal dato invece di scrivere il numero: questo test verifica che la ricarica
+	// **arrivi** allo specchio, non quanto valga. ⚠️ Scriveva `CooldownPrima + 1`, e quel `1` era una
+	// costante di bilanciamento pinnata di traverso: quando #1387 ha portato il costo al `+2` che D-090
+	// aveva deciso, a cadere e' stato questo test invece del difetto — un oracolo che si oppone alla
+	// decisione che dovrebbe servire.
 	TestEqual(TEXT("Overcharge: la ricarica arriva allo specchio, non solo a Def"),
-		GadgetBasic->CooldownTurns, CooldownPrima + 1);
+		GadgetBasic->CooldownTurns, CooldownPrima + Overcharge->CooldownDeltaTurns);
 	TestEqual(TEXT("e coincide con Def"), GadgetBasic->CooldownTurns, GadgetBasic->Def.CooldownTurns);
 
 	// Riequipaggiare due volte non accumula: `Power` si RICALCOLA dagli effetti, non si somma.
@@ -1146,6 +1151,55 @@ bool FRTEmergencyDashInPlayTest::RunTest(const FString&)
 	TestEqual(TEXT("l'attaccante resta dov'era"), Attaccante->Cell, FRTCellId(0, 0));
 
 	DestroyEquipWorld(World);
+	return true;
+}
+
+/**
+ * Il costo di `Overcharge` deve SOPRAVVIVERE al Cleanup del turno in cui l'attacco e' stato usato.
+ *
+ * 🔴 **`WeaponVariantHasTradeoff` non puo' vedere questa differenza**, ed e' il motivo per cui questo test
+ * esiste accanto a quello: li' la domanda e' `CooldownDeltaTurns > 0`, e un `1` la soddisfa restando
+ * **gratis**. Qui si guarda cosa RESTA dopo il Cleanup, che e' l'unica cosa che il giocatore sente.
+ *
+ * [D-090] lo aveva gia' misurato scartando la traduzione letterale del catalogo: *«"+1 turno di ricarica"
+ * e' stata SCARTATA perche' misurata e trovata a costo ZERO — `TickCooldowns()` gira nel Cleanup dello
+ * stesso turno in cui l'abilita' e' stata usata, quindi `CooldownTurns = 1` significa "ogni turno" e non
+ * "un turno di pausa"»*. Il codice ha portato `1` per quattordici giorni comunque (#1387).
+ *
+ * Il test e' PURO: non serve un mondo. `TickCooldowns()` e' un decremento, e cio' che si verifica e'
+ * l'aritmetica che il giocatore subisce — non si duplica il motore, si applica la sua regola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverchargeRealPauseTest,
+	"RefactorTactics.Equipment.OverchargeCostSurvivesTheCleanup",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverchargeRealPauseTest::RunTest(const FString&)
+{
+	const URTEquipmentData* Overcharge = nullptr;
+	for (const URTEquipmentData* V : URTCatalogLibrary::MakeWeaponVariants())
+	{
+		if (V->EquipmentId == FName(TEXT("Weapon.Overcharge"))) { Overcharge = V; }
+	}
+	if (!TestNotNull(TEXT("`Weapon.Overcharge` e' a catalogo"), Overcharge)) { return false; }
+
+	const FRTActionDef Base = WraithBasicAttack();
+	const FRTActionDef Modified = URTCatalogLibrary::ApplyWeaponVariant(Base, Overcharge);
+
+	// All'uso il cooldown parte dal valore dell'azione (`ARTUnit::StartCooldown`), e il Cleanup dello
+	// STESSO turno lo decrementa una volta (`ARTUnit::TickCooldowns`).
+	const int32 AtUse = Modified.CooldownTurns;
+	const int32 AfterCleanup = FMath::Max(0, AtUse - 1);
+
+	TestTrue(*FString::Printf(
+		TEXT("Overcharge: dopo il Cleanup del turno d'uso l'attacco e' ANCORA in ricarica ")
+		TEXT("(cooldown all'uso %d, dopo il Cleanup %d) — un %d qui significherebbe «ogni turno», ")
+		TEXT("cioe' il costo zero che D-090 ha scartato"),
+		AtUse, AfterCleanup, 0), AfterCleanup > 0);
+
+	// L'attacco base parte da zero, quindi la pausa viene tutta dalla variante: se un giorno
+	// `BasicAttack` avesse un cooldown proprio, questo assert lo direbbe invece di lasciarlo passare.
+	TestEqual(TEXT("la pausa viene dalla variante: l'attacco base parte senza ricarica"),
+		Base.CooldownTurns, 0);
+
 	return true;
 }
 
