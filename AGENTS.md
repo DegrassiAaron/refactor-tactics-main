@@ -218,7 +218,7 @@ validazione · serializzazione/replay · privacy intenti.
 - ⛔ **Il repository non ha più gate Python.** Restano **Node 22** in `tools/radar/` — rubrica dei
   rating, generatore SVG dei radar e allineatore degli alt sulla Wiki — e un solo file Python
   versionato, `tools/icons-downloader/paragon_skill_icons_downloader.py`, che è un **downloader** e non
-  un gate. I controlli vivi sono **quattro**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi), `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), `node tools/radar/doc-links.ts --check` (i percorsi citati dai documenti) e `node tools/radar/catalog-code.ts` (le stat base degli eroi fra catalogo e C++ — non ha `--check` perché non scrive mai: esce `1` e basta), piu' la suite `node --test` di `tools/radar/` — si lancia **da dentro la cartella**, `node --test tools/radar/` fallisce con `MODULE_NOT_FOUND`.
+  un gate. I controlli vivi sono **cinque**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi), `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), `node tools/radar/doc-links.ts --check` (i percorsi citati dai documenti) `node tools/radar/catalog-code.ts` (le stat base degli eroi fra catalogo e C++ — non ha `--check` perché non scrive mai: esce `1` e basta) e `node tools/radar/doc-tables.ts --check` (le righe di tabella che non hanno la larghezza delle sorelle), piu' la suite `node --test` di `tools/radar/` — si lancia **da dentro la cartella**, `node --test tools/radar/` fallisce con `MODULE_NOT_FOUND`.
   La cartella `scripts/` è stata **rimossa** il 2026-08-21 (**D-182**): con lei sono usciti i nove
   script Python e i loro test — i cinque gate documentali (link, nomi, simboli, tabelle, inventario),
   i due controlli sui dati di gioco (`check-capability-owners`, `check-equipment-defaults`) e i due
@@ -228,7 +228,7 @@ validazione · serializzazione/replay · privacy intenti.
   `docs/generated/icons/` corrispondano alla geometria che le ha prodotte — quella geometria era
   dichiarata dentro `build-icon-assets.py` ed è uscita con lui. È una scelta di fase: il progetto è in
   sviluppo, e il costo di mantenere i gate superava quello di non averli.
-  ✅ **Link ed etichette sono tornati coperti il 2026-08-25** con `doc-links.ts`, in Node e dentro la
+  ✅ **Link, etichette e tabelle sono tornati coperti il 2026-08-25** con `doc-links.ts` e `doc-tables.ts`, in Node e dentro la
   toolchain che D-182 aveva già preservato: non riapre la decisione, ne ripara la conseguenza più
   costosa. Copre `docs/` più `AGENTS.md`, `CLAUDE.md` e `README.md`, ed è verde anche con
   `--with-archive`. Ciò che **non** copre è nel suo docstring — ancore, URL, percorsi in prosa, e gli
@@ -251,6 +251,7 @@ validazione · serializzazione/replay · privacy intenti.
   node tools/radar/generate.ts           # riscrive gli otto SVG
   node tools/radar/doc-links.ts --check  # exit 1 se un percorso citato non risolve
   node tools/radar/catalog-code.ts       # exit 1 se catalogo e C++ divergono, o se la copertura cala
+  node tools/radar/doc-tables.ts --check # exit 1 se una riga di tabella ha piu' o meno celle delle sorelle
   cd tools/radar && node --test          # la suite: da dentro la cartella, non dalla radice
   ```
 
