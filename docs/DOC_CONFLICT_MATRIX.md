@@ -140,6 +140,8 @@ emergere che la regola accanto aveva lo stesso difetto e nessuno l'aveva misurat
 > prevalenza — dopo decisioni esplicite, ADR, codice, gameplay attivo, roadmap e materiale storico — quindi
 > non apre un `CONFLICT`: due fonti confliggono solo quando **nessuna prevale**, e qui ADR-0005 prevale.
 >
+> ⚠️ **Questo elenco non è la gerarchia completa, e non lo è mai stato**: ordina le fonti di *questo* caso e non nomina i cataloghi di `balance/`. L'ordine completo vive in [`README.md`](README.md) §«Gerarchia delle fonti», che dal 2026-08-25 dichiara anche come si legge fra **valori** e **meccanismi** ([D-190](decisions/RT_PDR_00_Decision_Log.md)). Si cita di là, non si riscrive di qua.
+>
 > Il che non le rende note a piè di pagina. Sono tre proposte coerenti fra loro, e insieme cambiano il modello:
 > l'ADR dice che il facing è **derivato** — «come arrivo determina come guardo» — mentre l'handoff lo vuole
 > **capacità del personaggio**, misurata in step di rotazione. È una scelta di design legittima e nessun

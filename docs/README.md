@@ -35,6 +35,19 @@ deterministico, su una griglia **esagonale multilivello**.
 > ADR risulta `Accettato` ma non ancora recepito, quello è un difetto: si registra in
 > [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) e si chiude, non si lascia implicito.
 
+> 🔴 **Il numero d'ordine vale fra fonti che parlano della STESSA cosa** ([D-190](decisions/RT_PDR_00_Decision_Log.md),
+> 2026-08-25). La colonna «Cosa decide» assegna a ciascun livello un **oggetto**, non un rango assoluto: il
+> livello 5 è «**Valori** vigenti», il 6 «**Dettaglio per feature**». Quindi **su un valore** — quanto danno,
+> quanti turni, quale soglia — prevale [`balance/`](balance/); **su un meccanismo** — se un effetto si
+> applica, in quale fase, con quale precondizione — prevalgono [`gameplay/`](gameplay/) e
+> [`technical/`](technical/). Senza questa lettura il caso «un catalogo contraddice una spec già
+> implementata» non è classificabile, ed è stato misurato: due stesure della stessa PR lo hanno risolto in
+> modi opposti citando entrambe una fonte vera.
+>
+> ⚠️ **Il codice non è in questa tabella e non è una fonte concorrente.** Quando implementa una spec ne è la
+> prova di esistenza; quando diverge da spec e catalogo insieme è un **difetto** da registrare in
+> [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md), non una fonte che vince.
+
 **Decisioni aperte**: [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) · **conflitti fra documenti**:
 [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) · **storia della documentazione**:
 [`CHANGELOG_DOCUMENTATION.md`](CHANGELOG_DOCUMENTATION.md).
