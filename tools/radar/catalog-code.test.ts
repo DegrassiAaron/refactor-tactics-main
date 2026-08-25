@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCpp, parseCatalogSections, parseSummaryTable, compare } from './catalog-code.ts';
+import { parseCpp, parseCatalogSections, parseSummaryTable, parsePerceptionTable, compare } from './catalog-code.ts';
 
 test('le stat base si leggono dai literal C++, per eroe', () => {
   const cpp = [
@@ -145,4 +145,24 @@ test('nella sezione §5 c e piu di una tabella, e si legge solo quella delle sta
   assert.deepEqual(rows.get('Gadget'), {
     health: 90, movePoints: 5, visionRange: 7, pushResistance: 0, affinity: 'Affinity.Electricity',
   });
+});
+
+test('la soglia d udito vive in §5.1, una quarta tabella con una sola colonna da confrontare', () => {
+  // #686: e' un numero di bilanciamento che viveva SOLO in C++. Sta in `5.1 Percezione e risorsa firma`,
+  // non nelle schede ne' nel confronto rapido — quindi serve un quarto lato, non una colonna in piu'.
+  const md = [
+    '### 5.1 Percezione e risorsa firma',
+    '',
+    '| Eroe | Vista | Soglia d\'udito | Ruolo | Risorsa firma | Ricarica su | Cap |',
+    '|---|---:|---:|---|---|---|---:|',
+    "| Gadget | 7 | 5 | Controller | Carica Conduttiva | interazione elettrica | 4 |",
+    "| Phase | 5 | 3 | Support | Riserva Idrica | interazione con acqua | 4 |",
+  ].join('\n');
+
+  const rows = parsePerceptionTable(md);
+
+  assert.equal(rows.get('Gadget')!.hearingThreshold, 5);
+  assert.equal(rows.get('Phase')!.hearingThreshold, 3);
+  // La `Vista` c'e' gia' nelle schede e nel §5: qui si legge solo cio' che questa tabella possiede da sola.
+  assert.equal(rows.get('Gadget')!.visionRange, undefined);
 });

@@ -251,8 +251,21 @@ danno, range, effetto e cooldown.
 
 Va detto adesso, perché è la parte che promette più di quanto oggi mantenga.
 
-L'unico input per eroe è la **Vista**: Gadget 7 ([D-073](../decisions/RT_PDR_00_Decision_Log.md)),
-Wraith 6, Phase e Riktor 5. Stealth, detection e tracking **esistono solo** in `03_Hero_Vision` del
+L'unico input per eroe **che questo asse consuma** è la **Vista**: Gadget 7
+([D-073](../decisions/RT_PDR_00_Decision_Log.md)), Wraith 6, Phase e Riktor 5.
+
+> ⚠️ **Qualificato il 2026-08-25** ([#686](https://github.com/DegrassiAaron/refactor-tactics-main/issues/686)).
+> Diceva *«l'unico input per eroe è la Vista»* senza restrizione, e dal 2026-08-25 il catalogo porta una
+> **seconda** statistica di percezione per eroe — la `Soglia d'udito` di
+> [D-041](../decisions/RT_PDR_00_Decision_Log.md), §5.1 di `RT_HeroCatalog_v0.1.md`. La frase resta vera
+> **per `information`**, che quella colonna non la legge, e diventerebbe falsa letta come inventario del
+> catalogo. Stessa cura di [D-107](../decisions/RT_PDR_00_Decision_Log.md), che qualifica invece di
+> riscrivere.
+>
+> 🔴 **E l'udito non arricchirà `information`**, misurato in #686: Phase e Riktor condividono **entrambi**
+> i valori (vista 5, udito 3), quindi nessuna `f(Vista, Udito)` può separarli — e D-041 progetta l'udito
+> come **compensazione** della vista, quindi le due variabili sono anti-monotone e ogni aggregazione
+> comprime. I tre valori distinti su quattro eroi restano tre. Stealth, detection e tracking **esistono solo** in `03_Hero_Vision` del
 workbook character, che §4 esclude dalle fonti — quindi non entrano.
 
 Ne segue che `information` è una funzione quasi monovariata, e sul roster v0.1 produrrà **tre valori
