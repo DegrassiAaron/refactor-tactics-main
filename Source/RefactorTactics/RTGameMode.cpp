@@ -17,6 +17,7 @@
 #include "ScenarioHarness/RTScenarioSession.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTTestReportWriter.h"
+#include "UObject/ConstructorHelpers.h" // FClassFinder: i BP_Unit_* dei quattro eroi (CP E21.1)
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 
@@ -222,6 +223,42 @@ ARTGameMode::ARTGameMode()
 	// niente da far avanzare qui, e un GameMode che ticca a vuoto e' costo senza contropartita.
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = false;
+
+	// PRESENTAZIONE (CP E21.1, #287): i quattro eroi entrano in campo con la loro skeletal Paragon.
+	//
+	// 🔴 **Il pezzo che mancava era questo, e non era l'asset.** I quattro `BP_Unit_*` esistono da tempo,
+	// sono versionati e portano gia' la mesh giusta — `Phase_GDC` inclusa, che e' il caso che non si chiama
+	// come il suo eroe. Ma `HeroUnitClasses` nasceva VUOTA e nessuno la riempiva: `BP_GameMode` non la
+	// tocca, quindi `SpawnHero` ricadeva sempre sul fallback e in partita si vedevano quattro cilindri
+	// mentre gli asset erano pronti a due passi.
+	//
+	// ⚠️ **Il fallback non cambia.** `SpawnHero` usa `ARTUnit::StaticClass()` per ogni `HeroId` assente da
+	// questa mappa, e un finder che fallisce lascia la voce ASSENTE invece di aggiungerne una nulla: senza
+	// il Blueprint si torna al cilindro colorato e la partita resta giocabile.
+	//
+	// ⚠️ **Resta `EditAnywhere`, quindi questo e' un DEFAULT e non un vincolo**: `BP_GameMode` puo' ancora
+	// scavalcare una voce o svuotare la mappa, ed e' la via per provare un personaggio senza ricompilare.
+	{
+		// `Succeeded()` non e' const (fa `!!*Class`), quindi il finder si legge dal solo campo `Class`:
+		// e' la stessa condizione, e permette di passare il finder per riferimento costante.
+		auto Assegna = [this](const TCHAR* HeroId, const ConstructorHelpers::FClassFinder<ARTUnit>& Finder)
+		{
+			if (Finder.Class != nullptr)
+			{
+				HeroUnitClasses.Add(FName(HeroId), Finder.Class);
+			}
+		};
+
+		static ConstructorHelpers::FClassFinder<ARTUnit> GadgetBP(TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> PhaseBP(TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> RiktorBP(TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> WraithBP(TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith"));
+
+		Assegna(TEXT("Hero.Gadget"), GadgetBP);
+		Assegna(TEXT("Hero.Phase"),  PhaseBP);
+		Assegna(TEXT("Hero.Riktor"), RiktorBP);
+		Assegna(TEXT("Hero.Wraith"), WraithBP);
+	}
 }
 
 void ARTGameMode::BeginPlay()

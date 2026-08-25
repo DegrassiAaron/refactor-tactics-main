@@ -471,4 +471,182 @@ bool FRTUnknownHeroIsDeclaredFatalTest::RunTest(const FString&)
 	return true;
 }
 
+
+// ---------------------------------------------------------------------------------------------------------
+// PRESENTAZIONE — CP E21.1 (`#287`): la classe visiva per eroe.
+//
+// ⚠️ **Il DoD di `#287` dichiarava il fallback «gia' coperto headless da `Heroes.SpawnFailsClosedWithoutData`»,
+// e la premessa era falsa due volte**: quel test non si chiama piu' cosi' (vedi il commento a
+// `FRTHeroSpawnDuplicateTest`), e nemmeno nella forma originale guardava `HeroUnitClasses` — copriva
+// l'`HeroId` inesistente e quello ripetuto, che sono un'altra regola. Prima di questi tre test nessun test
+// del repository nominava `HeroUnitClasses`: il ripiego al cilindro non era coperto da niente.
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroUnitClassesDefaultTest,
+	"RefactorTactics.Heroes.HeroUnitClassesCoversTheRoster",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroUnitClassesDefaultTest::RunTest(const FString&)
+{
+	// Il default vive nel costruttore di `ARTGameMode`, quindi si legge dal CDO: non serve un mondo.
+	const ARTGameMode* Cdo = GetDefault<ARTGameMode>();
+	if (!TestNotNull(TEXT("CDO del GameMode"), Cdo)) { return false; }
+
+	// ⚠️ **Il percorso e' parte dell'asserto, non un dettaglio.** Un finder che non risolve lascia la voce
+	// ASSENTE e in partita torna il cilindro senza dire niente: e' esattamente il difetto che `#287` ha
+	// chiuso. Se un `BP_Unit_*` viene spostato o rinominato, qui si vede subito.
+	//
+	// ⚠️ **E il percorso e' per eroe**, perche' l'errore facile in quel costruttore e' lo scambio: quattro
+	// `Assegna` in fila con quattro finder simili, e `Hero.Phase` che riceve il Blueprint di Gadget passerebbe
+	// un asserto scritto solo su «non e' il cilindro».
+	const TMap<FName, FString> Attesi = {
+		{ FName(TEXT("Hero.Gadget")), TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget") },
+		{ FName(TEXT("Hero.Phase")),  TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase")   },
+		{ FName(TEXT("Hero.Riktor")), TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor") },
+		{ FName(TEXT("Hero.Wraith")), TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith") },
+	};
+
+	TestEqual(TEXT("il default copre i quattro eroi del roster"), Cdo->HeroUnitClasses.Num(), Attesi.Num());
+
+	for (const TPair<FName, FString>& Atteso : Attesi)
+	{
+		const TSubclassOf<ARTUnit>* Trovata = Cdo->HeroUnitClasses.Find(Atteso.Key);
+		if (!TestNotNull(*FString::Printf(TEXT("voce per %s"), *Atteso.Key.ToString()), (const void*)Trovata))
+		{
+			continue;
+		}
+
+		UClass* Classe = Trovata->Get();
+		if (!TestNotNull(*FString::Printf(TEXT("classe risolta per %s"), *Atteso.Key.ToString()), Classe))
+		{
+			continue;
+		}
+
+		TestTrue(*FString::Printf(TEXT("%s e' un'unita'"), *Atteso.Key.ToString()),
+			Classe->IsChildOf(ARTUnit::StaticClass()));
+
+		// Un Blueprint generato si chiama `<Nome>_C`: il confronto e' sul percorso dell'asset, che il suffisso
+		// non tocca.
+		TestTrue(*FString::Printf(TEXT("%s punta a %s"), *Atteso.Key.ToString(), *Atteso.Value),
+			Classe->GetPathName().StartsWith(Atteso.Value));
+
+		// E NON e' il cilindro: senza questa riga un default che risolvesse tutto su `ARTUnit` passerebbe le
+		// due precedenti (`IsChildOf` di se' stessa e' vero) e la partita mostrerebbe quattro cilindri.
+		TestTrue(*FString::Printf(TEXT("%s non ricade sul cilindro"), *Atteso.Key.ToString()),
+			Classe != ARTUnit::StaticClass());
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroUnitClassesEmptyFallbackTest,
+	"RefactorTactics.Heroes.EmptyHeroUnitClassesFallsBackToCylinder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroUnitClassesEmptyFallbackTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRosterWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = SpawnRosterMap(World);
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("GameMode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		DestroyRosterWorld(World);
+		return false;
+	}
+
+	// `HeroUnitClasses` resta `EditAnywhere`: e' un DEFAULT, e svuotarla e' una configurazione legittima —
+	// la stessa che si aveva prima di `#287`, e quella di chi apre il progetto senza i pack Paragon.
+	GameMode->HeroUnitClasses.Empty();
+
+	GameMode->SetupHexMatch(HexMap);
+
+	const TArray<ARTUnit*> Units = CollectRosterUnits(World);
+	TestEqual(TEXT("le quattro unita' entrano lo stesso"), Units.Num(), 4);
+
+	for (const ARTUnit* Unit : Units)
+	{
+		// Classe ESATTA, non `IsA`: il ripiego dichiarato e' `ARTUnit`, e un `IsA` resterebbe verde anche se
+		// il ripiego diventasse un Blueprint qualunque.
+		TestEqual(*FString::Printf(TEXT("%s e' il cilindro C++"), *Unit->HeroId.ToString()),
+			Unit->GetClass(), ARTUnit::StaticClass());
+	}
+
+	// «La partita resta giocabile» non e' una frase: il ripiego tocca la CLASSE VISIVA, e i dati devono
+	// restare quelli del catalogo. Senza questo confronto il test proverebbe solo che quattro attori sono
+	// stati creati.
+	//
+	// ⚠️ **Contro il catalogo, non contro un numero**: `ARTUnit` nasce con `MaxHealth = 100`, quindi un
+	// `> 0` scritto a mano resterebbe verde anche se `ConfigureFromHeroData` non girasse affatto.
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		const FString Who = Hero->HeroId.ToString();
+		ARTUnit* Unit = FindByHeroId(Units, *Who);
+		if (!TestNotNull(FString::Printf(TEXT("%s in campo col cilindro"), *Who), Unit)) { continue; }
+
+		TestEqual(FString::Printf(TEXT("%s: salute dal catalogo"), *Who), Unit->MaxHealth, Hero->MaxHealth);
+		TestEqual(FString::Printf(TEXT("%s: movimento dal catalogo"), *Who), Unit->MoveRange, Hero->MovePoints);
+
+		if (TestNotNull(FString::Printf(TEXT("%s: il kit e' caricato"), *Who), Unit->GetAbility(0)))
+		{
+			TestEqual(FString::Printf(TEXT("%s: l'attacco base e' il suo"), *Who),
+				Unit->GetAbility(0)->Def.ActionId, Hero->Actions[0]->Def.ActionId);
+		}
+	}
+
+	// E l'avvio non dichiara un fatale: un asset visivo assente non e' un difetto di allestimento.
+	TestEqual(TEXT("l'avvio arriva a Ready"), GameMode->GetStartupReport().Phase, ERTLoadPhase::Ready);
+
+	DestroyRosterWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroUnitClassesPartialTest,
+	"RefactorTactics.Heroes.PartialHeroUnitClassesMixesMeshAndCylinder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroUnitClassesPartialTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRosterWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = SpawnRosterMap(World);
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("GameMode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		DestroyRosterWorld(World);
+		return false;
+	}
+
+	// Il caso che il DoD di `#287` chiede per nome: **mesh assegnata a meta' roster**. E' lo stato reale di
+	// chi ha solo alcuni pack Paragon, e la domanda e' se le due meta' convivono nella stessa partita.
+	const TSubclassOf<ARTUnit>* ClasseGadget = GameMode->HeroUnitClasses.Find(FName(TEXT("Hero.Gadget")));
+	if (!TestNotNull(TEXT("il default porta la classe di Gadget"), (const void*)ClasseGadget))
+	{
+		DestroyRosterWorld(World);
+		return false;
+	}
+	UClass* AttesaGadget = ClasseGadget->Get();
+
+	GameMode->HeroUnitClasses.Remove(FName(TEXT("Hero.Riktor")));
+	GameMode->HeroUnitClasses.Remove(FName(TEXT("Hero.Wraith")));
+
+	GameMode->SetupHexMatch(HexMap);
+
+	const TArray<ARTUnit*> Units = CollectRosterUnits(World);
+	TestEqual(TEXT("le quattro unita' entrano"), Units.Num(), 4);
+
+	const ARTUnit* Gadget = FindByHeroId(Units, TEXT("Hero.Gadget"));
+	const ARTUnit* Riktor = FindByHeroId(Units, TEXT("Hero.Riktor"));
+	if (TestNotNull(TEXT("Gadget in campo"), Gadget) && TestNotNull(TEXT("Riktor in campo"), Riktor))
+	{
+		TestEqual(TEXT("Gadget ha la sua classe visiva"), Gadget->GetClass(), AttesaGadget);
+		TestEqual(TEXT("Riktor, senza voce, ricade sul cilindro"), Riktor->GetClass(), ARTUnit::StaticClass());
+
+		// La meta' senza asset non degrada l'altra: e' il punto della domanda.
+		TestNotEqual(TEXT("le due meta' restano distinte"), Gadget->GetClass(), Riktor->GetClass());
+	}
+
+	DestroyRosterWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
