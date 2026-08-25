@@ -550,4 +550,64 @@ bool FRTPointerIllegalFacingRejectedTest::RunTest(const FString&)
 	return true;
 }
 
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCycleDeclaredFacingTest,
+	"RefactorTactics.Pointer.CycleDeclaredFacingStaysWithinTheLegalSet",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCycleDeclaredFacingTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+
+	PC->SelectActorForTest(Unit);
+
+	// 🔴 **Il difetto che questo test esiste per fermare non era un bug: era un'ASSENZA.** Le regole della
+	// rotazione dichiarata erano complete e testate dal 2026-08-09, e `BeginFacingDeclaration` /
+	// `HandleFacingSector` avevano come unici chiamanti dei test: dal gioco non ci arrivava nessuno.
+
+	// Da ferma le direzioni legali sono SEI: il ciclo deve poterle raggiungere tutte e tornare al punto di
+	// partenza. Un'implementazione che dichiarasse sempre la stessa direzione passerebbe un controllo
+	// scritto solo su «dopo la pressione c'e' una dichiarazione».
+	const TArray<ERTHexDirection> Legali =
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::None, Unit->PlannedPath, Unit->Facing);
+	TestEqual(TEXT("da ferma le legali sono sei"), Legali.Num(), 6);
+
+	TSet<ERTHexDirection> Viste;
+	for (int32 I = 0; I < Legali.Num(); ++I)
+	{
+		PC->CycleDeclaredFacing();
+		if (!TestTrue(*FString::Printf(TEXT("pressione %d: qualcosa e' stato dichiarato"), I + 1),
+			Unit->bDeclaresPlannedFacing))
+		{
+			break;
+		}
+
+		// Ogni direzione che il ciclo produce e' NELL'INSIEME LEGALE. E' la garanzia che sostituisce
+		// l'indicatore a schermo (`#613`): una direzione illegale non e' raggiungibile.
+		TestTrue(*FString::Printf(TEXT("pressione %d: %d e' legale"), I + 1, (int32)Unit->PlannedFacing),
+			Legali.Contains(Unit->PlannedFacing));
+		Viste.Add(Unit->PlannedFacing);
+	}
+
+	// E le raggiunge TUTTE: se il ciclo si fermasse su due direzioni alternate, i controlli sopra
+	// resterebbero verdi mentre meta' delle rotazioni sarebbe irraggiungibile.
+	TestEqual(TEXT("sei pressioni raggiungono tutte e sei le direzioni"), Viste.Num(), Legali.Num());
+
+	// Il contesto non resta aperto: `HandleFacingSector` lo chiude, e un contesto appeso mangerebbe il
+	// click successivo.
+	TestEqual(TEXT("il contesto e' tornato al neutro"), PC->GetPointerContext(), ERTPointerContext::Planning);
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

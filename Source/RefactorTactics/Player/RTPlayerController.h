@@ -91,6 +91,16 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> FocusAction;
 
+	/**
+	 * 🔴 **Il tasto che mancava a `#291`.** Le regole della rotazione dichiarata erano complete e testate
+	 * dal 2026-08-09 — `TryApplyDeclaredFacing`, `LegalFacings`, il consumo nel TurnManager, il rifiuto
+	 * invece della correzione silenziosa — ma **nessuno le raggiungeva**: `BeginFacingDeclaration` e
+	 * `HandleFacingSector` avevano come unici chiamanti dei test, e non erano `UFUNCTION`. Il giocatore non
+	 * aveva modo di chiedere una rotazione, e a fine percorso l'unita' si girava dove diceva l'ultimo passo.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> FacingAction;
+
 	/** Cicla la velocita' di riproduzione `x1 · x2 · x4` (CP 47.7, #1015). */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> PlaybackSpeedAction;
@@ -317,6 +327,16 @@ public:
 
 	/** Entra nel contesto `Facing` (l'unita' selezionata deve esserci). */
 	void BeginFacingDeclaration();
+
+	/**
+	 * Cicla il facing dichiarato fra le direzioni **legali** per il movimento pianificato, e lo applica.
+	 *
+	 * ⚠️ **Cicla fra le legali invece di offrirle tutte e sei**: l'insieme dipende dallo stile — tre dopo
+	 * un Move a budget, una sola dopo uno scatto lineare, sei da fermo — e senza l'indicatore a schermo
+	 * (`#613`) un giocatore che potesse chiedere una direzione qualunque riceverebbe un rifiuto muto. Qui
+	 * una direzione illegale non e' proprio raggiungibile, che e' la stessa garanzia ottenuta senza HUD.
+	 */
+	void CycleDeclaredFacing();
 
 	/** Esce da `Facing` senza dichiarare nulla. */
 	void EndFacingDeclaration();
