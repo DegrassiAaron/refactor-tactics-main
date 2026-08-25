@@ -338,6 +338,11 @@ bool FRTSprintIsAMoveProfileTest::RunTest(const FString&)
 	// perche' resta dov'e'. E' stata scelta la seconda, e questo test e' la forma eseguibile di quella
 	// motivazione: senza, «documentato» sarebbe una frase in un file che nessuno ricontrolla.
 	//
+	// ⛔ **Quella scelta e' stata rovesciata da [D-116] il 2026-08-12**: la prima via — migrare — e' ora la
+	// decisione, e questo test pinna un arretrato in attesa di #641. Il blocco piu' sotto lo dichiara per
+	// esteso; questa riga esiste perche' chi legge dall'alto non concluda che la seconda via sia ancora
+	// quella in vigore.
+	//
 	// COSA DICE IL CANONE. [D-015]: «`Sneak · Normal · Sprint` sono profili della famiglia `Move`» e
 	// «**`Sprint` non e' un Dash**». [D-028]: `Sprint` e' «solo movimento», cioe' slot Movimento.
 	//
@@ -355,19 +360,22 @@ bool FRTSprintIsAMoveProfileTest::RunTest(const FString&)
 	TestTrue(TEXT("D-028: Sprint spende lo slot MOVIMENTO, non il principale"),
 		Sprint.Slot == ERTActionSlot::Movement && Sprint.Slot == Move.Slot);
 
-	// LA DIVERGENZA, DICHIARATA. La fase resta `FastMovement`, cioe' PRIMA del Blast, mentre il Move normale
-	// e' «l'ultima fase volontaria». Non e' una svista: D-015 mette nella stessa frase «Sprint non e' un
-	// Dash» e «`Dash/Charge/Leap/Blink/Reposition` restano mobilita' speciali pre-Blast» — cioe' distingue
-	// la FAMIGLIA (Move) dal MOMENTO (rapido), e Sprint e' l'unico caso in cui le due non coincidono.
+	// ⛔ **LA DECISIONE E' STATA PRESA, e da allora questo blocco pinna un ARRETRATO — non una scelta in
+	// vigore.** [D-116] (2026-08-12) supera [D-068]: `Action.Sprint` migra a `NormalMovement`, `Exposed`
+	// passa a 2 turni, e il profilo di movimento entra nella legalita' delle azioni. Le quattro voci non
+	// sono separabili — la prima da sola produrrebbe l'upgrade puro che [D-015] vieta.
 	//
-	// Migrare la fase e' una decisione di GIOCO, non un allineamento: cambierebbe chi incassa il Blast di
-	// questo turno, quando `Status.Exposed` si applica, e la misura del bot (#149). D-028 avverte che senza
-	// costo di slot lo Sprint rischia gia' di essere «un Move migliore»: spostarlo dopo il Blast toglierebbe
-	// l'ultimo prezzo che paga, cioe' l'esposizione.
+	// ⚠️ **Il verde qui sotto misura quanto il codice e' indietro, non che abbia ragione.** La migrazione e'
+	// **E38 (v0.2)**, issue #641, che dichiara di non aprirsi prima dei gate della v0.1: finche' quei gate
+	// non chiudono, questo assert DEVE restare verde. Il giorno in cui #641 parte, cade — ed e' il gate
+	// della migrazione, non un danno: D-116 lo elenca fra i propri costi misurati.
 	//
-	// Questo assert e' scritto per CADERE il giorno in cui quella decisione viene presa: chi migra la fase
-	// trova qui la riga da cambiare e il perche' era com'era.
-	TestTrue(TEXT("#199: Sprint resta pre-Blast (fase rapida) — divergenza DICHIARATA, non una svista"),
+	// *(Il testo che stava qui presentava la fase pre-Blast come «divergenza DICHIARATA, non una svista»,
+	// con la motivazione di D-068 — vero fino al 2026-08-12, falso dal giorno dopo. D-116 chiedeva di
+	// registrare subito questo debito: «fino alla migrazione il commento di quel test resta verde e falso».
+	// Registrato il 2026-08-25, tredici giorni dopo. La motivazione originale resta leggibile in D-068 e
+	// nella voce D-116 che la supera, quindi chi migrera' trova ancora il perche' era com'era.)*
+	TestTrue(TEXT("#641/D-116: Sprint e' ANCORA pre-Blast — arretrato dichiarato, migrazione in E38 (v0.2)"),
 		Sprint.ResolutionPhase == ERTResolutionPhase::FastMovement);
 	TestTrue(TEXT("...mentre il Move normale resta l'ultima fase volontaria"),
 		Move.ResolutionPhase == ERTResolutionPhase::NormalMovement);
