@@ -22,15 +22,21 @@
  *  un blocco di una riga non ha sorelle con cui confrontare la larghezza, quindi il primo controllo
  *  taceva per costruzione.
  *
- *  ⚠️ **`docs/research/` è sempre escluso**, `docs/archive/` salvo `--with-archive`. Il primo è input
- *  north-star non ancora consumato (CLAUDE.md), e le **dodici** righe orfane misurate stanno tutte lì,
- *  in un solo PRD importato: farle contare significherebbe nascere rossi su materiale che il progetto
- *  non possiede e nessuno correggerà.
+ *  ⚠️ **Chi controlla cosa**: `docs/archive/` esce del tutto salvo `--with-archive`; `docs/research/`
+ *  resta dentro per la **larghezza** ed esce dalle sole **orfane** — è input north-star non ancora
+ *  consumato (CLAUDE.md), le sue orfane stanno tutte in un PRD importato, e i suoi difetti di larghezza
+ *  sono zero, quindi toglierlo da entrambi perderebbe documenti in cambio di niente.
+ *
+ *  ⚠️ **Tre modi di uscire `1`**, non due: larghezza, riga fuori da ogni tabella, e **blocco di codice
+ *  mai chiuso** — quest'ultimo perché un fence aperto rende la maschera inaffidabile, e tacere sarebbe
+ *  peggio che dirlo.
  *
  *  ⚠️ **Cosa NON verifica**, dichiarato perché non venga scoperto dopo: che il separatore `|---|` abbia
  *  la stessa larghezza dell'intestazione (è un caso che il rendering perdona), l'allineamento delle
- *  colonne, e le tabelle HTML. Guarda solo le righe che cominciano con `|`, e ignora quelle dentro un
- *  blocco di codice — un documento che **cita** markdown non sta dichiarando una tabella. */
+ *  colonne, e le tabelle HTML. **Segnala** solo righe che cominciano con `|` — una tabella dentro un
+ *  blockquote (`> | … |`) non viene mai riportata — ma per decidere se una riga *appartiene* a una
+ *  tabella legge anche le righe senza pipe di bordo, che in GFM sono valide. Ignora quanto sta dentro
+ *  un blocco di codice: un documento che **cita** markdown non sta dichiarando una tabella. */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { join, relative, sep } from 'node:path';
@@ -58,10 +64,50 @@ function countCells(line: string): number {
   return Math.max(0, parts.length - 2);
 }
 
-/** Apertura o chiusura di un blocco di codice: almeno tre backtick o tre tilde, anche indentati.
- *  Il marcatore e la sua LUNGHEZZA contano: un fence si chiude solo con lo stesso carattere e almeno
- *  altrettanti caratteri (CommonMark §4.5). */
-const FENCE = /^\s*(`{3,}|~{3,})/;
+/** Il marcatore di un fence, se la riga ne apre o chiude uno: almeno tre backtick o tre tilde, fino a
+ *  tre spazi di indentazione (CommonMark §4.5). Il carattere e la LUNGHEZZA contano — un fence si
+ *  chiude solo con lo stesso carattere, lungo almeno quanto l'apertura.
+ *
+ *  ⚠️ **La info string di un fence a backtick non può contenere backtick** (CommonMark §4.5), ed è
+ *  quello che distingue un'apertura da del codice inline: senza il controllo, una riga come
+ *  ``` ```x``` | y ``` veniva letta come fence mai chiuso — il gate usciva `1` su un documento valido
+ *  e la maschera si disattivava per tutto il file. */
+function fenceMarker(line: string): string | null {
+  // 🔴 **`[^\r\n]*` e non `.*`**: in JavaScript `\r` e' un *line terminator*, quindi `.` NON lo matcha e
+  // `(.*)$` fallisce su ogni riga che finisce con CRLF. I documenti di questo repository sono
+  // interamente CRLF, quindi la versione con `.*` non riconosceva **nessun** fence nei file veri — la
+  // maschera era inerte ovunque, e i test non lo vedevano perche' le loro fixture usano `\n`.
+  const m = /^ {0,3}(`{3,}|~{3,})([^\r\n]*)\r?$/.exec(line);
+  if (!m) return null;
+  const marker = m[1]!;
+  if (marker[0] === '`' && m[2]!.includes('`')) return null;
+  return marker;
+}
+
+/** L'inizio di un altro blocco, che in GFM CHIUDE una tabella tanto quanto una riga vuota: titolo ATX,
+ *  linea orizzontale (`---`, `***`, `___`), citazione, elenco, o un fence.
+ *
+ *  ⚠️ Serve per fermare la discesa delle righe di dati. Una riga di prosa **non** chiude una tabella —
+ *  diventa una riga di una cella — ma un `---` sì, ed e' proprio il caso in cui una voce di Decision
+ *  Log staccata finisce sotto una linea orizzontale. */
+function isBlockStart(line: string): boolean {
+  const t = line.trim();
+  return (
+    /^#{1,6}(\s|$)/.test(t) || // titolo ATX
+    /^(-{3,}|\*{3,}|_{3,})$/.test(t) || // linea orizzontale
+    /^>/.test(t) || // citazione
+    fenceMarker(line) !== null
+  );
+}
+
+/** Le celle di una riga. Le pipe di bordo sono **opzionali** in GFM, quindi i frammenti ai bordi si
+ *  scartano solo quando sono effettivamente vuoti. */
+function cellsOf(line: string): string[] {
+  const parts = line.split(CELL);
+  if (parts.length >= 2 && parts[0]!.trim() === '') parts.shift();
+  if (parts.length >= 1 && parts[parts.length - 1]!.trim() === '') parts.pop();
+  return parts;
+}
 
 /** La riga separatrice di una tabella GFM.
  *
@@ -71,11 +117,13 @@ const FENCE = /^\s*(`{3,}|~{3,})/;
  *  di dati, non un delimitatore — che e' il caso in cui il vecchio regex, permissivo su tutta la
  *  classe `[\s:|-]`, certificava come tabella due righe orfane. */
 function isDelimiterRow(line: string): boolean {
-  const parts = line.split(CELL);
-  // I frammenti ai bordi sono vuoti quando la riga comincia o finisce con `|`: le pipe di bordo sono
-  // opzionali in GFM, quindi si scartano solo se effettivamente vuoti.
-  if (parts.length >= 2 && parts[0]!.trim() === '') parts.shift();
-  if (parts.length >= 1 && parts[parts.length - 1]!.trim() === '') parts.pop();
+  // 🔴 **Serve almeno una pipe**, ed è la sola cosa che separa un delimitatore da `---`, che in
+  // Markdown è un titolo setext o una linea orizzontale. Senza questo controllo `---` sotto una riga
+  // di prosa veniva letto come delimitatore, promuoveva quella riga a intestazione e assorbiva le
+  // righe `|` sottostanti: il caso per cui questo controllo esiste — la voce di Decision Log staccata
+  // dalla sua tabella — tornava invisibile.
+  if (!CELL.test(line)) return false;
+  const parts = cellsOf(line);
   return parts.length > 0 && parts.every((c) => /^:?-+:?$/.test(c.trim()));
 }
 
@@ -93,9 +141,8 @@ function fencedMask(lines: string[]): boolean[] {
   let marker: string | null = null; // il fence APERTO: carattere e lunghezza
 
   for (let k = 0; k < lines.length; k++) {
-    const m = FENCE.exec(lines[k]!);
-    if (m) {
-      const found = m[1]!;
+    const found = fenceMarker(lines[k]!);
+    if (found !== null) {
       if (marker === null) {
         marker = found;
         mask[k] = true;
@@ -129,9 +176,8 @@ export function findUnbalancedFence(text: string): number | null {
   let marker: string | null = null;
   let openedAt = -1;
   for (let k = 0; k < lines.length; k++) {
-    const m = FENCE.exec(lines[k]!);
-    if (!m) continue;
-    const found = m[1]!;
+    const found = fenceMarker(lines[k]!);
+    if (found === null) continue;
     if (marker === null) {
       marker = found;
       openedAt = k;
@@ -226,14 +272,23 @@ export function findOrphanRows(text: string): OrphanRow[] {
   const inTable = new Array<boolean>(lines.length).fill(false);
   for (let k = 0; k < lines.length; k++) {
     if (fenced[k] || !isDelimiterRow(lines[k]!)) continue;
-    // L'intestazione e' la riga subito sopra, se c'e' ed e' piena: senza di lei il delimitatore e'
-    // orfano quanto una riga qualsiasi.
+    // L'intestazione e' la riga subito sopra: deve esserci, essere piena, e contenere una pipe —
+    // senza, il delimitatore e' orfano quanto una riga qualsiasi.
     const header = k - 1;
-    if (header < 0 || fenced[header] || lines[header]!.trim() === '') continue;
+    if (header < 0 || fenced[header] || lines[header]!.trim() === '' || !CELL.test(lines[header]!)) continue;
+    // 🔴 **E deve avere lo STESSO numero di celle**: GFM lo dice esplicitamente — «the header row must
+    // match the delimiter row in the number of cells. If not, a table will not be recognized» — e senza
+    // il confronto un `| A | B | C |` sopra `|---|---|` passava per tabella mentre il markdown lo rende
+    // come testo con le pipe a vista.
+    if (cellsOf(lines[header]!).length !== cellsOf(lines[k]!).length) continue;
     inTable[header] = true;
     inTable[k] = true;
-    // I dati scendono finche' le righe restano piene e contengono una pipe.
-    for (let j = k + 1; j < lines.length && !fenced[j] && lines[j]!.trim() !== '' && CELL.test(lines[j]!); j++) {
+    // I dati scendono fino alla riga vuota **o all'inizio di un altro blocco**, che e' cio' che chiude
+    // una tabella in GFM: «The table is broken at the first empty line, or beginning of another
+    // block-level structure». Fermarsi alla prima riga senza pipe segnalava come orfana una riga che
+    // sta in tabella — una riga di prosa dentro una tabella diventa una riga di UNA cella, non un
+    // terminatore — ma non fermarsi affatto fa assorbire tutto cio' che segue un `---`.
+    for (let j = k + 1; j < lines.length && !fenced[j] && lines[j]!.trim() !== '' && !isBlockStart(lines[j]!); j++) {
       inTable[j] = true;
     }
   }

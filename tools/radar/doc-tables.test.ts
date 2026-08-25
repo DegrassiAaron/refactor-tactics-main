@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findBrokenRows, findOrphanRows } from './doc-tables.ts';
+import { findBrokenRows, findOrphanRows, findUnbalancedFence } from './doc-tables.ts';
 
 test('una riga con una cella in meno rompe la tabella e viene segnalata', () => {
   // Caso reale: `OPEN_DECISIONS.md` BAS-5 fondeva domanda e risposta perche' mancava una pipe.
@@ -155,5 +155,86 @@ test('un delimitatore ha almeno un trattino per cella, e le celle vuote non bast
   assert.deepEqual(
     findOrphanRows(['| **D-1** | x |', '|   |   |'].join('\n')).map((o) => o.line),
     [1, 2],
+  );
+});
+
+// ---------------------------------------------------------------------------------------------
+// Cosa distingue un delimitatore da una riga che gli somiglia
+// ---------------------------------------------------------------------------------------------
+
+test('`---` non e un delimitatore: e un titolo setext o una linea orizzontale', () => {
+  // Il difetto piu' grave della stesura precedente: senza una pipe, `---` veniva accettato come
+  // delimitatore, promuoveva la prosa sopra a intestazione e assorbiva le righe sotto — quindi il
+  // caso per cui questo controllo esiste, la voce di Decision Log staccata, tornava invisibile.
+  assert.deepEqual(
+    findOrphanRows(['Prosa qualsiasi', '---', '| **D-190** | orfana |'].join('\n')).map((o) => o.line),
+    [3],
+  );
+  assert.deepEqual(
+    findOrphanRows(['| A | B |', '|---|---|', '| 1 | 2 |', '---', '| **D-190** | orfana |'].join('\n'))
+      .map((o) => o.line),
+    [5],
+  );
+  // ⚠️ Il caso che gli altri due controlli NON coprono, trovato da una mutazione sopravvissuta: qui
+  // l'intestazione ha una pipe e il conteggio delle celle combacia (una e una), quindi a fermare la
+  // promozione di `---` a delimitatore resta solo la richiesta della pipe.
+  assert.deepEqual(
+    findOrphanRows(['| A |', '---', '| orfana |'].join('\n')).map((o) => o.line),
+    [1, 3],
+  );
+});
+
+test('intestazione e delimitatore devono avere lo stesso numero di celle', () => {
+  // GFM: «The header row must match the delimiter row in the number of cells. If not, a table will
+  // not be recognized.» Senza il confronto il blocco passa per tabella e il markdown lo rende come
+  // testo con le pipe a vista — di nuovo il difetto che si vuole vedere.
+  assert.deepEqual(findOrphanRows(['| A | B | C |', '|---|---|'].join('\n')).map((o) => o.line), [1, 2]);
+  assert.deepEqual(findOrphanRows(['| A | B |', '|---|---|---|'].join('\n')).map((o) => o.line), [1, 2]);
+});
+
+test('una intestazione senza nessuna pipe non regge una tabella', () => {
+  assert.deepEqual(
+    findOrphanRows(['Prosa senza pipe', '| --- | --- |', '| a | b |'].join('\n')).map((o) => o.line),
+    [2, 3],
+  );
+});
+
+test('la tabella prosegue fino alla riga vuota, anche su righe senza pipe', () => {
+  // GFM chiude una tabella con una riga VUOTA, non con la prima riga priva di pipe: quella diventa
+  // una riga di una cella. Fermarsi prima segnalava come orfana una riga che sta in tabella.
+  assert.deepEqual(
+    findOrphanRows(['| A | B |', '|---|---|', '| 1 | 2 |', 'continuazione senza pipe', '| 3 | 4 |'].join('\n')),
+    [],
+  );
+});
+
+test('un backtick inline non apre un blocco di codice', () => {
+  // CommonMark: la info string di un fence a backtick non puo' contenere backtick. Senza questo
+  // controllo `` ```x``` | y `` veniva letto come fence aperto: il gate usciva 1 su un documento
+  // valido e la maschera si disattivava per tutto il file.
+  const md = ['| A | B |', '|---|---|', '```x``` | y', '', '| orfana |'].join('\n');
+  assert.equal(findUnbalancedFence(md), null);
+  assert.deepEqual(findOrphanRows(md).map((o) => o.line), [5]);
+});
+
+test('findUnbalancedFence riporta la riga di apertura, 1-based', () => {
+  assert.equal(findUnbalancedFence(['testo', '```js', 'const x = 1;'].join('\n')), 2);
+  assert.equal(findUnbalancedFence(['```js', 'x', '```', '', '```py', 'y', '```'].join('\n')), null);
+  // Una tilde non chiude un blocco a backtick: resta aperto, e la riga riportata e' la prima.
+  assert.equal(findUnbalancedFence(['```text', '~~~', 'x'].join('\n')), 1);
+});
+
+test('i documenti CRLF si comportano come quelli LF', () => {
+  // 🔴 Difetto trovato eseguendo il gate, non dai test: in JavaScript `\r` e' un *line terminator*,
+  // quindi `.` non lo matcha e un `(.*)$` fallisce su ogni riga CRLF. I documenti di questo repository
+  // sono interamente CRLF — la maschera dei fence era inerte sui file veri mentre tutte le fixture,
+  // scritte con `\n`, restavano verdi. Ogni fixture qui sopra vale anche in CRLF.
+  const crlf = (a: string[]) => a.join('\r\n');
+
+  assert.deepEqual(findOrphanRows(crlf(['```markdown', '| citata | non conta |', '```'])), []);
+  assert.equal(findUnbalancedFence(crlf(['testo', '```js', 'const x = 1;'])), 2);
+  assert.deepEqual(
+    findOrphanRows(crlf(['| A | B |', '|---|---|', '| 1 | 2 |', '', '| staccata |'])).map((o) => o.line),
+    [5],
   );
 });
