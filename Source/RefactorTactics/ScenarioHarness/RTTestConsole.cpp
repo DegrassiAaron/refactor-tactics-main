@@ -53,6 +53,30 @@ TAutoConsoleVariable<FString> CVarRTMapSource(
 	TEXT("Sorgente della mappa, scavalca MapSource del GameMode (es. LevelAsset). Vuoto = usa la proprieta'."),
 	ECVF_Default);
 
+/**
+ * La FIXTURE su cui giocare, per nome. Vince su `rt.Map.Source`.
+ *
+ * 🔴 **Esiste per rendere misurabile una verifica visiva che oggi non lo e'.** Le due arene generabili
+ * da riga di comando non portano superfici: `MakeDemoArena` le lascia tutte `Default` e `MakeTestArena`
+ * tutte `Rough`. Chi vuole guardare a schermo se le nove tinte della tavolozza si distinguono — e' la
+ * domanda di `#1290` — doveva aprire l'editor e scrivere la fixture nell'asset a mano, quindi la sua
+ * misura non si riproduceva e la sua evidenza viveva in `Saved/`, che non e' versionato.
+ *
+ * `RelayBasin` porta **otto** superfici distinte ed e' la sola board adatta a quella domanda.
+ *
+ *     RefactorTactics.exe -dpcvars=rt.Map.Fixture=RelayBasin
+ *
+ * ⚠️ Un nome sconosciuto **non ripiega in silenzio**: si dice e si gioca con la sorgente configurata,
+ * per la stessa ragione per cui `rt.Map.Source` fa lo stesso — un playtest attribuito a una board che non
+ * era in vigore e' peggio di un playtest mancato.
+ */
+TAutoConsoleVariable<FString> CVarRTMapFixture(
+	TEXT("rt.Map.Fixture"),
+	TEXT(""),
+	TEXT("Fixture di mappa per nome (ArenaV01, RelayBasin, RelayLite, TestArena, CoverYard, DemoArena). "
+		 "Vince su rt.Map.Source. Vuoto = nessun effetto."),
+	ECVF_Default);
+
 namespace
 {
 	/** Ultimo esito, per `rt.Test.DumpResult` senza argomenti. Solo diagnostica: non decide nulla. */
