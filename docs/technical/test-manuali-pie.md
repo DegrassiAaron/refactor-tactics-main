@@ -50,9 +50,20 @@
   Se la vista sembra bloccata e compaiono le **etichette degli actor** in viewport, hai fatto **Eject** (`F8`):
   stai guardando con la camera dell'editor, non con quella del gioco — `F8` di nuovo per rientrare nel pawn.
 
-## Stato in numeri — 2026-08-24
+## Stato in numeri — 2026-08-25
 
-**158 voci**: ✅ **60 verdi** · 🟡 **22 parziali** · ❌ **2 fallite** · ⏳ **74 aperte**.
+**164 voci**: ✅ **60 verdi** · 🟡 **22 parziali** · ❌ **2 fallite** · ⏳ **80 aperte**.
+
+*(Rimisurate col comando qui sotto il **2026-08-25**: entrano le **sei** voci del contratto graybox —
+`-VOLUME`, `-FIT`, `-COVER`, `-DOOR`, `-SURFACE`, `-ZOOM` — di `D-152`
+([#1096](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1096)), tutte ⏳ e nessuna eseguibile
+oggi per **una causa sola**: `git ls-files 'Content/RT/World/Graybox/*'` dà **0**, cioè il kit non ha ancora
+un solo asset. ✅ **Stavolta il delta è esattamente sei, ed è stato misurato in due tempi** — `158 → 164` con
+`60/22/2/74 → 60/22/2/80`, il comando eseguito **prima** di toccare il file e **di nuovo** dopo. È la
+disciplina che il paragrafo qui sotto chiede dopo averla vista fallire due volte: non «l'ultimo numero più
+sei», ma due misure indipendenti che si incontrano. ⚠️ **E i sei ID sono elencati per suffisso, non con un
+glob**: la nota che annunciava le voci del frontend le nominò con un glob e ne creò un settimo fantasma —
+la stessa trappola registrata poco più sotto, che questa riga evita per costruzione.)*
 
 *(Rimisurate col comando qui sotto il **2026-08-24**: entrano le **sei** voci del frontend — `-NAV`,
 `-ERROR`, `-MAIN`, `-PLAY`, `-RESULT`, `-PAUSE` — di **E46**
@@ -278,13 +289,13 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
 2026-08-25:
 
 ```bash
-grep -c '^| \*\*PIE-' docs/technical/test-manuali-pie.md                        # 158 — le voci
-grep -o 'PIE-[A-Z0-9][A-Z0-9-]*' docs/technical/test-manuali-pie.md | sort -u | wc -l   # 159
+grep -c '^| \*\*PIE-' docs/technical/test-manuali-pie.md                        # 164 — le voci
+grep -o 'PIE-[A-Z0-9][A-Z0-9-]*' docs/technical/test-manuali-pie.md | sort -u | wc -l   # 165
 ```
 
 I due non coincidono e **non devono**: il secondo raccoglie anche i *glob* che la prosa usa per parlare di
 famiglie di voci — `PIE-HEX-LAYER-*`, `PIE-HEX-VIZ-*`, `PIE-STATE-*`, `PIE-V01-*`, `PIE-VIS-*` — di cui
-estrae il troncone senza asterisco. Sono **cinque ID che non esistono**, e chi legge `159` come «numero di
+estrae il troncone senza asterisco. Sono **cinque ID che non esistono**, e chi legge `165` come «numero di
 voci» sbaglia di cinque in eccesso.
 
 È lo stesso difetto già registrato per `RELEASE-V01` («il marcatore compare anche nella prosa: si conta la
@@ -688,6 +699,56 @@ percorso — passi 1-9 e 13 — è eseguibile.
 | **PIE-V01-FRONTEND-PLAY** | `PLAY` porta alla partita passando dal loading, **senza** aprire un secondo percorso d'avvio (CP 46.4) | Main Menu a schermo, cioè la voce precedente eseguibile | Premuto `PLAY`, il loading mostra fasi che **avanzano** e nessuna percentuale; la partita che si apre è il 2v2 su `Format.Skirmish2v2`, e un'unità risponde al puntatore come in una partita aperta direttamente in PIE. **Se compare il banner di ripiego, la partita è degradata e va scritto qui**: è la differenza fra «si è avviata» e «si è avviata come doveva», ed è precisamente ciò che una lettura distratta perde. ⚠️ **L'allestimento può essere istantaneo**: se le fasi non si vedono passare non è un difetto del widget — lo dichiara §6 di [`runbooks/guida-frontend-umg.md`](runbooks/guida-frontend-umg.md), e va saputo **prima** di aprire un bug | ⏳ dipende da **U28** e dall'aggancio di CP 46.3 |
 | **PIE-V01-FRONTEND-RESULT** | Il verdetto è **letto**, non ricalcolato, e le due uscite portano dove dicono (CP 46.5) | Una partita che arriva a conclusione — l'autobattle di **E47** basta, e non richiede input | Compaiono esito, vincitore e numero di round, e **coincidono con il TurnLog della stessa partita**: si confrontano, non si assume. Se differiscono, la UI sta decidendo chi ha vinto — vietato da §6 della spec. `PLAY AGAIN` porta a una partita **nuova**, non alla stessa conclusa. `MAIN MENU` porta alla radice, e da lì `Back` **non** deve poter rientrare nella partita finita: si preme, e si guarda che non accada nulla | ⏳ manca `WBP_RT_ResultScreen`, seduta **U29**: oggi la schermata si apre e a schermo non compare nulla |
 | **PIE-V01-FRONTEND-PAUSE** | `ESC` sospende l'interazione, e l'uscita **smonta** invece di disegnare sopra (CP 46.6) | Partita in corso, avviata dal menu | `ESC` apre `RESUME · SETTINGS · RETURN TO MAIN MENU`. `RESUME` restituisce la **partita** nello stato in cui era — non il menu principale sopra di essa, che è il dead-end trovato su [#1304](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1304). `RETURN TO MAIN MENU` lascia il menu **senza partita viva dietro**, e una partita avviata subito dopo si comporta come la prima invece di ereditare stato. ⚠️ Che la pausa **non tocchi la simulazione** non si giudica guardando: l'oracolo è la sequenza degli hash del TurnLog su una partita abbandonata a metà, e vive nei test. Qui si guarda soltanto che l'uscita non lasci residui | ⏳ manca `WBP_RT_PauseMenu`, seduta **U30**: `ESC` oggi copre la partita senza disegnare, e `RESUME` da tastiera risponde lo stesso perché il toggle non passa dal widget |
+
+### Kit graybox degli oggetti di mappa (`D-152`, aggiunte il 2026-08-25)
+
+> Le sei voci del **contratto graybox** ([#1096](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1096)),
+> che [`systems/spec-graybox-placement-contract.md`](systems/spec-graybox-placement-contract.md) §10 dichiara
+> mancanti da quando esiste: *«Nessuna parte di questo contratto è oggi difesa da un gate automatico»*, e la
+> ragione è scritta lì — **l'oracolo di «è leggibile» non esiste nell'harness e non va simulato contando
+> ferite**. Fino al 2026-08-20 non si potevano scrivere per un vincolo di assegnazione, rimosso da **D-178**;
+> restava solo il lavoro.
+>
+> ⏳ **Nascono tutte e sei aperte, e nessuna è eseguibile oggi**, per una causa sola e misurabile:
+> `git ls-files 'Content/RT/World/Graybox/*'` dà **0**. Il percorso è deciso (`D-173`, §8.1) e la riga
+> d'allowlist in `.gitignore` c'è già — *prima* del primo asset, che è la regola di
+> [`tooling/asset-map.md`](tooling/asset-map.md) §6 — ma nessuna delle sette mesh del kit è stata modellata.
+>
+> **Precondizione comune**, e vale per tutte e sei:
+>
+> 1. **`L_DevSandbox` illuminata**, cioè la seduta **U21** eseguita: `editor-sessions.yaml` la dichiara in
+>    `unblocked_by` di **U25**, e una scena di leggibilità valutata prima delle luci direbbe più sulle luci
+>    che sull'oggetto guardato.
+> 2. Gli asset del kit posati da `/Game/RT/World/Graybox/` — `Cover/ · Doors/ · Surfaces/ · Volumes/`.
+> 3. Si guarda **senza HUD, senza selezionare nulla e con `rt.Debug.DrawCells` a `0`**, e ogni voce si
+>    rilegge su uno **screenshot in scala di grigi**: se lì la distinzione sparisce, il secondo canale non
+>    esiste e `D-146` è violata. È lo stesso oracolo di `PIE-V01-BOARD`, ed è un artefatto — non un giudizio.
+> 4. Le distanze di camera sono **tre**: ravvicinata, di gioco, tattica.
+>
+> 🔑 **Che cosa separa queste voci da `PIE-HEX-VIZ-BORDI`, `PIE-HEX-VIZ-PORTE` e `PIE-HEX-VIZ-BLOCCHI`**,
+> che guardano gli stessi oggetti e non sono duplicate: quelle osservano la **presentazione derivata dal
+> dato** dentro l'editor, alla vista di lavoro; queste osservano il **kit** in PIE, in scala di grigi e a tre
+> distanze. Il catalogo §8 lo dice nella colonna `Azione`: coperture, porte e superfici sono `UPDATE`, cioè
+> l'asset **sostituisce** il volume derivato — e la voce che verifica il sostituto non è quella che ha
+> verificato l'originale. Dove il confine è sottile, la singola voce lo scrive.
+>
+> ⚠️ **Nessuna porta `RELEASE-V01`**, e non è una dimenticanza: il subset è il criterio di `G9`, e spostarcele
+> richiede la mossa gemella in [`tooling/scenario-map.md`](tooling/scenario-map.md) §8 — *«qui e lì insieme»*.
+> Va deciso, non dedotto: il kit graybox non è un contenuto che la v0.1 promette a chi gioca.
+>
+> ⏱️ **Si modella a `C = 2,60 m` e si guarda a `C = 1,73 m`** finché
+> [#1155](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non atterra (§6.2). Ciò che si
+> giudica qui è una **proporzione**, non un numero di centimetri — è la ragione per cui il contratto misura
+> in frazioni.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-GBX-VOLUME** | Il Cell Placement Volume è una **guida d'authoring** e non entra in partita (§5, `D-152`) | Precondizione comune, più `BP_Graybox_CellPlacementVolume` posato su almeno una cella di `L_DevSandbox` | In viewport si vede il **prisma esagonale** con il footprint sicuro e le guide verticali di §6 — `1.00 · 0.85 · 0.55 · 0.28 · 0.00 H`. Premuto **Play** non compare a schermo, e non appartiene ad alcuna collisione interrogata dal resolver: si verifica muovendo un'unità attraverso la cella che lo contiene, e il percorso non cambia. ⚠️ **La metà che conta è quella negativa**: che si veda in editor è facile, che **sparisca** in PIE è la proprietà — §5 dichiara che comparire in una build packaged *«sarebbe un difetto, non una funzionalità di debug»*. ⛔ Il volume **non produce clearance** e il suo inset non è il numero di CP 23.6 (§1.1): se qualcuno lo legge come un dato di simulazione, l'errore è quello e non la geometria | ⏳ manca `BP_Graybox_CellPlacementVolume` — `git ls-files 'Content/RT/World/Graybox/Volumes/*'` dà **0** |
+| **PIE-GBX-FIT** | Un `CellBound` rispetta il footprint sicuro; un `EdgeBound` **non** vi è forzato (§3, §5, §6) | Precondizione comune, più il volume della voce precedente, un asset `CellBound` (l'unità, o un proxy) e uno `EdgeBound` (`SM_Graybox_Cover_Low`) su due celle **adiacenti** | Il `CellBound` sta **dentro** l'inset e non invade la cella vicina. L'`EdgeBound` è agganciato al **bordo condiviso** e sporge da entrambe le celle — **che è corretto, non un difetto**: §3 dichiara che *«`EdgeBound` non è un caso particolare di `CellBound`»*, e chi legge lo sconfinamento come un errore corregge la cosa sbagliata. ⚠️ **Questa voce decide `GBX-1` guardando, invece di assumerlo**: quale frazione di `C` sia il Safe Placement inset è una delle due domande che §9 lascia aperte, e §9 dichiara che l'oracolo è questa scena. Il verdetto va riportato in `OPEN_DECISIONS.md`, non solo qui. ⚠️ La larghezza di un pannello di bordo è `0.92` del **lato**, non di `C`: confonderli sbaglia di `1,73×` (§6) | ⏳ manca `SM_Graybox_Cover_Low` |
+| **PIE-GBX-COVER** | Copertura bassa e alta si distinguono **senza colore**, a tutte e tre le distanze (`D-146`, §7) | Precondizione comune, più `SM_Graybox_Cover_Low` e `SM_Graybox_Cover_High` su due bordi a **una riga di distanza** — lo stesso confronto che `PIE-HEX-VIZ-BORDI` allestisce con `FixtureId = CoverYard` | Sullo **screenshot in scala di grigi**, e a **ciascuna** delle tre distanze, si dice quale delle due è senza consultare nulla. Il canale è la **silhouette**: le guide di §6 sono `0.28 H` (70 cm) e `0.85 H` (213 cm), e la differenza dev'essere una proporzione leggibile, non una tinta. 🔴 **Il precedente dice che questo controllo può fallire, e come**: `PIE-HEX-VIZ-BLOCCHI` è ❌ dal 2026-08-20 perché la differenza fra due volumi stava nell'**altezza**, che la vista a picco proietta a zero ([#1246](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1246)). Una copertura distinta solo in alzato ripete lo stesso difetto, e va guardata **in pianta** prima che in alzato. ⚠️ **Non duplica `PIE-HEX-VIZ-BORDI`**, che è ✅ dal 2026-08-20: quella voce guarda i volumi derivati **nell'editor** e chiede *da che lato*; qui si guarda il **kit in PIE**, in scala di grigi, a tre distanze — nessuno dei tre criteri è stato eseguito lì | ⏳ mancano `SM_Graybox_Cover_Low` e `SM_Graybox_Cover_High` |
+| **PIE-GBX-DOOR** | I **quattro** stati di porta si leggono nella geometria, `Locked` compreso (§7.1, `D-171`) | Precondizione comune, più quattro celle con una porta ciascuna in `Open · Closed · Locked · Destroyed`, con `SM_Graybox_Door_Panel` e `SM_Graybox_Door_Locked` posate. ⚠️ **L'allestimento è quello di `PIE-HEX-VIZ-PORTE`, e ne eredita la trappola**: non esiste un tool porte, si scrive `Cells[i].Doors` a mano nel Details, e poi **va forzato il ridisegno** toccando una property dell'actor (`ActiveLayer` 0→1→0) — l'asset non notifica l'actor, quindi senza quel gesto si guarda la geometria vecchia e la voce sembra fallita mentre è solo non allestita | `Open` con il pannello **fuori** dal passaggio, `Closed` dentro, `Destroyed` **rimosso** — stato terminale, non richiudibile. `Locked` con il pannello dentro **più la traversa in rilievo** di `D-171`, che è una **mesh diversa** (`SM_Graybox_Door_Locked`) e non la stessa ricolorata. La traversa si legge sullo screenshot in scala di grigi a tutte e tre le distanze: se sparisce alla **tattica**, il secondo canale non c'è e `D-146` è violata dal primo asset che il kit produce. ⚠️ **`Locked` è dentro questa voce, e per un tempo non lo era**: `GBX-2` era aperta quando #1096 è stata scritta e si è chiusa il 2026-08-18 con `D-171` ([#1094](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1094)). Escluderlo oggi coprirebbe **tre** stati su quattro. ⚠️ **Non duplica `PIE-HEX-VIZ-PORTE`** (⏳), che guarda i volumi derivati nell'editor e dichiara come **limite noto e atteso** che `Closed` e `Locked` sono identiche: quella voce chiede *se* serva un secondo canale, questa verifica *quello scelto*. Un ✅ qui è ciò che chiude [#695](https://github.com/DegrassiAaron/refactor-tactics-main/issues/695); un ✅ là no | ⏳ mancano `SM_Graybox_Door_Panel` e `SM_Graybox_Door_Locked` |
+| **PIE-GBX-SURFACE** | Acqua e ghiaccio si distinguono a zoom **tattico**, senza selezionare la cella e senza console (§8, elementi 13-14) | Precondizione comune, più `SM_Graybox_Surface_Water` e `SM_Graybox_Surface_Ice` su due celle vicine. Il **dato** esiste già: `ERTHexSurface::ShallowWater` e `Ice` sono nel formato mappa, e si dipingono col tool Paint | Alla distanza **tattica** — la più lontana delle tre, dove la cella occupa meno pixel — si dice quale è acqua e quale ghiaccio **senza cliccare** e con `rt.Debug.DrawCells` a `0`. Si rilegge in scala di grigi. ⚠️ **Non duplica `PIE-V01-BOARD`**, e il confine è netto: quella voce guarda le **celle** — colore e forma del disco, su quattro superfici fra cui `Ice` — e il suo canale forma è arrivato con CP 47.3 ([#956](https://github.com/DegrassiAaron/refactor-tactics-main/issues/956), chiusa); qui si guardano le **mesh `SurfaceBound` del kit** posate sopra, che sono gli elementi 13 e 14 del catalogo §8 con azione `UPDATE`. ⛔ **Un ✅ qui non chiude `D-146`**: `PIE-V01-BOARD` dichiara che quattro segni coprono 5 delle 7 collisioni in scala di grigi e che `Floor~Fire` resta aperta. Acqua e ghiaccio sono **una** di quelle coppie, non tutte | ⏳ mancano `SM_Graybox_Surface_Water` e `SM_Graybox_Surface_Ice` |
+| **PIE-GBX-ZOOM** | La scena di validazione regge alle **tre** distanze, su tutte le coppie che §10 enumera | Precondizione comune, più la scena di **U25** allestita — cioè le cinque voci qui sopra eseguibili. È l'ultima della sequenza per costruzione | Si ripete la lettura a **ravvicinata · di gioco · tattica**, e nessuna categoria diventa illeggibile passando da una all'altra. **Le coppie sono sei e si scrivono qui** perché la voce non dipenda da una rilettura del contratto: `unità` · `copertura bassa vs alta` · `muro vs muro sfondato` · `porta aperta vs chiusa vs bloccata` · `acqua vs ghiaccio` · `intatto vs distrutto`. ⛔ **Due delle sei non sono osservabili in v0.1, ed è dichiarato invece che scoperto in seduta**: `muro sfondato` (§8 #10) e `intatto vs distrutto` (§8 #9, le macerie) sono `DEFER` perché dipendono da `RT-FEAT-MAP-STRUCTURAL`, che è `IDEA` su release `future`. **Si esegue sulle quattro restanti**, e l'esito scrive che due sono fuori — una voce che tacesse farebbe leggere «contratto verificato» dove è verificato per quattro coppie su sei. 🔴 **Se la lettura non regge, si cambia la grammatica prima di aggiungere altri asset**: è l'unica prescrizione del kit sorgente che §10 adotta senza emendarla, e vale più di qualunque asset già modellato | ⏳ dipende dalle cinque voci sopra |
 
 ### Il gesto dell'autore — tool Geometry (#712, aggiunte il 2026-08-13)
 

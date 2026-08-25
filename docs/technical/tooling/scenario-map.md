@@ -53,7 +53,7 @@ scegliendo lo scenario e premendo Play, una voce C richiede di allestire, clicca
 |---|---:|---|
 | **A** — automatico | **46** scenari | `Scenarios/Combat/` · `Scenarios/Movement/` · `Scenarios/Spec/Facing/` · `Spec.Cover.TemporaryCoverExpires` · `Spec.Predictive.WhiffOnEmptyCell` · i tre `EnvironmentalActionOwner` · `RT_Showcase_Relay_v01` |
 | **B** — automatico + occhio | **21** scenari ↔ **21** voci `PIE-VIS-*` | `Scenarios/Visual/` |
-| **C** — solo umano | **112** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima, **meno** le `PIE-MUT-*` |
+| **C** — solo umano | **141** voci PIE | tutte le sezioni di `test-manuali-pie.md` tranne l'ultima, **meno** le `PIE-MUT-*` *(⏱️ **rimisurate il 2026-08-25**, ed erano **112**: lo scarto è di **29** e si scompone tutto — **tre sezioni intere mancavano** dalla ripartizione di §5 (E47 `2` · E46 `6` · tool Geometry `4` = **12**), **tre erano indietro** (Checklist `43→48` · M6 `16→21` · Durata `5→6` = **11**), e **sei** sono le voci del contratto graybox che questo giro aggiunge ([#1096](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1096)). `12 + 11 + 6 = 29`, e il totale torna col conteggio diretto `164 − 21 PIE-VIS − 2 PIE-MUT`: **due metodi indipendenti che concordano**, come questo documento chiede da sé)* |
 | **D** — dichiarato | **11** scenari `Spec.*` ancora `BLOCKED` · **66** dichiarati `planned` nel registry e senza file *(⏱️ **rimisurati il 2026-08-17**, ed erano `12 · 56`: la riga era già stantia prima di questo giro e questo giro l'ha resa più stantia, aggiungendo tre `planned` al registry. Riletti da `scenariomap.shortlist.md`, che è **generato** — «78 scenari versionati · 67 eseguibili · 11 `BLOCKED` · 66 dichiarati `planned`» — e la scomposizione A/B/D è stata rifatta **classificando ogni file** con la regola dichiarata, non incrementata: `A 46 + B 21 + D 11 = 78`, che è il totale del generato. **Due metodi indipendenti che concordano**, come la volta precedente chiedeva. ⚠️ E la lezione è ancora quella: `feature-registry.yaml` è una **terza sorgente** di questa vista accanto a `Scenarios/` e `RTScenarioSession.cpp` — chi tocca solo il registry sposta questo numero senza toccare un solo file di scenario, ed è il motivo per cui `parallel-batch.yaml` l'ha aggiunta al `derives_from` nello stesso commit)* *(letti dal generato il 2026-08-13; questa riga diceva «**50** pianificati · **4** mai scritti», due sottoinsiemi che il generato **non distingue** — somma 54 contro 56, quindi la ripartizione era già inconciliabile con la sua fonte e si è tenuto il numero generato)* *(i pianificati rimisurati il 2026-08-12 **sull'albero mergiato**, su `scenariomap.shortlist.md`, che è generato; questa riga diceva **38** e §6.2 diceva **47** — due numeri vecchi in modi diversi nello stesso documento. ⚠️ Rimisurati **tre volte** il 2026-08-12, e ogni volta il numero era gia' cambiato sotto: **52** con `Spec.Map.ConstrainedCellCostsMore` ancora `planned`, **51** quando quel piano è diventato un file, **50** sull'albero unito perché `#659` ne ha acceso un altro nel frattempo. È il meccanismo del corpus che funziona — un `planned` che si accende esce da qui — ma dice anche che questo numero non si incrementa a mano: si rilegge da `scenariomap.shortlist.md` **dopo** il merge. ✅ **Le righe A/B e il totale sono state rimisurate il 2026-08-13, voce per voce come questa nota chiedeva.** Dicevano `A 27 + B 21 + D 12 = 60` e non si riconciliavano col generato: la scomposizione era ferma al **2026-08-09** e sbagliava di **13** scenari, tutti in classe **A**. Rifatta classificando **ogni file** con la regola dichiarata — `BLOCKED` se un `requires` chiede una capability fuori dall'allowlist di `RTScenarioSession.cpp`, altrimenti **B** se sta in `Scenarios/Visual/`, altrimenti **A** — il conto è `A 40 + B 21 + D 12 = 73`. ⚠️ **Misurato con due metodi indipendenti che concordano**: la classificazione voce per voce e il generato di `scenariomap.shortlist.md`, che conta **73** versionati e **61** non bloccati (= `A 40 + B 21`). La regola resta quella scritta qui — questo numero **non si incrementa a mano** quando nasce uno scenario: si rilegge dal generato dopo il merge)* | `Scenarios/Spec/` · `feature-registry.yaml` · fascia D di `scenari-validazione-visiva.md` |
 
 > ⏱️ **Rimisurato il 2026-08-21 con CP 47.4** ([#957](https://github.com/DegrassiAaron/refactor-tactics-main/issues/957)):
@@ -303,7 +303,7 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 
 ## 5. Classe C — solo input umano
 
-112 voci del registro PIE che **nessuno scenario può sostituire**. La ripartizione qui sotto è per sezione del
+141 voci del registro PIE che **nessuno scenario può sostituire**. La ripartizione qui sotto è per sezione del
 registro — che è verificabile — con la ragione per cui serve una persona. Il dettaglio di ogni voce (esito
 atteso, stato, copertura headless già esistente) resta in [`test-manuali-pie.md`](../test-manuali-pie.md), che
 ne è l'owner: qui non se ne ricopia nessuno, perché è esattamente la duplicazione che questo repository ha già
@@ -311,19 +311,41 @@ pagato quattro volte.
 
 | Sezione del registro | Voci | Perché serve una persona |
 |---|---:|---|
-| Checklist principale (materiali, editor mode, bot) | 43 | **Gesto e asset**: drag, gizmo, Undo, materiali da creare in editor. Un test può dire che `HandleClickOnCell` ha scelto la cella giusta, non che il mouse ci arrivi |
-| Partita su griglia esagonale (M6) | 16 | **Ciò che solo l'occhio vede**: unità centrate sui centri-cella, fluidità del playback, nessun residuo di griglia quadrata. La logica è coperta headless per 5 voci su 15 |
+| Checklist principale (materiali, editor mode, bot) | 48 | **Gesto e asset**: drag, gizmo, Undo, materiali da creare in editor. Un test può dire che `HandleClickOnCell` ha scelto la cella giusta, non che il mouse ci arrivi |
+| Partita su griglia esagonale (M6) | 21 | **Ciò che solo l'occhio vede**: unità centrate sui centri-cella, fluidità del playback, nessun residuo di griglia quadrata. ⚠️ *«La logica è coperta headless per 5 voci su 15»* era la misura del 2026-08-09 e il denominatore è cambiato con la riga: la copertura headless **non è stata rimisurata** in questo giro, quindi resta citata alla sua data invece di essere adattata al nuovo totale |
 | Contenuto della v0.1 | 22 | **Leggibilità e asset**: che il giocatore *capisca* dal log, che l'arancione del fuoco amico si **noti**, che l'asset mappa si editi a mano |
 | Strumenti di leggibilità | 2 | **Giudizio a schermo puro**: `PIE-PREVIEW-AREA` ha già trovato due difetti che nessun test poteva vedere — un contorno disegnato sotto il cilindro, e un linguaggio che parlava di celle mentre la domanda era sulle unità |
+| Mini v0.1 Autobattle (E47) | 2 | **Ciò che si guarda mentre gira da solo**: la board che si legge da due canali, e la partita non presidiata *registrata* invece che dichiarata |
+| Frontend shell e ciclo di partita (E46) | 6 | **Il layout dentro il binario**: la navigazione è un `USTRUCT` puro e si prova headless — che una schermata si legga, che il focus si veda, che il modale copra, no |
+| **Kit graybox degli oggetti di mappa** (`D-152`) | 6 | **L'oracolo di «è leggibile» non esiste nell'harness**, e §10 del contratto lo dichiara invece di sottintenderlo: silhouette in scala di grigi, a tre distanze di camera |
+| Il gesto dell'autore — tool Geometry (#712) | 4 | **Ciò che vive solo nell'occhio di chi disegna**: ghost, snap, Undo e residui. La parte verificabile — legalità e cottura — sta nel runtime, con i suoi test |
 | Scenario Test Harness | 6 | **Ciò che l'utente non deve dover fare**: «premo Play e parte da solo», e un esito che si legga **senza aprire l'Output Log** |
 | Verifiche di mutazione — **solo `PIE-V01-ARENA`** | 1 | La sezione ne contiene **tre**, ma le due `PIE-MUT-*` sono *fuori classe* e vanno contate a parte. `PIE-V01-ARENA` resta C a pieno titolo: chiede l'editor |
-| Durata, ritmo e scala | 5 | **Cronometro**: producono numeri di playtest, non superano gate. Si misura il **2v2** e lo si registra come tale |
+| Durata, ritmo e scala | 6 | **Cronometro**: producono numeri di playtest, non superano gate. Si misura il **2v2** e lo si registra come tale |
 | Bot — leggibilità delle decisioni | 5 | **Il perché, non il cosa**: un test può dire che lo score era il più alto, non che la scelta sembrasse sensata a chi guarda |
 | Formato e icone | 2 | **Riconoscibilità alla dimensione reale** dell'HUD, e il caso di **errore** del formato |
 | Stati del personaggio (E34) | 10 | Nessuna: **verificano un sistema che non esiste**. Sono classe D travestita da C — vedi §6 |
 
-**Somma: 112** — e la somma è il punto. `43 + 16 + 22 + 2 + 6 + 1 + 5 + 5 + 2 + 10` va confrontata con la
-riga `C` della §2 **prima** di toccare l'una o l'altra.
+**Somma: 141** — e la somma è il punto. `48 + 21 + 22 + 2 + 2 + 6 + 6 + 4 + 6 + 1 + 6 + 5 + 2 + 10` va
+confrontata con la riga `C` della §2 **prima** di toccare l'una o l'altra.
+
+> 🔴 **Rimisurata il 2026-08-25, e il difetto del 2026-08-13 si è ripetuto identico: mancavano tre sezioni
+> intere.** La tabella dichiarava **112** su **dieci** righe; il registro ha **quattordici** sezioni di
+> classe C. Fuori c'erano *Mini v0.1 Autobattle* (`2`, E47, aggiunta il 2026-08-22), *Frontend shell*
+> (`6`, E46, il 2026-08-24) e *Il gesto dell'autore* (`4`, #712, il **2026-08-13** — cioè aggiunta al
+> registro lo **stesso giorno** in cui questa nota dichiarava di aver chiuso il difetto, e mai entrata qui).
+> Tre righe erano inoltre indietro: **Checklist** `43 → 48`, **M6** `16 → 21`, **Durata** `5 → 6`.
+>
+> ⚠️ **Il totale non torna sommando: `12` sezioni mancanti più `11` di arretrato più le `6` di questo giro.**
+> Chi avesse scritto `112 + 6 = 118` avrebbe pubblicato un numero sbagliato di ventitré con la somma che
+> *sembrava* tornare — ed è esattamente il caso che il registro PIE registra per sé: *«una somma giusta fa
+> credere corretti gli addendi»*. I due metodi indipendenti sono il comando qui sotto, sezione per sezione,
+> e il conteggio diretto `164 − 21 PIE-VIS − 2 PIE-MUT = 141`.
+>
+> 🔑 **E la ragione per cui si ripete non è la distrazione**: chi aggiunge una sezione al registro PIE non ha
+> modo di sapere che esiste questa tabella. Il gate che avrebbe potuto dirlo non c'è mai stato, e da
+> **D-182** non c'è più nemmeno l'inventario dei documenti. Finché è così, questa riga si rimisura **a ogni
+> tocco del registro** — non periodicamente.
 
 > 🔴 **Rimisurata il 2026-08-13, e il difetto non era in un numero: era in una sezione mancante.** Questa
 > tabella dichiarava **95** e ne elencava nove sezioni; il registro ne ha **dieci** di classe C. Mancava
