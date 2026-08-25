@@ -249,6 +249,21 @@ public:
 	 * chi sceglie, e come numero nei delta, per il resolver. `ValidateEquipment` verifica che le due non
 	 * divergano — cioe' che nessuna variante sia migliore in ogni parametro.
 	 */
+	/**
+	 * La fascia del danno base, secondo le soglie di [D-087]: `Low 1-10` - `Medium 11-18` - `High 19+`.
+	 *
+	 * ⚠️ Le soglie sono `PROPOSED FOR PLAYTEST` (`WV-2`) e stanno qui perche' il codice deve poterle
+	 * applicare; il loro OWNER resta il catalogo equipaggiamento. Cambiarle e' una ritaratura, non un
+	 * refactor: nessun test le pinna, e `DamageBandDerivesFromBaseDamage` verifica la monotonia e la
+	 * raggiungibilita' delle tre fasce, non i numeri.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
+	static ERTAttackDamageBand DamageBandOf(int32 BaseDamage);
+
+	/** Il danno DICHIARATO da un'azione: il primo effetto `Damage`, o `0` se non ne ha. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Catalog")
+	static int32 DeclaredDamage(const FRTActionDef& Action);
+
 	static TArray<URTEquipmentData*> MakeWeaponVariants();
 
 	/**

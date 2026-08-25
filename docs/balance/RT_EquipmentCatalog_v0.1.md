@@ -29,6 +29,25 @@ Ogni eroe seleziona: **1 variante arma** + **1 gadget** + **1 modulo di reazione
 | `Weapon.Suppressive` | Soppressione | applica `Slow` | −5 danni |
 | `Weapon.Environmental` | Ambientale | ~~migliora gli hazard~~ — **non selezionabile in v0.1** *(D-100)* | −5 danni diretti |
 
+> 🎚️ **Le fasce esistono nel codice dal 2026-08-25, i valori no** ([#509](https://github.com/DegrassiAaron/refactor-tactics-main/issues/509)).
+> `ERTAttackDamageBand { Low, Medium, High }` e `URTEquipmentData::DamageDeltaByBand` sono in `Source/`, e
+> `ApplyWeaponVariant` legge la fascia dal danno della **definizione** dell'attacco — mai dai modificatori
+> ([D-087](../decisions/RT_PDR_00_Decision_Log.md)).
+>
+> **Soglie `PROPOSED FOR PLAYTEST`**: `Low 1–10` · `Medium 11–18` · `High 19+`. Sono la baseline di D-087,
+> e questo catalogo ne è l'owner: cambiarle è una **ritaratura**, tocca una riga qui e una in
+> `RTCatalogLibrary::DamageBandOf`, e **nessun test cade** — è verificato.
+>
+> ⚠️ **I delta per fascia NON sono tarati, e i tre valori di ogni variante sono oggi UGUALI fra loro.** La
+> migrazione ha conservato il comportamento del vecchio intero unico: la struttura c'è, la scelta no. È
+> ciò che `WV-2` prescrive — *«si chiudono con una partita, non con un documento, e vanno misurati **dopo**
+> che le fasce esistono nel codice»*. Da oggi esistono.
+>
+> 🔴 **Una divergenza da sciogliere quando si tarerà**: per `Sovraccarico`, D-087 propone `+3/+5/+6` e
+> [D-090](../decisions/RT_PDR_00_Decision_Log.md) decide `+8/+14/+18` — ordini di grandezza diversi e verso
+> opposto, entrambe del 2026-08-11, e nessuna dichiara di superare l'altra. **Nessuno dei due insiemi è
+> entrato nel codice**, per non trasformare in decisione la prima riga scritta.
+
 Le varianti modificano l'**attacco base** dell'eroe (valori per tipo d'arma nel
 [catalogo azioni](RT_ActionCatalog_v0.1.md) §1).
 
