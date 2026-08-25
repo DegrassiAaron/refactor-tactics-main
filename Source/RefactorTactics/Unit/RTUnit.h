@@ -650,6 +650,15 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	bool bIsMovingVisually = false;
 
+	/**
+	 * Velocita' che l'unita' DICHIARA mentre corre nel playback (cm/s). Non e' una velocita' simulata:
+	 * l'unita' non ha un movement component e il playback la sposta per interpolazione, quindi la velocita'
+	 * vera e' sempre zero. Serve agli AnimBP dei pack Paragon, che scelgono idle/corsa e la direzione del
+	 * blendspace leggendo `GetVelocity()`. Solo presentazione: nessuna regola la legge.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	float VisualRunSpeed = 375.f;
+
 	/** Posiziona l'unita' al centro-mondo della cella esagonale, con la base appoggiata al piano. */
 	void PlaceOnCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight);
 
@@ -661,6 +670,19 @@ public:
 
 	/** Sposta solo la mesh (presentazione): NON cambia Cell ne' il piano. Usato dall'animazione del turno. */
 	void SetVisualLocation(const FVector& World);
+
+	/**
+	 * Velocita' DICHIARATA, non simulata. `AActor::GetVelocity()` legge il movement component e questa unita'
+	 * non ne ha: si muove per interpolazione di presentazione, quindi la velocita' vera sarebbe **sempre**
+	 * zero e ogni AnimBP che la legge resterebbe fermo in idle senza un errore e senza un log.
+	 *
+	 * Qui la si ricava dallo stato che il TurnManager gia' scrive — `bIsMovingVisually` — e dalla direzione
+	 * dell'ultimo spostamento visivo. E' l'ingresso che gli AnimBP dei pack Paragon leggono per scegliere
+	 * idle/corsa e la direzione del blendspace.
+	 *
+	 * ⚠️ Solo presentazione: nessuna regola legge questo valore, e il risultato logico non ne dipende.
+	 */
+	virtual FVector GetVelocity() const override;
 
 	// --- Eventi di presentazione del combattimento (montaggi): implementati nei BP_Unit, chiamati dal TurnManager.
 	//     Se un BP non li implementa non succede nulla (nessun crash): la logica resta invariata (invariante #1).
@@ -794,6 +816,13 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	/**
+	 * Direzione (piana, normalizzata) dell'ultimo spostamento visivo. La aggiorna `SetVisualLocation` e la
+	 * legge `GetVelocity`. Transient: e' stato di presentazione del playback corrente, non un dato salvato.
+	 */
+	UPROPERTY(Transient)
+	FVector LastVisualDirection = FVector::ForwardVector;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> DynMaterial;

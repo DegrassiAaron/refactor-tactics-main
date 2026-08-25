@@ -257,16 +257,39 @@ FVector ARTUnit::WorldForCell(const FRTCellId& InCell, const FVector& Origin, fl
 
 void ARTUnit::SetVisualLocation(const FVector& World)
 {
-	// Facing opzionale: orienta l'unita' verso la direzione di spostamento (solo presentazione, solo yaw).
-	if (bFaceMovementDirection)
+	const FVector Current = GetActorLocation();
+
+	if ((World - Current).SizeSquared2D() > UE_KINDA_SMALL_NUMBER)
 	{
-		const FVector Current = GetActorLocation();
-		if ((World - Current).SizeSquared2D() > UE_KINDA_SMALL_NUMBER)
+		// Direzione dello spostamento: la dichiara `GetVelocity()` agli AnimBP.
+		//
+		// ⚠️ **Fuori dal ramo del facing, e non dentro.** Un'unita' con `bFaceMovementDirection = false` si
+		// muove lo stesso, e l'animazione di corsa deve sapere dove sta andando anche quando la mesh non si
+		// volta: calcolarla dentro l'`if` la lascerebbe ferma alla direzione precedente.
+		LastVisualDirection = FVector(World.X - Current.X, World.Y - Current.Y, 0.f).GetSafeNormal();
+
+		// Facing opzionale: orienta l'unita' verso la direzione di spostamento (solo presentazione, solo yaw).
+		if (bFaceMovementDirection)
 		{
 			SetActorRotation(FRotator(0.f, URTPlaybackLibrary::DirectionYaw(Current, World), 0.f));
 		}
 	}
+
 	SetActorLocation(World); // solo presentazione: lo stato logico (Cell) resta invariato
+}
+
+FVector ARTUnit::GetVelocity() const
+{
+	// `AActor::GetVelocity()` legge il movement component, e questa unita' non ne ha: il playback la sposta
+	// per interpolazione, quindi la velocita' vera sarebbe SEMPRE zero. Gli AnimBP dei pack Paragon leggono
+	// proprio quel valore per scegliere idle/corsa e la direzione del blendspace: agganciati cosi' com'e',
+	// resterebbero fermi in idle senza un errore, senza un warning e senza un log.
+	//
+	// La velocita' si DICHIARA dallo stato che il TurnManager gia' scrive, e non si stima con `DeltaTime`:
+	// il modulo e' un parametro di presentazione, la direzione e' l'ultimo spostamento vero.
+	//
+	// ⚠️ Solo presentazione (invariante #1): nessuna regola legge questo valore.
+	return bIsMovingVisually ? LastVisualDirection * VisualRunSpeed : FVector::ZeroVector;
 }
 
 void ARTUnit::OnSelected()

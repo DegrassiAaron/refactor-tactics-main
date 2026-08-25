@@ -216,4 +216,68 @@ bool FRTPlaybackStillUnitNeverRunsTest::RunTest(const FString&)
 	return true;
 }
 
+
+// ---------------------------------------------------------------------------------------------------------
+// VELOCITA' DICHIARATA (CP E21.2, `#288`) — l'ingresso che gli AnimBP dei pack Paragon leggono.
+//
+// Quei grafi scelgono idle/corsa e la direzione del blendspace da `GetVelocity()`. `ARTUnit` non ha un
+// movement component — il playback la sposta per interpolazione — quindi `AActor::GetVelocity()` sarebbe
+// **sempre zero** e ogni AnimBP agganciato resterebbe fermo in idle senza dire niente.
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVisualVelocityTest,
+	"RefactorTactics.Playback.DeclaredVelocityFollowsTheVisualMove",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVisualVelocityTest::RunTest(const FString&)
+{
+	UWorld* World = MakePlaybackWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTUnit* Unit = World->SpawnActor<ARTUnit>();
+	if (!TestNotNull(TEXT("unita'"), Unit))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+
+	Unit->SetActorLocation(FVector::ZeroVector);
+
+	// Da ferma la velocita' dichiarata e' ZERO, e non «piccola»: e' cio' che tiene l'AnimBP in idle.
+	TestTrue(TEXT("ferma: velocita' dichiarata nulla"), Unit->GetVelocity().IsNearlyZero());
+
+	// Uno spostamento di presentazione verso +X. `bIsMovingVisually` lo scrive il TurnManager: qui si
+	// riproduce lo stato che il playback produce, senza passare dal playback.
+	Unit->bIsMovingVisually = true;
+	Unit->SetVisualLocation(FVector(300.f, 0.f, 0.f));
+
+	const FVector Corsa = Unit->GetVelocity();
+	TestFalse(TEXT("in movimento: la velocita' non e' nulla"), Corsa.IsNearlyZero());
+	TestTrue(TEXT("e punta dove l'unita' si e' spostata (+X)"),
+		FVector::DotProduct(Corsa.GetSafeNormal(), FVector::ForwardVector) > 0.99f);
+	// `FVector::Size()` e' `double` in UE5 e `VisualRunSpeed` e' `float`: il confronto si scrive con un
+	// tipo solo, altrimenti l'overload di `TestEqual` e' ambiguo e non compila.
+	TestEqual(TEXT("il modulo e' VisualRunSpeed"),
+		static_cast<float>(Corsa.Size()), Unit->VisualRunSpeed, 0.01f);
+
+	// Cambio di direzione: verso +Y. La velocita' deve SEGUIRE lo spostamento, non restare quella di prima.
+	Unit->SetVisualLocation(FVector(300.f, 300.f, 0.f));
+	TestTrue(TEXT("dopo una svolta punta nella nuova direzione (+Y)"),
+		FVector::DotProduct(Unit->GetVelocity().GetSafeNormal(), FVector::RightVector) > 0.99f);
+
+	// ⚠️ **La direzione si aggiorna anche senza facing.** Un'unita' con `bFaceMovementDirection = false` si
+	// muove lo stesso, e l'animazione di corsa deve sapere dove sta andando anche quando la mesh non si
+	// volta: se il calcolo vivesse dentro il ramo del facing, questo caso resterebbe alla direzione vecchia.
+	Unit->bFaceMovementDirection = false;
+	Unit->SetVisualLocation(FVector(300.f, 300.f - 300.f, 0.f)); // torna verso -Y
+	TestTrue(TEXT("senza facing la direzione segue comunque (-Y)"),
+		FVector::DotProduct(Unit->GetVelocity().GetSafeNormal(), -FVector::RightVector) > 0.99f);
+
+	// A fine risoluzione il TurnManager spegne il flag: l'unita' torna a dichiarare zero SENZA muoversi.
+	Unit->bIsMovingVisually = false;
+	TestTrue(TEXT("flag spento: si torna a zero"), Unit->GetVelocity().IsNearlyZero());
+
+	DestroyPlaybackWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
