@@ -24,7 +24,7 @@ E ricompila l'editor, perché la DLL sul disco è quella del branch:
 
 ```
 D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat RefactorTacticsEditor Win64 Development ^
-  -Project="D:\Repositories\refactor-tactict-dev\RefactorTactics.uproject" -WaitMutex
+  -Project="D:\Repositories\refactor-tactics-dev\RefactorTactics.uproject" -WaitMutex
 ```
 
 ⚠️ **Se la build dice «Unable to build while Live Coding is active»**, c'è un editor aperto — anche su un
@@ -92,10 +92,10 @@ due cose che si somigliano.
 
 ```
 D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\RunUAT.bat BuildCookRun ^
-  -project="D:\Repositories\refactor-tactict-dev\RefactorTactics.uproject" ^
+  -project="D:\Repositories\refactor-tactics-dev\RefactorTactics.uproject" ^
   -noP4 -platform=Win64 -clientconfig=Development ^
   -cook -build -stage -pak -archive ^
-  -archivedirectory="D:\Repositories\refactor-tactict-dev\Saved\Packaged"
+  -archivedirectory="D:\Repositories\refactor-tactics-dev\Saved\Packaged"
 ```
 
 ✅ `Scenarios/` **è già in staging** — `Config/DefaultGame.ini` porta
