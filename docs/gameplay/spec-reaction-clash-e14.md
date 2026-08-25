@@ -123,14 +123,14 @@ restano aperti come li elencava il triage del 2026-08-10. Sono bilanciamento, e 
 
 ### 2.5-bis Cosa il resolver sa **eseguire** oggi — `D-176` *(2026-08-19, decisione d'autore)*
 
-> ⚠️ **La voce canonica di `D-176` non è ancora nel [Decision Log](../decisions/RT_PDR_00_Decision_Log.md),
-> e ora non c'è più niente che lo impedisca.** L'ID era stato riservato con l'allocatore, e la voce doveva
-> scriverla l'integrazione perché il Decision Log era `integration_only` nel write-set di batch. Quel
-> vincolo è caduto il 2026-08-20 con [D-178](../decisions/RT_PDR_00_Decision_Log.md): **`D-176` resta un
-> buco da colmare**, e l'atto è
-> [#1243](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1243). Finché non è chiuso il
-> contenuto autorevole è **questo paragrafo** — un link `D-176` al Decision Log sarebbe un rinvio a
-> vuoto, di quelli che non fanno cadere nessun gate.
+> ✅ **La voce canonica è nel [Decision Log](../decisions/RT_PDR_00_Decision_Log.md) dal 2026-08-24**
+> ([#1243](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1243)): `D-176` **è** quel link, e
+> non più un rinvio a vuoto. Questo paragrafo torna a essere ciò che deve essere — il **dettaglio
+> operativo** della decisione, non la decisione stessa. Se le due divergono, vince il Decision Log.
+> *(Per un mese l'ID è stato riservato e citato senza esistere: la voce doveva scriverla l'integrazione,
+> perché il Decision Log era `integration_only` nel write-set di batch, e quel vincolo è caduto solo il
+> 2026-08-20 con [D-178](../decisions/RT_PDR_00_Decision_Log.md). ⚠️ Il buco non si sarebbe chiuso da
+> solo: il regime post-D-178 dice di **leggere l'ultimo assegnato**, e chi guardava vedeva `D-179`.)*
 
 Una risposta del profilo si esprime con le primitive di §5, e **una risposta senza effetti dichiarati non
 viene offerta**. Le due domande sono diverse e vanno tenute separate:
