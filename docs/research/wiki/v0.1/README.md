@@ -73,3 +73,11 @@ scritti dentro.
 perimetro *«ovunque»* di D-130 non lo raggiunge e nessuna misura fatta con `git ls-files` lo vede. Resta
 dov'è. Se un giorno quel pacchetto dovesse essere riaperto o ridistribuito, il suo README va rigenerato
 prima — è l'ultima copia del testo che D-130 ha rimosso da tutto il resto.
+
+> 🔑 **`docs/src/` qui è deliberato, e non è un residuo del rename** *(rivisto il 2026-08-25,
+> [#1232](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1232))*. La cartella versionata si
+> chiama `docs/research/` dal 2026-08-19, ma le due righe `docs/src/**/*.zip` e `docs/src/*.zip` sono
+> ancora in `.gitignore` **apposta**, e il commento accanto dice perché: *«la cartella non ha più file
+> versionati, ma il checkout dell'autore ci tiene ancora un export locale»*. Questa è l'unica menzione
+> **al presente** sopravvissuta in `docs/research/`, e sopravvive perché è **verificabile e vera** — non
+> perché è sfuggita.

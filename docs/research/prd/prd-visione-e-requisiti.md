@@ -6,7 +6,9 @@
 > [`../../decisions/RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md) e gli ADR
 > applicabili.
 >
-> **Testo estratto dai PDF originari, non riscritto** (regola di `docs/src/`: i sorgenti non si riscrivono).
+> **Testo estratto dai PDF originari, non riscritto** (regola di `docs/research/`: i sorgenti non si
+> riscrivono — la cartella si chiamava `docs/src/` quando questa riga è stata scritta,
+> [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165)).
 > Ripetizioni e contraddizioni fra i tre PRD sono nell'originale e restano.
 
 ## Da dove viene

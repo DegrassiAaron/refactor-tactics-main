@@ -1,7 +1,9 @@
 # RefactorTactics — Visual Language
 
-> **Statuto**: `docs/src/` contiene sorgenti **non ancora consumati** e **non è fonte autorevole**
-> (`AGENTS.md` §34). Il canone dell'iconografia è
+> **Statuto**: `docs/research/` contiene sorgenti **non ancora consumati** e **non è fonte autorevole**
+> ([`AGENTS.md`](../../../../../AGENTS.md), *Prima di modificare qualcosa*). *(Diceva `docs/src/` e
+> «§34»: la cartella si chiama `docs/research/` dal 2026-08-19 — #1165 — e `AGENTS.md` ha **undici**
+> sezioni, quindi la §34 non c'era neanche allora.)* Il canone dell'iconografia è
 > [D-031](../../../../decisions/RT_PDR_00_Decision_Log.md) più l'enum `ERTIconCategory` in
 > `Source/RefactorTactics/UI/RTIconCatalogData.h`. Dove questi file divergono dal codice o dal Decision Log,
 > prevalgono codice e Decision Log.
