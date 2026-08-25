@@ -1,4 +1,4 @@
-// Contratto del puntatore (CP 11.8) — owner: docs/technical/spec-pointer-interaction.md
+// Contratto del puntatore (CP 11.8) — owner: docs/technical/systems/spec-pointer-interaction.md
 //
 // Due famiglie, e la divisione non e' organizzativa: le prime tre non toccano un `UWorld` perche' la
 // precedenza semantica e l'ordine del Back sono funzioni PURE, e volerle provare attraverso il controller

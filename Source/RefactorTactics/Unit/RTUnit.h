@@ -189,7 +189,7 @@ public:
 	 * un default valido un'abilita' era **sempre** armata: non esisteva uno stato neutro, e cliccare un
 	 * nemico pianificava sempre lo slot `0` — che il giocatore non aveva scelto, aveva trovato armato
 	 * all'avvio. L'affordance mostrata prima del click non prediceva il click, che e' l'invariante di
-	 * `docs/technical/spec-pointer-interaction.md`.
+	 * `docs/technical/systems/spec-pointer-interaction.md`.
 	 *
 	 * Ora il neutro esiste ed e' rappresentabile: `ERTPointerContext::Planning` con `INDEX_NONE`,
 	 * `ERTPointerContext::Targeting` con un indice valido. Il giocatore arma con gli hotkey `1`-`4`, e

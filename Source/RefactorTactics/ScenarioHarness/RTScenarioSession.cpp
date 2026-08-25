@@ -95,7 +95,7 @@ namespace
 			//     | grep -v "RTScenarioSession\|RTTurnManager\|RTUnit.h\|Tests/"
 			//
 			// Ora stampa il produttore. Il verde di questi scenari dice qualcosa di vero sul giocatore, e
-			// questa riga non e' piu' un debito. Owner: `docs/technical/spec-pointer-interaction.md` §2.2.
+			// questa riga non e' piu' un debito. Owner: `docs/technical/systems/spec-pointer-interaction.md` §2.2.
 			TEXT("PredictiveAction"),
 			// CP 13.5 (#160): un'unita' dello scenario puo' essere guidata dal BOT invece che dal file.
 			//
