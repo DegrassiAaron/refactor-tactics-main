@@ -52,7 +52,20 @@ enum class ERTActionInvalidReason : uint8
 	 */
 	SlotOccupied,
 
-	/** Il costo in Movement Point del piano supera il budget dell'unita' (`FRTHexSimUnit::MoveBudget`). */
+	/**
+	 * Il costo in Movement Point del piano supera il budget dell'unita'.
+	 *
+	 * 🔴 **Nessuno lo produce, ed e' una decisione: [D-190].** Il ramo che lo emetteva — la somma dei
+	 * `CostMP` del piano contro `MoveBudget`, in `URTPlanValidationLibrary::ValidatePlan` — e' uscito perche'
+	 * era una SOTTRAZIONE, e [D-114] ha stabilito che qui la legalita' e' STRUTTURALE. Il limite di movimento
+	 * resta applicato dal pathfinding in pianificazione (`ARTPlayerController::HandleClickOnCell`), che
+	 * rifiuta il waypoint e dice anche quanto era gia' speso — un rifiuto piu' preciso di questo, perche'
+	 * nomina la cella invece del piano.
+	 *
+	 * ⚠️ **Il valore non si rimuove.** Finisce come intero nel TurnLog (`FRTTurnLogEntry::Amount`), quindi
+	 * togliere la voce sposterebbe `OnCooldown` di uno e cambierebbe il significato delle tracce gia'
+	 * scritte. Resta in coda senza produttore: e' il prezzo di un enum serializzato, e si paga una volta.
+	 */
 	InsufficientMovementPoints,
 
 	/** L'abilita' non e' ancora ripetibile: il cooldown residuo e' maggiore di zero. */

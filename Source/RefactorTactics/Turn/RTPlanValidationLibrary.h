@@ -7,6 +7,8 @@
 #include "Turn/RTHexSim.h"
 #include "RTPlanValidationLibrary.generated.h"
 
+class ARTUnit;
+
 /**
  * Una voce del piano di un'unita': l'azione dichiarata, piu' lo stato che la rende ripetibile o no.
  *
@@ -21,10 +23,12 @@ struct FRTPlannedAction
 	GENERATED_BODY()
 
 	/**
-	 * L'azione dichiarata. Di lei la validazione legge `ActionId`, `Slot` e `CostMP`.
+	 * L'azione dichiarata. Di lei la validazione legge `ActionId` e `Slot`.
 	 *
-	 * ⚠️ `CostMP` oggi non ha produttore: il catalogo v0.1 dichiara il budget di movimento in `RangeCells`
-	 * con `ERTMovementStyle::Budget`, non qui. Vedi la nota estesa in `ValidatePlan`.
+	 * 🔴 `CostMP` **non si legge qui, ed e' una decisione**: [D-190] lo assegna a [D-117], dove diventa
+	 * il contributo dell'azione al modificatore del costo PER CELLA — non un costo da sommare contro un
+	 * budget. Le due letture non convivono: un modificatore firmato, che D-117 rende negativo apposta,
+	 * manderebbe sotto zero una somma poi confrontata con `MoveBudget`.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Actions")
 	FRTActionDef Def;
@@ -68,12 +72,22 @@ class REFACTORTACTICS_API URTPlanValidationLibrary : public UBlueprintFunctionLi
 
 public:
 	/**
-	 * Valida il piano di UNA unita' contro il suo stato nello snapshot.
+	 * Valida il piano di UNA unita'.
+	 *
+	 * ⚠️ Dopo [D-190] il corpo **non legge nulla** da `Unit`: il verdetto dipende dal solo piano. Il
+	 * parametro resta perche' e' il contratto di CP 38.2 e perche' i due lavori successivi lo useranno —
+	 * il bot valida contro lo stato, CP 38.3 legge il profilo di movimento.
 	 *
 	 * Precedenza dei motivi, deterministica e indipendente dall'ordine in cui il giocatore compone:
 	 *   1. `OnCooldown` — proprieta' INTRINSECA di una voce sola;
-	 *   2. `InsufficientMovementPoints` — somma di piano, gia' indipendente dall'ordine;
-	 *   3. `SlotOccupied` — proprieta' della COMBINAZIONE, quindi per ultima.
+	 *   2. `SlotOccupied` — proprieta' della COMBINAZIONE, quindi per ultima.
+	 *
+	 * 🔴 **Erano tre fino a [D-190]**, e in mezzo stava `InsufficientMovementPoints`: la somma dei `CostMP`
+	 * del piano contro `MoveBudget`. E' uscito perche' era una SOTTRAZIONE, cioe' l'ultimo residuo del modello
+	 * ad Action Point che [D-114] ha respinto — e perche' il limite di movimento e' gia' applicato dove serve,
+	 * nel pathfinding in pianificazione (`ARTPlayerController::HandleClickOnCell`), che rifiuta il waypoint e
+	 * sa dire anche quanto era gia' speso. Il valore resta in coda a `ERTActionInvalidReason` e nessuno lo
+	 * produce: rinumerare l'enum cambierebbe il significato delle tracce gia' scritte.
 	 *
 	 * L'ordine dell'array non entra nel verdetto: le voci si esaminano in un ordine canonico (prima chi
 	 * occupa piu' slot, poi per `ActionId`), altrimenti lo stesso piano composto in due sequenze diverse
@@ -90,4 +104,24 @@ public:
 	/** Quanti slot occupa un'azione: 0 per `None`, 2 per `MovementAndMain`, 1 per le altre. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
 	static int32 SlotWidth(ERTActionSlot Slot);
+
+	/**
+	 * Compone il piano di un'unita' leggendo i campi `Planned*` che giocatore e bot scrivono sull'Actor.
+	 *
+	 * **E' la cerniera che mancava a CP 38.2.** `ValidatePlan` era puro sul piano, ma nessuno sapeva
+	 * COSTRUIRE quel piano da cio' che il gioco scrive davvero: senza questa funzione il validatore resta
+	 * una regola che solo i test possono invocare — e un validatore che nessuno chiama non e' una regola.
+	 *
+	 * Lo slot di ogni voce lo dichiara il **catalogo** (`FRTActionDef::Slot`), non il campo in cui l'azione
+	 * e' scritta. E' la stessa disciplina di `ARTTurnManager::ResolveDash`, che spende la principale se
+	 * l'azione dichiara `MovementAndMain`: un kit puo' dichiarare *«questa mobilita' costa tutto il turno»*
+	 * senza che questo adattatore sappia di lei.
+	 *
+	 * ⚠️ Il movimento NORMALE non e' un'abilita' del kit e non ha un `URTActionData`: e' una destinazione
+	 * (`PlannedCell`) o un percorso (`PlannedPath`). La sua voce viene da `Action.Move` nel catalogo core,
+	 * e se il catalogo non lo conoscesse la voce **non si aggiunge**: inventarne una col `Slot` di riposo
+	 * (`Main`) produrrebbe un `SlotOccupied` fantasma contro un'azione che esiste davvero.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")
+	static TArray<FRTPlannedAction> MakePlanFor(const ARTUnit* Unit);
 };

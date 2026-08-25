@@ -120,13 +120,24 @@ Tre conseguenze che si sbagliano spesso:
 | Budget | Risponde a | Unità | Dove vive |
 |---|---|---|---|
 | **Slot** | *cosa posso fare questo turno?* | 1 movimento · 1 principale · 1 reazione | `ERTActionSlot`, catalogo §«Slot per turno» |
-| **Movement Point** | *fin dove arrivo?* | interi, per cella e per profilo | `FRTActionDef::CostMP`, `MoveBudget` |
+| **Movement Point** | *fin dove arrivo?* | interi, per cella e per profilo | `MoveBudget` sull'unità · il budget del profilo in `RangeCells` con `ERTMovementStyle::Budget` |
 | **Pivot** | *con quale orientamento arrivo?* | step esagonali (0–3), **per eroe** | `MoveEndPivotMaxSteps` / `DashEndPivotMaxSteps` |
 | **Cooldown + risorsa firma** | *ogni quanto posso ripeterlo?* | turni interi · punti risorsa | `CooldownTurns`, catalogo eroi §«Risorsa firma» |
 
 Sono **quattro assi separati e non convertibili**: non si compra un pivot con dei Movement Point, non si paga
 un cooldown con uno slot. È ciò che impedisce al sistema di collassare in un pool unico dove ogni scelta è
 una sottrazione.
+
+> 🔴 **Correzione del 2026-08-25 — questa tabella nominava `FRTActionDef::CostMP` come sede dei Movement
+> Point, e la riga ha prodotto un'ambiguità reale.** Il campo era letto in tre modi da tre fonti diverse: qui
+> come budget, in `URTPlanValidationLibrary::ValidatePlan` come costo da sommare contro `MoveBudget`, e in
+> [D-117](../decisions/RT_PDR_00_Decision_Log.md) come modificatore del costo **per cella**. Nessuna delle tre
+> era ciò che il gioco eseguiva: `CostMP` **non aveva produttore**, e i budget del movimento vivono in
+> `RangeCells` con `ERTMovementStyle::Budget` (`Move` 5 · `Sprint` 8 · `Withdraw` 2).
+>
+> [D-190](../decisions/RT_PDR_00_Decision_Log.md) assegna il campo a **D-117** e toglie il ramo dal
+> validatore: la legalità del piano resta strutturale, e il limite di movimento resta applicato dal
+> pathfinding in pianificazione, che rifiuta il **waypoint** dicendo anche quanto era già speso.
 
 ### 3.1 I profili del movimento normale
 
@@ -262,16 +273,25 @@ chiusa quando `AE-1` è stata decisa — era che **la validazione in Planning no
 **in risoluzione**. Un piano illegale si scopriva quando non funzionava, non quando lo si componeva.
 
 ✅ **CP 38.2, 2026-08-12**: `URTPlanValidationLibrary::ValidatePlan(snapshot, piano)` è quel componente.
-Funzione pura, nove test. Ma **nessuno la chiama ancora** — il gate `runtime` della feature resta `todo`, e
-un validatore senza consumatore non è una regola: il resto della DoD di
-[#605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/605) è il bot e il TurnLog.
+Funzione pura, **otto** test al 2026-08-25 (`RefactorTactics.Plan.*` — il numero si misura sul branch, non si
+copia da qui). Ma **nessuno la chiama ancora**: un validatore senza consumatore non è una regola, e il resto
+della DoD di [#605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/605) è il bot e il TurnLog.
 
-> 🔴 **E un limite dei quattro non è ancora verificabile.** Il controllo sui Movement Point legge
-> `FRTActionDef::CostMP`, che **nessuno popola**: il catalogo dichiara il budget di `Move` e `Sprint` in
-> `RangeCells` con `ERTMovementStyle::Budget` (`/*Range (MP)*/ 5` e `8`), e fuori dai test `CostMP` compare
-> solo nella propria dichiarazione e in un validatore di negatività. Finché il catalogo non dichiara un
-> costo, `InsufficientMovementPoints` **non può scattare in partita**. Non è un difetto del validatore — è
-> un campo senza produttore, ed è il primo passo di chi collegherà `ValidatePlan` al gioco.
+> 🔴 **Un limite dei quattro non è mai stato verificabile — e con
+> [D-190](../decisions/RT_PDR_00_Decision_Log.md) il ramo è uscito invece di essere collegato.** Il controllo
+> sui Movement Point leggeva `FRTActionDef::CostMP`, che **nessuno popola**: il catalogo dichiara il budget
+> di `Move` e `Sprint` in `RangeCells` con `ERTMovementStyle::Budget` (`/*Range (MP)*/ 5` e `8`).
+>
+> ⚠️ **Fino al 2026-08-25 questa nota concludeva che il campo era *«il primo passo di chi collegherà
+> `ValidatePlan` al gioco»*. Non lo è.** D-190 assegna `CostMP` a
+> [D-117](../decisions/RT_PDR_00_Decision_Log.md) — modificatore del costo **per cella**, non costo da
+> sommare — e toglie il ramo dal validatore: un rifiuto per superamento di budget è una **sottrazione**, e
+> [D-114](../decisions/RT_PDR_00_Decision_Log.md) ha stabilito che qui la legalità è strutturale. Il limite
+> di movimento resta applicato dove già lo era, nel pathfinding in pianificazione, che rifiuta il **waypoint**
+> dicendo anche quanto era già speso.
+>
+> Il valore `InsufficientMovementPoints` resta in coda a `ERTActionInvalidReason` **senza produttore**:
+> finisce come intero nel TurnLog, quindi rimuoverlo cambierebbe il significato delle tracce già scritte.
 
 ⚠️ Due reason code proposti dal kit **non si scrivono**, e per ragioni diverse:
 `InsufficientActionCapacity` nomina uno stato che [D-114](../decisions/RT_PDR_00_Decision_Log.md) ha appena
