@@ -6,6 +6,26 @@
 #include "RTEquipmentData.generated.h"
 
 /** Categoria di equipaggiamento: uno slot per categoria, per eroe. */
+/**
+ * Fascia del danno BASE di un attacco, su cui una variante d'arma esprime il proprio delta.
+ *
+ * Nasce da [D-087], e la ragione e' misurata sul roster: `+6` su un attacco da 8 vale **+75%**, su uno da
+ * 22 **+27%**; `-6` porta il primo a **2**, cioe' lo cancella. Con un delta unico la stessa variante e'
+ * obbligata su un eroe e insensata su un altro — la «scelta morta» che [D-086] vieta.
+ *
+ * 🔴 **La fascia si determina dal danno della DEFINIZIONE, prima dei modificatori**, e non cambia durante
+ * la partita per `Wet`, buff, debuff, stati o effetti ambientali. Una fascia che si muovesse a runtime
+ * renderebbe il costo della variante circolare e dipendente dall'ordine di applicazione — cioe' non
+ * deterministico. Lo pinna `Equipment.BandDoesNotChangeDuringMatch`.
+ */
+UENUM(BlueprintType)
+enum class ERTAttackDamageBand : uint8
+{
+	Low,
+	Medium,
+	High
+};
+
 UENUM(BlueprintType)
 enum class ERTEquipmentSlot : uint8
 {
@@ -62,9 +82,19 @@ public:
 	// Sono DELTA e non valori assoluti perche' la variante non conosce l'arma che modifica: `Weapon.Precision`
 	// vale «+1 su qualunque portata di partenza», e l'attacco base di ogni eroe ha la propria (catalogo eroi).
 
-	/** Danno aggiunto all'attacco base; negativo per le varianti che comprano altro col danno. */
+	/**
+	 * Danno aggiunto all'attacco base, **per fascia** del danno base ([D-087]); negativo per le varianti
+	 * che comprano altro col danno.
+	 *
+	 * ⚠️ **I tre valori sono oggi UGUALI fra loro, e non e' una svista**: la migrazione da un intero unico
+	 * a questo campo ha conservato il comportamento, perche' i delta per fascia sono `PROPOSED FOR PLAYTEST`
+	 * (`WV-2`) e questa issue porta la STRUTTURA, non la taratura. `WV-2` lo dice: i numeri *«si chiudono
+	 * con una partita, non con un documento — e vanno misurati DOPO che le fasce esistono nel codice»*.
+	 * ⚠️ Fra `D-087` (baseline `+3/+5/+6` per `Overcharge`) e `D-090` (`+8/+14/+18`) c'e' una divergenza
+	 * aperta: nessuno dei due insiemi e' entrato qui, per non trasformare in decisione la prima riga scritta.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
-	int32 DamageDelta = 0;
+	TMap<ERTAttackDamageBand, int32> DamageDeltaByBand;
 
 	/** Celle di portata aggiunte all'attacco base; negativo per chi si avvicina in cambio d'altro. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")

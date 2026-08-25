@@ -80,9 +80,19 @@ bool FRTWeaponVariantTradeoffTest::RunTest(const FString&)
 		// Lo svantaggio MISURABILE: almeno un delta che peggiora. E' la stessa regola del validator, ripetuta
 		// qui sul singolo elemento perche' il messaggio dica QUALE variante e' gratis, invece di «il catalogo
 		// non e' valido».
-		const bool bPays = V->DamageDelta < 0 || V->RangeDeltaCells < 0 || V->CooldownDeltaTurns > 0;
-		TestTrue(*FString::Printf(TEXT("%s: paga qualcosa (danno %+d, portata %+d, ricarica %+d)"),
-			*Id, V->DamageDelta, V->RangeDeltaCells, V->CooldownDeltaTurns), bPays);
+		// ⚠️ La regola vale per OGNI fascia, non «da qualche parte»: dopo #509 una variante puo' pagare su
+		// `Low` ed essere gratis su `High`, cioe' proprio dove il potere pesa di piu'. Il ciclo e' la stessa
+		// regola del validator, ripetuta qui perche' il messaggio dica QUALE fascia e' gratis.
+		for (const TPair<ERTAttackDamageBand, int32>& Entry : V->DamageDeltaByBand)
+		{
+			const bool bPays = Entry.Value < 0 || V->RangeDeltaCells < 0 || V->CooldownDeltaTurns > 0;
+			TestTrue(*FString::Printf(
+				TEXT("%s: paga qualcosa sulla fascia %d (danno %+d, portata %+d, ricarica %+d)"),
+				*Id, static_cast<int32>(Entry.Key), Entry.Value, V->RangeDeltaCells,
+				V->CooldownDeltaTurns), bPays);
+		}
+		TestEqual(*FString::Printf(TEXT("%s: dichiara tutte e tre le fasce"), *Id),
+			V->DamageDeltaByBand.Num(), 3);
 
 		// E il costo dev'essere VERO sull'azione prodotta, non solo sul dato: e' la differenza fra dichiarare
 		// un trade-off e applicarlo. Se `ApplyWeaponVariant` ignorasse i delta, il blocco sopra resterebbe
@@ -1199,6 +1209,78 @@ bool FRTOverchargeRealPauseTest::RunTest(const FString&)
 	// `BasicAttack` avesse un cooldown proprio, questo assert lo direbbe invece di lasciarlo passare.
 	TestEqual(TEXT("la pausa viene dalla variante: l'attacco base parte senza ricarica"),
 		Base.CooldownTurns, 0);
+
+	return true;
+}
+
+/**
+ * La fascia di danno si deriva dal danno della DEFINIZIONE, e non si muove durante la partita.
+ *
+ * Soglie da [D-087]: `Low 1-10` - `Medium 11-18` - `High 19+`. Sono `PROPOSED FOR PLAYTEST` e vivono nel
+ * catalogo: qui si verifica la FUNZIONE, non i numeri — l'atteso si deriva dalle soglie che il codice
+ * dichiara, cosi' una ritaratura non fa cadere questo test (`WV-2`, e la lezione di #1387).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageBandFromBaseTest,
+	"RefactorTactics.Equipment.DamageBandDerivesFromBaseDamage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDamageBandFromBaseTest::RunTest(const FString&)
+{
+	// Le tre fasce sono raggiungibili e ORDINATE: un danno piu' alto non puo' finire in una fascia piu'
+	// bassa. Si verifica la monotonia su tutto l'intervallo utile invece di tre valori scelti a mano.
+	int32 Previous = static_cast<int32>(URTCatalogLibrary::DamageBandOf(0));
+	TArray<ERTAttackDamageBand> Seen;
+	for (int32 D = 0; D <= 40; ++D)
+	{
+		const ERTAttackDamageBand Band = URTCatalogLibrary::DamageBandOf(D);
+		TestTrue(*FString::Printf(TEXT("danno %d: la fascia non scende risalendo il danno"), D),
+			static_cast<int32>(Band) >= Previous);
+		Previous = static_cast<int32>(Band);
+		Seen.AddUnique(Band);
+	}
+	TestEqual(TEXT("tutte e tre le fasce sono raggiungibili sull'intervallo del roster"), Seen.Num(), 3);
+
+	// Il roster reale cade in fasce diverse: e' la ragione per cui D-087 esiste. `ImpactShot` (8) e
+	// `ArcPulse` (22) non possono condividere un delta unico.
+	TestNotEqual(TEXT("un attacco da 8 e uno da 22 non stanno nella stessa fascia"),
+		static_cast<int32>(URTCatalogLibrary::DamageBandOf(8)),
+		static_cast<int32>(URTCatalogLibrary::DamageBandOf(22)));
+
+	return true;
+}
+
+/**
+ * La fascia si calcola PRIMA dei modificatori e non cambia in partita.
+ *
+ * 🔴 E' il modo di guasto che [D-087] nomina: *«una fascia che si muovesse a runtime renderebbe il costo
+ * della variante circolare e illeggibile, e non deterministico rispetto all'ordine di applicazione»*.
+ * Qui si prova sul canale piu' probabile — il danno gia' modificato da una variante — che e' l'unico
+ * modo in cui il valore potrebbe rientrare nella funzione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageBandStableTest,
+	"RefactorTactics.Equipment.BandDoesNotChangeDuringMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDamageBandStableTest::RunTest(const FString&)
+{
+	const FRTActionDef Base = WraithBasicAttack();
+	const int32 BaseDamage = URTCatalogLibrary::DeclaredDamage(Base);
+	const ERTAttackDamageBand BandBefore = URTCatalogLibrary::DamageBandOf(BaseDamage);
+
+	const URTEquipmentData* Precision = nullptr;
+	for (const URTEquipmentData* V : URTCatalogLibrary::MakeWeaponVariants())
+	{
+		if (V->EquipmentId == FName(TEXT("Weapon.Precision"))) { Precision = V; }
+	}
+	if (!TestNotNull(TEXT("`Weapon.Precision` e' a catalogo"), Precision)) { return false; }
+
+	// Applicare la variante cambia il danno dell'azione prodotta. La fascia dell'ORIGINALE non si muove:
+	// e' l'attacco base che la determina, e la variante non puo' rientrare nel proprio ingresso.
+	const FRTActionDef Modified = URTCatalogLibrary::ApplyWeaponVariant(Base, Precision);
+	TestNotEqual(TEXT("premessa: la variante cambia davvero il danno"),
+		URTCatalogLibrary::DeclaredDamage(Modified), BaseDamage);
+
+	TestEqual(TEXT("la fascia dell'attacco base non cambia dopo l'applicazione"),
+		static_cast<int32>(URTCatalogLibrary::DamageBandOf(URTCatalogLibrary::DeclaredDamage(Base))),
+		static_cast<int32>(BandBefore));
 
 	return true;
 }

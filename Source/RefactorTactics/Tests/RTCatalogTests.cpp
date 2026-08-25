@@ -204,7 +204,20 @@ bool FRTCatalogEquipmentTest::RunTest(const FString&)
 		URTCatalogLibrary::ValidateEquipment(Invalid).Num() > 0);
 
 	NoDrawback->CooldownDeltaTurns = 1; // lo stesso costo, ora in una forma che il resolver sa applicare
-	TestEqual(TEXT("con lo svantaggio dichiarato E misurabile: accettato"),
+
+	// ⚠️ **Il contratto si e' esteso di nuovo con #509**: i delta di danno sono PER FASCIA ([D-087]), e una
+	// fascia non dichiarata non vale zero — varrebbe «questa variante non fa niente su quegli attacchi»,
+	// cioe' una scelta morta travestita da omissione. Il validator la rifiuta, e qui si registra.
+	TestTrue(TEXT("le fasce non dichiarate: rifiutato anche col costo misurabile"),
+		URTCatalogLibrary::ValidateEquipment(Invalid).Num() > 0);
+
+	NoDrawback->DamageDeltaByBand.Add(ERTAttackDamageBand::Low, 0);
+	NoDrawback->DamageDeltaByBand.Add(ERTAttackDamageBand::Medium, 0);
+	TestTrue(TEXT("due fasce su tre non bastano: manca `High`"),
+		URTCatalogLibrary::ValidateEquipment(Invalid).Num() > 0);
+
+	NoDrawback->DamageDeltaByBand.Add(ERTAttackDamageBand::High, 0);
+	TestEqual(TEXT("con lo svantaggio dichiarato, misurabile E le tre fasce: accettato"),
 		URTCatalogLibrary::ValidateEquipment(Invalid).Num(), 0);
 
 	// Id duplicato fra due equipaggiamenti diversi.

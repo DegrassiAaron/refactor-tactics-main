@@ -282,6 +282,25 @@ TArray<FString> URTCatalogLibrary::ValidateActions(const TArray<FRTActionDef>& A
 	return Errors;
 }
 
+// Soglie di [D-087], `PROPOSED FOR PLAYTEST` (`WV-2`). Sono qui e non in una costante di configurazione
+// perche' il catalogo e' l'owner del NUMERO e il codice dell'APPLICAZIONE: una ritaratura tocca questa
+// riga e la riga del catalogo, e nessun test cade.
+ERTAttackDamageBand URTCatalogLibrary::DamageBandOf(int32 BaseDamage)
+{
+	if (BaseDamage >= 19) { return ERTAttackDamageBand::High; }
+	if (BaseDamage >= 11) { return ERTAttackDamageBand::Medium; }
+	return ERTAttackDamageBand::Low;
+}
+
+int32 URTCatalogLibrary::DeclaredDamage(const FRTActionDef& Action)
+{
+	for (const FRTActionEffectSpec& Spec : Action.Effects)
+	{
+		if (Spec.Effect == ERTActionEffect::Damage) { return Spec.Amount; }
+	}
+	return 0;
+}
+
 URTEquipmentData* URTCatalogLibrary::MakePortableCoverGadget()
 {
 	URTEquipmentData* Cover = NewObject<URTEquipmentData>();
@@ -306,6 +325,19 @@ URTEquipmentData* URTCatalogLibrary::MakePortableCoverGadget()
 namespace
 {
 	/** Scheletro comune delle sei varianti: cambia solo cio' che ciascuna compra e cio' con cui lo paga. */
+	/** Porta un delta unico sulle tre fasce, senza tararle.
+	 *
+	 *  ⚠️ E' la forma con cui #509 ha migrato il campo: la struttura per fascia esiste, i VALORI no.
+	 *  Tre valori uguali sono la dichiarazione che la taratura non e' stata fatta — non una svista — e
+	 *  conservano esattamente il comportamento che il gioco aveva col vecchio intero unico.
+	 *  I numeri si chiudono con una partita (`WV-2`), non qui. */
+	void SetFlatDelta(URTEquipmentData* V, int32 Delta)
+	{
+		V->DamageDeltaByBand.Add(ERTAttackDamageBand::Low, Delta);
+		V->DamageDeltaByBand.Add(ERTAttackDamageBand::Medium, Delta);
+		V->DamageDeltaByBand.Add(ERTAttackDamageBand::High, Delta);
+	}
+
 	URTEquipmentData* WeaponVariant(const TCHAR* Id, const TCHAR* Nome, const TCHAR* Vantaggio,
 		const TCHAR* Svantaggio)
 	{
@@ -335,13 +367,18 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	URTEquipmentData* Precision = WeaponVariant(TEXT("Weapon.Precision"), TEXT("Precisione"),
 		TEXT("+1 cella di portata"), TEXT("-4 danni"));
 	Precision->RangeDeltaCells = 1;
-	Precision->DamageDelta = -4;
+	SetFlatDelta(Precision, -4);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
 	Variants.Add(Precision);
 
 	// Impatto — spinge di 1, −1 portata. Comprare uno spostamento costa avvicinarsi.
 	URTEquipmentData* Impact = WeaponVariant(TEXT("Weapon.Impact"), TEXT("Impatto"),
 		TEXT("l'attacco base respinge di 1 cella"), TEXT("-1 cella di portata"));
 	Impact->RangeDeltaCells = -1;
+	// Zero DICHIARATO su tutte e tre le fasce, non omesso: `Impact` paga in portata e in `Push`, non
+	// in danno. Il validator rifiuta una fascia mancante proprio perche' «non dichiarata» e «zero» sono
+	// cose diverse — la prima e' un'omissione, la seconda una scelta. Trovato dal validator stesso
+	// durante #509: questa riga mancava.
+	SetFlatDelta(Impact, 0);
 	Impact->AddedEffects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 1));
 	Variants.Add(Impact);
 
@@ -359,7 +396,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	// ➕ Il `+6` di danno resta un intero unico ed e' un'ALTRA issue: #509 lo porta alle fasce (D-087).
 	URTEquipmentData* Overcharge = WeaponVariant(TEXT("Weapon.Overcharge"), TEXT("Sovraccarico"),
 		TEXT("+6 danni"), TEXT("+1 turno di ricarica: l'attacco base non e' piu' disponibile ogni turno"));
-	Overcharge->DamageDelta = 6;
+	SetFlatDelta(Overcharge, 6);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
 	Overcharge->CooldownDeltaTurns = 2;
 	Variants.Add(Overcharge);
 
@@ -367,7 +404,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	URTEquipmentData* Split = WeaponVariant(TEXT("Weapon.Split"), TEXT("Multiplo"),
 		TEXT("un bersaglio aggiuntivo (dichiarato: il motore v0.1 non ha cardinalita' dei bersagli)"),
 		TEXT("-6 danni"));
-	Split->DamageDelta = -6;
+	SetFlatDelta(Split, -6);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
 	Split->ExtraTargets = 1;
 	Variants.Add(Split);
 
@@ -375,7 +412,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	// e' la prova che lo `Slow` su un attacco base e' gia' rappresentabile e gia' osservato in partita.
 	URTEquipmentData* Suppressive = WeaponVariant(TEXT("Weapon.Suppressive"), TEXT("Soppressione"),
 		TEXT("l'attacco base applica Status.Slow per 1 turno"), TEXT("-5 danni"));
-	Suppressive->DamageDelta = -5;
+	SetFlatDelta(Suppressive, -5);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
 	Suppressive->AddedEffects.Add(FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Slow, /*Turni*/ 1));
 	Variants.Add(Suppressive);
 
@@ -386,7 +423,7 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	URTEquipmentData* Environmental = WeaponVariant(TEXT("Weapon.Environmental"), TEXT("Ambientale"),
 		TEXT("migliora gli hazard prodotti (dichiarato: nessun campo del catalogo lo esprime in v0.1)"),
 		TEXT("-5 danni diretti"));
-	Environmental->DamageDelta = -5;
+	SetFlatDelta(Environmental, -5);  // stesso valore sulle tre fasce: la taratura per fascia e' `WV-2`
 	Variants.Add(Environmental);
 
 	return Variants;
@@ -787,14 +824,20 @@ FRTActionDef URTCatalogLibrary::ApplyWeaponVariant(const FRTActionDef& BasicAtta
 	// Il DANNO invece non si clampa. Un attacco base spinto sotto zero da una variante e' un difetto di
 	// bilanciamento, e un `Max(0, ...)` qui lo trasformerebbe in «zero danni» — un pulsante finto, cioe' la
 	// cosa che ADR-0007 esiste per evitare. Resta visibile, e il validator lo dice sul catalogo.
-	if (Variant->DamageDelta != 0)
+	// La fascia viene dal danno della DEFINIZIONE, letto PRIMA di toccare qualunque cosa: e' l'invariante
+	// di [D-087], e leggerlo dopo renderebbe il costo circolare.
+	const ERTAttackDamageBand Band = DamageBandOf(DeclaredDamage(BasicAttack));
+	const int32* Found = Variant->DamageDeltaByBand.Find(Band);
+	const int32 DamageDelta = Found ? *Found : 0;
+
+	if (DamageDelta != 0)
 	{
 		bool bFound = false;
 		for (FRTActionEffectSpec& Spec : Modified.Effects)
 		{
 			if (Spec.Effect == ERTActionEffect::Damage)
 			{
-				Spec.Amount += Variant->DamageDelta;
+				Spec.Amount += DamageDelta;
 				bFound = true;
 				break; // il primo Damage e' il danno diretto: gli altri effetti restano quelli che sono
 			}
@@ -900,13 +943,43 @@ TArray<FString> URTCatalogLibrary::ValidateEquipment(const TArray<const URTEquip
 		// Uno svantaggio MISURABILE e' uno solo di questi tre: meno danno, meno portata, piu' ricarica.
 		if (Item->Slot == ERTEquipmentSlot::WeaponVariant)
 		{
-			const bool bPaysSomething =
-				Item->DamageDelta < 0 || Item->RangeDeltaCells < 0 || Item->CooldownDeltaTurns > 0;
-			if (!bPaysSomething)
+			// 1. NESSUN BUCO: ogni fascia raggiungibile dev'essere dichiarata. Una fascia mancante non vale
+			//    zero — varrebbe «questa variante non fa niente su quegli attacchi», che e' una scelta morta
+			//    ([D-086]) travestita da omissione. Con `Find` che ritorna `nullptr` sarebbe silenziosa.
+			static const ERTAttackDamageBand AllBands[] = {
+				ERTAttackDamageBand::Low, ERTAttackDamageBand::Medium, ERTAttackDamageBand::High };
+			static const TCHAR* BandNames[] = { TEXT("Low"), TEXT("Medium"), TEXT("High") };
+
+			for (int32 B = 0; B < 3; ++B)
 			{
-				Errors.Add(FString::Printf(
-					TEXT("%s: variante d'arma senza svantaggio misurabile — danno %+d, portata %+d, ricarica %+d"),
-					*Where, Item->DamageDelta, Item->RangeDeltaCells, Item->CooldownDeltaTurns));
+				if (!Item->DamageDeltaByBand.Contains(AllBands[B]))
+				{
+					Errors.Add(FString::Printf(
+						TEXT("%s: variante d'arma senza delta per la fascia %s — una fascia non dichiarata non e' zero"),
+						*Where, BandNames[B]));
+				}
+			}
+
+			// 2. LO SVANTAGGIO E' PER FASCIA. `Drawback` e' una `FText` e nessuna regola la legge, quindi una
+			//    variante potrebbe raccontare un costo che i suoi numeri non pagano. Con i delta per fascia il
+			//    rischio si triplica: una variante puo' pagare su `Low` ed essere gratis su `High`, cioe'
+			//    proprio dove il potere pesa di piu'.
+			//    ⚠️ Il costo NON dev'essere per forza il danno: `Weapon.Overcharge` paga in tempo
+			//    (`CooldownDeltaTurns`, [D-090]) e sul danno migliora su ogni fascia. La regola resta «paga
+			//    qualcosa», valutata fascia per fascia.
+			for (int32 B = 0; B < 3; ++B)
+			{
+				const int32* Delta = Item->DamageDeltaByBand.Find(AllBands[B]);
+				if (Delta == nullptr) { continue; }  // gia' segnalato sopra: non si raddoppia il messaggio
+
+				const bool bPaysSomething =
+					*Delta < 0 || Item->RangeDeltaCells < 0 || Item->CooldownDeltaTurns > 0;
+				if (!bPaysSomething)
+				{
+					Errors.Add(FString::Printf(
+						TEXT("%s: variante d'arma senza svantaggio misurabile sulla fascia %s — danno %+d, portata %+d, ricarica %+d"),
+						*Where, BandNames[B], *Delta, Item->RangeDeltaCells, Item->CooldownDeltaTurns));
+				}
 			}
 		}
 	}
