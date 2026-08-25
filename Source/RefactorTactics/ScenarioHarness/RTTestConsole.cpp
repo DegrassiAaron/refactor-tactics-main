@@ -70,6 +70,28 @@ TAutoConsoleVariable<FString> CVarRTMapSource(
  * per la stessa ragione per cui `rt.Map.Source` fa lo stesso — un playtest attribuito a una board che non
  * era in vigore e' peggio di un playtest mancato.
  */
+/**
+ * Vista a PICCO sull'intera board, per le misure che si fanno su un'immagine.
+ *
+ * 🔴 **Esiste per la stessa ragione di `rt.Map.Fixture`: una misura che richiede l'editor non e' una
+ * misura che si ripete.** `#1290` misura la luminanza delle facce delle celle, e va fatta guardando la
+ * board dall'alto: la camera di partita e' obliqua e inquadra bordi, lati e ombre, cioe' varieta' che non
+ * viene dalla tavolozza e che falserebbe l'istogramma verso il basso.
+ *
+ * L'inquadratura si deriva dal bounding box della mappa, non da un numero scritto a mano: cosi' vale su
+ * qualunque fixture e sopravvive al cambio di `HexSize`.
+ *
+ *     RefactorTactics.exe -dpcvars=rt.Map.Fixture=RelayBasin,rt.Camera.TopDown=1
+ *
+ * ⚠️ **E' una vista di MISURA, non una modalita' di gioco**: scavalca l'apertura sulla propria squadra e
+ * il pitch configurato, e resta attiva finche' la cvar lo e'.
+ */
+TAutoConsoleVariable<int32> CVarRTCameraTopDown(
+	TEXT("rt.Camera.TopDown"),
+	0,
+	TEXT("1 = camera a picco sull'intera board (per le misure su immagine). 0 = vista di gioco."),
+	ECVF_Default);
+
 TAutoConsoleVariable<FString> CVarRTMapFixture(
 	TEXT("rt.Map.Fixture"),
 	TEXT(""),

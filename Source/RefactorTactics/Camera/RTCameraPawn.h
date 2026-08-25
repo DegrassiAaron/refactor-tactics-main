@@ -119,6 +119,9 @@ public:
 	 */
 	void FocusOn(const FVector& WorldLocation);
 
+	/** Vista di MISURA a picco sull'intera board (`rt.Camera.TopDown`). `false` se la mappa non e' utilizzabile. */
+	bool ApplyTopDownView(const class ARTHexMapActor* HexMap, const FVector& Origin, float HexSize, float LayerHeight);
+
 	/**
 	 * Inquadra la squadra del giocatore: centra sul punto medio delle sue unita' e avvicina a
 	 * `MatchStartArmLength`. Ritorna falso se non c'e' nulla da inquadrare (nessuna mappa, o nessuna unita'
