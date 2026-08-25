@@ -435,8 +435,14 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	//
 	// Numeri dal CORE: portata 3, fase FastMovement, stile lineare. Il cooldown resta 2 — e' dell'eroe, non
 	// del core (`Action.Dash` ha 1).
-	// ⚠️ Lo SLOT va dichiarato: `MakeHeroAction` mette `Main` di default, e per una mobilita' che non fa
-	// danno sarebbe quello sbagliato (D-028). Chi scatta si e' mosso, ma puo' ancora agire.
+	// ⚠️ Lo SLOT va dichiarato: `MakeHeroAction` mette `Main` di default, e per una mobilita' sarebbe
+	// quello sbagliato (D-028). Chi scatta si e' mosso, ma puo' ancora agire.
+	//
+	// 🔴 **Questa riga diceva «per una mobilita' che NON FA DANNO», e la clausola era il difetto**: ha
+	// lasciato `Hero.Wraith.PassingBlade` — che fa danno — col `Main` di default, e con esso due azioni
+	// principali in un turno. [D-191] toglie la clausola e fissa il criterio: conta se la mobilita' si
+	// FERMA sul bersaglio (`LinearCharge` -> attacco, slot principale) o lo ATTRAVERSA (`LinearPass` ->
+	// mobilita', slot movimento), non se fa danno.
 	const FRTActionDef DashDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
 	URTActionData* FluidTrail = MakeHeroAction(TEXT("Hero.Phase.FluidTrail"), DashDef.ResolutionPhase,
 		DashDef.Priority, DashDef.RangeCells, /*Cooldown*/ 2, DashDef.Fallback,
@@ -697,12 +703,27 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	Wraith->Actions.Add(InterceptShot);
 
 	// Indice 2 — PassingBlade. `Dash 3` che colpisce per 20 le unita' ATTRAVERSATE: l'unica abilita'
-	// non-base di Wraith interamente rappresentabile. Stile `LinearDash` e non `LinearCharge`: la carica si
+	// non-base di Wraith interamente rappresentabile. Stile `LinearPass` e non `LinearCharge`: la carica si
 	// FERMA sul primo nemico, questa gli passa attraverso — e' la differenza che `ERTMovementStyle` esiste
 	// per rendere un dato invece che un `if` sull'ActionId (CP 4.5).
+	//
+	// ⚠️ Questa riga diceva `LinearDash` e contraddiceva quella dodici righe piu' sotto, che dal 2026-08-08
+	// dichiara `LinearPass`: due commenti adiacenti sulla STESSA abilita' con due stili diversi. Corretta con
+	// [D-191], che su quella distinzione fonda il criterio dello slot — un commento sbagliato li' non e' piu'
+	// solo impreciso, manda il prossimo kit dalla parte sbagliata.
+	// 🔴 Lo SLOT e' `Movement` e va DICHIARATO ([D-191]): e' un dash che fa danno a chi trapassa, non un
+	// attacco che si muove. Il criterio non e' «fa danno o no» ma «si ferma addosso o attraversa» — la
+	// carica (`LinearCharge`, `Riktor.Ram`) si ferma sul bersaglio ed e' un attacco, quindi occupa la
+	// PRINCIPALE; questa lo attraversa, quindi e' mobilita' e occupa il MOVIMENTO.
+	//
+	// ⚠️ Senza la dichiarazione prendeva il `Main` di default di `MakeHeroAction`, e la conseguenza era
+	// misurabile: il bot pianificava lama + attacco base e il resolver eseguiva ENTRAMBE — due azioni
+	// principali, 41 danni in un turno. Il difetto e' rimasto invisibile finche' nessuno ha composto il
+	// piano e chiesto a `URTPlanValidationLibrary::ValidatePlan` se fosse legale.
 	Wraith->Actions.Add(MakeHeroAction(TEXT("Hero.Wraith.PassingBlade"), ERTResolutionPhase::FastMovement,
 		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
-		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20) }));
+		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20) },
+		ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::Movement));
 	// `LinearPass` e non `LinearDash`: fino al 2026-08-08 questo commento diceva «passa attraverso» e il
 	// codice si fermava sul primo nemico come uno scatto qualsiasi, quindi i 20 danni dichiarati sopra non
 	// avevano un momento in cui applicarsi. Lo stile e' un DATO proprio per questo (CP 4.5): la differenza
