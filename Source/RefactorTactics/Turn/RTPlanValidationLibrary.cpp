@@ -30,12 +30,6 @@ int32 URTPlanValidationLibrary::SlotWidth(ERTActionSlot Slot)
 	}
 }
 
-// `Unit` resta nella FIRMA e non e' letto dal corpo: con [D-190] l'unica cosa che il validatore leggeva
-// dallo snapshot — `MoveBudget` — e' uscita insieme al ramo dei Movement Point. La firma non si accorcia
-// perche' e' il contratto dichiarato di CP 38.2 (*«una funzione pura sullo snapshot + piano»*) e perche' il
-// lavoro che segue ne ha bisogno: il bot valida contro lo stato, e CP 38.3 legge il profilo di movimento
-// dell'unita'. Il nome e' commentato via invece che lasciato morto, cosi' chi legge vede che l'assenza di
-// letture e' voluta e non una dimenticanza.
 TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Unit)
 {
 	TArray<FRTPlannedAction> Plan;
@@ -52,6 +46,20 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 	{
 		const URTActionData* Ability = Unit->GetAbility(Index);
 		if (!Ability)
+		{
+			return;
+		}
+		// 🔴 Un'abilita' senza `ActionId` non viene dal catalogo: `ARTUnit::MakeAbility` popola i soli campi
+		// mirror e lascia il `Def` vuoto, quindi il suo `Slot` e' il DEFAULT (`Main`) e non una dichiarazione.
+		// Includerla darebbe al validatore un dato inventato — e un eventuale rifiuto nominerebbe
+		// `NAME_None`, cioe' un verdetto che non dice quale azione ha sbagliato.
+		//
+		// ⚠️ **Il limite e' dichiarato**: un piano composto SOLO da abilita' non catalogate risulta vuoto,
+		// quindi legale. E' il prezzo di non inventare, ed e' la stessa scelta fatta poche righe sotto per
+		// `Action.Move`. Gli archetipi legacy (`EnsureDefaultAbilities`) sono gli unici a produrle: il roster
+		// v0.1 passa tutto dal catalogo eroi. Il giorno in cui un consumatore reale ne incontrasse una, la
+		// risposta e' dare un `Def` all'abilita', non indovinarne lo slot qui.
+		if (Ability->Def.ActionId.IsNone())
 		{
 			return;
 		}
@@ -75,7 +83,13 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 	const bool bMoves = Unit->PlannedCell != Unit->Cell || Unit->PlannedPath.Num() > 1;
 	if (bMoves)
 	{
-		const FRTActionDef Move = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
+		// `static const`, e non e' micro-ottimizzazione: `FindCoreAction` scorre `GetCoreActionCatalog()`, che
+		// COSTRUISCE e restituisce un array di una trentina di `FRTActionDef` — ognuno con i propri `TArray`
+		// annidati — a ogni invocazione. `MakePlanFor` e' il compositore dei consumatori in partita (la
+		// preview della HUD a ogni click, il bot a ogni turno), quindi quell'allocazione cadrebbe una volta
+		// per unita' che si muove. E' lo stesso rimedio, per la stessa causa, gia' applicato a
+		// `GetReactionProfileCatalog` dopo una misura di code review.
+		static const FRTActionDef Move = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
 		if (!Move.ActionId.IsNone())
 		{
 			FRTPlannedAction Entry;
@@ -87,6 +101,12 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 	return Plan;
 }
 
+// `Unit` resta nella FIRMA e non e' letto dal corpo: con [D-190] l'unica cosa che il validatore leggeva
+// dallo snapshot — `MoveBudget` — e' uscita insieme al ramo dei Movement Point. La firma non si accorcia
+// perche' e' il contratto dichiarato di CP 38.2 (*«una funzione pura sullo snapshot + piano»*) e perche' il
+// lavoro che segue ne ha bisogno: il bot valida contro lo stato, e CP 38.3 legge il profilo di movimento
+// dell'unita'. Il nome e' commentato via invece che lasciato morto, cosi' chi legge vede che l'assenza di
+// letture e' voluta e non una dimenticanza.
 FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& /*Unit*/,
 	const TArray<FRTPlannedAction>& Plan)
 {

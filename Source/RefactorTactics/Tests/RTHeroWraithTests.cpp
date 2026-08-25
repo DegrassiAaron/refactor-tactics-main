@@ -55,6 +55,14 @@ bool FRTWraithMatchesCatalogTest::RunTest(const FString&)
 	const URTActionData* PassingBlade = Wraith->Actions[2];
 	TestEqual(TEXT("PassingBlade: 20 danni"), WraithEffectAmount(PassingBlade->Def.Effects, ERTActionEffect::Damage), 20);
 	TestEqual(TEXT("PassingBlade: Dash 3"), PassingBlade->Def.RangeCells, 3);
+
+	// Lo SLOT, che e' cio' che [D-191] ha deciso: e' un dash che fa danno a chi trapassa, non un attacco che
+	// si muove, quindi occupa il MOVIMENTO. Serve un'asserzione qui e non basta il gate del roster: quello
+	// deriva l'atteso dallo stile, quindi resterebbe verde anche se stile e slot cambiassero INSIEME nella
+	// direzione sbagliata. Questa riga pinna la decisione dove la decisione vive — nel kit dell'eroe — e cade
+	// se qualcuno toglie l'argomento a `MakeHeroAction` e lascia tornare il `Main` di default.
+	TestEqual(TEXT("PassingBlade: slot movimento (D-191)"),
+		static_cast<int32>(PassingBlade->Def.Slot), static_cast<int32>(ERTActionSlot::Movement));
 	TestTrue(TEXT("PassingBlade: risolve nel Dash"),
 		URTCatalogLibrary::MapResolutionPhase(PassingBlade->Def.ResolutionPhase) == ERTMatchPhase::Dash);
 

@@ -1103,6 +1103,7 @@ bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
 	const UEnum* ReasonEnum = StaticEnum<ERTActionInvalidReason>();
 	int32 PianiEsaminati = 0;
 	int32 PianiConVoci = 0;
+	int32 PianiConMovimentoEPrincipale = 0;
 	int32 Illegali = 0;
 
 	// Sei turni: abbastanza per attraversare l'avvicinamento, l'ingaggio e lo scambio di colpi.
@@ -1121,6 +1122,20 @@ bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
 			if (Piano.Num() > 0)
 			{
 				++PianiConVoci;
+			}
+
+			// La combinazione su cui `SlotOccupied` puo' scattare: movimento E principale nello stesso piano.
+			// Contarla e' cio' che rende la misura una misura — vedi la premessa in fondo.
+			bool bHaMovimento = false;
+			bool bHaPrincipale = false;
+			for (const FRTPlannedAction& Voce : Piano)
+			{
+				bHaMovimento |= URTCatalogLibrary::TakesMovementSlot(Voce.Def);
+				bHaPrincipale |= URTCatalogLibrary::TakesMainSlot(Voce.Def);
+			}
+			if (bHaMovimento && bHaPrincipale)
+			{
+				++PianiConMovimentoEPrincipale;
 			}
 
 			const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(
@@ -1150,12 +1165,17 @@ bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
 		}
 	}
 
-	AddInfo(FString::Printf(TEXT("MISURA: %d piani esaminati, %d con almeno una voce, %d illegali"),
-		PianiEsaminati, PianiConVoci, Illegali));
+	AddInfo(FString::Printf(
+		TEXT("MISURA: %d piani esaminati, %d con almeno una voce, %d con movimento E principale, %d illegali"),
+		PianiEsaminati, PianiConVoci, PianiConMovimentoEPrincipale, Illegali));
 
-	// Senza questa, il test resterebbe verde anche con un adattatore che restituisce sempre un piano vuoto:
-	// zero voci passano ogni validazione. E' la premessa che rende la misura una misura.
-	TestTrue(TEXT("premessa: i bot hanno pianificato qualcosa"), PianiConVoci > 0);
+	// 🔴 La premessa e' su `PianiConMovimentoEPrincipale`, non su `PianiConVoci`, e la differenza non e'
+	// pedanteria: `PlanBots` arma una REAZIONE a ogni bot al primo turno, quindi ogni piano ha almeno una
+	// voce comunque — e con quella premessa il test sarebbe restato verde anche cancellando meta'
+	// `MakePlanFor`. `SlotOccupied` puo' scattare solo quando due voci si contendono uno slot, quindi cio'
+	// che va garantito e' che i piani esaminati contengano DAVVERO la combinazione in esame.
+	TestTrue(TEXT("premessa: almeno un piano porta movimento E principale insieme"),
+		PianiConMovimentoEPrincipale > 0);
 	TestEqual(TEXT("nessun piano del bot e' illegale"), Illegali, 0);
 
 	DestroyHexBotWorld(World);

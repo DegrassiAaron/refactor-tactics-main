@@ -93,9 +93,12 @@ public:
 	 * occupa piu' slot, poi per `ActionId`), altrimenti lo stesso piano composto in due sequenze diverse
 	 * darebbe due motivi diversi — cioe' la presentazione deciderebbe la regola.
 	 *
-	 * PRECONDIZIONE: `Unit` e' viva. La liveness non si controlla qui e non ha un motivo proprio, perche'
-	 * un'unita' morta non compone piani: chi chiama filtra gia' i morti, come fa ogni consumatore di
-	 * `FRTHexSimUnit::bAlive`. Aggiungere un motivo per un caso che nessun chiamante puo' produrre
+	 * ⚠️ **Non c'e' piu' una precondizione su `Unit`**, e la riga che la dichiarava e' stata tolta: diceva
+	 * *«PRECONDIZIONE: `Unit` e' viva»*, ma dopo [D-190] il corpo non legge quel parametro, quindi la
+	 * condizione non e' violabile e non puo' cambiare il verdetto. Lasciarla avrebbe contraddetto il
+	 * capoverso qui sopra e invitato il prossimo chiamante a filtrare i morti per un requisito che non
+	 * esiste. La ragione per cui la liveness non si controlla resta valida e vale la pena tenerla: un'unita'
+	 * morta non compone piani, e aggiungere un motivo per un caso che nessun chiamante puo' produrre
 	 * significherebbe un valore in piu' in un enum serializzato, mai scritto in nessuna traccia.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Actions")

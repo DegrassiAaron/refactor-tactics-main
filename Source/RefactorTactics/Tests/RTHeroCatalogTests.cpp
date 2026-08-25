@@ -327,17 +327,25 @@ bool FRTHeroValidateStructureTest::RunTest(const FString&)
 }
 
 // =====================================================================================================
-// D-028 — una mobilita' che non fa danno NON puo' occupare l'azione principale.
+// D-028 + [D-191] — lo slot di una mobilita' lo decide lo STILE, non il danno.
 //
-// La discriminante non e' il nome dell'azione ma i suoi effetti: `Charge` sta sulla principale perche' e'
-// un attacco che ti porta addosso al bersaglio; uno scatto che non colpisce e' movimento e basta.
+// Una carica (`LinearCharge`) si FERMA addosso al bersaglio: e' un attacco che ti porta li', e occupa la
+// PRINCIPALE. Tutto il resto — attraversa (`LinearPass`), scavalca (`LinearLeap`), percorre (`LinearDash`,
+// `Budget`) — e' mobilita' e occupa il MOVIMENTO.
 //
 // Verificato sul ROSTER, non su un'azione costruita nel test: `MakeHeroAction` assegna `Main` per DEFAULT,
 // quindi ogni prossima mobilita' d'eroe nascera' sullo slot sbagliato se nessuno la dichiara. E' esattamente
 // il caso che questo test deve intercettare — non l'errore di oggi, quello di domani.
+//
+// 🔴 **E fino al 2026-08-25 non lo intercettava.** Il criterio era «fa danno o no», e il ciclo faceva
+// `continue` su ogni mobilita' che colpisce: `Hero.Wraith.PassingBlade` — che fa 20 danni e attraversa —
+// passava indenne col `Main` di default, e da li' due azioni principali in un turno. Il test che diceva di
+// prendere «l'errore di domani» non prendeva nemmeno quello di ieri, perche' la clausola sul danno lo
+// escludeva per costruzione. Ora nessuna mobilita' e' saltata: ognuna dichiara lo slot che il suo stile
+// impone, e il test verifica ENTRAMBI i casi invece di sceglierne uno.
 // =====================================================================================================
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroMobilitySlotTest,
-	"RefactorTactics.Heroes.MobilityWithoutDamageIsNotMain",
+	"RefactorTactics.Heroes.MobilitySlotFollowsMovementStyle",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHeroMobilitySlotTest::RunTest(const FString&)
 {
@@ -352,17 +360,17 @@ bool FRTHeroMobilitySlotTest::RunTest(const FString&)
 		{
 			if (!Action || Action->Def.ResolutionPhase != ERTResolutionPhase::FastMovement) { continue; }
 
-			bool bDealsDamage = false;
-			for (const FRTActionEffectSpec& Effect : Action->Def.Effects)
-			{
-				if (Effect.Effect == ERTActionEffect::Damage) { bDealsDamage = true; break; }
-			}
-			if (bDealsDamage) { continue; }   // e' una carica: la principale le spetta
+			// Nessun `continue`: ogni mobilita' del roster viene esaminata, e il verdetto atteso dipende dallo
+			// STILE. Saltarne una era il difetto di prima — un'azione non esaminata e' un'azione non difesa.
+			const bool bIsCharge = Action->Def.MovementStyle == ERTMovementStyle::LinearCharge;
+			const ERTActionSlot Atteso = bIsCharge ? ERTActionSlot::Main : ERTActionSlot::Movement;
 
 			++MobilityChecked;
 			TestEqual(
-				*FString::Printf(TEXT("%s e' mobilita' senza danno: slot movimento"), *Action->Def.ActionId.ToString()),
-				static_cast<int32>(Action->Def.Slot), static_cast<int32>(ERTActionSlot::Movement));
+				*FString::Printf(TEXT("%s %s: slot %s"), *Action->Def.ActionId.ToString(),
+					bIsCharge ? TEXT("si ferma addosso (carica)") : TEXT("attraversa o percorre (mobilita')"),
+					bIsCharge ? TEXT("principale") : TEXT("movimento")),
+				static_cast<int32>(Action->Def.Slot), static_cast<int32>(Atteso));
 		}
 	}
 

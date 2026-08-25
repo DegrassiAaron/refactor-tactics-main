@@ -1093,9 +1093,14 @@ bool FRTScenarioDashIntentTest::RunTest(const FString&)
 		I.UnitId = TEXT("V");
 		if (bWithDash)
 		{
-			// Tre celle in linea, traiettoria libera: `PassingBlade` e' `LinearDash`, e uno scatto lineare si
-			// FERMA su cio' che incontra (solo `LinearLeap` scavalca). Metterci in mezzo un'unita' verificherebbe
-			// la semantica dello stile, non lo slot dell'intent.
+			// Tre celle in linea, traiettoria libera: `PassingBlade` e' `LinearPass` e ATTRAVERSA cio' che
+			// incontra, colpendolo per 20. Metterci in mezzo un'unita' verificherebbe la semantica dello
+			// stile — e le toglierebbe 20 punti — non lo slot dell'intent, che e' cio' che si prova qui.
+			//
+			// 🔴 Questa riga diceva `LinearDash` e «si FERMA su cio' che incontra», ed era falsa in
+			// entrambe le meta': lo stile e' `LinearPass` dal 2026-08-08. Peggio, la motivazione dell'allestimento
+			// era rovesciata — chi ci ragionasse sopra per modificare lo scenario partirebbe dalla semantica
+			// sbagliata. Corretta con [D-191], che su quella distinzione fonda il criterio dello slot.
 			I.Dash = TEXT("Hero.Wraith.PassingBlade");
 			I.DashCell = FRTCellId(1, 0, 0);
 		}

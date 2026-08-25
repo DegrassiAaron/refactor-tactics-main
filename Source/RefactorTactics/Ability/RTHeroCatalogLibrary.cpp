@@ -430,8 +430,13 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// conduttivo — dipende ora dalla mappa o dallo Sprinkler.
 	//
 	// ✅ E D-028 riacquista un soggetto: `RTHeroCatalogTests.cpp` registra che dopo D-046 la regola era
-	// «vera, e oggi senza nessuno a cui applicarsi», perche' `Wraith.PassingBlade` e' FastMovement ma fa
-	// 20 danni, cioe' una carica. Questa e' di nuovo mobilita' pura senza danno.
+	// «vera, e oggi senza nessuno a cui applicarsi», perche' `Wraith.PassingBlade` e' FastMovement e fa
+	// 20 danni. Questa e' di nuovo mobilita' senza danno.
+	//
+	// 🔴 Questa riga chiamava `PassingBlade` **«una carica»**, e [D-191] lo nega: una carica si FERMA
+	// addosso al bersaglio (`LinearCharge`), la lama lo ATTRAVERSA (`LinearPass`) — sono mobilita' entrambe,
+	// ma solo la prima e' un attacco. La classificazione sbagliata qui era la stessa che, dieci righe piu'
+	// sotto, lasciava alla lama il `Main` di default.
 	//
 	// Numeri dal CORE: portata 3, fase FastMovement, stile lineare. Il cooldown resta 2 — e' dell'eroe, non
 	// del core (`Action.Dash` ha 1).
