@@ -1,6 +1,8 @@
 # Visual Language — Principi
 
-> **Statuto**: sorgente di design sotto `docs/src/`, **non canone**. Il canone dell'iconografia è
+> **Statuto**: sorgente di design sotto `docs/research/`, **non canone** *(era `docs/src/` fino al
+> 2026-08-19, [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165))*. Il canone
+> dell'iconografia è
 > [D-031](../../../../decisions/RT_PDR_00_Decision_Log.md) e l'enum `ERTIconCategory` in
 > `Source/RefactorTactics/UI/RTIconCatalogData.h`. Dove questi documenti divergono dal codice o dal Decision
 > Log, **prevalgono codice e Decision Log**.

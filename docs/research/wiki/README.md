@@ -1,7 +1,11 @@
-# `docs/src/wiki/` — gli originali degli asset, nessuna pagina
+# `docs/research/wiki/` — gli originali degli asset, nessuna pagina
 
-> `CURRENT` · **Riordinata**: 2026-08-17 · **Autorità**: nessuna. `docs/src/` è *input non ancora
+> `CURRENT` · **Riordinata**: 2026-08-17 · **Autorità**: nessuna. `docs/research/` è *input non ancora
 > consumato* ([`../../../CLAUDE.md`](../../../CLAUDE.md) §1): qui stanno immagini, mai regole.
+> *(Il titolo e questa riga dicevano `docs/src/`: la cartella si chiama `docs/research/` dal 2026-08-19,
+> [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165). Le **due righe** più sotto
+> che la nominano **restano** `docs/src/` — sono una misura del 2026-08-17 e una citazione, non lo statuto
+> di questa cartella.)*
 
 Le pagine della Wiki non vivono qui e non vivono nel repository: la fonte è il clone pubblicato
 `refactor-tactics-main.wiki` ([D-076](../../decisions/RT_PDR_00_Decision_Log.md)). Questa cartella tiene gli
