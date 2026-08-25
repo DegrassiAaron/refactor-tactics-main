@@ -205,6 +205,8 @@ namespace RTAutobattleEntry
 }
 /** Definita in ScenarioHarness/RTTestConsole.cpp: scavalca `MapSource` da riga di comando. */
 extern TAutoConsoleVariable<FString> CVarRTMapSource;
+/** Definita nello stesso file: la fixture per nome, che vince su `rt.Map.Source` (`#1290`). */
+extern TAutoConsoleVariable<FString> CVarRTMapFixture;
 
 #include "Turn/RTMatchFormatData.h"
 #include "Turn/RTMatchFormatLibrary.h"
@@ -472,6 +474,31 @@ void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 	if (!HexMap)
 	{
 		return;
+	}
+
+	// La FIXTURE vince su tutto il resto, ed e' il piu' specifico dei tre livelli: proprieta' del GameMode,
+	// `rt.Map.Source`, e questa. Serve perche' le due arene generabili non portano superfici — `MakeDemoArena`
+	// le lascia tutte `Default`, `MakeTestArena` tutte `Rough` — quindi nessuna delle due permette di
+	// guardare a schermo se le nove tinte della tavolozza si distinguono (`#1290`).
+	const FString FixtureId = CVarRTMapFixture.GetValueOnGameThread().TrimStartAndEnd();
+	if (!FixtureId.IsEmpty())
+	{
+		if (URTHexMapAsset* Fixture = URTMatchSetupLibrary::MakeFixtureArena(HexMap, FixtureId))
+		{
+			HexMap->MapAsset = Fixture;
+			HexMap->RebuildInstances();
+			UE_LOG(LogRT, Warning, TEXT("[RT] rt.Map.Fixture='%s': uso quella fixture (%d celle). "
+				"La mappa del livello e rt.Map.Source sono ignorate."),
+				*FixtureId, HexMap->MapAsset->NumCells());
+			return;
+		}
+
+		// Fail-closed sul VALORE, non sulla partita: stessa cura di `rt.Map.Source`. Un nome sbagliato che
+		// ripiegasse in silenzio farebbe attribuire un playtest a una board che non era in vigore.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] rt.Map.Fixture='%s' non e' una fixture nota: ignorata, si prosegue con la sorgente "
+				 "configurata. Nomi validi: ArenaV01, RelayBasin, RelayLite, TestArena, CoverYard, DemoArena."),
+			*FixtureId);
 	}
 
 	switch (ResolveMapSource())
