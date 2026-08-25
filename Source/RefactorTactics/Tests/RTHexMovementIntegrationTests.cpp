@@ -1225,6 +1225,70 @@ bool FRTDashLeavesMainAvailableTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMainLeavesMovementAvailableTest,
+	"RefactorTactics.Actions.Main.LeavesTheMovementAvailable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMainLeavesMovementAvailableTest::RunTest(const FString&)
+{
+	// L'ALTRA meta' di D-028: si spara e ci si muove. L'azione principale non tocca lo slot movimento, quindi
+	// il colpo parte nel Blast e il Move avviene dopo, nello STESSO turno.
+	//
+	// La sezione verificava finora la sola meta' con lo scatto: `Dash.LeavesMainAvailable` e
+	// `Dash.ConsumesTheMovement` dicono entrambe che cosa fa il Dash. Che l'azione principale lasci LIBERO
+	// il movimento non lo asseriva nessuno, benche' il commento di sezione lo prometta.
+	//
+	// La premessa che rende il test discriminante e' speculare a quella di `Dash.LeavesMainAvailable`: li'
+	// e' lo scatto a portare il bersaglio a tiro, qui e' il movimento ad allontanarlo. Il bersaglio e' a
+	// portata dalla cella di PARTENZA e fuori portata da quella d'ARRIVO, quindi il test pinna anche
+	// l'ORDINE delle fasi: se il Move girasse prima del Blast, il colpo partirebbe da troppo lontano e non
+	// arriverebbe.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	ARTUnit* Shooter = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Shooter) { DestroyHexMoveWorld(World); return false; }
+
+	// Portata e budget si LEGGONO dall'unita' invece di essere scritti qui: con numeri fissi un cambio di
+	// roster lascerebbe il test verde senza che verifichi piu' la proprieta' in esame. `AttackRange` viene
+	// dall'indice 0, che il catalogo garantisce essere l'attacco base (`ConfigureFromHeroData`).
+	const int32 ShotRange = Shooter->AttackRange;
+	const FRTCellId ShotFrom = Shooter->Cell;
+	const FRTCellId MoveTo(-2, 0); // in direzione OPPOSTA al bersaglio: muoversi ALLONTANA dal tiro
+
+	// Il bersaglio incassa un attacco base e sopravvive, quindi il Cleanup non dichiara vinta la partita e
+	// il turno si risolve per intero.
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(ShotRange, 0));
+	if (!TestNotNull(TEXT("Foe"), Foe)) { DestroyHexMoveWorld(World); return false; }
+
+	// Le tre premesse dell'allestimento. Senza, il test potrebbe passare per come e' disposto invece che per
+	// la regola che dice di verificare.
+	TestTrue(TEXT("premessa: dalla PARTENZA il bersaglio e' a portata"),
+		URTHexLibrary::HexDistance(ShotFrom, Foe->Cell) <= ShotRange);
+	TestTrue(TEXT("premessa: dall'ARRIVO il bersaglio e' fuori portata"),
+		URTHexLibrary::HexDistance(MoveTo, Foe->Cell) > ShotRange);
+	TestTrue(TEXT("premessa: lo spostamento sta nel budget movimento"),
+		URTHexLibrary::HexDistance(ShotFrom, MoveTo) <= Shooter->GetEffectiveMoveRange());
+
+	const int32 FoeBefore = Foe->Health + Foe->Shield;
+
+	Shooter->PlannedAbilityIndex = 0; // attacco base dell'eroe
+	Shooter->PlannedAttackTarget = Foe;
+	Shooter->PlannedCell = MoveTo;
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("l'azione principale e' partita: il bersaglio e' stato colpito"),
+		(Foe->Health + Foe->Shield) < FoeBefore);
+	TestTrue(TEXT("lo slot movimento e' rimasto libero: l'unita' e' arrivata dove aveva pianificato"),
+		Shooter->Cell == MoveTo);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
