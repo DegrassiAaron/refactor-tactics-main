@@ -199,3 +199,6 @@ docs/generated/**/*.zip
 # Python bytecode degli script in scripts/
 __pycache__/
 *.pyc
+
+# File di lavoro locale (prompt di sessione), non versionato
+/nextStep.md
