@@ -4040,7 +4040,7 @@ const URTHexMapAsset* ARTTurnManager::GetHexContext(FVector& OutOrigin, float& O
 
 	// Nessuna mappa nel livello: valori neutri. Le unita' restano dove sono, la scala non ha effetto.
 	OutOrigin = FVector::ZeroVector;
-	OutHexSize = 100.f;
+	OutHexSize = 150.f;
 	OutLayerHeight = 250.f;
 	return nullptr;
 }

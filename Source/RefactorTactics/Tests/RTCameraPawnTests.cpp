@@ -162,7 +162,10 @@ bool FRTCameraZoomAnchorTest::RunTest(const FString&)
 	const FVector Anchor(900.f, 400.f, 0.f);
 	Cam->SetActorLocation(FVector::ZeroVector);
 
-	// `√3 × 100` — distanza fra centri di celle adiacenti con `HexSize` di default.
+	// `√3 × 100` — una spaziatura di RIFERIMENTO per costruire una tolleranza, non la scala del mondo.
+	// ⚠️ Diceva «con `HexSize` di default», e dal 2026-08-25 il default e' `150` (`#1155`): qui il numero
+	// resta `100` di proposito, perche' questo test non confronta nulla che il gioco produca a scala reale
+	// — misura che un'ancora lontana resti ferma, e la tolleranza puo' essere qualunque valore sensato.
 	const double CellSpacing = UE_SQRT_3 * 100.0;
 	const double Tolerance = 0.5 * CellSpacing;
 
@@ -223,11 +226,22 @@ bool FRTCameraSoftBoundsTest::RunTest(const FString&)
 
 	// Mappa centrata sull'origine: qui serve, perche' il test misura una **distanza dal bordo** e un
 	// centro spostato la renderebbe solo piu' difficile da leggere senza aggiungere nulla.
-	if (!TestNotNull(TEXT("mappa"), SpawnCameraTestMap(World, FRTCellId(0, 0, 0))))
+	ARTHexMapActor* HexMap = SpawnCameraTestMap(World, FRTCellId(0, 0, 0));
+	if (!TestNotNull(TEXT("mappa"), HexMap))
 	{
 		DestroyCameraWorld(World);
 		return false;
 	}
+
+	// 🔴 **La scala si CHIEDE alla mappa, non si scrive.** Questa misura aveva `100.0` a mano e cadeva
+	// quando `#1155` ha portato `HexSize` a `150`: il margine risultava `5.37` celle invece di `3`. Il
+	// difetto non era nella camera — `ARTCameraPawn` legge la scala da `GetHexContext` — ma nell'attesa,
+	// calcolata in un mondo che non esisteva piu'. Riscriverla come `150.0` avrebbe rimandato la stessa
+	// caduta al cambio di scala successivo.
+	FVector MapOrigin = FVector::ZeroVector;
+	float MapHexSize = 0.f;
+	float MapLayerHeight = 0.f;
+	HexMap->GetHexContext(MapOrigin, MapHexSize, MapLayerHeight);
 
 	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
 	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
@@ -240,7 +254,7 @@ bool FRTCameraSoftBoundsTest::RunTest(const FString&)
 	//
 	// La verifica giusta misura **la distanza fra il limite raggiunto e il bordo mappa**, che e' la
 	// definizione del margine, e la confronta col numero deciso.
-	const double CellSpacing = UE_SQRT_3 * 100.0;
+	const double CellSpacing = UE_SQRT_3 * static_cast<double>(MapHexSize);
 
 	// Bordo mappa in X per un'area di raggio 2: la cella piu' lontana e' a `2 * spacing`.
 	const double EdgeX = 2.0 * CellSpacing;
@@ -258,7 +272,7 @@ bool FRTCameraSoftBoundsTest::RunTest(const FString&)
 		const FVector P = Cam->GetActorLocation();
 		const double Reached = (Dir < 2) ? FMath::Abs(P.Y) : FMath::Abs(P.X);
 		// Bordo mappa: in Y le file distano `1.5 * HexSize` (due file dal centro), in X `√3 * HexSize`.
-		const double Edge = (Dir < 2) ? (1.5 * 100.0 * 2.0) : EdgeX;
+		const double Edge = (Dir < 2) ? (1.5 * static_cast<double>(MapHexSize) * 2.0) : EdgeX;
 
 		// Il margine effettivo, in celle, misurato: e' il numero che la issue ha deciso.
 		const double MarginCells = (Reached - Edge) / CellSpacing;

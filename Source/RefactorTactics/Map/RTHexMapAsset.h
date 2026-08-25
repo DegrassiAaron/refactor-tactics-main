@@ -187,7 +187,7 @@ public:
 
 	/** Dimensione dell'esagono (cm), usata per axial<->world. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")
-	float HexSize = 100.f;
+	float HexSize = 150.f;
 
 	/** Quota (cm) tra un layer e il successivo. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")
