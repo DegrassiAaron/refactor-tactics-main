@@ -336,4 +336,62 @@ riscritte qui. Valgono ancora, e valgono per il prossimo gate che qualcuno scriv
 Queste **restano scritte**; quello che manca è chi le verifica. È una scelta di fase — il progetto è in sviluppo, e il costo di
 mantenerli superava quello di non averli. Il punto da riaprire è **D-182**.
 
+> 📊 **L'ultima delle quattro ha finalmente un totale, misurato il 2026-08-25** ([#1232](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1232)).
+> La riga diceva *«erano 36 dopo un solo spostamento»* e non c'era mai stato un conteggio dell'insieme.
+> Su **781** etichette che *sembrano* un path `.md`, **91 non risolvevano** — e ne restano **89** dopo il
+> fix di quel giro:
+>
+> | Dove | Prima | Dopo |  | Dove | Prima | Dopo |
+> |---|--:|--:|---|---|--:|--:|
+> | `roadmap/` | 39 | 39 | | `decisions/` | 5 | 5 |
+> | `README.md` *(questo file)* | 12 | 12 | | `CHANGELOG_DOCUMENTATION.md` | 4 | 4 |
+> | `DOC_CONFLICT_MATRIX.md` | 8 | 8 | | **`archive/README.md`** | **2** | **0** |
+> | `OPEN_DECISIONS.md` | 6 | 6 | | `characters/`·`gameplay/`·`product/`·`technical/` | 1 | 1 |
+> | `archive/src/` | 6 | 6 | | | | |
+> | `archive/roadmap-plans/` | 5 | 5 | | **totale** | **91** | **89** |
+>
+> ⚠️ **I due numeri non si confrontano**: `36` contava un singolo spostamento, `91` è tutto `docs/` oggi.
+> Non è una crescita misurata — è la prima misura dell'insieme.
+>
+> 🔑 **Ottantanove su novantuno portavano comunque al documento giusto**: l'etichetta mente, il link no. Le
+> **due** eccezioni erano in [`archive/README.md`](archive/README.md), dove l'`href` puntava a una
+> **cartella** mentre l'etichetta prometteva un `.md` — chi cliccava atterrava su un elenco e doveva
+> indovinare quale file fosse. Sono le sole due corrette in quel giro, perché sono le sole in cui il link
+> **non** portava dove diceva; **le altre 89 restano**, e questa riga esiste perché non si leggano come
+> chiuse.
+>
+> **Il numero si rimisura, non si cita a memoria** — il comando distingue i due difetti, perché in quelle
+> due righe c'erano entrambi:
+>
+> ```bash
+> python - <<'PY'
+> import io, os, re
+> pat = re.compile(r'\[`?([^\]`\n]+)`?\]\(([^)\s]+)\)')
+> falsa = dir_href = 0
+> for root, dirs, files in os.walk('docs'):
+>     for f in (x for x in files if x.endswith('.md')):
+>         p = os.path.join(root, f)
+>         for i, riga in enumerate(io.open(p, encoding='utf-8'), 1):
+>             for lab, href in pat.findall(riga):
+>                 if href.startswith(('http', '#', 'mailto')): continue
+>                 if not (lab.endswith('.md') and '/' in lab): continue
+>                 t = os.path.normpath(os.path.join(root, href.split('#')[0]))
+>                 if not os.path.exists(os.path.normpath(os.path.join(root, lab))):
+>                     falsa += 1
+>                     if os.path.isdir(t): dir_href += 1
+> print('etichetta falsa:', falsa, '- di cui href su directory:', dir_href)
+> PY
+> # 2026-08-25 dopo #1232: 89 e 0.  Prima: 91 e 2.
+> ```
+>
+> ⚠️ **Uno dei conteggiati è un falso positivo, ed è l'esempio della riga qui sopra** — quello con
+> `vecchio`/`nuovo`, che esiste per *definire* il difetto. Lasciarlo contare è deliberato: un filtro che lo
+> escludesse per nome sarebbe un'esenzione che non sa invalidarsi, cioè il primo dei quattro insegnamenti
+> di questo stesso elenco.
+>
+> 🔴 **E la prima stesura di questa nota si è auto-infranta**: per spiegare il falso positivo lo
+> **riscriveva**, quindi ne creava un secondo e il totale saliva da 89 a 90. È lo stesso difetto che
+> [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) registra per i glob degli ID — *una
+> nota che nomina l'insieme con la sua forma lo allarga*. Qui l'esempio si cita a parole, non si ricopia.
+
 Restano **due** `--check`, e nessuno dei due è Python: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi) e `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), piu' la suite `node --test` di `tools/radar/`, **57 test**.
