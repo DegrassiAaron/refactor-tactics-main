@@ -54,7 +54,8 @@
 
 **158 voci**: ✅ **60 verdi** · 🟡 **22 parziali** · ❌ **2 fallite** · ⏳ **74 aperte**.
 
-*(Rimisurate col comando qui sotto il **2026-08-24**: entrano le **sei** `PIE-V01-FRONTEND-*` di **E46**
+*(Rimisurate col comando qui sotto il **2026-08-24**: entrano le **sei** voci del frontend — `-NAV`,
+`-ERROR`, `-MAIN`, `-PLAY`, `-RESULT`, `-PAUSE` — di **E46**
 ([#1242](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1242)), tutte ⏳ e nessuna eseguibile
 oggi — quattro aspettano un `.uasset`, due l'aggancio di CP 46.3. ⚠️ **Le sei non spiegano tutto il delta,
 ed è il punto**: la riga precedente diceva `152 → 56/22/3/71` al 2026-08-22, ma l'albero **prima** di questa
@@ -272,6 +273,26 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
        c["✅"], c["🟡"], c["❌"], c["⏳"], c["nessuno"]}' \
   docs/technical/test-manuali-pie.md
 ```
+
+⚠️ **Il numero di voci è quello delle RIGHE DI TABELLA, e un `grep` sugli ID ne conta di più.** Misurato il
+2026-08-25:
+
+```bash
+grep -c '^| \*\*PIE-' docs/technical/test-manuali-pie.md                        # 158 — le voci
+grep -o 'PIE-[A-Z0-9][A-Z0-9-]*' docs/technical/test-manuali-pie.md | sort -u | wc -l   # 159
+```
+
+I due non coincidono e **non devono**: il secondo raccoglie anche i *glob* che la prosa usa per parlare di
+famiglie di voci — `PIE-HEX-LAYER-*`, `PIE-HEX-VIZ-*`, `PIE-STATE-*`, `PIE-V01-*`, `PIE-VIS-*` — di cui
+estrae il troncone senza asterisco. Sono **cinque ID che non esistono**, e chi legge `159` come «numero di
+voci» sbaglia di cinque in eccesso.
+
+È lo stesso difetto già registrato per `RELEASE-V01` («il marcatore compare anche nella prosa: si conta la
+RIGA DI TABELLA, non la parola»), ed è ricomparso il 2026-08-24 quando la nota delle sei voci del frontend
+scrisse `PIE-V01-FRONTEND-*` in prosa e aggiunse un **sesto** fantasma
+([#1242](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1242)). Quella riga è stata riscritta
+senza glob; le altre cinque restano perché la prosa che parla di famiglie è legittima — a non essere
+legittimo è **leggere quel comando come un censimento**.
 
 Delle 71 aperte, **50 stanno negli otto gruppi qui sotto** (`1+9+9+4+3+1+2+21 = 50`). Le **21 mancanti** sono — ➕ *dal 2026-08-22 `PIE-V01-BOARD` e `PIE-V01-PACKAGED`, che stanno nella sezione E47 e in nessuno degli otto gruppi* —
 7 voci aggiunte il 2026-08-08 da un'altra sessione, le **10** `PIE-STATE-*` di E34 — che non entrano in una
