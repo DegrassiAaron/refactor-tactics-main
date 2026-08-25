@@ -770,15 +770,29 @@ voci: $(grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md)"
 # Subset di release: deve valere quanto la tabella §8
 grep -c '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manuali-pie.md    # 17
 
-# ...e il suo stato, che è ciò che G9 deve poter leggere senza contare a mano
-awk -F'|' '/RELEASE-V01/ && /^\| \*\*PIE-/ {s=$(NF-1);
+# ...e il suo stato, che è ciò che G9 deve poter leggere senza contare a mano.
+# ⚠️ Ancorato al MARCATORE come il grep qui sopra, non alla riga: `/RELEASE-V01/` nudo cattura anche le
+#    voci la cui prosa dichiara di NON farne parte, e dà 19 invece di 17 — `PIE-BAL1` e `PIE-FMTVER`,
+#    entrambi ⏳, cioè +2 sulla sola colonna "aperta".
+awk -F'|' '/^\| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`/ {s=$(NF-1);
   if (match(s, /✅|🟡|⏳/)) c[substr(s, RSTART, RLENGTH)]++ }
-  END {printf "verde=%d parziale=%d aperta=%d\n", c["✅"], c["🟡"], c["⏳"]}' \
+  END {printf "verde=%d parziale=%d aperta=%d totale=%d\n",
+       c["✅"], c["🟡"], c["⏳"], c["✅"]+c["🟡"]+c["⏳"]}' \
   docs/technical/test-manuali-pie.md
+
+# Il controllo che mancava: i due comandi del subset devono dare lo STESSO totale. Se divergono, uno dei
+# due è rotto — ed è il modo in cui il difetto qui sopra è sopravvissuto per settimane senza segnalarsi.
+test "$(grep -c '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manuali-pie.md)" \
+   = "$(awk '/^\| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`/{n++} END{print n+0}' \
+        docs/technical/test-manuali-pie.md)" \
+  && echo 'subset: i due comandi coincidono' || echo 'subset: DIVERGONO, uno dei due è rotto'
 ```
 
 ```bash
-# I `planned` della §6.2 — il numero che fino al 2026-08-16 non aveva un comando, ed era fermo di sette
+# I `planned` della §6.2 — ⛔ QUESTO COMANDO NON GIRA PIU'.
+# `docs/roadmap/feature-registry.yaml` e' uscito dal repository il 2026-08-21 con D-181, insieme al
+# Feature Registry che lo produceva. Resta qui perche' dice DA DOVE veniva il numero della §6.2: quel
+# numero non ha piu' una fonte eseguibile, ed e' tornato a essere un numero senza comando.
 python - <<'PY'
 import yaml
 d = yaml.safe_load(open('docs/roadmap/feature-registry.yaml', encoding='utf-8'))
@@ -795,9 +809,13 @@ print(len(n), 'planned ·', len(set(n)), 'unici')   # 63 · 63
 PY
 ```
 
-> ⚠️ **Un numero senza comando va fuori sincrono, e questa sezione ne è la prova al contrario**: gli otto
-> comandi qui sopra tengono in riga i loro numeri, mentre l'unico che ne era privo — i `planned` della §6.2 —
+> ⚠️ **Un numero senza comando va fuori sincrono, e questa sezione ne è la prova al contrario**: i comandi
+> qui sopra tengono in riga i loro numeri, mentre l'unico che ne era privo — i `planned` della §6.2 —
 > è l'unico che aveva divergito. Il rimedio non è ricordarsi di aggiornarlo: è il blocco qui sopra.
+>
+> 🔴 **E il caso si è ripresentato dal lato opposto il 2026-08-21**: il comando dei `planned` esiste
+> ancora, ma la sua fonte no — `feature-registry.yaml` è uscito con **D-181**. Quel numero è tornato
+> senza copertura, e un comando che **non può girare** mente esattamente quanto uno approssimativo.
 
 > ⚠️ Il conteggio del subset **non** si fa con `grep -c 'RELEASE-V01'` nudo: il marcatore compare anche nella
 > prosa che lo spiega, e quella forma dà **24**. È lo stesso difetto del comando di conteggio del registro
@@ -821,25 +839,29 @@ producono **numeri di playtest** (G11 chiede di *avere* i numeri, non di centrar
 
 | Voce | Cosa gate | Oggi |
 |---|---|---|
-| `PIE-HEXPLAY-1` | la partita si allestisce su esagoni, unità sui centri-cella | 🟡 |
-| `PIE-HEXPLAY-2` | selezione e cella sotto il cursore, **layer giusto** su multilivello | 🟡 |
-| `PIE-HEXPLAY-3` | pianificazione entro budget, con anteprima visibile | 🟡 |
+| `PIE-HEXPLAY-1` | la partita si allestisce su esagoni, unità sui centri-cella | ✅ |
+| `PIE-HEXPLAY-2` | selezione e cella sotto il cursore, **layer giusto** su multilivello | ✅ |
+| `PIE-HEXPLAY-3` | pianificazione entro budget, con anteprima visibile | ✅ |
 | `PIE-HEXPLAY-4` | risoluzione e playback senza deriva | ⏳ |
-| `PIE-HEXPLAY-5` | collisione simultanea, nessuna sovrapposizione | ⏳ |
-| `PIE-HEXPLAY-6` | LOS esagonale, e che il giocatore capisca perché il colpo non parte | ⏳ |
+| `PIE-HEXPLAY-5` | collisione simultanea, nessuna sovrapposizione | ✅ |
+| `PIE-HEXPLAY-6` | LOS esagonale, e che il giocatore capisca perché il colpo non parte | 🟡 |
 | `PIE-HEXPLAY-8` | **multilivello**: il movimento via arco, esplicitamente nominato da G10 | 🟡 |
-| `PIE-HEXPLAY-9` | HUD e anteprima piani sui centri esagonali | ⏳ |
-| `PIE-FACING-1` | l'orientamento che si **vede** è quello che il resolver ha **usato** | ⏳ |
-| `PIE-HEXPLAY-10` | **partita completa fino alla vittoria** — è G10 | ⏳ |
+| `PIE-HEXPLAY-9` | HUD e anteprima piani sui centri esagonali | ✅ |
+| `PIE-FACING-1` | l'orientamento che si **vede** è quello che il resolver ha **usato** | 🟡 |
+| `PIE-HEXPLAY-10` | **partita completa fino alla vittoria** — è G10 | 🟡 |
 | `PIE-CAM-START` | la partita si apre sulla propria squadra | ✅ |
-| `PIE-V01-MATCHEND` | **fine partita a tre vie**, a schermo, e `R` riavvia | ⏳ |
-| `PIE-V01-HUD` | HUD di partita completo. Il **valore** del limite di round viene già dal formato (`RTHUD.cpp:403`), la **parola** no — `:405` stampa `"Turno"`, il DoD prescrive *round*. Resta sul Canvas: lo Screen HUD §4.1 di CP 11.7 (`#613`) avrà una voce propria | ⏳ |
+| `PIE-V01-MATCHEND` | **fine partita a tre vie**, a schermo, e `R` riavvia | ✅ |
+| `PIE-V01-HUD` | HUD di partita completo. Il **valore** del limite di round viene già dal formato (`RTHUD.cpp:403`), la **parola** no — `:405` stampa `"Turno"`, il DoD prescrive *round*. Resta sul Canvas: lo Screen HUD §4.1 di CP 11.7 (`#613`) avrà una voce propria | ✅ |
 | `PIE-V01-LOG` | combat log con reason code leggibili | 🟡 |
-| `PIE-V01-INTENT` | intenti alleati e **nessun** intento avversario visibile | 🟡 |
+| `PIE-V01-INTENT` | intenti alleati e **nessun** intento avversario visibile | ✅ |
 | `PIE-V01-ROSTER` | i quattro eroi si sentono diversi da giocare | 🟡 |
 | `PIE-PREVIEW-AREA` | **leggibilità minima**: si capisce cosa si sta per colpire, prima del lock-in | ✅ |
 
-**17 voci: 2 verdi, 7 parziali, 8 aperte** — misurate col comando di §7, non contate a mano dalla tabella.
+**17 voci: 10 verdi, 6 parziali, 1 aperta** — misurate col comando **ancorato** di §7, non contate a mano
+dalla tabella. ⏱️ **Rimisurate il 2026-08-25**, e **11 righe su 17** erano stantie: la tabella dichiarava
+`2 / 7 / 8`, cioè lo stato di un progetto molto più indietro. Nessuna era regredita — tutte e undici in
+avanti. ⚠️ Il comando conta `✅` senza distinguere le **1** voci chiuse *«con riserva»*
+(`PIE-V01-MATCHEND`): la riserva si legge nel registro, non qui.
 
 `PIE-PREVIEW-AREA` è passata a ✅ il 2026-08-09 dopo **tre** difetti, nessuno dei quali un test poteva vedere:
 un contorno disegnato sotto il cilindro, un linguaggio che parlava di celle mentre la domanda era sulle unità,
