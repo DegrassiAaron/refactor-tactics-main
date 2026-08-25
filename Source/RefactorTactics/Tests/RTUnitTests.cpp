@@ -5,7 +5,8 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Unit/RTUnit.h"
-#include "Map/RTMapVisuals.h" // #983: si include invece di fidarsi della transitivita' di RTUnit.h
+#include "Map/RTMapVisuals.h"
+#include "Unit/RTUnitAnimInstance.h" // #288: il grafo di locomozione vive in C++ // #983: si include invece di fidarsi della transitivita' di RTUnit.h
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -409,6 +410,66 @@ bool FRTRingsAreNotCoplanarTest::RunTest(const FString&)
 		// margine e' `RingGroundClearance + RingHalfHeight - RTCellTopZ`, cioe' **0.3**.
 		TestTrue(*FString::Printf(TEXT("pivot %.0f: anche il piu' basso emerge dal disco"), Pivot),
 			Pivot + Selezione + ARTUnit::RingHalfHeight > RTCellTopZ);
+	}
+	return true;
+}
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitAnimClipsTest,
+	"RefactorTactics.Unit.LocomotionClipsMatchThePacks",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitAnimClipsTest::RunTest(const FString&)
+{
+	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+	if (!TestNotNull(TEXT("CDO dell'AnimInstance"), Cdo)) { return false; }
+
+	// 🔴 **Il valore di questo test sta nelle SEI caselle che non si chiamano come ci si aspetta.**
+	// §AS.3b della guida animazioni le ha misurate sul disco: `Cast` regge 4 volte su 4, ma `Idle` e
+	// `Jog_Fwd` solo 3, e nessun ruolo tranne l'attacco si trasferisce sempre. Dedurre il nome non
+	// funziona mai per un pack intero, e un nome sbagliato non da' nessun errore: la clip semplicemente
+	// non si carica e l'unita' resta in posa di riferimento.
+	const TMap<FName, TPair<FString, FString>> Attese = {
+		{ FName(TEXT("Hero.Gadget")), { TEXT("Idle"),           TEXT("Run_Fwd") } },
+		{ FName(TEXT("Hero.Phase")),  { TEXT("Idle"),           TEXT("Jog_Fwd") } },
+		{ FName(TEXT("Hero.Riktor")), { TEXT("Idle"),           TEXT("Jog_Fwd") } },
+		{ FName(TEXT("Hero.Wraith")), { TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") } },
+	};
+
+	TestEqual(TEXT("il default copre i quattro eroi del roster"), Cdo->ClipsPerHero.Num(), Attese.Num());
+
+	for (const TPair<FName, TPair<FString, FString>>& Attesa : Attese)
+	{
+		const FString Chi = Attesa.Key.ToString();
+		const FRTLocomotionClips* Clips = Cdo->FindClipsFor(Attesa.Key);
+		if (!TestNotNull(*FString::Printf(TEXT("clip per %s"), *Chi), (const void*)Clips)) { continue; }
+
+		// Il PACK e' parte dell'asserto quanto la clip: lo scambio fra due eroi — l'errore facile in una
+		// tabella di quattro righe simili — passerebbe un controllo scritto sul solo nome della clip,
+		// perche' tre eroi su quattro condividono `Idle` e `Jog_Fwd`.
+		const FString Pack = Chi.RightChop(5);   // `Hero.Gadget` -> `Gadget`
+		const FString Radice = FString::Printf(
+			TEXT("/Game/FabAsset/Paragon/Paragon%s/Characters/Heroes/%s/Animations/"), *Pack, *Pack);
+
+		const FString VistoIdle = Clips->Idle.ToSoftObjectPath().ToString();
+		const FString VistoRun = Clips->Run.ToSoftObjectPath().ToString();
+
+		TestEqual(*FString::Printf(TEXT("%s: idle"), *Chi),
+			VistoIdle, FString::Printf(TEXT("%s%s.%s"), *Radice, *Attesa.Value.Key, *Attesa.Value.Key));
+		TestEqual(*FString::Printf(TEXT("%s: corsa"), *Chi),
+			VistoRun, FString::Printf(TEXT("%s%s.%s"), *Radice, *Attesa.Value.Value, *Attesa.Value.Value));
+
+		// E le due sono DIVERSE: un copia-incolla che lasciasse l'idle anche nella corsa passerebbe i due
+		// controlli sopra solo se anche l'attesa fosse sbagliata allo stesso modo, ma questo lo esclude
+		// comunque — e un'unita' che corre in idle e' precisamente il difetto che `#288` chiude.
+		TestNotEqual(*FString::Printf(TEXT("%s: idle e corsa sono clip diverse"), *Chi), VistoIdle, VistoRun);
+	}
+
+	// E l'unita' punta a questo grafo per default: senza, le clip giuste non le legge nessuno.
+	const ARTUnit* UnitCdo = GetDefault<ARTUnit>();
+	if (TestNotNull(TEXT("CDO dell'unita'"), UnitCdo))
+	{
+		TestEqual(TEXT("l'unita' usa il grafo C++ per default"),
+			UnitCdo->UnitAnimClass.Get(), URTUnitAnimInstance::StaticClass());
 	}
 	return true;
 }

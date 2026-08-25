@@ -659,6 +659,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	float VisualRunSpeed = 375.f;
 
+	/**
+	 * Classe di animazione applicata alla Skeletal Mesh che il Blueprint aggiunge, se ne ha una.
+	 *
+	 * 🔴 **Si assegna da qui e non nei `BP_Unit_*`, ed e' una scelta sul PESO del repository.** Gli
+	 * AnimBlueprint dei pack Paragon pesano 650–735 KB l'uno: duplicarne quattro per ricablarne l'ingresso
+	 * costerebbe ~2,8 MB contro gli 0,7 MB che pesa oggi tutto `Content/` versionato, e i `.uasset` non si
+	 * comprimono per delta. `URTUnitAnimInstance` fa lo stesso lavoro in C++, e nessun binario cambia.
+	 *
+	 * ⚠️ **Non scavalca una scelta fatta in Blueprint**: se il componente porta gia' una `Anim Class`,
+	 * quella vince e questa non viene applicata — provare un AnimBP a mano resta possibile senza
+	 * ricompilare.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TSubclassOf<UAnimInstance> UnitAnimClass;
+
 	/** Posiziona l'unita' al centro-mondo della cella esagonale, con la base appoggiata al piano. */
 	void PlaceOnCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight);
 
@@ -825,6 +840,12 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+
+	/**
+	 * Applica `UnitAnimClass` alla Skeletal Mesh che il Blueprint ha aggiunto, se ne ha una e se non porta
+	 * gia' una propria `Anim Class`. Un'unita' col solo cilindro segnaposto non ha niente da animare.
+	 */
+	void ApplyUnitAnimClass();
 
 	void ApplyTeamColor();
 
