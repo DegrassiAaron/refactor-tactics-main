@@ -1460,6 +1460,15 @@ Il C++ è in `main` da tempo (spawn `TSubclassOf` con fallback al cilindro, even
 team parametrico, `Unit.TeamColorFor` e `Unit.RingLocalZ` verdi): **quello che manca è il lavoro in
 editor**, che nessun test automatico può chiudere.
 
+🔴 **Per E21.1 questa diagnosi era sbagliata, e lo si è scoperto il 2026-08-25**
+([#287](https://github.com/DegrassiAaron/refactor-tactics-main/issues/287), PR #1355). Non mancava lavoro in
+editor: le quattro skeletal, i quattro `BP_Unit_*` **versionati con la mesh già assegnata** e
+`bIsMovingVisually` c'erano tutti. Mancava che qualcuno popolasse `ARTGameMode::HeroUnitClasses` —
+`BP_GameMode.uasset` non la tocca — quindi `SpawnHero` ripiegava **sempre** sul cilindro. Era una riga di
+C++, e il costo apparente («serve una seduta editor») ha tenuto ferma la voce per mesi. ⚠️ La frase resta
+vera per **E21.2** ed **E21.3**, che l'editor lo richiedono davvero: prima di ereditarla su un checkpoint,
+**misura quale metà manca**.
+
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
 | **E21.1** | Personaggi sui centri esagonali | I `BP_Unit_*` (Paragon) sono posati sui centri, a terra, senza compenetrazione; se l'asset manca si vede il cilindro, non un buco | `PIE-AS2`, `PIE-FACING` |
