@@ -251,7 +251,7 @@ validazione · serializzazione/replay · privacy intenti.
   node tools/radar/generate.ts           # riscrive gli otto SVG
   node tools/radar/doc-links.ts --check  # exit 1 se un percorso citato non risolve
   node tools/radar/catalog-code.ts       # exit 1 se catalogo e C++ divergono, o se la copertura cala
-  node tools/radar/doc-tables.ts --check # exit 1 se una riga di tabella ha piu' o meno celle delle sorelle
+  node tools/radar/doc-tables.ts --check # exit 1 se una riga ha piu'/meno celle delle sorelle, o non sta in nessuna tabella
   cd tools/radar && node --test          # la suite: da dentro la cartella, non dalla radice
   ```
 
