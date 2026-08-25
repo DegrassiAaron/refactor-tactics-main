@@ -794,6 +794,35 @@ public:
 	 */
 	static float RingLocalZ(float VisualZOffset);
 
+	/**
+	 * 🔴 **Separazione fra i due anelli, e non e' cosmetica: senza, z-fightano.**
+	 *
+	 * `TeamRing` (raggio `1.6`) e `SelectionRing` (raggio `1.9`) sono due dischi CONCENTRICI, e fino al
+	 * 2026-08-25 stavano alla stessa quota — «stessa quota, stesso valore», scritto per contratto. Con
+	 * semi-altezza `RingHalfHeight` uguale, le loro facce superiori coincidevano **esattamente** nella
+	 * corona interna, e a schermo l'unita' selezionata mostrava un lampeggio fra il colore di squadra e
+	 * quello di selezione. Visto al PIE, non in code review.
+	 *
+	 * ⚠️ **Si separa ALZANDO il TeamRing, mai abbassando il SelectionRing.** Il margine sul disco della
+	 * cella e' `RingGroundClearance + RingHalfHeight - RTCellTopZ`, cioe' **0.3**: scendere di un'unita'
+	 * farebbe sprofondare l'anello dentro il disco, che e' esattamente il difetto contro cui lo
+	 * `static_assert` qui sopra monta la guardia.
+	 *
+	 * ⚠️ **E le due quote restano derivate dalla STESSA sorgente** (`RingLocalZ`), che era la ragione del
+	 * contratto originale: due chiamate indipendenti si desincronizzano al primo che cambia (code review
+	 * di #593). Qui non si torna indietro su quello — si aggiunge un delta esplicito a una sola di esse.
+	 */
+	static constexpr float RingStackSeparation = 1.0f;
+
+	static_assert(RingStackSeparation >= RingHalfHeight,
+		"Separazione minore della semi-altezza: le facce dei due anelli tornerebbero a sovrapporsi.");
+
+	/** Quota locale dell'anello di TEAM: sopra quello di selezione, cosi' il colore di squadra resta leggibile al centro. */
+	static float TeamRingLocalZ(float VisualZOffset);
+
+	/** Quota locale dell'anello di SELEZIONE: resta alla quota-terra di riferimento, e fa da cornice esterna. */
+	static float SelectionRingLocalZ(float VisualZOffset);
+
 protected:
 	virtual void BeginPlay() override;
 
