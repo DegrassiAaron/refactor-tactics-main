@@ -288,11 +288,17 @@ estrae il troncone senza asterisco. Sono **cinque ID che non esistono**, e chi l
 voci» sbaglia di cinque in eccesso.
 
 È lo stesso difetto già registrato per `RELEASE-V01` («il marcatore compare anche nella prosa: si conta la
-RIGA DI TABELLA, non la parola»), ed è ricomparso il 2026-08-24 quando la nota delle sei voci del frontend
-scrisse `PIE-V01-FRONTEND-*` in prosa e aggiunse un **sesto** fantasma
+RIGA DI TABELLA, non la parola»), ed è ricomparso il 2026-08-24: la nota che annunciava le sei voci del
+frontend le nominò con un glob, e ne aggiunse un **sesto** fantasma
 ([#1242](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1242)). Quella riga è stata riscritta
-senza glob; le altre cinque restano perché la prosa che parla di famiglie è legittima — a non essere
-legittimo è **leggere quel comando come un censimento**.
+elencando i suffissi; le altre cinque restano perché la prosa che parla di famiglie è legittima — a non
+essere legittimo è **leggere quel comando come un censimento**.
+
+🔴 **E la prima stesura di questa avvertenza si è auto-infranta**, il 2026-08-25: per spiegare il difetto
+scriveva il glob del frontend, quindi lo ricreava — misurato subito dopo il merge, di nuovo **7** e **160**.
+I cinque glob qui sopra non hanno lo stesso effetto perché il loro troncone era **già** nell'insieme; il
+sesto lo aggiungeva. Vale la pena tenerlo scritto: la regola «non nominare l'insieme con un glob» è più
+facile da enunciare che da rispettare, e questa sezione ne è la prova in due passaggi.
 
 Delle 71 aperte, **50 stanno negli otto gruppi qui sotto** (`1+9+9+4+3+1+2+21 = 50`). Le **21 mancanti** sono — ➕ *dal 2026-08-22 `PIE-V01-BOARD` e `PIE-V01-PACKAGED`, che stanno nella sezione E47 e in nessuno degli otto gruppi* —
 7 voci aggiunte il 2026-08-08 da un'altra sessione, le **10** `PIE-STATE-*` di E34 — che non entrano in una
