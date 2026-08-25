@@ -37,6 +37,11 @@ public class RefactorTactics : ModuleRules
 		// `FStaticMeshAttributes::Register` e `MeshAttribute::Vertex::Position`.
 		PrivateDependencyModuleNames.AddRange(new string[] { "MeshDescription", "StaticMeshDescription" });
 
+		// CP E21.2 (`#288`): `FAnimNode_TwoWayBlend` e `FAnimNode_Slot` vivono in `AnimGraphRuntime`, non in
+		// `Engine` — solo `FAnimInstanceProxy` e `FAnimNode_SequencePlayer` stanno li'. Senza questa riga
+		// `RTUnitAnimInstance` non linka, e l'errore parla di simboli, non di moduli.
+		PrivateDependencyModuleNames.Add("AnimGraphRuntime");
+
 		// Json/JsonUtilities: scenari di test e report machine-readable dello Scenario Harness
 		// (Test/RTScenarioLoader, Test/RTTestReportWriter). Sono moduli engine standard, disponibili anche
 		// in build packaged: il harness deve poter girare headless da riga di comando, non solo in Editor.

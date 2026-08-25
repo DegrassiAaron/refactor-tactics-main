@@ -12,6 +12,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Unit/RTUnitAnimInstance.h"
 
 ARTUnit::ARTUnit()
 {
@@ -91,6 +93,10 @@ ARTUnit::ARTUnit()
 		SelectionRing->SetStaticMesh(CylinderMesh.Object);
 	}
 	SelectionRing->SetRelativeScale3D(FVector(1.9f, 1.9f, 0.02f)); // cornice esterna al TeamRing (1.6)
+
+	// Il grafo di locomozione vive in C++ (`#288`): nessun `.uasset` da duplicare, e le clip per eroe sono
+	// dati versionati invece che grafi dentro quattro binari da ~700 KB.
+	UnitAnimClass = URTUnitAnimInstance::StaticClass();
 }
 
 void ARTUnit::BeginPlay()
@@ -100,6 +106,39 @@ void ARTUnit::BeginPlay()
 	EnsureDefaultAbilities();
 	SyncAbilityCooldowns();
 	ApplyTeamColor();
+	ApplyUnitAnimClass();
+}
+
+void ARTUnit::ApplyUnitAnimClass()
+{
+	if (UnitAnimClass == nullptr)
+	{
+		return;
+	}
+
+	// La Skeletal Mesh la aggiunge il Blueprint, non il C++: il cilindro segnaposto e' uno
+	// `UStaticMeshComponent`. Un'unita' senza skeletal — il ripiego di `#287` — non ha niente da animare,
+	// e questo metodo non fa nulla.
+	TArray<USkeletalMeshComponent*> Skeletals;
+	GetComponents<USkeletalMeshComponent>(Skeletals);
+
+	for (USkeletalMeshComponent* Skeletal : Skeletals)
+	{
+		if (Skeletal == nullptr || Skeletal->GetSkeletalMeshAsset() == nullptr)
+		{
+			continue;
+		}
+
+		// ⚠️ **Una `Anim Class` gia' scelta in Blueprint VINCE.** Assegnare comunque toglierebbe la via per
+		// provare un AnimBP a mano su un personaggio, che e' esattamente cio' che si fa quando si valuta
+		// se il grafo di un pack basta.
+		if (Skeletal->GetAnimClass() != nullptr)
+		{
+			continue;
+		}
+
+		Skeletal->SetAnimInstanceClass(UnitAnimClass);
+	}
 }
 
 void ARTUnit::ApplyCombatState(int32 NewHealth, int32 NewShield)
