@@ -264,10 +264,19 @@ quattro numeri sbagliati. Oggi la seconda vista non c'è — non è che sia torn
 > registra come canonico: l'aggiunta di **E46** aveva lasciato indietro `roadmap.shortlist.md` (riga di prosa
 > **fuori** dai marker generati, quindi invisibile a `--check`), due righe di
 > [`roadmap-checkpoint.md`](roadmap-checkpoint.md) — una delle quali dichiara *«questa riga è una copia»* — e
-> `docs/README.md`. Le prime tre sono allineate qui; **`docs/README.md` no**: dichiara
-> `21 epic, 100 checkpoint` e va corretto. *(Fino al 2026-08-20 non era nel `writable` di nessuna track
-> del write-set di batch, e `D-139` ne faceva uno **stop**. Con
-> [D-178](../decisions/RT_PDR_00_Decision_Log.md) il vincolo è caduto: resta la correzione da fare.)*
+> `docs/README.md`. Le prime tre sono allineate qui; **`docs/README.md` no**: dichiarava
+> `21 epic, 100 checkpoint`. *(Fino al 2026-08-20 non era nel `writable` di nessuna track del write-set di
+> batch, e `D-139` ne faceva uno **stop**. Con [D-178](../decisions/RT_PDR_00_Decision_Log.md) il vincolo è
+> caduto.)*
+>
+> ✅ **Chiuso il 2026-08-25 ([#962](https://github.com/DegrassiAaron/refactor-tactics-main/issues/962)), e non
+> allineando le copie: togliendole.** Un totale ricopiato in cinque posti diverge di nuovo alla prossima epic —
+> è già successo **tre volte**, due delle quali nello stesso giorno. Le copie sono state sostituite da un
+> rimando a questa riga, quindi il numero vive in **un posto solo** e non esiste più niente da confrontare.
+> Rimisurate e trovate stantie anche due copie che nessuno aveva contato: `brief-stati-personaggio-e-trasformazioni.md`
+> (ferma a `18 epic, 87 checkpoint`) e `spec-tassonomia-movimento.md` (`21 epic`). `roadmap.shortlist.md`, la
+> quinta, era già uscita con `D-181`. ⚠️ Restano legittime le occorrenze **datate**: i referti in
+> `roadmap/plans/`, il Decision Log e `roadmap-editor.md`, che è `HISTORICAL`.
 > ⚠️ Il difetto non è aritmetico ed è lo stesso della nota qui sotto, un gradino più su: là divergevano §3 e
 > §5 *dentro* questo file, qui diverge questo file dalle sue quattro copie. **Nessun gate confronta un
 > totale in prosa con la sua fonte.**

@@ -26,7 +26,7 @@ sta pagando carico cognitivo per un bonus numerico.
 
 Il sorgente (§14) proponeva **quattro** stati sui quattro eroi della vertical slice. La proposta è respinta:
 
-- lo scope della v0.1 è chiuso — 18 epic, 87 checkpoint — e il rischio di scope è già registrato come **alto**
+- lo scope della v0.1 è chiuso — il totale sta in [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §3 — e il rischio di scope è già registrato come **alto**
   in [`../roadmap/roadmap-v0.1.md`](../roadmap/roadmap-v0.1.md) §8;
 - due dei quattro stati proposti **dipendono da sistemi non ancora costruiti**: `Charged` dal canale ambientale
   e acustico di **E13**, `Bulwark` dal sistema strutture che oggi regge solo in parte `KineticPanel`;

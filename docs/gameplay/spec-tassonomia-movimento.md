@@ -264,7 +264,7 @@ succederà al prossimo kit.
 | §6 micro-step | **già implementato** | `ResolveHexPaths` |
 | §36 dieci reason code nuovi | **duplicati**: sette esistono con altri nomi, in un enum **serializzato nei replay** | `ERTMoveOutcome` |
 | §29 `MovementKind` | **duplicato** di `ERTMovementStyle`, che ha già sei valori | `RTActionDef.h` |
-| §40 macro-roadmap `F0–F6` da preservare | ⚠️ **contraddice** la vista viva (M6–M11 + 21 epic); nel canone `F0–F6` è *direzione, non scope* | [`../roadmap/roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) |
+| §40 macro-roadmap `F0–F6` da preservare | ⚠️ **contraddice** la vista viva (M6–M11 + le epic della v0.1); nel canone `F0–F6` è *direzione, non scope* | [`../roadmap/roadmap-checkpoint.md`](../roadmap/roadmap-checkpoint.md) |
 | §37/§38 «Product Map», «Feature Map» | **non esistono** con quei nomi | `../roadmap/feature-registry.yaml`, [`../product/piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) |
 | §10 matrice, §15 trigger, §22 forced/terreno, §25 domanda aperta | ✅ **nuovi e recepiti** | questa pagina |
 
