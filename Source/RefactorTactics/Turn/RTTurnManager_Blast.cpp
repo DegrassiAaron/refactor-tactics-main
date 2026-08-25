@@ -169,6 +169,13 @@ void ARTTurnManager::ResolveCleanseActions(const FRTBlastContext& Ctx)
 			if (Unit->RemoveStatus(Candidate))
 			{
 				Removed = Candidate;
+
+				// `Cleansed` e non `Extinguished`: qualcuno ha **speso un'azione** per togliere questo stato, e
+				// il replay deve poter distinguere una purificazione voluta da un fuoco spento dall'acqua in cui
+				// si e' finiti (`#1314`).
+				FRTTurnLogEntry Purificato =
+					MakeStatusDeathEntry(Candidate, Unit->Cell, ERTStatusOutcome::Cleansed);
+				AppendLogEntry(Purificato, Unit);
 				break; // UNO solo: e' il vincolo del catalogo, non un'ottimizzazione
 			}
 		}
@@ -1516,7 +1523,7 @@ void ARTTurnManager::ApplyControlStatuses(FRTBlastContext& Ctx)
 		ARTUnit* Slowed = StatusTargets[i];
 		if (IsValid(Slowed) && Slowed->IsAlive())
 		{
-			Slowed->ApplyStatus(StatusTags[i], StatusDurations[i]);
+			ApplyStatusLogged(Slowed, StatusTags[i], StatusDurations[i]);
 			// #1077: la nascita entra nel TurnLog anche da qui. Senza, il Cleanup avrebbe registrato la
 			// scadenza di uno stato che il log non aveva mai visto nascere — un replay che legge una morte
 			// senza nascita e' l'asimmetria che quell'issue esiste per chiudere. Trovato in code review.

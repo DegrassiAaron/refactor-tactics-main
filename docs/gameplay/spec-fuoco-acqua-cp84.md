@@ -110,18 +110,36 @@ le confondesse non saprebbe dire se il giocatore ha fatto qualcosa o se è solo 
 
 ⚠️ **Il tag dello stato viaggia in `ActionId`**, come il `Burning` di #625 — non è una convenzione nuova.
 
-🔴 **Il limite dichiarato: `Revoked` ed `Expired` non sono TUTTI i modi in cui uno stato finisce.** Trovato
-in code review, e scritto qui invece che nascosto — tre percorsi di rimozione restano **muti**, perché
-`ERTStatusOutcome` non ha un esito per «tolto da un altro effetto»:
+✅ **Il limite è stato chiuso il 2026-08-25** con [`#1314`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1314): `ERTStatusOutcome` ha ora **tre** esiti per
+le rimozioni causate da un altro effetto. *Il paragrafo qui sotto resta com'era scritto — è la dichiarazione
+che ha reso la lacuna trovabile invece che scoprirla a schermo — e la tabella porta ora anche cosa vede il
+replay oggi.*
 
-| percorso | dove | cosa vede il replay |
-|---|---|---|
-| l'acqua spegne il fuoco | `ARTUnit::ApplyStatus`, `Wet` rimuove `Burning` | il `Burning` sparisce senza una voce |
-| `Action.Cleanse` | `RemoveStatus` | idem |
-| il marchio speso | `RTTurnManager`, consumo di `Marked` | idem |
+🔴 **Il limite, com'era dichiarato: `Revoked` ed `Expired` non sono TUTTI i modi in cui uno stato finisce.**
+Trovato in code review, e scritto qui invece che nascosto — tre percorsi di rimozione restavano **muti**,
+perché `ERTStatusOutcome` non aveva un esito per «tolto da un altro effetto»:
 
-∴ un'unità che cammina dal fuoco nell'acqua bassa smette di bruciare e il TurnLog è **muto come prima**. È
-una lacuna del **modello**, non dei siti di chiamata, e chiuderla vuol dire aggiungere un esito.
+| percorso | dove | cosa vedeva il replay | e cosa vede ora |
+|---|---|---|---|
+| l'acqua spegne il fuoco | `ARTUnit::ApplyStatus`, `Wet` rimuove `Burning` | il `Burning` spariva senza una voce | `Extinguished` — *«spento dall'acqua»* |
+| `Action.Cleanse` | `RemoveStatus` | idem | `Cleansed` — *«purificato»* |
+| il marchio speso | `RTTurnManager`, consumo di `Marked` | idem | `Spent` — *«incassato»* |
+
+⚠️ **Tre esiti e non uno**, ed è la stessa ragione per cui `Revoked` ed `Expired` sono già due: un replay che
+li confondesse non saprebbe dire *cosa* ha tolto lo stato. Un `Removed` unico avrebbe perso
+l'informazione invece di spostarla — `Amount` porta già la durata, e non c'è un campo libero dove la
+sotto-causa possa vivere.
+
+⚠️ **Il formato non cambia versione**: valori aggiunti in coda a un enum che viaggia nel `uint8` già
+presente. Cambiano gli hash dei turni in cui uno stato viene rimosso da un effetto, ed è corretto: quei
+turni prima erano muti.
+
+∴ un'unità che cammina dal fuoco nell'acqua bassa smetteva di bruciare e il TurnLog era **muto come
+prima**. Era una lacuna del **modello**, non dei siti di chiamata, e chiuderla ha voluto dire aggiungere
+tre esiti — più un solo punto che scrive la voce di spegnimento (`ARTTurnManager::ApplyStatusLogged`),
+perché i siti che applicano uno status sono quattro e il primo che se ne dimenticasse renderebbe muto un
+percorso di nuovo. Pinnato da `Environment.Status.ExtinguishedAppearsInTurnLog`, che legge il caso dal
+percorso reale: l'unità entra nel fuoco, poi nell'acqua, e il log dice **perché** ha smesso.
 [#1077](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1077) copre le due morti che nomina;
 la terza ha la sua sede in [#1314](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1314).
 

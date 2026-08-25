@@ -123,6 +123,25 @@ FRTTurnLogEntry ARTTurnManager::MakeStatusBirthEntry(ERTMatchPhase InPhase, FGam
 }
 
 /** La voce di MORTE di uno stato: revoca (una mossa) o scadenza (il tempo). Sempre nel Cleanup. */
+void ARTTurnManager::ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Turns)
+{
+	if (Unit == nullptr)
+	{
+		return;
+	}
+
+	// 🔴 **Un solo posto scrive la voce di spegnimento** (`#1314`). La regola «`Wet` toglie `Burning`»
+	// vive in `ARTUnit::ApplyStatus` proprio per valere su ogni sorgente di bagnato; se la VOCE la
+	// scrivessero i quattro siti che applicano uno status, il primo che se ne dimenticasse renderebbe muto
+	// un percorso — che e' esattamente il difetto misurato da questa issue.
+	if (Unit->ApplyStatus(Tag, Turns))
+	{
+		FRTTurnLogEntry Spento =
+			MakeStatusDeathEntry(TAG_Status_Burning, Unit->Cell, ERTStatusOutcome::Extinguished);
+		AppendLogEntry(Spento, Unit);
+	}
+}
+
 FRTTurnLogEntry ARTTurnManager::MakeStatusDeathEntry(FGameplayTag Tag, const FRTCellId& Cell, ERTStatusOutcome Outcome)
 {
 	FRTTurnLogEntry E;
@@ -202,7 +221,7 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 				const int32 Duration = (Effect.StatusDuration == 0)
 					? ARTUnit::PersistentWhileOnCell
 					: Effect.StatusDuration;
-				Unit->ApplyStatus(Effect.StatusTag, Duration);
+				ApplyStatusLogged(Unit, Effect.StatusTag, Duration);
 				// #1077: la NASCITA dello stato entra nel TurnLog. La forma di vita sta nell'esito, non in
 				// `Amount`: `PersistentWhileOnCell` vale -1 e non e' una durata.
 				// ⚠️ **`InPhase`, non il membro `Phase`**: durante la Cleanup il membro vale `Planning` — la
@@ -2904,7 +2923,7 @@ void ARTTurnManager::ResolvePrep()
 			AddLogEvent(FString::Printf(TEXT("%s: +%d salute"), *Target->GetName(), Event.Amount));
 			break;
 		case ERTActionEffect::Status:
-			Target->ApplyStatus(Event.StatusTag, Event.Amount);
+			ApplyStatusLogged(Target, Event.StatusTag, Event.Amount);
 			// #1077: nascita da AZIONE — l'esito la distingue dal terreno.
 			// ⚠️ Solo se lo stato e' stato DAVVERO applicato: `ApplyStatus` esce senza toccare niente con
 			// `Turns <= 0`, e una voce scritta comunque farebbe ricostruire a un replay uno stato che la
@@ -3221,7 +3240,7 @@ void ARTTurnManager::ResolveDash()
 		{
 			if (Event.Kind == ERTActionEffect::Status)
 			{
-				Unit->ApplyStatus(Event.StatusTag, Event.Amount);
+				ApplyStatusLogged(Unit, Event.StatusTag, Event.Amount);
 				// #1077: nascita da AZIONE, sul percorso del movimento lineare. Stessa guardia del sito
 				// del Prep: nessuna voce se `ApplyStatus` non ha applicato niente.
 				if (Event.Amount == ARTUnit::PersistentWhileOnCell || Event.Amount > 0)
@@ -3623,7 +3642,15 @@ void ARTTurnManager::ResolveCombat()
 	// Consumo dopo il pass, non dentro: durante il pass `HasStatus` deve rispondere sullo stato congelato.
 	for (int32 TargetId : MarkSpentOn)
 	{
-		Units[TargetId]->RemoveStatus(TAG_Status_Marked);
+		// Il marchio non scade e non viene tolto: viene **incassato**. `Spent` lo separa da `Expired` per la
+		// stessa ragione per cui `Revoked` lo e' gia' — un replay deve poter dire che lo stato ha fatto il suo
+		// lavoro invece che essere finito il tempo (`#1314`).
+		if (Units[TargetId]->RemoveStatus(TAG_Status_Marked))
+		{
+			FRTTurnLogEntry Incassato = MakeStatusDeathEntry(
+				TAG_Status_Marked, Units[TargetId]->Cell, ERTStatusOutcome::Spent);
+			AppendLogEntry(Incassato, Units[TargetId]);
+		}
 	}
 
 	// Bonus condizionati alla COPPIA (chi colpisce, chi subisce): si applicano sui colpi del piano, dove

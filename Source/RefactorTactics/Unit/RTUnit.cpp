@@ -417,27 +417,32 @@ void ARTUnit::OnDeselected()
 	}
 }
 
-void ARTUnit::ApplyStatus(FGameplayTag Tag, int32 Turns)
+bool ARTUnit::ApplyStatus(FGameplayTag Tag, int32 Turns)
 {
 	// Catalogo terreni §2: `Burning` e' "rimosso da `Wet`". La regola sta QUI e non nel chiamante, cosi'
 	// vale per ogni sorgente di bagnato — acqua bassa, `Phase.PressureJet`, `CircularTide` — invece che nel
 	// punto che si e' ricordato di scriverla. L'ordine e' voluto: si spegne anche se il Wet arriva insieme.
+	//
+	// ⚠️ Lo spegnimento si RESTITUISCE (`#1314`): qui il TurnLog non c'e', e senza dirlo a chi chiama
+	// questo momento resta muto — che e' precisamente il difetto misurato.
+	bool bExtinguished = false;
 	if (Tag == TAG_Status_Wet)
 	{
-		StatusTurns.Remove(TAG_Status_Burning);
+		bExtinguished = StatusTurns.Remove(TAG_Status_Burning) > 0;
 	}
 
 	if (Turns == PersistentWhileOnCell)
 	{
 		CellBoundStatuses.Add(Tag); // scade quando l'unita' lascia la cella, non a tempo
-		return;
+		return bExtinguished;
 	}
 	if (Turns <= 0)
 	{
-		return;
+		return bExtinguished;
 	}
 	int32& Current = StatusTurns.FindOrAdd(Tag);
 	Current = FMath::Max(Current, Turns); // riapplicare non accorcia una durata piu' lunga
+	return bExtinguished;
 }
 
 bool ARTUnit::HasStatus(FGameplayTag Tag) const

@@ -11,6 +11,7 @@
 #include "Terrain/RTTerrainLibrary.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTTurnLogLibrary.h" // DescribeEntry: la voce nuova deve LEGGERSI, non solo esistere
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -433,6 +434,81 @@ bool FRTStatusRevocationInTurnLogTest::RunTest(const FString&)
 		CountFwStatusEntries(TM, ERTStatusOutcome::Revoked, TAG_Status_Wet), 1);
 	TestEqual(TEXT("e non e' una scadenza: il conteggio non c'entra"),
 		CountFwStatusEntries(TM, ERTStatusOutcome::Expired, TAG_Status_Wet), 0);
+
+	DestroyFwWorld(World);
+	return true;
+}
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusExtinguishedInTurnLogTest,
+	"RefactorTactics.Environment.Status.ExtinguishedAppearsInTurnLog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStatusExtinguishedInTurnLogTest::RunTest(const FString&)
+{
+	// 🔴 **Il caso con cui `#1314` si apriva**: un'unita' cammina dal fuoco nell'acqua bassa, smette di
+	// bruciare, e il TurnLog era **muto** — esattamente come prima di `#1077`. Il replay non poteva dire
+	// *perche'* avesse smesso.
+	UWorld* World = MakeFwWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	TMap<FRTCellId, ERTHexSurface> Surfaces;
+	Surfaces.Add(FRTCellId(1, 0), ERTHexSurface::Fire);
+	Surfaces.Add(FRTCellId(2, 0), ERTHexSurface::ShallowWater);
+	SpawnFwMap(World, Surfaces);
+
+	ARTUnit* Unit = SpawnFwUnit(World, 0, FRTCellId(0, 0));
+	// Senza un avversario la partita finisce al primo Cleanup e il secondo turno non risolve.
+	ARTUnit* Inerte = SpawnFwUnit(World, 1, FRTCellId(-3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), Unit) || !TestNotNull(TEXT("avversario"), Inerte) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyFwWorld(World);
+		return false;
+	}
+
+	// (1) Nel fuoco: prende `Burning`.
+	Unit->PlannedCell = FRTCellId(1, 0);
+	RunFwTurn(TM);
+	if (!TestTrue(TEXT("l'unita' e' entrata nel fuoco"), Unit->Cell == FRTCellId(1, 0))
+		|| !TestTrue(TEXT("e sta bruciando"), Unit->HasStatus(TAG_Status_Burning)))
+	{
+		DestroyFwWorld(World);
+		return false;
+	}
+
+	// (2) Nell'acqua: smette di bruciare, e il log deve dire PERCHE'.
+	Unit->PlannedCell = FRTCellId(2, 0);
+	RunFwTurn(TM);
+	TestTrue(TEXT("e' entrata in acqua"), Unit->Cell == FRTCellId(2, 0));
+	TestFalse(TEXT("e non brucia piu'"), Unit->HasStatus(TAG_Status_Burning));
+
+	TestEqual(TEXT("lo SPEGNIMENTO e' registrato"),
+		CountFwStatusEntries(TM, ERTStatusOutcome::Extinguished, TAG_Status_Burning), 1);
+
+	// ⚠️ **E non e' una scadenza ne' una revoca.** Senza questi due controlli, un esito qualunque sul tag
+	// giusto passerebbe il primo assert: la domanda di `#1314` non e' «c'e' una voce» ma «la voce dice
+	// *cosa* ha tolto lo stato».
+	TestEqual(TEXT("non e' una scadenza: il conteggio non c'entra"),
+		CountFwStatusEntries(TM, ERTStatusOutcome::Expired, TAG_Status_Burning), 0);
+	TestEqual(TEXT("e non e' una revoca: nessuna cella lo sosteneva"),
+		CountFwStatusEntries(TM, ERTStatusOutcome::Revoked, TAG_Status_Burning), 0);
+
+	// (3) E si LEGGE: senza il ramo in `DescribeEntry` la voce ricadrebbe nel default e il replay
+	// mostrerebbe «esito di stato non tradotto». E' gia' successo con `AppliedWhileOnCell`, che compariva
+	// come «eliminata».
+	bool bTradotta = false;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Status
+			&& E.Outcome == static_cast<uint8>(ERTStatusOutcome::Extinguished))
+		{
+			const FString Testo = URTTurnLogLibrary::DescribeEntry(E);
+			TestFalse(TEXT("la voce non ricade nel ramo 'non tradotto'"), Testo.Contains(TEXT("non tradotto")));
+			TestTrue(TEXT("e dice che e' stata l'acqua"), Testo.Contains(TEXT("spento dall'acqua")));
+			bTradotta = true;
+		}
+	}
+	TestTrue(TEXT("la voce di spegnimento esiste ed e' stata letta"), bTradotta);
 
 	DestroyFwWorld(World);
 	return true;

@@ -310,7 +310,39 @@ enum class ERTStatusOutcome : uint8
 	 */
 	Revoked,
 	/** SCADUTO: il conteggio dei turni e' arrivato a zero. Nessuno ha fatto niente, e' finito il tempo. */
-	Expired
+	Expired,
+
+	// ---- Rimozioni CAUSATE DA UN ALTRO EFFETTO (`#1314`) --------------------------------------------
+	//
+	// 🔴 **Tre valori e non uno**, ed e' la stessa ragione per cui `Revoked` ed `Expired` sono gia' due:
+	// un replay che li confondesse non saprebbe dire *cosa* ha tolto lo stato. Un `Removed` unico direbbe
+	// «qualcosa l'ha tolto» e perderebbe l'informazione invece di spostarla altrove — `Amount` porta gia' la
+	// durata, e non c'e' un campo libero dove la sotto-causa possa vivere.
+	//
+	// ⚠️ **Il formato NON cambia versione**: sono valori aggiunti in coda a un enum che viaggia nel `uint8`
+	// gia' presente. Cambiano gli hash dei turni in cui uno stato viene rimosso da un effetto, ed e' corretto:
+	// quei turni prima erano muti.
+
+	/**
+	 * SPENTO da un effetto opposto: l'acqua sul fuoco. La regola vive in `ARTUnit::ApplyStatus` e vale per
+	 * ogni sorgente di bagnato — acqua bassa, `Phase.PressureJet`, `CircularTide` — non solo per il terreno.
+	 *
+	 * ⚠️ Si distingue da `Cleansed` perche' **nessuno l'ha voluto**: e' una conseguenza di dove si e'
+	 * finiti, non di un'azione spesa per ottenerla.
+	 */
+	Extinguished,
+
+	/**
+	 * PURIFICATO: un'azione deliberata l'ha tolto (`Action.Cleanse`). Qualcuno ha speso un turno per questo,
+	 * ed e' cio' che lo separa da `Extinguished`.
+	 */
+	Cleansed,
+
+	/**
+	 * CONSUMATO: lo stato era una risorsa e qualcuno l'ha spesa (`Status.Marked` che viene incassato).
+	 * Non e' una rimozione subita ne' voluta contro di esso: e' lo stato che ha fatto il suo lavoro.
+	 */
+	Spent
 };
 
 /**
