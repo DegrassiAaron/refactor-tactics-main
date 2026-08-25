@@ -30,6 +30,7 @@
 #include "InputActionValue.h"
 #include "InputModifiers.h"
 #include "Kismet/GameplayStatics.h"
+#include "Turn/RTPlaybackLibrary.h" // DirectionYaw: l'anteprima del facing usa la stessa geometria del playback
 
 namespace
 {
@@ -908,6 +909,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// aggiornano insieme (#877). Aggiornarne una sola lasciava il verde a promettere celle che il waypoint
 	// successivo avrebbe rifiutato.
 	RefreshPlanningPreview(GetWorld(), SelectedUnit);
+	PreviewPlannedFacing(SelectedUnit); // la mesh segue il piano invece di restare girata come prima
 	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> %d waypoint (costo %d/%d)"),
 		*SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), Composite.TotalCost,
 		SelectedUnit->GetEffectiveMoveRange());
@@ -1118,6 +1120,7 @@ void ARTPlayerController::RebuildPlannedPath()
 	// stato azzerato: `ReachableCellsAfterPlan` rifa' la domanda a `BuildCompositeHexPath` e ottiene la stessa
 	// risposta, cioe' il raggio pieno. Le due strade non possono divergere perche' sono la stessa funzione.
 	RefreshPlanningPreview(GetWorld(), Unit);
+	PreviewPlannedFacing(Unit); // vale anche quando un waypoint viene tolto: il piano si accorcia, la mesh lo segue
 }
 
 // ======================================================================================================
@@ -1463,6 +1466,39 @@ void ARTPlayerController::EndFacingDeclaration()
 	bDeclaringFacing = false;
 }
 
+void ARTPlayerController::PreviewPlannedFacing(ARTUnit* Unit) const
+{
+	if (Unit == nullptr)
+	{
+		return;
+	}
+
+	// Il facing che l'unita' AVRA': la dichiarazione vince sul derivato, esattamente come a fine Move nel
+	// TurnManager. Se le due regole divergessero, l'anteprima mentirebbe.
+	ERTHexDirection Previsto = Unit->Facing;
+	if (Unit->bDeclaresPlannedFacing)
+	{
+		Previsto = Unit->PlannedFacing;
+	}
+	else if (Unit->PlannedPath.Num() > 1)
+	{
+		Previsto = URTFacingLibrary::FacingFromPath(Unit->PlannedPath, Unit->Facing);
+	}
+
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	if (HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map) == nullptr)
+	{
+		return;
+	}
+
+	// Lo yaw si ricava dalla geometria come fa il TurnManager a fine playback: dal centro della cella al
+	// centro del vicino nella direzione voluta. Ricavarlo dall'enum con una tabella sarebbe una seconda
+	// verita' da tenere allineata alla prima.
+	const FVector Here = Unit->WorldForCell(Unit->Cell, Origin, HexSize, LayerH);
+	const FVector There = Unit->WorldForCell(URTHexLibrary::Neighbor(Unit->Cell, Previsto), Origin, HexSize, LayerH);
+	Unit->SetActorRotation(FRotator(0.f, URTPlaybackLibrary::DirectionYaw(Here, There), 0.f));
+}
+
 void ARTPlayerController::CycleDeclaredFacing()
 {
 	if (IsGameplayInputBlocked())
@@ -1553,6 +1589,10 @@ bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
 	Unit->PlannedFacing = Sector;
 	Unit->bDeclaresPlannedFacing = true;
 	bDeclaringFacing = false;
+
+	// La dichiarazione si vede SUBITO: un tasto che non produce nessun riscontro a schermo e' un tasto
+	// che il giocatore crede rotto.
+	PreviewPlannedFacing(Unit);
 
 	if (ARTTurnManager* TM = PacingTurnManager(this))
 	{

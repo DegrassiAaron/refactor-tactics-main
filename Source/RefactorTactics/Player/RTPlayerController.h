@@ -338,6 +338,21 @@ public:
 	 */
 	void CycleDeclaredFacing();
 
+	/**
+	 * Ruota la MESH verso il facing che l'unita' avra' a fine mossa: la rotazione dichiarata se c'e',
+	 * altrimenti quella derivata dal percorso pianificato, altrimenti l'orientamento attuale.
+	 *
+	 * ⚠️ **Solo presentazione, e in ANTICIPO.** Il facing logico non cambia in pianificazione — lo scrive
+	 * il resolver a fine Move — quindi fra qui e la risoluzione la mesh mostra un orientamento che le regole
+	 * non hanno ancora. E' la stessa natura del percorso verde e del ventaglio: un'anteprima del piano, non
+	 * lo stato. `PIE-FACING-1` chiede che mesh e regola coincidano **a fine playback**, ed e' li' che il
+	 * TurnManager le riallinea.
+	 *
+	 * Senza, il giocatore pianifica un percorso, non vede cambiare niente, e a fine risoluzione l'unita'
+	 * scatta a un orientamento che non ha mai visto arrivare — che a schermo si legge come casuale.
+	 */
+	void PreviewPlannedFacing(ARTUnit* Unit) const;
+
 	/** Esce da `Facing` senza dichiarare nulla. */
 	void EndFacingDeclaration();
 
