@@ -650,13 +650,28 @@ bool FRTPlannedFacingPreviewTest::RunTest(const FString&)
 	// derivato coincideva con l'orientamento che l'unita' aveva gia': l'assert era **vacuo**, e una
 	// mutazione che ignorava del tutto il percorso lo lasciava verde. Trovato dalla verifica di mutazione.
 	TestEqual(TEXT("si parte dal facing di default"), Unit->Facing, ERTHexDirection::E);
-	Unit->PlannedPath = { FRTCellId(0, 0, 0), FRTCellId(0, 1, 0) };
-	TestNotEqual(TEXT("e il percorso porta ALTROVE"),
-		URTFacingLibrary::FacingFromPath(Unit->PlannedPath, Unit->Facing), Unit->Facing);
+
+	// 🔴 **Un percorso che CURVA**, cosi' il primo passo e l'ultimo NON coincidono: e' l'unico caso in cui
+	// l'assert distingue «guarda dove parte» da «guarda dove arrivera'». Su un percorso dritto le due
+	// risposte sono la stessa, e il test non proverebbe niente.
+	Unit->PlannedPath = { FRTCellId(0, 0, 0), FRTCellId(0, 1, 0), FRTCellId(1, 1, 0) };
+
+	ERTHexDirection PrimoPasso = Unit->Facing;
+	TestTrue(TEXT("il primo passo ha una direzione"),
+		URTHexLibrary::DirectionBetween(Unit->PlannedPath[0], Unit->PlannedPath[1], PrimoPasso));
+	const ERTHexDirection UltimoPasso = URTFacingLibrary::FacingFromPath(Unit->PlannedPath, Unit->Facing);
+	TestNotEqual(TEXT("e il percorso curva: primo e ultimo passo differiscono"), PrimoPasso, UltimoPasso);
+	TestNotEqual(TEXT("e il primo passo non e' il facing di partenza"), PrimoPasso, Unit->Facing);
+
 	PC->PreviewPlannedFacing(Unit);
-	const ERTHexDirection Derivato = URTFacingLibrary::FacingFromPath(Unit->PlannedPath, Unit->Facing);
-	TestEqual(TEXT("la mesh guarda dove il percorso la portera'"),
-		static_cast<float>(Unit->GetActorRotation().Yaw), YawPer(Derivato), 0.5f);
+
+	// In pianificazione l'unita' e' ferma sulla cella di partenza: deve guardare dove **sta per andare**.
+	// Orientarla secondo l'ultimo passo la farebbe guardare verso una direzione che assumera' dall'altra
+	// parte del percorso, e che da qui puo' essere l'opposta di dove si incammina.
+	TestEqual(TEXT("la mesh guarda verso il PRIMO passo"),
+		static_cast<float>(Unit->GetActorRotation().Yaw), YawPer(PrimoPasso), 0.5f);
+	TestNotEqual(TEXT("e NON verso l'ultimo"),
+		static_cast<float>(Unit->GetActorRotation().Yaw), YawPer(UltimoPasso), 0.5f);
 
 	// (2) E il facing LOGICO non e' cambiato: l'anteprima e' presentazione, e le regole restano quelle di
 	// prima fino a fine Move. Senza questo controllo, l'anteprima potrebbe scrivere sullo stato e nessuno

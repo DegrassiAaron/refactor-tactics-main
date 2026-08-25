@@ -1482,7 +1482,20 @@ void ARTPlayerController::PreviewPlannedFacing(ARTUnit* Unit) const
 	}
 	else if (Unit->PlannedPath.Num() > 1)
 	{
-		Previsto = URTFacingLibrary::FacingFromPath(Unit->PlannedPath, Unit->Facing);
+		// 🔴 **Il PRIMO passo, non l'ultimo.** In pianificazione l'unita' e' ancora sulla cella di
+		// partenza: orientarla secondo l'ultimo passo del percorso la fa guardare verso una direzione che
+		// assumera' dall'altra parte della mappa, e che da qui puo' essere l'opposta di dove sta per
+		// incamminarsi. Chi guarda vede una figura ferma rivolta dalla parte sbagliata.
+		//
+		// ⚠️ **Questa e' l'anteprima della PARTENZA e non del facing finale**, che resta `FacingFromPath` e
+		// lo scrive il resolver a fine Move. Le due coincidono su un percorso dritto e divergono su uno che
+		// curva: durante il playback la mesh ruota passo per passo e ci arriva, e a fine risoluzione il
+		// TurnManager la riallinea al valore logico.
+		ERTHexDirection Partenza = Unit->Facing;
+		if (URTHexLibrary::DirectionBetween(Unit->PlannedPath[0], Unit->PlannedPath[1], Partenza))
+		{
+			Previsto = Partenza;
+		}
 	}
 
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
