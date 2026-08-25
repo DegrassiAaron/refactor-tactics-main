@@ -345,12 +345,22 @@ TArray<URTEquipmentData*> URTCatalogLibrary::MakeWeaponVariants()
 	Impact->AddedEffects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 1));
 	Variants.Add(Impact);
 
-	// Sovraccarico — +6 danni, +1 turno di ricarica. E' l'unica che paga in TEMPO invece che in numeri
+	// Sovraccarico — +6 danni, +2 turni di ricarica. E' l'unica che paga in TEMPO invece che in numeri
 	// dell'attacco: il colpo e' migliore, ma l'attacco base smette di essere disponibile ogni turno.
+	//
+	// 🔴 **Il costo e' `2` e non `1`, e la differenza NON e' di taratura**: `TickCooldowns()` gira nel
+	// Cleanup dello STESSO turno in cui l'attacco e' stato usato, quindi un `1` si azzera subito e
+	// significa «ogni turno» — cioe' nessuna pausa. [D-090] lo ha misurato e ha scartato la traduzione
+	// letterale del catalogo («+1 turno di ricarica») proprio per questo, fissando `+2`.
+	// ⚠️ Questa riga ha portato `1` dal 2026-08-11 al 2026-08-25 (#1387): il codice e' stato scritto alle
+	// 09:57 e la decisione presa alle 15:23 dello stesso giorno, e nessuno le ha riavvicinate. Il test
+	// `Equipment.WeaponVariantHasTradeoff` non poteva accorgersene — chiede `CooldownDeltaTurns > 0`, e
+	// l'`1` lo soddisfaceva restando gratis. Lo pinna `Equipment.OverchargeCostSurvivesTheCleanup`.
+	// ➕ Il `+6` di danno resta un intero unico ed e' un'ALTRA issue: #509 lo porta alle fasce (D-087).
 	URTEquipmentData* Overcharge = WeaponVariant(TEXT("Weapon.Overcharge"), TEXT("Sovraccarico"),
 		TEXT("+6 danni"), TEXT("+1 turno di ricarica: l'attacco base non e' piu' disponibile ogni turno"));
 	Overcharge->DamageDelta = 6;
-	Overcharge->CooldownDeltaTurns = 1;
+	Overcharge->CooldownDeltaTurns = 2;
 	Variants.Add(Overcharge);
 
 	// Multiplo — un bersaglio in piu', −6 danni. ⚠️ Meta' dichiarata e non consumata: vedi `ExtraTargets`.
