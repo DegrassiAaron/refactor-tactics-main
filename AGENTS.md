@@ -218,7 +218,7 @@ validazione · serializzazione/replay · privacy intenti.
 - ⛔ **Il repository non ha più gate Python.** Restano **Node 22** in `tools/radar/` — rubrica dei
   rating, generatore SVG dei radar e allineatore degli alt sulla Wiki — e un solo file Python
   versionato, `tools/icons-downloader/paragon_skill_icons_downloader.py`, che è un **downloader** e non
-  un gate. I `--check` vivi sono **tre**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi), `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring) e `node tools/radar/doc-links.ts --check` (i percorsi citati dai documenti), piu' la suite `node --test` di `tools/radar/` — si lancia **da dentro la cartella**, `node --test tools/radar/` fallisce con `MODULE_NOT_FOUND`.
+  un gate. I controlli vivi sono **quattro**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi), `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), `node tools/radar/doc-links.ts --check` (i percorsi citati dai documenti) e `node tools/radar/catalog-code.ts` (le stat base degli eroi fra catalogo e C++ — non ha `--check` perché non scrive mai: esce `1` e basta), piu' la suite `node --test` di `tools/radar/` — si lancia **da dentro la cartella**, `node --test tools/radar/` fallisce con `MODULE_NOT_FOUND`.
   La cartella `scripts/` è stata **rimossa** il 2026-08-21 (**D-182**): con lei sono usciti i nove
   script Python e i loro test — i cinque gate documentali (link, nomi, simboli, tabelle, inventario),
   i due controlli sui dati di gioco (`check-capability-owners`, `check-equipment-defaults`) e i due
@@ -250,6 +250,7 @@ validazione · serializzazione/replay · privacy intenti.
   node tools/radar/generate.ts --check   # exit 1 se divergono
   node tools/radar/generate.ts           # riscrive gli otto SVG
   node tools/radar/doc-links.ts --check  # exit 1 se un percorso citato non risolve
+  node tools/radar/catalog-code.ts       # exit 1 se catalogo e C++ divergono, o se la copertura cala
   cd tools/radar && node --test          # la suite: da dentro la cartella, non dalla radice
   ```
 
