@@ -9,6 +9,8 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTTurnLog.h"
+#include "EngineUtils.h"
+#include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 
@@ -247,6 +249,93 @@ bool FRTPredictiveCrossingNotPresenceTest::RunTest(const FString&)
 		TestEqual(TEXT("presenza non e' entrata: whiff"), Entry->Outcome,
 			static_cast<uint8>(ERTPredictiveOutcome::PredictionWhiffed));
 	}
+
+	DestroyPredWorld(World);
+	return true;
+}
+
+/**
+ * Il colpo deciso a un decision boundary e' un TIRO NORMALE: la copertura si applica come per il Blast.
+ *
+ * 🔴 Fino al 2026-08-25 non lo era, e nessun documento diceva perche' ([#888]): due percorsi — la
+ * predittiva e l'Overwatch `FIRE` — chiamavano `ApplyDamage` diretto, saltando `EffectiveCoverReduction`
+ * che il Blast usa. Un bersaglio dietro un muro prendeva **danno pieno** da un Overwatch e danno ridotto
+ * da un attacco base della stessa arma.
+ *
+ * La regola scelta e' la coerenza — il brief dice che chi arma *«spara con la propria arma»*, e se l'arma
+ * e' la stessa lo sono anche le regole del tiro. Il counterplay del difensore resta la **rotta**: non
+ * passare di li'. Chi ci passa comunque puo' pagare meno se si e' coperto.
+ *
+ * ⚠️ Questo test e' il GEMELLO di `InterceptCellHit`: stessa scena, un muro in piu'. Confrontare i due
+ * danni e' cio' che prova la regola — un test che guardasse solo il valore assoluto passerebbe anche se
+ * la copertura fosse applicata due volte, o applicata a caso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPredictiveCoverAppliesTest,
+	"RefactorTactics.Predictive.BoundaryShotRespectsCover",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPredictiveCoverAppliesTest::RunTest(const FString&)
+{
+	UWorld* World = MakePredWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnPredMap(World);
+
+	const FRTCellId Locked(0, 0);
+
+	// Una copertura bassa su OGNI bordo della cella bloccata: quale bordo attraversi il tiro dipende dalla
+	// geometria assiale, e fissarne uno solo renderebbe il test dipendente da un dettaglio che non sta
+	// verificando. Con tutti i bordi coperti, la riduzione c'e' comunque.
+	ARTHexMapActor* MapActor = nullptr;
+	for (TActorIterator<ARTHexMapActor> It(World); It; ++It) { MapActor = *It; }
+	if (!TestNotNull(TEXT("map actor"), MapActor)) { DestroyPredWorld(World); return false; }
+
+	FRTHexCellData Cell(Locked);
+	for (const ERTHexDirection Edge : { ERTHexDirection::E, ERTHexDirection::NE, ERTHexDirection::NW,
+		ERTHexDirection::W, ERTHexDirection::SW, ERTHexDirection::SE })
+	{
+		FRTHexCover Cover;
+		Cover.Edge = Edge;
+		Cover.Type = ERTHexCoverType::Low;
+		Cell.Covers.Add(Cover);
+	}
+	MapActor->MapAsset->AddOrUpdateCell(Cell);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Runner = SpawnPredUnit(World, /*Team*/ 0, FRTCellId(-1, 0));
+	ARTUnit* Shooter = SpawnPredUnit(World, /*Team*/ 1, FRTCellId(0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Runner"), Runner) || !TestNotNull(TEXT("Shooter"), Shooter)
+		|| !TestNotNull(TEXT("TM"), TM) || !TestTrue(TEXT("intercetto armato"), ArmPredIntercept(Shooter, Locked)))
+	{
+		DestroyPredWorld(World);
+		return false;
+	}
+
+	Runner->PlannedCell = FRTCellId(1, 0);
+	const int32 Before = Runner->Health;
+
+	// Diagnostica del SETUP, prima di girare il turno: se la riduzione fosse zero gia' qui, il test
+	// starebbe misurando una mappa senza copertura invece del percorso del boundary.
+	{
+		FRTHexCombatUnit A; A.UnitId = 0; A.TeamId = 1; A.Cell = Shooter->Cell; A.Facing = Shooter->Facing;
+		FRTHexCombatUnit T; T.UnitId = 1; T.TeamId = 0; T.Cell = Locked;       T.Facing = Runner->Facing;
+		const int32 Direct = URTHexCombatLibrary::EffectiveCoverReduction(
+			MapActor->MapAsset, A, T, ERTAbilityShape::Single);
+		TestTrue(*FString::Printf(TEXT("setup: la copertura riduce davvero (%d), facing bersaglio %d"),
+			Direct, static_cast<int32>(Runner->Facing)), Direct > 0);
+	}
+
+	RunPredTurn(TM);
+
+	const int32 Taken = Before - Runner->Health;
+
+	// La premessa: il colpo e' arrivato. Senza, un danno ridotto sarebbe indistinguibile da un colpo mancato.
+	TestTrue(TEXT("premessa: il colpo e' arrivato"), Taken > 0);
+
+	// E ha subito la copertura: meno del danno pieno che `InterceptCellHit` misura sulla stessa scena
+	// senza muro. E' il confronto fra i due test a portare la regola.
+	TestTrue(*FString::Printf(
+		TEXT("il colpo di boundary subisce la copertura: %d invece dei %d pieni"), Taken, PredInterceptDamage),
+		Taken < PredInterceptDamage);
 
 	DestroyPredWorld(World);
 	return true;

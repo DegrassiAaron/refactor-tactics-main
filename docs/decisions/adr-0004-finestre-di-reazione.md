@@ -265,6 +265,40 @@ resta volutamente non limitato. I due non sono in contraddizione.
 > **ripete** — non si riapre la decisione, si riesegue la misura sul regime nuovo. La distinzione non era
 > esplicita e le due letture sembravano contraddirsi.
 
+### 8-bis. Il colpo deciso al boundary è un **tiro normale** *(D-189, 2026-08-25)*
+
+Copertura e facing si applicano come per il Blast: `EffectiveCoverReduction`, lo stesso della risoluzione
+ordinaria. Vale per l'Overwatch `FIRE` e per il boundary predittivo.
+
+**Perché.** Questo brief dichiara che chi arma *«si trattiene il colpo e spara con la propria arma quando
+qualcuno passa»*. Se l'arma è la stessa, lo sono anche le regole del tiro — l'onere della prova sta su chi
+vuole un'eccezione, e nessuno l'aveva scritta. ⚠️ **Fino al 2026-08-25 non era così**, e non per scelta: due
+percorsi chiamavano `ApplyDamage` diretto, e un bersaglio dietro un muro prendeva danno pieno da un Overwatch
+e ridotto da un attacco base della stessa arma. Nessun test difendeva l'asimmetria
+([#888](https://github.com/DegrassiAaron/refactor-tactics-main/issues/888)).
+
+**E l'Overwatch sarebbe forte due volte.** Chi arma paga già il costo-opportunità di §8: niente attacco quel
+turno, e tutto perso se nessuno passa. Un colpo che in più **buca i muri** trasformerebbe la scommessa in un
+upgrade. Il counterplay del difensore resta la **rotta**: non passare di lì. Chi ci passa comunque può pagare
+meno se si è coperto.
+
+**Quale cella.** La domanda *«quella lasciata o quella raggiunta?»* presuppone un movimento continuo che il
+resolver non ha: si lavora a **micro-step**, e il bersaglio è in una cella determinata quando il colpo parte.
+I due percorsi la conoscono in modo diverso, e la passano esplicitamente:
+
+| Percorso | Cella del bersaglio | Perché |
+|---|---|---|
+| Predittivo | `Armed.LockedCell` | è la cella **su cui si è scommesso**; al momento del danno il troncamento del movimento non è ancora avvenuto |
+| Overwatch `FIRE` | la cella corrente | al suo micro-step è già quella giusta |
+
+⚠️ **Copertura e facing arrivano insieme**, perché `EffectiveCoverReduction` li calcola in una funzione sola:
+chi viene preso fuori dall'arco frontale perde il beneficio del muro, come in ogni altro tiro. Le eccezioni
+vivono nelle **abilità dei singoli eroi** ([D-014](RT_PDR_00_Decision_Log.md)/[D-028](RT_PDR_00_Decision_Log.md)),
+mai nella regola generale.
+
+🔴 **Resta invisibile al giocatore**: nessun elemento di presentazione dice che quel colpo rispetta il muro.
+È tracciato in [#1392](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1392) — è lavoro di presentazione, e questa regola non lo aspetta.
+
 ### 9. Cosa **non** cambia
 
 Restano scartati o north-star: **stack di reazioni LIFO interattivo** · **interrupt annidati** (una finestra
