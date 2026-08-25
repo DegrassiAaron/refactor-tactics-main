@@ -4196,7 +4196,49 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	return Snapshot;
 }
 
-void ARTTurnManager::ResolvePredictiveBoundary(const TArray<ARTUnit*>& Units, TArray<FRTHexMoveResult>& Resolved)
+namespace
+{
+	/** La riduzione che la copertura applica a un colpo deciso a un decision boundary.
+	 *
+	 *  🔴 **Un colpo di boundary e' un TIRO NORMALE** ([#888], 2026-08-25): usa lo stesso
+	 *  `EffectiveCoverReduction` del Blast, quindi eredita copertura **e** facing — chi viene preso fuori
+	 *  dall'arco frontale perde il beneficio del muro. Il brief dice che chi arma *«spara con la propria
+	 *  arma»*: se l'arma e' la stessa lo sono anche le regole del tiro, e il counterplay del difensore
+	 *  resta la **rotta**.
+	 *
+	 *  ⚠️ La cella del bersaglio e' quella del **micro-step corrente**, ed e' deterministica: il resolver
+	 *  non muove in continuo, quindi non esiste l'ambiguita' «cella lasciata o raggiunta» che rendeva la
+	 *  domanda difficile finche' la si guardava a parole.
+	 *
+	 *  `Shape::Single`: un colpo di boundary ha un bersaglio solo. */
+	int32 BoundaryCoverReduction(const URTHexMapAsset* Map, const ARTUnit* Attacker,
+		const ARTUnit* Target, const FRTCellId& TargetCell)
+	{
+		if (Map == nullptr || Attacker == nullptr || Target == nullptr) { return 0; }
+
+		FRTHexCombatUnit A;
+		A.UnitId = 0;
+		A.TeamId = Attacker->TeamId;
+		A.Cell = Attacker->Cell;
+		A.bAlive = Attacker->IsAlive();
+		A.Facing = Attacker->Facing;
+
+		FRTHexCombatUnit T;
+		T.UnitId = 1;
+		T.TeamId = Target->TeamId;
+		// La cella su cui il colpo e' deciso, passata dal chiamante: la predittiva usa la cella
+		// BLOCCATA (`Armed.LockedCell`, quella su cui si e' scommesso) perche' al momento del danno
+		// il troncamento del movimento non e' ancora avvenuto e `Target->Cell` e' quella di partenza.
+		// L'Overwatch passa la cella corrente, che al suo micro-step e' gia' quella giusta.
+		T.Cell = TargetCell;
+		T.bAlive = Target->IsAlive();
+		T.Facing = Target->Facing;
+
+		return URTHexCombatLibrary::EffectiveCoverReduction(Map, A, T, ERTAbilityShape::Single);
+	}
+}
+
+void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units, TArray<FRTHexMoveResult>& Resolved)
 {
 	if (ArmedPredictions.Num() == 0)
 	{
@@ -4269,11 +4311,16 @@ void ARTTurnManager::ResolvePredictiveBoundary(const TArray<ARTUnit*>& Units, TA
 		if (Outcome.bMatched && Units.IsValidIndex(Outcome.VictimUnitId))
 		{
 			ARTUnit* Victim = Units[Outcome.VictimUnitId];
-			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Armed.Damage, Victim->Shield, Victim->Health);
+			const int32 Reduction = BoundaryCoverReduction(Map, Shooter, Victim, Armed.LockedCell);
+			const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
+			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, Victim->Shield, Victim->Health);
 			Victim->ApplyCombatState(Result.Health, Result.Shield);
 
 			Entry.Outcome = static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched);
-			Entry.Amount = Armed.Damage;
+			// Il danno EFFETTIVO, non quello dichiarato: con la copertura i due divergono (#888), e scrivere
+			// `Armed.Damage` qui rimetterebbe nel TurnLog autorevole un danno mai inflitto — il difetto che
+			// il commento qui sopra registra come gia' corretto una volta.
+			Entry.Amount = Dealt;
 			AppendLogEntry(Entry, Shooter);
 
 			AddLogEvent(FString::Printf(TEXT("%s: previsione azzeccata, %d danni a %s"),
@@ -4545,7 +4592,7 @@ void ARTTurnManager::ReportOrphanRecordedDecisions()
 	}
 }
 
-void ARTTurnManager::ApplyReactionDecision(const TArray<ARTUnit*>& Units, FRTMovementResolutionState& State,
+void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units, FRTMovementResolutionState& State,
 	const FRTReactionOpportunity& Opportunity, const FRTReactionDecision& Decision, int32 ArmedIndex)
 {
 	if (!ArmedOverwatches.IsValidIndex(ArmedIndex))
@@ -4633,7 +4680,9 @@ void ARTTurnManager::ApplyReactionDecision(const TArray<ARTUnit*>& Units, FRTMov
 	}
 
 	ARTUnit* Target = Units[TargetIdx];
-	const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Armed.Damage, Target->Shield, Target->Health);
+	const int32 Reduction = BoundaryCoverReduction(Map, WatchOwner, Target, Target->Cell);
+	const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
+	const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, Target->Shield, Target->Health);
 	Target->ApplyCombatState(Result.Health, Result.Shield);
 
 	// La charge si spende QUI e in nessun altro punto: `Charges = 1` (ADR-0004 §8). Da questo momento il
@@ -4646,7 +4695,7 @@ void ARTTurnManager::ApplyReactionDecision(const TArray<ARTUnit*>& Units, FRTMov
 	// conseguenza perche' quell'unita' non e' piu' dove sarebbe arrivata.
 	URTHexSimLibrary::StopUnitInPlace(State, TargetIdx, ERTMoveOutcome::StoppedByOverwatch);
 
-	Entry.Amount = Armed.Damage;
+	Entry.Amount = Dealt;  // il danno EFFETTIVO: con la copertura diverge da quello dichiarato (#888)
 	Entry.SelectedTargetUnitId = TargetIdx;
 	Entry.TgtCell = State.Pos[TargetIdx];
 	AppendLogEntry(Entry, WatchOwner);
@@ -4819,7 +4868,7 @@ void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TA
 		const ARTUnit* DecidingOwner = ArmedOverwatches[ArmedIndex].Owner.Get();
 		const FRTReactionDecision Decision = AskReactionDecision(Opportunity, Opportunity.Key.OwnerId,
 			IsValid(DecidingOwner) && DecidingOwner->bIsBotControlled);
-		ApplyReactionDecision(Units, State, Opportunity, Decision, ArmedIndex);
+		ApplyReactionDecision(Map, Units, State, Opportunity, Decision, ArmedIndex);
 	}
 }
 
@@ -4951,7 +5000,7 @@ void ARTTurnManager::ResolveMovement()
 	//
 	// Il troncamento avviene prima di `BuildMoveLog` proprio perche' il log dica la verita': una voce Move
 	// costruita sulla rotta piena racconterebbe un movimento che non e' avvenuto.
-	ResolvePredictiveBoundary(Units, Resolved);
+	ResolvePredictiveBoundary(Snapshot.Map, Units, Resolved);
 
 	// TurnLog dagli esiti: la chiave e' la cella di PARTENZA (Paths[i][0]), stabile perche' Cell cambia
 	// dopo PlaceOnCell. BuildMoveLog produce una voce per unita' nell'ordine dell'input.

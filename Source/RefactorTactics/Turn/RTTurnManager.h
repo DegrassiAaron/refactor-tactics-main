@@ -677,7 +677,7 @@ protected:
 	 * possiede — chi e' ostile a chi, il danno sulle unita' vere, e le voci di log. Tenerle separate e' cio'
 	 * che permette a `Predictive.PermutationInvariant` di esistere come test senza un `UWorld`.
 	 */
-	void ResolvePredictiveBoundary(const TArray<ARTUnit*>& Units, TArray<FRTHexMoveResult>& Resolved);
+	void ResolvePredictiveBoundary(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units, TArray<FRTHexMoveResult>& Resolved);
 
 	/**
 	 * Apre le finestre di reazione del micro-step appena eseguito, raccoglie le decisioni e le applica
@@ -726,7 +726,7 @@ protected:
 	 * `ArmedIndex` indicizza `ArmedOverwatches`: e' l'armamento la cui charge si consuma, e tenerlo esplicito
 	 * evita di ricercarlo una seconda volta con una regola che potrebbe non coincidere con la prima.
 	 */
-	void ApplyReactionDecision(const TArray<ARTUnit*>& Units, FRTMovementResolutionState& State,
+	void ApplyReactionDecision(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units, FRTMovementResolutionState& State,
 		const FRTReactionOpportunity& Opportunity, const FRTReactionDecision& Decision, int32 ArmedIndex);
 
 	/**
