@@ -19,6 +19,8 @@
 #include "Ability/RTHeroData.h"
 #include "Turn/RTFacingLibrary.h" // l'insieme legale si CHIEDE al servizio, non si indovina nel test
 #include "Map/RTHexMapActor.h"
+#include "Map/RTHexLibrary.h"
+#include "Turn/RTPlaybackLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTCellId.h"
 #include "Kismet/GameplayStatics.h"
@@ -605,6 +607,73 @@ bool FRTCycleDeclaredFacingTest::RunTest(const FString&)
 	// Il contesto non resta aperto: `HandleFacingSector` lo chiude, e un contesto appeso mangerebbe il
 	// click successivo.
 	TestEqual(TEXT("il contesto e' tornato al neutro"), PC->GetPointerContext(), ERTPointerContext::Planning);
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlannedFacingPreviewTest,
+	"RefactorTactics.Pointer.PlannedFacingPreviewFollowsThePlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlannedFacingPreviewTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+	PC->SelectActorForTest(Unit);
+
+	// Lo yaw che una direzione produce, calcolato come lo calcolano il playback e l'anteprima: dalla
+	// geometria, non da una tabella scritta a mano che sarebbe una seconda verita'.
+	FVector Origin; float HexSize; float LayerH;
+	MapActor->GetHexContext(Origin, HexSize, LayerH);
+	auto YawPer = [&](ERTHexDirection Dir)
+	{
+		const FVector Here = Unit->WorldForCell(Unit->Cell, Origin, HexSize, LayerH);
+		const FVector There = Unit->WorldForCell(URTHexLibrary::Neighbor(Unit->Cell, Dir), Origin, HexSize, LayerH);
+		return URTPlaybackLibrary::DirectionYaw(Here, There);
+	};
+
+	// (1) Un percorso pianificato ruota la mesh verso l'ULTIMO PASSO, che e' il facing che il resolver
+	// derivera' a fine Move. Prima di questa anteprima l'unita' restava girata come stava, e a fine
+	// risoluzione scattava a un orientamento mai visto arrivare.
+	// 🔴 **La cella d'arrivo NON deve stare nella direzione del facing di partenza.** La prima stesura
+	// usava `(1,0,0)`, che da `(0,0,0)` e' proprio `E` — il default di `ARTUnit::Facing` — quindi il
+	// derivato coincideva con l'orientamento che l'unita' aveva gia': l'assert era **vacuo**, e una
+	// mutazione che ignorava del tutto il percorso lo lasciava verde. Trovato dalla verifica di mutazione.
+	TestEqual(TEXT("si parte dal facing di default"), Unit->Facing, ERTHexDirection::E);
+	Unit->PlannedPath = { FRTCellId(0, 0, 0), FRTCellId(0, 1, 0) };
+	TestNotEqual(TEXT("e il percorso porta ALTROVE"),
+		URTFacingLibrary::FacingFromPath(Unit->PlannedPath, Unit->Facing), Unit->Facing);
+	PC->PreviewPlannedFacing(Unit);
+	const ERTHexDirection Derivato = URTFacingLibrary::FacingFromPath(Unit->PlannedPath, Unit->Facing);
+	TestEqual(TEXT("la mesh guarda dove il percorso la portera'"),
+		static_cast<float>(Unit->GetActorRotation().Yaw), YawPer(Derivato), 0.5f);
+
+	// (2) E il facing LOGICO non e' cambiato: l'anteprima e' presentazione, e le regole restano quelle di
+	// prima fino a fine Move. Senza questo controllo, l'anteprima potrebbe scrivere sullo stato e nessuno
+	// se ne accorgerebbe finche' una difesa direzionale non desse l'esito sbagliato.
+	TestEqual(TEXT("il facing logico NON e' stato toccato"), Unit->Facing, ERTHexDirection::E);
+
+	// (3) Una rotazione dichiarata VINCE sul derivato, come a fine Move nel TurnManager: se le due regole
+	// divergessero, l'anteprima mostrerebbe una direzione e il turno ne produrrebbe un'altra.
+	PC->BeginFacingDeclaration();
+	const TArray<ERTHexDirection> Legali =
+		URTFacingLibrary::LegalFacings(ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing);
+	const ERTHexDirection Scelta = Legali.Last();   // una legale diversa dal derivato, quando ce n'e' piu' d'una
+	if (TestTrue(TEXT("la dichiarazione e' accettata"), PC->HandleFacingSector(Scelta)))
+	{
+		TestEqual(TEXT("la mesh segue la rotazione dichiarata"),
+			static_cast<float>(Unit->GetActorRotation().Yaw), YawPer(Scelta), 0.5f);
+	}
 
 	DestroyPointerWorld(World);
 	return true;
