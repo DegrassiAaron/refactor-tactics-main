@@ -503,7 +503,7 @@ void ARTHUD::DrawHUD()
 	// Geometria della mappa ESAGONALE: unica fonte di scala per ogni conversione cella -> schermo di questa
 	// HUD (traccia, anteprime, waypoint). La stessa che usano risoluzione e playback (ARTHexMapActor).
 	FVector Origin = FVector::ZeroVector;
-	float HexSize = 100.f;
+	float HexSize = 150.f;
 	float LayerH = 250.f;
 	const URTHexMapAsset* Map = nullptr;
 	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))

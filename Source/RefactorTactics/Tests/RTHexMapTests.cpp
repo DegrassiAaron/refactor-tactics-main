@@ -1157,10 +1157,24 @@ bool FRTHexMapPinnedDefaultsTest::RunTest(const FString&)
 			 "(#687), quindi cambiarlo riclassifica in silenzio ogni mappa gia' committata"),
 		Fresh->MapClass, ERTMapClass::Skirmish);
 
+	// 🔴 **Questo default E' CAMBIATO il 2026-08-25, deliberatamente: `100.f` -> `150.f`** (`#1155`).
+	// La riga qui sopra diceva *«NON si cambia senza migrazione»*, ed era la guardia giusta: cambiarlo
+	// sposta la geometria di ogni mappa che non porta `HexSize` nei propri byte. E' il punto in cui quella
+	// migrazione si DICHIARA, non un asserto da riallineare in silenzio.
+	//
+	// **Perche' e' sicuro qui, misurato e non dedotto**: `D-163` ha chiuso `GBX-6` — vince la scala d'arte,
+	// lato `1,5 m` — e l'istruttoria ha misurato che **nessuna mappa sovrascrive `HexSize`**. Non esistono
+	// quindi mappe che ereditano un default diverso da quello che stanno per ereditare: il valore si sposta
+	// per tutte insieme, che e' esattamente cio' che la decisione chiede.
+	//
+	// ⚠️ **`LayerHeight` NON segue**, ed e' una scelta d'autore, non una dimenticanza: la quota fra i piani
+	// resta `2,50 m`. Tenendola ferma mentre la cella si allarga, il rapporto piano/larghezza passa da
+	// `1,44` (celle come pozzi) a `0,96`, e tutto cio' che sta nella cella si rimpicciolisce rispetto a `C`
+	// senza cambiare rispetto al piano — l'unita' scende dal `69%` al `46%` della cella.
 	TestEqual(
-		TEXT("il default di HexSize NON si cambia senza migrazione: entra in axial<->world, quindi "
-			 "cambiarlo sposta la geometria di ogni mappa che non lo porta nei byte"),
-		Fresh->HexSize, 100.f);
+		TEXT("il default di HexSize e' 150: la scala d'arte (D-163) governa anche il mondo, e da qui in poi "
+			 "NON si cambia senza migrazione — entra in axial<->world"),
+		Fresh->HexSize, 150.f);
 
 	TestEqual(
 		TEXT("il default di LayerHeight NON si cambia senza migrazione: stessa ragione di HexSize, "

@@ -129,7 +129,7 @@ public:
 
 	/** Dimensione esagono (cm) usata se MapAsset e' assente. */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
-	float HexSize = 100.f;
+	float HexSize = 150.f;
 
 	/** Quota tra layer (cm) usata se MapAsset e' assente. */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")

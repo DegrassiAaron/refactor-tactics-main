@@ -63,6 +63,24 @@ namespace
 		return Actor;
 	}
 
+	/**
+	 * Dove la cella logica impone che l'unita' si veda, **alla scala che il mondo usa davvero**.
+	 *
+	 * 🔴 **Questi confronti avevano `100.f` e `250.f` scritti a mano, e sono caduti quando `#1155` ha
+	 * portato `HexSize` a `150`.** Non era un difetto del gioco: il TurnManager legge la scala dalla mappa
+	 * (`GetHexContext`) e la posizione era giusta — era l'ATTESA a essere calcolata in un mondo diverso.
+	 * Riscriverla come `150.f` avrebbe solo spostato la stessa trappola al prossimo cambio di scala: qui
+	 * l'attesa si chiede alla stessa sorgente del codice sotto misura.
+	 */
+	FVector DoveLaCellaImpone(const ARTUnit* Unit, const FRTCellId& Cell, const ARTHexMapActor* HexMap)
+	{
+		FVector Origin = FVector::ZeroVector;
+		float HexSize = 0.f;
+		float LayerHeight = 0.f;
+		HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+		return Unit->WorldForCell(Cell, Origin, HexSize, LayerHeight);
+	}
+
 	ARTUnit* SpawnHexUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell)
 	{
 		if (!World) { return nullptr; }
@@ -111,7 +129,7 @@ bool FRTHexMoveReachesPlannedCellTest::RunTest(const FString&)
 {
 	UWorld* World = MakeHexMoveWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	SpawnHexMap(World, /*Radius=*/ 4);
+	ARTHexMapActor* HexMap = SpawnHexMap(World, /*Radius=*/ 4);
 
 	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
@@ -128,7 +146,7 @@ bool FRTHexMoveReachesPlannedCellTest::RunTest(const FString&)
 	TestTrue(TEXT("l'unita' e' sulla cella pianificata"), Mover->Cell == Goal);
 
 	// Nessuna deriva: la posizione visiva coincide con quella che la cella logica impone.
-	const FVector Expected = Mover->WorldForCell(Mover->Cell, FVector::ZeroVector, 100.f, 250.f);
+	const FVector Expected = DoveLaCellaImpone(Mover, Mover->Cell, HexMap);
 	TestTrue(TEXT("posizione visiva = cella logica (nessuna deriva)"),
 		Mover->GetActorLocation().Equals(Expected, 1.0f));
 
@@ -229,7 +247,7 @@ bool FRTHexDashReachesCellTest::RunTest(const FString&)
 {
 	UWorld* World = MakeHexMoveWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	SpawnHexMap(World, /*Radius=*/ 6);
+	ARTHexMapActor* HexMap = SpawnHexMap(World, /*Radius=*/ 6);
 
 	// Destinazione OBLIQUA (3,-3): distanza ESAGONALE 3, dentro la portata 5 dello scatto — ma distanza di
 	// Manhattan 6 e coordinate negative, quindi irraggiungibile per il pathfinding quadrato. E' il caso che
@@ -254,7 +272,7 @@ bool FRTHexDashReachesCellTest::RunTest(const FString&)
 
 	TestTrue(TEXT("lo scatto porta l'unita' sulla cella pianificata"), Runner->Cell == Goal);
 	TestTrue(TEXT("posizione visiva = cella logica"),
-		Runner->GetActorLocation().Equals(Runner->WorldForCell(Goal, FVector::ZeroVector, 100.f, 250.f), 1.0f));
+		Runner->GetActorLocation().Equals(DoveLaCellaImpone(Runner, Goal, HexMap), 1.0f));
 
 	DestroyHexMoveWorld(World);
 	return true;
@@ -496,7 +514,7 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 	TestTrue(TEXT("finire il Move sul ghiaccio porta una cella OLTRE la destinazione"),
 		Mover->Cell == FRTCellId(3, 0));
 	TestTrue(TEXT("posizione visiva = cella logica anche dopo la scivolata"),
-		Mover->GetActorLocation().Equals(Mover->WorldForCell(Mover->Cell, FVector::ZeroVector, 100.f, 250.f), 1.0f));
+		Mover->GetActorLocation().Equals(DoveLaCellaImpone(Mover, Mover->Cell, MapActor), 1.0f));
 	// Ghiaccio -> Fuoco: la cella in cui si SCIVOLA brucia come quella in cui si entra camminando. Nessuno ha
 	// scritto la regola "ghiaccio piu' fuoco": e' la conseguenza di due terreni indipendenti sullo stesso path.
 	// Il turno intero, non il solo ingresso: 10 dal Fuoco + gli 8 di `Status.Burning` nel Cleanup (CP 8.2).
