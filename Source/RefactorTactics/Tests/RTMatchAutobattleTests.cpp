@@ -24,6 +24,7 @@
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
+#include "RTAttackPlaybackProbeForTest.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "HAL/IConsoleManager.h"
@@ -1968,6 +1969,118 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 		FirstCombatTurn > 0 && FirstCombatTurn <= FirstBloodDeadline);
 
 	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+
+/**
+ * `AttackShowSeconds` scagliona davvero i colpi del Blast (#911).
+ *
+ * ⚠️ **Il conteggio dei colpi NON distingue le due strade, ed e' la ragione per cui il difetto e' vissuto
+ * a lungo.** Con il ramo di scaglionamento irraggiungibile i colpi uscivano comunque tutti, alla fine
+ * della fase, dal blocco di finalizzazione: totale identico, danni identici, TurnLog identico. Cio' che
+ * cambiava era **quando** uscivano, e nessun test guardava il tempo.
+ *
+ * La misura discriminante e' quindi il massimo numero di colpi rivelati **dentro lo stesso tick**:
+ *  · `AttackShowSeconds = 0` → il ramo mostra subito tutta la coda, e i colpi di una stessa fase cadono
+ *    insieme;
+ *  · `AttackShowSeconds` grande → ne esce uno per volta, e nessun tick ne vede due.
+ *
+ * Con `else if` (il difetto) le due varianti erano **indistinguibili**: entrambe svuotavano la coda in
+ * blocco alla fine della fase. E' l'asserzione che cade se qualcuno riscrive quel ramo come alternativa.
+ *
+ * ⛔ **Non verifica nulla di logico**, e non deve: `TickPlayback` e' presentazione. Che i due percorsi
+ * diano lo stesso esito e' gia' di `Match.Autobattle.DeterminismIsIndependentOfPlayback`; qui si guarda
+ * solo la distribuzione nel tempo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlastStagesAttacksTest,
+	"RefactorTactics.Match.Autobattle.AttackShowSecondsStagesTheBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlastStagesAttacksTest::RunTest(const FString&)
+{
+	struct FRTStagingVariant
+	{
+		const TCHAR* Label;
+		float AttackShowSeconds;
+	};
+	// 0.5 s contro un tick da 0.05 s: dieci tick fra un colpo e l'altro, quindi lo scaglionamento e'
+	// osservabile senza dipendere dalla durata esatta della fase.
+	const FRTStagingVariant Variants[] = {
+		{ TEXT("tutti insieme (AttackShowSeconds = 0)"), 0.0f },
+		{ TEXT("scaglionati (AttackShowSeconds = 0.5)"), 0.5f },
+	};
+
+	int32 MaxInOneTick[2] = { 0, 0 };
+	int32 TotalAttacks[2] = { 0, 0 };
+
+	for (int32 V = 0; V < 2; ++V)
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		SpawnAutobattleMap(World);
+
+		const TArray<ARTUnit*> Units = DeployAutobattleRoster(World, { 0, 1, 2, 3 });
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || Units.Contains(nullptr))
+		{
+			AddError(TEXT("allestimento fallito: turn manager o unita' mancanti"));
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+
+		TM->bEnablePlayback = true;
+		TM->AttackShowSeconds = Variants[V].AttackShowSeconds;
+		// Il tetto comprime la presentazione quando la durata stimata lo supera, e comprimendola
+		// riavvicinerebbe i colpi: alzato in ENTRAMBE le varianti, cosi' l'unica differenza resta
+		// `AttackShowSeconds`.
+		TM->MaxPlaybackSeconds = 120.f;
+
+		URTAttackPlaybackProbeForTest* Probe = NewObject<URTAttackPlaybackProbeForTest>();
+		Probe->AddToRoot();
+		TM->OnAttackResolved.AddDynamic(Probe, &URTAttackPlaybackProbeForTest::OnAttackResolved);
+
+		// ⚠️ **Un contatore MONOTONO, non il `TickIndex` dell'hook**, e la prima stesura sbagliava proprio
+		// qui. `TickIndex` riparte da 0 a ogni risoluzione, quindi due colpi di due TURNI diversi caduti
+		// entrambi al terzo tick finivano nello stesso secchio: la sonda misurava «13 colpi nello stesso
+		// tick» su una partita che non ne aveva mai piu' di pochi per fase. Il test cadeva per la chiave
+		// sbagliata, non per il difetto che vuole sorvegliare.
+		int32 MonotonicTick = 0;
+		const FRTPlaybackTickHook StampTick = [Probe, &MonotonicTick](ARTTurnManager*, int32)
+		{
+			Probe->CurrentTick = ++MonotonicTick;
+		};
+
+		const FRTAutobattleTrace Trace = PlayAutobattleMatch(TM, /*MaxTurns=*/ 40, StampTick);
+		TestFalse(FString::Printf(TEXT("%s: nessuna risoluzione appesa"), Variants[V].Label),
+			Trace.bResolveStalled);
+
+		MaxInOneTick[V] = Probe->MaxAttacksInOneTick();
+		TotalAttacks[V] = Probe->AttackTicks.Num();
+
+		Probe->RemoveFromRoot();
+		RTWorldFixtures::DestroyWorld(World);
+	}
+
+	AddInfo(FString::Printf(TEXT("colpi rivelati: %d con 0 s, %d con 0.5 s · massimo in un solo tick: %d contro %d"),
+		TotalAttacks[0], TotalAttacks[1], MaxInOneTick[0], MaxInOneTick[1]));
+
+	// PREMESSA. Senza almeno due colpi nella stessa fase non c'e' niente da scaglionare, e il test
+	// sarebbe verde per assenza di materiale invece che per la proprieta' che dichiara.
+	if (!TestTrue(FString::Printf(TEXT("premessa: qualche fase Blast rivela almeno due colpi (massimo osservato %d)"),
+		MaxInOneTick[0]), MaxInOneTick[0] >= 2))
+	{
+		return false;
+	}
+
+	// LA PROPRIETA'. Con lo scaglionamento acceso nessun tick vede piu' di un colpo.
+	TestEqual(FString::Printf(
+		TEXT("con AttackShowSeconds = 0.5 i colpi escono uno per tick (massimo osservato %d)"),
+		MaxInOneTick[1]), MaxInOneTick[1], 1);
+
+	// I due percorsi mostrano gli STESSI colpi: cambia il quando, non il quanto. E' anche la guardia che
+	// impedisce di far passare il test rendendo semplicemente piu' rari i colpi.
+	TestEqual(TEXT("lo scaglionamento non perde ne' duplica colpi"), TotalAttacks[1], TotalAttacks[0]);
+
 	return true;
 }
 
