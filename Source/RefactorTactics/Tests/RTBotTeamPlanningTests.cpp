@@ -232,4 +232,88 @@ bool FRTPlanBotsNoTeammateOverlapTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * 🔴 **L'invariante dei pesi si misura sull'ISTANZA, non sul CDO** (`#1276`).
+ *
+ * `HexBot.ElevationNeverOutweighsClosingOneCell` la pinna leggendo `GetDefault<ARTTurnManager>()`. Ma
+ * `ARTGameMode` **riusa** un `ARTTurnManager` gia' presente nel livello invece di spawnarlo, e un'istanza
+ * piazzata serializza i propri `UPROPERTY` nel `.umap`: un livello che portasse ancora `WElevation = 20`
+ * riaprirebbe lo stato assorbente di `#1088` **mentre quel test resta verde**.
+ *
+ * Un test non puo' vedere quel caso — non carica i livelli — quindi il presidio e' a runtime, e questo
+ * test verifica che il presidio ci sia e che non urli quando non deve.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotWeightInvariantTest,
+	"RefactorTactics.Bot.WeightInvariantIsCheckedOnTheLiveInstance",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotWeightInvariantTest::RunTest(const FString&)
+{
+	// Mappa su TRE layer: l'invariante non e' una proprieta' dei soli pesi ma del loro rapporto con la
+	// mappa, e su due layer gli stessi numeri reggerebbero.
+	auto MakeMap = []()
+	{
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
+		{
+			M->AddOrUpdateCell(FRTHexCellData(Id));
+		}
+		for (int32 L = 1; L <= 2; ++L)
+		{
+			M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, L)));
+			M->AddTransition(FRTCellId(0, 0, L - 1), FRTCellId(0, 0, L), /*Cost=*/ 1);
+		}
+		M->SortCells();
+		return M;
+	};
+
+	// --- (1) Pesi FUORI invariante: il presidio deve URLARE ---------------------------------------
+	{
+		UWorld* World = MakeTeamPlanningWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = MakeMap();
+
+		ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-2, 0, 0), true);
+		ARTUnit* Foe = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0), true);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Bot || !Foe) { DestroyTeamPlanningWorld(World); return false; }
+
+		// Il valore che `#1088` ha tolto dal default, rimesso come farebbe un `.umap` mai riallineato.
+		TM->WElevation = 20;
+		TestTrue(TEXT("premessa: 20 * 2 supera davvero WApproach"),
+			TM->WElevation * 2 >= TM->WApproach);
+
+		AddExpectedError(TEXT("INVARIANTE PESI BOT VIOLATA"), EAutomationExpectedErrorFlags::Contains, 1);
+		TM->PlanBotsForTest();
+
+		DestroyTeamPlanningWorld(World);
+	}
+
+	// --- (2) Pesi DI DEFAULT: il presidio deve TACERE ----------------------------------------------
+	// ⚠️ Senza questa meta' il test passerebbe anche con un controllo che urla sempre — e un allarme che
+	// suona a ogni partita e' un allarme che si impara a ignorare.
+	{
+		UWorld* World = MakeTeamPlanningWorld();
+		if (!TestNotNull(TEXT("secondo world"), World)) { return false; }
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = MakeMap();
+
+		ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(-2, 0, 0), true);
+		ARTUnit* Foe = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, 0, 0), true);
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Bot || !Foe) { DestroyTeamPlanningWorld(World); return false; }
+
+		TestTrue(TEXT("premessa: i default rispettano l'invariante su questa mappa"),
+			TM->WElevation * 2 < TM->WApproach);
+
+		// Nessun `AddExpectedError`: se il presidio urlasse, l'errore non atteso farebbe cadere il test.
+		TM->PlanBotsForTest();
+
+		DestroyTeamPlanningWorld(World);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
