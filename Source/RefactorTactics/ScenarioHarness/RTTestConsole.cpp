@@ -86,6 +86,27 @@ TAutoConsoleVariable<FString> CVarRTMapSource(
  * ⚠️ **E' una vista di MISURA, non una modalita' di gioco**: scavalca l'apertura sulla propria squadra e
  * il pitch configurato, e resta attiva finche' la cvar lo e'.
  */
+/**
+ * Scatta un `HighResShot` quando la vista a picco e' pronta, e dice dove l'ha messo.
+ *
+ * 🔴 **Serve a confrontare due catture dello STESSO frame.** La misura di `#1290` veniva da
+ * `HighResShot`, che ha un path di rendering proprio; una cattura della finestra mostra invece cio' che
+ * il giocatore vede. Sulle stesse condizioni le due davano numeri diversi — 31% di pixel saturi contro
+ * meno dell'1% — e finche' non si confrontano sullo stesso fotogramma non si sa quale delle due misuri
+ * male.
+ *
+ * ⚠️ **Il ritardo non e' un margine di sicurezza, e' parte della misura**: l'esposizione automatica
+ * impiega qualche decimo a stabilizzarsi, e scattare subito fotograferebbe una board a meta' adattamento.
+ * Il valore della cvar sono i **secondi** da aspettare.
+ *
+ *     -dpcvars=rt.Map.Fixture=RelayBasin,rt.Camera.TopDown=1,rt.Camera.TopDownShot=3
+ */
+TAutoConsoleVariable<int32> CVarRTCameraTopDownShot(
+	TEXT("rt.Camera.TopDownShot"),
+	0,
+	TEXT("Secondi dopo i quali scattare un HighResShot della vista a picco. 0 = nessuno scatto."),
+	ECVF_Default);
+
 TAutoConsoleVariable<int32> CVarRTCameraTopDown(
 	TEXT("rt.Camera.TopDown"),
 	0,

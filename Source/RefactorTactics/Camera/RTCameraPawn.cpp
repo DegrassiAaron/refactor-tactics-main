@@ -3,9 +3,12 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Map/RTHexLibrary.h"
+#include "Engine/GameViewportClient.h"
 
 /** Definita in `ScenarioHarness/RTTestConsole.cpp`: vista di misura a picco (`#1290`). */
 extern TAutoConsoleVariable<int32> CVarRTCameraTopDown;
+/** Definita nello stesso file: scatto automatico per il confronto fra catture (`#1290`). */
+extern TAutoConsoleVariable<int32> CVarRTCameraTopDownShot;
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerController.h" // squadra del giocatore da inquadrare all'avvio
@@ -163,10 +166,54 @@ bool ARTCameraPawn::ApplyTopDownView(const ARTHexMapActor* HexMap, const FVector
 	CameraPitch = MinPitch;
 	SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
 
+	ScheduleTopDownShot();
+
 	UE_LOG(LogRT, Warning, TEXT("[RT] rt.Camera.TopDown: vista di MISURA a picco sull'intera board "
 		"(arm=%.0f, pitch=%.0f). Non e' la vista di gioco."),
 		SpringArm->TargetArmLength, CameraPitch);
 	return true;
+}
+
+void ARTCameraPawn::ScheduleTopDownShot()
+{
+	const int32 Seconds = CVarRTCameraTopDownShot.GetValueOnGameThread();
+	if (Seconds <= 0 || GetWorld() == nullptr)
+	{
+		return;
+	}
+
+	// Il ritardo e' parte della misura: l'esposizione automatica impiega qualche decimo ad adattarsi, e uno
+	// scatto immediato fotograferebbe una board a meta' adattamento — cioe' misurerebbe il transitorio.
+	FTimerHandle Handle;
+	GetWorld()->GetTimerManager().SetTimer(Handle, [WeakThis = TWeakObjectPtr<ARTCameraPawn>(this)]()
+	{
+		ARTCameraPawn* Self = WeakThis.Get();
+		if (Self == nullptr || GEngine == nullptr)
+		{
+			return;
+		}
+		// ⚠️ **Sul viewport client, non su `GEngine`.** `HighResShot` e' gestito da
+		// `UGameViewportClient::Exec`, e `GEngine->Exec` non ce lo inoltra: il comando veniva accettato
+		// senza produrre niente, e il log diceva «richiesto» perche' NON verificava il valore di ritorno.
+		// Misurato: nessun file in `Saved/Screenshots/` e nessuna riga del motore.
+		UGameViewportClient* Viewport = Self->GetWorld() ? Self->GetWorld()->GetGameViewport() : nullptr;
+		const bool bAccepted = Viewport != nullptr
+			&& Viewport->Exec(Self->GetWorld(), TEXT("HighResShot 1920x1080"), *GLog);
+
+		if (bAccepted)
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] rt.Camera.TopDownShot: HighResShot accettato. Il file esce in Saved/Screenshots/."));
+		}
+		else
+		{
+			// Fail-loud: uno scatto che non avviene deve dirlo, altrimenti si misura l'assenza del file
+			// invece dell'immagine.
+			UE_LOG(LogRT, Error,
+				TEXT("[RT] rt.Camera.TopDownShot: HighResShot RIFIUTATO (viewport %s). Nessuna immagine."),
+				Viewport ? TEXT("presente") : TEXT("assente"));
+		}
+	}, static_cast<float>(Seconds), /*bLoop=*/ false);
 }
 
 void ARTCameraPawn::BeginPlay()
