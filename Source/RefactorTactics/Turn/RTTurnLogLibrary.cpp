@@ -313,6 +313,15 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			return FString::Printf(TEXT("%s: %s revocato, ha lasciato la cella"), *Dove, *Quale);
 		case ERTStatusOutcome::Expired:
 			return FString::Printf(TEXT("%s: %s scaduto"), *Dove, *Quale);
+
+		// Le tre rimozioni causate da un altro effetto (`#1314`). Ognuna dice CHI l'ha tolto, che e' la
+		// domanda a cui il replay non sapeva rispondere.
+		case ERTStatusOutcome::Extinguished:
+			return FString::Printf(TEXT("%s: %s spento dall'acqua"), *Dove, *Quale);
+		case ERTStatusOutcome::Cleansed:
+			return FString::Printf(TEXT("%s: %s purificato"), *Dove, *Quale);
+		case ERTStatusOutcome::Spent:
+			return FString::Printf(TEXT("%s: %s incassato"), *Dove, *Quale);
 		default:
 			return FString::Printf(TEXT("%s: esito di stato non tradotto (%d) su %s"),
 				*Dove, Entry.Outcome, *Quale);

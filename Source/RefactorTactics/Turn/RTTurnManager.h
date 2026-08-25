@@ -1159,6 +1159,9 @@ protected:
 	 */
 	void AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor);
 
+	/** Applica uno status e registra la voce se cosi' facendo ha SPENTO un `Burning` (#1314). */
+	void ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Turns);
+
 	/**
 	 * Le due voci di ciclo di vita di uno stato (#1077), costruite in UN posto solo.
 	 *

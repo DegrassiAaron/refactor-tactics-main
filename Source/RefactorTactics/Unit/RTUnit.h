@@ -495,8 +495,13 @@ public:
 	 *
 	 * Le due nature convivono senza sovrascriversi: chi e' bagnato dall'acqua E dall'abilita' di Phase resta
 	 * bagnato per la durata di Phase anche dopo essere uscito dall'acqua.
+	 *
+	 * ⚠️ **Restituisce se ha SPENTO un `Burning`** (`#1314`). `ARTUnit` il TurnLog non ce l'ha — e' la
+	 * stessa ragione per cui `TickStatuses` restituisce i tag scaduti invece di scriverli — quindi il
+	 * momento in cui l'acqua spegne il fuoco puo' diventare una voce solo se questa funzione lo dichiara a
+	 * chi la chiama. Prima era muto, e il replay non poteva dire perche' un'unita' avesse smesso di bruciare.
 	 */
-	void ApplyStatus(FGameplayTag Tag, int32 Turns);
+	bool ApplyStatus(FGameplayTag Tag, int32 Turns);
 
 	/** Vero se lo status e' attivo (durata residua > 0). */
 	bool HasStatus(FGameplayTag Tag) const;
