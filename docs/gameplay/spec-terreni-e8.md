@@ -88,8 +88,7 @@ ad asset per-cella. Un catalogo letterale in C++, validato a test, è coerente c
 | 3 | `Fire` | `Fire` (invariato) |
 | 4 | `Electrified` | `Conductive` |
 | 5 | `Ice` | `Ice` (invariato) |
-| 6 | `Void` | `Void` (lasciato dichiarato, **inutilizzato** — non è fra gli 8 del catalogo, nessuna cella
-  salvata lo perde) |
+| 6 | `Void` | `Void` (lasciato dichiarato, **inutilizzato** — non è fra gli 8 del catalogo, nessuna cella salvata lo perde) |
 | 7 (nuovo) | — | `Smoke` |
 | 8 (nuovo) | — | `HighGround` |
 
@@ -118,9 +117,7 @@ che da `1`/`false` statici — la libertà di override resta, ma il default arri
 | `Conductive` | 1 | no | no | — | `bConductsElectricity=true`, **non** applica Wet |
 | `Smoke` | 1 | no | no | `Status.Obscured` | `MaxTargetingRangeThrough=2` |
 | `Ice` | 1 | no | no | — | sliding, vedi §5 |
-| `HighGround` | 1 | no | no | — | "bonus visuale" **non implementato** in CP 8.1: nessun
-  meccanismo di vista/quota esiste ancora da consumarlo. Dichiarato come limite in PR, stesso pattern di
-  `PushResistance` di Riktor. |
+| `HighGround` | 1 | no | no | — | "bonus visuale" **non implementato** in CP 8.1: nessun meccanismo di vista/quota esiste ancora da consumarlo. Dichiarato come limite in PR, stesso pattern di `PushResistance` di Riktor. |
 
 ## 4. Call site da aggiornare (rename enum)
 

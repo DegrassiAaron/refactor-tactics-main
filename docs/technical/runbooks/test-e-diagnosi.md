@@ -739,7 +739,7 @@ Ognuna è costata tempo almeno una volta.
 | Errori di simboli duplicati fra file di test | la *unity build* mette più `.cpp` nella stessa translation unit | dai **nomi distinti** agli helper nei namespace anonimi di ogni file |
 | Linee di debug invisibili | disegnate **sotto** la faccia del disco-cella (che sta a `z = 2.5`) | usa le costanti `RTLift*` di `RTHexMapActor.cpp`, che derivano dallo spessore reale |
 | Un `.md` dichiara un numero di test diverso | la documentazione è indietro rispetto al codice | fidati del comando di §2 |
-| Le unità si muovono **dopo** che lo scenario è finito | piani rimasti appesi ririsolti a ogni turno: corretto in `4e6c2e0`, ma se ricompare, guarda i **timestamp** — la riga `AUTO-RUN` viene prima di ogni turno visibile |
+| Le unità si muovono **dopo** che lo scenario è finito | piani rimasti appesi ririsolti a ogni turno: corretto in `4e6c2e0` | se ricompare, guarda i **timestamp** — la riga `AUTO-RUN` viene prima di ogni turno visibile |
 | Parte uno scenario **diverso** da quello scelto nella tendina | una `rt.Test.Scenario` digitata prima è ancora attiva: le console variable durano quanto il processo dell'editor | `rt.Test.Scenario ""`, oppure leggi `(da: …)` nella riga `AUTO-RUN` del log |
 
 ---
