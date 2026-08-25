@@ -808,17 +808,31 @@ contando ferite. Le verifiche di questo dominio sono **manuali**, di classe **C*
 [`scenario-map.md`](../tooling/scenario-map.md), e il loro registro è
 [`test-manuali-pie.md`](../test-manuali-pie.md).
 
-> 🔴 **Le voci PIE di questo contratto non sono ancora scritte.** Il contenuto è pronto e vive nella
-> issue di validazione visiva del kit.
+> ✅ **Le voci PIE di questo contratto sono scritte dal 2026-08-25**, e sono **sei**: `PIE-GBX-VOLUME`,
+> `PIE-GBX-FIT`, `PIE-GBX-COVER`, `PIE-GBX-DOOR`, `PIE-GBX-SURFACE`, `PIE-GBX-ZOOM`
+> ([#1096](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1096)). Vivono in
+> [`test-manuali-pie.md`](../test-manuali-pie.md), che ne è l'owner — qui non si ricopiano — e la seduta
+> **U25** le dichiara in `verifies:`, dove fino a quel giorno c'era `[]`.
+>
+> ⏳ **Scritte non è eseguite, ed è la distinzione per cui quel registro esiste.** Tutte e sei nascono
+> aperte per **una causa sola e misurabile**: `git ls-files 'Content/RT/World/Graybox/*'` dà **0**. Il
+> percorso è deciso (`D-173`, §8.1) e la riga d'allowlist c'è già; le sette mesh no. **Questo documento
+> resta non verificato**, e adesso si sa esattamente da cosa dipende smettere di esserlo.
+>
+> 🔑 **`PIE-GBX-FIT` è l'oracolo di `GBX-1`**, la domanda che §9 lascia aperta: la frazione di `C` che è il
+> Safe Placement inset **si decide guardando**, in quella voce, e l'esito va riportato in
+> [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). E `PIE-GBX-DOOR` copre tutti e **quattro** gli stati,
+> `Locked` compreso: `GBX-2` non è più una domanda dal 2026-08-18 (`D-171`, §7.1).
 >
 > ⚠️ **Il vincolo che le bloccava è decaduto il 2026-08-20.** Fino ad allora `test-manuali-pie.md` era
 > assegnato a un'altra track del write-set di batch, e scriverci da qui violava `D-139`. Con
 > [D-178](../../decisions/RT_PDR_00_Decision_Log.md) il sistema di lavoro parallelo è stato rimosso: non
-> c'è più un proprietario da cui farsi cedere il path. **Restano da scrivere, e ora nulla lo impedisce** —
-> [#1096](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1096).
+> c'è più un proprietario da cui farsi cedere il path, e restava solo il lavoro.
 >
-> **Il nome dell'owner non si scrive qui, e il paragrafo sotto dice perché**: è cambiato tre volte in un
-> giorno, e ogni nome inciso in questa riga sarebbe invecchiato in silenzio. Si legge nel batch.
+> **Il nome dell'owner non si scriveva qui, e il paragrafo sotto dice perché**: era cambiato tre volte in un
+> giorno, e ogni nome inciso in questa riga sarebbe invecchiato in silenzio. ⌫ *«Si legge nel batch»* non è
+> più un'istruzione eseguibile: `parallel-batch.yaml` è uscito dal repository con
+> [D-181](../../decisions/RT_PDR_00_Decision_Log.md), e non c'è più un batch da aprire.
 >
 > ⏱️ **La causa è cambiata tre volte in una sessione, e il vincolo non si è mai mosso.** All'apertura il
 > file era in prestito a `playback` per `#1015`; poi `#1015` è stata **chiusa** mentre questo documento
@@ -841,3 +855,9 @@ intatto vs distrutto
 a tre distanze di camera — ravvicinata, di gioco, tattica. **Se non è leggibile, si cambia la grammatica
 prima di aggiungere altri asset**: è l'unica prescrizione del kit che questo documento adotta senza
 emendarla.
+
+⚠️ **Due delle sei coppie non sono osservabili in v0.1, e la voce che le guarda lo dichiara invece di
+tacerlo**: `muro vs muro sfondato` (§8, elemento 10) e `intatto vs distrutto` (§8, elemento 9 — le macerie)
+sono `DEFER` perché dipendono da `RT-FEAT-MAP-STRUCTURAL`, che è `IDEA` su release `future`. `PIE-GBX-ZOOM`
+si esegue sulle **quattro** restanti e scrive che due sono fuori. Un contratto «verificato» su quattro coppie
+su sei, letto come verificato, è il difetto che questa sezione esiste per non produrre.

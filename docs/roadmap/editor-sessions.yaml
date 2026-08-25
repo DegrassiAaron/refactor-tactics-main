@@ -1240,11 +1240,20 @@ sessions:
     # il validator controlla la sola SIMMETRIA, quindi taceva. `U25` e `U26` si guardano sulla stessa scena
     # illuminata: chi ne apre una trova scritto che c'e' l'altra.
     shares_setup_with: [U21, U22, U26]
-    verifies: []
-    # ➕ **#1094 entra il 2026-08-17**: possiede `GBX-1` (l'inset che questa seduta sceglie) e `GBX-2`
-    # (che la blocca). Senza, l'unica premessa leggibile da una vista era `unblocked_by: [U21]`, e a U21
-    # chiusa la seduta sarebbe sembrata pronta con due bloccanti aperti e invisibili.
-    issues: [1095, 1094]
+    # ➕ **Le sei voci esistono dal 2026-08-25** (#1096): questo campo e' stato `[]` dal 2026-08-17, e la
+    # ragione non era una dimenticanza — il registro PIE era nel `writable` di un'altra track e `D-139`
+    # vietava di scriverci da fuori. `D-178` ha rimosso quel sistema, e restava solo il lavoro.
+    # ⚠️ `done_when` chiede un ESITO, non l'esistenza delle voci: oggi sono sei ⏳ e nessuna e' eseguibile,
+    # perche' `git ls-files 'Content/RT/World/Graybox/*'` da' 0. La seduta resta aperta, e adesso si vede
+    # su cosa: prima l'unica premessa leggibile era `unblocked_by: [U21]`.
+    verifies: [PIE-GBX-VOLUME, PIE-GBX-FIT, PIE-GBX-COVER, PIE-GBX-DOOR, PIE-GBX-SURFACE, PIE-GBX-ZOOM]
+    # ➕ **#1094 entrava qui dal 2026-08-17**: possedeva `GBX-1` (l'inset che questa seduta sceglie) e
+    # `GBX-2` (che la bloccava). ⌫ **Esce il 2026-08-25 perche' e' CHIUSA** (2026-08-19): `GBX-2` ha una
+    # risposta — `D-171`, la traversa in rilievo — quindi non blocca piu' nulla, e le due domande rimaste,
+    # `GBX-1` e `GBX-5`, non vivono piu' in una issue: stanno in `OPEN_DECISIONS.md` e §9 del contratto
+    # dichiara che l'oracolo e' QUESTA seduta. Un `issues:` che elenca una issue chiusa manda a cercare
+    # una premessa dove non c'e' piu'; il puntatore resta qui, dove dice anche perche' e' uscito.
+    issues: [1095]
     done_when: la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro
     unblocks: []
     steps: |
@@ -1354,11 +1363,14 @@ sessions:
       prisma esagonale `EditorOnly` con footprint sicuro e guide verticali — e una **scena di
       validazione** che mette in campo unita', copertura bassa e alta, muro, porta nei suoi stati, acqua e
       ghiaccio, e li guarda a tre distanze di camera.
-      ⚠️ **`verifies: []` non e' una dimenticanza**, ed e' lo stesso caso di `U24`: le voci PIE di questo
-      dominio **non esistono** — misurato, `grep -c "PIE-GBX" ../technical/test-manuali-pie.md` da' **0**.
-      *(Fino al 2026-08-20 quel registro era assegnato a un'altra track e le voci si potevano solo
-      proporre; `D-178` ha rimosso il vincolo, quindi ora si scrivono — #1096.)* Finche' non ci sono,
-      questa seduta produce una scena e non chiude nessuna voce del registro.
+      ✅ **`verifies:` e' pieno dal 2026-08-25, e per otto giorni non lo e' stato senza che fosse una
+      dimenticanza.** Questa riga diceva *«le voci PIE di questo dominio non esistono — misurato,
+      `grep -c "PIE-GBX" ../technical/test-manuali-pie.md` da' 0»*, ed era vera fino a #1096: adesso lo
+      stesso comando da' **6**. Il vincolo era che quel registro fosse assegnato a un'altra track e che
+      `D-139` vietasse di scriverci da fuori; `D-178` lo ha rimosso, e restava solo il lavoro.
+      ⚠️ **Scritte non e' eseguite**: le sei nascono ⏳ perche' `git ls-files 'Content/RT/World/Graybox/*'`
+      da' **0**. Questa seduta continua a non chiudere nessuna voce finche' il kit non ha un asset — ma
+      adesso si vede su cosa e' ferma, invece che sembrare senza verifiche.
       ⚠️ **`artifacts: []` per la ragione di `U21`**: l'oracolo degli artefatti e' `git ls-files`, che sa
       dire se un path **esiste** e non se e' stato modificato.
       ✅ **Il secondo motivo e' CADUTO il 2026-08-18, e va ritirato invece che lasciato in piedi.** Questa

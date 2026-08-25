@@ -168,10 +168,13 @@ Content/RT/Maps/**/_Scratch/
 # Il kit graybox degli oggetti di mappa — D-173, percorso deciso il 2026-08-18. Riammesso PRIMA che
 # esista un solo asset, che e' la ragione per cui la decisione e la riga stanno nello stesso commit:
 # senza di essa "git add" tace e non segnala nulla, ed e' lo stato in cui e' rimasto ABP_Gadget.
-# Sono primitive posabili riusabili fra mappe (contratto: docs/technical/spec-graybox-placement-contract.md),
-# non arte sostituibile: le verifiche che ci si appoggeranno sono le PIE-GBX-* PROPOSTE in #1096, che nel
-# registro manuale NON esistono ancora — misurato, `grep -c "PIE-GBX" docs/technical/test-manuali-pie.md`
-# da' 0, e quel file e' assegnato a un'altra track.
+# Sono primitive posabili riusabili fra mappe (contratto:
+# docs/technical/systems/spec-graybox-placement-contract.md), non arte sostituibile: le verifiche che ci si
+# appoggiano sono le sei voci scritte da #1096 il 2026-08-25 — PIE-GBX-VOLUME, -FIT, -COVER, -DOOR,
+# -SURFACE, -ZOOM. Questa riga diceva che nel registro manuale NON esistevano, ed era vera: lo stesso
+# comando, `grep -c "PIE-GBX" docs/technical/test-manuali-pie.md`, oggi da' 6. Cadono con lei anche le
+# altre due meta' della frase — il path del contratto seguiva lo split technical/{systems,...} (#1165) e
+# "quel file e' assegnato a un'altra track" non ha piu' referente da D-178.
 # A differenza delle righe qui sopra e' un pattern di CARTELLA e non un elenco di file, e la ragione e'
 # che §8.1 del contratto elenca sette path oggi e li vedra' cambiare: enumerarli qui li renderebbe muti
 # al primo rename — il difetto che la nota di D-037 registra per gli otto path dei personaggi.
