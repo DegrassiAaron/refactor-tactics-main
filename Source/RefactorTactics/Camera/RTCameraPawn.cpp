@@ -3,6 +3,9 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Map/RTHexLibrary.h"
+
+/** Definita in `ScenarioHarness/RTTestConsole.cpp`: vista di misura a picco (`#1290`). */
+extern TAutoConsoleVariable<int32> CVarRTCameraTopDown;
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerController.h" // squadra del giocatore da inquadrare all'avvio
@@ -115,6 +118,15 @@ bool ARTCameraPawn::FrameOwnTeam()
 
 	FVector Origin; float HexSize; float LayerHeight;
 	HexMap->GetHexContext(Origin, HexSize, LayerHeight);
+
+	// Vista di MISURA: scavalca l'apertura sulla propria squadra e inquadra l'intera board dall'alto.
+	// Serve alle verifiche che si fanno su un'immagine (`#1290`), dove la camera obliqua inquadrerebbe
+	// bordi, lati e ombre — varieta' di luminanza che non viene dalla tavolozza.
+	if (CVarRTCameraTopDown.GetValueOnGameThread() > 0 && ApplyTopDownView(HexMap, Origin, HexSize, LayerHeight))
+	{
+		return true;
+	}
+
 	FocusOn(URTHexLibrary::CellsCentroidWorld(Cells, Origin, HexSize, LayerHeight));
 	if (SpringArm)
 	{
@@ -122,6 +134,38 @@ bool ARTCameraPawn::FrameOwnTeam()
 	}
 	UE_LOG(LogRT, Log, TEXT("[RT] Camera sulla squadra %d (%d unita', arm=%.0f)"),
 		TeamId, Cells.Num(), SpringArm ? SpringArm->TargetArmLength : -1.f);
+	return true;
+}
+
+bool ARTCameraPawn::ApplyTopDownView(const ARTHexMapActor* HexMap, const FVector& Origin, float HexSize, float LayerHeight)
+{
+	if (HexMap == nullptr || HexMap->MapAsset == nullptr || SpringArm == nullptr)
+	{
+		return false;
+	}
+
+	const FBox Box = URTHexLibrary::CellsBoundsWorld(HexMap->MapAsset->Cells, Origin, HexSize, LayerHeight);
+	if (!Box.IsValid)
+	{
+		return false;
+	}
+
+	// L'inquadratura si DERIVA dal box, non da un numero scritto a mano: cosi' vale su qualunque fixture e
+	// sopravvive a un cambio di `HexSize` — che e' appena successo, da 100 a 150.
+	const FVector Extent = Box.GetExtent();
+	const float Needed = FMath::Max(Extent.X, Extent.Y) * 2.2f;   // margine perche' il bordo non tocchi lo schermo
+
+	FocusOn(FVector(Box.GetCenter().X, Box.GetCenter().Y, Box.Min.Z));
+	SpringArm->TargetArmLength = FMath::Clamp(Needed, MinArmLength, MaxArmLength);
+
+	// ⚠️ `MinPitch` e' `-89`, non `-90`: a picco pieno lo yaw diventa indeterminato e la camera puo'
+	// ribaltarsi. Un grado di scarto non sposta la misura e toglie il caso degenere.
+	CameraPitch = MinPitch;
+	SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
+
+	UE_LOG(LogRT, Warning, TEXT("[RT] rt.Camera.TopDown: vista di MISURA a picco sull'intera board "
+		"(arm=%.0f, pitch=%.0f). Non e' la vista di gioco."),
+		SpringArm->TargetArmLength, CameraPitch);
 	return true;
 }
 
