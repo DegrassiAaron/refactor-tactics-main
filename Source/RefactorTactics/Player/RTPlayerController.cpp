@@ -1113,7 +1113,7 @@ void ARTPlayerController::RebuildPlannedPath()
 }
 
 // ======================================================================================================
-// Contratto del puntatore (CP 11.8) — owner: docs/technical/spec-pointer-interaction.md
+// Contratto del puntatore (CP 11.8) — owner: docs/technical/systems/spec-pointer-interaction.md
 // ======================================================================================================
 
 void ARTPlayerController::OnTogglePause()

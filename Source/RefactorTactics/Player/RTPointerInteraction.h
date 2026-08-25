@@ -11,7 +11,7 @@
 /**
  * Contratto del puntatore (CP 11.8) — i TIPI, e la parte che si decide senza un viewport.
  *
- * Owner documentale: `docs/technical/spec-pointer-interaction.md`. Questo file implementa §4 (i contesti e il
+ * Owner documentale: `docs/technical/systems/spec-pointer-interaction.md`. Questo file implementa §4 (i contesti e il
  * `TargetKind`), §4.1 (la precedenza semantica dentro il mondo) e §5.5 (l'ordine totale del Back). Non
  * implementa §5 per intero: la matrice completa vive nel controller, perche' meta' delle sue righe hanno
  * bisogno dei servizi autorevoli (portata, percorso, occupazione) e non sono funzioni pure.

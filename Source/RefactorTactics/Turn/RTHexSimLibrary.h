@@ -30,7 +30,7 @@ enum class ERTHexWaypointReason : uint8
  *
  * E' l'UNICO strato di risoluzione del movimento: il turn loop quadrato (Grid/ + URTMovementResolver) e'
  * stato rimosso al CP 7.2, dopo che M6 ha portato la partita su esagoni. Il punto di ritorno resta il tag
- * git `pre-hex-only`. Vedi docs/technical/h6-hex-sim-spec.md.
+ * git `pre-hex-only`. Vedi docs/technical/systems/h6-hex-sim-spec.md.
  */
 UCLASS()
 class REFACTORTACTICS_API URTHexSimLibrary : public UBlueprintFunctionLibrary

@@ -14,7 +14,7 @@ class URTIconCatalogData;
  *
  * ⚠️ **Qui non c'e' layout.** Il `.uasset` `WBP_RT_*` fa aspetto e disposizione; questo file dichiara **cosa
  * il widget puo' leggere**, e soprattutto cosa non puo'. La ricetta per costruire i Blueprint sta in
- * `docs/technical/guida-screen-hud-umg.md`.
+ * `docs/technical/runbooks/guida-screen-hud-umg.md`.
  *
  * Tre vincoli del DoD diventano proprieta' della FIRMA invece che disciplina da ricordare:
  *

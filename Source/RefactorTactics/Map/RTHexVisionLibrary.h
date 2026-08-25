@@ -12,7 +12,7 @@ class URTHexMapAsset;
  * presentazione). Pura e deterministica, interi soltanto (la linea viene da URTHexLibrary::HexLine).
  *
  * Separata da URTHexLibrary perche' ha bisogno dei dati d'asset (bBlocksLineOfSight), come URTHexPathLibrary
- * per il grafo di movimento. Vedi docs/technical/h6-4-hex-vision-spec.md.
+ * per il grafo di movimento. Vedi docs/technical/systems/h6-4-hex-vision-spec.md.
  */
 UCLASS()
 class REFACTORTACTICS_API URTHexVisionLibrary : public UBlueprintFunctionLibrary

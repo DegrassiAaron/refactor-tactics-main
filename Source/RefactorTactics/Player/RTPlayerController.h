@@ -228,7 +228,7 @@ public:
 
 	// ---- Contratto del puntatore (CP 11.8) ------------------------------------------------------------
 	//
-	// Owner della regola: `docs/technical/spec-pointer-interaction.md`. Qui c'e' lo STATO ESPLICITO che il
+	// Owner della regola: `docs/technical/systems/spec-pointer-interaction.md`. Qui c'e' lo STATO ESPLICITO che il
 	// DoD chiedeva al posto della cascata di `if` sul tipo di Actor colpito.
 
 	/**

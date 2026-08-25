@@ -113,7 +113,7 @@ enum class ERTGeometryViolation : uint8
  * Interamente DISCRETO: un enum e tre interi. Non contiene, e non deve contenere, alcun estremo in virgola
  * mobile: `FRTOccupancyPolyline` — che di float ne ha — e' il DERIVATO di calcolo, prodotto da `ToPolyline`
  * e passato a `ComputeMask`. Il float esiste per DISEGNARE, non per decidere, ed e' la §11 di
- * `docs/technical/spec-hex-geometry-authoring.md`.
+ * `docs/technical/systems/spec-hex-geometry-authoring.md`.
  *
  * `Along` e `Offset` sono in quanti (`RT_GeometryQuanta`), misurati rispetto ai punti notevoli delle due
  * direzioni: `Along` lungo l'asse, `Offset` lungo la sua perpendicolare ruotata di `-90` gradi.
