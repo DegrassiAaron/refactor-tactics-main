@@ -66,7 +66,7 @@ docs/roadmap/plans/roadmap_lane_7.md
 e chiede sei passi: cercare i riferimenti, non cancellare alla cieca, marcare `SUPERSEDED/HISTORICAL`,
 aggiornare i link, mantenere la provenienza, sostituire la vista operativa.
 
-**Nessuno di quei path esiste.** I file sono in
+**Nessuno di quei path esisteva il giorno in cui questo triage è stato scritto.** I file sono in
 [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/README.md), il cui README dichiara
 `Archiviato il 2026-08-14` — cioè **lo stesso giorno** del sorgente. E i sei passi sono tutti già eseguiti,
 con una precisione che il sorgente non chiedeva:
@@ -79,6 +79,20 @@ con una precisione che il sorgente non chiedeva:
 | aggiornare i link | riga d'indice nel README dell'archivio |
 | mantenere la provenienza | *«fotografate il 2026-08-12»* |
 | sostituire la vista operativa | *«la topologia viva è [`execution-graph.yaml`](../../roadmap/execution-graph.yaml), lo stato il Feature Registry»* |
+
+> ⌫ **E il giorno dopo sei di quei path sono tornati.** Questa riga diceva «nessuno di quei path esiste»
+> al presente, ed è stata vera per ventiquattro ore: il **2026-08-15** il merge di
+> [#909](https://github.com/DegrassiAaron/refactor-tactics-main/pull/909) (`8880b3cd`) ha **ri-aggiunto**
+> `roadmap-lane-index.md` e `roadmap_lane_1..5.md` in questa cartella. Il branch `wip/icon-visual-language`
+> era anteriore all'archiviazione e li portava nella posizione vecchia; git **non vede conflitto** fra un
+> `git mv` da una parte e un'aggiunta dello stesso path dall'altra, e li ha riportati — nella versione
+> **precedente** al riallineamento, `HEAD 3c4e48e` contro il `59fa6f8a` dell'archivio. Le lane **6 e 7 non
+> sono tornate** perché quel branch non le aveva, ed è la conferma del meccanismo.
+> 🔴 **Il triage non aveva sbagliato la misura: gliel'ha smentita un merge del giorno dopo**, e la riga è
+> rimasta al presente per dieci giorni. È la §7.1 applicata un giro più in là: una fotografia si misura al
+> momento in cui si applica, e **una cartella riorganizzata si ricontrolla dopo ogni merge**, non solo dopo
+> l'archiviazione. I sei doppioni sono stati rimossi il **2026-08-25**
+> ([#1350](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1350)); l'archivio resta l'owner.
 
 ⚠️ **E il README dell'archivio ha già respinto la premessa della §3 con un argomento più forte di quello che
 il sorgente usa**: *«Nessuno stato è stato riscritto per farli entrare qui. È la differenza fra archiviare e

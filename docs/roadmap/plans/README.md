@@ -25,10 +25,11 @@ dichiarare, perché la mappa serve a chi legge e la riscrittura no.
 
 | Banner | Significa | Quanti |
 |---|---|--:|
-| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 42 |
-| `SNAPSHOT` | Fotografia di una data. **Resta qui** finche' e' l'ultima misura del suo oggetto | 12 |
-| `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | 2 |
-| **totale** | | **56** |
+| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 41 |
+| `SNAPSHOT` | Fotografia di una data. **Resta qui** finche' e' l'ultima misura del suo oggetto | 6 |
+| `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | 3 |
+| `PLAN` | Piano gia' **consumato**: resta per la provenienza di cio' che ha prodotto | 1 |
+| **totale** | | **51** |
 
 In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **43**: quelli che il banner dichiarava gia' storici.
 
@@ -43,6 +44,20 @@ In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **4
 > Il banner sta nei file, quindi si legge dai file:
 > `python scripts/docs_inventory.py --emit-plans`, e `--check` fallisce se qualcuno lo riscrive a
 > mano. ⚠️ **Dentro i due marcatori non si scrive**: rigenerare cancella, e cancella in silenzio.
+
+> ⌫ **E dal 2026-08-21 non è più generata.** `scripts/` è uscita dal repository con
+> [D-182](../../decisions/RT_PDR_00_Decision_Log.md), `docs_inventory.py` compreso: il comando qui sopra
+> non esiste, e `--check` non fallisce più perché non c'è. I due marcatori restano — sono l'unico posto in
+> cui questi numeri stanno — ma dentro **ora si scrive a mano**, e l'unico oracolo rimasto è il blocco
+> Python in fondo a questa pagina, che non dipende da niente di rimosso.
+>
+> 🔴 **Rimisurata il 2026-08-25, e tre numeri su quattro erano fermi.** La cella diceva `CURRENT 42 ·
+> SNAPSHOT 12 · nessun banner 2 · totale 56`; la cartella ne conteneva **57**, con `CURRENT` **41**, senza
+> banner **3**, e una **quarta categoria che la tabella non aveva**: `PLAN`, 1. È esattamente il caso che
+> il capoverso qui sopra descrive come il peggiore — solo che stavolta nemmeno la somma tornava, e per
+> quattro giorni nessun `--check` ha avuto modo di dirlo. Il totale è poi sceso a **51** con la rimozione
+> dei sei doppioni delle lane ([#1350](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1350)):
+> `SNAPSHOT 12 → 6`, il resto invariato.
 
 > 🔵 **2026-08-19 — 23 documenti hanno raggiunto l'archivio.** Portavano `DELIVERED PLAN`,
 > `AS-BUILT`, `DONE` o `BRIEF`, cioè i banner che questa pagina dichiara equivalenti a `HISTORICAL`,
@@ -155,9 +170,10 @@ deriva che questa sezione lo aggiunge a misurare.
 > conteggio non si muove: la lezione qui sotto sì, ed è l'unica cosa che questo blocco doveva lasciare.
 > 🔴 **E uno dei quattro ha fatto proprio ciò che questa riga temeva.** `wip/icon-visual-language` **è**
 > atterrato, il giorno dopo che quei sei file erano stati archiviati, e li ha **riportati in questa
-> cartella** — dove stanno tuttora, in doppione e in una versione più vecchia di quella archiviata
-> ([#1350](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1350)). La previsione era giusta,
-> il numero pure; a mancare è stato il controllo **dopo** il merge.
+> cartella** — in doppione e in una versione più vecchia di quella archiviata, dove sono rimasti **dieci
+> giorni** prima che [#1350](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1350) li
+> rimuovesse il 2026-08-25. La previsione era giusta, il numero pure; a mancare è stato il controllo
+> **dopo** il merge.
 > **La lezione non è che il numero sia sbagliato — oggi è giusto — ma che la sua garanzia lo era**: una
 > previsione si legge con **due** comandi, `gh pr list` *e* `git ls-remote`/`git diff` sui branch remoti.
 > È scritto nell'intestazione di `../parallel-batch.yaml`, ed è stato ignorato
