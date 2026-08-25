@@ -856,8 +856,11 @@ prototipi va **dal più leggero al più invasivo** — `Phase · Flow` non tocca
 >
 > ⛔ **Non c'è più nessun gate**: `check-docs-links.py`, `check-docs-symbols.py` e `docs_inventory.py`
 > giravano a mano perché questo repository non usa CI, e sono usciti con **D-182** il 2026-08-21
-> (`feature_registry.py validate` era già uscito con **D-181**, lo stesso giorno). Resta il solo
-> `node tools/radar/generate.ts --check`. `--check` è documentato
+> (`feature_registry.py validate` era già uscito con **D-181**, lo stesso giorno). Restano
+> `node tools/radar/generate.ts --check` e — dal 2026-08-25, **D-188** — `node tools/radar/doc-links.ts --check`,
+> che ha ripreso la parte di `check-docs-links.py` sui percorsi citati dai documenti: il **link** che non
+> risolve e l'**etichetta** che ne mostra uno vecchio. I **simboli** e l'**inventario** restano scoperti.
+> `--check` è documentato
 > in [`../balance/README.md`](../balance/README.md), dove i cataloghi si modificano. Il prezzo dichiarato
 > è che protegge solo chi lo esegue.
 
