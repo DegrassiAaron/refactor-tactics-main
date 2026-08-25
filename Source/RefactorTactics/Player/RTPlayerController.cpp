@@ -184,6 +184,9 @@ void ARTPlayerController::BuildInputMappings()
 	OrbitModifierAction = NewObject<UInputAction>(this, TEXT("IA_OrbitModifier"));
 	OrbitModifierAction->ValueType = EInputActionValueType::Boolean;
 
+	FacingAction = NewObject<UInputAction>(this, TEXT("IA_Facing"));
+	FacingAction->ValueType = EInputActionValueType::Boolean;
+
 	SelectAction = NewObject<UInputAction>(this, TEXT("IA_Select"));
 	SelectAction->ValueType = EInputActionValueType::Boolean;
 
@@ -281,6 +284,10 @@ void ARTPlayerController::BuildInputMappings()
 	MappingContext->MapKey(RecenterAction, EKeys::Home);
 	MappingContext->MapKey(FocusAction, EKeys::F);
 
+	// Rotazione dichiarata: `T` come *turn*. Misurati i tasti gia' presi — A D E F Q R S V W, Home, Escape,
+	// BackSpace, Spazio, 1-4 e i pulsanti del mouse — `T` e' libero e sta accanto a chi guida la camera.
+	MappingContext->MapKey(FacingAction, EKeys::T);
+
 	// Velocita' di riproduzione, un tasto che CICLA `x1 · x2 · x4` (CP 47.7, #1015).
 	//
 	// ⚠️ **Un tasto solo e non tre, e la ragione e' che tre non ci sono.** `1/2/4` sarebbero i tasti
@@ -350,6 +357,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
 		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
 		EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
+		EIC->BindAction(FacingAction, ETriggerEvent::Started, this, &ARTPlayerController::CycleDeclaredFacing);
 		EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePause);
 	}
 	else
@@ -1453,6 +1461,58 @@ void ARTPlayerController::BeginFacingDeclaration()
 void ARTPlayerController::EndFacingDeclaration()
 {
 	bDeclaringFacing = false;
+}
+
+void ARTPlayerController::CycleDeclaredFacing()
+{
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Rotazione: nessuna unita' selezionata"));
+		return;
+	}
+
+	// Lo stile e' quello del movimento PIANIFICATO, come in `HandleFacingSector`: chi non si e' mosso ruota
+	// libero, chi ha un percorso a budget ha le tre dell'ultimo passo. E' una previsione, non il verdetto —
+	// il resolver rivalida a fine Move su quel che e' successo davvero.
+	const bool bHasPlannedMove = Unit->PlannedPath.Num() > 1;
+	const ERTMovementStyle Style = bHasPlannedMove ? ERTMovementStyle::Budget : ERTMovementStyle::None;
+
+	const TArray<ERTHexDirection> Legal = URTFacingLibrary::LegalFacings(Style, Unit->PlannedPath, Unit->Facing);
+	if (Legal.Num() == 0)
+	{
+		return; // nessuna rotazione possibile: non c'e' niente da ciclare
+	}
+
+	// Il punto di partenza e' cio' che vale ORA: la dichiarazione di questo turno se c'e', altrimenti
+	// l'orientamento attuale. Senza, premere il tasto due volte ripartirebbe sempre dalla stessa direzione.
+	const ERTHexDirection Corrente = Unit->bDeclaresPlannedFacing ? Unit->PlannedFacing : Unit->Facing;
+
+	// `LegalFacings` ha ordine STABILE (per valore dell'enum), quindi il ciclo e' ripetibile: la stessa
+	// sequenza di pressioni da' la stessa sequenza di direzioni.
+	const int32 Indice = Legal.IndexOfByKey(Corrente);
+	const ERTHexDirection Prossima = Legal[(Indice == INDEX_NONE) ? 0 : (Indice + 1) % Legal.Num()];
+
+	// Si passa dal comando esistente invece di scrivere `PlannedFacing` a mano: e' li' che vivono la
+	// validazione, il rifiuto e la registrazione dell'input di planning.
+	BeginFacingDeclaration();
+	if (!HandleFacingSector(Prossima))
+	{
+		// Non dovrebbe accadere: `Prossima` viene da `LegalFacings`. Se accade, le due funzioni non
+		// concordano sullo stile, ed e' un difetto da vedere subito invece che un tasto che non fa nulla.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] Rotazione: %d era nell'insieme legale ma e' stata rifiutata"), (int32)Prossima);
+		EndFacingDeclaration();
+		return;
+	}
+
+	UE_LOG(LogRT, Log, TEXT("[RT] %s dichiara la rotazione a %d (%d legali)"),
+		*Unit->GetName(), (int32)Prossima, Legal.Num());
 }
 
 bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
