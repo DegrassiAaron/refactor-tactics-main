@@ -3293,6 +3293,15 @@ void ARTTurnManager::ResolveDash()
 			}
 		}
 
+		// 🔴 **Il predicato si legge PRIMA della riga qui sotto**, che riscrive `Unit->Cell` con la cella
+		// d'arrivo. Letto dopo, «la destinazione pianificata e' diversa dalla posizione attuale» e' vero per
+		// OGNI scatto che ha spostato l'unita' — anche per chi non aveva pianificato nessun movimento: il bot
+		// parte da `PlannedCell = Cell` con `PlannedPath` vuoto (`PlanBots`), e il giocatore che sceglie una
+		// mobilita' e clicca senza posare waypoint sta nello stesso caso. Ogni scatto del gioco dichiarava
+		// uno scarto inesistente dentro un formato serializzato e riprodotto: misurato in code review il
+		// 2026-08-26, difeso da `PlayerInteraction.NoSupersededEntryOnADashWithoutAPlannedMove`.
+		const bool bHadNormalMove = Unit->PlannedPath.Num() > 1 || Unit->PlannedCell != Unit->Cell;
+
 		Unit->Cell = Final;
 		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
 		ApplyTerrainOnEnterEffects(Snapshot.Map, Unit, Resolved[i].Entered, ERTMatchPhase::Dash);
@@ -3305,16 +3314,30 @@ void ARTTurnManager::ResolveDash()
 		// che niente la nominasse. La voce si scrive QUI e non al lock-in perche' qui si sa **che cosa** viene
 		// scartato: al commit il piano si contraddice e basta, e indovinare il perdente dall'ordine canonico
 		// del validatore darebbe la risposta sbagliata.
-		const bool bHadNormalMove = Unit->PlannedPath.Num() > 1 || Unit->PlannedCell != Unit->Cell;
-		if (bHadNormalMove)
+		//
+		// ⚠️ **Solo per chi e' ancora vivo**: `ApplyTerrainOnEnterEffects` qui sopra puo' aver ucciso l'unita'
+		// sulla cella d'arrivo, e una traccia che adjudica il piano di un morto nella stessa fase in cui c'e'
+		// la sua eliminazione dice due cose sullo stesso attore. Stesso filtro che `MakeCurrentSnapshot`
+		// applica ovunque.
+		if (bHadNormalMove && Unit->IsAlive())
 		{
 			FRTTurnLogEntry Superseded;
 			Superseded.Phase = ERTMatchPhase::Dash;
 			Superseded.Category = ERTLogCategory::Move;
 			Superseded.Outcome = static_cast<uint8>(ERTMoveOutcome::SupersededByDash);
+			// L'identita' dell'azione viene dal CATALOGO, come in `ResolveMovement`: `Priority` non e' un
+			// campo decorativo, e' una chiave dell'ordine canonico (`EntryLess`) ed e' serializzata in v7.
+			// Lasciata a `0` mentre l'altro produttore di `Action.Move` legge `50` dal catalogo, due voci
+			// con lo stesso `ActionId` si ordinerebbero come se venissero da azioni diverse.
+			const FRTActionDef MoveDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
 			Superseded.ActionId = TEXT("Action.Move"); // cio' che NON si esegue, non lo scatto che invece esegue
+			Superseded.Priority = MoveDef.Priority;
 			Superseded.SrcCell = Final;                // dove lo scatto ha portato l'unita'
 			Superseded.TgtCell = Unit->PlannedCell;    // la destinazione dichiarata e mai raggiunta
+			// `Amount` conta le celle del percorso A WAYPOINT. Un piano che dichiara solo una destinazione —
+			// il bot, che «pianifica destinazioni, non percorsi a waypoint» — porta `0`, e la destinazione
+			// resta leggibile in `TgtCell`. Non si stima dalla distanza: sarebbe un numero che nessuno ha
+			// percorso, in un formato che finisce nell'hash del replay.
 			Superseded.Amount = FMath::Max(0, Unit->PlannedPath.Num() - 1);
 			AppendLogEntry(Superseded, Unit);
 		}

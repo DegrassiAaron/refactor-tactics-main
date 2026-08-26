@@ -1160,7 +1160,7 @@ protected:
 	void AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor);
 
 	/**
-	 * Valida il piano di ogni unita' viva al COMMIT, e registra nel TurnLog quello che non torna (CP 38.2).
+	 * Valida il piano di ogni unita' viva al COMMIT, e registra nel COMBAT LOG quello che non torna (CP 38.2).
 	 *
 	 * Il lock-in e' l'ultimo istante in cui un piano e' ancora un piano: dopo, e' una risoluzione. E' qui
 	 * che la DoD chiede *«un punto solo che risponde LEGALE / ILLEGALE + reason code prima del commit»*,

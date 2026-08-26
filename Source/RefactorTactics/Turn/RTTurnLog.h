@@ -468,7 +468,8 @@ enum class ERTMoveOutcome : uint8
 	 *
 	 * `SrcCell` e' dove lo scatto ha portato l'unita'; `TgtCell` e' la destinazione che il movimento normale
 	 * aveva dichiarato e **non raggiungera'** — il dato che rende la voce utile invece che una nota.
-	 * `Amount` porta le celle del percorso scartato.
+	 * `Amount` porta le celle del percorso A WAYPOINT scartato — `0` per un piano che dichiarava solo una
+	 * destinazione senza posare waypoint (il bot), dove la destinazione resta leggibile in `TgtCell`.
 	 */
 	SupersededByDash
 };

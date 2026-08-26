@@ -347,7 +347,8 @@ manderebbe il giocatore a cercare un avversario che non esiste.
 > la risposta sbagliata: davanti a `Action.Move` e `Hero.Riktor.Ram` nomina **Ram**, che invece esegue.
 >
 > `SrcCell` è dove lo scatto ha portato l'unità, `TgtCell` la destinazione dichiarata e non raggiunta,
-> `Amount` le celle del percorso scartato.
+> `Amount` le celle del percorso **a waypoint** scartato — `0` per un piano che dichiarava solo una
+> destinazione senza posare waypoint (il bot), dove la destinazione resta leggibile in `TgtCell`.
 
 ### La spinta che non sposta ([D-079](../../decisions/RT_PDR_00_Decision_Log.md), `#420`)
 

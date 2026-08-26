@@ -7,7 +7,6 @@
 #include "Player/RTPlayerController.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLog.h"
-#include "Turn/RTActionFallbackLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
@@ -495,6 +494,88 @@ bool FRTNoSupersededEntryOnALegalPlanTest::RunTest(const FString&)
 
 	TestEqual(TEXT("un piano legale non dichiara nessuno scarto"), Superseded, 0);
 	TestTrue(TEXT("e l'unita' si e' mossa davvero"), U->Cell != FRTCellId(1, 1));
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoSupersededEntryOnADashWithoutAPlannedMoveTest,
+	"RefactorTactics.PlayerInteraction.NoSupersededEntryOnADashWithoutAPlannedMove",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoSupersededEntryOnADashWithoutAPlannedMoveTest::RunTest(const FString&)
+{
+	// Il caso che i due test gemelli NON toccano, ed e' quello che il 2026-08-26 era rotto: uno scatto e
+	// basta, senza nessun movimento pianificato. Il gemello "su un piano legale" non pianifica **nessuno
+	// scatto**, quindi `ResolveDash` esce a `DasherCount == 0` e il blocco che scrive la voce non viene mai
+	// eseguito: prometteva di difendere questo caso e non lo attraversava.
+	//
+	// 🔴 **Perche' e' il test che serve**: il predicato «aveva un movimento normale» confronta `PlannedCell`
+	// con `Unit->Cell`, e `Unit->Cell` viene riscritto con la cella d'arrivo PRIMA del confronto. Letto la',
+	// dice vero per **ogni** scatto che ha spostato l'unita' — e ogni scatto del gioco dichiarerebbe uno
+	// scarto inesistente dentro un formato serializzato, ordinato e riprodotto.
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	const FRTCellId Start(1, 1);
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), Start);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	PC->SelectActorForTest(U);
+
+	const int32 DashIdx = U->FindDashAbilityIndex();
+	if (!TestNotEqual(TEXT("premessa: l'eroe ha una mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// Lo scatto e nient'altro: nessun waypoint, nessuna destinazione dichiarata.
+	const FRTCellId DashTo(1, 2);
+	U->SelectAbility(DashIdx);
+	PC->HandleClickOnCell(DashTo);
+
+	// Le premesse: senza, il turno non conterrebbe il caso in esame.
+	if (!TestNotEqual(TEXT("premessa: lo scatto e' pianificato"), U->PlannedDashAbility, static_cast<int32>(INDEX_NONE))
+		|| !TestEqual(TEXT("premessa: nessun waypoint posato"), U->PlannedWaypoints.Num(), 0)
+		|| !TestEqual(TEXT("premessa: nessun movimento dichiarato — la destinazione e' la cella attuale"),
+			U->PlannedCell, Start))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	int32 Superseded = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Move
+			&& static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
+		{
+			++Superseded;
+		}
+	}
+
+	// E lo scatto ha spostato l'unita' davvero: e' la condizione che innesca il falso positivo, non un
+	// dettaglio di contorno. Un dash che non muove nessuno non proverebbe niente.
+	if (!TestEqual(TEXT("premessa: lo scatto ha spostato l'unita'"), U->Cell, DashTo))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("uno scatto senza movimento pianificato non dichiara nessuno scarto"), Superseded, 0);
 
 	DestroyInteractionWorld(World);
 	return true;
