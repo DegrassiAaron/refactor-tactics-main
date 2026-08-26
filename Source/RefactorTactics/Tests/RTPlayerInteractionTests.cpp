@@ -6,6 +6,8 @@
 #include "Misc/AutomationTest.h"
 #include "Player/RTPlayerController.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
@@ -19,6 +21,7 @@
 #include "EngineUtils.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/RTCatalogLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -42,6 +45,37 @@ namespace
 			GEngine->DestroyWorldContext(World);
 			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
 		}
+	}
+
+	/**
+	 * Esagono pieno senza ostacoli, per i test che misurano una REGOLA del piano.
+	 *
+	 * `MakeTestArena` ha muri centrali, e una cella bloccata fa rifiutare il waypoint dal pathfinding prima
+	 * che la regola in esame abbia voce: un test cosi' resta verde anche togliendo cio' che dice di
+	 * difendere. Misurato il 2026-08-26 — `«Waypoint rifiutato: cella bloccata»` con la validazione
+	 * disattivata, e il test verde lo stesso.
+	 */
+	ARTHexMapActor* SpawnCleanInteractionMap(UWorld* World, int32 Radius)
+	{
+		if (!World)
+		{
+			return nullptr;
+		}
+		// `World` come Outer, non il transient package: e' la stessa disciplina di
+		// `URTMatchSetupLibrary::MakeTestArena`, che rifiuta un Outer nullo invece di inventarsene uno.
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>(World);
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+		{
+			M->AddOrUpdateCell(FRTHexCellData(Id));
+		}
+		M->SortCells();
+		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+		if (!Actor)
+		{
+			return nullptr;
+		}
+		Actor->MapAsset = M;
+		return Actor;
 	}
 
 	ARTUnit* SpawnInteractionUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell)
@@ -304,6 +338,546 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 	TestTrue(TEXT("verso la cella cliccata"), Unit->PlannedDashCell == Aligned);
 
 	DestroyInteractionWorld(World);
+	return true;
+}
+
+
+
+
+// =====================================================================================================
+// CP 38.2 — lo scarto del movimento si DICE, e lo dice chi lo esegue.
+//
+// Il giocatore puo' comporre scatto + movimento normale: due voci per lo slot movimento. `ResolveDash` fa
+// vincere lo scatto e azzera il percorso — fino al 2026-08-26 in silenzio, quindi una rotta disegnata sulla
+// mappa spariva senza che niente la nominasse.
+//
+// 🔴 **La voce si scrive in RISOLUZIONE, non al lock-in**, ed e' la lezione della code review: al commit il
+// piano si contraddice e basta, ma CHI verra' scartato lo decide il resolver. L'ordine canonico di
+// `ValidatePlan` — per larghezza di slot, poi per `ActionId` — davanti a `Action.Move` e
+// `Hero.Riktor.Ram` nomina **Ram**, che invece esegue. Una voce scritta al lock-in avrebbe accusato
+// l'azione sbagliata.
+//
+// I tre test vanno tenuti INSIEME, e il portante e' il TERZO. Il secondo — piano legale senza scatto —
+// non attraversa il blocco: `ResolveDash` esce a `DasherCount == 0` prima di arrivarci, quindi un
+// `AppendLogEntry` incondizionato lo passerebbe. E' `NoSupersededEntryOnADashWithoutAPlannedMove` a
+// coprire quel caso, ed e' il test che il 2026-08-26 ha misurato il falso positivo su ogni scatto.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashSupersedesNormalMoveTest,
+	"RefactorTactics.PlayerInteraction.DashSupersedesTheNormalMove",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDashSupersedesNormalMoveTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	PC->SelectActorForTest(U);
+
+	const int32 DashIdx = U->FindDashAbilityIndex();
+	if (!TestNotEqual(TEXT("premessa: l'eroe ha una mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// Il giocatore compone davvero il piano incoerente: scatto, poi stato neutro (D-128), poi waypoint.
+	// MoveTo e' a DISTANZA 2 da Start, non adiacente, ed e' deliberato: un solo click
+	// (`PlannedWaypoints.Num() == 1`) risolve in un percorso di DUE celle (`PlannedPath.Num() - 1 == 2`).
+	// `Superseded.Amount` (RTTurnManager.cpp) viene dal percorso RISOLTO, non dal conteggio dei click — con
+	// una destinazione adiacente le due quantita' avrebbero coinciso, e l'asserzione su `Amount` piu' sotto
+	// non avrebbe morso una regressione che scambiasse la sorgente (rilievo di code review, 2026-08-26).
+	const FRTCellId DashTo(1, 2);
+	const FRTCellId MoveTo(3, 1);
+	U->SelectAbility(DashIdx);
+	PC->HandleClickOnCell(DashTo);
+	U->SelectAbility(INDEX_NONE);
+	PC->HandleClickOnCell(MoveTo);
+	// La sorgente VERA di `Amount`: il percorso risolto, non i click posati (vedi il commento sopra).
+	const int32 CelleAttese = FMath::Max(0, U->PlannedPath.Num() - 1);
+
+	// Le premesse: senza, il turno non conterrebbe il caso in esame.
+	if (!TestNotEqual(TEXT("premessa: lo scatto e' pianificato"), U->PlannedDashAbility, static_cast<int32>(INDEX_NONE))
+		|| !TestTrue(TEXT("premessa: il waypoint si posa — l'input non viene rifiutato"),
+			U->PlannedWaypoints.Num() > 0)
+		|| !TestEqual(TEXT("premessa: la destinazione del movimento e' quella cliccata"), U->PlannedCell, MoveTo)
+		|| !TestNotEqual(TEXT("premessa: un click non e' una cella di percorso — le due sorgenti di Amount divergono qui"),
+			U->PlannedWaypoints.Num(), CelleAttese))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	// La voce, e i suoi CAMPI: un conteggio da solo non si accorgerebbe di una destinazione sbagliata o di
+	// un esito che nomina l'azione che invece esegue.
+	int32 Superseded = 0;
+	FRTTurnLogEntry Found;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Move
+			&& static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
+		{
+			++Superseded;
+			Found = Entry;
+		}
+	}
+
+	if (!TestEqual(TEXT("una voce dichiara il movimento scartato"), Superseded, 1))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("la voce sta nella fase in cui lo scarto avviene"), Found.Phase, ERTMatchPhase::Dash);
+	TestEqual(TEXT("nomina il MOVIMENTO, non lo scatto che invece esegue"),
+		Found.ActionId, FName(TEXT("Action.Move")));
+	TestEqual(TEXT("SrcCell e' da dove il movimento sarebbe partito — chiave stabile dell'unita' nel turno"),
+		Found.SrcCell, FRTCellId(1, 1));
+	TestEqual(TEXT("TgtCell e' la destinazione dichiarata e mai raggiunta"), Found.TgtCell, MoveTo);
+	// I due campi che entrano nell'ORDINE CANONICO e nel formato serializzato. Senza queste asserzioni,
+	// mettere `Priority` a zero o `Amount` a un numero qualsiasi lascia la suite verde — ed e' esattamente
+	// il difetto che la correzione del 2026-08-26 ha chiuso, non difeso da nessuno.
+	//
+	// `Amount` si confronta con `CelleAttese`, catturata da `PlannedPath.Num() - 1` (il percorso RISOLTO),
+	// non da `PlannedWaypoints.Num()` (i CLICK del giocatore): sono due sorgenti diverse. `MoveTo` e' a
+	// distanza 2 da Start non per caso, ma perche' a distanza 1 le due quantita' avrebbero coinciso — un
+	// click, un passo — e questa asserzione non avrebbe morso una regressione che scambiasse la sorgente
+	// (rilievo di code review, 2026-08-26).
+	TestEqual(TEXT("Priority viene dal catalogo, non da uno zero implicito"),
+		Found.Priority, URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).Priority);
+	TestEqual(TEXT("Amount conta le celle del PERCORSO risolto, non i click posati"), Found.Amount, CelleAttese);
+
+	// E l'unita' e' davvero dove l'ha portata lo scatto: la voce descrive il turno, non lo contraddice.
+	TestEqual(TEXT("l'unita' e' sulla cella dello scatto"), U->Cell, DashTo);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoSupersededEntryOnALegalPlanTest,
+	"RefactorTactics.PlayerInteraction.NoSupersededEntryOnALegalPlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoSupersededEntryOnALegalPlanTest::RunTest(const FString&)
+{
+	// L'altra meta': un movimento normale senza scatto non lascia la voce. Senza questo, un
+	// `AppendLogEntry` incondizionato dentro `ResolveDash` supererebbe il test gemello, e ogni scatto del
+	// gioco — anche quello di chi non aveva pianificato nulla — dichiarerebbe uno scarto inesistente.
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	PC->SelectActorForTest(U);
+
+	// Il piano canonico di D-028: un movimento e basta. Due waypoint sono UN movimento, non due.
+	U->SelectAbility(INDEX_NONE);
+	PC->HandleClickOnCell(FRTCellId(1, 2));
+	PC->HandleClickOnCell(FRTCellId(2, 2));
+	if (!TestEqual(TEXT("premessa: due waypoint compongono un solo movimento"), U->PlannedWaypoints.Num(), 2))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	int32 Superseded = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Move
+			&& static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
+		{
+			++Superseded;
+		}
+	}
+
+	TestEqual(TEXT("un piano legale non dichiara nessuno scarto"), Superseded, 0);
+	TestTrue(TEXT("e l'unita' si e' mossa davvero"), U->Cell != FRTCellId(1, 1));
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoSupersededEntryOnADashWithoutAPlannedMoveTest,
+	"RefactorTactics.PlayerInteraction.NoSupersededEntryOnADashWithoutAPlannedMove",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoSupersededEntryOnADashWithoutAPlannedMoveTest::RunTest(const FString&)
+{
+	// Il caso che i due test gemelli NON toccano, ed e' quello che il 2026-08-26 era rotto: uno scatto e
+	// basta, senza nessun movimento pianificato. Il gemello "su un piano legale" non pianifica **nessuno
+	// scatto**, quindi `ResolveDash` esce a `DasherCount == 0` e il blocco che scrive la voce non viene mai
+	// eseguito: prometteva di difendere questo caso e non lo attraversava.
+	//
+	// 🔴 **Perche' e' il test che serve**: il predicato «aveva un movimento normale» confronta `PlannedCell`
+	// con `Unit->Cell`, e `Unit->Cell` viene riscritto con la cella d'arrivo PRIMA del confronto. Letto la',
+	// dice vero per **ogni** scatto che ha spostato l'unita' — e ogni scatto del gioco dichiarerebbe uno
+	// scarto inesistente dentro un formato serializzato, ordinato e riprodotto.
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	const FRTCellId Start(1, 1);
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), Start);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	PC->SelectActorForTest(U);
+
+	const int32 DashIdx = U->FindDashAbilityIndex();
+	if (!TestNotEqual(TEXT("premessa: l'eroe ha una mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// Lo scatto e nient'altro: nessun waypoint, nessuna destinazione dichiarata.
+	const FRTCellId DashTo(1, 2);
+	U->SelectAbility(DashIdx);
+	PC->HandleClickOnCell(DashTo);
+
+	// Le premesse: senza, il turno non conterrebbe il caso in esame.
+	if (!TestNotEqual(TEXT("premessa: lo scatto e' pianificato"), U->PlannedDashAbility, static_cast<int32>(INDEX_NONE))
+		|| !TestEqual(TEXT("premessa: nessun waypoint posato"), U->PlannedWaypoints.Num(), 0)
+		|| !TestEqual(TEXT("premessa: nessun movimento dichiarato — la destinazione e' la cella attuale"),
+			U->PlannedCell, Start))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	int32 Superseded = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Move
+			&& static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
+		{
+			++Superseded;
+		}
+	}
+
+	// E lo scatto ha spostato l'unita' davvero: e' la condizione che innesca il falso positivo, non un
+	// dettaglio di contorno. Un dash che non muove nessuno non proverebbe niente.
+	if (!TestEqual(TEXT("premessa: lo scatto ha spostato l'unita'"), U->Cell, DashTo))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("uno scatto senza movimento pianificato non dichiara nessuno scarto"), Superseded, 0);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+// =====================================================================================================
+// Il validatore al lock-in acquista un test.
+//
+// `ARTTurnManager::ValidatePlansAtLockIn` e' la META' del DoD di #605 che vive al COMMIT: «un punto solo
+// che risponde LEGALE / ILLEGALE prima del commit». Fino al 2026-08-26 non aveva un test: cancellare la
+// chiamata a `ValidatePlansAtLockIn` in `LockInAndResolve` lasciava la suite verde.
+//
+// I due test vanno tenuti INSIEME: senza il secondo, un `AddLogEvent` incondizionato passerebbe il primo.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInDeclaresTheContradictionTest,
+	"RefactorTactics.PlayerInteraction.LockInDeclaresTheContradiction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInDeclaresTheContradictionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	PC->SelectActorForTest(U);
+
+	const int32 DashIdx = U->FindDashAbilityIndex();
+	if (!TestNotEqual(TEXT("premessa: l'eroe ha una mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// Il piano incoerente: scatto, stato neutro (D-128), waypoint. Due azioni sullo slot Movimento.
+	U->SelectAbility(DashIdx);
+	PC->HandleClickOnCell(FRTCellId(1, 2));
+	U->SelectAbility(INDEX_NONE);
+	PC->HandleClickOnCell(FRTCellId(2, 1));
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	int32 Righe = 0;
+	for (const FString& Evento : TM->GetRecentEvents())
+	{
+		if (Evento.Contains(TEXT("piano non valido al lock-in"))) { ++Righe; }
+	}
+	TestEqual(TEXT("il lock-in dichiara la contraddizione nel combat log"), Righe, 1);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInStaysSilentOnALegalPlanTest,
+	"RefactorTactics.PlayerInteraction.LockInStaysSilentOnALegalPlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInStaysSilentOnALegalPlanTest::RunTest(const FString&)
+{
+	// Il gemello: senza, un `AddLogEvent` incondizionato passerebbe il test qui sopra.
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	PC->SelectActorForTest(U);
+
+	// Il piano canonico di D-028: un movimento e basta.
+	U->SelectAbility(INDEX_NONE);
+	PC->HandleClickOnCell(FRTCellId(1, 2));
+	PC->HandleClickOnCell(FRTCellId(2, 2));
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	int32 Righe = 0;
+	for (const FString& Evento : TM->GetRecentEvents())
+	{
+		if (Evento.Contains(TEXT("piano non valido al lock-in"))) { ++Righe; }
+	}
+	TestEqual(TEXT("un piano legale non produce nessuna riga di rifiuto"), Righe, 0);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInNamesBothActionsTest,
+	"RefactorTactics.PlayerInteraction.LockInNamesBothActions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInNamesBothActionsTest::RunTest(const FString&)
+{
+	// 🔴 Il messaggio NON deve nominare un solo colpevole. `ValidatePlan` ordina per larghezza di slot e poi
+	// per `ActionId`: `Action.Move` precede `Hero.Riktor.Ram` alfabeticamente, quindi Move prende lo slot e
+	// Ram risulta «l'offender» — ma e' Ram che ESEGUE, ed e' Move che il resolver scarta. Nominare una sola
+	// azione qui significa accusare quella sbagliata; nominarle entrambe e' vero comunque vada.
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	PC->SelectActorForTest(U);
+
+	const int32 DashIdx = U->FindDashAbilityIndex();
+	if (!TestNotEqual(TEXT("premessa: l'eroe ha una mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	U->SelectAbility(DashIdx);
+	PC->HandleClickOnCell(FRTCellId(1, 2));
+	U->SelectAbility(INDEX_NONE);
+	PC->HandleClickOnCell(FRTCellId(2, 1));
+
+	const FName DashId = U->GetAbility(DashIdx) ? U->GetAbility(DashIdx)->Def.ActionId : NAME_None;
+	if (!TestFalse(TEXT("premessa: la mobilita' ha un ActionId"), DashId.IsNone()))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	FString Riga;
+	for (const FString& Evento : TM->GetRecentEvents())
+	{
+		if (Evento.Contains(TEXT("piano non valido al lock-in"))) { Riga = Evento; break; }
+	}
+	if (!TestFalse(TEXT("premessa: la riga di rifiuto esiste"), Riga.IsEmpty()))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	TestTrue(TEXT("nomina il movimento"), Riga.Contains(TEXT("Action.Move")));
+	TestTrue(TEXT("e nomina anche la mobilita'"), Riga.Contains(*DashId.ToString()));
+	TestTrue(TEXT("dice il motivo in italiano"), Riga.Contains(TEXT("slot")));
+	TestFalse(TEXT("e non stampa l'identificatore grezzo dell'enum"), Riga.Contains(TEXT("SlotOccupied")));
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * Il ramo di `DescribeInvalidReason` senza `HolderActionId` e' raggiungibile SOLO da `ERTActionInvalidReason::
+ * OnCooldown` — `SlotOccupied` porta sempre un detentore, e `InsufficientMovementPoints` non ha produttore
+ * (D-190). Fino ad ora quel ramo cadeva nel `default`, stampando «non eseguibile» invece del motivo: l'unico
+ * rifiuto del lock-in raggiungibile da questo ramo restava senza reason code leggibile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInDescribesTheCooldownReasonTest,
+	"RefactorTactics.PlayerInteraction.LockInDescribesTheCooldownReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInDescribesTheCooldownReasonTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	PC->SelectActorForTest(U);
+
+	// KineticPanel (indice 1 nel roster di Riktor, RTHeroCatalogLibrary.cpp): Main, cooldown 2.
+	constexpr int32 PanelIdx = 1;
+	const URTActionData* Panel = U->GetAbility(PanelIdx);
+	if (!TestTrue(TEXT("premessa: e' KineticPanel, e ha un cooldown"),
+		Panel && Panel->Def.ActionId == FName(TEXT("Hero.Riktor.KineticPanel")) && Panel->Def.CooldownTurns > 0))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// La messa in ricarica passa dall'API reale (`ConsumeAbility`), non da un campo forzato a mano.
+	U->ConsumeAbility(PanelIdx);
+	if (!TestTrue(TEXT("premessa: l'abilita' e' in ricarica"), U->GetAbilityCooldown(PanelIdx) > 0))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// Pianificata comunque: il gate di `CanUseAbility` vive nel click del giocatore
+	// (`ARTPlayerController::HandleTargetEdge`), non nel dato — ed e' esattamente cio' che il validatore al
+	// lock-in deve intercettare quando quel gate non si e' applicato.
+	U->PlannedAbilityIndex = PanelIdx;
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	FString Riga;
+	for (const FString& Evento : TM->GetRecentEvents())
+	{
+		if (Evento.Contains(TEXT("piano non valido al lock-in"))) { Riga = Evento; break; }
+	}
+	if (!TestFalse(TEXT("premessa: la riga di rifiuto esiste"), Riga.IsEmpty()))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	TestTrue(TEXT("dice il motivo in italiano"), Riga.Contains(TEXT("ricarica")));
+	TestFalse(TEXT("e non stampa l'identificatore grezzo dell'enum"), Riga.Contains(TEXT("OnCooldown")));
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSupersededEntryRendersTheDiscardedRouteTest,
+	"RefactorTactics.PlayerInteraction.SupersededEntryRendersTheDiscardedRoute",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSupersededEntryRendersTheDiscardedRouteTest::RunTest(const FString&)
+{
+	// La voce esiste per portare la destinazione mai raggiunta. Se il rendering non la stampa, la traccia
+	// dice al lettore la cella dove l'unita' E', che e' l'informazione che gia' aveva.
+	FRTTurnLogEntry Entry;
+	Entry.Phase = ERTMatchPhase::Dash;
+	Entry.Category = ERTLogCategory::Move;
+	Entry.Outcome = static_cast<uint8>(ERTMoveOutcome::SupersededByDash);
+	Entry.ActionId = TEXT("Action.Move");
+	Entry.SrcCell = FRTCellId(1, 1);
+	Entry.TgtCell = FRTCellId(2, 1);
+	Entry.Amount = 2;
+
+	const FString Testo = URTTurnLogLibrary::DescribeEntry(Entry);
+
+	TestTrue(TEXT("nomina la cella di partenza"), Testo.Contains(TEXT("q=1,r=1")));
+	TestTrue(TEXT("e la destinazione mai raggiunta"), Testo.Contains(TEXT("q=2,r=1")));
+	TestTrue(TEXT("e quante celle sono state scartate"), Testo.Contains(TEXT("2 celle")));
+
 	return true;
 }
 

@@ -6,13 +6,16 @@
 
 namespace
 {
-	/** Rifiuto con motivo e colpevole: un solo punto di costruzione, cosi' nessun ramo dimentica un campo. */
-	FRTPlanValidation Reject(ERTActionInvalidReason Reason, const FName& ActionId)
+	/** Rifiuto con motivo, colpevole e detentore dello slot: un solo punto di costruzione, cosi' nessun
+	 *  ramo dimentica un campo. `Holder` resta `NAME_None` per i motivi che non sono conflitti di slot. */
+	FRTPlanValidation Reject(ERTActionInvalidReason Reason, const FName& ActionId,
+		const FName& Holder = NAME_None)
 	{
 		FRTPlanValidation Result;
 		Result.bLegal = false;
 		Result.Reason = Reason;
 		Result.OffendingActionId = ActionId;
+		Result.HolderActionId = Holder;
 		return Result;
 	}
 }
@@ -135,9 +138,12 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& /*
 	}
 
 	// 2. Combinazione: l'occupazione degli slot. `None` non toglie niente (`Action.Wait`).
-	bool bMovementTaken = false;
-	bool bMainTaken = false;
-	bool bReactionTaken = false;
+	//
+	// Gli slot portano CHI li ha presi, non un `bool`: chi comunica il rifiuto nomina entrambe le azioni in
+	// conflitto, perche' l'ordine canonico di questa funzione non e' l'ordine con cui il resolver scarta.
+	FName MovementHolder;
+	FName MainHolder;
+	FName ReactionHolder;
 	for (const FRTPlannedAction& Entry : Ordered)
 	{
 		const bool bWantsMovement = Entry.Def.Slot == ERTActionSlot::Movement
@@ -146,15 +152,22 @@ FRTPlanValidation URTPlanValidationLibrary::ValidatePlan(const FRTHexSimUnit& /*
 			|| Entry.Def.Slot == ERTActionSlot::MovementAndMain;
 		const bool bWantsReaction = Entry.Def.Slot == ERTActionSlot::Reaction;
 
-		if ((bWantsMovement && bMovementTaken) || (bWantsMain && bMainTaken)
-			|| (bWantsReaction && bReactionTaken))
+		if (bWantsMovement && !MovementHolder.IsNone())
 		{
-			return Reject(ERTActionInvalidReason::SlotOccupied, Entry.Def.ActionId);
+			return Reject(ERTActionInvalidReason::SlotOccupied, Entry.Def.ActionId, MovementHolder);
+		}
+		if (bWantsMain && !MainHolder.IsNone())
+		{
+			return Reject(ERTActionInvalidReason::SlotOccupied, Entry.Def.ActionId, MainHolder);
+		}
+		if (bWantsReaction && !ReactionHolder.IsNone())
+		{
+			return Reject(ERTActionInvalidReason::SlotOccupied, Entry.Def.ActionId, ReactionHolder);
 		}
 
-		bMovementTaken |= bWantsMovement;
-		bMainTaken |= bWantsMain;
-		bReactionTaken |= bWantsReaction;
+		if (bWantsMovement) { MovementHolder = Entry.Def.ActionId; }
+		if (bWantsMain)     { MainHolder = Entry.Def.ActionId; }
+		if (bWantsReaction) { ReactionHolder = Entry.Def.ActionId; }
 	}
 
 	return FRTPlanValidation();
