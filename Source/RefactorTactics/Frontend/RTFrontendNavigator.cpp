@@ -21,6 +21,10 @@ namespace
 	 */
 	constexpr int32 ScreenZBase = 0;
 	constexpr int32 ModalZBase = 1000;
+
+	// Sotto le schermate, e di molto: il HUD e' cio' che sta **dietro** a tutto il frontend. Un margine
+	// stretto renderebbe l'ordine una coincidenza invece di una dichiarazione.
+	constexpr int32 MatchHudZ = -100;
 }
 
 ERTNavResult URTFrontendNavigator::InitializeFrontend(FName RootScreenId)
@@ -54,6 +58,11 @@ ERTNavResult URTFrontendNavigator::InitializeFrontend(FName RootScreenId)
 	// Trovato in code review su PR #1272.
 	bInitialized = false;
 	DismissAllWidgets();
+
+	// Il HUD segue la sessione come i widget delle schermate: una radice nuova non eredita il HUD della
+	// precedente, e per la stessa ragione — l'istanza appartiene al mondo in cui e' stata costruita.
+	// `EnterMatch` lo ripresenta subito dopo; l'ordine smonta-poi-monta e' quello di `SyncPresentation`.
+	DismissMatchHud();
 
 	Stack = FRTScreenStack(RootScreenId);
 	bInitialized = true;
@@ -389,7 +398,14 @@ ERTNavResult URTFrontendNavigator::EnterMatch()
 {
 	// E' `InitializeFrontend` con un'altra radice, e non una terza via: la partita e' l'inizio di una
 	// sessione di flow come lo e' il menu — widget della precedente buttati, stack nuovo, radice legale.
-	return InitializeFrontend(RTScreenIds::Match);
+	const ERTNavResult Result = InitializeFrontend(RTScreenIds::Match);
+	if (Result == ERTNavResult::Ok)
+	{
+		// Il HUD arriva **dopo** la radice, ed e' l'unico ordine possibile: `InitializeFrontend` ha appena
+		// smontato tutto, e presentarlo prima lo farebbe cadere nello smontaggio della sessione vecchia.
+		PresentMatchHud();
+	}
+	return Result;
 }
 
 ERTNavResult URTFrontendNavigator::ShowPause()
@@ -628,6 +644,66 @@ void URTFrontendNavigator::PresentWidget(FName ScreenId, int32 ZOrder)
 	}
 }
 
+void URTFrontendNavigator::PresentMatchHud()
+{
+	// Un binding assente e' **normale** — un test headless non ha `.uasset` — e non e' un errore da
+	// loggare. E' la stessa distinzione che `PresentWidget` fa fra «assente» e «dichiarato ma non carica».
+	if (MatchHudWidgetClass.IsNull())
+	{
+		return;
+	}
+
+	UGameInstance* GI = GetGameInstance();
+	if (!GI)
+	{
+		return;
+	}
+
+	if (!MatchHudWidget)
+	{
+		UClass* WidgetClass = MatchHudWidgetClass.LoadSynchronous();
+		if (!WidgetClass)
+		{
+			// Un percorso **dichiarato** che non carica e' quasi sempre un nome sbagliato nel `.ini`, e
+			// senza questa riga il sintomo sarebbe una partita senza HUD e nessuna spiegazione — cioe' un
+			// fallimento indistinguibile da un HUD non ancora costruito.
+			UE_LOG(LogRT, Warning,
+				TEXT("HUD di partita: la classe '%s' non si carica — controlla MatchHudWidgetClass in ")
+				TEXT("[/Script/RefactorTactics.RTFrontendNavigator] di DefaultGame.ini. ")
+				TEXT("La partita restera' senza Screen HUD"),
+				*MatchHudWidgetClass.ToString());
+			return;
+		}
+
+		MatchHudWidget = CreateWidget<UUserWidget>(GI, WidgetClass);
+		if (!MatchHudWidget)
+		{
+			return;
+		}
+	}
+
+	if (!MatchHudWidget->IsInViewport())
+	{
+		MatchHudWidget->AddToViewport(MatchHudZ);
+	}
+}
+
+void URTFrontendNavigator::DismissMatchHud()
+{
+	if (MatchHudWidget)
+	{
+		if (MatchHudWidget->IsInViewport())
+		{
+			MatchHudWidget->RemoveFromParent();
+		}
+
+		// 🔴 **Il puntatore si azzera, e non e' un'ottimizzazione mancata.** L'istanza appartiene al mondo
+		// in cui e' stata costruita: riusarla dopo un cambio di livello chiama `AddToViewport` su un mondo
+		// smontato. E' il difetto di PR #1264, gia' pagato una volta su `LiveWidgets`.
+		MatchHudWidget = nullptr;
+	}
+}
+
 void URTFrontendNavigator::DismissWidget(FName ScreenId)
 {
 	TObjectPtr<UUserWidget>* Slot = LiveWidgets.Find(ScreenId);
@@ -696,6 +772,19 @@ void URTFrontendNavigator::SyncPresentation()
 				Widget->SetIsEnabled(Pair.Key == InteractiveId);
 			}
 		}
+	}
+
+	// Il HUD non e' in `LiveWidgets`, quindi il ciclo sopra non lo vede — ma la regola vale anche per lui:
+	// **visibile e inerte** quando qualcosa lo copre. E' interattivo solo quando la partita e' davvero in
+	// cima, cioe' nessun modale aperto e nessuna schermata sopra di essa.
+	//
+	// ⚠️ E' **meta'** della precedenza `Modal/Reaction UI > HUD > world tactical hit`, non tutta: qui si
+	// decide se il HUD riceve input, non se un click che lo attraversa arriva al mondo. Quella meta' e' di
+	// CP 11.8 (#705), e ha bisogno di hitbox che il Canvas oggi non registra.
+	if (MatchHudWidget && MatchHudWidget->IsInViewport())
+	{
+		MatchHudWidget->SetIsEnabled(
+			!Stack.IsModalOpen() && Stack.CurrentScreen() == RTScreenIds::Match);
 	}
 }
 
