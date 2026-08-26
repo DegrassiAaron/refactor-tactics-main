@@ -137,6 +137,24 @@ def arc_deg(cx: float, cy: float, r: float, a0: float, a1: float, **kw) -> str:
     return path(f"M{_n(x0)} {_n(y0)} A {_n(r)} {_n(r)} 0 {large} {sweep} {_n(x1)} {_n(y1)}", **kw)
 
 
+def rounded_rect(x: float, y: float, w: float, h: float, r: float, **kw) -> str:
+    return path(
+        f"M{_n(x + r)} {_n(y)} L{_n(x + w - r)} {_n(y)} Q{_n(x + w)} {_n(y)} {_n(x + w)} {_n(y + r)} "
+        f"L{_n(x + w)} {_n(y + h - r)} Q{_n(x + w)} {_n(y + h)} {_n(x + w - r)} {_n(y + h)} "
+        f"L{_n(x + r)} {_n(y + h)} Q{_n(x)} {_n(y + h)} {_n(x)} {_n(y + h - r)} "
+        f"L{_n(x)} {_n(y + r)} Q{_n(x)} {_n(y)} {_n(x + r)} {_n(y)} Z", **kw)
+
+
+def arrow_head_left(x: float, y: float, size: float = 3.0) -> str:
+    return path(f"M{_n(x + size)} {_n(y - size)} L{_n(x)} {_n(y)} L{_n(x + size)} {_n(y + size)}")
+
+
+def waves(y: float, x0: float = 4.4, span: float = 15.2, amp: float = 1.9, **kw) -> str:
+    """Superficie d'acqua. `Water` non e' una goccia: e' una superficie, e si legge dal profilo."""
+    q = span / 4.0
+    return path(f"M{_n(x0)} {_n(y)} q{_n(q)} {_n(-amp)} {_n(2 * q)} 0 t{_n(2 * q)} 0", **kw)
+
+
 def polygon(points: list[tuple[float, float]], **kw) -> str:
     pts = " ".join(f"{_n(px)},{_n(py)}" for px, py in points)
     attrs = "".join(f' {k.replace("_", "-")}="{v}"' for k, v in kw.items())
@@ -516,6 +534,587 @@ def f_keybind_chip() -> str:
 
 
 # --------------------------------------------------------------------------------------------------
+# Le 45 chiavi che mancavano
+# --------------------------------------------------------------------------------------------------
+# Fin qui il set copriva i riquadri del mock. `RequiredIconIds()` ne pretende 61, e il mock ne toccava
+# 16: il resto non e' «extra», e' il debito che il mock nascondeva mostrando una hotbar di cinque slot
+# dove il gioco ha 37 azioni generiche, 11 stati e un roster.
+#
+# Due regole di famiglia, decise qui una volta:
+#
+# 1. **Azione contro stato.** `Action.Root` e `Status.Root` sono chiavi diverse e devono leggersi
+#    diverse: l'azione ha un cue di bersaglio (si fa a qualcuno), lo stato ha il punto unita' (si e').
+#    Vale anche per `Slow`, e per la coppia `Guard`/`Status.Guarded`, `Brace`/`Status.Braced`.
+# 2. **Base condivisa degli stati.** Ogni `Status.*` porta il punto unita' in basso al centro. E' cio'
+#    che rende la famiglia riconoscibile prima ancora del singolo stato — a 16 px il giocatore vede
+#    «e' uno stato su un'unita'» anche quando non distingue quale.
+
+STATUS_UNIT_Y = 19.6
+
+
+def _status(mark: str) -> str:
+    return "\n".join([dot(12, STATUS_UNIT_Y, 1.7), mark])
+
+
+# --- Movimento ------------------------------------------------------------------------------------
+
+def g_charge() -> str:
+    """`Charge`: movimento che finisce addosso. Move family + `Damage` all'arrivo."""
+    return "\n".join([
+        dot(3.4, 12, 1.4),
+        chevron(6, 12, 2.6, 3.0),
+        chevron(9.6, 12, 2.6, 3.0),
+        path("M19.4 5.4 L19.4 18.6", stroke_width=2.4),
+        path("M15.4 8.2 L17.8 10.4 M14.8 12 L17.6 12 M15.4 15.8 L17.8 13.6", stroke_width=1.5),
+    ])
+
+
+def g_leap() -> str:
+    """`Leap`: arco balistico. Origine e destinazione sono due celle, il mezzo non e' percorribile."""
+    return "\n".join([
+        dot(4.2, 18.4, 1.6),
+        path("M4.2 18.4 Q12 1.6 19.8 18.4"),
+        path("M16.7 16.1 L19.8 18.4 L20.1 14.5", stroke_width=1.6),
+        path("M2.4 21.2 L7.4 21.2 M16.6 21.2 L21.6 21.2", stroke_width=1.3),
+    ])
+
+
+def g_reposition() -> str:
+    """`Reposition`: freccia breve origine -> destinazione. Distinta dal path di `Move`: nessun nodo
+    intermedio, perche' non c'e' un percorso da leggere."""
+    return "\n".join([
+        circle(5.4, 16.6, 2.6, stroke_width=1.4),
+        path("M7.8 14.4 L13.4 9.6"),
+        path("M12.6 12.4 L15.4 9.6 L12.6 7.2", stroke_width=1.5),
+        polygon([(18.4, 4), (21.6, 7.2), (18.4, 10.4), (15.2, 7.2)], stroke_width=1.4),
+    ])
+
+
+def g_evade() -> str:
+    """`Evade`: scarto laterale. La posizione vecchia resta come traccia — se sparisse, il glifo direbbe
+    «mi sposto», che e' `Move`."""
+    return "\n".join([
+        circle(6.4, 15.6, 2.4, stroke_dasharray="1.6 1.8", stroke_width=1.4),
+        path("M9.4 14 Q13 12 14.6 8.2"),
+        dot(16.4, 6.6, 2.2),
+        path("M4.2 20.4 L19.8 20.4", stroke_width=1.3),
+    ])
+
+
+# --- Offesa ---------------------------------------------------------------------------------------
+
+def g_precision_attack() -> str:
+    """`PrecisionAttack`: mira stretta, un colpo solo. Contro `BasicAttack` cambia il diametro e sparisce
+    la crepa: la precisione non e' un impatto piu' grande."""
+    return "\n".join([
+        circle(12, 12, 4.4, stroke_width=1.5),
+        dot(12, 12, 1.4),
+        path("M12 2.8 L12 6.2 M12 17.8 L12 21.2 M2.8 12 L6.2 12 M17.8 12 L21.2 12",
+             stroke_width=1.3),
+    ])
+
+
+def g_heavy_attack() -> str:
+    """`HeavyAttack`: impatto pesante. La grammatica `Damage` concede 3-4 diramazioni: qui sono quattro,
+    e la massa la porta il tratto, non il numero."""
+    return "\n".join([
+        dot(12, 12, 2.6),
+        path("M12 9 L11 3.4 M15 11 L20.8 9.4 M13 15 L15.6 20.4 M9 13.4 L3.4 15.4",
+             stroke_width=2.2),
+    ])
+
+
+def g_line_attack() -> str:
+    """`LineAttack`: primitiva `Line` — origine, segmento, punta. **Senza nodi intermedi**: i nodi sono
+    di `Move`, e una linea con i nodi diventa un percorso."""
+    return "\n".join([
+        dot(3.4, 12, 1.8),
+        path("M5.6 12 L17.4 12", stroke_width=2.0),
+        arrow_head(20.6, 12, 3.0),
+    ])
+
+
+def g_circular_aoe() -> str:
+    """`CircularAoE`: primitiva `Circle` — anello esterno + punto centrale, niente altro. I tick esterni
+    li ha `BasicAttack`, e metterli qui farebbe due reticoli."""
+    return "\n".join([
+        circle(12, 12, 7.6),
+        dot(12, 12, 2.0),
+    ])
+
+
+def g_suppressive_line() -> str:
+    """`SuppressiveLine`: negazione d'area lungo una linea. Non e' `LineAttack` con piu' frecce: la
+    differenza e' che qui non c'e' una punta, perche' non c'e' un bersaglio."""
+    return "\n".join([
+        dot(3.6, 12, 1.6),
+        path("M6 8.4 L20.4 8.4 M6 12 L20.4 12 M6 15.6 L20.4 15.6", stroke_width=1.5),
+        path("M20.4 6.4 L20.4 17.6", stroke_width=1.3),
+    ])
+
+
+def g_mark_target() -> str:
+    """`MarkTarget`: si segna, non si colpisce. Il gancio e' la bandierina — un reticolo da solo sarebbe
+    `PrecisionAttack`."""
+    return "\n".join([
+        circle(12, 15, 4.8, stroke_width=1.5),
+        dot(12, 15, 1.5),
+        path("M8.4 4.4 L12 8 L15.6 4.4", stroke_width=1.8),
+        path("M12 8 L12 9.6", stroke_width=1.4),
+    ])
+
+
+# --- Reazione e difesa ----------------------------------------------------------------------------
+
+def g_counter() -> str:
+    """`Counter`: cio' che arriva torna indietro. Due frecce opposte, nessuna superficie: la superficie
+    e' di `Deflect`, ed e' quello che le tiene distinte."""
+    return "\n".join([
+        path("M3.4 8.2 L13.6 8.2"),
+        arrow_head(16.6, 8.2, 2.5),
+        path("M20.6 15.8 L10.4 15.8"),
+        arrow_head_left(7.4, 15.8, 2.5),
+    ])
+
+
+def g_deflect() -> str:
+    """`Deflect`: la superficie inclinata devia. L'angolo e' il glifo: senza, e' `Counter`."""
+    return "\n".join([
+        path("M6.6 18.6 L18.6 6.6", stroke_width=2.4),
+        path("M2.8 5.4 L8.6 10"),
+        path("M5.2 10.4 L9.6 10.8 L9.2 6.4", stroke_width=1.5),
+        path("M13.4 15.6 L19.4 20.4"),
+        path("M16 20.8 L20.4 21.2 L20 16.8", stroke_width=1.5),
+    ])
+
+
+def g_intercept() -> str:
+    """`Intercept`: la linea si ferma a meta'. Non torna indietro (`Counter`) e non piega (`Deflect`):
+    finisce."""
+    return "\n".join([
+        dot(3.4, 12, 1.6),
+        path("M5.4 12 L11 12", stroke_width=1.8),
+        path("M13.2 6 L13.2 18", stroke_width=2.2),
+        path("M15.8 12 L20.6 12", stroke_dasharray="1.4 2.2", stroke_width=1.4),
+    ])
+
+
+def g_anchor() -> str:
+    """`Anchor`: si radica per non essere spostati. E' l'inverso di `Push`/`Pull`, e il cue e' il
+    terreno che tiene, non il corpo."""
+    return "\n".join([
+        dot(12, 7.4, 2.0),
+        path("M12 9.6 L12 17.4"),
+        path("M6.6 17.4 L17.4 17.4"),
+        path("M8.6 17.4 L6.2 21.4 M15.4 17.4 L17.8 21.4", stroke_width=1.4),
+    ])
+
+
+def g_shield() -> str:
+    """`Shield`: risorsa che assorbe. Scudo geometrico con **ampio negative space** — non e' `Cover`
+    (barriera ancorata) e non e' `Brace` (cuneo di contrasto)."""
+    return "\n".join([
+        path("M12 3.4 L19.6 6.6 L19.6 12.6 Q19.6 18.6 12 21.4 Q4.4 18.6 4.4 12.6 L4.4 6.6 Z"),
+    ])
+
+
+def g_evade_placeholder() -> str:  # pragma: no cover - segnaposto non registrato
+    return g_evade()
+
+
+# --- Controllo ------------------------------------------------------------------------------------
+
+def g_push() -> str:
+    """`Push`: impulso esterno, punto unita', uscita — `» ● ─►` (§4). E' movimento **subito**: la
+    grammatica lo tiene distinto da `Dash`, che l'unita' sceglie."""
+    return "\n".join([
+        path("M3 8.4 L6 12 L3 15.6", stroke_width=1.5),
+        path("M6.6 8.4 L9.6 12 L6.6 15.6", stroke_width=1.5),
+        dot(13, 12, 2.0),
+        path("M15.6 12 L18.4 12"),
+        arrow_head(21.2, 12, 2.6),
+    ])
+
+
+def g_pull() -> str:
+    """`Pull`: `◄─ ● «` — lo stesso impulso al contrario."""
+    return "\n".join([
+        path("M21 8.4 L18 12 L21 15.6", stroke_width=1.5),
+        path("M17.4 8.4 L14.4 12 L17.4 15.6", stroke_width=1.5),
+        dot(11, 12, 2.0),
+        path("M8.4 12 L5.6 12"),
+        arrow_head_left(2.8, 12, 2.6),
+    ])
+
+
+def g_root() -> str:
+    """`Action.Root`: si radica **qualcuno**. Il cue di bersaglio (la freccia che entra) e' cio' che la
+    separa da `Status.Root`, che invece e' lo stato addosso a un'unita'."""
+    return "\n".join([
+        path("M2.8 3.6 L7.6 8"),
+        path("M4.6 8.8 L8.4 8.8 L8.4 5", stroke_width=1.5),
+        dot(13.6, 12.4, 2.0),
+        path("M7.4 17.4 L20.4 17.4"),
+        path("M10.4 17.4 L10.4 20.8 M13.6 17.4 L13.6 20.8 M16.8 17.4 L16.8 20.8", stroke_width=1.4),
+    ])
+
+
+def g_slow() -> str:
+    """`Action.Slow`: si rallenta qualcuno. Chevron che perdono passo contro la barra che frena."""
+    return "\n".join([
+        path("M2.6 6.4 L7 10"),
+        arrow_head(9 , 11.6, 2.2),
+        chevron(11.6, 15, 2.4, 2.8),
+        chevron(15, 15, 1.8, 2.2),
+        path("M19.6 11.4 L19.6 18.6", stroke_width=2.0),
+    ])
+
+
+def g_interrupt() -> str:
+    """`Interrupt`: la rottura di una linea gia' avviata. Il pezzo dopo la rottura resta, tratteggiato:
+    se sparisse, il glifo direbbe «non e' mai partita»."""
+    return "\n".join([
+        path("M3 12 L9.4 12", stroke_width=1.8),
+        path("M11.4 5.6 L14 12 L11.4 18.4", stroke_width=2.0),
+        path("M16 12 L21 12", stroke_dasharray="1.4 2.4", stroke_width=1.4),
+    ])
+
+
+def g_modify_arc() -> str:
+    """`ModifyArc`: si ruota il settore frontale. L'arco e' quello di `Guard`; a cambiare e' la freccia
+    di rotazione, ed e' l'unica differenza ammessa (ADR-0005 §4c: il cono E' il facing)."""
+    return "\n".join([
+        dot(12, 17.4, 1.7),
+        path("M5.4 14.6 A 8 8 0 0 1 18.6 14.6"),
+        path("M7 7.4 A 7.6 7.6 0 0 1 17.8 6.6", stroke_width=1.4),
+        path("M14.8 4.2 L18.2 6.6 L14.8 9", stroke_width=1.5),
+    ])
+
+
+# --- Supporto -------------------------------------------------------------------------------------
+
+def g_heal() -> str:
+    """`Heal`: pulse geometrico. Usato **solo** per Heal, mai per `Ally` (§4)."""
+    return "\n".join([
+        path("M12 6.4 L12 17.6 M6.4 12 L17.6 12", stroke_width=2.4),
+        circle(12, 12, 8.4, stroke_dasharray="2.6 3.2", stroke_width=1.3),
+    ])
+
+
+def g_cleanse() -> str:
+    """`Cleanse`: lo stato si stacca e sale. Su un alleato — `Purge` fa la stessa cosa a un avversario,
+    e la differenza la porta il segno (qui si solleva, la' si taglia)."""
+    return "\n".join([
+        dot(12, 19.4, 1.8),
+        path("M12 17 L12 10.6"),
+        path("M9.2 13.2 L12 10.4 L14.8 13.2"),
+        path("M8.4 7.4 L15.6 7.4", stroke_width=1.5),
+        path("M9.8 4 L14.2 4", stroke_width=1.3),
+    ])
+
+
+def g_purge() -> str:
+    """`Purge`: lo stato si toglie con la forza. Il taglio e' il segno di `Invalid` riusato come
+    **azione**, ed e' voluto: dice «questo non vale piu'»."""
+    return "\n".join([
+        circle(11.4, 11.4, 5.6, stroke_width=1.5),
+        path("M8.4 11.4 L14.4 11.4", stroke_width=1.6),
+        path("M4.6 19.4 L20.4 4.6", stroke_width=2.2),
+    ])
+
+
+# --- Ambiente -------------------------------------------------------------------------------------
+
+def g_create_cover() -> str:
+    """`CreateCover`: barriera ancorata al terreno + segno di creazione. `Cover` e' proprieta' della
+    mappa (§4.1): senza il terreno sotto, il glifo direbbe `Shield`."""
+    return "\n".join([
+        path("M8.6 6.4 L8.6 18.4", stroke_width=2.2),
+        path("M4.4 18.4 L13.4 18.4", stroke_width=1.5),
+        path("M11.4 9.4 L11.4 15.4", stroke_width=1.2),
+        path("M18 6.4 L18 12.4 M15 9.4 L21 9.4", stroke_width=1.6),
+    ])
+
+
+def g_create_water() -> str:
+    """`CreateWater`: superficie, non goccia. `Water` non cambia colore in base alla squadra (§2.2)."""
+    return "\n".join([
+        waves(13.4),
+        waves(17.6, stroke_width=1.5),
+        path("M17.4 4.4 L17.4 10.4 M14.4 7.4 L20.4 7.4", stroke_width=1.6),
+    ])
+
+
+def g_electrify() -> str:
+    """`Electrify`: payload `Electric` su una superficie. Contro `Status.Electrified`: qui c'e' la
+    superficie sotto, la' c'e' l'unita'."""
+    return "\n".join([
+        path("M12 3.4 L8.6 10.4 L13 10.4 L9.6 16.6", stroke_width=1.8),
+        path("M3.6 19.6 L20.4 19.6", stroke_width=1.6),
+        path("M15 14.6 L18.6 14.6 M16.2 11.4 L19.4 11.4", stroke_width=1.3),
+    ])
+
+
+def g_ignite() -> str:
+    """`Ignite`: calore che sale da una superficie. Niente fiamma disegnata — la grammatica `Damage`
+    vieta l'icona-oggetto, e una fiamma qui competerebbe con `Status.Burning`."""
+    return "\n".join([
+        path("M3.6 19.6 L20.4 19.6", stroke_width=1.6),
+        path("M8 16.4 Q6 12.4 9 9.4 Q10.4 12.4 12 10.4", stroke_width=1.5),
+        path("M14.6 16.4 Q12.4 11.4 16 6.6 Q17.4 11.4 19.4 12.4", stroke_width=1.5),
+    ])
+
+
+# --- Stati ----------------------------------------------------------------------------------------
+
+def g_status_braced() -> str:
+    """Lo stato che `Action.Brace` lascia: il cuneo resta, il corpo e' gia' piantato."""
+    return _status("\n".join([
+        path("M12 4.6 L7.4 11.4 L16.6 11.4 Z"),
+        path("M6.6 15.4 L17.4 15.4", stroke_width=1.5),
+    ]))
+
+
+def g_status_guarded() -> str:
+    """Lo stato che `Action.Guard` lascia: arco frontale, senza la posa dell'azione."""
+    return _status("\n".join([
+        arc_deg(12, STATUS_UNIT_Y, 6.2, -168, -12, stroke_width=2.0),
+        path("M12 16 L12 12.4", stroke_width=1.3),
+    ]))
+
+
+def g_status_burning() -> str:
+    return _status(path("M12 3.4 Q7.4 9.4 9.6 14.4 Q11 11.4 13 12.4 Q16.6 8.4 12 3.4 Z"))
+
+
+def g_status_electrified() -> str:
+    return _status("\n".join([
+        path("M13.6 3.4 L8.6 11 L13 11 L9.4 16.6", stroke_width=1.9),
+        path("M17 7.4 L19.6 7.4 M16 11.4 L18.6 11.4", stroke_width=1.3),
+    ]))
+
+
+def g_status_wet() -> str:
+    return _status("\n".join([
+        waves(9.4, x0=4.6, span=14.8),
+        waves(13.6, x0=4.6, span=14.8, stroke_width=1.5),
+    ]))
+
+
+def g_status_exposed() -> str:
+    """`Exposed`: la copertura non c'e'. Il segno e' la barriera **spezzata**, non un punto esclamativo:
+    un warning generico non dice perche'."""
+    return _status("\n".join([
+        path("M4.6 14.6 L4.6 5.4 L9.6 5.4", stroke_width=1.6),
+        path("M19.4 14.6 L19.4 5.4 L14.4 5.4", stroke_width=1.6),
+        path("M11 9 L13 12.4 M13 9 L11 12.4", stroke_width=1.5),
+    ]))
+
+
+def g_status_marked() -> str:
+    return _status("\n".join([
+        circle(12, 10.4, 4.4, stroke_dasharray="2.4 2.6", stroke_width=1.4),
+        path("M12 3.4 L12 6 M12 14.8 L12 17.4 M5 10.4 L7.6 10.4 M16.4 10.4 L19 10.4",
+             stroke_width=1.3),
+    ]))
+
+
+def g_status_obscured() -> str:
+    """`Obscured`: si vede meno, non si vede altro. Il velo copre in parte — se coprisse tutto sarebbe
+    «non visibile», che e' un'altra cosa e appartiene a `Information`."""
+    return _status("\n".join([
+        path("M4.4 8.4 L19.6 8.4", stroke_dasharray="2.8 2.4", stroke_width=1.6),
+        path("M4.4 12.4 L19.6 12.4", stroke_dasharray="2.8 2.4", stroke_width=1.6),
+        path("M6.4 4.6 L17.6 4.6", stroke_dasharray="2.8 2.4", stroke_width=1.3),
+    ]))
+
+
+def g_status_reveal() -> str:
+    """`Reveal`: marca da sensore. Distinta dall'occhio + settore di `Overwatch` (§4): qui non c'e' un
+    osservatore, c'e' un rilevamento."""
+    return _status("\n".join([
+        circle(12, 10.6, 5.6, stroke_width=1.5),
+        path("M12 10.6 L16 6.6", stroke_width=1.6),
+        dot(15.2, 12.6, 1.5),
+        path("M12 3.6 L12 5.4", stroke_width=1.3),
+    ]))
+
+
+def g_status_root() -> str:
+    """`Status.Root`: radicato. Nessun cue di bersaglio — chi l'ha applicato non e' parte dello stato."""
+    return _status("\n".join([
+        dot(12, 9.4, 2.0),
+        path("M5.4 15.4 L18.6 15.4"),
+        path("M8.4 15.4 L8.4 18.6 M12 15.4 L12 18.6 M15.6 15.4 L15.6 18.6", stroke_width=1.4),
+    ]))
+
+
+def g_status_slow() -> str:
+    return _status("\n".join([
+        chevron(6.4, 10.4, 2.6, 3.0),
+        chevron(10.4, 10.4, 2.0, 2.4),
+        chevron(13.8, 10.4, 1.4, 1.8),
+        path("M18.4 6.4 L18.4 14.4", stroke_width=2.0),
+    ]))
+
+
+# --- Identita' ------------------------------------------------------------------------------------
+# Il badge esagonale a punta in alto e' il contenitore dell'identita', e non e' il chip di fase (che ha
+# le punte ai lati). Due contenitori diversi perche' rispondono a due domande diverse: «chi e'» e «in
+# che fase siamo». Chi li disegnasse uguali costringerebbe il giocatore a leggere l'interno per sapere
+# quale delle due sta guardando.
+
+IDENTITY_BADGE = [(12, 2.4), (20.4, 7.2), (20.4, 16.8), (12, 21.6), (3.6, 16.8), (3.6, 7.2)]
+
+
+def _identity(inner: str) -> str:
+    return "\n".join([polygon(IDENTITY_BADGE, stroke_width=1.4), inner])
+
+
+def g_identity_gadget() -> str:
+    """Gadget: il nodo conduttivo, che e' la cosa che solo lui lascia sul campo."""
+    return _identity("\n".join([
+        polygon(hexagon(12, 12, 3.6), stroke_width=1.4),
+        dot(12, 12, 1.4),
+        path("M12 8.4 L12 6.4 M15.1 13.8 L16.8 14.8 M8.9 13.8 L7.2 14.8", stroke_width=1.3),
+    ]))
+
+
+def g_identity_phase() -> str:
+    """Phase: la superficie che si muove — il fluido e' la sua materia."""
+    return _identity("\n".join([
+        waves(11, x0=6.4, span=11.2, amp=1.6, stroke_width=1.5),
+        waves(14.6, x0=6.4, span=11.2, amp=1.6, stroke_width=1.3),
+    ]))
+
+
+def g_identity_riktor() -> str:
+    """Riktor: massa e pannello cinetico. La base larga e' il punto: e' l'eroe che non si sposta."""
+    return _identity("\n".join([
+        path("M7.6 15.6 L7.6 8.6 L16.4 8.6 L16.4 15.6", stroke_width=1.6),
+        path("M6 15.6 L18 15.6", stroke_width=1.8),
+        path("M12 8.6 L12 15.6", stroke_width=1.2),
+    ]))
+
+
+def g_identity_wraith() -> str:
+    """Wraith: la lama che passa. Il tratto interrotto dice il transito, che e' la sua firma."""
+    return _identity("\n".join([
+        path("M7.4 16.6 L16.6 7.4", stroke_width=1.9),
+        path("M8.6 8.4 L11 10.8", stroke_dasharray="1.4 1.8", stroke_width=1.3),
+        path("M13 13.2 L15.4 15.6", stroke_dasharray="1.4 1.8", stroke_width=1.3),
+    ]))
+
+
+def g_identity_ally() -> str:
+    """`Ally`: unit marker **rounded** + connection tabs. Nessun `+` (§2) — la croce e' di `Heal`."""
+    return "\n".join([
+        rounded_rect(5.6, 5.6, 12.8, 12.8, 4.4, stroke_width=2.0),
+        dot(12, 12, 2.0),
+        path("M2.6 12 L5.6 12 M18.4 12 L21.4 12", stroke_width=1.8),
+    ])
+
+
+def g_identity_enemy() -> str:
+    """`Enemy`: unit marker **angular** + notch. La differenza da `Ally` e' rounded contro angular, non
+    la tinta: in monocromia deve reggere lo stesso (§2)."""
+    return "\n".join([
+        polygon([(12, 5.2), (18.8, 12), (12, 18.8), (5.2, 12)], stroke_width=2.0),
+        dot(12, 12, 2.0),
+        path("M3.2 12 L5.6 12 M18.4 12 L20.8 12", stroke_width=1.6),
+    ])
+
+
+# --- La cinquantaduesima --------------------------------------------------------------------------
+
+def g_missing_icon() -> str:
+    """Non e' una chiave del dizionario: e' il campo `MissingIcon` di `URTIconCatalogData`, e senza di
+    lei il catalogo **non passa la validazione**.
+
+    Si vede solo quando qualcosa e' rotto, e per questo non deve somigliare ne' a `Invalid` (slash) ne'
+    a `Uncertain` (fade + `?`): deve dire «manca il contenuto», che e' un'altra cosa. Quattro angoli di
+    un contenitore vuoto.
+    """
+    return corner_brackets(4.4, 4.4, 15.2, 15.2, 4.6)
+
+
+# --------------------------------------------------------------------------------------------------
+# Copertura — le chiavi che `RequiredIconIds()` genera davvero
+# --------------------------------------------------------------------------------------------------
+# La lista **si interroga, non si copia**: un manifest scritto a mano invecchia il giorno in cui
+# qualcuno registra un tag nuovo. Qui non gira Unreal, quindi si legge la stessa sorgente che legge
+# `URTIconLibrary::RequiredIconIds()` — il catalogo generico, i tag `Status.`, le fasi volontarie, il
+# roster — e si confronta con cio' che lo script disegna. Se qualcosa manca, il generatore lo dice.
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+SOURCES = {
+    "actions": REPO_ROOT / "Source/RefactorTactics/Ability/RTCatalogLibrary.cpp",
+    "status": REPO_ROOT / "Source/RefactorTactics/Core/RTGameplayTags.cpp",
+    "heroes": REPO_ROOT / "Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp",
+    "library": REPO_ROOT / "Source/RefactorTactics/UI/RTIconLibrary.cpp",
+}
+
+
+def required_icon_ids() -> list[str]:
+    """L'immagine testuale di `URTIconLibrary::RequiredIconIds()`.
+
+    E' una lettura del sorgente, non una copia della lista: cambia quando cambia il gioco. Resta un
+    surrogato — l'autorita' e' la funzione C++ — e per questo `check_coverage` dice sempre da dove ha
+    letto, cosi' un disallineamento si vede invece di restare implicito.
+    """
+    import re
+
+    ids: list[str] = []
+
+    # Fasi: le quattro volontarie, nell'ordine dichiarato dentro RequiredIconIds.
+    lib = SOURCES["library"].read_text(encoding="utf-8")
+    phases = re.search(r"const ERTMatchPhase VoluntaryPhases\[\] = \{(.*?)\};", lib, re.S)
+    for name in re.findall(r"ERTMatchPhase::(\w+)", phases.group(1) if phases else ""):
+        ids.append(f"UI.Icon.Phase.{name}")
+
+    # Azioni: quelle che il catalogo generico SPEDISCE.
+    cat = SOURCES["actions"].read_text(encoding="utf-8")
+    body = re.search(r"TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog\(\).*?\n\}",
+                     cat, re.S)
+    for action in re.findall(r'ShippedAction\(TEXT\("(Action\.\w+)"\)', body.group(0) if body else ""):
+        ids.append(f"UI.Icon.{action}")
+
+    # Stati: i tag registrati sotto `Status.`, ordinati come li ordina la funzione.
+    tags = SOURCES["status"].read_text(encoding="utf-8")
+    ids += sorted({f"UI.Icon.{t}" for t in re.findall(r'"(Status\.\w+)"', tags)})
+
+    # Certezza: i tre livelli DISEGNABILI, elencati a mano nel C++ e non derivati dall'enum (che ne ha
+    # quattro: `Unknown` non ha una resa).
+    ids += [f"UI.Icon.Certainty.{lvl}" for lvl in ("Confirmed", "Predicted", "Uncertain")]
+
+    # Identita': i quattro eroi (il prefisso `Hero.` diventa `Identity.`) piu' la relazione di squadra.
+    roster = SOURCES["heroes"].read_text(encoding="utf-8")
+    hero_ids = re.search(r"TArray<FName> URTHeroCatalogLibrary::GetHeroIds\(\).*?\n\}", roster, re.S)
+    for hero in re.findall(r'TEXT\("Hero\.(\w+)"\)', hero_ids.group(0) if hero_ids else ""):
+        ids.append(f"UI.Icon.Identity.{hero}")
+    ids += ["UI.Icon.Identity.Ally", "UI.Icon.Identity.Enemy"]
+
+    # Deduplica conservando l'ordine, come fa `AddUnique`.
+    seen, unique = set(), []
+    for i in ids:
+        if i not in seen:
+            seen.add(i)
+            unique.append(i)
+    return unique
+
+
+def check_coverage(drawn: set[str]) -> tuple[list[str], list[str]]:
+    """Restituisce (mancanti, extra). Gli extra non sono un errore: le ability degli eroi hanno una
+    chiave regolare sotto `Action.` ma non sono nel catalogo generico, quindi `RequiredIconIds()` non
+    le pretende — servono comunque alla skill bar."""
+    required = required_icon_ids()
+    missing = [i for i in required if i not in drawn]
+    extra = sorted(d for d in drawn if d not in set(required))
+    return missing, extra
+
+
+# --------------------------------------------------------------------------------------------------
 # Registro
 # --------------------------------------------------------------------------------------------------
 # `IconId` e nome asset non sono intercambiabili (`07-export-e-naming.md` §1): il primo lo risolve
@@ -525,53 +1124,175 @@ def f_keybind_chip() -> str:
 # `origine_mock` dice da quale riquadro della tavola viene l'elemento e cosa e' cambiato. Un asset
 # senza quella colonna non si sa se e' stato verificato o solo ricalcato.
 
+# `IconId` e nome asset non sono intercambiabili (`07-export-e-naming.md` §1): il primo lo risolve
+# `URTIconLibrary`, il secondo lo vede il content browser. Qui c'e' **solo la semantica**, e le due
+# forme si DERIVANO da essa:
+#
+#     UI.Icon.Action.Move   <- ICON_ID_PREFIX + semantica
+#     RT_UI_Icon_Action_Move <- "RT_" + IconId con i punti in underscore
+#
+# Derivare invece di elencare non e' pigrizia: e' cio' che permette al commandlet dell'Editor di
+# trovare la texture di una chiave **senza una tabella di corrispondenza**, e a un refuso di diventare
+# visibile invece che silenzioso.
+#
+# ⚠️ `progettazione-hud.md` §43 porta esempi come `RT_UI_Phase_Blast`, senza il segmento `Icon`. La
+# regola generale di `07-export-e-naming.md` §1 (`RT_UI_Icon_<...>`) vince qui, perche' e' l'unica che
+# si deriva: un'eccezione per categoria costringerebbe a una tabella, che e' esattamente cio' che
+# D-031 evita.
+
+ICON_ID_PREFIX = "UI.Icon."
+
+
+def icon_id(semantic: str) -> str:
+    return ICON_ID_PREFIX + semantic
+
+
+def asset_name(semantic: str) -> str:
+    return "RT_" + icon_id(semantic).replace(".", "_")
+
+
+def icon_category(semantic: str) -> str:
+    """La categoria e' il primo segmento, e DEVE essere un valore di `ERTIconCategory`:
+    `ValidateIconCatalog` confronta la categoria dichiarata con quella dentro l'ID."""
+    return semantic.split(".", 1)[0]
+
+
 ICONS = [
-    # (AssetName, IconId, Categoria, glifo, tinta semantica, origine_mock)
-    ("RT_UI_Icon_Action_Move", "UI.Icon.Action.Move", "Action", g_move, "Movement",
-     "05/11 — invariato"),
-    ("RT_UI_Icon_Action_Sprint", "UI.Icon.Action.Sprint", "Action", g_sprint, "Movement",
-     "05/12 — endpoint che chiude: Sprint nega la reazione, il mock lo disegnava come Move piu' lungo"),
-    ("RT_UI_Icon_Action_Dash", "UI.Icon.Action.Dash", "Action", g_dash, "Movement",
-     "05/13 — invariato"),
-    ("RT_UI_Icon_Action_BasicAttack", "UI.Icon.Action.BasicAttack", "Action", g_basic_attack, "Attack",
-     "06/14 — invariato"),
-    ("RT_UI_Icon_Action_Guard", "UI.Icon.Action.Guard", "Action", g_guard, "Defense",
-     "AGGIUNTO — assente dal mock, ma e' una delle sette generiche (D-025)"),
-    ("RT_UI_Icon_Action_Brace", "UI.Icon.Action.Brace", "Action", g_brace, "Defense",
-     "07/19 — spostato da Reaction a Defense: Brace e' azione generica, non ramo di reazione"),
-    ("RT_UI_Icon_Action_Interact", "UI.Icon.Action.Interact", "Action", g_interact, "Utility",
-     "09/22 — la mano diventa Object + ingaggio: la mano non e' nel vocabolario di §2"),
-    ("RT_UI_Icon_Action_Wait", "UI.Icon.Action.Wait", "Action", g_wait, "Utility",
-     "09/23 — invariato"),
-    ("RT_UI_Icon_Action_Overwatch", "UI.Icon.Action.Overwatch", "Action", g_overwatch, "Reaction",
-     "07/20 — invariato"),
-
-    ("RT_UI_Icon_Action_Hero_Gadget_ArcPulse", "UI.Icon.Action.Hero.Gadget.ArcPulse", "Action",
-     g_arc_pulse, "Electric", "16 — rimappato: il kit del mock e' di un eroe fuori roster"),
-    ("RT_UI_Icon_Action_Hero_Gadget_LinearDischarge", "UI.Icon.Action.Hero.Gadget.LinearDischarge",
-     "Action", g_linear_discharge, "Electric",
-     "16 — «Chain Discharge» non esiste; i salti erano Chain, questa e' Line"),
-    ("RT_UI_Icon_Action_Hero_Gadget_ConductiveNode", "UI.Icon.Action.Hero.Gadget.ConductiveNode",
-     "Action", g_conductive_node, "Electric", "17 — «Static Field» rimappato su ConductiveNode"),
-    ("RT_UI_Icon_Action_Hero_Gadget_ReactiveCapacitor",
-     "UI.Icon.Action.Hero.Gadget.ReactiveCapacitor", "Action", g_reactive_capacitor, "Electric",
-     "AGGIUNTO — quinto token del kit di Gadget, assente dal mock"),
-    ("RT_UI_Icon_Action_Hero_Gadget_Overload", "UI.Icon.Action.Hero.Gadget.Overload", "Action",
-     g_overload, "Hazard", "18 — nome gia' corretto, glifo ridisegnato sulla grammatica Damage"),
-
-    ("RT_UI_Phase_Prep", "UI.Icon.Phase.Prep", "Phase", g_phase_prep, "Utility",
-     "03 — sostituisce la timeline a iniziativa"),
-    ("RT_UI_Phase_Dash", "UI.Icon.Phase.Dash", "Phase", g_phase_dash, "Movement", "03 — idem"),
-    ("RT_UI_Phase_Blast", "UI.Icon.Phase.Blast", "Phase", g_phase_blast, "Attack", "03 — idem"),
-    ("RT_UI_Phase_Move", "UI.Icon.Phase.Move", "Phase", g_phase_move, "Movement", "03 — idem"),
-
-    ("RT_UI_Icon_Certainty_Confirmed", "UI.Icon.Certainty.Confirmed", "Certainty",
-     g_certainty_confirmed, None, "08 — invariato, piu' la marca di forma"),
-    ("RT_UI_Icon_Certainty_Predicted", "UI.Icon.Certainty.Predicted", "Certainty",
-     g_certainty_predicted, None, "08 — invariato, piu' la marca di forma"),
-    ("RT_UI_Icon_Certainty_Uncertain", "UI.Icon.Certainty.Uncertain", "Certainty",
-     g_certainty_uncertain, None, "08 — la marca e' un'area, non una cella esatta (§2.1)"),
+    # (semantica dopo `UI.Icon.`, glifo, tinta suggerita, origine)
+    ("Action.Move", g_move, "Movement",
+     "mock 05/11 — invariato"),
+    ("Action.Sprint", g_sprint, "Movement",
+     "mock 05/12 — endpoint che chiude: Sprint nega la reazione"),
+    ("Action.Dash", g_dash, "Movement",
+     "mock 05/13 — invariato"),
+    ("Action.Charge", g_charge, "Movement",
+     "assente dal mock"),
+    ("Action.Leap", g_leap, "Movement",
+     "assente dal mock"),
+    ("Action.Reposition", g_reposition, "Movement",
+     "assente dal mock"),
+    ("Action.Evade", g_evade, "Defense",
+     "assente dal mock"),
+    ("Action.BasicAttack", g_basic_attack, "Attack",
+     "mock 06/14 — invariato"),
+    ("Action.PrecisionAttack", g_precision_attack, "Attack",
+     "assente dal mock"),
+    ("Action.HeavyAttack", g_heavy_attack, "Attack",
+     "assente dal mock"),
+    ("Action.LineAttack", g_line_attack, "Attack",
+     "assente dal mock"),
+    ("Action.CircularAoE", g_circular_aoe, "Attack",
+     "assente dal mock"),
+    ("Action.SuppressiveLine", g_suppressive_line, "Attack",
+     "assente dal mock"),
+    ("Action.MarkTarget", g_mark_target, "Utility",
+     "assente dal mock"),
+    ("Action.Guard", g_guard, "Defense",
+     "AGGIUNTO — una delle sette generiche (D-025)"),
+    ("Action.Brace", g_brace, "Defense",
+     "mock 07/19 — spostato da Reaction a Defense"),
+    ("Action.Shield", g_shield, "Defense",
+     "assente dal mock"),
+    ("Action.Anchor", g_anchor, "Defense",
+     "assente dal mock"),
+    ("Action.Counter", g_counter, "Reaction",
+     "assente dal mock"),
+    ("Action.Deflect", g_deflect, "Reaction",
+     "assente dal mock"),
+    ("Action.Intercept", g_intercept, "Reaction",
+     "assente dal mock"),
+    ("Action.Overwatch", g_overwatch, "Reaction",
+     "mock 07/20 — invariato"),
+    ("Action.Push", g_push, "Hazard",
+     "assente dal mock"),
+    ("Action.Pull", g_pull, "Hazard",
+     "assente dal mock"),
+    ("Action.Root", g_root, "Hazard",
+     "assente dal mock"),
+    ("Action.Slow", g_slow, "Hazard",
+     "assente dal mock"),
+    ("Action.Interrupt", g_interrupt, "Hazard",
+     "assente dal mock"),
+    ("Action.Purge", g_purge, "Hazard",
+     "assente dal mock"),
+    ("Action.ModifyArc", g_modify_arc, "Utility",
+     "assente dal mock"),
+    ("Action.Heal", g_heal, "Utility",
+     "assente dal mock"),
+    ("Action.Cleanse", g_cleanse, "Utility",
+     "assente dal mock"),
+    ("Action.Interact", g_interact, "Utility",
+     "mock 09/22 — la mano diventa Object + ingaggio"),
+    ("Action.Wait", g_wait, "Utility",
+     "mock 09/23 — invariato"),
+    ("Action.CreateCover", g_create_cover, "Defense",
+     "assente dal mock"),
+    ("Action.CreateWater", g_create_water, "Utility",
+     "assente dal mock"),
+    ("Action.Electrify", g_electrify, "Electric",
+     "assente dal mock"),
+    ("Action.Ignite", g_ignite, "Attack",
+     "assente dal mock"),
+    ("Action.Hero.Gadget.ArcPulse", g_arc_pulse, "Electric",
+     "mock 16 — rimappato: kit fuori roster"),
+    ("Action.Hero.Gadget.LinearDischarge", g_linear_discharge, "Electric",
+     "mock 16 — «Chain Discharge» non esiste: Line, non Chain"),
+    ("Action.Hero.Gadget.ConductiveNode", g_conductive_node, "Electric",
+     "mock 17 — «Static Field» rimappato"),
+    ("Action.Hero.Gadget.ReactiveCapacitor", g_reactive_capacitor, "Electric",
+     "AGGIUNTO — quinto token del kit"),
+    ("Action.Hero.Gadget.Overload", g_overload, "Hazard",
+     "mock 18 — nome corretto, glifo su grammatica Damage"),
+    ("Phase.Prep", g_phase_prep, "Utility",
+     "mock 03 — sostituisce la timeline a iniziativa"),
+    ("Phase.Dash", g_phase_dash, "Movement",
+     "mock 03 — idem"),
+    ("Phase.Blast", g_phase_blast, "Attack",
+     "mock 03 — idem"),
+    ("Phase.Move", g_phase_move, "Movement",
+     "mock 03 — idem"),
+    ("Certainty.Confirmed", g_certainty_confirmed, None,
+     "mock 08 — piu' la marca di forma"),
+    ("Certainty.Predicted", g_certainty_predicted, None,
+     "mock 08 — piu' la marca di forma"),
+    ("Certainty.Uncertain", g_certainty_uncertain, None,
+     "mock 08 — la marca e' un'area (§2.1)"),
+    ("Status.Braced", g_status_braced, "Defense",
+     "assente dal mock"),
+    ("Status.Burning", g_status_burning, "Attack",
+     "assente dal mock"),
+    ("Status.Electrified", g_status_electrified, "Electric",
+     "assente dal mock"),
+    ("Status.Exposed", g_status_exposed, "Hazard",
+     "assente dal mock"),
+    ("Status.Guarded", g_status_guarded, "Defense",
+     "assente dal mock"),
+    ("Status.Marked", g_status_marked, "Hazard",
+     "assente dal mock"),
+    ("Status.Obscured", g_status_obscured, "Utility",
+     "assente dal mock"),
+    ("Status.Reveal", g_status_reveal, "Utility",
+     "assente dal mock"),
+    ("Status.Root", g_status_root, "Hazard",
+     "assente dal mock"),
+    ("Status.Slow", g_status_slow, "Hazard",
+     "assente dal mock"),
+    ("Status.Wet", g_status_wet, "Utility",
+     "assente dal mock"),
+    ("Identity.Gadget", g_identity_gadget, "Electric",
+     "assente dal mock"),
+    ("Identity.Phase", g_identity_phase, "Utility",
+     "assente dal mock"),
+    ("Identity.Riktor", g_identity_riktor, "Defense",
+     "assente dal mock"),
+    ("Identity.Wraith", g_identity_wraith, "Reaction",
+     "assente dal mock"),
+    ("Identity.Ally", g_identity_ally, "Defense",
+     "assente dal mock"),
+    ("Identity.Enemy", g_identity_enemy, "Hazard",
+     "assente dal mock"),
 ]
+
 
 FRAMES = [
     # (AssetName, factory, native (w,h), margini 9-slice L,T,R,B (None = non 9-slice), uso, origine)
@@ -594,6 +1315,11 @@ FRAMES = [
     ("RT_UI_Keybind_Chip_9S", f_keybind_chip, (28, 22), (7, 6, 7, 6),
      "chip del tasto — vuoto: il binding e' rimappabile", "05/06/07/09"),
 ]
+
+# `MissingIcon` non e' una voce del dizionario: e' un campo di `URTIconCatalogData`, e senza di lei il
+# catalogo non passa la validazione. Sta fuori da ICONS proprio per questo — se ci fosse dentro,
+# `check_coverage` la conterebbe come «extra» e la segnalerebbe ogni volta.
+MISSING_ICON_ASSET = "RT_UI_Icon_MissingIcon"
 
 PNG_SIZES = [16, 20, 24, 32, 48]
 
@@ -629,11 +1355,12 @@ def _rasterize(svg: str, target: Path, width: int, height: int) -> bool:
 def contact_sheet(grayscale: bool) -> str:
     """Foglio di accettazione. La versione in scala di grigi non e' un extra: e' il test di
     `02-color-system.md` §1 — se un'informazione sparisce senza colore, manca il secondo canale."""
-    cols, cell, pad = 6, 104, 28
-    rows = (len(ICONS) + cols - 1) // cols
+    entries = [(g, t) for _sem, g, t, _o in ICONS] + [(g_missing_icon, None)]
+    cols, cell, pad = 8, 104, 28
+    rows = (len(entries) + cols - 1) // cols
     w, h = cols * cell + pad * 2, rows * cell + pad * 2 + 40
     parts = [f'  <rect width="{w}" height="{h}" fill="{CHROME["BG_Deep"]}"/>']
-    for i, (asset, _icon_id, _cat, glyph, token, _origin) in enumerate(ICONS):
+    for i, (glyph, token) in enumerate(entries):
         cx = pad + (i % cols) * cell
         cy = pad + 40 + (i // cols) * cell
         tint = CHROME["White"] if (grayscale or token is None) else SEMANTIC[token]
@@ -648,6 +1375,12 @@ def contact_sheet(grayscale: bool) -> str:
             if grayscale else "")
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" '
             f'height="{h}">{defs}<g{filt}>\n{body}\n</g></svg>\n')
+
+
+def _sheet_size() -> tuple[int, int]:
+    cols, cell, pad = 8, 104, 28
+    rows = (len(ICONS) + 1 + cols - 1) // cols
+    return cols * cell + pad * 2, rows * cell + pad * 2 + 40
 
 
 def main() -> int:
@@ -667,7 +1400,10 @@ def main() -> int:
     }
     rasterized = 0
 
-    for asset, icon_id, category, glyph, token, origin in ICONS:
+    drawn: set[str] = set()
+    for semantic, glyph, token, origin in ICONS:
+        asset, iid, category = asset_name(semantic), icon_id(semantic), icon_category(semantic)
+        drawn.add(iid)
         svg = svg_doc(glyph())
         _write(root / "Icons" / f"{asset}.svg", svg)
         min_size = MIN_READABLE.get(category, DEFAULT_MIN_READABLE)
@@ -677,7 +1413,7 @@ def main() -> int:
                 rasterized += 1
         manifest["icons"].append({
             "AssetName": asset,
-            "IconId": icon_id,
+            "IconId": iid,
             "Category": category,
             "NativeSize": [int(GRID), int(GRID)],
             "PngSizes": sizes,
@@ -708,20 +1444,51 @@ def main() -> int:
             "MockOrigin": origin,
         })
 
+    # `MissingIcon` non e' una chiave: e' il campo che il validator pretende, e senza il quale una
+    # chiave sconosciuta non avrebbe nulla da mostrare.
+    missing_svg = svg_doc(g_missing_icon())
+    _write(root / "Icons" / f"{MISSING_ICON_ASSET}.svg", missing_svg)
+    for size in PNG_SIZES:
+        if _rasterize(missing_svg, root / "Icons" / f"{MISSING_ICON_ASSET}_{size}.png", size, size):
+            rasterized += 1
+    manifest["missingIcon"] = {
+        "AssetName": MISSING_ICON_ASSET,
+        "Field": "URTIconCatalogData::MissingIcon",
+        "Nota": "non e' una voce di Icons[]: e' il campo che ResolveIcon restituisce con bResolved=false",
+    }
+
     for name, gray in (("contact-sheet", False), ("contact-sheet-grayscale", True)):
         sheet = contact_sheet(gray)
         _write(root / "Review" / f"{name}.svg", sheet)
-        if _rasterize(sheet, root / "Review" / f"{name}.png", 6 * 104 + 56, 0 or 4 * 104 + 96):
+        sw, sh = _sheet_size()
+        if _rasterize(sheet, root / "Review" / f"{name}.png", sw, sh):
             rasterized += 1
 
     _write(root / "manifest.json", json.dumps(manifest, indent=2, ensure_ascii=False) + "\n")
 
+    # Il gate: la lista si interroga, non si copia.
+    missing, extra = check_coverage(drawn)
+    manifest["coverage"] = {
+        "richieste": len(required_icon_ids()),
+        "disegnate": len(drawn),
+        "mancanti": missing,
+        "fuori_dal_set_richiesto": extra,
+        "letto_da": {k: str(v.relative_to(REPO_ROOT)) for k, v in SOURCES.items()},
+    }
     print(f"{len(ICONS)} icone + {len(FRAMES)} cornici -> {root}")
+    if missing:
+        print(f"⛔ {len(missing)} chiavi richieste SENZA icona:")
+        for m in missing:
+            print(f"   {m}")
+    else:
+        print(f"✅ copertura completa: {len(required_icon_ids())} chiavi richieste, tutte disegnate")
+    if extra:
+        print(f"ℹ️  {len(extra)} icone fuori dal set richiesto (attese: ability degli eroi)")
     if cairosvg is None:
         print("⚠️  cairosvg assente: scritti solo gli SVG. `pip install cairosvg` per i PNG.")
     else:
         print(f"{rasterized} PNG rasterizzati")
-    return 0
+    return 1 if missing else 0
 
 
 if __name__ == "__main__":

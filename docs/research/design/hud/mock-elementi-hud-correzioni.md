@@ -137,15 +137,28 @@ grammatica cambia. Chi importa in Unreal esegue lo script e trova:
 
 ```text
 Content/RT/UI/_Generated/
-├── Icons/    21 master SVG + PNG RGBA (16/20/24/32/48, sopra la soglia leggibile di ciascuno)
+├── Icons/    67 master SVG + PNG RGBA (16/20/24/32/48, sopra la soglia leggibile di ciascuno)
 ├── Frames/   9 cornici SVG + PNG @1x/@2x
 ├── Review/   contact sheet a colori e in scala di grigi
 └── manifest.json   scheda di consegna per asset (07-export-e-naming.md §3)
 ```
 
-**21 icone**: le sette generiche di **D-025** (`Move` `BasicAttack` `Guard` `Brace` `Interact` `Wait`
-`Overwatch`) più i due profili di movimento `Sprint` e `Dash` — profili di Move, non di Dash — le cinque
-ability di Gadget, le quattro fasi volontarie, i tre livelli di certezza.
+**67 icone**, che coprono **tutte e 61 le chiavi** che `URTIconLibrary::RequiredIconIds()` pretende: le 37
+azioni del catalogo generico, gli 11 tag `Status.`, le 4 fasi volontarie, i 3 livelli di certezza, i 4
+eroi più `Ally`/`Enemy`. Più le 5 ability di Gadget (chiave regolare sotto `Action.`, ma non nel catalogo
+generico: servono alla skill bar, non alla copertura) e `MissingIcon`, che non è una chiave ma il campo
+senza cui il catalogo non valida.
+
+Il set del mock ne toccava **16**. Le altre 45 non sono «extra»: sono il debito che il mock nascondeva
+mostrando una hotbar di cinque slot dove il gioco ha 37 azioni generiche, 11 stati e un roster.
+
+### 4.0 Il generatore verifica la copertura, non la dichiara
+
+Lo script legge le stesse sorgenti che legge `RequiredIconIds()` — il catalogo generico, i tag `Status.`,
+le fasi volontarie, il roster — e confronta con ciò che disegna. Se una chiave resta scoperta **esce con
+codice 1** e la nomina. Resta un surrogato (l'autorità è la funzione C++, e qui non gira Unreal), e per
+questo il `manifest.json` dichiara sempre da quali file ha letto: un disallineamento si vede invece di
+restare implicito.
 
 **9 cornici**: pannello, slot (base e selezionato), bottone primario e secondario, portrait esagonale, nodo
 di timeline, cornice di barra, chip di keybind. Tutte **vuote**: nessun fill composito, nessun gradiente
@@ -173,16 +186,37 @@ non esporta i PNG sotto soglia — un asset illeggibile in cartella è un invito
 
 ## 5. Cosa resta fuori
 
-- **Le altre chiavi obbligatorie.** `RequiredIconIds()` genera anche gli 11 `Status.*`, le 37 azioni del
-  catalogo generico (qui ce ne sono 9), le identità dei quattro eroi e la coppia `Ally`/`Enemy`, più la
-  `MissingIcon` che è campo di `URTIconCatalogData` e senza cui il catalogo non valida. **La lista si
-  interroga, non si copia da qui.**
-- **Il `DA_IconCatalog`.** Nessuno esiste. Finché non esiste, `FindMissingRequiredIcons(nullptr)`
-  restituisce l'intera lista, e questi asset non sono raggiungibili da un `IconId`. Creare il data asset è
-  un passo Editor, non di codice.
-- **I ritratti e le identità.** Sono lavoro d'autore, non derivabili da uno script.
+- **Il `DA_IconCatalog`.** Nessuno esiste ancora nel repository, e finché non esiste
+  `FindMissingRequiredIcons(nullptr)` restituisce l'intera lista. Il passo è ora **scriptato**:
+  `URTBuildIconCatalogCommandlet` (modulo Editor) importa i PNG e costruisce il data asset derivando ogni
+  chiave da `RequiredIconIds()`. La procedura è in
+  [`guida-catalogo-icone.md`](../../../technical/runbooks/guida-catalogo-icone.md).
+  ⚠️ **Non è stato eseguito**: richiede Unreal, e il commandlet **non è mai stato compilato**.
+- **I ritratti.** Le sei chiavi `Identity.*` sono coperte da marche astratte — badge esagonale, sigillo
+  per eroe, rounded contro angular per `Ally`/`Enemy`. I **ritratti** veri restano lavoro d'autore.
 - **L'import in Unreal.** Texture group, compressione, `Draw As: Box` e i margini 9-slice del manifest sono
   passi Editor: qui restano dichiarati, non eseguiti.
 - **`08-catalogo-v0.1.md` è invecchiato** su due punti misurati oggi: dice che `Action.Overwatch` «non è
   ancora nel catalogo» (c'è, `RTCatalogLibrary.cpp:1127`, CP 14.5) e che `Certainty` «non è una categoria di
-  catalogo» (lo è: `RequiredIconIds()` pretende le sue tre chiavi). Il conteggio «55» andrebbe rimisurato.
+  catalogo» (lo è: `RequiredIconIds()` pretende le sue tre chiavi). E il conteggio: quel documento dice
+  **55**, la misura sul branch corrente dà **61** — 37 azioni (non 36), 11 stati, 4 fasi, 3 certezze, 6
+  identità. Non l'ho corretto lì: è un documento di cui non sono owner in questo lavoro.
+
+## 6. Conflitti aperti dall'handoff Action Phases del 2026-08-26
+
+[`RefactorTactics_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_2026-08-26.md`](../../handoff/RefactorTactics_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_2026-08-26.md)
+è entrato nel repository come **input**, non come autorità: lo dice `CLAUDE.md` («un handoff non è
+autorità») e lo dice il documento stesso, che impone di auditare `main` prima e di aprire una Decision
+Issue sui conflitti invece di sovrascrivere.
+
+Tre punti toccano il set di icone. Nessuno dei tre è stato applicato.
+
+| Punto | Handoff | Repository misurato | Conseguenza sul set |
+|---|---|---|---|
+| §4.1 `Dash` → `Dodge` (`LOCKED_CHAT`) | `Dash` è **solo** macro-fase; il movimento generico si chiama `Dodge` | `Action.Dash` è nel catalogo generico (`RTCatalogLibrary.cpp`), e `ERTMatchPhase::Dash` è la fase: **lo stesso nome per due cose** | Il glifo di `Action.Dash` esiste e resta richiesto **oggi**. Il giorno del rename, `RequiredIconIds()` chiederà `Dodge` da sola e il generatore segnalerà la chiave scoperta |
+| §4.1 vs catalogo | il nome proposto per lo scarto rapido è `Dodge` | esiste già **`Action.Evade`**, spedita, con lo stesso significato di scarto | Due nomi per la stessa cosa. Va deciso da una persona: `Dodge` sostituisce `Evade`, o convivono con significati diversi? Il set oggi disegna `Evade` |
+| §4.7 Reaction come risorsa | `Guard` e `Interact` **spengono** la reazione | `ERTActionSlot::Reaction` è indipendente da Movimento e Principale | Nessun impatto sul disegno; impatto forte sulla **skill bar**, che deve poter mostrare una corsia spenta da un'altra scelta — è lo stesso requisito che `Sprint` (`MovementAndMain`) ha già oggi e che il mock non rappresentava (§3.4) |
+
+⚠️ Il conflitto `Dodge`/`Evade` è quello da portare a una persona per primo: è l'unico dove l'handoff
+propone un nome che il repository **ha già assegnato a qualcos'altro**, e nessuna delle due fonti ha
+gerarchia sull'altra.
