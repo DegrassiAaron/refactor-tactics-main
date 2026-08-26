@@ -214,6 +214,17 @@ grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cp
 
 Questo comando è la fonte: la documentazione che dichiara un numero diverso è indietro, non il contrario.
 
+> ⚠️ **Ma sovrastima, e di poco — abbastanza da far sembrare troncata una run completa** (misurato il
+> 2026-08-26). Cattura *qualunque* stringa che cominci per `RefactorTactics.`, non solo i nomi dei test:
+> `RefactorTactics.Probe.LatestRunDirectory` è un `ScenarioId` dentro
+> `FRTScenarioLatestRunIsTheMostRecentTest`, usato per costruire una directory sotto `Saved/RTTests/`.
+> Dava **1184** dove i test sono **1183**, e l'unità di scarto è finita in un filtro che ha risposto
+> `0 tests performed` — indistinguibile, a prima vista, da un test che non gira più.
+>
+> ∴ quando il conteggio non torna, prima di concludere che la run sia troncata **cerca la stringa che
+> avanza**: `grep -rn "<id-che-manca>" Source/RefactorTactics/Tests/` dice subito se è il nome di un test
+> o un dato dentro a uno.
+
 ### Compilare
 
 ```bash
