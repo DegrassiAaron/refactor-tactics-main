@@ -87,6 +87,11 @@ public:
 	 * tracce archiviate: la correzione e' stata rimandata due volte proprio perche' fa cadere il corpus
 	 * golden, e alla fine e' stata fatta con la rigenerazione dichiarata nella stessa PR.
 	 *
+	 * ⚠️ **Vale per QUESTO builder, non per il file**: gli altri di `RTMatchSetupLibrary.cpp` — `MakeTestArena`
+	 * e le arene di showcase — chiamano ancora `AddOrUpdateCell` per cella, quindi consegnano a
+	 * `CurrentGraphRevision()` un numero a forma di conteggio celle. Generalizzarlo e' un lavoro suo
+	 * (`#1435`), non un effetto di questa riga.
+	 *
 	 * `Center` esiste perche' non tutte le arene stanno sull'origine — `HexMap.CenterCell` ne costruisce una
 	 * su `(5,-2,0)` proprio per provare che il centro segue la mappa.
 	 *

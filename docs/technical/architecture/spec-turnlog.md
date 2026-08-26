@@ -374,6 +374,34 @@ INDEX_NONE`) ed è ancora viva — stesso filtro che la voce di movimento supera
 sulla cella d'arrivo dello scatto (`ApplyTerrainOnEnterEffects`) non lascia una traccia che adjudica il piano
 di un morto.
 
+### Le due che vivevano solo nel combat log ([D-196](../../decisions/RT_PDR_00_Decision_Log.md), `#1412`)
+
+L'asimmetria **inversa** dei duplicati, e la più difficile da vedere: non una riga di troppo, una che non
+c'è. Fino al 2026-08-26 questi due eventi venivano scritti con un `AddLogEvent` e basta — il record
+autoritativo non li conteneva, quindi un replay non poteva riprodurli né un rapporto di divergenza
+spiegarli. La superficie leggibile sapeva qualcosa che la traccia non registrava.
+
+| Evento | Come si legge |
+|---|---|
+| **Cura fuori portata** (`RTTurnManager_Blast.cpp`) | `Category=Fallback`, `Phase=Blast`, `Outcome=Cancelled`, `Amount=OutOfRange`, identità completa dell'azione di cura, `SrcCell` = chi cura, `TgtCell` = chi doveva essere curato. `UnitId` = chi ha provato a curare |
+| **Azione interrotta** (`Action.Interrupt`, CP 5.4) | `Category=Fallback`, `Phase=Blast`, `Outcome=Cancelled`, **`Amount=Interrupted`**, identità dell'azione cancellata, `SrcCell` = chi subisce l'interruzione, `TgtCell` = **dove puntava l'azione cancellata**. `UnitId` = chi subisce |
+
+⚠️ **`ERTActionInvalidReason::Interrupted` è in coda all'enum**, e deve restarci: il motivo viaggia come
+intero grezzo in `Amount`, quindi inserirne uno in mezzo rinumera i successivi e cambia il **significato**
+delle tracce già scritte. La prima stesura di D-196 lo aveva messo dopo `TargetUnknown`, rinumerando
+`SlotOccupied`, `InsufficientMovementPoints` e `OnCooldown`: nessun test lo segnalava, perché tutti usano i
+nomi simbolici.
+
+⚠️ **`TgtCell` dell'interruzione punta al bersaglio della vittima, NON a chi ha interrotto.** È la
+convenzione di tutta la famiglia `Fallback` — «dove puntava l'azione» — e `DescribeEntry` rende ogni voce
+della categoria con lo stesso `src -> tgt`: metterci l'interruttore faceva leggere «la vittima attaccava
+l'interruttore», una frase precisa e falsa. Chi ha interrotto **non entra nella voce**: `UnitId` è uno solo e
+lo prende il soggetto, ed è lo stesso limite che `#1430` registra per `RearHitBypassedCover`.
+
+⚠️ **Una voce per azione cancellata, non per colpo**: due unità che interrompono lo stesso bersaglio nello
+stesso turno producono due `Hit`, e l'effetto di gioco è deduplicato da un `TSet`. Senza la stessa guardia
+sulla traccia, il record direbbe che l'unica azione della vittima è stata cancellata due volte.
+
 ### La spinta che non sposta ([D-079](../../decisions/RT_PDR_00_Decision_Log.md), `#420`)
 
 `#307` ha spiegato lo spostamento **avvenuto** e ha lasciato muto quello **mancato**, che è il caso su cui il

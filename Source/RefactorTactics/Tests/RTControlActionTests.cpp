@@ -520,9 +520,15 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnControlMap(World, 6);
 
-	ARTUnit* Interrupter = SpawnControlUnit(World, 0, FRTCellId(0, 0));
-	ARTUnit* Attacker = SpawnControlUnit(World, 1, FRTCellId(1, 0));
-	ARTUnit* Victim = SpawnControlUnit(World, 0, FRTCellId(2, 0));
+	// ⚠️ NESSUNO sull'origine: `FRTCellId()` di default e' `(0,0,0)`, che e' una cella VERA — un'asserzione
+	// su una cella che coincide col default passerebbe anche se il produttore non la assegnasse affatto.
+	//
+	// ⚠️ E le distanze restano di UNA cella: `Action.Interrupt` ha portata 1 (catalogo). La prima versione
+	// di questo spostamento le aveva messe a due, e il test cadeva sull'interruzione che non avveniva — un
+	// rosso che sembrava un difetto della traccia ed era la premessa rotta.
+	ARTUnit* Interrupter = SpawnControlUnit(World, 0, FRTCellId(3, 0));
+	ARTUnit* Attacker = SpawnControlUnit(World, 1, FRTCellId(4, 0));
+	ARTUnit* Victim = SpawnControlUnit(World, 0, FRTCellId(5, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("Interrupter"), Interrupter) || !TestNotNull(TEXT("Attacker"), Attacker)
 		|| !TestNotNull(TEXT("Victim"), Victim) || !TestNotNull(TEXT("TM"), TM))
@@ -532,6 +538,9 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 	}
 
 	const int32 InterruptIdx = AddControlAbility(Interrupter, TEXT("Action.Interrupt"));
+	TestTrue(TEXT("premessa: l'interruttore e' in portata di chi attacca"),
+		URTHexLibrary::HexDistance(Interrupter->Cell, Attacker->Cell)
+			<= Interrupter->Abilities[InterruptIdx]->Def.RangeCells);
 	Interrupter->PlannedAbilityIndex = InterruptIdx;
 	Interrupter->PlannedAttackTarget = Attacker;
 	Interrupter->PlannedCell = Interrupter->Cell;
@@ -558,12 +567,18 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 	});
 	if (TestNotNull(TEXT("il TurnLog registra l'interruzione"), Interrotta))
 	{
-		// Il soggetto e' chi SUBISCE l'interruzione — e' la sua azione a essere annullata — e la cella di
-		// chi ha interrotto sta in `TgtCell`, cosi' «da chi» non si perde (`#1418`).
+		// Il soggetto e' chi SUBISCE l'interruzione: e' la sua azione a essere annullata (`#1418`).
 		TestEqual(TEXT("accredita chi e' stato interrotto"), Interrotta->UnitId, Attacker->StableUnitId);
-		TestEqual(TEXT("e dice da quale cella e' arrivata l'interruzione"),
-			Interrotta->TgtCell, Interrupter->Cell);
-		TestFalse(TEXT("e QUALE azione e' stata cancellata"), Interrotta->ActionId.IsNone());
+
+		// `SrcCell` -> `TgtCell` e' «da dove a dove puntava l'azione cancellata», come in ogni altra voce
+		// `Fallback`. Non la cella di chi ha interrotto: `DescribeEntry` rende tutte le voci della famiglia
+		// con lo stesso «src -> tgt», e metterci l'interruttore faceva leggere «la vittima attaccava
+		// l'interruttore» — preciso e falso.
+		TestEqual(TEXT("parte da chi e' stato interrotto"), Interrotta->SrcCell, Attacker->Cell);
+		TestEqual(TEXT("e punta dove puntava l'azione cancellata"), Interrotta->TgtCell, Victim->Cell);
+		TestNotEqual(TEXT("non la cella di chi ha interrotto"), Interrotta->TgtCell, Interrupter->Cell);
+
+		TestFalse(TEXT("e dice QUALE azione e' stata cancellata"), Interrotta->ActionId.IsNone());
 	}
 
 	DestroyControlWorld(World);

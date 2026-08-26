@@ -109,8 +109,10 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeFlatArena(UObject* Outer, int32 Radius
 	// volte invece di essere fatta di passaggio: il corpus golden e' stato rigenerato nella stessa PR che
 	// l'ha fatta, dichiarando il perche' come chiede il DoD di CP 12.6.
 	//
-	// `UpdateCells` la muove una volta per l'intero gruppo — e' cio' per cui esiste, e il suo commento lo
-	// dice.
+	// `ReplaceContent` e non `UpdateCells`: l'asset e' appena stato creato ed e' provabilmente VUOTO, quindi
+	// costruire una `Lookup` da N voci per sbagliare N `Find` prima di appendere e' lavoro per niente. Il
+	// suo commento dichiara proprio questo caso — *«"rimpiazza tutto" finiva scritto a mano dai chiamanti,
+	// con un `AddOrUpdateCell` per cella»* — ed e' il chiamante che gli mancava.
 	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
 	const TArray<FRTCellId> Ids = URTHexLibrary::HexArea(Center, Radius);
 	TArray<FRTHexCellData> Piano;
@@ -119,7 +121,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeFlatArena(UObject* Outer, int32 Radius
 	{
 		Piano.Add(FRTHexCellData(Id));
 	}
-	Arena->UpdateCells(Piano);
+	Arena->ReplaceContent(Piano, {});
 	Arena->SortCells();
 	return Arena;
 }

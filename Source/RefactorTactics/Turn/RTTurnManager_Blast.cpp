@@ -234,10 +234,9 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 			CuraMancata.BaseActionId = Heal->Def.BaseActionId;
 			CuraMancata.Priority = Heal->Def.Priority;
 			AppendLogEntry(CuraMancata, Unit);
-			// ⚠️ L'`AddLogEvent` RESTA, e diventa uno dei siti che `#1412` punto 2 dovra' togliere: porta il
-			// nome dell'unita', che la riga derivata non ha per nessuna categoria. Toglierlo ora perderebbe
-			// chi ha provato a curare.
-			AddLogEvent(FString::Printf(TEXT("%s: cura fuori portata"), *Unit->GetName()));
+			// ⛔ **Niente `AddLogEvent`**: `ConcludeTurn` deriva una riga per ogni voce di TurnLog, quindi
+			// tenerla avrebbe creato un duplicato nuovo. La riga derivata porta azione, motivo e celle; il
+			// nome dell'unita' e' il debito noto di `#1412` punto 2.
 			continue;
 		}
 
@@ -311,7 +310,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					ArcRejected.Phase = ERTMatchPhase::Blast;
 					ArcRejected.Category = ERTLogCategory::Fallback;
 					ArcRejected.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+					// La tripla completa, come gli altri produttori `Fallback` di questo file ([D-196]).
 					ArcRejected.ActionId = PlannedNow->Def.ActionId;
+					ArcRejected.BaseActionId = PlannedNow->Def.BaseActionId;
+					ArcRejected.Priority = PlannedNow->Def.Priority;
 					ArcRejected.SrcCell = Unit->Cell;
 					ArcRejected.TgtCell = ArcTarget->Cell;
 					ArcRejected.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
@@ -642,31 +644,54 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		if (VictimIntentIdx != INDEX_NONE && IntentDefs.IsValidIndex(VictimIntentIdx)
 			&& IntentDefs[VictimIntentIdx].bCanBeInterrupted)
 		{
-			InterruptedAttackerIds.Add(Hit.TargetId);
+			// ⚠️ UNA voce per AZIONE cancellata, non per colpo di Interrupt. Due unita' che interrompono lo
+			// stesso bersaglio nello stesso turno — banale in 2v2 — producono due `Hit` con lo stesso
+			// `TargetId`: l'effetto di gioco e' gia' deduplicato dal `TSet`, e senza questa guardia la
+			// traccia direbbe che l'unica azione della vittima e' stata cancellata DUE volte. Sarebbe la
+			// riga doppia che `#1412` esiste per togliere, reintrodotta dalla PR che ne chiude l'inverso.
+			bool bGiaInterrotto = false;
+			InterruptedAttackerIds.Add(Hit.TargetId, &bGiaInterrotto);
+			if (bGiaInterrotto)
+			{
+				continue;
+			}
 
 			// 🔴 **L'asimmetria INVERSA**, secondo sito ([D-196], `#1412` punto 4): un'azione cancellata da
 			// un'altra unita' non lasciava nessuna traccia autoritativa. Il piano della vittima sparisce dal
 			// turno e il replay non sa perche'.
 			//
 			// `SrcCell` e' la cella di chi SUBISCE l'interruzione — e' la sua azione a essere annullata,
-			// quindi e' lei il soggetto della voce — e `TgtCell` quella di chi ha interrotto, cosi' «da chi»
-			// non si perde. `UnitId` segue il soggetto, come il combat log qui sotto (`#1418`).
+			// quindi e' lei il soggetto della voce — e `UnitId` la segue, come il combat log (`#1418`).
+			//
+			// ⚠️ `TgtCell` porta **dove puntava l'azione cancellata**, come in ogni altra voce `Fallback`
+			// della famiglia (`CuraMancata`, `FallbackEntry`, `ArcRejected`, `SlotOccupied`). La prima
+			// stesura ci metteva la cella di CHI HA INTERROTTO, e `DescribeEntry` rende tutte le voci
+			// `Fallback` con lo stesso «src -> tgt»: la riga si leggeva «la vittima attaccava
+			// l'interruttore», che e' una frase precisa e falsa. Il campo entra nell'hash e in `EntryLess`,
+			// quindi l'ambiguita' sarebbe finita nei byte archiviati.
+			//
+			// ⚠️ **Chi ha interrotto non entra nella voce**, ed e' un limite dichiarato: `UnitId` e' uno solo
+			// e lo prende il soggetto. E' lo stesso costo di `#1430` per `RearHitBypassedCover`.
+			const int32 BersaglioId = Intents.IsValidIndex(VictimIntentIdx)
+				? Intents[VictimIntentIdx].TargetId : INDEX_NONE;
 			FRTTurnLogEntry Interrotta;
 			Interrotta.Phase = ERTMatchPhase::Blast;
 			Interrotta.Category = ERTLogCategory::Fallback;
 			Interrotta.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
 			Interrotta.SrcCell = Units[Hit.TargetId]->Cell;
-			Interrotta.TgtCell = Units[Hit.AttackerId]->Cell;
+			Interrotta.TgtCell = Units.IsValidIndex(BersaglioId) && Units[BersaglioId]
+				? Units[BersaglioId]->Cell : Units[Hit.TargetId]->Cell;
 			Interrotta.Amount = static_cast<int32>(ERTActionInvalidReason::Interrupted);
 			Interrotta.ActionId = IntentDefs[VictimIntentIdx].ActionId;
 			Interrotta.BaseActionId = IntentDefs[VictimIntentIdx].BaseActionId;
 			Interrotta.Priority = IntentDefs[VictimIntentIdx].Priority;
 			AppendLogEntry(Interrotta, Units[Hit.TargetId]);
 
-			// ⚠️ L'`AddLogEvent` RESTA: porta i due nomi, che la riga derivata non ha. Va tolto insieme agli
-			// altri quando `DescribeTurnLog` sapra' nominare l'attore (`#1412` punto 2).
-			AddLogEvent(FString::Printf(TEXT("%s: interrotto da %s"),
-				*Units[Hit.TargetId]->GetName(), *Units[Hit.AttackerId]->GetName()));
+			// ⛔ **Niente `AddLogEvent` qui**: la riga arriva al combat log attraverso `ConcludeTurn`, che
+			// deriva una riga per ogni voce di TurnLog. Tenerla avrebbe creato un duplicato NUOVO — la stessa
+			// informazione in due formati — nella PR che chiude l'asimmetria opposta. La riga derivata dice
+			// di piu' (azione, motivo, celle) e non dice il nome dell'unita': e' il debito noto di `#1412`
+			// punto 2, che si paga una volta per tutti i siti, non se ne aprono di nuovi.
 		}
 	}
 	// Il colpo dell'Interrupt STESSO non deve mai diventare un `FRTAttack`: non fa danno (`Effects` vuoto),
