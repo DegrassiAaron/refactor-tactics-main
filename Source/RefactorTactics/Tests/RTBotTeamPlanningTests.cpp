@@ -316,4 +316,110 @@ bool FRTBotWeightInvariantTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInValidatesBotPlansTooTest,
+	"RefactorTactics.Bot.LockInValidatesBotPlansToo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInValidatesBotPlansTooTest::RunTest(const FString&)
+{
+	// 🔴 **L'invariante #1 del DoD di CP 38.2**: *«il bot passa dallo stesso punto — una validazione che il
+	// bot aggira non e' una regola»*. `ValidatePlansAtLockIn` itera `CollectLivingUnits`, che non guarda
+	// `bIsBotControlled`, quindi il bot ci passa gia'. Ma fino al 2026-08-26 **nessun test lo dimostrava**: i
+	// due test del lock-in costruiscono un'unita' del giocatore, e una riga di DoD spuntata su
+	// un'implementazione plausibile ma non misurata e' esattamente il difetto che questo repository paga di
+	// piu'.
+	//
+	// Il piano si scrive a mano sui campi, come fa `PlanBots`: i bot pianificano a INIZIO turno, non al
+	// lock-in, quindi un piano scritto qui sopravvive fino al validatore.
+	UWorld* World = MakeTeamPlanningWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!Map) { DestroyTeamPlanningWorld(World); return false; }
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	const FRTCellId Partenza(-2, 0, 0);
+	const FRTCellId Destinazione(-2, 1, 0);
+	ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), Partenza, /*bBot=*/ true);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("bot"), Bot) || !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyTeamPlanningWorld(World);
+		return false;
+	}
+
+	const int32 DashIdx = Bot->FindDashAbilityIndex();
+	if (!TestNotEqual(TEXT("premessa: l'eroe ha una mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE))
+		|| !TestTrue(TEXT("premessa: l'unita' e' controllata dal bot"), Bot->bIsBotControlled))
+	{
+		DestroyTeamPlanningWorld(World);
+		return false;
+	}
+
+	// Il piano incoerente: scatto piu' movimento normale, due azioni sullo slot Movimento.
+	Bot->PlannedDashAbility = DashIdx;
+	Bot->PlannedDashCell = Destinazione;
+	Bot->PlannedCell = Destinazione;
+	if (!TestTrue(TEXT("premessa: il piano dichiara un movimento normale"), Bot->HasPlannedNormalMove()))
+	{
+		DestroyTeamPlanningWorld(World);
+		return false;
+	}
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	int32 Righe = 0;
+	for (const FString& Evento : TM->GetRecentEvents())
+	{
+		if (Evento.Contains(TEXT("piano non valido al lock-in")) && Evento.Contains(Bot->GetName()))
+		{
+			++Righe;
+		}
+	}
+	TestEqual(TEXT("il piano del BOT passa dallo stesso validatore del giocatore"), Righe, 1);
+
+	DestroyTeamPlanningWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInStaysSilentOnALegalBotPlanTest,
+	"RefactorTactics.Bot.LockInStaysSilentOnALegalBotPlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInStaysSilentOnALegalBotPlanTest::RunTest(const FString&)
+{
+	// Il gemello: senza, un `AddLogEvent` incondizionato passerebbe il test qui sopra. Stesso allestimento,
+	// stesso bot, ma un piano LEGALE — un movimento e basta.
+	UWorld* World = MakeTeamPlanningWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!Map) { DestroyTeamPlanningWorld(World); return false; }
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-2, 0, 0), /*bBot=*/ true);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("bot"), Bot) || !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyTeamPlanningWorld(World);
+		return false;
+	}
+
+	Bot->PlannedCell = FRTCellId(-2, 1, 0); // un movimento e basta: nessuno scatto, nessun conflitto di slot
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	int32 Righe = 0;
+	for (const FString& Evento : TM->GetRecentEvents())
+	{
+		if (Evento.Contains(TEXT("piano non valido al lock-in"))) { ++Righe; }
+	}
+	TestEqual(TEXT("un piano legale del bot non produce nessuna riga di rifiuto"), Righe, 0);
+
+	DestroyTeamPlanningWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
