@@ -441,11 +441,27 @@ dagli effetti di controllo privi di danno.
 **Cleanse** — rimuove **un solo** stato fra `Burning`, `Electrified`, `Rooted`, `Marked`, `Exposed`. La priorità
 di rimozione è scelta dal giocatore **durante il planning** (non a runtime: nessuna scelta implicita).
 
-> **Limite v0.1**: `Burning` ed `Electrified` non esistono ancora come stato di unità (sono ambiente, epic E8 /
-> CP 8.2), quindi oggi `Cleanse` opera sui soli `Rooted`/`Marked`/`Exposed`. Il meccanismo scorre una lista di
-> tag dichiarata nel piano: in E8 basterà rendere pianificabili i due nuovi stati, senza toccare il resolver.
-> Senza un ordine dichiarato **non rimuove nulla** (fail-closed): "nessuna scelta implicita" significa che il
-> resolver non sceglie al posto del giocatore neppure quando il candidato sarebbe uno solo.
+> 🔴 **Limite v0.1, misurato il 2026-08-26: `Action.Cleanse` non è nel kit di nessun eroe.** Non è fra le
+> generiche (`URTCatalogLibrary::GetGenericActionIds`) e `URTHeroCatalogLibrary` non la assegna a nessuno del
+> roster, quindi nessuna unità può dichiararla in partita.
+>
+> ⚠️ **E anche se un eroe l'avesse**: `ARTUnit::PlannedCleansePriority` — la lista che sceglie *quale* stato
+> togliere — è scritta solo da tre righe di `Tests/RTDefensiveReactionTests.cpp`. Senza un ordine dichiarato il
+> resolver è fail-closed e non rimuove nulla.
+>
+> ✅ **Il resolver invece funziona**, ed è coperto da `RefactorTactics.Reactions.Cleanse.*`.
+>
+> ⚠️ **`Reaction.Cleanse` è un'altra cosa, e questa nota non la riguarda**: è un modulo di equipaggiamento,
+> raggiungibile e coperto da `RefactorTactics.Equipment.Cleanse.CancelsControl`. I due nomi non si confondono —
+> lo dice anche `RTCatalogLibrary`.
+>
+> ⚠️ *Questa riga diceva «`Burning` ed `Electrified` non esistono ancora come stato di unità, quindi oggi opera
+> sui soli `Rooted`/`Marked`/`Exposed`»: un limite di scope che non è il difetto, perché `ARTUnit::RemoveStatus`
+> toglie **qualunque** tag presente. Corretto con*
+> *[#1389](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1389).*
+>
+> ✅ **Quel che resta vero**: senza un ordine dichiarato **non rimuove nulla** (fail-closed), e «nessuna scelta
+> implicita» vincola il **resolver** — non sceglie al posto del giocatore neppure con un candidato solo.
 
 ---
 
