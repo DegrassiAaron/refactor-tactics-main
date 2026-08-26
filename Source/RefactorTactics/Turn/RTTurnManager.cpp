@@ -3407,10 +3407,12 @@ void ARTTurnManager::ResolveDash()
 					Discarded.BaseActionId = Dropped->Def.BaseActionId; // D-033: la traccia si spiega da sola
 					Discarded.SrcCell = PreDashCell;   // chiave stabile dell'unita' nel turno
 					Discarded.TgtCell = PreDashCell;   // = SrcCell: qui non c'e' una destinazione
+					// `Priority` resta a 0 (default): a differenza della voce `Superseded` qui sopra, nessun
+					// produttore `Fallback` la imposta dal catalogo — stesso pattern di `RTTurnManager_Blast.cpp`.
 					Discarded.Amount = static_cast<int32>(ERTActionInvalidReason::SlotOccupied);
 					AppendLogEntry(Discarded, Unit);
-					AddLogEvent(FString::Printf(TEXT("%s: %s"),
-						*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Discarded)));
+					// Niente `AddLogEvent` qui: la riga arriva al combat log attraverso `ConcludeTurn`, che
+					// deriva l'intero log dal TurnLog (`DescribeTurnLog`) — come ogni altra voce.
 				}
 			}
 

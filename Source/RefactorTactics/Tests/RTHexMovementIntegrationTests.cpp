@@ -964,6 +964,77 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 }
 
 
+/**
+ * Il gemello NEGATIVO di `KitDeclaredBothSlots`: uno scatto NORMALE (`Action.Dash`, slot `Movement`, D-028) —
+ * non `MovementAndMain` — lascia intatta la principale, «schivo e sparo». Senza questo test, spostare il
+ * blocco `Fallback`/`Cancelled` fuori dal suo `if (Slot == MovementAndMain)` in `RTTurnManager.cpp`
+ * dichiarerebbe uno scarto inesistente a OGNI scatto con un'azione principale pianificata, e la suite
+ * resterebbe verde: il corpus golden non contiene tracce con fase Dash, e nessun altro test lo copre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNormalDashDoesNotDiscardTheMainSlotTest,
+	"RefactorTactics.Actions.NormalDashDoesNotDiscardTheMainSlot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNormalDashDoesNotDiscardTheMainSlotTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
+
+	// Stesso allestimento del gemello: il bersaglio dentro la portata dell'attacco base misurata dalla
+	// cella d'arrivo dello scatto.
+	constexpr int32 DashTo = 3;
+	const int32 ShotRange = Runner->AttackRange;
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(DashTo + ShotRange, 0));
+	if (!TestNotNull(TEXT("Foe"), Foe)) { DestroyHexMoveWorld(World); return false; }
+
+	// Scatto NORMALE: `Action.Dash` dal catalogo, slot `Movement` — non dichiara `MovementAndMain`.
+	URTActionData* Dash = NewObject<URTActionData>(Runner);
+	Dash->DisplayName = FText::FromString(TEXT("Scatto"));
+	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Runner->Abilities.Add(Dash);
+	if (!TestEqual(TEXT("premessa: lo scatto occupa solo lo slot Movement"),
+		Dash->Def.Slot, ERTActionSlot::Movement))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const int32 FoeBefore = Foe->Health + Foe->Shield;
+
+	Runner->PlannedDashAbility = Runner->Abilities.Num() - 1;
+	Runner->PlannedDashCell = FRTCellId(DashTo, 0);
+	Runner->PlannedAbilityIndex = 0;          // l'attacco base, a portata dalla cella d'arrivo dello scatto
+	Runner->PlannedAttackTarget = Foe;
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("lo scatto e' avvenuto"), Runner->Cell == FRTCellId(DashTo, 0));
+	// La differenza con lo scatto costoso: qui il colpo PARTE.
+	TestNotEqual(TEXT("uno scatto normale lascia intatta la principale: il colpo parte"),
+		Foe->Health + Foe->Shield, FoeBefore);
+
+	int32 Cancellate = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Fallback
+			&& static_cast<ERTFallbackOutcome>(Entry.Outcome) == ERTFallbackOutcome::Cancelled
+			&& static_cast<ERTActionInvalidReason>(Entry.Amount) == ERTActionInvalidReason::SlotOccupied)
+		{
+			++Cancellate;
+		}
+	}
+	TestEqual(TEXT("uno scatto normale non dichiara la principale scartata"), Cancellate, 0);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKitDeclaredBothSlotsDeclaresTheDiscardTest,
 	"RefactorTactics.Actions.KitDeclaringBothSlotsDeclaresTheDiscard",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -1031,6 +1102,8 @@ bool FRTKitDeclaredBothSlotsDeclaresTheDiscardTest::RunTest(const FString&)
 	}
 	TestEqual(TEXT("la voce sta nella fase in cui lo scarto avviene"), Found.Phase, ERTMatchPhase::Dash);
 	TestEqual(TEXT("nomina l'azione che NON si esegue"), Found.ActionId, IdDellaPrincipale);
+	TestEqual(TEXT("porta il BaseActionId (D-033): la traccia si spiega da sola"),
+		Found.BaseActionId, Principale->Def.BaseActionId);
 	TestEqual(TEXT("SrcCell e' la cella di partenza"), Found.SrcCell, CellaDiPartenza);
 	TestEqual(TEXT("TgtCell = SrcCell quando non applicabile"), Found.TgtCell, Found.SrcCell);
 

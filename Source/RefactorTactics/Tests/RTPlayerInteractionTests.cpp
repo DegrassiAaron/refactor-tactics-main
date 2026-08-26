@@ -782,6 +782,80 @@ bool FRTLockInNamesBothActionsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il ramo di `DescribeInvalidReason` senza `HolderActionId` e' raggiungibile SOLO da `ERTActionInvalidReason::
+ * OnCooldown` — `SlotOccupied` porta sempre un detentore, e `InsufficientMovementPoints` non ha produttore
+ * (D-190). Fino ad ora quel ramo cadeva nel `default`, stampando «non eseguibile» invece del motivo: l'unico
+ * rifiuto del lock-in raggiungibile da questo ramo restava senza reason code leggibile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInDescribesTheCooldownReasonTest,
+	"RefactorTactics.PlayerInteraction.LockInDescribesTheCooldownReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInDescribesTheCooldownReasonTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	PC->SelectActorForTest(U);
+
+	// KineticPanel (indice 1 nel roster di Riktor, RTHeroCatalogLibrary.cpp): Main, cooldown 2.
+	constexpr int32 PanelIdx = 1;
+	const URTActionData* Panel = U->GetAbility(PanelIdx);
+	if (!TestTrue(TEXT("premessa: e' KineticPanel, e ha un cooldown"),
+		Panel && Panel->Def.ActionId == FName(TEXT("Hero.Riktor.KineticPanel")) && Panel->Def.CooldownTurns > 0))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// La messa in ricarica passa dall'API reale (`ConsumeAbility`), non da un campo forzato a mano.
+	U->ConsumeAbility(PanelIdx);
+	if (!TestTrue(TEXT("premessa: l'abilita' e' in ricarica"), U->GetAbilityCooldown(PanelIdx) > 0))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// Pianificata comunque: il gate di `CanUseAbility` vive nel click del giocatore
+	// (`ARTPlayerController::HandleTargetEdge`), non nel dato — ed e' esattamente cio' che il validatore al
+	// lock-in deve intercettare quando quel gate non si e' applicato.
+	U->PlannedAbilityIndex = PanelIdx;
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	FString Riga;
+	for (const FString& Evento : TM->GetRecentEvents())
+	{
+		if (Evento.Contains(TEXT("piano non valido al lock-in"))) { Riga = Evento; break; }
+	}
+	if (!TestFalse(TEXT("premessa: la riga di rifiuto esiste"), Riga.IsEmpty()))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	TestTrue(TEXT("dice il motivo in italiano"), Riga.Contains(TEXT("ricarica")));
+	TestFalse(TEXT("e non stampa l'identificatore grezzo dell'enum"), Riga.Contains(TEXT("OnCooldown")));
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSupersededEntryRendersTheDiscardedRouteTest,
 	"RefactorTactics.PlayerInteraction.SupersededEntryRendersTheDiscardedRoute",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

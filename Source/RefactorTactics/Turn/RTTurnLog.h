@@ -466,9 +466,12 @@ enum class ERTMoveOutcome : uint8
 	 * indovinarlo, e l'ordine canonico di `ValidatePlan` (per larghezza di slot, poi per `ActionId`) darebbe
 	 * la risposta sbagliata: davanti a `Action.Move` + `Hero.Riktor.Ram` nomina **Ram**, che invece esegue.
 	 *
-	 * `SrcCell` e' dove lo scatto ha portato l'unita'; `TgtCell` e' la destinazione che il movimento normale
-	 * aveva dichiarato e **non raggiungera'** — il dato che rende la voce utile invece che una nota.
-	 * `Amount` porta le celle del percorso A WAYPOINT scartato — `0` per un piano che dichiarava solo una
+	 * `SrcCell` e' la cella di PARTENZA dello scatto, non l'arrivo — e' la chiave stabile dell'unita' nel
+	 * turno su cui `FilterTracesByEmitter` filtra (`ExcludedSources.Contains(Entry.SrcCell)`) per confrontare
+	 * le varianti a informazione nascosta. `TgtCell` e' la destinazione che il movimento normale aveva
+	 * dichiarato e **non raggiungera'**: la coppia descrive la ROTTA scartata, non l'arrivo dello scatto — il
+	 * dato che rende la voce utile invece che una nota.
+	 * `Amount` porta le celle del percorso RISOLTO scartato — `0` per un piano che dichiarava solo una
 	 * destinazione senza posare waypoint (il bot), dove la destinazione resta leggibile in `TgtCell`.
 	 */
 	SupersededByDash

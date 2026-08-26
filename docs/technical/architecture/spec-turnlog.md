@@ -349,7 +349,7 @@ manderebbe il giocatore a cercare un avversario che non esiste.
 > `SrcCell` è la cella di **partenza**, non quella d'arrivo — è la chiave su cui `FilterTracesByEmitter`
 > filtra le tracce per confrontare le varianti a informazione nascosta, e la coppia con `TgtCell` descrive
 > la **rotta scartata**. `TgtCell` è la destinazione dichiarata e non raggiunta, `Amount` le celle del
-> percorso **a waypoint** scartato — `0` per un piano che dichiarava solo una destinazione senza posare
+> percorso **risolto** scartato — `0` per un piano che dichiarava solo una destinazione senza posare
 > waypoint (il bot), dove la destinazione resta leggibile in `TgtCell`.
 
 ### L'azione principale che lo slot ha scartato ([D-194](../../decisions/RT_PDR_00_Decision_Log.md), CP 38.2)

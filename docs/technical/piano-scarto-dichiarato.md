@@ -1,5 +1,10 @@
 # Piano — Ciò che il turno scarta lo dichiara chi lo scarta
 
+> ⛔ **Eseguito.** Questo piano è stato completato sul branch `feat/605-validatore-lato-giocatore`; le sue
+> decisioni sono recepite in [D-194](../decisions/RT_PDR_00_Decision_Log.md) e in
+> [`spec-turnlog.md`](architecture/spec-turnlog.md), che sono gli **owner** correnti. Il documento resta per
+> la provenienza, non è una spec viva: non seguirlo come autorità per lavoro futuro.
+
 > **Per esecutori agentici:** SUB-SKILL RICHIESTA — usa `superpowers:subagent-driven-development`
 > (consigliata) o `superpowers:executing-plans` per eseguire questo piano task per task. Gli step usano
 > checkbox (`- [ ]`) per il tracciamento.
