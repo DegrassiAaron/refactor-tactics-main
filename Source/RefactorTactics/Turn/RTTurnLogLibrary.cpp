@@ -297,8 +297,12 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 				? FString::Printf(TEXT(" (%s, p%d)"), *DescribeActionIdentity(Entry), Entry.Priority)
 				: FString::Printf(TEXT(" (%s)"), *DescribeActionIdentity(Entry)));
 
+		// `SupersededByDash` sta QUI e non nel ramo breve: la sua ragione d'essere e' la destinazione mai
+		// raggiunta, e un rendering che stampa solo `SrcCell` la nasconde. La coppia descrive la rotta
+		// scartata, ed e' la stessa forma di `Moved` — cambia il motivo, non la geometria.
 		if (static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Moved
-			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Displaced)
+			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Displaced
+			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
 		{
 			return FString::Printf(TEXT("%s %s -> %s (%d celle)%s"),
 				Reason, *CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Cause);

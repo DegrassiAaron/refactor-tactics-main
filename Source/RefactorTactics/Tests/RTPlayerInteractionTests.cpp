@@ -7,6 +7,7 @@
 #include "Player/RTPlayerController.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
@@ -753,6 +754,31 @@ bool FRTLockInNamesBothActionsTest::RunTest(const FString&)
 	TestFalse(TEXT("e non stampa l'identificatore grezzo dell'enum"), Riga.Contains(TEXT("SlotOccupied")));
 
 	DestroyInteractionWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSupersededEntryRendersTheDiscardedRouteTest,
+	"RefactorTactics.PlayerInteraction.SupersededEntryRendersTheDiscardedRoute",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSupersededEntryRendersTheDiscardedRouteTest::RunTest(const FString&)
+{
+	// La voce esiste per portare la destinazione mai raggiunta. Se il rendering non la stampa, la traccia
+	// dice al lettore la cella dove l'unita' E', che e' l'informazione che gia' aveva.
+	FRTTurnLogEntry Entry;
+	Entry.Phase = ERTMatchPhase::Dash;
+	Entry.Category = ERTLogCategory::Move;
+	Entry.Outcome = static_cast<uint8>(ERTMoveOutcome::SupersededByDash);
+	Entry.ActionId = TEXT("Action.Move");
+	Entry.SrcCell = FRTCellId(1, 1);
+	Entry.TgtCell = FRTCellId(2, 1);
+	Entry.Amount = 2;
+
+	const FString Testo = URTTurnLogLibrary::DescribeEntry(Entry);
+
+	TestTrue(TEXT("nomina la cella di partenza"), Testo.Contains(TEXT("q=1,r=1")));
+	TestTrue(TEXT("e la destinazione mai raggiunta"), Testo.Contains(TEXT("q=2,r=1")));
+	TestTrue(TEXT("e quante celle sono state scartate"), Testo.Contains(TEXT("2 celle")));
+
 	return true;
 }
 
