@@ -186,7 +186,9 @@ bool FRTPrecisionAttackTest::RunTest(const FString&)
 		TestTrue(TEXT("e l'errore nomina il movimento"), SprintAndMove[0].Contains(TEXT("Action.")));
 	}
 
-	// La stessa precisione dopo un movimento NORMALE resta valida: e' lo Sprint a costare la principale.
+	// La stessa precisione dopo un movimento NORMALE resta valida, e per la stessa ragione: un solo slot
+	// movimento speso, la principale libera. Prima di D-028 questa riga diceva «e' lo Sprint a costare la
+	// principale», ed era la motivazione del caso qui sopra quando quel caso verificava il rifiuto.
 	const TArray<FString> AfterMove =
 		URTCatalogLibrary::ValidateActionSlots({ OffensiveDef(TEXT("Action.Move")), Short });
 	TestEqual(TEXT("Move + precisione: piano valido"), AfterMove.Num(), 0);

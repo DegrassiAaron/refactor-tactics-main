@@ -136,8 +136,8 @@ public:
 	FRTUnitCardView GetCard() const;
 
 	/**
-	 * I tre slot del turno. ⚠️ Non sono tre booleani indipendenti: `Action.Sprint` dichiara `MovementAndMain`
-	 * e ne occupa due. Chi lo decide e' il catalogo, non il widget.
+	 * I tre slot del turno. ⚠️ Non sono tre booleani indipendenti: un'azione che dichiara `MovementAndMain`
+	 * ne occupa due - nessuna oggi, `Action.Sprint` fino a [D-028]. Chi lo decide e' il catalogo, non il widget.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FRTUnitSlotsView GetSlots() const;

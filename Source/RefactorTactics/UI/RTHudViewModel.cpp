@@ -106,8 +106,10 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 	{
 		FillSlotFromAbility(Slots.Main, *Unit, Unit->PlannedAbilityIndex);
 
-		// ⚠️ `Action.Sprint` dichiara `MovementAndMain`: un'azione sola, DUE slot. Senza questa riga il
-		// pannello mostrerebbe il movimento libero a chi ha appena speso tutto il turno per correre.
+		// ⚠️ Un'azione che dichiara `MovementAndMain` e' un'azione sola e DUE slot. Senza questa riga il
+		// pannello mostrerebbe il movimento libero a chi ha speso tutto il turno in una mobilita' che costa
+		// entrambi. Oggi nessuna azione lo dichiara - `Action.Sprint` lo faceva fino a [D-028] - quindi la
+		// riga e' inerte, non superflua: torna a contare il giorno che un kit usa quella forma.
 		// Chi risponde e' il catalogo, non un `==` scritto qui: e' lo stesso predicato del validatore.
 		if (const URTActionData* Main = Unit->GetAbility(Unit->PlannedAbilityIndex))
 		{
