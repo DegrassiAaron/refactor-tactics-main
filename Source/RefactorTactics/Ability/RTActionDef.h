@@ -313,7 +313,19 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 RangeCells = 0;
 
-	/** Costo in punti movimento (0 = nessun costo di movimento). */
+	/**
+	 * Contributo dell'azione al MODIFICATORE del costo per cella ([D-117]), non un costo da spendere.
+	 *
+	 * 🔴 **Nessuno lo produce ancora**, ed e' una decisione: [D-190] gli assegna il ruolo che D-117 gli
+	 * destina — l'asse *«cosa fai»* dentro `max(0, MoveCost - 1 + MoveCostModifier)` — e toglie dal
+	 * validatore il ramo che lo sommava contro `MoveBudget`. I budget del movimento **non stanno qui**:
+	 * vivono in `RangeCells` con `ERTMovementStyle::Budget` (`Move` 5 · `Sprint` 8 · `Withdraw` 2).
+	 *
+	 * ⚠️ Questa riga diceva *«Costo in punti movimento (0 = nessun costo di movimento)»*, ed era la fonte
+	 * canonica della lettura che D-190 ha respinto. Il segno: `URTCatalogLibrary::ValidateActions` rifiuta
+	 * ancora i valori negativi, ma D-117 li rende **legittimi** — quel controllo va tolto quando D-117
+	 * atterra, non prima.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 CostMP = 0;
 

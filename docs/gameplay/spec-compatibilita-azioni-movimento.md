@@ -160,12 +160,13 @@ facing.
 
 | Consumatore | Stato |
 |---|---|
-| validatore del piano in Planning | 🔴 **non esiste**: `git grep ValidatePlan` non restituisce nulla. È [#605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/605) |
+| validatore del piano in Planning | ⚠️ **esiste, ma non ha consumatori** — *rimisurato il 2026-08-25*: `URTPlanValidationLibrary::ValidatePlan` è atterrato il 2026-08-12 come funzione pura; in partita non la chiama nessuno e il bot non ci passa. Questa riga diceva «non esiste», ed era vera solo fino a quella data. È [#605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/605) |
 | preview dell'Action Dock | esiste come feature (`RT-FEAT-UI-PLANNING`), non come questo consumo: [#607](https://github.com/DegrassiAaron/refactor-tactics-main/issues/607) |
 | bot | 🔴 **deve passare dallo stesso predicato**, o pianifica combinazioni illegali. Ricade su `RT-FEAT-BOT-*` |
 | TurnLog | il reason code **estende** `ERTMoveOutcome`/`ERTFallbackOutcome` in coda, non fonda una famiglia nuova |
 
-⚠️ **Senza #605 questa feature non è osservabile.** Un requisito che nessuno valuta è un campo dati senza
+⚠️ **Senza #605 questa feature non è osservabile**, e la sfumatura conta ora che il validatore esiste: a
+mancare non è il predicato, è **chi lo interroga**. Un requisito che nessuno valuta è un campo dati senza
 consumatore — il difetto ricorrente del repository. L'ordine dei checkpoint di E38 va letto così: #606
 definisce il dato, ma è #605 a renderlo una regola.
 

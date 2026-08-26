@@ -36,8 +36,8 @@ di movimento qui sotto dichiara esplicitamente quale delle due. Motivazione in [
 
 | Slot | Quantità | Esempi |
 |---|---|---|
-| Movimento | 1 | `Move` nei profili `Sneak`/`Move`/`Sprint` (§2.1) · `Dash`, `Leap`, `Reposition` (§2.2) |
-| Azione principale | 1 | `BasicAttack`, `Charge`, `Guard`, `Heal`, **`Overwatch`** — mai due insieme |
+| Movimento | 1 | `Move` nei profili `Sneak`/`Move`/`Sprint` (§2.1) · `Dash`, `Charge`, `Leap`, `Reposition` (§2.2) |
+| Azione principale | 1 | `BasicAttack`, `Guard`, `Heal`, **`Overwatch`** — mai due insieme |
 | Reazione | 1 | `Counter`, `Intercept`, `Deflect` |
 | Comunicazione | — | Ping, label |
 | Conferma | illimitata (rate limit) | Ready |
@@ -250,15 +250,25 @@ permette di sparare da un'altra posizione nello stesso turno, che è precisament
 `Dash` · `Charge` · `Leap` · `Reposition` risolvono in macro-fase **Dash**, prima del Blast: riposizionarsi in
 fretta è ciò che permette di sparare da un'altra parte nello stesso turno.
 
-**Ma non occupano tutte lo stesso slot** ([D-028](../decisions/RT_PDR_00_Decision_Log.md)): `Dash`, `Leap` e
-`Reposition` sono **movimento** — schivi e ti resta l'azione principale, ma non ti muovi ancora. `Charge` è
-**un attacco** che ti porta addosso al bersaglio: occupa la **principale**, e il movimento ti resta.
+**E occupano tutte lo stesso slot: il movimento** ([D-191](../decisions/RT_PDR_00_Decision_Log.md)). Chi
+risolve nella fase Dash si è mosso, e ha speso per questo lo slot movimento — schivi e ti resta l'azione
+principale, ma non ti muovi ancora. Che una mobilità faccia danno a chi trapassa, a chi raggiunge o a nessuno
+non cambia *che cosa* ha speso.
+
+> 🔴 **Corretto il 2026-08-25.** Questo capoverso diceva che `Charge` è *«un attacco che ti porta addosso al
+> bersaglio: occupa la principale, e il movimento ti resta»*, seguendo la clausola di
+> [D-028](../decisions/RT_PDR_00_Decision_Log.md) che [D-191](../decisions/RT_PDR_00_Decision_Log.md) ha
+> superato. La misura che ha deciso: con la carica sulla principale, Riktor pianificava `Ram` **e** l'attacco
+> base e il resolver eseguiva entrambe — 28 danni, due azioni principali. E il movimento *non* restava:
+> `ResolveDash` lo toglie a ogni mobilità rapida, quindi la carica costava già il movimento senza dichiararlo.
+>
+> Chi vuole che una mobilità costi **anche** la principale lo dichiara con `MovementAndMain`.
 
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Distanza | CD | Rumore | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---:|---|---|
 | `Action.Sprint` *(vedi §2.1)* | Scatto lungo | Movimento + Principale ⚠️ | **Dash** ⚠️ | 20 | 60 | 8 MP | 0 | 5 | `Fallback.Stop` | sì |
 | `Action.Dash` | Scatto | **Movimento** | **Dash** | 20 | 30 | 3 celle | 1 | 6 | `Fallback.Stop` | sì |
-| `Action.Charge` | Carica | Principale | **Dash** | 20/30 | 35 | 3 celle | 2 | — | `Fallback.Stop` | sì |
+| `Action.Charge` | Carica | **Movimento** | **Dash** | 20/30 | 35 | 3 celle | 2 | — | `Fallback.Stop` | sì |
 | `Action.Leap` | Balzo | **Movimento** | **Dash** | 20 | 25 | 3 celle | 2 | — | `Fallback.Stop` | sì |
 | `Action.Reposition` | Riposizionamento | **Movimento** | **Dash** | 20 | 40 | 2 celle | 1 | — | `Fallback.Stop` | sì |
 

@@ -327,17 +327,30 @@ bool FRTHeroValidateStructureTest::RunTest(const FString&)
 }
 
 // =====================================================================================================
-// D-028 — una mobilita' che non fa danno NON puo' occupare l'azione principale.
+// [D-191] — una mobilita' rapida occupa il MOVIMENTO. Il danno non conta, lo stile non conta.
 //
-// La discriminante non e' il nome dell'azione ma i suoi effetti: `Charge` sta sulla principale perche' e'
-// un attacco che ti porta addosso al bersaglio; uno scatto che non colpisce e' movimento e basta.
+// Chi risolve nella macro-fase `Dash` si e' mosso, e ha speso per questo lo slot movimento: che poi faccia
+// danno a chi trapassa (`LinearPass`), a chi raggiunge (`LinearCharge`) o a nessuno (`LinearDash`,
+// `LinearLeap`, `Budget`) non cambia CHE COSA ha speso. Chi vuole che una mobilita' costi anche la
+// principale lo dichiara, e il modo esiste: `ERTActionSlot::MovementAndMain`.
 //
 // Verificato sul ROSTER, non su un'azione costruita nel test: `MakeHeroAction` assegna `Main` per DEFAULT,
 // quindi ogni prossima mobilita' d'eroe nascera' sullo slot sbagliato se nessuno la dichiara. E' esattamente
 // il caso che questo test deve intercettare — non l'errore di oggi, quello di domani.
+//
+// 🔴 **E fino al 2026-08-25 non lo intercettava.** Il criterio era «fa danno o no», e il ciclo faceva
+// `continue` su ogni mobilita' che colpisce: `Hero.Wraith.PassingBlade` — che fa 20 danni e attraversa —
+// passava indenne col `Main` di default, e da li' due azioni principali in un turno. Il test che diceva di
+// prendere «l'errore di domani» non prendeva nemmeno quello di ieri, perche' la clausola sul danno lo
+// escludeva per costruzione.
+//
+// ⚠️ **La prima correzione, lo stesso giorno, ne teneva ancora una di clausole**: distingueva per STILE e
+// si aspettava `Main` dalle cariche. Bastava a rendere il test non-vacuo, non a renderlo semplice — e la
+// misura su `Hero.Riktor.Ram` ha mostrato che quel caso speciale era esso stesso il difetto successivo.
+// Ora non c'e' nessun caso speciale: chi risolve nel Dash dichiara il movimento, e basta.
 // =====================================================================================================
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroMobilitySlotTest,
-	"RefactorTactics.Heroes.MobilityWithoutDamageIsNotMain",
+	"RefactorTactics.Heroes.EveryFastMovementTakesTheMovementSlot",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHeroMobilitySlotTest::RunTest(const FString&)
 {
@@ -352,16 +365,12 @@ bool FRTHeroMobilitySlotTest::RunTest(const FString&)
 		{
 			if (!Action || Action->Def.ResolutionPhase != ERTResolutionPhase::FastMovement) { continue; }
 
-			bool bDealsDamage = false;
-			for (const FRTActionEffectSpec& Effect : Action->Def.Effects)
-			{
-				if (Effect.Effect == ERTActionEffect::Damage) { bDealsDamage = true; break; }
-			}
-			if (bDealsDamage) { continue; }   // e' una carica: la principale le spetta
-
+			// Nessun `continue` e nessun caso speciale: ogni mobilita' del roster viene esaminata e deve
+			// dichiarare lo slot movimento. Saltarne una era il difetto di prima — un'azione non esaminata e'
+			// un'azione non difesa — e distinguere per stile era il difetto di poche ore dopo.
 			++MobilityChecked;
 			TestEqual(
-				*FString::Printf(TEXT("%s e' mobilita' senza danno: slot movimento"), *Action->Def.ActionId.ToString()),
+				*FString::Printf(TEXT("%s risolve nel Dash: slot movimento"), *Action->Def.ActionId.ToString()),
 				static_cast<int32>(Action->Def.Slot), static_cast<int32>(ERTActionSlot::Movement));
 		}
 	}

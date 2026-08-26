@@ -1152,7 +1152,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Charge"), ERTResolutionPhase::FastMovement, /*Priority*/ 35,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20), FRTActionEffectSpec(ERTActionEffect::Push, 1) },
-		/*bInterruptible*/ true, ERTActionSlot::Main, ERTMovementStyle::LinearCharge));
+		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearCharge));
 	// L'UNICA mobilita' lineare che resta sulla principale, e la ragione e' nei suoi Effects: fa danno, quindi
 	// e' un attacco che ti porta addosso al bersaglio, non mobilita' generica (D-028). Chi carica conserva il
 	// movimento e si sposta DOPO il Blast - l'economia opposta allo scatto, non la stessa a prezzo diverso.

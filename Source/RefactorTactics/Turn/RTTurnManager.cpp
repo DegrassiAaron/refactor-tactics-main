@@ -437,6 +437,15 @@ void ARTTurnManager::PlanBots()
 		Bot->PlannedAbilityIndex = INDEX_NONE;
 		Bot->PlannedPath.Reset();       // il bot pianifica destinazioni, non percorsi a waypoint
 		Bot->PlannedWaypoints.Reset();
+		// 🔴 Anche lo SCATTO, che fino al 2026-08-25 restava fuori da questo azzeramento: quattro campi
+		// su cinque ripartivano da zero e il quinto no. Un dash che il resolver non ha consumato — perche'
+		// la sua destinazione non era piu' raggiungibile, o perche' l'azione era in ricarica — sopravviveva
+		// alla ripianificazione e si sommava al movimento deciso in QUESTO turno.
+		//
+		// ⚠️ Il difetto era invisibile finche' la carica occupava la principale: `[Ram(Main), Move(Movement)]`
+		// e' un piano legale, e nessuno guardava. Con [D-191] la carica e' mobilita', quindi le due voci si
+		// contendono lo slot e `ValidatePlan` lo dichiara `SlotOccupied` — misurato dal bot, non dedotto.
+		Bot->PlannedDashAbility = INDEX_NONE;
 
 		// Lo snapshot su cui QUESTO bot pianifica: quello della sua squadra, che porta le prenotazioni delle
 		// compagne gia' passate di qui. Esistono tutti da prima del ciclo, quindi qui non si inserisce nulla

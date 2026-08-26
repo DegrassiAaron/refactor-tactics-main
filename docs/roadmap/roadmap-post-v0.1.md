@@ -615,8 +615,15 @@ implementata e testata.
 > l'esperimento che avrebbe reso misurabile la domanda appena chiusa, e resta l'unico asse di varietà del
 > turno ancora aperto.
 
-**Perché non è un'epic vuota**: la decisione è caduta, e **quattro checkpoint su cinque restano**. `git grep
-ValidatePlan` non restituisce nulla, e quel buco esiste con qualunque modello di economia.
+**Perché non è un'epic vuota**: la decisione è caduta, e **quattro checkpoint su cinque restano**.
+
+> 🔴 **Rimisurato il 2026-08-25: questa riga diceva il falso.** Affermava che *«`git grep ValidatePlan` non
+> restituisce nulla, e quel buco esiste con qualunque modello di economia»*. Oggi restituisce
+> `URTPlanValidationLibrary` e le sue chiamate nei test: la **fetta pura di 38.2 è atterrata il 2026-08-12**,
+> e nessuno è tornato a rimisurare la riga che la dichiarava assente.
+>
+> Il buco che resta non è la funzione, è il **consumatore**: in partita non la chiama nessuno e il bot non ci
+> passa. *Quello* esiste con qualunque modello di economia — e resta la ragione per cui l'epic non è vuota.
 
 | CP | Obiettivo | DoD misurabile |
 |---|---|---|

@@ -13,14 +13,17 @@ namespace
 		return FRTHexSimUnit(0, FRTCellId(0, 0), MoveBudget, /*bAlive*/ true);
 	}
 
-	/** Voce di piano minima: l'azione, lo slot che occupa, quanto costa in MP e il cooldown residuo. */
-	FRTPlannedAction PlanEntry(const FName& ActionId, ERTActionSlot Slot, int32 CostMP = 0,
-		int32 CooldownRemaining = 0)
+	/**
+	 * Voce di piano minima: l'azione, lo slot che occupa e il cooldown residuo.
+	 *
+	 * Il `CostMP` e' uscito da qui con [D-190]: il validatore non lo legge piu', e un parametro che nessuna
+	 * asserzione osserva avrebbe fatto credere il contrario a chi scrive il prossimo test.
+	 */
+	FRTPlannedAction PlanEntry(const FName& ActionId, ERTActionSlot Slot, int32 CooldownRemaining = 0)
 	{
 		FRTPlannedAction Entry;
 		Entry.Def.ActionId = ActionId;
 		Entry.Def.Slot = Slot;
-		Entry.Def.CostMP = CostMP;
 		Entry.CooldownRemaining = CooldownRemaining;
 		return Entry;
 	}
@@ -37,7 +40,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanMovementMainAndReactionAreLegal,
 bool FRTPlanMovementMainAndReactionAreLegal::RunTest(const FString&)
 {
 	const TArray<FRTPlannedAction> Plan = {
-		PlanEntry(TEXT("Action.Move"), ERTActionSlot::Movement, /*CostMP*/ 5),
+		PlanEntry(TEXT("Action.Move"), ERTActionSlot::Movement),
 		PlanEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main),
 		PlanEntry(TEXT("Action.Counter"), ERTActionSlot::Reaction),
 	};
@@ -81,7 +84,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanSprintLeavesNoRoomForMain,
 bool FRTPlanSprintLeavesNoRoomForMain::RunTest(const FString&)
 {
 	const TArray<FRTPlannedAction> Plan = {
-		PlanEntry(TEXT("Action.Sprint"), ERTActionSlot::MovementAndMain, /*CostMP*/ 8),
+		PlanEntry(TEXT("Action.Sprint"), ERTActionSlot::MovementAndMain),
 		PlanEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main),
 	};
 
@@ -102,47 +105,13 @@ bool FRTPlanWaitOccupiesNoSlot::RunTest(const FString&)
 {
 	const TArray<FRTPlannedAction> Plan = {
 		PlanEntry(TEXT("Action.Wait"), ERTActionSlot::None),
-		PlanEntry(TEXT("Action.Move"), ERTActionSlot::Movement, /*CostMP*/ 3),
+		PlanEntry(TEXT("Action.Move"), ERTActionSlot::Movement),
 		PlanEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main),
 	};
 
 	const FRTPlanValidation Result = URTPlanValidationLibrary::ValidatePlan(PlanUnit(5), Plan);
 
 	TestTrue(TEXT("Wait non consuma nulla"), Result.bLegal);
-	return true;
-}
-
-/** Il costo in MP si somma e si confronta col budget dell'unita': sforare e' illegale in Planning. */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanMovementPointsOverflowIsRejected,
-	"RefactorTactics.Plan.MovementPointsOverflowIsRejected",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTPlanMovementPointsOverflowIsRejected::RunTest(const FString&)
-{
-	const TArray<FRTPlannedAction> Plan = {
-		PlanEntry(TEXT("Action.Move"), ERTActionSlot::Movement, /*CostMP*/ 5),
-	};
-
-	const FRTPlanValidation Result = URTPlanValidationLibrary::ValidatePlan(PlanUnit(/*MoveBudget*/ 4), Plan);
-
-	TestFalse(TEXT("5 MP su un budget di 4 non e' legale"), Result.bLegal);
-	TestEqual(TEXT("il motivo sono i punti movimento"), Result.Reason,
-		ERTActionInvalidReason::InsufficientMovementPoints);
-	return true;
-}
-
-/** Il confine: spendere ESATTAMENTE il budget e' legale. E' il caso che un `<` al posto di `<=` rompe. */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanMovementPointsExactlyOnBudgetIsLegal,
-	"RefactorTactics.Plan.MovementPointsExactlyOnBudgetIsLegal",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTPlanMovementPointsExactlyOnBudgetIsLegal::RunTest(const FString&)
-{
-	const TArray<FRTPlannedAction> Plan = {
-		PlanEntry(TEXT("Action.Move"), ERTActionSlot::Movement, /*CostMP*/ 5),
-	};
-
-	const FRTPlanValidation Result = URTPlanValidationLibrary::ValidatePlan(PlanUnit(/*MoveBudget*/ 5), Plan);
-
-	TestTrue(TEXT("spendere tutto il budget e' legale"), Result.bLegal);
 	return true;
 }
 
@@ -156,7 +125,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanCooldownBlocksWithSlotFree,
 bool FRTPlanCooldownBlocksWithSlotFree::RunTest(const FString&)
 {
 	const TArray<FRTPlannedAction> Plan = {
-		PlanEntry(TEXT("Action.Overcharge"), ERTActionSlot::Main, /*CostMP*/ 0, /*CooldownRemaining*/ 1),
+		PlanEntry(TEXT("Action.Overcharge"), ERTActionSlot::Main, /*CooldownRemaining*/ 1),
 	};
 
 	const FRTPlanValidation Result = URTPlanValidationLibrary::ValidatePlan(PlanUnit(), Plan);
@@ -177,9 +146,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanVerdictIsPermutationInvariant,
 bool FRTPlanVerdictIsPermutationInvariant::RunTest(const FString&)
 {
 	TArray<FRTPlannedAction> Plan = {
-		PlanEntry(TEXT("Action.Move"), ERTActionSlot::Movement, /*CostMP*/ 3),
+		PlanEntry(TEXT("Action.Move"), ERTActionSlot::Movement),
 		PlanEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main),
-		PlanEntry(TEXT("Action.Overcharge"), ERTActionSlot::Main, /*CostMP*/ 0, /*CooldownRemaining*/ 2),
+		PlanEntry(TEXT("Action.Overcharge"), ERTActionSlot::Main, /*CooldownRemaining*/ 2),
 	};
 	Plan.Sort([](const FRTPlannedAction& A, const FRTPlannedAction& B)
 	{
@@ -212,20 +181,40 @@ bool FRTPlanVerdictIsPermutationInvariant::RunTest(const FString&)
 }
 
 /**
- * Un piano vuoto non costa nulla, quindi e' legale — anche se il budget e' un valore sporco.
+ * Il verdetto NON dipende da `MoveBudget`. E' il gate di [D-190].
  *
- * Senza il clamp `FMath::Max(0, MoveBudget)` che ogni altro consumatore di `MoveBudget` applica, un budget
- * negativo rendeva illegale perfino il piano vuoto (`0 > -1`), e con un motivo che parla di punti movimento
- * a un piano che non si muove.
+ * Fino a quella decisione un ramo sommava i `CostMP` del piano e li confrontava col budget dell'unita'.
+ * Uscito il ramo, lo snapshot non entra piu' nel verdetto — e la proprieta' va PINNATA invece che lasciata
+ * alla lettura del corpo: chi reintroducesse la sottrazione respinta da [D-114] farebbe cadere questo test,
+ * invece di aggiungere in silenzio un rifiuto che il pathfinding in pianificazione gia' produce, e meglio.
+ *
+ * Sostituisce `Plan.EmptyPlanIsLegalEvenWithDirtyBudget`, che difendeva il clamp `FMath::Max(0, MoveBudget)`
+ * del ramo uscito. Il suo caso limite — il budget sporco — resta qui sotto: e' l'unico pezzo di quel test
+ * che parli di una proprieta' ancora viva.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanEmptyPlanIsLegalEvenWithDirtyBudget,
-	"RefactorTactics.Plan.EmptyPlanIsLegalEvenWithDirtyBudget",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanVerdictIgnoresMoveBudget,
+	"RefactorTactics.Plan.VerdictIgnoresMoveBudget",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTPlanEmptyPlanIsLegalEvenWithDirtyBudget::RunTest(const FString&)
+bool FRTPlanVerdictIgnoresMoveBudget::RunTest(const FString&)
 {
-	const TArray<FRTPlannedAction> Empty;
+	// Un piano che si muove E agisce: e' il caso su cui un ramo a budget morderebbe per primo.
+	const TArray<FRTPlannedAction> Plan = {
+		PlanEntry(TEXT("Action.Move"), ERTActionSlot::Movement),
+		PlanEntry(TEXT("Action.BasicAttack"), ERTActionSlot::Main),
+	};
 
-	TestTrue(TEXT("piano vuoto, budget 0"), URTPlanValidationLibrary::ValidatePlan(PlanUnit(0), Empty).bLegal);
+	// Nullo, sporco, normale e abbondante: quattro budget, un solo verdetto.
+	for (const int32 Budget : { 0, -1, 5, 99 })
+	{
+		const FRTPlanValidation Result = URTPlanValidationLibrary::ValidatePlan(PlanUnit(Budget), Plan);
+		TestTrue(FString::Printf(TEXT("budget %d: il piano canonico resta legale"), Budget), Result.bLegal);
+		TestEqual(FString::Printf(TEXT("budget %d: nessun motivo di rifiuto"), Budget), Result.Reason,
+			ERTActionInvalidReason::None);
+	}
+
+	// E il piano VUOTO resta legale col budget negativo: era il caso che il clamp del vecchio ramo
+	// difendeva, dove `0 > -1` rendeva illegale perfino chi non si muove.
+	const TArray<FRTPlannedAction> Empty;
 	TestTrue(TEXT("piano vuoto, budget negativo"),
 		URTPlanValidationLibrary::ValidatePlan(PlanUnit(-1), Empty).bLegal);
 	return true;

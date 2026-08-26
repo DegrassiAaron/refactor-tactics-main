@@ -244,7 +244,12 @@ La meccanica **non** dipende dalle finestre di E14: si risolve a un **boundary d
 
 #### Descrizione
 
-Passing Blade è un Dash lineare di 3 celle che infligge 20 danni alle unità attraversate. Usa `LinearDash`: attraversa la linea invece di fermarsi al primo bersaglio come una charge.
+Passing Blade è un Dash lineare di 3 celle che infligge 20 danni alle unità attraversate. Usa `LinearPass`: attraversa la linea invece di fermarsi al primo bersaglio come una charge.
+
+> 🔴 **Corretto il 2026-08-25**: questa riga diceva `LinearDash` mentre descriveva un attraversamento — e > `LinearDash` si **ferma** su ciò che incontra, quindi la frase si contraddiceva da sé. Lo stile è
+> `LinearPass` dal 2026-08-08. La distinzione non è cosmetica:
+> [D-191](../../decisions/RT_PDR_00_Decision_Log.md) ne fa il **criterio dello slot** — chi si ferma addosso
+> al bersaglio è un attacco e occupa la principale, chi lo attraversa è mobilità e occupa il movimento.
 
 | Campo | Valore |
 | --- | --- |
@@ -264,7 +269,7 @@ Passing Blade è un Dash lineare di 3 celle che infligge 20 danni alle unità at
 | Implementation Status | IMPLEMENTED |
 | Data Status | CANONICAL |
 
-> MovementStyle LinearDash.
+> MovementStyle `LinearPass` · slot **movimento** ([D-191](../../decisions/RT_PDR_00_Decision_Log.md)).
 
 #### Uso tattico e limiti
 

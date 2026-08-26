@@ -5,6 +5,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
+#include "Turn/RTPlanValidationLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Map/RTHexMapActor.h"
@@ -1064,5 +1065,122 @@ bool FRTBotDecidesWithoutFutureKnowledgeTest::RunTest(const FString&)
 
 	return true;
 }
+
+
+/**
+ * Il bot passa dal validatore del piano, e i suoi piani sono LEGALI (DoD di CP 38.2, [#605]).
+ *
+ * La riga della DoD dice: *«il bot passa dallo stesso punto: una validazione che il bot aggira non e' una
+ * regola»*. Fino a oggi non ci passava nessuno — `URTPlanValidationLibrary::ValidatePlan` era invocabile
+ * solo dai test, perche' mancava il modo di COMPORRE un piano da cio' che il gioco scrive. Con
+ * `MakePlanFor` quel modo esiste, e questo test e' la prima misura: il pianificatore del bot produce
+ * combinazioni che il validatore accetta?
+ *
+ * Si misura su piu' turni e su ENTRAMBE le squadre, perche' i rami del pianificatore si scelgono a seconda
+ * della distanza dal nemico: un turno solo esercita il ramo d'apertura e nient'altro.
+ *
+ * \u26a0\ufe0f Il fallimento e' DIAGNOSTICO, non solo rosso: dice turno, unita', motivo e azione colpevole. Se un
+ * giorno cade, quello che serve sapere e' quale combinazione il bot ha composto — non che «il bot sbaglia».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotPlansAreLegalTest,
+	"RefactorTactics.HexBotPlay.PlansPassPlanValidation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBotMap(World, /*Radius=*/ 6);
+
+	// 2v2 interamente sotto bot: si misura il pianificatore, non la reazione del bot a un umano.
+	TArray<ARTUnit*> Bots;
+	Bots.Add(SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 1), /*bBot*/ true));
+	Bots.Add(SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 2), /*bBot*/ true));
+	Bots.Add(SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2), /*bBot*/ true));
+	Bots.Add(SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -1), /*bBot*/ true));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || Bots.Contains(nullptr)) { DestroyHexBotWorld(World); return false; }
+
+	const UEnum* ReasonEnum = StaticEnum<ERTActionInvalidReason>();
+	int32 PianiEsaminati = 0;
+	int32 PianiConVoci = 0;
+	int32 PianiConMovimentoEPrincipale = 0;
+	int32 Illegali = 0;
+
+	// Sei turni: abbastanza per attraversare l'avvicinamento, l'ingaggio e lo scambio di colpi.
+	for (int32 Turno = 1; Turno <= 6; ++Turno)
+	{
+		TM->PlanBotsForTest();
+
+		for (ARTUnit* Bot : Bots)
+		{
+			if (!Bot || !Bot->IsAlive())
+			{
+				continue;
+			}
+			const TArray<FRTPlannedAction> Piano = URTPlanValidationLibrary::MakePlanFor(Bot);
+			++PianiEsaminati;
+			if (Piano.Num() > 0)
+			{
+				++PianiConVoci;
+			}
+
+			// La combinazione su cui `SlotOccupied` puo' scattare: movimento E principale nello stesso piano.
+			// Contarla e' cio' che rende la misura una misura — vedi la premessa in fondo.
+			bool bHaMovimento = false;
+			bool bHaPrincipale = false;
+			for (const FRTPlannedAction& Voce : Piano)
+			{
+				bHaMovimento |= URTCatalogLibrary::TakesMovementSlot(Voce.Def);
+				bHaPrincipale |= URTCatalogLibrary::TakesMainSlot(Voce.Def);
+			}
+			if (bHaMovimento && bHaPrincipale)
+			{
+				++PianiConMovimentoEPrincipale;
+			}
+
+			const FRTPlanValidation Verdetto = URTPlanValidationLibrary::ValidatePlan(
+				FRTHexSimUnit(0, Bot->Cell, Bot->GetEffectiveMoveRange(), /*bAlive*/ true), Piano);
+			if (!Verdetto.bLegal)
+			{
+				++Illegali;
+				FString Voci;
+				for (const FRTPlannedAction& Voce : Piano)
+				{
+					Voci += FString::Printf(TEXT("%s(slot %d) "), *Voce.Def.ActionId.ToString(),
+						static_cast<int32>(Voce.Def.Slot));
+				}
+				AddError(FString::Printf(
+					TEXT("turno %d, %s: piano ILLEGALE (%s su '%s'). Voci: %s"),
+					Turno, *Bot->GetName(),
+					ReasonEnum ? *ReasonEnum->GetNameStringByValue(static_cast<int64>(Verdetto.Reason))
+						: TEXT("?"),
+					*Verdetto.OffendingActionId.ToString(), *Voci));
+			}
+		}
+
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+	}
+
+	AddInfo(FString::Printf(
+		TEXT("MISURA: %d piani esaminati, %d con almeno una voce, %d con movimento E principale, %d illegali"),
+		PianiEsaminati, PianiConVoci, PianiConMovimentoEPrincipale, Illegali));
+
+	// 🔴 La premessa e' su `PianiConMovimentoEPrincipale`, non su `PianiConVoci`, e la differenza non e'
+	// pedanteria: `PlanBots` arma una REAZIONE a ogni bot al primo turno, quindi ogni piano ha almeno una
+	// voce comunque — e con quella premessa il test sarebbe restato verde anche cancellando meta'
+	// `MakePlanFor`. `SlotOccupied` puo' scattare solo quando due voci si contendono uno slot, quindi cio'
+	// che va garantito e' che i piani esaminati contengano DAVVERO la combinazione in esame.
+	TestTrue(TEXT("premessa: almeno un piano porta movimento E principale insieme"),
+		PianiConMovimentoEPrincipale > 0);
+	TestEqual(TEXT("nessun piano del bot e' illegale"), Illegali, 0);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
 
 #endif // WITH_DEV_AUTOMATION_TESTS
