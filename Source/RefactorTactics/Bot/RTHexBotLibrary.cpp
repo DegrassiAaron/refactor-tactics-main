@@ -47,6 +47,11 @@ namespace
 	 * finzione. Si sceglie quello di prima perche' e' l'unico che non introduce un comportamento nuovo in un
 	 * caso che questo lavoro non ha misurato.
 	 */
+	/**
+	 * ⚠️ **Il puntatore vale fino alla prossima chiamata**, e va letto subito: una chiamata con un goal
+	 * nuovo puo' far ricrescere la mappa dei campi e spostarne i valori, e una con un grafo diverso li
+	 * butta tutti. `ApproachSteps` lo consuma nella riga dopo, che e' l'uso per cui esiste.
+	 */
 	const TMap<FRTCellId, int32>* StepsToGoalField(const URTHexMapAsset* Map, const FRTCellId& Goal)
 	{
 		if (Map == nullptr)
@@ -54,79 +59,97 @@ namespace
 			return nullptr;
 		}
 
-		// Cache di una voce sola, per (mappa, revisione, goal).
+		// Cache dei campi di distanza, per `(asset, revisione, goal)`.
 		//
 		// ⚠️ **Serve alla scala, non all'eleganza.** `ChooseBestPlan` chiama `ScorePlan` una volta per
 		// candidata, e `BuildCandidates` emette un piano per ogni cella raggiungibile PIU' uno per ogni
 		// coppia (cella, nemico): senza cache si ricalcolerebbe lo stesso campo un centinaio di volte per
-		// unita' per turno. Con la cache le BFS effettive sono una per nemico.
+		// unita' per turno.
 		//
-		// ⚠️ La chiave include `Revision` perche' la mappa cambia IN PARTITA — una porta che si apre, un
-		// ponte che compare — ed e' esattamente il campo che l'asset espone per invalidare le cache. Senza,
-		// il bot continuerebbe a misurare la mappa di due turni fa.
+		// 🔴 **Una voce per NEMICO, non una sola** (`#1436`). `ScorePlan` chiama `ApproachSteps` dentro il
+		// ciclo sui nemici, quindi il goal cambia a ogni chiamata: con una cache da una voce sola due nemici
+		// se la sfrattano a vicenda e il tasso di successo crolla a **zero** — proprio nella configurazione
+		// che la v0.1 spedisce, il 2v2. Il commento che stava qui dichiarava «una BFS per nemico» ed era
+		// falso da quando l'avvicinamento si misura in passi.
 		//
-		// 🔴 **E l'identita' dell'asset e' `FObjectKey`, NON il puntatore** (`#1436`). Un puntatore grezzo
-		// non distingue due oggetti diversi che il GC ha messo allo stesso indirizzo: se `Goal` coincide e
-		// `Revision` pure, la chiave regge e il bot valuta i piani sulla topologia della mappa PRECEDENTE.
-		// `FObjectKey` porta indice **e serial number**, che e' cio' che rende due oggetti distinti anche a
-		// parita' d'indirizzo.
+		// 🔴 **L'identita' dell'asset e' `FObjectKey`, NON il puntatore.** Un puntatore grezzo non distingue
+		// due oggetti diversi che il GC ha messo allo stesso indirizzo: se `Goal` coincide e `Revision` pure,
+		// la chiave regge e il bot valuta i piani sulla topologia della mappa PRECEDENTE. `FObjectKey` porta
+		// indice **e serial number**, che e' cio' che rende due oggetti distinti anche a parita' d'indirizzo.
 		//
-		// ⚠️ Non era un rischio teorico gia' prima, ma [D-196] l'ha allargato: `MakeFlatArena` muoveva
+		// ⚠️ Non era un rischio teorico nemmeno prima, ma [D-196] l'ha allargato: `MakeFlatArena` muoveva
 		// `Revision` una volta per cella, quindi due arene di raggio diverso portavano numeri diversi e si
 		// discriminavano **per caso**. Ora ogni arena piatta nasce con `Revision == 1`, e quel caso non
-		// discrimina piu' niente. La suite crea decine di arene transitorie sotto `GetTransientPackage()` in
-		// un processo solo, che e' precisamente dove il riuso d'indirizzo capita.
-		struct FCampo
+		// discrimina piu' niente.
+		//
+		// ⚠️ La chiave include `Revision` perche' la mappa cambia IN PARTITA — una porta che si apre, un
+		// ponte che compare — ed e' esattamente il campo che l'asset espone per invalidare le cache.
+		struct FCampi
 		{
 			FObjectKey Map;
 			int32 Revision = -1;
-			FRTCellId Goal;
-			TMap<FRTCellId, int32> Passi;
+			/** L'adiacenza INVERSA del grafo: dipende da `(Map, Revision)`, non dal goal. */
+			TMap<FRTCellId, TArray<FRTCellId>> Inversa;
+			/** Un campo di distanze per goal. Tenuti insieme perche' condividono l'invalidazione. */
+			TMap<FRTCellId, TMap<FRTCellId, int32>> PerGoal;
 		};
-		static thread_local FCampo Cache;
+		static thread_local FCampi Cache;
 
 		const FObjectKey MapKey(Map);
-		if (Cache.Map == MapKey && Cache.Revision == Map->Revision && Cache.Goal == Goal)
+		if (Cache.Map != MapKey || Cache.Revision != Map->Revision)
 		{
-			return &Cache.Passi;
-		}
-
-		// Adiacenza INVERSA: per ogni arco `C -> N` del grafo, qui si registra `N -> C`.
-		TMap<FRTCellId, TArray<FRTCellId>> Inversa;
-		for (const FRTHexCellData& Cella : Map->Cells)
-		{
-			for (const TPair<FRTCellId, int32>& Arco : URTHexPathLibrary::GraphNeighbors(Map, Cella.Id))
+			// Grafo diverso: si ricostruisce l'adiacenza inversa UNA volta e si buttano tutti i campi.
+			//
+			// ⚠️ Le celle che BLOCCANO il movimento non entrano come sorgente: `GraphNeighbors` filtra la
+			// DESTINAZIONE di un arco, non l'origine, quindi senza questa guardia un muro riceverebbe un
+			// numero di passi finito e `ApproachSteps` da una cella murata risponderebbe come se fosse
+			// percorribile. Oggi nessun chiamante ci arriva — `DestCell` viene da `ReachableCells` — ma il
+			// campo sarebbe sbagliato per il primo che non pre-filtra.
+			Cache.Map = MapKey;
+			Cache.Revision = Map->Revision;
+			Cache.Inversa.Reset();
+			Cache.PerGoal.Reset();
+			for (const FRTHexCellData& Cella : Map->Cells)
 			{
-				Inversa.FindOrAdd(Arco.Key).Add(Cella.Id);
+				if (Cella.bBlocksMovement)
+				{
+					continue;
+				}
+				for (const TPair<FRTCellId, int32>& Arco : URTHexPathLibrary::GraphNeighbors(Map, Cella.Id))
+				{
+					Cache.Inversa.FindOrAdd(Arco.Key).Add(Cella.Id);
+				}
 			}
 		}
 
-		Cache.Map = MapKey;
-		Cache.Revision = Map->Revision;
-		Cache.Goal = Goal;
-		Cache.Passi.Reset();
-		Cache.Passi.Add(Goal, 0);
+		if (const TMap<FRTCellId, int32>* Gia = Cache.PerGoal.Find(Goal))
+		{
+			return Gia;
+		}
+
+		TMap<FRTCellId, int32>& Passi = Cache.PerGoal.Add(Goal);
+		Passi.Add(Goal, 0);
 
 		TArray<FRTCellId> Coda;
 		Coda.Add(Goal);
 		for (int32 I = 0; I < Coda.Num(); ++I)
 		{
 			const FRTCellId Corrente = Coda[I];
-			const int32 Passo = Cache.Passi[Corrente] + 1;
-			if (const TArray<FRTCellId>* Precedenti = Inversa.Find(Corrente))
+			const int32 Passo = Passi[Corrente] + 1;
+			if (const TArray<FRTCellId>* Precedenti = Cache.Inversa.Find(Corrente))
 			{
 				for (const FRTCellId& Prec : *Precedenti)
 				{
-					if (!Cache.Passi.Contains(Prec))
+					if (!Passi.Contains(Prec))
 					{
-						Cache.Passi.Add(Prec, Passo);
+						Passi.Add(Prec, Passo);
 						Coda.Add(Prec);
 					}
 				}
 			}
 		}
 
-		return &Cache.Passi;
+		return &Passi;
 	}
 
 	int32 ApproachSteps(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
