@@ -395,19 +395,27 @@ bool FRTDashSupersedesNormalMoveTest::RunTest(const FString&)
 	}
 
 	// Il giocatore compone davvero il piano incoerente: scatto, poi stato neutro (D-128), poi waypoint.
+	// MoveTo e' a DISTANZA 2 da Start, non adiacente, ed e' deliberato: un solo click
+	// (`PlannedWaypoints.Num() == 1`) risolve in un percorso di DUE celle (`PlannedPath.Num() - 1 == 2`).
+	// `Superseded.Amount` (RTTurnManager.cpp) viene dal percorso RISOLTO, non dal conteggio dei click — con
+	// una destinazione adiacente le due quantita' avrebbero coinciso, e l'asserzione su `Amount` piu' sotto
+	// non avrebbe morso una regressione che scambiasse la sorgente (rilievo di code review, 2026-08-26).
 	const FRTCellId DashTo(1, 2);
-	const FRTCellId MoveTo(2, 1);
+	const FRTCellId MoveTo(3, 1);
 	U->SelectAbility(DashIdx);
 	PC->HandleClickOnCell(DashTo);
 	U->SelectAbility(INDEX_NONE);
 	PC->HandleClickOnCell(MoveTo);
-	const int32 CelleAttese = U->PlannedWaypoints.Num();
+	// La sorgente VERA di `Amount`: il percorso risolto, non i click posati (vedi il commento sopra).
+	const int32 CelleAttese = FMath::Max(0, U->PlannedPath.Num() - 1);
 
 	// Le premesse: senza, il turno non conterrebbe il caso in esame.
 	if (!TestNotEqual(TEXT("premessa: lo scatto e' pianificato"), U->PlannedDashAbility, static_cast<int32>(INDEX_NONE))
 		|| !TestTrue(TEXT("premessa: il waypoint si posa — l'input non viene rifiutato"),
 			U->PlannedWaypoints.Num() > 0)
-		|| !TestEqual(TEXT("premessa: la destinazione del movimento e' quella cliccata"), U->PlannedCell, MoveTo))
+		|| !TestEqual(TEXT("premessa: la destinazione del movimento e' quella cliccata"), U->PlannedCell, MoveTo)
+		|| !TestNotEqual(TEXT("premessa: un click non e' una cella di percorso — le due sorgenti di Amount divergono qui"),
+			U->PlannedWaypoints.Num(), CelleAttese))
 	{
 		DestroyInteractionWorld(World);
 		return false;
@@ -444,9 +452,15 @@ bool FRTDashSupersedesNormalMoveTest::RunTest(const FString&)
 	// I due campi che entrano nell'ORDINE CANONICO e nel formato serializzato. Senza queste asserzioni,
 	// mettere `Priority` a zero o `Amount` a un numero qualsiasi lascia la suite verde — ed e' esattamente
 	// il difetto che la correzione del 2026-08-26 ha chiuso, non difeso da nessuno.
+	//
+	// `Amount` si confronta con `CelleAttese`, catturata da `PlannedPath.Num() - 1` (il percorso RISOLTO),
+	// non da `PlannedWaypoints.Num()` (i CLICK del giocatore): sono due sorgenti diverse. `MoveTo` e' a
+	// distanza 2 da Start non per caso, ma perche' a distanza 1 le due quantita' avrebbero coinciso — un
+	// click, un passo — e questa asserzione non avrebbe morso una regressione che scambiasse la sorgente
+	// (rilievo di code review, 2026-08-26).
 	TestEqual(TEXT("Priority viene dal catalogo, non da uno zero implicito"),
 		Found.Priority, URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).Priority);
-	TestEqual(TEXT("Amount conta le celle del percorso scartato"), Found.Amount, CelleAttese);
+	TestEqual(TEXT("Amount conta le celle del PERCORSO risolto, non i click posati"), Found.Amount, CelleAttese);
 
 	// E l'unita' e' davvero dove l'ha portata lo scatto: la voce descrive il turno, non lo contraddice.
 	TestEqual(TEXT("l'unita' e' sulla cella dello scatto"), U->Cell, DashTo);
