@@ -317,23 +317,60 @@ possiede (`MovementStyle`, `CostMP`, `StructureOp`, `Effects`), mai da un elenco
 
 | Classe | Criterio | Rumore |
 |---|---|---|
-| **Silenziosa** | non muove il corpo, non danneggia, non opera su struttura | `0` |
-| **Passo** | ha un `MovementStyle` a budget MP | `max(0, CostMP − 3)` |
-| **Impatto** | produce danno, oppure ha uno `StructureOp` | `6` |
+| **Impatto** | fa danno, **oppure** ha uno `StructureOp`, **oppure** ha un `MovementStyle` non-`Budget` | `6` |
+| **Passo** | ha `MovementStyle::Budget` | `max(0, RangeCells − 3)` |
+| **Silenziosa** | nessuna delle due sopra | `0` |
 
 La storia della classe *Passo*: **le prime tre celle sono silenziose**, ogni cella oltre vale `1`. Il **`3`**
 è l'unico numero che questa regola inventa.
 
+> 🔴 **Corretta il 2026-08-27, dopo che un panel l'ha falsificata. La prima stesura leggeva `CostMP`, e
+> `CostMP` non è il budget di movimento.** La docstring di `FRTActionDef::CostMP` lo dichiara: è il
+> *«contributo dell'azione al MODIFICATORE del costo per cella (D-117), non un costo da spendere»*, e
+> aggiunge che *«i budget del movimento non stanno qui: vivono in `RangeCells` con
+> `ERTMovementStyle::Budget`»*. Misurato: nel catalogo `CostMP` compare **2** volte, entrambe dentro il
+> validator, contro **21** di `RangeCells`; e le due righe spedite scrivono il commento a chiare lettere —
+> `Action.Sprint … /*Range (MP)*/ 8 … ERTMovementStyle::Budget` e `Action.Move … /*Range (MP)*/ 5`.
+> Con il campo sbagliato la regola avrebbe prodotto **`0` per ogni azione del gioco**, falsificando la
+> tabella qui sotto e l'ancora `Sprint 5` di D-041. **I numeri erano giusti, il campo era sbagliato.**
+>
+> 🔴 **E le classi non erano esaustive**, il che era il difetto più pericoloso perché silenzioso.
+> `Action.Dash` non cadeva in nessuna: muove (quindi non *Silenziosa*), ha `MovementStyle::LinearDash`
+> (quindi non *Passo*), e porta `Effects {}` (quindi non *Impatto*). Peggio: `Action.BasicAttack` nel
+> catalogo **core** ha anch'esso `Effects {}` e sarebbe finito in *Silenziosa* — **uno sparo muto**.
+> Da qui le due correzioni: *Impatto* include il movimento lineare, e l'ordine di valutazione è
+> **Impatto → Passo → Silenziosa**, con `Silenziosa` come residuo invece che come criterio proprio.
+
+🔴 **La regola si applica alla definizione RISOLTA PER EROE, non alla voce del catalogo core**, ed è la
+distinzione che rendeva muto l'attacco base. Il catalogo core dichiara *«identità, fase, priorità e
+fallback stanno qui; DANNO e PORTATA no»* — il danno lo mette `URTCatalogLibrary::MakeBasicAttack`, che è
+anche il produttore di `Hero.Gadget.ArcPulse`. Interrogare la voce core significa interrogare un guscio.
+
+**Il DoD porta un test di esaustività**: ogni voce restituita da `GetCoreActionCatalog()`, risolta per
+eroe, cade in **esattamente una** classe — un ramo di default che non scatta mai, come il gate del
+catalogo già fa altrove. Senza, una famiglia di azioni che non cade in nessuna classe resta silenziosa e
+nessuno se ne accorge.
+
 **Cosa ne cade fuori:**
 
-| Azione | Classe | Rumore | Provenienza |
-|---|---|---:|---|
-| `Action.Wait` · `Action.Guard` · `Action.Brace` · `Action.Overwatch` | Silenziosa | **0** | ✅ ancora di [D-041](../../decisions/RT_PDR_00_Decision_Log.md) (`Wait 0`) |
-| `MovementMode.Withdraw` (2 MP) | Passo | **0** | derivato |
-| `Action.Move` (5 MP) | Passo | **2** | derivato |
-| `Action.Sprint` (8 MP) | Passo | **5** | ✅ ancora di D-041 (`Sprint 5`) |
-| `Action.BasicAttack` · `Action.Interact` su struttura · `Action.Dash` | Impatto | **6** | ✅ ancora di D-041 (`Dash 6`) |
-| esplosione | evento ambientale, non un'azione | **10** | ✅ ancora di D-041 |
+| Azione | `RangeCells` · `MovementStyle` | Classe | Rumore | Provenienza |
+|---|---|---|---:|---|
+| `Action.Wait` · `Action.Guard` · `Action.Brace` · `Action.Overwatch` | — | Silenziosa | **0** | ✅ ancora di [D-041](../../decisions/RT_PDR_00_Decision_Log.md) (`Wait 0`) |
+| `Action.Move` | `5` · `Budget` | Passo | **2** | derivato |
+| `Action.Sprint` | `8` · `Budget` | Passo | **5** | ✅ ancora di D-041 (`Sprint 5`) |
+| `Action.Dash` | `3` · `LinearDash` | Impatto | **6** | ✅ ancora di D-041 (`Dash 6`) |
+| `Action.Charge` · `Action.Leap` · `Action.Reposition` | `3·3·2` · lineari | Impatto | **6** | derivato |
+| `Action.BasicAttack` *(risolta)* · `Action.Interact` su struttura | — | Impatto | **6** | derivato |
+| esplosione | — | evento ambientale, non un'azione | **10** | ✅ ancora di D-041 |
+
+⚠️ **`Withdraw` non è nel catalogo** e la prima stesura di questa tabella lo elencava come se lo fosse: è
+un **profilo** del movimento normale ([D-070](../../decisions/RT_PDR_00_Decision_Log.md)), non
+un'`ActionId`. Se il profilo porta un budget proprio di `2`, la regola gli dà `0` — ma va verificato dove
+quel budget vive prima di scriverlo come fatto.
+
+⚠️ **`Reposition` (2 celle) suona come un `Dash` (3 celle)**, ed è una conseguenza da dichiarare invece
+che da scoprire: la classe *Impatto* misura la **bruschezza**, non la distanza. Se un riposizionamento
+breve dovesse suonare meno, serve un quarto criterio — cioè una decisione nuova, non un aggiustamento.
 
 **Le tre ancore di D-041 non sono state rinegoziate: sono uscite dalla regola.**
 
@@ -395,14 +432,38 @@ l'area d'incertezza è centrata sull'**ascoltatore** e larga secondo il **suo** 
 squadra che ode ottiene **un** contatto»*, ma il test che descrive ha un ascoltatore solo: la domanda non era
 mai stata affrontata.
 
-**La squadra conosce l'intersezione delle aree.** La sorgente sta dentro l'area di *ciascun* ascoltatore,
-quindi intersecarle è logicamente corretto e **stringe** l'incertezza. Fa emergere una tattica vera e
-gratuita — tenere due eroi distanziati localizza meglio — ed è la stessa *copertura informativa* che la
-vista già possiede (D5 del brief: chi vede lontano estende il targeting di chi vede poco).
+**La squadra prende l'area dell'ascoltatore col MARGINE MAGGIORE** — chi ha sentito più forte, quindi chi
+è verosimilmente più vicino. Un'area sola, come il DoD chiede, e la meno larga fra quelle disponibili.
 
-⚠️ **Caso limite dichiarato**: `PlausibleOriginCells` **non riceve la sorgente** — è lì che vive la sua
-garanzia di non codificarla — quindi non può garantire che l'intersezione sia non vuota. Se lo è, si ripiega
-sull'**area più stretta** fra quelle degli ascoltatori. Il ripiego va scritto, non lasciato al caso.
+> 🔴 **Ritirata il 2026-08-27: la prima stesura diceva «l'intersezione», e la sua giustificazione era
+> falsa.** Diceva: *«la sorgente sta dentro l'area di ciascun ascoltatore, quindi intersecarle è
+> logicamente corretto»*. **Non lo è.** Il raggio di `PlausibleOriginCells` deriva dal **margine sopra
+> soglia** (`ReceivedNoise − HearingThreshold ≥ TightBandMargin ? 2 : 4`), mentre la distanza realmente
+> percorsa dal suono è `Budget − ReceivedNoise`. Sono due grandezze **scorrelate**, e l'area è quindi una
+> **euristica di plausibilità, non una garanzia di contenimento**.
+>
+> Controesempio coi valori versionati: un'esplosione (`Intensity 10`) su `Fire` (`NoiseDelta +4`) dà
+> `Budget 14`; un ascoltatore con soglia `3` a costo acustico `10` riceve `4` → margine `1` → area
+> **larga, raggio 4**. La sorgente è a **10**. Fuori.
+>
+> ⚠️ **E il caso limite che avevo dichiarato era quello sbagliato.** Non è l'intersezione *vuota*: è
+> l'intersezione **non vuota che esclude la sorgente**. Intersecare due stime imprecise produce un'area
+> più piccola, più sicura di sé, e più sbagliata — il difetto peggiore dei due, perché non si annuncia.
+
+⚠️ **Questa è una scelta di design, non solo una correzione tecnica, e va confermata dall'autore.** La
+triangolazione — due eroi distanziati che localizzano meglio — era una tattica emergente gradevole, e la
+si perde. Rifondarla richiederebbe che l'area fosse costruita sulla **distanza acustica** invece che sul
+margine, cioè una modifica a `PlausibleOriginCells` e un emendamento a
+[D-113](../../decisions/RT_PDR_00_Decision_Log.md): è lavoro proprio, con la sua issue.
+
+**Il test cambia di conseguenza.** `Noise.IntersectionNarrowsUncertainty` esce. Entrano:
+
+- `Noise.TeamTakesBestInformedArea` — con due ascoltatori a margini diversi, la squadra riceve **una**
+  voce, ed è quella del margine maggiore;
+- `Noise.AreaIsHeuristicNotGuarantee` — costruisce il controesempio qui sopra e **asserisce che la
+  sorgente cade fuori**. Un test che *documenta un limite* invece di fingere che non ci sia: se un giorno
+  l'area diventasse una garanzia, questo test diventerebbe rosso e costringerebbe a riaprire la decisione
+  invece di lasciarla scadere in silenzio.
 
 ### 6.5 Impianto
 
@@ -431,6 +492,38 @@ esattamente come `FRTIntentView` lo è da `FRTPlannedIntent`.
 reintroduce l'onniscienza che `HexBotPlay.HiddenEnemyFairness` ha appena chiuso.
 
 ⚠️ Il filtro vive **accanto** a `RTIntentPrivacyLibrary`, mai dentro `RTTurnLog*`.
+
+### 6.6 Il segnale acustico — la metà che mancava
+
+> 🔴 **Aggiunta il 2026-08-27. Un panel ha notato che questo documento si intitola «conoscenza parziale
+> VISIBILE» e che nel §6 la parola HUD non compariva mai**: tutti i test della Fase C erano headless
+> (`Noise.*`), e l'unico consumatore dichiarato era il bot. Un giocatore che sentiva un rumore, a fine
+> Fase C, **non vedeva nulla**. Il titolo prometteva ciò che i test non misuravano.
+
+**Quando la squadra ode qualcosa, appare un segnale** (decisione **N2** dell'autore, 2026-08-27).
+
+Il segnale è l'unico consumatore *umano* del canale acustico, e ha una grammatica propria perché il dato
+che lo alimenta è diverso da tutti gli altri: **un rumore non dice chi**. Quindi non è una sagoma, non
+porta un nome, non porta una barra.
+
+| | Contatto **visivo** perso | Contatto **acustico** |
+|---|---|---|
+| Cosa si sa | chi, dove era, quando scade | **che** qualcosa è successo, **dove circa** |
+| Forma | sagoma volumetrica monocroma (§4 A4) | **area** + un segnale, mai una figura |
+| Identità | il nome dell'eroe | **nessuna** |
+
+Il documento HUD ha già la voce: §25 assegna a *Uncertain Contact* «`?` + area approssimata».
+
+⚠️ **`progettazione-hud.md` §26 è più permissivo delle decisioni, e va corretto insieme a questa fase.**
+Elenca fra ciò che la modalità Sound «può mostrare» anche **categoria** e **intensità**: entrambe vietate —
+riconoscere il *tipo* di un rumore è il Livello 5 della scala e resta fuori dalla v0.1
+([D-113](../../decisions/RT_PDR_00_Decision_Log.md)), e mostrare il *volume* renderebbe il rumore un
+identificatore della sorgente ([D-123](../../decisions/RT_PDR_00_Decision_Log.md)). Il segnale mostra
+**dove circa**, e nient'altro.
+
+**Test**: `Knowledge.AcousticSignalCarriesNoIdentity` — il DTO del segnale non contiene `SourceUnitId`,
+`NoiseType` né `Intensity`, e la verifica è sull'**assenza dei campi**, non sul loro valore. Più la voce
+PIE `PIE-V01-NOISE`, che è l'unica cosa qui che nessun test automatico può misurare.
 
 ---
 
@@ -503,9 +596,30 @@ Le Fasi A e B **non si allargano dentro #160 in silenzio**: servono due issue pr
 
 ## 10. Fuori perimetro, dichiarato
 
-- **La fetta 2 — fog of war sul terreno**: il velo a **tre** stati (mai esplorata / esplorata ma non
-  osservata / osservata ora). Il meccanismo di §5.3 è il suo substrato: quella fetta aggiunge uno stato, non
-  costruisce una seconda macchina.
+- **La fetta 2 — fog of war sul terreno.** Il meccanismo di §5.3 è il suo substrato: quella fetta cambia il
+  **trattamento** delle celle non osservate, non costruisce una seconda macchina.
+
+  > 🔴 **`N1` (2026-08-27): l'autore chiede che la fog of war NASCONDA la parte di mappa che nessuno della
+  > squadra osserva** — graybox come resa provvisoria, effetto fumo/nebbia in seguito. *(«Nebbia» è qui la
+  > **meccanica** in senso figurato, da non confondere con `Terrain.Smoke`, che è una superficie di gioco
+  > con regole proprie.)*
+  >
+  > **Non è un emendamento a `progettazione-hud.md` §25: è un cambio di perimetro della release.**
+  > `piano-canonico-mvp.md` — che questo documento dichiara sovraordinato — classifica la fog of war come
+  > **P1**, cioè fuori dalla v0.1, e il brief scrive *«lo slice non è fog of war: la mappa statica resta
+  > nota»*. Serve una **`D-nnn` di scope**, non una nota a piè di pagina.
+  >
+  > ⚠️ **Ma la richiesta è fondata, e l'obiezione iniziale di questo documento no.** La §5.1 sceglieva il
+  > velo «leggibile ma spento» su una premessa mai misurata: che l'arena fosse piccola e nascondere fosse
+  > punitivo. L'arena di prova è un esagono di **lato 50 → 7 351 celle**
+  > (`3R² + 3R + 1` con `R = 49`, la stessa convenzione di `URTHexLibrary::HexArea`). Il cono a 120° copre
+  > `R² + 2R` celle: Gadget (vista 7) ne vede ~74, Wraith ~59, Phase e Riktor ~46. **Una squadra di due ne
+  > conosce circa il 2%.** Disegnare il restante 98% spento non è leggibilità, è rumore visivo — e §25 si
+  > oppone a una *mappa nera*, che è un'altra cosa dal non disegnare ciò che nessuno osserva.
+  >
+  > ⏳ **Resta una misura da prendere prima di stimare il costo**: se la geometria visibile di un livello
+  > venga dagli `InstancedStaticMeshComponent` che `ARTHexMapActor` governa — nel qual caso nascondere è lo
+  > stesso meccanismo di §5.3 — oppure da attori posati nel `.umap`, nel qual caso è un sistema nuovo.
 - **L'Action Ghost** (#249): questa spec ne fissa la grammatica, non lo implementa.
 - **Il profilo `Sneak`**: la regola derivata ha bisogno di `CostMP`, e `Sneak` non ne ha uno.
   **`AE-5` resta aperta**, e §6.1 **non** la chiude. Dirlo qui è l'unico modo perché nessuno creda il
