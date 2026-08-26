@@ -27,6 +27,7 @@ Uso:  python3 tools/hud-assets/generate_hud_assets.py [--out <dir>]
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import math
 import sys
@@ -34,7 +35,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from action_axes import action_axes
+from action_axes import action_axes, hero_ability_axes, surfaces_created
 
 try:
     import cairosvg
@@ -255,7 +256,7 @@ def g_basic_attack() -> str:
     """`BasicAttack`: reticolo + impatto. Deve restare distinto da `Overwatch` (occhio + settore, §7)."""
     return "\n".join([
         circle(12, 12, 6.2),
-        line(12, 2.6, 12, 5.2), line(12, 18.8, 12, 21.4),
+        line(12, 3.7, 12, 5.6), line(12, 18.8, 12, 21.4),
         line(2.6, 12, 5.2, 12), line(18.8, 12, 21.4, 12),
         dot(12, 12, 1.5),
         path("M13.6 10.4 L15.8 8.2 M10.2 13.4 L8.2 15.4 M13.2 13.6 L14.8 15.4",
@@ -281,7 +282,7 @@ def g_guard() -> str:
 def g_brace() -> str:
     """`Brace`: body/anchor + **cuneo di contrasto**. Non riusa il glifo di `Shield` (§4.1)."""
     return "\n".join([
-        path("M9.8 1.6 L12 3.8 L14.2 1.6", stroke_width=1.3),
+        path("M9.8 3.6 L12 5.6 L14.2 3.6", stroke_width=1.3),
         path("M12 6.2 L6.8 12 L17.2 12 Z"),
         dot(12, 15.6, 1.7),
         path("M5.8 19.4 L18.2 19.4"),
@@ -638,7 +639,7 @@ def g_precision_attack() -> str:
     return "\n".join([
         circle(12, 12, 4.4, stroke_width=1.5),
         dot(12, 12, 1.4),
-        path("M12 2.8 L12 6.2 M12 17.8 L12 21.2 M2.8 12 L6.2 12 M17.8 12 L21.2 12",
+        path("M12 3.4 L12 6.4 M12 17.8 L12 21.2 M2.8 12 L6.2 12 M17.8 12 L21.2 12",
              stroke_width=1.3),
     ])
 
@@ -648,7 +649,7 @@ def g_heavy_attack() -> str:
     e la massa la porta il tratto, non il numero."""
     return "\n".join([
         dot(12, 12, 2.6),
-        path("M12 9 L11 3.4 M15 11 L20.8 9.4 M13 15 L15.6 20.4 M9 13.4 L3.4 15.4",
+        path("M12 9 L11.2 3.8 M15 11 L20.8 9.4 M13 15 L15.6 20.4 M9 13.4 L3.4 15.4",
              stroke_width=2.2),
     ])
 
@@ -763,7 +764,7 @@ def g_shield() -> str:
     """`Shield`: risorsa che assorbe. Scudo geometrico con **ampio negative space** — non e' `Cover`
     (barriera ancorata) e non e' `Brace` (cuneo di contrasto)."""
     return "\n".join([
-        path("M12 3.4 L19.6 6.6 L19.6 12.6 Q19.6 18.6 12 21.4 Q4.4 18.6 4.4 12.6 L4.4 6.6 Z"),
+        path("M12 3.9 L19.6 7 L19.6 12.8 Q19.6 18.6 12 21.4 Q4.4 18.6 4.4 12.8 L4.4 7 Z"),
     ])
 
 
@@ -894,9 +895,9 @@ def g_create_cover() -> str:
 def g_create_water() -> str:
     """`CreateWater`: superficie, non goccia. `Water` non cambia colore in base alla squadra (§2.2)."""
     return "\n".join([
-        waves(13.4),
-        waves(17.6, stroke_width=1.5),
-        path("M17.4 4.4 L17.4 10.4 M14.4 7.4 L20.4 7.4", stroke_width=1.6),
+        waves(12.4, x0=3.6, span=13.2),
+        waves(16.6, x0=3.6, span=13.2, stroke_width=1.5),
+        path("M17.4 4.6 L17.4 10.4 M14.4 7.4 L20.4 7.4", stroke_width=1.6),
     ])
 
 
@@ -904,9 +905,9 @@ def g_electrify() -> str:
     """`Electrify`: payload `Electric` su una superficie. Contro `Status.Electrified`: qui c'e' la
     superficie sotto, la' c'e' l'unita'."""
     return "\n".join([
-        path("M12 3.4 L8.6 10.4 L13 10.4 L9.6 16.6", stroke_width=1.8),
-        path("M3.6 19.6 L20.4 19.6", stroke_width=1.6),
-        path("M15 14.6 L18.6 14.6 M16.2 11.4 L19.4 11.4", stroke_width=1.3),
+        path("M12 3.9 L8.6 10.4 L13 10.4 L9.6 16.6", stroke_width=1.8),
+        path("M3.6 19.6 L16.4 19.6", stroke_width=1.6),
+        path("M14.6 14.6 L17.4 14.6 M15.6 11.4 L18.2 11.4", stroke_width=1.3),
     ])
 
 
@@ -914,9 +915,9 @@ def g_ignite() -> str:
     """`Ignite`: calore che sale da una superficie. Niente fiamma disegnata — la grammatica `Damage`
     vieta l'icona-oggetto, e una fiamma qui competerebbe con `Status.Burning`."""
     return "\n".join([
-        path("M3.6 19.6 L20.4 19.6", stroke_width=1.6),
-        path("M8 16.4 Q6 12.4 9 9.4 Q10.4 12.4 12 10.4", stroke_width=1.5),
-        path("M14.6 16.4 Q12.4 11.4 16 6.6 Q17.4 11.4 19.4 12.4", stroke_width=1.5),
+        path("M3.6 19.6 L16.6 19.6", stroke_width=1.6),
+        path("M7 16.4 Q5 12.4 8 9.4 Q9.4 12.4 11 10.4", stroke_width=1.5),
+        path("M13 16.4 Q10.8 11.4 14.4 6.6 Q15.8 11.4 17.8 12.4", stroke_width=1.5),
     ])
 
 
@@ -1259,8 +1260,8 @@ def g_wraith_passing_blade() -> str:
     unita' attraversate, ed e' l'unica differenza che conta."""
     return "\n".join([
         dot(3.2, 18.6, 1.6),
-        path("M4.8 17.2 L19.4 5.4", stroke_width=2.0),
-        arrow_head(21 , 4.4, 2.2),
+        path("M4.8 17.2 L18.4 7", stroke_width=2.0),
+        arrow_head(20.2, 5.8, 2.0),
         path("M8.2 10.6 L12.2 15.4 M12.6 6.4 L16.6 11.2", stroke_width=1.5),
     ])
 
@@ -1286,7 +1287,7 @@ def g_wraith_feint() -> str:
     return "\n".join([
         dot(3.4, 12, 1.7),
         path("M5.4 11 L14.4 6.6", stroke_dasharray="2.6 2.2", stroke_width=1.5),
-        circle(18.4, 5.4, 2.2, stroke_dasharray="2 2", stroke_width=1.3),
+        circle(18.4, 6, 2.2, stroke_dasharray="2 2", stroke_width=1.3),
         path("M5.4 13 L15.4 17.6", stroke_width=2.0),
         arrow_head(19.4, 19.4, 2.2),
     ])
@@ -2364,6 +2365,97 @@ def _sheet_size() -> tuple[int, int]:
     return cols * cell + pad * 2, rows * cell + pad * 2 + 40
 
 
+# --------------------------------------------------------------------------------------------------
+# I gate dell'alfabeto
+# --------------------------------------------------------------------------------------------------
+# Non sono raccomandazioni: il generatore esce con 1 se cadono. Un alfabeto le cui regole si
+# verificano a occhio dura fino alla prima persona distratta.
+
+RAIL_BAND = 2.6
+SURFACE_BOX = (17.4, 18.8, 21.6, 23.2)
+
+# L'unica deroga a T7, e sta scritta qui invece di essere silenziata perche' una deroga che nessuno
+# vede diventa la regola. `Action.Dodge` e' disegnata sulla decisione dell'handoff del 2026-08-26
+# §4.1 (LOCKED_CHAT) e il catalogo generico non la spedisce ancora: senza fase dichiarata non puo'
+# portare il binario, e portarlo comunque significherebbe inventare in quale fase risolve.
+#
+# ⛔ Il giorno in cui il rename atterra, questa riga si CANCELLA e il glifo prende la sua stazione da
+# solo. Se qualcuno la trova ancora qui dopo, e' un residuo — e a quel punto `Action.Evade` e
+# `Action.Dodge` vanno riconciliate, che e' la domanda aperta da allora.
+ALPHABET_EXEMPT = {
+    "Action.Dodge": "handoff 2026-08-26 §4.1: decisa, non ancora nel catalogo generico",
+}
+
+
+def _ink_rows(glyph_svg: str, resolution: int = 240):
+    """Le righe della griglia 24 che il glifo tocca, e le celle occupate. Rasterizza UNA volta.
+
+    ⚠️ Scritto dopo aver sbagliato: la prima stesura rasterizzava dentro il ciclo sui pixel, cioe'
+    una volta per pixel. Non era lento, era inutilizzabile.
+    """
+    if cairosvg is None:
+        return None
+    from PIL import Image  # dipendenza gia' tirata da cairosvg
+    png = cairosvg.svg2png(bytestring=glyph_svg.encode("utf-8"),
+                           output_width=resolution, output_height=resolution)
+    return Image.open(io.BytesIO(png)).convert("RGBA").split()[3]
+
+
+def check_alphabet_gates(entries: list) -> list[str]:
+    """T1, T3, T5, T6, T7 della specifica. Restituisce gli errori; vuoto = passa."""
+    errors: list[str] = []
+    scale = 240 / GRID
+
+    # T5 — nessuna azione dichiara una fase senza stazione.
+    for key, axes in {**action_axes(), **hero_ability_axes()}.items():
+        if axes.get("phase") in PHASES_WITHOUT_STATION:
+            errors.append(f"T5: `{key}` dichiara `{axes['phase']}`, che non ha stazione sul binario")
+
+    # T6 — il binario resta aperiodico. E' cio' che gli impedisce di leggersi come un tratteggio,
+    # cioe' di dire la cosa di `Certainty.Uncertain`.
+    centres = sorted(PHASE_STATIONS.values())
+    steps = [b - a for a, b in zip(centres, centres[1:])]
+    if min(steps) > 0 and max(steps) / min(steps) < 1.8:
+        errors.append(f"T6: il binario e' tornato quasi periodico "
+                      f"(passo max/min = {max(steps) / min(steps):.2f}, serve >= 1.8)")
+
+    # T7 — la fase si legge dal C++, mai a mano.
+    known = set(action_axes()) | set(hero_ability_axes())
+    for semantic, _glyph, _tok, _org in entries:
+        if icon_category(semantic) != "Action":
+            continue
+        key = semantic[len("Action."):] if semantic.startswith("Action.Hero.") else semantic
+        if key not in known and semantic not in ALPHABET_EXEMPT:
+            errors.append(f"T7: `{semantic}` non compare in nessuna tabella degli assi")
+
+    if cairosvg is None:
+        errors.append("T1/T3: non misurabili senza cairosvg")
+        return errors
+
+    band = int(RAIL_BAND * scale)
+    bx0, by0, bx1, by1 = (int(v * scale) for v in SURFACE_BOX)
+    surfaces = surfaces_created()
+
+    for semantic, glyph, _tok, _org in entries:
+        if icon_category(semantic) != "Action":
+            continue
+        alpha = _ink_rows(svg_doc(glyph()))   # il VERBO nudo, senza gli strati dell'alfabeto
+        pixels = alpha.load()
+
+        # T1 — la banda del binario e' riservata.
+        if any(pixels[x, y] > 24 for y in range(band) for x in range(alpha.width)):
+            errors.append(f"T1: `{semantic}` invade la banda del binario (y < {RAIL_BAND})")
+
+        # T3 — il riquadro dell'esagono di superficie e' libero, per chi ne lascia una.
+        key = semantic[len("Action."):] if semantic.startswith("Action.Hero.") else semantic
+        if key in surfaces:
+            n = sum(1 for y in range(by0, by1) for x in range(bx0, bx1) if pixels[x, y] > 24)
+            if n:
+                errors.append(f"T3: `{semantic}` occupa il riquadro dell'esagono "
+                              f"di superficie ({n} celle)")
+    return errors
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", default="Content/RT/UI/_Generated",
@@ -2375,6 +2467,27 @@ def main() -> int:
     # movimento, effetti. Sono il dato su cui una codifica di fase/effetto puo' poggiare senza che
     # nessuno riscriva a mano la mappa azione -> fase.
     AXES = action_axes()
+    HERO_AXES = hero_ability_axes()
+    SURFACES = surfaces_created()
+
+    def alphabet_layers(semantic: str, category: str) -> tuple[str, dict | None]:
+        """Gli strati dell'alfabeto per una chiave, e gli assi da cui vengono.
+
+        ⚠️ Solo `Action.*`. Un binario su una superficie o su uno stato direbbe che quella cosa
+        «risolve in una fase», che non e' vero: le fasi le hanno le azioni.
+        """
+        if category != "Action":
+            return "", None
+        # `Action.Hero.Gadget.Overload` -> `Hero.Gadget.Overload`; `Action.Move` -> `Action.Move`
+        key = semantic[len("Action."):] if semantic.startswith("Action.Hero.") else semantic
+        axes = HERO_AXES.get(key) or AXES.get(key)
+        if not axes:
+            return "", None
+        layers = [phase_rail(axes["phase"])] if axes.get("phase") else []
+        surface = SURFACES.get(key)
+        if surface:
+            layers.append(surface_hex(surface))
+        return "\n".join(layers), axes
     manifest: dict = {
         "generator": "tools/hud-assets/generate_hud_assets.py",
         "grammatica": "docs/research/design/icon/visual-language/",
@@ -2390,19 +2503,25 @@ def main() -> int:
         asset, iid, category = asset_name(semantic), icon_id(semantic), icon_category(semantic)
         drawn.add(iid)
         hero = hero_of(semantic)
-        svg = svg_doc(compose(glyph(), hero_sigil(hero) if hero else ""))
+        alphabet, axes = alphabet_layers(semantic, category)
+        svg = svg_doc(compose(glyph(), hero_sigil(hero) if hero else "", alphabet))
         _write(root / "Icons" / f"{asset}.svg", svg)
         min_size = MIN_READABLE.get(category, DEFAULT_MIN_READABLE)
         sizes = [s for s in PNG_SIZES if s >= min_size]
         for size in sizes:
             if _rasterize(svg, root / "Icons" / f"{asset}_{size}.png", size, size):
                 rasterized += 1
-        axes = AXES.get(semantic) if category == "Action" else None
         manifest["icons"].append({
             "AssetName": asset,
             "IconId": iid,
             "Category": category,
             "Axes": axes,
+            "Alphabet": {
+                "PhaseStation": PHASE_STATIONS.get(axes["phase"]) if axes and axes.get("phase")
+                else None,
+                "SurfaceCreated": SURFACES.get(
+                    semantic[len("Action."):] if semantic.startswith("Action.Hero.") else semantic),
+            } if axes else None,
             "NativeSize": [int(GRID), int(GRID)],
             "PngSizes": sizes,
             "MinReadableSize": min_size,
@@ -2463,7 +2582,19 @@ def main() -> int:
         "fuori_dal_set_richiesto": extra,
         "letto_da": {k: str(v.relative_to(REPO_ROOT)) for k, v in SOURCES.items()},
     }
+    gate_errors = check_alphabet_gates(ICONS)
+    manifest["alphabet_gates"] = gate_errors or "passati"
+
     print(f"{len(ICONS)} icone + {len(FRAMES)} cornici -> {root}")
+    if gate_errors:
+        print(f"⛔ {len(gate_errors)} gate dell'alfabeto caduti:")
+        for e in gate_errors:
+            print(f"   {e}")
+    else:
+        print("✅ gate dell'alfabeto: T1 banda libera · T3 riquadro libero · T5 fasi note · "
+              "T6 aperiodico · T7 fase derivata")
+        for key, why in ALPHABET_EXEMPT.items():
+            print(f"   ⏱️  deroga dichiarata: {key} — {why}")
     if missing:
         print(f"⛔ {len(missing)} chiavi richieste SENZA icona:")
         for m in missing:
@@ -2483,7 +2614,7 @@ def main() -> int:
         print("⚠️  cairosvg assente: scritti solo gli SVG. `pip install cairosvg` per i PNG.")
     else:
         print(f"{rasterized} PNG rasterizzati")
-    return 1 if missing else 0
+    return 1 if (missing or gate_errors) else 0
 
 
 
@@ -2576,6 +2707,91 @@ def hero_of(semantic: str):
     """`Action.Hero.Wraith.Feint` -> `Wraith`. `Action.Move` -> None."""
     parts = semantic.split(".")
     return parts[2] if len(parts) >= 4 and parts[1] == "Hero" else None
+
+
+# --------------------------------------------------------------------------------------------------
+# L'alfabeto — Fase 1: cio' che una variante d'arma non puo' cambiare
+# --------------------------------------------------------------------------------------------------
+# La regola che decide l'architettura, e non e' un'opinione: `FRTAbilityVariant`
+# (`Ability/RTActionData.h`) dichiara due soli campi di contenuto — `Effects` («sostituiscono per
+# intero») e `Parameters`. NON contiene `ResolutionPhase`, NON contiene `bCreatesSurface`, NON
+# contiene `Shape`.
+#
+# Quindi fase e superficie creata sono affermazioni vere sotto qualunque loadout e si possono cuocere
+# nel PNG. Gli effetti no: cuocerli sarebbe una bugia che il giocatore non puo' rilevare, ed e' il
+# motivo per cui il registro delle conseguenze resta un layer a runtime e non entra qui.
+#
+# IL BINARIO NON E' PERIODICO, ed e' la correzione piu' importante rispetto alla prima stesura. Sei
+# tacche a passo costante sotto ~3 px non leggono come struttura ma come **texture punteggiata** —
+# cioe' un falso positivo su `Certainty.Uncertain`, cioe' un asse che dice la cosa di un altro asse.
+# Il binario ha una sola discontinuita', il varco centrale, e le due stazioni che lo toccano sono
+# `Control` e `Attack`: la coppia che decide il turno («riesco a deflettere prima che colpisca?») e'
+# quella che regge piu' a lungo invece di essere la prima a fondersi.
+#
+# Le stazioni NON si spostano fra una taglia e l'altra. Cio' che degrada e' la risoluzione del
+# lettore, non la geometria: a 16 px sopravvive solo il LATO — prima del colpo, o dal colpo in poi.
+
+RAIL_GAP = (10.6, 13.4)
+
+# Ordine di turno reale, non ordine numerico di `ResolutionPhaseCode`.
+PHASE_STATIONS = {
+    "Preparation": 4.4,
+    "FastMovement": 6.8,
+    "Control": 9.2,        # contro il varco, a sinistra
+    "Attack": 14.8,        # contro il varco, a destra
+    "NormalMovement": 17.2,
+    "Environment": 19.6,
+}
+
+# `Snapshot` e `Cleanup` non hanno stazione: zero azioni su 57. Se una si popola il generatore
+# SOLLEVA — il silenzio sarebbe peggio dell'errore.
+PHASES_WITHOUT_STATION = ("Snapshot", "Cleanup")
+
+
+def phase_rail(phase: str) -> str:
+    """La tacca della fase sul binario alto, con le due guide e il varco."""
+    if phase in PHASES_WITHOUT_STATION:
+        raise ValueError(
+            f"`{phase}` non ha una stazione sul binario e nessuna azione dovrebbe dichiararla. "
+            "Se il gioco ha cambiato idea, la stazione si aggiunge qui — non si inventa a runtime.")
+    if phase not in PHASE_STATIONS:
+        raise ValueError(f"fase sconosciuta: {phase}")
+    cx = PHASE_STATIONS[phase]
+    return "\n".join([
+        path(f"M{_n(RAIL_X0)} {_n(RAIL_TOP_Y)} L{_n(RAIL_GAP[0])} {_n(RAIL_TOP_Y)}",
+             stroke_width=0.7, stroke_opacity="0.4"),
+        path(f"M{_n(RAIL_GAP[1])} {_n(RAIL_TOP_Y)} L{_n(RAIL_X1)} {_n(RAIL_TOP_Y)}",
+             stroke_width=0.7, stroke_opacity="0.4"),
+        path(f"M{_n(cx - 1.0)} {_n(RAIL_TOP_Y)} L{_n(cx + 1.0)} {_n(RAIL_TOP_Y)}",
+             stroke_width=2.3),
+    ])
+
+
+# La cella esagonale che `04-regole-di-composizione.md` promette alle superfici e che nessuno aveva
+# speso. Sta al terminale destro della corsa di suolo — riquadro x 17.4..21.6, y 18.8..23.2.
+#
+# Il RAGGIO non si codifica: `SurfaceRadius` e' un numero, e §41.2 vieta di cuocere un'area in un
+# asset fisso. `Ignite` (raggio 0) e `CreateWater` (raggio 1) portano lo stesso esagono.
+SURFACE_HEX = (19.5, 21.0, 2.2)
+
+
+def surface_hex(surface: str) -> str:
+    """L'esagono della superficie lasciata, con la riduzione minima dell'elemento."""
+    cx, cy, r = SURFACE_HEX
+    inner = {
+        "Fire": path(f"M{_n(cx)} {_n(cy - 1.2)} Q{_n(cx - 1.2)} {_n(cy)} "
+                     f"{_n(cx - 0.3)} {_n(cy + 1.1)} Q{_n(cx + 0.1)} {_n(cy - 0.1)} "
+                     f"{_n(cx + 1)} {_n(cy - 0.4)} Z", stroke_width=0.9),
+        "ShallowWater": waves(cy, x0=cx - 1.5, span=3.0, amp=0.7, stroke_width=0.9),
+        "Smoke": path(f"M{_n(cx - 1.4)} {_n(cy - 0.6)} L{_n(cx + 1.4)} {_n(cy - 0.6)} "
+                      f"M{_n(cx - 0.9)} {_n(cy + 0.7)} L{_n(cx + 1.2)} {_n(cy + 0.7)}",
+                      stroke_width=0.9),
+    }.get(surface)
+    if inner is None:
+        raise ValueError(
+            f"nessuna azione spedisce la superficie `{surface}`: un segno che il gioco non genera "
+            "non si risolve mai, e disegnarlo e' un debito senza soggetto")
+    return "\n".join([polygon(hexagon(cx, cy, r), stroke_width=1.3), inner])
 
 
 def compose(base: str, *layers: str) -> str:

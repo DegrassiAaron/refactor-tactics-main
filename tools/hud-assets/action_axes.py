@@ -289,3 +289,52 @@ def hero_ability_axes() -> dict[str, dict]:
                 "hero": ability.split(".")[1],
             }
     return out
+
+
+# --------------------------------------------------------------------------------------------------
+# La superficie che un'azione lascia
+# --------------------------------------------------------------------------------------------------
+# Tre azioni su 57 impostano `bCreatesSurface`, e tutte e tre hanno `Effects` VUOTO. Senza questo dato
+# escono con il registro spento e leggono «non fa niente», che e' falso: il loro esito *e'* la
+# superficie. E' il 5% del catalogo, ed e' il 5% che altrimenti mente.
+#
+# ⚠️ Il campo non si legge dalla firma di `ShippedAction`: si assegna DOPO, su una variabile locale
+# (`Ignite.bCreatesSurface = true`) o sul `Def` di un'ability (`MistVeil->Def.bCreatesSurface`). Un
+# parser che guardasse solo le chiamate non lo troverebbe mai — e non fallirebbe: direbbe zero.
+
+SURFACE_SOURCES = (
+    REPO_ROOT / "Source/RefactorTactics/Ability/RTCatalogLibrary.cpp",
+    REPO_ROOT / "Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp",
+)
+
+
+def surfaces_created() -> dict[str, str]:
+    """`Action.Ignite` -> `Fire`. Chiave = ActionId o `Hero.<Eroe>.<Abilita>`.
+
+    Il legame fra la variabile locale e l'identificatore si ricostruisce all'indietro: si prende il
+    nome della variabile che porta `bCreatesSurface`, si cerca dove e' stata costruita, e da li'
+    l'ID. Se il legame non si chiude, la voce **non entra** invece di entrare sbagliata.
+    """
+    out: dict[str, str] = {}
+    for source in SURFACE_SOURCES:
+        text = source.read_text(encoding="utf-8")
+        for m in re.finditer(r"(\w+)(?:->Def)?\.bCreatesSurface\s*=\s*true", text):
+            var = m.group(1)
+            kind = re.search(
+                rf"{re.escape(var)}(?:->Def)?\.SurfaceCreated\s*=\s*ERTHexSurface::(\w+)", text)
+            if not kind:
+                continue
+            # L'identificatore: la costruzione della variabile e' PRIMA dell'assegnazione.
+            before = text[:m.start()]
+            ident = None
+            for pattern in (rf"{re.escape(var)}\s*=\s*ShippedAction\(TEXT\(\"([\w.]+)\"\)",
+                            rf"TEXT\(\"([\w.]+)\"\)[^;]*?\)\s*;\s*(?://[^\n]*\n\s*)*"
+                            rf"{re.escape(var)}\s*=",
+                            rf"(Hero\.\w+\.\w+)\"\)"):
+                found = re.findall(pattern, before, re.S)
+                if found:
+                    ident = found[-1]
+                    break
+            if ident:
+                out[ident] = kind.group(1)
+    return out
