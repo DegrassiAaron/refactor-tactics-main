@@ -3355,10 +3355,13 @@ void ARTTurnManager::ResolveDash()
 			// ROTTA: quella che non si e' percorsa.
 			Superseded.SrcCell = PreDashCell;       // da dove il movimento sarebbe partito
 			Superseded.TgtCell = Unit->PlannedCell; // la destinazione dichiarata e mai raggiunta
-			// `Amount` conta le celle del percorso A WAYPOINT. Un piano che dichiara solo una destinazione —
-			// il bot, che «pianifica destinazioni, non percorsi a waypoint» — porta `0`, e la destinazione
-			// resta leggibile in `TgtCell`. Non si stima dalla distanza: sarebbe un numero che nessuno ha
-			// percorso, in un formato che finisce nell'hash del replay.
+			// `Amount` conta le celle del percorso RISOLTO — la stessa parola che usano `RTTurnLog.h` e
+			// `spec-turnlog.md`, perche' due formulazioni per lo stesso campo sono la premessa di un difetto
+			// gia' pagato: un'asserzione che confrontava `Amount` con i CLICK invece che col percorso passava
+			// solo perche' in quello scenario i due numeri coincidevano. Un piano che dichiara solo una
+			// destinazione — il bot, che «pianifica destinazioni, non percorsi a waypoint» — porta `0`, e la
+			// destinazione resta leggibile in `TgtCell`. Non si stima dalla distanza: sarebbe un numero che
+			// nessuno ha percorso, in un formato che finisce nell'hash del replay.
 			Superseded.Amount = FMath::Max(0, Unit->PlannedPath.Num() - 1);
 			AppendLogEntry(Superseded, Unit);
 		}
