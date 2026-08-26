@@ -1262,6 +1262,24 @@ ERTTraceComparison URTTurnLogLibrary::CompareSerializedTraces(const TArray<uint8
  * Passa dalla `HashTurnLogOrdered` di una voce sola invece di elencare i campi a mano: cosi' l'elenco
  * resta uno solo (`MixEntryFields`) e non puo' divergere in silenzio da quello vero.
  */
+bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
+{
+	if (Entry.UnitId == 0)
+	{
+		return false; // nessuna unita' dichiarata: non c'e' nessun soggetto di cui dire il ruolo
+	}
+	// Il danno ambientale: la domanda ce l'ha gia' una funzione sua, e passarci evita di duplicarne il
+	// riconoscimento della causa — che ha una rete di sicurezza e un motivo per averla.
+	if (IsEnvironmentalDamage(Entry))
+	{
+		return true;
+	}
+	// La guardia (o la copertura) scavalcata da un colpo alle spalle: la voce descrive l'orientamento del
+	// DIFENSORE, quindi il soggetto e' chi ha subito il colpo. L'attaccante e' in `SrcCell` (`#1418`).
+	return Entry.Category == ERTLogCategory::Facing
+		&& Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+}
+
 bool URTTurnLogLibrary::GoldenEntriesMatch(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
 {
 	return URTTurnLogLibrary::HashTurnLogOrdered({ A }) == URTTurnLogLibrary::HashTurnLogOrdered({ B });

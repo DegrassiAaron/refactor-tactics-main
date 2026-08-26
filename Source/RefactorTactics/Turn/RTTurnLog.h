@@ -650,9 +650,20 @@ struct FRTTurnLogEntry
 	 *
 	 * 🔴 **`Facing`/`RearHitBypassedCover` fa lo stesso, e per una ragione diversa** (`#1418`): non e' che
 	 * manchi l'attaccante — c'e', ed e' in `SrcCell`. E' che la voce descrive **l'orientamento del
-	 * difensore**, quello che non ha retto: `Amount` porta il suo `Facing` e `TgtCell` la sua cella. E' la
-	 * regola di tutta la categoria, che `URTFacingLibrary::MakeFacingEntry` applica mettendo cella e
-	 * direzione dell'unita' di cui sta raccontando l'orientamento.
+	 * difensore**, quello che non ha retto: `Amount` porta il suo `Facing`, `TgtCell` la sua cella.
+	 *
+	 * ⚠️ **Non e' «la regola della categoria»**, e vale la pena dirlo perche' sembra esserlo: le altre voci
+	 * `Facing` non dichiarano nessuna unita'. `URTFacingLibrary::MakeFacingEntry` scrive direttamente nel
+	 * log del chiamante senza passare da `AppendLogEntry`, quindi `DerivedFromMove`, `DerivedFromDash`,
+	 * `DeclaredInPlanning`, `UsedByBlast` e le altre restano a `UnitId = 0` (aperta come `#1429`). Questa e'
+	 * l'unica voce `Facing` che accredita qualcuno — ed e' anche l'unica in cui `SrcCell` e' la cella di
+	 * un'unita' DIVERSA dal soggetto.
+	 *
+	 * ⚠️ **Cosa si perde, detto invece che taciuto**: con `UnitId` sul difensore, l'attaccante resta nella
+	 * voce solo come `SrcCell` — e questo stesso commento dichiara che la cella non identifica un'unita'.
+	 * Chi volesse aggregare gli scavalcamenti per ATTACCANTE (la sovrastima del bot, `RTHexBotLibrary.h:94`)
+	 * non ha piu' un campo da cui leggerlo. E' il costo di avere un solo `UnitId` per una voce che ha due
+	 * capi, ed e' registrato in `#1430` insieme all'altro difetto della stessa voce.
 	 *
 	 * ⚠️ Quell'esito ha **due produttori** — il ramo della Guard e quello della copertura — e i due usano
 	 * `Amount` per cose diverse: direzione del difensore il primo, punti di riduzione scavalcati il secondo.

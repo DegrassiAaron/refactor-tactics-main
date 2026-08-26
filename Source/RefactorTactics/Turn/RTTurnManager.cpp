@@ -1960,6 +1960,12 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 	// Dash la cella dell'attore in fase Blast non e' piu' quella di partenza. Per questo l'attore arriva come
 	// parametro e non si deduce.
 	//
+	// ⚠️ **Non per TUTTE le voci**, e chi aggiunge un produttore deve saperlo prima di scegliere cosa
+	// passare: alcune famiglie invertono e mettono qui CHI SUBISCE. L'elenco e la ragione di ognuna stanno
+	// nel commento di `FRTTurnLogEntry::UnitId`; la domanda si fa a
+	// `URTTurnLogLibrary::IsSubjectTheSufferer`, che porta la tassonomia in un posto solo invece di lasciarla
+	// a chi si ricorda di aver letto la prosa.
+	//
 	// `nullptr` -> `0`, cioe' «nessuna unita' dichiarata». Il parametro e' OBBLIGATORIO di proposito: reso
 	// opzionale, un sito nuovo erediterebbe lo zero in silenzio e la voce direbbe «nessuno» invece di tacere.
 	Entry.UnitId = Actor ? Actor->StableUnitId : 0;
@@ -4095,8 +4101,13 @@ void ARTTurnManager::ResolveCombat()
 		//
 		// Un colpo che scavalca ENTRAMBE le protezioni produce due voci, ed e' corretto: sono due
 		// annullamenti distinti dello stesso colpo.
+		// `Victim` si guarda, come ogni loop gemello di questa funzione (`:3937`, `:3803`): senza,
+		// `AppendLogEntry` scriverebbe `UnitId = 0`, che il suo commento definisce «nessuna unita'
+		// dichiarata» — la voce direbbe che il colpo alle spalle e' arrivato a nessuno, mentre l'altro
+		// produttore nomina sempre qualcuno. Due voci della stessa `(Category, Outcome)` di nuovo in
+		// disaccordo, cioe' cio' che `#1418` esiste per togliere.
 		if (Hit.CoverBypassedByFacing > 0 && HexUnits.IsValidIndex(Hit.AttackerId)
-			&& HexUnits.IsValidIndex(Hit.TargetId))
+			&& HexUnits.IsValidIndex(Hit.TargetId) && Victim)
 		{
 			FRTTurnLogEntry BypassedCover;
 			BypassedCover.Phase = ERTMatchPhase::Blast;
