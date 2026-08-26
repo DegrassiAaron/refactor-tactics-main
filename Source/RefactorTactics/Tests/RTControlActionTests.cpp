@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatLibrary.h"
@@ -76,12 +77,7 @@ namespace
 
 	ARTHexMapActor* SpawnControlMap(UWorld* World, int32 Radius = 6)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = M;
@@ -191,8 +187,7 @@ bool FRTPushInvalidDestinationTest::RunTest(const FString&)
 	// Nome vincolante del catalogo v0.1 §5. "Destinazione bloccata = spostamento annullato": se la prima
 	// cella nella direzione della spinta e' un ostacolo o un'unita', il bersaglio NON si sposta affatto —
 	// non e' un errore, e' l'esito dichiarato.
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4)) { Map->AddOrUpdateCell(FRTHexCellData(Id)); }
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 4);
 
 	// Muro subito dietro il bersaglio, sulla linea di spinta.
 	FRTHexCellData Wall(FRTCellId(2, 0));
@@ -323,9 +318,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPullTest,
 bool FRTPullTest::RunTest(const FString&)
 {
 	// Simmetrica a Push: la funzione pura, poi la stessa cosa in partita.
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4)) { Map->AddOrUpdateCell(FRTHexCellData(Id)); }
-	Map->SortCells();
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 4);
 	const TArray<FRTCellId> NoOccupants;
 
 	// Puller in (0,0), bersaglio in (2,0): tirato di 1 cella si avvicina a (1,0), non finisce mai su (0,0).
@@ -551,9 +544,7 @@ bool FRTSlowExtraCostPerCellTest::RunTest(const FString&)
 {
 	// Il meccanismo che sostituisce il dimezzamento pre-CP4.2: +1 al costo di OGNI cella, non una riduzione
 	// flat del budget. Verificato al livello puro (Dijkstra/A*), prima ancora di passare da un'unita' viva.
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 5)) { Map->AddOrUpdateCell(FRTHexCellData(Id)); }
-	Map->SortCells();
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 5);
 
 	FRTHexSnapshot Snapshot;
 	Snapshot.Map = Map;

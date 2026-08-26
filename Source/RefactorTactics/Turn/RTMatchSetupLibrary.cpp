@@ -89,10 +89,31 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeDemoArena(UObject* Outer, int32 Radius
 		return nullptr; // nessuna arena a meta': il chiamante decide cosa fare senza mappa
 	}
 
-	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+	// Un'arena piatta e' un'arena piatta: la differenza con `MakeFlatArena` era solo la guardia sul raggio
+	// (qui `< 1`, perche' una demo di raggio zero non e' una demo). Il corpo era identico, riga per riga.
+	return MakeFlatArena(Outer, Radius);
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeFlatArena(UObject* Outer, int32 Radius, const FRTCellId& Center)
+{
+	if (Outer == nullptr || Radius < 0)
 	{
-		Arena->AddOrUpdateCell(FRTHexCellData(Id)); // pavimento semplice: costo 1, niente blocchi
+		return nullptr;
+	}
+
+	// ⚠️ **Una revisione per cella, e resta cosi' di proposito.** `AddOrUpdateCell` fa `++Revision` a ogni
+	// chiamata: 127 per un raggio 6, dove `UpdateCells` ne farebbe **una** per l'intero gruppo. Sembra la
+	// correzione ovvia, e non lo e' in questa modifica: quella revisione finisce in `GraphRevision`, che
+	// `AppendLogEntry` stampiglia in ogni voce del TurnLog, quindi cambiarla cambia l'IDENTITA' delle tracce
+	// archiviate. Misurato: con `UpdateCells`, `Simulation.GoldenCorpusMatches` va rosso su
+	// `Movement.Basic` e `Movement.Collision` — con un messaggio che mostra atteso e trovato IDENTICI su
+	// ogni campo che rende, perche' il campo che diverge non lo stampa nessuno.
+	//
+	// Non e' una de-duplicazione: e' un cambio del corpus di riferimento, e va deciso a parte.
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(Center, Radius))
+	{
+		Arena->AddOrUpdateCell(FRTHexCellData(Id));
 	}
 	Arena->SortCells();
 	return Arena;

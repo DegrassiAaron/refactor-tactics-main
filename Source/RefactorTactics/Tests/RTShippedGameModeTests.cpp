@@ -12,10 +12,10 @@
 // i byte del package invece del valore risolto — ed e' la ragione per cui il criterio 5 esiste separato.
 
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Engine/World.h"
 #include "Frontend/RTStartupReport.h"
 #include "Kismet/GameplayStatics.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "RTGameMode.h"
@@ -31,12 +31,7 @@ namespace RTShippedGameMode
 	/** Una mappa esagonale piena: abbastanza celle percorribili per le quattro posizioni di partenza. */
 	ARTHexMapActor* SpawnMap(UWorld* World)
 	{
-		URTHexMapAsset* Asset = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4))
-		{
-			Asset->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		Asset->SortCells();
+		URTHexMapAsset* Asset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 4);
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = Asset;

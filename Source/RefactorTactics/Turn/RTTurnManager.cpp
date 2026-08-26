@@ -2,6 +2,7 @@
 #include "Turn/RTPacingLibrary.h"
 #include "Turn/RTPlaybackLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
+#include "Turn/RTPlanValidationLibrary.h" // CP 38.2: la legalita' del piano si CHIEDE al commit
 #include "Turn/RTActionQueueLibrary.h"
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
@@ -1197,6 +1198,10 @@ void ARTTurnManager::LockInAndResolve()
 	TurnLog.Reset();
 	bPrepActiveThisTurn = false;
 
+	// DOPO l'azzeramento e PRIMA delle fasi: il verdetto sul piano appartiene al turno che sta per
+	// risolversi, non a quello appena chiuso. Invertire l'ordine lo cancellerebbe appena scritto.
+	ValidatePlansAtLockIn();
+
 	// Avanza le fasi fino a tornare a Planning; il movimento si applica nella fase Move.
 	do
 	{
@@ -1927,6 +1932,67 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 	Entry.UnitId = Actor ? Actor->StableUnitId : 0;
 	// L'UNICO `TurnLog.Add` del file: ogni altro sito passa da qui.
 	TurnLog.Add(Entry);
+}
+
+void ARTTurnManager::ValidatePlansAtLockIn()
+{
+	// Le unita' vengono dal punto UNICO che le raccoglie e le ordina, non da un giro a mano: `Sort` a parte,
+	// l'ordine di spawn deciderebbe in che sequenza compaiono le righe di rifiuto.
+	//
+	// ⚠️ **Qui non serve la MAPPA**, che e' la parte cara di `MakeCurrentSnapshot`: la vista di occupazione,
+	// l'hash del terreno e una copia di `TeamKnowledgeState`, tutto costruito a ogni commit di turno e
+	// scartato. Serve lo STATO DELL'UNITA', e quello lo costruisce `MakeSimUnit` — lo stesso helper che
+	// riempie lo snapshot, quindi senza campi dimenticati.
+	//
+	// 🔴 **Non un `FRTHexSimUnit()` di default**, che sarebbe stato piu' corto e sbagliato: [D-190] tiene
+	// `Unit` nella firma di `ValidatePlan` perche' *«il bot e CP 38.3 lo useranno»*, e il giorno in cui
+	// qualcuno tornasse a leggerlo ogni piano verrebbe giudicato contro un'unita' che non esiste — cella
+	// `(0,0,0)`, budget `0` — senza che niente diventi rosso. Passare lo stato vero non costa nulla e toglie
+	// la trappola.
+	TArray<ARTUnit*> Units;
+	CollectLivingUnits(Units);
+
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		// `CollectLivingUnits` aggiunge solo puntatori che hanno passato `Unit && Unit->IsAlive()`:
+		// un controllo di nullita' qui difenderebbe da niente.
+		ARTUnit* Unit = Units[i];
+
+		const TArray<FRTPlannedAction> Plan = URTPlanValidationLibrary::MakePlanFor(Unit);
+		if (Plan.Num() == 0)
+		{
+			continue; // nessuna voce: niente da giudicare
+		}
+
+		const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(MakeSimUnit(i, Unit), Plan);
+		if (Verdict.bLegal)
+		{
+			continue;
+		}
+
+		// 🔴 **Nessuna voce nel TurnLog da qui, ed e' una scelta.** Il TurnLog e' un formato serializzato,
+		// ordinato canonicamente e riprodotto: una voce scritta al lock-in porterebbe una `Phase` che nessun
+		// consumatore del replay ha mai visto, e dovrebbe nominare un'azione «colpevole» che l'ordine
+		// canonico del validatore sceglie in modo diverso da come il resolver scarta. Cio' che il turno
+		// scarta davvero lo dice `ResolveDash`, dove lo scarta — con `ERTMoveOutcome::SupersededByDash`.
+		//
+		// Qui resta il **combat log**, che e' cio' che serve: un piano incoerente ha un posto in cui
+		// comparire mentre lo si compone, senza entrare nel formato che i replay confrontano.
+		// 🔴 **Entrambe le azioni, mai una sola.** `OffendingActionId` e' l'azione che l'ordine canonico del
+		// validatore incontra per seconda, e per il caso canonico scatto + movimento e' la MOBILITA', che
+		// invece esegue. Nominare lei significa mandare il giocatore a correggere l'azione sbagliata.
+		// Dire che due azioni occupano lo stesso slot e' vero comunque il resolver decida.
+		const FString Dettaglio = Verdict.HolderActionId.IsNone()
+			? FString::Printf(TEXT("%s: %s"),
+				*Verdict.OffendingActionId.ToString(),
+				*URTTurnLogLibrary::DescribeInvalidReason(Verdict.Reason))
+			: FString::Printf(TEXT("%s e %s occupano lo stesso slot"),
+				*Verdict.OffendingActionId.ToString(),
+				*Verdict.HolderActionId.ToString());
+
+		AddLogEvent(FString::Printf(TEXT("%s: piano non valido al lock-in (%s)"),
+			*Unit->GetName(), *Dettaglio));
+	}
 }
 
 void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
@@ -3243,12 +3309,71 @@ void ARTTurnManager::ResolveDash()
 			}
 		}
 
+		// 🔴 **Il predicato si legge PRIMA della riga qui sotto**, che riscrive `Unit->Cell` con la cella
+		// d'arrivo. Letto dopo, «la destinazione pianificata e' diversa dalla posizione attuale» e' vero per
+		// OGNI scatto che ha spostato l'unita' — anche per chi non aveva pianificato nessun movimento: il bot
+		// parte da `PlannedCell = Cell` con `PlannedPath` vuoto (`PlanBots`), e il giocatore che sceglie una
+		// mobilita' e clicca senza posare waypoint sta nello stesso caso. Ogni scatto del gioco dichiarava
+		// uno scarto inesistente dentro un formato serializzato e riprodotto: misurato in code review il
+		// 2026-08-26, difeso da `PlayerInteraction.NoSupersededEntryOnADashWithoutAPlannedMove`.
+		const bool bHadNormalMove = Unit->HasPlannedNormalMove();
+		const FRTCellId PreDashCell = Unit->Cell;
+
 		Unit->Cell = Final;
 		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
 		ApplyTerrainOnEnterEffects(Snapshot.Map, Unit, Resolved[i].Entered, ERTMatchPhase::Dash);
 		// Il movimento del turno e' finito qui: si scarta il percorso pianificato e la destinazione DIVENTA
 		// la cella d'arrivo dello scatto. Senza l'assegnazione il resolver del Move vedrebbe una `PlannedCell`
 		// diversa dalla posizione attuale e proverebbe comunque ad avvicinarcisi.
+		//
+		// 🔴 **E se c'era davvero un percorso, lo si DICE** (CP 38.2): fino al 2026-08-26 questo scarto era
+		// muto, e un giocatore che aveva composto scatto + movimento vedeva la propria rotta sparire senza
+		// che niente la nominasse. La voce si scrive QUI e non al lock-in perche' qui si sa **che cosa** viene
+		// scartato: al commit il piano si contraddice e basta, e indovinare il perdente dall'ordine canonico
+		// del validatore darebbe la risposta sbagliata.
+		//
+		// ⚠️ **Solo per chi e' ancora vivo**: `ApplyTerrainOnEnterEffects` qui sopra puo' aver ucciso l'unita'
+		// sulla cella d'arrivo, e una traccia che adjudica il piano di un morto nella stessa fase in cui c'e'
+		// la sua eliminazione dice due cose sullo stesso attore. Stesso filtro che `MakeCurrentSnapshot`
+		// applica ovunque.
+		if (bHadNormalMove && Unit->IsAlive())
+		{
+			FRTTurnLogEntry Superseded;
+			Superseded.Phase = ERTMatchPhase::Dash;
+			Superseded.Category = ERTLogCategory::Move;
+			Superseded.Outcome = static_cast<uint8>(ERTMoveOutcome::SupersededByDash);
+			// L'identita' dell'azione viene dal CATALOGO, come in `ResolveMovement`: `Priority` non e' un
+			// campo decorativo, e' una chiave dell'ordine canonico (`EntryLess`) ed e' serializzata in v7.
+			// Lasciata a `0` mentre l'altro produttore di `Action.Move` legge `50` dal catalogo, due voci
+			// con lo stesso `ActionId` si ordinerebbero come se venissero da azioni diverse.
+			//
+			// `static const`: `FindCoreAction` COSTRUISCE il catalogo a ogni invocazione, e questo blocco sta
+			// dentro il loop delle unita' che scattano. Stessa correzione gia' applicata in
+			// `RTPlanValidationLibrary.cpp` dopo una misura in code review.
+			static const FRTActionDef MoveDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
+			Superseded.ActionId = TEXT("Action.Move"); // cio' che NON si esegue, non lo scatto che invece esegue
+			Superseded.Priority = MoveDef.Priority;
+			// 🔴 **`SrcCell` e' la cella di PARTENZA**, non quella d'arrivo: `BuildMoveLog` la dichiara
+			// «chiave stabile dell'unita' nel turno», e `FilterTracesByEmitter` ci filtra sopra con
+			// `ExcludedSources.Contains(Entry.SrcCell)` per confrontare le varianti a informazione nascosta.
+			// Con la cella d'arrivo la traccia di una variante sopravvive al filtro e manda rosso un
+			// confronto PERCHE' la variante ha funzionato. E la coppia (SrcCell, TgtCell) qui descrive una
+			// ROTTA: quella che non si e' percorsa.
+			Superseded.SrcCell = PreDashCell;       // da dove il movimento sarebbe partito
+			Superseded.TgtCell = Unit->PlannedCell; // la destinazione dichiarata e mai raggiunta
+			// `Amount` conta le celle del percorso RISOLTO SCARTATO — le stesse tre parole di `RTTurnLog.h`
+			// e `spec-turnlog.md`, e «scartato» non e' decorativo: quelle celle NON sono state percorse, e'
+			// il percorso che il pathfinder aveva espanso dai waypoint e che lo scatto ha annullato. Due
+			// formulazioni per lo stesso campo sono la premessa di un difetto gia' pagato: un'asserzione che
+			// confrontava `Amount` con i CLICK invece che col percorso passava solo perche' in quello
+			// scenario i due numeri coincidevano. Un piano che dichiara solo una destinazione — il bot, che
+			// «pianifica destinazioni, non percorsi a waypoint» — porta `0`, e la destinazione resta
+			// leggibile in `TgtCell`. Non si stima dalla distanza: sarebbe un numero che nessuno ha
+			// percorso, in un formato che finisce nell'hash del replay.
+			Superseded.Amount = FMath::Max(0, Unit->PlannedPath.Num() - 1);
+			AppendLogEntry(Superseded, Unit);
+		}
+
 		Unit->PlannedPath.Reset();
 		Unit->PlannedWaypoints.Reset();
 		Unit->PlannedCell = Final;
@@ -3275,6 +3400,33 @@ void ARTTurnManager::ResolveDash()
 		// un ramo che nessun dato attraversa e' un ramo che nessun test difende.
 		if (Used->Def.Slot == ERTActionSlot::MovementAndMain)
 		{
+			// 🔴 **Anche questo scarto si DICHIARA.** Fino ad ora la principale spariva in silenzio: stessa
+			// forma del movimento scartato qui sopra, stessa ragione. Famiglia `Fallback`/`Cancelled` e non
+			// `Move`/`SupersededByDash` perche' qui l'azione non avviene AFFATTO — mentre il movimento, dopo
+			// lo scatto, l'unita' l'ha comunque compiuto. Il motivo viaggia in `Amount`, come per ogni voce
+			// di Fallback (`RTTurnManager_Blast.cpp`).
+			if (Unit->PlannedAbilityIndex != INDEX_NONE && Unit->IsAlive())
+			{
+				const URTActionData* Dropped = Unit->GetAbility(Unit->PlannedAbilityIndex);
+				if (Dropped)
+				{
+					FRTTurnLogEntry Discarded;
+					Discarded.Phase = ERTMatchPhase::Dash;
+					Discarded.Category = ERTLogCategory::Fallback;
+					Discarded.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+					Discarded.ActionId = Dropped->Def.ActionId;
+					Discarded.BaseActionId = Dropped->Def.BaseActionId; // D-033: la traccia si spiega da sola
+					Discarded.SrcCell = PreDashCell;   // chiave stabile dell'unita' nel turno
+					Discarded.TgtCell = PreDashCell;   // = SrcCell: qui non c'e' una destinazione
+					// `Priority` resta a 0 (default): a differenza della voce `Superseded` qui sopra, nessun
+					// produttore `Fallback` la imposta dal catalogo — stesso pattern di `RTTurnManager_Blast.cpp`.
+					Discarded.Amount = static_cast<int32>(ERTActionInvalidReason::SlotOccupied);
+					AppendLogEntry(Discarded, Unit);
+					// Niente `AddLogEvent` qui: la riga arriva al combat log attraverso `ConcludeTurn`, che
+					// deriva l'intero log dal TurnLog (`DescribeTurnLog`) — come ogni altra voce.
+				}
+			}
+
 			Unit->PlannedAbilityIndex = INDEX_NONE; // lo slot principale e' speso
 			Unit->PlannedAttackTarget = nullptr;
 		}
@@ -4137,12 +4289,22 @@ FRTTeamKnowledge ARTTurnManager::KnowledgeForTeam(int32 TeamId) const
 	return Empty;
 }
 
-FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const
+FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit) const
+{
+	FRTHexSimUnit SimUnit(Index, Unit->Cell, Unit->GetEffectiveMoveRange(), /*bAlive=*/ true);
+	// `Action.Slow` (CP 4.7): +1 al costo di ogni cella, letto FRESCO a ogni costruzione — cosi' uno Slow
+	// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
+	// ricordare "quando" e' stato applicato.
+	SimUnit.MoveCostModifier = Unit->HasStatus(TAG_Status_Slow) ? 1 : 0;
+	// Orientamento (CP 16.1): lo si porta perche' e' stato di gioco, e perche' il facing di fine round e'
+	// quello di inizio del round dopo senza nessun travaso esplicito.
+	SimUnit.Facing = Unit->Facing;
+	return SimUnit;
+}
+
+void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 {
 	OutUnits.Reset();
-
-	FVector Origin; float HexSize; float LayerH;
-	const URTHexMapAsset* Map = GetHexContext(Origin, HexSize, LayerH);
 
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(const_cast<ARTTurnManager*>(this), ARTUnit::StaticClass(), Actors);
@@ -4175,6 +4337,17 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	// CADE `RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation` se questa riga sparisce:
 	// verificato per mutazione, non dedotto.
 	OutUnits.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+}
+
+FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const
+{
+	FVector Origin; float HexSize; float LayerH;
+	const URTHexMapAsset* Map = GetHexContext(Origin, HexSize, LayerH);
+
+	// Le unita' vive in ordine stabile: la raccolta e il sort vivono in `CollectLivingUnits`, perche'
+	// `ValidatePlansAtLockIn` ha bisogno delle STESSE unita' nello STESSO ordine e non ha bisogno di niente
+	// altro di questo snapshot. Duplicare il sort la' sarebbe stato il modo di farlo divergere.
+	CollectLivingUnits(OutUnits);
 
 	// L'identita' e' l'INDICE dell'unita' in OutUnits, un intero stabile — mai un pointer (stessa
 	// disciplina del TurnLog). Il chiamante ritrova la propria unita' con OutUnits.IndexOfByKey.
@@ -4182,15 +4355,7 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	SimUnits.Reserve(OutUnits.Num());
 	for (int32 i = 0; i < OutUnits.Num(); ++i)
 	{
-		FRTHexSimUnit SimUnit(i, OutUnits[i]->Cell, OutUnits[i]->GetEffectiveMoveRange(), /*bAlive=*/ true);
-		// `Action.Slow` (CP 4.7): +1 al costo di ogni cella, letto FRESCO a ogni snapshot — cosi' uno Slow
-		// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
-		// ricordare "quando" e' stato applicato.
-		SimUnit.MoveCostModifier = OutUnits[i]->HasStatus(TAG_Status_Slow) ? 1 : 0;
-		// Orientamento (CP 16.1): lo snapshot lo porta perche' e' stato di gioco, e perche' il facing di fine
-		// round e' quello di inizio del round dopo senza nessun travaso esplicito.
-		SimUnit.Facing = OutUnits[i]->Facing;
-		SimUnits.Add(SimUnit);
+		SimUnits.Add(MakeSimUnit(i, OutUnits[i]));
 	}
 	FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
 	// La conoscenza di squadra viaggia con la fotografia (CP 13.2), cosi' i consumatori puri — il bot di

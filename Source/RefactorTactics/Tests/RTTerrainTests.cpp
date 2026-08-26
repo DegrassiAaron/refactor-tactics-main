@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Terrain/RTTerrainData.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Core/RTGameplayTags.h"
@@ -151,11 +152,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainRoughBlocksDashTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTTerrainRoughBlocksDashTest::RunTest(const FString&)
 {
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
-	{
-		Map->AddOrUpdateCell(FRTHexCellData(Id));
-	}
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
 	FRTHexCellData Blocker(FRTCellId(1, 0, 0));
 	Blocker.Surface = ERTHexSurface::Rough;
 	Map->AddOrUpdateCell(Blocker);
@@ -203,11 +200,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainIceSlidesWithBudgetTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTTerrainIceSlidesWithBudgetTest::RunTest(const FString&)
 {
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
-	{
-		Map->AddOrUpdateCell(FRTHexCellData(Id));
-	}
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
 	FRTHexCellData IceCell(FRTCellId(1, 0, 0));
 	IceCell.Surface = ERTHexSurface::Ice;
 	Map->AddOrUpdateCell(IceCell);
@@ -236,11 +229,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainIceBlockedCellStopsSlidingTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTTerrainIceBlockedCellStopsSlidingTest::RunTest(const FString&)
 {
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
-	{
-		Map->AddOrUpdateCell(FRTHexCellData(Id));
-	}
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
 	FRTHexCellData IceCell(FRTCellId(1, 0, 0));
 	IceCell.Surface = ERTHexSurface::Ice;
 	Map->AddOrUpdateCell(IceCell);
@@ -271,11 +260,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainSmokeLimitsTargetingTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTTerrainSmokeLimitsTargetingTest::RunTest(const FString&)
 {
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 5))
-	{
-		Map->AddOrUpdateCell(FRTHexCellData(Id));
-	}
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 5);
 	FRTHexCellData Smoke(FRTCellId(2, 0, 0));
 	Smoke.Surface = ERTHexSurface::Smoke;
 	Map->AddOrUpdateCell(Smoke);
@@ -496,11 +481,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTerrainDashReachAgreesTest,
 bool FRTTerrainDashReachAgreesTest::RunTest(const FString&)
 {
 	// Corridoio di acqua bassa (costo 2) lungo +q: attraversabile, ma caro.
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4))
-	{
-		Map->AddOrUpdateCell(FRTHexCellData(Id));
-	}
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 4);
 	for (int32 Q = 1; Q <= 3; ++Q)
 	{
 		FRTHexCellData Water(FRTCellId(Q, 0, 0));

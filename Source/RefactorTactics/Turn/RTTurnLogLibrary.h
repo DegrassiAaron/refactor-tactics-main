@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: usato dalla firma di DescribeInvalidReason
 #include "Turn/RTTurnLog.h"
 #include "RTTurnLogLibrary.generated.h"
 
@@ -73,6 +74,14 @@ public:
 	 * Pura (nessun Actor, nessuno stato): il chiamante decide dove mostrarla.
 	 */
 	static FString DescribeEntry(const FRTTurnLogEntry& Entry);
+
+	/**
+	 * Testo italiano di un motivo di invalidita'. UNA tabella sola: `DescribeEntry` la usa per le voci di
+	 * Fallback e il combat log la usa per il rifiuto al lock-in. Due tabelle divergerebbero al primo motivo
+	 * aggiunto — ed e' successo: la prima stesura del lock-in stampava l'identificatore C++ dell'enum.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|TurnLog")
+	static FString DescribeInvalidReason(ERTActionInvalidReason Reason);
 
 	/**
 	 * Prefisso dell'`ActionId` che dichiara una **causa di terreno** (`Terrain.Fire`, `Terrain.Ice`, ...).

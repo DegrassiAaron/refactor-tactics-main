@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
@@ -10,7 +11,6 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 
@@ -54,11 +54,7 @@ namespace
 	ARTHexMapActor* SpawnStatusMap(UWorld* World, int32 Radius, const FRTCellId& Special, ERTHexSurface Surface,
 		int32 MoveCost)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		FRTHexCellData SpecialCell(Special);
 		SpecialCell.Surface = Surface;
 		SpecialCell.MoveCost = MoveCost;

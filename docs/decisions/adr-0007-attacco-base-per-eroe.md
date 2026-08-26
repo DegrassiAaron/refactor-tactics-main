@@ -89,6 +89,22 @@ consumer reale.
 > da `BasicAttackIsIndexZeroForEveryHero`. `BaseActionId` dice *di cosa* un'azione è profilo, non *che ruolo*
 > ha nel kit: sono due domande diverse, e solo la prima aveva un consumer.
 
+> ➕ **Aggiunta il 2026-08-26 ([D-195](RT_PDR_00_Decision_Log.md)): le domande diverse sono TRE.** Accanto a
+> `BaseActionId` esiste ora `FRTActionDef::DerivedFromActionId`, che dice **da quale azione core un'abilità
+> eredita i suoi valori** — fase, priorità, portata, fallback, effetti.
+>
+> | Campo | Domanda | Chi lo legge |
+> |---|---|---|
+> | `Actions[0]` | che **ruolo** ha nel kit | `BasicAttackIsIndexZeroForEveryHero` |
+> | `BaseActionId` | di quale delle **sette generiche** è il profilo (D-033) | `DescribeActionIdentity` |
+> | `DerivedFromActionId` | da quale azione core prende i **numeri** | `Catalog.EveryCoreActionIsReachableOrDeclared` |
+>
+> ⛔ **I due campi non si fondono**, e la ragione è che le sorgenti non coincidono: `Hero.Riktor.Ram` eredita
+> da `Action.Charge`, che fra le sette generiche **non c'è** — un «profilo di Charge» non esiste. Scriverlo
+> in `BaseActionId` avrebbe reso indistinguibili due relazioni diverse nella stessa traccia, ed è ciò che
+> `BasicAttackDeclaresItsBaseAction` vietava: quel test resta valido parola per parola, e non è stato
+> toccato. La regola del punto 6 vale anche per il campo nuovo — è entrato **con** il suo consumatore.
+
 ## Perché `Slow` per Riktor
 
 Delle cinque utility proposte, tre non sono esprimibili con le primitive esistenti: `ERTStructureOp` ha solo

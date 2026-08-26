@@ -301,6 +301,22 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName BaseActionId;
 
+	/** Da quale azione CORE questa eredita i suoi valori: fase, priorita', portata, fallback, effetti.
+	 *
+	 * ⚠️ **Non e' `BaseActionId`, e coincide con lui solo per gli attacchi base.** `BaseActionId` dice di
+	 * quale delle SETTE generiche un'azione e' il profilo (D-033): `Hero.Riktor.ImpactShot` e' il profilo
+	 * di `Action.BasicAttack`. Questo dice da dove vengono i NUMERI, e la sorgente puo' essere un'azione
+	 * che generica NON e': `Hero.Riktor.Ram` eredita da `Action.Charge`, e un «profilo di Charge» non
+	 * esiste perche' `Charge` non e' fra le sette. Fondere i due campi renderebbe indistinguibili due
+	 * relazioni diverse nella stessa traccia.
+	 *
+	 * Il consumatore e' `RefactorTactics.Catalog.EveryCoreActionIsReachableOrDeclared`: senza questo campo
+	 * la relazione vive solo nel sorgente, e nessun test puo' dire se un'azione del catalogo e'
+	 * raggiungibile da un giocatore o e' contenuto che nessun eroe porta.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FName DerivedFromActionId;
+
 	/** Fase dichiarata (codice del catalogo); la macro-fase reale viene da URTCatalogLibrary::MapResolutionPhase. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTResolutionPhase ResolutionPhase = ERTResolutionPhase::Attack;

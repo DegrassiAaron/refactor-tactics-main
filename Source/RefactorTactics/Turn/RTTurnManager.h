@@ -494,6 +494,38 @@ public:
 	 */
 	FRTHexSnapshot MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const;
 
+	/**
+	 * Le unita' VIVE del livello, in ordine stabile per cella.
+	 *
+	 * E' la prima meta' di `MakeCurrentSnapshot`, estratta perche' chi ha bisogno delle unita' ma NON dello
+	 * snapshot non paghi la seconda: `ValidatePlansAtLockIn` iterava un `FRTHexSnapshot` completo — un
+	 * `GetAllActorsOfClass` sull'intero livello, un `FRTHexSimUnit` per unita', la vista di mappa e
+	 * occupazione, una copia di `TeamKnowledgeState` — per passarne un elemento a `URTPlanValidationLibrary`,
+	 * che dopo [D-190] non lo legge affatto.
+	 *
+	 * 🔴 **Il `Sort` non e' una rifinitura**: senza, l'ordine di spawn decide la partita (#990), e cade
+	 * `Match.Autobattle.DeterminismSurvivesUnitPermutation` — verificato per mutazione.
+	 *
+	 * ⚠️ Questo NON e' l'unico `StableLess` su unita' del progetto: `ResolveEnvironment` e `ResolvePrep`
+	 * ordinano array propri con lo stesso comparatore, e `ResolveCombat` pure. Questo helper e' la sorgente
+	 * unica per **chi vuole le unita' vive del livello**, non un consolidamento di tutti gli ordinamenti:
+	 * cambiare il comparatore qui non lo cambia la'.
+	 */
+	/**
+	 * Lo stato di simulazione di UNA unita', con tutti i campi che lo snapshot le darebbe.
+	 *
+	 * Esiste perche' chi ha bisogno dello stato di un'unita' — `ValidatePlansAtLockIn` — non debba
+	 * costruirselo a mano: e' cosi' che e' nato un difetto trovato in code review, con `MoveCostModifier` e
+	 * `Facing` dimenticati. `MakeCurrentSnapshot` chiama questo stesso helper nel proprio loop, quindi i due
+	 * non possono divergere.
+	 *
+	 * ⚠️ `Index` e' l'identita' NELLO SNAPSHOT, non `StableUnitId`: due numerazioni diverse (si veda il
+	 * commento sui contatti in `MakeCurrentSnapshot`).
+	 */
+	FRTHexSimUnit MakeSimUnit(int32 Index, const ARTUnit* Unit) const;
+
+	void CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -1158,6 +1190,27 @@ protected:
 	 * non da subire: il parametro non ha default apposta.
 	 */
 	void AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor);
+
+	/**
+	 * Valida il piano di ogni unita' viva al COMMIT, e registra nel COMBAT LOG quello che non torna (CP 38.2).
+	 *
+	 * Il lock-in e' l'ultimo istante in cui un piano e' ancora un piano: dopo, e' una risoluzione. E' qui
+	 * che la DoD chiede *«un punto solo che risponde LEGALE / ILLEGALE + reason code prima del commit»*,
+	 * e questo e' il commit.
+	 *
+	 * 🔴 **Registra e non BLOCCA, ed e' una scelta con una ragione misurata.** Un rifiuto al momento del
+	 * click era la prima versione, ed e' stata ritirata in code review: un piano illegale nasce quasi sempre
+	 * da uno scatto piu' un movimento, e uno scatto pianificato **non e' annullabile** — `ERTPointerBackStep`
+	 * elenca waypoint, targeting, inspector e focus, non il dash, e gli unici a togliere
+	 * `PlannedDashAbility` sono il resolver e il ri-pianificatore del bot. Rifiutare l'input avrebbe chiuso
+	 * il giocatore in un turno senza uscita: non poteva ne' muoversi ne' disfare. Un piano incoerente che si
+	 * risolve come il resolver decide e' meno grave di un turno che non si puo' correggere.
+	 *
+	 * ⚠️ Cio' che cambia rispetto a prima non e' l'esito del turno, e' la sua **osservabilita'**: quello
+	 * che il resolver assorbiva in silenzio ora lascia una voce con il motivo. Il giorno in cui il dash sara'
+	 * annullabile, questa funzione e' il punto da cui far partire un rifiuto vero.
+	 */
+	void ValidatePlansAtLockIn();
 
 	/** Applica uno status e registra la voce se cosi' facendo ha SPENTO un `Burning` (#1314). */
 	void ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Turns);

@@ -54,6 +54,18 @@ struct FRTPlanValidation
 	/** Quale voce del piano ha causato il rifiuto; `NAME_None` se il piano e' legale. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Actions")
 	FName OffendingActionId;
+
+	/**
+	 * Quale voce del piano teneva GIA' lo slot quando il rifiuto e' scattato; `NAME_None` se il piano e'
+	 * legale o se il motivo non e' un conflitto di slot (`OnCooldown` non ha un detentore).
+	 *
+	 * 🔴 **Esiste perche' `OffendingActionId` da solo accusa l'azione sbagliata.** L'ordine canonico di
+	 * `ValidatePlan` — per larghezza di slot, poi per `ActionId` — incontra `Action.Move` prima di
+	 * `Hero.Riktor.Ram`, quindi nomina Ram; ma in risoluzione e' lo scatto a vincere ed e' Move a essere
+	 * scartato. Chi comunica il rifiuto nomina ENTRAMBE e non deve indovinare il perdente.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Actions")
+	FName HolderActionId;
 };
 
 /**

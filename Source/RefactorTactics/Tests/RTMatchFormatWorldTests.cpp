@@ -1,9 +1,9 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "RTGameMode.h"
 #include "Core/RTTypes.h"
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTMatchFormatData.h"
@@ -43,12 +43,7 @@ namespace
 
 	ARTHexMapActor* SpawnFormatMap(UWorld* World, int32 Radius = 2)
 	{
-		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			Map->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		Map->SortCells();
+		URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = Map;
