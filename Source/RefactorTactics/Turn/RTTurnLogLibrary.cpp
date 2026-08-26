@@ -365,8 +365,26 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 
 		const FString Why = DescribeInvalidReason(static_cast<ERTActionInvalidReason>(Entry.Amount));
 
-		return FString::Printf(TEXT("%s -> %s: azione %s (%s)"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), What, *Why);
+		// 🔴 **QUALE azione**, come ogni altro ramo di questa funzione (`#1412`). Era l'unico che non lo
+		// diceva: `Move`, `Reaction`, `Status`, `Predictive`, `ReactionDecision` e `Combat` chiamano tutti
+		// `DescribeActionIdentity`, questo rendeva pura geometria. Due azioni annullate dalla stessa unita'
+		// nello stesso turno producevano righe identiche byte a byte, e [D-063] vieta di dedurre l'unita'
+		// da `SrcCell` — quindi non c'era modo di dire quale delle due fosse.
+		//
+		// ⚠️ **Oggi il produttore non lo riempie**, e la riga lo DICE invece di far finta: `FallbackEntry`
+		// (`RTTurnManager_Blast.cpp:453`) non imposta `ActionId`, quindi qui si legge «azione non
+		// dichiarata». Non e' un ripiego estetico — riempire quel campo cambia l'hash delle tracce
+		// (`ActionId` entra in `VisitDiscriminatingFields`), quindi e' un cambio d'identita' che va
+		// dichiarato a parte. Fino ad allora la lacuna e' visibile a chi legge il log invece di essere
+		// mascherata dal nome unita' di un `AddLogEvent` scritto a mano.
+		//
+		// ⚠️ E NON `DescribeActionIdentity` nudo: su un `FName` non impostato renderebbe `None`, che si legge
+		// come un id di azione vero. Stesso idioma di `Predictive` e `ReactionDecision` qui sotto.
+		const FString Quale = Entry.ActionId.IsNone()
+			? FString(TEXT("azione non dichiarata")) : DescribeActionIdentity(Entry);
+
+		return FString::Printf(TEXT("%s -> %s: azione %s (%s) [%s]"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), What, *Why, *Quale);
 	}
 
 	// Reazione: attivata o no, e perche' — mai in silenzio (CP 5.1).

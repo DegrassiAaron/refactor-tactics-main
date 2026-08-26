@@ -29,6 +29,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
 #include "Core/RTGameplayTags.h" // TAG_Status_Guarded: la guardia si applica al difensore
+#include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason nel motivo del fallback
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
@@ -368,6 +369,124 @@ bool FRTRearHitOnCoverCreditsSameUnitTest::RunTest(const FString&)
 	TestEqual(TEXT("accredita il difensore, come l'altro produttore"),
 		Bypassed->UnitId, Difensore->StableUnitId);
 	TestTrue(TEXT("e la tassonomia lo conferma"), URTTurnLogLibrary::IsSubjectTheSufferer(*Bypassed));
+
+	RTCombatLogFixture::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Anche la riga di un'azione ANNULLATA dice quale azione era.**
+ *
+ * Il ramo `Fallback` era l'unico di `DescribeEntry` a non chiamare `DescribeActionIdentity`: rendeva celle,
+ * esito e motivo — pura geometria. Due azioni annullate dalla stessa unita' nello stesso turno producevano
+ * righe identiche byte a byte, e [D-063] vieta di dedurre l'unita' da `SrcCell`: non c'era modo di dire
+ * quale delle due fosse (`#1412`).
+ *
+ * ⚠️ Il produttore oggi NON riempie `ActionId` su quelle voci, e la riga lo dichiara invece di mascherarlo.
+ * Riempirlo cambia l'hash delle tracce, quindi e' un cambio d'identita' che va deciso a parte — e fino ad
+ * allora la lacuna la vede chi legge il log.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLogFallbackNamesTheActionTest,
+	"RefactorTactics.UI.FallbackLineNamesTheAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLogFallbackNamesTheActionTest::RunTest(const FString&)
+{
+	FRTTurnLogEntry Annullata;
+	Annullata.Phase = ERTMatchPhase::Blast;
+	Annullata.Category = ERTLogCategory::Fallback;
+	Annullata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Stopped);
+	Annullata.SrcCell = FRTCellId(1, 0, 0);
+	Annullata.TgtCell = FRTCellId(3, 0, 0);
+	Annullata.Amount = static_cast<int32>(ERTActionInvalidReason::TargetGone);
+
+	// Senza `ActionId`: la riga lo DICHIARA. Non `None`, che si leggerebbe come un id di azione vero.
+	const FString Muta = URTTurnLogLibrary::DescribeEntry(Annullata);
+	TestTrue(*FString::Printf(TEXT("dichiara che l'azione non c'e': %s"), *Muta),
+		Muta.Contains(TEXT("azione non dichiarata")));
+	TestFalse(*FString::Printf(TEXT("e non scrive 'None': %s"), *Muta), Muta.Contains(TEXT("None")));
+
+	// Con `ActionId`: la riga lo nomina, come ogni altra categoria.
+	Annullata.ActionId = FName(TEXT("Hero.Wraith.PulseShot"));
+	const FString Nominata = URTTurnLogLibrary::DescribeEntry(Annullata);
+	TestTrue(*FString::Printf(TEXT("nomina l'azione: %s"), *Nominata),
+		Nominata.Contains(TEXT("Hero.Wraith.PulseShot")));
+
+	// Due azioni annullate dalla stessa unita' nello stesso posto NON producono piu' la stessa riga: e' il
+	// difetto per cui questo ramo esisteva senza identita'.
+	FRTTurnLogEntry Altra = Annullata;
+	Altra.ActionId = FName(TEXT("Action.BasicAttack"));
+	TestNotEqual(TEXT("due azioni annullate dalla stessa cella si distinguono"),
+		URTTurnLogLibrary::DescribeEntry(Altra), Nominata);
+
+	// E il profilo, quando c'e', si legge come nelle altre categorie.
+	Altra.BaseActionId = FName(TEXT("Action.BasicAttack"));
+	Altra.ActionId = FName(TEXT("Riktor.ImpactShot"));
+	TestTrue(TEXT("azione base e profilo, come altrove"),
+		URTTurnLogLibrary::DescribeEntry(Altra).Contains(TEXT("Action.BasicAttack · Riktor.ImpactShot")));
+
+	return true;
+}
+
+/**
+ * **Ogni riga derivata compare UNA volta sola.**
+ *
+ * `UI.LogMatchesTurnLogOrder` qui sopra cerca il blocco derivato come sottosequenza CONSECUTIVA, e resta
+ * verde con un duplicato prima o dopo: e' il difetto di `#1412`, dove sette punti della risoluzione
+ * chiamano `AddLogEvent(... DescribeEntry(X))` subito dopo aver appeso `X` al TurnLog, e la stessa
+ * informazione arriva al giocatore due volte.
+ *
+ * ⚠️ **Non si confrontano righe uguali**: quelle scritte a mano portano davanti `Unit->GetName()`, quindi
+ * `==` non le vede. Il duplicato e' la stessa informazione in due FORMATI, e si trova per contenuto — che
+ * e' anche il motivo per cui nessuno se n'era accorto prima.
+ *
+ * ⚠️ Copertura di questo percorso: due unita' che non attaccano. Le sette righe doppie vivono in rami che
+ * questa fixture non attraversa (fallback, reazioni, colpi senza linea di tiro), quindi il test protegge
+ * dall'**ottavo** duplicato piu' che misurare i sette — che restano aperti in `#1412` e non si tolgono
+ * finche' `DescribeTurnLog` non sa nominare l'attore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLogDoesNotRepeatDerivedLinesTest,
+	"RefactorTactics.UI.LogDoesNotRepeatTheDerivedLines",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLogDoesNotRepeatDerivedLinesTest::RunTest(const FString&)
+{
+	UWorld* World = RTCombatLogFixture::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* Map = RTCombatLogFixture::SpawnMap(World);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	ARTUnit* A = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0, 0));
+	ARTUnit* B = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(1, 0, 0));
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("mappa"), Map)
+		|| !TestNotNull(TEXT("unita' A"), A) || !TestNotNull(TEXT("unita' B"), B))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	RTCombatLogFixture::RunTurn(TM);
+
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	if (!TestTrue(TEXT("premessa: il turno ha prodotto almeno una voce"), Log.Num() > 0))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	const TArray<FString> Attese = URTTurnLogLibrary::DescribeTurnLog(Log);
+	const TArray<FString>& Emesse = TM->GetRecentEvents();
+
+	for (const FString& Riga : Attese)
+	{
+		int32 Conta = 0;
+		for (const FString& Emessa : Emesse)
+		{
+			if (Emessa.Contains(Riga))
+			{
+				++Conta;
+			}
+		}
+		TestEqual(*FString::Printf(TEXT("una volta sola nel combat log: %s"), *Riga), Conta, 1);
+	}
 
 	RTCombatLogFixture::DestroyWorld(World);
 	return true;
