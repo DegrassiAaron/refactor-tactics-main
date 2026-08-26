@@ -585,6 +585,77 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Due interruttori sulla stessa vittima cancellano UNA azione, e la traccia lo dice una volta.**
+ *
+ * Banale in 2v2, e prima di `#1437` la traccia ne portava due: l'effetto di gioco era deduplicato da un
+ * `TSet` di unita', ma la voce di TurnLog veniva scritta una volta per **colpo** di Interrupt. Il record
+ * autoritativo diceva che l'unica azione della vittima era stata cancellata due volte — la riga doppia che
+ * `#1412` esiste per togliere.
+ *
+ * Ora si tiene traccia degli INTENTI cancellati, non delle unita': due Interrupt aggiungono lo stesso
+ * indice al set e la seconda passata non scrive niente. La deduplicazione non e' una guardia in piu', e'
+ * una conseguenza di aver scelto la chiave giusta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptTwiceTracesOnceTest,
+	"RefactorTactics.Actions.Interrupt.TwoInterruptersTraceOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptTwiceTracesOnceTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	// Due interruttori adiacenti alla vittima: `Action.Interrupt` ha portata 1.
+	ARTUnit* PrimoInterrupter = SpawnControlUnit(World, 0, FRTCellId(3, 0));
+	ARTUnit* SecondoInterrupter = SpawnControlUnit(World, 0, FRTCellId(4, -1));
+	ARTUnit* Attacker = SpawnControlUnit(World, 1, FRTCellId(4, 0));
+	ARTUnit* Victim = SpawnControlUnit(World, 0, FRTCellId(5, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("primo interrupter"), PrimoInterrupter)
+		|| !TestNotNull(TEXT("secondo interrupter"), SecondoInterrupter)
+		|| !TestNotNull(TEXT("Attacker"), Attacker) || !TestNotNull(TEXT("Victim"), Victim)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	for (ARTUnit* Interrupter : { PrimoInterrupter, SecondoInterrupter })
+	{
+		const int32 Idx = AddControlAbility(Interrupter, TEXT("Action.Interrupt"));
+		TestTrue(TEXT("premessa: l'interruttore e' in portata di chi attacca"),
+			URTHexLibrary::HexDistance(Interrupter->Cell, Attacker->Cell)
+				<= Interrupter->Abilities[Idx]->Def.RangeCells);
+		Interrupter->PlannedAbilityIndex = Idx;
+		Interrupter->PlannedAttackTarget = Attacker;
+		Interrupter->PlannedCell = Interrupter->Cell;
+	}
+
+	const int32 HealthBefore = Victim->Health;
+	Attacker->PlannedAbilityIndex = 0; // attacco base, interrompibile
+	Attacker->PlannedAttackTarget = Victim;
+	Attacker->PlannedCell = Attacker->Cell;
+
+	RunControlTurn(TM);
+
+	TestEqual(TEXT("l'attacco interrotto non fa danno"), Victim->Health, HealthBefore);
+
+	int32 Voci = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted))
+		{
+			++Voci;
+		}
+	}
+	TestEqual(TEXT("una azione cancellata, una voce"), Voci, 1);
+
+	DestroyControlWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptSkipsNonInterruptibleTest,
 	"RefactorTactics.Actions.Interrupt.SkipsNonInterruptible",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

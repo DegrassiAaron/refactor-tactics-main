@@ -280,6 +280,7 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	// cadeva nel generico «non eseguibile», che e' la forma di riga che questo ramo esiste per non produrre.
 	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto");
 	case ERTActionInvalidReason::Interrupted:    return TEXT("interrotta");
+	case ERTActionInvalidReason::NoEffect:       return TEXT("nessun effetto da applicare");
 	default:                                     return TEXT("non eseguibile");
 	}
 }

@@ -88,7 +88,21 @@ enum class ERTActionInvalidReason : uint8
 	 * E' lo stesso divieto che il commento di `InsufficientMovementPoints` scrive per se': togliere o
 	 * spostare una voce sposta le successive.
 	 */
-	Interrupted
+	Interrupted,
+
+	/**
+	 * L'azione era VALIDA e non ha prodotto effetti utili (`#1437`).
+	 *
+	 * Non e' un difetto di geometria ne' di conoscenza: bersaglio giusto, portata giusta, e nessun effetto
+	 * da applicare — una cura marcata tale i cui `Effects` non portano un `Heal` utile, per esempio da un
+	 * data asset scritto male o da un equipaggiamento che li ha sostituiti. Ha un motivo proprio perche'
+	 * `None` significa «l'azione e' eseguibile» e la resa generica direbbe «non eseguibile», che qui e'
+	 * falso in tutti e due i versi.
+	 *
+	 * ⚠️ In CODA come `Interrupted`: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e
+	 * inserirne uno in mezzo cambierebbe il significato delle tracce gia' scritte.
+	 */
+	NoEffect
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

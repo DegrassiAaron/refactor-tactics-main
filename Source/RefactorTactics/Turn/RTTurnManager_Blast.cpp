@@ -245,7 +245,34 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		{
 			if (Spec.Effect == ERTActionEffect::Heal) { Amount = Spec.Amount; break; }
 		}
-		if (Amount <= 0) { continue; }
+		// 🔴 Una cura che non cura **non sparisce in silenzio** (`#1437`). Ci si arriva DOPO
+		// `ConsumeAbility` — il cooldown e' gia' bruciato — e dopo che il piano e' stato azzerato: senza
+		// questa voce non restava niente, ne' nel TurnLog ne' nel combat log, e un replay non poteva
+		// spiegare perche' il turno del curatore non avesse prodotto nulla e perche' l'abilita' fosse in
+		// ricarica. Strettamente peggio del caso «fuori portata» qui sopra, che almeno una riga ce l'aveva.
+		//
+		// Ci si arriva con un'abilita' marcata cura i cui `Effects` non portano un `Heal` utile: un data
+		// asset scritto male, o una cura da equipaggiamento i cui effetti sono stati sostituiti come fa
+		// `Gadget.BreachCharge` con `Action.HeavyAttack`.
+		//
+		// ⚠️ Il motivo e' `NoEffect`, aggiunto per questo: `None` significa «l'azione e' eseguibile», e la
+		// resa generica direbbe «non eseguibile» — falso in tutti e due i versi. L'azione era valida e non
+		// aveva niente da applicare.
+		if (Amount <= 0)
+		{
+			FRTTurnLogEntry CuraVuota;
+			CuraVuota.Phase = ERTMatchPhase::Blast;
+			CuraVuota.Category = ERTLogCategory::Fallback;
+			CuraVuota.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+			CuraVuota.SrcCell = Unit->Cell;
+			CuraVuota.TgtCell = HealTarget->Cell;
+			CuraVuota.Amount = static_cast<int32>(ERTActionInvalidReason::NoEffect);
+			CuraVuota.ActionId = Heal->Def.ActionId;
+			CuraVuota.BaseActionId = Heal->Def.BaseActionId;
+			CuraVuota.Priority = Heal->Def.Priority;
+			AppendLogEntry(CuraVuota, Unit);
+			continue;
+		}
 
 		// Chi cura, accanto a da-dove: la cella del curatore non identifica un'unita' ([D-063]), e il TurnLog
 		// deve dire chi ha agito (#405). `AddHeal` tiene allineati i quattro array paralleli.
@@ -618,7 +645,21 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// CollectHexAttacks (e' un intento come un altro, portata 1): un Interrupt senza linea di tiro sul
 	// bersaglio non produce un Hit, quindi non cancella nulla, esattamente come un attacco bloccato dalla
 	// copertura.
-	TSet<int32> InterruptedAttackerIds;
+	// 🔴 **Si tiene traccia degli INTENTI cancellati, non delle unita'** (`#1437`). Un'unita' puo' possedere
+	// piu' di un intento nello stesso turno — `AppendChargeImpactIntents` ne aggiunge uno per l'impatto di
+	// una carica — e la versione precedente ne cercava UNO solo, col `break` al primo trovato, per poi
+	// cancellare col filtro **tutti** i colpi di quell'attaccante. Ne seguivano due esiti sbagliati e
+	// simmetrici:
+	//
+	// - primo intento non interrompibile e secondo si': la guardia falliva sul primo e **non si interrompeva
+	//   niente**, mentre un'azione interrompibile c'era;
+	// - primo interrompibile e secondo no: si cancellavano **entrambi**, incluso quello che dichiara di non
+	//   poter essere interrotto, e la traccia ne nominava uno solo.
+	//
+	// Con gli indici degli intenti la domanda si fa per azione, che e' l'unita' su cui `bCanBeInterrupted`
+	// e' dichiarato — e la deduplicazione viene gratis: due Interrupt sulla stessa vittima aggiungono lo
+	// stesso indice al `TSet` e producono una voce sola.
+	TSet<int32> InterruptedIntents;
 	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
@@ -626,34 +667,28 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		{
 			continue;
 		}
-		if (!Units.IsValidIndex(Hit.TargetId)) { continue; }
+		if (!Units.IsValidIndex(Hit.TargetId) || !Units[Hit.TargetId]) { continue; }
 
-		// L'azione pianificata dal BERSAGLIO non si legge da `Unit->PlannedAbilityIndex`: il ciclo che ha
-		// costruito `Intents`, qualche riga sopra, l'ha gia' CONSUMATA (azzerata) per ogni unita', bersaglio
-		// compreso — e' cosi' che il turno evita di rieseguire due volte la stessa azione. Va cercata fra gli
-		// `Intents` gia' catturati, nell'entrata che il bersaglio ha prodotto per SE STESSO (AttackerId ==
-		// l'indice del bersaglio dell'Interrupt): e' li' che la definizione originale sopravvive al reset.
-		int32 VictimIntentIdx = INDEX_NONE;
+		// Le azioni pianificate dal BERSAGLIO non si leggono da `Unit->PlannedAbilityIndex`: il ciclo che ha
+		// costruito `Intents`, qualche riga sopra, le ha gia' CONSUMATE (azzerate) per ogni unita', bersaglio
+		// compreso — e' cosi' che il turno evita di rieseguire due volte la stessa azione. Vanno cercate fra
+		// gli `Intents` gia' catturati, nelle entrate che il bersaglio ha prodotto per SE STESSO
+		// (`AttackerId` == l'indice del bersaglio dell'Interrupt): e' li' che le definizioni originali
+		// sopravvivono al reset.
 		for (int32 k = 0; k < Intents.Num(); ++k)
 		{
-			if (Intents[k].AttackerId == Hit.TargetId) { VictimIntentIdx = k; break; }
-		}
+			if (Intents[k].AttackerId != Hit.TargetId) { continue; }
 
-		// Solo se il bersaglio ha DAVVERO pianificato un'azione interrompibile: un Interrupt su chi non ha
-		// pianificato nulla (o ha pianificato Guard, non interrompibile) non ha niente da cancellare.
-		if (VictimIntentIdx != INDEX_NONE && IntentDefs.IsValidIndex(VictimIntentIdx)
-			&& IntentDefs[VictimIntentIdx].bCanBeInterrupted)
-		{
-			// ⚠️ UNA voce per AZIONE cancellata, non per colpo di Interrupt. Due unita' che interrompono lo
-			// stesso bersaglio nello stesso turno — banale in 2v2 — producono due `Hit` con lo stesso
-			// `TargetId`: l'effetto di gioco e' gia' deduplicato dal `TSet`, e senza questa guardia la
-			// traccia direbbe che l'unica azione della vittima e' stata cancellata DUE volte. Sarebbe la
-			// riga doppia che `#1412` esiste per togliere, reintrodotta dalla PR che ne chiude l'inverso.
-			bool bGiaInterrotto = false;
-			InterruptedAttackerIds.Add(Hit.TargetId, &bGiaInterrotto);
-			if (bGiaInterrotto)
+			// Solo cio' che DICHIARA di poter essere interrotto: un Interrupt su chi ha pianificato Guard
+			// (`bCanBeInterrupted = false`) non ha niente da cancellare, e l'impatto di una carica gia'
+			// avvenuta nemmeno.
+			if (!IntentDefs.IsValidIndex(k) || !IntentDefs[k].bCanBeInterrupted) { continue; }
+
+			bool bGia = false;
+			InterruptedIntents.Add(k, &bGia);
+			if (bGia)
 			{
-				continue;
+				continue; // gia' cancellato da un altro Interrupt: una voce per azione, non per colpo
 			}
 
 			// 🔴 **L'asimmetria INVERSA**, secondo sito ([D-196], `#1412` punto 4): un'azione cancellata da
@@ -664,16 +699,13 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 			// quindi e' lei il soggetto della voce — e `UnitId` la segue, come il combat log (`#1418`).
 			//
 			// ⚠️ `TgtCell` porta **dove puntava l'azione cancellata**, come in ogni altra voce `Fallback`
-			// della famiglia (`CuraMancata`, `FallbackEntry`, `ArcRejected`, `SlotOccupied`). La prima
-			// stesura ci metteva la cella di CHI HA INTERROTTO, e `DescribeEntry` rende tutte le voci
-			// `Fallback` con lo stesso «src -> tgt»: la riga si leggeva «la vittima attaccava
-			// l'interruttore», che e' una frase precisa e falsa. Il campo entra nell'hash e in `EntryLess`,
-			// quindi l'ambiguita' sarebbe finita nei byte archiviati.
+			// della famiglia (`CuraMancata`, `FallbackEntry`, `ArcRejected`, `SlotOccupied`). Metterci la
+			// cella di chi ha interrotto faceva leggere «la vittima attaccava l'interruttore» — preciso e
+			// falso, e il campo entra nell'hash.
 			//
-			// ⚠️ **Chi ha interrotto non entra nella voce**, ed e' un limite dichiarato: `UnitId` e' uno solo
-			// e lo prende il soggetto. E' lo stesso costo di `#1430` per `RearHitBypassedCover`.
-			const int32 BersaglioId = Intents.IsValidIndex(VictimIntentIdx)
-				? Intents[VictimIntentIdx].TargetId : INDEX_NONE;
+			// ⚠️ **Chi ha interrotto non entra nella voce**: `UnitId` e' uno solo e lo prende il soggetto.
+			// Stesso costo di `#1430` per `RearHitBypassedCover`.
+			const int32 BersaglioId = Intents[k].TargetId;
 			FRTTurnLogEntry Interrotta;
 			Interrotta.Phase = ERTMatchPhase::Blast;
 			Interrotta.Category = ERTLogCategory::Fallback;
@@ -682,25 +714,27 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 			Interrotta.TgtCell = Units.IsValidIndex(BersaglioId) && Units[BersaglioId]
 				? Units[BersaglioId]->Cell : Units[Hit.TargetId]->Cell;
 			Interrotta.Amount = static_cast<int32>(ERTActionInvalidReason::Interrupted);
-			Interrotta.ActionId = IntentDefs[VictimIntentIdx].ActionId;
-			Interrotta.BaseActionId = IntentDefs[VictimIntentIdx].BaseActionId;
-			Interrotta.Priority = IntentDefs[VictimIntentIdx].Priority;
+			Interrotta.ActionId = IntentDefs[k].ActionId;
+			Interrotta.BaseActionId = IntentDefs[k].BaseActionId;
+			Interrotta.Priority = IntentDefs[k].Priority;
 			AppendLogEntry(Interrotta, Units[Hit.TargetId]);
 
 			// ⛔ **Niente `AddLogEvent` qui**: la riga arriva al combat log attraverso `ConcludeTurn`, che
-			// deriva una riga per ogni voce di TurnLog. Tenerla avrebbe creato un duplicato NUOVO — la stessa
-			// informazione in due formati — nella PR che chiude l'asimmetria opposta. La riga derivata dice
-			// di piu' (azione, motivo, celle) e non dice il nome dell'unita': e' il debito noto di `#1412`
-			// punto 2, che si paga una volta per tutti i siti, non se ne aprono di nuovi.
+			// deriva una riga per ogni voce di TurnLog. Tenerla creerebbe un duplicato — la stessa
+			// informazione in due formati — che e' il debito noto di `#1412` punto 2.
 		}
 	}
+
 	// Il colpo dell'Interrupt STESSO non deve mai diventare un `FRTAttack`: non fa danno (`Effects` vuoto),
 	// ma un colpo a Power 0 nell'array conterebbe comunque come "primo colpo" per `ApplyFirstHitDelta` —
 	// consumando il bonus/malus di Guard/Exposed/Marked su un colpo fantasma invece che sull'attacco vero
-	// che dovrebbe riceverlo. Si toglie insieme ai colpi degli interrotti, nello stesso filtro.
-	Plan.Hits.RemoveAll([&InterruptedAttackerIds, &IntentDefs](const FRTHexAttackHit& Hit)
+	// che dovrebbe riceverlo. Si toglie insieme ai colpi degli intenti interrotti, nello stesso filtro.
+	//
+	// ⚠️ Il filtro guarda l'INTENTO, non l'attaccante: cosi' un'azione non interrompibile della stessa unita'
+	// sopravvive, che e' cio' che `bCanBeInterrupted` dichiara (`#1437`).
+	Plan.Hits.RemoveAll([&InterruptedIntents, &IntentDefs](const FRTHexAttackHit& Hit)
 	{
-		if (InterruptedAttackerIds.Contains(Hit.AttackerId)) { return true; }
+		if (InterruptedIntents.Contains(Hit.IntentIndex)) { return true; }
 		return IntentDefs.IsValidIndex(Hit.IntentIndex)
 			&& IntentDefs[Hit.IntentIndex].ActionId == FName(TEXT("Action.Interrupt"));
 	});
