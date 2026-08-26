@@ -249,7 +249,15 @@ def hero_ability_axes() -> dict[str, dict]:
     }
 
     out: dict[str, dict] = {}
-    for helper in ("MakeHeroBasicAttack(", "MakeHeroAction(", "MakeHeroReactionFromCoreAction("):
+    # ⚠️ `MakeHeroActionFromCore` e' arrivata con main (D-195 e i tre commit del catalogo eroi): le
+    # cinque abilita' derivate passano ora da un helper che DICHIARA l'origine invece di copiare i
+    # campi da una variabile locale. E' un dato migliore di prima — l'origine e' un argomento, non un
+    # riferimento da ricostruire — ma un parser che non la conosce perde esattamente quelle cinque, e
+    # lo fa in silenzio: `hero_ability_axes()` ne restituirebbe 15 su 20 senza errori.
+    #
+    # Il gate T7 l'ha intercettata al merge, che e' l'unico motivo per cui questa riga esiste.
+    for helper in ("MakeHeroBasicAttack(", "MakeHeroActionFromCore(", "MakeHeroAction(",
+                   "MakeHeroReactionFromCoreAction("):
         for call in _balanced_calls(text, helper):
             raw = _strip_comments(call)
             args = _split_args(raw)
@@ -260,8 +268,8 @@ def hero_ability_axes() -> dict[str, dict]:
 
             derived = None
             phase = None
-            if helper == "MakeHeroReactionFromCoreAction(":
-                # La reazione E' un'azione core con un nome d'eroe: fase, slot ed effetti vengono da la'.
+            if helper in ("MakeHeroReactionFromCoreAction(", "MakeHeroActionFromCore("):
+                # L'abilita' E' un'azione core con un nome d'eroe: fase, slot ed effetti vengono da la'.
                 core_ref = re.search(r'TEXT\("(Action\.\w+)"\)', args[1] if len(args) > 1 else "")
                 derived = core_ref.group(1) if core_ref else None
                 phase = core.get(derived, {}).get("phase") if derived else None
