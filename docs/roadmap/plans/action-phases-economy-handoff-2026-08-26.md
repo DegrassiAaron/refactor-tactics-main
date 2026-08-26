@@ -1,17 +1,29 @@
 # Fasi delle azioni, Dodge, Guard, Brace, Interact, Overwatch — handoff riconciliato
 
-> 🔁 **Riscrittura del handoff ricevuto il 2026-08-26** (`CLAUDE_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0`).
-> L'originale prescriveva un audit e poi lo dava per svolto: metà delle sue tesi descrive cose che il
-> repository fa già, e la sua roadmap `AE-*` fino alla `v1.0` è **la seconda roadmap che il documento stesso
-> vieta** — la ladder `v0.2 → v1.0` esiste, con le sue epic, in
-> [`../roadmap-post-v0.1.md`](../roadmap-post-v0.1.md). Questo file è quel documento **dopo** l'audit.
+> `CURRENT` · **Creato**: 2026-08-26 · **Base misurata**: `c2bbfb7`
+> **Sorgente esaminato**: `CLAUDE_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_20260826.md`, archiviato in
+> [`../../archive/src/handoff/2026-08-26-action-phases-dodge-guard-brace-overwatch.md`](../../archive/src/handoff/2026-08-26-action-phases-dodge-guard-brace-overwatch.md).
 >
-> **Misurato su** `c2bbfb7` (2026-08-26), branch `claude/greybox-work-wg4w85`. Ogni riga marcata *misurato*
-> ha un file e una funzione dietro; ogni riga marcata *da decidere* non ne ha, e non se ne inventa una.
+> **Cosa possiede**: il verdetto tesi per tesi del sorgente e le misure che lo sostengono. Da oggi è la
+> **lettura corrente del dominio** — fasi delle azioni, Dash/Dodge, Guard, Brace, Interact, Overwatch,
+> reaction economy — e supera il sorgente come documento di riferimento.
+> **Cosa non possiede**: nessuna regola, e questa cartella non ha owner ([`README.md`](README.md)). Le regole
+> restano di [`../../decisions/`](../../decisions/RT_PDR_00_Decision_Log.md),
+> [`../../gameplay/spec-economia-del-turno.md`](../../gameplay/spec-economia-del-turno.md) e
+> [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md); lo stato di E38 è di
+> [`../roadmap-post-v0.1.md`](../roadmap-post-v0.1.md).
 >
-> ⛔ **Non autorizza a implementare niente.** Un handoff non è autorità
-> ([`../../../CLAUDE.md`](../../../CLAUDE.md) §4): le tre tesi che confliggono con decisioni consolidate
-> passano da una Decision Issue, non da questo file.
+> ⚠️ **Superare il sorgente non supera le decisioni che il sorgente voleva rovesciare.** Le tre tesi del §3
+> confliggono con regole **consolidate e implementate** (CP 5.1, il catalogo di `Brace` e `Guard`): questo
+> file le registra come conflitto e propone una Decision Issue, **non** le adotta. Chi legge qui una regola
+> nuova sta leggendo male.
+>
+> 🔁 **Perché esiste**: il sorgente prescriveva un audit e poi lo dava per svolto. Metà delle sue tesi
+> descrive cose che il repository fa già, e la sua roadmap `AE-*` fino alla `v1.0` è **la seconda roadmap che
+> il documento stesso vieta** al §9. Questo file è quel documento **dopo** l'audit.
+>
+> Ogni riga marcata *misurato* ha un file e una funzione dietro; ogni riga marcata *da decidere* non ne ha, e
+> non se ne inventa una.
 >
 > 📌 **Ultimo `D-nnn` assegnato: `D-195`** (2026-08-26). Le decisioni che nascono da qui partono da `D-196`
 > e si **riverificano prima del merge**.

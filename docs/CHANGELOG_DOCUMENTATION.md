@@ -2,6 +2,91 @@
 
 ---
 
+## 2026-08-26 — Il secondo sorgente sulle fasi delle azioni: recepito in parte, e con le due difese scambiate
+
+**Origine**: sorgente d'autore `CLAUDE_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_20260826.md`,
+consegnato come handoff operativo su fasi del turno, Dash/Dodge, Guard, Brace, Interact, Overwatch e reaction
+economy. È il **secondo** sullo stesso perimetro dopo
+[`2026-08-12-action-economy-movement-facing.md`](archive/src/handoff/2026-08-12-action-economy-movement-facing.md),
+e come quello prescriveva un audit e poi lo dava per svolto.
+
+**Il referto è ora la lettura corrente del dominio, e supera il sorgente.** Le regole no: restano dove erano.
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| [`roadmap/plans/action-phases-economy-handoff-2026-08-26.md`](roadmap/plans/action-phases-economy-handoff-2026-08-26.md) | **nuovo** — `CURRENT`, il verdetto tesi per tesi misurato su `c2bbfb7` |
+| [`archive/src/handoff/2026-08-26-action-phases-dodge-guard-brace-overwatch.md`](archive/src/handoff/2026-08-26-action-phases-dodge-guard-brace-overwatch.md) | **archiviato** — sorgente integrale col banner d'esito in testa |
+| [`archive/src/README.md`](archive/src/README.md) | riga d'indice in `handoff/` — il difetto di [#579](https://github.com/DegrassiAaron/refactor-tactics-main/issues/579) è un file archiviato *senza* riga |
+| [`roadmap/plans/README.md`](roadmap/plans/README.md) | contatore rimisurato: `CURRENT` 41 → **42**, `nessun banner` 3 → **4**, totale 51 → **53** |
+
+### Tre tesi su nove erano già vere, e nessuno le aveva chieste
+
+L'audit ha misurato che il repository soddisfaceva **prima di ricevere il documento** ciò che il documento
+chiedeva di implementare:
+
+- **L'Overwatch standard guarda solo la fase `Move`, per costruzione.** Il ciclo a micro-step in cui i
+  trigger si valutano (`URTHexSimLibrary::BeginHexMovement`) vive dentro `ResolveMovement`; `ResolveDash` è
+  un'altra funzione e non ci passa. Non c'è nessun `position changed` generico da filtrare — il produttore di
+  opportunity **non vede** la fase Dash. `ERTReactionTrigger` conferma da un secondo lato: nessuno dei suoi
+  cinque valori è un trigger di movimento.
+- **«Dash + Move» non esiste** da [D-028](decisions/RT_PDR_00_Decision_Log.md)/[D-191](decisions/RT_PDR_00_Decision_Log.md),
+  ed è eseguibile: `Spec.Movement.DashDiscardsPlannedMove` dichiara scatto e waypoint verso due destinazioni
+  incompatibili e misura quale vince.
+- **`Sprint ≠ Dash`** è deciso da [D-015](decisions/RT_PDR_00_Decision_Log.md)/[D-116](decisions/RT_PDR_00_Decision_Log.md),
+  e la divergenza del codice è debito **già tracciato** ([`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md)
+  riga 41), non un buco scoperto qui.
+
+Il valore del verdetto non è quindi l'elenco del lavoro: è che **tre voci si spostano da «implementare» a
+«impedire la regressione»**. Il giorno in cui qualcuno unificasse i due percorsi di movimento — che è una
+semplificazione plausibile — l'Overwatch comincerebbe a scattare sugli scatti in silenzio.
+
+### La cosa che nessuno stava cercando: il sorgente aveva Guard e Brace scambiati
+
+Il §5 chiede `GUARD — Move: unavailable` e lascia il `Brace` fra le voci «da riconciliare». Il catalogo dice
+l'opposto, ed è misurabile in due righe di `RTCatalogLibrary.cpp`: `Action.Guard` dichiara `Status.Guarded` e
+**nient'altro** — non tocca il movimento — mentre `Action.Brace` dichiara `Status.Braced` **più
+`Status.Root`**, cioè inchioda chi lo pianifica.
+
+Chi avesse eseguito il documento alla lettera avrebbe tolto il movimento alla Guard senza accorgersi che al
+Brace era già tolto. È lo stesso genere di difetto che
+[`archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md`](archive/roadmap-plans/action-economy-consolidamento-2026-08-12.md)
+aveva trovato nel sorgente precedente — una tesi scritta senza aprire il catalogo — e per la seconda volta è
+costata a chi legge, non a chi scrive.
+
+### Ciò che è stato respinto, e perché non è una questione di merito
+
+- **La ladder `AE-PHASE-v0.1` … `AE-LAUNCH-v1.0`** duplica release ed epic che
+  [`roadmap/roadmap-post-v0.1.md`](roadmap/roadmap-post-v0.1.md) già dichiara: `E38` possiede questo dominio,
+  `E40`–`E45` sono la vista di *release* di tutto il progetto. È la seconda roadmap che il documento stesso
+  vieta al suo §9.
+- **Sette delle dodici domande del §15 hanno già un ID** in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md): `AE-1` e
+  `AE-2` sono **chiuse** (D-114, D-116), e il divieto di `Dash` a chi arma l'Overwatch è una *conseguenza* di
+  [D-070](decisions/RT_PDR_00_Decision_Log.md) — che rispondeva alla stessa richiesta, da un altro handoff,
+  con le parole *«il divieto che l'handoff chiedeva come regola a sé non serve»*.
+- **I nomi del §6** (`ActionDefinition`, `PostDashMovePolicy`, `ActionConflict.*`) hanno equivalenti reali, e
+  l'ultimo sarebbe l'enum parallelo di reason code già respinto da
+  [`gameplay/spec-tassonomia-movimento.md`](gameplay/spec-tassonomia-movimento.md) §6.
+
+### Cosa resta aperto, e cosa questo giro NON ha deciso
+
+Tre tesi del sorgente confliggono con regole **consolidate e implementate**, e valgono **una sola** Decision
+Issue perché decise separatamente si contraddicono: lo slot `Reaction` è indipendente per progetto (CP 5.1,
+E5), `Action.Brace` è mitigazione e non un counter anti-Dash, `Action.Guard` non nega il movimento.
+
+⚠️ **Superare il sorgente non supera le decisioni che il sorgente voleva rovesciare.** Il referto le registra
+come conflitto e propone la Decision Issue; non le adotta, e nessun `D-nnn` è stato assegnato in questo giro —
+l'ultimo resta **D-195**.
+
+Sopravvive intera **una** tesi, ed è nuova: `Action.Dash` ed `ERTMatchPhase::Dash` nominano contenitore e
+contenuto, e il costo si paga a ogni lettura del TurnLog — lo stesso criterio con cui `D-070` scartò
+`Reposition` e `D-082` scartò `Breach`. Il nome sostitutivo però non è ancora disponibile: `Action.Evade` è
+già occupato da una reazione, `Action.Dash` è uno Stable ID che `D-134` permette di cancellare **solo dopo**
+aver misurato il corpus golden, e il gate che sorvegliava i nomi legacy è uscito con `D-182`.
+
+---
+
 ## 2026-08-12 — Ventiquattro binari diventano sei Markdown: D-009 chiusa per l'intero corpus
 
 **Origine**: richiesta dell'utente — *«non voglio vedere pdf in docs»*, poi estesa all'ultimo `.docx`. La
