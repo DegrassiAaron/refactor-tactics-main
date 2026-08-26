@@ -195,7 +195,7 @@ TArray<FRTPlannedIntent> URTHudViewModel::BuildAuthoritativeIntents(const TArray
 		Intent.TeamId = Unit->TeamId;
 		Intent.bAlive = true;
 		Intent.bRevealed = Unit->HasStatus(TAG_Status_Reveal);
-		Intent.bMoving = (Unit->PlannedCell != Unit->Cell);
+		Intent.bMoving = Unit->HasPlannedNormalMove(); // la regola intera, non la sua meta'
 		Intent.PlannedCell = Unit->PlannedCell;
 		Intent.ActionName = Planned ? Planned->DisplayName : FText::GetEmpty();
 		Intent.bHasTarget = (Unit->PlannedAttackTarget != nullptr && Unit->PlannedAttackTarget->IsAlive());
