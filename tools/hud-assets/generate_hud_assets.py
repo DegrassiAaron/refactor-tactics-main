@@ -1315,6 +1315,598 @@ def g_action_dodge() -> str:
 
 
 # --------------------------------------------------------------------------------------------------
+# Le cinque categorie che la v0.1 mostra e il catalogo non dichiara
+# --------------------------------------------------------------------------------------------------
+# `ERTIconCategory` ne dichiara dodici; `RequiredIconIds()` ne popola cinque. Le altre sette non sono
+# dimenticate: `RefactorTactics.IconCatalog.V01CategoriesPopulated` FALLISCE se una loro chiave
+# comparisse fra le richieste, ed e' un test che difende una decisione — «una chiave qui chiederebbe
+# un disegno per un sistema che ancora non la consuma».
+#
+# ⚠️ Quindi questi 40 glifi sono ASSET, non chiavi richieste. Il generatore li conta fra le «fuori dal
+# set richiesto», e chi aprira' la lista (E25) dovra' scrivere il ramo di `RequiredIconIds()` nello
+# stesso commit in cui li innesta — o `FindMissingRequiredIcons` cade, o restano fuori dal gate.
+#
+# Due categorie restano VUOTE di proposito e non si disegnano:
+#   Objective     — la v0.1 e' 2v2 con eliminazione: non c'e' un obiettivo da catturare
+#   Coordination  — 2v2 offline contro bot: senza un compagno umano, meta' della categoria non ha
+#                   soggetto, e l'intento alleato lo porta gia' `Identity.Ally`
+# Una categoria vuota dichiarata e' un'informazione, non un buco.
+#
+# REGOLA TRASVERSALE, la piu' importante di questo blocco: azione, superficie e stato sono tre livelli
+# con tre ancoraggi diversi. L'azione e' un gesto con una sorgente; la superficie RIEMPIE la primitiva
+# `Cell`; lo stato si attacca a un unit marker. Le terne complete sono acqua
+# (`CreateWater` · `ShallowWater` · `Wet`), fuoco (`Ignite` · `Fire` · `Burning`) ed elettricita'
+# (`Electrify` · `Conductive` · `Electrified`) — con l'avvertenza che la terza non e' simmetrica:
+# `Conductive` non e' elettricita' sulla cella, e' un materiale che la porterebbe.
+
+
+def cell_hex(cx: float = 12, cy: float = 12.4, r: float = 8.6, **kw) -> str:
+    """La primitiva `Cell` (§2): esagono 2D pulito, **nessuna prospettiva**. E' il contenitore di
+    tutto cio' che appartiene alla mappa, ed e' cio' che separa una superficie da un'azione."""
+    kw.setdefault("stroke_width", 1.3)
+    return polygon(hexagon(cx, cy, r, flat_top=False), **kw)
+
+
+def slash(x0: float = 4.4, y0: float = 19.6, x1: float = 19.6, y1: float = 4.4) -> str:
+    """`Invalid` (§6): il taglio. Non e' `Uncertain` e non e' `Disabled`."""
+    return path(f"M{_n(x0)} {_n(y0)} L{_n(x1)} {_n(y1)}", stroke_width=2.4)
+
+
+def query_mark(cx: float, cy: float, scale: float = 1.0) -> str:
+    """Il `?` come MARCA, non come stile. La distinzione conta: come stile appartiene a `Uncertain`,
+    come marca dice «questa cosa non l'hai mai conosciuta»."""
+    r = 1.9 * scale
+    return "\n".join([
+        arc_deg(cx, cy - r, r, 170, 10, stroke_width=1.5 * scale),
+        path(f"M{_n(cx + r)} {_n(cy - r)} Q{_n(cx + r)} {_n(cy + 0.4 * scale)} "
+             f"{_n(cx)} {_n(cy + 1.2 * scale)}", stroke_width=1.5 * scale),
+        dot(cx, cy + 3.4 * scale, 1.0 * scale),
+    ])
+
+
+# --- Environment: sette superfici, tutte dentro la `Cell` ------------------------------------------
+
+def g_env_shallow_water() -> str:
+    """2 MP, bagna finche' ci resti, conduce. **Nessun fulmine**: la conduttivita' e' del payload."""
+    return "\n".join([cell_hex(), waves(10.6, x0=6, span=12, amp=1.5, stroke_width=1.7),
+                      waves(14.8, x0=6, span=12, amp=1.5, stroke_width=1.7)])
+
+
+def g_env_fire() -> str:
+    """2 MP, 10 danni, `Burning` 2 turni.
+
+    ⚠️ **Vietata la primitiva `Damage`**: §4 esclude la fiamma da `Damage`, e la reciproca vale — il
+    fuoco non prende in prestito impact/crack, o si legge come un allarme di UI invece che come una
+    proprieta' della mappa."""
+    return "\n".join([
+        cell_hex(),
+        path("M12 6.4 Q8 11.4 10.4 15.8 Q11.4 13 13 13.8 Q16.4 10.4 12 6.4 Z", stroke_width=1.6),
+        path("M8 16.4 Q7.4 13.4 8.8 11.8", stroke_width=1.3),
+        path("M16 16.4 Q16.6 13.4 15.2 11.8", stroke_width=1.3),
+    ])
+
+
+def g_env_rough() -> str:
+    """2 MP, blocca Dash e Charge.
+
+    ⚠️ La collisione da chiudere e' con il **marcatore di cella bloccata**, che D-183 misura come la
+    peggiore delle nove. Vietato il «Dash sbarrato»: un'azione negata appartiene a `Warning`."""
+    return "\n".join([
+        cell_hex(),
+        path("M7.4 14.6 L9.6 10.4 L11.8 14.6 Z", stroke_width=1.5),
+        path("M12.6 16.4 L14.4 12.8 L16.6 16.4 Z", stroke_width=1.5),
+        path("M13.4 9.6 L15 6.8 L16.6 9.6 Z", stroke_width=1.3),
+    ])
+
+
+def g_env_ice() -> str:
+    """Chi finisce il movimento qui scivola di una cella. Il reticolo cristallino ha le tacche di
+    faccia: senza, e' la raggiera di `Phase.Blast`."""
+    rays = []
+    for a in (90, 210, 330):
+        rays.append(path(
+            f"M{_n(12 + 6 * math.cos(math.radians(a)))} {_n(12.4 + 6 * math.sin(math.radians(a)))} "
+            f"L{_n(12 - 6 * math.cos(math.radians(a)))} {_n(12.4 - 6 * math.sin(math.radians(a)))}",
+            stroke_width=1.5))
+    ticks = []
+    for a in (90, 210, 330):
+        bx, by = 12 + 3.6 * math.cos(math.radians(a)), 12.4 + 3.6 * math.sin(math.radians(a))
+        ticks.append(path(f"M{_n(bx - 1.4)} {_n(by - 1.4)} L{_n(bx + 1.4)} {_n(by + 1.4)}",
+                          stroke_width=1.1))
+    return "\n".join([cell_hex()] + rays + ticks)
+
+
+def g_env_conductive() -> str:
+    """Non fa nulla da sola: una scarica si propaga sulle celle collegate.
+
+    ⚠️ Non e' elettricita' sulla cella — e' un materiale che la porterebbe. Per questo il glifo e' un
+    reticolo di nodi collegati e **non** un fulmine, che appartiene al payload (`Action.Electrify`) e
+    allo stato (`Status.Electrified`)."""
+    return "\n".join([
+        cell_hex(),
+        path("M8 15.4 L11 9.6 L14.4 14.4 L17 8.6", stroke_width=1.4),
+        dot(8, 15.4, 1.4), dot(11, 9.6, 1.4), dot(14.4, 14.4, 1.4), dot(17, 8.6, 1.4),
+    ])
+
+
+def g_env_smoke() -> str:
+    """Offusca chi ci sta dentro e tappa il targeting a 2 celle."""
+    return "\n".join([
+        cell_hex(),
+        path("M8 15.4 Q5.6 13.4 7.4 11.4 Q7.6 8 11 8.4 Q13.4 6.6 15.4 9 Q18.4 9.4 17.6 12.4 "
+             "Q18.4 15.4 15.4 15.8 Q12 17.4 9.6 15.8 Z",
+             stroke_dasharray="2.6 2", stroke_width=1.6),
+    ])
+
+
+def g_env_high_ground() -> str:
+    """Voce del catalogo terreni: si vede sulla board e in v0.1 **non cambia nessun numero**.
+
+    I due anelli non sono decorazione — sono il secondo canale che la board usa gia'."""
+    return "\n".join([
+        cell_hex(cy=14.4, r=8.2),
+        polygon(hexagon(12, 11.4, 5.6, flat_top=False), stroke_width=1.5),
+        polygon(hexagon(12, 8.6, 3, flat_top=False), stroke_width=1.5),
+    ])
+
+
+# --- MapInteraction: otto oggetti, tutti su un BORDO ----------------------------------------------
+# La cella e' contesto (tratto sottile), il bordo e' il soggetto (tratto spesso). E' l'unica cosa che
+# separa questa categoria da `Environment`, dove il soggetto e' il riempimento.
+
+def _edge_context() -> str:
+    return polygon(hexagon(10.4, 12.4, 7.6, flat_top=False), stroke_width=1.0,
+                   stroke_opacity="0.5")
+
+
+def g_map_cover_low() -> str:
+    """Barriera su un bordo: -10 al danno che entra da li', non ferma ne' vista ne' passo."""
+    return "\n".join([
+        _edge_context(),
+        path("M16.4 12.6 L20.4 12.6 L20.4 19.4 L16.4 19.4 Z", fill="#FFFFFF", stroke="none"),
+        path("M14.4 20.8 L22.4 20.8", stroke_width=1.6),
+        path("M13.6 8 L18.4 8", stroke_dasharray="1.6 1.8", stroke_width=1.2),
+    ])
+
+
+def g_map_cover_high() -> str:
+    """Muro su un bordo: nega vista, passo e proiettili.
+
+    🔴 La coppia piu' pericolosa del set e' con `Door.Closed`: stesso slot geometrico, stessa
+    promessa. Qui il segno e' l'**ancoraggio al terreno** e l'altezza piena; la' e' la cerniera."""
+    return "\n".join([
+        _edge_context(),
+        path("M16.4 4.6 L20.4 4.6 L20.4 19.4 L16.4 19.4 Z", fill="#FFFFFF", stroke="none"),
+        path("M14.4 20.8 L22.4 20.8", stroke_width=1.6),
+        path("M12.4 9.6 L15 9.6", stroke_width=1.2),
+        path("M13.6 8.2 L15 9.6 L13.6 11", stroke_width=1.2),
+    ])
+
+
+def g_map_cover_temporary() -> str:
+    """Eretta in partita, integrita' 30, **scade in 2 turni** nel Cleanup.
+
+    Il tratteggio trasversale dice «non e' materiale del posto». Non si usa un dash sul contorno:
+    quello e' `Predicted`."""
+    return "\n".join([
+        _edge_context(),
+        path("M16.4 6.4 L20.4 4.6 L20.4 19.4 L16.4 19.4 Z", stroke_width=1.5),
+        path("M14.4 20.8 L22.4 20.8", stroke_width=1.4, stroke_dasharray="2 1.8"),
+    ])
+
+
+def g_map_cover_destroyed() -> str:
+    """Abbattuta: da qui in poi quel bordo si attraversa e si tira."""
+    return "\n".join([
+        _edge_context(),
+        path("M16.4 16 L20.4 16 L20.4 19.4 L16.4 19.4 Z", fill="#FFFFFF", stroke="none"),
+        path("M14.4 20.8 L22.4 20.8", stroke_width=1.6),
+        path("M15.4 12.4 L17 13.8 M19.6 10 L20.8 11.2 M17.6 8.4 L18.6 9.4", stroke_width=1.3),
+    ])
+
+
+def g_map_door_closed() -> str:
+    """Non ci si passa e non si vede, ma un `Interact` adiacente apre."""
+    return "\n".join([
+        _edge_context(),
+        path("M16.6 5 L16.6 19.4 L21 19.4 L21 5 Z", stroke_width=1.8),
+        path("M18.8 5 L18.8 19.4", stroke_width=1.0),
+        dot(16.6, 6.6, 1.3), dot(16.6, 17.8, 1.3),
+    ])
+
+
+def g_map_door_open() -> str:
+    """Ci si passa e si vede: e' lo stato che `Action.Interact` chiede, l'unico verbo di mappa che la
+    v0.1 spedisce."""
+    return "\n".join([
+        _edge_context(),
+        path("M17 5 L17 19.4", stroke_width=1.4, stroke_dasharray="2 2"),
+        path("M17 5 L21.6 8 L21.6 21 L17 18.4 Z", stroke_width=1.8),
+        dot(17, 5, 1.2),
+    ])
+
+
+def g_map_arc_active() -> str:
+    """Il collegamento fra due celle: senza di lui le due **non sono adiacenti**.
+
+    Il nome e' `Arc` e non `Bridge` perche' il codice dice arco, e `Bridge` e' gia' una specie di
+    `ERTHexTransitionKind`: lo stesso nome per il genere e per una sua specie non regge."""
+    return "\n".join([
+        polygon(hexagon(7.4, 6.6, 4.2, flat_top=False), stroke_width=1.4),
+        polygon(hexagon(16.6, 17.4, 4.2, flat_top=False), stroke_width=1.4),
+        path("M9.6 9.8 L14.4 14.2", stroke_width=2.4),
+    ])
+
+
+def g_map_arc_destroyed() -> str:
+    """Crollo **terminale**: i due layer tornano irraggiungibili e le macerie restano."""
+    return "\n".join([
+        polygon(hexagon(7.4, 6.6, 4.2, flat_top=False), stroke_width=1.4),
+        polygon(hexagon(16.6, 17.4, 4.2, flat_top=False), stroke_width=1.4),
+        path("M9.6 9.8 L11.6 13.6", stroke_width=2.2),
+        path("M14.4 14.2 L13.2 10.2", stroke_width=2.2),
+        path("M8.6 16.4 L10 17.8 M12.6 16.8 L13.6 17.8 M11 19.6 L12 20.6", stroke_width=1.2),
+    ])
+
+
+# --- Information: due sole chiavi ------------------------------------------------------------------
+
+def g_info_last_contact() -> str:
+    """Dove quell'unita' e' stata vista l'ultima volta, e che e' passato del tempo.
+
+    ⚠️ `Detected` non si disegna: l'owner le assegna «rappresentazione normale autorizzata», cioe'
+    nessun marker. Un glifo per «lo vedi normalmente» sarebbe indistinguibile da `Certainty.Confirmed`
+    e da `Identity.Enemy`."""
+    return "\n".join([
+        polygon([(15.4, 7), (19.6, 11.6), (15.4, 16.2), (11.2, 11.6)], stroke_width=1.5,
+                stroke_dasharray="2.4 2"),
+        dot(15.4, 11.6, 1.3),
+        path("M8.6 14.6 L10.4 13.4 M4.6 17 L6.6 15.6 M1.6 19.4 L3.4 18.2", stroke_width=1.5),
+    ])
+
+
+def g_info_cell_only() -> str:
+    """Di quel bersaglio puoi colpire la **cella**, mai l'unita'.
+
+    🔴 Il glifo non contiene nessuna silhouette di unita', ed e' il punto: un'icona che mostra una
+    sagoma su una cella esatta quando la conoscenza e' `CellOnly` **mente**, e la bugia non e'
+    estetica — suggerisce un bersaglio che il gioco rifiutera'."""
+    return "\n".join([
+        cell_hex(r=8),
+        circle(12, 12.4, 3.8, stroke_width=1.6),
+        path("M12 6.6 L12 8.6 M12 16.2 L12 18.2 M6.2 12.4 L8.2 12.4 M15.8 12.4 L17.8 12.4",
+             stroke_width=1.3),
+    ])
+
+
+# --- Reaction: il ciclo di vita e i quattro moduli del roster -------------------------------------
+# Famiglia: un piccolo arco di ritorno nell'angolo in alto a destra, che la misura dice libero in
+# 64 glifi su 67. E' cio' che separa `Reaction.HoldGround` da `Action.Brace`, che condividono la
+# primitiva per costruzione: una e' il comando, l'altra la risposta dentro una finestra.
+#
+# 🔴 Vietata la famiglia `Phase`: «una Reaction non è una quinta fase» e' scritto nell'owner due volte
+# e una terza dentro l'enum. Se il glifo eredita il chip di Prep/Dash/Blast/Move, la regola cade a
+# schermo. Vietato anche il fulmine nudo: §7 pinna la coppia `Electric ↔ Reaction`.
+
+def reaction_mark() -> str:
+    """Marca di famiglia: il ciclo `Opportunity → Commit` che rientra."""
+    return "\n".join([
+        arc_deg(19.6, 4.4, 2.6, 150, 20, stroke_width=1.3),
+        path("M20.6 1.8 L22.2 4.6 L19.4 5", stroke_width=1.2),
+    ])
+
+
+def g_reaction_armed() -> str:
+    """Quest'unita' tiene pronta una reazione; il trigger lo decide l'avversario.
+
+    La resa `Uncertain` — tratto discontinuo e `?` — non e' una scelta di stile: e' imposta dal
+    campo HUD che la trasporta. E' lo stato ARMATO, non l'azione che arma (quelle sono
+    `Action.Overwatch` e `Action.Brace`)."""
+    return "\n".join([
+        dot(12, 18.4, 1.8),
+        path("M12 18.4 L5.4 8.6 M12 18.4 L18.6 8.6", stroke_dasharray="2.4 2",
+             stroke_width=1.4),
+        arc_deg(12, 18.4, 11.8, -152, -28, stroke_dasharray="2.4 2", stroke_width=1.3),
+        query_mark(12, 9.6, 0.85),
+    ])
+
+
+def g_reaction_opportunity() -> str:
+    """Una finestra di decisione e' aperta adesso: 3,0 s, poi vale il default.
+
+    La marca e' il **boundary** che ospita il countdown, non il countdown: un numero cotto sarebbe una
+    texture per ogni decimo di secondo."""
+    return "\n".join([
+        path("M7.4 4.6 L4.4 4.6 L4.4 20.2 L7.4 20.2", stroke_width=2.2),
+        path("M16.6 4.6 L19.6 4.6 L19.6 20.2 L16.6 20.2", stroke_width=2.2),
+        path("M9.6 12.4 L14.4 12.4", stroke_width=1.6),
+        dot(12, 8.4, 1.3),
+    ])
+
+
+def g_reaction_hold() -> str:
+    """Non sparare: la reazione resta armata, la charge non si spende. E' anche cio' che vale allo
+    scadere.
+
+    Distinta da `Action.Wait` — §7 elenca la coppia `Wait ↔ Hold` — e da `HoldGround`, che tiene la
+    **cella** invece di trattenere un **colpo**."""
+    return "\n".join([
+        path("M3.4 12 L8.4 12", stroke_width=1.8),
+        path("M11 5.6 L11 18.4 M14.6 5.6 L14.6 18.4", stroke_width=2.6),
+        reaction_mark(),
+    ])
+
+
+def g_reaction_fire() -> str:
+    """Spara ora sul bersaglio nominato: spende la charge e tronca il movimento di chi hai colpito.
+
+    Deve funzionare **ripetuta e affiancata** a un identificatore: un solo prompt puo' portare
+    `FIRE A` / `FIRE B` / `HOLD`. Per questo il bersaglio e' un anello vuoto — il nome ci va accanto,
+    non dentro."""
+    return "\n".join([
+        dot(3.4, 13.4, 1.6),
+        path("M5.4 13.4 L12.4 13.4", stroke_width=2.0),
+        arrow_head(15.4, 13.4, 2.4),
+        circle(18.6, 13.4, 2.6, stroke_width=1.4),
+        reaction_mark(),
+    ])
+
+
+def g_reaction_hold_ground() -> str:
+    """La risposta universale del `Brace`: tieni la cella e assorbi.
+
+    🔴 `Hold` e `HoldGround` sono la stessa parola per due cose diverse, e D-049 registra la
+    collisione: due glifi simili producono un giocatore che preme la cosa sbagliata sotto pressione.
+    Qui c'e' il terreno; la' ci sono le due barre che trattengono."""
+    return "\n".join([
+        path("M12 5 L7.4 11 L16.6 11 Z", stroke_width=1.6),
+        dot(12, 14.4, 1.7),
+        path("M5.4 18.4 L18.6 18.4", stroke_width=2.2),
+        path("M8.6 18.4 L7 21.2 M15.4 18.4 L17 21.2", stroke_width=1.3),
+        reaction_mark(),
+    ])
+
+
+def g_reaction_sidestep() -> str:
+    """L'altra risposta del `Brace` di Phase: esci dalla linea di un passo.
+
+    ⚠️ Dal 2026-08-19 lo scarto **esce** dalla linea, non arretra lungo di essa: un glifo di
+    arretramento racconterebbe la versione superata."""
+    return "\n".join([
+        path("M3.4 16.4 L20.6 16.4", stroke_dasharray="2.4 2", stroke_width=1.4),
+        dot(11, 16.4, 1.7),
+        path("M11 14.4 L11 9.6", stroke_width=2.0),
+        path("M8.6 11.4 L11 9 L13.4 11.4", stroke_width=1.6),
+        reaction_mark(),
+    ])
+
+
+def g_reaction_reactive_shield() -> str:
+    """Modulo di Gadget: 15 punti scudo quando incassi un colpo diretto.
+
+    🔴 Condivide `Action.Counter` e il trigger con `CounterShot`, che ha mestiere **opposto**: se
+    qualcuno risolvesse i moduli riusando l'azione concessa, i due diventerebbero lo stesso glifo. E'
+    la ragione per cui i moduli hanno chiavi proprie."""
+    return "\n".join([
+        path("M11 6.4 L17.4 9 L17.4 13.6 Q17.4 18 11 20.4 Q4.6 18 4.6 13.6 L4.6 9 Z",
+             stroke_width=1.6),
+        path("M8.4 3.6 L11 6.2 M13.6 3.6 L11 6.2", stroke_width=1.4),
+        reaction_mark(),
+    ])
+
+
+def g_reaction_hazard_escape() -> str:
+    """Modulo di Phase: quando la cella sotto di te diventa pericolosa, scappi di una.
+
+    Il soggetto e' la **fuga**, non la fiamma. ⚠️ E' l'unica reazione che vive nel Cleanup: se il
+    glifo ereditasse la famiglia Blast racconterebbe il momento sbagliato."""
+    return "\n".join([
+        cell_hex(cx=8, cy=15.6, r=5.4, stroke_dasharray="2 1.8"),
+        path("M6 13.6 L10 17.6 M10 13.6 L6 17.6", stroke_width=1.4),
+        path("M13 12.4 L17.4 8", stroke_width=2.0),
+        path("M14.6 7.4 L18 7.4 L18 10.8", stroke_width=1.5),
+        reaction_mark(),
+    ])
+
+
+def g_reaction_ally_intercept() -> str:
+    """Modulo di Riktor: ti interponi e prendi al posto di un alleato entro 2 celle.
+
+    ⚠️ La confusione piu' insidiosa e' con `Hero.Wraith.InterceptShot`, che e' la thin slice
+    Predictive: due nomi quasi identici per un'interposizione e una previsione."""
+    return "\n".join([
+        path("M2.6 12.4 L6.4 12.4", stroke_width=1.6),
+        arrow_head(8.4, 12.4, 1.9),
+        path("M11.4 8.6 L11.4 16.2 M12.8 9.6 L10 15.2", stroke_width=1.5),
+        rounded_rect(14.6, 9.4, 6, 6, 2.2, stroke_width=1.6),
+        path("M14.6 12.4 L12.8 12.4 M20.6 12.4 L22.2 12.4", stroke_width=1.2),
+        reaction_mark(),
+    ])
+
+
+def g_reaction_emergency_dash() -> str:
+    """Modulo di Wraith: quando sei bersagliato ti sposti di una cella **restando fronte alla
+    minaccia**.
+
+    🔴 Vietata la grammatica `Dash`: la parola nel nome porta dritto al glifo della FASE Dash, con cui
+    non ha nulla a che vedere. L'arco di facing conservato e' l'unico tratto che lo separa da
+    `Sidestep` e `HazardEscape`, che applicano lo stesso `SelfReposition 1`."""
+    return "\n".join([
+        dot(8, 15.4, 1.8),
+        path("M10 15.4 L14.6 15.4", stroke_width=1.8),
+        path("M13.4 13.6 L15.4 15.4 L13.4 17.2", stroke_width=1.5),
+        arc_deg(11.4, 15.4, 8, -150, -30, stroke_width=1.6),
+        path("M11.4 7.6 L11.4 5.4", stroke_width=1.3),
+        reaction_mark(),
+    ])
+
+
+# --- Warning: tredici motivi, e nessun contenitore comune -----------------------------------------
+# Niente cornice di famiglia: tredici triangoli d'avviso con dentro un dettaglio da 4 unita' sono
+# tredici triangoli. Il riconoscimento lo porta il SOGGETTO — la cosa che non va — e il contesto, che
+# e' uno slot d'avviso dedicato con la sua tinta. Ogni glifo qui segue la nota di grammatica del
+# censimento, e le note dicono soprattutto da cosa NON deve farsi confondere.
+
+def g_warn_cooldown() -> str:
+    """Mancano N turni di ricarica.
+
+    Quadrante di **tempo**, senza numero: lo slot disegna gia' «(ricarica N)», e ripeterlo sarebbe la
+    stessa cosa due volte. Distinta da `SlotOccupied`: qui e' tempo (aspetta), la' e' economia
+    (scegli)."""
+    return "\n".join([
+        circle(12, 12, 7.4, stroke_dasharray="2.6 2.2", stroke_width=1.5),
+        path("M12 12 L12 4.6 A 7.4 7.4 0 0 1 18.4 15.7 Z", fill="#FFFFFF", stroke="none"),
+    ])
+
+
+def g_warn_out_of_move_budget() -> str:
+    """La cella va bene, i passi che restano no. Il percorso si tronca e il residuo resta visibile:
+    senza il «quanto ti manca», l'overlay delle celle raggiungibili risponde gia' alla stessa domanda
+    e l'avviso e' rumore."""
+    return "\n".join([
+        path("M3.4 17.4 L7.4 17.4 L10.6 12.4"),
+        dot(3.4, 17.4, 1.5), dot(7.4, 17.4, 1.1),
+        path("M11.6 10.6 L11.6 14.2", stroke_width=2.2),
+        path("M13.4 12.4 L19.4 12.4", stroke_dasharray="1.6 2.2", stroke_width=1.4),
+        dot(20.6, 12.4, 1.1),
+    ])
+
+
+def g_warn_path_blocked() -> str:
+    """Cella non percorribile: ostacolo, o non esiste sulla mappa.
+
+    Distinta da `CellOccupied` — un occupante puo' spostarsi, un ostacolo no — e da
+    `PathInvalidated`, che ha lo stesso aspetto in un momento diverso."""
+    return "\n".join([cell_hex(r=7.6), slash(6, 18.4, 18, 6.4)])
+
+
+def g_warn_out_of_range() -> str:
+    """Oltre la portata dichiarata: avvicinati.
+
+    🔴 La coppia piu' pericolosa della categoria e' con `NoLineOfSight`, perche' suggeriscono
+    correzioni **opposte** — avvicinarsi contro spostarsi di lato. Il commento del codice lo dice
+    gia': confonderle «rende il log una bugia»."""
+    return "\n".join([
+        circle(10.4, 12.4, 6.6, stroke_dasharray="2.6 2.2", stroke_width=1.5),
+        dot(10.4, 12.4, 1.6),
+        polygon([(19.6, 8.6), (22.4, 12), (19.6, 15.4), (16.8, 12)], stroke_width=1.5),
+    ])
+
+
+def g_warn_no_line_of_sight() -> str:
+    """Sei in portata, ma c'e' qualcosa in mezzo.
+
+    L'avviso e' la **linea spezzata**, non l'ostacolo: se sembra l'ostacolo, duplica le icone
+    `Environment`/`MapInteraction` che ne sono la causa."""
+    return "\n".join([
+        dot(3.2, 12, 1.6),
+        path("M5.2 12 L9.4 12", stroke_width=1.8),
+        path("M11.4 5.6 L11.4 18.4", stroke_width=2.6),
+        path("M13.4 12 L18 12", stroke_dasharray="1.6 2.2", stroke_width=1.4),
+        circle(20.8, 12, 1.8, stroke_width=1.3),
+    ])
+
+
+def g_warn_slot_occupied() -> str:
+    """Due voci del tuo piano vogliono lo stesso slot.
+
+    ⚠️ E' l'unica warning che parla di una **relazione fra due voci del piano**, non di un'azione
+    difettosa: un glifo «azione barrata» direbbe la cosa sbagliata. Serve una marca di collisione fra
+    due contenitori."""
+    return "\n".join([
+        chamfer_rect(3.4, 6.4, 9.6, 9.6, 2.4, "tl,br"),
+        chamfer_rect(11, 8.4, 9.6, 9.6, 2.4, "tl,br"),
+        path("M11 12.6 L13 15.4 M13 12.6 L11 15.4", stroke_width=1.8),
+    ])
+
+
+def g_warn_cell_occupied() -> str:
+    """C'e' gia' qualcun altro li'.
+
+    L'occupante e' gia' disegnato su quella cella, quindi un glifo «c'e' un'unita'» sarebbe
+    ridondante: l'avviso dice che **la cella** e' presa."""
+    return "\n".join([
+        polygon(hexagon(12, 12.4, 8.4, flat_top=False), fill="#FFFFFF", stroke="none"),
+    ])
+
+
+def g_warn_friendly_fire() -> str:
+    """Un alleato e' dentro l'area del colpo che stai pianificando.
+
+    Il taglio va sull'**area**, non sull'alleato: distinta da `TargetFriendly`, dove l'alleato E' il
+    bersaglio e l'azione non parte. Se si somigliano, il giocatore corregge la cosa sbagliata."""
+    return "\n".join([
+        circle(12, 12, 8.2, stroke_dasharray="2.8 2.2", stroke_width=1.5),
+        rounded_rect(8.6, 8.6, 6.8, 6.8, 2.4, stroke_width=1.8),
+        path("M5.4 8.6 L8.6 12 M18.6 8.6 L15.4 12", stroke_width=1.2),
+        path("M4.4 19.6 L19.6 4.4", stroke_width=1.8, stroke_opacity="0.9"),
+    ])
+
+
+def g_warn_collision() -> str:
+    """Due movimenti simultanei si sono contesi la stessa cosa.
+
+    La differenza da `CellOccupied` e' la **simultaneita'**, che e' il pilastro del gioco: la' c'era
+    qualcuno fermo, qui due unita' sono arrivate insieme."""
+    return "\n".join([
+        path("M2.6 6.4 L8.4 11"), dot(2.6, 6.4, 1.3),
+        path("M21.4 6.4 L15.6 11"), dot(21.4, 6.4, 1.3),
+        polygon(hexagon(12, 15.6, 4.6, flat_top=False), stroke_width=1.4),
+        path("M9.6 13.2 L14.4 18 M14.4 13.2 L9.6 18", stroke_width=1.8),
+    ])
+
+
+def g_warn_target_lost() -> str:
+    """Al momento della risoluzione il bersaglio non c'era piu'.
+
+    `Enemy` **svuotato**: assenza avvenuta, non incertezza. Distinta da `TargetUnknown` («per te non
+    c'e' mai stato») e dai marker `Information`, che dicono dov'era."""
+    return "\n".join([
+        path("M12 5.4 L14.6 8 M18.6 12 L16 14.6 M12 18.6 L9.4 16 M5.4 12 L8 9.4",
+             stroke_width=2.2),
+    ])
+
+
+def g_warn_path_invalidated() -> str:
+    """Il percorso non esiste piu': la mappa e' cambiata dopo il commit.
+
+    Distinta da `PathBlocked` — prima contro dopo il commit — e dalle icone `Door`/`Arc`, che ne sono
+    la **causa** e non l'avviso. La marca di tempo e' la differenza."""
+    return "\n".join([
+        path("M3 18.6 L7 18.6 L10 14"), dot(3, 18.6, 1.4), dot(7, 18.6, 1.1),
+        path("M11.4 11.4 L11.4 16.4", stroke_width=2.4),
+        path("M13.4 14 L17 14", stroke_dasharray="1.6 2", stroke_width=1.3),
+        circle(17.6, 6.6, 4, stroke_width=1.4),
+        path("M17.6 4.2 L17.6 6.6 L19.6 7.6", stroke_width=1.3),
+    ])
+
+
+def g_warn_target_friendly() -> str:
+    """L'azione offensiva punta a un membro della tua squadra: non parte.
+
+    Deve contenere il **segno di alleato**: senza, in monocromia e' indistinguibile da `TargetLost` e
+    da `OutOfRange`."""
+    return "\n".join([
+        rounded_rect(6.6, 6.6, 10.8, 10.8, 3.6, stroke_width=1.8),
+        dot(12, 12, 1.8),
+        path("M3.4 12 L6.6 12 M17.4 12 L20.6 12", stroke_width=1.5),
+        slash(5.4, 18.6, 18.6, 5.4),
+    ])
+
+
+def g_warn_target_unknown() -> str:
+    """Non e' geometria: quel bersaglio la tua squadra non lo conosce.
+
+    Il `?` e' una **marca**, non uno stile: distinta da `Certainty.Uncertain`, che e' un modificatore
+    (§6) e non un'icona, e da `Information.CellOnly`, che e' un'opzione degradata e non un rifiuto."""
+    return "\n".join([
+        polygon([(9, 6.4), (14.6, 12), (9, 17.6), (3.4, 12)], stroke_width=1.5,
+                stroke_dasharray="2.4 2.2"),
+        query_mark(17.6, 10.4, 1.15),
+    ])
+
+
+# --------------------------------------------------------------------------------------------------
 # Copertura — le chiavi che `RequiredIconIds()` genera davvero
 # --------------------------------------------------------------------------------------------------
 # La lista **si interroga, non si copia**: un manifest scritto a mano invecchia il giorno in cui
@@ -1608,6 +2200,76 @@ ICONS = [
      "assente dal mock"),
     ("Identity.Enemy", g_identity_enemy, "Hazard",
      "assente dal mock"),
+
+    # ── Le cinque categorie che la v0.1 mostra e il catalogo non dichiara ─────────────────────────
+    # ASSET, non chiavi richieste: `V01CategoriesPopulated` fallisce se una di queste comparisse in
+    # `RequiredIconIds()`. Chi aprira' la lista (E25) scrivera' il ramo nello stesso commit.
+    ("Environment.ShallowWater", g_env_shallow_water, "Utility", "E25 — autorata in ogni arena"),
+    ("Environment.Fire", g_env_fire, "Attack", "E25 — 2 MP, 10 danni, Burning 2 turni"),
+    ("Environment.Rough", g_env_rough, "Hazard", "E25 — blocca Dash e Charge"),
+    ("Environment.Ice", g_env_ice, "Defense", "E25 — scivolata di una cella"),
+    ("Environment.Conductive", g_env_conductive, "Electric",
+     "E25 — materiale che porterebbe la scarica, non scarica"),
+    ("Environment.Smoke", g_env_smoke, "Disabled", "E25 — targeting tappato a 2 celle"),
+    ("Environment.HighGround", g_env_high_ground, "Utility",
+     "E25 — in v0.1 non cambia nessun numero"),
+
+    ("MapInteraction.Cover.High", g_map_cover_high, "Defense",
+     "E25 — nega vista, passo e proiettili"),
+    ("MapInteraction.Cover.Low", g_map_cover_low, "Defense", "E25 — -10 al danno da quel bordo"),
+    ("MapInteraction.Door.Closed", g_map_door_closed, "Utility",
+     "E25 — coppia piu' pericolosa del set, con Cover.High"),
+    ("MapInteraction.Door.Open", g_map_door_open, "Utility",
+     "E25 — l'unico verbo di mappa che la v0.1 spedisce"),
+    ("MapInteraction.Arc.Active", g_map_arc_active, "Utility",
+     "E25 — senza l'arco le due celle NON sono adiacenti"),
+    ("MapInteraction.Cover.Temporary", g_map_cover_temporary, "Defense",
+     "E25 — integrita' 30, scade in 2 turni"),
+    ("MapInteraction.Cover.Destroyed", g_map_cover_destroyed, "Disabled",
+     "E25 — da qui in poi si attraversa e si tira"),
+    ("MapInteraction.Arc.Destroyed", g_map_arc_destroyed, "Disabled",
+     "E25 — crollo terminale, le macerie restano"),
+
+    ("Information.LastContact", g_info_last_contact, "Utility",
+     "E25 — Detected non si disegna: e' rappresentazione normale"),
+    ("Information.CellOnly", g_info_cell_only, "Utility",
+     "E25 — nessuna silhouette di unita', o l'icona mente"),
+
+    ("Reaction.Armed", g_reaction_armed, "Reaction", "E25 — stato, non l'azione che arma"),
+    ("Reaction.Opportunity", g_reaction_opportunity, "Reaction", "E25 — finestra, non countdown"),
+    ("Reaction.Hold", g_reaction_hold, "Reaction", "E25 — D-049: collide con HoldGround"),
+    ("Reaction.Fire", g_reaction_fire, "Reaction", "E25 — deve reggere ripetuta e affiancata"),
+    ("Reaction.HoldGround", g_reaction_hold_ground, "Defense", "E25 — tiene la cella e assorbe"),
+    ("Reaction.Sidestep", g_reaction_sidestep, "Movement",
+     "E25 — esce dalla linea, non arretra (2026-08-19)"),
+    ("Reaction.ReactiveShield", g_reaction_reactive_shield, "Defense", "E25 — modulo di Gadget"),
+    ("Reaction.HazardEscape", g_reaction_hazard_escape, "Movement",
+     "E25 — modulo di Phase, vive nel Cleanup"),
+    ("Reaction.AllyIntercept", g_reaction_ally_intercept, "Defense", "E25 — modulo di Riktor"),
+    ("Reaction.EmergencyDash", g_reaction_emergency_dash, "Movement",
+     "E25 — modulo di Wraith, facing conservato"),
+
+    ("Warning.Cooldown", g_warn_cooldown, "Disabled", "E25 — tempo, non economia"),
+    ("Warning.SlotOccupied", g_warn_slot_occupied, "Hazard",
+     "E25 — relazione fra due voci del piano"),
+    ("Warning.OutOfRange", g_warn_out_of_range, "Hazard",
+     "E25 — coppia opposta a NoLineOfSight"),
+    ("Warning.NoLineOfSight", g_warn_no_line_of_sight, "Hazard",
+     "E25 — l'avviso e' la linea spezzata, non l'ostacolo"),
+    ("Warning.PathBlocked", g_warn_path_blocked, "Hazard", "E25 — ostacolo, non occupante"),
+    ("Warning.OutOfMoveBudget", g_warn_out_of_move_budget, "Hazard",
+     "E25 — deve portare il «quanto ti manca»"),
+    ("Warning.CellOccupied", g_warn_cell_occupied, "Hazard", "E25 — la CELLA e' presa"),
+    ("Warning.FriendlyFire", g_warn_friendly_fire, "Attack",
+     "E25 — il taglio va sull'area, non sull'alleato"),
+    ("Warning.TargetFriendly", g_warn_target_friendly, "Attack",
+     "E25 — deve contenere il segno di alleato"),
+    ("Warning.Collision", g_warn_collision, "Hazard", "E25 — la simultaneita' e' il pilastro"),
+    ("Warning.TargetLost", g_warn_target_lost, "Disabled", "E25 — assenza avvenuta"),
+    ("Warning.PathInvalidated", g_warn_path_invalidated, "Hazard",
+     "E25 — dopo il commit, non prima"),
+    ("Warning.TargetUnknown", g_warn_target_unknown, "Disabled",
+     "E25 — il ? e' marca, non stile"),
 ]
 
 
@@ -1809,7 +2471,14 @@ def main() -> int:
     else:
         print(f"✅ copertura completa: {len(required_icon_ids())} chiavi richieste, tutte disegnate")
     if extra:
-        print(f"ℹ️  {len(extra)} icone fuori dal set richiesto (attese: ability degli eroi)")
+        # Non sono un residuo: sono le ability d'eroe (chiave regolare sotto `Action.`, fuori dal
+        # catalogo generico), `Action.Dodge` che l'handoff ha deciso e il codice non ha ancora, e le
+        # cinque categorie che `V01CategoriesPopulated` tiene fuori dal set richiesto di proposito.
+        by_cat: dict[str, int] = {}
+        for e in extra:
+            by_cat[e.split(".")[2]] = by_cat.get(e.split(".")[2], 0) + 1
+        breakdown = ", ".join(f"{k} {v}" for k, v in sorted(by_cat.items()))
+        print(f"ℹ️  {len(extra)} icone fuori dal set richiesto — {breakdown}")
     if cairosvg is None:
         print("⚠️  cairosvg assente: scritti solo gli SVG. `pip install cairosvg` per i PNG.")
     else:
