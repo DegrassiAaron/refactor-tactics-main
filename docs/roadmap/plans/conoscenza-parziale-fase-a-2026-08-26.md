@@ -54,7 +54,7 @@ Valgono per **ogni** task. Non si ripetono nei singoli step.
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests <FiltroTest>+Quit" \
+  -ExecCmds="Automation RunTests <FiltroTest>; Quit" \
   -unattended -nopause -nullrhi -NoSound
 ```
 
@@ -151,7 +151,7 @@ bool FRTTurnLogTargetUnknownIsDescribedTest::RunTest(const FString&)
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests RefactorTactics.TurnLog.TargetUnknownIsDescribed+Quit" \
+  -ExecCmds="Automation RunTests RefactorTactics.TurnLog.TargetUnknownIsDescribed; Quit" \
   -unattended -nopause -nullrhi -NoSound
 ```
 
@@ -178,7 +178,7 @@ Stesso comando dello Step 1.2. Atteso: **PASS**.
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests RefactorTactics.TurnLog+RefactorTactics.Actions.Fallback+RefactorTactics.PlayerInteraction+Quit" \
+  -ExecCmds="Automation RunTests RefactorTactics.TurnLog+RefactorTactics.Actions.Fallback+RefactorTactics.PlayerInteraction; Quit" \
   -unattended -nopause -nullrhi -NoSound
 ```
 
@@ -511,7 +511,7 @@ bool FRTKnowledgeLastContactCarriesIdentityNotConditionTest::RunTest(const FStri
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests RefactorTactics.Knowledge+Quit" \
+  -ExecCmds="Automation RunTests RefactorTactics.Knowledge; Quit" \
   -unattended -nopause -nullrhi -NoSound
 ```
 
@@ -688,7 +688,7 @@ bool FRTKnowledgeHudDrawsOnlyKnownUnitsTest::RunTest(const FString&)
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests RefactorTactics.Knowledge.HudDrawsOnlyKnownUnits+Quit" \
+  -ExecCmds="Automation RunTests RefactorTactics.Knowledge.HudDrawsOnlyKnownUnits; Quit" \
   -unattended -nopause -nullrhi -NoSound
 ```
 
@@ -810,46 +810,64 @@ git commit -m "feat(hud): l'overlay delle unita' passa dalla conoscenza di squad
 ## Task 4: Il combat log smette di stampare ciò che la squadra non sa
 
 **File:**
-- Modifica: `Source/RefactorTactics/Turn/RTTurnManager.cpp` — la derivazione delle righe leggibili
+- Modifica: `Source/RefactorTactics/Turn/RTTurnManager.h` / `.cpp` — `AddLogEvent`, `RecentEvents`, l'accessor
+- Modifica: `Source/RefactorTactics/UI/RTHUD.cpp` — legge l'accessor filtrato
 - Test: `Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp`
 
 **Interfacce:**
-- Consuma: `FRTKnowledgeView`, `URTKnowledgeViewLibrary::FindEntry` (Task 2).
-- Produce: nulla di nuovo per i task successivi.
+- Consuma: `FRTKnowledgeView`, `URTKnowledgeViewLibrary::FindEntry` (Task 2); `KnowledgeForTeamPublic` (Task 3).
+- Produce:
+  - `struct FRTCombatLogLine { FString Text; int32 SubjectStableUnitId = INDEX_NONE; }`
+  - `void ARTTurnManager::AddLogEvent(const FString& Message, int32 SubjectStableUnitId = INDEX_NONE);`
+  - `TArray<FString> ARTTurnManager::GetRecentEventsForTeam(int32 ObserverTeamId) const;`
 
-**Contesto misurato.** Il combat log è un **secondo canale**, separato dal TurnLog: `AddLogEvent` fa un
-`UE_LOG` e spinge la riga in un buffer circolare `RecentEvents`; `ARTTurnManager::ConcludeTurn` deriva
-**tutte** le righe leggibili dal TurnLog. `ARTHUD` disegna `GetRecentEvents()` senza alcun gate, e le righe
-contengono la **cella esatta di ogni movimento** e i **punteggi di utility del bot con cella e bersaglio**.
+### Contesto misurato — e correzione a una premessa sbagliata di questo piano
 
-🔴 **Il filtro va alla PRODUZIONE delle righe, non al disegno.** Filtrare stringhe già formattate
-significherebbe cercare coordinate in un testo. E **non** va nel TurnLog, che resta uno solo, completo e
-autorevole: è la sorgente di `HashTurnLog`, e filtrarlo renderebbe il checksum dipendente da chi guarda.
+⚠️ **Una stesura precedente diceva che le righe leggibili nascono da un'unica derivazione in
+`ConcludeTurn`, e che bastava estrarla.** È **falso a metà**, e la metà mancante cambia il lavoro.
+Misurato su `RTTurnManager.cpp`:
 
-- [ ] **Step 4.1 — Misura prima di modificare**
+- `ConcludeTurn` **deriva** davvero dal TurnLog:
+  `for (const FString& Line : URTTurnLogLibrary::DescribeTurnLog(TurnLog)) { AddLogEvent(Line); }`
+  — introdotto da CP 11.3 (#79).
+- **Ma i produttori sparsi sono rimasti**: `grep -c "AddLogEvent(" ` → **61**, di cui **35** nominano
+  un'unità con `%s`. Il commento accanto alla derivazione lo dice: *«prima le righe nascevano da 59
+  `AddLogEvent` sparse nella risoluzione, e il TurnLog nasceva altrove: due produttori indipendenti
+  coincidono per abitudine, non per costruzione»*.
 
-Leggi `ARTTurnManager::ConcludeTurn` nel punto in cui deriva le righe dal TurnLog, ed elenca:
-- quali categorie di voce producono una riga;
-- per ciascuna, **quale campo identifica il soggetto** (`FRTTurnLogEntry` ha 17 campi; il significato di
-  `Amount` **dipende dalla categoria** — per `Fallback` è il reason code, per `Move` sono le celle percorse);
-- se esiste già una riga che nomina un'unità **avversaria**.
+**Questo però regala la forma giusta**, invece di complicarla: **tutto passa da `AddLogEvent`**, comprese
+le righe derivate. È l'imbuto, e il filtro va lì.
 
-Scrivi l'elenco nel corpo della PR. Senza, il passo successivo filtra a caso.
-
-- [ ] **Step 4.2 — Scrivi il test che fallisce**
-
-⚠️ Aggiungi in cima a `RTKnowledgeViewTests.cpp`, **prima** di `#if WITH_DEV_AUTOMATION_TESTS` (come tutti
-gli altri include: un include dopo la guardia sparisce in Shipping e non compila):
+🔴 **Ma non su tutt'e due le cose che fa.** `AddLogEvent` scrive in **due** canali:
 
 ```cpp
-#include "Turn/RTTurnManager.h" // ARTTurnManager::ComposeObservableLogLine
-#include "Turn/RTTurnLog.h"     // FRTTurnLogEntry, ERTLogCategory
+void ARTTurnManager::AddLogEvent(const FString& Message)
+{
+	UE_LOG(LogRT, Log, TEXT("[RT] %s"), *Message);   // <- diagnosi per SVILUPPATORE
+	RecentEvents.Add(Message);                        // <- cio' che il GIOCATORE vede
+	...
+}
 ```
 
-Il test asserisce sulla **funzione di derivazione**, non sul buffer. Se la derivazione non è una funzione
-isolabile, **estraila prima** in una statica pura che prende `(const FRTTurnLogEntry&, const FRTKnowledgeView&)`
-e restituisce `TOptional<FString>` — `TOptional` vuoto significa *nessuna riga*, non una riga vuota, che è la
-stessa disciplina che il DoD di #159 impone al filtro acustico.
+Il `UE_LOG` **resta completo**: è uno strumento di diagnosi, e mutilarlo renderebbe impossibile capire
+una partita andata storta. A essere filtrato è **`RecentEvents`**, che è presentazione.
+
+### Dove vive il filtro
+
+`RecentEvents` conserva **testo + soggetto**; a filtrare è l'**accessor**, non lo scrittore. Così il
+`TurnManager` non deve sapere chi guarda, e la decisione resta al confine della presentazione — la stessa
+disciplina di `FilterForTeam`.
+
+- [ ] **Step 4.1 — Scrivi il test che fallisce**
+
+Aggiungi in cima a `RTKnowledgeViewTests.cpp`, **prima** di `#if WITH_DEV_AUTOMATION_TESTS` (un include
+dentro la guardia sparisce in Shipping e non compila):
+
+```cpp
+#include "Turn/RTTurnManager.h" // ARTTurnManager::ComposeVisibleLogLines
+```
+
+E il test, prima dell'`#endif` finale:
 
 ```cpp
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeCombatLogOmitsUnknownTest,
@@ -862,75 +880,232 @@ bool FRTKnowledgeCombatLogOmitsUnknownTest::RunTest(const FString&)
 	K.VisibleCells.Add(SeenCell);
 
 	const TArray<FRTKnowledgeSubject> Subjects = {
-		KvSubject(2, 1, SeenCell),
-		KvSubject(3, 1, FRTCellId(7, 0, 0))
+		KvSubject(1, 0, FRTCellId(0, 0, 0)),  // alleato
+		KvSubject(2, 1, SeenCell),            // nemico visto
+		KvSubject(3, 1, FRTCellId(7, 0, 0))   // nemico ignoto
 	};
-	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(K, Subjects, 0);
+	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(K, Subjects, /*Observer*/ 0);
 
-	// Una voce di movimento del nemico VISTO: la riga esiste.
-	FRTTurnLogEntry Seen;
-	Seen.Category = ERTLogCategory::Move;
-	Seen.UnitId = 2;
-	Seen.SrcCell = FRTCellId(2, 0, 0);
-	Seen.TgtCell = SeenCell;
-	TestTrue(TEXT("il movimento del nemico visto si racconta"),
-		ARTTurnManager::ComposeObservableLogLine(Seen, View).IsSet());
+	TArray<FRTCombatLogLine> Raw;
+	Raw.Add({ TEXT("Turno 5 - pianificazione"),       INDEX_NONE }); // riga di mondo, senza soggetto
+	Raw.Add({ TEXT("Alleato: passo -> (0,0,L0)"),     1 });
+	Raw.Add({ TEXT("Nemico visto: passo -> (3,0,L0)"), 2 });
+	Raw.Add({ TEXT("Ignoto: passo -> (7,0,L0)"),      3 });
 
-	// Stessa voce per il nemico IGNOTO: NESSUNA riga, non una riga vuota.
-	FRTTurnLogEntry Hidden = Seen;
-	Hidden.UnitId = 3;
-	Hidden.SrcCell = FRTCellId(6, 0, 0);
-	Hidden.TgtCell = FRTCellId(7, 0, 0);
-	TestFalse(TEXT("il movimento dell'ignoto non produce NESSUNA riga"),
-		ARTTurnManager::ComposeObservableLogLine(Hidden, View).IsSet());
+	const TArray<FString> Visible = ARTTurnManager::ComposeVisibleLogLines(Raw, View);
+
+	TestEqual(TEXT("tre righe su quattro"), Visible.Num(), 3);
+	TestTrue (TEXT("la riga di mondo resta"),  Visible.Contains(TEXT("Turno 5 - pianificazione")));
+	TestTrue (TEXT("l'alleato resta"),         Visible.Contains(TEXT("Alleato: passo -> (0,0,L0)")));
+	TestTrue (TEXT("il nemico visto resta"),   Visible.Contains(TEXT("Nemico visto: passo -> (3,0,L0)")));
+
+	// 🔴 Il cuore: la riga sparisce INTERA. Non una riga oscurata, non una riga vuota.
+	TestFalse(TEXT("la riga dell'ignoto sparisce"), Visible.Contains(TEXT("Ignoto: passo -> (7,0,L0)")));
+
+	// E la sua cella non trapela in NESSUNA delle righe superstiti.
+	for (const FString& L : Visible)
+	{
+		TestFalse(TEXT("nessuna riga nomina la cella dell'ignoto"), L.Contains(TEXT("(7,0,L0)")));
+	}
+
+	// Anti-vacuita': l'ORDINE si conserva. Un filtro che riordinasse renderebbe il combat log illeggibile,
+	// e nessuna delle asserzioni sopra lo prenderebbe.
+	if (Visible.Num() == 3)
+	{
+		TestEqual(TEXT("l'ordine e' quello di produzione"), Visible[0], TEXT("Turno 5 - pianificazione"));
+		TestEqual(TEXT("secondo"), Visible[1], TEXT("Alleato: passo -> (0,0,L0)"));
+	}
 	return true;
 }
 ```
 
-⚠️ **`FRTTurnLogEntry::UnitId` potrebbe non essere lo `StableUnitId`.** Lo Step 4.1 lo dice: se è un indice
-di fase, la derivazione deve tradurlo prima di interrogare la vista, e la traduzione è parte di questo task.
-
-- [ ] **Step 4.3 — Esegui e verifica che NON COMPILI**
+- [ ] **Step 4.2 — Esegui e verifica che NON COMPILI**
 
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests RefactorTactics.Knowledge.CombatLogOmitsUnknown+Quit" \
+  -ExecCmds="Automation RunTests RefactorTactics.Knowledge.CombatLogOmitsUnknown; Quit" \
   -unattended -nopause -nullrhi -NoSound
 ```
 
-Atteso: **errore di compilazione** — `ComposeObservableLogLine` non esiste.
+Atteso: **errore di compilazione** — `FRTCombatLogLine` e `ComposeVisibleLogLines` non esistono.
 
-- [ ] **Step 4.4 — Estrai la derivazione e applicaci il filtro**
+- [ ] **Step 4.3 — Dichiara il tipo e le due funzioni**
 
-Sposta la composizione della riga in `static TOptional<FString> ARTTurnManager::ComposeObservableLogLine(
-const FRTTurnLogEntry& Entry, const FRTKnowledgeView& View)`, che restituisce un `TOptional` vuoto quando il
-soggetto della voce è un'unità **non presente nella vista**. `ConcludeTurn` la chiama e salta i vuoti.
+In `Source/RefactorTactics/Turn/RTTurnManager.h`, prima della classe:
 
-⚠️ **Il TurnLog non cambia.** Solo `RecentEvents` — il canale di presentazione — riceve meno righe.
+```cpp
+/**
+ * Una riga di combat log, col SOGGETTO accanto al testo.
+ *
+ * Il soggetto e' `ARTUnit::StableUnitId` — l'identita' che attraversa fasi e turni — oppure `INDEX_NONE`
+ * per le righe che parlano del MONDO e non di un'unita' («Turno 3 - pianificazione», una superficie che
+ * scade). Senza questo campo il filtro dovrebbe cercare coordinate dentro una stringa gia' formattata.
+ */
+USTRUCT()
+struct FRTCombatLogLine
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Text;
+
+	UPROPERTY()
+	int32 SubjectStableUnitId = INDEX_NONE;
+};
+```
+
+Nella classe, in `public:`:
+
+```cpp
+	/**
+	 * Le righe che un osservatore puo' leggere. Statica e PURA: la si interroga senza montare una partita.
+	 *
+	 * 🔴 Una riga il cui soggetto e' ignoto **sparisce intera**, non viene oscurata: una riga oscurata
+	 * dice comunque che qualcosa e' successo, e quando e' successo.
+	 * L'ORDINE di produzione si conserva: un combat log riordinato non e' un log.
+	 */
+	static TArray<FString> ComposeVisibleLogLines(const TArray<FRTCombatLogLine>& Lines,
+		const FRTKnowledgeView& View);
+
+	/** Le righe recenti gia' filtrate per una squadra. E' cio' che l'HUD deve chiamare. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	TArray<FString> GetRecentEventsForTeam(int32 ObserverTeamId) const;
+```
+
+E cambia la firma dello scrittore, con il default che tiene compilanti tutti i 61 chiamanti esistenti:
+
+```cpp
+	void AddLogEvent(const FString& Message, int32 SubjectStableUnitId = INDEX_NONE);
+```
+
+⚠️ `RecentEvents` cambia tipo: da `TArray<FString>` a `TArray<FRTCombatLogLine>`.
+
+- [ ] **Step 4.4 — Implementa**
+
+In `RTTurnManager.cpp`:
+
+```cpp
+void ARTTurnManager::AddLogEvent(const FString& Message, int32 SubjectStableUnitId)
+{
+	// 🔴 Il log di SVILUPPO resta COMPLETO. E' diagnosi, non un canale del giocatore: mutilarlo renderebbe
+	// impossibile capire una partita andata storta, e nessun avversario lo legge.
+	UE_LOG(LogRT, Log, TEXT("[RT] %s"), *Message);
+
+	RecentEvents.Add(FRTCombatLogLine{ Message, SubjectStableUnitId });
+	while (RecentEvents.Num() > MaxLogLines)
+	{
+		RecentEvents.RemoveAt(0);
+	}
+}
+
+TArray<FString> ARTTurnManager::ComposeVisibleLogLines(const TArray<FRTCombatLogLine>& Lines,
+	const FRTKnowledgeView& View)
+{
+	TArray<FString> Out;
+	Out.Reserve(Lines.Num());
+	for (const FRTCombatLogLine& L : Lines)
+	{
+		// Riga di mondo: nessun soggetto da conoscere, quindi nessuna ragione per nasconderla.
+		if (L.SubjectStableUnitId == INDEX_NONE
+			|| URTKnowledgeViewLibrary::FindEntry(View, L.SubjectStableUnitId) != nullptr)
+		{
+			Out.Add(L.Text);
+		}
+	}
+	return Out; // ordine di produzione, mai riordinato
+}
+
+TArray<FString> ARTTurnManager::GetRecentEventsForTeam(int32 ObserverTeamId) const
+{
+	TArray<FRTKnowledgeSubject> Subjects;
+	for (const ARTUnit* U : GetLiveUnitsForKnowledge())
+	{
+		if (!U) { continue; }
+		FRTKnowledgeSubject S;
+		S.StableUnitId = U->StableUnitId;
+		S.TeamId       = U->TeamId;
+		S.Cell         = U->Cell;
+		S.HeroId       = U->HeroId;
+		S.HeroDisplayName = U->HeroDisplayName;
+		S.bAlive       = U->IsAlive();
+		Subjects.Add(S);
+	}
+	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(
+		KnowledgeForTeam(ObserverTeamId), Subjects, ObserverTeamId);
+	return ComposeVisibleLogLines(RecentEvents, View);
+}
+```
+
+⚠️ **`GetLiveUnitsForKnowledge()` non esiste**: è il nome che do al modo in cui il `TurnManager` raggiunge
+le unità vive. **Prima di scrivere questa funzione, cerca come il `TurnManager` le raggiunge già** — c'è
+più di un modo nel file (un `TArray<ARTUnit*>` membro, oppure `GetAllActorsOfClass`). Riusa quello che
+c'è, e se non c'è un accessor riusabile, dillo nel report invece di aggiungerne uno terzo.
 
 - [ ] **Step 4.5 — Esegui il test e verifica che PASSI**
 
-Stesso comando dello Step 4.3. Atteso: **PASS**.
+Stesso comando dello Step 4.2. Atteso: **PASS**.
 
-- [ ] **Step 4.6 — Regressione sul determinismo**
+- [ ] **Step 4.6 — Passa il soggetto ai siti che possono nominare un nemico**
+
+Con il default a `INDEX_NONE` tutti i 61 chiamanti compilano, ma **quelli non toccati continuano a
+mostrare tutto**. I siti che possono nominare un'unità avversaria sono **quattordici**, e vanno toccati
+uno per uno passando `Unit->StableUnitId` (o `Bot->StableUnitId`) come secondo argomento:
+
+| Cosa | Riga circa | Perché perde |
+|---|---|---|
+| danno da terreno | 214 | `%s: %d danni da terreno (q,r,L)` — nomina e localizza |
+| status da terreno | 242 | nomina l'unità |
+| arma di reazione | 516 | nomina l'unità |
+| scatto difensivo | 891 | nomina e localizza |
+| arretramento | 897 | nomina e localizza |
+| utility del bot — carica | 1062 | cella d'impatto **e** bersaglio |
+| utility del bot — scatto+attacco | 1072 | cella **e** bersaglio |
+| utility del bot — attacco | 1081 | cella **e** bersaglio |
+| utility del bot — scatto | 1089 | cella |
+| utility del bot — mossa | 1096 | cella |
+| danno da `Status.Burning` | 1359 | nomina e localizza |
+| eliminazione dalle fiamme | 1373 | nomina l'unità |
+| **movimento** | 1477 | `%s: %s -> (q,r,L)` — è la perdita principale |
+| cura | 1627 | nomina l'unità |
+
+⚠️ **Il soggetto è chi la riga RIVELA, non chi la produce.** Le righe di utility del bot ne nominano
+**due** — il bot e il suo bersaglio — e quella che va protetta è **il bot**: è la sua posizione e la sua
+intenzione che stanno trapelando. Il bersaglio è già filtrato dalla riga del bersaglio stesso.
+
+⚠️ **Le righe di terreno senza unità** (superficie che scade, ponte scaduto, «non prende fuoco») restano
+con `INDEX_NONE`: parlano del mondo, e la mappa statica resta nota per canone.
+
+- [ ] **Step 4.7 — L'HUD legge l'accessor filtrato**
+
+In `RTHUD.cpp`, il blocco del combat log sostituisce `GetRecentEvents()` con
+`GetRecentEventsForTeam(PlayerTeamId)`, riusando la costante introdotta al Task 3 — **senza aggiungere un
+terzo letterale `0`**.
+
+- [ ] **Step 4.8 — Regressione, e in particolare i golden**
 
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests RefactorTactics.TurnLog+RefactorTactics.Golden+RefactorTactics.Match+Quit" \
+  -ExecCmds="Automation RunTests RefactorTactics.TurnLog+RefactorTactics.Golden+RefactorTactics.Match; Quit" \
   -unattended -nopause -nullrhi -NoSound
 ```
 
-Atteso: **tutti PASS**, e in particolare i golden. Se un golden diverge, hai toccato il **TurnLog** invece
-del combat log: annulla e rileggi lo Step 4.4.
+Atteso: **tutti PASS**. 🔴 Se un golden diverge hai toccato il **TurnLog** invece del combat log: annulla
+e rileggi. Il TurnLog non cambia in questo task — solo `RecentEvents` e chi lo legge.
 
-- [ ] **Step 4.7 — Commit**
+- [ ] **Step 4.9 — Commit**
 
 ```bash
-git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp
+git add Source/RefactorTactics/Turn/RTTurnManager.h Source/RefactorTactics/Turn/RTTurnManager.cpp Source/RefactorTactics/UI/RTHUD.cpp Source/RefactorTactics/Tests/RTKnowledgeViewTests.cpp
 git commit -m "fix(hud): il combat log smette di raccontare i movimenti che nessuno ha visto"
 ```
+
+> ⚠️ **Fuori scope, dichiarato.** Le righe di utility del bot restano visibili per un nemico **noto**, e
+> mostrano il suo `score`. Quella è la sua valutazione privata, non la sua posizione: filtrarla per
+> conoscenza non basta, andrebbe spostata dietro `rt.Debug.*` come già è la riga della velocità di
+> playback. È lavoro proprio, con la sua issue — questo task chiude la perdita **posizionale**, non
+> quella del ragionamento.
 
 ---
 
@@ -986,7 +1161,7 @@ bool FRTKnowledgeUnitRenderingCombinesAliveAndKnownTest::RunTest(const FString&)
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests RefactorTactics.Knowledge.UnitRenderingCombinesAliveAndKnown+Quit" \
+  -ExecCmds="Automation RunTests RefactorTactics.Knowledge.UnitRenderingCombinesAliveAndKnown; Quit" \
   -unattended -nopause -nullrhi -NoSound
 ```
 
@@ -1185,7 +1360,7 @@ bool FRTKnowledgeGhostFadesWithContactAgeTest::RunTest(const FString&)
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests RefactorTactics.Knowledge.GhostFadesWithContactAge+Quit" \
+  -ExecCmds="Automation RunTests RefactorTactics.Knowledge.GhostFadesWithContactAge; Quit" \
   -unattended -nopause -nullrhi -NoSound
 ```
 
@@ -1259,7 +1434,7 @@ git commit -m "feat(hud): il ricordo di un nemico resta dove l'avevi visto"
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests RefactorTactics+Quit" \
+  -ExecCmds="Automation RunTests RefactorTactics; Quit" \
   -unattended -nopause -nullrhi -NoSound
 ```
 
