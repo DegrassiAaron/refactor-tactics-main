@@ -185,3 +185,107 @@ if __name__ == "__main__":
         print(json.dumps(action_axes(), indent=2, ensure_ascii=False))
     else:
         raise SystemExit(main())
+
+
+# --------------------------------------------------------------------------------------------------
+# Le venti ability degli eroi
+# --------------------------------------------------------------------------------------------------
+# Non stanno nel catalogo generico, quindi `RequiredIconIds()` non le pretende — ma esistono, sono
+# pianificabili, e la skill bar le mostra. Dichiarano gli stessi assi delle azioni generiche.
+#
+# ⚠️ Sei di loro NON scrivono la fase: la ereditano da un'azione core tramite una variabile
+# (`DashDef.ResolutionPhase`), e tre sono costruite interamente da un'azione core
+# (`MakeHeroReactionFromCoreAction`). Un parser che leggesse solo i letterali darebbe `None` a nove
+# ability su venti e sembrerebbe funzionare. Qui i riferimenti si risolvono.
+
+HERO_CPP = REPO_ROOT / "Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp"
+
+
+def _core_action_vars(text: str) -> dict[str, str]:
+    """`const FRTActionDef DashDef = FindCoreAction(TEXT("Action.Dash"))` -> {DashDef: Action.Dash}."""
+    bound = {
+        m.group(1): m.group(2)
+        for m in re.finditer(
+            r"const FRTActionDef (\w+)\s*=\s*URTCatalogLibrary::FindCoreAction\(TEXT\(\"([^\"]+)\"\)\)",
+            text)
+    }
+    # `MakeBasicAttack(N)` non passa da `FindCoreAction`: costruisce un attacco base con la portata
+    # data. Senza questa riga `Hero.Gadget.ArcPulse` resta senza fase — una su venti, cioe' proprio il
+    # genere di buco che passa inosservato in una tabella che sembra piena.
+    bound.update({
+        m.group(1): "Action.BasicAttack"
+        for m in re.finditer(
+            r"const FRTActionDef (\w+)\s*=\s*URTCatalogLibrary::MakeBasicAttack\(", text)
+    })
+    return bound
+
+
+def _balanced_calls(text: str, needle: str) -> list[str]:
+    calls, index = [], text.find(needle)
+    while index != -1:
+        start = index + len(needle)
+        depth, cursor = 1, start
+        while cursor < len(text) and depth > 0:
+            if text[cursor] == "(":
+                depth += 1
+            elif text[cursor] == ")":
+                depth -= 1
+            cursor += 1
+        if depth == 0:
+            calls.append(text[start:cursor - 1])
+        index = text.find(needle, cursor)
+    return calls
+
+
+def hero_ability_axes() -> dict[str, dict]:
+    """`Hero.<Eroe>.<Abilita>` -> {phase, shape, effects, derived_from, display}."""
+    text = HERO_CPP.read_text(encoding="utf-8")
+    core = action_axes()
+    var_to_action = _core_action_vars(text)
+
+    display = {
+        m.group(1): m.group(2)
+        for m in re.finditer(r'\{\s*TEXT\("(Hero\.\w+\.\w+)"\),\s*TEXT\("([^"]+)"\)', text)
+    }
+
+    out: dict[str, dict] = {}
+    for helper in ("MakeHeroBasicAttack(", "MakeHeroAction(", "MakeHeroReactionFromCoreAction("):
+        for call in _balanced_calls(text, helper):
+            raw = _strip_comments(call)
+            args = _split_args(raw)
+            ident = re.search(r'TEXT\("(Hero\.\w+\.\w+)"\)', args[0] if args else "")
+            if not ident:
+                continue
+            ability = ident.group(1)
+
+            derived = None
+            phase = None
+            if helper == "MakeHeroReactionFromCoreAction(":
+                # La reazione E' un'azione core con un nome d'eroe: fase, slot ed effetti vengono da la'.
+                core_ref = re.search(r'TEXT\("(Action\.\w+)"\)', args[1] if len(args) > 1 else "")
+                derived = core_ref.group(1) if core_ref else None
+                phase = core.get(derived, {}).get("phase") if derived else None
+            else:
+                literal = re.search(r"ERTResolutionPhase::(\w+)", args[1] if len(args) > 1 else "")
+                if literal:
+                    phase = literal.group(1)
+                else:
+                    var = re.match(r"(\w+)\.ResolutionPhase", (args[1] or "").strip())
+                    if var and var.group(1) in var_to_action:
+                        derived = var_to_action[var.group(1)]
+                        phase = core.get(derived, {}).get("phase")
+
+            shape = re.search(r"ERTAbilityShape::(\w+)", raw)
+            effects = _effects(raw)
+            if not effects and derived:
+                effects = core.get(derived, {}).get("effects", [])
+
+            out[ability] = {
+                "phase": phase,
+                "shape": shape.group(1) if shape else None,
+                "effects": effects,
+                "derived_from": derived,
+                "display": display.get(ability),
+                "hero": ability.split(".")[1],
+            }
+    return out

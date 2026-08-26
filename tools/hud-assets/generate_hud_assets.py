@@ -1094,6 +1094,227 @@ def g_missing_icon() -> str:
 
 
 # --------------------------------------------------------------------------------------------------
+# Le quindici ability d'eroe che mancavano
+# --------------------------------------------------------------------------------------------------
+# `RequiredIconIds()` non le pretende — non sono nel catalogo generico — ma sono pianificabili e la
+# skill bar le mostra. Ognuna dichiara gli stessi assi delle azioni generiche, e il glifo li rispetta:
+# la fase dice dove risolve, la forma dice cosa occupa, gli effetti dicono cosa lascia.
+#
+# Ogni eroe ha una MATERIA, ed e' il primo canale di riconoscimento della sua riga di skill bar:
+#   Gadget  elettricita' — nodi, archi, contenimento che cede
+#   Phase   acqua        — superfici, onde, spinta
+#   Riktor  massa        — piastre, ancoraggi, basi larghe
+#   Wraith  lama         — tratti netti, transito, tratteggio di passaggio
+
+
+def g_phase_pressure_jet() -> str:
+    """`PressureJet` (Attack, Line — Damage + Wet + Push): getto lineare che bagna e sposta."""
+    return "\n".join([
+        dot(3.2, 12, 1.7),
+        waves(10.4, x0=5.4, span=11.6, amp=1.5, stroke_width=1.5),
+        waves(13.6, x0=5.4, span=11.6, amp=1.5, stroke_width=1.5),
+        path("M18.4 12 L20.2 12", stroke_width=1.4),
+        arrow_head(22 , 12, 2.2),
+    ])
+
+
+def g_phase_circular_tide() -> str:
+    """`CircularTide` (Attack, Area — Heal): marea che sale attorno a chi la usa.
+
+    L'unica ability d'area che CURA. Il centro non e' un impatto: e' l'origine da cui l'onda parte."""
+    return "\n".join([
+        arc_deg(12, 12, 8.4, -155, -25, stroke_width=1.5),
+        arc_deg(12, 12, 8.4, 25, 155, stroke_width=1.5),
+        arc_deg(12, 12, 5.2, -145, -35, stroke_width=1.3),
+        arc_deg(12, 12, 5.2, 35, 145, stroke_width=1.3),
+        path("M12 9.4 L12 14.6 M9.4 12 L14.6 12", stroke_width=2.0),
+    ])
+
+
+def g_phase_fluid_trail() -> str:
+    """`FluidTrail` (FastMovement): si muove e lascia la superficie dietro di se'.
+
+    La scia e' meta' del significato — senza, e' `Dash`."""
+    return "\n".join([
+        chevron(12.6, 9.6, 2.8, 3.0),
+        arrow_head(20.4, 9.6, 2.8),
+        dot(4.4, 9.6, 1.5),
+        path("M6.4 9.6 L10.4 9.6", stroke_width=1.4),
+        waves(17.4, x0=3.4, span=17.2, amp=1.7, stroke_width=1.6),
+    ])
+
+
+def g_phase_mist_veil() -> str:
+    """`MistVeil` (Environment, Area): nebbia su una zona.
+
+    Da tenere distinta da `Status.Obscured`, che e' lo stato addosso a un'unita': qui c'e' la CELLA
+    sotto, la' c'e' il punto unita'."""
+    return "\n".join([
+        polygon(hexagon(12, 15.6, 6.4), stroke_width=1.3, stroke_dasharray="2.4 2.2"),
+        path("M4.6 8 L15.4 8", stroke_dasharray="3 2.4", stroke_width=1.8),
+        path("M8 4.6 L19.4 4.6", stroke_dasharray="3 2.4", stroke_width=1.6),
+        path("M6.4 11.4 L17.6 11.4", stroke_dasharray="3 2.4", stroke_width=1.4),
+    ])
+
+
+def g_phase_flow_reaction() -> str:
+    """`FlowReaction` (Preparation): si arma nel Prep e risponde con il flusso."""
+    return "\n".join([
+        path("M5.4 8.4 L5.4 4.4 L9.4 4.4 M18.6 8.4 L18.6 4.4 L14.6 4.4", stroke_width=1.5),
+        waves(12.4, x0=4.6, span=14.8, amp=1.8, stroke_width=1.8),
+        path("M12 15.6 L12 20.4", stroke_width=1.4),
+        path("M9.4 17.8 L12 20.4 L14.6 17.8", stroke_width=1.4),
+    ])
+
+
+def g_riktor_impact_shot() -> str:
+    """`ImpactShot` (Attack — Damage + Slow): colpo che pesa e frena."""
+    return "\n".join([
+        dot(6.4, 12, 2.4),
+        path("M9.4 12 L13.4 12", stroke_width=2.2),
+        path("M14.6 7.4 L14.6 16.6 M17.4 8.6 L17.4 15.4 M20.2 10 L20.2 14",
+             stroke_width=1.8),
+    ])
+
+
+def g_riktor_kinetic_panel() -> str:
+    """`KineticPanel` (Preparation, da `Action.CreateCover`): una piastra piantata a terra.
+
+    Non e' `CreateCover` con un altro nome: quella crea copertura generica, questa e' una piastra
+    d'eroe che assorbe. Il segno in piu' sono i due ancoraggi."""
+    return "\n".join([
+        path("M8.6 4.6 L8.6 17.4 L15.4 17.4 L15.4 4.6 Z", stroke_width=1.8),
+        path("M11 7.4 L11 14.6 M13 7.4 L13 14.6", stroke_width=1.2),
+        path("M4.4 20.4 L19.6 20.4", stroke_width=1.6),
+        path("M8.6 17.4 L6 20.4 M15.4 17.4 L18 20.4", stroke_width=1.4),
+    ])
+
+
+def g_riktor_reconfigure() -> str:
+    """`Reconfigure` (Preparation): si riassetta — due blocchi che si scambiano."""
+    return "\n".join([
+        path("M3.6 6.4 L10.4 6.4 L10.4 11.6 L3.6 11.6 Z", stroke_width=1.5),
+        path("M13.6 12.4 L20.4 12.4 L20.4 17.6 L13.6 17.6 Z", stroke_width=1.5),
+        path("M12.4 8.2 L17 8.2", stroke_width=1.4),
+        path("M15.4 6.4 L17.4 8.2 L15.4 10", stroke_width=1.4),
+        path("M11.6 15.8 L7 15.8", stroke_width=1.4),
+        path("M8.6 14 L6.6 15.8 L8.6 17.6", stroke_width=1.4),
+    ])
+
+
+def g_riktor_ram() -> str:
+    """`Ram` (FastMovement, LinearCharge — Damage + Push): massa che arriva addosso.
+
+    Contro `Action.Charge`, che e' la carica generica: qui il corpo che carica e' una faccia piena,
+    non un punto. E' la stessa differenza fra spingere e travolgere."""
+    return "\n".join([
+        path("M3.4 6.6 L3.4 17.4 L7.4 15.4 L7.4 8.6 Z", stroke_width=1.6),
+        path("M9 12 L13.4 12", stroke_width=2.0),
+        path("M19.4 5.4 L19.4 18.6", stroke_width=2.4),
+        path("M15 8.6 L17.6 10.6 M14.6 12 L17.4 12 M15 15.4 L17.6 13.4", stroke_width=1.5),
+    ])
+
+
+def g_riktor_interposition() -> str:
+    """`Interposition` (Control, da `Action.Intercept`): mettersi IN MEZZO.
+
+    Contro `Intercept`, che incrocia una traiettoria: qui il corpo si sposta a coprire un alleato, e
+    il glifo lo dice con tre elementi in fila — chi arriva, chi si frappone, chi e' protetto."""
+    return "\n".join([
+        path("M2.6 12 L6.4 12", stroke_width=1.6),
+        arrow_head(8.6, 12, 2.0),
+        path("M12 4.6 L12 19.4", stroke_width=2.6),
+        dot(12, 12, 2.2),
+        circle(18.4, 12, 2.6, stroke_width=1.5),
+    ])
+
+
+def g_wraith_pulse_shot() -> str:
+    """`PulseShot` (Attack — Damage): colpo a impulsi, non un raggio continuo."""
+    return "\n".join([
+        dot(3.4, 12, 1.7),
+        path("M6 12 L8.6 12 M11 12 L13.6 12 M16 12 L18.6 12", stroke_width=2.2),
+        arrow_head(21.4, 12, 2.4),
+    ])
+
+
+def g_wraith_intercept_shot() -> str:
+    """`InterceptShot` (Preparation, Single — Damage): la thin slice Predictive della v0.1.
+
+    Si arma su DOVE il bersaglio sara', non dove e': il bersaglio tratteggiato non e' decorazione, e'
+    la cosa che rende questa ability diversa da ogni altro colpo — e usa il canale `Predicted` della
+    grammatica delle certezze, che qui e' semantica dell'ability, non stato della UI."""
+    return "\n".join([
+        path("M4.6 6.6 L4.6 17.4", stroke_width=1.8),
+        path("M6.4 12 L12.4 12", stroke_dasharray="2.6 2"),
+        circle(17.4, 12, 4.2, stroke_dasharray="2.6 2.4", stroke_width=1.6),
+        dot(17.4, 12, 1.4),
+    ])
+
+
+def g_wraith_passing_blade() -> str:
+    """`PassingBlade` (FastMovement — Damage): attraversa e colpisce chi trova in mezzo.
+
+    Contro `Leap`, che scavalca e non incontra nessuno: qui i due segni sulla traiettoria sono le
+    unita' attraversate, ed e' l'unica differenza che conta."""
+    return "\n".join([
+        dot(3.2, 18.6, 1.6),
+        path("M4.8 17.2 L19.4 5.4", stroke_width=2.0),
+        arrow_head(21 , 4.4, 2.2),
+        path("M8.2 10.6 L12.2 15.4 M12.6 6.4 L16.6 11.2", stroke_width=1.5),
+    ])
+
+
+def g_wraith_deflection() -> str:
+    """`Deflection` (Control, da `Action.Deflect` — DamageReduction): la lama devia invece della
+    piastra. Il tratto inclinato e' sottile e lungo: e' una lama, non un muro."""
+    return "\n".join([
+        path("M7.4 20.6 L17.4 3.4", stroke_width=1.6),
+        path("M3.6 7.4 L9.4 11.4"),
+        path("M6 12 L10.4 12.4 L10 8", stroke_width=1.4),
+        path("M14 15.4 L19.6 19.4"),
+        path("M16.4 20 L20.4 20.4 L20 16.4", stroke_width=1.4),
+    ])
+
+
+def g_wraith_feint() -> str:
+    """`Feint` (Control): due traiettorie, una sola vera.
+
+    Il tratteggio qui NON e' `Predicted`: e' la finta, cioe' una cosa che il giocatore che la lancia
+    sa essere falsa. E' l'unico punto del sistema in cui il tratteggio significa «bugia», e va detto
+    perche' altrove significa «previsto»."""
+    return "\n".join([
+        dot(3.4, 12, 1.7),
+        path("M5.4 11 L14.4 6.6", stroke_dasharray="2.6 2.2", stroke_width=1.5),
+        circle(18.4, 5.4, 2.2, stroke_dasharray="2 2", stroke_width=1.3),
+        path("M5.4 13 L15.4 17.6", stroke_width=2.0),
+        arrow_head(19.4, 19.4, 2.2),
+    ])
+
+
+def g_action_dodge() -> str:
+    """`Dodge` — il movimento generico della fase Dash secondo l'handoff Action Phases del 2026-08-26
+    (§4.1, `LOCKED_CHAT`).
+
+    ⚠️ **Non e' nel catalogo generico**: `RequiredIconIds()` non la pretende, e finche' il rename non
+    atterra questa icona non ha un'azione da rappresentare. Esiste perche' la decisione e' presa e il
+    disegno non deve essere il collo di bottiglia — non perche' sia gia' vera.
+
+    ⚠️ E c'e' una collisione da risolvere PRIMA del rename: `Action.Evade` esiste gia' e vuol dire la
+    stessa cosa. Questo glifo la tratta come «scarto rapido nella fase Dash» — chevron con uno stacco
+    laterale — mentre `Evade` resta lo scarto reattivo. Se le due si unificano, una delle due icone
+    diventa un doppione.
+    """
+    return "\n".join([
+        dot(3.4, 15.4, 1.5),
+        path("M5.4 15.4 L9.4 15.4 L13.4 8.6", stroke_width=1.8),
+        chevron(15 , 8.6, 2.6, 3.0),
+        arrow_head(21.4, 8.6, 2.6),
+        path("M9.4 18.4 L9.4 20.6", stroke_width=1.3),
+    ])
+
+
+# --------------------------------------------------------------------------------------------------
 # Copertura — le chiavi che `RequiredIconIds()` genera davvero
 # --------------------------------------------------------------------------------------------------
 # La lista **si interroga, non si copia**: un manifest scritto a mano invecchia il giorno in cui
@@ -1298,6 +1519,47 @@ ICONS = [
      "AGGIUNTO — quinto token del kit"),
     ("Action.Hero.Gadget.Overload", g_overload, "Hazard",
      "mock 18 — nome corretto, glifo su grammatica Damage"),
+
+    # Le altre quindici ability del roster. Fuori dal set richiesto come quelle di Gadget: hanno una
+    # chiave regolare sotto `Action.` ma non stanno nel catalogo generico.
+    ("Action.Hero.Phase.PressureJet", g_phase_pressure_jet, "Utility",
+     "roster — Attack/Line, Damage + Wet + Push"),
+    ("Action.Hero.Phase.CircularTide", g_phase_circular_tide, "Utility",
+     "roster — Attack/Area, l'unica d'area che cura"),
+    ("Action.Hero.Phase.FluidTrail", g_phase_fluid_trail, "Utility",
+     "roster — FastMovement, la scia e' meta' del significato"),
+    ("Action.Hero.Phase.MistVeil", g_phase_mist_veil, "Utility",
+     "roster — Environment/Area, da tenere distinta da Status.Obscured"),
+    ("Action.Hero.Phase.FlowReaction", g_phase_flow_reaction, "Reaction",
+     "roster — Preparation, si arma e risponde"),
+
+    ("Action.Hero.Riktor.ImpactShot", g_riktor_impact_shot, "Attack",
+     "roster — Attack, Damage + Slow"),
+    ("Action.Hero.Riktor.KineticPanel", g_riktor_kinetic_panel, "Defense",
+     "roster — Preparation, deriva da Action.CreateCover"),
+    ("Action.Hero.Riktor.Reconfigure", g_riktor_reconfigure, "Defense",
+     "roster — Preparation"),
+    ("Action.Hero.Riktor.Ram", g_riktor_ram, "Attack",
+     "roster — FastMovement/LinearCharge, Damage + Push"),
+    ("Action.Hero.Riktor.Interposition", g_riktor_interposition, "Reaction",
+     "roster — Control, deriva da Action.Intercept"),
+
+    ("Action.Hero.Wraith.PulseShot", g_wraith_pulse_shot, "Attack",
+     "roster — Attack, Damage"),
+    ("Action.Hero.Wraith.InterceptShot", g_wraith_intercept_shot, "Reaction",
+     "roster — Preparation, thin slice Predictive della v0.1"),
+    ("Action.Hero.Wraith.PassingBlade", g_wraith_passing_blade, "Attack",
+     "roster — FastMovement, attraversa e colpisce"),
+    ("Action.Hero.Wraith.Deflection", g_wraith_deflection, "Reaction",
+     "roster — Control, deriva da Action.Deflect"),
+    ("Action.Hero.Wraith.Feint", g_wraith_feint, "Utility",
+     "roster — Control, il tratteggio qui significa «falso», non «previsto»"),
+
+    # ⏱️ Non ancora nel catalogo: handoff Action Phases 2026-08-26 §4.1 (LOCKED_CHAT). Disegnata
+    # perche' la decisione e' presa, NON perche' sia gia' vera. Vedi la docstring del glifo per la
+    # collisione irrisolta con `Action.Evade`.
+    ("Action.Dodge", g_action_dodge, "Movement",
+     "handoff 2026-08-26 §4.1 — NON nel catalogo generico"),
     ("Phase.Prep", g_phase_prep, "Utility",
      "mock 03 — sostituisce la timeline a iniziativa"),
     ("Phase.Dash", g_phase_dash, "Movement",
@@ -1410,7 +1672,9 @@ def _rasterize(svg: str, target: Path, width: int, height: int) -> bool:
 def contact_sheet(grayscale: bool) -> str:
     """Foglio di accettazione. La versione in scala di grigi non e' un extra: e' il test di
     `02-color-system.md` §1 — se un'informazione sparisce senza colore, manca il secondo canale."""
-    entries = [(g, t) for _sem, g, t, _o in ICONS] + [(g_missing_icon, None)]
+    entries = [
+        (lambda g=g, sem=sem: compose(g(), hero_sigil(hero_of(sem)) if hero_of(sem) else ""), t)
+        for sem, g, t, _o in ICONS] + [(g_missing_icon, None)]
     cols, cell, pad = 8, 104, 28
     rows = (len(entries) + cols - 1) // cols
     w, h = cols * cell + pad * 2, rows * cell + pad * 2 + 40
@@ -1463,7 +1727,8 @@ def main() -> int:
     for semantic, glyph, token, origin in ICONS:
         asset, iid, category = asset_name(semantic), icon_id(semantic), icon_category(semantic)
         drawn.add(iid)
-        svg = svg_doc(glyph())
+        hero = hero_of(semantic)
+        svg = svg_doc(compose(glyph(), hero_sigil(hero) if hero else ""))
         _write(root / "Icons" / f"{asset}.svg", svg)
         min_size = MIN_READABLE.get(category, DEFAULT_MIN_READABLE)
         sizes = [s for s in PNG_SIZES if s >= min_size]
@@ -1595,6 +1860,53 @@ def rail(y: float, slot: int, slots: int, *, width: float = 2.2, guide: bool = T
     parts.append(path(f"M{_n(cx - width / 2)} {_n(y)} L{_n(cx + width / 2)} {_n(y)}",
                       stroke_width=2.3))
     return "\n".join(parts)
+
+
+# La marca di materia. E' l'asse Identity riusato come MODIFICATORE invece che come icona a se':
+# le quattro identita' esistono gia' nel catalogo, e un'ability d'eroe appartiene a un eroe.
+#
+# Perche' serve, misurato: senza, `Wraith.PulseShot`, `Phase.PressureJet`, `Riktor.ImpactShot`,
+# `Action.LineAttack` e `Action.Dash` stanno tutte entro 0.11 l'una dall'altra — cinque glifi che
+# rivendicano la stessa silhouette «linea orizzontale con una punta». Non e' un difetto dei singoli
+# disegni: e' che molte abilita' a distanza SONO una linea con una punta, e a un certo punto il
+# repertorio delle linee finisce. La distinzione la deve portare il sistema, non il glifo.
+#
+# Sta sulla banda bassa, che la misura dice libera in ~90% dei glifi, ed e' costante per eroe: dopo
+# due partite il giocatore la legge senza guardarla.
+HERO_SIGIL_Y = 21.6
+
+
+def hero_sigil(hero: str) -> str:
+    """Marca costante dell'eroe a cui l'ability appartiene. Non e' il ritratto: e' la materia."""
+    x = 4.6
+    if hero == "Gadget":       # elettricita': il nodo
+        return "\n".join([
+            polygon(hexagon(x + 1.2, HERO_SIGIL_Y, 2.0), stroke_width=1.2),
+            dot(x + 1.2, HERO_SIGIL_Y, 0.8),
+        ])
+    if hero == "Phase":        # acqua: la superficie
+        return waves(HERO_SIGIL_Y, x0=x - 1.6, span=5.6, amp=1.1, stroke_width=1.4)
+    if hero == "Riktor":       # massa: la base larga
+        return "\n".join([
+            path(f"M{_n(x - 1.6)} {_n(HERO_SIGIL_Y + 1)} L{_n(x + 4)} {_n(HERO_SIGIL_Y + 1)}",
+                 stroke_width=2.0),
+            path(f"M{_n(x - 0.2)} {_n(HERO_SIGIL_Y - 1.6)} L{_n(x + 2.6)} {_n(HERO_SIGIL_Y - 1.6)}",
+                 stroke_width=1.4),
+        ])
+    if hero == "Wraith":       # lama: il transito
+        return "\n".join([
+            path(f"M{_n(x - 1.6)} {_n(HERO_SIGIL_Y + 1.6)} L{_n(x + 4)} {_n(HERO_SIGIL_Y - 1.6)}",
+                 stroke_width=1.8),
+            path(f"M{_n(x + 0.4)} {_n(HERO_SIGIL_Y + 2)} L{_n(x + 1.6)} {_n(HERO_SIGIL_Y + 1.4)}",
+                 stroke_width=1.1),
+        ])
+    return ""
+
+
+def hero_of(semantic: str):
+    """`Action.Hero.Wraith.Feint` -> `Wraith`. `Action.Move` -> None."""
+    parts = semantic.split(".")
+    return parts[2] if len(parts) >= 4 and parts[1] == "Hero" else None
 
 
 def compose(base: str, *layers: str) -> str:
