@@ -26,7 +26,9 @@
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTHexMapActor.h"
+#include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
+#include "Core/RTGameplayTags.h" // TAG_Status_Guarded: la guardia si applica al difensore
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
@@ -191,6 +193,185 @@ bool FRTLogMatchesTurnLogOrderTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * **Le due superfici accreditano la STESSA unita'.**
+ *
+ * `RearHitBypassedCover` scriveva l'evento a due destinatari attribuendolo a due unita' diverse: il TurnLog
+ * all'attaccante, il combat log a chi il colpo l'aveva subito (`#1418`). Un consumatore che aggrega per
+ * `UnitId` e un umano che legge il log rispondevano diversamente a «chi l'ha fatto» — e nessuno dei due
+ * poteva accorgersene, perche' guardava una superficie sola.
+ *
+ * Chi ha ragione lo dicono i campi che la voce riempie: `Amount` porta il `Facing` del DIFENSORE, `TgtCell`
+ * la sua cella, la categoria e' `Facing`. La voce descrive l'orientamento che non ha retto, quindi il
+ * soggetto e' chi era in guardia. La riga leggibile aveva ragione dall'inizio.
+ *
+ * Il test guarda ENTRAMBE le superfici sullo stesso evento: e' l'unica forma che cade se tornano a
+ * divergere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRearHitCreditsSameUnitTest,
+	"RefactorTactics.UI.RearHitCreditsTheSameUnitInBothLogs",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRearHitCreditsSameUnitTest::RunTest(const FString&)
+{
+	UWorld* World = RTCombatLogFixture::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* Map = RTCombatLogFixture::SpawnMap(World);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	// Il difensore guarda a EST; l'attaccante sta a OVEST, cioe' fuori dall'arco frontale.
+	ARTUnit* Difensore = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(0, 0, 0));
+	ARTUnit* Attaccante = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("mappa"), Map)
+		|| !TestNotNull(TEXT("difensore"), Difensore) || !TestNotNull(TEXT("attaccante"), Attaccante))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	Difensore->Facing = ERTHexDirection::E;
+	Difensore->ApplyStatus(TAG_Status_Guarded, 1);
+	Attaccante->PlannedAbilityIndex = 0; // attacco base
+	Attaccante->PlannedAttackTarget = Difensore;
+
+	RTCombatLogFixture::RunTurn(TM);
+
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	const FRTTurnLogEntry* Bypassed = Log.FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Facing
+			&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+	});
+	if (!TestNotNull(TEXT("premessa: il colpo alle spalle ha annullato la guardia"), Bypassed))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// Una voce sola: con l'arena piatta non c'e' copertura, quindi puo' averla prodotta solo il ramo della
+	// Guard. Senza questo conteggio il test potrebbe finire a misurare l'ALTRO produttore il giorno in cui
+	// la fixture guadagnasse una copertura — e continuerebbe a dire di misurare questo.
+	TestEqual(TEXT("una sola voce, dal ramo della Guard"),
+		Log.FilterByPredicate([](const FRTTurnLogEntry& E)
+		{
+			return E.Category == ERTLogCategory::Facing
+				&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+		}).Num(), 1);
+
+	// Il TurnLog dichiara chi ha SUBITO.
+	TestEqual(TEXT("il TurnLog accredita il difensore"), Bypassed->UnitId, Difensore->StableUnitId);
+	TestTrue(TEXT("e lo dichiara anche alla tassonomia, non solo a chi ha letto il commento"),
+		URTTurnLogLibrary::IsSubjectTheSufferer(*Bypassed));
+
+	// 🔴 L'invariante vero: le due superfici nominano la STESSA unita'. Si risolve l'unita' che il TurnLog
+	// accredita e si cerca IL SUO nome nella riga — non quello del difensore.
+	//
+	// Confrontare direttamente col difensore sarebbe tautologico: la riga leggibile nasce da
+	// `AddLogEvent("%s: %s", Units[i]->GetName(), ...)` dove `Units[i]` E' il difensore per costruzione del
+	// loop, quindi conterrebbe il suo nome comunque — anche col `UnitId` sbagliato. Cosi' invece il test
+	// cade appena i due tornano a divergere, ed e' la forma per cui esiste.
+	const ARTUnit* Accreditata =
+		Bypassed->UnitId == Difensore->StableUnitId ? Difensore :
+		Bypassed->UnitId == Attaccante->StableUnitId ? Attaccante : nullptr;
+	if (!TestNotNull(TEXT("il TurnLog accredita una delle due unita' in campo"), Accreditata))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// ⚠️ `RecentEvents` e' una finestra (`MaxLogLines`): con due unita' e un turno la riga ci sta, ma un
+	// giorno che questa fixture crescesse andrebbe cercata prima che venga sfrattata.
+	const FString Descrizione = URTTurnLogLibrary::DescribeEntry(*Bypassed);
+	const TArray<FString>& Emesse = TM->GetRecentEvents();
+	const FString* Riga = Emesse.FindByPredicate([&Descrizione](const FString& L)
+	{
+		// La riga NOMINATA, non quella derivata da `ConcludeTurn`: quella e' `DescribeEntry` e basta, e non
+		// dice chi. E' proprio la sua mancanza di nome a rendere utile il confronto qui.
+		return L.Contains(Descrizione) && L.Len() > Descrizione.Len();
+	});
+	if (!TestNotNull(TEXT("l'evento compare anche nel combat log, con un nome davanti"), Riga))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+	TestTrue(*FString::Printf(TEXT("e il combat log nomina l'unita' che il TurnLog accredita: %s"), **Riga),
+		Riga->Contains(Accreditata->GetName()));
+
+	RTCombatLogFixture::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **L'ALTRO produttore dello stesso esito accredita la stessa unita'.**
+ *
+ * `RearHitBypassedCover` non nasce solo dal ramo della Guard: `RTTurnManager.cpp:4112` lo emette anche
+ * quando a essere scavalcata e' una COPERTURA. Anche quello accreditava l'attaccante, e la issue non lo
+ * citava — quindi senza questo test la meta' meno visibile della correzione tornerebbe indietro senza che
+ * niente diventi rosso: il test qui sopra gira su un'arena piatta, dove quel ramo non si esegue mai.
+ *
+ * ⚠️ Il difensore NON e' in guardia, apposta: con la guardia si attiverebbero entrambi i produttori e non si
+ * saprebbe quale delle due voci si sta guardando.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRearHitOnCoverCreditsSameUnitTest,
+	"RefactorTactics.UI.RearHitOnCoverCreditsTheDefender",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRearHitOnCoverCreditsSameUnitTest::RunTest(const FString&)
+{
+	UWorld* World = RTCombatLogFixture::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* Map = RTCombatLogFixture::SpawnMap(World);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	ARTUnit* Difensore = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(0, 0, 0));
+	ARTUnit* Attaccante = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("mappa"), Map)
+		|| !TestNotNull(TEXT("difensore"), Difensore) || !TestNotNull(TEXT("attaccante"), Attaccante))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// Copertura bassa sul lato da cui arriva il colpo: senza, non c'e' riduzione da scavalcare.
+	if (URTHexMapAsset* Asset = Map->MapAsset)
+	{
+		const FRTHexCellData* Existing = Asset->FindCell(FRTCellId(0, 0, 0));
+		FRTHexCellData Data = Existing ? *Existing : FRTHexCellData(FRTCellId(0, 0, 0));
+		Data.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::Low,
+			FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+		Asset->AddOrUpdateCell(Data);
+		Asset->SortCells();
+	}
+
+	Difensore->Facing = ERTHexDirection::E; // guarda dall'altra parte: il colpo arriva alle spalle
+	Attaccante->PlannedAbilityIndex = 0;
+	Attaccante->PlannedAttackTarget = Difensore;
+
+	RTCombatLogFixture::RunTurn(TM);
+
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	const FRTTurnLogEntry* Bypassed = Log.FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Facing
+			&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+	});
+	if (!TestNotNull(TEXT("premessa: la copertura e' stata scavalcata"), Bypassed))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// ⚠️ `Amount` qui porta i PUNTI di riduzione scavalcati, non una direzione: e' la divergenza fra i due
+	// produttori dello stesso esito, dichiarata e aperta in `#1430`. Serve anche a distinguere il ramo: una
+	// direzione sta in [0,5].
+	TestTrue(TEXT("e' la voce del ramo COPERTURA, non quella della Guard"), Bypassed->Amount > 5);
+
+	TestEqual(TEXT("accredita il difensore, come l'altro produttore"),
+		Bypassed->UnitId, Difensore->StableUnitId);
+	TestTrue(TEXT("e la tassonomia lo conferma"), URTTurnLogLibrary::IsSubjectTheSufferer(*Bypassed));
+
+	RTCombatLogFixture::DestroyWorld(World);
+	return true;
+}
 
 /**
  * **Un esito che il log non sa tradurre non deve somigliare a uno che sa.**
