@@ -1,0 +1,61 @@
+{
+  "scenarioId": "Spec.Perception.MovingBreaksContact",
+  "tags": ["perception", "vision", "movement", "facing", "spec", "gadget", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 6,
+
+  "_nota": "CP 13.2 — il contatto si PERDE muovendosi, e la perdita e' osservabile. A1 vede B1 e lo colpisce (T1); poi fa un passo che gli cambia il FACING e B1 esce dall'arco (T2); al T3 spara ancora, ma la squadra ne ha solo il RICORDO, quindi il colpo va sulla cella dov'era. B1 nel frattempo si e' spostato: il colpo trova terra battuta. Danno totale 22, non 44.",
+
+  "_nota_perche_esiste": "Gli scenari di percezione esistenti sono STATICI: `CannotShootWhatYouCannotSee` e `AllySpottingLetsYouShoot` verificano la conoscenza a unita' ferme. Nessuno verifica che il contatto si PERDA, ed e' la meta' della regola che solo il movimento puo' produrre. Senza questo file, un'implementazione che calcola la conoscenza UNA volta allo schieramento e non la rinfresca mai passerebbe entrambi gli scenari esistenti.",
+
+  "_nota_perche_tre_turni": "⚠️ Serve un turno SOLO per muoversi, e la ragione e' l'ordine delle macro-fasi: `Prep -> Dash -> Blast -> Move`. Il **Move normale risolve DOPO il Blast**, quindi un'unita' che dichiara passo e attacco nello stesso turno **spara prima di essersi mossa** — con il facing e la conoscenza di partenza. Una prima stesura di questo file metteva passo e colpo nel T2 e falliva dando 76 invece di 98: il colpo partiva da (0,0,0) guardando ancora a est. Il fallimento non era un difetto del gioco, era la fase sbagliata. Per far decidere il movimento serve che sia gia' avvenuto, cioe' un turno prima. (Chi volesse la stessa cosa DENTRO un turno deve usare uno scatto, che risolve in fase `Dash`, prima del Blast — ed e' un'altra regola, con un altro costo.)",
+
+  "_nota_meccanismo": "La perdita viene dal FACING, non dalla distanza. Il passo da (0,0,0) a (-1,0,0) e' la direzione `W` (`ERTHexDirection` indice 3, `(-1,0)`), e l'orientamento segue l'ultimo passo compiuto: A1 finisce guardando a OVEST. B1 resta dentro la portata 4 di `Hero.Gadget.ArcPulse` — la distanza fra (-1,0,0) e la cella ricordata (3,0,0) e' esattamente 4 — ma cade fuori dal cono di 120 gradi e oltre le 2 celle della consapevolezza ravvicinata. Decide quindi la CONOSCENZA, non la geometria del tiro: se il gate smettesse di essere consultato, il colpo del T3 andrebbe a segno e questo file diventerebbe rosso con 76.",
+
+  "_nota_ricordo": "Al T3 B1 non e' `Rejected` ma `CellOnly`. Il contatto e' stato registrato al rinfresco del T2 — quando A1 era ANCORA a (0,0,0) e guardava a est, perche' il suo passo risolve dopo — quindi al T3 ha un turno di eta' e `URTTeamKnowledgeLibrary::ContactLifetimeTurns` vale 1: e' vivo. Il colpo parte e va sulla cella RICORDATA (3,0,0); B1 e' a (3,-1,0). E' precisamente il costo di sparare a memoria, e finora era una regola dedotta dal resolver invece che osservabile.",
+
+  "_nota_coppia": "Il controllo e' `Spec.Perception.StayingKeepsContact`: stessi tre turni, stessa geometria, stesso spostamento di B1 — cambia SOLO che A1 non fa il passo, quindi non si gira. Li' anche il secondo colpo va a segno e B1 finisce a 76. La differenza fra 98 e 76 e' la regola; nessuno dei due file da solo la dimostra. Senza il controllo passerebbe un'implementazione che rifiuta sempre il secondo colpo (un cooldown letto male, per dire); senza questo, una che non rinfresca mai la conoscenza.",
+
+  "_nota_geometria": "B2 sta a est per la ragione dichiarata in `CannotShootWhatYouCannotSee`: il harness assegna il facing dichiarato e NON applica [D-044] (ci si schiera guardando il nemico piu' vicino), quindi un facing iniziale a EST con due nemici a est resta una posa raggiungibile in partita invece di un artificio del harness. B2 non partecipa: e' fuori dalla portata di A1 e non si muove.",
+
+  "_nota_scala": "`mapRadius` 6 e' deliberatamente piccolo: questo file misura una REGOLA, e una regola si misura sulla geometria minima che la esprime. La leggibilita' della fog su un'arena vera e' una domanda diversa e si risponde in PIE, non qui.",
+
+  "_nota_facing_assente": "⚠️ Questo file NON asserisce sul facing di A1, ed e' deliberato. Misurato: A1 finisce a EST anche dopo il passo a ovest, perche' al T3 l'attacco lo RIGIRA verso il bersaglio prima che il gate della conoscenza lo fermi ([D-020]: un'azione con bersaglio orienta l'unita' prima di risolvere, e la rotazione precede il gate). Cioe' A1 si volta verso un nemico che la squadra non conosce, e il facing e' osservabile dall'avversario: voltarsi verso cio' che non si conosce fa trapelare che lo si conosce. La domanda e' aperta ed e' `PER-4`. Una prima stesura di questo file asseriva `W` e cadeva: asserire `W` accuserebbe il gioco di un difetto non deciso, asserire `E` renderebbe canone per inerzia un possibile leak. Il meccanismo del facing ha comunque i suoi owner altrove — `Spec/Facing/DerivesFromMove` e `Spec/Facing/TargetingReorients` — quindi qui non si duplica nulla.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [0, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [3, 0, 0] },
+    { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [5, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — A1 guarda a est e vede B1 a 3 celle: dentro l'arco, dentro la portata. Il colpo va a segno: 120 - 22 = 98.",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+      ]
+    },
+    {
+      "_turno": "T2 — nessuno spara. A1 fa un passo a ovest e il facing lo segue; B1 si sposta di una cella. Al rinfresco di questo turno A1 era ancora a (0,0,0) guardando a est, quindi il contatto viene registrato su (3,0,0): sara' quello il ricordo.",
+      "intents": [
+        { "unit": "A1", "move": [[-1, 0, 0]] },
+        { "unit": "B1", "move": [[3, -1, 0]] }
+      ]
+    },
+    {
+      "_turno": "T3 — ora il passo e' gia' avvenuto: A1 guarda a ovest e B1 e' fuori dall'arco. Il colpo parte lo stesso, perche' il ricordo del T2 e' ancora vivo, ma va su (3,0,0) e B1 non e' piu' li'. B1 resta a 98.",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 3 },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [3, -1, 0] },
+    { "type": "UnitHpEquals", "unit": "B1", "value": 98 },
+    { "type": "UnitAlive", "unit": "B1", "value": true }
+  ]
+}

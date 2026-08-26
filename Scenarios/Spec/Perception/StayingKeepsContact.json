@@ -1,0 +1,54 @@
+{
+  "scenarioId": "Spec.Perception.StayingKeepsContact",
+  "tags": ["perception", "vision", "movement", "facing", "spec", "gadget", "riktor", "control"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 6,
+
+  "_nota": "CONTROLLO di `Spec.Perception.MovingBreaksContact`. Stessi tre turni, stessa geometria, stesso spostamento di B1, stessa abilita'. L'UNICA differenza e' che A1 non fa il passo a ovest, quindi continua a guardare a est e non perde il contatto. Entrambi i colpi vanno a segno: 120 - 22 - 22 = 76.",
+
+  "_nota_perche_esiste": "Da solo, `MovingBreaksContact` non dimostra la regola: passerebbe anche con un cooldown letto male, con un'abilita' che non puo' ripetersi, o con un gate che rifiuta sempre il secondo colpo per una ragione qualunque. La coppia isola la variabile — fra i due file cambia UNA cosa, il passo di A1 — e il delta osservabile e' 22 punti. E' la stessa disciplina che `CannotShootWhatYouCannotSee` dichiara nel proprio commento per la coppia statica.",
+
+  "_nota_cosa_prova_il_delta": "98 contro 76. Se dessero entrambi 76, la conoscenza non starebbe decidendo nulla e il movimento non toglierebbe il contatto. Se dessero entrambi 98, il secondo colpo non parte MAI e la causa e' altrove — non nella percezione. Solo la differenza attribuisce l'effetto al passo di A1.",
+
+  "_nota_perche_tre_turni": "I tre turni non servono a QUESTO file, servono alla sua coppia: la' il turno centrale esiste perche' il Move risolve DOPO il Blast (`Prep -> Dash -> Blast -> Move`) e un passo dichiarato insieme al colpo arriverebbe troppo tardi per cambiare la conoscenza. Qui il T2 e' un turno in cui A1 non fa nulla e B1 si sposta. Tenerlo comunque e' il punto: due file che differiscono per il numero di turni non sono una coppia, sono due esperimenti diversi.",
+
+  "_nota_movimento_di_b1": "B1 si sposta anche qui, ed e' deliberato: se fosse fermo nel controllo e mobile nell'altro, i due file differirebbero per DUE cose e il delta non sarebbe attribuibile a niente. (3,-1,0) resta dentro la portata 4 di `Hero.Gadget.ArcPulse` da (0,0,0) — distanza 3 — e dentro l'arco frontale a est: verificato, questo file passa 5/5 con B1 su quella cella.",
+
+  "_nota_facing_assente": "⚠️ Questo file NON asserisce sul facing di A1, ed e' deliberato. Misurato: A1 finisce a EST anche dopo il passo a ovest, perche' al T3 l'attacco lo RIGIRA verso il bersaglio prima che il gate della conoscenza lo fermi ([D-020]: un'azione con bersaglio orienta l'unita' prima di risolvere, e la rotazione precede il gate). Cioe' A1 si volta verso un nemico che la squadra non conosce, e il facing e' osservabile dall'avversario: voltarsi verso cio' che non si conosce fa trapelare che lo si conosce. La domanda e' aperta ed e' `PER-4`. Una prima stesura di questo file asseriva `W` e cadeva: asserire `W` accuserebbe il gioco di un difetto non deciso, asserire `E` renderebbe canone per inerzia un possibile leak. Il meccanismo del facing ha comunque i suoi owner altrove — `Spec/Facing/DerivesFromMove` e `Spec/Facing/TargetingReorients` — quindi qui non si duplica nulla.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [0, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [3, 0, 0] },
+    { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [5, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — identico alla coppia: A1 vede B1 e lo colpisce. 120 - 22 = 98.",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+      ]
+    },
+    {
+      "_turno": "T2 — B1 si sposta come nell'altro file. A1 NON si muove: e' l'unica differenza fra i due scenari, e resta a guardare a est.",
+      "intents": [
+        { "unit": "B1", "move": [[3, -1, 0]] }
+      ]
+    },
+    {
+      "_turno": "T3 — A1 e' fermo e guarda ancora a est: B1 e' visibile sulla sua cella NUOVA, quindi il colpo va sull'UNITA' e non su un ricordo. 98 - 22 = 76.",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 3 },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [0, 0, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [3, -1, 0] },
+    { "type": "UnitHpEquals", "unit": "B1", "value": 76 },
+    { "type": "UnitAlive", "unit": "B1", "value": true }
+  ]
+}
