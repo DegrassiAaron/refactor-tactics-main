@@ -238,6 +238,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// e' qualcuno che ti ha visto arrivare e ha scelto TE. «Colto da una previsione» qui manderebbe a
 		// cercare un errore di lettura dove c'e' stata una lettura riuscita (CP 14.5).
 		case ERTMoveOutcome::StoppedByOverwatch: Reason = TEXT("fermo: colpito in overwatch"); break;
+		case ERTMoveOutcome::SupersededByDash:  Reason = TEXT("movimento non speso: lo scatto aveva gia' preso lo slot"); break;
 		// Subito, non scelto (#307): «si muove» direbbe una cosa falsa di un'unita' che e' stata spinta.
 		case ERTMoveOutcome::Displaced:         Reason = TEXT("spostata"); break;
 		// Spinta annullata (#420). Il testo NON e' costante: il valore di questa voce sta tutto nel dire

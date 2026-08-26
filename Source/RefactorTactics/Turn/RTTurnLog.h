@@ -448,7 +448,29 @@ enum class ERTMoveOutcome : uint8
 	 * e' terminale. E' la stessa scelta che `ApplyPredictionsToMoves` fa gia', assegnando l'esito senza
 	 * chiedere se ce n'era uno.
 	 */
-	StoppedByOverwatch
+	StoppedByOverwatch,
+	/**
+	 * Il movimento normale non si esegue perche' lo SLOT era gia' speso da una mobilita' rapida dello stesso
+	 * turno (CP 38.2, [D-191]). Aggiunto in CODA, come i cinque valori sopra: l'esito viaggia come `uint8`
+	 * nel formato serializzato, quindi le tracce gia' scritte non cambiano significato.
+	 *
+	 * **Perche' non e' un `BlockedBy*`.** Tutti gli altri arresti hanno una causa ESTERNA — una cella
+	 * occupata, una precedenza persa, un muro alzato, un colpo. Qui non c'e' niente che blocca: e' l'unita'
+	 * stessa ad aver speso il proprio slot movimento con lo scatto, e il percorso normale non ha mai avuto
+	 * un momento in cui potesse avvenire. Chiamarlo «bloccato» direbbe al giocatore che qualcuno gli ha
+	 * impedito qualcosa, che e' falso e manda a cercare un avversario che non c'e'.
+	 *
+	 * ⚠️ **Lo scrive `ResolveDash`**, dove il percorso viene effettivamente scartato, e non il validatore
+	 * al lock-in. La differenza non e' di comodo: al commit il piano si contraddice e basta — CHI verra'
+	 * scartato lo decide il resolver, che fa vincere lo scatto sempre. Una voce scritta prima dovrebbe
+	 * indovinarlo, e l'ordine canonico di `ValidatePlan` (per larghezza di slot, poi per `ActionId`) darebbe
+	 * la risposta sbagliata: davanti a `Action.Move` + `Hero.Riktor.Ram` nomina **Ram**, che invece esegue.
+	 *
+	 * `SrcCell` e' dove lo scatto ha portato l'unita'; `TgtCell` e' la destinazione che il movimento normale
+	 * aveva dichiarato e **non raggiungera'** — il dato che rende la voce utile invece che una nota.
+	 * `Amount` porta le celle del percorso scartato.
+	 */
+	SupersededByDash
 };
 
 /**

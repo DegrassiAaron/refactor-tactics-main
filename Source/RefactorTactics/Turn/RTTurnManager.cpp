@@ -1936,52 +1936,42 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 
 void ARTTurnManager::ValidatePlansAtLockIn()
 {
-	TArray<AActor*> Actors;
-	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+	// Le unita' e il loro snapshot vengono dal punto UNICO che li costruisce: `MakeCurrentSnapshot` filtra
+	// gia' i vivi, ordina canonicamente e riempie `FRTHexSimUnit` con TUTTI i campi — `MoveCostModifier` da
+	// `Status.Slow`, il `Facing`, e l'`UnitId` che e' l'indice dello snapshot e non `StableUnitId`.
+	// Costruirlo a mano qui e' come e' nato il difetto trovato in code review: due campi dimenticati e due
+	// schemi di numerazione mescolati.
+	TArray<ARTUnit*> Units;
+	const FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units);
 
-	// Ordine canonico per identita' stabile: il TurnLog e' confrontato fra run, e l'ordine di
-	// `GetAllActorsOfClass` non e' garantito. Senza questo, due esecuzioni identiche scriverebbero le
-	// stesse voci in ordine diverso e ogni confronto di replay fallirebbe per un motivo che non c'entra.
-	Actors.Sort([](const AActor& A, const AActor& B)
+	for (int32 i = 0; i < Units.Num() && i < Snapshot.Units.Num(); ++i)
 	{
-		const ARTUnit* UA = Cast<ARTUnit>(&A);
-		const ARTUnit* UB = Cast<ARTUnit>(&B);
-		return (UA ? UA->StableUnitId : 0) < (UB ? UB->StableUnitId : 0);
-	});
-
-	for (AActor* Actor : Actors)
-	{
-		ARTUnit* Unit = Cast<ARTUnit>(Actor);
-		if (!Unit || !Unit->IsAlive())
+		ARTUnit* Unit = Units[i];
+		if (!Unit)
 		{
-			continue; // un'unita' morta non compone piani: e' la precondizione dichiarata di `ValidatePlan`
+			continue;
 		}
 
 		const TArray<FRTPlannedAction> Plan = URTPlanValidationLibrary::MakePlanFor(Unit);
 		if (Plan.Num() == 0)
 		{
-			continue; // nessuna voce: niente da giudicare, e nessuna voce di log da scrivere
+			continue; // nessuna voce: niente da giudicare
 		}
 
-		const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(
-			FRTHexSimUnit(Unit->StableUnitId, Unit->Cell, Unit->GetEffectiveMoveRange(), /*bAlive*/ true), Plan);
+		const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(Snapshot.Units[i], Plan);
 		if (Verdict.bLegal)
 		{
 			continue;
 		}
 
-		// Una voce di FALLBACK, non un errore: la famiglia esiste gia' e dice «cio' che era pianificato non
-		// si esegue come dichiarato». Il motivo viaggia in `Amount` come per ogni altro rifiuto
-		// (`ERTActionInvalidReason` serializzato come intero), e l'azione colpevole nel proprio campo.
-		FRTTurnLogEntry Entry;
-		Entry.Phase = ERTMatchPhase::Planning;
-		Entry.Category = ERTLogCategory::Fallback;
-		Entry.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
-		Entry.ActionId = Verdict.OffendingActionId;
-		Entry.SrcCell = Unit->Cell;
-		Entry.Amount = static_cast<int32>(Verdict.Reason);
-		AppendLogEntry(Entry, Unit);
-
+		// 🔴 **Nessuna voce nel TurnLog da qui, ed e' una scelta.** Il TurnLog e' un formato serializzato,
+		// ordinato canonicamente e riprodotto: una voce scritta al lock-in porterebbe una `Phase` che nessun
+		// consumatore del replay ha mai visto, e dovrebbe nominare un'azione «colpevole» che l'ordine
+		// canonico del validatore sceglie in modo diverso da come il resolver scarta. Cio' che il turno
+		// scarta davvero lo dice `ResolveDash`, dove lo scarta — con `ERTMoveOutcome::SupersededByDash`.
+		//
+		// Qui resta il **combat log**, che e' cio' che serve: un piano incoerente ha un posto in cui
+		// comparire mentre lo si compone, senza entrare nel formato che i replay confrontano.
 		AddLogEvent(FString::Printf(TEXT("%s: piano non valido al lock-in (%s su %s)"),
 			*Unit->GetName(),
 			*StaticEnum<ERTActionInvalidReason>()->GetNameStringByValue(static_cast<int64>(Verdict.Reason)),
@@ -3309,6 +3299,26 @@ void ARTTurnManager::ResolveDash()
 		// Il movimento del turno e' finito qui: si scarta il percorso pianificato e la destinazione DIVENTA
 		// la cella d'arrivo dello scatto. Senza l'assegnazione il resolver del Move vedrebbe una `PlannedCell`
 		// diversa dalla posizione attuale e proverebbe comunque ad avvicinarcisi.
+		//
+		// 🔴 **E se c'era davvero un percorso, lo si DICE** (CP 38.2): fino al 2026-08-26 questo scarto era
+		// muto, e un giocatore che aveva composto scatto + movimento vedeva la propria rotta sparire senza
+		// che niente la nominasse. La voce si scrive QUI e non al lock-in perche' qui si sa **che cosa** viene
+		// scartato: al commit il piano si contraddice e basta, e indovinare il perdente dall'ordine canonico
+		// del validatore darebbe la risposta sbagliata.
+		const bool bHadNormalMove = Unit->PlannedPath.Num() > 1 || Unit->PlannedCell != Unit->Cell;
+		if (bHadNormalMove)
+		{
+			FRTTurnLogEntry Superseded;
+			Superseded.Phase = ERTMatchPhase::Dash;
+			Superseded.Category = ERTLogCategory::Move;
+			Superseded.Outcome = static_cast<uint8>(ERTMoveOutcome::SupersededByDash);
+			Superseded.ActionId = TEXT("Action.Move"); // cio' che NON si esegue, non lo scatto che invece esegue
+			Superseded.SrcCell = Final;                // dove lo scatto ha portato l'unita'
+			Superseded.TgtCell = Unit->PlannedCell;    // la destinazione dichiarata e mai raggiunta
+			Superseded.Amount = FMath::Max(0, Unit->PlannedPath.Num() - 1);
+			AppendLogEntry(Superseded, Unit);
+		}
+
 		Unit->PlannedPath.Reset();
 		Unit->PlannedWaypoints.Reset();
 		Unit->PlannedCell = Final;

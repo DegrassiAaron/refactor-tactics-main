@@ -342,26 +342,27 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 
 
 
+
 // =====================================================================================================
-// CP 38.2 — il piano si valida al COMMIT, e cio' che non torna finisce nel TurnLog.
+// CP 38.2 — lo scarto del movimento si DICE, e lo dice chi lo esegue.
 //
-// Il lock-in e' l'ultimo istante in cui un piano e' ancora un piano. La DoD chiede «un punto solo che
-// risponde LEGALE / ILLEGALE + reason code prima del commit», e questo e' il commit.
+// Il giocatore puo' comporre scatto + movimento normale: due voci per lo slot movimento. `ResolveDash` fa
+// vincere lo scatto e azzera il percorso — fino al 2026-08-26 in silenzio, quindi una rotta disegnata sulla
+// mappa spariva senza che niente la nominasse.
 //
-// 🔴 **Registra, non blocca**, e la ragione e' misurata. La prima versione rifiutava l'input al click ed e'
-// stata ritirata in code review: un piano illegale nasce quasi sempre da uno scatto piu' un movimento, e uno
-// scatto pianificato NON e' annullabile — `ERTPointerBackStep` elenca waypoint, targeting, inspector e
-// focus, non il dash. Rifiutare il waypoint chiudeva il giocatore in un turno senza uscita: ne' muoversi ne'
-// disfare. Un piano incoerente che si risolve come il resolver decide e' meno grave di un turno che non si
-// puo' correggere.
+// 🔴 **La voce si scrive in RISOLUZIONE, non al lock-in**, ed e' la lezione della code review: al commit il
+// piano si contraddice e basta, ma CHI verra' scartato lo decide il resolver. L'ordine canonico di
+// `ValidatePlan` — per larghezza di slot, poi per `ActionId` — davanti a `Action.Move` e
+// `Hero.Riktor.Ram` nomina **Ram**, che invece esegue. Una voce scritta al lock-in avrebbe accusato
+// l'azione sbagliata.
 //
 // I due test vanno tenuti INSIEME: senza il secondo, un `AppendLogEntry` incondizionato passerebbe il primo.
 // =====================================================================================================
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInLogsTheIllegalPlanTest,
-	"RefactorTactics.PlayerInteraction.LockInLogsAnIllegalPlan",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashSupersedesNormalMoveTest,
+	"RefactorTactics.PlayerInteraction.DashSupersedesTheNormalMove",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTLockInLogsTheIllegalPlanTest::RunTest(const FString&)
+bool FRTDashSupersedesNormalMoveTest::RunTest(const FString&)
 {
 	UWorld* World = MakeInteractionWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -390,48 +391,66 @@ bool FRTLockInLogsTheIllegalPlanTest::RunTest(const FString&)
 	}
 
 	// Il giocatore compone davvero il piano incoerente: scatto, poi stato neutro (D-128), poi waypoint.
+	const FRTCellId DashTo(1, 2);
+	const FRTCellId MoveTo(2, 1);
 	U->SelectAbility(DashIdx);
-	PC->HandleClickOnCell(FRTCellId(1, 2));
+	PC->HandleClickOnCell(DashTo);
 	U->SelectAbility(INDEX_NONE);
-	PC->HandleClickOnCell(FRTCellId(2, 1));
+	PC->HandleClickOnCell(MoveTo);
 
-	// Le due premesse: senza, il lock-in giudicherebbe un piano che non contiene il caso in esame.
+	// Le premesse: senza, il turno non conterrebbe il caso in esame.
 	if (!TestNotEqual(TEXT("premessa: lo scatto e' pianificato"), U->PlannedDashAbility, static_cast<int32>(INDEX_NONE))
 		|| !TestTrue(TEXT("premessa: il waypoint si posa — l'input non viene rifiutato"),
-			U->PlannedWaypoints.Num() > 0))
+			U->PlannedWaypoints.Num() > 0)
+		|| !TestEqual(TEXT("premessa: la destinazione del movimento e' quella cliccata"), U->PlannedCell, MoveTo))
 	{
 		DestroyInteractionWorld(World);
 		return false;
 	}
 
 	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
 
-	// La voce e' scritta al lock-in, quindi si trova nel TurnLog anche a risoluzione avviata.
-	int32 Rejections = 0;
-	ERTActionInvalidReason Reason = ERTActionInvalidReason::None;
+	// La voce, e i suoi CAMPI: un conteggio da solo non si accorgerebbe di una destinazione sbagliata o di
+	// un esito che nomina l'azione che invece esegue.
+	int32 Superseded = 0;
+	FRTTurnLogEntry Found;
 	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
 	{
-		if (Entry.Phase == ERTMatchPhase::Planning && Entry.Category == ERTLogCategory::Fallback)
+		if (Entry.Category == ERTLogCategory::Move
+			&& static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
 		{
-			++Rejections;
-			Reason = static_cast<ERTActionInvalidReason>(Entry.Amount);
+			++Superseded;
+			Found = Entry;
 		}
 	}
 
-	TestEqual(TEXT("il lock-in registra UNA voce per il piano incoerente"), Rejections, 1);
-	TestEqual(TEXT("e il motivo e' lo slot occupato"), Reason, ERTActionInvalidReason::SlotOccupied);
+	if (!TestEqual(TEXT("una voce dichiara il movimento scartato"), Superseded, 1))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("la voce sta nella fase in cui lo scarto avviene"), Found.Phase, ERTMatchPhase::Dash);
+	TestEqual(TEXT("nomina il MOVIMENTO, non lo scatto che invece esegue"),
+		Found.ActionId, FName(TEXT("Action.Move")));
+	TestEqual(TEXT("SrcCell e' dove lo scatto ha portato l'unita'"), Found.SrcCell, DashTo);
+	TestEqual(TEXT("TgtCell e' la destinazione dichiarata e mai raggiunta"), Found.TgtCell, MoveTo);
+
+	// E l'unita' e' davvero dove l'ha portata lo scatto: la voce descrive il turno, non lo contraddice.
+	TestEqual(TEXT("l'unita' e' sulla cella dello scatto"), U->Cell, DashTo);
 
 	DestroyInteractionWorld(World);
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInIsSilentOnALegalPlanTest,
-	"RefactorTactics.PlayerInteraction.LockInIsSilentOnALegalPlan",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoSupersededEntryOnALegalPlanTest,
+	"RefactorTactics.PlayerInteraction.NoSupersededEntryOnALegalPlan",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTLockInIsSilentOnALegalPlanTest::RunTest(const FString&)
+bool FRTNoSupersededEntryOnALegalPlanTest::RunTest(const FString&)
 {
-	// L'altra meta': un piano legale non lascia voci. Senza questo, un `AppendLogEntry` incondizionato
-	// supererebbe il test gemello — e il TurnLog di ogni partita si riempirebbe di rifiuti inesistenti.
+	// L'altra meta': un movimento normale senza scatto non lascia la voce. Senza questo, un
+	// `AppendLogEntry` incondizionato dentro `ResolveDash` supererebbe il test gemello, e ogni scatto del
+	// gioco — anche quello di chi non aveva pianificato nulla — dichiarerebbe uno scarto inesistente.
 	UWorld* World = MakeInteractionWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
@@ -462,17 +481,20 @@ bool FRTLockInIsSilentOnALegalPlanTest::RunTest(const FString&)
 	}
 
 	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
 
-	int32 Rejections = 0;
+	int32 Superseded = 0;
 	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
 	{
-		if (Entry.Phase == ERTMatchPhase::Planning && Entry.Category == ERTLogCategory::Fallback)
+		if (Entry.Category == ERTLogCategory::Move
+			&& static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
 		{
-			++Rejections;
+			++Superseded;
 		}
 	}
 
-	TestEqual(TEXT("un piano legale non lascia voci di rifiuto"), Rejections, 0);
+	TestEqual(TEXT("un piano legale non dichiara nessuno scarto"), Superseded, 0);
+	TestTrue(TEXT("e l'unita' si e' mossa davvero"), U->Cell != FRTCellId(1, 1));
 
 	DestroyInteractionWorld(World);
 	return true;

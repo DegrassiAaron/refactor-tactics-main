@@ -328,6 +328,26 @@ UENUM(BlueprintType) enum class ERTMoveOutcome : uint8 {
 | Spinta / trazione | `Category=Move`, `Phase=Blast`, **`Outcome=Displaced`**, `ActionId` = l'azione che l'ha causata |
 | Reazione | *nessun produttore in v0.1* — nessuna reazione del catalogo dichiara `Push`/`Pull`. Quando esisterà, userà lo stesso campo |
 | Spinta **annullata** | `Category=Move`, `Phase=Blast`, **`Outcome=DisplacementResisted`**, `SrcCell == TgtCell`, e il **perché** in `Amount` — vedi sotto |
+| Movimento **superato dallo scatto** | `Category=Move`, **`Phase=Dash`**, **`Outcome=SupersededByDash`**, `ActionId=Action.Move`, `TgtCell` = la destinazione **mai raggiunta** — vedi sotto |
+
+### Il movimento che lo scatto ha superato ([D-192](../../decisions/RT_PDR_00_Decision_Log.md), CP 38.2)
+
+Un giocatore può comporre **scatto + movimento normale**: due voci per lo stesso slot. `ResolveDash` fa
+vincere lo scatto e azzera `PlannedPath`/`PlannedCell` — e fino al 2026-08-26 lo faceva **in silenzio**,
+quindi una rotta disegnata sulla mappa spariva senza che niente la nominasse.
+
+`SupersededByDash` **non è un `BlockedBy*`**, ed è la ragione per cui ha un valore proprio: ogni altro
+arresto ha una causa esterna — una cella occupata, una precedenza persa, un muro alzato, un colpo. Qui non
+c'è nessuno che blocca: è l'unità stessa ad aver speso il proprio slot movimento. Chiamarlo «bloccato»
+manderebbe il giocatore a cercare un avversario che non esiste.
+
+> 🔴 **La voce si scrive in RISOLUZIONE, non al lock-in.** Al commit il piano si contraddice e basta: *chi*
+> verrà scartato lo decide il resolver, che fa vincere lo scatto sempre. Una voce scritta prima dovrebbe
+> indovinarlo, e l'ordine canonico di `ValidatePlan` — per larghezza di slot, poi per `ActionId` — darebbe
+> la risposta sbagliata: davanti a `Action.Move` e `Hero.Riktor.Ram` nomina **Ram**, che invece esegue.
+>
+> `SrcCell` è dove lo scatto ha portato l'unità, `TgtCell` la destinazione dichiarata e non raggiunta,
+> `Amount` le celle del percorso scartato.
 
 ### La spinta che non sposta ([D-079](../../decisions/RT_PDR_00_Decision_Log.md), `#420`)
 
