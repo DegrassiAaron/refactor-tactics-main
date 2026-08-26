@@ -104,6 +104,13 @@ def _n(v: float) -> str:
     return f"{v:.3f}".rstrip("0").rstrip(".") if isinstance(v, float) else str(v)
 
 
+def ghost(body: str, opacity: float = 0.55) -> str:
+    """Opacita' ghost. `05-certainty-states.md` §2 la prescrive per `Predicted`, ed e' un canale a se':
+    il tratteggio dice «previsto», il ghost dice «meno saldo». Sopravvive alla tinta, perche' UMG
+    moltiplica: un master al 55% tinto di verde resta un verde al 55%."""
+    return f'  <g stroke-opacity="{opacity}" fill-opacity="{opacity}">\n{body}\n  </g>'
+
+
 def path(d: str, **kw) -> str:
     attrs = "".join(f' {k.replace("_", "-")}="{v}"' for k, v in kw.items())
     return f'  <path d="{d}"{attrs}/>'
@@ -438,6 +445,9 @@ def g_phase_move() -> str:
 
 
 def g_certainty_confirmed() -> str:
+    """Tratto solido, fill normale, opacita' piena. E' il termine di paragone degli altri due: le tre
+    chiavi sono la LEGENDA di modificatori che altrove si applicano come stile, e una legenda deve
+    mostrare la resa vera — tratto, riempimento e opacita' insieme."""
     return "\n".join([
         path("M3.4 8.6 L20.6 8.6"),
         dot(12, 16.4, 2.6),
@@ -445,18 +455,28 @@ def g_certainty_confirmed() -> str:
 
 
 def g_certainty_predicted() -> str:
-    return "\n".join([
+    """Tratteggio, fill hollow, **e il micro-marker di intento** che `05-certainty-states.md` §2
+    dichiara opzionale.
+
+    ⚠️ Qui l'opzionale diventa obbligatorio, e la ragione e' misurata: senza, il glifo dista **0.089**
+    da `Confirmed` — vicino per forma E per peso, cioe' non separabile. Il tratteggio da solo non
+    basta perche' il cerchio porta quasi tutto l'inchiostro, e a 24 px la differenza fra un disco
+    pieno e un anello si assottiglia. Il chevron dice «va da qualche parte», che e' esattamente cio'
+    che un intento previsto e' e uno confermato non e'.
+    """
+    return ghost("\n".join([
         path("M3.4 8.6 L20.6 8.6", stroke_dasharray="4 3"),
-        circle(12, 16.4, 2.6, stroke_width=1.5),
-    ])
+        circle(11, 16.4, 2.6, stroke_width=1.5),
+        path("M16 13.8 L18.8 16.4 L16 19", stroke_width=1.6),
+    ]))
 
 
 def g_certainty_uncertain() -> str:
-    return "\n".join([
+    return ghost("\n".join([
         path("M3.4 8.6 L20.6 8.6", stroke_dasharray="0.1 3.4"),
         path("M6 16.4 A 6 3.4 0 1 0 18 16.4 A 6 3.4 0 1 0 6 16.4",
              stroke_dasharray="0.1 3", stroke_width=1.6),
-    ])
+    ]), opacity=0.38)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -1530,6 +1550,56 @@ def main() -> int:
     else:
         print(f"{rasterized} PNG rasterizzati")
     return 1 if missing else 0
+
+
+
+
+# --------------------------------------------------------------------------------------------------
+# Composizione — i due binari liberi
+# --------------------------------------------------------------------------------------------------
+# Misura, non intuizione: rasterizzando i 67 glifi sulla griglia 24 e contando quanti toccano ogni
+# riga, due bande risultano di fatto vuote.
+#
+#     y= 0   1/67        y=22   7/67
+#     y= 1   6/67        y=23   0/67
+#     y= 2  18/67        y=21  29/67
+#
+# Le righe 0-1 e 22-23 sono libere in ~90% dei glifi. Sono DUE canali disponibili **senza ridisegnare
+# niente**, ed e' il motivo per cui una codifica che vive li' costa quasi zero: i sei glifi che
+# invadono la fascia alta si spostano di mezza unita', gli altri sessantuno restano come sono.
+#
+# Cosa ci sta e cosa no, misurato sul prototipo a 16/20/24/32 px:
+#   - una POSIZIONE lungo il binario si legge da ~20 px in su. A 16 px collassa;
+#   - un CONTEGGIO (una tacca, due, tre) non si legge mai sotto 24 px: contare e' piu' caro che
+#     localizzare, e la skill bar mostra 16-24;
+#   - la PRESENZA o assenza di un segno sul binario si legge anche a 16 px.
+# Da cui la regola di degradazione: sotto 20 px il binario dice SE, non DOVE.
+
+RAIL_TOP_Y = 1.4
+RAIL_BOTTOM_Y = 22.6
+RAIL_X0, RAIL_X1 = 3.4, 20.6
+
+
+def rail(y: float, slot: int, slots: int, *, width: float = 2.2, guide: bool = True) -> str:
+    """Un segno pieno nella posizione `slot` di `slots`, su un binario di sfondo.
+
+    Il binario di sfondo non e' decorazione: senza, il giocatore vede un segno e non sa rispetto a
+    quale scala leggerlo — la posizione e' informazione solo se si vedono gli estremi.
+    """
+    step = (RAIL_X1 - RAIL_X0) / slots
+    cx = RAIL_X0 + step * slot + step / 2.0
+    parts = []
+    if guide:
+        parts.append(path(f"M{_n(RAIL_X0)} {_n(y)} L{_n(RAIL_X1)} {_n(y)}",
+                          stroke_width=0.7, stroke_opacity="0.4"))
+    parts.append(path(f"M{_n(cx - width / 2)} {_n(y)} L{_n(cx + width / 2)} {_n(y)}",
+                      stroke_width=2.3))
+    return "\n".join(parts)
+
+
+def compose(base: str, *layers: str) -> str:
+    """Glifo base piu' strati. L'ordine e' quello di disegno: il base sotto, i marcatori sopra."""
+    return "\n".join([base, *[layer for layer in layers if layer]])
 
 
 if __name__ == "__main__":
