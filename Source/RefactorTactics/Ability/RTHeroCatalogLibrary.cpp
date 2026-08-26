@@ -138,6 +138,38 @@ namespace
 		Action->Def.BaseActionId = TEXT("Action.BasicAttack");
 		return Action;
 	}
+
+	/**
+	 * Un'azione d'eroe che EREDITA i suoi valori da un'azione core, e lo dichiara.
+	 *
+	 * Prende l'**ID** e non il `Def` di proposito: cosi' la derivazione non e' una cosa da ricordarsi di
+	 * annotare dopo aver letto il catalogo, e' il modo stesso di leggerlo. Stessa forma di
+	 * `MakeHeroBasicAttack`, che fa questo per `BaseActionId` — e i due campi restano distinti, perche'
+	 * rispondono a due domande diverse (vedi la dichiarazione di `FRTActionDef::DerivedFromActionId`).
+	 *
+	 * ⛔ **Fail-closed** su ID sconosciuto: un'abilita' coi default di `FRTActionDef` e una derivazione
+	 * falsa sarebbe peggio di nessuna abilita' — funzionerebbe in partita e mentirebbe al gate.
+	 *
+	 * ⚠️ Eredita **identita', fase, priorita', portata, fallback ed effetti**: esattamente cio' che i
+	 * chiamanti passavano a mano leggendo il `Def` del core. Non eredita lo SLOT ne' i campi di
+	 * comportamento (`MovementStyle`, `StructureOp`, `PropagationLimit`): chi ne ha bisogno li scrive
+	 * dopo, com'e' sempre stato in questo file, e cosi' il passaggio all'helper non sposta un valore.
+	 */
+	URTActionData* MakeHeroActionFromCore(const FName& HeroActionId, const FName& CoreActionId,
+		int32 Cooldown, ERTAbilityShape Shape = ERTAbilityShape::Single, int32 AreaRadius = 0)
+	{
+		const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(CoreActionId);
+		if (Core.ActionId != CoreActionId)
+		{
+			return nullptr;
+		}
+
+		URTActionData* Action = MakeHeroAction(HeroActionId, Core.ResolutionPhase, Core.Priority,
+			Core.RangeCells, Cooldown, Core.Fallback, Core.Effects, Shape, AreaRadius);
+
+		Action->Def.DerivedFromActionId = CoreActionId;
+		return Action;
+	}
 }
 
 TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHeroData*>& Heroes)
