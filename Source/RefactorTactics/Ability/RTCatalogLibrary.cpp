@@ -1663,7 +1663,7 @@ FRTActionDef URTCatalogLibrary::FindCoreAction(const FName& ActionId)
 
 TArray<FName> URTCatalogLibrary::GetGenericActionIds()
 {
-	// L'ordine e' quello di D-025 per le quattro che entrano, e conta: sono accodate al kit, quindi diventano
+	// L'ordine e' quello di D-025 per le cinque che entrano, e conta: sono accodate al kit, quindi diventano
 	// indici stabili. Cambiarlo sposta gli indici di ogni unita' — e `PlannedAbilityIndex` e' un indice.
 	//
 	// ⚠️ `Action.Overwatch` entra IN CODA (CP 14.5), e la posizione non e' estetica: in D-025 e' comunque
@@ -1671,7 +1671,18 @@ TArray<FName> URTCatalogLibrary::GetGenericActionIds()
 	// avevano. Inserirla in mezzo avrebbe spostato `Guard` e `Brace` sotto i piedi di ogni piano gia' scritto
 	// — `PlannedAbilityIndex` e `PlannedReactionAbility` sono indici — senza che nulla smettesse di compilare.
 	// Pinnato da `Overwatch.ActionIsInCoreCatalog`, che confronta la lista per intero e non solo l'ultima.
-	return { TEXT("Action.Wait"), TEXT("Action.Guard"), TEXT("Action.Brace"), TEXT("Action.Overwatch") };
+	//
+	// ⚠️ `Action.Interact` entra IN CODA per la stessa ragione, e con la stessa storia: fino al 2026-08-26 era
+	// fuori perche' *«nessun codice risolve un'interazione»*, e quel motivo e' scaduto. Oggi l'azione dichiara
+	// `SetDoorState -> Open` [D-148/D-151], `ARTTurnManager` traduce l'effetto in `bChangesDoor`/`DoorState`
+	// per QUALUNQUE principale pianificata, `URTHexCombatLibrary` raccoglie l'op sulla prima porta della
+	// traiettoria e `URTHexDoorLibrary::SetDoorState` la applica. L'altra meta' esiste: e' il criterio con cui
+	// erano entrate `Guard`, `Brace` e poi `Overwatch`.
+	//
+	// ⚠️ Entra con UN bersaglio funzionante — le porte. Consolle, ascensori, generatori, sprinkler, ponti e
+	// obiettivi del catalogo §1 non esistono, e questa riga non li promette.
+	return { TEXT("Action.Wait"), TEXT("Action.Guard"), TEXT("Action.Brace"), TEXT("Action.Overwatch"),
+	         TEXT("Action.Interact") };
 }
 
 TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
