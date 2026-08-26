@@ -96,13 +96,19 @@ abilità.
 | `Hero.Riktor.Interposition` | `Action.Intercept` | idem |
 | `Hero.Wraith.Deflection` | `Action.Deflect` | idem |
 
-Più i **quattro attacchi base**, che derivano anch'essi — `URTCatalogLibrary::MakeBasicAttack(fascia)`
-parte da `FindCoreAction("Action.BasicAttack")` e ne modifica portata e danno secondo la fascia. Per loro
-non si cambia il modo di costruire i parametri, che passano dalla fascia: `MakeHeroBasicAttack` guadagna
-**una riga**, `DerivedFromActionId = Action.BasicAttack`, accanto al `BaseActionId` che già scrive.
+⛔ **Gli attacchi base restano fuori, e `MakeHeroBasicAttack` non si tocca.** Misurato durante
+l'implementazione: dei quattro, solo `Hero.Gadget.ArcPulse` deriva davvero i parametri
+(`URTCatalogLibrary::MakeBasicAttack(4)` parte da `FindCoreAction`); `PressureJet`, `ImpactShot` e
+`PulseShot` li hanno **letterali**. Scrivere `DerivedFromActionId` su tutti e quattro trasformerebbe «i
+parametri vengono da lì» in «gli somiglia», che è la parentela semantica scartata in §2.
 
-∴ dodici abilità dichiarano una derivazione, cinque restano senza — `LinearDischarge`, `Overload`,
-`CircularTide`, `Reconfigure`, `FlowReaction` — e il gate legge **un campo solo**.
+∴ **il gate legge due campi**, `BaseActionId` ∪ `DerivedFromActionId`: sono due vie di raggiungibilità
+diverse e ugualmente valide — «un eroe porta un profilo di X» e «un eroe porta un'abilità che eredita da
+X». `Action.BasicAttack` resta raggiungibile per la prima, che è quella vera per lui.
+
+Otto abilità dichiarano una derivazione, cinque restano senza — `LinearDischarge`, `Overload`,
+`CircularTide`, `Reconfigure`, `FlowReaction` — e i quattro attacchi base continuano a dichiarare solo il
+profilo, come D-033 vuole.
 
 ✅ **Controllo incrociato che dà l'inventario per completo**: a lavoro finito le azioni raggiungibili per
 via 2 e misurabili a runtime sono `BasicAttack · Electrify · Dash · Ignite · CreateCover · Charge ·
@@ -115,8 +121,9 @@ contate citate nei kit. Due metodi indipendenti, stesso numero.
 
 Misura le vie 1, 2 e 3 **via API** — nessun grep, nessuna euristica sul sorgente — e confronta il
 risultato con un elenco dichiarato nel test, dove ogni azione che il gate **non vede raggiungibile** porta
-la sua ragione. La via 2 si legge da `DerivedFromActionId` su ogni abilità di ogni eroe del roster: è il
-campo di §2, ed è tutto ciò che il gate ha bisogno di sapere sui kit.
+la sua ragione. La via 2 si legge da **`DerivedFromActionId` e `BaseActionId`** su ogni abilità di ogni
+eroe del roster: il primo copre le otto derivazioni di §3, il secondo gli attacchi base — che di
+`Action.BasicAttack` sono il profilo, non una derivazione di parametri.
 
 ⚠️ **L'elenco tiene insieme tre casi diversi, e le ragioni servono a distinguerli.** Sono **24** voci:
 
@@ -227,8 +234,8 @@ I criteri sono comandi, e i numeri di oggi sono la misura di partenza, non una s
 - [ ] `FRTActionDef::DerivedFromActionId` esiste, con un commento che lo distingue da `BaseActionId`
 - [ ] `MakeHeroActionFromCore` esiste, è fail-closed su ID sconosciuto, e ha un test che lo dimostra
 - [ ] Le otto derivazioni di §3 dichiarano la loro origine
-- [ ] I quattro attacchi base dichiarano `DerivedFromActionId`, e `BasicAttackDeclaresItsBaseAction` resta
-      verde **senza essere modificato** — è la prova che le due semantiche non si sono sovrapposte
+- [ ] `MakeHeroBasicAttack` **non è stata toccata**, e `BasicAttackDeclaresItsBaseAction` resta verde
+      senza essere modificato — è la prova che le due semantiche non si sono sovrapposte
 - [ ] `git grep -c "FindCoreAction" -- Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp` scende da
       **6** a **5**, non a 1 — e la differenza è il punto. Quattro letture del core **restano**, perché
       servono ai campi di **comportamento** (`PropagationLimit`, `MovementStyle`, `StructureOp`) che

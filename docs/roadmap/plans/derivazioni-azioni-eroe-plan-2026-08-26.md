@@ -128,12 +128,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroDerivedActionsDeclareOriginTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 {
-	// Le dodici derivazioni del roster v0.1, misurate sul sorgente il 2026-08-26. Chi aggiunge un eroe
+	// Le otto derivazioni del roster v0.1, misurate sul sorgente il 2026-08-26. Chi aggiunge un eroe
 	// che deriva da un'azione core aggiunge una riga qui: e' l'elenco che rende la relazione verificabile.
+	//
+	// ⛔ Gli attacchi base NON sono qui: dichiarano `BaseActionId` (profilo di una generica, D-033) e non
+	// una derivazione di parametri — tre dei quattro hanno i numeri scritti a mano, non presi dal core.
 	const TMap<FName, FName> Atteso = {
-		{ TEXT("Hero.Gadget.ArcPulse"),           TEXT("Action.BasicAttack")  },
-		{ TEXT("Hero.Phase.PressureJet"),         TEXT("Action.BasicAttack")  },
-		{ TEXT("Hero.Riktor.ImpactShot"),         TEXT("Action.BasicAttack")  },
 		{ TEXT("Hero.Gadget.ConductiveNode"),     TEXT("Action.Electrify")    },
 		{ TEXT("Hero.Phase.FluidTrail"),          TEXT("Action.Dash")         },
 		{ TEXT("Hero.Phase.MistVeil"),            TEXT("Action.Ignite")       },
@@ -396,41 +396,17 @@ git commit -m "feat(catalogo eroi): le cinque abilita' derivate passano dall'hel
 
 ---
 
-### Task 5 — Gli attacchi base
+### Task 5 — (rimosso durante l'esecuzione)
 
-**File:**
-- Modifica: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp:126-140` (`MakeHeroBasicAttack`)
+⛔ **`MakeHeroBasicAttack` non si tocca.** Il piano prevedeva di farle scrivere anche
+`DerivedFromActionId`. Misurato mentre si scriveva il Task 2: dei quattro attacchi base solo
+`Hero.Gadget.ArcPulse` deriva davvero i parametri (`MakeBasicAttack(4)` parte da `FindCoreAction`);
+`PressureJet`, `ImpactShot` e `PulseShot` li hanno **letterali**. Dichiararli derivati avrebbe
+trasformato «i parametri vengono da lì» in «gli somiglia», che è la parentela semantica scartata.
 
-- [ ] **Step 1: aggiungi la riga**
-
-```cpp
-	URTActionData* MakeHeroBasicAttack(const FName& Id, ERTResolutionPhase Phase, int32 Priority, int32 Range,
-		int32 Cooldown, ERTActionFallback Fallback, const TArray<FRTActionEffectSpec>& Effects,
-		ERTAbilityShape Shape = ERTAbilityShape::Single)
-	{
-		URTActionData* Action = MakeHeroAction(Id, Phase, Priority, Range, Cooldown, Fallback, Effects, Shape);
-		Action->Def.BaseActionId = TEXT("Action.BasicAttack");
-		// I due campi coincidono QUI e solo qui: un attacco base e' il profilo di una generica (D-033) ed
-		// eredita da essa i valori — `MakeBasicAttack` parte da `FindCoreAction("Action.BasicAttack")` e ne
-		// cambia portata e danno secondo la fascia. Per `Ram` vale solo il secondo: `Charge` generica non e'.
-		Action->Def.DerivedFromActionId = TEXT("Action.BasicAttack");
-		return Action;
-	}
-```
-
-- [ ] **Step 2: esegui**
-
-Run: `Automation RunTests RefactorTactics.Heroes+Quit`
-Atteso: `DerivedActionsDeclareTheirOrigin` **verde**, `Dichiarate == 11`.
-⚠️ E `BasicAttackDeclaresItsBaseAction` **verde senza essere stato toccato**: è il criterio che prova che
-`BaseActionId` non è stato invaso.
-
-- [ ] **Step 3: commit**
-
-```bash
-git add Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp
-git commit -m "feat(catalogo eroi): gli attacchi base dichiarano anche la derivazione, non solo il profilo"
-```
+∴ il gate del Task 6 legge **due campi** — `DerivedFromActionId` per le otto derivazioni e `BaseActionId`
+per gli attacchi base, che di `Action.BasicAttack` sono il profilo. `Action.BasicAttack` resta
+raggiungibile per la via che gli compete.
 
 ---
 
@@ -465,10 +441,11 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		if (!Hero) { continue; }
 		for (const URTActionData* A : Hero->Actions)
 		{
-			if (A && !A->Def.DerivedFromActionId.IsNone())
-			{
-				Raggiungibili.Add(A->Def.DerivedFromActionId);
-			}
+			if (!A) { continue; }
+			// Due campi, due vie di raggiungibilita' diverse e ugualmente valide: «un eroe porta
+			// un'abilita' che eredita da X» e «un eroe porta un profilo di X» (D-033, gli attacchi base).
+			if (!A->Def.DerivedFromActionId.IsNone()) { Raggiungibili.Add(A->Def.DerivedFromActionId); }
+			if (!A->Def.BaseActionId.IsNone())        { Raggiungibili.Add(A->Def.BaseActionId); }
 		}
 	}
 
