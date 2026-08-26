@@ -27,6 +27,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Core/RTGameplayTags.h" // TAG_Status_Guarded: la guardia si applica al difensore
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
@@ -191,6 +192,84 @@ bool FRTLogMatchesTurnLogOrderTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * **Le due superfici accreditano la STESSA unita'.**
+ *
+ * `RearHitBypassedCover` scriveva l'evento a due destinatari attribuendolo a due unita' diverse: il TurnLog
+ * all'attaccante, il combat log a chi il colpo l'aveva subito (`#1418`). Un consumatore che aggrega per
+ * `UnitId` e un umano che legge il log rispondevano diversamente a «chi l'ha fatto» — e nessuno dei due
+ * poteva accorgersene, perche' guardava una superficie sola.
+ *
+ * Chi ha ragione lo dicono i campi che la voce riempie: `Amount` porta il `Facing` del DIFENSORE, `TgtCell`
+ * la sua cella, la categoria e' `Facing`. La voce descrive l'orientamento che non ha retto, quindi il
+ * soggetto e' chi era in guardia. La riga leggibile aveva ragione dall'inizio.
+ *
+ * Il test guarda ENTRAMBE le superfici sullo stesso evento: e' l'unica forma che cade se tornano a
+ * divergere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRearHitCreditsSameUnitTest,
+	"RefactorTactics.UI.RearHitCreditsTheSameUnitInBothLogs",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRearHitCreditsSameUnitTest::RunTest(const FString&)
+{
+	UWorld* World = RTCombatLogFixture::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* Map = RTCombatLogFixture::SpawnMap(World);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	// Il difensore guarda a EST; l'attaccante sta a OVEST, cioe' fuori dall'arco frontale.
+	ARTUnit* Difensore = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(0, 0, 0));
+	ARTUnit* Attaccante = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("mappa"), Map)
+		|| !TestNotNull(TEXT("difensore"), Difensore) || !TestNotNull(TEXT("attaccante"), Attaccante))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	Difensore->Facing = ERTHexDirection::E;
+	Difensore->ApplyStatus(TAG_Status_Guarded, 1);
+	Attaccante->PlannedAbilityIndex = 0; // attacco base
+	Attaccante->PlannedAttackTarget = Difensore;
+
+	RTCombatLogFixture::RunTurn(TM);
+
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	const FRTTurnLogEntry* Bypassed = Log.FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Facing
+			&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+	});
+	if (!TestNotNull(TEXT("premessa: il colpo alle spalle ha annullato la guardia"), Bypassed))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// Il TurnLog dichiara chi ha SUBITO.
+	TestEqual(TEXT("il TurnLog accredita il difensore"), Bypassed->UnitId, Difensore->StableUnitId);
+	TestNotEqual(TEXT("e non l'attaccante"), Bypassed->UnitId, Attaccante->StableUnitId);
+
+	// E la riga leggibile dello stesso evento nomina la stessa unita'. Si cerca per il TESTO della voce,
+	// cosi' il confronto e' sullo stesso evento e non su una riga qualsiasi che nomini qualcuno.
+	const FString Descrizione = URTTurnLogLibrary::DescribeEntry(*Bypassed);
+	const TArray<FString>& Emesse = TM->GetRecentEvents();
+	const FString* Riga = Emesse.FindByPredicate([&Descrizione](const FString& L)
+	{
+		return L.Contains(Descrizione);
+	});
+	if (!TestNotNull(TEXT("l'evento compare anche nel combat log"), Riga))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+	TestTrue(*FString::Printf(TEXT("e il combat log nomina la stessa unita' del TurnLog: %s"), **Riga),
+		Riga->Contains(Difensore->GetName()));
+
+	RTCombatLogFixture::DestroyWorld(World);
+	return true;
+}
 
 /**
  * **Un esito che il log non sa tradurre non deve somigliare a uno che sa.**

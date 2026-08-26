@@ -642,11 +642,22 @@ struct FRTTurnLogEntry
 	 * ⚠️ **NON entra nell'hash** ([D-063](../../../docs/decisions/RT_PDR_00_Decision_Log.md)): serve a rendere
 	 * la traccia spiegabile, non a discriminarla. Stesso ragionamento di `FormatId` e `BaseActionId`.
 	 *
-	 * 🔴 **DUE VOCI INVERTONO QUESTA CONVENZIONE, e chi legge il campo deve saperlo QUI** (`#1150`). Il danno
-	 * ambientale — `Status.Burning` nel Cleanup (`#625`) e `Terrain.<Surface>` all'ingresso (`#1067`) — mette
-	 * in `UnitId` **chi SUBISCE**, non chi ha agito. L'inversione e' deliberata e prescritta dal DoD di
-	 * `#625`: in un danno ambientale non c'e' un attaccante, e lo `0` direbbe «nessuna unita' dichiarata» su
-	 * un evento che ha un soggetto solo e ovvio.
+	 * 🔴 **ALCUNE VOCI INVERTONO QUESTA CONVENZIONE, e chi legge il campo deve saperlo QUI** (`#1150`). Il
+	 * danno ambientale — `Status.Burning` nel Cleanup (`#625`) e `Terrain.<Surface>` all'ingresso (`#1067`)
+	 * — mette in `UnitId` **chi SUBISCE**, non chi ha agito. L'inversione e' deliberata e prescritta dal DoD
+	 * di `#625`: in un danno ambientale non c'e' un attaccante, e lo `0` direbbe «nessuna unita' dichiarata»
+	 * su un evento che ha un soggetto solo e ovvio.
+	 *
+	 * 🔴 **`Facing`/`RearHitBypassedCover` fa lo stesso, e per una ragione diversa** (`#1418`): non e' che
+	 * manchi l'attaccante — c'e', ed e' in `SrcCell`. E' che la voce descrive **l'orientamento del
+	 * difensore**, quello che non ha retto: `Amount` porta il suo `Facing` e `TgtCell` la sua cella. E' la
+	 * regola di tutta la categoria, che `URTFacingLibrary::MakeFacingEntry` applica mettendo cella e
+	 * direzione dell'unita' di cui sta raccontando l'orientamento.
+	 *
+	 * ⚠️ Quell'esito ha **due produttori** — il ramo della Guard e quello della copertura — e i due usano
+	 * `Amount` per cose diverse: direzione del difensore il primo, punti di riduzione scavalcati il secondo.
+	 * La divergenza e' nominata e non risolta, perche' separarli tocca `Outcome`, che ENTRA nell'hash —
+	 * aperta a parte (`#1430`). Sull'unita' dichiarata invece sono d'accordo: chi subisce.
 	 *
 	 * **Conseguenza per chi consuma**: sommare il danno *inflitto* per `UnitId` filtrando su
 	 * `Category == Combat` accredita a chi brucia i danni fatti a se' stesso — un numero **plausibile e

@@ -3974,8 +3974,19 @@ void ARTTurnManager::ResolveCombat()
 				Bypassed.SrcCell = HexUnits[FirstHit->AttackerId].Cell;
 				Bypassed.TgtCell = HexUnits[i].Cell;
 				Bypassed.Amount = static_cast<int32>(HexUnits[i].Facing);
-				AppendLogEntry(Bypassed,
-					Units.IsValidIndex(FirstHit->AttackerId) ? Units[FirstHit->AttackerId] : nullptr);
+				// 🔴 `UnitId` porta CHI SUBISCE, non chi ha colpito, e non e' una scelta arbitraria: e' cio'
+				// che questa voce DESCRIVE. `Amount` porta il `Facing` del difensore, `TgtCell` la sua cella,
+				// e la categoria e' `Facing` — l'evento e' «l'orientamento del difensore non ha retto». Le
+				// altre voci `Facing` seguono la stessa regola: `MakeFacingEntry` mette cella e direzione
+				// dell'unita' il cui orientamento sta raccontando.
+				//
+				// Fino a `#1418` qui arrivava l'ATTACCANTE mentre la riga leggibile due righe sotto nominava
+				// il difensore: un consumatore che aggrega per `UnitId` e un umano che legge il log
+				// rispondevano diversamente alla domanda «chi l'ha fatto». La riga leggibile aveva ragione.
+				//
+				// ⚠️ `UnitId` non entra nell'hash (D-063), quindi questa correzione non tocca l'identita'
+				// delle tracce archiviate: cambia chi la voce dichiara, non quale traccia e'.
+				AppendLogEntry(Bypassed, Units[i]);
 				AddLogEvent(FString::Printf(TEXT("%s: %s"), *Units[i]->GetName(),
 					*URTTurnLogLibrary::DescribeEntry(Bypassed)));
 			}
@@ -4094,7 +4105,11 @@ void ARTTurnManager::ResolveCombat()
 			BypassedCover.SrcCell = HexUnits[Hit.AttackerId].Cell;
 			BypassedCover.TgtCell = HexUnits[Hit.TargetId].Cell;
 			BypassedCover.Amount = Hit.CoverBypassedByFacing;
-			AppendLogEntry(BypassedCover, Attacker);
+			// CHI SUBISCE, come l'altro produttore di questo stesso esito (`#1418`). I due erano d'accordo
+			// nell'accreditare l'attaccante e sono stati corretti insieme: due voci con la stessa
+			// `(Category, Outcome)` che dichiarano unita' di ruolo diverso sono peggio di una sbagliata,
+			// perche' chi aggrega non ha modo di sapere quale ha in mano.
+			AppendLogEntry(BypassedCover, Victim);
 		}
 
 		// Effetti COLLATERALI del colpo (stato, spinta) dagli EVENTI dichiarati dall'azione, non da flag
