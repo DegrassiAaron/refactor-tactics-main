@@ -867,6 +867,11 @@ URTActionData* URTCatalogLibrary::MakeEquipmentAction(const URTEquipmentData* It
 	URTActionData* Action = NewObject<URTActionData>(Outer ? Outer : GetTransientPackage());
 	Action->Def = Core;
 	Action->Def.ActionId = Item->EquipmentId;   // nel TurnLog si legge il gadget, non l'azione generica
+	// ...e proprio per questo la provenienza va conservata: sovrascrivere `ActionId` con l'ID del pezzo
+	// cancellava l'unica traccia di QUALE azione core questo pezzo concede. Senza, il gate della
+	// raggiungibilita' deve ricopiare a mano «Sprinkler concede CreateWater» in una stringa di prosa —
+	// che e' esattamente il difetto che il campo esiste per chiudere.
+	Action->Def.DerivedFromActionId = Item->GrantedActionId;
 	Action->Def.CooldownTurns = Item->CooldownTurns;
 
 	// Gli effetti PROPRI sostituiscono quelli del core (CP 7.3): un modulo di reazione eredita dal core cio'

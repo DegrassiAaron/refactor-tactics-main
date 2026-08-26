@@ -560,4 +560,97 @@ bool FRTHeroAbilityIdNamespaceTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroDerivedActionsDeclareOriginTest,
+	"RefactorTactics.Heroes.DerivedActionsDeclareTheirOrigin",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
+{
+	// Le otto derivazioni del roster v0.1, misurate sul sorgente il 2026-08-26. Chi aggiunge un eroe che
+	// deriva da un'azione core aggiunge una riga qui: e' l'elenco che rende la relazione verificabile,
+	// invece di lasciarla vivere nel solo sorgente dove nessun test la vede.
+	//
+	// ⛔ Gli attacchi base NON sono qui: dichiarano `BaseActionId` — profilo di una generica, D-033 — e non
+	// una derivazione di parametri. Tre dei quattro hanno i numeri scritti a mano, non presi dal core:
+	// chiamarli «derivati» trasformerebbe «i parametri vengono da li'» in «gli somiglia».
+	const TMap<FName, FName> Atteso = {
+		{ TEXT("Hero.Gadget.ConductiveNode"),     TEXT("Action.Electrify")    },
+		{ TEXT("Hero.Phase.FluidTrail"),          TEXT("Action.Dash")         },
+		{ TEXT("Hero.Phase.MistVeil"),            TEXT("Action.Ignite")       },
+		{ TEXT("Hero.Riktor.KineticPanel"),       TEXT("Action.CreateCover")  },
+		{ TEXT("Hero.Riktor.Ram"),                TEXT("Action.Charge")       },
+		{ TEXT("Hero.Gadget.ReactiveCapacitor"),  TEXT("Action.Counter")      },
+		{ TEXT("Hero.Riktor.Interposition"),      TEXT("Action.Intercept")    },
+		{ TEXT("Hero.Wraith.Deflection"),         TEXT("Action.Deflect")      },
+	};
+
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestEqual(TEXT("il roster v0.1 ha quattro eroi"), Roster.Num(), 4)) { return false; }
+
+	int32 Dichiarate = 0;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero) { continue; }
+		for (const URTActionData* A : Hero->Actions)
+		{
+			if (!A) { continue; }
+			const FName* Origine = Atteso.Find(A->Def.ActionId);
+			if (Origine)
+			{
+				TestEqual(*FString::Printf(TEXT("%s dichiara la sua origine"), *A->Def.ActionId.ToString()),
+					A->Def.DerivedFromActionId, *Origine);
+				++Dichiarate;
+			}
+			else
+			{
+				// Il verso opposto conta quanto il primo: un campo messo dappertutto non direbbe piu'
+				// niente. Non ereditano da nessuna azione core, e restano vuote, **otto** abilita':
+				// `LinearDischarge`, `Overload`, `CircularTide`, `Reconfigure`, `FlowReaction`,
+				// `InterceptShot`, `PassingBlade`, `Feint`. Piu' i quattro attacchi base, che dichiarano il
+				// profilo (`BaseActionId`) e non questo. Otto derivate + otto proprie + quattro base = 20,
+				// che sono le 5 abilita' per ciascuno dei 4 eroi asserite sopra.
+				TestTrue(*FString::Printf(TEXT("%s non deriva da nulla e non lo dichiara"),
+					*A->Def.ActionId.ToString()), A->Def.DerivedFromActionId.IsNone());
+			}
+		}
+	}
+
+	// Anti-vacuita': se il roster tornasse vuoto o gli ID cambiassero, i cicli sopra non asserirebbero
+	// niente e il test resterebbe verde raccontando che va tutto bene.
+	TestEqual(TEXT("tutte le derivazioni attese sono state trovate"), Dichiarate, Atteso.Num());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroDerivedFromUnknownIsNullTest,
+	"RefactorTactics.Heroes.DerivedFromUnknownCoreActionIsNull",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroDerivedFromUnknownIsNullTest::RunTest(const FString&)
+{
+	// Fail-closed: un'azione core che il catalogo non conosce non produce un'abilita' coi default di
+	// `FRTActionDef` e una derivazione falsa — quella funzionerebbe in partita e mentirebbe al gate.
+	//
+	// ⚠️ Si prova `MakeHeroActionFromCore` **direttamente**. La prima stesura provava il fratello
+	// `MakeHeroReactionFromCoreAction` dicendo che aveva «la stessa guardia»: non e' vero — quella ha una
+	// clausola in piu' sullo slot — e proprio quella differenza teneva nascosto il caso `NAME_None`.
+	TestNull(TEXT("un ID che il catalogo non conosce non produce un'abilita'"),
+		URTHeroCatalogLibrary::MakeHeroActionFromCore(
+			TEXT("Hero.Test.Inesistente"), TEXT("Action.NonEsiste"), 1));
+
+	// 🔴 Il caso che il confronto da solo NON prende: `Core.ActionId != CoreActionId` con entrambi vuoti e'
+	// FALSO, quindi senza `IsNone()` la guardia lascia passare un'abilita' con priorita' 50, portata 0,
+	// nessun effetto e derivazione vuota — invisibile anche al gate della raggiungibilita'.
+	TestNull(TEXT("un ID VUOTO non produce un'abilita'"),
+		URTHeroCatalogLibrary::MakeHeroActionFromCore(TEXT("Hero.Test.Vuoto"), NAME_None, 1));
+
+	// E il verso positivo, senza il quale i due TestNull sarebbero veri anche per una funzione che
+	// restituisce sempre `nullptr`.
+	const URTActionData* Buona = URTHeroCatalogLibrary::MakeHeroActionFromCore(
+		TEXT("Hero.Test.Buona"), TEXT("Action.Charge"), 2);
+	if (TestNotNull(TEXT("un ID valido invece produce l'abilita'"), Buona))
+	{
+		TestEqual(TEXT("e dichiara la sua origine"), Buona->Def.DerivedFromActionId,
+			FName(TEXT("Action.Charge")));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
