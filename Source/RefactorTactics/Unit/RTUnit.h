@@ -437,6 +437,8 @@ public:
 	 * ha. Il gate e' lo stesso di `ARTTurnManager::ResolveDash`: se qui e li' rispondessero in modo diverso, il
 	 * bot pianificherebbe scatti che il resolver rifiuta — o non ne pianificherebbe affatto (#142).
 	 */
+	int32 FindDashAbilityIndex() const;
+
 	/**
 	 * Vero se questa unita' ha pianificato un MOVIMENTO NORMALE — una destinazione diversa dalla cella
 	 * attuale, oppure un percorso con almeno un passo.
@@ -448,14 +450,19 @@ public:
 	 * `PlannedWaypoints`, un bot che cominciasse a scrivere `PlannedPath` — validatore e resolver
 	 * risponderebbero diversamente sulla stessa unita' nello stesso turno, in silenzio.
 	 *
+	 * ⚠️ **Non e' la stessa condizione che `ResolveMovement` applica per PERCORRERE il piano**: quello esige
+	 * anche che il percorso sia ancorato — `PlannedPath[0] == Cell` — e altrimenti ripiega su `PlannedCell`.
+	 * Qui la domanda e' se un movimento sia stato DICHIARATO, non se sia percorribile. Oggi la differenza non
+	 * e' raggiungibile (entrambi gli scrittori di `Cell` azzerano `PlannedPath`), ma il controllo d'ancoraggio
+	 * esiste perche' quell'invariante non e' data per scontata: se un giorno cadesse, questo predicato
+	 * direbbe «si muove» dove il resolver terrebbe l'unita' ferma.
+	 *
 	 * ⚠️ **Si legge PRIMA che `Cell` venga riscritta.** In `ResolveDash` la cella d'arrivo dello scatto
 	 * sovrascrive `Cell`: chiamato dopo, il confronto con `PlannedCell` e' vero per OGNI scatto che ha
 	 * spostato l'unita', anche per chi non aveva pianificato nulla. E' un difetto misurato il 2026-08-26,
 	 * ed e' difeso da `PlayerInteraction.NoSupersededEntryOnADashWithoutAPlannedMove`.
 	 */
 	bool HasPlannedNormalMove() const { return PlannedCell != Cell || PlannedPath.Num() > 1; }
-
-	int32 FindDashAbilityIndex() const;
 
 	/** Vero se l'abilita' e' pronta (non in ricarica) e c'e' energia sufficiente. */
 	bool CanUseAbility(int32 Index) const;

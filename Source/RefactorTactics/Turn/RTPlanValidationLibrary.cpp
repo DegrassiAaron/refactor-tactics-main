@@ -79,10 +79,8 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 	AddAbility(Unit->PlannedAbilityIndex);
 	AddAbility(Unit->PlannedReactionAbility);
 
-	// Il movimento normale: una destinazione diversa dalla cella attuale, oppure un percorso a waypoint.
-	// Le due condizioni non sono ridondanti — chi posa waypoint scrive entrambi, ma il bot pianifica
-	// destinazioni e non percorsi (`ARTTurnManager::PlanBots`), quindi guardare il solo `PlannedPath`
-	// renderebbe invisibile ogni movimento del bot.
+	// Il movimento normale, con la regola in un posto solo: il PERCHE' delle due condizioni sta nel
+	// docstring di `ARTUnit::HasPlannedNormalMove`, insieme alla regola che descrive.
 	const bool bMoves = Unit->HasPlannedNormalMove();
 	if (bMoves)
 	{

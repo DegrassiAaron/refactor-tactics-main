@@ -1348,7 +1348,7 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 	// id per tutta la risoluzione, ed evita anche un `GetAllActorsOfClass` per micro-step.
 	if (RuntimeUnitsForTurn.Num() == 0)
 	{
-		TM->MakeCurrentSnapshot(RuntimeUnitsForTurn);
+		TM->CollectLivingUnits(RuntimeUnitsForTurn); // servono le unita', non lo snapshot: stesso filtro, stesso ordine
 	}
 	const TArray<ARTUnit*>& RuntimeUnits = RuntimeUnitsForTurn;
 	if (!RuntimeUnits.IsValidIndex(OwnerUnitId)) { return FString(); }

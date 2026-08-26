@@ -1939,24 +1939,24 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 	// Le unita' vengono dal punto UNICO che le raccoglie e le ordina, non da un giro a mano: `Sort` a parte,
 	// l'ordine di spawn deciderebbe in che sequenza compaiono le righe di rifiuto.
 	//
-	// ⚠️ **Qui NON serve lo snapshot**, e costruirlo costava caro: `MakeCurrentSnapshot` aggiunge un
-	// `FRTHexSimUnit` per unita', la vista di mappa e occupazione e una copia di `TeamKnowledgeState` — tutto
-	// per passare `Snapshot.Units[i]` a `ValidatePlan`, che dopo [D-190] **non legge nulla** da quel
-	// parametro (il nome e' commentato nella firma). Un default da' lo stesso verdetto.
+	// ⚠️ **Qui non serve la MAPPA**, che e' la parte cara di `MakeCurrentSnapshot`: la vista di occupazione,
+	// l'hash del terreno e una copia di `TeamKnowledgeState`, tutto costruito a ogni commit di turno e
+	// scartato. Serve lo STATO DELL'UNITA', e quello lo costruisce `MakeSimUnit` — lo stesso helper che
+	// riempie lo snapshot, quindi senza campi dimenticati.
 	//
-	// Se un giorno `ValidatePlan` tornasse a leggere `Unit`, questa scelta va rifatta — e allora si passa da
-	// `MakeCurrentSnapshot`, non da un `FRTHexSimUnit` costruito a mano: e' cosi' che e' nato un difetto
-	// trovato in code review, con due campi dimenticati e due schemi di numerazione mescolati.
+	// 🔴 **Non un `FRTHexSimUnit()` di default**, che sarebbe stato piu' corto e sbagliato: [D-190] tiene
+	// `Unit` nella firma di `ValidatePlan` perche' *«il bot e CP 38.3 lo useranno»*, e il giorno in cui
+	// qualcuno tornasse a leggerlo ogni piano verrebbe giudicato contro un'unita' che non esiste — cella
+	// `(0,0,0)`, budget `0` — senza che niente diventi rosso. Passare lo stato vero non costa nulla e toglie
+	// la trappola.
 	TArray<ARTUnit*> Units;
 	CollectLivingUnits(Units);
 
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
+		// `CollectLivingUnits` aggiunge solo puntatori che hanno passato `Unit && Unit->IsAlive()`:
+		// un controllo di nullita' qui difenderebbe da niente.
 		ARTUnit* Unit = Units[i];
-		if (!Unit)
-		{
-			continue;
-		}
 
 		const TArray<FRTPlannedAction> Plan = URTPlanValidationLibrary::MakePlanFor(Unit);
 		if (Plan.Num() == 0)
@@ -1964,7 +1964,7 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 			continue; // nessuna voce: niente da giudicare
 		}
 
-		const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), Plan);
+		const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(MakeSimUnit(i, Unit), Plan);
 		if (Verdict.bLegal)
 		{
 			continue;
@@ -4289,6 +4289,19 @@ FRTTeamKnowledge ARTTurnManager::KnowledgeForTeam(int32 TeamId) const
 	return Empty;
 }
 
+FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit) const
+{
+	FRTHexSimUnit SimUnit(Index, Unit->Cell, Unit->GetEffectiveMoveRange(), /*bAlive=*/ true);
+	// `Action.Slow` (CP 4.7): +1 al costo di ogni cella, letto FRESCO a ogni costruzione — cosi' uno Slow
+	// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
+	// ricordare "quando" e' stato applicato.
+	SimUnit.MoveCostModifier = Unit->HasStatus(TAG_Status_Slow) ? 1 : 0;
+	// Orientamento (CP 16.1): lo si porta perche' e' stato di gioco, e perche' il facing di fine round e'
+	// quello di inizio del round dopo senza nessun travaso esplicito.
+	SimUnit.Facing = Unit->Facing;
+	return SimUnit;
+}
+
 void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 {
 	OutUnits.Reset();
@@ -4331,7 +4344,7 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	FVector Origin; float HexSize; float LayerH;
 	const URTHexMapAsset* Map = GetHexContext(Origin, HexSize, LayerH);
 
-	// Le unita' vive in ordine stabile: la raccolta e il sort vivono in `CollectLivingUnits`, perche
+	// Le unita' vive in ordine stabile: la raccolta e il sort vivono in `CollectLivingUnits`, perche'
 	// `ValidatePlansAtLockIn` ha bisogno delle STESSE unita' nello STESSO ordine e non ha bisogno di niente
 	// altro di questo snapshot. Duplicare il sort la' sarebbe stato il modo di farlo divergere.
 	CollectLivingUnits(OutUnits);
@@ -4342,15 +4355,7 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	SimUnits.Reserve(OutUnits.Num());
 	for (int32 i = 0; i < OutUnits.Num(); ++i)
 	{
-		FRTHexSimUnit SimUnit(i, OutUnits[i]->Cell, OutUnits[i]->GetEffectiveMoveRange(), /*bAlive=*/ true);
-		// `Action.Slow` (CP 4.7): +1 al costo di ogni cella, letto FRESCO a ogni snapshot — cosi' uno Slow
-		// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
-		// ricordare "quando" e' stato applicato.
-		SimUnit.MoveCostModifier = OutUnits[i]->HasStatus(TAG_Status_Slow) ? 1 : 0;
-		// Orientamento (CP 16.1): lo snapshot lo porta perche' e' stato di gioco, e perche' il facing di fine
-		// round e' quello di inizio del round dopo senza nessun travaso esplicito.
-		SimUnit.Facing = OutUnits[i]->Facing;
-		SimUnits.Add(SimUnit);
+		SimUnits.Add(MakeSimUnit(i, OutUnits[i]));
 	}
 	FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
 	// La conoscenza di squadra viaggia con la fotografia (CP 13.2), cosi' i consumatori puri — il bot di

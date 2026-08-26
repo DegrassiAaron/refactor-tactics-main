@@ -492,6 +492,8 @@ public:
 	 * Il TurnManager e' l'autorita' (invariante #5): il controller del giocatore chiede QUESTO snapshot per
 	 * calcolare le sue anteprime, invece di ricostruirsi uno stato parallelo che potrebbe divergere.
 	 */
+	FRTHexSnapshot MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const;
+
 	/**
 	 * Le unita' VIVE del livello, in ordine stabile per cella.
 	 *
@@ -502,12 +504,27 @@ public:
 	 * che dopo [D-190] non lo legge affatto.
 	 *
 	 * 🔴 **Il `Sort` non e' una rifinitura**: senza, l'ordine di spawn decide la partita (#990), e cade
-	 * `Match.Autobattle.DeterminismSurvivesUnitPermutation`. Sta qui, in un posto solo, proprio perche'
-	 * nessun chiamante sia tentato di riscriverlo.
+	 * `Match.Autobattle.DeterminismSurvivesUnitPermutation` — verificato per mutazione.
+	 *
+	 * ⚠️ Questo NON e' l'unico `StableLess` su unita' del progetto: `ResolveEnvironment` e `ResolvePrep`
+	 * ordinano array propri con lo stesso comparatore, e `ResolveCombat` pure. Questo helper e' la sorgente
+	 * unica per **chi vuole le unita' vive del livello**, non un consolidamento di tutti gli ordinamenti:
+	 * cambiare il comparatore qui non lo cambia la'.
 	 */
-	void CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const;
+	/**
+	 * Lo stato di simulazione di UNA unita', con tutti i campi che lo snapshot le darebbe.
+	 *
+	 * Esiste perche' chi ha bisogno dello stato di un'unita' — `ValidatePlansAtLockIn` — non debba
+	 * costruirselo a mano: e' cosi' che e' nato un difetto trovato in code review, con `MoveCostModifier` e
+	 * `Facing` dimenticati. `MakeCurrentSnapshot` chiama questo stesso helper nel proprio loop, quindi i due
+	 * non possono divergere.
+	 *
+	 * ⚠️ `Index` e' l'identita' NELLO SNAPSHOT, non `StableUnitId`: due numerazioni diverse (si veda il
+	 * commento sui contatti in `MakeCurrentSnapshot`).
+	 */
+	FRTHexSimUnit MakeSimUnit(int32 Index, const ARTUnit* Unit) const;
 
-	FRTHexSnapshot MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const;
+	void CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const;
 
 protected:
 	virtual void BeginPlay() override;
