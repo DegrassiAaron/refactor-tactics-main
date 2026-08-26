@@ -42,6 +42,7 @@ enum class ERTActionInvalidReason : uint8
 	 */
 	TargetUnknown,
 
+
 	/**
 	 * Lo slot che l'azione occupa e' gia' preso da un'altra voce dello stesso piano (CP 38.2).
 	 *
@@ -69,7 +70,25 @@ enum class ERTActionInvalidReason : uint8
 	InsufficientMovementPoints,
 
 	/** L'abilita' non e' ancora ripetibile: il cooldown residuo e' maggiore di zero. */
-	OnCooldown
+	OnCooldown,
+
+	/**
+	 * L'azione e' stata INTERROTTA da un'altra unita' (`Action.Interrupt`, CP 5.4).
+	 *
+	 * Motivo proprio e non `TargetGone`: non e' mancato niente al bersaglio ne' alla geometria — l'azione
+	 * era valida e qualcuno l'ha fermata. E' l'unico motivo di questo enum che ha un AUTORE.
+	 *
+	 * 🔴 **In CODA, e non e' pedanteria.** La prima stesura di `#1412` punto 4 lo aveva messo dopo
+	 * `TargetUnknown`, e questo enum viaggia come intero grezzo in `FRTTurnLogEntry::Amount`: inserirlo in
+	 * mezzo rinumerava `SlotOccupied` 8->9, `InsufficientMovementPoints` 9->10 e `OnCooldown` 10->11, cioe'
+	 * cambiava il SIGNIFICATO di ogni traccia gia' scritta che portasse uno di quei motivi — un cambio
+	 * d'identita' in piu' rispetto ai tre che [D-196] dichiara, e per giunta silenzioso, perche' ogni test
+	 * usa i nomi simbolici e nessun golden porta quelle voci. Trovato in code review.
+	 *
+	 * E' lo stesso divieto che il commento di `InsufficientMovementPoints` scrive per se': togliere o
+	 * spostare una voce sposta le successive.
+	 */
+	Interrupted
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

@@ -291,7 +291,12 @@ bool FRTGoldenCorpusDivergenceTest::RunTest(const FString&)
  * regressione. Con questa a 1 i file vengono riscritti e il confronto NON viene fatto; la PR che li rigenera
  * dichiara *perche'* l'esito e' cambiato.
  *
- *   UnrealEditor-Cmd.exe <progetto> -ExecCmds="rt.Test.RegenerateGolden 1; Automation RunTests RefactorTactics.Simulation.GoldenCorpusMatches; Quit" -nullrhi
+ *   UnrealEditor-Cmd.exe <progetto> -ExecCmds="Automation RunTests RefactorTactics.Simulation.GoldenCorpusMatches; Quit"
+ *     -dpcvars="rt.Test.RegenerateGolden=1" -unattended -nopause -nosplash -nullrhi -NoLiveCoding
+ *
+ * ⚠️ **La CVar NON va in testa a `-ExecCmds`**, come diceva questa riga fino al 2026-08-26: quella forma fa
+ * saltare la coda di automation, e il log troncato che ne esce **sembra verde**. Si passa da `-dpcvars`, e
+ * si verifica che i `.rttl` siano davvero cambiati prima di crederci — `git status` basta.
  */
 static TAutoConsoleVariable<int32> CVarRegenerateGolden(
 	TEXT("rt.Test.RegenerateGolden"),

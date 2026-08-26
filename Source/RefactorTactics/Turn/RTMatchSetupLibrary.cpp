@@ -101,20 +101,27 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeFlatArena(UObject* Outer, int32 Radius
 		return nullptr;
 	}
 
-	// ⚠️ **Una revisione per cella, e resta cosi' di proposito.** `AddOrUpdateCell` fa `++Revision` a ogni
-	// chiamata: 127 per un raggio 6, dove `UpdateCells` ne farebbe **una** per l'intero gruppo. Sembra la
-	// correzione ovvia, e non lo e' in questa modifica: quella revisione finisce in `GraphRevision`, che
-	// `AppendLogEntry` stampiglia in ogni voce del TurnLog, quindi cambiarla cambia l'IDENTITA' delle tracce
-	// archiviate. Misurato: con `UpdateCells`, `Simulation.GoldenCorpusMatches` va rosso su
-	// `Movement.Basic` e `Movement.Collision` — con un messaggio che mostra atteso e trovato IDENTICI su
-	// ogni campo che rende, perche' il campo che diverge non lo stampa nessuno.
+	// **UNA revisione: generare un'arena e' un evento, non 127** ([D-196], `#1423`).
 	//
-	// Non e' una de-duplicazione: e' un cambio del corpus di riferimento, e va deciso a parte.
+	// `AddOrUpdateCell` fa `++Revision` a ogni chiamata, quindi un raggio 6 ne produceva 127 — e quel numero
+	// finisce in `GraphRevision`, che `AppendLogEntry` stampiglia in ogni voce del TurnLog. Cambiarlo cambia
+	// l'IDENTITA' delle tracce archiviate, ed e' la ragione per cui la correzione e' stata rimandata due
+	// volte invece di essere fatta di passaggio: il corpus golden e' stato rigenerato nella stessa PR che
+	// l'ha fatta, dichiarando il perche' come chiede il DoD di CP 12.6.
+	//
+	// `ReplaceContent` e non `UpdateCells`: l'asset e' appena stato creato ed e' provabilmente VUOTO, quindi
+	// costruire una `Lookup` da N voci per sbagliare N `Find` prima di appendere e' lavoro per niente. Il
+	// suo commento dichiara proprio questo caso — *«"rimpiazza tutto" finiva scritto a mano dai chiamanti,
+	// con un `AddOrUpdateCell` per cella»* — ed e' il chiamante che gli mancava.
 	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(Center, Radius))
+	const TArray<FRTCellId> Ids = URTHexLibrary::HexArea(Center, Radius);
+	TArray<FRTHexCellData> Piano;
+	Piano.Reserve(Ids.Num());
+	for (const FRTCellId& Id : Ids)
 	{
-		Arena->AddOrUpdateCell(FRTHexCellData(Id));
+		Piano.Add(FRTHexCellData(Id));
 	}
+	Arena->ReplaceContent(Piano, {});
 	Arena->SortCells();
 	return Arena;
 }

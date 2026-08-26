@@ -221,6 +221,9 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 	const int32 HealthBefore = Runner->Health;
 	Attacker->PlannedAbilityIndex = 0;
 	Attacker->PlannedAttackTarget = Runner;
+	// Letto ADESSO: la risoluzione azzera il piano, e dopo il turno non resta niente da cui ricavarlo.
+	const FName AzionePianificata = Attacker->Abilities.IsValidIndex(0) && Attacker->Abilities[0]
+		? Attacker->Abilities[0]->Def.ActionId : FName();
 
 	// Il bersaglio scatta lontano quanto la portata del PROPRIO scatto: era scritto `7`, che solo lo scatto
 	// da 5 celle del Ranger legacy raggiungeva. La destinazione si deriva, cosi' la premessa del test —
@@ -246,6 +249,7 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 
 	int32 Fallbacks = 0;
 	int32 OutOfRangeReasons = 0;
+	int32 ConIdentitaGiusta = 0;
 	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 	{
 		if (E.Category != ERTLogCategory::Fallback) { continue; }
@@ -255,9 +259,22 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 		{
 			++OutOfRangeReasons;
 		}
+		// ⚠️ L'azione ATTESA, non «una qualsiasi»: `Instance` viene riassegnata all'istanza del FALLBACK
+		// subito dopo che la voce e' stata scritta, quindi leggere l'identita' una riga piu' in basso
+		// nominerebbe il ripiego invece dell'azione fallita — e un test che chiedesse solo «non e' vuoto»
+		// resterebbe verde.
+		if (E.ActionId == AzionePianificata)
+		{
+			++ConIdentitaGiusta;
+		}
 	}
 	TestEqual(TEXT("il TurnLog registra un fallback"), Fallbacks, 1);
 	TestEqual(TEXT("annullata perche' fuori portata: l'esito dice anche il motivo"), OutOfRangeReasons, 1);
+	// QUALE azione e' fallita ([D-196], `#1412` punto 1b). Senza, un'azione che non avviene lascia una voce
+	// che non dice se a mancare sia stata l'ultimate o l'attacco base — e due annullamenti della stessa
+	// unita' nello stesso turno erano indistinguibili.
+	TestEqual(*FString::Printf(TEXT("e la voce nomina l'azione fallita (%s)"), *AzionePianificata.ToString()),
+		ConIdentitaGiusta, 1);
 
 	// E lo dice anche il combat log della HUD, non solo il log autoritativo.
 	bool bInCombatLog = false;
