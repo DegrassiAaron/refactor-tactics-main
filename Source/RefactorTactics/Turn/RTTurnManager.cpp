@@ -2,6 +2,7 @@
 #include "Turn/RTPacingLibrary.h"
 #include "Turn/RTPlaybackLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
+#include "Turn/RTPlanValidationLibrary.h" // CP 38.2: la legalita' del piano si CHIEDE al commit
 #include "Turn/RTActionQueueLibrary.h"
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
@@ -1197,6 +1198,10 @@ void ARTTurnManager::LockInAndResolve()
 	TurnLog.Reset();
 	bPrepActiveThisTurn = false;
 
+	// DOPO l'azzeramento e PRIMA delle fasi: il verdetto sul piano appartiene al turno che sta per
+	// risolversi, non a quello appena chiuso. Invertire l'ordine lo cancellerebbe appena scritto.
+	ValidatePlansAtLockIn();
+
 	// Avanza le fasi fino a tornare a Planning; il movimento si applica nella fase Move.
 	do
 	{
@@ -1927,6 +1932,61 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 	Entry.UnitId = Actor ? Actor->StableUnitId : 0;
 	// L'UNICO `TurnLog.Add` del file: ogni altro sito passa da qui.
 	TurnLog.Add(Entry);
+}
+
+void ARTTurnManager::ValidatePlansAtLockIn()
+{
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+	// Ordine canonico per identita' stabile: il TurnLog e' confrontato fra run, e l'ordine di
+	// `GetAllActorsOfClass` non e' garantito. Senza questo, due esecuzioni identiche scriverebbero le
+	// stesse voci in ordine diverso e ogni confronto di replay fallirebbe per un motivo che non c'entra.
+	Actors.Sort([](const AActor& A, const AActor& B)
+	{
+		const ARTUnit* UA = Cast<ARTUnit>(&A);
+		const ARTUnit* UB = Cast<ARTUnit>(&B);
+		return (UA ? UA->StableUnitId : 0) < (UB ? UB->StableUnitId : 0);
+	});
+
+	for (AActor* Actor : Actors)
+	{
+		ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		if (!Unit || !Unit->IsAlive())
+		{
+			continue; // un'unita' morta non compone piani: e' la precondizione dichiarata di `ValidatePlan`
+		}
+
+		const TArray<FRTPlannedAction> Plan = URTPlanValidationLibrary::MakePlanFor(Unit);
+		if (Plan.Num() == 0)
+		{
+			continue; // nessuna voce: niente da giudicare, e nessuna voce di log da scrivere
+		}
+
+		const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(
+			FRTHexSimUnit(Unit->StableUnitId, Unit->Cell, Unit->GetEffectiveMoveRange(), /*bAlive*/ true), Plan);
+		if (Verdict.bLegal)
+		{
+			continue;
+		}
+
+		// Una voce di FALLBACK, non un errore: la famiglia esiste gia' e dice «cio' che era pianificato non
+		// si esegue come dichiarato». Il motivo viaggia in `Amount` come per ogni altro rifiuto
+		// (`ERTActionInvalidReason` serializzato come intero), e l'azione colpevole nel proprio campo.
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Planning;
+		Entry.Category = ERTLogCategory::Fallback;
+		Entry.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Entry.ActionId = Verdict.OffendingActionId;
+		Entry.SrcCell = Unit->Cell;
+		Entry.Amount = static_cast<int32>(Verdict.Reason);
+		AppendLogEntry(Entry, Unit);
+
+		AddLogEvent(FString::Printf(TEXT("%s: piano non valido al lock-in (%s su %s)"),
+			*Unit->GetName(),
+			*StaticEnum<ERTActionInvalidReason>()->GetNameStringByValue(static_cast<int64>(Verdict.Reason)),
+			*Verdict.OffendingActionId.ToString()));
+	}
 }
 
 void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)

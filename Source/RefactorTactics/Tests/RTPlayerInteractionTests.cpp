@@ -6,6 +6,8 @@
 #include "Misc/AutomationTest.h"
 #include "Player/RTPlayerController.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTTurnLog.h"
+#include "Turn/RTActionFallbackLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
@@ -54,13 +56,23 @@ namespace
 	 */
 	ARTHexMapActor* SpawnCleanInteractionMap(UWorld* World, int32 Radius)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+		if (!World)
+		{
+			return nullptr;
+		}
+		// `World` come Outer, non il transient package: e' la stessa disciplina di
+		// `URTMatchSetupLibrary::MakeTestArena`, che rifiuta un Outer nullo invece di inventarsene uno.
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>(World);
 		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
 		{
 			M->AddOrUpdateCell(FRTHexCellData(Id));
 		}
 		M->SortCells();
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+		if (!Actor)
+		{
+			return nullptr;
+		}
 		Actor->MapAsset = M;
 		return Actor;
 	}
@@ -329,27 +341,35 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 }
 
 
+
 // =====================================================================================================
-// CP 38.2 — il lato GIOCATORE passa dal validatore del piano.
+// CP 38.2 — il piano si valida al COMMIT, e cio' che non torna finisce nel TurnLog.
 //
-// Il bot ci passa dal 2026-08-25; il giocatore no, ed era l'ultimo consumatore scoperto. Misurato prima di
-// scrivere questi test: armando una mobilita', cliccando una cella e poi DISARMANDO per posare waypoint, il
-// piano risultava `[Ram(Movimento), Action.Move(Movimento)]` — due movimenti, `SlotOccupied`. Il resolver lo
-// assorbiva in silenzio (`ResolveDash` azzera `PlannedPath`), ma `SetPreviewPath` intanto disegnava sulla
-// mappa una rotta che l'unita' non avrebbe mai percorso.
+// Il lock-in e' l'ultimo istante in cui un piano e' ancora un piano. La DoD chiede «un punto solo che
+// risponde LEGALE / ILLEGALE + reason code prima del commit», e questo e' il commit.
 //
-// ⚠️ I due casi vanno TENUTI INSIEME: un rifiuto che rifiuta tutto sarebbe verde per il motivo sbagliato, e
-// il caso che un `if` ingenuo romperebbe e' il secondo — correggere il proprio piano.
+// 🔴 **Registra, non blocca**, e la ragione e' misurata. La prima versione rifiutava l'input al click ed e'
+// stata ritirata in code review: un piano illegale nasce quasi sempre da uno scatto piu' un movimento, e uno
+// scatto pianificato NON e' annullabile — `ERTPointerBackStep` elenca waypoint, targeting, inspector e
+// focus, non il dash. Rifiutare il waypoint chiudeva il giocatore in un turno senza uscita: ne' muoversi ne'
+// disfare. Un piano incoerente che si risolve come il resolver decide e' meno grave di un turno che non si
+// puo' correggere.
+//
+// I due test vanno tenuti INSIEME: senza il secondo, un `AppendLogEntry` incondizionato passerebbe il primo.
 // =====================================================================================================
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerDashThenMoveIsRejectedTest,
-	"RefactorTactics.PlayerInteraction.MovementSlotTakenRejectsTheWaypoint",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInLogsTheIllegalPlanTest,
+	"RefactorTactics.PlayerInteraction.LockInLogsAnIllegalPlan",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTPlayerDashThenMoveIsRejectedTest::RunTest(const FString&)
+bool FRTLockInLogsTheIllegalPlanTest::RunTest(const FString&)
 {
 	UWorld* World = MakeInteractionWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	SpawnCleanInteractionMap(World, /*Radius=*/ 6);
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
 
 	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
@@ -369,41 +389,56 @@ bool FRTPlayerDashThenMoveIsRejectedTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Lo scatto si pianifica: lo slot movimento e' libero.
+	// Il giocatore compone davvero il piano incoerente: scatto, poi stato neutro (D-128), poi waypoint.
 	U->SelectAbility(DashIdx);
 	PC->HandleClickOnCell(FRTCellId(1, 2));
-	if (!TestNotEqual(TEXT("premessa: lo scatto e' stato pianificato"),
-		U->PlannedDashAbility, static_cast<int32>(INDEX_NONE)))
+	U->SelectAbility(INDEX_NONE);
+	PC->HandleClickOnCell(FRTCellId(2, 1));
+
+	// Le due premesse: senza, il lock-in giudicherebbe un piano che non contiene il caso in esame.
+	if (!TestNotEqual(TEXT("premessa: lo scatto e' pianificato"), U->PlannedDashAbility, static_cast<int32>(INDEX_NONE))
+		|| !TestTrue(TEXT("premessa: il waypoint si posa — l'input non viene rifiutato"),
+			U->PlannedWaypoints.Num() > 0))
 	{
 		DestroyInteractionWorld(World);
 		return false;
 	}
 
-	// Ora il giocatore torna allo stato neutro (D-128) e prova a posare un waypoint: lo slot movimento e'
-	// gia' speso dallo scatto, quindi il waypoint NON si posa.
-	U->SelectAbility(INDEX_NONE);
-	PC->HandleClickOnCell(FRTCellId(2, 1));
+	TM->LockInAndResolve();
 
-	TestEqual(TEXT("il waypoint non si posa: lo slot movimento e' occupato dallo scatto"),
-		U->PlannedWaypoints.Num(), 0);
-	TestEqual(TEXT("e la destinazione resta la cella attuale"), U->PlannedCell, U->Cell);
-	TestNotEqual(TEXT("lo scatto pianificato non viene toccato dal rifiuto"),
-		U->PlannedDashAbility, static_cast<int32>(INDEX_NONE));
+	// La voce e' scritta al lock-in, quindi si trova nel TurnLog anche a risoluzione avviata.
+	int32 Rejections = 0;
+	ERTActionInvalidReason Reason = ERTActionInvalidReason::None;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Phase == ERTMatchPhase::Planning && Entry.Category == ERTLogCategory::Fallback)
+		{
+			++Rejections;
+			Reason = static_cast<ERTActionInvalidReason>(Entry.Amount);
+		}
+	}
+
+	TestEqual(TEXT("il lock-in registra UNA voce per il piano incoerente"), Rejections, 1);
+	TestEqual(TEXT("e il motivo e' lo slot occupato"), Reason, ERTActionInvalidReason::SlotOccupied);
 
 	DestroyInteractionWorld(World);
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerCanStillFixHisOwnPlanTest,
-	"RefactorTactics.PlayerInteraction.CorrectingYourOwnPlanIsNotRejected",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInIsSilentOnALegalPlanTest,
+	"RefactorTactics.PlayerInteraction.LockInIsSilentOnALegalPlan",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTPlayerCanStillFixHisOwnPlanTest::RunTest(const FString&)
+bool FRTLockInIsSilentOnALegalPlanTest::RunTest(const FString&)
 {
-	// Il caso che un `if` ingenuo — «se c'e' uno scatto, niente waypoint» — romperebbe senza accorgersene:
-	// cambiare idea sul PROPRIO piano non e' occupare due volte uno slot. Vale nei due versi.
+	// L'altra meta': un piano legale non lascia voci. Senza questo, un `AppendLogEntry` incondizionato
+	// supererebbe il test gemello — e il TurnLog di ogni partita si riempirebbe di rifiuti inesistenti.
 	UWorld* World = MakeInteractionWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	SpawnCleanInteractionMap(World, /*Radius=*/ 6);
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
 
 	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
@@ -416,34 +451,28 @@ bool FRTPlayerCanStillFixHisOwnPlanTest::RunTest(const FString&)
 	}
 	PC->SelectActorForTest(U);
 
-	// 1. Allungare un percorso: due waypoint di fila. Il secondo non e' un secondo movimento.
+	// Il piano canonico di D-028: un movimento e basta. Due waypoint sono UN movimento, non due.
 	U->SelectAbility(INDEX_NONE);
 	PC->HandleClickOnCell(FRTCellId(1, 2));
-	const int32 DopoIlPrimo = U->PlannedWaypoints.Num();
 	PC->HandleClickOnCell(FRTCellId(2, 2));
-
-	TestEqual(TEXT("il primo waypoint si posa"), DopoIlPrimo, 1);
-	TestEqual(TEXT("e il secondo lo allunga invece di essere rifiutato"), U->PlannedWaypoints.Num(), 2);
-
-	// 2. Cambiare la destinazione dello scatto: ri-cliccare con la mobilita' armata sostituisce, non somma.
-	ARTUnit* V = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-1, -1));
-	if (!TestNotNull(TEXT("seconda unita'"), V)) { DestroyInteractionWorld(World); return false; }
-	PC->SelectActorForTest(V);
-
-	const int32 DashIdx = V->FindDashAbilityIndex();
-	if (!TestNotEqual(TEXT("premessa: mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE)))
+	if (!TestEqual(TEXT("premessa: due waypoint compongono un solo movimento"), U->PlannedWaypoints.Num(), 2))
 	{
 		DestroyInteractionWorld(World);
 		return false;
 	}
-	V->SelectAbility(DashIdx);
-	PC->HandleClickOnCell(FRTCellId(-1, 0));
-	const FRTCellId Prima = V->PlannedDashCell;
-	PC->HandleClickOnCell(FRTCellId(0, -1));
 
-	TestNotEqual(TEXT("lo scatto resta pianificato"), V->PlannedDashAbility, static_cast<int32>(INDEX_NONE));
-	TestTrue(TEXT("e la destinazione e' cambiata: si sostituisce, non si somma"),
-		V->PlannedDashCell != Prima);
+	TM->LockInAndResolve();
+
+	int32 Rejections = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Phase == ERTMatchPhase::Planning && Entry.Category == ERTLogCategory::Fallback)
+		{
+			++Rejections;
+		}
+	}
+
+	TestEqual(TEXT("un piano legale non lascia voci di rifiuto"), Rejections, 0);
 
 	DestroyInteractionWorld(World);
 	return true;

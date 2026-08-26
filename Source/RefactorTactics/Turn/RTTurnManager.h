@@ -1159,6 +1159,27 @@ protected:
 	 */
 	void AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor);
 
+	/**
+	 * Valida il piano di ogni unita' viva al COMMIT, e registra nel TurnLog quello che non torna (CP 38.2).
+	 *
+	 * Il lock-in e' l'ultimo istante in cui un piano e' ancora un piano: dopo, e' una risoluzione. E' qui
+	 * che la DoD chiede *«un punto solo che risponde LEGALE / ILLEGALE + reason code prima del commit»*,
+	 * e questo e' il commit.
+	 *
+	 * 🔴 **Registra e non BLOCCA, ed e' una scelta con una ragione misurata.** Un rifiuto al momento del
+	 * click era la prima versione, ed e' stata ritirata in code review: un piano illegale nasce quasi sempre
+	 * da uno scatto piu' un movimento, e uno scatto pianificato **non e' annullabile** — `ERTPointerBackStep`
+	 * elenca waypoint, targeting, inspector e focus, non il dash, e gli unici a togliere
+	 * `PlannedDashAbility` sono il resolver e il ri-pianificatore del bot. Rifiutare l'input avrebbe chiuso
+	 * il giocatore in un turno senza uscita: non poteva ne' muoversi ne' disfare. Un piano incoerente che si
+	 * risolve come il resolver decide e' meno grave di un turno che non si puo' correggere.
+	 *
+	 * ⚠️ Cio' che cambia rispetto a prima non e' l'esito del turno, e' la sua **osservabilita'**: quello
+	 * che il resolver assorbiva in silenzio ora lascia una voce con il motivo. Il giorno in cui il dash sara'
+	 * annullabile, questa funzione e' il punto da cui far partire un rifiuto vero.
+	 */
+	void ValidatePlansAtLockIn();
+
 	/** Applica uno status e registra la voce se cosi' facendo ha SPENTO un `Burning` (#1314). */
 	void ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Turns);
 
