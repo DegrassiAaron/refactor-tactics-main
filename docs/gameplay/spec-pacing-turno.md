@@ -132,10 +132,18 @@ test headless e Scenario Harness (`RTScenarioRunner`, `RTScenarioSession`).
 
 | Regola | |
 |---|---|
-| Un campione **mai aperto non viene registrato** | `ClosePacingSample()` esce senza aggiungerlo a `PacingSamples` e senza scrivere la riga CSV |
-| Perché non "registrarlo con i tempi vuoti" | Senza `BeginPacingSample()` mancano anche `TurnNumber`, `UnitsAliveTeam0/1` e `ActionsAvailable`: restano a **zero**, e zero unità vive su un turno giocato non è «non misurato», è **falso** — e si legge come una misura |
-| `FRTPacingSample::Unmeasured` (`= -1`) | Il valore con cui un tempo dichiara di non essere stato misurato. Serve perché `0` è un lock-in legittimo: usarlo per «non misurato» produce un dato plausibile e falso che nessun errore segnala |
+| Il campione **si apre comunque**, al lock-in | `LockInAndResolve()` chiama `BeginPacingSample()` se nessuno l'ha fatto — stessa inizializzazione tardiva di `EnsureMatchRoster()`, e per la stessa ragione dei due percorsi |
+| Il **contesto** si misura | `TurnNumber`, `UnitsAliveTeam0/1`, `ActionsAvailable` sono misurabili al lock-in e vengono misurati: buttare il turno perderebbe un dato vero. Non è un caso di laboratorio — `SetPlanningSeconds()` arma il timer senza aprire il campione, quindi un `OnPlanningTimeout` **vero** può arrivare al lock-in con il campione chiuso |
+| I **tempi** no | Aprire il campione al lock-in mette l'origine ad «adesso», e `MsToLockIn` verrebbe **zero** — che è un lock-in istantaneo, cioè un valore legittimo. I tre tempi valgono `FRTPacingSample::Unmeasured` |
+| `FRTPacingSample::Unmeasured` (`= -1`) | Il valore con cui un tempo dichiara di non essere stato misurato. Serve perché `0` è un lock-in legittimo: usarlo per «non misurato» produce un dato plausibile e falso che nessun errore segnala. Nel CSV la colonna porta `-1` |
 | Chi aggrega **deve escluderli** | `SummarizeSamples` li salta e li conta in `UnmeasuredSamples`. Senza quella guardia, `Unmeasured < CutoffWindowMs` è **sempre vero**: ogni timeout non misurato si classificherebbe come `TrueCutoffs`, cioè come il segnale più forte che il sommario produce |
+| La guardia va rifatta su **`MsSinceLastInput`** | È lui a decidere `TrueCutoffs`/`IdleTimeouts`, e può essere non misurato mentre `MsToLockIn` lo è. Non classificabile non è «taglio»: resta fuori da entrambi i conteggi |
+| Con **zero** campioni cronometrati | `MedianMsToLockIn` e `P90MsToLockIn` valgono `Unmeasured`, non `0`: altrimenti il dato plausibile e falso rientra dal piano del sommario |
+| Il **playback** resta valido | Ha un cronometro suo (`PlaybackElapsedTotal`), che non dipende dall'apertura del campione: `MsPlayback` e `bPlaybackSkipped` contano per tutti i campioni |
+
+⚠️ Lo stesso sfondamento viveva su **due** percorsi: `LockInAndResolve()` e `RecordPlanningInput()`. Il
+secondo è il più facile da non vedere — `Phase` vale `Planning` per default, quindi la sua guardia d'ingresso
+non ferma un TurnManager che non è mai passato da `BeginPlay`.
 
 ⚠️ **Un clamp non è una correzione.** Su Windows `FPlatformTime::Seconds()` non è un tempo dall'avvio del
 processo: porta dentro `16777216.0`. Con l'origine a `0.0`, `(Now - 0.0) * 1000.0` vale circa `1.7·10^10` e

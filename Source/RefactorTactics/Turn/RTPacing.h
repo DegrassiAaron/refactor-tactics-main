@@ -45,8 +45,10 @@ struct FRTPacingSample
 	 * ⚠️ Chi aggrega deve ESCLUDERLI: `URTPacingLibrary::SummarizeSamples` lo fa e li conta a parte in
 	 * `FRTPacingSummary::UnmeasuredSamples`. Nel CSV la colonna porta `-1`.
 	 *
-	 * Il caso che lo rende necessario (`#1421`): un campione mai aperto, cioe' un `LockInAndResolve()`
-	 * raggiunto senza passare da `StartPlanningTimer()` — ogni test headless e lo Scenario Harness.
+	 * Il caso che lo rende necessario (`#1421`): un `LockInAndResolve()` raggiunto senza passare da
+	 * `StartPlanningTimer()` — ogni test headless, lo Scenario Harness, e un `OnPlanningTimeout` armato da
+	 * `SetPlanningSeconds()`. Li' il campione si apre comunque, perche' il CONTESTO (unita' vive, azioni,
+	 * numero di turno) e' misurabile e va misurato: sono solo i TEMPI a non avere un'origine.
 	 */
 	static constexpr int32 Unmeasured = INDEX_NONE;
 

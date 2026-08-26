@@ -1174,19 +1174,26 @@ void ARTTurnManager::LockInAndResolve()
 
 	// Sonda di pacing: chiude i tempi della pianificazione. Telemetria, nessun effetto sul turno.
 	{
-		// 🔴 Se il campione non e' stato APERTO, non c'e' nessuna origine da cui misurare, e i tre campi lo
-		// dichiarano invece di calcolare una differenza da un istante che non esiste (`#1421`).
+		// 🔴 Il campione puo' non essere mai stato APERTO: `BeginPacingSample()` la chiama solo
+		// `StartPlanningTimer()`, cioe' `BeginPlay`, e qui ci arrivano anche i test headless e lo Scenario
+		// Harness — il secondo dei due percorsi che il commento sopra `EnsureMatchRoster` gia' nomina. Anche
+		// `SetPlanningSeconds()` arma il timer senza aprire nulla, quindi un `OnPlanningTimeout` VERO puo'
+		// arrivare qui con il campione chiuso.
 		//
-		// Non e' un caso di confine: `BeginPacingSample()` la chiama solo `StartPlanningTimer()`, cioe'
-		// `BeginPlay`, e qui ci arrivano anche i test headless e lo Scenario Harness — che il commento
-		// sopra `EnsureMatchRoster` gia' nomina come il secondo dei due percorsi.
+		// Si apre adesso, come `EnsureMatchRoster` otto righe sopra e per la stessa ragione: il CONTESTO —
+		// unita' vive, azioni disponibili, numero di turno — e' misurabile e va misurato. Buttare il turno
+		// perderebbe un dato vero.
 		//
-		// ⚠️ Un clamp al posto della guardia toglierebbe il comportamento non definito e lascerebbe il dato
-		// falso: su Windows `FPlatformTime::Seconds()` non e' un tempo dall'avvio del processo (porta dentro
-		// `16777216.0`), quindi `(Now - 0.0) * 1000.0` vale circa `1.7e10` e `FMath::RoundToInt` lo tronca
-		// in un `int32` che arriva a `2.1e9`. Clampato sarebbe `INT32_MAX`: un numero, e comunque non un
-		// tempo di pianificazione.
-		if (!bPacingSampleOpen)
+		// ⚠️ Ma i TEMPI no: l'origine sarebbe «adesso», e `MsToLockIn` verrebbe zero. Zero e' un lock-in
+		// istantaneo, cioe' un valore legittimo: sarebbe il dato plausibile e falso che `Unmeasured` esiste
+		// per non produrre. I tre tempi dichiarano di non essere stati misurati (`#1421`).
+		const bool bWasOpen = bPacingSampleOpen;
+		if (!bWasOpen)
+		{
+			BeginPacingSample();
+		}
+
+		if (!bWasOpen)
 		{
 			PacingCurrent.MsToLockIn = FRTPacingSample::Unmeasured;
 			PacingCurrent.MsSinceLastInput = FRTPacingSample::Unmeasured;
@@ -1194,6 +1201,11 @@ void ARTTurnManager::LockInAndResolve()
 		}
 		else
 		{
+			// ⚠️ Un clamp al posto di tutto questo toglierebbe il comportamento non definito e lascerebbe il
+			// dato falso: su Windows `FPlatformTime::Seconds()` non e' un tempo dall'avvio del processo
+			// (porta dentro `16777216.0`), quindi `(Now - 0.0) * 1000.0` vale circa `1.7e10` e
+			// `FMath::RoundToInt` lo tronca in un `int32` che arriva a `2.1e9`. Clampato sarebbe
+			// `INT32_MAX`: un numero, e comunque non un tempo di pianificazione.
 			const double Now = FPlatformTime::Seconds();
 			PacingCurrent.MsToLockIn = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
 			// Senza nessun input, "tempo dall'ultimo input" e' l'intera pianificazione: cosi' un turno passato
@@ -5720,8 +5732,12 @@ void ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)
 		return; // un input fuori dalla pianificazione non e' una decisione di turno
 	}
 
+	// 🔴 Il SECONDO percorso dello stesso difetto, e il piu' facile da non vedere: `Phase` vale `Planning`
+	// per default, quindi la guardia qui sopra NON ferma un TurnManager che non e' mai passato da
+	// `BeginPlay`, e `(Now - 0.0) * 1000.0` sfora l'`int32` esattamente come nel lock-in. I contatori di
+	// composizione — selezioni, ordini, annullamenti — restano validi: sono conteggi, non tempi.
 	const double Now = FPlatformTime::Seconds();
-	if (!bPacingHadInput)
+	if (bPacingSampleOpen && !bPacingHadInput)
 	{
 		bPacingHadInput = true;
 		PacingCurrent.MsToFirstInput = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
@@ -5741,20 +5757,6 @@ void ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)
 
 void ARTTurnManager::ClosePacingSample()
 {
-	// 🔴 Un campione mai APERTO non si chiude, e non e' una questione di tempi: `BeginPacingSample()` e'
-	// anche cio' che conta le unita' vive, le azioni disponibili e stampiglia `TurnNumber`. Senza di lei
-	// restano tutti a zero, e `0` unita' vive su un turno giocato non e' «non misurato» — e' falso, e si
-	// legge come una misura. Non c'e' niente di vero da salvare (`#1421`).
-	//
-	// E' il percorso di ogni test headless e dello Scenario Harness, che arrivano a `LockInAndResolve()`
-	// senza passare da `StartPlanningTimer()`: senza questa guardia ogni run headless con `bRecordPacing`
-	// aggiungeva al CSV una riga che non misurava niente.
-	if (!bPacingSampleOpen)
-	{
-		PacingCurrent = FRTPacingSample();
-		return;
-	}
-
 	PacingCurrent.MsPlayback = FMath::RoundToInt(PlaybackElapsedTotal * 1000.f);
 	PacingSamples.Add(PacingCurrent);
 	if (bRecordPacing)

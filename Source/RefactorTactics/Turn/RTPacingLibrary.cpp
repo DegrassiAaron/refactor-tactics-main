@@ -28,7 +28,16 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 
 	for (const FRTPacingSample& S : Samples)
 	{
-		Playback.Add(S.MsPlayback); // il playback ha un cronometro suo: non dipende dall'apertura del campione
+		// Il playback ha un cronometro suo (`PlaybackElapsedTotal`) e non dipende dall'apertura del
+		// campione: vale anche quando i tempi di PIANIFICAZIONE non sono stati misurati. Per lo stesso
+		// motivo `bPlaybackSkipped` si conta qui, prima di ogni esclusione: un playback saltato e' un fatto
+		// osservato, e contarlo solo per i campioni cronometrati direbbe «saltati 0» su una sessione che ne
+		// aveva.
+		Playback.Add(S.MsPlayback);
+		if (S.bPlaybackSkipped)
+		{
+			++Out.SkippedPlaybacks;
+		}
 
 		// ⚠️ Un campione NON MISURATO non e' un lock-in rapido: e' l'assenza di una misura, e va tolto da
 		// ogni statistica che risponde «quanto tempo». La sentinella e' negativa apposta, ma escluderla non
@@ -44,19 +53,27 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 
 		if (S.LockInSource == ERTLockInSource::Timeout)
 		{
-			// Sotto soglia = il giocatore stava ancora agendo -> taglio. Dalla soglia in su -> attesa a vuoto.
-			(S.MsSinceLastInput < CutoffWindowMs ? Out.TrueCutoffs : Out.IdleTimeouts)++;
-		}
-		if (S.bPlaybackSkipped)
-		{
-			++Out.SkippedPlaybacks;
+			// ⚠️ La guardia va rifatta su QUESTO campo, non basta quella su `MsToLockIn`: e' `MsSinceLastInput`
+			// a decidere la classificazione, e i due possono divergere — un campione ricaricato da CSV, o un
+			// percorso futuro che cronometra il lock-in e perde l'origine dell'ultimo input. Non classificabile
+			// non e' «taglio»: e' non classificabile, e resta fuori da entrambi i conteggi.
+			if (S.MsSinceLastInput != FRTPacingSample::Unmeasured)
+			{
+				// Sotto soglia = il giocatore stava ancora agendo -> taglio. Dalla soglia in su -> attesa a vuoto.
+				(S.MsSinceLastInput < CutoffWindowMs ? Out.TrueCutoffs : Out.IdleTimeouts)++;
+			}
 		}
 	}
 
 	LockIn.Sort();
 	Playback.Sort();
-	Out.MedianMsToLockIn = PercentileNearestRank(LockIn, 50);
-	Out.P90MsToLockIn = PercentileNearestRank(LockIn, 90);
+	// ⚠️ Nessun campione cronometrato non fa «mediana zero»: zero e' un lock-in istantaneo, cioe' il valore
+	// legittimo da cui `Unmeasured` esiste per distinguersi. Farlo tornare qui rimetterebbe al livello del
+	// sommario lo stesso dato plausibile e falso che la sentinella toglie dal campione.
+	Out.MedianMsToLockIn = LockIn.Num() > 0
+		? PercentileNearestRank(LockIn, 50) : FRTPacingSample::Unmeasured;
+	Out.P90MsToLockIn = LockIn.Num() > 0
+		? PercentileNearestRank(LockIn, 90) : FRTPacingSample::Unmeasured;
 	Out.MedianMsPlayback = PercentileNearestRank(Playback, 50);
 	return Out;
 }

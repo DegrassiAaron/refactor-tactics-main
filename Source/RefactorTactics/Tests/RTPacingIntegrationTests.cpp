@@ -147,11 +147,8 @@ bool FRTPacingSamplePerTurnTest::RunTest(const FString&)
  * `1.7e10`, che `FMath::RoundToInt` tronca in un `int32` il cui massimo e' `2.1e9`: conversione fuori
  * range, comportamento non definito, in pratica un valore spazzatura o negativo.
  *
- * Il test NON asserisce il valore spazzatura — sarebbe pinnare un UB. Asserisce cio' che deve valere: se
- * il campione non e' stato aperto, non finisce nella serie.
- *
- * ⚠️ Il turno si gioca lo stesso, e deve: la sonda e' telemetria, e `Pacing.DoesNotAffectTurnLogHash` tiene
- * fermo che non abbia nessun ritorno verso il gameplay.
+ * Il test NON asserisce il valore spazzatura — sarebbe pinnare un UB. Asserisce cio' che deve valere: il
+ * turno viene misurato in cio' che e' misurabile (il contesto), e i tempi dichiarano di non esserlo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingUnopenedSampleTest,
 	"RefactorTactics.Pacing.UnopenedSampleIsDeclaredUnmeasured",
@@ -169,22 +166,41 @@ bool FRTPacingUnopenedSampleTest::RunTest(const FString&)
 	// campione del primo turno non viene mai aperto. E' come ci arrivano i test headless e lo Scenario
 	// Harness.
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !A1 || !B1) { DestroyHexPacingWorld(World); return false; }
 
-	TestTrue(TEXT("il turno si gioca comunque: la telemetria non ha ritorno sul gameplay"),
-		TM->GetPhase() != ERTMatchPhase::Planning || TM->GetPacingSamples().Num() == 0);
+	// Un'uscita anticipata MUTA verrebbe riportata come Success: l'automation ignora il `bool` di
+	// `RunTest`. Ogni puntatore si asserisce, come due righe sopra col mondo.
+	const bool bSetup = TestNotNull(TEXT("il TurnManager e' stato creato"), TM)
+		&& TestNotNull(TEXT("l'unita' di squadra 0"), A1)
+		&& TestNotNull(TEXT("l'unita' di squadra 1"), B1);
+	if (!bSetup) { DestroyHexPacingWorld(World); return false; }
 
 	PlayOnePacingTurn(TM);
 
-	// 🔴 Nessun campione. Misurato scrivendo questo test: un campione mai aperto non ha SOLO i tempi
-	// mancanti — `BeginPacingSample()` e' anche cio' che conta le unita' vive, le azioni disponibili e
-	// stampiglia il numero di turno, quindi senza di lei restano a zero. E `0` unita' vive su un turno
-	// giocato da quattro unita' non e' «non misurato»: e' falso, e si legge come una misura.
-	//
-	// ∴ dichiarare non misurati i soli tempi non bastava. Non c'e' niente di vero da salvare in un campione
-	// che non e' mai stato aperto, e registrarlo inquinerebbe la serie con una riga di zeri — che e'
-	// esattamente il difetto che `#1421` riporta per il CSV delle run headless.
-	TestEqual(TEXT("un campione mai aperto non viene registrato"), TM->GetPacingSamples().Num(), 0);
+	// Il turno E' STATO GIOCATO: senza questa ancora, l'asserzione sui campioni passerebbe anche se
+	// `LockInAndResolve` fosse uscito subito senza risolvere niente.
+	TestTrue(TEXT("il turno e' stato risolto per davvero"), TM->GetTurnLog().Num() > 0);
+
+	if (!TestEqual(TEXT("il turno e' stato misurato lo stesso"), TM->GetPacingSamples().Num(), 1))
+	{
+		DestroyHexPacingWorld(World);
+		return false;
+	}
+
+	const FRTPacingSample& S = TM->GetPacingSamples()[0];
+
+	// 🔴 I TEMPI non hanno un'origine e lo dichiarano. Non zero: zero e' un lock-in istantaneo, cioe' un
+	// valore legittimo — sarebbe il dato plausibile e falso che nessun errore segnala.
+	TestEqual(TEXT("MsToLockIn si dichiara non misurato"), S.MsToLockIn, FRTPacingSample::Unmeasured);
+	TestEqual(TEXT("e MsSinceLastInput, che ci ricade sopra"),
+		S.MsSinceLastInput, FRTPacingSample::Unmeasured);
+	TestEqual(TEXT("e MsToFirstInput, per lo stesso motivo"),
+		S.MsToFirstInput, FRTPacingSample::Unmeasured);
+
+	// Il CONTESTO invece e' misurabile, e va misurato: buttare il turno perderebbe un dato vero — e non e'
+	// un caso di laboratorio, `SetPlanningSeconds()` arma il timer senza aprire il campione, quindi un
+	// `OnPlanningTimeout` vero puo' arrivare al lock-in con il campione chiuso.
+	TestEqual(TEXT("le due unita' vive sono state contate"), S.UnitsAliveTeam0 + S.UnitsAliveTeam1, 2);
+	TestEqual(TEXT("ed e' il campione del turno 1"), S.TurnNumber, 1);
 
 	DestroyHexPacingWorld(World);
 	return true;

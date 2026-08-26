@@ -62,11 +62,11 @@ bool FRTPacingUnmeasuredSummaryTest::RunTest(const FString&)
 	const int32 Unmeasured = FRTPacingSample::Unmeasured;
 
 	TArray<FRTPacingSample> Samples;
-	Samples.Add(MakeSample(10000, ERTLockInSource::Input,   4000));
-	Samples.Add(MakeSample(20000, ERTLockInSource::Timeout, 500));   // taglio vero
-	Samples.Add(MakeSample(30000, ERTLockInSource::Timeout, 25000)); // attesa a vuoto
-	Samples.Add(MakeSample(Unmeasured, ERTLockInSource::Timeout, Unmeasured));
-	Samples.Add(MakeSample(Unmeasured, ERTLockInSource::Input,   Unmeasured));
+	Samples.Add(MakeSample(10000, ERTLockInSource::Input,   4000,  5000));
+	Samples.Add(MakeSample(20000, ERTLockInSource::Timeout, 500,   6000));  // taglio vero
+	Samples.Add(MakeSample(30000, ERTLockInSource::Timeout, 25000, 7000));  // attesa a vuoto
+	Samples.Add(MakeSample(Unmeasured, ERTLockInSource::Timeout, Unmeasured, 8000));
+	Samples.Add(MakeSample(Unmeasured, ERTLockInSource::Input,   Unmeasured, 9000, /*bSkipped=*/ true));
 
 	const FRTPacingSummary S = URTPacingLibrary::SummarizeSamples(Samples, /*CutoffWindowMs=*/ 3000);
 
@@ -82,6 +82,65 @@ bool FRTPacingUnmeasuredSummaryTest::RunTest(const FString&)
 	TestEqual(TEXT("un taglio vero, e il timeout non misurato non lo diventa"), S.TrueCutoffs, 1);
 	TestEqual(TEXT("un'attesa a vuoto"), S.IdleTimeouts, 1);
 
+	// Il PLAYBACK invece vale per tutti: ha un cronometro suo, che non dipende dall'apertura del campione.
+	// Nearest-rank su {5000, 6000, 7000, 8000, 9000} -> p50 = rango 3 = 7000.
+	TestEqual(TEXT("la mediana del playback usa tutti i campioni"), S.MedianMsPlayback, 7000);
+	TestEqual(TEXT("e un playback saltato si conta anche se i tempi non erano misurati"),
+		S.SkippedPlaybacks, 1);
+
+	return true;
+}
+
+/**
+ * Un campione cronometrato ma senza l'origine dell'ULTIMO INPUT non e' un taglio del timer.
+ *
+ * La guardia su `MsToLockIn` non basta: a decidere la classificazione e' `MsSinceLastInput`, e i due campi
+ * possono divergere — una riga ricaricata da CSV, o un percorso futuro che cronometra il lock-in e perde
+ * l'origine dell'input. `Unmeasured < CutoffWindowMs` e' sempre vero, quindi senza una guardia sua quel
+ * campione diventerebbe `TrueCutoffs`: il segnale piu' forte del sommario, e quello che alza
+ * `PlanningSeconds` nella regola di taratura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingUnclassifiableTimeoutTest,
+	"RefactorTactics.Pacing.UnmeasuredLastInputIsNotACutoff",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingUnclassifiableTimeoutTest::RunTest(const FString&)
+{
+	TArray<FRTPacingSample> Samples;
+	Samples.Add(MakeSample(12000, ERTLockInSource::Timeout, FRTPacingSample::Unmeasured));
+
+	const FRTPacingSummary S = URTPacingLibrary::SummarizeSamples(Samples, /*CutoffWindowMs=*/ 3000);
+
+	TestEqual(TEXT("il lock-in cronometrato entra nella mediana"), S.MedianMsToLockIn, 12000);
+	TestEqual(TEXT("ma il timeout non e' un taglio"), S.TrueCutoffs, 0);
+	TestEqual(TEXT("ne' un'attesa a vuoto: e' non classificabile"), S.IdleTimeouts, 0);
+	return true;
+}
+
+/**
+ * Nessun campione cronometrato -> la mediana dice di NON esserci, non «zero».
+ *
+ * Zero e' un lock-in istantaneo, cioe' il valore legittimo da cui `Unmeasured` esiste per distinguersi:
+ * farlo tornare dal sommario rimetterebbe un piano piu' su lo stesso dato plausibile e falso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingAllUnmeasuredSummaryTest,
+	"RefactorTactics.Pacing.SummaryOfAllUnmeasuredIsNotZero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingAllUnmeasuredSummaryTest::RunTest(const FString&)
+{
+	const int32 Unmeasured = FRTPacingSample::Unmeasured;
+
+	TArray<FRTPacingSample> Samples;
+	Samples.Add(MakeSample(Unmeasured, ERTLockInSource::Input, Unmeasured, 4000));
+	Samples.Add(MakeSample(Unmeasured, ERTLockInSource::Input, Unmeasured, 6000));
+
+	const FRTPacingSummary S = URTPacingLibrary::SummarizeSamples(Samples, /*CutoffWindowMs=*/ 3000);
+
+	TestEqual(TEXT("due turni"), S.SampleCount, 2);
+	TestEqual(TEXT("nessuno cronometrato"), S.UnmeasuredSamples, 2);
+	TestEqual(TEXT("la mediana lo dichiara"), S.MedianMsToLockIn, Unmeasured);
+	TestEqual(TEXT("e il p90 pure"), S.P90MsToLockIn, Unmeasured);
+	// Il playback resta misurato: nearest-rank su {4000, 6000} -> p50 = rango 1 = 4000.
+	TestEqual(TEXT("il playback invece c'era"), S.MedianMsPlayback, 4000);
 	return true;
 }
 
