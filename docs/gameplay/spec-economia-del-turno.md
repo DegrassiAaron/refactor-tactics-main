@@ -62,17 +62,23 @@ regola.
 | `HeavyAttack` contro `PrecisionAttack` | **35** danni contro 24 | cooldown **2** contro 1 |
 | `Sprint` contro `Move` | 8 MP contro 5 | `Status.Exposed` (+5 al primo danno diretto) e nessuna reazione |
 | `Brace` | tiene da ogni lato, a ogni colpo | si radica da sé: `Root`, quindi non si muove |
-| `Charge` | ti porta addosso al bersaglio | occupa la **principale**, non il movimento |
+| `Charge` | ti porta addosso al bersaglio e lo colpisce | cooldown **2** contro l'1 del `Dash`, a parità di slot |
 
-Le forme di drawback sono **quattro**, misurate sul catalogo attuale e non dedotte — l'elenco è aperto, ma
-nessuna delle quattro richiede un meccanismo nuovo:
+Le forme di drawback misurate sul catalogo attuale sono **tre** — l'elenco è aperto, ma nessuna delle tre
+richiede un meccanismo nuovo:
 
 ```text
-cooldown                    HeavyAttack: 2 contro 1
+cooldown                    HeavyAttack: 2 contro 1 · Charge: 2 contro l'1 del Dash
 status auto-inflitto        Sprint → Exposed · Brace → Root
 rinuncia alla reazione      Sprint
-slot diverso dall'atteso    Charge è mobilità e occupa la PRINCIPALE
 ```
+
+> 🔴 **Erano quattro fino al 2026-08-25**, e la quarta era *«slot diverso dall'atteso — `Charge` è mobilità e
+> occupa la PRINCIPALE»*. [D-191](../decisions/RT_PDR_00_Decision_Log.md) le ha tolto l'unico esempio: la
+> carica occupa il movimento come ogni altra mobilità rapida. La **forma resta esprimibile** — un kit che
+> voglia far costare una mobilità anche la principale lo dichiara con `ERTActionSlot::MovementAndMain` — ma
+> oggi nessuna azione del catalogo la usa, e un elenco che conta gli esempi non può contarne uno che non
+> c'è.
 
 Un'azione pesante che non ne dichiara nessuno non è bilanciata in un altro modo: è un **difetto di dato**.
 
@@ -93,9 +99,9 @@ di quelle voci, non voci in più.
 
 | Voce del piano | Slot | Fase di risoluzione | Esempi |
 |---|---|---|---|
-| mobilità speciale | Movimento | **`Dash`** | `Dash`, `Leap`, `Reposition` |
+| mobilità speciale | Movimento | **`Dash`** | `Dash`, `Charge`, `Leap`, `Reposition` ([D-191](../decisions/RT_PDR_00_Decision_Log.md)) |
 | movimento normale | Movimento | **`Move`** | profili `Sneak` · `Move` · `Sprint` · `Withdraw` — ⚠️ `Sprint` è **ancora pre-Blast nel codice**, e D-116 lo sta riportando qui: vedi §3.1 |
-| azione principale | Principale | dipende dall'azione | `BasicAttack`, `Interact`, `Charge` (**`Blast`**) · `Guard`, `Brace`, `Overwatch`, `CreateCover` (**`Prep`**) |
+| azione principale | Principale | dipende dall'azione | `BasicAttack`, `Interact` (**`Blast`**) · `Guard`, `Brace`, `Overwatch`, `CreateCover` (**`Prep`**) |
 | reazione | Reazione | al trigger | `Counter`, `Intercept`, `Deflect` |
 | facing finale | — | fine `Move` | rotazione dichiarata entro il budget di pivot |
 | `Wait` | **nessuno** | `Move`, priorità ultima | resta osservabile nel TurnLog senza togliere niente |

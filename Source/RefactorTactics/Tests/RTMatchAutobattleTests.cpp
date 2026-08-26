@@ -707,12 +707,33 @@ bool FRTAutobattlePlaysToCompletionTest::RunTest(const FString&)
 	TestTrue(TEXT("i bot si sono mossi"), bSawMove);
 	TestTrue(TEXT("e hanno combattuto"), bSawCombat);
 
-	// Un vincitore, e per ELIMINAZIONE: una partita chiusa dal limite di round e' la partita bloccata che
-	// il DoD chiede di distinguere, non una demo riuscita.
+	// Un esito DECISO, qualunque esso sia. Non si pretende l'eliminazione, e non e' una resa.
+	//
+	// 🔴 **Questa asserzione pretendeva `Elimination`, e [D-184] ha smesso di pretenderla** *(2026-08-22)*:
+	// *«il pareggio allo scadere dei round e' un esito legittimo della v0.1»*, e il DoD di E47.1 non chiede
+	// piu' «compare un vincitore» sul **free-run del default** — che e' esattamente cio' che questo test e',
+	// perche' allestisce la partita con `SetupHexMatch` sulla configurazione spedita. L'evidenza «una partita
+	// dall'avvio alla vittoria» D-184 la sposta su uno **scenario costruito per risolversi**, dove la
+	// configurazione e' dichiarata invece che sperata.
+	//
+	// ⚠️ **Il test e' nato il 2026-08-16 (#954) e a D-184 e' sopravvissuto senza essere riletto.** Restava
+	// verde per un margine di UN COLPO — la partita si decideva al round **12 su 12** — quindi misurava il
+	// rumore, non la proprieta': qualunque cambiamento nel pianificatore la ribaltava, ed e' cio' che e'
+	// successo il 2026-08-25 correggendo il dash residuo di `PlanBots` ([D-191]).
+	//
+	// ⚠️ **Perche' non si tara il bot per farlo tornare verde**: [D-102] dichiara un risultato
+	// bot-contro-bot inammissibile come evidenza di bilanciamento finche' il bot non e' certificato, e D-184
+	// ne trae le conseguenze — alzare la letalita' e' l'inferenza *«l'eroe e' debole»* al posto di *«il bot
+	// non sa giocarla»*, alzare `RoundLimit` e' la stessa inferenza con un altro cappello. La domanda «il bot
+	// chiude troppo tardi?» resta aperta in **#149**, e D-184 dichiara che diventera' rispondibile col banco
+	// di prova, non prima.
+	//
+	// Cio' che questo test continua a difendere e' tutto sopra: la partita si CONCLUDE senza input, nessun
+	// round e' muto, i bot si muovono e combattono. Se un giorno smettesse di concludersi, il rosso tornerebbe
+	// — ed e' il difetto che vale la pena intercettare.
 	const FRTMatchResult Result = TM->GetMatchResult();
-	TestTrue(TEXT("la partita ha un esito"), Result.Outcome != ERTMatchOutcome::InProgress);
-	TestEqual(TEXT("e ha vinto qualcuno per eliminazione"),
-		Result.Reason, ERTMatchEndReason::Elimination);
+	TestTrue(TEXT("la partita ha un esito deciso"), Result.Outcome != ERTMatchOutcome::InProgress);
+	TestTrue(TEXT("l'esito ha un motivo dichiarato"), Result.Reason != ERTMatchEndReason::None);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

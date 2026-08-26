@@ -433,9 +433,10 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// «vera, e oggi senza nessuno a cui applicarsi», perche' `Wraith.PassingBlade` e' FastMovement e fa
 	// 20 danni. Questa e' di nuovo mobilita' senza danno.
 	//
-	// 🔴 Questa riga chiamava `PassingBlade` **«una carica»**, e [D-191] lo nega: una carica si FERMA
-	// addosso al bersaglio (`LinearCharge`), la lama lo ATTRAVERSA (`LinearPass`) — sono mobilita' entrambe,
-	// ma solo la prima e' un attacco. La classificazione sbagliata qui era la stessa che, dieci righe piu'
+	// 🔴 Questa riga chiamava `PassingBlade` **«una carica»** per via del danno. Dopo [D-191] la
+	// distinzione non ha piu' conseguenze sullo slot — carica e lama sono mobilita' entrambe e occupano il
+	// movimento — ma resta vera come descrizione: una carica si FERMA addosso al bersaglio
+	// (`LinearCharge`), la lama lo ATTRAVERSA (`LinearPass`). E' lo stesso equivoco che, dieci righe piu'
 	// sotto, lasciava alla lama il `Main` di default.
 	//
 	// Numeri dal CORE: portata 3, fase FastMovement, stile lineare. Il cooldown resta 2 — e' dell'eroe, non
@@ -611,8 +612,13 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// azioni v0.1 §2 — non una coincidenza, e' la stessa azione con un nome d'eroe. Riuso identico di fase,
 	// stile di movimento e portata: l'impatto risolve nel Blast (codice 20/30), come per ogni carica.
 	const FRTActionDef ChargeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
+	// Lo SLOT si eredita dal core come tutto il resto ([D-191]): `Ram` **e'** `Action.Charge` con un nome
+	// d'eroe, e scriverne uno a mano qui creerebbe la seconda verita' che il commento sopra nega. Senza
+	// questo argomento prendeva il `Main` di default di `MakeHeroAction` — che era anche lo slot del core
+	// fino al 2026-08-25, quindi il difetto non si vedeva: coincidevano per caso, non per costruzione.
 	URTActionData* Ram = MakeHeroAction(TEXT("Hero.Riktor.Ram"), ChargeDef.ResolutionPhase, ChargeDef.Priority,
-		ChargeDef.RangeCells, /*Cooldown*/ 2, ChargeDef.Fallback, ChargeDef.Effects);
+		ChargeDef.RangeCells, /*Cooldown*/ 2, ChargeDef.Fallback, ChargeDef.Effects,
+		ERTAbilityShape::Single, /*AreaRadius*/ 0, ChargeDef.Slot);
 	Ram->Def.MovementStyle = ChargeDef.MovementStyle; // LinearCharge: si ferma ADDOSSO al primo nemico
 	Riktor->Actions.Add(Ram);
 
@@ -716,10 +722,9 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// dichiara `LinearPass`: due commenti adiacenti sulla STESSA abilita' con due stili diversi. Corretta con
 	// [D-191], che su quella distinzione fonda il criterio dello slot — un commento sbagliato li' non e' piu'
 	// solo impreciso, manda il prossimo kit dalla parte sbagliata.
-	// 🔴 Lo SLOT e' `Movement` e va DICHIARATO ([D-191]): e' un dash che fa danno a chi trapassa, non un
-	// attacco che si muove. Il criterio non e' «fa danno o no» ma «si ferma addosso o attraversa» — la
-	// carica (`LinearCharge`, `Riktor.Ram`) si ferma sul bersaglio ed e' un attacco, quindi occupa la
-	// PRINCIPALE; questa lo attraversa, quindi e' mobilita' e occupa il MOVIMENTO.
+	// 🔴 Lo SLOT e' `Movement` e va DICHIARATO ([D-191]): una mobilita' rapida occupa il movimento, e il
+	// danno non cambia che cosa ha speso. Vale per tutte e tre quelle del roster — questa, `Phase.FluidTrail`
+	// e `Riktor.Ram`, carica compresa.
 	//
 	// ⚠️ Senza la dichiarazione prendeva il `Main` di default di `MakeHeroAction`, e la conseguenza era
 	// misurabile: il bot pianificava lama + attacco base e il resolver eseguiva ENTRAMBE — due azioni

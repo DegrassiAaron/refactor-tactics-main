@@ -57,9 +57,9 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
 - Abilità di scatto di default: **Ranger → "Scatto"** (`Ranger.Dash`, 5 celle, ricarica 2, `LinearDash`);
   **Guardian → "Carica"** (`Guardian.Charge`, 4 celle, ricarica 3, `LinearCharge`, 20 danni + spinta 1);
   fallback generico "Scatto" (`Action.Dash`: 3 celle, ricarica 1). Sono la **4ª abilità** (indice 3).
-  Gli eroi del catalogo v0.1 hanno `Hero.Riktor.Ram` (`LinearCharge`, slot **principale**),
-  `Hero.Wraith.PassingBlade` (`LinearPass`, slot **movimento**) e `Hero.Phase.FluidTrail` (`LinearDash`,
-  slot **movimento**).
+  Gli eroi del catalogo v0.1 hanno `Hero.Riktor.Ram` (`LinearCharge`), `Hero.Wraith.PassingBlade`
+  (`LinearPass`) e `Hero.Phase.FluidTrail` (`LinearDash`) — **tutte e tre sullo slot movimento**
+  ([D-191](../decisions/RT_PDR_00_Decision_Log.md)).
 
   > 🔴 **Corretto il 2026-08-25**: questa riga attribuiva `LinearDash` a `PassingBlade`, che nel codice è
   > `LinearPass` dal 2026-08-08 — *attraversa* invece di fermarsi sul primo nemico. La differenza non è
