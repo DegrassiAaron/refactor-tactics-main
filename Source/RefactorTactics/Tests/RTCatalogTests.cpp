@@ -391,4 +391,25 @@ bool FRTCatalogNoFloatTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionDefDerivedFromIsEmptyByDefaultTest,
+	"RefactorTactics.Catalog.DerivedFromIsEmptyByDefault",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionDefDerivedFromIsEmptyByDefaultTest::RunTest(const FString&)
+{
+	// Il default DEVE essere vuoto: il gate legge l'assenza come «non deriva da nulla», e un default
+	// diverso da `NAME_None` darebbe a ogni azione una derivazione che nessuno ha dichiarato.
+	const FRTActionDef Vuoto;
+	TestTrue(TEXT("una definizione appena costruita non dichiara derivazione"),
+		Vuoto.DerivedFromActionId.IsNone());
+
+	// E non e' `BaseActionId`: due campi, due domande (D-033 contro «da dove vengono i numeri»). Un'azione
+	// del catalogo core non deriva da se stessa — se qualcuno fondesse i due campi, questo cadrebbe.
+	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
+	TestEqual(TEXT("l'azione core esiste, altrimenti l'asserto sotto sarebbe vacuo"),
+		Core.ActionId, FName(TEXT("Action.Charge")));
+	TestTrue(TEXT("un'azione del catalogo core non dichiara di derivare da qualcosa"),
+		Core.DerivedFromActionId.IsNone());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
