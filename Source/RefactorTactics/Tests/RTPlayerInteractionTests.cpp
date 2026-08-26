@@ -21,6 +21,7 @@
 #include "EngineUtils.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/RTCatalogLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -356,7 +357,10 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 // `Hero.Riktor.Ram` nomina **Ram**, che invece esegue. Una voce scritta al lock-in avrebbe accusato
 // l'azione sbagliata.
 //
-// I due test vanno tenuti INSIEME: senza il secondo, un `AppendLogEntry` incondizionato passerebbe il primo.
+// I tre test vanno tenuti INSIEME, e il portante e' il TERZO. Il secondo — piano legale senza scatto —
+// non attraversa il blocco: `ResolveDash` esce a `DasherCount == 0` prima di arrivarci, quindi un
+// `AppendLogEntry` incondizionato lo passerebbe. E' `NoSupersededEntryOnADashWithoutAPlannedMove` a
+// coprire quel caso, ed e' il test che il 2026-08-26 ha misurato il falso positivo su ogni scatto.
 // =====================================================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashSupersedesNormalMoveTest,
@@ -397,6 +401,7 @@ bool FRTDashSupersedesNormalMoveTest::RunTest(const FString&)
 	PC->HandleClickOnCell(DashTo);
 	U->SelectAbility(INDEX_NONE);
 	PC->HandleClickOnCell(MoveTo);
+	const int32 CelleAttese = U->PlannedWaypoints.Num();
 
 	// Le premesse: senza, il turno non conterrebbe il caso in esame.
 	if (!TestNotEqual(TEXT("premessa: lo scatto e' pianificato"), U->PlannedDashAbility, static_cast<int32>(INDEX_NONE))
@@ -436,6 +441,12 @@ bool FRTDashSupersedesNormalMoveTest::RunTest(const FString&)
 	TestEqual(TEXT("SrcCell e' da dove il movimento sarebbe partito — chiave stabile dell'unita' nel turno"),
 		Found.SrcCell, FRTCellId(1, 1));
 	TestEqual(TEXT("TgtCell e' la destinazione dichiarata e mai raggiunta"), Found.TgtCell, MoveTo);
+	// I due campi che entrano nell'ORDINE CANONICO e nel formato serializzato. Senza queste asserzioni,
+	// mettere `Priority` a zero o `Amount` a un numero qualsiasi lascia la suite verde — ed e' esattamente
+	// il difetto che la correzione del 2026-08-26 ha chiuso, non difeso da nessuno.
+	TestEqual(TEXT("Priority viene dal catalogo, non da uno zero implicito"),
+		Found.Priority, URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).Priority);
+	TestEqual(TEXT("Amount conta le celle del percorso scartato"), Found.Amount, CelleAttese);
 
 	// E l'unita' e' davvero dove l'ha portata lo scatto: la voce descrive il turno, non lo contraddice.
 	TestEqual(TEXT("l'unita' e' sulla cella dello scatto"), U->Cell, DashTo);

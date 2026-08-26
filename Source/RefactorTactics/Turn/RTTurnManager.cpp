@@ -3340,7 +3340,11 @@ void ARTTurnManager::ResolveDash()
 			// campo decorativo, e' una chiave dell'ordine canonico (`EntryLess`) ed e' serializzata in v7.
 			// Lasciata a `0` mentre l'altro produttore di `Action.Move` legge `50` dal catalogo, due voci
 			// con lo stesso `ActionId` si ordinerebbero come se venissero da azioni diverse.
-			const FRTActionDef MoveDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
+			//
+			// `static const`: `FindCoreAction` COSTRUISCE il catalogo a ogni invocazione, e questo blocco sta
+			// dentro il loop delle unita' che scattano. Stessa correzione gia' applicata in
+			// `RTPlanValidationLibrary.cpp` dopo una misura in code review.
+			static const FRTActionDef MoveDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
 			Superseded.ActionId = TEXT("Action.Move"); // cio' che NON si esegue, non lo scatto che invece esegue
 			Superseded.Priority = MoveDef.Priority;
 			// 🔴 **`SrcCell` e' la cella di PARTENZA**, non quella d'arrivo: `BuildMoveLog` la dichiara
