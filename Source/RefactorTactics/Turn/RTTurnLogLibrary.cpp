@@ -194,11 +194,59 @@ FString URTTurnLogLibrary::DescribeActionIdentity(const FRTTurnLogEntry& Entry)
 	//
 	// Il caso `BaseActionId == ActionId` non produce «X · X»: un'azione generica usata direttamente e' il
 	// profilo di se stessa, e ripeterla due volte sarebbe rumore.
+	// ⚠️ Solo il profilo, senza l'azione: una traccia deserializzata puo' portarlo, e un produttore che
+	// riempisse prima l'azione base pure. Senza questo ramo la riga direbbe `Action.BasicAttack · None`,
+	// cioe' spaccerebbe per id d'azione il `None` di un `FName` non impostato.
+	if (Entry.ActionId.IsNone())
+	{
+		return Entry.BaseActionId.ToString();
+	}
 	if (Entry.BaseActionId.IsNone() || Entry.BaseActionId == Entry.ActionId)
 	{
 		return Entry.ActionId.ToString();
 	}
 	return FString::Printf(TEXT("%s · %s"), *Entry.BaseActionId.ToString(), *Entry.ActionId.ToString());
+}
+
+namespace
+{
+	/**
+	 * La voce dichiara un'azione?
+	 *
+	 * ⚠️ Si chiede a ENTRAMBI i nomi: `ActionId` da solo lascerebbe cadere una voce che porta il profilo e
+	 * non l'azione, e la riga direbbe «non dichiarata» su un log che l'azione base ce l'ha scritta.
+	 */
+	bool HasDeclaredAction(const FRTTurnLogEntry& Entry)
+	{
+		return !Entry.ActionId.IsNone() || !Entry.BaseActionId.IsNone();
+	}
+
+	/**
+	 * L'identita' dell'azione, o cio' che si dice quando non c'e'.
+	 *
+	 * In un posto solo perche' l'idioma era ricopiato in cinque rami di `DescribeEntry`, ognuno con la sua
+	 * guardia — ed e' esattamente per questo che il sesto (`Fallback`) se l'era dimenticato: non c'era
+	 * niente di centrale da scordarsi di chiamare (`#1412`). Una categoria nuova eredita il comportamento
+	 * invece di doverlo ricordare.
+	 */
+	FString ActionIdentityOr(const FRTTurnLogEntry& Entry, const TCHAR* Missing)
+	{
+		return HasDeclaredAction(Entry)
+			? URTTurnLogLibrary::DescribeActionIdentity(Entry) : FString(Missing);
+	}
+
+	/** Il suffisso ` (azione, pN)` delle categorie che lo appendono in coda, o niente se non c'e' azione. */
+	FString ActionIdentitySuffix(const FRTTurnLogEntry& Entry)
+	{
+		if (!HasDeclaredAction(Entry))
+		{
+			return FString();
+		}
+		// `p0` non si stampa: su tracce scritte prima della v7 lo zero significa «priorita' non dichiarata».
+		return Entry.Priority != 0
+			? FString::Printf(TEXT(" (%s, p%d)"), *URTTurnLogLibrary::DescribeActionIdentity(Entry), Entry.Priority)
+			: FString::Printf(TEXT(" (%s)"), *URTTurnLogLibrary::DescribeActionIdentity(Entry));
+	}
 }
 
 TArray<FString> URTTurnLogLibrary::DescribeTurnLog(TArray<FRTTurnLogEntry> Entries)
@@ -228,6 +276,9 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::NoMap:          return TEXT("nessuna mappa autorevole");
 	case ERTActionInvalidReason::SlotOccupied:   return TEXT("lo slot e' gia' occupato");
 	case ERTActionInvalidReason::OnCooldown:     return TEXT("l'abilita' e' in ricarica");
+	// CP 13.2: la squadra non sa dove sia, e non ne ha un ricordo su cui ripiegare. Senza questo caso
+	// cadeva nel generico «non eseguibile», che e' la forma di riga che questo ramo esiste per non produrre.
+	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto");
 	default:                                     return TEXT("non eseguibile");
 	}
 }
@@ -295,11 +346,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// PERCHE' si e' mossa (#307): l'azione che ha causato lo spostamento, quando la voce la dichiara.
 		// `Action.Move` compreso — un movimento volontario e uno scatto vanno distinti, e sono la stessa
 		// categoria di voce con `ActionId` diverso.
-		const FString Cause = Entry.ActionId.IsNone()
-			? FString()
-			: (Entry.Priority != 0
-				? FString::Printf(TEXT(" (%s, p%d)"), *DescribeActionIdentity(Entry), Entry.Priority)
-				: FString::Printf(TEXT(" (%s)"), *DescribeActionIdentity(Entry)));
+		const FString Cause = ActionIdentitySuffix(Entry);
 
 		// `SupersededByDash` sta QUI e non nel ramo breve: la sua ragione d'essere e' la destinazione mai
 		// raggiunta, e un rendering che stampa solo `SrcCell` la nasconde. La coppia descrive la rotta
@@ -365,8 +412,20 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 
 		const FString Why = DescribeInvalidReason(static_cast<ERTActionInvalidReason>(Entry.Amount));
 
-		return FString::Printf(TEXT("%s -> %s: azione %s (%s)"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), What, *Why);
+		// 🔴 **QUALE azione** (`#1412`). Era l'unico ramo con un'azione da nominare che non la nominava:
+		// rendeva celle, esito e motivo — pura geometria. Due azioni annullate dalla stessa unita' nello
+		// stesso turno producevano righe identiche byte a byte, e [D-063] vieta di dedurre l'unita' da
+		// `SrcCell`, quindi non c'era modo di dire quale delle due fosse.
+		//
+		// ⚠️ Il suffisso e' CONDIZIONALE e in tondo, come `Move` e `Combat`: una riga che finisse sempre con
+		// un «non dichiarata» direbbe al giocatore una lacuna interna a ogni annullamento, e nessuna delle
+		// due cose gli serve. Dei tre produttori di questa categoria due l'azione la scrivono gia'
+		// (`RTTurnManager_Blast.cpp:294`, `RTTurnManager.cpp:3457`) e da oggi si leggono; il terzo
+		// (`FallbackEntry`, `Blast.cpp:455`) no, e riempirlo cambia l'hash delle tracce — `ActionId` entra
+		// in `VisitDiscriminatingFields` — quindi e' un cambio d'identita' da dichiarare a parte.
+		return FString::Printf(TEXT("%s -> %s: azione %s (%s)%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), What, *Why,
+			*ActionIdentitySuffix(Entry));
 	}
 
 	// Reazione: attivata o no, e perche' — mai in silenzio (CP 5.1).
@@ -381,7 +440,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		}
 		// QUALE reazione, quando l'identita' c'e': fra `Riktor.Interposition` e `Action.Intercept` cambia
 		// l'abilita' spesa e il cooldown, non solo l'esito (CP 5.5).
-		if (!Entry.ActionId.IsNone())
+		if (HasDeclaredAction(Entry))
 		{
 			return FString::Printf(TEXT("%s: %s (%s)"),
 				*CellText(Entry.SrcCell), What, *DescribeActionIdentity(Entry));
@@ -394,8 +453,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	// da un turno in cui l'azione non e' mai stata dichiarata.
 	if (Entry.Category == ERTLogCategory::Predictive)
 	{
-		const FString Who = Entry.ActionId.IsNone()
-			? FString(TEXT("previsione")) : DescribeActionIdentity(Entry);
+		const FString Who = ActionIdentityOr(Entry, TEXT("previsione"));
 
 		if (static_cast<ERTPredictiveOutcome>(Entry.Outcome) == ERTPredictiveOutcome::TriggerMatched)
 		{
@@ -412,8 +470,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	// proprio la distinzione per cui il motivo esiste.
 	if (Entry.Category == ERTLogCategory::ReactionDecision)
 	{
-		const FString Who = Entry.ActionId.IsNone()
-			? FString(TEXT("overwatch")) : DescribeActionIdentity(Entry);
+		const FString Who = ActionIdentityOr(Entry, TEXT("overwatch"));
 
 		// 🔴 **«la reazione» e non «overwatch», dal 2026-08-20.** Ogni arma di questo `switch` diceva
 		// *overwatch* alla lettera, ed era vero finche' quello era l'unico produttore di decisioni. Con
@@ -511,11 +568,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	// Con che cosa, e **con quale precedenza** (CP 11.3, formato v7). La priorita' compare solo quando la
 	// voce la dichiara: `p0` su ogni riga sarebbe rumore su tracce scritte prima della v7, dove lo zero
 	// significa «non dichiarata» e non «priorita' zero».
-	const FString Tail = Entry.ActionId.IsNone()
-		? FString()
-		: (Entry.Priority != 0
-			? FString::Printf(TEXT(" (%s, p%d)"), *DescribeActionIdentity(Entry), Entry.Priority)
-			: FString::Printf(TEXT(" (%s)"), *DescribeActionIdentity(Entry)));
+	const FString Tail = ActionIdentitySuffix(Entry);
 
 	switch (static_cast<ERTCombatOutcome>(Entry.Outcome))
 	{
@@ -1262,6 +1315,24 @@ ERTTraceComparison URTTurnLogLibrary::CompareSerializedTraces(const TArray<uint8
  * Passa dalla `HashTurnLogOrdered` di una voce sola invece di elencare i campi a mano: cosi' l'elenco
  * resta uno solo (`MixEntryFields`) e non puo' divergere in silenzio da quello vero.
  */
+bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
+{
+	if (Entry.UnitId == 0)
+	{
+		return false; // nessuna unita' dichiarata: non c'e' nessun soggetto di cui dire il ruolo
+	}
+	// Il danno ambientale: la domanda ce l'ha gia' una funzione sua, e passarci evita di duplicarne il
+	// riconoscimento della causa — che ha una rete di sicurezza e un motivo per averla.
+	if (IsEnvironmentalDamage(Entry))
+	{
+		return true;
+	}
+	// La guardia (o la copertura) scavalcata da un colpo alle spalle: la voce descrive l'orientamento del
+	// DIFENSORE, quindi il soggetto e' chi ha subito il colpo. L'attaccante e' in `SrcCell` (`#1418`).
+	return Entry.Category == ERTLogCategory::Facing
+		&& Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+}
+
 bool URTTurnLogLibrary::GoldenEntriesMatch(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
 {
 	return URTTurnLogLibrary::HashTurnLogOrdered({ A }) == URTTurnLogLibrary::HashTurnLogOrdered({ B });
