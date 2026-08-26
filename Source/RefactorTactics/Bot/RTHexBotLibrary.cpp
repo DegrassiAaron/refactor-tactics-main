@@ -1,4 +1,5 @@
 #include "Bot/RTHexBotLibrary.h"
+#include "UObject/ObjectKey.h" // FObjectKey: identita' d'asset che sopravvive al riuso d'indirizzo
 #include "Combat/RTHexCombatLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
@@ -63,16 +64,29 @@ namespace
 		// ⚠️ La chiave include `Revision` perche' la mappa cambia IN PARTITA — una porta che si apre, un
 		// ponte che compare — ed e' esattamente il campo che l'asset espone per invalidare le cache. Senza,
 		// il bot continuerebbe a misurare la mappa di due turni fa.
+		//
+		// 🔴 **E l'identita' dell'asset e' `FObjectKey`, NON il puntatore** (`#1436`). Un puntatore grezzo
+		// non distingue due oggetti diversi che il GC ha messo allo stesso indirizzo: se `Goal` coincide e
+		// `Revision` pure, la chiave regge e il bot valuta i piani sulla topologia della mappa PRECEDENTE.
+		// `FObjectKey` porta indice **e serial number**, che e' cio' che rende due oggetti distinti anche a
+		// parita' d'indirizzo.
+		//
+		// ⚠️ Non era un rischio teorico gia' prima, ma [D-196] l'ha allargato: `MakeFlatArena` muoveva
+		// `Revision` una volta per cella, quindi due arene di raggio diverso portavano numeri diversi e si
+		// discriminavano **per caso**. Ora ogni arena piatta nasce con `Revision == 1`, e quel caso non
+		// discrimina piu' niente. La suite crea decine di arene transitorie sotto `GetTransientPackage()` in
+		// un processo solo, che e' precisamente dove il riuso d'indirizzo capita.
 		struct FCampo
 		{
-			const URTHexMapAsset* Map = nullptr;
+			FObjectKey Map;
 			int32 Revision = -1;
 			FRTCellId Goal;
 			TMap<FRTCellId, int32> Passi;
 		};
 		static thread_local FCampo Cache;
 
-		if (Cache.Map == Map && Cache.Revision == Map->Revision && Cache.Goal == Goal)
+		const FObjectKey MapKey(Map);
+		if (Cache.Map == MapKey && Cache.Revision == Map->Revision && Cache.Goal == Goal)
 		{
 			return &Cache.Passi;
 		}
@@ -87,7 +101,7 @@ namespace
 			}
 		}
 
-		Cache.Map = Map;
+		Cache.Map = MapKey;
 		Cache.Revision = Map->Revision;
 		Cache.Goal = Goal;
 		Cache.Passi.Reset();

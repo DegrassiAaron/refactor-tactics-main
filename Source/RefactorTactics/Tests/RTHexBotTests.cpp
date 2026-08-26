@@ -135,6 +135,102 @@ namespace
 // Scoring
 // ---------------------------------------------------------------------------------------------------------
 
+/**
+ * **Il campo di distanze non si porta dietro la mappa sbagliata.**
+ *
+ * `StepsToGoalField` cachea una BFS con chiave `(asset, Revision, Goal)`: serve alla scala — senza,
+ * `ScorePlan` rifarebbe lo stesso calcolo un centinaio di volte per unita' per turno.
+ *
+ * 🔴 Il rischio che questo test pinna e' che due mappe DIVERSE si scambino il campo. Dopo
+ * [D-196] la `Revision` non aiuta piu' a distinguerle: ogni arena piatta nasce con `Revision == 1`, mentre
+ * prima ne portava una per cella — 127 per un raggio 6, 37 per uno da 3 — e due arene di raggio diverso si
+ * discriminavano **per caso**. Resta l'identita' dell'asset, che dev'essere una identita' vera e non un
+ * indirizzo: `FObjectKey` porta indice e serial number, quindi non confonde due oggetti che il GC ha messo
+ * allo stesso posto (`#1436`).
+ *
+ * ⚠️ Il caso del riuso d'indirizzo NON e' riproducibile in modo deterministico — servirebbe pilotare il GC
+ * e l'allocatore di UObject. Questo test prova la meta' che si puo' provare: due mappe **vive** con la
+ * stessa `Revision` e lo stesso `Goal` producono punteggi diversi se la topologia e' diversa. Cade subito
+ * se qualcuno toglie l'asset dalla chiave, che e' il modo in cui il difetto tornerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotFieldCacheKeepsMapsApartTest,
+	"RefactorTactics.Bot.PathFieldCacheKeepsMapsApart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotFieldCacheKeepsMapsApartTest::RunTest(const FString&)
+{
+	// Due arene della stessa forma, costruite in UN colpo (`ReplaceContent`) cosi' portano entrambe
+	// `Revision == 1`: e' cio' che le rende indistinguibili per tutto il resto della chiave.
+	auto MakeArena = [](bool bConMuro) -> URTHexMapAsset*
+	{
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>(GetTransientPackage());
+		TArray<FRTHexCellData> Celle;
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4))
+		{
+			FRTHexCellData Cella(Id);
+			// Muro sulla colonna q=0 con UN varco in cima (r = -4): obbliga a girarci intorno, quindi i
+			// PASSI verso il bersaglio cambiano mentre la distanza in linea d'aria no.
+			//
+			// ⚠️ Il varco serve: murata tutta, l'arena si spezza in due e `ApproachSteps` ricade su
+			// `HexDistance` — le due mappe tornerebbero a dare lo stesso numero, e il test passerebbe per
+			// il motivo sbagliato. E l'origine va murata: lasciarla libera lascia aperta la retta fra le
+			// due celle, che e' il difetto della prima stesura di questa fixture.
+			if (bConMuro && Id.X == 0 && Id.Y > -4)
+			{
+				Cella.bBlocksMovement = true;
+			}
+			Celle.Add(Cella);
+		}
+		M->ReplaceContent(Celle, {});
+		M->SortCells();
+		return M;
+	};
+
+	URTHexMapAsset* Libera = MakeArena(/*bConMuro=*/ false);
+	URTHexMapAsset* ConMuro = MakeArena(/*bConMuro=*/ true);
+	if (!TestNotNull(TEXT("arena libera"), Libera) || !TestNotNull(TEXT("arena col muro"), ConMuro))
+	{
+		return false;
+	}
+
+	// La premessa che rende il test significativo: la `Revision` NON le distingue.
+	TestEqual(TEXT("premessa: le due arene portano la stessa Revision"),
+		Libera->Revision, ConMuro->Revision);
+
+	FRTHexBotContext Ctx;
+	Ctx.Enemies.Add(FRTCellId(3, 0, 0));
+	// ⚠️ `EnemyRanges` va popolato: il termine di avvicinamento gira su
+	// `Min(Enemies.Num(), EnemyRanges.Num())`, quindi senza questa riga il ciclo NON parte, `ApproachSteps`
+	// non viene mai chiamato e i due punteggi coincidono — un test verde per il motivo sbagliato, che e'
+	// come questa fixture ha fallito la prima volta.
+	Ctx.EnemyRanges.Add(1);
+	Ctx.AttackRange = 1;
+	Ctx.AttackDamage = 10;
+
+	FRTHexBotPlan Plan;
+	Plan.FromCell = FRTCellId(-3, 0, 0);
+	Plan.DestCell = FRTCellId(-3, 0, 0);
+	Plan.TargetIndex = 0;
+	Plan.bHasAttack = false;
+
+    // L'ordine conta: la prima chiamata popola la cache, la seconda la troverebbe se la chiave non
+    // distinguesse le due mappe.
+	const int32 ScoreConMuro = URTHexBotLibrary::ScorePlan(ConMuro, Plan, Ctx);
+	const int32 ScoreLibera = URTHexBotLibrary::ScorePlan(Libera, Plan, Ctx);
+
+	AddInfo(FString::Printf(TEXT("punteggi: col muro %d, libera %d"), ScoreConMuro, ScoreLibera));
+
+	// Girare intorno al muro costa passi, e l'avvicinamento entra nel punteggio: due topologie diverse non
+	// possono dare lo stesso numero, a meno che la seconda non abbia riletto il campo della prima.
+	TestNotEqual(TEXT("due mappe diverse non condividono il campo di distanze"),
+		ScoreConMuro, ScoreLibera);
+
+	// E nel verso opposto, per la stessa mappa: il campo si RIUSA finche' la mappa non cambia.
+	TestEqual(TEXT("la stessa mappa da' lo stesso punteggio"),
+		URTHexBotLibrary::ScorePlan(Libera, Plan, Ctx), ScoreLibera);
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotFocusFireTest,
 	"RefactorTactics.HexBot.ScoreFocusFire",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
