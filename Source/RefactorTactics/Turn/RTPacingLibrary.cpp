@@ -28,8 +28,19 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 
 	for (const FRTPacingSample& S : Samples)
 	{
+		Playback.Add(S.MsPlayback); // il playback ha un cronometro suo: non dipende dall'apertura del campione
+
+		// ⚠️ Un campione NON MISURATO non e' un lock-in rapido: e' l'assenza di una misura, e va tolto da
+		// ogni statistica che risponde «quanto tempo». La sentinella e' negativa apposta, ma escluderla non
+		// e' automatico — `Unmeasured < CutoffWindowMs` e' sempre vero, quindi senza questa guardia OGNI
+		// timeout non misurato si classificherebbe come taglio del timer, che e' il segnale piu' forte che
+		// questo sommario produce (`#1421`).
+		if (S.MsToLockIn == FRTPacingSample::Unmeasured)
+		{
+			++Out.UnmeasuredSamples;
+			continue;
+		}
 		LockIn.Add(S.MsToLockIn);
-		Playback.Add(S.MsPlayback);
 
 		if (S.LockInSource == ERTLockInSource::Timeout)
 		{

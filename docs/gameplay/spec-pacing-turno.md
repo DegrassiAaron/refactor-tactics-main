@@ -124,6 +124,25 @@ Definizioni che non devono restare a interpretazione:
 | `MsToFirstInput` | Se il turno si chiude **senza alcun input**, vale `MsToLockIn` |
 | `MsSinceLastInput` | Se non c'è stato **nessun** input, vale `MsToLockIn` — quindi un turno passato inerte finisce fra gli `IdleTimeouts`, che è la classificazione corretta |
 
+### Un turno che non è stato misurato non è un turno da zero millisecondi
+
+Il cronometro parte in `BeginPacingSample()`, che chiama solo `StartPlanningTimer()` — cioè `BeginPlay`. Chi
+arriva a `LockInAndResolve()` senza passare di lì **non apre nessun campione**: sul branch sono 36 file fra
+test headless e Scenario Harness (`RTScenarioRunner`, `RTScenarioSession`).
+
+| Regola | |
+|---|---|
+| Un campione **mai aperto non viene registrato** | `ClosePacingSample()` esce senza aggiungerlo a `PacingSamples` e senza scrivere la riga CSV |
+| Perché non "registrarlo con i tempi vuoti" | Senza `BeginPacingSample()` mancano anche `TurnNumber`, `UnitsAliveTeam0/1` e `ActionsAvailable`: restano a **zero**, e zero unità vive su un turno giocato non è «non misurato», è **falso** — e si legge come una misura |
+| `FRTPacingSample::Unmeasured` (`= -1`) | Il valore con cui un tempo dichiara di non essere stato misurato. Serve perché `0` è un lock-in legittimo: usarlo per «non misurato» produce un dato plausibile e falso che nessun errore segnala |
+| Chi aggrega **deve escluderli** | `SummarizeSamples` li salta e li conta in `UnmeasuredSamples`. Senza quella guardia, `Unmeasured < CutoffWindowMs` è **sempre vero**: ogni timeout non misurato si classificherebbe come `TrueCutoffs`, cioè come il segnale più forte che il sommario produce |
+
+⚠️ **Un clamp non è una correzione.** Su Windows `FPlatformTime::Seconds()` non è un tempo dall'avvio del
+processo: porta dentro `16777216.0`. Con l'origine a `0.0`, `(Now - 0.0) * 1000.0` vale circa `1.7·10^10` e
+`FMath::RoundToInt` lo tronca in un `int32` che arriva a `2.1·10^9` — conversione fuori range, comportamento
+non definito. Clampare toglie l'UB e lascia il dato falso: `INT32_MAX` è un numero, e comunque non è un tempo
+di pianificazione. ([#1421](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1421))
+
 ### Perché `MsSinceLastInput` porta il peso
 
 Due timeout molto diversi si assomigliano, se si contano soltanto:
@@ -176,6 +195,7 @@ verrà lavorata, non duplicato.
 ```
 FRTPacingSummary  ←  URTPacingLibrary::SummarizeSamples(Samples, CutoffWindowMs)
 ├─ int32 SampleCount
+├─ int32 UnmeasuredSamples  // quanti dei SampleCount non portavano un tempo: le stat sotto li escludono
 ├─ int32 MedianMsToLockIn
 ├─ int32 P90MsToLockIn
 ├─ int32 TrueCutoffs        // Timeout && MsSinceLastInput <  CutoffWindowMs

@@ -1174,16 +1174,37 @@ void ARTTurnManager::LockInAndResolve()
 
 	// Sonda di pacing: chiude i tempi della pianificazione. Telemetria, nessun effetto sul turno.
 	{
-		const double Now = FPlatformTime::Seconds();
-		PacingCurrent.MsToLockIn = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
-		// Senza nessun input, "tempo dall'ultimo input" e' l'intera pianificazione: cosi' un turno passato
-		// inerte finisce fra le attese a vuoto e non fra i tagli, che e' la classificazione corretta.
-		PacingCurrent.MsSinceLastInput = bPacingHadInput
-			? FMath::RoundToInt((Now - PacingLastInput) * 1000.0)
-			: PacingCurrent.MsToLockIn;
-		if (!bPacingHadInput)
+		// 🔴 Se il campione non e' stato APERTO, non c'e' nessuna origine da cui misurare, e i tre campi lo
+		// dichiarano invece di calcolare una differenza da un istante che non esiste (`#1421`).
+		//
+		// Non e' un caso di confine: `BeginPacingSample()` la chiama solo `StartPlanningTimer()`, cioe'
+		// `BeginPlay`, e qui ci arrivano anche i test headless e lo Scenario Harness — che il commento
+		// sopra `EnsureMatchRoster` gia' nomina come il secondo dei due percorsi.
+		//
+		// ⚠️ Un clamp al posto della guardia toglierebbe il comportamento non definito e lascerebbe il dato
+		// falso: su Windows `FPlatformTime::Seconds()` non e' un tempo dall'avvio del processo (porta dentro
+		// `16777216.0`), quindi `(Now - 0.0) * 1000.0` vale circa `1.7e10` e `FMath::RoundToInt` lo tronca
+		// in un `int32` che arriva a `2.1e9`. Clampato sarebbe `INT32_MAX`: un numero, e comunque non un
+		// tempo di pianificazione.
+		if (!bPacingSampleOpen)
 		{
-			PacingCurrent.MsToFirstInput = PacingCurrent.MsToLockIn;
+			PacingCurrent.MsToLockIn = FRTPacingSample::Unmeasured;
+			PacingCurrent.MsSinceLastInput = FRTPacingSample::Unmeasured;
+			PacingCurrent.MsToFirstInput = FRTPacingSample::Unmeasured;
+		}
+		else
+		{
+			const double Now = FPlatformTime::Seconds();
+			PacingCurrent.MsToLockIn = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
+			// Senza nessun input, "tempo dall'ultimo input" e' l'intera pianificazione: cosi' un turno passato
+			// inerte finisce fra le attese a vuoto e non fra i tagli, che e' la classificazione corretta.
+			PacingCurrent.MsSinceLastInput = bPacingHadInput
+				? FMath::RoundToInt((Now - PacingLastInput) * 1000.0)
+				: PacingCurrent.MsToLockIn;
+			if (!bPacingHadInput)
+			{
+				PacingCurrent.MsToFirstInput = PacingCurrent.MsToLockIn;
+			}
 		}
 	}
 
@@ -5689,6 +5710,7 @@ void ARTTurnManager::BeginPacingSample()
 	PacingPlanningStart = FPlatformTime::Seconds();
 	PacingLastInput = PacingPlanningStart;
 	bPacingHadInput = false;
+	bPacingSampleOpen = true; // da qui l'origine esiste, e i tempi si possono misurare
 }
 
 void ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)
@@ -5719,6 +5741,20 @@ void ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)
 
 void ARTTurnManager::ClosePacingSample()
 {
+	// 🔴 Un campione mai APERTO non si chiude, e non e' una questione di tempi: `BeginPacingSample()` e'
+	// anche cio' che conta le unita' vive, le azioni disponibili e stampiglia `TurnNumber`. Senza di lei
+	// restano tutti a zero, e `0` unita' vive su un turno giocato non e' «non misurato» — e' falso, e si
+	// legge come una misura. Non c'e' niente di vero da salvare (`#1421`).
+	//
+	// E' il percorso di ogni test headless e dello Scenario Harness, che arrivano a `LockInAndResolve()`
+	// senza passare da `StartPlanningTimer()`: senza questa guardia ogni run headless con `bRecordPacing`
+	// aggiungeva al CSV una riga che non misurava niente.
+	if (!bPacingSampleOpen)
+	{
+		PacingCurrent = FRTPacingSample();
+		return;
+	}
+
 	PacingCurrent.MsPlayback = FMath::RoundToInt(PlaybackElapsedTotal * 1000.f);
 	PacingSamples.Add(PacingCurrent);
 	if (bRecordPacing)
@@ -5726,6 +5762,10 @@ void ARTTurnManager::ClosePacingSample()
 		AppendPacingRow(PacingCurrent);
 	}
 	PacingCurrent = FRTPacingSample();
+	// Il campione e' chiuso: il prossimo turno misura solo se qualcuno lo riapre. Senza questo, un turno
+	// aperto dal timer e uno successivo raggiunto da un altro percorso si misurerebbero entrambi
+	// dall'origine del primo.
+	bPacingSampleOpen = false;
 }
 
 void ARTTurnManager::AppendPacingRow(const FRTPacingSample& Sample)

@@ -25,7 +25,10 @@ static void RTDebugPacingCommand(const TArray<FString>& Args, UWorld* World, FOu
 	}
 
 	const FRTPacingSummary S = URTPacingLibrary::SummarizeSamples(TM->GetPacingSamples(), /*CutoffWindowMs=*/ 3000);
-	Ar.Logf(TEXT("[RT] Pacing su %d turni:"), S.SampleCount);
+	Ar.Logf(TEXT("[RT] Pacing su %d turni%s:"), S.SampleCount,
+		S.UnmeasuredSamples > 0
+			? *FString::Printf(TEXT(" (%d senza cronometro: campione mai aperto)"), S.UnmeasuredSamples)
+			: TEXT(""));
 	Ar.Logf(TEXT("[RT]   lock-in: mediana %d ms, p90 %d ms"), S.MedianMsToLockIn, S.P90MsToLockIn);
 	Ar.Logf(TEXT("[RT]   tagli veri: %d | attese a vuoto: %d"), S.TrueCutoffs, S.IdleTimeouts);
 	Ar.Logf(TEXT("[RT]   playback: mediana %d ms, saltati %d"), S.MedianMsPlayback, S.SkippedPlaybacks);

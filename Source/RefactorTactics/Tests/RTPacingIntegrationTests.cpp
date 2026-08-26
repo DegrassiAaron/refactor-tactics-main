@@ -133,6 +133,63 @@ bool FRTPacingSamplePerTurnTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Un campione MAI APERTO non si chiude con un numero inventato.
+ *
+ * 🔴 `PacingPlanningStart` vale `0.0` finche' `BeginPacingSample()` non lo scrive, e a chiamarla e' solo
+ * `StartPlanningTimer()` — cioe' `BeginPlay`. Chi arriva a `LockInAndResolve()` senza passare di li' NON e'
+ * un caso di confine: sono **36 file** fra test e harness (`RTScenarioRunner.cpp` e `RTScenarioSession.cpp`
+ * inclusi), contati sul branch. Il TurnManager di questo test non fa `DispatchBeginPlay` apposta: e' quel
+ * percorso, non una configurazione artificiosa.
+ *
+ * Su Windows `FPlatformTime::Seconds()` non e' un tempo dall'avvio del processo — sono i secondi del
+ * contatore ad alta risoluzione **piu' `16777216.0`** — quindi `(Now - 0.0) * 1000.0` sta intorno a
+ * `1.7e10`, che `FMath::RoundToInt` tronca in un `int32` il cui massimo e' `2.1e9`: conversione fuori
+ * range, comportamento non definito, in pratica un valore spazzatura o negativo.
+ *
+ * Il test NON asserisce il valore spazzatura — sarebbe pinnare un UB. Asserisce cio' che deve valere: se
+ * il campione non e' stato aperto, non finisce nella serie.
+ *
+ * ⚠️ Il turno si gioca lo stesso, e deve: la sonda e' telemetria, e `Pacing.DoesNotAffectTurnLogHash` tiene
+ * fermo che non abbia nessun ritorno verso il gameplay.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingUnopenedSampleTest,
+	"RefactorTactics.Pacing.UnopenedSampleIsDeclaredUnmeasured",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingUnopenedSampleTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexPacingWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexPacingMap(World, /*Radius=*/ 3);
+
+	ARTUnit* A1 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 1));
+	ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -1));
+
+	// ⚠️ NIENTE `DispatchBeginPlay`, ed e' il punto del test: senza, `StartPlanningTimer` non gira e il
+	// campione del primo turno non viene mai aperto. E' come ci arrivano i test headless e lo Scenario
+	// Harness.
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A1 || !B1) { DestroyHexPacingWorld(World); return false; }
+
+	TestTrue(TEXT("il turno si gioca comunque: la telemetria non ha ritorno sul gameplay"),
+		TM->GetPhase() != ERTMatchPhase::Planning || TM->GetPacingSamples().Num() == 0);
+
+	PlayOnePacingTurn(TM);
+
+	// 🔴 Nessun campione. Misurato scrivendo questo test: un campione mai aperto non ha SOLO i tempi
+	// mancanti — `BeginPacingSample()` e' anche cio' che conta le unita' vive, le azioni disponibili e
+	// stampiglia il numero di turno, quindi senza di lei restano a zero. E `0` unita' vive su un turno
+	// giocato da quattro unita' non e' «non misurato»: e' falso, e si legge come una misura.
+	//
+	// ∴ dichiarare non misurati i soli tempi non bastava. Non c'e' niente di vero da salvare in un campione
+	// che non e' mai stato aperto, e registrarlo inquinerebbe la serie con una riga di zeri — che e'
+	// esattamente il difetto che `#1421` riporta per il CSV delle run headless.
+	TestEqual(TEXT("un campione mai aperto non viene registrato"), TM->GetPacingSamples().Num(), 0);
+
+	DestroyHexPacingWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingCompositionTest,
 	"RefactorTactics.Pacing.RecordsDecisionComposition",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

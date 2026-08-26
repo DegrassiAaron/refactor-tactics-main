@@ -42,6 +42,49 @@ bool FRTPacingPercentileTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Un campione NON MISURATO non entra nelle statistiche, e viene contato a parte.
+ *
+ * 🔴 E' la meta' della correzione di `#1421` che sta a valle della sonda: dichiarare «non misurato» nel
+ * campione non serve a niente se poi l'aggregatore lo legge come un numero. Con la sentinella a `-1`:
+ *
+ * - finirebbe in `MedianMsToLockIn`/`P90MsToLockIn` come il lock-in piu' rapido mai visto, tirando giu' la
+ *   mediana di una serie in cui non ha mai smesso di non significare niente;
+ * - e soprattutto `-1 < CutoffWindowMs` e' **sempre vero**, quindi ogni timeout non misurato verrebbe
+ *   classificato `TrueCutoffs` — cioe' come il segnale che questa metrica esiste per catturare («il timer ha
+ *   tagliato una decisione in corso»). Non un outlier riconoscibile: la classificazione che si inverte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingUnmeasuredSummaryTest,
+	"RefactorTactics.Pacing.SummaryIgnoresUnmeasuredSamples",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingUnmeasuredSummaryTest::RunTest(const FString&)
+{
+	const int32 Unmeasured = FRTPacingSample::Unmeasured;
+
+	TArray<FRTPacingSample> Samples;
+	Samples.Add(MakeSample(10000, ERTLockInSource::Input,   4000));
+	Samples.Add(MakeSample(20000, ERTLockInSource::Timeout, 500));   // taglio vero
+	Samples.Add(MakeSample(30000, ERTLockInSource::Timeout, 25000)); // attesa a vuoto
+	Samples.Add(MakeSample(Unmeasured, ERTLockInSource::Timeout, Unmeasured));
+	Samples.Add(MakeSample(Unmeasured, ERTLockInSource::Input,   Unmeasured));
+
+	const FRTPacingSummary S = URTPacingLibrary::SummarizeSamples(Samples, /*CutoffWindowMs=*/ 3000);
+
+	TestEqual(TEXT("i campioni ci sono tutti: il conteggio dei turni non cambia"), S.SampleCount, 5);
+	TestEqual(TEXT("e due dicono di non essere stati misurati"), S.UnmeasuredSamples, 2);
+
+	// Mediana e p90 sui TRE misurati: nearest-rank su {10000, 20000, 30000} -> p50 = 20000, p90 = 30000.
+	// Con i non misurati dentro sarebbero 10000 e 30000: la mediana dimezzata da due valori che non sono
+	// tempi.
+	TestEqual(TEXT("mediana sui soli misurati"), S.MedianMsToLockIn, 20000);
+	TestEqual(TEXT("p90 sui soli misurati"), S.P90MsToLockIn, 30000);
+
+	TestEqual(TEXT("un taglio vero, e il timeout non misurato non lo diventa"), S.TrueCutoffs, 1);
+	TestEqual(TEXT("un'attesa a vuoto"), S.IdleTimeouts, 1);
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingEmptySummaryTest,
 	"RefactorTactics.Pacing.SummaryOfEmptySampleIsZero",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
