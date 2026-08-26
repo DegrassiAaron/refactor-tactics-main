@@ -92,6 +92,21 @@ Le **sette** azioni che ogni eroe possiede, indipendentemente dal kit
 Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
 ```
 
+> 🔵 **Sette è l'elenco canonico; a entrare nel kit di ogni unità sono cinque** — `Wait`, `Guard`, `Brace`,
+> `Overwatch`, `Interact` — e le due che mancano non mancano davvero: `Move` passa da `PlannedPath` e non da
+> uno slot azione, `BasicAttack` è **l'indice 0** del kit di ogni eroe. Le accoda
+> `URTCatalogLibrary::MakeGenericActions`, sempre **in coda**, perché `PlannedAbilityIndex` è un indice.
+>
+> `Interact` è entrata il **2026-08-26**: era fuori perché *«nessun codice risolve un'interazione»*, e quel
+> motivo è scaduto con [D-148](../decisions/RT_PDR_00_Decision_Log.md)/[D-151](../decisions/RT_PDR_00_Decision_Log.md)
+> — apre le porte, e solo quelle. Il criterio d'ammissione è sempre lo stesso: *si aggiunge la generica quando
+> l'altra metà esiste*. Storia e riserve in
+> [`../gameplay/brief-azioni-generiche-overwatch.md`](../gameplay/brief-azioni-generiche-overwatch.md).
+>
+> ⌨️ **E dal 2026-08-26 il giocatore le raggiunge tutte**: i tasti abilità sono `1`–`9` più `0`, dieci
+> posizioni contro le dieci voci del kit. Prima erano quattro, e `Overwatch`, `Guard`, `Brace`, `Wait` e la
+> reazione di tre eroi su quattro le usava solo il bot.
+
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Range | CD | Rumore | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---:|---|---|
 | `Action.Wait` | Attesa | — | Move | 20 | 100 | — | 0 | 0 | — | no |
