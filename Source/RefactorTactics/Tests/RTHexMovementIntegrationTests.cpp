@@ -14,6 +14,7 @@
 #include "Engine/Engine.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Turn/RTTurnLogLibrary.h" // DescribeEntry/DescribeInvalidReason: la voce nuova deve LEGGERSI, non solo esistere
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -957,6 +958,88 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 	// La differenza con `Action.Dash`, e l'unica cosa che questo test dimostra: qui il colpo NON parte.
 	TestEqual(TEXT("il kit ha dichiarato che costa anche la principale: nessun colpo"),
 		Foe->Health + Foe->Shield, FoeBefore);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKitDeclaredBothSlotsDeclaresTheDiscardTest,
+	"RefactorTactics.Actions.KitDeclaringBothSlotsDeclaresTheDiscard",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKitDeclaredBothSlotsDeclaresTheDiscardTest::RunTest(const FString&)
+{
+	// L'altra meta' di «cio' che il turno scarta lo dichiara chi lo scarta». Il gemello
+	// `KitCanDeclareAMobilityThatCostsBothSlots` prova che il colpo NON parte; qui si prova che il turno lo
+	// DICE, invece di far sparire l'azione principale in silenzio.
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
+
+	constexpr int32 DashTo = 3;
+	const int32 ShotRange = Runner->AttackRange;
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(DashTo + ShotRange, 0));
+	if (!TestNotNull(TEXT("Foe"), Foe)) { DestroyHexMoveWorld(World); return false; }
+
+	// Uno scatto identico ad `Action.Dash` TRANNE lo slot: e' il kit a dichiarare che costa tutto il turno.
+	URTActionData* Costly = NewObject<URTActionData>(Runner);
+	Costly->DisplayName = FText::FromString(TEXT("Scatto totale"));
+	Costly->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Costly->Def.ActionId = FName(TEXT("Hero.CostlyDash"));
+	Costly->Def.Slot = ERTActionSlot::MovementAndMain;
+	Runner->Abilities.Add(Costly);
+
+	// Catturate PRIMA della risoluzione: il resolver azzera il piano e sposta l'unita'.
+	const FRTCellId CellaDiPartenza = Runner->Cell;
+	const URTActionData* Principale = Runner->GetAbility(0);
+	if (!TestNotNull(TEXT("premessa: l'unita' ha un'azione principale"), Principale))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+	const FName IdDellaPrincipale = Principale->Def.ActionId;
+
+	Runner->PlannedDashAbility = Runner->Abilities.Num() - 1;
+	Runner->PlannedDashCell = FRTCellId(DashTo, 0);
+	Runner->PlannedAbilityIndex = 0;   // l'attacco base, che lo scatto si portera' via
+	Runner->PlannedAttackTarget = Foe;
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	int32 Cancellate = 0;
+	FRTTurnLogEntry Found;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Fallback
+			&& static_cast<ERTFallbackOutcome>(Entry.Outcome) == ERTFallbackOutcome::Cancelled
+			&& static_cast<ERTActionInvalidReason>(Entry.Amount) == ERTActionInvalidReason::SlotOccupied)
+		{
+			++Cancellate;
+			Found = Entry;
+		}
+	}
+
+	if (!TestEqual(TEXT("una voce dichiara la principale scartata"), Cancellate, 1))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("la voce sta nella fase in cui lo scarto avviene"), Found.Phase, ERTMatchPhase::Dash);
+	TestEqual(TEXT("nomina l'azione che NON si esegue"), Found.ActionId, IdDellaPrincipale);
+	TestEqual(TEXT("SrcCell e' la cella di partenza"), Found.SrcCell, CellaDiPartenza);
+	TestEqual(TEXT("TgtCell = SrcCell quando non applicabile"), Found.TgtCell, Found.SrcCell);
+
+	// E il rendering dice il motivo invece di «non eseguibile».
+	TestTrue(TEXT("il motivo si legge in italiano"),
+		URTTurnLogLibrary::DescribeEntry(Found).Contains(TEXT("slot")));
+
+	// E lo scatto e' avvenuto davvero: senza, la voce descriverebbe un turno che non c'e' stato.
+	TestEqual(TEXT("premessa: lo scatto ha spostato l'unita'"), Runner->Cell, FRTCellId(DashTo, 0));
 
 	DestroyHexMoveWorld(World);
 	return true;

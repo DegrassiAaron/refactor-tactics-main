@@ -3389,6 +3389,31 @@ void ARTTurnManager::ResolveDash()
 		// un ramo che nessun dato attraversa e' un ramo che nessun test difende.
 		if (Used->Def.Slot == ERTActionSlot::MovementAndMain)
 		{
+			// 🔴 **Anche questo scarto si DICHIARA.** Fino ad ora la principale spariva in silenzio: stessa
+			// forma del movimento scartato qui sopra, stessa ragione. Famiglia `Fallback`/`Cancelled` e non
+			// `Move`/`SupersededByDash` perche' qui l'azione non avviene AFFATTO — mentre il movimento, dopo
+			// lo scatto, l'unita' l'ha comunque compiuto. Il motivo viaggia in `Amount`, come per ogni voce
+			// di Fallback (`RTTurnManager_Blast.cpp`).
+			if (Unit->PlannedAbilityIndex != INDEX_NONE && Unit->IsAlive())
+			{
+				const URTActionData* Dropped = Unit->GetAbility(Unit->PlannedAbilityIndex);
+				if (Dropped)
+				{
+					FRTTurnLogEntry Discarded;
+					Discarded.Phase = ERTMatchPhase::Dash;
+					Discarded.Category = ERTLogCategory::Fallback;
+					Discarded.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+					Discarded.ActionId = Dropped->Def.ActionId;
+					Discarded.BaseActionId = Dropped->Def.BaseActionId; // D-033: la traccia si spiega da sola
+					Discarded.SrcCell = PreDashCell;   // chiave stabile dell'unita' nel turno
+					Discarded.TgtCell = PreDashCell;   // = SrcCell: qui non c'e' una destinazione
+					Discarded.Amount = static_cast<int32>(ERTActionInvalidReason::SlotOccupied);
+					AppendLogEntry(Discarded, Unit);
+					AddLogEvent(FString::Printf(TEXT("%s: %s"),
+						*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Discarded)));
+				}
+			}
+
 			Unit->PlannedAbilityIndex = INDEX_NONE; // lo slot principale e' speso
 			Unit->PlannedAttackTarget = nullptr;
 		}

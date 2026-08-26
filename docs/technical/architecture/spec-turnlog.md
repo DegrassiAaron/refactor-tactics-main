@@ -352,6 +352,28 @@ manderebbe il giocatore a cercare un avversario che non esiste.
 > percorso **a waypoint** scartato — `0` per un piano che dichiarava solo una destinazione senza posare
 > waypoint (il bot), dove la destinazione resta leggibile in `TgtCell`.
 
+### L'azione principale che lo slot ha scartato ([D-194](../../decisions/RT_PDR_00_Decision_Log.md), CP 38.2)
+
+Un kit può dichiarare `MovementAndMain` (D-028): una mobilità che dichiara di costare **anche** lo slot
+principale. Fino al 2026-08-26 `ResolveDash` azzerava `PlannedAbilityIndex`/`PlannedAttackTarget` **in
+silenzio** — l'altra metà del difetto che la sezione precedente chiude per il movimento: *«ciò che il turno
+scarta lo dichiara chi lo scarta»* valeva solo per uno dei due slot.
+
+**Famiglia diversa, e non per simmetria**: `Category=Fallback`, non `Category=Move`. Qui l'azione principale
+**non avviene affatto** — a differenza del movimento superato dallo scatto qui sopra, dove l'unità **si è
+comunque spostata**. È la stessa famiglia che `RTTurnManager_Blast.cpp` usa per ogni azione invalidata in
+risoluzione: `Outcome=Cancelled`, e il motivo viaggia in `Amount` come per ogni voce `Fallback`
+(`ERTActionInvalidReason`).
+
+| Causa dello scarto | Come si legge |
+|---|---|
+| Azione principale **scartata dallo slot** (`MovementAndMain`) | `Category=Fallback`, **`Phase=Dash`**, **`Outcome=Cancelled`**, `Amount=SlotOccupied`, `ActionId`/`BaseActionId` = l'azione che NON esegue, `SrcCell`/`TgtCell` = entrambe la cella di **partenza** (nessuna destinazione) |
+
+La voce si scrive solo se l'unità ha davvero un'azione principale pianificata (`PlannedAbilityIndex !=
+INDEX_NONE`) ed è ancora viva — stesso filtro che la voce di movimento superato applica qui sopra: chi muore
+sulla cella d'arrivo dello scatto (`ApplyTerrainOnEnterEffects`) non lascia una traccia che adjudica il piano
+di un morto.
+
 ### La spinta che non sposta ([D-079](../../decisions/RT_PDR_00_Decision_Log.md), `#420`)
 
 `#307` ha spiegato lo spostamento **avvenuto** e ha lasciato muto quello **mancato**, che è il caso su cui il
