@@ -3457,8 +3457,14 @@ void ARTTurnManager::ResolveDash()
 					Discarded.BaseActionId = Dropped->Def.BaseActionId; // D-033: la traccia si spiega da sola
 					Discarded.SrcCell = PreDashCell;   // chiave stabile dell'unita' nel turno
 					Discarded.TgtCell = PreDashCell;   // = SrcCell: qui non c'e' una destinazione
-					// `Priority` resta a 0 (default): a differenza della voce `Superseded` qui sopra, nessun
-					// produttore `Fallback` la imposta dal catalogo — stesso pattern di `RTTurnManager_Blast.cpp`.
+					// L'identita' COMPLETA dell'azione scartata: `ActionId` c'era gia', gli altri due no ([D-196]).
+					//
+					// ⚠️ Fino al 2026-08-26 qui c'era scritto che «nessun produttore `Fallback` imposta
+					// `Priority` dal catalogo». Da [D-196] la impostano tutti quelli del Blast, e lasciarla a
+					// zero qui avrebbe fatto ordinare la stessa famiglia su due chiavi diverse a seconda di
+					// chi ha scritto la voce — `Priority` e' un discriminante di `EntryLess`.
+					Discarded.BaseActionId = Dropped->Def.BaseActionId;
+					Discarded.Priority = Dropped->Def.Priority;
 					Discarded.Amount = static_cast<int32>(ERTActionInvalidReason::SlotOccupied);
 					AppendLogEntry(Discarded, Unit);
 					// Niente `AddLogEvent` qui: la riga arriva al combat log attraverso `ConcludeTurn`, che

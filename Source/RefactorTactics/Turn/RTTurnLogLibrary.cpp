@@ -279,6 +279,7 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	// CP 13.2: la squadra non sa dove sia, e non ne ha un ricordo su cui ripiegare. Senza questo caso
 	// cadeva nel generico «non eseguibile», che e' la forma di riga che questo ramo esiste per non produrre.
 	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto");
+	case ERTActionInvalidReason::Interrupted:    return TEXT("interrotta");
 	default:                                     return TEXT("non eseguibile");
 	}
 }
