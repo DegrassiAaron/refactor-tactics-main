@@ -849,5 +849,10 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(const FName
 	// Il trigger viene dalla semantica core: e' la domanda a cui la reazione risponde («sono stato colpito?»,
 	// «un alleato e' stato colpito?»), non un numero di bilanciamento dell'eroe.
 	Action->Def.ReactionTrigger = Core.ReactionTrigger;
+
+	// `CoreActionId` attraversava questa firma da sempre e non finiva da nessuna parte: la relazione
+	// «questa reazione d'eroe e' `Action.Counter` con un nome proprio» viveva nel solo sorgente. Ora resta
+	// nel `Def`, dove il gate della raggiungibilita' la legge.
+	Action->Def.DerivedFromActionId = CoreActionId;
 	return Action;
 }
