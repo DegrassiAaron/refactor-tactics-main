@@ -226,12 +226,16 @@ I criteri sono comandi, e i numeri di oggi sono la misura di partenza, non una s
 
 - [ ] `FRTActionDef::DerivedFromActionId` esiste, con un commento che lo distingue da `BaseActionId`
 - [ ] `MakeHeroActionFromCore` esiste, è fail-closed su ID sconosciuto, e ha un test che lo dimostra
-- [ ] Le otto derivazioni di §3 dichiarano la loro origine; le cinque `const FRTActionDef …Def =` locali
-      sono sparite dal catalogo eroi
+- [ ] Le otto derivazioni di §3 dichiarano la loro origine
 - [ ] I quattro attacchi base dichiarano `DerivedFromActionId`, e `BasicAttackDeclaresItsBaseAction` resta
       verde **senza essere modificato** — è la prova che le due semantiche non si sono sovrapposte
 - [ ] `git grep -c "FindCoreAction" -- Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp` scende da
-      **6** a **1** (resta quella dentro l'helper)
+      **6** a **5**, non a 1 — e la differenza è il punto. Quattro letture del core **restano**, perché
+      servono ai campi di **comportamento** (`PropagationLimit`, `MovementStyle`, `StructureOp`) che
+      `MakeHeroAction` non ha mai ereditato e che i chiamanti copiano a mano; solo `IgniteDef` sparisce,
+      perché `MistVeil` da `Ignite` non eredita comportamento.
+      ➕ **Unificare anche quei campi è un follow-up**, non questo lavoro: darebbe gli stessi valori che
+      le righe manuali producono oggi, ma va dimostrato campo per campo invece che assunto
 - [ ] Il gate di §4 esiste, con l'elenco dichiarato e i tre versi di fallimento
 - [ ] Il gate asserisce il verso positivo di §4, e una mutazione che svuota il roster lo fa cadere
 - [ ] Le tre mutazioni di §5 producono i tre rossi attesi, con l'implementazione committata prima
