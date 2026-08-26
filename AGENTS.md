@@ -241,7 +241,12 @@ validazione · serializzazione/replay · privacy intenti.
   rotte davvero.
   ⛔ **Resta scoperto** il caso che ha aperto la vicenda: una riga di tabella **staccata** dalla sua
   tabella da una riga vuota è invisibile a questo controllo **per costruzione** — confronta le righe di un
-  blocco fra loro, e un blocco di una riga non ha sorelle.
+  blocco fra loro, e un blocco di una riga non ha sorelle. Sul corpus di oggi sono **18** blocchi che il
+  gate **dichiara** di non confrontare, stampandoli sotto la riga di copertura: `tabelle confrontate:
+  1521`, non 1539. ⚠️ **Altri tre limiti e un falso positivo noto sono nel suo docstring** — una riga
+  indentata zittisce l'intera tabella, un difetto maggioritario fa segnalare le righe sane, e la pipe
+  finale che GFM rende facoltativa produce un rosso su markdown valido — e vanno letti prima di fidarsene,
+  come per `doc-links.ts`.
   Ciò che resta si esegue **a mano**, ed è una scelta:
   **`.github/workflows/` non esiste, e la sua assenza è deliberata.** Non introdurre CI, package manager o
   build step senza chiedere: `tools/radar/` ha **zero dipendenze** apposta.
