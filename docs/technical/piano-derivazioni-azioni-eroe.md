@@ -3,8 +3,9 @@
 **Stato**: piano approvato, non implementato · **Data**: 2026-08-26 · **Origine**:
 [#1403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1403)
 
-Owner della semantica: [`adr-0007`](../decisions/adr-0007-attacco-base-per-eroe.md). Questo piano non la
-rovescia — la realizza dove era rimasta sulla carta.
+⚠️ **Questo piano non tocca la semantica di `BaseActionId`**, che resta di
+[`adr-0007`](../decisions/adr-0007-attacco-base-per-eroe.md) e D-033: ne **affianca** una seconda, per una
+domanda diversa. La prima stesura le sovrapponeva su un campo solo, e §2 dice perché era sbagliato.
 
 ## 1. Il problema, misurato
 
@@ -14,17 +15,23 @@ interrogabili a runtime:
 | # | Via | Come si riconosce | Interrogabile |
 |---|---|---|---|
 | 1 | generica | è in `GetGenericActionIds()`, quindi nel kit di ogni unità | ✅ |
-| 2 | kit eroe | un `Hero.*` ne deriva i parametri | ❌ **oggi no** |
+| 2 | kit eroe | un `Hero.*` ne deriva i parametri | ❌ **oggi no**: nessun campo la porta |
 | 3 | base di modulo | è la base di un `Reaction.*` in `MakeReactionModules()` | ✅ |
 | 4 | scritta dal motore | il gameplay la produce da sé, senza kit | ❌ mai |
 
-🔴 **La via 2 non è nel dato.** `MakeHeroAction` copia i parametri da un `FRTActionDef` locale e lascia
-`BaseActionId` vuoto; solo `MakeHeroBasicAttack` lo scrive. La relazione «`Hero.Riktor.Ram` è una
-`Action.Charge`» esiste **nel sorgente e in nessun altro posto**: né la traccia di una partita né un test
-possono leggerla.
+🔴 **La via 2 non è nel dato, e non esiste un campo che possa portarla.** `MakeHeroAction` copia i
+parametri da un `FRTActionDef` locale e nessuno registra da dove vengano. La relazione «`Hero.Riktor.Ram`
+eredita i suoi valori da `Action.Charge`» esiste **nel sorgente e in nessun altro posto**.
 
-⚠️ **`MakeHeroReactionFromCoreAction` riceve `CoreActionId` come parametro e non lo scrive.** Il dato
-attraversa la funzione e viene buttato.
+⛔ **E `BaseActionId` non è quel campo.** [D-033](../decisions/RT_PDR_00_Decision_Log.md) gli dà un
+significato preciso — *«di quale delle sette generiche questa è il profilo»* — e `Action.Charge` non è una
+generica. Usarlo per la derivazione renderebbe indistinguibili due relazioni diverse nella stessa traccia:
+`Action.BasicAttack · ImpactShot` («profilo di una generica») e `Action.Charge · Ram` («eredita i
+parametri»). Il test `RefactorTactics.Heroes.BasicAttackDeclaresItsBaseAction` **vieta** oggi la seconda —
+asserisce che ogni abilità diversa da `Actions[0]` abbia `BaseActionId` vuoto — e ha ragione a vietarla.
+
+⚠️ **`MakeHeroReactionFromCoreAction` riceve `CoreActionId` come parametro e non lo scrive da nessuna
+parte.** Il dato attraversa la funzione e viene buttato.
 
 Conseguenza misurata il 2026-08-26 su `main`: delle 37 azioni core, **16** non hanno nessuna delle quattro
 vie, e nessun gate se ne accorge. Fra queste `Action.Shield`, che
@@ -33,25 +40,41 @@ di commento nominano e zero righe producono.
 
 ## 2. La decisione di semantica
 
-`BaseActionId` si popola per **derivazione meccanica**: l'abilità costruisce i suoi valori a partire da
-quell'azione core. Non per parentela concettuale — un attacco a linea inventato non dichiara
-`Action.LineAttack` solo perché gli somiglia.
+Un campo **nuovo**, `FRTActionDef::DerivedFromActionId`, si popola per **derivazione meccanica**:
+l'abilità costruisce i suoi valori a partire da quell'azione core. Non per parentela concettuale — un
+attacco a linea inventato non dichiara `Action.LineAttack` solo perché gli somiglia.
 
-**Perché così**: il criterio è verificabile e ha un solo lettore possibile. La parentela semantica
-darebbe una traccia più espressiva e un portatore a più azioni orfane, ma nessun test potrebbe dire se è
-giusta, e due persone la scriverebbero diversa.
+**Perché il criterio è la derivazione**: è verificabile e ha un solo lettore possibile. La parentela
+semantica darebbe un portatore a più azioni orfane, ma nessun test potrebbe dire se è giusta, e due
+persone la scriverebbero diversa.
 
-Coerente con [`adr-0007`](../decisions/adr-0007-attacco-base-per-eroe.md), che già dichiara: *«`BaseActionId`
-dice di cosa un'azione è profilo, non che ruolo ha nel kit»*. La regola del suo punto 6 — un campo entra
-solo quando esiste il consumer — resta soddisfatta: i consumatori sono **due**, `DescribeActionIdentity`
-per la traccia e il gate di §4.
+### Perché un campo nuovo e non `BaseActionId`
+
+Sono due relazioni diverse, e sovrapporle su un campo solo renderebbe la traccia ambigua:
+
+| Campo | Dice | Owner |
+|---|---|---|
+| `BaseActionId` | di quale delle **sette generiche** questa è il profilo | [D-033](../decisions/RT_PDR_00_Decision_Log.md), consumato da `DescribeActionIdentity` |
+| `DerivedFromActionId` | da quale azione **core** eredita i parametri | questo piano, consumato dal gate di §4 |
+
+Per gli attacchi base i due coincidono — `Hero.Gadget.ArcPulse` è profilo di `Action.BasicAttack` **ed**
+eredita i suoi valori da lì (`URTCatalogLibrary::MakeBasicAttack`) — e non è un caso: un profilo di una
+generica è anche una derivazione da essa. Il contrario non vale, ed è tutta la differenza: `Ram` deriva da
+`Action.Charge`, che generica non è.
+
+✅ **Guadagni della separazione**: [D-033](../decisions/RT_PDR_00_Decision_Log.md) non si rovescia, il test
+`RTHeroCatalogTests.cpp:225` resta valido **e non si tocca**, la traccia di una partita non cambia di un
+carattere, e con essa non cambiano né i golden né ciò che `RTScenarioRunner` stampa.
+
+La regola del punto 6 di [`adr-0007`](../decisions/adr-0007-attacco-base-per-eroe.md) — un campo entra
+solo quando esiste il consumer — è soddisfatta: il consumer è il gate di §4, e nasce nello stesso lavoro.
 
 ## 3. L'API che produce il dato
 
 `MakeHeroActionFromCore(HeroActionId, CoreActionId, …)` prende l'**ID** invece del `Def`: fa lui la
-`FindCoreAction`, eredita ciò che il chiamante non passa e scrive `BaseActionId`. La dichiarazione smette
-di essere una cosa da ricordarsi e diventa il modo stesso di derivare — la forma che
-`MakeHeroBasicAttack` ha già per gli attacchi base.
+`FindCoreAction`, eredita ciò che il chiamante non passa e scrive `DerivedFromActionId`. La dichiarazione
+smette di essere una cosa da ricordarsi e diventa il modo stesso di derivare — la forma che
+`MakeHeroBasicAttack` ha già per `BaseActionId`.
 
 ⛔ **Fail-closed**, come il fratello che già lo fa: un `CoreActionId` che il catalogo non conosce
 restituisce `nullptr`. Un'abilità con parametri di default e una base falsa sarebbe peggio di nessuna
@@ -73,7 +96,13 @@ abilità.
 | `Hero.Riktor.Interposition` | `Action.Intercept` | idem |
 | `Hero.Wraith.Deflection` | `Action.Deflect` | idem |
 
-Più i quattro attacchi base, già dichiarati e non toccati.
+Più i **quattro attacchi base**, che derivano anch'essi — `URTCatalogLibrary::MakeBasicAttack(fascia)`
+parte da `FindCoreAction("Action.BasicAttack")` e ne modifica portata e danno secondo la fascia. Per loro
+non si cambia il modo di costruire i parametri, che passano dalla fascia: `MakeHeroBasicAttack` guadagna
+**una riga**, `DerivedFromActionId = Action.BasicAttack`, accanto al `BaseActionId` che già scrive.
+
+∴ dodici abilità dichiarano una derivazione, cinque restano senza — `LinearDischarge`, `Overload`,
+`CircularTide`, `Reconfigure`, `FlowReaction` — e il gate legge **un campo solo**.
 
 ✅ **Controllo incrociato che dà l'inventario per completo**: a lavoro finito le azioni raggiungibili per
 via 2 e misurabili a runtime sono `BasicAttack · Electrify · Dash · Ignite · CreateCover · Charge ·
@@ -86,7 +115,8 @@ contate citate nei kit. Due metodi indipendenti, stesso numero.
 
 Misura le vie 1, 2 e 3 **via API** — nessun grep, nessuna euristica sul sorgente — e confronta il
 risultato con un elenco dichiarato nel test, dove ogni azione che il gate **non vede raggiungibile** porta
-la sua ragione.
+la sua ragione. La via 2 si legge da `DerivedFromActionId` su ogni abilità di ogni eroe del roster: è il
+campo di §2, ed è tutto ciò che il gate ha bisogno di sapere sui kit.
 
 ⚠️ **L'elenco tiene insieme tre casi diversi, e le ragioni servono a distinguerli.** Sono **24** voci:
 
@@ -146,26 +176,30 @@ non vale. Baseline statica di partenza: **1180** test dichiarati in 128 file —
 
 | Mutazione | Atteso |
 |---|---|
-| togliere `BaseActionId` da `Ram` | rosso: `Charge` non raggiungibile e non dichiarata |
+| togliere `DerivedFromActionId` da `Ram` | rosso: `Charge` non raggiungibile e non dichiarata |
 | togliere una voce dall'elenco | rosso sul verso 1 |
 | dichiarare un'azione che è raggiungibile | rosso sul verso 2 |
 
 ## 6. Rischi
 
-1. **`RTScenarioRunner.cpp:274` stampa `BaseActionId`** nelle righe di diagnosi: a lavoro finito otto
-   abilità in più mostreranno la loro base. Verificato che **nessuno scenario lo attende** — è formato di
-   stampa, non oracolo — ma è output che cambia, e va guardato eseguendo.
-2. **Collisione con [#1400](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1400)**, in volo:
-   tocca `RTTurnLog.h`, `RTTurnManager.*` e `spec-turnlog.md`. Questo piano tocca `RTHeroCatalogLibrary.*`
-   e i test — nessun file in comune **tranne il Decision Log**, dove serve una voce nuova: lì ci sono un
-   conflitto di merge sulla tabella e un `D-nnn` da riverificare prima del merge.
-3. **I golden non si muovono**: i due file contengono solo `Action.Move`, e `BaseActionId` non entra
-   nell'hash.
+1. **Collisione con [#1400](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1400)**, in volo:
+   tocca `RTTurnLog.h`, `RTTurnManager.*` e `spec-turnlog.md`. Questo piano tocca `RTHeroCatalogLibrary.*`,
+   `RTActionDef.h` e i test — nessun file in comune **tranne il Decision Log**, dove serve una voce nuova:
+   lì ci sono un conflitto di merge sulla tabella e un `D-nnn` da riverificare prima del merge.
+2. **`FRTActionDef` guadagna un campo**, ed è una struct che il catalogo costruisce a ogni chiamata. Il
+   costo è una `FName` per definizione; nessun percorso la serializza — la voce di TurnLog è una struct
+   sua, e i data asset non portano `FRTActionDef` su disco. Da verificare compilando, non deducendo.
+
+✅ **Cosa NON è più un rischio**, dopo la scelta di §2: la traccia non cambia, quindi `RTScenarioRunner`
+stampa esattamente ciò che stampa oggi, `DescribeActionIdentity` non si muove, e i due golden — che
+contengono solo `Action.Move` — restano fuori discussione per costruzione.
 
 ## 7. Documenti
 
-- [`adr-0007`](../decisions/adr-0007-attacco-base-per-eroe.md): una nota che la semantica è ora realizzata
-  su tutte le derivazioni, non solo sugli attacchi base. **Non si rovescia niente.**
+- [`adr-0007`](../decisions/adr-0007-attacco-base-per-eroe.md): una nota che accanto a `BaseActionId`
+  esiste ora `DerivedFromActionId`, e che le due domande sono diverse — *«di quale generica sono il
+  profilo»* contro *«da quale azione core eredito i valori»*. **D-033 non si tocca**, e nemmeno il test
+  `RefactorTactics.Heroes.BasicAttackDeclaresItsBaseAction`, che continua a valere parola per parola.
 - [`RT_PDR_00_Decision_Log.md`](../decisions/RT_PDR_00_Decision_Log.md): una voce per la scelta di §4 — la
   via 3 non basta finché l'equipaggiamento non arriva a un'unità — con la sua condizione di riapertura.
 - [#1403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1403): il gate chiude la sua
@@ -190,9 +224,12 @@ lavoro di oggi.
 
 I criteri sono comandi, e i numeri di oggi sono la misura di partenza, non una soglia da ricopiare.
 
+- [ ] `FRTActionDef::DerivedFromActionId` esiste, con un commento che lo distingue da `BaseActionId`
 - [ ] `MakeHeroActionFromCore` esiste, è fail-closed su ID sconosciuto, e ha un test che lo dimostra
-- [ ] Le otto derivazioni di §3 dichiarano la loro base; le cinque `const FRTActionDef …Def =` locali sono
-      sparite dal catalogo eroi
+- [ ] Le otto derivazioni di §3 dichiarano la loro origine; le cinque `const FRTActionDef …Def =` locali
+      sono sparite dal catalogo eroi
+- [ ] I quattro attacchi base dichiarano `DerivedFromActionId`, e `BasicAttackDeclaresItsBaseAction` resta
+      verde **senza essere modificato** — è la prova che le due semantiche non si sono sovrapposte
 - [ ] `git grep -c "FindCoreAction" -- Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp` scende da
       **6** a **1** (resta quella dentro l'helper)
 - [ ] Il gate di §4 esiste, con l'elenco dichiarato e i tre versi di fallimento
