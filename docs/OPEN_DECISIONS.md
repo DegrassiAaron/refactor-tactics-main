@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-24
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-25
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -1052,8 +1052,17 @@ da prima che la domanda fosse posta. Una decisione può restare ferma per un ost
 ## Aperte — framework degli status, dal quarto sorgente del 2026-08-10
 
 Origine: [triage dell'handoff Status/Control](roadmap/plans/handoff-status-control-triage-2026-08-10.md).
-Il repository ha **undici** status implementati e **nessun framework** che li governi. Queste tre vanno
+Il repository ha **undici** status implementati e **nessun framework** che li governi. Queste due vanno
 decise **prima** di scrivere la spec owner, perché ognuna cambia la forma del dato, non un valore.
+
+> ⚠️ *Diceva «**tre**», ed era vero quando la sezione è nata (`0d4ce475`): le voci erano `STA-1`, `STA-2` e
+> `STA-3`. Poi [`D-072`](decisions/RT_PDR_00_Decision_Log.md) ne ha chiuse **due** e ne ha aperta una nuova
+> — `STA-4`, che la riga qui sotto dichiara «aperta **da** `D-072`» — e il numero in prosa non ha seguito.
+> Corretto il 2026-08-25. ⚠️ **«undici» non è stato toccato, ma va letto per quello che è**:
+> `Core/RTGameplayTags.h` dichiara esattamente undici `TAG_Status_*` — contati — e *dichiarati* non è
+> sinonimo di *implementati*. Almeno uno, `Status.Electrified`, non ha nessun sistema che lo applichi
+> ([`#1324`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324)). Chi volesse il numero
+> degli status con un produttore deve misurarlo a parte: non è questo.*
 
 | ID | Domanda | Perché serve una risposta |
 |---|---|---|

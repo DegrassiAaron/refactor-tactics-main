@@ -330,7 +330,7 @@ UENUM(BlueprintType) enum class ERTMoveOutcome : uint8 {
 | Spinta **annullata** | `Category=Move`, `Phase=Blast`, **`Outcome=DisplacementResisted`**, `SrcCell == TgtCell`, e il **perché** in `Amount` — vedi sotto |
 | Movimento **superato dallo scatto** | `Category=Move`, **`Phase=Dash`**, **`Outcome=SupersededByDash`**, `ActionId=Action.Move`, `TgtCell` = la destinazione **mai raggiunta** — vedi sotto |
 
-### Il movimento che lo scatto ha superato ([D-192](../../decisions/RT_PDR_00_Decision_Log.md), CP 38.2)
+### Il movimento che lo scatto ha superato ([D-194](../../decisions/RT_PDR_00_Decision_Log.md), CP 38.2)
 
 Un giocatore può comporre **scatto + movimento normale**: due voci per lo stesso slot. `ResolveDash` fa
 vincere lo scatto e azzera `PlannedPath`/`PlannedCell` — e fino al 2026-08-26 lo faceva **in silenzio**,
