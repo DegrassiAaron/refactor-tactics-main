@@ -208,22 +208,30 @@ grep -a "tests performed" Saved/Logs/RefactorTactics.log | tail -1
 Non citare mai il numero a memoria — **misuralo**:
 
 ```bash
-grep -rhA 1 'IMPLEMENT_[A-Z_]*AUTOMATION_TEST(' Source/RefactorTactics/Tests/*.cpp \
+git grep -hA 1 'IMPLEMENT_[A-Z_]*AUTOMATION_TEST(' -- 'Source/**/Tests/*.cpp' \
   | grep -oE '"RefactorTactics\.[A-Za-z0-9_.]+"' | tr -d '"' | sort -u | wc -l
 ```
 
 Questo comando è la fonte: la documentazione che dichiara un numero diverso è indietro, non il contrario.
 
-> ⚠️ **È ancorato alla macro, e non è un dettaglio di stile.** La versione precedente cercava *qualunque*
-> stringa che cominciasse per `RefactorTactics.`, non solo i nomi dei test:
-> `RefactorTactics.Probe.LatestRunDirectory` è un `ScenarioId` dentro
-> `FRTScenarioLatestRunIsTheMostRecentTest`, usato per costruire una directory sotto `Saved/RTTests/`.
-> Dava **1184** dove i test sono **1183**, e l'unità di scarto è finita in un filtro che ha risposto
-> `0 tests performed` — indistinguibile, a prima vista, da un test che non gira più.
+> ⚠️ **Due dettagli del comando non sono stile: sono la differenza fra contare e sbagliare** — e li ha
+> trovati entrambi una code review, dopo che una prima correzione ne aveva sistemato solo uno.
+>
+> **È ancorato alla macro.** Cercare *qualunque* stringa che cominci per `RefactorTactics.` conta anche
+> ciò che test non è: `RefactorTactics.Probe.LatestRunDirectory` è uno `ScenarioId` dentro
+> `FRTScenarioLatestRunIsTheMostRecentTest`, usato per costruire una directory sotto `Saved/RTTests/`. Il
+> filtro costruito su quel nome rispose `0 tests performed`, che a prima vista è indistinguibile da un
+> test sparito, e per un momento sembrò che la suite fosse troncata.
+>
+> **E cerca in tutti i moduli**, non nel solo `RefactorTactics`: `Source/RefactorTacticsEditor/Private/Tests/`
+> dichiara `HexEditor.BrushMoveCostFollowsSurface` e `HexEditor.ReadoutDoesNotAutoUpdate`, che il filtro
+> `Automation RunTests RefactorTactics` **esegue**. Sul solo modulo principale il comando dava 1183 dove
+> la run ne fa **1185** — uno scarto in difetto, che è il verso peggiore: fa concludere che siano stati
+> eseguiti test che non esistono invece che il contrario.
 >
 > ∴ quando il conteggio non torna, prima di concludere che la run sia troncata **cerca la stringa che
-> avanza**: `grep -rn "<id-che-manca>" Source/RefactorTactics/Tests/` dice subito se è il nome di un test
-> o un dato dentro a uno.
+> avanza o il modulo che manca**: `git grep -rn "<id>" -- Source/` dice subito se è il nome di un test, un
+> dato dentro a uno, o un test che vive altrove.
 
 ### Compilare
 

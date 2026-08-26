@@ -511,9 +511,17 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 	TestTrue(TEXT("Charge e' raggiungibile: la porta Hero.Riktor.Ram"),
 		Raggiungibili.Contains(FName(TEXT("Action.Charge"))));
 
-	int32 Esaminate = 0;
-	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+	// Il catalogo si costruisce UNA volta: `GetCoreActionCatalog()` istanzia 37 `FRTActionDef` per valore,
+	// ognuno coi suoi `TArray` annidati, a ogni chiamata — e `FindCoreAction` non fa che scorrerlo. Il
+	// verso 3 qui sotto lo interrogava una volta per riga dichiarata: ventidue ricostruzioni per rispondere
+	// a domande che questo ciclo ha gia' in mano.
+	const TArray<FRTActionDef> Catalogo = URTCatalogLibrary::GetCoreActionCatalog();
+	TSet<FName> Esistenti;
+	Esistenti.Reserve(Catalogo.Num());
+
+	for (const FRTActionDef& Def : Catalogo)
 	{
+		Esistenti.Add(Def.ActionId);
 		const bool bRaggiungibile = Raggiungibili.Contains(Def.ActionId);
 		const FString* Ragione = Dichiarate.Find(Def.ActionId);
 
@@ -532,17 +540,18 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 				TEXT("%s ORA e' raggiungibile ma e' ancora dichiarata come «%s»: togli la riga."),
 				*Def.ActionId.ToString(), **Ragione));
 		}
-		++Esaminate;
 	}
 
 	// Verso 3 — una voce che non corrisponde a nessuna azione del catalogo e' un residuo.
 	for (const TPair<FName, FString>& Voce : Dichiarate)
 	{
 		TestTrue(*FString::Printf(TEXT("%s dichiarata esiste ancora nel catalogo"), *Voce.Key.ToString()),
-			URTCatalogLibrary::FindCoreAction(Voce.Key).ActionId == Voce.Key);
+			Esistenti.Contains(Voce.Key));
 	}
 
-	TestTrue(TEXT("il catalogo core non e' vuoto"), Esaminate > 30);
+	// Sul `Num()` e non su un contatore incrementato nel ciclo: quello poteva solo ripetere la stessa
+	// cosa, e si sarebbe scollato dal suo soggetto al primo `continue` che qualcuno aggiunge sopra.
+	TestTrue(TEXT("il catalogo core non e' vuoto"), Catalogo.Num() > 30);
 	return true;
 }
 

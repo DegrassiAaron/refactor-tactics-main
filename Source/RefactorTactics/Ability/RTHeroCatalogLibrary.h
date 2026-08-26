@@ -3,7 +3,13 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Ability/RTActionDef.h" // FRTActionEffectSpec: gli effetti di una reazione d'eroe sono un parametro
-#include "Ability/RTActionData.h" // ERTAbilityShape: la forma e' un parametro di MakeHeroActionFromCore
+// `ERTAbilityShape`: serve il tipo COMPLETO, non una forward declaration. Uno scoped enum con underlying
+// type fisso si puo' dichiarare in avanti, ma il default `= ERTAbilityShape::Single` nomina un
+// **enumeratore**, e per quello il tipo dev'essere definito — provato, `error C2027`.
+//
+// ✅ E il costo e' due file, non cinquantacinque: dei 55 che aprono questo header, **53** includono gia'
+// `RTActionData.h` o `RTHeroData.h`. Misurato, non stimato.
+#include "Ability/RTActionData.h"
 #include "RTHeroCatalogLibrary.generated.h"
 
 class URTHeroData;

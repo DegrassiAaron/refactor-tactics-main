@@ -130,6 +130,22 @@ namespace
 	 * funziona, e solo il TurnLog smette di poter dire che quello e' un attacco base (D-033).
 	 * `RefactorTactics.Heroes.BasicAttackDeclaresItsBaseAction` lo fa valere sul roster.
 	 */
+	/** Aggiunge al kit solo se l'abilita' esiste: entrambe le fabbriche `...FromCore` sono fail-closed e
+	 *  restituiscono `nullptr` quando l'azione core manca o non e' del tipo giusto.
+	 *
+	 *  ⚠️ Sta qui, e non in un `if` a ogni chiamata, perche' l'invariante e' UNO: **nel kit non entra un
+	 *  `nullptr`**. Ripeterlo a ogni call site lo rende una cosa da ricordarsi, ed e' gia' successo — tre
+	 *  reazioni d'eroe aggiungevano il risultato senza guardarlo, e un elemento nullo in `Actions` fa
+	 *  contare 5 a `ValidateHeroes` mentre ogni consumatore che dereferenzia crasha.
+	 */
+	void AddAbility(URTHeroData* Hero, URTActionData* Action)
+	{
+		if (Hero && Action)
+		{
+			Hero->Actions.Add(Action);
+		}
+	}
+
 	URTActionData* MakeHeroBasicAttack(const FName& Id, ERTResolutionPhase Phase, int32 Priority, int32 Range,
 		int32 Cooldown, ERTActionFallback Fallback, const TArray<FRTActionEffectSpec>& Effects,
 		ERTAbilityShape Shape = ERTAbilityShape::Single)
@@ -332,7 +348,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	// EFFETTI sono di Gadget e sono DUE — scudo 15 a se' **e** 10 danni all'attaccante: e' la reazione per cui
 	// CP 5.5 ha reso il motore componibile, e prima di allora ne sarebbe arrivata solo meta'.
 	// Cooldown 3, dal catalogo eroi: piu' lungo dei 2 di `Action.Counter`, perche' fa anche da scudo.
-	Gadget->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Hero.Gadget.ReactiveCapacitor"), TEXT("Action.Counter"),
+	AddAbility(Gadget, MakeHeroReactionFromCoreAction(TEXT("Hero.Gadget.ReactiveCapacitor"), TEXT("Action.Counter"),
 		/*Cooldown*/ 3,
 		{ FRTActionEffectSpec(ERTActionEffect::Shield, 15),
 		  FRTActionEffectSpec(ERTActionEffect::Damage, 10) }));
@@ -654,7 +670,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// La portata (2) e la priorita' (la piu' bassa fra le reazioni, cosi' la redirezione precede le altre)
 	// vengono dal core; il cooldown 3 dal catalogo eroi. L'eroe piu' resistente del roster e' quello che si
 	// mette in mezzo: e' la sua identita', non un numero in piu'.
-	Riktor->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Hero.Riktor.Interposition"), TEXT("Action.Intercept"),
+	AddAbility(Riktor, MakeHeroReactionFromCoreAction(TEXT("Hero.Riktor.Interposition"), TEXT("Action.Intercept"),
 		/*Cooldown*/ 3));
 
 	// Variante di KineticPanel (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
@@ -680,8 +696,18 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	Adaptive.Parameters.Add(TEXT("DurationTurns"), 0);
 	Adaptive.Parameters.Add(TEXT("FreeRotations"), 1);
 
-	Riktor->Actions[1]->Variants.Add(Reinforced);
-	Riktor->Actions[1]->Variants.Add(Adaptive);
+	// ⚠️ Per **ActionId**, non per indice. `Actions[1]` era il pannello finche' ogni `Add` era
+	// incondizionato; da quando `KineticPanel` puo' non entrare — l'helper e' fail-closed e restituisce
+	// `nullptr` su un'azione core assente — l'indice 1 diventerebbe `Reconfigure`, e le due varianti si
+	// attaccherebbero all'abilita' sbagliata senza che niente lo dica: `ValidateHeroes` conta le azioni,
+	// non guarda a chi appartengono le varianti.
+	if (TObjectPtr<URTActionData>* Panel = Riktor->Actions.FindByPredicate(
+			[](const TObjectPtr<URTActionData>& A)
+			{ return A && A->Def.ActionId == FName(TEXT("Hero.Riktor.KineticPanel")); }))
+	{
+		(*Panel)->Variants.Add(Reinforced);
+		(*Panel)->Variants.Add(Adaptive);
+	}
 
 	return Riktor;
 }
@@ -770,7 +796,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// CP 5.5) e resta distinta dallo scudo: uno scudo ASSORBE e si consuma, questa toglie punti al colpo.
 	// Stessa famiglia di `Action.Guard` (-15 al primo colpo) ma con un trigger invece di una stance.
 	// Cooldown 2, uguale al core: il catalogo eroi non ne dichiara uno diverso.
-	Wraith->Actions.Add(MakeHeroReactionFromCoreAction(TEXT("Hero.Wraith.Deflection"), TEXT("Action.Deflect"),
+	AddAbility(Wraith, MakeHeroReactionFromCoreAction(TEXT("Hero.Wraith.Deflection"), TEXT("Action.Deflect"),
 		/*Cooldown*/ 2));
 
 	// Indice 4 — Feint. Marca una CELLA e concede un `Reposition`: nessuna delle due meta' e' dichiarabile.
@@ -847,7 +873,11 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(const FName
 	int32 RangeCells)
 {
 	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(CoreActionId);
-	if (Core.ActionId != CoreActionId || Core.Slot != ERTActionSlot::Reaction)
+	// `IsNone()` per prima, come nel fratello: con `CoreActionId` vuoto il confronto paragona `NAME_None`
+	// con se stesso ed e' falso. Qui la guardia reggeva **per caso** — il default di `FRTActionDef::Slot`
+	// e' `Main`, quindi la seconda clausola salvava la prima — e un caso che regge per caso e' un caso che
+	// smette di reggere il giorno in cui qualcuno cambia quel default.
+	if (Core.ActionId.IsNone() || Core.ActionId != CoreActionId || Core.Slot != ERTActionSlot::Reaction)
 	{
 		// Fail-closed: un'azione core assente, o che reazione non e', darebbe un'abilita' che il pass delle
 		// reazioni non guarda — inerte in partita e silenziosa nel TurnLog.

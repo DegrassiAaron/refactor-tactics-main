@@ -6,8 +6,10 @@
 >
 > ⚠️ **Due cose che il piano dava per vere non lo erano**, e le ha trovate la code review, non l'esecuzione:
 > la guardia dell'helper era fail-**open** su `NAME_None`, e l'intero ragionamento sull'equipaggiamento
-> («nessuna unità ne riceve») era falso — `DefaultLoadoutFor` lo consegna a tutti e quattro gli eroi. La
-> correzione è in [D-195](../../decisions/RT_PDR_00_Decision_Log.md) e nella spec.
+> («nessuna unità ne riceve») era falso — `DefaultLoadoutFor` lo consegna, per **metà** del roster: è
+> all-or-nothing, e Gadget e Wraith restano senza perché i loro gadget prescritti non sono spediti. La
+> correzione è in [D-195](../../decisions/RT_PDR_00_Decision_Log.md) e nella spec — **due** correzioni,
+> perché la prima diceva «tutti e quattro» e sbagliava in senso opposto.
 
 > **Per chi esegue:** usa `superpowers:subagent-driven-development` (consigliato) o
 > `superpowers:executing-plans` per eseguire un task alla volta. Gli step usano checkbox (`- [x]`).

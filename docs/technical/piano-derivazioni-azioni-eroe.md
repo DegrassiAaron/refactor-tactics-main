@@ -33,7 +33,7 @@ asserisce che ogni abilità diversa da `Actions[0]` abbia `BaseActionId` vuoto �
 ⚠️ **`MakeHeroReactionFromCoreAction` riceve `CoreActionId` come parametro e non lo scrive da nessuna
 parte.** Il dato attraversa la funzione e viene buttato.
 
-Conseguenza misurata il 2026-08-26 su `main`: delle 37 azioni core, **17** non hanno nessuna delle quattro
+Conseguenza misurata il 2026-08-26 su `main`: delle 37 azioni core, **15** non hanno nessuna delle quattro
 vie, e nessun gate se ne accorge. Fra queste `Action.Shield`, che
 [`adr-0003`](../decisions/adr-0003-modello-azioni-v01.md) dà per arrivata, e `Action.Sprint`, che 19 righe
 di commento nominano e zero righe producono.
@@ -93,12 +93,12 @@ confronto — è quella che `URTCatalogLibrary::MakeEquipmentAction` usa da semp
 
 | Abilità | Deriva da | Oggi |
 |---|---|---|
-| `Hero.Gadget.ConductiveNode` | `Action.Electrify` | `Def` locale, `RTHeroCatalogLibrary.cpp:307` |
-| `Hero.Phase.FluidTrail` | `Action.Dash` | `Def` locale, `:453` |
-| `Hero.Phase.MistVeil` | `Action.Ignite` | `Def` locale, `:477` |
-| `Hero.Riktor.KineticPanel` | `Action.CreateCover` | `Def` locale, `:589` |
-| `Hero.Riktor.Ram` | `Action.Charge` | `Def` locale, `:619` |
-| `Hero.Gadget.ReactiveCapacitor` | `Action.Counter` | riceve l'ID e lo butta, `:800` |
+| `Hero.Gadget.ConductiveNode` | `Action.Electrify` | `Def` locale in `MakeGadget` |
+| `Hero.Phase.FluidTrail` | `Action.Dash` | `Def` locale in `MakePhase` |
+| `Hero.Phase.MistVeil` | `Action.Ignite` | `Def` locale in `MakePhase` |
+| `Hero.Riktor.KineticPanel` | `Action.CreateCover` | `Def` locale in `MakeRiktor` |
+| `Hero.Riktor.Ram` | `Action.Charge` | `Def` locale in `MakeRiktor` |
+| `Hero.Gadget.ReactiveCapacitor` | `Action.Counter` | riceve l'ID e lo butta, in `MakeHeroReactionFromCoreAction` |
 | `Hero.Riktor.Interposition` | `Action.Intercept` | idem |
 | `Hero.Wraith.Deflection` | `Action.Deflect` | idem |
 
@@ -136,15 +136,20 @@ la sua ragione. La via 2 si legge da **`DerivedFromActionId` e `BaseActionId`** 
 eroe del roster: il primo copre le otto derivazioni di §3, il secondo gli attacchi base — che di
 `Action.BasicAttack` sono il profilo, non una derivazione di parametri.
 
-⚠️ **L'elenco tiene insieme tre casi diversi, e le ragioni servono a distinguerli.** Sono **24** voci:
+⚠️ **L'elenco tiene insieme tre casi diversi, e le ragioni servono a distinguerli.** Sono **22** voci —
+il numero si conta sul codice, non qui: `awk '/Dichiarate/,/};/' RTCatalogTests.cpp | grep -c 'TEXT("Action.'`.
 
-- **16 orfane vere**, senza nessuna delle quattro vie: le 15 `NonAssegnata` più `Sprint`;
-- **5 raggiungibili per una via che un test non può vedere** (`ScrittaDalMotore`): la via 4 è una
-  proprietà del codice sorgente, non del dato, e nessuna API la espone;
-- **3 raggiungibili per una via che non porta in partita** (`ModuloNonConsegnabile`): `Anchor`, `Evade` e
-  `Purge` la via 3 **ce l'hanno** — il paragrafo qui sotto spiega perché non basta.
+- **14 aspettano il loro eroe**: contenuto che diventerà raggiungibile quando entrerà chi lo usa. Non
+  sono difetti, ed è la ragione per cui sono dichiarate invece che corrette;
+- **5 sono scritte dal motore**: la via 4 è una proprietà del codice sorgente e nessuna API la espone,
+  quindi un test non può vederla;
+- **3 hanno un pezzo che le concede** e nessun eroe che lo porta — `Anchor`, `Purge`, `HeavyAttack`.
 
-Le tre categorie invecchiano in modo diverso, ed è la ragione per cui non è un elenco solo.
+⚠️ **La prima stesura di questo blocco ne contava 24 ed elencava `Evade` fra le non consegnabili.**
+Entrambe sbagliate: `Action.Evade` è la base di `Reaction.HazardEscape`, che è il modulo di default di
+Phase, quindi è raggiungibile — dichiararla oggi farebbe scattare il **verso 2** del gate.
+
+Le categorie invecchiano in modo diverso, ed è la ragione per cui non è un elenco solo.
 
 | Ragione | Quante il 2026-08-26 | Significato |
 |---|---|---|
@@ -157,10 +162,19 @@ Le tre categorie invecchiano in modo diverso, ed è la ragione per cui non è un
 
 ⚠️ **Questa sezione diceva il falso, e la correzione è arrivata da una code review.** Sosteneva che i
 moduli non arrivassero mai a un'unità perché «`EquipmentId` vive in cinque file e `ARTUnit` non ha il
-campo». Il canale esiste e non nomina mai `EquipmentId`: `DefaultLoadoutFor` assegna un gadget e un
-modulo di default **a tutti e quattro gli eroi**, `SetupHexMatch` li consegna, e
-`Heroes.SpawnedUnitCarriesItsDefaultLoadout` — che era fra i test verdi citati come prova — asserisce
-proprio che «i pezzi che CONCEDONO un'azione sono in campo».
+campo». Il canale esiste e non nomina mai `EquipmentId`: `DefaultLoadoutFor` prescrive un gadget e un
+modulo per ogni eroe, `SetupHexMatch` li consegna, e `Heroes.SpawnedUnitCarriesItsDefaultLoadout` —
+che era fra i test verdi citati come prova — asserisce proprio che «i pezzi che CONCEDONO un'azione
+sono in campo».
+
+⚠️ **Ma copre metà roster, non tutto**, e la prima correzione di questa sezione diceva «tutti e quattro»:
+anche quella era sbagliata, in senso opposto. `DefaultLoadoutFor` è **all-or-nothing** — se un pezzo
+prescritto non è spedito restituisce `{}` invece di un loadout parziale, perché `ValidateLoadout`
+rifiuterebbe l'insieme incompleto tre livelli più in là. §4 assegna `Gadget.Insulator` a Gadget e
+`Gadget.Sensor` a Wraith, e `MakeGadgets` non costruisce né l'uno né l'altro: **Gadget e Wraith non hanno
+loadout**, e la terza via copre solo Phase e Riktor. Lo dicono `RTGameMode.cpp` e il commento di
+`RTHeroSpawnTests.cpp` — *«Metà roster non ha un loadout»* — che sono le due fonti che avrei dovuto
+leggere prima di scrivere «tutti e quattro».
 
 Ne seguivano due errori di classificazione: `Action.CreateWater` è portata da `Gadget.Sprinkler`, default
 di Phase — e il catalogo lo chiama «l'unico produttore d'acqua che il roster può portare in campo» — e
@@ -252,21 +266,22 @@ lavoro di oggi.
 
 I criteri sono comandi, e i numeri di oggi sono la misura di partenza, non una soglia da ricopiare.
 
-- [ ] `FRTActionDef::DerivedFromActionId` esiste, con un commento che lo distingue da `BaseActionId`
-- [ ] `MakeHeroActionFromCore` esiste, è fail-closed su ID sconosciuto, e ha un test che lo dimostra
-- [ ] Le otto derivazioni di §3 dichiarano la loro origine
-- [ ] `MakeHeroBasicAttack` **non è stata toccata**, e `BasicAttackDeclaresItsBaseAction` resta verde
+- [x] `FRTActionDef::DerivedFromActionId` esiste, con un commento che lo distingue da `BaseActionId`
+- [x] `MakeHeroActionFromCore` esiste, è fail-closed su ID sconosciuto, e ha un test che lo dimostra
+- [x] Le otto derivazioni di §3 dichiarano la loro origine
+- [x] `MakeHeroBasicAttack` **non è stata toccata**, e `BasicAttackDeclaresItsBaseAction` resta verde
       senza essere modificato — è la prova che le due semantiche non si sono sovrapposte
-- [ ] `git grep -c "FindCoreAction" -- Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp` scende da
-      **6** a **5**, non a 1 — e la differenza è il punto. Quattro letture del core **restano**, perché
-      servono ai campi di **comportamento** (`PropagationLimit`, `MovementStyle`, `StructureOp`) che
-      `MakeHeroAction` non ha mai ereditato e che i chiamanti copiano a mano; solo `IgniteDef` sparisce,
-      perché `MistVeil` da `Ignite` non eredita comportamento.
-      ➕ **Unificare anche quei campi è un follow-up**, non questo lavoro: darebbe gli stessi valori che
-      le righe manuali producono oggi, ma va dimostrato campo per campo invece che assunto
-- [ ] Il gate di §4 esiste, con l'elenco dichiarato e i tre versi di fallimento
-- [ ] Il gate asserisce il verso positivo di §4, e una mutazione che svuota il roster lo fa cadere
-- [ ] Le tre mutazioni di §5 producono i tre rossi attesi, con l'implementazione committata prima
-- [ ] Suite `RefactorTactics` verde, con `Test Completed` confrontato col totale e non con zero
-- [ ] `node tools/radar/doc-links.ts --check` e `node tools/radar/doc-tables.ts --check` escono `0`
-- [ ] La voce del Decision Log esiste, e il suo `D-nnn` è stato riverificato contro le PR aperte
+- [x] `git grep -c "FindCoreAction" -- Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp` resta
+      **6**, e il criterio che diceva «scende a 5» era **sbagliato**: `IgniteDef` è sparita come previsto,
+      ma `MakeHeroActionFromCore` ha una `FindCoreAction` propria, quindi il totale non si muove. Il
+      numero giusto da guardare sono le letture *nei chiamanti*, che scendono da **5** a **4** —
+      `git grep -c "const FRTActionDef .*Def = URTCatalogLibrary::FindCoreAction"`.
+      ⚠️ Quattro di quelle quattro cercano la stessa azione che l'helper cerca di nuovo: è una
+      **doppia lookup** dichiarata e non risolta, perché toglierla vuol dire far restituire all'helper il
+      `Def` risolto, e quella è una firma diversa da quella approvata
+- [x] Il gate di §4 esiste, con l'elenco dichiarato e i tre versi di fallimento
+- [x] Il gate asserisce il verso positivo di §4, e una mutazione che svuota il roster lo fa cadere
+- [x] Le tre mutazioni di §5 producono i tre rossi attesi, con l'implementazione committata prima
+- [x] Suite `RefactorTactics` verde, con `Test Completed` confrontato col totale e non con zero
+- [x] `node tools/radar/doc-links.ts --check` e `node tools/radar/doc-tables.ts --check` escono `0`
+- [x] La voce del Decision Log esiste, e il suo `D-nnn` è stato riverificato contro le PR aperte
