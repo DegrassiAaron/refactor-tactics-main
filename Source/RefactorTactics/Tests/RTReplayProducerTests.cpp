@@ -1,5 +1,5 @@
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Replay/RTReplayRecorderLibrary.h"
 #include "Replay/RTReplayManifest.h"
 #include "Turn/RTTurnManager.h"
@@ -12,7 +12,6 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Turn/RTMatchStateHash.h"
 #include "Kismet/GameplayStatics.h"

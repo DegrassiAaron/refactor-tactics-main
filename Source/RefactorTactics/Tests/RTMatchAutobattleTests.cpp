@@ -11,7 +11,7 @@
 // perche' un'estensione che cambia il default sarebbe una regressione mascherata da feature.
 
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
+#include "Turn/RTMatchSetupLibrary.h"
 #include "RTWorldFixtures.h"
 #include "RTGameMode.h"
 #include "Ability/RTHeroCatalogLibrary.h"

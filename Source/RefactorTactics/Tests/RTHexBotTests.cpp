@@ -1,5 +1,5 @@
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Bot/RTHexBotLibrary.h"
 #include "Combat/RTCombatLibrary.h" // LowCoverDamageReduction: il bonus direzionale si confronta col catalogo

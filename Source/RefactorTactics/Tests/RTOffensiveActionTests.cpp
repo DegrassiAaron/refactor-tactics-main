@@ -1,5 +1,5 @@
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionDef.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatLibrary.h"
@@ -9,7 +9,6 @@
 #include "Core/RTGameplayTags.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTActionQueue.h"

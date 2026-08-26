@@ -20,12 +20,11 @@
 // comunque difendibile — cio' che il test pinna e' il PRODUTTORE di questi trigger, non il catalogo in se'.
 
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTCatalogLibrary.h" // `Action.Overwatch`: il produttore che CP 14.5 aggiunge al catalogo core
 #include "Combat/RTOffensiveActionLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "Perception/RTPerceptionLibrary.h"

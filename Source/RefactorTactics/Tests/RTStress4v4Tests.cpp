@@ -10,7 +10,7 @@
 // col 2v2: due dimensioni non distinguono «funziona per ogni N» da «funziona per i due N che ho provato».
 
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
+#include "Turn/RTMatchSetupLibrary.h"
 #include "RTWorldFixtures.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -19,7 +19,6 @@
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTMatchStateHash.h"

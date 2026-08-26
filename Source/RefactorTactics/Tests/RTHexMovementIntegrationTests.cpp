@@ -1,5 +1,5 @@
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLog.h"
 #include "Unit/RTUnit.h"

@@ -16,7 +16,6 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"

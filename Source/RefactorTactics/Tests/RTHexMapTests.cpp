@@ -1,5 +1,5 @@
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
@@ -324,12 +324,7 @@ bool FRTHexMapCenterCellTest::RunTest(const FString&)
 	URTHexMapAsset* Centered = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
 	TestTrue(TEXT("esagono centrato sull'origine: centro (0,0)"), Centered->GetCenterCell() == FRTCellId(0, 0, 0));
 
-	URTHexMapAsset* Offset = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(5, -2, 0), 2))
-	{
-		Offset->AddOrUpdateCell(FRTHexCellData(Id));
-	}
-	Offset->SortCells();
+	URTHexMapAsset* Offset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 2, FRTCellId(5, -2, 0));
 	TestTrue(TEXT("mappa spostata: il centro la segue"), Offset->GetCenterCell() == FRTCellId(5, -2, 0));
 
 	URTHexMapAsset* Empty = NewObject<URTHexMapAsset>();

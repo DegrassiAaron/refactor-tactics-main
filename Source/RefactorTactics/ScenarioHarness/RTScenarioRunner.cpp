@@ -1,11 +1,10 @@
 #include "ScenarioHarness/RTScenarioRunner.h"
-#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
+#include "Turn/RTMatchSetupLibrary.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioSession.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
@@ -45,7 +44,10 @@ namespace
 	 */
 	URTHexMapAsset* BuildArena(UWorld* World, int32 Radius, const TArray<FRTScenarioCell>& Overrides)
 	{
-		URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
+		// `MakeFlatArena` torna nullptr per un raggio negativo, dove `NewObject` dava sempre un asset: senza
+		// questa guardia le righe qui sotto lo dereferenziano.
+		URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(World, Radius);
+		if (!Map) { return nullptr; }
 
 		// Poi le modifiche dello scenario: ostacoli, muri, terreno costoso. Applicate DOPO l'arena piena, cosi'
 		// una cella elencata due volte vince l'ultima e non dipende dall'ordine di generazione.

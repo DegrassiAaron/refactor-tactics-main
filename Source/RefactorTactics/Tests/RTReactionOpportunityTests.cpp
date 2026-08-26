@@ -11,7 +11,7 @@
 // del resolver invece che come cio' che e': un identificatore che non e' una funzione del suo stato.
 
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Unit/RTUnit.h"

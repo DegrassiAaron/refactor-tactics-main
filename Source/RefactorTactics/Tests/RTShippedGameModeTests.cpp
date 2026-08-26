@@ -12,11 +12,10 @@
 // i byte del package invece del valore risolto — ed e' la ragione per cui il criterio 5 esiste separato.
 
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Engine/World.h"
 #include "Frontend/RTStartupReport.h"
 #include "Kismet/GameplayStatics.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "RTGameMode.h"

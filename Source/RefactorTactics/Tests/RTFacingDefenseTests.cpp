@@ -1,12 +1,11 @@
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexCoverLibrary.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
