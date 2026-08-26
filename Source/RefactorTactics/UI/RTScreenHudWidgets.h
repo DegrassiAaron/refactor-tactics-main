@@ -62,6 +62,20 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 
+	/**
+	 * Riprova ad acquisire il contesto finche' non c'e'.
+	 *
+	 * 🔴 **Il widget puo' nascere PRIMA del `TurnManager`, e nel percorso normale succede.**
+	 * `ARTGameMode::BeginPlay` chiama `EnterMatch()` — che presenta il HUD — alla riga 295, e spawna il
+	 * `ARTTurnManager` alla riga 337. `NativeConstruct` cerca un actor che non esiste ancora, trova
+	 * `nullptr`, e senza questo tick resterebbe senza contesto **per sempre**: `HasMatchContext()` falso,
+	 * tutte le viste neutre, e a schermo «—» al posto di «Round 1/12».
+	 *
+	 * ⚠️ **Il costo e' limitato per costruzione**: la ricerca gira solo finche' `TurnManager` e' invalido,
+	 * cioe' i pochi frame iniziali. Appena il contesto c'e', questo tick non fa piu' nulla.
+	 */
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
 	/** Risolve il contesto dall'owning player. Chiamata da `NativeConstruct`; ripetibile. */
 	void AcquireMatchContext();
 

@@ -924,6 +924,34 @@ git commit -m "feat(hud): il dock delle azioni sa mostrare lo stato neutro"
 
 ---
 
+## Task 7-bis — La duplicazione fra §4.1 e §4.2
+
+> 🆕 **Emersa dal primo playtest del Task 2** (2026-08-26). Non era prevista, e va decisa qui perché
+> nessun documento la copre.
+
+`progettazione-hud.md` assegna **turno, fase e timer al §4.1** — cioè a `WBP_RT_TurnHeader`. Ma `ARTHUD`
+li **disegna già** in Canvas: la riga `Round 1/12 - Pianificazione - 12s - Velocita': x1` è viva in partita
+oggi. Quando il TurnHeader avrà i suoi binding, a schermo ci saranno **due contatori di round**.
+
+⚠️ **Non è il caso delle barre.** #613 aveva previsto una sovrapposizione voluta — barra ancorata sopra
+l'unità (§4.2) *e* roster (§4.1) — perché rispondono a domande diverse: «quanto è ferito **quello lì**» e
+«quanto è ferito **chi comando**». L'header non ha una giustificazione simile: «Round 3/12» risponde alla
+stessa domanda ovunque sia disegnato.
+
+**Decisione del 2026-08-26**: si risolve **dopo** i sei widget, non adesso. Guardando lo schermo pieno —
+header, roster, pannello unità e dock insieme — l'ingombro reale è visibile e la stessa domanda si
+ripropone per altri elementi. Tagliare adesso una riga di `ARTHUD` significherebbe deciderlo al buio.
+
+Quando ci si arriva, i candidati da confrontare sono:
+
+- `RTHUD.cpp:403` — round su `RoundLimit`
+- `:418-430` — fase e timer di planning
+- la riga di velocità di playback (`x1 (V)`), che è **debug** e ha regole sue
+
+⚠️ Toccare `ARTHUD` richiede di riverificare `RefactorTactics.HUD.*`, che copre quelle 910 righe.
+
+---
+
 ## Task 8 — Chiusura: suite, `PIE-V01-HUD`, e i documenti che mentono
 
 **Files:**
