@@ -44,6 +44,27 @@ namespace
 		}
 	}
 
+	/**
+	 * Esagono pieno senza ostacoli, per i test che misurano una REGOLA del piano.
+	 *
+	 * `MakeTestArena` ha muri centrali, e una cella bloccata fa rifiutare il waypoint dal pathfinding prima
+	 * che la regola in esame abbia voce: un test cosi' resta verde anche togliendo cio' che dice di
+	 * difendere. Misurato il 2026-08-26 — `«Waypoint rifiutato: cella bloccata»` con la validazione
+	 * disattivata, e il test verde lo stesso.
+	 */
+	ARTHexMapActor* SpawnCleanInteractionMap(UWorld* World, int32 Radius)
+	{
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+		{
+			M->AddOrUpdateCell(FRTHexCellData(Id));
+		}
+		M->SortCells();
+		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+		Actor->MapAsset = M;
+		return Actor;
+	}
+
 	ARTUnit* SpawnInteractionUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell)
 	{
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
@@ -302,6 +323,127 @@ bool FRTPlayerDashIsLinearTest::RunTest(const FString&)
 	PC->HandleClickOnCell(Aligned);
 	TestEqual(TEXT("una destinazione in linea diventa un piano di scatto"), Unit->PlannedDashAbility, DashIdx);
 	TestTrue(TEXT("verso la cella cliccata"), Unit->PlannedDashCell == Aligned);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+
+// =====================================================================================================
+// CP 38.2 — il lato GIOCATORE passa dal validatore del piano.
+//
+// Il bot ci passa dal 2026-08-25; il giocatore no, ed era l'ultimo consumatore scoperto. Misurato prima di
+// scrivere questi test: armando una mobilita', cliccando una cella e poi DISARMANDO per posare waypoint, il
+// piano risultava `[Ram(Movimento), Action.Move(Movimento)]` — due movimenti, `SlotOccupied`. Il resolver lo
+// assorbiva in silenzio (`ResolveDash` azzera `PlannedPath`), ma `SetPreviewPath` intanto disegnava sulla
+// mappa una rotta che l'unita' non avrebbe mai percorso.
+//
+// ⚠️ I due casi vanno TENUTI INSIEME: un rifiuto che rifiuta tutto sarebbe verde per il motivo sbagliato, e
+// il caso che un `if` ingenuo romperebbe e' il secondo — correggere il proprio piano.
+// =====================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerDashThenMoveIsRejectedTest,
+	"RefactorTactics.PlayerInteraction.MovementSlotTakenRejectsTheWaypoint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerDashThenMoveIsRejectedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnCleanInteractionMap(World, /*Radius=*/ 6);
+
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	PC->SelectActorForTest(U);
+
+	const int32 DashIdx = U->FindDashAbilityIndex();
+	if (!TestNotEqual(TEXT("premessa: l'eroe ha una mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// Lo scatto si pianifica: lo slot movimento e' libero.
+	U->SelectAbility(DashIdx);
+	PC->HandleClickOnCell(FRTCellId(1, 2));
+	if (!TestNotEqual(TEXT("premessa: lo scatto e' stato pianificato"),
+		U->PlannedDashAbility, static_cast<int32>(INDEX_NONE)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// Ora il giocatore torna allo stato neutro (D-128) e prova a posare un waypoint: lo slot movimento e'
+	// gia' speso dallo scatto, quindi il waypoint NON si posa.
+	U->SelectAbility(INDEX_NONE);
+	PC->HandleClickOnCell(FRTCellId(2, 1));
+
+	TestEqual(TEXT("il waypoint non si posa: lo slot movimento e' occupato dallo scatto"),
+		U->PlannedWaypoints.Num(), 0);
+	TestEqual(TEXT("e la destinazione resta la cella attuale"), U->PlannedCell, U->Cell);
+	TestNotEqual(TEXT("lo scatto pianificato non viene toccato dal rifiuto"),
+		U->PlannedDashAbility, static_cast<int32>(INDEX_NONE));
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerCanStillFixHisOwnPlanTest,
+	"RefactorTactics.PlayerInteraction.CorrectingYourOwnPlanIsNotRejected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerCanStillFixHisOwnPlanTest::RunTest(const FString&)
+{
+	// Il caso che un `if` ingenuo — «se c'e' uno scatto, niente waypoint» — romperebbe senza accorgersene:
+	// cambiare idea sul PROPRIO piano non e' occupare due volte uno slot. Vale nei due versi.
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnCleanInteractionMap(World, /*Radius=*/ 6);
+
+	ARTUnit* U = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(1, 1));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita'"), U) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	PC->SelectActorForTest(U);
+
+	// 1. Allungare un percorso: due waypoint di fila. Il secondo non e' un secondo movimento.
+	U->SelectAbility(INDEX_NONE);
+	PC->HandleClickOnCell(FRTCellId(1, 2));
+	const int32 DopoIlPrimo = U->PlannedWaypoints.Num();
+	PC->HandleClickOnCell(FRTCellId(2, 2));
+
+	TestEqual(TEXT("il primo waypoint si posa"), DopoIlPrimo, 1);
+	TestEqual(TEXT("e il secondo lo allunga invece di essere rifiutato"), U->PlannedWaypoints.Num(), 2);
+
+	// 2. Cambiare la destinazione dello scatto: ri-cliccare con la mobilita' armata sostituisce, non somma.
+	ARTUnit* V = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-1, -1));
+	if (!TestNotNull(TEXT("seconda unita'"), V)) { DestroyInteractionWorld(World); return false; }
+	PC->SelectActorForTest(V);
+
+	const int32 DashIdx = V->FindDashAbilityIndex();
+	if (!TestNotEqual(TEXT("premessa: mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	V->SelectAbility(DashIdx);
+	PC->HandleClickOnCell(FRTCellId(-1, 0));
+	const FRTCellId Prima = V->PlannedDashCell;
+	PC->HandleClickOnCell(FRTCellId(0, -1));
+
+	TestNotEqual(TEXT("lo scatto resta pianificato"), V->PlannedDashAbility, static_cast<int32>(INDEX_NONE));
+	TestTrue(TEXT("e la destinazione e' cambiata: si sostituisce, non si somma"),
+		V->PlannedDashCell != Prima);
 
 	DestroyInteractionWorld(World);
 	return true;

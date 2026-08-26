@@ -16,6 +16,7 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTPlanValidationLibrary.h" // CP 38.2: la legalita' del piano si CHIEDE, non si riscrive qui
 // CP 46.6 (#941): `ESC` apre il menu di pausa, e il contesto `Modal` del puntatore LEGGE lo stato del
 // navigatore invece di tenerne una copia.
 #include "Frontend/RTFrontendNavigator.h"
@@ -45,6 +46,51 @@ namespace
 			OutAsset = HexMap->GetHexContext(OutOrigin, OutHexSize, OutLayerHeight);
 		}
 		return HexMap;
+	}
+
+	/**
+	 * Il piano resterebbe legale accettando questa voce? Risponde il validatore, non un `if` scritto qui.
+	 *
+	 * **Perche' la candidata si aggiunge SOLO se lo slot e' ancora libero.** Ogni input del giocatore o
+	 * aggiunge una voce o ne **sostituisce** una: ri-cliccare con lo scatto gia' armato cambia la
+	 * destinazione, non pianifica un secondo scatto; posare un waypoint quando il percorso esiste gia' lo
+	 * allunga, non aggiunge un secondo movimento. Aggiungere la candidata in quei casi produrrebbe un
+	 * `SlotOccupied` contro se stessi — un rifiuto che nega al giocatore di correggere il proprio piano.
+	 *
+	 * ⚠️ Il verdetto arriva da `URTPlanValidationLibrary`, che e' l'unica autorita' (CP 38.2): qui non si
+	 * decide che cosa sia legale, si chiede. Un `if` locale del tipo *«se c'e' uno scatto, niente
+	 * waypoint»* sarebbe la seconda verita' che [D-134] e `#142` sono stati aperti per togliere — e il
+	 * giorno in cui un kit dichiarasse `MovementAndMain`, il validatore lo saprebbe e l'`if` no.
+	 */
+	bool PianoRestaLegale(const ARTUnit* Unit, const FRTActionDef& Candidata, bool bSlotGiaOccupatoDaLei,
+		FRTPlanValidation& OutVerdetto)
+	{
+		if (!Unit)
+		{
+			return true;
+		}
+		TArray<FRTPlannedAction> Ipotesi = URTPlanValidationLibrary::MakePlanFor(Unit);
+		if (!bSlotGiaOccupatoDaLei)
+		{
+			FRTPlannedAction Voce;
+			Voce.Def = Candidata;
+			Ipotesi.Add(Voce);
+		}
+		OutVerdetto = URTPlanValidationLibrary::ValidatePlan(
+			FRTHexSimUnit(0, Unit->Cell, Unit->GetEffectiveMoveRange(), /*bAlive*/ true), Ipotesi);
+		return OutVerdetto.bLegal;
+	}
+
+	/** Il motivo del rifiuto in forma leggibile, per il log: un rifiuto muto e' indistinguibile da un difetto. */
+	const TCHAR* MotivoDelRifiuto(ERTActionInvalidReason Reason)
+	{
+		switch (Reason)
+		{
+		case ERTActionInvalidReason::SlotOccupied:               return TEXT("lo slot e' gia' occupato");
+		case ERTActionInvalidReason::OnCooldown:                 return TEXT("l'azione e' in ricarica");
+		case ERTActionInvalidReason::InsufficientMovementPoints: return TEXT("punti movimento insufficienti");
+		default:                                                 return TEXT("piano non valido");
+		}
 	}
 
 	/**
@@ -826,6 +872,18 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 				return;
 			}
 
+			// La legalita' del PIANO, non della sola traiettoria: uno scatto non si somma a un movimento
+			// gia' pianificato, e a dirlo e' il validatore (CP 38.2).
+			FRTPlanValidation Verdetto;
+			if (!PianoRestaLegale(SelectedUnit, SelAb->Def,
+				/*bSlotGiaOccupatoDaLei*/ SelectedUnit->PlannedDashAbility != INDEX_NONE, Verdetto))
+			{
+				UE_LOG(LogRT, Log, TEXT("[RT] Scatto rifiutato: %s (%s per %s)"),
+					MotivoDelRifiuto(Verdetto.Reason), *Verdetto.OffendingActionId.ToString(),
+					*SelectedUnit->GetName());
+				return;
+			}
+
 			SelectedUnit->PlannedDashAbility = SelIdx;
 			SelectedUnit->PlannedDashCell = Cell;
 			UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d)%s"),
@@ -852,6 +910,16 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 				Cell.X, Cell.Y, Cell.Layer, RejectReason(DashPath.Status), DashRange, *SelectedUnit->GetName());
 			return;
 		}
+		FRTPlanValidation Verdetto;
+		if (!PianoRestaLegale(SelectedUnit, SelAb->Def,
+			/*bSlotGiaOccupatoDaLei*/ SelectedUnit->PlannedDashAbility != INDEX_NONE, Verdetto))
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] Scatto rifiutato: %s (%s per %s)"),
+				MotivoDelRifiuto(Verdetto.Reason), *Verdetto.OffendingActionId.ToString(),
+				*SelectedUnit->GetName());
+			return;
+		}
+
 		SelectedUnit->PlannedDashAbility = SelIdx;
 		SelectedUnit->PlannedDashCell = Cell;
 		UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s SCATTO -> (%d,%d,L%d) costo %d"),
@@ -859,7 +927,28 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		return;
 	}
 
-	// Movimento normale: il waypoint si aggiunge IN PROVA e si tiene solo se l'intero percorso resta valido.
+	// Movimento normale. Prima della geometria, la LEGALITA' DEL PIANO: se lo slot movimento e' gia'
+	// impegnato — da uno scatto, o da una mobilita' che il kit ha dichiarato costare tutto il turno — il
+	// waypoint non si posa. Senza questo controllo il giocatore compone un percorso che `ResolveDash`
+	// scarta, e intanto `SetPreviewPath` glielo disegna sulla mappa: una rotta promessa e mai percorsa.
+	//
+	// `bSlotGiaOccupatoDaLei` e' vero quando un movimento normale esiste GIA': allungarlo non cambia gli
+	// slot, e chiedere al validatore di giudicarlo produrrebbe un rifiuto contro se stesso.
+	{
+		const bool bGiaInMovimento = SelectedUnit->PlannedCell != SelectedUnit->Cell
+			|| SelectedUnit->PlannedPath.Num() > 1;
+		FRTPlanValidation Verdetto;
+		if (!PianoRestaLegale(SelectedUnit, URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")),
+			bGiaInMovimento, Verdetto))
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: %s (%s per %s)"),
+				Cell.X, Cell.Y, Cell.Layer, MotivoDelRifiuto(Verdetto.Reason),
+				*Verdetto.OffendingActionId.ToString(), *SelectedUnit->GetName());
+			return;
+		}
+	}
+
+	// Il waypoint si aggiunge IN PROVA e si tiene solo se l'intero percorso resta valido.
 	SelectedUnit->PlannedWaypoints.Add(Cell);
 	const FRTHexPathResult Composite =
 		URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, SelectedUnit->PlannedWaypoints);
