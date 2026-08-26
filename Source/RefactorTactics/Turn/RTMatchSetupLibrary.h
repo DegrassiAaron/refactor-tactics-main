@@ -82,10 +82,10 @@ public:
 	 * E' il banco di prova piu' usato del progetto, ed era **duplicato in 49 punti** sotto quattordici nomi
 	 * diversi (`SpawnMap`, `MakeFlatMap`, `SpawnHexMap`, `SpawnCleanInteractionMap`, ...).
 	 *
-	 * ⚠️ **Muove `Revision` una volta per cella**, come faceva ogni copia che sostituisce: 127 per un raggio
-	 * 6. `UpdateCells` ne farebbe una sola, ma quella revisione entra in `GraphRevision` e quindi
-	 * nell'identita' delle tracce archiviate — cambiarla fa cadere il corpus golden, che e' una decisione di
-	 * formato e non una de-duplicazione.
+	 * ✅ **Muove `Revision` UNA volta** ([D-196], 2026-08-26). Ogni copia che sostituisce ne faceva una per
+	 * cella — 127 per un raggio 6 — e quel numero entra in `GraphRevision`, quindi nell'identita' delle
+	 * tracce archiviate: la correzione e' stata rimandata due volte proprio perche' fa cadere il corpus
+	 * golden, e alla fine e' stata fatta con la rigenerazione dichiarata nella stessa PR.
 	 *
 	 * `Center` esiste perche' non tutte le arene stanno sull'origine — `HexMap.CenterCell` ne costruisce una
 	 * su `(5,-2,0)` proprio per provare che il centro segue la mappa.

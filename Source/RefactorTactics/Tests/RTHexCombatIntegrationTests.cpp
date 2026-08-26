@@ -246,6 +246,7 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 
 	int32 Fallbacks = 0;
 	int32 OutOfRangeReasons = 0;
+	int32 ConIdentita = 0;
 	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 	{
 		if (E.Category != ERTLogCategory::Fallback) { continue; }
@@ -255,9 +256,17 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 		{
 			++OutOfRangeReasons;
 		}
+		if (!E.ActionId.IsNone())
+		{
+			++ConIdentita;
+		}
 	}
 	TestEqual(TEXT("il TurnLog registra un fallback"), Fallbacks, 1);
 	TestEqual(TEXT("annullata perche' fuori portata: l'esito dice anche il motivo"), OutOfRangeReasons, 1);
+	// QUALE azione e' fallita ([D-196], `#1412` punto 1b). Senza, un'azione che non avviene lascia una voce
+	// che non dice se a mancare sia stata l'ultimate o l'attacco base — e due annullamenti della stessa
+	// unita' nello stesso turno erano indistinguibili.
+	TestEqual(TEXT("e la voce dice QUALE azione e' fallita"), ConIdentita, 1);
 
 	// E lo dice anche il combat log della HUD, non solo il log autoritativo.
 	bool bInCombatLog = false;

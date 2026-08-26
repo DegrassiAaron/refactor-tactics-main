@@ -43,6 +43,17 @@ enum class ERTActionInvalidReason : uint8
 	TargetUnknown,
 
 	/**
+	 * L'azione e' stata INTERROTTA da un'altra unita' (`Action.Interrupt`, CP 5.4).
+	 *
+	 * Motivo proprio e non `TargetGone`: non e' mancato niente al bersaglio ne' alla geometria — l'azione
+	 * era valida e qualcuno l'ha fermata. E' l'unico motivo di questo enum che ha un AUTORE, ed e' per
+	 * questo che la voce che lo porta mette in `TgtCell` la cella di chi ha interrotto.
+	 *
+	 * Valore aggiunto in coda: le tracce gia' scritte conservano il proprio significato.
+	 */
+	Interrupted,
+
+	/**
 	 * Lo slot che l'azione occupa e' gia' preso da un'altra voce dello stesso piano (CP 38.2).
 	 *
 	 * E' la forma CORRETTA del vincolo che il kit d'autore del 2026-08-12 proponeva come regola a se'

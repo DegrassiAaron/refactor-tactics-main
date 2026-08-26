@@ -217,6 +217,26 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// regola diversa da quella scritta.
 		if (URTHexLibrary::HexDistance(Unit->Cell, HealTarget->Cell) > Heal->Def.RangeCells)
 		{
+			// 🔴 **L'asimmetria INVERSA** ([D-196], `#1412` punto 4): fino a qui questa cura mancata viveva
+			// SOLO nel combat log. Il record autoritativo non la conteneva, quindi un replay non poteva
+			// riprodurla e un rapporto di divergenza non poteva spiegare perche' l'alleato non fosse stato
+			// curato. La superficie leggibile sapeva qualcosa che la traccia non registrava — il verso
+			// opposto dei duplicati, e quello piu' difficile da vedere: non c'e' una riga di troppo, ce n'e'
+			// una che non c'e'.
+			FRTTurnLogEntry CuraMancata;
+			CuraMancata.Phase = ERTMatchPhase::Blast;
+			CuraMancata.Category = ERTLogCategory::Fallback;
+			CuraMancata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+			CuraMancata.SrcCell = Unit->Cell;
+			CuraMancata.TgtCell = HealTarget->Cell;
+			CuraMancata.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
+			CuraMancata.ActionId = Heal->Def.ActionId;
+			CuraMancata.BaseActionId = Heal->Def.BaseActionId;
+			CuraMancata.Priority = Heal->Def.Priority;
+			AppendLogEntry(CuraMancata, Unit);
+			// ⚠️ L'`AddLogEvent` RESTA, e diventa uno dei siti che `#1412` punto 2 dovra' togliere: porta il
+			// nome dell'unita', che la riga derivata non ha per nessuna categoria. Toglierlo ora perderebbe
+			// chi ha provato a curare.
 			AddLogEvent(FString::Printf(TEXT("%s: cura fuori portata"), *Unit->GetName()));
 			continue;
 		}
@@ -457,6 +477,20 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			FallbackEntry.SrcCell = Unit->Cell;
 			FallbackEntry.TgtCell = Instance.TargetCell;
 			FallbackEntry.Amount = static_cast<int32>(Reason);
+			// QUALE azione e' fallita ([D-196], `#1412`). Stesso modello della voce `NoLos` 350 righe piu'
+			// sotto, e per la stessa ragione: un'azione che non avviene lascia SOLO questa voce, e senza
+			// l'identita' non dice se a mancare sia stata l'ultimate o l'attacco base. Due azioni annullate
+			// dalla stessa unita' nello stesso turno producevano righe identiche byte a byte.
+			//
+			// ⚠️ `Instance.Def` e' ancora quella ORIGINALE: `Instance` viene riassegnata all'istanza del
+			// fallback solo dopo questo blocco. L'azione da nominare e' quella che e' fallita, non il suo
+			// ripiego.
+			//
+			// ⚠️ `ActionId` **entra nell'hash**: e' un cambio d'identita' delle tracce archiviate, dichiarato
+			// in [D-196] e pagato con la rigenerazione del corpus nella stessa PR.
+			FallbackEntry.ActionId = Instance.Def.ActionId;
+			FallbackEntry.BaseActionId = Instance.Def.BaseActionId;
+			FallbackEntry.Priority = Instance.Def.Priority;
 			AppendLogEntry(FallbackEntry, Unit);
 			AddLogEvent(FString::Printf(TEXT("%s: %s"),
 				*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(FallbackEntry)));
@@ -609,6 +643,28 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 			&& IntentDefs[VictimIntentIdx].bCanBeInterrupted)
 		{
 			InterruptedAttackerIds.Add(Hit.TargetId);
+
+			// 🔴 **L'asimmetria INVERSA**, secondo sito ([D-196], `#1412` punto 4): un'azione cancellata da
+			// un'altra unita' non lasciava nessuna traccia autoritativa. Il piano della vittima sparisce dal
+			// turno e il replay non sa perche'.
+			//
+			// `SrcCell` e' la cella di chi SUBISCE l'interruzione — e' la sua azione a essere annullata,
+			// quindi e' lei il soggetto della voce — e `TgtCell` quella di chi ha interrotto, cosi' «da chi»
+			// non si perde. `UnitId` segue il soggetto, come il combat log qui sotto (`#1418`).
+			FRTTurnLogEntry Interrotta;
+			Interrotta.Phase = ERTMatchPhase::Blast;
+			Interrotta.Category = ERTLogCategory::Fallback;
+			Interrotta.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+			Interrotta.SrcCell = Units[Hit.TargetId]->Cell;
+			Interrotta.TgtCell = Units[Hit.AttackerId]->Cell;
+			Interrotta.Amount = static_cast<int32>(ERTActionInvalidReason::Interrupted);
+			Interrotta.ActionId = IntentDefs[VictimIntentIdx].ActionId;
+			Interrotta.BaseActionId = IntentDefs[VictimIntentIdx].BaseActionId;
+			Interrotta.Priority = IntentDefs[VictimIntentIdx].Priority;
+			AppendLogEntry(Interrotta, Units[Hit.TargetId]);
+
+			// ⚠️ L'`AddLogEvent` RESTA: porta i due nomi, che la riga derivata non ha. Va tolto insieme agli
+			// altri quando `DescribeTurnLog` sapra' nominare l'attore (`#1412` punto 2).
 			AddLogEvent(FString::Printf(TEXT("%s: interrotto da %s"),
 				*Units[Hit.TargetId]->GetName(), *Units[Hit.AttackerId]->GetName()));
 		}

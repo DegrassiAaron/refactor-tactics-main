@@ -8,6 +8,7 @@
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTHexCellData.h"
+#include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo nella voce di fallback
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -440,6 +441,72 @@ bool FRTRootAllowsAttackTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Una cura che non avviene lascia una traccia.**
+ *
+ * `Action.Heal` ha portata 3. Oltre, il Blast saltava la cura scrivendo una riga di combat log e basta: il
+ * record autoritativo non conteneva NIENTE, quindi un replay non poteva riprodurre il turno e un rapporto
+ * di divergenza non poteva spiegare perche' l'alleato fosse rimasto ferito. E' l'asimmetria INVERSA di
+ * `#1412` — non una riga di troppo, una che non c'e' — chiusa con [D-196].
+ *
+ * ⚠️ Il test sta fra i test di CONTROLLO e non fra quelli di cura perche' qui si misura la TRACCIA, non la
+ * regola di portata: quella e' gia' pinnata altrove, e duplicarla sposterebbe il punto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHealOutOfRangeIsTracedTest,
+	"RefactorTactics.Actions.Heal.OutOfRangeIsTraced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHealOutOfRangeIsTracedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 8);
+
+	ARTUnit* Curatore = SpawnControlUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Ferito = SpawnControlUnit(World, 0, FRTCellId(6, 0)); // ben oltre la portata 3 di Action.Heal
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Curatore"), Curatore) || !TestNotNull(TEXT("Ferito"), Ferito)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	const int32 HealIdx = AddControlAbility(Curatore, TEXT("Action.Heal"));
+	if (!TestTrue(TEXT("premessa: la cura e' oltre la portata dichiarata"),
+		URTHexLibrary::HexDistance(Curatore->Cell, Ferito->Cell)
+			> Curatore->Abilities[HealIdx]->Def.RangeCells))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	Ferito->Health = FMath::Max(1, Ferito->Health - 30);
+	const int32 SaluteFerito = Ferito->Health;
+
+	Curatore->PlannedAbilityIndex = HealIdx;
+	Curatore->PlannedAttackTarget = Ferito;
+	Curatore->PlannedCell = Curatore->Cell;
+
+	RunControlTurn(TM);
+
+	TestEqual(TEXT("premessa: la cura non e' avvenuta"), Ferito->Health, SaluteFerito);
+
+	const FRTTurnLogEntry* Mancata = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange)
+			&& E.ActionId == FName(TEXT("Action.Heal"));
+	});
+	if (TestNotNull(TEXT("la cura mancata e' nel record autoritativo"), Mancata))
+	{
+		TestEqual(TEXT("accredita chi ha provato a curare"), Mancata->UnitId, Curatore->StableUnitId);
+		TestEqual(TEXT("e dice chi doveva essere curato"), Mancata->TgtCell, Ferito->Cell);
+	}
+
+	DestroyControlWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptOnlyInterruptibleTest,
 	"RefactorTactics.Actions.Interrupt.OnlyInterruptible",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -480,6 +547,24 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 
 	// L'abilita' interrotta NON si consuma: e' come se non fosse mai partita, non come se avesse fallito.
 	TestFalse(TEXT("il cooldown dell'attacco base non e' scattato"), Attacker->GetAbilityCooldown(0) > 0);
+
+	// 🔴 **E l'interruzione esiste nel record autoritativo** ([D-196], `#1412` punto 4). Fino al 2026-08-26
+	// viveva SOLO nel combat log: il piano dell'attaccante spariva dal turno e nessuna traccia diceva
+	// perche', quindi un replay non poteva riprodurlo ne' un rapporto di divergenza spiegarlo.
+	const FRTTurnLogEntry* Interrotta = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+	});
+	if (TestNotNull(TEXT("il TurnLog registra l'interruzione"), Interrotta))
+	{
+		// Il soggetto e' chi SUBISCE l'interruzione — e' la sua azione a essere annullata — e la cella di
+		// chi ha interrotto sta in `TgtCell`, cosi' «da chi» non si perde (`#1418`).
+		TestEqual(TEXT("accredita chi e' stato interrotto"), Interrotta->UnitId, Attacker->StableUnitId);
+		TestEqual(TEXT("e dice da quale cella e' arrivata l'interruzione"),
+			Interrotta->TgtCell, Interrupter->Cell);
+		TestFalse(TEXT("e QUALE azione e' stata cancellata"), Interrotta->ActionId.IsNone());
+	}
 
 	DestroyControlWorld(World);
 	return true;
