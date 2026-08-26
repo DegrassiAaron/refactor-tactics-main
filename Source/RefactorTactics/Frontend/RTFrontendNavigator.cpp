@@ -801,6 +801,20 @@ void URTFrontendNavigator::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
+	// 🔴 **La configurazione si legge QUI, e non solo in `StartFrontend`.** Finche' `LoadConfig` stava
+	// unicamente in `StartFrontend` e `RegisterScreensFromConfig`, ogni property `Config` di questa classe
+	// esisteva **solo per chi arrivava dal menu**.
+	//
+	// Il difetto si vedeva sul HUD di partita (CP 11.7): avviando PIE direttamente su `L_HexArena` — il
+	// workflow di `PIE-HEXPLAY-*` — si passa solo da `ARTGameMode::BeginPlay` -> `EnterMatch()`, quindi
+	// `MatchHudWidgetClass` restava vuota, `PresentMatchHud` usciva sulla prima riga e a schermo non
+	// compariva niente. **Senza una riga di log**, perche' un binding assente e' un caso normale: il
+	// silenzio era corretto per il codice e indistinguibile da un difetto per chi guardava.
+	//
+	// ⚠️ Non basta il CDO: il commento di `StartFrontend` lo dichiara gia' — `LoadConfig` esplicito
+	// **invece** di affidarsi ai valori ereditati. Qui vale per lo stesso motivo, un livello piu' in alto.
+	LoadConfig();
+
 	// 🔴 **Il confine del mondo, non un chiamante alla volta.** `FindLiveWidget` documentava il difetto e
 	// indicava questa correzione: i widget vivi appartengono al mondo che li ha costruiti, e `ReturnMain`,
 	// `PushScreen` e `ShowModal` raggiungono `PresentWidget` senza passare da `InitializeFrontend`. Con
