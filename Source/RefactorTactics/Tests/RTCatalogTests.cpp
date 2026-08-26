@@ -439,10 +439,34 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		}
 	}
 
-	// ⚠️ La via «base di un modulo reazione» NON entra, ed e' una scelta: i moduli si consegnano come
-	// equipaggiamento, e nessuna unita' ne riceve in partita — `ARTUnit` non ha il campo, e `EquipmentId`
-	// vive solo nei cataloghi, nel data asset e nello `ScenarioHarness`. Contarla direbbe il vero sul
-	// catalogo e il falso sulla partita. Le tre azioni che ne dipendono sono dichiarate qui sotto.
+	// Terza via: l'EQUIPAGGIAMENTO DI DEFAULT. Ogni eroe del roster entra in campo con un loadout —
+	// `SetupHexMatch` lo consegna, e `Heroes.SpawnedUnitCarriesItsDefaultLoadout` lo pinna — e i pezzi che
+	// concedono un'azione la portano con se'.
+	//
+	// ⚠️ La prima stesura di questo gate NON aveva questa via, e dichiarava che «nessuna unita' riceve
+	// equipaggiamento in partita». Era falso, ed e' stato un `grep` cercato nel posto sbagliato: il canale
+	// non nomina mai `EquipmentId`, passa da `DefaultLoadoutFor` e `GrantedActionId`. Due azioni finivano
+	// dichiarate irraggiungibili mentre un eroe le portava.
+	//
+	// Si misura sul loadout di DEFAULT, non sul catalogo equipaggiamento: un pezzo che esiste e che nessun
+	// eroe porta non e' raggiungibile in partita piu' di quanto lo sia un'azione senza portatore.
+	for (const FName& HeroId : URTHeroCatalogLibrary::GetHeroIds())
+	{
+		for (const FName& PieceId : URTCatalogLibrary::DefaultLoadoutFor(HeroId))
+		{
+			const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId);
+			if (!Piece) { continue; }
+			// Si passa da `MakeEquipmentAction` invece di leggere `GrantedActionId` a mano, perche' e' il
+			// percorso che il gioco esegue: se un giorno smettesse di concedere l'azione, il gate lo vedrebbe.
+			if (const URTActionData* Granted = URTCatalogLibrary::MakeEquipmentAction(Piece, nullptr))
+			{
+				if (!Granted->Def.DerivedFromActionId.IsNone())
+				{
+					Raggiungibili.Add(Granted->Def.DerivedFromActionId);
+				}
+			}
+		}
+	}
 
 	// Le eccezioni, ognuna con la sua ragione. Le categorie invecchiano in modo diverso: `Motore` cade se
 	// il gameplay smette di produrre quell'azione, `Modulo` quando l'equipaggiamento diventa consegnabile,
@@ -454,28 +478,28 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		{ TEXT("Action.Heal"),            TEXT("Motore: RTTurnManager la scrive come voce di cura") },
 		{ TEXT("Action.Interrupt"),       TEXT("Motore: raccolta e applicata dal TurnManager") },
 		{ TEXT("Action.ModifyArc"),       TEXT("Motore: scritta dal TurnManager") },
-		// Basi di moduli reazione, e i moduli non arrivano a un'unita'.
-		{ TEXT("Action.Anchor"),          TEXT("Modulo: base di Reaction.Anchor, equipaggiamento non consegnabile") },
-		{ TEXT("Action.Evade"),           TEXT("Modulo: base di Reaction.HazardEscape, idem") },
-		{ TEXT("Action.Purge"),           TEXT("Modulo: base di Reaction.Cleanse, idem") },
+		// Concesse da un pezzo che ESISTE ma che nessun eroe porta di default: il canale funziona, manca
+		// l'assegnazione. Escono da qui il giorno in cui un eroe riceve quel pezzo nel suo loadout.
+		{ TEXT("Action.Anchor"),          TEXT("Pezzo non assegnato: base di Reaction.Anchor, default di nessuno") },
+		{ TEXT("Action.Purge"),           TEXT("Pezzo non assegnato: base di Reaction.Cleanse, default di nessuno") },
 		// Bloccata da una migrazione decisa e non fatta.
 		{ TEXT("Action.Sprint"),          TEXT("E38: forma canonica profilo Move (D-015/D-116), il codice ha FastMovement") },
-		// Contenuto che nessun eroe porta (E6).
-		{ TEXT("Action.CircularAoE"),     TEXT("NonAssegnata") },
-		{ TEXT("Action.CreateWater"),     TEXT("NonAssegnata: showcase-v0.1 la elenca fra le consegne") },
-		{ TEXT("Action.HeavyAttack"),     TEXT("NonAssegnata") },
-		{ TEXT("Action.Interact"),        TEXT("NonAssegnata: e' una delle sette di D-025, mai messa in un kit") },
-		{ TEXT("Action.Leap"),            TEXT("NonAssegnata") },
-		{ TEXT("Action.LineAttack"),      TEXT("NonAssegnata") },
-		{ TEXT("Action.MarkTarget"),      TEXT("NonAssegnata") },
-		{ TEXT("Action.PrecisionAttack"), TEXT("NonAssegnata") },
-		{ TEXT("Action.Pull"),            TEXT("NonAssegnata") },
-		{ TEXT("Action.Push"),            TEXT("NonAssegnata") },
-		{ TEXT("Action.Reposition"),      TEXT("NonAssegnata") },
-		{ TEXT("Action.Root"),            TEXT("NonAssegnata") },
-		{ TEXT("Action.Shield"),          TEXT("NonAssegnata: adr-0003 la da' per arrivata") },
-		{ TEXT("Action.Slow"),            TEXT("NonAssegnata") },
-		{ TEXT("Action.SuppressiveLine"), TEXT("NonAssegnata") },
+		// Contenuto che aspetta il suo portatore: diventeranno raggiungibili quando entrera' l'eroe che le
+		// usa, ed e' la ragione per cui sono dichiarate invece che corrette. Non sono difetti (E6).
+		{ TEXT("Action.CircularAoE"),     TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.HeavyAttack"),     TEXT("Pezzo non assegnato: Gadget.BreachCharge esiste, default di nessuno") },
+		{ TEXT("Action.Interact"),        TEXT("Aspetta il suo eroe: e' una delle sette di D-025, mai messa in un kit") },
+		{ TEXT("Action.Leap"),            TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.LineAttack"),      TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.MarkTarget"),      TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.PrecisionAttack"), TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.Pull"),            TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.Push"),            TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.Reposition"),      TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.Root"),            TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.Shield"),          TEXT("Aspetta il suo eroe: adr-0003 la da' per arrivata") },
+		{ TEXT("Action.Slow"),            TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.SuppressiveLine"), TEXT("Aspetta il suo eroe") },
 	};
 
 	// Anti-vacuita', e non e' teorica: se il roster tornasse vuoto ogni azione risulterebbe non

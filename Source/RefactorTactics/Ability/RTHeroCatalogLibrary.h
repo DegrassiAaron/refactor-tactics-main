@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Ability/RTActionDef.h" // FRTActionEffectSpec: gli effetti di una reazione d'eroe sono un parametro
+#include "Ability/RTActionData.h" // ERTAbilityShape: la forma e' un parametro di MakeHeroActionFromCore
 #include "RTHeroCatalogLibrary.generated.h"
 
 class URTHeroData;
@@ -143,4 +144,29 @@ public:
 	static URTActionData* MakeHeroReactionFromCoreAction(const FName& HeroActionId, const FName& CoreActionId,
 		int32 CooldownTurns, const TArray<FRTActionEffectSpec>& Effects = TArray<FRTActionEffectSpec>(),
 		int32 RangeCells = INDEX_NONE);
+
+	/**
+	 * Un'azione d'eroe che EREDITA i suoi valori da un'azione core, e lo dichiara in `DerivedFromActionId`.
+	 *
+	 * Prende l'**ID** e non il `Def` di proposito: cosi' la derivazione non e' una cosa da annotare dopo
+	 * aver letto il catalogo, e' il modo stesso di leggerlo.
+	 *
+	 * ⚠️ **Sta qui accanto al fratello, e non nel namespace anonimo del `.cpp`, per una ragione precisa**:
+	 * la prima stesura lo teneva privato e il suo test provava `MakeHeroReactionFromCoreAction` dicendo che
+	 * aveva «la stessa guardia». Non e' vero — quella ha una clausola in piu' sullo slot — e la differenza
+	 * nascondeva un fail-OPEN su `NAME_None`. Un helper che nessun test puo' chiamare e' un helper che
+	 * nessun test verifica.
+	 *
+	 * ⛔ Restituisce `nullptr` se `CoreActionId` e' vuoto o non e' nel catalogo. Chi lo chiama **deve**
+	 * guardare il risultato: `GetHeroRoster()` gira all'avvio, e un dereferenziamento nullo li' non e' un
+	 * fail-closed, e' un crash.
+	 *
+	 * ⚠️ Eredita **identita', fase, priorita', portata, fallback ed effetti** — e nient'altro. Restano fuori
+	 * lo `Slot` e tutti i campi di comportamento: `MovementStyle`, `StructureOp`, `PropagationLimit`,
+	 * `bCreatesSurface`/`SurfaceCreated`/`SurfaceRadius`, `bCanBeInterrupted`, `bSelfTarget`,
+	 * `bAllowsReaction`, `bTargetsCell`, `ReactionTrigger` e i campi predittivi. L'elenco e' lungo apposta:
+	 * un'abilita' derivata da `Action.Ignite` che non copia `bCreatesSurface` risolve e non crea niente.
+	 */
+	static URTActionData* MakeHeroActionFromCore(const FName& HeroActionId, const FName& CoreActionId,
+		int32 Cooldown, ERTAbilityShape Shape = ERTAbilityShape::Single, int32 AreaRadius = 0);
 };

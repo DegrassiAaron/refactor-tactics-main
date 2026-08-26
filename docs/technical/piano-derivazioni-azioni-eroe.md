@@ -1,6 +1,6 @@
 # Piano — la derivazione di un'abilità d'eroe diventa un dato, e la raggiungibilità un gate
 
-**Stato**: piano approvato, non implementato · **Data**: 2026-08-26 · **Origine**:
+**Stato**: **implementato** in [#1406](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1406) · **Data**: 2026-08-26 · **Origine**:
 [#1403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1403)
 
 ⚠️ **Questo piano non tocca la semantica di `BaseActionId`**, che resta di
@@ -16,7 +16,7 @@ interrogabili a runtime:
 |---|---|---|---|
 | 1 | generica | è in `GetGenericActionIds()`, quindi nel kit di ogni unità | ✅ |
 | 2 | kit eroe | un `Hero.*` ne deriva i parametri | ❌ **oggi no**: nessun campo la porta |
-| 3 | base di modulo | è la base di un `Reaction.*` in `MakeReactionModules()` | ✅ |
+| 3 | equipaggiamento | un pezzo del **loadout di default** di un eroe la concede (`GrantedActionId`) | ✅ |
 | 4 | scritta dal motore | il gameplay la produce da sé, senza kit | ❌ mai |
 
 🔴 **La via 2 non è nel dato, e non esiste un campo che possa portarla.** `MakeHeroAction` copia i
@@ -33,7 +33,7 @@ asserisce che ogni abilità diversa da `Actions[0]` abbia `BaseActionId` vuoto �
 ⚠️ **`MakeHeroReactionFromCoreAction` riceve `CoreActionId` come parametro e non lo scrive da nessuna
 parte.** Il dato attraversa la funzione e viene buttato.
 
-Conseguenza misurata il 2026-08-26 su `main`: delle 37 azioni core, **16** non hanno nessuna delle quattro
+Conseguenza misurata il 2026-08-26 su `main`: delle 37 azioni core, **17** non hanno nessuna delle quattro
 vie, e nessun gate se ne accorge. Fra queste `Action.Shield`, che
 [`adr-0003`](../decisions/adr-0003-modello-azioni-v01.md) dà per arrivata, e `Action.Sprint`, che 19 righe
 di commento nominano e zero righe producono.
@@ -63,7 +63,7 @@ generica è anche una derivazione da essa. Il contrario non vale, ed è tutta la
 `Action.Charge`, che generica non è.
 
 ✅ **Guadagni della separazione**: [D-033](../decisions/RT_PDR_00_Decision_Log.md) non si rovescia, il test
-`RTHeroCatalogTests.cpp:225` resta valido **e non si tocca**, la traccia di una partita non cambia di un
+`Heroes.BasicAttackDeclaresItsBaseAction` resta valido **e non si tocca**, la traccia di una partita non cambia di un
 carattere, e con essa non cambiano né i golden né ciò che `RTScenarioRunner` stampa.
 
 La regola del punto 6 di [`adr-0007`](../decisions/adr-0007-attacco-base-per-eroe.md) — un campo entra
@@ -76,12 +76,18 @@ solo quando esiste il consumer — è soddisfatta: il consumer è il gate di §4
 smette di essere una cosa da ricordarsi e diventa il modo stesso di derivare — la forma che
 `MakeHeroBasicAttack` ha già per `BaseActionId`.
 
-⛔ **Fail-closed**, come il fratello che già lo fa: un `CoreActionId` che il catalogo non conosce
-restituisce `nullptr`. Un'abilità con parametri di default e una base falsa sarebbe peggio di nessuna
-abilità.
+⛔ **Fail-closed**: un `CoreActionId` vuoto o che il catalogo non conosce restituisce `nullptr`, e chi
+chiama **deve** guardare il risultato — `GetHeroRoster()` gira all'avvio, e lì un dereferenziamento nullo
+non è un fail-closed ma un crash.
 
-`MakeHeroAction` resta, e serve alle abilità che **non** derivano da nulla: `LinearDischarge`, `Overload`,
-`CircularTide`, `Reconfigure`, `FlowReaction`.
+⚠️ **La prima stesura sbagliava la guardia**, e diceva di averla presa «dal fratello». Il fratello
+`MakeHeroReactionFromCoreAction` ha una clausola in più sullo slot; senza quella, `Core.ActionId !=
+CoreActionId` con un ID vuoto confronta `NAME_None` con `NAME_None`, è falso, e lascia passare proprio
+l'abilità coi default che il fail-closed esiste per impedire. La forma giusta — `IsNone()` prima del
+confronto — è quella che `URTCatalogLibrary::MakeEquipmentAction` usa da sempre.
+
+`MakeHeroAction` resta, e serve alle otto abilità che **non** derivano da nulla: `LinearDischarge`,
+`Overload`, `CircularTide`, `Reconfigure`, `FlowReaction`, `InterceptShot`, `PassingBlade`, `Feint`.
 
 ### Le otto derivazioni da dichiarare
 
@@ -106,9 +112,14 @@ parametri vengono da lì» in «gli somiglia», che è la parentela semantica sc
 diverse e ugualmente valide — «un eroe porta un profilo di X» e «un eroe porta un'abilità che eredita da
 X». `Action.BasicAttack` resta raggiungibile per la prima, che è quella vera per lui.
 
-Otto abilità dichiarano una derivazione, cinque restano senza — `LinearDischarge`, `Overload`,
-`CircularTide`, `Reconfigure`, `FlowReaction` — e i quattro attacchi base continuano a dichiarare solo il
-profilo, come D-033 vuole.
+Otto abilità dichiarano una derivazione e **otto** restano senza — `LinearDischarge`, `Overload`,
+`CircularTide`, `Reconfigure`, `FlowReaction`, `InterceptShot`, `PassingBlade`, `Feint` — mentre i quattro
+attacchi base continuano a dichiarare solo il profilo, come D-033 vuole. Otto più otto più quattro fa
+**venti**, che sono le cinque abilità di ciascuno dei quattro eroi.
+
+⚠️ **La prima stesura ne contava cinque**, dimenticando le tre di Wraith, e lo faceva sotto un titolo che
+prometteva un «controllo incrociato». Il controllo tornava lo stesso perché verificava le *derivate*, che
+erano giuste: la somma delle non-derivate non la controllava nessuno.
 
 ✅ **Controllo incrociato che dà l'inventario per completo**: a lavoro finito le azioni raggiungibili per
 via 2 e misurabili a runtime sono `BasicAttack · Electrify · Dash · Ignite · CreateCover · Charge ·
@@ -138,20 +149,30 @@ Le tre categorie invecchiano in modo diverso, ed è la ragione per cui non è un
 | Ragione | Quante il 2026-08-26 | Significato |
 |---|---|---|
 | `ScrittaDalMotore` | 5 — `Move` `Cleanse` `Heal` `Interrupt` `ModifyArc` | il gameplay le produce senza kit: non sono contenuto mancante |
-| `ModuloNonConsegnabile` | 3 — `Anchor` `Evade` `Purge` | basi di moduli reazione, e nessuna unità riceve equipaggiamento |
+| `PezzoNonAssegnato` | 3 — `Anchor` `Purge` `HeavyAttack` | il pezzo che le concede esiste, e non è il default di nessun eroe |
 | `MigrazioneE38` | 1 — `Sprint` | la forma canonica (D-015, riaffermata da D-116) non è implementata |
-| `NonAssegnata` | 15 | contenuto che nessun eroe porta, E6 |
+| `AspettaIlSuoEroe` | 13 | contenuto che diventerà raggiungibile quando entrerà l'eroe che lo usa |
 
-### La via 3 non basta, ed è una scelta
+### La raggiungibilità si misura sul roster ATTUALE
 
-`Action.Purge` **è** la base di `Reaction.Cleanse`. Ma i moduli si consegnano come equipaggiamento, e
-l'equipaggiamento non arriva mai a un'unità: `EquipmentId` vive in cinque file — i cataloghi, il data
-asset e lo `ScenarioHarness` — e `ARTUnit` non ha nessun campo che lo porti. Un gate che contasse la via 3
-sufficiente direbbe il vero sul catalogo e il falso sulla partita.
+⚠️ **Questa sezione diceva il falso, e la correzione è arrivata da una code review.** Sosteneva che i
+moduli non arrivassero mai a un'unità perché «`EquipmentId` vive in cinque file e `ARTUnit` non ha il
+campo». Il canale esiste e non nomina mai `EquipmentId`: `DefaultLoadoutFor` assegna un gadget e un
+modulo di default **a tutti e quattro gli eroi**, `SetupHexMatch` li consegna, e
+`Heroes.SpawnedUnitCarriesItsDefaultLoadout` — che era fra i test verdi citati come prova — asserisce
+proprio che «i pezzi che CONCEDONO un'azione sono in campo».
 
-➕ **Condizione di riapertura**: il giorno in cui un'unità riceve equipaggiamento in partita, quelle tre
-voci escono dall'elenco e il gate cambia significato. È la ragione per cui questa scelta va nel Decision
-Log e non solo qui.
+Ne seguivano due errori di classificazione: `Action.CreateWater` è portata da `Gadget.Sprinkler`, default
+di Phase — e il catalogo lo chiama «l'unico produttore d'acqua che il roster può portare in campo» — e
+`Action.Evade` è la base di `Reaction.HazardEscape`, modulo di default di Phase.
+
+**La regola che resta**, e che il gate ora calcola invece di dichiarare: un'azione è raggiungibile se il
+roster **attuale** la porta in campo — nel kit o nel loadout di default. Un pezzo che esiste e che nessun
+eroe porta non conta, come non conta un'abilità che nessun eroe ha.
+
+➕ **Condizione di riapertura**: un'azione esce dall'elenco il giorno in cui **un eroe la porta**, e il
+verso 2 del gate lo pretende invece di lasciare la riga a invecchiare. Le azioni che restano non sono
+difetti: sono contenuto che aspetta il suo portatore.
 
 ### Fallisce in tre versi
 

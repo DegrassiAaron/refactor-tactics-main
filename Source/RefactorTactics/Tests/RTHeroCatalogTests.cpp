@@ -603,8 +603,11 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 			else
 			{
 				// Il verso opposto conta quanto il primo: un campo messo dappertutto non direbbe piu'
-				// niente. `LinearDischarge`, `Overload`, `CircularTide`, `Reconfigure`, `FlowReaction` non
-				// ereditano da nessuna azione core, e gli attacchi base dichiarano il profilo, non questo.
+				// niente. Non ereditano da nessuna azione core, e restano vuote, **otto** abilita':
+				// `LinearDischarge`, `Overload`, `CircularTide`, `Reconfigure`, `FlowReaction`,
+				// `InterceptShot`, `PassingBlade`, `Feint`. Piu' i quattro attacchi base, che dichiarano il
+				// profilo (`BaseActionId`) e non questo. Otto derivate + otto proprie + quattro base = 20,
+				// che sono le 5 abilita' per ciascuno dei 4 eroi asserite sopra.
 				TestTrue(*FString::Printf(TEXT("%s non deriva da nulla e non lo dichiara"),
 					*A->Def.ActionId.ToString()), A->Def.DerivedFromActionId.IsNone());
 			}
@@ -624,11 +627,29 @@ bool FRTHeroDerivedFromUnknownIsNullTest::RunTest(const FString&)
 {
 	// Fail-closed: un'azione core che il catalogo non conosce non produce un'abilita' coi default di
 	// `FRTActionDef` e una derivazione falsa — quella funzionerebbe in partita e mentirebbe al gate.
-	// `MakeHeroActionFromCore` sta nel namespace anonimo del .cpp, quindi si prova dal fratello pubblico
-	// che ha lo stesso contratto e la stessa guardia.
-	TestNull(TEXT("un'azione core inesistente non produce una reazione"),
-		URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(
-			TEXT("Hero.Test.Inesistente"), TEXT("Action.NonEsiste"), 1, {}, 1));
+	//
+	// ⚠️ Si prova `MakeHeroActionFromCore` **direttamente**. La prima stesura provava il fratello
+	// `MakeHeroReactionFromCoreAction` dicendo che aveva «la stessa guardia»: non e' vero — quella ha una
+	// clausola in piu' sullo slot — e proprio quella differenza teneva nascosto il caso `NAME_None`.
+	TestNull(TEXT("un ID che il catalogo non conosce non produce un'abilita'"),
+		URTHeroCatalogLibrary::MakeHeroActionFromCore(
+			TEXT("Hero.Test.Inesistente"), TEXT("Action.NonEsiste"), 1));
+
+	// 🔴 Il caso che il confronto da solo NON prende: `Core.ActionId != CoreActionId` con entrambi vuoti e'
+	// FALSO, quindi senza `IsNone()` la guardia lascia passare un'abilita' con priorita' 50, portata 0,
+	// nessun effetto e derivazione vuota — invisibile anche al gate della raggiungibilita'.
+	TestNull(TEXT("un ID VUOTO non produce un'abilita'"),
+		URTHeroCatalogLibrary::MakeHeroActionFromCore(TEXT("Hero.Test.Vuoto"), NAME_None, 1));
+
+	// E il verso positivo, senza il quale i due TestNull sarebbero veri anche per una funzione che
+	// restituisce sempre `nullptr`.
+	const URTActionData* Buona = URTHeroCatalogLibrary::MakeHeroActionFromCore(
+		TEXT("Hero.Test.Buona"), TEXT("Action.Charge"), 2);
+	if (TestNotNull(TEXT("un ID valido invece produce l'abilita'"), Buona))
+	{
+		TestEqual(TEXT("e dichiara la sua origine"), Buona->Def.DerivedFromActionId,
+			FName(TEXT("Action.Charge")));
+	}
 	return true;
 }
 
