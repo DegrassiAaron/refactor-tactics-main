@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionDef.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatLibrary.h"
@@ -8,7 +9,6 @@
 #include "Core/RTGameplayTags.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTActionQueue.h"
@@ -37,12 +37,7 @@ namespace
 	/** Esagono pieno di raggio N, tutte le celle percorribili e trasparenti. */
 	URTHexMapAsset* MakeOffensiveMap(int32 Radius = 7)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		return M;
 	}
 
@@ -186,7 +181,9 @@ bool FRTPrecisionAttackTest::RunTest(const FString&)
 		TestTrue(TEXT("e l'errore nomina il movimento"), SprintAndMove[0].Contains(TEXT("Action.")));
 	}
 
-	// La stessa precisione dopo un movimento NORMALE resta valida: e' lo Sprint a costare la principale.
+	// La stessa precisione dopo un movimento NORMALE resta valida, e per la stessa ragione: un solo slot
+	// movimento speso, la principale libera. Prima di D-028 questa riga diceva «e' lo Sprint a costare la
+	// principale», ed era la motivazione del caso qui sopra quando quel caso verificava il rifiuto.
 	const TArray<FString> AfterMove =
 		URTCatalogLibrary::ValidateActionSlots({ OffensiveDef(TEXT("Action.Move")), Short });
 	TestEqual(TEXT("Move + precisione: piano valido"), AfterMove.Num(), 0);

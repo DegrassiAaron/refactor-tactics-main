@@ -391,4 +391,168 @@ bool FRTCatalogNoFloatTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionDefDerivedFromIsEmptyByDefaultTest,
+	"RefactorTactics.Catalog.DerivedFromIsEmptyByDefault",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionDefDerivedFromIsEmptyByDefaultTest::RunTest(const FString&)
+{
+	// Il default DEVE essere vuoto: il gate legge l'assenza come «non deriva da nulla», e un default
+	// diverso da `NAME_None` darebbe a ogni azione una derivazione che nessuno ha dichiarato.
+	const FRTActionDef Vuoto;
+	TestTrue(TEXT("una definizione appena costruita non dichiara derivazione"),
+		Vuoto.DerivedFromActionId.IsNone());
+
+	// E non e' `BaseActionId`: due campi, due domande (D-033 contro «da dove vengono i numeri»). Un'azione
+	// del catalogo core non deriva da se stessa — se qualcuno fondesse i due campi, questo cadrebbe.
+	const FRTActionDef Core = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
+	TestEqual(TEXT("l'azione core esiste, altrimenti l'asserto sotto sarebbe vacuo"),
+		Core.ActionId, FName(TEXT("Action.Charge")));
+	TestTrue(TEXT("un'azione del catalogo core non dichiara di derivare da qualcosa"),
+		Core.DerivedFromActionId.IsNone());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogReachableOrDeclaredTest,
+	"RefactorTactics.Catalog.EveryCoreActionIsReachableOrDeclared",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
+{
+	// Un'azione del catalogo core arriva in partita per quattro vie. Tre sono interrogabili qui; la
+	// quarta — il motore che la scrive da se', come `Action.Move` in `MakePlanFor` — e' una proprieta' del
+	// SORGENTE e non del dato, quindi non si misura: vive nell'elenco sotto con la sua ragione.
+	TSet<FName> Raggiungibili;
+
+	for (const FName& Id : URTCatalogLibrary::GetGenericActionIds())
+	{
+		Raggiungibili.Add(Id);
+	}
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+		for (const URTActionData* A : Hero->Actions)
+		{
+			if (!A) { continue; }
+			// Due campi, due vie diverse e ugualmente valide: «un eroe porta un'abilita' che eredita da X»
+			// e «un eroe porta un profilo di X» (D-033, che e' il caso degli attacchi base).
+			if (!A->Def.DerivedFromActionId.IsNone()) { Raggiungibili.Add(A->Def.DerivedFromActionId); }
+			if (!A->Def.BaseActionId.IsNone())        { Raggiungibili.Add(A->Def.BaseActionId); }
+		}
+	}
+
+	// Terza via: l'EQUIPAGGIAMENTO DI DEFAULT. Ogni eroe del roster entra in campo con un loadout —
+	// `SetupHexMatch` lo consegna, e `Heroes.SpawnedUnitCarriesItsDefaultLoadout` lo pinna — e i pezzi che
+	// concedono un'azione la portano con se'.
+	//
+	// ⚠️ La prima stesura di questo gate NON aveva questa via, e dichiarava che «nessuna unita' riceve
+	// equipaggiamento in partita». Era falso, ed e' stato un `grep` cercato nel posto sbagliato: il canale
+	// non nomina mai `EquipmentId`, passa da `DefaultLoadoutFor` e `GrantedActionId`. Due azioni finivano
+	// dichiarate irraggiungibili mentre un eroe le portava.
+	//
+	// Si misura sul loadout di DEFAULT, non sul catalogo equipaggiamento: un pezzo che esiste e che nessun
+	// eroe porta non e' raggiungibile in partita piu' di quanto lo sia un'azione senza portatore.
+	for (const FName& HeroId : URTHeroCatalogLibrary::GetHeroIds())
+	{
+		for (const FName& PieceId : URTCatalogLibrary::DefaultLoadoutFor(HeroId))
+		{
+			const URTEquipmentData* Piece = URTCatalogLibrary::FindEquipment(PieceId);
+			if (!Piece) { continue; }
+			// Si passa da `MakeEquipmentAction` invece di leggere `GrantedActionId` a mano, perche' e' il
+			// percorso che il gioco esegue: se un giorno smettesse di concedere l'azione, il gate lo vedrebbe.
+			if (const URTActionData* Granted = URTCatalogLibrary::MakeEquipmentAction(Piece, nullptr))
+			{
+				if (!Granted->Def.DerivedFromActionId.IsNone())
+				{
+					Raggiungibili.Add(Granted->Def.DerivedFromActionId);
+				}
+			}
+		}
+	}
+
+	// Le eccezioni, ognuna con la sua ragione. Le categorie invecchiano in modo diverso: `Motore` cade se
+	// il gameplay smette di produrre quell'azione, `Modulo` quando l'equipaggiamento diventa consegnabile,
+	// `NonAssegnata` quando un eroe la porta.
+	const TMap<FName, FString> Dichiarate = {
+		// Scritte dal motore: il gameplay le produce senza passare da un kit.
+		{ TEXT("Action.Move"),            TEXT("Motore: MakePlanFor la aggiunge quando l'unita' si muove") },
+		{ TEXT("Action.Cleanse"),         TEXT("Motore: il Blast la CERCA fra le abilita'; produttore assente, #1389") },
+		{ TEXT("Action.Heal"),            TEXT("Motore: RTTurnManager la scrive come voce di cura") },
+		{ TEXT("Action.Interrupt"),       TEXT("Motore: raccolta e applicata dal TurnManager") },
+		{ TEXT("Action.ModifyArc"),       TEXT("Motore: scritta dal TurnManager") },
+		// Concesse da un pezzo che ESISTE ma che nessun eroe porta di default: il canale funziona, manca
+		// l'assegnazione. Escono da qui il giorno in cui un eroe riceve quel pezzo nel suo loadout.
+		{ TEXT("Action.Anchor"),          TEXT("Pezzo non assegnato: base di Reaction.Anchor, default di nessuno") },
+		{ TEXT("Action.Purge"),           TEXT("Pezzo non assegnato: base di Reaction.Cleanse, default di nessuno") },
+		// Bloccata da una migrazione decisa e non fatta.
+		{ TEXT("Action.Sprint"),          TEXT("E38: forma canonica profilo Move (D-015/D-116), il codice ha FastMovement") },
+		// Contenuto che aspetta il suo portatore: diventeranno raggiungibili quando entrera' l'eroe che le
+		// usa, ed e' la ragione per cui sono dichiarate invece che corrette. Non sono difetti (E6).
+		{ TEXT("Action.CircularAoE"),     TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.HeavyAttack"),     TEXT("Pezzo non assegnato: Gadget.BreachCharge esiste, default di nessuno") },
+		{ TEXT("Action.Interact"),        TEXT("Aspetta il suo eroe: e' una delle sette di D-025, mai messa in un kit") },
+		{ TEXT("Action.Leap"),            TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.LineAttack"),      TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.MarkTarget"),      TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.PrecisionAttack"), TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.Pull"),            TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.Push"),            TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.Reposition"),      TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.Root"),            TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.Shield"),          TEXT("Aspetta il suo eroe: adr-0003 la da' per arrivata") },
+		{ TEXT("Action.Slow"),            TEXT("Aspetta il suo eroe") },
+		{ TEXT("Action.SuppressiveLine"), TEXT("Aspetta il suo eroe") },
+	};
+
+	// Anti-vacuita', e non e' teorica: se il roster tornasse vuoto ogni azione risulterebbe non
+	// raggiungibile, e con un elenco lungo abbastanza il test resterebbe VERDE raccontando che va tutto
+	// bene. Queste tre righe fanno cadere quel caso.
+	TestTrue(TEXT("almeno tredici azioni sono raggiungibili"), Raggiungibili.Num() >= 13);
+	TestTrue(TEXT("Guard e' raggiungibile: e' generica"),
+		Raggiungibili.Contains(FName(TEXT("Action.Guard"))));
+	TestTrue(TEXT("Charge e' raggiungibile: la porta Hero.Riktor.Ram"),
+		Raggiungibili.Contains(FName(TEXT("Action.Charge"))));
+
+	// Il catalogo si costruisce UNA volta: `GetCoreActionCatalog()` istanzia 37 `FRTActionDef` per valore,
+	// ognuno coi suoi `TArray` annidati, a ogni chiamata — e `FindCoreAction` non fa che scorrerlo. Il
+	// verso 3 qui sotto lo interrogava una volta per riga dichiarata: ventidue ricostruzioni per rispondere
+	// a domande che questo ciclo ha gia' in mano.
+	const TArray<FRTActionDef> Catalogo = URTCatalogLibrary::GetCoreActionCatalog();
+	TSet<FName> Esistenti;
+	Esistenti.Reserve(Catalogo.Num());
+
+	for (const FRTActionDef& Def : Catalogo)
+	{
+		Esistenti.Add(Def.ActionId);
+		const bool bRaggiungibile = Raggiungibili.Contains(Def.ActionId);
+		const FString* Ragione = Dichiarate.Find(Def.ActionId);
+
+		// Verso 1 — un'azione nuova senza portatore non passa in silenzio.
+		if (!bRaggiungibile && !Ragione)
+		{
+			AddError(FString::Printf(
+				TEXT("%s non e' raggiungibile da nessun kit e non e' dichiarata: assegnala a un eroe, ")
+				TEXT("oppure aggiungila all'elenco di questo test con la ragione per cui non lo e'."),
+				*Def.ActionId.ToString()));
+		}
+		// Verso 2 — l'elenco non si fossilizza: chi assegna un'azione toglie la sua riga.
+		if (bRaggiungibile && Ragione)
+		{
+			AddError(FString::Printf(
+				TEXT("%s ORA e' raggiungibile ma e' ancora dichiarata come «%s»: togli la riga."),
+				*Def.ActionId.ToString(), **Ragione));
+		}
+	}
+
+	// Verso 3 — una voce che non corrisponde a nessuna azione del catalogo e' un residuo.
+	for (const TPair<FName, FString>& Voce : Dichiarate)
+	{
+		TestTrue(*FString::Printf(TEXT("%s dichiarata esiste ancora nel catalogo"), *Voce.Key.ToString()),
+			Esistenti.Contains(Voce.Key));
+	}
+
+	// Sul `Num()` e non su un contatore incrementato nel ciclo: quello poteva solo ripetere la stessa
+	// cosa, e si sarebbe scollato dal suo soggetto al primo `continue` che qualcuno aggiunge sopra.
+	TestTrue(TEXT("il catalogo core non e' vuoto"), Catalogo.Num() > 30);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

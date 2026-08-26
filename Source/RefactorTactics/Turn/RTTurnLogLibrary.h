@@ -64,6 +64,19 @@ public:
 	 */
 	static bool GoldenEntriesMatch(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B);
 
+	/**
+	 * `UnitId` di questa voce porta CHI SUBISCE invece di chi ha agito?
+	 *
+	 * Le inversioni sono deliberate e documentate una per una in `FRTTurnLogEntry::UnitId`, ma finche' la
+	 * risposta viveva solo in prosa un consumatore doveva **ricordarsi** di averla letta — e chi non l'ha
+	 * letta ottiene un numero plausibile e sbagliato che nessun errore segnala. Stessa ragione per cui
+	 * esiste `IsDamageInflictedByActor`: la tassonomia sta in un posto solo, e si CHIEDE.
+	 *
+	 * Copre il danno ambientale (`#625`, `#1067`) e `Facing`/`RearHitBypassedCover` (`#1418`).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|TurnLog")
+	static bool IsSubjectTheSufferer(const FRTTurnLogEntry& Entry);
+
 	/** Ordina il TurnLog in place con EntryLess (ordine totale deterministico). */
 	static void SortTurnLog(TArray<FRTTurnLogEntry>& Entries);
 

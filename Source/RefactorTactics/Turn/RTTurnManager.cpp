@@ -1174,16 +1174,49 @@ void ARTTurnManager::LockInAndResolve()
 
 	// Sonda di pacing: chiude i tempi della pianificazione. Telemetria, nessun effetto sul turno.
 	{
-		const double Now = FPlatformTime::Seconds();
-		PacingCurrent.MsToLockIn = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
-		// Senza nessun input, "tempo dall'ultimo input" e' l'intera pianificazione: cosi' un turno passato
-		// inerte finisce fra le attese a vuoto e non fra i tagli, che e' la classificazione corretta.
-		PacingCurrent.MsSinceLastInput = bPacingHadInput
-			? FMath::RoundToInt((Now - PacingLastInput) * 1000.0)
-			: PacingCurrent.MsToLockIn;
-		if (!bPacingHadInput)
+		// 🔴 Il campione puo' non essere mai stato APERTO: `BeginPacingSample()` la chiama solo
+		// `StartPlanningTimer()`, cioe' `BeginPlay`, e qui ci arrivano anche i test headless e lo Scenario
+		// Harness — il secondo dei due percorsi che il commento sopra `EnsureMatchRoster` gia' nomina. Anche
+		// `SetPlanningSeconds()` arma il timer senza aprire nulla, quindi un `OnPlanningTimeout` VERO puo'
+		// arrivare qui con il campione chiuso.
+		//
+		// Si apre adesso, come `EnsureMatchRoster` otto righe sopra e per la stessa ragione: il CONTESTO —
+		// unita' vive, azioni disponibili, numero di turno — e' misurabile e va misurato. Buttare il turno
+		// perderebbe un dato vero.
+		//
+		// ⚠️ Ma i TEMPI no: l'origine sarebbe «adesso», e `MsToLockIn` verrebbe zero. Zero e' un lock-in
+		// istantaneo, cioe' un valore legittimo: sarebbe il dato plausibile e falso che `Unmeasured` esiste
+		// per non produrre. I tre tempi dichiarano di non essere stati misurati (`#1421`).
+		const bool bWasOpen = bPacingSampleOpen;
+		if (!bWasOpen)
 		{
-			PacingCurrent.MsToFirstInput = PacingCurrent.MsToLockIn;
+			BeginPacingSample();
+		}
+
+		if (!bWasOpen)
+		{
+			PacingCurrent.MsToLockIn = FRTPacingSample::Unmeasured;
+			PacingCurrent.MsSinceLastInput = FRTPacingSample::Unmeasured;
+			PacingCurrent.MsToFirstInput = FRTPacingSample::Unmeasured;
+		}
+		else
+		{
+			// ⚠️ Un clamp al posto di tutto questo toglierebbe il comportamento non definito e lascerebbe il
+			// dato falso: su Windows `FPlatformTime::Seconds()` non e' un tempo dall'avvio del processo
+			// (porta dentro `16777216.0`), quindi `(Now - 0.0) * 1000.0` vale circa `1.7e10` e
+			// `FMath::RoundToInt` lo tronca in un `int32` che arriva a `2.1e9`. Clampato sarebbe
+			// `INT32_MAX`: un numero, e comunque non un tempo di pianificazione.
+			const double Now = FPlatformTime::Seconds();
+			PacingCurrent.MsToLockIn = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
+			// Senza nessun input, "tempo dall'ultimo input" e' l'intera pianificazione: cosi' un turno passato
+			// inerte finisce fra le attese a vuoto e non fra i tagli, che e' la classificazione corretta.
+			PacingCurrent.MsSinceLastInput = bPacingHadInput
+				? FMath::RoundToInt((Now - PacingLastInput) * 1000.0)
+				: PacingCurrent.MsToLockIn;
+			if (!bPacingHadInput)
+			{
+				PacingCurrent.MsToFirstInput = PacingCurrent.MsToLockIn;
+			}
 		}
 	}
 
@@ -1927,6 +1960,12 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 	// Dash la cella dell'attore in fase Blast non e' piu' quella di partenza. Per questo l'attore arriva come
 	// parametro e non si deduce.
 	//
+	// ⚠️ **Non per TUTTE le voci**, e chi aggiunge un produttore deve saperlo prima di scegliere cosa
+	// passare: alcune famiglie invertono e mettono qui CHI SUBISCE. L'elenco e la ragione di ognuna stanno
+	// nel commento di `FRTTurnLogEntry::UnitId`; la domanda si fa a
+	// `URTTurnLogLibrary::IsSubjectTheSufferer`, che porta la tassonomia in un posto solo invece di lasciarla
+	// a chi si ricorda di aver letto la prosa.
+	//
 	// `nullptr` -> `0`, cioe' «nessuna unita' dichiarata». Il parametro e' OBBLIGATORIO di proposito: reso
 	// opzionale, un sito nuovo erediterebbe lo zero in silenzio e la voce direbbe «nessuno» invece di tacere.
 	Entry.UnitId = Actor ? Actor->StableUnitId : 0;
@@ -1936,21 +1975,27 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 
 void ARTTurnManager::ValidatePlansAtLockIn()
 {
-	// Le unita' e il loro snapshot vengono dal punto UNICO che li costruisce: `MakeCurrentSnapshot` filtra
-	// gia' i vivi, ordina canonicamente e riempie `FRTHexSimUnit` con TUTTI i campi — `MoveCostModifier` da
-	// `Status.Slow`, il `Facing`, e l'`UnitId` che e' l'indice dello snapshot e non `StableUnitId`.
-	// Costruirlo a mano qui e' come e' nato il difetto trovato in code review: due campi dimenticati e due
-	// schemi di numerazione mescolati.
+	// Le unita' vengono dal punto UNICO che le raccoglie e le ordina, non da un giro a mano: `Sort` a parte,
+	// l'ordine di spawn deciderebbe in che sequenza compaiono le righe di rifiuto.
+	//
+	// ⚠️ **Qui non serve la MAPPA**, che e' la parte cara di `MakeCurrentSnapshot`: la vista di occupazione,
+	// l'hash del terreno e una copia di `TeamKnowledgeState`, tutto costruito a ogni commit di turno e
+	// scartato. Serve lo STATO DELL'UNITA', e quello lo costruisce `MakeSimUnit` — lo stesso helper che
+	// riempie lo snapshot, quindi senza campi dimenticati.
+	//
+	// 🔴 **Non un `FRTHexSimUnit()` di default**, che sarebbe stato piu' corto e sbagliato: [D-190] tiene
+	// `Unit` nella firma di `ValidatePlan` perche' *«il bot e CP 38.3 lo useranno»*, e il giorno in cui
+	// qualcuno tornasse a leggerlo ogni piano verrebbe giudicato contro un'unita' che non esiste — cella
+	// `(0,0,0)`, budget `0` — senza che niente diventi rosso. Passare lo stato vero non costa nulla e toglie
+	// la trappola.
 	TArray<ARTUnit*> Units;
-	const FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units);
+	CollectLivingUnits(Units);
 
-	for (int32 i = 0; i < Units.Num() && i < Snapshot.Units.Num(); ++i)
+	for (int32 i = 0; i < Units.Num(); ++i)
 	{
+		// `CollectLivingUnits` aggiunge solo puntatori che hanno passato `Unit && Unit->IsAlive()`:
+		// un controllo di nullita' qui difenderebbe da niente.
 		ARTUnit* Unit = Units[i];
-		if (!Unit)
-		{
-			continue;
-		}
 
 		const TArray<FRTPlannedAction> Plan = URTPlanValidationLibrary::MakePlanFor(Unit);
 		if (Plan.Num() == 0)
@@ -1958,7 +2003,7 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 			continue; // nessuna voce: niente da giudicare
 		}
 
-		const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(Snapshot.Units[i], Plan);
+		const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(MakeSimUnit(i, Unit), Plan);
 		if (Verdict.bLegal)
 		{
 			continue;
@@ -3310,7 +3355,7 @@ void ARTTurnManager::ResolveDash()
 		// mobilita' e clicca senza posare waypoint sta nello stesso caso. Ogni scatto del gioco dichiarava
 		// uno scarto inesistente dentro un formato serializzato e riprodotto: misurato in code review il
 		// 2026-08-26, difeso da `PlayerInteraction.NoSupersededEntryOnADashWithoutAPlannedMove`.
-		const bool bHadNormalMove = Unit->PlannedPath.Num() > 1 || Unit->PlannedCell != Unit->Cell;
+		const bool bHadNormalMove = Unit->HasPlannedNormalMove();
 		const FRTCellId PreDashCell = Unit->Cell;
 
 		Unit->Cell = Final;
@@ -3355,9 +3400,14 @@ void ARTTurnManager::ResolveDash()
 			// ROTTA: quella che non si e' percorsa.
 			Superseded.SrcCell = PreDashCell;       // da dove il movimento sarebbe partito
 			Superseded.TgtCell = Unit->PlannedCell; // la destinazione dichiarata e mai raggiunta
-			// `Amount` conta le celle del percorso A WAYPOINT. Un piano che dichiara solo una destinazione —
-			// il bot, che «pianifica destinazioni, non percorsi a waypoint» — porta `0`, e la destinazione
-			// resta leggibile in `TgtCell`. Non si stima dalla distanza: sarebbe un numero che nessuno ha
+			// `Amount` conta le celle del percorso RISOLTO SCARTATO — le stesse tre parole di `RTTurnLog.h`
+			// e `spec-turnlog.md`, e «scartato» non e' decorativo: quelle celle NON sono state percorse, e'
+			// il percorso che il pathfinder aveva espanso dai waypoint e che lo scatto ha annullato. Due
+			// formulazioni per lo stesso campo sono la premessa di un difetto gia' pagato: un'asserzione che
+			// confrontava `Amount` con i CLICK invece che col percorso passava solo perche' in quello
+			// scenario i due numeri coincidevano. Un piano che dichiara solo una destinazione — il bot, che
+			// «pianifica destinazioni, non percorsi a waypoint» — porta `0`, e la destinazione resta
+			// leggibile in `TgtCell`. Non si stima dalla distanza: sarebbe un numero che nessuno ha
 			// percorso, in un formato che finisce nell'hash del replay.
 			Superseded.Amount = FMath::Max(0, Unit->PlannedPath.Num() - 1);
 			AppendLogEntry(Superseded, Unit);
@@ -3930,8 +3980,19 @@ void ARTTurnManager::ResolveCombat()
 				Bypassed.SrcCell = HexUnits[FirstHit->AttackerId].Cell;
 				Bypassed.TgtCell = HexUnits[i].Cell;
 				Bypassed.Amount = static_cast<int32>(HexUnits[i].Facing);
-				AppendLogEntry(Bypassed,
-					Units.IsValidIndex(FirstHit->AttackerId) ? Units[FirstHit->AttackerId] : nullptr);
+				// 🔴 `UnitId` porta CHI SUBISCE, non chi ha colpito, e non e' una scelta arbitraria: e' cio'
+				// che questa voce DESCRIVE. `Amount` porta il `Facing` del difensore, `TgtCell` la sua cella,
+				// e la categoria e' `Facing` — l'evento e' «l'orientamento del difensore non ha retto». Le
+				// altre voci `Facing` seguono la stessa regola: `MakeFacingEntry` mette cella e direzione
+				// dell'unita' il cui orientamento sta raccontando.
+				//
+				// Fino a `#1418` qui arrivava l'ATTACCANTE mentre la riga leggibile due righe sotto nominava
+				// il difensore: un consumatore che aggrega per `UnitId` e un umano che legge il log
+				// rispondevano diversamente alla domanda «chi l'ha fatto». La riga leggibile aveva ragione.
+				//
+				// ⚠️ `UnitId` non entra nell'hash (D-063), quindi questa correzione non tocca l'identita'
+				// delle tracce archiviate: cambia chi la voce dichiara, non quale traccia e'.
+				AppendLogEntry(Bypassed, Units[i]);
 				AddLogEvent(FString::Printf(TEXT("%s: %s"), *Units[i]->GetName(),
 					*URTTurnLogLibrary::DescribeEntry(Bypassed)));
 			}
@@ -4040,8 +4101,13 @@ void ARTTurnManager::ResolveCombat()
 		//
 		// Un colpo che scavalca ENTRAMBE le protezioni produce due voci, ed e' corretto: sono due
 		// annullamenti distinti dello stesso colpo.
+		// `Victim` si guarda, come ogni loop gemello di questa funzione (`:3937`, `:3803`): senza,
+		// `AppendLogEntry` scriverebbe `UnitId = 0`, che il suo commento definisce «nessuna unita'
+		// dichiarata» — la voce direbbe che il colpo alle spalle e' arrivato a nessuno, mentre l'altro
+		// produttore nomina sempre qualcuno. Due voci della stessa `(Category, Outcome)` di nuovo in
+		// disaccordo, cioe' cio' che `#1418` esiste per togliere.
 		if (Hit.CoverBypassedByFacing > 0 && HexUnits.IsValidIndex(Hit.AttackerId)
-			&& HexUnits.IsValidIndex(Hit.TargetId))
+			&& HexUnits.IsValidIndex(Hit.TargetId) && Victim)
 		{
 			FRTTurnLogEntry BypassedCover;
 			BypassedCover.Phase = ERTMatchPhase::Blast;
@@ -4050,7 +4116,11 @@ void ARTTurnManager::ResolveCombat()
 			BypassedCover.SrcCell = HexUnits[Hit.AttackerId].Cell;
 			BypassedCover.TgtCell = HexUnits[Hit.TargetId].Cell;
 			BypassedCover.Amount = Hit.CoverBypassedByFacing;
-			AppendLogEntry(BypassedCover, Attacker);
+			// CHI SUBISCE, come l'altro produttore di questo stesso esito (`#1418`). I due erano d'accordo
+			// nell'accreditare l'attaccante e sono stati corretti insieme: due voci con la stessa
+			// `(Category, Outcome)` che dichiarano unita' di ruolo diverso sono peggio di una sbagliata,
+			// perche' chi aggrega non ha modo di sapere quale ha in mano.
+			AppendLogEntry(BypassedCover, Victim);
 		}
 
 		// Effetti COLLATERALI del colpo (stato, spinta) dagli EVENTI dichiarati dall'azione, non da flag
@@ -4278,12 +4348,22 @@ FRTTeamKnowledge ARTTurnManager::KnowledgeForTeam(int32 TeamId) const
 	return Empty;
 }
 
-FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const
+FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit) const
+{
+	FRTHexSimUnit SimUnit(Index, Unit->Cell, Unit->GetEffectiveMoveRange(), /*bAlive=*/ true);
+	// `Action.Slow` (CP 4.7): +1 al costo di ogni cella, letto FRESCO a ogni costruzione — cosi' uno Slow
+	// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
+	// ricordare "quando" e' stato applicato.
+	SimUnit.MoveCostModifier = Unit->HasStatus(TAG_Status_Slow) ? 1 : 0;
+	// Orientamento (CP 16.1): lo si porta perche' e' stato di gioco, e perche' il facing di fine round e'
+	// quello di inizio del round dopo senza nessun travaso esplicito.
+	SimUnit.Facing = Unit->Facing;
+	return SimUnit;
+}
+
+void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 {
 	OutUnits.Reset();
-
-	FVector Origin; float HexSize; float LayerH;
-	const URTHexMapAsset* Map = GetHexContext(Origin, HexSize, LayerH);
 
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(const_cast<ARTTurnManager*>(this), ARTUnit::StaticClass(), Actors);
@@ -4316,6 +4396,17 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	// CADE `RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation` se questa riga sparisce:
 	// verificato per mutazione, non dedotto.
 	OutUnits.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+}
+
+FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const
+{
+	FVector Origin; float HexSize; float LayerH;
+	const URTHexMapAsset* Map = GetHexContext(Origin, HexSize, LayerH);
+
+	// Le unita' vive in ordine stabile: la raccolta e il sort vivono in `CollectLivingUnits`, perche'
+	// `ValidatePlansAtLockIn` ha bisogno delle STESSE unita' nello STESSO ordine e non ha bisogno di niente
+	// altro di questo snapshot. Duplicare il sort la' sarebbe stato il modo di farlo divergere.
+	CollectLivingUnits(OutUnits);
 
 	// L'identita' e' l'INDICE dell'unita' in OutUnits, un intero stabile — mai un pointer (stessa
 	// disciplina del TurnLog). Il chiamante ritrova la propria unita' con OutUnits.IndexOfByKey.
@@ -4323,15 +4414,7 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	SimUnits.Reserve(OutUnits.Num());
 	for (int32 i = 0; i < OutUnits.Num(); ++i)
 	{
-		FRTHexSimUnit SimUnit(i, OutUnits[i]->Cell, OutUnits[i]->GetEffectiveMoveRange(), /*bAlive=*/ true);
-		// `Action.Slow` (CP 4.7): +1 al costo di ogni cella, letto FRESCO a ogni snapshot — cosi' uno Slow
-		// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
-		// ricordare "quando" e' stato applicato.
-		SimUnit.MoveCostModifier = OutUnits[i]->HasStatus(TAG_Status_Slow) ? 1 : 0;
-		// Orientamento (CP 16.1): lo snapshot lo porta perche' e' stato di gioco, e perche' il facing di fine
-		// round e' quello di inizio del round dopo senza nessun travaso esplicito.
-		SimUnit.Facing = OutUnits[i]->Facing;
-		SimUnits.Add(SimUnit);
+		SimUnits.Add(MakeSimUnit(i, OutUnits[i]));
 	}
 	FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
 	// La conoscenza di squadra viaggia con la fotografia (CP 13.2), cosi' i consumatori puri — il bot di
@@ -5665,6 +5748,7 @@ void ARTTurnManager::BeginPacingSample()
 	PacingPlanningStart = FPlatformTime::Seconds();
 	PacingLastInput = PacingPlanningStart;
 	bPacingHadInput = false;
+	bPacingSampleOpen = true; // da qui l'origine esiste, e i tempi si possono misurare
 }
 
 void ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)
@@ -5674,8 +5758,12 @@ void ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)
 		return; // un input fuori dalla pianificazione non e' una decisione di turno
 	}
 
+	// 🔴 Il SECONDO percorso dello stesso difetto, e il piu' facile da non vedere: `Phase` vale `Planning`
+	// per default, quindi la guardia qui sopra NON ferma un TurnManager che non e' mai passato da
+	// `BeginPlay`, e `(Now - 0.0) * 1000.0` sfora l'`int32` esattamente come nel lock-in. I contatori di
+	// composizione — selezioni, ordini, annullamenti — restano validi: sono conteggi, non tempi.
 	const double Now = FPlatformTime::Seconds();
-	if (!bPacingHadInput)
+	if (bPacingSampleOpen && !bPacingHadInput)
 	{
 		bPacingHadInput = true;
 		PacingCurrent.MsToFirstInput = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
@@ -5702,6 +5790,10 @@ void ARTTurnManager::ClosePacingSample()
 		AppendPacingRow(PacingCurrent);
 	}
 	PacingCurrent = FRTPacingSample();
+	// Il campione e' chiuso: il prossimo turno misura solo se qualcuno lo riapre. Senza questo, un turno
+	// aperto dal timer e uno successivo raggiunto da un altro percorso si misurerebbero entrambi
+	// dall'origine del primo.
+	bPacingSampleOpen = false;
 }
 
 void ARTTurnManager::AppendPacingRow(const FRTPacingSample& Sample)

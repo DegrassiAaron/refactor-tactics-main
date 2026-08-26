@@ -266,11 +266,18 @@ non cambia *che cosa* ha speso.
 
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Distanza | CD | Rumore | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---:|---|---|
-| `Action.Sprint` *(vedi §2.1)* | Scatto lungo | Movimento + Principale ⚠️ | **Dash** ⚠️ | 20 | 60 | 8 MP | 0 | 5 | `Fallback.Stop` | sì |
+| `Action.Sprint` *(vedi §2.1)* | Scatto lungo | **Movimento** | **Dash** ⚠️ | 20 | 60 | 8 MP | 0 | 5 | `Fallback.Stop` | sì |
 | `Action.Dash` | Scatto | **Movimento** | **Dash** | 20 | 30 | 3 celle | 1 | 6 | `Fallback.Stop` | sì |
 | `Action.Charge` | Carica | **Movimento** | **Dash** | 20/30 | 35 | 3 celle | 2 | — | `Fallback.Stop` | sì |
 | `Action.Leap` | Balzo | **Movimento** | **Dash** | 20 | 25 | 3 celle | 2 | — | `Fallback.Stop` | sì |
 | `Action.Reposition` | Riposizionamento | **Movimento** | **Dash** | 20 | 40 | 2 celle | 1 | — | `Fallback.Stop` | sì |
+
+> 🔴 **Corretta il 2026-08-26 — la cella «Slot» di `Action.Sprint` diceva «Movimento + Principale ⚠️», e
+> contraddiceva il capoverso qui sotto, [D-028](../decisions/RT_PDR_00_Decision_Log.md) e il dato.** In
+> `URTCatalogLibrary::GetCoreActionCatalog` lo scatto lungo entra con `ERTActionSlot::Movement`, e
+> `RefactorTactics.Actions.PrecisionAttack.WeaponRangePlusOne` verifica che la principale resti libera. La
+> ⚠️ sulla colonna **Macro-fase** invece **resta vera**: `ERTResolutionPhase::FastMovement` è l'arretrato
+> di [D-116](../decisions/RT_PDR_00_Decision_Log.md), lavoro di E38.
 
 **Sprint** — fornisce 8 MP · occupa il **solo slot movimento** ([D-028](../decisions/RT_PDR_00_Decision_Log.md),
 coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` (**+5** al primo danno diretto ricevuto). ⚠️ **Durata: da `1` a `2` turni** con [D-116](../decisions/RT_PDR_00_Decision_Log.md) — non è un ribilanciamento, è la contropartita della migrazione di fase: con lo Sprint dopo il Blast, un `Exposed` che scade nel Cleanup dello stesso turno non incontrerebbe mai un attacco.
@@ -313,7 +320,14 @@ all'impatto (controllo), che nel progetto resta dentro il **Blast** per priorit�
 > cooldown 2). Se un giorno il codice dimostrasse che è solo un duplicato nominale dell'Overwatch, la
 > conclusione sarebbe una **issue di refactor**, non una cancellazione durante un riordino documentale.
 
-**Precision Attack** — range dell'arma **+1** · ignora la copertura bassa · **non** utilizzabile dopo Sprint.
+**Precision Attack** — range dell'arma **+1** · ignora la copertura bassa · **utilizzabile dopo lo Sprint**.
+
+> 🔴 **Questa riga diceva «*non* utilizzabile dopo Sprint» fino al 2026-08-26**, ed era la regola di
+> prima di [D-028](../decisions/RT_PDR_00_Decision_Log.md): quando lo scatto lungo occupava anche la
+> principale, l'attacco non trovava più lo slot. Con lo Sprint sul **solo** movimento il piano è legale —
+> *corro e sparo* — e non per un'eccezione sull'`ActionId`: lo decide la stessa regola di slot che vieta due
+> principali. Lo pinna `RefactorTactics.Actions.PrecisionAttack.WeaponRangePlusOne`, che verifica
+> `ValidateActionSlots({ Sprint, PrecisionAttack })` **senza errori**.
 
 **Heavy Attack** — priorità bassa (risolve tardi) · infligge **20** danni alle coperture distruttibili · se
 interrotto prima della fase d'attacco non produce alcun effetto.

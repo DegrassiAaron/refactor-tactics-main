@@ -74,6 +74,106 @@ namespace
 	}
 }
 
+/**
+ * Ogni campo che DISCRIMINA una voce viene nominato dalla diagnosi, coi suoi due valori.
+ *
+ * Non e' un elenco di casi scelti a mano: e' l'elenco COMPLETO di cio' che `GoldenEntriesMatch` guarda.
+ * Quel confronto e' `HashTurnLogOrdered({A}) == HashTurnLogOrdered({B})`, quindi l'insieme dei campi che
+ * possono far divergere due voci **e' per costruzione** l'insieme che l'hash mescola — e il report che ne
+ * stampava quattro su dieci non era incompleto per distrazione: erano due elenchi della stessa cosa in due
+ * posti, e sono divergiuti tre volte (`ActionId`, `TgtCell`, `GraphRevision`).
+ *
+ * Oggi l'elenco e' uno solo (`VisitDiscriminatingFields`) e lo percorrono sia l'hash sia il report, quindi
+ * un campo nuovo entra in entrambi o in nessuno dei due. Questo test lo pinna dal lato che si vede.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGoldenDivergenceNamesTheFieldTest,
+	"RefactorTactics.Simulation.GoldenDivergenceNamesTheField",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGoldenDivergenceNamesTheFieldTest::RunTest(const FString&)
+{
+	const TArray<FRTTurnLogEntry> Golden = GoldenSample();
+
+	// La voce 2 e' `Move/Moved`, `Action.Move`, amount 2, src (1,0,0), tgt (2,0,0): tutto il resto e' a zero.
+	auto DiagFor = [&Golden](TFunctionRef<void(FRTTurnLogEntry&)> Mutate)
+	{
+		TArray<FRTTurnLogEntry> Actual = Golden;
+		Mutate(Actual[2]);
+		return URTTurnLogLibrary::DescribeFirstDivergence(/*TurnNumber*/ 1, Golden, Actual);
+	};
+
+	TestTrue(TEXT("phase"),
+		DiagFor([](FRTTurnLogEntry& E) { E.Phase = ERTMatchPhase::Cleanup; })
+			.Contains(TEXT("phase atteso Move, trovato Cleanup")));
+
+	TestTrue(TEXT("category"),
+		DiagFor([](FRTTurnLogEntry& E) { E.Category = ERTLogCategory::Status; })
+			.Contains(TEXT("category atteso Move, trovato Status")));
+
+	TestTrue(TEXT("outcome"),
+		DiagFor([](FRTTurnLogEntry& E) { E.Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByUnit); })
+			.Contains(FString::Printf(TEXT("outcome atteso %u, trovato %u"),
+				static_cast<uint8>(ERTMoveOutcome::Moved),
+				static_cast<uint8>(ERTMoveOutcome::BlockedByUnit))));
+
+	TestTrue(TEXT("src"),
+		DiagFor([](FRTTurnLogEntry& E) { E.SrcCell = FRTCellId(7, 7, 1); })
+			.Contains(TEXT("src atteso (q=1,r=0,L=0), trovato (q=7,r=7,L=1)")));
+
+	TestTrue(TEXT("tgt"),
+		DiagFor([](FRTTurnLogEntry& E) { E.TgtCell = FRTCellId(9, 9); })
+			.Contains(TEXT("tgt atteso (q=2,r=0,L=0), trovato (q=9,r=9,L=0)")));
+
+	TestTrue(TEXT("amount"),
+		DiagFor([](FRTTurnLogEntry& E) { E.Amount = 42; })
+			.Contains(TEXT("amount atteso 2, trovato 42")));
+
+	TestTrue(TEXT("actionId"),
+		DiagFor([](FRTTurnLogEntry& E) { E.ActionId = FName(TEXT("Action.Sprint")); })
+			.Contains(TEXT("actionId atteso 'Action.Move', trovato 'Action.Sprint'")));
+
+	TestTrue(TEXT("graphRevision"),
+		DiagFor([](FRTTurnLogEntry& E) { E.GraphRevision = 127; })
+			.Contains(TEXT("graphRevision atteso 0, trovato 127")));
+
+	// Un id di finestra VUOTO non entra nell'hash (e' il ciclo che non gira), quindi il campo compare da una
+	// parte sola: la diagnosi lo dice invece di stampare due valori di cui uno non esiste.
+	{
+		const FString Diag = DiagFor([](FRTTurnLogEntry& E) { E.OpportunityId = TEXT("opp-1"); });
+		TestTrue(TEXT("opportunityId"),
+			Diag.Contains(TEXT("opportunityId atteso '', trovato 'opp-1'")));
+
+		// Aprire la finestra da una parte sola fa comparire `selectedTarget` in un elenco solo: e' il ramo
+		// `<assente>`, che senza questa riga non lo asserisce nessuno.
+		TestTrue(TEXT("un campo presente da una parte sola si dichiara assente"),
+			Diag.Contains(TEXT("selectedTarget atteso <assente>, trovato -1")));
+	}
+
+	// `SelectedTargetUnitId` e' mescolato SOLO dentro una finestra: fuori non discrimina, e infatti non
+	// compare. Il caso va costruito con la finestra aperta da entrambe le parti.
+	{
+		TArray<FRTTurnLogEntry> Base = Golden;
+		Base[2].OpportunityId = TEXT("opp-1");
+		Base[2].SelectedTargetUnitId = 1; // esplicito da entrambe le parti: il default e' INDEX_NONE, non 0
+
+		TArray<FRTTurnLogEntry> Actual = Base;
+		Actual[2].SelectedTargetUnitId = 3;
+
+		const FString Diag = URTTurnLogLibrary::DescribeFirstDivergence(/*TurnNumber*/ 1, Base, Actual);
+		TestTrue(TEXT("selectedTarget"), Diag.Contains(TEXT("selectedTarget atteso 1, trovato 3")));
+	}
+
+	// E il verso opposto: un campo che l'hash NON guarda non produce divergenza, quindi non ha niente da
+	// nominare. `UnitId` e' il caso di D-063 — spiega la traccia, non la discrimina.
+	{
+		TArray<FRTTurnLogEntry> Actual = Golden;
+		Actual[2].UnitId = 9;
+		TestTrue(TEXT("UnitId non discrimina: nessuna divergenza"),
+			URTTurnLogLibrary::DescribeFirstDivergence(/*TurnNumber*/ 1, Golden, Actual).IsEmpty());
+	}
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGoldenCorpusDivergenceTest,
 	"RefactorTactics.Simulation.GoldenCorpusDetectsDivergence",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -127,8 +227,25 @@ bool FRTGoldenCorpusDivergenceTest::RunTest(const FString&)
 		const FString Diag = URTTurnLogLibrary::DescribeFirstDivergence(/*TurnNumber*/ 4, Base, Actual);
 
 		TestFalse(TEXT("una divergenza va descritta"), Diag.IsEmpty());
-		TestTrue(TEXT("quando la prosa non distingue, mostra i campi grezzi"), Diag.Contains(TEXT("campi:")));
-		TestTrue(TEXT("e il campo che diverge e' leggibile"), Diag.Contains(TEXT("tgt=(9,9,0)")));
+		TestTrue(TEXT("quando la prosa non distingue, mostra i campi"), Diag.Contains(TEXT("campi:")));
+		TestTrue(TEXT("e nomina QUELLO che diverge, coi due valori"),
+			Diag.Contains(TEXT("tgt atteso (q=2,r=0,L=0), trovato (q=9,r=9,L=0)")));
+	}
+
+	// Divergenza su `GraphRevision`: il campo che NESSUNA prosa rende, per nessuna categoria — e che nessun
+	// elenco di campi grezzi nominava, perche' quell'elenco era scritto a mano e ne portava quattro su dieci.
+	// E' il caso di `#1423`: due arene costruite con un numero diverso di revisioni producono tracce identiche
+	// in ogni parola e diverse nell'identita' del grafo su cui sono state validate. Il report mostrava
+	// «atteso [X], trovato [X]» **su ogni campo che stampava**, e chi lo leggeva non aveva nessuna via d'uscita.
+	{
+		TArray<FRTTurnLogEntry> Actual = Golden;
+		Actual[2].GraphRevision = 127;
+
+		const FString Diag = URTTurnLogLibrary::DescribeFirstDivergence(/*TurnNumber*/ 5, Golden, Actual);
+
+		TestFalse(TEXT("una divergenza va descritta"), Diag.IsEmpty());
+		TestTrue(TEXT("nomina il campo che diverge"),
+			Diag.Contains(TEXT("graphRevision atteso 0, trovato 127")));
 	}
 
 	// La PRIMA divergenza, non l'ultima: chi legge parte dalla causa piu' probabile.

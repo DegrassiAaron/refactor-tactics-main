@@ -15,7 +15,6 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
@@ -63,12 +62,7 @@ namespace
 		}
 		// `World` come Outer, non il transient package: e' la stessa disciplina di
 		// `URTMatchSetupLibrary::MakeTestArena`, che rifiuta un Outer nullo invece di inventarsene uno.
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>(World);
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(World, Radius);
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		if (!Actor)
 		{
@@ -878,6 +872,81 @@ bool FRTSupersededEntryRendersTheDiscardedRouteTest::RunTest(const FString&)
 	TestTrue(TEXT("e la destinazione mai raggiunta"), Testo.Contains(TEXT("q=2,r=1")));
 	TestTrue(TEXT("e quante celle sono state scartate"), Testo.Contains(TEXT("2 celle")));
 
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInRejectionsFollowTheStableOrderTest,
+	"RefactorTactics.PlayerInteraction.LockInRejectionsFollowTheStableOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInRejectionsFollowTheStableOrderTest::RunTest(const FString&)
+{
+	// 🔴 **L'ordine delle righe di rifiuto non deve dipendere dall'ordine di SPAWN.**
+	// `ValidatePlansAtLockIn` itera `CollectLivingUnits`, che ordina per cella con `StableLess`. Sostituire
+	// quella chiamata con un `GetAllActorsOfClass` grezzo lascerebbe verde tutto il resto della suite e
+	// renderebbe il combat log dipendente dall'ordine in cui il livello tiene gli Actor — la stessa classe di
+	// difetto che `Match.Autobattle.DeterminismSurvivesUnitPermutation` difende per la risoluzione, e che
+	// qui non era difesa da nessuno.
+	//
+	// Le due unita' si spawnano di proposito nell'ordine OPPOSTO a quello canonico: `StableLess` confronta
+	// prima `Layer`, poi `X`, poi `Y`, quindi `(1,0)` precede `(3,0)` mentre lo spawn fa il contrario.
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	const FRTCellId CellaTardi(3, 0); // spawnata per PRIMA, canonicamente SECONDA
+	const FRTCellId CellaPrima(1, 0); // spawnata per SECONDA, canonicamente PRIMA
+	ARTUnit* Tardi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), CellaTardi);
+	ARTUnit* Prima = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), CellaPrima);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita' spawnata per prima"), Tardi) || !TestNotNull(TEXT("unita' spawnata per seconda"), Prima)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// Un piano illegale su ENTRAMBE: scatto piu' movimento, due azioni sullo slot Movimento.
+	for (ARTUnit* U : { Tardi, Prima })
+	{
+		const int32 DashIdx = U->FindDashAbilityIndex();
+		if (!TestNotEqual(TEXT("premessa: l'eroe ha una mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE)))
+		{
+			DestroyInteractionWorld(World);
+			return false;
+		}
+		U->PlannedDashAbility = DashIdx;
+		U->PlannedDashCell = FRTCellId(U->Cell.X, U->Cell.Y + 1);
+		U->PlannedCell = FRTCellId(U->Cell.X, U->Cell.Y + 2); // il movimento normale che rende il piano illegale
+	}
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	// La posizione delle due righe di rifiuto nel combat log, nell'ordine in cui sono state emesse.
+	int32 PosPrima = INDEX_NONE;
+	int32 PosTardi = INDEX_NONE;
+	const TArray<FString>& Eventi = TM->GetRecentEvents();
+	for (int32 I = 0; I < Eventi.Num(); ++I)
+	{
+		if (!Eventi[I].Contains(TEXT("piano non valido al lock-in"))) { continue; }
+		if (Eventi[I].Contains(Prima->GetName()) && PosPrima == INDEX_NONE) { PosPrima = I; }
+		if (Eventi[I].Contains(Tardi->GetName()) && PosTardi == INDEX_NONE) { PosTardi = I; }
+	}
+
+	if (!TestNotEqual(TEXT("premessa: l'unita' canonicamente prima ha una riga"), PosPrima, static_cast<int32>(INDEX_NONE))
+		|| !TestNotEqual(TEXT("premessa: l'altra unita' ha una riga"), PosTardi, static_cast<int32>(INDEX_NONE)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	TestTrue(TEXT("le righe seguono l'ordine canonico per cella, non quello di spawn"), PosPrima < PosTardi);
+
+	DestroyInteractionWorld(World);
 	return true;
 }
 

@@ -117,8 +117,9 @@ struct FRTPlannedSlotView
 /**
  * I tre slot di un turno: movimento, azione principale, reazione.
  *
- * ⚠️ **Non sono tre booleani indipendenti.** `Action.Sprint` dichiara `MovementAndMain` e ne occupa **due**,
- * ed e' il caso che rende sbagliata la mappatura ovvia «un'azione, uno slot». Chi decide resta
+ * ⚠️ **Non sono tre booleani indipendenti.** Un'azione che dichiara `MovementAndMain` ne occupa **due**,
+ * ed e' il caso che rende sbagliata la mappatura ovvia «un'azione, uno slot» - nessuna lo dichiara oggi
+ * (`Action.Sprint` lo faceva fino a [D-028]), ma una vista non puo' assumerlo. Chi decide resta
  * `URTCatalogLibrary::TakesMovementSlot`/`TakesMainSlot`, gli stessi predicati che usa il validatore del
  * piano: qui non si riscrive la regola, la si interroga.
  */

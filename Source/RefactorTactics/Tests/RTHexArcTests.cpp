@@ -1,9 +1,9 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexArcLibrary.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Pathfinding/RTHexPath.h"
 #include "Pathfinding/RTHexPathLibrary.h"
@@ -23,11 +23,7 @@ namespace
 	/** Due piani collegati: esagono r=2 sul layer 0, la sola colonna centrale sul layer 1, un ponte fra i due. */
 	URTHexMapAsset* MakeArcMap(bool bWithBridge = true, ERTHexArcState State = ERTHexArcState::Active)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 2))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 2);
 		M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 1)));
 		M->AddOrUpdateCell(FRTHexCellData(FRTCellId(1, 0, 1)));
 		M->SortCells();
