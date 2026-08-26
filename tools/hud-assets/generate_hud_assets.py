@@ -29,7 +29,12 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from action_axes import action_axes
 
 try:
     import cairosvg
@@ -325,11 +330,15 @@ def g_linear_discharge() -> str:
 
     ⚠️ Nel mock questa e' «Chain Discharge» con tre salti. `Chain` e' un'altra primitiva (§3) e va
     disegnata con i nodi visibili: qui non ce ne sono, perche' qui non ci sono salti.
+
+    ⚠️ E non e' `LineAttack` con una piega: la prima stesura — punto, segmento dritto, piccola
+    zigzagatura, punta — misurava **0.087** contro di lei. Il fulmine ora occupa tutta la larghezza e
+    non ha punta, perche' una scarica non punta: attraversa. La linea sotto e' la superficie.
     """
     return "\n".join([
-        dot(3.6, 12, 1.5),
-        path("M5.4 12 L9.6 12 L11.4 9 L13.4 15 L15.2 12 L17.4 12"),
-        arrow_head(20.4, 12, 2.8),
+        dot(3, 12, 1.7),
+        path("M5.2 12 L10.4 5.4 L11.8 12.6 L17 6 L18.4 13.2 L21 9.6", stroke_width=2.0),
+        path("M13.4 17.6 L16.4 17.6 M9.6 19.8 L18.6 19.8", stroke_width=1.2),
     ])
 
 
@@ -625,12 +634,18 @@ def g_heavy_attack() -> str:
 
 
 def g_line_attack() -> str:
-    """`LineAttack`: primitiva `Line` — origine, segmento, punta. **Senza nodi intermedi**: i nodi sono
-    di `Move`, e una linea con i nodi diventa un percorso."""
+    """`LineAttack`: primitiva `Line` — origine, segmento, punta — con le due celle attraversate.
+
+    **Senza nodi intermedi**: i nodi sono di `Move`, e una linea con i nodi diventa un percorso. Le
+    due traverse non sono nodi: sono i bersagli sulla traiettoria, ed esistono perche' senza di loro
+    il glifo misurava **0.087** contro `Hero.Gadget.LinearDischarge`, che e' anch'essa origine,
+    segmento e punta. Due azioni che colpiscono in modo diverso lungo una linea devono dirlo.
+    """
     return "\n".join([
         dot(3.4, 12, 1.8),
         path("M5.6 12 L17.4 12", stroke_width=2.0),
         arrow_head(20.6, 12, 3.0),
+        path("M9.6 8.6 L9.6 15.4 M14.2 8.6 L14.2 15.4", stroke_width=1.3),
     ])
 
 
@@ -644,12 +659,18 @@ def g_circular_aoe() -> str:
 
 
 def g_suppressive_line() -> str:
-    """`SuppressiveLine`: negazione d'area lungo una linea. Non e' `LineAttack` con piu' frecce: la
-    differenza e' che qui non c'e' una punta, perche' non c'e' un bersaglio."""
+    """`SuppressiveLine`: negazione d'area lungo una linea — una fascia tratteggiata trasversalmente,
+    non un fascio di traiettorie.
+
+    ⚠️ Tre linee parallele con una barra terminale misuravano **0.115** contro `Sprint`, che e' una
+    linea con due trail e una barra terminale. Il tratteggio trasversale toglie la direzione di
+    marcia, che e' esattamente cio' che una zona negata non ha: non ci si passa, non ci si corre.
+    """
     return "\n".join([
-        dot(3.6, 12, 1.6),
-        path("M6 8.4 L20.4 8.4 M6 12 L20.4 12 M6 15.6 L20.4 15.6", stroke_width=1.5),
-        path("M20.4 6.4 L20.4 17.6", stroke_width=1.3),
+        dot(3.4, 12, 1.7),
+        path("M5.4 7.4 L20.6 7.4 M5.4 16.6 L20.6 16.6", stroke_width=1.6),
+        path("M7.6 7.4 L7.6 16.6 M11.4 7.4 L11.4 16.6 M15.2 7.4 L15.2 16.6 M19 7.4 L19 16.6",
+             stroke_width=1.2),
     ])
 
 
@@ -689,13 +710,21 @@ def g_deflect() -> str:
 
 
 def g_intercept() -> str:
-    """`Intercept`: la linea si ferma a meta'. Non torna indietro (`Counter`) e non piega (`Deflect`):
-    finisce."""
+    """`Intercept`: due traiettorie che si incontrano. Chi intercetta **va incontro**.
+
+    ⚠️ La prima stesura era una linea spezzata da una barra verticale, e il test di collisione la
+    misurava contro `Interrupt` a **0.085**: lo stesso disegno con la barra in un altro punto. Sono
+    due cose diverse — `Interrupt` spezza un'azione gia' partita, `Intercept` ne incrocia una — e
+    finche' condividevano la silhouette il giocatore non aveva modo di saperlo.
+    """
     return "\n".join([
-        dot(3.4, 12, 1.6),
-        path("M5.4 12 L11 12", stroke_width=1.8),
-        path("M13.2 6 L13.2 18", stroke_width=2.2),
-        path("M15.8 12 L20.6 12", stroke_dasharray="1.4 2.2", stroke_width=1.4),
+        dot(3, 7.6, 1.5),
+        path("M4.8 8.4 L10.6 11.6"),
+        dot(3, 20.4, 1.5),
+        path("M4.8 19.6 L10.6 16.4"),
+        path("M13.6 14 L16.6 14 M13.6 14 L13.6 11 M15 15.4 L18.4 18.8 M15 12.6 L18.4 9.2",
+             stroke_width=1.5),
+        dot(12.8, 14, 2.2),
     ])
 
 
@@ -725,25 +754,31 @@ def g_evade_placeholder() -> str:  # pragma: no cover - segnaposto non registrat
 # --- Controllo ------------------------------------------------------------------------------------
 
 def g_push() -> str:
-    """`Push`: impulso esterno, punto unita', uscita — `» ● ─►` (§4). E' movimento **subito**: la
-    grammatica lo tiene distinto da `Dash`, che l'unita' sceglie."""
+    """`Push`: impulso esterno, punto unita', uscita. E' movimento **subito**, e la grammatica §7 lo
+    vuole distinto da `Dash`, che l'unita' sceglie.
+
+    ⚠️ La prima stesura usava i chevron — `» ● ─►`, come scrive §4 — e il test di collisione misurava
+    `Push` contro `Dash` a **0.113**: indistinguibili a 24 px. I chevron sono il segno di `Dash`, e
+    riusarli per l'impulso esterno collassava proprio la coppia che il documento dichiara critica. La
+    faccia piena dice «qualcosa mi ha spinto» senza contendere il segno dell'accelerazione.
+    """
     return "\n".join([
-        path("M3 8.4 L6 12 L3 15.6", stroke_width=1.5),
-        path("M6.6 8.4 L9.6 12 L6.6 15.6", stroke_width=1.5),
-        dot(13, 12, 2.0),
-        path("M15.6 12 L18.4 12"),
-        arrow_head(21.2, 12, 2.6),
+        path("M3.4 5.6 L3.4 18.4", stroke_width=2.6),
+        path("M5 8.6 L7.6 12 L5 15.4", stroke_width=1.4),
+        dot(12.4, 12, 2.4),
+        path("M15.4 12 L18 12"),
+        arrow_head(20.8, 12, 2.5),
     ])
 
 
 def g_pull() -> str:
     """`Pull`: `◄─ ● «` — lo stesso impulso al contrario."""
     return "\n".join([
-        path("M21 8.4 L18 12 L21 15.6", stroke_width=1.5),
-        path("M17.4 8.4 L14.4 12 L17.4 15.6", stroke_width=1.5),
-        dot(11, 12, 2.0),
-        path("M8.4 12 L5.6 12"),
-        arrow_head_left(2.8, 12, 2.6),
+        path("M20.6 5.6 L20.6 18.4", stroke_width=2.6),
+        path("M19 8.6 L16.4 12 L19 15.4", stroke_width=1.4),
+        dot(11.6, 12, 2.4),
+        path("M8.6 12 L6 12"),
+        arrow_head_left(3.2, 12, 2.5),
     ])
 
 
@@ -1390,6 +1425,10 @@ def main() -> int:
     args = ap.parse_args()
 
     root = Path(args.out)
+    # Gli assi dichiarati dal catalogo generico, letti dal C++: fase di risoluzione, slot, stile di
+    # movimento, effetti. Sono il dato su cui una codifica di fase/effetto puo' poggiare senza che
+    # nessuno riscriva a mano la mappa azione -> fase.
+    AXES = action_axes()
     manifest: dict = {
         "generator": "tools/hud-assets/generate_hud_assets.py",
         "grammatica": "docs/research/design/icon/visual-language/",
@@ -1411,10 +1450,12 @@ def main() -> int:
         for size in sizes:
             if _rasterize(svg, root / "Icons" / f"{asset}_{size}.png", size, size):
                 rasterized += 1
+        axes = AXES.get(semantic) if category == "Action" else None
         manifest["icons"].append({
             "AssetName": asset,
             "IconId": iid,
             "Category": category,
+            "Axes": axes,
             "NativeSize": [int(GRID), int(GRID)],
             "PngSizes": sizes,
             "MinReadableSize": min_size,
