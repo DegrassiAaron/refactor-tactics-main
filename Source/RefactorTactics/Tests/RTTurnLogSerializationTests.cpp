@@ -979,6 +979,115 @@ bool FRTTurnLogGraphRevisionEntersHashTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * L'IDENTITA' delle tracce, pinnata campo per campo e **nell'ordine**.
+ *
+ * 🔴 Nessun altro test la teneva ferma, e il corpus golden **non** la tiene: `CompareSerializedTraces`
+ * deserializza i due lati e confronta `HashTurnLog` RICALCOLATO su entrambi, quindi qualunque modifica a
+ * `MixEntryFields` sposta atteso e trovato insieme e `Simulation.GoldenCorpusMatches` resta verde. Anche
+ * tutte le asserzioni su hash della suite sono ricalcolato-contro-ricalcolato o valori sintetici: un
+ * riordino dei campi non faceva cadere niente, mentre invaliderebbe in silenzio ogni `OrderedHashPerTurn`
+ * scritto nei manifest di replay e ogni checksum di fine partita gia' archiviato.
+ *
+ * Il valore atteso NON e' una costante magica: e' l'algoritmo rifatto a mano — FNV-1a a 32 bit sui campi
+ * dichiarati, in quest'ordine. Chi cambia l'elenco fa fallire questo test e deve cambiarlo **anche qui**,
+ * che e' il punto: il cambio d'identita' si dichiara, non si scopre a valle su un archivio che non torna.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogHashFieldOrderTest,
+	"RefactorTactics.TurnLog.HashMixesTheDeclaredFieldsInOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogHashFieldOrderTest::RunTest(const FString&)
+{
+	FRTTurnLogEntry E;
+	E.Phase = ERTMatchPhase::Blast;
+	E.Category = ERTLogCategory::ReactionClash;
+	E.Outcome = 3;
+	E.SrcCell = FRTCellId(-2, 5, 1);
+	E.TgtCell = FRTCellId(7, -3, 0);
+	E.Amount = 21;
+	E.ActionId = FName(TEXT("Hero.Wraith.PulseShot"));
+	E.GraphRevision = 127;
+	E.OpportunityId = TEXT("opp-7");
+	E.SelectedTargetUnitId = 4;
+	// Fuori dall'hash per dichiarazione (D-063 e i commenti di `FRTTurnLogEntry`): valorizzati apposta, per
+	// asserire piu' sotto che non lo muovono.
+	E.UnitId = 9;
+	E.TurnNumber = 5;
+	E.Priority = 50;
+	E.BaseActionId = FName(TEXT("Hero.Wraith.Base"));
+	E.OriginalTargetUnitId = 2;
+
+	uint32 Expected = 2166136261u; // FNV-1a offset basis
+	auto Mix = [&Expected](uint32 Value)
+	{
+		Expected ^= Value;
+		Expected *= 16777619u; // FNV-1a prime
+	};
+	auto MixText = [&Mix](const FString& Text)
+	{
+		for (const TCHAR Ch : Text)
+		{
+			Mix(static_cast<uint32>(Ch));
+		}
+	};
+
+	Mix(static_cast<uint32>(E.Phase));
+	Mix(static_cast<uint32>(E.Category));
+	Mix(static_cast<uint32>(E.Outcome));
+	Mix(static_cast<uint32>(E.SrcCell.X));
+	Mix(static_cast<uint32>(E.SrcCell.Y));
+	Mix(static_cast<uint32>(E.SrcCell.Layer));
+	Mix(static_cast<uint32>(E.TgtCell.X));
+	Mix(static_cast<uint32>(E.TgtCell.Y));
+	Mix(static_cast<uint32>(E.TgtCell.Layer));
+	Mix(static_cast<uint32>(E.Amount));
+	MixText(E.ActionId.ToString());
+	Mix(static_cast<uint32>(E.GraphRevision));
+	MixText(E.OpportunityId);
+	Mix(static_cast<uint32>(E.SelectedTargetUnitId));
+
+	TestEqual(TEXT("l'hash ordinato mescola i campi dichiarati, in quest'ordine"),
+		static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ E })), static_cast<int64>(Expected));
+	TestEqual(TEXT("e su una voce sola l'hash canonico coincide: la differenza e' solo il sort davanti"),
+		static_cast<int64>(URTTurnLogLibrary::HashTurnLog({ E })), static_cast<int64>(Expected));
+
+	// I campi che spiegano la traccia senza discriminarla non muovono l'hash. Se un giorno lo muovessero,
+	// e' un cambio d'identita' e questo test e' il posto dove si vede.
+	FRTTurnLogEntry Explained = E;
+	Explained.UnitId = 11;
+	Explained.TurnNumber = 99;
+	Explained.Priority = 10;
+	Explained.BaseActionId = FName(TEXT("Altro.Base"));
+	Explained.OriginalTargetUnitId = 6;
+	TestEqual(TEXT("UnitId, TurnNumber, Priority, BaseActionId e OriginalTargetUnitId restano fuori"),
+		static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ Explained })), static_cast<int64>(Expected));
+
+	// ⚠️ Un `FName` non impostato NON e' una stringa vuota: mescola i quattro caratteri di `None`. E' cosi'
+	// da prima che l'elenco dei campi diventasse uno solo, e cambiarlo e' un cambio d'identita' — quindi qui
+	// si PINNA il comportamento reale, non quello che il nome del campo suggerisce.
+	{
+		FRTTurnLogEntry NoAction;
+		NoAction.Phase = ERTMatchPhase::Move;
+		NoAction.Category = ERTLogCategory::Move;
+
+		uint32 WithNone = 2166136261u;
+		auto MixNone = [&WithNone](uint32 Value) { WithNone ^= Value; WithNone *= 16777619u; };
+		MixNone(static_cast<uint32>(NoAction.Phase));
+		MixNone(static_cast<uint32>(NoAction.Category));
+		MixNone(static_cast<uint32>(NoAction.Outcome));
+		for (int32 Repeat = 0; Repeat < 7; ++Repeat) { MixNone(0u); } // src, tgt, amount: tutti a zero
+		for (const TCHAR Ch : FString(TEXT("None"))) { MixNone(static_cast<uint32>(Ch)); }
+		MixNone(static_cast<uint32>(NoAction.GraphRevision));
+		// `OpportunityId` vuoto non mescola nulla, e `SelectedTargetUnitId` resta fuori dal ramo.
+
+		TestEqual(TEXT("un ActionId non impostato mescola 'None', non la stringa vuota"),
+			static_cast<int64>(URTTurnLogLibrary::HashTurnLogOrdered({ NoAction })),
+			static_cast<int64>(WithNone));
+	}
+
+	return true;
+}
+
 /** `GraphRevision` sopravvive al round-trip, come gli altri campi della v6. */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogGraphRevisionRoundTripTest,
 	"RefactorTactics.TurnLog.GraphRevisionRoundTrip",
