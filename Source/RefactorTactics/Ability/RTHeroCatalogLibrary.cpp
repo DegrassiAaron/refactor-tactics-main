@@ -336,9 +336,8 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	// Il corollario che vale per chi passera' di qui: nessun campo di durata per-azione entra nel catalogo per
 	// rappresentare l'altra lettura, e `Range 0` non e' piu' un segnaposto da sostituire.
 	const FRTActionDef ElectrifyDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify"));
-	URTActionData* ConductiveNode = MakeHeroAction(TEXT("Hero.Gadget.ConductiveNode"), ElectrifyDef.ResolutionPhase,
-		ElectrifyDef.Priority, ElectrifyDef.RangeCells, /*Cooldown*/ 2, ElectrifyDef.Fallback,
-		ElectrifyDef.Effects);
+	URTActionData* ConductiveNode = MakeHeroActionFromCore(TEXT("Hero.Gadget.ConductiveNode"),
+		TEXT("Action.Electrify"), /*Cooldown*/ 2);
 	// La propagazione e' IL comportamento, non un dettaglio: senza questa riga l'azione elettrificherebbe una
 	// cella sola e CP 8.3 resterebbe non innescabile pur avendo un owner.
 	ConductiveNode->Def.PropagationLimit = ElectrifyDef.PropagationLimit;
@@ -482,9 +481,11 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// FERMA sul bersaglio (`LinearCharge` -> attacco, slot principale) o lo ATTRAVERSA (`LinearPass` ->
 	// mobilita', slot movimento), non se fa danno.
 	const FRTActionDef DashDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
-	URTActionData* FluidTrail = MakeHeroAction(TEXT("Hero.Phase.FluidTrail"), DashDef.ResolutionPhase,
-		DashDef.Priority, DashDef.RangeCells, /*Cooldown*/ 2, DashDef.Fallback,
-		DashDef.Effects, ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::Movement);
+	URTActionData* FluidTrail = MakeHeroActionFromCore(TEXT("Hero.Phase.FluidTrail"),
+		TEXT("Action.Dash"), /*Cooldown*/ 2);
+	// Lo SLOT non si eredita dall'helper (vedi il suo docstring): qui e' `Movement` perche' la mobilita'
+	// ATTRAVERSA il bersaglio invece di fermarcisi ([D-191]), ed e' una scelta d'eroe, non del core.
+	FluidTrail->Def.Slot = ERTActionSlot::Movement;
 	// Lo STILE va copiato a mano, come prima ci andava la superficie: `MakeHeroAction` prende identita',
 	// fase, portata, ricarica, fallback ed effetti — non i campi di comportamento. Senza questa riga
 	// l'azione risolve e non muove nessuno, cioe' fallisce nel modo piu' silenzioso possibile.
@@ -505,10 +506,13 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// azioni ambientali (`Ignite`, `CreateWater`). La priorita' e' un ordinamento INTERNO alla fase — si
 	// confronta solo fra azioni della stessa — quindi il 35 scelto per il Prep non aveva piu' significato
 	// dove l'azione e' andata a vivere. Il cooldown 3 resta: e' del catalogo eroi.
-	const FRTActionDef IgniteDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Ignite"));
-	URTActionData* MistVeil = MakeHeroAction(TEXT("Hero.Phase.MistVeil"), IgniteDef.ResolutionPhase,
-		IgniteDef.Priority, IgniteDef.RangeCells, /*Cooldown*/ 3, ERTActionFallback::Cancel, {},
-		ERTAbilityShape::Area, /*AreaRadius*/ 1);
+	URTActionData* MistVeil = MakeHeroActionFromCore(TEXT("Hero.Phase.MistVeil"),
+		TEXT("Action.Ignite"), /*Cooldown*/ 3, ERTAbilityShape::Area, /*AreaRadius*/ 1);
+	// ⚠️ Due valori vanno RIPRESI dopo l'ereditarieta', e non sono un dettaglio: `MistVeil` crea fumo, non
+	// brucia. Senza queste due righe erediterebbe da `Ignite` il danno da fuoco e il suo fallback, cioe'
+	// cambierebbe comportamento — il contrario di cio' che questo passaggio all'helper deve fare.
+	MistVeil->Def.Effects.Empty();
+	MistVeil->Def.Fallback = ERTActionFallback::Cancel;
 	// La superficie va copiata a mano, come per `FluidTrail`: `MakeHeroAction` prende identita', fase, portata,
 	// ricarica, fallback ed effetti — non i campi di comportamento.
 	MistVeil->Def.bCreatesSurface = true;
@@ -618,8 +622,8 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// ed e' `PlannedCoverEdge`.
 	{
 		const FRTActionDef CoverDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.CreateCover"));
-		URTActionData* Panel = MakeHeroAction(TEXT("Hero.Riktor.KineticPanel"), CoverDef.ResolutionPhase,
-			CoverDef.Priority, CoverDef.RangeCells, /*Cooldown*/ 2, CoverDef.Fallback, CoverDef.Effects);
+		URTActionData* Panel = MakeHeroActionFromCore(TEXT("Hero.Riktor.KineticPanel"),
+			TEXT("Action.CreateCover"), /*Cooldown*/ 2);
 		Panel->Def.StructureOp = CoverDef.StructureOp; // erige: e' il dato che il resolver legge
 		Riktor->Actions.Add(Panel);
 	}
@@ -648,9 +652,9 @@ URTHeroData* URTHeroCatalogLibrary::MakeRiktor()
 	// d'eroe, e scriverne uno a mano qui creerebbe la seconda verita' che il commento sopra nega. Senza
 	// questo argomento prendeva il `Main` di default di `MakeHeroAction` — che era anche lo slot del core
 	// fino al 2026-08-25, quindi il difetto non si vedeva: coincidevano per caso, non per costruzione.
-	URTActionData* Ram = MakeHeroAction(TEXT("Hero.Riktor.Ram"), ChargeDef.ResolutionPhase, ChargeDef.Priority,
-		ChargeDef.RangeCells, /*Cooldown*/ 2, ChargeDef.Fallback, ChargeDef.Effects,
-		ERTAbilityShape::Single, /*AreaRadius*/ 0, ChargeDef.Slot);
+	URTActionData* Ram = MakeHeroActionFromCore(TEXT("Hero.Riktor.Ram"), TEXT("Action.Charge"),
+		/*Cooldown*/ 2);
+	Ram->Def.Slot = ChargeDef.Slot; // lo slot si eredita dal core come tutto il resto ([D-191])
 	Ram->Def.MovementStyle = ChargeDef.MovementStyle; // LinearCharge: si ferma ADDOSSO al primo nemico
 	Riktor->Actions.Add(Ram);
 
