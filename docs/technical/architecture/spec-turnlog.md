@@ -328,6 +328,51 @@ UENUM(BlueprintType) enum class ERTMoveOutcome : uint8 {
 | Spinta / trazione | `Category=Move`, `Phase=Blast`, **`Outcome=Displaced`**, `ActionId` = l'azione che l'ha causata |
 | Reazione | *nessun produttore in v0.1* — nessuna reazione del catalogo dichiara `Push`/`Pull`. Quando esisterà, userà lo stesso campo |
 | Spinta **annullata** | `Category=Move`, `Phase=Blast`, **`Outcome=DisplacementResisted`**, `SrcCell == TgtCell`, e il **perché** in `Amount` — vedi sotto |
+| Movimento **superato dallo scatto** | `Category=Move`, **`Phase=Dash`**, **`Outcome=SupersededByDash`**, `ActionId=Action.Move`, `TgtCell` = la destinazione **mai raggiunta** — vedi sotto |
+
+### Il movimento che lo scatto ha superato ([D-194](../../decisions/RT_PDR_00_Decision_Log.md), CP 38.2)
+
+Un giocatore può comporre **scatto + movimento normale**: due voci per lo stesso slot. `ResolveDash` fa
+vincere lo scatto e azzera `PlannedPath`/`PlannedCell` — e fino al 2026-08-26 lo faceva **in silenzio**,
+quindi una rotta disegnata sulla mappa spariva senza che niente la nominasse.
+
+`SupersededByDash` **non è un `BlockedBy*`**, ed è la ragione per cui ha un valore proprio: ogni altro
+arresto ha una causa esterna — una cella occupata, una precedenza persa, un muro alzato, un colpo. Qui non
+c'è nessuno che blocca: è l'unità stessa ad aver speso il proprio slot movimento. Chiamarlo «bloccato»
+manderebbe il giocatore a cercare un avversario che non esiste.
+
+> 🔴 **La voce si scrive in RISOLUZIONE, non al lock-in.** Al commit il piano si contraddice e basta: *chi*
+> verrà scartato lo decide il resolver, che fa vincere lo scatto sempre. Una voce scritta prima dovrebbe
+> indovinarlo, e l'ordine canonico di `ValidatePlan` — per larghezza di slot, poi per `ActionId` — darebbe
+> la risposta sbagliata: davanti a `Action.Move` e `Hero.Riktor.Ram` nomina **Ram**, che invece esegue.
+>
+> `SrcCell` è la cella di **partenza**, non quella d'arrivo — è la chiave su cui `FilterTracesByEmitter`
+> filtra le tracce per confrontare le varianti a informazione nascosta, e la coppia con `TgtCell` descrive
+> la **rotta scartata**. `TgtCell` è la destinazione dichiarata e non raggiunta, `Amount` le celle del
+> percorso **risolto** scartato — `0` per un piano che dichiarava solo una destinazione senza posare
+> waypoint (il bot), dove la destinazione resta leggibile in `TgtCell`.
+
+### L'azione principale che lo slot ha scartato ([D-194](../../decisions/RT_PDR_00_Decision_Log.md), CP 38.2)
+
+Un kit può dichiarare `MovementAndMain` (D-028): una mobilità che dichiara di costare **anche** lo slot
+principale. Fino al 2026-08-26 `ResolveDash` azzerava `PlannedAbilityIndex`/`PlannedAttackTarget` **in
+silenzio** — l'altra metà del difetto che la sezione precedente chiude per il movimento: *«ciò che il turno
+scarta lo dichiara chi lo scarta»* valeva solo per uno dei due slot.
+
+**Famiglia diversa, e non per simmetria**: `Category=Fallback`, non `Category=Move`. Qui l'azione principale
+**non avviene affatto** — a differenza del movimento superato dallo scatto qui sopra, dove l'unità **si è
+comunque spostata**. È la stessa famiglia che `RTTurnManager_Blast.cpp` usa per ogni azione invalidata in
+risoluzione: `Outcome=Cancelled`, e il motivo viaggia in `Amount` come per ogni voce `Fallback`
+(`ERTActionInvalidReason`).
+
+| Causa dello scarto | Come si legge |
+|---|---|
+| Azione principale **scartata dallo slot** (`MovementAndMain`) | `Category=Fallback`, **`Phase=Dash`**, **`Outcome=Cancelled`**, `Amount=SlotOccupied`, `ActionId`/`BaseActionId` = l'azione che NON esegue, `SrcCell`/`TgtCell` = entrambe la cella di **partenza** (nessuna destinazione) |
+
+La voce si scrive solo se l'unità ha davvero un'azione principale pianificata (`PlannedAbilityIndex !=
+INDEX_NONE`) ed è ancora viva — stesso filtro che la voce di movimento superato applica qui sopra: chi muore
+sulla cella d'arrivo dello scatto (`ApplyTerrainOnEnterEffects`) non lascia una traccia che adjudica il piano
+di un morto.
 
 ### La spinta che non sposta ([D-079](../../decisions/RT_PDR_00_Decision_Log.md), `#420`)
 
