@@ -65,9 +65,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDSprintTwoSlotsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHUDSprintTwoSlotsTest::RunTest(const FString&)
 {
-	// `Action.Sprint` dichiara `MovementAndMain`: un'azione, DUE slot. `BuildUnitSlots` riempie entrambi con
-	// la stessa azione; la composizione non deve «pulire» il doppione, perche' mostrare il movimento libero a
-	// chi ha speso il turno per correre e' il difetto per cui la terna esiste.
+	// Un'azione che dichiara `MovementAndMain` e' un'azione sola su DUE slot. `BuildUnitSlots` riempie
+	// entrambi con la stessa azione; la composizione non deve «pulire» il doppione, perche' mostrare il
+	// movimento libero a chi ha speso il turno per una mobilita' che costa entrambi e' il difetto per cui la
+	// terna esiste.
+	//
+	// ⚠️ Il nome del test dice `Sprint` perche' `Action.Sprint` era l'unica azione a dichiararlo: da [D-028]
+	// occupa il solo movimento, e oggi nessuna azione dei cataloghi usa quella forma. Il caso resta valido -
+	// la fixture e' sintetica, non legge il catalogo - e il nome si corregge quando si tocca il test.
 	FRTUnitSlotsView Slots;
 	Slots.Movement = MakeSlotLineFixture(true, TEXT("Scatto"));
 	Slots.Main     = MakeSlotLineFixture(true, TEXT("Scatto"));

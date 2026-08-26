@@ -1021,7 +1021,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 {
 	TArray<FRTActionDef> Catalog;
 
-	// `Action.Sprint` (catalogo v0.1 §2) — 8 MP, consuma movimento E azione principale, applica `Status.Exposed`
+	// `Action.Sprint` (catalogo v0.1 §2) — 8 MP, occupa il SOLO slot movimento [D-028], applica `Status.Exposed`
 	// fino al Cleanup. Per le azioni di mobilita' rapida `RangeCells` e' il BUDGET in punti movimento, non un
 	// numero di celle: su terreno difficile si arriva meno lontano (e' lo stesso budget del movimento normale,
 	// con un'altra quantita').
@@ -1158,9 +1158,12 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20), FRTActionEffectSpec(ERTActionEffect::Push, 1) },
 		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearCharge));
-	// L'UNICA mobilita' lineare che resta sulla principale, e la ragione e' nei suoi Effects: fa danno, quindi
-	// e' un attacco che ti porta addosso al bersaglio, non mobilita' generica (D-028). Chi carica conserva il
-	// movimento e si sposta DOPO il Blast - l'economia opposta allo scatto, non la stessa a prezzo diverso.
+	// Occupa il MOVIMENTO come ogni altra mobilita' rapida [D-191]: che una carica faccia danno a chi raggiunge
+	// non cambia CHE COSA ha speso. Fino al 2026-08-26 questo capoverso diceva l'opposto - «l'unica mobilita'
+	// lineare che resta sulla principale, e chi carica conserva il movimento» - seguendo la clausola di D-028
+	// che D-191 ha superato: con la carica sulla principale Riktor pianificava `Ram` E l'attacco base, e il
+	// resolver eseguiva entrambe. Chi vuole che una mobilita' costi ANCHE la principale lo dichiara con
+	// `MovementAndMain`, che oggi nessuna azione dei cataloghi usa.
 
 	// `Leap` — 3 celle scavalcando cio' che sta in mezzo (unita', coperture basse). La cella d'atterraggio
 	// invece la si subisce: dev'essere percorribile e libera.
@@ -1181,9 +1184,11 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// dello stesso turno; il pesante per ultimo perche' e' cio' che il catalogo compra con i suoi 35 danni.
 
 	// `PrecisionAttack` — 24 danni fissi, portata dell'arma +1 (la mette MakePrecisionAttack: qui, come per
-	// `BasicAttack`, un numero sarebbe arbitrario). Non e' usabile dopo uno Sprint, ma questo NON e' scritto
-	// qui: `Sprint` occupa gia' movimento e azione principale, e ValidateActionSlots ne fa un caso della
-	// regola generale invece di un'eccezione sull'ActionId.
+	// `BasicAttack`, un numero sarebbe arbitrario). E' usabile DOPO uno Sprint da [D-028], e non per un `if`
+	// sull'ActionId: lo scatto lungo occupa il solo slot movimento, quindi la principale resta libera - *corro
+	// e sparo*, la stessa forma di *schivo e sparo*. Prima di D-028 il catalogo la dichiarava illegale e
+	// ValidateActionSlots lo otteneva come caso della regola generale; oggi la stessa regola generale la
+	// AMMETTE, ed e' cio' che pinna `RefactorTactics.Actions.PrecisionAttack.WeaponRangePlusOne`.
 	Catalog.Add(ShippedAction(TEXT("Action.PrecisionAttack"), ERTResolutionPhase::Attack, /*Priority*/ 60,
 		/*Range*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }));
