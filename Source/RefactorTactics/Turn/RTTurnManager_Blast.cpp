@@ -295,9 +295,9 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					ArcRejected.SrcCell = Unit->Cell;
 					ArcRejected.TgtCell = ArcTarget->Cell;
 					ArcRejected.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
-					// Nessun `AddLogEvent` qui: `ConcludeTurn` deriva l'INTERO combat log dal TurnLog
-					// (CP 11.3), e scrivere anche di qui fa comparire la riga due volte al giocatore.
 					AppendLogEntry(ArcRejected, Unit);
+					AddLogEvent(FString::Printf(TEXT("%s: %s"),
+						*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(ArcRejected)));
 
 					// L'abilita' NON si consuma: il piano e' gia' stato azzerato sopra (si spende nel turno,
 					// attivata o no), ma il cooldown paga solo cio' che ha davvero toccato la mappa.
@@ -457,9 +457,9 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			FallbackEntry.SrcCell = Unit->Cell;
 			FallbackEntry.TgtCell = Instance.TargetCell;
 			FallbackEntry.Amount = static_cast<int32>(Reason);
-			// Nessun `AddLogEvent` qui: `ConcludeTurn` deriva l'INTERO combat log dal TurnLog (CP 11.3),
-			// e scrivere anche di qui fa comparire la riga due volte al giocatore.
 			AppendLogEntry(FallbackEntry, Unit);
+			AddLogEvent(FString::Printf(TEXT("%s: %s"),
+				*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(FallbackEntry)));
 
 			if (!Fallback.bProducesEffects)
 			{
