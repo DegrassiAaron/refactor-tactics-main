@@ -117,11 +117,11 @@ bool FRTGoldenDivergenceNamesTheFieldTest::RunTest(const FString&)
 
 	TestTrue(TEXT("src"),
 		DiagFor([](FRTTurnLogEntry& E) { E.SrcCell = FRTCellId(7, 7, 1); })
-			.Contains(TEXT("src atteso (1,0,0), trovato (7,7,1)")));
+			.Contains(TEXT("src atteso (q=1,r=0,L=0), trovato (q=7,r=7,L=1)")));
 
 	TestTrue(TEXT("tgt"),
 		DiagFor([](FRTTurnLogEntry& E) { E.TgtCell = FRTCellId(9, 9); })
-			.Contains(TEXT("tgt atteso (2,0,0), trovato (9,9,0)")));
+			.Contains(TEXT("tgt atteso (q=2,r=0,L=0), trovato (q=9,r=9,L=0)")));
 
 	TestTrue(TEXT("amount"),
 		DiagFor([](FRTTurnLogEntry& E) { E.Amount = 42; })
@@ -137,9 +137,16 @@ bool FRTGoldenDivergenceNamesTheFieldTest::RunTest(const FString&)
 
 	// Un id di finestra VUOTO non entra nell'hash (e' il ciclo che non gira), quindi il campo compare da una
 	// parte sola: la diagnosi lo dice invece di stampare due valori di cui uno non esiste.
-	TestTrue(TEXT("opportunityId"),
-		DiagFor([](FRTTurnLogEntry& E) { E.OpportunityId = TEXT("opp-1"); })
-			.Contains(TEXT("opportunityId atteso '', trovato 'opp-1'")));
+	{
+		const FString Diag = DiagFor([](FRTTurnLogEntry& E) { E.OpportunityId = TEXT("opp-1"); });
+		TestTrue(TEXT("opportunityId"),
+			Diag.Contains(TEXT("opportunityId atteso '', trovato 'opp-1'")));
+
+		// Aprire la finestra da una parte sola fa comparire `selectedTarget` in un elenco solo: e' il ramo
+		// `<assente>`, che senza questa riga non lo asserisce nessuno.
+		TestTrue(TEXT("un campo presente da una parte sola si dichiara assente"),
+			Diag.Contains(TEXT("selectedTarget atteso <assente>, trovato -1")));
+	}
 
 	// `SelectedTargetUnitId` e' mescolato SOLO dentro una finestra: fuori non discrimina, e infatti non
 	// compare. Il caso va costruito con la finestra aperta da entrambe le parti.
@@ -222,7 +229,7 @@ bool FRTGoldenCorpusDivergenceTest::RunTest(const FString&)
 		TestFalse(TEXT("una divergenza va descritta"), Diag.IsEmpty());
 		TestTrue(TEXT("quando la prosa non distingue, mostra i campi"), Diag.Contains(TEXT("campi:")));
 		TestTrue(TEXT("e nomina QUELLO che diverge, coi due valori"),
-			Diag.Contains(TEXT("tgt atteso (2,0,0), trovato (9,9,0)")));
+			Diag.Contains(TEXT("tgt atteso (q=2,r=0,L=0), trovato (q=9,r=9,L=0)")));
 	}
 
 	// Divergenza su `GraphRevision`: il campo che NESSUNA prosa rende, per nessuna categoria — e che nessun
