@@ -1,0 +1,552 @@
+# Spec — Conoscenza parziale visibile (presentazione + emissione acustica)
+
+> **Stato**: spec di design, **non** consuntivo · **Data**: 2026-08-26 · **Origine**: `/sc:brainstorm`
+> **Cosa è**: come la conoscenza parziale, che come **regola** esiste ed è matura, diventa qualcosa che il
+> giocatore **vede**; e come il rumore, che come **propagazione** esiste, comincia a essere **prodotto** in
+> partita.
+> **Cosa non è**: fog of war sul terreno. Quella è la fetta successiva (§10), e in questa spec il terreno
+> resta noto.
+> **Autorità**: subordinata a [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md), al
+> [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md) e a
+> [`brief-conoscenza-parziale.md`](../../gameplay/brief-conoscenza-parziale.md), di cui è l'**esecuzione**:
+> il brief dice *cosa* deve valere, questa spec dice *come* si costruisce.
+> Estende [`h6-4-hex-vision-spec.md`](h6-4-hex-vision-spec.md) e consuma
+> [`progettazione-hud.md`](progettazione-hud.md) §9, §25 e §26.
+
+> 📍 **Ogni numero e ogni assenza in questo documento è stato misurato il 2026-08-26 su `main`**, e il
+> comando è scritto accanto all'affermazione. Le misure invecchiano: prima di usarne una come premessa,
+> rieseguila.
+
+---
+
+## 1. Stato misurato
+
+### 1.1 La regola esiste, ed è matura
+
+| Pezzo | Owner | Stato |
+|---|---|---|
+| Linea di vista geometrica | `URTHexVisionLibrary::HasLineOfSight` | ✅ con regola d'elevazione e copertura alta sul bordo attraversato |
+| Vista a cono + consapevolezza a 360° entro 2 celle | `URTPerceptionLibrary::VisibleCells` | ✅ ADR-0005; il cap del fumo riusa `URTTerrainLibrary::EffectiveTargetingRange` |
+| Conoscenza di squadra e memoria del contatto | `FRTTeamKnowledge`, `FRTLastKnownContact` | ✅ versionata, viaggia nello snapshot |
+| Il targeting **decide** | `ARTTurnManager` → `URTTeamKnowledgeLibrary::ClassifyTarget` | ✅ e vale **anche per il giocatore umano**, non solo per il bot |
+| Il bot gioca alla pari | `PlanBots` costruisce `Ctx.Enemies` da `FRTTeamKnowledge` | ✅ canary `HexBotPlay.HiddenEnemyFairness` |
+| Propagazione del rumore | `URTAcousticPropagationLibrary` | 🟡 propaga e attenua, ma **nessun sistema di gioco la chiama** |
+
+### 1.2 La presentazione non la usa — e non è che non possa
+
+`git grep -c -E "Awareness|TeamKnowledge|VisibleCells|HasLineOfSight"` sui path presentazionali
+(`UI/`, `Player/`, `Unit/`, `Camera/`, `Selection/`, `Replay/`, `Map/RTHexMapActor.cpp`) → **zero ovunque**.
+
+🔴 **Ma la conclusione «la presentazione non ha il dato» è falsa.** `ARTTurnManager::MakeCurrentSnapshot` è
+dichiarata a `RTTurnManager.h:495`, sotto il `public:` aperto a riga 177, e restituisce `FRTHexSnapshot`, che
+porta `TeamKnowledge` di **entrambe** le squadre. `RTPlayerController.cpp:66` la chiama già, a ogni refresh
+dell'anteprima di pianificazione.
+
+**Il client ha già tutto in mano.** Non manca il dato: manca la **porta filtrata**. È la differenza fra
+«non lo so» e «lo so e faccio finta di no», e la seconda è ciò che
+[`progettazione-hud.md`](progettazione-hud.md) §17 vieta e che l'invariante #6 esclude per costruzione.
+
+### 1.3 Due canali stampano a schermo ciò che la squadra non sa
+
+Non erano nel DoD di nessuno, e sono **portanti**: senza chiuderli, nascondere il modello è teatro.
+
+| Canale | Cosa perde | Misura |
+|---|---|---|
+| `ARTHUD::DrawHUD` | **nome eroe, barra HP e scudo di ogni unità viva, nemici inclusi** | itera `GetAllActorsOfClass(ARTUnit)` e l'unico filtro è `if (!Unit \|\| !Unit->IsAlive()) continue;` |
+| Combat log | **la cella esatta di ogni movimento** e i **punteggi di utility del bot con cella e bersaglio** | `AddLogEvent` li scrive; `ARTHUD` disegna `GetRecentEvents()` senza gate |
+
+⚠️ Un terzo dettaglio: `ARTHUD::DrawHUD` chiama `ComputePlannedHitMarks(AllUnits, /*PlayerTeamId=*/ 0, …)`
+con lo **zero scritto a mano**. L'osservatore oggi è cablato in un letterale.
+
+### 1.4 Il substrato del velo non esiste — tre buchi distinti
+
+1. **Il canale**: `Cells->NumCustomDataFloats = 3`, e tutti e tre portano l'RGB della superficie che
+   `RebuildInstances` scrive. `M_HexCell` è **Unlit + Opaque**, ha **un solo** nodo
+   `MaterialExpressionPerInstanceCustomData3Vector` e scrive sull'**Emissive**. Nessuno dei quattro
+   materiali versionati (`M_HexCell`, `M_TeamRing`, `M_SelectionRing`, `M_Global_Tint`) ha un
+   `MaterialExpressionScalarParameter`.
+2. **Il meccanismo**: `RebuildInstances` è l'**unico** costruttore, ricostruisce tutto da zero, e a runtime
+   gira **solo all'allestimento** (`OnConstruction`, `ARTGameMode::ApplyMapSource`, harness scenari).
+   `git grep -n RebuildInstances -- Source/RefactorTactics/Turn Source/RefactorTactics/Player` → nessun
+   match. Non esiste mappa inversa cella→istanza: `InstanceCells` va da indice a cella.
+3. **Il trigger**: `ARTTurnManager` ha **sei** delegate, tutti di playback o fine partita, e **nessuno ha
+   subscriber**. Nessuno segnala l'inizio della pianificazione.
+
+Per contro, il **dato** c'è ed è fresco: `RefreshTeamKnowledgeForPlanning` rinfresca **tutte** le squadre e
+vive dentro `PlanBots()`, che `StartPlanningTimer` chiama a ogni turno.
+
+### 1.5 Il rumore non ha né produttore né numeri
+
+- `FRTNoiseEvent::Intensity` non è assegnata da nessuna parte fuori dai test.
+- `NoiseIntensity` → **zero occorrenze** in `Source/` e in `docs/balance/`. Il campo non esiste su
+  `URTActionData`.
+- Il catalogo azioni porta la colonna `Rumore` con dei `—`, e scrive che *«un `—` non è "silenzioso": è
+  "non ancora deciso"»*. La domanda ha un ID: **`AE-8`**.
+- `FRTAcousticContact` → zero occorrenze.
+- Il filtro acustico d'uscita non esiste: `RTIntentPrivacyLibrary` espone il solo
+  `FilterForTeam(ObserverTeamId, Intents)`.
+
+---
+
+## 2. Le sei decisioni prese in sessione
+
+| # | Decisione | Conseguenza |
+|---|---|---|
+| **S1** | **Due fette: prima le unità, poi il terreno** | Questa spec è la prima. La fog sul terreno è §10 |
+| **S2** | **Vista e rumore nella stessa fetta** | Si tocca il TurnLog: versione di formato **11** e golden da rigenerare |
+| **S3** | **`AE-8` si chiude con una regola derivata**, non con sei numeri scelti a tavolino | §6.1. Un solo numero nuovo in tutto |
+| **S4** | **Il ricordo è una sagoma semitrasparente dell'eroe** nella cella dell'ultimo contatto | Legge tutti e tre i campi di `FRTLastKnownContact`: chi, dove, quando scade |
+| **S5** | **Velo permanente** sulle celle fuori da `VisibleCells`, ottenuto **moltiplicando l'RGB in scrittura** | Nessun `.uasset` da toccare per il velo; il gate dei colori va esteso (§8) |
+| **S6** | **Sagoma volumetrica sia per il ricordo sia per l'intento**, separate su **due** canali | Emenda `progettazione-hud.md` §9 e §25 |
+
+---
+
+## 3. La porta filtrata
+
+### 3.1 Forma
+
+Copiata alla lettera da un pattern già vivo e verde nel progetto:
+
+```text
+FRTPlannedIntent  →  URTIntentPrivacyLibrary::FilterForTeam(ObserverTeamId)  →  FRTIntentView      ← esiste
+FRTKnowledgeSubject[] → URTKnowledgeViewLibrary::ViewForTeam(Knowledge, …)   →  FRTKnowledgeView   ← nuovo
+```
+
+**Due livelli, e la ragione è misurata.** Una prima stesura di questa spec faceva prendere alla porta il
+`FRTHexSnapshot`. È sbagliato per due motivi indipendenti:
+
+- `MakeCurrentSnapshot` **è costosa e non cacheata** — `GetAllActorsOfClass` su tutto il livello, allocazione,
+  copia e **due** `Sort`. `ARTHUD::DrawHUD` gira a ogni frame: quella firma avrebbe messo uno snapshot
+  completo dentro il ciclo di disegno.
+- `FRTHexSimUnit` **non porta `TeamId`**. Lo snapshot da solo non distingue alleati da nemici, quindi
+  servirebbe comunque l'array parallelo di `ARTUnit*` — cioè la firma non era nemmeno sufficiente.
+
+Quindi:
+
+1. **Nucleo puro e headless** — `ViewForTeam(const FRTTeamKnowledge&, const TArray<FRTKnowledgeSubject>&,
+   int32 ObserverTeamId)`. `FRTKnowledgeSubject` è un soggetto ridotto a ciò che serve per **decidere se si
+   sa**: `StableUnitId`, `TeamId`, `Cell`, chiave visiva. Non è un'unità — prendere `ARTUnit` legherebbe una
+   regola pura al mondo di gioco, esattamente come `FRTPerceiver` evita di prendere `ARTUnit`.
+2. **Adattatore sottile** — costruisce i soggetti dall'array di `ARTUnit*` che il chiamante **ha già**.
+
+Il nucleo è ciò che il test di D-143 interroga: senza `UWorld`, senza Actor, senza montare una partita.
+
+`ARTHUD.cpp` porta già il commento che descrive la disciplina: *«2. FILTRA per l'osservatore. Da qui in giù
+lo stato completo non si tocca più»*. La porta nuova non inventa un principio: ne applica uno che il
+progetto ha già scritto e verificato.
+
+### 3.2 Contenuto
+
+Per ogni unità avversaria, **uno di tre casi** — e ciò che distingue i casi è quale campo *non esiste* nel
+DTO, mai un flag:
+
+| Caso | Contiene | **Non** contiene |
+|---|---|---|
+| `Detected` | cella attuale, identità, condizione | — |
+| `CellOnly` | identità, **cella del ricordo**, turno di scadenza | la cella attuale, la condizione |
+| `Hidden` | **nessuna voce** | tutto |
+
+🔴 **`Hidden` è l'assenza della voce, non una voce con un flag.** È la stessa disciplina che il DoD di
+[#159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/159) impone al filtro acustico
+(*«nessuna voce, non una voce vuota»*), e la ragione è che un flag si può leggere per sbaglio, un campo
+che non c'è no.
+
+⚠️ **`URTTeamKnowledgeLibrary::AwarenessOfUnit(Knowledge, StableUnitId, CurrentCell)` richiede la cella
+ATTUALE del bersaglio.** La firma dice dove passa il confine: chi la chiama tiene in mano la posizione
+vera, e quella non deve attraversare la porta. La conversione avviene **dentro** `ViewForTeam`, mai a valle.
+
+### 3.3 Collocazione
+
+`Perception/RTKnowledgeView.{h,cpp}`, accanto a `RTTeamKnowledge`.
+
+- **Mai** dentro `UI/`: la conoscenza è regola, non presentazione.
+- **Mai** dentro `RTTurnLog*`: il log è uno solo, è la sorgente di `HashTurnLog`, e non deve conoscere
+  osservatori (correzione già registrata due volte, da
+  [#295](https://github.com/DegrassiAaron/refactor-tactics-main/issues/295)).
+
+### 3.4 L'osservatore
+
+`ViewForTeam` prende `ObserverTeamId` come parametro. Chi lo fornisce è il `PlayerController`, in un solo
+punto — e il letterale `/*PlayerTeamId=*/ 0` di `ARTHUD::DrawHUD` sparisce invece di essere duplicato.
+
+---
+
+## 4. Fase A — Le unità
+
+Quattro consumatori della stessa porta, in ordine di costo crescente.
+
+### A1 — `TargetUnknown` diventa leggibile
+
+`URTTurnLogLibrary::DescribeInvalidReason` ha otto `case` e un `default: "non eseguibile"`;
+`ERTActionInvalidReason::TargetUnknown` **non compare** e cade nel default.
+
+Oggi la regola più significativa della conoscenza parziale — *«per la tua squadra quel bersaglio non c'è»* —
+è **illeggibile in partita**. Un `case` mancante è tutta la distanza fra una regola che punisce e una che
+insegna, ed è la voce più economica dell'intera spec.
+
+### A2 — I due leak si chiudono
+
+`ARTHUD::DrawHUD` smette di iterare `GetAllActorsOfClass(ARTUnit)` e itera `FRTKnowledgeView`. Il combat log
+passa dallo stesso filtro prima di essere disegnato.
+
+Senza questa voce tutte le altre sono cosmesi: si può nascondere il modello, ma il nome e la barra HP
+dell'unità nascosta resterebbero stampati a schermo, e il log ne stamperebbe la cella esatta.
+
+### A3 — L'unità ignota sparisce
+
+L'attore **resta spawnato**: `SpawnActor<ARTUnit>` esiste **solo in `Tests/`**, quindi non c'è un percorso
+di spawn runtime da inventare, e distruggere/ricreare attori a ogni cambio di conoscenza sarebbe una
+macchina nuova per un problema che non c'è.
+
+`ARTUnit::HideForDefeat` **non è riusabile**: è a senso unico, serve la morte, e disabilita la collisione
+senza un percorso di ritorno. Serve un `SetKnownToObserver(bool)` reversibile, che governi visibilità **e**
+proxy di click.
+
+### A4 — La sagoma del ricordo
+
+Un componente proprio sull'`ARTUnit`, alla `Cell` del contatto, che sfuma alla scadenza
+(`URTTeamKnowledgeLibrary::ContactLifetimeTurns = 1` — **nessun numero nuovo**).
+
+**Due canali di distinzione dall'Action Ghost** (§7, decisione nuova):
+
+| | Ricordo (*Last Contact*) | Intento (*Action Ghost*, [#249](https://github.com/DegrassiAaron/refactor-tactics-main/issues/249)) |
+|---|---|---|
+| Colore | **monocromo, desaturato** | colori di squadra |
+| Forma | **senza freccia di facing**, marker a terra proprio | facing, orientamento arma, origine attacco |
+
+**Porta il nome, non la barra HP.** La squadra conosce l'identità ma non la condizione: è lo stesso confine
+che [#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160) ha già fissato per il bot
+(*«`CellOnly` → HP massimi»*), e una barra costringerebbe a mostrarne una falsa.
+
+⚠️ **La sagoma vale solo per il contatto VISIVO perduto.** Un contatto acustico non dice **chi**
+([D-113](../../decisions/RT_PDR_00_Decision_Log.md)): dargli la silhouette di un eroe sarebbe inventare
+un'identità che nessuno possiede. Il rumore ha la sua grammatica, ed è un'area (§6.4).
+
+**Quota**: ogni decoro a terra deve stare sopra `RTCellTopZ` (2,5 uu) — chi disegna sotto quella soglia
+disegna dentro un cilindro opaco. Le quote già assegnate sono 0,3 / 0,5 / 1,5 / 2,5; il marker del ricordo
+ne prende una nuova, **dichiarata in `Map/RTMapVisuals.h`** come le altre, non ricopiata.
+
+### A5 — Editor
+
+Un materiale nuovo, e uno soltanto: nessuno dei quattro materiali versionati è traslucido né ha un
+parametro scalare, quindi non c'è nulla da riusare.
+
+⚠️ La mesh degli eroi vive in **`Content/FabAsset`, che non è versionata**. La sagoma la deriva **a runtime**
+dalla stessa mesh dell'unità, non da un asset nuovo: un asset nuovo sarebbe una copia di un binario che il
+repository non possiede.
+
+---
+
+## 5. Fase B — Il velo
+
+### 5.1 Regola
+
+Le celle **fuori** da `FRTKnowledgeView::VisibleCells` sono disegnate col colore di superficie **scalato**.
+Il velo è **binario**: `ERTAwareness` ha tre livelli **sulle unità**, e una terza categoria per le *celle*
+non esiste in nessuna decisione. Inventarla qui creerebbe un vocabolario senza owner.
+
+### 5.2 Perché è ammesso dal canone
+
+[`progettazione-hud.md`](progettazione-hud.md) §25 *Partial Knowledge* dice alla lettera:
+
+> Non usare una classica mappa nera.
+>
+> La mappa statica resta leggibile.
+
+Il velo è ammesso **perché non è una mappa nera**. E
+[D-146](../../decisions/RT_PDR_00_Decision_Log.md) chiede che ogni categoria si distingua su **due** canali,
+`colore + forma`: il velo può spegnere il **colore** perché l'identità della superficie sopravvive sul
+canale **forma** — il numero di anelli delle corone `SurfaceGlyphs`, che è un componente separato e che il
+velo **non tocca**.
+
+### 5.3 Meccanismo
+
+Non serve la mappa inversa cella→istanza che manca. `ApplyKnowledgeVeil(const FRTKnowledgeView&)`, accanto a
+`RebuildInstances` (che resta l'unico **costruttore**):
+
+1. costruisce un `TSet<FRTCellId>` da `VisibleCells`;
+2. itera `InstanceCells` (indice→cella, che esiste già);
+3. per ogni istanza **ricalcola** il colore base da `URTHexLibrary::SurfaceColor(Surface)` — la stessa
+   sorgente che usa `RebuildInstances` — lo scala se la cella non è osservata, e lo riscrive, con
+   `bMarkRenderStateDirty` sull'ultima scrittura.
+
+🔴 **Il colore base si ricalcola, non si memorizza.** Conservare il colore originale accanto a quello velato
+creerebbe una **seconda verità** sul colore di superficie, e la seconda divergerebbe alla prima modifica
+della tavolozza — è lo stesso difetto che il progetto ha già eliminato per il cap del fumo (dove
+`URTTerrainLibrary::EffectiveTargetingRange` è l'unico owner) e che D-023 e D-115 hanno eliminato altrove.
+`URTHexLibrary::SurfaceColor` resta l'unico owner del colore, e il velo è una **funzione** applicata sopra.
+
+Per la stessa ragione si riscrivono **tutte** le istanze a ogni aggiornamento invece di quelle cambiate:
+sapere «quali sono cambiate» richiederebbe di ricordare il velo precedente, cioè di introdurre lo stato che
+il ricalcolo evita. Costo `O(celle)` per aggiornamento, due volte per turno, deterministico, nessun rebuild.
+
+### 5.4 Trigger
+
+Nasce un delegate — `OnTeamKnowledgeRefreshed` — emesso dai **due** punti che già rinfrescano la conoscenza:
+`RefreshTeamKnowledgeForPlanning` e `RefreshTeamKnowledgeForBlast`. Non si inventano momenti nuovi.
+
+**Durante il playback il velo segue quei due punti**, e quindi *salta* due volte per turno invece di
+scorrere. Non è un difetto da nascondere: è la granularità che il resolver ha, ed è la stessa che D4 del
+brief fissa per la visibilità (*«si ricalcola ai confini di fase, non a ogni micro-step»*). L'alternativa —
+spegnere il velo durante il playback — sarebbe una finestra di onniscienza, e *«il replay del giocatore va
+filtrato durante il match»* è uno dei due punti che il brief §9 dichiara **obbligatori**.
+
+### 5.5 🔴 Il gate che protegge la leggibilità è cieco al velo
+
+`RefactorTactics.Hex.SurfaceColorsAreDistinguishable` (`Tests/RTHexTests.cpp:646`) confronta
+`URTHexLibrary::SurfaceColor(All[I])` contro `SurfaceColor(All[J])`: misura il colore **non velato**, mai i
+`PerInstanceCustomData`.
+
+Un velo che schiaccia il colore lascerebbe quel gate **verde** mentre la mappa perde leggibilità. La fase
+deve portarsi dietro l'estensione: **le stesse asserzioni rieseguite sui colori velati**. Senza, il velo
+compra un falso verde — e D-146 registra già che alcune di quelle coppie si distinguono per luminanza,
+cioè proprio per il canale che il velo tocca.
+
+Non è un'interpretazione: la decisione che possiede quel controllo scrive che il **«primo consumatore lo
+estende invece di inventarlo»**. Estenderlo qui è quindi l'applicazione della regola, non un lavoro
+aggiuntivo che questa spec si inventa.
+
+---
+
+## 6. Fase C — Il rumore
+
+### 6.1 La regola derivata (`AE-8`)
+
+**Tre classi, e un solo numero nuovo in tutto.** Il criterio si legge da campi che `FRTActionDef` già
+possiede (`MovementStyle`, `CostMP`, `StructureOp`, `Effects`), mai da un elenco per azione.
+
+| Classe | Criterio | Rumore |
+|---|---|---|
+| **Silenziosa** | non muove il corpo, non danneggia, non opera su struttura | `0` |
+| **Passo** | ha un `MovementStyle` a budget MP | `max(0, CostMP − 3)` |
+| **Impatto** | produce danno, oppure ha uno `StructureOp` | `6` |
+
+La storia della classe *Passo*: **le prime tre celle sono silenziose**, ogni cella oltre vale `1`. Il **`3`**
+è l'unico numero che questa regola inventa.
+
+**Cosa ne cade fuori:**
+
+| Azione | Classe | Rumore | Provenienza |
+|---|---|---:|---|
+| `Action.Wait` · `Action.Guard` · `Action.Brace` · `Action.Overwatch` | Silenziosa | **0** | ✅ ancora di [D-041](../../decisions/RT_PDR_00_Decision_Log.md) (`Wait 0`) |
+| `MovementMode.Withdraw` (2 MP) | Passo | **0** | derivato |
+| `Action.Move` (5 MP) | Passo | **2** | derivato |
+| `Action.Sprint` (8 MP) | Passo | **5** | ✅ ancora di D-041 (`Sprint 5`) |
+| `Action.BasicAttack` · `Action.Interact` su struttura · `Action.Dash` | Impatto | **6** | ✅ ancora di D-041 (`Dash 6`) |
+| esplosione | evento ambientale, non un'azione | **10** | ✅ ancora di D-041 |
+
+**Le tre ancore di D-041 non sono state rinegoziate: sono uscite dalla regola.**
+
+Che `BasicAttack` e `Dash` suonino uguale **non è una svista**: è precisamente ciò che
+[D-123](../../decisions/RT_PDR_00_Decision_Log.md) chiede, *«impedire che il volume diventi un
+identificatore implicito della sorgente»*. Una regola iniettiva — un numero diverso per ogni azione —
+violerebbe D-123 alla lettera.
+
+**E risolve una contraddizione documentale aperta.** D-123 dice che il campo è obbligatorio per ogni
+producer *«incluse le signature»*; il catalogo azioni dichiara che le abilità firma **non** ricevono
+un'intensità, *«ed è una scelta»*, perché sarebbero **24 numeri nuovi**
+([#690](https://github.com/DegrassiAaron/refactor-tactics-main/issues/690)). La regola le riconcilia: una
+signature che fa danno cade in *Impatto* e vale `6` senza che nessuno scelga niente. D-123 è soddisfatta, e
+i 24 numeri non esistono mai.
+
+### 6.2 Verifica di scala
+
+Soglie d'udito, misurate su **due fonti indipendenti** (`RT_HeroCatalog_v0.1.md` §5.1 e
+`RTHeroCatalogLibrary.cpp`): **Gadget 5 · Phase 3 · Riktor 3 · Wraith 5**.
+
+`Received` alla sorgente; area **stretta** con margine ≥ `TightBandMargin` (3), **larga** con margine ≥ 0,
+nessun contatto sotto:
+
+| Evento | Rumore | Ricevuto | Gadget / Wraith (5) | Phase / Riktor (3) |
+|---|---:|---:|---|---|
+| `Move` su terreno neutro | 2 | 2 | — | — |
+| `Move` su **acqua bassa** (+2) | 2 | 4 | — | **larga** |
+| `Sprint` neutro | 5 | 5 | larga | larga |
+| `Sprint` su acqua bassa (+2) | 5 | **7** | larga | **stretta** |
+| Attacco / `Dash` / `Interact` su struttura | 6 | 6 | larga | **stretta** |
+| esplosione | 10 | 10 | stretta | stretta |
+
+**Due controprove che la regola non è stata scelta per far tornare i conti**, perché entrambe erano scritte
+prima e da altri:
+
+- **D-042** scrive *«sprintarci fa **7 su 10**»*. La regola dà `5 + 2 = 7`.
+- **D-041** scrive *«uno Sprint (5) attenuato di 2 arriva a 3 — lo sentono Riva e Bastion, non Flux e
+  Vektor»*. Con la regola: `5 − 2 = 3`; margine `0` per le soglie a 3 (sentono) e `−2` per quelle a 5 (no).
+
+Il risultato di gioco si dice in una frase: **camminare non si sente, correre sì, l'acqua tradisce chi
+cammina.**
+
+### 6.3 🔴 `0` deve significare muto davvero
+
+`URTAcousticPropagationLibrary::Propagate` calcola `Budget = Intensity + SurfaceNoiseDelta(OriginCell)` e si
+ferma solo a `Budget <= 0`. Un `Wait` (intensità 0) su terreno `Fire` (`NoiseDelta +4`) produrrebbe quindi un
+evento a **4**, udibile dalle soglie a 3.
+
+**Un'azione di classe *Silenziosa* non produce l'evento**: il ramo sta **all'emissione**, non nella
+propagazione. Il delta di superficie **amplifica** un rumore che esiste; non lo crea. E il commento nel
+codice che già afferma questo — *«`Action.Wait` vale 0: il silenzio non produce un evento udibile da
+nessuno»* — va reso vero invece di essere lasciato falso.
+
+### 6.4 Chi è l'ascoltatore: **l'intersezione**
+
+[D-043](../../decisions/RT_PDR_00_Decision_Log.md) dice che la conoscenza è di **squadra**; D-113 dice che
+l'area d'incertezza è centrata sull'**ascoltatore** e larga secondo il **suo** margine. In un 2v2 con Gadget
+(soglia 5) e Phase (soglia 3), lo **stesso** rumore produce **due aree diverse**. Il DoD di #159 dice *«la
+squadra che ode ottiene **un** contatto»*, ma il test che descrive ha un ascoltatore solo: la domanda non era
+mai stata affrontata.
+
+**La squadra conosce l'intersezione delle aree.** La sorgente sta dentro l'area di *ciascun* ascoltatore,
+quindi intersecarle è logicamente corretto e **stringe** l'incertezza. Fa emergere una tattica vera e
+gratuita — tenere due eroi distanziati localizza meglio — ed è la stessa *copertura informativa* che la
+vista già possiede (D5 del brief: chi vede lontano estende il targeting di chi vede poco).
+
+⚠️ **Caso limite dichiarato**: `PlausibleOriginCells` **non riceve la sorgente** — è lì che vive la sua
+garanzia di non codificarla — quindi non può garantire che l'intersezione sia non vuota. Se lo è, si ripiega
+sull'**area più stretta** fra quelle degli ascoltatori. Il ripiego va scritto, non lasciato al caso.
+
+### 6.5 Impianto
+
+| Questione | Decisione | Perché |
+|---|---|---|
+| **Dove vive il contatto acustico** | Dentro `FRTTeamKnowledge`; `CurrentVersion` **1 → 2** | Un solo contenitore, un solo posto che fa scadere le cose. La struct non entra in `RTMatchStateHash` né in `Replay/`: l'unico effetto è scartare una memoria in corso |
+| **Durata** | **1 turno**, come la vista | `ContactLifetimeTurns` esiste già. Il DoD dichiara che un `N ≠ 1` sarebbe **un numero di bilanciamento nuovo**: non se ne apre uno senza motivo |
+| **Categoria di log** | Valore nuovo `Acoustic`, applicato in **tre** siti | Riusare `Environment` renderebbe un rumore indistinguibile da un evento di superficie negli scenari. ⚠️ `ReactionClash` è stata aggiunta all'enum e **dimenticata** in `OutcomeEnumForCategory` e `DescribeEntry`: costa tre siti, non uno |
+| **`FRTNoiseEvent` e la fase** | Settimo campo, `Phase` | `MicroStepIndex` esiste solo nel Move: senza la fase, due eventi di fasi diverse collidono su `(TurnIndex, 0)` e l'ordine riproducibile non lo è. La docstring *«sei campi e non uno di più»* va **aggiornata**, non aggirata |
+| **Quando la conoscenza cambia** | Evento emesso **al micro-step**, conoscenza applicata **al confine di fase** | Tiene l'invariante #3 (*raccogli poi applica*), coincide con D4 del brief e coi due refresh che già esistono |
+| **Il tipo dell'evento acustico nel DTO** | **Non c'è** | Riconoscere il tipo è il Livello 5 (*Identificazione*), fuori dalla v0.1 per D-113 |
+
+**Cosa il DTO acustico non può contenere**, e perché — la lista è il gemello di `FRTIntentView`:
+
+| Campo di `FRTNoiseEvent` | Perché resta fuori |
+|---|---|
+| `OriginCell` | server-side per docstring: è la posizione esatta della sorgente |
+| `SourceUnitId` | un rumore non dice **chi** (D-113) |
+| `Intensity` | il volume identificherebbe la sorgente (D-123) |
+| `NoiseType` | riconoscere il tipo è Livello 5, fuori v0.1 (D-113) |
+
+Resta: **insieme di celle · turno · `Uncertain`**. Il DTO è per costruzione **diverso** da `FRTNoiseEvent`,
+esattamente come `FRTIntentView` lo è da `FRTPlannedIntent`.
+
+⚠️ **L'osservatore reale in v0.1 è il bot.** Se il filtro acustico non è quello che il bot attraversa, si
+reintroduce l'onniscienza che `HexBotPlay.HiddenEnemyFairness` ha appena chiuso.
+
+⚠️ Il filtro vive **accanto** a `RTIntentPrivacyLibrary`, mai dentro `RTTurnLog*`.
+
+---
+
+## 7. Decisioni nuove da registrare
+
+Quattro voci per il [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md). Il primo ID libero misurato il
+2026-08-26 è **`D-196`** (massimo assegnato `D-195`, buchi a 159, 161, 164, 165, 174).
+
+🔴 **`D-nnn` è una risorsa contesa**: prima del merge, `git fetch --prune origin` e `gh pr list --state open`
+per gli ID in volo. Questa misura invecchia, e una collisione di contatore è già successa tredici volte.
+
+| Tesi | Cosa emenda |
+|---|---|
+| **La grammatica visiva della conoscenza**: sagoma volumetrica semitrasparente sia per *Last Contact* sia per *Action Ghost*, distinte su **due** canali — monocromo e senza facing il ricordo, colori di squadra e facing l'intento | `progettazione-hud.md` §9 e §25 |
+| **La regola derivata per l'intensità di rumore**: tre classi, `max(0, CostMP − 3)` per il passo, `6` per l'impatto, `0` per le statiche | Chiude `AE-8`; popola la colonna `Rumore` del catalogo azioni; risolve la contraddizione con D-123 sulle signature |
+| **L'intersezione delle aree acustiche**: la squadra conosce l'intersezione, col ripiego sull'area più stretta se vuota | Colma un buco che nessun documento aveva posto |
+| **Correzione alla prosa di D-113**: margine `0` **è** contatto | `IsAudible` è `ReceivedNoise > 0 && ReceivedNoise >= HearingThreshold`, e la verifica di scala di D-041 concorda col codice. Due fonti contro una: la prosa di D-113 è l'anomalia |
+
+---
+
+## 8. Test e gate
+
+| Fase | Test |
+|---|---|
+| **A** | `Knowledge.ViewOmitsHidden` — il DTO non contiene la cella attuale di un ignoto<br>`Knowledge.ViewIsIndependentOfHiddenState` — due stati autoritativi diversi (nemico in A oppure in B) producono lo **stesso** `FRTKnowledgeView`<br>`Knowledge.LastContactCarriesIdentityNotCondition`<br>`Knowledge.HudDrawsOnlyKnownUnits`<br>`Knowledge.CombatLogOmitsUnknown`<br>`Knowledge.UnitRenderingCombinesAliveAndKnown`<br>`Knowledge.GhostFadesWithContactAge`<br>`TurnLog.TargetUnknownIsDescribed` |
+| **B** | `Veil.CoversExactlyUnobservedCells`<br>`Veil.FollowsRefreshPoints`<br>**estensione di `Hex.SurfaceColorsAreDistinguishable` ai colori velati** |
+| **C** | I **sei** del DoD di #159: `Noise.ProducesUncertainContact` · `Noise.AttackRevealsDirection` · `Noise.ObserverViewOmitsUnheard` · `Noise.HashIsIndependentOfObserver` · `Noise.MemoryDoesNotTrackUnseenSource` · `Noise.NoHiddenIntentLeak`<br>più `Noise.SilentActionEmitsNothing` (§6.3) · `Noise.IntensityFollowsDerivedRule` (§6.1) · `Noise.IntersectionNarrowsUncertainty` (§6.4) |
+
+🔴 **`Knowledge.ViewIsIndependentOfHiddenState` non è un test in più: è un debito già iscritto.**
+[D-143](../../decisions/RT_PDR_00_Decision_Log.md) dichiara che *«il primo consumatore che introduca overlay
+di conoscenza dovrà portarsi il test dietro»*. Questa spec è quel consumatore. È il gemello umano di
+`HexBotPlay.HiddenEnemyFairness`, che oggi tiene onesto **solo** il bot.
+
+**Verifiche PIE**: `PIE-V01-VISION` e `PIE-V01-NOISE` (già pianificate in #160), più una voce nuova per la
+leggibilità del velo — che è l'unica cosa di questa spec che nessun test automatico può misurare.
+
+**Golden**: entrambi i `.rttl` di `Tests/Golden/` sono scenari di **movimento**, e l'emissione per passo li
+fa divergere. Vanno rigenerati **nello stesso commit** della Fase C, e la procedura
+(`rt.Test.RegenerateGolden 1`) entra in `docs/`: oggi è documentata **solo nel sorgente**, e un corpus
+rigenerabile senza procedura scritta è un corpus che verrà rigenerato per far passare un test.
+
+---
+
+## 9. Precondizioni operative
+
+Tutte e tre bloccanti.
+
+1. 🔴 **L'albero di lavoro va liberato.** `Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset` è modificato e
+   `WBP_RT_TurnHeader.uasset` è untracked, sopra CP 11.7
+   ([#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613), aperta). La Fase A crea un
+   materiale nuovo: due `.uasset` non si fondono, e
+   [D-178](../../decisions/RT_PDR_00_Decision_Log.md) dice una sessione, una working directory, un branch.
+2. 🔴 **La PR [#1428](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1428) tocca
+   `Turn/RTTurnManager.cpp` e `.h`** — esattamente i file dell'emissione. La Fase C non parte prima che sia
+   mergiata, oppure il conflitto si accetta consapevolmente.
+3. **`D-196` va riverificato** prima del merge (§7).
+
+### Dove atterra il lavoro
+
+| Fase | Issue |
+|---|---|
+| **A** — porta, leak, unità nascoste, sagoma, `TargetUnknown` | **da aprire**: è metà porta e metà *difetto* — i due leak di §1.3 non sono nel DoD di nessuno |
+| **B** — velo | **da aprire**: è un checkpoint mancante |
+| **C** — rumore | [#159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/159) (CP 13.4) |
+| chiusura | la casella HUD di [#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160) si spunta quando A, B e C sono tutte a terra |
+
+Le Fasi A e B **non si allargano dentro #160 in silenzio**: servono due issue proprie.
+
+---
+
+## 10. Fuori perimetro, dichiarato
+
+- **La fetta 2 — fog of war sul terreno**: il velo a **tre** stati (mai esplorata / esplorata ma non
+  osservata / osservata ora). Il meccanismo di §5.3 è il suo substrato: quella fetta aggiunge uno stato, non
+  costruisce una seconda macchina.
+- **L'Action Ghost** (#249): questa spec ne fissa la grammatica, non lo implementa.
+- **Il profilo `Sneak`**: la regola derivata ha bisogno di `CostMP`, e `Sneak` non ne ha uno.
+  **`AE-5` resta aperta**, e §6.1 **non** la chiude. Dirlo qui è l'unico modo perché nessuno creda il
+  contrario leggendo che `AE-8` è chiusa.
+- **L'identificazione del tipo di rumore** (Livello 5) e i cinque livelli del §13 sorgente.
+- **Rete e privacy** (M10): questa spec le prepara per costruzione, essendo offline e senza replica.
+- **`ARTCameraPawn::FrameOwnTeam`**, ed è fuori per una ragione precisa che va scritta perché è il tipo di
+  cosa che qualcuno chiuderà per sbaglio credendola inclusa. D-143 lo nomina come debito noto: itera
+  `TActorIterator<ARTUnit>` su **tutto** il mondo, quindi *«non interroga lo stato autorevole» è falso
+  oggi*. **Ma non è un terzo leak**: valuta `It->TeamId == TeamId && It->IsAlive()` e calcola il centroide
+  della **propria** squadra, quindi nessuna informazione avversaria esce dalla camera. È un debito di
+  **disciplina**, non di informazione, e confonderlo con i due canali di §1.3 gonfierebbe la Fase A con
+  lavoro che non serve a nascondere niente. La porta di §3 lo rende *riparabile*; ripararlo è un'altra
+  issue.
+
+---
+
+## 11. Rischi
+
+| Rischio | P/I | Mitigazione |
+|---|---|---|
+| Il velo compra un **falso verde**: il gate misura il colore non velato | **H/H** | §5.5 — l'estensione del gate è parte della Fase B, non un seguito |
+| Si chiude la Fase A senza i due leak, e la fog resta cosmesi | M/**H** | §1.3 e A2: i leak sono **dentro** la Fase A, non una issue a valle |
+| L'emissione hardcoda le intensità perché `AE-8` non è chiusa in tempo | M/**H** | §6.1 è il **gate d'ingresso** della Fase C: la regola e la colonna vengono prima dell'emissione |
+| I golden vengono rigenerati per far passare un test | M/**H** | La procedura entra in `docs/` nello stesso commit (§8) |
+| Aggiungere `Acoustic` a `ERTLogCategory` in un sito solo | **H**/M | Precedente misurato: `ReactionClash` è stata dimenticata in due dei tre siti |
+| La sagoma viene calcolata risolvendo `StableUnitId → ARTUnit*` per prendere la mesh | M/**H** | Sarebbe il *«ricevi e nascondi»* vietato: il DTO porta la **chiave visiva**, mai il puntatore all'unità |
+| L'intersezione acustica risulta vuota | M/M | §6.4 — ripiego dichiarato sull'area più stretta, con il suo test |
+
+---
+
+## 12. Divergenze documentali trovate durante la stesura
+
+Registrate qui perché **non sono lavoro di questa spec**, e chi le incontra altrove deve sapere che sono
+note.
+
+| Divergenza | Misura |
+|---|---|
+| Il DoD di #159 dice *«`ERTLogCategory` ha oggi **sette** valori»* | Ne ha **dieci**: `Move · Combat · Fallback · Reaction · Environment · Facing · Predictive · ReactionDecision · ReactionClash · Status` |
+| Il DoD di #159 dice che la versione di formato *«sale da `WithPriority = 7` a **8**»* | L'ultima è `WithReactionResponse = 10`: la prossima libera è **11** |
+| La prosa di D-113 dice *«margine ≤ 0 → nessun contatto»* | `IsAudible` è `ReceivedNoise > 0 && ReceivedNoise >= HearingThreshold`, e D-041 concorda col codice (§7) |
+| `docs/roadmap/v0.1-issue-plan.md` §#159 elenca **6** caselle | La issue su GitHub ne ha **9**: il file locale è stantio di tre. Autorità = GitHub |
+| Il commento su `Action.Wait` dice che il silenzio non produce un evento udibile | Falso su superficie a delta positivo (§6.3) |
+| `progettazione-hud.md` §26 ammette che la modalità Sound mostri **categoria** e **intensità** | Entrambe vietate da D-113 e D-123. Il documento HUD è più permissivo delle decisioni |
