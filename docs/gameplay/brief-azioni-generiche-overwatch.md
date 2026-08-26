@@ -54,6 +54,19 @@
 > **In coda, mai in testa**: l'attacco base è l'indice 0 per contratto di catalogo e `PlannedAbilityIndex` è un
 > indice, non un ID. Metterle davanti sposterebbe in silenzio ogni piano già scritto, compresi quelli del bot.
 
+> 🔄 **La tabella qui sopra è un verbale del 2026-08-09 e due delle sue righe sono cadute** — si legge con la
+> data accanto, non si riscrive. Le generiche spedite oggi sono **cinque**:
+>
+> | Riga del verbale | Cosa è successo dopo |
+> |---|---|
+> | `Overwatch` — *«non esiste nemmeno nel catalogo core»* | **entrata con CP 14.5**: l'infrastruttura era arrivata prima di lei (CP 14.3/14.4) e la riga era diventata la descrizione di un difetto — i `FRTOverwatchWatcher` li costruivano solo i test |
+> | `Interact` — *«nessun consumatore»* | **entrata il 2026-08-26**: da [D-148](../decisions/RT_PDR_00_Decision_Log.md)/[D-151](../decisions/RT_PDR_00_Decision_Log.md) l'azione dichiara `SetDoorState`, e il consumatore esiste per intero — `ARTTurnManager` alza `bChangesDoor`, `URTHexCombatLibrary` raccoglie l'op sulla prima porta della traiettoria, `URTHexDoorLibrary::SetDoorState` la applica. Pinnata da `Structures.Door.InteractFromKitOpensDoor` |
+>
+> Entrambe per lo **stesso criterio**, che è ciò che la tabella insegna anche cadendo: *si aggiunge la generica
+> quando l'altra metà esiste*. ⚠️ `Interact` entra con **un** bersaglio funzionante, le porte: consolle,
+> ascensori, generatori, sprinkler, ponti e obiettivi del catalogo §1 non esistono, e la generica non li
+> promette.
+
 > **Stato**: brief di requisiti · **Data**: 2026-08-07 · **Origine**: `/sc:brainstorm` su
 > [`../archive/src/design/azioni-generiche-overwatch-universale-v0.1.md`](../archive/src/design/azioni-generiche-overwatch-universale-v0.1.md) (41 §)
 > **Decisione abilitante**: [`D-012`](../decisions/RT_PDR_00_Decision_Log.md) — l'Overwatch **compete** con

@@ -748,6 +748,96 @@ bool FRTHexDoorClosingStopsMovementTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `Action.Interact` PORTATA DAL KIT apre una porta: la generica di D-025 arriva fino al dato di mappa.
+ *
+ * E' il test che mancava quando `Interact` e' entrata fra le generiche (2026-08-26). Il ramo delle porte era
+ * gia' coperto — `Structures.Door.ClosingStopsMovement`, qui sopra — ma con l'effetto **simulato**
+ * sull'istanza (`Abilities[0]->Def.Effects.Add(...)`), e il suo commento lo dichiara: *«l'azione di catalogo
+ * che apre e chiude porte e' CP 10.1»*. Da [D-148]/[D-151] quell'azione di catalogo esiste, e nessun test
+ * verificava la catena a partire da cio' che un'unita' porta davvero.
+ *
+ * Cosa cade se la catena si rompe, ed e' il motivo per cui il test tocca quattro anelli e non uno:
+ *   kit          `MakeGenericActions` smette di accodare `Interact`  -> l'azione non si trova nel kit
+ *   traduzione   `ARTTurnManager` non alza piu' `bChangesDoor`       -> nessuna op raccolta
+ *   raccolta     `URTHexCombatLibrary` perde il ramo delle porte     -> nessuna op raccolta
+ *   applicazione `URTHexDoorLibrary::SetDoorState` non apre          -> il passaggio resta bloccato
+ *
+ * ⚠️ L'azione si cerca per `ActionId`, mai per indice: un letterale direbbe *«la nona voce apre le porte»*
+ * invece di *«l'unita' porta Interact»*, e resterebbe verde se qualcuno la togliesse dalle generiche
+ * lasciando nove voci nel kit.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexInteractFromKitOpensDoorTest,
+	"RefactorTactics.Structures.Door.InteractFromKitOpensDoor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexInteractFromKitOpensDoorTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	// Porta CHIUSA sul bordo E di (0,0): separa (0,0) da (1,0), che sono adiacenti — la portata di `Interact`
+	// e' 1 (D-149), quindi la cella oltre la porta e' l'unico bersaglio che l'azione puo' avere.
+	const FRTCellId Hinge(0, 0);
+	const FRTCellId Beyond(1, 0);
+	FRTHexCellData WithDoor = *MapActor->MapAsset->FindCell(Hinge);
+	WithDoor.Doors.Add(FRTHexDoor(ERTHexDirection::E, ERTHexDoorState::Closed));
+	MapActor->MapAsset->AddOrUpdateCell(WithDoor);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Hinge);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	TestTrue(TEXT("all'inizio la porta blocca il passaggio"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Hinge, Beyond));
+
+	int32 InteractIdx = INDEX_NONE;
+	for (int32 i = 0; i < Opener->Abilities.Num(); ++i)
+	{
+		if (Opener->Abilities[i] && Opener->Abilities[i]->Def.ActionId == FName(TEXT("Action.Interact")))
+		{
+			InteractIdx = i;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("`Action.Interact` e' nel kit: e' una generica (D-025)"), InteractIdx != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false; // senza l'azione nel kit il resto del test misurerebbe un'altra cosa
+	}
+
+	Opener->PlannedAbilityIndex = InteractIdx;
+	Opener->PlannedAttackTarget = nullptr;
+	Opener->PlannedAttackCell = Beyond;
+	Opener->bAttackTargetsCell = true; // si mira a una CELLA: dietro la porta non c'e' nessuno da bersagliare
+
+	RunBlastTurn(TM);
+
+	TestFalse(TEXT("la porta e' aperta: il passaggio non e' piu' bloccato"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Hinge, Beyond));
+
+	// Il TurnLog lo dice, col bordo scritto come coppia di celle: senza questa meta' il test non
+	// distinguerebbe «la porta si e' aperta» da «la porta non c'era».
+	int32 DoorOpenedEntries = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::DoorOpened))
+		{
+			++DoorOpenedEntries;
+			TestTrue(TEXT("la voce indica il bordo della porta"),
+				(Entry.SrcCell == Hinge && Entry.TgtCell == Beyond)
+				|| (Entry.SrcCell == Beyond && Entry.TgtCell == Hinge));
+		}
+	}
+	TestEqual(TEXT("una voce di porta aperta"), DoorOpenedEntries, 1);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
