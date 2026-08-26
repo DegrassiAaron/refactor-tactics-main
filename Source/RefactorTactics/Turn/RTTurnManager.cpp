@@ -1936,15 +1936,21 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 
 void ARTTurnManager::ValidatePlansAtLockIn()
 {
-	// Le unita' e il loro snapshot vengono dal punto UNICO che li costruisce: `MakeCurrentSnapshot` filtra
-	// gia' i vivi, ordina canonicamente e riempie `FRTHexSimUnit` con TUTTI i campi — `MoveCostModifier` da
-	// `Status.Slow`, il `Facing`, e l'`UnitId` che e' l'indice dello snapshot e non `StableUnitId`.
-	// Costruirlo a mano qui e' come e' nato il difetto trovato in code review: due campi dimenticati e due
-	// schemi di numerazione mescolati.
+	// Le unita' vengono dal punto UNICO che le raccoglie e le ordina, non da un giro a mano: `Sort` a parte,
+	// l'ordine di spawn deciderebbe in che sequenza compaiono le righe di rifiuto.
+	//
+	// ⚠️ **Qui NON serve lo snapshot**, e costruirlo costava caro: `MakeCurrentSnapshot` aggiunge un
+	// `FRTHexSimUnit` per unita', la vista di mappa e occupazione e una copia di `TeamKnowledgeState` — tutto
+	// per passare `Snapshot.Units[i]` a `ValidatePlan`, che dopo [D-190] **non legge nulla** da quel
+	// parametro (il nome e' commentato nella firma). Un default da' lo stesso verdetto.
+	//
+	// Se un giorno `ValidatePlan` tornasse a leggere `Unit`, questa scelta va rifatta — e allora si passa da
+	// `MakeCurrentSnapshot`, non da un `FRTHexSimUnit` costruito a mano: e' cosi' che e' nato un difetto
+	// trovato in code review, con due campi dimenticati e due schemi di numerazione mescolati.
 	TArray<ARTUnit*> Units;
-	const FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units);
+	CollectLivingUnits(Units);
 
-	for (int32 i = 0; i < Units.Num() && i < Snapshot.Units.Num(); ++i)
+	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
 		if (!Unit)
@@ -1958,7 +1964,7 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 			continue; // nessuna voce: niente da giudicare
 		}
 
-		const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(Snapshot.Units[i], Plan);
+		const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), Plan);
 		if (Verdict.bLegal)
 		{
 			continue;
@@ -3310,7 +3316,7 @@ void ARTTurnManager::ResolveDash()
 		// mobilita' e clicca senza posare waypoint sta nello stesso caso. Ogni scatto del gioco dichiarava
 		// uno scarto inesistente dentro un formato serializzato e riprodotto: misurato in code review il
 		// 2026-08-26, difeso da `PlayerInteraction.NoSupersededEntryOnADashWithoutAPlannedMove`.
-		const bool bHadNormalMove = Unit->PlannedPath.Num() > 1 || Unit->PlannedCell != Unit->Cell;
+		const bool bHadNormalMove = Unit->HasPlannedNormalMove();
 		const FRTCellId PreDashCell = Unit->Cell;
 
 		Unit->Cell = Final;
@@ -4283,12 +4289,9 @@ FRTTeamKnowledge ARTTurnManager::KnowledgeForTeam(int32 TeamId) const
 	return Empty;
 }
 
-FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const
+void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 {
 	OutUnits.Reset();
-
-	FVector Origin; float HexSize; float LayerH;
-	const URTHexMapAsset* Map = GetHexContext(Origin, HexSize, LayerH);
 
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(const_cast<ARTTurnManager*>(this), ARTUnit::StaticClass(), Actors);
@@ -4321,6 +4324,17 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	// CADE `RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation` se questa riga sparisce:
 	// verificato per mutazione, non dedotto.
 	OutUnits.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+}
+
+FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const
+{
+	FVector Origin; float HexSize; float LayerH;
+	const URTHexMapAsset* Map = GetHexContext(Origin, HexSize, LayerH);
+
+	// Le unita' vive in ordine stabile: la raccolta e il sort vivono in `CollectLivingUnits`, perche
+	// `ValidatePlansAtLockIn` ha bisogno delle STESSE unita' nello STESSO ordine e non ha bisogno di niente
+	// altro di questo snapshot. Duplicare il sort la' sarebbe stato il modo di farlo divergere.
+	CollectLivingUnits(OutUnits);
 
 	// L'identita' e' l'INDICE dell'unita' in OutUnits, un intero stabile — mai un pointer (stessa
 	// disciplina del TurnLog). Il chiamante ritrova la propria unita' con OutUnits.IndexOfByKey.

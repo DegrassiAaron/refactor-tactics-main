@@ -492,6 +492,21 @@ public:
 	 * Il TurnManager e' l'autorita' (invariante #5): il controller del giocatore chiede QUESTO snapshot per
 	 * calcolare le sue anteprime, invece di ricostruirsi uno stato parallelo che potrebbe divergere.
 	 */
+	/**
+	 * Le unita' VIVE del livello, in ordine stabile per cella.
+	 *
+	 * E' la prima meta' di `MakeCurrentSnapshot`, estratta perche' chi ha bisogno delle unita' ma NON dello
+	 * snapshot non paghi la seconda: `ValidatePlansAtLockIn` iterava un `FRTHexSnapshot` completo — un
+	 * `GetAllActorsOfClass` sull'intero livello, un `FRTHexSimUnit` per unita', la vista di mappa e
+	 * occupazione, una copia di `TeamKnowledgeState` — per passarne un elemento a `URTPlanValidationLibrary`,
+	 * che dopo [D-190] non lo legge affatto.
+	 *
+	 * 🔴 **Il `Sort` non e' una rifinitura**: senza, l'ordine di spawn decide la partita (#990), e cade
+	 * `Match.Autobattle.DeterminismSurvivesUnitPermutation`. Sta qui, in un posto solo, proprio perche'
+	 * nessun chiamante sia tentato di riscriverlo.
+	 */
+	void CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const;
+
 	FRTHexSnapshot MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const;
 
 protected:

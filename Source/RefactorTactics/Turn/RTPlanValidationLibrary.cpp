@@ -83,7 +83,7 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 	// Le due condizioni non sono ridondanti — chi posa waypoint scrive entrambi, ma il bot pianifica
 	// destinazioni e non percorsi (`ARTTurnManager::PlanBots`), quindi guardare il solo `PlannedPath`
 	// renderebbe invisibile ogni movimento del bot.
-	const bool bMoves = Unit->PlannedCell != Unit->Cell || Unit->PlannedPath.Num() > 1;
+	const bool bMoves = Unit->HasPlannedNormalMove();
 	if (bMoves)
 	{
 		// `static const`, e non e' micro-ottimizzazione: `FindCoreAction` scorre `GetCoreActionCatalog()`, che

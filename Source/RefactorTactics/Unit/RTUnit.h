@@ -437,6 +437,24 @@ public:
 	 * ha. Il gate e' lo stesso di `ARTTurnManager::ResolveDash`: se qui e li' rispondessero in modo diverso, il
 	 * bot pianificherebbe scatti che il resolver rifiuta — o non ne pianificherebbe affatto (#142).
 	 */
+	/**
+	 * Vero se questa unita' ha pianificato un MOVIMENTO NORMALE — una destinazione diversa dalla cella
+	 * attuale, oppure un percorso con almeno un passo.
+	 *
+	 * 🔴 **Un solo posto, ed e' il motivo per cui esiste.** La stessa domanda si faceva in due file con gli
+	 * operandi invertiti: `URTPlanValidationLibrary::MakePlanFor` decide se il piano CONTIENE una voce
+	 * `Action.Move`, `ARTTurnManager::ResolveDash` decide se scrivere la voce che dichiara quel movimento
+	 * SCARTATO. Sono la stessa regola: se una delle due guadagnasse un caso — un piano con soli
+	 * `PlannedWaypoints`, un bot che cominciasse a scrivere `PlannedPath` — validatore e resolver
+	 * risponderebbero diversamente sulla stessa unita' nello stesso turno, in silenzio.
+	 *
+	 * ⚠️ **Si legge PRIMA che `Cell` venga riscritta.** In `ResolveDash` la cella d'arrivo dello scatto
+	 * sovrascrive `Cell`: chiamato dopo, il confronto con `PlannedCell` e' vero per OGNI scatto che ha
+	 * spostato l'unita', anche per chi non aveva pianificato nulla. E' un difetto misurato il 2026-08-26,
+	 * ed e' difeso da `PlayerInteraction.NoSupersededEntryOnADashWithoutAPlannedMove`.
+	 */
+	bool HasPlannedNormalMove() const { return PlannedCell != Cell || PlannedPath.Num() > 1; }
+
 	int32 FindDashAbilityIndex() const;
 
 	/** Vero se l'abilita' e' pronta (non in ricarica) e c'e' energia sufficiente. */
