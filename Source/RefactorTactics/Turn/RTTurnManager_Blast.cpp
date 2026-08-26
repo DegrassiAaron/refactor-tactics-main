@@ -60,6 +60,29 @@
 namespace
 {
 	/**
+	 * L'azione E' quella core indicata, direttamente o per derivazione?
+	 *
+	 * 🔴 **`ActionId` da solo non basta, e non e' un dettaglio** (`#1443`). `MakeEquipmentAction` riscrive
+	 * `ActionId` con l'id del PEZZO — «nel TurnLog si legge il gadget, non l'azione generica» — e conserva
+	 * la provenienza in `DerivedFromActionId` ([D-195]); le abilita' d'eroe costruite da un'azione core
+	 * fanno lo stesso. Chi confronta il solo `ActionId` letterale non riconosce ne' l'una ne' l'altra.
+	 *
+	 * L'effetto misurato: `Gadget.Medkit` — che il catalogo dichiara «la versione portatile di
+	 * `Action.Heal`», consegnato in partita dal loadout di default ([D-195]) — non passava dal percorso
+	 * delle cure. Finiva fra gli intenti d'attacco, `ValidateInstance` rispondeva `TargetFriendly`
+	 * sull'alleato e il fallback lo annullava: **il medkit curava zero**, e la riga di log dava la colpa al
+	 * bersaglio.
+	 *
+	 * ⚠️ Si guarda la derivazione, NON `BaseActionId`: quello dice di quale delle SETTE generiche un'azione
+	 * e' il profilo ([D-033]), e `Heal`/`Cleanse`/`Interrupt` fra le sette non ci sono.
+	 */
+	bool IsCoreAction(const FRTActionDef& Def, const TCHAR* CoreId)
+	{
+		const FName Core(CoreId);
+		return Def.ActionId == Core || Def.DerivedFromActionId == Core;
+	}
+
+	/**
 	 * La voce `Fallback` di un'azione di supporto che non avviene: cambia solo il MOTIVO.
 	 *
 	 * Un builder invece di tre copie da nove campi: questo file porta gia' diversi costruttori quasi
@@ -184,7 +207,7 @@ void ARTTurnManager::ResolveCleanseActions(const FRTBlastContext& Ctx)
 		ARTUnit* Unit = Ctx.Units[i];
 		const int32 CleanseIdx = Unit->PlannedAbilityIndex;
 		const URTActionData* Cleanse = Unit->GetAbility(CleanseIdx);
-		if (!Cleanse || Cleanse->Def.ActionId != FName(TEXT("Action.Cleanse")) || !Unit->CanUseAbility(CleanseIdx))
+		if (!Cleanse || !IsCoreAction(Cleanse->Def, TEXT("Action.Cleanse")) || !Unit->CanUseAbility(CleanseIdx))
 		{
 			continue;
 		}
@@ -238,7 +261,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		ARTUnit* Unit = Ctx.Units[i];
 		const int32 HealIdx = Unit->PlannedAbilityIndex;
 		const URTActionData* Heal = Unit->GetAbility(HealIdx);
-		if (!Heal || Heal->Def.ActionId != FName(TEXT("Action.Heal")) || !Unit->CanUseAbility(HealIdx))
+		if (!Heal || !IsCoreAction(Heal->Def, TEXT("Action.Heal")) || !Unit->CanUseAbility(HealIdx))
 		{
 			continue;
 		}
@@ -348,7 +371,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		//
 		// L'arco e' identificato dalla COPPIA (chi la usa, il bersaglio): la pianificazione non ha un
 		// bersaglio-arco, e questo resta un limite dichiarato finche' l'HUD di E11 non ne porta uno.
-		if (PlannedNow && PlannedNow->Def.ActionId == FName(TEXT("Action.ModifyArc")))
+		if (PlannedNow && IsCoreAction(PlannedNow->Def, TEXT("Action.ModifyArc")))
 		{
 			ARTUnit* ArcTarget = Unit->PlannedAttackTarget;
 			const int32 ArcAbilityIndex = Unit->PlannedAbilityIndex;
@@ -696,7 +719,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
-			|| IntentDefs[Hit.IntentIndex].ActionId != FName(TEXT("Action.Interrupt")))
+			|| !IsCoreAction(IntentDefs[Hit.IntentIndex], TEXT("Action.Interrupt")))
 		{
 			continue;
 		}
@@ -793,7 +816,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	{
 		if (InterruptedIntents.Contains(Hit.IntentIndex)) { return true; }
 		return IntentDefs.IsValidIndex(Hit.IntentIndex)
-			&& IntentDefs[Hit.IntentIndex].ActionId == FName(TEXT("Action.Interrupt"));
+			&& IsCoreAction(IntentDefs[Hit.IntentIndex], TEXT("Action.Interrupt"));
 	});
 }
 
