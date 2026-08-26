@@ -497,18 +497,25 @@ Un test verde non prova di poter fallire. Rompi **una** cosa, ricompila, e verif
 ⚠️ Ripristina il sorgente **e ricompila** fra una mutazione e l'altra: senza rebuild la seconda misura
 il binario della prima.
 
-- [ ] **Step 1.8 — Dichiara il binding in `DefaultGame.ini`**
+- [ ] **Step 1.8 — Documenta il binding in `DefaultGame.ini`, ma NON scriverlo**
 
-Nella sezione `[/Script/RefactorTactics.RTFrontendNavigator]`, dopo le righe `+Screens=`:
+> 🔁 **Corretto in corso d'opera.** La prima stesura di questo step scriveva la riga subito. Il `.ini`
+> stesso dichiara la disciplina contraria, tre righe sopra: la voce `Pause` di CP 46.6 **non** c'è, e la sua
+> assenza è deliberata perché il `done_when` della seduta d'editor `U30` chiede l'asset **con la sua voce**.
+> Scrivere il percorso prima dell'asset produce solo una warning a ogni PIE fino al Task 2.
+
+Nella sezione `[/Script/RefactorTactics.RTFrontendNavigator]`, dopo il blocco su `Pause`, aggiungi il
+**commento** — la riga resta commentata:
 
 ```ini
-; Il HUD tattico di partita (CP 11.7 / #613). ⛔ **Non e' una riga `+Screens=`**, ed e' deliberato:
-; `RTScreenIds::Match` non ha e non deve avere un binding — «nessun widget» e' la sua definizione. Il HUD
-; e' il layer SOTTO le schermate, presentato da `EnterMatch` e smontato da `InitializeFrontend`.
-; ⚠️ Finche' il `.uasset` non esiste, questa riga fa loggare una warning che nomina il percorso: e' il
-; comportamento voluto — un HUD assente in silenzio sarebbe indistinguibile da un HUD vuoto.
-MatchHudWidgetClass="/Game/RT/UI/Match/WBP_RT_TacticalHUD.WBP_RT_TacticalHUD_C"
+; ⛔ **Anche `MatchHudWidgetClass` di CP 11.7 (#613) NON sta ancora qui, e per la stessa disciplina.**
+; ⚠️ Non essendo un `+Screens=`, `EveryConfiguredScreenLoads` non lo vedrebbe: quel test itera
+; `GetRegisteredScreenIds()`. Un refuso nel percorso non farebbe fallire nulla — ragione in piu' per
+; scrivere la riga **insieme** all'asset.
+;   MatchHudWidgetClass="/Game/RT/UI/Match/WBP_RT_TacticalHUD.WBP_RT_TacticalHUD_C"
 ```
+
+⚠️ **La riga si scommenta nel Task 2**, quando `WBP_RT_TacticalHUD.uasset` esiste.
 
 - [ ] **Step 1.9 — Commit**
 
@@ -575,7 +582,20 @@ la chiave — a schermo si vede cosa manca, invece di un buco silenzioso.
 ⛔ **Non aggirare aggiungendo una variabile `Texture2D`.** È esattamente la scorciatoia che il catalogo
 esiste per impedire (D-031), e il gate che la vieta non guarda dentro i Blueprint.
 
-- [ ] **Step 2.4 — Verifica a schermo**
+- [ ] **Step 2.4 — Scommenta il binding in `DefaultGame.ini`**
+
+Ora l'asset esiste, quindi la riga può essere dichiarata. Nella sezione
+`[/Script/RefactorTactics.RTFrontendNavigator]`, togli il `;` davanti a:
+
+```ini
+MatchHudWidgetClass="/Game/RT/UI/Match/WBP_RT_TacticalHUD.WBP_RT_TacticalHUD_C"
+```
+
+⚠️ **Il percorso deve corrispondere esattamente** a dove hai salvato il Blueprint, suffisso `_C` compreso.
+Nessun test lo verifica — `EveryConfiguredScreenLoads` itera solo le voci `+Screens=`, e questa non lo è.
+L'unico segnale di un refuso è la warning di `PresentMatchHud` nel log, che nomina il percorso.
+
+- [ ] **Step 2.5 — Verifica a schermo**
 
 Metti un `Border` colorato temporaneo in ciascuna delle quattro zone, poi apri `L_HexArena` e premi
 **PLAY**.
@@ -585,7 +605,7 @@ niente, guarda `Saved/Logs/RefactorTactics.log`: la warning del Task 1 nomina il
 
 Poi **togli i bordi temporanei**.
 
-- [ ] **Step 2.5 — Commit**
+- [ ] **Step 2.6 — Commit**
 
 ```bash
 git add Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset
