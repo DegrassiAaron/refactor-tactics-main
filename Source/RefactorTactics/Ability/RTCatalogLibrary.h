@@ -524,13 +524,18 @@ public:
 	/**
 	 * Gli `ActionId` delle azioni **generiche** che ogni unita' possiede in aggiunta al proprio kit (D-025).
 	 *
-	 * Sono **quattro** delle sette dichiarate, e le altre tre mancano per ragioni diverse che vale la pena
-	 * distinguere:
+	 * Sono **cinque** delle sette dichiarate, e le due che mancano non mancano davvero: `Move` e `BasicAttack`
+	 * **ci sono gia'**, per altre strade — il movimento passa da `PlannedPath` e non da uno slot azione, e
+	 * l'attacco base e' l'indice 0 del kit di ogni eroe (catalogo v0.1).
 	 *
-	 * - `Move` e `BasicAttack` **ci sono gia'**, per altre strade: il movimento passa da `PlannedPath` e non
-	 *   da uno slot azione, e l'attacco base e' l'indice 0 del kit di ogni eroe (catalogo v0.1);
-	 * - `Interact` non ha un **consumatore**: nessun codice risolve un'interazione. Aggiungerla darebbe a ogni
-	 *   unita' un comando che non fa niente — cioe' lo stesso difetto che questa lista corregge.
+	 * 🔴 **Erano quattro fino al 2026-08-26**, e la terza esclusa era `Interact` con questa ragione: *«non ha
+	 * un **consumatore**: nessun codice risolve un'interazione. Aggiungerla darebbe a ogni unita' un comando
+	 * che non fa niente»*. Il motivo e' **scaduto**, non era sbagliato: da [D-148]/[D-151] l'azione dichiara
+	 * `SetDoorState`, e il consumatore esiste per intero — `ARTTurnManager` alza `bChangesDoor` dagli Effects
+	 * di qualunque principale pianificata, `URTHexCombatLibrary` raccoglie l'op sulla prima porta della
+	 * traiettoria, `URTHexDoorLibrary::SetDoorState` la applica e il TurnLog scrive `DoorOpened`.
+	 * ⚠️ Con **un** bersaglio funzionante: le porte. Consolle, ascensori, generatori, sprinkler, ponti e
+	 * obiettivi che il catalogo §1 elenca non esistono, e la generica non li promette.
 	 *
 	 * `Guard`, `Brace` e `Wait` entrano perche' sono complete dall'altra parte: `Status.Guarded` e
 	 * `Status.Braced` hanno gia' quattro consumatori nel `TurnManager` — riduzione del danno e resistenza alle
@@ -541,9 +546,10 @@ public:
 	 * lei — CP 14.3 e CP 14.4 hanno consegnato `FRTReactionOpportunity` e `BuildOverwatchTriggers` — e la
 	 * riga era diventata la descrizione del difetto invece che di un rinvio: i `FRTOverwatchWatcher` li
 	 * costruivano **solo i test**, quindi nessuna partita poteva aprire una finestra. E' lo stesso criterio
-	 * con cui `Guard` e `Brace` erano entrate: si aggiunge la generica quando l'altra meta' esiste.
+	 * con cui `Guard` e `Brace` erano entrate: si aggiunge la generica quando l'altra meta' esiste — e con cui
+	 * e' poi entrata `Interact`, che ha ripetuto la stessa storia riga per riga.
 	 *
-	 * ⚠️ L'ordine e' un indice stabile: vedi il commento all'implementazione. `Overwatch` va in CODA.
+	 * ⚠️ L'ordine e' un indice stabile: vedi il commento all'implementazione. Le nuove vanno in CODA.
 	 */
 	static TArray<FName> GetGenericActionIds();
 

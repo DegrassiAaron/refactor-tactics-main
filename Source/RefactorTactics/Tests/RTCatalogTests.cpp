@@ -488,7 +488,6 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		// usa, ed e' la ragione per cui sono dichiarate invece che corrette. Non sono difetti (E6).
 		{ TEXT("Action.CircularAoE"),     TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.HeavyAttack"),     TEXT("Pezzo non assegnato: Gadget.BreachCharge esiste, default di nessuno") },
-		{ TEXT("Action.Interact"),        TEXT("Aspetta il suo eroe: e' una delle sette di D-025, mai messa in un kit") },
 		{ TEXT("Action.Leap"),            TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.LineAttack"),      TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.MarkTarget"),      TEXT("Aspetta il suo eroe") },

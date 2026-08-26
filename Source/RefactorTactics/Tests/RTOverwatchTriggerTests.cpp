@@ -722,11 +722,12 @@ bool FRTOverwatchActionIsInCoreCatalogTest::RunTest(const FString&)
 	const TArray<FName> Generic = URTCatalogLibrary::GetGenericActionIds();
 	TestTrue(TEXT("e' fra le azioni generiche"), Generic.Contains(FName(TEXT("Action.Overwatch"))));
 
-	// L'ordine, per intero e non solo «l'ultima»: cosi' il test cade anche se qualcuno ne inserisse una quinta
+	// L'ordine, per intero e non solo «l'ultima»: cosi' il test cade anche se qualcuno ne inserisse una nuova
 	// prima delle esistenti invece che dopo.
 	const TArray<FName> Expected = {
-		TEXT("Action.Wait"), TEXT("Action.Guard"), TEXT("Action.Brace"), TEXT("Action.Overwatch") };
-	TestEqual(TEXT("le generiche sono quattro"), Generic.Num(), Expected.Num());
+		TEXT("Action.Wait"), TEXT("Action.Guard"), TEXT("Action.Brace"), TEXT("Action.Overwatch"),
+		TEXT("Action.Interact") };
+	TestEqual(TEXT("le generiche sono cinque"), Generic.Num(), Expected.Num());
 	for (int32 i = 0; i < Expected.Num() && i < Generic.Num(); ++i)
 	{
 		TestEqual(FString::Printf(TEXT("la generica %d e' `%s`"), i, *Expected[i].ToString()),
