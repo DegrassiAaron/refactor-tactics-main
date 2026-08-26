@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
@@ -47,12 +48,7 @@ namespace
 
 	URTHexMapAsset* SpawnHexBotMap(UWorld* World, int32 Radius)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = M;

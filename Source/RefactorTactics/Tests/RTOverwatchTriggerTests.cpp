@@ -20,6 +20,7 @@
 // comunque difendibile — cio' che il test pinna e' il PRODUTTORE di questi trigger, non il catalogo in se'.
 
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
 #include "Ability/RTCatalogLibrary.h" // `Action.Overwatch`: il produttore che CP 14.5 aggiunge al catalogo core
 #include "Combat/RTOffensiveActionLibrary.h"
 #include "Map/RTCellId.h"
@@ -51,12 +52,7 @@ namespace
 	/** Nomi distinti per file: la unity build condivide la translation unit. */
 	URTHexMapAsset* MakeOverwatchMap(int32 Radius = 6)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		return M;
 	}
 

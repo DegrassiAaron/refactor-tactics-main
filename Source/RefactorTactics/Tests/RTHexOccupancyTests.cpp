@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
 #include "Map/RTHexOccupancyLibrary.h"
 #include "RTOccupancyFixtures.h"
 #include "Map/RTCellId.h"
@@ -392,12 +393,7 @@ namespace
 	/** Mappa piena di raggio N, tutte le celle a costo 1 e senza sovrapprezzo. */
 	URTHexMapAsset* MakeFlatMap(int32 Radius)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		return M;
 	}
 

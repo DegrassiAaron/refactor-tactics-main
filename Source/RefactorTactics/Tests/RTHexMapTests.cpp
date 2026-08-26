@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
@@ -248,11 +249,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapClearBumpsRevisionTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexMapClearBumpsRevisionTest::RunTest(const FString&)
 {
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 1))
-	{
-		Map->AddOrUpdateCell(FRTHexCellData(Id));
-	}
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 1);
 	Map->AddTransition(FRTCellId(0, 0, 0), FRTCellId(0, 0, 1), /*Cost=*/ 1);
 	Map->SortCells();
 
@@ -289,12 +286,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapLookupInvalidationTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexMapLookupInvalidationTest::RunTest(const FString&)
 {
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 1))
-	{
-		Map->AddOrUpdateCell(FRTHexCellData(Id));
-	}
-	Map->SortCells();
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 1);
 	TestEqual(TEXT("7 celle"), Map->NumCells(), 7);
 
 	// Popola la cache interrogando l'asset.
@@ -329,12 +321,7 @@ bool FRTHexMapCenterCellTest::RunTest(const FString&)
 {
 	// Serve a inquadrare la mappa (camera): il centro non e' per forza l'origine assiale, perche' una
 	// mappa costruita nell'editor puo' stare tutta lontano da (0,0).
-	URTHexMapAsset* Centered = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
-	{
-		Centered->AddOrUpdateCell(FRTHexCellData(Id));
-	}
-	Centered->SortCells();
+	URTHexMapAsset* Centered = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
 	TestTrue(TEXT("esagono centrato sull'origine: centro (0,0)"), Centered->GetCenterCell() == FRTCellId(0, 0, 0));
 
 	URTHexMapAsset* Offset = NewObject<URTHexMapAsset>();
@@ -577,12 +564,7 @@ bool FRTHexBrushLineOfSightTest::RunTest(const FString&)
 	//    Il muro NON blocca il passo: `bBlocksMovement` resta false, ed e' cio' che serve a una rotta coperta
 	//    ma percorribile.
 	{
-		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& C : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
-		{
-			Map->AddOrUpdateCell(FRTHexCellData(C));
-		}
-		Map->SortCells();
+		URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
 
 		const FRTCellId From(-2, 0, 0);
 		const FRTCellId To(2, 0, 0);

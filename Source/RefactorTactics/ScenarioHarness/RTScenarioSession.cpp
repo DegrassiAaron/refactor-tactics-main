@@ -404,11 +404,7 @@ namespace
 		}
 		else
 		{
-			Map = NewObject<URTHexMapAsset>();
-			for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-			{
-				Map->AddOrUpdateCell(FRTHexCellData(Id));
-			}
+			Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		}
 
 		// Le modifiche DOPO l'arena piena: una cella elencata due volte vince l'ultima, e l'esito non dipende

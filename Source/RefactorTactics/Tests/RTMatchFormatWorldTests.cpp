@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
 #include "RTGameMode.h"
 #include "Core/RTTypes.h"
 #include "Kismet/GameplayStatics.h"
@@ -43,12 +44,7 @@ namespace
 
 	ARTHexMapActor* SpawnFormatMap(UWorld* World, int32 Radius = 2)
 	{
-		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			Map->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		Map->SortCells();
+		URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = Map;

@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTHexCombatLibrary.h"
@@ -25,12 +26,7 @@ namespace
 	/** Arena piena di raggio N. Nome distinto per file: la unity build condivide la translation unit. */
 	URTHexMapAsset* MakeArcMap(int32 Radius)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		return M;
 	}
 

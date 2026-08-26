@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
 #include "Ability/RTActionDef.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Map/RTCellId.h"
@@ -15,12 +16,7 @@ namespace
 	/** Mappa piena senza ostacoli: la geometria non interferisce con i casi che riguardano il bersaglio. */
 	URTHexMapAsset* MakeFallbackMap(int32 Radius = 6)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		return M;
 	}
 

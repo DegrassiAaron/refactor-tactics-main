@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
 #include "Combat/RTCombatLibrary.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -220,12 +221,7 @@ bool FRTCombatHexTargetingTest::RunTest(const FString&)
 	const FRTCellId To(3, 0, 0); // distanza 3
 
 	// Mappa piena, con un muro che blocca la vista a meta' strada (aggiunto al punto 4).
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4))
-	{
-		Map->AddOrUpdateCell(FRTHexCellData(Id));
-	}
-	Map->SortCells();
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 4);
 
 	// 1. Senza mappa: NIENTE ingaggio, mai (regressione fail-open).
 	TestFalse(TEXT("mappa assente -> non si ingaggia"),
@@ -263,12 +259,7 @@ bool FRTCombatTargetReasonTest::RunTest(const FString&)
 	const FRTCellId From(0, 0, 0);
 	const FRTCellId To(3, 0, 0); // distanza 3
 
-	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4))
-	{
-		Map->AddOrUpdateCell(FRTHexCellData(Id));
-	}
-	Map->SortCells();
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 4);
 
 	// Nessuna mappa: motivo dedicato, non "coperto".
 	TestTrue(TEXT("mappa assente -> NoMap"),

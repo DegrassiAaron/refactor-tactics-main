@@ -6,6 +6,7 @@
 #include "RTMatchSetupLibrary.generated.h"
 
 class URTHexMapAsset;
+class ARTHexMapActor;
 
 /**
  * Una posizione di partenza dello scenario showcase: QUALE eroe, in QUALE squadra, su QUALE cella.
@@ -73,6 +74,31 @@ public:
 	 *
 	 * `Outer` nullo -> nullptr.
 	 */
+	/**
+	 * **Arena PIATTA** di raggio `Radius`: un esagono pieno sul layer 0, pavimento a costo 1, niente
+	 * ostacoli, niente coperture, niente terreni. Le celle sono gia' ordinate.
+	 *
+	 * E' il banco di prova piu' usato del progetto — e fino al 2026-08-26 era **duplicato in 62 file**, 59
+	 * dei quali test, sotto quattordici nomi diversi (`SpawnMap`, `MakeFlatMap`, `SpawnHexMap`,
+	 * `SpawnCleanInteractionMap`, ...). Ogni copia faceva salire `GraphRevision` una volta per cella — 127
+	 * incrementi per un raggio 6 — che `URTHexMapAsset::ReplaceContent` esiste apposta per evitare, e che
+	 * `AppendLogEntry` stampiglia in ogni voce del TurnLog.
+	 *
+	 * Non sostituisce `MakeTestArena`: quella esercita le REGOLE (ostacoli, copertura, terreno costoso, un
+	 * secondo layer), questa e' il foglio bianco su cui si misura una regola alla volta.
+	 *
+	 * `Outer` nullo o `Radius` negativo -> `nullptr`.
+	 */
+	static URTHexMapAsset* MakeFlatArena(UObject* Outer, int32 Radius);
+
+	/**
+	 * L'arena piatta gia' montata su un `ARTHexMapActor` nel mondo: la forma che serve ai test che hanno
+	 * bisogno della mappa AUTOREVOLE, non solo dell'asset.
+	 *
+	 * `World` nullo -> `nullptr`. L'attore possiede l'asset, che gli viene creato addosso.
+	 */
+	static ARTHexMapActor* SpawnFlatArena(UWorld* World, int32 Radius);
+
 	static URTHexMapAsset* MakeTestArena(UObject* Outer);
 
 	/**

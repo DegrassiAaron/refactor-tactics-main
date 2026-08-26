@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
@@ -54,11 +55,7 @@ namespace
 	ARTHexMapActor* SpawnStatusMap(UWorld* World, int32 Radius, const FRTCellId& Special, ERTHexSurface Surface,
 		int32 MoveCost)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		FRTHexCellData SpecialCell(Special);
 		SpecialCell.Surface = Surface;
 		SpecialCell.MoveCost = MoveCost;

@@ -6,6 +6,7 @@
 // divergere dall'esito (invariante #1: la presentazione non decide, riceve).
 
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
@@ -43,12 +44,7 @@ namespace
 	/** Mappa piatta di raggio 3 sul layer 0: basta a contenere ogni forma provata qui. */
 	URTHexMapAsset* MakePreviewMap(UObject* Outer)
 	{
-		URTHexMapAsset* Map = NewObject<URTHexMapAsset>(Outer);
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
-		{
-			Map->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		Map->SortCells();
+		URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(Outer, 3);
 		return Map;
 	}
 

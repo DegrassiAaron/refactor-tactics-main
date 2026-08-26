@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
 #include "Ability/RTActionDef.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatLibrary.h"
@@ -37,12 +38,7 @@ namespace
 	/** Esagono pieno di raggio N, tutte le celle percorribili e trasparenti. */
 	URTHexMapAsset* MakeOffensiveMap(int32 Radius = 7)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		return M;
 	}
 

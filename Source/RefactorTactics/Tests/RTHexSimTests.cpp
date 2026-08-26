@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
 #include "HAL/FileManager.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Map/RTCellId.h"
@@ -18,12 +19,7 @@ namespace
 	/** Esagono pieno di raggio N sul layer 0, tutte le celle a MoveCost 1. */
 	URTHexMapAsset* MakeSimMap(int32 Radius)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		return M;
 	}
 

@@ -1,4 +1,6 @@
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Engine/World.h"
+#include "Map/RTHexMapActor.h"
 
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
@@ -96,6 +98,41 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeDemoArena(UObject* Outer, int32 Radius
 	}
 	Arena->SortCells();
 	return Arena;
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeFlatArena(UObject* Outer, int32 Radius)
+{
+	if (Outer == nullptr || Radius < 0)
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+	{
+		Arena->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Arena->SortCells();
+	return Arena;
+}
+
+ARTHexMapActor* URTMatchSetupLibrary::SpawnFlatArena(UWorld* World, int32 Radius)
+{
+	if (World == nullptr)
+	{
+		return nullptr;
+	}
+
+	ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
+	if (Actor == nullptr)
+	{
+		return nullptr;
+	}
+
+	// L'asset nasce SULL'attore: cosi' la mappa vive quanto l'attore che la espone, e non dipende dal
+	// transient package.
+	Actor->MapAsset = MakeFlatArena(Actor, Radius);
+	return Actor;
 }
 
 URTHexMapAsset* URTMatchSetupLibrary::MakeTestArena(UObject* Outer)

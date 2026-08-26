@@ -11,6 +11,7 @@
 // del resolver invece che come cio' che e': un identificatore che non e' una funzione del suo stato.
 
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h" // MakeFlatArena: un solo builder di arena piatta
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Unit/RTUnit.h"
@@ -47,12 +48,7 @@ namespace
 	 */
 	URTHexMapAsset* MakeZoneFollowMap()
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), /*Radius*/ 6))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius*/ 6);
 		return M;
 	}
 
