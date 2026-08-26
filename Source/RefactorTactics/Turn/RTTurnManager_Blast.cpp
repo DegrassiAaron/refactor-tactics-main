@@ -57,6 +57,32 @@
 // quali un pass leggesse senza leggerli tutti.
 // =================================================================================================
 
+namespace
+{
+	/**
+	 * La voce `Fallback` di un'azione di supporto che non avviene: cambia solo il MOTIVO.
+	 *
+	 * Un builder invece di tre copie da nove campi: questo file porta gia' diversi costruttori quasi
+	 * identici della stessa famiglia, e un campo aggiunto domani andrebbe ricordato in tutti. Stessa
+	 * ragione per cui `#1415` ha collassato 49 builder di arena in uno.
+	 */
+	FRTTurnLogEntry MakeSupportFallback(const ARTUnit* Autore, const ARTUnit* Bersaglio,
+		const FRTActionDef& Def, ERTActionInvalidReason Motivo)
+	{
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Fallback;
+		Entry.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Entry.SrcCell = Autore ? Autore->Cell : FRTCellId();
+		Entry.TgtCell = Bersaglio ? Bersaglio->Cell : Entry.SrcCell;
+		Entry.Amount = static_cast<int32>(Motivo);
+		Entry.ActionId = Def.ActionId;
+		Entry.BaseActionId = Def.BaseActionId;
+		Entry.Priority = Def.Priority;
+		return Entry;
+	}
+}
+
 void ARTTurnManager::GatherBlastUnits(FRTBlastContext& Ctx) const
 {
 	// Mappa ESAGONALE autorevole: portata (distanza esagonale) e linea di tiro si valutano qui.
@@ -184,6 +210,17 @@ void ARTTurnManager::ResolveCleanseActions(const FRTBlastContext& Ctx)
 		Unit->PlannedAbilityIndex = INDEX_NONE; // consumata qui: non deve diventare anche un intento d'attacco
 		Unit->PlannedAttackTarget = nullptr;
 
+		// 🔴 Una purificazione che non purifica **non sparisce in silenzio** ([D-196], `#1437`): e' lo stesso
+		// difetto della cura senza effetti sessanta righe piu' sotto, nella stessa funzione — ci si arriva
+		// dopo `ConsumeAbility`, quindi il cooldown e' gia' bruciato, e il record autoritativo non conteneva
+		// niente. Chiuderne uno e lasciare il gemello lascerebbe la classe mezza aperta.
+		if (!Removed.IsValid())
+		{
+			FRTTurnLogEntry PurgaVuota = MakeSupportFallback(
+				Unit, Unit, Cleanse->Def, ERTActionInvalidReason::NoEffect);
+			AppendLogEntry(PurgaVuota, Unit);
+		}
+
 		AddLogEvent(Removed.IsValid()
 			? FString::Printf(TEXT("%s: purificato %s"), *Unit->GetName(), *Removed.ToString())
 			: FString::Printf(TEXT("%s: nessuno stato da purificare"), *Unit->GetName()));
@@ -223,20 +260,21 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 			// curato. La superficie leggibile sapeva qualcosa che la traccia non registrava — il verso
 			// opposto dei duplicati, e quello piu' difficile da vedere: non c'e' una riga di troppo, ce n'e'
 			// una che non c'e'.
-			FRTTurnLogEntry CuraMancata;
-			CuraMancata.Phase = ERTMatchPhase::Blast;
-			CuraMancata.Category = ERTLogCategory::Fallback;
-			CuraMancata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
-			CuraMancata.SrcCell = Unit->Cell;
-			CuraMancata.TgtCell = HealTarget->Cell;
-			CuraMancata.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
-			CuraMancata.ActionId = Heal->Def.ActionId;
-			CuraMancata.BaseActionId = Heal->Def.BaseActionId;
-			CuraMancata.Priority = Heal->Def.Priority;
+			FRTTurnLogEntry CuraMancata = MakeSupportFallback(
+				Unit, HealTarget, Heal->Def, ERTActionInvalidReason::OutOfRange);
 			AppendLogEntry(CuraMancata, Unit);
 			// ⛔ **Niente `AddLogEvent`**: `ConcludeTurn` deriva una riga per ogni voce di TurnLog, quindi
 			// tenerla avrebbe creato un duplicato nuovo. La riga derivata porta azione, motivo e celle; il
 			// nome dell'unita' e' il debito noto di `#1412` punto 2.
+			continue;
+		}
+
+		// ⚠️ Un'unita' UCCISA nella fase Dash arriva qui col piano ancora addosso — `GatherBlastUnits` non
+		// filtra i morti — e senza questa guardia un cadavere lascerebbe la sua voce nel TurnLog:
+		// deterministica, ma rumore che entra nell'hash del replay. E' la stessa ragione per cui
+		// `CollectAttackIntents` controlla `IsAlive()`.
+		if (!Unit->IsAlive())
+		{
 			continue;
 		}
 
@@ -251,25 +289,20 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// spiegare perche' il turno del curatore non avesse prodotto nulla e perche' l'abilita' fosse in
 		// ricarica. Strettamente peggio del caso «fuori portata» qui sopra, che almeno una riga ce l'aveva.
 		//
-		// Ci si arriva con un'abilita' marcata cura i cui `Effects` non portano un `Heal` utile: un data
-		// asset scritto male, o una cura da equipaggiamento i cui effetti sono stati sostituiti come fa
-		// `Gadget.BreachCharge` con `Action.HeavyAttack`.
+		// Ci si arriva con un'abilita' il cui `ActionId` e' letteralmente `Action.Heal` e i cui `Effects` non
+		// portano un `Heal` utile: un data asset scritto male, o un catalogo modificato.
+		//
+		// ⚠️ **NON da un equipaggiamento**, contro quanto diceva la prima stesura di questo commento:
+		// `MakeEquipmentAction` riscrive `ActionId` con l'id del pezzo, quindi `Gadget.Medkit` non passa
+		// nemmeno dal filtro di questa funzione — e' un difetto suo, aperto a parte (`#1443`).
 		//
 		// ⚠️ Il motivo e' `NoEffect`, aggiunto per questo: `None` significa «l'azione e' eseguibile», e la
 		// resa generica direbbe «non eseguibile» — falso in tutti e due i versi. L'azione era valida e non
 		// aveva niente da applicare.
 		if (Amount <= 0)
 		{
-			FRTTurnLogEntry CuraVuota;
-			CuraVuota.Phase = ERTMatchPhase::Blast;
-			CuraVuota.Category = ERTLogCategory::Fallback;
-			CuraVuota.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
-			CuraVuota.SrcCell = Unit->Cell;
-			CuraVuota.TgtCell = HealTarget->Cell;
-			CuraVuota.Amount = static_cast<int32>(ERTActionInvalidReason::NoEffect);
-			CuraVuota.ActionId = Heal->Def.ActionId;
-			CuraVuota.BaseActionId = Heal->Def.BaseActionId;
-			CuraVuota.Priority = Heal->Def.Priority;
+			FRTTurnLogEntry CuraVuota = MakeSupportFallback(
+				Unit, HealTarget, Heal->Def, ERTActionInvalidReason::NoEffect);
 			AppendLogEntry(CuraVuota, Unit);
 			continue;
 		}
@@ -679,9 +712,27 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		{
 			if (Intents[k].AttackerId != Hit.TargetId) { continue; }
 
+			// 🔴 **L'impatto di una carica NON si interrompe qui**, e il flag del catalogo non basta a dirlo:
+			// `Action.Charge` dichiara `bInterruptible = true`, ma quel «si'» riguarda la carica come azione
+			// PIANIFICATA — il movimento, che risolve nella fase Dash. Quando l'impatto arriva nel Blast lo
+			// scatto e' gia' avvenuto: cancellarlo qui annullerebbe a posteriori la coda di un'azione
+			// risolta a meta', lasciando l'unita' dove la carica l'ha portata e togliendole il colpo.
+			//
+			// Si riconoscono da `IntentAbilityIndex == INDEX_NONE`, che `AppendChargeImpactIntents` scrive
+			// proprio perche' non c'e' un'abilita' da consumare: lo scatto l'ha gia' fatto.
+			//
+			// ⚠️ Prima di `#1437` questo caso non si presentava per una ragione ACCIDENTALE: il ciclo si
+			// fermava al primo intento della vittima, quindi l'impatto veniva raggiunto solo se era il primo.
+			// Togliendo quel `break` sarebbe diventato interrompibile sempre — un cambio di gioco che nessuno
+			// ha deciso. Se un giorno si vorra' che l'Interrupt annulli anche l'impatto, e' una scelta di
+			// bilanciamento da dichiarare, non l'effetto di un ciclo.
+			if (!Ctx.IntentAbilityIndex.IsValidIndex(k) || Ctx.IntentAbilityIndex[k] == INDEX_NONE)
+			{
+				continue;
+			}
+
 			// Solo cio' che DICHIARA di poter essere interrotto: un Interrupt su chi ha pianificato Guard
-			// (`bCanBeInterrupted = false`) non ha niente da cancellare, e l'impatto di una carica gia'
-			// avvenuta nemmeno.
+			// (`bCanBeInterrupted = false`) non ha niente da cancellare.
 			if (!IntentDefs.IsValidIndex(k) || !IntentDefs[k].bCanBeInterrupted) { continue; }
 
 			bool bGia = false;
@@ -705,14 +756,20 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 			//
 			// ⚠️ **Chi ha interrotto non entra nella voce**: `UnitId` e' uno solo e lo prende il soggetto.
 			// Stesso costo di `#1430` per `RearHitBypassedCover`.
+			// ⚠️ Un intento puo' puntare a una CELLA e non a un'unita': dopo un fallback `AttackCell`, o su
+			// un colpo a memoria di CP 13.2, `TargetId` e' `INDEX_NONE` e il punto di mira sta in
+			// `TargetCell`. Ripiegare sulla cella della vittima scriverebbe «si e' attaccata da sola» — la
+			// stessa frase precisa e falsa che il commento qui sotto condanna, e `TgtCell` entra nell'hash.
 			const int32 BersaglioId = Intents[k].TargetId;
+			const FRTCellId CellaMirata = Units.IsValidIndex(BersaglioId) && Units[BersaglioId]
+				? Units[BersaglioId]->Cell
+				: Intents[k].TargetCell;
 			FRTTurnLogEntry Interrotta;
 			Interrotta.Phase = ERTMatchPhase::Blast;
 			Interrotta.Category = ERTLogCategory::Fallback;
 			Interrotta.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
 			Interrotta.SrcCell = Units[Hit.TargetId]->Cell;
-			Interrotta.TgtCell = Units.IsValidIndex(BersaglioId) && Units[BersaglioId]
-				? Units[BersaglioId]->Cell : Units[Hit.TargetId]->Cell;
+			Interrotta.TgtCell = CellaMirata;
 			Interrotta.Amount = static_cast<int32>(ERTActionInvalidReason::Interrupted);
 			Interrotta.ActionId = IntentDefs[k].ActionId;
 			Interrotta.BaseActionId = IntentDefs[k].BaseActionId;

@@ -507,6 +507,77 @@ bool FRTHealOutOfRangeIsTracedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Una cura che non ha niente da applicare lascia una traccia.**
+ *
+ * Ci si arriva DOPO `ConsumeAbility` — il cooldown e' gia' bruciato — e dopo che il piano e' stato
+ * azzerato: prima di [D-196] non restava niente, ne' nel TurnLog ne' nel combat log, e un replay non poteva
+ * spiegare perche' il turno del curatore non avesse prodotto nulla e perche' l'abilita' fosse in ricarica.
+ *
+ * ⚠️ Il motivo e' `NoEffect` e non `None`: quello significa «l'azione e' eseguibile», e la resa generica
+ * direbbe «non eseguibile» — falso in tutti e due i versi. L'azione era valida e non aveva niente da
+ * applicare.
+ *
+ * ⚠️ Lo stato si costruisce a mano perche' nessun dato spedito ci arriva: `Action.Heal` dichiara `Heal 20`.
+ * E' il caso del data asset scritto male — e senza questo test il valore d'enum sarebbe uno slot
+ * permanente comprato senza evidenza che il ramo si raggiunga.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHealWithoutEffectIsTracedTest,
+	"RefactorTactics.Actions.Heal.NoEffectIsTraced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHealWithoutEffectIsTracedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	ARTUnit* Curatore = SpawnControlUnit(World, 0, FRTCellId(2, 0));
+	ARTUnit* Ferito = SpawnControlUnit(World, 0, FRTCellId(3, 0)); // adiacente: la portata non c'entra
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Curatore"), Curatore) || !TestNotNull(TEXT("Ferito"), Ferito)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	// Una cura senza effetti: `ActionId` giusto, `Effects` vuoto.
+	URTActionData* Rotta = NewObject<URTActionData>(Curatore);
+	Rotta->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Heal"));
+	Rotta->Def.Effects.Empty();
+	Rotta->RangeCells = Rotta->Def.RangeCells;
+	Curatore->Abilities.Add(Rotta);
+	const int32 HealIdx = Curatore->Abilities.Num() - 1;
+
+	Ferito->Health = FMath::Max(1, Ferito->Health - 30);
+	const int32 SaluteFerito = Ferito->Health;
+
+	Curatore->PlannedAbilityIndex = HealIdx;
+	Curatore->PlannedAttackTarget = Ferito;
+	Curatore->PlannedCell = Curatore->Cell;
+
+	RunControlTurn(TM);
+
+	TestEqual(TEXT("premessa: nessuna cura e' avvenuta"), Ferito->Health, SaluteFerito);
+	// ⚠️ Il cooldown NON si asserisce: `ConsumeAbility` lo mette, ma il Cleanup dello stesso turno lo
+	// decrementa, e `Action.Heal` ne dichiara 1 — dopo il turno e' gia' tornato a zero. Il turno speso
+	// resta il punto del test, e a dirlo e' la voce di TurnLog, non un contatore che nel frattempo scade.
+
+	const FRTTurnLogEntry* Vuota = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::NoEffect);
+	});
+	if (TestNotNull(TEXT("il turno speso a vuoto e' nel record autoritativo"), Vuota))
+	{
+		TestEqual(TEXT("accredita chi ha provato a curare"), Vuota->UnitId, Curatore->StableUnitId);
+		TestEqual(TEXT("e nomina l'azione"), Vuota->ActionId, FName(TEXT("Action.Heal")));
+	}
+
+	DestroyControlWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptOnlyInterruptibleTest,
 	"RefactorTactics.Actions.Interrupt.OnlyInterruptible",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -586,12 +657,14 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 }
 
 /**
- * **Due interruttori sulla stessa vittima cancellano UNA azione, e la traccia lo dice una volta.**
+ * **Due interruttori sull'INTERROTTO cancellano UNA azione, e la traccia lo dice una volta.**
  *
- * Banale in 2v2, e prima di `#1437` la traccia ne portava due: l'effetto di gioco era deduplicato da un
- * `TSet` di unita', ma la voce di TurnLog veniva scritta una volta per **colpo** di Interrupt. Il record
- * autoritativo diceva che l'unica azione della vittima era stata cancellata due volte — la riga doppia che
- * `#1412` esiste per togliere.
+ * ⚠️ Chi subisce l'interruzione qui e' `Attacker` — la sua e' l'azione cancellata — mentre `Victim` e' chi
+ * avrebbe incassato il colpo. Due ruoli, due nomi: la prima stesura di questo commento li chiamava
+ * entrambi «vittima», e chi debuggasse un fallimento cercherebbe voci su `Victim`, che non ne produce.
+ *
+ * La traccia ne portava due prima della guardia: l'effetto di gioco era deduplicato da un `TSet` di
+ * unita', ma la voce veniva scritta una volta per **colpo** di Interrupt.
  *
  * Ora si tiene traccia degli INTENTI cancellati, non delle unita': due Interrupt aggiungono lo stesso
  * indice al set e la seconda passata non scrive niente. La deduplicazione non e' una guardia in piu', e'
@@ -651,6 +724,10 @@ bool FRTInterruptTwiceTracesOnceTest::RunTest(const FString&)
 		}
 	}
 	TestEqual(TEXT("una azione cancellata, una voce"), Voci, 1);
+
+	// ⚠️ Questa parte non e' nuova di `#1437`: la guardia esisteva gia' dopo `#1434`, con una chiave per
+	// unita' invece che per intento. Il test la tiene ferma; cio' che `#1437` cambia — un impatto di carica
+	// che sopravvive all'Interrupt — sta in `Actions.Charge.ImpactSurvivesInterrupt`.
 
 	DestroyControlWorld(World);
 	return true;

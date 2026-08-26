@@ -1331,8 +1331,16 @@ bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
 	}
 	// La guardia (o la copertura) scavalcata da un colpo alle spalle: la voce descrive l'orientamento del
 	// DIFENSORE, quindi il soggetto e' chi ha subito il colpo. L'attaccante e' in `SrcCell` (`#1418`).
-	return Entry.Category == ERTLogCategory::Facing
-		&& Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+	if (Entry.Category == ERTLogCategory::Facing
+		&& Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover))
+	{
+		return true;
+	}
+	// L'azione cancellata da un `Action.Interrupt`: `UnitId` porta chi l'ha SUBITA, non chi ha interrotto
+	// — chi ha interrotto non e' nella voce affatto (`#1437`, [D-196]). Senza questo caso, chi conta le
+	// azioni compiute da un'unita' le accrediterebbe una cancellazione che ha solo subito.
+	return Entry.Category == ERTLogCategory::Fallback
+		&& Entry.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
 }
 
 bool URTTurnLogLibrary::GoldenEntriesMatch(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)

@@ -452,6 +452,71 @@ bool FRTChargeImpactInBlastTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Un `Action.Interrupt` NON annulla l'impatto di una carica gia' risolta.**
+ *
+ * Il movimento della carica avviene nella fase Dash; l'impatto entra nel Blast come intento a portata 1.
+ * Cancellarlo li' annullerebbe **a posteriori** la coda di un'azione risolta a meta': l'unita' resta dove
+ * la carica l'ha portata e perde il colpo.
+ *
+ * ⚠️ `Action.Charge` dichiara `bInterruptible = true`, e quel «si'» non basta a decidere: riguarda la
+ * carica come azione PIANIFICATA, non la sua coda. Prima di `#1437` l'impatto sopravviveva per una ragione
+ * **accidentale** — il ciclo si fermava al primo intento della vittima — e togliendo quel `break` sarebbe
+ * diventato interrompibile sempre, un cambio di gioco che nessuno ha deciso. Trovato in code review.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeImpactSurvivesInterruptTest,
+	"RefactorTactics.Actions.Charge.ImpactSurvivesInterrupt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeImpactSurvivesInterruptTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
+	// L'interruttore parte adiacente a dove la carica FERMA il caricatore — (1,0) — perche'
+	// `Action.Interrupt` ha portata 1 e il colpo si valida sulle posizioni del Blast, dopo il Dash.
+	ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, -1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Charger || !Victim || !Interrupter) { DestroyHexBlastWorld(World); return false; }
+
+	URTActionData* Charge = NewObject<URTActionData>(Charger);
+	Charge->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
+	Charge->RangeCells = Charge->Def.RangeCells;
+	Charger->Abilities.Add(Charge);
+
+	URTActionData* Interrupt = NewObject<URTActionData>(Interrupter);
+	Interrupt->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Interrupt"));
+	Interrupt->RangeCells = Interrupt->Def.RangeCells;
+	Interrupter->Abilities.Add(Interrupt);
+
+	const int32 VictimHealth = Victim->Health;
+	Charger->PlannedDashAbility = Charger->Abilities.Num() - 1;
+	Charger->PlannedDashCell = FRTCellId(3, 0); // dritto: incontra il bersaglio a (2,0) per strada
+
+	Interrupter->PlannedAbilityIndex = Interrupter->Abilities.Num() - 1;
+	Interrupter->PlannedAttackTarget = Charger;
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("premessa: la carica si e' mossa e si e' fermata davanti al bersaglio"),
+		Charger->Cell == FRTCellId(1, 0));
+	TestEqual(TEXT("l'impatto fa danno lo stesso: l'Interrupt non annulla una carica gia' risolta"),
+		VictimHealth - Victim->Health, 20);
+
+	// E nessuna voce dice che l'abbia annullata.
+	const bool bAnnullata = TM->GetTurnLog().ContainsByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+	});
+	TestFalse(TEXT("e il TurnLog non registra nessuna interruzione"), bAnnullata);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeHeadOnStopsTest,
 	"RefactorTactics.Actions.Charge.HeadOnStops",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
