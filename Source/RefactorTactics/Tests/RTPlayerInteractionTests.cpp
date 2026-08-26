@@ -950,4 +950,60 @@ bool FRTLockInRejectionsFollowTheStableOrderTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Ogni voce del kit e' raggiungibile dall'input.** L'invariante che #1409 e #1034 chiedevano, e la ragione
+ * per cui i tasti abilita' sono diventati una collezione invece di quattro campi distinti.
+ *
+ * Il difetto che copre e' stato osservato in PIE il 2026-08-16 (seduta U18): il kit di un'unita' e' cinque
+ * voci d'eroe piu' le generiche accodate (D-025), i tasti mappati erano `1`..`4`, e tutto cio' che stava
+ * oltre l'indice `3` — `Overwatch`, `Guard`, `Brace`, `Wait`, `Interact` e la reazione di tre eroi su
+ * quattro — il giocatore non poteva armarlo. **Il bot invece le arma da se'**, ed e' la ragione per cui il
+ * difetto era difficile da vedere guardando una partita: le reazioni si vedevano comunque accadere.
+ *
+ * ⚠️ **Si confronta con `AbilityHotkeys().Num()`, mai con un letterale.** Un `TestEqual(..., 4)` sarebbe
+ * stato verde il giorno prima e falso il giorno dopo senza che nessuno lo toccasse — e soprattutto avrebbe
+ * misurato il numero che qualcuno ha scritto, non quello che l'input raggiunge davvero.
+ *
+ * Cade in tre modi, e sono i tre modi in cui il difetto puo' tornare: un eroe con piu' abilita', una
+ * generica accodata in piu' (`GetGenericActionIds`), o un tasto tolto dalla lista.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputEveryKitEntryIsReachableTest,
+	"RefactorTactics.PlayerInput.EveryKitEntryIsReachable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputEveryKitEntryIsReachableTest::RunTest(const FString&)
+{
+	const TArray<FKey>& Hotkeys = ARTPlayerController::AbilityHotkeys();
+	const int32 Generiche = URTCatalogLibrary::GetGenericActionIds().Num();
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+
+	// Anti-vacuita': con un roster vuoto o senza tasti il ciclo sotto non asserirebbe nulla e il test
+	// resterebbe verde raccontando che va tutto bene.
+	TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0);
+	TestTrue(TEXT("almeno un tasto arma una posizione del kit"), Hotkeys.Num() > 0);
+	TestTrue(TEXT("le generiche esistono: sono parte del kit di ogni unita' (D-025)"), Generiche > 0);
+
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero) { continue; }
+		// La stessa somma che fa `ARTUnit::ConfigureFromHeroData`: kit dell'eroe + generiche accodate.
+		const int32 VociDelKit = Hero->Actions.Num() + Generiche;
+		TestTrue(*FString::Printf(
+				TEXT("%s: %d voci nel kit, %d posizioni raggiungibili dall'input"),
+				*Hero->HeroId.ToString(), VociDelKit, Hotkeys.Num()),
+			Hotkeys.Num() >= VociDelKit);
+	}
+
+	// Due tasti uguali renderebbero una posizione irraggiungibile in silenzio: la seconda mappatura
+	// vincerebbe e l'indice della prima non risponderebbe piu' a niente.
+	TSet<FKey> Distinti;
+	for (const FKey& K : Hotkeys)
+	{
+		bool bGiaPresente = false;
+		Distinti.Add(K, &bGiaPresente);
+		TestFalse(*FString::Printf(TEXT("il tasto %s compare una volta sola"), *K.ToString()), bGiaPresente);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
