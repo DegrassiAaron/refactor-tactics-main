@@ -781,7 +781,16 @@ void URTFrontendNavigator::SyncPresentation()
 	// ⚠️ E' **meta'** della precedenza `Modal/Reaction UI > HUD > world tactical hit`, non tutta: qui si
 	// decide se il HUD riceve input, non se un click che lo attraversa arriva al mondo. Quella meta' e' di
 	// CP 11.8 (#705), e ha bisogno di hitbox che il Canvas oggi non registra.
-	if (MatchHudWidget && MatchHudWidget->IsInViewport())
+	// 🔴 **Niente guardia `IsInViewport()` qui, a differenza del ciclo sopra.** Copiarla da li' e' stata la
+	// prima stesura, e `MatchHudIsInertUnderThePause` l'ha bocciata: in un test headless la
+	// `UGameInstance` non ha viewport, `AddToViewport` non presenta nulla, e con quella guardia
+	// `SetIsEnabled` non veniva chiamato **mai** — il widget restava al default `true` e la regola era vera
+	// solo in gioco, cioe' verificabile solo aprendo l'Editor.
+	//
+	// `SetIsEnabled` su un widget non presentato e' innocuo: scrive un flag che avra' effetto quando il
+	// widget entra in viewport. Il costo di toglierla e' zero, e in cambio la regola diventa una proprieta'
+	// misurabile invece di una promessa.
+	if (MatchHudWidget)
 	{
 		MatchHudWidget->SetIsEnabled(
 			!Stack.IsModalOpen() && Stack.CurrentScreen() == RTScreenIds::Match);
