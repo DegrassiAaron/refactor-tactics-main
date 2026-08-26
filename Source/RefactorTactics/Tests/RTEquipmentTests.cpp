@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo nelle voci di fallback
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
@@ -553,6 +554,105 @@ bool FRTGadgetCooldownEnforcedTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("%s: nel TurnLog si legge il gadget"), *Id),
 			Action->Def.ActionId, G->EquipmentId);
 	}
+	return true;
+}
+
+/**
+ * **Il medkit cura DAVVERO, in partita.**
+ *
+ * `Equipment.Gadget.NumbersMatchCatalog` verifica che `Gadget.Medkit` dichiari cura 18, e passava anche
+ * quando la cura non avveniva mai: guarda il CATALOGO, non il turno. Il difetto viveva nello spazio fra i
+ * due (`#1443`).
+ *
+ * `MakeEquipmentAction` riscrive `ActionId` con l'id del pezzo — «nel TurnLog si legge il gadget, non
+ * l'azione generica» — e `CollectHealActions` confrontava quell'id col letterale `Action.Heal`. Il medkit
+ * non passava dal percorso delle cure: finiva fra gli intenti d'attacco, `ValidateInstance` rispondeva
+ * `TargetFriendly` sull'alleato, il fallback lo annullava. Curava **zero**, e la riga di log dava la colpa
+ * al bersaglio.
+ *
+ * Il riconoscimento guarda ora anche `DerivedFromActionId` ([D-195]), che e' dove la provenienza vive.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMedkitHealsInMatchTest,
+	"RefactorTactics.Equipment.MedkitHealsInMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMedkitHealsInMatchTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEquipWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnEquipMap(World, 6);
+
+	ARTUnit* Curatore = SpawnEquipUnit(World, 0, FRTCellId(2, 0), URTHeroCatalogLibrary::MakeRiktor());
+	ARTUnit* Ferito = SpawnEquipUnit(World, 0, FRTCellId(3, 0), URTHeroCatalogLibrary::MakeWraith()); // stessa squadra, adiacente
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Curatore"), Curatore) || !TestNotNull(TEXT("Ferito"), Ferito)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEquipWorld(World);
+		return false;
+	}
+
+	// `FindEquipment` invece di un giro a mano su `MakeGadgets()`: cerca nei tre cataloghi ed e' l'idioma
+	// che gli altri test di questo file usano gia'. Il giro a mano lasciava per giunta il puntatore su un
+	// `NewObject` la cui unica referenza — l'array temporaneo del range-for — moriva alla fine del ciclo.
+	const URTEquipmentData* Medkit = URTCatalogLibrary::FindEquipment(FName(TEXT("Gadget.Medkit")));
+	if (!TestNotNull(TEXT("Gadget.Medkit nel catalogo"), Medkit))
+	{
+		DestroyEquipWorld(World);
+		return false;
+	}
+
+	URTActionData* Cura = URTCatalogLibrary::MakeEquipmentAction(Medkit, Curatore);
+	if (!TestNotNull(TEXT("l'azione concessa dal medkit"), Cura))
+	{
+		DestroyEquipWorld(World);
+		return false;
+	}
+	// La premessa che il difetto rendeva invisibile: l'id di superficie NON e' quello dell'azione core.
+	TestEqual(TEXT("premessa: l'ActionId e' quello del gadget"),
+		Cura->Def.ActionId, FName(TEXT("Gadget.Medkit")));
+	TestEqual(TEXT("e la provenienza sta in DerivedFromActionId"),
+		Cura->Def.DerivedFromActionId, FName(TEXT("Action.Heal")));
+
+	Curatore->Abilities.Add(Cura);
+	const int32 CuraIdx = Curatore->Abilities.Num() - 1;
+
+	Ferito->Health = FMath::Max(1, Ferito->Health - 40);
+	const int32 SalutePrima = Ferito->Health;
+
+	Curatore->PlannedAbilityIndex = CuraIdx;
+	Curatore->PlannedAttackTarget = Ferito;
+	Curatore->PlannedCell = Curatore->Cell;
+
+	RunEquipTurn(TM);
+
+	// I 18 del catalogo, applicati sul campo.
+	TestEqual(TEXT("il medkit cura l'alleato"), Ferito->Health - SalutePrima, 18);
+
+	// E non lascia una voce che dia la colpa al bersaglio.
+	const bool bAnnullataSuAlleato = TM->GetTurnLog().ContainsByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::TargetFriendly);
+	});
+	TestFalse(TEXT("e nessuna voce la annulla per «bersaglio alleato»"), bAnnullataSuAlleato);
+
+	// 🔴 **E la voce di SUCCESSO nomina il gadget, non l'azione generica.** E' la meta' del difetto che la
+	// prima stesura di `#1443` lasciava aperta: sbloccata la cura, la voce diceva ancora `Action.Heal`
+	// mentre i percorsi di FALLIMENTO della stessa cura dicevano `Gadget.Medkit` — lo stesso pezzo con due
+	// nomi a seconda che avesse funzionato. `ActionId` entra nell'hash ([D-067]), quindi la traccia
+	// archiviata era autoritativa e sbagliata.
+	const FRTTurnLogEntry* Curata = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Combat
+			&& E.Outcome == static_cast<uint8>(ERTCombatOutcome::Healed);
+	});
+	if (TestNotNull(TEXT("la cura riuscita e' nel TurnLog"), Curata))
+	{
+		TestEqual(TEXT("e la voce nomina il GADGET"), Curata->ActionId, FName(TEXT("Gadget.Medkit")));
+		TestEqual(TEXT("con quanto ha curato davvero"), Curata->Amount, 18);
+	}
+
+	DestroyEquipWorld(World);
 	return true;
 }
 

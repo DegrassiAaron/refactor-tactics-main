@@ -1633,7 +1633,8 @@ void ARTTurnManager::AppendDisplacementResistedEntry(const ARTUnit* Target, ERTD
 }
 
 void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TArray<int32>& Amounts,
-	const TArray<FRTCellId>& Sources, const TArray<ARTUnit*>& Healers)
+	const TArray<FRTCellId>& Sources, const TArray<ARTUnit*>& Healers,
+	const TArray<FRTActionDef>& Defs)
 {
 	// Tre regole del catalogo, tutte verificabili: non supera la salute massima · non rimuove stati (si tocca
 	// solo `Health`) · **non resuscita** chi e' caduto in questo turno — una cura che riportasse in piedi
@@ -1651,7 +1652,16 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 		Entry.Phase = ERTMatchPhase::Blast;
 		Entry.Category = ERTLogCategory::Combat;
 		Entry.Outcome = static_cast<uint8>(ERTCombatOutcome::Healed);
-		Entry.ActionId = FName(TEXT("Action.Heal"));
+		// QUALE azione ha curato, non l'azione generica ([D-195], `#1443`): una cura da `Gadget.Medkit` si
+		// legge come tale, e i percorsi di fallimento della stessa cura la nominano gia' cosi'. Scriverlo a
+		// mano dava allo stesso gadget due nomi a seconda che avesse funzionato — e `ActionId` entra
+		// nell'hash, quindi la traccia archiviata era autoritativa e sbagliata.
+		if (Defs.IsValidIndex(h))
+		{
+			Entry.ActionId = Defs[h].ActionId;
+			Entry.BaseActionId = Defs[h].BaseActionId;
+			Entry.Priority = Defs[h].Priority;
+		}
 		Entry.SrcCell = Sources.IsValidIndex(h) ? Sources[h] : HealTarget->Cell;
 		Entry.TgtCell = HealTarget->Cell;
 		Entry.Amount = Restored; // quanto e' stato curato DAVVERO: a salute piena la voce dice zero
@@ -3753,6 +3763,7 @@ void ARTTurnManager::ResolveCombat()
 	TArray<int32>& HealAmounts = Ctx.HealAmounts;
 	TArray<FRTCellId>& HealSources = Ctx.HealSources;
 	TArray<ARTUnit*>& HealActors = Ctx.HealActors;
+	const TArray<FRTActionDef>& HealDefs = Ctx.HealDefs;
 	TArray<FRTHexAttackIntent>& Intents = Ctx.Intents;
 	TArray<int32>& IntentAbilityIndex = Ctx.IntentAbilityIndex;
 	TArray<const URTActionData*>& IntentAbility = Ctx.IntentAbility;
@@ -4262,7 +4273,7 @@ void ARTTurnManager::ResolveCombat()
 		// Nessun colpo, ma le cure vanno applicate lo stesso: un supporto che cura fuori da uno scontro e' il
 		// caso NORMALE, non un'eccezione. (Difetto trovato da `Actions.Heal.RestoresWithoutExceedingMax`: la
 		// prima stesura usciva di qui e la cura spariva in silenzio.)
-		ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors);
+		ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors, HealDefs);
 		return;
 	}
 
@@ -4317,7 +4328,7 @@ void ARTTurnManager::ResolveCombat()
 		Units[i]->ApplyCombatState(Resolved[i].Health, Resolved[i].Shield); // solo logico: rimozione visiva differita
 	}
 
-	ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors);
+	ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors, HealDefs);
 
 	// Coda della fase: cio' che si applica quando il danno e' risolto e si sa chi e' rimasto in piedi.
 	ApplyDisplacements(Ctx);

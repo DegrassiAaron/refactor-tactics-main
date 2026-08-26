@@ -89,13 +89,27 @@ struct FRTBlastContext
 	/** Chi cura: una cella non identifica un'unita' ([D-063]), e il TurnLog deve dire chi ha agito (#405). */
 	TArray<ARTUnit*> HealActors;
 
-	/** Registra una cura pianificata mantenendo allineati i quattro array. */
-	void AddHeal(ARTUnit* Actor, ARTUnit* Target, int32 Amount, const FRTCellId& SourceCell)
+	/**
+	 * QUALE azione ha curato.
+	 *
+	 * 🔴 Non si ricostruisce a valle, e la voce non puo' scrivere `Action.Heal` a mano: `MakeEquipmentAction`
+	 * riscrive `ActionId` con l'id del PEZZO ([D-195]), quindi una cura da `Gadget.Medkit` deve leggersi
+	 * come tale. Fino a `#1443` la voce di successo diceva `Action.Heal` mentre quelle di FALLIMENTO —
+	 * scritte nello stesso file, dallo stesso piano — dicevano `Gadget.Medkit`: lo stesso gadget con due
+	 * nomi a seconda che avesse funzionato. E `ActionId` entra nell'hash ([D-067]), quindi la traccia
+	 * archiviata era autoritativa e sbagliata.
+	 */
+	TArray<FRTActionDef> HealDefs;
+
+	/** Registra una cura pianificata mantenendo allineati i cinque array. */
+	void AddHeal(ARTUnit* Actor, ARTUnit* Target, int32 Amount, const FRTCellId& SourceCell,
+		const FRTActionDef& Def)
 	{
 		HealActors.Add(Actor);
 		HealTargets.Add(Target);
 		HealAmounts.Add(Amount);
 		HealSources.Add(SourceCell);
+		HealDefs.Add(Def);
 	}
 
 	// --- Intenti d'attacco raccolti dai piani, prima che diventino colpi --------------------------

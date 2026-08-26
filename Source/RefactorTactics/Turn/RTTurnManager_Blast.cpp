@@ -68,19 +68,31 @@ namespace
 	 * fanno lo stesso. Chi confronta il solo `ActionId` letterale non riconosce ne' l'una ne' l'altra.
 	 *
 	 * L'effetto misurato: `Gadget.Medkit` — che il catalogo dichiara «la versione portatile di
-	 * `Action.Heal`», consegnato in partita dal loadout di default ([D-195]) — non passava dal percorso
-	 * delle cure. Finiva fra gli intenti d'attacco, `ValidateInstance` rispondeva `TargetFriendly`
+	 * `Action.Heal`» — non passava dal percorso delle cure.
+	 *
+	 * ⚠️ **Non e' nel loadout di default**, contro quanto diceva la prima stesura di questo commento:
+	 * `DefaultGadgetFor` assegna Insulator, Sprinkler, PortableCover e Sensor, e il medkit non e' fra
+	 * quelli. Ci arriva uno scenario che lo dichiara. L'impatto e' quindi piu' piccolo di come l'avevo
+	 * scritto — ma un gadget spedito che non fa cio' che dichiara resta un difetto, non una svista di
+	 * priorita'. Finiva fra gli intenti d'attacco, `ValidateInstance` rispondeva `TargetFriendly`
 	 * sull'alleato e il fallback lo annullava: **il medkit curava zero**, e la riga di log dava la colpa al
 	 * bersaglio.
 	 *
 	 * ⚠️ Si guarda la derivazione, NON `BaseActionId`: quello dice di quale delle SETTE generiche un'azione
 	 * e' il profilo ([D-033]), e `Heal`/`Cleanse`/`Interrupt` fra le sette non ci sono.
 	 */
-	bool IsCoreAction(const FRTActionDef& Def, const TCHAR* CoreId)
+	bool IsCoreAction(const FRTActionDef& Def, const FName& Core)
 	{
-		const FName Core(CoreId);
 		return Def.ActionId == Core || Def.DerivedFromActionId == Core;
 	}
+
+	// ⚠️ Costruite UNA volta per il processo: `FName(TEXT("..."))` fa un hash case-insensitive piu' una
+	// ricerca nella tabella globale sotto lock, e questo helper viene chiamato anche dentro il filtro
+	// per-colpo di `ApplyInterrupts`.
+	const FName ActionHeal(TEXT("Action.Heal"));
+	const FName ActionCleanse(TEXT("Action.Cleanse"));
+	const FName ActionInterrupt(TEXT("Action.Interrupt"));
+	const FName ActionModifyArc(TEXT("Action.ModifyArc"));
 
 	/**
 	 * La voce `Fallback` di un'azione di supporto che non avviene: cambia solo il MOTIVO.
@@ -207,7 +219,14 @@ void ARTTurnManager::ResolveCleanseActions(const FRTBlastContext& Ctx)
 		ARTUnit* Unit = Ctx.Units[i];
 		const int32 CleanseIdx = Unit->PlannedAbilityIndex;
 		const URTActionData* Cleanse = Unit->GetAbility(CleanseIdx);
-		if (!Cleanse || !IsCoreAction(Cleanse->Def, TEXT("Action.Cleanse")) || !Unit->CanUseAbility(CleanseIdx))
+		// Stessa guardia della cura, e per la stessa ragione: un cadavere non purifica, e soprattutto non
+		// lascia una voce nell'hash del replay.
+		if (!Unit->IsAlive())
+		{
+			continue;
+		}
+
+		if (!Cleanse || !IsCoreAction(Cleanse->Def, ActionCleanse) || !Unit->CanUseAbility(CleanseIdx))
 		{
 			continue;
 		}
@@ -261,7 +280,19 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		ARTUnit* Unit = Ctx.Units[i];
 		const int32 HealIdx = Unit->PlannedAbilityIndex;
 		const URTActionData* Heal = Unit->GetAbility(HealIdx);
-		if (!Heal || !IsCoreAction(Heal->Def, TEXT("Action.Heal")) || !Unit->CanUseAbility(HealIdx))
+		// ⚠️ Un'unita' UCCISA nella fase Dash arriva qui col piano ancora addosso — `GatherBlastUnits` non
+		// filtra i morti — e senza questa guardia un cadavere consuma l'abilita' e lascia le sue voci nel
+		// TurnLog: deterministiche, ma rumore che entra nell'hash del replay. E' la stessa ragione per cui
+		// `CollectAttackIntents` controlla `IsAlive()`.
+		//
+		// ⚠️ **Prima di tutto**, non a meta' funzione: la prima stesura di `#1437` la metteva dopo il
+		// controllo di portata, che e' gia' un punto che scrive una voce. Trovato in code review.
+		if (!Unit->IsAlive())
+		{
+			continue;
+		}
+
+		if (!Heal || !IsCoreAction(Heal->Def, ActionHeal) || !Unit->CanUseAbility(HealIdx))
 		{
 			continue;
 		}
@@ -292,15 +323,6 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 			continue;
 		}
 
-		// ⚠️ Un'unita' UCCISA nella fase Dash arriva qui col piano ancora addosso — `GatherBlastUnits` non
-		// filtra i morti — e senza questa guardia un cadavere lascerebbe la sua voce nel TurnLog:
-		// deterministica, ma rumore che entra nell'hash del replay. E' la stessa ragione per cui
-		// `CollectAttackIntents` controlla `IsAlive()`.
-		if (!Unit->IsAlive())
-		{
-			continue;
-		}
-
 		int32 Amount = 0;
 		for (const FRTActionEffectSpec& Spec : Heal->Def.Effects)
 		{
@@ -315,9 +337,9 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// Ci si arriva con un'abilita' il cui `ActionId` e' letteralmente `Action.Heal` e i cui `Effects` non
 		// portano un `Heal` utile: un data asset scritto male, o un catalogo modificato.
 		//
-		// ⚠️ **NON da un equipaggiamento**, contro quanto diceva la prima stesura di questo commento:
-		// `MakeEquipmentAction` riscrive `ActionId` con l'id del pezzo, quindi `Gadget.Medkit` non passa
-		// nemmeno dal filtro di questa funzione — e' un difetto suo, aperto a parte (`#1443`).
+		// ⚠️ Da `#1443` ci arriva **anche** un equipaggiamento: il filtro guarda `DerivedFromActionId`, non
+		// il solo `ActionId`. Un gadget i cui `GrantedEffects` sostituissero la cura senza metterne una —
+		// come `Gadget.BreachCharge` fa con `Action.HeavyAttack` — finirebbe qui.
 		//
 		// ⚠️ Il motivo e' `NoEffect`, aggiunto per questo: `None` significa «l'azione e' eseguibile», e la
 		// resa generica direbbe «non eseguibile» — falso in tutti e due i versi. L'azione era valida e non
@@ -332,7 +354,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 
 		// Chi cura, accanto a da-dove: la cella del curatore non identifica un'unita' ([D-063]), e il TurnLog
 		// deve dire chi ha agito (#405). `AddHeal` tiene allineati i quattro array paralleli.
-		Ctx.AddHeal(Unit, HealTarget, Amount, Unit->Cell);
+		Ctx.AddHeal(Unit, HealTarget, Amount, Unit->Cell, Heal->Def);
 	}
 }
 
@@ -371,7 +393,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		//
 		// L'arco e' identificato dalla COPPIA (chi la usa, il bersaglio): la pianificazione non ha un
 		// bersaglio-arco, e questo resta un limite dichiarato finche' l'HUD di E11 non ne porta uno.
-		if (PlannedNow && IsCoreAction(PlannedNow->Def, TEXT("Action.ModifyArc")))
+		if (PlannedNow && IsCoreAction(PlannedNow->Def, ActionModifyArc))
 		{
 			ARTUnit* ArcTarget = Unit->PlannedAttackTarget;
 			const int32 ArcAbilityIndex = Unit->PlannedAbilityIndex;
@@ -719,7 +741,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
-			|| !IsCoreAction(IntentDefs[Hit.IntentIndex], TEXT("Action.Interrupt")))
+			|| !IsCoreAction(IntentDefs[Hit.IntentIndex], ActionInterrupt))
 		{
 			continue;
 		}
@@ -816,7 +838,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	{
 		if (InterruptedIntents.Contains(Hit.IntentIndex)) { return true; }
 		return IntentDefs.IsValidIndex(Hit.IntentIndex)
-			&& IsCoreAction(IntentDefs[Hit.IntentIndex], TEXT("Action.Interrupt"));
+			&& IsCoreAction(IntentDefs[Hit.IntentIndex], ActionInterrupt);
 	});
 }
 
