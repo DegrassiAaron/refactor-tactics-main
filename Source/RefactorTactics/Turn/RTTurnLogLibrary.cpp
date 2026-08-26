@@ -213,6 +213,21 @@ TArray<FString> URTTurnLogLibrary::DescribeTurnLog(TArray<FRTTurnLogEntry> Entri
 	return Lines;
 }
 
+FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
+{
+	switch (Reason)
+	{
+	case ERTActionInvalidReason::TargetGone:     return TEXT("bersaglio assente");
+	case ERTActionInvalidReason::TargetDead:     return TEXT("bersaglio eliminato");
+	case ERTActionInvalidReason::TargetFriendly: return TEXT("bersaglio alleato");
+	case ERTActionInvalidReason::OutOfRange:     return TEXT("fuori portata");
+	case ERTActionInvalidReason::NoLineOfSight:  return TEXT("nessuna linea di tiro");
+	case ERTActionInvalidReason::NoMap:          return TEXT("nessuna mappa autorevole");
+	case ERTActionInvalidReason::SlotOccupied:   return TEXT("lo slot e' gia' occupato");
+	default:                                     return TEXT("non eseguibile");
+	}
+}
+
 FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 {
 	auto CellText = [](const FRTCellId& Cell)
@@ -340,20 +355,10 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		default:                               What = TEXT("annullata"); break;
 		}
 
-		const TCHAR* Why = TEXT("");
-		switch (static_cast<ERTActionInvalidReason>(Entry.Amount))
-		{
-		case ERTActionInvalidReason::TargetGone:     Why = TEXT("bersaglio assente"); break;
-		case ERTActionInvalidReason::TargetDead:     Why = TEXT("bersaglio eliminato"); break;
-		case ERTActionInvalidReason::TargetFriendly: Why = TEXT("bersaglio alleato"); break;
-		case ERTActionInvalidReason::OutOfRange:     Why = TEXT("fuori portata"); break;
-		case ERTActionInvalidReason::NoLineOfSight:  Why = TEXT("nessuna linea di tiro"); break;
-		case ERTActionInvalidReason::NoMap:          Why = TEXT("nessuna mappa autorevole"); break;
-		default:                                     Why = TEXT("non eseguibile"); break;
-		}
+		const FString Why = DescribeInvalidReason(static_cast<ERTActionInvalidReason>(Entry.Amount));
 
 		return FString::Printf(TEXT("%s -> %s: azione %s (%s)"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), What, Why);
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), What, *Why);
 	}
 
 	// Reazione: attivata o no, e perche' — mai in silenzio (CP 5.1).

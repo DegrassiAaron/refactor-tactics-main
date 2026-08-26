@@ -1972,10 +1972,20 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 		//
 		// Qui resta il **combat log**, che e' cio' che serve: un piano incoerente ha un posto in cui
 		// comparire mentre lo si compone, senza entrare nel formato che i replay confrontano.
-		AddLogEvent(FString::Printf(TEXT("%s: piano non valido al lock-in (%s su %s)"),
-			*Unit->GetName(),
-			*StaticEnum<ERTActionInvalidReason>()->GetNameStringByValue(static_cast<int64>(Verdict.Reason)),
-			*Verdict.OffendingActionId.ToString()));
+		// 🔴 **Entrambe le azioni, mai una sola.** `OffendingActionId` e' l'azione che l'ordine canonico del
+		// validatore incontra per seconda, e per il caso canonico scatto + movimento e' la MOBILITA', che
+		// invece esegue. Nominare lei significa mandare il giocatore a correggere l'azione sbagliata.
+		// Dire che due azioni occupano lo stesso slot e' vero comunque il resolver decida.
+		const FString Dettaglio = Verdict.HolderActionId.IsNone()
+			? FString::Printf(TEXT("%s: %s"),
+				*Verdict.OffendingActionId.ToString(),
+				*URTTurnLogLibrary::DescribeInvalidReason(Verdict.Reason))
+			: FString::Printf(TEXT("%s e %s occupano lo stesso slot"),
+				*Verdict.OffendingActionId.ToString(),
+				*Verdict.HolderActionId.ToString());
+
+		AddLogEvent(FString::Printf(TEXT("%s: piano non valido al lock-in (%s)"),
+			*Unit->GetName(), *Dettaglio));
 	}
 }
 
