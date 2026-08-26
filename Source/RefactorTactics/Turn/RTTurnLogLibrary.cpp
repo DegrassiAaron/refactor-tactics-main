@@ -223,6 +223,7 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::OutOfRange:     return TEXT("fuori portata");
 	case ERTActionInvalidReason::NoLineOfSight:  return TEXT("nessuna linea di tiro");
 	case ERTActionInvalidReason::NoMap:          return TEXT("nessuna mappa autorevole");
+	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto alla squadra");
 	case ERTActionInvalidReason::SlotOccupied:   return TEXT("lo slot e' gia' occupato");
 	case ERTActionInvalidReason::OnCooldown:     return TEXT("l'abilita' e' in ricarica");
 	default:                                     return TEXT("non eseguibile");
