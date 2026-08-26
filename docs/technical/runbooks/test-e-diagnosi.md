@@ -208,14 +208,14 @@ grep -a "tests performed" Saved/Logs/RefactorTactics.log | tail -1
 Non citare mai il numero a memoria — **misuralo**:
 
 ```bash
-grep -rhoE '"RefactorTactics\.[A-Za-z0-9_.]+"' Source/RefactorTactics/Tests/*.cpp \
-  | tr -d '"' | sort -u | wc -l
+grep -rhA 1 'IMPLEMENT_[A-Z_]*AUTOMATION_TEST(' Source/RefactorTactics/Tests/*.cpp \
+  | grep -oE '"RefactorTactics\.[A-Za-z0-9_.]+"' | tr -d '"' | sort -u | wc -l
 ```
 
 Questo comando è la fonte: la documentazione che dichiara un numero diverso è indietro, non il contrario.
 
-> ⚠️ **Ma sovrastima, e di poco — abbastanza da far sembrare troncata una run completa** (misurato il
-> 2026-08-26). Cattura *qualunque* stringa che cominci per `RefactorTactics.`, non solo i nomi dei test:
+> ⚠️ **È ancorato alla macro, e non è un dettaglio di stile.** La versione precedente cercava *qualunque*
+> stringa che cominciasse per `RefactorTactics.`, non solo i nomi dei test:
 > `RefactorTactics.Probe.LatestRunDirectory` è un `ScenarioId` dentro
 > `FRTScenarioLatestRunIsTheMostRecentTest`, usato per costruire una directory sotto `Saved/RTTests/`.
 > Dava **1184** dove i test sono **1183**, e l'unità di scarto è finita in un filtro che ha risposto
