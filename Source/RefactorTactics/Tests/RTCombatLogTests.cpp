@@ -89,6 +89,40 @@ namespace RTCombatLogFixture
 			TM->Tick(0.05f);
 		}
 	}
+
+	/**
+	 * Mondo, mappa, TurnManager e due unita' affiancate: il montaggio che tre test di questo file avevano
+	 * copiato riga per riga. Estratto invece di farne una quarta copia — e' la stessa duplicazione che
+	 * `#1415` ha appena tolto ai builder di arena.
+	 *
+	 * Restituisce `false` senza aver registrato errori solo se il chiamante ha gia' asserito: i controlli
+	 * stanno qui dentro, cosi' un montaggio rotto e' RUMOROSO. Un'uscita muta verrebbe riportata come
+	 * Success, perche' l'automation ignora il `bool` di `RunTest`.
+	 */
+	struct FTwoUnitTurn
+	{
+		UWorld* World = nullptr;
+		ARTTurnManager* TM = nullptr;
+		ARTUnit* A = nullptr;
+		ARTUnit* B = nullptr;
+	};
+
+	bool BuildTwoUnitTurn(FAutomationTestBase& Test, FTwoUnitTurn& Out,
+		const FRTCellId& CellA = FRTCellId(0, 0, 0), const FRTCellId& CellB = FRTCellId(1, 0, 0))
+	{
+		Out.World = MakeWorld();
+		if (!Test.TestNotNull(TEXT("mondo di prova"), Out.World)) { return false; }
+
+		ARTHexMapActor* Map = SpawnMap(Out.World);
+		Out.TM = Out.World->SpawnActor<ARTTurnManager>();
+		Out.A = SpawnUnit(Out.World, /*TeamId=*/ 0, CellA);
+		Out.B = SpawnUnit(Out.World, /*TeamId=*/ 1, CellB);
+
+		return Test.TestNotNull(TEXT("mappa"), Map)
+			&& Test.TestNotNull(TEXT("turn manager"), Out.TM)
+			&& Test.TestNotNull(TEXT("unita' A"), Out.A)
+			&& Test.TestNotNull(TEXT("unita' B"), Out.B);
+	}
 }
 
 /**
@@ -282,6 +316,13 @@ bool FRTRearHitCreditsSameUnitTest::RunTest(const FString&)
 
 	// ⚠️ `RecentEvents` e' una finestra (`MaxLogLines`): con due unita' e un turno la riga ci sta, ma un
 	// giorno che questa fixture crescesse andrebbe cercata prima che venga sfrattata.
+	//
+	// 🔴 **Questo test DIPENDE da una riga che `#1412` punto 2 vuole togliere**: la riga col nome davanti
+	// nasce dall'`AddLogEvent` scritto a mano di `RTTurnManager.cpp:3996`, uno dei sette duplicati. Il
+	// giorno in cui spariscono, l'invariante «le due superfici accreditano la stessa unita'» va riformulato
+	// sulla superficie derivata — che a quel punto dovra' saper nominare l'attore, ed e' esattamente la
+	// domanda che tiene aperto quel punto. Detto qui perche' chi toglie quella riga trova questo test rosso
+	// e deve sapere che non e' una regressione.
 	const FString Descrizione = URTTurnLogLibrary::DescribeEntry(*Bypassed);
 	const TArray<FString>& Emesse = TM->GetRecentEvents();
 	const FString* Riga = Emesse.FindByPredicate([&Descrizione](const FString& L)
@@ -382,9 +423,11 @@ bool FRTRearHitOnCoverCreditsSameUnitTest::RunTest(const FString&)
  * righe identiche byte a byte, e [D-063] vieta di dedurre l'unita' da `SrcCell`: non c'era modo di dire
  * quale delle due fosse (`#1412`).
  *
- * ⚠️ Il produttore oggi NON riempie `ActionId` su quelle voci, e la riga lo dichiara invece di mascherarlo.
- * Riempirlo cambia l'hash delle tracce, quindi e' un cambio d'identita' che va deciso a parte — e fino ad
- * allora la lacuna la vede chi legge il log.
+ * ⚠️ Dei tre produttori della categoria, DUE l'azione la scrivono gia' (`RTTurnManager_Blast.cpp:294`,
+ * `RTTurnManager.cpp:3457`): da oggi si leggono. Il terzo — `FallbackEntry` — no, e riempirlo cambia l'hash
+ * delle tracce, quindi e' un cambio d'identita' da decidere a parte. Le sue righe restano senza suffisso,
+ * come fanno `Move` e `Combat` quando l'azione non c'e': un «non dichiarata» in coda a ogni annullamento
+ * direbbe al giocatore una lacuna interna, che non e' informazione di gioco.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLogFallbackNamesTheActionTest,
 	"RefactorTactics.UI.FallbackLineNamesTheAction",
@@ -399,11 +442,20 @@ bool FRTLogFallbackNamesTheActionTest::RunTest(const FString&)
 	Annullata.TgtCell = FRTCellId(3, 0, 0);
 	Annullata.Amount = static_cast<int32>(ERTActionInvalidReason::TargetGone);
 
-	// Senza `ActionId`: la riga lo DICHIARA. Non `None`, che si leggerebbe come un id di azione vero.
+	// Senza nessuna azione: nessun suffisso — e soprattutto nessun `None`, che si leggerebbe come un id
+	// d'azione vero.
 	const FString Muta = URTTurnLogLibrary::DescribeEntry(Annullata);
-	TestTrue(*FString::Printf(TEXT("dichiara che l'azione non c'e': %s"), *Muta),
-		Muta.Contains(TEXT("azione non dichiarata")));
-	TestFalse(*FString::Printf(TEXT("e non scrive 'None': %s"), *Muta), Muta.Contains(TEXT("None")));
+	TestFalse(*FString::Printf(TEXT("non scrive 'None': %s"), *Muta), Muta.Contains(TEXT("None")));
+	TestTrue(*FString::Printf(TEXT("e il motivo c'e' comunque: %s"), *Muta),
+		Muta.Contains(TEXT("bersaglio assente")));
+
+	// Il motivo `TargetUnknown` non cadeva piu' nel generico «non eseguibile».
+	{
+		FRTTurnLogEntry Ignoto = Annullata;
+		Ignoto.Amount = static_cast<int32>(ERTActionInvalidReason::TargetUnknown);
+		TestTrue(TEXT("un bersaglio ignoto si dice, non si generalizza"),
+			URTTurnLogLibrary::DescribeEntry(Ignoto).Contains(TEXT("bersaglio ignoto")));
+	}
 
 	// Con `ActionId`: la riga lo nomina, come ogni altra categoria.
 	Annullata.ActionId = FName(TEXT("Hero.Wraith.PulseShot"));
@@ -418,11 +470,23 @@ bool FRTLogFallbackNamesTheActionTest::RunTest(const FString&)
 	TestNotEqual(TEXT("due azioni annullate dalla stessa cella si distinguono"),
 		URTTurnLogLibrary::DescribeEntry(Altra), Nominata);
 
-	// E il profilo, quando c'e', si legge come nelle altre categorie.
+	// E il profilo, quando c'e', si legge come nelle altre categorie. Token canonico `Hero.<Nome>.<Abilita>`
+	// (D-130): i nomi legacy sono usciti dal repository, e il gate che li cercava e' uscito con D-182.
 	Altra.BaseActionId = FName(TEXT("Action.BasicAttack"));
-	Altra.ActionId = FName(TEXT("Riktor.ImpactShot"));
+	Altra.ActionId = FName(TEXT("Hero.Riktor.ImpactShot"));
 	TestTrue(TEXT("azione base e profilo, come altrove"),
-		URTTurnLogLibrary::DescribeEntry(Altra).Contains(TEXT("Action.BasicAttack · Riktor.ImpactShot")));
+		URTTurnLogLibrary::DescribeEntry(Altra).Contains(TEXT("Action.BasicAttack · Hero.Riktor.ImpactShot")));
+
+	// Solo il PROFILO, senza l'azione: si legge il profilo, non `Action.BasicAttack · None`.
+	{
+		FRTTurnLogEntry SoloBase = Annullata;
+		SoloBase.ActionId = FName();
+		SoloBase.BaseActionId = FName(TEXT("Action.BasicAttack"));
+		const FString Riga = URTTurnLogLibrary::DescribeEntry(SoloBase);
+		TestTrue(*FString::Printf(TEXT("il profilo si legge: %s"), *Riga),
+			Riga.Contains(TEXT("Action.BasicAttack")));
+		TestFalse(*FString::Printf(TEXT("e senza 'None' accanto: %s"), *Riga), Riga.Contains(TEXT("None")));
+	}
 
 	return true;
 }
@@ -436,59 +500,76 @@ bool FRTLogFallbackNamesTheActionTest::RunTest(const FString&)
  * informazione arriva al giocatore due volte.
  *
  * ⚠️ **Non si confrontano righe uguali**: quelle scritte a mano portano davanti `Unit->GetName()`, quindi
- * `==` non le vede. Il duplicato e' la stessa informazione in due FORMATI, e si trova per contenuto — che
- * e' anche il motivo per cui nessuno se n'era accorto prima.
+ * `==` non le vede. Il duplicato e' la stessa informazione in due FORMATI — ed e' anche il motivo per cui
+ * nessuno se n'era accorto prima.
+ *
+ * ⚠️ Ma nemmeno `Contains`: una riga derivata puo' essere PREFISSO di un'altra (`«resta (q=0,r=0,L=0)»` e
+ * `«resta (q=0,r=0,L=0) (Action.Move, p50)»`), e `FString::Contains` e' per giunta case-insensitive di
+ * default. Si conta per corrispondenza esatta, o esatta preceduta da `«Nome: »`.
+ *
+ * ⚠️ E si conta per riga UNICA contro le sue occorrenze ATTESE: due voci diverse possono rendere la stessa
+ * stringa — due azioni annullate senza `ActionId` lo fanno — e in quel caso il combat log deve emetterla
+ * due volte. Un `1` fisso fallirebbe proprio sul caso di `#1412`.
  *
  * ⚠️ Copertura di questo percorso: due unita' che non attaccano. Le sette righe doppie vivono in rami che
  * questa fixture non attraversa (fallback, reazioni, colpi senza linea di tiro), quindi il test protegge
  * dall'**ottavo** duplicato piu' che misurare i sette — che restano aperti in `#1412` e non si tolgono
- * finche' `DescribeTurnLog` non sa nominare l'attore.
+ * finche' `DescribeTurnLog` non sa nominare l'attore. Esercitarli QUI renderebbe il test rosso su un
+ * difetto noto e non ancora correggibile, che e' un modo per farlo ignorare.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLogDoesNotRepeatDerivedLinesTest,
 	"RefactorTactics.UI.LogDoesNotRepeatTheDerivedLines",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTLogDoesNotRepeatDerivedLinesTest::RunTest(const FString&)
 {
-	UWorld* World = RTCombatLogFixture::MakeWorld();
-	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
-
-	ARTHexMapActor* Map = RTCombatLogFixture::SpawnMap(World);
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
-	ARTUnit* A = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0, 0));
-	ARTUnit* B = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(1, 0, 0));
-	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("mappa"), Map)
-		|| !TestNotNull(TEXT("unita' A"), A) || !TestNotNull(TEXT("unita' B"), B))
+	RTCombatLogFixture::FTwoUnitTurn Fixture;
+	if (!RTCombatLogFixture::BuildTwoUnitTurn(*this, Fixture))
 	{
-		RTCombatLogFixture::DestroyWorld(World);
+		RTCombatLogFixture::DestroyWorld(Fixture.World);
 		return false;
 	}
 
-	RTCombatLogFixture::RunTurn(TM);
+	RTCombatLogFixture::RunTurn(Fixture.TM);
 
-	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	const TArray<FRTTurnLogEntry>& Log = Fixture.TM->GetTurnLog();
 	if (!TestTrue(TEXT("premessa: il turno ha prodotto almeno una voce"), Log.Num() > 0))
 	{
-		RTCombatLogFixture::DestroyWorld(World);
+		RTCombatLogFixture::DestroyWorld(Fixture.World);
 		return false;
 	}
 
 	const TArray<FString> Attese = URTTurnLogLibrary::DescribeTurnLog(Log);
-	const TArray<FString>& Emesse = TM->GetRecentEvents();
+	const TArray<FString>& Emesse = Fixture.TM->GetRecentEvents();
 
+	// Quante volte ogni riga e' ATTESA. Due voci che rendono la stessa stringa vanno emesse due volte.
+	TMap<FString, int32> Previste;
 	for (const FString& Riga : Attese)
 	{
+		++Previste.FindOrAdd(Riga);
+	}
+
+	for (const TPair<FString, int32>& Prevista : Previste)
+	{
+		const FString Nominata = FString(TEXT(": ")) + Prevista.Key;
 		int32 Conta = 0;
 		for (const FString& Emessa : Emesse)
 		{
-			if (Emessa.Contains(Riga))
+			// Esatta (la riga derivata) oppure esatta preceduta dal nome unita' (quella scritta a mano).
+			if (Emessa.Equals(Prevista.Key, ESearchCase::CaseSensitive)
+				|| Emessa.EndsWith(Nominata, ESearchCase::CaseSensitive))
 			{
 				++Conta;
 			}
 		}
-		TestEqual(*FString::Printf(TEXT("una volta sola nel combat log: %s"), *Riga), Conta, 1);
+		// ⚠️ `RecentEvents` e' una finestra (`MaxLogLines`): un `Conta` a ZERO qui vuol dire che la riga e'
+		// stata sfrattata, non che manchi un produttore. Con questa fixture non succede, e il messaggio lo
+		// dice a chi ci arrivasse dopo averla fatta crescere.
+		TestEqual(*FString::Printf(
+			TEXT("emessa tante volte quante attesa (0 = finestra del log troppo corta): %s"), *Prevista.Key),
+			Conta, Prevista.Value);
 	}
 
-	RTCombatLogFixture::DestroyWorld(World);
+	RTCombatLogFixture::DestroyWorld(Fixture.World);
 	return true;
 }
 
