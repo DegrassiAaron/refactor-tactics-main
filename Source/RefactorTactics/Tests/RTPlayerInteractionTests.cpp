@@ -432,7 +432,8 @@ bool FRTDashSupersedesNormalMoveTest::RunTest(const FString&)
 	TestEqual(TEXT("la voce sta nella fase in cui lo scarto avviene"), Found.Phase, ERTMatchPhase::Dash);
 	TestEqual(TEXT("nomina il MOVIMENTO, non lo scatto che invece esegue"),
 		Found.ActionId, FName(TEXT("Action.Move")));
-	TestEqual(TEXT("SrcCell e' dove lo scatto ha portato l'unita'"), Found.SrcCell, DashTo);
+	TestEqual(TEXT("SrcCell e' da dove il movimento sarebbe partito — chiave stabile dell'unita' nel turno"),
+		Found.SrcCell, FRTCellId(1, 1));
 	TestEqual(TEXT("TgtCell e' la destinazione dichiarata e mai raggiunta"), Found.TgtCell, MoveTo);
 
 	// E l'unita' e' davvero dove l'ha portata lo scatto: la voce descrive il turno, non lo contraddice.

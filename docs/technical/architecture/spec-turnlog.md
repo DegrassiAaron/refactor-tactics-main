@@ -346,9 +346,11 @@ manderebbe il giocatore a cercare un avversario che non esiste.
 > indovinarlo, e l'ordine canonico di `ValidatePlan` — per larghezza di slot, poi per `ActionId` — darebbe
 > la risposta sbagliata: davanti a `Action.Move` e `Hero.Riktor.Ram` nomina **Ram**, che invece esegue.
 >
-> `SrcCell` è dove lo scatto ha portato l'unità, `TgtCell` la destinazione dichiarata e non raggiunta,
-> `Amount` le celle del percorso **a waypoint** scartato — `0` per un piano che dichiarava solo una
-> destinazione senza posare waypoint (il bot), dove la destinazione resta leggibile in `TgtCell`.
+> `SrcCell` è la cella di **partenza**, non quella d'arrivo — è la chiave su cui `FilterTracesByEmitter`
+> filtra le tracce per confrontare le varianti a informazione nascosta, e la coppia con `TgtCell` descrive
+> la **rotta scartata**. `TgtCell` è la destinazione dichiarata e non raggiunta, `Amount` le celle del
+> percorso **a waypoint** scartato — `0` per un piano che dichiarava solo una destinazione senza posare
+> waypoint (il bot), dove la destinazione resta leggibile in `TgtCell`.
 
 ### La spinta che non sposta ([D-079](../../decisions/RT_PDR_00_Decision_Log.md), `#420`)
 

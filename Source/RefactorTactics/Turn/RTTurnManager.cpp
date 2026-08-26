@@ -3311,6 +3311,7 @@ void ARTTurnManager::ResolveDash()
 		// uno scarto inesistente dentro un formato serializzato e riprodotto: misurato in code review il
 		// 2026-08-26, difeso da `PlayerInteraction.NoSupersededEntryOnADashWithoutAPlannedMove`.
 		const bool bHadNormalMove = Unit->PlannedPath.Num() > 1 || Unit->PlannedCell != Unit->Cell;
+		const FRTCellId PreDashCell = Unit->Cell;
 
 		Unit->Cell = Final;
 		Unit->SetVisualLocation(Unit->WorldForCell(Final, Origin, CellSize, LayerH));
@@ -3342,8 +3343,14 @@ void ARTTurnManager::ResolveDash()
 			const FRTActionDef MoveDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
 			Superseded.ActionId = TEXT("Action.Move"); // cio' che NON si esegue, non lo scatto che invece esegue
 			Superseded.Priority = MoveDef.Priority;
-			Superseded.SrcCell = Final;                // dove lo scatto ha portato l'unita'
-			Superseded.TgtCell = Unit->PlannedCell;    // la destinazione dichiarata e mai raggiunta
+			// 🔴 **`SrcCell` e' la cella di PARTENZA**, non quella d'arrivo: `BuildMoveLog` la dichiara
+			// «chiave stabile dell'unita' nel turno», e `FilterTracesByEmitter` ci filtra sopra con
+			// `ExcludedSources.Contains(Entry.SrcCell)` per confrontare le varianti a informazione nascosta.
+			// Con la cella d'arrivo la traccia di una variante sopravvive al filtro e manda rosso un
+			// confronto PERCHE' la variante ha funzionato. E la coppia (SrcCell, TgtCell) qui descrive una
+			// ROTTA: quella che non si e' percorsa.
+			Superseded.SrcCell = PreDashCell;       // da dove il movimento sarebbe partito
+			Superseded.TgtCell = Unit->PlannedCell; // la destinazione dichiarata e mai raggiunta
 			// `Amount` conta le celle del percorso A WAYPOINT. Un piano che dichiara solo una destinazione —
 			// il bot, che «pianifica destinazioni, non percorsi a waypoint» — porta `0`, e la destinazione
 			// resta leggibile in `TgtCell`. Non si stima dalla distanza: sarebbe un numero che nessuno ha
