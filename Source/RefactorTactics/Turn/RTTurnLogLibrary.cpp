@@ -3,6 +3,8 @@
 #include "Turn/RTReactionLibrary.h" // ERTReactionOutcome: l'esito di una reazione, leggibile nel log
 #include "Core/RTGameplayTags.h" // TAG_Status_Burning: la causa ambientale si CHIEDE al tag, non si riscrive
 #include "Misc/FileHelper.h"
+#include "Containers/ArrayView.h" // i campi discriminanti viaggiano come una vista, non come copie
+#include "Templates/Function.h"   // TFunctionRef: il visitor dei campi non alloca
 
 bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
 {
@@ -543,6 +545,135 @@ namespace
 	constexpr uint32 RT_FNV_OFFSET_BASIS = 2166136261u;
 	constexpr uint32 RT_FNV_PRIME        = 16777619u;
 
+	/** Nome della fase, per la diagnosi. Switch esplicito, come gli altri di questo file. */
+	const TCHAR* GoldenPhaseName(ERTMatchPhase Phase)
+	{
+		switch (Phase)
+		{
+		case ERTMatchPhase::Planning:   return TEXT("Planning");
+		case ERTMatchPhase::Prep:       return TEXT("Prep");
+		case ERTMatchPhase::Dash:       return TEXT("Dash");
+		case ERTMatchPhase::Blast:      return TEXT("Blast");
+		case ERTMatchPhase::Move:       return TEXT("Move");
+		case ERTMatchPhase::Cleanup:    return TEXT("Cleanup");
+		case ERTMatchPhase::MatchEnded: return TEXT("MatchEnded");
+		default:                        return TEXT("?");
+		}
+	}
+
+	/** Nome della categoria, per lo stesso motivo: un `uint8` nudo in una diagnosi non si legge. */
+	const TCHAR* GoldenCategoryName(ERTLogCategory Category)
+	{
+		switch (Category)
+		{
+		case ERTLogCategory::Move:             return TEXT("Move");
+		case ERTLogCategory::Combat:           return TEXT("Combat");
+		case ERTLogCategory::Fallback:         return TEXT("Fallback");
+		case ERTLogCategory::Reaction:         return TEXT("Reaction");
+		case ERTLogCategory::Environment:      return TEXT("Environment");
+		case ERTLogCategory::Facing:           return TEXT("Facing");
+		case ERTLogCategory::Predictive:       return TEXT("Predictive");
+		case ERTLogCategory::ReactionDecision: return TEXT("ReactionDecision");
+		case ERTLogCategory::ReactionClash:    return TEXT("ReactionClash");
+		case ERTLogCategory::Status:           return TEXT("Status");
+		default:                               return TEXT("?");
+		}
+	}
+
+	/**
+	 * Il visitor dei campi discriminanti: nome, valori da mescolare, e come si scrivono per un umano.
+	 *
+	 * Il display e' **pigro** di proposito: l'hash non lo chiama mai, quindi non paga nessuna stringa.
+	 */
+	using FDiscriminatingFieldVisitor = TFunctionRef<void(const TCHAR* Name,
+		TArrayView<const uint32> MixValues, TFunctionRef<FString()> Display)>;
+
+	/**
+	 * L'elenco UNICO dei campi che DISCRIMINANO una voce di TurnLog.
+	 *
+	 * Lo percorrono in due: `MixEntryFields`, che li mescola nell'hash, e `DescribeFirstDivergence`, che
+	 * nomina quello cambiato quando due tracce divergono. Erano due elenchi, ed e' la ragione per cui la
+	 * diagnosi ha taciuto il campo che diverge **tre volte** — `ActionId` (trovato in mutazione), `TgtCell`,
+	 * e da ultimo `GraphRevision` (`#1423`), che produceva «atteso [X], trovato [X]» su ogni campo stampato.
+	 *
+	 * ⚠️ **L'ORDINE E' L'HASH.** FNV-1a e' sensibile alla sequenza: spostare una riga qui sotto cambia
+	 * l'hash di ogni voce del progetto, quindi il corpus golden, gli `OrderedHashPerTurn` degli archivi di
+	 * replay e il checksum di fine partita. Un campo nuovo si aggiunge **in coda**, e resta comunque un
+	 * cambio dell'identita' delle tracce: si dichiara, non si scopre.
+	 *
+	 * Cosa NON entra: `UnitId` e `TurnNumber` (D-063: servono a rendere la traccia spiegabile — chi ha agito,
+	 * in quale turno — non a discriminarla; includerli invaliderebbe in blocco ogni hash golden senza
+	 * aggiungere potere discriminante), `Priority`, e `ReactionInstanceId` — un numero d'ordine
+	 * dell'armamento: due tracce che differissero solo per lui differirebbero gia' per l'`OpportunityId`,
+	 * che l'istanza la porta dentro attraverso `Seq`. Un campo che non entra qui non fa divergere due
+	 * tracce, quindi non ha niente da nominare in una diagnosi: sono lo stesso elenco letto da due lati.
+	 *
+	 * ⚠️ `BaseActionId` sta fuori per una proprieta' che puo' SMETTERE di valere: e' una FUNZIONE di
+	 * `ActionId`, che qui c'e' gia', quindi due tracce non possono differire solo per quel campo e
+	 * mescolarlo aggiungerebbe zero potere discriminante — stesso ragionamento di `FormatId` (CP 10.3). Se
+	 * un giorno smettesse di essere derivabile da `ActionId`, questa riga diventa falsa e il campo deve
+	 * entrare: e' la condizione da ricontrollare, non una proprieta' per sempre.
+	 */
+	void VisitDiscriminatingFields(const FRTTurnLogEntry& E, FDiscriminatingFieldVisitor Visit)
+	{
+		auto Number = [&Visit](const TCHAR* Name, int32 Value)
+		{
+			const uint32 Mixed[] = { static_cast<uint32>(Value) };
+			auto Display = [Value] { return FString::FromInt(Value); };
+			Visit(Name, MakeArrayView(Mixed, UE_ARRAY_COUNT(Mixed)), Display);
+		};
+		auto Named = [&Visit](const TCHAR* Name, int32 Value, const TCHAR* Text)
+		{
+			const uint32 Mixed[] = { static_cast<uint32>(Value) };
+			auto Display = [Text] { return FString(Text); };
+			Visit(Name, MakeArrayView(Mixed, UE_ARRAY_COUNT(Mixed)), Display);
+		};
+		auto Cell = [&Visit](const TCHAR* Name, const FRTCellId& C)
+		{
+			const uint32 Mixed[] = { static_cast<uint32>(C.X), static_cast<uint32>(C.Y),
+				static_cast<uint32>(C.Layer) };
+			auto Display = [&C] { return FString::Printf(TEXT("(%d,%d,%d)"), C.X, C.Y, C.Layer); };
+			Visit(Name, MakeArrayView(Mixed, UE_ARRAY_COUNT(Mixed)), Display);
+		};
+		auto Text = [&Visit](const TCHAR* Name, const FString& S)
+		{
+			// Char per char, ed e' la semantica dell'hash da CP 5.5. Un testo VUOTO non mescola NULLA — e' il
+			// ciclo che non gira — ed e' cio' che tiene fermi gli hash: le tracce senza `ActionId` hanno lo
+			// stesso hash di prima di CP 5.5, e quelle senza finestra lo stesso di prima della v8.
+			TArray<uint32, TInlineAllocator<64>> Mixed;
+			Mixed.Reserve(S.Len());
+			for (const TCHAR Ch : S)
+			{
+				Mixed.Add(static_cast<uint32>(Ch));
+			}
+			auto Display = [&S] { return FString::Printf(TEXT("'%s'"), *S); };
+			Visit(Name, MakeArrayView(Mixed.GetData(), Mixed.Num()), Display);
+		};
+
+		Named(TEXT("phase"), static_cast<int32>(E.Phase), GoldenPhaseName(E.Phase));
+		Named(TEXT("category"), static_cast<int32>(E.Category), GoldenCategoryName(E.Category));
+		Number(TEXT("outcome"), E.Outcome);
+		Cell(TEXT("src"), E.SrcCell);
+		Cell(TEXT("tgt"), E.TgtCell);
+		Number(TEXT("amount"), E.Amount);
+		// L'identita' dell'azione entra byte per byte: due reazioni con la stessa geometria e lo stesso esito,
+		// ma abilita' diverse, devono produrre hash diversi — altrimenti il replay di CP 12.6 non
+		// distinguerebbe `Riktor.Interposition` da `Action.Intercept`.
+		Text(TEXT("actionId"), E.ActionId.ToString());
+		// `GraphRevision` ENTRA (D-067): due tracce possono differire SOLO per lei — stessi eventi, ma grafo
+		// modificato in un turno precedente — e sono due partite diverse. Un movimento validato su un grafo e
+		// uno validato su un altro non sono lo stesso evento, anche quando le celle coincidono.
+		Number(TEXT("graphRevision"), E.GraphRevision);
+		Text(TEXT("opportunityId"), E.OpportunityId);
+		if (!E.OpportunityId.IsEmpty())
+		{
+			// La DECISIONE di una finestra ENTRA (v8, CP 14.5): due partite con gli stessi movimenti in cui un
+			// giocatore ha sparato e l'altro ha tenuto sono due partite diverse. Solo DENTRO il ramo: mescolare
+			// `INDEX_NONE` incondizionatamente cambierebbe l'hash di **ogni** voce del progetto.
+			Number(TEXT("selectedTarget"), E.SelectedTargetUnitId);
+		}
+	}
+
 	/**
 	 * Mescola i CAMPI di una voce in un FNV-1a a 32 bit.
 	 *
@@ -550,66 +681,20 @@ namespace
 	 * mescolare **esattamente gli stessi campi**: l'unica differenza fra loro e' il sort davanti. Se i due
 	 * elenchi di campi divergessero, i due hash risponderebbero a domande diverse da quelle documentate e
 	 * nessun test se ne accorgerebbe.
+	 *
+	 * L'elenco non e' piu' qui: sta in `VisitDiscriminatingFields`, che lo condivide con la diagnosi.
 	 */
 	void MixEntryFields(uint32& Hash, const FRTTurnLogEntry& E)
 	{
-		auto Mix = [&Hash](uint32 V)
-		{
-			Hash ^= V;
-			Hash *= RT_FNV_PRIME;
-		};
-		Mix(static_cast<uint32>(E.Phase));
-		Mix(static_cast<uint32>(E.Category));
-		Mix(static_cast<uint32>(E.Outcome));
-		Mix(static_cast<uint32>(E.SrcCell.X));
-		Mix(static_cast<uint32>(E.SrcCell.Y));
-		Mix(static_cast<uint32>(E.SrcCell.Layer));
-		Mix(static_cast<uint32>(E.TgtCell.X));
-		Mix(static_cast<uint32>(E.TgtCell.Y));
-		Mix(static_cast<uint32>(E.TgtCell.Layer));
-		Mix(static_cast<uint32>(E.Amount));
-		// L'identita' dell'azione entra nell'hash byte per byte: due reazioni con la stessa geometria e lo
-		// stesso esito, ma abilita' diverse, devono produrre hash diversi — altrimenti il replay di CP 12.6
-		// non distinguerebbe `Riktor.Interposition` da `Action.Intercept`. Un nome vuoto non mescola nulla,
-		// quindi le tracce senza ActionId hanno lo stesso hash di prima di CP 5.5.
-		for (const TCHAR Ch : E.ActionId.ToString())
-		{
-			Mix(static_cast<uint32>(Ch));
-		}
-		// `BaseActionId` NON entra, ed e' deliberato: e' una FUNZIONE di `ActionId`, che qui c'e' gia'.
-		// Due tracce non possono differire solo per quel campo, quindi mescolarlo aggiungerebbe zero potere
-		// discriminante — e invaliderebbe in blocco ogni hash golden. Stesso ragionamento di `FormatId`
-		// (CP 10.3). Se un giorno `BaseActionId` smettesse di essere derivabile da `ActionId`, questa riga
-		// di commento diventa falsa e il campo deve entrare: e' la condizione da ricontrollare, non una
-		// proprieta' per sempre.
-		//
-		// `GraphRevision` ENTRA: due tracce possono differire SOLO per lei — stessi eventi, ma grafo modificato
-		// in un turno precedente — e sono due partite diverse. Un movimento validato su un grafo e uno
-		// validato su un altro non sono lo stesso evento, anche quando le celle coincidono.
-		Mix(static_cast<uint32>(E.GraphRevision));
-		// `UnitId` e `TurnNumber` NON entrano, per lo stesso criterio (D-063): servono a rendere la traccia
-		// spiegabile — chi ha agito, in quale turno — non a discriminarla. Includerli invaliderebbe in blocco
-		// ogni hash golden senza aggiungere potere discriminante.
-		//
-		// La DECISIONE di una finestra ENTRA (v8, CP 14.5), e mescolarla e' il punto: due partite con gli
-		// stessi movimenti in cui un giocatore ha sparato e l'altro ha tenuto sono due partite diverse, ed e'
-		// esattamente cio' che E14 aggiunge al gioco. `Outcome` e `Amount` — la risposta e il suo motivo —
-		// sono gia' mescolati sopra insieme a tutti gli altri esiti; qui restano i due che li qualificano.
-		//
-		// ⚠️ Un id VUOTO non mescola nulla, ed e' questo che tiene fermi gli hash golden delle tracce senza
-		// decisioni: il ciclo non gira, e `SelectedTargetUnitId` e' mescolato solo dentro il ramo. Se lo si
-		// mescolasse incondizionatamente, `INDEX_NONE` cambierebbe l'hash di **ogni** voce del progetto.
-		for (const TCHAR Ch : E.OpportunityId)
-		{
-			Mix(static_cast<uint32>(Ch));
-		}
-		if (!E.OpportunityId.IsEmpty())
-		{
-			Mix(static_cast<uint32>(E.SelectedTargetUnitId));
-		}
-		// `ReactionInstanceId` NON entra: e' un numero d'ordine dell'armamento, quindi spiega e non discrimina.
-		// Due tracce che differissero solo per lui differirebbero gia' per l'`OpportunityId`, che l'istanza la
-		// porta dentro attraverso `Seq`.
+		VisitDiscriminatingFields(E,
+			[&Hash](const TCHAR*, TArrayView<const uint32> MixValues, TFunctionRef<FString()>)
+			{
+				for (const uint32 Value : MixValues)
+				{
+					Hash ^= Value;
+					Hash *= RT_FNV_PRIME;
+				}
+			});
 	}
 }
 
@@ -1070,22 +1155,6 @@ ERTTraceComparison URTTurnLogLibrary::CompareSerializedTraces(const TArray<uint8
 
 namespace
 {
-	/** Nome della fase per la diagnosi. Switch esplicito, come gli altri di questo file. */
-	const TCHAR* GoldenPhaseName(ERTMatchPhase Phase)
-	{
-		switch (Phase)
-		{
-		case ERTMatchPhase::Planning:   return TEXT("Planning");
-		case ERTMatchPhase::Prep:       return TEXT("Prep");
-		case ERTMatchPhase::Dash:       return TEXT("Dash");
-		case ERTMatchPhase::Blast:      return TEXT("Blast");
-		case ERTMatchPhase::Move:       return TEXT("Move");
-		case ERTMatchPhase::Cleanup:    return TEXT("Cleanup");
-		case ERTMatchPhase::MatchEnded: return TEXT("MatchEnded");
-		default:                        return TEXT("?");
-		}
-	}
-
 	/**
 	 * Uguaglianza secondo i campi che entrano nell'HASH, non campo per campo a mano.
 	 *
@@ -1136,23 +1205,62 @@ FString URTTurnLogLibrary::DescribeFirstDivergence(int32 TurnNumber, const TArra
 		const FString GoldenText = DescribeEntry(Golden[i]);
 		const FString ActualText = DescribeEntry(Actual[i]);
 
-		// Se le due descrizioni COINCIDONO, il campo che diverge e' uno che `DescribeEntry` non stampa per
-		// quella categoria — `TgtCell` fuori da `Moved`, per dirne uno. Mostrare «atteso [X], trovato [X]»
-		// farebbe concludere che il confronto e' rotto: e' successo con l'ActionId, trovato in mutazione, e
-		// qui si chiude la CLASSE invece del singolo caso. I campi grezzi non sono belli da leggere, ma
-		// rispondono alla sola domanda che conta quando la prosa non basta.
+		// **Quale campo** e' cambiato, coi due valori. La prosa non basta e non puo' bastare: `DescribeEntry`
+		// rende cio' che serve a un umano che rilegge una partita, non l'insieme di cio' che distingue due
+		// tracce — e i due insiemi non coincidono per nessuna categoria.
+		//
+		// L'elenco da cui questo nasce e' lo STESSO che alimenta l'hash (`VisitDiscriminatingFields`), e non
+		// e' un dettaglio di implementazione: `GoldenEntriesMatch` confronta gli hash, quindi l'insieme dei
+		// campi che possono far divergere due voci **e' per costruzione** quello. Finche' erano due elenchi
+		// separati la diagnosi ha taciuto tre volte il campo che divergeva — `ActionId`, `TgtCell`,
+		// `GraphRevision` — e ogni volta si e' chiuso il caso singolo. Qui si chiude la classe.
+		//
+		// Si stampano SOLO i campi diversi: elencarli tutti rimetterebbe chi legge a cercare.
 		FString RawDetail;
-		if (GoldenText.Equals(ActualText))
 		{
-			auto RawOf = [](const FRTTurnLogEntry& E)
+			auto Collect = [](const FRTTurnLogEntry& E)
 			{
-				return FString::Printf(TEXT("outcome=%u amount=%d src=(%d,%d,%d) tgt=(%d,%d,%d)"),
-					E.Outcome, E.Amount,
-					E.SrcCell.X, E.SrcCell.Y, E.SrcCell.Layer,
-					E.TgtCell.X, E.TgtCell.Y, E.TgtCell.Layer);
+				TArray<TPair<FString, FString>> Fields;
+				VisitDiscriminatingFields(E,
+					[&Fields](const TCHAR* Name, TArrayView<const uint32>, TFunctionRef<FString()> Display)
+					{
+						Fields.Emplace(Name, Display());
+					});
+				return Fields;
 			};
-			RawDetail = FString::Printf(TEXT(" — campi: atteso {%s}, trovato {%s}"),
-				*RawOf(Golden[i]), *RawOf(Actual[i]));
+			const TArray<TPair<FString, FString>> GoldenFields = Collect(Golden[i]);
+			const TArray<TPair<FString, FString>> ActualFields = Collect(Actual[i]);
+
+			// Un campo puo' esserci da una parte sola: `SelectedTargetUnitId` entra solo dentro una finestra,
+			// quindi due voci di cui una senza `OpportunityId` non hanno lo stesso elenco. Dirlo assente e'
+			// piu' onesto che stampare un valore che quella voce non porta.
+			auto ValueOf = [](const TArray<TPair<FString, FString>>& Fields, const FString& Name)
+			{
+				const TPair<FString, FString>* Found = Fields.FindByPredicate(
+					[&Name](const TPair<FString, FString>& Field) { return Field.Key == Name; });
+				return Found ? Found->Value : FString(TEXT("<assente>"));
+			};
+
+			TArray<FString> Names;
+			for (const TPair<FString, FString>& Field : GoldenFields) { Names.AddUnique(Field.Key); }
+			for (const TPair<FString, FString>& Field : ActualFields) { Names.AddUnique(Field.Key); }
+
+			TArray<FString> Diverging;
+			for (const FString& Name : Names)
+			{
+				const FString Expected = ValueOf(GoldenFields, Name);
+				const FString Found = ValueOf(ActualFields, Name);
+				if (!Expected.Equals(Found))
+				{
+					Diverging.Add(FString::Printf(TEXT("%s atteso %s, trovato %s"),
+						*Name, *Expected, *Found));
+				}
+			}
+
+			if (Diverging.Num() > 0)
+			{
+				RawDetail = FString::Printf(TEXT(" — campi: %s"), *FString::Join(Diverging, TEXT("; ")));
+			}
 		}
 
 		return FString::Printf(
