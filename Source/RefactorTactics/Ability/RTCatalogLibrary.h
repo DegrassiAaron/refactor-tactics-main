@@ -494,17 +494,20 @@ public:
 
 	/**
 	 * Errori negli SLOT di un piano di turno di una singola unita' (vuoto = piano valido): due azioni non
-	 * possono occupare lo stesso slot, e chi consuma entrambi (`Action.Sprint`) non lascia spazio a nessuna
-	 * azione principale.
+	 * possono occupare lo stesso slot, e chi dichiara `MovementAndMain` non lascia spazio a nessuna azione
+	 * principale.
 	 *
-	 * E' qui che «PrecisionAttack non e' usabile dopo Sprint» diventa una regola generale invece di
-	 * un'eccezione sull'ActionId: lo Sprint prende la principale, e l'attacco non la trova piu'.
+	 * ⚠️ **Nessuna azione dei cataloghi dichiara oggi `MovementAndMain`.** `Action.Sprint` lo faceva fino a
+	 * [D-028] e occupa ora il solo movimento, quindi «PrecisionAttack dopo Sprint» e' un piano LEGALE: non e'
+	 * cambiata la regola generale, e' cambiato l'esempio. La forma resta esprimibile per un kit che voglia far
+	 * costare una mobilita' anche la principale [D-191].
 	 */
 	static TArray<FString> ValidateActionSlots(const TArray<FRTActionDef>& PlannedActions);
 
 	/**
-	 * Quale dei due slot del turno consuma un'azione. `MovementAndMain` (`Action.Sprint`) risponde **vero a
-	 * entrambe**, ed e' l'unico motivo per cui queste sono due funzioni e non un `== Slot`.
+	 * Quale dei due slot del turno consuma un'azione. `MovementAndMain` risponde **vero a entrambe**, ed e'
+	 * l'unico motivo per cui queste sono due funzioni e non un `== Slot` - anche se oggi nessuna azione dei
+	 * cataloghi lo dichiara (`Action.Sprint` lo faceva fino a [D-028]).
 	 *
 	 * Estratte da `ValidateActionSlots` il 2026-08-13, quando la HUD di CP 11.1 ha avuto bisogno della stessa
 	 * domanda al contrario — non «questo piano e' valido?» ma «quali slot risultano occupati?». La regola
