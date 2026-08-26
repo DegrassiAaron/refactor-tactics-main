@@ -161,6 +161,20 @@ namespace
 	}
 }
 
+const TArray<FKey>& ARTPlayerController::AbilityHotkeys()
+{
+	// `1`..`9` piu' `0`: dieci posizioni, che e' quanto basta al kit di oggi — cinque voci d'eroe piu' le
+	// cinque generiche di D-025. Non e' un numero scelto per stare largo: e' la dimensione misurata del kit,
+	// e il test che la difende confronta le due cose invece di fidarsi di questo commento.
+	//
+	// ⚠️ Nessuno di questi tasti collide: mappati altrove sono A D E F Q R S T V W, Home, Escape, BackSpace,
+	// Spazio e i pulsanti del mouse. Verificato sull'elenco completo dei `MapKey` di `BuildInputMappings`.
+	static const TArray<FKey> Hotkeys = {
+		EKeys::One,  EKeys::Two,   EKeys::Three, EKeys::Four, EKeys::Five,
+		EKeys::Six,  EKeys::Seven, EKeys::Eight, EKeys::Nine, EKeys::Zero };
+	return Hotkeys;
+}
+
 void ARTPlayerController::BuildInputMappings()
 {
 	if (MappingContext)
@@ -197,14 +211,15 @@ void ARTPlayerController::BuildInputMappings()
 	RestartAction = NewObject<UInputAction>(this, TEXT("IA_Restart"));
 	RestartAction->ValueType = EInputActionValueType::Boolean;
 
-	Ability1Action = NewObject<UInputAction>(this, TEXT("IA_Ability1"));
-	Ability1Action->ValueType = EInputActionValueType::Boolean;
-	Ability2Action = NewObject<UInputAction>(this, TEXT("IA_Ability2"));
-	Ability2Action->ValueType = EInputActionValueType::Boolean;
-	Ability3Action = NewObject<UInputAction>(this, TEXT("IA_Ability3"));
-	Ability3Action->ValueType = EInputActionValueType::Boolean;
-	Ability4Action = NewObject<UInputAction>(this, TEXT("IA_Ability4"));
-	Ability4Action->ValueType = EInputActionValueType::Boolean;
+	// Una `UInputAction` per posizione del kit: quante siano lo dice `AbilityHotkeys()`, che e' la stessa
+	// lista che mappa i tasti e che il test interroga. Aggiungere un tasto e' una riga LI', non qui.
+	AbilityActions.Reset();
+	for (int32 i = 0; i < AbilityHotkeys().Num(); ++i)
+	{
+		UInputAction* Action = NewObject<UInputAction>(this, *FString::Printf(TEXT("IA_Ability%d"), i + 1));
+		Action->ValueType = EInputActionValueType::Boolean;
+		AbilityActions.Add(Action);
+	}
 
 	UndoAction = NewObject<UInputAction>(this, TEXT("IA_UndoWaypoint"));
 	UndoAction->ValueType = EInputActionValueType::Boolean;
@@ -270,12 +285,17 @@ void ARTPlayerController::BuildInputMappings()
 	// Riavvio partita (Boolean): tasto R (attivo solo a match concluso).
 	MappingContext->MapKey(RestartAction, EKeys::R);
 
-	// Selezione abilita' (Boolean): tasti 1-4 -> indici 0-3 dell'elenco dell'unita' selezionata.
+	// Selezione abilita' (Boolean): `1`..`9` e `0` -> indici 0-9 dell'elenco dell'unita' selezionata.
 	// Il tasto sceglie una POSIZIONE, non un'azione: quale abilita' occupi l'indice N dipende dall'eroe.
-	MappingContext->MapKey(Ability1Action, EKeys::One);
-	MappingContext->MapKey(Ability2Action, EKeys::Two);
-	MappingContext->MapKey(Ability3Action, EKeys::Three);
-	MappingContext->MapKey(Ability4Action, EKeys::Four);
+	//
+	// 🔴 **Erano quattro, e quattro non bastavano**: il kit di ogni unita' e' cinque voci d'eroe piu' le
+	// generiche accodate (D-025), quindi con `1`..`4` il giocatore raggiungeva la meta' scarsa di cio' che
+	// possedeva — `Overwatch`, `Guard`, `Brace`, `Wait`, `Interact` e la reazione di tre eroi su quattro
+	// restavano irraggiungibili mentre il bot le usava ([#1409], [#1034]).
+	for (int32 i = 0; i < AbilityHotkeys().Num() && i < AbilityActions.Num(); ++i)
+	{
+		MappingContext->MapKey(AbilityActions[i], AbilityHotkeys()[i]);
+	}
 
 	// Annulla l'ultimo waypoint della path composita (tasto destro del mouse o Backspace).
 	MappingContext->MapKey(UndoAction, EKeys::RightMouseButton);
@@ -292,9 +312,10 @@ void ARTPlayerController::BuildInputMappings()
 	// Velocita' di riproduzione, un tasto che CICLA `x1 · x2 · x4` (CP 47.7, #1015).
 	//
 	// ⚠️ **Un tasto solo e non tre, e la ragione e' che tre non ci sono.** `1/2/4` sarebbero i tasti
-	// ovvi per tre velocita' — e sono gia' le abilita' (`Ability1/2/4`, qui sopra). Il ciclo evita la
-	// collisione senza spostare hotkey che il giocatore ha gia' imparato, e su una scala di tre valori
-	// costa al massimo due pressioni per arrivare ovunque.
+	// ovvi per tre velocita' — e sono gia' posizioni del kit (`AbilityHotkeys()`, qui sopra), come ora lo
+	// e' l'intera fila `1`..`9` piu' `0`. Il ciclo evita la collisione senza spostare hotkey che il
+	// giocatore ha gia' imparato, e su una scala di tre valori costa al massimo due pressioni per arrivare
+	// ovunque.
 	// `V` e' libero: verificato sull'elenco completo dei `MapKey` di questa funzione.
 	MappingContext->MapKey(PlaybackSpeedAction, EKeys::V);
 
@@ -350,10 +371,29 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(SelectAction, ETriggerEvent::Started, this, &ARTPlayerController::OnSelect);
 		EIC->BindAction(LockInAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLockIn);
 		EIC->BindAction(RestartAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRestart);
-		EIC->BindAction(Ability1Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility1);
-		EIC->BindAction(Ability2Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility2);
-		EIC->BindAction(Ability3Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility3);
-		EIC->BindAction(Ability4Action, ETriggerEvent::Started, this, &ARTPlayerController::OnAbility4);
+		// La tabella che lega tasto e handler sta QUI e in nessun altro posto. Un handler per posizione
+		// perche' `FInputActionValue` porta il valore e non l'azione che l'ha prodotto: senza la bindatura,
+		// l'indice non arriverebbe da nessuna parte.
+		typedef void (ARTPlayerController::*FAbilityHandler)(const FInputActionValue&);
+		static const FAbilityHandler Handlers[] = {
+			&ARTPlayerController::OnAbility1, &ARTPlayerController::OnAbility2,
+			&ARTPlayerController::OnAbility3, &ARTPlayerController::OnAbility4,
+			&ARTPlayerController::OnAbility5, &ARTPlayerController::OnAbility6,
+			&ARTPlayerController::OnAbility7, &ARTPlayerController::OnAbility8,
+			&ARTPlayerController::OnAbility9, &ARTPlayerController::OnAbility10 };
+		const int32 NumHandlers = UE_ARRAY_COUNT(Handlers);
+		for (int32 i = 0; i < AbilityActions.Num() && i < NumHandlers; ++i)
+		{
+			EIC->BindAction(AbilityActions[i], ETriggerEvent::Started, this, Handlers[i]);
+		}
+		// Un tasto senza handler non si bindera' in silenzio: il ciclo si ferma al piu' corto dei due, e
+		// questa riga lo DICE invece di lasciarlo dedurre da un tasto che non fa niente.
+		if (AbilityActions.Num() > NumHandlers)
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] %d tasti abilita' mappati ma solo %d handler: le posizioni oltre la %d non rispondono"),
+				AbilityActions.Num(), NumHandlers, NumHandlers);
+		}
 		EIC->BindAction(UndoAction, ETriggerEvent::Started, this, &ARTPlayerController::OnUndoWaypoint);
 		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
 		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
@@ -985,8 +1025,8 @@ ARTUnit* ARTPlayerController::GetSelectedUnit() const
 
 void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 {
-	// Le quattro `OnAbility*` sono one-liner che passano di qui: la guardia sta nel punto comune invece
-	// che ripetuta quattro volte, cosi' un quinto tasto abilita' la eredita per costruzione.
+	// Le `OnAbility*` sono one-liner che passano tutte di qui: la guardia sta nel punto comune invece che
+	// ripetuta dieci volte, cosi' un tasto abilita' in piu' la eredita per costruzione.
 	if (IsGameplayInputBlocked())
 	{
 		return;
@@ -1054,10 +1094,16 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 // Selezionano per INDICE, non per azione. Uno scatto e' un'abilita' di fase `ERTResolutionPhase::Dash`
 // (nel roster ce n'e' una, `Hero.Phase.FluidTrail`) e non ha un tasto dedicato: sta dove la mette il
 // suo eroe. Un commento che promettesse un'azione a un tasto invecchierebbe al primo cambio di roster.
-void ARTPlayerController::OnAbility1(const FInputActionValue& Value) { SelectAbilityForCurrent(0); }
-void ARTPlayerController::OnAbility2(const FInputActionValue& Value) { SelectAbilityForCurrent(1); }
-void ARTPlayerController::OnAbility3(const FInputActionValue& Value) { SelectAbilityForCurrent(2); }
-void ARTPlayerController::OnAbility4(const FInputActionValue& Value) { SelectAbilityForCurrent(3); }
+void ARTPlayerController::OnAbility1(const FInputActionValue& Value)  { SelectAbilityForCurrent(0); }
+void ARTPlayerController::OnAbility2(const FInputActionValue& Value)  { SelectAbilityForCurrent(1); }
+void ARTPlayerController::OnAbility3(const FInputActionValue& Value)  { SelectAbilityForCurrent(2); }
+void ARTPlayerController::OnAbility4(const FInputActionValue& Value)  { SelectAbilityForCurrent(3); }
+void ARTPlayerController::OnAbility5(const FInputActionValue& Value)  { SelectAbilityForCurrent(4); }
+void ARTPlayerController::OnAbility6(const FInputActionValue& Value)  { SelectAbilityForCurrent(5); }
+void ARTPlayerController::OnAbility7(const FInputActionValue& Value)  { SelectAbilityForCurrent(6); }
+void ARTPlayerController::OnAbility8(const FInputActionValue& Value)  { SelectAbilityForCurrent(7); }
+void ARTPlayerController::OnAbility9(const FInputActionValue& Value)  { SelectAbilityForCurrent(8); }
+void ARTPlayerController::OnAbility10(const FInputActionValue& Value) { SelectAbilityForCurrent(9); }
 
 void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 {
