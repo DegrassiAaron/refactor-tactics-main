@@ -1055,6 +1055,15 @@ protected:
 
 	TArray<FRTPacingSample> PacingSamples;
 	FRTPacingSample PacingCurrent;
+	/**
+	 * Vero fra `BeginPacingSample()` e `ClosePacingSample()`.
+	 *
+	 * ⚠️ Non e' ridondante con `PacingPlanningStart != 0.0`: quel confronto risponde «l'origine e' stata
+	 * scritta almeno una volta», che dopo il primo turno resta vero per sempre — e il campione di un turno
+	 * successivo aperto da un percorso che non passa dal timer si misurerebbe da un'origine di due turni
+	 * fa. Lo stato si chiede a un flag, non lo si deduce da un valore.
+	 */
+	bool bPacingSampleOpen = false;
 	double PacingPlanningStart = 0.0;  // FPlatformTime::Seconds() all'apertura della pianificazione
 	double PacingLastInput = 0.0;
 	bool bPacingHadInput = false;
