@@ -21,6 +21,7 @@
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTPlanValidationLibrary.h" // MakePlanFor: la premessa di non-vacuita del piano
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -141,6 +142,23 @@ namespace
 			GEngine->DestroyWorldContext(World);
 			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
 		}
+	}
+
+	/**
+	 * Quante righe di rifiuto al lock-in nominano questa unita'.
+	 *
+	 * Il prefisso e' scritto UNA volta: la stessa stringa e' ripetuta a mano in piu' punti fra i file di
+	 * test, e cambiarla in `RTTurnManager` li renderebbe vacui tutti insieme senza che nessuno diventi rosso.
+	 */
+	int32 CountLockInRejections(const ARTTurnManager* TM, const FString& UnitName)
+	{
+		static const TCHAR* Prefisso = TEXT("piano non valido al lock-in");
+		int32 N = 0;
+		for (const FString& Evento : TM->GetRecentEvents())
+		{
+			if (Evento.Contains(Prefisso) && Evento.Contains(UnitName)) { ++N; }
+		}
+		return N;
 	}
 
 	ARTUnit* SpawnTeamPlanningUnit(UWorld* World, int32 TeamId, const URTHeroData* Hero, const FRTCellId& Cell,
@@ -313,6 +331,184 @@ bool FRTBotWeightInvariantTest::RunTest(const FString&)
 		DestroyTeamPlanningWorld(World);
 	}
 
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInValidatesBotPlansTooTest,
+	"RefactorTactics.Bot.LockInValidatesBotPlansToo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInValidatesBotPlansTooTest::RunTest(const FString&)
+{
+	// 🔴 **L'invariante #1 del DoD di CP 38.2**: *«il bot passa dallo stesso punto — una validazione che il
+	// bot aggira non e' una regola»*. `ValidatePlansAtLockIn` itera `CollectLivingUnits`, che non guarda
+	// `bIsBotControlled`, quindi il bot ci passa gia'. Ma fino al 2026-08-26 **nessun test lo dimostrava**: i
+	// due test del lock-in costruiscono un'unita' del giocatore, e una riga di DoD spuntata su
+	// un'implementazione plausibile ma non misurata e' esattamente il difetto che questo repository paga di
+	// piu'.
+	//
+	// Il piano si scrive a mano sui campi, come fa `PlanBots`: i bot pianificano a INIZIO turno, non al
+	// lock-in, quindi un piano scritto qui sopravvive fino al validatore.
+	UWorld* World = MakeTeamPlanningWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// (!) `TestNotNull` e non un `return false` muto: l'automation ignora il bool di `RunTest` e decide
+	// dall'assenza di errori, quindi un'uscita anticipata senza asserzioni riporta **Success** su un test
+	// che non ha toccato niente.
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena di prova"), Map)) { DestroyTeamPlanningWorld(World); return false; }
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("attore mappa"), MapActor)) { DestroyTeamPlanningWorld(World); return false; }
+	MapActor->MapAsset = Map;
+
+	const FRTCellId Partenza(-2, 0, 0);
+	const FRTCellId CellaScatto(-2, 1, 0);
+	const FRTCellId CellaMovimento(-1, 0, 0);
+	ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), Partenza, /*bBot=*/ true);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("bot"), Bot) || !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyTeamPlanningWorld(World);
+		return false;
+	}
+
+	const int32 DashIdx = Bot->FindDashAbilityIndex();
+	if (!TestNotEqual(TEXT("premessa: l'eroe ha una mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE))
+		|| !TestTrue(TEXT("premessa: l'unita' e' controllata dal bot"), Bot->bIsBotControlled))
+	{
+		DestroyTeamPlanningWorld(World);
+		return false;
+	}
+
+	// Il piano incoerente: scatto piu' movimento normale, due azioni sullo slot Movimento. Le due celle
+	// sono DIVERSE di proposito: con la stessa cella, dopo lo scatto `Cell == PlannedCell` e il movimento
+	// normale diventa un no-op, quindi il turno non distinguerebbe piu' quale delle due azioni ha vinto.
+	Bot->PlannedDashAbility = DashIdx;
+	Bot->PlannedDashCell = CellaScatto;
+	Bot->PlannedCell = CellaMovimento;
+	if (!TestTrue(TEXT("premessa: il piano dichiara un movimento normale"), Bot->HasPlannedNormalMove())
+		|| !TestTrue(TEXT("premessa: il piano non e' vuoto, quindi il validatore non lo salta"),
+			URTPlanValidationLibrary::MakePlanFor(Bot).Num() > 0))
+	{
+		DestroyTeamPlanningWorld(World);
+		return false;
+	}
+
+	TM->LockInAndResolve();
+
+	// (!) Il conteggio si fa **prima** del playback: `ValidatePlansAtLockIn` scrive all'inizio del turno,
+	// quindi la sua riga e' la piu' VECCHIA — e `AddLogEvent` taglia `RecentEvents` dalla testa oltre
+	// `MaxLogLines`. Con una unita' sola non si sfora, ma il giorno in cui questo allestimento ne guadagna
+	// una seconda il test fallirebbe per sfratto, non per il validatore.
+	const int32 Righe = CountLockInRejections(TM, Bot->GetName());
+
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+	TestFalse(TEXT("la risoluzione e' finita entro il numero di tick previsto"), TM->IsResolving());
+
+	TestEqual(TEXT("il piano del BOT passa dallo stesso validatore del giocatore"), Righe, 1);
+
+	DestroyTeamPlanningWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInStaysSilentOnALegalBotPlanTest,
+	"RefactorTactics.Bot.LockInStaysSilentOnALegalBotPlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInStaysSilentOnALegalBotPlanTest::RunTest(const FString&)
+{
+	// Il gemello: senza, un `AddLogEvent` incondizionato passerebbe il test qui sopra. Stesso allestimento,
+	// stesso bot, ma un piano LEGALE — un movimento e basta.
+	UWorld* World = MakeTeamPlanningWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena di prova"), Map)) { DestroyTeamPlanningWorld(World); return false; }
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("attore mappa"), MapActor)) { DestroyTeamPlanningWorld(World); return false; }
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-2, 0, 0), /*bBot=*/ true);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("bot"), Bot) || !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyTeamPlanningWorld(World);
+		return false;
+	}
+
+	Bot->PlannedCell = FRTCellId(-2, 1, 0); // un movimento e basta: nessuno scatto, nessun conflitto di slot
+
+	// (!) **Le premesse contro la vacuita', e non sono decorative**: `ValidatePlansAtLockIn` salta le unita'
+	// con un piano VUOTO (`if (Plan.Num() == 0) continue`). Senza queste tre righe, il giorno in cui il piano
+	// diventasse vuoto — la cella di spawn spostata, `MakePlanFor` che smette di emettere `Action.Move` — il
+	// conteggio resterebbe zero e il test resterebbe verde senza aver piu' attraversato il validatore.
+	if (!TestTrue(TEXT("premessa: l'unita' e' controllata dal bot"), Bot->bIsBotControlled)
+		|| !TestTrue(TEXT("premessa: il piano dichiara un movimento normale"), Bot->HasPlannedNormalMove())
+		|| !TestTrue(TEXT("premessa: il piano non e' vuoto, quindi il validatore non lo salta"),
+			URTPlanValidationLibrary::MakePlanFor(Bot).Num() > 0))
+	{
+		DestroyTeamPlanningWorld(World);
+		return false;
+	}
+
+	TM->LockInAndResolve();
+
+	// Stesso predicato del gemello — filtrato per nome — cosi' le due asserzioni restano confrontabili
+	// anche quando questo allestimento guadagnera' una seconda unita'.
+	const int32 Righe = CountLockInRejections(TM, Bot->GetName());
+
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+	TestFalse(TEXT("la risoluzione e' finita entro il numero di tick previsto"), TM->IsResolving());
+
+	TestEqual(TEXT("un piano legale del bot non produce nessuna riga di rifiuto"), Righe, 0);
+
+	DestroyTeamPlanningWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanBotsWritesWhatTheValidatorReadsTest,
+	"RefactorTactics.Bot.PlanBotsWritesWhatTheValidatorReads",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanBotsWritesWhatTheValidatorReadsTest::RunTest(const FString&)
+{
+	// I due test qui sopra scrivono il piano del bot A MANO, «come fa `PlanBots`». Quel «come» era
+	// un'assunzione dichiarata in un commento e ancorata a niente: se `PlanBots` cominciasse a dichiarare il
+	// movimento per un canale che `MakePlanFor` non legge — `PlannedWaypoints`, una rotta composita — il piano
+	// del bot VERO smetterebbe di arrivare al validatore mentre quei due test restano verdi.
+	//
+	// Questo lega i due capi: fa pianificare il bot davvero, e verifica che cio' che scrive sia cio' che il
+	// validatore legge.
+	UWorld* World = MakeTeamPlanningWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena di prova"), Map)) { DestroyTeamPlanningWorld(World); return false; }
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("attore mappa"), MapActor)) { DestroyTeamPlanningWorld(World); return false; }
+	MapActor->MapAsset = Map;
+
+	// Un avversario serve: senza qualcuno da raggiungere, il bot puo' legittimamente non pianificare niente.
+	ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-2, 0, 0), /*bBot=*/ true);
+	ARTUnit* Nemico = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0, 0), /*bBot=*/ true);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("bot"), Bot) || !TestNotNull(TEXT("nemico"), Nemico) || !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyTeamPlanningWorld(World);
+		return false;
+	}
+
+	TM->PlanBotsForTest();
+
+	// La proprieta': il piano che il bot ha scritto da solo e' VISIBILE al validatore. `MakePlanFor` e' il
+	// punto da cui `ValidatePlansAtLockIn` ricava le voci da giudicare, e un piano vuoto lo fa `continue`.
+	const TArray<FRTPlannedAction> Piano = URTPlanValidationLibrary::MakePlanFor(Bot);
+	AddInfo(FString::Printf(TEXT("il bot ha pianificato: cella %s, dash %d, voci lette dal validatore %d"),
+		*Bot->PlannedCell.ToString(), Bot->PlannedDashAbility, Piano.Num()));
+
+	TestTrue(TEXT("il bot ha pianificato qualcosa"),
+		Bot->HasPlannedNormalMove() || Bot->PlannedDashAbility != INDEX_NONE
+		|| Bot->PlannedAbilityIndex != INDEX_NONE);
+	TestTrue(TEXT("e cio' che ha scritto arriva al validatore, non a un canale che non legge"), Piano.Num() > 0);
+
+	DestroyTeamPlanningWorld(World);
 	return true;
 }
 
