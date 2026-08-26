@@ -152,3 +152,20 @@ test('la copertura distingue i blocchi confrontati da quelli scartati', () => {
   assert.equal(blocks.filter(isComparable).length, 2);
   assert.equal(blocks.filter((b) => !isComparable(b)).length, 1);
 });
+
+test('in PARITA vince la prima larghezza incontrata, che e quella dell intestazione', () => {
+  // Quattro righe, due larghezze, due a due: non c'e' una maggioranza. La scelta e' `k > best`, che
+  // tiene la PRIMA vista — l'intestazione — invece dell'ultima. Senza questo test la mutazione in
+  // `k >= best` passava inosservata: verificato, la suite restava a 81/81.
+  const md = [
+    '| A | B |',
+    '|---|---|',
+    '| a | b | c |',
+    '| d | e | f |',
+  ].join('\n');
+
+  const broken = findBrokenRows(md);
+
+  assert.deepEqual(broken.map((b) => b.line), [3, 4]);
+  assert.equal(broken[0]!.expected, 2);
+});
