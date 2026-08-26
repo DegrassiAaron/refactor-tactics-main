@@ -15,7 +15,6 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
@@ -63,12 +62,7 @@ namespace
 		}
 		// `World` come Outer, non il transient package: e' la stessa disciplina di
 		// `URTMatchSetupLibrary::MakeTestArena`, che rifiuta un Outer nullo invece di inventarsene uno.
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>(World);
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(World, Radius);
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		if (!Actor)
 		{

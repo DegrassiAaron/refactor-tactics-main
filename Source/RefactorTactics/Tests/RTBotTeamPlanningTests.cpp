@@ -16,7 +16,6 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
@@ -271,11 +270,7 @@ bool FRTBotWeightInvariantTest::RunTest(const FString&)
 	// mappa, e su due layer gli stessi numeri reggerebbero.
 	auto MakeMap = []()
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
 		for (int32 L = 1; L <= 2; ++L)
 		{
 			M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, L)));

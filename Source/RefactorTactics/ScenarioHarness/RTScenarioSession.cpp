@@ -7,7 +7,6 @@
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: un'azione di Prep non ha un bersaglio da dichiarare
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
@@ -404,12 +403,14 @@ namespace
 		}
 		else
 		{
-			Map = NewObject<URTHexMapAsset>();
-			for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-			{
-				Map->AddOrUpdateCell(FRTHexCellData(Id));
-			}
+			// Stesso `Outer` del ramo gemello qui sopra: un asset appeso al transient package
+			// sopravviverebbe al mondo che lo espone, e i due rami avrebbero vite diverse.
+			Map = URTMatchSetupLibrary::MakeFlatArena(World, Radius);
 		}
+
+		// `MakeFlatArena` torna nullptr per un raggio negativo, dove `NewObject` dava sempre un asset:
+		// senza questa guardia le righe qui sotto lo dereferenziano.
+		if (!Map) { return nullptr; }
 
 		// Le modifiche DOPO l'arena piena: una cella elencata due volte vince l'ultima, e l'esito non dipende
 		// dall'ordine di generazione.

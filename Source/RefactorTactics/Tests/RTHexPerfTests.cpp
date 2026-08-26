@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
@@ -7,7 +8,6 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "HAL/PlatformTime.h"
@@ -38,12 +38,7 @@ namespace
 {
 	URTHexMapAsset* MakePerfMap(int32 Radius)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		return M;
 	}
 

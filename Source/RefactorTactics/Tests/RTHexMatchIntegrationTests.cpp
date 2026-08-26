@@ -57,12 +57,7 @@ namespace
 
 	URTHexMapAsset* SpawnHexMatchMap(UWorld* World, int32 Radius)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = M;

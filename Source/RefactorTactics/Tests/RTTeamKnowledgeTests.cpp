@@ -1,7 +1,7 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Perception/RTTeamKnowledge.h"
 
@@ -23,12 +23,7 @@ namespace
 	/** Arena piena di raggio N sul layer 0. Nome distinto per file: la unity build condivide la TU. */
 	URTHexMapAsset* MakeKnowledgeMap(int32 Radius)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		return M;
 	}
 

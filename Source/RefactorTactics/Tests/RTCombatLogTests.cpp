@@ -18,13 +18,13 @@
 // avessero smesso. Ora la sequenza leggibile si DERIVA dal TurnLog, che e' l'autorita'.
 
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTTurnLog.h"
@@ -58,12 +58,7 @@ namespace RTCombatLogFixture
 
 	ARTHexMapActor* SpawnMap(UWorld* World, int32 Radius = 6)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = M;

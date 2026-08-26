@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h" // GetGenericActionIds: il kit e' eroe + generiche (D-025)
 #include "Ability/RTEquipmentData.h" // ERTEquipmentSlot: una variante MODIFICA l'attacco base, non lo accoda
@@ -7,7 +8,6 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Frontend/RTStartupReport.h"
@@ -47,12 +47,7 @@ namespace
 	/** Mappa esagonale piena: abbastanza celle percorribili per le quattro posizioni di partenza. */
 	ARTHexMapActor* SpawnRosterMap(UWorld* World, int32 Radius = 4)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = M;

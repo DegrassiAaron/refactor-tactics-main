@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionDef.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTActionData.h"
@@ -6,7 +7,6 @@
 #include "Ability/RTHeroData.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTMovementActionLibrary.h"
 
@@ -17,12 +17,7 @@ namespace
 	/** Esagono pieno di raggio N, tutte le celle percorribili. Nome distinto per file (unity build). */
 	URTHexMapAsset* MakeMoveActionMap(int32 Radius = 6)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		return M;
 	}
 
