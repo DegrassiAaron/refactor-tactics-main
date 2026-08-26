@@ -865,7 +865,8 @@ protected:
 	 * da `Sources` — quella e' una cella, e una cella non e' un'unita' ([D-063]).
 	 */
 	void ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TArray<int32>& Amounts,
-		const TArray<FRTCellId>& Sources, const TArray<ARTUnit*>& Healers);
+		const TArray<FRTCellId>& Sources, const TArray<ARTUnit*>& Healers,
+		const TArray<FRTActionDef>& Defs);
 
 	/**
 	 * Voce di TurnLog per uno spostamento SUBITO — spinta o trazione (#307). Chiamata dai due punti che
