@@ -412,4 +412,114 @@ bool FRTActionDefDerivedFromIsEmptyByDefaultTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogReachableOrDeclaredTest,
+	"RefactorTactics.Catalog.EveryCoreActionIsReachableOrDeclared",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
+{
+	// Un'azione del catalogo core arriva in partita per quattro vie. Tre sono interrogabili qui; la
+	// quarta — il motore che la scrive da se', come `Action.Move` in `MakePlanFor` — e' una proprieta' del
+	// SORGENTE e non del dato, quindi non si misura: vive nell'elenco sotto con la sua ragione.
+	TSet<FName> Raggiungibili;
+
+	for (const FName& Id : URTCatalogLibrary::GetGenericActionIds())
+	{
+		Raggiungibili.Add(Id);
+	}
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (!Hero) { continue; }
+		for (const URTActionData* A : Hero->Actions)
+		{
+			if (!A) { continue; }
+			// Due campi, due vie diverse e ugualmente valide: «un eroe porta un'abilita' che eredita da X»
+			// e «un eroe porta un profilo di X» (D-033, che e' il caso degli attacchi base).
+			if (!A->Def.DerivedFromActionId.IsNone()) { Raggiungibili.Add(A->Def.DerivedFromActionId); }
+			if (!A->Def.BaseActionId.IsNone())        { Raggiungibili.Add(A->Def.BaseActionId); }
+		}
+	}
+
+	// ⚠️ La via «base di un modulo reazione» NON entra, ed e' una scelta: i moduli si consegnano come
+	// equipaggiamento, e nessuna unita' ne riceve in partita — `ARTUnit` non ha il campo, e `EquipmentId`
+	// vive solo nei cataloghi, nel data asset e nello `ScenarioHarness`. Contarla direbbe il vero sul
+	// catalogo e il falso sulla partita. Le tre azioni che ne dipendono sono dichiarate qui sotto.
+
+	// Le eccezioni, ognuna con la sua ragione. Le categorie invecchiano in modo diverso: `Motore` cade se
+	// il gameplay smette di produrre quell'azione, `Modulo` quando l'equipaggiamento diventa consegnabile,
+	// `NonAssegnata` quando un eroe la porta.
+	const TMap<FName, FString> Dichiarate = {
+		// Scritte dal motore: il gameplay le produce senza passare da un kit.
+		{ TEXT("Action.Move"),            TEXT("Motore: MakePlanFor la aggiunge quando l'unita' si muove") },
+		{ TEXT("Action.Cleanse"),         TEXT("Motore: il Blast la CERCA fra le abilita'; produttore assente, #1389") },
+		{ TEXT("Action.Heal"),            TEXT("Motore: RTTurnManager la scrive come voce di cura") },
+		{ TEXT("Action.Interrupt"),       TEXT("Motore: raccolta e applicata dal TurnManager") },
+		{ TEXT("Action.ModifyArc"),       TEXT("Motore: scritta dal TurnManager") },
+		// Basi di moduli reazione, e i moduli non arrivano a un'unita'.
+		{ TEXT("Action.Anchor"),          TEXT("Modulo: base di Reaction.Anchor, equipaggiamento non consegnabile") },
+		{ TEXT("Action.Evade"),           TEXT("Modulo: base di Reaction.HazardEscape, idem") },
+		{ TEXT("Action.Purge"),           TEXT("Modulo: base di Reaction.Cleanse, idem") },
+		// Bloccata da una migrazione decisa e non fatta.
+		{ TEXT("Action.Sprint"),          TEXT("E38: forma canonica profilo Move (D-015/D-116), il codice ha FastMovement") },
+		// Contenuto che nessun eroe porta (E6).
+		{ TEXT("Action.CircularAoE"),     TEXT("NonAssegnata") },
+		{ TEXT("Action.CreateWater"),     TEXT("NonAssegnata: showcase-v0.1 la elenca fra le consegne") },
+		{ TEXT("Action.HeavyAttack"),     TEXT("NonAssegnata") },
+		{ TEXT("Action.Interact"),        TEXT("NonAssegnata: e' una delle sette di D-025, mai messa in un kit") },
+		{ TEXT("Action.Leap"),            TEXT("NonAssegnata") },
+		{ TEXT("Action.LineAttack"),      TEXT("NonAssegnata") },
+		{ TEXT("Action.MarkTarget"),      TEXT("NonAssegnata") },
+		{ TEXT("Action.PrecisionAttack"), TEXT("NonAssegnata") },
+		{ TEXT("Action.Pull"),            TEXT("NonAssegnata") },
+		{ TEXT("Action.Push"),            TEXT("NonAssegnata") },
+		{ TEXT("Action.Reposition"),      TEXT("NonAssegnata") },
+		{ TEXT("Action.Root"),            TEXT("NonAssegnata") },
+		{ TEXT("Action.Shield"),          TEXT("NonAssegnata: adr-0003 la da' per arrivata") },
+		{ TEXT("Action.Slow"),            TEXT("NonAssegnata") },
+		{ TEXT("Action.SuppressiveLine"), TEXT("NonAssegnata") },
+	};
+
+	// Anti-vacuita', e non e' teorica: se il roster tornasse vuoto ogni azione risulterebbe non
+	// raggiungibile, e con un elenco lungo abbastanza il test resterebbe VERDE raccontando che va tutto
+	// bene. Queste tre righe fanno cadere quel caso.
+	TestTrue(TEXT("almeno tredici azioni sono raggiungibili"), Raggiungibili.Num() >= 13);
+	TestTrue(TEXT("Guard e' raggiungibile: e' generica"),
+		Raggiungibili.Contains(FName(TEXT("Action.Guard"))));
+	TestTrue(TEXT("Charge e' raggiungibile: la porta Hero.Riktor.Ram"),
+		Raggiungibili.Contains(FName(TEXT("Action.Charge"))));
+
+	int32 Esaminate = 0;
+	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+	{
+		const bool bRaggiungibile = Raggiungibili.Contains(Def.ActionId);
+		const FString* Ragione = Dichiarate.Find(Def.ActionId);
+
+		// Verso 1 — un'azione nuova senza portatore non passa in silenzio.
+		if (!bRaggiungibile && !Ragione)
+		{
+			AddError(FString::Printf(
+				TEXT("%s non e' raggiungibile da nessun kit e non e' dichiarata: assegnala a un eroe, ")
+				TEXT("oppure aggiungila all'elenco di questo test con la ragione per cui non lo e'."),
+				*Def.ActionId.ToString()));
+		}
+		// Verso 2 — l'elenco non si fossilizza: chi assegna un'azione toglie la sua riga.
+		if (bRaggiungibile && Ragione)
+		{
+			AddError(FString::Printf(
+				TEXT("%s ORA e' raggiungibile ma e' ancora dichiarata come «%s»: togli la riga."),
+				*Def.ActionId.ToString(), **Ragione));
+		}
+		++Esaminate;
+	}
+
+	// Verso 3 — una voce che non corrisponde a nessuna azione del catalogo e' un residuo.
+	for (const TPair<FName, FString>& Voce : Dichiarate)
+	{
+		TestTrue(*FString::Printf(TEXT("%s dichiarata esiste ancora nel catalogo"), *Voce.Key.ToString()),
+			URTCatalogLibrary::FindCoreAction(Voce.Key).ActionId == Voce.Key);
+	}
+
+	TestTrue(TEXT("il catalogo core non e' vuoto"), Esaminate > 30);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
