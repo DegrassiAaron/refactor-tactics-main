@@ -130,7 +130,12 @@ bool ARTHUD::ShouldDrawUnitOverlay(const FRTKnowledgeEntry* Entry, bool bIsOwnTe
 	{
 		return true;
 	}
-	return Entry != nullptr;
+
+	// 🔴 «Esiste una voce» NON e' «la posizione e' attuale». Un `Remembered` ha una voce per costruzione
+	// (`ViewForTeam`: `CellOnly` -> contatto -> voce), e disegnarlo significherebbe disegnarlo DUE volte —
+	// il personaggio vero dov'e' davvero, piu' la sagoma dove lo si ricordava. Questo predicato e'
+	// COMPLEMENTARE a `ContactGhostTargetForUnit`: o si vede l'unita', o si vede il suo ricordo.
+	return Entry != nullptr && Entry->Visibility == ERTKnowledgeVisibility::Live;
 }
 
 TOptional<FRTContactGhostTarget> ARTHUD::ContactGhostTargetForUnit(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam)
@@ -536,8 +541,10 @@ void ARTHUD::DrawHUD()
 			Unit->HideContactGhost();
 		}
 
-		// Filtro di conoscenza (CP 13.5): un'unita' avversaria si disegna solo se la squadra del
-		// giocatore la conosce. La propria squadra si disegna sempre.
+		// Filtro di conoscenza (CP 13.5): un'unita' avversaria si disegna solo se la squadra del giocatore
+		// la VEDE ORA (`Live`). Un ricordo (`Remembered`) non si disegna qui — lo disegna la sagoma qui
+		// sopra, alla cella del contatto: le due strade sono complementari, mai contemporanee.
+		// La propria squadra si disegna sempre.
 		if (!bIsKnownToObserver)
 		{
 			continue;

@@ -103,8 +103,23 @@ TArray<FString> ARTTurnManager::ComposeVisibleLogLines(const TArray<FRTCombatLog
 	for (const FRTCombatLogLine& L : Lines)
 	{
 		// Riga di mondo: nessun soggetto da conoscere, quindi nessuna ragione per nasconderla.
-		if (L.SubjectStableUnitId == INDEX_NONE
-			|| URTKnowledgeViewLibrary::FindEntry(View, L.SubjectStableUnitId) != nullptr)
+		if (L.SubjectStableUnitId == INDEX_NONE)
+		{
+			Out.Add(L.Text);
+			continue;
+		}
+
+		// 🔴 Serve una voce `Live`, non una voce qualsiasi — la stessa regola di
+		// `ARTHUD::ShouldDrawUnitOverlay`. Una riga porta le coordinate ATTUALI del soggetto (le stampa
+		// `URTTurnLogLibrary::DescribeEntry`, `SrcCell` e `TgtCell` per ogni movimento): per un
+		// `Remembered` quelle coordinate sono precisamente cio' che la squadra non sa piu'.
+		//
+		// ⚠️ **Fail-closed, e si paga.** Una riga prodotta nel Blast su un'unita' che al refresh successivo
+		// e' diventata `Remembered` viene soppressa: si perde una riga vera. E' la direzione giusta perche'
+		// il contrario regalerebbe la posizione attuale di un'unita' che non si vede — un leak, non una
+		// riga in meno.
+		const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, L.SubjectStableUnitId);
+		if (Entry != nullptr && Entry->Visibility == ERTKnowledgeVisibility::Live)
 		{
 			Out.Add(L.Text);
 		}

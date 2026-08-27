@@ -213,6 +213,12 @@ public:
 	 * ⚠️ La propria squadra si disegna SEMPRE, anche senza una voce nella vista: nascondere il proprio
 	 * schieramento a se' stessi non e' conoscenza parziale, e' un difetto.
 	 *
+	 * 🔴 **Serve una voce `Live`, non una voce qualsiasi.** Un nemico `Remembered` ha una voce — la porta
+	 * gliela costruisce apposta — ma la sua cella e' quella del CONTATTO: disegnare il personaggio vero
+	 * significherebbe mostrarlo alla posizione ATTUALE mentre la sagoma lo mostra al ricordo, cioe' due
+	 * copie della stessa unita'. Questo predicato e' **complementare** a `ContactGhostTargetForUnit`: per
+	 * la stessa voce esattamente uno dei due risponde di si'.
+	 *
 	 * Prende `Entry` gia' cercata (`URTKnowledgeViewLibrary::FindEntry`), non la `FRTKnowledgeView` intera:
 	 * `DrawHUD` cerca la voce UNA volta per unita' e la passa qui e a `ContactGhostTargetForUnit`, invece di
 	 * interrogare la vista due volte per la stessa domanda.

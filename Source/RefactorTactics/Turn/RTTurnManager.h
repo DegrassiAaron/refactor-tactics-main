@@ -302,6 +302,10 @@ public:
 	 * 🔴 Una riga il cui soggetto e' ignoto **sparisce intera**, non viene oscurata: una riga oscurata
 	 * dice comunque che qualcosa e' successo, e quando e' successo.
 	 * L'ORDINE di produzione si conserva: un combat log riordinato non e' un log.
+	 *
+	 * 🔴 **Ignoto significa «non visto ORA»**, non «senza voce»: un soggetto `Remembered` ha una voce, ma
+	 * le coordinate stampate nella riga sono quelle attuali, cioe' cio' che la squadra ha smesso di sapere.
+	 * Stessa regola di `ARTHUD::ShouldDrawUnitOverlay`, e per la stessa ragione.
 	 */
 	static TArray<FString> ComposeVisibleLogLines(const TArray<FRTCombatLogLine>& Lines,
 		const FRTKnowledgeView& View);

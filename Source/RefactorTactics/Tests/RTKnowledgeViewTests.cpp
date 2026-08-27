@@ -40,6 +40,33 @@ namespace
 		K.Contacts = Contacts;
 		return K;
 	}
+
+	// Le celle dei tre casi che il difetto «due copie» mette insieme. L'unita' 3 ne ha DUE, ed e' il punto:
+	// dove la squadra la ricorda (`KvContactCell`) e dove sta davvero adesso (`KvActualCell`).
+	const FRTCellId KvAllyCell(0, 0, 0);
+	const FRTCellId KvSeenCell(3, 0, 0);
+	const FRTCellId KvContactCell(4, 0, 0);
+	const FRTCellId KvActualCell(9, 0, 0);
+
+	/**
+	 * Una vista coi TRE casi insieme: alleato (1), nemico VISTO ora (2), nemico appena perso di vista
+	 * (3, `Remembered`). Costruita passando per `ViewForTeam`, non montando `FRTKnowledgeEntry` a mano:
+	 * una voce `Remembered` deve nascere dalla porta vera, altrimenti il test proverebbe la propria fixture.
+	 */
+	FRTKnowledgeView KvViewWithRemembered()
+	{
+		FRTTeamKnowledge K = KvKnowledge({
+			FRTLastKnownContact(2, KvSeenCell, 5),
+			FRTLastKnownContact(3, KvContactCell, 5) });
+		K.VisibleCells.Add(KvSeenCell); // solo la 2 e' sotto gli occhi: la 3 resta un ricordo
+
+		const TArray<FRTKnowledgeSubject> Subjects = {
+			KvSubject(1, 0, KvAllyCell),
+			KvSubject(2, 1, KvSeenCell),
+			KvSubject(3, 1, KvActualCell)
+		};
+		return URTKnowledgeViewLibrary::ViewForTeam(K, Subjects, /*ObserverTeamId*/ 0);
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeViewOmitsHiddenTest,
@@ -347,6 +374,122 @@ bool FRTKnowledgeContactGhostTargetForFourCasesTest::RunTest(const FString&)
 	TestFalse(TEXT("nessuna voce -> nessuna sagoma"),
 		ARTHUD::ContactGhostTargetForUnit(nullptr, /*bIsOwnTeam*/ false).IsSet());
 
+	return true;
+}
+
+/**
+ * 🔴 Il difetto portante della fase: un nemico `Remembered` restava disegnato, cliccabile, con nome e barra
+ * HP alla sua posizione VERA, **mentre** la sagoma lo disegnava una seconda volta alla cella ricordata. Due
+ * copie della stessa unita', cioe' l'opposto di cio' per cui la sagoma esiste.
+ *
+ * La causa era `ShouldDrawUnitOverlay` che chiedeva «esiste una voce?» invece di «la posizione e' attuale?».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeHudHidesRememberedEnemyTest,
+	"RefactorTactics.Knowledge.HudHidesRememberedEnemy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeHudHidesRememberedEnemyTest::RunTest(const FString&)
+{
+	const FRTKnowledgeView View = KvViewWithRemembered();
+
+	const FRTKnowledgeEntry* Remembered = URTKnowledgeViewLibrary::FindEntry(View, 3);
+	if (!TestNotNull(TEXT("il ricordo HA una voce: il difetto non era l'assenza della voce"), Remembered))
+	{
+		return false;
+	}
+	TestTrue(TEXT("ed e' proprio un ricordo"), Remembered->Visibility == ERTKnowledgeVisibility::Remembered);
+	TestTrue(TEXT("la voce porta la cella del CONTATTO"), Remembered->Cell == KvContactCell);
+
+	// 🔴 Il cuore: la voce c'e', e proprio per questo il personaggio vero NON si disegna.
+	TestFalse(TEXT("un nemico RICORDATO non si disegna"),
+		ARTHUD::ShouldDrawUnitOverlay(Remembered, /*bIsOwnTeam*/ false));
+
+	// Anti-vacuita': il predicato non e' diventato «falso per ogni nemico».
+	TestTrue(TEXT("il nemico VISTO ORA continua a disegnarsi"),
+		ARTHUD::ShouldDrawUnitOverlay(URTKnowledgeViewLibrary::FindEntry(View, 2), false));
+	TestTrue(TEXT("e l'alleato pure"),
+		ARTHUD::ShouldDrawUnitOverlay(URTKnowledgeViewLibrary::FindEntry(View, 1), /*bIsOwnTeam*/ true));
+	return true;
+}
+
+/**
+ * La stessa regola sul secondo canale: le righe di un `Remembered` portano le coordinate ATTUALI del
+ * soggetto (`DescribeEntry` stampa `SrcCell` e `TgtCell` di ogni movimento), cioe' precisamente cio' che la
+ * squadra ha smesso di sapere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeCombatLogOmitsRememberedTest,
+	"RefactorTactics.Knowledge.CombatLogOmitsRemembered",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeCombatLogOmitsRememberedTest::RunTest(const FString&)
+{
+	const FRTKnowledgeView View = KvViewWithRemembered();
+
+	TArray<FRTCombatLogLine> Raw;
+	Raw.Add({ TEXT("Turno 5 - pianificazione"),          INDEX_NONE }); // riga di mondo
+	Raw.Add({ TEXT("Alleato: passo -> (0,0,L0)"),        1 });
+	Raw.Add({ TEXT("Nemico visto: passo -> (3,0,L0)"),   2 });
+	Raw.Add({ TEXT("Ricordato: passo -> (9,0,L0)"),      3 }); // la cella ATTUALE, non quella ricordata
+
+	const TArray<FString> Visible = ARTTurnManager::ComposeVisibleLogLines(Raw, View);
+
+	// 🔴 Il cuore: la riga del ricordato sparisce INTERA.
+	TestFalse(TEXT("la riga del RICORDATO sparisce"), Visible.Contains(TEXT("Ricordato: passo -> (9,0,L0)")));
+
+	// E la sua posizione attuale non trapela da nessun'altra riga.
+	for (const FString& L : Visible)
+	{
+		TestFalse(TEXT("nessuna riga nomina la posizione attuale del ricordato"), L.Contains(TEXT("(9,0,L0)")));
+	}
+
+	// Anti-vacuita': il filtro non ha svuotato il log. Le altre tre restano, nell'ordine di produzione.
+	TestEqual(TEXT("tre righe su quattro"), Visible.Num(), 3);
+	TestTrue(TEXT("la riga di mondo resta"), Visible.Contains(TEXT("Turno 5 - pianificazione")));
+	TestTrue(TEXT("l'alleato resta"),        Visible.Contains(TEXT("Alleato: passo -> (0,0,L0)")));
+	TestTrue(TEXT("il nemico visto resta"),  Visible.Contains(TEXT("Nemico visto: passo -> (3,0,L0)")));
+	return true;
+}
+
+/**
+ * 🔴 L'asserto che impedisce a un futuro refactor di riaprire il caso «due copie».
+ *
+ * `ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit` leggono la STESSA voce e devono essere
+ * COMPLEMENTARI: per un nemico esattamente uno dei due risponde di si'. Se entrambi rispondono di si' si
+ * vedono due copie; se entrambi rispondono di no il nemico sparisce senza lasciare traccia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeOverlayAndGhostAreComplementaryTest,
+	"RefactorTactics.Knowledge.OverlayAndGhostAreComplementary",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeOverlayAndGhostAreComplementaryTest::RunTest(const FString&)
+{
+	const FRTKnowledgeView View = KvViewWithRemembered();
+
+	const FRTKnowledgeEntry* Remembered = URTKnowledgeViewLibrary::FindEntry(View, 3);
+	const FRTKnowledgeEntry* Live = URTKnowledgeViewLibrary::FindEntry(View, 2);
+	if (!TestNotNull(TEXT("la voce del ricordo c'e'"), Remembered)
+		|| !TestNotNull(TEXT("la voce del nemico visto c'e'"), Live))
+	{
+		return false;
+	}
+
+	// Ricordo: nessun personaggio, una sagoma alla cella del contatto.
+	const bool bOverlayForRemembered = ARTHUD::ShouldDrawUnitOverlay(Remembered, /*bIsOwnTeam*/ false);
+	const TOptional<FRTContactGhostTarget> GhostForRemembered =
+		ARTHUD::ContactGhostTargetForUnit(Remembered, /*bIsOwnTeam*/ false);
+	TestFalse(TEXT("ricordo: niente personaggio"), bOverlayForRemembered);
+	TestTrue (TEXT("ricordo: una sagoma"),         GhostForRemembered.IsSet());
+	TestTrue (TEXT("esattamente uno dei due, sul ricordo"),
+		bOverlayForRemembered != GhostForRemembered.IsSet());
+	if (GhostForRemembered.IsSet())
+	{
+		TestTrue (TEXT("la sagoma sta alla cella del CONTATTO"), GhostForRemembered->Cell == KvContactCell);
+		TestFalse(TEXT("mai a quella attuale"),                  GhostForRemembered->Cell == KvActualCell);
+	}
+
+	// Visto ora: il personaggio, e nessuna sagoma a confonderlo.
+	const bool bOverlayForLive = ARTHUD::ShouldDrawUnitOverlay(Live, /*bIsOwnTeam*/ false);
+	const bool bGhostForLive = ARTHUD::ContactGhostTargetForUnit(Live, /*bIsOwnTeam*/ false).IsSet();
+	TestTrue (TEXT("visto ora: il personaggio"), bOverlayForLive);
+	TestFalse(TEXT("visto ora: nessuna sagoma"), bGhostForLive);
+	TestTrue (TEXT("esattamente uno dei due, sul visto"), bOverlayForLive != bGhostForLive);
 	return true;
 }
 
