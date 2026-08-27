@@ -873,7 +873,34 @@ public:
 	/** Quota locale dell'anello di SELEZIONE: resta alla quota-terra di riferimento, e fa da cornice esterna. */
 	static float SelectionRingLocalZ(float VisualZOffset);
 
+	/**
+	 * Se l'unita' va renderizzata, date le DUE variabili che lo decidono.
+	 *
+	 * 🔴 Pura, statica e in un posto solo perche' il difetto naturale e' calcolarla in due: un morto che
+	 * «diventa noto» tornerebbe visibile. La morte vince sempre sulla conoscenza.
+	 */
+	static bool ShouldBeRendered(bool bAlive, bool bKnownToObserver);
+
+	/**
+	 * Dichiara se l'osservatore locale conosce questa unita'. REVERSIBILE, a differenza di `HideForDefeat`,
+	 * che significa morte ed e' a senso unico per SEMANTICA.
+	 */
+	void SetKnownToObserver(bool bKnown);
+
 protected:
+	/** Vero finche' l'osservatore locale non dichiara il contrario: un'unita' nasce nota. */
+	bool bKnownToObserver = true;
+
+	/**
+	 * Applica ai COMPONENTI VISIVI l'esito di `ShouldBeRendered`.
+	 *
+	 * 🔴 **Non usa `SetActorHiddenInGame`, ed e' il punto di questa funzione.** Quella propaga a TUTTI i
+	 * componenti dell'actor, inclusa la sagoma dell'ultimo contatto (Task 6), che vive su questo stesso
+	 * actor e deve vedersi **proprio quando l'unita' non si vede**. Nascondere l'actor renderebbe la sagoma
+	 * inerte, e nessun test automatico lo prenderebbe: si vedrebbe solo in PIE.
+	 */
+	void ApplyObserverVisibility();
+
 	virtual void BeginPlay() override;
 
 	/**

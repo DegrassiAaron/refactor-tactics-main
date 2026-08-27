@@ -4,6 +4,7 @@
 #include "Perception/RTTeamKnowledge.h"
 #include "UI/RTHUD.h"
 #include "Turn/RTTurnManager.h" // ARTTurnManager::ComposeVisibleLogLines
+#include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -211,6 +212,21 @@ bool FRTKnowledgeCombatLogOmitsUnknownTest::RunTest(const FString&)
 		TestEqual(TEXT("l'ordine e' quello di produzione"), Visible[0], TEXT("Turno 5 - pianificazione"));
 		TestEqual(TEXT("secondo"), Visible[1], TEXT("Alleato: passo -> (0,0,L0)"));
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeUnitRenderingCombinesAliveAndKnownTest,
+	"RefactorTactics.Knowledge.UnitRenderingCombinesAliveAndKnown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeUnitRenderingCombinesAliveAndKnownTest::RunTest(const FString&)
+{
+	TestTrue (TEXT("vivo e noto: si vede"),        ARTUnit::ShouldBeRendered(true,  true));
+	TestFalse(TEXT("vivo ma ignoto: sparisce"),    ARTUnit::ShouldBeRendered(true,  false));
+
+	// 🔴 Le due righe che impediscono il difetto: un MORTO non torna visibile perche' la conoscenza lo
+	// «rivela». La morte vince sempre sulla conoscenza, in entrambi i versi.
+	TestFalse(TEXT("morto e noto: resta nascosto"), ARTUnit::ShouldBeRendered(false, true));
+	TestFalse(TEXT("morto e ignoto: nascosto"),     ARTUnit::ShouldBeRendered(false, false));
 	return true;
 }
 

@@ -220,6 +220,47 @@ void ARTUnit::HideForDefeat()
 	SetActorEnableCollision(false);
 }
 
+bool ARTUnit::ShouldBeRendered(bool bAlive, bool bKnownToObserver)
+{
+	return bAlive && bKnownToObserver;
+}
+
+void ARTUnit::SetKnownToObserver(bool bKnown)
+{
+	if (bKnownToObserver == bKnown)
+	{
+		return; // niente churn di stato render a ogni frame
+	}
+	bKnownToObserver = bKnown;
+	ApplyObserverVisibility();
+}
+
+void ARTUnit::ApplyObserverVisibility()
+{
+	const bool bRender = ShouldBeRendered(IsAlive(), bKnownToObserver);
+
+	// 🔴 Si nascondono i COMPONENTI, non l'actor. `SetActorHiddenInGame` propaga a tutti i componenti,
+	// sagoma dell'ultimo contatto compresa (Task 6) — che deve vedersi proprio quando l'unita' non si vede.
+	if (Mesh)          { Mesh->SetVisibility(bRender, /*bPropagateToChildren*/ false); }
+	if (TeamRing)      { TeamRing->SetVisibility(bRender, false); }
+	if (SelectionRing) { SelectionRing->SetVisibility(bRender, false); }
+
+	// La freccia di facing ha gia' un interruttore proprio: qui si fa l'AND, non la si sovrascrive.
+	if (FacingArrow)   { FacingArrow->SetVisibility(bRender && bShowFacingArrow, false); }
+
+	// La skeletal arriva dal Blueprint `BP_Unit_*`, non dal C++: si cerca fra i componenti.
+	if (USkeletalMeshComponent* Skeletal = FindComponentByClass<USkeletalMeshComponent>())
+	{
+		Skeletal->SetVisibility(bRender, false);
+	}
+
+	// La collisione si spegne sull'ACTOR: `SetVisibility` non la tocca, e l'unico proxy di click e' `Mesh`
+	// (QueryOnly + ECR_Block su tutti i canali). Un'unita' invisibile ma cliccabile e' peggio di una
+	// visibile: il giocatore selezionerebbe qualcosa che non vede. La sagoma e' `NoCollision`, quindi
+	// spegnere la collisione dell'actor non la riguarda.
+	SetActorEnableCollision(bRender);
+}
+
 FLinearColor ARTUnit::TeamColorFor(int32 InTeamId, const FLinearColor& Team0, const FLinearColor& Team1)
 {
 	return (InTeamId == 0) ? Team0 : Team1;

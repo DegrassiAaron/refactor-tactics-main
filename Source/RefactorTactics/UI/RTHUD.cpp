@@ -464,11 +464,17 @@ void ARTHUD::DrawHUD()
 
 	for (AActor* Actor : Actors)
 	{
-		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		ARTUnit* Unit = Cast<ARTUnit>(Actor);
 		if (!Unit || !Unit->IsAlive())
 		{
 			continue;
 		}
+
+		// Applica lo stato di conoscenza PRIMA del filtro sottostante: altrimenti l'unita' saltata dal
+		// `continue` di ShouldDrawUnitOverlay non riceverebbe mai il comando e resterebbe visibile.
+		Unit->SetKnownToObserver(
+			Unit->TeamId == PlayerTeamId
+			|| URTKnowledgeViewLibrary::FindEntry(KnowledgeView, Unit->StableUnitId) != nullptr);
 
 		// Filtro di conoscenza (CP 13.5): un'unita' avversaria si disegna solo se la squadra del
 		// giocatore la conosce. La propria squadra si disegna sempre.
