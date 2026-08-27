@@ -259,8 +259,9 @@ leggibilità di una differenza che ora è diversa.
 > *«si separano abbastanza?»* ma **«la differenza di genere è leggibile senza un costo che la annunci?»** —
 > che è una domanda per `U20` / `PIE-BAL1`, non per un documento.
 
-> 🔴 **Misurato il 2026-08-27, e rivede al rialzo il costo di `D-206`.** Il *«controllo direzionale
-> per-colpo»* non è un ramo da spostare: **il dato non c'è dove serve.**
+> 🔴 **Misurato il 2026-08-27, e il preventivo di `D-206` era sbagliato in entrambi i versi.** Il
+> *«controllo direzionale per-colpo»* non è un ramo da spostare — **il dato non c'è dove serve** — ma la
+> parte che sembrava cara, la serializzazione, non esiste. Sotto, nell'ordine in cui è stato misurato.
 >
 > ```cpp
 > struct FRTAttack { int32 TargetIndex = INDEX_NONE; int32 Power = 0; };
@@ -288,7 +289,7 @@ leggibilità di una differenza che ora è diversa.
 > a `ApplyFirstHitDelta`. ⛔ **Ma non prima di `BAL-3`**: fatto senza rinumerare dà la `Guard` a −15 su
 > **ogni** colpo e il `Brace` a −10 su **uno**, cioè una coppia peggiore di quella che sostituisce.
 
-> 🔴 **Due costi che nessuna delle tre voci può nascondere.** Il valore di `bAllowsReaction` lo assegna oggi
+> 🔴 **Due costi che nessuna delle cinque voci può nascondere.** Il valore di `bAllowsReaction` lo assegna oggi
 > un `if` sull'ActionId dentro `ShippedAction` — un secondo utente lo rende un **parametro**, non allunga il
 > predicato. E `ResolvePrep` **non legge** il flag: senza quel ramo la decisione sarebbe dichiarata e mai
 > applicata, che è peggio di non averla presa.
