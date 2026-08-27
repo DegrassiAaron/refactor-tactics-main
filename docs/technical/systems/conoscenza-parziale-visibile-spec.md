@@ -253,11 +253,24 @@ non esiste in nessuna decisione. Inventarla qui creerebbe un vocabolario senza o
 >
 > La mappa statica resta leggibile.
 
-Il velo è ammesso **perché non è una mappa nera**. E
-[D-146](../../decisions/RT_PDR_00_Decision_Log.md) chiede che ogni categoria si distingua su **due** canali,
-`colore + forma`: il velo può spegnere il **colore** perché l'identità della superficie sopravvive sul
-canale **forma** — il numero di anelli delle corone `SurfaceGlyphs`, che è un componente separato e che il
-velo **non tocca**.
+Il velo è ammesso **perché non è una mappa nera**.
+
+🔴 **Ma il velo deve attenuare ENTRAMBI i canali insieme, e una prima stesura di questa sezione diceva
+l'opposto.** Diceva che *«il velo può spegnere il colore perché l'identità della superficie sopravvive sul
+canale forma»* — cioè che le corone `SurfaceGlyphs` restassero a piena luminosità. È sbagliato in modo
+vistoso: una cella **non osservata** mostrerebbe un anello brillante su un disco spento, e risulterebbe
+**più** appariscente di una osservata. Il velo attenua il disco **e** la corona.
+
+Il rapporto con [D-146](../../decisions/RT_PDR_00_Decision_Log.md) è chiarito da
+[D-196](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-27), e **non c'è conflitto**: D-146 governa come
+una cella **mostrata** comunica la propria superficie — è una regola di *encoding*, non di *visibilità*. Non
+dice **se** una cella vada mostrata. Una cella che nessuno osserva, e che quindi non si legge, non è un
+fallimento di leggibilità: è lo scopo.
+
+D-196 dichiara anche il perimetro che entrambe presupponevano: **la forma è graybox e cadrà** con i
+materiali per superficie di M8/M9 — dischi, corona incisa, `Relief`, `Blockers`, `EdgeFeatures` sono un
+ponteggio — mentre **la regola dei due canali resta e vincolerà anche l'arte**, perché è ciò che regge
+l'accessibilità (daltonismo, scala di grigi, video ricompresso) e i gate `G10`/`G13`.
 
 ### 5.3 Meccanismo
 
