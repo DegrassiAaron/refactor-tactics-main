@@ -4247,10 +4247,28 @@ void ARTTurnManager::ResolveCombat()
 		ResolvedTimeline.Add(Ev);
 
 		// L'abilita' si consuma una volta per attaccante, anche se il colpo prende piu' bersagli.
-		if (!Attackers.Contains(Attacker))
+		//
+		// 🔴 **Il primo colpo con un'ABILITA' da consumare, non il primo colpo** (`#1449`). Un'unita' puo'
+		// possedere piu' intenti nello stesso turno, e l'impatto di una carica ne porta uno con
+		// `IntentAbilityIndex == INDEX_NONE` — non c'e' niente da consumare, lo scatto l'ha gia' fatto.
+		// `Plan.Hits` e' ordinato per `AttackerId` e poi `TargetId`, quindi bastava che la vittima della
+		// carica avesse indice minore del bersaglio dell'attacco perche' l'impatto entrasse per primo:
+		// `UsedAbilityIndex` riceveva `INDEX_NONE`, il `Contains` impediva di registrare l'attacco vero, e
+		// `ConsumeAbility(INDEX_NONE)` usciva subito. L'azione principale non pagava ne' cooldown ne'
+		// energia, ed era riutilizzabile ogni turno.
+		const int32 AbilityIdx = IntentAbilityIndex.IsValidIndex(Hit.IntentIndex)
+			? IntentAbilityIndex[Hit.IntentIndex] : INDEX_NONE;
+		const int32 Registrato = Attackers.IndexOfByKey(Attacker);
+		if (Registrato == INDEX_NONE)
 		{
 			Attackers.Add(Attacker);
-			UsedAbilityIndex.Add(IntentAbilityIndex.IsValidIndex(Hit.IntentIndex) ? IntentAbilityIndex[Hit.IntentIndex] : INDEX_NONE);
+			UsedAbilityIndex.Add(AbilityIdx);
+		}
+		else if (UsedAbilityIndex.IsValidIndex(Registrato)
+			&& UsedAbilityIndex[Registrato] == INDEX_NONE && AbilityIdx != INDEX_NONE)
+		{
+			// Registrato prima con un colpo che non consuma nulla: l'abilita' vera prende il suo posto.
+			UsedAbilityIndex[Registrato] = AbilityIdx;
 		}
 	}
 

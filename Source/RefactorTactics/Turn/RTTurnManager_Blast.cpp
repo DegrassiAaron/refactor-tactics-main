@@ -850,19 +850,29 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	//
 	// ⚠️ **DOPO il verdetto**, non prima: un Interrupt a sua volta interrotto non paga, che e' la stessa
 	// regola che vale per ogni altra azione cancellata («e' come se non fosse mai partita»).
-	for (const FRTHexAttackHit& Hit : Plan.Hits)
+	// ⚠️ Si scorrono gli INTENTI, non i colpi (`#1449`). Un Interrupt puo' non produrre nessun
+	// `FRTHexAttackHit` — con la nebbia di guerra l'intento punta a una cella RICORDATA (CP 13.2), e se il
+	// bersaglio si e' spostato non c'e' niente da colpire — e agganciare il costo al colpo lo lasciava
+	// gratuito: esattamente il difetto di `#1444`, per un altro ingresso. L'azione e' stata pianificata e
+	// validata, quindi e' stata spesa.
+	for (int32 k = 0; k < Intents.Num(); ++k)
 	{
-		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
-			|| !IsCoreAction(IntentDefs[Hit.IntentIndex], ActionInterrupt)
-			|| InterruptedIntents.Contains(Hit.IntentIndex))
+		if (!IntentDefs.IsValidIndex(k) || !IsCoreAction(IntentDefs[k], ActionInterrupt)
+			|| InterruptedIntents.Contains(k))
+		{
+			continue; // non e' un Interrupt, oppure e' stato annullato a sua volta: non paga
+		}
+		if (SpesiInterrupt.Contains(k) || !Ctx.IntentAbilityIndex.IsValidIndex(k)
+			|| Ctx.IntentAbilityIndex[k] == INDEX_NONE)
 		{
 			continue;
 		}
-		if (!SpesiInterrupt.Contains(Hit.IntentIndex) && Units.IsValidIndex(Hit.AttackerId)
-			&& Units[Hit.AttackerId] && Ctx.IntentAbilityIndex.IsValidIndex(Hit.IntentIndex))
+		ARTUnit* Interruttore = Units.IsValidIndex(Intents[k].AttackerId)
+			? Units[Intents[k].AttackerId] : nullptr;
+		if (Interruttore)
 		{
-			SpesiInterrupt.Add(Hit.IntentIndex);
-			Units[Hit.AttackerId]->ConsumeAbility(Ctx.IntentAbilityIndex[Hit.IntentIndex]);
+			SpesiInterrupt.Add(k);
+			Interruttore->ConsumeAbility(Ctx.IntentAbilityIndex[k]);
 		}
 	}
 
