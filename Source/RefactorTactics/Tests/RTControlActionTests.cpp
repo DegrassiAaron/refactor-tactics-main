@@ -670,6 +670,85 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
  * indice al set e la seconda passata non scrive niente. La deduplicazione non e' una guardia in piu', e'
  * una conseguenza di aver scelto la chiave giusta.
  */
+/**
+ * **L'interruttore entra fra gli attaccanti, quindi paga l'azione che ha speso.**
+ *
+ * `Action.Interrupt` dichiara cooldown 2 e non lo pagava mai: si poteva interrompere ogni singolo turno
+ * (`#1444`). Il filtro in fondo ad `ApplyInterrupts` toglie da `Plan.Hits` tutti i colpi di Interrupt —
+ * devono sparire, o un colpo a Power 0 conterebbe come «primo colpo» per `ApplyFirstHitDelta` — ma li
+ * toglie PRIMA che `ResolveCombat` costruisca `Attackers` dai colpi sopravvissuti, e
+ * `ConsumeAttackerAbilities` e' l'unico punto del Blast che consuma. `Action.Interrupt` risolve in fase
+ * `Control`, quindi nemmeno la consumazione del Prep lo copriva.
+ *
+ * ⚠️ **Si misura l'ENERGIA, non il cooldown**, e la ragione e' che il cooldown in questa fixture non e'
+ * osservabile: `ConsumeAbility` scrive in `AbilityCooldowns` solo se l'indice e' valido, e un'abilita'
+ * aggiunta a mano non estende quell'array — lo fa `SyncAbilityCooldowns`, che e' privato. Un test che
+ * guardasse il cooldown misurerebbe la fixture invece del resolver, e resterebbe verde con la correzione
+ * tolta.
+ *
+ * L'energia invece la scrive `ConsumeAttackerAbilities` a chiunque vi passi, ed e' esattamente cio' che il
+ * difetto impediva: l'interruttore non entrava fra gli attaccanti. Misura la causa, non un suo effetto
+ * secondario.
+ *
+ * ⚠️ Il cooldown dell'INTERROTTO e' un'altra regola e ha il suo test (`Actions.Interrupt.OnlyInterruptible`):
+ * l'azione cancellata **non** si consuma, «e' come se non fosse mai partita».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterrupterPaysCooldownTest,
+	"RefactorTactics.Actions.Interrupt.InterrupterSpendsItsAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterrupterPaysCooldownTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	ARTUnit* Interrupter = SpawnControlUnit(World, 0, FRTCellId(3, 0));
+	ARTUnit* Attacker = SpawnControlUnit(World, 1, FRTCellId(4, 0));
+	ARTUnit* Victim = SpawnControlUnit(World, 0, FRTCellId(5, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Interrupter"), Interrupter) || !TestNotNull(TEXT("Attacker"), Attacker)
+		|| !TestNotNull(TEXT("Victim"), Victim) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	const int32 InterruptIdx = AddControlAbility(Interrupter, TEXT("Action.Interrupt"));
+	Interrupter->PlannedAbilityIndex = InterruptIdx;
+	Interrupter->PlannedAttackTarget = Attacker;
+	Interrupter->PlannedCell = Interrupter->Cell;
+
+	Attacker->PlannedAbilityIndex = 0; // attacco base, interrompibile
+	Attacker->PlannedAttackTarget = Victim;
+	Attacker->PlannedCell = Attacker->Cell;
+
+	if (!TestTrue(TEXT("premessa: chi spende un'azione guadagna energia, quindi il passaggio si vede"),
+		Interrupter->EnergyOnHit > 0))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+	// ⚠️ Il confronto e' con un'unita' di CONTROLLO, non con l'energia di partenza: il Cleanup regala
+	// `EnergyPerTurn` a tutti (`RTTurnManager.cpp:1438`), quindi `Energy > EnergiaPrima` sarebbe vero anche
+	// senza la correzione — verificato per mutazione, e la prima stesura di questo test cadeva proprio li'.
+	// `Victim` non agisce e non subisce danno (l'attacco che la mirava e' stato interrotto): guadagna solo
+	// il turno.
+	TestEqual(TEXT("premessa: le due unita' partono dalla stessa energia"),
+		Interrupter->Energy, Victim->Energy);
+	const int32 SaluteVittima = Victim->Health;
+
+	RunControlTurn(TM);
+
+	TestEqual(TEXT("premessa: l'interruzione e' avvenuta"), Victim->Health, SaluteVittima);
+	TestTrue(*FString::Printf(
+		TEXT("l'interruttore ha speso la sua azione: energia %d contro i %d di chi non ha agito"),
+		Interrupter->Energy, Victim->Energy),
+		Interrupter->Energy > Victim->Energy);
+
+	DestroyControlWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptTwiceTracesOnceTest,
 	"RefactorTactics.Actions.Interrupt.TwoInterruptersTraceOnce",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

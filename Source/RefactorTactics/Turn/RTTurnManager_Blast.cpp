@@ -747,6 +747,30 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		}
 		if (!Units.IsValidIndex(Hit.TargetId) || !Units[Hit.TargetId]) { continue; }
 
+		// 🔴 **L'interruttore paga il cooldown** (`#1444`). Il filtro in fondo a questa funzione toglie da
+		// `Plan.Hits` tutti i colpi di Interrupt — devono sparire, o un colpo a Power 0 conterebbe come
+		// «primo colpo» per `ApplyFirstHitDelta` — ma li toglie PRIMA che `ResolveCombat` costruisca
+		// `Attackers` dai colpi sopravvissuti, e `ConsumeAttackerAbilities` e' l'unico punto del Blast che
+		// consuma. `Action.Interrupt` risolve in fase `Control`, quindi nemmeno la consumazione del Prep lo
+		// copriva: il catalogo gli dava cooldown 2 e non lo pagava mai, cioe' si poteva interrompere ogni
+		// turno.
+		//
+		// Si registra QUI, finche' l'intento e' ancora vivo. `Attackers` e' additivo e protetto da
+		// `Contains`, quindi convive con il riempimento successivo senza doppioni.
+		//
+		// ⚠️ Si consuma anche quando non c'e' niente da interrompere: l'azione e' stata spesa e il colpo ha
+		// raggiunto il bersaglio: e' la stessa regola di un attacco che non fa danno. Cio' che NON si
+		// consuma e' l'azione INTERROTTA, ed e' pinnato da `Actions.Interrupt.OnlyInterruptible`.
+		if (ARTUnit* Interruttore = Units.IsValidIndex(Hit.AttackerId) ? Units[Hit.AttackerId] : nullptr)
+		{
+			if (!Ctx.Attackers.Contains(Interruttore))
+			{
+				Ctx.Attackers.Add(Interruttore);
+				Ctx.UsedAbilityIndex.Add(Ctx.IntentAbilityIndex.IsValidIndex(Hit.IntentIndex)
+					? Ctx.IntentAbilityIndex[Hit.IntentIndex] : INDEX_NONE);
+			}
+		}
+
 		// Le azioni pianificate dal BERSAGLIO non si leggono da `Unit->PlannedAbilityIndex`: il ciclo che ha
 		// costruito `Intents`, qualche riga sopra, le ha gia' CONSUMATE (azzerate) per ogni unita', bersaglio
 		// compreso — e' cosi' che il turno evita di rieseguire due volte la stessa azione. Vanno cercate fra

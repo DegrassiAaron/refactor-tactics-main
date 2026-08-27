@@ -4274,6 +4274,13 @@ void ARTTurnManager::ResolveCombat()
 		// caso NORMALE, non un'eccezione. (Difetto trovato da `Actions.Heal.RestoresWithoutExceedingMax`: la
 		// prima stesura usciva di qui e la cura spariva in silenzio.)
 		ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors, HealDefs);
+
+		// 🔴 **E le abilita' spese vanno consumate lo stesso** (`#1444`): un turno in cui ogni colpo e' stato
+		// annullato — due Interrupt che si cancellano gli attacchi a vicenda, o un Interrupt che cancella
+		// l'unico attacco — arriva qui con `Attacks` vuoto, e uscire senza consumare regalava l'azione a chi
+		// l'aveva spesa. E' la stessa forma del difetto che il commento qui sopra racconta per le cure:
+		// questo ramo e' facile da leggere come «non e' successo niente», e invece qualcosa e' successo.
+		ConsumeAttackerAbilities(Ctx);
 		return;
 	}
 
