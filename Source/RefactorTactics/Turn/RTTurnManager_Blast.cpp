@@ -1935,6 +1935,15 @@ void ARTTurnManager::SpendStartedAbilities(FRTBlastContext& Ctx)
 	// attivazioni; le altre fasi (Prep, Move, Dash, Environment) hanno tempistiche proprie, e ricondurle a
 	// [D-200] e' una decisione che non e' stata presa.
 	//
+	// ⚠️ **Un accoppiamento latente, dichiarato perche' oggi e' irraggiungibile e domani forse no.**
+	// Questa passata gira DOPO `ApplyControlStatuses`, che esegue il pass di reazione `BlastStatus` — e
+	// quel pass chiama `CanUseAbility`, che legge anche l'ENERGIA. Prima di `#1451` l'ultimate di un
+	// attaccante scalava l'energia in `ConsumeAttackerAbilities`, cioe' PRIMA di quel pass; ora lo fa dopo.
+	// La differenza si vedrebbe solo per una reazione con `EnergyCost > 0`: MISURATO il 2026-08-27, nessuna
+	// delle sei reazioni spedite ne dichiara uno (`EnergyCost` vale 0 di default), quindi oggi il caso non
+	// esiste. Chi ne spedira' una guardi qui: potrebbe risultare attivabile con l'energia che l'ultimate
+	// dello stesso turno non ha ancora scalato.
+	//
 	// L'ordine e' quello di annotazione, che e' l'ordine dei pass: `ConsumeAbility` scrive su unita' diverse,
 	// quindi non c'e' esito che dipenda dall'ordine — ma un array, e non una `TMap`, perche' la regola del
 	// progetto e' non dipendere mai dall'ordine di iterazione, non «non dipenderne quando si vede».
