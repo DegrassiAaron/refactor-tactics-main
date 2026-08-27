@@ -25,6 +25,17 @@ struct FRTPendingArcOp
 	FRTCellId From;
 	FRTCellId To;
 	ARTUnit* Actor = nullptr;
+
+	/**
+	 * QUALE azione ha modificato l'arco.
+	 *
+	 * 🔴 Non si ricostruisce a valle scrivendo `Action.ModifyArc` a mano: `MakeEquipmentAction` riscrive
+	 * `ActionId` con l'id del PEZZO ([D-195]), e da `#1443` il resolver riconosce anche le azioni derivate.
+	 * Senza questo campo un gadget si leggeva col proprio nome quando FALLIVA — `ArcRejected` copia la def —
+	 * e con quello generico quando riusciva: lo stesso pezzo con due nomi a seconda dell'esito, e `ActionId`
+	 * entra nell'hash ([D-067]).
+	 */
+	FRTActionDef Def;
 };
 
 /**

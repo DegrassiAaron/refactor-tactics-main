@@ -432,7 +432,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				}
 
 				Unit->ConsumeAbility(ArcAbilityIndex);
-				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell, Unit });
+				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell, Unit, PlannedNow->Def });
 			}
 			continue;
 		}
@@ -1255,7 +1255,11 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 		Entry.Category = ERTLogCategory::Environment;
 		Entry.Outcome = static_cast<uint8>(
 			bRemoved ? ERTEnvironmentOutcome::BridgeRemoved : ERTEnvironmentOutcome::BridgeCreated);
-		Entry.ActionId = FName(TEXT("Action.ModifyArc"));
+		// QUALE azione, non l'azione generica ([D-195], `#1447`): il percorso di FALLIMENTO
+		// (`ArcRejected`) la nomina gia' cosi', e i due devono dire la stessa cosa.
+		Entry.ActionId = Op.Def.ActionId.IsNone() ? FName(TEXT("Action.ModifyArc")) : Op.Def.ActionId;
+		Entry.BaseActionId = Op.Def.BaseActionId;
+		Entry.Priority = Op.Def.Priority;
 		Entry.SrcCell = Op.From;
 		Entry.TgtCell = Op.To;
 		Entry.Amount = bRemoved ? 0 : 2; // turni di durata del ponte creato

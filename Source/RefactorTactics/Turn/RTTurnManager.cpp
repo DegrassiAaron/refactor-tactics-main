@@ -1642,7 +1642,32 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 	for (int32 h = 0; h < Targets.Num(); ++h)
 	{
 		ARTUnit* HealTarget = Targets[h];
-		if (!HealTarget || !HealTarget->IsAlive()) { continue; }
+		if (!HealTarget || !HealTarget->IsAlive())
+		{
+			// 🔴 **Una cura su chi e' caduto nel frattempo non sparisce in silenzio** ([D-196], `#1447`).
+			// Gli attacchi risolvono a priorita' 50-65 e le cure a 70: l'alleato puo' morire NELLO STESSO
+			// Blast in cui qualcuno lo stava curando. `CollectHealActions` ha gia' accettato il piano e
+			// bruciato `ConsumeAbility`, quindi senza questa voce il replay mostra un curatore con
+			// l'abilita' in ricarica e nessuna azione registrata.
+			//
+			// E' la terza faccia della stessa asimmetria che D-196 ha chiuso per `OutOfRange` e `NoEffect`.
+			// Il motivo `TargetDead` esiste gia' nell'enum: e' esattamente questo.
+			if (Healers.IsValidIndex(h) && Healers[h] && Defs.IsValidIndex(h))
+			{
+				FRTTurnLogEntry Mancata;
+				Mancata.Phase = ERTMatchPhase::Blast;
+				Mancata.Category = ERTLogCategory::Fallback;
+				Mancata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+				Mancata.SrcCell = Sources.IsValidIndex(h) ? Sources[h] : Healers[h]->Cell;
+				Mancata.TgtCell = HealTarget ? HealTarget->Cell : Mancata.SrcCell;
+				Mancata.Amount = static_cast<int32>(ERTActionInvalidReason::TargetDead);
+				Mancata.ActionId = Defs[h].ActionId;
+				Mancata.BaseActionId = Defs[h].BaseActionId;
+				Mancata.Priority = Defs[h].Priority;
+				AppendLogEntry(Mancata, Healers[h]);
+			}
+			continue;
+		}
 
 		const int32 Before = HealTarget->Health;
 		HealTarget->ApplyCombatState(FMath::Min(HealTarget->MaxHealth, Before + Amounts[h]), HealTarget->Shield);

@@ -627,6 +627,70 @@ bool FRTHealWithoutEffectIsTracedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Una cura su chi e' caduto nel frattempo lascia una traccia.**
+ *
+ * Gli attacchi risolvono a priorita' 50-65 e le cure a 70: l'alleato puo' morire **nello stesso Blast** in
+ * cui qualcuno lo sta curando. `CollectHealActions` ha gia' accettato il piano e bruciato `ConsumeAbility`,
+ * quindi prima di `#1447` il replay mostrava un curatore con l'abilita' in ricarica e nessuna azione
+ * registrata — la terza faccia dell'asimmetria che [D-196] ha chiuso per `OutOfRange` e `NoEffect`.
+ *
+ * ⚠️ Il bersaglio si abbatte a mano invece di farlo uccidere da un attacco nello stesso turno: cio' che si
+ * misura e' la voce, non l'ordine delle priorita' — che ha i suoi test — e farla dipendere da un secondo
+ * attaccante avrebbe legato questo test a un bilanciamento che puo' cambiare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHealOnDeadAllyIsTracedTest,
+	"RefactorTactics.Actions.Heal.DeadTargetIsTraced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHealOnDeadAllyIsTracedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	ARTUnit* Curatore = SpawnControlUnit(World, 0, FRTCellId(2, 0));
+	ARTUnit* Ferito = SpawnControlUnit(World, 0, FRTCellId(3, 0)); // adiacente: la portata non c'entra
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Curatore"), Curatore) || !TestNotNull(TEXT("Ferito"), Ferito)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	const int32 HealIdx = AddControlAbility(Curatore, TEXT("Action.Heal"));
+	Curatore->PlannedAbilityIndex = HealIdx;
+	Curatore->PlannedAttackTarget = Ferito;
+	Curatore->PlannedCell = Curatore->Cell;
+
+	// L'alleato cade PRIMA che la cura risolva. La cura e' gia' stata pianificata e validata.
+	Ferito->ApplyCombatState(0, 0);
+	if (!TestFalse(TEXT("premessa: l'alleato e' caduto"), Ferito->IsAlive()))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	RunControlTurn(TM);
+
+	const FRTTurnLogEntry* Mancata = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::TargetDead);
+	});
+	if (TestNotNull(TEXT("il turno speso su un morto e' nel record autoritativo"), Mancata))
+	{
+		TestEqual(TEXT("accredita chi ha provato a curare"), Mancata->UnitId, Curatore->StableUnitId);
+		TestEqual(TEXT("e nomina l'azione"), Mancata->ActionId, FName(TEXT("Action.Heal")));
+	}
+
+	// E la regola del catalogo non cambia: una cura non resuscita.
+	TestFalse(TEXT("l'alleato resta a terra"), Ferito->IsAlive());
+
+	DestroyControlWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptOnlyInterruptibleTest,
 	"RefactorTactics.Actions.Interrupt.OnlyInterruptible",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
