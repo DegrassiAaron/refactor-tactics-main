@@ -1077,6 +1077,25 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 	Root->TryGetStringField(TEXT("fixture"), OutScenario.Fixture);
 	Root->TryGetNumberField(TEXT("mapRadius"), OutScenario.MapRadius);
 
+	// I tag, GREZZI. La chiave `tags` era gia' nel formato ma la leggeva solo `URTScenarioIndex::ReadHeader`:
+	// il loader la ignorava, quindi il modello in memoria non la portava e un `load → save` l'avrebbe
+	// cancellata da ogni file che la dichiara. La normalizzazione resta dell'indice — se la applicasse anche
+	// qui, salvare uno scenario ne riscriverebbe i tag senza che nessuno l'abbia chiesto.
+	const TArray<TSharedPtr<FJsonValue>>* TagsJson = nullptr;
+	if (Root->TryGetArrayField(TEXT("tags"), TagsJson))
+	{
+		for (const TSharedPtr<FJsonValue>& Value : *TagsJson)
+		{
+			FString Tag;
+			if (!Value.IsValid() || !Value->TryGetString(Tag))
+			{
+				OutError = TEXT("tags: ogni voce deve essere una stringa");
+				return false;
+			}
+			OutScenario.Tags.Add(Tag);
+		}
+	}
+
 	// Le sezioni si leggono nell'ordine in cui il formato le dichiara, e ognuna si ferma al primo errore:
 	// uno scenario mezzo caricato sarebbe peggio di uno rifiutato, perche' girerebbe.
 	if (!ParseScenarioCells(Root, OutScenario, OutError)) { return false; }

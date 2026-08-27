@@ -61,6 +61,39 @@ public:
 	 */
 	static bool Validate(const FRTTestScenario& Scenario, FString& OutError);
 
+	/**
+	 * Serializza uno scenario nel formato JSON che `LoadFromString` rilegge. Il verso mancante del loader.
+	 *
+	 * Sta qui, e non in un `URTScenarioWriter` a parte, per una ragione sola: **il formato ha un owner solo**.
+	 * Lettura e scrittura sono due meta' della stessa regola, e separarle in due classi renderebbe possibile
+	 * aggiungere una chiave da una parte e non dall'altra — che e' esattamente il difetto che un authoring
+	 * visuale introdurrebbe se dovesse conoscere il JSON da se'. L'implementazione vive in
+	 * `RTScenarioWriter.cpp` perche' il `.cpp` del loader ha gia' 1769 righe, ma la dichiarazione e' una.
+	 *
+	 * Chiama `Validate` **prima** di produrre qualunque testo: uno scenario invalido non viene serializzato a
+	 * meta'. In piu' verifica che la `version` dichiarata basti per le chiavi effettivamente usate — senza
+	 * quel controllo un round-trip potrebbe scrivere un file che il loader poi rifiuta, e uno scenario
+	 * costruito in memoria (dall'editor) e' l'unico posto da cui quello stato puo' arrivare.
+	 *
+	 * Forma canonica: campi in ordine fisso, default omessi, nessuna dipendenza dall'ordine di iterazione di
+	 * una `TMap`. Due scritture dello stesso scenario producono lo stesso testo.
+	 *
+	 * @return true se lo scenario e' stato serializzato. Altrimenti `OutError` nomina **il campo** che lo ha
+	 *         impedito, e `OutJson` resta intatto.
+	 */
+	static bool SaveToString(const FRTTestScenario& Scenario, FString& OutJson, FString& OutError);
+
+	/**
+	 * Come `SaveToString`, scrivendo su disco. La scrittura e' **esplicita**: nessun salvataggio implicito.
+	 *
+	 * Il file non viene toccato se lo scenario non passa `Validate` — un file a meta' e' peggio di un file
+	 * non scritto, perche' il secondo si nota subito.
+	 *
+	 * ⚠️ Il percorso NON influisce sullo `ScenarioId`: l'identita' e' dichiarata dal file, non dedotta dalla
+	 * cartella. Salvare altrove produce lo stesso `scenarioId` (`RTScenarioIndex.h` per il perche').
+	 */
+	static bool SaveToFile(const FRTTestScenario& Scenario, const FString& FilePath, FString& OutError);
+
 	/** Radice degli scenari versionati: `<Progetto>/Scenarios/`. */
 	static FString ScenariosRoot();
 

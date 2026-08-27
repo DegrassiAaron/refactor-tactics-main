@@ -124,7 +124,7 @@ Non è teorico: lo snap del gesto d'autore vive in `Map/RTGeometryGrammar` e i s
 | Occupancy, `ERTCellOccupancy` | `URTHexOccupancyLibrary` | **solo leggere** |
 | Percorsi, raggiungibilità | `Pathfinding/` | **solo leggere** |
 | LOS, copertura applicata | `Perception/`, resolver | **solo leggere** |
-| Scenario | `FRTTestScenario` (JSON in `Scenarios/`) | scrivere il file, mai interpretarlo per conto suo |
+| Scenario | `FRTTestScenario` (JSON in `Scenarios/`) | scrivere il file **tramite `URTScenarioLoader::SaveToFile`**, mai interpretarlo per conto suo (§5.1) |
 | Esito di un turno | resolver | **niente** |
 | TurnLog | `ARTTurnManager` | **solo leggere** |
 
@@ -140,12 +140,13 @@ nell'hash di stato** — è metadato d'authoring, e due mappe che si giocano ide
 Un authoring visuale degli scenari non ha bisogno di un formato proprio: `FRTTestScenario` esprime già
 quasi tutto ciò che serve, e va **esteso**, mai affiancato.
 
-Sono **dodici** campi, misurati sulla struct e non elencati a memoria:
+Sono **diciassette** campi, misurati sulla struct e non elencati a memoria:
 
 ```text
 FRTTestScenario
 ├── ScenarioId                  ID stabile e gerarchico
 ├── Version                     versione del FORMATO, non del contenuto
+├── Tags[]                      parole per il filtro dell'indice, conservate GREZZE
 ├── Fixture                     l'allestimento da cui si parte
 ├── MapRadius                   dimensione dell'arena generata
 ├── Seed                        dichiarato e NON consumato (vedi sotto)
@@ -158,8 +159,18 @@ FRTTestScenario
 │   └── Requires[]              capability necessarie → altrimenti ERTTestOutcome::Blocked
 ├── Expect[]                    FRTTestExpectation + ERTAssertionKind
 ├── Variants[]                  FRTScenarioVariant — stesso allestimento, celle diverse
-└── bExpectSameAcrossVariants   il canary: tutte le varianti devono dare lo stesso esito
+├── bExpectSameAcrossVariants   il canary: tutte le varianti devono dare lo stesso esito
+├── bFreeRun                    la partita decide quando finire, non il file
+├── MaxTurns                    tetto di sicurezza del free-run
+├── RepeatCount                 ripetizioni per misurare il determinismo
+└── Requires[]                  capability di scenario (solo con free-run)
 ```
+
+> ⚠️ **Questo elenco diceva «dodici» ed era misurato — nell'agosto 2026.** Quattro campi sono arrivati con
+> `#957` (le chiavi del free-run, `version: 4`) e uno con [#1114](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1114)
+> (`Tags`), e il conteggio non li aveva seguiti. Vale la pena dirlo invece di correggerlo in silenzio: un
+> numero scritto in un documento è una misura **con una data**, e questa sezione ne dichiara una senza
+> nominarla. Se conta di nuovo diverso, è la struct ad avere ragione.
 
 Tre proprietà che rendono questo formato adatto a essere il bersaglio di un editor visuale:
 
@@ -172,6 +183,40 @@ Tre proprietà che rendono questo formato adatto a essere il bersaglio di un edi
    struct dichiara il prezzo di allargarla: *«una variante che potesse cambiare eroi, squadre o condizione
    iniziale non sarebbe più lo stesso scenario con un ingresso diverso, e il confronto fra le sue tracce non
    direbbe più quale ingresso ha prodotto la differenza»*.
+
+### 5.1 Il formato si legge e si scrive dallo stesso posto
+
+`URTScenarioLoader` sapeva leggere uno scenario e non sapeva scriverlo. Finché è stato così, qualunque
+authoring visuale avrebbe dovuto conoscere il JSON da sé — diventando una **seconda autorità sul formato**
+accanto al loader, che è la forma che il §3 vieta applicata ai dati invece che alle regole.
+
+`SaveToString` / `SaveToFile` chiudono il verso mancante, e stanno **nello stesso header** del loader
+([#1114](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1114)): lettura e scrittura sono due
+metà della stessa regola, e separarle in due classi renderebbe possibile aggiungere una chiave da una parte
+sola. L'implementazione vive in `RTScenarioWriter.cpp` solo perché il `.cpp` del loader ha già 1769 righe.
+
+Tre garanzie, tutte verificate da `RefactorTactics.Scenario.Writer*`:
+
+1. **`Validate` prima di scrivere.** Uno scenario invalido non viene serializzato a metà, il file già presente
+   non viene toccato, e l'errore **nomina il campo** che ha impedito la scrittura.
+2. **Forma canonica.** I campi si scrivono in ordine esplicito e i default si omettono: due scritture dello
+   stesso scenario producono lo stesso testo. Non si costruisce un `FJsonObject` per poi serializzarlo — le
+   sue chiavi vivono in una `TMap`, il cui ordine di iterazione non è quello di inserimento, e un diff di PR
+   diventerebbe rumore.
+3. **Identità preservate.** `ScenarioId`, i tag dell'indice e gli Stable Unit ID sopravvivono al round-trip.
+   L'identità è **dichiarata dal file**, non dedotta dalla cartella: salvare altrove non la cambia.
+
+> 🔴 **`tags` era nel formato ma il loader non lo leggeva**, e per questo `FRTTestScenario` ha oggi un campo
+> `Tags`. La chiave esisteva già — la legge `URTScenarioIndex::ReadHeader` per costruire i filtri — ma
+> `LoadFromString` la ignorava: due letture dello stesso file che vedevano campi diversi. Finché nessuno
+> scriveva scenari la differenza non si vedeva; il primo `load → save` avrebbe cancellato i tag da ogni file
+> che li dichiara. **Non è un'estensione del formato**, è il modello che ha smesso di perdere per strada una
+> chiave che il formato aveva già.
+>
+> I tag si conservano **grezzi**, non normalizzati. La forma canonica di un tag appartiene a
+> `URTScenarioIndex::NormalizeTag`, e l'indice la applica per conto suo: se la applicasse anche il loader,
+> salvare uno scenario riscriverebbe `"Gadget"` in `"gadget"` in tutti i file che lo dichiarano così — una
+> modifica che nessuno ha chiesto, prodotta da uno strumento che doveva solo preservare.
 
 **Ciò che il formato non esprime**, e che va aggiunto solo quando ha un consumatore:
 

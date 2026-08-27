@@ -600,6 +600,23 @@ struct FRTTestScenario
 	int32 Version = 1;
 
 	/**
+	 * Parole per cui filtrare lo scenario nell'indice: `movement`, `gadget`, `regressione`.
+	 *
+	 * ⚠️ **Conservati COME SCRITTI nel file, non normalizzati.** La forma canonica di un tag — minuscolo,
+	 * senza spazi ai bordi, ordinata — appartiene a `URTScenarioIndex::NormalizeTag`, e l'indice la applica
+	 * per conto suo quando costruisce i filtri. Se la applicasse anche il loader, il primo salvataggio di uno
+	 * scenario riscriverebbe `"Gadget"` in `"gadget"` in tutti i file che lo dichiarano cosi': una modifica
+	 * che nessuno ha chiesto, prodotta da uno strumento che doveva solo preservare.
+	 *
+	 * Il campo esiste perche' senza di esso il modello non porta cio' che il file contiene, e un round-trip
+	 * `load → save` cancellerebbe i tag di tutti gli scenari che ne hanno. La chiave `tags` era gia' nel
+	 * formato — la leggeva `URTScenarioIndex::ReadHeader` — ma il loader la ignorava: due letture dello
+	 * stesso file che vedevano campi diversi.
+	 */
+	UPROPERTY()
+	TArray<FString> Tags;
+
+	/**
 	 * ID di scenario dell'unita' da **selezionare** quando lo scenario parte con un giocatore presente (PIE).
 	 * Vuoto = nessuna selezione, ed e' il caso normale.
 	 *
