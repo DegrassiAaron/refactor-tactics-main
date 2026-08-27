@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Core/RTTypes.h"
 #include "Turn/RTTurnRules.h"
+#include "Perception/RTTeamKnowledge.h" // FRTKnowledgeVerdict: il verdetto congelato di [D-223]
 #include "RTTurnLog.generated.h"
 
 /**
@@ -662,6 +663,23 @@ struct FRTTurnLogEntry
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|TurnLog")
 	int32 UnitId = 0;
+
+	/**
+	 * Chi puo' leggere questa voce, deciso quando la voce e' NATA ([D-223]).
+	 *
+	 * 🔴 **Non e' serializzato, ed e' una scelta con una conseguenza precisa.** `SerializeTurnLog` scrive i
+	 * campi uno per uno: questo non e' fra quelli, quindi il formato resta alla sua versione, `EntryLess`
+	 * non lo guarda, `MixEntryFields` non lo mescola e nessun golden si rigenera. Un verdetto e' una
+	 * risposta alla presentazione, non un fatto della simulazione: metterlo nella traccia lo renderebbe
+	 * parte di cio' che il replay deve riprodurre identico, e non lo e'.
+	 *
+	 * ⚠️ **Vive qui e non in un array parallelo perche' `DescribeTurnLogWithSubjects` RIORDINA le voci**
+	 * (`SortTurnLog`): un indice non sopravviverebbe al sort, il campo si'.
+	 *
+	 * Il valore di default nasconde: una voce che arrivasse alla presentazione senza verdetto non si legge.
+	 */
+	UPROPERTY(Transient)
+	FRTKnowledgeVerdict Verdict;
 
 	/**
 	 * Turno in cui la voce e' stata emessa. `0` = non dichiarato (tracce scritte prima del formato v6).

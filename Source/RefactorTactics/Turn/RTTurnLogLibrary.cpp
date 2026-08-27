@@ -198,13 +198,13 @@ FString URTTurnLogLibrary::DescribeActionIdentity(const FRTTurnLogEntry& Entry)
 	return FString::Printf(TEXT("%s · %s"), *Entry.BaseActionId.ToString(), *Entry.ActionId.ToString());
 }
 
-TArray<TPair<FString, int32>> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries)
+TArray<FRTDescribedLine> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries)
 {
 	// Per VALORE e ordinato qui dentro: la sequenza leggibile non deve dipendere dall'ordine in cui le voci
 	// sono arrivate, e ordinare la copia evita di riordinare il TurnLog del chiamante come effetto collaterale.
 	SortTurnLog(Entries);
 
-	TArray<TPair<FString, int32>> Lines;
+	TArray<FRTDescribedLine> Lines;
 	Lines.Reserve(Entries.Num());
 	for (const FRTTurnLogEntry& Entry : Entries)
 	{
@@ -212,7 +212,12 @@ TArray<TPair<FString, int32>> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TAr
 		// unita' dichiarata» e' `0` (D-063, e gli `StableUnitId` partono da 1); nel combat log e'
 		// `INDEX_NONE`. Passare lo zero cosi' com'e' farebbe cercare l'unita' 0 nella vista di conoscenza,
 		// che non esiste: ogni riga di mondo sparirebbe fail-closed.
-		Lines.Emplace(DescribeEntry(Entry), Entry.UnitId == 0 ? INDEX_NONE : Entry.UnitId);
+		FRTDescribedLine& Line = Lines.AddDefaulted_GetRef();
+		Line.Text = DescribeEntry(Entry);
+		Line.SubjectStableUnitId = Entry.UnitId == 0 ? INDEX_NONE : Entry.UnitId;
+		// 🔴 Il verdetto si TRASPORTA. Ricalcolarlo qui sarebbe calcolarlo a fine turno, cioe' sulla
+		// conoscenza sbagliata: e' il difetto che [D-223] esiste per chiudere.
+		Line.Verdict = Entry.Verdict;
 	}
 	return Lines;
 }
@@ -221,13 +226,13 @@ TArray<FString> URTTurnLogLibrary::DescribeTurnLog(TArray<FRTTurnLogEntry> Entri
 {
 	// Adattatore, non un secondo produttore: testo e ordine nascono in un posto solo, quindi le due forme
 	// non possono divergere il giorno in cui una delle due cambia.
-	TArray<TPair<FString, int32>> WithSubjects = DescribeTurnLogWithSubjects(MoveTemp(Entries));
+	TArray<FRTDescribedLine> WithSubjects = DescribeTurnLogWithSubjects(MoveTemp(Entries));
 
 	TArray<FString> Lines;
 	Lines.Reserve(WithSubjects.Num());
-	for (TPair<FString, int32>& Line : WithSubjects)
+	for (FRTDescribedLine& Line : WithSubjects)
 	{
-		Lines.Add(MoveTemp(Line.Key));
+		Lines.Add(MoveTemp(Line.Text));
 	}
 	return Lines;
 }

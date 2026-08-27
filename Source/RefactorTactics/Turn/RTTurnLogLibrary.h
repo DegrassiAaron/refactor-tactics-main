@@ -31,6 +31,31 @@ enum class ERTTraceComparison : uint8
  * (invariante #4: niente float). L'hash e' usato per la verifica di replay ("replay divergence = 0"),
  * mai per la logica di gioco.
  */
+/**
+ * Una voce del TurnLog resa leggibile, col suo soggetto e col verdetto congelato che porta da [D-223].
+ *
+ * 🔴 **Sostituisce un `TPair<FString, int32>`, e non e' cosmesi.** Quel `TPair` riciclava l'identita' in un
+ * `int32` proprio sul canale che genera la maggior parte delle righe del combat log: `#1499` poteva
+ * tipizzare tutti i call site sparsi e lasciare qui, dove le righe nascono davvero, un intero che il
+ * compilatore non guarda.
+ */
+USTRUCT()
+struct FRTDescribedLine
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Text;
+
+	/** `INDEX_NONE` = voce di mondo. La traduzione dallo `0` del TurnLog avviene una volta sola, qui. */
+	UPROPERTY()
+	int32 SubjectStableUnitId = INDEX_NONE;
+
+	/** Il verdetto che la voce portava: si trasporta, non si ricalcola a valle. */
+	UPROPERTY()
+	FRTKnowledgeVerdict Verdict;
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTTurnLogLibrary : public UBlueprintFunctionLibrary
 {
@@ -172,7 +197,7 @@ public:
 	 * `DescribeTurnLog` e' un adattatore su questa: un solo produttore, quindi testo e ordine non possono
 	 * divergere fra le due forme.
 	 */
-	static TArray<TPair<FString, int32>> DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries);
+	static TArray<FRTDescribedLine> DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries);
 
 	/**
 	 * L'identita' dell'azione di una voce, come **azione base + profilo** quando la voce sa dirlo:

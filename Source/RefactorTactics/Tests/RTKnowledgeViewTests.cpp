@@ -41,6 +41,26 @@ namespace
 		return K;
 	}
 
+	/** Una riga col verdetto CONGELATO dalla conoscenza data: la catena vera, non una maschera a mano. */
+	FRTCombatLogLine KvLineFor(const TCHAR* Text, const TArray<FRTTeamKnowledge>& Teams,
+		const FRTKnowledgeSubject& Subject)
+	{
+		FRTCombatLogLine L;
+		L.Text = Text;
+		L.SubjectStableUnitId = Subject.StableUnitId;
+		L.Verdict = URTTeamKnowledgeLibrary::FreezeVerdict(Teams, Subject);
+		return L;
+	}
+
+	/** Una riga di mondo: dichiara di riguardare tutti, e non e' l'assenza di una decisione. */
+	FRTCombatLogLine KvWorldLine(const TCHAR* Text)
+	{
+		FRTCombatLogLine L;
+		L.Text = Text;
+		L.Verdict = FRTKnowledgeVerdict::Everyone();
+		return L;
+	}
+
 	// Le celle dei tre casi che il difetto «due copie» mette insieme. L'unita' 3 ne ha DUE, ed e' il punto:
 	// dove la squadra la ricorda (`KvContactCell`) e dove sta davvero adesso (`KvActualCell`).
 	const FRTCellId KvAllyCell(0, 0, 0);
@@ -214,15 +234,15 @@ bool FRTKnowledgeCombatLogOmitsUnknownTest::RunTest(const FString&)
 		KvSubject(2, 1, SeenCell),            // nemico visto
 		KvSubject(3, 1, FRTCellId(7, 0, 0))   // nemico ignoto
 	};
-	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(K, Subjects, /*Observer*/ 0);
-
+	// 🔴 I verdetti si CONGELANO passando da `FreezeVerdict`, non si montano a mano ([D-223]): un test che
+	// scrivesse le maschere direttamente proverebbe la propria fixture invece della regola.
 	TArray<FRTCombatLogLine> Raw;
-	Raw.Add({ TEXT("Turno 5 - pianificazione"),       INDEX_NONE }); // riga di mondo, senza soggetto
-	Raw.Add({ TEXT("Alleato: passo -> (0,0,L0)"),     1 });
-	Raw.Add({ TEXT("Nemico visto: passo -> (3,0,L0)"), 2 });
-	Raw.Add({ TEXT("Ignoto: passo -> (7,0,L0)"),      3 });
+	Raw.Add(KvWorldLine(TEXT("Turno 5 - pianificazione")));                      // riga di mondo
+	Raw.Add(KvLineFor(TEXT("Alleato: passo -> (0,0,L0)"),      { K }, Subjects[0]));
+	Raw.Add(KvLineFor(TEXT("Nemico visto: passo -> (3,0,L0)"), { K }, Subjects[1]));
+	Raw.Add(KvLineFor(TEXT("Ignoto: passo -> (7,0,L0)"),       { K }, Subjects[2]));
 
-	const TArray<FString> Visible = ARTTurnManager::ComposeVisibleLogLines(Raw, View);
+	const TArray<FString> Visible = ARTTurnManager::ComposeVisibleLogLines(Raw, /*ObserverTeamId*/ 0);
 
 	TestEqual(TEXT("tre righe su quattro"), Visible.Num(), 3);
 	TestTrue (TEXT("la riga di mondo resta"),  Visible.Contains(TEXT("Turno 5 - pianificazione")));
@@ -429,15 +449,24 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeCombatLogOmitsRememberedTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTKnowledgeCombatLogOmitsRememberedTest::RunTest(const FString&)
 {
-	const FRTKnowledgeView View = KvViewWithRemembered();
+	// La stessa conoscenza da cui `KvViewWithRemembered` costruisce la sua vista: la 2 sotto gli occhi,
+	// la 3 solo ricordata.
+	FRTTeamKnowledge K = KvKnowledge({
+		FRTLastKnownContact(2, KvSeenCell, 5),
+		FRTLastKnownContact(3, KvContactCell, 5) });
+	K.VisibleCells.Add(KvSeenCell);
+
+	const FRTKnowledgeSubject Ally      = KvSubject(1, 0, KvAllyCell);
+	const FRTKnowledgeSubject Seen      = KvSubject(2, 1, KvSeenCell);
+	const FRTKnowledgeSubject Remembered = KvSubject(3, 1, KvActualCell);
 
 	TArray<FRTCombatLogLine> Raw;
-	Raw.Add({ TEXT("Turno 5 - pianificazione"),          INDEX_NONE }); // riga di mondo
-	Raw.Add({ TEXT("Alleato: passo -> (0,0,L0)"),        1 });
-	Raw.Add({ TEXT("Nemico visto: passo -> (3,0,L0)"),   2 });
-	Raw.Add({ TEXT("Ricordato: passo -> (9,0,L0)"),      3 }); // la cella ATTUALE, non quella ricordata
+	Raw.Add(KvWorldLine(TEXT("Turno 5 - pianificazione")));
+	Raw.Add(KvLineFor(TEXT("Alleato: passo -> (0,0,L0)"),      { K }, Ally));
+	Raw.Add(KvLineFor(TEXT("Nemico visto: passo -> (3,0,L0)"), { K }, Seen));
+	Raw.Add(KvLineFor(TEXT("Ricordato: passo -> (9,0,L0)"),    { K }, Remembered)); // cella ATTUALE
 
-	const TArray<FString> Visible = ARTTurnManager::ComposeVisibleLogLines(Raw, View);
+	const TArray<FString> Visible = ARTTurnManager::ComposeVisibleLogLines(Raw, /*ObserverTeamId*/ 0);
 
 	// 🔴 Il cuore: la riga del ricordato sparisce INTERA.
 	TestFalse(TEXT("la riga del RICORDATO sparisce"), Visible.Contains(TEXT("Ricordato: passo -> (9,0,L0)")));
@@ -603,6 +632,53 @@ bool FRTKnowledgeVerdictDefaultsClosedTest::RunTest(const FString&)
 	Built.AllowTeam(1);
 	TestFalse(TEXT("AllowTeam accende solo il bit chiesto"), Built.AllowsTeam(0));
 	TestTrue (TEXT("e quel bit e' acceso"), Built.AllowsTeam(1));
+
+	return true;
+}
+
+/**
+ * 🔴 Il contenuto POSITIVO di [D-223]: una riga scritta mentre il soggetto era visibile **resta leggibile**
+ * dopo che e' diventato un ricordo.
+ *
+ * ⚠️ **Senza questo test la suite del log sarebbe di sola assenza**, e la semantica vecchia — filtrare in
+ * lettura sulla conoscenza di adesso — potrebbe rientrare senza far diventare rosso niente. E' il gemello
+ * di `CombatLogOmitsRemembered`: quello prova che cio' che non si sapeva resta nascosto, questo che cio'
+ * che si sapeva non si perde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeFrozenLineSurvivesForgettingTest,
+	"RefactorTactics.Knowledge.FrozenLineSurvivesForgetting",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeFrozenLineSurvivesForgettingTest::RunTest(const FString&)
+{
+	const FRTKnowledgeSubject Enemy = KvSubject(2, /*TeamId*/ 1, KvSeenCell);
+
+	// TURNO N: la squadra 0 lo vede. La riga nasce adesso, e porta il verdetto di adesso.
+	FRTTeamKnowledge Then = KvKnowledge({ FRTLastKnownContact(2, KvSeenCell, 5) });
+	Then.VisibleCells.Add(KvSeenCell);
+	const FRTCombatLogLine Line = KvLineFor(TEXT("Nemico: passo -> (3,0,L0)"), { Then }, Enemy);
+
+	// Anti-vacuita': se la riga non fosse leggibile nemmeno adesso, il test sotto passerebbe per la ragione
+	// sbagliata — e non misurerebbe nulla sul dimenticare.
+	if (!TestTrue(TEXT("nel turno del fatto la riga si legge"),
+		ARTTurnManager::ComposeVisibleLogLines({ Line }, 0).Num() == 1))
+	{
+		return false;
+	}
+
+	// TURNO N+2: il contatto e' scaduto, la squadra non sa piu' nulla di lui. La CONOSCENZA e' cambiata;
+	// la riga no — ed e' il punto della decisione.
+	FRTTeamKnowledge Now = KvKnowledge({});
+	Now.TurnNumber = 7;
+	const FRTKnowledgeView ViewNow = URTKnowledgeViewLibrary::ViewForTeam(Now, { Enemy }, 0);
+	TestNull(TEXT("adesso la porta non ha piu' una voce per lui"),
+		URTKnowledgeViewLibrary::FindEntry(ViewNow, 2));
+
+	const TArray<FString> Visible = ARTTurnManager::ComposeVisibleLogLines({ Line }, /*ObserverTeamId*/ 0);
+	TestEqual(TEXT("la riga di allora si legge ancora"), Visible.Num(), 1);
+
+	// E resta filtrata per l'altra squadra: il congelamento non e' un lasciapassare universale.
+	TestEqual(TEXT("ma non per chi non lo vedeva"),
+		ARTTurnManager::ComposeVisibleLogLines({ Line }, /*ObserverTeamId*/ 1).Num(), 0);
 
 	return true;
 }

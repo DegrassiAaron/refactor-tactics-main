@@ -69,17 +69,77 @@ void ARTTurnManager::Tick(float DeltaSeconds)
 	}
 }
 
-void ARTTurnManager::AddLogEvent(const FString& Message, int32 SubjectStableUnitId)
+FRTLogSubject FRTLogSubject::Unit(const ARTUnit* InUnit)
+{
+	FRTLogSubject S;
+	S.Unit_ = InUnit;
+	S.StableUnitId = InUnit ? InUnit->StableUnitId : INDEX_NONE;
+	return S;
+}
+
+FRTLogSubject FRTLogSubject::Frozen(int32 InStableUnitId, const FRTKnowledgeVerdict& InVerdict)
+{
+	FRTLogSubject S;
+	S.bFrozen = true;
+	S.StableUnitId = InStableUnitId;
+	S.FrozenVerdict = InVerdict;
+	return S;
+}
+
+FRTLogSubject FRTLogSubject::World()
+{
+	FRTLogSubject S;
+	S.bWorld = true;
+	return S;
+}
+
+void ARTTurnManager::AddLogEvent(const FString& Message, FRTLogSubject Subject)
 {
 	// 🔴 Il log di SVILUPPO resta COMPLETO. E' diagnosi, non un canale del giocatore: mutilarlo renderebbe
 	// impossibile capire una partita andata storta, e nessun avversario lo legge.
 	UE_LOG(LogRT, Log, TEXT("[RT] %s"), *Message);
 
-	RecentEvents.Add(FRTCombatLogLine{ Message, SubjectStableUnitId });
+	FRTCombatLogLine Line;
+	Line.Text = Message;
+	Line.SubjectStableUnitId = Subject.GetStableUnitId();
+	Line.Verdict = FreezeVerdictFor(Subject);
+
+	RecentEvents.Add(MoveTemp(Line));
 	while (RecentEvents.Num() > MaxLogLines)
 	{
 		RecentEvents.RemoveAt(0);
 	}
+}
+
+FRTKnowledgeVerdict ARTTurnManager::FreezeVerdictFor(const FRTLogSubject& Subject) const
+{
+	// Il verdetto e' gia' stato deciso quando il fatto e' accaduto: si trasporta, non si ricalcola.
+	if (Subject.HasFrozenVerdict())
+	{
+		return Subject.GetFrozenVerdict();
+	}
+
+	// Un fatto di mondo riguarda tutti, e lo dichiara: non e' l'assenza di una decisione.
+	if (Subject.IsWorld())
+	{
+		return FRTKnowledgeVerdict::Everyone();
+	}
+
+	// Fail-closed se l'attore non c'e': `ClassifyTarget` vuole squadra e cella, e senza di esse una riga
+	// non si legge — mai si legge per sbaglio.
+	const ARTUnit* U = Subject.GetUnit();
+	if (U == nullptr)
+	{
+		return FRTKnowledgeVerdict::NoOne();
+	}
+
+	FRTKnowledgeSubject S;
+	S.StableUnitId = U->StableUnitId;
+	S.TeamId = U->TeamId;
+	S.Cell = U->Cell;   // la cella di ADESSO, che al momento della scrittura e' quella del fatto
+	S.bAlive = U->IsAlive();
+
+	return URTTeamKnowledgeLibrary::FreezeVerdict(TeamKnowledgeState, S);
 }
 
 TArray<FString> ARTTurnManager::GetRecentEvents() const
@@ -96,30 +156,18 @@ TArray<FString> ARTTurnManager::GetRecentEvents() const
 }
 
 TArray<FString> ARTTurnManager::ComposeVisibleLogLines(const TArray<FRTCombatLogLine>& Lines,
-	const FRTKnowledgeView& View)
+	int32 ObserverTeamId)
 {
 	TArray<FString> Out;
 	Out.Reserve(Lines.Num());
 	for (const FRTCombatLogLine& L : Lines)
 	{
-		// Riga di mondo: nessun soggetto da conoscere, quindi nessuna ragione per nasconderla.
-		if (L.SubjectStableUnitId == INDEX_NONE)
-		{
-			Out.Add(L.Text);
-			continue;
-		}
-
-		// 🔴 Serve una voce `Live`, non una voce qualsiasi — la stessa regola di
-		// `ARTHUD::ShouldDrawUnitOverlay`. Una riga porta le coordinate ATTUALI del soggetto (le stampa
-		// `URTTurnLogLibrary::DescribeEntry`, `SrcCell` e `TgtCell` per ogni movimento): per un
-		// `Remembered` quelle coordinate sono precisamente cio' che la squadra non sa piu'.
+		// 🔴 **Nessuna vista costruita qui, ed e' il punto di [D-223].** La domanda «puo' leggerla?» ha gia'
+		// una risposta, decisa quando la riga e' nata: interrogare la conoscenza di ADESSO risponderebbe a
+		// una domanda diversa, e per un soggetto nel frattempo distrutto non risponderebbe affatto.
 		//
-		// ⚠️ **Fail-closed, e si paga.** Una riga prodotta nel Blast su un'unita' che al refresh successivo
-		// e' diventata `Remembered` viene soppressa: si perde una riga vera. E' la direzione giusta perche'
-		// il contrario regalerebbe la posizione attuale di un'unita' che non si vede — un leak, non una
-		// riga in meno.
-		const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, L.SubjectStableUnitId);
-		if (Entry != nullptr && Entry->Visibility == ERTKnowledgeVisibility::Live)
+		// ⚠️ Il verdetto e' fail-closed di default: una riga che arrivasse qui senza verdetto non si legge.
+		if (L.Verdict.AllowsTeam(ObserverTeamId))
 		{
 			Out.Add(L.Text);
 		}
@@ -129,32 +177,14 @@ TArray<FString> ARTTurnManager::ComposeVisibleLogLines(const TArray<FRTCombatLog
 
 TArray<FString> ARTTurnManager::GetRecentEventsForTeam(int32 ObserverTeamId) const
 {
-	// Nessun accessor riusabile per «le unita' vive» esiste gia' sul TurnManager: ogni sito che ne ha
-	// bisogno (RefreshTeamKnowledgeForPlanning, ConcludeTurn, ...) ripete GetAllActorsOfClass + cast, come
-	// fa anche ARTHUD::DrawHUD per costruire gli stessi Subjects. Questo blocco segue lo stesso schema
-	// invece di introdurre un terzo modo di raggiungere le unita'.
-	TArray<AActor*> Actors;
-	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
-
-	TArray<FRTKnowledgeSubject> Subjects;
-	Subjects.Reserve(Actors.Num());
-	for (AActor* A : Actors)
-	{
-		const ARTUnit* U = Cast<ARTUnit>(A);
-		if (!U) { continue; }
-		FRTKnowledgeSubject S;
-		S.StableUnitId = U->StableUnitId;
-		S.TeamId = U->TeamId;
-		S.Cell = U->Cell;
-		S.HeroId = U->HeroId;
-		S.HeroDisplayName = U->HeroDisplayName;
-		S.bAlive = U->IsAlive();
-		Subjects.Add(S);
-	}
-
-	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(
-		KnowledgeForTeam(ObserverTeamId), Subjects, ObserverTeamId);
-	return ComposeVisibleLogLines(RecentEvents, View);
+	// ✅ **Venticinque righe sparite con [D-223], e vale la pena dire cosa facevano**: `GetAllActorsOfClass`,
+	// la costruzione dei `Subjects` e una `ViewForTeam` completa, a ogni frame di disegno, per rispondere a
+	// una domanda che ogni riga porta gia' con se'.
+	//
+	// 🔴 E non era solo lavoro sprecato: era la domanda SBAGLIATA. La vista si costruiva sulle unita' del
+	// mondo di ADESSO, quindi un'unita' distrutta a fine turno non c'era piu' fra i soggetti e ogni riga
+	// che la nominava spariva — anche per la squadra che l'aveva vista cadere.
+	return ComposeVisibleLogLines(RecentEvents, ObserverTeamId);
 }
 
 TArray<FRTCellId> ARTTurnManager::CellsEnteredAlong(const TArray<FRTCellId>& Path)
@@ -290,7 +320,7 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 
 				// ⚠️ `AddLogEvent` **resta**: e' la vista leggibile, non la traccia.
 				AddLogEvent(FString::Printf(TEXT("%s: %d danni da terreno (q=%d,r=%d,L%d)"),
-					*Unit->GetName(), Effect.Amount, Cell.X, Cell.Y, Cell.Layer), Unit->StableUnitId);
+					*Unit->GetName(), Effect.Amount, Cell.X, Cell.Y, Cell.Layer), FRTLogSubject::Unit(Unit));
 			}
 			else if (Effect.Effect == ERTActionEffect::Status)
 			{
@@ -317,8 +347,7 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 						/*bFromTerrain=*/ true);
 					AppendLogEntry(Nato, Unit);
 				}
-				AddLogEvent(FString::Printf(TEXT("%s: %s da terreno"), *Unit->GetName(), *Effect.StatusTag.ToString()),
-					Unit->StableUnitId);
+				AddLogEvent(FString::Printf(TEXT("%s: %s da terreno"), *Unit->GetName(), *Effect.StatusTag.ToString()), FRTLogSubject::Unit(Unit));
 			}
 		}
 	}
@@ -593,7 +622,7 @@ void ARTTurnManager::PlanBots()
 			{
 				Bot->PlannedReactionAbility = R;
 				AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione)"),
-					*Bot->GetName(), *Reaction->Def.ActionId.ToString()), Bot->StableUnitId);
+					*Bot->GetName(), *Reaction->Def.ActionId.ToString()), FRTLogSubject::Unit(Bot));
 				break;
 			}
 		}
@@ -968,13 +997,13 @@ void ARTTurnManager::PlanBots()
 					Bot->PlannedDashAbility = DashIdx;
 					Bot->PlannedDashCell = Dest;
 					AddLogEvent(FString::Printf(TEXT("%s: scatto difensivo (schiva) -> (q=%d,r=%d,L%d)"),
-						*Bot->GetName(), Dest.X, Dest.Y, Dest.Layer), Bot->StableUnitId);
+						*Bot->GetName(), Dest.X, Dest.Y, Dest.Layer), FRTLogSubject::Unit(Bot));
 					continue;
 				}
 			}
 			Bot->PlannedCell = URTHexBotLibrary::BestKiteCell(Snapshot, BotIdx, NearestKnownCell);
 			AddLogEvent(FString::Printf(TEXT("%s: arretra -> (q=%d,r=%d,L%d)"),
-				*Bot->GetName(), Bot->PlannedCell.X, Bot->PlannedCell.Y, Bot->PlannedCell.Layer), Bot->StableUnitId);
+				*Bot->GetName(), Bot->PlannedCell.X, Bot->PlannedCell.Y, Bot->PlannedCell.Layer), FRTLogSubject::Unit(Bot));
 			ReserveNormalMove(Snapshot, Bot, BotIdx);
 			continue;
 		}
@@ -1141,8 +1170,7 @@ void ARTTurnManager::PlanBots()
 			// Il soggetto e' il BOT, non il bersaglio: e' la sua posizione e la sua intenzione che trapelano
 			// qui. Il bersaglio e' gia' filtrato dalla riga che lo riguarda.
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> CARICA su %s (impatto da (q=%d,r=%d,L%d)) score=%d"),
-				*Bot->GetName(), *Target->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score),
-				Bot->StableUnitId);
+				*Bot->GetName(), *Target->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score), FRTLogSubject::Unit(Bot));
 		}
 		else if (bViaDash && Target && BestAbility != INDEX_NONE)
 		{
@@ -1153,8 +1181,7 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedAttackTarget = Target;
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> scatto (q=%d,r=%d,L%d) + attacca %s score=%d"),
-				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score),
-				Bot->StableUnitId);
+				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score), FRTLogSubject::Unit(Bot));
 		}
 		else if (Target && BestAbility != INDEX_NONE)
 		{
@@ -1164,8 +1191,7 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedAttackTarget = Target;
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) attacca %s score=%d"),
-				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score),
-				Bot->StableUnitId);
+				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score), FRTLogSubject::Unit(Bot));
 		}
 		else if (bViaDash)
 		{
@@ -1173,7 +1199,7 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedDashAbility = DashIdx;
 			Bot->PlannedDashCell = Best.DestCell;
 			AddLogEvent(FString::Printf(TEXT("%s: scatto -> (q=%d,r=%d,L%d) score=%d"),
-				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score), Bot->StableUnitId);
+				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score), FRTLogSubject::Unit(Bot));
 		}
 		else
 		{
@@ -1181,7 +1207,7 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedCell = Best.DestCell;
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) score=%d%s"),
 				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
-				Best.DestCell == Bot->Cell ? TEXT(" (resta)") : TEXT("")), Bot->StableUnitId);
+				Best.DestCell == Bot->Cell ? TEXT(" (resta)") : TEXT("")), FRTLogSubject::Unit(Bot));
 		}
 
 		// #1088 — l'ultima cosa che il bot fa: dichiarare alle compagne dove sta andando. Copre i quattro
@@ -1226,7 +1252,7 @@ void ARTTurnManager::StartPlanningTimer()
 	{
 		World->GetTimerManager().SetTimer(PlanningTimerHandle, this, &ARTTurnManager::OnPlanningTimeout, PlanningSeconds, false);
 	}
-	AddLogEvent(FString::Printf(TEXT("Turno %d - pianificazione"), TurnNumber));
+	AddLogEvent(FString::Printf(TEXT("Turno %d - pianificazione"), TurnNumber), FRTLogSubject::World());
 }
 
 void ARTTurnManager::OnPlanningTimeout()
@@ -1444,7 +1470,7 @@ void ARTTurnManager::LockInAndResolve()
 				// e' la traccia. Il DoD di `#625` lo chiede esplicitamente — «non si sostituisce, si affianca».
 				AddLogEvent(FString::Printf(TEXT("%s: %d danni da Status.Burning (q=%d,r=%d,L%d)"),
 					*Unit->GetName(), URTCombatLibrary::BurningCleanupDamage,
-					Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer), Unit->StableUnitId);
+					Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer), FRTLogSubject::Unit(Unit));
 
 				if (!Unit->IsAlive())
 				{
@@ -1456,7 +1482,7 @@ void ARTTurnManager::LockInAndResolve()
 					// distingue gia': una voce in piu' direbbe due volte lo stesso fatto, e il replay dovrebbe
 					// decidere quale delle due e' il colpo — che e' lo stesso motivo per cui l'attacco letale,
 					// due funzioni piu' sotto, non ne scrive una seconda.
-					AddLogEvent(FString::Printf(TEXT("%s eliminato dalle fiamme"), *Unit->GetName()), Unit->StableUnitId);
+					AddLogEvent(FString::Printf(TEXT("%s eliminato dalle fiamme"), *Unit->GetName()), FRTLogSubject::Unit(Unit));
 					continue; // morto adesso: non guadagna energia, non conta fra i vivi
 				}
 			}
@@ -1561,7 +1587,7 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 
 	// 1. Riga di combat log: e' per l'HUD e NON finisce nel file — la traccia e' la voce di TurnLog al passo 3.
 	AddLogEvent(FString::Printf(TEXT("%s: %s -> (q=%d,r=%d,L%d)"),
-		LogVerb, *Unit->GetName(), NewCell.X, NewCell.Y, NewCell.Layer), Unit->StableUnitId);
+		LogVerb, *Unit->GetName(), NewCell.X, NewCell.Y, NewCell.Layer), FRTLogSubject::Unit(Unit));
 
 	// 2. Celle attraversate: la linea esagonale fra le due, i cui passi sono adiacenti per costruzione. Serve
 	// al playback E agli hazard — «lo spostamento forzato ignora il costo VOLONTARIO del terreno, non la
@@ -1710,7 +1736,7 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 		Entry.Amount = Restored; // quanto e' stato curato DAVVERO: a salute piena la voce dice zero
 		// L'attore e' chi CURA, non chi viene curato: la voce dice chi ha agito ([D-063]).
 		AppendLogEntry(Entry, Healers.IsValidIndex(h) ? Healers[h] : nullptr);
-		AddLogEvent(FString::Printf(TEXT("%s: +%d salute"), *HealTarget->GetName(), Restored), HealTarget->StableUnitId);
+		AddLogEvent(FString::Printf(TEXT("%s: +%d salute"), *HealTarget->GetName(), Restored), FRTLogSubject::Unit(HealTarget));
 	}
 }
 
@@ -1742,7 +1768,7 @@ bool ARTTurnManager::ApplyDynamicSurface(URTHexMapAsset* Map, const FRTCellId& C
 		Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::SurfaceRejected);
 		Entry.Amount = 0;
 		AppendLogEntry(Entry, Cause); // la trasformazione e' ambientale, ma qualcuno l'ha tentata
-		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): non prende fuoco"), Cell.X, Cell.Y, Cell.Layer));
+		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): non prende fuoco"), Cell.X, Cell.Y, Cell.Layer), FRTLogSubject::World());
 		return false;
 	}
 
@@ -1772,7 +1798,7 @@ bool ARTTurnManager::ApplyDynamicSurface(URTHexMapAsset* Map, const FRTCellId& C
 	Entry.Amount = Turns;
 	AppendLogEntry(Entry, Cause);
 	AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): %s (%d turni)"), Cell.X, Cell.Y, Cell.Layer,
-		bExtinguishes ? TEXT("il fuoco si spegne") : TEXT("la superficie cambia"), Turns));
+		bExtinguishes ? TEXT("il fuoco si spegne") : TEXT("la superficie cambia"), Turns), FRTLogSubject::World());
 	return true;
 }
 
@@ -1827,7 +1853,7 @@ void ARTTurnManager::TickDynamicArcs(URTHexMapAsset* Map)
 		// significa davvero «nessuna unita'» e non «non lo sappiamo» ([D-063]).
 		AppendLogEntry(Entry, nullptr);
 		AddLogEvent(FString::Printf(TEXT("Il ponte (q=%d,r=%d,L%d) -> (q=%d,r=%d,L%d) e' scaduto"),
-			From.X, From.Y, From.Layer, To.X, To.Y, To.Layer));
+			From.X, From.Y, From.Layer, To.X, To.Y, To.Layer), FRTLogSubject::World());
 	}
 }
 
@@ -1880,7 +1906,7 @@ void ARTTurnManager::TickDynamicCovers(URTHexMapAsset* Map)
 		Entry.Amount = 0;
 		AppendLogEntry(Entry, nullptr); // scadenza: nessun attore
 		AddLogEvent(FString::Printf(TEXT("La copertura (q=%d,r=%d,L%d) e' scaduta"),
-			Cell.X, Cell.Y, Cell.Layer));
+			Cell.X, Cell.Y, Cell.Layer), FRTLogSubject::World());
 	}
 }
 
@@ -1920,7 +1946,7 @@ void ARTTurnManager::TickDynamicSurfaces(URTHexMapAsset* Map)
 			Entry.Amount = 0;
 			AppendLogEntry(Entry, nullptr); // scadenza: nessun attore
 			AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): la superficie torna com'era"),
-				Cell.X, Cell.Y, Cell.Layer));
+				Cell.X, Cell.Y, Cell.Layer), FRTLogSubject::World());
 		}
 		DynamicSurfaces.Remove(Cell);
 	}
@@ -2016,6 +2042,19 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 	// `nullptr` -> `0`, cioe' «nessuna unita' dichiarata». Il parametro e' OBBLIGATORIO di proposito: reso
 	// opzionale, un sito nuovo erediterebbe lo zero in silenzio e la voce direbbe «nessuno» invece di tacere.
 	Entry.UnitId = Actor ? Actor->StableUnitId : 0;
+
+	// 🔴 **Il verdetto di [D-223] si congela QUI, ed e' l'unico punto in cui e' corretto farlo.** Questa
+	// funzione gira DURANTE la fase che produce il fatto: la conoscenza di squadra e la cella dell'attore
+	// appartengono allo stesso istante. Il canale che deriva il combat log da queste voci gira invece a fine
+	// turno (`ConcludeTurn`), quando la conoscenza e' quella del Blast e le celle sono gia' post-Move: li'
+	// i due ingressi verrebbero da momenti diversi, e `AwarenessOfUnit` — che confronta la cella con
+	// `VisibleCells` — restituirebbe un verdetto che non e' quello del fatto.
+	//
+	// Una voce senza attore e' un fatto di MONDO e lo dichiara: una superficie che scade, un ponte che
+	// crolla. Non e' l'assenza di una decisione.
+	Entry.Verdict = Actor ? FreezeVerdictFor(FRTLogSubject::Unit(Actor))
+	                      : FRTKnowledgeVerdict::Everyone();
+
 	// L'UNICO `TurnLog.Add` del file: ogni altro sito passa da qui.
 	TurnLog.Add(Entry);
 }
@@ -2071,7 +2110,7 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 				*Verdict.HolderActionId.ToString());
 
 		AddLogEvent(FString::Printf(TEXT("%s: piano non valido al lock-in (%s)"),
-			*Unit->GetName(), *Dettaglio));
+			*Unit->GetName(), *Dettaglio), FRTLogSubject::Unit(Unit));
 	}
 }
 
@@ -2137,7 +2176,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		if (!Target || !Target->IsAlive())
 		{
 			AddLogEvent(FString::Printf(TEXT("%s: %s annullata (nessun bersaglio)"),
-				*Caster->GetName(), *Ability->Def.ActionId.ToString()));
+				*Caster->GetName(), *Ability->Def.ActionId.ToString()), FRTLogSubject::Unit(Caster));
 			continue;
 		}
 
@@ -2219,7 +2258,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		{
 			// Nessun colpo: senza mappa autorevole (fail-closed) o con il bersaglio ormai fuori dallo snapshot.
 			AddLogEvent(FString::Printf(TEXT("%s: %s senza effetto"),
-				*Caster->GetName(), *Ability->Def.ActionId.ToString()));
+				*Caster->GetName(), *Ability->Def.ActionId.ToString()), FRTLogSubject::Unit(Caster));
 			continue;
 		}
 
@@ -2251,10 +2290,10 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 
 			AddLogEvent(FString::Printf(TEXT("%s: %d danni da %s (%d %s)"),
 				*Victim->GetName(), Hit.Damage, *Ability->Def.ActionId.ToString(),
-				Hit.Steps, Hit.Steps == 0 ? TEXT("colpo diretto") : TEXT("celle di propagazione")));
+				Hit.Steps, Hit.Steps == 0 ? TEXT("colpo diretto") : TEXT("celle di propagazione")), FRTLogSubject::Unit(Victim));
 			if (!Victim->IsAlive())
 			{
-				AddLogEvent(FString::Printf(TEXT("%s eliminato dalla scarica"), *Victim->GetName()));
+				AddLogEvent(FString::Printf(TEXT("%s eliminato dalla scarica"), *Victim->GetName()), FRTLogSubject::Unit(Victim));
 			}
 		}
 	}
@@ -2331,7 +2370,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			{
 				// Circondato: la reazione e' scattata e ha speso la sua attivazione senza salvare nessuno.
 				// E' un esito e va detto, come per `EmergencyDash` quando non ha dove andare.
-				AddLogEvent(FString::Printf(TEXT("%s: nessuna cella sicura dove fuggire"), *Fleeing->GetName()));
+				AddLogEvent(FString::Printf(TEXT("%s: nessuna cella sicura dove fuggire"), *Fleeing->GetName()), FRTLogSubject::Unit(Fleeing));
 				continue;
 			}
 
@@ -2380,9 +2419,11 @@ void ARTTurnManager::ConcludeTurn()
 	// sempre — comprese le voci `Move`, che `DescribeEntry` stampa con `SrcCell` **e** `TgtCell` di un
 	// nemico che la squadra puo' non vedere. Convertire i siti sparsi senza convertire questo lasciava il
 	// canale piu' grosso scoperto.
-	for (const TPair<FString, int32>& Line : URTTurnLogLibrary::DescribeTurnLogWithSubjects(TurnLog))
+	for (const FRTDescribedLine& Line : URTTurnLogLibrary::DescribeTurnLogWithSubjects(TurnLog))
 	{
-		AddLogEvent(Line.Key, Line.Value);
+		// Il verdetto viene dalla voce, che lo ha congelato nella fase in cui il fatto e' accaduto.
+		// Ricalcolarlo qui userebbe la conoscenza del Blast e le celle post-Move: due istanti diversi.
+		AddLogEvent(Line.Text, FRTLogSubject::Frozen(Line.SubjectStableUnitId, Line.Verdict));
 	}
 	// PRIMA di tutto il resto: a partita finita questa funzione esce anticipatamente, e il turno che
 	// decide la partita e' proprio quello che non verrebbe mai misurato.
@@ -2417,7 +2458,7 @@ void ARTTurnManager::ConcludeTurn()
 			MatchRules.RoundLimit,
 			Team0Score,
 			Team1Score,
-			*MatchRules.FormatId.ToString()));
+			*MatchRules.FormatId.ToString()), FRTLogSubject::World());
 
 		// La partita e' finita: l'archivio si chiude, e da qui in poi dichiara di essere completo. Se
 		// questa riga non venisse mai eseguita — crash, uscita — il manifest resterebbe non chiuso, ed e'
@@ -2473,7 +2514,7 @@ void ARTTurnManager::AddTeamScore(int32 TeamId, int32 Points)
 	}
 
 	AddLogEvent(FString::Printf(TEXT("Obiettivo: team %d +%d (ora %d-%d)"),
-		TeamId, Points, Team0Score, Team1Score));
+		TeamId, Points, Team0Score, Team1Score), FRTLogSubject::World());
 }
 
 void ARTTurnManager::CaptureFinalStateHash()
@@ -2584,7 +2625,7 @@ void ARTTurnManager::RecordTurnToReplay()
 	{
 		// Non e' un errore di gioco: la partita continua anche se il disco no. Ma va DETTO, o un archivio
 		// che non c'e' si scopre solo quando qualcuno prova a riaprirlo.
-		AddLogEvent(FString::Printf(TEXT("Replay: il turno %d non e' stato registrato"), TurnNumber));
+		AddLogEvent(FString::Printf(TEXT("Replay: il turno %d non e' stato registrato"), TurnNumber), FRTLogSubject::World());
 	}
 }
 
@@ -2603,7 +2644,7 @@ void ARTTurnManager::CloseReplayArchive()
 	if (!URTReplayRecorderLibrary::CloseMatch(ResolveReplaysRoot(), ReplayManifest,
 		PendingResult.Outcome, PendingFinalStateHash, WallClock))
 	{
-		AddLogEvent(TEXT("Replay: l'archivio non e' stato chiuso"));
+		AddLogEvent(TEXT("Replay: l'archivio non e' stato chiuso"), FRTLogSubject::World());
 	}
 
 	// La riga della lista si completa con quello che il manifest dice ADESSO: esito, turni, durata e la
@@ -2690,7 +2731,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		Entry.Amount = 0;
 		Rejections.Add({ Entry, Who });
 		AddLogEvent(FString::Printf(TEXT("%s: %s annullata (%s)"),
-			Who ? *Who->GetName() : TEXT("?"), *ActionId.ToString(), Why));
+			Who ? *Who->GetName() : TEXT("?"), *ActionId.ToString(), Why), FRTLogSubject::Unit(Who));
 	};
 
 	for (ARTUnit* Unit : Units) // gia' ordinati per cella dal chiamante
@@ -2824,7 +2865,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 			Entry.Amount = 0;
 			Rejections.Add({ Entry, Op.Actor });
 			AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): il bordo e' gia' riparato"),
-				Op.Cell.X, Op.Cell.Y, Op.Cell.Layer));
+				Op.Cell.X, Op.Cell.Y, Op.Cell.Layer), FRTLogSubject::World());
 			continue;
 		}
 
@@ -2843,7 +2884,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		Entry.Amount = Op.Turns;
 		AppendLogEntry(Entry, Op.Actor);
 		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): copertura eretta (%d turni)"),
-			Op.Cell.X, Op.Cell.Y, Op.Cell.Layer, Op.Turns));
+			Op.Cell.X, Op.Cell.Y, Op.Cell.Layer, Op.Turns), FRTLogSubject::World());
 		++Applied;
 	}
 
@@ -2951,7 +2992,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		Entry2.Amount = MovedIntegrity; // l'integrita' viaggia con la copertura: spostarla non la ripara
 		AppendLogEntry(Entry2, Mover); // chi ha spostato la copertura
 		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): copertura spostata%s"),
-			Move.Cell.X, Move.Cell.Y, Move.Cell.Layer, bWasFree ? TEXT(" (rotazione gratuita)") : TEXT("")));
+			Move.Cell.X, Move.Cell.Y, Move.Cell.Layer, bWasFree ? TEXT(" (rotazione gratuita)") : TEXT("")), FRTLogSubject::World());
 		// Anche uno SPOSTAMENTO e' successo qualcosa. Contando solo le erezioni, un turno in cui l'unico
 		// evento e' una `Reconfigure` non accendeva il beat di Prep nel playback: il TurnLog lo registrava e
 		// lo spettatore non vedeva niente. E' la presentazione a tacere, non la regola — ma tacere resta il
@@ -3119,11 +3160,11 @@ void ARTTurnManager::ResolvePrep()
 		{
 		case ERTActionEffect::Shield:
 			Target->AddTemporaryShield(Event.Amount); // temporaneo: scade nel Cleanup (issue #96)
-			AddLogEvent(FString::Printf(TEXT("%s: +%d scudo"), *Target->GetName(), Event.Amount));
+			AddLogEvent(FString::Printf(TEXT("%s: +%d scudo"), *Target->GetName(), Event.Amount), FRTLogSubject::Unit(Target));
 			break;
 		case ERTActionEffect::Heal:
 			Target->ApplyCombatState(FMath::Min(Target->MaxHealth, Target->Health + Event.Amount), Target->Shield);
-			AddLogEvent(FString::Printf(TEXT("%s: +%d salute"), *Target->GetName(), Event.Amount));
+			AddLogEvent(FString::Printf(TEXT("%s: +%d salute"), *Target->GetName(), Event.Amount), FRTLogSubject::Unit(Target));
 			break;
 		case ERTActionEffect::Status:
 			ApplyStatusLogged(Target, Event.StatusTag, Event.Amount);
@@ -3137,7 +3178,7 @@ void ARTTurnManager::ResolvePrep()
 					/*bFromTerrain=*/ false);
 				AppendLogEntry(Nato, Target);
 			}
-			AddLogEvent(FString::Printf(TEXT("%s: stato applicato"), *Target->GetName()));
+			AddLogEvent(FString::Printf(TEXT("%s: stato applicato"), *Target->GetName()), FRTLogSubject::Unit(Target));
 			break;
 		default:
 			// Danno e spinta non appartengono alla Prep: risolvono nel Blast, dove l'ordine conta insieme
@@ -3348,7 +3389,7 @@ void ARTTurnManager::ResolveDash()
 
 		ARTUnit* Unit = Units[i];
 		const FRTCellId Final = Resolved[i].Final;
-		AddLogEvent(FString::Printf(TEXT("Scatto: %s -> (q=%d,r=%d,L%d)"), *Unit->GetName(), Final.X, Final.Y, Final.Layer));
+		AddLogEvent(FString::Printf(TEXT("Scatto: %s -> (q=%d,r=%d,L%d)"), *Unit->GetName(), Final.X, Final.Y, Final.Layer), FRTLogSubject::Unit(Unit));
 
 		// Lo SCATTO nel TurnLog (#307). Fino a qui la fase Dash non lasciava nessuna voce di movimento: il
 		// replay vedeva un'unita' comparire altrove fra un turno e l'altro, e chi leggeva la traccia non
@@ -3544,7 +3585,7 @@ void ARTTurnManager::ResolveDash()
 					AppendLogEntry(Nato, Unit);
 				}
 				AddLogEvent(FString::Printf(TEXT("%s: %s per %d turno/i"),
-					*Unit->GetName(), *Event.StatusTag.ToString(), Event.Amount));
+					*Unit->GetName(), *Event.StatusTag.ToString(), Event.Amount), FRTLogSubject::Unit(Unit));
 			}
 			// Danno e spinta della Carica (CP 4.5) non si applicano qui: hanno per bersaglio il primo nemico
 			// sulla linea, non chi scatta, e vanno risolti con gli altri colpi.
@@ -3647,7 +3688,7 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 					Out.CounterPriority.Add(Reaction->Def.Priority);
 					Out.CounterAttackActors.Add(Unit);
 					AddLogEvent(FString::Printf(TEXT("%s: contrattacco su %s (%d)"),
-						*Unit->GetName(), *EffectTarget->GetName(), Event.Amount));
+						*Unit->GetName(), *EffectTarget->GetName(), Event.Amount), FRTLogSubject::Unit(Unit));
 					break;
 
 				case ERTActionEffect::DamageReduction:
@@ -3670,7 +3711,7 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 						States[Event.TargetUnitId].Shield = EffectTarget->Shield;
 					}
 					AddLogEvent(FString::Printf(TEXT("%s: +%d scudo dalla reazione"),
-						*EffectTarget->GetName(), Event.Amount));
+						*EffectTarget->GetName(), Event.Amount), FRTLogSubject::Unit(EffectTarget));
 					break;
 
 				case ERTActionEffect::SelfReposition:
@@ -3727,8 +3768,7 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 		// cio' che `ConcludeTurn` deriva dalla voce qui sopra, `DescribeEntry` comprese le coordinate.
 		// Senza soggetto la copia derivata sarebbe filtrata e questa no, e le coordinate soppresse
 		// arriverebbero comunque a schermo dalla seconda porta.
-		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)),
-			Unit->StableUnitId);
+		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)), FRTLogSubject::Unit(Unit));
 	}
 
 	// Le FUGHE raccolte sopra si applicano ora, con tutte le reazioni gia' valutate sullo snapshot congelato
@@ -3761,7 +3801,7 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 			{
 				// Non c'e' dove andare: la reazione e' scattata e ha speso la sua attivazione. E' un esito, e
 				// va detto — altrimenti nel log resta una reazione senza conseguenze e sembra un difetto.
-				AddLogEvent(FString::Printf(TEXT("%s: nessuna cella libera per la fuga"), *Fleeing->GetName()));
+				AddLogEvent(FString::Printf(TEXT("%s: nessuna cella libera per la fuga"), *Fleeing->GetName()), FRTLogSubject::Unit(Fleeing));
 				continue;
 			}
 			// Gli stessi dieci passi della spinta (#541): traccia con causa, hazard attraversati, facing verso
@@ -3830,7 +3870,7 @@ void ARTTurnManager::ResolveCombat()
 	{
 		AddLogEvent(FString::Printf(
 			TEXT("Nessuna mappa esagonale: %d attacchi non validabili, nessun colpo applicato"),
-			Plan.UnverifiableIntents.Num()));
+			Plan.UnverifiableIntents.Num()), FRTLogSubject::World());
 		UE_LOG(LogRT, Warning,
 			TEXT("[RT] Blast senza mappa autorevole: %d intenti non valutabili (livello senza ARTHexMapActor con celle)"),
 			Plan.UnverifiableIntents.Num());
@@ -4043,9 +4083,9 @@ void ARTTurnManager::ResolveCombat()
 				// della voce qui sopra, perche' `ConcludeTurn` deriva da quella voce una riga identica a
 				// questa. Due soggetti diversi sulla stessa frase significherebbero che una delle due copie
 				// passa il filtro quando l'altra non passa — cioe' il leak che il filtro sopprime.
-				AddLogEvent(FString::Printf(TEXT("%s: %s"), *Units[i]->GetName(),
-					*URTTurnLogLibrary::DescribeEntry(Bypassed)),
-					Units.IsValidIndex(FirstHit->AttackerId) ? Units[FirstHit->AttackerId]->StableUnitId : INDEX_NONE);
+				AddLogEvent(FString::Printf(TEXT("%s: %s"),
+					*Units[i]->GetName(), *URTTurnLogLibrary::DescribeEntry(Bypassed)),
+					FRTLogSubject::Unit(Units.IsValidIndex(FirstHit->AttackerId) ? Units[FirstHit->AttackerId] : nullptr));
 			}
 		}
 		// Riduzione dichiarata dalle reazioni attivate (`Action.Deflect` e le reazioni d'eroe che ne riusano
@@ -4303,7 +4343,7 @@ void ARTTurnManager::ResolveCombat()
 	}
 
 	const TArray<FRTUnitCombatState> Resolved = URTCombatResolver::ResolveAttacks(States, Attacks);
-	AddLogEvent(FString::Printf(TEXT("Blast: %d attacchi"), Attacks.Num()));
+	AddLogEvent(FString::Printf(TEXT("Blast: %d attacchi"), Attacks.Num()), FRTLogSubject::World());
 
 	// Chi muore in questo Blast (viva PRIMA, morta DOPO): evento Defeated per la morte visiva differita
 	// (il playback mostra prima il colpo, poi l'eliminazione).
@@ -4317,7 +4357,7 @@ void ARTTurnManager::ResolveCombat()
 	}
 	for (const int32 Idx : URTCombatLibrary::NewlyDefeated(BeforeHP, AfterHP))
 	{
-		AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Units[Idx]->GetName(), Units[Idx]->TeamId));
+		AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Units[Idx]->GetName(), Units[Idx]->TeamId), FRTLogSubject::Unit(Units[Idx]));
 		FRTResolvedEvent Ev;
 		Ev.Phase = ERTMatchPhase::Blast;
 		Ev.Type = ERTResolvedEventType::Defeated;
@@ -4586,7 +4626,7 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 			AppendLogEntry(Entry, Shooter);
 
 			AddLogEvent(FString::Printf(TEXT("%s: previsione azzeccata, %d danni a %s"),
-				*Shooter->GetName(), Armed.Damage, *Victim->GetName()));
+				*Shooter->GetName(), Armed.Damage, *Victim->GetName()), FRTLogSubject::Unit(Shooter));
 		}
 		else
 		{
@@ -4596,7 +4636,7 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 
 			// Il whiff si SENTE: e' il `Misplay / Failure State` di D-032, e tacerlo lo renderebbe
 			// indistinguibile da un turno in cui nessuno ha dichiarato niente.
-			AddLogEvent(FString::Printf(TEXT("%s: previsione a vuoto, nessuno e' entrato"), *Shooter->GetName()));
+			AddLogEvent(FString::Printf(TEXT("%s: previsione a vuoto, nessuno e' entrato"), *Shooter->GetName()), FRTLogSubject::Unit(Shooter));
 		}
 	}
 }
@@ -4963,7 +5003,7 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	AppendLogEntry(Entry, WatchOwner);
 
 	AddLogEvent(FString::Printf(TEXT("%s: overwatch su %s, %d danni e movimento troncato"),
-		*WatchOwner->GetName(), *Target->GetName(), Armed.Damage));
+		*WatchOwner->GetName(), *Target->GetName(), Armed.Damage), FRTLogSubject::Unit(WatchOwner));
 }
 
 void ARTTurnManager::ResolveReactionBoundary(const URTHexMapAsset* Map, const TArray<ARTUnit*>& Units,
@@ -5300,8 +5340,7 @@ void ARTTurnManager::ResolveMovement()
 			// riga porta `SrcCell` e `TgtCell` di quella mossa, cioe' esattamente la posizione che una
 			// squadra che non lo vede non deve leggere.
 			AddLogEvent(FString::Printf(TEXT("%s: %s"),
-				*Units[i]->GetName(), *URTTurnLogLibrary::DescribeEntry(MoveLog[i])),
-				Units[i]->StableUnitId);
+				*Units[i]->GetName(), *URTTurnLogLibrary::DescribeEntry(MoveLog[i])), FRTLogSubject::Unit(Units[i]));
 		}
 	}
 
@@ -5401,7 +5440,7 @@ void ARTTurnManager::ResolveMovement()
 		Unit->Facing = Declaring.Facing;
 
 		AddLogEvent(FString::Printf(TEXT("%s: rotazione dichiarata %s"), *Unit->GetName(),
-			bLegal ? TEXT("applicata") : TEXT("RIFIUTATA (illegale per lo stile di movimento)")));
+			bLegal ? TEXT("applicata") : TEXT("RIFIUTATA (illegale per lo stile di movimento)")), FRTLogSubject::Unit(Unit));
 		Unit->ClearDeclaredFacing();
 	}
 
@@ -5498,7 +5537,7 @@ void ARTTurnManager::BeginPlayback()
 	bIsResolving = true;
 	SetActorTickEnabled(true);
 	AddLogEvent(FString::Printf(TEXT("Risoluzione: %d fasi, ~%.1fs (x%.2f)"),
-		PlaybackPhases.Num(), PlaybackTotalSeconds, StartSpeed));
+		PlaybackPhases.Num(), PlaybackTotalSeconds, StartSpeed), FRTLogSubject::World());
 	EnterPlaybackPhase();
 }
 
@@ -5507,7 +5546,7 @@ void ARTTurnManager::EnterPlaybackPhase()
 	PlaybackPhaseElapsed = 0.f;
 	AttacksShown = 0;
 	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
-	AddLogEvent(FString::Printf(TEXT("Playback fase: %s"), *GetPlaybackPhaseName()));
+	AddLogEvent(FString::Printf(TEXT("Playback fase: %s"), *GetPlaybackPhaseName()), FRTLogSubject::World());
 	OnPhasePlaybackStarted.Broadcast(Ph);
 	// In corsa deve risultare SOLO chi si muove in QUESTA fase. Senza l'azzeramento, un'unita' che ha scattato
 	// nel Dash resta con il flag alzato per tutto il Blast (e il Move) e l'AnimBP la tiene in corsa sul posto:
@@ -5565,7 +5604,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			AddLogEvent(FString::Printf(TEXT("Colpo: %s -> %s (%d)"),
 				Atk.Source.IsValid() ? *Atk.Source->GetName() : TEXT("?"),
 				Atk.Target.IsValid() ? *Atk.Target->GetName() : TEXT("(eliminato)"),
-				Atk.Amount));
+				Atk.Amount), FRTLogSubject::Unit(Atk.Source.Get()));
 			if (ARTUnit* AtkSrc = Atk.Source.Get()) { AtkSrc->PlayAttackMontage(); } if (ARTUnit* AtkTgt = Atk.Target.Get()) { AtkTgt->PlayHitMontage(); } OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
 			++AttacksShown;
 		}
@@ -5600,7 +5639,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		{
 			if (D.Phase == Ph && D.Source.IsValid() && !D.Source->IsHidden())
 			{
-				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()));
+				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()), FRTLogSubject::Unit(D.Source.Get()));
 				D.Source->HideForDefeat();
 				if (ARTUnit* DefU = D.Source.Get()) { DefU->PlayDefeatMontage(); } OnUnitDefeated.Broadcast(D.Source.Get());
 			}
@@ -5656,7 +5695,7 @@ void ARTTurnManager::FinishPlayback()
 	{
 		if (D.Source.IsValid() && !D.Source->IsHidden())
 		{
-			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()));
+			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()), FRTLogSubject::Unit(D.Source.Get()));
 			D.Source->HideForDefeat();
 			if (ARTUnit* DefU = D.Source.Get()) { DefU->PlayDefeatMontage(); } OnUnitDefeated.Broadcast(D.Source.Get());
 		}
@@ -5667,7 +5706,7 @@ void ARTTurnManager::FinishPlayback()
 	PlaybackDefeated.Reset();
 	PlaybackPhases.Reset();
 
-	AddLogEvent(FString::Printf(TEXT("Risoluzione completata (%.1fs)"), PlaybackElapsedTotal));
+	AddLogEvent(FString::Printf(TEXT("Risoluzione completata (%.1fs)"), PlaybackElapsedTotal), FRTLogSubject::World());
 	// Fine playback (anche via Skip, che passa di qui): nessuna unita' e' piu' in movimento -> l'AnimBP torna idle.
 	{
 		TArray<AActor*> AllUnits;
@@ -5688,7 +5727,7 @@ void ARTTurnManager::SkipPlayback()
 		return;
 	}
 	PacingCurrent.bPlaybackSkipped = true;
-	AddLogEvent(TEXT("Risoluzione: salto"));
+	AddLogEvent(TEXT("Risoluzione: salto"), FRTLogSubject::World());
 	FinishPlayback();
 }
 

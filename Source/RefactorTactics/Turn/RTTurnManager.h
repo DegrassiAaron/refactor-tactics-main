@@ -172,6 +172,58 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FRTOnMatchEndedSignature, const FRT
  * per le righe che parlano del MONDO e non di un'unita' («Turno 3 - pianificazione», una superficie che
  * scade). Senza questo campo il filtro dovrebbe cercare coordinate dentro una stringa gia' formattata.
  */
+/**
+ * Di CHI parla una riga di log: un'unita', oppure il mondo. Mai «non ci ho pensato».
+ *
+ * 🔴 **E' un tipo e non un `int32` perche' il gate diventi il compilatore** (`#1499`). Il vecchio parametro
+ * aveva un default `INDEX_NONE` fail-open: un sito nuovo che nominava un nemico passava il filtro di
+ * conoscenza per omissione, e l'omissione non fa rumore. Ora non esiste conversione implicita da `int32`:
+ * `AddLogEvent(Testo, INDEX_NONE)` non compila, e un sito senza soggetto deve **dichiararsi** `World()`.
+ *
+ * ⚠️ **`World()` non e' il vecchio default con un altro nome.** Dice «questa riga riguarda tutti» — una
+ * superficie che scade, il marker di turno, la fine partita — ed e' una scelta che si legge. Il default
+ * diceva soltanto che nessuno aveva deciso.
+ */
+struct FRTLogSubject
+{
+	/** Un'unita' viva, con tutto cio' che serve a congelarne il verdetto ([D-223]). */
+	static FRTLogSubject Unit(const ARTUnit* InUnit);
+
+	/**
+	 * Un soggetto che porta GIA' la propria risposta, congelata altrove e prima.
+	 *
+	 * 🔴 **E' la forma del canale derivato dal TurnLog**, ed esiste perche' a fine turno il verdetto non e'
+	 * piu' calcolabile correttamente: la conoscenza disponibile e' quella del Blast, le celle sono gia'
+	 * post-Move, e `AwarenessOfUnit` confronta proprio quei due. La voce lo ha calcolato quando e' nata
+	 * (`AppendLogEntry`), e qui si trasporta.
+	 *
+	 * ⚠️ **Non esiste una forma che prenda il solo `StableUnitId`**, ed e' deliberato: da un id soltanto il
+	 * verdetto non si calcola — `ClassifyTarget` vuole anche squadra e cella — e una forma del genere
+	 * inviterebbe a produrre righe fail-closed senza accorgersene.
+	 */
+	static FRTLogSubject Frozen(int32 InStableUnitId, const FRTKnowledgeVerdict& InVerdict);
+
+	/** Un fatto che riguarda tutti: nessun soggetto da conoscere, nessuna ragione per nasconderlo. */
+	static FRTLogSubject World();
+
+	bool IsWorld() const { return bWorld; }
+	int32 GetStableUnitId() const { return StableUnitId; }
+	const ARTUnit* GetUnit() const { return Unit_; }
+
+	/** Vero se il verdetto viaggia col soggetto: chi lo consuma non deve ricalcolarlo. */
+	bool HasFrozenVerdict() const { return bFrozen; }
+	const FRTKnowledgeVerdict& GetFrozenVerdict() const { return FrozenVerdict; }
+
+private:
+	FRTLogSubject() = default;
+
+	bool bWorld = false;
+	bool bFrozen = false;
+	int32 StableUnitId = INDEX_NONE;
+	const ARTUnit* Unit_ = nullptr;
+	FRTKnowledgeVerdict FrozenVerdict;
+};
+
 USTRUCT()
 struct FRTCombatLogLine
 {
@@ -180,8 +232,19 @@ struct FRTCombatLogLine
 	UPROPERTY()
 	FString Text;
 
+	/** Chi ha prodotto il fatto. Resta per diagnosi e per i test: il filtro NON lo usa piu'. */
 	UPROPERTY()
 	int32 SubjectStableUnitId = INDEX_NONE;
+
+	/**
+	 * Chi puo' leggere questa riga, deciso quando la riga e' nata ([D-223]).
+	 *
+	 * 🔴 **Il default nasconde**: una riga che arrivasse qui senza verdetto non si legge. E' l'opposto del
+	 * default che `#1499` ha rimosso, ed e' la direzione giusta per un filtro di privacy — si perde una
+	 * riga, non si regala una posizione.
+	 */
+	UPROPERTY()
+	FRTKnowledgeVerdict Verdict;
 };
 
 /**
@@ -335,8 +398,7 @@ public:
 	 * le coordinate stampate nella riga sono quelle attuali, cioe' cio' che la squadra ha smesso di sapere.
 	 * Stessa regola di `ARTHUD::ShouldDrawUnitOverlay`, e per la stessa ragione.
 	 */
-	static TArray<FString> ComposeVisibleLogLines(const TArray<FRTCombatLogLine>& Lines,
-		const FRTKnowledgeView& View);
+	static TArray<FString> ComposeVisibleLogLines(const TArray<FRTCombatLogLine>& Lines, int32 ObserverTeamId);
 
 	/** Le righe recenti gia' filtrate per una squadra. E' cio' che l'HUD deve chiamare. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
@@ -1122,22 +1184,31 @@ protected:
 	 * Registra un evento: lo scrive nel log LogRT (completo, diagnosi per sviluppatore) e lo accoda al
 	 * combat log della HUD col suo SOGGETTO.
 	 *
-	 * ⚠️ **Il default `INDEX_NONE` non significa «riga di mondo»: significa «soggetto non dichiarato».** Le
-	 * due cose coincidono solo per i siti gia' convertiti. Gli altri lo ereditano per omissione, e fra essi
-	 * ce ne sono che NOMINANO un'unita' — `GetName()`, o le sue coordinate — e passano quindi il filtro di
-	 * conoscenza senza essere filtrabili.
+	 * 🔴 **Il soggetto e' OBBLIGATORIO, e non c'e' un valore che significhi «non ci ho pensato»** (`#1499`).
+	 * Fino al 2026-08-28 il parametro era un `int32` con default `INDEX_NONE`, fail-open: un sito nuovo che
+	 * nominava un nemico passava il filtro di conoscenza per omissione, e l'omissione non faceva rumore.
+	 * Ora il tipo non converte da `int32`, quindi il compilatore enumera chi dimentica.
 	 *
-	 * Il censimento — quanti sono, su quali file, e quanti ne restano — sta nel Task 4 di
-	 * [`conoscenza-parziale-fase-a-2026-08-26.md`](../../../docs/roadmap/plans/conoscenza-parziale-fase-a-2026-08-26.md),
-	 * che e' versionato e si rimisura. Non si ricopia qui: un numero letterale in un commento invecchia al
-	 * primo sito aggiunto e nessuno lo rilegge. ⚠️ **Non citare il report del giro**: quei file vivono in
-	 * `.superpowers/`, che e' gitignorata — sarebbe un puntatore penzolante per costruzione.
+	 * Le due forme sono entrambe una dichiarazione, e si leggono:
+	 * - `FRTLogSubject::Unit(U)` — la riga parla di quell'unita', e il verdetto di [D-223] si congela qui;
+	 * - `FRTLogSubject::World()` — la riga riguarda tutti, e lo dice.
 	 *
-	 * ⛔ Il default **non si puo' chiudere** finche' «evento di mondo» non e' esplicito: gli eventi di mondo
-	 * legittimi usano lo stesso valore, e renderlo fail-closed li cancellerebbe tutti. La via e' togliere il
-	 * default e lasciare che il compilatore enumeri i chiamanti, non invertire il significato del sentinella.
+	 * ⚠️ **`World()` non e' il vecchio default con un nome nuovo**: il default diceva soltanto che nessuno
+	 * aveva deciso, e copriva per sbaglio anche righe che nominavano un'unita'.
+	 *
+	 * Il censimento — quanti siti, su quali file — si rimisura sul branch: un numero letterale in un
+	 * commento invecchia al primo sito aggiunto e nessuno lo rilegge.
 	 */
-	void AddLogEvent(const FString& Message, int32 SubjectStableUnitId = INDEX_NONE);
+	void AddLogEvent(const FString& Message, FRTLogSubject Subject);
+
+	/**
+	 * Il verdetto di [D-223] per un soggetto, calcolato ADESSO sulla conoscenza corrente di tutte le squadre.
+	 *
+	 * ⚠️ **Fail-closed quando non e' calcolabile**: un soggetto che porta il solo `StableUnitId` non ha
+	 * squadra ne' cella, e `ClassifyTarget` le vuole entrambe. Restituisce `NoOne()` — una riga che non si
+	 * legge, mai una che si legge per sbaglio.
+	 */
+	FRTKnowledgeVerdict FreezeVerdictFor(const FRTLogSubject& Subject) const;
 
 	/**
 	 * Applica gli OnEnterEffects (URTTerrainLibrary) di ogni cella in Entered a Unit: Damage via

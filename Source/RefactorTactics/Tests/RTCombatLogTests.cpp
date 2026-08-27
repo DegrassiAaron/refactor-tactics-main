@@ -469,4 +469,68 @@ bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
 	RTCombatLogFixture::DestroyWorld(World);
 	return true;
 }
+/**
+ * 🔴 **Il giocatore legge il turno della PROPRIA squadra.**
+ *
+ * Sembra ovvio, e nessun test lo diceva: tutta la copertura del combat log era di sola ASSENZA — nessun
+ * leak, nessuna cella di nemico — quindi un filtro che avesse soppresso *tutto* sarebbe stato verde.
+ *
+ * ⚠️ **E' il gemello obbligatorio del filtro**, e l'ha reso necessario [D-223]: da quando il verdetto si
+ * congela alla scrittura, un canale che non riesce a calcolarlo produce righe che nessuno legge — in
+ * silenzio, perche' il fail-closed non ha voce. Il canale derivato dal TurnLog e' proprio quello che genera
+ * la maggior parte delle righe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLogShowsOwnTeamTurnTest,
+	"RefactorTactics.UI.LogShowsOwnTeamTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLogShowsOwnTeamTurnTest::RunTest(const FString&)
+{
+	UWorld* World = RTCombatLogFixture::MakeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	RTCombatLogFixture::SpawnMap(World);
+
+	// Due unita' della squadra 0, vicine: si vedono fra loro, e la squadra 1 non esiste in campo.
+	ARTUnit* Mia = RTCombatLogFixture::SpawnUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Compagna = RTCombatLogFixture::SpawnUnit(World, 0, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mia || !Compagna) { RTCombatLogFixture::DestroyWorld(World); return false; }
+
+	Mia->PlannedCell = FRTCellId(2, -1);
+	Compagna->PlannedCell = Compagna->Cell;
+
+	RTCombatLogFixture::RunTurn(TM);
+
+	const TArray<FString> Visibili = TM->GetRecentEventsForTeam(0);
+	const TArray<FString> Tutte    = TM->GetRecentEvents();
+
+	// Anti-vacuita': il turno ha davvero prodotto righe. Senza, le asserzioni sotto sarebbero vuote.
+	if (!TestTrue(TEXT("il turno ha prodotto righe di log"), Tutte.Num() > 0))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// 🔴 Il cuore: in campo ci sono SOLO unita' della squadra 0, e una squadra conosce sempre i propri.
+	// Quindi non c'e' una sola riga che la squadra 0 non debba poter leggere: visibili == totali.
+	//
+	// ⚠️ Il criterio e' il CONTEGGIO e non il nome dell'unita': `DescribeEntry` — che produce le righe del
+	// canale derivato — stampa `ActionId` e coordinate, mai `GetName()`. Una prima stesura cercava il nome
+	// e falliva su entrambe le asserzioni, controprova inclusa: era rossa per lo scenario, non per il
+	// difetto. La controprova ha fatto il suo lavoro.
+	if (Visibili.Num() != Tutte.Num())
+	{
+		for (const FString& L : Tutte)
+		{
+			if (!Visibili.Contains(L))
+			{
+				AddError(FString::Printf(TEXT("riga soppressa alla squadra che possiede il soggetto: %s"), *L));
+			}
+		}
+	}
+	TestEqual(TEXT("la squadra 0 legge ogni riga del proprio turno"), Visibili.Num(), Tutte.Num());
+
+	RTCombatLogFixture::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
