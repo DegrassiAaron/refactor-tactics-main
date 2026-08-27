@@ -594,4 +594,60 @@ bool FRTGenericActionDisplayNameTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * L'insieme ESATTO delle azioni core che si dichiarano aggressione ([`INT-8`], [D-221]).
+ *
+ * 🔴 **Si pinna l'INSIEME e non il conteggio**, e la differenza e' il difetto che questo test nasce per
+ * prendere: una riga `Catalog.Last().bCountsAsAttack = true` finita dopo il blocco SBAGLIATO dichiara
+ * l'azione precedente e non quella voluta -- `Catalog.Last()` punta all'ultima aggiunta e non protesta.
+ * Un conteggio sopravvive a uno scambio; un insieme no.
+ *
+ * ⚠️ **Ed e' esattamente cosi' che e' andata**: `Action.Brace` (self-target di Prep) e `Action.ModifyArc`
+ * (intercettata per nome prima della raccolta) sono state dichiarate aggressioni per errore, e **1233 test
+ * verdi non se ne sono accorti** -- perche' nessuna delle due raggiunge `CollectHexAttacks`, quindi la
+ * dichiarazione sbagliata era INERTE. Sbagliata e invisibile: la combinazione peggiore, e l'unica che un
+ * gate sull'insieme prende.
+ *
+ * ⚠️ **Chi NON e' nell'elenco e potrebbe sorprendere**: `Action.Counter`, `Action.Deflect` (reazioni: il
+ * loro danno passa da `URTActionEffectLibrary::ProduceEvents`, mai dai colpi) e `Action.Electrify`
+ * (`Environment`, risolve nel Cleanup). Sono aggressioni nel senso comune, ma non producono colpi -- e il
+ * campo dichiara quello. Il giorno in cui una di esse venisse instradata nel Blast, il fail-closed la
+ * rende muta e il primo test che la esercita diventa rosso: e' li' che si dichiarera'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoreActionsDeclareAggressionTest,
+	"RefactorTactics.Actions.OnlyAggressionsDeclareThemselves",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoreActionsDeclareAggressionTest::RunTest(const FString&)
+{
+	static const TSet<FName> Attese = {
+		TEXT("Action.BasicAttack"), TEXT("Action.PrecisionAttack"), TEXT("Action.HeavyAttack"),
+		TEXT("Action.LineAttack"),  TEXT("Action.CircularAoE"),     TEXT("Action.SuppressiveLine"),
+		TEXT("Action.Charge"),      TEXT("Action.MarkTarget"),
+		TEXT("Action.Push"),        TEXT("Action.Pull"),            TEXT("Action.Root"),
+		TEXT("Action.Slow"),        TEXT("Action.Interrupt") };
+
+	TSet<FName> Dichiarate;
+	int32 Totali = 0;
+	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+	{
+		++Totali;
+		if (Def.bCountsAsAttack) { Dichiarate.Add(Def.ActionId); }
+	}
+
+	// ANTI-VACUITA': un catalogo vuoto farebbe passare entrambi i cicli senza asserire niente.
+	if (!TestTrue(TEXT("il catalogo core non e' vuoto"), Totali > 20)) { return false; }
+
+	for (const FName& Id : Attese)
+	{
+		TestTrue(FString::Printf(TEXT("%s deve dichiararsi aggressione"), *Id.ToString()),
+			Dichiarate.Contains(Id));
+	}
+	for (const FName& Id : Dichiarate)
+	{
+		TestTrue(FString::Printf(TEXT("%s NON deve dichiararsi aggressione"), *Id.ToString()),
+			Attese.Contains(Id));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

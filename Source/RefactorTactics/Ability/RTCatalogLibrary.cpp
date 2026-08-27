@@ -1390,8 +1390,6 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Braced, /*Turni*/ 1),
 		  FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Root, /*Turni*/ 1) },
 		/*bInterruptible*/ false, ERTActionSlot::Main));
-	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
-	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 	Catalog.Last().bSelfTarget = true; // come Guard: lo stato lo prende chi la pianifica
 
 	// `Shield` — azione PRINCIPALE di Prep: 25 punti di scudo TEMPORANEO, consumati prima della salute e
@@ -1532,7 +1530,6 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Attack` (40) copre «attacchi, abilita', cure, **interazioni**»: e' un'interazione con la mappa.
 	Catalog.Add(ShippedAction(TEXT("Action.ModifyArc"), ERTResolutionPhase::Attack, /*Priority*/ 75,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
-	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 
 	// `CreateCover` — ERIGE una copertura bassa su un bordo (CP 9.5). Come `Ignite`, `CreateWater` e `ModifyArc`
 	// non dichiara `Effects`: il suo esito e' una modifica della MAPPA, che `FRTActionEffectSpec` non sa
