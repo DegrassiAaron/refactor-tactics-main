@@ -80,9 +80,16 @@ Per implementazioni non banali, preflight breve:
   non si fondono, quindi un binario si modifica da un lavoro solo per volta.
 - Prima di cancellare/rinominare cerca riferimenti C++, config, reflection, soft reference e Blueprint.
 - Un handoff/audit non è autorità e non autorizza da solo a implementare tutto ciò che contiene.
-- **Sviluppo sequenziale** (**D-178**): una sessione esecutiva, una working directory, un branch alla
-  volta. Niente worktree per parallelizzare: un task troppo grosso si spezza in issue che si fanno in
-  fila. Se due task condividono una working directory, dillo invece di conviverci.
+- **Sviluppo parallelo, misura protetta** (**D-222**, supera la clausola operativa di **D-178**): piu'
+  sessioni condividono davvero questa working directory — misurato, 101 checkout e 6 sessioni in un
+  giorno. Non fingere che sia una alla volta. Cio' che va protetto e' la **misura**: una suite vale solo
+  se `HEAD`, l'albero, il binario e i processi del motore sono gli stessi all'inizio e alla fine.
+  Altrimenti non e' rossa ne' verde: e' **NON VALIDA**, e non si registra.
+- **Per la suite usa `scripts/rt-suite.ps1`** (PowerShell, non Bash: MSYS traduce i path). Legge le
+  quattro invarianti prima e dopo, confronta `Test Completed` con `Found N`, e dichiara. A mano quei
+  controlli si dimenticano — ed e' cosi' che una suite `1233/1233` ha misurato il file sbagliato.
+  ⚠️ Niente worktree per parallelizzare: il mutex del motore e' globale sull'eseguibile, quindi due run
+  di automation si uccidono anche da checkout diversi.
 - `D-nnn` si legge dall'ultimo assegnato nel Decision Log e si **riverifica prima del merge**: una PR
   aperta che rivendica lo stesso ID con una tesi diversa è una collisione, e rinumeri la seconda.
 - Prima del merge: `git fetch --prune origin`, poi `gh pr list --state open` per gli ID in volo.
