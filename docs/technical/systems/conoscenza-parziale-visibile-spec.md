@@ -58,7 +58,10 @@ Non erano nel DoD di nessuno, e sono **portanti**: senza chiuderli, nascondere i
 ⚠️ Un terzo dettaglio: `ARTHUD::DrawHUD` chiama `ComputePlannedHitMarks(AllUnits, /*PlayerTeamId=*/ 0, …)`
 con lo **zero scritto a mano**. L'osservatore oggi è cablato in un letterale.
 
-### 1.4 Il substrato del velo non esiste — tre buchi distinti
+### 1.4 Il substrato non esiste — tre buchi distinti
+
+> ⚠️ Misurati contro un **velo**. Con la fog decisa da
+> [D-215](../../decisions/RT_PDR_00_Decision_Log.md) **i primi due cadono**: vedi §5.3.
 
 1. **Il canale**: `Cells->NumCustomDataFloats = 3`, e tutti e tre portano l'RGB della superficie che
    `RebuildInstances` scrive. `M_HexCell` è **Unlit + Opaque**, ha **un solo** nodo
@@ -264,18 +267,28 @@ repository non possiede.
 
 ---
 
-## 5. Fase B — Il velo
+## 5. Fase B — La fog of war
+
+> ⛔ **Fino al 2026-08-27 questa sezione descriveva un *velo*: il colore di superficie scalato.**
+> [D-215](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso che la fog of war **entra nella v0.1 e
+> nasconde**. Non è una differenza di intensità — un velo lascia leggere il contenuto della cella più
+> debolmente, la fog non lo mostra affatto. Ciò che il velo aveva imparato e che sopravvive è marcato ➕;
+> ciò che cade perché nascondere è più semplice che velare è marcato ➖.
 
 ### 5.1 Regola
 
-Le celle **fuori** dalla vista di squadra sono disegnate col colore di superficie **scalato**.
+Una cella che **nessuno** della squadra osserva non mostra il proprio contenuto: un **prisma esagonale
+opaco** ne riempie il volume. Restano visibili la tassellatura e la distanza — *dove* sono le celle e che
+forma ha la griglia — sparisce *cosa* c'è sopra: colore di superficie, corona incisa dei `SurfaceGlyphs`,
+rilievo del costo, volumi del blocco, pannelli di bordo.
 
-> ⚠️ **`FRTKnowledgeView` NON ha un campo `VisibleCells`**, e questa riga lo leggeva. La struct costruita ha
-> `ObserverTeamId` ed `Entries`, nient'altro. Chi implementa la Fase B deve **aggiungerlo** — o passare
-> `FRTTeamKnowledge::VisibleCells` accanto alla vista — e sceglierlo è parte di quel checkpoint, non un
-> dettaglio: un campo in più sulla vista è un campo in più che attraversa la porta.
-Il velo è **binario**: `ERTAwareness` ha tre livelli **sulle unità**, e una terza categoria per le *celle*
-non esiste in nessuna decisione. Inventarla qui creerebbe un vocabolario senza owner.
+> ⚠️ **`FRTKnowledgeView` NON ha un campo `VisibleCells`**, e la prima stesura di questa riga lo leggeva. La
+> struct costruita in Fase A ha `ObserverTeamId` ed `Entries`, nient'altro. Chi implementa la Fase B deve
+> **aggiungerlo** — o passare `FRTTeamKnowledge::VisibleCells` accanto alla vista — e sceglierlo è parte di
+> quel checkpoint, non un dettaglio: un campo in più sulla vista è un campo in più che attraversa la porta.
+
+➕ La fog è **binaria**, come lo era il velo: `ERTAwareness` ha tre livelli **sulle unità**, e una terza
+categoria per le *celle* non esiste in nessuna decisione. Inventarla qui creerebbe un vocabolario senza owner.
 
 ### 5.2 Perché è ammesso dal canone
 
@@ -285,71 +298,96 @@ non esiste in nessuna decisione. Inventarla qui creerebbe un vocabolario senza o
 >
 > La mappa statica resta leggibile.
 
-Il velo è ammesso **perché non è una mappa nera**.
-
-🔴 **Ma il velo deve attenuare ENTRAMBI i canali insieme, e una prima stesura di questa sezione diceva
-l'opposto.** Diceva che *«il velo può spegnere il colore perché l'identità della superficie sopravvive sul
-canale forma»* — cioè che le corone `SurfaceGlyphs` restassero a piena luminosità. È sbagliato in modo
-vistoso: una cella **non osservata** mostrerebbe un anello brillante su un disco spento, e risulterebbe
-**più** appariscente di una osservata. Il velo attenua il disco **e** la corona.
+Il divieto resta, e riguarda il **vuoto piatto**: una mappa nera cancella la lettura *spaziale* — dove sono
+le celle, quanto dista un punto, che forma ha il terreno. Un prisma che **occupa** la cella non la cancella:
+la griglia continua a tassellare, la distanza si continua a contare, il terreno perde il proprio *tipo* e non
+la propria *posizione*. È la distinzione che [D-215](../../decisions/RT_PDR_00_Decision_Log.md) scrive, e
+senza la quale la fog sembrerebbe violare §25 mentre lo rispetta.
 
 Il rapporto con [D-146](../../decisions/RT_PDR_00_Decision_Log.md) è chiarito da
-[D-196](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-27), e **non c'è conflitto**: D-146 governa come
+[D-214](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-27), e **non c'è conflitto**: D-146 governa come
 una cella **mostrata** comunica la propria superficie — è una regola di *encoding*, non di *visibilità*. Non
 dice **se** una cella vada mostrata. Una cella che nessuno osserva, e che quindi non si legge, non è un
 fallimento di leggibilità: è lo scopo.
 
-D-196 dichiara anche il perimetro che entrambe presupponevano: **la forma è graybox e cadrà** con i
+D-214 dichiara anche il perimetro che entrambe presupponevano: **la forma è graybox e cadrà** con i
 materiali per superficie di M8/M9 — dischi, corona incisa, `Relief`, `Blockers`, `EdgeFeatures` sono un
 ponteggio — mentre **la regola dei due canali resta e vincolerà anche l'arte**, perché è ciò che regge
-l'accessibilità (daltonismo, scala di grigi, video ricompresso) e i gate `G10`/`G13`.
+l'accessibilità (daltonismo, scala di grigi, video ricompresso) e i gate `G10`/`G13`. L'effetto fumo/nebbia
+è un art pass sulla stessa regola, non un cambio di questa fase.
+
+➖ **Cade il vincolo più insidioso del velo, e vale la pena dire perché.** La stesura a velo doveva attenuare
+**entrambi** i canali insieme — disco *e* corona — o una cella **non osservata** avrebbe mostrato un anello
+brillante su un disco spento, risultando **più** appariscente di una osservata. Era il difetto peggiore della
+prima stesura di questa sezione, che diceva l'opposto. Una cella nascosta non ha canali da bilanciare: il
+problema non si presenta.
 
 ### 5.3 Meccanismo
 
-Non serve la mappa inversa cella→istanza che manca. `ApplyKnowledgeVeil(const FRTKnowledgeView&)`, accanto a
-`RebuildInstances` (che resta l'unico **costruttore**):
+**Il gesto esiste già.** `ARTHexMapActor` istanzia prismi esagonali sopra la faccia del disco per i due
+volumi delle regole — `AddVolume(PlanarFraction, VolumeHeight)` in `RTHexMapActor.cpp`, sulla stessa mesh
+generata da `GetCellPrismMesh()`. Una cella di nebbia è la stessa chiamata con `PlanarFraction = 1.0` e
+un'altezza che copra un'unità: la colonna blocca-movimento è alta **55 uu**, il cilindro segnaposto ne è alto
+~180 (`VisualZOffset = 90`), quindi l'ordine di grandezza è **~200**. La quota di appoggio è `RTCellTopZ`,
+come per gli altri volumi.
+
+`ApplyFogOfWar(const FRTKnowledgeView&)` vive accanto a `RebuildInstances`, che resta l'unico **costruttore**
+della mappa:
 
 1. costruisce un `TSet<FRTCellId>` da `VisibleCells`;
-2. itera `InstanceCells` (indice→cella, che esiste già);
-3. per ogni istanza **ricalcola** il colore base da `URTHexLibrary::SurfaceColor(Surface)` — la stessa
-   sorgente che usa `RebuildInstances` — lo scala se la cella non è osservata, e lo riscrive, con
-   `bMarkRenderStateDirty` sull'ultima scrittura.
+2. `Fog->ClearInstances()`;
+3. per ogni cella **non** osservata, una `AddInstance` col transform del prisma.
 
-🔴 **Il colore base si ricalcola, non si memorizza.** Conservare il colore originale accanto a quello velato
-creerebbe una **seconda verità** sul colore di superficie, e la seconda divergerebbe alla prima modifica
-della tavolozza — è lo stesso difetto che il progetto ha già eliminato per il cap del fumo (dove
-`URTTerrainLibrary::EffectiveTargetingRange` è l'unico owner) e che D-023 e D-115 hanno eliminato altrove.
-`URTHexLibrary::SurfaceColor` resta l'unico owner del colore, e il velo è una **funzione** applicata sopra.
+Dei **tre buchi** misurati in §1.4 ne restano **uno e mezzo**:
 
-Per la stessa ragione si riscrivono **tutte** le istanze a ogni aggiornamento invece di quelle cambiate:
-sapere «quali sono cambiate» richiederebbe di ricordare il velo precedente, cioè di introdurre lo stato che
-il ricalcolo evita. Costo `O(celle)` per aggiornamento, due volte per turno, deterministico, nessun rebuild.
+- ➖ **il canale cade del tutto.** Il velo aveva bisogno di un quarto `CustomDataFloat` o di un
+  `ScalarParameter` che nessuno dei quattro materiali versionati possiede. La fog non tocca i dati per
+  istanza di `Cells`: è un componente **separato**, con un materiale proprio.
+- ➖ **la mappa inversa cella→istanza non serve.** Il velo doveva riscrivere il colore dell'istanza *giusta*;
+  la fog ricostruisce l'intero componente a ogni refresh. Su un'arena da **61 celle** (`DemoArenaRadius = 4`)
+  è `O(celle)` due volte per turno, deterministico, senza rebuild della mappa.
+- 🔴 **il trigger resta**, ed è §5.4.
+- 🔴 **il materiale resta**: `M_HexCell` è Unlit + Opaque, ma è il materiale delle *celle*. Alla nebbia ne
+  serve uno proprio; per il graybox **l'opaco va bene**, ed è più onesto di un traslucido — un prisma
+  attraverso cui si intravede il contenuto è un velo travestito.
+
+➕ **Nessuna seconda verità sul colore di superficie.** Era il vincolo centrale del velo — conservare il
+colore originale accanto a quello velato avrebbe creato una seconda sorgente, divergente alla prima modifica
+della tavolozza. La fog non scrive colori: `URTHexLibrary::SurfaceColor` resta l'unico owner, intatto.
 
 ### 5.4 Trigger
 
 Nasce un delegate — `OnTeamKnowledgeRefreshed` — emesso dai **due** punti che già rinfrescano la conoscenza:
 `RefreshTeamKnowledgeForPlanning` e `RefreshTeamKnowledgeForBlast`. Non si inventano momenti nuovi.
 
-**Durante il playback il velo segue quei due punti**, e quindi *salta* due volte per turno invece di
-scorrere. Non è un difetto da nascondere: è la granularità che il resolver ha, ed è la stessa che D4 del
-brief fissa per la visibilità (*«si ricalcola ai confini di fase, non a ogni micro-step»*). L'alternativa —
-spegnere il velo durante il playback — sarebbe una finestra di onniscienza, e *«il replay del giocatore va
-filtrato durante il match»* è uno dei due punti che il brief §9 dichiara **obbligatori**.
+**Durante il playback la fog segue quei due punti**, e quindi *salta* due volte per turno invece di scorrere.
+Non è un difetto da nascondere: è la granularità che il resolver ha, ed è la stessa che D4 del brief fissa
+per la visibilità (*«si ricalcola ai confini di fase, non a ogni micro-step»*). L'alternativa — spegnere la
+fog durante il playback — sarebbe una finestra di onniscienza, e *«il replay del giocatore va filtrato
+durante il match»* è uno dei due punti che il brief §9 dichiara **obbligatori**.
 
-### 5.5 🔴 Il gate che protegge la leggibilità è cieco al velo
+### 5.5 ➖ Il gate sulla leggibilità non va più esteso
 
 `RefactorTactics.Hex.SurfaceColorsAreDistinguishable` (`Tests/RTHexTests.cpp:646`) confronta
-`URTHexLibrary::SurfaceColor(All[I])` contro `SurfaceColor(All[J])`: misura il colore **non velato**, mai i
-`PerInstanceCustomData`.
+`URTHexLibrary::SurfaceColor(All[I])` contro `SurfaceColor(All[J])`: misura il colore **non velato**.
 
-Un velo che schiaccia il colore lascerebbe quel gate **verde** mentre la mappa perde leggibilità. La fase
-deve portarsi dietro l'estensione: **le stesse asserzioni rieseguite sui colori velati**. Senza, il velo
-compra un falso verde — e D-146 registra già che alcune di quelle coppie si distinguono per luminanza,
-cioè proprio per il canale che il velo tocca.
+Contro un **velo** era un gate cieco — avrebbe continuato a dire verde mentre la mappa perdeva leggibilità,
+e la fase avrebbe dovuto portarsi dietro l'estensione alle coppie velate, perché D-146 registra che alcune si
+distinguono per **luminanza**, cioè proprio per il canale che il velo tocca.
 
-Non è un'interpretazione: la decisione che possiede quel controllo scrive che il **«primo consumatore lo
-estende invece di inventarlo»**. Estenderlo qui è quindi l'applicazione della regola, non un lavoro
-aggiuntivo che questa spec si inventa.
+Contro la **fog** il gate resta valido com'è: continua a misurare le celle **mostrate**, che sono le uniche
+che comunicano una superficie. Una cella nascosta non ha una lettura da preservare. **L'estensione non
+serve**, e non perché la si rinvii: perché la classe di difetto non esiste più.
+
+### 5.6 🔴 Il rischio che nessun test misura
+
+Un prisma opaco alto ~200 uu può **occludere le unità proprie** quando la camera guarda attraverso una fascia
+di nebbia. È l'unica cosa di questa fase che nessun test automatico misura, e va in `test-manuali-pie.md`
+prima del merge, non dopo.
+
+⚠️ **Se si verifica, la risposta non è abbassare il prisma** — rimetterebbe in vista esattamente ciò che deve
+nascondere. È decidere se la nebbia si renda in modo diverso vista dall'alto, ed è una decisione, non una
+taratura.
 
 ---
 
@@ -576,10 +614,13 @@ PIE `PIE-V01-NOISE`, che è l'unica cosa qui che nessun test automatico può mis
 
 Quattro voci per il [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md).
 
-⚠️ **`D-196` non è più libero: l'ha preso questo stesso branch** per il perimetro di D-146/D-183, quindi le
-quattro tesi qui sotto vanno su `D-197` e seguenti. E la misura va rifatta **su `origin/main`, non sul file
-locale**: là esiste già un `D-196` diverso — quello sul corpus golden — e il massimo assegnato è **`D-203`**.
-La prima stesura di questa riga misurava il documento nel working tree, che era indietro di otto decisioni.
+⚠️ **La collisione su `D-196` è stata risolta il 2026-08-27 rinumerando a `D-214` la voce di questo branch.**
+Su `origin/main` esisteva già un `D-196` diverso — quello sul corpus golden. Misurato allora: `origin/main`
+era a **`D-212`** e la PR aperta **#1481** rivendicava **`D-213`**, quindi il perimetro di D-146/D-183 è
+`D-214` e la fog of war in v0.1 è **`D-215`**. Le tesi qui sotto ancora da registrare partono da `D-216`.
+⚠️ **Il Decision Log locale si ferma a `D-196`**: il `main` di questa working directory è **116 commit
+indietro** rispetto a `origin/main`, per scelta dichiarata dall'autore. La numerazione qui è corretta
+rispetto a `origin/main` — che è dove finisce — e lascia un buco visibile in locale.
 
 🔴 **`D-nnn` è una risorsa contesa**: prima del merge, `git fetch --prune origin` e `gh pr list --state open`
 per gli ID in volo. Questa misura invecchia, e una collisione di contatore è già successa tredici volte.
@@ -628,7 +669,7 @@ Tutte e tre bloccanti.
 2. 🔴 **La PR [#1428](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1428) tocca
    `Turn/RTTurnManager.cpp` e `.h`** — esattamente i file dell'emissione. La Fase C non parte prima che sia
    mergiata, oppure il conflitto si accetta consapevolmente.
-3. **`D-196` va riverificato** prima del merge (§7).
+3. **La numerazione `D-nnn` va riverificata** prima del merge (§7): `D-214`/`D-215` erano liberi il 2026-08-27.
 
 ### Dove atterra il lavoro
 
