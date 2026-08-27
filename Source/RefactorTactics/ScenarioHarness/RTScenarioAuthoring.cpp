@@ -57,17 +57,9 @@ ERTScenarioAuthoringResult URTScenarioAuthoring::SaveInPlace(FString& OutError)
 ERTScenarioAuthoringResult URTScenarioAuthoring::AddUnit(const FString& UnitId, FName HeroId, int32 TeamId,
 	FRTCellId Cell, ERTHexDirection Facing, FString& OutError)
 {
-	if (!Draft.IsOpen())
-	{
-		OutError = TEXT("nessuno scenario aperto");
-		return ERTScenarioAuthoringResult::NoScenarioOpen;
-	}
-
-	// `AddUnit` del draft risponde `bool` perche' li' l'unico modo di fallire e' il piazzamento; qui serve un
-	// esito che la UI possa ramificare, e «rifiutato dalle regole» e' `Invalid`.
-	return Draft.AddUnit(UnitId, HeroId, TeamId, Cell, Facing, OutError)
-		? ERTScenarioAuthoringResult::Success
-		: ERTScenarioAuthoringResult::Invalid;
+	// Solo inoltro, come le sorelle: la guardia sullo scenario aperto la fa il draft, e rifarla qui
+	// significherebbe tenere allineati due controlli e due messaggi per la stessa condizione.
+	return Draft.AddUnit(UnitId, HeroId, TeamId, Cell, Facing, OutError);
 }
 
 ERTScenarioAuthoringResult URTScenarioAuthoring::MoveUnit(const FString& UnitId, FRTCellId Cell,

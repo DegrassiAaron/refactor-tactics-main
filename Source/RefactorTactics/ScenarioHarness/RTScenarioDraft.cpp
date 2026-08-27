@@ -136,15 +136,15 @@ int32 FRTScenarioDraft::IndexOfUnit(const FString& UnitId) const
 		[&UnitId](const FRTScenarioUnit& U) { return U.Id == UnitId; });
 }
 
-bool FRTScenarioDraft::AddUnit(const FString& UnitId, FName HeroId, int32 TeamId, const FRTCellId& Cell,
-	ERTHexDirection Facing, FString& OutError)
+ERTScenarioAuthoringResult FRTScenarioDraft::AddUnit(const FString& UnitId, FName HeroId, int32 TeamId,
+	const FRTCellId& Cell, ERTHexDirection Facing, FString& OutError)
 {
 	OutError.Reset();
 
 	if (!bOpen)
 	{
 		OutError = TEXT("nessuno scenario aperto");
-		return false;
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
 	}
 
 	FRTScenarioUnit Candidate;
@@ -158,11 +158,11 @@ bool FRTScenarioDraft::AddUnit(const FString& UnitId, FName HeroId, int32 TeamId
 	// La regola e' quella del gioco, non una copia — vedi la nota in testa alla sezione nell'header.
 	if (!URTScenarioLoader::ValidateUnitPlacement(Scenario, Candidate, INDEX_NONE, OutError))
 	{
-		return false;
+		return ERTScenarioAuthoringResult::Invalid;
 	}
 
 	Scenario.Units.Add(MoveTemp(Candidate));
-	return true;
+	return ERTScenarioAuthoringResult::Success;
 }
 
 ERTScenarioAuthoringResult FRTScenarioDraft::MoveUnit(const FString& UnitId, const FRTCellId& Cell,
@@ -217,10 +217,42 @@ ERTScenarioAuthoringResult FRTScenarioDraft::RemoveUnit(const FString& UnitId, F
 	}
 
 	// ⚠️ Togliere una unita' puo' lasciare intent, decisioni e assertion che la NOMINANO: restano li', e
-	// `Validate` li rifiutera' al salvataggio dicendo quale. E' voluto — ripulirli qui significherebbe
-	// cancellare in silenzio il lavoro di chi ha scritto quel turno, per un click che voleva togliere una
-	// pedina. Il salvataggio e' il posto dove lo scenario deve tornare coerente, non ogni singola modifica.
+	// `Validate` li rifiutera' al salvataggio dicendo quale. Ripulirli qui cancellerebbe in silenzio il lavoro
+	// di chi ha scritto quel turno, per un click che voleva togliere una pedina.
+	//
+	// 🔴 **Ma tacerlo e' un vicolo cieco, e va detto adesso invece che al salvataggio.** L'authoring dei turni
+	// e' `#1116` e non esiste ancora: chi ritira una unita' nominata da un intent non ha, oggi, nessun modo di
+	// riparare lo scenario da questa API — l'unica uscita sarebbe chiudere e perdere il lavoro. Contarli qui
+	// non risolve il vicolo, ma lo rende visibile nel momento in cui si crea.
+	int32 DanglingIntents = 0;
+	int32 DanglingDecisions = 0;
+	for (const FRTScenarioTurn& Turn : Scenario.Turns)
+	{
+		for (const FRTScenarioIntent& Intent : Turn.Intents)
+		{
+			if (Intent.UnitId == UnitId || Intent.Target == UnitId) { ++DanglingIntents; }
+		}
+		for (const FRTScenarioDecision& Decision : Turn.Decisions)
+		{
+			if (Decision.Unit == UnitId || Decision.Target == UnitId) { ++DanglingDecisions; }
+		}
+	}
+	int32 DanglingExpectations = 0;
+	for (const FRTTestExpectation& Exp : Scenario.Expect)
+	{
+		if (Exp.UnitId == UnitId) { ++DanglingExpectations; }
+	}
+
 	Scenario.Units.RemoveAt(Index);
+
+	if (DanglingIntents + DanglingDecisions + DanglingExpectations > 0)
+	{
+		// L'esito resta `Success` — la rimozione e' avvenuta — ma il messaggio dice cosa e' rimasto indietro.
+		OutError = FString::Printf(
+			TEXT("'%s' ritirata, ma restano %d intent, %d decisioni e %d assertion che la nominano: lo ")
+			TEXT("scenario non si salvera' finche' non spariscono"),
+			*UnitId, DanglingIntents, DanglingDecisions, DanglingExpectations);
+	}
 	return ERTScenarioAuthoringResult::Success;
 }
 

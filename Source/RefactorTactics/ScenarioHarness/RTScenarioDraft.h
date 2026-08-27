@@ -158,16 +158,36 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 	// modificato, perche' il secondo si nota.
 
 	/**
-	 * Schiera una unita' nuova. `false` se l'id e' vuoto o gia' preso, se l'eroe non e' a catalogo, o se la
+	 * Schiera una unita' nuova. `Invalid` se l'id e' vuoto o gia' preso, se l'eroe non e' a catalogo, o se la
 	 * cella e' fuori arena / occupata / bloccante — e `OutError` dice **quale** delle cose.
+	 *
+	 * Ritorna l'esito tipizzato come le sorelle, e non un `bool`: con un booleano il chiamante C++ non puo'
+	 * distinguere «rifiutato dalle regole» da «nessuno scenario aperto», e la facade dovrebbe rifare la
+	 * guardia — cioe' duplicare un controllo e il suo messaggio per poterli tradurre.
 	 */
-	bool AddUnit(const FString& UnitId, FName HeroId, int32 TeamId, const FRTCellId& Cell,
+	ERTScenarioAuthoringResult AddUnit(const FString& UnitId, FName HeroId, int32 TeamId, const FRTCellId& Cell,
 		ERTHexDirection Facing, FString& OutError);
 
-	/** Sposta una unita' gia' schierata. `NotFound` se l'id non esiste, `Invalid` se la cella non va bene. */
+	/**
+	 * Sposta una unita' gia' schierata. `NotFound` se l'id non esiste, `Invalid` se il piazzamento non passa.
+	 *
+	 * ⚠️ **`Invalid` non significa necessariamente «cella sbagliata».** La rivalidazione riguarda l'unita'
+	 * INTERA, quindi un difetto che l'unita' si portava dietro — un eroe uscito dal catalogo dopo un cambio di
+	 * roster, un loadout diventato illegale — la blocca anche su una cella perfettamente buona, e `OutError`
+	 * nomina quel campo invece della cella. E' la scelta prudente: applicare uno spostamento a una unita' che
+	 * il gioco non saprebbe schierare produrrebbe uno scenario che si salva e non si esegue. Ma va letto
+	 * l'errore, non dato per scontato che parli della destinazione.
+	 */
 	ERTScenarioAuthoringResult MoveUnit(const FString& UnitId, const FRTCellId& Cell, FString& OutError);
 
-	/** Ritira una unita'. `NotFound` se non c'e'. */
+	/**
+	 * Ritira una unita'. `NotFound` se non c'e'.
+	 *
+	 * ⚠️ Intent, decisioni e assertion che NOMINANO l'unita' restano: `OutError` li **conta** quando ce ne
+	 * sono, cosi' chi ritira sa subito che lo scenario non e' piu' salvabile finche' non li sistema. Toglierli
+	 * qui cancellerebbe in silenzio il lavoro di chi ha scritto quel turno; non dirlo lo lascerebbe scoprire
+	 * al salvataggio, che con l'authoring dei turni ancora da fare (`#1116`) e' un vicolo cieco.
+	 */
 	ERTScenarioAuthoringResult RemoveUnit(const FString& UnitId, FString& OutError);
 
 	/** Ruota una unita' schierata. Il facing e' `ERTHexDirection`, mai un angolo libero. */

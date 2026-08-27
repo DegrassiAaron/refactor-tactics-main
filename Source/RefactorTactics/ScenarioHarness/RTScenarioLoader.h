@@ -14,6 +14,33 @@
  *
  * Funzioni pure: nessun mondo, nessun Actor. Testabili headless.
  */
+/**
+ * Lavoro gia' fatto che `ValidateUnitPlacement` puo' riusare invece di rifarlo per ogni unita'.
+ *
+ * ⚠️ **Non e' solo un'ottimizzazione: decide anche QUALE errore esce per primo.**
+ *
+ * Chi valida uno scenario intero scorre le unita' in ordine e accumula cio' che ha gia' visto; passando quegli
+ * insiemi, il controllo sui duplicati resta *«qualcuno PRIMA di me usava questo id»* — che e' la semantica
+ * storica, e determina quale unita' viene accusata quando un file ha piu' di un difetto. Senza di essi il
+ * confronto e' simmetrico (*«qualcun ALTRO lo usa»*), che e' cio' che serve a chi piazza una unita' sola e non
+ * ha un «prima».
+ *
+ * `KnownHeroes` esiste per una ragione piu' prosaica e piu' cara: `KnownHeroIds()` chiama `GetHeroRoster()`,
+ * che **costruisce quattro `URTHeroData` con tutte le loro abilita'** a ogni chiamata. Ricostruirlo per ogni
+ * unita' di ogni validazione e' il prezzo che questa struct evita.
+ */
+struct FRTUnitPlacementScratch
+{
+	/** Gli id del roster, gia' letti. `nullptr` -> `ValidateUnitPlacement` li rilegge da se'. */
+	const TSet<FName>* KnownHeroes = nullptr;
+
+	/** Gli id delle unita' che PRECEDONO quella in esame. `nullptr` -> confronto simmetrico su tutto l'array. */
+	const TSet<FString>* IdsBefore = nullptr;
+
+	/** Le celle delle unita' che precedono. `nullptr` -> come sopra. */
+	const TSet<FRTCellId>* CellsBefore = nullptr;
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTScenarioLoader : public UBlueprintFunctionLibrary
 {
@@ -78,9 +105,11 @@ public:
 	 * @param IgnoreUnitIndex Indice in `Scenario.Units` da **saltare** nei confronti fra unita'. `INDEX_NONE` per
 	 *        una unita' che non e' ancora nell'array (piazzamento nuovo); l'indice dell'unita' stessa quando la
 	 *        si sta spostando o rivalidando, altrimenti collidera' con se' stessa e nessuno potra' mai muoversi.
+	 * @param Scratch Insiemi gia' calcolati dal chiamante, opzionale. Vedi `FRTUnitPlacementScratch`: chi valida
+	 *        uno scenario intero lo passa, chi piazza una unita' sola no.
 	 */
 	static bool ValidateUnitPlacement(const FRTTestScenario& Scenario, const FRTScenarioUnit& Unit,
-		int32 IgnoreUnitIndex, FString& OutError);
+		int32 IgnoreUnitIndex, FString& OutError, const struct FRTUnitPlacementScratch* Scratch = nullptr);
 
 	/**
 	 * Serializza uno scenario nel formato JSON che `LoadFromString` rilegge. Il verso mancante del loader.

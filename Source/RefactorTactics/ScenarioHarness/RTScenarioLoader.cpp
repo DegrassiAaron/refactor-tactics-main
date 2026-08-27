@@ -1219,7 +1219,9 @@ namespace
 	 * `units`: eroi esistenti, id unici, celle libere e legali.
 	 * PRODUCE `SeenIds` e `BotIds`, che le sezioni successive consumano.
 	 */
-	bool ValidateScenarioUnits(const FRTTestScenario& Scenario, bool bUsesFixture,
+	// `bUsesFixture` NON e' un parametro: la fixture la rilegge `ValidateUnitPlacement` dallo scenario, e un
+	// secondo canale per la stessa verita' e' un canale che puo' contraddire il primo.
+	bool ValidateScenarioUnits(const FRTTestScenario& Scenario,
 		TSet<FString>& SeenIds, TSet<FString>& BotIds, FString& OutError)
 	{
 		// Le regole per-unita' NON stanno piu' qui: sono in `URTScenarioLoader::ValidateUnitPlacement`, perche'
@@ -1227,19 +1229,30 @@ namespace
 		// diverge da questa al primo campo aggiunto. Questo ciclo resta l'unico posto che conosce l'INSIEME:
 		// raccoglie `SeenIds` e `BotIds`, che le validazioni successive — turni, assertion, free-run — usano per
 		// sapere chi e' schierato e chi guida il bot.
-		(void)bUsesFixture; // la fixture la rilegge `ValidateUnitPlacement` dallo scenario: un parametro solo, una verita'
+		//
+		// Il roster si legge UNA volta, non una per unita': `KnownHeroIds()` costruisce quattro `URTHeroData`
+		// con tutte le loro abilita' a ogni chiamata.
+		const TSet<FName> Heroes = KnownHeroIds();
+		TSet<FRTCellId> SeenCells;
+
+		FRTUnitPlacementScratch Scratch;
+		Scratch.KnownHeroes = &Heroes;
+		Scratch.IdsBefore = &SeenIds;
+		Scratch.CellsBefore = &SeenCells;
+
 		for (int32 Index = 0; Index < Scenario.Units.Num(); ++Index)
 		{
 			const FRTScenarioUnit& Unit = Scenario.Units[Index];
 
-			// `Index` come indice da ignorare, non l'id: con due unita' che portano lo STESSO id, ignorare per id
-			// le escluderebbe entrambe e il duplicato non verrebbe visto da nessuno.
-			if (!URTScenarioLoader::ValidateUnitPlacement(Scenario, Unit, Index, OutError))
+			// Con lo scratch i confronti guardano le unita' PRECEDENTI, che e' la semantica che questo ciclo
+			// aveva prima dell'estrazione: `IgnoreUnitIndex` resta per il caso senza scratch.
+			if (!URTScenarioLoader::ValidateUnitPlacement(Scenario, Unit, Index, OutError, &Scratch))
 			{
 				return false;
 			}
 
 			SeenIds.Add(Unit.Id);
+			SeenCells.Add(Unit.Cell);
 			if (Unit.bBotControlled)
 			{
 				BotIds.Add(Unit.Id);
@@ -1544,6 +1557,23 @@ namespace
 						*Variant.Name, *Moved.Cell.ToString(), *Moved.Id, Scenario.MapRadius);
 					return false;
 				}
+
+				// 🔴 **Questo controllo mancava**, e il percorso `units` lo ha da sempre: una variante poteva
+				// piazzare una unita' dentro un ostacolo e `Validate` la accettava. E' lo stesso «scenario
+				// impossibile» che la regola di base rifiuta a due funzioni di distanza — il gioco non
+				// piazzerebbe mai li', e ogni assertion della variante misurerebbe una situazione che non puo'
+				// esistere. Trovato dalla review di `#1115`, quando l'estrazione di `ValidateUnitPlacement` ha
+				// reso visibile che le varianti erano rimaste con una copia PARZIALE della regola.
+				const FRTScenarioCell* OnBlocked = Scenario.Cells.FindByPredicate(
+					[&Moved](const FRTScenarioCell& C) { return C.Cell == Moved.Cell && C.bBlocksMovement; });
+				if (OnBlocked)
+				{
+					OutError = FString::Printf(
+						TEXT("la variante '%s' mette '%s' su una cella che blocca il movimento %s"),
+						*Variant.Name, *Moved.Id, *Moved.Cell.ToString());
+					return false;
+				}
+
 				CellsInVariant.Add(Moved.Id, Moved.Cell);
 			}
 
@@ -1666,7 +1696,7 @@ namespace
 }
 
 bool URTScenarioLoader::ValidateUnitPlacement(const FRTTestScenario& Scenario, const FRTScenarioUnit& Unit,
-	int32 IgnoreUnitIndex, FString& OutError)
+	int32 IgnoreUnitIndex, FString& OutError, const FRTUnitPlacementScratch* Scratch)
 {
 	OutError.Reset();
 
@@ -1680,14 +1710,25 @@ bool URTScenarioLoader::ValidateUnitPlacement(const FRTTestScenario& Scenario, c
 		return false;
 	}
 
-	for (int32 Other = 0; Other < Scenario.Units.Num(); ++Other)
-	{
-		if (Other == IgnoreUnitIndex) { continue; }
-		if (Scenario.Units[Other].Id == Unit.Id)
+	// Con lo scratch il confronto guarda solo le unita' PRECEDENTI, come faceva il `TSet` accumulato prima
+	// dell'estrazione: e' cio' che decide quale unita' viene accusata quando un file ha piu' di un difetto.
+	// Senza, il confronto e' simmetrico — l'unica forma possibile per chi piazza una unita' che non e' ancora
+	// nell'array. Vedi `FRTUnitPlacementScratch`.
+	const bool bDuplicateId = Scratch && Scratch->IdsBefore
+		? Scratch->IdsBefore->Contains(Unit.Id)
+		: [&]()
 		{
-			OutError = FString::Printf(TEXT("id unita' duplicato: '%s'"), *Unit.Id);
+			for (int32 Other = 0; Other < Scenario.Units.Num(); ++Other)
+			{
+				if (Other == IgnoreUnitIndex) { continue; }
+				if (Scenario.Units[Other].Id == Unit.Id) { return true; }
+			}
 			return false;
-		}
+		}();
+	if (bDuplicateId)
+	{
+		OutError = FString::Printf(TEXT("id unita' duplicato: '%s'"), *Unit.Id);
+		return false;
 	}
 
 	// `loadout` (`#602`): i pezzi devono esistere nel catalogo e l'insieme dev'essere LEGALE secondo la stessa
@@ -1717,7 +1758,16 @@ bool URTScenarioLoader::ValidateUnitPlacement(const FRTTestScenario& Scenario, c
 		}
 	}
 
-	const TSet<FName> Heroes = KnownHeroIds();
+	// ⚠️ `KnownHeroIds()` costruisce quattro `URTHeroData` **con tutte le loro abilita'**: rifarlo per ogni
+	// unita' di ogni validazione e' il costo che lo scratch esiste per evitare. Il ramo che lo ricostruisce
+	// serve a chi piazza una unita' sola — una volta per click, non una per unita' schierata.
+	TSet<FName> LocalHeroes;
+	if (!Scratch || !Scratch->KnownHeroes)
+	{
+		LocalHeroes = KnownHeroIds();
+	}
+	const TSet<FName>& Heroes = (Scratch && Scratch->KnownHeroes) ? *Scratch->KnownHeroes : LocalHeroes;
+
 	if (!Heroes.Contains(Unit.HeroId))
 	{
 		// Il caso che il documento di specifica sbagliava per primo, citando eroi inesistenti.
@@ -1737,14 +1787,22 @@ bool URTScenarioLoader::ValidateUnitPlacement(const FRTTestScenario& Scenario, c
 		return false;
 	}
 
-	for (int32 Other = 0; Other < Scenario.Units.Num(); ++Other)
-	{
-		if (Other == IgnoreUnitIndex) { continue; }
-		if (Scenario.Units[Other].Cell == Unit.Cell)
+	// Stessa logica del duplicato di id: accumulativo quando il chiamante ha un «prima», simmetrico quando no.
+	const bool bCellTaken = Scratch && Scratch->CellsBefore
+		? Scratch->CellsBefore->Contains(Unit.Cell)
+		: [&]()
 		{
-			OutError = FString::Printf(TEXT("due unita' partono dalla stessa cella %s"), *Unit.Cell.ToString());
+			for (int32 Other = 0; Other < Scenario.Units.Num(); ++Other)
+			{
+				if (Other == IgnoreUnitIndex) { continue; }
+				if (Scenario.Units[Other].Cell == Unit.Cell) { return true; }
+			}
 			return false;
-		}
+		}();
+	if (bCellTaken)
+	{
+		OutError = FString::Printf(TEXT("due unita' partono dalla stessa cella %s"), *Unit.Cell.ToString());
+		return false;
 	}
 
 	// Un'unita' che parte dentro un ostacolo e' uno scenario impossibile: il gioco non la piazzerebbe mai li',
@@ -1812,7 +1870,7 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 	TSet<FString> BotIds;
 
 	if (!ValidateScenarioCells(Scenario, bUsesFixture, OutError)) { return false; }
-	if (!ValidateScenarioUnits(Scenario, bUsesFixture, SeenIds, BotIds, OutError)) { return false; }
+	if (!ValidateScenarioUnits(Scenario, SeenIds, BotIds, OutError)) { return false; }
 	if (!ValidateScenarioTurns(Scenario, SeenIds, BotIds, OutError)) { return false; }
 	if (!ValidateScenarioExpectations(Scenario, SeenIds, OutError)) { return false; }
 	if (!ValidateScenarioVariants(Scenario, bUsesFixture, SeenIds, OutError)) { return false; }

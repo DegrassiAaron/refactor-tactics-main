@@ -73,8 +73,9 @@ bool FRTScenarioEditingAddMoveRemoveTest::RunTest(const FString&)
 	}
 
 	// --- Add ---
-	if (!TestTrue(TEXT("una unita' nuova si schiera"),
-		Draft.AddUnit(TEXT("A2"), FName(TEXT("Hero.Phase")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::NE, Error)))
+	if (!TestEqual(TEXT("una unita' nuova si schiera"),
+		Draft.AddUnit(TEXT("A2"), FName(TEXT("Hero.Phase")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::NE, Error),
+		ERTScenarioAuthoringResult::Success))
 	{
 		AddError(Error);
 		return false;
@@ -154,38 +155,38 @@ bool FRTScenarioEditingNamesItsRefusalsTest::RunTest(const FString&)
 	// chiede: un errore leggibile che dica qual e' il problema.
 
 	// (1) Stable Unit ID gia' preso.
-	TestFalse(TEXT("id duplicato rifiutato"),
-		Draft.AddUnit(TEXT("A1"), FName(TEXT("Hero.Phase")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::E, Error));
+	TestEqual(TEXT("id duplicato rifiutato"),
+		Draft.AddUnit(TEXT("A1"), FName(TEXT("Hero.Phase")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
 	TestTrue(*FString::Printf(TEXT("l'errore nomina l'id duplicato (era: %s)"), *Error),
 		Error.Contains(TEXT("A1")) && Error.Contains(TEXT("duplicat")));
 
 	// (2) Cella gia' occupata da un'altra unita'.
-	TestFalse(TEXT("cella occupata rifiutata"),
-		Draft.AddUnit(TEXT("C1"), FName(TEXT("Hero.Phase")), 0, FRTCellId(2, 0, 0), ERTHexDirection::E, Error));
+	TestEqual(TEXT("cella occupata rifiutata"),
+		Draft.AddUnit(TEXT("C1"), FName(TEXT("Hero.Phase")), 0, FRTCellId(2, 0, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
 	TestTrue(*FString::Printf(TEXT("l'errore nomina la cella (era: %s)"), *Error),
 		Error.Contains(TEXT("cella")));
 
 	// (3) Cella fuori dall'arena: raggio 3, questa e' a distanza 9.
-	TestFalse(TEXT("cella fuori arena rifiutata"),
-		Draft.AddUnit(TEXT("C2"), FName(TEXT("Hero.Phase")), 0, FRTCellId(9, 0, 0), ERTHexDirection::E, Error));
+	TestEqual(TEXT("cella fuori arena rifiutata"),
+		Draft.AddUnit(TEXT("C2"), FName(TEXT("Hero.Phase")), 0, FRTCellId(9, 0, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
 	TestTrue(*FString::Printf(TEXT("l'errore nomina l'arena (era: %s)"), *Error),
 		Error.Contains(TEXT("arena")));
 
 	// (4) Cella che blocca il movimento: lo scenario ne dichiara una a (0,1,0).
-	TestFalse(TEXT("cella bloccante rifiutata"),
-		Draft.AddUnit(TEXT("C3"), FName(TEXT("Hero.Phase")), 0, FRTCellId(0, 1, 0), ERTHexDirection::E, Error));
+	TestEqual(TEXT("cella bloccante rifiutata"),
+		Draft.AddUnit(TEXT("C3"), FName(TEXT("Hero.Phase")), 0, FRTCellId(0, 1, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
 	TestTrue(*FString::Printf(TEXT("l'errore nomina il blocco (era: %s)"), *Error),
 		Error.Contains(TEXT("blocca")));
 
 	// (5) Eroe che non e' a catalogo.
-	TestFalse(TEXT("eroe sconosciuto rifiutato"),
-		Draft.AddUnit(TEXT("C4"), FName(TEXT("Hero.NonEsiste")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::E, Error));
+	TestEqual(TEXT("eroe sconosciuto rifiutato"),
+		Draft.AddUnit(TEXT("C4"), FName(TEXT("Hero.NonEsiste")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
 	TestTrue(*FString::Printf(TEXT("l'errore nomina l'eroe (era: %s)"), *Error),
 		Error.Contains(TEXT("eroe")) || Error.Contains(TEXT("sconosciuto")));
 
 	// (6) Id vuoto.
-	TestFalse(TEXT("id vuoto rifiutato"),
-		Draft.AddUnit(FString(), FName(TEXT("Hero.Phase")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::E, Error));
+	TestEqual(TEXT("id vuoto rifiutato"),
+		Draft.AddUnit(FString(), FName(TEXT("Hero.Phase")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::Invalid);
 	TestTrue(*FString::Printf(TEXT("l'errore nomina l'id (era: %s)"), *Error), Error.Contains(TEXT("id")));
 
 	// ⚠️ Sei rifiuti, e **nessuno** deve aver lasciato traccia: un'operazione che fallisce a meta' lascia lo
@@ -216,12 +217,17 @@ bool FRTScenarioEditingNamesItsRefusalsTest::RunTest(const FString&)
 
 	// Un draft senza scenario aperto risponde `NoScenarioOpen` a tutte, invece di fingere.
 	FRTScenarioDraft Empty;
-	TestFalse(TEXT("AddUnit senza scenario aperto"),
-		Empty.AddUnit(TEXT("X"), FName(TEXT("Hero.Gadget")), 0, FRTCellId(0, 0, 0), ERTHexDirection::E, Error));
+	TestEqual(TEXT("AddUnit senza scenario aperto"),
+		Empty.AddUnit(TEXT("X"), FName(TEXT("Hero.Gadget")), 0, FRTCellId(0, 0, 0), ERTHexDirection::E, Error),
+		ERTScenarioAuthoringResult::NoScenarioOpen);
 	TestEqual(TEXT("MoveUnit senza scenario aperto"),
 		Empty.MoveUnit(TEXT("X"), FRTCellId(0, 0, 0), Error), ERTScenarioAuthoringResult::NoScenarioOpen);
 	TestEqual(TEXT("RemoveUnit senza scenario aperto"),
 		Empty.RemoveUnit(TEXT("X"), Error), ERTScenarioAuthoringResult::NoScenarioOpen);
+	// La quarta operazione va coperta come le altre tre: senza, togliere la sua guardia lascerebbe la suite
+	// verde e la UI direbbe «unita' non schierata» dove la verita' e' che non c'e' nessuno scenario aperto.
+	TestEqual(TEXT("SetUnitFacing senza scenario aperto"),
+		Empty.SetUnitFacing(TEXT("X"), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::NoScenarioOpen);
 
 	return true;
 }
@@ -242,14 +248,6 @@ bool FRTScenarioEditingSharesTheRuleWithValidateTest::RunTest(const FString&)
 	//
 	// Il test costruisce piazzamenti illeciti UNO PER UNO e verifica che le due strade concordino:
 	// se l'authoring lo rifiuta, `Validate` sullo scenario che ne risulterebbe deve rifiutarlo pure.
-	FRTScenarioDraft Draft;
-	FString Error;
-	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenEditingDraft(Draft, Error)))
-	{
-		AddError(Error);
-		return false;
-	}
-
 	struct FCase
 	{
 		const TCHAR* What;
@@ -268,9 +266,22 @@ bool FRTScenarioEditingSharesTheRuleWithValidateTest::RunTest(const FString&)
 
 	for (const FCase& Case : Cases)
 	{
+		// ⚠️ Un draft FRESCO per caso, non uno condiviso. Se un caso regredisse ad «accettato», l'unita'
+		// aggiunta resterebbe nel draft e ogni caso successivo verrebbe validato contro una baseline sporca:
+		// il test che esiste per nominare la divergenza riporterebbe una cascata di fallimenti fuorvianti.
+		FRTScenarioDraft Draft;
+		FString Setup;
+		if (!TestTrue(*FString::Printf(TEXT("'%s': scenario di partenza caricato"), Case.What),
+			OpenEditingDraft(Draft, Setup)))
+		{
+			AddError(Setup);
+			return false;
+		}
+
 		FString AuthoringError;
 		const bool bAuthoringAccepts =
-			Draft.AddUnit(Case.Id, Case.Hero, 0, Case.Cell, ERTHexDirection::E, AuthoringError);
+			Draft.AddUnit(Case.Id, Case.Hero, 0, Case.Cell, ERTHexDirection::E, AuthoringError)
+				== ERTScenarioAuthoringResult::Success;
 
 		// La stessa unita', forzata dentro lo scenario scavalcando l'authoring: cosa ne dice `Validate`?
 		FRTTestScenario Forced = Draft.GetScenario();
@@ -320,14 +331,19 @@ bool FRTScenarioEditingSurvivesSaveReloadTest::RunTest(const FString&)
 	}
 
 	// Un giro di modifiche come lo farebbe l'Editor: piazza, sposta, ruota, ritira.
-	if (!TestTrue(TEXT("schierata A2"),
-		Draft.AddUnit(TEXT("A2"), FName(TEXT("Hero.Wraith")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::NW, Error)))
+	if (!TestEqual(TEXT("schierata A2"),
+		Draft.AddUnit(TEXT("A2"), FName(TEXT("Hero.Wraith")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::NW, Error),
+		ERTScenarioAuthoringResult::Success))
 	{
 		AddError(Error);
 		return false;
 	}
-	Draft.MoveUnit(TEXT("B1"), FRTCellId(1, 1, 0), Error);
-	Draft.SetUnitFacing(TEXT("B1"), ERTHexDirection::W, Error);
+	// Gli esiti si asseriscono qui: buttarli farebbe emergere una regressione di `MoveUnit` come un mismatch
+	// di cella DOPO il round-trip, puntando il lettore verso il writer o il loader invece che verso il difetto.
+	TestEqual(TEXT("B1 spostata"),
+		Draft.MoveUnit(TEXT("B1"), FRTCellId(1, 1, 0), Error), ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("B1 ruotata"),
+		Draft.SetUnitFacing(TEXT("B1"), ERTHexDirection::W, Error), ERTScenarioAuthoringResult::Success);
 
 	if (!TestEqual(TEXT("salvato"), Draft.SaveToFile(Path, Error), ERTScenarioAuthoringResult::Success))
 	{
@@ -395,7 +411,10 @@ bool FRTScenarioEditingIsReachableFromBlueprintTest::RunTest(const FString&)
 	// Il catalogo che popola la tendina non deve essere vuoto, altrimenti l'Editor non ha niente da offrire
 	// e chi lo usa finisce a scrivere gli id a mano — cioe' esattamente cio' che esporlo doveva evitare.
 	const TArray<FName> Heroes = URTScenarioAuthoring::ListHeroIds();
-	TestTrue(TEXT("il catalogo eroi non e' vuoto"), Heroes.Num() > 0);
+	// `return false` e non un semplice TestTrue: sotto si indicizza `Heroes[0]`, e su un array vuoto il range
+	// check ABORTISCE il processo. La suite morirebbe a meta' invece di riportare un rosso — e una suite morta
+	// a meta' non e' rossa, e' NON VALIDA (D-222).
+	if (!TestTrue(TEXT("il catalogo eroi non e' vuoto"), Heroes.Num() > 0)) { return false; }
 	TestTrue(TEXT("e contiene il roster della v0.1"),
 		Heroes.Contains(FName(TEXT("Hero.Gadget"))) && Heroes.Contains(FName(TEXT("Hero.Wraith"))));
 
@@ -423,6 +442,84 @@ bool FRTScenarioEditingIsReachableFromBlueprintTest::RunTest(const FString&)
 	TestEqual(TEXT("la facade ritira"),
 		Authoring->RemoveUnit(TEXT("A1"), Error), ERTScenarioAuthoringResult::Success);
 	TestEqual(TEXT("non resta nessuno"), Authoring->ListUnits().Num(), 0);
+
+	return true;
+}
+
+// --- i due difetti che la review ha trovato --------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioVariantRespectsBlockingCellsTest,
+	"RefactorTactics.Scenario.VariantCannotPlaceAUnitInsideAnObstacle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioVariantRespectsBlockingCellsTest::RunTest(const FString&)
+{
+	// 🔴 Regressione trovata dalla review di #1115, ed era **preesistente**: `ValidateScenarioVariants` aveva
+	// una copia PARZIALE della regola di piazzamento — controllava arena e collisioni, mai `bBlocksMovement`.
+	// Una variante poteva quindi far partire una unita' dentro un ostacolo, cioe' esattamente lo «scenario
+	// impossibile» che il percorso `units` rifiuta da sempre a due funzioni di distanza.
+	const TCHAR* VariantOnBlockedJson = TEXT(R"JSON(
+	{
+	  "scenarioId": "Movement.VariantOnBlocked",
+	  "version": 1,
+	  "mapRadius": 3,
+	  "cells": [ { "cell": [0, 1, 0], "blocksMovement": true } ],
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
+	  ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ],
+	  "variants": [
+	    { "name": "SullOstacolo", "units": [ { "id": "A1", "cell": [0, 1, 0] } ] },
+	    { "name": "Altrove",      "units": [ { "id": "A1", "cell": [1, 0, 0] } ] }
+	  ]
+	}
+	)JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	TestFalse(TEXT("una variante che piazza su cella bloccante viene rifiutata"),
+		URTScenarioLoader::LoadFromString(VariantOnBlockedJson, Scenario, Error));
+	TestTrue(*FString::Printf(TEXT("l'errore nomina la variante e il blocco (era: %s)"), *Error),
+		Error.Contains(TEXT("SullOstacolo")) && Error.Contains(TEXT("blocca")));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRemoveUnitReportsOrphansTest,
+	"RefactorTactics.Scenario.EditingReportsWhatARemovalLeavesBehind",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRemoveUnitReportsOrphansTest::RunTest(const FString&)
+{
+	// `RemoveUnit` non ripulisce turni e assertion — e' una scelta — ma tacerlo lascerebbe scoprire il
+	// problema solo al salvataggio, e con l'authoring dei turni ancora da fare (#1116) sarebbe un vicolo
+	// cieco senza uscita. Qui si verifica che la rimozione **riesca** e che **lo dica**.
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenEditingDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// Nello scenario di prova A1 e' nominata da un intent e da una assertion.
+	TestEqual(TEXT("A1 si ritira comunque"),
+		Draft.RemoveUnit(TEXT("A1"), Error), ERTScenarioAuthoringResult::Success);
+	TestFalse(TEXT("e la rimozione non e' silenziosa"), Error.IsEmpty());
+	TestTrue(*FString::Printf(TEXT("il messaggio nomina cio' che resta (era: %s)"), *Error),
+		Error.Contains(TEXT("A1")) && Error.Contains(TEXT("intent")));
+
+	// E la conseguenza dichiarata e' vera: lo scenario non si salva piu'.
+	TestEqual(TEXT("lo scenario non e' piu' valido"), Draft.Validate(Error), ERTScenarioAuthoringResult::Invalid);
+
+	// Togliere una unita' che nessuno nomina resta silenzioso: il messaggio compare solo quando serve.
+	FRTScenarioDraft Clean;
+	if (TestTrue(TEXT("secondo scenario caricato"), OpenEditingDraft(Clean, Error)))
+	{
+		TestEqual(TEXT("B1 non e' nominata da nessuno"),
+			Clean.RemoveUnit(TEXT("B1"), Error), ERTScenarioAuthoringResult::Success);
+		TestTrue(TEXT("e la sua rimozione non ha niente da segnalare"), Error.IsEmpty());
+	}
 
 	return true;
 }
