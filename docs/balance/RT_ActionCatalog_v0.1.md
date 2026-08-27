@@ -467,14 +467,24 @@ movimento volontario** dell'eroe.
 **Shield** — applica **25** punti scudo, consumati prima della salute · scade nel Cleanup del turno · non protegge
 dagli effetti di controllo privi di danno.
 
-**Cleanse** — rimuove **un solo** stato fra `Burning`, `Electrified`, `Rooted`, `Marked`, `Exposed`. La priorità
+**Cleanse** — rimuove **un solo** stato, e soltanto fra quelli che **il piano ha elencato**. La priorità
 di rimozione è scelta dal giocatore **durante il planning** (non a runtime: nessuna scelta implicita).
 
-> **Limite v0.1**: `Burning` ed `Electrified` non esistono ancora come stato di unità (sono ambiente, epic E8 /
-> CP 8.2), quindi oggi `Cleanse` opera sui soli `Rooted`/`Marked`/`Exposed`. Il meccanismo scorre una lista di
-> tag dichiarata nel piano: in E8 basterà rendere pianificabili i due nuovi stati, senza toccare il resolver.
-> Senza un ordine dichiarato **non rimuove nulla** (fail-closed): "nessuna scelta implicita" significa che il
-> resolver non sceglie al posto del giocatore neppure quando il candidato sarebbe uno solo.
+> **Limite v0.1, riscritto il 2026-08-27** ([D-211](../decisions/RT_PDR_00_Decision_Log.md)) — la riga precedente diceva
+> *«oggi `Cleanse` opera sui soli `Rooted`/`Marked`/`Exposed`, perché `Burning` ed `Electrified` non esistono
+> come stato di unità»*, e sbagliava due volte: `Burning` **esiste** come stato di unità, e il limite non è un
+> insieme fisso di stati.
+>
+> **L'insieme rimovibile lo dichiara il piano**, tag per tag: `ARTUnit::PlannedCleansePriority` è insieme
+> l'**ordine** e il **filtro** — un tag che l'unità possiede ma che il piano non elenca **non si toglie**
+> (`Reactions.Cleanse.NoImplicitChoice`). Senza lista non rimuove nulla (fail-closed): *«nessuna scelta
+> implicita»* significa che il resolver non sceglie al posto del giocatore neppure quando il candidato
+> sarebbe uno solo.
+>
+> 🔴 **E quella lista non ha produttori**: la scrivono solo i test. In partita `Cleanse` non rimuove niente,
+> paga il cooldown ([D-200](../decisions/RT_PDR_00_Decision_Log.md)) e lascia una voce `NoEffect`. L'argomento sta in
+> [D-211](../decisions/RT_PDR_00_Decision_Log.md) e nella riga **78** di [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md), e **non si
+> duplica qui**.
 
 ---
 
