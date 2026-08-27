@@ -759,7 +759,34 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// Con gli indici degli intenti la domanda si fa per azione, che e' l'unita' su cui `bCanBeInterrupted`
 	// e' dichiarato — e la deduplicazione viene gratis: due Interrupt sulla stessa vittima aggiungono lo
 	// stesso indice al `TSet` e producono una voce sola.
-	TSet<int32> InterruptedIntents;
+	// 🔴 **PASSATA 1 di 3 — si costruisce il GRAFO, non si cancella ancora niente** (`#1451`, [D-202]).
+	//
+	// La versione precedente decideva e applicava nello stesso ciclo, e la guardia «un Interrupt gia'
+	// cancellato non interrompe» (`#1437`) funzionava quindi **solo in una delle due direzioni**. `Plan.Hits`
+	// e' ordinato per `AttackerId`, quindi con A che interrompe B e B che interrompe C:
+	//
+	// - indice di A **minore** di quello di B: si vede `Hit(A→B)` per primo, l'intento di B entra
+	//   nell'insieme, e `Hit(B→C)` viene saltato. L'azione di C sopravvive. ✅
+	// - indice **maggiore**: si vede `Hit(B→C)` per primo — l'azione di C e' gia' cancellata — e solo dopo
+	//   si scopre che B era a sua volta interrotto. ❌
+	//
+	// «E' come se non fosse mai partita» valeva o non valeva a seconda dell'ORDINE DI SPAWN delle unita'.
+	// E da `#1449` c'era un secondo verso: B non paga (e' cancellato), quindi C perdeva la propria azione
+	// per un Interrupt annullato **e** gratuito.
+	//
+	// Gli archi si tengono in due array PARALLELI e non in una `TMap`: iterare una `TMap` non ha ordine
+	// dichiarato, e qui l'ordine decide cosa la traccia archiviata contiene.
+	TArray<int32> Interruttori;            // intenti Interrupt che cancellerebbero qualcosa, crescenti
+	TArray<TArray<int32>> Cancellerebbe;   // parallelo: gli intenti che ciascuno annullerebbe
+
+	auto ArcoDa = [&Interruttori, &Cancellerebbe](int32 IntentoInterrupt) -> TArray<int32>&
+	{
+		const int32 Trovato = Interruttori.Find(IntentoInterrupt);
+		if (Trovato != INDEX_NONE) { return Cancellerebbe[Trovato]; }
+		Interruttori.Add(IntentoInterrupt);
+		return Cancellerebbe.AddDefaulted_GetRef();
+	};
+
 	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
@@ -768,15 +795,6 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 			continue;
 		}
 		if (!Units.IsValidIndex(Hit.TargetId) || !Units[Hit.TargetId]) { continue; }
-
-		// 🔴 **Un Interrupt gia' CANCELLATO non interrompe** (`#1437`, trovato in review su `#1444`).
-		// `Action.Interrupt` e' interrompibile a sua volta, quindi A puo' annullare l'Interrupt di B mentre
-		// B stava annullando l'azione di C. Senza questa guardia l'azione di B produceva comunque il suo
-		// effetto — «come se non fosse mai partita» valeva per il cooldown e non per cio' che faceva.
-		if (InterruptedIntents.Contains(Hit.IntentIndex))
-		{
-			continue;
-		}
 
 		// Le azioni pianificate dal BERSAGLIO non si leggono da `Unit->PlannedAbilityIndex`: il ciclo che ha
 		// costruito `Intents`, qualche riga sopra, le ha gia' CONSUMATE (azzerate) per ogni unita', bersaglio
@@ -811,66 +829,137 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 			// (`bCanBeInterrupted = false`) non ha niente da cancellare.
 			if (!IntentDefs.IsValidIndex(k) || !IntentDefs[k].bCanBeInterrupted) { continue; }
 
-			bool bGia = false;
-			InterruptedIntents.Add(k, &bGia);
-			if (bGia)
-			{
-				continue; // gia' cancellato da un altro Interrupt: una voce per azione, non per colpo
-			}
-
-			// 🔴 **L'asimmetria INVERSA**, secondo sito ([D-196], `#1412` punto 4): un'azione cancellata da
-			// un'altra unita' non lasciava nessuna traccia autoritativa. Il piano della vittima sparisce dal
-			// turno e il replay non sa perche'.
-			//
-			// `SrcCell` e' la cella di chi SUBISCE l'interruzione — e' la sua azione a essere annullata,
-			// quindi e' lei il soggetto della voce — e `UnitId` la segue, come il combat log (`#1418`).
-			//
-			// ⚠️ `TgtCell` porta **dove puntava l'azione cancellata**, come in ogni altra voce `Fallback`
-			// della famiglia (`CuraMancata`, `FallbackEntry`, `ArcRejected`, `SlotOccupied`). Metterci la
-			// cella di chi ha interrotto faceva leggere «la vittima attaccava l'interruttore» — preciso e
-			// falso, e il campo entra nell'hash.
-			//
-			// ⚠️ **Chi ha interrotto non entra nella voce**: `UnitId` e' uno solo e lo prende il soggetto.
-			// Stesso costo di `#1430` per `RearHitBypassedCover`.
-			// ⚠️ Un intento puo' puntare a una CELLA e non a un'unita': dopo un fallback `AttackCell`, o su
-			// un colpo a memoria di CP 13.2, `TargetId` e' `INDEX_NONE` e il punto di mira sta in
-			// `TargetCell`. Ripiegare sulla cella della vittima scriverebbe «si e' attaccata da sola» — la
-			// stessa frase precisa e falsa che il commento qui sotto condanna, e `TgtCell` entra nell'hash.
-			const int32 BersaglioId = Intents[k].TargetId;
-			const FRTCellId CellaMirata = Units.IsValidIndex(BersaglioId) && Units[BersaglioId]
-				? Units[BersaglioId]->Cell
-				: Intents[k].TargetCell;
-			FRTTurnLogEntry Interrotta;
-			Interrotta.Phase = ERTMatchPhase::Blast;
-			Interrotta.Category = ERTLogCategory::Fallback;
-			Interrotta.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
-			Interrotta.SrcCell = Units[Hit.TargetId]->Cell;
-			Interrotta.TgtCell = CellaMirata;
-			Interrotta.Amount = static_cast<int32>(ERTActionInvalidReason::Interrupted);
-			Interrotta.ActionId = IntentDefs[k].ActionId;
-			Interrotta.BaseActionId = IntentDefs[k].BaseActionId;
-			Interrotta.Priority = IntentDefs[k].Priority;
-			AppendLogEntry(Interrotta, Units[Hit.TargetId]);
-
-			// ⛔ **Niente `AddLogEvent` qui**: la riga arriva al combat log attraverso `ConcludeTurn`, che
-			// deriva una riga per ogni voce di TurnLog. Tenerla creerebbe un duplicato — la stessa
-			// informazione in due formati — che e' il debito noto di `#1412` punto 2.
+			// L'arco: questo Interrupt cancellerebbe questa azione. **Se** sara' efficace lo decide la
+			// passata 2 — qui non si cancella niente, e i colpi restano tutti al loro posto.
+			ArcoDa(Hit.IntentIndex).AddUnique(k);
 		}
 	}
 
-	// 🔴 **Chi ha interrotto paga l'azione che ha speso** (`#1444`). `Action.Interrupt` dichiara cooldown 2
-	// e non lo pagava mai: i suoi colpi escono da `Plan.Hits` col filtro qui sotto — devono, o un colpo a
-	// Power 0 conterebbe come «primo colpo» per `ApplyFirstHitDelta` — e uscivano PRIMA che `ResolveCombat`
-	// costruisse `Attackers` dai colpi sopravvissuti, che e' cio' da cui `ConsumeAttackerAbilities` legge.
-	// `Action.Interrupt` risolve in fase `Control`, quindi nemmeno la consumazione del Prep lo copriva.
+	// 🔴 **PASSATA 2 di 3 — chi cancella davvero**, a punto fisso ([D-202]).
 	//
-	// ⚠️ **Consumo diretto, e non registrandolo fra gli `Attackers`**: quella strada — la prima stesura di
-	// `#1444` — gli avrebbe dato anche `EnergyOnHit`, perche' `ConsumeAttackerAbilities` fa le due cose nello
-	// stesso ramo. Caricare l'ultimate a chi non ha colpito nessuno e' un cambio di bilanciamento che
-	// `#1444` non chiedeva, e `Attackers` avrebbe smesso di significare «chi ha colpito».
+	// Un Interrupt e' **efficace** se nessun Interrupt efficace lo cancella. Si stratifica dalla radice: chi
+	// non e' bersaglio di nessun Interrupt e' efficace subito, e da li' si propaga. La catena A→B→C si
+	// risolve allo stesso modo qualunque sia l'ordine degli indici — A e' alla radice, quindi B cade e C
+	// sopravvive, sempre.
 	//
-	// ⚠️ **DOPO il verdetto**, non prima: un Interrupt a sua volta interrotto non paga, che e' la stessa
-	// regola che vale per ogni altra azione cancellata («e' come se non fosse mai partita»).
+	// ⚠️ **Un CICLO non ha radice, e resta indeciso**: due unita' adiacenti che si interrompono a vicenda
+	// — `Action.Interrupt` ha portata 1, quindi e' del tutto ordinario — non raggiungono mai un livello.
+	// Restano **inefficaci**: nessuno dei due cancella, ed entrambe le azioni originali procedono. E' la
+	// lettura letterale di `#1437` («un Interrupt cancellato non interrompe») applicata a entrambi
+	// insieme, invece che al primo che l'ordine degli indici incontrava.
+	//
+	// ⚠️ **Pagano lo stesso**: hanno prodotto un colpo, quindi la regola di `#1449` li raggiunge piu'
+	// sotto. Si sono neutralizzati, non hanno rinunciato.
+	enum class EStato : uint8 { Indeciso, Efficace, Cancellato };
+	TArray<EStato> Stato;
+	Stato.Init(EStato::Indeciso, Interruttori.Num());
+
+	// Gli Interrupt che minacciano un dato intento: si cerca fra gli archi, senza `TMap`.
+	auto MinacceContro = [&Interruttori, &Cancellerebbe](int32 Intento, TArray<int32>& Out)
+	{
+		Out.Reset();
+		for (int32 i = 0; i < Interruttori.Num(); ++i)
+		{
+			if (Cancellerebbe[i].Contains(Intento)) { Out.Add(i); }
+		}
+	};
+
+	TArray<int32> Minacce;
+	bool bProgresso = true;
+	while (bProgresso)
+	{
+		bProgresso = false;
+		for (int32 i = 0; i < Interruttori.Num(); ++i)
+		{
+			if (Stato[i] != EStato::Indeciso) { continue; }
+
+			MinacceContro(Interruttori[i], Minacce);
+			bool bCancellatoDaEfficace = false;
+			bool bQualcunoIndeciso = false;
+			for (int32 j : Minacce)
+			{
+				if (Stato[j] == EStato::Efficace) { bCancellatoDaEfficace = true; break; }
+				if (Stato[j] == EStato::Indeciso) { bQualcunoIndeciso = true; }
+			}
+
+			if (bCancellatoDaEfficace)
+			{
+				Stato[i] = EStato::Cancellato;
+				bProgresso = true;
+			}
+			else if (!bQualcunoIndeciso)
+			{
+				// Nessuna minaccia viva: o non ne aveva, o tutte sono state cancellate a loro volta.
+				Stato[i] = EStato::Efficace;
+				bProgresso = true;
+			}
+		}
+	}
+
+	// Cio' che gli Interrupt EFFICACI cancellano. Gli indecisi — i cicli — non contribuiscono.
+	TSet<int32> InterruptedIntents;
+	for (int32 i = 0; i < Interruttori.Num(); ++i)
+	{
+		if (Stato[i] != EStato::Efficace) { continue; }
+		for (int32 Bersaglio : Cancellerebbe[i])
+		{
+			InterruptedIntents.Add(Bersaglio);
+		}
+	}
+
+	// 🔴 **PASSATA 3 di 3 — gli effetti**, sull'insieme ormai deciso.
+	//
+	// Una voce per AZIONE cancellata, non per colpo: `InterruptedIntents` porta intenti, quindi due Interrupt
+	// sulla stessa vittima producono una voce sola. Si scorre in ordine crescente d'indice perche' l'ordine
+	// di `TSet` non e' dichiarato e queste voci entrano nella traccia archiviata.
+	TArray<int32> Cancellati = InterruptedIntents.Array();
+	Cancellati.Sort();
+	for (int32 k : Cancellati)
+	{
+		if (!Intents.IsValidIndex(k) || !IntentDefs.IsValidIndex(k)) { continue; }
+		ARTUnit* Vittima = Units.IsValidIndex(Intents[k].AttackerId) ? Units[Intents[k].AttackerId] : nullptr;
+		if (!Vittima) { continue; }
+
+		// 🔴 **L'asimmetria INVERSA**, secondo sito ([D-196], `#1412` punto 4): un'azione cancellata da
+		// un'altra unita' non lasciava nessuna traccia autoritativa. Il piano della vittima sparisce dal
+		// turno e il replay non sa perche'.
+		//
+		// `SrcCell` e' la cella di chi SUBISCE l'interruzione — e' la sua azione a essere annullata,
+		// quindi e' lei il soggetto della voce — e `UnitId` la segue, come il combat log (`#1418`).
+		//
+		// ⚠️ `TgtCell` porta **dove puntava l'azione cancellata**, come in ogni altra voce `Fallback`
+		// della famiglia (`CuraMancata`, `FallbackEntry`, `ArcRejected`, `SlotOccupied`). Metterci la
+		// cella di chi ha interrotto faceva leggere «la vittima attaccava l'interruttore» — preciso e
+		// falso, e il campo entra nell'hash.
+		//
+		// ⚠️ **Chi ha interrotto non entra nella voce**: `UnitId` e' uno solo e lo prende il soggetto.
+		// Stesso costo di `#1430` per `RearHitBypassedGuard`/`RearHitBypassedCover`.
+		//
+		// ⚠️ Un intento puo' puntare a una CELLA e non a un'unita': dopo un fallback `AttackCell`, o su
+		// un colpo a memoria di CP 13.2, `TargetId` e' `INDEX_NONE` e il punto di mira sta in `TargetCell`.
+		// Ripiegare sulla cella della vittima scriverebbe «si e' attaccata da sola» — preciso e falso, e
+		// `TgtCell` entra nell'hash.
+		const int32 BersaglioId = Intents[k].TargetId;
+		const FRTCellId CellaMirata = Units.IsValidIndex(BersaglioId) && Units[BersaglioId]
+			? Units[BersaglioId]->Cell
+			: Intents[k].TargetCell;
+		FRTTurnLogEntry Interrotta;
+		Interrotta.Phase = ERTMatchPhase::Blast;
+		Interrotta.Category = ERTLogCategory::Fallback;
+		Interrotta.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Interrotta.SrcCell = Vittima->Cell;
+		Interrotta.TgtCell = CellaMirata;
+		Interrotta.Amount = static_cast<int32>(ERTActionInvalidReason::Interrupted);
+		Interrotta.ActionId = IntentDefs[k].ActionId;
+		Interrotta.BaseActionId = IntentDefs[k].BaseActionId;
+		Interrotta.Priority = IntentDefs[k].Priority;
+		AppendLogEntry(Interrotta, Vittima);
+
+		// ⛔ **Niente `AddLogEvent` qui**: la riga arriva al combat log attraverso `ConcludeTurn`, che
+		// deriva una riga per ogni voce di TurnLog. Tenerla creerebbe un duplicato — la stessa
+		// informazione in due formati — che e' il debito noto di `#1412` punto 2.
+	}
+
 	// Quali intenti hanno prodotto almeno un colpo: e' la differenza fra «l'azione e' avvenuta» e «e' stata
 	// dichiarata e basta», e serve subito sotto.
 	TSet<int32> IntentiConColpo;

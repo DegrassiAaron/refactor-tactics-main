@@ -1050,6 +1050,207 @@ bool FRTInterruptTwiceTracesOnceTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **La catena A→B→C si risolve allo stesso modo nei due ordini di spawn** (`#1451`, [D-202]).
+ *
+ * `ApplyInterrupts` scorreva `Plan.Hits`, che `CollectHexAttacks` ordina per `AttackerId`, e decideva
+ * mentre scopriva. La guardia di `#1437` — «un Interrupt gia' cancellato non interrompe» — funzionava
+ * quindi **solo in una delle due direzioni**:
+ *
+ * - indice di A **minore** di quello di B: si vede `Hit(A→B)` per primo, l'intento di B entra
+ *   nell'insieme, e `Hit(B→C)` viene saltato. L'azione di C sopravvive. ✅
+ * - indice **maggiore**: si vede `Hit(B→C)` per primo — l'azione di C e' gia' cancellata — e solo dopo
+ *   si scopre che B era a sua volta interrotto. ❌
+ *
+ * E da `#1449` c'era un secondo verso: B non paga (e' cancellato), quindi C perdeva la propria azione per
+ * un Interrupt annullato **e** gratuito.
+ *
+ * ⚠️ **Il test costruisce la catena DUE volte, invertendo l'ordine di spawn**, ed e' l'unica forma che
+ * cade sul difetto: una sola direzione sarebbe passata anche prima. `StableUnitId` si assegna per ordine
+ * di spawn (`Roster[i]->StableUnitId = i + 1`), quindi invertire gli spawn inverte gli indici.
+ *
+ * ⚠️ L'oracolo e' la SALUTE della vittima finale, non una voce di traccia: e' l'effetto che il
+ * difetto produceva o non produceva a seconda dell'ordine. Le distanze sono di una cella — `Action.Interrupt`
+ * ha portata 1 — e la vittima di C sta a portata dell'attacco base.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptChainOrderIndependentTest,
+	"RefactorTactics.Actions.Interrupt.ChainDoesNotDependOnSpawnOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptChainOrderIndependentTest::RunTest(const FString&)
+{
+	// ⚠️ **Si SPECCHIA la fila**, e ci sono voluti due tentativi per arrivarci. L'indice che decide l'ordine
+	// di `Plan.Hits` e' quello in `Ctx.Units`, che `GatherBlastUnits` ordina **per cella**
+	// (`URTHexLibrary::StableLess`) — non per ordine di spawn, e nemmeno per `StableUnitId`, che
+	// `MatchRosterLess` costruisce su `(TeamId, cella, nome)`. Le prime due stesure di questo test invertivano
+	// prima gli `SpawnControlUnit` e poi i team, e in tutti e due i casi giravano **due volte lo stesso
+	// scenario**: misurato, non supposto.
+	auto GiraLaCatena = [this](bool bSpecchiata, int32& OutDannoSubito, int32& OutInterrupted,
+		FRTCellId& OutCellaA, FRTCellId& OutCellaB) -> bool
+	{
+		UWorld* World = MakeControlWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnControlMap(World, 6);
+
+		// A interrompe B; B interrompe C; C attacca V. Tutti adiacenti in fila, e i team alternati perche'
+		// ogni anello della catena punta a un nemico.
+		//
+		// Specchiata, la stessa catena percorre le celle al contrario: A finisce DOPO B nell'ordine per cella,
+		// che e' l'unica cosa che questo test vuole cambiare fra i due giri.
+		const FRTCellId CellaA = bSpecchiata ? FRTCellId(3, 0) : FRTCellId(1, 0);
+		const FRTCellId CellaB = FRTCellId(2, 0);
+		const FRTCellId CellaC = bSpecchiata ? FRTCellId(1, 0) : FRTCellId(3, 0);
+		const FRTCellId CellaV = bSpecchiata ? FRTCellId(0, 0) : FRTCellId(4, 0);
+		ARTUnit* A = SpawnControlUnit(World, 0, CellaA);
+		ARTUnit* B = SpawnControlUnit(World, 1, CellaB);
+		ARTUnit* C = SpawnControlUnit(World, 0, CellaC);
+		ARTUnit* V = SpawnControlUnit(World, 1, CellaV);
+		OutCellaA = CellaA;
+		OutCellaB = CellaB;
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TestNotNull(TEXT("A"), A) || !TestNotNull(TEXT("B"), B) || !TestNotNull(TEXT("C"), C)
+			|| !TestNotNull(TEXT("V"), V) || !TestNotNull(TEXT("TM"), TM))
+		{
+			DestroyControlWorld(World);
+			return false;
+		}
+
+		const int32 IdxA = AddControlAbility(A, TEXT("Action.Interrupt"));
+		A->PlannedAbilityIndex = IdxA;
+		A->PlannedAttackTarget = B;
+		A->PlannedCell = A->Cell;
+
+		const int32 IdxB = AddControlAbility(B, TEXT("Action.Interrupt"));
+		B->PlannedAbilityIndex = IdxB;
+		B->PlannedAttackTarget = C;
+		B->PlannedCell = B->Cell;
+
+		C->PlannedAbilityIndex = 0; // attacco base, interrompibile
+		C->PlannedAttackTarget = V;
+		C->PlannedCell = C->Cell;
+
+		const int32 SaluteIniziale = V->Health;
+		RunControlTurn(TM);
+		OutDannoSubito = SaluteIniziale - V->Health;
+
+		OutInterrupted = TM->GetTurnLog().FilterByPredicate([](const FRTTurnLogEntry& E)
+		{
+			return E.Category == ERTLogCategory::Fallback
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+		}).Num();
+
+		AddInfo(FString::Printf(TEXT("%s: A in %s, B in %s -> danno %d, cancellate %d"),
+			bSpecchiata ? TEXT("specchiata") : TEXT("dritta"),
+			*CellaA.ToString(), *CellaB.ToString(), OutDannoSubito, OutInterrupted));
+
+		DestroyControlWorld(World);
+		return true;
+	};
+
+	int32 DannoDritta = 0, InterruptedDritta = 0;
+	int32 DannoSpecchiata = 0, InterruptedSpecchiata = 0;
+	FRTCellId A1, B1, A2, B2;
+	if (!GiraLaCatena(/*bSpecchiata=*/ false, DannoDritta, InterruptedDritta, A1, B1)) { return false; }
+	if (!GiraLaCatena(/*bSpecchiata=*/ true,  DannoSpecchiata, InterruptedSpecchiata, A2, B2)) { return false; }
+
+	// 🔴 **La premessa che rende il test un test**: i due giri devono avere ordini OPPOSTI. Si confronta con
+	// lo stesso comparatore che `GatherBlastUnits` usa — `URTHexLibrary::StableLess` sulle celle — perche' e'
+	// quello a decidere `AttackerId` e quindi l'ordine di `Plan.Hits`. Senza questa coppia di asserzioni il
+	// test girerebbe due volte lo stesso scenario e concorderebbe sempre: e' successo due volte scrivendolo.
+	if (!TestTrue(TEXT("premessa: dritta, A viene prima di B nell'ordine per cella"),
+			URTHexLibrary::StableLess(A1, B1))
+		|| !TestTrue(TEXT("premessa: specchiata, A viene DOPO B"),
+			URTHexLibrary::StableLess(B2, A2)))
+	{
+		return false;
+	}
+
+	AddInfo(FString::Printf(TEXT("danno a V: %d contro %d; voci Interrupted: %d contro %d"),
+		DannoDritta, DannoSpecchiata, InterruptedDritta, InterruptedSpecchiata));
+
+	// La premessa: senza questa, «i due ordini concordano» sarebbe vero anche se in entrambi non succedesse
+	// niente. A interrompe B, quindi B non cancella C, quindi C colpisce.
+	if (!TestTrue(TEXT("premessa: nella catena dritta l'attacco di C arriva a V"), DannoDritta > 0))
+	{
+		return false;
+	}
+
+	// 🔴 L'invariante: l'ordine di spawn non decide chi resta cancellato.
+	TestEqual(TEXT("il danno a V non dipende dall'ordine per cella"), DannoSpecchiata, DannoDritta);
+	TestEqual(TEXT("e nemmeno quante azioni risultano interrotte"), InterruptedSpecchiata, InterruptedDritta);
+
+	// Una sola: quella di B. L'attacco di C non e' cancellato, perche' l'Interrupt di B e' caduto.
+	TestEqual(TEXT("una sola azione cancellata: quella di B"), InterruptedDritta, 1);
+
+	return true;
+}
+
+/**
+ * **Due Interrupt reciproci si neutralizzano: nessuno dei due cancella** (`#1451`, [D-202]).
+ *
+ * E' il caso che il punto fisso non puo' stratificare — un ciclo non ha radice — e la semantica va scelta.
+ * La scelta e' la lettura letterale di `#1437` applicata a **entrambi insieme** invece che al primo che
+ * l'ordine degli indici incontrava: ciascuno e' cancellato dall'altro, quindi nessuno dei due interrompe,
+ * e le due azioni originali procedono.
+ *
+ * ⚠️ **Pagano lo stesso**: hanno prodotto un colpo, quindi la regola di `#1449` li raggiunge. Si sono
+ * neutralizzati, non hanno rinunciato — e questo test lo pinna, perche' e' la meta' che si perderebbe
+ * leggendo solo «nessuno dei due cancella».
+ *
+ * ⚠️ Due unita' adiacenti che si interrompono a vicenda non sono un caso di laboratorio:
+ * `Action.Interrupt` ha portata 1, quindi e' la configurazione ordinaria.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptCycleNeutralisesTest,
+	"RefactorTactics.Actions.Interrupt.MutualInterruptsNeutralise",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptCycleNeutralisesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	// A e B si interrompono a vicenda. Entrambi useranno lo SLOT 0, cosi' il cooldown e' osservabile.
+	ARTUnit* A = SpawnControlUnit(World, 0, FRTCellId(2, 0));
+	ARTUnit* B = SpawnControlUnit(World, 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("A"), A) || !TestNotNull(TEXT("B"), B) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	const int32 IdxA = UseControlAbilityInSlot0(A, TEXT("Action.Interrupt"));
+	A->PlannedAbilityIndex = IdxA;
+	A->PlannedAttackTarget = B;
+	A->PlannedCell = A->Cell;
+
+	const int32 IdxB = UseControlAbilityInSlot0(B, TEXT("Action.Interrupt"));
+	B->PlannedAbilityIndex = IdxB;
+	B->PlannedAttackTarget = A;
+	B->PlannedCell = B->Cell;
+
+	RunControlTurn(TM);
+
+	// 🔴 Nessuna azione cancellata: i due si sono neutralizzati.
+	const int32 Cancellate = TM->GetTurnLog().FilterByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+	}).Num();
+	AddInfo(FString::Printf(TEXT("azioni cancellate: %d; cooldown A=%d B=%d"),
+		Cancellate, A->GetAbilityCooldown(IdxA), B->GetAbilityCooldown(IdxB)));
+	TestEqual(TEXT("due Interrupt reciproci non cancellano niente"), Cancellate, 0);
+
+	// 🔴 E l'altra meta': hanno speso l'azione, quindi la pagano.
+	if (TestTrue(TEXT("premessa: il catalogo dichiara un cooldown"), A->Abilities[IdxA]->CooldownTurns > 0))
+	{
+		TestFalse(TEXT("A ha pagato l'Interrupt che si e' neutralizzato"), A->CanUseAbility(IdxA));
+		TestFalse(TEXT("e B lo stesso"), B->CanUseAbility(IdxB));
+	}
+
+	DestroyControlWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptSkipsNonInterruptibleTest,
 	"RefactorTactics.Actions.Interrupt.SkipsNonInterruptible",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
