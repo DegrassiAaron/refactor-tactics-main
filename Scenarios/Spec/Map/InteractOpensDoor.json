@@ -22,6 +22,8 @@
 
   "_nota_bersaglio": "Si punta la cella OLTRE la porta, non il bordo: il resolver cerca la prima porta sulla traiettoria fra chi agisce e la cella mirata (`FirstDoorEdge`), e da (0,1,0) a (1,1,0) quella traiettoria e' il bordo del gate. La portata di `Action.Interact` e' 1 (D-149) e le due celle sono adiacenti.",
 
+  "_nota_la_porta_chiusa_non_blocca_la_propria_apertura": "Il punto piu' sottile, e va detto perche' chi legge si chiede come si apra una porta che toglie la vista a cio' che sta oltre. Una porta chiusa blocca la LOS, quindi `ValidateInstance` restituisce `NoLineOfSight` — ma quel motivo e' uno dei due che il Blast NON degrada al fallback (`bHandledByPlan`), e `URTHexCombatLibrary` raccoglie l'operazione sulla porta PRIMA del controllo della linea di tiro. E' deliberato, e il commento accanto al ramo lo dichiara: «chiuderla sarebbe impossibile se il proprio effetto venisse scartato dalla porta stessa». Se un giorno quel ramo si spostasse dopo il controllo, questo scenario diventerebbe rosso — ed e' l'unico posto che lo sorveglia.",
+
   "_nota_superfici": "(0,1,0) e' `ShallowWater` e (1,1,0) e' `Conductive`: sono le superfici dello showcase e non c'entrano con la porta. Nessuna delle due fa danno da sola, quindi non compaiono nelle assertion — e se un giorno lo facessero, cadrebbe l'assertion sulla vita, che e' li' apposta.",
 
   "_nota_avversario": "W1 sta all'estremita' opposta del bacino e non dichiara intenti: serve solo perche' la partita abbia due squadre. Le sue assertion di posizione e vita sono la controprova che il turno non ha fatto altro.",
