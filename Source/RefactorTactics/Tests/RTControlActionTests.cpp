@@ -785,7 +785,12 @@ bool FRTInterrupterPaysCooldownTest::RunTest(const FString&)
  * produrne nessuno: basta che il bersaglio dichiarato non sia piu' li'. L'azione era stata pianificata e
  * validata — l'intento esiste — quindi e' stata spesa, e restava gratuita (`#1449`).
  *
- * Qui il bersaglio e' un'unita' che al Blast non c'e' piu': l'intento dell'Interrupt esiste, il colpo no.
+ * Qui l'Interrupt si dichiara su una CELLA VUOTA: l'intento nasce e viene validato — una cella e' un
+ * bersaglio legittimo — ma non c'e' nessuno da colpire, quindi nessun `FRTHexAttackHit`.
+ *
+ * ⚠️ **Non** si uccide il bersaglio per ottenere lo stesso effetto: li' `ValidateInstance` risponde
+ * `TargetDead` e l'intento non nasce affatto — interviene il fallback, che e' un'altra regola. La prima
+ * stesura di questo test lo faceva e misurava il caso sbagliato.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptWithoutHitStillPaysTest,
 	"RefactorTactics.Actions.Interrupt.MissedInterruptStillPays",
@@ -818,7 +823,20 @@ bool FRTInterruptWithoutHitStillPaysTest::RunTest(const FString&)
 	Sc.Interrupter->bAttackTargetsCell = true;
 	Sc.Interrupter->PlannedAttackCell = FRTCellId(2, 0); // adiacente, e vuota
 
+	if (!TestTrue(TEXT("premessa: il catalogo dichiara un cooldown"), Interrupt->CooldownTurns > 0))
+	{
+		DestroyControlWorld(Sc.World);
+		return false;
+	}
+	const int32 SaluteVittima = Sc.Victim->Health;
+
 	RunControlTurn(Sc.TM);
+
+	// 🔴 La premessa che rende il test quello che dice di essere: **nessun colpo**, quindi nessuna
+	// interruzione — l'attacco arriva a destinazione. Senza, il giorno in cui l'Interrupt su cella tornasse
+	// a colpire qualcuno il test resterebbe verde misurando il percorso vecchio.
+	TestTrue(TEXT("premessa: nessun colpo, quindi l'attacco NON e' stato interrotto"),
+		Sc.Victim->Health < SaluteVittima);
 
 	AddInfo(FString::Printf(TEXT("cooldown residuo dopo il turno: %d"),
 		Sc.Interrupter->GetAbilityCooldown(0)));

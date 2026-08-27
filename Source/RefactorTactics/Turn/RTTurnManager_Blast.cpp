@@ -738,7 +738,6 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// e' dichiarato — e la deduplicazione viene gratis: due Interrupt sulla stessa vittima aggiungono lo
 	// stesso indice al `TSet` e producono una voce sola.
 	TSet<int32> InterruptedIntents;
-	TSet<int32> SpesiInterrupt; // un Interrupt si paga una volta, anche se il ciclo lo incontra due volte
 	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
@@ -850,11 +849,26 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	//
 	// ⚠️ **DOPO il verdetto**, non prima: un Interrupt a sua volta interrotto non paga, che e' la stessa
 	// regola che vale per ogni altra azione cancellata («e' come se non fosse mai partita»).
-	// ⚠️ Si scorrono gli INTENTI, non i colpi (`#1449`). Un Interrupt puo' non produrre nessun
-	// `FRTHexAttackHit` — con la nebbia di guerra l'intento punta a una cella RICORDATA (CP 13.2), e se il
-	// bersaglio si e' spostato non c'e' niente da colpire — e agganciare il costo al colpo lo lasciava
-	// gratuito: esattamente il difetto di `#1444`, per un altro ingresso. L'azione e' stata pianificata e
-	// validata, quindi e' stata spesa.
+	// Quali intenti hanno prodotto almeno un colpo: e' la differenza fra «l'azione e' avvenuta» e «e' stata
+	// dichiarata e basta», e serve subito sotto.
+	TSet<int32> IntentiConColpo;
+	for (const FRTHexAttackHit& Hit : Plan.Hits)
+	{
+		IntentiConColpo.Add(Hit.IntentIndex);
+	}
+
+	// 🔴 **Chi ha interrotto paga l'azione che ha speso** (`#1444`, `#1449`).
+	//
+	// Si scorrono gli INTENTI e non i colpi perche' un Interrupt puo' non produrne nessuno pur essendo stato
+	// speso: mirato a una CELLA — direttamente, o su una cella ricordata di CP 13.2 da cui il bersaglio si
+	// e' spostato — l'intento e' valido e non c'e' nessuno da colpire.
+	//
+	// ⚠️ **Ma non paga TUTTO cio' che non ha colpito**, e la prima stesura di `#1449` lo faceva: un
+	// Interrupt fuori portata, senza linea di tiro, senza mappa autorevole o su un alleato non produce colpi
+	// per le stesse ragioni per cui non ne produce un attacco qualunque, e quelli restano gratuiti. Farli
+	// pagare avrebbe dato all'Interrupt una regola sua, contraddicendo il commento venticinque righe piu'
+	// su — «un Interrupt senza linea di tiro non cancella nulla, esattamente come un attacco bloccato dalla
+	// copertura». Si paga il colpo che c'e' stato, oppure l'intento che mirava a una cella.
 	for (int32 k = 0; k < Intents.Num(); ++k)
 	{
 		if (!IntentDefs.IsValidIndex(k) || !IsCoreAction(IntentDefs[k], ActionInterrupt)
@@ -862,16 +876,22 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		{
 			continue; // non e' un Interrupt, oppure e' stato annullato a sua volta: non paga
 		}
-		if (SpesiInterrupt.Contains(k) || !Ctx.IntentAbilityIndex.IsValidIndex(k)
-			|| Ctx.IntentAbilityIndex[k] == INDEX_NONE)
+		const bool bMirataACella = Intents[k].TargetId == INDEX_NONE;
+		if (!IntentiConColpo.Contains(k) && !bMirataACella)
+		{
+			continue; // niente colpo e nessuna cella mirata: e' un'azione non avvenuta come le altre
+		}
+		if (!Ctx.IntentAbilityIndex.IsValidIndex(k) || Ctx.IntentAbilityIndex[k] == INDEX_NONE)
 		{
 			continue;
 		}
 		ARTUnit* Interruttore = Units.IsValidIndex(Intents[k].AttackerId)
 			? Units[Intents[k].AttackerId] : nullptr;
-		if (Interruttore)
+		// ⚠️ `IsAlive()`: un'unita' uccisa in Prep o nel Dash arriva al Blast col piano ancora addosso —
+		// `CollectAttackIntents` non filtra i morti, e lo dichiara — quindi senza questa guardia un cadavere
+		// pagherebbe un'azione che non ha mai eseguito. Stessa regola di `ConsumeAttackerAbilities`.
+		if (Interruttore && Interruttore->IsAlive())
 		{
-			SpesiInterrupt.Add(k);
 			Interruttore->ConsumeAbility(Ctx.IntentAbilityIndex[k]);
 		}
 	}
