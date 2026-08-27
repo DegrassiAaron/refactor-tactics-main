@@ -354,8 +354,12 @@ Le fette 1–4 non estendono il formato degli scenari. La 5 sì, ed è la ragion
 > **Data**: 2026-08-27, stesso giorno · **HEAD**: `0323c4f3`, invariato · **Panel**: lo stesso
 > **Modo**: `decide` — il primo giro isolava le domande e dichiarava di non rispondere; qui il panel
 > risponde, e registra il dissenso dove c'è. ⛔ **Le posizioni non sono decisioni**: il Decision Log è
-> l'owner, e l'ID libero è **D-210** (ultimo assegnato: **D-209**) — da **riverificare prima del merge**,
-> perché una PR aperta può averlo già preso (`CLAUDE.md` §4).
+> l'owner, e l'ID è **D-213**.
+> 🔴 **Questa riga diceva `D-210`, e la riverifica prescritta l'ha falsificata poche ore dopo.** Era il primo
+> libero *su questo branch* (ultimo assegnato: `D-209`); nel frattempo `origin/main` è avanzato di **22
+> commit** e ne ha presi tre — `D-210` (gerarchia delle fonti, `355ef055`), `D-211`, `D-212`. Rinumerata
+> **prima del merge** con `git fetch --prune origin` e la lista delle PR aperte (**zero**), come
+> `CLAUDE.md` §4 prescrive. ✅ **`D-213` è scritta**: la delimitazione del §7.1 è nel Decision Log.
 
 ## 7.0 Prima: una correzione al primo giro
 
@@ -381,7 +385,7 @@ lasciasse intendere.
 
 | Domanda | Misura | Dove |
 |---|---|---|
-| Ultimo `D-nnn` assegnato | **D-209** | `RT_PDR_00_Decision_Log.md` |
+| Ultimo `D-nnn` assegnato | **D-209** sul branch · **D-212** su `origin/main` poche ore dopo — l'ID scritto è **D-213** | `RT_PDR_00_Decision_Log.md`, riletto dopo `git fetch` |
 | Esiste una CI che userebbe `-RTScenario=`? | **no**: `.github/` contiene solo `ISSUE_TEMPLATE` | `ls .github` |
 | Quante `#if UE_BUILD_SHIPPING` nel codice? | **1 direttiva, 1 file** (`RTFrontendWidgets.cpp:164`) | `grep -rn '^\s*#if.*UE_BUILD_SHIPPING' Source/` |
 | Versioni di formato scenario coesistenti | **quattro**: v1 × 74 · v2 × 3 · v3 × 1 · v4 × 5 | parsing degli 83 `.json` |
@@ -401,7 +405,7 @@ lasciasse intendere.
 **Unanime.**
 
 D-144 (a) esclude il Browser dal **contenuto di release**. Una voce di menu che non raggiunge il giocatore
-non è contenuto di release, quindi non contraddice nulla: la `D-210` che serve non dice *«il Browser entra
+non è contenuto di release, quindi non contraddice nulla: la `D-213` che serve non dice *«il Browser entra
 in v0.1»*, dice *«un'affordance di sviluppo può vivere nel frontend spedito purché non sia raggiungibile in
 Shipping, e `out_of_release_scope` continua a valere su ciò che il giocatore riceve»*.
 
@@ -579,14 +583,21 @@ renderlo **obbligatorio**, che è ciò che trasformerebbe la fetta 5 in un lavor
 ## 7.8 Cosa resta all'autore, e cosa il panel continua a non fare
 
 Il panel ha una posizione su tutte e cinque. **Nessuna è una decisione**: le decisioni le prende il Decision
-Log, e la `D-210` va scritta lì con la delimitazione del §7.1 — non qui, perché questo documento non è owner
-di niente (`plans/README.md`).
+Log, non questo documento, che non è owner di niente (`plans/README.md`).
+
+✅ **La prima è stata presa**: [`D-213`](../../decisions/RT_PDR_00_Decision_Log.md) porta la delimitazione del
+§7.1 — *un'affordance di sviluppo può vivere nel frontend spedito purché in Shipping non esista* — con la
+forma del §7.2 e l'avvertenza sul nome già occupato. **E46 non è stata toccata**, che era il punto.
+⏳ Le altre quattro restano posizioni: D3 (precedenza), D4 (asse mappa), D5 (formato) sono argomentate ai
+§7.3–§7.5 e `D-213` dichiara esplicitamente di non deciderle.
 
 Restano fuori, e restano vere dal primo giro:
 
 - **nessun codice**, e ora anche nessuna riga di roadmap: la posizione su D1 è *scelta apposta* per non
   richiederne;
-- **le issue aperte non sono state cercate** — niente `gh` in questa sessione. Prima di aprire il lavoro,
-  `git fetch --prune origin` e la lista delle PR in volo, anche per riverificare che **D-210** sia libero;
+- ✅ **fatto dopo la stesura, ed è servito**: `git fetch --prune origin` e la lista delle PR aperte (zero,
+  letta dal server) hanno mostrato che `D-210` non era più libero — vedi il banner del §7 e la nota di
+  `D-213` nel Decision Log. Le issue aperte sul tema restano **non cercate**: niente `gh` in questa
+  sessione, e chi apre il lavoro cerchi i duplicati prima;
 - **`L_DevSandbox` e `L_Prototype` restano non aperti**, ed è ora meno rilevante: la posizione su D4 dice
   che l'asse `.umap` non va esposto affatto.
