@@ -221,6 +221,9 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 	const int32 HealthBefore = Runner->Health;
 	Attacker->PlannedAbilityIndex = 0;
 	Attacker->PlannedAttackTarget = Runner;
+	// Letto ADESSO: la risoluzione azzera il piano, e dopo il turno non resta niente da cui ricavarlo.
+	const FName AzionePianificata = Attacker->Abilities.IsValidIndex(0) && Attacker->Abilities[0]
+		? Attacker->Abilities[0]->Def.ActionId : FName();
 
 	// Il bersaglio scatta lontano quanto la portata del PROPRIO scatto: era scritto `7`, che solo lo scatto
 	// da 5 celle del Ranger legacy raggiungeva. La destinazione si deriva, cosi' la premessa del test —
@@ -246,6 +249,7 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 
 	int32 Fallbacks = 0;
 	int32 OutOfRangeReasons = 0;
+	int32 ConIdentitaGiusta = 0;
 	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 	{
 		if (E.Category != ERTLogCategory::Fallback) { continue; }
@@ -255,9 +259,22 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 		{
 			++OutOfRangeReasons;
 		}
+		// ⚠️ L'azione ATTESA, non «una qualsiasi»: `Instance` viene riassegnata all'istanza del FALLBACK
+		// subito dopo che la voce e' stata scritta, quindi leggere l'identita' una riga piu' in basso
+		// nominerebbe il ripiego invece dell'azione fallita — e un test che chiedesse solo «non e' vuoto»
+		// resterebbe verde.
+		if (E.ActionId == AzionePianificata)
+		{
+			++ConIdentitaGiusta;
+		}
 	}
 	TestEqual(TEXT("il TurnLog registra un fallback"), Fallbacks, 1);
 	TestEqual(TEXT("annullata perche' fuori portata: l'esito dice anche il motivo"), OutOfRangeReasons, 1);
+	// QUALE azione e' fallita ([D-196], `#1412` punto 1b). Senza, un'azione che non avviene lascia una voce
+	// che non dice se a mancare sia stata l'ultimate o l'attacco base — e due annullamenti della stessa
+	// unita' nello stesso turno erano indistinguibili.
+	TestEqual(*FString::Printf(TEXT("e la voce nomina l'azione fallita (%s)"), *AzionePianificata.ToString()),
+		ConIdentitaGiusta, 1);
 
 	// E lo dice anche il combat log della HUD, non solo il log autoritativo.
 	bool bInCombatLog = false;
@@ -430,6 +447,71 @@ bool FRTChargeImpactInBlastTest::RunTest(const FString&)
 	TestTrue(TEXT("la carica si ferma davanti al bersaglio, non lo attraversa"), Charger->Cell == FRTCellId(1, 0));
 	TestEqual(TEXT("l'impatto fa 20 danni, applicati nel Blast"), VictimHealth - Victim->Health, 20);
 	TestTrue(TEXT("e lo spinge di una cella"), Victim->Cell == FRTCellId(3, 0));
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * **Un `Action.Interrupt` NON annulla l'impatto di una carica gia' risolta.**
+ *
+ * Il movimento della carica avviene nella fase Dash; l'impatto entra nel Blast come intento a portata 1.
+ * Cancellarlo li' annullerebbe **a posteriori** la coda di un'azione risolta a meta': l'unita' resta dove
+ * la carica l'ha portata e perde il colpo.
+ *
+ * ⚠️ `Action.Charge` dichiara `bInterruptible = true`, e quel «si'» non basta a decidere: riguarda la
+ * carica come azione PIANIFICATA, non la sua coda. Prima di `#1437` l'impatto sopravviveva per una ragione
+ * **accidentale** — il ciclo si fermava al primo intento della vittima — e togliendo quel `break` sarebbe
+ * diventato interrompibile sempre, un cambio di gioco che nessuno ha deciso. Trovato in code review.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeImpactSurvivesInterruptTest,
+	"RefactorTactics.Actions.Charge.ImpactSurvivesInterrupt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeImpactSurvivesInterruptTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
+	// L'interruttore parte adiacente a dove la carica FERMA il caricatore — (1,0) — perche'
+	// `Action.Interrupt` ha portata 1 e il colpo si valida sulle posizioni del Blast, dopo il Dash.
+	ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, -1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Charger || !Victim || !Interrupter) { DestroyHexBlastWorld(World); return false; }
+
+	URTActionData* Charge = NewObject<URTActionData>(Charger);
+	Charge->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
+	Charge->RangeCells = Charge->Def.RangeCells;
+	Charger->Abilities.Add(Charge);
+
+	URTActionData* Interrupt = NewObject<URTActionData>(Interrupter);
+	Interrupt->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Interrupt"));
+	Interrupt->RangeCells = Interrupt->Def.RangeCells;
+	Interrupter->Abilities.Add(Interrupt);
+
+	const int32 VictimHealth = Victim->Health;
+	Charger->PlannedDashAbility = Charger->Abilities.Num() - 1;
+	Charger->PlannedDashCell = FRTCellId(3, 0); // dritto: incontra il bersaglio a (2,0) per strada
+
+	Interrupter->PlannedAbilityIndex = Interrupter->Abilities.Num() - 1;
+	Interrupter->PlannedAttackTarget = Charger;
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("premessa: la carica si e' mossa e si e' fermata davanti al bersaglio"),
+		Charger->Cell == FRTCellId(1, 0));
+	TestEqual(TEXT("l'impatto fa danno lo stesso: l'Interrupt non annulla una carica gia' risolta"),
+		VictimHealth - Victim->Health, 20);
+
+	// E nessuna voce dice che l'abbia annullata.
+	const bool bAnnullata = TM->GetTurnLog().ContainsByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+	});
+	TestFalse(TEXT("e il TurnLog non registra nessuna interruzione"), bAnnullata);
 
 	DestroyHexBlastWorld(World);
 	return true;
@@ -743,6 +825,96 @@ bool FRTHexDoorClosingStopsMovementTest::RunTest(const FString&)
 	}
 	TestEqual(TEXT("una voce di porta chiusa"), DoorEntries, 1);
 	TestEqual(TEXT("una voce di movimento fermato dalla topologia"), StoppedEntries, 1);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * `Action.Interact` PORTATA DAL KIT apre una porta: la generica di D-025 arriva fino al dato di mappa.
+ *
+ * E' il test che mancava quando `Interact` e' entrata fra le generiche (2026-08-26). Il ramo delle porte era
+ * gia' coperto — `Structures.Door.ClosingStopsMovement`, qui sopra — ma con l'effetto **simulato**
+ * sull'istanza (`Abilities[0]->Def.Effects.Add(...)`), e il suo commento lo dichiara: *«l'azione di catalogo
+ * che apre e chiude porte e' CP 10.1»*. Da [D-148]/[D-151] quell'azione di catalogo esiste, e nessun test
+ * verificava la catena a partire da cio' che un'unita' porta davvero.
+ *
+ * Cosa cade se la catena si rompe, ed e' il motivo per cui il test tocca quattro anelli e non uno:
+ *   kit          `MakeGenericActions` smette di accodare `Interact`  -> l'azione non si trova nel kit
+ *   traduzione   `ARTTurnManager` non alza piu' `bChangesDoor`       -> nessuna op raccolta
+ *   raccolta     `URTHexCombatLibrary` perde il ramo delle porte     -> nessuna op raccolta
+ *   applicazione `URTHexDoorLibrary::SetDoorState` non apre          -> il passaggio resta bloccato
+ *
+ * ⚠️ L'azione si cerca per `ActionId`, mai per indice: un letterale direbbe *«la nona voce apre le porte»*
+ * invece di *«l'unita' porta Interact»*, e resterebbe verde se qualcuno la togliesse dalle generiche
+ * lasciando nove voci nel kit.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexInteractFromKitOpensDoorTest,
+	"RefactorTactics.Structures.Door.InteractFromKitOpensDoor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexInteractFromKitOpensDoorTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	// Porta CHIUSA sul bordo E di (0,0): separa (0,0) da (1,0), che sono adiacenti — la portata di `Interact`
+	// e' 1 (D-149), quindi la cella oltre la porta e' l'unico bersaglio che l'azione puo' avere.
+	const FRTCellId Hinge(0, 0);
+	const FRTCellId Beyond(1, 0);
+	FRTHexCellData WithDoor = *MapActor->MapAsset->FindCell(Hinge);
+	WithDoor.Doors.Add(FRTHexDoor(ERTHexDirection::E, ERTHexDoorState::Closed));
+	MapActor->MapAsset->AddOrUpdateCell(WithDoor);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Hinge);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	TestTrue(TEXT("all'inizio la porta blocca il passaggio"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Hinge, Beyond));
+
+	int32 InteractIdx = INDEX_NONE;
+	for (int32 i = 0; i < Opener->Abilities.Num(); ++i)
+	{
+		if (Opener->Abilities[i] && Opener->Abilities[i]->Def.ActionId == FName(TEXT("Action.Interact")))
+		{
+			InteractIdx = i;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("`Action.Interact` e' nel kit: e' una generica (D-025)"), InteractIdx != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false; // senza l'azione nel kit il resto del test misurerebbe un'altra cosa
+	}
+
+	Opener->PlannedAbilityIndex = InteractIdx;
+	Opener->PlannedAttackTarget = nullptr;
+	Opener->PlannedAttackCell = Beyond;
+	Opener->bAttackTargetsCell = true; // si mira a una CELLA: dietro la porta non c'e' nessuno da bersagliare
+
+	RunBlastTurn(TM);
+
+	TestFalse(TEXT("la porta e' aperta: il passaggio non e' piu' bloccato"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Hinge, Beyond));
+
+	// Il TurnLog lo dice, col bordo scritto come coppia di celle: senza questa meta' il test non
+	// distinguerebbe «la porta si e' aperta» da «la porta non c'era».
+	int32 DoorOpenedEntries = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::DoorOpened))
+		{
+			++DoorOpenedEntries;
+			TestTrue(TEXT("la voce indica il bordo della porta"),
+				(Entry.SrcCell == Hinge && Entry.TgtCell == Beyond)
+				|| (Entry.SrcCell == Beyond && Entry.TgtCell == Hinge));
+		}
+	}
+	TestEqual(TEXT("una voce di porta aperta"), DoorOpenedEntries, 1);
 
 	DestroyHexBlastWorld(World);
 	return true;

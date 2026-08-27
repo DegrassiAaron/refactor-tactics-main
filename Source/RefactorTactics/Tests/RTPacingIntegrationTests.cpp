@@ -133,6 +133,79 @@ bool FRTPacingSamplePerTurnTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Un campione MAI APERTO non si chiude con un numero inventato.
+ *
+ * 🔴 `PacingPlanningStart` vale `0.0` finche' `BeginPacingSample()` non lo scrive, e a chiamarla e' solo
+ * `StartPlanningTimer()` — cioe' `BeginPlay`. Chi arriva a `LockInAndResolve()` senza passare di li' NON e'
+ * un caso di confine: sono **36 file** fra test e harness (`RTScenarioRunner.cpp` e `RTScenarioSession.cpp`
+ * inclusi), contati sul branch. Il TurnManager di questo test non fa `DispatchBeginPlay` apposta: e' quel
+ * percorso, non una configurazione artificiosa.
+ *
+ * Su Windows `FPlatformTime::Seconds()` non e' un tempo dall'avvio del processo — sono i secondi del
+ * contatore ad alta risoluzione **piu' `16777216.0`** — quindi `(Now - 0.0) * 1000.0` sta intorno a
+ * `1.7e10`, che `FMath::RoundToInt` tronca in un `int32` il cui massimo e' `2.1e9`: conversione fuori
+ * range, comportamento non definito, in pratica un valore spazzatura o negativo.
+ *
+ * Il test NON asserisce il valore spazzatura — sarebbe pinnare un UB. Asserisce cio' che deve valere: il
+ * turno viene misurato in cio' che e' misurabile (il contesto), e i tempi dichiarano di non esserlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingUnopenedSampleTest,
+	"RefactorTactics.Pacing.UnopenedSampleIsDeclaredUnmeasured",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingUnopenedSampleTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexPacingWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexPacingMap(World, /*Radius=*/ 3);
+
+	ARTUnit* A1 = SpawnHexPacingUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 1));
+	ARTUnit* B1 = SpawnHexPacingUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -1));
+
+	// ⚠️ NIENTE `DispatchBeginPlay`, ed e' il punto del test: senza, `StartPlanningTimer` non gira e il
+	// campione del primo turno non viene mai aperto. E' come ci arrivano i test headless e lo Scenario
+	// Harness.
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	// Un'uscita anticipata MUTA verrebbe riportata come Success: l'automation ignora il `bool` di
+	// `RunTest`. Ogni puntatore si asserisce, come due righe sopra col mondo.
+	const bool bSetup = TestNotNull(TEXT("il TurnManager e' stato creato"), TM)
+		&& TestNotNull(TEXT("l'unita' di squadra 0"), A1)
+		&& TestNotNull(TEXT("l'unita' di squadra 1"), B1);
+	if (!bSetup) { DestroyHexPacingWorld(World); return false; }
+
+	PlayOnePacingTurn(TM);
+
+	// Il turno E' STATO GIOCATO: senza questa ancora, l'asserzione sui campioni passerebbe anche se
+	// `LockInAndResolve` fosse uscito subito senza risolvere niente.
+	TestTrue(TEXT("il turno e' stato risolto per davvero"), TM->GetTurnLog().Num() > 0);
+
+	if (!TestEqual(TEXT("il turno e' stato misurato lo stesso"), TM->GetPacingSamples().Num(), 1))
+	{
+		DestroyHexPacingWorld(World);
+		return false;
+	}
+
+	const FRTPacingSample& S = TM->GetPacingSamples()[0];
+
+	// 🔴 I TEMPI non hanno un'origine e lo dichiarano. Non zero: zero e' un lock-in istantaneo, cioe' un
+	// valore legittimo — sarebbe il dato plausibile e falso che nessun errore segnala.
+	TestEqual(TEXT("MsToLockIn si dichiara non misurato"), S.MsToLockIn, FRTPacingSample::Unmeasured);
+	TestEqual(TEXT("e MsSinceLastInput, che ci ricade sopra"),
+		S.MsSinceLastInput, FRTPacingSample::Unmeasured);
+	TestEqual(TEXT("e MsToFirstInput, per lo stesso motivo"),
+		S.MsToFirstInput, FRTPacingSample::Unmeasured);
+
+	// Il CONTESTO invece e' misurabile, e va misurato: buttare il turno perderebbe un dato vero — e non e'
+	// un caso di laboratorio, `SetPlanningSeconds()` arma il timer senza aprire il campione, quindi un
+	// `OnPlanningTimeout` vero puo' arrivare al lock-in con il campione chiuso.
+	TestEqual(TEXT("le due unita' vive sono state contate"), S.UnitsAliveTeam0 + S.UnitsAliveTeam1, 2);
+	TestEqual(TEXT("ed e' il campione del turno 1"), S.TurnNumber, 1);
+
+	DestroyHexPacingWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingCompositionTest,
 	"RefactorTactics.Pacing.RecordsDecisionComposition",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

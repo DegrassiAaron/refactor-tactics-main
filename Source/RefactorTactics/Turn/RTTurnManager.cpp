@@ -1174,16 +1174,49 @@ void ARTTurnManager::LockInAndResolve()
 
 	// Sonda di pacing: chiude i tempi della pianificazione. Telemetria, nessun effetto sul turno.
 	{
-		const double Now = FPlatformTime::Seconds();
-		PacingCurrent.MsToLockIn = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
-		// Senza nessun input, "tempo dall'ultimo input" e' l'intera pianificazione: cosi' un turno passato
-		// inerte finisce fra le attese a vuoto e non fra i tagli, che e' la classificazione corretta.
-		PacingCurrent.MsSinceLastInput = bPacingHadInput
-			? FMath::RoundToInt((Now - PacingLastInput) * 1000.0)
-			: PacingCurrent.MsToLockIn;
-		if (!bPacingHadInput)
+		// 🔴 Il campione puo' non essere mai stato APERTO: `BeginPacingSample()` la chiama solo
+		// `StartPlanningTimer()`, cioe' `BeginPlay`, e qui ci arrivano anche i test headless e lo Scenario
+		// Harness — il secondo dei due percorsi che il commento sopra `EnsureMatchRoster` gia' nomina. Anche
+		// `SetPlanningSeconds()` arma il timer senza aprire nulla, quindi un `OnPlanningTimeout` VERO puo'
+		// arrivare qui con il campione chiuso.
+		//
+		// Si apre adesso, come `EnsureMatchRoster` otto righe sopra e per la stessa ragione: il CONTESTO —
+		// unita' vive, azioni disponibili, numero di turno — e' misurabile e va misurato. Buttare il turno
+		// perderebbe un dato vero.
+		//
+		// ⚠️ Ma i TEMPI no: l'origine sarebbe «adesso», e `MsToLockIn` verrebbe zero. Zero e' un lock-in
+		// istantaneo, cioe' un valore legittimo: sarebbe il dato plausibile e falso che `Unmeasured` esiste
+		// per non produrre. I tre tempi dichiarano di non essere stati misurati (`#1421`).
+		const bool bWasOpen = bPacingSampleOpen;
+		if (!bWasOpen)
 		{
-			PacingCurrent.MsToFirstInput = PacingCurrent.MsToLockIn;
+			BeginPacingSample();
+		}
+
+		if (!bWasOpen)
+		{
+			PacingCurrent.MsToLockIn = FRTPacingSample::Unmeasured;
+			PacingCurrent.MsSinceLastInput = FRTPacingSample::Unmeasured;
+			PacingCurrent.MsToFirstInput = FRTPacingSample::Unmeasured;
+		}
+		else
+		{
+			// ⚠️ Un clamp al posto di tutto questo toglierebbe il comportamento non definito e lascerebbe il
+			// dato falso: su Windows `FPlatformTime::Seconds()` non e' un tempo dall'avvio del processo
+			// (porta dentro `16777216.0`), quindi `(Now - 0.0) * 1000.0` vale circa `1.7e10` e
+			// `FMath::RoundToInt` lo tronca in un `int32` che arriva a `2.1e9`. Clampato sarebbe
+			// `INT32_MAX`: un numero, e comunque non un tempo di pianificazione.
+			const double Now = FPlatformTime::Seconds();
+			PacingCurrent.MsToLockIn = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
+			// Senza nessun input, "tempo dall'ultimo input" e' l'intera pianificazione: cosi' un turno passato
+			// inerte finisce fra le attese a vuoto e non fra i tagli, che e' la classificazione corretta.
+			PacingCurrent.MsSinceLastInput = bPacingHadInput
+				? FMath::RoundToInt((Now - PacingLastInput) * 1000.0)
+				: PacingCurrent.MsToLockIn;
+			if (!bPacingHadInput)
+			{
+				PacingCurrent.MsToFirstInput = PacingCurrent.MsToLockIn;
+			}
 		}
 	}
 
@@ -1512,8 +1545,8 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 		Moved.Facing = Unit->Facing;
 		const ERTHexDirection Turned = URTFacingLibrary::FacingAfterDisplacement(
 			NewCell, FacingSource, ERTDisplacementCause::Forced, Moved.Facing);
-		URTFacingLibrary::RecordFacingChange(Moved, Turned,
-			ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, TurnLog);
+		RecordFacingChange(Moved, Turned,
+			ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, Unit);
 		Unit->Facing = Moved.Facing;
 	}
 
@@ -1600,7 +1633,8 @@ void ARTTurnManager::AppendDisplacementResistedEntry(const ARTUnit* Target, ERTD
 }
 
 void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TArray<int32>& Amounts,
-	const TArray<FRTCellId>& Sources, const TArray<ARTUnit*>& Healers)
+	const TArray<FRTCellId>& Sources, const TArray<ARTUnit*>& Healers,
+	const TArray<FRTActionDef>& Defs)
 {
 	// Tre regole del catalogo, tutte verificabili: non supera la salute massima · non rimuove stati (si tocca
 	// solo `Health`) · **non resuscita** chi e' caduto in questo turno — una cura che riportasse in piedi
@@ -1608,7 +1642,48 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 	for (int32 h = 0; h < Targets.Num(); ++h)
 	{
 		ARTUnit* HealTarget = Targets[h];
-		if (!HealTarget || !HealTarget->IsAlive()) { continue; }
+		if (!HealTarget || !HealTarget->IsAlive())
+		{
+			// 🔴 **Una cura su chi e' caduto nel frattempo non sparisce in silenzio** ([D-196], `#1447`).
+			// Gli attacchi risolvono a priorita' 50-65 e le cure a 70: l'alleato puo' morire NELLO STESSO
+			// Blast in cui qualcuno lo stava curando. `CollectHealActions` ha gia' accettato il piano e
+			// bruciato `ConsumeAbility`, quindi senza questa voce il replay mostra un curatore con
+			// l'abilita' in ricarica e nessuna azione registrata.
+			//
+			// E' la terza faccia della stessa asimmetria che D-196 ha chiuso per `OutOfRange` e `NoEffect`.
+			// Il motivo `TargetDead` esiste gia' nell'enum: e' esattamente questo.
+			// ⚠️ **Un curatore morto non scrive**: gli attacchi si applicano poche righe piu' su, quindi chi
+			// curava puo' essere caduto nello stesso Blast. `CollectHealActions` e `ResolveCleanseActions`
+			// rifiutano un cadavere per la stessa ragione — la voce entrerebbe nell'hash del replay.
+			ARTUnit* Curatore = Healers.IsValidIndex(h) ? Healers[h] : nullptr;
+			if (Curatore && Curatore->IsAlive())
+			{
+				// ⚠️ Il motivo distingue i due casi che la condizione qui sopra mette insieme: `TargetGone`
+				// se il puntatore non c'e' piu' — l'Actor e' stato distrutto fra raccolta e applicazione — e
+				// `TargetDead` se l'unita' c'e' ed e' caduta. L'enum li separa, e `Amount` entra nell'hash.
+				const ERTActionInvalidReason Motivo = HealTarget
+					? ERTActionInvalidReason::TargetDead : ERTActionInvalidReason::TargetGone;
+
+				// ⚠️ Se la def manca, la voce si scrive lo stesso: il percorso di SUCCESSO qui sotto tollera
+				// entrambe le degradazioni, e una via di fallimento piu' silenziosa di quella di successo
+				// riporterebbe il silenzio che questa voce esiste per togliere.
+				FRTTurnLogEntry Mancata;
+				Mancata.Phase = ERTMatchPhase::Blast;
+				Mancata.Category = ERTLogCategory::Fallback;
+				Mancata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+				Mancata.SrcCell = Sources.IsValidIndex(h) ? Sources[h] : Curatore->Cell;
+				Mancata.TgtCell = HealTarget ? HealTarget->Cell : Mancata.SrcCell;
+				Mancata.Amount = static_cast<int32>(Motivo);
+				if (Defs.IsValidIndex(h))
+				{
+					Mancata.ActionId = Defs[h].ActionId;
+					Mancata.BaseActionId = Defs[h].BaseActionId;
+					Mancata.Priority = Defs[h].Priority;
+				}
+				AppendLogEntry(Mancata, Curatore);
+			}
+			continue;
+		}
 
 		const int32 Before = HealTarget->Health;
 		HealTarget->ApplyCombatState(FMath::Min(HealTarget->MaxHealth, Before + Amounts[h]), HealTarget->Shield);
@@ -1618,7 +1693,16 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 		Entry.Phase = ERTMatchPhase::Blast;
 		Entry.Category = ERTLogCategory::Combat;
 		Entry.Outcome = static_cast<uint8>(ERTCombatOutcome::Healed);
-		Entry.ActionId = FName(TEXT("Action.Heal"));
+		// QUALE azione ha curato, non l'azione generica ([D-195], `#1443`): una cura da `Gadget.Medkit` si
+		// legge come tale, e i percorsi di fallimento della stessa cura la nominano gia' cosi'. Scriverlo a
+		// mano dava allo stesso gadget due nomi a seconda che avesse funzionato — e `ActionId` entra
+		// nell'hash, quindi la traccia archiviata era autoritativa e sbagliata.
+		if (Defs.IsValidIndex(h))
+		{
+			Entry.ActionId = Defs[h].ActionId;
+			Entry.BaseActionId = Defs[h].BaseActionId;
+			Entry.Priority = Defs[h].Priority;
+		}
 		Entry.SrcCell = Sources.IsValidIndex(h) ? Sources[h] : HealTarget->Cell;
 		Entry.TgtCell = HealTarget->Cell;
 		Entry.Amount = Restored; // quanto e' stato curato DAVVERO: a salute piena la voce dice zero
@@ -1733,6 +1817,15 @@ void ARTTurnManager::TickDynamicArcs(URTHexMapAsset* Map)
 		Entry.Phase = ERTMatchPhase::Cleanup;
 		Entry.Category = ERTLogCategory::Environment;
 		Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::BridgeRemoved);
+		// ⚠️ **Resta l'azione generica, e stavolta e' corretto**: la scadenza non ha un autore. `FRTDynamicArc`
+		// porta arco e durata, non l'identita' di chi l'ha creato, quindi la voce direbbe il falso attribuendo
+		// la rimozione a un'azione che nessuno ha eseguito in questo turno.
+		//
+		// ⚠️ Conseguenza da conoscere ([D-197], `#1447`): un ponte creato da un GADGET si legge col nome del
+		// pezzo alla creazione e con `Action.ModifyArc` alla scadenza. Non e' lo stesso difetto — la seconda
+		// voce non ha un autore da nominare — ma un consumatore che accoppia le due per `ActionId` non le
+		// trova. Chiuderlo vuol dire portare l'identita' dentro `FRTDynamicArc`, cioe' toccare cio' che il
+		// formato archivia: aperto a parte.
 		Entry.ActionId = FName(TEXT("Action.ModifyArc"));
 		Entry.SrcCell = From;
 		Entry.TgtCell = To;
@@ -1927,11 +2020,30 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 	// Dash la cella dell'attore in fase Blast non e' piu' quella di partenza. Per questo l'attore arriva come
 	// parametro e non si deduce.
 	//
+	// ⚠️ **Non per TUTTE le voci**, e chi aggiunge un produttore deve saperlo prima di scegliere cosa
+	// passare: alcune famiglie invertono e mettono qui CHI SUBISCE. L'elenco e la ragione di ognuna stanno
+	// nel commento di `FRTTurnLogEntry::UnitId`; la domanda si fa a
+	// `URTTurnLogLibrary::IsSubjectTheSufferer`, che porta la tassonomia in un posto solo invece di lasciarla
+	// a chi si ricorda di aver letto la prosa.
+	//
 	// `nullptr` -> `0`, cioe' «nessuna unita' dichiarata». Il parametro e' OBBLIGATORIO di proposito: reso
 	// opzionale, un sito nuovo erediterebbe lo zero in silenzio e la voce direbbe «nessuno» invece di tacere.
 	Entry.UnitId = Actor ? Actor->StableUnitId : 0;
 	// L'UNICO `TurnLog.Add` del file: ogni altro sito passa da qui.
 	TurnLog.Add(Entry);
+}
+
+void ARTTurnManager::RecordFacingChange(FRTHexSimUnit& Unit, ERTHexDirection NewFacing, ERTFacingOutcome Reason,
+	ERTMatchPhase LogPhase, const ARTUnit* Actor)
+{
+	// ⚠️ Un array LOCALE, non `TurnLog`: e' la riga che fa la differenza. La libreria scrive qui, e le voci
+	// entrano nel TurnLog solo attraverso `AppendLogEntry`, che ci stampa turno, revisione del grafo e unita'.
+	TArray<FRTTurnLogEntry> Prodotte;
+	URTFacingLibrary::RecordFacingChange(Unit, NewFacing, Reason, LogPhase, Prodotte);
+	for (FRTTurnLogEntry& Voce : Prodotte)
+	{
+		AppendLogEntry(Voce, Actor);
+	}
 }
 
 void ARTTurnManager::ValidatePlansAtLockIn()
@@ -3295,8 +3407,8 @@ void ARTTurnManager::ResolveDash()
 
 			FRTHexSimUnit Dashed(i, Unit->Cell, /*InMoveBudget=*/ 0);
 			Dashed.Facing = Unit->Facing;
-			URTFacingLibrary::RecordFacingChange(Dashed, URTFacingLibrary::FacingFromPath(Walked, Dashed.Facing),
-				ERTFacingOutcome::DerivedFromDash, ERTMatchPhase::Dash, TurnLog);
+			RecordFacingChange(Dashed, URTFacingLibrary::FacingFromPath(Walked, Dashed.Facing),
+				ERTFacingOutcome::DerivedFromDash, ERTMatchPhase::Dash, Unit);
 			Unit->Facing = Dashed.Facing;
 
 			// Traccia per la rotazione dichiarata (#291): dopo uno scatto LINEARE la sola direzione legale e'
@@ -3418,8 +3530,14 @@ void ARTTurnManager::ResolveDash()
 					Discarded.BaseActionId = Dropped->Def.BaseActionId; // D-033: la traccia si spiega da sola
 					Discarded.SrcCell = PreDashCell;   // chiave stabile dell'unita' nel turno
 					Discarded.TgtCell = PreDashCell;   // = SrcCell: qui non c'e' una destinazione
-					// `Priority` resta a 0 (default): a differenza della voce `Superseded` qui sopra, nessun
-					// produttore `Fallback` la imposta dal catalogo — stesso pattern di `RTTurnManager_Blast.cpp`.
+					// L'identita' COMPLETA dell'azione scartata: `ActionId` c'era gia', gli altri due no ([D-196]).
+					//
+					// ⚠️ Fino al 2026-08-26 qui c'era scritto che «nessun produttore `Fallback` imposta
+					// `Priority` dal catalogo». Da [D-196] la impostano tutti quelli del Blast, e lasciarla a
+					// zero qui avrebbe fatto ordinare la stessa famiglia su due chiavi diverse a seconda di
+					// chi ha scritto la voce — `Priority` e' un discriminante di `EntryLess`.
+					Discarded.BaseActionId = Dropped->Def.BaseActionId;
+					Discarded.Priority = Dropped->Def.Priority;
 					Discarded.Amount = static_cast<int32>(ERTActionInvalidReason::SlotOccupied);
 					AppendLogEntry(Discarded, Unit);
 					// Niente `AddLogEvent` qui: la riga arriva al combat log attraverso `ConcludeTurn`, che
@@ -3708,6 +3826,7 @@ void ARTTurnManager::ResolveCombat()
 	TArray<int32>& HealAmounts = Ctx.HealAmounts;
 	TArray<FRTCellId>& HealSources = Ctx.HealSources;
 	TArray<ARTUnit*>& HealActors = Ctx.HealActors;
+	const TArray<FRTActionDef>& HealDefs = Ctx.HealDefs;
 	TArray<FRTHexAttackIntent>& Intents = Ctx.Intents;
 	TArray<int32>& IntentAbilityIndex = Ctx.IntentAbilityIndex;
 	TArray<const URTActionData*>& IntentAbility = Ctx.IntentAbility;
@@ -3937,12 +4056,26 @@ void ARTTurnManager::ResolveCombat()
 				FRTTurnLogEntry Bypassed;
 				Bypassed.Phase = ERTMatchPhase::Blast;
 				Bypassed.Category = ERTLogCategory::Facing;
-				Bypassed.Outcome = static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+				// `RearHitBypassedGuard` e non `...Cover` (`#1430`, [D-199]): questo ramo racconta la GUARDIA
+				// scavalcata e mette in `Amount` la DIREZIONE del difensore, mentre il ramo della copertura ci
+				// mette i punti di riduzione. Erano lo stesso esito con due payload incompatibili.
+				Bypassed.Outcome = static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard);
 				Bypassed.SrcCell = HexUnits[FirstHit->AttackerId].Cell;
 				Bypassed.TgtCell = HexUnits[i].Cell;
 				Bypassed.Amount = static_cast<int32>(HexUnits[i].Facing);
-				AppendLogEntry(Bypassed,
-					Units.IsValidIndex(FirstHit->AttackerId) ? Units[FirstHit->AttackerId] : nullptr);
+				// 🔴 `UnitId` porta CHI SUBISCE, non chi ha colpito, e non e' una scelta arbitraria: e' cio'
+				// che questa voce DESCRIVE. `Amount` porta il `Facing` del difensore, `TgtCell` la sua cella,
+				// e la categoria e' `Facing` — l'evento e' «l'orientamento del difensore non ha retto». Le
+				// altre voci `Facing` seguono la stessa regola: `MakeFacingEntry` mette cella e direzione
+				// dell'unita' il cui orientamento sta raccontando.
+				//
+				// Fino a `#1418` qui arrivava l'ATTACCANTE mentre la riga leggibile due righe sotto nominava
+				// il difensore: un consumatore che aggrega per `UnitId` e un umano che legge il log
+				// rispondevano diversamente alla domanda «chi l'ha fatto». La riga leggibile aveva ragione.
+				//
+				// ⚠️ `UnitId` non entra nell'hash (D-063), quindi questa correzione non tocca l'identita'
+				// delle tracce archiviate: cambia chi la voce dichiara, non quale traccia e'.
+				AppendLogEntry(Bypassed, Units[i]);
 				AddLogEvent(FString::Printf(TEXT("%s: %s"), *Units[i]->GetName(),
 					*URTTurnLogLibrary::DescribeEntry(Bypassed)));
 			}
@@ -4051,8 +4184,13 @@ void ARTTurnManager::ResolveCombat()
 		//
 		// Un colpo che scavalca ENTRAMBE le protezioni produce due voci, ed e' corretto: sono due
 		// annullamenti distinti dello stesso colpo.
+		// `Victim` si guarda, come ogni loop gemello di questa funzione (`:3937`, `:3803`): senza,
+		// `AppendLogEntry` scriverebbe `UnitId = 0`, che il suo commento definisce «nessuna unita'
+		// dichiarata» — la voce direbbe che il colpo alle spalle e' arrivato a nessuno, mentre l'altro
+		// produttore nomina sempre qualcuno. Due voci della stessa `(Category, Outcome)` di nuovo in
+		// disaccordo, cioe' cio' che `#1418` esiste per togliere.
 		if (Hit.CoverBypassedByFacing > 0 && HexUnits.IsValidIndex(Hit.AttackerId)
-			&& HexUnits.IsValidIndex(Hit.TargetId))
+			&& HexUnits.IsValidIndex(Hit.TargetId) && Victim)
 		{
 			FRTTurnLogEntry BypassedCover;
 			BypassedCover.Phase = ERTMatchPhase::Blast;
@@ -4061,7 +4199,11 @@ void ARTTurnManager::ResolveCombat()
 			BypassedCover.SrcCell = HexUnits[Hit.AttackerId].Cell;
 			BypassedCover.TgtCell = HexUnits[Hit.TargetId].Cell;
 			BypassedCover.Amount = Hit.CoverBypassedByFacing;
-			AppendLogEntry(BypassedCover, Attacker);
+			// CHI SUBISCE, come l'altro produttore di questo stesso esito (`#1418`). I due erano d'accordo
+			// nell'accreditare l'attaccante e sono stati corretti insieme: due voci con la stessa
+			// `(Category, Outcome)` che dichiarano unita' di ruolo diverso sono peggio di una sbagliata,
+			// perche' chi aggrega non ha modo di sapere quale ha in mano.
+			AppendLogEntry(BypassedCover, Victim);
 		}
 
 		// Effetti COLLATERALI del colpo (stato, spinta) dagli EVENTI dichiarati dall'azione, non da flag
@@ -4171,10 +4313,28 @@ void ARTTurnManager::ResolveCombat()
 		ResolvedTimeline.Add(Ev);
 
 		// L'abilita' si consuma una volta per attaccante, anche se il colpo prende piu' bersagli.
-		if (!Attackers.Contains(Attacker))
+		//
+		// 🔴 **Il primo colpo con un'ABILITA' da consumare, non il primo colpo** (`#1449`). Un'unita' puo'
+		// possedere piu' intenti nello stesso turno, e l'impatto di una carica ne porta uno con
+		// `IntentAbilityIndex == INDEX_NONE` — non c'e' niente da consumare, lo scatto l'ha gia' fatto.
+		// `Plan.Hits` e' ordinato per `AttackerId` e poi `TargetId`, quindi bastava che la vittima della
+		// carica avesse indice minore del bersaglio dell'attacco perche' l'impatto entrasse per primo:
+		// `UsedAbilityIndex` riceveva `INDEX_NONE`, il `Contains` impediva di registrare l'attacco vero, e
+		// `ConsumeAbility(INDEX_NONE)` usciva subito. L'azione principale non pagava ne' cooldown ne'
+		// energia, ed era riutilizzabile ogni turno.
+		const int32 AbilityIdx = IntentAbilityIndex.IsValidIndex(Hit.IntentIndex)
+			? IntentAbilityIndex[Hit.IntentIndex] : INDEX_NONE;
+		const int32 Registrato = Attackers.IndexOfByKey(Attacker);
+		if (Registrato == INDEX_NONE)
 		{
 			Attackers.Add(Attacker);
-			UsedAbilityIndex.Add(IntentAbilityIndex.IsValidIndex(Hit.IntentIndex) ? IntentAbilityIndex[Hit.IntentIndex] : INDEX_NONE);
+			UsedAbilityIndex.Add(AbilityIdx);
+		}
+		else if (UsedAbilityIndex.IsValidIndex(Registrato)
+			&& UsedAbilityIndex[Registrato] == INDEX_NONE && AbilityIdx != INDEX_NONE)
+		{
+			// Registrato prima con un colpo che non consuma nulla: l'abilita' vera prende il suo posto.
+			UsedAbilityIndex[Registrato] = AbilityIdx;
 		}
 	}
 
@@ -4197,7 +4357,11 @@ void ARTTurnManager::ResolveCombat()
 		// Nessun colpo, ma le cure vanno applicate lo stesso: un supporto che cura fuori da uno scontro e' il
 		// caso NORMALE, non un'eccezione. (Difetto trovato da `Actions.Heal.RestoresWithoutExceedingMax`: la
 		// prima stesura usciva di qui e la cura spariva in silenzio.)
-		ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors);
+		ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors, HealDefs);
+
+		// ⚠️ Qui NON si consuma: `Attackers` si popola dai colpi sopravvissuti, e se non ce n'e' nessuno e'
+		// vuoto. Chi ha speso un'azione senza lasciare un colpo la paga dove quell'azione vive — l'Interrupt
+		// in `ApplyInterrupts` (`#1444`), la cura in `CollectHealActions`.
 		return;
 	}
 
@@ -4252,7 +4416,7 @@ void ARTTurnManager::ResolveCombat()
 		Units[i]->ApplyCombatState(Resolved[i].Health, Resolved[i].Shield); // solo logico: rimozione visiva differita
 	}
 
-	ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors);
+	ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors, HealDefs);
 
 	// Coda della fase: cio' che si applica quando il danno e' risolto e si sa chi e' rimasto in piedi.
 	ApplyDisplacements(Ctx);
@@ -5263,8 +5427,8 @@ void ARTTurnManager::ResolveMovement()
 		FRTHexSimUnit Moved(i, Units[i]->Cell, /*InMoveBudget=*/ 0);
 		Moved.Facing = Units[i]->Facing;
 		const ERTHexDirection Derived = URTFacingLibrary::FacingFromPath(Walked, Moved.Facing);
-		URTFacingLibrary::RecordFacingChange(Moved, Derived, ERTFacingOutcome::DerivedFromMove,
-			ERTMatchPhase::Move, TurnLog);
+		RecordFacingChange(Moved, Derived, ERTFacingOutcome::DerivedFromMove,
+			ERTMatchPhase::Move, Units[i]);
 		Units[i]->Facing = Moved.Facing;
 
 		// Il Move e' a BUDGET: le rotazioni legali saranno tre (l'ultimo passo e le due adiacenti). Sovrascrive
@@ -5298,9 +5462,9 @@ void ARTTurnManager::ResolveMovement()
 
 		FRTHexSimUnit Declaring(i, Unit->Cell, /*InMoveBudget=*/ 0);
 		Declaring.Facing = Unit->Facing;
-		URTFacingLibrary::RecordFacingChange(Declaring, Applied,
+		RecordFacingChange(Declaring, Applied,
 			bLegal ? ERTFacingOutcome::DeclaredInPlanning : ERTFacingOutcome::DeclarationRejected,
-			ERTMatchPhase::Move, TurnLog);
+			ERTMatchPhase::Move, Unit);
 		Unit->Facing = Declaring.Facing;
 
 		AddLogEvent(FString::Printf(TEXT("%s: rotazione dichiarata %s"), *Unit->GetName(),
@@ -5689,6 +5853,7 @@ void ARTTurnManager::BeginPacingSample()
 	PacingPlanningStart = FPlatformTime::Seconds();
 	PacingLastInput = PacingPlanningStart;
 	bPacingHadInput = false;
+	bPacingSampleOpen = true; // da qui l'origine esiste, e i tempi si possono misurare
 }
 
 void ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)
@@ -5698,8 +5863,12 @@ void ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)
 		return; // un input fuori dalla pianificazione non e' una decisione di turno
 	}
 
+	// 🔴 Il SECONDO percorso dello stesso difetto, e il piu' facile da non vedere: `Phase` vale `Planning`
+	// per default, quindi la guardia qui sopra NON ferma un TurnManager che non e' mai passato da
+	// `BeginPlay`, e `(Now - 0.0) * 1000.0` sfora l'`int32` esattamente come nel lock-in. I contatori di
+	// composizione — selezioni, ordini, annullamenti — restano validi: sono conteggi, non tempi.
 	const double Now = FPlatformTime::Seconds();
-	if (!bPacingHadInput)
+	if (bPacingSampleOpen && !bPacingHadInput)
 	{
 		bPacingHadInput = true;
 		PacingCurrent.MsToFirstInput = FMath::RoundToInt((Now - PacingPlanningStart) * 1000.0);
@@ -5726,6 +5895,10 @@ void ARTTurnManager::ClosePacingSample()
 		AppendPacingRow(PacingCurrent);
 	}
 	PacingCurrent = FRTPacingSample();
+	// Il campione e' chiuso: il prossimo turno misura solo se qualcuno lo riapre. Senza questo, un turno
+	// aperto dal timer e uno successivo raggiunto da un altro percorso si misurerebbero entrambi
+	// dall'origine del primo.
+	bPacingSampleOpen = false;
 }
 
 void ARTTurnManager::AppendPacingRow(const FRTPacingSample& Sample)

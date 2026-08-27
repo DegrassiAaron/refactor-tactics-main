@@ -191,14 +191,31 @@ enum class ERTFacingOutcome : uint8
 	/** LETTURA: l'Overwatch ha usato questo valore (il cono pianificato, E14). */
 	UsedByOverwatch,
 	/**
-	 * Il colpo e' arrivato FUORI dall'arco frontale e la protezione da copertura/`Guard` non ha retto
-	 * (CP 16.2). La direzione registrata e' il facing del BERSAGLIO, cioe' il lato che stava guardando
-	 * mentre veniva colpito dall'altra parte.
+	 * Il colpo e' arrivato FUORI dall'arco frontale e la **copertura** non ha retto (CP 16.2).
+	 *
+	 * ⚠️ **`Amount` porta i PUNTI DI RIDUZIONE scavalcati**, non una direzione: e' il
+	 * `CoverBypassedByFacing` del colpo, un conteggio. Fino al 2026-08-27 questo esito copriva anche la
+	 * `Guard` e li' `Amount` era il facing del difensore (`0..5`) — due payload incompatibili sotto la stessa
+	 * coppia `(Category, Outcome)`, separati da `#1430` / [D-199]. La guardia ha ora `RearHitBypassedGuard`.
 	 *
 	 * Ha un valore proprio invece di riusare `UsedByBlast` perche' il giocatore deve poter leggere *perche'*
 	 * la copertura non l'ha protetto: «il colpo usa l'orientamento SE» non risponde a quella domanda.
 	 */
-	RearHitBypassedCover
+	RearHitBypassedCover,
+	/**
+	 * Il colpo e' arrivato fuori dall'arco frontale e la **`Guard`** non ha retto (CP 16.2). `Amount` porta
+	 * la DIREZIONE del bersaglio, cioe' il lato che stava guardando mentre veniva colpito dall'altra parte.
+	 *
+	 * ⚠️ **In coda, e non accanto a `RearHitBypassedCover`**: `Outcome` viaggia come `uint8` nel formato
+	 * serializzato, quindi inserire un valore in mezzo rinumera tutti quelli che seguono e riscrive il
+	 * significato di ogni traccia gia' archiviata. La vicinanza semantica non vale quel prezzo.
+	 *
+	 * ⚠️ **Perche' e' un esito separato** (`#1430`, [D-199]): fino al 2026-08-27 i due rami — la guardia e la
+	 * copertura — emettevano lo STESSO esito con due `Amount` incompatibili, una direzione (0..5) e dei punti
+	 * di riduzione. Un consumatore che filtrava `Facing`/`RearHitBypassedCover` e leggeva `Amount` otteneva un
+	 * numero plausibile e sbagliato, senza nessun modo di sapere quale dei due aveva in mano.
+	 */
+	RearHitBypassedGuard
 };
 
 /**
@@ -642,11 +659,45 @@ struct FRTTurnLogEntry
 	 * ⚠️ **NON entra nell'hash** ([D-063](../../../docs/decisions/RT_PDR_00_Decision_Log.md)): serve a rendere
 	 * la traccia spiegabile, non a discriminarla. Stesso ragionamento di `FormatId` e `BaseActionId`.
 	 *
-	 * 🔴 **DUE VOCI INVERTONO QUESTA CONVENZIONE, e chi legge il campo deve saperlo QUI** (`#1150`). Il danno
-	 * ambientale — `Status.Burning` nel Cleanup (`#625`) e `Terrain.<Surface>` all'ingresso (`#1067`) — mette
-	 * in `UnitId` **chi SUBISCE**, non chi ha agito. L'inversione e' deliberata e prescritta dal DoD di
-	 * `#625`: in un danno ambientale non c'e' un attaccante, e lo `0` direbbe «nessuna unita' dichiarata» su
-	 * un evento che ha un soggetto solo e ovvio.
+	 * 🔴 **ALCUNE VOCI INVERTONO QUESTA CONVENZIONE, e chi legge il campo deve saperlo QUI** (`#1150`). Il
+	 * danno ambientale — `Status.Burning` nel Cleanup (`#625`) e `Terrain.<Surface>` all'ingresso (`#1067`)
+	 * — mette in `UnitId` **chi SUBISCE**, non chi ha agito. L'inversione e' deliberata e prescritta dal DoD
+	 * di `#625`: in un danno ambientale non c'e' un attaccante, e lo `0` direbbe «nessuna unita' dichiarata»
+	 * su un evento che ha un soggetto solo e ovvio.
+	 *
+	 * 🔴 **`Facing`/`RearHitBypassedGuard` e `RearHitBypassedCover` fanno lo stesso, e per una ragione
+	 * diversa** (`#1418`): non e' che manchi l'attaccante — c'e', ed e' in `SrcCell`. E' che la voce descrive
+	 * **l'orientamento del difensore**, quello che non ha retto: `TgtCell` porta la sua cella.
+	 *
+	 * ⚠️ **Non e' «la regola della categoria»**, e vale la pena dirlo perche' sembra esserlo: e' l'unica
+	 * voce `Facing` in cui `SrcCell` e' la cella di un'unita' DIVERSA dal soggetto. Le altre nominano una
+	 * sola unita', e `UnitId` porta quella.
+	 *
+	 * ⚠️ **Fino al 2026-08-27 le altre voci `Facing` non dichiaravano nessuna unita'**, e questo commento
+	 * lo registrava come difetto aperto: `URTFacingLibrary` scriveva nel log del chiamante senza passare da
+	 * `AppendLogEntry`, quindi `DerivedFromMove`, `DerivedFromDash`, `DeclaredInPlanning` e
+	 * `TargetingReoriented` restavano a `UnitId = 0` — insieme a turno e revisione del grafo. Chiuso da
+	 * `#1429` / [D-198]: passano dal wrapper `ARTTurnManager::RecordFacingChange`, che travasa con
+	 * `AppendLogEntry`.
+	 *
+	 * ⚠️ **Un residuo resta, ed e' innocuo**: `UsedByBlast` e `UsedByOverwatch` nascono da
+	 * `ReadFacingForConsumer`, che non ha nessun chiamante in gioco — solo due test. Quelle due voci non
+	 * entrano in nessuna traccia reale, quindi non c'e' nessun `UnitId` a zero da correggere finche' un
+	 * produttore non esiste.
+	 *
+	 * ⚠️ **Cosa si perde, detto invece che taciuto**: con `UnitId` sul difensore, l'attaccante resta nella
+	 * voce solo come `SrcCell` — e questo stesso commento dichiara che la cella non identifica un'unita'.
+	 * Chi volesse aggregare gli scavalcamenti per ATTACCANTE (la sovrastima del bot, `RTHexBotLibrary.h:94`)
+	 * non ha piu' un campo da cui leggerlo. E' il costo di avere un solo `UnitId` per una voce che ha due
+	 * capi, ed e' registrato in `#1430` insieme all'altro difetto della stessa voce.
+	 *
+	 * ⚠️ **I due annullamenti sono due esiti** dal 2026-08-27 (`#1430`, [D-199]):
+	 * `RearHitBypassedGuard` per la guardia — `Amount` porta la DIREZIONE del difensore, 0..5 — e
+	 * `RearHitBypassedCover` per la copertura, dove `Amount` porta i **punti di riduzione scavalcati**.
+	 * Erano lo stesso esito con due payload incompatibili, e chi filtrava su quella coppia leggeva un numero
+	 * plausibile e sbagliato senza nessun modo di sapere quale dei due avesse in mano. Separarli ha toccato
+	 * `Outcome`, che ENTRA nell'hash: il costo e' dichiarato in [D-199]. Sull'unita' dichiarata erano gia'
+	 * d'accordo — chi subisce — e restano d'accordo: `IsSubjectTheSufferer` risponde `true` a entrambi.
 	 *
 	 * **Conseguenza per chi consuma**: sommare il danno *inflitto* per `UnitId` filtrando su
 	 * `Category == Combat` accredita a chi brucia i danni fatti a se' stesso — un numero **plausibile e

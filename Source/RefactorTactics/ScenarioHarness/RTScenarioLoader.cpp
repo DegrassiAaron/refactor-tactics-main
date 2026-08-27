@@ -1,11 +1,11 @@
 #include "ScenarioHarness/RTScenarioLoader.h"
+#include "Turn/RTTurnLogLibrary.h" // la mappa categoria -> enum degli esiti vive li' (#1427)
 #include "ScenarioHarness/RTScenarioRunner.h" // MaxTurnsHardCap: il tetto assoluto che un file non puo' superare
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h" // un'azione di Prep risolve su se' e non dichiara un bersaglio
 #include "Turn/RTTurnRules.h"
-#include "Turn/RTReactionLibrary.h" // ERTReactionOutcome: vive fuori da RTTurnLog.h, ma e' un esito del log
 #include "Turn/RTReactionOpportunityTypes.h" // IsDeclaredConditionAllowed: il validator della condizione sta nel gioco
 #include "Map/RTHexLibrary.h"
 #include "Misc/FileHelper.h"
@@ -161,33 +161,14 @@ FString URTScenarioLoader::ScenariosRoot()
 
 const UEnum* URTScenarioLoader::OutcomeEnumForCategory(ERTLogCategory Category)
 {
-	// La stessa corrispondenza dichiarata da `FRTTurnLogEntry::Outcome`, qui resa eseguibile. Una categoria
-	// nuova senza il suo caso non compila in silenzio: restituisce `nullptr`, e chi la nomina in uno scenario
-	// riceve «esito sconosciuto» invece di un confronto fra interi che passerebbe per caso.
-	switch (Category)
-	{
-	case ERTLogCategory::Move:        return StaticEnum<ERTMoveOutcome>();
-	case ERTLogCategory::Combat:      return StaticEnum<ERTCombatOutcome>();
-	case ERTLogCategory::Fallback:    return StaticEnum<ERTFallbackOutcome>();
-	case ERTLogCategory::Reaction:    return StaticEnum<ERTReactionOutcome>();
-	case ERTLogCategory::Environment: return StaticEnum<ERTEnvironmentOutcome>();
-	case ERTLogCategory::Facing:      return StaticEnum<ERTFacingOutcome>();
-	case ERTLogCategory::Status:      return StaticEnum<ERTStatusOutcome>(); // #1077
-	// ➕ **Le due che mancavano, aggiunte il 2026-08-16.** Erano le piu' NUOVE — `Predictive` (E18) e
-	// `ReactionDecision` (CP 14.5) — e sono rimaste fuori per omissione, non per una scelta: sei categorie
-	// su otto erano asseribili e due no, senza che nessuno potesse scrivere il perche'.
+	// ⚠️ **La mappa non vive piu' qui** (`#1427`, 2026-08-27): la corrispondenza categoria -> enum degli
+	// esiti e' una proprieta' del TurnLog, e tenerla nello harness la rendeva irraggiungibile a chi il
+	// TurnLog lo scrive — `ScenarioHarness` dipende da `Turn`, non viceversa. Il report della divergenza
+	// golden rendeva `Outcome` come intero nudo per questo.
 	//
-	// Il costo era due righe, e la verifica che fossero possibili e' che entrambi gli enum sono
-	// `UENUM(BlueprintType)`, quindi `StaticEnum<T>()` li risolve — misurato, non assunto: senza la macro
-	// di reflection queste due righe compilerebbero e tornerebbero `nullptr` a runtime.
-	//
-	// ⚠️ Cosa sbloccano, concretamente: `RT_Showcase_Relay_v01` non poteva asserire il proprio
-	// `PredictionWhiffed` al T2 — il turno esiste, la previsione fallisce come deve, e l'unica prova era
-	// indiretta. Un `LogEventCount` su `Predictive` faceva fallire il CARICAMENTO dello scenario.
-	case ERTLogCategory::Predictive:       return StaticEnum<ERTPredictiveOutcome>();
-	case ERTLogCategory::ReactionDecision: return StaticEnum<ERTReactionDecisionOutcome>();
-	default:                          return nullptr;
-	}
+	// Resta questo passacarte perche' il contratto d'errore del caricatore la nomina per nome, e chi legge
+	// quel messaggio deve trovare la funzione dove il messaggio dice.
+	return URTTurnLogLibrary::OutcomeEnumForCategory(Category);
 }
 
 FString URTScenarioLoader::DescribeLogEvent(ERTLogCategory Category, uint8 Outcome)

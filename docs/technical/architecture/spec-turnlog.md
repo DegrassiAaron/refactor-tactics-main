@@ -221,6 +221,63 @@ altrimenti l'hash del replay diventerebbe sensibile a scritture che non decidono
 `DeclarationRejected`, che è osservabile **proprio perché** non cambia nulla — e registra la direzione
 **conservata**, non quella chiesta: il log dice cosa vale, non cosa era stato domandato.
 
+**Le voci `Facing` passano da `AppendLogEntry` come tutte le altre** ([D-198](../../decisions/RT_PDR_00_Decision_Log.md), [`#1429`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1429), 2026-08-27).
+
+`URTFacingLibrary` scriveva nel `TurnLog` che riceveva per riferimento, quindi le sue voci **non** passavano
+dall'unico punto in cui si stampano `TurnNumber`, `GraphRevision` e `UnitId`: ogni rotazione derivata nasceva
+con **turno 0, revisione del grafo 0 e nessuna unità dichiarata**. Il campo che esiste per dire *su quale
+grafo un evento è stato validato* affermava una cosa falsa.
+
+La libreria da sola non poteva riempirli — lavora su `FRTHexSimUnit`, che porta l'indice della simulazione e
+non `StableUnitId` — quindi il manager espone `ARTTurnManager::RecordFacingChange`, che raccoglie le voci in
+un array locale e le travasa con `AppendLogEntry`. È la stessa disciplina che la fase Move segue già con
+`MoveLog`.
+
+⚠️ **Chi aggiunge un produttore di voci lo deve sapere**: passare `ARTTurnManager::TurnLog` a una libreria che
+fa `Add` è il modo in cui una voce nasce senza contesto, e nessun test se ne accorge. Il commento di
+`AppendLogEntry` prometteva che ogni emissione passasse di lì — era vero *del file*, non del TurnLog.
+
+**I due annullamenti sono due esiti** ([D-199](../../decisions/RT_PDR_00_Decision_Log.md), [`#1430`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1430), 2026-08-27).
+
+Fino al 2026-08-27 il ramo della `Guard` e quello della copertura emettevano lo **stesso** esito con due
+`Amount` incompatibili: una direzione (`0..5`) il primo, i punti di riduzione scavalcati il secondo. Chi
+filtrava su quella coppia `(Category, Outcome)` e leggeva `Amount` otteneva un numero **plausibile e
+sbagliato**, senza modo di sapere quale dei due avesse in mano.
+
+| Esito | `Amount` | Quando |
+|---|---|---|
+| `RearHitBypassedGuard` | direzione del difensore (`ERTHexDirection`, 0..5) | la `Guard` non regge perché il colpo arriva fuori dall'arco frontale |
+| `RearHitBypassedCover` | punti di riduzione scavalcati | un colpo alle spalle annulla la copertura bassa |
+
+⚠️ Il nuovo esito è **in coda all'enum**, non accanto al suo gemello: `Outcome` viaggia come `uint8` nel
+formato serializzato, e inserirne uno in mezzo rinumera tutti quelli che seguono, riscrivendo il significato
+di ogni traccia già archiviata. La vicinanza semantica non vale quel prezzo.
+
+⚠️ `Outcome` entra nell'hash: separarli **cambia l'identità** di ogni traccia con una voce del ramo `Guard`.
+Il costo è dichiarato in D-199 — nominarlo, come faceva il commento del 2026-08-25, non lo toglieva.
+
+⚠️ **`UsedByBlast` e `UsedByOverwatch` non hanno produttori in gioco**: `ReadFacingForConsumer` è chiamata
+solo da due test. Le due letture che questa sezione motiva sopra sono dichiarate e non emesse.
+
+**`Neutralised`: un'azione che non ottiene niente lo dice** ([D-203](../../decisions/RT_PDR_00_Decision_Log.md), [`#1460`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1460), 2026-08-27).
+
+[D-202](../../decisions/RT_PDR_00_Decision_Log.md) lascia entrambi inefficaci due `Action.Interrupt`
+reciproci. Quel turno non lasciava **nessuna** traccia: due unità pagavano un cooldown e producevano zero
+voci. La voce è `Fallback`/`Cancelled` con `Amount = Neutralised`, e il soggetto è **chi ha speso**
+l'Interrupt — è la sua azione a non aver ottenuto niente.
+
+⚠️ I tre motivi della famiglia non si confondono, ed è la stessa disciplina di [D-199]:
+
+| Motivo | Dice | Soggetto |
+|---|---|---|
+| `Interrupted` | «la tua azione è stata annullata» | chi la **subisce** |
+| `Neutralised` | «la tua azione non ha annullato niente» | chi l'ha **spesa** |
+| `NoEffect` | «non c'era niente da applicare» | chi ha agito |
+
+⚠️ **Un Interrupt che non produce nessun colpo** — fuori portata, senza linea di tiro, su un alleato — non è
+in questo insieme e non lascia voce, esattamente come un attacco qualunque che manca. Quella è la regola di
+[`#1449`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1449), non un buco.
+
 ### 4.2 Categoria `Decision` — il Decision Time Bank *(decisa il 2026-08-09, issue `#361`)*
 
 Questa spec è **owner dei nomi di evento e dei reason code**, e fino a oggi non conteneva la parola `Bank`:
@@ -373,6 +430,35 @@ La voce si scrive solo se l'unità ha davvero un'azione principale pianificata (
 INDEX_NONE`) ed è ancora viva — stesso filtro che la voce di movimento superato applica qui sopra: chi muore
 sulla cella d'arrivo dello scatto (`ApplyTerrainOnEnterEffects`) non lascia una traccia che adjudica il piano
 di un morto.
+
+### Le due che vivevano solo nel combat log ([D-196](../../decisions/RT_PDR_00_Decision_Log.md), `#1412`)
+
+L'asimmetria **inversa** dei duplicati, e la più difficile da vedere: non una riga di troppo, una che non
+c'è. Fino al 2026-08-26 questi due eventi venivano scritti con un `AddLogEvent` e basta — il record
+autoritativo non li conteneva, quindi un replay non poteva riprodurli né un rapporto di divergenza
+spiegarli. La superficie leggibile sapeva qualcosa che la traccia non registrava.
+
+| Evento | Come si legge |
+|---|---|
+| **Cura fuori portata** (`RTTurnManager_Blast.cpp`) | `Category=Fallback`, `Phase=Blast`, `Outcome=Cancelled`, `Amount=OutOfRange`, identità completa dell'azione di cura, `SrcCell` = chi cura, `TgtCell` = chi doveva essere curato. `UnitId` = chi ha provato a curare |
+| **Azione interrotta** (`Action.Interrupt`, CP 5.4) | `Category=Fallback`, `Phase=Blast`, `Outcome=Cancelled`, **`Amount=Interrupted`**, identità dell'azione cancellata, `SrcCell` = chi subisce l'interruzione, `TgtCell` = **dove puntava l'azione cancellata**. `UnitId` = chi subisce |
+| **Cura su un alleato caduto** ([D-197]) | `Category=Fallback`, `Phase=Blast`, `Outcome=Cancelled`, **`Amount=TargetDead`** (o `TargetGone` se l'Actor non c'e' piu'), identita' completa dell'azione di cura, `SrcCell` = chi cura, `TgtCell` = chi doveva essere curato. `UnitId` = chi ha provato a curare |
+
+⚠️ **`ERTActionInvalidReason::Interrupted` è in coda all'enum**, e deve restarci: il motivo viaggia come
+intero grezzo in `Amount`, quindi inserirne uno in mezzo rinumera i successivi e cambia il **significato**
+delle tracce già scritte. La prima stesura di D-196 lo aveva messo dopo `TargetUnknown`, rinumerando
+`SlotOccupied`, `InsufficientMovementPoints` e `OnCooldown`: nessun test lo segnalava, perché tutti usano i
+nomi simbolici.
+
+⚠️ **`TgtCell` dell'interruzione punta al bersaglio della vittima, NON a chi ha interrotto.** È la
+convenzione di tutta la famiglia `Fallback` — «dove puntava l'azione» — e `DescribeEntry` rende ogni voce
+della categoria con lo stesso `src -> tgt`: metterci l'interruttore faceva leggere «la vittima attaccava
+l'interruttore», una frase precisa e falsa. Chi ha interrotto **non entra nella voce**: `UnitId` è uno solo e
+lo prende il soggetto, ed è lo stesso limite che `#1430` registra per `RearHitBypassedCover`.
+
+⚠️ **Una voce per azione cancellata, non per colpo**: due unità che interrompono lo stesso bersaglio nello
+stesso turno producono due `Hit`, e l'effetto di gioco è deduplicato da un `TSet`. Senza la stessa guardia
+sulla traccia, il record direbbe che l'unica azione della vittima è stata cancellata due volte.
 
 ### La spinta che non sposta ([D-079](../../decisions/RT_PDR_00_Decision_Log.md), `#420`)
 

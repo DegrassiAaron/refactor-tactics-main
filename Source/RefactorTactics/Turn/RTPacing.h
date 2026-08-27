@@ -34,6 +34,24 @@ struct FRTPacingSample
 {
 	GENERATED_BODY()
 
+	/**
+	 * Un tempo che NON e' stato misurato, e che quindi non e' un tempo.
+	 *
+	 * Serve perche' `0` e' un valore legittimo — un lock-in istantaneo — e usarlo per dire «non misurato»
+	 * produce un dato **plausibile e falso**, che nessun errore segnala: la mediana scende, e un timeout con
+	 * `MsSinceLastInput = 0` viene classificato come taglio del timer, cioe' come il segnale che questa
+	 * metrica esiste per catturare. Un tempo negativo, invece, non si confonde con nessun tempo reale.
+	 *
+	 * ⚠️ Chi aggrega deve ESCLUDERLI: `URTPacingLibrary::SummarizeSamples` lo fa e li conta a parte in
+	 * `FRTPacingSummary::UnmeasuredSamples`. Nel CSV la colonna porta `-1`.
+	 *
+	 * Il caso che lo rende necessario (`#1421`): un `LockInAndResolve()` raggiunto senza passare da
+	 * `StartPlanningTimer()` — ogni test headless, lo Scenario Harness, e un `OnPlanningTimeout` armato da
+	 * `SetPlanningSeconds()`. Li' il campione si apre comunque, perche' il CONTESTO (unita' vive, azioni,
+	 * numero di turno) e' misurabile e va misurato: sono solo i TEMPI a non avere un'origine.
+	 */
+	static constexpr int32 Unmeasured = INDEX_NONE;
+
 	/** Numero del turno misurato. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 TurnNumber = 0;
@@ -48,7 +66,10 @@ struct FRTPacingSample
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 ActionsAvailable = 0;
 
-	/** Millisecondi dall'inizio della pianificazione al primo input; = MsToLockIn se non c'e' stato input. */
+	/**
+	 * Millisecondi dall'inizio della pianificazione al primo input; = MsToLockIn se non c'e' stato input,
+	 * `Unmeasured` se il campione non e' mai stato aperto.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 MsToFirstInput = 0;
 
@@ -64,11 +85,13 @@ struct FRTPacingSample
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 UndoCount = 0;
 
+	/** Millisecondi dall'apertura della pianificazione al lock-in; `Unmeasured` se il campione non e' stato aperto. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 MsToLockIn = 0;
 
 	/**
-	 * Millisecondi dall'ultimo input al lock-in; = MsToLockIn se non c'e' stato NESSUN input.
+	 * Millisecondi dall'ultimo input al lock-in; = MsToLockIn se non c'e' stato NESSUN input, `Unmeasured`
+	 * se il campione non e' mai stato aperto.
 	 * E' il campo che distingue un timer che TAGLIA (valore basso) da un timer che scade A VUOTO (alto):
 	 * due patologie con cure opposte, indistinguibili contando solo i timeout.
 	 */
@@ -95,6 +118,16 @@ struct FRTPacingSummary
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 SampleCount = 0;
+
+	/**
+	 * Quanti dei `SampleCount` non portavano un tempo (`FRTPacingSample::Unmeasured`).
+	 *
+	 * Sta qui e non e' un dettaglio: mediana, p90 e la classificazione dei timeout sono calcolate sui soli
+	 * campioni misurati, quindi senza questo numero una mediana su 3 campioni di 100 si legge come la
+	 * mediana di 100.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	int32 UnmeasuredSamples = 0;
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 MedianMsToLockIn = 0;

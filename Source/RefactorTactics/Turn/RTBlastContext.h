@@ -25,6 +25,17 @@ struct FRTPendingArcOp
 	FRTCellId From;
 	FRTCellId To;
 	ARTUnit* Actor = nullptr;
+
+	/**
+	 * QUALE azione ha modificato l'arco.
+	 *
+	 * 🔴 Non si ricostruisce a valle scrivendo `Action.ModifyArc` a mano: `MakeEquipmentAction` riscrive
+	 * `ActionId` con l'id del PEZZO ([D-195]), e da `#1443` il resolver riconosce anche le azioni derivate.
+	 * Senza questo campo un gadget si leggeva col proprio nome quando FALLIVA — `ArcRejected` copia la def —
+	 * e con quello generico quando riusciva: lo stesso pezzo con due nomi a seconda dell'esito, e `ActionId`
+	 * entra nell'hash ([D-067]).
+	 */
+	FRTActionDef Def;
 };
 
 /**
@@ -89,13 +100,27 @@ struct FRTBlastContext
 	/** Chi cura: una cella non identifica un'unita' ([D-063]), e il TurnLog deve dire chi ha agito (#405). */
 	TArray<ARTUnit*> HealActors;
 
-	/** Registra una cura pianificata mantenendo allineati i quattro array. */
-	void AddHeal(ARTUnit* Actor, ARTUnit* Target, int32 Amount, const FRTCellId& SourceCell)
+	/**
+	 * QUALE azione ha curato.
+	 *
+	 * 🔴 Non si ricostruisce a valle, e la voce non puo' scrivere `Action.Heal` a mano: `MakeEquipmentAction`
+	 * riscrive `ActionId` con l'id del PEZZO ([D-195]), quindi una cura da `Gadget.Medkit` deve leggersi
+	 * come tale. Fino a `#1443` la voce di successo diceva `Action.Heal` mentre quelle di FALLIMENTO —
+	 * scritte nello stesso file, dallo stesso piano — dicevano `Gadget.Medkit`: lo stesso gadget con due
+	 * nomi a seconda che avesse funzionato. E `ActionId` entra nell'hash ([D-067]), quindi la traccia
+	 * archiviata era autoritativa e sbagliata.
+	 */
+	TArray<FRTActionDef> HealDefs;
+
+	/** Registra una cura pianificata mantenendo allineati i cinque array. */
+	void AddHeal(ARTUnit* Actor, ARTUnit* Target, int32 Amount, const FRTCellId& SourceCell,
+		const FRTActionDef& Def)
 	{
 		HealActors.Add(Actor);
 		HealTargets.Add(Target);
 		HealAmounts.Add(Amount);
 		HealSources.Add(SourceCell);
+		HealDefs.Add(Def);
 	}
 
 	// --- Intenti d'attacco raccolti dai piani, prima che diventino colpi --------------------------
@@ -156,6 +181,9 @@ struct FRTBlastContext
 	// --- Chi ha colpito, e con quale abilita' ------------------------------------------------------
 
 	/** Attaccanti sopravvissuti al Blast, paralleli a `UsedAbilityIndex`: l'abilita' si spende a fase finita. */
+	// ⚠️ **Chi ha COLPITO**, e solo quello: un'unita' che ha speso un'azione senza lasciare un colpo — un
+	// `Action.Interrupt`, i cui colpi vengono tolti tutti — NON entra qui, e paga la propria azione dove
+	// quell'azione vive (`#1444`). Chi legge questo array puo' contare su un `FRTAttack` corrispondente.
 	TArray<ARTUnit*> Attackers;
 	TArray<int32> UsedAbilityIndex;
 

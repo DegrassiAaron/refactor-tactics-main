@@ -268,15 +268,32 @@ La premessa del bot cambia **tre volte**. Questa spec è scritta sapendo quali s
 
 ## 8. Evidenza — i test che esistono oggi
 
-**29 test**, in due file — 18 + 11, misurati sul branch (`grep -c 'RefactorTactics.HexBot\.'` e `…HexBotPlay\.`), non contati a memoria. Sono l'unica prova di
-ciò che questa spec afferma.
+Due file, e il totale **si misura sul branch** invece di stare scritto qui:
+
+```
+grep -c 'RefactorTactics.HexBot\.'     Source/RefactorTactics/Tests/RTHexBotTests.cpp
+grep -c 'RefactorTactics.HexBotPlay\.' Source/RefactorTactics/Tests/RTHexBotIntegrationTests.cpp
+```
+
+Sono l'unica prova di ciò che questa spec afferma.
+
+> ⚠️ *Rettifica del 2026-08-27*: qui c'era scritto «29 test — 18 + 11», e il primo file ne conteneva già
+> **24**. Il numero era stato misurato una volta e da allora invecchiava a ogni test aggiunto — che è
+> precisamente il difetto che la rettifica del 2026-08-10 qui sotto dichiarava di aver corretto, tornato
+> nella stessa forma perché la correzione aveva sostituito un totale sbagliato con uno giusto invece di
+> togliere il totale.
 
 > ⚠️ *Rettifica del 2026-08-10 (review post-merge)*: la prima stesura diceva «26 test … 18 + 8». I nomi
 > elencati nelle due tabelle erano già quelli giusti; sbagliati erano i **totali**, dedotti da un `sort -u`
 > invece che contati. In un documento la cui unica funzione è essere l'evidenza, un totale non misurato è il
 > difetto peggiore possibile.
 
-### `Tests/RTHexBotTests.cpp` — `RefactorTactics.HexBot.*` (18, logica pura)
+### `Tests/RTHexBotTests.cpp` — `RefactorTactics.HexBot.*` (logica pura)
+
+> ⚠️ *Il totale non si scrive più qui.* Era «18» e il file ne conteneva già 23 prima di questa riga: un
+> numero fissato a mano invecchia al primo test aggiunto, e in un documento che esiste per essere
+> l'evidenza è il difetto peggiore. Si conta sul branch:
+> `grep -c 'RefactorTactics.HexBot\.' Source/RefactorTactics/Tests/RTHexBotTests.cpp`.
 
 | Test | Cosa dimostra |
 |---|---|
@@ -288,6 +305,7 @@ ciò che questa spec afferma.
 | `ScoreAreaPenalizesAlly` | il collaterale sul compagno sottrae |
 | `ScoreAllyPenaltyScalesWithDamage` | la penalità è **proporzionale**, non un veto |
 | `ScoreIgnoresAllyWithoutFriendlyFire` | senza fuoco amico l'alleato nell'area non subisce nulla |
+| `PathFieldCacheKeepsLiveMapsApart` | due arene vive con la **stessa** `Revision` non si scambiano il campo di distanze ([D-196] l'ha resa non discriminante, `#1436`) |
 | `ScoreSingleShapeIgnoresNeighbours` | con `Single` il conto resta una cella, un bersaglio |
 | `CandidatesCarryShape` | la forma viaggia sul piano, non sul contesto |
 | `ChooseBestPlanOrderIndependent` | permutare le candidate non cambia l'esito |

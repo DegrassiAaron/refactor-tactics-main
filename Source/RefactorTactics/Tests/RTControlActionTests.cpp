@@ -8,6 +8,7 @@
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTHexCellData.h"
+#include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo nella voce di fallback
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -106,6 +107,9 @@ namespace
 	 * controllo senza danno infliggerebbe comunque 30 danni fantasma — e' la stessa disciplina che
 	 * `MakeHeroAction` (Ability/RTHeroCatalogLibrary.cpp, CP 6.2) gia' applica per gli eroi.
 	 */
+	/** Abbastanza da sopravvivere al decremento del Cleanup, e da restare leggibile. */
+	constexpr int32 MinCooldownTurns = 3;
+
 	int32 AddControlAbility(ARTUnit* Unit, const TCHAR* ActionId)
 	{
 		if (!Unit) { return INDEX_NONE; }
@@ -119,6 +123,87 @@ namespace
 		}
 		Unit->Abilities.Add(Ability);
 		return Unit->Abilities.Num() - 1;
+	}
+
+	/**
+	 * Mette l'azione nello **slot 0**, sostituendo l'abilita' che ci stava, e allinea lo specchio legacy del
+	 * cooldown. Torna sempre `0`.
+	 *
+	 * ⚠️ **Serve per poter MISURARE il cooldown**, e non e' un vezzo: `ConsumeAbility` scrive in
+	 * `AbilityCooldowns` solo se l'indice e' valido, e `ConfigureFromHeroData` dimensiona quell'array sulle
+	 * abilita' dell'eroe. Un'abilita' APPESA in coda — quel che fa `AddControlAbility` — sta a un indice che
+	 * l'array non copre, quindi il cooldown non viene mai scritto e `CanUseAbility` risponde sempre `true`.
+	 * Un test che asserisse «non ha pagato» su un'abilita' appesa sarebbe verde **anche col difetto**.
+	 *
+	 * ⚠️ `ConsumeAbility` legge `URTActionData::CooldownTurns`, non `Def.CooldownTurns`: uno specchio
+	 * legacy che `AddControlAbility` non copia, come non copia `RangeCells` e `Power`.
+	 *
+	 * ⚠️ **E il cooldown si alza a `MinCooldownTurns`**, perche' il segnale deve sopravvivere al turno:
+	 * il Cleanup dello stesso turno decrementa, quindi un cooldown da **1** e' gia' tornato a zero quando il
+	 * test guarda — ed e' il valore che `Action.Heal` dichiara. MISURATO: entrambi i casi riportavano
+	 * «cooldown residuo: 0», cioe' un'asserzione «non ha pagato» verde **anche col difetto**. Il test
+	 * misura SE si paga, non quanto: il valore del catalogo e' pinnato altrove.
+	 */
+	int32 UseControlAbilityInSlot0(ARTUnit* Unit, const TCHAR* ActionId)
+	{
+		const int32 Appesa = AddControlAbility(Unit, ActionId);
+		if (Appesa == INDEX_NONE || !Unit->Abilities.IsValidIndex(0)) { return INDEX_NONE; }
+
+		URTActionData* Azione = Unit->Abilities[Appesa];
+		Unit->Abilities.RemoveAt(Appesa);
+		Unit->Abilities[0] = Azione;
+		Azione->CooldownTurns = FMath::Max(MinCooldownTurns, Azione->Def.CooldownTurns);
+		return 0;
+	}
+
+
+	/**
+	 * Lo scenario d'interruzione: chi interrompe, chi viene interrotto, chi avrebbe incassato il colpo.
+	 *
+	 * ⚠️ Le distanze sono di UNA cella: `Action.Interrupt` ha portata 1, e una versione precedente di questo
+	 * montaggio le aveva messe a due — l'interruzione non avveniva e il test cadeva su una premessa rotta,
+	 * con un messaggio che sembrava parlare della traccia.
+	 *
+	 * ⚠️ Nessuno sull'origine: `FRTCellId()` di default e' `(0,0,0)`, che e' una cella vera, e un'asserzione
+	 * su una cella che coincide col default passerebbe anche senza assegnazione.
+	 */
+	struct FInterruptScenario
+	{
+		UWorld* World = nullptr;
+		ARTTurnManager* TM = nullptr;
+		ARTUnit* Interrupter = nullptr;
+		ARTUnit* Attacker = nullptr;   // chi SUBISCE l'interruzione: la sua azione viene cancellata
+		ARTUnit* Victim = nullptr;     // chi avrebbe incassato il colpo cancellato
+		int32 InterruptIdx = INDEX_NONE;
+	};
+
+	bool BuildInterruptScenario(FAutomationTestBase& Test, FInterruptScenario& Out)
+	{
+		Out.World = MakeControlWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), Out.World)) { return false; }
+		SpawnControlMap(Out.World, 6);
+
+		Out.Interrupter = SpawnControlUnit(Out.World, 0, FRTCellId(3, 0));
+		Out.Attacker = SpawnControlUnit(Out.World, 1, FRTCellId(4, 0));
+		Out.Victim = SpawnControlUnit(Out.World, 0, FRTCellId(5, 0));
+		Out.TM = Out.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Test.TestNotNull(TEXT("Interrupter"), Out.Interrupter)
+			|| !Test.TestNotNull(TEXT("Attacker"), Out.Attacker)
+			|| !Test.TestNotNull(TEXT("Victim"), Out.Victim)
+			|| !Test.TestNotNull(TEXT("TM"), Out.TM))
+		{
+			return false;
+		}
+
+		Out.InterruptIdx = AddControlAbility(Out.Interrupter, TEXT("Action.Interrupt"));
+		Out.Interrupter->PlannedAbilityIndex = Out.InterruptIdx;
+		Out.Interrupter->PlannedAttackTarget = Out.Attacker;
+		Out.Interrupter->PlannedCell = Out.Interrupter->Cell;
+
+		Out.Attacker->PlannedAbilityIndex = 0; // attacco base, interrompibile
+		Out.Attacker->PlannedAttackTarget = Out.Victim;
+		Out.Attacker->PlannedCell = Out.Attacker->Cell;
+		return true;
 	}
 
 	void RunControlTurn(ARTTurnManager* TM)
@@ -440,6 +525,248 @@ bool FRTRootAllowsAttackTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Una cura che non avviene lascia una traccia.**
+ *
+ * `Action.Heal` ha portata 3. Oltre, il Blast saltava la cura scrivendo una riga di combat log e basta: il
+ * record autoritativo non conteneva NIENTE, quindi un replay non poteva riprodurre il turno e un rapporto
+ * di divergenza non poteva spiegare perche' l'alleato fosse rimasto ferito. E' l'asimmetria INVERSA di
+ * `#1412` — non una riga di troppo, una che non c'e' — chiusa con [D-196].
+ *
+ * ⚠️ Il test sta fra i test di CONTROLLO e non fra quelli di cura perche' qui si misura la TRACCIA, non la
+ * regola di portata: quella e' gia' pinnata altrove, e duplicarla sposterebbe il punto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHealOutOfRangeIsTracedTest,
+	"RefactorTactics.Actions.Heal.OutOfRangeIsTraced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHealOutOfRangeIsTracedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 8);
+
+	ARTUnit* Curatore = SpawnControlUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Ferito = SpawnControlUnit(World, 0, FRTCellId(6, 0)); // ben oltre la portata 3 di Action.Heal
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Curatore"), Curatore) || !TestNotNull(TEXT("Ferito"), Ferito)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	const int32 HealIdx = UseControlAbilityInSlot0(Curatore, TEXT("Action.Heal"));
+	if (!TestTrue(TEXT("premessa: la cura e' oltre la portata dichiarata"),
+		URTHexLibrary::HexDistance(Curatore->Cell, Ferito->Cell)
+			> Curatore->Abilities[HealIdx]->Def.RangeCells))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	Ferito->Health = FMath::Max(1, Ferito->Health - 30);
+	const int32 SaluteFerito = Ferito->Health;
+
+	Curatore->PlannedAbilityIndex = HealIdx;
+	Curatore->PlannedAttackTarget = Ferito;
+	Curatore->PlannedCell = Curatore->Cell;
+
+	RunControlTurn(TM);
+
+	TestEqual(TEXT("premessa: la cura non e' avvenuta"), Ferito->Health, SaluteFerito);
+
+	const FRTTurnLogEntry* Mancata = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange)
+			&& E.ActionId == FName(TEXT("Action.Heal"));
+	});
+	if (TestNotNull(TEXT("la cura mancata e' nel record autoritativo"), Mancata))
+	{
+		TestEqual(TEXT("accredita chi ha provato a curare"), Mancata->UnitId, Curatore->StableUnitId);
+		TestEqual(TEXT("e dice chi doveva essere curato"), Mancata->TgtCell, Ferito->Cell);
+	}
+
+	// 🔴 **E il cooldown NON e' stato pagato** (`#1445`, [D-200]): la portata e' l'unico dei modi di fallire
+	// che si conosce in pianificazione, quindi l'azione non e' mai PARTITA. E' la stessa regola che
+	// `ModifyArc` seguiva gia' — «il cooldown paga solo cio' che ha davvero toccato la mappa» — e che la cura
+	// contraddiceva nello stesso file.
+	//
+	// ⚠️ La premessa serve: senza cooldown dichiarato l'asserzione passerebbe per il motivo sbagliato.
+	if (TestTrue(TEXT("premessa: il catalogo dichiara un cooldown"),
+		Curatore->Abilities[HealIdx]->CooldownTurns > 0))
+	{
+		AddInfo(FString::Printf(TEXT("cooldown residuo: %d"), Curatore->GetAbilityCooldown(HealIdx)));
+		TestTrue(TEXT("la cura fuori portata non brucia il cooldown"), Curatore->CanUseAbility(HealIdx));
+	}
+
+	DestroyControlWorld(World);
+	return true;
+}
+
+/**
+ * **Una cura che non ha niente da applicare lascia una traccia.**
+ *
+ * Ci si arriva DOPO `ConsumeAbility` — il cooldown e' gia' bruciato — e dopo che il piano e' stato
+ * azzerato: prima di [D-196] non restava niente, ne' nel TurnLog ne' nel combat log, e un replay non poteva
+ * spiegare perche' il turno del curatore non avesse prodotto nulla e perche' l'abilita' fosse in ricarica.
+ *
+ * ⚠️ Il motivo e' `NoEffect` e non `None`: quello significa «l'azione e' eseguibile», e la resa generica
+ * direbbe «non eseguibile» — falso in tutti e due i versi. L'azione era valida e non aveva niente da
+ * applicare.
+ *
+ * ⚠️ Lo stato si costruisce a mano perche' nessun dato spedito ci arriva: `Action.Heal` dichiara `Heal 20`.
+ * E' il caso del data asset scritto male — e senza questo test il valore d'enum sarebbe uno slot
+ * permanente comprato senza evidenza che il ramo si raggiunga.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHealWithoutEffectIsTracedTest,
+	"RefactorTactics.Actions.Heal.NoEffectIsTraced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHealWithoutEffectIsTracedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	ARTUnit* Curatore = SpawnControlUnit(World, 0, FRTCellId(2, 0));
+	ARTUnit* Ferito = SpawnControlUnit(World, 0, FRTCellId(3, 0)); // adiacente: la portata non c'entra
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Curatore"), Curatore) || !TestNotNull(TEXT("Ferito"), Ferito)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	// Una cura senza effetti: `ActionId` giusto, `Effects` vuoto.
+	//
+	// ⚠️ Nello **slot 0**, e col cooldown alzato, per le stesse due ragioni di `UseControlAbilityInSlot0`:
+	// `AbilityCooldowns` non copre gli indici appesi, e un cooldown da 1 e' gia' scaduto quando il test
+	// guarda. Costruita a mano invece di passare dall'helper perche' serve una `Def` MUTILATA, che l'helper
+	// non sa produrre.
+	URTActionData* Rotta = NewObject<URTActionData>(Curatore);
+	Rotta->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Heal"));
+	Rotta->Def.Effects.Empty();
+	Rotta->RangeCells = Rotta->Def.RangeCells;
+	Rotta->CooldownTurns = MinCooldownTurns;
+	Curatore->Abilities[0] = Rotta;
+	const int32 HealIdx = 0;
+
+	Ferito->Health = FMath::Max(1, Ferito->Health - 30);
+	const int32 SaluteFerito = Ferito->Health;
+
+	Curatore->PlannedAbilityIndex = HealIdx;
+	Curatore->PlannedAttackTarget = Ferito;
+	Curatore->PlannedCell = Curatore->Cell;
+
+	RunControlTurn(TM);
+
+	TestEqual(TEXT("premessa: nessuna cura e' avvenuta"), Ferito->Health, SaluteFerito);
+
+	// 🔴 **E il cooldown E' stato pagato** (`#1445`, [D-200]). E' la terza faccia del confine, insieme a
+	// `OutOfRangeIsTraced` (non paga) e `DeadTargetIsTraced` (paga): l'azione era valida, e' partita e ha
+	// raggiunto il bersaglio: che la def non portasse un `Heal` utile e' un difetto del DATO, non una mira
+	// impossibile. Un catalogo rotto non e' una leva di bilanciamento su cui costruire un'eccezione.
+	//
+	// ⚠️ Prima di `#1445` questo cooldown non si asseriva affatto, e la ragione dichiarata era che il
+	// Cleanup lo azzera nello stesso turno — vera per il valore del catalogo, 1. Il test lo alza a
+	// `MinCooldownTurns` perche' il segnale sopravviva: misura SE si paga, non quanto.
+	AddInfo(FString::Printf(TEXT("cooldown residuo: %d"), Curatore->GetAbilityCooldown(HealIdx)));
+	TestFalse(TEXT("una cura senza effetti resta pagata"), Curatore->CanUseAbility(HealIdx));
+
+	const FRTTurnLogEntry* Vuota = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::NoEffect);
+	});
+	if (TestNotNull(TEXT("il turno speso a vuoto e' nel record autoritativo"), Vuota))
+	{
+		TestEqual(TEXT("accredita chi ha provato a curare"), Vuota->UnitId, Curatore->StableUnitId);
+		TestEqual(TEXT("e nomina l'azione"), Vuota->ActionId, FName(TEXT("Action.Heal")));
+	}
+
+	DestroyControlWorld(World);
+	return true;
+}
+
+/**
+ * **Una cura su chi e' caduto nel frattempo lascia una traccia.**
+ *
+ * Gli attacchi risolvono a priorita' 50-65 e le cure a 70: l'alleato puo' morire **nello stesso Blast** in
+ * cui qualcuno lo sta curando. `CollectHealActions` ha gia' accettato il piano e bruciato `ConsumeAbility`,
+ * quindi prima di `#1447` il replay mostrava un curatore con l'abilita' in ricarica e nessuna azione
+ * registrata — la terza faccia dell'asimmetria che [D-196] ha chiuso per `OutOfRange` e `NoEffect`.
+ *
+ * ⚠️ Il bersaglio si abbatte a mano invece di farlo uccidere da un attacco nello stesso turno: cio' che si
+ * misura e' la voce, non l'ordine delle priorita' — che ha i suoi test — e farla dipendere da un secondo
+ * attaccante avrebbe legato questo test a un bilanciamento che puo' cambiare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHealOnDeadAllyIsTracedTest,
+	"RefactorTactics.Actions.Heal.DeadTargetIsTraced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHealOnDeadAllyIsTracedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	ARTUnit* Curatore = SpawnControlUnit(World, 0, FRTCellId(2, 0));
+	ARTUnit* Ferito = SpawnControlUnit(World, 0, FRTCellId(3, 0)); // adiacente: la portata non c'entra
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Curatore"), Curatore) || !TestNotNull(TEXT("Ferito"), Ferito)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	const int32 HealIdx = UseControlAbilityInSlot0(Curatore, TEXT("Action.Heal"));
+	Curatore->PlannedAbilityIndex = HealIdx;
+	Curatore->PlannedAttackTarget = Ferito;
+	Curatore->PlannedCell = Curatore->Cell;
+
+	// L'alleato cade PRIMA che la cura risolva. La cura e' gia' stata pianificata e validata.
+	Ferito->ApplyCombatState(0, 0);
+	if (!TestFalse(TEXT("premessa: l'alleato e' caduto"), Ferito->IsAlive()))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	RunControlTurn(TM);
+
+	const FRTTurnLogEntry* Mancata = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::TargetDead);
+	});
+	if (TestNotNull(TEXT("il turno speso su un morto e' nel record autoritativo"), Mancata))
+	{
+		TestEqual(TEXT("accredita chi ha provato a curare"), Mancata->UnitId, Curatore->StableUnitId);
+		TestEqual(TEXT("e nomina l'azione"), Mancata->ActionId, FName(TEXT("Action.Heal")));
+	}
+
+	// 🔴 **E il cooldown E' stato pagato** ([D-200]), che e' l'altra meta' del confine: il bersaglio era vivo
+	// e in portata quando la cura e' partita, ed e' la SIMULTANEITA' ad averla disfatta. Un esito si paga.
+	// Senza questa asserzione, «la cura fuori portata non paga» si potrebbe soddisfare togliendo il costo a
+	// tutti i modi di fallire, e la regola diventerebbe un'altra.
+	if (TestTrue(TEXT("premessa: il catalogo dichiara un cooldown"),
+		Curatore->Abilities[HealIdx]->CooldownTurns > 0))
+	{
+		AddInfo(FString::Printf(TEXT("cooldown residuo: %d"), Curatore->GetAbilityCooldown(HealIdx)));
+		TestFalse(TEXT("la cura su un bersaglio caduto nella simultaneita' resta pagata"),
+			Curatore->CanUseAbility(HealIdx));
+	}
+
+	// ⚠️ NON si rilegge `Ferito` dopo il turno: `ConcludeTurn` chiama `DestroyDefeatedUnits`, che distrugge
+	// l'Actor di chi e' caduto — «nemmeno il pointer sopravvive alla partita», dice `RTUnit.h`. Leggerlo
+	// funzionerebbe finche' la memoria resta allocata, e diventerebbe una lettura di spazzatura al primo GC.
+	// Che la cura non resusciti lo pinnano gia' i test della cura; qui si misura la TRACCIA.
+
+	DestroyControlWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptOnlyInterruptibleTest,
 	"RefactorTactics.Actions.Interrupt.OnlyInterruptible",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -453,9 +780,15 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnControlMap(World, 6);
 
-	ARTUnit* Interrupter = SpawnControlUnit(World, 0, FRTCellId(0, 0));
-	ARTUnit* Attacker = SpawnControlUnit(World, 1, FRTCellId(1, 0));
-	ARTUnit* Victim = SpawnControlUnit(World, 0, FRTCellId(2, 0));
+	// ⚠️ NESSUNO sull'origine: `FRTCellId()` di default e' `(0,0,0)`, che e' una cella VERA — un'asserzione
+	// su una cella che coincide col default passerebbe anche se il produttore non la assegnasse affatto.
+	//
+	// ⚠️ E le distanze restano di UNA cella: `Action.Interrupt` ha portata 1 (catalogo). La prima versione
+	// di questo spostamento le aveva messe a due, e il test cadeva sull'interruzione che non avveniva — un
+	// rosso che sembrava un difetto della traccia ed era la premessa rotta.
+	ARTUnit* Interrupter = SpawnControlUnit(World, 0, FRTCellId(3, 0));
+	ARTUnit* Attacker = SpawnControlUnit(World, 1, FRTCellId(4, 0));
+	ARTUnit* Victim = SpawnControlUnit(World, 0, FRTCellId(5, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("Interrupter"), Interrupter) || !TestNotNull(TEXT("Attacker"), Attacker)
 		|| !TestNotNull(TEXT("Victim"), Victim) || !TestNotNull(TEXT("TM"), TM))
@@ -465,6 +798,9 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 	}
 
 	const int32 InterruptIdx = AddControlAbility(Interrupter, TEXT("Action.Interrupt"));
+	TestTrue(TEXT("premessa: l'interruttore e' in portata di chi attacca"),
+		URTHexLibrary::HexDistance(Interrupter->Cell, Attacker->Cell)
+			<= Interrupter->Abilities[InterruptIdx]->Def.RangeCells);
 	Interrupter->PlannedAbilityIndex = InterruptIdx;
 	Interrupter->PlannedAttackTarget = Attacker;
 	Interrupter->PlannedCell = Interrupter->Cell;
@@ -480,6 +816,616 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 
 	// L'abilita' interrotta NON si consuma: e' come se non fosse mai partita, non come se avesse fallito.
 	TestFalse(TEXT("il cooldown dell'attacco base non e' scattato"), Attacker->GetAbilityCooldown(0) > 0);
+
+	// 🔴 **E l'interruzione esiste nel record autoritativo** ([D-196], `#1412` punto 4). Fino al 2026-08-26
+	// viveva SOLO nel combat log: il piano dell'attaccante spariva dal turno e nessuna traccia diceva
+	// perche', quindi un replay non poteva riprodurlo ne' un rapporto di divergenza spiegarlo.
+	const FRTTurnLogEntry* Interrotta = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+	});
+	if (TestNotNull(TEXT("il TurnLog registra l'interruzione"), Interrotta))
+	{
+		// Il soggetto e' chi SUBISCE l'interruzione: e' la sua azione a essere annullata (`#1418`).
+		TestEqual(TEXT("accredita chi e' stato interrotto"), Interrotta->UnitId, Attacker->StableUnitId);
+
+		// `SrcCell` -> `TgtCell` e' «da dove a dove puntava l'azione cancellata», come in ogni altra voce
+		// `Fallback`. Non la cella di chi ha interrotto: `DescribeEntry` rende tutte le voci della famiglia
+		// con lo stesso «src -> tgt», e metterci l'interruttore faceva leggere «la vittima attaccava
+		// l'interruttore» — preciso e falso.
+		TestEqual(TEXT("parte da chi e' stato interrotto"), Interrotta->SrcCell, Attacker->Cell);
+		TestEqual(TEXT("e punta dove puntava l'azione cancellata"), Interrotta->TgtCell, Victim->Cell);
+		TestNotEqual(TEXT("non la cella di chi ha interrotto"), Interrotta->TgtCell, Interrupter->Cell);
+
+		TestFalse(TEXT("e dice QUALE azione e' stata cancellata"), Interrotta->ActionId.IsNone());
+	}
+
+	DestroyControlWorld(World);
+	return true;
+}
+
+/**
+ * **Due interruttori sull'INTERROTTO cancellano UNA azione, e la traccia lo dice una volta.**
+ *
+ * ⚠️ Chi subisce l'interruzione qui e' `Attacker` — la sua e' l'azione cancellata — mentre `Victim` e' chi
+ * avrebbe incassato il colpo. Due ruoli, due nomi: la prima stesura di questo commento li chiamava
+ * entrambi «vittima», e chi debuggasse un fallimento cercherebbe voci su `Victim`, che non ne produce.
+ *
+ * La traccia ne portava due prima della guardia: l'effetto di gioco era deduplicato da un `TSet` di
+ * unita', ma la voce veniva scritta una volta per **colpo** di Interrupt.
+ *
+ * Ora si tiene traccia degli INTENTI cancellati, non delle unita': due Interrupt aggiungono lo stesso
+ * indice al set e la seconda passata non scrive niente. La deduplicazione non e' una guardia in piu', e'
+ * una conseguenza di aver scelto la chiave giusta.
+ */
+/**
+ * **L'interruttore paga il cooldown che il catalogo gli da'.**
+ *
+ * `Action.Interrupt` dichiara cooldown 2 e non lo pagava mai: si poteva interrompere ogni singolo turno
+ * (`#1444`). I suoi colpi escono da `Plan.Hits` col filtro di `ApplyInterrupts` — devono, o un colpo a
+ * Power 0 conterebbe come «primo colpo» per `ApplyFirstHitDelta` — e uscivano PRIMA che `ResolveCombat`
+ * costruisse `Attackers` dai colpi sopravvissuti, che e' cio' da cui `ConsumeAttackerAbilities` legge.
+ * `Action.Interrupt` risolve in fase `Control`, quindi nemmeno la consumazione del Prep lo copriva.
+ *
+ * ⚠️ **La fixture SOSTITUISCE un'abilita' invece di aggiungerne una**, e non e' un dettaglio:
+ * `ConsumeAbility` scrive in `AbilityCooldowns` solo se l'indice e' valido, e `ConfigureFromHeroData`
+ * dimensiona quell'array sulle abilita' dell'eroe. Un'abilita' appesa in coda sta a un indice che l'array
+ * non copre, quindi il cooldown non viene mai scritto e un test che lo guardasse misurerebbe la fixture
+ * invece del resolver — verde con la correzione tolta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterrupterPaysCooldownTest,
+	"RefactorTactics.Actions.Interrupt.InterrupterPaysCooldown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterrupterPaysCooldownTest::RunTest(const FString&)
+{
+	FInterruptScenario Sc;
+	if (!BuildInterruptScenario(*this, Sc))
+	{
+		DestroyControlWorld(Sc.World);
+		return false;
+	}
+
+	// L'Interrupt prende lo SLOT di un'abilita' esistente: cosi' `AbilityCooldowns` ce l'ha gia'.
+	URTActionData* Interrupt = Sc.Interrupter->Abilities[Sc.InterruptIdx];
+	Sc.Interrupter->Abilities.RemoveAt(Sc.InterruptIdx);
+	Sc.Interrupter->Abilities[0] = Interrupt;
+	Sc.Interrupter->PlannedAbilityIndex = 0;
+
+	// `ConsumeAbility` legge `URTActionData::CooldownTurns`, non `Def.CooldownTurns`: uno specchio legacy
+	// che l'helper non copia, come non copia `RangeCells` e `Power`.
+	Interrupt->CooldownTurns = Interrupt->Def.CooldownTurns;
+	if (!TestTrue(TEXT("premessa: il catalogo dichiara un cooldown"), Interrupt->CooldownTurns > 0))
+	{
+		DestroyControlWorld(Sc.World);
+		return false;
+	}
+
+	const int32 SaluteVittima = Sc.Victim->Health;
+	RunControlTurn(Sc.TM);
+
+	TestEqual(TEXT("premessa: l'interruzione e' avvenuta"), Sc.Victim->Health, SaluteVittima);
+
+	// Il cooldown e' stato pagato. Si guarda `CanUseAbility` e non il numero: il Cleanup dello stesso turno
+	// lo decrementa gia' una volta, e pinnare il valore esatto legherebbe il test alla lunghezza dichiarata
+	// invece che alla regola.
+	AddInfo(FString::Printf(TEXT("cooldown residuo dopo il turno: %d"),
+		Sc.Interrupter->GetAbilityCooldown(0)));
+	TestFalse(TEXT("l'interruttore non puo' interrompere di nuovo subito"),
+		Sc.Interrupter->CanUseAbility(0));
+
+	DestroyControlWorld(Sc.World);
+	return true;
+}
+
+/**
+ * **Un Interrupt che non trova nessuno paga lo stesso.**
+ *
+ * `#1444` aveva agganciato il costo dell'Interrupt ai suoi `FRTHexAttackHit`, e un Interrupt puo' non
+ * produrne nessuno: basta che il bersaglio dichiarato non sia piu' li'. L'azione era stata pianificata e
+ * validata — l'intento esiste — quindi e' stata spesa, e restava gratuita (`#1449`).
+ *
+ * Qui l'Interrupt si dichiara su una CELLA VUOTA: l'intento nasce e viene validato — una cella e' un
+ * bersaglio legittimo — ma non c'e' nessuno da colpire, quindi nessun `FRTHexAttackHit`.
+ *
+ * ⚠️ **Non** si uccide il bersaglio per ottenere lo stesso effetto: li' `ValidateInstance` risponde
+ * `TargetDead` e l'intento non nasce affatto — interviene il fallback, che e' un'altra regola. La prima
+ * stesura di questo test lo faceva e misurava il caso sbagliato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptWithoutHitStillPaysTest,
+	"RefactorTactics.Actions.Interrupt.MissedInterruptStillPays",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptWithoutHitStillPaysTest::RunTest(const FString&)
+{
+	FInterruptScenario Sc;
+	if (!BuildInterruptScenario(*this, Sc))
+	{
+		DestroyControlWorld(Sc.World);
+		return false;
+	}
+
+	// Stessa disciplina di `InterrupterPaysCooldown`: l'Interrupt prende lo SLOT di un'abilita' esistente,
+	// cosi' `AbilityCooldowns` lo copre, e lo specchio legacy del cooldown viene riempito a mano.
+	URTActionData* Interrupt = Sc.Interrupter->Abilities[Sc.InterruptIdx];
+	Sc.Interrupter->Abilities.RemoveAt(Sc.InterruptIdx);
+	Sc.Interrupter->Abilities[0] = Interrupt;
+	Sc.Interrupter->PlannedAbilityIndex = 0;
+	Interrupt->CooldownTurns = Interrupt->Def.CooldownTurns;
+
+	// 🔴 L'Interrupt si dichiara su una CELLA VUOTA: l'intento nasce e viene validato — una cella e' un
+	// bersaglio legittimo — ma `CollectHexAttacks` non trova nessuno da colpire, quindi nessun
+	// `FRTHexAttackHit`.
+	//
+	// ⚠️ NON si uccide il bersaglio per ottenere lo stesso effetto: in quel caso `ValidateInstance`
+	// risponde `TargetDead` e l'intento non nasce affatto — l'azione viene annullata dal fallback, che e'
+	// un'altra regola. La prima stesura di questo test lo faceva e misurava il caso sbagliato.
+	Sc.Interrupter->PlannedAttackTarget = nullptr;
+	Sc.Interrupter->bAttackTargetsCell = true;
+	Sc.Interrupter->PlannedAttackCell = FRTCellId(2, 0); // adiacente, e vuota
+
+	if (!TestTrue(TEXT("premessa: il catalogo dichiara un cooldown"), Interrupt->CooldownTurns > 0))
+	{
+		DestroyControlWorld(Sc.World);
+		return false;
+	}
+	const int32 SaluteVittima = Sc.Victim->Health;
+
+	RunControlTurn(Sc.TM);
+
+	// 🔴 La premessa che rende il test quello che dice di essere: **nessun colpo**, quindi nessuna
+	// interruzione — l'attacco arriva a destinazione. Senza, il giorno in cui l'Interrupt su cella tornasse
+	// a colpire qualcuno il test resterebbe verde misurando il percorso vecchio.
+	TestTrue(TEXT("premessa: nessun colpo, quindi l'attacco NON e' stato interrotto"),
+		Sc.Victim->Health < SaluteVittima);
+
+	AddInfo(FString::Printf(TEXT("cooldown residuo dopo il turno: %d"),
+		Sc.Interrupter->GetAbilityCooldown(0)));
+	TestFalse(TEXT("l'azione e' stata spesa comunque: non e' riutilizzabile subito"),
+		Sc.Interrupter->CanUseAbility(0));
+
+	DestroyControlWorld(Sc.World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptTwiceTracesOnceTest,
+	"RefactorTactics.Actions.Interrupt.TwoInterruptersTraceOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptTwiceTracesOnceTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	// Due interruttori adiacenti alla vittima: `Action.Interrupt` ha portata 1.
+	ARTUnit* PrimoInterrupter = SpawnControlUnit(World, 0, FRTCellId(3, 0));
+	ARTUnit* SecondoInterrupter = SpawnControlUnit(World, 0, FRTCellId(4, -1));
+	ARTUnit* Attacker = SpawnControlUnit(World, 1, FRTCellId(4, 0));
+	ARTUnit* Victim = SpawnControlUnit(World, 0, FRTCellId(5, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("primo interrupter"), PrimoInterrupter)
+		|| !TestNotNull(TEXT("secondo interrupter"), SecondoInterrupter)
+		|| !TestNotNull(TEXT("Attacker"), Attacker) || !TestNotNull(TEXT("Victim"), Victim)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	for (ARTUnit* Interrupter : { PrimoInterrupter, SecondoInterrupter })
+	{
+		const int32 Idx = AddControlAbility(Interrupter, TEXT("Action.Interrupt"));
+		TestTrue(TEXT("premessa: l'interruttore e' in portata di chi attacca"),
+			URTHexLibrary::HexDistance(Interrupter->Cell, Attacker->Cell)
+				<= Interrupter->Abilities[Idx]->Def.RangeCells);
+		Interrupter->PlannedAbilityIndex = Idx;
+		Interrupter->PlannedAttackTarget = Attacker;
+		Interrupter->PlannedCell = Interrupter->Cell;
+	}
+
+	const int32 HealthBefore = Victim->Health;
+	Attacker->PlannedAbilityIndex = 0; // attacco base, interrompibile
+	Attacker->PlannedAttackTarget = Victim;
+	Attacker->PlannedCell = Attacker->Cell;
+
+	RunControlTurn(TM);
+
+	TestEqual(TEXT("l'attacco interrotto non fa danno"), Victim->Health, HealthBefore);
+
+	int32 Voci = 0;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted))
+		{
+			++Voci;
+		}
+	}
+	TestEqual(TEXT("una azione cancellata, una voce"), Voci, 1);
+
+	// ⚠️ Questa parte non e' nuova di `#1437`: la guardia esisteva gia' dopo `#1434`, con una chiave per
+	// unita' invece che per intento. Il test la tiene ferma; cio' che `#1437` cambia — un impatto di carica
+	// che sopravvive all'Interrupt — sta in `Actions.Charge.ImpactSurvivesInterrupt`.
+
+	DestroyControlWorld(World);
+	return true;
+}
+
+/**
+ * **Chi carica e usa un'ultimate nello stesso turno la PAGA, esattamente come chi non ha caricato**
+ * (`#1451` punto 2).
+ *
+ * `ResolveCombat` registra un attaccante la prima volta che ne incontra un colpo, e da quella
+ * registrazione `ConsumeAttackerAbilities` legge quale abilita' spendere. Un'unita' puo' pero' possedere
+ * **due intenti** nello stesso turno: `AppendChargeImpactIntents` aggiunge quello dell'impatto, con
+ * `IntentAbilityIndex == INDEX_NONE` — lo scatto l'ha gia' fatto, non c'e' niente da consumare.
+ *
+ * `Plan.Hits` e' ordinato per `AttackerId` e poi `TargetId`: bastava che la vittima della CARICA avesse
+ * indice minore del bersaglio dell'attacco perche' l'impatto entrasse per primo. `UsedAbilityIndex`
+ * riceveva `INDEX_NONE`, `ConsumeAbility(INDEX_NONE)` usciva subito, e il ramo `EnergyCost > 0` non
+ * scattava: l'unita' **guadagnava** `EnergyOnHit` invece di pagare l'ultimate, che restava riutilizzabile
+ * ogni turno. `#1449` l'ha corretto — si registra il primo colpo **con un'abilita' da consumare** — e questo
+ * test e' la copertura che quella correzione non aveva.
+ *
+ * ⚠️ **L'oracolo e' un CONFRONTO, non un valore**, e la prima stesura sbagliava proprio qui: asseriva che
+ * l'energia calasse, e MISURAVA 5 → 27 con l'ultimate regolarmente pagata. Nello stesso turno l'energia
+ * riceve anche `EnergyPerTurn` dal Cleanup, quindi il saldo finale somma flussi diversi e non dice se
+ * l'ultimate e' stata pagata. Girando lo stesso turno **con e senza la carica** quei flussi si cancellano:
+ * cio' che resta e' il costo dell'ultimate, che deve essere lo stesso.
+ *
+ * ⚠️ **La carica avviene sul percorso reale**, non spingendo un impatto in `PendingChargeImpacts`: quel
+ * campo lo popola `ResolveDashPhase` quando una mobilita' lineare si ferma addosso a qualcuno, e montarlo a
+ * mano proverebbe che `AppendChargeImpactIntents` legge un array — non che il turno ci arriva.
+ *
+ * ⚠️ **Le celle non sono decorative**: l'attaccante finisce a `(2,0)`, la vittima della carica sta a `(3,0)`
+ * e quella dell'ultimate a `(4,0)`. `Ctx.Units` e' ordinato per cella (`StableLess` su `X`, cioe' `q`),
+ * quindi il bersaglio della carica ha indice MINORE — precisamente la condizione in cui il difetto si
+ * manifestava. Invertendole il test resterebbe verde senza dire niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeDoesNotRefundUltimateTest,
+	"RefactorTactics.Actions.Charge.ChargeDoesNotMakeTheUltimateFree",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
+{
+	// Lo stesso turno, con e senza la carica. `OutEnergia` e' il saldo finale del caricatore.
+	auto GiraIlTurno = [this](bool bConCarica, int32& OutEnergia, bool& bOutColpito,
+		bool& bOutUltimateInRicarica) -> bool
+	{
+		UWorld* World = MakeControlWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnControlMap(World, 8);
+
+		// Senza carica parte gia' dove la carica lo porterebbe: cosi' l'unica differenza fra i due giri e'
+		// la carica stessa, e non la distanza da cui l'ultimate viene tirata.
+		ARTUnit* Caricatore = SpawnControlUnit(World, 0, bConCarica ? FRTCellId(0, 0) : FRTCellId(2, 0));
+		ARTUnit* Investito = SpawnControlUnit(World, 1, FRTCellId(3, 0));
+		ARTUnit* Bersaglio = SpawnControlUnit(World, 1, FRTCellId(4, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TestNotNull(TEXT("Caricatore"), Caricatore) || !TestNotNull(TEXT("Investito"), Investito)
+			|| !TestNotNull(TEXT("Bersaglio"), Bersaglio) || !TestNotNull(TEXT("TM"), TM))
+		{
+			DestroyControlWorld(World);
+			return false;
+		}
+
+		// L'ultimate: costa energia, e sta nello SLOT 0 perche' `AbilityCooldowns` non copre gli indici
+		// appesi. ⚠️ La portata si scrive in TUTTI E DUE i posti — `Def.RangeCells` e' quella che il resolver
+		// misura, `RangeCells` sull'oggetto e' lo specchio legacy — o l'ultimate non colpisce.
+		URTActionData* Ultimate = NewObject<URTActionData>(Caricatore);
+		Ultimate->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.BasicAttack"));
+		Ultimate->DisplayName = FText::FromString(TEXT("Ultimate di prova"));
+		Ultimate->Def.RangeCells = 3;
+		Ultimate->RangeCells = 3;
+		Ultimate->Power = 15;
+		Ultimate->CooldownTurns = MinCooldownTurns;
+		Ultimate->EnergyCost = 3;
+		Caricatore->Abilities[0] = Ultimate;
+
+		Caricatore->Energy = FMath::Clamp(Ultimate->EnergyCost + 2, 0, Caricatore->MaxEnergy);
+
+		if (bConCarica)
+		{
+			const int32 ChargeIdx = AddControlAbility(Caricatore, TEXT("Action.Charge"));
+			if (!TestTrue(TEXT("premessa: il catalogo ha una carica"), ChargeIdx != INDEX_NONE))
+			{
+				DestroyControlWorld(World);
+				return false;
+			}
+			// Carica sul MOVIMENTO, ultimate sull'azione principale: due slot diversi ([D-191]).
+			Caricatore->PlannedDashAbility = ChargeIdx;
+			Caricatore->PlannedDashCell = Investito->Cell;
+		}
+		Caricatore->PlannedAbilityIndex = 0;
+		Caricatore->PlannedAttackTarget = Bersaglio;
+		Caricatore->PlannedCell = Caricatore->Cell;
+
+		RunControlTurn(TM);
+
+		OutEnergia = Caricatore->Energy;
+		bOutColpito = Bersaglio->Health < Bersaglio->MaxHealth;
+		bOutUltimateInRicarica = !Caricatore->CanUseAbility(0);
+
+		AddInfo(FString::Printf(TEXT("%s: energia finale %d, ultimate in ricarica %s, cella %s"),
+			bConCarica ? TEXT("con carica") : TEXT("senza carica"), OutEnergia,
+			bOutUltimateInRicarica ? TEXT("si") : TEXT("NO"), *Caricatore->Cell.ToString()));
+
+		// La premessa che rende il giro con la carica un caso: la carica DEVE essere avvenuta, o l'unita'
+		// avrebbe un solo intento e il difetto non avrebbe occasione di manifestarsi.
+		const bool bCaricaAvvenuta = !bConCarica
+			|| URTHexLibrary::HexDistance(Caricatore->Cell, Investito->Cell) <= 1;
+		if (!TestTrue(TEXT("premessa: la carica ha portato l'unita' addosso al bersaglio"), bCaricaAvvenuta)
+			|| !TestTrue(TEXT("premessa: l'impatto precede l'attacco nell'ordine per cella"),
+				URTHexLibrary::StableLess(Investito->Cell, Bersaglio->Cell)))
+		{
+			DestroyControlWorld(World);
+			return false;
+		}
+
+		DestroyControlWorld(World);
+		return true;
+	};
+
+	int32 EnergiaConCarica = 0, EnergiaSenza = 0;
+	bool bColpitoCon = false, bColpitoSenza = false;
+	bool bRicaricaCon = false, bRicaricaSenza = false;
+	if (!GiraIlTurno(/*bConCarica=*/ true,  EnergiaConCarica, bColpitoCon, bRicaricaCon))  { return false; }
+	if (!GiraIlTurno(/*bConCarica=*/ false, EnergiaSenza,     bColpitoSenza, bRicaricaSenza)) { return false; }
+
+	// Le premesse: in tutti e due i giri l'ultimate deve aver COLPITO, o l'unico colpo sarebbe quello
+	// dell'impatto e l'energia salirebbe per una premessa rotta invece che per il resolver.
+	if (!TestTrue(TEXT("premessa: con la carica l'ultimate ha colpito"), bColpitoCon)
+		|| !TestTrue(TEXT("premessa: senza la carica l'ultimate ha colpito"), bColpitoSenza))
+	{
+		return false;
+	}
+
+	// 🔴 L'invariante: la carica non cambia quanto costa l'ultimate. Col difetto, il giro CON la carica
+	// guadagnava `EnergyOnHit` invece di pagare, e i due saldi divergevano.
+	TestEqual(FString::Printf(TEXT("l'ultimate costa uguale: %d con la carica, %d senza"),
+		EnergiaConCarica, EnergiaSenza), EnergiaConCarica, EnergiaSenza);
+
+	// E l'altra meta': il cooldown parte in entrambi i casi.
+	TestTrue(TEXT("l'ultimate e' in ricarica anche dopo una carica"), bRicaricaCon);
+	TestTrue(TEXT("e anche senza"), bRicaricaSenza);
+
+	return true;
+}
+
+/**
+ * **La catena A→B→C si risolve allo stesso modo nei due ordini di spawn** (`#1451`, [D-202]).
+ *
+ * `ApplyInterrupts` scorreva `Plan.Hits`, che `CollectHexAttacks` ordina per `AttackerId`, e decideva
+ * mentre scopriva. La guardia di `#1437` — «un Interrupt gia' cancellato non interrompe» — funzionava
+ * quindi **solo in una delle due direzioni**:
+ *
+ * - indice di A **minore** di quello di B: si vede `Hit(A→B)` per primo, l'intento di B entra
+ *   nell'insieme, e `Hit(B→C)` viene saltato. L'azione di C sopravvive. ✅
+ * - indice **maggiore**: si vede `Hit(B→C)` per primo — l'azione di C e' gia' cancellata — e solo dopo
+ *   si scopre che B era a sua volta interrotto. ❌
+ *
+ * E da `#1449` c'era un secondo verso: B non paga (e' cancellato), quindi C perdeva la propria azione per
+ * un Interrupt annullato **e** gratuito.
+ *
+ * ⚠️ **Il test costruisce la catena DUE volte, invertendo l'ordine di spawn**, ed e' l'unica forma che
+ * cade sul difetto: una sola direzione sarebbe passata anche prima. `StableUnitId` si assegna per ordine
+ * di spawn (`Roster[i]->StableUnitId = i + 1`), quindi invertire gli spawn inverte gli indici.
+ *
+ * ⚠️ L'oracolo e' la SALUTE della vittima finale, non una voce di traccia: e' l'effetto che il
+ * difetto produceva o non produceva a seconda dell'ordine. Le distanze sono di una cella — `Action.Interrupt`
+ * ha portata 1 — e la vittima di C sta a portata dell'attacco base.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptChainOrderIndependentTest,
+	"RefactorTactics.Actions.Interrupt.ChainDoesNotDependOnSpawnOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptChainOrderIndependentTest::RunTest(const FString&)
+{
+	// ⚠️ **Si SPECCHIA la fila**, e ci sono voluti due tentativi per arrivarci. L'indice che decide l'ordine
+	// di `Plan.Hits` e' quello in `Ctx.Units`, che `GatherBlastUnits` ordina **per cella**
+	// (`URTHexLibrary::StableLess`) — non per ordine di spawn, e nemmeno per `StableUnitId`, che
+	// `MatchRosterLess` costruisce su `(TeamId, cella, nome)`. Le prime due stesure di questo test invertivano
+	// prima gli `SpawnControlUnit` e poi i team, e in tutti e due i casi giravano **due volte lo stesso
+	// scenario**: misurato, non supposto.
+	auto GiraLaCatena = [this](bool bSpecchiata, int32& OutDannoSubito, int32& OutInterrupted,
+		FRTCellId& OutCellaA, FRTCellId& OutCellaB) -> bool
+	{
+		UWorld* World = MakeControlWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnControlMap(World, 6);
+
+		// A interrompe B; B interrompe C; C attacca V. Tutti adiacenti in fila, e i team alternati perche'
+		// ogni anello della catena punta a un nemico.
+		//
+		// Specchiata, la stessa catena percorre le celle al contrario: A finisce DOPO B nell'ordine per cella,
+		// che e' l'unica cosa che questo test vuole cambiare fra i due giri.
+		const FRTCellId CellaA = bSpecchiata ? FRTCellId(3, 0) : FRTCellId(1, 0);
+		const FRTCellId CellaB = FRTCellId(2, 0);
+		const FRTCellId CellaC = bSpecchiata ? FRTCellId(1, 0) : FRTCellId(3, 0);
+		const FRTCellId CellaV = bSpecchiata ? FRTCellId(0, 0) : FRTCellId(4, 0);
+		ARTUnit* A = SpawnControlUnit(World, 0, CellaA);
+		ARTUnit* B = SpawnControlUnit(World, 1, CellaB);
+		ARTUnit* C = SpawnControlUnit(World, 0, CellaC);
+		ARTUnit* V = SpawnControlUnit(World, 1, CellaV);
+		OutCellaA = CellaA;
+		OutCellaB = CellaB;
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TestNotNull(TEXT("A"), A) || !TestNotNull(TEXT("B"), B) || !TestNotNull(TEXT("C"), C)
+			|| !TestNotNull(TEXT("V"), V) || !TestNotNull(TEXT("TM"), TM))
+		{
+			DestroyControlWorld(World);
+			return false;
+		}
+
+		const int32 IdxA = AddControlAbility(A, TEXT("Action.Interrupt"));
+		A->PlannedAbilityIndex = IdxA;
+		A->PlannedAttackTarget = B;
+		A->PlannedCell = A->Cell;
+
+		const int32 IdxB = AddControlAbility(B, TEXT("Action.Interrupt"));
+		B->PlannedAbilityIndex = IdxB;
+		B->PlannedAttackTarget = C;
+		B->PlannedCell = B->Cell;
+
+		C->PlannedAbilityIndex = 0; // attacco base, interrompibile
+		C->PlannedAttackTarget = V;
+		C->PlannedCell = C->Cell;
+
+		const int32 SaluteIniziale = V->Health;
+		RunControlTurn(TM);
+		OutDannoSubito = SaluteIniziale - V->Health;
+
+		OutInterrupted = TM->GetTurnLog().FilterByPredicate([](const FRTTurnLogEntry& E)
+		{
+			return E.Category == ERTLogCategory::Fallback
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+		}).Num();
+
+		AddInfo(FString::Printf(TEXT("%s: A in %s, B in %s -> danno %d, cancellate %d"),
+			bSpecchiata ? TEXT("specchiata") : TEXT("dritta"),
+			*CellaA.ToString(), *CellaB.ToString(), OutDannoSubito, OutInterrupted));
+
+		DestroyControlWorld(World);
+		return true;
+	};
+
+	int32 DannoDritta = 0, InterruptedDritta = 0;
+	int32 DannoSpecchiata = 0, InterruptedSpecchiata = 0;
+	FRTCellId A1, B1, A2, B2;
+	if (!GiraLaCatena(/*bSpecchiata=*/ false, DannoDritta, InterruptedDritta, A1, B1)) { return false; }
+	if (!GiraLaCatena(/*bSpecchiata=*/ true,  DannoSpecchiata, InterruptedSpecchiata, A2, B2)) { return false; }
+
+	// 🔴 **La premessa che rende il test un test**: i due giri devono avere ordini OPPOSTI. Si confronta con
+	// lo stesso comparatore che `GatherBlastUnits` usa — `URTHexLibrary::StableLess` sulle celle — perche' e'
+	// quello a decidere `AttackerId` e quindi l'ordine di `Plan.Hits`. Senza questa coppia di asserzioni il
+	// test girerebbe due volte lo stesso scenario e concorderebbe sempre: e' successo due volte scrivendolo.
+	if (!TestTrue(TEXT("premessa: dritta, A viene prima di B nell'ordine per cella"),
+			URTHexLibrary::StableLess(A1, B1))
+		|| !TestTrue(TEXT("premessa: specchiata, A viene DOPO B"),
+			URTHexLibrary::StableLess(B2, A2)))
+	{
+		return false;
+	}
+
+	AddInfo(FString::Printf(TEXT("danno a V: %d contro %d; voci Interrupted: %d contro %d"),
+		DannoDritta, DannoSpecchiata, InterruptedDritta, InterruptedSpecchiata));
+
+	// La premessa: senza questa, «i due ordini concordano» sarebbe vero anche se in entrambi non succedesse
+	// niente. A interrompe B, quindi B non cancella C, quindi C colpisce.
+	if (!TestTrue(TEXT("premessa: nella catena dritta l'attacco di C arriva a V"), DannoDritta > 0))
+	{
+		return false;
+	}
+
+	// 🔴 L'invariante: l'ordine di spawn non decide chi resta cancellato.
+	TestEqual(TEXT("il danno a V non dipende dall'ordine per cella"), DannoSpecchiata, DannoDritta);
+	TestEqual(TEXT("e nemmeno quante azioni risultano interrotte"), InterruptedSpecchiata, InterruptedDritta);
+
+	// Una sola: quella di B. L'attacco di C non e' cancellato, perche' l'Interrupt di B e' caduto.
+	TestEqual(TEXT("una sola azione cancellata: quella di B"), InterruptedDritta, 1);
+
+	return true;
+}
+
+/**
+ * **Due Interrupt reciproci si neutralizzano: nessuno dei due cancella** (`#1451`, [D-202]).
+ *
+ * E' il caso che il punto fisso non puo' stratificare — un ciclo non ha radice — e la semantica va scelta.
+ * La scelta e' la lettura letterale di `#1437` applicata a **entrambi insieme** invece che al primo che
+ * l'ordine degli indici incontrava: ciascuno e' cancellato dall'altro, quindi nessuno dei due interrompe,
+ * e le due azioni originali procedono.
+ *
+ * ⚠️ **Pagano lo stesso**: hanno prodotto un colpo, quindi la regola di `#1449` li raggiunge. Si sono
+ * neutralizzati, non hanno rinunciato — e questo test lo pinna, perche' e' la meta' che si perderebbe
+ * leggendo solo «nessuno dei due cancella».
+ *
+ * ⚠️ Due unita' adiacenti che si interrompono a vicenda non sono un caso di laboratorio:
+ * `Action.Interrupt` ha portata 1, quindi e' la configurazione ordinaria.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptCycleNeutralisesTest,
+	"RefactorTactics.Actions.Interrupt.MutualInterruptsNeutralise",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptCycleNeutralisesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	// A e B si interrompono a vicenda. Entrambi useranno lo SLOT 0, cosi' il cooldown e' osservabile.
+	ARTUnit* A = SpawnControlUnit(World, 0, FRTCellId(2, 0));
+	ARTUnit* B = SpawnControlUnit(World, 1, FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("A"), A) || !TestNotNull(TEXT("B"), B) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	const int32 IdxA = UseControlAbilityInSlot0(A, TEXT("Action.Interrupt"));
+	A->PlannedAbilityIndex = IdxA;
+	A->PlannedAttackTarget = B;
+	A->PlannedCell = A->Cell;
+
+	const int32 IdxB = UseControlAbilityInSlot0(B, TEXT("Action.Interrupt"));
+	B->PlannedAbilityIndex = IdxB;
+	B->PlannedAttackTarget = A;
+	B->PlannedCell = B->Cell;
+
+	RunControlTurn(TM);
+
+	// 🔴 Nessuna azione cancellata: i due si sono neutralizzati.
+	const int32 Cancellate = TM->GetTurnLog().FilterByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+	}).Num();
+	AddInfo(FString::Printf(TEXT("azioni cancellate: %d; cooldown A=%d B=%d"),
+		Cancellate, A->GetAbilityCooldown(IdxA), B->GetAbilityCooldown(IdxB)));
+	TestEqual(TEXT("due Interrupt reciproci non cancellano niente"), Cancellate, 0);
+
+	// 🔴 E l'altra meta': hanno speso l'azione, quindi la pagano.
+	if (TestTrue(TEXT("premessa: il catalogo dichiara un cooldown"), A->Abilities[IdxA]->CooldownTurns > 0))
+	{
+		TestFalse(TEXT("A ha pagato l'Interrupt che si e' neutralizzato"), A->CanUseAbility(IdxA));
+		TestFalse(TEXT("e B lo stesso"), B->CanUseAbility(IdxB));
+	}
+
+	// 🔴 **E il turno lascia traccia** (`#1460`, [D-203]). Fino al 2026-08-27 due unita' che si
+	// neutralizzavano pagavano un cooldown e producevano **zero** voci: il replay non poteva spiegare perche'
+	// nessuna delle due interruzioni avesse avuto effetto. E' la classe che [D-196] ha chiuso quattro volte.
+	const TArray<FRTTurnLogEntry> Neutralizzate = TM->GetTurnLog().FilterByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Neutralised);
+	});
+	AddInfo(FString::Printf(TEXT("voci di neutralizzazione: %d"), Neutralizzate.Num()));
+	if (TestEqual(TEXT("due voci: una per ciascun Interrupt neutralizzato"), Neutralizzate.Num(), 2))
+	{
+		// Ognuna nomina CHI ha speso l'azione — e' la sua che non ha ottenuto niente — e QUALE azione era.
+		TSet<int32> Soggetti;
+		for (const FRTTurnLogEntry& E : Neutralizzate)
+		{
+			Soggetti.Add(E.UnitId);
+			TestEqual(TEXT("e nomina l'azione"), E.ActionId, FName(TEXT("Action.Interrupt")));
+
+			// ⚠️ **`TgtCell` porta la cella dell'ALTRO**, non la propria. Una voce che dicesse «puntavo a me
+			// stesso» sarebbe precisa e falsa — la stessa forma che il commento della voce `Cancelled`
+			// condanna — e `TgtCell` entra nell'hash. Qui `SrcCell` e `TgtCell` sono le due celle in gioco,
+			// scambiate fra le due voci.
+			const FRTCellId Attesa = (E.UnitId == A->StableUnitId) ? B->Cell : A->Cell;
+			TestEqual(TEXT("e punta alla cella dell'altro, non alla propria"), E.TgtCell, Attesa);
+			TestNotEqual(TEXT("che non e' la sua"), E.TgtCell, E.SrcCell);
+		}
+		TestTrue(TEXT("le due voci accreditano le due unita' diverse"),
+			Soggetti.Contains(A->StableUnitId) && Soggetti.Contains(B->StableUnitId));
+	}
+
+	// ⚠️ E **nessuna** voce di cancellazione: le due cose non si confondono. `Interrupted` dice «la tua
+	// azione e' stata annullata», `Neutralised` dice «la tua azione non ha annullato niente» — versi opposti,
+	// e riusare lo stesso motivo rifarebbe la coppia con due significati che `#1430` ha appena separato.
+	TestEqual(TEXT("e nessuna voce di azione interrotta"),
+		TM->GetTurnLog().FilterByPredicate([](const FRTTurnLogEntry& E)
+		{
+			return E.Category == ERTLogCategory::Fallback
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+		}).Num(), 0);
 
 	DestroyControlWorld(World);
 	return true;
