@@ -25,11 +25,11 @@ dichiarare, perché la mappa serve a chi legge e la riscrittura no.
 
 | Banner | Significa | Quanti |
 |---|---|--:|
-| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 42 |
+| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 43 |
 | `SNAPSHOT` | Fotografia di una data. **Resta qui** finche' e' l'ultima misura del suo oggetto | 6 |
 | `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | 4 |
 | `PLAN` | Piano gia' **consumato**: resta per la provenienza di cio' che ha prodotto | 1 |
-| **totale** | | **53** |
+| **totale** | | **54** |
 
 In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **43**: quelli che il banner dichiarava gia' storici.
 
@@ -48,6 +48,18 @@ In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **4
 > ⚠️ **Da `D-182` nessun `--check` può più dirlo**, e infatti nessuno l'ha detto per cinque giorni: la deriva
 > su `nessun banner` risale a prima del 2026-08-25, quando l'ultima rimisura sistemò tre numeri su quattro e
 > lasciò il quarto. Un addendo fermo non si vede finché qualcuno non conta la cartella intera.
+
+> ⚠️ **Riletta dal disco il 2026-08-27, e aggiornata A MANO.** Il
+> [`menu-play-mappa-scenario-spec-panel-2026-08-27.md`](menu-play-mappa-scenario-spec-panel-2026-08-27.md)
+> porta `CURRENT` a **43** e il totale a **54**; gli altri tre addendi sono stati **ricontati sui banner**,
+> non lasciati fermi, e non si sono mossi (`SNAPSHOT` 6 · nessun banner 4 · `PLAN` 1). L'archivio resta
+> **43**, verificato escludendo il suo `README.md` — la cartella contiene 44 file.
+>
+> 🔴 **`scripts/docs_inventory.py` non è nel working tree**, quindi il comando che la nota qui sotto
+> prescrive non è eseguibile e il divieto di scrivere dentro i marcatori non ha più un generatore che lo
+> faccia rispettare. ⚠️ Il clone di questa sessione è **shallow** (237 commit), quindi *«lo script non
+> esiste più»* è ciò che non si può concludere: qui si registra soltanto che **da questo albero non si
+> rigenera**, e che la cella è stata scritta a mano leggendo i banner, come la pagina prescrive.
 
 > 🔵 **Dal 2026-08-19 questa tabella è generata**, e le note qui sotto restano perché la storia di
 > come ci si è arrivati vale più del numero. La cella è andata fuori sincrono **tre volte in un
