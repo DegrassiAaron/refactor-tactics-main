@@ -1,7 +1,7 @@
 # Archivio — materiale NON autorevole
 
 I file in questa cartella sono conservati per **storia e provenienza**, ma **non** sono la fonte di verità.
-Sono il livello 9 — l'ultimo — della gerarchia in [`../README.md`](../README.md).
+Sono il livello 10 — l'ultimo — della gerarchia in [`../README.md`](../README.md).
 
 La fonte di verità del progetto è:
 

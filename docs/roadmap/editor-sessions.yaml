@@ -1021,21 +1021,40 @@ sessions:
     done_when: la voce ha un esito reale nel registro, in un verso o nell'altro
     unblocks: []
     steps: |
+      ⛔ **NON ESEGUIBILE finche' D-204..D-208 non sono implementate**, e i passi qui sotto dicono
+      perche': i numeri attesi che questa seduta prescriveva erano l'aritmetica della coppia
+      **vecchia**, e tre su quattro sono superati. Girarla oggi risponderebbe a una domanda che
+      `BAL-1` non fa piu'. Vedi la nota in fondo per l'unico uso legittimo adesso.
+
+      **Mappa**: `L_DevSandbox` (`Data/DA_HexMap_Sandbox`), come le sorelle di blocco 6 `U21`,
+      `U22`, `U25` e `U26`. Questa seduta non la dichiarava, ed era una lacuna sua.
+
       **Non e' una caccia ai difetti: e' una domanda di leggibilita'.** Tre unita' con
       `PushResistance = 0` (Gadget, Phase, Wraith) — una in `Action.Guard`, una in `Action.Brace`, una
       senza difesa — e una Phase avversaria che usa `Hero.Phase.PressureJet` su ciascuna nello stesso turno.
       E' l'unica azione del gioco che porta danno **e** spinta nello stesso colpo.
 
-      1. Guarda il turno **senza leggere i numeri**. «Questo si e' piantato» dev'essere distinguibile
-         da «questo ha parato».
-      2. Solo dopo, controlla il log: 1 danno per chi e' in `Guard`, 6 per chi e' in `Brace`,
-         **nessuno dei due arretra**.
-      3. Ripeti con **due** colpi sullo stesso bersaglio: qui l'ordine si inverte (17 contro 12), ed
-         e' il solo caso in cui `Brace` conviene.
+      1. Guarda il turno **senza leggere i numeri**. La domanda non e' piu' *«si distinguono?»*: da
+         [D-208] le due difese hanno lo **stesso prezzo** — principale, `Status.Slow`, niente slot
+         reazione — quindi nessun costo le annuncia. La domanda e' **«la differenza di GENERE si
+         vede?»**: la `Guard` assorbe in modo **sostenuto** dentro un arco **frontale** di 120°, il
+         `Brace` risponde **a un evento** da **ogni lato**, con il profilo d'eroe sopra.
+      2. Solo dopo, controlla il log. ⚠️ **I valori attesi vengono da `BAL-3`**, che e' aperta: non
+         sono piu' *«1 contro 6»*. Prima di girare la seduta, prendi i numeri provvisori da li'.
+      3. Ripeti con **due** colpi sullo stesso bersaglio. ⚠️ Il vecchio *«l'ordine si inverte, 17
+         contro 12, ed e' il solo caso in cui `Brace` conviene»* **non vale piu'**: da [D-205] la
+         `Guard` e' sostenuta e non si consuma sul primo colpo, e da [D-204] `Hold Ground` risponde a
+         un evento invece di coprire il turno.
+      4. ➕ **Passo nuovo, e l'unico che `D-206` rende obbligatorio**: due attaccanti da **direzioni
+         diverse** — uno dentro l'arco frontale del difensore, uno alle spalle. La `Guard` deve
+         reggere sul primo e farsi scavalcare sul secondo (`RearHitBypassedGuard` nel log), il
+         `Brace` deve reggere su entrambi. E' il caso che separa le due geometrie, e prima di
+         `D-205` non poteva esistere.
 
-      > ⚠️ **Non mettere due attaccanti sullo stesso bersaglio nello stesso passaggio**: il resolver
-      > esclude i bersagli spinti da 2+ attaccanti (forze contraddittorie). Misureresti quella
-      > regola, non questa.
+      > ⚠️ **Non mettere due attaccanti sullo stesso bersaglio nello stesso passaggio** al punto 3:
+      > il resolver esclude i bersagli spinti da 2+ attaccanti (forze contraddittorie). Misureresti
+      > quella regola, non questa. Al punto 4 il problema non si pone se i due colpi non spingono
+      > entrambi.
     notes: >-
       Nasce dal piano `BAL-1` (`plans/bal-1-guard-brace-roadmap-2026-08-10.md` §6). **Non entra nel
       subset `RELEASE-V01`**: `BAL-1` non blocca la consegna, e un gate che si allarga senza motivo
@@ -1043,6 +1062,14 @@ sessions:
       domanda che si risponde una volta, guardandola.
       ⚠️ ID assegnato al merge: preso `U20` con `U19` come ultimo su `main`. Chi arriva secondo
       rinumera, non contende.
+      🔴 **Riscritta il 2026-08-27 da D-204..D-208**, che hanno scambiato i mestieri delle due
+      difese: i numeri attesi erano fissi e sono diventati falsi, e nessuna riga lo diceva. La
+      mappa e' stata **dichiarata** nella stessa passata — non c'era — e in PROSA come fanno le
+      altre sedute, invece che in un campo nuovo: un asse in piu' nello schema per una riga sola
+      sarebbe stato piu' caro del problema.
+      ➕ **L'unico uso legittimo prima dell'implementazione e' la BASELINE**: girarla sulla coppia
+      vecchia — quella spedita, e quella che `D-121` aveva confermato — per avere il «prima»
+      misurato. Va registrato come baseline, mai come risposta a `BAL-1`.
 
   - id: U21
     title: Luci del graybox e inquadratura della mappa

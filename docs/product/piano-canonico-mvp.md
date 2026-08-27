@@ -27,8 +27,9 @@ modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
 
 > ⚠️ **Formato cambiato il 2026-08-12**: i PRD erano **dieci PDF** in `docs/src/prd/`. Ora sono **quattro
 > Markdown tematici** ([indice](../research/prd/)), per la regola di manutenzione PDR-00 §6 #5 /
-> [D-009](../decisions/RT_PDR_00_Decision_Log.md). Posizione e autorità non cambiano: restano livello 8,
-> north-star, non normativi. I PDF restano nella storia Git.
+> [D-009](../decisions/RT_PDR_00_Decision_Log.md). Posizione e autorità non cambiano: restano north-star e non
+> normativi — **livello 9** dal 2026-08-27, era 8 prima che [D-210](../decisions/RT_PDR_00_Decision_Log.md)
+> inserisse il codice nella gerarchia. I PDF restano nella storia Git.
 
 ---
 

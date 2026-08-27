@@ -1647,8 +1647,10 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 			// 🔴 **Una cura su chi e' caduto nel frattempo non sparisce in silenzio** ([D-196], `#1447`).
 			// Gli attacchi risolvono a priorita' 50-65 e le cure a 70: l'alleato puo' morire NELLO STESSO
 			// Blast in cui qualcuno lo stava curando. `CollectHealActions` ha gia' accettato il piano e
-			// bruciato `ConsumeAbility`, quindi senza questa voce il replay mostra un curatore con
-			// l'abilita' in ricarica e nessuna azione registrata.
+			// ANNOTATO l'azione come partita, quindi senza questa voce il replay mostrerebbe un curatore con
+			// l'abilita' in ricarica — la scrive `SpendStartedAbilities` a fase finita — e nessuna azione
+			// registrata. ⚠️ Fino a `#1451` questa riga diceva «bruciato `ConsumeAbility`»: era vero quando
+			// il consumo stava dentro la raccolta, e qui si arriva PRIMA del pagamento, non dopo.
 			//
 			// E' la terza faccia della stessa asimmetria che D-196 ha chiuso per `OutOfRange` e `NoEffect`.
 			// Il motivo `TargetDead` esiste gia' nell'enum: e' esattamente questo.
@@ -4436,7 +4438,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 
 	// Coda della fase: cio' che si applica quando il danno e' risolto e si sa chi e' rimasto in piedi.
 	ApplyDisplacements(Ctx);
-	ConsumeAttackerAbilities(Ctx);
+	MarkAttackerAbilitiesSpent(Ctx);
 	ApplyControlStatuses(Ctx);
 }
 
