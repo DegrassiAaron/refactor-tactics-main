@@ -7,7 +7,7 @@
 #include "ScenarioHarness/RTScenarioDraft.h"
 
 #include "ScenarioHarness/RTScenarioIndex.h"
-#include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioLoader.h" // ValidateUnitPlacement: la regola sta li', non qui
 
 void FRTScenarioDraft::NewScenario(const FString& ScenarioId, int32 MapRadius)
 {
@@ -128,6 +128,156 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SaveInPlace(FString& OutError) cons
 	}
 
 	return SaveToFile(Target, OutError);
+}
+
+int32 FRTScenarioDraft::IndexOfUnit(const FString& UnitId) const
+{
+	return Scenario.Units.IndexOfByPredicate(
+		[&UnitId](const FRTScenarioUnit& U) { return U.Id == UnitId; });
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::AddUnit(const FString& UnitId, FName HeroId, int32 TeamId,
+	const FRTCellId& Cell, ERTHexDirection Facing, FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+
+	FRTScenarioUnit Candidate;
+	Candidate.Id = UnitId;
+	Candidate.HeroId = HeroId;
+	Candidate.TeamId = TeamId;
+	Candidate.Cell = Cell;
+	Candidate.Facing = Facing;
+
+	// `INDEX_NONE`: l'unita' non e' ancora nell'array, quindi non c'e' niente da escludere dai confronti.
+	// La regola e' quella del gioco, non una copia — vedi la nota in testa alla sezione nell'header.
+	if (!URTScenarioLoader::ValidateUnitPlacement(Scenario, Candidate, INDEX_NONE, OutError))
+	{
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+
+	Scenario.Units.Add(MoveTemp(Candidate));
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::MoveUnit(const FString& UnitId, const FRTCellId& Cell,
+	FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+
+	const int32 Index = IndexOfUnit(UnitId);
+	if (Index == INDEX_NONE)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	// Si valida una COPIA con la cella nuova, e si applica solo se passa: mutare prima e disfare dopo
+	// lascerebbe lo scenario modificato in ogni percorso d'errore che dimenticasse il ripristino.
+	FRTScenarioUnit Moved = Scenario.Units[Index];
+	Moved.Cell = Cell;
+
+	// `Index` da ignorare: senza, l'unita' collidere' con la propria posizione attuale e nessuno potrebbe
+	// mai muoversi — e il messaggio direbbe «due unita' partono dalla stessa cella» parlando di una sola.
+	if (!URTScenarioLoader::ValidateUnitPlacement(Scenario, Moved, Index, OutError))
+	{
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+
+	Scenario.Units[Index] = MoveTemp(Moved);
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::RemoveUnit(const FString& UnitId, FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+
+	const int32 Index = IndexOfUnit(UnitId);
+	if (Index == INDEX_NONE)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	// ⚠️ Togliere una unita' puo' lasciare intent, decisioni e assertion che la NOMINANO: restano li', e
+	// `Validate` li rifiutera' al salvataggio dicendo quale. Ripulirli qui cancellerebbe in silenzio il lavoro
+	// di chi ha scritto quel turno, per un click che voleva togliere una pedina.
+	//
+	// 🔴 **Ma tacerlo e' un vicolo cieco, e va detto adesso invece che al salvataggio.** L'authoring dei turni
+	// e' `#1116` e non esiste ancora: chi ritira una unita' nominata da un intent non ha, oggi, nessun modo di
+	// riparare lo scenario da questa API — l'unica uscita sarebbe chiudere e perdere il lavoro. Contarli qui
+	// non risolve il vicolo, ma lo rende visibile nel momento in cui si crea.
+	int32 DanglingIntents = 0;
+	int32 DanglingDecisions = 0;
+	for (const FRTScenarioTurn& Turn : Scenario.Turns)
+	{
+		for (const FRTScenarioIntent& Intent : Turn.Intents)
+		{
+			if (Intent.UnitId == UnitId || Intent.Target == UnitId) { ++DanglingIntents; }
+		}
+		for (const FRTScenarioDecision& Decision : Turn.Decisions)
+		{
+			if (Decision.Unit == UnitId || Decision.Target == UnitId) { ++DanglingDecisions; }
+		}
+	}
+	int32 DanglingExpectations = 0;
+	for (const FRTTestExpectation& Exp : Scenario.Expect)
+	{
+		if (Exp.UnitId == UnitId) { ++DanglingExpectations; }
+	}
+
+	Scenario.Units.RemoveAt(Index);
+
+	if (DanglingIntents + DanglingDecisions + DanglingExpectations > 0)
+	{
+		// L'esito resta `Success` — la rimozione e' avvenuta — ma il messaggio dice cosa e' rimasto indietro.
+		OutError = FString::Printf(
+			TEXT("'%s' ritirata, ma restano %d intent, %d decisioni e %d assertion che la nominano: lo ")
+			TEXT("scenario non si salvera' finche' non spariscono"),
+			*UnitId, DanglingIntents, DanglingDecisions, DanglingExpectations);
+	}
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetUnitFacing(const FString& UnitId, ERTHexDirection Facing,
+	FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+
+	const int32 Index = IndexOfUnit(UnitId);
+	if (Index == INDEX_NONE)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	// Nessuna validazione di piazzamento: ruotare non cambia la cella, e `ERTHexDirection` non ha valori
+	// illegali da rifiutare — e' l'enum del gioco, non una stringa che qualcuno potrebbe scrivere storta.
+	Scenario.Units[Index].Facing = Facing;
+	return ERTScenarioAuthoringResult::Success;
 }
 
 FRTScenarioSummary FRTScenarioDraft::GetSummary() const

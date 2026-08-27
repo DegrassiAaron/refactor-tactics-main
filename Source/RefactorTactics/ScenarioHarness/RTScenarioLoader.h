@@ -14,6 +14,33 @@
  *
  * Funzioni pure: nessun mondo, nessun Actor. Testabili headless.
  */
+/**
+ * Lavoro gia' fatto che `ValidateUnitPlacement` puo' riusare invece di rifarlo per ogni unita'.
+ *
+ * ⚠️ **Non e' solo un'ottimizzazione: decide anche QUALE errore esce per primo.**
+ *
+ * Chi valida uno scenario intero scorre le unita' in ordine e accumula cio' che ha gia' visto; passando quegli
+ * insiemi, il controllo sui duplicati resta *«qualcuno PRIMA di me usava questo id»* — che e' la semantica
+ * storica, e determina quale unita' viene accusata quando un file ha piu' di un difetto. Senza di essi il
+ * confronto e' simmetrico (*«qualcun ALTRO lo usa»*), che e' cio' che serve a chi piazza una unita' sola e non
+ * ha un «prima».
+ *
+ * `KnownHeroes` esiste per una ragione piu' prosaica e piu' cara: `KnownHeroIds()` chiama `GetHeroRoster()`,
+ * che **costruisce quattro `URTHeroData` con tutte le loro abilita'** a ogni chiamata. Ricostruirlo per ogni
+ * unita' di ogni validazione e' il prezzo che questa struct evita.
+ */
+struct FRTUnitPlacementScratch
+{
+	/** Gli id del roster, gia' letti. `nullptr` -> `ValidateUnitPlacement` li rilegge da se'. */
+	const TSet<FName>* KnownHeroes = nullptr;
+
+	/** Gli id delle unita' che PRECEDONO quella in esame. `nullptr` -> confronto simmetrico su tutto l'array. */
+	const TSet<FString>* IdsBefore = nullptr;
+
+	/** Le celle delle unita' che precedono. `nullptr` -> come sopra. */
+	const TSet<FRTCellId>* CellsBefore = nullptr;
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTScenarioLoader : public UBlueprintFunctionLibrary
 {
@@ -60,6 +87,29 @@ public:
 	 * Separata dal parsing perche' vale anche per scenari costruiti da codice (i test del runner).
 	 */
 	static bool Validate(const FRTTestScenario& Scenario, FString& OutError);
+
+	/**
+	 * Le regole di piazzamento di **una** unita': id non vuoto e non duplicato, loadout legale, eroe esistente,
+	 * cella dentro l'arena, cella non gia' occupata, cella che non blocca il movimento, HP/scudo/vista coerenti.
+	 *
+	 * ⚠️ **Esiste perche' `Validate` risponde alla domanda sbagliata per un editor.** `Validate` giudica lo
+	 * scenario INTERO, e uno scenario in costruzione e' quasi sempre invalido — non ha ancora assertion, spesso
+	 * non ha ancora la seconda squadra. Usarlo come gate a ogni piazzamento renderebbe impossibile costruire uno
+	 * scenario: ogni `AddUnit` verrebbe rifiutato per qualcosa che non c'entra con l'unita' che si sta piazzando.
+	 *
+	 * L'alternativa era che l'editor si scrivesse i propri controlli, cioe' una **seconda copia** delle regole
+	 * che diverge dalla prima al primo campo aggiunto. Questa funzione e' l'estrazione che evita entrambe:
+	 * `ValidateScenarioUnits` la chiama in ciclo, l'authoring la chiama per una unita' sola, e la regola resta
+	 * scritta in un posto.
+	 *
+	 * @param IgnoreUnitIndex Indice in `Scenario.Units` da **saltare** nei confronti fra unita'. `INDEX_NONE` per
+	 *        una unita' che non e' ancora nell'array (piazzamento nuovo); l'indice dell'unita' stessa quando la
+	 *        si sta spostando o rivalidando, altrimenti collidera' con se' stessa e nessuno potra' mai muoversi.
+	 * @param Scratch Insiemi gia' calcolati dal chiamante, opzionale. Vedi `FRTUnitPlacementScratch`: chi valida
+	 *        uno scenario intero lo passa, chi piazza una unita' sola no.
+	 */
+	static bool ValidateUnitPlacement(const FRTTestScenario& Scenario, const FRTScenarioUnit& Unit,
+		int32 IgnoreUnitIndex, FString& OutError, const struct FRTUnitPlacementScratch* Scratch = nullptr);
 
 	/**
 	 * Serializza uno scenario nel formato JSON che `LoadFromString` rilegge. Il verso mancante del loader.
