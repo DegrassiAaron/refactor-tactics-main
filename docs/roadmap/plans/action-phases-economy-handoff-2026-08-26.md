@@ -218,16 +218,27 @@ attribuiva l'errore alla parte sbagliata.
 
 ### 3.3 Cosa resta aperto, e non è stato dedotto di passaggio
 
-Tre domande, registrate in [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) invece che risolte qui:
+Tre domande, registrate in [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) invece che risolte di passaggio.
+Una è stata chiusa lo stesso giorno:
 
-| ID | Domanda | Perché non si decide qui |
+| ID | Domanda | Stato |
 |---|---|---|
-| `BAL-2` | La Guardia piantata copre a 360° o resta frontale? | è l'unica delle tre che **fa rosso uno scenario verde** (`BackAttackIgnoresGuard`, CP 16.2) |
-| `BAL-3` | Con quali numeri, e quanto dura `Hold Ground`? | `balance/README.md` e `D-023` vietano di correggerli a tavolino |
-| `BAL-4` | La Guardia piantata nega anche la reazione? | è ciò che resta della tesi 4.7: **un booleano su un'azione**, non una regola generale |
+| ~~`BAL-2`~~ | La Guardia piantata copre a 360° o resta frontale? | ✅ **chiusa da [D-206](../../decisions/RT_PDR_00_Decision_Log.md)**: resta **frontale** (120°, 3 direzioni su 6), e il controllo diventa **per-colpo** |
+| `BAL-3` | Con quali numeri, e quanto dura `Hold Ground`? | aperta — `balance/README.md` e `D-023` vietano di correggerli a tavolino |
+| `BAL-4` | La Guardia piantata nega anche la reazione? | aperta — è ciò che resta della tesi 4.7: **un booleano su un'azione**, non una regola generale |
 
 `BAL-1` è **riaperta**, e `#403` / `U20 · PIE-BAL1` non cade: si **ripunta**, perché verificava la
 leggibilità di una differenza che ora è diversa.
+
+> **Perché `BAL-2` si è potuta chiudere subito, e le altre due no.** Non era una domanda di bilanciamento
+> travestita: la geometria difensiva del gioco è **una sola** — `IsInFrontalArc` per la guardia ed
+> `EffectiveCoverReduction` per la copertura implementano la stessa regola CP 16.2 — e una Guardia a 360° ne
+> avrebbe creata una seconda. La risposta stava nella struttura, non in un numero.
+>
+> ➕ **Le eccezioni per eroe sono ammesse, e nel kit** (`D-014`/`D-028`), con la forma già in uso di
+> `URTHeroData::ReactionProfileId`. Ma devono passare il test di `D-132` — *«non era contenuto, era un
+> nome»*: un eroe che «para da ogni lato» senza portare altro sarebbe esattamente ciò che quella voce ha
+> rifiutato a Riktor. Nessun kit ne dichiara una oggi, e il campo si scrive quando un kit lo chiede.
 
 ---
 
@@ -372,11 +383,15 @@ snapshot non diverge.
 
 ## 10. Il prossimo passo
 
-Il §3 è deciso (`D-204`, `D-205`) e **nessuna riga di codice è stata scritta**: le due voci cambiano il
-comportamento di gioco, e l'ordine in cui si eseguono non è indifferente.
+Il §3 è deciso (`D-204`, `D-205`, `D-206`) e **nessuna riga di codice è stata scritta**: le tre voci
+cambiano il comportamento di gioco, e l'ordine in cui si eseguono non è indifferente.
 
-1. **`BAL-2` prima del catalogo.** È l'unica delle tre domande aperte che fa **rosso uno scenario verde**
-   (`Spec.Facing.BackAttackIgnoresGuard`, CP 16.2): decisa dopo, si scoprirebbe avendo già toccato i dati.
+1. **Il controllo direzionale per-colpo** (`D-206`), che è il prerequisito di `D-205` e non un dettaglio:
+   il gate di oggi guarda *«il PRIMO dell'array»* perché la Guardia era front-loaded, e su una difesa
+   sostenuta quel criterio lascerebbe la direzione di un colpo arbitrario a decidere la protezione contro
+   tutti gli altri. ⏳ Serve **uno scenario nuovo** che oggi non esiste e prima di `D-205` non poteva
+   esistere: due attaccanti nello stesso turno, uno nell'arco e uno alle spalle, guardia che regge sul primo
+   e viene scavalcata sul secondo.
 2. **Una sola rigenerazione del corpus golden**, per D-204 e D-205 insieme — è la disciplina che
    [D-196](../../decisions/RT_PDR_00_Decision_Log.md) ha appena imposto per tre cambi d'identità decisi
    insieme, e due voci che cambiano numeri di danno ricadono nella stessa regola.
