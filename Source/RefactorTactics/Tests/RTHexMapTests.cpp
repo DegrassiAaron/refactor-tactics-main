@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "HAL/IConsoleManager.h" // l'help di rt.Map.Fixture e' l'ultimo elenco a mano (#1459)
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
@@ -789,6 +790,30 @@ bool FRTFixtureNamesMatchTheDispatcherTest::RunTest(const FString&)
 	TestFalse(TEXT("`DemoArena` non e' fra i nomi dichiarati"), Nomi.Contains(TEXT("DemoArena")));
 	TestNull(TEXT("e infatti non costruisce"),
 		URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), TEXT("DemoArena")));
+
+	// 🔴 **L'ultimo elenco a mano, tenuto allineato da qui** (`#1459`). L'help di `rt.Map.Fixture` e' un
+	// literal di `TAutoConsoleVariable`, costruito prima che qualunque funzione possa girare: non puo'
+	// chiedere `KnownFixtureIds()`, quindi resta scritto a mano. E' pero' la superficie che un utente legge
+	// in console, ed e' una delle sei che nominavano `DemoArena` fra i nomi validi.
+	//
+	// ⚠️ Si controllano i DUE versi anche qui: ogni nome vero compare nell'help, e l'help non nomina quello
+	// che il dispatcher rifiuta. Il secondo e' la regressione specifica; il primo copre il caso opposto —
+	// una fixture nuova aggiunta alla tabella e non all'help.
+	if (IConsoleVariable* Cvar = IConsoleManager::Get().FindConsoleVariable(TEXT("rt.Map.Fixture")))
+	{
+		const FString Help = Cvar->GetHelp();
+		AddInfo(FString::Printf(TEXT("help di rt.Map.Fixture: %s"), *Help));
+		for (const FString& Nome : Nomi)
+		{
+			TestTrue(*FString::Printf(TEXT("l'help della cvar nomina '%s'"), *Nome), Help.Contains(Nome));
+		}
+		TestFalse(TEXT("e non nomina `DemoArena`, che il dispatcher rifiuta"),
+			Help.Contains(TEXT("DemoArena")));
+	}
+	else
+	{
+		AddWarning(TEXT("`rt.Map.Fixture` non registrata: l'help non e' verificabile in questo contesto"));
+	}
 
 	return true;
 }
