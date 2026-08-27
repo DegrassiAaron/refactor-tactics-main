@@ -1112,9 +1112,17 @@ terzo letterale `0`**.
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests RefactorTactics.TurnLog+RefactorTactics.Golden+RefactorTactics.Match; Quit" \
+  -ExecCmds="Automation RunTests RefactorTactics.TurnLog+RefactorTactics.Match+RefactorTactics.Simulation.Golden+RefactorTactics.Replay.Manifest.GoldenV1+RefactorTactics.HexOccupancy.GoldenExample; Quit" \
   -unattended -nopause -nullrhi -NoSound
 ```
+
+⚠️ **`RefactorTactics.Golden` non esiste, e la prima stesura di questo comando lo usava.** Misurato il
+2026-08-27: **zero** test cominciano con quel prefisso. I golden veri sono **cinque**, sotto tre prefissi
+diversi — `Simulation.GoldenCorpus{Matches,DetectsDivergence,RejectsFormatMismatch}`,
+`Replay.Manifest.GoldenV1StaysReadable`, `HexOccupancy.GoldenExampleFromTheSource`. Il filtro sbagliato
+avrebbe eseguito `TurnLog` e `Match` e **saltato i golden in silenzio**, dichiarando una copertura che non
+aveva: esattamente il difetto che il DoD del Task 4 usa i golden per escludere. È il terzo comando di questo
+piano che dichiarava più di quanto eseguisse — dopo il `+Quit` e il filtro di regressione del Task 1.
 
 Atteso: **tutti PASS**. 🔴 Se un golden diverge hai toccato il **TurnLog** invece del combat log: annulla
 e rileggi. Il TurnLog non cambia in questo task — solo `RecentEvents` e chi lo legge.
