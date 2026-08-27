@@ -4274,6 +4274,10 @@ void ARTTurnManager::ResolveCombat()
 		// caso NORMALE, non un'eccezione. (Difetto trovato da `Actions.Heal.RestoresWithoutExceedingMax`: la
 		// prima stesura usciva di qui e la cura spariva in silenzio.)
 		ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors, HealDefs);
+
+		// ⚠️ Qui NON si consuma: `Attackers` si popola dai colpi sopravvissuti, e se non ce n'e' nessuno e'
+		// vuoto. Chi ha speso un'azione senza lasciare un colpo la paga dove quell'azione vive — l'Interrupt
+		// in `ApplyInterrupts` (`#1444`), la cura in `CollectHealActions`.
 		return;
 	}
 

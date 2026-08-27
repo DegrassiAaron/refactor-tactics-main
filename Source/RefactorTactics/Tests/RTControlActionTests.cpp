@@ -122,6 +122,55 @@ namespace
 		return Unit->Abilities.Num() - 1;
 	}
 
+	/**
+	 * Lo scenario d'interruzione: chi interrompe, chi viene interrotto, chi avrebbe incassato il colpo.
+	 *
+	 * ⚠️ Le distanze sono di UNA cella: `Action.Interrupt` ha portata 1, e una versione precedente di questo
+	 * montaggio le aveva messe a due — l'interruzione non avveniva e il test cadeva su una premessa rotta,
+	 * con un messaggio che sembrava parlare della traccia.
+	 *
+	 * ⚠️ Nessuno sull'origine: `FRTCellId()` di default e' `(0,0,0)`, che e' una cella vera, e un'asserzione
+	 * su una cella che coincide col default passerebbe anche senza assegnazione.
+	 */
+	struct FInterruptScenario
+	{
+		UWorld* World = nullptr;
+		ARTTurnManager* TM = nullptr;
+		ARTUnit* Interrupter = nullptr;
+		ARTUnit* Attacker = nullptr;   // chi SUBISCE l'interruzione: la sua azione viene cancellata
+		ARTUnit* Victim = nullptr;     // chi avrebbe incassato il colpo cancellato
+		int32 InterruptIdx = INDEX_NONE;
+	};
+
+	bool BuildInterruptScenario(FAutomationTestBase& Test, FInterruptScenario& Out)
+	{
+		Out.World = MakeControlWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), Out.World)) { return false; }
+		SpawnControlMap(Out.World, 6);
+
+		Out.Interrupter = SpawnControlUnit(Out.World, 0, FRTCellId(3, 0));
+		Out.Attacker = SpawnControlUnit(Out.World, 1, FRTCellId(4, 0));
+		Out.Victim = SpawnControlUnit(Out.World, 0, FRTCellId(5, 0));
+		Out.TM = Out.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Test.TestNotNull(TEXT("Interrupter"), Out.Interrupter)
+			|| !Test.TestNotNull(TEXT("Attacker"), Out.Attacker)
+			|| !Test.TestNotNull(TEXT("Victim"), Out.Victim)
+			|| !Test.TestNotNull(TEXT("TM"), Out.TM))
+		{
+			return false;
+		}
+
+		Out.InterruptIdx = AddControlAbility(Out.Interrupter, TEXT("Action.Interrupt"));
+		Out.Interrupter->PlannedAbilityIndex = Out.InterruptIdx;
+		Out.Interrupter->PlannedAttackTarget = Out.Attacker;
+		Out.Interrupter->PlannedCell = Out.Interrupter->Cell;
+
+		Out.Attacker->PlannedAbilityIndex = 0; // attacco base, interrompibile
+		Out.Attacker->PlannedAttackTarget = Out.Victim;
+		Out.Attacker->PlannedCell = Out.Attacker->Cell;
+		return true;
+	}
+
 	void RunControlTurn(ARTTurnManager* TM)
 	{
 		TM->LockInAndResolve();
@@ -670,6 +719,65 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
  * indice al set e la seconda passata non scrive niente. La deduplicazione non e' una guardia in piu', e'
  * una conseguenza di aver scelto la chiave giusta.
  */
+/**
+ * **L'interruttore paga il cooldown che il catalogo gli da'.**
+ *
+ * `Action.Interrupt` dichiara cooldown 2 e non lo pagava mai: si poteva interrompere ogni singolo turno
+ * (`#1444`). I suoi colpi escono da `Plan.Hits` col filtro di `ApplyInterrupts` — devono, o un colpo a
+ * Power 0 conterebbe come «primo colpo» per `ApplyFirstHitDelta` — e uscivano PRIMA che `ResolveCombat`
+ * costruisse `Attackers` dai colpi sopravvissuti, che e' cio' da cui `ConsumeAttackerAbilities` legge.
+ * `Action.Interrupt` risolve in fase `Control`, quindi nemmeno la consumazione del Prep lo copriva.
+ *
+ * ⚠️ **La fixture SOSTITUISCE un'abilita' invece di aggiungerne una**, e non e' un dettaglio:
+ * `ConsumeAbility` scrive in `AbilityCooldowns` solo se l'indice e' valido, e `ConfigureFromHeroData`
+ * dimensiona quell'array sulle abilita' dell'eroe. Un'abilita' appesa in coda sta a un indice che l'array
+ * non copre, quindi il cooldown non viene mai scritto e un test che lo guardasse misurerebbe la fixture
+ * invece del resolver — verde con la correzione tolta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterrupterPaysCooldownTest,
+	"RefactorTactics.Actions.Interrupt.InterrupterPaysCooldown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterrupterPaysCooldownTest::RunTest(const FString&)
+{
+	FInterruptScenario Sc;
+	if (!BuildInterruptScenario(*this, Sc))
+	{
+		DestroyControlWorld(Sc.World);
+		return false;
+	}
+
+	// L'Interrupt prende lo SLOT di un'abilita' esistente: cosi' `AbilityCooldowns` ce l'ha gia'.
+	URTActionData* Interrupt = Sc.Interrupter->Abilities[Sc.InterruptIdx];
+	Sc.Interrupter->Abilities.RemoveAt(Sc.InterruptIdx);
+	Sc.Interrupter->Abilities[0] = Interrupt;
+	Sc.Interrupter->PlannedAbilityIndex = 0;
+
+	// `ConsumeAbility` legge `URTActionData::CooldownTurns`, non `Def.CooldownTurns`: uno specchio legacy
+	// che l'helper non copia, come non copia `RangeCells` e `Power`.
+	Interrupt->CooldownTurns = Interrupt->Def.CooldownTurns;
+	if (!TestTrue(TEXT("premessa: il catalogo dichiara un cooldown"), Interrupt->CooldownTurns > 0))
+	{
+		DestroyControlWorld(Sc.World);
+		return false;
+	}
+
+	const int32 SaluteVittima = Sc.Victim->Health;
+	RunControlTurn(Sc.TM);
+
+	TestEqual(TEXT("premessa: l'interruzione e' avvenuta"), Sc.Victim->Health, SaluteVittima);
+
+	// Il cooldown e' stato pagato. Si guarda `CanUseAbility` e non il numero: il Cleanup dello stesso turno
+	// lo decrementa gia' una volta, e pinnare il valore esatto legherebbe il test alla lunghezza dichiarata
+	// invece che alla regola.
+	AddInfo(FString::Printf(TEXT("cooldown residuo dopo il turno: %d"),
+		Sc.Interrupter->GetAbilityCooldown(0)));
+	TestFalse(TEXT("l'interruttore non puo' interrompere di nuovo subito"),
+		Sc.Interrupter->CanUseAbility(0));
+
+	DestroyControlWorld(Sc.World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptTwiceTracesOnceTest,
 	"RefactorTactics.Actions.Interrupt.TwoInterruptersTraceOnce",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
