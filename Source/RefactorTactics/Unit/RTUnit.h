@@ -12,6 +12,7 @@
 
 class UStaticMeshComponent;
 class UArrowComponent;
+class USkeletalMeshComponent;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class URTActionData;
@@ -887,8 +888,35 @@ public:
 	 */
 	void SetKnownToObserver(bool bKnown);
 
+	/**
+	 * Opacita' della sagoma del ricordo. Pura: la dissolvenza e' PRESENTAZIONE e non ha effetti logici, ma
+	 * la sua REGOLA e' testabile e va tenuta fuori dal Tick.
+	 *
+	 * `URTTeamKnowledgeLibrary::ContactLifetimeTurns` vale 1: il ricordo vive il turno successivo, poi basta.
+	 * Un contatto con turno maggiore di quello corrente e' incoerente -> zero (fail-closed).
+	 */
+	static float GhostOpacityForContact(int32 ContactTurn, int32 CurrentTurn);
+
+	/**
+	 * Mostra/aggiorna/nasconde la sagoma dell'ultimo contatto (Task 6). `CellCenterWorld` e' il centro della
+	 * cella del CONTATTO — lo stesso riferimento che darebbe `URTHexLibrary::AxialToWorld` per
+	 * `FRTKnowledgeEntry::Cell` (Task 2) — mai la posizione ATTUALE di questo attore: `ContactGhost` porta
+	 * `SetUsingAbsoluteLocation`/`Rotation`, quindi resta li' anche se l'unita' vera si e' spostata altrove.
+	 *
+	 * Fail-closed sull'eta' del contatto (`GhostOpacityForContact`): un `ContactTurn` scaduto o incoerente
+	 * nasconde la sagoma invece di disegnarla a caso.
+	 *
+	 * La mesh/posa si copiano dalla skeletal VIVA del Blueprint (Step 6.1, `FindHeroSkeletal`): un'unita' col
+	 * solo cilindro segnaposto non ha nulla da copiare, e la sagoma resta nascosta. Il materiale
+	 * (`ContactGhostMaterial`) e' OPZIONALE: se `M_LastContactGhost` non risolve — non ancora creato, o
+	 * rimosso — la sagoma resta comunque visibile col materiale di default della mesh: una sagoma non
+	 * colorata, mai un crash.
+	 */
+	void UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTurn, int32 CurrentTurn);
+
 protected:
 	/** Vero finche' l'osservatore locale non dichiara il contrario: un'unita' nasce nota. */
+	UPROPERTY()
 	bool bKnownToObserver = true;
 
 	/**
@@ -900,6 +928,15 @@ protected:
 	 * inerte, e nessun test automatico lo prenderebbe: si vedrebbe solo in PIE.
 	 */
 	void ApplyObserverVisibility();
+
+	/**
+	 * La skeletal dell'EROE, aggiunta dal Blueprint `BP_Unit_*` (Step 6.1) — MAI `ContactGhost`, che e' un
+	 * SECONDO `USkeletalMeshComponent`, nativo, per la sagoma del ricordo (Task 6). Un `FindComponentByClass`
+	 * cieco potrebbe restituire l'uno o l'altro a seconda dell'ordine di registrazione dei componenti:
+	 * l'esclusione qui e' esplicita ed e' per QUESTO che `ApplyObserverVisibility` non spegne mai la sagoma
+	 * per sbaglio invece del personaggio vero (o viceversa).
+	 */
+	USkeletalMeshComponent* FindHeroSkeletal() const;
 
 	virtual void BeginPlay() override;
 
@@ -989,4 +1026,30 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
 	TSoftObjectPtr<UMaterialInterface> UnitMaterial =
 		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/RT/Art/GlobalMaterials/M_Global_Tint.M_Global_Tint")));
+
+	/**
+	 * Sagoma dell'ultimo contatto (Task 6). Figlia di `SceneRoot` ma NON ne eredita il transform:
+	 * `SetUsingAbsoluteLocation`/`Rotation` (costruttore) la sganciano, cosi' `UpdateContactGhost` puo'
+	 * fissarla alla cella del RICORDO senza che seguisse l'attore vero altrove. `NoCollision` e
+	 * `CastShadow = false`: e' presentazione pura, mai un proxy di click ne' un'ombra che tradisce la
+	 * posizione vera attraverso un'illuminazione sbagliata.
+	 *
+	 * ⚠️ **Esclusa per identita' da `ApplyObserverVisibility`, `ApplyUnitAnimClass` e `ApplyMeshYawOffset`**
+	 * (via `FindHeroSkeletal`, o perche' priva di mesh finche' `UpdateContactGhost` non gliene assegna una):
+	 * deve vedersi PROPRIO QUANDO l'unita' vera non si vede, mai essere spenta dallo stesso percorso.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TObjectPtr<USkeletalMeshComponent> ContactGhost;
+
+	/**
+	 * Materiale della sagoma (M_LastContactGhost: Translucent, Unlit, emissivo grigio monocromo, parametro
+	 * scalare "GhostOpacity"). Assente -> `UpdateContactGhost` lascia il materiale di DEFAULT della mesh:
+	 * la sagoma resta visibile, senza dissolvenza — degrada, non crasha.
+	 */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
+	TSoftObjectPtr<UMaterialInterface> ContactGhostMaterial =
+		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/RT/Characters/Shared/Materials/M_LastContactGhost.M_LastContactGhost")));
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> ContactGhostDynMaterial;
 };

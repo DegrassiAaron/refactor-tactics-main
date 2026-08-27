@@ -15,6 +15,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/ArrowComponent.h"
 #include "Unit/RTUnitAnimInstance.h"
+#include "Perception/RTTeamKnowledge.h" // ContactLifetimeTurns: la durata del ricordo ha un owner, non si ricopia
 
 ARTUnit::ARTUnit()
 {
@@ -108,6 +109,19 @@ ARTUnit::ARTUnit()
 	FacingArrow->ArrowLength = 90.f;
 	FacingArrow->ArrowColor = FColor(255, 210, 30);
 	FacingArrow->SetHiddenInGame(false); // di default un ArrowComponent si vede solo in editor
+
+	// Sagoma dell'ultimo contatto (Task 6): SEPARATA dagli anelli e dalla freccia, che seguono l'attore.
+	// `SetUsingAbsoluteLocation`/`Rotation` la sganciano dal transform del padre — un componente figlio
+	// normale erediterebbe il transform e la trascinerebbe con l'unita' vera, che nel frattempo puo' essersi
+	// mossa altrove. La aggiorna solo `UpdateContactGhost`, mai `ApplyObserverVisibility` (che nasconde il
+	// personaggio vero) ne' `ApplyTeamColor`/`ApplyFacingArrow` (che sono presentazione del vivo).
+	ContactGhost = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ContactGhost"));
+	ContactGhost->SetupAttachment(SceneRoot);
+	ContactGhost->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ContactGhost->SetCastShadow(false);
+	ContactGhost->SetUsingAbsoluteLocation(true);
+	ContactGhost->SetUsingAbsoluteRotation(true);
+	ContactGhost->SetVisibility(false); // niente finche' non c'e' un ricordo da mostrare (UpdateContactGhost)
 }
 
 void ARTUnit::BeginPlay()
@@ -248,8 +262,9 @@ void ARTUnit::ApplyObserverVisibility()
 	// La freccia di facing ha gia' un interruttore proprio: qui si fa l'AND, non la si sovrascrive.
 	if (FacingArrow)   { FacingArrow->SetVisibility(bRender && bShowFacingArrow, false); }
 
-	// La skeletal arriva dal Blueprint `BP_Unit_*`, non dal C++: si cerca fra i componenti.
-	if (USkeletalMeshComponent* Skeletal = FindComponentByClass<USkeletalMeshComponent>())
+	// La skeletal arriva dal Blueprint `BP_Unit_*`, non dal C++: si cerca fra i componenti, escludendo
+	// SEMPRE `ContactGhost` (Task 6) per identita' — vedi `FindHeroSkeletal`.
+	if (USkeletalMeshComponent* Skeletal = FindHeroSkeletal())
 	{
 		Skeletal->SetVisibility(bRender, false);
 	}
@@ -259,6 +274,85 @@ void ARTUnit::ApplyObserverVisibility()
 	// visibile: il giocatore selezionerebbe qualcosa che non vede. La sagoma e' `NoCollision`, quindi
 	// spegnere la collisione dell'actor non la riguarda.
 	SetActorEnableCollision(bRender);
+}
+
+USkeletalMeshComponent* ARTUnit::FindHeroSkeletal() const
+{
+	TArray<USkeletalMeshComponent*> Skeletals;
+	GetComponents<USkeletalMeshComponent>(Skeletals);
+	for (USkeletalMeshComponent* Skeletal : Skeletals)
+	{
+		if (Skeletal != nullptr && Skeletal != ContactGhost)
+		{
+			return Skeletal;
+		}
+	}
+	return nullptr;
+}
+
+float ARTUnit::GhostOpacityForContact(int32 ContactTurn, int32 CurrentTurn)
+{
+	const int32 Age = CurrentTurn - ContactTurn;
+	if (Age < 0 || Age > URTTeamKnowledgeLibrary::ContactLifetimeTurns)
+	{
+		return 0.0f;
+	}
+	return (Age == 0) ? 1.0f : 0.45f;
+}
+
+void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTurn, int32 CurrentTurn)
+{
+	if (ContactGhost == nullptr)
+	{
+		return;
+	}
+
+	const float Opacity = GhostOpacityForContact(ContactTurn, CurrentTurn);
+	if (Opacity <= 0.0f)
+	{
+		ContactGhost->SetVisibility(false, false);
+		return;
+	}
+
+	// La mesh/posa arrivano dalla skeletal VIVA del Blueprint (Step 6.1), mai dal C++: un'unita' col solo
+	// cilindro segnaposto (#287) non ha nulla da copiare, e la sagoma resta nascosta invece di mostrare
+	// un vuoto.
+	USkeletalMeshComponent* HeroSkeletal = FindHeroSkeletal();
+	if (HeroSkeletal == nullptr || HeroSkeletal->GetSkeletalMeshAsset() == nullptr)
+	{
+		ContactGhost->SetVisibility(false, false);
+		return;
+	}
+
+	if (ContactGhost->GetSkeletalMeshAsset() != HeroSkeletal->GetSkeletalMeshAsset())
+	{
+		ContactGhost->SetSkeletalMesh(HeroSkeletal->GetSkeletalMeshAsset());
+	}
+
+	// Materiale OPZIONALE (Task 6): se `M_LastContactGhost` non risolve — non ancora creato, o rimosso — la
+	// sagoma resta visibile col materiale di DEFAULT della mesh: una sagoma non colorata, mai un crash.
+	if (ContactGhostDynMaterial == nullptr && !ContactGhostMaterial.IsNull())
+	{
+		if (UMaterialInterface* BaseMaterial = ContactGhostMaterial.LoadSynchronous())
+		{
+			ContactGhostDynMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
+			if (ContactGhostDynMaterial)
+			{
+				ContactGhost->SetMaterial(0, ContactGhostDynMaterial);
+			}
+		}
+	}
+	if (ContactGhostDynMaterial)
+	{
+		ContactGhostDynMaterial->SetScalarParameterValue(TEXT("GhostOpacity"), Opacity);
+	}
+
+	// Quota dedicata (#983 + Task 6): sopra `RTCellTopZ`, come ogni decoro a terra deve stare. Posizione nel
+	// MONDO, non relativa: `ContactGhost` porta `SetUsingAbsoluteLocation`/`Rotation`, quindi non segue mai
+	// l'attore, che nel frattempo puo' essersi mosso altrove.
+	ContactGhost->SetWorldLocation(CellCenterWorld + FVector(0.f, 0.f, RTLastContactGhostZ));
+	ContactGhost->SetWorldRotation(FRotator(0.f, MeshYawOffset, 0.f)); // stessa compensazione della skeletal viva; nessuna freccia di facing per la sagoma
+	ContactGhost->SetVisibility(true, false);
 }
 
 FLinearColor ARTUnit::TeamColorFor(int32 InTeamId, const FLinearColor& Team0, const FLinearColor& Team1)

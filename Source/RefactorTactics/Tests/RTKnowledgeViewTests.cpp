@@ -230,4 +230,24 @@ bool FRTKnowledgeUnitRenderingCombinesAliveAndKnownTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeGhostFadesWithContactAgeTest,
+	"RefactorTactics.Knowledge.GhostFadesWithContactAge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeGhostFadesWithContactAgeTest::RunTest(const FString&)
+{
+	// `ContactLifetimeTurns` vale 1: il ricordo dura il turno successivo a quello dell'avvistamento.
+	// Turno del contatto == turno corrente -> sagoma piena; un turno dopo -> gia' in dissolvenza; oltre -> nulla.
+	TestEqual(TEXT("appena visto: opaca"),
+		ARTUnit::GhostOpacityForContact(/*ContactTurn*/ 5, /*CurrentTurn*/ 5), 1.0f);
+	TestTrue(TEXT("un turno dopo: dissolve ma c'e' ancora"),
+		ARTUnit::GhostOpacityForContact(5, 6) > 0.0f && ARTUnit::GhostOpacityForContact(5, 6) < 1.0f);
+	TestEqual(TEXT("oltre la scadenza: sparita"),
+		ARTUnit::GhostOpacityForContact(5, 7), 0.0f);
+
+	// Anti-vacuita': un ricordo dal FUTURO (turno maggiore del corrente) non e' un ricordo. Fail-closed.
+	TestEqual(TEXT("un contatto dal futuro non disegna nulla"),
+		ARTUnit::GhostOpacityForContact(9, 5), 0.0f);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -470,15 +470,18 @@ void ARTHUD::DrawHUD()
 			continue;
 		}
 
+		// `ShouldDrawUnitOverlay` calcola gia' esattamente «e' noto?»: ricalcolarlo inline qui sarebbe una
+		// seconda definizione della stessa regola, e le due potrebbero divergere (review).
+		const bool bIsKnownToObserver =
+			ShouldDrawUnitOverlay(KnowledgeView, Unit->StableUnitId, Unit->TeamId == PlayerTeamId);
+
 		// Applica lo stato di conoscenza PRIMA del filtro sottostante: altrimenti l'unita' saltata dal
-		// `continue` di ShouldDrawUnitOverlay non riceverebbe mai il comando e resterebbe visibile.
-		Unit->SetKnownToObserver(
-			Unit->TeamId == PlayerTeamId
-			|| URTKnowledgeViewLibrary::FindEntry(KnowledgeView, Unit->StableUnitId) != nullptr);
+		// `continue` qui sotto non riceverebbe mai il comando e resterebbe visibile.
+		Unit->SetKnownToObserver(bIsKnownToObserver);
 
 		// Filtro di conoscenza (CP 13.5): un'unita' avversaria si disegna solo se la squadra del
 		// giocatore la conosce. La propria squadra si disegna sempre.
-		if (!ShouldDrawUnitOverlay(KnowledgeView, Unit->StableUnitId, Unit->TeamId == PlayerTeamId))
+		if (!bIsKnownToObserver)
 		{
 			continue;
 		}
