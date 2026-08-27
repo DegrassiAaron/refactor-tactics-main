@@ -387,8 +387,12 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 		}
 	}
 
-	// Il gate della lane sud: una PORTA chiusa (CP 9.3), non un meccanismo nuovo. Riktor la apre al turno 5,
-	// la revisione della mappa sale e un percorso che prima non esisteva diventa percorribile.
+	// Il gate della lane sud: una PORTA chiusa (CP 9.3), non un meccanismo nuovo. Aperta, la revisione della
+	// mappa sale e un percorso che prima non esisteva diventa percorribile — ed e' cio' che
+	// `Spec.Map.InteractOpensDoor` misura, su questa fixture e su questo bordo.
+	// ⛔ Questa riga diceva «Riktor la apre al turno 5» come se fosse un fatto. Non lo e': il T5 di
+	// `RT_Showcase_Relay_v01.json` NON dichiara quell'intento, e la sua `_nota_apertura_del_gate` dice
+	// che cosa manca. La fixture spedisce il varco; chi lo apre, e quando, lo decide lo scenario.
 	if (const FRTHexCellData* GateCell = Draft.Find(FRTCellId(0, 1, 0)))
 	{
 		ERTHexDirection Edge;
