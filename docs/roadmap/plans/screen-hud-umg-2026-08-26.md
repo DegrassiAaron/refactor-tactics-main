@@ -928,6 +928,40 @@ git commit -m "feat(hud): il dock delle azioni sa mostrare lo stato neutro"
 
 > 🆕 **Emersa dal primo playtest del Task 2** (2026-08-26). Non era prevista, e va decisa qui perché
 > nessun documento la copre.
+>
+> 🔺 **Cresciuta il 2026-08-27, e adesso tocca un criterio di chiusura.** Il playtest del Task 5 ha
+> mostrato che `ARTHUD` disegna **anche la terna degli slot**, in basso a destra, col vocabolario giusto:
+> `Movimento: libero / Principale / Reazione`. Non è più solo il round.
+>
+> ⚠️ **Questo falsifica una premessa di #77.** L'issue dichiara che *«oggi la reazione compare solo nella
+> riga di intento (`:316-318`), non come terna»* e ne fa **l'unica voce non soddisfatta** del suo DoD. Non è
+> più vero: la terna esiste, in Canvas, e non l'ha portata `WBP_RT_SelectedUnitPanel`. Il DoD di #77 va
+> riletto — o è già soddisfatto dal §4.2, o va dichiarato che a soddisfarlo dev'essere il §4.1.
+
+### L'interruttore che rende la decisione possibile
+
+`rt.HUD.CanvasPanels 0` (dal 2026-08-27, `RTHUD.cpp`) spegne i **quattro pannelli screen-space** del
+Canvas — intestazione, combat log, barra abilità, terna — lasciando intatto il §4.2 world-space e il banner
+di scenario.
+
+Non decide niente: permette di **guardare un layer per volta**. È la ragione per cui la decisione non
+richiede di cancellare codice prima di averla presa — le 910 righe di `ARTHUD` restano coperte da
+`RefactorTactics.HUD.*` fino al momento in cui si sceglie.
+
+### 🔴 Il vocabolario è già deciso, e il widget deve riusarlo
+
+`ARTHUD::ComposeSlotLines` distingue **tre** ripieghi per lo slot occupato-senza-nome, e il commento
+spiega perché non è una parola sola:
+
+| Slot | Occupato senza nome |
+|---|---|
+| Movimento | **`percorso`** — waypoint tracciati, il caso più comune del gioco |
+| Principale | **`occupata`** |
+| Reazione | **`armata`** |
+
+⚠️ `WBP_RT_SelectedUnitPanel` deve dire **le stesse tre parole**. Un ripiego generico tipo «Move» creerebbe
+due vocabolari per la stessa informazione — e la scelta di quale layer tenere diventerebbe anche una scelta
+di lessico, che è esattamente ciò che rende le decisioni rimandate difficili da prendere.
 
 `progettazione-hud.md` assegna **turno, fase e timer al §4.1** — cioè a `WBP_RT_TurnHeader`. Ma `ARTHUD`
 li **disegna già** in Canvas: la riga `Round 1/12 - Pianificazione - 12s - Velocita': x1` è viva in partita
