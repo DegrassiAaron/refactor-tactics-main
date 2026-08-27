@@ -1,13 +1,16 @@
 # Menu, `PLAY` e la scelta di mappa e scenario — spec panel
 
 > `CURRENT` · **Stato**: revisione chiusa, **non applicata** — l'oggetto recensito non è un file versionato,
-> e ciò che il panel propone chiede una **decisione di scope** prima di qualunque diff ·
+> e ciò che il panel propone chiede una `D-nnn` prima di qualunque diff ·
+> **Due giri**: critique ([§1](#1-la-spec-sotto-esame)–[§6](#6-cosa-il-panel-non-ha-fatto)) e **decide**
+> ([§7](#7-secondo-giro--le-cinque-decisioni-con-una-posizione), che prende posizione sulle cinque
+> decisioni aperte e **corregge il peso dato a F1** dal primo giro) ·
 > **Data**: 2026-08-27
 > **HEAD della revisione**: `0323c4f3`, branch `claude/spec-panel-map-scenario-menu-gaybd3`, working tree pulito
 > **Oggetto**: la richiesta *«voglio fare il menù e scegliere a play la mappa e lo scenario da testare»*,
 > riscritta come specifica al [§1](#1-la-spec-sotto-esame) perché una frase non si recensisce.
 > **Panel**: Wiegers (lead) · Cooper · Cockburn · Nygard · Adzic · Fowler
-> **Modo**: critique · **Focus**: requisiti + architettura + interaction design
+> **Modo**: `critique` (1° giro) → `decide` (2° giro) · **Focus**: requisiti + architettura + interaction design
 > **Contesto documentale**: `../../../Claude_RefactorTactics_Menu_Features_Issues_Tracking_v0.1_to_v1.0.md`
 > (handoff, **non** autorità — `CLAUDE.md` §4), **E46** in [`../roadmap-v0.1.md`](../roadmap-v0.1.md),
 > CP 46.4 (`#939`) e CP 46.6 (`#941`).
@@ -318,7 +321,12 @@ CP 46.4/46.6 hanno appena chiuso, e i **74** test `Frontend.*` che lo pinnano. N
 
 Le fette 1–4 non estendono il formato degli scenari. La 5 sì, ed è la ragione per cui è ultima.
 
-## 5. Decisioni aperte — da portare al Decision Log, non risolte qui
+## 5. Decisioni aperte — da portare al Decision Log
+
+> ✅ **Il [§7](#7-secondo-giro--le-cinque-decisioni-con-una-posizione) prende posizione su tutte e cinque**
+> (secondo giro, stesso giorno, stesso HEAD). Restano *aperte* nel senso che conta: la decisione è del
+> Decision Log, non del panel. ⚠️ Il §7.0 corregge questo elenco in un punto — **la 1 e la 2 sono la stessa
+> decisione**, e trattarle come due sopravvalutava la precondizione.
 
 1. **Le sezioni DEV/TEST rientrano nella v0.1?** Revoca o conferma parziale di [D-144](../../decisions/RT_PDR_00_Decision_Log.md) / scope E46 (F1). Senza questa, le altre quattro non hanno oggetto.
 2. **Visibilità**: compilata fuori in Shipping, o presente e nascosta? (F11)
@@ -329,10 +337,256 @@ Le fette 1–4 non estendono il formato degli scenari. La 5 sì, ed è la ragion
 ## 6. Cosa il panel non ha fatto
 
 - **Nessun codice, nessun `.uasset`, nessuna issue.** Task documentale (`CLAUDE.md` §3), e F1 dice che
-  l'implementazione ha una precondizione che non è del panel.
+  l'implementazione ha una precondizione che non è del panel. ⚠️ Il [§7.1](#71-d1--scope--posizione-non-si-revoca-d-144-la-si-delimita-e-la-delimitazione-è-d2)
+  ridimensiona quella precondizione: è una **delimitazione**, non una revoca, e non richiede di cambiare
+  nemmeno una riga di roadmap.
 - **Non ha verificato in editor** che `L_DevSandbox` e `L_Prototype` siano giocabili: i `.umap` sono binari e
   non si aprono da qui. Il §2 dice che esistono e dove stanno, non che siano mappe di partita.
 - **Non ha misurato le issue aperte** su questo tema: `CLAUDE.md` §4 chiede `gh pr list --state open` prima
   del merge, e questa sessione non ha `gh`. Chi apre il lavoro cerchi i duplicati prima.
 - **Non ha aggiornato la roadmap**: se la decisione di F1 passa, la riga di E46 che dichiara il Browser fuori
   scope va cambiata **lì**, che è il suo owner.
+
+---
+
+# 7. Secondo giro — le cinque decisioni, con una posizione
+
+> **Data**: 2026-08-27, stesso giorno · **HEAD**: `0323c4f3`, invariato · **Panel**: lo stesso
+> **Modo**: `decide` — il primo giro isolava le domande e dichiarava di non rispondere; qui il panel
+> risponde, e registra il dissenso dove c'è. ⛔ **Le posizioni non sono decisioni**: il Decision Log è
+> l'owner, e l'ID libero è **D-210** (ultimo assegnato: **D-209**) — da **riverificare prima del merge**,
+> perché una PR aperta può averlo già preso (`CLAUDE.md` §4).
+
+## 7.0 Prima: una correzione al primo giro
+
+**WIEGERS**: il §3 ha letto D-144 **attraverso la roadmap**, non nel Decision Log. Letta per intero, la voce
+dice due cose che cambiano il peso di F1:
+
+1. le ragioni dell'esclusione erano **due, dichiaratamente indipendenti**, e la seconda — *«`Scenarios/` non
+   è staged, quindi una UI che legge il catalogo reale in packaged non avrebbe catalogo»* — è **già caduta**
+   ([#935](https://github.com/DegrassiAaron/refactor-tactics-main/pull/935) e #945, con #926 chiusa il
+   2026-08-15). D-144 lo registra da sé, barrata, e conclude: *«la decisione poggia sulla sola (a) […] chi
+   la rilegge deve sapere che oggi ne ha **una**»*;
+2. la (a) superstite non parla di *build*, parla di *release*: `RT-FEAT-UI-SCENARIO-BROWSER` porta
+   `out_of_release_scope` con la motivazione **«serve a chi sviluppa, non è contenuto della release»**.
+
+∴ **la richiesta e D-144 non rispondono alla stessa domanda.** D-144 dice cosa il giocatore riceve; la
+richiesta chiede un'affordance per l'autore. Sono compatibili **se e solo se** la visibilità le tiene
+separate — cioè **D1 e D2 sono una decisione sola**, e il primo giro le ha contate due. Il §3 F1 diceva
+«revoca o conferma parziale»: la seconda metà era quella giusta, e il referto non le ha dato lo stesso peso.
+La precondizione resta, ma è **una delimitazione, non una revoca**, e costa molto meno di quanto il §6
+lasciasse intendere.
+
+### 7.0.1 Le misure del secondo giro
+
+| Domanda | Misura | Dove |
+|---|---|---|
+| Ultimo `D-nnn` assegnato | **D-209** | `RT_PDR_00_Decision_Log.md` |
+| Esiste una CI che userebbe `-RTScenario=`? | **no**: `.github/` contiene solo `ISSUE_TEMPLATE` | `ls .github` |
+| Quante `#if UE_BUILD_SHIPPING` nel codice? | **1 direttiva, 1 file** (`RTFrontendWidgets.cpp:164`) | `grep -rn '^\s*#if.*UE_BUILD_SHIPPING' Source/` |
+| Versioni di formato scenario coesistenti | **quattro**: v1 × 74 · v2 × 3 · v3 × 1 · v4 × 5 | parsing degli 83 `.json` |
+| Esiste un elenco autorevole di fixture? | **sì**: `URTMatchSetupLibrary::KnownFixtureIds()`, derivato dalla stessa tabella che le dispaccia (**5**) | `RTMatchSetupLibrary.cpp:431-449` |
+| Esiste una persistenza degli esiti? | **sì**: `rt.Test.Run` scrive `Saved/RTTests/<Id>/<Run>/result.json` | `RTTestConsole.cpp:224` |
+| `feature-registry.yaml` in questo albero | **assente** — `out_of_release_scope` è verificabile solo attraverso la citazione di D-144 | `find . -name '*.yaml'` |
+
+> 🔴 **Il commento di `GetDetail()` dice *«il progetto usa già questa guardia in dodici file»*, e i file sono
+> uno.** Misurato: una sola direttiva `#if UE_BUILD_SHIPPING` in tutto `Source/`; le altre tre occorrenze
+> sono prosa che descrive la guardia **di Unreal** in `DeviceProfileManager.cpp`. Non cambia che il pattern
+> sia giusto — cambia che chiamarlo *pattern stabilito del progetto* sia un argomento più debole di quanto
+> il commento faccia credere. È la stessa classe di difetto che questo panel ha trovato al §2: un numero in
+> un commento che nessun gate confronta con la realtà.
+
+## 7.1 D1 — Scope · **Posizione: non si revoca D-144. La si delimita, e la delimitazione è D2**
+
+**Unanime.**
+
+D-144 (a) esclude il Browser dal **contenuto di release**. Una voce di menu che non raggiunge il giocatore
+non è contenuto di release, quindi non contraddice nulla: la `D-210` che serve non dice *«il Browser entra
+in v0.1»*, dice *«un'affordance di sviluppo può vivere nel frontend spedito purché non sia raggiungibile in
+Shipping, e `out_of_release_scope` continua a valere su ciò che il giocatore riceve»*.
+
+**COCKBURN**: e va nominato l'attore, perché è ciò che rende la delimitazione verificabile invece che
+retorica: **l'autore in sessione di sviluppo**. Non «il tester», non «il giocatore curioso». Il criterio di
+accettazione della delimitazione è che in una build Shipping quell'attore non esista, e la voce nemmeno.
+
+⚠️ **Trappola già segnalata da D-144 punto (3), e va ripetuta qui perché è il tipo di errore che si fa una
+volta sola ma costa**: `RT-FEAT-UI-SCENARIO-BROWSER` **non è libero** — è l'indice C++ di
+[`#209`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/209), quello del §2 P6, e nel registry
+risulta `INTEGRATED`. Chi cercasse lì lo stato del widget concluderebbe che è fatto. Le feature nuove vanno
+sotto `RT-FEAT-UI-FRONTEND-*`.
+
+**Costo della posizione**: una voce nel Decision Log. Zero righe di roadmap cambiate — E46 continua a dire il
+vero, perché continua a essere vero.
+
+## 7.2 D2 — Visibilità · **Posizione: una sola forma di menu, e il CONTENUTO compilato fuori in Shipping**
+
+**Maggioranza 5–1** (dissenso di Cooper al §7.7).
+
+Le due opzioni non sono simmetriche, e il progetto ha già scelto una volta su un caso identico:
+
+```cpp
+// RTFrontendWidgets.cpp:164 — il DETTAGLIO tecnico dell'error modal
+#if UE_BUILD_SHIPPING
+    // «In Shipping il dettaglio NON ESISTE, non e' nascosto: e' la differenza fra una guardia nel
+    //  Blueprint — che qualcuno puo' dimenticare — e una stringa che non arriva.»
+    return FString();
+#else
+    return Detail;
+#endif
+```
+
+**FOWLER**: la forma è esattamente trasportabile. Il widget non cambia forma fra configurazioni; cambia
+**cosa gli risponde il C++**, e una funzione — `ShouldShowDetails()` — decide se il pulsante esiste. Per il
+menu: la voce `SCENARIOS` è dichiarata in `DefaultGame.ini` in ogni configurazione, `URTScenarioIndex` non
+risponde in Shipping, e uno `ShouldShowScenarios()` collassa la voce.
+
+**NYGARD**: il motivo tecnico per cui la simmetrica è peggiore è misurabile.
+`RefactorTactics.Frontend.EveryConfiguredScreenLoads` **itera le voci del `.ini`**: togliere la riga in
+Shipping produce una configurazione in cui il menu ha una forma che nessun test ha mai visto, e la scoperta
+avverrebbe sul pacchetto. Tenere la riga e svuotare il contenuto lascia **una** forma provata.
+
+**ADZIC**: criteri, entrambi headless:
+1. `URTScenarioIndex::ListIds("","")` restituisce **vuoto** sotto `UE_BUILD_SHIPPING`, e non per una guardia
+   nel widget;
+2. la voce `SCENARIOS` è fra le registrate in **tutte** le configurazioni — cioè `EveryConfiguredScreenLoads`
+   non cambia numero.
+
+## 7.3 D3 — Precedenza · **Posizione: la scelta del menu vince su tutto, e la regola era già scritta**
+
+**Unanime nel merito, con una riserva di Nygard sulla forma** (§7.7).
+
+Il panel non introduce un ordine: ne **applica** uno che il codice dichiara. `RTGameMode.cpp:30-38`:
+
+```text
+proprieta' del GameMode  <  -RTScenario=<Id>  <  rt.Test.Scenario
+(configurazione            (intento di          (intento di adesso, e si puo'
+ persistente)               questo avvio)        digitare a meta' sessione)
+```
+
+> *«La regola e' quella di sempre — il piu' specifico vince — applicata al **TEMPO**: la console si puo'
+> digitare dopo l'avvio, quindi deve poter scavalcare cio' che l'avvio aveva chiesto. Se fosse il contrario,
+> un flag di riga di comando renderebbe impossibile cambiare scenario senza riavviare.»*
+
+**WIEGERS**: una scelta fatta nel menu è un intento espresso **dopo** l'avvio, da una persona, dentro la
+sessione. Sull'asse che il progetto ha già scelto — il tempo — è la più specifica che esista. Metterla sotto
+la console produrrebbe letteralmente il difetto che quel commento dice di voler evitare, con la console al
+posto del flag.
+
+**L'argomento contrario è più debole di quanto sembri, e va detto perché sembra forte**: «la CI usa
+`-RTScenario=`, e un menu che vince la rompe». Misurato: **non c'è una CI** in questo albero (`.github/`
+contiene solo `ISSUE_TEMPLATE`). E anche se ci fosse, una CI non apre menu: il conflitto richiede un umano
+che scelga in una build lanciata da uno script, e in quel caso *l'umano che ha appena scelto* è l'intento
+più recente.
+
+**FOWLER**: e l'estensione è a costo quasi nullo, perché il punto singolo esiste già. `RTScenarioEntry`
+dichiara `enum class EWinner { Property, CommandLine, ConsoleVariable }` e una `Winner()` sola, con la
+motivazione scritta: *«il log dell'auto-run e la banda a schermo dicono entrambi la fonte […] prima
+calcolavano la risposta ciascuno per conto proprio, con due ternari identici: aggiungere una terza sorgente
+li avrebbe fatti divergere»*. Aggiungere `MenuRequest` in testa a `Winner()` fa seguire log e banner da soli.
+⚠️ Esiste un gemello identico — `RTAutobattleEntry`, stessa forma e stesso ordine — e chi tocca l'uno
+guardi l'altro: una sola delle due catene estesa è un'asimmetria che nessun test vede.
+
+## 7.4 D4 — L'asse mappa · **Posizione: fixture. E l'obiezione che il panel si aspettava è già chiusa**
+
+**Unanime.**
+
+Il primo giro raccomandava le fixture per due ragioni di prodotto (F2: il `.umap` non decide la board; F7: due
+voci non sono una scelta). Il secondo giro cercava l'obiezione tecnica — *«un elenco di fixture nella UI è la
+seconda lista di F9, scritta a mano»* — e **non regge**, perché l'antidoto esiste già:
+
+```cpp
+// RTMatchSetupLibrary.cpp:440 — l'elenco DERIVA dalla tabella che dispaccia, non la affianca
+TArray<FString> URTMatchSetupLibrary::KnownFixtureIds();   // RelayBasin · RelayLite · TestArena
+                                                           // ArenaV01 · CoverYard
+```
+
+`RTHexMapActor.h:186` lo dichiara autorità in prosa — *«l'autorità è `KnownFixtureIds()`, non questa riga:
+è un tooltip»* — ed è stato chiuso in un posto solo da
+[#1459](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1459) esattamente per questo motivo.
+
+∴ l'asse mappa ha **la stessa forma** dell'asse scenario: una funzione C++ che deriva l'elenco dalla fonte,
+una UI che la chiama, zero letterali. `ListTags()` e `KnownFixtureIds()` sono lo stesso pattern applicato due
+volte, e il menu userebbe entrambe.
+
+**COOPER**: e sono **cinque** voci che differiscono davvero — `RelayBasin` porta otto superfici, `TestArena`
+l'unica transizione fra layer, `CoverYard` la copertura alta. Contro due `.umap` sotto `Maps/Dev/`.
+
+**Effetto collaterale che vale da solo**: `PIE-V01-BOARD` oggi richiede
+`-dpcvars=rt.Map.Source=LevelAsset` su un pacchetto, e
+[#1267](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1267) esiste perché senza quel flag il
+GameMode butta la mappa d'autore. Una tendina fixture nel menu rende quella verifica manuale **eseguibile
+senza riga di comando** — cioè la fetta 4 del §4.3 ha valore anche se nessuna delle altre viene fatta.
+
+## 7.5 D5 — Formato scenario · **Posizione: zero campi obbligatori nuovi. Sei colonne su sette sono derivabili**
+
+**Maggioranza 5–1** (dissenso di Adzic al §7.7, e il panel gliene concede metà).
+
+Il primo giro diceva *«metà delle colonne è un formato nuovo»* e stimava una migrazione di 83 file. **Il
+secondo giro ha misurato, e la stima era pessimistica in due modi.**
+
+Primo: il formato **già convive con quattro versioni** — v1 × 74, v2 × 3, v3 × 1, v4 × 5. Aggiungere un
+campo non ha mai significato migrare i file esistenti, in questo progetto. Secondo, e più importante: le
+colonne hanno quasi tutte una fonte che non è il `.json`.
+
+| Colonna chiesta dalla spec §5 | Fonte | Campo nuovo? |
+|---|---|---|
+| `Scenario ID` | `scenarioId`, 83/83 | no |
+| `Category` | `tags`, 83/83, **due assi incrociabili** — già più espressiva di una categoria | no |
+| `Map` | `fixture` → il nome; `mapRadius` → «arena generata r=N»; `cells` → «+N celle modificate» | no, **derivata** |
+| `Expected turns` | `turns.Num()`, oppure `maxTurns` per i 5 `freeRun` | no, derivata |
+| `Last result` | `Saved/RTTests/<Id>/<Run>/result.json`, che `rt.Test.Run` **già scrive** | no |
+| `Mode` | la v0.1 ha una modalità sola: una colonna costante è rumore | no — **si toglie** |
+| `Display Name` | derivabile da `scenarioId`, ma male (§7.7) | **l'unico caso aperto** |
+
+**NYGARD**: e la ragione di principio per preferire la derivazione non è il costo, è la **divergenza**. Un
+campo `map` scritto a mano accanto a un `fixture` che decide davvero la board sono due verità sullo stesso
+fatto, ed è la famiglia di difetti che questo referto ha già trovato tre volte oggi — le cinque «mappe» di
+F2, i due elenchi di F9, i dodici file di §7.0.1.
+
+## 7.6 Cosa cambia nel §4.3
+
+Le cinque fette restano, l'ordine pure. Cambia il **costo dichiarato** di due di esse:
+
+| Fetta | Prima | Dopo il secondo giro |
+|---|---|---|
+| 1 · canale a struct | invariata | invariata — resta la sola che tocca codice pinnato |
+| 2 · voce `SCENARIOS` + elenco | invariata | **+ `ShouldShowScenarios()` e l'indice vuoto in Shipping** (D2) |
+| 3 · `Run` dal menu | invariata | **+ `EWinner::MenuRequest` in testa a `Winner()`** (D3), e il gemello autobattle guardato |
+| 4 · board in `PLAY` | «indipendente» | **promossa**: `KnownFixtureIds()` è pronta, e sblocca `PIE-V01-BOARD` senza riga di comando (D4) |
+| 5 · colonne ricche | «formato nuovo, costo diverso» | **ridimensionata a derivazione**, tranne `Display Name` (D5) |
+
+## 7.7 Il dissenso, in chiaro
+
+**COOPER, su D2** — *«una voce che collassa è una voce che qualcuno ha visto in uno screenshot»*. Il modello
+`GetDetail()` funziona per un **pulsante dentro un modale d'errore**, che nessuno fotografa; una voce di
+primo livello del menu principale entra in ogni cattura di schermo e in ogni video. Preferirebbe che
+l'affordance non stia nel menu principale ma dietro un ingresso che il giocatore non incontra — una console
+command, o una schermata raggiunta da tastiera. **Il panel non lo segue** perché l'ingresso nascosto è
+esattamente ciò che esiste già (`rt.Test.Run`) ed è il motivo per cui la richiesta è stata fatta. Ma la
+riserva resta registrata: se in v0.5 esisterà un pubblico, la voce va spostata prima, non dopo.
+
+**NYGARD, su D3** — accetta l'ordine, non il silenzio. Se il menu scavalca un `-RTScenario=` presente sulla
+riga di comando, il banner d'avvio deve **nominare il flag scavalcato**, non limitarsi a dire quale scenario
+sta girando: chi ha lanciato con quel flag deve capire perché non sta ottenendo ciò che ha chiesto. È la
+stessa forma dei due warning che `ResolveScenarioToRun` già emette, e non è opzionale.
+
+**ADZIC, su D5** — `Display Name` derivato da `scenarioId` produce
+`Spec.Facing.TurningPathUsesLastCompletedStep` in una lista di 83 righe, ed è illeggibile. **Il panel gli
+concede metà**: un `displayName` **opzionale** è ammesso — le quattro versioni coesistenti dimostrano che
+non costa una migrazione, e i file senza il campo ripiegano sull'ultimo segmento dell'ID. Resta vietato
+renderlo **obbligatorio**, che è ciò che trasformerebbe la fetta 5 in un lavoro sugli 83 file.
+
+## 7.8 Cosa resta all'autore, e cosa il panel continua a non fare
+
+Il panel ha una posizione su tutte e cinque. **Nessuna è una decisione**: le decisioni le prende il Decision
+Log, e la `D-210` va scritta lì con la delimitazione del §7.1 — non qui, perché questo documento non è owner
+di niente (`plans/README.md`).
+
+Restano fuori, e restano vere dal primo giro:
+
+- **nessun codice**, e ora anche nessuna riga di roadmap: la posizione su D1 è *scelta apposta* per non
+  richiederne;
+- **le issue aperte non sono state cercate** — niente `gh` in questa sessione. Prima di aprire il lavoro,
+  `git fetch --prune origin` e la lista delle PR in volo, anche per riverificare che **D-210** sia libero;
+- **`L_DevSandbox` e `L_Prototype` restano non aperti**, ed è ora meno rilevante: la posizione su D4 dice
+  che l'asse `.umap` non va esposto affatto.
