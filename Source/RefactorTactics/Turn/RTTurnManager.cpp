@@ -13,6 +13,7 @@
 #include "Combat/RTOffensiveActionLibrary.h" // MakeSuppressiveZone: la zona dell'Overwatch E' quella della soppressione
 #include "Perception/RTPerceptionLibrary.h" // TeamAwarenessOfCell: il trigger richiede `Rilevato` (ADR-0004 §6)
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTEquipmentData.h" // `EquipmentId`: distingue una reazione di loadout da una di kit
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
@@ -425,6 +426,17 @@ void ARTTurnManager::PlanBots()
 	// che non fa niente.
 	RefreshTeamKnowledgeForPlanning(Units);
 
+	// L'insieme dei moduli reazione spediti, costruito UNA volta per pianificazione (`#1485`, [D-220]).
+	// Serve a distinguere una reazione di LOADOUT da una di KIT, e si chiede al catalogo invece che
+	// all'indice. ⚠️ Non si chiama `FindEquipment` per abilita': quella funzione ricostruisce **tutti e tre**
+	// i cataloghi a ogni chiamata — sedici `NewObject` piu' le `FText` — e qui sarebbe una volta per
+	// reazione, per bot, per turno. Si tengono solo gli `FName`.
+	TSet<FName> ModuliReazione;
+	for (const URTEquipmentData* Modulo : URTCatalogLibrary::MakeReactionModules())
+	{
+		if (Modulo) { ModuliReazione.Add(Modulo->EquipmentId); }
+	}
+
 	for (int32 BotIdx = 0; BotIdx < Units.Num(); ++BotIdx)
 	{
 		ARTUnit* Bot = Units[BotIdx];
@@ -501,22 +513,55 @@ void ARTTurnManager::PlanBots()
 		// armarla.
 		//
 		// Nessuna euristica su QUANDO conviene: il trigger e' dichiarato dall'abilita' e valutato dal
-		// resolver, e una reazione non armata non costa nulla a nessuno. Sceglierne una fra due sarebbe una
-		// decisione di bot (E15) — con un solo slot reazione nel kit di ogni eroe, oggi non si pone.
+		// resolver, e una reazione non armata non costa nulla a nessuno.
 		//
 		// Senza questa riga meta' delle unita' della v0.1 non reagirebbe mai, e il playtest misurerebbe un
 		// gioco diverso da quello progettato: i sette moduli di CP 7.5 sarebbero verdi nei test e assenti in
 		// partita.
+		//
+		// 🔴 **LA REGOLA: prima quella di KIT, il modulo di loadout come riserva** (`#1485`, [D-220]).
+		//
+		// ⚠️ **E' il comportamento che c'era gia': cambia che ora e' DICHIARATO.** Fino al 2026-08-27 questa
+		// riga diceva *«sceglierne una fra due sarebbe una decisione di bot (E15) — con un solo slot reazione
+		// nel kit di ogni eroe, oggi non si pone»*, e la premessa era falsa da [D-218]: Riktor porta
+		// `Interposition` (kit) **e** `Reaction.Cleanse` (modulo). Il `break` sul primo trovato sceglieva per
+		// **ordine di indice** — e dava il kit solo perche' `EquipLoadout` accoda. Stessa risposta, per
+		// accidente invece che per regola.
+		//
+		// La preferenza ha una ragione, ed e' l'identita': la reazione di kit e' cio' che l'eroe **e'** — il
+		// catalogo eroi la descrive cosi' — e il modulo e' cio' che la composizione gli **aggiunge**. Quando
+		// il kit e' in ricarica il modulo copre, che e' il mestiere di una riserva.
+		//
+		// ⚠️ **Quale delle due convenga davvero e' una domanda aperta** (`BOT-REACT-1`), e vale per E15: i
+		// moduli hanno `CooldownTurns = 0`, quindi un bot che preferisse il loadout non armerebbe **mai piu'**
+		// la reazione d'eroe. Invertire questa riga non e' una pulizia — e' un cambio di gioco.
+		int32 DalKit = INDEX_NONE;
+		int32 DalLoadout = INDEX_NONE;
+		const URTActionData* SceltaKit = nullptr;
+		const URTActionData* SceltaLoadout = nullptr;
 		for (int32 R = 0; R < Bot->NumAbilities(); ++R)
 		{
 			const URTActionData* Reaction = Bot->GetAbility(R);
-			if (Reaction && Reaction->Def.Slot == ERTActionSlot::Reaction && Bot->CanUseAbility(R))
+			if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction || !Bot->CanUseAbility(R))
 			{
-				Bot->PlannedReactionAbility = R;
-				AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione)"),
-					*Bot->GetName(), *Reaction->Def.ActionId.ToString()));
-				break;
+				continue;
 			}
+			// L'origine si chiede al CATALOGO: `MakeEquipmentAction` scrive `Def.ActionId = EquipmentId`.
+			// Dedurla dalla posizione — «i moduli stanno in fondo perche' `Add` accoda» — e' esattamente
+			// l'accidente che questa riga smette di usare.
+			const bool bDalLoadout = ModuliReazione.Contains(Reaction->Def.ActionId);
+			int32& Candidato = bDalLoadout ? DalLoadout : DalKit;
+			const URTActionData*& Scelta = bDalLoadout ? SceltaLoadout : SceltaKit;
+			if (Candidato == INDEX_NONE) { Candidato = R; Scelta = Reaction; } // a parita', il primo
+		}
+
+		const int32 Armata = (DalKit != INDEX_NONE) ? DalKit : DalLoadout;
+		const URTActionData* Reazione = (DalKit != INDEX_NONE) ? SceltaKit : SceltaLoadout;
+		if (Armata != INDEX_NONE && Reazione)
+		{
+			Bot->PlannedReactionAbility = Armata;
+			AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione)"),
+				*Bot->GetName(), *Reazione->Def.ActionId.ToString()));
 		}
 
 		if (bUsedSupport)

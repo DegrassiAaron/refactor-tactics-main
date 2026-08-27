@@ -1179,4 +1179,90 @@ bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
 }
 
 
+/**
+ * **Il bot preferisce la reazione di KIT, e ripiega sul modulo di loadout quando quella è in ricarica.**
+ *
+ * È il comportamento che c'era già: cambia che ora è una **regola dichiarata** invece del risultato
+ * dell'ordine degli indici ([D-220], `#1485`). Prima di [D-218] ogni eroe portava una reazione sola e la
+ * domanda non si poneva; oggi Riktor porta `Interposition` (kit) **e** `Reaction.Cleanse` (modulo).
+ *
+ * 🔴 **Due righe, e servono entrambe.** Una sola pinnerebbe metà della regola:
+ * - con il kit **pronto** si arma il kit — e senza questa riga, invertire la preferenza resterebbe verde;
+ * - con il kit **in ricarica** si arma il modulo — e senza questa, il modulo potrebbe non essere
+ *   raggiungibile affatto e nessuno se ne accorgerebbe.
+ *
+ * ⚠️ **La premessa asserisce che entrambe siano USABILI nel primo caso**, non che siano due: `PlanBots`
+ * filtra su `CanUseAbility`, quindi con il kit già in ricarica il primo caso passerebbe **anche invertendo
+ * la regola** — l'oracolo sarebbe soddisfatto senza che una scelta sia mai avvenuta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotPrefersTheKitReactionTest,
+	"RefactorTactics.HexBotPlay.BotPrefersTheKitReactionAndFallsBackToTheModule",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotPrefersTheKitReactionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBotWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -3), /*bBot*/ true);
+	ARTUnit* Nemico = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 3), /*bBot*/ false);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bot"), Bot) || !TestNotNull(TEXT("Nemico"), Nemico) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	// Il loadout di default di Riktor: da [D-218] il modulo è `Reaction.Cleanse`.
+	Bot->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(FName(TEXT("Hero.Riktor"))));
+
+	// Si individuano le due reazioni per ORIGINE, come fa il resolver: chiedendo al catalogo, non all'indice.
+	int32 IdxKit = INDEX_NONE;
+	int32 IdxModulo = INDEX_NONE;
+	for (int32 R = 0; R < Bot->NumAbilities(); ++R)
+	{
+		const URTActionData* A = Bot->GetAbility(R);
+		if (!A || A->Def.Slot != ERTActionSlot::Reaction) { continue; }
+		const bool bDalLoadout = URTCatalogLibrary::FindEquipment(A->Def.ActionId) != nullptr;
+		int32& Slot = bDalLoadout ? IdxModulo : IdxKit;
+		if (Slot == INDEX_NONE) { Slot = R; }
+	}
+
+	// 🔴 La premessa: **entrambe utilizzabili**. Senza, `PlanBots` non sceglie — scarta.
+	if (!TestNotEqual(TEXT("premessa: c'e' una reazione di kit"), IdxKit, static_cast<int32>(INDEX_NONE))
+		|| !TestNotEqual(TEXT("premessa: c'e' un modulo di loadout"), IdxModulo, static_cast<int32>(INDEX_NONE))
+		|| !TestTrue(TEXT("premessa: la reazione di kit e' utilizzabile"), Bot->CanUseAbility(IdxKit))
+		|| !TestTrue(TEXT("premessa: il modulo e' utilizzabile"), Bot->CanUseAbility(IdxModulo)))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	// --- Caso 1: entrambe pronte -> vince il KIT ------------------------------------------------------
+	TM->PlanBotsForTest();
+	AddInfo(FString::Printf(TEXT("kit pronto -> armato indice %d (kit=%d modulo=%d)"),
+		Bot->PlannedReactionAbility, IdxKit, IdxModulo));
+	TestEqual(TEXT("con entrambe pronte il bot arma la reazione di KIT"),
+		Bot->PlannedReactionAbility, IdxKit);
+
+	// --- Caso 2: il kit in ricarica -> ripiega sul MODULO ---------------------------------------------
+	// Si brucia la reazione di kit come fa il resolver quando scatta, invece di scrivere il cooldown a mano:
+	// `ConsumeAbility` è la stessa porta che `RunReactionPass` attraversa.
+	Bot->ConsumeAbility(IdxKit);
+	Bot->PlannedReactionAbility = INDEX_NONE;
+	if (!TestFalse(TEXT("premessa: ora la reazione di kit e' in ricarica"), Bot->CanUseAbility(IdxKit))
+		|| !TestTrue(TEXT("premessa: il modulo e' ancora utilizzabile"), Bot->CanUseAbility(IdxModulo)))
+	{
+		DestroyHexBotWorld(World);
+		return false;
+	}
+
+	TM->PlanBotsForTest();
+	AddInfo(FString::Printf(TEXT("kit in ricarica -> armato indice %d"), Bot->PlannedReactionAbility));
+	TestEqual(TEXT("con il kit in ricarica il bot ripiega sul MODULO di loadout"),
+		Bot->PlannedReactionAbility, IdxModulo);
+
+	DestroyHexBotWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

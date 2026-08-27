@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-25
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-27
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -12,6 +12,19 @@
 > `FAC-*`, `MED-1`, i radar — perché una domanda barrata col suo perché **è** il valore: il prossimo kit la
 > riproporrà, e trovarla già risposta costa meno che ridiscuterla. La regola scritta contraddiceva la
 > pratica di ogni sezione, e fra le due si è corretta la regola.
+
+---
+
+## Aperta — come il bot sceglie fra due reazioni, dal 2026-08-27
+
+Origine: [D-220](decisions/RT_PDR_00_Decision_Log.md). Fino a [D-218](decisions/RT_PDR_00_Decision_Log.md)
+ogni eroe ne portava **una** e la domanda non esisteva. Oggi ne porta due **un eroe solo**: Riktor. Gadget e
+Wraith hanno il loadout **vuoto** (i gadget prescritti non sono spediti), Phase ha il modulo ma **nessuna
+reazione di kit**.
+
+| ID | Domanda | Esito, e l'istruttoria che ci è arrivata sotto |
+|---|---|---|
+| `BOT-REACT-1` | **Il bot deve preferire la reazione di kit o il modulo di loadout?** | ⏳ **Aperta.** [D-220] ha **dichiarato la regola che c'era già** — prima il kit, il modulo come riserva quando il kit è in ricarica — invece di inventarne una: prima la produceva l'**ordine degli indici**, per accidente. La preferenza ha una ragione (*la reazione di kit è ciò che l'eroe **è**, il modulo è ciò che la composizione gli **aggiunge***), ma non è una valutazione tattica. 🔴 **E invertirla non è una pulizia**: i moduli hanno `CooldownTurns = 0`, quindi un bot che preferisse il loadout non armerebbe **mai più** la reazione d'eroe — un «mai» scambiato col «mai» opposto. ⚠️ **La domanda vera per E15**: quando conviene una purificazione preventiva e quando un'interposizione? Finché non c'è un'euristica che lo valuti, la regola dichiarata è la risposta meno arbitraria disponibile |
 
 ---
 
@@ -43,7 +56,7 @@ Origine: [D-211](decisions/RT_PDR_00_Decision_Log.md), che ha allineato tre docu
 | ID | Domanda | Esito, e l'istruttoria che ci è arrivata sotto |
 |---|---|---|
 | `CLEANSE-1` | **`Action.Cleanse` spedisce in v0.1? E se sì, chi riempie `PlannedCleansePriority`?** | ⏳ **Aperta.** Le due metà non si decidono separate: una `Cleanse` raggiungibile con lista vuota non fa niente, e una lista piena su un'azione irraggiungibile nemmeno. 🔴 **Misure che restringono il lavoro che l'azione fa**: la cleanse **reattiva** (`Reaction.Cleanse` → `Action.Purge`) è costruita e testata, e annulla `Root` e `Slow` **in arrivo** — sono le due sole voci di `ControlStatusesBySeverity()`. `Burning` lo spegne **l'acqua** (`ARTUnit::ApplyStatus`: *«rimosso da `Wet`»*), e `Gadget.Sprinkler` è il default di Phase. `Marked` ed `Exposed` si consumano da soli. 🔴 **Misura del 2026-08-27, alla seconda stesura** ([#1479](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1479)) — ⚠️ **la prima era sbagliata e diceva che nessuno stato inflitto da un nemico fosse purificabile.** Falso: la Cleanse è il **primo** pass del Blast e precede tutti e tre i punti in cui gli stati vengono letti (`bMarkedBeforeBlast` `:3903`, `bWetBeforeBlast` `:4026`, `Exposed` `:4044`), quindi previene già **`Marked`** — che è inflitto da un avversario — oltre a `Wet`, `Exposed` e `Burning`. Gli unici due che non contrasta **mai** sono **`Root`** e **`Slow`**: applicati in coda al Blast, consumati dal Move, scaduti nello stesso `Cleanup`. E la leva non è la posizione della Cleanse — spostarla è uno scambio a somma quasi nulla, provato e chiuso senza merge in #1481 — ma la **durata** di quei due stati. ∴ l'insieme utile per il produttore è più largo di `{ Status.Burning }`: ci stanno anche `Wet` ed `Exposed`, che sono contrastabili oggi. ⚠️ **Resta da nominare il caso che solo l'attiva risolve**: se non c'è, la risposta è che esce dalla v0.1 — e allora `Action.Shield`, nella stessa condizione, esce con lei. ⚠️ **La forma costa**: `PlannedCleansePriority` è l'unico dei **dodici** parametri di piano con zero produttori, ed è anche il più caro da esporre — gli altri undici sono una cella, un bersaglio, una direzione: cose che si cliccano. Un ordinamento di N tag no. Le alternative sono un **default d'eroe** in `URTHeroData` (dato, nessuna UI — ma supera *«la priorità è scelta dal giocatore durante il planning»*, e va superata esplicitamente) o **una scelta sola** invece di una lista |
-| `CLEANSE-2` | **`Reaction.Cleanse` entra in un loadout di default?** | ⏳ **Aperta, e il «a chi» è stato misurato il 2026-08-27: Riktor, a costo zero.** Il suo modulo di default è `Reaction.AllyIntercept`, costruito su `Action.Intercept` — e la sua reazione di **kit**, `Hero.Riktor.Interposition`, è costruita sullo **stesso** `Action.Intercept`. Lo slot di loadout spende su ciò che l'eroe ha già. Sostituirlo con `Reaction.Cleanse` non gli toglie niente e gli dà l'unica risposta esistente allo `Status.Slow` che `Hero.Riktor.ImpactShot` — un **attacco base** — applica a ogni colpo, e che la Cleanse attiva non contrasta mai (`#1479`). ⚠️ **Stesso schema per Gadget**: modulo `ReactiveShield` ← `Action.Counter`, kit `ReactiveCapacitor` ← `Action.Counter`. Due default su quattro spendono lo slot su un duplicato. ⚠️ **La premessa originale di questa voce era sbagliata**: `EquipLoadout` fa `Abilities.Add`, quindi un modulo **si aggiunge** e non sostituisce la reazione d'eroe — nessuno «perde lo slot». Ciò che si contende è il modulo del **loadout**, che è uno. **Aperta, e più piccola.** `Action.Purge` **è** costruita — è la base del modulo — e le manca **una riga** in `URTCatalogLibrary::DefaultReactionModuleFor`. Il costo non è la riga: lo **slot reazione è uno per eroe**, e tre eroi su quattro hanno già una reazione nel proprio kit all'indice `[4]`. La domanda è se per qualcuno *«annulla il `Root` o lo `Slow` in arrivo»* sia più identitario di ciò che ha. Se la risposta è no, `Purge` resta costruita e non prescritta — e va **dichiarato**, non lasciato sembrare una svista ([#1403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1403)) |
+| ~~`CLEANSE-2`~~ | ~~**`Reaction.Cleanse` entra in un loadout di default?**~~ | ✅ **SÌ, A RIKTOR — chiusa il 2026-08-27 da [D-218](decisions/RT_PDR_00_Decision_Log.md)**, [PR #1485](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1485). Il «a chi» è stato **misurato, non scelto**: il modulo prescritto a Riktor era `Reaction.AllyIntercept`, costruito su `Action.Intercept` — lo **stesso core** della sua reazione di kit `Hero.Riktor.Interposition`. Lo slot spendeva su una capacità già posseduta, quindi sostituirlo non gli toglie un mestiere. ⚠️ **Non a costo zero come diceva la prima stesura**: `Interposition` ha cooldown 3 e il modulo 0, quindi si perde un'interposizione *ogni turno* in cambio di *ogni tre* — piccolo, ma reale. ⚠️ **Gadget ha lo stesso duplicato e resta**: il suo loadout è vuoto perché `Gadget.Insulator` non è spedito, e l'eccezione è dichiarata nel test `Equipment.DefaultReactionModuleIsNotADuplicate` |
 
 ---
 
