@@ -1445,6 +1445,84 @@ bool FRTMainLeavesMovementAvailableTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * La traccia post-lock porta l'IDENTITA' di chi si e' mosso, non la posizione in un array compattato.
+ *
+ * 🔴 **Il caso e' costruito perche' l'indice MENTA** (`#1497`): tre unita', quella di mezzo ferma. La
+ * raccolta aggiunge una voce solo per chi si e' mosso, quindi le due rotte finiscono agli indici `0` e `1`
+ * mentre appartengono alle unita' con `StableUnitId` **1** e **3**. Chi legge l'indice come un'identita'
+ * nomina l'unita' sbagliata — ed e' esattamente cio' che `rt.Debug.DrawPaths` documentava di non poter fare.
+ *
+ * ⚠️ **Il movimento e' di fase Move, e non e' un dettaglio di stesura**: `LastMoveRoutes.Reset()` vive in
+ * `ResolveMovement`, che gira SEMPRE dopo `ResolveDash` nella stessa risoluzione. Uno scenario costruito su
+ * uno scatto misurerebbe un array gia' azzerato e passerebbe per assenza invece che per merito.
+ *
+ * Le attese non sono letterali: gli id si chiedono alle unita' stesse. Un test che scrivesse `1` e `3` a
+ * mano cadrebbe il giorno in cui cambia l'ordinamento del roster, misurando quello invece dell'identita'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveRoutesCarryIdentityTest,
+	"RefactorTactics.HexMove.MoveRoutesCarryUnitIdentity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveRoutesCarryIdentityTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 4);
+
+	// L'ordine del roster e' (TeamId, Cell.X, Cell.Y, Layer, nome): team 0 prima, e dentro il team la X
+	// crescente. Quindi Mover -> 1, Fermo -> 2, Avversario -> 3, e il fermo sta in MEZZO.
+	//
+	// ⚠️ Il fermo sta in `(1, 1)`, **fuori** dai percorsi minimi di chi si muove: su `(1, 0)` sarebbe un
+	// ostacolo sul cammino del mover, e un fallimento misurerebbe il pathfinding invece dell'identita'.
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Fermo = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, 1));
+	ARTUnit* Avversario = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Fermo || !Avversario) { DestroyHexMoveWorld(World); return false; }
+
+	const FRTCellId MoverStart = Mover->Cell;
+	const FRTCellId AvversarioStart = Avversario->Cell;
+
+	Mover->PlannedCell = FRTCellId(2, -1);
+	Avversario->PlannedCell = FRTCellId(3, -2);
+	Fermo->PlannedCell = Fermo->Cell; // niente rotta: e' lui a disallineare l'indice
+
+	RunTurn(TM);
+
+	const TArray<FRTMoveRoute>& Routes = TM->GetLastMoveRoutes();
+
+	// Anti-vacuita': senza questa riga tutte le asserzioni sotto sarebbero vere su un array vuoto.
+	if (!TestEqual(TEXT("due rotte: si sono mosse due unita' su tre"), Routes.Num(), 2))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	TSet<int32> Ids;
+	for (const FRTMoveRoute& Route : Routes)
+	{
+		Ids.Add(Route.StableUnitId);
+	}
+	TestTrue(TEXT("la rotta di chi si e' mosso porta il suo StableUnitId"),
+		Ids.Contains(Mover->StableUnitId) && Ids.Contains(Avversario->StableUnitId));
+	TestFalse(TEXT("chi non si e' mosso non compare fra le rotte"),
+		Ids.Contains(Fermo->StableUnitId));
+
+	// L'aggancio incrociato: e' questo che cade se l'identita' viene dall'indice compattato invece che
+	// dall'unita'. Ogni rotta deve partire dalla cella da cui e' partita PROPRIO quell'unita'.
+	for (const FRTMoveRoute& Route : Routes)
+	{
+		if (!TestTrue(TEXT("la rotta non e' vuota"), Route.Cells.Num() > 0)) { continue; }
+
+		const FRTCellId Attesa = (Route.StableUnitId == Mover->StableUnitId) ? MoverStart : AvversarioStart;
+		TestTrue(TEXT("la rotta parte dalla cella di partenza dell'unita' che dichiara"),
+			Route.Cells[0] == Attesa);
+	}
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.

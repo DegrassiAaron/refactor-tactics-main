@@ -3321,7 +3321,12 @@ void ARTTurnManager::ResolveDash()
 			TArray<FRTCellId> Route;
 			Route.Add(Units[i]->Cell);
 			Route.Append(Resolved[i].Entered);
-			LastMoveRoutes.Add(Route);
+
+			// L'identita' si prende da `Units[i]`, lo stesso indice da cui la prende `Ev.Source` due righe
+			// sotto. L'indice di `LastMoveRoutes` non la porta: l'`Add` e' condizionale (`#1497`).
+			FRTMoveRoute& Tracked = LastMoveRoutes.AddDefaulted_GetRef();
+			Tracked.StableUnitId = Units[i]->StableUnitId;
+			Tracked.Cells = Route;
 
 			FRTResolvedEvent Ev;
 			Ev.Phase = ERTMatchPhase::Dash;
@@ -5310,7 +5315,12 @@ void ARTTurnManager::ResolveMovement()
 			TArray<FRTCellId> Route;
 			Route.Add(Units[i]->Cell);
 			Route.Append(Resolved[i].Entered);
-			LastMoveRoutes.Add(Route);
+
+			// Come nel sito del Dash: l'identita' viene da `Units[i]`, mai dall'indice di `LastMoveRoutes`,
+			// che salta chi non si e' mosso (`#1497`).
+			FRTMoveRoute& Tracked = LastMoveRoutes.AddDefaulted_GetRef();
+			Tracked.StableUnitId = Units[i]->StableUnitId;
+			Tracked.Cells = Route;
 
 			// Evento per il playback: rotta percorsa (start + celle attraversate) da animare.
 			FRTResolvedEvent Ev;

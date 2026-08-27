@@ -202,27 +202,30 @@ static void RTDebugDrawPathsCommand(const TArray<FString>& Args, UWorld* World, 
 	ARTTurnManager* TM = FindTurnManager(World, Ar);
 	if (!TM) { return; }
 
-	const TArray<TArray<FRTCellId>>& Routes = TM->GetLastMoveRoutes();
+	const TArray<FRTMoveRoute>& Routes = TM->GetLastMoveRoutes();
 	if (Routes.Num() == 0)
 	{
 		Ar.Log(TEXT("[RT] Nessun percorso: la partita non ha ancora risolto un movimento."));
 		return;
 	}
-	// ⚠️ **L'indice NON e' un `UnitId`, e non e' nemmeno l'indice dell'unita'.** `LastMoveRoutes` e'
-	// COMPATTATO: `RTTurnManager.cpp` vi aggiunge una voce solo quando `Entered.Num() > 0`, quindi con le
-	// unita' 0 e 2 in movimento e la 1 ferma i due percorsi sono `#0` e `#1`. Una stesura precedente
-	// stampava «unita %d» su questo indice e nominava un'unita' che non si era mossa. La prima cella del
-	// percorso dice **da dove** parte, ed e' l'unico aggancio corretto disponibile qui.
+	// ⚠️ **L'indice resta cio' che era — un numero d'ordine, non un'identita'** — ma adesso non serve piu':
+	// `FRTMoveRoute` porta lo `StableUnitId` di chi ha percorso la rotta (`#1497`). La stesura che stampava
+	// «unita %d» sull'indice nominava un'unita' che non si era mossa, perche' la raccolta e' COMPATTATA:
+	// `RTTurnManager` vi aggiunge una voce solo quando `Entered.Num() > 0`.
+	//
+	// 🔴 **Questo comando NON filtra per conoscenza**: stampa le rotte di entrambe le squadre, ed e' quindi
+	// uno strumento di sviluppo, non una vista di gioco. Chiuderlo o filtrarlo e' la seconda meta' di `#1497`,
+	// che dipende dalla regola scelta in `#1496`.
 	for (int32 i = 0; i < Routes.Num(); ++i)
 	{
 		FString Path;
-		for (const FRTCellId& Cell : Routes[i])
+		for (const FRTCellId& Cell : Routes[i].Cells)
 		{
 			if (!Path.IsEmpty()) { Path += TEXT(" -> "); }
 			Path += Cell.ToString();
 		}
-		Ar.Logf(TEXT("[RT]   percorso #%d (da %s): %s"), i,
-			Routes[i].Num() > 0 ? *Routes[i][0].ToString() : TEXT("?"), *Path);
+		Ar.Logf(TEXT("[RT]   percorso #%d (unita' %d, da %s): %s"), i, Routes[i].StableUnitId,
+			Routes[i].Cells.Num() > 0 ? *Routes[i].Cells[0].ToString() : TEXT("?"), *Path);
 	}
 	Ar.Logf(TEXT("[RT] Percorsi dell'ultima risoluzione: %d — solo le unita' che si sono MOSSE."),
 		Routes.Num());
@@ -303,7 +306,10 @@ static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawCover(
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawPaths(
 	TEXT("rt.Debug.DrawPaths"),
 	TEXT("ELENCA in console i percorsi dell'ultima risoluzione, cella per cella — solo le unita' che si "
-		 "sono mosse. Non disegna."),
+		 "sono mosse, ciascuna col proprio StableUnitId. Non disegna. ATTENZIONE: NON e' filtrato per "
+		 "conoscenza — mostra le rotte di ENTRAMBE le squadre, compresa quella di un nemico che il "
+		 "giocatore non vede. E' uno strumento di sviluppo locale, dove chi lo esegue possiede gia' tutto "
+		 "lo stato. In rete (M10) dovra' essere lato server o non esistere."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugDrawPathsCommand));
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawResolution(

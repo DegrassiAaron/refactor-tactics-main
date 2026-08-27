@@ -661,13 +661,16 @@ void ARTHUD::DrawHUD()
 	// Traccia post-lock: il percorso realmente eseguito nell'ultima risoluzione (grigio, sotto le preview).
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
 	{
+		// ⚠️ **Ancora senza filtro di conoscenza**: la rotta ora PORTA il soggetto (`FRTMoveRoute::StableUnitId`,
+		// `#1497`), ma la regola con cui filtrarla — «lo conosco adesso» o «lo conoscevo allora» — e' la
+		// decisione aperta di `#1496`. Finche' non e' presa, qui si disegna tutto, e `PIE-KNOW4` lo dichiara.
 		const FLinearColor TrailColor(0.6f, 0.6f, 0.6f, 0.5f);
-		for (const TArray<FRTCellId>& Route : TurnManager->GetLastMoveRoutes())
+		for (const FRTMoveRoute& Route : TurnManager->GetLastMoveRoutes())
 		{
-			for (int32 i = 1; i < Route.Num(); ++i)
+			for (int32 i = 1; i < Route.Cells.Num(); ++i)
 			{
-				const FVector A = Project(HexCellWorld(Route[i - 1], Origin, HexSize, LayerH));
-				const FVector B = Project(HexCellWorld(Route[i], Origin, HexSize, LayerH));
+				const FVector A = Project(HexCellWorld(Route.Cells[i - 1], Origin, HexSize, LayerH));
+				const FVector B = Project(HexCellWorld(Route.Cells[i], Origin, HexSize, LayerH));
 				if (A.Z > 0.f && B.Z > 0.f)
 				{
 					DrawLine(A.X, A.Y, B.X, B.Y, TrailColor, 1.5f);

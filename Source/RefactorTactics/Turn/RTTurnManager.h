@@ -185,6 +185,34 @@ struct FRTCombatLogLine
 };
 
 /**
+ * Una rotta percorsa nell'ultima risoluzione, col SOGGETTO accanto alle celle.
+ *
+ * Stessa forma di `FRTCombatLogLine` e per la stessa ragione: un dato destinato alla presentazione porta
+ * l'identita' di CHI lo ha prodotto, perche' a valle non c'e' modo di ricostruirla.
+ *
+ * 🔴 **L'indice dell'array non e' mai stato un'identita', e non puo' diventarlo** (`#1497`): la raccolta e'
+ * COMPATTATA — aggiunge una voce solo per chi si e' davvero mosso — quindi con le unita' 1 e 3 in movimento
+ * e la 2 ferma le due rotte stanno agli indici `0` e `1`. Una stesura precedente di `rt.Debug.DrawPaths`
+ * stampava «unita %d» su quell'indice e nominava un'unita' che non si era mossa.
+ *
+ * Senza questo campo la traccia non e' filtrabile contro la conoscenza di squadra, e il percorso di un
+ * nemico che non si vede resta disegnato a schermo.
+ */
+USTRUCT()
+struct FRTMoveRoute
+{
+	GENERATED_BODY()
+
+	/** Chi ha percorso questa rotta. `ARTUnit::StableUnitId`, mai un indice di array. */
+	UPROPERTY()
+	int32 StableUnitId = INDEX_NONE;
+
+	/** Cella di partenza seguita dalle celle attraversate, nell'ordine in cui sono state percorse. */
+	UPROPERTY()
+	TArray<FRTCellId> Cells;
+};
+
+/**
  * Orchestratore del turno: tiene fase e numero di turno e, al lock-in, risolve il turno (logica sincrona,
  * autoritativa) e poi ne RIPRODUCE nel tempo la risoluzione (playback) per rendere il round osservabile.
  * L'animazione legge eventi gia' risolti: non decide nulla (invariante #1).
@@ -360,8 +388,14 @@ public:
 	/** Ultimo checksum di stato catturato. `0` = mai calcolato (registrazione spenta, o nessun turno risolto). */
 	int64 GetPendingFinalStateHash() const { return PendingFinalStateHash; }
 
-	/** Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito). */
-	const TArray<TArray<FRTCellId>>& GetLastMoveRoutes() const { return LastMoveRoutes; }
+	/**
+	 * Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito).
+	 *
+	 * ⚠️ **Non e' filtrata per conoscenza**: porta le rotte di ENTRAMBE le squadre, e ogni consumatore che
+	 * la disegna o la stampa deve filtrarla per conto proprio. Il campo `StableUnitId` esiste perche' quel
+	 * filtro sia possibile (`#1497`); la regola con cui filtrare e' la domanda aperta di `#1496`.
+	 */
+	const TArray<FRTMoveRoute>& GetLastMoveRoutes() const { return LastMoveRoutes; }
 
 	/**
 	 * La conoscenza di UNA squadra, per la presentazione. Copia piccola: NON e' `MakeCurrentSnapshot`, che
@@ -1163,8 +1197,8 @@ protected:
 	/** Istante d'inizio in UTC, per la riga dell'indice (`#416`). Il manifest porta una durata, non un inizio. */
 	FDateTime ReplayStartedUtc = FDateTime(0);
 
-	/** Rotte (celle) percorse da ogni unita' che si e' mossa nell'ultima risoluzione. */
-	TArray<TArray<FRTCellId>> LastMoveRoutes;
+	/** Rotte percorse da ogni unita' che si e' mossa nell'ultima risoluzione, ciascuna col proprio soggetto. */
+	TArray<FRTMoveRoute> LastMoveRoutes;
 
 	/**
 	 * Quante righe di log il manager conserva.
