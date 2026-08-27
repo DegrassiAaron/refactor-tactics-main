@@ -213,3 +213,6 @@ __pycache__/
 
 # File di lavoro locale (prompt di sessione), non versionato
 /nextStep.md
+
+# ---- Artefatti generati dai tool del repo ----
+/build/

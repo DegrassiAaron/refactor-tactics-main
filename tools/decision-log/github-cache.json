@@ -1,0 +1,936 @@
+{
+ "repo": "DegrassiAaron/refactor-tactics-main",
+ "fetched": "2026-08-27",
+ "items": {
+  "10": {
+   "state": "closed",
+   "title": "fix(camera): zoom più ravvicinato (DefaultArmLength 800, MinArmLength 100)",
+   "type": "pr"
+  },
+  "17": {
+   "state": "closed",
+   "title": "[EPIC v0.1] E3 — Dismissione del quadrato",
+   "type": "issue"
+  },
+  "41": {
+   "state": "closed",
+   "title": "CP 3.3 — Misurazione dei budget su hex",
+   "type": "issue"
+  },
+  "70": {
+   "state": "closed",
+   "title": "CP 9.2 — Copertura alta e distruzione",
+   "type": "issue"
+  },
+  "73": {
+   "state": "closed",
+   "title": "CP 9.5 — Pannello cinetico e coperture temporanee",
+   "type": "issue"
+  },
+  "81": {
+   "state": "closed",
+   "title": "CP 12.1 — Replay deterministico rinforzato",
+   "type": "issue"
+  },
+  "84": {
+   "state": "open",
+   "title": "CP 12.4 — KPI misurati e registrati",
+   "type": "issue"
+  },
+  "85": {
+   "state": "open",
+   "title": "CP 12.5 — Release interna v0.1",
+   "type": "issue"
+  },
+  "131": {
+   "state": "closed",
+   "title": "Bilanciamento: Vektor domina Flux e Riva su tutte le statistiche base",
+   "type": "issue"
+  },
+  "145": {
+   "state": "closed",
+   "title": "Il bot non pianifica mai una carica che colpisce: l'impatto e' irraggiungibile",
+   "type": "issue"
+  },
+  "149": {
+   "state": "open",
+   "title": "Bilanciamento del bot: la carica e' dominata, e far valere lo slot Principale manda la partita in stallo",
+   "type": "issue"
+  },
+  "152": {
+   "state": "open",
+   "title": "[EPIC v0.1] E14 — Overwatch e reazioni interattive",
+   "type": "issue"
+  },
+  "153": {
+   "state": "open",
+   "title": "[EPIC v0.1] E15 — Showcase «Il Relè» e golden replay",
+   "type": "issue"
+  },
+  "159": {
+   "state": "open",
+   "title": "CP 13.4 — Rumore → contatto incerto, vista filtrata per squadra",
+   "type": "issue"
+  },
+  "165": {
+   "state": "closed",
+   "title": "CP 14.5 — Finestra, commit e primo consumatore (Overwatch universale)",
+   "type": "issue"
+  },
+  "166": {
+   "state": "open",
+   "title": "CP 14.6 — Counterplay, UI della finestra e misura del pacing",
+   "type": "issue"
+  },
+  "178": {
+   "state": "closed",
+   "title": "CP 12.6 — Corpus golden di TurnLog",
+   "type": "issue"
+  },
+  "199": {
+   "state": "closed",
+   "title": "[MIGRAZIONE] Stable ID legacy: Action.Guard, Action.Activate, Action.Sprint",
+   "type": "issue"
+  },
+  "200": {
+   "state": "closed",
+   "title": "[FIX] Intercept: rivalidare la geometria sul bersaglio effettivo (D-017)",
+   "type": "issue"
+  },
+  "201": {
+   "state": "closed",
+   "title": "[DESIGN] APNAP a sei gruppi: costruirlo o riscrivere il canone 5.1",
+   "type": "issue"
+  },
+  "202": {
+   "state": "closed",
+   "title": "[DOCS] Spec corrente del bot esagonale",
+   "type": "issue"
+  },
+  "206": {
+   "state": "closed",
+   "title": "ModifyArc non valida la portata dichiarata dal catalogo",
+   "type": "issue"
+  },
+  "207": {
+   "state": "closed",
+   "title": "Flux.ConductiveNode: il modello di cella conduttiva ora esiste (CP 8.4)",
+   "type": "issue"
+  },
+  "209": {
+   "state": "closed",
+   "title": "Scenario browser: indice per ScenarioId e filtri per tag in BP_GameMode",
+   "type": "issue"
+  },
+  "214": {
+   "state": "open",
+   "title": "[EPIC] E19 · Classe di mappa e composizione",
+   "type": "issue"
+  },
+  "241": {
+   "state": "closed",
+   "title": "PushResistance è un dato senza consumatore: le spinte la ignorano",
+   "type": "issue"
+  },
+  "242": {
+   "state": "closed",
+   "title": "La combo Riva→Flux (Wet + LinearDischarge) non è realizzabile in partita",
+   "type": "issue"
+  },
+  "282": {
+   "state": "closed",
+   "title": "Le abilità ambientali d'eroe hanno Effects vuoti: nessuno può innescare CP 8.3, 8.5, 9.4",
+   "type": "issue"
+  },
+  "286": {
+   "state": "open",
+   "title": "[EPIC v0.1] E21 — Presentazione e leggibilità",
+   "type": "issue"
+  },
+  "287": {
+   "state": "closed",
+   "title": "CP E21.1 — Personaggi sui centri esagonali",
+   "type": "issue"
+  },
+  "288": {
+   "state": "open",
+   "title": "CP E21.2 — Animazioni di locomozione e impatto",
+   "type": "issue"
+  },
+  "289": {
+   "state": "open",
+   "title": "CP E21.3 — Leggibilità tattica",
+   "type": "issue"
+  },
+  "306": {
+   "state": "closed",
+   "title": "docs(movimento): Model A (D-045) e tre scenari-specifica — riconciliata con ADR-0008",
+   "type": "pr"
+  },
+  "307": {
+   "state": "closed",
+   "title": "La causa di uno spostamento non è leggibile nel TurnLog",
+   "type": "issue"
+  },
+  "314": {
+   "state": "open",
+   "title": "CP 14.7 — Reaction Profile e Reaction Clash (opportunity contested)",
+   "type": "issue"
+  },
+  "315": {
+   "state": "closed",
+   "title": "Profili di attacco base per eroe (RT-FEAT-ACTION-BASIC-ATTACK-PROFILES)",
+   "type": "issue"
+  },
+  "324": {
+   "state": "open",
+   "title": "[EPIC v0.2] E23 · Muri, porte e interaction graph",
+   "type": "issue"
+  },
+  "326": {
+   "state": "open",
+   "title": "[EPIC v0.2] E26 · Tactical Bot v1",
+   "type": "issue"
+  },
+  "339": {
+   "state": "open",
+   "title": "[DESIGN] Facing: nove decisioni aperte (FAC-3, FAC-5…FAC-9, FAC-12…FAC-14)",
+   "type": "issue"
+  },
+  "341": {
+   "state": "closed",
+   "title": "[DESIGN] FAC-4 · Qual è il facing dell'unità durante i micro-step di un Move?",
+   "type": "issue"
+  },
+  "346": {
+   "state": "closed",
+   "title": "Profili di attacco base per eroe: Bastion smette di essere il più forte del roster",
+   "type": "pr"
+  },
+  "351": {
+   "state": "closed",
+   "title": "Tre difetti trovati rivedendo #346",
+   "type": "pr"
+  },
+  "353": {
+   "state": "closed",
+   "title": "Riva.MistVeil dichiara \"crea fumo raggio 1\" e non lo fa: Smoke non e' creabile a runtime",
+   "type": "issue"
+  },
+  "361": {
+   "state": "closed",
+   "title": "Il Time Bank nel TurnLog: manca la decisione di formato, e le due liste di scenari divergono",
+   "type": "issue"
+  },
+  "400": {
+   "state": "closed",
+   "title": "Ogni spinta del gioco vale 1: la clausola «senza limite di distanza» di Brace non è osservabile",
+   "type": "issue"
+  },
+  "402": {
+   "state": "closed",
+   "title": "Bastion è immune a ogni spostamento del gioco, sempre, senza spendere nulla",
+   "type": "issue"
+  },
+  "403": {
+   "state": "open",
+   "title": "BAL-1: la decisione c'e' (D-121), resta il gate umano U20/PIE-BAL1",
+   "type": "issue"
+  },
+  "412": {
+   "state": "closed",
+   "title": "[DECISIONE] ADR sul replay logico canonico: cosa e' autorevole e dove passa il confine Player/Verifier",
+   "type": "issue"
+  },
+  "413": {
+   "state": "closed",
+   "title": "[DECISIONE] ContentManifestHash e RulesVersion: costruirle ora o alla v0.2",
+   "type": "issue"
+  },
+  "414": {
+   "state": "closed",
+   "title": "[DECISIONE] L'archivio replay e' per partita o per turno (e cosa identifica una partita)",
+   "type": "issue"
+  },
+  "415": {
+   "state": "closed",
+   "title": "Replay: seek per turno e per fase (il micro-step resta fuori, e si sa perche')",
+   "type": "issue"
+  },
+  "416": {
+   "state": "closed",
+   "title": "Replay: Match History, un indice di metadati che non apre gli archivi",
+   "type": "issue"
+  },
+  "420": {
+   "state": "closed",
+   "title": "Una spinta RESISTITA non lascia traccia nel TurnLog",
+   "type": "issue"
+  },
+  "422": {
+   "state": "open",
+   "title": "[EPIC] Wiki Player-First — un manuale del gioco, con una Developer Zone",
+   "type": "issue"
+  },
+  "425": {
+   "state": "closed",
+   "title": "Tre capacità del motore non sono raggiungibili dal roster: kiting, scatto lineare, azioni self-target",
+   "type": "issue"
+  },
+  "429": {
+   "state": "closed",
+   "title": "GEO-1: WaterDepth è un asse della cella o una superficie composta?",
+   "type": "issue"
+  },
+  "430": {
+   "state": "closed",
+   "title": "GEO-2: lo slot strutturale non può chiamarsi Breach, perché BreachCharge è l'oggetto che lo apre",
+   "type": "issue"
+  },
+  "431": {
+   "state": "closed",
+   "title": "GEO-3: le semantiche di fine Move e il grafo causale vanno riconciliate col TurnLog v6",
+   "type": "issue"
+  },
+  "436": {
+   "state": "open",
+   "title": "CP 36.1 · Tassonomia delle capability",
+   "type": "issue"
+  },
+  "449": {
+   "state": "closed",
+   "title": "U1-A · Allowlist .gitignore per i due artefatti dell'arena hex",
+   "type": "issue"
+  },
+  "451": {
+   "state": "closed",
+   "title": "U1-C · Seduta: costruire L_HexArena e verificare le sette voci del mode",
+   "type": "issue"
+  },
+  "469": {
+   "state": "closed",
+   "title": "Replay R1: l'archivio e il recorder — una partita che finisce non lascia niente su disco",
+   "type": "issue"
+  },
+  "470": {
+   "state": "closed",
+   "title": "Replay R3: il Player — riprodurre una partita senza ricalcolarla",
+   "type": "issue"
+  },
+  "471": {
+   "state": "closed",
+   "title": "Replay R2: serializzazione dell'archivio e rifiuto di cio' che non e' compatibile",
+   "type": "issue"
+  },
+  "472": {
+   "state": "open",
+   "title": "Replay R6: l'interfaccia — guardare una partita registrata, e sapere dove si e'",
+   "type": "issue"
+  },
+  "490": {
+   "state": "closed",
+   "title": "[DECISIONE] Il digest di fine partita ha due identita' diverse: harness e partita non danno lo stesso hash",
+   "type": "issue"
+  },
+  "494": {
+   "state": "closed",
+   "title": "feat(reactions): CP 14.3 — l'identita' di una opportunity e la soglia che decide il regime",
+   "type": "pr"
+  },
+  "505": {
+   "state": "closed",
+   "title": "CP 7.5 — Trigger di reazione oltre il colpo diretto: ambiente, controllo e spostamento (metà motore di CP 7.3)",
+   "type": "issue"
+  },
+  "509": {
+   "state": "closed",
+   "title": "CP 7.6 — I delta di danno delle varianti passano alle fasce (D-087)",
+   "type": "issue"
+  },
+  "510": {
+   "state": "closed",
+   "title": "[DECISIONE] WV-1: cosa significa «+1 turno di ricarica» per Weapon.Overcharge",
+   "type": "issue"
+  },
+  "512": {
+   "state": "closed",
+   "title": "CP 15.3 metà B — le decisioni di finestra come dato, e il DecisionProvider iniettabile",
+   "type": "issue"
+  },
+  "538": {
+   "state": "closed",
+   "title": "Due nomi di test insegnano il contrario di cio' che verificano (D-024, D-078)",
+   "type": "issue"
+  },
+  "541": {
+   "state": "closed",
+   "title": "Una primitiva per lo spostamento forzato: Push e Pull la scrivono già due volte, SelfReposition sarebbe la terza",
+   "type": "issue"
+  },
+  "543": {
+   "state": "open",
+   "title": "Competence gate: un risultato bot-vs-bot non e' ancora una misura di bilanciamento (D-102)",
+   "type": "issue"
+  },
+  "558": {
+   "state": "closed",
+   "title": "CP 37.3 · I quattro profili v0.1 risultano distinti dalla rubrica",
+   "type": "issue"
+  },
+  "559": {
+   "state": "closed",
+   "title": "CP 37.4 · Parsing del catalogo e validazione degli input",
+   "type": "issue"
+  },
+  "562": {
+   "state": "closed",
+   "title": "CP 37.7 · Modellare i sei assi del Profile (RAD-3 → D-107)",
+   "type": "issue"
+  },
+  "570": {
+   "state": "closed",
+   "title": "Una superficie che nasce sotto un'unità non le fa niente (tranne l'acqua)",
+   "type": "issue"
+  },
+  "582": {
+   "state": "closed",
+   "title": "Harness: il perimetro delle capability di reazione è superato da CP 14.4, e D-109 sta per aggiungere un campo senza produttore",
+   "type": "issue"
+  },
+  "583": {
+   "state": "closed",
+   "title": "La condizione dichiarata di D-109 gira in partita, ma nessuno scenario la esercita e il TurnLog non la porta",
+   "type": "issue"
+  },
+  "594": {
+   "state": "closed",
+   "title": "docs(radar): anche il Balance si deriva dalla rubrica, e l'ordine si inverte — D-112",
+   "type": "pr"
+  },
+  "603": {
+   "state": "closed",
+   "title": "CP 37.9 · Cosa misurano precision e power, senza cui il Balance Radar non è scrivibile",
+   "type": "issue"
+  },
+  "604": {
+   "state": "closed",
+   "title": "CP 38.1 · La decisione: l'economia del turno resta a slot o diventa una capacità numerica",
+   "type": "issue"
+  },
+  "605": {
+   "state": "open",
+   "title": "CP 38.2 · Validazione del piano in Planning, con reason code deterministico",
+   "type": "issue"
+  },
+  "606": {
+   "state": "open",
+   "title": "CP 38.3 · Compatibilità abilità↔movimento come dato, non come ramo",
+   "type": "issue"
+  },
+  "617": {
+   "state": "open",
+   "title": "[DESIGN] ECO-1 · Brace paga due volte e Guard una: quanto costa prepararsi",
+   "type": "issue"
+  },
+  "620": {
+   "state": "closed",
+   "title": "Geometria quantizzata: la grammatica delle direttrici, e il validator che la rende una regola",
+   "type": "issue"
+  },
+  "621": {
+   "state": "closed",
+   "title": "Cottura: la geometria disegnata diventa FRTHexCover e bBlocksMovement, poi è arte",
+   "type": "issue"
+  },
+  "625": {
+   "state": "closed",
+   "title": "Il danno da hazard non lascia traccia: Burning uccide fuori dal TurnLog canonico",
+   "type": "issue"
+  },
+  "641": {
+   "state": "open",
+   "title": "CP 38.6 · Migrare Action.Sprint dopo il Blast, con Exposed a 2 turni",
+   "type": "issue"
+  },
+  "645": {
+   "state": "open",
+   "title": "Action.Leap è la quarta capacità del motore irraggiungibile dal roster — e l'unica con semantica di trasferimento",
+   "type": "issue"
+  },
+  "653": {
+   "state": "open",
+   "title": "CP 38.7 · I profili di movimento non esistono come entità: prerequisito di #641 e #606",
+   "type": "issue"
+  },
+  "657": {
+   "state": "closed",
+   "title": "[DECISIONE] Quando l'Overwatch entrerà in un kit, chi lo arma dichiara una condizione? (dipende da BAS-2)",
+   "type": "issue"
+  },
+  "687": {
+   "state": "closed",
+   "title": "La migrazione di formato non parte mai: FormatVersion non è nei byte serializzati",
+   "type": "issue"
+  },
+  "690": {
+   "state": "closed",
+   "title": "Rumore per azione: l'intensità entra in colonna nei cataloghi",
+   "type": "issue"
+  },
+  "693": {
+   "state": "closed",
+   "title": "feat(noise): da dove PUO' essere venuto un rumore, senza sapere da dove e' venuto",
+   "type": "pr"
+  },
+  "695": {
+   "state": "open",
+   "title": "Viz editor: quattro stati di porta, due forme — «chi può aprirla» non si vede",
+   "type": "issue"
+  },
+  "705": {
+   "state": "open",
+   "title": "CP 11.8 — Pointer Interaction Contract: Hover / LMB / RMB",
+   "type": "issue"
+  },
+  "711": {
+   "state": "open",
+   "title": "Sonda di movimento nell'editor: dove arriva questa unita' con questo budget, e perche' quella cella no",
+   "type": "issue"
+  },
+  "712": {
+   "state": "open",
+   "title": "Il gesto dell'autore: disegnare geometria quantizzata con ghost, snap e un solo Ctrl+Z",
+   "type": "issue"
+  },
+  "715": {
+   "state": "closed",
+   "title": "ConfigureFromHeroData perde due campi su dieci: il gate per reflection prima, la copia dopo",
+   "type": "issue"
+  },
+  "716": {
+   "state": "closed",
+   "title": "[DECISIONE] Migrazione degli ID del roster: quale namespace ospita le abilità dopo D-120?",
+   "type": "issue"
+  },
+  "717": {
+   "state": "closed",
+   "title": "[DECISIONE] Il contatto in un solo punto e' invasione? Una domanda, due modelli che rispondono di si'",
+   "type": "issue"
+  },
+  "726": {
+   "state": "open",
+   "title": "Facing: la relazione a sei direzioni relative non esiste a runtime (D-126)",
+   "type": "issue"
+  },
+  "750": {
+   "state": "closed",
+   "title": "docs(D-130): i nomi legacy escono dal repository, e metà del vincolo non c'era",
+   "type": "pr"
+  },
+  "751": {
+   "state": "closed",
+   "title": "[D-130 · fetta 1] Rete di sicurezza: redirect dei 20 token abilità e validator che li rifiuta in scrittura",
+   "type": "issue"
+  },
+  "752": {
+   "state": "closed",
+   "title": "[D-130 · fetta 2] Una traccia scritta col vocabolario vecchio si rilegge e produce lo stesso hash",
+   "type": "issue"
+  },
+  "753": {
+   "state": "closed",
+   "title": "[D-130 · fetta 3] Gli Hero. si rinominano davvero: ID, simboli C++ e quattro file di test",
+   "type": "issue"
+  },
+  "757": {
+   "state": "closed",
+   "title": "[D-130 · fetta 7] Wiki: il contenuto delle schede migra, e la sidebar smette di puntare alle legacy",
+   "type": "issue"
+  },
+  "765": {
+   "state": "closed",
+   "title": "docs(E14): i profili Brace diventano contenuto, e la revisione dell'ADR diventa una taratura",
+   "type": "pr"
+  },
+  "769": {
+   "state": "closed",
+   "title": "docs(D-132/D-133): i profili Brace sono tre, e la Revisione di ADR-0004 era una taratura",
+   "type": "pr"
+  },
+  "778": {
+   "state": "open",
+   "title": "[EPIC v1.0] E45 · Un gate di produzione, non una release di feature",
+   "type": "issue"
+  },
+  "830": {
+   "state": "closed",
+   "title": "I default di MapClass e HexSize non sono nei byte: cambiarne uno riscrive in silenzio ogni mappa",
+   "type": "issue"
+  },
+  "832": {
+   "state": "closed",
+   "title": "L'identita' di una struttura non sopravvive al cook: DoorId e' locale all'asset",
+   "type": "issue"
+  },
+  "833": {
+   "state": "open",
+   "title": "Chi apre D1? Il grafo sorgente -> bersaglio non esiste, e nessun dato lo esprime",
+   "type": "issue"
+  },
+  "834": {
+   "state": "open",
+   "title": "S1 e D1: il giocatore non puo' sapere che cosa controlla quella struttura",
+   "type": "issue"
+  },
+  "836": {
+   "state": "closed",
+   "title": "docs(map): il consolidamento walls/doors filtra l'handoff invece di applicarlo",
+   "type": "pr"
+  },
+  "839": {
+   "state": "closed",
+   "title": "[EPIC] Lavoro parallelo — worktree, write-set e lease binarie",
+   "type": "issue"
+  },
+  "840": {
+   "state": "closed",
+   "title": "Il write-set di batch è dichiarativo: una sovrapposizione oggi si scopre al merge",
+   "type": "issue"
+  },
+  "844": {
+   "state": "closed",
+   "title": "URTMatchFormatData ha il sintomo di #687 ma non la stessa macchina: la versione non viaggia, e non c'e' migrazione da far partire",
+   "type": "issue"
+  },
+  "886": {
+   "state": "closed",
+   "title": "Le decisioni di reazione tornano dal TurnLog: il Verifier non le richiede",
+   "type": "issue"
+  },
+  "888": {
+   "state": "closed",
+   "title": "Il danno deciso a un decision boundary ignora la copertura: scelta o svista? (Overwatch + Predictive)",
+   "type": "issue"
+  },
+  "926": {
+   "state": "closed",
+   "title": "Un pacchetto non puo' eseguire uno scenario: Scenarios non e' staged, e in Shipping -dpcvars e' compilato fuori",
+   "type": "issue"
+  },
+  "935": {
+   "state": "closed",
+   "title": "docs(926): i due documenti dicevano che gli scenari non entrano nel pacchetto, e ora entrano",
+   "type": "pr"
+  },
+  "936": {
+   "state": "closed",
+   "title": "CP 46.1 · Frontend root e navigation controller",
+   "type": "issue"
+  },
+  "945": {
+   "state": "closed",
+   "title": "feat(926): una porta d'ingresso allo scenario che funziona anche in Shipping",
+   "type": "pr"
+  },
+  "952": {
+   "state": "open",
+   "title": "[EPIC v0.1] E47 · Mini v0.1 Autobattle — la partita che si guarda",
+   "type": "issue"
+  },
+  "954": {
+   "state": "closed",
+   "title": "CP 47.1 · Modalita' non presidiata: entrambe le squadre al bot, per configurazione",
+   "type": "issue"
+  },
+  "956": {
+   "state": "closed",
+   "title": "CP 47.3 · Grammatica visiva della board: colore E forma, mai solo il colore",
+   "type": "issue"
+  },
+  "959": {
+   "state": "open",
+   "title": "CP 47.6 · La partita registrata: PIE e packaged, con evidenza allegata",
+   "type": "issue"
+  },
+  "960": {
+   "state": "open",
+   "title": "[DESIGN] RNG-1/RNG-2 · Il gioco deve avere varieta' pseudo-casuale? Oggi non ha alcun RNG",
+   "type": "issue"
+  },
+  "1013": {
+   "state": "open",
+   "title": "U18 · Seduta: le quattordici voci che non attendono nulla",
+   "type": "issue"
+  },
+  "1014": {
+   "state": "closed",
+   "title": "Il motore apre le porte e nessuno puo' chiederglielo: Action.Interact e' inerte e nessuna azione dichiara SetDoorState",
+   "type": "issue"
+  },
+  "1060": {
+   "state": "open",
+   "title": "Il T6 dello showcase non ha il vocabolario per essere verificato: OriginalTargetEquals ed EffectiveTargetEquals non esistono",
+   "type": "issue"
+  },
+  "1067": {
+   "state": "closed",
+   "title": "Il danno da terreno non lascia traccia: entrare nel fuoco uccide fuori dal TurnLog canonico",
+   "type": "issue"
+  },
+  "1077": {
+   "state": "closed",
+   "title": "Uno stato temporaneo nasce, dura e finisce, e il TurnLog non registra nessuno dei tre momenti",
+   "type": "issue"
+  },
+  "1088": {
+   "state": "closed",
+   "title": "I bot non attaccano mai: 12 round, zero Combat, pareggio — e dal 2026-08-17 e' il comportamento predefinito",
+   "type": "issue"
+  },
+  "1095": {
+   "state": "open",
+   "title": "Seduta U25 — il volume di posa della cella, e la scena che dice se il graybox si legge",
+   "type": "issue"
+  },
+  "1096": {
+   "state": "closed",
+   "title": "Le voci PIE del contratto graybox non esistono: il contenuto e' pronto e va scritto",
+   "type": "issue"
+  },
+  "1100": {
+   "state": "closed",
+   "title": "chore(d139): spatial rilascia i quattro path del TurnLog, e #1060 non ha piu' ostacoli",
+   "type": "pr"
+  },
+  "1105": {
+   "state": "open",
+   "title": "[EPIC] Tactical Designer — un solo loop fra mappa, skill e scenario",
+   "type": "issue"
+  },
+  "1106": {
+   "state": "closed",
+   "title": "Il validator del registry non legge i checkpoint di milestone: `M9.4` esiste e nessuna feature puo' citarla",
+   "type": "issue"
+  },
+  "1107": {
+   "state": "closed",
+   "title": "Il commento su FRTHexCover::Integrity promette CP 9.2 al futuro, e CP 9.2 e' chiuso da dieci giorni",
+   "type": "issue"
+  },
+  "1124": {
+   "state": "open",
+   "title": "CP 19.3 — Il formato dichiara quanti Hero controlla un Player (il bank di #319 non ha un soggetto)",
+   "type": "issue"
+  },
+  "1150": {
+   "state": "closed",
+   "title": "In una voce di hazard `UnitId` porta chi SUBISCE, e chi aggrega il danno inflitto otterra' un numero plausibile e sbagliato",
+   "type": "issue"
+  },
+  "1155": {
+   "state": "closed",
+   "title": "HexSize passa da 100 a 150: la scala d'arte vince, e il costo e' due righe piu' un PIE che nessun grep puo' misurare",
+   "type": "issue"
+  },
+  "1158": {
+   "state": "closed",
+   "title": "Due Overwatch sullo stesso mover: il secondo FIRE colpisce un bersaglio gia' abbattuto e lo scrive nel TurnLog",
+   "type": "issue"
+  },
+  "1188": {
+   "state": "closed",
+   "title": "docs(1094): tre delle cinque GBX del contratto graybox chiuse, e le due che restano dicono cosa aspettano",
+   "type": "pr"
+  },
+  "1194": {
+   "state": "closed",
+   "title": "Due produttori creano una copertura sotto il proprio catalogo: il costruttore di FRTHexCover e la variante Adaptive",
+   "type": "issue"
+  },
+  "1197": {
+   "state": "closed",
+   "title": "I fix del secondo giro di #1188 sono su main senza review: la riverifica va fatta quando il servizio torna",
+   "type": "issue"
+  },
+  "1208": {
+   "state": "closed",
+   "title": "docs(1197): D-175 toglie «distrutto» dalla scaletta, e tre correzioni della riverifica",
+   "type": "pr"
+  },
+  "1213": {
+   "state": "closed",
+   "title": "fix(1088): lo stallo era fra compagne di squadra, e PlanBots pianificava una alla volta",
+   "type": "pr"
+  },
+  "1232": {
+   "state": "closed",
+   "title": "Sei residui dello split docs/src: nessuno visibile a un gate, perche' i gate camminano solo sui markdown",
+   "type": "issue"
+  },
+  "1239": {
+   "state": "open",
+   "title": "D-179: la geometria dentro la cella è dato di gioco — si conserva, entra nell'hash, e il centro blocca l'ingresso",
+   "type": "issue"
+  },
+  "1243": {
+   "state": "closed",
+   "title": "D-176 e' un ID citato ma mai scritto: la voce manca nel Decision Log, e la spec la dichiara autorevole al suo posto",
+   "type": "issue"
+  },
+  "1246": {
+   "state": "open",
+   "title": "I due volumi di blocco si leggono di lato ma non a picco: la differenza e una proporzione che la vista di lavoro azzera",
+   "type": "issue"
+  },
+  "1255": {
+   "state": "closed",
+   "title": "Il gate sul clone della Wiki esce dal repository: check_wiki_clone e --wiki-root di check-docs-links",
+   "type": "issue"
+  },
+  "1256": {
+   "state": "closed",
+   "title": "chore(1255): il gate sui link si ferma al repository, e il clone della Wiki esce dalla sorveglianza",
+   "type": "pr"
+  },
+  "1262": {
+   "state": "closed",
+   "title": "Le due voci PIE di E47 non esistono e nessuna issue le copre: #1242 le dichiara fuori scope",
+   "type": "issue"
+  },
+  "1267": {
+   "state": "closed",
+   "title": "L'arena di default non contiene le superfici che CP 47.3 deve distinguere: la verifica non falsificherebbe nulla",
+   "type": "issue"
+  },
+  "1300": {
+   "state": "closed",
+   "title": "BOT-1/BOT-2 · Il bot non ha un termine per «da qui posso ingaggiare»: filtro o punteggio?",
+   "type": "issue"
+  },
+  "1317": {
+   "state": "open",
+   "title": "Nell'editor una copertura High nasce ancora a 30: il default derivato dal tipo non attraversa l'autoraggio",
+   "type": "issue"
+  },
+  "1369": {
+   "state": "closed",
+   "title": "feat(tools): un controllo in Node verifica i percorsi citati dai documenti, e vede anche le etichette che mentono",
+   "type": "pr"
+  },
+  "1389": {
+   "state": "closed",
+   "title": "Cleanse non ha produttori: PlannedCleansePriority la scrivono solo i test, e cinque documenti descrivono un limite diverso da quello reale",
+   "type": "issue"
+  },
+  "1390": {
+   "state": "closed",
+   "title": "docs(1389): il «Limite v0.1» di Cleanse era stantio su entrambi gli stati, e la prima stesura sbagliava la diagnosi",
+   "type": "pr"
+  },
+  "1392": {
+   "state": "open",
+   "title": "Il colpo di boundary rispetta la copertura, e nessuno lo dice: traccia, log e rotta leggibile (E11/E21)",
+   "type": "issue"
+  },
+  "1395": {
+   "state": "closed",
+   "title": "docs(D-190): le due gerarchie rispondono a domande diverse, e il caso che conta non era coperto",
+   "type": "pr"
+  },
+  "1396": {
+   "state": "open",
+   "title": "Quattro formulazioni di prevalenza in cinque documenti, e nessuna copre il caso che serve",
+   "type": "issue"
+  },
+  "1397": {
+   "state": "closed",
+   "title": "fix(radar): il gate vede le righe che non stanno in nessuna tabella, e i fence non lo spengono",
+   "type": "pr"
+  },
+  "1402": {
+   "state": "open",
+   "title": "Lo scatto pianificato non e' annullabile: ERTPointerBackStep non lo elenca",
+   "type": "issue"
+  },
+  "1403": {
+   "state": "open",
+   "title": "Tre azioni del catalogo non sono nel kit di nessun eroe: Cleanse, Shield e Purge sono irraggiungibili",
+   "type": "issue"
+  },
+  "1412": {
+   "state": "open",
+   "title": "Due voci di Blast finiscono due volte nel combat log: `AddLogEvent` esplicito piu' la derivazione di `ConcludeTurn`",
+   "type": "issue"
+  },
+  "1423": {
+   "state": "closed",
+   "title": "Generare un'arena muove `Revision` 127 volte, e il report della divergenza golden non dice quale campo cambia",
+   "type": "issue"
+  },
+  "1426": {
+   "state": "closed",
+   "title": "fix(1423): un elenco solo di campi discriminanti, e la diagnosi nomina quello che diverge",
+   "type": "pr"
+  },
+  "1430": {
+   "state": "closed",
+   "title": "`RearHitBypassedCover` ha due produttori e due significati di `Amount`: una direzione e dei punti di riduzione",
+   "type": "issue"
+  },
+  "1435": {
+   "state": "closed",
+   "title": "`Revision` una volta sola vale per `MakeFlatArena`, non per gli altri sedici builder di arena",
+   "type": "issue"
+  },
+  "1436": {
+   "state": "closed",
+   "title": "La cache dei percorsi del bot ha come chiave un puntatore grezzo più `Revision`, e il riuso d'indirizzo dopo GC può darle un falso hit",
+   "type": "issue"
+  },
+  "1437": {
+   "state": "closed",
+   "title": "`ApplyInterrupts` guarda solo il primo intento della vittima, e una cura senza effetti utili sparisce in silenzio",
+   "type": "issue"
+  },
+  "1443": {
+   "state": "closed",
+   "title": "Il medkit non cura: i percorsi di supporto riconoscono l'azione dall'`ActionId` letterale, che l'equipaggiamento riscrive",
+   "type": "issue"
+  },
+  "1444": {
+   "state": "closed",
+   "title": "L'interruttore non paga mai il cooldown: i suoi colpi escono da `Plan.Hits` prima della consumazione",
+   "type": "issue"
+  },
+  "1445": {
+   "state": "closed",
+   "title": "La cura brucia il cooldown prima dei controlli, mentre `ModifyArc` dichiara la regola opposta nello stesso file",
+   "type": "issue"
+  },
+  "1449": {
+   "state": "closed",
+   "title": "Due azioni spese non pagano mai: la consumazione si aggancia al colpo sopravvissuto invece che all'intento",
+   "type": "issue"
+  },
+  "1451": {
+   "state": "closed",
+   "title": "La cancellazione a catena degli Interrupt dipende dall'ordine, e «un'azione spesa si paga» ha tre implementazioni",
+   "type": "issue"
+  },
+  "1455": {
+   "state": "closed",
+   "title": "Il corpus golden copre una categoria su dieci: due tracce di solo `Move`, e tre cambi d'identità non le hanno toccate",
+   "type": "issue"
+  },
+  "1468": {
+   "state": "closed",
+   "title": "docs: fasi delle azioni — referto sul sorgente del 2026-08-26 e quattro decisioni (D-204…D-207)",
+   "type": "pr"
+  },
+  "1470": {
+   "state": "closed",
+   "title": "docs: D-208 — chiude BAL-5, e Guard e Brace finiscono con lo stesso prezzo",
+   "type": "pr"
+  }
+ }
+}
