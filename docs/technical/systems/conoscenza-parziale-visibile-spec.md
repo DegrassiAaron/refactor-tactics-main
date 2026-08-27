@@ -190,38 +190,81 @@ vera, e quella non deve attraversare la porta. La conversione avviene **dentro**
 > nominava — ma il letterale **esiste ancora**, e nessun `PlayerController` è coinvolto. Spostarlo là è lavoro
 > proprio, non un effetto collaterale di questa fase.
 
-### 3.5 🔴 Limite dichiarato: un morto non è un soggetto di conoscenza, e il suo turno sparisce dal log
+### 3.5 Quando si calcola il verdetto: alla scrittura, non alla lettura
 
-`ViewForTeam` **salta i soggetti non vivi** — *«un morto non è un soggetto di conoscenza: lo tratta la
-presentazione della sconfitta»* (`Perception/RTKnowledgeView.cpp`, primo ramo del ciclo). È una scelta
-coerente: la morte è pubblica, e chiedere «conosco quel morto?» non è la domanda giusta.
+**[D-223]** (2026-08-27) chiude la domanda che questa sezione lasciava aperta.
 
-⚠️ **Ma la sua conseguenza sul combat log non era scritta da nessuna parte**, ed è più larga di quanto
-suggerisca la riga di commento che la dichiara.
+> **Un canale che racconta il PASSATO porta il verdetto di conoscenza calcolato quando il fatto è accaduto;
+> solo la sagoma dell'ultimo contatto risponde al presente, ed è per costruzione.**
 
-Il filtro è applicato **in lettura**, non in scrittura: `ARTTurnManager::GetRecentEventsForTeam` costruisce
-la vista *ora* e la passa a `ComposeVisibleLogLines` su **tutto** `RecentEvents`, che è un anello di
-`MaxLogLines = 60` righe. Quindi la morte è **retroattiva sull'intero buffer**: nell'istante in cui un'unità
-cade, ogni riga già scritta il cui soggetto è lei perde la propria voce nella vista e viene soppressa
-fail-closed. Il giocatore perde la narrazione del turno di quell'unità — le mosse, gli orientamenti, i colpi
-che ha messo a segno **prima** di cadere, gli stati applicati — proprio del turno che vorrebbe rileggere.
+Il filtro chiedeva *«lo conosco adesso?»* costruendo la vista **al momento della lettura**, mentre tre canali
+su cinque raccontano ciò che è già successo. Un nemico che era `Live` mentre si muoveva e ora è `Remembered`
+avrebbe — filtrando la traccia come si filtra il log — **la traccia nascosta e la sagoma mostrata**: due
+canali, lo stesso soggetto, due regole opposte.
+
+| Canale | Quando si decide | Perché |
+|---|---|---|
+| Combat log | **alla scrittura** | racconta il turno risolto; il soggetto esiste ancora quando la riga esce |
+| Traccia post-lock | **alla scrittura** | il percorso è un fatto del turno appena chiuso; `FRTMoveRoute` porta già il soggetto (**#1497**) |
+| Sagoma dell'ultimo contatto | **alla lettura** | risponde a *«adesso non lo conosco»*: è il canale del ricordo, e in lettura è dove deve stare |
+| Overlay e modello | **alla lettura** | descrivono il presente |
+| Fog of war ([D-222]) | **alla lettura** | è visibilità di **celle**, non di soggetti |
+
+🔴 **La regola atterra come UN predicato, e i canali lo chiamano.** Se ogni consumatore la ridériva dalla
+prosa, le riletture divergono e si riforma la terza via che la decisione vieta — filtrare *alcuni* canali
+col presente e altri col passato, che è esattamente lo stato da cui si è partiti.
+
+**Come si calcola, misurato.** `URTTeamKnowledgeLibrary::ClassifyTarget` è puro e chiede
+`(Knowledge, SubjectId, SubjectTeamId, SubjectCurrentCell)`. In `ConcludeTurn` le righe escono a
+`RTTurnManager.cpp:2383-2386` e `DestroyDefeatedUnits` gira a `:2405`: alla scrittura il soggetto **esiste
+ancora**, quindi la cella è disponibile. Il canale primario è un ciclo solo, quindi basta **una** mappa
+`id → cella` per turno; i siti sparsi hanno già l'unità in mano.
+
+### 3.6 ✅ Il limite del morto è chiuso da [D-223], e non serve toccare `ViewForTeam`
+
+*(Questa sezione era il «limite dichiarato» §3.5. La regola che descriveva è ancora nel codice; ciò che è
+cambiato è che non governa più il combat log.)*
+
+`ViewForTeam` **salta i soggetti non vivi** — `if (!S.bAlive) continue;` (`Perception/RTKnowledgeView.cpp`),
+*«un morto non è un soggetto di conoscenza: lo tratta la presentazione della sconfitta»*. Finché il filtro
+era applicato **in lettura**, la conseguenza era che l'intera narrazione del turno di chi cade spariva —
+retroattivamente su tutto il buffer di `MaxLogLines`, non solo sul turno della morte.
+
+🔴 **Con [D-223] quella guardia non entra più in gioco per il combat log**, e la ragione è misurata:
+`ClassifyTarget` **non guarda lo stato vitale** — `Perception/RTTeamKnowledge.cpp` ha **zero** occorrenze di
+`bAlive`/`IsAlive`, con controprova a **1** in `RTKnowledgeView.cpp`, dove la guardia vive. Un verdetto
+congelato alla scrittura non la incontra mai.
+
+⚠️ **Due cose restano vere e vanno sapute.** La guardia continua a governare i canali che si calcolano **in
+lettura** — overlay, modello, sagoma — ed è lì corretta: chiedere «conosco quel morto?» non è la domanda
+giusta quando la morte è pubblica. E il caso da verificare invece che presupporre resta: si può uccidere
+qualcosa che non si è **mai** visto (AoE, danno ambientale), e quella riga deve restare nascosta — con
+[D-223] lo resta perché `ClassifyTarget` risponde `Rejected`, non perché il soggetto è sparito. La
+distinzione conta: le due cose smettono di coincidere appena si tocca una delle due cause. Owner della
+verifica: **#1498**.
+
+**Cos'era il difetto, e perché la tabella qui sotto va riletta due volte.** Il filtro era applicato **in
+lettura**: `ARTTurnManager::GetRecentEventsForTeam` costruiva la vista *ora* e la passava a
+`ComposeVisibleLogLines` su **tutto** `RecentEvents`, un anello di `MaxLogLines` righe. La morte era quindi
+**retroattiva sull'intero buffer** — nell'istante in cui un'unità cadeva, ogni riga già scritta il cui
+soggetto era lei perdeva la propria voce nella vista.
 
 Misurato sui siti che scrivono la morte:
 
-| Riga | Soggetto | Nella vista del giocatore |
-|---|---|---|
-| `Eliminata: <nome> (team N)` (`ARTTurnManager::DestroyDefeatedUnits`) | nessuno | ✅ **resta** — è una riga di mondo |
-| `<nome> eliminato dalla scarica` (risoluzione delle abilità) | nessuno | ✅ **resta**, per omissione del soggetto |
-| `<nome> eliminato dalle fiamme` (danno da `Status.Burning`, Cleanup) | la vittima | ❌ **sparisce**, insieme al resto del suo turno |
+| Riga | Soggetto | Prima di [D-223] | Con [D-223] |
+|---|---|---|---|
+| `Eliminata: <nome> (team N)` (ramo `NewlyDefeated` della risoluzione Blast) | nessuno | ✅ resta — è una riga di mondo | ✅ resta |
+| `<nome> eliminato dalla scarica` (risoluzione delle abilità) | nessuno | ✅ resta, per omissione del soggetto | ✅ resta |
+| `<nome> eliminato dalle fiamme` (danno da `Status.Burning`, Cleanup) | la vittima | ❌ spariva, insieme al resto del suo turno | ✅ resta se la squadra vedeva la vittima quando è caduta |
 
-Le due righe che restano lo fanno perché non dichiarano un soggetto, non perché qualcuno abbia deciso che
-la morte va mostrata: è lo stesso default fail-open di `AddLogEvent`, che qui produce l'esito desiderato per
-caso. Due morti su tre si leggono, la terza no.
+⚠️ **Un'attribuzione corretta il 2026-08-27**: questa tabella assegnava la prima riga a
+`ARTTurnManager::DestroyDefeatedUnits`. Quella funzione **non contiene nessun `AddLogEvent`** — la riga è
+emessa nel ramo `NewlyDefeated` della risoluzione Blast. La conclusione (✅ resta, perché senza soggetto) era
+giusta; il puntatore no.
 
-🔴 **È un limite dichiarato, non una riparazione rinviata a metà.** Ripararlo è una decisione di design —
-esentare le righe di un'unità morta, congelarne la visibilità al momento della scrittura, o dare alla morte
-un canale proprio — e vive in una issue separata. Qui si registra perché nessun documento lo diceva e chi
-leggeva il log in partita non aveva modo di distinguerlo da un difetto.
+⚠️ **Le due righe che restavano lo facevano per omissione**, non per scelta: è lo stesso default fail-open di
+`AddLogEvent`, che qui produceva l'esito desiderato per caso. Il default è il soggetto di **#1499**, e
+chiuderlo senza [D-223] avrebbe fatto sparire anche quelle due.
 
 ---
 
@@ -662,16 +705,28 @@ risorsa contesa.**
 2. **Sera**, al momento del merge: `origin/main` era passata a **`D-220`**, e il branch aperto
    `claude/spec-panel-map-scenario-menu-*` rivendicava **`D-214` … `D-217`** con tesi tutt'altre
    (affordance di sviluppo, menu degli scenari). Seconda rinumerazione: **`D-221`** il perimetro,
-   **`D-222`** la fog of war. Le tesi qui sotto ancora da registrare partono da **`D-223`**.
+   **`D-222`** la fog of war. **`D-223`** è la regola sul momento del verdetto (§3.5, chiude `#1496`),
+   registrata il 2026-08-27. Le tesi qui sotto ancora da registrare partono quindi da **`D-224`**.
+
+🔴 **Terza collisione, trovata il 2026-08-27 e NON ancora riparata.** `origin/main` ha assorbito un
+**`D-221`** proprio — *«un colpo è un concetto solo, `bCountsAsAttack`»*, che chiude `INT-8` e `#1491` —
+mentre questo branch usa lo stesso numero per il perimetro di D-146/D-183. Sono **due tesi diverse con lo
+stesso ID**, e per la regola di [`AGENTS.md`](../../../AGENTS.md) la seconda è quella non ancora mergiata:
+va rinumerata **questa**, non quella. `D-222` (fog of war) invece **non** collide: su `origin/main` è libero.
+⚠️ Chi ripara scelga un numero **oltre** `D-223`, che è ormai assegnato.
 
 ⚠️ **La prima misura non era sbagliata: era scaduta.** Fra le due sono passate poche ore, e in mezzo
 `origin/main` ha assorbito otto decisioni. Per questo la regola non è «misura una volta e scrivi»: è
 `git fetch --prune origin` + `git branch -r` **immediatamente prima del merge**, e su **tutti** i
 riferimenti remoti, non solo su `main` — la collisione della sera stava in un branch mai mergiato.
 
-⚠️ **Il Decision Log locale si ferma a `D-196`**: il `main` di questa working directory è **116 commit
-indietro** rispetto a `origin/main`, per scelta dichiarata dall'autore. La numerazione qui è corretta
-rispetto a `origin/main` — che è dove il lavoro finisce — e lascia un buco visibile in locale.
+⚠️ **Il Decision Log locale ha un BUCO, non una coda corta.** Rimisurato il 2026-08-27: il log di questa
+working directory arriva a **`D-222`** ma non contiene **nessuna** delle venticinque voci `D-196`…`D-220`,
+che esistono su `origin/main`. Il branch è **164 commit indietro e 44 avanti** — le due linee divergono nei
+due sensi. Conseguenza pratica: *«qual è il primo numero libero»* **non** si legge dal massimo locale, e
+nemmeno dal massimo remoto da solo. Si guardano entrambi, più i branch remoti vivi.
+*(Questa riga diceva «si ferma a `D-196`» e «116 commit indietro»: entrambi i numeri erano scaduti, ed è
+esattamente il difetto che la riga sopra descrive.)*
 
 🔴 **`D-nnn` è una risorsa contesa**: prima del merge, `git fetch --prune origin` e `gh pr list --state open`
 per gli ID in volo. Questa misura invecchia, e una collisione di contatore è già successa tredici volte.
