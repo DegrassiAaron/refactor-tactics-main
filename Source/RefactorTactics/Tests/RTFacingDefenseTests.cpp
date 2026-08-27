@@ -58,6 +58,7 @@ namespace
 		I.RangeCells = 5;
 		I.AreaRadius = 0;
 		I.Power = Power;
+		I.bCountsAsAttack = true; // intento d'attacco, e da [`INT-8`] va dichiarato
 		return I;
 	}
 

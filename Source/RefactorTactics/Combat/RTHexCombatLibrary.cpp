@@ -336,6 +336,22 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			continue;
 		}
 
+		// Un colpo nasce solo da cio' che si DICHIARA aggressione ([`INT-8`], `#1491`). Il cancello sta QUI e
+		// non nel trigger delle reazioni ne' nel guadagno d'energia: il colpo e' un concetto SOLO, quindi i suoi
+		// quattro consumatori -- danno, `HitByDirectAttack`, `EnergyOnHit` e `Marked` -- lo ereditano da un punto
+		// unico invece di ricontrollarlo ciascuno a modo proprio. Prima il danno a 0 li lasciava passare tutti:
+		// `Action.Interact` puntata su un'unita' incassava un contrattacco e caricava 15 di energia per aver
+		// aperto una porta.
+		//
+		// ⚠️ DOPO la raccolta dell'op sulla porta, e non prima: `Action.Interact` non colpisce nessuno, ma il suo
+		// lavoro vero e' gia' in `Plan.DoorOps` qui sopra. Spegnerla piu' in alto la renderebbe inerte.
+		// ⚠️ E dopo la linea di tiro, cosi' un'azione non-aggressiva bloccata resta registrata in
+		// `Plan.BlockedIntents`: non produce colpi, ma il motivo per cui non li produce non e' quello.
+		if (!Intent.bCountsAsAttack)
+		{
+			continue;
+		}
+
 		const TArray<FRTCellId> HitCells =
 			HexHitCells(Intent.Shape, Attacker.Cell, AimCell, Intent.RangeCells, Intent.AreaRadius);
 

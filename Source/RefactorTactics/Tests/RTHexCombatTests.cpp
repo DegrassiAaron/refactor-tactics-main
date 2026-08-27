@@ -51,6 +51,11 @@ namespace
 		I.RangeCells = RangeCells;
 		I.AreaRadius = AreaRadius;
 		I.Power = Power;
+		// Questo helper costruisce intenti d'ATTACCO, e da [`INT-8`] un attacco deve dichiararsi: con
+		// `bCountsAsAttack` a `false` di default, ometterlo qui renderebbe muti sette test che parlano di
+		// colpi. Chi vuole misurare una NON aggressione lo rimette a `false` sull'intento, come fa
+		// `HexCombat.NonAttackProducesNoHit`.
+		I.bCountsAsAttack = true;
 		return I;
 	}
 
@@ -170,6 +175,41 @@ bool FRTHexCombatShapeConeTest::RunTest(const FString&)
 	TestTrue(TEXT("colpisce il bersaglio nel cono"), PlanHits(Plan, 0, 1));
 	TestTrue(TEXT("colpisce un secondo nemico nel ventaglio"), PlanHits(Plan, 0, 2));
 	TestFalse(TEXT("non colpisce alle spalle"), PlanHits(Plan, 0, 3));
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Identita' dell'azione: un colpo nasce solo da cio' che si DICHIARA aggressione (#1491, `INT-8`)
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexCombatNonAttackProducesNoHitTest,
+	"RefactorTactics.HexCombat.NonAttackProducesNoHit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexCombatNonAttackProducesNoHitTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(4);
+
+	// Adiacenti, a portata e con danno zero: la forma esatta di `Action.Interact` puntata su un'unita'.
+	TArray<FRTHexCombatUnit> Units;
+	Units.Add(CombatUnit(0, 0, FRTCellId(0, 0)));
+	Units.Add(CombatUnit(1, 1, FRTCellId(1, 0)));
+
+	FRTHexAttackIntent Silenziosa = CombatIntent(0, 1, ERTAbilityShape::Single, /*Range*/ 1, /*Power*/ 0);
+	Silenziosa.bCountsAsAttack = false;
+
+	// ANTI-VACUITA': lo STESSO intento, dichiarato aggressione, deve produrre il colpo. Senza questa meta'
+	// il test sarebbe verde anche se a impedire il colpo fosse la geometria invece del flag -- e l'unica
+	// differenza fra i due rami e' quel bool, non una cella, non una portata, non una forma.
+	FRTHexAttackIntent Dichiarata = Silenziosa;
+	Dichiarata.bCountsAsAttack = true;
+
+	TArray<FRTHexAttackIntent> SoloSilenziosa; SoloSilenziosa.Add(Silenziosa);
+	TArray<FRTHexAttackIntent> SoloDichiarata; SoloDichiarata.Add(Dichiarata);
+
+	TestEqual(TEXT("cio' che non si dichiara aggressione non produce colpi"),
+		URTHexCombatLibrary::CollectHexAttacks(Units, SoloSilenziosa, Map).Hits.Num(), 0);
+	TestEqual(TEXT("lo stesso intento, dichiarato aggressione, ne produce uno"),
+		URTHexCombatLibrary::CollectHexAttacks(Units, SoloDichiarata, Map).Hits.Num(), 1);
 	return true;
 }
 
@@ -495,6 +535,7 @@ bool FRTHexAttackOnCellTest::RunTest(const FString&)
 	OnCell.AreaRadius = 1;
 	OnCell.RangeCells = 5;
 	OnCell.Power = 20;
+	OnCell.bCountsAsAttack = true; // intento d'attacco, e da [`INT-8`] va dichiarato
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, { OnCell }, Map);
 	TestEqual(TEXT("l'area colpisce chi si trova sulla cella mirata"), Plan.Hits.Num(), 1);

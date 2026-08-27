@@ -484,6 +484,24 @@ struct FRTActionDef
 	bool bFriendlyFire = true;
 
 	/**
+	 * L'azione si DICHIARA un'aggressione contro un'unita' ([`INT-8`], `#1491`). Un colpo e' un concetto
+	 * solo: danno, trigger `HitByDirectAttack`, `EnergyOnHit` e `Marked` viaggiano insieme, quindi chi non
+	 * si dichiara non ne produce nessuno e nessuno dei quattro consumatori lo vede. Il cancello e' unico,
+	 * dove il colpo nasce (`URTHexCombatLibrary::CollectHexAttacks`).
+	 *
+	 * ⚠️ **`false` di default, ed e' il verso opposto ai flag qui sopra.** `bAllowsReaction`,
+	 * `bFriendlyFire` e `bCanBeInterrupted` sono `true` perche' descrivono PERMESSI; questo descrive
+	 * un'IDENTITA'. Fail-closed: un attacco che si dimentica il campo non fa niente e lo prende il primo
+	 * test, mentre una non-aggressione che si dimentica non puo' diventare un attacco -- ed e' il modo in
+	 * cui `Action.Interact` e' arrivata a incassare un contrattacco per aver aperto una porta.
+	 *
+	 * ⚠️ Non si deduce dal DANNO: `Action.MarkTarget` fa 0 ed e' ostile, e senza colpo non c'e'
+	 * `ApplyMarkedBy` -- che e' anche l'unico posto da cui si sa quale squadra ha marchiato.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Action")
+	bool bCountsAsAttack = false;
+
+	/**
 	 * Come l'azione sceglie il bersaglio della propria PREVISIONE (E18 CP 18.1). `None` per tutto il resto,
 	 * che e' quasi tutto il catalogo.
 	 *

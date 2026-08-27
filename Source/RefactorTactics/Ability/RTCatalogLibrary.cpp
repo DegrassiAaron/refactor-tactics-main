@@ -1064,6 +1064,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.BasicAttack"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
 		/*bInterruptible*/ true, ERTActionSlot::Main));
+	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// `Action.Guard` — si prepara nel Prep e vale per il turno: -15 al primo danno diretto, resiste a una
 	// spinta di 1 cella, scade nel Cleanup. Non interrompibile (catalogo §1).
@@ -1165,6 +1166,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20), FRTActionEffectSpec(ERTActionEffect::Push, 1) },
 		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearCharge));
+	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 	// Occupa il MOVIMENTO come ogni altra mobilita' rapida [D-191]: che una carica faccia danno a chi raggiunge
 	// non cambia CHE COSA ha speso. Fino al 2026-08-26 questo capoverso diceva l'opposto - «l'unica mobilita'
 	// lineare che resta sulla principale, e chi carica conserva il movimento» - seguendo la clausola di D-028
@@ -1199,6 +1201,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.PrecisionAttack"), ERTResolutionPhase::Attack, /*Priority*/ 60,
 		/*Range*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }));
+	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// `HeavyAttack` — 35 danni e priorita' 80: risolve tardi, ed e' il prezzo che paga per essere il colpo
 	// piu' duro. Interrompibile: se un `Action.Interrupt` la coglie prima del Blast non produce NULLA — non
@@ -1210,6 +1213,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 35),
 		  FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20) }));
+	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// `LineAttack` — 22 danni al PRIMO bersaglio valido su una delle sei direzioni, portata 5. Non e' la
 	// `Shape::Line` delle abilita' d'archetipo (che colpisce tutti quelli attraversati): la risolve
@@ -1218,6 +1222,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.LineAttack"), ERTResolutionPhase::Attack, /*Priority*/ 55,
 		/*Range*/ 5, /*Cooldown*/ 1, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 22) }));
+	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// `CircularAoE` — 18 danni in un esagono di raggio 1, centro entro 4 celle. `RangeCells` e' la portata
 	// del CENTRO, il raggio dell'area sta nell'intento (`FRTHexAttackIntent::AreaRadius`): sono due numeri
@@ -1230,6 +1235,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.CircularAoE"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range (centro)*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }));
+	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// `SuppressiveLine` — si PREPARA (fase 10, quindi macro-fase Prep) e si attiva su un trigger: il primo
 	// nemico che entra in una cella controllata durante il Move prende 16 danni e si ferma li'. Una sola
@@ -1241,6 +1247,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 5, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) },
 		/*bInterruptible*/ false));
+	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 
 	// `MarkTarget` — nessun danno proprio: applica `Status.Marked` per un turno, e il prossimo attacco
 	// alleato contro quel bersaglio infligge +6 e consuma il marchio. Priorita' 40, la piu' bassa delle
@@ -1251,6 +1258,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.MarkTarget"), ERTResolutionPhase::Attack, /*Priority*/ 40,
 		/*Range*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Marked, /*Turni*/ 1) }));
+	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// --- Difensive e reazioni (catalogo §4) ---------------------------------------------------------------
 	// ATTENZIONE alla riga «Slot» della tabella: solo `Counter`, `Intercept` e `Deflect` occupano lo slot
@@ -1382,6 +1390,8 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Braced, /*Turni*/ 1),
 		  FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Root, /*Turni*/ 1) },
 		/*bInterruptible*/ false, ERTActionSlot::Main));
+	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
+	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 	Catalog.Last().bSelfTarget = true; // come Guard: lo stato lo prende chi la pianifica
 
 	// `Shield` — azione PRINCIPALE di Prep: 25 punti di scudo TEMPORANEO, consumati prima della salute e
@@ -1420,6 +1430,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Push"), ERTResolutionPhase::Control, /*Priority*/ 40,
 		/*Range*/ 1, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Push, 1) }));
+	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// `Pull` — trazione di 1 cella, che avvicina: prima azione del catalogo a usare `ERTActionEffect::Pull`.
 	// Range **2**, non 1 come le altre quattro: con targeting a 1 (adiacenza) e trazione di 1, il bersaglio
@@ -1429,6 +1440,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Pull"), ERTResolutionPhase::Control, /*Priority*/ 40,
 		/*Range*/ 2, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Pull, 1) }));
+	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// `Root` — blocca il movimento per 1 turno. Cancella i micro-step di movimento NON ANCORA risolti (fase
 	// Move, dopo il Blast) tramite `GetEffectiveMoveRange`, che azzera il budget per chi e' radicato — non
@@ -1436,6 +1448,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Root"), ERTResolutionPhase::Control, /*Priority*/ 25,
 		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Root, /*Turni*/ 1) }));
+	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// `Slow` — +1 al costo di OGNI cella per 1 turno (non dimezza il raggio: e' un meccanismo diverso da
 	// quello che `Ranger.Burst` applicava allo stesso tag prima di questo checkpoint — vedi
@@ -1445,12 +1458,14 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Slow"), ERTResolutionPhase::Control, /*Priority*/ 50,
 		/*Range*/ 1, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Slow, /*Turni*/ 1) }));
+	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// `Interrupt` — nessun effetto dichiarabile: la sua conseguenza e' cancellare l'azione di un'altra unita',
 	// non modificarne le statistiche. Agisce solo su chi dichiara `bCanBeInterrupted = true` — il controllo
 	// e' fatto da `ARTTurnManager::ResolveCombat`, non da un flag che questa azione porterebbe con se'.
 	Catalog.Add(ShippedAction(TEXT("Action.Interrupt"), ERTResolutionPhase::Control, /*Priority*/ 20,
 		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// --- Azioni AMBIENTALI (catalogo §6) -----------------------------------------------------------------
 	// `Electrify` — la combo firma del gioco (CP 8.3). Fase `Environment` (codice 50), quindi risolve nel
@@ -1517,6 +1532,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Attack` (40) copre «attacchi, abilita', cure, **interazioni**»: e' un'interazione con la mappa.
 	Catalog.Add(ShippedAction(TEXT("Action.ModifyArc"), ERTResolutionPhase::Attack, /*Priority*/ 75,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 
 	// `CreateCover` — ERIGE una copertura bassa su un bordo (CP 9.5). Come `Ignite`, `CreateWater` e `ModifyArc`
 	// non dichiara `Effects`: il suo esito e' una modifica della MAPPA, che `FRTActionEffectSpec` non sa

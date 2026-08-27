@@ -107,6 +107,20 @@ struct FRTHexAttackIntent
 	ERTHexDoorState DoorState = ERTHexDoorState::Closed;
 
 	/**
+	 * L'azione si DICHIARA un'aggressione contro un'unita' ([`INT-8`], `#1491`). Un colpo e' un concetto
+	 * solo -- danno, trigger `HitByDirectAttack`, `EnergyOnHit` e `Marked` viaggiano insieme -- quindi chi
+	 * non si dichiara non ne produce nessuno, e nessuno dei quattro consumatori lo vede.
+	 *
+	 * ⚠️ **`false` di default, ed e' il verso opposto agli altri flag** (`bAllowsReaction`, `bFriendlyFire`,
+	 * `bCanBeInterrupted` sono `true`). La rottura di simmetria e' deliberata: quelli descrivono PERMESSI,
+	 * questo un'IDENTITA'. Un attacco che si dimentica il campo non fa niente e lo prende il primo test; una
+	 * non-aggressione che si dimentica non puo' diventare un attacco -- che e' il modo in cui
+	 * `Action.Interact` e' arrivata a incassare un contrattacco per aver aperto una porta.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bCountsAsAttack = false;
+
+	/**
 	 * L'area colpisce anche gli ALLEATI dell'attaccante, se stanno nelle celle interessate. Si COPIA da
 	 * `FRTActionDef::bFriendlyFire`, che e' dove l'azione lo dichiara: qui e' il parametro dell'intento, non
 	 * la sede della decisione.

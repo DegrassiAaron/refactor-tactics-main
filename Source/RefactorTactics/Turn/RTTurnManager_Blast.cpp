@@ -648,6 +648,9 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// l'intento nasceva sempre a false e nessuna area colpiva un alleato in partita, benche' il dato
 		// esistesse nel catalogo e il resolver puro lo rispettasse. Difetto trovato al CP 8.2 e corretto qui.
 		Intent.bFriendlyFire = Instance.Def.bFriendlyFire;
+		// Stessa storia, stesso rimedio ([`INT-8`]): senza questa riga l'intento nascerebbe sempre a `false` e
+		// NESSUN attacco produrrebbe un colpo, benche' il catalogo lo dichiari.
+		Intent.bCountsAsAttack = Instance.Def.bCountsAsAttack;
 		// Danno DICHIARATO dagli effetti dell'azione: e' il catalogo a dirlo. Il campo legacy `Power` resta
 		// come ripiego per le abilita' non ancora catalogate (quelle generiche di EnsureDefaultAbilities):
 		// finche' esistono, toglierlo del tutto trasformerebbe i loro colpi in danno zero.
@@ -722,6 +725,11 @@ void ARTTurnManager::AppendChargeImpactIntents(FRTBlastContext& Ctx)
 		Intent.Shape = ERTAbilityShape::Single;
 		Intent.RangeCells = 1; // dopo l'impatto si e' adiacenti: e' questa la portata del colpo
 		Intent.AreaRadius = 0;
+		// [`INT-8`]: anche qui il colpo si dichiara, e si legge dall'azione che l'ha prodotto invece di darlo
+		// per scontato. E' il SECONDO punto in cui nasce un intento -- l'impatto della carica non passa dal
+		// ciclo dei piani -- quindi la propagazione va ripetuta, o gli impatti smetterebbero di colpire mentre
+		// tutto il resto funziona.
+		Intent.bCountsAsAttack = Impact.Def.bCountsAsAttack;
 
 		const int32 ImpactDamage = URTCatalogLibrary::FirstDamage(Impact.Def);
 		Intent.Power = URTCombatLibrary::EffectiveAttackPower(ImpactDamage, /*OccupantDamageBonus=*/ 0);
