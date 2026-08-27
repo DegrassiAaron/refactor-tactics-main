@@ -218,6 +218,25 @@ Tre garanzie, tutte verificate da `RefactorTactics.Scenario.Writer*`:
 > salvare uno scenario riscriverebbe `"Gadget"` in `"gadget"` in tutti i file che lo dichiarano così — una
 > modifica che nessuno ha chiesto, prodotta da uno strumento che doveva solo preservare.
 
+### 5.2 Blueprint vede una porta, non il modello
+
+Il formato si legge e si scrive dal C++. L'authoring visuale vive in Blueprint/UMG, e fra i due c'è **una sola
+porta**: `URTScenarioAuthoring`, un `UObject` creato da factory che possiede un `FRTScenarioDraft` — il
+ViewModel C++ puro dove sta la logica. Decisione registrata in
+[ADR-0010](../../decisions/adr-0010-esposizione-blueprint-scenario-harness.md).
+
+Le nove `USTRUCT` del formato **restano non-`BlueprintType`**: Blueprint non le vede, non le costruisce, non le
+muta. Ciò che attraversa il confine sono DTO di sola lettura — `FRTScenarioSummary`, `FRTScenarioUnitView` —
+che portano `FRTCellId` ed `ERTHexDirection`, cioè il vocabolario del gioco. Un DTO è una fotografia:
+modificarlo non modifica niente, ed è la proprietà che rende impossibile all'actor visuale di diventare
+authority **per costruzione**, non per disciplina di chi scrive il Blueprint.
+
+> ⚠️ Il costo è che ogni operazione va esposta **una per una**, a ogni slice. È il prezzo che compra
+> l'invariante del §3: chi lo trova troppo caro sta chiedendo di pagare l'altro — un editor che diverge dal
+> gioco. Il guardiano è `RefactorTactics.Scenario.AuthoringContractIsReachableFromBlueprint`, che verifica
+> per riflessione **entrambi i versi**: che il contratto sia raggiungibile da Blueprint, e che il modello non
+> lo sia.
+
 **Ciò che il formato non esprime**, e che va aggiunto solo quando ha un consumatore:
 
 | Manca | Serve a | Innesco |
