@@ -1183,7 +1183,7 @@ bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
  * **Il bot preferisce la reazione di KIT, e ripiega sul modulo di loadout quando quella è in ricarica.**
  *
  * È il comportamento che c'era già: cambia che ora è una **regola dichiarata** invece del risultato
- * dell'ordine degli indici ([D-220], `#1485`). Prima di [D-218] ogni eroe portava una reazione sola e la
+ * dell'ordine degli indici ([D-220], `#1403`). Prima di [D-218] ogni eroe portava una reazione sola e la
  * domanda non si poneva; oggi Riktor porta `Interposition` (kit) **e** `Reaction.Cleanse` (modulo).
  *
  * 🔴 **Due righe, e servono entrambe.** Una sola pinnerebbe metà della regola:
@@ -1202,6 +1202,11 @@ bool FRTBotPrefersTheKitReactionTest::RunTest(const FString&)
 {
 	UWorld* World = MakeHexBotWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	// ⚠️ **La mappa serve, e la prima stesura di questo test l'aveva persa copiando**: senza,
+	// `MakeCurrentSnapshot` non trova un `ARTHexMapActor` e consegna `Map == nullptr`. Il pianificatore
+	// cade nel ramo «nessun nemico da ingaggiare» e salta raggiungibilita', bersagli e scatto — il blocco
+	// delle reazioni gira lo stesso, quindi il test sarebbe **verde in un mondo degenere**.
+	SpawnHexBotMap(World, 5);
 
 	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(2, -3), /*bBot*/ true);
 	ARTUnit* Nemico = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 3), /*bBot*/ false);
@@ -1222,6 +1227,9 @@ bool FRTBotPrefersTheKitReactionTest::RunTest(const FString&)
 	{
 		const URTActionData* A = Bot->GetAbility(R);
 		if (!A || A->Def.Slot != ERTActionSlot::Reaction) { continue; }
+		// 🔴 **La stessa domanda che fa il resolver**: «e' un id di equipaggiamento?», su TUTTI i cataloghi.
+		// Un predicato piu' stretto o piu' largo di quello di produzione classificherebbe la stessa abilita'
+		// in un secchio diverso, e il test cadrebbe su una regola che il codice sta rispettando.
 		const bool bDalLoadout = URTCatalogLibrary::FindEquipment(A->Def.ActionId) != nullptr;
 		int32& Slot = bDalLoadout ? IdxModulo : IdxKit;
 		if (Slot == INDEX_NONE) { Slot = R; }
@@ -1248,7 +1256,11 @@ bool FRTBotPrefersTheKitReactionTest::RunTest(const FString&)
 	// Si brucia la reazione di kit come fa il resolver quando scatta, invece di scrivere il cooldown a mano:
 	// `ConsumeAbility` è la stessa porta che `RunReactionPass` attraversa.
 	Bot->ConsumeAbility(IdxKit);
-	Bot->PlannedReactionAbility = INDEX_NONE;
+	// La porta e' `ClearReactionPlan`, non il campo: [D-109] le ha messe insieme perche' separarle
+	// «rimetterebbe in gioco una condizione orfana che il prossimo armamento erediterebbe». Scrivere
+	// `PlannedReactionAbility` a mano qui contraddiceva la riga sopra, che usa `ConsumeAbility` proprio
+	// per passare dalla porta di produzione.
+	Bot->ClearReactionPlan();
 	if (!TestFalse(TEXT("premessa: ora la reazione di kit e' in ricarica"), Bot->CanUseAbility(IdxKit))
 		|| !TestTrue(TEXT("premessa: il modulo e' ancora utilizzabile"), Bot->CanUseAbility(IdxModulo)))
 	{

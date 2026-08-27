@@ -426,16 +426,32 @@ void ARTTurnManager::PlanBots()
 	// che non fa niente.
 	RefreshTeamKnowledgeForPlanning(Units);
 
-	// L'insieme dei moduli reazione spediti, costruito UNA volta per pianificazione (`#1485`, [D-220]).
-	// Serve a distinguere una reazione di LOADOUT da una di KIT, e si chiede al catalogo invece che
-	// all'indice. ⚠️ Non si chiama `FindEquipment` per abilita': quella funzione ricostruisce **tutti e tre**
-	// i cataloghi a ogni chiamata — sedici `NewObject` piu' le `FText` — e qui sarebbe una volta per
-	// reazione, per bot, per turno. Si tengono solo gli `FName`.
-	TSet<FName> ModuliReazione;
-	for (const URTEquipmentData* Modulo : URTCatalogLibrary::MakeReactionModules())
+	// Gli id di TUTTO l'equipaggiamento spedito, per distinguere un'abilita' concessa dal LOADOUT da una del
+	// KIT (`#1403`, [D-220]). Si chiede al catalogo, non all'indice.
+	//
+	// ⚠️ **Tutto l'equipaggiamento, non i soli moduli reazione**: `EquipLoadout` passa da
+	// `MakeEquipmentAction` per ogni pezzo non-arma, **gadget compresi**, e quella funzione scrive
+	// `Def.ActionId = Item->EquipmentId` per tutti. Un gadget costruito su un'azione di slot reazione
+	// finirebbe archiviato fra le abilita' di kit — e sarebbe la stessa «origine per accidente» che questa
+	// riga esiste per togliere, un livello piu' sotto.
+	//
+	// ⚠️ **`static`, quindi una volta per processo**: `FindEquipment` ricostruisce i tre cataloghi a ogni
+	// chiamata — **diciassette** `NewObject` piu' le `FText` — e `PlanBots` gira a ogni turno. E' l'idioma
+	// che `DefaultReactionModuleFor` e `DefaultGadgetFor` gia' usano due funzioni piu' su.
+	static const TSet<FName> IdEquipaggiamento = []()
 	{
-		if (Modulo) { ModuliReazione.Add(Modulo->EquipmentId); }
-	}
+		TSet<FName> Ids;
+		for (const TArray<URTEquipmentData*>& Catalogo :
+			{ URTCatalogLibrary::MakeWeaponVariants(), URTCatalogLibrary::MakeGadgets(),
+			  URTCatalogLibrary::MakeReactionModules() })
+		{
+			for (const URTEquipmentData* Pezzo : Catalogo)
+			{
+				if (Pezzo) { Ids.Add(Pezzo->EquipmentId); }
+			}
+		}
+		return Ids;
+	}();
 
 	for (int32 BotIdx = 0; BotIdx < Units.Num(); ++BotIdx)
 	{
@@ -459,6 +475,13 @@ void ARTTurnManager::PlanBots()
 		// e' un piano legale, e nessuno guardava. Con [D-191] la carica e' mobilita', quindi le due voci si
 		// contendono lo slot e `ValidatePlan` lo dichiara `SlotOccupied` — misurato dal bot, non dedotto.
 		Bot->PlannedDashAbility = INDEX_NONE;
+		// ⚠️ **E lo slot REAZIONE, che era il sesto campo su sei a non ripartire da zero** (`#1403`,
+		// [D-220]): fino a oggi dipendeva solo da `ClearReactionPlan()` nel Cleanup, che non gira sul
+		// passaggio di `BeginPlay` ne' quando `PlanBotsForTest()` precede `LockInAndResolve()`. Da [D-220]
+		// «nessuna reazione utilizzabile» e' un esito raggiungibile da due categorie indipendenti — kit e
+		// loadout — quindi un indice stantio sopravviverebbe piu' spesso di prima. Si passa dalla porta di
+		// [D-109]: azzera lo slot **e la sua condizione**, che sono una cosa sola.
+		Bot->ClearReactionPlan();
 
 		// Lo snapshot su cui QUESTO bot pianifica: quello della sua squadra, che porta le prenotazioni delle
 		// compagne gia' passate di qui. Esistono tutti da prima del ciclo, quindi qui non si inserisce nulla
@@ -519,7 +542,7 @@ void ARTTurnManager::PlanBots()
 		// gioco diverso da quello progettato: i sette moduli di CP 7.5 sarebbero verdi nei test e assenti in
 		// partita.
 		//
-		// 🔴 **LA REGOLA: prima quella di KIT, il modulo di loadout come riserva** (`#1485`, [D-220]).
+		// 🔴 **LA REGOLA: prima quella di KIT, il modulo di loadout come riserva** (`#1403`, [D-220]).
 		//
 		// ⚠️ **E' il comportamento che c'era gia': cambia che ora e' DICHIARATO.** Fino al 2026-08-27 questa
 		// riga diceva *«sceglierne una fra due sarebbe una decisione di bot (E15) — con un solo slot reazione
@@ -537,8 +560,6 @@ void ARTTurnManager::PlanBots()
 		// la reazione d'eroe. Invertire questa riga non e' una pulizia — e' un cambio di gioco.
 		int32 DalKit = INDEX_NONE;
 		int32 DalLoadout = INDEX_NONE;
-		const URTActionData* SceltaKit = nullptr;
-		const URTActionData* SceltaLoadout = nullptr;
 		for (int32 R = 0; R < Bot->NumAbilities(); ++R)
 		{
 			const URTActionData* Reaction = Bot->GetAbility(R);
@@ -549,15 +570,12 @@ void ARTTurnManager::PlanBots()
 			// L'origine si chiede al CATALOGO: `MakeEquipmentAction` scrive `Def.ActionId = EquipmentId`.
 			// Dedurla dalla posizione — «i moduli stanno in fondo perche' `Add` accoda» — e' esattamente
 			// l'accidente che questa riga smette di usare.
-			const bool bDalLoadout = ModuliReazione.Contains(Reaction->Def.ActionId);
-			int32& Candidato = bDalLoadout ? DalLoadout : DalKit;
-			const URTActionData*& Scelta = bDalLoadout ? SceltaLoadout : SceltaKit;
-			if (Candidato == INDEX_NONE) { Candidato = R; Scelta = Reaction; } // a parita', il primo
+			int32& Candidato = IdEquipaggiamento.Contains(Reaction->Def.ActionId) ? DalLoadout : DalKit;
+			if (Candidato == INDEX_NONE) { Candidato = R; } // a parita' di origine, il primo: deterministico
 		}
 
 		const int32 Armata = (DalKit != INDEX_NONE) ? DalKit : DalLoadout;
-		const URTActionData* Reazione = (DalKit != INDEX_NONE) ? SceltaKit : SceltaLoadout;
-		if (Armata != INDEX_NONE && Reazione)
+		if (const URTActionData* Reazione = Bot->GetAbility(Armata)) // `nullptr` per `INDEX_NONE`
 		{
 			Bot->PlannedReactionAbility = Armata;
 			AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione)"),
