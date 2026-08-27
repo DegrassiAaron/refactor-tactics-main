@@ -53,6 +53,10 @@ namespace
 		Def.bCanBeInterrupted = true;
 		Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 30));
 		Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 2));
+		// `Test.Push2` e' un'aggressione -- 30 di danno e una spinta -- e da [`INT-8`] deve dichiararlo:
+		// il default e' `false`, quindi senza questa riga non produrrebbe nessun colpo e la spinta non
+		// arriverebbe mai al bersaglio.
+		Def.bCountsAsAttack = true;
 		return Def;
 	}
 

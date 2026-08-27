@@ -314,6 +314,7 @@ namespace
 		Action->Def.Fallback = ERTActionFallback::Cancel;
 		Action->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 10));
 		Action->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, PushCells));
+		Action->Def.bCountsAsAttack = true; // aggressione: da [`INT-8`] va dichiarata
 		Action->RangeCells = 3;
 		Action->Power = 10;
 		Unit->Abilities.Add(Action);
