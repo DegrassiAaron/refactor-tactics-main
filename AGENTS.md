@@ -308,7 +308,7 @@ Repository: `DegrassiAaron/refactor-tactics-main`.
 - Niente commit, push, merge, force, delete remoti o operazioni distruttive senza richiesta esplicita.
 - Non confondere “ho modificato i file” con “ho verificato build/PIE/packaged” (§*Test e Definition of Done*).
 
-### Una sessione per volta
+### Più sessioni, e la misura che non mente
 
 Lo sviluppo è **parallelo di fatto**, e va trattato come tale
 ([D-222](docs/decisions/RT_PDR_00_Decision_Log.md), che supera la clausola operativa di
@@ -358,10 +358,12 @@ volo dichiara lo stesso ID con una **tesi diversa**, rinumera la seconda: rimand
 `(file, riga)` — mai con una sostituzione globale — contenuto invariato. Se l'altra è già su `main`,
 la seconda sei tu, e la registri nelle Note.
 
-⚠️ **Limite noto, non aggirato**: questo è un controllo a vista, e il progetto ha già pagato sedici
-collisioni con lo stesso metodo prima di automatizzarlo. Con una sola sessione per volta la finestra
-di race si chiude quasi tutta, ma resta aperta finché esistono PR non mergiate — perciò il `fetch`
-prima del merge non è facoltativo.
+⚠️ **Limite noto, non aggirato — e più largo di quanto questa riga dicesse.** È un controllo a vista, e
+il progetto ha già pagato **sedici** collisioni con lo stesso metodo prima di automatizzarlo. ⛔ Qui
+seguiva *«con una sola sessione per volta la finestra di race si chiude quasi tutta»*: quella premessa è
+**falsa**, misurata il 2026-08-27 ([D-222](docs/decisions/RT_PDR_00_Decision_Log.md)) — 101 checkout in
+24 ore e 6 sessioni a committare, che è lo stesso regime in cui quelle sedici collisioni erano avvenute.
+La finestra resta aperta quanto le PR non mergiate, e il `fetch` prima del merge non è facoltativo.
 
 ## Lingua
 
