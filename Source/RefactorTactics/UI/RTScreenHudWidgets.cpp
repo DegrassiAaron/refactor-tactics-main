@@ -1,5 +1,6 @@
 #include "UI/RTScreenHudWidgets.h"
 
+#include "RefactorTactics.h"
 #include "Player/RTPlayerController.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
@@ -48,6 +49,30 @@ void URTScreenHudWidgetBase::AcquireMatchContext()
 
 	TurnManager = Cast<ARTTurnManager>(
 		UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass()));
+
+	// 🔴 **Il HUD di partita puo' nascere SENZA owning player, e senza di esso non esiste una selezione.**
+	// `URTFrontendNavigator::PresentMatchHud` lo crea con `CreateWidget(GameInstance, ...)` dentro
+	// `EnterMatch()`, cioe' nel `BeginPlay` del GameMode: se in quel momento il `PlayerController` locale
+	// non c'e' ancora, il widget resta senza proprietario **per sempre**.
+	//
+	// La conseguenza non e' cosmetica: `GetSelectedUnit()` passa da `GetOwningPlayer()`, quindi
+	// `URTSelectedUnitPanelWidget::HasSelection()` risponde sempre `false` e il pannello resta `Collapsed`
+	// anche con un'unita' selezionata. Header e roster invece funzionano — leggono il `TurnManager` dal
+	// mondo e non il controller — ed e' la ragione per cui il sintomo sembra riguardare un widget solo.
+	//
+	// ⚠️ Difensivo, non correttivo: se il proprietario c'e' gia' questo blocco non fa nulla. Il `Log` scatta
+	// una volta sola per widget, e serve a sapere **se** il caso si verifica davvero in partita.
+	if (!GetOwningPlayer())
+	{
+		if (APlayerController* PC = World->GetFirstPlayerController())
+		{
+			SetOwningPlayer(PC);
+			UE_LOG(LogRT, Log,
+				TEXT("Screen HUD: '%s' era senza owning player, agganciato ora. "
+					 "Senza, la selezione sarebbe rimasta invisibile al pannello."),
+				*GetClass()->GetName());
+		}
+	}
 
 	// La squadra viene dal controller che POSSIEDE il widget, non da un default: in split-screen o in una
 	// futura sessione a due controller, un `PlayerTeamId` costante mostrerebbe a entrambi lo stesso roster.
