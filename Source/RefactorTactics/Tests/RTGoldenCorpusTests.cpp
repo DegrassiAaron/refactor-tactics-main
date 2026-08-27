@@ -109,11 +109,12 @@ bool FRTGoldenDivergenceNamesTheFieldTest::RunTest(const FString&)
 		DiagFor([](FRTTurnLogEntry& E) { E.Category = ERTLogCategory::Status; })
 			.Contains(TEXT("category atteso Move, trovato Status")));
 
+	// ⚠️ L'esito si legge per NOME, non come numero (`#1427`): e' l'unico campo il cui significato dipende
+	// dalla categoria, e «atteso 2, trovato 5» mandava chi legge a cercare in `RTTurnLog.h` quale enum
+	// fosse. Il valore MESCOLATO resta il numero — cambia la resa, non l'identita'.
 	TestTrue(TEXT("outcome"),
 		DiagFor([](FRTTurnLogEntry& E) { E.Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByUnit); })
-			.Contains(FString::Printf(TEXT("outcome atteso %u, trovato %u"),
-				static_cast<uint8>(ERTMoveOutcome::Moved),
-				static_cast<uint8>(ERTMoveOutcome::BlockedByUnit))));
+			.Contains(TEXT("outcome atteso Moved, trovato BlockedByUnit")));
 
 	TestTrue(TEXT("src"),
 		DiagFor([](FRTTurnLogEntry& E) { E.SrcCell = FRTCellId(7, 7, 1); })

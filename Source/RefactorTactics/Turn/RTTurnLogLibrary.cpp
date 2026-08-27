@@ -703,7 +703,11 @@ namespace
 		// ⚠️ `outcome` resta un numero: il suo significato dipende dalla categoria, e a risolverlo c'e' gia'
 		// `URTScenarioLoader::OutcomeEnumForCategory` — che pero' vive in `ScenarioHarness`, il quale dipende
 		// da `Turn` e non viceversa. Portarla qui e' il lavoro giusto e non e' questo (`#1427`).
-		Number(TEXT("outcome"), E.Outcome);
+		// ⚠️ `outcome` e' l'unico campo il cui significato dipende dalla CATEGORIA, ed e' per questo che si
+		// rende per nome (`#1427`): «atteso 2, trovato 5» mandava chi legge a cercare in `RTTurnLog.h` se
+		// `2` fosse `Lethal`, `AppliedWhileOnCell` o `BlockedByUnit` — il viaggio di ritorno che questo
+		// report esiste per togliere. Il valore mescolato resta il numero: cambia la resa, non l'identita'.
+		Named(TEXT("outcome"), E.Outcome, URTTurnLogLibrary::DescribeOutcome(E.Category, E.Outcome));
 		Cell(TEXT("src"), E.SrcCell);
 		Cell(TEXT("tgt"), E.TgtCell);
 		Number(TEXT("amount"), E.Amount);
@@ -1317,6 +1321,33 @@ ERTTraceComparison URTTurnLogLibrary::CompareSerializedTraces(const TArray<uint8
  * Passa dalla `HashTurnLogOrdered` di una voce sola invece di elencare i campi a mano: cosi' l'elenco
  * resta uno solo (`MixEntryFields`) e non puo' divergere in silenzio da quello vero.
  */
+const UEnum* URTTurnLogLibrary::OutcomeEnumForCategory(ERTLogCategory Category)
+{
+	switch (Category)
+	{
+	case ERTLogCategory::Move:             return StaticEnum<ERTMoveOutcome>();
+	case ERTLogCategory::Combat:           return StaticEnum<ERTCombatOutcome>();
+	case ERTLogCategory::Fallback:         return StaticEnum<ERTFallbackOutcome>();
+	case ERTLogCategory::Reaction:         return StaticEnum<ERTReactionOutcome>();
+	case ERTLogCategory::Environment:      return StaticEnum<ERTEnvironmentOutcome>();
+	case ERTLogCategory::Facing:           return StaticEnum<ERTFacingOutcome>();
+	case ERTLogCategory::Status:           return StaticEnum<ERTStatusOutcome>();
+	case ERTLogCategory::Predictive:       return StaticEnum<ERTPredictiveOutcome>();
+	case ERTLogCategory::ReactionDecision: return StaticEnum<ERTReactionDecisionOutcome>();
+	case ERTLogCategory::ReactionClash:    return StaticEnum<ERTClashLogEvent>();
+	default:                               return nullptr;
+	}
+}
+
+FString URTTurnLogLibrary::DescribeOutcome(ERTLogCategory Category, uint8 Outcome)
+{
+	const UEnum* Enum = OutcomeEnumForCategory(Category);
+	const FString Nome = Enum ? Enum->GetNameStringByValue(static_cast<int64>(Outcome)) : FString();
+	// Un esito fuori dall'enum non e' impossibile — il campo e' un `uint8` e una traccia vecchia puo'
+	// portarne uno che questa build non conosce piu': mostrarlo GREZZO e' l'unica risposta onesta.
+	return Nome.IsEmpty() ? FString::FromInt(static_cast<int32>(Outcome)) : Nome;
+}
+
 bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
 {
 	if (Entry.UnitId == 0)
