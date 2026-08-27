@@ -188,7 +188,8 @@ public:
 	static URTHexMapAsset* MakeArenaV01(UObject* Outer);
 
 	/**
-	 * **Fixture di mappa per nome**: `RelayBasin`, `RelayLite`, `TestArena`, `DemoArena`, `CoverYard`.
+	 * **Fixture di mappa per nome.** I nomi validi li dice `KnownFixtureIds()`, che li deriva dalla stessa
+	 * tabella che li dispaccia: elencarli qui a mano e' cio' che ha prodotto `#1459`.
 	 *
 	 * E' il punto d'ingresso che permette a uno scenario di **riferire** una geometria invece di duplicarla.
 	 * Deliberatamente una funzione con un elenco chiuso e non un registry generico: le fixture sono poche,
@@ -199,6 +200,19 @@ public:
 	 * non esiste, invece di far girare una partita su una mappa senza celle.
 	 */
 	static URTHexMapAsset* MakeFixtureArena(UObject* Outer, const FString& FixtureId);
+
+	/**
+	 * I nomi che `MakeFixtureArena` accetta, **derivati dalla stessa tabella che li dispaccia**.
+	 *
+	 * ⚠️ Esiste perche' l'elenco era scritto a mano in tre posti e nessuno dei tre coincideva col codice
+	 * (`#1459`): la doc di `MakeFixtureArena` e il messaggio d'errore di `GenerateFixtureIntoAsset`
+	 * nominavano `DemoArena`, che non ha un ramo, e la doc ometteva `ArenaV01`, che ce l'ha. Chi chiedeva
+	 * `DemoArena` riceveva «fixture sconosciuta» seguito da un elenco che la conteneva.
+	 *
+	 * Chi mostra i nomi all'utente chiede QUI. L'elenco chiuso resta una scelta dichiarata nel commento di
+	 * `MakeFixtureArena` — cambia solo che ora e' chiuso in **un** posto.
+	 */
+	static TArray<FString> KnownFixtureIds();
 
 	/**
 	 * Occupazione cella -> UnitId ricostruita dallo stato delle unita': solo le vive occupano.

@@ -404,6 +404,50 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	return Arena;
 }
 
+namespace
+{
+	/**
+	 * **L'elenco delle fixture, in UN posto solo** (`#1459`).
+	 *
+	 * Era scritto a mano in tre punti — questa if-chain, la doc di `MakeFixtureArena` e il messaggio d'errore
+	 * di `GenerateFixtureIntoAsset` — e nessuno dei tre coincideva: due nominavano `DemoArena`, che non aveva
+	 * un ramo, e omettevano `ArenaV01`, che ce l'aveva. Chi chiedeva `DemoArena` riceveva «fixture
+	 * sconosciuta» seguito da un elenco che la conteneva.
+	 *
+	 * ⚠️ **`DemoArena` non torna**: `MakeDemoArena` vuole un raggio, e l'interfaccia per NOME non ha modo
+	 * di fornirlo. Sceglierne uno qui sarebbe una decisione di contenuto presa di passaggio — chi vuole
+	 * un'arena piatta chiama `MakeFlatArena`, che il raggio lo chiede.
+	 *
+	 * ⚠️ Il commento di `MakeFixtureArena` dichiara che l'elenco chiuso e' una scelta contro un registry
+	 * a runtime, per non avere «una fixture registrata da qualche parte e non da un'altra». Quel difetto e'
+	 * arrivato lo stesso, per la strada della prosa: la tabella lo chiude davvero.
+	 */
+	struct FFixtureBuilder
+	{
+		const TCHAR* Id;
+		URTHexMapAsset* (*Make)(UObject*);
+	};
+
+	const FFixtureBuilder GFixtures[] = {
+		{ TEXT("RelayBasin"), &URTMatchSetupLibrary::MakeShowcaseRelayBasinArena },
+		{ TEXT("RelayLite"),  &URTMatchSetupLibrary::MakeShowcaseRelayLiteArena  },
+		{ TEXT("TestArena"),  &URTMatchSetupLibrary::MakeTestArena               },
+		{ TEXT("ArenaV01"),   &URTMatchSetupLibrary::MakeArenaV01                },
+		{ TEXT("CoverYard"),  &URTMatchSetupLibrary::MakeCoverYardArena          },
+	};
+}
+
+TArray<FString> URTMatchSetupLibrary::KnownFixtureIds()
+{
+	TArray<FString> Ids;
+	Ids.Reserve(UE_ARRAY_COUNT(GFixtures));
+	for (const FFixtureBuilder& Entry : GFixtures)
+	{
+		Ids.Add(Entry.Id);
+	}
+	return Ids;
+}
+
 URTHexMapAsset* URTMatchSetupLibrary::MakeFixtureArena(UObject* Outer, const FString& FixtureId)
 {
 	if (Outer == nullptr || FixtureId.IsEmpty())
@@ -411,25 +455,12 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeFixtureArena(UObject* Outer, const FSt
 		return nullptr;
 	}
 
-	if (FixtureId.Equals(TEXT("RelayBasin"), ESearchCase::IgnoreCase))
+	for (const FFixtureBuilder& Entry : GFixtures)
 	{
-		return MakeShowcaseRelayBasinArena(Outer);
-	}
-	if (FixtureId.Equals(TEXT("RelayLite"), ESearchCase::IgnoreCase))
-	{
-		return MakeShowcaseRelayLiteArena(Outer);
-	}
-	if (FixtureId.Equals(TEXT("TestArena"), ESearchCase::IgnoreCase))
-	{
-		return MakeTestArena(Outer);
-	}
-	if (FixtureId.Equals(TEXT("ArenaV01"), ESearchCase::IgnoreCase))
-	{
-		return MakeArenaV01(Outer);
-	}
-	if (FixtureId.Equals(TEXT("CoverYard"), ESearchCase::IgnoreCase))
-	{
-		return MakeCoverYardArena(Outer);
+		if (FixtureId.Equals(Entry.Id, ESearchCase::IgnoreCase))
+		{
+			return Entry.Make(Outer);
+		}
 	}
 
 	// Sconosciuta: nessuna arena. Inventarne una vuota farebbe girare la partita e produrrebbe un fallimento
