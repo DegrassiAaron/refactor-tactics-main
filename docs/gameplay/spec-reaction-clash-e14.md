@@ -14,6 +14,22 @@
 > punto del resolver le chiama. Lo stato verificabile vive in
 > `feature-registry.yaml`, non in questa riga: è la seconda volta che una
 > frase di stato in testa a un documento invecchia senza che nessuna riga cambi.
+>
+> ⛔ **§2.2 è SUPERATA in due righe su cinque da [D-204](../decisions/RT_PDR_00_Decision_Log.md)
+> (2026-08-27).** La tabella *«cosa non cambia»* elenca fra le proprietà invarianti *«−10 su ogni danno
+> diretto fino al Cleanup»* e *«blocca la prima spinta»*, sotto la clausola di D-047 secondo cui **nessun
+> numero di bilanciamento cambia**. Quella clausola è caduta: `Hold Ground` mitiga **il colpo a cui
+> risponde** e blocca **quella** spinta, non il turno intero.
+>
+> ⚠️ **Cade la clausola, NON la classificazione**: `Action.Brace` resta un'azione di `Prep` che arma un
+> profilo, la cardinalità 1 del profilo base resta, i tre profili d'eroe di
+> [D-132](../decisions/RT_PDR_00_Decision_Log.md) restano, e §2.1 e §2.3 non si muovono. La ragione è di
+> categoria: una reazione che risponde a un evento ma protegge per tutto il turno è **uno stato travestito
+> da risposta** — e finché lo era, il `Brace` faceva il mestiere che
+> [D-205](../decisions/RT_PDR_00_Decision_Log.md) assegna alla `Guard`.
+>
+> ⏳ **La riscrittura di §2.2 non è ancora stata fatta**, e i numeri stanno in `BAL-3`: questa riga la
+> dichiara invece di lasciarla scoprire, che è la lezione che questa stessa testata ha già pagato due volte.
 
 ## 1. Perché esiste
 

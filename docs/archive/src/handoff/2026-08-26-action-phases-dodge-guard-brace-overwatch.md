@@ -10,16 +10,30 @@
 > [D-015](../../../decisions/RT_PDR_00_Decision_Log.md)/[D-116](../../../decisions/RT_PDR_00_Decision_Log.md) e
 > la sua migrazione è debito **dichiarato** di E38, non un buco scoperto qui.
 >
-> 🔴 **Tre tesi confliggono con decisioni consolidate, e diventano una sola Decision Issue** — decise
-> separatamente si contraddicono: lo slot `Reaction` è **indipendente per progetto** (CP 5.1, E5), quindi
-> «Reaction non gratuita» toglie un asse all'economia del turno; `Action.Brace` è mitigazione + `Status.Root`,
-> non un counter anti-Dash, e una fetta di quell'intento è già in `Reaction.Anchor`; `Action.Guard` **non**
-> nega il movimento.
+> ✅ **Tre tesi hanno prodotto due decisioni, il 2026-08-27** in sessione socratica con l'autore:
+> [D-204](../../../decisions/RT_PDR_00_Decision_Log.md) — `Hold Ground` risponde a **un evento** e smette di
+> coprire il turno — e [D-205](../../../decisions/RT_PDR_00_Decision_Log.md) — la `Guard` è la difesa
+> **piantata**, mitigazione sostenuta e `Status.Slow`. Riaprono `BAL-1`, che `D-121` aveva chiuso.
 >
-> ⚠️ **Il §5 aveva Guard e Brace scambiati.** Chiede `Guard: Move unavailable` e lascia il Brace da
-> «riconciliare»: il catalogo dice l'opposto — la Guard non tocca il movimento, ed è il Brace a inchiodare chi
-> lo pianifica. Chi avesse eseguito il documento alla lettera avrebbe tolto il movimento alla Guard senza
-> accorgersi che al Brace era già tolto.
+> 🔴 **La prima stesura di questo banner diceva due cose false, e le diceva il revisore.** Affermava che
+> *«`Action.Brace` è mitigazione, non un counter anti-Dash»* e che il §10 del sorgente contraddiceva il
+> repository: [D-047](../../../decisions/RT_PDR_00_Decision_Log.md) classifica il `Brace` come azione che
+> **arma un profilo di reazione** dal 2026-08-09, ed è **implementata** —
+> `Reactions.Brace.ProfileDecidesInPlay` e altri tre test girano oggi. Il sorgente aveva ragione, e a
+> sbagliare era la revisione, che aveva letto il testo di una decisione come una descrizione dello stato.
+>
+> 🔴 **E sul movimento della Guardia aveva ragione il §5, non il catalogo.** Il banner diceva *«il §5 aveva
+> Guard e Brace scambiati»*: misurato contro il catalogo era esatto — la `Guard` non tocca il movimento, il
+> `Brace` inchioda con `Status.Root` — ma attribuiva l'errore alla parte sbagliata. `D-205` scambia i due
+> mestieri nel verso che il §5 chiedeva.
+>
+> ⚠️ **Resta non adottato il payload anti-Dash del §4.4**: `Reaction.Anchor` ha già il trigger
+> `AboutToBeDisplaced` e lo scenario `Spec.Reaction.AnchorCancelsPush`, e due entità che annullano la stessa
+> spinta si pagano a ogni lettura del TurnLog — il criterio di `D-070` e `D-082`.
+>
+> ⚠️ **E la tesi «Reaction non gratuita» del §4.7 non è diventata una regola**: il meccanismo esisteva già
+> (`bAllowsReaction`, un dato applicato in due punti del resolver, usato da **una** azione — `Action.Sprint`),
+> quindi la tesi si è ridotta a **un booleano su un'azione**, registrato come `BAL-4`.
 >
 > ⛔ **Il §9 è respinto per intero**: la ladder `AE-PHASE-v0.1` … `AE-LAUNCH-v1.0` è la seconda roadmap che il
 > documento stesso vieta al §9. Le release `v0.2`–`v1.0` esistono con le loro epic in

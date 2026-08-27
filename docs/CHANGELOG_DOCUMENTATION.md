@@ -71,13 +71,25 @@ costata a chi legge, non a chi scrive.
 
 ### Cosa resta aperto, e cosa questo giro NON ha deciso
 
-Tre tesi del sorgente confliggono con regole **consolidate e implementate**, e valgono **una sola** Decision
-Issue perché decise separatamente si contraddicono: lo slot `Reaction` è indipendente per progetto (CP 5.1,
-E5), `Action.Brace` è mitigazione e non un counter anti-Dash, `Action.Guard` non nega il movimento.
+Tre tesi del sorgente confliggono con regole consolidate, e valgono **una sola** Decision Issue perché decise
+separatamente si contraddicono: lo slot `Reaction`, il mestiere del `Brace`, il movimento della `Guard`.
 
 ⚠️ **Superare il sorgente non supera le decisioni che il sorgente voleva rovesciare.** Il referto le registra
-come conflitto e propone la Decision Issue; non le adotta, e nessun `D-nnn` è stato assegnato in questo giro —
-l'ultimo resta **D-195**.
+come conflitto e propone la Decision Issue; non le adotta, e nessun `D-nnn` è stato assegnato in questo giro.
+
+> 🔁 **Aggiornato il 2026-08-27, e due righe di questa voce erano sbagliate.** La Decision Issue proposta è
+> stata invece **decisa in sessione socratica**: `D-204` (`Hold Ground` risponde a un evento) e `D-205` (la
+> `Guard` è la difesa piantata), che riaprono `BAL-1` e aprono `BAL-2`/`BAL-3`/`BAL-4`. Le righe da correggere
+> erano due: *«l'ultimo resta D-195»* — sul `main` di quel giorno l'ultimo era già **D-203**, e i numeri che
+> stavo per assegnare sarebbero stati una collisione, intercettata dal controllo che `CLAUDE.md` §4 prescrive;
+> e *«`Action.Brace` è mitigazione e non un counter»*, che descriveva il **catalogo** come se fosse la
+> decisione: `D-047` classifica il `Brace` come azione che arma un profilo di reazione dal 2026-08-09, ed è
+> implementata. Il dettaglio in [`roadmap/plans/action-phases-economy-handoff-2026-08-26.md`](roadmap/plans/action-phases-economy-handoff-2026-08-26.md) §3.1.
+>
+> ➕ **E il sorgente è uscito dall'inbox.** Era arrivato su `main` anche in
+> `docs/research/handoff/` — l'inbox di ciò che *«non è ancora stato consumato»* — mentre questo giro lo
+> archiviava già in `archive/src/handoff/` col verdetto. Due copie identiche dello stesso file: la copia in
+> `research/` è stata rimossa, che è il passo di ciclo di vita mancante, non una cancellazione.
 
 Sopravvive intera **una** tesi, ed è nuova: `Action.Dash` ed `ERTMatchPhase::Dash` nominano contenitore e
 contenuto, e il costo si paga a ogni lettura del TurnLog — lo stesso criterio con cui `D-070` scartò

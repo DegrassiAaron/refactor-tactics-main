@@ -13,10 +13,15 @@
 > [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md); lo stato di E38 è di
 > [`../roadmap-post-v0.1.md`](../roadmap-post-v0.1.md).
 >
-> ⚠️ **Superare il sorgente non supera le decisioni che il sorgente voleva rovesciare.** Le tre tesi del §3
-> confliggono con regole **consolidate e implementate** (CP 5.1, il catalogo di `Brace` e `Guard`): questo
-> file le registra come conflitto e propone una Decision Issue, **non** le adotta. Chi legge qui una regola
-> nuova sta leggendo male.
+> ✅ **Il §3 è stato deciso il 2026-08-27**, in sessione socratica con l'autore:
+> [D-204](../../decisions/RT_PDR_00_Decision_Log.md) (`Hold Ground` risponde a un evento) e
+> [D-205](../../decisions/RT_PDR_00_Decision_Log.md) (la `Guard` è la difesa piantata), che **riaprono
+> `BAL-1`**. Le regole vivono là, non qui: questa pagina conserva il verdetto sul sorgente e le misure.
+>
+> 🔴 **Due affermazioni della prima stesura erano false, ed erano mie.** Dicevo che il `Brace` «è mitigazione,
+> non una reazione» e che il suo runtime non esisteva: `D-047` lo classifica come azione che **arma un
+> profilo di reazione** dal 2026-08-09, ed è **implementato**. Avevo letto il testo di una decisione come una
+> descrizione dello stato — due volte. Corretto nel §3.1, che tiene l'errore invece di cancellarlo.
 >
 > 🔁 **Perché esiste**: il sorgente prescriveva un audit e poi lo dava per svolto. Metà delle sue tesi
 > descrive cose che il repository fa già, e la sua roadmap `AE-*` fino alla `v1.0` è **la seconda roadmap che
@@ -37,10 +42,10 @@
 | 4.1 | `Dash` è fase, `Dodge` è l'azione | ⚠️ **il problema è reale**: `ERTMatchPhase::Dash` e `Action.Dash` convivono | §4 — rinomina, con i nomi già occupati sul tavolo |
 | 4.2 | Il movimento in Dash non è un Move gratis | ✅ **già così**, e non per policy: lo scatto **occupa lo slot movimento** (`D-028`, `D-191`) | §2 — niente `PostDashMovePolicy` da inventare |
 | 4.3 | Overwatch standard guarda solo il Move | ✅ **già così, per costruzione**: il trigger vive dentro `ResolveMovement` | §2 — un test che lo pinni |
-| 4.4 | Brace è il counter anti-Dash | 🔴 **conflitto**: oggi `Action.Brace` è mitigazione danno + `Root` | §3 — Decision Issue |
-| 4.5 | Guard nega Move e Reaction | 🔴 **falso in entrambe le metà**, e rovesciato: è **Brace** che nega il movimento | §3 — Decision Issue |
-| 4.6 | Interact consente Move, nega Reaction | ⚠️ metà vera: il Move è libero; la Reaction **non** è negata da nessuno | §3 — stessa Decision Issue di 4.5/4.7 |
-| 4.7 | La Reaction non è gratuita | 🔴 **conflitto frontale**: lo slot Reaction è **indipendente** per decisione (CP 5.1, E5) | §3 — è *la* domanda del dominio |
+| 4.4 | Brace è il counter anti-Dash | 🔴 **la premessa era mia e sbagliata**: il `Brace` **è già una reazione**, per `D-047` e in codice. Il *payload* anti-Dash resta un'altra azione | §3 — chiuso da `D-204` |
+| 4.5 | Guard nega Move e Reaction | ✅ **il sorgente aveva ragione sul movimento**: era il **catalogo** a essere invertito | §3 — `D-205` la pianta (`Slow`); la reazione è `BAL-4` |
+| 4.6 | Interact consente Move, nega Reaction | ⚠️ metà vera: il Move è libero; la Reaction **non** è negata da nessuno | §3 — stessa forma di `BAL-4`, non ancora posta |
+| 4.7 | La Reaction non è gratuita | ⚠️ **il meccanismo esiste già**: `bAllowsReaction` è un dato, applicato, e lo usa **una** azione (`Sprint`) | §3 — ridotta a `BAL-4`: un booleano, non una regola |
 | 4.8 | Prep ospita Guard/Brace/Overwatch | ✅ **misurato**: tutte e tre in `ERTResolutionPhase::Preparation` | niente |
 | 4.9 | `Sprint` non è `Dodge` | ✅ deciso (`D-015`, `D-116`) ⏳ **non implementato**: debito dichiarato di E38 | §2 — non è lavoro nuovo |
 | 9 | Ladder `AE-*` fino a v1.0 | ⛔ **duplicato**: `E38` e `E40`–`E45` possiedono già quelle release | §6 — mapping, non epic nuove |
@@ -160,54 +165,69 @@ profilo, e la migrazione presa da sola produce l'upgrade puro vietato da `D-015`
 
 ---
 
-## 3. Le tesi che confliggono: una Decision Issue, non un commit
+## 3. Le tesi in conflitto: decise il 2026-08-27
 
-Le tre voci sotto sono **una sola domanda** vista da tre lati, e vanno decise insieme o non decise.
+> 🔁 **Questa sezione è stata riscritta.** Nella prima stesura dichiarava tre conflitti *«da portare a una
+> Decision Issue»*. Due di quei tre **non erano conflitti col repository**: erano conflitti con
+> l'implementazione, che avevo descritto come se fosse la decisione. La sessione socratica del 2026-08-27 li
+> ha sciolti e ha prodotto [D-204](../../decisions/RT_PDR_00_Decision_Log.md) e
+> [D-205](../../decisions/RT_PDR_00_Decision_Log.md).
 
-### 3.1 La domanda: la Reaction resta indipendente?
+### 3.1 Il `Brace` era già una reazione — e l'errore era mio
 
-Il handoff §4.7 chiede che la capacità di reazione sia una risorsa forte, spenta da Guard, da Interact e
-in parte dalle azioni di Dash. Il repository ha deciso il contrario, e non per distrazione: lo slot
-`Reaction` è **indipendente per progetto** (CP 5.1, epic E5), e la sua indipendenza è ciò che rende
-pianificabile il turno «mi muovo, agisco e resto pronto».
+Scrivevo: *«oggi `Action.Brace` è mitigazione danno + `Root`»*, e classificavo la tesi del sorgente come
+conflitto con una decisione consolidata. **Falso in due modi.**
 
-Adottare il handoff significa **togliere un asse all'economia del turno**. Può essere giusto — è
-esattamente il genere di leva che `D-114` cercava quando ha confermato gli slot e spostato il peso sui
-*drawback* — ma è una decisione di dominio, con quattro consumatori (catalogo, validatore, HUD, pesi del
-bot) e i golden replay da rifare.
+[D-047](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-09, `Consolidata`) dice:
 
-> 📌 `D-114` dice che il peso di un'azione si paga in **drawback**, e nomina *«rinuncia alla reazione»*
-> fra quelli. Il handoff sta chiedendo di **generalizzare quel drawback a tre azioni core**. Questa è la
-> tesi più forte del documento, ed è l'unica che merita di diventare una decisione.
+> *«`Brace` prepara una reazione; **come** si reagisce lo dice il Reaction Profile del personaggio. La
+> risposta universale è `Hold Ground`.»*
 
-### 3.2 Il Brace: mitigazione o counter anti-Dash?
+E non è solo scritta: **è implementata**. `Reactions.Brace.ProfileDecidesInPlay`,
+`...SidestepLeavesThePushLine`, `...DecisionRoundTripsThroughTrace`, `...BotAnswerIsLegal` girano oggi, e
+[D-132](../../decisions/RT_PDR_00_Decision_Log.md) ha già assegnato i tre profili d'eroe.
 
-Oggi `Action.Brace` dà `Status.Braced` (−10 su **ogni** danno diretto fino al Cleanup, contro il −15 sul
-**primo** della `Guard`) e `Status.Root`. È una difesa di durata contro un'identità di difesa di picco, e
-la coppia è coerente: due prezzi diversi per due minacce diverse. Gli scenari esistono e girano
-(`Scenarios/Spec/Brace/*`, `Scenarios/Spec/Facing/BraceHoldsFromBehind.json`).
+Avevo letto la nota di D-047 *«nessun runtime prima di E13»* come se descrivesse il presente — lo stesso
+errore, due volte nella stessa sezione: **prendere il testo di una decisione per una descrizione dello
+stato**. È esattamente ciò contro cui questa cartella esiste.
 
-Il handoff propone un Brace che **intercetta l'ingaggio della fase Dash** — arresto della carica,
-resistenza al displacement, Stagger sull'attaccante. Non è un payload da aggiungere: è un'**altra azione**
-che occuperebbe lo stesso ID.
+Il payload *anti-Dash* che il sorgente propone resta invece un'altra cosa, e resta non adottato: `Reaction.Anchor`
+ha già il trigger `AboutToBeDisplaced` e lo scenario `Spec.Reaction.AnchorCancelsPush`, e due entità che
+annullano la stessa spinta si pagano a ogni lettura del TurnLog — il criterio di `D-070` e `D-082`.
 
-⚠️ Va notato che una fetta di quell'intento esiste già altrove, e non nel Brace: `Reaction.Anchor` ha il
-trigger `AboutToBeDisplaced` e lo scenario `Spec/Reaction/AnchorCancelsPush.json`. Chi decide deve dire se
-il Brace **assorbe** Anchor o gli si affianca — due entità che annullano la stessa spinta si pagano a ogni
-lettura del TurnLog, che è il criterio con cui `D-070` scartò `Reposition` e `D-082` scartò `Breach`.
+### 3.2 Cosa è stato deciso
 
-### 3.3 La Guard: nega il movimento o no?
+**[D-204] — `Hold Ground` risponde a un evento, non copre il turno.** Cade una sola clausola di D-047,
+quella che diceva *«nessun numero di bilanciamento cambia»*: la risposta universale mitiga **il colpo a cui
+risponde** e blocca **quella** spinta. La ragione non è il numero ma la categoria — una reazione che risponde
+a un evento e protegge per l'intero turno è uno **stato travestito da risposta**.
 
-Il handoff la vuole `Move: unavailable`. Il catalogo non le dà `Root`, quindi oggi la Guard **non** nega
-il movimento, e `Move + Guard + reazione d'eroe` — la combinazione che il handoff chiama esplicitamente
-inaccettabile — è **legale e pianificabile**.
+**[D-205] — la `Guard` è la difesa piantata**: mitigazione sostenuta, `Status.Slow` auto-inflitto. Supera
+[D-121](../../decisions/RT_PDR_00_Decision_Log.md), che aveva chiuso `BAL-1` come *status quo*.
 
-Se 3.1 si decide «sì», questa cade di conseguenza per la sola metà della reazione; la metà del movimento
-resta una decisione a sé, e va guardata insieme al `Root` del Brace, o le due difese finiscono con lo
-stesso prezzo.
+> **Perché la supersessione è legittima, e non un ripensamento.** D-047 e D-121 sono state prese
+> **nell'ordine sbagliato l'una rispetto all'altra**: D-121 ha fissato la divisione del lavoro fra le due
+> difese *come se fossero due azioni dello stesso tipo*, tre giorni dopo che D-047 aveva cambiato **che cosa
+> è** il `Brace`. Quando il runtime del profilo è atterrato, lo «status quo» che D-121 conferma ha smesso di
+> descrivere qualcosa che esiste — e qualcuno deve restare il difensore piantato.
 
-> **Ciò che non è deciso e il handoff dà per fatto**: `Guard = anti-Blast`. Il documento lo marca come
-> «direzione proposta» e poi lo usa nella matrice. Resta proposta.
+Sul movimento della Guardia **il sorgente aveva ragione e il catalogo torto**: `Move + Guard + reazione
+d'eroe` era legale, ed è la combinazione che il sorgente chiamava inaccettabile. La prima stesura di questo
+referto diceva che il sorgente aveva *«Guard e Brace scambiati»* — misurato contro il catalogo era esatto, ma
+attribuiva l'errore alla parte sbagliata.
+
+### 3.3 Cosa resta aperto, e non è stato dedotto di passaggio
+
+Tre domande, registrate in [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) invece che risolte qui:
+
+| ID | Domanda | Perché non si decide qui |
+|---|---|---|
+| `BAL-2` | La Guardia piantata copre a 360° o resta frontale? | è l'unica delle tre che **fa rosso uno scenario verde** (`BackAttackIgnoresGuard`, CP 16.2) |
+| `BAL-3` | Con quali numeri, e quanto dura `Hold Ground`? | `balance/README.md` e `D-023` vietano di correggerli a tavolino |
+| `BAL-4` | La Guardia piantata nega anche la reazione? | è ciò che resta della tesi 4.7: **un booleano su un'azione**, non una regola generale |
+
+`BAL-1` è **riaperta**, e `#403` / `U20 · PIE-BAL1` non cade: si **ripunta**, perché verificava la
+leggibilità di una differenza che ora è diversa.
 
 ---
 
@@ -231,8 +251,8 @@ e uno dei contenuti, e il costo si paga a ogni lettura del TurnLog — lo stesso
   con `D-182`**. Una rinomina fatta oggi non ha nessuno che segnali le occorrenze rimaste.
 
 Prima di decidere il nome serve una misura, non un'opinione: quante occorrenze di `Action.Dash` esistono in
-`Source/`, `Content/`, `Scenarios/`, `docs/` e nel corpus golden. È lavoro di un'ora, ed è il preflight della
-Decision Issue.
+`Source/`, `Content/`, `Scenarios/` e `docs/`, e quante nel corpus golden. È lavoro di un'ora, ed è il
+preflight della decisione sul nome — che resta **non presa**.
 
 ---
 
@@ -350,10 +370,18 @@ snapshot non diverge.
 
 ---
 
-## 10. Il prossimo passo, uno solo
+## 10. Il prossimo passo
 
-**La Decision Issue del §3** — «la capacità di reazione resta indipendente dagli altri due slot?» — con le
-tre voci (Reaction, Brace, Guard) nella stessa issue, perché decise separatamente si contraddicono.
+Il §3 è deciso (`D-204`, `D-205`) e **nessuna riga di codice è stata scritta**: le due voci cambiano il
+comportamento di gioco, e l'ordine in cui si eseguono non è indifferente.
 
-Tutto il resto o è già vero (§2), o è già tracciato (§5, §6), o dipende da quella risposta. I due scenari
-dell'Overwatch (§7) sono l'unico lavoro che si può fare **prima** della decisione, e non la anticipano.
+1. **`BAL-2` prima del catalogo.** È l'unica delle tre domande aperte che fa **rosso uno scenario verde**
+   (`Spec.Facing.BackAttackIgnoresGuard`, CP 16.2): decisa dopo, si scoprirebbe avendo già toccato i dati.
+2. **Una sola rigenerazione del corpus golden**, per D-204 e D-205 insieme — è la disciplina che
+   [D-196](../../decisions/RT_PDR_00_Decision_Log.md) ha appena imposto per tre cambi d'identità decisi
+   insieme, e due voci che cambiano numeri di danno ricadono nella stessa regola.
+3. **`#403` / `U20 · PIE-BAL1` si ripunta**, non si chiude: verificava la leggibilità di una differenza che
+   ora è un'altra.
+
+I due scenari dell'Overwatch (§7) restano l'unico lavoro indipendente da tutto questo, e si possono fare
+subito: pinnano ciò che oggi è vero **per costruzione**, quindi passano senza toccare produzione.
