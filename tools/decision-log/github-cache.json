@@ -838,7 +838,7 @@
    "type": "pr"
   },
   "1396": {
-   "state": "open",
+   "state": "closed",
    "title": "Quattro formulazioni di prevalenza in cinque documenti, e nessuna copre il caso che serve",
    "type": "issue"
   },
@@ -931,6 +931,16 @@
    "state": "closed",
    "title": "docs: D-208 — chiude BAL-5, e Guard e Brace finiscono con lo stesso prezzo",
    "type": "pr"
+  },
+  "1473": {
+   "state": "open",
+   "title": "Un curatore che cade nel Blast scrive la cura riuscita e non quella mancata: due predicati opposti nella stessa funzione",
+   "type": "issue"
+  },
+  "1479": {
+   "state": "open",
+   "title": "CLEANSE-1: la Cleanse e' cieca al controllo, e la misura lo dice",
+   "type": "issue"
   }
  }
 }
