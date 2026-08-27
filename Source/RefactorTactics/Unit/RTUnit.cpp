@@ -287,10 +287,15 @@ void ARTUnit::RefreshComponentVisibility()
 	if (Mesh)
 	{
 		// ⚠️ Il cilindro e' un SEGNAPOSTO, e il posto non e' piu' vuoto quando l'eroe ha la sua skeletal.
-		// Il predicato si CALCOLA da qui invece di rileggere cio' che il Blueprint ha impostato, e questo
-		// chiude una domanda aperta: non conta piu' se i `BP_Unit_*` usino `bVisible = false` oppure
-		// `bHiddenInGame = true` (che a un `SetVisibility` sopravviverebbe), perche' il C++ ricalcola
-		// comunque il valore giusto a ogni refresh.
+		// Il predicato si CALCOLA da qui invece di rileggere cio' che il Blueprint ha impostato.
+		//
+		// 🔴 **`SetVisibility` non scavalca `bHiddenInGame`** — una stesura precedente di questo commento
+		// affermava che «non conta» quale delle due forme il Blueprint usi, ed era falso in generale. Sono
+		// due flag distinti (si disegna solo con `bVisible && !bHiddenInGame`). Qui regge per una ragione
+		// piu' stretta: **sugli eroi il predicato vale `false` in entrambi i casi**, perche' `bHasHeroMesh`
+		// e' vero e il cilindro va nascosto comunque — le due forme coincidono per VERSO. Su un'unita'
+		// senza skeletal il cui `BP_Unit_*` usasse `bHiddenInGame = true`, questa riga chiederebbe di
+		// mostrare il cilindro e il cilindro resterebbe invisibile. Vedi `ShouldShowPlaceholderMesh`.
 		Mesh->SetVisibility(ShouldShowPlaceholderMesh(bRender, bHasHeroMesh), /*bPropagateToChildren*/ false);
 	}
 
@@ -349,7 +354,23 @@ float ARTUnit::GhostOpacityForContact(int32 ContactTurn, int32 CurrentTurn)
 	{
 		return 0.0f;
 	}
-	return (Age == 0) ? 1.0f : 0.45f;
+	// 🔴 **`0.75`, non `1.0`.** La spec dichiara che il ricordo e' una sagoma **semitrasparente**
+	// (`docs/technical/systems/conoscenza-parziale-visibile-spec.md`, decisione **S4** in §2, ripetuta
+	// dall'emendamento a `progettazione-hud.md` in §7). ⚠️ Il riferimento NON e' §4 A4, che dichiara altri
+	// due canali — *monocromo desaturato* e *senza freccia di facing* — e distingue la sagoma dall'Action
+	// Ghost, non da un'unita' viva: chi venisse a rileggere A4 non ci troverebbe questa regola.
+	//
+	// `1.0` e' opaco, e `Age == 0` — «perso di vista in QUESTO
+	// turno» — e' il caso piu' frequente, non un angolo. Finche' l'unita' vera restava disegnata accanto
+	// alla sagoma l'opacita' era cosmetica; da quando l'unita' ignota sparisce, la sagoma e' l'unica cosa
+	// che il giocatore vede di quel nemico e sta nella cella dell'ULTIMO CONTATTO, non in quella vera:
+	// dichiararla «non e' piu' li'» e' il lavoro della trasparenza.
+	//
+	// Il valore: piu' leggibile di `0.45` perche' il contatto e' fresco, e abbastanza sotto `1.0` da far
+	// vedere il terreno attraverso la sagoma. ⚠️ **Non e' il canale portante** — nome, barra HP, anello di
+	// squadra, anello di selezione e freccia di facing sono gia' spenti su un'unita' ignota, e sono loro a
+	// distinguere il ricordo da un'unita' viva. E' il canale **dichiarato**, ed era violato.
+	return (Age == 0) ? 0.75f : 0.45f;
 }
 
 void ARTUnit::HideContactGhost()

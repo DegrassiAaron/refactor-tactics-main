@@ -296,8 +296,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					ArcRejected.TgtCell = ArcTarget->Cell;
 					ArcRejected.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
 					AppendLogEntry(ArcRejected, Unit);
+					// Stesso soggetto della voce: `ConcludeTurn` ne deriva una riga identica a questa, e
+					// due soggetti diversi sulla stessa frase farebbero passare una copia e non l'altra.
 					AddLogEvent(FString::Printf(TEXT("%s: %s"),
-						*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(ArcRejected)));
+						*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(ArcRejected)),
+						Unit->StableUnitId);
 
 					// L'abilita' NON si consuma: il piano e' gia' stato azzerato sopra (si spende nel turno,
 					// attivata o no), ma il cooldown paga solo cio' che ha davvero toccato la mappa.
@@ -458,8 +461,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			FallbackEntry.TgtCell = Instance.TargetCell;
 			FallbackEntry.Amount = static_cast<int32>(Reason);
 			AppendLogEntry(FallbackEntry, Unit);
+			// Stesso soggetto della voce: vedi `ArcRejected` poco sopra — la copia derivata da
+			// `ConcludeTurn` e questa devono passare o cadere insieme.
 			AddLogEvent(FString::Printf(TEXT("%s: %s"),
-				*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(FallbackEntry)));
+				*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(FallbackEntry)),
+				Unit->StableUnitId);
 
 			if (!Fallback.bProducesEffects)
 			{
@@ -727,7 +733,10 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 		// Chi REAGISCE. Nell'interposizione `SrcCell` e' la cella del protetto, non la sua: dedurre
 		// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
 		AppendLogEntry(Entry, Unit);
-		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
+		// Stesso soggetto della voce: la copia che `ConcludeTurn` deriva e questa raccontano lo stesso
+		// evento con le stesse coordinate, e devono passare o cadere insieme.
+		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)),
+			Unit->StableUnitId);
 	}
 	// APPLICA: i bersagli si riscrivono solo ora, quando ogni decisione e' stata presa sullo stesso snapshot.
 	//
@@ -807,9 +816,13 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 			NoLos.Priority = IntentDefs[BlockedIdx].Priority;
 		}
 		AppendLogEntry(NoLos, Units.IsValidIndex(Blocked.AttackerId) ? Units[Blocked.AttackerId] : nullptr);
+		// ⚠️ Il soggetto e' l'ATTACCANTE anche se la frase nomina entrambi i capi: e' quello che
+		// `AppendLogEntry` scrive nella voce, e `ConcludeTurn` ne deriva una riga gemella di questa.
+		// Scegliere il bersaglio qui farebbe filtrare le due copie con criteri diversi.
 		AddLogEvent(FString::Printf(TEXT("%s (%s -> %s)"), *URTTurnLogLibrary::DescribeEntry(NoLos),
 			*Units[Blocked.AttackerId]->GetName(),
-			bTargetsUnit ? *Units[Blocked.TargetId]->GetName() : TEXT("cella")));
+			bTargetsUnit ? *Units[Blocked.TargetId]->GetName() : TEXT("cella")),
+			Units.IsValidIndex(Blocked.AttackerId) ? Units[Blocked.AttackerId]->StableUnitId : INDEX_NONE);
 	}
 }
 

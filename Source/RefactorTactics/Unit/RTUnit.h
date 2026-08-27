@@ -887,9 +887,18 @@ public:
 	 *
 	 * 🔴 Il cilindro e' un segnaposto, e il posto non e' piu' vuoto quando l'eroe porta la propria skeletal:
 	 * mostrarlo allora rimette un cilindro dentro il personaggio. Il predicato si CALCOLA da qui invece di
-	 * rileggere cio' che il Blueprint ha impostato, e cosi' non conta se i `BP_Unit_*` nascondano il
-	 * cilindro con `bVisible = false` o con `bHiddenInGame = true` (che a un `SetVisibility` sopravviverebbe):
-	 * il C++ ricalcola comunque il valore giusto.
+	 * rileggere cio' che il Blueprint ha impostato, cosi' il valore non dipende da quale delle due forme il
+	 * `BP_Unit_*` abbia usato per nascondere il cilindro.
+	 *
+	 * ⚠️ **`SetVisibility` NON scavalca `bHiddenInGame`**, e una stesura precedente di questa riga diceva
+	 * il contrario. Sono due flag distinti e un componente si disegna solo se `bVisible && !bHiddenInGame`:
+	 * su un `BP_Unit_*` che nasconda il cilindro con `bHiddenInGame = true`, `SetVisibility(true)` non lo
+	 * riporterebbe a schermo. Cio' che regge davvero e' piu' stretto: **sugli eroi il predicato calcola
+	 * `false` in entrambi i casi** (`bHasHeroMesh` e' vero, quindi il cilindro va nascosto comunque), e le
+	 * due forme coincidono per VERSO, non per una proprieta' di `SetVisibility`. Un'unita' **senza**
+	 * skeletal il cui Blueprint usasse `bHiddenInGame = true` resterebbe invisibile mentre questo codice
+	 * chiede di mostrarla: quel caso oggi non esiste nel repository, e se nascesse va risolto qui —
+	 * togliendo il flag alla fonte o chiamando anche `SetHiddenInGame`, non fidandosi di `SetVisibility`.
 	 *
 	 * ⚠️ Nascosto NON significa scollegato: `Mesh` resta il proxy di click (QueryOnly + `ECR_Block`), e la
 	 * collisione la decide `bRender`, non questo predicato.
@@ -921,6 +930,11 @@ public:
 	 *
 	 * `URTTeamKnowledgeLibrary::ContactLifetimeTurns` vale 1: il ricordo vive il turno successivo, poi basta.
 	 * Un contatto con turno maggiore di quello corrente e' incoerente -> zero (fail-closed).
+	 *
+	 * 🔴 **Nessuna eta' produce `1.0`**: la sagoma e' SEMITRASPARENTE per specifica
+	 * (`docs/technical/systems/conoscenza-parziale-visibile-spec.md` **S4**), e da quando l'unita' ignota
+	 * sparisce e' l'unica cosa che il giocatore vede di quel nemico — nella cella dell'ULTIMO CONTATTO, non
+	 * in quella vera. Fresca `0.75`, al turno dopo `0.45`, poi zero.
 	 */
 	static float GhostOpacityForContact(int32 ContactTurn, int32 CurrentTurn);
 

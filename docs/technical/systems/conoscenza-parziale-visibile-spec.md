@@ -190,6 +190,39 @@ vera, e quella non deve attraversare la porta. La conversione avviene **dentro**
 > nominava — ma il letterale **esiste ancora**, e nessun `PlayerController` è coinvolto. Spostarlo là è lavoro
 > proprio, non un effetto collaterale di questa fase.
 
+### 3.5 🔴 Limite dichiarato: un morto non è un soggetto di conoscenza, e il suo turno sparisce dal log
+
+`ViewForTeam` **salta i soggetti non vivi** — *«un morto non è un soggetto di conoscenza: lo tratta la
+presentazione della sconfitta»* (`Perception/RTKnowledgeView.cpp`, primo ramo del ciclo). È una scelta
+coerente: la morte è pubblica, e chiedere «conosco quel morto?» non è la domanda giusta.
+
+⚠️ **Ma la sua conseguenza sul combat log non era scritta da nessuna parte**, ed è più larga di quanto
+suggerisca la riga di commento che la dichiara.
+
+Il filtro è applicato **in lettura**, non in scrittura: `ARTTurnManager::GetRecentEventsForTeam` costruisce
+la vista *ora* e la passa a `ComposeVisibleLogLines` su **tutto** `RecentEvents`, che è un anello di
+`MaxLogLines = 60` righe. Quindi la morte è **retroattiva sull'intero buffer**: nell'istante in cui un'unità
+cade, ogni riga già scritta il cui soggetto è lei perde la propria voce nella vista e viene soppressa
+fail-closed. Il giocatore perde la narrazione del turno di quell'unità — le mosse, gli orientamenti, i colpi
+che ha messo a segno **prima** di cadere, gli stati applicati — proprio del turno che vorrebbe rileggere.
+
+Misurato sui siti che scrivono la morte:
+
+| Riga | Soggetto | Nella vista del giocatore |
+|---|---|---|
+| `Eliminata: <nome> (team N)` (`ARTTurnManager::DestroyDefeatedUnits`) | nessuno | ✅ **resta** — è una riga di mondo |
+| `<nome> eliminato dalla scarica` (risoluzione delle abilità) | nessuno | ✅ **resta**, per omissione del soggetto |
+| `<nome> eliminato dalle fiamme` (danno da `Status.Burning`, Cleanup) | la vittima | ❌ **sparisce**, insieme al resto del suo turno |
+
+Le due righe che restano lo fanno perché non dichiarano un soggetto, non perché qualcuno abbia deciso che
+la morte va mostrata: è lo stesso default fail-open di `AddLogEvent`, che qui produce l'esito desiderato per
+caso. Due morti su tre si leggono, la terza no.
+
+🔴 **È un limite dichiarato, non una riparazione rinviata a metà.** Ripararlo è una decisione di design —
+esentare le righe di un'unità morta, congelarne la visibilità al momento della scrittura, o dare alla morte
+un canale proprio — e vive in una issue separata. Qui si registra perché nessun documento lo diceva e chi
+leggeva il log in partita non aveva modo di distinguerlo da un difetto.
+
 ---
 
 ## 4. Fase A — Le unità

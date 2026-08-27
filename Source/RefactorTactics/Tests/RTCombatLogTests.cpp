@@ -335,4 +335,138 @@ bool FRTLogOmitsRememberedEnemyEndToEndTest::RunTest(const FString&)
 	RTCombatLogFixture::DestroyWorld(World);
 	return true;
 }
+
+/**
+ * 🔴 **Nemmeno l'ECO scritto a mano accanto alla voce nomina un nemico che la squadra non vede.**
+ *
+ * Il gemello qui sopra passava per la ragione sbagliata, e la re-review lo ha misurato: nel suo scenario la
+ * nemica produce **solo** una voce `Move` con esito `Stayed`, e l'unico canale che la racconta e' la
+ * derivazione dal TurnLog. Il verde dimostrava «nessun leak su *quel tipo* di evento», non «nessun leak».
+ *
+ * Sette siti della risoluzione rieccheggiano **verbatim** la voce che hanno appena scritto nel TurnLog,
+ * chiamando lo stesso `URTTurnLogLibrary::DescribeEntry`. Sono una **seconda porta** verso `RecentEvents`:
+ * l'evento entra nel TurnLog con la sua identita' e usciva di qui senza, quindi le coordinate che il filtro
+ * sopprimeva sulla copia derivata arrivavano comunque a schermo dalla copia scritta a mano.
+ *
+ * Questo test costruisce l'evento piu' economico che ne attraversa uno — una **mossa bloccata**, l'eco di
+ * `ResolveMovement` — e asserisce sull'uscita filtrata.
+ *
+ * ⚠️ **La firma dell'eco e' il NOME.** La copia derivata da `ConcludeTurn` e' il solo `DescribeEntry`
+ * (*«fermo: cella occupata (q=5,r=0,L=0)»*); l'eco antepone `%s: ` col nome dell'unita'. Una riga che porta
+ * **entrambi** puo' venire solo dalla seconda porta: e' cosi' che la premessa 3 distingue i due canali senza
+ * contare le righe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLogOmitsRememberedEnemyBlockedMoveTest,
+	"RefactorTactics.UI.LogOmitsRememberedEnemyBlockedMove",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
+{
+	UWorld* World = RTCombatLogFixture::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* Map = RTCombatLogFixture::SpawnMap(World);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	ARTUnit* Mia = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0, 0));
+	ARTUnit* Nemica = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(1, 0, 0));
+	// ⚠️ L'ostacolo e' della squadra AVVERSARIA, non della mia: un alleato piazzato li' vedrebbe la nemica
+	// da un passo di distanza e la terrebbe `Live`, cioe' smonterebbe la premessa del test.
+	ARTUnit* Muro = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(4, 0, 0));
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("mappa"), Map)
+		|| !TestNotNull(TEXT("unita' mia"), Mia) || !TestNotNull(TEXT("unita' nemica"), Nemica)
+		|| !TestNotNull(TEXT("l'ostacolo"), Muro))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// Turno 1 — adiacenti: la nemica si VEDE, e la squadra registra il contatto.
+	RTCombatLogFixture::RunTurn(TM);
+
+	// Poi la si perde di vista. `VisionRange = 0` lascia attivo il canale ravvicinato
+	// (`CloseAwarenessRange` = 2): la distanza 5 e' oltre entrambi.
+	Nemica->PlaceOnCell(FRTCellId(5, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+	Mia->VisionRange = 0;
+
+	// Turno 2 — la nemica prova a muoversi e trova la cella occupata. Il percorso si scrive a mano dritto
+	// dentro l'ostacolo: passando per `PlannedCell` l'A* lo aggirerebbe e non ci sarebbe mossa bloccata.
+	// Bloccata al PRIMO passo, quindi partenza e arrivo coincidono: la cella che la riga stampa
+	// (`SrcCell`, `Paths[i][0]`) e' anche quella in cui la nemica si trova a fine turno.
+	Nemica->PlannedPath = { FRTCellId(5, 0, 0), FRTCellId(4, 0, 0), FRTCellId(3, 0, 0) };
+	Nemica->PlannedCell = FRTCellId(3, 0, 0);
+	Muro->PlannedCell = Muro->Cell; // fermo: e' l'ostacolo
+	RTCombatLogFixture::RunTurn(TM);
+
+	// ── Premessa 1: e' davvero un RICORDO, non un'ignota e non una vista.
+	const ERTTargetKnowledge Conoscenza = URTTeamKnowledgeLibrary::ClassifyTarget(
+		TM->KnowledgeForTeamPublic(0), Nemica->StableUnitId, Nemica->TeamId, Nemica->Cell);
+	if (!TestTrue(TEXT("premessa: la nemica e' un RICORDO per la squadra 0 (CellOnly)"),
+		Conoscenza == ERTTargetKnowledge::CellOnly))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// ── Premessa 2: il turno ha davvero prodotto l'evento che attraversa l'eco. Senza, il test verificherebbe
+	// l'assenza di una riga che nessuno ha scritto — e resterebbe verde anche a filtro rimosso.
+	bool bMossaBloccata = false;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Move
+			&& E.UnitId == Nemica->StableUnitId
+			&& (E.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedByUnit)
+				|| E.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedContested)))
+		{
+			bMossaBloccata = true;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("premessa: la nemica ha una voce Move BLOCCATA nel TurnLog (l'eco scatta solo su quelle)"),
+		bMossaBloccata))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	const FString CellaAttuale = TEXT("(q=5,r=0,L=0)");
+	const FString NomeNemica = Nemica->GetName();
+
+	// ── Premessa 3: la SECONDA porta ha davvero scritto. Nome **e** coordinate sulla stessa riga: la copia
+	// derivata dal TurnLog non porta il nome, quindi solo l'eco puo' produrla.
+	const TArray<FString>& Complete = TM->GetRecentEvents();
+	bool bEcoNelCanaleCompleto = false;
+	for (const FString& L : Complete)
+	{
+		if (L.Contains(NomeNemica) && L.Contains(CellaAttuale)) { bEcoNelCanaleCompleto = true; break; }
+	}
+	if (!TestTrue(*FString::Printf(
+		TEXT("premessa: l'eco scritto a mano e' nel log completo, con nome e coordinate (log: %s)"),
+		*FString::Join(Complete, TEXT(" | "))), bEcoNelCanaleCompleto))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// ── 🔴 Il cuore: nella vista del giocatore quella riga non c'e', per nessuno dei due canali.
+	const TArray<FString> Visibili = TM->GetRecentEventsForTeam(0);
+	for (const FString& L : Visibili)
+	{
+		TestFalse(*FString::Printf(TEXT("nessuna riga porta la cella della nemica: %s"), *L),
+			L.Contains(CellaAttuale));
+		TestFalse(*FString::Printf(TEXT("nessuna riga porta il nome della nemica: %s"), *L),
+			L.Contains(NomeNemica));
+	}
+
+	// ── Anti-vacuita' finale: il filtro non ha svuotato il log.
+	bool bRigaDiMondo = false;
+	for (const FString& L : Visibili)
+	{
+		if (L.Contains(TEXT("pianificazione"))) { bRigaDiMondo = true; break; }
+	}
+	TestTrue(*FString::Printf(TEXT("il log filtrato non e' vuoto (%d righe)"), Visibili.Num()),
+		Visibili.Num() > 0);
+	TestTrue(TEXT("e conserva le righe di mondo"), bRigaDiMondo);
+
+	RTCombatLogFixture::DestroyWorld(World);
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

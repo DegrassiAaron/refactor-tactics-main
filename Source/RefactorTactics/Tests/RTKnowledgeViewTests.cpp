@@ -269,9 +269,17 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeGhostFadesWithContactAgeTest,
 bool FRTKnowledgeGhostFadesWithContactAgeTest::RunTest(const FString&)
 {
 	// `ContactLifetimeTurns` vale 1: il ricordo dura il turno successivo a quello dell'avvistamento.
-	// Turno del contatto == turno corrente -> sagoma piena; un turno dopo -> gia' in dissolvenza; oltre -> nulla.
-	TestEqual(TEXT("appena visto: opaca"),
-		ARTUnit::GhostOpacityForContact(/*ContactTurn*/ 5, /*CurrentTurn*/ 5), 1.0f);
+	// Turno del contatto == turno corrente -> sagoma fresca; un turno dopo -> gia' in dissolvenza; oltre -> nulla.
+	//
+	// 🔴 **Nessuna eta' e' opaca.** La spec dichiara una sagoma **semitrasparente** (S4, riga 101 di
+	// `docs/technical/systems/conoscenza-parziale-visibile-spec.md`): l'asserzione precedente chiedeva
+	// `1.0` ad `Age == 0`, cioe' proprio il valore che la spec vieta, e nel caso PIU' FREQUENTE — «perso
+	// di vista in questo turno». Si asserisce l'intervallo aperto, non il numero: la scala e' presentazione
+	// e puo' essere ritoccata, l'opacita' piena no.
+	TestTrue(TEXT("appena visto: si vede bene ma NON e' opaca"),
+		ARTUnit::GhostOpacityForContact(/*ContactTurn*/ 5, /*CurrentTurn*/ 5) > 0.0f
+		&& ARTUnit::GhostOpacityForContact(5, 5) < 1.0f
+		&& ARTUnit::GhostOpacityForContact(5, 5) > ARTUnit::GhostOpacityForContact(5, 6));
 	TestTrue(TEXT("un turno dopo: dissolve ma c'e' ancora"),
 		ARTUnit::GhostOpacityForContact(5, 6) > 0.0f && ARTUnit::GhostOpacityForContact(5, 6) < 1.0f);
 	TestEqual(TEXT("oltre la scadenza: sparita"),

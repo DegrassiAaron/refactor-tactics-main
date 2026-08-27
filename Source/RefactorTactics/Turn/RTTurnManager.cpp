@@ -3718,7 +3718,12 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 		// Chi REAGISCE. Nell'interposizione `SrcCell` e' la cella del protetto, non la sua: dedurre
 		// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
 		AppendLogEntry(Entry, Unit);
-		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
+		// Stesso soggetto della voce, e non per simmetria estetica: questa riga rieccheggia **verbatim**
+		// cio' che `ConcludeTurn` deriva dalla voce qui sopra, `DescribeEntry` comprese le coordinate.
+		// Senza soggetto la copia derivata sarebbe filtrata e questa no, e le coordinate soppresse
+		// arriverebbero comunque a schermo dalla seconda porta.
+		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)),
+			Unit->StableUnitId);
 	}
 
 	// Le FUGHE raccolte sopra si applicano ora, con tutte le reazioni gia' valutate sullo snapshot congelato
@@ -4029,8 +4034,13 @@ void ARTTurnManager::ResolveCombat()
 				Bypassed.Amount = static_cast<int32>(HexUnits[i].Facing);
 				AppendLogEntry(Bypassed,
 					Units.IsValidIndex(FirstHit->AttackerId) ? Units[FirstHit->AttackerId] : nullptr);
+				// ⚠️ Il soggetto e' l'ATTACCANTE, non `Units[i]` che il testo nomina: dev'essere lo stesso
+				// della voce qui sopra, perche' `ConcludeTurn` deriva da quella voce una riga identica a
+				// questa. Due soggetti diversi sulla stessa frase significherebbero che una delle due copie
+				// passa il filtro quando l'altra non passa — cioe' il leak che il filtro sopprime.
 				AddLogEvent(FString::Printf(TEXT("%s: %s"), *Units[i]->GetName(),
-					*URTTurnLogLibrary::DescribeEntry(Bypassed)));
+					*URTTurnLogLibrary::DescribeEntry(Bypassed)),
+					Units.IsValidIndex(FirstHit->AttackerId) ? Units[FirstHit->AttackerId]->StableUnitId : INDEX_NONE);
 			}
 		}
 		// Riduzione dichiarata dalle reazioni attivate (`Action.Deflect` e le reazioni d'eroe che ne riusano
@@ -5281,8 +5291,12 @@ void ARTTurnManager::ResolveMovement()
 		if (MoveLog.IsValidIndex(i)
 			&& (Resolved[i].Outcome == ERTMoveOutcome::BlockedContested || Resolved[i].Outcome == ERTMoveOutcome::BlockedByUnit))
 		{
+			// Il soggetto e' `Units[i]`, lo stesso che `AppendLogEntry` ha appena scritto nella voce: la
+			// riga porta `SrcCell` e `TgtCell` di quella mossa, cioe' esattamente la posizione che una
+			// squadra che non lo vede non deve leggere.
 			AddLogEvent(FString::Printf(TEXT("%s: %s"),
-				*Units[i]->GetName(), *URTTurnLogLibrary::DescribeEntry(MoveLog[i])));
+				*Units[i]->GetName(), *URTTurnLogLibrary::DescribeEntry(MoveLog[i])),
+				Units[i]->StableUnitId);
 		}
 	}
 

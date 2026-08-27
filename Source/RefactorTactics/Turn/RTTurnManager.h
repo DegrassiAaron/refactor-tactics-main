@@ -1091,8 +1091,13 @@ protected:
 	 * ⚠️ **Il default `INDEX_NONE` non significa «riga di mondo»: significa «soggetto non dichiarato».** Le
 	 * due cose coincidono solo per i siti gia' convertiti. Gli altri lo ereditano per omissione, e fra essi
 	 * ce ne sono che NOMINANO un'unita' — `GetName()`, o le sue coordinate — e passano quindi il filtro di
-	 * conoscenza senza essere filtrabili. Il conteggio vive nel report del giro che li chiude, non qui, per
-	 * non invecchiare a ogni sito aggiunto.
+	 * conoscenza senza essere filtrabili.
+	 *
+	 * Il censimento — quanti sono, su quali file, e quanti ne restano — sta nel Task 4 di
+	 * [`conoscenza-parziale-fase-a-2026-08-26.md`](../../../docs/roadmap/plans/conoscenza-parziale-fase-a-2026-08-26.md),
+	 * che e' versionato e si rimisura. Non si ricopia qui: un numero letterale in un commento invecchia al
+	 * primo sito aggiunto e nessuno lo rilegge. ⚠️ **Non citare il report del giro**: quei file vivono in
+	 * `.superpowers/`, che e' gitignorata — sarebbe un puntatore penzolante per costruzione.
 	 *
 	 * ⛔ Il default **non si puo' chiudere** finche' «evento di mondo» non e' esplicito: gli eventi di mondo
 	 * legittimi usano lo stesso valore, e renderlo fail-closed li cancellerebbe tutti. La via e' togliere il

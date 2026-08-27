@@ -30,9 +30,9 @@ esiste ancora.
 | **1** — `TargetUnknown` leggibile | ✅ | `7f38ba11` | RED 1/1 col default, GREEN 1/1, regressione 71/71 |
 | **2** — la porta `FRTKnowledgeView` | ✅ | `a2b2225f` | RED per **link** (`LNK2019`), GREEN 3/3, **due mutazioni** con rebuild fra l'una e l'altra |
 | **3** — `ARTHUD` consuma la porta | ✅ | `06c8c3c1` | RED per **compilazione** (`C3861` ×4), GREEN 4/4, regressione 27/27 |
-| **4** — il combat log passa dal filtro | ✅ | `e3e61936` · corretto da giro di fix del 2026-08-27 | 14 siti `AddLogEvent` convertiti. ⚠️ **Il canale primario era rimasto fuori**: `ConcludeTurn` deriva l'intero log dal TurnLog e passava ogni riga senza soggetto — chiuso nel giro di fix con `DescribeTurnLogWithSubjects` |
+| **4** — il combat log passa dal filtro | ✅ | `e3e61936` · corretto da due giri di fix del 2026-08-27 | 14 siti `AddLogEvent` convertiti. ⚠️ **Il canale primario era rimasto fuori**: `ConcludeTurn` deriva l'intero log dal TurnLog e passava ogni riga senza soggetto — chiuso nel primo giro di fix con `DescribeTurnLogWithSubjects`. ⚠️ **E sette siti lo disfacevano**: rieccheggiavano *verbatim*, senza soggetto, la voce che avevano appena scritto nel TurnLog — chiusi nel secondo giro. Censimento aggiornato e sue trappole nel Task 4 qui sotto |
 | **5** — l'unità ignota sparisce | ✅ | `678cc8fc` · corretto da giro di fix del 2026-08-27 | `RefreshComponentVisibility` + `SetActorEnableCollision`. ⚠️ Due difetti trovati alla review finale e chiusi nel giro di fix: il predicato non distingueva `Live` da `Remembered` (**C1**), e la funzione sovrascriveva la visibilità decisa da altri owner (**I3**) |
-| **6** — la sagoma del ricordo | ✅ | `ebfee2a9` · `d8fdaed4` · `ad49b166` · `a52df0db` | Sagoma sganciata dal transform del padre, `ContactTurn` sulla voce, dispatch da `DrawHUD` con la sua rete di test, e il materiale `M_LastContactGhost` entrato nel repository. ⚠️ **M8 aperto**: `GhostOpacityForContact` vale `1.0` nel turno del contatto — la sagoma è opaca nel caso più frequente, contro S4 |
+| **6** — la sagoma del ricordo | ✅ | `ebfee2a9` · `d8fdaed4` · `ad49b166` · `a52df0db` | Sagoma sganciata dal transform del padre, `ContactTurn` sulla voce, dispatch da `DrawHUD` con la sua rete di test, e il materiale `M_LastContactGhost` entrato nel repository. ✅ **M8 chiuso** dal secondo giro di fix del 2026-08-27: `GhostOpacityForContact` valeva `1.0` nel turno del contatto — cioè opaca nel caso **più frequente**, contro S4 che dichiara una sagoma *semitrasparente*. Ora `0.75` a contatto fresco, `0.45` al turno dopo, `0` oltre; il test asserisce l'intervallo aperto, non il numero |
 
 **Suite completa sull'albero del giro di fix (2026-08-27)**: `Found 1215 automation tests`, **1215 eseguiti,
 1215 successi, 0 fallimenti**. Dichiarati ed eseguiti coincidono, misurato con **due** metodi: i nomi
@@ -862,13 +862,47 @@ Misurato su `RTTurnManager.cpp`:
 - `ConcludeTurn` **deriva** davvero dal TurnLog:
   `for (const FString& Line : URTTurnLogLibrary::DescribeTurnLog(TurnLog)) { AddLogEvent(Line); }`
   — introdotto da CP 11.3 (#79).
-- **Ma i produttori sparsi sono rimasti**: `grep -c "AddLogEvent(" ` → **61**, di cui **35** nominano
-  un'unità con `%s`. Il commento accanto alla derivazione lo dice: *«prima le righe nascevano da 59
-  `AddLogEvent` sparse nella risoluzione, e il TurnLog nasceva altrove: due produttori indipendenti
-  coincidono per abitudine, non per costruzione»*.
+- **Ma i produttori sparsi sono rimasti.** Il commento accanto alla derivazione lo dice: *«prima le righe
+  nascevano da 59 `AddLogEvent` sparse nella risoluzione, e il TurnLog nasceva altrove: due produttori
+  indipendenti coincidono per abitudine, non per costruzione»*.
 
 **Questo però regala la forma giusta**, invece di complicarla: **tutto passa da `AddLogEvent`**, comprese
 le righe derivate. È l'imbuto, e il filtro va lì.
+
+#### 🔴 Il censimento dei siti `AddLogEvent`, e i due modi in cui era sbagliato
+
+⚠️ **Una stesura precedente di questo blocco contava con `grep -c "AddLogEvent("` e dichiarava `61` siti,
+`35` dei quali nominano un'unità.** Sono numeri da non riusare, per **due** ragioni indipendenti:
+
+1. **Un grep per riga sbaglia sulle chiamate multilinea** e conta anche la definizione della funzione: il
+   `61` include `void ARTTurnManager::AddLogEvent(...)`, che non è un chiamante.
+2. **Il censimento era scopato a `RTTurnManager.cpp` senza dirlo.** Esiste un secondo file, tracciato e
+   compilato, che chiama la stessa funzione: `Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp`
+   (83 KB). Nessuno dei suoi siti era stato guardato. ⚠️ Lo stesso difetto è finito nel corpo del commit
+   `44c016b1`, che dichiara **26** siti scoperti e li presenta come «il numero da portare al passo
+   successivo»: quel corpo è storia e non si riscrive, ma il numero **vale per un file solo**.
+
+Misura con un parser che **bilancia le parentesi** e conta gli argomenti di primo livello, ripetuta da due
+persone sull'albero pre-fix e riprodotta dopo la chiusura dei sette echi:
+
+| File | call site | nominano | passano un soggetto | nominano e restano scoperti |
+|---|---|---|---|---|
+| `RTTurnManager.cpp` | 60 | 40 | 15 → **18** | 26 → **23** |
+| `RTTurnManager_Blast.cpp` | 20 | 16 | 0 → **4** | 16 → **12** |
+| **totale** | **80** | **56** | 15 → **22** | **42 → 35** |
+
+*(«prima → dopo» = albero di `44c016b1` → albero che chiude i sette echi. La differenza è esattamente
+**7**, i sette siti che duplicavano verbatim una voce di TurnLog.)*
+
+⚠️ **`passano un soggetto` non è un sottoinsieme di `nominano`**, e il disaccordo `15` contro `14` della
+prima stesura veniva da qui: esiste **un** sito convertito che non nomina alcuna unità —
+`RTTurnManager.cpp:2385`, cioè la derivazione da `ConcludeTurn` aggiunta dal fix stesso, che passa
+`Line.Value` e stampa il solo `DescribeEntry`. Non erano due definizioni contate in modo diverso.
+
+🔴 **Non copiare `35` da questa tabella**: è una misura, e si rimisura sui **due** file prima di aprire il
+lavoro che li chiude — che è una **issue separata**, insieme alla rimozione del default di `AddLogEvent` da
+cui dipende. I sette echi chiusi qui erano speciali perché duplicavano *verbatim* ciò che il filtro
+sopprimeva: lasciarli era uno stato contraddittorio, non un residuo.
 
 🔴 **Ma non su tutt'e due le cose che fa.** `AddLogEvent` scrive in **due** canali:
 
