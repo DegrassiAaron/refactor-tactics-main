@@ -1642,7 +1642,48 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 	for (int32 h = 0; h < Targets.Num(); ++h)
 	{
 		ARTUnit* HealTarget = Targets[h];
-		if (!HealTarget || !HealTarget->IsAlive()) { continue; }
+		if (!HealTarget || !HealTarget->IsAlive())
+		{
+			// 🔴 **Una cura su chi e' caduto nel frattempo non sparisce in silenzio** ([D-196], `#1447`).
+			// Gli attacchi risolvono a priorita' 50-65 e le cure a 70: l'alleato puo' morire NELLO STESSO
+			// Blast in cui qualcuno lo stava curando. `CollectHealActions` ha gia' accettato il piano e
+			// bruciato `ConsumeAbility`, quindi senza questa voce il replay mostra un curatore con
+			// l'abilita' in ricarica e nessuna azione registrata.
+			//
+			// E' la terza faccia della stessa asimmetria che D-196 ha chiuso per `OutOfRange` e `NoEffect`.
+			// Il motivo `TargetDead` esiste gia' nell'enum: e' esattamente questo.
+			// ⚠️ **Un curatore morto non scrive**: gli attacchi si applicano poche righe piu' su, quindi chi
+			// curava puo' essere caduto nello stesso Blast. `CollectHealActions` e `ResolveCleanseActions`
+			// rifiutano un cadavere per la stessa ragione — la voce entrerebbe nell'hash del replay.
+			ARTUnit* Curatore = Healers.IsValidIndex(h) ? Healers[h] : nullptr;
+			if (Curatore && Curatore->IsAlive())
+			{
+				// ⚠️ Il motivo distingue i due casi che la condizione qui sopra mette insieme: `TargetGone`
+				// se il puntatore non c'e' piu' — l'Actor e' stato distrutto fra raccolta e applicazione — e
+				// `TargetDead` se l'unita' c'e' ed e' caduta. L'enum li separa, e `Amount` entra nell'hash.
+				const ERTActionInvalidReason Motivo = HealTarget
+					? ERTActionInvalidReason::TargetDead : ERTActionInvalidReason::TargetGone;
+
+				// ⚠️ Se la def manca, la voce si scrive lo stesso: il percorso di SUCCESSO qui sotto tollera
+				// entrambe le degradazioni, e una via di fallimento piu' silenziosa di quella di successo
+				// riporterebbe il silenzio che questa voce esiste per togliere.
+				FRTTurnLogEntry Mancata;
+				Mancata.Phase = ERTMatchPhase::Blast;
+				Mancata.Category = ERTLogCategory::Fallback;
+				Mancata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+				Mancata.SrcCell = Sources.IsValidIndex(h) ? Sources[h] : Curatore->Cell;
+				Mancata.TgtCell = HealTarget ? HealTarget->Cell : Mancata.SrcCell;
+				Mancata.Amount = static_cast<int32>(Motivo);
+				if (Defs.IsValidIndex(h))
+				{
+					Mancata.ActionId = Defs[h].ActionId;
+					Mancata.BaseActionId = Defs[h].BaseActionId;
+					Mancata.Priority = Defs[h].Priority;
+				}
+				AppendLogEntry(Mancata, Curatore);
+			}
+			continue;
+		}
 
 		const int32 Before = HealTarget->Health;
 		HealTarget->ApplyCombatState(FMath::Min(HealTarget->MaxHealth, Before + Amounts[h]), HealTarget->Shield);
@@ -1776,6 +1817,15 @@ void ARTTurnManager::TickDynamicArcs(URTHexMapAsset* Map)
 		Entry.Phase = ERTMatchPhase::Cleanup;
 		Entry.Category = ERTLogCategory::Environment;
 		Entry.Outcome = static_cast<uint8>(ERTEnvironmentOutcome::BridgeRemoved);
+		// ⚠️ **Resta l'azione generica, e stavolta e' corretto**: la scadenza non ha un autore. `FRTDynamicArc`
+		// porta arco e durata, non l'identita' di chi l'ha creato, quindi la voce direbbe il falso attribuendo
+		// la rimozione a un'azione che nessuno ha eseguito in questo turno.
+		//
+		// ⚠️ Conseguenza da conoscere ([D-197], `#1447`): un ponte creato da un GADGET si legge col nome del
+		// pezzo alla creazione e con `Action.ModifyArc` alla scadenza. Non e' lo stesso difetto — la seconda
+		// voce non ha un autore da nominare — ma un consumatore che accoppia le due per `ActionId` non le
+		// trova. Chiuderlo vuol dire portare l'identita' dentro `FRTDynamicArc`, cioe' toccare cio' che il
+		// formato archivia: aperto a parte.
 		Entry.ActionId = FName(TEXT("Action.ModifyArc"));
 		Entry.SrcCell = From;
 		Entry.TgtCell = To;

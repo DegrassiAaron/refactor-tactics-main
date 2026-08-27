@@ -385,6 +385,7 @@ spiegarli. La superficie leggibile sapeva qualcosa che la traccia non registrava
 |---|---|
 | **Cura fuori portata** (`RTTurnManager_Blast.cpp`) | `Category=Fallback`, `Phase=Blast`, `Outcome=Cancelled`, `Amount=OutOfRange`, identità completa dell'azione di cura, `SrcCell` = chi cura, `TgtCell` = chi doveva essere curato. `UnitId` = chi ha provato a curare |
 | **Azione interrotta** (`Action.Interrupt`, CP 5.4) | `Category=Fallback`, `Phase=Blast`, `Outcome=Cancelled`, **`Amount=Interrupted`**, identità dell'azione cancellata, `SrcCell` = chi subisce l'interruzione, `TgtCell` = **dove puntava l'azione cancellata**. `UnitId` = chi subisce |
+| **Cura su un alleato caduto** ([D-197]) | `Category=Fallback`, `Phase=Blast`, `Outcome=Cancelled`, **`Amount=TargetDead`** (o `TargetGone` se l'Actor non c'e' piu'), identita' completa dell'azione di cura, `SrcCell` = chi cura, `TgtCell` = chi doveva essere curato. `UnitId` = chi ha provato a curare |
 
 ⚠️ **`ERTActionInvalidReason::Interrupted` è in coda all'enum**, e deve restarci: il motivo viaggia come
 intero grezzo in `Amount`, quindi inserirne uno in mezzo rinumera i successivi e cambia il **significato**

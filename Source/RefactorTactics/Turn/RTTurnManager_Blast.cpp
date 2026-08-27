@@ -432,7 +432,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				}
 
 				Unit->ConsumeAbility(ArcAbilityIndex);
-				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell, Unit });
+				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell, Unit, PlannedNow->Def });
 			}
 			continue;
 		}
@@ -1218,10 +1218,20 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 	//    azione vista dai due lati. Il ponte creato e' TEMPORANEO (2 turni, come le altre modifiche ambientali
 	//    del catalogo) e CONDUTTIVO: la scarica lo risale, quindi e' un rischio oltre che una scorciatoia.
 	//    Ordine canonico prima di applicare: l'ordine delle unita' non deve decidere l'esito.
+	// ⚠️ L'ordinamento deve essere TOTALE: da [D-197] la voce porta anche `ActionId`, che entra nell'hash,
+	// quindi due operazioni sullo stesso arco non possono piu' avere un ordine indeterminato — deciderebbero
+	// quale azione la traccia archiviata nomina. `TArray::Sort` non e' stabile.
 	PendingArcOps.Sort([](const FRTPendingArcOp& A, const FRTPendingArcOp& B)
 	{
 		if (!(A.From == B.From)) { return URTHexLibrary::StableLess(A.From, B.From); }
-		return URTHexLibrary::StableLess(A.To, B.To);
+		if (!(A.To == B.To)) { return URTHexLibrary::StableLess(A.To, B.To); }
+		// Spareggio sull'unita' e poi sull'azione: due operazioni sullo STESSO arco avevano un ordine
+		// indeterminato — `TArray::Sort` non e' stabile — e da [D-197] quell'ordine decide quale `ActionId`
+		// la voce archivia. `StableUnitId` e' l'identita' che non dipende dall'ordine di spawn.
+		const int32 UnitA = A.Actor ? A.Actor->StableUnitId : 0;
+		const int32 UnitB = B.Actor ? B.Actor->StableUnitId : 0;
+		if (UnitA != UnitB) { return UnitA < UnitB; }
+		return A.Def.ActionId.LexicalLess(B.Def.ActionId);
 	});
 	for (const FRTPendingArcOp& Op : PendingArcOps)
 	{
@@ -1255,7 +1265,23 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 		Entry.Category = ERTLogCategory::Environment;
 		Entry.Outcome = static_cast<uint8>(
 			bRemoved ? ERTEnvironmentOutcome::BridgeRemoved : ERTEnvironmentOutcome::BridgeCreated);
-		Entry.ActionId = FName(TEXT("Action.ModifyArc"));
+		// QUALE azione, non l'azione generica ([D-195], [D-197], `#1447`): il percorso di FALLIMENTO
+		// (`ArcRejected`) la nomina gia' cosi', e i due devono dire la stessa cosa.
+		//
+		// ⚠️ Se la def manca si degrada **insieme**: nome generico, e gli altri due campi a zero. Prendere
+		// `Op.Def.Priority` da una def costruita per default scriverebbe **50** — il valore di partenza del
+		// campo — mentre il catalogo dichiara 75 per `Action.ModifyArc`, e `Priority` discrimina in
+		// `EntryLess`: la voce affermerebbe una precedenza che il resolver non ha usato.
+		if (Op.Def.ActionId.IsNone())
+		{
+			Entry.ActionId = ActionModifyArc;
+		}
+		else
+		{
+			Entry.ActionId = Op.Def.ActionId;
+			Entry.BaseActionId = Op.Def.BaseActionId;
+			Entry.Priority = Op.Def.Priority;
+		}
 		Entry.SrcCell = Op.From;
 		Entry.TgtCell = Op.To;
 		Entry.Amount = bRemoved ? 0 : 2; // turni di durata del ponte creato
