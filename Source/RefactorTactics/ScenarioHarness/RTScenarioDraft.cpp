@@ -9,6 +9,12 @@
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h" // ValidateUnitPlacement: la regola sta li', non qui
 
+#include "Ability/RTHeroCatalogLibrary.h"     // MovePoints: il budget viene dall'eroe, non da una stima
+#include "Ability/RTHeroData.h"
+#include "ScenarioHarness/RTScenarioArena.h"  // la stessa arena su cui girera' la partita
+#include "Turn/RTHexSim.h"
+#include "Turn/RTHexSimLibrary.h"             // ReachableCells: il pathfinding sta li', e non qui
+
 void FRTScenarioDraft::NewScenario(const FString& ScenarioId, int32 MapRadius)
 {
 	Scenario = FRTTestScenario();
@@ -323,4 +329,297 @@ TArray<FRTScenarioUnitView> FRTScenarioDraft::ListUnits() const
 	// L'ordine e' quello del file, non un ordinamento: le unita' si nominano per Stable Unit ID e riordinarle
 	// qui farebbe divergere questa vista dal `units` che l'autore legge nel JSON.
 	return Views;
+}
+
+// --- authoring dei turni (#1116) -------------------------------------------------------------------------
+
+namespace
+{
+	/** L'intent di quell'unita' in quel turno, o `INDEX_NONE`. */
+	int32 IndexOfIntent(const FRTScenarioTurn& Turn, const FString& UnitId)
+	{
+		return Turn.Intents.IndexOfByPredicate(
+			[&UnitId](const FRTScenarioIntent& I) { return I.UnitId == UnitId; });
+	}
+}
+
+int32 FRTScenarioDraft::AddTurn()
+{
+	if (!bOpen)
+	{
+		return INDEX_NONE;
+	}
+	return Scenario.Turns.Add(FRTScenarioTurn());
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetMoveIntent(int32 TurnIndex, const FString& UnitId,
+	const TArray<FRTCellId>& Path, FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+	if (!Scenario.Turns.IsValidIndex(TurnIndex))
+	{
+		OutError = FString::Printf(TEXT("turno %d inesistente (ce ne sono %d)"), TurnIndex, Scenario.Turns.Num());
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+	if (IndexOfUnit(UnitId) == INDEX_NONE)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+	if (Path.Num() == 0)
+	{
+		// Un `Move` senza destinazione non e' un'attesa: e' un piano che non dice dove. Chi vuole l'attesa
+		// chiede `SetWaitIntent`, che la scrive nella forma che il formato ha.
+		OutError = FString::Printf(
+			TEXT("il Move di '%s' non dichiara nessuna cella: per non muoversi si usa Wait"), *UnitId);
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+
+	FRTScenarioTurn& Turn = Scenario.Turns[TurnIndex];
+	const int32 Existing = IndexOfIntent(Turn, UnitId);
+
+	FRTScenarioIntent Intent;
+	Intent.UnitId = UnitId;
+	Intent.Move = Path;
+
+	// Sostituisce invece di accumulare: un editor in cui la stessa unita' porta due piani nello stesso turno
+	// e' un editor che mente, e il resolver ne applicherebbe uno solo senza dire quale.
+	if (Existing != INDEX_NONE)
+	{
+		Turn.Intents[Existing] = MoveTemp(Intent);
+	}
+	else
+	{
+		Turn.Intents.Add(MoveTemp(Intent));
+	}
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetWaitIntent(int32 TurnIndex, const FString& UnitId,
+	FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+	if (!Scenario.Turns.IsValidIndex(TurnIndex))
+	{
+		OutError = FString::Printf(TEXT("turno %d inesistente (ce ne sono %d)"), TurnIndex, Scenario.Turns.Num());
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+	if (IndexOfUnit(UnitId) == INDEX_NONE)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	FRTScenarioTurn& Turn = Scenario.Turns[TurnIndex];
+	const int32 Existing = IndexOfIntent(Turn, UnitId);
+
+	// Un intent che nomina l'unita' e nient'altro: e' cosi' che il formato dice «questa unita' non fa nulla».
+	// Vedi la nota nell'header sul perche' NON e' `ability: "Action.Wait"`.
+	FRTScenarioIntent Intent;
+	Intent.UnitId = UnitId;
+
+	if (Existing != INDEX_NONE)
+	{
+		Turn.Intents[Existing] = MoveTemp(Intent);
+	}
+	else
+	{
+		Turn.Intents.Add(MoveTemp(Intent));
+	}
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::RemoveIntent(int32 TurnIndex, const FString& UnitId,
+	FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+	if (!Scenario.Turns.IsValidIndex(TurnIndex))
+	{
+		OutError = FString::Printf(TEXT("turno %d inesistente (ce ne sono %d)"), TurnIndex, Scenario.Turns.Num());
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	FRTScenarioTurn& Turn = Scenario.Turns[TurnIndex];
+	const int32 Existing = IndexOfIntent(Turn, UnitId);
+	if (Existing == INDEX_NONE)
+	{
+		OutError = FString::Printf(TEXT("'%s' non ha un intent nel turno %d"), *UnitId, TurnIndex);
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	Turn.Intents.RemoveAt(Existing);
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::AddExpectationUnitAtCell(const FString& UnitId,
+	const FRTCellId& Cell, FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+	if (IndexOfUnit(UnitId) == INDEX_NONE)
+	{
+		// `Validate` rifiuterebbe comunque un'assertion su una unita' non schierata, ma dirlo QUI evita di
+		// scrivere una assertion che rende lo scenario insalvabile e di scoprirlo al salvataggio.
+		OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	FRTTestExpectation Expectation;
+	Expectation.Kind = ERTAssertionKind::UnitAtCell;
+	Expectation.UnitId = UnitId;
+	Expectation.Cell = Cell;
+	Scenario.Expect.Add(MoveTemp(Expectation));
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::AddExpectationLogEventCount(ERTLogCategory Category, uint8 Outcome,
+	int32 Count, FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+	if (Count < 0)
+	{
+		OutError = FString::Printf(TEXT("LogEventCount: un conteggio non puo' essere negativo (era %d)"), Count);
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+
+	// `OutcomeEnumForCategory` e' la stessa funzione che il loader consulta: una categoria senza enum di esiti
+	// viene rifiutata qui come la', e per la stessa ragione.
+	if (URTScenarioLoader::OutcomeEnumForCategory(Category) == nullptr)
+	{
+		const UEnum* CategoryEnum = StaticEnum<ERTLogCategory>();
+		OutError = FString::Printf(TEXT("la categoria %s non e' asseribile: non ha un enum di esiti"),
+			CategoryEnum ? *CategoryEnum->GetNameStringByValue(static_cast<int64>(Category)) : TEXT("?"));
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+
+	FRTTestExpectation Expectation;
+	Expectation.Kind = ERTAssertionKind::LogEventCount;
+	Expectation.LogCategory = Category;
+	Expectation.LogOutcome = Outcome;
+	Expectation.Value = Count;
+	Scenario.Expect.Add(MoveTemp(Expectation));
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::RemoveExpectation(int32 ExpectationIndex, FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+	if (!Scenario.Expect.IsValidIndex(ExpectationIndex))
+	{
+		OutError = FString::Printf(TEXT("assertion %d inesistente (ce ne sono %d)"),
+			ExpectationIndex, Scenario.Expect.Num());
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	Scenario.Expect.RemoveAt(ExpectationIndex);
+	return ERTScenarioAuthoringResult::Success;
+}
+
+// --- preview (#1116) -------------------------------------------------------------------------------------
+
+TArray<FRTCellId> FRTScenarioDraft::GetReachableCells(const FString& UnitId, UObject* Outer,
+	FString& OutError) const
+{
+	OutError.Reset();
+	TArray<FRTCellId> Result;
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return Result;
+	}
+
+	const int32 UnitIndex = IndexOfUnit(UnitId);
+	if (UnitIndex == INDEX_NONE)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
+		return Result;
+	}
+
+	// La stessa arena che costruira' il runner: se ne esistessero due versioni, la preview mostrerebbe celle
+	// che poi il resolver non concede, e nessuno dei due direbbe di sbagliare.
+	URTHexMapAsset* Map = URTScenarioArenaLibrary::BuildArena(Scenario, Outer);
+	if (!Map)
+	{
+		OutError = Scenario.Fixture.IsEmpty()
+			? FString::Printf(TEXT("arena di raggio %d non costruibile"), Scenario.MapRadius)
+			: FString::Printf(TEXT("fixture di mappa sconosciuta: '%s'"), *Scenario.Fixture);
+		return Result;
+	}
+
+	// Il roster UNA volta, fuori dal ciclo: `GetHeroRoster()` costruisce quattro `URTHeroData` con tutte le
+	// loro abilita' a ogni chiamata, e chiamarlo per unita' e' il costo che la review di `#1115` ha gia'
+	// trovato una volta su questo stesso percorso.
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+
+	// Lo snapshot vuole TUTTE le unita', non solo quella interrogata: le altre occupano celle, e una preview
+	// che le ignorasse offrirebbe destinazioni gia' prese.
+	TArray<FRTHexSimUnit> SimUnits;
+	SimUnits.Reserve(Scenario.Units.Num());
+	for (const FRTScenarioUnit& Unit : Scenario.Units)
+	{
+		FRTHexSimUnit Sim;
+		Sim.UnitId = SimUnits.Num(); // indice denso: e' l'id con cui `ReachableCells` vuole essere chiamata
+		Sim.Cell = Unit.Cell;
+		Sim.bAlive = true;
+		Sim.Facing = Unit.Facing;
+
+		// Il budget viene dall'eroe, dalla stessa fonte da cui lo prende `ARTUnit` (`MoveRange =
+		// Hero->MovePoints`): non e' una stima, e' il valore. Un eroe che il catalogo non conosce non arriva
+		// fin qui — `Validate` lo rifiuta — ma se ci arrivasse, budget zero e' l'assunzione che non inventa
+		// movimento.
+		URTHeroData* const* Found = Roster.FindByPredicate(
+			[&Unit](const URTHeroData* H) { return H && H->HeroId == Unit.HeroId; });
+		Sim.MoveBudget = (Found && *Found) ? (*Found)->MovePoints : 0;
+
+		SimUnits.Add(MoveTemp(Sim));
+	}
+
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
+
+	// ⚠️ Qui non c'e' un algoritmo, c'e' una **domanda**. Budget, blocchi, occupanti e archi li ha gia'
+	// applicati il servizio runtime — che e' il punto di `#1116`: nessun secondo pathfinder nell'editor.
+	const TArray<FRTHexReachableCell> Reachable = URTHexSimLibrary::ReachableCells(Snapshot, UnitIndex);
+
+	Result.Reserve(Reachable.Num());
+	for (const FRTHexReachableCell& Cell : Reachable)
+	{
+		Result.Add(Cell.Cell);
+	}
+	return Result;
 }
