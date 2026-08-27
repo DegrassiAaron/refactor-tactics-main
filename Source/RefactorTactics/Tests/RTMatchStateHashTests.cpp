@@ -118,7 +118,10 @@ bool FRTChecksumCoversEnvironmentTest::RunTest(const FString&)
 
 		// E due stati DIVERSI restano distinguibili: l'ordinamento non deve degenerare in «tutti uguali».
 		TArray<FRTUnitStateDigest> Different = Units;
-		Different[0].Statuses = { FName(TEXT("Status.Burning")), FName(TEXT("Status.Rooted")) };
+		// ⚠️ `Status.Root`, non `Status.Rooted`: quest'ultimo non esiste nel gioco. Il test restava verde perche'
+		// gli basta una stringa DIVERSA, quindi un nome inventato non lo faceva cadere — e da [D-182] nessun
+		// gate segnala un nome che non esiste (`#1389`).
+		Different[0].Statuses = { FName(TEXT("Status.Burning")), FName(TEXT("Status.Root")) };
 		TestNotEqual(TEXT("stati diversi -> hash diversi"),
 			URTMatchStateHashLibrary::HashMatchState(Map, OneOrder, NoScore),
 			URTMatchStateHashLibrary::HashMatchState(Map, Different, NoScore));
