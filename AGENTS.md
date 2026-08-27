@@ -223,7 +223,11 @@ validazione · serializzazione/replay · privacy intenti.
   ([#1300](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1300)).
   ⚠️ **Come ci si accorge**: nel log devono esserci `Found <n> automation tests based on '<filtro>'` e, in
   fondo, `**** TEST COMPLETE. EXIT CODE: <n> ****`. Se manca la prima, la run non ha misurato niente.
-  ✅ Le impostazioni che servono al test si passano dalla **riga di comando** e si leggono con
+  ✅ **La via d'uscita è `-dpcvars="nome=valore"`**, misurata il **2026-08-26** rigenerando il corpus
+  golden con `rt.Test.RegenerateGolden`: imposta la CVar **senza toccare la coda**, quindi dentro
+  `-ExecCmds` resta solo l'automation. ⚠️ Verifica sempre l'effetto atteso — `git status` sui file che
+  dovevano cambiare — invece di fidarti dell'esito del test.
+  ✅ In alternativa le impostazioni si passano dalla **riga di comando** e si leggono con
   `FParse::Value(FCommandLine::Get(), TEXT("RTQualcosa="), Out)`: così dentro `-ExecCmds` resta solo la coda
   di automation. ⚠️ Misurato con una CVar in **prima** posizione: che una voce non-CVar in testa faccia lo
   stesso non è stato provato.
