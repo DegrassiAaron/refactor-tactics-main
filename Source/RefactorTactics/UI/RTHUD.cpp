@@ -879,7 +879,7 @@ void ARTHUD::DrawHUD()
 	// (§4.1 — vedi `rt.HUD.CanvasPanels`)
 	if (bCanvasPanels && TurnManager)
 	{
-		const TArray<FString>& Events = TurnManager->GetRecentEvents();
+		const TArray<FString> Events = TurnManager->GetRecentEventsForTeam(PlayerTeamId);
 		const float LineH = 16.f;
 		float Y = Canvas->SizeY - 24.f - LineH * (Events.Num() - 1);
 		for (const FString& Line : Events)

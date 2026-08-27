@@ -69,14 +69,77 @@ void ARTTurnManager::Tick(float DeltaSeconds)
 	}
 }
 
-void ARTTurnManager::AddLogEvent(const FString& Message)
+void ARTTurnManager::AddLogEvent(const FString& Message, int32 SubjectStableUnitId)
 {
+	// 🔴 Il log di SVILUPPO resta COMPLETO. E' diagnosi, non un canale del giocatore: mutilarlo renderebbe
+	// impossibile capire una partita andata storta, e nessun avversario lo legge.
 	UE_LOG(LogRT, Log, TEXT("[RT] %s"), *Message);
-	RecentEvents.Add(Message);
+
+	RecentEvents.Add(FRTCombatLogLine{ Message, SubjectStableUnitId });
 	while (RecentEvents.Num() > MaxLogLines)
 	{
 		RecentEvents.RemoveAt(0);
 	}
+}
+
+TArray<FString> ARTTurnManager::GetRecentEvents() const
+{
+	// Vista COMPLETA, non filtrata: e' la forma che RecentEvents aveva prima di portare un soggetto. Chi
+	// disegna per un giocatore chiama GetRecentEventsForTeam, non questa.
+	TArray<FString> Out;
+	Out.Reserve(RecentEvents.Num());
+	for (const FRTCombatLogLine& L : RecentEvents)
+	{
+		Out.Add(L.Text);
+	}
+	return Out;
+}
+
+TArray<FString> ARTTurnManager::ComposeVisibleLogLines(const TArray<FRTCombatLogLine>& Lines,
+	const FRTKnowledgeView& View)
+{
+	TArray<FString> Out;
+	Out.Reserve(Lines.Num());
+	for (const FRTCombatLogLine& L : Lines)
+	{
+		// Riga di mondo: nessun soggetto da conoscere, quindi nessuna ragione per nasconderla.
+		if (L.SubjectStableUnitId == INDEX_NONE
+			|| URTKnowledgeViewLibrary::FindEntry(View, L.SubjectStableUnitId) != nullptr)
+		{
+			Out.Add(L.Text);
+		}
+	}
+	return Out; // ordine di produzione, mai riordinato
+}
+
+TArray<FString> ARTTurnManager::GetRecentEventsForTeam(int32 ObserverTeamId) const
+{
+	// Nessun accessor riusabile per «le unita' vive» esiste gia' sul TurnManager: ogni sito che ne ha
+	// bisogno (RefreshTeamKnowledgeForPlanning, ConcludeTurn, ...) ripete GetAllActorsOfClass + cast, come
+	// fa anche ARTHUD::DrawHUD per costruire gli stessi Subjects. Questo blocco segue lo stesso schema
+	// invece di introdurre un terzo modo di raggiungere le unita'.
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+
+	TArray<FRTKnowledgeSubject> Subjects;
+	Subjects.Reserve(Actors.Num());
+	for (AActor* A : Actors)
+	{
+		const ARTUnit* U = Cast<ARTUnit>(A);
+		if (!U) { continue; }
+		FRTKnowledgeSubject S;
+		S.StableUnitId = U->StableUnitId;
+		S.TeamId = U->TeamId;
+		S.Cell = U->Cell;
+		S.HeroId = U->HeroId;
+		S.HeroDisplayName = U->HeroDisplayName;
+		S.bAlive = U->IsAlive();
+		Subjects.Add(S);
+	}
+
+	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(
+		KnowledgeForTeam(ObserverTeamId), Subjects, ObserverTeamId);
+	return ComposeVisibleLogLines(RecentEvents, View);
 }
 
 TArray<FRTCellId> ARTTurnManager::CellsEnteredAlong(const TArray<FRTCellId>& Path)
@@ -212,7 +275,7 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 
 				// ⚠️ `AddLogEvent` **resta**: e' la vista leggibile, non la traccia.
 				AddLogEvent(FString::Printf(TEXT("%s: %d danni da terreno (q=%d,r=%d,L%d)"),
-					*Unit->GetName(), Effect.Amount, Cell.X, Cell.Y, Cell.Layer));
+					*Unit->GetName(), Effect.Amount, Cell.X, Cell.Y, Cell.Layer), Unit->StableUnitId);
 			}
 			else if (Effect.Effect == ERTActionEffect::Status)
 			{
@@ -239,7 +302,8 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 						/*bFromTerrain=*/ true);
 					AppendLogEntry(Nato, Unit);
 				}
-				AddLogEvent(FString::Printf(TEXT("%s: %s da terreno"), *Unit->GetName(), *Effect.StatusTag.ToString()));
+				AddLogEvent(FString::Printf(TEXT("%s: %s da terreno"), *Unit->GetName(), *Effect.StatusTag.ToString()),
+					Unit->StableUnitId);
 			}
 		}
 	}
@@ -514,7 +578,7 @@ void ARTTurnManager::PlanBots()
 			{
 				Bot->PlannedReactionAbility = R;
 				AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione)"),
-					*Bot->GetName(), *Reaction->Def.ActionId.ToString()));
+					*Bot->GetName(), *Reaction->Def.ActionId.ToString()), Bot->StableUnitId);
 				break;
 			}
 		}
@@ -889,13 +953,13 @@ void ARTTurnManager::PlanBots()
 					Bot->PlannedDashAbility = DashIdx;
 					Bot->PlannedDashCell = Dest;
 					AddLogEvent(FString::Printf(TEXT("%s: scatto difensivo (schiva) -> (q=%d,r=%d,L%d)"),
-						*Bot->GetName(), Dest.X, Dest.Y, Dest.Layer));
+						*Bot->GetName(), Dest.X, Dest.Y, Dest.Layer), Bot->StableUnitId);
 					continue;
 				}
 			}
 			Bot->PlannedCell = URTHexBotLibrary::BestKiteCell(Snapshot, BotIdx, NearestKnownCell);
 			AddLogEvent(FString::Printf(TEXT("%s: arretra -> (q=%d,r=%d,L%d)"),
-				*Bot->GetName(), Bot->PlannedCell.X, Bot->PlannedCell.Y, Bot->PlannedCell.Layer));
+				*Bot->GetName(), Bot->PlannedCell.X, Bot->PlannedCell.Y, Bot->PlannedCell.Layer), Bot->StableUnitId);
 			ReserveNormalMove(Snapshot, Bot, BotIdx);
 			continue;
 		}
@@ -1059,8 +1123,11 @@ void ARTTurnManager::PlanBots()
 			// anche un'azione principale significherebbe spendere due volte lo stesso slot.
 			Bot->PlannedDashAbility = DashIdx;
 			Bot->PlannedDashCell = Ctx.Enemies[Best.TargetIndex];
+			// Il soggetto e' il BOT, non il bersaglio: e' la sua posizione e la sua intenzione che trapelano
+			// qui. Il bersaglio e' gia' filtrato dalla riga che lo riguarda.
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> CARICA su %s (impatto da (q=%d,r=%d,L%d)) score=%d"),
-				*Bot->GetName(), *Target->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score));
+				*Bot->GetName(), *Target->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score),
+				Bot->StableUnitId);
 		}
 		else if (bViaDash && Target && BestAbility != INDEX_NONE)
 		{
@@ -1069,8 +1136,10 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedDashCell = Best.DestCell;
 			Bot->PlannedAbilityIndex = BestAbility;
 			Bot->PlannedAttackTarget = Target;
+			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> scatto (q=%d,r=%d,L%d) + attacca %s score=%d"),
-				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score));
+				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score),
+				Bot->StableUnitId);
 		}
 		else if (Target && BestAbility != INDEX_NONE)
 		{
@@ -1078,8 +1147,10 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedCell = Best.DestCell;
 			Bot->PlannedAbilityIndex = BestAbility;
 			Bot->PlannedAttackTarget = Target;
+			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) attacca %s score=%d"),
-				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score));
+				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score),
+				Bot->StableUnitId);
 		}
 		else if (bViaDash)
 		{
@@ -1087,7 +1158,7 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedDashAbility = DashIdx;
 			Bot->PlannedDashCell = Best.DestCell;
 			AddLogEvent(FString::Printf(TEXT("%s: scatto -> (q=%d,r=%d,L%d) score=%d"),
-				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score));
+				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score), Bot->StableUnitId);
 		}
 		else
 		{
@@ -1095,7 +1166,7 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedCell = Best.DestCell;
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) score=%d%s"),
 				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
-				Best.DestCell == Bot->Cell ? TEXT(" (resta)") : TEXT("")));
+				Best.DestCell == Bot->Cell ? TEXT(" (resta)") : TEXT("")), Bot->StableUnitId);
 		}
 
 		// #1088 — l'ultima cosa che il bot fa: dichiarare alle compagne dove sta andando. Copre i quattro
@@ -1358,7 +1429,7 @@ void ARTTurnManager::LockInAndResolve()
 				// e' la traccia. Il DoD di `#625` lo chiede esplicitamente — «non si sostituisce, si affianca».
 				AddLogEvent(FString::Printf(TEXT("%s: %d danni da Status.Burning (q=%d,r=%d,L%d)"),
 					*Unit->GetName(), URTCombatLibrary::BurningCleanupDamage,
-					Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer));
+					Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer), Unit->StableUnitId);
 
 				if (!Unit->IsAlive())
 				{
@@ -1370,7 +1441,7 @@ void ARTTurnManager::LockInAndResolve()
 					// distingue gia': una voce in piu' direbbe due volte lo stesso fatto, e il replay dovrebbe
 					// decidere quale delle due e' il colpo — che e' lo stesso motivo per cui l'attacco letale,
 					// due funzioni piu' sotto, non ne scrive una seconda.
-					AddLogEvent(FString::Printf(TEXT("%s eliminato dalle fiamme"), *Unit->GetName()));
+					AddLogEvent(FString::Printf(TEXT("%s eliminato dalle fiamme"), *Unit->GetName()), Unit->StableUnitId);
 					continue; // morto adesso: non guadagna energia, non conta fra i vivi
 				}
 			}
@@ -1475,7 +1546,7 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 
 	// 1. Riga di combat log: e' per l'HUD e NON finisce nel file — la traccia e' la voce di TurnLog al passo 3.
 	AddLogEvent(FString::Printf(TEXT("%s: %s -> (q=%d,r=%d,L%d)"),
-		LogVerb, *Unit->GetName(), NewCell.X, NewCell.Y, NewCell.Layer));
+		LogVerb, *Unit->GetName(), NewCell.X, NewCell.Y, NewCell.Layer), Unit->StableUnitId);
 
 	// 2. Celle attraversate: la linea esagonale fra le due, i cui passi sono adiacenti per costruzione. Serve
 	// al playback E agli hazard — «lo spostamento forzato ignora il costo VOLONTARIO del terreno, non la
@@ -1624,7 +1695,7 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 		Entry.Amount = Restored; // quanto e' stato curato DAVVERO: a salute piena la voce dice zero
 		// L'attore e' chi CURA, non chi viene curato: la voce dice chi ha agito ([D-063]).
 		AppendLogEntry(Entry, Healers.IsValidIndex(h) ? Healers[h] : nullptr);
-		AddLogEvent(FString::Printf(TEXT("%s: +%d salute"), *HealTarget->GetName(), Restored));
+		AddLogEvent(FString::Printf(TEXT("%s: +%d salute"), *HealTarget->GetName(), Restored), HealTarget->StableUnitId);
 	}
 }
 

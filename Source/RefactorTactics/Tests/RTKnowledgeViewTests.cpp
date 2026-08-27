@@ -3,6 +3,7 @@
 #include "Perception/RTKnowledgeView.h"
 #include "Perception/RTTeamKnowledge.h"
 #include "UI/RTHUD.h"
+#include "Turn/RTTurnManager.h" // ARTTurnManager::ComposeVisibleLogLines
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -162,6 +163,54 @@ bool FRTKnowledgeHudDrawsOnlyKnownUnitsTest::RunTest(const FString&)
 	// avesse una voce. Il proprio schieramento non si nasconde mai a se stessi.
 	TestTrue(TEXT("la propria squadra non si nasconde mai"),
 		ARTHUD::ShouldDrawUnitOverlay(View, 99, /*bIsOwnTeam*/ true));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeCombatLogOmitsUnknownTest,
+	"RefactorTactics.Knowledge.CombatLogOmitsUnknown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeCombatLogOmitsUnknownTest::RunTest(const FString&)
+{
+	const FRTCellId SeenCell(3, 0, 0);
+	FRTTeamKnowledge K = KvKnowledge({ FRTLastKnownContact(2, SeenCell, 5) });
+	K.VisibleCells.Add(SeenCell);
+
+	const TArray<FRTKnowledgeSubject> Subjects = {
+		KvSubject(1, 0, FRTCellId(0, 0, 0)),  // alleato
+		KvSubject(2, 1, SeenCell),            // nemico visto
+		KvSubject(3, 1, FRTCellId(7, 0, 0))   // nemico ignoto
+	};
+	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(K, Subjects, /*Observer*/ 0);
+
+	TArray<FRTCombatLogLine> Raw;
+	Raw.Add({ TEXT("Turno 5 - pianificazione"),       INDEX_NONE }); // riga di mondo, senza soggetto
+	Raw.Add({ TEXT("Alleato: passo -> (0,0,L0)"),     1 });
+	Raw.Add({ TEXT("Nemico visto: passo -> (3,0,L0)"), 2 });
+	Raw.Add({ TEXT("Ignoto: passo -> (7,0,L0)"),      3 });
+
+	const TArray<FString> Visible = ARTTurnManager::ComposeVisibleLogLines(Raw, View);
+
+	TestEqual(TEXT("tre righe su quattro"), Visible.Num(), 3);
+	TestTrue (TEXT("la riga di mondo resta"),  Visible.Contains(TEXT("Turno 5 - pianificazione")));
+	TestTrue (TEXT("l'alleato resta"),         Visible.Contains(TEXT("Alleato: passo -> (0,0,L0)")));
+	TestTrue (TEXT("il nemico visto resta"),   Visible.Contains(TEXT("Nemico visto: passo -> (3,0,L0)")));
+
+	// 🔴 Il cuore: la riga sparisce INTERA. Non una riga oscurata, non una riga vuota.
+	TestFalse(TEXT("la riga dell'ignoto sparisce"), Visible.Contains(TEXT("Ignoto: passo -> (7,0,L0)")));
+
+	// E la sua cella non trapela in NESSUNA delle righe superstiti.
+	for (const FString& L : Visible)
+	{
+		TestFalse(TEXT("nessuna riga nomina la cella dell'ignoto"), L.Contains(TEXT("(7,0,L0)")));
+	}
+
+	// Anti-vacuita': l'ORDINE si conserva. Un filtro che riordinasse renderebbe il combat log illeggibile,
+	// e nessuna delle asserzioni sopra lo prenderebbe.
+	if (Visible.Num() == 3)
+	{
+		TestEqual(TEXT("l'ordine e' quello di produzione"), Visible[0], TEXT("Turno 5 - pianificazione"));
+		TestEqual(TEXT("secondo"), Visible[1], TEXT("Alleato: passo -> (0,0,L0)"));
+	}
 	return true;
 }
 

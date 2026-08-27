@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Core/RTTypes.h"
+#include "Perception/RTKnowledgeView.h" // FRTKnowledgeView: il combat log filtra da qui, non da un secondo canale
 #include "Bot/RTHexBotLibrary.h" // i pesi del bot hanno UNA sorgente: i default della struct
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTResolvedEvent.h"
@@ -165,6 +166,25 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRTPlaybackFinishedSignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FRTOnMatchEndedSignature, const FRTMatchResult&, Result, const FRTMatchState&, State);
 
 /**
+ * Una riga di combat log, col SOGGETTO accanto al testo.
+ *
+ * Il soggetto e' `ARTUnit::StableUnitId` — l'identita' che attraversa fasi e turni — oppure `INDEX_NONE`
+ * per le righe che parlano del MONDO e non di un'unita' («Turno 3 - pianificazione», una superficie che
+ * scade). Senza questo campo il filtro dovrebbe cercare coordinate dentro una stringa gia' formattata.
+ */
+USTRUCT()
+struct FRTCombatLogLine
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Text;
+
+	UPROPERTY()
+	int32 SubjectStableUnitId = INDEX_NONE;
+};
+
+/**
  * Orchestratore del turno: tiene fase e numero di turno e, al lock-in, risolve il turno (logica sincrona,
  * autoritativa) e poi ne RIPRODUCE nel tempo la risoluzione (playback) per rendere il round osservabile.
  * L'animazione legge eventi gia' risolti: non decide nulla (invariante #1).
@@ -269,8 +289,26 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
 	void SkipPlayback();
 
-	/** Ultimi eventi (combat log) per la HUD, dal piu' vecchio al piu' recente. */
-	const TArray<FString>& GetRecentEvents() const { return RecentEvents; }
+	/**
+	 * Ultimi eventi (combat log), dal piu' vecchio al piu' recente. NON filtrati per squadra: e' la vista
+	 * completa, la stessa forma che aveva prima che RecentEvents portasse un soggetto. Chi disegna per un
+	 * giocatore deve chiamare `GetRecentEventsForTeam`, non questa.
+	 */
+	TArray<FString> GetRecentEvents() const;
+
+	/**
+	 * Le righe che un osservatore puo' leggere. Statica e PURA: la si interroga senza montare una partita.
+	 *
+	 * 🔴 Una riga il cui soggetto e' ignoto **sparisce intera**, non viene oscurata: una riga oscurata
+	 * dice comunque che qualcosa e' successo, e quando e' successo.
+	 * L'ORDINE di produzione si conserva: un combat log riordinato non e' un log.
+	 */
+	static TArray<FString> ComposeVisibleLogLines(const TArray<FRTCombatLogLine>& Lines,
+		const FRTKnowledgeView& View);
+
+	/** Le righe recenti gia' filtrate per una squadra. E' cio' che l'HUD deve chiamare. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	TArray<FString> GetRecentEventsForTeam(int32 ObserverTeamId) const;
 
 	/** Esiti autoritativi dell'ultimo turno risolto (Movimento + Combat), ordinati deterministicamente. */
 	const TArray<FRTTurnLogEntry>& GetTurnLog() const { return TurnLog; }
@@ -1042,8 +1080,13 @@ protected:
 	bool bPacingHadInput = false;
 	FString PacingFilePath;            // vuoto finche' non si scrive la prima riga
 
-	/** Registra un evento: lo scrive nel log LogRT e lo accoda al combat log della HUD. */
-	void AddLogEvent(const FString& Message);
+	/**
+	 * Registra un evento: lo scrive nel log LogRT (completo, diagnosi per sviluppatore) e lo accoda al
+	 * combat log della HUD col suo SOGGETTO. `SubjectStableUnitId` e' `INDEX_NONE` per le righe di mondo,
+	 * e per i chiamanti non ancora convertiti — il default tiene compilanti i siti che non nominano
+	 * un'unita' avversaria.
+	 */
+	void AddLogEvent(const FString& Message, int32 SubjectStableUnitId = INDEX_NONE);
 
 	/**
 	 * Applica gli OnEnterEffects (URTTerrainLibrary) di ogni cella in Entered a Unit: Damage via
@@ -1066,7 +1109,7 @@ protected:
 	static TArray<FRTCellId> CellsEnteredAlong(const TArray<FRTCellId>& Path);
 
 	UPROPERTY()
-	TArray<FString> RecentEvents;
+	TArray<FRTCombatLogLine> RecentEvents;
 
 	/** TurnLog dell'ultimo turno risolto (osservabilita' autoritativa; ordinato in LockInAndResolve). */
 	TArray<FRTTurnLogEntry> TurnLog;
