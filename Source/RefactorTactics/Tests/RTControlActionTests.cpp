@@ -778,6 +778,75 @@ bool FRTInterrupterPaysCooldownTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Un Interrupt che non trova nessuno paga lo stesso.**
+ *
+ * `#1444` aveva agganciato il costo dell'Interrupt ai suoi `FRTHexAttackHit`, e un Interrupt puo' non
+ * produrne nessuno: basta che il bersaglio dichiarato non sia piu' li'. L'azione era stata pianificata e
+ * validata — l'intento esiste — quindi e' stata spesa, e restava gratuita (`#1449`).
+ *
+ * Qui l'Interrupt si dichiara su una CELLA VUOTA: l'intento nasce e viene validato — una cella e' un
+ * bersaglio legittimo — ma non c'e' nessuno da colpire, quindi nessun `FRTHexAttackHit`.
+ *
+ * ⚠️ **Non** si uccide il bersaglio per ottenere lo stesso effetto: li' `ValidateInstance` risponde
+ * `TargetDead` e l'intento non nasce affatto — interviene il fallback, che e' un'altra regola. La prima
+ * stesura di questo test lo faceva e misurava il caso sbagliato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptWithoutHitStillPaysTest,
+	"RefactorTactics.Actions.Interrupt.MissedInterruptStillPays",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptWithoutHitStillPaysTest::RunTest(const FString&)
+{
+	FInterruptScenario Sc;
+	if (!BuildInterruptScenario(*this, Sc))
+	{
+		DestroyControlWorld(Sc.World);
+		return false;
+	}
+
+	// Stessa disciplina di `InterrupterPaysCooldown`: l'Interrupt prende lo SLOT di un'abilita' esistente,
+	// cosi' `AbilityCooldowns` lo copre, e lo specchio legacy del cooldown viene riempito a mano.
+	URTActionData* Interrupt = Sc.Interrupter->Abilities[Sc.InterruptIdx];
+	Sc.Interrupter->Abilities.RemoveAt(Sc.InterruptIdx);
+	Sc.Interrupter->Abilities[0] = Interrupt;
+	Sc.Interrupter->PlannedAbilityIndex = 0;
+	Interrupt->CooldownTurns = Interrupt->Def.CooldownTurns;
+
+	// 🔴 L'Interrupt si dichiara su una CELLA VUOTA: l'intento nasce e viene validato — una cella e' un
+	// bersaglio legittimo — ma `CollectHexAttacks` non trova nessuno da colpire, quindi nessun
+	// `FRTHexAttackHit`.
+	//
+	// ⚠️ NON si uccide il bersaglio per ottenere lo stesso effetto: in quel caso `ValidateInstance`
+	// risponde `TargetDead` e l'intento non nasce affatto — l'azione viene annullata dal fallback, che e'
+	// un'altra regola. La prima stesura di questo test lo faceva e misurava il caso sbagliato.
+	Sc.Interrupter->PlannedAttackTarget = nullptr;
+	Sc.Interrupter->bAttackTargetsCell = true;
+	Sc.Interrupter->PlannedAttackCell = FRTCellId(2, 0); // adiacente, e vuota
+
+	if (!TestTrue(TEXT("premessa: il catalogo dichiara un cooldown"), Interrupt->CooldownTurns > 0))
+	{
+		DestroyControlWorld(Sc.World);
+		return false;
+	}
+	const int32 SaluteVittima = Sc.Victim->Health;
+
+	RunControlTurn(Sc.TM);
+
+	// 🔴 La premessa che rende il test quello che dice di essere: **nessun colpo**, quindi nessuna
+	// interruzione — l'attacco arriva a destinazione. Senza, il giorno in cui l'Interrupt su cella tornasse
+	// a colpire qualcuno il test resterebbe verde misurando il percorso vecchio.
+	TestTrue(TEXT("premessa: nessun colpo, quindi l'attacco NON e' stato interrotto"),
+		Sc.Victim->Health < SaluteVittima);
+
+	AddInfo(FString::Printf(TEXT("cooldown residuo dopo il turno: %d"),
+		Sc.Interrupter->GetAbilityCooldown(0)));
+	TestFalse(TEXT("l'azione e' stata spesa comunque: non e' riutilizzabile subito"),
+		Sc.Interrupter->CanUseAbility(0));
+
+	DestroyControlWorld(Sc.World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptTwiceTracesOnceTest,
 	"RefactorTactics.Actions.Interrupt.TwoInterruptersTraceOnce",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
