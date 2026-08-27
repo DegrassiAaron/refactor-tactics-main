@@ -145,6 +145,34 @@ una sottrazione.
 > validatore: la legalità del piano resta strutturale, e il limite di movimento resta applicato dal
 > pathfinding in pianificazione, che rifiuta il **waypoint** dicendo anche quanto era già speso.
 
+### 3-bis. **Quando** il cooldown si paga: la portata decide se l'azione parte
+
+[D-200](../decisions/RT_PDR_00_Decision_Log.md) ([`#1445`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1445), 2026-08-27).
+
+Il cooldown risponde a *«ogni quanto posso ripeterlo?»*, e quel «ripeterlo» presuppone che l'azione sia stata
+**fatta**. La regola:
+
+> La **portata** decide se un'azione parte. Tutto il resto è un esito, e un esito si paga.
+
+| Come fallisce | Si sa quando? | Paga? |
+|---|---|---|
+| fuori portata | in **pianificazione** — è geometria nota | **no**: non è mai partita |
+| bersaglio caduto nella simultaneità (`TargetDead`) | alla risoluzione | **sì**: era valida quando è partita |
+| la def non porta un effetto utile (`NoEffect`) | mai — è un difetto del **dato** | **sì**: un catalogo rotto non è una leva di bilanciamento |
+| nulla da purificare (`Cleanse` a vuoto) | alla risoluzione | **sì**: l'azione ha guardato, ed è un esito |
+
+⚠️ **Lo slot si spende comunque**, e i due assi non si confondono: l'unità che ha dichiarato una cura ha speso
+il suo turno e non può riagire, anche quando la cura non parte. È l'**abilità** che non si paga.
+
+⚠️ **Perché non paga tutto ciò che fallisce.** `Action.ModifyArc` seguiva già questa regola — «il cooldown paga
+solo ciò che ha davvero toccato la mappa» — mentre `Action.Heal` faceva l'opposto nello stesso file. Due
+azioni di supporto, due regole, nessuna dichiarata. Ora è una sola, ed è qui.
+
+⚠️ **Perché non toglie il costo a tutti i fallimenti.** Senza costo, un'azione ripetibile a vuoto diventa una
+scelta gratuita e dominante — la purificazione «assicurativa» ogni turno. La portata non apre quel varco
+perché è nota in pianificazione: sbagliarla è un errore, non una sonda, e non compra nessuna informazione
+nascosta.
+
 ### 3.1 I profili del movimento normale
 
 `Sneak` · `Move` · `Sprint` non sono tre azioni concorrenti: sono **tre profili della stessa famiglia**, con
