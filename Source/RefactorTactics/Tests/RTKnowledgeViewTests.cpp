@@ -250,4 +250,36 @@ bool FRTKnowledgeGhostFadesWithContactAgeTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeRememberedEntryCarriesContactTurnTest,
+	"RefactorTactics.Knowledge.RememberedEntryCarriesContactTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeRememberedEntryCarriesContactTurnTest::RunTest(const FString&)
+{
+	// Il contatto e' avvenuto al turno 5. La CONOSCENZA e' una fotografia del turno 8 -- DIVERSO apposta
+	// (sonda anti-vacuita'): un'implementazione che copiasse `Knowledge.TurnNumber` invece del turno DEL
+	// CONTATTO, o che lasciasse il campo al default, passerebbe se i due turni coincidessero per caso.
+	const FRTCellId Remembered(3, 0, 0);
+	const FRTCellId Actual(6, 0, 0);
+
+	FRTTeamKnowledge K;
+	K.TeamId = 0;
+	K.TurnNumber = 8;
+	K.Contacts = { FRTLastKnownContact(2, Remembered, 5) };
+	// `VisibleCells` vuota: nessuno lo vede ora, resta solo il ricordo.
+
+	const TArray<FRTKnowledgeSubject> Subjects = { KvSubject(2, 1, Actual) };
+	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(K, Subjects, /*ObserverTeamId*/ 0);
+
+	const FRTKnowledgeEntry* E = URTKnowledgeViewLibrary::FindEntry(View, 2);
+	if (!TestNotNull(TEXT("il ricordo produce una voce"), E))
+	{
+		return false;
+	}
+	TestTrue(TEXT("e' un ricordo"), E->Visibility == ERTKnowledgeVisibility::Remembered);
+	TestEqual(TEXT("porta il turno DEL CONTATTO"), E->ContactTurn, 5);
+	TestNotEqual(TEXT("non il turno della conoscenza"), E->ContactTurn, K.TurnNumber);
+	TestNotEqual(TEXT("non lo zero del default"), E->ContactTurn, 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -39,11 +39,13 @@ FRTKnowledgeView URTKnowledgeViewLibrary::ViewForTeam(const FRTTeamKnowledge& Kn
 		case ERTTargetKnowledge::CellOnly:
 		{
 			// 🔴 La cella del RICORDO, mai `S.Cell`. Se il ricordo non si legge, non si inventa: nessuna voce.
-			FRTCellId Remembered;
-			if (URTTeamKnowledgeLibrary::LastKnownCell(Knowledge, S.StableUnitId, Remembered))
+			// `FindContact` porta anche il `TurnNumber`, che la sola cella non conterrebbe: e' lo stesso
+			// contatto che `LastKnownCell` cercherebbe, non una seconda ricerca.
+			if (const FRTLastKnownContact* Contact = URTTeamKnowledgeLibrary::FindContact(Knowledge, S.StableUnitId))
 			{
 				E.Visibility = ERTKnowledgeVisibility::Remembered;
-				E.Cell = Remembered;
+				E.Cell = Contact->Cell;
+				E.ContactTurn = Contact->TurnNumber;
 				View.Entries.Add(E);
 			}
 			break;

@@ -83,19 +83,28 @@ ERTAwareness URTTeamKnowledgeLibrary::AwarenessOfUnit(const FRTTeamKnowledge& Kn
 
 bool URTTeamKnowledgeLibrary::LastKnownCell(const FRTTeamKnowledge& Knowledge, int32 StableUnitId, FRTCellId& OutCell)
 {
+	if (const FRTLastKnownContact* Contact = FindContact(Knowledge, StableUnitId))
+	{
+		OutCell = Contact->Cell;
+		return true;
+	}
+	return false;
+}
+
+const FRTLastKnownContact* URTTeamKnowledgeLibrary::FindContact(const FRTTeamKnowledge& Knowledge, int32 StableUnitId)
+{
 	if (Knowledge.Version != FRTTeamKnowledge::CurrentVersion)
 	{
-		return false;
+		return nullptr;
 	}
 	for (const FRTLastKnownContact& Contact : Knowledge.Contacts)
 	{
 		if (Contact.StableUnitId == StableUnitId)
 		{
-			OutCell = Contact.Cell;
-			return true;
+			return &Contact;
 		}
 	}
-	return false;
+	return nullptr;
 }
 
 ERTTargetKnowledge URTTeamKnowledgeLibrary::ClassifyTarget(const FRTTeamKnowledge& Knowledge, int32 TargetStableUnitId,

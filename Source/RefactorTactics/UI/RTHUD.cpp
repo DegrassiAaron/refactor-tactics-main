@@ -462,6 +462,23 @@ void ARTHUD::DrawHUD()
 			TurnManager->KnowledgeForTeamPublic(PlayerTeamId), Subjects, PlayerTeamId);
 	}
 
+	// Geometria della mappa ESAGONALE: unica fonte di scala per ogni conversione cella -> schermo di questa
+	// HUD (traccia, anteprime, waypoint, e ora anche la sagoma dell'ultimo contatto). La stessa che usano
+	// risoluzione e playback (ARTHexMapActor).
+	//
+	// ⚠️ Recuperata QUI, PRIMA del ciclo delle unita' — spostata da dopo il ciclo, dov'era finche' solo la
+	// visualizzazione degli intenti (sotto) ne aveva bisogno: il ciclo ora chiama `UpdateContactGhost`, che
+	// richiede la stessa conversione cella -> mondo per posizionare la sagoma di un ricordo (CP 13.5).
+	// Nessun secondo modo di leggerla: e' l'unico punto del file che interroga `ARTHexMapActor`.
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 150.f;
+	float LayerH = 250.f;
+	const URTHexMapAsset* Map = nullptr;
+	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		Map = HexMap->GetHexContext(Origin, HexSize, LayerH);
+	}
+
 	for (AActor* Actor : Actors)
 	{
 		ARTUnit* Unit = Cast<ARTUnit>(Actor);
@@ -478,6 +495,34 @@ void ARTHUD::DrawHUD()
 		// Applica lo stato di conoscenza PRIMA del filtro sottostante: altrimenti l'unita' saltata dal
 		// `continue` qui sotto non riceverebbe mai il comando e resterebbe visibile.
 		Unit->SetKnownToObserver(bIsKnownToObserver);
+
+		// Sagoma dell'ultimo contatto (Task 6b, CP 13.5): SPENTA per default, e accesa SOLO per un
+		// ricordo (`Remembered`) di un nemico. Gira per OGNI unita' viva — prima del filtro sottostante —
+		// perche' spegnerla vale anche per chi quel filtro sta per saltare: un nemico senza voce nella vista
+		// (`Rejected`, ricordo scaduto) non ha nemmeno una sagoma, e resterebbe accesa dall'ultima volta se
+		// il `continue` la saltasse prima di arrivarci.
+		//
+		// ⚠️ Lo spegnimento e' `HideContactGhost()`, non `UpdateContactGhost` alimentato con un `ContactTurn`
+		// fittizio: `ContactTurn` e' un dato del contatto, e un valore "dal futuro" per dire «spenta»
+		// userebbe quel campo come segnale di rendering, indistinguibile da un contatto vero e incoerente.
+		// La decisione «non c'e' nulla da ricordare» la prende QUESTO ramo, non un numero fabbricato.
+		const FRTKnowledgeEntry* ContactEntry = (bIsKnownToObserver && Unit->TeamId != PlayerTeamId)
+			? URTKnowledgeViewLibrary::FindEntry(KnowledgeView, Unit->StableUnitId)
+			: nullptr;
+		if (ContactEntry && ContactEntry->Visibility == ERTKnowledgeVisibility::Remembered)
+		{
+			// `Entry->Cell` e' quella del CONTATTO (Task 2), mai la posizione attuale dell'attore: e' lo
+			// stesso riferimento di `URTHexLibrary::AxialToWorld` che il contratto di `UpdateContactGhost`
+			// chiede.
+			const int32 CurrentTurn = TurnManager ? TurnManager->GetTurnNumber() : 0;
+			Unit->UpdateContactGhost(HexCellWorld(ContactEntry->Cell, Origin, HexSize, LayerH),
+				ContactEntry->ContactTurn, CurrentTurn);
+		}
+		else
+		{
+			// Niente da ricordare: propria squadra, nemico `Live`, o nemico `Rejected`.
+			Unit->HideContactGhost();
+		}
 
 		// Filtro di conoscenza (CP 13.5): un'unita' avversaria si disegna solo se la squadra del
 		// giocatore la conosce. La propria squadra si disegna sempre.
@@ -584,17 +629,6 @@ void ARTHUD::DrawHUD()
 		DrawText(HeroName, FLinearColor(0.f, 0.f, 0.f, 0.75f),
 			CenterX - NameW * 0.5f + 1.f, Y - 36.f + 1.f, nullptr, 0.9f);
 		DrawText(HeroName, NameColor, CenterX - NameW * 0.5f, Y - 36.f, nullptr, 0.9f);
-	}
-
-	// Geometria della mappa ESAGONALE: unica fonte di scala per ogni conversione cella -> schermo di questa
-	// HUD (traccia, anteprime, waypoint). La stessa che usano risoluzione e playback (ARTHexMapActor).
-	FVector Origin = FVector::ZeroVector;
-	float HexSize = 150.f;
-	float LayerH = 250.f;
-	const URTHexMapAsset* Map = nullptr;
-	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
-	{
-		Map = HexMap->GetHexContext(Origin, HexSize, LayerH);
 	}
 
 	// Traccia post-lock: il percorso realmente eseguito nell'ultima risoluzione (grigio, sotto le preview).

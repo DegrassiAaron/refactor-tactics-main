@@ -914,6 +914,18 @@ public:
 	 */
 	void UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTurn, int32 CurrentTurn);
 
+	/**
+	 * Spegne la sagoma dell'ultimo contatto, senza bisogno di un `ContactTurn` (Task 6b).
+	 *
+	 * ⚠️ Esiste perche' un chiamante che decide «non c'e' nulla da ricordare» — propria squadra, nemico
+	 * VISTO ora, nemico senza voce nella vista (ricordo scaduto) — non ha un contatto vero da passare a
+	 * `UpdateContactGhost`. Inventarne uno "incoerente" (es. dal futuro) solo per sfruttare il fail-closed di
+	 * `GhostOpacityForContact` userebbe un CAMPO DATI come segnale di rendering: `ContactTurn` diventerebbe
+	 * indistinguibile fra "contatto vero ma scaduto" e "spenta di proposito", ed e' esattamente il pattern
+	 * che questo repository ha gia' pagato altrove. Qui lo spegnimento e' deciso dal rendering, non dal dato.
+	 */
+	void HideContactGhost();
+
 protected:
 	/** Vero finche' l'osservatore locale non dichiara il contrario: un'unita' nasce nota. */
 	UPROPERTY()

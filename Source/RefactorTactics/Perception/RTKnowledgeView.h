@@ -76,6 +76,17 @@ struct FRTKnowledgeEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Knowledge")
 	FText HeroDisplayName;
 
+	/**
+	 * Il turno in cui il ricordo e' avvenuto — significativo SOLO se `Visibility == Remembered`. Per un
+	 * `Live` non ha significato e resta al default: la cella e' quella ATTUALE, non un contatto passato, e
+	 * non c'e' nulla da far scadere.
+	 *
+	 * E' l'unico campo che permette a un consumatore di sapere QUANDO il ricordo scade (la sagoma
+	 * dell'ultimo contatto, `ARTUnit::UpdateContactGhost`) senza reinterrogare `FRTTeamKnowledge`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Knowledge")
+	int32 ContactTurn = 0;
+
 	FRTKnowledgeEntry() = default;
 };
 

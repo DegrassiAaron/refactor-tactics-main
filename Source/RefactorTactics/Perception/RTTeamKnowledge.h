@@ -158,6 +158,16 @@ public:
 	static bool LastKnownCell(const FRTTeamKnowledge& Knowledge, int32 StableUnitId, FRTCellId& OutCell);
 
 	/**
+	 * Il contatto COMPLETO (cella e turno) per `StableUnitId`; `nullptr` se non ce n'e' uno vivo.
+	 *
+	 * Non e' un `UFUNCTION` (ritorna un puntatore, come `URTKnowledgeViewLibrary::FindEntry`): e' l'unica
+	 * ricerca nell'array `Contacts`, e `LastKnownCell` la chiama invece di ripetere il proprio ciclo — cosi'
+	 * un consumatore che ha bisogno anche del `TurnNumber` (la sagoma del ricordo, CP 13.5) non deve
+	 * duplicare la logica di ricerca.
+	 */
+	static const FRTLastKnownContact* FindContact(const FRTTeamKnowledge& Knowledge, int32 StableUnitId);
+
+	/**
 	 * La regola del targeting (CP 13.2), in una funzione pura e in un posto solo.
 	 *
 	 * Un alleato non e' mai «ignoto»: si cura e si protegge chi si conosce per appartenenza, non per

@@ -300,6 +300,14 @@ float ARTUnit::GhostOpacityForContact(int32 ContactTurn, int32 CurrentTurn)
 	return (Age == 0) ? 1.0f : 0.45f;
 }
 
+void ARTUnit::HideContactGhost()
+{
+	if (ContactGhost)
+	{
+		ContactGhost->SetVisibility(false, false);
+	}
+}
+
 void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTurn, int32 CurrentTurn)
 {
 	if (ContactGhost == nullptr)
@@ -310,7 +318,7 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 	const float Opacity = GhostOpacityForContact(ContactTurn, CurrentTurn);
 	if (Opacity <= 0.0f)
 	{
-		ContactGhost->SetVisibility(false, false);
+		HideContactGhost();
 		return;
 	}
 
@@ -320,7 +328,7 @@ void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTu
 	USkeletalMeshComponent* HeroSkeletal = FindHeroSkeletal();
 	if (HeroSkeletal == nullptr || HeroSkeletal->GetSkeletalMeshAsset() == nullptr)
 	{
-		ContactGhost->SetVisibility(false, false);
+		HideContactGhost();
 		return;
 	}
 
