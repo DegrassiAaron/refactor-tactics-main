@@ -3812,6 +3812,17 @@ void ARTTurnManager::ResolveCombat()
 	// da `SpendStartedAbilities`, e un `return` in piu' non puo' far dimenticare il cooldown a nessuno.
 	FRTBlastContext Ctx;
 	ResolveCombatPasses(Ctx);
+
+	// `Action.Cleanse` e' l'ULTIMO pass del Blast (`#1479`, [D-213]): deve vedere gli stati che
+	// `ApplyControlStatuses` ha appena applicato, perche' dal primo pass — dov'era fino al 2026-08-27 — il
+	// controllo altrui non si vedeva mai. Resta dentro il Blast invece di scendere nel `Cleanup` perche' il
+	// Move viene in mezzo: togliere un `Root` qui impedisce il blocco del movimento, toglierlo dopo no.
+	//
+	// ⚠️ **E sta FUORI dalla sequenza per la stessa ragione di `SpendStartedAbilities`**: quella ha
+	// un'uscita anticipata — «nessun colpo» — e un turno in cui l'unica azione e' una purificazione non ha
+	// colpi. MISURATO il 2026-08-27: messa in coda a `ResolveCombatPasses`, la Cleanse non girava affatto
+	// nei test che la esercitano da sola. E' la stessa trappola che [D-209] aveva gia' pagato.
+	ResolveCleanseActions(Ctx);
 	SpendStartedAbilities(Ctx);
 }
 
@@ -3822,7 +3833,6 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// 70 supporto) e questa funzione lo rispetta. Spostare una chiamata cambia il gioco.
 	GatherBlastUnits(Ctx);
 	RefreshTeamKnowledgeForBlast(Ctx);
-	ResolveCleanseActions(Ctx);
 	CollectHealActions(Ctx);
 	CollectAttackIntents(Ctx);
 	AppendChargeImpactIntents(Ctx);

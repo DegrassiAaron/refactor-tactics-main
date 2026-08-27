@@ -383,7 +383,7 @@ stessa sezione del catalogo non le rende lo stesso tipo di cosa.
 | `Action.Deflect` | Deviazione | Reazione | Blast | 30 | 15 | 0 | riduzione danno 20 | 2 |
 | `Action.Brace` | Irrigidimento | Principale | **Prep** | 10 | 30 | 0 | anti-spinta | 1 |
 | `Action.Shield` | Scudo | Principale | **Prep** | 10 | 35 | 0 | scudo temporaneo 25 | 2 |
-| `Action.Cleanse` | Purifica | Principale | Blast | 30 | 25 | 0 | rimozione stato | 2 |
+| `Action.Cleanse` | Purifica | Principale | Blast **(ultimo pass)** | 30 | 25 | 0 | rimozione stato | 2 |
 
 > La colonna **Range** non era nella tabella originale (il PDF dice «entro il range consentito», senza numero):
 > i valori sono decisi in CP 5.2. `0` = su se stessi, che è il caso di tutte tranne `Intercept` (2 celle, questo
@@ -470,6 +470,14 @@ dagli effetti di controllo privi di danno.
 **Cleanse** — rimuove **un solo** stato, e soltanto fra quelli che **il piano ha elencato**. La priorità
 di rimozione è scelta dal giocatore **durante il planning** (non a runtime: nessuna scelta implicita).
 
+> 🔴 **Risolve come ULTIMO pass del Blast dal 2026-08-27** ([D-213](../decisions/RT_PDR_00_Decision_Log.md), `#1479`). Prima era il **primo**,
+> e da lì non vedeva **mai** uno stato inflitto da un avversario: il controllo si applica in coda alla
+> stessa fase e dura un turno, quindi scadeva nel `Cleanup` prima che la Cleanse tornasse a guardare.
+> L'azione è **agnostica al dominio** — toglie un effetto senza guardare da dove viene — e in coda al Blast
+> lo vede. ⚠️ **Non scende nel `Cleanup`**, che pure vedrebbe anche il fuoco preso nel Move: di là dal Move
+> togliere un `Root` non impedirebbe più niente. Il prezzo: il fuoco in cui si entra in questo Move brucia
+> una volta, e si spegne il turno dopo.
+>
 > **Limite v0.1, riscritto il 2026-08-27** ([D-211](../decisions/RT_PDR_00_Decision_Log.md)) — la riga precedente diceva
 > *«oggi `Cleanse` opera sui soli `Rooted`/`Marked`/`Exposed`, perché `Burning` ed `Electrified` non esistono
 > come stato di unità»*, e sbagliava due volte: `Burning` **esiste** come stato di unità, e il limite non è un

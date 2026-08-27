@@ -1260,4 +1260,82 @@ bool FRTBraceBotAnswerIsLegalTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Un `Root` inflitto in questo turno si purifica, e il Move avviene lo stesso.**
+ *
+ * E' il caso che `#1479` esiste per aprire, e fino al 2026-08-27 non era raggiungibile da nessuna
+ * configurazione: `Action.Cleanse` era il **primo** pass del Blast, gli stati di controllo li applica
+ * `ApplyControlStatuses` in **coda** alla stessa fase, e durano un turno — quindi scadono nel `Cleanup`
+ * prima che la Cleanse torni a guardare. Non esisteva nessun istante in cui uno stato inflitto da un
+ * nemico fosse purificabile ([D-213]).
+ *
+ * 🔴 **L'oracolo e' il MOVIMENTO, non l'assenza dello stato**, e la differenza e' tutto: `Status.Root`
+ * dura **1 turno** e sparisce comunque nel `TickStatuses` di questo stesso `Cleanup`. Un test che
+ * asserisse «il Root non c'e' piu' a fine turno» sarebbe verde **anche col difetto**. Quel che solo la
+ * purificazione produce e' che il Move **avvenga**: `GetEffectiveMoveRange()` legge `Status.Root` dal vivo
+ * quando la simulazione del Move si costruisce, e il Move viene dopo il Blast.
+ *
+ * ⚠️ E' anche la ragione per cui la Cleanse resta in coda al **Blast** invece di scendere nel `Cleanup`:
+ * di la' dal Move la purificazione non impedirebbe piu' niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCleanseRemovesControlInflictedThisTurnTest,
+	"RefactorTactics.Reactions.Cleanse.RemovesControlInflictedThisTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCleanseRemovesControlInflictedThisTurnTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World);
+
+	ARTUnit* Vittima = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Radicatore = SpawnDefUnit(World, 1, FRTCellId(1, 0)); // portata 1 di `Action.Root`
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Vittima"), Vittima) || !TestNotNull(TEXT("Radicatore"), Radicatore)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	// Il nemico radica in questo turno: lo stato nasce in coda al Blast, non prima.
+	Radicatore->PlannedAbilityIndex = AddDefAbility(Radicatore, TEXT("Action.Root"));
+	Radicatore->PlannedAttackTarget = Vittima;
+	Radicatore->PlannedCell = Radicatore->Cell;
+
+	// La vittima purifica E si muove: sono due slot diversi del piano, e il turno li spende entrambi.
+	Vittima->PlannedAbilityIndex = AddDefAbility(Vittima, TEXT("Action.Cleanse"));
+	Vittima->PlannedCleansePriority = { TAG_Status_Root };
+	const FRTCellId Meta(0, 1); // adiacente e libera: nessun montaggio la usa
+	Vittima->PlannedCell = Meta;
+
+	if (!TestTrue(TEXT("premessa: la vittima potrebbe muoversi, se non fosse radicata"),
+		Vittima->GetEffectiveMoveRange() > 0))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+
+	RunDefTurn(TM);
+
+	// 🔴 L'oracolo: il Move e' avvenuto. Col difetto la vittima resta in `(0,0)`, radicata da uno stato
+	// che la Cleanse non ha mai potuto vedere.
+	TestTrue(TEXT("la vittima si e' mossa: il Root inflitto in questo turno e' stato purificato prima del Move"),
+		Vittima->Cell == Meta);
+
+	// E la traccia autoritativa lo dice, distinguendo una purificazione voluta da una scadenza: `Cleansed`
+	// e non `Expired` (`#1314`). Senza questa riga, «si e' mossa» non basterebbe a dire PERCHE'.
+	const FRTTurnLogEntry* Purificato = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Status
+			&& E.Outcome == static_cast<uint8>(ERTStatusOutcome::Cleansed);
+	});
+	if (TestNotNull(TEXT("il TurnLog registra la purificazione"), Purificato))
+	{
+		TestEqual(TEXT("e accredita chi ha purificato"), Purificato->UnitId, Vittima->StableUnitId);
+	}
+
+	DestroyDefWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

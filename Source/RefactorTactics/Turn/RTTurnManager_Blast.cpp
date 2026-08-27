@@ -200,20 +200,31 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 {
 	// `Action.Cleanse` (CP 5.2): azione PRINCIPALE, non una reazione, e l'unica del Blast che agisce su CHI LA
-	// USA invece che su un bersaglio. Risolve PRIMA del ciclo degli intenti, per due motivi indipendenti:
+	// USA invece che su un bersaglio.
 	//
-	// 1. quel ciclo CONSUMA `PlannedAbilityIndex` (lo azzera appena letto, per ogni unita'): un pass successivo
-	//    non troverebbe piu' nulla da leggere — e' lo stesso tranello gia' incontrato con `Action.Interrupt`
-	//    al CP 4.7;
-	// 2. purificarsi da `Exposed` DOPO aver incassato il +5 che quello stato comporta non servirebbe a niente.
-	//    Il catalogo le da' infatti codice 30 (controllo), non 40 (attacco): il controllo viene prima del danno.
+	// 🔴 **E' l'ULTIMO pass del Blast, e non e' dove stava** (`#1479`, [D-213]). Fino al 2026-08-27 era il
+	// PRIMO, e questa intestazione dichiarava il limite che ne seguiva: *«non puo' togliere uno stato
+	// applicato da un'azione di controllo dello STESSO Blast … purifica cio' che c'era a inizio turno»*.
+	// Il limite era scritto e vero, ed era **l'opposto di cio' che l'azione e'**: gli stati di controllo
+	// durano **un turno** e scadono nel `Cleanup`, quindi non esisteva **nessun istante** in cui uno stato
+	// inflitto da un nemico fosse purificabile. L'azione toglieva la propria preparazione e il tempo
+	// atmosferico, e niente altro. [D-213] decide che e' **agnostica al dominio**.
+	//
+	// ⚠️ **Ultimo pass del Blast e non testa del `Cleanup`, ed e' la scelta della decisione**: dal `Cleanup`
+	// vedrebbe **anche** il fuoco preso nel Move, ma vedrebbe il controllo quando ha gia' fatto tutto —
+	// `GetEffectiveMoveRange()` legge `Status.Root` dal vivo quando si costruisce il Move, che viene prima.
+	// Togliere li' un `Root` non impedisce niente e anticipa di venti righe una scadenza. Qui invece il Move
+	// deve ancora avvenire: la purificazione **conta**. Il prezzo, dichiarato: il fuoco in cui entri in
+	// questo Move brucia una volta, e si spegne il turno dopo (`Burning` dura 2).
+	//
+	// ⚠️ **Il piano sopravvive al ciclo degli intenti** perche' `CollectAttackIntents` salta `Action.Cleanse`
+	// — la stessa eccezione che gia' fa per `Action.ModifyArc`. Senza, quel ciclo azzererebbe
+	// `PlannedAbilityIndex` e qui non resterebbe niente da leggere.
 	//
 	// QUALE stato togliere lo dice il PIANO (`PlannedCleansePriority`), mai il resolver: si scorre la lista
-	// dichiarata e si rimuove il primo stato effettivamente presente, uno solo. Lista vuota -> nessuna
-	// rimozione (fail-closed): indovinare per conto del giocatore e' esattamente cio' che il catalogo vieta.
-	//
-	// Limite noto: non puo' togliere uno stato applicato da un'azione di controllo dello STESSO Blast (quelli
-	// si applicano a fine fase, insieme agli altri effetti dei colpi). Purifica cio' che c'era a inizio turno.
+	// dichiarata e si rimuove il primo stato effettivamente presente, **uno solo**. La lista e' insieme
+	// l'ordine e il FILTRO — un tag posseduto ma non elencato non si toglie ([D-211]) — e una lista vuota non
+	// rimuove niente (fail-closed): indovinare per conto del giocatore e' cio' che il catalogo vieta.
 	for (int32 i = 0; i < Ctx.Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Ctx.Units[i];
@@ -421,6 +432,15 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		//
 		// L'arco e' identificato dalla COPPIA (chi la usa, il bersaglio): la pianificazione non ha un
 		// bersaglio-arco, e questo resta un limite dichiarato finche' l'HUD di E11 non ne porta uno.
+		// `Action.Cleanse` risolve in CODA a questa fase (`#1479`, [D-213]), quindi il suo piano deve
+		// sopravvivere a questo ciclo: senza questa riga `PlannedAbilityIndex` verrebbe azzerato qui e
+		// `ResolveCleanseActions` non troverebbe piu' niente. Stessa eccezione di `ModifyArc`, ragione
+		// opposta: quella si intercetta perche' risolve DIVERSAMENTE, questa perche' risolve DOPO.
+		if (PlannedNow && IsCoreAction(PlannedNow->Def, ActionCleanse))
+		{
+			continue;
+		}
+
 		if (PlannedNow && IsCoreAction(PlannedNow->Def, ActionModifyArc))
 		{
 			ARTUnit* ArcTarget = Unit->PlannedAttackTarget;
