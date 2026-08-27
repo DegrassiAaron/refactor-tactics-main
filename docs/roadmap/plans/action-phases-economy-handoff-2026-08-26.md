@@ -224,8 +224,9 @@ Una è stata chiusa lo stesso giorno:
 | ID | Domanda | Stato |
 |---|---|---|
 | ~~`BAL-2`~~ | La Guardia piantata copre a 360° o resta frontale? | ✅ **chiusa da [D-206](../../decisions/RT_PDR_00_Decision_Log.md)**: resta **frontale** (120°, 3 direzioni su 6), e il controllo diventa **per-colpo** |
-| `BAL-3` | Con quali numeri, e quanto dura `Hold Ground`? | aperta — `balance/README.md` e `D-023` vietano di correggerli a tavolino |
-| `BAL-4` | La Guardia piantata nega anche la reazione? | aperta — è ciò che resta della tesi 4.7: **un booleano su un'azione**, non una regola generale |
+| `BAL-3` | Con quali numeri, e quanto dura `Hold Ground`? | **aperta** — `balance/README.md` e `D-023` vietano di correggerli a tavolino |
+| ~~`BAL-4`~~ | La Guardia piantata nega anche la reazione? | ✅ **chiusa da [D-207](../../decisions/RT_PDR_00_Decision_Log.md)**: **sì** — assorbire o rispondere, mai entrambi |
+| `BAL-5` | E le altre tre azioni di `Prep` (`Brace`, `Shield`, `Overwatch`)? | **aperta**, e la apre `D-207`: il ramo che fa scrivere è generico, quindi il loro `true` diventa una scelta |
 
 `BAL-1` è **riaperta**, e `#403` / `U20 · PIE-BAL1` non cade: si **ripunta**, perché verificava la
 leggibilità di una differenza che ora è diversa.
@@ -239,6 +240,18 @@ leggibilità di una differenza che ora è diversa.
 > `URTHeroData::ReactionProfileId`. Ma devono passare il test di `D-132` — *«non era contenuto, era un
 > nome»*: un eroe che «para da ogni lato» senza portare altro sarebbe esattamente ciò che quella voce ha
 > rifiutato a Riktor. Nessun kit ne dichiara una oggi, e il campo si scrive quando un kit lo chiede.
+
+> ⚠️ **`BAL-4` si è chiusa contro la finzione, e la voce lo dichiara.** L'unica azione che nega la reazione
+> oggi è lo `Sprint`, e la nega perché *«chi corre a perdifiato non para»* — mentre *piantato e pronto* è la
+> definizione di pronto. `D-207` toglie dal gioco `Guard + Counter`, il turno difensivo più evocativo che il
+> gioco sappia esprimere, e lo fa perché `D-205` ha dato alla Guardia una protezione **che dura**: una
+> protezione che dura senza rinunciare a niente di reattivo non è una scelta. L'argomento contrario è
+> registrato nel Decision Log invece che scartato, e `U20`/`PIE-BAL1` è dove si misura se aveva ragione.
+>
+> 🔴 **Due costi che nessuna delle tre voci può nascondere.** Il valore di `bAllowsReaction` lo assegna oggi
+> un `if` sull'ActionId dentro `ShippedAction` — un secondo utente lo rende un **parametro**, non allunga il
+> predicato. E `ResolvePrep` **non legge** il flag: senza quel ramo la decisione sarebbe dichiarata e mai
+> applicata, che è peggio di non averla presa.
 
 ---
 
@@ -383,7 +396,7 @@ snapshot non diverge.
 
 ## 10. Il prossimo passo
 
-Il §3 è deciso (`D-204`, `D-205`, `D-206`) e **nessuna riga di codice è stata scritta**: le tre voci
+Il §3 è deciso (`D-204`, `D-205`, `D-206`, `D-207`) e **nessuna riga di codice è stata scritta**: le quattro voci
 cambiano il comportamento di gioco, e l'ordine in cui si eseguono non è indifferente.
 
 1. **Il controllo direzionale per-colpo** (`D-206`), che è il prerequisito di `D-205` e non un dettaglio:
