@@ -7,6 +7,15 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexMapAsset.h"
+// La meta' `Guard` della regola non passa dal piano puro: vive in `ApplyFirstHitDelta` del TurnManager,
+// quindi il suo test ha bisogno di un turno vero.
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Core/RTGameplayTags.h" // TAG_Status_Guarded
+#include "Kismet/GameplayStatics.h"
+#include "Map/RTHexMapActor.h"
+#include "Tests/RTWorldFixtures.h"
+#include "Turn/RTTurnManager.h"
+#include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -69,6 +78,67 @@ namespace
 			if (Hit.TargetId == TargetId) { return Hit.Power; }
 		}
 		return -1;
+	}
+
+	ARTUnit* ArcSpawnUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell)
+	{
+		if (!World) { return nullptr; }
+		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		if (!U) { return nullptr; }
+		U->TeamId = TeamId;
+		U->bIsBotControlled = false; // il piano lo scriviamo noi: qui si prova la difesa, non il bot
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
+		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		return U;
+	}
+
+	/**
+	 * HP persi dal difensore in UN turno intero, cambiando solo cio' che il caso vuole cambiare.
+	 *
+	 * Passa dal `TurnManager` e non da `CollectHexAttacks` perche' la riduzione di `Guard` non sta nel piano:
+	 * il piano porta la potenza, il delta del primo colpo si applica dopo (`ApplyFirstHitDelta`). Misurarla
+	 * sul piano darebbe lo stesso numero nei due casi e il test sarebbe verde su qualunque implementazione.
+	 *
+	 * `-1` = montaggio fallito, gia' segnalato da `Test`: il chiamante non lo confronta con nient'altro.
+	 */
+	int32 ArcGuardDamageTaken(FAutomationTestBase& Test, ERTHexDirection DefenderFacing, bool bGuarded)
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!Test.TestNotNull(TEXT("mondo di prova"), World)) { return -1; }
+
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		if (MapActor) { MapActor->MapAsset = MakeArcMap(6); }
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+
+		// Attaccante a OVEST del difensore, che sta in (0,0,0): con `DefenderFacing` a E gli da' le spalle,
+		// con W lo guarda. E' l'UNICA differenza fra i due casi.
+		ARTUnit* Attaccante = ArcSpawnUnit(World, /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
+		ARTUnit* Difensore = ArcSpawnUnit(World, /*TeamId=*/ 1, FRTCellId(0, 0, 0));
+
+		if (!Test.TestNotNull(TEXT("mappa"), MapActor) || !Test.TestNotNull(TEXT("turn manager"), TM)
+			|| !Test.TestNotNull(TEXT("attaccante"), Attaccante) || !Test.TestNotNull(TEXT("difensore"), Difensore))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return -1;
+		}
+
+		Difensore->Facing = DefenderFacing;
+		if (bGuarded) { Difensore->ApplyStatus(TAG_Status_Guarded, 1); }
+		Difensore->PlannedAbilityIndex = INDEX_NONE; // il difensore non fa nulla: incassa e basta
+
+		Attaccante->PlannedAbilityIndex = 0; // indice 0 = attacco base (`Hero.Wraith.PulseShot`)
+		Attaccante->PlannedAttackTarget = Difensore;
+
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+
+		const int32 Taken = Difensore->MaxHealth - Difensore->Health;
+		RTWorldFixtures::DestroyWorld(World);
+		return Taken;
 	}
 }
 
@@ -275,6 +345,54 @@ bool FRTCombatHitCarriesBypassedCoverTest::RunTest(const FString&)
 		TestEqual(TEXT("senza copertura non c'e' niente da scavalcare"), BypassedOn(Plan, 1), 0);
 	}
 
+	return true;
+}
+
+
+/**
+ * **L'altra meta' di CP 16.2: il colpo alle spalle annulla anche `Action.Guard`.**
+ *
+ * 🔴 Il DoD di CP 16.2 nomina quattro test e ne esistevano **tre**: `Combat.BackAttackIgnoresGuard` non era
+ * mai stato scritto, benche' due commenti di questo stesso file lo citino come se ci fosse (il gemello di
+ * `FlankAttackKeepsCover` lo nomina fra i test che un'implementazione sbagliata «passerebbe comunque»).
+ * Il comportamento pero' c'e' — `RTTurnManager.cpp`, ramo `bGuardHolds` con esito `RearHitBypassedGuard` —
+ * e finora era pinnato solo da `UI.RearHitCreditsTheSameUnitInBothLogs`, che guarda **la traccia** e non il
+ * danno: la voce di log poteva restare corretta mentre i -15 tornavano ad applicarsi.
+ *
+ * ⚠️ **Il terzo caso non e' ridondante.** Senza il controllo «stessa scena, nessuna guardia» il test non
+ * distinguerebbe «la guardia e' stata annullata» da «esiste un bonus di fianco»: sono due regole diverse, e
+ * ADR-0005 §4a ne ammette una sola — si TOGLIE una protezione, non si aggiunge danno.
+ *
+ * Riferimento: ADR-0005 §4a, D-020, issue #177.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatBackAttackIgnoresGuardTest,
+	"RefactorTactics.Combat.BackAttackIgnoresGuard",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCombatBackAttackIgnoresGuardTest::RunTest(const FString&)
+{
+	// 1. In guardia e RIVOLTO all'attaccante: la guardia regge.
+	const int32 Frontale = ArcGuardDamageTaken(*this, ERTHexDirection::W, /*bGuarded=*/ true);
+	// 2. Stessa scena, stessa guardia: cambia SOLO da che parte guarda il difensore.
+	const int32 Posteriore = ArcGuardDamageTaken(*this, ERTHexDirection::E, /*bGuarded=*/ true);
+	// 3. Controllo: alle spalle SENZA guardia. E' il caso che rende non vacuo il confronto.
+	const int32 PosterioreScoperto = ArcGuardDamageTaken(*this, ERTHexDirection::E, /*bGuarded=*/ false);
+
+	if (Frontale < 0 || Posteriore < 0 || PosterioreScoperto < 0)
+	{
+		return false; // montaggio gia' segnalato: proseguire misurerebbe un turno che non e' avvenuto
+	}
+
+	// Premessa esplicita: il colpo deve essere piu' forte della riduzione, altrimenti il frontale finirebbe a
+	// zero per clamp e la differenza direbbe meno di quanto promette.
+	TestTrue(TEXT("premessa: di fronte la guardia riduce ma non azzera"), Frontale > 0);
+
+	TestEqual(TEXT("alle spalle si incassa la riduzione di catalogo in piu'"),
+		Posteriore - Frontale, URTCombatLibrary::GuardFirstHitReduction);
+	TestEqual(TEXT("e alle spalle la guardia non vale nulla: come non averla"),
+		Posteriore, PosterioreScoperto);
+	// Si TOGLIE una protezione, non si aggiunge un bonus: chi non ha guardia incassa lo stesso da ogni lato.
+	TestTrue(TEXT("nessun bonus di fianco: il colpo pieno resta il massimo"),
+		Posteriore <= PosterioreScoperto);
 	return true;
 }
 
