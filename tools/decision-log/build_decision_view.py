@@ -229,7 +229,17 @@ def split_lead(title: str) -> tuple[str, str]:
     return cut, title
 
 
-def parse(md_path: Path) -> dict:
+def load_github(path: Path | None) -> tuple[dict, str]:
+    """Cache prodotta da fetch_github_cache.py: numero -> {state, title, type}."""
+    if not path or not path.exists():
+        return {}, ""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    items = {int(k): v for k, v in data.get("items", {}).items()}
+    return items, data.get("fetched", "")
+
+
+def parse(md_path: Path, github: dict | None = None, fetched: str = "") -> dict:
+    github = github or {}
     text = md_path.read_text(encoding="utf-8")
     lines = text.split("\n")
 
@@ -245,6 +255,8 @@ def parse(md_path: Path) -> dict:
         struck = "~~" in raw_id
         blob = f"{title} {state} {impact}"
         issues = sorted({int(n) for n in ISSUE_RE.findall(plain(blob))})
+        refs_gh = [{"n": n, **github.get(n, {})} for n in issues]
+        open_issues = [r["n"] for r in refs_gh if r.get("state") == "open"]
         refs = sorted({n for n in DREF_RE.findall(plain(blob)) if n != num})
         dates = sorted(set(DATE_RE.findall(f"{state} {title}")))
         cut, body_md = split_lead(title)
@@ -261,6 +273,8 @@ def parse(md_path: Path) -> dict:
                 "impactHtml": md_inline(impact),
                 "impactText": plain(impact),
                 "issues": issues,
+                "gh": refs_gh,
+                "openIssues": open_issues,
                 "refs": refs,
                 "date": dates[-1] if dates else "",
                 "struck": struck,
@@ -308,6 +322,7 @@ def parse(md_path: Path) -> dict:
         d["citedBy"] = sorted(set(d["citedBy"]))
         d["refs"] = [r for r in d["refs"] if r in by_id]
         d["search"] += " " + " ".join(plain(n) for n in d["notes"]).lower()
+        d["search"] += " " + " ".join(r.get("title", "") for r in d["gh"]).lower()
 
     present = {d["num"] for d in decisions}
     missing = [n for n in range(1, max(present) + 1) if n not in present]
@@ -316,6 +331,8 @@ def parse(md_path: Path) -> dict:
         "decisions": decisions,
         "orphanNotes": [n["html"] for n in orphans],
         "missing": missing,
+        "github": {str(k): v for k, v in sorted(github.items())},
+        "githubFetched": fetched,
         "source": LOG_REL,
         "sourceUrl": f"{BLOB}/{LOG_REL}",
         "repo": REPO,
@@ -342,9 +359,16 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--log", default=LOG_REL, type=Path, help="path del Decision Log")
     ap.add_argument("--out", default=Path("build/decision-log.html"), type=Path)
+    ap.add_argument(
+        "--github",
+        default=Path(__file__).with_name("github-cache.json"),
+        type=Path,
+        help="cache di fetch_github_cache.py; se manca, i riferimenti restano link nudi",
+    )
     args = ap.parse_args()
 
-    data = parse(args.log)
+    github, fetched = load_github(args.github)
+    data = parse(args.log, github, fetched)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(render_page(data), encoding="utf-8")
 
@@ -352,8 +376,16 @@ def main() -> int:
     for d in data["decisions"]:
         buckets[d["bucket"]] = buckets.get(d["bucket"], 0) + 1
     issues = {i for d in data["decisions"] for i in d["issues"]}
-    print(f"{args.out}: {len(data['decisions'])} decisioni, {len(issues)} issue collegate")
+    print(f"{args.out}: {len(data['decisions'])} decisioni, {len(issues)} riferimenti GitHub")
     print("  stati: " + ", ".join(f"{k}={v}" for k, v in sorted(buckets.items())))
+    if github:
+        opened = sum(1 for n in issues if github.get(n, {}).get("state") == "open")
+        unknown = sorted(n for n in issues if n not in github)
+        print(f"  GitHub: {len(issues) - len(unknown)} risolti, {opened} aperti (istantanea {fetched or 'senza data'})")
+        if unknown:
+            print("  senza dato: " + ", ".join(f"#{n}" for n in unknown))
+    else:
+        print("  GitHub: nessuna cache — esegui fetch_github_cache.py")
     if data["missing"]:
         print("  ID mancanti: " + ", ".join(f"D-{n:03d}" for n in data["missing"]))
     return 0

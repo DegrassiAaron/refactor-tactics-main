@@ -24,6 +24,9 @@
   --st-superata: #6a7684;
   --st-altra: #4b5765;
   --shadow: 0 1px 2px rgba(16, 24, 32, .06), 0 8px 24px -16px rgba(16, 24, 32, .35);
+  --gh-open: #1a7f4b;
+  --gh-closed: #6b4fa8;
+  --gh-pr: #64717f;
   --hex: rgba(16, 24, 32, .055);
   color-scheme: light;
 }
@@ -47,6 +50,9 @@
     --st-superata: #94a2b1;
     --st-altra: #a3b0bd;
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -18px rgba(0, 0, 0, .9);
+    --gh-open: #4fc98a;
+    --gh-closed: #b49af0;
+    --gh-pr: #8f9dac;
     --hex: rgba(231, 237, 243, .05);
     color-scheme: dark;
   }
@@ -70,6 +76,9 @@
   --st-superata: #94a2b1;
   --st-altra: #a3b0bd;
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -18px rgba(0, 0, 0, .9);
+  --gh-open: #4fc98a;
+  --gh-closed: #b49af0;
+  --gh-pr: #8f9dac;
   --hex: rgba(231, 237, 243, .05);
   color-scheme: dark;
 }
@@ -458,6 +467,42 @@ select.ctl { padding-right: 6px; }
 .chip.dec { color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
 .chip svg { opacity: .55; }
 
+/* stato GitHub: il pallino porta l'informazione, il testo non deve ripeterla */
+.gh-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--g);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--g) 18%, transparent);
+}
+.gh-open { --g: var(--gh-open); }
+.gh-closed { --g: var(--gh-closed); }
+.gh-pr { --g: var(--gh-pr); }
+.gh-unknown { --g: var(--muted); }
+.chip.gh-open { border-color: color-mix(in srgb, var(--gh-open) 32%, var(--line)); }
+.chip.gh-pr .gh-dot { border-radius: 2px; transform: rotate(45deg); }
+
+.gh-state {
+  color: var(--g);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: Archivo, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.issue-title {
+  font-size: 14.5px;
+  line-height: 1.4;
+  color: var(--ink-2);
+  margin: 0;
+  text-wrap: pretty;
+}
+.issue-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+
 .more {
   font-family: Archivo, sans-serif;
   font-size: 12px;
@@ -543,8 +588,9 @@ select.ctl { padding-right: 6px; }
   .rail { display: contents; }
   .rail > div:nth-child(1) { order: 1; }
   #main-col { order: 2; }
-  .rail > div:nth-child(2) { order: 3; }
-  .rail > div:nth-child(3) { order: 4; }
+  .rail > div:nth-child(2) { order: 1; }
+  .rail > div:nth-child(3) { order: 3; }
+  .rail > div:nth-child(4) { order: 4; }
   .filters { flex-direction: row; flex-wrap: wrap; gap: 6px; }
   .filter { width: auto; border: 1px solid var(--line); background: var(--surface); }
   .filter .n { margin-left: 0; }
@@ -582,6 +628,7 @@ select.ctl { padding-right: 6px; }
       <option value="asc">ID · dal primo</option>
       <option value="date">Data · dalla più recente</option>
       <option value="links">Più collegamenti</option>
+      <option value="open">Più issue aperte</option>
     </select>
     <button class="ctl" id="expand" aria-pressed="false">Espandi tutto</button>
     <button class="ctl" id="reset">Azzera filtri</button>
@@ -593,6 +640,14 @@ select.ctl { padding-right: 6px; }
     <div>
       <p class="rail-h">Stato</p>
       <div class="filters" id="filters"></div>
+    </div>
+    <div>
+      <p class="rail-h">Lavoro</p>
+      <div class="filters">
+        <button class="filter" id="only-open" style="--c:var(--gh-open)" aria-pressed="false">
+          <span class="dot"></span><span>Con issue aperte</span><span class="n" id="only-open-n"></span>
+        </button>
+      </div>
     </div>
     <div>
       <p class="rail-h">Vai a</p>
@@ -648,9 +703,24 @@ const store = {
 const state = {
   q: '',
   active: new Set(store.get('filters', [])),
+  onlyOpen: store.get('onlyOpen', false),
   sort: store.get('sort', 'desc'),
   expandAll: false,
 };
+
+const GH_LABEL = { open: 'aperta', closed: 'chiusa', pr: 'pull request' };
+
+function ghClass(r) {
+  if (!r || !r.state) return 'gh-unknown';
+  if (r.type === 'pr') return 'gh-pr';
+  return r.state === 'open' ? 'gh-open' : 'gh-closed';
+}
+function ghTitle(r) {
+  if (!r || !r.title) return `#${r.n} — non risolta`;
+  const kind = r.type === 'pr' ? 'PR' : `issue ${GH_LABEL[r.state] || r.state}`;
+  return `#${r.n} · ${kind} — ${r.title}`;
+}
+function ghUrl(n) { return `https://github.com/${DATA.repo}/${'issues'}/${n}`; }
 
 const $ = (id) => document.getElementById(id);
 const EXT = '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M3 1h6v6M9 1 1.5 8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
@@ -661,11 +731,12 @@ function renderTally() {
   const d = DATA.decisions;
   const live = d.filter((x) => x.bucket !== 'superata').length;
   const issues = new Set(d.flatMap((x) => x.issues));
+  const open = [...issues].filter((n) => (DATA.github[n] || {}).state === 'open').length;
   const items = [
     [d.length, 'decisioni'],
     [live, 'in vigore'],
-    [issues.size, 'issue citate'],
-    [d.filter((x) => x.notes.length).length, 'con note'],
+    [issues.size, 'riferimenti GitHub'],
+    [open, open === 1 ? 'issue ancora aperta' : 'issue ancora aperte'],
   ];
   $('tally').innerHTML = items
     .map(([n, l]) => `<div class="tally-item"><span class="tally-n">${n}</span><span class="tally-l">${l}</span></div>`)
@@ -674,9 +745,12 @@ function renderTally() {
   const miss = DATA.missing.length
     ? ` Numeri mai emessi o rinumerati: ${DATA.missing.map((n) => 'D-' + String(n).padStart(3, '0')).join(', ')}.`
     : '';
+  const snap = DATA.githubFetched
+    ? ` Stato GitHub: istantanea del <b>${DATA.githubFetched}</b>, non un dato vivo.`
+    : ' Stato GitHub non disponibile: manca la cache.';
   $('source-note').innerHTML =
     `Generata da <a href="${DATA.sourceUrl}" target="_blank" rel="noopener">${DATA.source}</a>` +
-    ` su <code>main</code>.${miss}`;
+    ` su <code>main</code>.${snap}${miss}`;
 }
 
 function renderFilters() {
@@ -696,11 +770,15 @@ function chipRow(label, items) {
 }
 
 function entryHtml(d) {
-  const issues = d.issues
-    .map((n) => `<a class="chip" href="https://github.com/${DATA.repo}/issues/${n}" target="_blank" rel="noopener">#${n}${EXT}</a>`)
+  const issues = d.gh
+    .map((r) => `<a class="chip ${ghClass(r)}" href="${ghUrl(r.n)}" target="_blank" rel="noopener" title="${escapeAttr(ghTitle(r))}">
+        <span class="gh-dot"></span>#${r.n}${EXT}</a>`)
     .join('');
   const refs = d.refs.map((n) => `<a class="chip dec" href="#d-${n}" data-dec="${n}">D-${n}</a>`).join('');
   const back = d.citedBy.map((n) => `<a class="chip dec" href="#d-${n}" data-dec="${n}">D-${n}</a>`).join('');
+  const openTag = d.openIssues.length
+    ? `<span class="gh-state gh-open"><span class="gh-dot"></span>${d.openIssues.length} ${d.openIssues.length === 1 ? 'aperta' : 'aperte'}</span>`
+    : '';
   const notes = d.notes.length
     ? `<div class="notes"><p class="notes-h">Note del registro</p>${d.notes.map((n) => `<div class="note">${n}</div>`).join('')}</div>`
     : '';
@@ -713,7 +791,7 @@ function entryHtml(d) {
     </div>
     <div class="body">
       <h2 class="headline">${escapeHtml(d.headline)}</h2>
-      <div class="meta"><span class="state-text">${d.stateHtml}</span></div>
+      <div class="meta"><span class="state-text">${d.stateHtml}</span>${openTag}</div>
       <button class="more" aria-expanded="false">
         <svg class="caret" width="9" height="9" viewBox="0 0 8 10" aria-hidden="true"><path d="M1 1l5 4-5 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span class="more-l">Testo della decisione</span>
@@ -733,12 +811,14 @@ function entryHtml(d) {
 function escapeHtml(s) {
   return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 }
+function escapeAttr(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
 
 function filtered() {
   const q = state.q.trim().toLowerCase();
   const terms = q ? q.split(/\s+/) : [];
   return DATA.decisions.filter((d) => {
     if (state.active.size && !state.active.has(d.bucket)) return false;
+    if (state.onlyOpen && !d.openIssues.length) return false;
     return terms.every((t) => d.search.includes(t) || d.id.toLowerCase().includes(t));
   });
 }
@@ -748,7 +828,8 @@ function sorted(list) {
   if (state.sort === 'asc') c.sort((a, b) => a.num - b.num);
   else if (state.sort === 'desc') c.sort((a, b) => b.num - a.num);
   else if (state.sort === 'date') c.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.num - a.num);
-  else c.sort((a, b) => (b.issues.length + b.refs.length + b.citedBy.length) - (a.issues.length + a.refs.length + a.citedBy.length) || b.num - a.num);
+  else if (state.sort === 'links') c.sort((a, b) => (b.issues.length + b.refs.length + b.citedBy.length) - (a.issues.length + a.refs.length + a.citedBy.length) || b.num - a.num);
+  else c.sort((a, b) => b.openIssues.length - a.openIssues.length || b.num - a.num);
   return c;
 }
 
@@ -789,14 +870,27 @@ function renderIssues() {
     map.get(n).push(d);
   }));
   const total = new Set(DATA.decisions.flatMap((d) => d.issues)).size;
-  const rows = [...map.entries()].sort((a, b) => b[0] - a[0]);
+  const rank = (n) => {
+    const r = DATA.github[n] || {};
+    return r.state === 'open' ? 0 : r.type === 'pr' ? 2 : 1;
+  };
+  const rows = [...map.entries()].sort((a, b) => rank(a[0]) - rank(b[0]) || b[0] - a[0]);
+  const open = rows.filter(([n]) => (DATA.github[n] || {}).state === 'open').length;
   $('count-iss').textContent = rows.length === total
-    ? `${total} issue citate dal registro`
-    : `${rows.length} di ${total} issue citate dal registro`;
-  $('issues').innerHTML = rows.map(([n, ds]) => `<div class="issue-card">
-      <a class="issue-n" href="https://github.com/${DATA.repo}/issues/${n}" target="_blank" rel="noopener">#${n}${EXT}</a>
+    ? `${total} riferimenti citati dal registro · ${open} ancora aperti`
+    : `${rows.length} di ${total} riferimenti · ${open} ancora aperti`;
+  $('issues').innerHTML = rows.map(([n, ds]) => {
+    const r = { n, ...(DATA.github[n] || {}) };
+    const label = r.type === 'pr' ? 'pull request' : GH_LABEL[r.state] || 'non risolta';
+    return `<div class="issue-card">
+      <div class="issue-head">
+        <a class="issue-n" href="${ghUrl(n)}" target="_blank" rel="noopener">#${n}${EXT}</a>
+        <span class="gh-state ${ghClass(r)}"><span class="gh-dot"></span>${label}</span>
+      </div>
+      ${r.title ? `<p class="issue-title">${escapeHtml(r.title)}</p>` : ''}
       <div class="chips">${ds.map((d) => `<a class="chip dec" href="#d-${d.slug}" data-dec="${d.slug}">${d.id}</a>`).join('')}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 /* ----------------------------------------------------------------- interazioni */
@@ -808,6 +902,8 @@ function goTo(slug) {
     // la decisione è nascosta dai filtri: azzerali e ridisegna
     state.q = ''; $('q').value = '';
     state.active.clear(); store.set('filters', []);
+    state.onlyOpen = false; store.set('onlyOpen', false);
+    $('only-open').setAttribute('aria-pressed', 'false');
     renderFilters(); renderLedger(); renderIssues();
     el = document.getElementById('d-' + slug);
   }
@@ -842,8 +938,16 @@ document.addEventListener('click', (e) => {
     return;
   }
 
+  if (e.target.closest('#only-open')) {
+    state.onlyOpen = !state.onlyOpen;
+    store.set('onlyOpen', state.onlyOpen);
+    $('only-open').setAttribute('aria-pressed', String(state.onlyOpen));
+    renderLedger(); renderIssues();
+    return;
+  }
+
   const f = e.target.closest('.filter');
-  if (f) {
+  if (f && f.dataset.b) {
     const b = f.dataset.b;
     state.active.has(b) ? state.active.delete(b) : state.active.add(b);
     store.set('filters', [...state.active]);
@@ -877,6 +981,8 @@ $('expand').addEventListener('click', () => {
 $('reset').addEventListener('click', () => {
   state.q = ''; $('q').value = '';
   state.active.clear(); store.set('filters', []);
+  state.onlyOpen = false; store.set('onlyOpen', false);
+  $('only-open').setAttribute('aria-pressed', 'false');
   renderFilters(); renderLedger(); renderIssues();
 });
 
@@ -898,6 +1004,8 @@ document.addEventListener('keydown', (e) => {
 /* ------------------------------------------------------------------- avvio */
 
 $('sort').value = state.sort;
+$('only-open').setAttribute('aria-pressed', String(state.onlyOpen));
+$('only-open-n').textContent = DATA.decisions.filter((d) => d.openIssues.length).length;
 renderTally();
 renderFilters();
 renderLedger();
