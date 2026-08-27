@@ -178,9 +178,13 @@ valutazione, non eccezioni al motore:
    può esprimere `Brace` ("-10 a *ogni* danno diretto"): è nata `ApplyDamageDelta`. Sono regole diverse, e
    tenerle in due funzioni le rende distinguibili invece di nascondere un flag dentro una.
 
-**Il limite che resta dichiarato**: `Cleanse` opera sui tre stati che esistono oggi; `Burning` ed `Electrified`
-sono ambiente (epic E8/CP 8.2). Il meccanismo scorre una lista di tag, quindi l'estensione non toccherà il
-resolver. Analogamente, le clausole "non su danno ambientale" di `Counter`/`Deflect`/`Intercept` sono verificate
+**Il limite che resta dichiarato** *(riscritto il 2026-08-27, [D-211]: la formulazione precedente era falsa
+su due punti)*: il resolver **non ha whitelist** — scorre `PlannedCleansePriority` e rimuove il primo tag
+posseduto, qualunque sia. Il limite vero è che **quella lista non ha produttori**: la scrivono solo i test,
+quindi in partita `Cleanse` non rimuove niente. E `Burning` **esiste** come stato di unità (8 danni nel
+Cleanup): l'unico tag dichiarato che nessuno produce è `Status.Electrified`
+([`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) §D6). Il meccanismo
+resta generico, quindi l'estensione non toccherà il resolver: le manca un produttore, non una regola. Analogamente, le clausole "non su danno ambientale" di `Counter`/`Deflect`/`Intercept` sono verificate
 **per costruzione** del trigger, non simulando hazard inesistenti.
 
 **Privacy (CP 5.4)**: l'invariante #6 è stata estesa alle reazioni introducendo un **DTO filtrato per squadra**

@@ -22,7 +22,10 @@ Un vertical slice **2v2 offline contro bot** su griglia **esagonale multilivello
 - **4 eroi** distinti (Gadget, Phase, Riktor, Wraith — [D-120](../decisions/RT_PDR_00_Decision_Log.md); i loro Stable ID restano `Hero.Flux`, `Hero.Riva`, `Hero.Bastion`, `Hero.Vektor`), 4 abilità ciascuno + 1 variante;
 - **catalogo azioni** completo (~35 azioni con ID stabile, fase, priorità intera, fallback, cooldown);
 - **reazioni** preparate in planning (1 attivazione per turno);
-- **8 terreni attivi** con stati (Wet, Burning, Electrified, Obscured, …) e propagazione deterministica;
+- **8 terreni attivi** con stati (Wet, Burning, Obscured, …) e propagazione deterministica — ⚠️ l'elettricità
+  si propaga ma **non lascia uno stato**: `Status.Electrified` è dichiarato e mai applicato, e la scarica è
+  istantanea ([`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) §D6,
+  [`spec-stati-temporanei-cp82.md`](../gameplay/spec-stati-temporanei-cp82.md) §D3, [D-211]);
 - **coperture direzionali e strutture** (porte, ponti, pannelli) che cambiano la topologia;
 - **obiettivi dinamici** e fine partita a più vie (eliminazione · obiettivo · `RoundLimit`, parametro di formato — **10–14** round in 2v2, valore iniziale 12);
 - **HUD** con intenti alleati e certezza (confermato / previsto / incerto), **combat log** e comandi `rt.Debug.*`;
@@ -750,7 +753,7 @@ così colpiscono anche chi è appena entrato nella cella durante il Move.
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
 | **8.1** ✅ | 8 terreni | `Floor`, `Rough` (2 MP, Dash/Charge vietati), `ShallowWater` (2 MP, Wet, spegne Burning, conduce), `Fire` (10 danni + Burning), `Conductive` (propaga, non applica Wet), `Smoke` (Obscured, targeting max 2), `Ice` (costo 1; scivolamento **opzionale**, il catalogo lo dichiara rimandabile), `HighGround` | `Terrain.CostsFromCatalog`, `Terrain.Rough.BlocksDash`, `Terrain.Smoke.LimitsTargeting` |
-| **8.2** ✅ | Stati temporanei | `Wet`, `Burning` (8 danni nel Cleanup, 2 turni, rimosso da Wet), `Electrified`, `Obscured`, `Rooted`, `Exposed` (+5 al primo danno diretto), `Marked` (+6, consumato), `Slow` (+1 costo); durata e scadenza nel Cleanup | Un test per stato + `Status.ExpiresInCleanup` |
+| **8.2** ✅ | Stati temporanei | `Wet`, `Burning` (8 danni nel Cleanup, 2 turni, rimosso da Wet), `Obscured`, `Root`, `Exposed` (+5 al primo danno diretto), `Marked` (+6, consumato), `Slow` (+1 costo); durata e scadenza nel Cleanup. ⚠️ **`Electrified` era in questo elenco e non ci sta**: è dichiarato e mai applicato a un'unità ([`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) §D6), quindi il criterio «un test per stato» non lo copriva — non poteva ([D-211]) | Un test per stato + `Status.ExpiresInCleanup` |
 | **8.3** ✅ *(chiuso 2026-08-07)* | Propagazione elettrica | Attraversa celle conduttive adiacenti, massimo **3 celle**; 20 danni iniziali, 12 propagati; **ogni unità colpita una sola volta** per evento; ordine `distanza dalla sorgente → CellId → UnitId` | `Environment.WaterElectricPropagation`, `Environment.Propagation.HitsUnitOnce`, `Environment.Propagation.DeterministicOrder` |
 | **8.4** ✅ *(chiuso 2026-08-07)* | Interazioni fuoco/acqua | L'acqua **rimuove** il fuoco e cancella Burning; il fuoco non incendia acqua né metallo; propagazione deterministica | `Environment.WaterExtinguishesFire`, `Environment.Fire.DoesNotIgniteWaterOrMetal` |
 | **8.5** ✅ *(chiuso 2026-08-07)* | Azioni ambientali e di supporto | `Heal` (20, non supera il massimo, non rimuove stati), `CreateWater` (r1, 2 turni), `Ignite` (2 turni), `Electrify`, `CreateCover` (30 integrità, 2 turni, non sovrapponibile), `ModifyArc` | Un test per azione + `Actions.CreateCover.NoOverlap` |
