@@ -684,8 +684,10 @@ bool FRTHealOnDeadAllyIsTracedTest::RunTest(const FString&)
 		TestEqual(TEXT("e nomina l'azione"), Mancata->ActionId, FName(TEXT("Action.Heal")));
 	}
 
-	// E la regola del catalogo non cambia: una cura non resuscita.
-	TestFalse(TEXT("l'alleato resta a terra"), Ferito->IsAlive());
+	// ⚠️ NON si rilegge `Ferito` dopo il turno: `ConcludeTurn` chiama `DestroyDefeatedUnits`, che distrugge
+	// l'Actor di chi e' caduto — «nemmeno il pointer sopravvive alla partita», dice `RTUnit.h`. Leggerlo
+	// funzionerebbe finche' la memoria resta allocata, e diventerebbe una lettura di spazzatura al primo GC.
+	// Che la cura non resusciti lo pinnano gia' i test della cura; qui si misura la TRACCIA.
 
 	DestroyControlWorld(World);
 	return true;
