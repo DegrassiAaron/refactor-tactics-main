@@ -272,10 +272,15 @@ leggibilità di una differenza che ora è diversa.
 > `Plan.Hits` porta `AttackerId`, e viene **collassata in un booleano per bersaglio** prima della
 > chiamata: è quel collasso che `D-206` scioglie, non un `if`.
 >
-> Le due vie, entrambe più care di un ramo: portare l'attaccante dentro `FRTAttack` — una `USTRUCT`
-> esposta a Blueprint che attraversa il resolver — oppure una **terza** funzione con delta parallelo ai
-> colpi invece che ai bersagli. La seconda evita di toccare una struct serializzata, ed è la sola che
-> non chiede di rimisurare cosa legge `FRTAttack`.
+> ✅ **Deciso il 2026-08-27 da [D-212](../../decisions/RT_PDR_00_Decision_Log.md): l'attaccante entra in
+> `FRTAttack`** (`AttackerIndex` in coda, riempito da `ToAttacks` con `Hit.AttackerId`, che ha già in
+> mano). 🔴 **E il costo che questa riga temeva non esiste**: `FRTAttack` **non è serializzato** — assente
+> da `RTTurnLog.h` e da `Replay/` — quindi il campo non tocca l'identità delle tracce e `D-196` non morde.
+> Un solo call site di produzione, e il campo è additivo con default.
+>
+> Scartata la **terza funzione con delta parallelo ai colpi**: è l'idioma che quella stessa funzione usa
+> già dieci righe sotto (`AttackSrc`), e che **ha già prodotto un difetto** — la cicatrice è scritta lì
+> accanto: *«`Attackers` non serve allo scopo: è deduplicata, quindi non è parallela»*.
 >
 > ✅ **La buona notizia, dallo stesso giro**: `D-204` e `D-205` sono per il resto **uno scambio di
 > chiamata**. Le due funzioni esistono, sono documentate come *«non intercambiabili»* proprio per quel
