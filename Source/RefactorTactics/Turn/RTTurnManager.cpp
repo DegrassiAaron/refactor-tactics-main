@@ -1647,8 +1647,10 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 			// 🔴 **Una cura su chi e' caduto nel frattempo non sparisce in silenzio** ([D-196], `#1447`).
 			// Gli attacchi risolvono a priorita' 50-65 e le cure a 70: l'alleato puo' morire NELLO STESSO
 			// Blast in cui qualcuno lo stava curando. `CollectHealActions` ha gia' accettato il piano e
-			// bruciato `ConsumeAbility`, quindi senza questa voce il replay mostra un curatore con
-			// l'abilita' in ricarica e nessuna azione registrata.
+			// ANNOTATO l'azione come partita, quindi senza questa voce il replay mostrerebbe un curatore con
+			// l'abilita' in ricarica — la scrive `SpendStartedAbilities` a fase finita — e nessuna azione
+			// registrata. ⚠️ Fino a `#1451` questa riga diceva «bruciato `ConsumeAbility`»: era vero quando
+			// il consumo stava dentro la raccolta, e qui si arriva PRIMA del pagamento, non dopo.
 			//
 			// E' la terza faccia della stessa asimmetria che D-196 ha chiuso per `OutOfRange` e `NoEffect`.
 			// Il motivo `TargetDead` esiste gia' nell'enum: e' esattamente questo.
@@ -3798,11 +3800,26 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 
 void ARTTurnManager::ResolveCombat()
 {
+	// 🔴 **Il pagamento sta FUORI dalla sequenza, e non e' una preferenza di stile** (`#1451` punto 3).
+	//
+	// `ResolveCombatPasses` ha un'uscita anticipata — «nessun colpo» — e finche' il consumo e' stato dentro
+	// la sequenza, quell'uscita ha DOVUTO lasciare che ogni azione pagasse per conto proprio: e' esattamente
+	// cio' che il commento di quel `return` dichiarava, ed e' la ragione per cui i punti di consumo erano
+	// cinque. MISURATO il 2026-08-27: con la passata unica in coda alla sequenza, una cura fuori da uno
+	// scontro non pagava piu' — quattro test rossi, e la causa era il `return`, non la passata.
+	//
+	// Tenendolo qui l'invariante diventa STRUTTURALE: qualunque uscita futura della sequenza passa comunque
+	// da `SpendStartedAbilities`, e un `return` in piu' non puo' far dimenticare il cooldown a nessuno.
+	FRTBlastContext Ctx;
+	ResolveCombatPasses(Ctx);
+	SpendStartedAbilities(Ctx);
+}
+
+void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
+{
 	// La fase Blast e' una SEQUENZA: chi ordina sta qui, chi decide sta nei pass. L'ordine non e' un dettaglio
 	// di implementazione — il catalogo assegna alle azioni un codice (20 movimento, 30 controllo, 40 attacco,
 	// 70 supporto) e questa funzione lo rispetta. Spostare una chiamata cambia il gioco.
-	FRTBlastContext Ctx;
-
 	GatherBlastUnits(Ctx);
 	RefreshTeamKnowledgeForBlast(Ctx);
 	ResolveCleanseActions(Ctx);
@@ -4359,9 +4376,10 @@ void ARTTurnManager::ResolveCombat()
 		// prima stesura usciva di qui e la cura spariva in silenzio.)
 		ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors, HealDefs);
 
-		// ⚠️ Qui NON si consuma: `Attackers` si popola dai colpi sopravvissuti, e se non ce n'e' nessuno e'
-		// vuoto. Chi ha speso un'azione senza lasciare un colpo la paga dove quell'azione vive — l'Interrupt
-		// in `ApplyInterrupts` (`#1444`), la cura in `CollectHealActions`.
+		// ⚠️ Qui non si consuma nulla, e non serve piu' che qualcuno lo faccia al posto proprio: `ResolveCombat`
+		// chiama `SpendStartedAbilities` **fuori** da questa funzione, quindi anche questa uscita paga cio' che
+		// i pass hanno annotato (`#1451` punto 3). Fino al 2026-08-27 questa riga diceva l'opposto — «la paga
+		// dove quell'azione vive» — ed era la ragione per cui i punti di consumo erano cinque.
 		return;
 	}
 
@@ -4420,7 +4438,7 @@ void ARTTurnManager::ResolveCombat()
 
 	// Coda della fase: cio' che si applica quando il danno e' risolto e si sa chi e' rimasto in piedi.
 	ApplyDisplacements(Ctx);
-	ConsumeAttackerAbilities(Ctx);
+	MarkAttackerAbilitiesSpent(Ctx);
 	ApplyControlStatuses(Ctx);
 }
 

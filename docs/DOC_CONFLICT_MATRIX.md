@@ -5,6 +5,28 @@
 > **Regola**: un conflitto non si risolve in silenzio. O si registra `SUPERSEDED` con la fonte che prevale,
 > o diventa una voce di [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md). Mai una scelta implicita.
 
+## Chi prevale
+
+**decisioni esplicite → ADR → codice → gameplay attivo → roadmap → materiale storico**
+
+Questo ordine viveva in una riga di prosa a metà documento, dentro una nota storica, mentre
+[`README.md`](README.md) §«Gerarchia delle fonti» ne dichiarava un altro che metteva i cataloghi di
+`balance/` **sopra** le specifiche. Le due letture rispondevano in modo opposto allo stesso caso, e **tre PR
+consecutive sono state chiuse senza merge** citando ognuna una fonte vera del repository. Dal 2026-08-27
+([D-210](decisions/RT_PDR_00_Decision_Log.md)) l'ordine è questo, sta qui in cima, e il README vi si allinea.
+
+⚠️ **I cataloghi di `balance/` sono numeri, non regole**: un valore vigente, non una decisione su cosa il
+gioco faccia. Se un catalogo promette un comportamento e una spec di `gameplay/` già recepita dal codice ne
+descrive un altro, la voce è `SUPERSEDED` e il catalogo è il documento da allineare.
+
+⚠️ **Il codice prevale, e non è un owner.** Questa scala dice chi ha ragione fra due documenti; §«Come si
+aggiorna» regola 3 dice che cosa vale come *specifica*. Un tema deciso solo in `Source/` e mai recepito
+resta `OPEN`: prevale come prova di ciò che è vero oggi, non come fonte normativa.
+
+⚠️ **Cosa resta aperto**: se le quattro formulazioni di prevalenza del repository siano una sola espressa
+male o quattro con oggetti diversi, e come si componga la gerarchia del canone — che sta al livello 1 di
+quella del README e quindi la batte. Vivono in [`#1396`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1396).
+
 ## Stati
 
 | Stato | Significato |
