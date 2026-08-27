@@ -149,8 +149,11 @@ struct FRTHexAttackHit
 	 * una funzione pura, senza accesso al TurnLog — e dall'esterno un colpo pieno su un bersaglio riparato
 	 * e' indistinguibile da un colpo pieno su un bersaglio scoperto.
 	 *
-	 * Il primo consumatore e' la traccia (`ERTFacingOutcome::RearHitBypassedCover`), che finora il resolver
-	 * emetteva **solo per la Guard**. Il secondo e' la misura del tasso di realizzo del bonus direzionale del
+	 * Il primo consumatore e' la traccia (`ERTFacingOutcome::RearHitBypassedCover`), che questo campo popola
+	 * come `Amount`. ⚠️ Fino al 2026-08-27 quell'esito lo emetteva **anche** il ramo della `Guard`, che
+	 * pero' ci metteva una DIREZIONE: due payload incompatibili, separati da `#1430` / [D-199]. La guardia ha
+	 * ora `RearHitBypassedGuard`, e questo campo e' l'unico significato di `Amount` per l'esito che resta.
+	 * Il secondo consumatore e' la misura del tasso di realizzo del bonus direzionale del
 	 * bot (`#649`): il bot conta quel danno in pianificazione, e senza questo campo nessuno puo' verificare
 	 * quante volte lo incassa davvero.
 	 */

@@ -72,7 +72,8 @@ public:
 	 * letta ottiene un numero plausibile e sbagliato che nessun errore segnala. Stessa ragione per cui
 	 * esiste `IsDamageInflictedByActor`: la tassonomia sta in un posto solo, e si CHIEDE.
 	 *
-	 * Copre il danno ambientale (`#625`, `#1067`) e `Facing`/`RearHitBypassedCover` (`#1418`).
+	 * Copre il danno ambientale (`#625`, `#1067`) e le due voci di protezione scavalcata —
+	 * `Facing`/`RearHitBypassedCover` e `Facing`/`RearHitBypassedGuard` (`#1418`, separate da `#1430`).
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|TurnLog")
 	static bool IsSubjectTheSufferer(const FRTTurnLogEntry& Entry);

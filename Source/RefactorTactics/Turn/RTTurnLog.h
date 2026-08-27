@@ -191,9 +191,12 @@ enum class ERTFacingOutcome : uint8
 	/** LETTURA: l'Overwatch ha usato questo valore (il cono pianificato, E14). */
 	UsedByOverwatch,
 	/**
-	 * Il colpo e' arrivato FUORI dall'arco frontale e la protezione da copertura/`Guard` non ha retto
-	 * (CP 16.2). La direzione registrata e' il facing del BERSAGLIO, cioe' il lato che stava guardando
-	 * mentre veniva colpito dall'altra parte.
+	 * Il colpo e' arrivato FUORI dall'arco frontale e la **copertura** non ha retto (CP 16.2).
+	 *
+	 * ⚠️ **`Amount` porta i PUNTI DI RIDUZIONE scavalcati**, non una direzione: e' il
+	 * `CoverBypassedByFacing` del colpo, un conteggio. Fino al 2026-08-27 questo esito copriva anche la
+	 * `Guard` e li' `Amount` era il facing del difensore (`0..5`) — due payload incompatibili sotto la stessa
+	 * coppia `(Category, Outcome)`, separati da `#1430` / [D-199]. La guardia ha ora `RearHitBypassedGuard`.
 	 *
 	 * Ha un valore proprio invece di riusare `UsedByBlast` perche' il giocatore deve poter leggere *perche'*
 	 * la copertura non l'ha protetto: «il colpo usa l'orientamento SE» non risponde a quella domanda.
