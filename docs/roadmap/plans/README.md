@@ -25,15 +25,29 @@ dichiarare, perché la mappa serve a chi legge e la riscrittura no.
 
 | Banner | Significa | Quanti |
 |---|---|--:|
-| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 41 |
+| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 42 |
 | `SNAPSHOT` | Fotografia di una data. **Resta qui** finche' e' l'ultima misura del suo oggetto | 6 |
-| `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | 3 |
+| `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | 4 |
 | `PLAN` | Piano gia' **consumato**: resta per la provenienza di cio' che ha prodotto | 1 |
-| **totale** | | **51** |
+| **totale** | | **53** |
 
 In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **43**: quelli che il banner dichiarava gia' storici.
 
 <!-- RT_PIANI_BANNER:END -->
+
+> 🔴 **Rimisurata il 2026-08-26, e la deriva era di uno prima ancora che questo giro aggiungesse un file.**
+> La cella diceva `CURRENT 41 · SNAPSHOT 6 · nessun banner 3 · PLAN 1 · totale 51`; la cartella ne conteneva
+> **52**, con `nessun banner` a **4**. Gli addendi sono stati **riletti dai banner sul disco**, non
+> incrementati — è la contromisura che questa pagina prescrive da nove voci — e col
+> [`action-phases-economy-handoff-2026-08-26.md`](action-phases-economy-handoff-2026-08-26.md) di oggi
+> diventano `CURRENT` **42** · `SNAPSHOT` 6 · nessun banner **4** · `PLAN` 1 = **53**, e la somma torna col
+> totale contato a parte. L'archivio resta **43**: questo giro non ci ha spostato niente — il documento che
+> supera è un **sorgente**, e i sorgenti vanno in
+> [`../../archive/src/handoff/`](../../archive/src/README.md), che ha un conteggio suo.
+>
+> ⚠️ **Da `D-182` nessun `--check` può più dirlo**, e infatti nessuno l'ha detto per cinque giorni: la deriva
+> su `nessun banner` risale a prima del 2026-08-25, quando l'ultima rimisura sistemò tre numeri su quattro e
+> lasciò il quarto. Un addendo fermo non si vede finché qualcuno non conta la cartella intera.
 
 > 🔵 **Dal 2026-08-19 questa tabella è generata**, e le note qui sotto restano perché la storia di
 > come ci si è arrivati vale più del numero. La cella è andata fuori sincrono **tre volte in un
