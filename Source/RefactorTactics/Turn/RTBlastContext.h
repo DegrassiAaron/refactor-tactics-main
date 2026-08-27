@@ -191,7 +191,7 @@ struct FRTBlastContext
 	//
 	// 🔴 **Un solo posto scrive il cooldown di un'azione pianificata del Blast** (`#1451` punto 3).
 	// Prima ne scrivevano cinque — `ResolveCleanseActions`, `CollectHealActions`, `ModifyArc` dentro
-	// `CollectAttackIntents`, `ApplyInterrupts`, `ConsumeAttackerAbilities` — e ognuno decideva da se' che
+	// `CollectAttackIntents`, `ApplyInterrupts`, `MarkAttackerAbilitiesSpent` — e ognuno decideva da se' che
 	// cosa significasse «spesa». Ogni azione nuova che potesse validarsi senza colpire ne voleva un sesto.
 	//
 	// ⚠️ **Qui non si decide, si annota.** Il criterio «l'azione e' PARTITA» resta a chi raccoglie, e deve:

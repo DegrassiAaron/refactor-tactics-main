@@ -638,9 +638,11 @@ protected:
 	 * Decide QUALI attaccanti pagano — i sopravvissuti — e assegna energia o la voce `Ultimate!`.
 	 *
 	 * ⚠️ Il cooldown NON lo scrive: annota con `MarkAbilitySpent`, e a pagare e' `SpendStartedAbilities`
-	 * (`#1451` punto 3). Il nome resta perche' il criterio «chi ha speso un attacco» vive qui.
+	 * (`#1451` punto 3). Si chiamava `ConsumeAttackerAbilities`, e il nome e' stato cambiato perche' dopo
+	 * quel refactor non consumava piu' niente: chi cercasse `Consume` per capire dove nasce un cooldown
+	 * sarebbe atterrato qui senza trovare nessuna scrittura.
 	 */
-	void ConsumeAttackerAbilities(FRTBlastContext& Ctx);
+	void MarkAttackerAbilitiesSpent(FRTBlastContext& Ctx);
 
 	/**
 	 * L'UNICO punto in cui un'azione pianificata del Blast paga il proprio cooldown (`#1451` punto 3).
@@ -648,8 +650,9 @@ protected:
 	 * Consuma cio' che i pass hanno annotato con `FRTBlastContext::MarkAbilitySpent`. Il criterio
 	 * «l'azione e' PARTITA» resta a chi annota — [D-200] lo scrive per la portata — e qui non si
 	 * ridecide niente, nemmeno `IsAlive()`: le guardie di vita valgono al momento dell'annotazione.
+	 * Il contesto e' `const` apposta: cosi' «qui non si ridecide niente» lo impone il compilatore.
 	 */
-	void SpendStartedAbilities(FRTBlastContext& Ctx);
+	void SpendStartedAbilities(const FRTBlastContext& Ctx);
 
 	/** La sequenza dei pass del Blast. Ha un'uscita anticipata: il pagamento sta in `ResolveCombat`. */
 	void ResolveCombatPasses(FRTBlastContext& Ctx);
