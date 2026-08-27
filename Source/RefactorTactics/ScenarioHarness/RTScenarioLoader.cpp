@@ -6,7 +6,6 @@
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h" // un'azione di Prep risolve su se' e non dichiara un bersaglio
 #include "Turn/RTTurnRules.h"
-#include "Turn/RTReactionLibrary.h" // ERTReactionOutcome: vive fuori da RTTurnLog.h, ma e' un esito del log
 #include "Turn/RTReactionOpportunityTypes.h" // IsDeclaredConditionAllowed: il validator della condizione sta nel gioco
 #include "Map/RTHexLibrary.h"
 #include "Misc/FileHelper.h"
