@@ -501,22 +501,49 @@ void ARTTurnManager::PlanBots()
 		// armarla.
 		//
 		// Nessuna euristica su QUANDO conviene: il trigger e' dichiarato dall'abilita' e valutato dal
-		// resolver, e una reazione non armata non costa nulla a nessuno. Sceglierne una fra due sarebbe una
-		// decisione di bot (E15) — con un solo slot reazione nel kit di ogni eroe, oggi non si pone.
+		// resolver, e una reazione non armata non costa nulla a nessuno.
 		//
 		// Senza questa riga meta' delle unita' della v0.1 non reagirebbe mai, e il playtest misurerebbe un
 		// gioco diverso da quello progettato: i sette moduli di CP 7.5 sarebbero verdi nei test e assenti in
 		// partita.
+		//
+		// 🔴 **Due reazioni, e la scelta non puo' piu' essere un accidente** (`#1485`, [D-220]). Questa riga
+		// diceva *«sceglierne una fra due sarebbe una decisione di bot (E15) — con un solo slot reazione nel
+		// kit di ogni eroe, oggi non si pone»*, e la premessa e' **falsa da [D-218]**: `EquipLoadout` fa
+		// `Abilities.Add`, quindi Riktor porta `Interposition` (kit, indice 4) **e** `Reaction.Cleanse`
+		// (modulo, indice >= 5). Il `break` sul primo trovato sceglieva per **ordine di indice**, cioe' sempre
+		// il kit — e il modulo di loadout non veniva armato **mai**. In v0.1 (2v2 contro bot) e' meta' del
+		// campo: la composizione esisteva solo per il giocatore umano.
+		//
+		// **La regola dichiarata: vince il modulo di LOADOUT.** Non e' un giudizio su quale reazione sia piu'
+		// forte — quello e' E15 e resta aperto (`BOT-REACT-1` in `OPEN_DECISIONS.md`). E' che un loadout che
+		// il bot non usa e' un loadout che **non esiste** per meta' delle unita' in campo: la composizione e'
+		// la scelta deliberata per QUESTA partita, il kit e' la dotazione di base dell'eroe.
+		//
+		// ⚠️ **L'origine si riconosce col catalogo, non con l'indice**: `MakeEquipmentAction` scrive
+		// `Def.ActionId = Item->EquipmentId`, quindi `FindEquipment` risponde. Dedurla dalla posizione — «i
+		// moduli stanno in fondo perche' `Add` accoda» — sarebbe la stessa fragilita' che ha prodotto questo
+		// difetto.
+		int32 DaLoadout = INDEX_NONE;
+		int32 DalKit = INDEX_NONE;
 		for (int32 R = 0; R < Bot->NumAbilities(); ++R)
 		{
 			const URTActionData* Reaction = Bot->GetAbility(R);
-			if (Reaction && Reaction->Def.Slot == ERTActionSlot::Reaction && Bot->CanUseAbility(R))
+			if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction || !Bot->CanUseAbility(R))
 			{
-				Bot->PlannedReactionAbility = R;
-				AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione)"),
-					*Bot->GetName(), *Reaction->Def.ActionId.ToString()));
-				break;
+				continue;
 			}
+			const bool bDalLoadout = URTCatalogLibrary::FindEquipment(Reaction->Def.ActionId) != nullptr;
+			int32& Candidato = bDalLoadout ? DaLoadout : DalKit;
+			if (Candidato == INDEX_NONE) { Candidato = R; } // a parita' di origine, il primo: deterministico
+		}
+
+		const int32 Armata = (DaLoadout != INDEX_NONE) ? DaLoadout : DalKit;
+		if (Armata != INDEX_NONE)
+		{
+			Bot->PlannedReactionAbility = Armata;
+			AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione)"),
+				*Bot->GetName(), *Bot->GetAbility(Armata)->Def.ActionId.ToString()));
 		}
 
 		if (bUsedSupport)

@@ -2180,4 +2180,77 @@ bool FRTFallenHealerStillLeavesTheEntryTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Il bot arma il modulo di loadout, non la reazione di kit.**
+ *
+ * Fino a [D-220] il bot scorreva le abilità e armava la **prima** di slot reazione, poi `break`: con due
+ * reazioni la scelta la faceva l'**ordine degli indici**. `EquipLoadout` fa `Abilities.Add`, quindi il
+ * modulo sta in fondo e il kit davanti — e il modulo non veniva armato **mai**. In v0.1 (2v2 contro bot)
+ * è metà del campo: la composizione esisteva solo per il giocatore umano (`#1485`).
+ *
+ * 🔴 **L'oracolo è QUALE reazione risulta armata**, non che ne risulti armata una: col difetto
+ * `PlannedReactionAbility` puntava comunque a un'abilità valida, e un test che avesse solo controllato
+ * `!= INDEX_NONE` sarebbe stato verde.
+ *
+ * ⚠️ La riga non dice che il modulo sia più forte del kit — quella è una domanda di E15, aperta come
+ * `BOT-REACT-1`. Dice che un loadout che il bot non usa non esiste per metà delle unità in campo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotArmsTheLoadoutModuleTest,
+	"RefactorTactics.HexBotPlay.BotArmsTheLoadoutModuleNotTheKitReaction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotArmsTheLoadoutModuleTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	// Riktor con il proprio loadout di default: kit `Interposition` (indice 4) + modulo `Reaction.Cleanse`.
+	ARTUnit* Bot = SpawnControlUnit(World, 1, FRTCellId(2, 0));
+	ARTUnit* Umano = SpawnControlUnit(World, 0, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bot"), Bot) || !TestNotNull(TEXT("Umano"), Umano) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	Bot->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeRiktor());
+	Bot->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(FName(TEXT("Hero.Riktor"))));
+	Bot->bIsBotControlled = true;
+
+	// Premessa: l'unità porta DUE reazioni, o il test non misura niente — è la condizione che rende la
+	// scelta possibile, e senza di essa il difetto non sarebbe nemmeno esprimibile.
+	int32 Reazioni = 0;
+	for (int32 R = 0; R < Bot->NumAbilities(); ++R)
+	{
+		const URTActionData* A = Bot->GetAbility(R);
+		if (A && A->Def.Slot == ERTActionSlot::Reaction) { ++Reazioni; }
+	}
+	if (!TestEqual(TEXT("premessa: Riktor porta due reazioni (kit + modulo)"), Reazioni, 2))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	RunControlTurn(TM);
+
+	const URTActionData* Armata = Bot->GetAbility(Bot->PlannedReactionAbility);
+	if (!TestNotNull(TEXT("il bot ha armato una reazione"), Armata))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	AddInfo(FString::Printf(TEXT("armata: %s (indice %d di %d)"),
+		*Armata->Def.ActionId.ToString(), Bot->PlannedReactionAbility, Bot->NumAbilities()));
+
+	// L'oracolo: viene dal LOADOUT, non dal kit. Si chiede al catalogo invece di guardare l'indice, per la
+	// stessa ragione per cui lo fa il resolver.
+	TestNotNull(TEXT("il bot arma il modulo di loadout, non la reazione di kit"),
+		URTCatalogLibrary::FindEquipment(Armata->Def.ActionId));
+
+	DestroyControlWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
