@@ -226,7 +226,8 @@ Una è stata chiusa lo stesso giorno:
 | ~~`BAL-2`~~ | La Guardia piantata copre a 360° o resta frontale? | ✅ **chiusa da [D-206](../../decisions/RT_PDR_00_Decision_Log.md)**: resta **frontale** (120°, 3 direzioni su 6), e il controllo diventa **per-colpo** |
 | `BAL-3` | Con quali numeri, e quanto dura `Hold Ground`? | **aperta** — `balance/README.md` e `D-023` vietano di correggerli a tavolino |
 | ~~`BAL-4`~~ | La Guardia piantata nega anche la reazione? | ✅ **chiusa da [D-207](../../decisions/RT_PDR_00_Decision_Log.md)**: **sì** — assorbire o rispondere, mai entrambi |
-| `BAL-5` | E le altre tre azioni di `Prep` (`Brace`, `Shield`, `Overwatch`)? | **aperta**, e la apre `D-207`: il ramo che fa scrivere è generico, quindi il loro `true` diventa una scelta |
+| ~~`BAL-5`~~ | E le altre tre azioni di `Prep` (`Brace`, `Shield`, `Overwatch`)? | ✅ **chiusa da [D-208](../../decisions/RT_PDR_00_Decision_Log.md)**, con **tre risposte diverse**: `Brace` **no**, `Overwatch` e `Shield` **sì** |
+| `BAL-1` | *(riformulata)* La differenza fra le due difese è leggibile? | **aperta** — `Guard` e `Brace` hanno ora lo **stesso prezzo**: la scelta poggia solo sulla forma della mitigazione |
 
 `BAL-1` è **riaperta**, e `#403` / `U20 · PIE-BAL1` non cade: si **ripunta**, perché verificava la
 leggibilità di una differenza che ora è diversa.
@@ -248,6 +249,16 @@ leggibilità di una differenza che ora è diversa.
 > protezione che dura senza rinunciare a niente di reattivo non è una scelta. L'argomento contrario è
 > registrato nel Decision Log invece che scartato, e `U20`/`PIE-BAL1` è dove si misura se aveva ragione.
 >
+> 🔴 **Dove la sessione è arrivata, e non era il punto di partenza.** Chiuse `BAL-2`, `BAL-4` e `BAL-5`, la
+> `Guard` e il `Brace` hanno **lo stesso identico prezzo**: azione principale, `Status.Slow`, niente slot
+> reazione. Nessun **costo** le separa più — le separa solo la **forma** di ciò che danno: la Guardia
+> assorbe in modo **sostenuto** dentro un arco **frontale** di 120°, il `Brace` risponde **a un evento** da
+> **ogni lato**, con un profilo d'eroe sopra.
+>
+> È una differenza di **genere**, non di numeri, e questo riformula `BAL-1` alla radice: la domanda non è più
+> *«si separano abbastanza?»* ma **«la differenza di genere è leggibile senza un costo che la annunci?»** —
+> che è una domanda per `U20` / `PIE-BAL1`, non per un documento.
+
 > 🔴 **Due costi che nessuna delle tre voci può nascondere.** Il valore di `bAllowsReaction` lo assegna oggi
 > un `if` sull'ActionId dentro `ShippedAction` — un secondo utente lo rende un **parametro**, non allunga il
 > predicato. E `ResolvePrep` **non legge** il flag: senza quel ramo la decisione sarebbe dichiarata e mai
@@ -396,7 +407,7 @@ snapshot non diverge.
 
 ## 10. Il prossimo passo
 
-Il §3 è deciso (`D-204`, `D-205`, `D-206`, `D-207`) e **nessuna riga di codice è stata scritta**: le quattro voci
+Il §3 è deciso (`D-204`…`D-208`) e **nessuna riga di codice è stata scritta**: le cinque voci
 cambiano il comportamento di gioco, e l'ordine in cui si eseguono non è indifferente.
 
 1. **Il controllo direzionale per-colpo** (`D-206`), che è il prerequisito di `D-205` e non un dettaglio:
@@ -410,6 +421,21 @@ cambiano il comportamento di gioco, e l'ordine in cui si eseguono non è indiffe
    insieme, e due voci che cambiano numeri di danno ricadono nella stessa regola.
 3. **`#403` / `U20 · PIE-BAL1` si ripunta**, non si chiude: verificava la leggibilità di una differenza che
    ora è un'altra.
+
+> ✅ **Un rischio sollevato in sessione e poi misurato, invece di restare un timore.** `RTReactionLibrary`
+> classifica `Status.Root` e `Status.Slow` come stati **di controllo**, cioè quelli su cui scatta
+> `AboutToReceiveControl` (`Reaction.Cleanse`). Poiché `D-205` e `D-208` fanno auto-infliggere `Slow` a
+> `Guard` e `Brace`, sembrava che una difesa potesse aprire una finestra di reazione **contro sé stessa**.
+>
+> Non succede, e non per una guardia: `PassPointFor(AboutToReceiveControl)` vale `BlastStatus`, e quel pass
+> gira **solo** dentro `RTTurnManager_Blast.cpp`. `Guard` e `Brace` risolvono in `Preparation`, che è
+> un'altra funzione e un'altra fase — lo stato auto-inflitto non attraversa mai quel pass. L'esclusione è
+> **strutturale**, quindi resta vera finché le due fasi restano due; chi un giorno le unificasse la perde in
+> silenzio.
+>
+> ⚠️ **Resta però un uso nuovo**: oggi `Status.Slow` è uno stato **inflitto** (`Hero.Riktor.ImpactShot` lo
+> mette addosso ai nemici), e nessuna azione se lo dà da sola. Chi implementa `D-205`/`D-208` è il primo a
+> farlo, e vale la pena guardare gli altri consumatori dello stato prima di assumerlo innocuo.
 
 I due scenari dell'Overwatch (§7) restano l'unico lavoro indipendente da tutto questo, e si possono fare
 subito: pinnano ciò che oggi è vero **per costruzione**, quindi passano senza toccare produzione.
