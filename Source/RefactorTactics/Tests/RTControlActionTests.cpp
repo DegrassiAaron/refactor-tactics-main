@@ -1404,6 +1404,14 @@ bool FRTInterruptCycleNeutralisesTest::RunTest(const FString&)
 		{
 			Soggetti.Add(E.UnitId);
 			TestEqual(TEXT("e nomina l'azione"), E.ActionId, FName(TEXT("Action.Interrupt")));
+
+			// ⚠️ **`TgtCell` porta la cella dell'ALTRO**, non la propria. Una voce che dicesse «puntavo a me
+			// stesso» sarebbe precisa e falsa — la stessa forma che il commento della voce `Cancelled`
+			// condanna — e `TgtCell` entra nell'hash. Qui `SrcCell` e `TgtCell` sono le due celle in gioco,
+			// scambiate fra le due voci.
+			const FRTCellId Attesa = (E.UnitId == A->StableUnitId) ? B->Cell : A->Cell;
+			TestEqual(TEXT("e punta alla cella dell'altro, non alla propria"), E.TgtCell, Attesa);
+			TestNotEqual(TEXT("che non e' la sua"), E.TgtCell, E.SrcCell);
 		}
 		TestTrue(TEXT("le due voci accreditano le due unita' diverse"),
 			Soggetti.Contains(A->StableUnitId) && Soggetti.Contains(B->StableUnitId));
