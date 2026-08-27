@@ -198,7 +198,21 @@ enum class ERTFacingOutcome : uint8
 	 * Ha un valore proprio invece di riusare `UsedByBlast` perche' il giocatore deve poter leggere *perche'*
 	 * la copertura non l'ha protetto: «il colpo usa l'orientamento SE» non risponde a quella domanda.
 	 */
-	RearHitBypassedCover
+	RearHitBypassedCover,
+	/**
+	 * Il colpo e' arrivato fuori dall'arco frontale e la **`Guard`** non ha retto (CP 16.2). `Amount` porta
+	 * la DIREZIONE del bersaglio, cioe' il lato che stava guardando mentre veniva colpito dall'altra parte.
+	 *
+	 * ⚠️ **In coda, e non accanto a `RearHitBypassedCover`**: `Outcome` viaggia come `uint8` nel formato
+	 * serializzato, quindi inserire un valore in mezzo rinumera tutti quelli che seguono e riscrive il
+	 * significato di ogni traccia gia' archiviata. La vicinanza semantica non vale quel prezzo.
+	 *
+	 * ⚠️ **Perche' e' un esito separato** (`#1430`, [D-199]): fino al 2026-08-27 i due rami — la guardia e la
+	 * copertura — emettevano lo STESSO esito con due `Amount` incompatibili, una direzione (0..5) e dei punti
+	 * di riduzione. Un consumatore che filtrava `Facing`/`RearHitBypassedCover` e leggeva `Amount` otteneva un
+	 * numero plausibile e sbagliato, senza nessun modo di sapere quale dei due aveva in mano.
+	 */
+	RearHitBypassedGuard
 };
 
 /**
@@ -648,9 +662,9 @@ struct FRTTurnLogEntry
 	 * di `#625`: in un danno ambientale non c'e' un attaccante, e lo `0` direbbe «nessuna unita' dichiarata»
 	 * su un evento che ha un soggetto solo e ovvio.
 	 *
-	 * 🔴 **`Facing`/`RearHitBypassedCover` fa lo stesso, e per una ragione diversa** (`#1418`): non e' che
-	 * manchi l'attaccante — c'e', ed e' in `SrcCell`. E' che la voce descrive **l'orientamento del
-	 * difensore**, quello che non ha retto: `Amount` porta il suo `Facing`, `TgtCell` la sua cella.
+	 * 🔴 **`Facing`/`RearHitBypassedGuard` e `RearHitBypassedCover` fanno lo stesso, e per una ragione
+	 * diversa** (`#1418`): non e' che manchi l'attaccante — c'e', ed e' in `SrcCell`. E' che la voce descrive
+	 * **l'orientamento del difensore**, quello che non ha retto: `TgtCell` porta la sua cella.
 	 *
 	 * ⚠️ **Non e' «la regola della categoria»**, e vale la pena dirlo perche' sembra esserlo: e' l'unica
 	 * voce `Facing` in cui `SrcCell` e' la cella di un'unita' DIVERSA dal soggetto. Le altre nominano una
@@ -674,10 +688,13 @@ struct FRTTurnLogEntry
 	 * non ha piu' un campo da cui leggerlo. E' il costo di avere un solo `UnitId` per una voce che ha due
 	 * capi, ed e' registrato in `#1430` insieme all'altro difetto della stessa voce.
 	 *
-	 * ⚠️ Quell'esito ha **due produttori** — il ramo della Guard e quello della copertura — e i due usano
-	 * `Amount` per cose diverse: direzione del difensore il primo, punti di riduzione scavalcati il secondo.
-	 * La divergenza e' nominata e non risolta, perche' separarli tocca `Outcome`, che ENTRA nell'hash —
-	 * aperta a parte (`#1430`). Sull'unita' dichiarata invece sono d'accordo: chi subisce.
+	 * ⚠️ **I due annullamenti sono due esiti** dal 2026-08-27 (`#1430`, [D-199]):
+	 * `RearHitBypassedGuard` per la guardia — `Amount` porta la DIREZIONE del difensore, 0..5 — e
+	 * `RearHitBypassedCover` per la copertura, dove `Amount` porta i **punti di riduzione scavalcati**.
+	 * Erano lo stesso esito con due payload incompatibili, e chi filtrava su quella coppia leggeva un numero
+	 * plausibile e sbagliato senza nessun modo di sapere quale dei due avesse in mano. Separarli ha toccato
+	 * `Outcome`, che ENTRA nell'hash: il costo e' dichiarato in [D-199]. Sull'unita' dichiarata erano gia'
+	 * d'accordo — chi subisce — e restano d'accordo: `IsSubjectTheSufferer` risponde `true` a entrambi.
 	 *
 	 * **Conseguenza per chi consuma**: sommare il danno *inflitto* per `UnitId` filtrando su
 	 * `Category == Combat` accredita a chi brucia i danni fatti a se' stesso — un numero **plausibile e

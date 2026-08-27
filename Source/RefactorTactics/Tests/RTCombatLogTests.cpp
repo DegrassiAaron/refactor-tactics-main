@@ -275,7 +275,7 @@ bool FRTRearHitCreditsSameUnitTest::RunTest(const FString&)
 	const FRTTurnLogEntry* Bypassed = Log.FindByPredicate([](const FRTTurnLogEntry& E)
 	{
 		return E.Category == ERTLogCategory::Facing
-			&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+			&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard);
 	});
 	if (!TestNotNull(TEXT("premessa: il colpo alle spalle ha annullato la guardia"), Bypassed))
 	{
@@ -290,8 +290,23 @@ bool FRTRearHitCreditsSameUnitTest::RunTest(const FString&)
 		Log.FilterByPredicate([](const FRTTurnLogEntry& E)
 		{
 			return E.Category == ERTLogCategory::Facing
-				&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+				&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard);
 		}).Num(), 1);
+
+	// 🔴 **E nessuna voce dell'ALTRO esito** (`#1430`, [D-199]). E' l'asserzione che cade se qualcuno
+	// riunifica i due: prima della separazione questo scenario — arena piatta, nessuna copertura — produceva
+	// una voce `RearHitBypassedCover` il cui `Amount` era una DIREZIONE, non i punti scavalcati che quel nome
+	// promette. Senza questa riga, riunificarli tornerebbe verde.
+	TestEqual(TEXT("e nessuna voce di copertura scavalcata: qui non c'e' copertura"),
+		Log.FilterByPredicate([](const FRTTurnLogEntry& E)
+		{
+			return E.Category == ERTLogCategory::Facing
+				&& E.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+		}).Num(), 0);
+
+	// `Amount` porta la DIREZIONE del difensore, ed e' cio' che distingue questo esito dall'altro.
+	TestEqual(TEXT("Amount porta il facing del difensore"),
+		Bypassed->Amount, static_cast<int32>(ERTHexDirection::E));
 
 	// Il TurnLog dichiara chi ha SUBITO.
 	TestEqual(TEXT("il TurnLog accredita il difensore"), Bypassed->UnitId, Difensore->StableUnitId);
@@ -344,12 +359,15 @@ bool FRTRearHitCreditsSameUnitTest::RunTest(const FString&)
 }
 
 /**
- * **L'ALTRO produttore dello stesso esito accredita la stessa unita'.**
+ * **L'altro annullamento accredita la stessa unita', e porta un `Amount` di natura diversa.**
  *
- * `RearHitBypassedCover` non nasce solo dal ramo della Guard: `RTTurnManager.cpp:4112` lo emette anche
- * quando a essere scavalcata e' una COPERTURA. Anche quello accreditava l'attaccante, e la issue non lo
- * citava — quindi senza questo test la meta' meno visibile della correzione tornerebbe indietro senza che
- * niente diventi rosso: il test qui sopra gira su un'arena piatta, dove quel ramo non si esegue mai.
+ * ⚠️ Fino al 2026-08-27 i due rami emettevano lo STESSO esito (`#1430`, [D-199]): la guardia scavalcata e la
+ * copertura scavalcata. Ora sono `RearHitBypassedGuard` e `RearHitBypassedCover`, e questo test copre il
+ * secondo — quello che mette in `Amount` i **punti di riduzione** invece della direzione.
+ *
+ * Il ramo della copertura accreditava l'attaccante come l'altro, e la issue `#1418` non lo citava — quindi
+ * senza questo test la meta' meno visibile di quella correzione tornerebbe indietro senza che niente diventi
+ * rosso: il test qui sopra gira su un'arena piatta, dove questo ramo non si esegue mai.
  *
  * ⚠️ Il difensore NON e' in guardia, apposta: con la guardia si attiverebbero entrambi i produttori e non si
  * saprebbe quale delle due voci si sta guardando.

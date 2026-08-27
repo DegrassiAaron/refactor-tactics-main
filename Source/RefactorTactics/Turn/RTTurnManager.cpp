@@ -4056,7 +4056,10 @@ void ARTTurnManager::ResolveCombat()
 				FRTTurnLogEntry Bypassed;
 				Bypassed.Phase = ERTMatchPhase::Blast;
 				Bypassed.Category = ERTLogCategory::Facing;
-				Bypassed.Outcome = static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+				// `RearHitBypassedGuard` e non `...Cover` (`#1430`, [D-199]): questo ramo racconta la GUARDIA
+				// scavalcata e mette in `Amount` la DIREZIONE del difensore, mentre il ramo della copertura ci
+				// mette i punti di riduzione. Erano lo stesso esito con due payload incompatibili.
+				Bypassed.Outcome = static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard);
 				Bypassed.SrcCell = HexUnits[FirstHit->AttackerId].Cell;
 				Bypassed.TgtCell = HexUnits[i].Cell;
 				Bypassed.Amount = static_cast<int32>(HexUnits[i].Facing);

@@ -237,6 +237,25 @@ un array locale e le travasa con `AppendLogEntry`. È la stessa disciplina che l
 fa `Add` è il modo in cui una voce nasce senza contesto, e nessun test se ne accorge. Il commento di
 `AppendLogEntry` prometteva che ogni emissione passasse di lì — era vero *del file*, non del TurnLog.
 
+**I due annullamenti sono due esiti** ([D-199](../../decisions/RT_PDR_00_Decision_Log.md), [`#1430`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1430), 2026-08-27).
+
+Fino al 2026-08-27 il ramo della `Guard` e quello della copertura emettevano lo **stesso** esito con due
+`Amount` incompatibili: una direzione (`0..5`) il primo, i punti di riduzione scavalcati il secondo. Chi
+filtrava su quella coppia `(Category, Outcome)` e leggeva `Amount` otteneva un numero **plausibile e
+sbagliato**, senza modo di sapere quale dei due avesse in mano.
+
+| Esito | `Amount` | Quando |
+|---|---|---|
+| `RearHitBypassedGuard` | direzione del difensore (`ERTHexDirection`, 0..5) | la `Guard` non regge perché il colpo arriva fuori dall'arco frontale |
+| `RearHitBypassedCover` | punti di riduzione scavalcati | un colpo alle spalle annulla la copertura bassa |
+
+⚠️ Il nuovo esito è **in coda all'enum**, non accanto al suo gemello: `Outcome` viaggia come `uint8` nel
+formato serializzato, e inserirne uno in mezzo rinumera tutti quelli che seguono, riscrivendo il significato
+di ogni traccia già archiviata. La vicinanza semantica non vale quel prezzo.
+
+⚠️ `Outcome` entra nell'hash: separarli **cambia l'identità** di ogni traccia con una voce del ramo `Guard`.
+Il costo è dichiarato in D-199 — nominarlo, come faceva il commento del 2026-08-25, non lo toglieva.
+
 ⚠️ **`UsedByBlast` e `UsedByOverwatch` non hanno produttori in gioco**: `ReadFacingForConsumer` è chiamata
 solo da due test. Le due letture che questa sezione motiva sopra sono dichiarate e non emesse.
 
