@@ -310,14 +310,35 @@ Repository: `DegrassiAaron/refactor-tactics-main`.
 
 ### Una sessione per volta
 
-Lo sviluppo è **sequenziale**: una sessione esecutiva, una working directory, un branch alla volta
-([D-178](docs/decisions/RT_PDR_00_Decision_Log.md)). Non spezzare un lavoro fra più sessioni
-contemporanee, e non aprire worktree per parallelizzare: se un task è troppo grosso, si spezza in
-issue che si fanno **in fila**.
+Lo sviluppo è **parallelo di fatto**, e va trattato come tale
+([D-222](docs/decisions/RT_PDR_00_Decision_Log.md), che supera la clausola operativa di
+[D-178](docs/decisions/RT_PDR_00_Decision_Log.md)). ⛔ Questa sezione diceva *«lo sviluppo è
+sequenziale: una sessione, una working directory, un branch alla volta»*, e **descriveva un regime che
+non è quello praticato**: il 2026-08-27 sono stati misurati **101** checkout di `HEAD` in 24 ore,
+**6 sessioni** distinte a committare e **4 nella stessa finestra di 6 minuti**, tutte sullo stesso
+worktree.
 
-Due sessioni nella stessa working directory continuano a scriversi addosso — stesso file, stesso
-`git status`, branch cambiato sotto i piedi dell'altra. Se te ne accorgi, **non «gestirlo con
-attenzione»**: fermati e dillo.
+Più sessioni condividono quindi disco, `HEAD` e binario, e continuano a scriversi addosso. Ciò che
+cambia è **cosa si protegge**: non la working directory, che nessuno può riservarsi, ma la **misura**.
+
+> Una suite vale solo se `HEAD`, l'albero di lavoro, il binario e i processi del motore sono gli stessi
+> all'inizio e alla fine. Altrimenti non è né rossa né verde: è **NON VALIDA**.
+
+Il difetto che questo chiude non è il parallelismo: è il **silenzio**. Nessuna di queste collisioni
+produce un errore — producono verde che misura un'altra cosa. Una suite `1233/1233, 0 fail` che aveva
+letto un file cambiato a run iniziata; due suite morte a **641/1175** e **662/1191** con `Fail = 0`.
+
+**Per la suite si usa [`scripts/rt-suite.ps1`](scripts/rt-suite.ps1)**, che quei controlli li fa sempre
+invece di ricordarseli. Da **PowerShell**: Git Bash traduce gli argomenti che iniziano con `/` e
+l'harness non parte nemmeno.
+
+⚠️ **I worktree non sono la via d'uscita**: il mutex Live Coding è globale sull'eseguibile del motore,
+quindi due run di automation si uccidono a vicenda anche da checkout diversi. Isolare il disco
+lascerebbe scoperta proprio la collisione più silenziosa.
+
+⚠️ **Il merge resta scoperto**: il 2026-08-27 due PR sono state mergiate **prima che il proprio gate
+finisse**, entrambe da un'altra sessione. Uno script locale non lo intercetta. Prima di mergiare,
+verifica che il gate sia girato sul commit che stai mergiando.
 
 ### ID condivisi: `D-nnn`, `Enn`, `XXX-n`
 
