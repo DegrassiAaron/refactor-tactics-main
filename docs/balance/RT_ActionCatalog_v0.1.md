@@ -467,31 +467,24 @@ movimento volontario** dell'eroe.
 **Shield** — applica **25** punti scudo, consumati prima della salute · scade nel Cleanup del turno · non protegge
 dagli effetti di controllo privi di danno.
 
-**Cleanse** — rimuove **un solo** stato fra quelli che l'unità possiede. La priorità
+**Cleanse** — rimuove **un solo** stato, e soltanto fra quelli che **il piano ha elencato**. La priorità
 di rimozione è scelta dal giocatore **durante il planning** (non a runtime: nessuna scelta implicita).
 
-> **Limite v0.1, misurato il 2026-08-27** — e non è quello che questa riga diceva fino a oggi.
+> **Limite v0.1, riscritto il 2026-08-27** ([D-211](../decisions/RT_PDR_00_Decision_Log.md)) — la riga precedente diceva
+> *«oggi `Cleanse` opera sui soli `Rooted`/`Marked`/`Exposed`, perché `Burning` ed `Electrified` non esistono
+> come stato di unità»*, e sbagliava due volte: `Burning` **esiste** come stato di unità, e il limite non è un
+> insieme fisso di stati.
 >
-> Il resolver **non ha nessuna whitelist**: `ResolveCleanseActions` scorre `ARTUnit::PlannedCleansePriority` e
-> chiama `RemoveStatus` sul primo tag posseduto, qualunque esso sia. Il limite «opera sui soli
-> `Root`/`Marked`/`Exposed`» **non esiste nel codice**.
+> **L'insieme rimovibile lo dichiara il piano**, tag per tag: `ARTUnit::PlannedCleansePriority` è insieme
+> l'**ordine** e il **filtro** — un tag che l'unità possiede ma che il piano non elenca **non si toglie**
+> (`Reactions.Cleanse.NoImplicitChoice`). Senza lista non rimuove nulla (fail-closed): *«nessuna scelta
+> implicita»* significa che il resolver non sceglie al posto del giocatore neppure quando il candidato
+> sarebbe uno solo.
 >
-> 🔴 **Il limite vero è a monte: `PlannedCleansePriority` non ha produttori.** In tutto `Source/`, `Content/`
-> e `Config/` quella lista viene scritta **solo dai test** (`RTDefensiveReactionTests.cpp`). Nessun percorso
-> di pianificazione — né il giocatore né il bot — la riempie. ∴ in una partita reale `Action.Cleanse`
-> **non rimuove niente**, paga il proprio cooldown ([D-200]) e lascia una voce `NoEffect` nel TurnLog.
->
-> ⚠️ **E `Burning` esiste eccome** come stato di unità: lo applica il resolver e fa 8 danni nel Cleanup.
-> L'unico dei tag dichiarati che nessuno produce è **`Status.Electrified`** — lo dice
-> [`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) §D6: *«non viene
-> applicato alle unità»*. La riga precedente li metteva insieme, e per uno dei due era falsa.
->
-> Registrato in [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 78 · [D-211].
->
-> Resta vero, ed è la garanzia che regge tutto il resto: senza un ordine dichiarato **non rimuove nulla**
-> (fail-closed). *«Nessuna scelta implicita»* significa che il resolver non sceglie al posto del giocatore
-> neppure quando il candidato sarebbe uno solo — ed è il motivo per cui l'assenza di produttori si manifesta
-> come un'azione che non fa niente, invece che come una purificazione arbitraria.
+> 🔴 **E quella lista non ha produttori**: la scrivono solo i test. In partita `Cleanse` non rimuove niente,
+> paga il cooldown ([D-200](../decisions/RT_PDR_00_Decision_Log.md)) e lascia una voce `NoEffect`. L'argomento sta in
+> [D-211](../decisions/RT_PDR_00_Decision_Log.md) e nella riga **78** di [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md), e **non si
+> duplica qui**.
 
 ---
 

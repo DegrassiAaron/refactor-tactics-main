@@ -359,7 +359,7 @@ Nessuna riga di questa tabella si costruisce dentro E15.
 | Delta | Stato | Epic / CP proprietario |
 |---|---|---|
 | Stati temporanei con durata e scadenza deterministica (`Wet`, `Burning`, `Obscured`, `Root`, `Exposed`, `Marked`, `Slow`) | ✅ | **CP 8.2** chiuso |
-| ⚠️ `Status.Electrified` — dichiarato, **mai applicato a un'unità** | ❌ | Era in questa riga come consegnato fino al 2026-08-27: [`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) §D6 dice *«non viene applicato»*, e il codice la segue ([D-211], [#1324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324)) |
+| `Status.Electrified` — dichiarato, **mai applicato a un'unità**: fuori perimetro, non lavoro da fare | ✅ | **CP 8.3** — [`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) §D6 (*«non viene applicato»*). Era nella riga sopra come stato consegnato fino al 2026-08-27 ([D-211](../decisions/RT_PDR_00_Decision_Log.md)); se debba esistere è [#1324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324) |
 | Propagazione elettrica (≤ 3 celle, 20/12 danni, una volta per unità, ordine `distanza → CellId → UnitId`) | ✅ | **CP 8.3** chiuso |
 | Acqua spegne il fuoco, `Wet` cancella `Burning` | ✅ | **CP 8.4** chiuso |
 | Azioni che **creano** terreno (`CreateWater`, `Ignite`, `Electrify`, fumo di `MistVeil`, `ConductiveNode`, acqua di `FluidTrail`) | ✅ | **CP 8.5** chiuso — `CreateCover` rinviata a E9 |

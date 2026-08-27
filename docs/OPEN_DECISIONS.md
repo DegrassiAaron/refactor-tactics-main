@@ -15,6 +15,20 @@
 
 ---
 
+## Aperte — `Action.Cleanse`, dal consolidamento documentale del 2026-08-27
+
+Origine: [D-211](decisions/RT_PDR_00_Decision_Log.md), che ha allineato tre documenti sul limite reale di
+`Action.Cleanse` e ne ha lasciato scoperta la parte che **non è documentale**. La riga 78 di
+[`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) rimanda qui, come prescrive il suo preambolo: o
+`SUPERSEDED` con la fonte che prevale, o una voce in questo file.
+
+| ID | Domanda | Esito, e l'istruttoria che ci è arrivata sotto |
+|---|---|---|
+| `CLEANSE-1` | **`Action.Cleanse` spedisce in v0.1? E se sì, chi riempie `PlannedCleansePriority`?** | ⏳ **Aperta.** Le due metà non si decidono separate: una `Cleanse` raggiungibile con lista vuota non fa niente, e una lista piena su un'azione irraggiungibile nemmeno. 🔴 **Misure che restringono il lavoro che l'azione fa**: la cleanse **reattiva** (`Reaction.Cleanse` → `Action.Purge`) è costruita e testata, e annulla `Root` e `Slow` **in arrivo** — sono le due sole voci di `ControlStatusesBySeverity()`. `Burning` lo spegne **l'acqua** (`ARTUnit::ApplyStatus`: *«rimosso da `Wet`»*), e `Gadget.Sprinkler` è il default di Phase. `Marked` ed `Exposed` si consumano da soli. ⚠️ **Resta da nominare il caso che solo l'attiva risolve**: se non c'è, la risposta è che esce dalla v0.1 — e allora `Action.Shield`, nella stessa condizione, esce con lei. ⚠️ **La forma costa**: `PlannedCleansePriority` è l'unico dei **dodici** parametri di piano con zero produttori, ed è anche il più caro da esporre — gli altri undici sono una cella, un bersaglio, una direzione: cose che si cliccano. Un ordinamento di N tag no. Le alternative sono un **default d'eroe** in `URTHeroData` (dato, nessuna UI — ma supera *«la priorità è scelta dal giocatore durante il planning»*, e va superata esplicitamente) o **una scelta sola** invece di una lista |
+| `CLEANSE-2` | **`Reaction.Cleanse` entra in un loadout di default?** | ⏳ **Aperta, e più piccola.** `Action.Purge` **è** costruita — è la base del modulo — e le manca **una riga** in `URTCatalogLibrary::DefaultReactionModuleFor`. Il costo non è la riga: lo **slot reazione è uno per eroe**, e tre eroi su quattro hanno già una reazione nel proprio kit all'indice `[4]`. La domanda è se per qualcuno *«annulla il `Root` o lo `Slow` in arrivo»* sia più identitario di ciò che ha. Se la risposta è no, `Purge` resta costruita e non prescritta — e va **dichiarato**, non lasciato sembrare una svista ([#1403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1403)) |
+
+---
+
 ## ✅ Chiuse il 2026-08-24 da `D-187` — i prerequisiti della seduta `U19` e il suo `done_when`
 
 Origine: lo spec panel su [`#84`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) (PR [`#1313`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1313)) e la sua riverifica del

@@ -73,7 +73,8 @@ Il modello a 7 fasi del catalogo **non sostituisce** le macro-fasi: i suoi codic
   Sprint 8 MP; Dash/Charge/Leap distanza fissa. Sostituisce «4 celle / Dash 3» (canone §6).
 - **Slot per eroe**: 1 movimento + 1 azione principale + 1 reazione + facing finale + fallback dichiarato.
 - **Reazioni**: dichiarate in planning, trigger valutato deterministicamente, **massimo 1 attivazione per turno**.
-- **Terreni** (8), **stati** (Wet, Burning, Electrified, Obscured, Rooted, Exposed, Marked, Slow),
+- **Terreni** (8), **stati** (Wet, Burning, Obscured, Root, Exposed, Marked, Slow — sette: `Electrified` è
+  dichiarato e mai applicato, e il tag è `Status.Root`, [D-211](RT_PDR_00_Decision_Log.md)),
   **coperture/strutture** con integrità, **obiettivi dinamici**, **fallback** espliciti per azione.
 - **Cataloghi come documenti versionati** in `docs/balance/` (§13 del catalogo) e data asset
   `PDA_*` sotto `Content/RT/` **feature-first** (non `Content/RefactorTactics/Data/` come scrive il catalogo:
@@ -178,13 +179,16 @@ valutazione, non eccezioni al motore:
    può esprimere `Brace` ("-10 a *ogni* danno diretto"): è nata `ApplyDamageDelta`. Sono regole diverse, e
    tenerle in due funzioni le rende distinguibili invece di nascondere un flag dentro una.
 
-**Il limite che resta dichiarato** *(riscritto il 2026-08-27, [D-211]: la formulazione precedente era falsa
-su due punti)*: il resolver **non ha whitelist** — scorre `PlannedCleansePriority` e rimuove il primo tag
-posseduto, qualunque sia. Il limite vero è che **quella lista non ha produttori**: la scrivono solo i test,
-quindi in partita `Cleanse` non rimuove niente. E `Burning` **esiste** come stato di unità (8 danni nel
-Cleanup): l'unico tag dichiarato che nessuno produce è `Status.Electrified`
+**Il limite che resta dichiarato** *(riscritto il 2026-08-27,
+[D-211](RT_PDR_00_Decision_Log.md): la formulazione precedente era falsa su due punti)*: l'insieme rimovibile
+non è un insieme fisso di stati — **lo dichiara il piano**, e `PlannedCleansePriority` è insieme l'ordine e il
+filtro. Il limite vero è che **quella lista non ha produttori**: la scrivono solo i test, quindi in partita
+`Cleanse` non rimuove niente. E `Burning` **esiste** come stato di unità (8 danni nel Cleanup): l'unico tag
+dichiarato che nessuno produce è `Status.Electrified`
 ([`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) §D6). Il meccanismo
-resta generico, quindi l'estensione non toccherà il resolver: le manca un produttore, non una regola. Analogamente, le clausole "non su danno ambientale" di `Counter`/`Deflect`/`Intercept` sono verificate
+resta generico: le manca un produttore, non una regola.
+
+Analogamente, le clausole "non su danno ambientale" di `Counter`/`Deflect`/`Intercept` sono verificate
 **per costruzione** del trigger, non simulando hazard inesistenti.
 
 **Privacy (CP 5.4)**: l'invariante #6 è stata estesa alle reazioni introducendo un **DTO filtrato per squadra**
