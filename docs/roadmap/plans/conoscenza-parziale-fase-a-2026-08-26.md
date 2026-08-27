@@ -30,16 +30,23 @@ esiste ancora.
 | **1** — `TargetUnknown` leggibile | ✅ | `7f38ba11` | RED 1/1 col default, GREEN 1/1, regressione 71/71 |
 | **2** — la porta `FRTKnowledgeView` | ✅ | `a2b2225f` | RED per **link** (`LNK2019`), GREEN 3/3, **due mutazioni** con rebuild fra l'una e l'altra |
 | **3** — `ARTHUD` consuma la porta | ✅ | `06c8c3c1` | RED per **compilazione** (`C3861` ×4), GREEN 4/4, regressione 27/27 |
-| **4** — il combat log passa dal filtro | ⏳ | — | — |
-| **5** — l'unità ignota sparisce | ⏳ | — | — |
-| **6** — la sagoma del ricordo | ⏳ | — | ⛔ bloccato: crea un `.uasset` |
+| **4** — il combat log passa dal filtro | ✅ | `e3e61936` · corretto da giro di fix del 2026-08-27 | 14 siti `AddLogEvent` convertiti. ⚠️ **Il canale primario era rimasto fuori**: `ConcludeTurn` deriva l'intero log dal TurnLog e passava ogni riga senza soggetto — chiuso nel giro di fix con `DescribeTurnLogWithSubjects` |
+| **5** — l'unità ignota sparisce | ✅ | `678cc8fc` · corretto da giro di fix del 2026-08-27 | `RefreshComponentVisibility` + `SetActorEnableCollision`. ⚠️ Due difetti trovati alla review finale e chiusi nel giro di fix: il predicato non distingueva `Live` da `Remembered` (**C1**), e la funzione sovrascriveva la visibilità decisa da altri owner (**I3**) |
+| **6** — la sagoma del ricordo | ✅ | `ebfee2a9` · `d8fdaed4` · `ad49b166` · `a52df0db` | Sagoma sganciata dal transform del padre, `ContactTurn` sulla voce, dispatch da `DrawHUD` con la sua rete di test, e il materiale `M_LastContactGhost` entrato nel repository. ⚠️ **M8 aperto**: `GhostOpacityForContact` vale `1.0` nel turno del contatto — la sagoma è opaca nel caso più frequente, contro S4 |
 
-**Suite completa sull'albero finale (2026-08-27)**: `Found 1204 automation`, **1204 eseguiti, 1204 successi,
-0 fallimenti**. Dichiarati ed eseguiti coincidono.
+**Suite completa sull'albero del giro di fix (2026-08-27)**: `Found 1215 automation tests`, **1215 eseguiti,
+1215 successi, 0 fallimenti**. Dichiarati ed eseguiti coincidono, misurato con **due** metodi: i nomi
+`RefactorTactics.*` estratti dalle macro `IMPLEMENT_*_AUTOMATION_TEST` nei sorgenti e i `Path={...}` del log
+di esecuzione danno lo stesso insieme di **1215**, con differenza vuota in entrambi i versi.
 
-⏳ **Verifica manuale pendente**: `PIE-KNOW1`, registrata in
-[`test-manuali-pie.md`](../../technical/test-manuali-pie.md). È l'unica prova che il cablaggio del Task 3
-funzioni: `DrawHUD` non ha test automatici.
+*(La riga diceva `1204`, misurato prima dei commit `d49c5dad`/`a52df0db` e dei sei test aggiunti dal giro di
+fix. Un conteggio letterale invecchia da solo: si rimisura, non si copia.)*
+
+⏳ **Verifiche manuali pendenti**: `PIE-KNOW1` (overlay, Task 3), `PIE-KNOW2` (modello e collisione, Step
+5.7), `PIE-KNOW3` (sagoma monocroma e dissolvenza, Step 6.8) e `PIE-KNOW4` (il ricordo si vede **una volta
+sola**, il difetto C1), registrate in
+[`test-manuali-pie.md`](../../technical/test-manuali-pie.md). Sono l'unica prova che il **cablaggio**
+funzioni: `DrawHUD` non ha test automatici, e i `Knowledge.*` esercitano statiche pure.
 
 > ⚠️ **Le 53 caselle qui sotto restano vuote, e questa tabella è la ragione per cui va bene.** Il progresso
 > per-task vive nel workspace di esecuzione, che è **gitignorato** (`.gitignore:187`): senza questo blocco,
@@ -1294,10 +1301,38 @@ Nel ciclo di `DrawHUD`, **prima** del `continue` introdotto al Task 3 (altriment
 riceverebbe mai il comando):
 
 ```cpp
+		const FRTKnowledgeEntry* Entry = bIsOwnTeam
+			? nullptr
+			: URTKnowledgeViewLibrary::FindEntry(KnowledgeView, Unit->StableUnitId);
+		Unit->SetKnownToObserver(ARTHUD::ShouldDrawUnitOverlay(Entry, bIsOwnTeam));
+```
+
+🔴 **Questo Step prescriveva un predicato SBAGLIATO, ed è stato corretto il 2026-08-27.** Diceva alla
+lettera:
+
+```cpp
 		Unit->SetKnownToObserver(
 			Unit->TeamId == PlayerTeamId
 			|| URTKnowledgeViewLibrary::FindEntry(KnowledgeView, Unit->StableUnitId) != nullptr);
 ```
+
+`FindEntry(...) != nullptr` chiede **«esiste una voce»**, che non è **«la posizione è attuale»**. Una voce
+`Remembered` esiste per costruzione — `ViewForTeam` la crea apposta dal ramo `CellOnly` — quindi il
+predicato prescritto lasciava disegnato, cliccabile e con nome e barra HP alla sua **posizione vera** un
+nemico che la squadra non vede più, **mentre** la sagoma del Task 6 lo disegnava una seconda volta alla
+cella ricordata. Due copie della stessa unità: l'opposto di ciò per cui la sagoma esiste, e una
+**regressione di leggibilità** rispetto alla base, dove le copie erano una.
+
+Il predicato giusto è `bIsOwnTeam || (Entry && Entry->Visibility == Live)`, ed è quello che
+`ARTHUD::ShouldDrawUnitOverlay` implementa: così l'overlay e `ContactGhostTargetForUnit` diventano
+**complementari** — o si vede l'unità, o si vede il suo ricordo, mai entrambi.
+
+L'errore era già visibile nel piano: la **spec §4 A2** dichiara che A3/A4 sarebbero stati «la cura» del leak
+di posizione, e con `!= nullptr` non curano niente — il leak resta intero sul modello vero.
+
+⚠️ Il nome è cambiato: la funzione applicata dallo Step 5.4 si chiama ora `RefreshComponentVisibility`, e
+**deriva** la visibilità di tutti i componenti dallo stato invece di assegnarla componente per componente
+(vedi il giro di fix del 2026-08-27).
 
 - [ ] **Step 5.7 — Verifica manuale in PIE, e dichiarala**
 

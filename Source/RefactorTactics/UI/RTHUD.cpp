@@ -486,7 +486,15 @@ void ARTHUD::DrawHUD()
 	// ⚠️ Recuperata QUI, PRIMA del ciclo delle unita' — spostata da dopo il ciclo, dov'era finche' solo la
 	// visualizzazione degli intenti (sotto) ne aveva bisogno: il ciclo ora chiama `UpdateContactGhost`, che
 	// richiede la stessa conversione cella -> mondo per posizionare la sagoma di un ricordo (CP 13.5).
-	// Nessun secondo modo di leggerla: e' l'unico punto del file che interroga `ARTHexMapActor`.
+	//
+	// ⚠️ **Non e' l'unico punto del file che interroga `ARTHexMapActor`**, e la riga che lo affermava era
+	// falsa gia' quando e' stata scritta. Il secondo e' il pannello della terna piu' sotto in questa stessa
+	// funzione (la riga «TIRO: N celle»), che lo raggiunge con un meccanismo DIVERSO —
+	// `Cast<ARTHexMapActor>(UGameplayStatics::GetActorOfClass(...))` invece di `ARTHexMapActor::FindInWorld`.
+	// Cio' che e' vero e' piu' stretto: e' l'unico punto che ne ricava la GEOMETRIA (origine, dimensione
+	// della cella, altezza del layer), quindi ogni conversione cella -> schermo di questa HUD nasce da qui.
+	// Unificare i due meccanismi non e' compito di questa riga — ma nominarli entrambi si', perche' chi
+	// cercasse «dove si prende la mappa» seguendo la vecchia frase ne troverebbe uno solo.
 	FVector Origin = FVector::ZeroVector;
 	float HexSize = 150.f;
 	float LayerH = 250.f;

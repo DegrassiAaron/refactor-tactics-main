@@ -151,10 +151,16 @@ DTO, mai un flag:
 
 > ⚠️ **Corretta il 2026-08-27: questa tabella descriveva un DTO diverso da quello costruito.** Diceva
 > `Detected · CellOnly · Hidden` — che sono i nomi di `ERTAwareness` e `ERTTargetKnowledge`, non della vista —
-> e attribuiva a `Detected` la **condizione** e a `CellOnly` il **turno di scadenza**: `FRTKnowledgeEntry` non
-> ha né l'una né l'altro, e il piano lo vieta esplicitamente («*un campo qui costringerebbe a inventarne il
-> valore*»). La spec contraddiceva il piano dello stesso branch. I nomi veri sono
+> e attribuiva a `Detected` la **condizione** e a `CellOnly` il **turno di scadenza**. I nomi veri sono
 > `ERTKnowledgeVisibility::{Live, Remembered}`, e il terzo caso **non ha un nome** perché non ha una voce.
+>
+> 🔴 **La correzione stessa è stata corretta il 2026-08-27 (giro di fix), perché una sua metà era falsa.**
+> Affermava che `FRTKnowledgeEntry` «non ha né l'una né l'altro»: vero per la **condizione**, che resta
+> vietata dal piano («*un campo qui costringerebbe a inventarne il valore*»); **falso per il turno**, che
+> `d8fdaed4` ha aggiunto come `ContactTurn` — significativo solo per un `Remembered`, ed è il campo che
+> permette alla sagoma dell'ultimo contatto di sapere quando il ricordo scade senza reinterrogare
+> `FRTTeamKnowledge`. La tabella qui sopra continua a non elencarlo perché elenca ciò che **identifica** un
+> caso; `ContactTurn` non distingue i casi, li accompagna.
 
 🔴 **`Hidden` è l'assenza della voce, non una voce con un flag.** È la stessa disciplina che il DoD di
 [#159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/159) impone al filtro acustico
