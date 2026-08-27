@@ -338,8 +338,144 @@ namespace
 		}
 	}
 
-	/** Le partite di riferimento. Poche e deterministiche: un corpus lento non viene eseguito. */
-	const TCHAR* GoldenScenarioIds[] = { TEXT("Movement.Collision"), TEXT("Movement.Basic") };
+	/** Il nome della categoria, o il numero se l'enum non lo conosce: serve solo a rendere leggibile l'esito. */
+	FString EnumNameOr(ERTLogCategory Category)
+	{
+		const UEnum* Enum = StaticEnum<ERTLogCategory>();
+		const FString Nome = Enum ? Enum->GetNameStringByValue(static_cast<int64>(Category)) : FString();
+		return Nome.IsEmpty() ? FString::FromInt(static_cast<int32>(Category)) : Nome;
+	}
+
+	/**
+	 * Le partite di riferimento. **Poche e deterministiche**: un corpus lento non viene eseguito.
+	 *
+	 * ⚠️ Ogni voce e' qui perche' porta una CATEGORIA che le altre non portano — misurato, non scelto:
+	 * `GoldenCorpusCoversItsCategories` stampa la copertura di ciascuna. Tre candidati sono stati provati e
+	 * scartati (`Combat.BasicAttack`, `Spec.Environment.ElectricPropagation`,
+	 * `Spec.ActionEconomy.CooldownBlocksWithSlotFree`): producono solo `Combat` e `Move`, che il corpus aveva
+	 * gia'. Aggiungere tracce che non allargano la rete costa tempo di esecuzione e non compra niente.
+	 *
+	 *   Movement.Basic / Movement.Collision      Move          (le due storiche)
+	 *   Combat.CounterStrikesBack                Combat, Facing, Reaction, Status
+	 *   Spec.Environment.WaterQuenchesFire       Environment
+	 *   Spec.Predictive.WhiffOnEmptyCell         Predictive
+	 *   Spec.Overwatch.HoldThenFire              ReactionDecision
+	 *
+	 * ⚠️ **`Combat.CounterStrikesBack` vale da solo META' della soglia**: e' l'unico fornitore di `Combat`,
+	 * `Facing`, `Reaction` e `Status`. Se un giorno smettesse di produrne una — la reazione che perde la voce
+	 * `Facing`, lo stato che non viene applicato — il test non cadrebbe per una categoria ma per quattro
+	 * insieme, e chi legge il rosso potrebbe cercare il difetto nel posto sbagliato. Misurato, non temuto.
+	 *
+	 * ⚠️ **Due categorie restano scoperte, ed e' dichiarato**: `Fallback` e `ReactionClash`. Nessuno degli
+	 * scenari provati le produce — gli scenari `Spec/Clash` risolvono senza emettere voci `ReactionClash`, e
+	 * `Fallback` nasce da azioni che si degradano, che nessuno scenario del corpus esercita. Chi ne scrive uno
+	 * che le tocca alzi la soglia in `GoldenCorpusCoversItsCategories`.
+	 */
+	const TCHAR* GoldenScenarioIds[] = {
+		TEXT("Movement.Collision"), TEXT("Movement.Basic"),
+		TEXT("Combat.CounterStrikesBack"),
+		TEXT("Spec.Environment.WaterQuenchesFire"),
+		TEXT("Spec.Predictive.WhiffOnEmptyCell"),
+		TEXT("Spec.Overwatch.HoldThenFire"),
+	};
+}
+
+/**
+ * **Il corpus dichiara quante categorie copre, e cade se ne perde una** (`#1455`).
+ *
+ * Il corpus esiste per essere la rete che cattura un cambio d'identita' non dichiarato. Su **dieci**
+ * categorie ne copriva **una** — i due `.rttl` di partenza portavano solo voci `Move` — e quattro cambi
+ * d'identita' di fila gli sono passati sotto senza che suonasse: [D-196], [D-197], [D-198] e [D-199].
+ *
+ * ⚠️ **Il buco non era visibile**, ed e' la parte che questo test cambia: `GoldenCorpusMatches` e' verde sia
+ * quando il corpus copre tutto sia quando non copre niente, perche' confronta cio' che c'e' con cio' che
+ * c'era. Un corpus che si restringe non produce nessun segnale — si restringe e basta.
+ *
+ * ⚠️ **La soglia e' un NUMERO scritto qui**, non un `> 1` generico: e' il patto. Chi toglie uno scenario dal
+ * corpus, o cambia uno scenario in modo che smetta di produrre una famiglia di voci, trova questo test rosso
+ * e deve decidere — abbassare la soglia dichiarando cosa si perde, o rimettere la copertura. Un `>=` largo
+ * lascerebbe scivolare via la copertura una categoria alla volta, che e' come e' arrivata a una.
+ *
+ * ⚠️ Si legge dalle tracce SERIALIZZATE, non dal TurnLog vivo: e' cio' che il corpus archivia, ed e' quindi
+ * cio' di cui si sta misurando la copertura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGoldenCorpusCoverageTest,
+	"RefactorTactics.Simulation.GoldenCorpusCoversItsCategories",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGoldenCorpusCoverageTest::RunTest(const FString&)
+{
+	TSet<ERTLogCategory> Coperte;
+	int32 VociTotali = 0;
+
+	for (const TCHAR* ScenarioId : GoldenScenarioIds)
+	{
+		FString Error;
+		const FString Path = URTScenarioIndex::ResolvePath(ScenarioId, Error);
+		FRTTestScenario Scenario;
+		if (Path.IsEmpty() || !URTScenarioLoader::LoadFromFile(Path, Scenario, Error))
+		{
+			AddError(FString::Printf(TEXT("scenario '%s' non caricabile: %s"), ScenarioId, *Error));
+			continue;
+		}
+
+		UWorld* World = MakeGoldenWorld();
+		if (!World) { AddError(TEXT("world di prova non creato")); continue; }
+		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+		DestroyGoldenWorld(World);
+
+		TSet<ERTLogCategory> DiQuesto;
+		for (const FRTTurnTrace& Trace : Result.TurnTraces)
+		{
+			TArray<FRTTurnLogEntry> Entries;
+			if (!URTTurnLogLibrary::DeserializeTurnLog(Trace.Bytes, Entries))
+			{
+				AddError(FString::Printf(TEXT("traccia di '%s' non rileggibile"), ScenarioId));
+				continue;
+			}
+			VociTotali += Entries.Num();
+			for (const FRTTurnLogEntry& E : Entries)
+			{
+				DiQuesto.Add(E.Category);
+				Coperte.Add(E.Category);
+			}
+		}
+
+		TArray<FString> Nomi;
+		for (ERTLogCategory C : DiQuesto)
+		{
+			Nomi.Add(EnumNameOr(C));
+		}
+		Nomi.Sort();
+		AddInfo(FString::Printf(TEXT("%s: %d turni, categorie {%s}"),
+			ScenarioId, Result.TurnTraces.Num(), *FString::Join(Nomi, TEXT(", "))));
+	}
+
+	// La premessa: senza voci, «copre N categorie» sarebbe falso per il motivo sbagliato.
+	if (!TestTrue(FString::Printf(TEXT("premessa: il corpus produce voci (%d)"), VociTotali), VociTotali > 0))
+	{
+		return false;
+	}
+
+	TArray<FString> Tutte;
+	for (ERTLogCategory C : Coperte)
+	{
+		Tutte.Add(EnumNameOr(C));
+	}
+	Tutte.Sort();
+
+	const int32 Dichiarate = StaticEnum<ERTLogCategory>() ? StaticEnum<ERTLogCategory>()->NumEnums() - 1 : 0;
+	AddInfo(FString::Printf(TEXT("il corpus copre %d categorie su %d: %s"),
+		Coperte.Num(), Dichiarate, *FString::Join(Tutte, TEXT(", "))));
+
+	// 🔴 **Il patto**: questa soglia e' cio' che il corpus promette di coprire. Alzarla e' un miglioramento;
+	// abbassarla e' una decisione da dichiarare, non un effetto collaterale.
+	// 🔴 **Otto**, misurato: `Fallback` e `ReactionClash` restano scoperte e la ragione sta accanto a
+	// `GoldenScenarioIds`. Chi scrive uno scenario che le tocca alza questo numero.
+	constexpr int32 CategorieMinime = 8;
+	TestTrue(*FString::Printf(TEXT("il corpus copre almeno %d categorie (ne copre %d)"),
+		CategorieMinime, Coperte.Num()), Coperte.Num() >= CategorieMinime);
+
+	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGoldenCorpusMatchesTest,
