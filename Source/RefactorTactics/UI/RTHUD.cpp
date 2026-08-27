@@ -95,6 +95,15 @@ void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerT
 	}
 }
 
+bool ARTHUD::ShouldDrawUnitOverlay(const FRTKnowledgeView& View, int32 StableUnitId, bool bIsOwnTeam)
+{
+	if (bIsOwnTeam)
+	{
+		return true;
+	}
+	return URTKnowledgeViewLibrary::FindEntry(View, StableUnitId) != nullptr;
+}
+
 namespace
 {
 	/**
@@ -373,6 +382,11 @@ void ARTHUD::DrawHUD()
 		return;
 	}
 
+	// Il team del giocatore, UNA sola costante per tutta la funzione: prima erano due letterali
+	// indipendenti (l'argomento di `ComputePlannedHitMarks` e un `PlayerTeam` locale piu' sotto), e la
+	// conoscenza di squadra introdotta con la porta ne avrebbe fatto un terzo.
+	const int32 PlayerTeamId = 0;
+
 	// Barre HP/scudo sopra ogni unita' viva.
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
@@ -388,11 +402,48 @@ void ARTHUD::DrawHUD()
 	}
 	TSet<FRTCellId> PlannedHitCells;
 	TSet<FRTCellId> PlannedAllyHitCells;
-	ComputePlannedHitMarks(AllUnits, /*PlayerTeamId=*/ 0, PlannedHitCells, PlannedAllyHitCells);
+	ComputePlannedHitMarks(AllUnits, PlayerTeamId, PlannedHitCells, PlannedAllyHitCells);
+
+	// Recuperato QUI, PRIMA del ciclo delle unita': la vista di conoscenza sotto ha bisogno del
+	// TurnManager, e recuperarlo dopo il ciclo (come accadeva prima di questo task) lascerebbe la vista
+	// sempre vuota — un filtro che non filtra nulla.
+	const ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+
+	// Costruita UNA volta prima del ciclo: `ViewForTeam` e' pura ma il ciclo gira su ogni unita' a ogni
+	// frame, e ricostruirla per ognuna sarebbe lavoro ripetuto per un risultato identico.
+	FRTKnowledgeView KnowledgeView;
+	if (TurnManager)
+	{
+		TArray<FRTKnowledgeSubject> Subjects;
+		Subjects.Reserve(AllUnits.Num());
+		for (ARTUnit* U : AllUnits)
+		{
+			if (!U) { continue; }
+			FRTKnowledgeSubject S;
+			S.StableUnitId = U->StableUnitId;
+			S.TeamId = U->TeamId;
+			S.Cell = U->Cell;
+			S.HeroId = U->HeroId;
+			S.HeroDisplayName = U->HeroDisplayName;
+			S.bAlive = U->IsAlive();
+			Subjects.Add(S);
+		}
+		KnowledgeView = URTKnowledgeViewLibrary::ViewForTeam(
+			TurnManager->KnowledgeForTeamPublic(PlayerTeamId), Subjects, PlayerTeamId);
+	}
+
 	for (AActor* Actor : Actors)
 	{
 		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
 		if (!Unit || !Unit->IsAlive())
+		{
+			continue;
+		}
+
+		// Filtro di conoscenza (CP 13.5): un'unita' avversaria si disegna solo se la squadra del
+		// giocatore la conosce. La propria squadra si disegna sempre.
+		if (!ShouldDrawUnitOverlay(KnowledgeView, Unit->StableUnitId, Unit->TeamId == PlayerTeamId))
 		{
 			continue;
 		}
@@ -497,9 +548,6 @@ void ARTHUD::DrawHUD()
 		DrawText(HeroName, NameColor, CenterX - NameW * 0.5f, Y - 36.f, nullptr, 0.9f);
 	}
 
-	const ARTTurnManager* TurnManager =
-		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
-
 	// Geometria della mappa ESAGONALE: unica fonte di scala per ogni conversione cella -> schermo di questa
 	// HUD (traccia, anteprime, waypoint). La stessa che usano risoluzione e playback (ARTHexMapActor).
 	FVector Origin = FVector::ZeroVector;
@@ -542,8 +590,6 @@ void ARTHUD::DrawHUD()
 	// viene mai copiata in una vista avversaria.
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning && !TurnManager->IsResolving())
 	{
-		const int32 PlayerTeam = 0; // il giocatore controlla il team 0 (blu)
-
 		// 1. RACCOGLI i piani autorevoli (in rete: lato server, mai spediti cosi' come sono).
 		// ⚠️ Il ciclo che li costruiva stava qui fino al 2026-08-24 ed e' ora in `URTHudViewModel`: lo
 		// condivide con `rt.Debug.DrawIntent` (CP 11.4, #80), che deve mostrare **gli stessi** intenti che
@@ -552,7 +598,7 @@ void ARTHUD::DrawHUD()
 		const TArray<FRTPlannedIntent> Authoritative = URTHudViewModel::BuildAuthoritativeIntents(Actors);
 
 		// 2. FILTRA per l'osservatore. Da qui in giu' lo stato completo non si tocca piu'.
-		const TArray<FRTIntentView> Views = URTIntentPrivacyLibrary::FilterForTeam(PlayerTeam, Authoritative);
+		const TArray<FRTIntentView> Views = URTIntentPrivacyLibrary::FilterForTeam(PlayerTeamId, Authoritative);
 
 		// Disegna cio' che `ComposeDashSegments` ha gia' deciso. Qui non resta nessuna scelta: il conteggio
 		// dei tratti, il rapporto acceso/spento e il tetto vivono nella statica, dove un test li raggiunge.

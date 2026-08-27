@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
 #include "Map/RTCellId.h"
+#include "Perception/RTKnowledgeView.h" // FRTKnowledgeView: l'HUD legge la vista, non lo stato
 #include "RTHUD.generated.h"
 
 /**
@@ -189,6 +190,17 @@ public:
 	 */
 	static void ComputePlannedHitMarks(const TArray<class ARTUnit*>& Units, int32 PlayerTeamId,
 		TSet<FRTCellId>& OutHitCells, TSet<FRTCellId>& OutAllyHitCells);
+
+	/**
+	 * Se l'overlay di un'unita' (nome, barra HP, scudo) va disegnato per questo osservatore.
+	 *
+	 * Statica e PURA: `DrawHUD` non ha test, quindi la decisione vive qui dove si puo' interrogare — e' la
+	 * stessa strada di `ComputePlannedHitMarks`.
+	 *
+	 * ⚠️ La propria squadra si disegna SEMPRE, anche senza una voce nella vista: nascondere il proprio
+	 * schieramento a se' stessi non e' conoscenza parziale, e' un difetto.
+	 */
+	static bool ShouldDrawUnitOverlay(const FRTKnowledgeView& View, int32 StableUnitId, bool bIsOwnTeam);
 
 	/**
 	 * Vincola l'ancora di una sovrapposizione ai bordi del viewport.

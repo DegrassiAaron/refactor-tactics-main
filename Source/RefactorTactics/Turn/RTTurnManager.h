@@ -321,6 +321,13 @@ public:
 	/** Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito). */
 	const TArray<TArray<FRTCellId>>& GetLastMoveRoutes() const { return LastMoveRoutes; }
 
+	/**
+	 * La conoscenza di UNA squadra, per la presentazione. Copia piccola: NON e' `MakeCurrentSnapshot`, che
+	 * fa `GetAllActorsOfClass` e due `Sort` ed e' proibitiva a ogni frame.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Perception")
+	FRTTeamKnowledge KnowledgeForTeamPublic(int32 TeamId) const { return KnowledgeForTeam(TeamId); }
+
 	// --- Sonda di pacing (TELEMETRIA: nessun ritorno verso il gameplay) --------------------------
 	/**
 	 * Registra un input di pianificazione. Chiamata dal PlayerController, che NON cronometra: tutto il

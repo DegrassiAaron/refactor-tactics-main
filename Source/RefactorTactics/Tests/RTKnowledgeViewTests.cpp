@@ -2,6 +2,7 @@
 #include "Map/RTCellId.h"
 #include "Perception/RTKnowledgeView.h"
 #include "Perception/RTTeamKnowledge.h"
+#include "UI/RTHUD.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -134,6 +135,33 @@ bool FRTKnowledgeLastContactCarriesIdentityNotConditionTest::RunTest(const FStri
 	TestTrue(TEXT("porta la cella del CONTATTO"), E->Cell == Remembered);
 	TestFalse(TEXT("e NON quella attuale"), E->Cell == Actual);
 	TestFalse(TEXT("l'identita' c'e'"), E->HeroDisplayName.IsEmpty());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeHudDrawsOnlyKnownUnitsTest,
+	"RefactorTactics.Knowledge.HudDrawsOnlyKnownUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeHudDrawsOnlyKnownUnitsTest::RunTest(const FString&)
+{
+	const FRTCellId SeenCell(3, 0, 0);
+	FRTTeamKnowledge K = KvKnowledge({ FRTLastKnownContact(2, SeenCell, 5) });
+	K.VisibleCells.Add(SeenCell);
+
+	const TArray<FRTKnowledgeSubject> Subjects = {
+		KvSubject(1, 0, FRTCellId(0, 0, 0)),  // alleato
+		KvSubject(2, 1, SeenCell),            // nemico visto
+		KvSubject(3, 1, FRTCellId(7, 0, 0))   // nemico ignoto
+	};
+	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(K, Subjects, 0);
+
+	TestTrue(TEXT("l'alleato si disegna"), ARTHUD::ShouldDrawUnitOverlay(View, 1, /*bIsOwnTeam*/ true));
+	TestTrue(TEXT("il nemico visto si disegna"), ARTHUD::ShouldDrawUnitOverlay(View, 2, false));
+	TestFalse(TEXT("il nemico ignoto NON si disegna"), ARTHUD::ShouldDrawUnitOverlay(View, 3, false));
+
+	// Anti-vacuita': un'unita' della propria squadra si disegna anche se, per un difetto della porta, non
+	// avesse una voce. Il proprio schieramento non si nasconde mai a se stessi.
+	TestTrue(TEXT("la propria squadra non si nasconde mai"),
+		ARTHUD::ShouldDrawUnitOverlay(View, 99, /*bIsOwnTeam*/ true));
 	return true;
 }
 
