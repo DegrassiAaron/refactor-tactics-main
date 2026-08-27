@@ -19,13 +19,28 @@ deterministico, su una griglia **esagonale multilivello**.
 |---|---|---|---|
 | 1 | **Canone** | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) | Invarianti, decisioni operative, regole. **Prevale su tutto** |
 | 2 | **Decisioni** | [`decisions/`](decisions/) — 6 ADR + [Decision Log](decisions/RT_PDR_00_Decision_Log.md) | Scelte architetturali e di prodotto, con motivazione |
-| 3 | **Esecuzione** | [`roadmap/roadmap-checkpoint.md`](roadmap/roadmap-checkpoint.md) | Milestone M6–M11, DoD misurabili, **stato** |
-| 4 | **Release** | [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) | Scope della v0.1 — il **totale** di epic e checkpoint si legge di lì (§3), non da qui |
+| 3 | **Codice** | `Source/` | Cosa il gioco fa **davvero**, oggi |
+| 4 | **Specifiche** | [`gameplay/`](gameplay/) · [`technical/`](technical/) | Dettaglio per feature |
 | 5 | **Numeri** | [`balance/`](balance/) | Valori vigenti: azioni, eroi, terreni, equipaggiamento |
-| 6 | **Specifiche** | [`gameplay/`](gameplay/) · [`technical/`](technical/) | Dettaglio per feature |
-| 7 | **Requisiti lungo periodo** | [`roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6 — **direzione, non scope** |
-| 8 | **Visione north-star** | [`research/prd/`](research/prd/) — i PRD, in Markdown dal 2026-08-12 | Prodotto a lungo termine, **non** obiettivo attuale |
-| 9 | **Storico** | [`archive/`](archive/) | Materiale superato, conservato per provenienza |
+| 6 | **Esecuzione** | [`roadmap/roadmap-checkpoint.md`](roadmap/roadmap-checkpoint.md) | Milestone M6–M11, DoD misurabili, **stato** |
+| 7 | **Release** | [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) | Scope della v0.1 — il **totale** di epic e checkpoint si legge di lì (§3), non da qui |
+| 8 | **Requisiti lungo periodo** | [`roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md`](roadmap/RT_PDR_10_Roadmap_QA_Rischi_v0.2.md) | Fasi F0–F6 — **direzione, non scope** |
+| 9 | **Visione north-star** | [`research/prd/`](research/prd/) — i PRD, in Markdown dal 2026-08-12 | Prodotto a lungo termine, **non** obiettivo attuale |
+| 10 | **Storico** | [`archive/`](archive/) | Materiale superato, conservato per provenienza |
+
+> ⚠️ **Tre righe sono cambiate il 2026-08-27, e non è un riordino estetico** ([D-210](decisions/RT_PDR_00_Decision_Log.md)).
+> Fino a quel giorno questa tabella metteva **`balance/` sopra `gameplay/`·`technical/`**, e il **codice** non
+> c'era affatto: compariva solo nella prosa di [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md), cioè in una
+> nota storica a metà documento. Le due letture davano risposte opposte allo stesso caso — un catalogo che
+> promette una cosa e una spec già implementata che ne dice un'altra — e **tre PR consecutive sono state
+> chiuse senza merge** citando ognuna una fonte vera. I cataloghi di `balance/` si leggono per ciò che sono:
+> **numeri**, non regole.
+>
+> ⚠️ **Il codice prevale, ma non è un owner.** Questa colonna dice chi ha ragione quando due documenti si
+> contraddicono. Che cosa valga come *specifica* lo dice
+> [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) §«Come si aggiorna» regola 3: un tema che vive solo in
+> `Source/` e che nessun documento ha recepito è `OPEN`, non `CONFIRMED`. Le due frasi ordinano cose diverse
+> e non si contraddicono.
 
 > **Il canone e gli ADR non possono divergere.** La tabella dice che il livello 1 prevale sul livello 2, ma un
 > ADR accettato *corregge* il canone: ADR-0004 ha cambiato la forma della risoluzione, ADR-0005 ha spostato il
@@ -195,7 +210,7 @@ docs/
    la clausola «riutilizzare i file esistenti quando possibile» lo consente.
 2. **`research/` non è documentazione**: è la casella di posta dei sorgenti grezzi — PRD di visione,
    design non canonico, handoff non ancora triagiati. Vive accanto ai documenti perché è da lì che
-   nascono, ma **non è normativa** e non compare nella gerarchia delle fonti sopra il livello 8.
+   nascono, ma **non è normativa** e non compare nella gerarchia delle fonti sopra il livello 9.
    > **`src/` non esiste più.** Il 2026-08-19 la fase 3 di
    > [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165) ha portato via gli ultimi
    > 112 file: `git ls-files docs/src` restituisce **zero**. `src` era ambiguo in un repository che ha
