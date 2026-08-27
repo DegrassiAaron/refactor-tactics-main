@@ -17,7 +17,36 @@
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Engine/Canvas.h"
+#include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
+
+/**
+ * L'interruttore dei pannelli **screen-space** di questo Canvas HUD.
+ *
+ * 🔴 **Taglia esattamente lungo il confine della spec**, e non e' una scorciatoia di comodo:
+ * `progettazione-hud.md` separa il **§4.1 Screen HUD** — turno, fase, timer, combat log, barra abilita',
+ * terna degli slot — dal **§4.2 Tactical World Overlay** — barre sopra le unita', path, waypoint, AoE,
+ * fuoco amico. Questa variabile spegne il primo e **non tocca** il secondo.
+ *
+ * Serve perche' CP 11.7 sta ricostruendo il §4.1 in UMG (`WBP_RT_*`): finche' i due coesistono, le stesse
+ * informazioni compaiono due volte a schermo, e i pannelli Canvas coprono le zone dove i widget nuovi
+ * devono stare. Con `rt.HUD.CanvasPanels 0` si lavora sul layer nuovo senza il vecchio sotto.
+ *
+ * ⚠️ **Non e' una decisione di architettura**: quale dei due layer debba disegnare cosa resta aperto — il
+ * piano lo chiama «Task 7-bis» — e questa variabile serve a poterlo *decidere guardando*, invece che a
+ * deciderlo adesso cancellando codice coperto da `RefactorTactics.HUD.*`.
+ *
+ * Default `1`: il comportamento di prima resta quello che si ottiene senza fare nulla.
+ */
+static TAutoConsoleVariable<int32> CVarHudCanvasPanels(
+	TEXT("rt.HUD.CanvasPanels"),
+	1,
+	TEXT("Pannelli screen-space del Canvas HUD (progettazione-hud.md §4.1).\n")
+	TEXT("  1 = accesi (default)  |  0 = spenti\n")
+	TEXT("Spegne: intestazione di turno, combat log, barra abilita', terna degli slot.\n")
+	TEXT("NON tocca il §4.2 world-space (barre sopra le unita', path, AoE, fuoco amico) ne' il banner\n")
+	TEXT("di scenario, che spiega perche' una mappa senza partita non mostra nulla."),
+	ECVF_Default);
 
 namespace
 {
@@ -763,8 +792,13 @@ void ARTHUD::DrawHUD()
 		}
 	}
 
-	// Barra di stato in alto: turno, fase e timer/avanzamento.
-	if (TurnManager)
+	// Letta UNA volta per frame, non a ogni pannello: tre `GetValueOnGameThread()` nello stesso `DrawHUD`
+	// potrebbero in teoria vedere valori diversi se la console cambiasse a meta' — e mezzo HUD acceso
+	// sarebbe piu' difficile da diagnosticare di entrambi gli stati interi.
+	const bool bCanvasPanels = CVarHudCanvasPanels.GetValueOnGameThread() != 0;
+
+	// Barra di stato in alto: turno, fase e timer/avanzamento. (§4.1 — vedi `rt.HUD.CanvasPanels`)
+	if (bCanvasPanels && TurnManager)
 	{
 		// Contatore del turno: con un formato in vigore mostra anche il limite, altrimenti resta il solo
 		// numero — un "su 0" direbbe che la partita e' gia' scaduta, che non e' cio' che accade.
@@ -842,7 +876,8 @@ void ARTHUD::DrawHUD()
 	}
 
 	// Combat log in basso a sinistra (dal piu' vecchio in alto al piu' recente in basso).
-	if (TurnManager)
+	// (§4.1 — vedi `rt.HUD.CanvasPanels`)
+	if (bCanvasPanels && TurnManager)
 	{
 		const TArray<FString>& Events = TurnManager->GetRecentEvents();
 		const float LineH = 16.f;
@@ -854,8 +889,14 @@ void ARTHUD::DrawHUD()
 		}
 	}
 
-	// Barra abilita' dell'unita' selezionata (in basso al centro).
-	if (const ARTPlayerController* RTPC = Cast<ARTPlayerController>(GetOwningPlayerController()))
+	// Barra abilita' dell'unita' selezionata (in basso al centro) e terna degli slot (in basso a destra).
+	// (§4.1 — vedi `rt.HUD.CanvasPanels`)
+	//
+	// ⚠️ Le due sezioni condividono una guardia sola perche' condividono il blocco della selezione: la
+	// barra abilita' e la terna leggono entrambe `Sel`, e separarle vorrebbe dire duplicare il `Cast` e la
+	// `GetSelectedUnit()`. Se in futuro servisse spegnerne una sola, il punto dove dividerle e' qui.
+	if (const ARTPlayerController* RTPC = Cast<ARTPlayerController>(GetOwningPlayerController());
+		bCanvasPanels && RTPC)
 	{
 		if (const ARTUnit* Sel = RTPC->GetSelectedUnit())
 		{
