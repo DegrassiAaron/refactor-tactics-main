@@ -324,8 +324,9 @@ Le fette 1–4 non estendono il formato degli scenari. La 5 sì, ed è la ragion
 ## 5. Decisioni aperte — da portare al Decision Log
 
 > ✅ **Il [§7](#7-secondo-giro--le-cinque-decisioni-con-una-posizione) prende posizione su tutte e cinque**
-> (secondo giro, stesso giorno, stesso HEAD). Restano *aperte* nel senso che conta: la decisione è del
-> Decision Log, non del panel. ⚠️ Il §7.0 corregge questo elenco in un punto — **la 1 e la 2 sono la stessa
+> (secondo giro, stesso giorno, stesso HEAD), e **tutte e cinque sono poi state decise** nel Decision Log —
+> `D-214`, `D-215`, `D-216`, `D-217`: vedi il [§7.8](#78-cosa-resta-allautore-e-cosa-il-panel-continua-a-non-fare).
+> Questo elenco resta com'era scritto, perché è il punto da cui si è partiti. ⚠️ Il §7.0 corregge questo elenco in un punto — **la 1 e la 2 sono la stessa
 > decisione**, e trattarle come due sopravvalutava la precondizione.
 
 1. **Le sezioni DEV/TEST rientrano nella v0.1?** Revoca o conferma parziale di [D-144](../../decisions/RT_PDR_00_Decision_Log.md) / scope E46 (F1). Senza questa, le altre quattro non hanno oggetto.
@@ -354,7 +355,7 @@ Le fette 1–4 non estendono il formato degli scenari. La 5 sì, ed è la ragion
 > **Data**: 2026-08-27, stesso giorno · **HEAD**: `0323c4f3`, invariato · **Panel**: lo stesso
 > **Modo**: `decide` — il primo giro isolava le domande e dichiarava di non rispondere; qui il panel
 > risponde, e registra il dissenso dove c'è. ⛔ **Le posizioni non sono decisioni**: il Decision Log è
-> l'owner, e gli ID sono **D-214** e **D-215**.
+> l'owner, e gli ID sono **D-214**, **D-215**, **D-216** e **D-217**.
 > 🔴 **Questa riga diceva `D-210`, e la riverifica prescritta l'ha falsificata poche ore dopo.** Era il primo
 > libero *su questo branch* (ultimo assegnato: `D-209`); nel frattempo `origin/main` è avanzato di **22
 > commit** e ne ha presi tre — `D-210` (gerarchia delle fonti, `355ef055`), `D-211`, `D-212`. Rinumerata
@@ -457,7 +458,7 @@ avverrebbe sul pacchetto. Tenere la riga e svuotare il contenuto lascia **una** 
 
 ## 7.3 D3 — Precedenza · **Posizione: la scelta del menu vince su tutto, e la regola era già scritta**
 
-**Unanime nel merito, con una riserva di Nygard sulla forma** (§7.7).
+**Unanime nel merito, con una riserva di Nygard sulla forma** (§7.7). ✅ **Decisa**: [`D-216`](../../decisions/RT_PDR_00_Decision_Log.md) — e la riserva di Nygard è entrata nella voce come vincolo, non come nota: il banner deve **nominare il flag scavalcato**.
 
 Il panel non introduce un ordine: ne **applica** uno che il codice dichiara. `RTGameMode.cpp:30-38`:
 
@@ -523,7 +524,7 @@ senza riga di comando** — cioè la fetta 4 del §4.3 ha valore anche se nessun
 
 ## 7.5 D5 — Formato scenario · **Posizione: zero campi obbligatori nuovi. Sei colonne su sette sono derivabili**
 
-**Maggioranza 5–1** (dissenso di Adzic al §7.7, e il panel gliene concede metà).
+**Maggioranza 5–1** (dissenso di Adzic al §7.7, e il panel gliene concede metà). ✅ **Decisa**: [`D-217`](../../decisions/RT_PDR_00_Decision_Log.md), che porta anche la mezza concessione ad Adzic (`displayName` opzionale) e un'avvertenza che il §7.5 non aveva isolato — `Last result` legge `Saved/`, che **non è versionato**: è diagnostica per-macchina, e nessun gate può appoggiarcisi.
 
 Il primo giro diceva *«metà delle colonne è un formato nuovo»* e stimava una migrazione di 83 file. **Il
 secondo giro ha misurato, e la stima era pessimistica in due modi.**
@@ -585,14 +586,19 @@ renderlo **obbligatorio**, che è ciò che trasformerebbe la fetta 5 in un lavor
 Il panel ha una posizione su tutte e cinque. **Nessuna è una decisione**: le decisioni le prende il Decision
 Log, non questo documento, che non è owner di niente (`plans/README.md`).
 
-✅ **Due sono state prese.** [`D-214`](../../decisions/RT_PDR_00_Decision_Log.md) porta la delimitazione del
-§7.1 — *un'affordance di sviluppo può vivere nel frontend spedito purché in Shipping non esista* — con la
-forma del §7.2 e l'avvertenza sul nome già occupato; **E46 non è stata toccata**, che era il punto.
-[`D-215`](../../decisions/RT_PDR_00_Decision_Log.md) porta l'asse mappa del §7.4: **fixture**, e `MatchLevel`
-resta un dettaglio di caricamento.
+✅ **Sono state prese tutte e cinque**, in [`RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md),
+e in **quattro** voci separate perché sono decisioni separate:
 
-⏳ **Restano due posizioni e nessuna decisione**: D3 (precedenza, §7.3) e D5 (formato, §7.5). Entrambe le voci
-scritte dichiarano esplicitamente di non deciderle.
+| Voce | Cosa decide | §  |
+|---|---|---|
+| `D-214` | la **delimitazione**: un'affordance di sviluppo vive nel frontend spedito purché in Shipping non esista — e la forma è quella di `GetDetail()`. **E46 non è toccata** | §7.1 + §7.2 |
+| `D-215` | l'**asse mappa**: fixture, non `.umap`. `MatchLevel` resta un dettaglio di caricamento | §7.4 |
+| `D-216` | la **precedenza**: il menu vince, e il banner nomina il flag scavalcato | §7.3 |
+| `D-217` | il **formato**: derivazione, zero campi obbligatori, `displayName` opzionale | §7.5 |
+
+⛔ **Quello che nessuna delle quattro fa è autorizzare l'implementazione**, e lo dicono tutte: il canale del
+navigatore trasporta un `FString`, quindi una scelta fatta nel menu **non attraversa `OpenLevel`** (§3 F4).
+La fetta 1 del §4.3 resta la precondizione tecnica, come lo era prima che ci fosse una decisione.
 
 Restano fuori, e restano vere dal primo giro:
 
