@@ -22,6 +22,19 @@ struct FRTSlotLine
 };
 
 /**
+ * Dove disegnare la sagoma dell'ultimo contatto, e a che turno risale — l'esito di
+ * `ARTHUD::ContactGhostTargetForUnit` quando c'e' davvero qualcosa da mostrare.
+ *
+ * `Cell` e' SEMPRE la cella del ricordo (`FRTKnowledgeEntry::Cell` per una voce `Remembered`): questo tipo
+ * non porta mai la posizione attuale dell'unita', perche' non la riceve nemmeno in ingresso.
+ */
+struct FRTContactGhostTarget
+{
+	FRTCellId Cell;
+	int32 ContactTurn = 0;
+};
+
+/**
  * Come disegnare un intento, dato quanto e' certo (CP 11.2).
  *
  * ⚠️ **Non contiene il livello, e non e' una dimenticanza.** Se portasse anche `ERTIntentCertainty` il Canvas
@@ -199,8 +212,29 @@ public:
 	 *
 	 * ⚠️ La propria squadra si disegna SEMPRE, anche senza una voce nella vista: nascondere il proprio
 	 * schieramento a se' stessi non e' conoscenza parziale, e' un difetto.
+	 *
+	 * Prende `Entry` gia' cercata (`URTKnowledgeViewLibrary::FindEntry`), non la `FRTKnowledgeView` intera:
+	 * `DrawHUD` cerca la voce UNA volta per unita' e la passa qui e a `ContactGhostTargetForUnit`, invece di
+	 * interrogare la vista due volte per la stessa domanda.
 	 */
-	static bool ShouldDrawUnitOverlay(const FRTKnowledgeView& View, int32 StableUnitId, bool bIsOwnTeam);
+	static bool ShouldDrawUnitOverlay(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam);
+
+	/**
+	 * Dove e quando disegnare la sagoma dell'ultimo contatto per un'unita' (Task 6b/CP 13.5), o nessun
+	 * valore se non c'e' nulla da mostrare — spegnere e' la risposta di default.
+	 *
+	 * Statica e PURA, sullo stesso modello di `ShouldDrawUnitOverlay`: `DrawHUD` non ha test, quindi la
+	 * decisione vive qui dove si puo' interrogare senza montare un HUD — ed e' la porta il cui difetto
+	 * originale era proprio «nessun chiamante» (ebfee2a9): sagoma testata ma mai cablata.
+	 *
+	 * Un valore esce SOLO se `!bIsOwnTeam && Entry && Entry->Visibility == Remembered`, e porta
+	 * `Entry->Cell`/`Entry->ContactTurn` — MAI una posizione attuale, perche' questa funzione non la riceve
+	 * nemmeno in ingresso: non puo' leggere per sbaglio `Unit->Cell` perche' non ha un `Unit` da leggere.
+	 *
+	 * `bIsOwnTeam` decide PRIMA di guardare `Entry`: la propria squadra non si ricorda mai se stessa, anche
+	 * se la voce fosse (per un difetto altrove) `Remembered`.
+	 */
+	static TOptional<FRTContactGhostTarget> ContactGhostTargetForUnit(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam);
 
 	/**
 	 * Vincola l'ancora di una sovrapposizione ai bordi del viewport.

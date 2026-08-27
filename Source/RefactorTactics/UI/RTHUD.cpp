@@ -124,13 +124,25 @@ void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerT
 	}
 }
 
-bool ARTHUD::ShouldDrawUnitOverlay(const FRTKnowledgeView& View, int32 StableUnitId, bool bIsOwnTeam)
+bool ARTHUD::ShouldDrawUnitOverlay(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam)
 {
 	if (bIsOwnTeam)
 	{
 		return true;
 	}
-	return URTKnowledgeViewLibrary::FindEntry(View, StableUnitId) != nullptr;
+	return Entry != nullptr;
+}
+
+TOptional<FRTContactGhostTarget> ARTHUD::ContactGhostTargetForUnit(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam)
+{
+	if (bIsOwnTeam || Entry == nullptr || Entry->Visibility != ERTKnowledgeVisibility::Remembered)
+	{
+		return TOptional<FRTContactGhostTarget>();
+	}
+	FRTContactGhostTarget Target;
+	Target.Cell = Entry->Cell;
+	Target.ContactTurn = Entry->ContactTurn;
+	return Target;
 }
 
 namespace
@@ -487,10 +499,19 @@ void ARTHUD::DrawHUD()
 			continue;
 		}
 
-		// `ShouldDrawUnitOverlay` calcola gia' esattamente «e' noto?»: ricalcolarlo inline qui sarebbe una
-		// seconda definizione della stessa regola, e le due potrebbero divergere (review).
-		const bool bIsKnownToObserver =
-			ShouldDrawUnitOverlay(KnowledgeView, Unit->StableUnitId, Unit->TeamId == PlayerTeamId);
+		// La voce di conoscenza si cerca UNA volta per unita' e alimenta ENTRAMBE le decisioni sotto
+		// (`ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit`) — non due `FindEntry` separate per la
+		// stessa domanda (review). Per la propria squadra non si cerca nemmeno: entrambe le funzioni
+		// decidono da `bIsOwnTeam` prima di guardare `Entry`, esattamente come faceva prima questo ramo.
+		const bool bIsOwnTeam = (Unit->TeamId == PlayerTeamId);
+		const FRTKnowledgeEntry* Entry = bIsOwnTeam
+			? nullptr
+			: URTKnowledgeViewLibrary::FindEntry(KnowledgeView, Unit->StableUnitId);
+
+		// `ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit` sono statiche e PURE (dichiarate in
+		// `RTHUD.h`, testate senza montare un HUD): ricalcolare una qualunque delle due regole inline qui
+		// sarebbe una seconda definizione, e le due potrebbero divergere (review).
+		const bool bIsKnownToObserver = ShouldDrawUnitOverlay(Entry, bIsOwnTeam);
 
 		// Applica lo stato di conoscenza PRIMA del filtro sottostante: altrimenti l'unita' saltata dal
 		// `continue` qui sotto non riceverebbe mai il comando e resterebbe visibile.
@@ -501,22 +522,13 @@ void ARTHUD::DrawHUD()
 		// perche' spegnerla vale anche per chi quel filtro sta per saltare: un nemico senza voce nella vista
 		// (`Rejected`, ricordo scaduto) non ha nemmeno una sagoma, e resterebbe accesa dall'ultima volta se
 		// il `continue` la saltasse prima di arrivarci.
-		//
-		// ⚠️ Lo spegnimento e' `HideContactGhost()`, non `UpdateContactGhost` alimentato con un `ContactTurn`
-		// fittizio: `ContactTurn` e' un dato del contatto, e un valore "dal futuro" per dire «spenta»
-		// userebbe quel campo come segnale di rendering, indistinguibile da un contatto vero e incoerente.
-		// La decisione «non c'e' nulla da ricordare» la prende QUESTO ramo, non un numero fabbricato.
-		const FRTKnowledgeEntry* ContactEntry = (bIsKnownToObserver && Unit->TeamId != PlayerTeamId)
-			? URTKnowledgeViewLibrary::FindEntry(KnowledgeView, Unit->StableUnitId)
-			: nullptr;
-		if (ContactEntry && ContactEntry->Visibility == ERTKnowledgeVisibility::Remembered)
+		if (const TOptional<FRTContactGhostTarget> GhostTarget = ContactGhostTargetForUnit(Entry, bIsOwnTeam))
 		{
-			// `Entry->Cell` e' quella del CONTATTO (Task 2), mai la posizione attuale dell'attore: e' lo
-			// stesso riferimento di `URTHexLibrary::AxialToWorld` che il contratto di `UpdateContactGhost`
-			// chiede.
+			// `GhostTarget->Cell` e' quella del CONTATTO (Task 2), mai la posizione attuale dell'attore:
+			// `ContactGhostTargetForUnit` non riceve nemmeno `Unit`, quindi non puo' leggerla per sbaglio.
 			const int32 CurrentTurn = TurnManager ? TurnManager->GetTurnNumber() : 0;
-			Unit->UpdateContactGhost(HexCellWorld(ContactEntry->Cell, Origin, HexSize, LayerH),
-				ContactEntry->ContactTurn, CurrentTurn);
+			Unit->UpdateContactGhost(HexCellWorld(GhostTarget->Cell, Origin, HexSize, LayerH),
+				GhostTarget->ContactTurn, CurrentTurn);
 		}
 		else
 		{

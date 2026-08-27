@@ -156,14 +156,20 @@ bool FRTKnowledgeHudDrawsOnlyKnownUnitsTest::RunTest(const FString&)
 	};
 	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(K, Subjects, 0);
 
-	TestTrue(TEXT("l'alleato si disegna"), ARTHUD::ShouldDrawUnitOverlay(View, 1, /*bIsOwnTeam*/ true));
-	TestTrue(TEXT("il nemico visto si disegna"), ARTHUD::ShouldDrawUnitOverlay(View, 2, false));
-	TestFalse(TEXT("il nemico ignoto NON si disegna"), ARTHUD::ShouldDrawUnitOverlay(View, 3, false));
+	// `ShouldDrawUnitOverlay` prende la voce gia' cercata (RTHUD.cpp la cerca una volta sola per unita' e la
+	// riusa anche per `ContactGhostTargetForUnit`): il test replica lo stesso passo.
+	TestTrue(TEXT("l'alleato si disegna"),
+		ARTHUD::ShouldDrawUnitOverlay(URTKnowledgeViewLibrary::FindEntry(View, 1), /*bIsOwnTeam*/ true));
+	TestTrue(TEXT("il nemico visto si disegna"),
+		ARTHUD::ShouldDrawUnitOverlay(URTKnowledgeViewLibrary::FindEntry(View, 2), false));
+	TestFalse(TEXT("il nemico ignoto NON si disegna"),
+		ARTHUD::ShouldDrawUnitOverlay(URTKnowledgeViewLibrary::FindEntry(View, 3), false));
 
 	// Anti-vacuita': un'unita' della propria squadra si disegna anche se, per un difetto della porta, non
-	// avesse una voce. Il proprio schieramento non si nasconde mai a se stessi.
+	// avesse una voce (qui e' proprio cosi': l'id 99 non compare in nessun soggetto). Il proprio
+	// schieramento non si nasconde mai a se stessi.
 	TestTrue(TEXT("la propria squadra non si nasconde mai"),
-		ARTHUD::ShouldDrawUnitOverlay(View, 99, /*bIsOwnTeam*/ true));
+		ARTHUD::ShouldDrawUnitOverlay(URTKnowledgeViewLibrary::FindEntry(View, 99), /*bIsOwnTeam*/ true));
 	return true;
 }
 
@@ -279,6 +285,68 @@ bool FRTKnowledgeRememberedEntryCarriesContactTurnTest::RunTest(const FString&)
 	TestEqual(TEXT("porta il turno DEL CONTATTO"), E->ContactTurn, 5);
 	TestNotEqual(TEXT("non il turno della conoscenza"), E->ContactTurn, K.TurnNumber);
 	TestNotEqual(TEXT("non lo zero del default"), E->ContactTurn, 0);
+	return true;
+}
+
+/**
+ * `ARTHUD::ContactGhostTargetForUnit` e' la porta stessa il cui difetto originale era «nessun chiamante»
+ * (ebfee2a9): `DrawHUD` non ha una rete di test, quindi questa e' l'unica automazione che si accorgerebbe
+ * se un domani qualcuno invertisse un ramo o leggesse la posizione sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeContactGhostTargetForFourCasesTest,
+	"RefactorTactics.Knowledge.ContactGhostTargetForFourCases",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeContactGhostTargetForFourCasesTest::RunTest(const FString&)
+{
+	// La voce Remembered si costruisce passando per `ViewForTeam` (non un `FRTKnowledgeEntry` a mano), con
+	// la cella ATTUALE del soggetto diversa da quella del RICORDO: e' la sonda anti-vacuita' chiesta dalla
+	// review. Un'implementazione che leggesse la posizione attuale invece del ricordo produrrebbe `Actual`,
+	// non `Remembered`, e questo test cadrebbe.
+	const FRTCellId Remembered(3, 0, 0);
+	const FRTCellId Actual(6, 0, 0);
+
+	FRTTeamKnowledge K;
+	K.TeamId = 0;
+	K.TurnNumber = 8;
+	K.Contacts = { FRTLastKnownContact(2, Remembered, 5) };
+
+	const TArray<FRTKnowledgeSubject> Subjects = { KvSubject(2, 1, Actual) };
+	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(K, Subjects, /*ObserverTeamId*/ 0);
+	const FRTKnowledgeEntry* RememberedEntry = URTKnowledgeViewLibrary::FindEntry(View, 2);
+	if (!TestNotNull(TEXT("il ricordo produce una voce"), RememberedEntry))
+	{
+		return false;
+	}
+
+	// Caso 1 -- nemico Remembered: produce un target con la cella del RICORDO (mai quella attuale) e il
+	// turno del contatto.
+	const TOptional<FRTContactGhostTarget> RememberedTarget =
+		ARTHUD::ContactGhostTargetForUnit(RememberedEntry, /*bIsOwnTeam*/ false);
+	if (!TestTrue(TEXT("un ricordo produce un target"), RememberedTarget.IsSet()))
+	{
+		return false;
+	}
+	TestTrue(TEXT("la cella e' quella del RICORDO"), RememberedTarget->Cell == Remembered);
+	TestFalse(TEXT("mai quella ATTUALE del soggetto"), RememberedTarget->Cell == Actual);
+	TestEqual(TEXT("il turno e' quello del contatto"), RememberedTarget->ContactTurn, 5);
+
+	// Caso 2 -- nemico Live: una voce c'e', ma non e' un ricordo -> nessun target.
+	FRTKnowledgeEntry LiveEntry;
+	LiveEntry.StableUnitId = 3;
+	LiveEntry.Visibility = ERTKnowledgeVisibility::Live;
+	LiveEntry.Cell = Actual;
+	TestFalse(TEXT("un nemico visto ORA non ha sagoma"),
+		ARTHUD::ContactGhostTargetForUnit(&LiveEntry, /*bIsOwnTeam*/ false).IsSet());
+
+	// Caso 3 -- unita' della propria squadra: mai una sagoma, ANCHE con una voce Remembered -- prova che
+	// `bIsOwnTeam` decide PRIMA di guardare `Visibility`. La squadra propria non si ricorda mai se stessa.
+	TestFalse(TEXT("la propria squadra non ha mai una sagoma"),
+		ARTHUD::ContactGhostTargetForUnit(RememberedEntry, /*bIsOwnTeam*/ true).IsSet());
+
+	// Caso 4 -- nessuna voce nella vista (Rejected, ricordo scaduto): nessun target.
+	TestFalse(TEXT("nessuna voce -> nessuna sagoma"),
+		ARTHUD::ContactGhostTargetForUnit(nullptr, /*bIsOwnTeam*/ false).IsSet());
+
 	return true;
 }
 
