@@ -693,6 +693,68 @@ bool FRTHexFixtureLoaderTest::RunTest(const FString&)
 }
 
 /**
+ * **Ogni builder di arena consegna UNA revisione**, non uno solo di loro (`#1435`, [D-201]).
+ *
+ * [D-196] aveva corretto `MakeFlatArena`, e questo rendeva quel builder **l'eccezione invece della regola**:
+ * gli altri sei chiamavano ancora `AddOrUpdateCell` per cella, quindi consegnavano a `CurrentGraphRevision()`
+ * un numero a forma di **conteggio celle** — 91 per un raggio 5. `AppendLogEntry` lo stampiglia in ogni voce
+ * di TurnLog, dove entra nell'hash ([D-067]) e nell'hash di stato partita.
+ *
+ * `Revision` significa «quante volte questo grafo e' cambiato»: un'arena appena costruita che ne dichiara 91
+ * dice il falso, e il campo esiste per rendere le tracce spiegabili.
+ *
+ * ⚠️ **Il test scorre una TABELLA di builder**, e non ne prova uno: era esattamente la forma «uno solo e'
+ * coperto» a lasciare passare il difetto per due volte. Chi aggiunge un builder lo trova qui — e se non lo
+ * aggiunge, la premessa sul conteggio non lo protegge da niente.
+ *
+ * ⚠️ **Si conta la revisione dopo la costruzione, non la differenza**: l'asset nasce da `NewObject` con
+ * `Revision = 0`, e il builder e' l'unico a toccarlo. Un `+1` su un numero gia' sbagliato sarebbe verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArenaBuildersAreOneRevisionTest,
+	"RefactorTactics.HexMap.EveryArenaBuilderIsOneRevision",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArenaBuildersAreOneRevisionTest::RunTest(const FString&)
+{
+	struct FBuilder
+	{
+		const TCHAR* Name;
+		TFunction<URTHexMapAsset*(UObject*)> Make;
+	};
+	const FBuilder Builders[] = {
+		{ TEXT("MakeFlatArena"),               [](UObject* O) { return URTMatchSetupLibrary::MakeFlatArena(O, 5); } },
+		{ TEXT("MakeDemoArena"),               [](UObject* O) { return URTMatchSetupLibrary::MakeDemoArena(O, 4); } },
+		{ TEXT("MakeTestArena"),               [](UObject* O) { return URTMatchSetupLibrary::MakeTestArena(O); } },
+		{ TEXT("MakeShowcaseRelayLiteArena"),  [](UObject* O) { return URTMatchSetupLibrary::MakeShowcaseRelayLiteArena(O); } },
+		{ TEXT("MakeShowcaseRelayBasinArena"), [](UObject* O) { return URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(O); } },
+		{ TEXT("MakeCoverYardArena"),          [](UObject* O) { return URTMatchSetupLibrary::MakeCoverYardArena(O); } },
+		{ TEXT("MakeArenaV01"),                [](UObject* O) { return URTMatchSetupLibrary::MakeArenaV01(O); } },
+	};
+
+	for (const FBuilder& B : Builders)
+	{
+		URTHexMapAsset* Arena = B.Make(GetTransientPackage());
+		if (!TestNotNull(*FString::Printf(TEXT("%s costruisce un'arena"), B.Name), Arena))
+		{
+			continue;
+		}
+
+		// La premessa: senza questa, «una revisione» sarebbe vero anche di un'arena vuota.
+		const int32 Celle = Arena->NumCells();
+		if (!TestTrue(*FString::Printf(TEXT("%s: premessa, porta molte celle (%d)"), B.Name, Celle), Celle > 10))
+		{
+			continue;
+		}
+
+		AddInfo(FString::Printf(TEXT("%s: %d celle, %d transizioni, revisione %d"),
+			B.Name, Celle, Arena->Transitions.Num(), Arena->Revision));
+		TestEqual(*FString::Printf(TEXT("%s: costruirla e' UN evento, non %d"), B.Name, Celle),
+			Arena->Revision, 1);
+	}
+
+	return true;
+}
+
+/**
  * `#905`: **generare una fixture e' UN evento, e muove la revisione una volta**.
  *
  * Il metodo scriveva il rimpiazzo a mano — `Cells.Reset()` piu' un `AddOrUpdateCell` per cella — quindi

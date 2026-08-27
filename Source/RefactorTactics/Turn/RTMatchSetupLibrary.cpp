@@ -21,6 +21,73 @@ namespace
 		Cell.MoveCost = URTTerrainLibrary::FindTerrainDef(Surface).MoveCost;
 		return Cell;
 	}
+
+	/**
+	 * L'arena si costruisce in MEMORIA e si consegna all'asset in **una** revisione (`#1435`, [D-201]).
+	 *
+	 * `URTHexMapAsset::AddOrUpdateCell` e `AddTransition` fanno `++Revision` a ogni chiamata, quindi un
+	 * builder che le chiama per cella consegna a `CurrentGraphRevision()` un numero a forma di **conteggio
+	 * celle** — 91 per un raggio 5. Quel numero `AppendLogEntry` lo stampiglia in ogni voce di TurnLog, dove
+	 * entra nell'hash ([D-067]) e nell'hash di stato partita. `Revision` significa «quante volte questo
+	 * grafo e' cambiato»: un'arena appena costruita che ne dichiara 91 dice il falso.
+	 *
+	 * [D-196] lo aveva corretto per `MakeFlatArena` soltanto, rendendo quel builder **l'eccezione invece
+	 * della regola** — e il prossimo builder avrebbe ereditato il pattern sbagliato. Questa e' la regola.
+	 *
+	 * ⚠️ `Set` **sostituisce** la cella con lo stesso id, come faceva `AddOrUpdateCell`: i builder
+	 * stendono una base e poi la riscrivono a pezzi, e senza la sostituzione l'ordine delle passate
+	 * cambierebbe l'arena.
+	 */
+	struct FRTArenaDraft
+	{
+		TArray<FRTHexCellData> Cells;
+		TArray<FRTHexEdge> Transitions;
+		TMap<FRTCellId, int32> Where;
+
+		void Set(const FRTHexCellData& Cell)
+		{
+			if (const int32* Found = Where.Find(Cell.Id))
+			{
+				Cells[*Found] = Cell;
+				return;
+			}
+			Where.Add(Cell.Id, Cells.Add(Cell));
+		}
+
+		/** La cella gia' stesa, per le passate che la MODIFICANO invece di rifarla. `nullptr` se non c'e'. */
+		const FRTHexCellData* Find(const FRTCellId& Id) const
+		{
+			const int32* Found = Where.Find(Id);
+			return Found ? &Cells[*Found] : nullptr;
+		}
+
+		/** Un arco fra layer. Bidirezionale come il default di `AddTransition`, e senza duplicati per verso. */
+		void Link(const FRTCellId& From, const FRTCellId& To, int32 Cost,
+			ERTHexTransitionKind Kind = ERTHexTransitionKind::Stair, bool bBidirectional = true)
+		{
+			auto Upsert = [this](const FRTCellId& A, const FRTCellId& B, int32 InCost, ERTHexTransitionKind InKind)
+			{
+				for (FRTHexEdge& E : Transitions)
+				{
+					if (E.From == A && E.To == B) { E.Cost = InCost; E.Kind = InKind; return; }
+				}
+				Transitions.Add(FRTHexEdge(A, B, InCost, InKind));
+			};
+			Upsert(From, To, Cost, Kind);
+			if (bBidirectional) { Upsert(To, From, Cost, Kind); }
+		}
+
+		/**
+		 * Consegna e ordina. ⚠️ `ReplaceContent` con celle E transizioni insieme: consegnarle in due
+		 * chiamate rimetterebbe la revisione a due, e due non e' uno.
+		 */
+		void CommitTo(URTHexMapAsset* Asset) const
+		{
+			if (!Asset) { return; }
+			Asset->ReplaceContent(Cells, Transitions);
+			Asset->SortCells();
+		}
+	};
 }
 
 TArray<FRTCellId> URTMatchSetupLibrary::PickStartCells(const URTHexMapAsset* Map, int32 NumPerTeam, int32 Layer)
@@ -114,15 +181,14 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeFlatArena(UObject* Outer, int32 Radius
 	// suo commento dichiara proprio questo caso — *«"rimpiazza tutto" finiva scritto a mano dai chiamanti,
 	// con un `AddOrUpdateCell` per cella»* — ed e' il chiamante che gli mancava.
 	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
 	const TArray<FRTCellId> Ids = URTHexLibrary::HexArea(Center, Radius);
-	TArray<FRTHexCellData> Piano;
-	Piano.Reserve(Ids.Num());
+	Draft.Cells.Reserve(Ids.Num());
 	for (const FRTCellId& Id : Ids)
 	{
-		Piano.Add(FRTHexCellData(Id));
+		Draft.Set(FRTHexCellData(Id));
 	}
-	Arena->ReplaceContent(Piano, {});
-	Arena->SortCells();
+	Draft.CommitTo(Arena);
 	return Arena;
 }
 
@@ -134,11 +200,12 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeTestArena(UObject* Outer)
 	}
 
 	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
 
 	// Base: esagono pieno di raggio 4 sul layer 0, pavimento a costo 1.
 	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4))
 	{
-		Arena->AddOrUpdateCell(FRTHexCellData(Id));
+		Draft.Set(FRTHexCellData(Id));
 	}
 
 	// Ostacoli al MOVIMENTO, sparsi. Le celle di partenza stanno agli estremi (q=-4 e q=+4, vedi
@@ -147,7 +214,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeTestArena(UObject* Outer)
 	{
 		FRTHexCellData Cell(Id);
 		Cell.bBlocksMovement = true;
-		Arena->AddOrUpdateCell(Cell);
+		Draft.Set(Cell);
 	}
 
 	// Muro che blocca la VISTA lungo q=0: separa le due meta' del campo restando attraversabile. Copre r=-2..2
@@ -156,7 +223,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeTestArena(UObject* Outer)
 	{
 		FRTHexCellData Cell(FRTCellId(0, R, 0));
 		Cell.bBlocksLineOfSight = true;
-		Arena->AddOrUpdateCell(Cell);
+		Draft.Set(Cell);
 	}
 
 	// Fascia di fango a q=-2: costo 3, non un muro. Serve a vedere il budget mordere (una cella "costa" tre passi).
@@ -165,20 +232,20 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeTestArena(UObject* Outer)
 		FRTHexCellData Cell(FRTCellId(-2, R, 0));
 		Cell.Surface = ERTHexSurface::Rough;
 		Cell.MoveCost = 3;
-		Arena->AddOrUpdateCell(Cell);
+		Draft.Set(Cell);
 	}
 
 	// Piattaforma sul layer 1, sopra il quadrante destro.
 	for (const FRTCellId& Id : { FRTCellId(2, -1, 1), FRTCellId(2, 0, 1), FRTCellId(3, -1, 1), FRTCellId(3, 0, 1) })
 	{
-		Arena->AddOrUpdateCell(FRTHexCellData(Id));
+		Draft.Set(FRTHexCellData(Id));
 	}
 
 	// UNA sola transizione terra->piattaforma: i layer si collegano solo con archi espliciti, quindi togliendola
 	// la piattaforma torna irraggiungibile. E' cio' che rende verificabile "il path FALLISCE, non teletrasporta".
-	Arena->AddTransition(FRTCellId(1, 0, 0), FRTCellId(2, 0, 1), /*Cost=*/ 2);
+	Draft.Link(FRTCellId(1, 0, 0), FRTCellId(2, 0, 1), /*Cost=*/ 2);
 
-	Arena->SortCells();
+	Draft.CommitTo(Arena);
 	return Arena;
 }
 
@@ -190,11 +257,12 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayLiteArena(UObject* Outer)
 	}
 
 	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
 
 	// Base: esagono pieno di raggio 5 sul layer 0 -> 3*5*6 + 1 = 91 celle di pavimento.
 	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 5))
 	{
-		Arena->AddOrUpdateCell(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
+		Draft.Set(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
 	}
 
 	// Le superfici stanno in COPPIE SPECULARI (q,r) / (-q,-r): il centro (0,0) e' l'unico punto fisso.
@@ -227,10 +295,10 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayLiteArena(UObject* Outer)
 	};
 	for (const FShowcasePatch& Patch : Patches)
 	{
-		Arena->AddOrUpdateCell(MakeShowcaseTerrainCell(Patch.Cell, Patch.Surface));
+		Draft.Set(MakeShowcaseTerrainCell(Patch.Cell, Patch.Surface));
 	}
 
-	Arena->SortCells();
+	Draft.CommitTo(Arena);
 	return Arena;
 }
 
@@ -242,6 +310,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	}
 
 	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
 
 	// --- Forma: 45 celle, sette righe. Non e' un esagono pieno: e' un bacino, piu' largo al centro. --------
 	// L'estensione per riga viene dalla specifica della showcase; la somma (3+5+7+9+9+7+5) e' fissata dal
@@ -254,7 +323,7 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	{
 		for (int32 Q = Row.MinQ; Q <= Row.MaxQ; ++Q)
 		{
-			Arena->AddOrUpdateCell(MakeShowcaseTerrainCell(FRTCellId(Q, Row.R, 0), ERTHexSurface::Floor));
+			Draft.Set(MakeShowcaseTerrainCell(FRTCellId(Q, Row.R, 0), ERTHexSurface::Floor));
 		}
 	}
 
@@ -299,14 +368,14 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 	};
 	for (const FBasinPatch& Patch : Patches)
 	{
-		Arena->AddOrUpdateCell(MakeShowcaseTerrainCell(Patch.Cell, Patch.Surface));
+		Draft.Set(MakeShowcaseTerrainCell(Patch.Cell, Patch.Surface));
 	}
 
 	// --- Elementi di bordo --------------------------------------------------------------------------------
 	// Copertura bassa sull'approccio NORD al Relay: da quel lato ci si avvicina riparati, dagli altri no.
 	// La direzione si CHIEDE alla libreria invece di scriverla a mano: se la convenzione dei sei lati
 	// cambiasse, un valore inciso qui diventerebbe silenziosamente il bordo sbagliato.
-	if (FRTHexCellData* RelayCell = const_cast<FRTHexCellData*>(Arena->FindCell(FRTCellId(0, 0, 0))))
+	if (const FRTHexCellData* RelayCell = Draft.Find(FRTCellId(0, 0, 0)))
 	{
 		ERTHexDirection Edge;
 		if (URTHexCoverLibrary::EdgeDirection(FRTCellId(0, 0, 0), FRTCellId(0, -1, 0), Edge))
@@ -314,24 +383,24 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 			FRTHexCellData Updated = *RelayCell;
 			Updated.Covers.Add(FRTHexCover(Edge, ERTHexCoverType::Low,
 				FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
-			Arena->AddOrUpdateCell(Updated);
+			Draft.Set(Updated);
 		}
 	}
 
 	// Il gate della lane sud: una PORTA chiusa (CP 9.3), non un meccanismo nuovo. Riktor la apre al turno 5,
 	// la revisione della mappa sale e un percorso che prima non esisteva diventa percorribile.
-	if (const FRTHexCellData* GateCell = Arena->FindCell(FRTCellId(0, 1, 0)))
+	if (const FRTHexCellData* GateCell = Draft.Find(FRTCellId(0, 1, 0)))
 	{
 		ERTHexDirection Edge;
 		if (URTHexCoverLibrary::EdgeDirection(FRTCellId(0, 1, 0), FRTCellId(1, 1, 0), Edge))
 		{
 			FRTHexCellData Updated = *GateCell;
 			Updated.Doors.Add(FRTHexDoor(Edge, ERTHexDoorState::Closed));
-			Arena->AddOrUpdateCell(Updated);
+			Draft.Set(Updated);
 		}
 	}
 
-	Arena->SortCells();
+	Draft.CommitTo(Arena);
 	return Arena;
 }
 
@@ -376,13 +445,14 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeCoverYardArena(UObject* Outer)
 	}
 
 	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
 
 	// Esagono pieno di raggio 3, tutto pavimento: 3*3*6 + 1 = 37 celle. Nessuna superficie, di proposito —
 	// qui si studiano i BORDI, e un terreno che cambia costo o visibilita' offrirebbe una seconda spiegazione
 	// a ogni esito.
 	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
 	{
-		Arena->AddOrUpdateCell(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
+		Draft.Set(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
 	}
 
 	// I due bordi. La direzione si CHIEDE alla libreria invece di scriverla a mano: se la convenzione dei sei
@@ -403,17 +473,17 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeCoverYardArena(UObject* Outer)
 	};
 	for (const FYardCover& Cover : Covers)
 	{
-		const FRTHexCellData* Cell = Arena->FindCell(Cover.From);
+		const FRTHexCellData* Cell = Draft.Find(Cover.From);
 		ERTHexDirection Edge;
 		if (Cell && URTHexCoverLibrary::EdgeDirection(Cover.From, Cover.To, Edge))
 		{
 			FRTHexCellData Updated = *Cell;
 			Updated.Covers.Add(FRTHexCover(Edge, Cover.Type, FRTHexCover::DefaultIntegrity(Cover.Type)));
-			Arena->AddOrUpdateCell(Updated);
+			Draft.Set(Updated);
 		}
 	}
 
-	Arena->SortCells();
+	Draft.CommitTo(Arena);
 	return Arena;
 }
 
@@ -449,23 +519,27 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeArenaV01(UObject* Outer)
 	}
 
 	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
 
 	// Esagono pieno di raggio 4: 61 celle. Gli spawn li derivera' PickStartCells dai due estremi dell'ordine
 	// stabile (X, Y), quindi cadranno su (-4,0) e (4,0): l'asse su cui e' costruito tutto il resto.
 	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 4))
 	{
-		Arena->AddOrUpdateCell(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
+		Draft.Set(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
 	}
 
-	auto SetCell = [Arena](const FRTCellId& Id, bool bBlocksMovement, bool bBlocksSight, ERTHexSurface Surface)
+	// ⚠️ Legge dal DRAFT e non dall'asset: l'asset resta vuoto fino a `CommitTo`, quindi `ContainsCell`
+	// direbbe sempre di no e questa passata non farebbe niente (`#1435`).
+	auto SetCell = [&Draft](const FRTCellId& Id, bool bBlocksMovement, bool bBlocksSight, ERTHexSurface Surface)
 	{
-		if (!Arena->ContainsCell(Id)) { return; }
-		FRTHexCellData Cell = *Arena->FindCell(Id);
+		const FRTHexCellData* Existing = Draft.Find(Id);
+		if (!Existing) { return; }
+		FRTHexCellData Cell = *Existing;
 		Cell.bBlocksMovement = bBlocksMovement;
 		Cell.bBlocksLineOfSight = bBlocksSight;
 		Cell.Surface = Surface;
 		Cell.MoveCost = URTTerrainLibrary::FindTerrainDef(Surface).MoveCost;
-		Arena->AddOrUpdateCell(Cell);
+		Draft.Set(Cell);
 	};
 
 	// 1. Barriera verticale con DUE SOLE PORTE. E' la struttura che rende la mappa una scelta invece di un
@@ -524,10 +598,10 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeArenaV01(UObject* Outer)
 	const FRTCellId PlatformAnchor(3, -3, 0);
 	for (const FRTCellId& Id : { FRTCellId(3, -3, 1), FRTCellId(2, -3, 1), FRTCellId(3, -2, 1) })
 	{
-		Arena->AddOrUpdateCell(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
+		Draft.Set(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
 	}
-	Arena->AddTransition(PlatformAnchor, FRTCellId(3, -3, 1), /*Cost=*/ 2);
+	Draft.Link(PlatformAnchor, FRTCellId(3, -3, 1), /*Cost=*/ 2);
 
-	Arena->SortCells();
+	Draft.CommitTo(Arena);
 	return Arena;
 }
