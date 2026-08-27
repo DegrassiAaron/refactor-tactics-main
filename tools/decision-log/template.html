@@ -1,0 +1,908 @@
+<title>Registro Decisioni RefactorTactics</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+
+<style>
+:root {
+  --ground: #e9ecef;
+  --surface: #fbfcfd;
+  --surface-2: #f1f4f7;
+  --line: #d0d7e0;
+  --line-soft: #e0e5ec;
+  --ink: #101820;
+  --ink-2: #35424f;
+  --muted: #64717f;
+  --accent: #b34a26;
+  --accent-soft: rgba(179, 74, 38, .10);
+  --accent-ink: #8f3a1c;
+  --st-consolidata: #226b4e;
+  --st-accettata: #2f5da8;
+  --st-proposta: #61489f;
+  --st-aperta: #96650f;
+  --st-superata: #6a7684;
+  --st-altra: #4b5765;
+  --shadow: 0 1px 2px rgba(16, 24, 32, .06), 0 8px 24px -16px rgba(16, 24, 32, .35);
+  --hex: rgba(16, 24, 32, .055);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0d1116;
+    --surface: #151b22;
+    --surface-2: #1b232c;
+    --line: #2a343f;
+    --line-soft: #212a34;
+    --ink: #e7edf3;
+    --ink-2: #c2ccd7;
+    --muted: #8f9dac;
+    --accent: #e2794f;
+    --accent-soft: rgba(226, 121, 79, .14);
+    --accent-ink: #f0a184;
+    --st-consolidata: #58bf94;
+    --st-accettata: #7ba5f0;
+    --st-proposta: #a992ef;
+    --st-aperta: #ddab4d;
+    --st-superata: #94a2b1;
+    --st-altra: #a3b0bd;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -18px rgba(0, 0, 0, .9);
+    --hex: rgba(231, 237, 243, .05);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0d1116;
+  --surface: #151b22;
+  --surface-2: #1b232c;
+  --line: #2a343f;
+  --line-soft: #212a34;
+  --ink: #e7edf3;
+  --ink-2: #c2ccd7;
+  --muted: #8f9dac;
+  --accent: #e2794f;
+  --accent-soft: rgba(226, 121, 79, .14);
+  --accent-ink: #f0a184;
+  --st-consolidata: #58bf94;
+  --st-accettata: #7ba5f0;
+  --st-proposta: #a992ef;
+  --st-aperta: #ddab4d;
+  --st-superata: #94a2b1;
+  --st-altra: #a3b0bd;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -18px rgba(0, 0, 0, .9);
+  --hex: rgba(231, 237, 243, .05);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent-ink); }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+code {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .84em;
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  padding: .06em .34em;
+  border-radius: 3px;
+  word-break: break-word;
+}
+
+/* ---------------------------------------------------------------- masthead */
+
+.masthead {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.masthead::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--hexgrid);
+  background-size: 56px 97px;
+  opacity: 1;
+  pointer-events: none;
+  mask-image: linear-gradient(100deg, transparent 42%, #000 100%);
+  -webkit-mask-image: linear-gradient(100deg, transparent 42%, #000 100%);
+}
+.masthead-in {
+  position: relative;
+  z-index: 1;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 26px 24px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 32px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+.brand { display: flex; flex-direction: column; gap: 6px; }
+.eyebrow {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+h1 {
+  font-family: Archivo, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 700;
+  font-size: clamp(24px, 3.4vw, 34px);
+  letter-spacing: -.015em;
+  line-height: 1.1;
+  margin: 0;
+  text-wrap: balance;
+}
+.sub { color: var(--muted); font-size: 14.5px; max-width: 56ch; margin: 0; }
+
+.tally { display: flex; gap: 22px; flex-wrap: wrap; }
+.tally-item { display: flex; flex-direction: column; gap: 1px; }
+.tally-n {
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -.02em;
+}
+.tally-l {
+  font-family: Archivo, sans-serif;
+  font-size: 10.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ toolbar */
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.toolbar-in {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 10px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.tabs { display: flex; gap: 2px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; padding: 2px; }
+.tab {
+  font-family: Archivo, sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  padding: 6px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+
+.search {
+  flex: 1 1 240px;
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0 10px;
+}
+.search input {
+  flex: 1;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: Archivo, sans-serif;
+  font-size: 14px;
+  padding: 8px 0;
+  min-width: 0;
+}
+.search input:focus { outline: none; }
+.search-hint {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 5px;
+}
+.search svg { flex: none; color: var(--muted); }
+
+.ctl {
+  font-family: Archivo, sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.ctl:hover { border-color: var(--muted); }
+select.ctl { padding-right: 6px; }
+
+/* ------------------------------------------------------------------- layout */
+
+.shell {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 22px 24px 96px;
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr);
+  gap: 34px;
+  align-items: start;
+}
+
+.rail { position: sticky; top: 62px; display: flex; flex-direction: column; gap: 22px; }
+.rail-h {
+  font-family: Archivo, sans-serif;
+  font-size: 10.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+.filters { display: flex; flex-direction: column; gap: 3px; }
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  font-family: Archivo, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.filter:hover { background: var(--surface-2); }
+.filter[aria-pressed="true"] { background: var(--surface); border-color: var(--line); color: var(--ink); box-shadow: var(--shadow); }
+.filter .dot { width: 8px; height: 8px; border-radius: 2px; flex: none; background: var(--c); transform: rotate(45deg); }
+.filter .n {
+  margin-left: auto;
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.jump { display: flex; gap: 6px; }
+.jump input {
+  width: 100%;
+  min-width: 0;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: inherit;
+  padding: 7px 9px;
+}
+.rail-note { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.rail-note a { color: var(--accent-ink); }
+
+/* ------------------------------------------------------------------- ledger */
+
+.ledger { display: flex; flex-direction: column; }
+.entry {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 0 20px;
+  padding: 18px 0;
+  border-top: 1px solid var(--line-soft);
+  scroll-margin-top: 74px;
+}
+.entry:first-child { border-top: 0; }
+@media (max-width: 620px) { .entry { grid-template-columns: minmax(0, 1fr); gap: 8px; } }
+
+.gutter { display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+@media (max-width: 620px) { .gutter { flex-direction: row; align-items: baseline; gap: 10px; } }
+
+.did {
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--accent-ink);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+.did:hover { border-bottom-color: currentColor; }
+.entry.is-struck .did { color: var(--muted); text-decoration: line-through; }
+.ddate {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: Archivo, sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--c);
+  border: 1px solid color-mix(in srgb, var(--c) 40%, transparent);
+  background: color-mix(in srgb, var(--c) 9%, transparent);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+
+.body { min-width: 0; }
+.headline {
+  font-family: Archivo, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.32;
+  letter-spacing: -.008em;
+  margin: 0 0 6px;
+  text-wrap: pretty;
+}
+.entry.is-struck .headline { color: var(--muted); }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 8px; }
+.state-text { font-size: 13px; color: var(--muted); }
+.state-text strong { color: var(--ink-2); font-weight: 600; }
+
+.detail { display: none; }
+.entry.open .detail { display: block; }
+.detail p { margin: 0 0 10px; max-width: 74ch; color: var(--ink-2); }
+.detail blockquote {
+  margin: 10px 0;
+  padding: 4px 0 4px 14px;
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+  font-size: 15px;
+}
+.impact {
+  font-size: 13.5px;
+  color: var(--muted);
+  border-top: 1px dotted var(--line);
+  padding-top: 8px;
+  margin-top: 4px;
+  max-width: 74ch;
+}
+.impact b {
+  font-family: Archivo, sans-serif;
+  font-size: 10.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+.notes { margin-top: 12px; }
+.notes-h {
+  font-family: Archivo, sans-serif;
+  font-size: 10.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+.note {
+  border-left: 2px solid var(--accent);
+  padding: 2px 0 2px 14px;
+  margin-bottom: 10px;
+  font-size: 15px;
+}
+.note p { margin: 0 0 8px; }
+.note p:last-child { margin-bottom: 0; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+.chips-l {
+  font-family: Archivo, sans-serif;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-right: 2px;
+}
+.chip {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11.5px;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  border-radius: 5px;
+  padding: 2px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); color: var(--accent-ink); }
+.chip.dec { color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.chip svg { opacity: .55; }
+
+.more {
+  font-family: Archivo, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.more:hover { color: var(--accent-ink); }
+.more .caret { transition: transform .15s ease; }
+.entry.open .more .caret { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .more .caret { transition: none; } }
+
+.entry.flash { animation: flash 1.5s ease; }
+@keyframes flash { from { background: var(--accent-soft); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .entry.flash { animation: none; } }
+
+/* links inline */
+.ref { text-decoration: none; border-bottom: 1px solid color-mix(in srgb, currentColor 35%, transparent); }
+.ref-dec { color: var(--accent-ink); font-weight: 600; white-space: nowrap; }
+.ref-issue { color: var(--ink); }
+.ref-issue code { background: none; border: 0; padding: 0; }
+.lnk { color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
+.lnk:hover, .ref:hover { color: var(--accent-ink); }
+
+/* ------------------------------------------------------------ vista issue */
+
+.issue-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.issue-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 11px 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.issue-n {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.issue-n:hover { color: var(--accent-ink); }
+.issue-card .chips { margin: 0; }
+
+.empty {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 15px;
+}
+.section-h {
+  font-family: Archivo, sans-serif;
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 34px 0 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.count-line {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-bottom: 10px;
+  font-variant-numeric: tabular-nums;
+}
+/* --------------------------------------------------- adattamento a schermo stretto
+   in coda al foglio: queste regole devono vincere sulle basi qui sopra */
+@media (max-width: 900px) {
+  .shell { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .rail { display: contents; }
+  .rail > div:nth-child(1) { order: 1; }
+  #main-col { order: 2; }
+  .rail > div:nth-child(2) { order: 3; }
+  .rail > div:nth-child(3) { order: 4; }
+  .filters { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  .filter { width: auto; border: 1px solid var(--line); background: var(--surface); }
+  .filter .n { margin-left: 0; }
+  .rail-h { margin-top: 4px; }
+}
+
+[hidden] { display: none !important; }
+</style>
+
+<header class="masthead" id="top">
+  <div class="masthead-in">
+    <div class="brand">
+      <span class="eyebrow">RefactorTactics · PDR-00 · owner del registro</span>
+      <h1>Registro Decisioni</h1>
+      <p class="sub">Tutte le <code>D-nnn</code> del Decision Log in una pagina: stato, impatto, note e
+        ogni riferimento — issue GitHub e rimandi incrociati — cliccabile.</p>
+    </div>
+    <div class="tally" id="tally"></div>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="toolbar-in">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-dec" aria-selected="true">Decisioni</button>
+      <button class="tab" role="tab" id="tab-iss" aria-selected="false">Issue collegate</button>
+    </div>
+    <label class="search">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="4.6" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <input id="q" type="search" placeholder="Cerca testo, ID, issue…" autocomplete="off" spellcheck="false" aria-label="Cerca nelle decisioni">
+      <span class="search-hint">/</span>
+    </label>
+    <select class="ctl" id="sort" aria-label="Ordinamento">
+      <option value="desc">ID · dal più recente</option>
+      <option value="asc">ID · dal primo</option>
+      <option value="date">Data · dalla più recente</option>
+      <option value="links">Più collegamenti</option>
+    </select>
+    <button class="ctl" id="expand" aria-pressed="false">Espandi tutto</button>
+    <button class="ctl" id="reset">Azzera filtri</button>
+  </div>
+</div>
+
+<main class="shell">
+  <aside class="rail">
+    <div>
+      <p class="rail-h">Stato</p>
+      <div class="filters" id="filters"></div>
+    </div>
+    <div>
+      <p class="rail-h">Vai a</p>
+      <form class="jump" id="jump-form">
+        <input id="jump" inputmode="numeric" placeholder="es. 134" aria-label="Vai alla decisione">
+      </form>
+    </div>
+    <div>
+      <p class="rail-h">Sorgente</p>
+      <p class="rail-note" id="source-note"></p>
+    </div>
+  </aside>
+
+  <div id="main-col">
+    <section id="view-dec">
+      <p class="count-line" id="count"></p>
+      <div class="ledger" id="ledger"></div>
+      <div id="orphans"></div>
+    </section>
+    <section id="view-iss" hidden>
+      <p class="count-line" id="count-iss"></p>
+      <div class="issue-grid" id="issues"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const DATA = /*__DATA__*/null;
+
+/* trama esagonale del masthead: il substrato del gioco è FRTCellId */
+(() => {
+  const stroke = getComputedStyle(document.documentElement).getPropertyValue('--hex').trim() || 'rgba(0,0,0,.05)';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="97" viewBox="0 0 56 97"><g fill="none" stroke="${stroke}" stroke-width="1.2"><path d="M28 1 55 16.5v31L28 63 1 47.5v-31z"/><path d="M0 64.5 28 81v32M56 64.5 28 81"/></g></svg>`;
+  document.documentElement.style.setProperty('--hexgrid', `url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
+})();
+
+const BUCKETS = [
+  ['consolidata', 'Consolidate', 'var(--st-consolidata)'],
+  ['accettata', 'Accettate', 'var(--st-accettata)'],
+  ['proposta', 'Proposte', 'var(--st-proposta)'],
+  ['aperta', 'Aperte', 'var(--st-aperta)'],
+  ['superata', 'Superate', 'var(--st-superata)'],
+  ['altra', 'Altre', 'var(--st-altra)'],
+];
+const LABEL = Object.fromEntries(BUCKETS.map(([k, l]) => [k, l.replace(/e$/, 'a')]));
+const COLOR = Object.fromEntries(BUCKETS.map(([k, , c]) => [k, c]));
+
+const store = {
+  get(k, fb) { try { const v = localStorage.getItem('rt-dec-' + k); return v === null ? fb : JSON.parse(v); } catch (e) { return fb; } },
+  set(k, v) { try { localStorage.setItem('rt-dec-' + k, JSON.stringify(v)); } catch (e) { /* private mode */ } },
+};
+
+const state = {
+  q: '',
+  active: new Set(store.get('filters', [])),
+  sort: store.get('sort', 'desc'),
+  expandAll: false,
+};
+
+const $ = (id) => document.getElementById(id);
+const EXT = '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M3 1h6v6M9 1 1.5 8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+
+/* ---------------------------------------------------------------- intestazione */
+
+function renderTally() {
+  const d = DATA.decisions;
+  const live = d.filter((x) => x.bucket !== 'superata').length;
+  const issues = new Set(d.flatMap((x) => x.issues));
+  const items = [
+    [d.length, 'decisioni'],
+    [live, 'in vigore'],
+    [issues.size, 'issue citate'],
+    [d.filter((x) => x.notes.length).length, 'con note'],
+  ];
+  $('tally').innerHTML = items
+    .map(([n, l]) => `<div class="tally-item"><span class="tally-n">${n}</span><span class="tally-l">${l}</span></div>`)
+    .join('');
+
+  const miss = DATA.missing.length
+    ? ` Numeri mai emessi o rinumerati: ${DATA.missing.map((n) => 'D-' + String(n).padStart(3, '0')).join(', ')}.`
+    : '';
+  $('source-note').innerHTML =
+    `Generata da <a href="${DATA.sourceUrl}" target="_blank" rel="noopener">${DATA.source}</a>` +
+    ` su <code>main</code>.${miss}`;
+}
+
+function renderFilters() {
+  const counts = {};
+  DATA.decisions.forEach((d) => { counts[d.bucket] = (counts[d.bucket] || 0) + 1; });
+  $('filters').innerHTML = BUCKETS.filter(([k]) => counts[k])
+    .map(([k, label, c]) => `<button class="filter" data-b="${k}" style="--c:${c}" aria-pressed="${state.active.has(k)}">
+        <span class="dot"></span><span>${label}</span><span class="n">${counts[k]}</span></button>`)
+    .join('');
+}
+
+/* ------------------------------------------------------------------ decisioni */
+
+function chipRow(label, items) {
+  if (!items) return '';
+  return `<div class="chips"><span class="chips-l">${label}</span>${items}</div>`;
+}
+
+function entryHtml(d) {
+  const issues = d.issues
+    .map((n) => `<a class="chip" href="https://github.com/${DATA.repo}/issues/${n}" target="_blank" rel="noopener">#${n}${EXT}</a>`)
+    .join('');
+  const refs = d.refs.map((n) => `<a class="chip dec" href="#d-${n}" data-dec="${n}">D-${n}</a>`).join('');
+  const back = d.citedBy.map((n) => `<a class="chip dec" href="#d-${n}" data-dec="${n}">D-${n}</a>`).join('');
+  const notes = d.notes.length
+    ? `<div class="notes"><p class="notes-h">Note del registro</p>${d.notes.map((n) => `<div class="note">${n}</div>`).join('')}</div>`
+    : '';
+
+  return `<article class="entry${d.struck ? ' is-struck' : ''}" id="d-${d.slug}" data-b="${d.bucket}" data-slug="${d.slug}">
+    <div class="gutter">
+      <a class="did" href="#d-${d.slug}">${d.id}</a>
+      ${d.date ? `<span class="ddate">${d.date}</span>` : ''}
+      <span class="pill" style="--c:${COLOR[d.bucket]}">${LABEL[d.bucket]}</span>
+    </div>
+    <div class="body">
+      <h2 class="headline">${escapeHtml(d.headline)}</h2>
+      <div class="meta"><span class="state-text">${d.stateHtml}</span></div>
+      <button class="more" aria-expanded="false">
+        <svg class="caret" width="9" height="9" viewBox="0 0 8 10" aria-hidden="true"><path d="M1 1l5 4-5 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="more-l">Testo della decisione</span>
+      </button>
+      <div class="detail">
+        ${d.titleHtml}
+        <p class="impact"><b>Impatto</b>${d.impactHtml}</p>
+        ${notes}
+      </div>
+      ${chipRow('Issue', issues)}
+      ${chipRow('Cita', refs)}
+      ${chipRow('Citata da', back)}
+    </div>
+  </article>`;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+}
+
+function filtered() {
+  const q = state.q.trim().toLowerCase();
+  const terms = q ? q.split(/\s+/) : [];
+  return DATA.decisions.filter((d) => {
+    if (state.active.size && !state.active.has(d.bucket)) return false;
+    return terms.every((t) => d.search.includes(t) || d.id.toLowerCase().includes(t));
+  });
+}
+
+function sorted(list) {
+  const c = [...list];
+  if (state.sort === 'asc') c.sort((a, b) => a.num - b.num);
+  else if (state.sort === 'desc') c.sort((a, b) => b.num - a.num);
+  else if (state.sort === 'date') c.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.num - a.num);
+  else c.sort((a, b) => (b.issues.length + b.refs.length + b.citedBy.length) - (a.issues.length + a.refs.length + a.citedBy.length) || b.num - a.num);
+  return c;
+}
+
+function renderLedger() {
+  const list = sorted(filtered());
+  $('ledger').innerHTML = list.length
+    ? list.map(entryHtml).join('')
+    : '<p class="empty">Nessuna decisione corrisponde ai filtri.</p>';
+  if (state.expandAll) $('ledger').querySelectorAll('.entry').forEach(openEntry);
+  const tot = DATA.decisions.length;
+  $('count').textContent = list.length === tot
+    ? `${tot} decisioni`
+    : `${list.length} di ${tot} decisioni`;
+  $('orphans').innerHTML = DATA.orphanNotes.length && !state.q && !state.active.size
+    ? `<p class="section-h">Note senza decisione propria</p>${DATA.orphanNotes.map((n) => `<div class="note">${n}</div>`).join('')}`
+    : '';
+}
+
+function openEntry(el) {
+  el.classList.add('open');
+  const b = el.querySelector('.more');
+  b.setAttribute('aria-expanded', 'true');
+  b.querySelector('.more-l').textContent = 'Nascondi il testo';
+}
+function closeEntry(el) {
+  el.classList.remove('open');
+  const b = el.querySelector('.more');
+  b.setAttribute('aria-expanded', 'false');
+  b.querySelector('.more-l').textContent = 'Testo della decisione';
+}
+
+/* ---------------------------------------------------------------- vista issue */
+
+function renderIssues() {
+  const map = new Map();
+  filtered().forEach((d) => d.issues.forEach((n) => {
+    if (!map.has(n)) map.set(n, []);
+    map.get(n).push(d);
+  }));
+  const total = new Set(DATA.decisions.flatMap((d) => d.issues)).size;
+  const rows = [...map.entries()].sort((a, b) => b[0] - a[0]);
+  $('count-iss').textContent = rows.length === total
+    ? `${total} issue citate dal registro`
+    : `${rows.length} di ${total} issue citate dal registro`;
+  $('issues').innerHTML = rows.map(([n, ds]) => `<div class="issue-card">
+      <a class="issue-n" href="https://github.com/${DATA.repo}/issues/${n}" target="_blank" rel="noopener">#${n}${EXT}</a>
+      <div class="chips">${ds.map((d) => `<a class="chip dec" href="#d-${d.slug}" data-dec="${d.slug}">${d.id}</a>`).join('')}</div>
+    </div>`).join('');
+}
+
+/* ----------------------------------------------------------------- interazioni */
+
+function goTo(slug) {
+  showTab('dec');
+  let el = document.getElementById('d-' + slug);
+  if (!el) {
+    // la decisione è nascosta dai filtri: azzerali e ridisegna
+    state.q = ''; $('q').value = '';
+    state.active.clear(); store.set('filters', []);
+    renderFilters(); renderLedger(); renderIssues();
+    el = document.getElementById('d-' + slug);
+  }
+  if (!el) return false;
+  openEntry(el);
+  el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+  history.replaceState(null, '', '#d-' + slug);
+  return true;
+}
+
+function showTab(which) {
+  const dec = which === 'dec';
+  $('sort').hidden = !dec;
+  $('expand').hidden = !dec;
+  $('tab-dec').setAttribute('aria-selected', String(dec));
+  $('tab-iss').setAttribute('aria-selected', String(!dec));
+  $('view-dec').hidden = !dec;
+  $('view-iss').hidden = dec;
+}
+
+document.addEventListener('click', (e) => {
+  const dec = e.target.closest('[data-dec]');
+  if (dec) { e.preventDefault(); goTo(dec.dataset.dec); return; }
+
+  const more = e.target.closest('.more');
+  if (more) {
+    const el = more.closest('.entry');
+    el.classList.contains('open') ? closeEntry(el) : openEntry(el);
+    return;
+  }
+
+  const f = e.target.closest('.filter');
+  if (f) {
+    const b = f.dataset.b;
+    state.active.has(b) ? state.active.delete(b) : state.active.add(b);
+    store.set('filters', [...state.active]);
+    renderFilters(); renderLedger(); renderIssues();
+    return;
+  }
+
+  if (e.target.closest('#tab-dec')) showTab('dec');
+  if (e.target.closest('#tab-iss')) showTab('iss');
+});
+
+let t;
+$('q').addEventListener('input', (e) => {
+  clearTimeout(t);
+  t = setTimeout(() => { state.q = e.target.value; renderLedger(); renderIssues(); }, 120);
+});
+
+$('sort').addEventListener('change', (e) => {
+  state.sort = e.target.value;
+  store.set('sort', state.sort);
+  renderLedger();
+});
+
+$('expand').addEventListener('click', () => {
+  state.expandAll = !state.expandAll;
+  $('expand').setAttribute('aria-pressed', String(state.expandAll));
+  $('expand').textContent = state.expandAll ? 'Comprimi tutto' : 'Espandi tutto';
+  $('ledger').querySelectorAll('.entry').forEach(state.expandAll ? openEntry : closeEntry);
+});
+
+$('reset').addEventListener('click', () => {
+  state.q = ''; $('q').value = '';
+  state.active.clear(); store.set('filters', []);
+  renderFilters(); renderLedger(); renderIssues();
+});
+
+$('jump-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const raw = $('jump').value.trim().replace(/^d-?/i, '');
+  if (!raw) return;
+  if (goTo(String(Number(raw)).padStart(3, '0'))) $('jump').value = '';
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === '/' && !/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) {
+    e.preventDefault(); $('q').focus();
+  } else if (e.key === 'Escape' && document.activeElement === $('q')) {
+    $('q').value = ''; state.q = ''; renderLedger(); renderIssues();
+  }
+});
+
+/* ------------------------------------------------------------------- avvio */
+
+$('sort').value = state.sort;
+renderTally();
+renderFilters();
+renderLedger();
+renderIssues();
+
+const hash = location.hash.match(/^#d-(\d{3})$/);
+if (hash) requestAnimationFrame(() => goTo(hash[1]));
+</script>
