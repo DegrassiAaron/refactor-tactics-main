@@ -2,6 +2,24 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
+> 🔴 **Rimisurato il 2026-08-27, e la formula sbaglia su DUE assi invece che su uno.** Questo giro ha
+> archiviato l'handoff *Action Phases / Dodge / Guard / Brace / Overwatch* — non da fuori, ma **dall'inbox**:
+> era arrivato su `main` in [`../../research/handoff/`](../../research/) mentre un altro ramo lo archiviava
+> qui col verdetto, e le due copie erano identiche. La copia in `research/` è stata rimossa, che è il passo
+> di ciclo di vita mancante e non una cancellazione.
+>
+> Il comando risponde `17` `design/` + **`50`** `handoff/` + `2` `audit/` + `6` `graytoolkit/` + `20` in
+> radice. Gli addendi sono stati **riletti dal disco**, non incrementati.
+>
+> ⚠️ **Il secondo asse è più vecchio di questo giro e non lo risolvo qui**: la formula ricorrente di questa
+> pagina — `17 + 48 + 2 + radice` — **non ha mai contenuto `graytoolkit/`**, che esiste e porta sei file. Un
+> totale che ignora una cartella intera non è una deriva di conteggio, è una formula incompleta: va deciso se
+> quella cartella appartiene all'archivio dei sorgenti o è un'altra cosa, e nessuno dei due lati si stabilisce
+> contando. Registrato invece che aggiustato, perché aggiustarlo di passaggio nasconderebbe la domanda.
+>
+> ➕ **L'indice della radice si controlla a parte**, come insegna la decima volta: `grep -c '^| \[`' ` sulle
+> tabelle risponde **88** righe, e il totale da solo non direbbe nulla su quel numero.
+
 > 🟡 **Tredicesima volta — previsione scritta, e poi verificata nella stessa sessione.** Il ramo
 > `docs/consolidamento-4-processi` ha scritto **71** sulla propria base e accanto: «ma
 > [#836](https://github.com/DegrassiAaron/refactor-tactics-main/pull/836) archivia nella stessa
