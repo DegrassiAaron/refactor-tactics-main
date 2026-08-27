@@ -259,6 +259,30 @@ leggibilità di una differenza che ora è diversa.
 > *«si separano abbastanza?»* ma **«la differenza di genere è leggibile senza un costo che la annunci?»** —
 > che è una domanda per `U20` / `PIE-BAL1`, non per un documento.
 
+> 🔴 **Misurato il 2026-08-27, e rivede al rialzo il costo di `D-206`.** Il *«controllo direzionale
+> per-colpo»* non è un ramo da spostare: **il dato non c'è dove serve.**
+>
+> ```cpp
+> struct FRTAttack { int32 TargetIndex = INDEX_NONE; int32 Power = 0; };
+> ```
+>
+> `FRTAttack` **non porta l'attaccante**, e le due funzioni che applicano le mitigazioni —
+> `ApplyFirstHitDelta` (gate «una volta sola») e `ApplyDamageDelta` (ogni colpo) — prendono un delta
+> **per bersaglio**, non per colpo. Oggi la direzione si valuta a monte in `RTTurnManager`, dove
+> `Plan.Hits` porta `AttackerId`, e viene **collassata in un booleano per bersaglio** prima della
+> chiamata: è quel collasso che `D-206` scioglie, non un `if`.
+>
+> Le due vie, entrambe più care di un ramo: portare l'attaccante dentro `FRTAttack` — una `USTRUCT`
+> esposta a Blueprint che attraversa il resolver — oppure una **terza** funzione con delta parallelo ai
+> colpi invece che ai bersagli. La seconda evita di toccare una struct serializzata, ed è la sola che
+> non chiede di rimisurare cosa legge `FRTAttack`.
+>
+> ✅ **La buona notizia, dallo stesso giro**: `D-204` e `D-205` sono per il resto **uno scambio di
+> chiamata**. Le due funzioni esistono, sono documentate come *«non intercambiabili»* proprio per quel
+> gate, e le due difese si scambiano di posto fra loro — `Guard` passa a `ApplyDamageDelta`, il `Brace`
+> a `ApplyFirstHitDelta`. ⛔ **Ma non prima di `BAL-3`**: fatto senza rinumerare dà la `Guard` a −15 su
+> **ogni** colpo e il `Brace` a −10 su **uno**, cioè una coppia peggiore di quella che sostituisce.
+
 > 🔴 **Due costi che nessuna delle tre voci può nascondere.** Il valore di `bAllowsReaction` lo assegna oggi
 > un `if` sull'ActionId dentro `ShippedAction` — un secondo utente lo rende un **parametro**, non allunga il
 > predicato. E `ResolvePrep` **non legge** il flag: senza quel ramo la decisione sarebbe dichiarata e mai
