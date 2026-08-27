@@ -986,7 +986,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 ### E13 — Conoscenza parziale: vista e udito · P2
 
 **Obiettivo**: la conoscenza di squadra smette di essere totale. La **vista** (statistica già a catalogo, oggi
-inerte) e il **rumore** alimentano lo stesso modello a tre livelli. ⛔ **Superato da D-215** (2026-08-27): la fog of war **è** in questo epic. Una cella non osservata da nessuno della squadra nasconde il proprio contenuto — resta leggibile *dove* sono le celle, non *cosa* c'è sopra.
+inerte) e il **rumore** alimentano lo stesso modello a tre livelli. ⛔ **Superato da D-222** (2026-08-27): la fog of war **è** in questo epic. Una cella non osservata da nessuno della squadra nasconde il proprio contenuto — resta leggibile *dove* sono le celle, non *cosa* c'è sopra.
 
 Fonti: [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) ·
 `docs/archive/src/design/rumore-e-percezione-acustica.md`. Dipende da **E4** (fallback), **E6** (statistiche eroe), **E8** (fumo).

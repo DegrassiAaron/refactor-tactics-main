@@ -96,7 +96,7 @@ modding). Sono la **direzione futura**, non l'obiettivo attuale. Vedi §8.
 > | Punto | Cosa vale ora | Fonte |
 > |---|---|---|
 > | **Facing** | È **stato di gioco**, non presentazione, e ha tre consumatori: difesa, percezione, reazioni direzionali. Un'azione con bersaglio **orienta l'unità prima di risolvere**; il `Move`, ultimo, fissa il facing finale, che persiste nel round successivo | [ADR-0005](../decisions/adr-0005-orientamento.md) · [D-020](../decisions/RT_PDR_00_Decision_Log.md) |
-> | **Conoscenza parziale** | ⛔ **La prima frase è superata da D-215 (2026-08-27): la fog of war È nella v0.1, e nasconde.** Una cella che nessuno della squadra osserva non mostra il proprio contenuto — resta visibile *dove* sono le celle, non *cosa* c'è sopra. Il resto della riga vale ancora: è incompleta l'informazione sulle **unità e sugli eventi** — LOS geometrica + rilevamento + rumore + ultimo contatto ⇒ **Team Knowledge** a tre livelli. Il rumore è un **secondo canale**, propagato con interi sul grafo | `gameplay/brief-conoscenza-parziale.md` · E13 |
+> | **Conoscenza parziale** | ⛔ **La prima frase è superata da D-222 (2026-08-27): la fog of war È nella v0.1, e nasconde.** Una cella che nessuno della squadra osserva non mostra il proprio contenuto — resta visibile *dove* sono le celle, non *cosa* c'è sopra. Il resto della riga vale ancora: è incompleta l'informazione sulle **unità e sugli eventi** — LOS geometrica + rilevamento + rumore + ultimo contatto ⇒ **Team Knowledge** a tre livelli. Il rumore è un **secondo canale**, propagato con interi sul grafo | `gameplay/brief-conoscenza-parziale.md` · E13 |
 > | **Overwatch** | **Universale**: azione di pianificazione per tutti, che **compete con l'azione offensiva principale** (`Attack` **oppure** `Ability` **oppure** `Overwatch`). Il profilo cambia per eroe/equipaggiamento; l'azione no | [D-012](../decisions/RT_PDR_00_Decision_Log.md) · [D-014](../decisions/RT_PDR_00_Decision_Log.md) |
 > | **Quota / High Ground** | Vale per **geometria** — LOS, occlusione, copertura, accessibilità. **Nessun `+Damage` e nessun `+VisionRange` globali.** Un eroe, tratto, abilità o equipaggiamento può dichiarare un bonus da altura, in modo data-driven | [D-018](../decisions/RT_PDR_00_Decision_Log.md) · [D-024](../decisions/RT_PDR_00_Decision_Log.md) |
 > | **Formato di partita** | **Non è deciso.** 2v2 è la vertical slice corrente, 3v3 la baseline di lavoro, 4v4 solo scenario di stress (E17). Nessun documento tratti il 3v3 come formato di prodotto scelto: si consolida con la **prima misura** reale | [D-011](../decisions/RT_PDR_00_Decision_Log.md) |
@@ -403,7 +403,7 @@ questo file per le *decisioni*.
 Esplicitamente **fuori** dall'MVP, in ordine di priorità indicativa (P0 → P3):
 
 - **P0**: pulizia resolver deterministico, test conflitti, **multiplayer server-authoritative** (replica azioni/GameState, timeout/reconnect), lobby privata.
-- **P1**: 4v4, 6+ eroi, draft, ~~fog of war~~ (**entrata nella v0.1 con D-215**, 2026-08-27), replay, spectator, matchmaking, ranking, **Intenti condivisi** completo.
+- **P1**: 4v4, 6+ eroi, draft, ~~fog of war~~ (**entrata nella v0.1 con D-222**, 2026-08-27), replay, spectator, matchmaking, ranking, **Intenti condivisi** completo.
 - **P2**: loadout/moduli, **migrazione a GAS**, tutorial interattivo, accessibilità, localizzazione, controller, Steam/EOS, mappa multilivello.
 - **P3**: console, cosmetici, anti-cheat, **modding** (Blueprint sandbox *vs* Lua/UnLua — **decisione aperta** nei PRD).
 

@@ -51,7 +51,7 @@ Sette punti su venti del §20 sono **già canone**. Vanno letti come conferma es
 **C1 — Il roster degli esempi è superato.** §7 usa *Aegis* e *Drift*. Roster vigente: **Gadget · Phase ·
 Riktor · Wraith** (`showcase-v0.1.md` §0). Gli esempi restano validi come forma, non come contenuto.
 
-**C2 — «Fog of War» era fuori dal modello di questo progetto, e da `D-215` (2026-08-27) non lo è più.** §6
+**C2 — «Fog of War» era fuori dal modello di questo progetto, e da `D-222` (2026-08-27) non lo è più.** §6
 la elenca fra le cause d'incertezza, ed è tornato corretto: la fog of war è entrata nella **v0.1** dentro
 **E13**, e **nasconde** il contenuto delle celle che nessuno della squadra osserva. Resta distinta dalla
 **conoscenza parziale** vera e propria — i tre livelli `Nascosto / Incerto / Rilevato` riguardano **unità ed

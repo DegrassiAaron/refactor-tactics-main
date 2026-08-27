@@ -105,7 +105,7 @@ a 7, perché dipende dal fatto che **nessuna** azione ci arrivi.
 
 | Documento | Impatto |
 |---|---|
-| [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) §8 | ⛔ **Risolto da D-215** (2026-08-27): «fog of war» era classificata north-star **P1**, ed è **entrata nella v0.1**. Non serve più distinguere lo slice dalla fog of war — la contiene. Resta vero che il modello a tre livelli riguarda **unità ed eventi**: quella è la conoscenza *parziale*, la fog è ciò che la rende leggibile sulla mappa |
+| [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) §8 | ⛔ **Risolto da D-222** (2026-08-27): «fog of war» era classificata north-star **P1**, ed è **entrata nella v0.1**. Non serve più distinguere lo slice dalla fog of war — la contiene. Resta vero che il modello a tre livelli riguarda **unità ed eventi**: quella è la conoscenza *parziale*, la fog è ciò che la rende leggibile sulla mappa |
 | [`h6-4-hex-vision-spec.md`](../technical/systems/h6-4-hex-vision-spec.md) §6 | dichiara `VisibleCells` fuori scope. Va aggiornata: lo slice la introduce |
 | [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md) | il fumo ha già una regola (`Obscured`, cap targeting a **2**). **Prevale il catalogo**: niente densità progressiva |
 | [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) | la frase «Riktor compra HP e resistenza con movimento **e vista**» diventa vera solo con questo slice; oggi è falsa |

@@ -61,7 +61,7 @@ con lo **zero scritto a mano**. L'osservatore oggi è cablato in un letterale.
 ### 1.4 Il substrato non esiste — tre buchi distinti
 
 > ⚠️ Misurati contro un **velo**. Con la fog decisa da
-> [D-215](../../decisions/RT_PDR_00_Decision_Log.md) **i primi due cadono**: vedi §5.3.
+> [D-222](../../decisions/RT_PDR_00_Decision_Log.md) **i primi due cadono**: vedi §5.3.
 
 1. **Il canale**: `Cells->NumCustomDataFloats = 3`, e tutti e tre portano l'RGB della superficie che
    `RebuildInstances` scrive. `M_HexCell` è **Unlit + Opaque**, ha **un solo** nodo
@@ -309,7 +309,7 @@ repository non possiede.
 ## 5. Fase B — La fog of war
 
 > ⛔ **Fino al 2026-08-27 questa sezione descriveva un *velo*: il colore di superficie scalato.**
-> [D-215](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso che la fog of war **entra nella v0.1 e
+> [D-222](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso che la fog of war **entra nella v0.1 e
 > nasconde**. Non è una differenza di intensità — un velo lascia leggere il contenuto della cella più
 > debolmente, la fog non lo mostra affatto. Ciò che il velo aveva imparato e che sopravvive è marcato ➕;
 > ciò che cade perché nascondere è più semplice che velare è marcato ➖.
@@ -340,16 +340,16 @@ categoria per le *celle* non esiste in nessuna decisione. Inventarla qui creereb
 Il divieto resta, e riguarda il **vuoto piatto**: una mappa nera cancella la lettura *spaziale* — dove sono
 le celle, quanto dista un punto, che forma ha il terreno. Un prisma che **occupa** la cella non la cancella:
 la griglia continua a tassellare, la distanza si continua a contare, il terreno perde il proprio *tipo* e non
-la propria *posizione*. È la distinzione che [D-215](../../decisions/RT_PDR_00_Decision_Log.md) scrive, e
+la propria *posizione*. È la distinzione che [D-222](../../decisions/RT_PDR_00_Decision_Log.md) scrive, e
 senza la quale la fog sembrerebbe violare §25 mentre lo rispetta.
 
 Il rapporto con [D-146](../../decisions/RT_PDR_00_Decision_Log.md) è chiarito da
-[D-214](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-27), e **non c'è conflitto**: D-146 governa come
+[D-221](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-27), e **non c'è conflitto**: D-146 governa come
 una cella **mostrata** comunica la propria superficie — è una regola di *encoding*, non di *visibilità*. Non
 dice **se** una cella vada mostrata. Una cella che nessuno osserva, e che quindi non si legge, non è un
 fallimento di leggibilità: è lo scopo.
 
-D-214 dichiara anche il perimetro che entrambe presupponevano: **la forma è graybox e cadrà** con i
+D-221 dichiara anche il perimetro che entrambe presupponevano: **la forma è graybox e cadrà** con i
 materiali per superficie di M8/M9 — dischi, corona incisa, `Relief`, `Blockers`, `EdgeFeatures` sono un
 ponteggio — mentre **la regola dei due canali resta e vincolerà anche l'arte**, perché è ciò che regge
 l'accessibilità (daltonismo, scala di grigi, video ricompresso) e i gate `G10`/`G13`. L'effetto fumo/nebbia
@@ -653,13 +653,25 @@ PIE `PIE-V01-NOISE`, che è l'unica cosa qui che nessun test automatico può mis
 
 Quattro voci per il [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md).
 
-⚠️ **La collisione su `D-196` è stata risolta il 2026-08-27 rinumerando a `D-214` la voce di questo branch.**
-Su `origin/main` esisteva già un `D-196` diverso — quello sul corpus golden. Misurato allora: `origin/main`
-era a **`D-212`** e la PR aperta **#1481** rivendicava **`D-213`**, quindi il perimetro di D-146/D-183 è
-`D-214` e la fog of war in v0.1 è **`D-215`**. Le tesi qui sotto ancora da registrare partono da `D-216`.
+🔴 **Questo branch ha dovuto rinumerare DUE volte in un giorno, ed è la misura di quanto `D-nnn` sia una
+risorsa contesa.**
+
+1. **Mattina**: la voce sul perimetro di D-146/D-183 era nata `D-196`, che su `origin/main` era già preso
+   — la decisione sul corpus golden. Misurato allora: `origin/main` a **`D-212`**, la PR aperta **#1481**
+   su **`D-213`**. Rinumerate a `D-214` (perimetro) e `D-215` (fog of war in v0.1).
+2. **Sera**, al momento del merge: `origin/main` era passata a **`D-220`**, e il branch aperto
+   `claude/spec-panel-map-scenario-menu-*` rivendicava **`D-214` … `D-217`** con tesi tutt'altre
+   (affordance di sviluppo, menu degli scenari). Seconda rinumerazione: **`D-221`** il perimetro,
+   **`D-222`** la fog of war. Le tesi qui sotto ancora da registrare partono da **`D-223`**.
+
+⚠️ **La prima misura non era sbagliata: era scaduta.** Fra le due sono passate poche ore, e in mezzo
+`origin/main` ha assorbito otto decisioni. Per questo la regola non è «misura una volta e scrivi»: è
+`git fetch --prune origin` + `git branch -r` **immediatamente prima del merge**, e su **tutti** i
+riferimenti remoti, non solo su `main` — la collisione della sera stava in un branch mai mergiato.
+
 ⚠️ **Il Decision Log locale si ferma a `D-196`**: il `main` di questa working directory è **116 commit
 indietro** rispetto a `origin/main`, per scelta dichiarata dall'autore. La numerazione qui è corretta
-rispetto a `origin/main` — che è dove finisce — e lascia un buco visibile in locale.
+rispetto a `origin/main` — che è dove il lavoro finisce — e lascia un buco visibile in locale.
 
 🔴 **`D-nnn` è una risorsa contesa**: prima del merge, `git fetch --prune origin` e `gh pr list --state open`
 per gli ID in volo. Questa misura invecchia, e una collisione di contatore è già successa tredici volte.
@@ -708,7 +720,7 @@ Tutte e tre bloccanti.
 2. 🔴 **La PR [#1428](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1428) tocca
    `Turn/RTTurnManager.cpp` e `.h`** — esattamente i file dell'emissione. La Fase C non parte prima che sia
    mergiata, oppure il conflitto si accetta consapevolmente.
-3. **La numerazione `D-nnn` va riverificata** prima del merge (§7): `D-214`/`D-215` erano liberi il 2026-08-27.
+3. **La numerazione `D-nnn` va riverificata** prima del merge (§7): `D-221`/`D-222` erano liberi il 2026-08-27.
 
 ### Dove atterra il lavoro
 
