@@ -281,6 +281,8 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto");
 	case ERTActionInvalidReason::Interrupted:    return TEXT("interrotta");
 	case ERTActionInvalidReason::NoEffect:       return TEXT("nessun effetto da applicare");
+	// ⚠️ Diverso da «interrotta»: quella e' stata CANCELLATA, questa e' avvenuta senza ottenere niente.
+	case ERTActionInvalidReason::Neutralised:    return TEXT("neutralizzata da un'interruzione reciproca");
 	default:                                     return TEXT("non eseguibile");
 	}
 }

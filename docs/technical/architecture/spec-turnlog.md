@@ -259,6 +259,25 @@ Il costo è dichiarato in D-199 — nominarlo, come faceva il commento del 2026-
 ⚠️ **`UsedByBlast` e `UsedByOverwatch` non hanno produttori in gioco**: `ReadFacingForConsumer` è chiamata
 solo da due test. Le due letture che questa sezione motiva sopra sono dichiarate e non emesse.
 
+**`Neutralised`: un'azione che non ottiene niente lo dice** ([D-203](../../decisions/RT_PDR_00_Decision_Log.md), [`#1460`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1460), 2026-08-27).
+
+[D-202](../../decisions/RT_PDR_00_Decision_Log.md) lascia entrambi inefficaci due `Action.Interrupt`
+reciproci. Quel turno non lasciava **nessuna** traccia: due unità pagavano un cooldown e producevano zero
+voci. La voce è `Fallback`/`Cancelled` con `Amount = Neutralised`, e il soggetto è **chi ha speso**
+l'Interrupt — è la sua azione a non aver ottenuto niente.
+
+⚠️ I tre motivi della famiglia non si confondono, ed è la stessa disciplina di [D-199]:
+
+| Motivo | Dice | Soggetto |
+|---|---|---|
+| `Interrupted` | «la tua azione è stata annullata» | chi la **subisce** |
+| `Neutralised` | «la tua azione non ha annullato niente» | chi l'ha **spesa** |
+| `NoEffect` | «non c'era niente da applicare» | chi ha agito |
+
+⚠️ **Un Interrupt che non produce nessun colpo** — fuori portata, senza linea di tiro, su un alleato — non è
+in questo insieme e non lascia voce, esattamente come un attacco qualunque che manca. Quella è la regola di
+[`#1449`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1449), non un buco.
+
 ### 4.2 Categoria `Decision` — il Decision Time Bank *(decisa il 2026-08-09, issue `#361`)*
 
 Questa spec è **owner dei nomi di evento e dei reason code**, e fino a oggi non conteneva la parola `Bank`:

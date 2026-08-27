@@ -1387,6 +1387,46 @@ bool FRTInterruptCycleNeutralisesTest::RunTest(const FString&)
 		TestFalse(TEXT("e B lo stesso"), B->CanUseAbility(IdxB));
 	}
 
+	// 🔴 **E il turno lascia traccia** (`#1460`, [D-203]). Fino al 2026-08-27 due unita' che si
+	// neutralizzavano pagavano un cooldown e producevano **zero** voci: il replay non poteva spiegare perche'
+	// nessuna delle due interruzioni avesse avuto effetto. E' la classe che [D-196] ha chiuso quattro volte.
+	const TArray<FRTTurnLogEntry> Neutralizzate = TM->GetTurnLog().FilterByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Neutralised);
+	});
+	AddInfo(FString::Printf(TEXT("voci di neutralizzazione: %d"), Neutralizzate.Num()));
+	if (TestEqual(TEXT("due voci: una per ciascun Interrupt neutralizzato"), Neutralizzate.Num(), 2))
+	{
+		// Ognuna nomina CHI ha speso l'azione — e' la sua che non ha ottenuto niente — e QUALE azione era.
+		TSet<int32> Soggetti;
+		for (const FRTTurnLogEntry& E : Neutralizzate)
+		{
+			Soggetti.Add(E.UnitId);
+			TestEqual(TEXT("e nomina l'azione"), E.ActionId, FName(TEXT("Action.Interrupt")));
+
+			// ⚠️ **`TgtCell` porta la cella dell'ALTRO**, non la propria. Una voce che dicesse «puntavo a me
+			// stesso» sarebbe precisa e falsa — la stessa forma che il commento della voce `Cancelled`
+			// condanna — e `TgtCell` entra nell'hash. Qui `SrcCell` e `TgtCell` sono le due celle in gioco,
+			// scambiate fra le due voci.
+			const FRTCellId Attesa = (E.UnitId == A->StableUnitId) ? B->Cell : A->Cell;
+			TestEqual(TEXT("e punta alla cella dell'altro, non alla propria"), E.TgtCell, Attesa);
+			TestNotEqual(TEXT("che non e' la sua"), E.TgtCell, E.SrcCell);
+		}
+		TestTrue(TEXT("le due voci accreditano le due unita' diverse"),
+			Soggetti.Contains(A->StableUnitId) && Soggetti.Contains(B->StableUnitId));
+	}
+
+	// ⚠️ E **nessuna** voce di cancellazione: le due cose non si confondono. `Interrupted` dice «la tua
+	// azione e' stata annullata», `Neutralised` dice «la tua azione non ha annullato niente» — versi opposti,
+	// e riusare lo stesso motivo rifarebbe la coppia con due significati che `#1430` ha appena separato.
+	TestEqual(TEXT("e nessuna voce di azione interrotta"),
+		TM->GetTurnLog().FilterByPredicate([](const FRTTurnLogEntry& E)
+		{
+			return E.Category == ERTLogCategory::Fallback
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+		}).Num(), 0);
+
 	DestroyControlWorld(World);
 	return true;
 }
