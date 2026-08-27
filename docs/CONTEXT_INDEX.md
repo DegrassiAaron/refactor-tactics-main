@@ -222,9 +222,16 @@ gh pr list --state open      # una PR in volo puo' aver gia' rivendicato il nume
 ⚠️ **Questo è un controllo a vista, e il limite è dichiarato.** Fino al 2026-08-20 l'assegnazione era
 automatica — `scripts/rt_shared_id.py`, un allocatore con lock nel git common dir — perché il progetto
 aveva pagato **sedici** collisioni scegliendo i numeri a mano. Lo strumento è stato rimosso con
-[D-178](decisions/RT_PDR_00_Decision_Log.md) insieme al resto del sistema di lavoro parallelo: con una
-sola sessione per volta la finestra di race si chiude quasi tutta, ma resta aperta finché esistono PR
-non mergiate. Se una PR aperta rivendica lo stesso ID con una **tesi diversa**, rinumera la seconda.
+[D-178](decisions/RT_PDR_00_Decision_Log.md) insieme al resto del sistema di lavoro parallelo, sulla
+premessa che «con una sola sessione per volta la finestra di race si chiude quasi tutta».
+
+⛔ **Quella premessa è falsa, misurata il 2026-08-27** ([D-222](decisions/RT_PDR_00_Decision_Log.md)):
+**101** checkout di `HEAD` in 24 ore, **6 sessioni** distinte a committare, **4 nella stessa finestra di
+6 minuti**. La finestra di race non si chiude affatto — e il progetto aveva pagato **sedici** collisioni
+proprio con il metodo a mano, sotto questo stesso regime. Il controllo a vista resta l'unica difesa e
+**ora si sa che è più esposto di quanto questa riga dichiarasse**: `git fetch --prune origin`, poi
+`gh pr list --state open`, prima di ogni merge. Se una PR aperta rivendica lo stesso ID con una **tesi
+diversa**, rinumera la seconda.
 
 ### Riferimenti a checkpoint
 
