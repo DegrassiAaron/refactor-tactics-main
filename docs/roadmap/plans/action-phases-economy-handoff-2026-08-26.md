@@ -422,5 +422,20 @@ cambiano il comportamento di gioco, e l'ordine in cui si eseguono non è indiffe
 3. **`#403` / `U20 · PIE-BAL1` si ripunta**, non si chiude: verificava la leggibilità di una differenza che
    ora è un'altra.
 
+> ✅ **Un rischio sollevato in sessione e poi misurato, invece di restare un timore.** `RTReactionLibrary`
+> classifica `Status.Root` e `Status.Slow` come stati **di controllo**, cioè quelli su cui scatta
+> `AboutToReceiveControl` (`Reaction.Cleanse`). Poiché `D-205` e `D-208` fanno auto-infliggere `Slow` a
+> `Guard` e `Brace`, sembrava che una difesa potesse aprire una finestra di reazione **contro sé stessa**.
+>
+> Non succede, e non per una guardia: `PassPointFor(AboutToReceiveControl)` vale `BlastStatus`, e quel pass
+> gira **solo** dentro `RTTurnManager_Blast.cpp`. `Guard` e `Brace` risolvono in `Preparation`, che è
+> un'altra funzione e un'altra fase — lo stato auto-inflitto non attraversa mai quel pass. L'esclusione è
+> **strutturale**, quindi resta vera finché le due fasi restano due; chi un giorno le unificasse la perde in
+> silenzio.
+>
+> ⚠️ **Resta però un uso nuovo**: oggi `Status.Slow` è uno stato **inflitto** (`Hero.Riktor.ImpactShot` lo
+> mette addosso ai nemici), e nessuna azione se lo dà da sola. Chi implementa `D-205`/`D-208` è il primo a
+> farlo, e vale la pena guardare gli altri consumatori dello stato prima di assumerlo innocuo.
+
 I due scenari dell'Overwatch (§7) restano l'unico lavoro indipendente da tutto questo, e si possono fare
 subito: pinnano ciò che oggi è vero **per costruzione**, quindi passano senza toccare produzione.
