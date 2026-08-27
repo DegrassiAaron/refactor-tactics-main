@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-27
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-28
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -12,6 +12,26 @@
 > `FAC-*`, `MED-1`, i radar — perché una domanda barrata col suo perché **è** il valore: il prossimo kit la
 > riproporrà, e trovarla già risposta costa meno che ridiscuterla. La regola scritta contraddiceva la
 > pratica di ogni sezione, e fra le due si è corretta la regola.
+
+---
+
+## Aperta — la vista attraverso una frontiera interna, da `D-179`
+
+[`D-179`](decisions/RT_PDR_00_Decision_Log.md) ha reso la geometria dentro la cella **dato di gioco**: si
+conserva sempre, entra nell'hash, e un muro a `Offset == 0` rende la cella non entrabile. Il suo punto (3)
+lascia però la **vista** deliberatamente fuori — *«la LoS del progetto è cella-a-cella, e la sua regola è
+un'altra domanda»* — e [`#1239`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1239) la mette
+fra i «Non fare», perché dedurla dal movimento sarebbe una conseguenza inventata.
+
+Il silenzio è quindi **scelto**, e questa voce esiste perché non venga riscoperto come omissione.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `GEO-4` | Un muro interno che taglia una cella blocca la **linea di vista** e i **proiettili** che l'attraversano, o la LoS resta cella-a-cella e lo ignora? | Non si deduce dal codice perché **non esiste il caso**: `InteriorWalls` ha oggi tre soli consumatori — il bake che lo scrive, `ValidateMap`, e il pannello che lo disegna (`RTHexMapActor.cpp:998`) — e **nessuno** in `Combat/`. Non si deduce da `D-179` perché quella decisione **si è fermata prima di proposito**. Due uscite: **(a) la LoS resta cella-a-cella** e la geometria intra-cella non la tocca — coerente con il modello attuale, al prezzo che un muro che taglia l'esagono a metà otticamente copra e logicamente no · **(b) la LoS consulta i segmenti**, e allora serve una regola di attraversamento vista-contro-segmento, che è il **primo** caso in cui la geometria entra in una regola diversa dal movimento e va scritta come tale. ⚠️ La stessa domanda vale per il **proiettile**, che oggi ha il suo owner in [`#1392`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1392), e le due non vanno separate: risposte diverse renderebbero visibile un bersaglio che non si può colpire. **Innesco**: il primo consumatore di LoS che legga geometria intra-cella — plausibilmente `E13`/[`#1467`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1467), o `#1392` se arriva prima |
+
+> 🔎 **Perché non è urgente.** Nessun contenuto versionato usa ancora il campo — `D-179` ha misurato
+> `InteriorWall` in **0** dei 17 `.uasset` — quindi oggi non esiste una mappa in cui la domanda cambi una
+> partita. Diventa urgente **insieme** al primo muro interno di produzione, non prima.
 
 ---
 
