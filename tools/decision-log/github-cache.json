@@ -802,6 +802,11 @@
    "title": "L'arena di default non contiene le superfici che CP 47.3 deve distinguere: la verifica non falsificherebbe nulla",
    "type": "issue"
   },
+  "1290": {
+   "state": "closed",
+   "title": "Il colore della board non sopravvive alla resa: nove superfici, due popolazioni di luminanza a schermo",
+   "type": "issue"
+  },
   "1300": {
    "state": "closed",
    "title": "BOT-1/BOT-2 · Il bot non ha un termine per «da qui posso ingaggiare»: filtro o punteggio?",
@@ -920,6 +925,11 @@
   "1455": {
    "state": "closed",
    "title": "Il corpus golden copre una categoria su dieci: due tracce di solo `Move`, e tre cambi d'identità non le hanno toccate",
+   "type": "issue"
+  },
+  "1459": {
+   "state": "closed",
+   "title": "L'elenco delle fixture di mappa non è quello che il dispatcher accetta: `DemoArena` è dichiarata e non esiste, `ArenaV01` esiste e non è dichiarata",
    "type": "issue"
   },
   "1468": {
