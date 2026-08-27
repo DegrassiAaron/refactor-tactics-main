@@ -574,7 +574,7 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 	// chiamarli «derivati» trasformerebbe «i parametri vengono da li'» in «gli somiglia».
 	const TMap<FName, FName> Atteso = {
 		{ TEXT("Hero.Gadget.ConductiveNode"),     TEXT("Action.Electrify")    },
-		{ TEXT("Hero.Phase.FluidTrail"),          TEXT("Action.Dash")         },
+		{ TEXT("Hero.Phase.FluidTrail"),          TEXT("Action.Dodge")         },
 		{ TEXT("Hero.Phase.MistVeil"),            TEXT("Action.Ignite")       },
 		{ TEXT("Hero.Riktor.KineticPanel"),       TEXT("Action.CreateCover")  },
 		{ TEXT("Hero.Riktor.Ram"),                TEXT("Action.Charge")       },

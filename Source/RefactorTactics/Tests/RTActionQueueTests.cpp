@@ -72,14 +72,14 @@ bool FRTActionPhaseRespectsAtlasTest::RunTest(const FString&)
 	TArray<FRTActionInstance> Queue;
 	Queue.Add(QueuedAction(TEXT("Action.Move"),        ERTResolutionPhase::NormalMovement, 50, /*Unit*/ 0));
 	Queue.Add(QueuedAction(TEXT("Action.HeavyAttack"), ERTResolutionPhase::Attack,         80, /*Unit*/ 0));
-	Queue.Add(QueuedAction(TEXT("Action.Dash"),        ERTResolutionPhase::FastMovement,   30, /*Unit*/ 0));
+	Queue.Add(QueuedAction(TEXT("Action.Dodge"),        ERTResolutionPhase::FastMovement,   30, /*Unit*/ 0));
 	Queue.Add(QueuedAction(TEXT("Action.Guard"),       ERTResolutionPhase::Preparation,    40, /*Unit*/ 0));
 
 	URTActionQueueLibrary::SortActionInstances(Queue);
 	const TArray<FName> Order = ResolvedOrder(Queue);
 
 	TestEqual(TEXT("Prep per primo"),   Order[0], FName(TEXT("Action.Guard")));
-	TestEqual(TEXT("poi il Dash"),      Order[1], FName(TEXT("Action.Dash")));
+	TestEqual(TEXT("poi il Dash"),      Order[1], FName(TEXT("Action.Dodge")));
 	TestEqual(TEXT("poi il Blast"),     Order[2], FName(TEXT("Action.HeavyAttack")));
 	TestEqual(TEXT("il Move per ULTIMO, dopo l'attacco"), Order[3], FName(TEXT("Action.Move")));
 

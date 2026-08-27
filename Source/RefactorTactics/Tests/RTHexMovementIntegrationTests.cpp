@@ -878,7 +878,7 @@ bool FRTDashConsumesMovementTest::RunTest(const FString&)
 
 	URTActionData* Dash = NewObject<URTActionData>(Runner);
 	Dash->DisplayName = FText::FromString(TEXT("Scatto"));
-	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	Runner->Abilities.Add(Dash);
 
 	Runner->PlannedDashAbility = Runner->Abilities.Num() - 1;
@@ -932,10 +932,10 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 	TestTrue(TEXT("premessa: dalla cella d'arrivo il bersaglio E' a portata"),
 		URTHexLibrary::HexDistance(FRTCellId(DashTo, 0), Foe->Cell) <= ShotRange);
 
-	// Uno scatto identico ad `Action.Dash` TRANNE lo slot: e' il kit a dichiarare che costa tutto il turno.
+	// Uno scatto identico ad `Action.Dodge` TRANNE lo slot: e' il kit a dichiarare che costa tutto il turno.
 	URTActionData* Costly = NewObject<URTActionData>(Runner);
 	Costly->DisplayName = FText::FromString(TEXT("Scatto totale"));
-	Costly->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Costly->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	Costly->Def.ActionId = FName(TEXT("Hero.CostlyDash"));
 	Costly->Def.Slot = ERTActionSlot::MovementAndMain;
 	Runner->Abilities.Add(Costly);
@@ -951,7 +951,7 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 	RunTurn(TM);
 
 	TestTrue(TEXT("lo scatto e' avvenuto"), Runner->Cell == FRTCellId(DashTo, 0));
-	// La differenza con `Action.Dash`, e l'unica cosa che questo test dimostra: qui il colpo NON parte.
+	// La differenza con `Action.Dodge`, e l'unica cosa che questo test dimostra: qui il colpo NON parte.
 	TestEqual(TEXT("il kit ha dichiarato che costa anche la principale: nessun colpo"),
 		Foe->Health + Foe->Shield, FoeBefore);
 
@@ -961,7 +961,7 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 
 
 /**
- * Il gemello NEGATIVO di `KitDeclaredBothSlots`: uno scatto NORMALE (`Action.Dash`, slot `Movement`, D-028) —
+ * Il gemello NEGATIVO di `KitDeclaredBothSlots`: uno scatto NORMALE (`Action.Dodge`, slot `Movement`, D-028) —
  * non `MovementAndMain` — lascia intatta la principale, «schivo e sparo». Senza questo test, spostare il
  * blocco `Fallback`/`Cancelled` fuori dal suo `if (Slot == MovementAndMain)` in `RTTurnManager.cpp`
  * dichiarerebbe uno scarto inesistente a OGNI scatto con un'azione principale pianificata, e la suite
@@ -987,10 +987,10 @@ bool FRTNormalDashDoesNotDiscardTheMainSlotTest::RunTest(const FString&)
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(DashTo + ShotRange, 0));
 	if (!TestNotNull(TEXT("Foe"), Foe)) { DestroyHexMoveWorld(World); return false; }
 
-	// Scatto NORMALE: `Action.Dash` dal catalogo, slot `Movement` — non dichiara `MovementAndMain`.
+	// Scatto NORMALE: `Action.Dodge` dal catalogo, slot `Movement` — non dichiara `MovementAndMain`.
 	URTActionData* Dash = NewObject<URTActionData>(Runner);
 	Dash->DisplayName = FText::FromString(TEXT("Scatto"));
-	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	Runner->Abilities.Add(Dash);
 	if (!TestEqual(TEXT("premessa: lo scatto occupa solo lo slot Movement"),
 		Dash->Def.Slot, ERTActionSlot::Movement))
@@ -1052,10 +1052,10 @@ bool FRTKitDeclaredBothSlotsDeclaresTheDiscardTest::RunTest(const FString&)
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(DashTo + ShotRange, 0));
 	if (!TestNotNull(TEXT("Foe"), Foe)) { DestroyHexMoveWorld(World); return false; }
 
-	// Uno scatto identico ad `Action.Dash` TRANNE lo slot: e' il kit a dichiarare che costa tutto il turno.
+	// Uno scatto identico ad `Action.Dodge` TRANNE lo slot: e' il kit a dichiarare che costa tutto il turno.
 	URTActionData* Costly = NewObject<URTActionData>(Runner);
 	Costly->DisplayName = FText::FromString(TEXT("Scatto totale"));
-	Costly->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Costly->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	Costly->Def.ActionId = FName(TEXT("Hero.CostlyDash"));
 	Costly->Def.Slot = ERTActionSlot::MovementAndMain;
 	Runner->Abilities.Add(Costly);
@@ -1354,7 +1354,7 @@ bool FRTDashLeavesMainAvailableTest::RunTest(const FString&)
 
 	URTActionData* Dash = NewObject<URTActionData>(Runner);
 	Dash->DisplayName = FText::FromString(TEXT("Scatto"));
-	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	Runner->Abilities.Add(Dash);
 	const int32 DashIdx = Runner->Abilities.Num() - 1;
 

@@ -243,7 +243,13 @@ def g_sprint() -> str:
 
 
 def g_dash() -> str:
-    """`Dash` = `●──»──»──►`. A 16 px collassa in `● » ►` e regge (§5)."""
+    """`Dodge` = `●──»──»──►`. A 16 px collassa in `● » ►` e regge (§5).
+
+    ⚠️ Si chiamava `Action.Dash` fino a **D-196**, e il glifo NON e' cambiato: la meccanica e' la stessa
+    — `LinearDash`, `FastMovement`, slot `Movement`. A cambiare e' stato il nome, perche' `Dash` era
+    anche la macro-fase. Il chevron resta la famiglia condivisa con `UI.Icon.Phase.Dash`, ed e' corretto
+    che lo sia: il chip esagonale distingue il momento dall'azione che ci accade dentro.
+    """
     return "\n".join([
         dot(3.6, 12, 1.5),
         chevron(6.6, 12, 3.1, 3.3),
@@ -1293,28 +1299,6 @@ def g_wraith_feint() -> str:
     ])
 
 
-def g_action_dodge() -> str:
-    """`Dodge` — il movimento generico della fase Dash secondo l'handoff Action Phases del 2026-08-26
-    (§4.1, `LOCKED_CHAT`).
-
-    ⚠️ **Non e' nel catalogo generico**: `RequiredIconIds()` non la pretende, e finche' il rename non
-    atterra questa icona non ha un'azione da rappresentare. Esiste perche' la decisione e' presa e il
-    disegno non deve essere il collo di bottiglia — non perche' sia gia' vera.
-
-    ⚠️ E c'e' una collisione da risolvere PRIMA del rename: `Action.Evade` esiste gia' e vuol dire la
-    stessa cosa. Questo glifo la tratta come «scarto rapido nella fase Dash» — chevron con uno stacco
-    laterale — mentre `Evade` resta lo scarto reattivo. Se le due si unificano, una delle due icone
-    diventa un doppione.
-    """
-    return "\n".join([
-        dot(3.4, 15.4, 1.5),
-        path("M5.4 15.4 L9.4 15.4 L13.4 8.6", stroke_width=1.8),
-        chevron(15 , 8.6, 2.6, 3.0),
-        arrow_head(21.4, 8.6, 2.6),
-        path("M9.4 18.4 L9.4 20.6", stroke_width=1.3),
-    ])
-
-
 # --------------------------------------------------------------------------------------------------
 # Le cinque categorie che la v0.1 mostra e il catalogo non dichiara
 # --------------------------------------------------------------------------------------------------
@@ -2032,8 +2016,8 @@ ICONS = [
      "mock 05/11 — invariato"),
     ("Action.Sprint", g_sprint, "Movement",
      "mock 05/12 — endpoint che chiude: Sprint nega la reazione"),
-    ("Action.Dash", g_dash, "Movement",
-     "mock 05/13 — invariato"),
+    ("Action.Dodge", g_dash, "Movement",
+     "mock 05/13 — glifo invariato, chiave rinominata da Action.Dash (D-196)"),
     ("Action.Charge", g_charge, "Movement",
      "assente dal mock"),
     ("Action.Leap", g_leap, "Movement",
@@ -2147,12 +2131,6 @@ ICONS = [
      "roster — Control, deriva da Action.Deflect"),
     ("Action.Hero.Wraith.Feint", g_wraith_feint, "Utility",
      "roster — Control, il tratteggio qui significa «falso», non «previsto»"),
-
-    # ⏱️ Non ancora nel catalogo: handoff Action Phases 2026-08-26 §4.1 (LOCKED_CHAT). Disegnata
-    # perche' la decisione e' presa, NON perche' sia gia' vera. Vedi la docstring del glifo per la
-    # collisione irrisolta con `Action.Evade`.
-    ("Action.Dodge", g_action_dodge, "Movement",
-     "handoff 2026-08-26 §4.1 — NON nel catalogo generico"),
     ("Phase.Prep", g_phase_prep, "Utility",
      "mock 03 — sostituisce la timeline a iniziativa"),
     ("Phase.Dash", g_phase_dash, "Movement",
@@ -2318,9 +2296,15 @@ DEFAULT_MIN_READABLE = 16
 # Scrittura
 # --------------------------------------------------------------------------------------------------
 
+# Cio' che questa esecuzione ha scritto. Serve a distinguere un file corrente da un residuo: la
+# cartella e' derivata, quindi tutto cio' che non e' stato riscritto adesso e' un fantasma.
+written: set[Path] = set()
+
+
 def _write(target: Path, text: str) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8")
+    written.add(target)
 
 
 def _rasterize(svg: str, target: Path, width: int, height: int) -> bool:
@@ -2329,6 +2313,7 @@ def _rasterize(svg: str, target: Path, width: int, height: int) -> bool:
     target.parent.mkdir(parents=True, exist_ok=True)
     cairosvg.svg2png(bytestring=svg.encode("utf-8"), write_to=str(target),
                      output_width=width, output_height=height, background_color=None)
+    written.add(target)
     return True
 
 
@@ -2382,9 +2367,10 @@ SURFACE_BOX = (17.4, 18.8, 21.6, 23.2)
 # ⛔ Il giorno in cui il rename atterra, questa riga si CANCELLA e il glifo prende la sua stazione da
 # solo. Se qualcuno la trova ancora qui dopo, e' un residuo — e a quel punto `Action.Evade` e
 # `Action.Dodge` vanno riconciliate, che e' la domanda aperta da allora.
-ALPHABET_EXEMPT = {
-    "Action.Dodge": "handoff 2026-08-26 §4.1: decisa, non ancora nel catalogo generico",
-}
+# Vuoto, ed e' l'esito giusto: `Action.Dodge` e' entrata nel catalogo con D-196 e la sua stazione la
+# prende da sola. Il meccanismo resta perche' la prossima deroga si DICHIARI invece di essere
+# silenziata — e perche' e' stato T7 a tenere questa visibile finche' e' durata.
+ALPHABET_EXEMPT: dict[str, str] = {}
 
 
 def _ink_rows(glyph_svg: str, resolution: int = 240):
@@ -2585,7 +2571,23 @@ def main() -> int:
     gate_errors = check_alphabet_gates(ICONS)
     manifest["alphabet_gates"] = gate_errors or "passati"
 
+    # ⚠️ Gli orfani vanno TOLTI, e la ragione l'ha mostrata D-196: rinominando `Action.Dash` in
+    # `Action.Dodge` il file vecchio e' rimasto nella cartella. Chi importasse quella cartella
+    # porterebbe in Unreal una texture per una chiave che non esiste piu' — e nessun gate la vedrebbe,
+    # perche' `check_coverage()` guarda cosa MANCA, non cosa avanza.
+    orphans = sorted(
+        f for f in root.rglob("*")
+        if f.is_file() and f.resolve() not in {w.resolve() for w in written})
+    for f in orphans:
+        f.unlink()
+
     print(f"{len(ICONS)} icone + {len(FRAMES)} cornici -> {root}")
+    if orphans:
+        print(f"🧹 {len(orphans)} file orfani rimossi (chiavi rinominate o uscite):")
+        for f in orphans[:8]:
+            print(f"   {f.relative_to(root)}")
+        if len(orphans) > 8:
+            print(f"   … e altri {len(orphans) - 8}")
     if gate_errors:
         print(f"⛔ {len(gate_errors)} gate dell'alfabeto caduti:")
         for e in gate_errors:

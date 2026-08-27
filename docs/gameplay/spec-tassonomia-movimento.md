@@ -107,7 +107,7 @@ Questa distinzione è [D-118](../decisions/RT_PDR_00_Decision_Log.md).
 > scriverà il primo Blink.
 
 > ⚠️ Nulla di tutto questo si vede in partita: `Action.Leap` **non è nel kit di nessun eroe**, come
-> `Action.Dash` prima di lui ([#425](https://github.com/DegrassiAaron/refactor-tactics-main/issues/425)).
+> `Action.Dodge` prima di lui ([#425](https://github.com/DegrassiAaron/refactor-tactics-main/issues/425)).
 
 Le policy del Dash sono già un **dato**, non un ramo: `ERTMovementStyle` ha **sei** valori —
 `None · Budget · LinearDash · LinearCharge · LinearLeap · LinearPass` — di cui `None` significa *«l'azione

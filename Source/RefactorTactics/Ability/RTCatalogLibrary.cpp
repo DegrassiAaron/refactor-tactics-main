@@ -1145,9 +1145,19 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// nello stesso turno (ADR-0003 §3). Tutte con `Fallback.Stop`: se la traiettoria si chiude ci si ferma
 	// nell'ultima cella valida, non si annulla e non si aggira.
 
-	// `Dash` — 3 celle su una delle sei direzioni. Occupa lo slot MOVIMENTO (D-028): chi scatta si e' mosso per
-	// questo turno e non prosegue col Move, ma l'azione principale gli resta — *schivo e sparo*.
-	Catalog.Add(ShippedAction(TEXT("Action.Dash"), ERTResolutionPhase::FastMovement, /*Priority*/ 30,
+	// `Dodge` — 3 celle su una delle sei direzioni. Occupa lo slot MOVIMENTO (D-028): chi scatta si e' mosso
+	// per questo turno e non prosegue col Move, ma l'azione principale gli resta — *schivo e sparo*.
+	//
+	// ⚠️ **Si chiamava `Action.Dash` fino a D-196**, e il nome faceva due lavori: la macro-fase e l'azione.
+	// Un turno risolve `ERTMatchPhase::Dash`, e dentro quella fase ci sono `Dodge`, `Charge`, `Leap`,
+	// `Reposition` e `Sprint`: `Dash` e' il MOMENTO, non una delle cose che ci accadono. Finche' era
+	// entrambi, «lo scatto risolve nel Dash» era una frase che non si poteva disambiguare.
+	//
+	// ⛔ **Non e' `Action.Evade`, e non si consolida con lei.** Quella e' una REAZIONE — slot
+	// `ERTActionSlot::Reaction`, trigger `CellBecameHazardous`, valutata nel Cleanup — e condivide con
+	// questa solo lo spostamento di una cella. Slot diversi: un'unita' puo' pianificare `Dodge` E tenere
+	// `Evade` pronta nello stesso turno, e fonderle glielo toglierebbe.
+	Catalog.Add(ShippedAction(TEXT("Action.Dodge"), ERTResolutionPhase::FastMovement, /*Priority*/ 30,
 		/*Range*/ 3, /*Cooldown*/ 1, ERTActionFallback::Stop, {},
 		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearDash));
 

@@ -403,7 +403,7 @@ bool FRTDashLeavesAMoveEntryTest::RunTest(const FString&)
 	// Uno scatta, l'altro cammina, nello STESSO turno: e' il caso discriminante. Con una sola unita' il test
 	// direbbe «esiste una voce di movimento», che era vero anche prima.
 	URTActionData* Dash = NewObject<URTActionData>(Runner);
-	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Dash->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	Runner->Abilities.Add(Dash);
 	Runner->PlannedDashAbility = Runner->Abilities.Num() - 1;
 	Runner->PlannedDashCell = FRTCellId(3, 0);
@@ -425,7 +425,7 @@ bool FRTDashLeavesAMoveEntryTest::RunTest(const FString&)
 	}
 
 	TestEqual(TEXT("#307: la voce dello scatto NOMINA la mobilita' usata"),
-		DashEntry->ActionId, FName(TEXT("Action.Dash")));
+		DashEntry->ActionId, FName(TEXT("Action.Dodge")));
 	TestTrue(TEXT("parte da dove lo scattante era"), DashEntry->SrcCell == FRTCellId(0, 0));
 	TestTrue(TEXT("arriva dove lo scatto l'ha portato"), DashEntry->TgtCell == Runner->Cell);
 

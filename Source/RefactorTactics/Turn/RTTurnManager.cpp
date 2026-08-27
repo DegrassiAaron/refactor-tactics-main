@@ -3133,7 +3133,7 @@ void ARTTurnManager::ResolveDash()
 
 	// Percorsi: uno per ogni unita' (le non-scattanti restano ferme, ma occupano e bloccano come le altre).
 	// Priorita' e stile lineare sono per la collisione simultanea (CP 4.8): due mobilita' del catalogo diverse
-	// (`Action.Charge` priorita' 35, `Action.Dash` 30, ecc.) possono coesistere nella STESSA fase Dash.
+	// (`Action.Charge` priorita' 35, `Action.Dodge` 30, ecc.) possono coesistere nella STESSA fase Dash.
 	TArray<TArray<FRTCellId>> Paths;
 	TArray<int32> DashAbilityIdx; // parallelo a Units: INDEX_NONE = non scatta
 	TArray<int32> Priorities;     // parallelo a Units: FRTActionDef::Priority dell'azione, 0 per chi non scatta

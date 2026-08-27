@@ -10,6 +10,17 @@
 > al pathfinding a grafo ([`spec-pathfinding-pf3-pf4.md`](../technical/architecture/spec-pathfinding-pf3-pf4.md)) e all'animazione della
 > risoluzione ([`spec-anima-risoluzione.md`](spec-anima-risoluzione.md)).
 >
+> ⚠️ **Il nome dell'azione è cambiato il 2026-08-26 con [D-196](../decisions/RT_PDR_00_Decision_Log.md):
+> l'azione generica si chiama `Action.Dodge`, e `Dash` resta il nome della sola macro-fase.** Questa
+> pagina continua a essere l'owner della **fase**. Il motivo è che un nome faceva due lavori: un turno
+> risolve `ERTMatchPhase::Dash`, e dentro quella fase ci sono `Dodge`, `Charge`, `Leap`, `Reposition` e
+> `Sprint` — `Dash` è il **momento**, non una delle cose che ci accadono. Finché era entrambi, «lo scatto
+> risolve nel Dash» era una frase che non si poteva disambiguare.
+>
+> ⛔ **`Dodge` non è `Action.Evade`.** Quella è una reazione — slot `Reaction`, trigger
+> `CellBecameHazardous`, valutata nel Cleanup — e condivide con questa solo lo spostamento di una cella.
+> Sono slot diversi: un'unità può pianificare `Dodge` **e** tenere `Evade` pronta nello stesso turno.
+
 > ⚠️ **Superato il 2026-08-08 da [D-028](../decisions/RT_PDR_00_Decision_Log.md)** — **dash + move non e'
 > piu' consentito**. Lo scatto occupa lo **slot movimento**: un turno da' un movimento e un'azione
 > principale, e si sceglie **quando** muoversi — *schivo e sparo* (`Dash` + attacco) oppure *sparo e muovo*
@@ -56,7 +67,7 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
   scatto per il turno. `ARTUnit::FindDashAbilityIndex()` trova l'abilità di scatto dell'unità.
 - Abilità di scatto di default: **Ranger → "Scatto"** (`Ranger.Dash`, 5 celle, ricarica 2, `LinearDash`);
   **Guardian → "Carica"** (`Guardian.Charge`, 4 celle, ricarica 3, `LinearCharge`, 20 danni + spinta 1);
-  fallback generico "Scatto" (`Action.Dash`: 3 celle, ricarica 1). Sono la **4ª abilità** (indice 3).
+  fallback generico "Scatto" (`Action.Dodge`: 3 celle, ricarica 1). Sono la **4ª abilità** (indice 3).
   Gli eroi del catalogo v0.1 hanno `Hero.Riktor.Ram` (`LinearCharge`), `Hero.Wraith.PassingBlade`
   (`LinearPass`) e `Hero.Phase.FluidTrail` (`LinearDash`) — **tutte e tre sullo slot movimento**
   ([D-191](../decisions/RT_PDR_00_Decision_Log.md)).

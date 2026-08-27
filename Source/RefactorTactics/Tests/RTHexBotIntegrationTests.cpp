@@ -371,9 +371,9 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 	// Lo scenario chiede un'unita' che sia kiter E abbia uno scatto, e nel roster v0.1 nessuno e' entrambe
 	// le cose: Phase e' l'unica kiter (portata 5) ma il suo kit non ha mobilita' rapide, Wraith ha
 	// `PassingBlade` ma con portata 4 non e' kiter. Lo scatto glielo da' il test, dal catalogo GENERICO —
-	// non e' un numero inventato, e' `Action.Dash` cosi' come lo spedisce il gioco.
+	// non e' un numero inventato, e' `Action.Dodge` cosi' come lo spedisce il gioco.
 	URTActionData* Sprint = NewObject<URTActionData>(Bot);
-	Sprint->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Sprint->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	Sprint->RangeCells = Sprint->Def.RangeCells;
 	Sprint->Power = 0;
 	Bot->Abilities.Add(Sprint);
