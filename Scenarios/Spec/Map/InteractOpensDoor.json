@@ -1,0 +1,68 @@
+{
+  "scenarioId": "Spec.Map.InteractOpensDoor",
+  "tags": [
+    "spec",
+    "map",
+    "door",
+    "interact",
+    "generiche",
+    "riktor"
+  ],
+  "version": 1,
+  "seed": 0,
+  "fixture": "RelayBasin",
+
+  "_nota": "SPECIFICA ESEGUIBILE della catena che #833 chiamava «catena locale»: un'unita' adiacente a una porta chiusa la apre, e da quel momento il varco si attraversa. Il gate della lane sud di `RelayBasin` e' chiuso per costruzione — bordo fra (0,1,0) e (1,1,0), `MakeShowcaseRelayBasinArena` — quindi la porta non e' allestita qui: e' quella dello showcase.",
+
+  "_nota_perche_esiste": "Fino al 2026-08-26 questo scenario non era scrivibile, e non per la porta: `Action.Interact` non stava nel kit di nessun eroe, quindi `FindAbilityIndex` avrebbe restituito INDEX_NONE e il runner sarebbe uscito con «'R1' non possiede l'abilita' 'Action.Interact'». E' entrata fra le generiche di D-025 quando il motivo che la teneva fuori — «nessun codice risolve un'interazione» — e' scaduto con D-148/D-151.",
+
+  "_nota_cosa_dimostra_davvero": "Quattro anelli, non uno. Il kit porta l'azione; `ARTTurnManager` traduce `ERTActionEffect::SetDoorState` in `bChangesDoor`; `URTHexCombatLibrary` raccoglie l'operazione sulla PRIMA porta della traiettoria; `URTHexDoorLibrary::SetDoorState` la applica e il TurnLog lo scrive. Rotto un anello qualsiasi, il conteggio `DoorOpened` va a zero e il T2 non passa.",
+
+  "_nota_perche_due_turni": "Il T1 apre, il T2 attraversa — e i due NON si fondono in uno. Il piano di movimento si compone in pianificazione, quando la porta e' ancora chiusa: chiedere il passo nello stesso turno misurerebbe se il percorso viene rivalutato dopo il Blast, che e' un'altra domanda e non ha una risposta dichiarata. Separandoli, il T2 pianifica su una mappa in cui la porta e' gia' aperta, e cio' che verifica e' il DATO cambiato — non l'ordine interno di un turno.",
+
+  "_nota_bersaglio": "Si punta la cella OLTRE la porta, non il bordo: il resolver cerca la prima porta sulla traiettoria fra chi agisce e la cella mirata (`FirstDoorEdge`), e da (0,1,0) a (1,1,0) quella traiettoria e' il bordo del gate. La portata di `Action.Interact` e' 1 (D-149) e le due celle sono adiacenti.",
+
+  "_nota_la_porta_chiusa_non_blocca_la_propria_apertura": "Il punto piu' sottile, e va detto perche' chi legge si chiede come si apra una porta che toglie la vista a cio' che sta oltre. Una porta chiusa blocca la LOS, quindi `ValidateInstance` restituisce `NoLineOfSight` — ma quel motivo e' uno dei due che il Blast NON degrada al fallback (`bHandledByPlan`), e `URTHexCombatLibrary` raccoglie l'operazione sulla porta PRIMA del controllo della linea di tiro. E' deliberato, e il commento accanto al ramo lo dichiara: «chiuderla sarebbe impossibile se il proprio effetto venisse scartato dalla porta stessa». Se un giorno quel ramo si spostasse dopo il controllo, questo scenario diventerebbe rosso — ed e' l'unico posto che lo sorveglia.",
+
+  "_nota_superfici": "(0,1,0) e' `ShallowWater` e (1,1,0) e' `Conductive`: sono le superfici dello showcase e non c'entrano con la porta. Nessuna delle due fa danno da sola, quindi non compaiono nelle assertion — e se un giorno lo facessero, cadrebbe l'assertion sulla vita, che e' li' apposta.",
+
+  "_nota_avversario": "W1 sta all'estremita' opposta del bacino e non dichiara intenti: serve solo perche' la partita abbia due squadre. Le sue assertion di posizione e vita sono la controprova che il turno non ha fatto altro.",
+
+  "units": [
+    { "id": "R1", "hero": "Hero.Riktor", "team": 0, "cell": [0, 1, 0] },
+    { "id": "W1", "hero": "Hero.Wraith", "team": 1, "cell": [0, -3, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — R1 interagisce con il gate. Nessun movimento: cio' che si misura e' il cambio di stato della porta.",
+      "intents": [
+        { "unit": "R1", "ability": "Action.Interact", "targetCell": [1, 1, 0] }
+      ]
+    },
+    {
+      "_turno": "T2 — con la porta aperta il passo esiste. Un solo waypoint: la cella oltre il varco.",
+      "intents": [
+        { "unit": "R1", "move": [[1, 1, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "IL DISCRIMINANTE. Una porta aperta, una sola volta: se l'operazione venisse applicata due volte la revisione della mappa salirebbe di due e il replay divergerebbe.",
+      "type": "LogEventCount", "category": "Environment", "outcome": "DoorOpened", "value": 1 },
+
+    { "_assertion": "Nessuna porta CHIUSA: `Action.Interact` chiede solo `Open` (D-151), e il giocatore non puo' commutare. Se un giorno l'azione tornasse a commutare, questa riga cade prima che il difetto arrivi al playtest.",
+      "type": "LogEventCount", "category": "Environment", "outcome": "DoorClosed", "value": 0 },
+
+    { "_assertion": "L'EFFETTO, misurato sul dato e non dedotto dal log: R1 e' dall'altra parte. Senza questa riga lo scenario sarebbe verde anche con una porta che risulta aperta nel TurnLog e chiusa nel grafo.",
+      "type": "UnitAtCell", "unit": "R1", "cell": [1, 1, 0] },
+
+    { "_assertion": "L'avversario non si e' mosso e non ha subito nulla: il turno ha fatto una cosa sola.",
+      "type": "UnitAtCell", "unit": "W1", "cell": [0, -3, 0] },
+    { "type": "UnitHpEquals", "unit": "W1", "value": 90 },
+    { "type": "UnitHpEquals", "unit": "R1", "value": 120 },
+
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}
