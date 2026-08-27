@@ -1051,6 +1051,146 @@ bool FRTInterruptTwiceTracesOnceTest::RunTest(const FString&)
 }
 
 /**
+ * **Chi carica e usa un'ultimate nello stesso turno la PAGA, esattamente come chi non ha caricato**
+ * (`#1451` punto 2).
+ *
+ * `ResolveCombat` registra un attaccante la prima volta che ne incontra un colpo, e da quella
+ * registrazione `ConsumeAttackerAbilities` legge quale abilita' spendere. Un'unita' puo' pero' possedere
+ * **due intenti** nello stesso turno: `AppendChargeImpactIntents` aggiunge quello dell'impatto, con
+ * `IntentAbilityIndex == INDEX_NONE` — lo scatto l'ha gia' fatto, non c'e' niente da consumare.
+ *
+ * `Plan.Hits` e' ordinato per `AttackerId` e poi `TargetId`: bastava che la vittima della CARICA avesse
+ * indice minore del bersaglio dell'attacco perche' l'impatto entrasse per primo. `UsedAbilityIndex`
+ * riceveva `INDEX_NONE`, `ConsumeAbility(INDEX_NONE)` usciva subito, e il ramo `EnergyCost > 0` non
+ * scattava: l'unita' **guadagnava** `EnergyOnHit` invece di pagare l'ultimate, che restava riutilizzabile
+ * ogni turno. `#1449` l'ha corretto — si registra il primo colpo **con un'abilita' da consumare** — e questo
+ * test e' la copertura che quella correzione non aveva.
+ *
+ * ⚠️ **L'oracolo e' un CONFRONTO, non un valore**, e la prima stesura sbagliava proprio qui: asseriva che
+ * l'energia calasse, e MISURAVA 5 → 27 con l'ultimate regolarmente pagata. Nello stesso turno l'energia
+ * riceve anche `EnergyPerTurn` dal Cleanup, quindi il saldo finale somma flussi diversi e non dice se
+ * l'ultimate e' stata pagata. Girando lo stesso turno **con e senza la carica** quei flussi si cancellano:
+ * cio' che resta e' il costo dell'ultimate, che deve essere lo stesso.
+ *
+ * ⚠️ **La carica avviene sul percorso reale**, non spingendo un impatto in `PendingChargeImpacts`: quel
+ * campo lo popola `ResolveDashPhase` quando una mobilita' lineare si ferma addosso a qualcuno, e montarlo a
+ * mano proverebbe che `AppendChargeImpactIntents` legge un array — non che il turno ci arriva.
+ *
+ * ⚠️ **Le celle non sono decorative**: l'attaccante finisce a `(2,0)`, la vittima della carica sta a `(3,0)`
+ * e quella dell'ultimate a `(4,0)`. `Ctx.Units` e' ordinato per cella (`StableLess` su `X`, cioe' `q`),
+ * quindi il bersaglio della carica ha indice MINORE — precisamente la condizione in cui il difetto si
+ * manifestava. Invertendole il test resterebbe verde senza dire niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeDoesNotRefundUltimateTest,
+	"RefactorTactics.Actions.Charge.ChargeDoesNotMakeTheUltimateFree",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
+{
+	// Lo stesso turno, con e senza la carica. `OutEnergia` e' il saldo finale del caricatore.
+	auto GiraIlTurno = [this](bool bConCarica, int32& OutEnergia, bool& bOutColpito,
+		bool& bOutUltimateInRicarica) -> bool
+	{
+		UWorld* World = MakeControlWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnControlMap(World, 8);
+
+		// Senza carica parte gia' dove la carica lo porterebbe: cosi' l'unica differenza fra i due giri e'
+		// la carica stessa, e non la distanza da cui l'ultimate viene tirata.
+		ARTUnit* Caricatore = SpawnControlUnit(World, 0, bConCarica ? FRTCellId(0, 0) : FRTCellId(2, 0));
+		ARTUnit* Investito = SpawnControlUnit(World, 1, FRTCellId(3, 0));
+		ARTUnit* Bersaglio = SpawnControlUnit(World, 1, FRTCellId(4, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TestNotNull(TEXT("Caricatore"), Caricatore) || !TestNotNull(TEXT("Investito"), Investito)
+			|| !TestNotNull(TEXT("Bersaglio"), Bersaglio) || !TestNotNull(TEXT("TM"), TM))
+		{
+			DestroyControlWorld(World);
+			return false;
+		}
+
+		// L'ultimate: costa energia, e sta nello SLOT 0 perche' `AbilityCooldowns` non copre gli indici
+		// appesi. ⚠️ La portata si scrive in TUTTI E DUE i posti — `Def.RangeCells` e' quella che il resolver
+		// misura, `RangeCells` sull'oggetto e' lo specchio legacy — o l'ultimate non colpisce.
+		URTActionData* Ultimate = NewObject<URTActionData>(Caricatore);
+		Ultimate->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.BasicAttack"));
+		Ultimate->DisplayName = FText::FromString(TEXT("Ultimate di prova"));
+		Ultimate->Def.RangeCells = 3;
+		Ultimate->RangeCells = 3;
+		Ultimate->Power = 15;
+		Ultimate->CooldownTurns = MinCooldownTurns;
+		Ultimate->EnergyCost = 3;
+		Caricatore->Abilities[0] = Ultimate;
+
+		Caricatore->Energy = FMath::Clamp(Ultimate->EnergyCost + 2, 0, Caricatore->MaxEnergy);
+
+		if (bConCarica)
+		{
+			const int32 ChargeIdx = AddControlAbility(Caricatore, TEXT("Action.Charge"));
+			if (!TestTrue(TEXT("premessa: il catalogo ha una carica"), ChargeIdx != INDEX_NONE))
+			{
+				DestroyControlWorld(World);
+				return false;
+			}
+			// Carica sul MOVIMENTO, ultimate sull'azione principale: due slot diversi ([D-191]).
+			Caricatore->PlannedDashAbility = ChargeIdx;
+			Caricatore->PlannedDashCell = Investito->Cell;
+		}
+		Caricatore->PlannedAbilityIndex = 0;
+		Caricatore->PlannedAttackTarget = Bersaglio;
+		Caricatore->PlannedCell = Caricatore->Cell;
+
+		RunControlTurn(TM);
+
+		OutEnergia = Caricatore->Energy;
+		bOutColpito = Bersaglio->Health < Bersaglio->MaxHealth;
+		bOutUltimateInRicarica = !Caricatore->CanUseAbility(0);
+
+		AddInfo(FString::Printf(TEXT("%s: energia finale %d, ultimate in ricarica %s, cella %s"),
+			bConCarica ? TEXT("con carica") : TEXT("senza carica"), OutEnergia,
+			bOutUltimateInRicarica ? TEXT("si") : TEXT("NO"), *Caricatore->Cell.ToString()));
+
+		// La premessa che rende il giro con la carica un caso: la carica DEVE essere avvenuta, o l'unita'
+		// avrebbe un solo intento e il difetto non avrebbe occasione di manifestarsi.
+		const bool bCaricaAvvenuta = !bConCarica
+			|| URTHexLibrary::HexDistance(Caricatore->Cell, Investito->Cell) <= 1;
+		if (!TestTrue(TEXT("premessa: la carica ha portato l'unita' addosso al bersaglio"), bCaricaAvvenuta)
+			|| !TestTrue(TEXT("premessa: l'impatto precede l'attacco nell'ordine per cella"),
+				URTHexLibrary::StableLess(Investito->Cell, Bersaglio->Cell)))
+		{
+			DestroyControlWorld(World);
+			return false;
+		}
+
+		DestroyControlWorld(World);
+		return true;
+	};
+
+	int32 EnergiaConCarica = 0, EnergiaSenza = 0;
+	bool bColpitoCon = false, bColpitoSenza = false;
+	bool bRicaricaCon = false, bRicaricaSenza = false;
+	if (!GiraIlTurno(/*bConCarica=*/ true,  EnergiaConCarica, bColpitoCon, bRicaricaCon))  { return false; }
+	if (!GiraIlTurno(/*bConCarica=*/ false, EnergiaSenza,     bColpitoSenza, bRicaricaSenza)) { return false; }
+
+	// Le premesse: in tutti e due i giri l'ultimate deve aver COLPITO, o l'unico colpo sarebbe quello
+	// dell'impatto e l'energia salirebbe per una premessa rotta invece che per il resolver.
+	if (!TestTrue(TEXT("premessa: con la carica l'ultimate ha colpito"), bColpitoCon)
+		|| !TestTrue(TEXT("premessa: senza la carica l'ultimate ha colpito"), bColpitoSenza))
+	{
+		return false;
+	}
+
+	// 🔴 L'invariante: la carica non cambia quanto costa l'ultimate. Col difetto, il giro CON la carica
+	// guadagnava `EnergyOnHit` invece di pagare, e i due saldi divergevano.
+	TestEqual(FString::Printf(TEXT("l'ultimate costa uguale: %d con la carica, %d senza"),
+		EnergiaConCarica, EnergiaSenza), EnergiaConCarica, EnergiaSenza);
+
+	// E l'altra meta': il cooldown parte in entrambi i casi.
+	TestTrue(TEXT("l'ultimate e' in ricarica anche dopo una carica"), bRicaricaCon);
+	TestTrue(TEXT("e anche senza"), bRicaricaSenza);
+
+	return true;
+}
+
+/**
  * **La catena A→B→C si risolve allo stesso modo nei due ordini di spawn** (`#1451`, [D-202]).
  *
  * `ApplyInterrupts` scorreva `Plan.Hits`, che `CollectHexAttacks` ordina per `AttackerId`, e decideva
