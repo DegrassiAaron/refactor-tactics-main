@@ -187,6 +187,32 @@ struct FRTBlastContext
 	TArray<ARTUnit*> Attackers;
 	TArray<int32> UsedAbilityIndex;
 
+	// --- Le azioni pianificate che sono PARTITE, e che percio' si pagano ---------------------------
+	//
+	// 🔴 **Un solo posto scrive il cooldown di un'azione pianificata del Blast** (`#1451` punto 3).
+	// Prima ne scrivevano cinque — `ResolveCleanseActions`, `CollectHealActions`, `ModifyArc` dentro
+	// `CollectAttackIntents`, `ApplyInterrupts`, `ConsumeAttackerAbilities` — e ognuno decideva da se' che
+	// cosa significasse «spesa». Ogni azione nuova che potesse validarsi senza colpire ne voleva un sesto.
+	//
+	// ⚠️ **Qui non si decide, si annota.** Il criterio «l'azione e' PARTITA» resta a chi raccoglie, e deve:
+	// e' l'unico che sa cosa puo' sapere in quel momento. [D-200] lo scrive per la portata — l'unico modo di
+	// fallire noto in pianificazione — e ogni punto lo applica con cio' che ha in mano. Cio' che era
+	// duplicato e non doveva esserlo e' il GESTO di pagare.
+	//
+	// ⚠️ **E le guardie di vita restano al momento dell'annotazione, non qui**: chi cura e' vivo all'inizio
+	// del Blast, chi attacca deve esserlo alla FINE (`Attackers` raccoglie i sopravvissuti). Centralizzare
+	// un `IsAlive()` in fondo cambierebbe il gioco per il curatore che cade a meta' fase — e sarebbe un
+	// cambio di comportamento travestito da pulizia.
+	TArray<ARTUnit*> SpentActors;
+	TArray<int32> SpentAbilityIndex;
+
+	/** Annota un'azione pianificata PARTITA. La spende `ARTTurnManager::SpendStartedAbilities`. */
+	void MarkAbilitySpent(ARTUnit* Actor, int32 AbilityIndex)
+	{
+		SpentActors.Add(Actor);
+		SpentAbilityIndex.Add(AbilityIndex);
+	}
+
 	// --- Stati applicati dai colpi, a bersagli sopravvissuti --------------------------------------
 	//
 	// Si applicano in fondo alla fase e non al momento del colpo: un'unita' che cade non riceve lo stato, e

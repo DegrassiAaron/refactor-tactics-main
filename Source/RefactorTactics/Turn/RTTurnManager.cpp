@@ -3798,11 +3798,26 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 
 void ARTTurnManager::ResolveCombat()
 {
+	// 🔴 **Il pagamento sta FUORI dalla sequenza, e non e' una preferenza di stile** (`#1451` punto 3).
+	//
+	// `ResolveCombatPasses` ha un'uscita anticipata — «nessun colpo» — e finche' il consumo e' stato dentro
+	// la sequenza, quell'uscita ha DOVUTO lasciare che ogni azione pagasse per conto proprio: e' esattamente
+	// cio' che il commento di quel `return` dichiarava, ed e' la ragione per cui i punti di consumo erano
+	// cinque. MISURATO il 2026-08-27: con la passata unica in coda alla sequenza, una cura fuori da uno
+	// scontro non pagava piu' — quattro test rossi, e la causa era il `return`, non la passata.
+	//
+	// Tenendolo qui l'invariante diventa STRUTTURALE: qualunque uscita futura della sequenza passa comunque
+	// da `SpendStartedAbilities`, e un `return` in piu' non puo' far dimenticare il cooldown a nessuno.
+	FRTBlastContext Ctx;
+	ResolveCombatPasses(Ctx);
+	SpendStartedAbilities(Ctx);
+}
+
+void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
+{
 	// La fase Blast e' una SEQUENZA: chi ordina sta qui, chi decide sta nei pass. L'ordine non e' un dettaglio
 	// di implementazione — il catalogo assegna alle azioni un codice (20 movimento, 30 controllo, 40 attacco,
 	// 70 supporto) e questa funzione lo rispetta. Spostare una chiamata cambia il gioco.
-	FRTBlastContext Ctx;
-
 	GatherBlastUnits(Ctx);
 	RefreshTeamKnowledgeForBlast(Ctx);
 	ResolveCleanseActions(Ctx);
@@ -4359,9 +4374,10 @@ void ARTTurnManager::ResolveCombat()
 		// prima stesura usciva di qui e la cura spariva in silenzio.)
 		ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors, HealDefs);
 
-		// ⚠️ Qui NON si consuma: `Attackers` si popola dai colpi sopravvissuti, e se non ce n'e' nessuno e'
-		// vuoto. Chi ha speso un'azione senza lasciare un colpo la paga dove quell'azione vive — l'Interrupt
-		// in `ApplyInterrupts` (`#1444`), la cura in `CollectHealActions`.
+		// ⚠️ Qui non si consuma nulla, e non serve piu' che qualcuno lo faccia al posto proprio: `ResolveCombat`
+		// chiama `SpendStartedAbilities` **fuori** da questa funzione, quindi anche questa uscita paga cio' che
+		// i pass hanno annotato (`#1451` punto 3). Fino al 2026-08-27 questa riga diceva l'opposto — «la paga
+		// dove quell'azione vive» — ed era la ragione per cui i punti di consumo erano cinque.
 		return;
 	}
 

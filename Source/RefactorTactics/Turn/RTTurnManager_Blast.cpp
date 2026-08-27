@@ -197,7 +197,7 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 	TeamKnowledgeState = MoveTemp(Refreshed);
 }
 
-void ARTTurnManager::ResolveCleanseActions(const FRTBlastContext& Ctx)
+void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 {
 	// `Action.Cleanse` (CP 5.2): azione PRINCIPALE, non una reazione, e l'unica del Blast che agisce su CHI LA
 	// USA invece che su un bersaglio. Risolve PRIMA del ciclo degli intenti, per due motivi indipendenti:
@@ -248,7 +248,7 @@ void ARTTurnManager::ResolveCleanseActions(const FRTBlastContext& Ctx)
 			}
 		}
 
-		Unit->ConsumeAbility(CleanseIdx);
+		Ctx.MarkAbilitySpent(Unit, CleanseIdx); // parte qui, si paga in `SpendStartedAbilities` (`#1451`)
 		Unit->PlannedAbilityIndex = INDEX_NONE; // consumata qui: non deve diventare anche un intento d'attacco
 		Unit->PlannedAttackTarget = nullptr;
 
@@ -338,7 +338,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// 🔴 **Qui l'azione e' PARTITA** ([D-200]): il bersaglio e' raggiungibile, e da questo punto in poi
 		// qualunque cosa vada storta e' un esito. Il cooldown si paga, e resta pagato anche se la
 		// simultaneita' disfa la cura piu' tardi — il bersaglio che cade nello stesso Blast, [D-197].
-		Unit->ConsumeAbility(HealIdx);
+		Ctx.MarkAbilitySpent(Unit, HealIdx); // parte qui, si paga in `SpendStartedAbilities` (`#1451`)
 
 		int32 Amount = 0;
 		for (const FRTActionEffectSpec& Spec : Heal->Def.Effects)
@@ -453,7 +453,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					continue;
 				}
 
-				Unit->ConsumeAbility(ArcAbilityIndex);
+				Ctx.MarkAbilitySpent(Unit, ArcAbilityIndex); // parte qui, si paga in `SpendStartedAbilities`
 				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell, Unit, PlannedNow->Def });
 			}
 			continue;
@@ -1041,7 +1041,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		// pagherebbe un'azione che non ha mai eseguito. Stessa regola di `ConsumeAttackerAbilities`.
 		if (Interruttore && Interruttore->IsAlive())
 		{
-			Interruttore->ConsumeAbility(Ctx.IntentAbilityIndex[k]);
+			Ctx.MarkAbilitySpent(Interruttore, Ctx.IntentAbilityIndex[k]);
 		}
 	}
 
@@ -1882,7 +1882,13 @@ void ARTTurnManager::ConsumeAttackerAbilities(FRTBlastContext& Ctx)
 	TArray<ARTUnit*>& Attackers = Ctx.Attackers;
 	TArray<int32>& UsedAbilityIndex = Ctx.UsedAbilityIndex;
 
-	// Attaccanti sopravvissuti: consuma l'abilita' (energia+cooldown); se gratuita, accumula energia.
+	// Attaccanti SOPRAVVISSUTI: qui si decide CHI paga e si assegna l'energia; a scrivere il cooldown e'
+	// `SpendStartedAbilities`, l'unico punto che lo fa (`#1451` punto 3).
+	//
+	// ⚠️ **La guardia `IsAlive()` resta QUI e non si sposta**: per un attaccante «spesa» significa
+	// *sopravvissuto alla fase*, non *partita* — e' l'unico dei cinque punti in cui il criterio si conosce
+	// solo a danno risolto. Portarla nella passata unica farebbe smettere di pagare anche il curatore che
+	// cade a meta' Blast, che oggi paga: un cambio di gioco, non una pulizia.
 	for (int32 i = 0; i < Attackers.Num(); ++i)
 	{
 		ARTUnit* Attacker = Attackers[i];
@@ -1891,7 +1897,7 @@ void ARTTurnManager::ConsumeAttackerAbilities(FRTBlastContext& Ctx)
 			continue;
 		}
 		const URTActionData* Ability = Attacker->GetAbility(UsedAbilityIndex[i]);
-		Attacker->ConsumeAbility(UsedAbilityIndex[i]);
+		Ctx.MarkAbilitySpent(Attacker, UsedAbilityIndex[i]);
 		if (Ability && Ability->EnergyCost > 0)
 		{
 			AddLogEvent(FString::Printf(TEXT("Ultimate! %s"), *Attacker->GetName()));
@@ -1900,6 +1906,46 @@ void ARTTurnManager::ConsumeAttackerAbilities(FRTBlastContext& Ctx)
 		{
 			Attacker->Energy = URTCombatLibrary::GainEnergy(Attacker->Energy, Attacker->EnergyOnHit, Attacker->MaxEnergy);
 		}
+	}
+}
+
+void ARTTurnManager::SpendStartedAbilities(FRTBlastContext& Ctx)
+{
+	// 🔴 **L'UNICO posto in cui un'azione pianificata del Blast paga il proprio cooldown** (`#1451` punto 3).
+	//
+	// Prima erano cinque, con cinque criteri: `ResolveCleanseActions` subito dopo le guardie di validita',
+	// `CollectHealActions` dopo la portata ([D-200]), `ModifyArc` solo se l'op finiva in coda,
+	// `ApplyInterrupts` dagli INTENTI con le eccezioni di `#1449`, `ConsumeAttackerAbilities` dai colpi
+	// sopravvissuti. Ogni azione nuova che potesse validarsi senza colpire ne voleva un sesto — ed e' la
+	// ragione per cui il difetto e' stato trovato cinque volte in quarantotto ore (#1437, #1443, #1444,
+	// #1445, #1449).
+	//
+	// ⚠️ **Quel che si e' unificato e' il GESTO, non il criterio**, e la distinzione e' la sostanza della
+	// correzione. «L'azione e' partita?» resta a chi raccoglie, perche' e' l'unico che sa cosa puo' sapere in
+	// quel momento: la portata si conosce in pianificazione, un colpo prodotto no, e la sopravvivenza di chi
+	// attacca si sa solo a danno risolto. Pretendere un criterio solo qui avrebbe voluto dire scrivere un
+	// `switch` sull'azione — cioe' rifare le cinque regole con un nome nuovo.
+	//
+	// ⚠️ **E per la stessa ragione qui NON si riguarda `IsAlive()`**: chi cura o purifica e' vivo all'inizio
+	// del Blast, chi attacca deve esserlo alla fine. Un controllo unico in questo punto farebbe smettere di
+	// pagare il curatore che cade a meta' fase — un cambio di comportamento travestito da pulizia.
+	//
+	// ⚠️ **Fuori di qui, e dichiarato**: le REAZIONI (`ResolveInterceptions`, `RunReactionPass`) non sono
+	// azioni pianificate ma inneschi condizionali, e a governarle e' [D-092] col proprio contatore di
+	// attivazioni; le altre fasi (Prep, Move, Dash, Environment) hanno tempistiche proprie, e ricondurle a
+	// [D-200] e' una decisione che non e' stata presa.
+	//
+	// L'ordine e' quello di annotazione, che e' l'ordine dei pass: `ConsumeAbility` scrive su unita' diverse,
+	// quindi non c'e' esito che dipenda dall'ordine — ma un array, e non una `TMap`, perche' la regola del
+	// progetto e' non dipendere mai dall'ordine di iterazione, non «non dipenderne quando si vede».
+	for (int32 i = 0; i < Ctx.SpentActors.Num(); ++i)
+	{
+		ARTUnit* Attore = Ctx.SpentActors[i];
+		if (!IsValid(Attore) || !Ctx.SpentAbilityIndex.IsValidIndex(i))
+		{
+			continue;
+		}
+		Attore->ConsumeAbility(Ctx.SpentAbilityIndex[i]);
 	}
 }
 

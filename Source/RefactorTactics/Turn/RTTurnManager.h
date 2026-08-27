@@ -558,7 +558,7 @@ protected:
 	 * Il controllo (codice 30) viene prima del danno (40): purificarsi da `Exposed` dopo averne incassato il
 	 * malus non servirebbe a niente.
 	 */
-	void ResolveCleanseActions(const FRTBlastContext& Ctx);
+	void ResolveCleanseActions(FRTBlastContext& Ctx);
 
 	/**
 	 * `Action.Heal` (CP 8.5): si RACCOGLIE qui, prima che il ciclo degli intenti azzeri i piani, e si applica
@@ -634,8 +634,25 @@ protected:
 	 */
 	void ApplyDisplacements(FRTBlastContext& Ctx);
 
-	/** Gli attaccanti sopravvissuti spendono l'abilita' (energia e cooldown); se gratuita, accumulano energia. */
+	/**
+	 * Decide QUALI attaccanti pagano — i sopravvissuti — e assegna energia o la voce `Ultimate!`.
+	 *
+	 * ⚠️ Il cooldown NON lo scrive: annota con `MarkAbilitySpent`, e a pagare e' `SpendStartedAbilities`
+	 * (`#1451` punto 3). Il nome resta perche' il criterio «chi ha speso un attacco» vive qui.
+	 */
 	void ConsumeAttackerAbilities(FRTBlastContext& Ctx);
+
+	/**
+	 * L'UNICO punto in cui un'azione pianificata del Blast paga il proprio cooldown (`#1451` punto 3).
+	 *
+	 * Consuma cio' che i pass hanno annotato con `FRTBlastContext::MarkAbilitySpent`. Il criterio
+	 * «l'azione e' PARTITA» resta a chi annota — [D-200] lo scrive per la portata — e qui non si
+	 * ridecide niente, nemmeno `IsAlive()`: le guardie di vita valgono al momento dell'annotazione.
+	 */
+	void SpendStartedAbilities(FRTBlastContext& Ctx);
+
+	/** La sequenza dei pass del Blast. Ha un'uscita anticipata: il pagamento sta in `ResolveCombat`. */
+	void ResolveCombatPasses(FRTBlastContext& Ctx);
 
 	/**
 	 * Applica ai bersagli sopravvissuti gli stati dichiarati dai colpi, consultando prima chi ha annullato il

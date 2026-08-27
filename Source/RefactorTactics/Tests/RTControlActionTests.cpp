@@ -1738,4 +1738,241 @@ bool FRTPushDoesNotSpendVictimMoveTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Un'azione pianificata si paga se e' PARTITA, e non altrimenti — misurato in un posto solo.**
+ *
+ * `#1451` punto 3: «un'azione spesa si paga» era implementata nel Blast in punti diversi con criteri
+ * diversi, e ogni azione nuova ne voleva uno in piu'. [D-200] ha scritto la regola —
+ *
+ * > *La PORTATA decide se un'azione parte; tutto il resto e' un esito, e un esito si paga.*
+ *
+ * — ma la scriveva per una sola azione, la cura. Questa tabella la misura su **tutti** i punti di consumo
+ * delle azioni pianificate del Blast, con un oracolo solo.
+ *
+ * ⚠️ **A tabella e non un test per riga, e la forma e' la lezione di [D-201]**: `MakeFlatArena` era stata
+ * corretta da sola, e i sei builder rimasti avevano ereditato il difetto perche' «uno solo e' coperto»
+ * bastava a far passare la suite. `HexMap.EveryArenaBuilderIsOneRevision` scorre una tabella per questo, e
+ * qui vale identico: alcune righe duplicano un test che esiste gia' (`Heal.OutOfRangeIsTraced`,
+ * `Interrupt.MissedInterruptStillPays`), e la duplicazione **e' il punto** — quei test misurano ognuno la
+ * propria azione, questo misura la REGOLA.
+ *
+ * ⚠️ **Il cooldown si legge con `CanUseAbility` e a `MinCooldownTurns`**, non col numero: il Cleanup dello
+ * stesso turno decrementa, quindi un cooldown da 1 e' gia' tornato a zero quando il test guarda — e
+ * un'asserzione «non ha pagato» sarebbe verde anche col difetto. E' la trappola gia' pagata da `#1445`.
+ *
+ * ⚠️ **Fuori da questa tabella, e dichiarato**: le REAZIONI (`ResolveInterceptions`, `RunReactionPass`) non
+ * sono azioni pianificate ma inneschi condizionali, e a governarle e' [D-092] col proprio contatore di
+ * attivazioni; le altre fasi (Prep, Move, Dash, Environment) hanno tempistiche proprie, e ricondurle a
+ * [D-200] e' una decisione che non e' stata presa.
+ */
+namespace
+{
+	/** Che cosa mette in campo la riga. Cambia il bersaglio e la sua squadra, mai l'oracolo. */
+	enum class ESpesaMontaggio : uint8
+	{
+		SuSeStessi,        //< `Action.Cleanse`: bersaglio implicito, la distanza non conta
+		Alleato,           //< `Action.Heal`, `Action.ModifyArc`
+		NemicoCheAttacca,  //< `Action.Interrupt`: serve anche chi incassa il colpo cancellato
+		NemicoDaColpire,   //< l'attacco base dell'eroe, cioe' `ConsumeAttackerAbilities`
+	};
+
+	struct FSpesaCase
+	{
+		const TCHAR* Nome;
+		const TCHAR* ActionId;      //< `nullptr` = si usa lo slot 0 dell'eroe (attacco base)
+		ESpesaMontaggio Montaggio;
+		int32 Distanza;             //< celle fra chi agisce e il bersaglio
+		bool bAttoreVivo;
+		bool bPurificaUnoStatoPosseduto; //< solo Cleanse: dichiara la priorita' su uno stato che HA
+		bool bDevePagare;
+		const TCHAR* Perche;
+	};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlannedActionPaysOnlyIfItStartedTest,
+	"RefactorTactics.Actions.Blast.PlannedActionPaysOnlyIfItStarted",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
+{
+	const FSpesaCase Casi[] = {
+		{ TEXT("purificazione efficace"), TEXT("Action.Cleanse"), ESpesaMontaggio::SuSeStessi,
+		  0, true, true, true,
+		  TEXT("l'azione e' partita e ha tolto lo stato") },
+		{ TEXT("purificazione a vuoto"), TEXT("Action.Cleanse"), ESpesaMontaggio::SuSeStessi,
+		  0, true, false, true,
+		  TEXT("[D-200]: ha guardato e non c'era niente, che e' un ESITO — e il costo impedisce la purificazione assicurativa ogni turno") },
+		{ TEXT("cura in portata"), TEXT("Action.Heal"), ESpesaMontaggio::Alleato,
+		  1, true, false, true,
+		  TEXT("bersaglio raggiungibile: l'azione parte") },
+		{ TEXT("cura fuori portata"), TEXT("Action.Heal"), ESpesaMontaggio::Alleato,
+		  5, true, false, false,
+		  TEXT("[D-200]: la portata e' l'unico modo di fallire noto in PIANIFICAZIONE — non e' mai partita") },
+		{ TEXT("arco in portata"), TEXT("Action.ModifyArc"), ESpesaMontaggio::Alleato,
+		  1, true, false, true,
+		  TEXT("la topologia e' stata toccata") },
+		{ TEXT("arco fuori portata"), TEXT("Action.ModifyArc"), ESpesaMontaggio::Alleato,
+		  5, true, false, false,
+		  TEXT("stessa regola della cura, e ModifyArc la seguiva gia' con parole sue") },
+		{ TEXT("interruzione a segno"), TEXT("Action.Interrupt"), ESpesaMontaggio::NemicoCheAttacca,
+		  1, true, false, true,
+		  TEXT("#1444: ha prodotto un colpo") },
+		{ TEXT("interruzione fuori portata"), TEXT("Action.Interrupt"), ESpesaMontaggio::NemicoCheAttacca,
+		  3, true, false, false,
+		  TEXT("#1449: niente colpo e nessuna cella mirata — e' un'azione non avvenuta come le altre") },
+		{ TEXT("attacco che colpisce"), nullptr, ESpesaMontaggio::NemicoDaColpire,
+		  1, true, false, true,
+		  TEXT("il colpo e' arrivato: ConsumeAttackerAbilities lo raccoglie") },
+		{ TEXT("pianificatore gia' caduto"), TEXT("Action.Heal"), ESpesaMontaggio::Alleato,
+		  1, false, false, false,
+		  TEXT("un cadavere non paga un'azione che non ha mai eseguito: arriva al Blast col piano addosso, e GatherBlastUnits non filtra i morti") },
+	};
+
+	for (const FSpesaCase& C : Casi)
+	{
+		UWorld* World = MakeControlWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+		SpawnControlMap(World, 6);
+
+		ARTUnit* Attore = SpawnControlUnit(World, 0, FRTCellId(0, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TestNotNull(*FString::Printf(TEXT("%s: attore"), C.Nome), Attore)
+			|| !TestNotNull(*FString::Printf(TEXT("%s: TM"), C.Nome), TM))
+		{
+			DestroyControlWorld(World);
+			return false;
+		}
+
+		// L'abilita' va nello SLOT 0 e con un cooldown che sopravvive al Cleanup, o il cooldown non e'
+		// osservabile affatto: `AbilityCooldowns` non copre gli indici appesi in coda.
+		int32 Idx = INDEX_NONE;
+		if (C.ActionId)
+		{
+			Idx = UseControlAbilityInSlot0(Attore, C.ActionId);
+		}
+		else
+		{
+			Idx = 0; // l'attacco base dell'eroe, che il catalogo spedisce senza cooldown
+			if (Attore->Abilities.IsValidIndex(0))
+			{
+				Attore->Abilities[0]->CooldownTurns = MinCooldownTurns;
+			}
+		}
+		if (!TestTrue(*FString::Printf(TEXT("%s: l'abilita' e' nello slot 0"), C.Nome), Idx == 0)
+			|| !TestTrue(*FString::Printf(TEXT("%s: premessa: il cooldown e' osservabile"), C.Nome),
+				Attore->Abilities.IsValidIndex(0) && Attore->Abilities[0]->CooldownTurns >= 2))
+		{
+			DestroyControlWorld(World);
+			return false;
+		}
+
+		switch (C.Montaggio)
+		{
+		case ESpesaMontaggio::SuSeStessi:
+			// Quale stato togliere lo dice il PIANO, mai il resolver: la lista dichiarata e' l'unica
+			// differenza fra la riga efficace e quella a vuoto.
+			if (C.bPurificaUnoStatoPosseduto)
+			{
+				Attore->ApplyStatus(TAG_Status_Root, 2);
+				Attore->PlannedCleansePriority = { TAG_Status_Root };
+			}
+			else
+			{
+				Attore->PlannedCleansePriority = { TAG_Status_Exposed }; // dichiarato e non posseduto
+			}
+			Attore->PlannedAbilityIndex = Idx;
+			Attore->PlannedCell = Attore->Cell;
+			break;
+
+		case ESpesaMontaggio::Alleato:
+		{
+			ARTUnit* Alleato = SpawnControlUnit(World, 0, FRTCellId(C.Distanza, 0));
+			if (!TestNotNull(*FString::Printf(TEXT("%s: alleato"), C.Nome), Alleato))
+			{
+				DestroyControlWorld(World);
+				return false;
+			}
+			Alleato->Health = FMath::Max(1, Alleato->Health - 30);
+			Attore->PlannedAbilityIndex = Idx;
+			Attore->PlannedAttackTarget = Alleato;
+			Attore->PlannedCell = Attore->Cell;
+			break;
+		}
+
+		case ESpesaMontaggio::NemicoCheAttacca:
+		{
+			ARTUnit* Attaccante = SpawnControlUnit(World, 1, FRTCellId(C.Distanza, 0));
+			ARTUnit* Vittima = SpawnControlUnit(World, 0, FRTCellId(C.Distanza + 1, 0));
+			if (!TestNotNull(*FString::Printf(TEXT("%s: attaccante"), C.Nome), Attaccante)
+				|| !TestNotNull(*FString::Printf(TEXT("%s: vittima"), C.Nome), Vittima))
+			{
+				DestroyControlWorld(World);
+				return false;
+			}
+			Attore->PlannedAbilityIndex = Idx;
+			Attore->PlannedAttackTarget = Attaccante;
+			Attore->PlannedCell = Attore->Cell;
+
+			Attaccante->PlannedAbilityIndex = 0; // attacco base, interrompibile
+			Attaccante->PlannedAttackTarget = Vittima;
+			Attaccante->PlannedCell = Attaccante->Cell;
+			break;
+		}
+
+		case ESpesaMontaggio::NemicoDaColpire:
+		{
+			ARTUnit* Nemico = SpawnControlUnit(World, 1, FRTCellId(C.Distanza, 0));
+			if (!TestNotNull(*FString::Printf(TEXT("%s: nemico"), C.Nome), Nemico))
+			{
+				DestroyControlWorld(World);
+				return false;
+			}
+			Attore->PlannedAbilityIndex = Idx;
+			Attore->PlannedAttackTarget = Nemico;
+			Attore->PlannedCell = Attore->Cell;
+			break;
+		}
+		}
+
+		// La riga del cadavere: l'unita' arriva al Blast morta e col piano ancora addosso, che e' cio' che
+		// succede a chi cade in Prep o nel Dash. Si scrive lo STATO, non si aggira una regola: sotto esame
+		// c'e' la guardia del resolver, non il modo in cui l'unita' e' caduta.
+		if (!C.bAttoreVivo)
+		{
+			Attore->Health = 0;
+		}
+
+		const TWeakObjectPtr<ARTUnit> AttoreDebole(Attore);
+		RunControlTurn(TM);
+
+		// 🔴 **Il cadavere si legge anche da distrutto, e non e' una scorciatoia**: `ConcludeTurn` chiama
+		// `DestroyDefeatedUnits`, che distrugge chi ha `Health <= 0` — quindi a turno finito la riga del
+		// pianificatore caduto non avrebbe **nessuna** abilita' da interrogare, e la sua asserzione
+		// passerebbe per assenza di misura invece che per la regola. MISURATO: `IsValid()` risponde falso.
+		//
+		// ⚠️ L'oggetto e' `PendingKill`, non raccolto: nessun GC gira dentro un `RunControlTurn`, e
+		// `AbilityCooldowns` e' un `TArray<int32>` sull'attore. Il campionamento durante i tick non e'
+		// un'alternativa: `LockInAndResolve()` risolve il turno **per intero e in modo sincrono**, quindi il
+		// ciclo di tick non ha nessuna finestra in cui guardare (misurato: zero campioni su otto righe).
+		ARTUnit* AttoreDopo = AttoreDebole.Get(/*bEvenIfPendingKill*/ true);
+		if (!TestNotNull(*FString::Printf(TEXT("%s: l'attore e' ancora leggibile"), C.Nome), AttoreDopo))
+		{
+			DestroyControlWorld(World);
+			continue; // senza l'attore non c'e' niente da leggere, e un `Success` muto sarebbe peggio
+		}
+
+		// 🔴 **`GetAbilityCooldown` e non `CanUseAbility`**: il secondo e' falso anche per mancanza di
+		// ENERGIA (`IsAbilityUsable(cooldown, Energy, EnergyCost)`), quindi su un'ultimate a pagamento
+		// direbbe «ha pagato» per il motivo sbagliato. Qui si misura il COOLDOWN, che e' cio' che
+		// `ConsumeAbility` scrive.
+		const bool bHaPagato = AttoreDopo->GetAbilityCooldown(0) > 0;
+		AddInfo(FString::Printf(TEXT("%s -> cooldown residuo %d (%s)"),
+			C.Nome, AttoreDopo->GetAbilityCooldown(0), C.Perche));
+		TestEqual(*FString::Printf(TEXT("%s: %s"), C.Nome, C.Perche), bHaPagato, C.bDevePagare);
+
+		DestroyControlWorld(World);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
