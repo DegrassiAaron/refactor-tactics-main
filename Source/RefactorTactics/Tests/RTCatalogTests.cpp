@@ -554,4 +554,42 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Ogni azione generica entra nel kit con un nome.** Il gemello di
+ * `RefactorTactics.Heroes.EveryActionHasADisplayName` per le cinque che `MakeGenericActions` accoda.
+ *
+ * 🔴 **Il difetto che copre e' stato reale fino al 2026-08-26**: le generiche entravano nel kit con
+ * `DisplayName` vuoto, e nessuno se ne accorgeva perche' **nessun tasto le raggiungeva**. Dato loro un tasto
+ * (#1439), la prima pressione avrebbe stampato `[RT] RTUnit_0: abilita' attiva -> ` — la stessa forma di
+ * #892, che aveva coperto le venti abilita' d'eroe e non queste, perche' allora non si vedevano.
+ *
+ * ⚠️ Si controlla cio' che il KIT riceve, non la tabella dei nomi: il difetto stava nel percorso —
+ * `MakeGenericActions` copiava `Def`, portata, `bSelfTarget` e `Power`, e il nome no — non nei dati.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGenericActionDisplayNameTest,
+	"RefactorTactics.Actions.EveryGenericHasADisplayName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGenericActionDisplayNameTest::RunTest(const FString&)
+{
+	const TArray<URTActionData*> Generiche = URTCatalogLibrary::MakeGenericActions(GetTransientPackage());
+
+	// Anti-vacuita': se `MakeGenericActions` tornasse vuota il ciclo non asserirebbe nulla, e il test
+	// resterebbe verde raccontando che ogni nome c'e'.
+	if (!TestEqual(TEXT("le generiche accodate sono quante il catalogo ne dichiara"),
+		Generiche.Num(), URTCatalogLibrary::GetGenericActionIds().Num()))
+	{
+		return false;
+	}
+	TestTrue(TEXT("e ce n'e' almeno una"), Generiche.Num() > 0);
+
+	for (const URTActionData* Azione : Generiche)
+	{
+		if (!TestNotNull(TEXT("l'istanza esiste"), Azione)) { continue; }
+		TestTrue(*FString::Printf(TEXT("`%s` ha un nome leggibile"), *Azione->Def.ActionId.ToString()),
+			!Azione->DisplayName.IsEmpty());
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

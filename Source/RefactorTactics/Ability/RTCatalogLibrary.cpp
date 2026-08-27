@@ -1685,6 +1685,36 @@ TArray<FName> URTCatalogLibrary::GetGenericActionIds()
 	         TEXT("Action.Interact") };
 }
 
+namespace
+{
+	/**
+	 * Il nome player-facing di un'azione generica. I cinque valori sono la colonna «Azione» di
+	 * `docs/balance/RT_ActionCatalog_v0.1.md` §1: **presi**, non scelti qui.
+	 *
+	 * ⚠️ Un `ActionId` non presente restituisce testo vuoto, e
+	 * `RefactorTactics.Actions.EveryGenericHasADisplayName` diventa rosso. E' voluto, ed e' lo stesso
+	 * meccanismo di `HeroActionDisplayName`: una generica aggiunta domani senza nome si fa notare subito
+	 * invece di comparire in partita come `[RT] RTUnit_0: abilita' attiva -> `.
+	 *
+	 * 🔴 **Fino al 2026-08-26 questa tabella non esisteva e le generiche entravano nel kit SENZA nome.**
+	 * Il difetto era invisibile perche' nessun tasto le raggiungeva: [#1439](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1439)
+	 * ha dato loro un tasto, e la prima pressione lo avrebbe mostrato a schermo. E' la stessa famiglia di
+	 * [#892], che aveva coperto le venti abilita' d'eroe e non queste — perche' allora non si vedevano.
+	 */
+	FText GenericActionDisplayName(const FName& Id)
+	{
+		static const TMap<FName, FString> Names = {
+			{ TEXT("Action.Wait"),      TEXT("Attesa") },
+			{ TEXT("Action.Guard"),     TEXT("Guardia") },
+			{ TEXT("Action.Brace"),     TEXT("Irrigidimento") },
+			{ TEXT("Action.Overwatch"), TEXT("Guardia reattiva") },
+			{ TEXT("Action.Interact"),  TEXT("Interagisci") },
+		};
+		const FString* Found = Names.Find(Id);
+		return Found ? FText::FromString(*Found) : FText::GetEmpty();
+	}
+}
+
 TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
 {
 	TArray<URTActionData*> Actions;
@@ -1711,6 +1741,9 @@ TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
 		{
 			if (Spec.Effect == ERTActionEffect::Damage) { Action->Power = Spec.Amount; break; }
 		}
+		// Il NOME arriva dal catalogo di bilanciamento, e senza di esso l'azione entra nel kit muta: il
+		// giocatore che la arma legge `abilita' attiva -> ` e non sa cosa ha armato.
+		Action->DisplayName = GenericActionDisplayName(Id);
 		Actions.Add(Action);
 	}
 	return Actions;
