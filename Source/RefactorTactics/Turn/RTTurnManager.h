@@ -1086,9 +1086,17 @@ protected:
 
 	/**
 	 * Registra un evento: lo scrive nel log LogRT (completo, diagnosi per sviluppatore) e lo accoda al
-	 * combat log della HUD col suo SOGGETTO. `SubjectStableUnitId` e' `INDEX_NONE` per le righe di mondo,
-	 * e per i chiamanti non ancora convertiti — il default tiene compilanti i siti che non nominano
-	 * un'unita' avversaria.
+	 * combat log della HUD col suo SOGGETTO.
+	 *
+	 * ⚠️ **Il default `INDEX_NONE` non significa «riga di mondo»: significa «soggetto non dichiarato».** Le
+	 * due cose coincidono solo per i siti gia' convertiti. Gli altri lo ereditano per omissione, e fra essi
+	 * ce ne sono che NOMINANO un'unita' — `GetName()`, o le sue coordinate — e passano quindi il filtro di
+	 * conoscenza senza essere filtrabili. Il conteggio vive nel report del giro che li chiude, non qui, per
+	 * non invecchiare a ogni sito aggiunto.
+	 *
+	 * ⛔ Il default **non si puo' chiudere** finche' «evento di mondo» non e' esplicito: gli eventi di mondo
+	 * legittimi usano lo stesso valore, e renderlo fail-closed li cancellerebbe tutti. La via e' togliere il
+	 * default e lasciare che il compilatore enumeri i chiamanti, non invertire il significato del sentinella.
 	 */
 	void AddLogEvent(const FString& Message, int32 SubjectStableUnitId = INDEX_NONE);
 

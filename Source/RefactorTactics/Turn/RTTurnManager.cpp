@@ -2374,9 +2374,15 @@ void ARTTurnManager::ConcludeTurn()
 	// ⚠️ Prima le righe nascevano da 59 `AddLogEvent` sparse nella risoluzione, e il TurnLog nasceva altrove:
 	// due produttori indipendenti coincidono per abitudine, non per costruzione. Misurato su una partita di
 	// dodici turni: zero righe su cosa il bot avesse deciso, zero su chi avesse colpito chi.
-	for (const FString& Line : URTTurnLogLibrary::DescribeTurnLog(TurnLog))
+	//
+	// 🔴 Con il SOGGETTO, non solo col testo. Questa derivazione e' il canale PRIMARIO del combat log: senza
+	// soggetto ogni riga arrivava qui come «riga di mondo» (`INDEX_NONE`) e passava il filtro di conoscenza
+	// sempre — comprese le voci `Move`, che `DescribeEntry` stampa con `SrcCell` **e** `TgtCell` di un
+	// nemico che la squadra puo' non vedere. Convertire i siti sparsi senza convertire questo lasciava il
+	// canale piu' grosso scoperto.
+	for (const TPair<FString, int32>& Line : URTTurnLogLibrary::DescribeTurnLogWithSubjects(TurnLog))
 	{
-		AddLogEvent(Line);
+		AddLogEvent(Line.Key, Line.Value);
 	}
 	// PRIMA di tutto il resto: a partita finita questa funzione esce anticipatamente, e il turno che
 	// decide la partita e' proprio quello che non verrebbe mai misurato.

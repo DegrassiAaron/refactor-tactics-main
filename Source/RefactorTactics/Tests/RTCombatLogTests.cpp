@@ -27,6 +27,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Perception/RTTeamKnowledge.h" // ClassifyTarget: la premessa «e' un ricordo» si asserisce, non si spera
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
@@ -229,6 +230,109 @@ bool FRTLogDistinguishesUntranslatedOutcomeTest::RunTest(const FString&)
 	TestTrue(*FString::Printf(TEXT("l'unita' ferma si legge: %s"), *Fermo), Fermo.Contains(TEXT("resta")));
 	TestNotEqual(TEXT("e un esito non tradotto NON si confonde con lei"), Ignoto, Fermo);
 
+	return true;
+}
+
+/**
+ * 🔴 **Il combat log di un turno VERO non nomina un nemico che la squadra non vede piu'.**
+ *
+ * Test di PIPELINE, non di sito: percorre `LockInAndResolve -> TurnLog -> ConcludeTurn -> RecentEvents ->
+ * GetRecentEventsForTeam` e asserisce sull'USCITA. Un test per sito invecchia il giorno in cui qualcuno
+ * aggiunge il sito successivo; questo no — e' l'unico asserto che vede tutti i canali insieme, compresa la
+ * derivazione dal TurnLog, che e' il canale primario (CP 11.3, `#79`) e che nessun test toccava.
+ *
+ * Lo scenario e' quello vero della feature: si vede un nemico, poi lo si perde di vista. Da quel momento la
+ * sua posizione ATTUALE — che `DescribeEntry` stampa per ogni voce `Move`, `SrcCell` **e** `TgtCell` — e'
+ * precisamente cio' che la squadra ha smesso di sapere.
+ *
+ * ⚠️ **Anti-vacuita' doppia**, perche' un test di sola assenza e' verde anche quando non succede niente:
+ * si asserisce che la premessa regga (il nemico e' davvero un `CellOnly`, cioe' un ricordo) e che la vista
+ * NON filtrata contenga davvero la riga incriminata. Senza queste due, il test passerebbe su un log vuoto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLogOmitsRememberedEnemyEndToEndTest,
+	"RefactorTactics.UI.LogOmitsRememberedEnemyEndToEnd",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLogOmitsRememberedEnemyEndToEndTest::RunTest(const FString&)
+{
+	UWorld* World = RTCombatLogFixture::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* Map = RTCombatLogFixture::SpawnMap(World);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	ARTUnit* Mia = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0, 0));
+	ARTUnit* Nemica = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(1, 0, 0));
+	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("mappa"), Map)
+		|| !TestNotNull(TEXT("unita' mia"), Mia) || !TestNotNull(TEXT("unita' nemica"), Nemica))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// Turno 1 — adiacenti: la nemica si VEDE, e la squadra registra il contatto.
+	RTCombatLogFixture::RunTurn(TM);
+
+	// Poi la si perde di vista: si sposta lontano e la propria unita' smette di arrivarci.
+	// `VisionRange = 0` lascia comunque attivo il canale ravvicinato (`CloseAwarenessRange` = 2), quindi la
+	// distanza 5 e' oltre entrambi i canali.
+	Nemica->PlaceOnCell(FRTCellId(5, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+	Mia->VisionRange = 0;
+
+	// Turno 2 — la nemica agisce dove nessuno la vede: le sue voci di TurnLog portano (5,0,0).
+	RTCombatLogFixture::RunTurn(TM);
+
+	// ── Premessa 1: e' davvero un RICORDO, non un'ignota e non una vista. Senza questa riga il test
+	// potrebbe passare per la ragione sbagliata (nessuna voce affatto).
+	const ERTTargetKnowledge Conoscenza = URTTeamKnowledgeLibrary::ClassifyTarget(
+		TM->KnowledgeForTeamPublic(0), Nemica->StableUnitId, Nemica->TeamId, Nemica->Cell);
+	if (!TestTrue(TEXT("premessa: la nemica e' un RICORDO per la squadra 0 (CellOnly)"),
+		Conoscenza == ERTTargetKnowledge::CellOnly))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// Le due forme in cui una cella compare nel log: `DescribeEntry` scrive `L=0`, i siti a mano scrivono `L0`.
+	const FString CellaAttualeA = TEXT("(q=5,r=0,L=0)");
+	const FString CellaAttualeB = TEXT("(q=5,r=0,L0)");
+	const FString NomeNemica = Nemica->GetName();
+
+	// ── Premessa 2: la vista NON filtrata contiene davvero la riga incriminata. Se il turno non l'avesse
+	// prodotta non ci sarebbe niente da nascondere, e l'assenza sotto non proverebbe nulla.
+	const TArray<FString>& Complete = TM->GetRecentEvents();
+	bool bLeakNelCanaleCompleto = false;
+	for (const FString& L : Complete)
+	{
+		if (L.Contains(CellaAttualeA) || L.Contains(CellaAttualeB)) { bLeakNelCanaleCompleto = true; break; }
+	}
+	if (!TestTrue(*FString::Printf(
+		TEXT("premessa: il log completo nomina la posizione attuale della nemica (log: %s)"),
+		*FString::Join(Complete, TEXT(" | "))), bLeakNelCanaleCompleto))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// ── 🔴 Il cuore: la vista del giocatore non la nomina, ne' per coordinate ne' per nome.
+	const TArray<FString> Visibili = TM->GetRecentEventsForTeam(0);
+	for (const FString& L : Visibili)
+	{
+		TestFalse(*FString::Printf(TEXT("nessuna riga porta la cella attuale della nemica: %s"), *L),
+			L.Contains(CellaAttualeA) || L.Contains(CellaAttualeB));
+		TestFalse(*FString::Printf(TEXT("nessuna riga porta il nome della nemica: %s"), *L),
+			L.Contains(NomeNemica));
+	}
+
+	// ── Anti-vacuita' finale: il filtro non ha svuotato il log. Le righe di mondo restano.
+	bool bRigaDiMondo = false;
+	for (const FString& L : Visibili)
+	{
+		if (L.Contains(TEXT("pianificazione"))) { bRigaDiMondo = true; break; }
+	}
+	TestTrue(*FString::Printf(TEXT("il log filtrato non e' vuoto (%d righe)"), Visibili.Num()),
+		Visibili.Num() > 0);
+	TestTrue(TEXT("e conserva le righe di mondo"), bRigaDiMondo);
+
+	RTCombatLogFixture::DestroyWorld(World);
 	return true;
 }
 #endif // WITH_DEV_AUTOMATION_TESTS
