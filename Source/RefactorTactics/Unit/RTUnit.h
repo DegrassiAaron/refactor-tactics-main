@@ -883,6 +883,33 @@ public:
 	static bool ShouldBeRendered(bool bAlive, bool bKnownToObserver);
 
 	/**
+	 * Se il CILINDRO SEGNAPOSTO va mostrato.
+	 *
+	 * 🔴 Il cilindro e' un segnaposto, e il posto non e' piu' vuoto quando l'eroe porta la propria skeletal:
+	 * mostrarlo allora rimette un cilindro dentro il personaggio. Il predicato si CALCOLA da qui invece di
+	 * rileggere cio' che il Blueprint ha impostato, e cosi' non conta se i `BP_Unit_*` nascondano il
+	 * cilindro con `bVisible = false` o con `bHiddenInGame = true` (che a un `SetVisibility` sopravviverebbe):
+	 * il C++ ricalcola comunque il valore giusto.
+	 *
+	 * ⚠️ Nascosto NON significa scollegato: `Mesh` resta il proxy di click (QueryOnly + `ECR_Block`), e la
+	 * collisione la decide `bRender`, non questo predicato.
+	 */
+	static bool ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh);
+
+	/**
+	 * Se l'ANELLO DI SELEZIONE va mostrato: serve che l'unita' si veda, che sia selezionata, e che un
+	 * materiale di selezione esista (senza, il ripiego e' non mostrarlo affatto).
+	 *
+	 * 🔴 Prende `bSelected` come PARAMETRO e non legge `SelectionRing->IsVisible()`: dopo una refresh con
+	 * `bRender == false` quella risponderebbe «no» anche su un'unita' selezionata, e la selezione si
+	 * perderebbe al primo riavvistamento. Lo stato sta nel flag, la visibilita' e' la sua funzione.
+	 */
+	static bool ShouldShowSelectionRing(bool bRender, bool bSelected, bool bHasSelectionMaterial);
+
+	/** Se l'ANELLO DI SQUADRA va mostrato: senza il suo materiale il ripiego e' il colore sul cilindro. */
+	static bool ShouldShowTeamRing(bool bRender, bool bHasTeamRingMaterial);
+
+	/**
 	 * Dichiara se l'osservatore locale conosce questa unita'. REVERSIBILE, a differenza di `HideForDefeat`,
 	 * che significa morte ed e' a senso unico per SEMANTICA.
 	 */
@@ -932,20 +959,36 @@ protected:
 	bool bKnownToObserver = true;
 
 	/**
-	 * Applica ai COMPONENTI VISIVI l'esito di `ShouldBeRendered`.
+	 * Vero fra `OnSelected` e `OnDeselected`. E' lo STATO della selezione su questa unita', e nessuno lo
+	 * deduce dai componenti: l'anello puo' essere nascosto perche' non si e' selezionati, perche' non si
+	 * vede l'unita', o perche' manca il materiale, e le tre cose non si distinguono guardando un `bVisible`.
+	 */
+	UPROPERTY()
+	bool bSelected = false;
+
+	/**
+	 * Ricalcola la visibilita' di TUTTI i componenti visivi dallo stato dell'unita'
+	 * (`bKnownToObserver`, `bSelected`, `bShowFacingArrow`, i materiali, la vita).
+	 *
+	 * 🔴 **Deriva, non assegna.** Chi cambia stato — `SetKnownToObserver`, `OnSelected`, `OnDeselected`,
+	 * `ApplyTeamColor` — muta il proprio flag e chiama questa: nessuno di loro scrive su un componente. Con
+	 * W scrittori e F flag l'alternativa sono W×F congiunzioni sparse, e ognuna e' una che qualcuno
+	 * dimentichera' — che e' esattamente come `SetKnownToObserver(true)` finiva per accendere l'anello di
+	 * selezione su un nemico che nessuno aveva selezionato. Qui il posto che sa quali componenti esistono
+	 * e' uno solo.
 	 *
 	 * 🔴 **Non usa `SetActorHiddenInGame`, ed e' il punto di questa funzione.** Quella propaga a TUTTI i
 	 * componenti dell'actor, inclusa la sagoma dell'ultimo contatto (Task 6), che vive su questo stesso
 	 * actor e deve vedersi **proprio quando l'unita' non si vede**. Nascondere l'actor renderebbe la sagoma
 	 * inerte, e nessun test automatico lo prenderebbe: si vedrebbe solo in PIE.
 	 */
-	void ApplyObserverVisibility();
+	void RefreshComponentVisibility();
 
 	/**
 	 * La skeletal dell'EROE, aggiunta dal Blueprint `BP_Unit_*` (Step 6.1) — MAI `ContactGhost`, che e' un
 	 * SECONDO `USkeletalMeshComponent`, nativo, per la sagoma del ricordo (Task 6). Un `FindComponentByClass`
 	 * cieco potrebbe restituire l'uno o l'altro a seconda dell'ordine di registrazione dei componenti:
-	 * l'esclusione qui e' esplicita ed e' per QUESTO che `ApplyObserverVisibility` non spegne mai la sagoma
+	 * l'esclusione qui e' esplicita ed e' per QUESTO che `RefreshComponentVisibility` non spegne mai la sagoma
 	 * per sbaglio invece del personaggio vero (o viceversa).
 	 */
 	USkeletalMeshComponent* FindHeroSkeletal() const;
@@ -1046,7 +1089,7 @@ protected:
 	 * `CastShadow = false`: e' presentazione pura, mai un proxy di click ne' un'ombra che tradisce la
 	 * posizione vera attraverso un'illuminazione sbagliata.
 	 *
-	 * ⚠️ **Esclusa per identita' da `ApplyObserverVisibility`, `ApplyUnitAnimClass` e `ApplyMeshYawOffset`**
+	 * ⚠️ **Esclusa per identita' da `RefreshComponentVisibility`, `ApplyUnitAnimClass` e `ApplyMeshYawOffset`**
 	 * (via `FindHeroSkeletal`, o perche' priva di mesh finche' `UpdateContactGhost` non gliene assegna una):
 	 * deve vedersi PROPRIO QUANDO l'unita' vera non si vede, mai essere spenta dallo stesso percorso.
 	 */
