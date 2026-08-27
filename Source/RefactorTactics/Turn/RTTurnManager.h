@@ -650,7 +650,10 @@ protected:
 	 * Consuma cio' che i pass hanno annotato con `FRTBlastContext::MarkAbilitySpent`. Il criterio
 	 * «l'azione e' PARTITA» resta a chi annota — [D-200] lo scrive per la portata — e qui non si
 	 * ridecide niente, nemmeno `IsAlive()`: le guardie di vita valgono al momento dell'annotazione.
-	 * Il contesto e' `const` apposta: cosi' «qui non si ridecide niente» lo impone il compilatore.
+	 * Il contesto e' `const` perche' questa passata non ha niente da aggiungergli. ⚠️ **Non e' il
+	 * compilatore a difendere l'asimmetria di [D-209]**: `IsAlive()` e' un metodo const e `SpentActors[i]`
+	 * restituisce un puntatore a non-const, quindi infilare qui `if (!Attore->IsAlive()) continue;`
+	 * compila benissimo. A renderlo rosso sono le due righe di `PlannedActionPaysOnlyIfItStarted`.
 	 */
 	void SpendStartedAbilities(const FRTBlastContext& Ctx);
 

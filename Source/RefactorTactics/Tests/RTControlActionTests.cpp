@@ -95,6 +95,13 @@ namespace
 		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith()); // stats/portata base qualunque: i test guardano il controllo
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		// 🔴 **`PlannedCell` si allinea alla cella di posa, e non e' una comodita'.** Il default
+		// `FRTCellId()` e' `(0,0,0)` — una cella VERA — e `HasPlannedNormalMove()` e' `PlannedCell != Cell`:
+		// un'unita' spawnata e lasciata senza piano pianifica quindi un movimento verso l'origine, con
+		// traversate spurie e voci di TurnLog che nessun test ha chiesto. Neutralizzarlo qui vale per tutti
+		// gli spawn del file — l'alternativa era ripetere l'assegnazione a ogni chiamata e dimenticarla,
+		// che e' esattamente cio' che succedeva.
+		U->PlannedCell = Cell;
 		return U;
 	}
 
@@ -607,9 +614,11 @@ bool FRTHealOutOfRangeIsTracedTest::RunTest(const FString&)
 /**
  * **Una cura che non ha niente da applicare lascia una traccia.**
  *
- * Ci si arriva DOPO `ConsumeAbility` — il cooldown e' gia' bruciato — e dopo che il piano e' stato
- * azzerato: prima di [D-196] non restava niente, ne' nel TurnLog ne' nel combat log, e un replay non poteva
- * spiegare perche' il turno del curatore non avesse prodotto nulla e perche' l'abilita' fosse in ricarica.
+ * Ci si arriva DOPO l'annotazione — il cooldown lo scrive `SpendStartedAbilities` a fase finita (`#1451`;
+ * fino ad allora questa riga diceva «gia' bruciato», che era vero e non lo e' piu') — e dopo che il piano e'
+ * stato azzerato: prima di [D-196] non restava niente, ne' nel TurnLog ne' nel combat log, e un replay non
+ * poteva spiegare perche' il turno del curatore non avesse prodotto nulla e perche' l'abilita' finisse in
+ * ricarica.
  *
  * ⚠️ Il motivo e' `NoEffect` e non `None`: quello significa «l'azione e' eseguibile», e la resa generica
  * direbbe «non eseguibile» — falso in tutti e due i versi. L'azione era valida e non aveva niente da
@@ -693,7 +702,8 @@ bool FRTHealWithoutEffectIsTracedTest::RunTest(const FString&)
  * **Una cura su chi e' caduto nel frattempo lascia una traccia.**
  *
  * Gli attacchi risolvono a priorita' 50-65 e le cure a 70: l'alleato puo' morire **nello stesso Blast** in
- * cui qualcuno lo sta curando. `CollectHealActions` ha gia' accettato il piano e bruciato `ConsumeAbility`,
+ * cui qualcuno lo sta curando. `CollectHealActions` ha gia' accettato il piano e ANNOTATO l'azione come
+ * partita (`#1451`: fino ad allora la bruciava sul posto, e questa riga diceva cosi'),
  * quindi prima di `#1447` il replay mostrava un curatore con l'abilita' in ricarica e nessuna azione
  * registrata — la terza faccia dell'asimmetria che [D-196] ha chiuso per `OutOfRange` e `NoEffect`.
  *
@@ -1805,6 +1815,7 @@ namespace
 		bool bAttoreVivo;            //< falso = arriva al Blast gia' caduto (Prep o Dash)
 		bool bMuoreNelBlast;         //< vero = un nemico adiacente lo uccide NELLA stessa fase
 		bool bPurificaUnoStatoPosseduto; //< solo Cleanse: dichiara la priorita' su uno stato che HA
+		bool bAbilitaACosto;         //< falso = `EnergyCost` 0, cioe' il ramo `GainEnergy` degli attaccanti
 		bool bDevePagare;
 		const TCHAR* Perche;
 	};
@@ -1817,43 +1828,49 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 {
 	const FSpesaCase Casi[] = {
 		{ TEXT("purificazione efficace"), TEXT("Action.Cleanse"), ESpesaMontaggio::SuSeStessi,
-		  0, true, false, true, true,
+		  0, true, false, true, true, true,
 		  TEXT("l'azione e' partita e ha tolto lo stato") },
 		{ TEXT("purificazione a vuoto"), TEXT("Action.Cleanse"), ESpesaMontaggio::SuSeStessi,
-		  0, true, false, false, true,
+		  0, true, false, false, true, true,
 		  TEXT("[D-200]: ha guardato e non c'era niente, che e' un ESITO — e il costo impedisce la purificazione assicurativa ogni turno") },
 		{ TEXT("cura in portata"), TEXT("Action.Heal"), ESpesaMontaggio::Alleato,
-		  1, true, false, false, true,
+		  1, true, false, false, true, true,
 		  TEXT("bersaglio raggiungibile: l'azione parte") },
 		{ TEXT("cura fuori portata"), TEXT("Action.Heal"), ESpesaMontaggio::Alleato,
-		  5, true, false, false, false,
+		  5, true, false, false, true, false,
 		  TEXT("[D-200]: la portata e' l'unico modo di fallire noto in PIANIFICAZIONE — non e' mai partita") },
 		{ TEXT("arco in portata"), TEXT("Action.ModifyArc"), ESpesaMontaggio::Alleato,
-		  1, true, false, false, true,
+		  1, true, false, false, true, true,
 		  TEXT("la topologia e' stata toccata") },
 		{ TEXT("arco fuori portata"), TEXT("Action.ModifyArc"), ESpesaMontaggio::Alleato,
-		  5, true, false, false, false,
+		  5, true, false, false, true, false,
 		  TEXT("stessa regola della cura, e ModifyArc la seguiva gia' con parole sue") },
 		{ TEXT("interruzione a segno"), TEXT("Action.Interrupt"), ESpesaMontaggio::NemicoCheAttacca,
-		  1, true, false, false, true,
+		  1, true, false, false, true, true,
 		  TEXT("#1444: ha prodotto un colpo") },
 		{ TEXT("interruzione fuori portata"), TEXT("Action.Interrupt"), ESpesaMontaggio::NemicoCheAttacca,
-		  3, true, false, false, false,
+		  3, true, false, false, true, false,
 		  TEXT("#1449: niente colpo e nessuna cella mirata — e' un'azione non avvenuta come le altre") },
 		{ TEXT("attacco che colpisce"), nullptr, ESpesaMontaggio::NemicoDaColpire,
-		  1, true, false, false, true,
+		  1, true, false, false, true, true,
 		  TEXT("il colpo e' arrivato: MarkAttackerAbilitiesSpent lo raccoglie") },
 		{ TEXT("pianificatore gia' caduto"), TEXT("Action.Heal"), ESpesaMontaggio::Alleato,
-		  1, false, false, false, false,
+		  1, false, false, false, true, false,
 		  TEXT("un cadavere non paga un'azione che non ha mai eseguito: arriva al Blast col piano addosso, e GatherBlastUnits non filtra i morti") },
 		// 🔴 Le DUE righe che pinnano l'asimmetria di [D-209], e senza le quali il rimedio «ovvio» —
 		// portare `IsAlive()` dentro `SpendStartedAbilities` — lascerebbe la tabella verde.
 		{ TEXT("curatore che cade nel Blast"), TEXT("Action.Heal"), ESpesaMontaggio::Alleato,
-		  1, true, true, false, true,
+		  1, true, true, false, true, true,
 		  TEXT("[D-209]: chi cura e' vivo quando ANNOTA, e paga anche se cade piu' tardi nella stessa fase") },
 		{ TEXT("attaccante che colpisce e cade"), nullptr, ESpesaMontaggio::NemicoDaColpire,
-		  1, true, true, false, false,
+		  1, true, true, false, true, false,
 		  TEXT("[D-209]: per un attaccante «spesa» vuol dire SOPRAVVISSUTO alla fase, e questo non lo e'") },
+		// L'altro ramo di `MarkAttackerAbilitiesSpent`: senza costo in energia non si logga `Ultimate!`, si
+		// accredita `EnergyOnHit`. Senza questa riga, cancellare quel ramo — cioe' l'accumulo di energia di
+		// ogni attaccante del gioco — non farebbe cadere niente.
+		{ TEXT("attacco base senza costo"), nullptr, ESpesaMontaggio::NemicoDaColpire,
+		  1, true, false, false, false, true,
+		  TEXT("il colpo e' arrivato e l'abilita' e' gratuita: si paga il cooldown e si ACCUMULA energia") },
 	};
 
 	for (const FSpesaCase& C : Casi)
@@ -1873,32 +1890,31 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 
 		// L'abilita' va nello SLOT 0 e con un cooldown che sopravvive al Cleanup, o il cooldown non e'
 		// osservabile affatto: `AbilityCooldowns` non copre gli indici appesi in coda.
-		int32 Idx = INDEX_NONE;
-		if (C.ActionId)
+		const int32 Idx = C.ActionId ? UseControlAbilityInSlot0(Attore, C.ActionId) : 0;
+		if (!TestTrue(*FString::Printf(TEXT("%s: l'abilita' e' nello slot 0"), C.Nome),
+			Idx == 0 && Attore->Abilities.IsValidIndex(0)))
 		{
-			Idx = UseControlAbilityInSlot0(Attore, C.ActionId);
+			DestroyControlWorld(World);
+			return false;
 		}
-		else
-		{
-			Idx = 0; // l'attacco base dell'eroe, che il catalogo spedisce senza cooldown
-			if (Attore->Abilities.IsValidIndex(0))
-			{
-				Attore->Abilities[0]->CooldownTurns = MinCooldownTurns;
-			}
-		}
-		// Energia: costo dichiarato sull'abilita', riserva sufficiente perche' `CanUseAbility` non la
-		// rifiuti, e reddito del Cleanup azzerato perche' non entri nella misura.
-		if (Attore->Abilities.IsValidIndex(0))
-		{
-			Attore->Abilities[0]->EnergyCost = CostoEnergiaProva;
-		}
-		Attore->Energy = EnergiaIniziale;
-		Attore->EnergyPerTurn = 0;
 
-		if (!TestTrue(*FString::Printf(TEXT("%s: l'abilita' e' nello slot 0"), C.Nome), Idx == 0)
-			|| !TestTrue(*FString::Printf(TEXT("%s: premessa: il cooldown e' osservabile"), C.Nome),
-				Attore->Abilities.IsValidIndex(0)
-					&& Attore->Abilities[0]->CooldownTurns >= MinCooldownTurns))
+		URTActionData* Azione = Attore->Abilities[0];
+		if (!C.ActionId)
+		{
+			Azione->CooldownTurns = MinCooldownTurns; // l'attacco base dell'eroe non ne dichiara uno
+		}
+		// 🔴 **Il costo in energia e' una proprieta' della RIGA, non della tabella.**
+		// `MarkAttackerAbilitiesSpent` si biforca su `EnergyCost > 0`: con un costo logga `Ultimate!`, senza
+		// accredita `EnergyOnHit`. Mettendo un costo ovunque — come faceva la prima stesura di questa
+		// misura — il ramo `GainEnergy` smetteva di essere coperto da qualunque riga, e cancellarlo del
+		// tutto (cioe' togliere l'accumulo di energia a OGNI attaccante del gioco) lasciava la tabella
+		// verde. La riga `attacco base senza costo` esiste per tenerlo rosso.
+		Azione->EnergyCost = C.bAbilitaACosto ? CostoEnergiaProva : 0;
+		Attore->Energy = EnergiaIniziale;
+		Attore->EnergyPerTurn = 0; // il reddito del Cleanup e' rumore su una misura che parla di spesa
+
+		if (!TestTrue(*FString::Printf(TEXT("%s: premessa: il cooldown e' osservabile"), C.Nome),
+			Azione->CooldownTurns >= MinCooldownTurns))
 		{
 			DestroyControlWorld(World);
 			return false;
@@ -1930,11 +1946,6 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 				DestroyControlWorld(World);
 				return false;
 			}
-			// ⚠️ `PlannedCell` DEVE essere scritta: il default `FRTCellId()` e' `(0,0,0)`, una cella vera,
-			// quindi un compagno senza piano pianifica un movimento verso l'origine — traversate spurie,
-			// voci di TurnLog in piu' e una tabella sensibile a modifiche della fase Move. E' la stessa
-			// disciplina di `BuildInterruptScenario`, che la scrive su tutte e tre le unita'.
-			Alleato->PlannedCell = Alleato->Cell;
 			Alleato->Health = FMath::Max(1, Alleato->Health - 30);
 			Attore->PlannedAbilityIndex = Idx;
 			Attore->PlannedAttackTarget = Alleato;
@@ -1956,7 +1967,6 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 			Attore->PlannedAttackTarget = Attaccante;
 			Attore->PlannedCell = Attore->Cell;
 
-			Vittima->PlannedCell = Vittima->Cell; // o pianificherebbe un movimento verso (0,0,0)
 			Attaccante->PlannedAbilityIndex = 0; // attacco base, interrompibile
 			Attaccante->PlannedAttackTarget = Vittima;
 			Attaccante->PlannedCell = Attaccante->Cell;
@@ -1971,7 +1981,6 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 				DestroyControlWorld(World);
 				return false;
 			}
-			Nemico->PlannedCell = Nemico->Cell; // o pianificherebbe un movimento verso (0,0,0)
 			Attore->PlannedAbilityIndex = Idx;
 			Attore->PlannedAttackTarget = Nemico;
 			Attore->PlannedCell = Attore->Cell;
@@ -1985,7 +1994,27 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 		// `MarkAttackerAbilitiesSpent` guarda chi e' rimasto in piedi. Le due righe leggono i due lati.
 		if (C.bMuoreNelBlast)
 		{
-			ARTUnit* Carnefice = SpawnControlUnit(World, 1, FRTCellId(0, 1));
+			// ⚠️ La cella e' FUORI dall'asse `(x, 0)` che tutti i montaggi usano, e che sia libera si
+			// verifica invece di darlo per scontato: `PlaceOnCell` non rifiuta una cella occupata, quindi
+			// una riga futura con un montaggio fuori asse fallirebbe su un sintomo scollegato — movimento
+			// bloccato, bersaglio sbagliato — con un messaggio che parla di cooldown.
+			const FRTCellId CellaCarnefice(0, 1);
+			TArray<AActor*> GiaInCampo;
+			UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), GiaInCampo);
+			bool bLibera = true;
+			for (const AActor* A : GiaInCampo)
+			{
+				const ARTUnit* U = Cast<ARTUnit>(A);
+				if (U && U->Cell == CellaCarnefice) { bLibera = false; break; }
+			}
+			if (!TestTrue(*FString::Printf(TEXT("%s: premessa: la cella del carnefice e' libera"), C.Nome),
+				bLibera))
+			{
+				DestroyControlWorld(World);
+				return false;
+			}
+
+			ARTUnit* Carnefice = SpawnControlUnit(World, 1, CellaCarnefice);
 			if (!TestNotNull(*FString::Printf(TEXT("%s: carnefice"), C.Nome), Carnefice))
 			{
 				DestroyControlWorld(World);
@@ -2028,6 +2057,17 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 		// ENERGIA (`IsAbilityUsable(cooldown, Energy, EnergyCost)`), quindi su un'ultimate a pagamento
 		// direbbe «ha pagato» per il motivo sbagliato. Qui si misura il COOLDOWN, che e' cio' che
 		// `ConsumeAbility` scrive.
+		// 🔴 **La premessa della riga «muore nel Blast» si verifica, o la riga si degrada in silenzio.**
+		// L'oracolo di `curatore che cade nel Blast` e' identico a quello di `cura in portata`: se il
+		// carnefice smettesse di uccidere — un ribilanciamento del danno base, una copertura fra le due
+		// celle — la riga resterebbe verde senza piu' misurare niente, e la prova mutante che la giustifica
+		// evaporerebbe. E' il modo di fallire che l'intestazione di questo test cita due volte.
+		if (C.bMuoreNelBlast)
+		{
+			TestFalse(*FString::Printf(TEXT("%s: premessa: l'attore e' davvero caduto nel Blast"), C.Nome),
+				AttoreDopo->IsAlive());
+		}
+
 		const bool bHaPagato = AttoreDopo->GetAbilityCooldown(0) > 0;
 		AddInfo(FString::Printf(TEXT("%s -> cooldown residuo %d, energia %d (%s)"),
 			C.Nome, AttoreDopo->GetAbilityCooldown(0), AttoreDopo->Energy, C.Perche));
@@ -2037,7 +2077,15 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 		// `Ultimate!` di `MarkAttackerAbilitiesSpent` non accredita `EnergyOnHit`, e `EnergyPerTurn` e'
 		// azzerato: l'unico movimento possibile e' la spesa. Senza questa riga, togliere lo scalo
 		// dell'energia da `ConsumeAbility` lascerebbe tutte e dodici le righe verdi.
-		const int32 EnergiaAttesa = C.bDevePagare ? EnergiaIniziale - CostoEnergiaProva : EnergiaIniziale;
+		int32 EnergiaAttesa = EnergiaIniziale;
+		if (C.bDevePagare)
+		{
+			// Con un costo si spende; senza, l'unico ramo che tocca l'energia e' il `GainEnergy` di
+			// `MarkAttackerAbilitiesSpent`, che accredita `EnergyOnHit` all'attaccante sopravvissuto.
+			EnergiaAttesa = C.bAbilitaACosto
+				? EnergiaIniziale - CostoEnergiaProva
+				: FMath::Min(AttoreDopo->MaxEnergy, EnergiaIniziale + AttoreDopo->EnergyOnHit);
+		}
 		TestEqual(*FString::Printf(TEXT("%s: energia"), C.Nome), AttoreDopo->Energy, EnergiaAttesa);
 
 		DestroyControlWorld(World);

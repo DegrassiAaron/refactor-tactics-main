@@ -1044,7 +1044,13 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 			? Units[Intents[k].AttackerId] : nullptr;
 		// ⚠️ `IsAlive()`: un'unita' uccisa in Prep o nel Dash arriva al Blast col piano ancora addosso —
 		// `CollectAttackIntents` non filtra i morti, e lo dichiara — quindi senza questa guardia un cadavere
-		// pagherebbe un'azione che non ha mai eseguito. Stessa regola di `MarkAttackerAbilitiesSpent`.
+		// pagherebbe un'azione che non ha mai eseguito.
+		//
+		// ⚠️ **NON e' la stessa regola di `MarkAttackerAbilitiesSpent`**, e fino al 2026-08-27 questa riga
+		// diceva che lo fosse. Qui si gira PRIMA del danno, quindi `IsAlive()` vuol dire «vivo quando
+		// annota»; li' si gira DOPO, e vuol dire «sopravvissuto alla fase». Sono i due lati dell'asimmetria
+		// di [D-209], e scambiarli cambia il gioco — lo fanno diventare rosse le due righe
+		// `curatore che cade nel Blast` e `attaccante che colpisce e cade`.
 		if (Interruttore && Interruttore->IsAlive())
 		{
 			Ctx.MarkAbilitySpent(Interruttore, Ctx.IntentAbilityIndex[k]);
@@ -1888,9 +1894,8 @@ void ARTTurnManager::MarkAttackerAbilitiesSpent(FRTBlastContext& Ctx)
 	TArray<ARTUnit*>& Attackers = Ctx.Attackers;
 	TArray<int32>& UsedAbilityIndex = Ctx.UsedAbilityIndex;
 
-	// Attaccanti SOPRAVVISSUTI: qui si decide CHI paga e si assegna l'energia — due cose, e il nome dice la
-	// prima. A scrivere il cooldown e'
-	// `SpendStartedAbilities`, l'unico punto che lo fa (`#1451` punto 3).
+	// Attaccanti SOPRAVVISSUTI: qui si decide CHI paga e si assegna l'energia — due cose, e il nome dice
+	// la prima. A scrivere il cooldown e' `SpendStartedAbilities`, l'unico punto che lo fa (`#1451`).
 	//
 	// ⚠️ **La guardia `IsAlive()` resta QUI e non si sposta**: per un attaccante «spesa» significa
 	// *sopravvissuto alla fase*, non *partita* — e' l'unico dei cinque punti in cui il criterio si conosce
@@ -2062,10 +2067,14 @@ void ARTTurnManager::SpendStartedAbilities(const FRTBlastContext& Ctx)
 	// quindi non c'e' esito che dipenda dall'ordine — ma un array, e non una `TMap`, perche' la regola del
 	// progetto e' non dipendere mai dall'ordine di iterazione, non «non dipenderne quando si vede».
 	// I due array si riempiono in una sola istruzione (`MarkAbilitySpent`), che ne e' l'unico scrittore:
-	// la cardinalita' e' un invariante del tipo, non una condizione da tollerare. Dichiararlo con un
-	// `checkSlow` invece che con un `IsValidIndex` per entrata evita di suggerire al prossimo lettore che
-	// possano divergere — e quindi di «aggiustare» lo sbilanciamento invece di preservare l'accoppiata.
-	checkSlow(Ctx.SpentActors.Num() == Ctx.SpentAbilityIndex.Num());
+	// la cardinalita' e' un invariante del tipo, non una condizione da tollerare. Dichiararlo qui evita di
+	// suggerire al prossimo lettore che possano divergere — e quindi di «aggiustare» lo sbilanciamento
+	// invece di preservare l'accoppiata.
+	//
+	// ⚠️ **`check` e non `checkSlow`**: `checkSlow` e' attivo solo sotto `DO_GUARD_SLOW`, cioe' in Debug —
+	// ne' l'Editor Development su cui gira l'automation ne' la Shipping lo compilano. Un invariante
+	// dichiarato con `checkSlow` non e' verificato da nessuna build che questo progetto produce davvero.
+	check(Ctx.SpentActors.Num() == Ctx.SpentAbilityIndex.Num());
 
 	for (int32 i = 0; i < Ctx.SpentActors.Num(); ++i)
 	{
