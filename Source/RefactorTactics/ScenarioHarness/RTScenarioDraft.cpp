@@ -7,7 +7,7 @@
 #include "ScenarioHarness/RTScenarioDraft.h"
 
 #include "ScenarioHarness/RTScenarioIndex.h"
-#include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioLoader.h" // ValidateUnitPlacement: la regola sta li', non qui
 
 void FRTScenarioDraft::NewScenario(const FString& ScenarioId, int32 MapRadius)
 {
@@ -128,6 +128,124 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SaveInPlace(FString& OutError) cons
 	}
 
 	return SaveToFile(Target, OutError);
+}
+
+int32 FRTScenarioDraft::IndexOfUnit(const FString& UnitId) const
+{
+	return Scenario.Units.IndexOfByPredicate(
+		[&UnitId](const FRTScenarioUnit& U) { return U.Id == UnitId; });
+}
+
+bool FRTScenarioDraft::AddUnit(const FString& UnitId, FName HeroId, int32 TeamId, const FRTCellId& Cell,
+	ERTHexDirection Facing, FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return false;
+	}
+
+	FRTScenarioUnit Candidate;
+	Candidate.Id = UnitId;
+	Candidate.HeroId = HeroId;
+	Candidate.TeamId = TeamId;
+	Candidate.Cell = Cell;
+	Candidate.Facing = Facing;
+
+	// `INDEX_NONE`: l'unita' non e' ancora nell'array, quindi non c'e' niente da escludere dai confronti.
+	// La regola e' quella del gioco, non una copia — vedi la nota in testa alla sezione nell'header.
+	if (!URTScenarioLoader::ValidateUnitPlacement(Scenario, Candidate, INDEX_NONE, OutError))
+	{
+		return false;
+	}
+
+	Scenario.Units.Add(MoveTemp(Candidate));
+	return true;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::MoveUnit(const FString& UnitId, const FRTCellId& Cell,
+	FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+
+	const int32 Index = IndexOfUnit(UnitId);
+	if (Index == INDEX_NONE)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	// Si valida una COPIA con la cella nuova, e si applica solo se passa: mutare prima e disfare dopo
+	// lascerebbe lo scenario modificato in ogni percorso d'errore che dimenticasse il ripristino.
+	FRTScenarioUnit Moved = Scenario.Units[Index];
+	Moved.Cell = Cell;
+
+	// `Index` da ignorare: senza, l'unita' collidere' con la propria posizione attuale e nessuno potrebbe
+	// mai muoversi — e il messaggio direbbe «due unita' partono dalla stessa cella» parlando di una sola.
+	if (!URTScenarioLoader::ValidateUnitPlacement(Scenario, Moved, Index, OutError))
+	{
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+
+	Scenario.Units[Index] = MoveTemp(Moved);
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::RemoveUnit(const FString& UnitId, FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+
+	const int32 Index = IndexOfUnit(UnitId);
+	if (Index == INDEX_NONE)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	// ⚠️ Togliere una unita' puo' lasciare intent, decisioni e assertion che la NOMINANO: restano li', e
+	// `Validate` li rifiutera' al salvataggio dicendo quale. E' voluto — ripulirli qui significherebbe
+	// cancellare in silenzio il lavoro di chi ha scritto quel turno, per un click che voleva togliere una
+	// pedina. Il salvataggio e' il posto dove lo scenario deve tornare coerente, non ogni singola modifica.
+	Scenario.Units.RemoveAt(Index);
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::SetUnitFacing(const FString& UnitId, ERTHexDirection Facing,
+	FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+
+	const int32 Index = IndexOfUnit(UnitId);
+	if (Index == INDEX_NONE)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	// Nessuna validazione di piazzamento: ruotare non cambia la cella, e `ERTHexDirection` non ha valori
+	// illegali da rifiutare — e' l'enum del gioco, non una stringa che qualcuno potrebbe scrivere storta.
+	Scenario.Units[Index].Facing = Facing;
+	return ERTScenarioAuthoringResult::Success;
 }
 
 FRTScenarioSummary FRTScenarioDraft::GetSummary() const

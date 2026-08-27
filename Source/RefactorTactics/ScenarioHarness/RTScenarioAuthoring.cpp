@@ -6,6 +6,7 @@
 
 #include "ScenarioHarness/RTScenarioAuthoring.h"
 
+#include "Ability/RTHeroCatalogLibrary.h" // il roster per la tendina: gli id, non gli eroi costruiti
 #include "ScenarioHarness/RTScenarioIndex.h"
 
 #define LOCTEXT_NAMESPACE "RTScenarioAuthoring"
@@ -51,6 +52,44 @@ ERTScenarioAuthoringResult URTScenarioAuthoring::SaveToFile(const FString& FileP
 ERTScenarioAuthoringResult URTScenarioAuthoring::SaveInPlace(FString& OutError)
 {
 	return Draft.SaveInPlace(OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::AddUnit(const FString& UnitId, FName HeroId, int32 TeamId,
+	FRTCellId Cell, ERTHexDirection Facing, FString& OutError)
+{
+	if (!Draft.IsOpen())
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+
+	// `AddUnit` del draft risponde `bool` perche' li' l'unico modo di fallire e' il piazzamento; qui serve un
+	// esito che la UI possa ramificare, e «rifiutato dalle regole» e' `Invalid`.
+	return Draft.AddUnit(UnitId, HeroId, TeamId, Cell, Facing, OutError)
+		? ERTScenarioAuthoringResult::Success
+		: ERTScenarioAuthoringResult::Invalid;
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::MoveUnit(const FString& UnitId, FRTCellId Cell,
+	FString& OutError)
+{
+	return Draft.MoveUnit(UnitId, Cell, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::RemoveUnit(const FString& UnitId, FString& OutError)
+{
+	return Draft.RemoveUnit(UnitId, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::SetUnitFacing(const FString& UnitId, ERTHexDirection Facing,
+	FString& OutError)
+{
+	return Draft.SetUnitFacing(UnitId, Facing, OutError);
+}
+
+TArray<FName> URTScenarioAuthoring::ListHeroIds()
+{
+	return URTHeroCatalogLibrary::GetHeroIds();
 }
 
 TArray<FString> URTScenarioAuthoring::ListScenarioIds(const FString& FilterTagA, const FString& FilterTagB)

@@ -147,6 +147,35 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 	 */
 	ERTScenarioAuthoringResult SaveInPlace(FString& OutError) const;
 
+	// --- editing dell'initial state (#1115) -------------------------------------------------------------
+	//
+	// ⚠️ Nessuna di queste funzioni decide se una cella e' buona: lo chiedono a
+	// `URTScenarioLoader::ValidateUnitPlacement`, che e' la stessa regola che `Validate` applica allo scenario
+	// intero. Se una di loro si trovasse a confrontare una distanza o a leggere `bBlocksMovement` da se',
+	// sarebbe una seconda copia della regola, e diverge dalla prima al primo campo aggiunto.
+	//
+	// Tutte falliscono **senza modificare niente**: uno scenario mezzo modificato e' peggio di uno non
+	// modificato, perche' il secondo si nota.
+
+	/**
+	 * Schiera una unita' nuova. `false` se l'id e' vuoto o gia' preso, se l'eroe non e' a catalogo, o se la
+	 * cella e' fuori arena / occupata / bloccante — e `OutError` dice **quale** delle cose.
+	 */
+	bool AddUnit(const FString& UnitId, FName HeroId, int32 TeamId, const FRTCellId& Cell,
+		ERTHexDirection Facing, FString& OutError);
+
+	/** Sposta una unita' gia' schierata. `NotFound` se l'id non esiste, `Invalid` se la cella non va bene. */
+	ERTScenarioAuthoringResult MoveUnit(const FString& UnitId, const FRTCellId& Cell, FString& OutError);
+
+	/** Ritira una unita'. `NotFound` se non c'e'. */
+	ERTScenarioAuthoringResult RemoveUnit(const FString& UnitId, FString& OutError);
+
+	/** Ruota una unita' schierata. Il facing e' `ERTHexDirection`, mai un angolo libero. */
+	ERTScenarioAuthoringResult SetUnitFacing(const FString& UnitId, ERTHexDirection Facing, FString& OutError);
+
+	/** Indice in `Units` dello Stable Unit ID, o `INDEX_NONE`. Gli id sono identita', non posizioni. */
+	int32 IndexOfUnit(const FString& UnitId) const;
+
 	FRTScenarioSummary GetSummary() const;
 	TArray<FRTScenarioUnitView> ListUnits() const;
 

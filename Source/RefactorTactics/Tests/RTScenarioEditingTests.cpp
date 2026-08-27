@@ -1,0 +1,430 @@
+// Editing dell'initial state: Add / Move / Remove / Facing (#1115).
+//
+// La domanda di questi test non e' «l'operazione riesce?» ma **«chi ha deciso che poteva riuscire?»**.
+// L'invariante di `spec-tactical-designer.md` §3 dice che la validita' di una cella la stabilisce il runtime,
+// e un editor che se la calcolasse da se' sarebbe un secondo gioco che nessuno testa. Per questo il file
+// verifica due cose diverse:
+//
+// 1. che le operazioni facciano cio' che dicono, e che l'errore **nomini** il problema;
+// 2. che le regole rifiutate dall'authoring siano **le stesse** che `Validate` rifiuta sullo scenario intero.
+//    E' la meta' che protegge dall'errore silenzioso: due copie della stessa regola non divergono il giorno
+//    in cui vengono scritte, divergono al primo campo aggiunto a una sola delle due.
+
+#include "Misc/AutomationTest.h"
+#include "ScenarioHarness/RTScenarioAuthoring.h"
+#include "ScenarioHarness/RTScenarioDraft.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
+#include "Misc/Paths.h"
+#include "Misc/ScopeExit.h"
+#include "HAL/FileManager.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+namespace
+{
+	// Nome distinto da ogni altro file di test: la unity build condivide la translation unit.
+	const TCHAR* EditingBaseJson = TEXT(R"JSON(
+	{
+	  "scenarioId": "Movement.EditingProbe",
+	  "version": 1,
+	  "mapRadius": 3,
+	  "cells": [ { "cell": [0, 1, 0], "blocksMovement": true } ],
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
+	  ],
+	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
+	  "expect": [ { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] } ]
+	}
+	)JSON");
+
+	/** Un draft aperto sullo scenario di prova. `false` se non si e' potuto caricare. */
+	bool OpenEditingDraft(FRTScenarioDraft& OutDraft, FString& OutError)
+	{
+		FRTTestScenario Loaded;
+		if (!URTScenarioLoader::LoadFromString(EditingBaseJson, Loaded, OutError))
+		{
+			return false;
+		}
+		OutDraft.NewScenario(TEXT("segnaposto"), 3);
+		OutDraft.MutableScenario() = Loaded;
+		return true;
+	}
+
+	FString EditingTempDir()
+	{
+		return FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Tests"), TEXT("ScenarioEditing"));
+	}
+}
+
+// --- le operazioni fanno cio' che dicono ----------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioEditingAddMoveRemoveTest,
+	"RefactorTactics.Scenario.EditingAddsMovesAndRemovesUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioEditingAddMoveRemoveTest::RunTest(const FString&)
+{
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenEditingDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// --- Add ---
+	if (!TestTrue(TEXT("una unita' nuova si schiera"),
+		Draft.AddUnit(TEXT("A2"), FName(TEXT("Hero.Phase")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::NE, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestEqual(TEXT("ora sono tre"), Draft.GetSummary().UnitCount, 3);
+
+	// ⚠️ Il criterio di #1115: **il dato canonico cambia**, non una vista. Si rilegge dal modello, non da
+	// `ListUnits`, perche' una vista costruita male potrebbe mostrare cio' che l'operazione ha promesso invece
+	// di cio' che il modello contiene.
+	const int32 Index = Draft.IndexOfUnit(TEXT("A2"));
+	if (TestTrue(TEXT("A2 e' nel modello canonico"), Index != INDEX_NONE))
+	{
+		const FRTScenarioUnit& Canonical = Draft.GetScenario().Units[Index];
+		TestEqual(TEXT("eroe scritto nel dato"), Canonical.HeroId, FName(TEXT("Hero.Phase")));
+		TestEqual(TEXT("squadra scritta nel dato"), Canonical.TeamId, 0);
+		TestEqual(TEXT("cella scritta nel dato"), Canonical.Cell, FRTCellId(-1, 1, 0));
+		TestEqual(TEXT("facing scritto nel dato"), Canonical.Facing, ERTHexDirection::NE);
+	}
+
+	// --- Move ---
+	if (!TestEqual(TEXT("A2 si sposta"),
+		Draft.MoveUnit(TEXT("A2"), FRTCellId(0, -1, 0), Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestEqual(TEXT("la nuova cella e' nel dato canonico"),
+		Draft.GetScenario().Units[Draft.IndexOfUnit(TEXT("A2"))].Cell, FRTCellId(0, -1, 0));
+
+	// Muovere sul posto deve restare lecito: l'unita' non collide con se stessa. Senza `IgnoreUnitIndex`
+	// questo caso fallirebbe dicendo «due unita' partono dalla stessa cella» parlando di una sola.
+	TestEqual(TEXT("una unita' puo' essere rimessa dov'e' gia'"),
+		Draft.MoveUnit(TEXT("A2"), FRTCellId(0, -1, 0), Error), ERTScenarioAuthoringResult::Success);
+
+	// --- Facing ---
+	TestEqual(TEXT("A2 ruota"),
+		Draft.SetUnitFacing(TEXT("A2"), ERTHexDirection::SW, Error), ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("la rotazione e' nel dato canonico"),
+		Draft.GetScenario().Units[Draft.IndexOfUnit(TEXT("A2"))].Facing, ERTHexDirection::SW);
+
+	// --- Remove ---
+	TestEqual(TEXT("A2 si ritira"),
+		Draft.RemoveUnit(TEXT("A2"), Error), ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("tornano due"), Draft.GetSummary().UnitCount, 2);
+	TestEqual(TEXT("A2 non e' piu' nel modello"), Draft.IndexOfUnit(TEXT("A2")), INDEX_NONE);
+
+	// Gli Stable Unit ID delle altre non si spostano quando una viene tolta di mezzo.
+	TestTrue(TEXT("A1 c'e' ancora"), Draft.IndexOfUnit(TEXT("A1")) != INDEX_NONE);
+	TestTrue(TEXT("B1 c'e' ancora"), Draft.IndexOfUnit(TEXT("B1")) != INDEX_NONE);
+
+	// Lo scenario resta valido dopo un giro completo di modifiche che si annullano.
+	TestEqual(TEXT("lo scenario e' ancora valido"), Draft.Validate(Error), ERTScenarioAuthoringResult::Success);
+
+	return true;
+}
+
+// --- gli errori nominano il problema --------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioEditingNamesItsRefusalsTest,
+	"RefactorTactics.Scenario.EditingNamesWhatItRefuses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioEditingNamesItsRefusalsTest::RunTest(const FString&)
+{
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenEditingDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	const int32 Before = Draft.GetScenario().Units.Num();
+
+	// Ogni rifiuto: la condizione, un frammento che l'errore DEVE contenere, e cosa si sta provando a fare.
+	// Il frammento non e' il messaggio intero — un test che asserisse la frase esatta cadrebbe a ogni
+	// riformulazione senza che nulla si sia rotto — ma deve nominare **la cosa**, perche' e' cio' che #1115
+	// chiede: un errore leggibile che dica qual e' il problema.
+
+	// (1) Stable Unit ID gia' preso.
+	TestFalse(TEXT("id duplicato rifiutato"),
+		Draft.AddUnit(TEXT("A1"), FName(TEXT("Hero.Phase")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::E, Error));
+	TestTrue(*FString::Printf(TEXT("l'errore nomina l'id duplicato (era: %s)"), *Error),
+		Error.Contains(TEXT("A1")) && Error.Contains(TEXT("duplicat")));
+
+	// (2) Cella gia' occupata da un'altra unita'.
+	TestFalse(TEXT("cella occupata rifiutata"),
+		Draft.AddUnit(TEXT("C1"), FName(TEXT("Hero.Phase")), 0, FRTCellId(2, 0, 0), ERTHexDirection::E, Error));
+	TestTrue(*FString::Printf(TEXT("l'errore nomina la cella (era: %s)"), *Error),
+		Error.Contains(TEXT("cella")));
+
+	// (3) Cella fuori dall'arena: raggio 3, questa e' a distanza 9.
+	TestFalse(TEXT("cella fuori arena rifiutata"),
+		Draft.AddUnit(TEXT("C2"), FName(TEXT("Hero.Phase")), 0, FRTCellId(9, 0, 0), ERTHexDirection::E, Error));
+	TestTrue(*FString::Printf(TEXT("l'errore nomina l'arena (era: %s)"), *Error),
+		Error.Contains(TEXT("arena")));
+
+	// (4) Cella che blocca il movimento: lo scenario ne dichiara una a (0,1,0).
+	TestFalse(TEXT("cella bloccante rifiutata"),
+		Draft.AddUnit(TEXT("C3"), FName(TEXT("Hero.Phase")), 0, FRTCellId(0, 1, 0), ERTHexDirection::E, Error));
+	TestTrue(*FString::Printf(TEXT("l'errore nomina il blocco (era: %s)"), *Error),
+		Error.Contains(TEXT("blocca")));
+
+	// (5) Eroe che non e' a catalogo.
+	TestFalse(TEXT("eroe sconosciuto rifiutato"),
+		Draft.AddUnit(TEXT("C4"), FName(TEXT("Hero.NonEsiste")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::E, Error));
+	TestTrue(*FString::Printf(TEXT("l'errore nomina l'eroe (era: %s)"), *Error),
+		Error.Contains(TEXT("eroe")) || Error.Contains(TEXT("sconosciuto")));
+
+	// (6) Id vuoto.
+	TestFalse(TEXT("id vuoto rifiutato"),
+		Draft.AddUnit(FString(), FName(TEXT("Hero.Phase")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::E, Error));
+	TestTrue(*FString::Printf(TEXT("l'errore nomina l'id (era: %s)"), *Error), Error.Contains(TEXT("id")));
+
+	// ⚠️ Sei rifiuti, e **nessuno** deve aver lasciato traccia: un'operazione che fallisce a meta' lascia lo
+	// scenario in uno stato che nessuno ha chiesto, ed e' peggio di una che non parte.
+	TestEqual(TEXT("nessun rifiuto ha modificato lo scenario"), Draft.GetScenario().Units.Num(), Before);
+
+	// --- Move e Remove su un id che non esiste: e' `NotFound`, non `Invalid`. La UI ci ramifica sopra.
+	TestEqual(TEXT("muovere un'unita' inesistente -> NotFound"),
+		Draft.MoveUnit(TEXT("Fantasma"), FRTCellId(0, 0, 0), Error), ERTScenarioAuthoringResult::NotFound);
+	TestTrue(*FString::Printf(TEXT("e nomina l'unita' (era: %s)"), *Error), Error.Contains(TEXT("Fantasma")));
+
+	TestEqual(TEXT("ritirare un'unita' inesistente -> NotFound"),
+		Draft.RemoveUnit(TEXT("Fantasma"), Error), ERTScenarioAuthoringResult::NotFound);
+	TestEqual(TEXT("ruotare un'unita' inesistente -> NotFound"),
+		Draft.SetUnitFacing(TEXT("Fantasma"), ERTHexDirection::E, Error), ERTScenarioAuthoringResult::NotFound);
+
+	// --- Move verso una cella illecita: `Invalid`, e l'unita' resta dov'era.
+	const FRTCellId Was = Draft.GetScenario().Units[Draft.IndexOfUnit(TEXT("A1"))].Cell;
+	TestEqual(TEXT("spostare su una cella occupata -> Invalid"),
+		Draft.MoveUnit(TEXT("A1"), FRTCellId(2, 0, 0), Error), ERTScenarioAuthoringResult::Invalid);
+	TestEqual(TEXT("e l'unita' non si e' mossa"),
+		Draft.GetScenario().Units[Draft.IndexOfUnit(TEXT("A1"))].Cell, Was);
+
+	TestEqual(TEXT("spostare fuori arena -> Invalid"),
+		Draft.MoveUnit(TEXT("A1"), FRTCellId(9, 9, 0), Error), ERTScenarioAuthoringResult::Invalid);
+	TestEqual(TEXT("e nemmeno adesso si e' mossa"),
+		Draft.GetScenario().Units[Draft.IndexOfUnit(TEXT("A1"))].Cell, Was);
+
+	// Un draft senza scenario aperto risponde `NoScenarioOpen` a tutte, invece di fingere.
+	FRTScenarioDraft Empty;
+	TestFalse(TEXT("AddUnit senza scenario aperto"),
+		Empty.AddUnit(TEXT("X"), FName(TEXT("Hero.Gadget")), 0, FRTCellId(0, 0, 0), ERTHexDirection::E, Error));
+	TestEqual(TEXT("MoveUnit senza scenario aperto"),
+		Empty.MoveUnit(TEXT("X"), FRTCellId(0, 0, 0), Error), ERTScenarioAuthoringResult::NoScenarioOpen);
+	TestEqual(TEXT("RemoveUnit senza scenario aperto"),
+		Empty.RemoveUnit(TEXT("X"), Error), ERTScenarioAuthoringResult::NoScenarioOpen);
+
+	return true;
+}
+
+// --- una regola sola, non due copie ---------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioEditingSharesTheRuleWithValidateTest,
+	"RefactorTactics.Scenario.EditingRefusesExactlyWhatValidateRefuses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioEditingSharesTheRuleWithValidateTest::RunTest(const FString&)
+{
+	// ⚠️ **Questo e' il test che protegge l'invariante, e vale la pena dire da cosa.**
+	//
+	// `ValidateUnitPlacement` e' stata ESTRATTA da `ValidateScenarioUnits` proprio perche' l'authoring non
+	// dovesse scriversi i propri controlli. Ma un'estrazione si puo' disfare: basta che qualcuno aggiunga una
+	// regola dentro `Validate` e non dentro la funzione estratta, e da quel momento l'editor accetta
+	// piazzamenti che il salvataggio poi rifiuta — o peggio, che salva scenari che il runner non sa eseguire.
+	//
+	// Il test costruisce piazzamenti illeciti UNO PER UNO e verifica che le due strade concordino:
+	// se l'authoring lo rifiuta, `Validate` sullo scenario che ne risulterebbe deve rifiutarlo pure.
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenEditingDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	struct FCase
+	{
+		const TCHAR* What;
+		FString Id;
+		FName Hero;
+		FRTCellId Cell;
+	};
+
+	const TArray<FCase> Cases = {
+		{ TEXT("id duplicato"),      TEXT("A1"), FName(TEXT("Hero.Phase")),     FRTCellId(-1, 1, 0) },
+		{ TEXT("cella occupata"),    TEXT("C1"), FName(TEXT("Hero.Phase")),     FRTCellId( 2, 0, 0) },
+		{ TEXT("fuori arena"),       TEXT("C2"), FName(TEXT("Hero.Phase")),     FRTCellId( 9, 0, 0) },
+		{ TEXT("cella bloccante"),   TEXT("C3"), FName(TEXT("Hero.Phase")),     FRTCellId( 0, 1, 0) },
+		{ TEXT("eroe sconosciuto"),  TEXT("C4"), FName(TEXT("Hero.NonEsiste")), FRTCellId(-1, 1, 0) }
+	};
+
+	for (const FCase& Case : Cases)
+	{
+		FString AuthoringError;
+		const bool bAuthoringAccepts =
+			Draft.AddUnit(Case.Id, Case.Hero, 0, Case.Cell, ERTHexDirection::E, AuthoringError);
+
+		// La stessa unita', forzata dentro lo scenario scavalcando l'authoring: cosa ne dice `Validate`?
+		FRTTestScenario Forced = Draft.GetScenario();
+		FRTScenarioUnit Unit;
+		Unit.Id = Case.Id;
+		Unit.HeroId = Case.Hero;
+		Unit.TeamId = 0;
+		Unit.Cell = Case.Cell;
+		Forced.Units.Add(Unit);
+
+		FString ValidateError;
+		const bool bValidateAccepts = URTScenarioLoader::Validate(Forced, ValidateError);
+
+		TestEqual(
+			*FString::Printf(TEXT("'%s': authoring e Validate danno la stessa risposta"), Case.What),
+			bAuthoringAccepts, bValidateAccepts);
+
+		if (!bAuthoringAccepts && !bValidateAccepts)
+		{
+			// E non basta che entrambe rifiutino: devono rifiutare per lo STESSO motivo, altrimenti sono due
+			// regole diverse che per caso cadono insieme su questo esempio.
+			TestEqual(*FString::Printf(TEXT("'%s': stesso motivo di rifiuto"), Case.What),
+				AuthoringError, ValidateError);
+		}
+	}
+
+	return true;
+}
+
+// --- il giro completo: modifica, salva, rileggi ---------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioEditingSurvivesSaveReloadTest,
+	"RefactorTactics.Scenario.EditingSurvivesSaveAndReload",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioEditingSurvivesSaveReloadTest::RunTest(const FString&)
+{
+	const FString Dir = EditingTempDir();
+	const FString Path = FPaths::Combine(Dir, TEXT("Edited.json"));
+	ON_SCOPE_EXIT{ IFileManager::Get().DeleteDirectory(*Dir, false, true); };
+
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenEditingDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// Un giro di modifiche come lo farebbe l'Editor: piazza, sposta, ruota, ritira.
+	if (!TestTrue(TEXT("schierata A2"),
+		Draft.AddUnit(TEXT("A2"), FName(TEXT("Hero.Wraith")), 0, FRTCellId(-1, 1, 0), ERTHexDirection::NW, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	Draft.MoveUnit(TEXT("B1"), FRTCellId(1, 1, 0), Error);
+	Draft.SetUnitFacing(TEXT("B1"), ERTHexDirection::W, Error);
+
+	if (!TestEqual(TEXT("salvato"), Draft.SaveToFile(Path, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// #1115: «Save → riapri conserva lo scenario semanticamente: unità, celle, facing, ID». Si rilegge da
+	// disco, non dalla memoria: e' l'unico modo di provare che le modifiche sono passate per il writer.
+	FRTScenarioDraft Reloaded;
+	if (!TestEqual(TEXT("riaperto da disco"),
+		Reloaded.OpenFromFile(Path, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	TestEqual(TEXT("tre unita' dopo il giro"), Reloaded.GetSummary().UnitCount, 3);
+
+	const int32 A2 = Reloaded.IndexOfUnit(TEXT("A2"));
+	if (TestTrue(TEXT("A2 sopravvive al salvataggio"), A2 != INDEX_NONE))
+	{
+		TestEqual(TEXT("A2: eroe"), Reloaded.GetScenario().Units[A2].HeroId, FName(TEXT("Hero.Wraith")));
+		TestEqual(TEXT("A2: cella"), Reloaded.GetScenario().Units[A2].Cell, FRTCellId(-1, 1, 0));
+		TestEqual(TEXT("A2: facing"), Reloaded.GetScenario().Units[A2].Facing, ERTHexDirection::NW);
+	}
+
+	const int32 B1 = Reloaded.IndexOfUnit(TEXT("B1"));
+	if (TestTrue(TEXT("B1 sopravvive"), B1 != INDEX_NONE))
+	{
+		TestEqual(TEXT("B1: la cella nuova"), Reloaded.GetScenario().Units[B1].Cell, FRTCellId(1, 1, 0));
+		TestEqual(TEXT("B1: la rotazione nuova"), Reloaded.GetScenario().Units[B1].Facing, ERTHexDirection::W);
+	}
+
+	// E lo scenario riletto e' eseguibile: valido secondo la stessa regola che lo ha lasciato salvare.
+	TestEqual(TEXT("lo scenario riletto e' valido"),
+		Reloaded.Validate(Error), ERTScenarioAuthoringResult::Success);
+
+	return true;
+}
+
+// --- la facade espone l'editing --------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioEditingIsReachableFromBlueprintTest,
+	"RefactorTactics.Scenario.EditingIsReachableFromBlueprint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioEditingIsReachableFromBlueprintTest::RunTest(const FString&)
+{
+	// Come per il contratto di ADR-0010: che il codice funzioni non prova che l'Editor possa chiamarlo.
+	UClass* Facade = URTScenarioAuthoring::StaticClass();
+	if (!TestNotNull(TEXT("la facade esiste"), Facade)) { return false; }
+
+	for (const FName& Name : { FName(TEXT("AddUnit")), FName(TEXT("MoveUnit")), FName(TEXT("RemoveUnit")),
+		FName(TEXT("SetUnitFacing")), FName(TEXT("ListHeroIds")) })
+	{
+		const UFunction* Function = Facade->FindFunctionByName(Name);
+		if (!TestNotNull(*FString::Printf(TEXT("'%s' e' una UFUNCTION"), *Name.ToString()), Function))
+		{
+			continue;
+		}
+		TestTrue(*FString::Printf(TEXT("'%s' e' chiamabile da Blueprint"), *Name.ToString()),
+			Function->HasAnyFunctionFlags(FUNC_BlueprintCallable | FUNC_BlueprintPure));
+	}
+
+	// Il catalogo che popola la tendina non deve essere vuoto, altrimenti l'Editor non ha niente da offrire
+	// e chi lo usa finisce a scrivere gli id a mano — cioe' esattamente cio' che esporlo doveva evitare.
+	const TArray<FName> Heroes = URTScenarioAuthoring::ListHeroIds();
+	TestTrue(TEXT("il catalogo eroi non e' vuoto"), Heroes.Num() > 0);
+	TestTrue(TEXT("e contiene il roster della v0.1"),
+		Heroes.Contains(FName(TEXT("Hero.Gadget"))) && Heroes.Contains(FName(TEXT("Hero.Wraith"))));
+
+	// Un giro dell'editing attraverso la facade, non attraverso il draft: e' il percorso che fara' l'Editor.
+	URTScenarioAuthoring* Authoring = URTScenarioAuthoring::CreateScenarioDraft(nullptr);
+	if (!TestNotNull(TEXT("draft creato"), Authoring)) { return false; }
+
+	FString Error;
+	Authoring->NewScenario(TEXT("Nuovo.DallaFacade"), 3);
+	TestEqual(TEXT("la facade schiera"),
+		Authoring->AddUnit(TEXT("A1"), Heroes[0], 0, FRTCellId(-1, 0, 0), ERTHexDirection::E, Error),
+		ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("la facade sposta"),
+		Authoring->MoveUnit(TEXT("A1"), FRTCellId(1, 0, 0), Error), ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("la facade ruota"),
+		Authoring->SetUnitFacing(TEXT("A1"), ERTHexDirection::SE, Error), ERTScenarioAuthoringResult::Success);
+
+	const TArray<FRTScenarioUnitView> Units = Authoring->ListUnits();
+	if (TestEqual(TEXT("una unita' schierata"), Units.Num(), 1))
+	{
+		TestEqual(TEXT("la vista riflette lo spostamento"), Units[0].Cell, FRTCellId(1, 0, 0));
+		TestEqual(TEXT("e la rotazione"), Units[0].Facing, ERTHexDirection::SE);
+	}
+
+	TestEqual(TEXT("la facade ritira"),
+		Authoring->RemoveUnit(TEXT("A1"), Error), ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("non resta nessuno"), Authoring->ListUnits().Num(), 0);
+
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

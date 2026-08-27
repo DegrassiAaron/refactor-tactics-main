@@ -84,6 +84,40 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
 	ERTScenarioAuthoringResult SaveInPlace(FString& OutError);
 
+	// --- editing dell'initial state (#1115) -------------------------------------------------------------
+
+	/**
+	 * Schiera una unita' nuova. `Success`, oppure `Invalid` con `OutError` che nomina il problema: id gia'
+	 * preso, eroe fuori catalogo, cella fuori arena, cella occupata, cella che blocca il movimento.
+	 *
+	 * ⚠️ La cella arriva come `FRTCellId` — il click sulla mappa lo traduce l'Editor, ma **quale** cella sia
+	 * valida lo decide il runtime: qui si chiama la stessa regola che `Validate` applica allo scenario intero.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult AddUnit(const FString& UnitId, FName HeroId, int32 TeamId, FRTCellId Cell,
+		ERTHexDirection Facing, FString& OutError);
+
+	/** Sposta una unita' schierata. `NotFound` se l'id non esiste, `Invalid` se la cella non va bene. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult MoveUnit(const FString& UnitId, FRTCellId Cell, FString& OutError);
+
+	/** Ritira una unita'. `NotFound` se non c'e'. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult RemoveUnit(const FString& UnitId, FString& OutError);
+
+	/** Ruota una unita'. Il facing e' `ERTHexDirection`, mai un angolo libero. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult SetUnitFacing(const FString& UnitId, ERTHexDirection Facing, FString& OutError);
+
+	/**
+	 * Gli `HeroId` del roster, per popolare un menu senza scrivere i nomi a mano.
+	 *
+	 * `GetHeroIds()` e non `GetHeroRoster()`: il secondo istanzia quattro `URTHeroData` **con tutte le loro
+	 * abilita'** a ogni chiamata, e una tendina che si riapre le pagherebbe tutte per leggere quattro nomi.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
+	static TArray<FName> ListHeroIds();
+
 	/** Fotografia dell'intestazione. Modificarla non modifica lo scenario. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
 	FRTScenarioSummary GetSummary() const { return Draft.GetSummary(); }

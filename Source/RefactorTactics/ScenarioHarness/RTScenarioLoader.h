@@ -62,6 +62,27 @@ public:
 	static bool Validate(const FRTTestScenario& Scenario, FString& OutError);
 
 	/**
+	 * Le regole di piazzamento di **una** unita': id non vuoto e non duplicato, loadout legale, eroe esistente,
+	 * cella dentro l'arena, cella non gia' occupata, cella che non blocca il movimento, HP/scudo/vista coerenti.
+	 *
+	 * ⚠️ **Esiste perche' `Validate` risponde alla domanda sbagliata per un editor.** `Validate` giudica lo
+	 * scenario INTERO, e uno scenario in costruzione e' quasi sempre invalido — non ha ancora assertion, spesso
+	 * non ha ancora la seconda squadra. Usarlo come gate a ogni piazzamento renderebbe impossibile costruire uno
+	 * scenario: ogni `AddUnit` verrebbe rifiutato per qualcosa che non c'entra con l'unita' che si sta piazzando.
+	 *
+	 * L'alternativa era che l'editor si scrivesse i propri controlli, cioe' una **seconda copia** delle regole
+	 * che diverge dalla prima al primo campo aggiunto. Questa funzione e' l'estrazione che evita entrambe:
+	 * `ValidateScenarioUnits` la chiama in ciclo, l'authoring la chiama per una unita' sola, e la regola resta
+	 * scritta in un posto.
+	 *
+	 * @param IgnoreUnitIndex Indice in `Scenario.Units` da **saltare** nei confronti fra unita'. `INDEX_NONE` per
+	 *        una unita' che non e' ancora nell'array (piazzamento nuovo); l'indice dell'unita' stessa quando la
+	 *        si sta spostando o rivalidando, altrimenti collidera' con se' stessa e nessuno potra' mai muoversi.
+	 */
+	static bool ValidateUnitPlacement(const FRTTestScenario& Scenario, const FRTScenarioUnit& Unit,
+		int32 IgnoreUnitIndex, FString& OutError);
+
+	/**
 	 * Serializza uno scenario nel formato JSON che `LoadFromString` rilegge. Il verso mancante del loader.
 	 *
 	 * Sta qui, e non in un `URTScenarioWriter` a parte, per una ragione sola: **il formato ha un owner solo**.
