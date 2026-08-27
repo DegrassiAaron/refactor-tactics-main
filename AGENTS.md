@@ -233,9 +233,14 @@ validazione · serializzazione/replay · privacy intenti.
   stesso non è stato provato.
 - Le verifiche PIE/Editor non sono verdi finché qualcuno non le ha realmente eseguite.
 - ⛔ **Il repository non ha più gate Python.** Restano **Node 22** in `tools/radar/` — rubrica dei
-  rating, generatore SVG dei radar e allineatore degli alt sulla Wiki — e un solo file Python
-  versionato, `tools/icons-downloader/paragon_skill_icons_downloader.py`, che è un **downloader** e non
-  un gate. I controlli vivi sono **cinque**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi), `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), `node tools/radar/doc-links.ts --check` (i percorsi citati dai documenti), `node tools/radar/catalog-code.ts` (le stat base degli eroi fra catalogo e C++ — non ha `--check` perché non scrive mai: esce `1` e basta) e `node tools/radar/doc-tables.ts --check` (le righe di tabella che non hanno la larghezza delle sorelle), piu' la suite `node --test` di `tools/radar/` — si lancia **da dentro la cartella**, `node --test tools/radar/` fallisce con `MODULE_NOT_FOUND`.
+  rating, generatore SVG dei radar e allineatore degli alt sulla Wiki — e **tre** file Python
+  versionati, nessuno dei quali è un gate: `tools/icons-downloader/paragon_skill_icons_downloader.py`
+  è un **downloader**, e i due di `tools/decision-log/` sono un **generatore di vista** e il suo
+  raccoglitore di dati. Non hanno `--check`, non escono `1` su una divergenza, e nessun DoD li nomina.
+  *(Corretto il 2026-08-27: questa riga diceva «un solo file Python versionato», ed era vera fino a
+  quando `tools/decision-log/` non è atterrato. Il difetto è quello che `CONTEXT_INDEX.md` §«Le due
+  toolchain» ha già dichiarato per i gate: un elenco scritto a mano non si accorge di un file nuovo,
+  e chi aggiunge il file non passa di qui.)* I controlli vivi sono **cinque**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi), `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), `node tools/radar/doc-links.ts --check` (i percorsi citati dai documenti), `node tools/radar/catalog-code.ts` (le stat base degli eroi fra catalogo e C++ — non ha `--check` perché non scrive mai: esce `1` e basta) e `node tools/radar/doc-tables.ts --check` (le righe di tabella che non hanno la larghezza delle sorelle), piu' la suite `node --test` di `tools/radar/` — si lancia **da dentro la cartella**, `node --test tools/radar/` fallisce con `MODULE_NOT_FOUND`.
   La cartella `scripts/` è stata **rimossa** il 2026-08-21 (**D-182**): con lei sono usciti i nove
   script Python e i loro test — i cinque gate documentali (link, nomi, simboli, tabelle, inventario),
   i due controlli sui dati di gioco (`check-capability-owners`, `check-equipment-defaults`) e i due

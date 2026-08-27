@@ -2,6 +2,44 @@
 
 ---
 
+## 2026-08-27 — `tools/decision-log/` era atterrato senza passare dall'indice
+
+**Origine**: la vista HTML del Decision Log ([#1482](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1482),
+`tools/decision-log/`), mergiata su `main` il 2026-08-27. Il codice era su `main`; l'unico documento che lo
+nominava era il proprio `README.md`.
+
+**Nessuna regola cambia.** Cambia ciò che due documenti dichiaravano sul repository, ed era diventato falso.
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| [`../AGENTS.md`](../AGENTS.md) | «un solo file Python versionato» → **tre**, e la ragione per cui nessuno dei tre è un gate |
+| [`CONTEXT_INDEX.md`](CONTEXT_INDEX.md) | §«Le due toolchain»: due righe nuove in tabella, e il paragrafo su cosa genera il tool, cosa si versiona e cosa no |
+
+### Il difetto era già stato descritto, tre righe sotto quella sbagliata
+
+`CONTEXT_INDEX.md` §«Le due toolchain» porta dal 2026-08-19 una nota in rosso: *«un elenco scritto a mano
+dentro un documento non ha modo di accorgersi di un file nuovo, e chi aggiunge un gate non passa di qui»*.
+Era stata scritta per i gate Python che l'elenco non conosceva. Il 2026-08-27 la stessa tabella si è
+sbagliata di nuovo, sullo stesso asse e per la stessa causa — questa volta contando **uno** i file Python
+versionati mentre erano tre — e chi ha aggiunto i due file non è passato di lì.
+
+⚠️ **La differenza è che stavolta nessuno può accorgersene.** I gate seguivano la forma `check-*`, quindi
+l'elenco poteva aggiornarsi da sé; un tool in `tools/` non ha una forma che un controllo riconosca, e
+`D-182` ha tolto il gate che avrebbe potuto contarli. La riga resta corretta a mano finché qualcuno non
+la guarda.
+
+### Ciò che il tool NON è
+
+- **Non è un gate**: nessun `--check`, nessun exit `1`, nessun DoD lo nomina.
+- **Non è un owner**: legge `decisions/RT_PDR_00_Decision_Log.md` e non lo scrive. La vista non è una
+  seconda verità — l'HTML sta in `build/`, che è in `.gitignore`.
+- **Non è un dato vivo**: `github-cache.json` è versionata, ma è un'istantanea datata dello stato delle
+  issue. Una pagina statica non può interrogare GitHub, e la pagina lo dichiara invece di nasconderlo.
+
+---
+
 ## 2026-08-26 — Il secondo sorgente sulle fasi delle azioni: recepito in parte, e con le due difese scambiate
 
 **Origine**: sorgente d'autore `CLAUDE_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_20260826.md`,
