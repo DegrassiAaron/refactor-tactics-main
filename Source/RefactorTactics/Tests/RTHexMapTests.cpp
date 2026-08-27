@@ -693,6 +693,91 @@ bool FRTHexFixtureLoaderTest::RunTest(const FString&)
 }
 
 /**
+ * **Ogni nome elencato costruisce un'arena, e ogni arena costruibile e' elencata** (`#1459`).
+ *
+ * L'elenco delle fixture era scritto a mano in tre posti — l'if-chain di `MakeFixtureArena`, la doc della
+ * funzione e il messaggio d'errore di `GenerateFixtureIntoAsset` — e nessuno dei tre coincideva: due
+ * nominavano `DemoArena`, che non aveva un ramo, e omettevano `ArenaV01`, che ce l'aveva. Chi chiedeva
+ * `DemoArena` riceveva «fixture sconosciuta» seguito da un elenco **che la conteneva**.
+ *
+ * ⚠️ **Il test guarda i due versi**, e serve: `KnownFixtureIds()` deriva dalla tabella, quindi il primo
+ * verso e' quasi tautologico — ma il secondo no. Un builder aggiunto al dispatcher senza entrare nella
+ * tabella, o una voce di tabella che punta al builder sbagliato, cadono qui.
+ *
+ * ⚠️ Il confronto e' case-insensitive perche' `MakeFixtureArena` lo e': chi scrive `relaybasin` in un
+ * campo dell'editor deve ottenere la stessa arena, ed e' una promessa che vale la pena pinnare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFixtureNamesMatchTheDispatcherTest,
+	"RefactorTactics.HexMap.EveryListedFixtureNameBuilds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFixtureNamesMatchTheDispatcherTest::RunTest(const FString&)
+{
+	const TArray<FString> Nomi = URTMatchSetupLibrary::KnownFixtureIds();
+
+	// La premessa: senza, «ogni nome costruisce» sarebbe vero anche di un elenco vuoto.
+	if (!TestTrue(FString::Printf(TEXT("premessa: l'elenco non e' vuoto (%d nomi)"), Nomi.Num()),
+			Nomi.Num() > 0))
+	{
+		return false;
+	}
+	AddInfo(FString::Printf(TEXT("fixture dichiarate: %s"), *FString::Join(Nomi, TEXT(", "))));
+
+	// Verso 1: ogni nome elencato costruisce davvero qualcosa.
+	for (const FString& Nome : Nomi)
+	{
+		URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), Nome);
+		if (TestNotNull(*FString::Printf(TEXT("'%s' costruisce un'arena"), *Nome), Arena))
+		{
+			TestTrue(*FString::Printf(TEXT("'%s' porta celle"), *Nome), Arena->NumCells() > 0);
+		}
+
+		// E in minuscolo, che e' la promessa di `ESearchCase::IgnoreCase`.
+		TestNotNull(*FString::Printf(TEXT("'%s' costruisce anche in minuscolo"), *Nome),
+			URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), Nome.ToLower()));
+	}
+
+	// Verso 2: i builder che il dispatcher puo' raggiungere sono tutti elencati. Si confrontano le celle,
+	// perche' e' cio' che distingue un'arena dall'altra senza dipendere dal nome.
+	struct FBuilder { const TCHAR* Atteso; TFunction<URTHexMapAsset*(UObject*)> Make; };
+	const FBuilder Costruibili[] = {
+		{ TEXT("RelayBasin"), [](UObject* O) { return URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(O); } },
+		{ TEXT("RelayLite"),  [](UObject* O) { return URTMatchSetupLibrary::MakeShowcaseRelayLiteArena(O); } },
+		{ TEXT("TestArena"),  [](UObject* O) { return URTMatchSetupLibrary::MakeTestArena(O); } },
+		{ TEXT("ArenaV01"),   [](UObject* O) { return URTMatchSetupLibrary::MakeArenaV01(O); } },
+		{ TEXT("CoverYard"),  [](UObject* O) { return URTMatchSetupLibrary::MakeCoverYardArena(O); } },
+	};
+	for (const FBuilder& B : Costruibili)
+	{
+		if (!TestTrue(*FString::Printf(TEXT("'%s' e' fra i nomi dichiarati"), B.Atteso), Nomi.Contains(B.Atteso)))
+		{
+			continue;
+		}
+		const URTHexMapAsset* PerNome = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), B.Atteso);
+		const URTHexMapAsset* Diretta = B.Make(GetTransientPackage());
+		if (PerNome && Diretta)
+		{
+			// Il nome dispaccia al builder GIUSTO: due arene diverse hanno conteggi diversi.
+			TestEqual(*FString::Printf(TEXT("'%s' dispaccia al builder giusto (celle)"), B.Atteso),
+				PerNome->NumCells(), Diretta->NumCells());
+			TestEqual(*FString::Printf(TEXT("'%s' dispaccia al builder giusto (transizioni)"), B.Atteso),
+				PerNome->Transitions.Num(), Diretta->Transitions.Num());
+		}
+	}
+
+	// Un nome che non esiste non costruisce niente: e' la meta' che rende l'elenco CHIUSO.
+	TestNull(TEXT("un nome inventato non costruisce niente"),
+		URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), TEXT("NonEsiste")));
+
+	// 🔴 E il nome che il difetto riguardava: `DemoArena` non e' piu' dichiarata, quindi non deve costruire.
+	// `MakeDemoArena` vuole un raggio che l'interfaccia per nome non ha modo di fornire.
+	TestFalse(TEXT("`DemoArena` non e' fra i nomi dichiarati"), Nomi.Contains(TEXT("DemoArena")));
+	TestNull(TEXT("e infatti non costruisce"),
+		URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), TEXT("DemoArena")));
+
+	return true;
+}
+
+/**
  * **Ogni builder di arena consegna UNA revisione**, non uno solo di loro (`#1435`, [D-201]).
  *
  * [D-196] aveva corretto `MakeFlatArena`, e questo rendeva quel builder **l'eccezione invece della regola**:

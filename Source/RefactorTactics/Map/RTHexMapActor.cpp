@@ -1093,9 +1093,12 @@ void ARTHexMapActor::GenerateFixtureIntoAsset()
 	{
 		// Nome sconosciuto: non si tocca nulla. Svuotare l'asset per un refuso sarebbe il danno peggiore, e
 		// il messaggio dice QUALE nome non esiste invece di lamentarsi in astratto.
-		UE_LOG(LogRT, Warning,
-			TEXT("[HexMap] Fixture '%s' sconosciuta: asset invariato. Nomi validi: ArenaV01, RelayBasin, ")
-			TEXT("RelayLite, TestArena, CoverYard, DemoArena."), *FixtureId);
+		// ⚠️ I nomi si CHIEDONO, non si riscrivono (`#1459`): questa riga ne elencava sei, uno dei quali
+		// (`DemoArena`) non aveva un ramo nel dispatcher e un altro (`ArenaV01`) c'era senza essere elencato
+		// dalla doc. Un messaggio d'errore che nomina fra i validi proprio quello che l'utente ha appena
+		// chiesto e' peggio di uno generico.
+		UE_LOG(LogRT, Warning, TEXT("[HexMap] Fixture '%s' sconosciuta: asset invariato. Nomi validi: %s."),
+			*FixtureId, *FString::Join(URTMatchSetupLibrary::KnownFixtureIds(), TEXT(", ")));
 		return;
 	}
 
