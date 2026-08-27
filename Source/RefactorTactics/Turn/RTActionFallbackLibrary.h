@@ -102,7 +102,28 @@ enum class ERTActionInvalidReason : uint8
 	 * ⚠️ In CODA come `Interrupted`: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e
 	 * inserirne uno in mezzo cambierebbe il significato delle tracce gia' scritte.
 	 */
-	NoEffect
+	NoEffect,
+
+	/**
+	 * L'azione e' partita, ha raggiunto il bersaglio, e un'altra azione l'ha resa priva di effetto
+	 * **senza cancellarla** (`#1460`, [D-203]).
+	 *
+	 * L'unico produttore in v0.1 sono due `Action.Interrupt` reciproci: [D-202] li lascia entrambi
+	 * **inefficaci** — un ciclo non ha radice, e ogni tie-break sarebbe arbitrario — quindi nessuno dei due
+	 * cancella e le due azioni originali procedono. Chi ha speso l'Interrupt ha pagato e non ha ottenuto
+	 * niente, e senza questa voce quel turno non lasciava **nessuna** traccia autoritativa.
+	 *
+	 * ⚠️ **Non e' `NoEffect`**, e la distinzione e' quella che `#1430` ha appena pagato per un'altra
+	 * coppia: `NoEffect` dice che l'azione non aveva niente da applicare — un catalogo scritto male, uno
+	 * stato che non c'era. Qui l'azione aveva esattamente qualcosa da applicare, ed e' stata neutralizzata
+	 * da cio' che stava annullando. Metterle sotto lo stesso motivo rifarebbe due significati per una
+	 * coppia sola.
+	 *
+	 * ⚠️ **In coda**, come `Interrupted` e `NoEffect` prima: il motivo viaggia in `Amount`, un `int32`
+	 * serializzato, e inserirne uno in mezzo rinumera tutti quelli che seguono riscrivendo il significato di
+	 * ogni traccia archiviata. Lezione gia' pagata inserendo `Interrupted` a meta' di questo stesso enum.
+	 */
+	Neutralised
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

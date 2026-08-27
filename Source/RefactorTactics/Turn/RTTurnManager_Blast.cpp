@@ -907,6 +907,44 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		}
 	}
 
+	// 🔴 **Chi si e' neutralizzato lascia traccia** (`#1460`, [D-203]).
+	//
+	// Un Interrupt rimasto `Indeciso` e' in un ciclo: ha speso l'azione, ha raggiunto il bersaglio e non ha
+	// cancellato niente, perche' cio' che stava annullando stava annullando lui. Senza questa voce quel turno
+	// non lasciava **nessuna** traccia autoritativa — due unita' che pagano un cooldown e producono zero
+	// voci — ed e' la classe che [D-196] ha chiuso quattro volte: *non una riga di troppo, una che non c'e'*.
+	//
+	// ⚠️ Si scrive PRIMA delle cancellazioni e in ordine d'indice, come quelle: l'ordine di emissione non
+	// conta per l'hash — il TurnLog si ordina canonicamente — ma conta per chi legge il log a schermo.
+	for (int32 i = 0; i < Interruttori.Num(); ++i)
+	{
+		if (Stato[i] != EStato::Indeciso) { continue; }
+
+		const int32 k = Interruttori[i];
+		if (!Intents.IsValidIndex(k) || !IntentDefs.IsValidIndex(k)) { continue; }
+		ARTUnit* Speso = Units.IsValidIndex(Intents[k].AttackerId) ? Units[Intents[k].AttackerId] : nullptr;
+		if (!Speso) { continue; }
+
+		// Qui il soggetto e' chi ha SPESO l'Interrupt, non chi lo subiva: e' la sua azione che non ha
+		// ottenuto niente. E' il verso opposto della voce `Cancelled` qui sotto, dove il soggetto e' la
+		// vittima — e i due sono coerenti perche' entrambe nominano l'unita' di cui raccontano l'azione.
+		const int32 BersaglioId = Intents[k].TargetId;
+		const FRTCellId CellaMirata = Units.IsValidIndex(BersaglioId) && Units[BersaglioId]
+			? Units[BersaglioId]->Cell
+			: Intents[k].TargetCell;
+		FRTTurnLogEntry Neutralizzata;
+		Neutralizzata.Phase = ERTMatchPhase::Blast;
+		Neutralizzata.Category = ERTLogCategory::Fallback;
+		Neutralizzata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Neutralizzata.SrcCell = Speso->Cell;
+		Neutralizzata.TgtCell = CellaMirata;
+		Neutralizzata.Amount = static_cast<int32>(ERTActionInvalidReason::Neutralised);
+		Neutralizzata.ActionId = IntentDefs[k].ActionId;
+		Neutralizzata.BaseActionId = IntentDefs[k].BaseActionId;
+		Neutralizzata.Priority = IntentDefs[k].Priority;
+		AppendLogEntry(Neutralizzata, Speso);
+	}
+
 	// 🔴 **PASSATA 3 di 3 — gli effetti**, sull'insieme ormai deciso.
 	//
 	// Una voce per AZIONE cancellata, non per colpo: `InterruptedIntents` porta intenti, quindi due Interrupt
