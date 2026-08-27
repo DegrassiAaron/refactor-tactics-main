@@ -474,8 +474,8 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			{
 				FRTHexSimUnit Attacker(i, Unit->Cell, /*InMoveBudget=*/ 0);
 				Attacker.Facing = Unit->Facing;
-				URTFacingLibrary::RecordFacingChange(Attacker, TowardsTarget, ERTFacingOutcome::TargetingReoriented,
-					ERTMatchPhase::Blast, TurnLog);
+				RecordFacingChange(Attacker, TowardsTarget, ERTFacingOutcome::TargetingReoriented,
+					ERTMatchPhase::Blast, Unit);
 				Unit->Facing = Attacker.Facing;
 
 				// Anche nella copia del Blast: `HexUnits` e' stato costruito PRIMA di questo ciclo, e la difesa

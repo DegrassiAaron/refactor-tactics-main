@@ -221,6 +221,25 @@ altrimenti l'hash del replay diventerebbe sensibile a scritture che non decidono
 `DeclarationRejected`, che è osservabile **proprio perché** non cambia nulla — e registra la direzione
 **conservata**, non quella chiesta: il log dice cosa vale, non cosa era stato domandato.
 
+**Le voci `Facing` passano da `AppendLogEntry` come tutte le altre** ([D-198](../../decisions/RT_PDR_00_Decision_Log.md), [`#1429`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1429), 2026-08-27).
+
+`URTFacingLibrary` scriveva nel `TurnLog` che riceveva per riferimento, quindi le sue voci **non** passavano
+dall'unico punto in cui si stampano `TurnNumber`, `GraphRevision` e `UnitId`: ogni rotazione derivata nasceva
+con **turno 0, revisione del grafo 0 e nessuna unità dichiarata**. Il campo che esiste per dire *su quale
+grafo un evento è stato validato* affermava una cosa falsa.
+
+La libreria da sola non poteva riempirli — lavora su `FRTHexSimUnit`, che porta l'indice della simulazione e
+non `StableUnitId` — quindi il manager espone `ARTTurnManager::RecordFacingChange`, che raccoglie le voci in
+un array locale e le travasa con `AppendLogEntry`. È la stessa disciplina che la fase Move segue già con
+`MoveLog`.
+
+⚠️ **Chi aggiunge un produttore di voci lo deve sapere**: passare `ARTTurnManager::TurnLog` a una libreria che
+fa `Add` è il modo in cui una voce nasce senza contesto, e nessun test se ne accorge. Il commento di
+`AppendLogEntry` prometteva che ogni emissione passasse di lì — era vero *del file*, non del TurnLog.
+
+⚠️ **`UsedByBlast` e `UsedByOverwatch` non hanno produttori in gioco**: `ReadFacingForConsumer` è chiamata
+solo da due test. Le due letture che questa sezione motiva sopra sono dichiarate e non emesse.
+
 ### 4.2 Categoria `Decision` — il Decision Time Bank *(decisa il 2026-08-09, issue `#361`)*
 
 Questa spec è **owner dei nomi di evento e dei reason code**, e fino a oggi non conteneva la parola `Bank`:
