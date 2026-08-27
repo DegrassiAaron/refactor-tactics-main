@@ -652,12 +652,21 @@ struct FRTTurnLogEntry
 	 * manchi l'attaccante — c'e', ed e' in `SrcCell`. E' che la voce descrive **l'orientamento del
 	 * difensore**, quello che non ha retto: `Amount` porta il suo `Facing`, `TgtCell` la sua cella.
 	 *
-	 * ⚠️ **Non e' «la regola della categoria»**, e vale la pena dirlo perche' sembra esserlo: le altre voci
-	 * `Facing` non dichiarano nessuna unita'. `URTFacingLibrary::MakeFacingEntry` scrive direttamente nel
-	 * log del chiamante senza passare da `AppendLogEntry`, quindi `DerivedFromMove`, `DerivedFromDash`,
-	 * `DeclaredInPlanning`, `UsedByBlast` e le altre restano a `UnitId = 0` (aperta come `#1429`). Questa e'
-	 * l'unica voce `Facing` che accredita qualcuno — ed e' anche l'unica in cui `SrcCell` e' la cella di
-	 * un'unita' DIVERSA dal soggetto.
+	 * ⚠️ **Non e' «la regola della categoria»**, e vale la pena dirlo perche' sembra esserlo: e' l'unica
+	 * voce `Facing` in cui `SrcCell` e' la cella di un'unita' DIVERSA dal soggetto. Le altre nominano una
+	 * sola unita', e `UnitId` porta quella.
+	 *
+	 * ⚠️ **Fino al 2026-08-27 le altre voci `Facing` non dichiaravano nessuna unita'**, e questo commento
+	 * lo registrava come difetto aperto: `URTFacingLibrary` scriveva nel log del chiamante senza passare da
+	 * `AppendLogEntry`, quindi `DerivedFromMove`, `DerivedFromDash`, `DeclaredInPlanning` e
+	 * `TargetingReoriented` restavano a `UnitId = 0` — insieme a turno e revisione del grafo. Chiuso da
+	 * `#1429` / [D-198]: passano dal wrapper `ARTTurnManager::RecordFacingChange`, che travasa con
+	 * `AppendLogEntry`.
+	 *
+	 * ⚠️ **Un residuo resta, ed e' innocuo**: `UsedByBlast` e `UsedByOverwatch` nascono da
+	 * `ReadFacingForConsumer`, che non ha nessun chiamante in gioco — solo due test. Quelle due voci non
+	 * entrano in nessuna traccia reale, quindi non c'e' nessun `UnitId` a zero da correggere finche' un
+	 * produttore non esiste.
 	 *
 	 * ⚠️ **Cosa si perde, detto invece che taciuto**: con `UnitId` sul difensore, l'attaccante resta nella
 	 * voce solo come `SrcCell` — e questo stesso commento dichiara che la cella non identifica un'unita'.
