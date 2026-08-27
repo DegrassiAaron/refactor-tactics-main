@@ -217,8 +217,38 @@ col presente e altri col passato, che è esattamente lo stato da cui si è parti
 **Come si calcola, misurato.** `URTTeamKnowledgeLibrary::ClassifyTarget` è puro e chiede
 `(Knowledge, SubjectId, SubjectTeamId, SubjectCurrentCell)`. In `ConcludeTurn` le righe escono a
 `RTTurnManager.cpp:2383-2386` e `DestroyDefeatedUnits` gira a `:2405`: alla scrittura il soggetto **esiste
-ancora**, quindi la cella è disponibile. Il canale primario è un ciclo solo, quindi basta **una** mappa
-`id → cella` per turno; i siti sparsi hanno già l'unità in mano.
+ancora**. I **79** siti sparsi hanno l'unità in mano e costano una riga ciascuno.
+
+#### 🔴 Il canale derivato è il caso difficile, e «alla scrittura» lì non basta
+
+*(Corretto il 2026-08-28. Questo paragrafo diceva: «il canale primario è un ciclo solo, quindi basta **una**
+mappa `id → cella` per turno». Era sbagliato due volte, e la seconda metà è il difetto vero.)*
+
+L'unico sito che emette dal TurnLog (`RTTurnManager.cpp:2383-2386`) scrive **in un colpo solo le voci di
+tutte e cinque le fasi**, e in quell'istante i due ingressi di `ClassifyTarget` vengono da due momenti
+diversi:
+
+| Ingresso | Da quando | Misura |
+|---|---|---|
+| `Knowledge` | ultimo refresh, che è quello del **Blast** — **pre-Move** | `RefreshTeamKnowledgeForBlast` chiamata a `RTTurnManager.cpp:3785` |
+| `SubjectCurrentCell` | **post-Move** | `PlaceOnCell` a `RTTurnManager.cpp:5338` |
+
+`AwarenessOfUnit` decide con `Knowledge.VisibleCells.Contains(CurrentCell)`, quindi mescolarli produce **due
+errori speculari, entrambi reali**: un **leak** — un soggetto che nel Move entra in una cella visibile
+pre-Move e che nessuno osserva più — e una **perdita** — un soggetto visibile mentre agiva, che nel Move esce
+dal set stantio e si porta via l'intera narrazione del proprio turno.
+
+⚠️ **Il refresh successivo esiste ma arriva dopo**: `StartPlanningTimer` (`:2446`) → `PlanBots` (`:1222`) →
+`RefreshTeamKnowledgeForPlanning` (`:505`) osserva le celle post-Move, ma gira **sessanta righe dopo**
+l'emissione. Non è disponibile a chi scrive.
+
+⚠️ **E `ClassifyTarget` vuole un terzo ingresso che il TurnLog non ha**: `TargetTeamId`. Misurato: `TeamId`
+compare **0** volte in `Turn/RTTurnLog.h`, con controprova a **29** su `UnitId` nello stesso file.
+
+🔴 **Chi implementa deve dichiarare, per questo canale, quale conoscenza e quale cella entrano nel calcolo.**
+È la sola parte della decisione che il codice non risolve da solo, e le vie che lascia aperte — accettare per
+iscritto il verdetto «conoscenza pre-Move + cella del fatto», anticipare il congelamento al sito che produce
+la voce, o aggiungere un terzo campione — hanno costi diversi e vanno confrontate, non scelte per inerzia.
 
 ### 3.6 ✅ Il limite del morto è chiuso da [D-223], e non serve toccare `ViewForTeam`
 
@@ -251,20 +281,28 @@ soggetto era lei perdeva la propria voce nella vista.
 
 Misurato sui siti che scrivono la morte:
 
-| Riga | Soggetto | Prima di [D-223] | Con [D-223] |
-|---|---|---|---|
-| `Eliminata: <nome> (team N)` (ramo `NewlyDefeated` della risoluzione Blast) | nessuno | ✅ resta — è una riga di mondo | ✅ resta |
-| `<nome> eliminato dalla scarica` (risoluzione delle abilità) | nessuno | ✅ resta, per omissione del soggetto | ✅ resta |
-| `<nome> eliminato dalle fiamme` (danno da `Status.Burning`, Cleanup) | la vittima | ❌ spariva, insieme al resto del suo turno | ✅ resta se la squadra vedeva la vittima quando è caduta |
+| # | Riga | Sito | Soggetto | Prima di [D-223] | Con [D-223] |
+|---|---|---|---|---|---|
+| 1 | `<nome> eliminato dalle fiamme` (danno da `Status.Burning`) | `RTTurnManager.cpp:1459` | **la vittima** | ❌ spariva, insieme al resto del suo turno | ✅ resta per chi vedeva la vittima quando è caduta |
+| 2 | `<nome> eliminato dalla scarica` | `RTTurnManager.cpp:2257` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità |
+| 3 | `Eliminata: <nome> (team N)` (ramo `NewlyDefeated`, Blast) | `RTTurnManager.cpp:4320` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità **e la sua squadra** |
+| 4 | `Morte mostrata: <nome>` (playback, fase corrente) | `RTTurnManager.cpp:5603` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità |
+| 5 | `Morte mostrata: <nome>` (playback, catch-all finale) | `RTTurnManager.cpp:5659` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità |
 
-⚠️ **Un'attribuzione corretta il 2026-08-27**: questa tabella assegnava la prima riga a
-`ARTTurnManager::DestroyDefeatedUnits`. Quella funzione **non contiene nessun `AddLogEvent`** — la riga è
-emessa nel ramo `NewlyDefeated` della risoluzione Blast. La conclusione (✅ resta, perché senza soggetto) era
-giusta; il puntatore no.
+⚠️ **Questa tabella ne elencava TRE, e ne classificava male una.** *(Corretta il 2026-08-28.)* Le due righe
+`"Morte mostrata: %s"` del playback non erano mai state censite. E la riga 3 era descritta come *«una riga di
+mondo»*: **non lo è** — stampa il nome di un'unità **e** il suo `TeamId`. Resta visibile solo perché il
+default di `AddLogEvent` è fail-open, cioè per il difetto stesso che **#1499** chiude.
 
-⚠️ **Le due righe che restavano lo facevano per omissione**, non per scelta: è lo stesso default fail-open di
-`AddLogEvent`, che qui produceva l'esito desiderato per caso. Il default è il soggetto di **#1499**, e
-chiuderlo senza [D-223] avrebbe fatto sparire anche quelle due.
+🔴 **Quattro righe di morte su cinque passano per omissione, e sono quindi in scope per #1499.** Nessuna di
+esse è «restata» per una decisione: chiudere il default senza deciderle una per una le farebbe sparire tutte
+e quattro insieme — ed è precisamente perché #1499 e [D-223] vanno fatte nella stessa passata.
+
+⚠️ **La morte è pubblica, e la decisione non è ovvia.** Una riga di eliminazione filtrata come le altre
+sparirebbe per chi non vedeva la vittima — ma il giocatore ha comunque diritto di sapere che la propria unità
+è caduta. Chi implementa dichiari se la morte sia un evento di mondo (visibile a tutti, e allora le quattro
+righe portano la costante «senza soggetto» per scelta e non per inerzia) o un fatto filtrato come gli altri.
+Owner della verifica: **#1498**.
 
 ---
 
