@@ -277,6 +277,7 @@ bool FRTTerrainSmokeLimitsTargetingTest::RunTest(const FString&)
 	Intent.TargetId = 1;
 	Intent.RangeCells = 6; // la portata dichiarata basterebbe, ma la linea attraversa il Fumo a q=2
 	Intent.Power = 10;
+	Intent.bCountsAsAttack = true; // intento d'attacco, e da [`INT-8`] va dichiarato
 
 	TArray<FRTHexAttackIntent> Intents;
 	Intents.Add(Intent);
@@ -330,6 +331,7 @@ bool FRTTerrainSmokeCapAgreesAcrossGatesTest::RunTest(const FString&)
 	Intent.TargetId = 1;
 	Intent.RangeCells = DeclaredRange;
 	Intent.Power = 10;
+	Intent.bCountsAsAttack = true; // intento d'attacco, e da [`INT-8`] va dichiarato
 	TArray<FRTHexAttackIntent> Intents;
 	Intents.Add(Intent);
 

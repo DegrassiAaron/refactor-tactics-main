@@ -119,6 +119,14 @@ namespace
 
 		Action->DisplayName = HeroActionDisplayName(Id);
 
+		// [`INT-8`]: un'abilita' d'eroe che dichiara DANNO e' un'aggressione. Il campo resta comunque
+		// dichiarato e sovrascrivibile dal chiamante -- serve a chi avra' l'equivalente d'eroe di
+		// `Action.MarkTarget`, ostile e da zero danni, che questa riga da sola non riconoscerebbe.
+		for (const FRTActionEffectSpec& Spec : Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::Damage) { Action->Def.bCountsAsAttack = true; break; }
+		}
+
 		return Action;
 	}
 
