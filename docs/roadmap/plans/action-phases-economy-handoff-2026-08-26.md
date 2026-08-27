@@ -259,7 +259,37 @@ leggibilità di una differenza che ora è diversa.
 > *«si separano abbastanza?»* ma **«la differenza di genere è leggibile senza un costo che la annunci?»** —
 > che è una domanda per `U20` / `PIE-BAL1`, non per un documento.
 
-> 🔴 **Due costi che nessuna delle tre voci può nascondere.** Il valore di `bAllowsReaction` lo assegna oggi
+> 🔴 **Misurato il 2026-08-27, e il preventivo di `D-206` era sbagliato in entrambi i versi.** Il
+> *«controllo direzionale per-colpo»* non è un ramo da spostare — **il dato non c'è dove serve** — ma la
+> parte che sembrava cara, la serializzazione, non esiste. Sotto, nell'ordine in cui è stato misurato.
+>
+> ```cpp
+> struct FRTAttack { int32 TargetIndex = INDEX_NONE; int32 Power = 0; };
+> ```
+>
+> `FRTAttack` **non porta l'attaccante**, e le due funzioni che applicano le mitigazioni —
+> `ApplyFirstHitDelta` (gate «una volta sola») e `ApplyDamageDelta` (ogni colpo) — prendono un delta
+> **per bersaglio**, non per colpo. Oggi la direzione si valuta a monte in `RTTurnManager`, dove
+> `Plan.Hits` porta `AttackerId`, e viene **collassata in un booleano per bersaglio** prima della
+> chiamata: è quel collasso che `D-206` scioglie, non un `if`.
+>
+> ✅ **Deciso il 2026-08-27 da [D-212](../../decisions/RT_PDR_00_Decision_Log.md): l'attaccante entra in
+> `FRTAttack`** (`AttackerIndex` in coda, riempito da `ToAttacks` con `Hit.AttackerId`, che ha già in
+> mano). 🔴 **E il costo che questa riga temeva non esiste**: `FRTAttack` **non è serializzato** — assente
+> da `RTTurnLog.h` e da `Replay/` — quindi il campo non tocca l'identità delle tracce e `D-196` non morde.
+> Un solo call site di produzione, e il campo è additivo con default.
+>
+> Scartata la **terza funzione con delta parallelo ai colpi**: è l'idioma che quella stessa funzione usa
+> già dieci righe sotto (`AttackSrc`), e che **ha già prodotto un difetto** — la cicatrice è scritta lì
+> accanto: *«`Attackers` non serve allo scopo: è deduplicata, quindi non è parallela»*.
+>
+> ✅ **La buona notizia, dallo stesso giro**: `D-204` e `D-205` sono per il resto **uno scambio di
+> chiamata**. Le due funzioni esistono, sono documentate come *«non intercambiabili»* proprio per quel
+> gate, e le due difese si scambiano di posto fra loro — `Guard` passa a `ApplyDamageDelta`, il `Brace`
+> a `ApplyFirstHitDelta`. ⛔ **Ma non prima di `BAL-3`**: fatto senza rinumerare dà la `Guard` a −15 su
+> **ogni** colpo e il `Brace` a −10 su **uno**, cioè una coppia peggiore di quella che sostituisce.
+
+> 🔴 **Due costi che nessuna delle cinque voci può nascondere.** Il valore di `bAllowsReaction` lo assegna oggi
 > un `if` sull'ActionId dentro `ShippedAction` — un secondo utente lo rende un **parametro**, non allunga il
 > predicato. E `ResolvePrep` **non legge** il flag: senza quel ramo la decisione sarebbe dichiarata e mai
 > applicata, che è peggio di non averla presa.
