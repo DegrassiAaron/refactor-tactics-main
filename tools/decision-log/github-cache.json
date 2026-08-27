@@ -852,6 +852,11 @@
    "title": "Lo scatto pianificato non e' annullabile: ERTPointerBackStep non lo elenca",
    "type": "issue"
   },
+  "1403": {
+   "state": "open",
+   "title": "Tre azioni del catalogo non sono nel kit di nessun eroe: Cleanse, Shield e Purge sono irraggiungibili",
+   "type": "issue"
+  },
   "1412": {
    "state": "open",
    "title": "Due voci di Blast finiscono due volte nel combat log: `AddLogEvent` esplicito piu' la derivazione di `ConcludeTurn`",
