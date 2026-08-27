@@ -13,6 +13,7 @@
 #include "Combat/RTOffensiveActionLibrary.h" // MakeSuppressiveZone: la zona dell'Overwatch E' quella della soppressione
 #include "Perception/RTPerceptionLibrary.h" // TeamAwarenessOfCell: il trigger richiede `Rilevato` (ADR-0004 §6)
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTEquipmentData.h" // `EquipmentId`: distingue una reazione di loadout da una di kit
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
@@ -425,6 +426,33 @@ void ARTTurnManager::PlanBots()
 	// che non fa niente.
 	RefreshTeamKnowledgeForPlanning(Units);
 
+	// Gli id di TUTTO l'equipaggiamento spedito, per distinguere un'abilita' concessa dal LOADOUT da una del
+	// KIT (`#1403`, [D-220]). Si chiede al catalogo, non all'indice.
+	//
+	// ⚠️ **Tutto l'equipaggiamento, non i soli moduli reazione**: `EquipLoadout` passa da
+	// `MakeEquipmentAction` per ogni pezzo non-arma, **gadget compresi**, e quella funzione scrive
+	// `Def.ActionId = Item->EquipmentId` per tutti. Un gadget costruito su un'azione di slot reazione
+	// finirebbe archiviato fra le abilita' di kit — e sarebbe la stessa «origine per accidente» che questa
+	// riga esiste per togliere, un livello piu' sotto.
+	//
+	// ⚠️ **`static`, quindi una volta per processo**: `FindEquipment` ricostruisce i tre cataloghi a ogni
+	// chiamata — **diciassette** `NewObject` piu' le `FText` — e `PlanBots` gira a ogni turno. E' l'idioma
+	// che `DefaultReactionModuleFor` e `DefaultGadgetFor` gia' usano due funzioni piu' su.
+	static const TSet<FName> IdEquipaggiamento = []()
+	{
+		TSet<FName> Ids;
+		for (const TArray<URTEquipmentData*>& Catalogo :
+			{ URTCatalogLibrary::MakeWeaponVariants(), URTCatalogLibrary::MakeGadgets(),
+			  URTCatalogLibrary::MakeReactionModules() })
+		{
+			for (const URTEquipmentData* Pezzo : Catalogo)
+			{
+				if (Pezzo) { Ids.Add(Pezzo->EquipmentId); }
+			}
+		}
+		return Ids;
+	}();
+
 	for (int32 BotIdx = 0; BotIdx < Units.Num(); ++BotIdx)
 	{
 		ARTUnit* Bot = Units[BotIdx];
@@ -447,6 +475,13 @@ void ARTTurnManager::PlanBots()
 		// e' un piano legale, e nessuno guardava. Con [D-191] la carica e' mobilita', quindi le due voci si
 		// contendono lo slot e `ValidatePlan` lo dichiara `SlotOccupied` — misurato dal bot, non dedotto.
 		Bot->PlannedDashAbility = INDEX_NONE;
+		// ⚠️ **E lo slot REAZIONE, che era il sesto campo su sei a non ripartire da zero** (`#1403`,
+		// [D-220]): fino a oggi dipendeva solo da `ClearReactionPlan()` nel Cleanup, che non gira sul
+		// passaggio di `BeginPlay` ne' quando `PlanBotsForTest()` precede `LockInAndResolve()`. Da [D-220]
+		// «nessuna reazione utilizzabile» e' un esito raggiungibile da due categorie indipendenti — kit e
+		// loadout — quindi un indice stantio sopravviverebbe piu' spesso di prima. Si passa dalla porta di
+		// [D-109]: azzera lo slot **e la sua condizione**, che sono una cosa sola.
+		Bot->ClearReactionPlan();
 
 		// Lo snapshot su cui QUESTO bot pianifica: quello della sua squadra, che porta le prenotazioni delle
 		// compagne gia' passate di qui. Esistono tutti da prima del ciclo, quindi qui non si inserisce nulla
@@ -501,22 +536,50 @@ void ARTTurnManager::PlanBots()
 		// armarla.
 		//
 		// Nessuna euristica su QUANDO conviene: il trigger e' dichiarato dall'abilita' e valutato dal
-		// resolver, e una reazione non armata non costa nulla a nessuno. Sceglierne una fra due sarebbe una
-		// decisione di bot (E15) — con un solo slot reazione nel kit di ogni eroe, oggi non si pone.
+		// resolver, e una reazione non armata non costa nulla a nessuno.
 		//
 		// Senza questa riga meta' delle unita' della v0.1 non reagirebbe mai, e il playtest misurerebbe un
 		// gioco diverso da quello progettato: i sette moduli di CP 7.5 sarebbero verdi nei test e assenti in
 		// partita.
+		//
+		// 🔴 **LA REGOLA: prima quella di KIT, il modulo di loadout come riserva** (`#1403`, [D-220]).
+		//
+		// ⚠️ **E' il comportamento che c'era gia': cambia che ora e' DICHIARATO.** Fino al 2026-08-27 questa
+		// riga diceva *«sceglierne una fra due sarebbe una decisione di bot (E15) — con un solo slot reazione
+		// nel kit di ogni eroe, oggi non si pone»*, e la premessa era falsa da [D-218]: Riktor porta
+		// `Interposition` (kit) **e** `Reaction.Cleanse` (modulo). Il `break` sul primo trovato sceglieva per
+		// **ordine di indice** — e dava il kit solo perche' `EquipLoadout` accoda. Stessa risposta, per
+		// accidente invece che per regola.
+		//
+		// La preferenza ha una ragione, ed e' l'identita': la reazione di kit e' cio' che l'eroe **e'** — il
+		// catalogo eroi la descrive cosi' — e il modulo e' cio' che la composizione gli **aggiunge**. Quando
+		// il kit e' in ricarica il modulo copre, che e' il mestiere di una riserva.
+		//
+		// ⚠️ **Quale delle due convenga davvero e' una domanda aperta** (`BOT-REACT-1`), e vale per E15: i
+		// moduli hanno `CooldownTurns = 0`, quindi un bot che preferisse il loadout non armerebbe **mai piu'**
+		// la reazione d'eroe. Invertire questa riga non e' una pulizia — e' un cambio di gioco.
+		int32 DalKit = INDEX_NONE;
+		int32 DalLoadout = INDEX_NONE;
 		for (int32 R = 0; R < Bot->NumAbilities(); ++R)
 		{
 			const URTActionData* Reaction = Bot->GetAbility(R);
-			if (Reaction && Reaction->Def.Slot == ERTActionSlot::Reaction && Bot->CanUseAbility(R))
+			if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction || !Bot->CanUseAbility(R))
 			{
-				Bot->PlannedReactionAbility = R;
-				AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione)"),
-					*Bot->GetName(), *Reaction->Def.ActionId.ToString()));
-				break;
+				continue;
 			}
+			// L'origine si chiede al CATALOGO: `MakeEquipmentAction` scrive `Def.ActionId = EquipmentId`.
+			// Dedurla dalla posizione — «i moduli stanno in fondo perche' `Add` accoda» — e' esattamente
+			// l'accidente che questa riga smette di usare.
+			int32& Candidato = IdEquipaggiamento.Contains(Reaction->Def.ActionId) ? DalLoadout : DalKit;
+			if (Candidato == INDEX_NONE) { Candidato = R; } // a parita' di origine, il primo: deterministico
+		}
+
+		const int32 Armata = (DalKit != INDEX_NONE) ? DalKit : DalLoadout;
+		if (const URTActionData* Reazione = Bot->GetAbility(Armata)) // `nullptr` per `INDEX_NONE`
+		{
+			Bot->PlannedReactionAbility = Armata;
+			AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione)"),
+				*Bot->GetName(), *Reazione->Def.ActionId.ToString()));
 		}
 
 		if (bUsedSupport)
@@ -1647,16 +1710,32 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 			// 🔴 **Una cura su chi e' caduto nel frattempo non sparisce in silenzio** ([D-196], `#1447`).
 			// Gli attacchi risolvono a priorita' 50-65 e le cure a 70: l'alleato puo' morire NELLO STESSO
 			// Blast in cui qualcuno lo stava curando. `CollectHealActions` ha gia' accettato il piano e
-			// bruciato `ConsumeAbility`, quindi senza questa voce il replay mostra un curatore con
-			// l'abilita' in ricarica e nessuna azione registrata.
+			// ANNOTATO l'azione come partita, quindi senza questa voce il replay mostrerebbe un curatore con
+			// l'abilita' in ricarica — la scrive `SpendStartedAbilities` a fase finita — e nessuna azione
+			// registrata. ⚠️ Fino a `#1451` questa riga diceva «bruciato `ConsumeAbility`»: era vero quando
+			// il consumo stava dentro la raccolta, e qui si arriva PRIMA del pagamento, non dopo.
 			//
 			// E' la terza faccia della stessa asimmetria che D-196 ha chiuso per `OutOfRange` e `NoEffect`.
 			// Il motivo `TargetDead` esiste gia' nell'enum: e' esattamente questo.
-			// ⚠️ **Un curatore morto non scrive**: gli attacchi si applicano poche righe piu' su, quindi chi
-			// curava puo' essere caduto nello stesso Blast. `CollectHealActions` e `ResolveCleanseActions`
-			// rifiutano un cadavere per la stessa ragione — la voce entrerebbe nell'hash del replay.
+			// 🔴 **Anche un curatore caduto scrive** (`#1473`, [D-219]), e fino al 2026-08-27 non lo faceva.
+			// La riga qui diceva *«un curatore morto non scrive … la voce entrerebbe nell'hash del replay»*,
+			// e si smentiva da sola quaranta righe piu' sotto: il percorso di **successo** scrive
+			// `AppendLogEntry(Entry, Healers[h])` **senza nessuna guardia di vita**. Stessa funzione, stesso
+			// predicato, due risposte — e quella che taceva era la sola a perdere informazione.
+			//
+			// ⚠️ **La morte del curatore non cambia se la cura e' avvenuta.** Se e' avvenuta, la traccia deve
+			// dirlo: e' la classe che [D-196] ha chiuso quattro volte e [D-203] una quinta — *non una riga di
+			// troppo, una che non c'e'*.
+			//
+			// ⚠️ **E «entra nell'hash» non era un argomento contro scriverla**: era un argomento contro
+			// scriverla in modo NON DETERMINISTICO. La simultaneita' del Blast e' ordinata, e queste voci
+			// escono nell'ordine di raccolta di `CollectHealActions`.
+			//
+			// ⚠️ **Non e' la stessa regola di `CollectHealActions` e `ResolveCleanseActions`**, che rifiutano
+			// un cadavere e continuano a farlo: li' si decide se un'unita' **agisce**, e un morto non agisce.
+			// Qui si decide se si **registra** qualcosa che e' gia' successo, e la morte non lo disfa.
 			ARTUnit* Curatore = Healers.IsValidIndex(h) ? Healers[h] : nullptr;
-			if (Curatore && Curatore->IsAlive())
+			if (Curatore)
 			{
 				// ⚠️ Il motivo distingue i due casi che la condizione qui sopra mette insieme: `TargetGone`
 				// se il puntatore non c'e' piu' — l'Actor e' stato distrutto fra raccolta e applicazione — e
@@ -3798,11 +3877,26 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 
 void ARTTurnManager::ResolveCombat()
 {
+	// 🔴 **Il pagamento sta FUORI dalla sequenza, e non e' una preferenza di stile** (`#1451` punto 3).
+	//
+	// `ResolveCombatPasses` ha un'uscita anticipata — «nessun colpo» — e finche' il consumo e' stato dentro
+	// la sequenza, quell'uscita ha DOVUTO lasciare che ogni azione pagasse per conto proprio: e' esattamente
+	// cio' che il commento di quel `return` dichiarava, ed e' la ragione per cui i punti di consumo erano
+	// cinque. MISURATO il 2026-08-27: con la passata unica in coda alla sequenza, una cura fuori da uno
+	// scontro non pagava piu' — quattro test rossi, e la causa era il `return`, non la passata.
+	//
+	// Tenendolo qui l'invariante diventa STRUTTURALE: qualunque uscita futura della sequenza passa comunque
+	// da `SpendStartedAbilities`, e un `return` in piu' non puo' far dimenticare il cooldown a nessuno.
+	FRTBlastContext Ctx;
+	ResolveCombatPasses(Ctx);
+	SpendStartedAbilities(Ctx);
+}
+
+void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
+{
 	// La fase Blast e' una SEQUENZA: chi ordina sta qui, chi decide sta nei pass. L'ordine non e' un dettaglio
 	// di implementazione — il catalogo assegna alle azioni un codice (20 movimento, 30 controllo, 40 attacco,
 	// 70 supporto) e questa funzione lo rispetta. Spostare una chiamata cambia il gioco.
-	FRTBlastContext Ctx;
-
 	GatherBlastUnits(Ctx);
 	RefreshTeamKnowledgeForBlast(Ctx);
 	ResolveCleanseActions(Ctx);
@@ -4359,9 +4453,10 @@ void ARTTurnManager::ResolveCombat()
 		// prima stesura usciva di qui e la cura spariva in silenzio.)
 		ApplyPlannedHeals(HealTargets, HealAmounts, HealSources, HealActors, HealDefs);
 
-		// ⚠️ Qui NON si consuma: `Attackers` si popola dai colpi sopravvissuti, e se non ce n'e' nessuno e'
-		// vuoto. Chi ha speso un'azione senza lasciare un colpo la paga dove quell'azione vive — l'Interrupt
-		// in `ApplyInterrupts` (`#1444`), la cura in `CollectHealActions`.
+		// ⚠️ Qui non si consuma nulla, e non serve piu' che qualcuno lo faccia al posto proprio: `ResolveCombat`
+		// chiama `SpendStartedAbilities` **fuori** da questa funzione, quindi anche questa uscita paga cio' che
+		// i pass hanno annotato (`#1451` punto 3). Fino al 2026-08-27 questa riga diceva l'opposto — «la paga
+		// dove quell'azione vive» — ed era la ragione per cui i punti di consumo erano cinque.
 		return;
 	}
 
@@ -4420,7 +4515,7 @@ void ARTTurnManager::ResolveCombat()
 
 	// Coda della fase: cio' che si applica quando il danno e' risolto e si sa chi e' rimasto in piedi.
 	ApplyDisplacements(Ctx);
-	ConsumeAttackerAbilities(Ctx);
+	MarkAttackerAbilitiesSpent(Ctx);
 	ApplyControlStatuses(Ctx);
 }
 

@@ -159,13 +159,16 @@ sopra**, che erano già l'autorità: il grafo diceva *dove guardare*, non *cosa 
 
 ### Le due toolchain
 
-⛔ **Ne resta una.** `scripts/` è stata rimossa il 2026-08-21 (**D-182**) con i suoi nove script e i due
-file di test: cinque gate documentali, due controlli sui dati di gioco, due generatori.
+⛔ **Nessuna delle due fa più da gate.** `scripts/` è stata rimossa il 2026-08-21 (**D-182**) con i suoi
+nove script e i due file di test: cinque gate documentali, due controlli sui dati di gioco, due generatori.
+Il Python versionato è tornato — tre file — ma nessuno di essi verifica niente.
 
 | | dove | cosa |
 |---|---|---|
-| ~~**Python**~~ | ~~`scripts/`~~ | ⛔ **rimossa con D-182** il 2026-08-21: i cinque gate documentali, i due controlli sui dati di gioco e i due generatori. ⚠️ Resta **un** file Python versionato, `tools/icons-downloader/paragon_skill_icons_downloader.py`: e' un downloader, non un gate |
-| **Node 22** | `tools/radar/` | rubrica dei rating e generatore SVG dei radar di personaggio |
+| ~~**Python**~~ | ~~`scripts/`~~ | ⛔ **rimossa con D-182** il 2026-08-21: i cinque gate documentali, i due controlli sui dati di gioco e i due generatori |
+| **Node 22** | `tools/radar/` | rubrica dei rating e generatore SVG dei radar di personaggio — **gli unici controlli vivi** |
+| **Python 3.11** | `tools/icons-downloader/` | un downloader di icone Paragon, non un gate |
+| **Python 3.11** | `tools/decision-log/` | vista HTML del Decision Log e raccoglitore del suo stato GitHub — **nessun `--check`**, non falliscono mai |
 
 > 🔴 **Fino al 2026-08-19 questa tabella elencava i gate Python per nome, e ne conosceva tre su sei.**
 > Mancavano `check-docs-naming.py`, `check-capability-owners.py` e `check-equipment-defaults.py`, più
@@ -191,6 +194,21 @@ prezzo dichiarato di [D-108](decisions/RT_PDR_00_Decision_Log.md).
 
 Nessun `npm install`, nessun build step: Node 22 esegue TypeScript con type stripping e i test usano
 `node:test`, quindi `tools/` ha **zero dipendenze**.
+
+`tools/decision-log/` legge questo registro — [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md),
+che resta l'**owner** — e ne genera una pagina unica dove ogni `#nnnn` e ogni `D-nnn` sono cliccabili:
+
+```sh
+python3 tools/decision-log/fetch_github_cache.py                        # stato e titoli da GitHub (serve `gh`)
+python3 tools/decision-log/build_decision_view.py --out build/decision-log.html
+```
+
+⚠️ **L'HTML è un artefatto rigenerabile e non si versiona** (`build/` è in `.gitignore`): la vista non è
+una seconda verità, si ricostruisce dal Markdown. Ciò che **è** versionato è `github-cache.json`, e va
+saputo per cos'è: un'**istantanea datata** dello stato delle issue, non un dato vivo — una pagina statica
+non può interrogare GitHub. La pagina dichiara la data in cui è stata presa; chi la usa per decidere cosa
+è ancora aperto rilancia prima il primo comando. Sola dipendenza esterna del repository: la CLI `gh`, e la
+usa solo quel comando.
 
 Gli ID condivisi del Decision Log — `D-nnn` — si scelgono leggendo l'ultimo assegnato e si
 **riverificano prima del merge** ([D-178](decisions/RT_PDR_00_Decision_Log.md)):

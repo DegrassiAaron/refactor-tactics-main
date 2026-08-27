@@ -166,7 +166,10 @@ valore atteso prima dell'implementazione (es. `Burning`: 70 HP invece di 62, cio
 
 ## 6. Fuori scope dichiarato
 
-- **Propagazione elettrica** e applicazione reale di `Electrified` → CP 8.3 (`#66`).
+- **Propagazione elettrica** → CP 8.3 (`#66`). ⚠️ **L'applicazione reale di `Electrified` non è arrivata, ed
+  è una decisione, non un ritardo**: §D6 della spec di CP 8.3 dichiara *«`Status.Electrified` **non** viene
+  applicato alle unità»*. Questa riga la prometteva ancora — riga **79** di
+  [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md), [D-211](../decisions/RT_PDR_00_Decision_Log.md).
 - **Spegnimento del fuoco da parte dell'acqua sulla *cella*** (`Environment.WaterExtinguishesFire`) → CP 8.4
   (`#67`). Qui `Wet` rimuove `Burning` **dall'unità**: è l'altra metà, e il catalogo le distingue.
 - **`Action.Ignite` / `CreateWater`** (modifica dinamica della superficie) → CP 8.5 (`#68`).

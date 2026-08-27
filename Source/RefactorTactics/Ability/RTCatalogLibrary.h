@@ -269,7 +269,11 @@ public:
 	/**
 	 * I moduli di reazione del catalogo §3 che il motore **sa far scattare** (CP 7.3 `#62`, CP 7.5 `#505`).
 	 *
-	 * Sono **sei** dei sette. L'unico assente e' `HazardEscape`, e non gli manca un dato: gli manca un
+	 * ⚠️ **Sono SETTE, tutti** — questa riga diceva «sei dei sette, l'unico assente e' `HazardEscape`», ed e'
+	 * scaduta quando il prerequisito e' arrivato (`#570`: una superficie che nasce sotto un'unita' ferma le
+	 * fa qualcosa). Corretta il 2026-08-27 ([D-220], `#1403`), che ha reso questo elenco load-bearing per la
+	 * scelta della reazione del bot. La storia resta perche' spiega la forma:
+	 * `HazardEscape` era l'ultimo, e non gli mancava un dato: gli mancava un
 	 * PREREQUISITO. Una superficie che nasce sotto un'unita' ferma oggi non le fa niente — tranne l'acqua,
 	 * che ha un ramo suo — quindi nel Cleanup non c'e' nessun danno imminente da cui fuggire e il modulo
 	 * sarebbe inerte: la trappola di `Phase.MistVeil` (`#353`). Lo chiude `#570`, e questo modulo lo segue.

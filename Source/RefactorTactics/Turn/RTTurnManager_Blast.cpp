@@ -197,7 +197,7 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 	TeamKnowledgeState = MoveTemp(Refreshed);
 }
 
-void ARTTurnManager::ResolveCleanseActions(const FRTBlastContext& Ctx)
+void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 {
 	// `Action.Cleanse` (CP 5.2): azione PRINCIPALE, non una reazione, e l'unica del Blast che agisce su CHI LA
 	// USA invece che su un bersaglio. Risolve PRIMA del ciclo degli intenti, per due motivi indipendenti:
@@ -248,14 +248,19 @@ void ARTTurnManager::ResolveCleanseActions(const FRTBlastContext& Ctx)
 			}
 		}
 
-		Unit->ConsumeAbility(CleanseIdx);
+		Ctx.MarkAbilitySpent(Unit, CleanseIdx); // parte qui, si paga in `SpendStartedAbilities` (`#1451`)
 		Unit->PlannedAbilityIndex = INDEX_NONE; // consumata qui: non deve diventare anche un intento d'attacco
 		Unit->PlannedAttackTarget = nullptr;
 
 		// 🔴 Una purificazione che non purifica **non sparisce in silenzio** ([D-196], `#1437`): e' lo stesso
-		// difetto della cura senza effetti sessanta righe piu' sotto, nella stessa funzione — ci si arriva
-		// dopo `ConsumeAbility`, quindi il cooldown e' gia' bruciato, e il record autoritativo non conteneva
-		// niente. Chiuderne uno e lasciare il gemello lascerebbe la classe mezza aperta.
+		// difetto della cura senza effetti sessanta righe piu' sotto, nella stessa funzione — l'azione e' gia'
+		// stata ANNOTATA come partita, quindi il cooldown verra' scritto comunque, e il record autoritativo
+		// non conteneva niente. Chiuderne uno e lasciare il gemello lascerebbe la classe mezza aperta.
+		//
+		// ⚠️ Fino a `#1451` questa riga diceva «ci si arriva dopo `ConsumeAbility`, quindi il cooldown e' gia'
+		// bruciato»: vero allora, falso da quando il pagamento e' in `SpendStartedAbilities`. Il MOTIVO per cui
+		// la voce serve non cambia — l'abilita' risultera' comunque spesa — ma la premessa si', e questo file
+		// tratta i commenti come specifica.
 		if (!Removed.IsValid())
 		{
 			FRTTurnLogEntry PurgaVuota = MakeSupportFallback(
@@ -338,15 +343,16 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// 🔴 **Qui l'azione e' PARTITA** ([D-200]): il bersaglio e' raggiungibile, e da questo punto in poi
 		// qualunque cosa vada storta e' un esito. Il cooldown si paga, e resta pagato anche se la
 		// simultaneita' disfa la cura piu' tardi — il bersaglio che cade nello stesso Blast, [D-197].
-		Unit->ConsumeAbility(HealIdx);
+		Ctx.MarkAbilitySpent(Unit, HealIdx); // parte qui, si paga in `SpendStartedAbilities` (`#1451`)
 
 		int32 Amount = 0;
 		for (const FRTActionEffectSpec& Spec : Heal->Def.Effects)
 		{
 			if (Spec.Effect == ERTActionEffect::Heal) { Amount = Spec.Amount; break; }
 		}
-		// 🔴 Una cura che non cura **non sparisce in silenzio** (`#1437`). Ci si arriva DOPO
-		// `ConsumeAbility` — il cooldown e' gia' bruciato — e dopo che il piano e' stato azzerato: senza
+		// 🔴 Una cura che non cura **non sparisce in silenzio** (`#1437`). Ci si arriva DOPO l'ANNOTAZIONE
+		// — il cooldown lo scrivera' `SpendStartedAbilities` a fase finita (`#1451`; fino ad allora questa
+		// riga diceva «gia' bruciato», che era vero e non lo e' piu') — e dopo che il piano e' azzerato: senza
 		// questa voce non restava niente, ne' nel TurnLog ne' nel combat log, e un replay non poteva
 		// spiegare perche' il turno del curatore non avesse prodotto nulla e perche' l'abilita' fosse in
 		// ricarica. Strettamente peggio del caso «fuori portata» qui sopra, che almeno una riga ce l'aveva.
@@ -453,7 +459,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					continue;
 				}
 
-				Unit->ConsumeAbility(ArcAbilityIndex);
+				Ctx.MarkAbilitySpent(Unit, ArcAbilityIndex); // parte qui, si paga in `SpendStartedAbilities`
 				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell, Unit, PlannedNow->Def });
 			}
 			continue;
@@ -1038,10 +1044,16 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 			? Units[Intents[k].AttackerId] : nullptr;
 		// ⚠️ `IsAlive()`: un'unita' uccisa in Prep o nel Dash arriva al Blast col piano ancora addosso —
 		// `CollectAttackIntents` non filtra i morti, e lo dichiara — quindi senza questa guardia un cadavere
-		// pagherebbe un'azione che non ha mai eseguito. Stessa regola di `ConsumeAttackerAbilities`.
+		// pagherebbe un'azione che non ha mai eseguito.
+		//
+		// ⚠️ **NON e' la stessa regola di `MarkAttackerAbilitiesSpent`**, e fino al 2026-08-27 questa riga
+		// diceva che lo fosse. Qui si gira PRIMA del danno, quindi `IsAlive()` vuol dire «vivo quando
+		// annota»; li' si gira DOPO, e vuol dire «sopravvissuto alla fase». Sono i due lati dell'asimmetria
+		// di [D-209], e scambiarli cambia il gioco — lo fanno diventare rosse le due righe
+		// `curatore che cade nel Blast` e `attaccante che colpisce e cade`.
 		if (Interruttore && Interruttore->IsAlive())
 		{
-			Interruttore->ConsumeAbility(Ctx.IntentAbilityIndex[k]);
+			Ctx.MarkAbilitySpent(Interruttore, Ctx.IntentAbilityIndex[k]);
 		}
 	}
 
@@ -1877,12 +1889,18 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	}
 }
 
-void ARTTurnManager::ConsumeAttackerAbilities(FRTBlastContext& Ctx)
+void ARTTurnManager::MarkAttackerAbilitiesSpent(FRTBlastContext& Ctx)
 {
 	TArray<ARTUnit*>& Attackers = Ctx.Attackers;
 	TArray<int32>& UsedAbilityIndex = Ctx.UsedAbilityIndex;
 
-	// Attaccanti sopravvissuti: consuma l'abilita' (energia+cooldown); se gratuita, accumula energia.
+	// Attaccanti SOPRAVVISSUTI: qui si decide CHI paga e si assegna l'energia — due cose, e il nome dice
+	// la prima. A scrivere il cooldown e' `SpendStartedAbilities`, l'unico punto che lo fa (`#1451`).
+	//
+	// ⚠️ **La guardia `IsAlive()` resta QUI e non si sposta**: per un attaccante «spesa» significa
+	// *sopravvissuto alla fase*, non *partita* — e' l'unico dei cinque punti in cui il criterio si conosce
+	// solo a danno risolto. Portarla nella passata unica farebbe smettere di pagare anche il curatore che
+	// cade a meta' Blast, che oggi paga: un cambio di gioco, non una pulizia.
 	for (int32 i = 0; i < Attackers.Num(); ++i)
 	{
 		ARTUnit* Attacker = Attackers[i];
@@ -1891,7 +1909,7 @@ void ARTTurnManager::ConsumeAttackerAbilities(FRTBlastContext& Ctx)
 			continue;
 		}
 		const URTActionData* Ability = Attacker->GetAbility(UsedAbilityIndex[i]);
-		Attacker->ConsumeAbility(UsedAbilityIndex[i]);
+		Ctx.MarkAbilitySpent(Attacker, UsedAbilityIndex[i]);
 		if (Ability && Ability->EnergyCost > 0)
 		{
 			AddLogEvent(FString::Printf(TEXT("Ultimate! %s"), *Attacker->GetName()));
@@ -1996,5 +2014,78 @@ void ARTTurnManager::ApplyControlStatuses(FRTBlastContext& Ctx)
 			}
 			AddLogEvent(FString::Printf(TEXT("Status: %s"), *Slowed->GetName()));
 		}
+	}
+}
+
+void ARTTurnManager::SpendStartedAbilities(const FRTBlastContext& Ctx)
+{
+	// 🔴 **L'UNICO posto in cui un'azione pianificata del Blast paga il proprio cooldown** (`#1451` punto 3).
+	//
+	// Prima erano cinque, con cinque criteri: `ResolveCleanseActions` subito dopo le guardie di validita',
+	// `CollectHealActions` dopo la portata ([D-200]), `ModifyArc` solo se l'op finiva in coda,
+	// `ApplyInterrupts` dagli INTENTI con le eccezioni di `#1449`, `MarkAttackerAbilitiesSpent` dai colpi
+	// sopravvissuti. Ogni azione nuova che potesse validarsi senza colpire ne voleva un sesto — ed e' la
+	// ragione per cui il difetto e' stato trovato cinque volte in quarantotto ore (#1437, #1443, #1444,
+	// #1445, #1449).
+	//
+	// ⚠️ **Quel che si e' unificato e' il GESTO, non il criterio**, e la distinzione e' la sostanza della
+	// correzione. «L'azione e' partita?» resta a chi raccoglie, perche' e' l'unico che sa cosa puo' sapere in
+	// quel momento: la portata si conosce in pianificazione, un colpo prodotto no, e la sopravvivenza di chi
+	// attacca si sa solo a danno risolto. Pretendere un criterio solo qui avrebbe voluto dire scrivere un
+	// `switch` sull'azione — cioe' rifare le cinque regole con un nome nuovo.
+	//
+	// ⚠️ **E per la stessa ragione qui NON si riguarda `IsAlive()`**: chi cura o purifica e' vivo all'inizio
+	// del Blast, chi attacca deve esserlo alla fine. Un controllo unico in questo punto farebbe smettere di
+	// pagare il curatore che cade a meta' fase — un cambio di comportamento travestito da pulizia.
+	//
+	// ⚠️ **Fuori di qui, e dichiarato**: le REAZIONI (`ResolveInterceptions`, `RunReactionPass`) non sono
+	// azioni pianificate ma inneschi condizionali, e a governarle e' [D-092] col proprio contatore di
+	// attivazioni; le altre fasi (Prep, Move, Dash, Environment) hanno tempistiche proprie, e ricondurle a
+	// [D-200] e' una decisione che non e' stata presa.
+	//
+	// ⚠️ **Un accoppiamento latente, dichiarato perche' oggi e' irraggiungibile e domani forse no.**
+	//
+	// `CanUseAbility` e' `IsAbilityUsable(GetAbilityCooldown(Index), Energy, EnergyCost)`: legge **il
+	// cooldown E l'energia**, cioe' entrambe le cose che questa passata ha differito. Quattro punti la
+	// chiamano dopo che qualcuno ha annotato — `ResolveInterceptions`, `RunReactionPass(BlastHits)`,
+	// `RunReactionPass(BlastDisplacement)` e `RunReactionPass(BlastStatus)`, quest'ultimo anche dopo
+	// `MarkAttackerAbilitiesSpent`.
+	//
+	// MISURATO il 2026-08-27, e sono due condizioni indipendenti che oggi non si verificano:
+	// - **energia**: nessuna delle sei reazioni spedite dichiara `EnergyCost` (default 0), quindi
+	//   l'ultimate differita non puo' rendere attivabile una reazione che prima non lo era;
+	// - **cooldown**: perche' si vedesse, un'unita' dovrebbe avere lo STESSO indice come azione principale
+	//   e come reazione. `CollectAttackIntents` non filtra su `Def.Slot`, quindi il caso e' costruibile —
+	//   ma i due percorsi di produzione che armano una reazione (`ARTPlayerController` e il bot) scrivono
+	//   `PlannedReactionAbility` e RITORNANO, senza mai toccare `PlannedAbilityIndex`. Ci arriva solo chi
+	//   scrive il piano a mano: test e scenari.
+	//
+	// Chi spedira' una reazione con un costo, o rendera' pianificabile come principale un'abilita' di slot
+	// reazione, guardi qui prima.
+	//
+	// L'ordine e' quello di annotazione, che e' l'ordine dei pass: `ConsumeAbility` scrive su unita' diverse,
+	// quindi non c'e' esito che dipenda dall'ordine — ma un array, e non una `TMap`, perche' la regola del
+	// progetto e' non dipendere mai dall'ordine di iterazione, non «non dipenderne quando si vede».
+	// I due array si riempiono in una sola istruzione (`MarkAbilitySpent`), che ne e' l'unico scrittore:
+	// la cardinalita' e' un invariante del tipo, non una condizione da tollerare. Dichiararlo qui evita di
+	// suggerire al prossimo lettore che possano divergere — e quindi di «aggiustare» lo sbilanciamento
+	// invece di preservare l'accoppiata.
+	//
+	// ⚠️ **`check` e non `checkSlow`**: `checkSlow` e' attivo solo sotto `DO_GUARD_SLOW`, cioe' in Debug —
+	// ne' l'Editor Development su cui gira l'automation ne' la Shipping lo compilano. Un invariante
+	// dichiarato con `checkSlow` non e' verificato da nessuna build che questo progetto produce davvero.
+	check(Ctx.SpentActors.Num() == Ctx.SpentAbilityIndex.Num());
+
+	for (int32 i = 0; i < Ctx.SpentActors.Num(); ++i)
+	{
+		ARTUnit* Attore = Ctx.SpentActors[i];
+		// ⚠️ Nessuna unita' viene DISTRUTTA dentro il Blast — `DestroyDefeatedUnits` gira in `ConcludeTurn`,
+		// dopo — quindi questa guardia oggi non scatta mai. Resta perche' il contesto tiene puntatori grezzi,
+		// come `Attackers`: se un giorno un pass distruggesse un attore, saltare e' meglio che dereferenziare.
+		if (!IsValid(Attore))
+		{
+			continue;
+		}
+		Attore->ConsumeAbility(Ctx.SpentAbilityIndex[i]);
 	}
 }

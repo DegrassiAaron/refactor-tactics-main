@@ -214,11 +214,33 @@ validazione · serializzazione/replay · privacy intenti.
   col Feature Registry il 2026-08-21 (**D-181**). Oggi il confronto si fa a mano leggendo il filtro nel log.
   Vale soprattutto prima di dichiarare una **verifica di mutazione**: se il test atteso non era in lista, il
   suo «non è caduto» non significa niente — e adesso nessuno script te lo dice.
+- 🔴 **Una console variable in testa a `-ExecCmds` fa saltare l'intera coda di automation**, ed è il caso
+  estremo della riga qui sopra: «N eseguiti su M dichiarati» con **N = 0**. Con
+  `-ExecCmds="rt.Qualcosa 1; Automation RunTests <filtro>; Quit"` l'editor esegue la prima voce — la CVar
+  compare nel log come `rt.Qualcosa = "1"` — e all'automation **non arriva**: nessuna riga
+  `LogAutomationCommandLine`, nessun test registrato, e il file finisce a metà avvio somigliando a una run
+  riuscita. Misurato il 2026-08-24 su due run consecutive, headless `-unattended -nullrhi`
+  ([#1300](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1300)).
+  ⚠️ **Come ci si accorge**: nel log devono esserci `Found <n> automation tests based on '<filtro>'` e, in
+  fondo, `**** TEST COMPLETE. EXIT CODE: <n> ****`. Se manca la prima, la run non ha misurato niente.
+  ✅ **La via d'uscita è `-dpcvars="nome=valore"`**, misurata il **2026-08-26** rigenerando il corpus
+  golden con `rt.Test.RegenerateGolden`: imposta la CVar **senza toccare la coda**, quindi dentro
+  `-ExecCmds` resta solo l'automation. ⚠️ Verifica sempre l'effetto atteso — `git status` sui file che
+  dovevano cambiare — invece di fidarti dell'esito del test.
+  ✅ In alternativa le impostazioni si passano dalla **riga di comando** e si leggono con
+  `FParse::Value(FCommandLine::Get(), TEXT("RTQualcosa="), Out)`: così dentro `-ExecCmds` resta solo la coda
+  di automation. ⚠️ Misurato con una CVar in **prima** posizione: che una voce non-CVar in testa faccia lo
+  stesso non è stato provato.
 - Le verifiche PIE/Editor non sono verdi finché qualcuno non le ha realmente eseguite.
 - ⛔ **Il repository non ha più gate Python.** Restano **Node 22** in `tools/radar/` — rubrica dei
-  rating, generatore SVG dei radar e allineatore degli alt sulla Wiki — e un solo file Python
-  versionato, `tools/icons-downloader/paragon_skill_icons_downloader.py`, che è un **downloader** e non
-  un gate. I controlli vivi sono **cinque**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi), `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), `node tools/radar/doc-links.ts --check` (i percorsi citati dai documenti), `node tools/radar/catalog-code.ts` (le stat base degli eroi fra catalogo e C++ — non ha `--check` perché non scrive mai: esce `1` e basta) e `node tools/radar/doc-tables.ts --check` (le righe di tabella che non hanno la larghezza delle sorelle), piu' la suite `node --test` di `tools/radar/` — si lancia **da dentro la cartella**, `node --test tools/radar/` fallisce con `MODULE_NOT_FOUND`.
+  rating, generatore SVG dei radar e allineatore degli alt sulla Wiki — e **tre** file Python
+  versionati, nessuno dei quali è un gate: `tools/icons-downloader/paragon_skill_icons_downloader.py`
+  è un **downloader**, e i due di `tools/decision-log/` sono un **generatore di vista** e il suo
+  raccoglitore di dati. Non hanno `--check`, non escono `1` su una divergenza, e nessun DoD li nomina.
+  *(Corretto il 2026-08-27: questa riga diceva «un solo file Python versionato», ed era vera fino a
+  quando `tools/decision-log/` non è atterrato. Il difetto è quello che `CONTEXT_INDEX.md` §«Le due
+  toolchain» ha già dichiarato per i gate: un elenco scritto a mano non si accorge di un file nuovo,
+  e chi aggiunge il file non passa di qui.)* I controlli vivi sono **cinque**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi), `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), `node tools/radar/doc-links.ts --check` (i percorsi citati dai documenti), `node tools/radar/catalog-code.ts` (le stat base degli eroi fra catalogo e C++ — non ha `--check` perché non scrive mai: esce `1` e basta) e `node tools/radar/doc-tables.ts --check` (le righe di tabella che non hanno la larghezza delle sorelle), piu' la suite `node --test` di `tools/radar/` — si lancia **da dentro la cartella**, `node --test tools/radar/` fallisce con `MODULE_NOT_FOUND`.
   La cartella `scripts/` è stata **rimossa** il 2026-08-21 (**D-182**): con lei sono usciti i nove
   script Python e i loro test — i cinque gate documentali (link, nomi, simboli, tabelle, inventario),
   i due controlli sui dati di gioco (`check-capability-owners`, `check-equipment-defaults`) e i due

@@ -765,8 +765,15 @@ FName URTCatalogLibrary::DefaultReactionModuleFor(const FName& HeroId)
 		{ FName(TEXT("Hero.Gadget")), FName(TEXT("Reaction.ReactiveShield")) },
 		// Fuga hazard: `Reposition 1` quando la cella diventa pericolosa.
 		{ FName(TEXT("Hero.Phase")), FName(TEXT("Reaction.HazardEscape")) },
-		// Interposizione: cambia bersaglio quando un alleato e' bersagliato.
-		{ FName(TEXT("Hero.Riktor")), FName(TEXT("Reaction.AllyIntercept")) },
+		// 🔴 **Purificazione, non interposizione** (`#1403`, [D-218]). §4 prescriveva
+		// `Reaction.AllyIntercept`, costruito su `Action.Intercept` — e la reazione di KIT di Riktor,
+		// `Hero.Riktor.Interposition`, e' costruita sullo **stesso** `Action.Intercept`. Lo slot di loadout
+		// spendeva su cio' che l'eroe ha gia': due voci per una capacita' sola, e nessuna scelta reale al
+		// giocatore. `Reaction.Cleanse` non gli toglie niente e gli da' l'unica risposta esistente allo
+		// `Status.Slow` che `Hero.Riktor.ImpactShot` — il suo **attacco base** — applica a ogni colpo
+		// (`#1479`). ⚠️ Questa riga si scosta da §4 del catalogo equipaggiamento, e lo dichiara: la fonte
+		// prescriveva un duplicato, e per [D-210] il codice recepito prevale su un catalogo di `balance/`.
+		{ FName(TEXT("Hero.Riktor")), FName(TEXT("Reaction.Cleanse")) },
 		// Dash d'emergenza: `Reposition 1` quando sei bersagliato.
 		{ FName(TEXT("Hero.Wraith")), FName(TEXT("Reaction.EmergencyDash")) },
 	};
