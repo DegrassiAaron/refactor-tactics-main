@@ -738,6 +738,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// e' dichiarato — e la deduplicazione viene gratis: due Interrupt sulla stessa vittima aggiungono lo
 	// stesso indice al `TSet` e producono una voce sola.
 	TSet<int32> InterruptedIntents;
+	TSet<int32> SpesiInterrupt; // un Interrupt si paga una volta, anche se il ciclo lo incontra due volte
 	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
@@ -747,28 +748,13 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		}
 		if (!Units.IsValidIndex(Hit.TargetId) || !Units[Hit.TargetId]) { continue; }
 
-		// 🔴 **L'interruttore paga il cooldown** (`#1444`). Il filtro in fondo a questa funzione toglie da
-		// `Plan.Hits` tutti i colpi di Interrupt — devono sparire, o un colpo a Power 0 conterebbe come
-		// «primo colpo» per `ApplyFirstHitDelta` — ma li toglie PRIMA che `ResolveCombat` costruisca
-		// `Attackers` dai colpi sopravvissuti, e `ConsumeAttackerAbilities` e' l'unico punto del Blast che
-		// consuma. `Action.Interrupt` risolve in fase `Control`, quindi nemmeno la consumazione del Prep lo
-		// copriva: il catalogo gli dava cooldown 2 e non lo pagava mai, cioe' si poteva interrompere ogni
-		// turno.
-		//
-		// Si registra QUI, finche' l'intento e' ancora vivo. `Attackers` e' additivo e protetto da
-		// `Contains`, quindi convive con il riempimento successivo senza doppioni.
-		//
-		// ⚠️ Si consuma anche quando non c'e' niente da interrompere: l'azione e' stata spesa e il colpo ha
-		// raggiunto il bersaglio: e' la stessa regola di un attacco che non fa danno. Cio' che NON si
-		// consuma e' l'azione INTERROTTA, ed e' pinnato da `Actions.Interrupt.OnlyInterruptible`.
-		if (ARTUnit* Interruttore = Units.IsValidIndex(Hit.AttackerId) ? Units[Hit.AttackerId] : nullptr)
+		// 🔴 **Un Interrupt gia' CANCELLATO non interrompe** (`#1437`, trovato in review su `#1444`).
+		// `Action.Interrupt` e' interrompibile a sua volta, quindi A puo' annullare l'Interrupt di B mentre
+		// B stava annullando l'azione di C. Senza questa guardia l'azione di B produceva comunque il suo
+		// effetto — «come se non fosse mai partita» valeva per il cooldown e non per cio' che faceva.
+		if (InterruptedIntents.Contains(Hit.IntentIndex))
 		{
-			if (!Ctx.Attackers.Contains(Interruttore))
-			{
-				Ctx.Attackers.Add(Interruttore);
-				Ctx.UsedAbilityIndex.Add(Ctx.IntentAbilityIndex.IsValidIndex(Hit.IntentIndex)
-					? Ctx.IntentAbilityIndex[Hit.IntentIndex] : INDEX_NONE);
-			}
+			continue;
 		}
 
 		// Le azioni pianificate dal BERSAGLIO non si leggono da `Unit->PlannedAbilityIndex`: il ciclo che ha
@@ -848,6 +834,35 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 			// ⛔ **Niente `AddLogEvent` qui**: la riga arriva al combat log attraverso `ConcludeTurn`, che
 			// deriva una riga per ogni voce di TurnLog. Tenerla creerebbe un duplicato — la stessa
 			// informazione in due formati — che e' il debito noto di `#1412` punto 2.
+		}
+	}
+
+	// 🔴 **Chi ha interrotto paga l'azione che ha speso** (`#1444`). `Action.Interrupt` dichiara cooldown 2
+	// e non lo pagava mai: i suoi colpi escono da `Plan.Hits` col filtro qui sotto — devono, o un colpo a
+	// Power 0 conterebbe come «primo colpo» per `ApplyFirstHitDelta` — e uscivano PRIMA che `ResolveCombat`
+	// costruisse `Attackers` dai colpi sopravvissuti, che e' cio' da cui `ConsumeAttackerAbilities` legge.
+	// `Action.Interrupt` risolve in fase `Control`, quindi nemmeno la consumazione del Prep lo copriva.
+	//
+	// ⚠️ **Consumo diretto, e non registrandolo fra gli `Attackers`**: quella strada — la prima stesura di
+	// `#1444` — gli avrebbe dato anche `EnergyOnHit`, perche' `ConsumeAttackerAbilities` fa le due cose nello
+	// stesso ramo. Caricare l'ultimate a chi non ha colpito nessuno e' un cambio di bilanciamento che
+	// `#1444` non chiedeva, e `Attackers` avrebbe smesso di significare «chi ha colpito».
+	//
+	// ⚠️ **DOPO il verdetto**, non prima: un Interrupt a sua volta interrotto non paga, che e' la stessa
+	// regola che vale per ogni altra azione cancellata («e' come se non fosse mai partita»).
+	for (const FRTHexAttackHit& Hit : Plan.Hits)
+	{
+		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
+			|| !IsCoreAction(IntentDefs[Hit.IntentIndex], ActionInterrupt)
+			|| InterruptedIntents.Contains(Hit.IntentIndex))
+		{
+			continue;
+		}
+		if (!SpesiInterrupt.Contains(Hit.IntentIndex) && Units.IsValidIndex(Hit.AttackerId)
+			&& Units[Hit.AttackerId] && Ctx.IntentAbilityIndex.IsValidIndex(Hit.IntentIndex))
+		{
+			SpesiInterrupt.Add(Hit.IntentIndex);
+			Units[Hit.AttackerId]->ConsumeAbility(Ctx.IntentAbilityIndex[Hit.IntentIndex]);
 		}
 	}
 

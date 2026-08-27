@@ -170,6 +170,9 @@ struct FRTBlastContext
 	// --- Chi ha colpito, e con quale abilita' ------------------------------------------------------
 
 	/** Attaccanti sopravvissuti al Blast, paralleli a `UsedAbilityIndex`: l'abilita' si spende a fase finita. */
+	// ⚠️ **Chi ha COLPITO**, e solo quello: un'unita' che ha speso un'azione senza lasciare un colpo — un
+	// `Action.Interrupt`, i cui colpi vengono tolti tutti — NON entra qui, e paga la propria azione dove
+	// quell'azione vive (`#1444`). Chi legge questo array puo' contare su un `FRTAttack` corrispondente.
 	TArray<ARTUnit*> Attackers;
 	TArray<int32> UsedAbilityIndex;
 
