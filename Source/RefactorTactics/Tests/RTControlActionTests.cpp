@@ -2094,4 +2094,90 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Anche un curatore caduto lascia la voce della cura mancata.**
+ *
+ * `ApplyPlannedHeals` decideva con **due predicati opposti** se scrivere: il ramo di fallimento guardava
+ * `Curatore->IsAlive()`, quello di successo — quaranta righe piu' sotto, nella stessa funzione — scriveva
+ * senza nessuna guardia. Un curatore che cadeva mentre anche il bersaglio cadeva non lasciava **niente**:
+ * un turno speso, un cooldown pagato e il replay senza una riga che lo spiegasse (`#1473`, [D-219]).
+ *
+ * 🔴 **L'oracolo e' la VOCE, non lo stato del mondo**: la cura non avviene in nessuno dei due casi, quindi
+ * salute e cooldown sono identici col difetto e senza. Solo la traccia distingue.
+ *
+ * ⚠️ **Il curatore si legge da distrutto**: `ConcludeTurn` chiama `DestroyDefeatedUnits`, quindi a turno
+ * finito l'attore non c'e' piu'. `StableUnitId` si cattura PRIMA — e' un dato, non un puntatore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallenHealerStillLeavesTheEntryTest,
+	"RefactorTactics.Actions.Heal.FallenHealerStillLeavesTheEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallenHealerStillLeavesTheEntryTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	ARTUnit* Curatore = SpawnControlUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Ferito   = SpawnControlUnit(World, 0, FRTCellId(1, 0));
+	ARTUnit* Boia1    = SpawnControlUnit(World, 1, FRTCellId(0, 1)); // adiacente al curatore
+	ARTUnit* Boia2    = SpawnControlUnit(World, 1, FRTCellId(2, 0)); // adiacente al ferito
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Curatore"), Curatore) || !TestNotNull(TEXT("Ferito"), Ferito)
+		|| !TestNotNull(TEXT("Boia1"), Boia1) || !TestNotNull(TEXT("Boia2"), Boia2)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	const int32 HealIdx = UseControlAbilityInSlot0(Curatore, TEXT("Action.Heal"));
+	Curatore->PlannedAbilityIndex = HealIdx;
+	Curatore->PlannedAttackTarget = Ferito;
+
+	// Entrambi cadono NELLO STESSO Blast in cui la cura era stata accettata: e' il caso che la voce
+	// `TargetDead` esiste per registrare, piu' la morte del curatore che la faceva sparire.
+	Curatore->Health = 1;
+	Ferito->Health = 1;
+	Boia1->PlannedAbilityIndex = 0; // attacco base dell'eroe
+	Boia1->PlannedAttackTarget = Curatore;
+	Boia2->PlannedAbilityIndex = 0;
+	Boia2->PlannedAttackTarget = Ferito;
+
+	// ⚠️ **`StableUnitId` si legge DOPO il turno, non allo spawn**: lo assegna l'allestimento al lock-in, e
+	// prima vale **zero** per tutti. MISURATO: catturandolo qui il predicato cercava `UnitId == 0` e non
+	// trovava la voce, che porta `1`. L'attore non sopravvive a `ConcludeTurn`, quindi si rilegge da
+	// `PendingKill` — l'oggetto non e' raccolto, e `StableUnitId` e' un `int32` sull'attore.
+	const TWeakObjectPtr<ARTUnit> CuratoreDebole(Curatore);
+
+	RunControlTurn(TM);
+
+	ARTUnit* CuratoreDopo = CuratoreDebole.Get(/*bEvenIfPendingKill*/ true);
+	if (!TestNotNull(TEXT("il curatore e' ancora leggibile"), CuratoreDopo))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+	if (!TestFalse(TEXT("premessa: il curatore e' davvero caduto nel Blast"), CuratoreDopo->IsAlive()))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+	const int32 IdCuratore = CuratoreDopo->StableUnitId;
+
+	const FRTTurnLogEntry* Mancata = TM->GetTurnLog().FindByPredicate([IdCuratore](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::TargetDead)
+			&& E.UnitId == IdCuratore;
+	});
+
+	if (TestNotNull(TEXT("la cura mancata e' nel record autoritativo anche se chi curava e' caduto"), Mancata))
+	{
+		TestEqual(TEXT("e nomina l'azione, non la generica"), Mancata->ActionId, FName(TEXT("Action.Heal")));
+	}
+
+	DestroyControlWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -1654,11 +1654,25 @@ void ARTTurnManager::ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TA
 			//
 			// E' la terza faccia della stessa asimmetria che D-196 ha chiuso per `OutOfRange` e `NoEffect`.
 			// Il motivo `TargetDead` esiste gia' nell'enum: e' esattamente questo.
-			// ⚠️ **Un curatore morto non scrive**: gli attacchi si applicano poche righe piu' su, quindi chi
-			// curava puo' essere caduto nello stesso Blast. `CollectHealActions` e `ResolveCleanseActions`
-			// rifiutano un cadavere per la stessa ragione — la voce entrerebbe nell'hash del replay.
+			// 🔴 **Anche un curatore caduto scrive** (`#1473`, [D-219]), e fino al 2026-08-27 non lo faceva.
+			// La riga qui diceva *«un curatore morto non scrive … la voce entrerebbe nell'hash del replay»*,
+			// e si smentiva da sola quaranta righe piu' sotto: il percorso di **successo** scrive
+			// `AppendLogEntry(Entry, Healers[h])` **senza nessuna guardia di vita**. Stessa funzione, stesso
+			// predicato, due risposte — e quella che taceva era la sola a perdere informazione.
+			//
+			// ⚠️ **La morte del curatore non cambia se la cura e' avvenuta.** Se e' avvenuta, la traccia deve
+			// dirlo: e' la classe che [D-196] ha chiuso quattro volte e [D-203] una quinta — *non una riga di
+			// troppo, una che non c'e'*.
+			//
+			// ⚠️ **E «entra nell'hash» non era un argomento contro scriverla**: era un argomento contro
+			// scriverla in modo NON DETERMINISTICO. La simultaneita' del Blast e' ordinata, e queste voci
+			// escono nell'ordine di raccolta di `CollectHealActions`.
+			//
+			// ⚠️ **Non e' la stessa regola di `CollectHealActions` e `ResolveCleanseActions`**, che rifiutano
+			// un cadavere e continuano a farlo: li' si decide se un'unita' **agisce**, e un morto non agisce.
+			// Qui si decide se si **registra** qualcosa che e' gia' successo, e la morte non lo disfa.
 			ARTUnit* Curatore = Healers.IsValidIndex(h) ? Healers[h] : nullptr;
-			if (Curatore && Curatore->IsAlive())
+			if (Curatore)
 			{
 				// ⚠️ Il motivo distingue i due casi che la condizione qui sopra mette insieme: `TargetGone`
 				// se il puntatore non c'e' piu' — l'Actor e' stato distrutto fra raccolta e applicazione — e
