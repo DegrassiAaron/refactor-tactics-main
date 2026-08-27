@@ -1029,7 +1029,9 @@ Non usare sei pannelli sempre aperti.
 
 Non usare una classica mappa nera.
 
-La mappa statica resta leggibile.
+⚠️ **Precisato da D-215** (2026-08-27), che mette la fog of war nella v0.1: il divieto resta e riguarda il *vuoto piatto* — una mappa nera cancella la lettura **spaziale** (dove sono le celle, quanto dista un punto, che forma ha il terreno). La resa scelta è un **prisma esagonale opaco** che occupa il volume della cella non osservata: la tassellatura resta visibile, sparisce il **contenuto** — colore di superficie, corona incisa, rilievo del costo, volumi del blocco.
+
+La **geometria** della mappa resta quindi leggibile; il suo **contenuto** no, dove nessuno della squadra osserva.
 
 Stati informativi:
 
