@@ -1202,6 +1202,24 @@ protected:
 	void AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor);
 
 	/**
+	 * Registra un cambio d'orientamento e ne appende le voci **passando da `AppendLogEntry`**.
+	 *
+	 * ⚠️ `URTFacingLibrary` lavora su `FRTHexSimUnit`, che porta l'INDICE della simulazione e non
+	 * `StableUnitId`: la libreria non puo' riempire da sola i tre campi di contesto, e finche' i chiamanti le
+	 * passavano `TurnLog` per riferimento ogni voce `Facing` derivata nasceva con **turno 0, revisione 0 e
+	 * nessuna unita'** (`#1429`). Il commento di `AppendLogEntry` prometteva che ogni emissione passasse di
+	 * li'; era vero *del file*, non del TurnLog.
+	 *
+	 * L'attore arriva come parametro per la stessa ragione per cui ce l'ha `AppendLogEntry`: dalla voce non si
+	 * deduce, e dedurlo dall'indice della simulazione legherebbe la traccia a una corrispondenza
+	 * (`StableUnitId == FRTHexSimUnit::UnitId + 1`) che nessuno ha dichiarato.
+	 */
+	// `LogPhase` e non `Phase`: il manager ha un membro con quel nome, e ombreggiarlo e' un warning trattato
+	// come errore.
+	void RecordFacingChange(FRTHexSimUnit& Unit, ERTHexDirection NewFacing, ERTFacingOutcome Reason,
+		ERTMatchPhase LogPhase, const ARTUnit* Actor);
+
+	/**
 	 * Valida il piano di ogni unita' viva al COMMIT, e registra nel COMBAT LOG quello che non torna (CP 38.2).
 	 *
 	 * Il lock-in e' l'ultimo istante in cui un piano e' ancora un piano: dopo, e' una risoluzione. E' qui

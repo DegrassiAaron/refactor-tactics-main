@@ -1545,8 +1545,8 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 		Moved.Facing = Unit->Facing;
 		const ERTHexDirection Turned = URTFacingLibrary::FacingAfterDisplacement(
 			NewCell, FacingSource, ERTDisplacementCause::Forced, Moved.Facing);
-		URTFacingLibrary::RecordFacingChange(Moved, Turned,
-			ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, TurnLog);
+		RecordFacingChange(Moved, Turned,
+			ERTFacingOutcome::TurnedToDisplacementSource, ERTMatchPhase::Blast, Unit);
 		Unit->Facing = Moved.Facing;
 	}
 
@@ -2031,6 +2031,19 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor
 	Entry.UnitId = Actor ? Actor->StableUnitId : 0;
 	// L'UNICO `TurnLog.Add` del file: ogni altro sito passa da qui.
 	TurnLog.Add(Entry);
+}
+
+void ARTTurnManager::RecordFacingChange(FRTHexSimUnit& Unit, ERTHexDirection NewFacing, ERTFacingOutcome Reason,
+	ERTMatchPhase LogPhase, const ARTUnit* Actor)
+{
+	// ⚠️ Un array LOCALE, non `TurnLog`: e' la riga che fa la differenza. La libreria scrive qui, e le voci
+	// entrano nel TurnLog solo attraverso `AppendLogEntry`, che ci stampa turno, revisione del grafo e unita'.
+	TArray<FRTTurnLogEntry> Prodotte;
+	URTFacingLibrary::RecordFacingChange(Unit, NewFacing, Reason, LogPhase, Prodotte);
+	for (FRTTurnLogEntry& Voce : Prodotte)
+	{
+		AppendLogEntry(Voce, Actor);
+	}
 }
 
 void ARTTurnManager::ValidatePlansAtLockIn()
@@ -3394,8 +3407,8 @@ void ARTTurnManager::ResolveDash()
 
 			FRTHexSimUnit Dashed(i, Unit->Cell, /*InMoveBudget=*/ 0);
 			Dashed.Facing = Unit->Facing;
-			URTFacingLibrary::RecordFacingChange(Dashed, URTFacingLibrary::FacingFromPath(Walked, Dashed.Facing),
-				ERTFacingOutcome::DerivedFromDash, ERTMatchPhase::Dash, TurnLog);
+			RecordFacingChange(Dashed, URTFacingLibrary::FacingFromPath(Walked, Dashed.Facing),
+				ERTFacingOutcome::DerivedFromDash, ERTMatchPhase::Dash, Unit);
 			Unit->Facing = Dashed.Facing;
 
 			// Traccia per la rotazione dichiarata (#291): dopo uno scatto LINEARE la sola direzione legale e'
@@ -5411,8 +5424,8 @@ void ARTTurnManager::ResolveMovement()
 		FRTHexSimUnit Moved(i, Units[i]->Cell, /*InMoveBudget=*/ 0);
 		Moved.Facing = Units[i]->Facing;
 		const ERTHexDirection Derived = URTFacingLibrary::FacingFromPath(Walked, Moved.Facing);
-		URTFacingLibrary::RecordFacingChange(Moved, Derived, ERTFacingOutcome::DerivedFromMove,
-			ERTMatchPhase::Move, TurnLog);
+		RecordFacingChange(Moved, Derived, ERTFacingOutcome::DerivedFromMove,
+			ERTMatchPhase::Move, Units[i]);
 		Units[i]->Facing = Moved.Facing;
 
 		// Il Move e' a BUDGET: le rotazioni legali saranno tre (l'ultimo passo e le due adiacenti). Sovrascrive
@@ -5446,9 +5459,9 @@ void ARTTurnManager::ResolveMovement()
 
 		FRTHexSimUnit Declaring(i, Unit->Cell, /*InMoveBudget=*/ 0);
 		Declaring.Facing = Unit->Facing;
-		URTFacingLibrary::RecordFacingChange(Declaring, Applied,
+		RecordFacingChange(Declaring, Applied,
 			bLegal ? ERTFacingOutcome::DeclaredInPlanning : ERTFacingOutcome::DeclarationRejected,
-			ERTMatchPhase::Move, TurnLog);
+			ERTMatchPhase::Move, Unit);
 		Unit->Facing = Declaring.Facing;
 
 		AddLogEvent(FString::Printf(TEXT("%s: rotazione dichiarata %s"), *Unit->GetName(),
