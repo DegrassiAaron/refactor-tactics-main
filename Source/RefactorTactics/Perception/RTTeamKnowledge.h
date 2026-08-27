@@ -7,6 +7,7 @@
 #include "RTTeamKnowledge.generated.h"
 
 class URTHexMapAsset;
+struct FRTKnowledgeSubject;   // `RTKnowledgeView.h`: il soggetto di cui si valuta la conoscibilita'
 
 /**
  * Il ricordo di un contatto: DOVE una squadra ha visto un'unita' avversaria l'ultima volta, e QUANDO.
@@ -105,6 +106,80 @@ enum class ERTTargetKnowledge : uint8
 };
 
 /**
+ * Chi puo' leggere un fatto gia' accaduto: un bit per squadra, deciso QUANDO il fatto e' accaduto.
+ *
+ * E' l'artefatto di [D-223]. Un canale che racconta il passato — il combat log, la traccia post-lock — non
+ * puo' essere filtrato al momento della lettura: la conoscenza di allora non esiste piu', e il soggetto
+ * potrebbe essere stato distrutto. Porta quindi con se' la risposta, calcolata mentre era ancora
+ * calcolabile.
+ *
+ * 🔴 **Il default e' fail-closed, ed e' il punto.** `Mask = 0` significa «nessuno lo vede», non «non ci ho
+ * pensato»: un verdetto dimenticato nasconde una riga invece di regalarla. E' l'opposto del default di
+ * `AddLogEvent` che `#1499` rimuove, e la direzione e' deliberata — un filtro di privacy sbaglia dalla parte
+ * del silenzio.
+ *
+ * ⚠️ **Un fatto di MONDO non ha maschera vuota: ha `Everyone()`.** Le due cose non vanno confuse — una
+ * superficie che scade riguarda tutti, e dichiararlo e' diverso dal non dichiarare nulla.
+ */
+USTRUCT()
+struct FRTKnowledgeVerdict
+{
+	GENERATED_BODY()
+
+	/**
+	 * Un bit per `TeamId`: il bit `n` acceso significa «la squadra `n` puo' leggere questo fatto».
+	 *
+	 * ⚠️ **La larghezza non e' una costante di gioco.** Il formato di v0.1 ha due squadre, ma
+	 * `TeamKnowledgeState` si dimensiona sui `TeamId` VIVI e il 4v4 e' un cambio di DATO, non di codice:
+	 * scrivere `2` da qualche parte sarebbe un numero che invecchia da solo. Il bound e' quello del tipo, e
+	 * `MaxTeamId` lo dichiara.
+	 */
+	UPROPERTY()
+	uint32 Mask = 0;
+
+	/** Il `TeamId` piu' alto rappresentabile. Oltre, `AllowsTeam` risponde `false` invece di leggere fuori. */
+	static constexpr int32 MaxTeamId = 31;
+
+	/** Un fatto che riguarda tutti: superfici, ponti, marker di turno, fine partita. */
+	static FRTKnowledgeVerdict Everyone()
+	{
+		FRTKnowledgeVerdict V;
+		V.Mask = ~0u;
+		return V;
+	}
+
+	/** Nessuno: e' anche il default, e serve nominarlo dove la scelta e' deliberata. */
+	static FRTKnowledgeVerdict NoOne()
+	{
+		return FRTKnowledgeVerdict();
+	}
+
+	void AllowTeam(int32 TeamId)
+	{
+		if (TeamId >= 0 && TeamId <= MaxTeamId)
+		{
+			Mask |= (1u << TeamId);
+		}
+	}
+
+	/**
+	 * ⚠️ Fail-closed su un `TeamId` fuori intervallo: un osservatore che il verdetto non sa rappresentare
+	 * non legge, invece di leggere il bit di qualcun altro.
+	 */
+	bool AllowsTeam(int32 TeamId) const
+	{
+		if (TeamId < 0 || TeamId > MaxTeamId)
+		{
+			return false;
+		}
+		return (Mask & (1u << TeamId)) != 0;
+	}
+
+	bool operator==(const FRTKnowledgeVerdict& Other) const { return Mask == Other.Mask; }
+	bool operator!=(const FRTKnowledgeVerdict& Other) const { return !(*this == Other); }
+};
+
+/**
  * La conoscenza di squadra come DATO, e la regola che il targeting ne ricava (CP 13.2).
  *
  * Tutto puro e headless: nessun Actor, nessun `UWorld`. E' la condizione perche' la regola sia verificabile
@@ -176,4 +251,21 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Perception")
 	static ERTTargetKnowledge ClassifyTarget(const FRTTeamKnowledge& Knowledge, int32 TargetStableUnitId,
 		int32 TargetTeamId, const FRTCellId& TargetCurrentCell);
+
+	/**
+	 * Il verdetto di [D-223]: chi, fra le squadre che conoscono qualcosa, puo' leggere un fatto su questo
+	 * soggetto — deciso ADESSO, mentre il soggetto e' ancora osservabile.
+	 *
+	 * 🔴 **E' la prima definizione della regola, non una seconda.** Chiama `ClassifyTarget`, la stessa
+	 * funzione da cui `ViewForTeam` ricava `Live`: `Allowed` e `Live` coincidono per costruzione, non per
+	 * somiglianza. Riscrivere qui il confronto sarebbe la terza via che [D-223] vieta.
+	 *
+	 * ⚠️ **Il ramo alleato passa da `ClassifyTarget`, non da un `if` qui**: una squadra conosce sempre i
+	 * propri, e quella regola vive gia' dentro la funzione che classifica.
+	 *
+	 * ⚠️ **Fail-closed per costruzione**: una squadra assente da `AllKnowledge` non riceve il bit. Se la
+	 * lista arriva vuota il verdetto e' `NoOne()`, e la riga non si legge — mai il contrario.
+	 */
+	static FRTKnowledgeVerdict FreezeVerdict(const TArray<FRTTeamKnowledge>& AllKnowledge,
+		const FRTKnowledgeSubject& Subject);
 };

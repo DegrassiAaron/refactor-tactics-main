@@ -501,4 +501,110 @@ bool FRTKnowledgeOverlayAndGhostAreComplementaryTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * [D-223] — il verdetto congelato dice CHI puo' leggere un fatto, e lo dice come lo direbbe `ViewForTeam`.
+ *
+ * Il caso monta due squadre che vedono cose diverse dello stesso soggetto, cosi' un verdetto che ignorasse
+ * l'osservatore — o che accendesse tutti i bit — non passerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeFreezeVerdictTest,
+	"RefactorTactics.Knowledge.FrozenVerdictMatchesLiveVisibility",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeFreezeVerdictTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(3, 0, 0);
+
+	// Squadra 0 lo vede; squadra 1 non ne sa nulla; il soggetto e' della squadra 2.
+	FRTTeamKnowledge Seeing = KvKnowledge({ FRTLastKnownContact(7, Cell, 5) });
+	Seeing.TeamId = 0;
+	Seeing.VisibleCells.Add(Cell);
+
+	FRTTeamKnowledge Blind = KvKnowledge({});
+	Blind.TeamId = 1;
+
+	const FRTKnowledgeSubject Subject = KvSubject(7, /*TeamId*/ 2, Cell);
+	const FRTKnowledgeVerdict Verdict =
+		URTTeamKnowledgeLibrary::FreezeVerdict({ Seeing, Blind }, Subject);
+
+	TestTrue (TEXT("chi lo vedeva puo' leggere"), Verdict.AllowsTeam(0));
+	TestFalse(TEXT("chi non ne sapeva nulla non legge"), Verdict.AllowsTeam(1));
+
+	// Anti-vacuita': una squadra che non compare affatto nella lista non riceve il bit per omissione.
+	TestFalse(TEXT("una squadra assente dalla lista non legge"), Verdict.AllowsTeam(3));
+
+	// 🔴 Il verdetto DEVE coincidere con cio' che `ViewForTeam` chiama `Live`, o sarebbe una seconda
+	// definizione della stessa regola — la «terza via» che [D-223] vieta.
+	const FRTKnowledgeView ViewSeeing = URTKnowledgeViewLibrary::ViewForTeam(Seeing, { Subject }, 0);
+	const FRTKnowledgeEntry* EntrySeeing = URTKnowledgeViewLibrary::FindEntry(ViewSeeing, 7);
+	const bool bLiveForSeeing = EntrySeeing != nullptr && EntrySeeing->Visibility == ERTKnowledgeVisibility::Live;
+	TestEqual(TEXT("verdetto e vista concordano su chi vede"), Verdict.AllowsTeam(0), bLiveForSeeing);
+
+	return true;
+}
+
+/**
+ * Un soggetto solo RICORDATO non si legge: `CellOnly` non basta.
+ *
+ * ⚠️ **E' la tentazione da non seguire, e il test esiste per bloccarla.** Sembra generoso concedere a chi
+ * «sa che esiste»: ma una riga di log stampa la cella del FATTO, e un ricordo contiene la cella
+ * dell'ULTIMO contatto. Concedere qui regalerebbe proprio la posizione che il ricordo non ha.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeFreezeVerdictRejectsRememberedTest,
+	"RefactorTactics.Knowledge.FrozenVerdictRejectsRemembered",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeFreezeVerdictRejectsRememberedTest::RunTest(const FString&)
+{
+	// La squadra 0 ricorda l'unita' 3 dov'era, ma non vede dov'e' adesso: e' il caso `Remembered`.
+	FRTTeamKnowledge K = KvKnowledge({ FRTLastKnownContact(3, KvContactCell, 5) });
+	K.TeamId = 0;
+	K.VisibleCells.Add(KvSeenCell); // guarda altrove
+
+	const FRTKnowledgeSubject Remembered = KvSubject(3, /*TeamId*/ 1, KvActualCell);
+
+	// La fixture non si presuppone: si verifica che sia davvero un `Remembered` passando dalla porta.
+	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(K, { Remembered }, 0);
+	const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, 3);
+	if (!TestNotNull(TEXT("la porta produce una voce per il ricordo"), Entry)) { return false; }
+	TestTrue(TEXT("ed e' Remembered, non Live"), Entry->Visibility == ERTKnowledgeVisibility::Remembered);
+
+	const FRTKnowledgeVerdict Verdict = URTTeamKnowledgeLibrary::FreezeVerdict({ K }, Remembered);
+	TestFalse(TEXT("un ricordo non concede la lettura"), Verdict.AllowsTeam(0));
+
+	return true;
+}
+
+/**
+ * Le due costanti nominate, e il default.
+ *
+ * Un verdetto non dichiarato deve nascondere, non mostrare: e' il contrario del default di `AddLogEvent`
+ * che `#1499` rimuove, e la direzione e' deliberata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeVerdictDefaultsClosedTest,
+	"RefactorTactics.Knowledge.VerdictDefaultsClosed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeVerdictDefaultsClosedTest::RunTest(const FString&)
+{
+	const FRTKnowledgeVerdict Silent;
+	TestFalse(TEXT("il default non mostra a nessuno"), Silent.AllowsTeam(0));
+	TestFalse(TEXT("nemmeno alla squadra 1"), Silent.AllowsTeam(1));
+	TestTrue (TEXT("e NoOne() e' lo stesso valore"), Silent == FRTKnowledgeVerdict::NoOne());
+
+	const FRTKnowledgeVerdict World = FRTKnowledgeVerdict::Everyone();
+	TestTrue(TEXT("un fatto di mondo si legge dalla squadra 0"), World.AllowsTeam(0));
+	TestTrue(TEXT("e dalla squadra 1"), World.AllowsTeam(1));
+	TestTrue(TEXT("e dall'ultima rappresentabile"), World.AllowsTeam(FRTKnowledgeVerdict::MaxTeamId));
+
+	// Fail-closed fuori intervallo: un osservatore che il verdetto non sa rappresentare non legge il bit
+	// di qualcun altro. Vale anche per `Everyone`, che altrimenti sembrerebbe un permesso universale.
+	TestFalse(TEXT("un TeamId negativo non legge"), World.AllowsTeam(-1));
+	TestFalse(TEXT("un TeamId oltre il bound non legge"), World.AllowsTeam(FRTKnowledgeVerdict::MaxTeamId + 1));
+
+	FRTKnowledgeVerdict Built;
+	Built.AllowTeam(1);
+	TestFalse(TEXT("AllowTeam accende solo il bit chiesto"), Built.AllowsTeam(0));
+	TestTrue (TEXT("e quel bit e' acceso"), Built.AllowsTeam(1));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
