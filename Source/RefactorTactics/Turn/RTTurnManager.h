@@ -324,8 +324,15 @@ public:
 	/**
 	 * La conoscenza di UNA squadra, per la presentazione. Copia piccola: NON e' `MakeCurrentSnapshot`, che
 	 * fa `GetAllActorsOfClass` e due `Sort` ed e' proibitiva a ogni frame.
+	 *
+	 * 🔴 **NON e' una `UFUNCTION`, ed e' deliberato.** Una prima stesura la esponeva come `BlueprintPure`, e
+	 * sarebbe stata il PRIMO canale Blueprint verso la conoscenza NON filtrata di una squadra qualunque:
+	 * `MakeCurrentSnapshot` non e' esposta, quindi finora nessun Blueprint poteva ottenere un
+	 * `FRTTeamKnowledge`, e le `UFUNCTION` di `URTTeamKnowledgeLibrary` sono gia' li' per interrogarlo.
+	 * Un widget avrebbe potuto chiamare `KnowledgeForTeamPublic(1)` e leggere `VisibleCells` e `Contacts`
+	 * dell'avversario — aprire un canale non filtrato nello stesso commit che ne chiude uno.
+	 * Chi ha bisogno della conoscenza in Blueprint passa da `FRTKnowledgeView`, che e' la porta.
 	 */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Perception")
 	FRTTeamKnowledge KnowledgeForTeamPublic(int32 TeamId) const { return KnowledgeForTeam(TeamId); }
 
 	// --- Sonda di pacing (TELEMETRIA: nessun ritorno verso il gameplay) --------------------------

@@ -23,6 +23,31 @@ esiste ancora.
 
 ---
 
+## Stato di esecuzione — aggiornato il 2026-08-27
+
+| Task | Stato | Commit | Evidenza |
+|---|---|---|---|
+| **1** — `TargetUnknown` leggibile | ✅ | `7f38ba11` | RED 1/1 col default, GREEN 1/1, regressione 71/71 |
+| **2** — la porta `FRTKnowledgeView` | ✅ | `a2b2225f` | RED per **link** (`LNK2019`), GREEN 3/3, **due mutazioni** con rebuild fra l'una e l'altra |
+| **3** — `ARTHUD` consuma la porta | ✅ | `06c8c3c1` | RED per **compilazione** (`C3861` ×4), GREEN 4/4, regressione 27/27 |
+| **4** — il combat log passa dal filtro | ⏳ | — | — |
+| **5** — l'unità ignota sparisce | ⏳ | — | — |
+| **6** — la sagoma del ricordo | ⏳ | — | ⛔ bloccato: crea un `.uasset` |
+
+**Suite completa sull'albero finale (2026-08-27)**: `Found 1204 automation`, **1204 eseguiti, 1204 successi,
+0 fallimenti**. Dichiarati ed eseguiti coincidono.
+
+⏳ **Verifica manuale pendente**: `PIE-KNOW1`, registrata in
+[`test-manuali-pie.md`](../../technical/test-manuali-pie.md). È l'unica prova che il cablaggio del Task 3
+funzioni: `DrawHUD` non ha test automatici.
+
+> ⚠️ **Le 53 caselle qui sotto restano vuote, e questa tabella è la ragione per cui va bene.** Il progresso
+> per-task vive nel workspace di esecuzione, che è **gitignorato** (`.gitignore:187`): senza questo blocco,
+> dopo un merge nessun file versionato direbbe quali task sono fatti. Le caselle sono la lista operativa di
+> chi esegue; questa tabella è il consuntivo di chi legge dopo.
+
+---
+
 ## Vincoli globali
 
 Valgono per **ogni** task. Non si ripetono nei singoli step.
