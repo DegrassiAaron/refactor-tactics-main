@@ -495,10 +495,14 @@ void ARTGameMode::ApplyMapSource(ARTHexMapActor* HexMap)
 
 		// Fail-closed sul VALORE, non sulla partita: stessa cura di `rt.Map.Source`. Un nome sbagliato che
 		// ripiegasse in silenzio farebbe attribuire un playtest a una board che non era in vigore.
+		// ⚠️ I nomi si CHIEDONO, non si riscrivono (`#1459`). Questa riga era il QUARTO elenco a mano
+		// delle stesse fixture, e come gli altri tre nominava `DemoArena` — che non ha un ramo nel
+		// dispatcher. `rt.Map.Fixture=DemoArena` produceva quindi un warning che elencava fra i nomi validi
+		// esattamente quello appena rifiutato.
 		UE_LOG(LogRT, Warning,
 			TEXT("[RT] rt.Map.Fixture='%s' non e' una fixture nota: ignorata, si prosegue con la sorgente "
-				 "configurata. Nomi validi: ArenaV01, RelayBasin, RelayLite, TestArena, CoverYard, DemoArena."),
-			*FixtureId);
+				 "configurata. Nomi validi: %s."),
+			*FixtureId, *FString::Join(URTMatchSetupLibrary::KnownFixtureIds(), TEXT(", ")));
 	}
 
 	switch (ResolveMapSource())

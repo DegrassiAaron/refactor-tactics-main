@@ -746,6 +746,22 @@ bool FRTFixtureNamesMatchTheDispatcherTest::RunTest(const FString&)
 		{ TEXT("ArenaV01"),   [](UObject* O) { return URTMatchSetupLibrary::MakeArenaV01(O); } },
 		{ TEXT("CoverYard"),  [](UObject* O) { return URTMatchSetupLibrary::MakeCoverYardArena(O); } },
 	};
+	// ⚠️ **La premessa su cui l'oracolo si regge**: due arene diverse devono avere firme diverse, o
+	// confrontarle non distinguerebbe un dispatch sbagliato. Oggi e' vero — 45/0, 91/0, 65/2, 64/2, 37/0 —
+	// ma e' una proprieta' dei NUMERI, non del test: se un giorno due fixture coincidessero, questo verso
+	// smetterebbe di discriminare in silenzio. Meglio che lo dica.
+	TSet<FString> Firme;
+	for (const FBuilder& B : Costruibili)
+	{
+		if (const URTHexMapAsset* A = B.Make(GetTransientPackage()))
+		{
+			bool bGia = false;
+			Firme.Add(FString::Printf(TEXT("%d/%d"), A->NumCells(), A->Transitions.Num()), &bGia);
+			TestFalse(*FString::Printf(TEXT("premessa: la firma di '%s' e' distinta dalle altre"), B.Atteso),
+				bGia);
+		}
+	}
+
 	for (const FBuilder& B : Costruibili)
 	{
 		if (!TestTrue(*FString::Printf(TEXT("'%s' e' fra i nomi dichiarati"), B.Atteso), Nomi.Contains(B.Atteso)))
