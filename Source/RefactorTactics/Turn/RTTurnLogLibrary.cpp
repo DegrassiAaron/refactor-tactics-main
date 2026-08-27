@@ -553,9 +553,14 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			return FString::Printf(TEXT("%s: il colpo usa l'orientamento %s"), *CellText(Entry.SrcCell), Dir);
 		case ERTFacingOutcome::UsedByOverwatch:
 			return FString::Printf(TEXT("%s: l'overwatch usa l'orientamento %s"), *CellText(Entry.SrcCell), Dir);
-		case ERTFacingOutcome::RearHitBypassedCover:
-			return FString::Printf(TEXT("%s -> %s: colpo fuori dall'arco frontale (guardava %s), la protezione non vale"),
+		case ERTFacingOutcome::RearHitBypassedGuard:
+			return FString::Printf(TEXT("%s -> %s: colpo fuori dall'arco frontale (guardava %s), la Guard non vale"),
 				*CellText(Entry.TgtCell), *CellText(Entry.SrcCell), Dir);
+		case ERTFacingOutcome::RearHitBypassedCover:
+			// ⚠️ Qui `Amount` NON e' una direzione: sono i punti di riduzione scavalcati, quindi `Dir` non si
+			// usa. E' la ragione per cui i due esiti sono separati (`#1430`, [D-199]).
+			return FString::Printf(TEXT("%s -> %s: colpo alle spalle, la copertura non vale (%d punti scavalcati)"),
+				*CellText(Entry.TgtCell), *CellText(Entry.SrcCell), Entry.Amount);
 		default:
 			return FString::Printf(TEXT("%s: orientamento %s"), *CellText(Entry.SrcCell), Dir);
 		}
@@ -1363,7 +1368,8 @@ bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
 	// La guardia (o la copertura) scavalcata da un colpo alle spalle: la voce descrive l'orientamento del
 	// DIFENSORE, quindi il soggetto e' chi ha subito il colpo. L'attaccante e' in `SrcCell` (`#1418`).
 	if (Entry.Category == ERTLogCategory::Facing
-		&& Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover))
+		&& (Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover)
+			|| Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard)))
 	{
 		return true;
 	}
