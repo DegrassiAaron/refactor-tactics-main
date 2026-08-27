@@ -361,6 +361,11 @@ namespace
 	 *   Spec.Predictive.WhiffOnEmptyCell         Predictive
 	 *   Spec.Overwatch.HoldThenFire              ReactionDecision
 	 *
+	 * ⚠️ **`Combat.CounterStrikesBack` vale da solo META' della soglia**: e' l'unico fornitore di `Combat`,
+	 * `Facing`, `Reaction` e `Status`. Se un giorno smettesse di produrne una — la reazione che perde la voce
+	 * `Facing`, lo stato che non viene applicato — il test non cadrebbe per una categoria ma per quattro
+	 * insieme, e chi legge il rosso potrebbe cercare il difetto nel posto sbagliato. Misurato, non temuto.
+	 *
 	 * ⚠️ **Due categorie restano scoperte, ed e' dichiarato**: `Fallback` e `ReactionClash`. Nessuno degli
 	 * scenari provati le produce — gli scenari `Spec/Clash` risolvono senza emettere voci `ReactionClash`, e
 	 * `Fallback` nasce da azioni che si degradano, che nessuno scenario del corpus esercita. Chi ne scrive uno
@@ -372,7 +377,8 @@ namespace
 		TEXT("Spec.Environment.WaterQuenchesFire"),
 		TEXT("Spec.Predictive.WhiffOnEmptyCell"),
 		TEXT("Spec.Overwatch.HoldThenFire"),
-	};}
+	};
+}
 
 /**
  * **Il corpus dichiara quante categorie copre, e cade se ne perde una** (`#1455`).
