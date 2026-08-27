@@ -31,6 +31,10 @@
     {
       "Name": "VisualStudioTools",
       "Enabled": false
+    },
+    {
+      "Name": "RTDeveloperTools",
+      "Enabled": true
     }
   ],
   "TargetPlatforms": [],

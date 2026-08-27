@@ -1,0 +1,36 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1",
+	"FriendlyName": "RT Developer Tools",
+	"Description": "Bridge MCP editor-only: espone al client MCP l'ispezione della mappa tattica e del pathfinding autorevole di RefactorTactics. Nessuna dipendenza nel runtime packaged.",
+	"Category": "RefactorTactics",
+	"CreatedBy": "RefactorTactics",
+	"CreatedByURL": "",
+	"DocsURL": "docs/technical/tooling/brief-mcp-developer-bridge.md",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": true,
+	"Installed": false,
+	"EnabledByDefault": false,
+	"Modules": [
+		{
+			"Name": "RTDeveloperTools",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit",
+			"TargetAllowList": [ "Editor" ]
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "ToolsetRegistry",
+			"Enabled": true
+		},
+		{
+			"Name": "ModelContextProtocol",
+			"Enabled": true
+		}
+	]
+}
