@@ -107,6 +107,9 @@ namespace
 	 * controllo senza danno infliggerebbe comunque 30 danni fantasma — e' la stessa disciplina che
 	 * `MakeHeroAction` (Ability/RTHeroCatalogLibrary.cpp, CP 6.2) gia' applica per gli eroi.
 	 */
+	/** Abbastanza da sopravvivere al decremento del Cleanup, e da restare leggibile. */
+	constexpr int32 MinCooldownTurns = 3;
+
 	int32 AddControlAbility(ARTUnit* Unit, const TCHAR* ActionId)
 	{
 		if (!Unit) { return INDEX_NONE; }
@@ -121,6 +124,38 @@ namespace
 		Unit->Abilities.Add(Ability);
 		return Unit->Abilities.Num() - 1;
 	}
+
+	/**
+	 * Mette l'azione nello **slot 0**, sostituendo l'abilita' che ci stava, e allinea lo specchio legacy del
+	 * cooldown. Torna sempre `0`.
+	 *
+	 * ⚠️ **Serve per poter MISURARE il cooldown**, e non e' un vezzo: `ConsumeAbility` scrive in
+	 * `AbilityCooldowns` solo se l'indice e' valido, e `ConfigureFromHeroData` dimensiona quell'array sulle
+	 * abilita' dell'eroe. Un'abilita' APPESA in coda — quel che fa `AddControlAbility` — sta a un indice che
+	 * l'array non copre, quindi il cooldown non viene mai scritto e `CanUseAbility` risponde sempre `true`.
+	 * Un test che asserisse «non ha pagato» su un'abilita' appesa sarebbe verde **anche col difetto**.
+	 *
+	 * ⚠️ `ConsumeAbility` legge `URTActionData::CooldownTurns`, non `Def.CooldownTurns`: uno specchio
+	 * legacy che `AddControlAbility` non copia, come non copia `RangeCells` e `Power`.
+	 *
+	 * ⚠️ **E il cooldown si alza a `MinCooldownTurns`**, perche' il segnale deve sopravvivere al turno:
+	 * il Cleanup dello stesso turno decrementa, quindi un cooldown da **1** e' gia' tornato a zero quando il
+	 * test guarda — ed e' il valore che `Action.Heal` dichiara. MISURATO: entrambi i casi riportavano
+	 * «cooldown residuo: 0», cioe' un'asserzione «non ha pagato» verde **anche col difetto**. Il test
+	 * misura SE si paga, non quanto: il valore del catalogo e' pinnato altrove.
+	 */
+	int32 UseControlAbilityInSlot0(ARTUnit* Unit, const TCHAR* ActionId)
+	{
+		const int32 Appesa = AddControlAbility(Unit, ActionId);
+		if (Appesa == INDEX_NONE || !Unit->Abilities.IsValidIndex(0)) { return INDEX_NONE; }
+
+		URTActionData* Azione = Unit->Abilities[Appesa];
+		Unit->Abilities.RemoveAt(Appesa);
+		Unit->Abilities[0] = Azione;
+		Azione->CooldownTurns = FMath::Max(MinCooldownTurns, Azione->Def.CooldownTurns);
+		return 0;
+	}
+
 
 	/**
 	 * Lo scenario d'interruzione: chi interrompe, chi viene interrotto, chi avrebbe incassato il colpo.
@@ -520,7 +555,7 @@ bool FRTHealOutOfRangeIsTracedTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 HealIdx = AddControlAbility(Curatore, TEXT("Action.Heal"));
+	const int32 HealIdx = UseControlAbilityInSlot0(Curatore, TEXT("Action.Heal"));
 	if (!TestTrue(TEXT("premessa: la cura e' oltre la portata dichiarata"),
 		URTHexLibrary::HexDistance(Curatore->Cell, Ferito->Cell)
 			> Curatore->Abilities[HealIdx]->Def.RangeCells))
@@ -550,6 +585,19 @@ bool FRTHealOutOfRangeIsTracedTest::RunTest(const FString&)
 	{
 		TestEqual(TEXT("accredita chi ha provato a curare"), Mancata->UnitId, Curatore->StableUnitId);
 		TestEqual(TEXT("e dice chi doveva essere curato"), Mancata->TgtCell, Ferito->Cell);
+	}
+
+	// 🔴 **E il cooldown NON e' stato pagato** (`#1445`, [D-200]): la portata e' l'unico dei modi di fallire
+	// che si conosce in pianificazione, quindi l'azione non e' mai PARTITA. E' la stessa regola che
+	// `ModifyArc` seguiva gia' — «il cooldown paga solo cio' che ha davvero toccato la mappa» — e che la cura
+	// contraddiceva nello stesso file.
+	//
+	// ⚠️ La premessa serve: senza cooldown dichiarato l'asserzione passerebbe per il motivo sbagliato.
+	if (TestTrue(TEXT("premessa: il catalogo dichiara un cooldown"),
+		Curatore->Abilities[HealIdx]->CooldownTurns > 0))
+	{
+		AddInfo(FString::Printf(TEXT("cooldown residuo: %d"), Curatore->GetAbilityCooldown(HealIdx)));
+		TestTrue(TEXT("la cura fuori portata non brucia il cooldown"), Curatore->CanUseAbility(HealIdx));
 	}
 
 	DestroyControlWorld(World);
@@ -591,12 +639,18 @@ bool FRTHealWithoutEffectIsTracedTest::RunTest(const FString&)
 	}
 
 	// Una cura senza effetti: `ActionId` giusto, `Effects` vuoto.
+	//
+	// ⚠️ Nello **slot 0**, e col cooldown alzato, per le stesse due ragioni di `UseControlAbilityInSlot0`:
+	// `AbilityCooldowns` non copre gli indici appesi, e un cooldown da 1 e' gia' scaduto quando il test
+	// guarda. Costruita a mano invece di passare dall'helper perche' serve una `Def` MUTILATA, che l'helper
+	// non sa produrre.
 	URTActionData* Rotta = NewObject<URTActionData>(Curatore);
 	Rotta->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Heal"));
 	Rotta->Def.Effects.Empty();
 	Rotta->RangeCells = Rotta->Def.RangeCells;
-	Curatore->Abilities.Add(Rotta);
-	const int32 HealIdx = Curatore->Abilities.Num() - 1;
+	Rotta->CooldownTurns = MinCooldownTurns;
+	Curatore->Abilities[0] = Rotta;
+	const int32 HealIdx = 0;
 
 	Ferito->Health = FMath::Max(1, Ferito->Health - 30);
 	const int32 SaluteFerito = Ferito->Health;
@@ -608,9 +662,17 @@ bool FRTHealWithoutEffectIsTracedTest::RunTest(const FString&)
 	RunControlTurn(TM);
 
 	TestEqual(TEXT("premessa: nessuna cura e' avvenuta"), Ferito->Health, SaluteFerito);
-	// ⚠️ Il cooldown NON si asserisce: `ConsumeAbility` lo mette, ma il Cleanup dello stesso turno lo
-	// decrementa, e `Action.Heal` ne dichiara 1 — dopo il turno e' gia' tornato a zero. Il turno speso
-	// resta il punto del test, e a dirlo e' la voce di TurnLog, non un contatore che nel frattempo scade.
+
+	// 🔴 **E il cooldown E' stato pagato** (`#1445`, [D-200]). E' la terza faccia del confine, insieme a
+	// `OutOfRangeIsTraced` (non paga) e `DeadTargetIsTraced` (paga): l'azione era valida, e' partita e ha
+	// raggiunto il bersaglio: che la def non portasse un `Heal` utile e' un difetto del DATO, non una mira
+	// impossibile. Un catalogo rotto non e' una leva di bilanciamento su cui costruire un'eccezione.
+	//
+	// ⚠️ Prima di `#1445` questo cooldown non si asseriva affatto, e la ragione dichiarata era che il
+	// Cleanup lo azzera nello stesso turno — vera per il valore del catalogo, 1. Il test lo alza a
+	// `MinCooldownTurns` perche' il segnale sopravviva: misura SE si paga, non quanto.
+	AddInfo(FString::Printf(TEXT("cooldown residuo: %d"), Curatore->GetAbilityCooldown(HealIdx)));
+	TestFalse(TEXT("una cura senza effetti resta pagata"), Curatore->CanUseAbility(HealIdx));
 
 	const FRTTurnLogEntry* Vuota = TM->GetTurnLog().FindByPredicate([](const FRTTurnLogEntry& E)
 	{
@@ -658,7 +720,7 @@ bool FRTHealOnDeadAllyIsTracedTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 HealIdx = AddControlAbility(Curatore, TEXT("Action.Heal"));
+	const int32 HealIdx = UseControlAbilityInSlot0(Curatore, TEXT("Action.Heal"));
 	Curatore->PlannedAbilityIndex = HealIdx;
 	Curatore->PlannedAttackTarget = Ferito;
 	Curatore->PlannedCell = Curatore->Cell;
@@ -682,6 +744,18 @@ bool FRTHealOnDeadAllyIsTracedTest::RunTest(const FString&)
 	{
 		TestEqual(TEXT("accredita chi ha provato a curare"), Mancata->UnitId, Curatore->StableUnitId);
 		TestEqual(TEXT("e nomina l'azione"), Mancata->ActionId, FName(TEXT("Action.Heal")));
+	}
+
+	// 🔴 **E il cooldown E' stato pagato** ([D-200]), che e' l'altra meta' del confine: il bersaglio era vivo
+	// e in portata quando la cura e' partita, ed e' la SIMULTANEITA' ad averla disfatta. Un esito si paga.
+	// Senza questa asserzione, «la cura fuori portata non paga» si potrebbe soddisfare togliendo il costo a
+	// tutti i modi di fallire, e la regola diventerebbe un'altra.
+	if (TestTrue(TEXT("premessa: il catalogo dichiara un cooldown"),
+		Curatore->Abilities[HealIdx]->CooldownTurns > 0))
+	{
+		AddInfo(FString::Printf(TEXT("cooldown residuo: %d"), Curatore->GetAbilityCooldown(HealIdx)));
+		TestFalse(TEXT("la cura su un bersaglio caduto nella simultaneita' resta pagata"),
+			Curatore->CanUseAbility(HealIdx));
 	}
 
 	// ⚠️ NON si rilegge `Ferito` dopo il turno: `ConcludeTurn` chiama `DestroyDefeatedUnits`, che distrugge

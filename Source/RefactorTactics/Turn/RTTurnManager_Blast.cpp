@@ -300,9 +300,12 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// Bersaglio: chi e' stato scelto in pianificazione, oppure SE STESSI se non c'e' nessuno — il catalogo
 		// dichiara che la cura «puo' bersagliare se stessi», e curare a vuoto non e' un'alternativa sensata.
 		ARTUnit* HealTarget = Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget.Get() : Unit;
+		// Il PIANO si azzera qui, il COOLDOWN piu' sotto (`#1445`, [D-200]): l'unita' ha speso il suo turno —
+		// non puo' riagire — ma l'abilita' si paga solo se l'azione e' PARTITA. Azzerare il piano piu' in
+		// basso lascerebbe il ciclo degli intenti costruire un attacco su un alleato, che e' la ragione per
+		// cui questa raccolta viene prima.
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 		Unit->PlannedAttackTarget = nullptr;
-		Unit->ConsumeAbility(HealIdx);
 
 		// Portata dal catalogo, misurata come per ogni altra azione: una cura a distanza infinita sarebbe una
 		// regola diversa da quella scritta.
@@ -314,6 +317,15 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 			// curato. La superficie leggibile sapeva qualcosa che la traccia non registrava — il verso
 			// opposto dei duplicati, e quello piu' difficile da vedere: non c'e' una riga di troppo, ce n'e'
 			// una che non c'e'.
+			// 🔴 **E il cooldown NON si paga** (`#1445`, [D-200]). Fino al 2026-08-27 si arrivava qui con
+			// l'abilita' gia' bruciata, mentre `ModifyArc` — l'altra azione di supporto di questo stesso file —
+			// dichiarava la regola opposta a centoventi righe di distanza: «il cooldown paga solo cio' che ha
+			// davvero toccato la mappa». Due azioni di supporto, due regole, nessuna delle due dichiarata.
+			//
+			// ⚠️ **La portata decide se l'azione PARTE**, e non e' una sfumatura: e' l'unico dei quattro modi
+			// di fallire che si conosce in pianificazione. Il bersaglio caduto nella simultaneita'
+			// (`TargetDead`, [D-197]) e la def senza effetto utile (`NoEffect`) sono ESITI di un'azione
+			// partita, e restano a carico. Un esito si paga; una mira impossibile no.
 			FRTTurnLogEntry CuraMancata = MakeSupportFallback(
 				Unit, HealTarget, Heal->Def, ERTActionInvalidReason::OutOfRange);
 			AppendLogEntry(CuraMancata, Unit);
@@ -322,6 +334,11 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 			// nome dell'unita' e' il debito noto di `#1412` punto 2.
 			continue;
 		}
+
+		// 🔴 **Qui l'azione e' PARTITA** ([D-200]): il bersaglio e' raggiungibile, e da questo punto in poi
+		// qualunque cosa vada storta e' un esito. Il cooldown si paga, e resta pagato anche se la
+		// simultaneita' disfa la cura piu' tardi — il bersaglio che cade nello stesso Blast, [D-197].
+		Unit->ConsumeAbility(HealIdx);
 
 		int32 Amount = 0;
 		for (const FRTActionEffectSpec& Spec : Heal->Def.Effects)
@@ -344,6 +361,11 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// ⚠️ Il motivo e' `NoEffect`, aggiunto per questo: `None` significa «l'azione e' eseguibile», e la
 		// resa generica direbbe «non eseguibile» — falso in tutti e due i versi. L'azione era valida e non
 		// aveva niente da applicare.
+		//
+		// ⚠️ **E il cooldown resta pagato**, a differenza del caso «fuori portata» ([D-200]): l'azione era
+		// valida, e' partita e ha raggiunto il bersaglio. Che la def non portasse un `Heal` utile e' un
+		// difetto del DATO, non una mira impossibile — e un catalogo rotto non e' una leva di bilanciamento
+		// su cui valga la pena costruire un'eccezione.
 		if (Amount <= 0)
 		{
 			FRTTurnLogEntry CuraVuota = MakeSupportFallback(
