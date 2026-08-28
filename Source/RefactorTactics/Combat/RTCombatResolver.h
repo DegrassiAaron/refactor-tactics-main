@@ -16,8 +16,16 @@ struct FRTUnitCombatState
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Combat")
 	int32 Shield = 0;
 
+	/**
+	 * Quota di `Shield` che scade nel Cleanup ([D-224]). Serve al resolver per sapere quanta protezione e'
+	 * BASE, cioe' quanta ne deve saltare quando il danno viene dall'ambiente.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Combat")
+	int32 TemporaryShield = 0;
+
 	FRTUnitCombatState() = default;
-	FRTUnitCombatState(int32 InHealth, int32 InShield) : Health(InHealth), Shield(InShield) {}
+	FRTUnitCombatState(int32 InHealth, int32 InShield, int32 InTemporaryShield = 0)
+		: Health(InHealth), Shield(InShield), TemporaryShield(InTemporaryShield) {}
 };
 
 /** Un attacco pianificato: colpisce l'unita' TargetIndex con Power danni. */

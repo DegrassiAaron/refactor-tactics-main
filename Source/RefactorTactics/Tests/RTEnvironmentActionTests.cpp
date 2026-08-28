@@ -1730,8 +1730,13 @@ bool FRTHazardBurningShieldedLogTest::RunTest(const FString&)
 	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
 
 	// Ferita **e** protetta: e' la combinazione che il confronto con `MaxHealth` sbagliava.
+	//
+	// ⚠️ Lo scudo dev'essere **TEMPORANEO**, e dal 2026-08-28 non e' un dettaglio ([D-224]): lo scudo BASE
+	// non assorbe piu' il danno ambientale, quindi un `Shield = 30` scritto a mano lascerebbe passare
+	// entrambi i colpi e questo test tornerebbe a misurare `Hit` — cioe' l'esatto ramo che NON vuole.
+	// Il temporaneo continua ad assorbire qualunque sorgente, ed e' quello che tiene vivo `ShieldAbsorbed`.
 	Target->Health = 40;
-	Target->Shield = 30; // 10 all'ingresso + 8 nel Cleanup, e ne avanza
+	Target->AddTemporaryShield(30); // 10 all'ingresso + 8 nel Cleanup, e ne avanza
 
 	const int32 HpPrima = Target->Health;
 	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);

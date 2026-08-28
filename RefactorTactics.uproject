@@ -35,6 +35,18 @@
     {
       "Name": "RTDeveloperTools",
       "Enabled": true
+    },
+    {
+      "Name": "ActorPalette",
+      "Enabled": true
+    },
+    {
+      "Name": "MCPClientToolset",
+      "Enabled": true
+    },
+    {
+      "Name": "AllToolsets",
+      "Enabled": true
     }
   ],
   "TargetPlatforms": [],

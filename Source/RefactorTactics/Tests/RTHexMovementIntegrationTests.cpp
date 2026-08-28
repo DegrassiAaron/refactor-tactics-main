@@ -364,6 +364,12 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
 
+	// [D-224] «Il Ranger non ha scudo» qui sopra era una premessa VERA che e' diventata falsa: ora ogni
+	// unita' ne porta 5. Si azzera qui e non nell'helper perche' in questo file c'e' anche
+	// `Terrain.Fire.ErodesTemporaryShieldFirst`, che dello scudo base ha bisogno. La proprieta' in esame
+	// e' «Exposed aggiunge 5 al primo colpo», non l'assorbimento.
+	Runner->Shield = 0;
+
 	const int32 SprintIdx = AddSprintAbility(Runner);
 	const int32 StartHealth = Runner->Health;
 
@@ -648,33 +654,49 @@ bool FRTTerrainFireErodesTemporaryShieldTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(FireCell);
 	MapActor->MapAsset->SortCells();
 
-	// Scudo base + temporaneo: i 10 danni del fuoco stanno tutti nello scudo.
+	// La proprieta' in esame e' la CONTABILITA' del danno ambientale attraverso i DUE scudi, e dal
+	// 2026-08-28 ([D-224]) sono due regole diverse nello stesso turno:
 	//
-	// Lo scudo base lo dichiara il TEST, non l'eroe: `ConfigureFromHeroData` non imposta `Shield` e nessun
-	// eroe del roster ne parte fornito — il Guardian legacy, con i suoi 20, era l'unico. La proprieta' in
-	// esame e' la CONTABILITA' (il temporaneo si consuma per primo, e anche il danno ambientale del Cleanup
-	// passa di li'), non da dove arriva lo scudo: darglielo qui la tiene verificabile.
+	//   temporaneo -> assorbe qualunque sorgente, hazard compresi
+	//   base       -> assorbe SOLO il danno diretto, quindi il fuoco lo attraversa
+	//
+	// ⚠️ **Questo test diceva il contrario, ed e' stato riscritto** ([D-224] supera la scelta precedente,
+	// riga della matrice dei conflitti). Prima dichiarava `constexpr int32 BaseShield = 20` a mano e
+	// asseriva che *«anche il danno ambientale del Cleanup passa di li'»*: era vero, e non lo e' piu'.
+	// Lo scudo base non lo dichiara piu' il test — lo mette `BeginPlay` via `RechargeBaseShield`.
+	//
+	// Il temporaneo vale ESATTAMENTE quanto il colpo d'ingresso: cosi' il primo danno prova che il
+	// temporaneo assorbe l'ambientale, e il `Burning` del Cleanup — che lo trova esaurito — prova che la
+	// base NON lo assorbe. Due proprieta' opposte in un turno solo, e nessuna delle due passa per caso.
 	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover) { DestroyHexMoveWorld(World); return false; }
 
-	constexpr int32 BaseShield = 20;
-	Mover->ApplyCombatState(Mover->Health, BaseShield);
+	constexpr int32 DannoIngresso = 10; // fuoco, all'ingresso nella cella
 	const int32 StartHealth = Mover->Health;
-	Mover->AddTemporaryShield(5);
+	if (!TestEqual(TEXT("premessa: l'unita' entra in campo con lo scudo base"),
+			Mover->Shield, URTCombatLibrary::BaseShield))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+	Mover->AddTemporaryShield(DannoIngresso);
 	Mover->PlannedAbilityIndex = INDEX_NONE; // nessuna azione: l'unica fonte di danno e' il terreno
 	Mover->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
 	Mover->PlannedCell = FRTCellId(2, 0);
 
 	RunTurn(TM);
 
-	TestEqual(TEXT("gli HP non calano: il danno del terreno lo assorbe lo scudo"), Mover->Health, StartHealth);
-	// (base + 5) - 10 (ingresso) - 8 (Burning nel Cleanup, CP 8.2), tutti di scudo BASE: i 5 temporanei sono
-	// stati consumati per primi, quindi ExpireTemporaryShield non ne toglie altri. Anche il danno ambientale
-	// del Cleanup passa dalla stessa contabilita': se ne saltasse una, questo numero sarebbe piu' alto o piu'
-	// basso di una delle due voci.
-	TestEqual(TEXT("resta lo scudo BASE non consumato, non uno in meno"),
-		Mover->Shield, (BaseShield + 5) - 10 - URTCombatLibrary::BurningCleanupDamage);
+	// Il colpo d'ingresso l'ha assorbito il temporaneo: se fosse arrivato agli HP la differenza sarebbe di
+	// `DannoIngresso + BurningCleanupDamage`, non del solo Burning.
+	TestEqual(TEXT("il temporaneo assorbe il danno del terreno all'ingresso"),
+		Mover->Health, StartHealth - URTCombatLibrary::BurningCleanupDamage);
+	// E il `Burning` del Cleanup ha trovato il temporaneo esaurito e la base NON l'ha fermato: la base e'
+	// ancora intera. Se la assorbisse, questo numero sarebbe piu' basso e gli HP piu' alti — i due asserti
+	// si sorreggono a vicenda, e nessuno dei due regge da solo con l'altra regola.
+	TestEqual(TEXT("lo scudo base non ha assorbito l'hazard, ed e' intero"),
+		Mover->Shield, URTCombatLibrary::BaseShield);
+	TestEqual(TEXT("il temporaneo e' scaduto"), Mover->GetTemporaryShield(), 0);
 
 	DestroyHexMoveWorld(World);
 	return true;

@@ -3,17 +3,33 @@
 #include "Map/RTHexVisionLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 
-FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, int32 Shield, int32 Health)
+FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, ERTDamageSource Source, int32 Shield,
+	int32 TemporaryShield, int32 Health)
 {
 	const int32 SafeDamage = FMath::Max(0, Damage);
 	const int32 SafeShield = FMath::Max(0, Shield);
+	// `Clamp` e non `Max`: un temporaneo maggiore del totale renderebbe la base NEGATIVA, e da li' in poi
+	// l'aritmetica direbbe cose false in silenzio invece di rompersi.
+	const int32 SafeTemp = FMath::Clamp(TemporaryShield, 0, SafeShield);
+	const int32 SafeBase = SafeShield - SafeTemp;
 
-	const int32 AbsorbedByShield = FMath::Min(SafeDamage, SafeShield);
-	const int32 NewShield = SafeShield - AbsorbedByShield;
-	const int32 DamageToHealth = SafeDamage - AbsorbedByShield;
-	const int32 NewHealth = FMath::Max(0, Health - DamageToHealth);
+	// 1 — il temporaneo assorbe per primo, qualunque sia la sorgente: sta per scadere comunque, e consumare
+	// prima la base significherebbe buttare via protezione destinata a sparire.
+	const int32 AbsorbedByTemp = FMath::Min(SafeDamage, SafeTemp);
+	int32 Remaining = SafeDamage - AbsorbedByTemp;
+	const int32 NewTemp = SafeTemp - AbsorbedByTemp;
 
-	return FRTDamageResult(NewHealth, NewShield);
+	// 2 — la base assorbe SOLO il danno diretto ([D-224]): `Burning`, danno da terreno e propagazione
+	// elettrica la attraversano interi.
+	const int32 AbsorbedByBase = (Source == ERTDamageSource::Direct)
+		? FMath::Min(Remaining, SafeBase)
+		: 0;
+	Remaining -= AbsorbedByBase;
+	const int32 NewBase = SafeBase - AbsorbedByBase;
+
+	const int32 NewHealth = FMath::Max(0, Health - Remaining);
+
+	return FRTDamageResult(NewHealth, NewBase + NewTemp, NewTemp);
 }
 
 ERTCombatOutcome URTCombatLibrary::ClassifyCombatOutcome(int32 HealthBefore, int32 HealthAfter, int32 AttackerDmgBonus)

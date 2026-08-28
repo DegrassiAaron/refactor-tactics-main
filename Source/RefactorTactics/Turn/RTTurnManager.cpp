@@ -174,7 +174,9 @@ void ARTTurnManager::ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUn
 			if (Effect.Effect == ERTActionEffect::Damage)
 			{
 				const int32 HpPrima = Unit->Health; // serve DOPO, per classificare l'esito
-				const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Effect.Amount, Unit->Shield, Unit->Health);
+				// `Environmental`: e' danno da TERRENO, non un colpo. Lo scudo base non lo ferma ([D-224]).
+				const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Effect.Amount,
+					ERTDamageSource::Environmental, Unit->Shield, Unit->GetTemporaryShield(), Unit->Health);
 				// ApplyCombatState, non l'assegnazione diretta: e' la stessa contabilita' del danno da azione ed
 				// e' l'unica che erode anche TemporaryShield. Scrivendo Health/Shield a mano lo scudo temporaneo
 				// resterebbe al valore vecchio e il Cleanup lo sottrarrebbe una seconda volta.
@@ -1389,7 +1391,8 @@ void ARTTurnManager::LockInAndResolve()
 			{
 				const int32 HpPrima = Unit->Health; // serve DOPO, per classificare l'esito
 				const FRTDamageResult Burn = URTCombatLibrary::ApplyDamage(
-					URTCombatLibrary::BurningCleanupDamage, Unit->Shield, Unit->Health);
+					URTCombatLibrary::BurningCleanupDamage, ERTDamageSource::Environmental,
+					Unit->Shield, Unit->GetTemporaryShield(), Unit->Health);
 				Unit->ApplyCombatState(Burn.Health, Burn.Shield);
 
 				// ➕ **La voce canonica del danno da hazard** (`#625`). Fino al 2026-08-16 questo danno
@@ -1500,6 +1503,9 @@ void ARTTurnManager::LockInAndResolve()
 
 			Unit->Energy = URTCombatLibrary::GainEnergy(Unit->Energy, Unit->EnergyPerTurn, Unit->MaxEnergy);
 			Unit->ExpireTemporaryShield(); // la protezione delle abilita' di supporto vale un turno solo
+			// [D-224]: subito DOPO la scadenza, cosi' l'invariante «a fine turno ogni unita' viva ha
+			// esattamente lo scudo base e zero temporaneo» si verifica in un punto solo.
+			Unit->RechargeBaseShield();
 			// #1077: la SCADENZA. Nessuno ha fatto niente, e' finito il conteggio — e anche qui i tag
 			// arrivano ordinati, perche' vengono da una `TMap`.
 			for (const FGameplayTag& Scaduto : Unit->TickStatuses())
@@ -2343,7 +2349,9 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 				continue;
 			}
 			ARTUnit* Victim = Units[Hit.UnitId];
-			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Hit.Damage, Victim->Shield, Victim->Health);
+			// `Environmental`: e' la propagazione elettrica, che nessuno ha mirato. Salta lo scudo base.
+			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Hit.Damage,
+				ERTDamageSource::Environmental, Victim->Shield, Victim->GetTemporaryShield(), Victim->Health);
 			Victim->ApplyCombatState(Result.Health, Result.Shield);
 
 			FRTTurnLogEntry Entry;
@@ -3774,6 +3782,9 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 					if (States.IsValidIndex(Event.TargetUnitId))
 					{
 						States[Event.TargetUnitId].Shield = EffectTarget->Shield;
+						// [D-224] Anche la quota temporanea: lo scudo appena concesso E' temporaneo, e
+						// aggiornare solo il totale lo farebbe passare per BASE agli occhi del resolver.
+						States[Event.TargetUnitId].TemporaryShield = EffectTarget->GetTemporaryShield();
 					}
 					AddLogEvent(FString::Printf(TEXT("%s: +%d scudo dalla reazione"),
 						*EffectTarget->GetName(), Event.Amount));
@@ -4746,7 +4757,9 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 			ARTUnit* Victim = Units[Outcome.VictimUnitId];
 			const int32 Reduction = BoundaryCoverReduction(Map, Shooter, Victim, Armed.LockedCell);
 			const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
-			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, Victim->Shield, Victim->Health);
+			// `Direct`: e' un colpo al decision boundary, e passa dallo scudo base come ogni colpo.
+			const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
+				Victim->Shield, Victim->GetTemporaryShield(), Victim->Health);
 			Victim->ApplyCombatState(Result.Health, Result.Shield);
 
 			Entry.Outcome = static_cast<uint8>(ERTPredictiveOutcome::TriggerMatched);
@@ -5115,7 +5128,9 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	ARTUnit* Target = Units[TargetIdx];
 	const int32 Reduction = BoundaryCoverReduction(Map, WatchOwner, Target, Target->Cell);
 	const int32 Dealt = FMath::Max(0, Armed.Damage - Reduction);
-	const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, Target->Shield, Target->Health);
+	// `Direct`: colpo di Overwatch. Stessa natura del boundary shot qui sopra.
+	const FRTDamageResult Result = URTCombatLibrary::ApplyDamage(Dealt, ERTDamageSource::Direct,
+		Target->Shield, Target->GetTemporaryShield(), Target->Health);
 	Target->ApplyCombatState(Result.Health, Result.Shield);
 
 	// La charge si spende QUI e in nessun altro punto: `Charges = 1` (ADR-0004 §8). Da questo momento il

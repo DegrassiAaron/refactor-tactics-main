@@ -49,7 +49,7 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 	// Simmetrica a Gadget: la stessa combo si legge da entrambi i lati con lo stesso nome.
 	TestEqual(TEXT("debolezza simmetrica a Gadget"), Phase->Weakness, FName(TEXT("Affinity.Electricity")));
 
-	if (!TestEqual(TEXT("cinque azioni"), Phase->Actions.Num(), 5)) { return false; }
+	if (!TestEqual(TEXT("sei azioni: le cinque del catalogo piu' lo scudo proattivo di D-226"), Phase->Actions.Num(), 6)) { return false; }
 
 	const URTActionData* PressureJet = Phase->Actions[0];
 	TestEqual(TEXT("PressureJet: 16 danni"), PhaseEffectAmount(PressureJet->Def.Effects, ERTActionEffect::Damage), 16);

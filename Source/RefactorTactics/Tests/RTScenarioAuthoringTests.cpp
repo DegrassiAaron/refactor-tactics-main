@@ -263,8 +263,10 @@ bool FRTScenarioAuthoringContractIsExposedTest::RunTest(const FString&)
 	{
 		TestTrue(TEXT("ERTScenarioAuthoringResult e' BlueprintType"),
 			ResultEnum->GetBoolMetaData(TEXT("BlueprintType")));
-		// Cinque esiti distinti: un `bool` non basterebbe, ed e' il punto di ADR-0010 §3.
-		TestEqual(TEXT("cinque esiti distinti"), ResultEnum->NumEnums() - 1, 5);
+		// Sei esiti distinti: un `bool` non basterebbe, ed e' il punto di ADR-0010 §3. Il sesto e'
+		// `RunFailed`, arrivato con `#1117` per non far passare un guasto dello STRUMENTO per uno scenario
+		// scritto male — la stessa separazione che `ERTTestOutcome` tiene fra `Error` e `Fail`.
+		TestEqual(TEXT("sei esiti distinti"), ResultEnum->NumEnums() - 1, 6);
 	}
 
 	// ⚠️ E il verso opposto, che e' la meta' che conta davvero: il MODELLO non deve essere esposto. Se un

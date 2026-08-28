@@ -967,7 +967,10 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 ### E13 — Conoscenza parziale: vista e udito · P2
 
 **Obiettivo**: la conoscenza di squadra smette di essere totale. La **vista** (statistica già a catalogo, oggi
-inerte) e il **rumore** alimentano lo stesso modello a tre livelli. Non è fog of war: la mappa statica resta nota.
+inerte) e il **rumore** alimentano lo stesso modello a tre livelli. 🔴 **Questa riga chiudeva con *«Non è fog of
+war: la mappa statica resta nota»*, e [D-225](../decisions/RT_PDR_00_Decision_Log.md) l'ha resa falsa il
+2026-08-28**: in v0.1 la geometria non osservata **si nasconde**, e il checkpoint E13.7 ([#1467](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1467))
+implementa il nascondimento, non il velo.
 
 Fonti: [`brief-conoscenza-parziale.md`](../gameplay/brief-conoscenza-parziale.md) ·
 `docs/archive/src/design/rumore-e-percezione-acustica.md`. Dipende da **E4** (fallback), **E6** (statistiche eroe), **E8** (fumo).

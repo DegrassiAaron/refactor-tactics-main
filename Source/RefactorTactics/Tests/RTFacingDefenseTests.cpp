@@ -267,8 +267,8 @@ bool FRTCombatShieldWorksFromAnyDirectionTest::RunTest(const FString&)
 	// Lo SCUDO assorbe dopo, in `ApplyDamage`, che non ha e non deve avere un parametro di direzione: il colpo
 	// che gli arriva e' identico nei due casi, quindi lo e' anche cio' che resta.
 	const int32 Shield = 12;
-	const FRTDamageResult Front = URTCombatLibrary::ApplyDamage(FrontPower, Shield, 90);
-	const FRTDamageResult Rear = URTCombatLibrary::ApplyDamage(RearPower, Shield, 90);
+	const FRTDamageResult Front = URTCombatLibrary::ApplyDamage(FrontPower, ERTDamageSource::Direct, Shield, 0, 90);
+	const FRTDamageResult Rear = URTCombatLibrary::ApplyDamage(RearPower, ERTDamageSource::Direct, Shield, 0, 90);
 	TestEqual(TEXT("lo scudo lascia lo stesso residuo di HP"), Front.Health, Rear.Health);
 	TestEqual(TEXT("il conto e' quello del catalogo"), Front.Health, 90 - (30 - Shield));
 	return true;
