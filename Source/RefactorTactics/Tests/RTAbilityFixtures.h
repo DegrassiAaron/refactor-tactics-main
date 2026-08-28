@@ -43,6 +43,30 @@
  * Le stesse righe di `URTCatalogLibrary::MakeGenericActions` e di `MakeEquipmentAction`. Un test che
  * costruisce l'azione diversamente da come la costruisce il gioco misura un oggetto che in partita non
  * esiste.
+ *
+ * ## ⛔ QUANDO NON USARLA, e non e' un dettaglio
+ *
+ * Copiare i campi specchio e' giusto quando il test misura un COMPORTAMENTO. Non lo e' quando il test
+ * misura **da dove il resolver legge**: riempire lo specchio rende quel test verde anche se il resolver
+ * leggesse il campo sbagliato, e la proprieta' sorvegliata sparisce senza che niente diventi rosso.
+ *
+ * Misurato durante #1588 — mutando `ResolveDash` per fargli leggere lo specchio invece del `Def`, cade
+ * `RefactorTactics.Actions.Sprint.AppliesExposed` con «lo Sprint copre 6 celle: il budget e' quello del
+ * catalogo (8 MP)». Quel test funziona **perche'** il suo helper lascia lo specchio vuoto.
+ *
+ * I siti che restano deliberatamente a mano, e la ragione di ciascuno:
+ *
+ * · `AddSprintAbility` (`RTHexMovementIntegrationTests`) e i suoi cinque usi — la portata del Dash deve
+ *   arrivare dal catalogo, e lo specchio vuoto e' cio' che lo prova.
+ * · `RTReactionTests` e `RTTurnLogCauseTests`, gli scatti — stessa ragione.
+ * · `RTHexCombatIntegrationTests`, il marcatore e il tiro di precisione — «senza toccare le portate: e'
+ *   esattamente il caso che prima non funzionava», dice il commento sul posto.
+ * · `RTControlActionTests` — costruisce un `Def` SINTETICO (`MakePush2Def`) quando il catalogo non ha
+ *   l'azione: nessuna fixture puo' derivare campi da una definizione che non esiste.
+ * · `RTHexBotIntegrationTests` — la variabile serve dopo, per interrogare `MovementStyle`.
+ *
+ * Una variante che serve davvero **chiama** questa fixture e poi altera; una che deve partire da uno
+ * specchio vuoto non la chiama affatto. Cio' che non deve succedere e' riscrivere la sequenza per inerzia.
  */
 namespace RTAbilityFixtures
 {
