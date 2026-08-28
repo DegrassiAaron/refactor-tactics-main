@@ -418,10 +418,16 @@ perché la riga d'allowlist viene **prima** dell'asset, o `git add` tace e il la
 percorso è `/Game/RT/World/Graybox/` e la riga in `.gitignore` è stata scritta nello stesso commit della
 decisione, [`D-173`](decisions/RT_PDR_00_Decision_Log.md).
 
-⏱️ **Ma «si può modellare» non è «si può committare»**, e il blocco che resta non è in questa tabella: è
-quello registrato qui sopra. ✅ **Sciolto il 2026-08-25**: fino all'atterraggio di [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155)
+✅ **«Si può modellare» e «si può committare» oggi coincidono**, e il blocco che le separava non c'è più.
+*L'apertura di questo paragrafo diceva «**Ma** si può modellare non è si può committare», al presente,
+mentre la coda quattro righe sotto dichiarava il contrario: corretta il 2026-08-28 — correggere la
+chiusura di una sezione e non la sua apertura è lo stesso difetto due volte nello stesso testo.* ✅ **Sciolto il 2026-08-25**: fino all'atterraggio di [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155)
 un volume autorato era corretto per il canone e **1,5× fuori misura** per la mappa in cui si
-posa — quindi si modella alla scala nuova e si **rimanda il commit**, non il lavoro.
+posava, e la regola di allora era modellare alla scala nuova rimandando il commit. 🔴 **La coda
+diceva ancora *«si rimanda il commit»* al presente, ed è stata corretta il 2026-08-28**: con `#1155`
+atterrata le due scale coincidono e il commit non attende più nulla. Il PIE resta dovuto, ma come
+gate di qualità — non come divieto di versionare. Vedi
+[`D-173`](decisions/RT_PDR_00_Decision_Log.md).
 
 > ⚠️ *Questo paragrafo diceva che «tre delle quattro riguardano un numero o un percorso che si fissa quando
 > il primo asset viene prodotto», ed era il gemello non corretto della frase in testa alla sezione: falso

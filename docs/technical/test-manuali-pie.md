@@ -50,9 +50,34 @@
   Se la vista sembra bloccata e compaiono le **etichette degli actor** in viewport, hai fatto **Eject** (`F8`):
   stai guardando con la camera dell'editor, non con quella del gioco — `F8` di nuovo per rientrare nel pawn.
 
-## Stato in numeri — 2026-08-25
+## Stato in numeri — 2026-08-28
 
-**164 voci**: ✅ **60 verdi** · 🟡 **22 parziali** · ❌ **2 fallite** · ⏳ **80 aperte**.
+**167 voci**: ✅ **63 verdi** · 🟡 **21 parziali** · ❌ **2 fallite** · ⏳ **81 aperte**.
+
+*(Rimisurate col comando qui sotto il **2026-08-28**, in due tempi come la regola vuole. Entra **una** voce,
+`PIE-SCEN-COMPOSER`, il percorso PIE del DoD di TD-EDITOR-01 che il contratto del widget dichiarava non
+registrato. 🔴 **Ma il delta non è uno, e ora è ricostruibile voce per voce**: la misura **prima** di toccare il
+file ha dato `166 · 63/21/2/80` contro l'intestazione `164 · 60/22/2/80`. L'intestazione **era corretta
+quando fu scritta** — a `4a50fd4f` il comando dava esattamente `164 · 60/22/2/80` — e lo scarto si è
+aperto dopo, in quattro movimenti che nessuno ha rimisurato: `PIE-AS4a` ⏳→✅ (`da16270b`, 2026-08-25),
+`PIE-HEXPLAY-10` 🟡→✅ (`a3d5e7c7`, stesso giorno — **è la parziale che scende da 22 a 21**), l'ingresso di
+`PIE-BU2c` già ✅ (`293728f0`, stesso giorno) e quello di `PIE-V01-KIT-HOTKEYS` ⏳ (`8cdd071c`,
+2026-08-26). Tre verdi, due voci, una parziale diventata verde: i conti tornano. ⚠️ **La prima correzione
+di questo paragrafo, il 2026-08-28, sosteneva il contrario — che l'intestazione fosse sbagliata all'origine
+e che nessuna parziale fosse diventata verde — ed è registrata qui invece che riscritta in silenzio**:
+nasceva dall'aver misurato `a3d5e7c7` credendolo lo stato *al momento dell'intestazione*, mentre era già il
+terzo dei quattro movimenti. 🔴 *È lo stesso difetto che il paragrafo denuncia, commesso mentre lo si
+denunciava: un ancoraggio scelto per comodità invece che per data.* Il numero scritto non è il numero
+misurato finché qualcuno non lo rimisura, e **rimisurarlo dal commit sbagliato non conta come misurarlo**.
+⚠️ **La prima stesura di `PIE-SCEN-COMPOSER` ha sbagliato il conteggio, e nel modo che questo file aveva
+già documentato**: la cella di stato citava un comando con `grep -i 'a\|b'`, cioè una **pipe dentro una
+cella**. `awk -F'|'` l'ha letta come separatore, `$(NF-1)` è finito su un altro campo, e la voce ⏳ è
+stata contata **verde**: `63/21/2/80` invece di `63/21/2/81`, con il totale giusto e la ripartizione
+sbagliata — lo stesso tipo di errore dell'intestazione qui sopra, e per la stessa ragione: il totale non lo
+mostra. Corretta togliendo la pipe. 🔴 *Vale la pena registrarlo invece di correggerlo in silenzio: la
+regola «una pipe non si scrive» era già scritta qui sotto dal 2026-08-20, ed è stata infranta comunque dal
+primo che ha aggiunto una voce.*
+`senza-marcatore` misurato dopo la correzione: **0**.)*
 
 *(Rimisurate col comando qui sotto il **2026-08-25**: entrano le **sei** voci del contratto graybox —
 `-VOLUME`, `-FIT`, `-COVER`, `-DOOR`, `-SURFACE`, `-ZOOM` — di `D-152`
@@ -285,18 +310,31 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   docs/technical/test-manuali-pie.md
 ```
 
-⚠️ **Il numero di voci è quello delle RIGHE DI TABELLA, e un `grep` sugli ID ne conta di più.** Misurato il
-2026-08-25:
+⚠️ **Il numero di voci è quello delle RIGHE DI TABELLA, e un `grep` sugli ID conta un'altra cosa** — a
+volte di più, a volte lo stesso numero per compensazione, mai per verifica: vedi l'aggiornamento del
+2026-08-28 subito sotto il blocco. Misurato il 2026-08-25:
 
 ```bash
 grep -c '^| \*\*PIE-' docs/technical/test-manuali-pie.md                        # 164 — le voci
 grep -o 'PIE-[A-Z0-9][A-Z0-9-]*' docs/technical/test-manuali-pie.md | sort -u | wc -l   # 165
 ```
 
-I due non coincidono e **non devono**: il secondo raccoglie anche i *glob* che la prosa usa per parlare di
-famiglie di voci — `PIE-HEX-LAYER-*`, `PIE-HEX-VIZ-*`, `PIE-STATE-*`, `PIE-V01-*`, `PIE-VIS-*` — di cui
-estrae il troncone senza asterisco. Sono **cinque ID che non esistono**, e chi legge `165` come «numero di
-voci» sbaglia di cinque in eccesso.
+Al 2026-08-25 i due **non coincidevano**: il secondo raccoglie anche i *glob* che la prosa usa per parlare
+di famiglie di voci — `PIE-HEX-LAYER-*`, `PIE-HEX-VIZ-*`, `PIE-STATE-*`, `PIE-V01-*`, `PIE-VIS-*` — di cui
+estrae il troncone senza asterisco: ID che non esistono, e chi leggeva `165` come «numero di voci»
+sbagliava in eccesso.
+
+🔴 **Aggiornamento del 2026-08-28, e il caso è peggiorato invece di risolversi**: rimisurati oggi i due
+comandi danno **lo stesso numero**, `167` e `167`. La coincidenza **non è una verifica** — è una
+compensazione, e nasconde l'errore invece di segnalarlo. Da una parte i tronconi che non sono voci sono
+saliti a **nove** (`PIE-AS4`, `PIE-C`, `PIE-FMT1`, `PIE-HEX-LAYER-`, `PIE-HEX-VIZ-`, `PIE-PACING-1`,
+`PIE-STATE-`, `PIE-V01-`, `PIE-VIS-`); dall'altra **nove righe reali** portano un suffisso minuscolo che il
+regex, essendo `[A-Z0-9]`, tronca o accorpa (`PIE-AS4a`, `PIE-AS4b`, `PIE-BU2b`, `PIE-BU2c`, `PIE-BU3c`,
+`PIE-HEXPLAY-3b`, `PIE-HEXPLAY-4b`, `PIE-HEXPLAY-6b`, `PIE-HEXPLAY-6c`). I due errori si elidono.
+
+⚠️ **Quindi: il numero di voci è `grep -c` sulle righe, sempre.** Il secondo comando serve a trovare ID
+citati in prosa e mai registrati, non a contare — e quando i due coincidono va guardato *perché*, non preso
+come conferma. L'oracolo di questa sezione resta l'`awk` qui sopra.
 
 È lo stesso difetto già registrato per `RELEASE-V01` («il marcatore compare anche nella prosa: si conta la
 RIGA DI TABELLA, non la parola»), ed è ricomparso il 2026-08-24: la nota che annunciava le sei voci del
@@ -777,7 +815,7 @@ percorso — passi 1-9 e 13 — è eseguibile.
 
 > L'harness esegue scenari `.json` attraverso il **percorso di gioco reale** ed è **interamente coperto
 > headless** (30 test `RefactorTactics.Scenario.*` + `RefactorTactics.ScenarioIndex.*`, misurati il
-> 2026-08-08). Restano cinque cose che nessun test automatico può vedere, perché riguardano ciò che accade
+> 2026-08-08). Restano **sette** cose che nessun test automatico può vedere, perché riguardano ciò che accade
 > **a schermo** e ciò che l'utente **non deve** dover fare.
 > Guida d'uso: [`test-e-diagnosi.md`](runbooks/test-e-diagnosi.md) · modello di classificazione:
 > [`scenario-index-e-tag.md`](tooling/scenario-index-e-tag.md).
@@ -790,6 +828,7 @@ percorso — passi 1-9 e 13 — è eseguibile.
 | **PIE-TEST-CONSOLE** | I comandi rispondono durante una partita | partita avviata (anche normale) | 🔴 **Il medium legittimo è l'Output Log** (deciso dall'autore il **2026-08-16**, seduta U18 — la voce lo prevedeva come una delle due uscite): questa voce **non** chiede più che l'esito si legga senza aprire l'Output Log. Chiede che i comandi **rispondano**, e la risposta si legge dove il gioco la scrive. `rt.Test.List` elenca gli scenari registrati — **il numero si rimisura eseguendo il comando, non si cita**: questa riga ha detto «4», poi «8», e l'osservazione del 2026-08-08 ne ha contati **9**; `rt.Test.Run Movement.BasicFailsOnPurpose` stampa `FAIL` **con atteso e ottenuto** e il percorso del report; `rt.Test.DumpResult` ristampa l'ultimo `result.json`. ⚠️ Attenzione: eseguire uno scenario **sostituisce la mappa** e aggiunge unità alla partita in corso — è previsto (il runner riusa mappa e turn manager), ma dopo conviene riavviare con `R` | ⏳ **DA RIESEGUIRE — il difetto che l'ha fatta cadere e' corretto** ([#1154](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1154)): `FindLatestRunDirectory` ordinava per NOME e prendeva l'ultimo, quindi `selftest` vinceva su qualunque timestamp; ora la recenza si misura sul tempo del `result.json`, e `Scenario.LatestRunIsTheMostRecentNotTheLastByName` lo pinna — **verificato per mutazione**, rimettendo `Runs.Sort()` il test torna rosso con `selftest`. ⚠️ **Non e' verde**: la voce resta da eseguire in PIE, perche' qui si verifica che i comandi RISPONDANO, e questo nessun headless lo misura. ❌ **2026-08-17 — `rt.Test.DumpResult` non fa quello che la voce dice** ([#1154](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1154)); gli altri due comandi rispondono. Il verdetto è in fondo a questa cella, dopo la storia che ci ha portati qui. *Storia:* 🟡 **2026-08-08 — metà eseguita.** `rt.Test.List` ha risposto a schermo: l'utente ha visto i **9** scenari (i 6 `Movement.*`, i 2 `Combat.*` e `RT_Showcase_Relay_v01`). Il `FAIL` di `rt.Test.Run Movement.BasicFailsOnPurpose` è stato **prodotto** — `FAIL (0/1 assertion, 1 turni)`, `FALLITA UnitAtCell(A1): atteso (q=3,r=0,L=0), ottenuto (q=-2,r=0,L=0)`, più il percorso del report — ma **l'utente non l'ha visto a schermo**: l'overlay della console in PIE mostra poche righe e scorre via. ⚠️ **Questa voce chiede «i comandi rispondono», e una risposta che non si legge non risponde**: era stata segnata ✅ sulla prova nei log, ed è stata corretta a 🟡 su obiezione dell'utente — la prova nei log dice che il *codice* funziona, che è ciò che i test headless già coprono (`Scenario.RunnerDiagnosesFailure`, `ReportIsSelfSufficient`). Per chiudere serve che l'esito sia **leggibile senza aprire l'Output Log**: o si porta a schermo una riga di sintesi, o si dichiara qui che il medium legittimo è l'Output Log e la voce cambia richiesta. Il conteggio in questa riga era «4», fermo a prima degli scenari `Combat.*`. **➕ 2026-08-16 — la biforcazione è stata sciolta** (seduta U18, [#1013](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1013)): l'autore ha scelto la seconda uscita, **l'Output Log è il medium legittimo**, e la richiesta nella colonna a fianco è cambiata di conseguenza. ⚠️ Va detto per intero, perché è il ribaltamento di un'obiezione sua: nel 2026-08-08 il declassamento a 🟡 nacque dal principio «una risposta che non si legge non risponde», e quel principio ora non si applica più a questa voce. Resta però 🟡 e **non ✅**, per due mancanze misurate e non per prudenza: **1)** `rt.Test.DumpResult` non risulta osservato in nessuna sessione — la nota del 2026-08-08 copre `List` e `Run`, non il terzo comando; **2)** il numero di scenari nella richiesta è stato smentito due volte e va **rimisurato** eseguendo `rt.Test.List`, non trascritto. Chiudibile con tre comandi in una partita qualsiasi. **❌ 2026-08-17 — eseguita, e il terzo comando non fa quello che dice** (seduta U18, [#1013](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1013)). Tutti e tre lanciati in PIE. **`rt.Test.List` risponde**: `[RT-Test] **78** scenari` — non 8 né 9, il corpus è cresciuto di un ordine di grandezza (`Spec.*` e `Visual.*` non esistevano quando la richiesta fu scritta), ed è la prova che il numero andava rimisurato e non trascritto. **`rt.Test.Run Movement.BasicFailsOnPurpose` risponde**: `FAIL (0/1 assertion, 1 turni)`, `FALLITA UnitAtCell(A1): atteso (q=3,r=0,L=0), ottenuto (q=-1,r=0,L=0)`, più il percorso del report — atteso, ottenuto e report, come il criterio chiede. 🔴 **`rt.Test.DumpResult` NON ristampa l'ultimo `result.json`**: il run aveva appena scritto in `…/20260817-172722/`, e il comando ha stampato `…/**selftest**/result.json`, un file del **2026-08-15** con `"runId": "selftest"`. Causa misurata in `URTTestReportWriter::FindLatestRunDirectory`: `Runs.Sort()` ordina **per nome** e prende `Runs.Last()`, e in ASCII `s` viene dopo `2` — `selftest` batte qualunque timestamp, per sempre. Aperta come [#1154](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1154). ⚠️ **La trappola che rendeva il difetto invisibile va detta**: `selftest` conteneva `actual=(q=-1,r=0,L=0)`, **identico** al run appena eseguito — chi confronta solo il JSON conclude che il comando funziona. A smentirlo sono il path stampato, il `runId` nel file e il timestamp. ⚠️ **Dato collaterale, registrato e non trasformato in difetto**: un secondo run nella stessa sessione (`20260817-172817`) ha dato `actual=(q=-2,r=0,L=0)` invece di `-1`. È coerente con il comportamento **dichiarato** di `rt.Test.Run`, che riusa mappa e turn manager della partita in corso: il secondo run non parte dallo stesso stato. Vale però come promemoria che due esecuzioni consecutive dello stesso scenario **non sono confrontabili** senza `R` in mezzo. ⚠️ Osservata nel worktree **principale** (`docs/wiki-twin-reactions`, 0 commit fuori da `origin/main`, DLL delle 14:41), non in quello della track: il codice è quello di `main`, ma la DLL precede i commit del pomeriggio |
 | **PIE-SCEN-FILTER** | I filtri restringono la tendina, **e la tendina si aggiorna** | `BP_GameMode` → Class Defaults → *RefactorTactics\|Test* | Con i filtri vuoti, `Scenario To Run` elenca tutti e 8 gli scenari. Impostando `Scenario Filter A = movement` la tendina scende a **6**; aggiungendo `Scenario Filter B = core` scende a **3** (`Movement.Basic`, `Movement.Collision`, `Movement.SwapRejectedByPlanning`). Il vocabolario dei due filtri contiene solo tag esistenti, con la voce vuota in testa | ✅ **2026-08-08** — verificato dall'utente in Editor: «la selezione filtra i possibili scenario to run». **Il rischio tecnico non si è materializzato**: `GetOptions` rivaluta l'elenco al cambio di un'altra property dello stesso actor, quindi il Details Panel ridisegna la tendina da solo. Nessuna `PostEditChangeProperty`, nessuna dipendenza `PropertyEditor` |
 | **PIE-SCEN-KEEP** | Filtrare **non perde** lo scenario selezionato | come sopra, con `Scenario To Run = Combat.BasicAttack` già salvato | Impostando `Scenario Filter A = movement` — che esclude `Combat.BasicAttack` dalla vista — la property **resta** su `Combat.BasicAttack`, e premendo Play parte quello. Il filtro è una vista, non un vincolo | ✅ **2026-08-08** — verificato dall'utente in Editor: «se cambio scelta, lo scenario to run non si resetta». Il combo box tiene il valore corrente anche quando i filtri lo escludono dalla vista, quindi la configurazione salvata nel `.uasset` non sembra né è andata persa. ⚠️ **Al termine svuota `Scenario To Run`** (prima voce della tendina) e Save: la property sopravvive alla sessione, e al Play successivo il GameMode esegue lo scenario e **non allestisce la partita normale** (il ramo `if (!TestScenario.IsEmpty())` di `ARTGameMode::BeginPlay`, che legge `ResolveScenarioToRun`). Sintomo: schermo quasi nero, nessuna unità tua, **nessuna barra abilità** — perché la barra si disegna solo con un'unità selezionata. Diagnosi in un colpo: cerca `AUTO-RUN` nell'Output Log, la riga dice anche **da dove** viene lo scenario |
+| **PIE-SCEN-COMPOSER** | Il widget Scenario Composer **scrive ciò che mostra**, e conia `UnitId` distinti | `WBP_RT_ScenarioComposer` esistente e aperto, con un draft nuovo (`NewScenario`). ⛔ **Non soddisfacibile oggi**: l'asset non esiste — `git ls-files 'Content/RT/UI/**/WBP_RT_ScenarioComposer*'` dà **0** (misurato il 2026-08-28). ⚠️ **L'oracolo cerca il nome, non la cartella, e la ragione è che la cartella non è decisa**: §6 tiene vivi due candidati, quindi un glob su `UI/Scenario/` continuerebbe a dare `0` anche se l'asset nascesse in `UI/Tools/` — dichiarando assente una cosa che esiste. Il percorso proposto e i due dubbi di collocazione ancora aperti stanno in [`tooling/contratto-wbp-scenario-composer.md`](tooling/contratto-wbp-scenario-composer.md) §6 | Il DoD di TD-EDITOR-01: *piazza almeno due unità, salva, riapri, verifica Cell / Facing / ID*. Le due unità aggiunte con `[ + UNIT ]` compaiono nella lista con Hero · Team · Facing · Cell; `[ SAVE ]` scrive; riaprendo per ID i quattro campi coincidono. ⚠️ **La metà che il DoD non prevedeva è l'ID**: da [#1115](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1115) `AddUnit` prende `UnitId` **in ingresso** invece di restituirlo, quindi l'id lo conia il widget — e due unità aggiunte di seguito devono avere id **distinti** che sopravvivono al round-trip. Un conio che collide si manifesta come `Invalid` con *«id già preso»*, cioè un messaggio che accusa lo **scenario** per un difetto della **schermata**: chi lo legge cerca nel posto sbagliato. ⚠️ **Il ghost deve dire *invalido* PRIMA del click** su una cella occupata — `AddUnit` fallisce subito e non lascia cadere `Validate` — quindi se l'invalidità compare solo dopo il click, il widget sta **deducendo invece di chiamare**, ed è quello il difetto, non la geometria. ⛔ Non si verifica qui *se* una cella sia occupata: quello lo decide il runtime, e il widget non ha voce in capitolo (`spec-tactical-designer.md` §3) | ⏳ **non eseguibile — l'asset non esiste**. ⚠️ **E nessuna seduta la rivendica**: `grep -i composer docs/roadmap/editor-sessions.yaml` dà **0** il 2026-08-28, e altrettanto per `td-editor`, e le sedute U25–U30 coprono graybox (U25), griglia di lavoro (U26) e frontend (U27–U30). Questo registro possiede l'**esito atteso**; *quale voce e quando* lo possiede [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml), quindi la riga qui non può inventarsi una seduta. 🔴 *Questa frase rimandava alla **EditorMap**, che D-181 ha rimosso dal repository il 2026-08-21: rinviare a un owner che non esiste più significa che la voce non viene schedulata da nessuno — corretto il 2026-08-28.* 🔴 Finché quella riga non esiste, questa voce è **nel registro e fuori da ogni sequenza** — che è esattamente la condizione che `spec-tactical-designer.md` §9 descrive come *«tende a non essere mai eseguita»*. ✅ Il round-trip in sé è già coperto headless da `RTScenarioWriterTests` e `RTScenarioAuthoringTests`: questa voce non lo ripete, verifica che **la schermata** faccia arrivare i dati giusti al writer |
 
 ### Verifiche di mutazione — rimaste fuori dall'headless per contesa sul binario
 
