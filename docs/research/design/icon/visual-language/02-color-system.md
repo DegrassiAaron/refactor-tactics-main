@@ -21,6 +21,25 @@ che alla schermata.
 Base **Okabe-Ito**, scelta perché è distinguibile per costruzione sotto protanopia, deuteranopia e
 tritanopia — non perché sia gradevole.
 
+> 🔴 **SUPERATA dal 2026-08-28 — [D-232](../../../../decisions/RT_PDR_00_Decision_Log.md): il colore dice la
+> FASE, non la famiglia.** La tabella qui sotto resta come **provenienza** e per i suoi valori Okabe-Ito, ma
+> non governa più il colore delle icone d'azione. Il colore ha ora **quattro** valori — le macro-fasi
+> `Prep · Dash · Blast · Move` che `RequiredIconIds()` deriva dalle `VoluntaryPhases` — non otto.
+>
+> ✅ **La palette nuova è [D-233](../../../../decisions/RT_PDR_00_Decision_Log.md)** e riusa quattro HEX di
+> questa stessa tabella: `Prep #56B4E9` (era `Defense`) · `Dash #009E73` (era `Movement`) ·
+> `Blast #D55E00` (era `Attack`) · `Move #0072B2` (era `Utility`). Nessun colore nuovo entra nel sistema.
+> ⛔ Il giallo `#F0E442` è stato **escluso**: dista `ΔE 18.3` dall'ambra di `Selected`, e un colore di fase
+> non deve somigliare a uno stato.
+>
+> ⚠️ **Costo misurato del cambio**: **119** icone del generatore portano oggi un token di famiglia, e la
+> mappatura non è iniettiva — sulla fase di risoluzione, `Control` raccoglie quattro famiglie (`Hazard` 6,
+> `Reaction` 3, `Defense` 2, `Utility` 1) che diventano dello stesso colore, mentre `Attack` come famiglia si
+> sparge su tre fasi. **La famiglia deve ora vivere nella silhouette**, che è la regola «pattern prima del
+> colore» portata alle sue conseguenze. La ricolorazione è lavoro di **E25**.
+>
+> ✅ Le sezioni **Elemento**, **Relazione** e i temi CVD/High Contrast **non** sono toccate.
+
 | Famiglia | Token | HEX | Uso |
 |---|---|---|---|
 | Movement | `RT_Sem_Movement` | `#009E73` | `Move`, `Sprint`, `Dash`, reposition |

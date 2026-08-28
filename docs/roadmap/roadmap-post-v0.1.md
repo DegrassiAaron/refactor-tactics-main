@@ -401,6 +401,15 @@ gameplay per poter mostrare un'icona.
 | **25.4** | Accessibility, Wiki e documentazione | `Confirmed/Predicted/Uncertain` distinguibili in **grayscale**: la differenza è nella forma. Le pagine Wiki distinguono SPECIFICATO, DATO PRESENTE e CONSUMATO A RUNTIME, e non chiamano «implementato» un dato |
 
 **Dipendenze**: E20 (fondazione), poi E11, E14, E13/E27, E35 per i consumer.
+
+> **Skill Card Grammar** ([D-231](../decisions/RT_PDR_00_Decision_Log.md), owner
+> [`../technical/systems/spec-icon-card-grammar.md`](../technical/systems/spec-icon-card-grammar.md)): è la
+> fondazione compositiva di questa epic. **CP 25.1** la possiede come governance — grammatica e catalogo
+> hanno owner separati ma collegati, e le primitive compositive (`Target`, `Shape`, `Delivery`, `HitRule`,
+> `Effect`) **non** diventano categorie runtime. **CP 25.2** vi aggancia l'authoring: uno schema o un
+> validator di caps nasce solo con un consumer reale. **CP 25.4** ne eredita i test percettivi (grayscale,
+> 24 px, card densa al cap). 🔴 Resta **aperto** a che cosa serva il colore: tre owner si contraddicono, e
+> uno dei tre è già implementato nel generatore. Non si chiude per simmetria.
 **Fuori scope**: rifacimento dell'HUD della v0.1; authoring workflow completo, localization audit, theme
 variants, high-contrast pack ed export generato del catalogo, che restano post-v0.2.
 

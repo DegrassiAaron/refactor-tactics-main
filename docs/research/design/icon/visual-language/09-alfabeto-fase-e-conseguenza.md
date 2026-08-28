@@ -14,7 +14,22 @@ Verification done. Here is the specification.
 
 # RT — Alfabeto iconografico: fase e conseguenza
 
-**Stato**: proposta di decisione, non canone. Il canone dell'iconografia resta **D-031** + `ERTIconCategory` (`Source/RefactorTactics/UI/RTIconCatalogData.h:19-45`). Dove questo documento diverge dal codice o dal Decision Log, vincono codice e Decision Log (`01-principi.md`, statuto).
+**Stato**: proposta di decisione, non canone.
+
+> 🔴 **SUPERATA IN PARTE dal 2026-08-28 — [D-232](../../../../decisions/RT_PDR_00_Decision_Log.md).** Il
+> colore non dice più la **famiglia semantica**: dice la **macro-fase del round**. Cade quindi la riga 254 di
+> questo documento, dove adotta la palette per famiglia di `02-color-system.md`.
+>
+> ✅ **Ciò che NON è superato, ed è la maggior parte**: il **binario di fase** e i suoi gate T1/T3/T5/T6/T7
+> restano validi e in produzione. Misurato: il binario non porta la macro-fase del round — porta la **fase di
+> risoluzione** di [`RTActionDef.h`](../../../../../Source/RefactorTactics/Ability/RTActionDef.h)
+> (`Preparation` · `FastMovement` · `NormalMovement` · `Control` · `Attack` · `Environment`), che è un'altra
+> informazione. Le due convivono su due canali diversi: il binario dice *in che ordine risolve dentro il
+> turno*, il colore *in quale fase del round si gioca*.
+>
+> ⚠️ E il colore **non sostituisce** il marker: il vincolo grayscale impone che la fase resti leggibile senza
+> tinta, quindi il colore è ridondanza deliberata.
+ Il canone dell'iconografia resta **D-031** + `ERTIconCategory` (`Source/RefactorTactics/UI/RTIconCatalogData.h:19-45`). Dove questo documento diverge dal codice o dal Decision Log, vincono codice e Decision Log (`01-principi.md`, statuto).
 
 **Owner**: *come* fase ed effetto sono rappresentati. *Dove e quando* compaiono resta di `progettazione-hud.md` §7/§31/§49. Nessuna regola vive in due posti.
 

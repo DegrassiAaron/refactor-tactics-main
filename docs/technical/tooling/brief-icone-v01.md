@@ -18,6 +18,11 @@
 Regola di D-031: nessun widget referenzia una texture. Il gameplay produce una **chiave**, la UI la risolve nel
 catalogo. Rinominare una chiave costa quanto rinominare un'azione a catalogo.
 
+> **Come una card è composta non si decide qui.** Questo brief possiede *quali* icone servono e *come si
+> chiamano*; la grammatica compositiva — core esagonale, satelliti tipizzati, caps, reticolo a 30° — è di
+> [`../systems/spec-icon-card-grammar.md`](../systems/spec-icon-card-grammar.md) ([D-231](../../decisions/RT_PDR_00_Decision_Log.md)).
+> Quella grammatica **non cambia** il naming `UI.Icon.<Category>.<Name>` né l'insieme di `RequiredIconIds()`.
+
 ## Come rimisurare l'elenco
 
 Le chiavi non si contano a mano. Il test `RefactorTactics.IconCatalog.V01CategoriesPopulated` le pretende, e
