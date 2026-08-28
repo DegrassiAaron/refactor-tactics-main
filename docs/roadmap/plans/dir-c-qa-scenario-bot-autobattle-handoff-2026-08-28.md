@@ -696,21 +696,21 @@ Tutto misurato sul merge con `origin/main` a `dace4a50` (#1553), che nel frattem
 | gate | esito |
 |---|---|
 | build `RefactorTacticsEditor` | ✅ `Result: Succeeded`, 0 errori |
-| suite intera | ✅ **`1353/1354 completati, 0 fallimenti`**, dichiarata `VALIDA` da `scripts/rt-suite.ps1` (`Found 1354 automation tests` · `TEST COMPLETE. EXIT CODE: 0`) |
+| suite intera | ✅ **`1354/1354 completati, 0 fallimenti`**, dichiarata `VALIDA` da `scripts/rt-suite.ps1` (`Found 1354 automation tests` · `TEST COMPLETE. EXIT CODE: 0`) |
 | `radar/generate.ts --check` | ✅ 4/4 eroi · 20 abilità |
 | `radar/catalog-code.ts` | ✅ le quattro fonti concordano |
 | `radar/doc-tables.ts --check` | ✅ tutte le righe hanno la larghezza delle sorelle |
 | `node --test` (in `tools/radar/`) | ✅ 82/82 |
 | `radar/doc-links.ts --check` | 🔴 **exit 1 — preesistente**: 1 link su 3769, `docs/research/design/hud/mock-elementi-hud-correzioni.md`. È lo stesso di §6.2, non è stato toccato |
 
-⚠️ **Il `1353 su 1354` va spiegato, non arrotondato.** Il test mancante è
-`Vision.VisibleCellsRespectsSight`, ed è l'**ultimo avviato**: la sua riga di conclusione è tagliata dalla
-coda di shutdown del `Quit`. Nella run immediatamente precedente — stessa build, suite intera — quello
-stesso test è `Result={Success}`. `rt-suite.ps1` lo distingue da una troncatura e dichiara comunque `VALIDA`
-con **0 fallimenti**.
+⚠️ **In una run precedente il conteggio era `1353 su 1354`, e va spiegato invece che dimenticato.** Il
+test mancante era `Vision.VisibleCellsRespectsSight`, l'**ultimo avviato**: la sua riga di conclusione era
+tagliata dalla coda di shutdown del `Quit`. `rt-suite.ps1` distingue quel caso da una troncatura e dichiara
+comunque `VALIDA`. Nella run finale, sulla stessa build, tutte e 1354 le righe di conclusione ci sono —
+quindi il `1353` era la coda del log, non un test che non gira.
 
 **«N eseguiti su M dichiarati», riconciliato a mano** (`D-181`): **1356** nomi `RefactorTactics.*` estratti da
-`Source/` e `Plugins/`, **1354** avviati. La differenza è nominata ed è la stessa di #1547 —
+`Source/` e `Plugins/`, **1354** avviati e **1354** conclusi `Success`. La differenza è nominata ed è la stessa di #1547 —
 `RefactorTactics.h` (una stringa di `#include`) e `RefactorTactics.Probe.LatestRunDirectory` (uno
 **scenario ID** dentro `FRTScenarioLatestRunIsTheMostRecentTest`, non un test). ∴ **1354 su 1354.**
 
