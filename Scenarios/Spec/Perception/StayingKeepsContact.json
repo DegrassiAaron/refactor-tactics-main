@@ -5,11 +5,11 @@
   "seed": 0,
   "mapRadius": 6,
 
-  "_nota": "CONTROLLO di `Spec.Perception.MovingBreaksContact`. Stessi tre turni, stessa geometria, stesso spostamento di B1, stessa abilita'. L'UNICA differenza e' che A1 non fa il passo a ovest, quindi continua a guardare a est e non perde il contatto. Entrambi i colpi vanno a segno: 120 - 22 - 22 = 76.",
+  "_nota": "CONTROLLO di `Spec.Perception.MovingBreaksContact`. Stessi tre turni, stessa geometria, stesso spostamento di B1, stessa abilita'. L'UNICA differenza e' che A1 non fa il passo a ovest, quindi continua a guardare a est e non perde il contatto. Entrambi i colpi vanno a segno. Lo scudo base di [D-224] ne ferma 5 per colpo, e si ricarica nel Cleanup fra un turno e l'altro: 120 - 17 - 17 = 86.",
 
   "_nota_perche_esiste": "Da solo, `MovingBreaksContact` non dimostra la regola: passerebbe anche con un cooldown letto male, con un'abilita' che non puo' ripetersi, o con un gate che rifiuta sempre il secondo colpo per una ragione qualunque. La coppia isola la variabile — fra i due file cambia UNA cosa, il passo di A1 — e il delta osservabile e' 22 punti. E' la stessa disciplina che `CannotShootWhatYouCannotSee` dichiara nel proprio commento per la coppia statica.",
 
-  "_nota_cosa_prova_il_delta": "98 contro 76. Se dessero entrambi 76, la conoscenza non starebbe decidendo nulla e il movimento non toglierebbe il contatto. Se dessero entrambi 98, il secondo colpo non parte MAI e la causa e' altrove — non nella percezione. Solo la differenza attribuisce l'effetto al passo di A1.",
+  "_nota_cosa_prova_il_delta": "103 contro 86. ⚠️ **Aggiornato il 2026-08-28 per [D-224]**: ogni unita' porta 5 punti di scudo BASE che si ricaricano nel Cleanup e fermano il danno DIRETTO, quindi un colpo da 22 ne infligge 17. I numeri di questo file erano stati scritti prima di quella decisione, su un branch che l'ha incontrata al merge; `main` aveva gia' aggiornato i tre scenari fratelli in `6a1c0cb6`. La REGOLA che il file misura non cambia — cambia di quanto scende la barra. Se dessero entrambi 86, la conoscenza non starebbe decidendo nulla e il movimento non toglierebbe il contatto. Se dessero entrambi 103, il secondo colpo non parte MAI e la causa e' altrove — non nella percezione. Solo la differenza attribuisce l'effetto al passo di A1.",
 
   "_nota_perche_tre_turni": "I tre turni non servono a QUESTO file, servono alla sua coppia: la' il turno centrale esiste perche' il Move risolve DOPO il Blast (`Prep -> Dash -> Blast -> Move`) e un passo dichiarato insieme al colpo arriverebbe troppo tardi per cambiare la conoscenza. Qui il T2 e' un turno in cui A1 non fa nulla e B1 si sposta. Tenerlo comunque e' il punto: due file che differiscono per il numero di turni non sono una coppia, sono due esperimenti diversi.",
 
@@ -25,7 +25,7 @@
 
   "turns": [
     {
-      "_turno": "T1 — identico alla coppia: A1 vede B1 e lo colpisce. 120 - 22 = 98.",
+      "_turno": "T1 — identico alla coppia: A1 vede B1 e lo colpisce: 22 di danno meno i 5 dello scudo base ([D-224]), 120 - 17 = 103.",
       "intents": [
         { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
       ]
@@ -37,7 +37,7 @@
       ]
     },
     {
-      "_turno": "T3 — A1 e' fermo e guarda ancora a est: B1 e' visibile sulla sua cella NUOVA, quindi il colpo va sull'UNITA' e non su un ricordo. 98 - 22 = 76.",
+      "_turno": "T3 — A1 e' fermo e guarda ancora a est: B1 e' visibile sulla sua cella NUOVA, quindi il colpo va sull'UNITA' e non su un ricordo. Lo scudo si e' ricaricato nel Cleanup, quindi ferma altri 5: 103 - 17 = 86.",
       "intents": [
         { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
       ]
@@ -48,7 +48,7 @@
     { "type": "TurnsCompleted", "value": 3 },
     { "type": "UnitAtCell", "unit": "A1", "cell": [0, 0, 0] },
     { "type": "UnitAtCell", "unit": "B1", "cell": [3, -1, 0] },
-    { "type": "UnitHpEquals", "unit": "B1", "value": 76 },
+    { "type": "UnitHpEquals", "unit": "B1", "value": 86 },
     { "type": "UnitAlive", "unit": "B1", "value": true }
   ]
 }

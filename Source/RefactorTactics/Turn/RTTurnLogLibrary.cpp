@@ -298,12 +298,17 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::OutOfRange:     return TEXT("fuori portata");
 	case ERTActionInvalidReason::NoLineOfSight:  return TEXT("nessuna linea di tiro");
 	case ERTActionInvalidReason::NoMap:          return TEXT("nessuna mappa autorevole");
-	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto alla squadra");
 	case ERTActionInvalidReason::SlotOccupied:   return TEXT("lo slot e' gia' occupato");
 	case ERTActionInvalidReason::OnCooldown:     return TEXT("l'abilita' e' in ricarica");
 	// CP 13.2: la squadra non sa dove sia, e non ne ha un ricordo su cui ripiegare. Senza questo caso
 	// cadeva nel generico «non eseguibile», che e' la forma di riga che questo ramo esiste per non produrre.
-	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto");
+	//
+	// ⚠️ Il testo dice «alla squadra» e non e' pleonastico: la conoscenza e' di SQUADRA (E13), quindi un
+	// bersaglio puo' essere ignoto a chi agisce e noto a un compagno. «Bersaglio ignoto» lascerebbe
+	// intendere che nessuno lo veda, che e' una frase piu' forte di quella che il dato autorizza.
+	// (Entrambi i rami del merge del 2026-08-28 avevano aggiunto questo case, in punti diversi dello
+	// switch: git non ha visto un conflitto e ne ha prodotti DUE. Il compilatore l'ha fermato — C2196.)
+	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto alla squadra");
 	case ERTActionInvalidReason::Interrupted:    return TEXT("interrotta");
 	case ERTActionInvalidReason::NoEffect:       return TEXT("nessun effetto da applicare");
 	// ⚠️ Diverso da «interrotta»: quella e' stata CANCELLATA, questa e' avvenuta senza ottenere niente.
