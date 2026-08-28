@@ -207,4 +207,108 @@ bool FRTUnitKitCarriesNoUndeclaredDamageTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Un'azione generica paga la ricarica che il catalogo le dichiara.**
+ *
+ * 🔴 **Questo test nasce ROSSO, ed e' il quarto campo specchio: `CooldownTurns`.** `MakeGenericActions`
+ * copia portata, danno e auto-bersaglio, ma NON la ricarica — e il default di `URTActionData` e' `0`.
+ * `ARTUnit::ConsumeAbility` legge lo specchio:
+ *
+ *     if (Ability->CooldownTurns > 0 && AbilityCooldowns.IsValidIndex(Index)) { ... }
+ *
+ * Con lo specchio a zero non scrive niente, `CanUseAbility` risponde sempre `true`, e `Action.Brace` —
+ * che il catalogo dichiara con `Cooldown 1` — e' riarmabile ogni turno da ogni eroe del roster.
+ *
+ * ⚠️ **Perche' non se n'era accorto nessuno.** I test che verificano la ricarica di `Brace` costruiscono
+ * l'azione con un helper locale (`AddDefAbility` in `RTDefensiveReactionTests.cpp`) che il cooldown lo
+ * copia — quindi misurano un oggetto corretto su un percorso che in partita nessuno attraversa. Il kit
+ * che l'unita' riceve davvero passa da `MakeGenericActions`, e quello non lo copia.
+ *
+ * ⚠️ **Non e' un test di ricarica**: quanto vale la ricarica di ciascuna azione lo pinnano altri test,
+ * sul `Def`. Qui si verifica che il valore del catalogo ARRIVI fino al campo che il gioco legge.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGenericActionsMirrorTheirCooldownTest,
+	"RefactorTactics.Actions.GenericActionsMirrorTheirCooldown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGenericActionsMirrorTheirCooldownTest::RunTest(const FString&)
+{
+	const TArray<URTActionData*> Generiche = URTCatalogLibrary::MakeGenericActions(GetTransientPackage());
+	if (!TestTrue(TEXT("ci sono azioni generiche"), Generiche.Num() > 0))
+	{
+		return false;
+	}
+
+	// Anti-vacuita': se NESSUNA generica dichiarasse una ricarica, il confronto sotto sarebbe `0 == 0`
+	// per tutte e non distinguerebbe una copia da una riga mancante.
+	int32 ConRicaricaDichiarata = 0;
+
+	for (const URTActionData* Azione : Generiche)
+	{
+		if (!Azione) { continue; }
+		if (Azione->Def.CooldownTurns > 0) { ++ConRicaricaDichiarata; }
+
+		TestEqual(*FString::Printf(TEXT("`%s`: la ricarica rispecchia il catalogo"),
+			*Azione->Def.ActionId.ToString()), Azione->CooldownTurns, Azione->Def.CooldownTurns);
+	}
+
+	TestTrue(TEXT("almeno una generica dichiara una ricarica, o il confronto sopra non misura niente"),
+		ConRicaricaDichiarata > 0);
+
+	return true;
+}
+
+/**
+ * **E la ricarica si paga davvero**, sul kit che l'unita' riceve.
+ *
+ * E' la conseguenza osservabile del test qui sopra: non «il campo e' copiato» ma «dopo l'uso l'azione
+ * non e' subito riusabile». Passa da `ConsumeAbility` e `CanUseAbility`, cioe' dai due metodi che il
+ * `ARTTurnManager` chiama in partita — tredici siti di chiamata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitPaysTheDeclaredCooldownTest,
+	"RefactorTactics.Actions.UnitPaysTheDeclaredCooldown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitPaysTheDeclaredCooldownTest::RunTest(const FString&)
+{
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0))
+	{
+		return false;
+	}
+
+	ARTUnit* Unit = NewObject<ARTUnit>();
+	if (!TestNotNull(TEXT("unita' di prova"), Unit))
+	{
+		return false;
+	}
+	Unit->ConfigureFromHeroData(Roster[0]);
+
+	// ⚠️ Si cerca fra le GENERICHE, non «la prima azione con ricarica»: le azioni dell'eroe vengono prima
+	// nel kit e il loro cooldown lo copia `MakeHeroAction`, che lo fa correttamente. Un test che prende la
+	// prima trova quella dell'eroe, passa, e non guarda mai il percorso rotto. MISURATO: scritto cosi'
+	// restava verde mentre `GenericActionsMirrorTheirCooldown` cadeva su `Action.Brace`.
+	const TArray<FName> IdGenerici = URTCatalogLibrary::GetGenericActionIds();
+	int32 Indice = INDEX_NONE;
+	for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+	{
+		const URTActionData* A = Unit->GetAbility(i);
+		if (A && A->Def.CooldownTurns > 0 && IdGenerici.Contains(A->Def.ActionId))
+		{
+			Indice = i;
+			break;
+		}
+	}
+
+	if (!TestTrue(TEXT("il kit contiene un'azione GENERICA con ricarica dichiarata"), Indice != INDEX_NONE))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("prima dell'uso l'azione e' disponibile"), Unit->CanUseAbility(Indice));
+	Unit->ConsumeAbility(Indice);
+	TestTrue(*FString::Printf(TEXT("`%s` dopo l'uso e' in ricarica"),
+		*Unit->GetAbility(Indice)->Def.ActionId.ToString()), Unit->GetAbilityCooldown(Indice) > 0);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
