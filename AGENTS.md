@@ -346,12 +346,26 @@ Tre contatori vivono in documenti diversi e nessuno li assegna. Il numero si leg
 assegnato e si **riverifica subito prima del merge**, perché la risposta a *«qual è il primo numero
 libero»* scade mentre lavori:
 
-```powershell
+```bash
 git fetch --prune origin
-git grep -oh "D-[0-9]\+" origin/main -- docs/decisions/RT_PDR_00_Decision_Log.md | sort -V | tail -1
-gh pr list --state open
-gh issue list --search "EPIC in:title"
+
+# Ogni ref remoto, con l'ultimo ID che rivendica. E' la sola rete che vede un branch senza PR.
+for b in $(git branch -r --format='%(refname:short)' | grep -v HEAD); do
+  id=$(git show "$b:docs/decisions/RT_PDR_00_Decision_Log.md" 2>/dev/null \
+       | grep -oE '^\| \*\*D-[0-9]{3}\*\*' | grep -oE 'D-[0-9]{3}' | sort -u | tail -1)
+  [ -n "$id" ] && echo "$b -> $id"
+done
+
+gh issue list --search "EPIC in:title"   # gli `Enn`, che vivono nelle issue e non nei ref
 ```
+
+🔴 **`gh pr list --state open` non basta, ed era il comando prescritto qui fino al 2026-08-28**
+([#1600](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1600)). Due buchi, entrambi
+misurati: (1) fra il commit che prende un ID e l'apertura della sua PR l'ID è **preso e invisibile** —
+9 ref remoti contro 3 PR aperte, cinque branch di lavoro scoperti; (2) elenca le **PR**, non gli **ID**:
+sapere che una PR è aperta non dice quale numero rivendica, e leggerne il diff nessuno lo prescriveva.
+La riga qui sotto — *«un branch aperto è una rivendicazione quanto un merge»* — diceva già la cosa
+giusta; era il comando a non verificarla.
 
 Un branch aperto e un working tree non committato sono rivendicazioni quanto un merge. Se una PR in
 volo dichiara lo stesso ID con una **tesi diversa**, rinumera la seconda: rimandi corretti per coppia
