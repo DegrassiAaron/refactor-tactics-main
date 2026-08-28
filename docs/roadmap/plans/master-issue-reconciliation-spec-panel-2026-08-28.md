@@ -45,10 +45,10 @@ Il difetto è che **non dichiara di essere una fotografia** e non porta il coman
 | Feature Registry / `parallel-batch.yaml` / shortlist non vanno reintrodotti (§1.4) | ✅ **vero** | `git ls-files` non li trova più; sopravvive solo un audit archiviato |
 | `PlacementSector` · `CoverAnchor` · `ResolvedCoverState` · `OverwatchDirection` non esistono | ✅ **vero** | **0** occorrenze in `Source/`. I divieti §7.2 e §9.3 descrivono lo stato reale |
 | Divergenza ADR-0008 / runtime (§6.2) | ✅ **confermata, e senza owner** | `MoveEndPivotMaxSteps` e `DashEndPivotMaxSteps`: **0** occorrenze in `Source/`. L'ADR è accettato, il cap per eroe **non è implementato** |
-| Gap `ranked` (§21) | ✅ **reale e verificato** | [`roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) riga 52 promette «*Standard 3v3 ranked*» e riga 1126 dice «*Ranked e rating stanno qui*». Nel tracker: **0** issue con `ranked`, **0** con `MMR`, una sola con `matchmaking` (`#810`) |
+| Gap `ranked` (§21) | ✅ **reale e verificato** | [`roadmap-post-v0.1.md`](../roadmap-post-v0.1.md) riga 52 promette «*Standard 3v3 ranked*» e riga 1126 dice «*Ranked e rating stanno qui*». Nel tracker, **prima di questa passata**: **0** issue con `ranked`, **0** con `MMR`, una sola con `matchmaking` (`#810`). ⚠️ **Non rimisurare questa cella e aspettarti `0`**: la passata stessa l'ha invalidata aprendo `#1604` (§9). È il senso della riga — il gap c'era, e ora ha un owner |
 | Manifest: `CAMERA` → `known_issues: []` | 🔴 **falso per assenza** | esistono **7** issue `[Camera]` (`#729`, `#863`, `#864`, `#865`, `#873`, `#874`, `#887`) e sono **tutte CLOSED**: la camera base della v0.1 c'è già |
 | §20 «auditare le epic E40–E45» | ⛔ **già eseguito oggi** | il kit gemello archiviato in [`2026-08-28-github-issues-roadmap-v01-v10.md`](../../archive/src/handoff/2026-08-28-github-issues-roadmap-v01-v10.md) le ha verificate: tutte OPEN, 40 checkpoint, ladder **già completa e non toccata** |
-| Manifest completo dei domini | 🔴 **stantio il giorno stesso** | tetto `#1430`; sopra ci sono **72** issue (47 OPEN), di cui **31** (`#1557`→`#1587`) aperte il 2026-08-28 |
+| Manifest completo dei domini | 🔴 **stantio il giorno stesso** | tetto `#1430`; sopra c'erano **72** issue (47 OPEN) alla misura del 2026-08-28, di cui **31** (`#1557`→`#1587`) aperte quel giorno stesso. ⚠️ Il numero **cresce**: è una fotografia, e rileggerla domani darà una cifra diversa — che è precisamente la tesi di questa riga |
 | Awareness = `Hidden` / `Uncertain` / `Detected` (§10.5) | ⚠️ **tre su quattro** | il canone è `Nascosto` / `ContattoIncerto` / `Rilevato` **+ `UltimoContatto`** (persistenza 1 turno) — [`brief-conoscenza-parziale.md`](../../gameplay/brief-conoscenza-parziale.md) §63 |
 | Stati UI `Confermato` / `Previsto` / `Incerto` (§4.3) | ✅ **esistono** | [`brief-delayed-actions.md`](../../gameplay/brief-delayed-actions.md) riga 42, con ADR-0004 §6–§7 come owner |
 
@@ -169,10 +169,13 @@ prosa cita il dominio, non i numeri.
 
 ## 5. Ciò che sopravvive — le tre tesi che valgono, e sono già misurate
 
-1. 🎯 **Il gap `ranked` è reale.** La roadmap **promette** ranked e rating in v1.0 (righe 52 e 1126 di
-   [`roadmap-post-v0.1.md`](../roadmap-post-v0.1.md)); il tracker non ha **nessuna** issue che lo possieda —
-   `#810` copre il *rollout del matchmaking*, che non è la stessa cosa. È l'unico `CREATE_NEW` che questa
-   revisione considera fondato, e va sotto **E45** (`#778`), non in una epic nuova.
+1. 🎯 **Il gap `ranked` era reale, ed è l'unico `CREATE_NEW` che questa revisione ha considerato fondato.**
+   La roadmap **promette** ranked e rating (righe 52 e 1126 di
+   [`roadmap-post-v0.1.md`](../roadmap-post-v0.1.md)); alla misura del 2026-08-28 il tracker non aveva
+   **nessuna** issue che lo possedesse — `#810` copre il *rollout del matchmaking*, che non è la stessa cosa.
+   ⚠️ **E il parent non è quello che il kit proponeva**: la frase «Ranked e rating stanno qui» è dentro
+   `### E44` (righe 1103–1136), non nella sezione `## v1.0` che inizia a 1138. Va sotto **E44** (`#777`), e ci
+   è andato: `CP 44.5` = `#1604` (§9).
 2. 🎯 **La divergenza ADR-0008 / runtime è reale e senza owner.** `MoveEndPivotMaxSteps` e
    `DashEndPivotMaxSteps` non esistono in `Source/`: il cap per eroe accettato dall'ADR non è implementato.
    `#291` è aperta ma possiede *l'input della rotazione dichiarata*, non i budget per eroe. `E16` (`#175`) è

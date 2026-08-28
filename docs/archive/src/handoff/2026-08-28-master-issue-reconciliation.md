@@ -45,7 +45,7 @@ questa stessa cartella. Eseguire il kit alla lettera violerebbe la sua stessa §
 `E48` (`#1408`), più `#637` e `#971`.
 
 ✅ **Tre tesi sopravvivono, e sono misurate**: il **gap `ranked`** è reale (la roadmap lo promette alle righe
-52 e 1126, il tracker non ha nessuna issue che lo possieda); la **divergenza ADR-0008 / runtime** è reale e
+52 e 1126, e alla misura del 2026-08-28 il tracker non aveva nessuna issue che lo possedesse — ora è `#1604`); la **divergenza ADR-0008 / runtime** è reale e
 senza owner (`MoveEndPivotMaxSteps` e `DashEndPivotMaxSteps`: **0** occorrenze in `Source/`); **End Placement /
 `CoverAnchor`** è correttamente etichettato `PROPOSED` e le sette domande del §7.5 sono materiale da
 `OPEN_DECISIONS`, non da issue di implementazione.
