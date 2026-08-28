@@ -354,6 +354,38 @@ public:
 	ERTNavResult ResumeMatch();
 
 	/**
+	 * Il HUD tattico della partita (CP 11.7, #613): presente per tutto il match, **sotto** le schermate.
+	 *
+	 * ⛔ **Non e' una schermata, e non puo' esserlo.** `SyncPresentation` smonta ogni widget di
+	 * `LiveWidgets` che non sia la cima dello stack o un modale: un HUD registrato li' sparirebbe
+	 * all'apertura della pausa, e il sintomo — la partita nuda sotto un menu — si leggerebbe come un
+	 * difetto del menu. Vive quindi in un campo suo, fuori dalla mappa, con `ZOrder` negativo.
+	 *
+	 * ⛔ **Ne' puo' essere un binding di `RTScreenIds::Match`**: «nessun widget» e' la definizione di quella
+	 * schermata, e dargliene uno rimetterebbe qualcosa sopra il gioco a ogni `RESUME`.
+	 *
+	 * ⚠️ Resta dentro questo subsystem, e non in una classe nuova, perche' l'invariante «un solo posto
+	 * chiama `CreateWidget`» e' il criterio con cui il frontend si verifica con un `grep`.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	void PresentMatchHud();
+
+	/** Smonta il HUD e **azzera** il puntatore: l'istanza appartiene al mondo che se ne va (PR #1264). */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Frontend")
+	void DismissMatchHud();
+
+	/**
+	 * Il widget del HUD, o `nullptr` fuori dalla partita.
+	 *
+	 * Accessor C++ semplice e **non** `UFUNCTION`, per la stessa ragione di `FindLiveWidget`: e' il modo in
+	 * cui i test guardano *cosa c'e' a schermo*, non una porta per i Blueprint.
+	 */
+	UUserWidget* GetMatchHudWidget() const { return MatchHudWidget; }
+
+	/** Inietta la classe del HUD senza `.ini`: e' il modo in cui i test la dichiarano. */
+	void SetMatchHudWidgetClassForTest(TSoftClassPtr<UUserWidget> InClass) { MatchHudWidgetClass = InClass; }
+
+	/**
 	 * La pausa e' nello stack? **`true` anche quando `SETTINGS` le sta sopra.**
 	 *
 	 * ⚠️ Non e' `GetCurrentScreen() == Pause`, e la differenza e' osservabile: da `Pause` si apre
@@ -610,6 +642,24 @@ private:
 	/** I widget istanziati, per nome. Sopravvivono al pop finche' `SyncPresentation` non li smonta. */
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UUserWidget>> LiveWidgets;
+
+	/**
+	 * La classe del HUD di partita, dichiarata in `DefaultGame.ini`.
+	 *
+	 * ⚠️ `TSoftClassPtr` per la stessa ragione di `FRTScreenBinding::WidgetClass`: dichiararlo non deve
+	 * **caricare** il `.uasset`, cosi' i test headless girano prima che il Blueprint esista — e i binari
+	 * sono lavoro d'editor, quindi quel «prima» dura giorni.
+	 */
+	UPROPERTY(Config)
+	TSoftClassPtr<UUserWidget> MatchHudWidgetClass;
+
+	/**
+	 * Il HUD vivo, **fuori** da `LiveWidgets` di proposito: quella mappa e' cio' che `SyncPresentation`
+	 * smonta quando lo stack cambia, e il HUD deve sopravvivere a ogni cambio di schermata dentro la
+	 * partita.
+	 */
+	UPROPERTY()
+	TObjectPtr<UUserWidget> MatchHudWidget;
 
 	/** `true` dopo `InitializeFrontend`: prima, le transizioni non hanno una radice a cui riferirsi. */
 	bool bInitialized = false;

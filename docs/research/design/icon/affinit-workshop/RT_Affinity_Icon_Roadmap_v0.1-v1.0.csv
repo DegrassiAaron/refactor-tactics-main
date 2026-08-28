@@ -1,0 +1,1005 @@
+﻿Template Version,Origin Milestone,State,Layer / Asset Group
+v0.1,v0.1,NEW,Identity / Ally
+v0.1,v0.1,NEW,Identity / Enemy
+v0.1,v0.1,NEW,Identity / Hero identities (derive from live catalog)
+v0.1,v0.1,NEW,Phase / Prep
+v0.1,v0.1,NEW,Phase / Dash
+v0.1,v0.1,NEW,Phase / Blast
+v0.1,v0.1,NEW,Phase / Move
+v0.1,v0.1,NEW,Action / Generic + core actions (derive from live RequiredIconIds)
+v0.1,v0.1,NEW,Status / current Status.* set (derive from live gameplay tags)
+v0.1,v0.1,NEW,Certainty / Confirmed
+v0.1,v0.1,NEW,Certainty / Predicted
+v0.1,v0.1,NEW,Certainty / Uncertain
+v0.1,v0.1,NEW,Warning / Invalid plan or target
+v0.1,v0.1,NEW,Warning / Allied collision
+v0.1,v0.1,NEW,Warning / Friendly Fire
+v0.1,v0.1,NEW,Warning / Insufficient resource
+v0.1,v0.1,NEW,Warning / Target may move / uncertain outcome
+v0.1,v0.1,NEW,Planning / Confirm
+v0.1,v0.1,NEW,Planning / Ready
+v0.1,v0.1,NEW,Planning / Undo
+v0.1,v0.1,NEW,Action Slot / Available
+v0.1,v0.1,NEW,Action Slot / Hover
+v0.1,v0.1,NEW,Action Slot / Selected
+v0.1,v0.1,NEW,Action Slot / Planned
+v0.1,v0.1,NEW,Action Slot / Cooldown
+v0.1,v0.1,NEW,Action Slot / Unavailable
+v0.1,v0.1,NEW,Action Slot / Invalid
+v0.1,v0.1,NEW,Action Slot / Warning
+v0.1,v0.1,NEW,World Overlay / Path
+v0.1,v0.1,NEW,World Overlay / Destination
+v0.1,v0.1,NEW,World Overlay / Target
+v0.1,v0.1,NEW,World Overlay / AoE
+v0.1,v0.1,NEW,World Overlay / Facing
+v0.2,v0.1,INHERITED,Identity / Ally
+v0.2,v0.1,INHERITED,Identity / Enemy
+v0.2,v0.1,INHERITED,Identity / Hero identities (derive from live catalog)
+v0.2,v0.1,INHERITED,Phase / Prep
+v0.2,v0.1,INHERITED,Phase / Dash
+v0.2,v0.1,INHERITED,Phase / Blast
+v0.2,v0.1,INHERITED,Phase / Move
+v0.2,v0.1,INHERITED,Action / Generic + core actions (derive from live RequiredIconIds)
+v0.2,v0.1,INHERITED,Status / current Status.* set (derive from live gameplay tags)
+v0.2,v0.1,INHERITED,Certainty / Confirmed
+v0.2,v0.1,INHERITED,Certainty / Predicted
+v0.2,v0.1,INHERITED,Certainty / Uncertain
+v0.2,v0.1,INHERITED,Warning / Invalid plan or target
+v0.2,v0.1,INHERITED,Warning / Allied collision
+v0.2,v0.1,INHERITED,Warning / Friendly Fire
+v0.2,v0.1,INHERITED,Warning / Insufficient resource
+v0.2,v0.1,INHERITED,Warning / Target may move / uncertain outcome
+v0.2,v0.1,INHERITED,Planning / Confirm
+v0.2,v0.1,INHERITED,Planning / Ready
+v0.2,v0.1,INHERITED,Planning / Undo
+v0.2,v0.1,INHERITED,Action Slot / Available
+v0.2,v0.1,INHERITED,Action Slot / Hover
+v0.2,v0.1,INHERITED,Action Slot / Selected
+v0.2,v0.1,INHERITED,Action Slot / Planned
+v0.2,v0.1,INHERITED,Action Slot / Cooldown
+v0.2,v0.1,INHERITED,Action Slot / Unavailable
+v0.2,v0.1,INHERITED,Action Slot / Invalid
+v0.2,v0.1,INHERITED,Action Slot / Warning
+v0.2,v0.1,INHERITED,World Overlay / Path
+v0.2,v0.1,INHERITED,World Overlay / Destination
+v0.2,v0.1,INHERITED,World Overlay / Target
+v0.2,v0.1,INHERITED,World Overlay / AoE
+v0.2,v0.1,INHERITED,World Overlay / Facing
+v0.2,v0.2,NEW,Coordination / Team intent
+v0.2,v0.2,NEW,Coordination / Labels
+v0.2,v0.2,NEW,Coordination / Ping
+v0.2,v0.2,NEW,Coordination / Conflict
+v0.2,v0.2,NEW,Decision Window / Fast Reaction
+v0.2,v0.2,NEW,Reaction / FIRE
+v0.2,v0.2,NEW,Reaction / HOLD
+v0.2,v0.2,NEW,Reaction / Timeout
+v0.2,v0.2,NEW,Reaction / Available
+v0.2,v0.2,NEW,Reaction / Armed
+v0.2,v0.2,NEW,Reaction / Opportunity
+v0.2,v0.2,NEW,Reaction / Consumed
+v0.2,v0.2,NEW,Reaction / Expired
+v0.2,v0.2,NEW,Reaction / Invalidated
+v0.2,v0.2,NEW,STOP / YIELD (ONLY if gameplay currently supports them)
+v0.3,v0.1,INHERITED,Identity / Ally
+v0.3,v0.1,INHERITED,Identity / Enemy
+v0.3,v0.1,INHERITED,Identity / Hero identities (derive from live catalog)
+v0.3,v0.1,INHERITED,Phase / Prep
+v0.3,v0.1,INHERITED,Phase / Dash
+v0.3,v0.1,INHERITED,Phase / Blast
+v0.3,v0.1,INHERITED,Phase / Move
+v0.3,v0.1,INHERITED,Action / Generic + core actions (derive from live RequiredIconIds)
+v0.3,v0.1,INHERITED,Status / current Status.* set (derive from live gameplay tags)
+v0.3,v0.1,INHERITED,Certainty / Confirmed
+v0.3,v0.1,INHERITED,Certainty / Predicted
+v0.3,v0.1,INHERITED,Certainty / Uncertain
+v0.3,v0.1,INHERITED,Warning / Invalid plan or target
+v0.3,v0.1,INHERITED,Warning / Allied collision
+v0.3,v0.1,INHERITED,Warning / Friendly Fire
+v0.3,v0.1,INHERITED,Warning / Insufficient resource
+v0.3,v0.1,INHERITED,Warning / Target may move / uncertain outcome
+v0.3,v0.1,INHERITED,Planning / Confirm
+v0.3,v0.1,INHERITED,Planning / Ready
+v0.3,v0.1,INHERITED,Planning / Undo
+v0.3,v0.1,INHERITED,Action Slot / Available
+v0.3,v0.1,INHERITED,Action Slot / Hover
+v0.3,v0.1,INHERITED,Action Slot / Selected
+v0.3,v0.1,INHERITED,Action Slot / Planned
+v0.3,v0.1,INHERITED,Action Slot / Cooldown
+v0.3,v0.1,INHERITED,Action Slot / Unavailable
+v0.3,v0.1,INHERITED,Action Slot / Invalid
+v0.3,v0.1,INHERITED,Action Slot / Warning
+v0.3,v0.1,INHERITED,World Overlay / Path
+v0.3,v0.1,INHERITED,World Overlay / Destination
+v0.3,v0.1,INHERITED,World Overlay / Target
+v0.3,v0.1,INHERITED,World Overlay / AoE
+v0.3,v0.1,INHERITED,World Overlay / Facing
+v0.3,v0.2,INHERITED,Coordination / Team intent
+v0.3,v0.2,INHERITED,Coordination / Labels
+v0.3,v0.2,INHERITED,Coordination / Ping
+v0.3,v0.2,INHERITED,Coordination / Conflict
+v0.3,v0.2,INHERITED,Decision Window / Fast Reaction
+v0.3,v0.2,INHERITED,Reaction / FIRE
+v0.3,v0.2,INHERITED,Reaction / HOLD
+v0.3,v0.2,INHERITED,Reaction / Timeout
+v0.3,v0.2,INHERITED,Reaction / Available
+v0.3,v0.2,INHERITED,Reaction / Armed
+v0.3,v0.2,INHERITED,Reaction / Opportunity
+v0.3,v0.2,INHERITED,Reaction / Consumed
+v0.3,v0.2,INHERITED,Reaction / Expired
+v0.3,v0.2,INHERITED,Reaction / Invalidated
+v0.3,v0.2,INHERITED,STOP / YIELD (ONLY if gameplay currently supports them)
+v0.3,v0.3,NEW,Intel / Visible
+v0.3,v0.3,NEW,Intel / Heard
+v0.3,v0.3,NEW,Intel / Last Known
+v0.3,v0.3,NEW,Intel / Unknown
+v0.3,v0.3,NEW,Intel / Approximate Area
+v0.3,v0.3,NEW,Intel / Detected
+v0.3,v0.3,NEW,Intel / Facing / focus markers
+v0.3,v0.3,NEW,Vision overlay
+v0.3,v0.3,NEW,Sound overlay
+v0.3,v0.3,NEW,Ghost Intel / Last Known
+v0.3,v0.3,NEW,Stealth marker
+v0.3,v0.3,NEW,Privacy-safe warning marker
+v0.4,v0.1,INHERITED,Identity / Ally
+v0.4,v0.1,INHERITED,Identity / Enemy
+v0.4,v0.1,INHERITED,Identity / Hero identities (derive from live catalog)
+v0.4,v0.1,INHERITED,Phase / Prep
+v0.4,v0.1,INHERITED,Phase / Dash
+v0.4,v0.1,INHERITED,Phase / Blast
+v0.4,v0.1,INHERITED,Phase / Move
+v0.4,v0.1,INHERITED,Action / Generic + core actions (derive from live RequiredIconIds)
+v0.4,v0.1,INHERITED,Status / current Status.* set (derive from live gameplay tags)
+v0.4,v0.1,INHERITED,Certainty / Confirmed
+v0.4,v0.1,INHERITED,Certainty / Predicted
+v0.4,v0.1,INHERITED,Certainty / Uncertain
+v0.4,v0.1,INHERITED,Warning / Invalid plan or target
+v0.4,v0.1,INHERITED,Warning / Allied collision
+v0.4,v0.1,INHERITED,Warning / Friendly Fire
+v0.4,v0.1,INHERITED,Warning / Insufficient resource
+v0.4,v0.1,INHERITED,Warning / Target may move / uncertain outcome
+v0.4,v0.1,INHERITED,Planning / Confirm
+v0.4,v0.1,INHERITED,Planning / Ready
+v0.4,v0.1,INHERITED,Planning / Undo
+v0.4,v0.1,INHERITED,Action Slot / Available
+v0.4,v0.1,INHERITED,Action Slot / Hover
+v0.4,v0.1,INHERITED,Action Slot / Selected
+v0.4,v0.1,INHERITED,Action Slot / Planned
+v0.4,v0.1,INHERITED,Action Slot / Cooldown
+v0.4,v0.1,INHERITED,Action Slot / Unavailable
+v0.4,v0.1,INHERITED,Action Slot / Invalid
+v0.4,v0.1,INHERITED,Action Slot / Warning
+v0.4,v0.1,INHERITED,World Overlay / Path
+v0.4,v0.1,INHERITED,World Overlay / Destination
+v0.4,v0.1,INHERITED,World Overlay / Target
+v0.4,v0.1,INHERITED,World Overlay / AoE
+v0.4,v0.1,INHERITED,World Overlay / Facing
+v0.4,v0.2,INHERITED,Coordination / Team intent
+v0.4,v0.2,INHERITED,Coordination / Labels
+v0.4,v0.2,INHERITED,Coordination / Ping
+v0.4,v0.2,INHERITED,Coordination / Conflict
+v0.4,v0.2,INHERITED,Decision Window / Fast Reaction
+v0.4,v0.2,INHERITED,Reaction / FIRE
+v0.4,v0.2,INHERITED,Reaction / HOLD
+v0.4,v0.2,INHERITED,Reaction / Timeout
+v0.4,v0.2,INHERITED,Reaction / Available
+v0.4,v0.2,INHERITED,Reaction / Armed
+v0.4,v0.2,INHERITED,Reaction / Opportunity
+v0.4,v0.2,INHERITED,Reaction / Consumed
+v0.4,v0.2,INHERITED,Reaction / Expired
+v0.4,v0.2,INHERITED,Reaction / Invalidated
+v0.4,v0.2,INHERITED,STOP / YIELD (ONLY if gameplay currently supports them)
+v0.4,v0.3,INHERITED,Intel / Visible
+v0.4,v0.3,INHERITED,Intel / Heard
+v0.4,v0.3,INHERITED,Intel / Last Known
+v0.4,v0.3,INHERITED,Intel / Unknown
+v0.4,v0.3,INHERITED,Intel / Approximate Area
+v0.4,v0.3,INHERITED,Intel / Detected
+v0.4,v0.3,INHERITED,Intel / Facing / focus markers
+v0.4,v0.3,INHERITED,Vision overlay
+v0.4,v0.3,INHERITED,Sound overlay
+v0.4,v0.3,INHERITED,Ghost Intel / Last Known
+v0.4,v0.3,INHERITED,Stealth marker
+v0.4,v0.3,INHERITED,Privacy-safe warning marker
+v0.4,v0.4,NEW,Camera / Tactical level
+v0.4,v0.4,NEW,Camera / Strategic level
+v0.4,v0.4,NEW,Layer / Ground
+v0.4,v0.4,NEW,Layer / Bridge
+v0.4,v0.4,NEW,Layer / Roof
+v0.4,v0.4,NEW,Layer / Tunnel
+v0.4,v0.4,NEW,Layer / Up
+v0.4,v0.4,NEW,Layer / Down
+v0.4,v0.4,NEW,MapState / Door Open
+v0.4,v0.4,NEW,MapState / Door Closed
+v0.4,v0.4,NEW,MapState / Door Locked
+v0.4,v0.4,NEW,MapState / Bridge
+v0.4,v0.4,NEW,MapState / Tunnel
+v0.4,v0.4,NEW,MapState / Elevator
+v0.4,v0.4,NEW,Environment / Cover
+v0.4,v0.4,NEW,Environment / Height
+v0.4,v0.4,NEW,Environment / Water
+v0.4,v0.4,NEW,Environment / Fire
+v0.4,v0.4,NEW,Environment / Electric
+v0.4,v0.4,NEW,Environment / Smoke
+v0.4,v0.4,NEW,Environment / Ice
+v0.4,v0.4,NEW,Environment / Hazard
+v0.5,v0.1,INHERITED,Identity / Ally
+v0.5,v0.1,INHERITED,Identity / Enemy
+v0.5,v0.1,INHERITED,Identity / Hero identities (derive from live catalog)
+v0.5,v0.1,INHERITED,Phase / Prep
+v0.5,v0.1,INHERITED,Phase / Dash
+v0.5,v0.1,INHERITED,Phase / Blast
+v0.5,v0.1,INHERITED,Phase / Move
+v0.5,v0.1,INHERITED,Action / Generic + core actions (derive from live RequiredIconIds)
+v0.5,v0.1,INHERITED,Status / current Status.* set (derive from live gameplay tags)
+v0.5,v0.1,INHERITED,Certainty / Confirmed
+v0.5,v0.1,INHERITED,Certainty / Predicted
+v0.5,v0.1,INHERITED,Certainty / Uncertain
+v0.5,v0.1,INHERITED,Warning / Invalid plan or target
+v0.5,v0.1,INHERITED,Warning / Allied collision
+v0.5,v0.1,INHERITED,Warning / Friendly Fire
+v0.5,v0.1,INHERITED,Warning / Insufficient resource
+v0.5,v0.1,INHERITED,Warning / Target may move / uncertain outcome
+v0.5,v0.1,INHERITED,Planning / Confirm
+v0.5,v0.1,INHERITED,Planning / Ready
+v0.5,v0.1,INHERITED,Planning / Undo
+v0.5,v0.1,INHERITED,Action Slot / Available
+v0.5,v0.1,INHERITED,Action Slot / Hover
+v0.5,v0.1,INHERITED,Action Slot / Selected
+v0.5,v0.1,INHERITED,Action Slot / Planned
+v0.5,v0.1,INHERITED,Action Slot / Cooldown
+v0.5,v0.1,INHERITED,Action Slot / Unavailable
+v0.5,v0.1,INHERITED,Action Slot / Invalid
+v0.5,v0.1,INHERITED,Action Slot / Warning
+v0.5,v0.1,INHERITED,World Overlay / Path
+v0.5,v0.1,INHERITED,World Overlay / Destination
+v0.5,v0.1,INHERITED,World Overlay / Target
+v0.5,v0.1,INHERITED,World Overlay / AoE
+v0.5,v0.1,INHERITED,World Overlay / Facing
+v0.5,v0.2,INHERITED,Coordination / Team intent
+v0.5,v0.2,INHERITED,Coordination / Labels
+v0.5,v0.2,INHERITED,Coordination / Ping
+v0.5,v0.2,INHERITED,Coordination / Conflict
+v0.5,v0.2,INHERITED,Decision Window / Fast Reaction
+v0.5,v0.2,INHERITED,Reaction / FIRE
+v0.5,v0.2,INHERITED,Reaction / HOLD
+v0.5,v0.2,INHERITED,Reaction / Timeout
+v0.5,v0.2,INHERITED,Reaction / Available
+v0.5,v0.2,INHERITED,Reaction / Armed
+v0.5,v0.2,INHERITED,Reaction / Opportunity
+v0.5,v0.2,INHERITED,Reaction / Consumed
+v0.5,v0.2,INHERITED,Reaction / Expired
+v0.5,v0.2,INHERITED,Reaction / Invalidated
+v0.5,v0.2,INHERITED,STOP / YIELD (ONLY if gameplay currently supports them)
+v0.5,v0.3,INHERITED,Intel / Visible
+v0.5,v0.3,INHERITED,Intel / Heard
+v0.5,v0.3,INHERITED,Intel / Last Known
+v0.5,v0.3,INHERITED,Intel / Unknown
+v0.5,v0.3,INHERITED,Intel / Approximate Area
+v0.5,v0.3,INHERITED,Intel / Detected
+v0.5,v0.3,INHERITED,Intel / Facing / focus markers
+v0.5,v0.3,INHERITED,Vision overlay
+v0.5,v0.3,INHERITED,Sound overlay
+v0.5,v0.3,INHERITED,Ghost Intel / Last Known
+v0.5,v0.3,INHERITED,Stealth marker
+v0.5,v0.3,INHERITED,Privacy-safe warning marker
+v0.5,v0.4,INHERITED,Camera / Tactical level
+v0.5,v0.4,INHERITED,Camera / Strategic level
+v0.5,v0.4,INHERITED,Layer / Ground
+v0.5,v0.4,INHERITED,Layer / Bridge
+v0.5,v0.4,INHERITED,Layer / Roof
+v0.5,v0.4,INHERITED,Layer / Tunnel
+v0.5,v0.4,INHERITED,Layer / Up
+v0.5,v0.4,INHERITED,Layer / Down
+v0.5,v0.4,INHERITED,MapState / Door Open
+v0.5,v0.4,INHERITED,MapState / Door Closed
+v0.5,v0.4,INHERITED,MapState / Door Locked
+v0.5,v0.4,INHERITED,MapState / Bridge
+v0.5,v0.4,INHERITED,MapState / Tunnel
+v0.5,v0.4,INHERITED,MapState / Elevator
+v0.5,v0.4,INHERITED,Environment / Cover
+v0.5,v0.4,INHERITED,Environment / Height
+v0.5,v0.4,INHERITED,Environment / Water
+v0.5,v0.4,INHERITED,Environment / Fire
+v0.5,v0.4,INHERITED,Environment / Electric
+v0.5,v0.4,INHERITED,Environment / Smoke
+v0.5,v0.4,INHERITED,Environment / Ice
+v0.5,v0.4,INHERITED,Environment / Hazard
+v0.5,v0.5,NEW,Movement / Push
+v0.5,v0.5,NEW,Movement / Pull
+v0.5,v0.5,NEW,Movement / Knockback
+v0.5,v0.5,NEW,Movement / Slide
+v0.5,v0.5,NEW,Movement / Throw
+v0.5,v0.5,NEW,Movement / Forced Move
+v0.5,v0.5,NEW,Preview / Forced movement path
+v0.5,v0.5,NEW,Preview / Reaction consequence
+v0.5,v0.5,NEW,Objective / Neutral
+v0.5,v0.5,NEW,Objective / Capture
+v0.5,v0.5,NEW,Objective / Contested
+v0.5,v0.5,NEW,Objective / Owned
+v0.5,v0.5,NEW,Objective / Locked
+v0.5,v0.5,NEW,Objective / Completed
+v0.5,v0.5,NEW,Counterplay / Interrupt opportunity
+v0.5,v0.5,NEW,Counterplay / Threat
+v0.6,v0.1,INHERITED,Identity / Ally
+v0.6,v0.1,INHERITED,Identity / Enemy
+v0.6,v0.1,INHERITED,Identity / Hero identities (derive from live catalog)
+v0.6,v0.1,INHERITED,Phase / Prep
+v0.6,v0.1,INHERITED,Phase / Dash
+v0.6,v0.1,INHERITED,Phase / Blast
+v0.6,v0.1,INHERITED,Phase / Move
+v0.6,v0.1,INHERITED,Action / Generic + core actions (derive from live RequiredIconIds)
+v0.6,v0.1,INHERITED,Status / current Status.* set (derive from live gameplay tags)
+v0.6,v0.1,INHERITED,Certainty / Confirmed
+v0.6,v0.1,INHERITED,Certainty / Predicted
+v0.6,v0.1,INHERITED,Certainty / Uncertain
+v0.6,v0.1,INHERITED,Warning / Invalid plan or target
+v0.6,v0.1,INHERITED,Warning / Allied collision
+v0.6,v0.1,INHERITED,Warning / Friendly Fire
+v0.6,v0.1,INHERITED,Warning / Insufficient resource
+v0.6,v0.1,INHERITED,Warning / Target may move / uncertain outcome
+v0.6,v0.1,INHERITED,Planning / Confirm
+v0.6,v0.1,INHERITED,Planning / Ready
+v0.6,v0.1,INHERITED,Planning / Undo
+v0.6,v0.1,INHERITED,Action Slot / Available
+v0.6,v0.1,INHERITED,Action Slot / Hover
+v0.6,v0.1,INHERITED,Action Slot / Selected
+v0.6,v0.1,INHERITED,Action Slot / Planned
+v0.6,v0.1,INHERITED,Action Slot / Cooldown
+v0.6,v0.1,INHERITED,Action Slot / Unavailable
+v0.6,v0.1,INHERITED,Action Slot / Invalid
+v0.6,v0.1,INHERITED,Action Slot / Warning
+v0.6,v0.1,INHERITED,World Overlay / Path
+v0.6,v0.1,INHERITED,World Overlay / Destination
+v0.6,v0.1,INHERITED,World Overlay / Target
+v0.6,v0.1,INHERITED,World Overlay / AoE
+v0.6,v0.1,INHERITED,World Overlay / Facing
+v0.6,v0.2,INHERITED,Coordination / Team intent
+v0.6,v0.2,INHERITED,Coordination / Labels
+v0.6,v0.2,INHERITED,Coordination / Ping
+v0.6,v0.2,INHERITED,Coordination / Conflict
+v0.6,v0.2,INHERITED,Decision Window / Fast Reaction
+v0.6,v0.2,INHERITED,Reaction / FIRE
+v0.6,v0.2,INHERITED,Reaction / HOLD
+v0.6,v0.2,INHERITED,Reaction / Timeout
+v0.6,v0.2,INHERITED,Reaction / Available
+v0.6,v0.2,INHERITED,Reaction / Armed
+v0.6,v0.2,INHERITED,Reaction / Opportunity
+v0.6,v0.2,INHERITED,Reaction / Consumed
+v0.6,v0.2,INHERITED,Reaction / Expired
+v0.6,v0.2,INHERITED,Reaction / Invalidated
+v0.6,v0.2,INHERITED,STOP / YIELD (ONLY if gameplay currently supports them)
+v0.6,v0.3,INHERITED,Intel / Visible
+v0.6,v0.3,INHERITED,Intel / Heard
+v0.6,v0.3,INHERITED,Intel / Last Known
+v0.6,v0.3,INHERITED,Intel / Unknown
+v0.6,v0.3,INHERITED,Intel / Approximate Area
+v0.6,v0.3,INHERITED,Intel / Detected
+v0.6,v0.3,INHERITED,Intel / Facing / focus markers
+v0.6,v0.3,INHERITED,Vision overlay
+v0.6,v0.3,INHERITED,Sound overlay
+v0.6,v0.3,INHERITED,Ghost Intel / Last Known
+v0.6,v0.3,INHERITED,Stealth marker
+v0.6,v0.3,INHERITED,Privacy-safe warning marker
+v0.6,v0.4,INHERITED,Camera / Tactical level
+v0.6,v0.4,INHERITED,Camera / Strategic level
+v0.6,v0.4,INHERITED,Layer / Ground
+v0.6,v0.4,INHERITED,Layer / Bridge
+v0.6,v0.4,INHERITED,Layer / Roof
+v0.6,v0.4,INHERITED,Layer / Tunnel
+v0.6,v0.4,INHERITED,Layer / Up
+v0.6,v0.4,INHERITED,Layer / Down
+v0.6,v0.4,INHERITED,MapState / Door Open
+v0.6,v0.4,INHERITED,MapState / Door Closed
+v0.6,v0.4,INHERITED,MapState / Door Locked
+v0.6,v0.4,INHERITED,MapState / Bridge
+v0.6,v0.4,INHERITED,MapState / Tunnel
+v0.6,v0.4,INHERITED,MapState / Elevator
+v0.6,v0.4,INHERITED,Environment / Cover
+v0.6,v0.4,INHERITED,Environment / Height
+v0.6,v0.4,INHERITED,Environment / Water
+v0.6,v0.4,INHERITED,Environment / Fire
+v0.6,v0.4,INHERITED,Environment / Electric
+v0.6,v0.4,INHERITED,Environment / Smoke
+v0.6,v0.4,INHERITED,Environment / Ice
+v0.6,v0.4,INHERITED,Environment / Hazard
+v0.6,v0.5,INHERITED,Movement / Push
+v0.6,v0.5,INHERITED,Movement / Pull
+v0.6,v0.5,INHERITED,Movement / Knockback
+v0.6,v0.5,INHERITED,Movement / Slide
+v0.6,v0.5,INHERITED,Movement / Throw
+v0.6,v0.5,INHERITED,Movement / Forced Move
+v0.6,v0.5,INHERITED,Preview / Forced movement path
+v0.6,v0.5,INHERITED,Preview / Reaction consequence
+v0.6,v0.5,INHERITED,Objective / Neutral
+v0.6,v0.5,INHERITED,Objective / Capture
+v0.6,v0.5,INHERITED,Objective / Contested
+v0.6,v0.5,INHERITED,Objective / Owned
+v0.6,v0.5,INHERITED,Objective / Locked
+v0.6,v0.5,INHERITED,Objective / Completed
+v0.6,v0.5,INHERITED,Counterplay / Interrupt opportunity
+v0.6,v0.5,INHERITED,Counterplay / Threat
+v0.6,v0.6,NEW,Scenario Composer / Add
+v0.6,v0.6,NEW,Scenario Composer / Remove
+v0.6,v0.6,NEW,Scenario Composer / Validate
+v0.6,v0.6,NEW,Scenario Composer / Spawn
+v0.6,v0.6,NEW,Scenario Composer / Objective
+v0.6,v0.6,NEW,Skill Workbench / Target
+v0.6,v0.6,NEW,Skill Workbench / Geometry
+v0.6,v0.6,NEW,Skill Workbench / Effect
+v0.6,v0.6,NEW,Skill Workbench / Requirement
+v0.6,v0.6,NEW,Skill Workbench / Cost
+v0.6,v0.6,NEW,Skill Workbench / Cooldown
+v0.6,v0.6,NEW,Character Setup / Slot
+v0.6,v0.6,NEW,Character Setup / Talent
+v0.6,v0.6,NEW,Character Setup / Gadget
+v0.6,v0.6,NEW,Character Setup / Specialization
+v0.6,v0.6,NEW,Content Preview / Valid
+v0.6,v0.6,NEW,Content Preview / Warning
+v0.6,v0.6,NEW,Content Preview / Invalid
+v0.7,v0.1,INHERITED,Identity / Ally
+v0.7,v0.1,INHERITED,Identity / Enemy
+v0.7,v0.1,INHERITED,Identity / Hero identities (derive from live catalog)
+v0.7,v0.1,INHERITED,Phase / Prep
+v0.7,v0.1,INHERITED,Phase / Dash
+v0.7,v0.1,INHERITED,Phase / Blast
+v0.7,v0.1,INHERITED,Phase / Move
+v0.7,v0.1,INHERITED,Action / Generic + core actions (derive from live RequiredIconIds)
+v0.7,v0.1,INHERITED,Status / current Status.* set (derive from live gameplay tags)
+v0.7,v0.1,INHERITED,Certainty / Confirmed
+v0.7,v0.1,INHERITED,Certainty / Predicted
+v0.7,v0.1,INHERITED,Certainty / Uncertain
+v0.7,v0.1,INHERITED,Warning / Invalid plan or target
+v0.7,v0.1,INHERITED,Warning / Allied collision
+v0.7,v0.1,INHERITED,Warning / Friendly Fire
+v0.7,v0.1,INHERITED,Warning / Insufficient resource
+v0.7,v0.1,INHERITED,Warning / Target may move / uncertain outcome
+v0.7,v0.1,INHERITED,Planning / Confirm
+v0.7,v0.1,INHERITED,Planning / Ready
+v0.7,v0.1,INHERITED,Planning / Undo
+v0.7,v0.1,INHERITED,Action Slot / Available
+v0.7,v0.1,INHERITED,Action Slot / Hover
+v0.7,v0.1,INHERITED,Action Slot / Selected
+v0.7,v0.1,INHERITED,Action Slot / Planned
+v0.7,v0.1,INHERITED,Action Slot / Cooldown
+v0.7,v0.1,INHERITED,Action Slot / Unavailable
+v0.7,v0.1,INHERITED,Action Slot / Invalid
+v0.7,v0.1,INHERITED,Action Slot / Warning
+v0.7,v0.1,INHERITED,World Overlay / Path
+v0.7,v0.1,INHERITED,World Overlay / Destination
+v0.7,v0.1,INHERITED,World Overlay / Target
+v0.7,v0.1,INHERITED,World Overlay / AoE
+v0.7,v0.1,INHERITED,World Overlay / Facing
+v0.7,v0.2,INHERITED,Coordination / Team intent
+v0.7,v0.2,INHERITED,Coordination / Labels
+v0.7,v0.2,INHERITED,Coordination / Ping
+v0.7,v0.2,INHERITED,Coordination / Conflict
+v0.7,v0.2,INHERITED,Decision Window / Fast Reaction
+v0.7,v0.2,INHERITED,Reaction / FIRE
+v0.7,v0.2,INHERITED,Reaction / HOLD
+v0.7,v0.2,INHERITED,Reaction / Timeout
+v0.7,v0.2,INHERITED,Reaction / Available
+v0.7,v0.2,INHERITED,Reaction / Armed
+v0.7,v0.2,INHERITED,Reaction / Opportunity
+v0.7,v0.2,INHERITED,Reaction / Consumed
+v0.7,v0.2,INHERITED,Reaction / Expired
+v0.7,v0.2,INHERITED,Reaction / Invalidated
+v0.7,v0.2,INHERITED,STOP / YIELD (ONLY if gameplay currently supports them)
+v0.7,v0.3,INHERITED,Intel / Visible
+v0.7,v0.3,INHERITED,Intel / Heard
+v0.7,v0.3,INHERITED,Intel / Last Known
+v0.7,v0.3,INHERITED,Intel / Unknown
+v0.7,v0.3,INHERITED,Intel / Approximate Area
+v0.7,v0.3,INHERITED,Intel / Detected
+v0.7,v0.3,INHERITED,Intel / Facing / focus markers
+v0.7,v0.3,INHERITED,Vision overlay
+v0.7,v0.3,INHERITED,Sound overlay
+v0.7,v0.3,INHERITED,Ghost Intel / Last Known
+v0.7,v0.3,INHERITED,Stealth marker
+v0.7,v0.3,INHERITED,Privacy-safe warning marker
+v0.7,v0.4,INHERITED,Camera / Tactical level
+v0.7,v0.4,INHERITED,Camera / Strategic level
+v0.7,v0.4,INHERITED,Layer / Ground
+v0.7,v0.4,INHERITED,Layer / Bridge
+v0.7,v0.4,INHERITED,Layer / Roof
+v0.7,v0.4,INHERITED,Layer / Tunnel
+v0.7,v0.4,INHERITED,Layer / Up
+v0.7,v0.4,INHERITED,Layer / Down
+v0.7,v0.4,INHERITED,MapState / Door Open
+v0.7,v0.4,INHERITED,MapState / Door Closed
+v0.7,v0.4,INHERITED,MapState / Door Locked
+v0.7,v0.4,INHERITED,MapState / Bridge
+v0.7,v0.4,INHERITED,MapState / Tunnel
+v0.7,v0.4,INHERITED,MapState / Elevator
+v0.7,v0.4,INHERITED,Environment / Cover
+v0.7,v0.4,INHERITED,Environment / Height
+v0.7,v0.4,INHERITED,Environment / Water
+v0.7,v0.4,INHERITED,Environment / Fire
+v0.7,v0.4,INHERITED,Environment / Electric
+v0.7,v0.4,INHERITED,Environment / Smoke
+v0.7,v0.4,INHERITED,Environment / Ice
+v0.7,v0.4,INHERITED,Environment / Hazard
+v0.7,v0.5,INHERITED,Movement / Push
+v0.7,v0.5,INHERITED,Movement / Pull
+v0.7,v0.5,INHERITED,Movement / Knockback
+v0.7,v0.5,INHERITED,Movement / Slide
+v0.7,v0.5,INHERITED,Movement / Throw
+v0.7,v0.5,INHERITED,Movement / Forced Move
+v0.7,v0.5,INHERITED,Preview / Forced movement path
+v0.7,v0.5,INHERITED,Preview / Reaction consequence
+v0.7,v0.5,INHERITED,Objective / Neutral
+v0.7,v0.5,INHERITED,Objective / Capture
+v0.7,v0.5,INHERITED,Objective / Contested
+v0.7,v0.5,INHERITED,Objective / Owned
+v0.7,v0.5,INHERITED,Objective / Locked
+v0.7,v0.5,INHERITED,Objective / Completed
+v0.7,v0.5,INHERITED,Counterplay / Interrupt opportunity
+v0.7,v0.5,INHERITED,Counterplay / Threat
+v0.7,v0.6,INHERITED,Scenario Composer / Add
+v0.7,v0.6,INHERITED,Scenario Composer / Remove
+v0.7,v0.6,INHERITED,Scenario Composer / Validate
+v0.7,v0.6,INHERITED,Scenario Composer / Spawn
+v0.7,v0.6,INHERITED,Scenario Composer / Objective
+v0.7,v0.6,INHERITED,Skill Workbench / Target
+v0.7,v0.6,INHERITED,Skill Workbench / Geometry
+v0.7,v0.6,INHERITED,Skill Workbench / Effect
+v0.7,v0.6,INHERITED,Skill Workbench / Requirement
+v0.7,v0.6,INHERITED,Skill Workbench / Cost
+v0.7,v0.6,INHERITED,Skill Workbench / Cooldown
+v0.7,v0.6,INHERITED,Character Setup / Slot
+v0.7,v0.6,INHERITED,Character Setup / Talent
+v0.7,v0.6,INHERITED,Character Setup / Gadget
+v0.7,v0.6,INHERITED,Character Setup / Specialization
+v0.7,v0.6,INHERITED,Content Preview / Valid
+v0.7,v0.6,INHERITED,Content Preview / Warning
+v0.7,v0.6,INHERITED,Content Preview / Invalid
+v0.7,v0.7,NEW,Network / Connected
+v0.7,v0.7,NEW,Network / Reconnecting
+v0.7,v0.7,NEW,Network / Disconnected
+v0.7,v0.7,NEW,Network / Waiting for server
+v0.7,v0.7,NEW,Network / Syncing
+v0.7,v0.7,NEW,Spectator / Spectating
+v0.7,v0.7,NEW,Spectator / Follow
+v0.7,v0.7,NEW,Spectator / Free camera
+v0.7,v0.7,NEW,Spectator / Team A
+v0.7,v0.7,NEW,Spectator / Team B
+v0.7,v0.7,NEW,Audit / Privacy-safe
+v0.7,v0.7,NEW,Audit / Restricted information
+v0.8,v0.1,INHERITED,Identity / Ally
+v0.8,v0.1,INHERITED,Identity / Enemy
+v0.8,v0.1,INHERITED,Identity / Hero identities (derive from live catalog)
+v0.8,v0.1,INHERITED,Phase / Prep
+v0.8,v0.1,INHERITED,Phase / Dash
+v0.8,v0.1,INHERITED,Phase / Blast
+v0.8,v0.1,INHERITED,Phase / Move
+v0.8,v0.1,INHERITED,Action / Generic + core actions (derive from live RequiredIconIds)
+v0.8,v0.1,INHERITED,Status / current Status.* set (derive from live gameplay tags)
+v0.8,v0.1,INHERITED,Certainty / Confirmed
+v0.8,v0.1,INHERITED,Certainty / Predicted
+v0.8,v0.1,INHERITED,Certainty / Uncertain
+v0.8,v0.1,INHERITED,Warning / Invalid plan or target
+v0.8,v0.1,INHERITED,Warning / Allied collision
+v0.8,v0.1,INHERITED,Warning / Friendly Fire
+v0.8,v0.1,INHERITED,Warning / Insufficient resource
+v0.8,v0.1,INHERITED,Warning / Target may move / uncertain outcome
+v0.8,v0.1,INHERITED,Planning / Confirm
+v0.8,v0.1,INHERITED,Planning / Ready
+v0.8,v0.1,INHERITED,Planning / Undo
+v0.8,v0.1,INHERITED,Action Slot / Available
+v0.8,v0.1,INHERITED,Action Slot / Hover
+v0.8,v0.1,INHERITED,Action Slot / Selected
+v0.8,v0.1,INHERITED,Action Slot / Planned
+v0.8,v0.1,INHERITED,Action Slot / Cooldown
+v0.8,v0.1,INHERITED,Action Slot / Unavailable
+v0.8,v0.1,INHERITED,Action Slot / Invalid
+v0.8,v0.1,INHERITED,Action Slot / Warning
+v0.8,v0.1,INHERITED,World Overlay / Path
+v0.8,v0.1,INHERITED,World Overlay / Destination
+v0.8,v0.1,INHERITED,World Overlay / Target
+v0.8,v0.1,INHERITED,World Overlay / AoE
+v0.8,v0.1,INHERITED,World Overlay / Facing
+v0.8,v0.2,INHERITED,Coordination / Team intent
+v0.8,v0.2,INHERITED,Coordination / Labels
+v0.8,v0.2,INHERITED,Coordination / Ping
+v0.8,v0.2,INHERITED,Coordination / Conflict
+v0.8,v0.2,INHERITED,Decision Window / Fast Reaction
+v0.8,v0.2,INHERITED,Reaction / FIRE
+v0.8,v0.2,INHERITED,Reaction / HOLD
+v0.8,v0.2,INHERITED,Reaction / Timeout
+v0.8,v0.2,INHERITED,Reaction / Available
+v0.8,v0.2,INHERITED,Reaction / Armed
+v0.8,v0.2,INHERITED,Reaction / Opportunity
+v0.8,v0.2,INHERITED,Reaction / Consumed
+v0.8,v0.2,INHERITED,Reaction / Expired
+v0.8,v0.2,INHERITED,Reaction / Invalidated
+v0.8,v0.2,INHERITED,STOP / YIELD (ONLY if gameplay currently supports them)
+v0.8,v0.3,INHERITED,Intel / Visible
+v0.8,v0.3,INHERITED,Intel / Heard
+v0.8,v0.3,INHERITED,Intel / Last Known
+v0.8,v0.3,INHERITED,Intel / Unknown
+v0.8,v0.3,INHERITED,Intel / Approximate Area
+v0.8,v0.3,INHERITED,Intel / Detected
+v0.8,v0.3,INHERITED,Intel / Facing / focus markers
+v0.8,v0.3,INHERITED,Vision overlay
+v0.8,v0.3,INHERITED,Sound overlay
+v0.8,v0.3,INHERITED,Ghost Intel / Last Known
+v0.8,v0.3,INHERITED,Stealth marker
+v0.8,v0.3,INHERITED,Privacy-safe warning marker
+v0.8,v0.4,INHERITED,Camera / Tactical level
+v0.8,v0.4,INHERITED,Camera / Strategic level
+v0.8,v0.4,INHERITED,Layer / Ground
+v0.8,v0.4,INHERITED,Layer / Bridge
+v0.8,v0.4,INHERITED,Layer / Roof
+v0.8,v0.4,INHERITED,Layer / Tunnel
+v0.8,v0.4,INHERITED,Layer / Up
+v0.8,v0.4,INHERITED,Layer / Down
+v0.8,v0.4,INHERITED,MapState / Door Open
+v0.8,v0.4,INHERITED,MapState / Door Closed
+v0.8,v0.4,INHERITED,MapState / Door Locked
+v0.8,v0.4,INHERITED,MapState / Bridge
+v0.8,v0.4,INHERITED,MapState / Tunnel
+v0.8,v0.4,INHERITED,MapState / Elevator
+v0.8,v0.4,INHERITED,Environment / Cover
+v0.8,v0.4,INHERITED,Environment / Height
+v0.8,v0.4,INHERITED,Environment / Water
+v0.8,v0.4,INHERITED,Environment / Fire
+v0.8,v0.4,INHERITED,Environment / Electric
+v0.8,v0.4,INHERITED,Environment / Smoke
+v0.8,v0.4,INHERITED,Environment / Ice
+v0.8,v0.4,INHERITED,Environment / Hazard
+v0.8,v0.5,INHERITED,Movement / Push
+v0.8,v0.5,INHERITED,Movement / Pull
+v0.8,v0.5,INHERITED,Movement / Knockback
+v0.8,v0.5,INHERITED,Movement / Slide
+v0.8,v0.5,INHERITED,Movement / Throw
+v0.8,v0.5,INHERITED,Movement / Forced Move
+v0.8,v0.5,INHERITED,Preview / Forced movement path
+v0.8,v0.5,INHERITED,Preview / Reaction consequence
+v0.8,v0.5,INHERITED,Objective / Neutral
+v0.8,v0.5,INHERITED,Objective / Capture
+v0.8,v0.5,INHERITED,Objective / Contested
+v0.8,v0.5,INHERITED,Objective / Owned
+v0.8,v0.5,INHERITED,Objective / Locked
+v0.8,v0.5,INHERITED,Objective / Completed
+v0.8,v0.5,INHERITED,Counterplay / Interrupt opportunity
+v0.8,v0.5,INHERITED,Counterplay / Threat
+v0.8,v0.6,INHERITED,Scenario Composer / Add
+v0.8,v0.6,INHERITED,Scenario Composer / Remove
+v0.8,v0.6,INHERITED,Scenario Composer / Validate
+v0.8,v0.6,INHERITED,Scenario Composer / Spawn
+v0.8,v0.6,INHERITED,Scenario Composer / Objective
+v0.8,v0.6,INHERITED,Skill Workbench / Target
+v0.8,v0.6,INHERITED,Skill Workbench / Geometry
+v0.8,v0.6,INHERITED,Skill Workbench / Effect
+v0.8,v0.6,INHERITED,Skill Workbench / Requirement
+v0.8,v0.6,INHERITED,Skill Workbench / Cost
+v0.8,v0.6,INHERITED,Skill Workbench / Cooldown
+v0.8,v0.6,INHERITED,Character Setup / Slot
+v0.8,v0.6,INHERITED,Character Setup / Talent
+v0.8,v0.6,INHERITED,Character Setup / Gadget
+v0.8,v0.6,INHERITED,Character Setup / Specialization
+v0.8,v0.6,INHERITED,Content Preview / Valid
+v0.8,v0.6,INHERITED,Content Preview / Warning
+v0.8,v0.6,INHERITED,Content Preview / Invalid
+v0.8,v0.7,INHERITED,Network / Connected
+v0.8,v0.7,INHERITED,Network / Reconnecting
+v0.8,v0.7,INHERITED,Network / Disconnected
+v0.8,v0.7,INHERITED,Network / Waiting for server
+v0.8,v0.7,INHERITED,Network / Syncing
+v0.8,v0.7,INHERITED,Spectator / Spectating
+v0.8,v0.7,INHERITED,Spectator / Follow
+v0.8,v0.7,INHERITED,Spectator / Free camera
+v0.8,v0.7,INHERITED,Spectator / Team A
+v0.8,v0.7,INHERITED,Spectator / Team B
+v0.8,v0.7,INHERITED,Audit / Privacy-safe
+v0.8,v0.7,INHERITED,Audit / Restricted information
+v0.8,v0.8,NEW,Density / Overflow +N
+v0.8,v0.8,NEW,Density / Stack collapsed
+v0.8,v0.8,NEW,Density / Priority marker
+v0.8,v0.8,NEW,Roster / Focus
+v0.8,v0.8,NEW,Roster / Selected
+v0.8,v0.8,NEW,Roster / Ready
+v0.8,v0.8,NEW,World / Clutter suppression
+v0.8,v0.8,NEW,World / Priority P0-P6
+v0.9,v0.1,INHERITED,Identity / Ally
+v0.9,v0.1,INHERITED,Identity / Enemy
+v0.9,v0.1,INHERITED,Identity / Hero identities (derive from live catalog)
+v0.9,v0.1,INHERITED,Phase / Prep
+v0.9,v0.1,INHERITED,Phase / Dash
+v0.9,v0.1,INHERITED,Phase / Blast
+v0.9,v0.1,INHERITED,Phase / Move
+v0.9,v0.1,INHERITED,Action / Generic + core actions (derive from live RequiredIconIds)
+v0.9,v0.1,INHERITED,Status / current Status.* set (derive from live gameplay tags)
+v0.9,v0.1,INHERITED,Certainty / Confirmed
+v0.9,v0.1,INHERITED,Certainty / Predicted
+v0.9,v0.1,INHERITED,Certainty / Uncertain
+v0.9,v0.1,INHERITED,Warning / Invalid plan or target
+v0.9,v0.1,INHERITED,Warning / Allied collision
+v0.9,v0.1,INHERITED,Warning / Friendly Fire
+v0.9,v0.1,INHERITED,Warning / Insufficient resource
+v0.9,v0.1,INHERITED,Warning / Target may move / uncertain outcome
+v0.9,v0.1,INHERITED,Planning / Confirm
+v0.9,v0.1,INHERITED,Planning / Ready
+v0.9,v0.1,INHERITED,Planning / Undo
+v0.9,v0.1,INHERITED,Action Slot / Available
+v0.9,v0.1,INHERITED,Action Slot / Hover
+v0.9,v0.1,INHERITED,Action Slot / Selected
+v0.9,v0.1,INHERITED,Action Slot / Planned
+v0.9,v0.1,INHERITED,Action Slot / Cooldown
+v0.9,v0.1,INHERITED,Action Slot / Unavailable
+v0.9,v0.1,INHERITED,Action Slot / Invalid
+v0.9,v0.1,INHERITED,Action Slot / Warning
+v0.9,v0.1,INHERITED,World Overlay / Path
+v0.9,v0.1,INHERITED,World Overlay / Destination
+v0.9,v0.1,INHERITED,World Overlay / Target
+v0.9,v0.1,INHERITED,World Overlay / AoE
+v0.9,v0.1,INHERITED,World Overlay / Facing
+v0.9,v0.2,INHERITED,Coordination / Team intent
+v0.9,v0.2,INHERITED,Coordination / Labels
+v0.9,v0.2,INHERITED,Coordination / Ping
+v0.9,v0.2,INHERITED,Coordination / Conflict
+v0.9,v0.2,INHERITED,Decision Window / Fast Reaction
+v0.9,v0.2,INHERITED,Reaction / FIRE
+v0.9,v0.2,INHERITED,Reaction / HOLD
+v0.9,v0.2,INHERITED,Reaction / Timeout
+v0.9,v0.2,INHERITED,Reaction / Available
+v0.9,v0.2,INHERITED,Reaction / Armed
+v0.9,v0.2,INHERITED,Reaction / Opportunity
+v0.9,v0.2,INHERITED,Reaction / Consumed
+v0.9,v0.2,INHERITED,Reaction / Expired
+v0.9,v0.2,INHERITED,Reaction / Invalidated
+v0.9,v0.2,INHERITED,STOP / YIELD (ONLY if gameplay currently supports them)
+v0.9,v0.3,INHERITED,Intel / Visible
+v0.9,v0.3,INHERITED,Intel / Heard
+v0.9,v0.3,INHERITED,Intel / Last Known
+v0.9,v0.3,INHERITED,Intel / Unknown
+v0.9,v0.3,INHERITED,Intel / Approximate Area
+v0.9,v0.3,INHERITED,Intel / Detected
+v0.9,v0.3,INHERITED,Intel / Facing / focus markers
+v0.9,v0.3,INHERITED,Vision overlay
+v0.9,v0.3,INHERITED,Sound overlay
+v0.9,v0.3,INHERITED,Ghost Intel / Last Known
+v0.9,v0.3,INHERITED,Stealth marker
+v0.9,v0.3,INHERITED,Privacy-safe warning marker
+v0.9,v0.4,INHERITED,Camera / Tactical level
+v0.9,v0.4,INHERITED,Camera / Strategic level
+v0.9,v0.4,INHERITED,Layer / Ground
+v0.9,v0.4,INHERITED,Layer / Bridge
+v0.9,v0.4,INHERITED,Layer / Roof
+v0.9,v0.4,INHERITED,Layer / Tunnel
+v0.9,v0.4,INHERITED,Layer / Up
+v0.9,v0.4,INHERITED,Layer / Down
+v0.9,v0.4,INHERITED,MapState / Door Open
+v0.9,v0.4,INHERITED,MapState / Door Closed
+v0.9,v0.4,INHERITED,MapState / Door Locked
+v0.9,v0.4,INHERITED,MapState / Bridge
+v0.9,v0.4,INHERITED,MapState / Tunnel
+v0.9,v0.4,INHERITED,MapState / Elevator
+v0.9,v0.4,INHERITED,Environment / Cover
+v0.9,v0.4,INHERITED,Environment / Height
+v0.9,v0.4,INHERITED,Environment / Water
+v0.9,v0.4,INHERITED,Environment / Fire
+v0.9,v0.4,INHERITED,Environment / Electric
+v0.9,v0.4,INHERITED,Environment / Smoke
+v0.9,v0.4,INHERITED,Environment / Ice
+v0.9,v0.4,INHERITED,Environment / Hazard
+v0.9,v0.5,INHERITED,Movement / Push
+v0.9,v0.5,INHERITED,Movement / Pull
+v0.9,v0.5,INHERITED,Movement / Knockback
+v0.9,v0.5,INHERITED,Movement / Slide
+v0.9,v0.5,INHERITED,Movement / Throw
+v0.9,v0.5,INHERITED,Movement / Forced Move
+v0.9,v0.5,INHERITED,Preview / Forced movement path
+v0.9,v0.5,INHERITED,Preview / Reaction consequence
+v0.9,v0.5,INHERITED,Objective / Neutral
+v0.9,v0.5,INHERITED,Objective / Capture
+v0.9,v0.5,INHERITED,Objective / Contested
+v0.9,v0.5,INHERITED,Objective / Owned
+v0.9,v0.5,INHERITED,Objective / Locked
+v0.9,v0.5,INHERITED,Objective / Completed
+v0.9,v0.5,INHERITED,Counterplay / Interrupt opportunity
+v0.9,v0.5,INHERITED,Counterplay / Threat
+v0.9,v0.6,INHERITED,Scenario Composer / Add
+v0.9,v0.6,INHERITED,Scenario Composer / Remove
+v0.9,v0.6,INHERITED,Scenario Composer / Validate
+v0.9,v0.6,INHERITED,Scenario Composer / Spawn
+v0.9,v0.6,INHERITED,Scenario Composer / Objective
+v0.9,v0.6,INHERITED,Skill Workbench / Target
+v0.9,v0.6,INHERITED,Skill Workbench / Geometry
+v0.9,v0.6,INHERITED,Skill Workbench / Effect
+v0.9,v0.6,INHERITED,Skill Workbench / Requirement
+v0.9,v0.6,INHERITED,Skill Workbench / Cost
+v0.9,v0.6,INHERITED,Skill Workbench / Cooldown
+v0.9,v0.6,INHERITED,Character Setup / Slot
+v0.9,v0.6,INHERITED,Character Setup / Talent
+v0.9,v0.6,INHERITED,Character Setup / Gadget
+v0.9,v0.6,INHERITED,Character Setup / Specialization
+v0.9,v0.6,INHERITED,Content Preview / Valid
+v0.9,v0.6,INHERITED,Content Preview / Warning
+v0.9,v0.6,INHERITED,Content Preview / Invalid
+v0.9,v0.7,INHERITED,Network / Connected
+v0.9,v0.7,INHERITED,Network / Reconnecting
+v0.9,v0.7,INHERITED,Network / Disconnected
+v0.9,v0.7,INHERITED,Network / Waiting for server
+v0.9,v0.7,INHERITED,Network / Syncing
+v0.9,v0.7,INHERITED,Spectator / Spectating
+v0.9,v0.7,INHERITED,Spectator / Follow
+v0.9,v0.7,INHERITED,Spectator / Free camera
+v0.9,v0.7,INHERITED,Spectator / Team A
+v0.9,v0.7,INHERITED,Spectator / Team B
+v0.9,v0.7,INHERITED,Audit / Privacy-safe
+v0.9,v0.7,INHERITED,Audit / Restricted information
+v0.9,v0.8,INHERITED,Density / Overflow +N
+v0.9,v0.8,INHERITED,Density / Stack collapsed
+v0.9,v0.8,INHERITED,Density / Priority marker
+v0.9,v0.8,INHERITED,Roster / Focus
+v0.9,v0.8,INHERITED,Roster / Selected
+v0.9,v0.8,INHERITED,Roster / Ready
+v0.9,v0.8,INHERITED,World / Clutter suppression
+v0.9,v0.8,INHERITED,World / Priority P0-P6
+v0.9,v0.9,NEW,Accessibility / CVD theme validation
+v0.9,v0.9,NEW,Accessibility / High Contrast
+v0.9,v0.9,NEW,Accessibility / Monochrome QA
+v0.9,v0.9,NEW,Accessibility / Reduced Motion marker
+v0.9,v0.9,NEW,Input / Keyboard
+v0.9,v0.9,NEW,Input / Mouse
+v0.9,v0.9,NEW,Input / Controller
+v0.9,v0.9,NEW,Localization / Text-safe icon usage
+v0.9,v0.9,NEW,Localization / RTL-safe directional review
+v0.9,v0.9,NEW,Asset / Deprecated
+v0.9,v0.9,NEW,Asset / Replacement pending
+v0.9,v0.9,NEW,Asset / Frozen
+v1.0,v0.1,INHERITED,Identity / Ally
+v1.0,v0.1,INHERITED,Identity / Enemy
+v1.0,v0.1,INHERITED,Identity / Hero identities (derive from live catalog)
+v1.0,v0.1,INHERITED,Phase / Prep
+v1.0,v0.1,INHERITED,Phase / Dash
+v1.0,v0.1,INHERITED,Phase / Blast
+v1.0,v0.1,INHERITED,Phase / Move
+v1.0,v0.1,INHERITED,Action / Generic + core actions (derive from live RequiredIconIds)
+v1.0,v0.1,INHERITED,Status / current Status.* set (derive from live gameplay tags)
+v1.0,v0.1,INHERITED,Certainty / Confirmed
+v1.0,v0.1,INHERITED,Certainty / Predicted
+v1.0,v0.1,INHERITED,Certainty / Uncertain
+v1.0,v0.1,INHERITED,Warning / Invalid plan or target
+v1.0,v0.1,INHERITED,Warning / Allied collision
+v1.0,v0.1,INHERITED,Warning / Friendly Fire
+v1.0,v0.1,INHERITED,Warning / Insufficient resource
+v1.0,v0.1,INHERITED,Warning / Target may move / uncertain outcome
+v1.0,v0.1,INHERITED,Planning / Confirm
+v1.0,v0.1,INHERITED,Planning / Ready
+v1.0,v0.1,INHERITED,Planning / Undo
+v1.0,v0.1,INHERITED,Action Slot / Available
+v1.0,v0.1,INHERITED,Action Slot / Hover
+v1.0,v0.1,INHERITED,Action Slot / Selected
+v1.0,v0.1,INHERITED,Action Slot / Planned
+v1.0,v0.1,INHERITED,Action Slot / Cooldown
+v1.0,v0.1,INHERITED,Action Slot / Unavailable
+v1.0,v0.1,INHERITED,Action Slot / Invalid
+v1.0,v0.1,INHERITED,Action Slot / Warning
+v1.0,v0.1,INHERITED,World Overlay / Path
+v1.0,v0.1,INHERITED,World Overlay / Destination
+v1.0,v0.1,INHERITED,World Overlay / Target
+v1.0,v0.1,INHERITED,World Overlay / AoE
+v1.0,v0.1,INHERITED,World Overlay / Facing
+v1.0,v0.2,INHERITED,Coordination / Team intent
+v1.0,v0.2,INHERITED,Coordination / Labels
+v1.0,v0.2,INHERITED,Coordination / Ping
+v1.0,v0.2,INHERITED,Coordination / Conflict
+v1.0,v0.2,INHERITED,Decision Window / Fast Reaction
+v1.0,v0.2,INHERITED,Reaction / FIRE
+v1.0,v0.2,INHERITED,Reaction / HOLD
+v1.0,v0.2,INHERITED,Reaction / Timeout
+v1.0,v0.2,INHERITED,Reaction / Available
+v1.0,v0.2,INHERITED,Reaction / Armed
+v1.0,v0.2,INHERITED,Reaction / Opportunity
+v1.0,v0.2,INHERITED,Reaction / Consumed
+v1.0,v0.2,INHERITED,Reaction / Expired
+v1.0,v0.2,INHERITED,Reaction / Invalidated
+v1.0,v0.2,INHERITED,STOP / YIELD (ONLY if gameplay currently supports them)
+v1.0,v0.3,INHERITED,Intel / Visible
+v1.0,v0.3,INHERITED,Intel / Heard
+v1.0,v0.3,INHERITED,Intel / Last Known
+v1.0,v0.3,INHERITED,Intel / Unknown
+v1.0,v0.3,INHERITED,Intel / Approximate Area
+v1.0,v0.3,INHERITED,Intel / Detected
+v1.0,v0.3,INHERITED,Intel / Facing / focus markers
+v1.0,v0.3,INHERITED,Vision overlay
+v1.0,v0.3,INHERITED,Sound overlay
+v1.0,v0.3,INHERITED,Ghost Intel / Last Known
+v1.0,v0.3,INHERITED,Stealth marker
+v1.0,v0.3,INHERITED,Privacy-safe warning marker
+v1.0,v0.4,INHERITED,Camera / Tactical level
+v1.0,v0.4,INHERITED,Camera / Strategic level
+v1.0,v0.4,INHERITED,Layer / Ground
+v1.0,v0.4,INHERITED,Layer / Bridge
+v1.0,v0.4,INHERITED,Layer / Roof
+v1.0,v0.4,INHERITED,Layer / Tunnel
+v1.0,v0.4,INHERITED,Layer / Up
+v1.0,v0.4,INHERITED,Layer / Down
+v1.0,v0.4,INHERITED,MapState / Door Open
+v1.0,v0.4,INHERITED,MapState / Door Closed
+v1.0,v0.4,INHERITED,MapState / Door Locked
+v1.0,v0.4,INHERITED,MapState / Bridge
+v1.0,v0.4,INHERITED,MapState / Tunnel
+v1.0,v0.4,INHERITED,MapState / Elevator
+v1.0,v0.4,INHERITED,Environment / Cover
+v1.0,v0.4,INHERITED,Environment / Height
+v1.0,v0.4,INHERITED,Environment / Water
+v1.0,v0.4,INHERITED,Environment / Fire
+v1.0,v0.4,INHERITED,Environment / Electric
+v1.0,v0.4,INHERITED,Environment / Smoke
+v1.0,v0.4,INHERITED,Environment / Ice
+v1.0,v0.4,INHERITED,Environment / Hazard
+v1.0,v0.5,INHERITED,Movement / Push
+v1.0,v0.5,INHERITED,Movement / Pull
+v1.0,v0.5,INHERITED,Movement / Knockback
+v1.0,v0.5,INHERITED,Movement / Slide
+v1.0,v0.5,INHERITED,Movement / Throw
+v1.0,v0.5,INHERITED,Movement / Forced Move
+v1.0,v0.5,INHERITED,Preview / Forced movement path
+v1.0,v0.5,INHERITED,Preview / Reaction consequence
+v1.0,v0.5,INHERITED,Objective / Neutral
+v1.0,v0.5,INHERITED,Objective / Capture
+v1.0,v0.5,INHERITED,Objective / Contested
+v1.0,v0.5,INHERITED,Objective / Owned
+v1.0,v0.5,INHERITED,Objective / Locked
+v1.0,v0.5,INHERITED,Objective / Completed
+v1.0,v0.5,INHERITED,Counterplay / Interrupt opportunity
+v1.0,v0.5,INHERITED,Counterplay / Threat
+v1.0,v0.6,INHERITED,Scenario Composer / Add
+v1.0,v0.6,INHERITED,Scenario Composer / Remove
+v1.0,v0.6,INHERITED,Scenario Composer / Validate
+v1.0,v0.6,INHERITED,Scenario Composer / Spawn
+v1.0,v0.6,INHERITED,Scenario Composer / Objective
+v1.0,v0.6,INHERITED,Skill Workbench / Target
+v1.0,v0.6,INHERITED,Skill Workbench / Geometry
+v1.0,v0.6,INHERITED,Skill Workbench / Effect
+v1.0,v0.6,INHERITED,Skill Workbench / Requirement
+v1.0,v0.6,INHERITED,Skill Workbench / Cost
+v1.0,v0.6,INHERITED,Skill Workbench / Cooldown
+v1.0,v0.6,INHERITED,Character Setup / Slot
+v1.0,v0.6,INHERITED,Character Setup / Talent
+v1.0,v0.6,INHERITED,Character Setup / Gadget
+v1.0,v0.6,INHERITED,Character Setup / Specialization
+v1.0,v0.6,INHERITED,Content Preview / Valid
+v1.0,v0.6,INHERITED,Content Preview / Warning
+v1.0,v0.6,INHERITED,Content Preview / Invalid
+v1.0,v0.7,INHERITED,Network / Connected
+v1.0,v0.7,INHERITED,Network / Reconnecting
+v1.0,v0.7,INHERITED,Network / Disconnected
+v1.0,v0.7,INHERITED,Network / Waiting for server
+v1.0,v0.7,INHERITED,Network / Syncing
+v1.0,v0.7,INHERITED,Spectator / Spectating
+v1.0,v0.7,INHERITED,Spectator / Follow
+v1.0,v0.7,INHERITED,Spectator / Free camera
+v1.0,v0.7,INHERITED,Spectator / Team A
+v1.0,v0.7,INHERITED,Spectator / Team B
+v1.0,v0.7,INHERITED,Audit / Privacy-safe
+v1.0,v0.7,INHERITED,Audit / Restricted information
+v1.0,v0.8,INHERITED,Density / Overflow +N
+v1.0,v0.8,INHERITED,Density / Stack collapsed
+v1.0,v0.8,INHERITED,Density / Priority marker
+v1.0,v0.8,INHERITED,Roster / Focus
+v1.0,v0.8,INHERITED,Roster / Selected
+v1.0,v0.8,INHERITED,Roster / Ready
+v1.0,v0.8,INHERITED,World / Clutter suppression
+v1.0,v0.8,INHERITED,World / Priority P0-P6
+v1.0,v0.9,INHERITED,Accessibility / CVD theme validation
+v1.0,v0.9,INHERITED,Accessibility / High Contrast
+v1.0,v0.9,INHERITED,Accessibility / Monochrome QA
+v1.0,v0.9,INHERITED,Accessibility / Reduced Motion marker
+v1.0,v0.9,INHERITED,Input / Keyboard
+v1.0,v0.9,INHERITED,Input / Mouse
+v1.0,v0.9,INHERITED,Input / Controller
+v1.0,v0.9,INHERITED,Localization / Text-safe icon usage
+v1.0,v0.9,INHERITED,Localization / RTL-safe directional review
+v1.0,v0.9,INHERITED,Asset / Deprecated
+v1.0,v0.9,INHERITED,Asset / Replacement pending
+v1.0,v0.9,INHERITED,Asset / Frozen
+v1.0,v1.0,NEW,Certification / Pass
+v1.0,v1.0,NEW,Certification / Blocker
+v1.0,v1.0,NEW,Certification / Needs review
+v1.0,v1.0,NEW,Release / Final asset validated
+v1.0,v1.0,NEW,Release / Missing asset
+v1.0,v1.0,NEW,Release / Deprecated asset
+v1.0,v1.0,NEW,Vault / Restore verified

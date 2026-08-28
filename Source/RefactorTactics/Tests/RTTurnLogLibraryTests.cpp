@@ -237,4 +237,30 @@ bool FRTInflictedDamagePredicateTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `TargetUnknown` deve avere un testo PROPRIO. Cade nel `default` -> il giocatore legge «non eseguibile»,
+ * che e' esattamente cio' che la conoscenza parziale NON sta dicendo: non «non si puo'», ma «per la tua
+ * squadra quel bersaglio non c'e'».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogTargetUnknownIsDescribedTest,
+	"RefactorTactics.TurnLog.TargetUnknownIsDescribed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogTargetUnknownIsDescribedTest::RunTest(const FString&)
+{
+	const FString Fallback = URTTurnLogLibrary::DescribeInvalidReason(
+		ERTActionInvalidReason::InsufficientMovementPoints);
+	const FString Unknown = URTTurnLogLibrary::DescribeInvalidReason(
+		ERTActionInvalidReason::TargetUnknown);
+
+	// ⚠️ Anti-vacuita': senza questa riga il test passerebbe anche cambiando il TESTO DEL DEFAULT invece di
+	// aggiungere il case. `InsufficientMovementPoints` non ha un case e per D-190 non ne avra' mai uno,
+	// quindi e' la sonda giusta per dimostrare che il default e' ancora raggiungibile e ancora quello.
+	TestEqual(TEXT("il default esiste ancora ed e' invariato"), Fallback, TEXT("non eseguibile"));
+
+	TestNotEqual(TEXT("TargetUnknown non cade piu' nel default"), Unknown, Fallback);
+	TestEqual(TEXT("e dice di CONOSCENZA, non di geometria"),
+		Unknown, TEXT("bersaglio ignoto alla squadra"));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -1,4 +1,5 @@
 #include "Map/RTHexLibrary.h"
+#include "Map/RTMapVisuals.h"   // RTCellPrismRadius: la mesh che CellVolumeTransform scala nasce con quel raggio
 
 namespace
 {
@@ -114,6 +115,34 @@ FVector URTHexLibrary::AxialToWorld(const FRTCellId& Cell, const FVector& Origin
 		Origin.X + Wx,
 		Origin.Y + Wy,
 		Origin.Z + static_cast<double>(Cell.Layer) * static_cast<double>(LayerHeight));
+}
+
+TArray<FVector> URTHexLibrary::CellCorners(const FRTCellId& Cell, const FVector& Origin, float HexSize, float LayerHeight)
+{
+	// Nessuna trigonometria qui: la convenzione pointy-top (primo vertice a -30 gradi) vive gia' in
+	// HexCorners, ed e' la stessa funzione da cui nasce il prisma di ARTHexMapActor::GetCellPrismMesh.
+	// Quel commento avverte di non scriverne una seconda copia, perche' due disegni della stessa forma
+	// che partono da due formule tornano a divergere: e' il difetto visto a schermo nella seduta U22,
+	// celle piene tonde e contorno esagonale. Questa funzione COMPONE soltanto — il centro dalla cella
+	// logica, i vertici da HexCorners — e aggiunge il solo pezzo che mancava: l'esposizione a Blueprint.
+	return HexCorners(AxialToWorld(Cell, Origin, HexSize, LayerHeight), HexSize);
+}
+
+FTransform URTHexLibrary::CellVolumeTransform(const FRTCellId& Cell, const FVector& Origin, float HexSize, float LayerHeight, float PlanarFraction)
+{
+	// La mesh nasce con circumraggio RTCellPrismRadius e mezza-altezza RTCellPrismRadius, centrata: la
+	// scala e' quindi il rapporto fra la misura voluta e quel raggio, su ciascun asse col proprio
+	// denominatore. Sull'altezza il fattore e' meta' di LayerHeight perche' la mezza-altezza della mesh
+	// e' gia' meta' del suo ingombro — dimenticarlo darebbe un volume alto il doppio, che tassella con
+	// il layer sbagliato e sembra corretto guardandolo da solo.
+	const double Radius   = static_cast<double>(RTCellPrismRadius);
+	const double Planar   = static_cast<double>(HexSize) * static_cast<double>(PlanarFraction) / Radius;
+	const double Vertical = (static_cast<double>(LayerHeight) * 0.5) / Radius;
+
+	return FTransform(
+		FQuat::Identity,
+		AxialToWorld(Cell, Origin, HexSize, LayerHeight),
+		FVector(Planar, Planar, Vertical));
 }
 
 FRTCellId URTHexLibrary::WorldToAxial(const FVector& World, const FVector& Origin, float HexSize, int32 Layer)
