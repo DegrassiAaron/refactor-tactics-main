@@ -282,8 +282,12 @@ puntata, **zero underscore**:
 ```text
 RefactorTactics.Reactions.ArmedZoneFollowsCurrentCell     RTReactionOpportunityTests.cpp:404
 RefactorTactics.Overwatch.OpportunityLeaksNoFuture        RTReactionOpportunityTests.cpp:218
-RefactorTactics.Reactions.NoResolverWait                  RTOverwatchTriggerTests.cpp:286
+RefactorTactics.Reactions.NoResolverWait                  RTReactionTests.cpp:286
 ```
+
+⚠️ Esiste anche `RefactorTactics.Predictive.NoResolverWait` (`RTPredictiveTests.cpp:173`): due test con lo
+stesso suffisso sotto categorie diverse. È un argomento in più per la convenzione — il nome **completo** è
+l'unica cosa che li distingue.
 
 Non è cosmesi: gate e selezioni girano su **pattern di nome**, e un corpus scritto con la convenzione
 sbagliata non viene selezionato da nulla.
@@ -331,8 +335,8 @@ rende la sezione misurabile e le toglie il rischio di riscrivere ciò che è ver
 
 | # | Sezione | Rilievo | Evidenza | Correzione |
 |---|---|---|---|---|
-| **M1** | §9 | Priorità 2 **è già implementata** e il documento non fornisce il puntatore: il costo della riscoperta si paga a ogni sessione | `ARTTurnManager::RecordedDecisions` (`RTTurnManager.cpp:4837` lookup, `:5015` scrittura), `ReportOrphanRecordedDecisions()` (`:5019`), consumata da `RTSimulationDeterminismTests.cpp:145` | Incorporare simboli e righe nel testo; §9 diventa «aggiungi i test mancanti a questo», non «audita» |
-| **M2** | §12, §15 | La verifica PIE si consegna in forma inventata (`test name / command / expected / prerequisite`) invece che con l'ID del sistema esistente | `PIE-V01-OVERWATCH` in `test-manuali-pie.md:877`; la DoD di `#166` la nomina | Chiedere **l'ID della voce PIE**; l'esito atteso vive già lì e non va duplicato |
+| **M1** | §9 | Priorità 2 **è già implementata** e il documento non fornisce il puntatore: il costo della riscoperta si paga a ogni sessione | `RecordedDecisions` e `ARTTurnManager::ReportOrphanRecordedDecisions()` in `Turn/RTTurnManager.cpp`, consumate da `Tests/RTSimulationDeterminismTests.cpp` | Incorporare i **simboli** nel testo; §9 diventa «aggiungi i test mancanti a questo», non «audita» |
+| **M2** | §12, §15 | La verifica PIE si consegna in forma inventata (`test name / command / expected / prerequisite`) invece che con l'ID del sistema esistente | `PIE-V01-OVERWATCH` in `docs/technical/test-manuali-pie.md`; la DoD di `#166` la nomina | Chiedere **l'ID della voce PIE**; l'esito atteso vive già lì e non va duplicato |
 | **M3** | §2 | Il `.pdf` compare come livello **6** di una scala di precedenza, il che gli attribuisce un'autorità che `D-009` gli nega — *«un `.pdf` non è **mai** autoritativo»* | `AGENTS.md`, `CLAUDE.md` §1 | Toglierlo dalla scala: è provenienza e rationale storico, non una fonte in graduatoria |
 | **M4** | §3, §15 | Pre-flight senza `gh pr list --state open` (collisione `D-nnn`); handoff senza il **branch padre** della PR né l'eventuale `D-nnn` rivendicato | `CLAUDE.md` §4; regola PR: base = branch padre, **non** `main` | Aggiungere entrambi ai due elenchi |
 | **M5** | intero doc | Nessuna data, versione o `HEAD` di riferimento, e il file è untracked: un documento di regime che scade in silenzio | `git status` | Intestazione con data più `HEAD` osservato; decidere se versionarlo o dichiararlo effimero |
@@ -384,11 +388,24 @@ ora costa nove edit; correggerla dopo costa una sessione di lavoro core buttata 
 
 ## 14. Nota di regime
 
-**Write-set**: la nozione non esiste più (`D-178`), e questo referto non ne dichiara uno. Il file nuovo è
-`docs/roadmap/plans/dir-b-core-gameplay-directive-spec-panel-2026-08-28.md`; la direttiva in review resta
-**non modificata** e non tracciata. Ciò che vale al suo posto è `D-222`: chiunque riesegua le verifiche di
-questo referto deve rileggere `HEAD` prima e dopo, perché quello di questa revisione — `707a8d95` — si era
-già mosso una volta durante la lettura.
+**Perché quasi nessun riferimento porta un numero di riga.** Durante la stesura di questo referto `HEAD` si
+è mosso **quattro volte** (`11f02b41` → `707a8d95` → `9018b5c3` → `ad7f212b`), `CLAUDE.md` è cambiato, e le
+righe di `RTTurnManager.cpp` sono slittate di due mentre le citavo. Le ancore sono **simboli e ID**, che
+sopravvivono a un commit altrui; i pochi `path:riga` rimasti (`:218`, `:247`, `:404`, `:585`, `:1025`,
+`roadmap-v0.1.md:801-803`) sono stati riverificati a `ad7f212b` e vanno trattati come suggerimenti di
+ricerca, non come indirizzi.
+
+**Write-set**: la nozione non esiste più (`D-178`), e questo referto non ne dichiara uno. Ciò che vale al suo
+posto è `D-222`: chiunque riesegua le verifiche di questo referto deve rileggere `HEAD` prima e dopo, perché
+quello di questa revisione — `707a8d95` — si era già mosso una volta durante la sola lettura.
+
+⛔ **La v0.1 in review non esiste più su disco, e non è recuperabile.** Era untracked, non è mai stata
+committata (`git log --all` sul path: vuoto), ed è sparita durante questa sessione. Non è stata cancellata da
+questa revisione, che l'aveva lasciata deliberatamente intatta scrivendo la correzione in un file separato.
+È la stessa lezione di `M5` pagata sul campo: **un documento di regime che nessuno traccia non ha nessuno che
+lo difenda.** Il testo originale sopravvive solo qui, sezione per sezione, e nelle parti che la
+**v0.2** — `REFACTORTACTICS — DIR-B · CORE - GAMEPLAY v0.2.md`, che le nove correzioni le applica — conserva.
+Quella, per la stessa ragione, è **versionata**.
 
 **Nessun `D-nnn` riservato.** La revisione non introduce una regola nuova né supera una decisione esistente:
 applica `D-178`, `D-222`, `D-009` e la DoD di `#166` a un documento che le contraddice. Se il triage
