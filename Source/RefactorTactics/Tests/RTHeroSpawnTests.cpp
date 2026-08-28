@@ -134,9 +134,13 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 		// mano varrebbe finche' due eroi su quattro restano senza default (§4 assegna loro due gadget che
 		// v0.1 non costruisce), e diventerebbe falso in silenzio il giorno in cui E36 o E13 li sbloccano.
 		const int32 PezziCheConcedono = URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId).Num() > 0 ? 2 : 0;
+		// ⚠️ **Anche il numero di azioni d'eroe si DERIVA**, per la stessa ragione del `+2` qui sopra: era
+		// un `5` scritto a mano, ed e' diventato falso il giorno in cui [D-226] ha dato a Phase e Wraith
+		// una sesta abilita'. Un conteggio esatto in un test che misura una SOMMA non aggiunge niente —
+		// quanti kit abbia un eroe lo pinna `Heroes.RosterIsBalanced`, che esiste per quello.
 		TestEqual(FString::Printf(TEXT("%s: azioni dell'eroe piu' generiche piu' il loadout"), *Who),
 			Unit->NumAbilities(),
-			5 + URTCatalogLibrary::GetGenericActionIds().Num() + PezziCheConcedono);
+			Hero->Actions.Num() + URTCatalogLibrary::GetGenericActionIds().Num() + PezziCheConcedono);
 		TestEqual(FString::Printf(TEXT("%s: l'indice 0 resta l'attacco base"), *Who),
 			Unit->GetAbility(0)->Def.ActionId, Hero->Actions[0]->Def.ActionId);
 	}
@@ -304,7 +308,7 @@ bool FRTSpawnedUnitLoadoutTest::RunTest(const FString&)
 			// Nessun default: l'unità entra ESATTAMENTE come prima. Un eroe senza equipaggiamento non deve
 			// entrare a metà — `ValidateLoadout` non vedrà mai un insieme parziale, perché non ne esiste uno.
 			TestEqual(*FString::Printf(TEXT("%s: senza default, azioni invariate"), *Who),
-				Unit->NumAbilities(), 5 + Generiche);
+				Unit->NumAbilities(), Hero->Actions.Num() + Generiche);
 			continue;
 		}
 		++Equipaggiati;
@@ -346,10 +350,10 @@ bool FRTSpawnedUnitLoadoutTest::RunTest(const FString&)
 				Base->RangeCells, Atteso.RangeCells);
 		}
 
-		// 3. Due azioni in più delle cinque dell'eroe: gadget e modulo. La variante non conta, perché
+		// 3. Due azioni in più di quelle dell'eroe: gadget e modulo. La variante non conta, perché
 		//    modifica invece di aggiungere — ed è la distinzione che l'harness sbagliava.
-		TestEqual(*FString::Printf(TEXT("%s: cinque azioni piu' generiche piu' i due pezzi"), *Who),
-			Unit->NumAbilities(), 5 + Generiche + 2);
+		TestEqual(*FString::Printf(TEXT("%s: azioni dell'eroe piu' generiche piu' i due pezzi"), *Who),
+			Unit->NumAbilities(), Hero->Actions.Num() + Generiche + 2);
 	}
 
 	// Misura, non uguaglianza: sale da sé quando E36 ed E13 sbloccano i gadget mancanti. Zero significherebbe

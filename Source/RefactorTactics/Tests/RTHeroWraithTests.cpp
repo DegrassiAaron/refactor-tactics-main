@@ -43,7 +43,7 @@ bool FRTWraithMatchesCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("affinita'"), Wraith->Affinity, FName(TEXT("Affinity.Movement")));
 	TestEqual(TEXT("debolezza simmetrica a Riktor"), Wraith->Weakness, FName(TEXT("Affinity.Structures")));
 
-	if (!TestEqual(TEXT("cinque azioni"), Wraith->Actions.Num(), 5)) { return false; }
+	if (!TestEqual(TEXT("sei azioni: le cinque del catalogo piu' lo scudo proattivo di D-226"), Wraith->Actions.Num(), 6)) { return false; }
 
 	const URTActionData* PulseShot = Wraith->Actions[0];
 	TestEqual(TEXT("PulseShot: 21 danni"), WraithEffectAmount(PulseShot->Def.Effects, ERTActionEffect::Damage), 21);

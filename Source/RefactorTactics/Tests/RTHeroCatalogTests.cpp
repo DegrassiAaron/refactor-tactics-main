@@ -164,7 +164,13 @@ bool FRTHeroBasicAttackIsIndexZeroTest::RunTest(const FString&)
 		if (!TestNotNull(FString::Printf(TEXT("eroe #%d non nullo"), i), Hero)) { continue; }
 
 		const FString Who = Hero->HeroId.ToString();
-		if (!TestEqual(*FString::Printf(TEXT("%s: cinque azioni"), *Who), Hero->Actions.Num(), 5)) { continue; }
+		// [D-226] Un eroe ne ha cinque o sei: la sesta e' lo scudo proattivo di Phase e Wraith. Qui basta
+		// che il kit NON sia vuoto — la proprieta' in esame e' «l'indice 0 e' l'attacco base», e legarla a
+		// un conteggio esatto la faceva cadere ogni volta che il roster cambiava forma.
+		if (!TestTrue(*FString::Printf(TEXT("%s: il kit non e' vuoto"), *Who), Hero->Actions.Num() > 0))
+		{
+			continue;
+		}
 
 		const URTActionData* Basic = Hero->Actions[0];
 		if (!TestNotNull(*FString::Printf(TEXT("%s: indice 0 presente"), *Who), Basic)) { continue; }
@@ -316,9 +322,28 @@ bool FRTHeroValidateStructureTest::RunTest(const FString&)
 		TestEqual(TEXT("debolezza mancante"), URTHeroCatalogLibrary::ValidateHeroes({ NoWeakness }).Num(), 1);
 	}
 	{
-		URTHeroData* WrongCount = MakeValidHero(TEXT("Hero.WrongCount"));
-		WrongCount->Actions.Add(MakeHeroAbility());
-		TestEqual(TEXT("sei azioni invece di cinque"), URTHeroCatalogLibrary::ValidateHeroes({ WrongCount }).Num(), 1);
+		// [D-226] Il confine si e' spostato, e questo test lo insegue da ENTRAMBI i lati: sei azioni sono
+		// legali — e' cio' che permette a Phase e Wraith di portare lo scudo proattivo — sette no.
+		//
+		// ⚠️ **Il verso positivo non e' ridondante.** Con il solo caso a sette, un validatore che avesse
+		// smesso del tutto di contare resterebbe rosso qui e verde ovunque; con il solo caso a sei, uno che
+		// non contasse piu' passerebbe. Servono i due lati per pinnare un INTERVALLO.
+		URTHeroData* SixActions = MakeValidHero(TEXT("Hero.SixActions"));
+		SixActions->Actions.Add(MakeHeroAbility());
+		TestEqual(TEXT("sei azioni: legale da D-226"),
+			URTHeroCatalogLibrary::ValidateHeroes({ SixActions }).Num(), 0);
+
+		URTHeroData* SevenActions = MakeValidHero(TEXT("Hero.SevenActions"));
+		SevenActions->Actions.Add(MakeHeroAbility());
+		SevenActions->Actions.Add(MakeHeroAbility());
+		TestEqual(TEXT("sette azioni: oltre il tetto, il kit non sarebbe piu' premibile"),
+			URTHeroCatalogLibrary::ValidateHeroes({ SevenActions }).Num(), 1);
+
+		// E il lato basso resta chiuso: quattro azioni sono un eroe incompleto.
+		URTHeroData* FourActions = MakeValidHero(TEXT("Hero.FourActions"));
+		FourActions->Actions.Pop();
+		TestEqual(TEXT("quattro azioni: sotto il minimo"),
+			URTHeroCatalogLibrary::ValidateHeroes({ FourActions }).Num(), 1);
 	}
 	{
 		TestEqual(TEXT("riferimento nullo nel roster"), URTHeroCatalogLibrary::ValidateHeroes({ nullptr }).Num(), 1);
@@ -556,7 +581,9 @@ bool FRTHeroAbilityIdNamespaceTest::RunTest(const FString&)
 	// Senza questo, un roster che smettesse di esporre azioni renderebbe il test verde per assenza di
 	// soggetti — la stessa forma di falso verde contro cui `EveryActionHasADisplayName` si difende.
 	TestTrue(TEXT("almeno un'azione controllata"), Checked > 0);
-	TestEqual(TEXT("il roster v0.1 dichiara venti abilita'"), Checked, 20);
+	// Anti-vacuita': se il ciclo non avesse esaminato nulla, i controlli sopra sarebbero verdi su zero.
+	// **22** da [D-226]: cinque per Gadget e Riktor, sei per Phase e Wraith che portano lo scudo proattivo.
+	TestEqual(TEXT("il roster v0.1 dichiara ventidue abilita'"), Checked, 22);
 	return true;
 }
 
@@ -565,7 +592,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroDerivedActionsDeclareOriginTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 {
-	// Le otto derivazioni del roster v0.1, misurate sul sorgente il 2026-08-26. Chi aggiunge un eroe che
+	// Le derivazioni del roster v0.1 — otto fino al 2026-08-27, **dieci** da [D-226]. Chi aggiunge un eroe che
 	// deriva da un'azione core aggiunge una riga qui: e' l'elenco che rende la relazione verificabile,
 	// invece di lasciarla vivere nel solo sorgente dove nessun test la vede.
 	//
@@ -581,6 +608,9 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 		{ TEXT("Hero.Gadget.ReactiveCapacitor"),  TEXT("Action.Counter")      },
 		{ TEXT("Hero.Riktor.Interposition"),      TEXT("Action.Intercept")    },
 		{ TEXT("Hero.Wraith.Deflection"),         TEXT("Action.Deflect")      },
+		// [D-226]: le due che chiudono la meta' `Shield` di `#1403`, uno scudo proattivo per squadra.
+		{ TEXT("Hero.Phase.TideGuard"),           TEXT("Action.Shield")       },
+		{ TEXT("Hero.Wraith.PhaseGuard"),         TEXT("Action.Shield")       },
 	};
 
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
@@ -606,8 +636,10 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 				// niente. Non ereditano da nessuna azione core, e restano vuote, **otto** abilita':
 				// `LinearDischarge`, `Overload`, `CircularTide`, `Reconfigure`, `FlowReaction`,
 				// `InterceptShot`, `PassingBlade`, `Feint`. Piu' i quattro attacchi base, che dichiarano il
-				// profilo (`BaseActionId`) e non questo. Otto derivate + otto proprie + quattro base = 20,
-				// che sono le 5 abilita' per ciascuno dei 4 eroi asserite sopra.
+				// profilo (`BaseActionId`) e non questo.
+				//
+				// Dieci derivate + otto proprie + quattro base = **22**: cinque abilita' per Gadget e
+				// Riktor, **sei** per Phase e Wraith, che da [D-226] portano anche lo scudo proattivo.
 				TestTrue(*FString::Printf(TEXT("%s non deriva da nulla e non lo dichiara"),
 					*A->Def.ActionId.ToString()), A->Def.DerivedFromActionId.IsNone());
 			}

@@ -982,15 +982,38 @@ bool FRTPlayerInputEveryKitEntryIsReachableTest::RunTest(const FString&)
 	TestTrue(TEXT("almeno un tasto arma una posizione del kit"), Hotkeys.Num() > 0);
 	TestTrue(TEXT("le generiche esistono: sono parte del kit di ogni unita' (D-025)"), Generiche > 0);
 
+	// ⚠️ **Non si confrontano piu' due totali, e la differenza conta.** Fino a quando l'input aveva un solo
+	// canale, `Hotkeys.Num() >= VociDelKit` bastava. Ora i canali sono due — i numeri per POSIZIONE, i tasti
+	// generici per NOME — e quella somma sarebbe verde per il motivo sbagliato: quindici tasti contro undici
+	// voci tornerebbe vero anche se un'abilita' d'eroe finisse oltre la decima posizione, dove nessun numero
+	// la raggiunge. Si guarda voce per voce, ognuna col canale che la serve davvero.
+	TSet<FName> GenericheConTasto;
+	for (const TPair<FName, FKey>& Riga : ARTPlayerController::GenericHotkeys())
+	{
+		GenericheConTasto.Add(Riga.Key);
+	}
+	TestEqual(TEXT("ogni generica del catalogo ha il suo tasto"), GenericheConTasto.Num(), Generiche);
+
 	for (const URTHeroData* Hero : Roster)
 	{
 		if (!Hero) { continue; }
-		// La stessa somma che fa `ARTUnit::ConfigureFromHeroData`: kit dell'eroe + generiche accodate.
-		const int32 VociDelKit = Hero->Actions.Num() + Generiche;
+
+		// Le abilita' d'EROE stanno in testa al kit e si raggiungono per posizione: servono tanti numeri
+		// quante sono. E' il vincolo che ha bloccato `Action.Shield` finche' le generiche occupavano la fila.
 		TestTrue(*FString::Printf(
-				TEXT("%s: %d voci nel kit, %d posizioni raggiungibili dall'input"),
-				*Hero->HeroId.ToString(), VociDelKit, Hotkeys.Num()),
-			Hotkeys.Num() >= VociDelKit);
+				TEXT("%s: %d abilita' d'eroe, %d posizioni numeriche"),
+				*Hero->HeroId.ToString(), Hero->Actions.Num(), Hotkeys.Num()),
+			Hotkeys.Num() >= Hero->Actions.Num());
+
+		// Le GENERICHE sono accodate dopo, e il loro indice dipende da quante azioni porta l'eroe: si
+		// raggiungono per nome, quindi cio' che va verificato e' che ognuna abbia un tasto — non che ci
+		// stia dentro una posizione.
+		for (const FName& Id : URTCatalogLibrary::GetGenericActionIds())
+		{
+			TestTrue(*FString::Printf(TEXT("%s: la generica %s ha un tasto"),
+					*Hero->HeroId.ToString(), *Id.ToString()),
+				GenericheConTasto.Contains(Id));
+		}
 	}
 
 	// Due tasti uguali renderebbero una posizione irraggiungibile in silenzio: la seconda mappatura
@@ -1001,6 +1024,79 @@ bool FRTPlayerInputEveryKitEntryIsReachableTest::RunTest(const FString&)
 		bool bGiaPresente = false;
 		Distinti.Add(K, &bGiaPresente);
 		TestFalse(*FString::Printf(TEXT("il tasto %s compare una volta sola"), *K.ToString()), bGiaPresente);
+	}
+
+	// I tasti generici entrano nello STESSO insieme, e non in uno separato: una `G` che servisse sia una
+	// posizione sia una generica sarebbe la stessa collisione silenziosa, e due controlli distinti non la
+	// vedrebbero. E' il verso che copre l'aggiunta di un tasto qualsiasi da una delle due parti.
+	for (const TPair<FName, FKey>& Riga : ARTPlayerController::GenericHotkeys())
+	{
+		bool bGiaPresente = false;
+		Distinti.Add(Riga.Value, &bGiaPresente);
+		TestFalse(*FString::Printf(TEXT("il tasto %s di %s non collide"),
+			*Riga.Value.ToString(), *Riga.Key.ToString()), bGiaPresente);
+	}
+
+	return true;
+}
+
+/**
+ * La proprieta' per cui il canale generico risolve per NOME invece che per posizione.
+ *
+ * Le generiche sono accodate al kit, quindi il loro indice dipende da quante azioni porta l'eroe: Phase ne
+ * ha sei e Gadget cinque, e la stessa `Action.Guard` sta a indici DIVERSI sui due. Un tasto legato a una
+ * posizione fissa punterebbe a un'abilita' d'eroe sull'uno e alla generica giusta sull'altro.
+ *
+ * ⚠️ **Serve un roster con kit di lunghezza diversa, ed e' la ragione per cui questo test non esisteva
+ * prima**: finche' tutti e quattro gli eroi avevano cinque azioni, la risoluzione per indice e quella per
+ * nome davano lo stesso risultato e nessun test poteva distinguerle.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputGenericResolvesByNameTest,
+	"RefactorTactics.PlayerInput.GenericHotkeyResolvesByNameNotPosition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputGenericResolvesByNameTest::RunTest(const FString&)
+{
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	// Anti-vacuita' che vale per questo test soltanto: se ogni eroe avesse lo stesso numero di azioni, gli
+	// indici coinciderebbero e il test passerebbe senza dimostrare niente.
+	TSet<int32> Lunghezze;
+	for (const URTHeroData* Hero : Roster) { if (Hero) { Lunghezze.Add(Hero->Actions.Num()); } }
+	if (!TestTrue(TEXT("il roster ha kit di lunghezza DIVERSA: senza, il test non discrimina"),
+			Lunghezze.Num() > 1))
+	{
+		return false;
+	}
+
+	for (const TPair<FName, FKey>& Riga : ARTPlayerController::GenericHotkeys())
+	{
+		TSet<int32> IndiciTrovati;
+		for (const URTHeroData* Hero : Roster)
+		{
+			if (!Hero) { continue; }
+			ARTUnit* Unit = NewObject<ARTUnit>();
+			if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+			Unit->ConfigureFromHeroData(Hero);
+
+			int32 Trovato = INDEX_NONE;
+			for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+			{
+				const URTActionData* A = Unit->GetAbility(i);
+				if (A && A->Def.ActionId == Riga.Key) { Trovato = i; break; }
+			}
+			TestTrue(*FString::Printf(TEXT("%s ha %s nel kit"),
+				*Hero->HeroId.ToString(), *Riga.Key.ToString()), Trovato != INDEX_NONE);
+			if (Trovato != INDEX_NONE) { IndiciTrovati.Add(Trovato); }
+		}
+
+		// Il cuore: la stessa generica NON sta allo stesso indice su tutti. Se un giorno il roster tornasse
+		// uniforme questo asserto cadrebbe, ed e' corretto che cada — direbbe che il test ha smesso di
+		// discriminare, non che il codice e' rotto.
+		TestTrue(*FString::Printf(
+				TEXT("%s sta a indici diversi a seconda dell'eroe: %d indici distinti"),
+				*Riga.Key.ToString(), IndiciTrovati.Num()),
+			IndiciTrovati.Num() > 1);
 	}
 
 	return true;
