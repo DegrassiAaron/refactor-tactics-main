@@ -533,4 +533,90 @@ bool FRTLogShowsOwnTeamTurnTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **La morte e' pubblica: l'eliminazione la legge anche chi non vedeva la vittima cadere.**
+ *
+ * [D-223], decisione d'autore del 2026-08-28. E' l'unica eccezione dichiarata alla regola del verdetto
+ * congelato, e senza un test non farebbe rumore: rimettere `Unit(...)` su quei siti produrrebbe un log che
+ * a prima vista sembra giusto — le righe ci sono, per chi vedeva — e nessuna asserzione se ne accorgerebbe.
+ *
+ * ⚠️ **La verifica sta nell'ASIMMETRIA, non nella presenza.** Il test costruisce una vittima che la squadra
+ * osservatrice non ha mai visto, e chiede due cose insieme: che l'annuncio della morte arrivi, e che le
+ * righe ordinarie sulla stessa unita' **no**. Un test che chiedesse solo la prima passerebbe anche se il
+ * filtro fosse spento del tutto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLogDeathIsPublicTest,
+	"RefactorTactics.UI.DeathIsPublicEvenToWhoNeverSawIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLogDeathIsPublicTest::RunTest(const FString&)
+{
+	UWorld* World = RTCombatLogFixture::MakeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	RTCombatLogFixture::SpawnMap(World);
+
+	// L'osservatore sta da una parte; la vittima e la sua compagna dall'altra, lontane e fuori vista.
+	ARTUnit* Osservatore = RTCombatLogFixture::SpawnUnit(World, 0, FRTCellId(-5, 0));
+	ARTUnit* Vittima     = RTCombatLogFixture::SpawnUnit(World, 1, FRTCellId(5, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Osservatore || !Vittima) { RTCombatLogFixture::DestroyWorld(World); return false; }
+
+	Osservatore->PlannedCell = Osservatore->Cell;
+	Vittima->PlannedCell = Vittima->Cell;
+	RTCombatLogFixture::RunTurn(TM);   // un turno perche' il roster assegni gli StableUnitId
+
+	// La premessa si ASSERISCE, non si spera: per la squadra 0 la vittima e' davvero ignota.
+	const FRTTeamKnowledge K = TM->KnowledgeForTeamPublic(0);
+	const ERTTargetKnowledge Classe =
+		URTTeamKnowledgeLibrary::ClassifyTarget(K, Vittima->StableUnitId, Vittima->TeamId, Vittima->Cell);
+	if (!TestTrue(TEXT("premessa: la vittima e' ignota alla squadra 0"),
+		Classe == ERTTargetKnowledge::Rejected))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
+	// Due righe sulla stessa unita': una ordinaria, col verdetto congelato dalla conoscenza vera; e
+	// l'annuncio della morte, che porta `Everyone()` come i cinque siti di eliminazione.
+	//
+	// ⚠️ **Costruite qui e non via `AddLogEvent`**, che e' `protected` — ed e' giusto che lo sia: quella
+	// protezione e' cio' che rende gli 80 call site della risoluzione l'insieme COMPLETO. Il test verifica
+	// quindi la regola, non il cablaggio dei cinque siti: quello lo tiene il compilatore, perche' `World()`
+	// e `Unit()` sono tipi diversi e nessuno dei due ha una conversione implicita.
+	const FString NomeVittima = Vittima->GetName();
+
+	FRTKnowledgeSubject SubjVittima;
+	SubjVittima.StableUnitId = Vittima->StableUnitId;
+	SubjVittima.TeamId = Vittima->TeamId;
+	SubjVittima.Cell = Vittima->Cell;
+	SubjVittima.bAlive = true;
+
+	FRTCombatLogLine Ordinaria;
+	Ordinaria.Text = FString::Printf(TEXT("%s: riga ordinaria"), *NomeVittima);
+	Ordinaria.SubjectStableUnitId = Vittima->StableUnitId;
+	Ordinaria.Verdict = URTTeamKnowledgeLibrary::FreezeVerdict({ K }, SubjVittima);
+
+	FRTCombatLogLine Morte;
+	Morte.Text = FString::Printf(TEXT("Eliminata: %s (team %d)"), *NomeVittima, Vittima->TeamId);
+	Morte.SubjectStableUnitId = INDEX_NONE;
+	Morte.Verdict = FRTKnowledgeVerdict::Everyone();
+
+	const TArray<FString> Visibili =
+		ARTTurnManager::ComposeVisibleLogLines({ Ordinaria, Morte }, /*ObserverTeamId*/ 0);
+
+	bool bVedeLaMorte = false, bVedeLOrdinaria = false;
+	for (const FString& L : Visibili)
+	{
+		if (L.StartsWith(TEXT("Eliminata: ")) && L.Contains(NomeVittima)) { bVedeLaMorte = true; }
+		if (L.Contains(TEXT(": riga ordinaria")))                        { bVedeLOrdinaria = true; }
+	}
+
+	TestTrue (TEXT("la morte si legge anche senza aver visto la vittima"), bVedeLaMorte);
+
+	// 🔴 L'altra meta': il filtro NON e' spento. Senza questa, la prima asserzione passerebbe comunque.
+	TestFalse(TEXT("ma una riga ordinaria sulla stessa unita' resta nascosta"), bVedeLOrdinaria);
+
+	RTCombatLogFixture::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

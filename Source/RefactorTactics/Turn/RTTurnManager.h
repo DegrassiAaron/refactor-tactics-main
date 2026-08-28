@@ -1196,6 +1196,10 @@ protected:
 	 * ⚠️ **`World()` non e' il vecchio default con un nome nuovo**: il default diceva soltanto che nessuno
 	 * aveva deciso, e copriva per sbaglio anche righe che nominavano un'unita'.
 	 *
+	 * Il caso che rende la distinzione concreta sono le **righe di morte**: prima passavano per omissione,
+	 * adesso portano `World()` perche' [D-223] ha deciso che un'eliminazione e' pubblica. Stesso esito a
+	 * schermo, ragione opposta — e la ragione e' cio' che il prossimo autore puo' cambiare sapendo cosa fa.
+	 *
 	 * Il censimento — quanti siti, su quali file — si rimisura sul branch: un numero letterale in un
 	 * commento invecchia al primo sito aggiunto e nessuno lo rilegge.
 	 */

@@ -1482,7 +1482,7 @@ void ARTTurnManager::LockInAndResolve()
 					// distingue gia': una voce in piu' direbbe due volte lo stesso fatto, e il replay dovrebbe
 					// decidere quale delle due e' il colpo — che e' lo stesso motivo per cui l'attacco letale,
 					// due funzioni piu' sotto, non ne scrive una seconda.
-					AddLogEvent(FString::Printf(TEXT("%s eliminato dalle fiamme"), *Unit->GetName()), FRTLogSubject::Unit(Unit));
+					AddLogEvent(FString::Printf(TEXT("%s eliminato dalle fiamme"), *Unit->GetName()), FRTLogSubject::World());
 					continue; // morto adesso: non guadagna energia, non conta fra i vivi
 				}
 			}
@@ -2293,7 +2293,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 				Hit.Steps, Hit.Steps == 0 ? TEXT("colpo diretto") : TEXT("celle di propagazione")), FRTLogSubject::Unit(Victim));
 			if (!Victim->IsAlive())
 			{
-				AddLogEvent(FString::Printf(TEXT("%s eliminato dalla scarica"), *Victim->GetName()), FRTLogSubject::Unit(Victim));
+				AddLogEvent(FString::Printf(TEXT("%s eliminato dalla scarica"), *Victim->GetName()), FRTLogSubject::World());
 			}
 		}
 	}
@@ -4357,7 +4357,18 @@ void ARTTurnManager::ResolveCombat()
 	}
 	for (const int32 Idx : URTCombatLibrary::NewlyDefeated(BeforeHP, AfterHP))
 	{
-		AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Units[Idx]->GetName(), Units[Idx]->TeamId), FRTLogSubject::Unit(Units[Idx]));
+		// 🔴 **La morte e' PUBBLICA**: `World()`, non il soggetto ([D-223], decisione d'autore del
+		// 2026-08-28). Un'eliminazione la leggono tutte le squadre, anche chi non vedeva la vittima cadere.
+		//
+		// ⚠️ **Non e' il vecchio default fail-open che ricompare.** Fino a `#1499` queste righe passavano
+		// perche' nessuno aveva dichiarato un soggetto; adesso passano perche' qualcuno ha deciso che
+		// devono. La differenza non si vede nell'output e si vede nel codice, ed e' il punto della issue.
+		//
+		// ⚠️ **Cosa si rivela, e cosa no.** Il testo porta nome e squadra, mai una cella: chi uccide con
+		// un'AoE un nemico mai visto scopre che esisteva e che e' caduto, non dove fosse. E dopo la morte
+		// non c'e' piu' una posizione da proteggere. Le altre quattro righe di morte seguono la stessa
+		// regola: fiamme, scarica e i due annunci del playback.
+		AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Units[Idx]->GetName(), Units[Idx]->TeamId), FRTLogSubject::World());
 		FRTResolvedEvent Ev;
 		Ev.Phase = ERTMatchPhase::Blast;
 		Ev.Type = ERTResolvedEventType::Defeated;
@@ -5639,7 +5650,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		{
 			if (D.Phase == Ph && D.Source.IsValid() && !D.Source->IsHidden())
 			{
-				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()), FRTLogSubject::Unit(D.Source.Get()));
+				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()), FRTLogSubject::World());
 				D.Source->HideForDefeat();
 				if (ARTUnit* DefU = D.Source.Get()) { DefU->PlayDefeatMontage(); } OnUnitDefeated.Broadcast(D.Source.Get());
 			}
@@ -5695,7 +5706,7 @@ void ARTTurnManager::FinishPlayback()
 	{
 		if (D.Source.IsValid() && !D.Source->IsHidden())
 		{
-			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()), FRTLogSubject::Unit(D.Source.Get()));
+			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()), FRTLogSubject::World());
 			D.Source->HideForDefeat();
 			if (ARTUnit* DefU = D.Source.Get()) { DefU->PlayDefeatMontage(); } OnUnitDefeated.Broadcast(D.Source.Get());
 		}

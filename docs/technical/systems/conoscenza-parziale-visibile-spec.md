@@ -298,11 +298,50 @@ default di `AddLogEvent` è fail-open, cioè per il difetto stesso che **#1499**
 esse è «restata» per una decisione: chiudere il default senza deciderle una per una le farebbe sparire tutte
 e quattro insieme — ed è precisamente perché #1499 e [D-223] vanno fatte nella stessa passata.
 
-⚠️ **La morte è pubblica, e la decisione non è ovvia.** Una riga di eliminazione filtrata come le altre
-sparirebbe per chi non vedeva la vittima — ma il giocatore ha comunque diritto di sapere che la propria unità
-è caduta. Chi implementa dichiari se la morte sia un evento di mondo (visibile a tutti, e allora le quattro
-righe portano la costante «senza soggetto» per scelta e non per inerzia) o un fatto filtrato come gli altri.
-Owner della verifica: **#1498**.
+### ✅ Deciso: la morte è pubblica
+
+**Decisione d'autore del 2026-08-28**, dentro [D-223]. Tutte e cinque le righe di eliminazione portano
+`FRTLogSubject::World()`: un'unità che cade la leggono **tutte le squadre**, anche chi non la vedeva.
+
+🔴 **Non è il vecchio default fail-open che ricompare, e la differenza è tutta nel codice.** Prima quelle
+righe passavano perché nessuno aveva dichiarato un soggetto; adesso passano perché qualcuno ha deciso che
+devono. L'output a schermo è lo stesso — la ragione no, ed è la ragione che il prossimo autore può cambiare
+sapendo cosa sta facendo.
+
+⚠️ **Cosa si rivela, e cosa no.** Le cinque righe portano nome e squadra, **mai una cella**: chi uccide con
+un'AoE un nemico mai visto scopre che esisteva e che è caduto, non dove fosse. E dopo la morte non c'è più
+una posizione da proteggere. È il caso che questa sezione elencava come «non banale», e la decisione lo
+copre esplicitamente invece di lasciarlo scoprire.
+
+Il test che la protegge è `RefactorTactics.UI.DeathIsPublicEvenToWhoNeverSawIt`, e verifica
+l'**asimmetria**: l'annuncio della morte arriva a chi non vedeva la vittima, e una riga ordinaria sulla
+stessa unità **no**. Senza la seconda metà passerebbe anche a filtro spento.
+
+#### ⚠️ «Pubblica» vale per l'ANNUNCIO, non per il racconto del colpo
+
+C'è una sesta riga che parla di morte e che **resta filtrata**, e la distinzione non è un'incoerenza da
+sanare: è il criterio.
+
+| Riga | Cosa stampa | Esito |
+|---|---|---|
+| `Eliminata: <nome> (team N)` e le altre quattro | nome, squadra — **nessuna cella** | **pubblica** |
+| `(q,r,L) -> (q,r,L): N danni, eliminata` (`DescribeEntry`, esito `Lethal`, canale derivato) | **due celle**, il danno e chi ha colpito | **filtrata** |
+
+Il criterio è quindi *«che cosa la riga rivela»*, non *«di che cosa parla»*: è pubblico **che** un'unità sia
+caduta, non **come** né **da dove**. La seconda riga porta la cella dell'attaccante e quella del bersaglio —
+esattamente ciò che la conoscenza parziale esiste per proteggere — e passa dal verdetto congelato della
+propria voce, quindi la legge solo chi vedeva il soggetto quando ha colpito.
+
+#### ➕ Condizione di riapertura: la morte pubblica enumera il roster
+
+Una conseguenza che la decisione accetta e che va scritta perché non si scopra dopo: ripetuta lungo la
+partita, la morte pubblica rivela a chi non ha mai visto l'avversario **quante unità aveva e quali eroi
+erano** — informazione di *composizione*, non di posizione.
+
+In v0.1 è inerte: il formato è 2v2 con roster fisso e noto in partenza (**D-120**), quindi non si scopre
+nulla che non fosse già sul tavolo. **La condizione di riapertura è il draft**: il giorno in cui la
+composizione avversaria smette di essere nota a priori, questa decisione va rivalutata — non perché diventi
+sbagliata, ma perché il costo che oggi è zero smetterebbe di esserlo.
 
 ---
 
