@@ -1,6 +1,68 @@
 # RefactorTactics — Claude Cloud Master Handoff
 ## Consolidamento globale delle issue descritte nelle chat · CREATE / UPDATE / LINK / DEFER
 
+> `HISTORICAL` · **Kit d'autore consumato**, non una fonte. · **Consumato**: 2026-08-28 · **Base**: `f8ea244b`
+> (`origin/main` `6ffd59c0`). 🔴 `HEAD` si è spostato a `c1a7cd9d` **durante** il consumo, per mano di
+> un'altra sessione nella stessa working directory: è quella che ha committato questi due file nel branch.
+>
+> Archiviato da [`docs/archive/`](../../README.md): vale per la **provenienza** e il rationale, mai per la
+> regola. I due file stavano alla radice del repository come
+> `RefactorTactics_ClaudeCloud_Master_Issue_Reconciliation_2026-08-28.md` e
+> `RefactorTactics_ClaudeCloud_Issue_Domain_Manifest_2026-08-28.json`; il manifest è archiviato **verbatim**
+> accanto a questo file, in
+> [`2026-08-28-master-issue-reconciliation-manifest.json`](2026-08-28-master-issue-reconciliation-manifest.json).
+>
+> **Cosa possiede**: il mandato d'autore del 2026-08-28, le sue ventinove sezioni e i suoi diciassette
+> domini, verbatim.
+> **Cosa non possiede**: nessuna autorità, e nessuna esecuzione. Il referto completo — misura per misura — è
+> [`../../../roadmap/plans/master-issue-reconciliation-spec-panel-2026-08-28.md`](../../../roadmap/plans/master-issue-reconciliation-spec-panel-2026-08-28.md).
+
+## Il verdetto, in breve
+
+✅ **Accurato su ciò che cita.** Tutti e **77** i numeri di issue nominati esistono (47 OPEN · 30 CLOSED),
+nessuno inventato. La ladder v0.1→v1.0 del §1.2 e la tabella dei pivot del §6.1 sono **identiche** al canone
+(`roadmap-post-v0.1.md`, `adr-0008`). I divieti del §7.2 e del §9.3 descrivono lo stato reale: `PlacementSector`,
+`CoverAnchor`, `ResolvedCoverState` e `OverwatchDirection` hanno **0** occorrenze in `Source/`.
+
+🔴 **Cieco su ciò che è appena successo.** Il manifest si ferma a `#1430`; sopra quella soglia vivono **72
+issue** (47 OPEN), di cui **31** — `#1557` → `#1587` — aperte **lo stesso 2026-08-28** dal kit gemello
+[`2026-08-28-github-issues-roadmap-v01-v10.md`](2026-08-28-github-issues-roadmap-v01-v10.md), archiviato in
+questa stessa cartella. Eseguire il kit alla lettera violerebbe la sua stessa §1.1 «*search before create*».
+
+⛔ **Il §20 era già eseguito.** L'audit di `E40`–`E45` che chiede è stato fatto poche ore prima: tutte OPEN,
+40 checkpoint, ladder v0.5 → v1.0 **già completa e non toccata**.
+
+🔴 **`CAMERA: {"known_issues": []}` è un falso per assenza.** Esistono **7** issue `[Camera]` — `#729`, `#863`,
+`#864`, `#865`, `#873`, `#874`, `#887` — e sono **tutte CLOSED**: la camera base che il §12 vieta di duplicare
+è già nel runtime. Un array vuoto non distingue «non esiste owner» da «non ho cercato».
+
+⚠️ **Tre stati su quattro.** Il §10.5 elenca `Hidden` / `Uncertain` / `Detected`; il canone di
+[`brief-conoscenza-parziale.md`](../../../gameplay/brief-conoscenza-parziale.md) §63 ne ha **quattro**:
+`Nascosto`, `ContattoIncerto`, `Rilevato` e `UltimoContatto`.
+
+⚠️ **Otto epic e due issue vive stanno nei suoi domini e non sono citate**: `E13` (`#151`, il parent reale di
+`#159`/`#160`), `E22` (`#323`), `E27` (`#327`), `E28` (`#328`), `E29`/`E33`, `E36` (`#435`), `E38` (`#609`),
+`E48` (`#1408`), più `#637` e `#971`.
+
+✅ **Tre tesi sopravvivono, e sono misurate**: il **gap `ranked`** è reale (la roadmap lo promette alle righe
+52 e 1126, e alla misura del 2026-08-28 il tracker non aveva nessuna issue che lo possedesse — ora è `#1604`); la **divergenza ADR-0008 / runtime** è reale e
+senza owner (`MoveEndPivotMaxSteps` e `DashEndPivotMaxSteps`: **0** occorrenze in `Source/`); **End Placement /
+`CoverAnchor`** è correttamente etichettato `PROPOSED` e le sette domande del §7.5 sono materiale da
+`OPEN_DECISIONS`, non da issue di implementazione.
+
+✅ **Consolidato il 2026-08-28**, dopo conferma d'autore: **3** issue create
+([#1604](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1604) ranked/rating sotto E44,
+[#1605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1605) i budget di pivot di ADR-0008,
+[#1606](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1606) le sette domande `PLC-*`), **8**
+aggiornate, **8** decisioni registrate in `OPEN_DECISIONS.md`, **4** documenti corretti — fra cui due righe
+della matrice dei conflitti che contraddicevano il changelog del proprio file. **Zero** issue riaperte,
+**zero** `D-nnn` assegnati: il kit prescrive di aprire decisioni senza mai nominare il protocollo di
+allocazione degli ID. Zero ID rivendicati, zero superficie di collisione. Il dettaglio e' nel §9 del
+referto.
+
+---
+
+
 **Data:** 2026-08-28  
 **Repository:** `DegrassiAaron/refactor-tactics-main`  
 **Engine canonico atteso:** Unreal Engine 5.8.1 — verificare sempre sul repository reale  

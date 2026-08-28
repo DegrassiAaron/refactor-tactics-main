@@ -85,6 +85,59 @@ presa due volte in due file senza che nessuno la dichiarasse tale.
 
 ---
 
+## Aperta — il perimetro di ranked e rating, dallo spec panel del 2026-08-28
+
+Origine: [`#1604`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1604). La promessa esisteva
+in **tre** posti — la riga `v1.0` della ladder in [`roadmap/roadmap-post-v0.1.md`](roadmap/roadmap-post-v0.1.md)
+(«Standard 3v3 ranked»), la sezione `E44` dello stesso file, e il corpo dell'epic
+[`#777`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/777) — e **nessun checkpoint la
+possedeva**. Misurato il 2026-08-28: `0` issue con `ranked` nel titolo, `0` con `MMR`, `1` con `matchmaking`
+([`#810`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/810)), che rimandava a `E44` dicendo
+«*`44` ha già deciso il perimetro*» — e `44` non aveva deciso niente.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `RNK-1` | **Qual è il perimetro minimo di ranked e rating per la v1.0?** Dentro o fuori, voce per voce: coda ranked · rating che si aggiorna dal risultato · persistenza del risultato · policy di forfeit e disconnessione in partita rated · visibilità del rating al giocatore. | Non si deduce dal codice perché **non esiste niente**: nessun sistema di account, nessuna persistenza di risultato, nessuna coda. Non si deduce dalla roadmap perché la roadmap si **contraddice**: `E44` si apre con «*Niente di nuovo. Questa epic non aggiunge meccaniche*» e nella stessa sezione rivendica ranked e rating, che sono meccaniche nuove — le due frasi non possono essere entrambe vere, e sciogliere quale cede è una scelta di scope, non una misura. ⚠️ Il sorgente da cui nasce la domanda avverte esplicitamente di **non** inventare un rating sofisticato se la v1.0 lo tiene minimal: il rischio di questa voce è il suo opposto, cioè decidere per accumulo. **Innesco**: prima che [`#803`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/803) chiuda il freeze — dopo, il perimetro sarebbe una feature nuova dopo il freeze, che il gate di `E44` vieta |
+
+---
+
+## Aperte — la posa nella cella finale, dallo spec panel del 2026-08-28
+
+Origine: [`#1606`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1606). Una proposta d'autore
+descrive la scelta di **come ci si sistema nella cella d'arrivo** dopo il movimento, tramite uno spicchio o un
+gruppo di spicchi, e la sua interazione con la copertura. È `PROPOSED`, non canone: `PlacementSector`,
+`CoverAnchor` e `ResolvedCoverState` hanno **0** occorrenze in `Source/`, misurato il 2026-08-28 su
+`f8ea244b`.
+
+⚠️ **Non sono le `GBX-*`.** Il `Cell Placement Volume` di
+[`spec-graybox-placement-contract.md`](technical/systems/spec-graybox-placement-contract.md) è **authoring**:
+dimensioni, inset, ingombro visivo, mesh non autorevole. Queste sono **simulazione**: se e come una scelta
+discreta intra-cella entra nella regola. Confonderle produrrebbe un numero di bilanciamento preso in prestito
+da una domanda di presentazione.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `PLC-1` | **`Placement` e `Facing` possono divergere**, o lo stesso spicchio determina entrambi? | Due modelli coerenti con costi di ordini di grandezza diversi. Se coincidono, il selettore a spicchi è **solo una UI nuova** per il facing di [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md). Se divergono, nasce un **secondo stato per unità** che deve entrare in snapshot, TurnLog, privacy e bot — e il budget di pivot per eroe si applica a uno dei due, non a entrambi. Va decisa **insieme** a `PLC-7` |
+| `PLC-2` | **Il `Placement` può cambiare senza movimento?** | Tocca l'economia delle azioni (`D-025`, `D-028`): gratis è sempre ottimale, quindi non è una scelta; a costo è un'**azione generica nuova**, e le sette di `D-025` non la prevedono. Perimetro di [`#609`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609) |
+| `PLC-3` | **Quali geometrie producono un `CoverAnchor`** — solo i bordi murati, anche gli oggetti interni, o le celle adiacenti? | Oggi la copertura è `FRTHexCover` sui **bordi**, e `D-129` ha stabilito che il bake cuoce solo quelli. Estenderla agli interni richiede un produttore che non esiste: la scelta decide se il sistema è una **rilettura** della geometria attuale o un **secondo strato** di dati |
+| `PLC-4` | **L'ingombro interno blocca LOS e movimento, o solo la copertura?** | Stessa forma di `MSE-2`/`MSE-4`, con posta più alta: il blocco sarebbe **intra-cella**, e il grafo tattico non lo rappresenta. La regola conservativa che lì rende `Blocked` una cella attraversabile, qui non ha nemmeno un posto dove essere scritta |
+| `PLC-5` | **Un gruppo di spicchi è UI o entità logica?** | Se è UI, il modello resta a uno spicchio. Se è logica, il numero di stati per cella esplode e `Placement` non è più un intero piccolo — con conseguenze dirette su serializzazione e hash |
+| `PLC-6` | **Cosa fa lo spostamento forzato al `Placement`**: lo conserva, lo azzera, o lo deriva dalla direzione della spinta? | ADR-0005 §3 e la primitiva di [`#541`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/541) decidono il **facing** dopo un `Forced`, non la posa. Le tre uscite danno letture opposte del contro-gioco: conservarlo rende lo spostamento meno punitivo, derivarlo lo rende una vera perdita di posizione |
+| `PLC-7` | **Il `Placement` entra nello snapshot e nell'hash, o è derivato?** | Se entra, è stato autorevole e ogni replay esistente cambia formato. Se è derivato, deve esserlo da una funzione pura del percorso — e allora `PLC-2` è già risposta **no**. Le due si vincolano, e vanno decise insieme a `PLC-1` |
+
+> ⛔ **Ciò che resta vietato mentre queste sono aperte**, perché è ciò che tiene il modello discreto: nessun
+> `FVector` intra-cella autorevole · nessun mini-navmesh dentro l'esagono · nessun `Actor` per settore ·
+> nessun **secondo** Cover Resolver · nessun **secondo** sistema di Facing. E in particolare, se
+> `PlacementSector` arriverà, la copertura **non** diventa una proprietà del settore: la forma da preservare è
+> `Placement + CoverGeometry + geometria dell'attaccante + Facing/policy → ResolvedCoverState`.
+
+> 🔎 **Perché non sono urgenti, e cosa le rende tali.** La sola fetta che il sorgente propone per la v0.1 è
+> **UX pura** — un selettore a spicchi per scegliere il facing, ghost orientato, settori legali — e non ha
+> bisogno di nessuna di queste risposte, **ma solo se `PLC-1` risponde «coincidono»**. Diventano urgenti nel
+> momento in cui qualcuno disegna quel selettore, non prima.
+
+---
+
 ## Aperte — governance documentale, trasferite da `#1396` il 2026-08-27
 
 `#1396` è stata **chiusa** perché il suo unico creditore — `#1389` — è chiuso, e la matrice ha **zero** righe
