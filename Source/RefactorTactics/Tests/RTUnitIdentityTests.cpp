@@ -71,7 +71,6 @@ namespace
 		return U;
 	}
 
-
 	/** Le unita' VIVE del mondo, cioe' esattamente cio' che `MakeCurrentSnapshot` indicizzerebbe. */
 	TArray<ARTUnit*> LiveUnits(UWorld* World)
 	{

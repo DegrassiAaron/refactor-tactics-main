@@ -114,7 +114,6 @@ namespace
 		return TM;
 	}
 
-
 	/**
 	 * Digest dello stato del mondo, costruito DAL TEST con la stessa funzione che usano partita e harness.
 	 *

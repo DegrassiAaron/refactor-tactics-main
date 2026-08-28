@@ -21,9 +21,11 @@
  * | `Power` | sempre `0` | dal primo effetto `Damage` |
  * | `bSelfTarget` | sempre `true` | mai toccato (resta `false`) |
  *
- * Nessuna delle due chiedeva al catalogo. E il catalogo lo sa: `Action.Guard` e `Action.Brace` escono da
- * `URTCatalogLibrary` con `bSelfTarget = true` (`Catalog.Last().bSelfTarget = true`, «si va in guardia su se'
- * stessi»), le azioni di controllo con `false`.
+ * Nessuna delle due chiedeva al catalogo. E il catalogo lo sa: **tre** azioni core escono da
+ * `URTCatalogLibrary` con `bSelfTarget = true` — `Action.Guard`, `Action.Brace` e `Action.Overwatch`, le tre
+ * righe `Catalog.Last().bSelfTarget = true` — e tutte le altre con `false`, incluse quelle di controllo
+ * (`Push`, `Pull`, `Root`, `Slow`). Nessuno dei test che usano questa fixture arma un Overwatch, ma
+ * l'elenco e' quello: la fixture copia il campo, non lo indovina.
  *
  * 🔴 **`RTTurnLogCauseTests` equipaggiava Guard e Brace come azioni NON auto-bersaglio.** E' esattamente il
  * difetto contro cui la produzione mette in guardia nel proprio commento, in `RTCatalogLibrary.cpp`:

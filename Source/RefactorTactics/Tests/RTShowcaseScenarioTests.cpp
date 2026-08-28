@@ -112,7 +112,6 @@ namespace
 		return Unit;
 	}
 
-
 	/** Cio' che una partita della fixture produce di osservabile: l'arena, il log, il suo hash, lo stato finale. */
 	struct FRTShowcaseRun
 	{

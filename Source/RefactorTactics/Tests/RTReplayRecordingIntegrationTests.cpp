@@ -74,7 +74,6 @@ namespace
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		return U;
 	}
-
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayRecordingIntegrationTest,

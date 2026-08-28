@@ -84,7 +84,6 @@ namespace
 		U->Shield = 0;
 		return U;
 	}
-
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexFullMatchTest,

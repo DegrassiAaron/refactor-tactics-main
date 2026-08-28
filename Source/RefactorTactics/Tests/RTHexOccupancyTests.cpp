@@ -617,7 +617,6 @@ namespace
 		U->FinishSpawning(FTransform::Identity);
 		return U;
 	}
-
 }
 
 /**

@@ -75,7 +75,6 @@ namespace
 		if (TM) { TM->DispatchBeginPlay(); }
 		return TM;
 	}
-
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingSamplePerTurnTest,
