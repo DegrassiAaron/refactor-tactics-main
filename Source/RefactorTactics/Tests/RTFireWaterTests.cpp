@@ -15,6 +15,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Tests/RTAbilityFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -85,12 +86,7 @@ namespace
 	/** Mette un'azione ambientale del catalogo nello slot 3 (lo scatto) e la pianifica sul bersaglio. */
 	void PlanFwEnvironmentAction(ARTUnit* Caster, const TCHAR* ActionId, ARTUnit* Target)
 	{
-		URTActionData* Action = NewObject<URTActionData>(Caster);
-		Action->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
-		Action->RangeCells = Action->Def.RangeCells;
-		Action->CooldownTurns = Action->Def.CooldownTurns;
-		Action->Power = URTCatalogLibrary::FirstDamage(Action->Def);
-		Caster->Abilities[3] = Action;
+		RTAbilityFixtures::AddCoreAbilityInSlot(Caster, ActionId, 3);
 		Caster->PlannedAbilityIndex = 3;
 		Caster->PlannedAttackTarget = Target;
 	}
