@@ -112,16 +112,6 @@ namespace
 		return Unit;
 	}
 
-	void PlayOneShowcaseTurn(ARTTurnManager* TM)
-	{
-		TM->PlanBotsForTest();
-		TM->LockInAndResolve();
-		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
-		{
-			TM->Tick(0.05f);
-		}
-	}
-
 	/** Cio' che una partita della fixture produce di osservabile: l'arena, il log, il suo hash, lo stato finale. */
 	struct FRTShowcaseRun
 	{
@@ -161,7 +151,7 @@ namespace
 
 		for (int32 Turn = 1; Turn <= NumTurns && TM->GetPhase() != ERTMatchPhase::MatchEnded; ++Turn)
 		{
-			PlayOneShowcaseTurn(TM);
+			RTWorldFixtures::PlayOneTurn(TM);
 
 			const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
 			Run.TurnLogHashes.Add(URTTurnLogLibrary::HashTurnLog(Log));

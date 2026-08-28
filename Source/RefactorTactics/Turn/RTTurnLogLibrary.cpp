@@ -5,7 +5,7 @@
 #include "Misc/FileHelper.h"
 #include "Containers/ArrayView.h" // i campi discriminanti viaggiano come una vista, non come copie
 #include "Templates/Function.h"   // TFunctionRef: il visitor dei campi non alloca
-#include "UObject/ReflectedTypeAccessors.h" // StaticEnum: i nomi degli enum si CHIEDONO, non si ricopiano
+#include "Core/RTEnumName.h" // RTReflection::EnumName: i nomi degli enum si CHIEDONO, non si ricopiano
 
 bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
 {
@@ -639,23 +639,6 @@ namespace
 	constexpr uint32 RT_FNV_PRIME        = 16777619u;
 
 	/**
-	 * Nome di un valore d'enum, via reflection.
-	 *
-	 * NON uno switch scritto a mano: sarebbe un secondo elenco degli stessi valori — la classe di difetto
-	 * che questo file esiste per chiudere — e degraderebbe pure peggio, perche' un valore aggiunto all'enum
-	 * e non allo switch si renderebbe come «?», indistinguibile da qualunque altro valore ignoto. Con la
-	 * reflection un valore fuori enum si mostra GREZZO, che e' l'unica risposta onesta: stesso criterio, e
-	 * stesse parole, di `URTScenarioLoader::DescribeLogEvent`.
-	 */
-	template <typename TEnum>
-	FString EnumName(TEnum Value)
-	{
-		const UEnum* Enum = StaticEnum<TEnum>();
-		const FString Name = Enum ? Enum->GetNameStringByValue(static_cast<int64>(Value)) : FString();
-		return Name.IsEmpty() ? FString::FromInt(static_cast<int32>(Value)) : Name;
-	}
-
-	/**
 	 * Il visitor dei campi discriminanti.
 	 *
 	 * Un campo e' NUMERICO (`Nums`) oppure TESTUALE (`Chars`, che si mescola char per char). La distinzione
@@ -735,8 +718,8 @@ namespace
 			Visit(Name, TArrayView<const uint32>(), &S, Display);
 		};
 
-		Named(TEXT("phase"), static_cast<int32>(E.Phase), EnumName(E.Phase));
-		Named(TEXT("category"), static_cast<int32>(E.Category), EnumName(E.Category));
+		Named(TEXT("phase"), static_cast<int32>(E.Phase), RTReflection::EnumName(E.Phase));
+		Named(TEXT("category"), static_cast<int32>(E.Category), RTReflection::EnumName(E.Category));
 		// ⚠️ `outcome` resta un numero: il suo significato dipende dalla categoria, e a risolverlo c'e' gia'
 		// `URTScenarioLoader::OutcomeEnumForCategory` — che pero' vive in `ScenarioHarness`, il quale dipende
 		// da `Turn` e non viceversa. Portarla qui e' il lavoro giusto e non e' questo (`#1427`).
@@ -1458,7 +1441,7 @@ FString URTTurnLogLibrary::DescribeFirstDivergence(int32 TurnNumber, const TArra
 
 		return FString::Printf(
 			TEXT("turno %d, voce %d: fase %s, %s — atteso [%s], trovato [%s]%s"),
-			TurnNumber, i, *EnumName(Golden[i].Phase), *ActionText,
+			TurnNumber, i, *RTReflection::EnumName(Golden[i].Phase), *ActionText,
 			*GoldenText, *ActualText, *RawDetail);
 	}
 
@@ -1472,7 +1455,7 @@ FString URTTurnLogLibrary::DescribeFirstDivergence(int32 TurnNumber, const TArra
 			TEXT("turno %d: %d voci attese, %d trovate — la prima %s e' in fase %s, azione '%s' [%s]"),
 			TurnNumber, Golden.Num(), Actual.Num(),
 			bMissing ? TEXT("MANCANTE") : TEXT("IN PIU'"),
-			*EnumName(Odd.Phase), *Odd.ActionId.ToString(), *DescribeEntry(Odd));
+			*RTReflection::EnumName(Odd.Phase), *Odd.ActionId.ToString(), *DescribeEntry(Odd));
 	}
 
 	return FString();
