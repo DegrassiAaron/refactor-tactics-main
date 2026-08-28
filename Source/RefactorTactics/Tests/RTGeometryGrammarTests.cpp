@@ -7,7 +7,10 @@
 namespace
 {
 	/** `HexSize` di riferimento: lo stesso usato dalle fixture di occupancy, per confrontare i numeri. */
-	constexpr float TestHexSize = 100.0f;
+	// Il prefisso `Grammar` non e' decorativo: la unity build fonde i namespace anonimi di piu' .cpp
+	// nella stessa translation unit, quindi un `TestHexSize` generico collide con l'omonimo di un altro
+	// file di test — ed e' successo davvero con `RTHexOccupancyTests.cpp` (#1530).
+	constexpr float GrammarTestHexSize = 100.0f;
 
 	/** Un segmento che appartiene alla grammatica: radiale sull'asse a 0 gradi, lungo mezzo raggio. */
 	FRTGeometrySegment ValidSegment()
@@ -56,13 +59,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGeometryPerimeterWallTest,
 bool FRTGeometryPerimeterWallTest::RunTest(const FString&)
 {
 	TArray<FVector2D> Boundary;
-	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, Boundary);
+	URTHexOccupancyLibrary::SectorBoundaryPoints(GrammarTestHexSize, Boundary);
 
 	// I due vertici che delimitano il lato `E`: i confini 0 (a -30 gradi) e 2 (a +30).
 	const FVector2D ExpectedA = Boundary[0];
 	const FVector2D ExpectedB = Boundary[2];
 
-	const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(WallOnEastEdge(), TestHexSize);
+	const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(WallOnEastEdge(), GrammarTestHexSize);
 
 	TestEqual(TEXT("il muro perimetrale ha due estremi"), Line.Points.Num(), 2);
 	if (Line.Points.Num() != 2)
@@ -95,20 +98,20 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGeometryAxesComeFromLibraryTest,
 bool FRTGeometryAxesComeFromLibraryTest::RunTest(const FString&)
 {
 	TArray<FVector2D> Boundary;
-	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, Boundary);
+	URTHexOccupancyLibrary::SectorBoundaryPoints(GrammarTestHexSize, Boundary);
 
 	for (int32 Index = 0; Index < RT_TacticalAxisCount; ++Index)
 	{
 		const ERTTacticalAxis Axis = static_cast<ERTTacticalAxis>(Index);
 
 		const FVector2D FromLibrary = Boundary[Index + 1];
-		const FVector2D FromGrammar = URTGeometryGrammarLibrary::AxisPoint(Axis, TestHexSize);
+		const FVector2D FromGrammar = URTGeometryGrammarLibrary::AxisPoint(Axis, GrammarTestHexSize);
 		TestTrue(FString::Printf(TEXT("asse %d deriva dal confine %d"), Index, Index + 1),
 			FVector2D::Distance(FromLibrary, FromGrammar) < 1e-6);
 
 		// La perpendicolare e' nove passi da 30 gradi piu' avanti, cioe' -90.
 		const FVector2D ExpectedPerp = Boundary[(Index + 1 + 9) % RT_OccupancySectorCount];
-		const FVector2D ActualPerp = URTGeometryGrammarLibrary::AxisPerpendicularPoint(Axis, TestHexSize);
+		const FVector2D ActualPerp = URTGeometryGrammarLibrary::AxisPerpendicularPoint(Axis, GrammarTestHexSize);
 		TestTrue(FString::Printf(TEXT("perpendicolare dell'asse %d"), Index),
 			FVector2D::Distance(ExpectedPerp, ActualPerp) < 1e-6);
 
@@ -312,8 +315,8 @@ bool FRTGeometryRoundTripTest::RunTest(const FString&)
 	TestEqual(TEXT("il layer sopravvive"), Reloaded.Layer, Original.Layer);
 
 	// E la geometria derivata coincide: il trasporto ha preservato cio' che conta a valle.
-	const FRTOccupancyPolyline FromOriginal = URTGeometryGrammarLibrary::ToPolyline(Original, TestHexSize);
-	const FRTOccupancyPolyline FromReloaded = URTGeometryGrammarLibrary::ToPolyline(Reloaded, TestHexSize);
+	const FRTOccupancyPolyline FromOriginal = URTGeometryGrammarLibrary::ToPolyline(Original, GrammarTestHexSize);
+	const FRTOccupancyPolyline FromReloaded = URTGeometryGrammarLibrary::ToPolyline(Reloaded, GrammarTestHexSize);
 	TestEqual(TEXT("stessa polilinea derivata"), FromOriginal.Points.Num(), FromReloaded.Points.Num());
 	for (int32 i = 0; i < FromOriginal.Points.Num() && i < FromReloaded.Points.Num(); ++i)
 	{
@@ -353,15 +356,15 @@ bool FRTGeometryOrderIndependenceTest::RunTest(const FString&)
 	TArray<FRTOccupancyPolyline> GeomForward, GeomBackward;
 	for (const FRTGeometrySegment& S : Forward)
 	{
-		GeomForward.Add(URTGeometryGrammarLibrary::ToPolyline(S, TestHexSize));
+		GeomForward.Add(URTGeometryGrammarLibrary::ToPolyline(S, GrammarTestHexSize));
 	}
 	for (const FRTGeometrySegment& S : Backward)
 	{
-		GeomBackward.Add(URTGeometryGrammarLibrary::ToPolyline(S, TestHexSize));
+		GeomBackward.Add(URTGeometryGrammarLibrary::ToPolyline(S, GrammarTestHexSize));
 	}
 
-	const FRTOccupancyMask MaskForward = URTHexOccupancyLibrary::ComputeMask(GeomForward, TestHexSize);
-	const FRTOccupancyMask MaskBackward = URTHexOccupancyLibrary::ComputeMask(GeomBackward, TestHexSize);
+	const FRTOccupancyMask MaskForward = URTHexOccupancyLibrary::ComputeMask(GeomForward, GrammarTestHexSize);
+	const FRTOccupancyMask MaskBackward = URTHexOccupancyLibrary::ComputeMask(GeomBackward, GrammarTestHexSize);
 
 	TestEqual(TEXT("stessa maschera comunque ordinati"), MaskForward.Sectors, MaskBackward.Sectors);
 	TestTrue(TEXT("stesso CoreBlocked"), MaskForward.bCoreBlocked == MaskBackward.bCoreBlocked);
@@ -387,16 +390,16 @@ bool FRTGeometryInvalidProducesNoGeometryTest::RunTest(const FString&)
 	FRTGeometrySegment Invalid = ValidSegment();
 	Invalid.Axis = static_cast<ERTTacticalAxis>(RT_TacticalAxisCount);
 
-	const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Invalid, TestHexSize);
+	const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Invalid, GrammarTestHexSize);
 	TestEqual(TEXT("un segmento fuori grammatica non produce punti"), Line.Points.Num(), 0);
 
-	const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask({ Line }, TestHexSize);
+	const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask({ Line }, GrammarTestHexSize);
 	TestEqual(TEXT("e non occupa alcun settore"), URTHexOccupancyLibrary::NumOccupiedSectors(Mask), 0);
 	TestTrue(TEXT("ne' il centro"), !Mask.bCoreBlocked);
 
 	// Controprova: lo stesso segmento con un asse valido produce geometria. Senza, questo test passerebbe
 	// anche con un `ToPolyline` che non restituisce mai nulla.
-	const FRTOccupancyPolyline Valid = URTGeometryGrammarLibrary::ToPolyline(ValidSegment(), TestHexSize);
+	const FRTOccupancyPolyline Valid = URTGeometryGrammarLibrary::ToPolyline(ValidSegment(), GrammarTestHexSize);
 	TestEqual(TEXT("il gemello valido produce due punti"), Valid.Points.Num(), 2);
 
 	return true;
@@ -415,15 +418,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGeometrySnapRecoversTest,
 bool FRTGeometrySnapRecoversTest::RunTest(const FString&)
 {
 	const FRTGeometrySegment Intended = WallOnEastEdge();
-	const FRTOccupancyPolyline Exact = URTGeometryGrammarLibrary::ToPolyline(Intended, TestHexSize);
+	const FRTOccupancyPolyline Exact = URTGeometryGrammarLibrary::ToPolyline(Intended, GrammarTestHexSize);
 
 	// Rumore deliberatamente asimmetrico e sotto il mezzo quanto: un gesto umano, non un valore esatto.
-	const double Quantum = TestHexSize / RT_GeometryQuanta;
+	const double Quantum = GrammarTestHexSize / RT_GeometryQuanta;
 	const FVector2D NoisyA = Exact.Points[0] + FVector2D(Quantum * 0.30, -Quantum * 0.20);
 	const FVector2D NoisyB = Exact.Points[1] + FVector2D(-Quantum * 0.15, Quantum * 0.35);
 
 	FRTGeometrySegment Snapped;
-	const bool bOk = URTGeometryGrammarLibrary::SnapToGrammar(NoisyA, NoisyB, TestHexSize, Snapped);
+	const bool bOk = URTGeometryGrammarLibrary::SnapToGrammar(NoisyA, NoisyB, GrammarTestHexSize, Snapped);
 
 	TestTrue(TEXT("un gesto vicino a un segmento legale produce un segmento"), bOk);
 	if (bOk)
@@ -459,18 +462,18 @@ bool FRTGeometrySnapRejectsTest::RunTest(const FString&)
 	// Due punti coincidenti: qualunque asse produrrebbe lunghezza zero.
 	const FVector2D P(12.0, 7.0);
 	TestTrue(TEXT("un gesto senza lunghezza non produce un segmento"),
-		!URTGeometryGrammarLibrary::SnapToGrammar(P, P, TestHexSize, Out));
+		!URTGeometryGrammarLibrary::SnapToGrammar(P, P, GrammarTestHexSize, Out));
 
 	// Un gesto lontanissimo: oltre i bordi editabili su entrambi gli estremi.
-	const double Far = TestHexSize * (RT_GeometryMaxQuanta / RT_GeometryQuanta) * 10.0;
+	const double Far = GrammarTestHexSize * (RT_GeometryMaxQuanta / RT_GeometryQuanta) * 10.0;
 	TestTrue(TEXT("un gesto fuori dai bordi editabili non produce un segmento"),
-		!URTGeometryGrammarLibrary::SnapToGrammar(FVector2D(Far, Far), FVector2D(Far * 1.1, Far), TestHexSize, Out));
+		!URTGeometryGrammarLibrary::SnapToGrammar(FVector2D(Far, Far), FVector2D(Far * 1.1, Far), GrammarTestHexSize, Out));
 
 	// Controprova: un gesto normale invece funziona, altrimenti questo test passerebbe con uno snap
 	// che non produce mai nulla.
-	const FRTOccupancyPolyline Exact = URTGeometryGrammarLibrary::ToPolyline(ValidSegment(), TestHexSize);
+	const FRTOccupancyPolyline Exact = URTGeometryGrammarLibrary::ToPolyline(ValidSegment(), GrammarTestHexSize);
 	TestTrue(TEXT("ma un gesto normale sì"),
-		URTGeometryGrammarLibrary::SnapToGrammar(Exact.Points[0], Exact.Points[1], TestHexSize, Out));
+		URTGeometryGrammarLibrary::SnapToGrammar(Exact.Points[0], Exact.Points[1], GrammarTestHexSize, Out));
 
 	return true;
 }
@@ -493,7 +496,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSnapCatchesAWobblyHandTest,
 bool FRTSnapCatchesAWobblyHandTest::RunTest(const FString&)
 {
 	TArray<FVector2D> Boundary;
-	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, Boundary);
+	URTHexOccupancyLibrary::SectorBoundaryPoints(GrammarTestHexSize, Boundary);
 	if (!TestEqual(TEXT("dodici punti di confine"), Boundary.Num(), RT_OccupancySectorCount))
 	{
 		return false;
@@ -501,7 +504,7 @@ bool FRTSnapCatchesAWobblyHandTest::RunTest(const FString&)
 
 	// Lo scarto della mano che il test pretende di reggere. 15% del raggio e' il valore su cui la
 	// quantizzazione fine falliva il 61% dei gesti.
-	const double Wobble = static_cast<double>(TestHexSize) * 0.15;
+	const double Wobble = static_cast<double>(GrammarTestHexSize) * 0.15;
 	const TArray<FVector2D> Nudges = {
 		{ +1, 0 }, { -1, 0 }, { 0, +1 }, { 0, -1 }, { +1, +1 }, { -1, -1 }, { +1, -1 }, { -1, +1 }
 	};
@@ -515,7 +518,7 @@ bool FRTSnapCatchesAWobblyHandTest::RunTest(const FString&)
 
 		FRTGeometrySegment Exact;
 		if (!TestTrue(TEXT("il gesto preciso si aggancia"),
-			URTGeometryGrammarLibrary::SnapToGrammar(V0, V1, TestHexSize, Exact)))
+			URTGeometryGrammarLibrary::SnapToGrammar(V0, V1, GrammarTestHexSize, Exact)))
 		{
 			continue;
 		}
@@ -526,7 +529,7 @@ bool FRTSnapCatchesAWobblyHandTest::RunTest(const FString&)
 			{
 				FRTGeometrySegment Wobbly;
 				const bool bSnapped = URTGeometryGrammarLibrary::SnapToGrammar(
-					V0 + NudgeA * Wobble, V1 + NudgeB * Wobble, TestHexSize, Wobbly);
+					V0 + NudgeA * Wobble, V1 + NudgeB * Wobble, GrammarTestHexSize, Wobbly);
 
 				++Checked;
 				TestTrue(FString::Printf(TEXT("lato %d: il gesto storto si aggancia comunque"), Edge), bSnapped);
@@ -573,7 +576,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSnapAlwaysProducesAWallFromTheAlphabetTest,
 bool FRTSnapAlwaysProducesAWallFromTheAlphabetTest::RunTest(const FString&)
 {
 	TArray<FVector2D> Boundary;
-	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, Boundary);
+	URTHexOccupancyLibrary::SectorBoundaryPoints(GrammarTestHexSize, Boundary);
 
 	TArray<FVector2D> Notable;
 	Notable.Add(FVector2D::ZeroVector); // il centro e' il tredicesimo
@@ -606,12 +609,12 @@ bool FRTSnapAlwaysProducesAWallFromTheAlphabetTest::RunTest(const FString&)
 					const double Ra = FMath::DegreesToRadians(static_cast<double>(AngleA));
 					const double Rb = FMath::DegreesToRadians(static_cast<double>(AngleB));
 					const FVector2D A(
-						RadiusA * TestHexSize * FMath::Cos(Ra), RadiusA * TestHexSize * FMath::Sin(Ra));
+						RadiusA * GrammarTestHexSize * FMath::Cos(Ra), RadiusA * GrammarTestHexSize * FMath::Sin(Ra));
 					const FVector2D B(
-						RadiusB * TestHexSize * FMath::Cos(Rb), RadiusB * TestHexSize * FMath::Sin(Rb));
+						RadiusB * GrammarTestHexSize * FMath::Cos(Rb), RadiusB * GrammarTestHexSize * FMath::Sin(Rb));
 
 					FRTGeometrySegment Segment;
-					if (!URTGeometryGrammarLibrary::SnapToGrammar(A, B, TestHexSize, Segment))
+					if (!URTGeometryGrammarLibrary::SnapToGrammar(A, B, GrammarTestHexSize, Segment))
 					{
 						++Refused;
 						continue;
@@ -628,7 +631,7 @@ bool FRTSnapAlwaysProducesAWallFromTheAlphabetTest::RunTest(const FString&)
 					// 2. E i suoi DUE ESTREMI sono punti notevoli. E' la riga che il difetto faceva fallire,
 					//    ed e' l'unica formulazione di «dentro la geometria consentita» che si possa misurare.
 					const FRTOccupancyPolyline Line =
-						URTGeometryGrammarLibrary::ToPolyline(Segment, TestHexSize);
+						URTGeometryGrammarLibrary::ToPolyline(Segment, GrammarTestHexSize);
 					if (!TestEqual(TEXT("il segmento ha due estremi"), Line.Points.Num(), 2))
 					{
 						return false;
@@ -666,7 +669,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNotablePairsOnTacticalAxesTest,
 bool FRTNotablePairsOnTacticalAxesTest::RunTest(const FString&)
 {
 	TArray<FVector2D> Boundary;
-	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, Boundary);
+	URTHexOccupancyLibrary::SectorBoundaryPoints(GrammarTestHexSize, Boundary);
 
 	TArray<FVector2D> Notable;
 	Notable.Add(FVector2D::ZeroVector);
@@ -677,9 +680,9 @@ bool FRTNotablePairsOnTacticalAxesTest::RunTest(const FString&)
 		for (int32 AxisIndex = 0; AxisIndex < RT_TacticalAxisCount; ++AxisIndex)
 		{
 			const ERTTacticalAxis Axis = static_cast<ERTTacticalAxis>(AxisIndex);
-			const FVector2D Along = URTGeometryGrammarLibrary::AxisPoint(Axis, TestHexSize) / RT_GeometryQuanta;
+			const FVector2D Along = URTGeometryGrammarLibrary::AxisPoint(Axis, GrammarTestHexSize) / RT_GeometryQuanta;
 			const FVector2D Perp =
-				URTGeometryGrammarLibrary::AxisPerpendicularPoint(Axis, TestHexSize) / RT_GeometryQuanta;
+				URTGeometryGrammarLibrary::AxisPerpendicularPoint(Axis, GrammarTestHexSize) / RT_GeometryQuanta;
 
 			const double AlongP = FVector2D::DotProduct(P, Along) / Along.SizeSquared();
 			const double AlongQ = FVector2D::DotProduct(Q, Along) / Along.SizeSquared();
@@ -738,7 +741,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSnapKeepsTheAnchorWhenDraggingFarTest,
 bool FRTSnapKeepsTheAnchorWhenDraggingFarTest::RunTest(const FString&)
 {
 	TArray<FVector2D> Boundary;
-	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, Boundary);
+	URTHexOccupancyLibrary::SectorBoundaryPoints(GrammarTestHexSize, Boundary);
 	if (!TestEqual(TEXT("dodici punti di confine"), Boundary.Num(), RT_OccupancySectorCount))
 	{
 		return false;
@@ -756,7 +759,7 @@ bool FRTSnapKeepsTheAnchorWhenDraggingFarTest::RunTest(const FString&)
 	// faceva, e la verifica di mutazione l'ha smontata: legando di nuovo insieme l'aggancio dei due estremi
 	// — il primo dei due difetti — **nessun test cadeva**, perche' su un'ancora esatta il punto agganciato
 	// e quello grezzo coincidono. Un gesto vero cade *vicino* al vertice, mai sopra.
-	const double AnchorWobble = static_cast<double>(TestHexSize) * 0.10;
+	const double AnchorWobble = static_cast<double>(GrammarTestHexSize) * 0.10;
 
 	for (int32 Index = 0; Index < Boundary.Num(); ++Index)
 	{
@@ -775,17 +778,17 @@ bool FRTSnapKeepsTheAnchorWhenDraggingFarTest::RunTest(const FString&)
 			// E si trascina LONTANO e di traverso: tre raggi, fuori dalla cella, dove l'aggancio del
 			// secondo estremo si spegne per costruzione.
 			const double Base = FMath::Atan2(Anchor.Y, Anchor.X) + FMath::DegreesToRadians(Oblique);
-			const double Reach = static_cast<double>(TestHexSize) * 3.0;
+			const double Reach = static_cast<double>(GrammarTestHexSize) * 3.0;
 			const FVector2D Far(Reach * FMath::Cos(Base), Reach * FMath::Sin(Base));
 
 			FRTGeometrySegment Segment;
 			if (!TestTrue(FString::Printf(TEXT("punto %d a %.0f gradi: il gesto lungo si aggancia"),
-				Index, Oblique), URTGeometryGrammarLibrary::SnapToGrammar(Pressed, Far, TestHexSize, Segment)))
+				Index, Oblique), URTGeometryGrammarLibrary::SnapToGrammar(Pressed, Far, GrammarTestHexSize, Segment)))
 			{
 				continue;
 			}
 
-			const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Segment, TestHexSize);
+			const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Segment, GrammarTestHexSize);
 			if (!TestEqual(FString::Printf(TEXT("punto %d a %.0f gradi: due estremi"), Index, Oblique),
 				Line.Points.Num(), 2))
 			{
