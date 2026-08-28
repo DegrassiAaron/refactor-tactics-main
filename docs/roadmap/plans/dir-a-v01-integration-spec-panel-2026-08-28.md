@@ -19,33 +19,48 @@ ogni conteggio qui sotto va rifatto su `origin/main` prima di essere usato per d
 Tre strutture su cui il prompt poggiava sono state **rimosse per decisione d'autore**, e il prompt le usava
 come impalcatura invece che come ipotesi da verificare.
 
-| # | Il prompt assumeva | HEAD | Fonte |
+> 🔴 **Questa sezione è stata scritta su una base 204 commit indietro, e il merge del 2026-08-28 ne ha
+> falsificate due righe su tre.** Restano qui perché l'errore è di **metodo** e si ripete: la prima stesura
+> misurava su `HEAD` senza rimisurare su `origin/main` prima di scrivere, che è precisamente il difetto
+> denunciato al §13. Le correzioni sono nelle righe ⛔.
+
+| # | Il prompt assumeva | Stato **verificato dopo il merge del 2026-08-28** | Fonte |
 |---|---|---|---|
-| **P1** | Tre worktree paralleli — `DIR-A` integra, `DIR-B` fa il core, `DIR-C` la QA | **Lo sviluppo è sequenziale**: una sessione, una working directory, un branch alla volta. `parallel-batch.yaml` e il suo tooling sono usciti — 8720 righe | [**D-178**](../../decisions/RT_PDR_00_Decision_Log.md) *(2026-08-20)* · [`CLAUDE.md`](../../../CLAUDE.md) §4 |
-| **P2** | «Applicare le regole correnti di Binary Asset Lease» | La Lease **non serve più**: non c'è nessuno con cui contendere. Resta il fatto fisico — due `.uasset` non si fondono — e la regola che ne discende | [**D-178**](../../decisions/RT_PDR_00_Decision_Log.md), coda |
-| **P3** | Gate eseguibili da script | `scripts/` **non esiste**, `.github/workflows/` **non esiste**, per scelta. Ogni gate è un atto umano | [**D-181**](../../decisions/RT_PDR_00_Decision_Log.md) · [**D-182**](../../decisions/RT_PDR_00_Decision_Log.md) *(2026-08-21)* |
+| **P1** | Tre worktree paralleli — `DIR-A` integra, `DIR-B` fa il core, `DIR-C` la QA | ⛔ **La prima stesura diceva «lo sviluppo è sequenziale, D-178»: superata.** [**D-222**](../../decisions/RT_PDR_00_Decision_Log.md) *(2026-08-27)* supera la clausola operativa di D-178 — *«lo sviluppo parallelo si accetta come regime»*, misurato su **101 checkout e 6 sessioni in un giorno**. ✅ Ma il prompt resta comunque inapplicabile, per un'altra ragione: ciò che D-222 protegge **non è la working directory, è la MISURA** — una suite vale solo se `HEAD`, l'albero, il binario e i processi sono gli stessi all'inizio e alla fine, «altrimenti non è rossa né verde: è **NON VALIDA**». Il prompt non ha nulla su questo | [**D-222**](../../decisions/RT_PDR_00_Decision_Log.md) · [`CLAUDE.md`](../../../CLAUDE.md) §4 |
+| **P2** | «Applicare le regole correnti di Binary Asset Lease» | ✅ **Confermata.** La Lease non è tornata. Resta il fatto fisico — due `.uasset` non si fondono — e **questo merge lo ha pagato**: `L_DevSandbox.umap` era modificato da entrambi i lati e ha richiesto di scartare una delle due versioni | [**D-178**](../../decisions/RT_PDR_00_Decision_Log.md), coda |
+| **P3** | Gate eseguibili da script | ⛔ **La prima stesura diceva «`scripts/` non esiste»: era vera sulla vecchia base.** Oggi `scripts/` contiene **`rt-suite.ps1`**, che legge le quattro invarianti prima e dopo la run e confronta `Test Completed` con `Found N`. ✅ Resta vero che **`.github/workflows/` non esiste** — misurato: **0** file — quindi nessun gate parte da solo, e la suite si lancia a mano con quello script | [**D-182**](../../decisions/RT_PDR_00_Decision_Log.md) · [**D-188**](../../decisions/RT_PDR_00_Decision_Log.md) |
 
-∴ le sezioni §6, §22 e §23 del prompt — l'intero protocollo di handoff fra directory — **non hanno una
-controparte**, e §1 vale solo per metà. Sono circa un quarto del mandato, e qui non vengono riscritte:
-vengono rimosse.
+∴ le sezioni §6, §22 e §23 del prompt — l'intero protocollo di handoff fra directory — restano **senza
+controparte**, ma non perché il parallelismo sia vietato: perché il prompt coordina *directory* mentre la
+regola viva coordina *misure*. Un handoff che non dichiara `HEAD`, albero, binario e processi non produce
+un'integrazione verificabile, comunque siano organizzate le sessioni.
 
-⚠️ **La rimozione non è una confutazione.** D-178 dichiara che il problema che il lavoro parallelo
-affrontava era reale: cambia il regime di lavoro, non la fisica del merge. Se un giorno tornassero più
-sessioni contemporanee, il rationale è leggibile in D-135 e D-139 e non va riscoperto da zero.
+⚠️ **E la sostituzione di D-178 non è una confutazione di ciò che D-178 aveva capito**: la fisica del merge
+non cambia. Il rationale di D-135 e D-139 resta leggibile e non va riscoperto da zero.
 
 ---
 
 ## 1. Regime di lavoro
 
-Una sessione esecutiva, una working directory, un branch alla volta. Un task troppo grosso **si spezza in
-issue che si fanno in fila**, non in sessioni che convivono.
+**Più sessioni condividono davvero questa working directory** — misurato, 101 checkout e 6 sessioni in un
+giorno ([D-222](../../decisions/RT_PDR_00_Decision_Log.md)). Ciò che si protegge non è la directory: è la
+**misura**. Una suite vale solo se `HEAD`, l'albero, il binario e i processi del motore sono gli stessi
+all'inizio e alla fine; altrimenti non è rossa né verde, è **NON VALIDA**, e non si registra.
 
+- **Per la suite si usa `scripts/rt-suite.ps1`** (PowerShell, non Bash: MSYS traduce i path). Legge le
+  quattro invarianti prima e dopo e confronta `Test Completed` con `Found N`.
+  ⚠️ **Niente worktree per parallelizzare**: il mutex del motore è globale sull'eseguibile, quindi due run
+  di automation si uccidono anche da checkout diversi. *(Verificato durante questo lavoro: una run viva su
+  `refactor-tactics-technical-designer` ha reso impossibile validare il merge con la suite.)*
 - I `.uasset` / `.umap` si modificano **attraverso Unreal**, mai a mano, **da un lavoro solo per volta** —
   non per protocollo, ma perché due binari non si fondono.
-- L'evidenza di un difetto trovato durante l'integrazione atterra su una **issue**, che è l'unica casella
-  di posta rimasta. Non esiste un destinatario `DIR-B` / `DIR-C` a cui restituirla.
-- `D-nnn` si legge dall'ultimo assegnato nel Decision Log — oggi **D-223** — e si **riverifica prima del
-  merge** con `git fetch --prune origin` e `gh pr list --state open`.
+- L'evidenza di un difetto trovato durante l'integrazione atterra su una **issue**. Non esiste un
+  destinatario `DIR-B` / `DIR-C` a cui restituirla.
+- `D-nnn` si legge dall'ultimo assegnato — al 2026-08-28 dopo il merge è **D-228** — e si **riverifica
+  immediatamente prima del merge** con `git fetch --prune origin`, `gh pr list --state open` **e** i branch
+  remoti vivi. 🔴 E prima di rinumerare si confronta la **tesi**, non solo l'ID: due numeri diversi sulla
+  stessa decisione non collidono per costruzione, quindi passano ogni controllo di unicità. Questo merge ne
+  ha trovato un caso — la fog of war esisteva come `D-222` sul branch e `D-225` su `main`.
 
 ---
 
