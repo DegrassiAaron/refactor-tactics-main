@@ -1395,6 +1395,20 @@ namespace
 		return Sweep;
 	}
 
+	/** I periodi trovati, in forma leggibile: `2x14 3x2` e simili. */
+	FString RTOrbitPeriodiText(const TMap<int32, int32>& PerPeriodo)
+	{
+		TArray<int32> Periodi;
+		PerPeriodo.GetKeys(Periodi);
+		Periodi.Sort();
+		TArray<FString> Pezzi;
+		for (const int32 P : Periodi)
+		{
+			Pezzi.Add(FString::Printf(TEXT("%dx%d"), P, PerPeriodo[P]));
+		}
+		return Pezzi.Num() > 0 ? FString::Join(Pezzi, TEXT(" ")) : FString(TEXT("nessuno"));
+	}
+
 	/**
 	 * Il ritorno di QUALUNQUE periodo, seguendo la traiettoria invece di cercarne la forma.
 	 *
@@ -1578,19 +1592,6 @@ namespace
 		return Sweep;
 	}
 
-	/** I periodi trovati, in forma leggibile: `2x14 3x2` e simili. */
-	FString RTOrbitPeriodiText(const TMap<int32, int32>& PerPeriodo)
-	{
-		TArray<int32> Periodi;
-		PerPeriodo.GetKeys(Periodi);
-		Periodi.Sort();
-		TArray<FString> Pezzi;
-		for (const int32 P : Periodi)
-		{
-			Pezzi.Add(FString::Printf(TEXT("%dx%d"), P, PerPeriodo[P]));
-		}
-		return Pezzi.Num() > 0 ? FString::Join(Pezzi, TEXT(" ")) : FString(TEXT("nessuno"));
-	}
 }
 
 /**
