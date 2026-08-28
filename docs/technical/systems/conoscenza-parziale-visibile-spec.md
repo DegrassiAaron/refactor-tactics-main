@@ -205,10 +205,40 @@ canali, lo stesso soggetto, due regole opposte.
 | Canale | Quando si decide | Perché |
 |---|---|---|
 | Combat log | **alla scrittura** | racconta il turno risolto; il soggetto esiste ancora quando la riga esce |
-| Traccia post-lock | **alla scrittura** | il percorso è un fatto del turno appena chiuso; `FRTMoveRoute` porta già il soggetto (**#1497**) |
+| Traccia post-lock | **alla scrittura, per cella** | una rotta non è un fatto puntuale: porta il tratto **osservato** e si tronca dove l'osservatore ha perso il soggetto (**#1497**) |
 | Sagoma dell'ultimo contatto | **alla lettura** | risponde a *«adesso non lo conosco»*: è il canale del ricordo, e in lettura è dove deve stare |
 | Overlay e modello | **alla lettura** | descrivono il presente |
 | Fog of war ([D-222]) | **alla lettura** | è visibilità di **celle**, non di soggetti |
+| **Playback** (`TickPlayback`) | ⛔ **nessuno** | canale non censito da questa tabella fino al 2026-08-28: muove il modello lungo il percorso eseguito, per entrambe le squadre. Vive in **#1525** |
+
+#### 🔴 Per la traccia «quando il fatto è accaduto» non è definito, e la rotta si tronca
+
+*(Aggiunto il 2026-08-28. La riga della tabella diceva soltanto «alla scrittura», e non bastava.)*
+
+Una riga di log è un fatto **puntuale**: c'è un istante in cui è accaduta, e il verdetto di quell'istante la
+descrive. Una rotta no — è una **traiettoria**, e attraversa due istanti: il primo vertice è la cella di
+partenza (`RTTurnManager.cpp:5377`, letta prima di `PlaceOnCell` a `:5399`), l'ultimo è la cella d'arrivo.
+
+Un verdetto congelato sulla partenza autorizzerebbe a disegnare l'arrivo, e riprodurrebbe **gli stessi due
+errori speculari** che §3.5 descrive per il canale derivato:
+
+| | |
+|---|---|
+| **leak** | osservato alla partenza, arrivo in cella non osservata → la polilinea **entra nella nebbia** e rivela dove il nemico si è nascosto. `PIE-KNOW4` lo ha già osservato dal vivo: *«arriva dove il nemico sta davvero»* |
+| **contraddizione** | non osservato alla partenza, arrivo in cella osservata → traccia nascosta mentre il **modello** è disegnato. È la frase con cui [D-223] apre: *«due canali, lo stesso soggetto, due regole opposte»* |
+
+**La regola è quindi il tratto osservato**: la traccia porta le celle che l'osservatore vedeva, e si
+interrompe dove ha perso il soggetto. Delle tre forme possibili è l'unica che sia una frase vera in ogni
+caso — *«ho visto questa parte del suo movimento»* — e l'unica che **chiude** `PIE-KNOW4` invece di
+dichiararlo limite noto.
+
+➕ **Non serve macchinario nuovo**: `URTPerceptionLibrary::TeamAwarenessOfCell(Map, Observers, Cell)` esiste
+e la produzione la usa già dentro il ciclo a micro-step del Move (`RTTurnManager.cpp:5115`).
+
+⚠️ **Limite dichiarato**: il troncamento usa la visibilità **pre-Move**, l'unico campione disponibile —
+`TeamKnowledgeState` ha **due** sole assegnazioni per turno, entrambe per fase. Risponde bene quando a
+nascondere è il movimento del **nemico**; sbaglia quando è quello dell'**osservatore**. Chiude i due casi
+che contano, non tutti.
 
 🔴 **La regola atterra come UN predicato, e i canali lo chiamano.** Se ogni consumatore la ridériva dalla
 prosa, le riletture divergono e si riforma la terza via che la decisione vieta — filtrare *alcuni* canali
