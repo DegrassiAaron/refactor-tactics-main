@@ -19,6 +19,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Bot/RTHexBotLibrary.h" // DecideReactionResponse: la risposta del bot dev'essere legale anche sul `Brace`
+#include "Tests/RTAbilityFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -91,21 +92,6 @@ namespace
 	 * `ARTTurnManager` legge ancora (`CooldownTurns`/`RangeCells`), come fa `MakeHeroAction` per gli eroi, e
 	 * azzera `Power` (default legacy 30) per le azioni che non dichiarano danno.
 	 */
-	int32 AddDefAbility(ARTUnit* Unit, const TCHAR* ActionId, int32 SlotIndex = 3)
-	{
-		if (!Unit || !Unit->Abilities.IsValidIndex(SlotIndex)) { return INDEX_NONE; }
-		URTActionData* Ability = NewObject<URTActionData>(Unit);
-		Ability->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
-		Ability->CooldownTurns = Ability->Def.CooldownTurns;
-		Ability->RangeCells = Ability->Def.RangeCells;
-		Ability->Power = 0;
-		for (const FRTActionEffectSpec& Spec : Ability->Def.Effects)
-		{
-			if (Spec.Effect == ERTActionEffect::Damage) { Ability->Power = Spec.Amount; break; }
-		}
-		Unit->Abilities[SlotIndex] = Ability;
-		return SlotIndex;
-	}
 
 	void RunDefTurn(ARTTurnManager* TM)
 	{
@@ -225,7 +211,7 @@ bool FRTCounterDealsDamageTest::RunTest(const FString&)
 		return false;
 	}
 
-	Reactor->PlannedReactionAbility = AddDefAbility(Reactor, TEXT("Action.Counter"));
+	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
 	Reactor->PlannedAbilityIndex = INDEX_NONE;
 
 	const int32 AttackerHealth = Attacker->Health;
@@ -307,7 +293,7 @@ bool FRTDeflectReducesDamageTest::RunTest(const FString&)
 		return false;
 	}
 
-	Reactor->PlannedReactionAbility = AddDefAbility(Reactor, TEXT("Action.Deflect"));
+	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Deflect"), 3);
 	Reactor->PlannedAbilityIndex = INDEX_NONE;
 
 	const int32 Before = Reactor->Health;
@@ -361,7 +347,7 @@ bool FRTDeflectZeroDamageStillHitsTest::RunTest(const FString&)
 		return false;
 	}
 
-	Reactor->PlannedReactionAbility = AddDefAbility(Reactor, TEXT("Action.Deflect"));
+	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Deflect"), 3);
 	Reactor->PlannedAbilityIndex = INDEX_NONE;
 	// Guardia ADDOSSO al deflettore: -15 (Guard) -20 (Deflect) su un colpo da 25 -> ampiamente sotto zero.
 	Reactor->ApplyStatus(TAG_Status_Guarded, 1);
@@ -403,7 +389,7 @@ bool FRTBraceTest::RunTest(const FString&)
 	}
 
 	// Brace e' un'azione PRINCIPALE di Prep: si pianifica come tale, non nello slot reazione.
-	Bracer->PlannedAbilityIndex = AddDefAbility(Bracer, TEXT("Action.Brace"));
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
 	Bracer->PlannedCell = FRTCellId(3, 0); // proverebbe a muoversi: Brace deve impedirglielo
 
 	const int32 Before = Bracer->Health;
@@ -444,10 +430,10 @@ bool FRTBraceBlocksPushTest::RunTest(const FString&)
 		return false;
 	}
 
-	Bracer->PlannedAbilityIndex = AddDefAbility(Bracer, TEXT("Action.Brace"));
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
 	Bracer->PlannedCell = Bracer->Cell;
 
-	Pusher->PlannedAbilityIndex = AddDefAbility(Pusher, TEXT("Action.Push"));
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
 	Pusher->PlannedAttackTarget = Bracer;
 	Pusher->PlannedCell = Pusher->Cell;
 
@@ -482,7 +468,7 @@ bool FRTShieldTest::RunTest(const FString&)
 	// Il Ranger parte senza scudo: quello che si vede dopo viene tutto dall'azione.
 	TestEqual(TEXT("il Ranger parte senza scudo"), Shielded->Shield, 0);
 
-	Shielded->PlannedAbilityIndex = AddDefAbility(Shielded, TEXT("Action.Shield"));
+	Shielded->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Shielded, TEXT("Action.Shield"), 3);
 	Shielded->PlannedCell = Shielded->Cell;
 
 	const int32 BeforeHealth = Shielded->Health;
@@ -518,7 +504,7 @@ bool FRTCleanseTest::RunTest(const FString&)
 
 	Cleanser->ApplyStatus(TAG_Status_Root, 3);
 	Cleanser->ApplyStatus(TAG_Status_Marked, 3);
-	Cleanser->PlannedAbilityIndex = AddDefAbility(Cleanser, TEXT("Action.Cleanse"));
+	Cleanser->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3);
 	Cleanser->PlannedCell = Cleanser->Cell;
 	// L'ordine dichiarato mette Marked davanti: e' quello che deve sparire, non Root.
 	Cleanser->PlannedCleansePriority = { TAG_Status_Marked, TAG_Status_Root };
@@ -553,7 +539,7 @@ bool FRTCleanseNoImplicitChoiceTest::RunTest(const FString&)
 	}
 
 	Cleanser->ApplyStatus(TAG_Status_Root, 3);
-	Cleanser->PlannedAbilityIndex = AddDefAbility(Cleanser, TEXT("Action.Cleanse"));
+	Cleanser->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3);
 	Cleanser->PlannedCell = Cleanser->Cell;
 	Cleanser->PlannedCleansePriority.Reset(); // nessuna scelta dichiarata
 
@@ -564,7 +550,7 @@ bool FRTCleanseNoImplicitChoiceTest::RunTest(const FString&)
 
 	// Controprova sullo stato NON elencato: dichiarare una lista che non contiene lo stato posseduto non
 	// autorizza a togliere quello che c'e'.
-	Cleanser->PlannedAbilityIndex = AddDefAbility(Cleanser, TEXT("Action.Cleanse"));
+	Cleanser->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3);
 	Cleanser->PlannedCell = Cleanser->Cell;
 	Cleanser->PlannedCleansePriority = { TAG_Status_Exposed }; // che l'unita' non ha
 
@@ -866,7 +852,7 @@ namespace
 		FRTCellId Result;
 		if (Attaccante && Difensore && TM)
 		{
-			const int32 Push = AddDefAbility(Attaccante, TEXT("Action.Push"));
+			const int32 Push = RTAbilityFixtures::AddCoreAbilityInSlot(Attaccante, TEXT("Action.Push"), 3);
 			Attaccante->PlannedAbilityIndex = Push;
 			Attaccante->PlannedAttackTarget = Difensore;
 			Difensore->ApplyStatus(TAG_Status_Braced, 1);

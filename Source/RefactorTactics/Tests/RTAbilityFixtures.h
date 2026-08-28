@@ -71,16 +71,40 @@ namespace RTAbilityFixtures
 		Action->RangeCells = Action->Def.RangeCells;
 		Action->bSelfTarget = Action->Def.bSelfTarget;
 		Action->CooldownTurns = Action->Def.CooldownTurns;
-		Action->Power = 0;
-		for (const FRTActionEffectSpec& Spec : Action->Def.Effects)
-		{
-			if (Spec.Effect == ERTActionEffect::Damage)
-			{
-				Action->Power = Spec.Amount;
-				break;
-			}
-		}
+		// `FirstDamage` e' della PRODUZIONE (`URTCatalogLibrary`) e fa esattamente questo: il ciclo scritto a
+		// mano era un quinto posto in cui la stessa regola viveva. La usano gia' `ARTTurnManager` e tre
+		// helper di test; non c'e' ragione perche' questo la riscriva.
+		Action->Power = URTCatalogLibrary::FirstDamage(Action->Def);
 		Unit->Abilities.Add(Action);
 		return Unit->Abilities.Num() - 1;
+	}
+
+	/**
+	 * Come sopra, ma SOSTITUISCE lo slot indicato invece di accodare, e ne restituisce l'indice.
+	 *
+	 * ⚠️ **Serve per poter misurare la ricarica**, e non e' una comodita': `ConsumeAbility` scrive in
+	 * `AbilityCooldowns` solo se l'indice e' valido, e `ConfigureFromHeroData` dimensiona quell'array sulle
+	 * abilita' dell'eroe. Un'abilita' APPESA in coda sta a un indice che l'array non copre, quindi il
+	 * cooldown non viene mai scritto e `CanUseAbility` risponde sempre `true` — un test che asserisse «non
+	 * ha pagato» su un'abilita' appesa sarebbe verde anche col difetto.
+	 *
+	 * Cinque helper di test riscrivevano questa variante, tutti con lo slot `3` (#1588). Torna `INDEX_NONE`
+	 * se lo slot non esiste: sostituire un indice fuori range creerebbe un buco nel kit.
+	 */
+	inline int32 AddCoreAbilityInSlot(ARTUnit* Unit, const TCHAR* ActionId, int32 SlotIndex)
+	{
+		if (!Unit || !Unit->Abilities.IsValidIndex(SlotIndex))
+		{
+			return INDEX_NONE;
+		}
+		const int32 Appesa = AddCoreAbility(Unit, ActionId);
+		if (Appesa == INDEX_NONE)
+		{
+			return INDEX_NONE;
+		}
+		URTActionData* Azione = Unit->Abilities[Appesa];
+		Unit->Abilities.RemoveAt(Appesa);
+		Unit->Abilities[SlotIndex] = Azione;
+		return SlotIndex;
 	}
 }
