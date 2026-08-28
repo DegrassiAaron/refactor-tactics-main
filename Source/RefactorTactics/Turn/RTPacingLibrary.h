@@ -34,11 +34,21 @@ public:
 	 * (CP 14.6, `#166`). Insieme vuoto -> 0.
 	 *
 	 * 🔴 **Aperta non vuol dire registrata**, e la differenza e' tutto il valore di questa funzione: la
-	 * categoria `ReactionDecision` porta anche gli esiti in cui **nessuna finestra si e' aperta** —
-	 * `HoldImmediate` (cardinalita' <= 1) e `HoldCollapsedByCondition` (la condizione dichiarata ha ridotto
-	 * le risposte a una). Quelli si committano subito e non occupano un secondo del giocatore. Contare tutte
-	 * le voci gonfierebbe la baseline con attese che non esistono, e sarebbe il difetto che i due esiti sono
+	 * categoria `ReactionDecision` porta anche esiti che **non hanno occupato nessuno**:
+	 *
+	 * - `HoldImmediate` (cardinalita' <= 1) e `HoldCollapsedByCondition` (la condizione dichiarata ha ridotto
+	 *   le risposte a una): commit immediati, nessuna finestra si apre.
+	 * - `HoldNoDecider`: la finestra **esiste** e nessuno puo' rispondere — e' l'unita' umana senza UI, cioe'
+	 *   **ogni** finestra del giocatore finche' CP 14.6 non consegna l'interfaccia. Contarla scriverebbe
+	 *   `3,0 s` di attesa per una persona mai interpellata: l'inflazione sistematica, non l'eccezione.
+	 *
+	 * Contarli tutti gonfierebbe la baseline con attese che non esistono — il difetto che quegli esiti sono
 	 * stati separati per rendere visibile.
+	 *
+	 * L'elenco e' **positivo** e passa da uno `switch` senza `default`: un esito nuovo non entra nel
+	 * conteggio finche' qualcuno non lo dichiara, ed e' il compilatore a chiederlo. Un «tutto tranne» avrebbe
+	 * contato per difetto ogni valore aggiunto in coda all'enum — che e' il modo in cui quell'enum cresce
+	 * per prescrizione.
 	 *
 	 * Il filtro per responder e' obbligatorio e non un comodo: [D-167] distingue due unita' armate dello
 	 * STESSO giocatore — due finestre in fila su una persona — da due di squadre diverse, che sono due attese

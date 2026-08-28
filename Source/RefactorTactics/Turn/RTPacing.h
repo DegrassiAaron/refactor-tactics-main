@@ -105,6 +105,10 @@ struct FRTPacingSample
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 MsPlayback = 0;
 
+	/** Vero se il giocatore ha saltato il playback. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	bool bPlaybackSkipped = false;
+
 	/**
 	 * Quante finestre di reazione si sono APERTE in questo turno alla squadra misurata (CP 14.6, `#166`).
 	 *
@@ -124,10 +128,6 @@ struct FRTPacingSample
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 ReactionWindowsOpened = 0;
-
-	/** Vero se il giocatore ha saltato il playback. */
-	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
-	bool bPlaybackSkipped = false;
 };
 
 /** Sommario di una sessione di campioni. Prodotto da URTPacingLibrary::SummarizeSamples. */
@@ -168,4 +168,18 @@ struct FRTPacingSummary
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 MedianMsPlayback = 0;
+
+	/**
+	 * Finestre di reazione aperte alla squadra misurata in TUTTA la sessione (CP 14.6, `#166`).
+	 *
+	 * E' una somma e non una mediana, ed e' voluto: il bank e' un budget di **sessione**, quindi cio' che si
+	 * confronta con `InitialBankMs` e' il totale delle attese, non il turno tipico. La mediana per turno si
+	 * ricava dal CSV, dove ogni riga porta la propria colonna.
+	 *
+	 * ⚠️ **Senza questo campo il numero non arriva a chi lo deve leggere.** `rt.Debug.Pacing` e' la lettura
+	 * che un playtester ha davvero, e una sessione con zero finestre — perche' nessuno ha armato, o perche'
+	 * l'UI non c'e' ancora — sarebbe indistinguibile da una sana. Segnalato in code review.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	int32 TotalReactionWindows = 0;
 };

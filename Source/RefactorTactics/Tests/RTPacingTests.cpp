@@ -220,7 +220,10 @@ bool FRTPacingCsvTest::RunTest(const FString&)
 	TestEqual(TEXT("la riga ha le stesse colonne dell'intestazione"), RowCols.Num(), HeaderCols.Num());
 
 	// Ogni colonna e' un intero: se un float si intrufolasse, con locale italiano stamperebbe una virgola
-	// e spezzerebbe la riga in 14 colonne. Il controllo qui sopra lo prende; questo dice PERCHE'.
+	// e spezzerebbe la riga in **quindici** colonne. Il controllo qui sopra lo prende; questo dice PERCHE'.
+	// ⚠️ Il numero in questa frase segue il conteggio delle colonne: diceva «14» quando l'intestazione ne
+	// aveva 13, ed e' rimasto indietro all'aggiunta della quattordicesima — cioe' spiegava il caso ROTTO
+	// nominando quello sano. Se aggiungi una colonna, questa riga si aggiorna con l'assert sopra.
 	for (const FString& Col : RowCols)
 	{
 		TestTrue(FString::Printf(TEXT("colonna intera: %s"), *Col), Col.IsNumeric() && !Col.Contains(TEXT(".")));

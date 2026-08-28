@@ -6355,21 +6355,24 @@ void ARTTurnManager::ClosePacingSample()
 			// sparire proprio le attese dei turni piu' concitati — cioe' quelle che tarano il bank.
 			if (const ARTUnit* Unit = Cast<ARTUnit>(Actor))
 			{
-				if (Unit->TeamId == PacingTeamId)
+				// 🔴 **Lo `0` non entra**: [D-063] lo riserva a «nessuna unita' dichiarata», e
+				// `EnsureMatchRoster` assegna gli id da 1 lasciandolo libero apposta. Un'unita' spawnata
+				// DOPO il congelamento del roster lo conserva — e con `0` nel set, una voce di log senza
+				// soggetto, o un'evocazione avversaria nella stessa condizione, finirebbe nel bank del
+				// giocatore misurato: esattamente la confusione fra squadre che il filtro per responder
+				// esiste per impedire ([D-167]).
+				if (Unit->TeamId == PacingTeamId && Unit->StableUnitId != 0)
 				{
 					Responders.Add(Unit->StableUnitId);
 				}
 			}
 		}
 
-		// `PacingCurrent.TurnNumber` e non `TurnNumber`: il campione porta il turno che ha APERTO, e il
-		// contatore del manager puo' essere gia' avanzato quando si chiude.
-		const int32 SampleTurn = PacingCurrent.TurnNumber;
-		const TArray<FRTTurnLogEntry> ThisTurn = TurnLog.FilterByPredicate(
-			[SampleTurn](const FRTTurnLogEntry& E) { return E.TurnNumber == SampleTurn; });
-
+		// ⚠️ Nessun filtro per turno, e non e' una dimenticanza: `LockInAndResolve` fa `TurnLog.Reset()`
+		// prima di ogni risoluzione, quindi il log contiene **gia' e solo** il turno corrente. Il filtro che
+		// stava qui copiava l'intero array — ogni voce con le sue `FString` — per un predicato sempre vero.
 		PacingCurrent.ReactionWindowsOpened =
-			URTPacingLibrary::CountOpenedReactionWindows(ThisTurn, Responders);
+			URTPacingLibrary::CountOpenedReactionWindows(TurnLog, Responders);
 	}
 
 	PacingSamples.Add(PacingCurrent);

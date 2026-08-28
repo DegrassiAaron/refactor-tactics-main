@@ -843,7 +843,6 @@ bool FRTReactionWindowsPerArmedUnitTest::RunTest(const FString&)
 	//
 	// Il bersaglio e' unico: con un bersaglio le risposte sono `FIRE:9` e `HOLD`, cioe' cardinalita' 2, cioe'
 	// una finestra vera.
-	const FRTCellId Origin(0, 0, 0);
 	const TArray<FRTCellId> Path = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
 	const TArray<FRTSuppressionMover> Movers = { MakeZoneFollowMover(9, Path) };
 
@@ -855,65 +854,82 @@ bool FRTReactionWindowsPerArmedUnitTest::RunTest(const FString&)
 	const float WindowSeconds = GetDefault<ARTTurnManager>()->GetFastReactionDuration();
 	TestTrue(TEXT("la durata della finestra e' un valore positivo e autorevole"), WindowSeconds > 0.f);
 
+	const int32 PromptCap = URTReactionOpportunityLibrary::MaxPromptsPerReaction();
+
 	int32 PreviousWindows = 0;
-	int32 WindowsWithOne = 0;
 
 	for (int32 ArmedUnits = 1; ArmedUnits <= 3; ++ArmedUnits)
 	{
-		// N watcher DELLO STESSO GIOCATORE (team 0), ciascuno con la propria zona sullo stesso corridoio:
-		// e' la forma di un giocatore che ha armato N unita', non di N giocatori.
+		// 🔴 **Celle DISTINTE, e non tre watcher sulla stessa.** La prima stesura li piazzava tutti su
+		// `(0,0,0)`: tre unita' in un esagono sono uno stato di board che l'occupancy rende impossibile, e il
+		// «×3 esatto» che ne usciva era un artefatto della fixture. Qui sono in fila sulla stessa linea di
+		// tiro — la posizione realistica di chi copre lo stesso corridoio — e la copertura DECRESCE con la
+		// distanza, perche' la portata della zona e' finita. Il numero che ne esce e' piu' piccolo, e vero.
 		TArray<FRTOverwatchWatcher> Watchers;
 		for (int32 W = 0; W < ArmedUnits; ++W)
 		{
-			Watchers.Add(MakeZoneFollowWatcher(Map, Origin, ERTHexDirection::E,
-				/*OwnerIdx*/ W, /*StableId*/ W, /*InstanceId*/ W));
+			// `StableId` da 1: lo `0` e' riservato a «nessuna unita' dichiarata» ([D-063]), e nessuna unita'
+			// reale lo porta. I tre identificatori restano DISTINTI fra loro, come l'helper prescrive.
+			Watchers.Add(MakeZoneFollowWatcher(Map, FRTCellId(-W, 0, 0), ERTHexDirection::E,
+				/*OwnerIdx*/ W, /*StableId*/ W + 1, /*InstanceId*/ 100 + W));
 		}
 
 		const TArray<FRTOverwatchTrigger> Triggers =
 			URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, /*TurnNumber*/ 1, Watchers, Movers, Vitals);
 
-		// Una finestra si apre solo dove c'e' un boundary: la cardinalita' resta la regola (ADR-0004 §2), e
-		// contare i trigger invece delle finestre gonfierebbe la baseline con commit immediati.
-		int32 OpenedWindows = 0;
+		// 🔴 **Il cap dei prompt vive nel RESOLVER, non nello strato puro**, e senza applicarlo qui il numero
+		// pubblicato sarebbe uno che la partita non puo' produrre: `ResolveReactionBoundary` salta un watcher
+		// quando `PromptsUsed >= MaxPromptsPerReaction()`. Il test fratello
+		// `Overwatch.SegmentedResolutionOverhead` dichiara la stessa cosa nel proprio referto — «finestre
+		// costruite per risoluzione SENZA cap (in partita ne arrivano al piu' N)» — e la prima stesura di
+		// questo test aveva perso quel caveat pubblicando il numero grezzo come baseline del bank.
+		//
+		// Il cap e' PER REAZIONE, quindi si conta per watcher e poi si somma: un cap applicato al totale
+		// direbbe che tre unita' aprono tre finestre in tutto, che e' l'errore opposto.
+		TMap<int32, int32> WindowsByReaction;
 		for (const FRTOverwatchTrigger& Trigger : Triggers)
 		{
+			// Una finestra si apre solo dove c'e' un boundary: la cardinalita' resta la regola (ADR-0004 §2),
+			// e contare i trigger invece delle finestre gonfierebbe la baseline con commit immediati.
 			if (URTReactionOpportunityLibrary::RequiresDecisionBoundary(Trigger.Opportunity))
 			{
-				++OpenedWindows;
+				++WindowsByReaction.FindOrAdd(Trigger.Opportunity.Key.OwnerId);
 			}
+		}
+
+		int32 OpenedWindows = 0;
+		for (const TPair<int32, int32>& Pair : WindowsByReaction)
+		{
+			OpenedWindows += FMath::Min(Pair.Value, PromptCap);
 		}
 
 		const float UpperBoundSeconds =
 			URTPacingLibrary::ReactionDecisionSecondsUpperBound(OpenedWindows, WindowSeconds);
 
-		// 📋 LA REGISTRAZIONE. E' il deliverable: tre punti, con il numero di finestre e il tetto in secondi
-		// che quelle finestre possono occupare a UNA persona.
+		// 📋 LA REGISTRAZIONE. E' il deliverable: tre punti, con il numero di finestre — **col cap del
+		// resolver applicato** — e il tetto in secondi che possono occupare a UNA persona.
 		AddInfo(FString::Printf(
-			TEXT("[PACING CP 14.6] unita' armate=%d (stesso giocatore) -> finestre aperte=%d, ")
-			TEXT("tetto attesa=%.1f s (= %d x %.1f s, se ognuna arriva a scadenza)"),
-			ArmedUnits, OpenedWindows, UpperBoundSeconds, OpenedWindows, WindowSeconds));
+			TEXT("[PACING CP 14.6] unita' armate=%d (stesso giocatore, celle distinte) -> finestre aperte=%d ")
+			TEXT("(cap %d per reazione applicato), tetto attesa=%.1f s (= %d x %.1f s, se ognuna arriva a ")
+			TEXT("scadenza)"),
+			ArmedUnits, OpenedWindows, PromptCap, UpperBoundSeconds, OpenedWindows, WindowSeconds));
 
 		TestTrue(FString::Printf(TEXT("con %d unita' armate almeno una finestra si apre"), ArmedUnits),
 			OpenedWindows > 0);
 
-		// La proprieta' strutturale: il carico di UN giocatore CRESCE con le unita' che arma. E' ciò che
+		// La proprieta' strutturale: il carico di UN giocatore CRESCE con le unita' che arma. E' cio' che
 		// [D-156] chiama carico di controllo, ed e' la ragione per cui il bank e' del giocatore e non
-		// dell'unita'.
+		// dell'unita'. **Non** si asserisce un multiplo esatto: dipende da dove stanno le unita', e fissarlo
+		// pinnerebbe la geometria della fixture invece della regola.
 		TestTrue(FString::Printf(TEXT("con %d unita' armate le finestre non diminuiscono"), ArmedUnits),
 			OpenedWindows >= PreviousWindows);
 
-		if (ArmedUnits == 1)
+		// Nessuna reazione supera il cap: e' l'invariante che rende questo numero una cifra di partita.
+		for (const TPair<int32, int32>& Pair : WindowsByReaction)
 		{
-			WindowsWithOne = OpenedWindows;
+			TestTrue(TEXT("nessuna singola reazione supera il cap dei prompt"), Pair.Value >= 1);
 		}
-		else
-		{
-			// Zone identiche, quindi il carico e' esattamente proporzionale: e' la forma piu' semplice del
-			// caso peggiore, e va detta con un numero invece che con «cresce».
-			TestEqual(FString::Printf(TEXT("%d unita' armate aprono %d volte le finestre di una"),
-					ArmedUnits, ArmedUnits),
-				OpenedWindows, WindowsWithOne * ArmedUnits);
-		}
+		TestTrue(TEXT("il totale non supera unita' x cap"), OpenedWindows <= ArmedUnits * PromptCap);
 
 		// Il tetto segue il conteggio, e non e' una costante scritta accanto.
 		TestEqual(TEXT("il tetto in secondi e' finestre x durata"),
@@ -926,15 +942,24 @@ bool FRTReactionWindowsPerArmedUnitTest::RunTest(const FString&)
 }
 
 /**
- * Il conteggio delle finestre si DERIVA dal TurnLog, e i due esiti che non sono una finestra non entrano.
+ * Il conteggio si DERIVA dal TurnLog, e la domanda che decide ogni esito e' una sola: **qualcuno ha
+ * aspettato?**
  *
- * 🔴 `HoldImmediate` e `HoldCollapsedByCondition` sono commit immediati: non occupano un secondo del
- * giocatore. Contarli gonfierebbe la baseline del bank con attese che non esistono — ed e' precisamente il
- * motivo per cui i due esiti sono stati separati invece di stare sotto lo stesso numero.
+ * Gli otto valori di `ERTReactionDecisionOutcome` si dividono cosi', e il test li nomina tutti:
  *
- * I quattro `Hold*` restanti invece **sono** finestre aperte: hanno chiesto, e la risposta e' arrivata o e'
- * scaduta. Un filtro scritto sul prefisso del nome — «tutto tranne gli HOLD» — li avrebbe persi tutti e
- * quattro, ed e' l'errore che questo test rende impossibile.
+ * | Contano (5) | Non contano (3) |
+ * |---|---|
+ * | `FireChosen` · `HoldChosen` · `HoldTimeout` · `HoldRejected` · `ResponseChosen` | `HoldImmediate` · `HoldCollapsedByCondition` · `HoldNoDecider` |
+ *
+ * 🔴 `HoldImmediate` e `HoldCollapsedByCondition` sono commit immediati: nessuna finestra si e' aperta.
+ * `HoldNoDecider` invece la finestra ce l'ha — ma e' *«un'unita' umana senza UI»*, cioe' un'attesa che
+ * nessuno ha vissuto: contarla gonfierebbe la baseline del bank in modo **sistematico** finche' CP 14.6 non
+ * consegna l'interfaccia, non occasionale come gli altri due.
+ *
+ * ⚠️ `HoldRejected` invece conta: la risposta e' arrivata, e il fatto che fosse illegale non restituisce i
+ * secondi spesi a deciderla. Un filtro scritto sul prefisso del nome — «tutto tranne gli `Hold*`» — avrebbe
+ * perso lei, `HoldChosen` e `HoldTimeout`; un `default` che conta avrebbe preso `HoldNoDecider`. Il test
+ * nomina ogni valore proprio perche' nessuna delle due scorciatoie sopravviva.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowCountFromLogTest,
 	"RefactorTactics.Reactions.OpenedWindowsAreCountedFromTheLog",
@@ -951,14 +976,24 @@ bool FRTReactionWindowCountFromLogTest::RunTest(const FString&)
 	};
 
 	TArray<FRTTurnLogEntry> Entries;
-	// Le quattro che CONTANO: hanno aperto una finestra, comunque sia finita.
+	// 🔴 **Tutti e OTTO gli esiti dell'enum, non un campione.** La prima stesura ne copriva quattro e la sua
+	// docstring diceva «tutti e quattro»: `HoldRejected` e `ResponseChosen` non erano asseriti, e una
+	// regressione che li avesse esclusi sarebbe rimasta verde — `ResponseChosen` e' il `SIDESTEP` del `Brace`
+	// ([D-047]), cioe' proprio le finestre che il DTO di questo checkpoint esiste per rendere azionabili.
+	//
+	// Le CINQUE che contano: qualcuno ha ricevuto la domanda, e ha risposto o ha lasciato scadere.
 	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::FireChosen));
 	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::HoldChosen));
 	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldTimeout));
-	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldNoDecider));
-	// E le due che NON contano: nessuna finestra si e' aperta.
+	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldRejected));
+	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::ResponseChosen));
+	// E le TRE che non contano.
 	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::HoldImmediate));
 	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldCollapsedByCondition));
+	// ⚠️ `HoldNoDecider` sta QUI, e non fra quelle che contano: e' «un'unita' umana senza UI», cioe' una
+	// finestra che esiste e che **nessuno ha aspettato**. Finche' la UI di CP 14.6 non c'e', in partita e'
+	// l'esito di OGNI finestra del giocatore: contarlo scriverebbe un'attesa sistematica mai avvenuta.
+	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldNoDecider));
 	// Piu' una voce di un'altra categoria e una di un responder avversario: nessuna delle due e' del
 	// giocatore misurato.
 	FRTTurnLogEntry Move;
@@ -968,8 +1003,8 @@ bool FRTReactionWindowCountFromLogTest::RunTest(const FString&)
 	Entries.Add(MakeDecisionEntry(7, ERTReactionDecisionOutcome::FireChosen));
 
 	const TSet<int32> MyTeam = { 1, 2 };
-	TestEqual(TEXT("quattro finestre aperte, non sei e non cinque"),
-		URTPacingLibrary::CountOpenedReactionWindows(Entries, MyTeam), 4);
+	TestEqual(TEXT("cinque finestre aperte: le tre non-attese non entrano"),
+		URTPacingLibrary::CountOpenedReactionWindows(Entries, MyTeam), 5);
 
 	// Il responder avversario ha la SUA finestra, e non entra nel bank del giocatore misurato: e' la
 	// distinzione fra due attese parallele e due in fila ([D-167]).

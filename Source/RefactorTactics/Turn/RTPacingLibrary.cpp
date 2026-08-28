@@ -39,6 +39,11 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 			++Out.SkippedPlaybacks;
 		}
 
+		// Le finestre si sommano PRIMA di ogni esclusione, per la stessa ragione del playback: sono un fatto
+		// osservato del turno e non dipendono dal cronometro della pianificazione. Un turno senza tempi
+		// misurati — ogni run headless — ha comunque aperto le finestre che ha aperto.
+		Out.TotalReactionWindows += S.ReactionWindowsOpened;
+
 		// ⚠️ Un campione NON MISURATO non e' un lock-in rapido: e' l'assenza di una misura, e va tolto da
 		// ogni statistica che risponde «quanto tempo». La sentinella e' negativa apposta, ma escluderla non
 		// e' automatico — `Unmeasured < CutoffWindowMs` e' sempre vero, quindi senza questa guardia OGNI
@@ -81,11 +86,6 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 int32 URTPacingLibrary::CountOpenedReactionWindows(const TArray<FRTTurnLogEntry>& Entries,
 	const TSet<int32>& ResponderUnitIds)
 {
-	if (ResponderUnitIds.Num() == 0)
-	{
-		return 0;
-	}
-
 	int32 Opened = 0;
 	for (const FRTTurnLogEntry& Entry : Entries)
 	{
@@ -98,20 +98,54 @@ int32 URTPacingLibrary::CountOpenedReactionWindows(const TArray<FRTTurnLogEntry>
 			continue;
 		}
 
-		// I due esiti che NON sono una finestra. Elencati per nome invece di dedurli «tutto tranne gli HOLD»:
-		// `HoldChosen`, `HoldTimeout`, `HoldNoDecider` e `HoldRejected` sono finestre APERTE che hanno
-		// prodotto un hold — hanno occupato il giocatore comunque — e un filtro sul prefisso del nome le
-		// avrebbe scartate tutte e quattro.
+		// 🔴 **ELENCO POSITIVO, non «tutto tranne».** Un `default` che conta gonfierebbe la baseline al primo
+		// esito aggiunto all'enum — e `ERTReactionDecisionOutcome` **prescrive** che i valori nuovi si
+		// aggiungano in coda, quindi non e' un'ipotesi: `ResponseChosen` e `HoldCollapsedByCondition` sono
+		// arrivati esattamente cosi'. Un secondo motivo di collasso, o una opportunity annullata, cadrebbero
+		// nel ramo che conta senza che nessun test diventi rosso. Qui il caso nuovo non conta **finche'
+		// qualcuno non lo dichiara**, e lo `switch` senza `default` lo fa dire al compilatore.
+		//
 		// `Outcome` e' un `uint8` condiviso da tutte le categorie: il cast e' legittimo SOLO dopo il filtro
 		// sulla categoria qui sopra, che e' la ragione per cui i due controlli sono in quest'ordine.
 		const ERTReactionDecisionOutcome Outcome = static_cast<ERTReactionDecisionOutcome>(Entry.Outcome);
-		if (Outcome == ERTReactionDecisionOutcome::HoldImmediate
-			|| Outcome == ERTReactionDecisionOutcome::HoldCollapsedByCondition)
+		bool bOccupiedSomeone = false;
+		switch (Outcome)
 		{
-			continue;
+		case ERTReactionDecisionOutcome::FireChosen:
+		case ERTReactionDecisionOutcome::HoldChosen:
+		case ERTReactionDecisionOutcome::HoldTimeout:
+		case ERTReactionDecisionOutcome::HoldRejected:
+		case ERTReactionDecisionOutcome::ResponseChosen:
+			// Qualcuno ha ricevuto la domanda e ha risposto, o ha lasciato scadere: in tutti e cinque i casi
+			// la finestra ha occupato il suo tempo. `HoldRejected` incluso — la risposta e' arrivata, e il
+			// fatto che fosse illegale non restituisce i secondi spesi a deciderla.
+			bOccupiedSomeone = true;
+			break;
+
+		case ERTReactionDecisionOutcome::HoldNoDecider:
+			// 🔴 **Esiste la finestra, non l'attesa.** `AskReactionDecision` restituisce questo esito per
+			// *«un'unita' umana senza UI: la finestra esiste e nessuno puo' rispondere»* — e la UI **e'**
+			// CP 14.6, cioe' oggi non c'e'. Contarlo scriverebbe `3,0 s` di attesa per ogni finestra di una
+			// persona che non e' mai stata interpellata: la stessa inflazione per cui `HoldImmediate` e'
+			// escluso, applicata all'esito che la rende sistematica invece che occasionale.
+			//
+			// ➕ **Rientrera' da solo** quando la UI di DIR-A atterrera': quelle finestre diventeranno
+			// `HoldChosen` o `HoldTimeout`, che stanno nel ramo sopra. Nessuno dovra' ricordarsi di
+			// aggiornare questa funzione.
+			break;
+
+		case ERTReactionDecisionOutcome::HoldImmediate:
+		case ERTReactionDecisionOutcome::HoldCollapsedByCondition:
+			// Commit immediati: nessuna finestra si e' aperta, nessun secondo speso. I due esiti sono
+			// separati apposta — «non c'era scelta» e «la condizione dichiarata l'ha tolta» sono meccanismi
+			// diversi — e qui contano allo stesso modo: zero.
+			break;
 		}
 
-		++Opened;
+		if (bOccupiedSomeone)
+		{
+			++Opened;
+		}
 	}
 
 	return Opened;
