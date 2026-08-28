@@ -100,7 +100,9 @@ bool FRTScenarioTurnAuthoringMoveAndWaitTest::RunTest(const FString&)
 
 	TestEqual(TEXT("si parte senza turni"), Draft.NumTurns(), 0);
 
-	const int32 Turn = Draft.AddTurn();
+	int32 Turn = INDEX_NONE;
+	TestEqual(TEXT("il turno si aggiunge"),
+		Draft.AddTurn(Turn, Error), ERTScenarioAuthoringResult::Success);
 	TestEqual(TEXT("il primo turno ha indice 0"), Turn, 0);
 	TestEqual(TEXT("ora c'e' un turno"), Draft.NumTurns(), 1);
 
@@ -172,7 +174,8 @@ bool FRTScenarioTurnAuthoringRefusalsTest::RunTest(const FString&)
 		Draft.SetMoveIntent(0, TEXT("A1"), Path, Error), ERTScenarioAuthoringResult::NotFound);
 	TestTrue(*FString::Printf(TEXT("e nomina il turno (era: %s)"), *Error), Error.Contains(TEXT("turno")));
 
-	const int32 Turn = Draft.AddTurn();
+	int32 Turn = INDEX_NONE;
+	Draft.AddTurn(Turn, Error);
 
 	// Unita' non schierata.
 	TestEqual(TEXT("Move per un'unita' inesistente -> NotFound"),
@@ -199,7 +202,9 @@ bool FRTScenarioTurnAuthoringRefusalsTest::RunTest(const FString&)
 
 	// Un draft chiuso risponde `NoScenarioOpen` a tutte, invece di fingere.
 	FRTScenarioDraft Empty;
-	TestEqual(TEXT("AddTurn su draft chiuso"), Empty.AddTurn(), INDEX_NONE);
+	int32 Ignored = INDEX_NONE;
+	TestEqual(TEXT("AddTurn su draft chiuso"),
+		Empty.AddTurn(Ignored, Error), ERTScenarioAuthoringResult::NoScenarioOpen);
 	TestEqual(TEXT("SetMoveIntent su draft chiuso"),
 		Empty.SetMoveIntent(0, TEXT("A1"), Path, Error), ERTScenarioAuthoringResult::NoScenarioOpen);
 	TestEqual(TEXT("SetWaitIntent su draft chiuso"),
@@ -327,7 +332,12 @@ bool FRTScenarioTurnAuthoringRoundTripAndMutationTest::RunTest(const FString&)
 	}
 
 	// Uno scenario costruito interamente dall'authoring: turno, Move, Wait, expectation.
-	const int32 Turn = Draft.AddTurn();
+	int32 Turn = INDEX_NONE;
+	if (!TestEqual(TEXT("turno aggiunto"), Draft.AddTurn(Turn, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
 	const TArray<FRTCellId> Path1 = { FRTCellId(-1, 0, 0) };
 	TestEqual(TEXT("Move scritto"),
 		Draft.SetMoveIntent(Turn, TEXT("A1"), Path1, Error), ERTScenarioAuthoringResult::Success);
@@ -372,14 +382,19 @@ bool FRTScenarioTurnAuthoringRoundTripAndMutationTest::RunTest(const FString&)
 	// ⚠️ **Verifica di mutazione, richiesta da #1116**: *«cambiare la cella di destinazione fa fallire
 	// l'expectation UnitAtCell quando lo scenario viene eseguito»*. Non basta che il dato cambi: deve cambiare
 	// l'ESITO, e l'unico modo di saperlo e' farlo girare dal percorso reale.
-	UWorld* World = MakeTurnAuthoringWorld();
-	if (!TestNotNull(TEXT("mondo per l'esecuzione"), World))
+	// 🔴 **Un mondo PER RUN.** La prima stesura ne usava uno solo per entrambe le esecuzioni, e la review di
+	// `#1116` ha mostrato perche' non vale: `URTScenarioRunner::Run` non smonta il mondo, quindi le unita' e
+	// il turn manager del primo run sopravvivono. Il secondo run ne avrebbe trovate quattro invece di due, e
+	// l'esito sarebbe cambiato **per il residuo, non per la mutazione** — l'assertion sarebbe passata per la
+	// ragione sbagliata, cioe' il verde che non prova niente. Tutti gli altri test del runner costruiscono un
+	// mondo per esecuzione, e questo era l'unico a non farlo.
+	UWorld* WorldA = MakeTurnAuthoringWorld();
+	if (!TestNotNull(TEXT("mondo per la prima esecuzione"), WorldA))
 	{
 		return false;
 	}
-	ON_SCOPE_EXIT{ DestroyTurnAuthoringWorld(World); };
-
-	const FRTTestResult Passing = URTScenarioRunner::Run(World, Reloaded.GetScenario());
+	const FRTTestResult Passing = URTScenarioRunner::Run(WorldA, Reloaded.GetScenario());
+	DestroyTurnAuthoringWorld(WorldA);
 	if (!TestEqual(TEXT("lo scenario costruito dall'authoring PASSA"),
 		static_cast<int32>(Passing.Outcome), static_cast<int32>(ERTTestOutcome::Pass)))
 	{
@@ -399,7 +414,13 @@ bool FRTScenarioTurnAuthoringRoundTripAndMutationTest::RunTest(const FString&)
 	TestEqual(TEXT("destinazione mutata"),
 		Mutated.SetMoveIntent(0, TEXT("A1"), Elsewhere, Error), ERTScenarioAuthoringResult::Success);
 
-	const FRTTestResult AfterMutation = URTScenarioRunner::Run(World, Mutated.GetScenario());
+	UWorld* WorldB = MakeTurnAuthoringWorld();
+	if (!TestNotNull(TEXT("mondo per la seconda esecuzione"), WorldB))
+	{
+		return false;
+	}
+	const FRTTestResult AfterMutation = URTScenarioRunner::Run(WorldB, Mutated.GetScenario());
+	DestroyTurnAuthoringWorld(WorldB);
 
 	// I due esiti devono DIFFERIRE. Se restassero uguali, l'expectation non starebbe misurando la
 	// destinazione — cioe' lo scenario passerebbe comunque, ed e' il verde che non prova niente.
@@ -456,7 +477,10 @@ bool FRTScenarioTurnAuthoringIsExposedTest::RunTest(const FString&)
 	Authoring->NewScenario(TEXT("segnaposto"), 3);
 	Authoring->GetDraft().MutableScenario() = Loaded;
 
-	TestEqual(TEXT("la facade aggiunge un turno"), Authoring->AddTurn(), 0);
+	int32 FacadeTurn = INDEX_NONE;
+	TestEqual(TEXT("la facade aggiunge un turno"),
+		Authoring->AddTurn(FacadeTurn, Error), ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("con indice 0"), FacadeTurn, 0);
 	TestEqual(TEXT("e lo conta"), Authoring->GetTurnCount(), 1);
 	TestEqual(TEXT("la facade scrive un Move"),
 		Authoring->SetMoveIntent(0, TEXT("A1"), { FRTCellId(-1, 0, 0) }, Error),
@@ -471,6 +495,175 @@ bool FRTScenarioTurnAuthoringIsExposedTest::RunTest(const FString&)
 	const TArray<FRTCellId> Reachable = Authoring->GetReachableCells(TEXT("A1"), Error);
 	TestTrue(*FString::Printf(TEXT("la preview risponde dalla facade (errore: %s)"), *Error), Error.IsEmpty());
 	TestTrue(TEXT("e offre almeno una cella"), Reachable.Num() > 0);
+
+	return true;
+}
+
+// --- i difetti che la review ha trovato -----------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIntentPreservesOtherFieldsTest,
+	"RefactorTactics.Scenario.SettingAMoveDoesNotEraseTheRestOfTheIntent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIntentPreservesOtherFieldsTest::RunTest(const FString&)
+{
+	// 🔴 La prima stesura costruiva un `FRTScenarioIntent` NUOVO e lo assegnava sopra quello esistente:
+	// abilita', bersaglio, reazione e condizione sparivano in silenzio per un click che voleva solo cambiare
+	// il percorso. E' la stessa cancellazione muta del lavoro altrui che `RemoveUnit` si rifiuta di fare.
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenTurnDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	int32 Turn = INDEX_NONE;
+	Draft.AddTurn(Turn, Error);
+
+	// Un intent ricco, come ne esistono negli scenari scritti a mano.
+	FRTScenarioIntent Rich;
+	Rich.UnitId = TEXT("A1");
+	Rich.Ability = FName(TEXT("Hero.Gadget.ArcPulse"));
+	Rich.Target = TEXT("B1");
+	Rich.Reaction = FName(TEXT("Action.Overwatch"));
+	Rich.Facing = ERTHexDirection::NW;
+	Rich.bDeclaresFacing = true;
+	Draft.MutableScenario().Turns[0].Intents.Add(Rich);
+
+	// Cambiare il percorso NON deve toccare il resto.
+	const TArray<FRTCellId> Path = { FRTCellId(-1, 0, 0) };
+	TestEqual(TEXT("il Move si scrive"),
+		Draft.SetMoveIntent(Turn, TEXT("A1"), Path, Error), ERTScenarioAuthoringResult::Success);
+
+	const FRTScenarioIntent& After = Draft.GetScenario().Turns[0].Intents[0];
+	TestEqual(TEXT("il nuovo percorso c'e'"), After.Move.Num(), 1);
+	TestEqual(TEXT("l'abilita' e' sopravvissuta"), After.Ability, FName(TEXT("Hero.Gadget.ArcPulse")));
+	TestEqual(TEXT("il bersaglio e' sopravvissuto"), After.Target, TEXT("B1"));
+	TestEqual(TEXT("la reazione e' sopravvissuta"), After.Reaction, FName(TEXT("Action.Overwatch")));
+	TestTrue(TEXT("la rotazione dichiarata e' sopravvissuta"), After.bDeclaresFacing);
+	TestEqual(TEXT("e la sua direzione"), After.Facing, ERTHexDirection::NW);
+
+	// `Wait` invece AZZERA — e' il suo significato — ma non in silenzio: deve dire cosa ha tolto.
+	TestEqual(TEXT("Wait si scrive"),
+		Draft.SetWaitIntent(Turn, TEXT("A1"), Error), ERTScenarioAuthoringResult::Success);
+	const FRTScenarioIntent& Waiting = Draft.GetScenario().Turns[0].Intents[0];
+	TestTrue(TEXT("l'abilita' e' stata tolta"), Waiting.Ability.IsNone());
+	TestTrue(TEXT("e il movimento pure"), Waiting.Move.Num() == 0);
+	TestFalse(TEXT("ma l'operazione non e' stata muta"), Error.IsEmpty());
+	TestTrue(*FString::Printf(TEXT("e nomina cio' che ha tolto (era: %s)"), *Error),
+		Error.Contains(TEXT("ArcPulse")));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLogEventOutcomeIsValidatedTest,
+	"RefactorTactics.Scenario.AuthoringRefusesALogOutcomeItCannotWrite",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLogEventOutcomeIsValidatedTest::RunTest(const FString&)
+{
+	// 🔴 `Outcome` arriva come `uint8` nudo — in Blueprint e' un pin Byte senza tendina — e senza controllo un
+	// valore fuori scala passava `Validate`, veniva serializzato come `"outcome": ""` e il file non si
+	// rileggeva piu': **lo strumento scriveva uno scenario che non sapeva riaprire.**
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenTurnDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	TestEqual(TEXT("un esito fuori scala e' rifiutato"),
+		Draft.AddExpectationLogEventCount(ERTLogCategory::Move, 200, 1, Error),
+		ERTScenarioAuthoringResult::Invalid);
+	TestTrue(*FString::Printf(TEXT("e l'errore elenca quelli previsti (era: %s)"), *Error),
+		Error.Contains(TEXT("previsti")));
+
+	// Un esito legale invece passa, e il file che ne esce si rilegge.
+	const int32 Before = Draft.GetScenario().Expect.Num();
+	if (!TestEqual(TEXT("un esito legale e' accettato"),
+		Draft.AddExpectationLogEventCount(ERTLogCategory::Move, 0, 1, Error),
+		ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestEqual(TEXT("l'assertion e' stata aggiunta"), Draft.GetScenario().Expect.Num(), Before + 1);
+
+	// Il giro completo: scrivere e rileggere. E' la prova che il rifiuto sopra evitava un file rotto.
+	FString Json;
+	if (TestTrue(TEXT("lo scenario si serializza"),
+		URTScenarioLoader::SaveToString(Draft.GetScenario(), Json, Error)))
+	{
+		FRTTestScenario ReloadedFromJson;
+		TestTrue(TEXT("e si rilegge"),
+			URTScenarioLoader::LoadFromString(Json, ReloadedFromJson, Error));
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioTurnAuthoringListsAndRemovesTest,
+	"RefactorTactics.Scenario.TurnAuthoringCanShowAndUndoWhatItWrote",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioTurnAuthoringListsAndRemovesTest::RunTest(const FString&)
+{
+	// Un editor che scrive e non mostra non e' un editor: `RemoveIntent` e `RemoveExpectation(indice)`
+	// chiedevano di nominare qualcosa che nessuna API sapeva elencare.
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenTurnDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	int32 Turn = INDEX_NONE;
+	Draft.AddTurn(Turn, Error);
+	Draft.SetMoveIntent(Turn, TEXT("A1"), { FRTCellId(-1, 0, 0) }, Error);
+	Draft.SetWaitIntent(Turn, TEXT("B1"), Error);
+
+	const TArray<FRTScenarioIntentView> Intents = Draft.ListIntents(Turn);
+	if (TestEqual(TEXT("due intent elencati"), Intents.Num(), 2))
+	{
+		TestEqual(TEXT("il primo e' A1"), Intents[0].UnitId, TEXT("A1"));
+		TestTrue(TEXT("e dichiara un movimento"), Intents[0].bHasMove);
+		TestTrue(*FString::Printf(TEXT("con una riga leggibile (era: %s)"), *Intents[0].Summary),
+			Intents[0].Summary.Contains(TEXT("Move")));
+		TestFalse(TEXT("il secondo non si muove"), Intents[1].bHasMove);
+		TestEqual(TEXT("ed e' descritto come Wait"), Intents[1].Summary, TEXT("Wait"));
+	}
+	TestEqual(TEXT("un turno inesistente non elenca nulla"), Draft.ListIntents(99).Num(), 0);
+
+	Draft.AddExpectationUnitAtCell(TEXT("A1"), FRTCellId(-1, 0, 0), Error);
+	const TArray<FRTScenarioExpectationView> Expectations = Draft.ListExpectations();
+	if (TestEqual(TEXT("due assertion elencate"), Expectations.Num(), 2))
+	{
+		// L'indice riportato e' quello che `RemoveExpectation` accetta: e' il contratto fra le due.
+		TestEqual(TEXT("indici progressivi"), Expectations[1].Index, 1);
+		TestEqual(TEXT("il tipo e' quello del JSON"), Expectations[1].Type, TEXT("UnitAtCell"));
+		TestEqual(TEXT("e nomina l'unita'"), Expectations[1].UnitId, TEXT("A1"));
+
+		TestEqual(TEXT("si toglie per indice"),
+			Draft.RemoveExpectation(Expectations[1].Index, Error), ERTScenarioAuthoringResult::Success);
+		TestEqual(TEXT("ne resta una"), Draft.ListExpectations().Num(), 1);
+	}
+
+	// Un turno aggiunto per sbaglio ora si toglie: senza, `Validate` lo accettava e il runner lo giocava.
+	int32 Extra = INDEX_NONE;
+	Draft.AddTurn(Extra, Error);
+	TestEqual(TEXT("due turni"), Draft.NumTurns(), 2);
+	TestEqual(TEXT("il turno di troppo si toglie"),
+		Draft.RemoveTurn(Extra, Error), ERTScenarioAuthoringResult::Success);
+	TestEqual(TEXT("ne resta uno"), Draft.NumTurns(), 1);
+	TestEqual(TEXT("togliere un turno inesistente -> NotFound"),
+		Draft.RemoveTurn(99, Error), ERTScenarioAuthoringResult::NotFound);
+
+	// E un intent per una unita' del bot viene rifiutato QUI, non al salvataggio.
+	Draft.MutableScenario().Units[1].bBotControlled = true;
+	TestEqual(TEXT("Move su unita' bot -> Invalid"),
+		Draft.SetMoveIntent(0, TEXT("B1"), { FRTCellId(1, 0, 0) }, Error),
+		ERTScenarioAuthoringResult::Invalid);
+	TestTrue(*FString::Printf(TEXT("e spiega perche' (era: %s)"), *Error), Error.Contains(TEXT("bot")));
 
 	return true;
 }

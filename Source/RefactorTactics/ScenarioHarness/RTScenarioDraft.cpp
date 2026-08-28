@@ -343,13 +343,45 @@ namespace
 	}
 }
 
-int32 FRTScenarioDraft::AddTurn()
+ERTScenarioAuthoringResult FRTScenarioDraft::AddTurn(int32& OutTurnIndex, FString& OutError)
 {
+	OutError.Reset();
+	OutTurnIndex = INDEX_NONE;
+
+	// L'esito tipizzato e non un `int32` con sentinella: e' la convenzione che l'header di questo file
+	// dichiara come regola, e la prima stesura la violava proprio qui. Un `-1` non spiegato finiva dritto in
+	// `SetMoveIntent(-1, ...)`, che rispondeva «turno -1 inesistente» — un errore sul problema sbagliato, a
+	// una chiamata di distanza da quello vero.
 	if (!bOpen)
 	{
-		return INDEX_NONE;
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
 	}
-	return Scenario.Turns.Add(FRTScenarioTurn());
+
+	OutTurnIndex = Scenario.Turns.Add(FRTScenarioTurn());
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::RemoveTurn(int32 TurnIndex, FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+	if (!Scenario.Turns.IsValidIndex(TurnIndex))
+	{
+		OutError = FString::Printf(TEXT("turno %d inesistente (ce ne sono %d)"), TurnIndex, Scenario.Turns.Num());
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	// Senza questa, un turno aggiunto per sbaglio non si toglieva piu': `Validate` accetta un turno vuoto,
+	// quindi il file si salvava e il runner lo GIOCAVA — un turno che nessuno ha scritto. L'unica uscita era
+	// modificare il JSON a mano, in uno strumento che esiste per non farlo.
+	Scenario.Turns.RemoveAt(TurnIndex);
+	return ERTScenarioAuthoringResult::Success;
 }
 
 ERTScenarioAuthoringResult FRTScenarioDraft::SetMoveIntent(int32 TurnIndex, const FString& UnitId,
@@ -367,10 +399,21 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetMoveIntent(int32 TurnIndex, cons
 		OutError = FString::Printf(TEXT("turno %d inesistente (ce ne sono %d)"), TurnIndex, Scenario.Turns.Num());
 		return ERTScenarioAuthoringResult::NotFound;
 	}
-	if (IndexOfUnit(UnitId) == INDEX_NONE)
+	const int32 UnitIndex = IndexOfUnit(UnitId);
+	if (UnitIndex == INDEX_NONE)
 	{
 		OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
 		return ERTScenarioAuthoringResult::NotFound;
+	}
+	// `ValidateScenarioTurns` rifiuta un intent dichiarato per una unita' affidata al bot: il piano lo scrive
+	// il bot, e scriverlo a mano vorrebbe dire due autori per lo stesso turno. Dirlo QUI invece che al
+	// salvataggio e' la stessa ragione per cui `AddExpectationUnitAtCell` controlla la sua condizione: senza,
+	// il designer scopre di avere uno scenario insalvabile molto dopo averlo reso tale.
+	if (Scenario.Units[UnitIndex].bBotControlled)
+	{
+		OutError = FString::Printf(
+			TEXT("'%s' e' guidata dal bot: il suo piano lo scrive il bot, non lo scenario"), *UnitId);
+		return ERTScenarioAuthoringResult::Invalid;
 	}
 	if (Path.Num() == 0)
 	{
@@ -384,18 +427,24 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetMoveIntent(int32 TurnIndex, cons
 	FRTScenarioTurn& Turn = Scenario.Turns[TurnIndex];
 	const int32 Existing = IndexOfIntent(Turn, UnitId);
 
-	FRTScenarioIntent Intent;
-	Intent.UnitId = UnitId;
-	Intent.Move = Path;
-
-	// Sostituisce invece di accumulare: un editor in cui la stessa unita' porta due piani nello stesso turno
-	// e' un editor che mente, e il resolver ne applicherebbe uno solo senza dire quale.
+	// 🔴 Si scrive **solo il campo del movimento**, non l'intero intent.
+	//
+	// La prima stesura costruiva un `FRTScenarioIntent` nuovo e lo assegnava sopra quello esistente: un
+	// intent che portava anche `ability`, `target`, `reaction` o una `condition` li perdeva tutti, in
+	// silenzio, per un click che voleva solo cambiare il percorso. E' la stessa cancellazione muta del lavoro
+	// altrui che `RemoveUnit` si rifiuta di fare tre funzioni piu' su — trovata dalla review di `#1116`.
+	//
+	// Un intent per unita' per turno resta la regola: un editor in cui la stessa unita' porta due piani nello
+	// stesso turno e' un editor che mente, e il resolver ne applicherebbe uno solo senza dire quale.
 	if (Existing != INDEX_NONE)
 	{
-		Turn.Intents[Existing] = MoveTemp(Intent);
+		Turn.Intents[Existing].Move = Path;
 	}
 	else
 	{
+		FRTScenarioIntent Intent;
+		Intent.UnitId = UnitId;
+		Intent.Move = Path;
 		Turn.Intents.Add(MoveTemp(Intent));
 	}
 	return ERTScenarioAuthoringResult::Success;
@@ -416,10 +465,21 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetWaitIntent(int32 TurnIndex, cons
 		OutError = FString::Printf(TEXT("turno %d inesistente (ce ne sono %d)"), TurnIndex, Scenario.Turns.Num());
 		return ERTScenarioAuthoringResult::NotFound;
 	}
-	if (IndexOfUnit(UnitId) == INDEX_NONE)
+	const int32 UnitIndex = IndexOfUnit(UnitId);
+	if (UnitIndex == INDEX_NONE)
 	{
 		OutError = FString::Printf(TEXT("unita' '%s' non schierata"), *UnitId);
 		return ERTScenarioAuthoringResult::NotFound;
+	}
+	// `ValidateScenarioTurns` rifiuta un intent dichiarato per una unita' affidata al bot: il piano lo scrive
+	// il bot, e scriverlo a mano vorrebbe dire due autori per lo stesso turno. Dirlo QUI invece che al
+	// salvataggio e' la stessa ragione per cui `AddExpectationUnitAtCell` controlla la sua condizione: senza,
+	// il designer scopre di avere uno scenario insalvabile molto dopo averlo reso tale.
+	if (Scenario.Units[UnitIndex].bBotControlled)
+	{
+		OutError = FString::Printf(
+			TEXT("'%s' e' guidata dal bot: il suo piano lo scrive il bot, non lo scenario"), *UnitId);
+		return ERTScenarioAuthoringResult::Invalid;
 	}
 
 	FRTScenarioTurn& Turn = Scenario.Turns[TurnIndex];
@@ -432,7 +492,27 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SetWaitIntent(int32 TurnIndex, cons
 
 	if (Existing != INDEX_NONE)
 	{
+		// ⚠️ Qui sostituire e' il SIGNIFICATO dell'operazione — «non fa nulla» vuol dire che non fa nemmeno
+		// cio' che faceva prima — ma non deve essere muto: se c'era un piano, chi ha cliccato deve sapere che
+		// l'ha tolto. Un editor che cancella in silenzio il lavoro di qualcun altro e' il difetto che la
+		// review di `#1116` ha trovato su `SetMoveIntent`, e questa e' la stessa domanda con un'altra risposta.
+		const FRTScenarioIntent& Previous = Turn.Intents[Existing];
+		TArray<FString> Cleared;
+		if (Previous.Move.Num() > 0) { Cleared.Add(TEXT("un movimento")); }
+		if (!Previous.Ability.IsNone()) { Cleared.Add(FString::Printf(TEXT("l'abilita' '%s'"), *Previous.Ability.ToString())); }
+		if (!Previous.Dash.IsNone()) { Cleared.Add(FString::Printf(TEXT("la mobilita' '%s'"), *Previous.Dash.ToString())); }
+		if (!Previous.Reaction.IsNone()) { Cleared.Add(FString::Printf(TEXT("la reazione '%s'"), *Previous.Reaction.ToString())); }
+		if (Previous.bDeclaresFacing) { Cleared.Add(TEXT("una rotazione dichiarata")); }
+		if (Previous.Condition.IsDeclared()) { Cleared.Add(TEXT("una condizione")); }
+
 		Turn.Intents[Existing] = MoveTemp(Intent);
+
+		if (Cleared.Num() > 0)
+		{
+			// L'esito resta `Success` — l'attesa e' stata scritta — ma il messaggio dice cosa e' sparito.
+			OutError = FString::Printf(TEXT("'%s' ora attende: tolti %s"), *UnitId,
+				*FString::Join(Cleared, TEXT(", ")));
+		}
 	}
 	else
 	{
@@ -513,11 +593,35 @@ ERTScenarioAuthoringResult FRTScenarioDraft::AddExpectationLogEventCount(ERTLogC
 
 	// `OutcomeEnumForCategory` e' la stessa funzione che il loader consulta: una categoria senza enum di esiti
 	// viene rifiutata qui come la', e per la stessa ragione.
-	if (URTScenarioLoader::OutcomeEnumForCategory(Category) == nullptr)
+	const UEnum* CategoryEnum = StaticEnum<ERTLogCategory>();
+	const FString CategoryName = CategoryEnum
+		? CategoryEnum->GetNameStringByValue(static_cast<int64>(Category)) : TEXT("?");
+
+	const UEnum* OutcomeEnum = URTScenarioLoader::OutcomeEnumForCategory(Category);
+	if (OutcomeEnum == nullptr)
 	{
-		const UEnum* CategoryEnum = StaticEnum<ERTLogCategory>();
 		OutError = FString::Printf(TEXT("la categoria %s non e' asseribile: non ha un enum di esiti"),
-			CategoryEnum ? *CategoryEnum->GetNameStringByValue(static_cast<int64>(Category)) : TEXT("?"));
+			*CategoryName);
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+
+	// 🔴 E l'esito dev'essere un valore CHE QUELL'ENUM SA NOMINARE.
+	//
+	// Manca a questo controllo, e la review di `#1116` lo ha trovato: `Outcome` arriva come `uint8` nudo — in
+	// Blueprint e' un pin Byte senza tendina — quindi un numero sbagliato e' l'errore che ci si aspetta.
+	// Senza il controllo passava `Validate`, e il writer lo serializzava con `GetNameStringByValue` che per un
+	// valore fuori scala torna stringa vuota: `"outcome": ""`. Il file finiva su disco e il loader non lo
+	// rileggeva piu' — **lo strumento d'authoring scriveva uno scenario che non sapeva riaprire.**
+	if (OutcomeEnum->GetNameStringByValue(static_cast<int64>(Outcome)).IsEmpty())
+	{
+		TArray<FString> Known;
+		for (int32 I = 0; I < OutcomeEnum->NumEnums() - 1; ++I)
+		{
+			Known.Add(OutcomeEnum->GetNameStringByIndex(I));
+		}
+		Known.Sort();
+		OutError = FString::Printf(TEXT("esito %d sconosciuto per la categoria %s (previsti: %s)"),
+			Outcome, *CategoryName, *FString::Join(Known, TEXT(", ")));
 		return ERTScenarioAuthoringResult::Invalid;
 	}
 
@@ -548,6 +652,79 @@ ERTScenarioAuthoringResult FRTScenarioDraft::RemoveExpectation(int32 Expectation
 
 	Scenario.Expect.RemoveAt(ExpectationIndex);
 	return ERTScenarioAuthoringResult::Success;
+}
+
+TArray<FRTScenarioIntentView> FRTScenarioDraft::ListIntents(int32 TurnIndex) const
+{
+	TArray<FRTScenarioIntentView> Views;
+	if (!bOpen || !Scenario.Turns.IsValidIndex(TurnIndex))
+	{
+		return Views;
+	}
+
+	const FRTScenarioTurn& Turn = Scenario.Turns[TurnIndex];
+	Views.Reserve(Turn.Intents.Num());
+	for (const FRTScenarioIntent& Intent : Turn.Intents)
+	{
+		FRTScenarioIntentView& View = Views.AddDefaulted_GetRef();
+		View.UnitId = Intent.UnitId;
+		View.bHasMove = Intent.Move.Num() > 0;
+		View.Move = Intent.Move;
+		View.Ability = Intent.Ability;
+
+		// La riga di lista dice cosa fa l'unita', nell'ordine in cui conta per chi guarda.
+		TArray<FString> Parts;
+		if (View.bHasMove) { Parts.Add(FString::Printf(TEXT("Move (%d celle)"), Intent.Move.Num())); }
+		if (!Intent.Ability.IsNone()) { Parts.Add(Intent.Ability.ToString()); }
+		if (!Intent.Dash.IsNone()) { Parts.Add(Intent.Dash.ToString()); }
+		if (!Intent.Reaction.IsNone()) { Parts.Add(Intent.Reaction.ToString()); }
+		if (Intent.bDeclaresFacing) { Parts.Add(TEXT("rotazione")); }
+		// Un intent che non dichiara niente E' l'attesa: e' cosi' che il formato la scrive.
+		View.Summary = Parts.Num() > 0 ? FString::Join(Parts, TEXT(" + ")) : TEXT("Wait");
+	}
+	return Views;
+}
+
+TArray<FRTScenarioExpectationView> FRTScenarioDraft::ListExpectations() const
+{
+	TArray<FRTScenarioExpectationView> Views;
+	if (!bOpen)
+	{
+		return Views;
+	}
+
+	// I nomi dei tipi si ricavano per riflessione, come li scrive il writer: una tabella parallela
+	// divergerebbe dall'enum al primo tipo aggiunto.
+	const UEnum* KindEnum = StaticEnum<ERTAssertionKind>();
+
+	Views.Reserve(Scenario.Expect.Num());
+	for (int32 Index = 0; Index < Scenario.Expect.Num(); ++Index)
+	{
+		const FRTTestExpectation& Exp = Scenario.Expect[Index];
+		FRTScenarioExpectationView& View = Views.AddDefaulted_GetRef();
+		View.Index = Index;
+		View.Type = KindEnum ? KindEnum->GetNameStringByValue(static_cast<int64>(Exp.Kind)) : FString();
+		View.UnitId = Exp.UnitId;
+
+		switch (Exp.Kind)
+		{
+		case ERTAssertionKind::UnitAtCell:
+			View.Summary = FString::Printf(TEXT("%s in %s"), *Exp.UnitId, *Exp.Cell.ToString());
+			break;
+		case ERTAssertionKind::LogEventCount:
+			View.Summary = FString::Printf(TEXT("%s x%d"),
+				*URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome), Exp.Value);
+			break;
+		default:
+			// Le altre assertion il formato le conosce e questa slice non le scrive: elencarle comunque e'
+			// cio' che permette di vedere — e togliere — quelle di uno scenario aperto da file.
+			View.Summary = Exp.UnitId.IsEmpty()
+				? FString::Printf(TEXT("%s = %d"), *View.Type, Exp.Value)
+				: FString::Printf(TEXT("%s su %s = %d"), *View.Type, *Exp.UnitId, Exp.Value);
+			break;
+		}
+	}
+	return Views;
 }
 
 // --- preview (#1116) -------------------------------------------------------------------------------------

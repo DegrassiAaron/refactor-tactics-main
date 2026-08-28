@@ -111,9 +111,13 @@ public:
 
 	// --- authoring dei turni (#1116) --------------------------------------------------------------------
 
-	/** Aggiunge un turno vuoto in coda e ne restituisce l'indice. Il primo turno e' `0`. */
+	/** Aggiunge un turno vuoto in coda. `OutTurnIndex` e' l'indice del turno creato; il primo e' `0`. */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
-	int32 AddTurn();
+	ERTScenarioAuthoringResult AddTurn(int32& OutTurnIndex, FString& OutError);
+
+	/** Toglie un turno. Serve perche' `Validate` accetta un turno vuoto e il runner lo giocherebbe. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult RemoveTurn(int32 TurnIndex, FString& OutError);
 
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
 	int32 GetTurnCount() const { return Draft.NumTurns(); }
@@ -143,9 +147,22 @@ public:
 	ERTScenarioAuthoringResult AddExpectationLogEventCount(ERTLogCategory Category, uint8 Outcome, int32 Count,
 		FString& OutError);
 
-	/** Toglie l'assertion in quella posizione. */
+	/** Toglie l'assertion in quella posizione. L'indice e' quello che `ListExpectations` riporta. */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
 	ERTScenarioAuthoringResult RemoveExpectation(int32 ExpectationIndex, FString& OutError);
+
+	/**
+	 * Gli intent di un turno, per mostrarli e per sapere quale togliere.
+	 *
+	 * ⚠️ Senza questa e la sorella, la facade poteva SCRIVERE un turno e non mostrarlo: `RemoveIntent` e
+	 * `RemoveExpectation(indice)` chiedevano di nominare qualcosa che nessuna API sapeva elencare.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
+	TArray<FRTScenarioIntentView> ListIntents(int32 TurnIndex) const;
+
+	/** Le assertion dello scenario, con l'indice che `RemoveExpectation` accetta. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
+	TArray<FRTScenarioExpectationView> ListExpectations() const;
 
 	/**
 	 * Le celle raggiungibili dall'unita' nell'initial state, **chieste al servizio runtime**.

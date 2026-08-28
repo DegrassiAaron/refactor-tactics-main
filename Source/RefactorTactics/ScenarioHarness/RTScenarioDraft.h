@@ -101,6 +101,59 @@ struct FRTScenarioUnitView
 };
 
 /**
+ * Vista di sola lettura su un intent gia' scritto. Come le altre: una fotografia, non il modello.
+ *
+ * `Summary` e' pensato per una riga di lista — «Move (3 celle)», «Wait» — e non per essere interpretato: chi
+ * volesse ricostruire l'intent dal testo starebbe scrivendo un parser su una stringa d'interfaccia.
+ */
+USTRUCT(BlueprintType)
+struct FRTScenarioIntentView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString UnitId;
+
+	/** `true` se l'intent dichiara un movimento. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	bool bHasMove = false;
+
+	/** Le celle del percorso, vuote per un'attesa. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	TArray<FRTCellId> Move;
+
+	/** Vuoto se l'intent non dichiara un'abilita'. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FName Ability;
+
+	/** Riga leggibile per una lista. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString Summary;
+};
+
+/** Vista di sola lettura su una assertion. L'indice e' quello che `RemoveExpectation` accetta. */
+USTRUCT(BlueprintType)
+struct FRTScenarioExpectationView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	int32 Index = 0;
+
+	/** Il nome del tipo, come lo scrive il JSON: `UnitAtCell`, `LogEventCount`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString Type;
+
+	/** Vuoto per le assertion che non nominano una unita'. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString UnitId;
+
+	/** Riga leggibile per una lista. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString Summary;
+};
+
+/**
  * Lo scenario **in lavorazione**: apertura, creazione, validazione, salvataggio.
  *
  * C++ puro e senza `UObject`: la logica sta qui e la porta Blueprint (`URTScenarioAuthoring`) traduce e basta.
@@ -201,8 +254,16 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 	// La fetta e' volutamente sottile: `Move` e `Wait`, due expectation. Un authoring di tutte le assertion
 	// che il formato conosce sarebbe il «mega framework» che la spec vieta.
 
-	/** Aggiunge un turno vuoto in coda e ne restituisce l'indice. Il primo turno e' `0`. */
-	int32 AddTurn();
+	/** Aggiunge un turno vuoto in coda. `OutTurnIndex` e' l'indice del turno creato; il primo e' `0`. */
+	ERTScenarioAuthoringResult AddTurn(int32& OutTurnIndex, FString& OutError);
+
+	/**
+	 * Toglie un turno. `NotFound` se l'indice non esiste.
+	 *
+	 * ⚠️ Serve perche' `Validate` ACCETTA un turno vuoto: senza, un turno aggiunto per sbaglio restava nel
+	 * file e il runner lo giocava — un turno che nessuno ha scritto.
+	 */
+	ERTScenarioAuthoringResult RemoveTurn(int32 TurnIndex, FString& OutError);
 
 	int32 NumTurns() const { return Scenario.Turns.Num(); }
 
@@ -245,6 +306,19 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 	/** Toglie l'assertion in quella posizione. `NotFound` se l'indice non esiste. */
 	ERTScenarioAuthoringResult RemoveExpectation(int32 ExpectationIndex, FString& OutError);
 
+	// --- lettura di cio' che si e' scritto ---------------------------------------------------------------
+	//
+	// ⚠️ Senza queste, l'authoring poteva SCRIVERE un turno e non mostrarlo: `RemoveIntent` e
+	// `RemoveExpectation(indice)` chiedevano di nominare qualcosa che nessuna API sapeva elencare, e un
+	// designer con tre assertion non aveva niente su cui cliccare per togliere la seconda. Trovato dalla
+	// review di `#1116`.
+
+	/** Descrizione leggibile degli intent di un turno, nell'ordine in cui il file li porta. */
+	TArray<FRTScenarioIntentView> ListIntents(int32 TurnIndex) const;
+
+	/** Descrizione leggibile delle assertion, nell'ordine in cui `RemoveExpectation` le indicizza. */
+	TArray<FRTScenarioExpectationView> ListExpectations() const;
+
 	// --- preview (#1116) ---------------------------------------------------------------------------------
 
 	/**
@@ -262,7 +336,10 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 	 * ⚠️ **E' l'anteprima del PRIMO turno.** Parte dall'initial state, non dallo stato dopo i turni gia'
 	 * scritti: ricostruirlo richiederebbe eseguire lo scenario, che e' `RUN` (#1117) e non una preview.
 	 *
-	 * @param Outer proprietario dell'arena temporanea. `nullptr` -> transient package.
+	 * @param Outer proprietario dell'arena temporanea. ⚠️ **Non puo' essere `nullptr`**: `MakeFlatArena` e
+	 *        `MakeFixtureArena` rifiutano un Outer nullo, e la prima stesura di questa riga prometteva un
+	 *        fallback al transient package che non esiste — l'errore che ne usciva accusava la fixture o il
+	 *        raggio per uno sbaglio del chiamante.
 	 */
 	TArray<FRTCellId> GetReachableCells(const FString& UnitId, UObject* Outer, FString& OutError) const;
 

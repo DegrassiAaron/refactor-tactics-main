@@ -79,9 +79,24 @@ ERTScenarioAuthoringResult URTScenarioAuthoring::SetUnitFacing(const FString& Un
 	return Draft.SetUnitFacing(UnitId, Facing, OutError);
 }
 
-int32 URTScenarioAuthoring::AddTurn()
+ERTScenarioAuthoringResult URTScenarioAuthoring::AddTurn(int32& OutTurnIndex, FString& OutError)
 {
-	return Draft.AddTurn();
+	return Draft.AddTurn(OutTurnIndex, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::RemoveTurn(int32 TurnIndex, FString& OutError)
+{
+	return Draft.RemoveTurn(TurnIndex, OutError);
+}
+
+TArray<FRTScenarioIntentView> URTScenarioAuthoring::ListIntents(int32 TurnIndex) const
+{
+	return Draft.ListIntents(TurnIndex);
+}
+
+TArray<FRTScenarioExpectationView> URTScenarioAuthoring::ListExpectations() const
+{
+	return Draft.ListExpectations();
 }
 
 ERTScenarioAuthoringResult URTScenarioAuthoring::SetMoveIntent(int32 TurnIndex, const FString& UnitId,
