@@ -39,8 +39,8 @@ Tutto quanto segue è misurato su `ad7f212b`, non ripreso da documenti.
 | Cosa | Valore misurato | Nota |
 |---|---|---|
 | Scenari spediti | **86** `.json` (`Scenarios/**`, escluso `_redirects.json`) | 5 free-run, 8 turni per lo showcase |
-| File di test | **141** in `Source/RefactorTactics/Tests/` | |
-| Test dichiarati | **1286** nomi unici in `Tests/`, **1293** con Editor e plugin | riconciliati con gli eseguiti in §7.4: **1293 su 1293** |
+| File di test | **143** in `Source/RefactorTactics/Tests/` | 141 su `ad7f212b`, più il probe e il suo test |
+| Test dichiarati | **1291** nomi unici in `Tests/`, **1298** con Editor e plugin | riconciliati con gli eseguiti in §7.4: **1298 su 1298** |
 | Corpus golden | **6** scenari, **10** file `.rttl` | organizzato per **categorie di log**, non per scenario |
 | Categorie coperte dal golden | soglia **≥ 8**, due scoperte **dichiarate** (`Fallback`, `ReactionClash`) | `Simulation.GoldenCorpusCoversItsCategories` |
 
@@ -172,7 +172,7 @@ Misurato, non assunto. `RT_Showcase_Relay_v01` dichiara **8 turni** e ne complet
 - **objective finale** — 🔴 **BLOCKED: Objective**.
 
 ⚠️ `docs/roadmap/plans/showcase-v01-audit.md` è **stale**: dichiara «432 test unici in 65 file» (2026-08-08)
-contro i **1286 in 141** misurati oggi, e dà `Structures` PARTIAL / `Overwatch` MISSING quando entrambe sono
+contro i **1298 in 143** misurati oggi, e dà `Structures` PARTIAL / `Overwatch` MISSING quando entrambe sono
 disponibili. Va aggiornato o marcato storico — non è stato toccato perché non è materiale DIR-C.
 
 ### Reaction (§9)
@@ -325,19 +325,61 @@ Tre mutazioni cumulative che ricostruiscono lo stato pre-#1296, ognuna con build
 | + avvicinamento in linea d'aria (pre-#1296) | **0** su lim. 4 | **7** su lim. 4 → 🔴 **Fail** |
 
 ✅ **Il rilevatore falsifica**: la terza riga fa cadere `NobodyOscillatesOnTheAuthoredMap`
-(`EXIT CODE: -1`) riproducendo la misura storica di #1287 — *«otto alternanze in dodici turni»*. **Quindi
-l'estrazione in `FRTOrbitProbe` non ha tolto potere discriminante all'oracolo che già esisteva.**
+(`EXIT CODE: -1`) riproducendo la misura storica di #1287 — *«otto alternanze in dodici turni»*.
 
-🔴 **Ma la nuova asserzione sull'arena generata NON è dimostrata falsificabile.** Nessuna delle tre
-mutazioni fa oscillare i bot lì, e sotto la più forte il contatore va a **zero**: quella geometria non
-produce il ciclo che la mappa d'autore produce. **Vale come assicurazione contro una regressione, non come
-riproduzione di un difetto noto** — ed è scritto nel test, non solo qui.
+⚠️ **Ma nessuna mutazione del BOT fa cadere l'asserzione sull'arena generata**, e sotto la più forte il
+contatore va a **zero**: su quella geometria non si è trovato un comportamento del bot che produca
+un'orbita di periodo due.
 
-⚠️ **Tutte le mutazioni sono state rimosse**, e il ripristino è stato verificato con una run: 21 Success,
-`EXIT CODE: 0`, `git status` pulito su `Bot/**`.
+### 6.5 Mutazione del RILEVATORE — ✅ e corregge in meglio la riga qui sopra
 
-💡 **Reperto di contorno**: il progetto compila con **C4702 (codice irraggiungibile) trattato come errore**.
-Una mutazione scritta come `return` anticipato non compila — va sostituito il corpo.
+Togliendo `*Prev != Cell` da `FRTOrbitProbe::Observe` — cioè facendo contare anche lo stare fermo — cadono
+**tre** test insieme:
+
+```
+Meta.OrbitProbeIgnoresStandingStill        <- il test unitario, come previsto
+Match.Autobattle.NobodyOscillatesOnTheAuthoredMap
+Match.Autobattle.EngagesOnTheGeneratedTestArena   <- la configurazione SPEDITA
+```
+
+∴ **L'asserzione sull'arena generata NON è vacua.** La sua soglia è esercitata da dati reali con margine
+reale: su quella board ci sono unità abbastanza ferme da superare il limite, se le si contasse male. Ciò
+che resta non dimostrato è un **percorso di comportamento** — un difetto del bot che, lì, produca
+davvero un'orbita. Un verde dice *«su questa board il bot non orbita»*, non *«il bot non può orbitare»*.
+
+⚠️ **Tutte le mutazioni rimosse**, ripristino verificato: `git diff ad7f212b -- Source/RefactorTactics/Bot/`
+vuoto, `RTOrbitProbeForTest.h` senza residui, e **suite intera 1298 Success / 0 Fail**.
+
+### 6.6 Il test della sonda — ✅ 5/5
+
+`RTOrbitProbeTests.cpp`, sotto `RefactorTactics.Meta.*`: sequenze sintetiche, nessun bot e nessuna board.
+
+| test | cosa pinna |
+|---|---|
+| `OrbitProbeCountsTheAlternation` | `A B A B A B` = **4** ritorni — il numero esatto, non «> 0» |
+| `OrbitProbeIgnoresStandingStill` | il parcheggio ha il suo oracolo, e non è un'orbita |
+| `OrbitProbeIgnoresAPathThatComesBack` | `A B C D` = 0, e `A B C A` = 0 — il **limite dichiarato** del periodo tre diventa una proprietà misurata |
+| `OrbitProbeKeepsUnitsApart` | una chiave condivisa **fabbrica** un'orbita da due unità ferme |
+| `OrbitProbeThresholdFollowsTheTurns` | la soglia scala coi turni, e la premessa le lascia spazio |
+
+🔴 **E ha corretto una nota della sonda che diceva il falso.** Sosteneva che con una chiave condivisa
+l'oscillante *«non farebbe crescere nessun contatore»*. Misurato: è il contrario, ed è peggio — due unità
+**ferme** su celle diverse che scrivono la stessa chiave producono `A B A B`, cioè un'oscillazione perfetta
+in cui nessuno si è mosso. La guardia sugli `StableUnitId` evita un falso **positivo**, non un falso
+negativo.
+
+### 6.7 Il margine, reso udibile
+
+Sulla configurazione spedita la sequenza ferma è **4 su soglia 4**. Aggiunto un `AddWarning` quando il
+margine scende a ≤ 1, e in run spara:
+
+```
+anti-parcheggio sul filo: sequenza 4 su soglia 4, margine 0
+  — il prossimo ritocco ai pesi del bot lo fa passare rosso
+```
+
+⚠️ **Warning e non asserzione, deliberatamente**: un margine sottile non è un difetto, e asserirlo
+introdurrebbe di lato una soglia che `D-184` non ha deciso.
 
 ### 6.5 Cosa resta misura statica
 
@@ -371,11 +413,11 @@ cambiato semantica.
 Il rilevatore falsifica sulla mappa d'autore (1 → **7** su limite 4, `EXIT CODE: -1`). Sull'arena generata
 nessuna delle tre mutazioni lo fa cadere. **Il limite è scritto nel test**, non solo qui.
 
-### 7.4 Suite completa — ✅ 1293 Success, 0 Fail
+### 7.4 Suite completa — ✅ 1298 Success, 0 Fail
 
 ```
 Automation RunTests RefactorTactics
-→ Found 1293 automation tests · 1293 Success · 0 Fail · EXIT CODE: 0
+→ Found 1298 automation tests · 1298 Success · 0 Fail · EXIT CODE: 0
 ```
 
 **«N eseguiti su M dichiarati», riconciliato a mano** — è il confronto che `feature_registry.py` faceva e
@@ -383,11 +425,11 @@ che `D-181` ha portato via:
 
 | | |
 |---|---|
-| nomi `RefactorTactics.*` estratti da `Source/` e `Plugins/` | 1295 |
-| eseguiti e riportati dal log | **1293** |
+| nomi `RefactorTactics.*` estratti da `Source/` e `Plugins/` | 1300 |
+| eseguiti e riportati dal log | **1298** |
 | differenza, nominata | `RefactorTactics.h` (una stringa di `#include`) e `RefactorTactics.Probe.LatestRunDirectory` (uno **scenario ID** dentro `FRTScenarioLatestRunIsTheMostRecentTest`, non un test) |
 
-∴ **1293 su 1293. Nessun test dichiarato è rimasto fuori dalla run.**
+∴ **1298 su 1298. Nessun test dichiarato è rimasto fuori dalla run.** (1293 prima dei cinque di §6.6.)
 
 ### 7.5 Cosa resta comunque a DIR-A
 
@@ -435,15 +477,15 @@ PIE, non significa packaged, e non chiude nessun gate che chieda una verifica um
 
 | criterio §17 | oracolo | eseguito |
 |---|---|---|
-| bot produce intenti legali | candidate da `ReachableCells`; `Plan.MovementMainAndReactionAreLegal` | ✅ dentro i 1293 |
-| bot non usa hidden state | `HexBotPlay.HiddenEnemyFairness` + `Spec/Bot/*` | ✅ dentro i 1293 |
-| autobattle non stalla per un bug noto | 4 oracoli, di cui **1 aggiunto oggi** | ✅ 21/21 — ma vedi §6.4 sul potere discriminante |
-| complete match termina | `FreeRun.ArenaV01ReachesAWinner` | ✅ dentro i 1293 |
-| reaction FIRE/HOLD riproducibili | `Overwatch.DecisionIsReplayable`, golden `HoldThenFire` | ✅ dentro i 1293 |
+| bot produce intenti legali | candidate da `ReachableCells`; `Plan.MovementMainAndReactionAreLegal` | ✅ dentro i 1298 |
+| bot non usa hidden state | `HexBotPlay.HiddenEnemyFairness` + `Spec/Bot/*` | ✅ dentro i 1298 |
+| autobattle non stalla per un bug noto | 4 oracoli, di cui **1 aggiunto oggi**, più 5 test della sonda | ✅ 26/26 — potere discriminante in §6.4/§6.5 |
+| complete match termina | `FreeRun.ArenaV01ReachesAWinner` | ✅ dentro i 1298 |
+| reaction FIRE/HOLD riproducibili | `Overwatch.DecisionIsReplayable`, golden `HoldThenFire` | ✅ dentro i 1298 |
 | objective conclude la partita | 🔴 **BLOCKED: Objective** (#75) | — non esiste da eseguire |
 | showcase usa pipeline reale | 5/8 turni, BLOCKED dichiarato al T6 | ✅ per quanto esiste |
 | same seed → same hashes | `SameSeedGivesSameResult` — vero **per costruzione**, nessun RNG | ✅ ma la proprietà è strutturale |
-| replay non richiede nuove decisioni | `Overwatch.DecisionIsReplayable` | ✅ dentro i 1293 |
+| replay non richiede nuove decisioni | `Overwatch.DecisionIsReplayable` | ✅ dentro i 1298 |
 
 ⛔ **Restano fuori, e restano di DIR-A**: `PIE-HEXPLAY-*`, `G10`, `G13`, `PIE-V01-PLAYSPEED`. Una suite
 headless verde non è una partita guardata da qualcuno.

@@ -2037,15 +2037,18 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// la misura storica di #1287 («otto alternanze in dodici turni»), quindi l'estrazione in
 	// `FRTOrbitProbe` non ha tolto potere discriminante a quell'oracolo.
 	//
-	// 🔴 **Ma su QUESTA arena l'asserzione non e' dimostrata falsificabile.** Non e' vacua per costruzione
-	// — la soglia e' esercitabile, 12 turni contro un minimo di 6, e le due mutazioni parziali muovono il
-	// contatore, quindi risponde al meccanismo — ma nessuna delle tre fa oscillare i bot qui: la geometria
-	// dell'arena generata non produce il ciclo che la mappa d'autore produce, e sotto la mutazione piu'
-	// forte il contatore va a ZERO. **Vale come assicurazione contro una regressione futura, non come
-	// riproduzione di un difetto noto**, e chi la legge deve saperlo: un verde qui non e' la prova che il
-	// bot non possa oscillare, e' la prova che su questa board non lo fa.
-	// ⚠️ Chi trovera' una mutazione che lo fa cadere QUI la scriva in questa tabella: sarebbe la prova che
-	// oggi manca.
+	// ✅ **E QUESTA asserzione cade davvero — ma per una mutazione del RILEVATORE, non del bot.** Togliendo
+	// `*Prev != Cell` da `FRTOrbitProbe::Observe` (cioe' facendo contare anche lo stare fermo) cadono
+	// **tre** test insieme: `Meta.OrbitProbeIgnoresStandingStill`, `NobodyOscillatesOnTheAuthoredMap` e
+	// questo. Quindi qui la soglia e' **esercitata da dati reali con margine reale**: su questa board ci
+	// sono unita' che restano ferme abbastanza da superare il limite se le si contasse male. L'asserzione
+	// non e' vacua, e non e' un ornamento.
+	//
+	// ⚠️ **Cio' che resta NON dimostrato e' un percorso di COMPORTAMENTO.** Nessuna delle tre mutazioni del
+	// bot fa oscillare i bot qui — sotto la piu' forte il contatore va a ZERO — quindi non si e' trovato un
+	// difetto del bot che, su questa geometria, produca un'orbita di periodo due. Un verde qui dice «su
+	// questa board il bot non orbita», non «il bot non puo' orbitare».
+	// ⚠️ Chi trovera' una mutazione del BOT che lo fa cadere qui la scriva in questa tabella.
 	const int32 WorstOrbit = Orbite.WorstReturns();
 	const int32 OrbitLimit = FRTOrbitProbe::LimitForTurns(TurnsPlayed);
 	const int32 OrbitMinTurns = FRTOrbitProbe::MinTurnsToFalsify;
