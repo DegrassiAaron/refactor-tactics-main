@@ -375,6 +375,69 @@ Le guide verticali del volume sono **riferimenti di modellazione**, e non sono c
 > suo owner sarebbe la copertura (`ERTHexCoverType`, due valori più `None`) — e quel dato **esiste già**,
 > quindi una guida visuale che ne inventasse un terzo creerebbe la divergenza descritta in §1.
 
+
+### 6.3 I budget di forma del kit — scritti prima del generatore, e per quella ragione
+
+Le guide di §6 dicono **quanto è alto** un oggetto e **quanto è largo** un pannello. Non dicono quanto è
+**spesso**, né che forma abbia il marcatore di `Locked`, né come sia fatta una superficie. Finché le sei mesh
+del catalogo si modellavano a mano quel vuoto era una libertà; da [`D-229`](../../decisions/RT_PDR_00_Decision_Log.md)
+si **generano in codice**, e un vuoto in questa tabella diventa un numero scelto da chi scrive il generatore —
+che è esattamente ciò che §6 esiste per impedire.
+
+| Misura | Valore | Denominatore | Su quale asset |
+|---|---:|---|---|
+| altezza della copertura bassa | `0.28 H` | `H` — 70 cm | `SM_Graybox_Cover_Low` |
+| altezza della copertura alta | `0.85 H` | `H` — 213 cm | `SM_Graybox_Cover_High` |
+| larghezza di un pannello di bordo | `0.92` | **lato** — 138 cm | tutti gli `EdgeBound` |
+| **spessore** della copertura bassa | `0.10` | **lato** — 15 cm | `SM_Graybox_Cover_Low` |
+| **spessore** della copertura alta | `0.20` | **lato** — 30 cm | `SM_Graybox_Cover_High` |
+| altezza di un pannello di porta | `0.85 H` | `H` — 213 cm | `SM_Graybox_Door_Panel` · `_Locked` |
+| spessore di un pannello di porta | `0.10` | **lato** — 15 cm | `SM_Graybox_Door_Panel` · `_Locked` |
+| fascia della traversa di `Locked` | `0.12 H` | `H` — 30 cm | `SM_Graybox_Door_Locked` |
+| rilievo della traversa, **per faccia** | `0.06` | **lato** — 9 cm | `SM_Graybox_Door_Locked` |
+| spessore di una superficie | `0.02 H` | `H` — 5 cm | `SM_Graybox_Surface_*` |
+| pianta di una superficie | `1.00` | footprint **esterno** | `SM_Graybox_Surface_*` |
+
+🔑 **Le due coperture si distinguono in PIANTA, e il fattore è `2`.** Non è una preferenza: `PIE-GBX-COVER`
+porta il proprio precedente di fallimento — `PIE-HEX-VIZ-BLOCCHI` è ❌ dal 2026-08-20
+([#1246](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1246)) perché *«la differenza fra due
+volumi stava nell'altezza, che la vista a picco proietta a zero»*. Due prismi con lo stesso spessore e due
+valori di Z ripeterebbero quel difetto **identico**, e la voce nascerebbe ❌ senza che nessuno abbia guardato
+male. Il fattore `2` sullo spessore non è scelto a occhio: è il contrasto d'area che
+[`D-183`](../../decisions/RT_PDR_00_Decision_Log.md) ha già **misurato leggibile a picco** sui glifi di
+superficie — `9,7%` contro `18,4%` per uno e due anelli, `PIE-HEX-VIZ-COSTO` ✅.
+
+> ⛔ **Scartata la feritoia**, che sarebbe stata il canale in pianta più vistoso: una copertura alta con
+> un'apertura **mente su una regola**. CP 9.2 la dichiara bloccante per la linea di tiro, e una silhouette che
+> suggerisce il contrario insegna al giocatore una cosa falsa — che è peggio di una silhouette ambigua.
+
+⚠️ **La porta è larga `0.92` del lato come ogni altro pannello di bordo, e non meno.** Restringerla avrebbe
+dato il canale in pianta che la separa da una copertura — ma una porta **chiusa nega il passaggio**, e due
+fessure ai lati direbbero il contrario: è lo stesso difetto della feritoia, su un altro asset. La coppia
+*porta vs copertura* non è fra quelle che §10 enumera; quelle che ci sono — i **quattro stati** della porta —
+si separano fra loro, ed è lì che il canale serve.
+
+🔑 **La traversa di `Locked` sporge su ENTRAMBE le facce**, e discende da §3: un `EdgeBound` non appartiene a
+nessuna delle due celle che condividono il bordo, quindi si guarda da entrambi i lati. Un marcatore su una
+faccia sola sarebbe leggibile dalla metà delle posizioni di camera, e `D-171` ha scelto la geometria proprio
+per non dipendere dal punto di vista.
+
+🔑 **Una superficie copre il footprint ESTERNO, non l'inset**, e non è un'eccezione a §5: il Safe Placement
+inset budgeta quanto un **oggetto** si ritrae dai vicini, e l'acqua di una cella arriva al suo bordo perché è
+terreno, non oggetto. §3 già lo dichiara classificando `SurfaceBound` come *«rispetta il Safe Volume: non
+applicabile»*; qui si scrive il numero che ne discende.
+
+⚠️ **Acqua e ghiaccio si separano per FRATTURA, non per tinta.** `PIE-GBX-SURFACE` chiede di distinguerle a
+zoom **tattico** e in scala di grigi: l'acqua è una lastra **piatta e continua**, il ghiaccio è composto di
+lastre irregolari con spigoli e dislivelli entro lo stesso `0.02 H`. 🔴 **E questo è il budget che dipende
+dallo shading**, quindi dalla verifica che `D-229` mette al primo posto: se la mesh generata arriva senza
+normali, le facce del ghiaccio hanno tutte la stessa luminanza e il canale sparisce — la coppia fallirebbe per
+una ragione che non ha niente a che vedere con la forma scelta qui.
+
+> ⏳ **Questi budget si validano guardando, come tutto il resto di questo contratto**: sono l'ipotesi con cui
+> la seduta **U25** si siede, non il suo verdetto. Se una coppia non regge alle tre distanze, si cambia il
+> numero **qui** — è §10 che lo prescrive: *«se non è leggibile, si cambia la grammatica prima di aggiungere
+> altri asset»*. Ciò che questa sezione impedisce è di scoprirlo **senza sapere quale numero era stato usato**.
 ---
 
 ## 7. Grammatica visiva degli oggetti — estende `D-146`, non la duplica
@@ -731,6 +794,21 @@ classificazione. I sette `DEFER` si dividono per **ragione**, e le ragioni sono 
   Volumes/     BP_Graybox_CellPlacementVolume
 ```
 
+🔑 **In che forma esistono — deciso il 2026-08-28, [`D-229`](../../decisions/RT_PDR_00_Decision_Log.md).** Le sei
+`SM_Graybox_*` sono **generate in C++ e salvate** come `.uasset` da un commandlet del modulo editor: la
+geometria vive in una funzione che si diffa e si testa, il file è il suo output. `D-173` aveva deciso **dove**
+vivono e questa riga dice **come**, che è la domanda che restava.
+
+> ⛔ **Non sono transienti come `ARTHexMapActor::GetCellPrismMesh`**, e la ragione non è di gusto: una mesh in
+> `GetTransientPackage()` **non si serializza in un `.umap`**, quindi la scena di validazione perderebbe i suoi
+> riferimenti alla riapertura. Il prisma della cella può permetterselo perché nasce a ogni avvio dentro
+> l'attore che lo consuma; un asset posato in un livello salvato no.
+>
+> ⚠️ **E `D-228` non dice il contrario, per quanto lo sembri**: *«mesh generate in C++ … e nessun `.uasset`»* è
+> vero della **board** — `Cells`, `SurfaceGlyphs`, `Relief`, `Blockers`, `EdgeFeatures` — che è la resa di
+> sviluppo e cadrà con l'art pass. Il kit di questo catalogo sono **asset di mappa posati**, ed è un altro
+> dominio: leggerla come regola del repository invece che del suo dominio porta alla conclusione opposta.
+
 Sotto `World/` e non sotto `World/Grid/`: §5 di
 [`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md) descrive già `Grid/Generation/` come
 *«generatori graybox»*, e porte e coperture stanno sui **bordi** (§3), non sulla griglia. Non un top-level
@@ -838,10 +916,22 @@ contando ferite. Le verifiche di questo dominio sono **manuali**, di classe **C*
 > [`test-manuali-pie.md`](../test-manuali-pie.md), che ne è l'owner — qui non si ricopiano — e la seduta
 > **U25** le dichiara in `verifies:`, dove fino a quel giorno c'era `[]`.
 >
-> ⏳ **Scritte non è eseguite, ed è la distinzione per cui quel registro esiste.** Tutte e sei nascono
-> aperte per **una causa sola e misurabile**: `git ls-files 'Content/RT/World/Graybox/*'` dà **0**. Il
-> percorso è deciso (`D-173`, §8.1) e la riga d'allowlist c'è già; le sette mesh no. **Questo documento
-> resta non verificato**, e adesso si sa esattamente da cosa dipende smettere di esserlo.
+> ⏳ **Scritte non è eseguite, ed è la distinzione per cui quel registro esiste.** Tutte e sei restano
+> aperte, ma **la causa è cambiata il 2026-08-28**: `git ls-files 'Content/RT/World/Graybox/*'` dà ora
+> **7** — le sei mesh di §8.1 più il volume di posa — quindi non aspettano più un asset, aspettano una
+> **persona che guardi**. È la seduta **U25**, ed è l'unica cosa che abbiano mai aspettato davvero.
+>
+> 🔴 **Questa riga diceva «dà **0** … le sette mesh no», e conteneva anche un errore di conto**: gli
+> asset di §8.1 sono **sei mesh più un Blueprint**, e il volume di posa non è una mesh. È stata
+> riscritta quando la causa è decaduta, e il numero corretto insieme.
+>
+> ✅ **E una parte di questo contratto è ora difesa da un gate**, contro quanto l'apertura di §10
+> dichiara: `RefactorTactics.Graybox.*` — cinque test nel modulo editor — lega gli `.uasset` alle
+> frazioni di §6.3 **derivandole dal CDO invece di scriverle in uu**, e guarda i numeri che decidono
+> le coppie: il fattore `2` in pianta fra le due coperture, la traversa su entrambe le facce, le sei
+> quote del ghiaccio contro la lastra sola dell'acqua. Quello che resta senza gate è ciò che
+> l'apertura dice davvero: l'oracolo di *«si legge»*, che non esiste nell'harness e non va simulato.
+> Quello di *«è spesso `0.10` del lato»* esisteva, ed era una sottrazione.
 >
 > 🔑 **`PIE-GBX-FIT` è l'oracolo di `GBX-1`**, la domanda che §9 lascia aperta: la frazione di `C` che è il
 > Safe Placement inset **si decide guardando**, in quella voce, e l'esito va riportato in

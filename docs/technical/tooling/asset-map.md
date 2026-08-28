@@ -185,11 +185,20 @@ questo file: sono buchi delle fonti, e vanno chiusi lì.
   `Cover/ · Doors/ · Surfaces/ · Volumes/`, e la riga è a `.gitignore:192`
   (`!Content/RT/World/Graybox/**/*.uasset`, pattern di cartella). Oracolo verificato il 2026-08-28:
   `git check-ignore -q Content/RT/World/Graybox/Volumes/BP_Graybox_CellPlacementVolume.uasset` esce
-  **`1`**. ⛔ **Questo non significa che il kit esista**: `git ls-files 'Content/RT/World/Graybox/*'`
-  dà tuttora **0**. La porta è aperta e non c'è ancora passato nessuno — è la seduta **U25**.
+  **`1`**. ✅ **E il kit ora esiste**: `git ls-files 'Content/RT/World/Graybox/*'` dà **7** dal
+  **2026-08-28** — le sei `SM_Graybox_*` di §8.1 più `BP_Graybox_CellPlacementVolume`. È la prima
+  famiglia delle quattro a passare dalla riga d'allowlist a un file versionato.
+  🔑 **Le sei mesh sono GENERATE, non autorate** ([`D-229`](../../decisions/RT_PDR_00_Decision_Log.md)):
+  le produce `UnrealEditor-Cmd … -run=RTBuildGrayboxMeshes`, che ha un `-DryRun`. Conta per questo
+  documento perché cambia cosa si fa davanti a un conflitto su uno di quei binari: **si rigenera**,
+  non si fonde. La sorgente è il commandlet, l'`.uasset` è il suo output.
+  ⚠️ **Esistere non è essere verificato**: le cinque voci `PIE-GBX-*` restano ⏳, e ora aspettano
+  la seduta **U25** invece di un asset.
 
-La terza riga rimasta è **l'unica con percorso e seduta insieme**, ed è per questo la più vicina a
-mordere: percorso esatto e seduta che la rivendica, e comunque `git add` tace.
+La terza riga rimasta era **l'unica con percorso e seduta insieme**, ed è per questo che è stata la
+prima a mordere: percorso esatto e seduta che la rivendica. ⏱️ *Dal 2026-08-28 non è più «rimasta»:
+il kit è versionato. La riga resta come descrizione di quale delle quattro famiglie si sblocca per
+prima, e perché — percorso e produttore, non una sola delle due.*
 
 > ⚠️ *Questa frase ha sbagliato **tre volte** e ogni correzione ne ha riletta una parte sola: prima il
 > numero («Due» con tre righe), poi il predicato «né in una seduta» (falso per U21 e U25), poi «manca il

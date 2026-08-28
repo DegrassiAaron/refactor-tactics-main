@@ -1,0 +1,2636 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+ xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+ width="2200" height="8944" viewBox="0 0 2200 8944">
+<defs><style><![CDATA[
+.t0{font-family:Arial,sans-serif;font-size:34px;font-weight:700;fill:#111}
+.t1{font-family:Arial,sans-serif;font-size:20px;font-weight:700;fill:#111}
+.t2{font-family:Arial,sans-serif;font-size:13px;fill:#444}
+.t3{font-family:Arial,sans-serif;font-size:10px;fill:#666}
+.card{fill:#fff;stroke:#c8c8c8;stroke-width:1}
+.new{fill:#fff7e8;stroke:#d9a84c;stroke-width:1.3}
+.prev{fill:#f7f7f7;stroke:#d8d8d8;stroke-width:1}
+.slot{fill:none;stroke:#333;stroke-width:1;stroke-dasharray:3 2}
+]]></style></defs>
+<g inkscape:groupmode="layer" inkscape:label="00_README_AND_GUIDES">
+<rect width="2200" height="8944" fill="#f1f1f1"/>
+<text x="70" y="58" class="t0">RefactorTactics · Affinity Icon Library · v0.9</text>
+<text x="70" y="92" class="t1">Accessibility / Localization / Asset Freeze</text>
+<text x="70" y="122" class="t2">CUMULATIVE template: contains all previous milestone layers + NEW_THIS_VERSION.</text>
+<text x="70" y="146" class="t2">Workflow: MASTER_24 → Affinity Symbol → QA instances. OPTICAL_16 becomes a separate Symbol only when needed.</text>
+<text x="70" y="170" class="t2">Do not bake HUD state/cooldown/cost into base glyph geometry.</text>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="05_RELEASE_SCOPE">
+<text x="70" y="215" class="t1">Release scope · v0.9</text>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="10_MASTER_LIBRARY">
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Identity / Ally" id="v0.1_Identity___Ally">
+<rect x="70" y="250" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="278" class="t1">Identity / Ally</text>
+<text x="86" y="298" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="322" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="334" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="343" width="16" height="16" class="slot"/>
+<rect x="380" y="343" width="20" height="20" class="slot"/>
+<rect x="435" y="343" width="24" height="24" class="slot"/>
+<rect x="490" y="343" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Identity / Enemy" id="v0.1_Identity___Enemy">
+<rect x="605" y="250" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="278" class="t1">Identity / Enemy</text>
+<text x="621" y="298" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="322" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="334" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="343" width="16" height="16" class="slot"/>
+<rect x="915" y="343" width="20" height="20" class="slot"/>
+<rect x="970" y="343" width="24" height="24" class="slot"/>
+<rect x="1025" y="343" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Identity / Hero identities (derive from live catalog)" id="v0.1_Identity___Hero_identities__derive_from_live_catalog_">
+<rect x="1140" y="250" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="278" class="t1">Identity / Hero identities (derive from live catalog)</text>
+<text x="1156" y="298" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="322" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="334" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="343" width="16" height="16" class="slot"/>
+<rect x="1450" y="343" width="20" height="20" class="slot"/>
+<rect x="1505" y="343" width="24" height="24" class="slot"/>
+<rect x="1560" y="343" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Phase / Prep" id="v0.1_Phase___Prep">
+<rect x="1675" y="250" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="278" class="t1">Phase / Prep</text>
+<text x="1691" y="298" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="322" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="334" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="343" width="16" height="16" class="slot"/>
+<rect x="1985" y="343" width="20" height="20" class="slot"/>
+<rect x="2040" y="343" width="24" height="24" class="slot"/>
+<rect x="2095" y="343" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Phase / Dash" id="v0.1_Phase___Dash">
+<rect x="70" y="462" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="490" class="t1">Phase / Dash</text>
+<text x="86" y="510" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="534" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="546" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="555" width="16" height="16" class="slot"/>
+<rect x="380" y="555" width="20" height="20" class="slot"/>
+<rect x="435" y="555" width="24" height="24" class="slot"/>
+<rect x="490" y="555" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Phase / Blast" id="v0.1_Phase___Blast">
+<rect x="605" y="462" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="490" class="t1">Phase / Blast</text>
+<text x="621" y="510" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="534" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="546" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="555" width="16" height="16" class="slot"/>
+<rect x="915" y="555" width="20" height="20" class="slot"/>
+<rect x="970" y="555" width="24" height="24" class="slot"/>
+<rect x="1025" y="555" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Phase / Move" id="v0.1_Phase___Move">
+<rect x="1140" y="462" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="490" class="t1">Phase / Move</text>
+<text x="1156" y="510" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="534" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="546" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="555" width="16" height="16" class="slot"/>
+<rect x="1450" y="555" width="20" height="20" class="slot"/>
+<rect x="1505" y="555" width="24" height="24" class="slot"/>
+<rect x="1560" y="555" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Action / Generic + core actions (derive from live RequiredIconIds)" id="v0.1_Action___Generic___core_actions__derive_from_live_RequiredIconIds_">
+<rect x="1675" y="462" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="490" class="t1">Action / Generic + core actions (derive from live RequiredIconIds)</text>
+<text x="1691" y="510" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="534" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="546" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="555" width="16" height="16" class="slot"/>
+<rect x="1985" y="555" width="20" height="20" class="slot"/>
+<rect x="2040" y="555" width="24" height="24" class="slot"/>
+<rect x="2095" y="555" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Status / current Status.* set (derive from live gameplay tags)" id="v0.1_Status___current_Status.__set__derive_from_live_gameplay_tags_">
+<rect x="70" y="674" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="702" class="t1">Status / current Status.* set (derive from live gameplay tags)</text>
+<text x="86" y="722" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="746" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="758" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="767" width="16" height="16" class="slot"/>
+<rect x="380" y="767" width="20" height="20" class="slot"/>
+<rect x="435" y="767" width="24" height="24" class="slot"/>
+<rect x="490" y="767" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Certainty / Confirmed" id="v0.1_Certainty___Confirmed">
+<rect x="605" y="674" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="702" class="t1">Certainty / Confirmed</text>
+<text x="621" y="722" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="746" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="758" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="767" width="16" height="16" class="slot"/>
+<rect x="915" y="767" width="20" height="20" class="slot"/>
+<rect x="970" y="767" width="24" height="24" class="slot"/>
+<rect x="1025" y="767" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Certainty / Predicted" id="v0.1_Certainty___Predicted">
+<rect x="1140" y="674" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="702" class="t1">Certainty / Predicted</text>
+<text x="1156" y="722" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="746" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="758" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="767" width="16" height="16" class="slot"/>
+<rect x="1450" y="767" width="20" height="20" class="slot"/>
+<rect x="1505" y="767" width="24" height="24" class="slot"/>
+<rect x="1560" y="767" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Certainty / Uncertain" id="v0.1_Certainty___Uncertain">
+<rect x="1675" y="674" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="702" class="t1">Certainty / Uncertain</text>
+<text x="1691" y="722" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="746" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="758" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="767" width="16" height="16" class="slot"/>
+<rect x="1985" y="767" width="20" height="20" class="slot"/>
+<rect x="2040" y="767" width="24" height="24" class="slot"/>
+<rect x="2095" y="767" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Warning / Invalid plan or target" id="v0.1_Warning___Invalid_plan_or_target">
+<rect x="70" y="886" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="914" class="t1">Warning / Invalid plan or target</text>
+<text x="86" y="934" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="958" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="970" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="979" width="16" height="16" class="slot"/>
+<rect x="380" y="979" width="20" height="20" class="slot"/>
+<rect x="435" y="979" width="24" height="24" class="slot"/>
+<rect x="490" y="979" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Warning / Allied collision" id="v0.1_Warning___Allied_collision">
+<rect x="605" y="886" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="914" class="t1">Warning / Allied collision</text>
+<text x="621" y="934" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="958" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="970" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="979" width="16" height="16" class="slot"/>
+<rect x="915" y="979" width="20" height="20" class="slot"/>
+<rect x="970" y="979" width="24" height="24" class="slot"/>
+<rect x="1025" y="979" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Warning / Friendly Fire" id="v0.1_Warning___Friendly_Fire">
+<rect x="1140" y="886" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="914" class="t1">Warning / Friendly Fire</text>
+<text x="1156" y="934" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="958" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="970" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="979" width="16" height="16" class="slot"/>
+<rect x="1450" y="979" width="20" height="20" class="slot"/>
+<rect x="1505" y="979" width="24" height="24" class="slot"/>
+<rect x="1560" y="979" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Warning / Insufficient resource" id="v0.1_Warning___Insufficient_resource">
+<rect x="1675" y="886" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="914" class="t1">Warning / Insufficient resource</text>
+<text x="1691" y="934" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="958" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="970" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="979" width="16" height="16" class="slot"/>
+<rect x="1985" y="979" width="20" height="20" class="slot"/>
+<rect x="2040" y="979" width="24" height="24" class="slot"/>
+<rect x="2095" y="979" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Warning / Target may move / uncertain outcome" id="v0.1_Warning___Target_may_move___uncertain_outcome">
+<rect x="70" y="1098" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="1126" class="t1">Warning / Target may move / uncertain outcome</text>
+<text x="86" y="1146" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="1170" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="1182" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="1191" width="16" height="16" class="slot"/>
+<rect x="380" y="1191" width="20" height="20" class="slot"/>
+<rect x="435" y="1191" width="24" height="24" class="slot"/>
+<rect x="490" y="1191" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Planning / Confirm" id="v0.1_Planning___Confirm">
+<rect x="605" y="1098" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="1126" class="t1">Planning / Confirm</text>
+<text x="621" y="1146" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="1170" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="1182" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="1191" width="16" height="16" class="slot"/>
+<rect x="915" y="1191" width="20" height="20" class="slot"/>
+<rect x="970" y="1191" width="24" height="24" class="slot"/>
+<rect x="1025" y="1191" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Planning / Ready" id="v0.1_Planning___Ready">
+<rect x="1140" y="1098" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="1126" class="t1">Planning / Ready</text>
+<text x="1156" y="1146" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="1170" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="1182" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="1191" width="16" height="16" class="slot"/>
+<rect x="1450" y="1191" width="20" height="20" class="slot"/>
+<rect x="1505" y="1191" width="24" height="24" class="slot"/>
+<rect x="1560" y="1191" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Planning / Undo" id="v0.1_Planning___Undo">
+<rect x="1675" y="1098" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="1126" class="t1">Planning / Undo</text>
+<text x="1691" y="1146" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="1170" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="1182" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="1191" width="16" height="16" class="slot"/>
+<rect x="1985" y="1191" width="20" height="20" class="slot"/>
+<rect x="2040" y="1191" width="24" height="24" class="slot"/>
+<rect x="2095" y="1191" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Action Slot / Available" id="v0.1_Action_Slot___Available">
+<rect x="70" y="1310" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="1338" class="t1">Action Slot / Available</text>
+<text x="86" y="1358" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="1382" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="1394" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="1403" width="16" height="16" class="slot"/>
+<rect x="380" y="1403" width="20" height="20" class="slot"/>
+<rect x="435" y="1403" width="24" height="24" class="slot"/>
+<rect x="490" y="1403" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Action Slot / Hover" id="v0.1_Action_Slot___Hover">
+<rect x="605" y="1310" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="1338" class="t1">Action Slot / Hover</text>
+<text x="621" y="1358" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="1382" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="1394" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="1403" width="16" height="16" class="slot"/>
+<rect x="915" y="1403" width="20" height="20" class="slot"/>
+<rect x="970" y="1403" width="24" height="24" class="slot"/>
+<rect x="1025" y="1403" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Action Slot / Selected" id="v0.1_Action_Slot___Selected">
+<rect x="1140" y="1310" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="1338" class="t1">Action Slot / Selected</text>
+<text x="1156" y="1358" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="1382" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="1394" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="1403" width="16" height="16" class="slot"/>
+<rect x="1450" y="1403" width="20" height="20" class="slot"/>
+<rect x="1505" y="1403" width="24" height="24" class="slot"/>
+<rect x="1560" y="1403" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Action Slot / Planned" id="v0.1_Action_Slot___Planned">
+<rect x="1675" y="1310" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="1338" class="t1">Action Slot / Planned</text>
+<text x="1691" y="1358" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="1382" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="1394" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="1403" width="16" height="16" class="slot"/>
+<rect x="1985" y="1403" width="20" height="20" class="slot"/>
+<rect x="2040" y="1403" width="24" height="24" class="slot"/>
+<rect x="2095" y="1403" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Action Slot / Cooldown" id="v0.1_Action_Slot___Cooldown">
+<rect x="70" y="1522" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="1550" class="t1">Action Slot / Cooldown</text>
+<text x="86" y="1570" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="1594" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="1606" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="1615" width="16" height="16" class="slot"/>
+<rect x="380" y="1615" width="20" height="20" class="slot"/>
+<rect x="435" y="1615" width="24" height="24" class="slot"/>
+<rect x="490" y="1615" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Action Slot / Unavailable" id="v0.1_Action_Slot___Unavailable">
+<rect x="605" y="1522" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="1550" class="t1">Action Slot / Unavailable</text>
+<text x="621" y="1570" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="1594" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="1606" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="1615" width="16" height="16" class="slot"/>
+<rect x="915" y="1615" width="20" height="20" class="slot"/>
+<rect x="970" y="1615" width="24" height="24" class="slot"/>
+<rect x="1025" y="1615" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Action Slot / Invalid" id="v0.1_Action_Slot___Invalid">
+<rect x="1140" y="1522" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="1550" class="t1">Action Slot / Invalid</text>
+<text x="1156" y="1570" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="1594" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="1606" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="1615" width="16" height="16" class="slot"/>
+<rect x="1450" y="1615" width="20" height="20" class="slot"/>
+<rect x="1505" y="1615" width="24" height="24" class="slot"/>
+<rect x="1560" y="1615" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · Action Slot / Warning" id="v0.1_Action_Slot___Warning">
+<rect x="1675" y="1522" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="1550" class="t1">Action Slot / Warning</text>
+<text x="1691" y="1570" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="1594" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="1606" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="1615" width="16" height="16" class="slot"/>
+<rect x="1985" y="1615" width="20" height="20" class="slot"/>
+<rect x="2040" y="1615" width="24" height="24" class="slot"/>
+<rect x="2095" y="1615" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · World Overlay / Path" id="v0.1_World_Overlay___Path">
+<rect x="70" y="1734" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="1762" class="t1">World Overlay / Path</text>
+<text x="86" y="1782" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="1806" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="1818" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="1827" width="16" height="16" class="slot"/>
+<rect x="380" y="1827" width="20" height="20" class="slot"/>
+<rect x="435" y="1827" width="24" height="24" class="slot"/>
+<rect x="490" y="1827" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · World Overlay / Destination" id="v0.1_World_Overlay___Destination">
+<rect x="605" y="1734" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="1762" class="t1">World Overlay / Destination</text>
+<text x="621" y="1782" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="1806" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="1818" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="1827" width="16" height="16" class="slot"/>
+<rect x="915" y="1827" width="20" height="20" class="slot"/>
+<rect x="970" y="1827" width="24" height="24" class="slot"/>
+<rect x="1025" y="1827" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · World Overlay / Target" id="v0.1_World_Overlay___Target">
+<rect x="1140" y="1734" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="1762" class="t1">World Overlay / Target</text>
+<text x="1156" y="1782" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="1806" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="1818" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="1827" width="16" height="16" class="slot"/>
+<rect x="1450" y="1827" width="20" height="20" class="slot"/>
+<rect x="1505" y="1827" width="24" height="24" class="slot"/>
+<rect x="1560" y="1827" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · World Overlay / AoE" id="v0.1_World_Overlay___AoE">
+<rect x="1675" y="1734" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="1762" class="t1">World Overlay / AoE</text>
+<text x="1691" y="1782" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="1806" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="1818" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="1827" width="16" height="16" class="slot"/>
+<rect x="1985" y="1827" width="20" height="20" class="slot"/>
+<rect x="2040" y="1827" width="24" height="24" class="slot"/>
+<rect x="2095" y="1827" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.1 · World Overlay / Facing" id="v0.1_World_Overlay___Facing">
+<rect x="70" y="1946" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="1974" class="t1">World Overlay / Facing</text>
+<text x="86" y="1994" class="t3">Origin: v0.1</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="2018" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="2030" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="2039" width="16" height="16" class="slot"/>
+<rect x="380" y="2039" width="20" height="20" class="slot"/>
+<rect x="435" y="2039" width="24" height="24" class="slot"/>
+<rect x="490" y="2039" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Coordination / Team intent" id="v0.2_Coordination___Team_intent">
+<rect x="605" y="1946" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="1974" class="t1">Coordination / Team intent</text>
+<text x="621" y="1994" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="2018" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="2030" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="2039" width="16" height="16" class="slot"/>
+<rect x="915" y="2039" width="20" height="20" class="slot"/>
+<rect x="970" y="2039" width="24" height="24" class="slot"/>
+<rect x="1025" y="2039" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Coordination / Labels" id="v0.2_Coordination___Labels">
+<rect x="1140" y="1946" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="1974" class="t1">Coordination / Labels</text>
+<text x="1156" y="1994" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="2018" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="2030" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="2039" width="16" height="16" class="slot"/>
+<rect x="1450" y="2039" width="20" height="20" class="slot"/>
+<rect x="1505" y="2039" width="24" height="24" class="slot"/>
+<rect x="1560" y="2039" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Coordination / Ping" id="v0.2_Coordination___Ping">
+<rect x="1675" y="1946" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="1974" class="t1">Coordination / Ping</text>
+<text x="1691" y="1994" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="2018" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="2030" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="2039" width="16" height="16" class="slot"/>
+<rect x="1985" y="2039" width="20" height="20" class="slot"/>
+<rect x="2040" y="2039" width="24" height="24" class="slot"/>
+<rect x="2095" y="2039" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Coordination / Conflict" id="v0.2_Coordination___Conflict">
+<rect x="70" y="2158" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="2186" class="t1">Coordination / Conflict</text>
+<text x="86" y="2206" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="2230" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="2242" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="2251" width="16" height="16" class="slot"/>
+<rect x="380" y="2251" width="20" height="20" class="slot"/>
+<rect x="435" y="2251" width="24" height="24" class="slot"/>
+<rect x="490" y="2251" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Decision Window / Fast Reaction" id="v0.2_Decision_Window___Fast_Reaction">
+<rect x="605" y="2158" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="2186" class="t1">Decision Window / Fast Reaction</text>
+<text x="621" y="2206" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="2230" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="2242" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="2251" width="16" height="16" class="slot"/>
+<rect x="915" y="2251" width="20" height="20" class="slot"/>
+<rect x="970" y="2251" width="24" height="24" class="slot"/>
+<rect x="1025" y="2251" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Reaction / FIRE" id="v0.2_Reaction___FIRE">
+<rect x="1140" y="2158" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="2186" class="t1">Reaction / FIRE</text>
+<text x="1156" y="2206" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="2230" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="2242" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="2251" width="16" height="16" class="slot"/>
+<rect x="1450" y="2251" width="20" height="20" class="slot"/>
+<rect x="1505" y="2251" width="24" height="24" class="slot"/>
+<rect x="1560" y="2251" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Reaction / HOLD" id="v0.2_Reaction___HOLD">
+<rect x="1675" y="2158" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="2186" class="t1">Reaction / HOLD</text>
+<text x="1691" y="2206" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="2230" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="2242" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="2251" width="16" height="16" class="slot"/>
+<rect x="1985" y="2251" width="20" height="20" class="slot"/>
+<rect x="2040" y="2251" width="24" height="24" class="slot"/>
+<rect x="2095" y="2251" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Reaction / Timeout" id="v0.2_Reaction___Timeout">
+<rect x="70" y="2370" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="2398" class="t1">Reaction / Timeout</text>
+<text x="86" y="2418" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="2442" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="2454" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="2463" width="16" height="16" class="slot"/>
+<rect x="380" y="2463" width="20" height="20" class="slot"/>
+<rect x="435" y="2463" width="24" height="24" class="slot"/>
+<rect x="490" y="2463" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Reaction / Available" id="v0.2_Reaction___Available">
+<rect x="605" y="2370" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="2398" class="t1">Reaction / Available</text>
+<text x="621" y="2418" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="2442" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="2454" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="2463" width="16" height="16" class="slot"/>
+<rect x="915" y="2463" width="20" height="20" class="slot"/>
+<rect x="970" y="2463" width="24" height="24" class="slot"/>
+<rect x="1025" y="2463" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Reaction / Armed" id="v0.2_Reaction___Armed">
+<rect x="1140" y="2370" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="2398" class="t1">Reaction / Armed</text>
+<text x="1156" y="2418" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="2442" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="2454" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="2463" width="16" height="16" class="slot"/>
+<rect x="1450" y="2463" width="20" height="20" class="slot"/>
+<rect x="1505" y="2463" width="24" height="24" class="slot"/>
+<rect x="1560" y="2463" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Reaction / Opportunity" id="v0.2_Reaction___Opportunity">
+<rect x="1675" y="2370" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="2398" class="t1">Reaction / Opportunity</text>
+<text x="1691" y="2418" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="2442" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="2454" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="2463" width="16" height="16" class="slot"/>
+<rect x="1985" y="2463" width="20" height="20" class="slot"/>
+<rect x="2040" y="2463" width="24" height="24" class="slot"/>
+<rect x="2095" y="2463" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Reaction / Consumed" id="v0.2_Reaction___Consumed">
+<rect x="70" y="2582" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="2610" class="t1">Reaction / Consumed</text>
+<text x="86" y="2630" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="2654" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="2666" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="2675" width="16" height="16" class="slot"/>
+<rect x="380" y="2675" width="20" height="20" class="slot"/>
+<rect x="435" y="2675" width="24" height="24" class="slot"/>
+<rect x="490" y="2675" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Reaction / Expired" id="v0.2_Reaction___Expired">
+<rect x="605" y="2582" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="2610" class="t1">Reaction / Expired</text>
+<text x="621" y="2630" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="2654" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="2666" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="2675" width="16" height="16" class="slot"/>
+<rect x="915" y="2675" width="20" height="20" class="slot"/>
+<rect x="970" y="2675" width="24" height="24" class="slot"/>
+<rect x="1025" y="2675" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · Reaction / Invalidated" id="v0.2_Reaction___Invalidated">
+<rect x="1140" y="2582" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="2610" class="t1">Reaction / Invalidated</text>
+<text x="1156" y="2630" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="2654" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="2666" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="2675" width="16" height="16" class="slot"/>
+<rect x="1450" y="2675" width="20" height="20" class="slot"/>
+<rect x="1505" y="2675" width="24" height="24" class="slot"/>
+<rect x="1560" y="2675" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.2 · STOP / YIELD (ONLY if gameplay currently supports them)" id="v0.2_STOP___YIELD__ONLY_if_gameplay_currently_supports_them_">
+<rect x="1675" y="2582" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="2610" class="t1">STOP / YIELD (ONLY if gameplay currently supports them)</text>
+<text x="1691" y="2630" class="t3">Origin: v0.2</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="2654" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="2666" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="2675" width="16" height="16" class="slot"/>
+<rect x="1985" y="2675" width="20" height="20" class="slot"/>
+<rect x="2040" y="2675" width="24" height="24" class="slot"/>
+<rect x="2095" y="2675" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.3 · Intel / Visible" id="v0.3_Intel___Visible">
+<rect x="70" y="2794" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="2822" class="t1">Intel / Visible</text>
+<text x="86" y="2842" class="t3">Origin: v0.3</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="2866" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="2878" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="2887" width="16" height="16" class="slot"/>
+<rect x="380" y="2887" width="20" height="20" class="slot"/>
+<rect x="435" y="2887" width="24" height="24" class="slot"/>
+<rect x="490" y="2887" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.3 · Intel / Heard" id="v0.3_Intel___Heard">
+<rect x="605" y="2794" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="2822" class="t1">Intel / Heard</text>
+<text x="621" y="2842" class="t3">Origin: v0.3</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="2866" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="2878" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="2887" width="16" height="16" class="slot"/>
+<rect x="915" y="2887" width="20" height="20" class="slot"/>
+<rect x="970" y="2887" width="24" height="24" class="slot"/>
+<rect x="1025" y="2887" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.3 · Intel / Last Known" id="v0.3_Intel___Last_Known">
+<rect x="1140" y="2794" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="2822" class="t1">Intel / Last Known</text>
+<text x="1156" y="2842" class="t3">Origin: v0.3</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="2866" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="2878" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="2887" width="16" height="16" class="slot"/>
+<rect x="1450" y="2887" width="20" height="20" class="slot"/>
+<rect x="1505" y="2887" width="24" height="24" class="slot"/>
+<rect x="1560" y="2887" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.3 · Intel / Unknown" id="v0.3_Intel___Unknown">
+<rect x="1675" y="2794" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="2822" class="t1">Intel / Unknown</text>
+<text x="1691" y="2842" class="t3">Origin: v0.3</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="2866" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="2878" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="2887" width="16" height="16" class="slot"/>
+<rect x="1985" y="2887" width="20" height="20" class="slot"/>
+<rect x="2040" y="2887" width="24" height="24" class="slot"/>
+<rect x="2095" y="2887" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.3 · Intel / Approximate Area" id="v0.3_Intel___Approximate_Area">
+<rect x="70" y="3006" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="3034" class="t1">Intel / Approximate Area</text>
+<text x="86" y="3054" class="t3">Origin: v0.3</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="3078" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="3090" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="3099" width="16" height="16" class="slot"/>
+<rect x="380" y="3099" width="20" height="20" class="slot"/>
+<rect x="435" y="3099" width="24" height="24" class="slot"/>
+<rect x="490" y="3099" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.3 · Intel / Detected" id="v0.3_Intel___Detected">
+<rect x="605" y="3006" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="3034" class="t1">Intel / Detected</text>
+<text x="621" y="3054" class="t3">Origin: v0.3</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="3078" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="3090" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="3099" width="16" height="16" class="slot"/>
+<rect x="915" y="3099" width="20" height="20" class="slot"/>
+<rect x="970" y="3099" width="24" height="24" class="slot"/>
+<rect x="1025" y="3099" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.3 · Intel / Facing / focus markers" id="v0.3_Intel___Facing___focus_markers">
+<rect x="1140" y="3006" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="3034" class="t1">Intel / Facing / focus markers</text>
+<text x="1156" y="3054" class="t3">Origin: v0.3</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="3078" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="3090" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="3099" width="16" height="16" class="slot"/>
+<rect x="1450" y="3099" width="20" height="20" class="slot"/>
+<rect x="1505" y="3099" width="24" height="24" class="slot"/>
+<rect x="1560" y="3099" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.3 · Vision overlay" id="v0.3_Vision_overlay">
+<rect x="1675" y="3006" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="3034" class="t1">Vision overlay</text>
+<text x="1691" y="3054" class="t3">Origin: v0.3</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="3078" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="3090" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="3099" width="16" height="16" class="slot"/>
+<rect x="1985" y="3099" width="20" height="20" class="slot"/>
+<rect x="2040" y="3099" width="24" height="24" class="slot"/>
+<rect x="2095" y="3099" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.3 · Sound overlay" id="v0.3_Sound_overlay">
+<rect x="70" y="3218" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="3246" class="t1">Sound overlay</text>
+<text x="86" y="3266" class="t3">Origin: v0.3</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="3290" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="3302" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="3311" width="16" height="16" class="slot"/>
+<rect x="380" y="3311" width="20" height="20" class="slot"/>
+<rect x="435" y="3311" width="24" height="24" class="slot"/>
+<rect x="490" y="3311" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.3 · Ghost Intel / Last Known" id="v0.3_Ghost_Intel___Last_Known">
+<rect x="605" y="3218" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="3246" class="t1">Ghost Intel / Last Known</text>
+<text x="621" y="3266" class="t3">Origin: v0.3</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="3290" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="3302" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="3311" width="16" height="16" class="slot"/>
+<rect x="915" y="3311" width="20" height="20" class="slot"/>
+<rect x="970" y="3311" width="24" height="24" class="slot"/>
+<rect x="1025" y="3311" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.3 · Stealth marker" id="v0.3_Stealth_marker">
+<rect x="1140" y="3218" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="3246" class="t1">Stealth marker</text>
+<text x="1156" y="3266" class="t3">Origin: v0.3</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="3290" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="3302" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="3311" width="16" height="16" class="slot"/>
+<rect x="1450" y="3311" width="20" height="20" class="slot"/>
+<rect x="1505" y="3311" width="24" height="24" class="slot"/>
+<rect x="1560" y="3311" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.3 · Privacy-safe warning marker" id="v0.3_Privacy-safe_warning_marker">
+<rect x="1675" y="3218" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="3246" class="t1">Privacy-safe warning marker</text>
+<text x="1691" y="3266" class="t3">Origin: v0.3</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="3290" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="3302" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="3311" width="16" height="16" class="slot"/>
+<rect x="1985" y="3311" width="20" height="20" class="slot"/>
+<rect x="2040" y="3311" width="24" height="24" class="slot"/>
+<rect x="2095" y="3311" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Camera / Tactical level" id="v0.4_Camera___Tactical_level">
+<rect x="70" y="3430" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="3458" class="t1">Camera / Tactical level</text>
+<text x="86" y="3478" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="3502" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="3514" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="3523" width="16" height="16" class="slot"/>
+<rect x="380" y="3523" width="20" height="20" class="slot"/>
+<rect x="435" y="3523" width="24" height="24" class="slot"/>
+<rect x="490" y="3523" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Camera / Strategic level" id="v0.4_Camera___Strategic_level">
+<rect x="605" y="3430" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="3458" class="t1">Camera / Strategic level</text>
+<text x="621" y="3478" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="3502" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="3514" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="3523" width="16" height="16" class="slot"/>
+<rect x="915" y="3523" width="20" height="20" class="slot"/>
+<rect x="970" y="3523" width="24" height="24" class="slot"/>
+<rect x="1025" y="3523" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Layer / Ground" id="v0.4_Layer___Ground">
+<rect x="1140" y="3430" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="3458" class="t1">Layer / Ground</text>
+<text x="1156" y="3478" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="3502" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="3514" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="3523" width="16" height="16" class="slot"/>
+<rect x="1450" y="3523" width="20" height="20" class="slot"/>
+<rect x="1505" y="3523" width="24" height="24" class="slot"/>
+<rect x="1560" y="3523" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Layer / Bridge" id="v0.4_Layer___Bridge">
+<rect x="1675" y="3430" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="3458" class="t1">Layer / Bridge</text>
+<text x="1691" y="3478" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="3502" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="3514" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="3523" width="16" height="16" class="slot"/>
+<rect x="1985" y="3523" width="20" height="20" class="slot"/>
+<rect x="2040" y="3523" width="24" height="24" class="slot"/>
+<rect x="2095" y="3523" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Layer / Roof" id="v0.4_Layer___Roof">
+<rect x="70" y="3642" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="3670" class="t1">Layer / Roof</text>
+<text x="86" y="3690" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="3714" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="3726" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="3735" width="16" height="16" class="slot"/>
+<rect x="380" y="3735" width="20" height="20" class="slot"/>
+<rect x="435" y="3735" width="24" height="24" class="slot"/>
+<rect x="490" y="3735" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Layer / Tunnel" id="v0.4_Layer___Tunnel">
+<rect x="605" y="3642" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="3670" class="t1">Layer / Tunnel</text>
+<text x="621" y="3690" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="3714" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="3726" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="3735" width="16" height="16" class="slot"/>
+<rect x="915" y="3735" width="20" height="20" class="slot"/>
+<rect x="970" y="3735" width="24" height="24" class="slot"/>
+<rect x="1025" y="3735" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Layer / Up" id="v0.4_Layer___Up">
+<rect x="1140" y="3642" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="3670" class="t1">Layer / Up</text>
+<text x="1156" y="3690" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="3714" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="3726" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="3735" width="16" height="16" class="slot"/>
+<rect x="1450" y="3735" width="20" height="20" class="slot"/>
+<rect x="1505" y="3735" width="24" height="24" class="slot"/>
+<rect x="1560" y="3735" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Layer / Down" id="v0.4_Layer___Down">
+<rect x="1675" y="3642" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="3670" class="t1">Layer / Down</text>
+<text x="1691" y="3690" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="3714" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="3726" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="3735" width="16" height="16" class="slot"/>
+<rect x="1985" y="3735" width="20" height="20" class="slot"/>
+<rect x="2040" y="3735" width="24" height="24" class="slot"/>
+<rect x="2095" y="3735" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · MapState / Door Open" id="v0.4_MapState___Door_Open">
+<rect x="70" y="3854" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="3882" class="t1">MapState / Door Open</text>
+<text x="86" y="3902" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="3926" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="3938" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="3947" width="16" height="16" class="slot"/>
+<rect x="380" y="3947" width="20" height="20" class="slot"/>
+<rect x="435" y="3947" width="24" height="24" class="slot"/>
+<rect x="490" y="3947" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · MapState / Door Closed" id="v0.4_MapState___Door_Closed">
+<rect x="605" y="3854" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="3882" class="t1">MapState / Door Closed</text>
+<text x="621" y="3902" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="3926" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="3938" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="3947" width="16" height="16" class="slot"/>
+<rect x="915" y="3947" width="20" height="20" class="slot"/>
+<rect x="970" y="3947" width="24" height="24" class="slot"/>
+<rect x="1025" y="3947" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · MapState / Door Locked" id="v0.4_MapState___Door_Locked">
+<rect x="1140" y="3854" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="3882" class="t1">MapState / Door Locked</text>
+<text x="1156" y="3902" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="3926" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="3938" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="3947" width="16" height="16" class="slot"/>
+<rect x="1450" y="3947" width="20" height="20" class="slot"/>
+<rect x="1505" y="3947" width="24" height="24" class="slot"/>
+<rect x="1560" y="3947" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · MapState / Bridge" id="v0.4_MapState___Bridge">
+<rect x="1675" y="3854" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="3882" class="t1">MapState / Bridge</text>
+<text x="1691" y="3902" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="3926" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="3938" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="3947" width="16" height="16" class="slot"/>
+<rect x="1985" y="3947" width="20" height="20" class="slot"/>
+<rect x="2040" y="3947" width="24" height="24" class="slot"/>
+<rect x="2095" y="3947" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · MapState / Tunnel" id="v0.4_MapState___Tunnel">
+<rect x="70" y="4066" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="4094" class="t1">MapState / Tunnel</text>
+<text x="86" y="4114" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="4138" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="4150" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="4159" width="16" height="16" class="slot"/>
+<rect x="380" y="4159" width="20" height="20" class="slot"/>
+<rect x="435" y="4159" width="24" height="24" class="slot"/>
+<rect x="490" y="4159" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · MapState / Elevator" id="v0.4_MapState___Elevator">
+<rect x="605" y="4066" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="4094" class="t1">MapState / Elevator</text>
+<text x="621" y="4114" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="4138" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="4150" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="4159" width="16" height="16" class="slot"/>
+<rect x="915" y="4159" width="20" height="20" class="slot"/>
+<rect x="970" y="4159" width="24" height="24" class="slot"/>
+<rect x="1025" y="4159" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Environment / Cover" id="v0.4_Environment___Cover">
+<rect x="1140" y="4066" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="4094" class="t1">Environment / Cover</text>
+<text x="1156" y="4114" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="4138" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="4150" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="4159" width="16" height="16" class="slot"/>
+<rect x="1450" y="4159" width="20" height="20" class="slot"/>
+<rect x="1505" y="4159" width="24" height="24" class="slot"/>
+<rect x="1560" y="4159" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Environment / Height" id="v0.4_Environment___Height">
+<rect x="1675" y="4066" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="4094" class="t1">Environment / Height</text>
+<text x="1691" y="4114" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="4138" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="4150" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="4159" width="16" height="16" class="slot"/>
+<rect x="1985" y="4159" width="20" height="20" class="slot"/>
+<rect x="2040" y="4159" width="24" height="24" class="slot"/>
+<rect x="2095" y="4159" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Environment / Water" id="v0.4_Environment___Water">
+<rect x="70" y="4278" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="4306" class="t1">Environment / Water</text>
+<text x="86" y="4326" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="4350" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="4362" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="4371" width="16" height="16" class="slot"/>
+<rect x="380" y="4371" width="20" height="20" class="slot"/>
+<rect x="435" y="4371" width="24" height="24" class="slot"/>
+<rect x="490" y="4371" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Environment / Fire" id="v0.4_Environment___Fire">
+<rect x="605" y="4278" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="4306" class="t1">Environment / Fire</text>
+<text x="621" y="4326" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="4350" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="4362" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="4371" width="16" height="16" class="slot"/>
+<rect x="915" y="4371" width="20" height="20" class="slot"/>
+<rect x="970" y="4371" width="24" height="24" class="slot"/>
+<rect x="1025" y="4371" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Environment / Electric" id="v0.4_Environment___Electric">
+<rect x="1140" y="4278" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="4306" class="t1">Environment / Electric</text>
+<text x="1156" y="4326" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="4350" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="4362" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="4371" width="16" height="16" class="slot"/>
+<rect x="1450" y="4371" width="20" height="20" class="slot"/>
+<rect x="1505" y="4371" width="24" height="24" class="slot"/>
+<rect x="1560" y="4371" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Environment / Smoke" id="v0.4_Environment___Smoke">
+<rect x="1675" y="4278" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="4306" class="t1">Environment / Smoke</text>
+<text x="1691" y="4326" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="4350" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="4362" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="4371" width="16" height="16" class="slot"/>
+<rect x="1985" y="4371" width="20" height="20" class="slot"/>
+<rect x="2040" y="4371" width="24" height="24" class="slot"/>
+<rect x="2095" y="4371" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Environment / Ice" id="v0.4_Environment___Ice">
+<rect x="70" y="4490" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="4518" class="t1">Environment / Ice</text>
+<text x="86" y="4538" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="4562" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="4574" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="4583" width="16" height="16" class="slot"/>
+<rect x="380" y="4583" width="20" height="20" class="slot"/>
+<rect x="435" y="4583" width="24" height="24" class="slot"/>
+<rect x="490" y="4583" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.4 · Environment / Hazard" id="v0.4_Environment___Hazard">
+<rect x="605" y="4490" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="4518" class="t1">Environment / Hazard</text>
+<text x="621" y="4538" class="t3">Origin: v0.4</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="4562" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="4574" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="4583" width="16" height="16" class="slot"/>
+<rect x="915" y="4583" width="20" height="20" class="slot"/>
+<rect x="970" y="4583" width="24" height="24" class="slot"/>
+<rect x="1025" y="4583" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Movement / Push" id="v0.5_Movement___Push">
+<rect x="1140" y="4490" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="4518" class="t1">Movement / Push</text>
+<text x="1156" y="4538" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="4562" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="4574" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="4583" width="16" height="16" class="slot"/>
+<rect x="1450" y="4583" width="20" height="20" class="slot"/>
+<rect x="1505" y="4583" width="24" height="24" class="slot"/>
+<rect x="1560" y="4583" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Movement / Pull" id="v0.5_Movement___Pull">
+<rect x="1675" y="4490" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="4518" class="t1">Movement / Pull</text>
+<text x="1691" y="4538" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="4562" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="4574" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="4583" width="16" height="16" class="slot"/>
+<rect x="1985" y="4583" width="20" height="20" class="slot"/>
+<rect x="2040" y="4583" width="24" height="24" class="slot"/>
+<rect x="2095" y="4583" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Movement / Knockback" id="v0.5_Movement___Knockback">
+<rect x="70" y="4702" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="4730" class="t1">Movement / Knockback</text>
+<text x="86" y="4750" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="4774" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="4786" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="4795" width="16" height="16" class="slot"/>
+<rect x="380" y="4795" width="20" height="20" class="slot"/>
+<rect x="435" y="4795" width="24" height="24" class="slot"/>
+<rect x="490" y="4795" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Movement / Slide" id="v0.5_Movement___Slide">
+<rect x="605" y="4702" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="4730" class="t1">Movement / Slide</text>
+<text x="621" y="4750" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="4774" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="4786" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="4795" width="16" height="16" class="slot"/>
+<rect x="915" y="4795" width="20" height="20" class="slot"/>
+<rect x="970" y="4795" width="24" height="24" class="slot"/>
+<rect x="1025" y="4795" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Movement / Throw" id="v0.5_Movement___Throw">
+<rect x="1140" y="4702" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="4730" class="t1">Movement / Throw</text>
+<text x="1156" y="4750" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="4774" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="4786" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="4795" width="16" height="16" class="slot"/>
+<rect x="1450" y="4795" width="20" height="20" class="slot"/>
+<rect x="1505" y="4795" width="24" height="24" class="slot"/>
+<rect x="1560" y="4795" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Movement / Forced Move" id="v0.5_Movement___Forced_Move">
+<rect x="1675" y="4702" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="4730" class="t1">Movement / Forced Move</text>
+<text x="1691" y="4750" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="4774" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="4786" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="4795" width="16" height="16" class="slot"/>
+<rect x="1985" y="4795" width="20" height="20" class="slot"/>
+<rect x="2040" y="4795" width="24" height="24" class="slot"/>
+<rect x="2095" y="4795" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Preview / Forced movement path" id="v0.5_Preview___Forced_movement_path">
+<rect x="70" y="4914" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="4942" class="t1">Preview / Forced movement path</text>
+<text x="86" y="4962" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="4986" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="4998" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="5007" width="16" height="16" class="slot"/>
+<rect x="380" y="5007" width="20" height="20" class="slot"/>
+<rect x="435" y="5007" width="24" height="24" class="slot"/>
+<rect x="490" y="5007" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Preview / Reaction consequence" id="v0.5_Preview___Reaction_consequence">
+<rect x="605" y="4914" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="4942" class="t1">Preview / Reaction consequence</text>
+<text x="621" y="4962" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="4986" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="4998" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="5007" width="16" height="16" class="slot"/>
+<rect x="915" y="5007" width="20" height="20" class="slot"/>
+<rect x="970" y="5007" width="24" height="24" class="slot"/>
+<rect x="1025" y="5007" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Objective / Neutral" id="v0.5_Objective___Neutral">
+<rect x="1140" y="4914" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="4942" class="t1">Objective / Neutral</text>
+<text x="1156" y="4962" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="4986" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="4998" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="5007" width="16" height="16" class="slot"/>
+<rect x="1450" y="5007" width="20" height="20" class="slot"/>
+<rect x="1505" y="5007" width="24" height="24" class="slot"/>
+<rect x="1560" y="5007" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Objective / Capture" id="v0.5_Objective___Capture">
+<rect x="1675" y="4914" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="4942" class="t1">Objective / Capture</text>
+<text x="1691" y="4962" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="4986" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="4998" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="5007" width="16" height="16" class="slot"/>
+<rect x="1985" y="5007" width="20" height="20" class="slot"/>
+<rect x="2040" y="5007" width="24" height="24" class="slot"/>
+<rect x="2095" y="5007" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Objective / Contested" id="v0.5_Objective___Contested">
+<rect x="70" y="5126" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="5154" class="t1">Objective / Contested</text>
+<text x="86" y="5174" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="5198" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="5210" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="5219" width="16" height="16" class="slot"/>
+<rect x="380" y="5219" width="20" height="20" class="slot"/>
+<rect x="435" y="5219" width="24" height="24" class="slot"/>
+<rect x="490" y="5219" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Objective / Owned" id="v0.5_Objective___Owned">
+<rect x="605" y="5126" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="5154" class="t1">Objective / Owned</text>
+<text x="621" y="5174" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="5198" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="5210" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="5219" width="16" height="16" class="slot"/>
+<rect x="915" y="5219" width="20" height="20" class="slot"/>
+<rect x="970" y="5219" width="24" height="24" class="slot"/>
+<rect x="1025" y="5219" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Objective / Locked" id="v0.5_Objective___Locked">
+<rect x="1140" y="5126" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="5154" class="t1">Objective / Locked</text>
+<text x="1156" y="5174" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="5198" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="5210" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="5219" width="16" height="16" class="slot"/>
+<rect x="1450" y="5219" width="20" height="20" class="slot"/>
+<rect x="1505" y="5219" width="24" height="24" class="slot"/>
+<rect x="1560" y="5219" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Objective / Completed" id="v0.5_Objective___Completed">
+<rect x="1675" y="5126" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="5154" class="t1">Objective / Completed</text>
+<text x="1691" y="5174" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="5198" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="5210" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="5219" width="16" height="16" class="slot"/>
+<rect x="1985" y="5219" width="20" height="20" class="slot"/>
+<rect x="2040" y="5219" width="24" height="24" class="slot"/>
+<rect x="2095" y="5219" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Counterplay / Interrupt opportunity" id="v0.5_Counterplay___Interrupt_opportunity">
+<rect x="70" y="5338" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="5366" class="t1">Counterplay / Interrupt opportunity</text>
+<text x="86" y="5386" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="5410" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="5422" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="5431" width="16" height="16" class="slot"/>
+<rect x="380" y="5431" width="20" height="20" class="slot"/>
+<rect x="435" y="5431" width="24" height="24" class="slot"/>
+<rect x="490" y="5431" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.5 · Counterplay / Threat" id="v0.5_Counterplay___Threat">
+<rect x="605" y="5338" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="5366" class="t1">Counterplay / Threat</text>
+<text x="621" y="5386" class="t3">Origin: v0.5</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="5410" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="5422" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="5431" width="16" height="16" class="slot"/>
+<rect x="915" y="5431" width="20" height="20" class="slot"/>
+<rect x="970" y="5431" width="24" height="24" class="slot"/>
+<rect x="1025" y="5431" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Scenario Composer / Add" id="v0.6_Scenario_Composer___Add">
+<rect x="1140" y="5338" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="5366" class="t1">Scenario Composer / Add</text>
+<text x="1156" y="5386" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="5410" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="5422" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="5431" width="16" height="16" class="slot"/>
+<rect x="1450" y="5431" width="20" height="20" class="slot"/>
+<rect x="1505" y="5431" width="24" height="24" class="slot"/>
+<rect x="1560" y="5431" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Scenario Composer / Remove" id="v0.6_Scenario_Composer___Remove">
+<rect x="1675" y="5338" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="5366" class="t1">Scenario Composer / Remove</text>
+<text x="1691" y="5386" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="5410" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="5422" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="5431" width="16" height="16" class="slot"/>
+<rect x="1985" y="5431" width="20" height="20" class="slot"/>
+<rect x="2040" y="5431" width="24" height="24" class="slot"/>
+<rect x="2095" y="5431" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Scenario Composer / Validate" id="v0.6_Scenario_Composer___Validate">
+<rect x="70" y="5550" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="5578" class="t1">Scenario Composer / Validate</text>
+<text x="86" y="5598" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="5622" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="5634" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="5643" width="16" height="16" class="slot"/>
+<rect x="380" y="5643" width="20" height="20" class="slot"/>
+<rect x="435" y="5643" width="24" height="24" class="slot"/>
+<rect x="490" y="5643" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Scenario Composer / Spawn" id="v0.6_Scenario_Composer___Spawn">
+<rect x="605" y="5550" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="5578" class="t1">Scenario Composer / Spawn</text>
+<text x="621" y="5598" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="5622" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="5634" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="5643" width="16" height="16" class="slot"/>
+<rect x="915" y="5643" width="20" height="20" class="slot"/>
+<rect x="970" y="5643" width="24" height="24" class="slot"/>
+<rect x="1025" y="5643" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Scenario Composer / Objective" id="v0.6_Scenario_Composer___Objective">
+<rect x="1140" y="5550" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="5578" class="t1">Scenario Composer / Objective</text>
+<text x="1156" y="5598" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="5622" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="5634" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="5643" width="16" height="16" class="slot"/>
+<rect x="1450" y="5643" width="20" height="20" class="slot"/>
+<rect x="1505" y="5643" width="24" height="24" class="slot"/>
+<rect x="1560" y="5643" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Skill Workbench / Target" id="v0.6_Skill_Workbench___Target">
+<rect x="1675" y="5550" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="5578" class="t1">Skill Workbench / Target</text>
+<text x="1691" y="5598" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="5622" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="5634" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="5643" width="16" height="16" class="slot"/>
+<rect x="1985" y="5643" width="20" height="20" class="slot"/>
+<rect x="2040" y="5643" width="24" height="24" class="slot"/>
+<rect x="2095" y="5643" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Skill Workbench / Geometry" id="v0.6_Skill_Workbench___Geometry">
+<rect x="70" y="5762" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="5790" class="t1">Skill Workbench / Geometry</text>
+<text x="86" y="5810" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="5834" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="5846" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="5855" width="16" height="16" class="slot"/>
+<rect x="380" y="5855" width="20" height="20" class="slot"/>
+<rect x="435" y="5855" width="24" height="24" class="slot"/>
+<rect x="490" y="5855" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Skill Workbench / Effect" id="v0.6_Skill_Workbench___Effect">
+<rect x="605" y="5762" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="5790" class="t1">Skill Workbench / Effect</text>
+<text x="621" y="5810" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="5834" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="5846" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="5855" width="16" height="16" class="slot"/>
+<rect x="915" y="5855" width="20" height="20" class="slot"/>
+<rect x="970" y="5855" width="24" height="24" class="slot"/>
+<rect x="1025" y="5855" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Skill Workbench / Requirement" id="v0.6_Skill_Workbench___Requirement">
+<rect x="1140" y="5762" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="5790" class="t1">Skill Workbench / Requirement</text>
+<text x="1156" y="5810" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="5834" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="5846" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="5855" width="16" height="16" class="slot"/>
+<rect x="1450" y="5855" width="20" height="20" class="slot"/>
+<rect x="1505" y="5855" width="24" height="24" class="slot"/>
+<rect x="1560" y="5855" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Skill Workbench / Cost" id="v0.6_Skill_Workbench___Cost">
+<rect x="1675" y="5762" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="5790" class="t1">Skill Workbench / Cost</text>
+<text x="1691" y="5810" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="5834" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="5846" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="5855" width="16" height="16" class="slot"/>
+<rect x="1985" y="5855" width="20" height="20" class="slot"/>
+<rect x="2040" y="5855" width="24" height="24" class="slot"/>
+<rect x="2095" y="5855" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Skill Workbench / Cooldown" id="v0.6_Skill_Workbench___Cooldown">
+<rect x="70" y="5974" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="6002" class="t1">Skill Workbench / Cooldown</text>
+<text x="86" y="6022" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="6046" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="6058" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="6067" width="16" height="16" class="slot"/>
+<rect x="380" y="6067" width="20" height="20" class="slot"/>
+<rect x="435" y="6067" width="24" height="24" class="slot"/>
+<rect x="490" y="6067" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Character Setup / Slot" id="v0.6_Character_Setup___Slot">
+<rect x="605" y="5974" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="6002" class="t1">Character Setup / Slot</text>
+<text x="621" y="6022" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="6046" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="6058" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="6067" width="16" height="16" class="slot"/>
+<rect x="915" y="6067" width="20" height="20" class="slot"/>
+<rect x="970" y="6067" width="24" height="24" class="slot"/>
+<rect x="1025" y="6067" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Character Setup / Talent" id="v0.6_Character_Setup___Talent">
+<rect x="1140" y="5974" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="6002" class="t1">Character Setup / Talent</text>
+<text x="1156" y="6022" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="6046" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="6058" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="6067" width="16" height="16" class="slot"/>
+<rect x="1450" y="6067" width="20" height="20" class="slot"/>
+<rect x="1505" y="6067" width="24" height="24" class="slot"/>
+<rect x="1560" y="6067" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Character Setup / Gadget" id="v0.6_Character_Setup___Gadget">
+<rect x="1675" y="5974" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="6002" class="t1">Character Setup / Gadget</text>
+<text x="1691" y="6022" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="6046" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="6058" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="6067" width="16" height="16" class="slot"/>
+<rect x="1985" y="6067" width="20" height="20" class="slot"/>
+<rect x="2040" y="6067" width="24" height="24" class="slot"/>
+<rect x="2095" y="6067" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Character Setup / Specialization" id="v0.6_Character_Setup___Specialization">
+<rect x="70" y="6186" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="6214" class="t1">Character Setup / Specialization</text>
+<text x="86" y="6234" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="6258" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="6270" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="6279" width="16" height="16" class="slot"/>
+<rect x="380" y="6279" width="20" height="20" class="slot"/>
+<rect x="435" y="6279" width="24" height="24" class="slot"/>
+<rect x="490" y="6279" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Content Preview / Valid" id="v0.6_Content_Preview___Valid">
+<rect x="605" y="6186" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="6214" class="t1">Content Preview / Valid</text>
+<text x="621" y="6234" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="6258" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="6270" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="6279" width="16" height="16" class="slot"/>
+<rect x="915" y="6279" width="20" height="20" class="slot"/>
+<rect x="970" y="6279" width="24" height="24" class="slot"/>
+<rect x="1025" y="6279" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Content Preview / Warning" id="v0.6_Content_Preview___Warning">
+<rect x="1140" y="6186" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="6214" class="t1">Content Preview / Warning</text>
+<text x="1156" y="6234" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="6258" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="6270" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="6279" width="16" height="16" class="slot"/>
+<rect x="1450" y="6279" width="20" height="20" class="slot"/>
+<rect x="1505" y="6279" width="24" height="24" class="slot"/>
+<rect x="1560" y="6279" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.6 · Content Preview / Invalid" id="v0.6_Content_Preview___Invalid">
+<rect x="1675" y="6186" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="6214" class="t1">Content Preview / Invalid</text>
+<text x="1691" y="6234" class="t3">Origin: v0.6</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="6258" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="6270" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="6279" width="16" height="16" class="slot"/>
+<rect x="1985" y="6279" width="20" height="20" class="slot"/>
+<rect x="2040" y="6279" width="24" height="24" class="slot"/>
+<rect x="2095" y="6279" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.7 · Network / Connected" id="v0.7_Network___Connected">
+<rect x="70" y="6398" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="6426" class="t1">Network / Connected</text>
+<text x="86" y="6446" class="t3">Origin: v0.7</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="6470" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="6482" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="6491" width="16" height="16" class="slot"/>
+<rect x="380" y="6491" width="20" height="20" class="slot"/>
+<rect x="435" y="6491" width="24" height="24" class="slot"/>
+<rect x="490" y="6491" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.7 · Network / Reconnecting" id="v0.7_Network___Reconnecting">
+<rect x="605" y="6398" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="6426" class="t1">Network / Reconnecting</text>
+<text x="621" y="6446" class="t3">Origin: v0.7</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="6470" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="6482" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="6491" width="16" height="16" class="slot"/>
+<rect x="915" y="6491" width="20" height="20" class="slot"/>
+<rect x="970" y="6491" width="24" height="24" class="slot"/>
+<rect x="1025" y="6491" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.7 · Network / Disconnected" id="v0.7_Network___Disconnected">
+<rect x="1140" y="6398" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="6426" class="t1">Network / Disconnected</text>
+<text x="1156" y="6446" class="t3">Origin: v0.7</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="6470" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="6482" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="6491" width="16" height="16" class="slot"/>
+<rect x="1450" y="6491" width="20" height="20" class="slot"/>
+<rect x="1505" y="6491" width="24" height="24" class="slot"/>
+<rect x="1560" y="6491" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.7 · Network / Waiting for server" id="v0.7_Network___Waiting_for_server">
+<rect x="1675" y="6398" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="6426" class="t1">Network / Waiting for server</text>
+<text x="1691" y="6446" class="t3">Origin: v0.7</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="6470" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="6482" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="6491" width="16" height="16" class="slot"/>
+<rect x="1985" y="6491" width="20" height="20" class="slot"/>
+<rect x="2040" y="6491" width="24" height="24" class="slot"/>
+<rect x="2095" y="6491" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.7 · Network / Syncing" id="v0.7_Network___Syncing">
+<rect x="70" y="6610" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="6638" class="t1">Network / Syncing</text>
+<text x="86" y="6658" class="t3">Origin: v0.7</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="6682" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="6694" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="6703" width="16" height="16" class="slot"/>
+<rect x="380" y="6703" width="20" height="20" class="slot"/>
+<rect x="435" y="6703" width="24" height="24" class="slot"/>
+<rect x="490" y="6703" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.7 · Spectator / Spectating" id="v0.7_Spectator___Spectating">
+<rect x="605" y="6610" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="6638" class="t1">Spectator / Spectating</text>
+<text x="621" y="6658" class="t3">Origin: v0.7</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="6682" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="6694" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="6703" width="16" height="16" class="slot"/>
+<rect x="915" y="6703" width="20" height="20" class="slot"/>
+<rect x="970" y="6703" width="24" height="24" class="slot"/>
+<rect x="1025" y="6703" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.7 · Spectator / Follow" id="v0.7_Spectator___Follow">
+<rect x="1140" y="6610" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="6638" class="t1">Spectator / Follow</text>
+<text x="1156" y="6658" class="t3">Origin: v0.7</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="6682" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="6694" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="6703" width="16" height="16" class="slot"/>
+<rect x="1450" y="6703" width="20" height="20" class="slot"/>
+<rect x="1505" y="6703" width="24" height="24" class="slot"/>
+<rect x="1560" y="6703" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.7 · Spectator / Free camera" id="v0.7_Spectator___Free_camera">
+<rect x="1675" y="6610" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="6638" class="t1">Spectator / Free camera</text>
+<text x="1691" y="6658" class="t3">Origin: v0.7</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="6682" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="6694" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="6703" width="16" height="16" class="slot"/>
+<rect x="1985" y="6703" width="20" height="20" class="slot"/>
+<rect x="2040" y="6703" width="24" height="24" class="slot"/>
+<rect x="2095" y="6703" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.7 · Spectator / Team A" id="v0.7_Spectator___Team_A">
+<rect x="70" y="6822" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="6850" class="t1">Spectator / Team A</text>
+<text x="86" y="6870" class="t3">Origin: v0.7</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="6894" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="6906" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="6915" width="16" height="16" class="slot"/>
+<rect x="380" y="6915" width="20" height="20" class="slot"/>
+<rect x="435" y="6915" width="24" height="24" class="slot"/>
+<rect x="490" y="6915" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.7 · Spectator / Team B" id="v0.7_Spectator___Team_B">
+<rect x="605" y="6822" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="6850" class="t1">Spectator / Team B</text>
+<text x="621" y="6870" class="t3">Origin: v0.7</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="6894" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="6906" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="6915" width="16" height="16" class="slot"/>
+<rect x="915" y="6915" width="20" height="20" class="slot"/>
+<rect x="970" y="6915" width="24" height="24" class="slot"/>
+<rect x="1025" y="6915" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.7 · Audit / Privacy-safe" id="v0.7_Audit___Privacy-safe">
+<rect x="1140" y="6822" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="6850" class="t1">Audit / Privacy-safe</text>
+<text x="1156" y="6870" class="t3">Origin: v0.7</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="6894" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="6906" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="6915" width="16" height="16" class="slot"/>
+<rect x="1450" y="6915" width="20" height="20" class="slot"/>
+<rect x="1505" y="6915" width="24" height="24" class="slot"/>
+<rect x="1560" y="6915" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.7 · Audit / Restricted information" id="v0.7_Audit___Restricted_information">
+<rect x="1675" y="6822" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="6850" class="t1">Audit / Restricted information</text>
+<text x="1691" y="6870" class="t3">Origin: v0.7</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="6894" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="6906" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="6915" width="16" height="16" class="slot"/>
+<rect x="1985" y="6915" width="20" height="20" class="slot"/>
+<rect x="2040" y="6915" width="24" height="24" class="slot"/>
+<rect x="2095" y="6915" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.8 · Density / Overflow +N" id="v0.8_Density___Overflow__N">
+<rect x="70" y="7034" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="7062" class="t1">Density / Overflow +N</text>
+<text x="86" y="7082" class="t3">Origin: v0.8</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="7106" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="7118" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="7127" width="16" height="16" class="slot"/>
+<rect x="380" y="7127" width="20" height="20" class="slot"/>
+<rect x="435" y="7127" width="24" height="24" class="slot"/>
+<rect x="490" y="7127" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.8 · Density / Stack collapsed" id="v0.8_Density___Stack_collapsed">
+<rect x="605" y="7034" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="7062" class="t1">Density / Stack collapsed</text>
+<text x="621" y="7082" class="t3">Origin: v0.8</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="7106" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="7118" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="7127" width="16" height="16" class="slot"/>
+<rect x="915" y="7127" width="20" height="20" class="slot"/>
+<rect x="970" y="7127" width="24" height="24" class="slot"/>
+<rect x="1025" y="7127" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.8 · Density / Priority marker" id="v0.8_Density___Priority_marker">
+<rect x="1140" y="7034" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="7062" class="t1">Density / Priority marker</text>
+<text x="1156" y="7082" class="t3">Origin: v0.8</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="7106" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="7118" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="7127" width="16" height="16" class="slot"/>
+<rect x="1450" y="7127" width="20" height="20" class="slot"/>
+<rect x="1505" y="7127" width="24" height="24" class="slot"/>
+<rect x="1560" y="7127" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.8 · Roster / Focus" id="v0.8_Roster___Focus">
+<rect x="1675" y="7034" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="7062" class="t1">Roster / Focus</text>
+<text x="1691" y="7082" class="t3">Origin: v0.8</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="7106" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="7118" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="7127" width="16" height="16" class="slot"/>
+<rect x="1985" y="7127" width="20" height="20" class="slot"/>
+<rect x="2040" y="7127" width="24" height="24" class="slot"/>
+<rect x="2095" y="7127" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.8 · Roster / Selected" id="v0.8_Roster___Selected">
+<rect x="70" y="7246" width="510" height="190" rx="9" class="prev"/>
+<text x="86" y="7274" class="t1">Roster / Selected</text>
+<text x="86" y="7294" class="t3">Origin: v0.8</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="7318" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="7330" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="7339" width="16" height="16" class="slot"/>
+<rect x="380" y="7339" width="20" height="20" class="slot"/>
+<rect x="435" y="7339" width="24" height="24" class="slot"/>
+<rect x="490" y="7339" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.8 · Roster / Ready" id="v0.8_Roster___Ready">
+<rect x="605" y="7246" width="510" height="190" rx="9" class="prev"/>
+<text x="621" y="7274" class="t1">Roster / Ready</text>
+<text x="621" y="7294" class="t3">Origin: v0.8</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="7318" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="7330" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="7339" width="16" height="16" class="slot"/>
+<rect x="915" y="7339" width="20" height="20" class="slot"/>
+<rect x="970" y="7339" width="24" height="24" class="slot"/>
+<rect x="1025" y="7339" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.8 · World / Clutter suppression" id="v0.8_World___Clutter_suppression">
+<rect x="1140" y="7246" width="510" height="190" rx="9" class="prev"/>
+<text x="1156" y="7274" class="t1">World / Clutter suppression</text>
+<text x="1156" y="7294" class="t3">Origin: v0.8</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="7318" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="7330" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="7339" width="16" height="16" class="slot"/>
+<rect x="1450" y="7339" width="20" height="20" class="slot"/>
+<rect x="1505" y="7339" width="24" height="24" class="slot"/>
+<rect x="1560" y="7339" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="INHERITED_v0.8 · World / Priority P0-P6" id="v0.8_World___Priority_P0-P6">
+<rect x="1675" y="7246" width="510" height="190" rx="9" class="prev"/>
+<text x="1691" y="7274" class="t1">World / Priority P0-P6</text>
+<text x="1691" y="7294" class="t3">Origin: v0.8</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="7318" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="7330" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="7339" width="16" height="16" class="slot"/>
+<rect x="1985" y="7339" width="20" height="20" class="slot"/>
+<rect x="2040" y="7339" width="24" height="24" class="slot"/>
+<rect x="2095" y="7339" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="NEW_THIS_VERSION · Accessibility / CVD theme validation" id="v0.9_Accessibility___CVD_theme_validation">
+<rect x="70" y="7458" width="510" height="190" rx="9" class="new"/>
+<text x="86" y="7486" class="t1">Accessibility / CVD theme validation</text>
+<text x="86" y="7506" class="t3">Origin: v0.9</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="7530" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="7542" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="7551" width="16" height="16" class="slot"/>
+<rect x="380" y="7551" width="20" height="20" class="slot"/>
+<rect x="435" y="7551" width="24" height="24" class="slot"/>
+<rect x="490" y="7551" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="NEW_THIS_VERSION · Accessibility / High Contrast" id="v0.9_Accessibility___High_Contrast">
+<rect x="605" y="7458" width="510" height="190" rx="9" class="new"/>
+<text x="621" y="7486" class="t1">Accessibility / High Contrast</text>
+<text x="621" y="7506" class="t3">Origin: v0.9</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="7530" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="7542" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="7551" width="16" height="16" class="slot"/>
+<rect x="915" y="7551" width="20" height="20" class="slot"/>
+<rect x="970" y="7551" width="24" height="24" class="slot"/>
+<rect x="1025" y="7551" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="NEW_THIS_VERSION · Accessibility / Monochrome QA" id="v0.9_Accessibility___Monochrome_QA">
+<rect x="1140" y="7458" width="510" height="190" rx="9" class="new"/>
+<text x="1156" y="7486" class="t1">Accessibility / Monochrome QA</text>
+<text x="1156" y="7506" class="t3">Origin: v0.9</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="7530" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="7542" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="7551" width="16" height="16" class="slot"/>
+<rect x="1450" y="7551" width="20" height="20" class="slot"/>
+<rect x="1505" y="7551" width="24" height="24" class="slot"/>
+<rect x="1560" y="7551" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="NEW_THIS_VERSION · Accessibility / Reduced Motion marker" id="v0.9_Accessibility___Reduced_Motion_marker">
+<rect x="1675" y="7458" width="510" height="190" rx="9" class="new"/>
+<text x="1691" y="7486" class="t1">Accessibility / Reduced Motion marker</text>
+<text x="1691" y="7506" class="t3">Origin: v0.9</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="7530" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="7542" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="7551" width="16" height="16" class="slot"/>
+<rect x="1985" y="7551" width="20" height="20" class="slot"/>
+<rect x="2040" y="7551" width="24" height="24" class="slot"/>
+<rect x="2095" y="7551" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="NEW_THIS_VERSION · Input / Keyboard" id="v0.9_Input___Keyboard">
+<rect x="70" y="7670" width="510" height="190" rx="9" class="new"/>
+<text x="86" y="7698" class="t1">Input / Keyboard</text>
+<text x="86" y="7718" class="t3">Origin: v0.9</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="7742" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="7754" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="7763" width="16" height="16" class="slot"/>
+<rect x="380" y="7763" width="20" height="20" class="slot"/>
+<rect x="435" y="7763" width="24" height="24" class="slot"/>
+<rect x="490" y="7763" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="NEW_THIS_VERSION · Input / Mouse" id="v0.9_Input___Mouse">
+<rect x="605" y="7670" width="510" height="190" rx="9" class="new"/>
+<text x="621" y="7698" class="t1">Input / Mouse</text>
+<text x="621" y="7718" class="t3">Origin: v0.9</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="7742" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="7754" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="7763" width="16" height="16" class="slot"/>
+<rect x="915" y="7763" width="20" height="20" class="slot"/>
+<rect x="970" y="7763" width="24" height="24" class="slot"/>
+<rect x="1025" y="7763" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="NEW_THIS_VERSION · Input / Controller" id="v0.9_Input___Controller">
+<rect x="1140" y="7670" width="510" height="190" rx="9" class="new"/>
+<text x="1156" y="7698" class="t1">Input / Controller</text>
+<text x="1156" y="7718" class="t3">Origin: v0.9</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="7742" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="7754" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="7763" width="16" height="16" class="slot"/>
+<rect x="1450" y="7763" width="20" height="20" class="slot"/>
+<rect x="1505" y="7763" width="24" height="24" class="slot"/>
+<rect x="1560" y="7763" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="NEW_THIS_VERSION · Localization / Text-safe icon usage" id="v0.9_Localization___Text-safe_icon_usage">
+<rect x="1675" y="7670" width="510" height="190" rx="9" class="new"/>
+<text x="1691" y="7698" class="t1">Localization / Text-safe icon usage</text>
+<text x="1691" y="7718" class="t3">Origin: v0.9</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="7742" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="7754" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="7763" width="16" height="16" class="slot"/>
+<rect x="1985" y="7763" width="20" height="20" class="slot"/>
+<rect x="2040" y="7763" width="24" height="24" class="slot"/>
+<rect x="2095" y="7763" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="NEW_THIS_VERSION · Localization / RTL-safe directional review" id="v0.9_Localization___RTL-safe_directional_review">
+<rect x="70" y="7882" width="510" height="190" rx="9" class="new"/>
+<text x="86" y="7910" class="t1">Localization / RTL-safe directional review</text>
+<text x="86" y="7930" class="t3">Origin: v0.9</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="88" y="7954" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="215" y="7966" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="325" y="7975" width="16" height="16" class="slot"/>
+<rect x="380" y="7975" width="20" height="20" class="slot"/>
+<rect x="435" y="7975" width="24" height="24" class="slot"/>
+<rect x="490" y="7975" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="NEW_THIS_VERSION · Asset / Deprecated" id="v0.9_Asset___Deprecated">
+<rect x="605" y="7882" width="510" height="190" rx="9" class="new"/>
+<text x="621" y="7910" class="t1">Asset / Deprecated</text>
+<text x="621" y="7930" class="t3">Origin: v0.9</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="623" y="7954" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="750" y="7966" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="860" y="7975" width="16" height="16" class="slot"/>
+<rect x="915" y="7975" width="20" height="20" class="slot"/>
+<rect x="970" y="7975" width="24" height="24" class="slot"/>
+<rect x="1025" y="7975" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="NEW_THIS_VERSION · Asset / Replacement pending" id="v0.9_Asset___Replacement_pending">
+<rect x="1140" y="7882" width="510" height="190" rx="9" class="new"/>
+<text x="1156" y="7910" class="t1">Asset / Replacement pending</text>
+<text x="1156" y="7930" class="t3">Origin: v0.9</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1158" y="7954" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1285" y="7966" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1395" y="7975" width="16" height="16" class="slot"/>
+<rect x="1450" y="7975" width="20" height="20" class="slot"/>
+<rect x="1505" y="7975" width="24" height="24" class="slot"/>
+<rect x="1560" y="7975" width="32" height="32" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="NEW_THIS_VERSION · Asset / Frozen" id="v0.9_Asset___Frozen">
+<rect x="1675" y="7882" width="510" height="190" rx="9" class="new"/>
+<text x="1691" y="7910" class="t1">Asset / Frozen</text>
+<text x="1691" y="7930" class="t3">Origin: v0.9</text>
+<g inkscape:groupmode="layer" inkscape:label="MASTER_24__MAKE_SYMBOL">
+<rect x="1693" y="7954" width="96" height="96" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="OPTICAL_16__MAKE_SYMBOL_IF_NEEDED">
+<rect x="1820" y="7966" width="64" height="64" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="REFERENCE_INSTANCES">
+<rect x="1930" y="7975" width="16" height="16" class="slot"/>
+<rect x="1985" y="7975" width="20" height="20" class="slot"/>
+<rect x="2040" y="7975" width="24" height="24" class="slot"/>
+<rect x="2095" y="7975" width="32" height="32" class="slot"/>
+</g>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="20_QA_INSTANCES">
+<text x="70" y="8174" class="t1">QA required for v0.9</text>
+<g inkscape:groupmode="layer" inkscape:label="QA · CVD">
+<rect x="70" y="8219" width="485" height="88" rx="8" class="card"/>
+<text x="84" y="8247" class="t1">CVD</text>
+<rect x="84" y="8261" width="32" height="32" class="slot"/>
+<text x="130" y="8281" class="t3">Drop Symbol instance / evidence here</text>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="QA · High Contrast">
+<rect x="590" y="8219" width="485" height="88" rx="8" class="card"/>
+<text x="604" y="8247" class="t1">High Contrast</text>
+<rect x="604" y="8261" width="32" height="32" class="slot"/>
+<text x="650" y="8281" class="t3">Drop Symbol instance / evidence here</text>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="QA · Monochrome">
+<rect x="1110" y="8219" width="485" height="88" rx="8" class="card"/>
+<text x="1124" y="8247" class="t1">Monochrome</text>
+<rect x="1124" y="8261" width="32" height="32" class="slot"/>
+<text x="1170" y="8281" class="t3">Drop Symbol instance / evidence here</text>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="QA · Reduced Motion">
+<rect x="1630" y="8219" width="485" height="88" rx="8" class="card"/>
+<text x="1644" y="8247" class="t1">Reduced Motion</text>
+<rect x="1644" y="8261" width="32" height="32" class="slot"/>
+<text x="1690" y="8281" class="t3">Drop Symbol instance / evidence here</text>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="QA · Controller prompts">
+<rect x="70" y="8329" width="485" height="88" rx="8" class="card"/>
+<text x="84" y="8357" class="t1">Controller prompts</text>
+<rect x="84" y="8371" width="32" height="32" class="slot"/>
+<text x="130" y="8391" class="t3">Drop Symbol instance / evidence here</text>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="QA · Localization expansion">
+<rect x="590" y="8329" width="485" height="88" rx="8" class="card"/>
+<text x="604" y="8357" class="t1">Localization expansion</text>
+<rect x="604" y="8371" width="32" height="32" class="slot"/>
+<text x="650" y="8391" class="t3">Drop Symbol instance / evidence here</text>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="QA · Asset optimization">
+<rect x="1110" y="8329" width="485" height="88" rx="8" class="card"/>
+<text x="1124" y="8357" class="t1">Asset optimization</text>
+<rect x="1124" y="8371" width="32" height="32" class="slot"/>
+<text x="1170" y="8391" class="t3">Drop Symbol instance / evidence here</text>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="30_SHAPE_GRAMMAR">
+<text x="70" y="8584" class="t1">Shared Skill Shape Grammar</text>
+<g inkscape:groupmode="layer" inkscape:label="Core">
+<rect x="70" y="8629" width="325" height="175" rx="8" class="card"/>
+<text x="84" y="8657" class="t1">Core</text>
+<text x="84" y="8681" class="t3">Primary / most important skill</text>
+<text x="84" y="8696" class="t3">information</text>
+<rect x="195" y="8734" width="50" height="50" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="Hexagon">
+<rect x="420" y="8629" width="325" height="175" rx="8" class="card"/>
+<text x="434" y="8657" class="t1">Hexagon</text>
+<text x="434" y="8681" class="t3">Intrinsic skill property: target /</text>
+<text x="434" y="8696" class="t3">element / usage / geometry</text>
+<rect x="545" y="8734" width="50" height="50" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="Circle">
+<rect x="770" y="8629" width="325" height="175" rx="8" class="card"/>
+<text x="784" y="8657" class="t1">Circle</text>
+<text x="784" y="8681" class="t3">Cost / cooldown / charges / use limit</text>
+<rect x="895" y="8734" width="50" height="50" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="Square">
+<rect x="1120" y="8629" width="325" height="175" rx="8" class="card"/>
+<text x="1134" y="8657" class="t1">Square</text>
+<text x="1134" y="8681" class="t3">External active modifier from unit /</text>
+<text x="1134" y="8696" class="t3">cell / world</text>
+<rect x="1245" y="8734" width="50" height="50" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="Diamond">
+<rect x="1470" y="8629" width="325" height="175" rx="8" class="card"/>
+<text x="1484" y="8657" class="t1">Diamond</text>
+<text x="1484" y="8681" class="t3">Modifier applied directly to the skill</text>
+<rect x="1595" y="8734" width="50" height="50" class="slot"/>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="Triangle">
+<rect x="1820" y="8629" width="325" height="175" rx="8" class="card"/>
+<text x="1834" y="8657" class="t1">Triangle</text>
+<text x="1834" y="8681" class="t3">Condition / trigger / requirement /</text>
+<text x="1834" y="8696" class="t3">warning</text>
+<rect x="1945" y="8734" width="50" height="50" class="slot"/>
+</g>
+</g>
+<g inkscape:groupmode="layer" inkscape:label="90_RELEASE_NOTES">
+<text x="70" y="8839" class="t1">Release notes</text>
+<text x="70" y="8865" class="t2">• Competitive meaning must survive removal of color.</text>
+</g>
+</svg>

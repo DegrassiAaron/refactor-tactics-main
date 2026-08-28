@@ -200,8 +200,10 @@ senza applicare nulla. L'unico `OPEN` resta la riga 34 e i `CONFLICT` restano **
 > «Outcome Explanation», che nel repository si chiama **WHY?** da prima.
 >
 > Il valore del passaggio non è quindi in ciò che ha aggiunto, ma in ciò che ha **impedito di aggiungere**:
-> 38 feature duplicate, due milestone costruite su un vocabolario (`Fog of War`) che il progetto ha già
-> respinto, e un componente HUD che finge uno stato di rete inesistente. Un consolidamento che si misura in
+> 38 feature duplicate, due milestone costruite su un vocabolario (`Fog of War`) che il progetto aveva
+> respinto — ⛔ **fino a D-225** (2026-08-27), che lo ha adottato: il rilievo di allora resta valido sul
+> *modo* in cui quelle milestone erano costruite, non più sul vocabolario — e un componente HUD che finge
+> uno stato di rete inesistente. Un consolidamento che si misura in
 > righe scritte avrebbe recepito tutto e peggiorato il documento.
 
 **Ottavo passaggio, 2026-08-09 — cluster Governance**: riga **59**, `DUPLICATE` evitato. Anche qui il

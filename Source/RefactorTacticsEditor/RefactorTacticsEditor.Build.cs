@@ -25,6 +25,11 @@ public class RefactorTacticsEditor : ModuleRules
 			"EditorInteractiveToolsFramework",
 			// Import delle texture e creazione del DA_IconCatalog dal commandlet RTBuildIconCatalog.
 			"AssetTools",
+			// Generazione e salvataggio delle mesh del kit graybox (D-229, commandlet RTBuildGrayboxMeshes):
+			// la FMeshDescription si costruisce qui e diventa la SORGENTE dell'asset salvato.
+			"MeshDescription",
+			"StaticMeshDescription",
+			"AssetRegistry",
 			"RefactorTactics" // modulo runtime: URTHexMapAsset / URTHexLibrary / ARTHexMapActor (usati da H5b)
 		});
 	}

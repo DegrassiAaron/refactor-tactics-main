@@ -7,6 +7,7 @@
 #include "RTTeamKnowledge.generated.h"
 
 class URTHexMapAsset;
+struct FRTKnowledgeSubject;   // `RTKnowledgeView.h`: il soggetto di cui si valuta la conoscibilita'
 
 /**
  * Il ricordo di un contatto: DOVE una squadra ha visto un'unita' avversaria l'ultima volta, e QUANDO.
@@ -61,7 +62,7 @@ struct FRTTeamKnowledge
 	 * Versione del FORMATO, non del contenuto. Si incrementa quando cambia la forma della struttura, e chi
 	 * rilegge una traccia con una versione che non conosce deve rifiutarla, non indovinarla.
 	 */
-	static constexpr int32 CurrentVersion = 1;
+	static constexpr int32 CurrentVersion = 2;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Perception")
 	int32 Version = CurrentVersion;
@@ -77,6 +78,24 @@ struct FRTTeamKnowledge
 	/** Cio' che la squadra VEDE ora, in ordine stabile: l'unione dei suoi osservatori. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Perception")
 	TArray<FRTCellId> VisibleCells;
+
+	/**
+	 * Il terreno che la squadra ha GIA' VISTO almeno una volta, ordinato con `URTHexLibrary::StableLess`
+	 * ([D-227]). E' un sovrainsieme di `VisibleCells`, e la differenza fra i due e' esattamente cio' che il
+	 * velo di `#1467` disegna in penombra invece che nascondere.
+	 *
+	 * ⚠️ **Non scade, e l'asimmetria con `Contacts` e' deliberata.** Un contatto vive
+	 * `ContactLifetimeTurns` turni perche' **l'unita' si muove**: un ricordo che gli sopravvivesse sarebbe la
+	 * vista sotto mentite spoglie. Il terreno non si muove — dimenticarlo sarebbe una regola nuova, non una
+	 * conseguenza. Dare a questo campo la scadenza dei contatti e' la simmetria che viene naturale scrivere,
+	 * ed e' il difetto che `Perception.KnowledgeRemembersExploredCells` esiste per prendere.
+	 *
+	 * ⛔ **Cresce in modo monotono**, fino alle 7 651 celle dell'arena di raggio 50 e per squadra, e
+	 * viaggia in ogni snapshot perche' `FRTTeamKnowledge` sta in `FRTHexSim`. Il costo e' **accettato** in
+	 * [D-227]: se diventasse misurabile la risposta e' una rappresentazione compressa, **mai** una scadenza.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Perception")
+	TArray<FRTCellId> ExploredCells;
 
 	/** I ricordi vivi, ordinati per `StableUnitId` (ordine stabile, mai quello di scoperta). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Perception")
@@ -102,6 +121,80 @@ enum class ERTTargetKnowledge : uint8
 	CellOnly,
 	/** Ignoto alla squadra: non e' un bersaglio. Decide il fallback DICHIARATO dall'azione. */
 	Rejected
+};
+
+/**
+ * Chi puo' leggere un fatto gia' accaduto: un bit per squadra, deciso QUANDO il fatto e' accaduto.
+ *
+ * E' l'artefatto di [D-223]. Un canale che racconta il passato — il combat log, la traccia post-lock — non
+ * puo' essere filtrato al momento della lettura: la conoscenza di allora non esiste piu', e il soggetto
+ * potrebbe essere stato distrutto. Porta quindi con se' la risposta, calcolata mentre era ancora
+ * calcolabile.
+ *
+ * 🔴 **Il default e' fail-closed, ed e' il punto.** `Mask = 0` significa «nessuno lo vede», non «non ci ho
+ * pensato»: un verdetto dimenticato nasconde una riga invece di regalarla. E' l'opposto del default di
+ * `AddLogEvent` che `#1499` rimuove, e la direzione e' deliberata — un filtro di privacy sbaglia dalla parte
+ * del silenzio.
+ *
+ * ⚠️ **Un fatto di MONDO non ha maschera vuota: ha `Everyone()`.** Le due cose non vanno confuse — una
+ * superficie che scade riguarda tutti, e dichiararlo e' diverso dal non dichiarare nulla.
+ */
+USTRUCT()
+struct FRTKnowledgeVerdict
+{
+	GENERATED_BODY()
+
+	/**
+	 * Un bit per `TeamId`: il bit `n` acceso significa «la squadra `n` puo' leggere questo fatto».
+	 *
+	 * ⚠️ **La larghezza non e' una costante di gioco.** Il formato di v0.1 ha due squadre, ma
+	 * `TeamKnowledgeState` si dimensiona sui `TeamId` VIVI e il 4v4 e' un cambio di DATO, non di codice:
+	 * scrivere `2` da qualche parte sarebbe un numero che invecchia da solo. Il bound e' quello del tipo, e
+	 * `MaxTeamId` lo dichiara.
+	 */
+	UPROPERTY()
+	uint32 Mask = 0;
+
+	/** Il `TeamId` piu' alto rappresentabile. Oltre, `AllowsTeam` risponde `false` invece di leggere fuori. */
+	static constexpr int32 MaxTeamId = 31;
+
+	/** Un fatto che riguarda tutti: superfici, ponti, marker di turno, fine partita. */
+	static FRTKnowledgeVerdict Everyone()
+	{
+		FRTKnowledgeVerdict V;
+		V.Mask = ~0u;
+		return V;
+	}
+
+	/** Nessuno: e' anche il default, e serve nominarlo dove la scelta e' deliberata. */
+	static FRTKnowledgeVerdict NoOne()
+	{
+		return FRTKnowledgeVerdict();
+	}
+
+	void AllowTeam(int32 TeamId)
+	{
+		if (TeamId >= 0 && TeamId <= MaxTeamId)
+		{
+			Mask |= (1u << TeamId);
+		}
+	}
+
+	/**
+	 * ⚠️ Fail-closed su un `TeamId` fuori intervallo: un osservatore che il verdetto non sa rappresentare
+	 * non legge, invece di leggere il bit di qualcun altro.
+	 */
+	bool AllowsTeam(int32 TeamId) const
+	{
+		if (TeamId < 0 || TeamId > MaxTeamId)
+		{
+			return false;
+		}
+		return (Mask & (1u << TeamId)) != 0;
+	}
+
+	bool operator==(const FRTKnowledgeVerdict& Other) const { return Mask == Other.Mask; }
+	bool operator!=(const FRTKnowledgeVerdict& Other) const { return !(*this == Other); }
 };
 
 /**
@@ -158,6 +251,16 @@ public:
 	static bool LastKnownCell(const FRTTeamKnowledge& Knowledge, int32 StableUnitId, FRTCellId& OutCell);
 
 	/**
+	 * Il contatto COMPLETO (cella e turno) per `StableUnitId`; `nullptr` se non ce n'e' uno vivo.
+	 *
+	 * Non e' un `UFUNCTION` (ritorna un puntatore, come `URTKnowledgeViewLibrary::FindEntry`): e' l'unica
+	 * ricerca nell'array `Contacts`, e `LastKnownCell` la chiama invece di ripetere il proprio ciclo — cosi'
+	 * un consumatore che ha bisogno anche del `TurnNumber` (la sagoma del ricordo, CP 13.5) non deve
+	 * duplicare la logica di ricerca.
+	 */
+	static const FRTLastKnownContact* FindContact(const FRTTeamKnowledge& Knowledge, int32 StableUnitId);
+
+	/**
 	 * La regola del targeting (CP 13.2), in una funzione pura e in un posto solo.
 	 *
 	 * Un alleato non e' mai «ignoto»: si cura e si protegge chi si conosce per appartenenza, non per
@@ -166,4 +269,21 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Perception")
 	static ERTTargetKnowledge ClassifyTarget(const FRTTeamKnowledge& Knowledge, int32 TargetStableUnitId,
 		int32 TargetTeamId, const FRTCellId& TargetCurrentCell);
+
+	/**
+	 * Il verdetto di [D-223]: chi, fra le squadre che conoscono qualcosa, puo' leggere un fatto su questo
+	 * soggetto — deciso ADESSO, mentre il soggetto e' ancora osservabile.
+	 *
+	 * 🔴 **E' la prima definizione della regola, non una seconda.** Chiama `ClassifyTarget`, la stessa
+	 * funzione da cui `ViewForTeam` ricava `Live`: `Allowed` e `Live` coincidono per costruzione, non per
+	 * somiglianza. Riscrivere qui il confronto sarebbe la terza via che [D-223] vieta.
+	 *
+	 * ⚠️ **Il ramo alleato passa da `ClassifyTarget`, non da un `if` qui**: una squadra conosce sempre i
+	 * propri, e quella regola vive gia' dentro la funzione che classifica.
+	 *
+	 * ⚠️ **Fail-closed per costruzione**: una squadra assente da `AllKnowledge` non riceve il bit. Se la
+	 * lista arriva vuota il verdetto e' `NoOne()`, e la riga non si legge — mai il contrario.
+	 */
+	static FRTKnowledgeVerdict FreezeVerdict(const TArray<FRTTeamKnowledge>& AllKnowledge,
+		const FRTKnowledgeSubject& Subject);
 };
