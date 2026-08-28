@@ -72,6 +72,23 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static TArray<FVector> CellCorners(const FRTCellId& Cell, const FVector& Origin, float HexSize, float LayerHeight);
 
+	/**
+	 * Transform con cui posare il prisma di `ARTHexMapActor::GetCellPrismMesh` come volume della cella:
+	 * posizione al centro, nessuna rotazione, scala che porta quella mesh — circumraggio e mezza-altezza
+	 * `RTCellPrismRadius` — alle misure della cella.
+	 *
+	 * `PlanarFraction` vale `1.0` per il footprint esterno e meno per il safe footprint (`GBX-1`). Agisce
+	 * **solo sulla pianta**: l'inset e' una frazione di `C` e misura il ritrarsi dai vicini, mentre
+	 * l'altezza ha il proprio denominatore (`H`) — sono i due denominatori di §6, e confonderli e' il
+	 * difetto che `D-168` ha corretto. Se l'inset toccasse anche Z i volumi smetterebbero di tassellare
+	 * in verticale.
+	 *
+	 * Vive qui e non nel Blueprint perche' e' il punto in cui la convenzione della mesh incontra quella
+	 * della griglia: due numeri che, sbagliati insieme, danno un volume plausibile e falso.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static FTransform CellVolumeTransform(const FRTCellId& Cell, const FVector& Origin, float HexSize, float LayerHeight, float PlanarFraction);
+
 	/** Cella che contiene il punto-mondo (arrotondamento cubico), sul Layer indicato (layer attivo). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static FRTCellId WorldToAxial(const FVector& World, const FVector& Origin, float HexSize, int32 Layer);

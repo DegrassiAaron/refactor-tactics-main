@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTMapVisuals.h"   // RTCellPrismRadius: la convenzione della mesh che il volume scala
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -106,6 +107,64 @@ bool FRTHexCornersFollowLayerTest::RunTest(const FString&)
 		TestTrue(FString::Printf(TEXT("vertice %d: quota +LayerHeight"), i),
 			FMath::IsNearlyEqual(L1[i].Z - L0[i].Z, static_cast<double>(CornersLayerH), 0.01));
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellVolumeTransformTest,
+	"RefactorTactics.Hex.CellVolumeTransformScalesThePrismToTheCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellVolumeTransformTest::RunTest(const FString&)
+{
+	// Il Cell Placement Volume posa la mesh di GetCellPrismMesh, che nasce con circumraggio
+	// RTCellPrismRadius (50 uu) e mezza-altezza 50 uu, centrata. Questa funzione traduce le misure
+	// della cella in una scala per quella mesh: e' il solo punto in cui la convenzione della mesh e
+	// quella della griglia si incontrano, e per questo non vive nel Blueprint.
+	const FRTCellId Cell(2, -1, 0);
+	const FTransform T = URTHexLibrary::CellVolumeTransform(Cell, CornersOrigin, CornersHexSize, CornersLayerH, 1.0f);
+
+	// Posizione: il centro della cella, non un punto ricalcolato.
+	const FVector Center = URTHexLibrary::AxialToWorld(Cell, CornersOrigin, CornersHexSize, CornersLayerH);
+	TestTrue(TEXT("posizionato sul centro della cella"), T.GetLocation().Equals(Center, 0.01));
+
+	const FVector Scale = T.GetScale3D();
+	TestTrue(TEXT("scala planare = HexSize/RTCellPrismRadius"),
+		FMath::IsNearlyEqual(Scale.X, 3.0, 0.001) && FMath::IsNearlyEqual(Scale.Y, 3.0, 0.001));
+
+	// La meta' che conta: l'estensione verticale del volume scalato deve valere ESATTAMENTE
+	// LayerHeight. E' cio' che rende vera l'affermazione di §5 — i prismi tassellano anche in
+	// verticale, senza intercapedine fra il soffitto di una cella e il pavimento della successiva.
+	const double VerticalExtent = Scale.Z * 2.0 * static_cast<double>(RTCellPrismRadius);
+	TestTrue(TEXT("estensione verticale = LayerHeight (tassella)"),
+		FMath::IsNearlyEqual(VerticalExtent, static_cast<double>(CornersLayerH), 0.01));
+
+	// E il raggio scalato deve valere HexSize, altrimenti il volume non e' la cella che dichiara.
+	const double PlanarRadius = Scale.X * static_cast<double>(RTCellPrismRadius);
+	TestTrue(TEXT("raggio scalato = HexSize"),
+		FMath::IsNearlyEqual(PlanarRadius, static_cast<double>(CornersHexSize), 0.01));
+
+	TestTrue(TEXT("nessuna rotazione: il volume e' allineato alla griglia"),
+		T.GetRotation().Equals(FQuat::Identity, 0.0001));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellVolumeInsetTest,
+	"RefactorTactics.Hex.CellVolumeInsetShrinksOnlyThePlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellVolumeInsetTest::RunTest(const FString&)
+{
+	// GBX-1 e' una frazione di C e misura quanto un asset si ritrae dai vicini: agisce sulla PIANTA.
+	// L'altezza non c'entra — §6 dichiara due denominatori, uno per asse, e usarne uno solo e' il
+	// difetto che D-168 ha corretto. Se l'inset toccasse anche Z, i volumi smetterebbero di tassellare
+	// in verticale e la guida mentirebbe sull'unica cosa che nessuno va a ricontrollare.
+	const FRTCellId Cell(0, 0, 0);
+	const FTransform Outer = URTHexLibrary::CellVolumeTransform(Cell, CornersOrigin, CornersHexSize, CornersLayerH, 1.00f);
+	const FTransform Safe  = URTHexLibrary::CellVolumeTransform(Cell, CornersOrigin, CornersHexSize, CornersLayerH, 0.90f);
+
+	TestTrue(TEXT("la pianta si ritrae del 10%"),
+		FMath::IsNearlyEqual(Safe.GetScale3D().X, Outer.GetScale3D().X * 0.90, 0.001));
+	TestTrue(TEXT("l'altezza NON cambia"),
+		FMath::IsNearlyEqual(Safe.GetScale3D().Z, Outer.GetScale3D().Z, 0.0001));
+	TestTrue(TEXT("stesso centro"), Safe.GetLocation().Equals(Outer.GetLocation(), 0.01));
 	return true;
 }
 
