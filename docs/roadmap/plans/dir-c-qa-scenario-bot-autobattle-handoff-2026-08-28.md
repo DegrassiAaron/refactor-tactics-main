@@ -584,11 +584,15 @@ headless verde non è una partita guardata da qualcuno.
 🔴 **Il clone condiviso ha morso di nuovo, e in due modi nuovi.** Fra il primo e il secondo comando del
 pre-flight un'altra sessione ha cambiato **branch** al checkout condiviso (`main` →
 `fix/1548-simboli-duplicati-unity`): due `git branch --show-current` a un minuto di distanza danno risposte
-diverse. E il motore è un **mutex globale**: `rt-suite.ps1` si è rifiutato di partire **quattro volte** —
-tre per una run di automation altrui, una per un Editor interattivo — e una build è stata respinta con
-`Unable to build while Live Coding is active`, dal `LiveCodingConsole` figlio di quell'Editor. Nessuno dei
-due è stato terminato: erano lavoro di qualcun altro. Il costo è tempo d'attesa, e va messo in conto da chi
-pianifica una lane che misura.
+diverse. E il motore è un **mutex globale**, quindi il worktree isola il checkout ma **non** la misura:
+`rt-suite.ps1` ha risposto **cinque volte `NON AVVIATA`** (tre per un Editor interattivo altrui, due per una
+run di automation altrui) e **una volta `NON VALIDA`** — quella era partita e un'altra run le è comparsa
+accanto, quindi i suoi numeri non sono registrabili e non sono stati usati. In più una build è stata respinta
+con `Unable to build while Live Coding is active`, dal `LiveCodingConsole` figlio di quell'Editor. **Nessun
+processo altrui è stato terminato.** Il costo è tempo d'attesa, e va messo in conto da chi pianifica una lane
+che misura: il pattern che funziona è un comando in background che attende il motore e **poi** lancia la
+misura nello stesso comando, così una mutazione di verifica non resta sul disco nella finestra fra «motore
+libero» e «run partita».
 
 ### 11.1 C-1 — il percorso di comportamento non manca per difetto di ricerca: non esiste su quella board
 
