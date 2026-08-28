@@ -70,10 +70,22 @@
 
 .PARAMETER WaitMinutes
     Minuti di attesa se il motore e' occupato da un'altra sessione; `0` (default)
-    esce subito con `2`. L'attesa rifa' lo snapshot a ogni giro, quindi la run
-    parte da cio' che c'e' quando si libera — non da cio' che c'era mezz'ora
-    prima. Non termina mai nessun processo: se e' di un altro checkout e' lavoro
-    di qualcun altro, e questo script non lo tocca.
+    esce subito con `2`. Al risveglio lo snapshot si rifa' per intero e il
+    preambolo si RIDICHIARA, quindi la run parte da cio' che c'e' quando il motore
+    si libera — non da cio' che c'era mezz'ora prima. Non termina mai nessun
+    processo: se e' di un altro checkout e' lavoro di qualcun altro.
+
+    ⛔ **Attendere AMPLIFICA il punto cieco dichiarato sopra sul binario.**
+    Aspettare il rilascio significa partire nell'istante in cui un'ALTRA sessione
+    — che stava molto probabilmente compilando e testando un altro `HEAD` —
+    libera il motore. Il DLL che lo snapshot cattura al risveglio e' il suo, resta
+    identico per tutta la run, e il verdetto e' `VALIDA` su una suite che esegue
+    codice compilato da un commit di qualcun altro. E' la terza modalita' di
+    fallimento documentata in D-222.
+
+    ∴ **Dopo un'attesa lunga, ricompila prima di fidarti del verde.** Il flag
+    toglie l'attrito dell'attesa, non il dovere di sapere da quale commit viene il
+    binario che stai misurando.
 
 .PARAMETER PollSeconds
     Ogni quanto ricontrollare durante l'attesa. Default 30.
@@ -100,10 +112,19 @@ param(
     # dopo aver atteso per niente. La condizione di rilascio e' la stessa che
     # questo script gia' controlla — tenerla in due posti significa che uno dei
     # due e' sbagliato.
+    # ⚠️ `ValidateRange` e non un `if` piu' avanti: senza, `-PollSeconds -1` fa
+    # esplodere `Start-Sleep` sotto `ErrorActionPreference = 'Stop'` e il processo
+    # esce con un codice che questo script NON dichiara — chi lo legge secondo il
+    # contratto di §OUTPUTS registra «la suite e' rossa» per una run che non ha
+    # mai avviato il motore. Un errore di parametro deve fermarsi prima.
+    [ValidateRange(0, 1440)]
     [int] $WaitMinutes = 0,
 
     # Ogni quanto ricontrollare, mentre attende. Trenta secondi e' il compromesso
     # fra «riparte presto» e «non interroga WMI di continuo per mezz'ora».
+    # Minimo 1: con `0` il ciclo diventa uno spin che rifa' la query di continuo
+    # sulla stessa macchina dove sta girando l'automation di qualcun altro.
+    [ValidateRange(1, 3600)]
     [int] $PollSeconds = 30
 )
 
@@ -130,6 +151,27 @@ function Get-ShortHash {
     return (($bytes | ForEach-Object { $_.ToString('x2') }) -join '').Substring(0, 8)
 }
 
+# Solo i processi del motore: e' l'unica domanda che decide se continuare ad
+# attendere, e costa una frazione dello snapshot intero.
+#
+# ⚠️ **`-Filter` WQL e non `Where-Object`**: la versione non filtrata materializza
+# OGNI processo della macchina con la sua `CommandLine` — misurato 901 ms contro
+# 561 ms. Su un'attesa di 40 minuti sono 80 giri, e ognuno cade sulla stessa
+# macchina dove sta girando l'automation di qualcun altro: il costo del mio
+# controllo diventa rumore nella misura del vicino.
+#
+# 🔴 Un fallimento della query NON e' «nessun processo»: sarebbe un'invariante che
+# fallisce APERTA, indistinguibile dal caso sano.
+function Get-EngineState {
+    try {
+        $procs = @(Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" -ErrorAction Stop |
+            ForEach-Object { $_.CommandLine })
+        return [pscustomobject]@{ Engines = $procs; Error = $null }
+    } catch {
+        return [pscustomobject]@{ Engines = @(); Error = $_.Exception.Message }
+    }
+}
+
 function Get-Snapshot {
     Push-Location $RepoRoot
     try {
@@ -146,7 +188,15 @@ function Get-Snapshot {
         # misurato: due `echo >> CLAUDE.md` di fila danno lo stesso ` M CLAUDE.md`.
         # Con quel digest l'invariante piu' importante sarebbe stata cieca proprio
         # sul caso piu' comune.
+        # 🔴 `$LASTEXITCODE` su OGNI comando git, e non solo su `rev-parse`. Un
+        # `git` che fallisce restituisce una stringa vuota, che qui e'
+        # indistinguibile da «albero pulito»: l'invariante fallirebbe APERTA, che
+        # e' precisamente cio' che il commento sulla query dei processi vieta
+        # trenta righe piu' sotto. E la causa non e' teorica — un'altra sessione
+        # che tiene `.git/index.lock` a meta' di un `checkout` basta, e questo
+        # blocco ora gira anche a ogni giro d'attesa.
         $tracked = (& git diff HEAD 2>$null) -join "`n"
+        if ($LASTEXITCODE -ne 0) { throw "git diff HEAD fallito (exit $LASTEXITCODE): albero non leggibile" }
 
         # 🔴 Degli untracked serve il CONTENUTO, non l'elenco dei path, ed e' lo
         # stesso argomento del blocco qui sopra applicato all'altra meta'.
@@ -155,28 +205,45 @@ function Get-Snapshot {
         # rimasto `b8e81adc` in entrambe — due misure, una verde e una rossa,
         # dichiarate VALIDE con lo stesso identificatore d'albero. L'invariante
         # era cieca proprio sul file che si sta scrivendo in quel momento.
-        #
-        # `git hash-object` e non una lettura diretta: gestisce i binari, non
-        # carica il file in memoria, e una sola invocazione con `--stdin-paths`
-        # copre l'intero elenco.
         $untrackedPaths = @(& git ls-files --others --exclude-standard 2>$null)
+        if ($LASTEXITCODE -ne 0) { throw "git ls-files fallito (exit $LASTEXITCODE): untracked non leggibili" }
+
+        $untracked = ''
         if ($untrackedPaths.Count -gt 0) {
-            $hashes = @($untrackedPaths | git hash-object --stdin-paths 2>$null)
-            # ⚠️ Se `hash-object` non risponde per TUTTI — file sparito fra
-            # l'elenco e la lettura, permesso negato — si ripiega sui soli path
-            # invece di appaiare hash sbagliati a file sbagliati: un digest
-            # disallineato direbbe «cambiato» a ogni run e renderebbe il gate
-            # rumore da ignorare, che e' il modo in cui un gate muore.
-            $untracked = if ($hashes.Count -eq $untrackedPaths.Count) {
-                (0..($untrackedPaths.Count - 1) | ForEach-Object { "$($untrackedPaths[$_]) $($hashes[$_])" }) -join "`n"
-            } else {
-                ($untrackedPaths -join "`n")
+            # ⚠️ **`--no-filters`, e non e' un dettaglio.** Senza, `hash-object`
+            # applica il clean filter: con `core.autocrlf=true` e `*.cpp text` in
+            # `.gitattributes` — entrambi veri in questo repository — un file
+            # riscritto con EOL diversi produce lo STESSO hash. Misurato:
+            # `riga1\nriga2` e `riga1\r\nriga2` danno entrambi `e30bf437`, e con
+            # `--no-filters` danno `e30bf437` e `2e13e382`. Un digest che
+            # normalizza il contenuto non e' un digest del contenuto.
+            #
+            # `hash-object` e non una lettura diretta: gestisce i binari, non
+            # carica il file in memoria, e `--stdin-paths` copre l'elenco in una
+            # sola invocazione.
+            $hashes = @($untrackedPaths | git hash-object --no-filters --stdin-paths 2>$null)
+
+            # 🔴 **Un path non leggibile degrada SE STESSO, non l'intero blocco.**
+            # La prima stesura ripiegava sui soli path per TUTTI quando anche un
+            # solo `hash-object` falliva — un file sparito fra l'elenco e la
+            # lettura, o un `.uasset` tenuto aperto dall'editor. Due difetti in
+            # uno: il buco degli untracked si riapriva in silenzio con la run
+            # dichiarata VALIDA, e se il ripiego scattava in UNO SOLO dei due
+            # snapshot i digest differivano **per forma**, producendo una
+            # collisione che non era mai avvenuta e attribuendola a una sessione
+            # vicina. Il segnaposto tiene la forma stabile e nomina il file.
+            for ($i = 0; $i -lt $untrackedPaths.Count; $i++) {
+                $h = if ($i -lt $hashes.Count -and -not [string]::IsNullOrWhiteSpace($hashes[$i])) {
+                    $hashes[$i]
+                } else {
+                    '(non leggibile)'
+                }
+                $untracked += "$($untrackedPaths[$i]) $h`n"
             }
-        } else {
-            $untracked = ''
         }
 
         $paths = (& git status --porcelain 2>$null)
+        if ($LASTEXITCODE -ne 0) { throw "git status fallito (exit $LASTEXITCODE)" }
     }
     finally { Pop-Location }
 
@@ -193,12 +260,9 @@ function Get-Snapshot {
     # ALTRO checkout uccide comunque questa run ma non e' lavoro da terminare.
     # 🔴 Un fallimento della query NON e' «nessun processo»: sarebbe un'invariante
     # che fallisce APERTA, indistinguibile dal caso sano.
-    $engines = @(); $engineError = $null
-    try {
-        $engines = @(Get-CimInstance Win32_Process -ErrorAction Stop |
-            Where-Object { $_.Name -like 'UnrealEditor*.exe' } |
-            ForEach-Object { $_.CommandLine })
-    } catch { $engineError = $_.Exception.Message }
+    $state = Get-EngineState
+    $engines = $state.Engines
+    $engineError = $state.Error
 
     [pscustomobject]@{
         Head        = $head
@@ -215,12 +279,88 @@ function Get-Snapshot {
 function Say { param([string] $Text) Write-Output "[RT-MEASURE] $Text" }
 
 # ---------------------------------------------------------------- PRIMA
-$before = Get-Snapshot
-Say ("filtro   {0}" -f $Filter)
-Say ("HEAD     {0}" -f $before.Head.Substring(0, 8))
-Say ("albero   {0}{1}" -f $before.TreeHash, $(if ($before.PathCount) { " ($($before.PathCount) file)" } else { '' }))
-Say ("binario  {0}" -f $before.Dlls)
+# Le quattro righe del preambolo stanno in una funzione perche' dopo un'attesa
+# vanno RIDICHIARATE tutte: la prima stesura ne ristampava due, e il referto
+# restava con l'impronta dei DLL di prima dell'attesa. Chi aspetta il rilascio
+# aspetta per definizione una sessione che stava compilando, quindi e' proprio il
+# caso in cui il binario cambia — e `binario` non compare da nessun'altra parte
+# nel referto. D-222 lo nomina fra le quattro invarianti protette.
+function Say-Preamble {
+    param($Snapshot)
+    Say ("filtro   {0}" -f $Filter)
+    Say ("HEAD     {0}" -f $Snapshot.Head.Substring(0, 8))
+    Say ("albero   {0}{1}" -f $Snapshot.TreeHash, $(if ($Snapshot.PathCount) { " ($($Snapshot.PathCount) file)" } else { '' }))
+    Say ("binario  {0}" -f $Snapshot.Dlls)
+}
 
+$before = Get-Snapshot
+Say-Preamble $before
+
+if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
+    $waitUntil = (Get-Date).AddMinutes($WaitMinutes)
+    $waited = [System.Diagnostics.Stopwatch]::StartNew()
+    Say ("in attesa: il motore e' occupato, ricontrollo ogni {0}s per al massimo {1} min" -f $PollSeconds, $WaitMinutes)
+    foreach ($e in $before.Engines) { Say "  $e" }
+
+    # 🔴 **Il jitter non e' cosmetico.** Due sessioni bloccate dalla stessa terza
+    # run partono con fasi quasi identiche: quando il motore si libera si
+    # svegliano nella stessa finestra, vedono entrambe zero processi e lanciano —
+    # e il mutex Live Coding e' globale sull'eseguibile, quindi si uccidono a
+    # vicenda. Dopo quaranta minuti di attesa l'esito sarebbe NON VALIDA per
+    # entrambe: peggio del `2` immediato che il flag sostituisce. Il jitter le
+    # sfasa; l'acquire piu' sotto e' cio' che chiude davvero la corsa.
+    $jitter = Get-Random -Minimum 0 -Maximum ([Math]::Max(1, [int]($PollSeconds / 3)))
+
+    $engineState = $null
+    while ($true) {
+        $remaining = ($waitUntil - (Get-Date)).TotalSeconds
+        if ($remaining -le 0) { break }
+
+        # Il sonno si CLAMPA al residuo: senza, `-WaitMinutes 1 -PollSeconds 600`
+        # dorme dieci minuti dopo aver chiesto di aspettarne uno — il deadline
+        # sarebbe un suggerimento, non un limite.
+        $nap = [Math]::Min($PollSeconds + $jitter, $remaining)
+        Start-Sleep -Seconds ([Math]::Max(1, [int]$nap))
+        $jitter = 0
+
+        # ⚠️ Solo i PROCESSI, non lo snapshot intero. La domanda del ciclo e' una
+        # sola — «e' libero?» — e rifare albero e binario a ogni giro costava
+        # quattro invocazioni git piu' una query non filtrata su ogni processo
+        # della macchina, ottanta volte, buttandone via settantanove. Quel lavoro
+        # cade sulla stessa macchina dove gira l'automation che sto aspettando.
+        $engineState = Get-EngineState
+        if ($engineState.Error) { break }
+
+        if ($engineState.Engines.Count -eq 0) { break }
+
+        # Heartbeat: senza, uno script lanciato a mano tace fino a quaranta
+        # minuti ed e' indistinguibile da un blocco — che e' esattamente la
+        # ragione per cui il default di `-WaitMinutes` e' `0`. Va sullo stream
+        # INFORMATION e non su quello di successo: `> referto.txt` cattura il
+        # verdetto, e il battito non deve finirci dentro.
+        Write-Information ("[RT-MEASURE] ...attesa: {0:N0}s trascorsi, {1:N0}s residui, {2} processo/i" -f `
+            $waited.Elapsed.TotalSeconds, ($waitUntil - (Get-Date)).TotalSeconds, $engineState.Engines.Count) -InformationAction Continue
+    }
+
+    # 🔴 Lo snapshot completo si rifa' UNA volta, qui: l'albero puo' essere stato
+    # mosso dalle altre sessioni durante l'attesa, e la run deve partire da cio'
+    # che c'e' adesso — con i controlli di fine run confrontati con questo, non
+    # con un inizio che non esiste piu'.
+    $before = Get-Snapshot
+
+    if (-not $before.EngineError -and $before.EngineCount -eq 0) {
+        Say ("motore libero dopo {0:N0}s: stato ridichiarato" -f $waited.Elapsed.TotalSeconds)
+        Say-Preamble $before
+    }
+    elseif ($before.EngineCount -gt 0) {
+        Say ("attesa scaduta dopo {0:N0}s" -f $waited.Elapsed.TotalSeconds)
+    }
+}
+
+# ⚠️ **L'errore va PRIMA del conteggio**: `EngineCount` e' `0` anche quando la
+# query e' FALLITA, e senza questo ordine il referto diceva «motore libero: si
+# parte» e subito dopo «NON AVVIATA: la query e' fallita» — due righe che si
+# contraddicono, per chi le legge dopo mezz'ora di attesa.
 if ($before.EngineError) {
     Say "NON AVVIATA: la query sui processi e' fallita — $($before.EngineError)"
     Say 'Senza quel dato non si puo'' sapere se il motore e'' libero, e partire alla cieca'
@@ -231,36 +371,6 @@ if ($before.EngineError) {
 # Un motore gia' vivo PRIMA e' l'unico caso in cui vale la pena non partire: la
 # run morirebbe a meta' e il log andrebbe perso nella rotazione. Non contraddice
 # l'«esegui e poi dichiara» — non c'e' ancora niente da preservare.
-if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
-    $waitUntil = (Get-Date).AddMinutes($WaitMinutes)
-    # ⚠️ Doppi apici: qui `''` NON e' un escape e finirebbe a schermo come due
-    # apostrofi. L'escape raddoppiato vale nelle stringhe ad apice singolo, che
-    # sono la maggioranza delle altre righe di questo script.
-    Say ("in attesa: il motore e' occupato, ricontrollo ogni {0}s fino a un massimo di {1} min" -f $PollSeconds, $WaitMinutes)
-    foreach ($e in $before.Engines) { Say "  $e" }
-
-    while ($before.EngineCount -gt 0 -and (Get-Date) -lt $waitUntil) {
-        Start-Sleep -Seconds $PollSeconds
-        $before = Get-Snapshot
-        # 🔴 Lo snapshot si RIFA' per intero, non solo la query sui processi. Chi
-        # attende mezz'ora attende in un albero che le altre sessioni muovono: se
-        # `HEAD` o l'albero cambiano mentre si aspetta, la run deve partire da
-        # cio' che c'e' ADESSO, e i controlli di fine run confrontarsi con quello.
-        # Aggiornare il solo conteggio dei processi avrebbe misurato la fine
-        # contro un inizio che non esisteva piu'.
-        if ($before.EngineError) { break }
-    }
-
-    if ($before.EngineCount -eq 0) {
-        Say ("motore libero: si parte (HEAD {0}, albero {1})" -f $before.Head.Substring(0, 8), $before.TreeHash)
-    }
-}
-
-if ($before.EngineError) {
-    Say "NON AVVIATA: la query sui processi e' fallita durante l'attesa — $($before.EngineError)"
-    exit 2
-}
-
 if ($before.EngineCount -gt 0) {
     Say 'NON AVVIATA: un processo del motore e'' gia'' attivo.'
     if ($WaitMinutes -gt 0) { Say ("  (dopo {0} minuti di attesa)" -f $WaitMinutes) }
@@ -280,6 +390,37 @@ if ($before.EngineCount -gt 0) {
     }
     exit 2
 }
+
+# ------------------------------------------------------- ACQUIRE ATOMICO
+# 🔴 **Vedere il motore libero non basta a esserne il proprietario.** Due sessioni
+# che aspettano la stessa run si svegliano nella stessa finestra, leggono
+# entrambe zero processi, e lanciano prima che l'`UnrealEditor-Cmd` dell'altra sia
+# visibile a WMI: il mutex Live Coding e' globale sull'eseguibile, quindi si
+# uccidono a vicenda e dopo mezz'ora l'esito e' NON VALIDA per entrambe — peggio
+# del `2` immediato che `-WaitMinutes` sostituisce. Il numero di sessioni in
+# attesa e' esattamente cio' che quel flag aumenta.
+#
+# Il mutex chiude la corsa fra istanze di QUESTO script — non fra rt-suite e un
+# editor aperto a mano, che nessun lock puo' coordinare: quel caso resta coperto
+# dal controllo sui processi. Named `Global\` per attraversare le sessioni, e
+# rilasciato dall'OS se il processo muore, quindi non lascia lucchetti orfani.
+$Mutex = New-Object System.Threading.Mutex($false, 'Global\RTSuiteEngineRun')
+$holdsMutex = $false
+try {
+    $holdsMutex = $Mutex.WaitOne(0)
+} catch [System.Threading.AbandonedMutexException] {
+    # Una sessione morta senza rilasciare: il lucchetto e' nostro, ed e' proprio il
+    # caso che l'eccezione segnala invece di lasciare tutti bloccati per sempre.
+    $holdsMutex = $true
+}
+
+if (-not $holdsMutex) {
+    Say 'NON AVVIATA: un''altra rt-suite sta per lanciare il motore (lock condiviso).'
+    Say 'Non e'' una collisione: e'' la corsa evitata. Riprova, o usa -WaitMinutes.'
+    exit 2
+}
+
+try {
 
 # ---------------------------------------------------------------- LA RUN
 # 🔴 Il log si rimuove PRIMA. Se il motore muore senza arrivare a inizializzare il
@@ -395,3 +536,12 @@ if ($dangling -gt 0) {
 Say ("  durata    {0:mm\:ss}" -f $sw.Elapsed)
 Say "  log: $LogPath"
 exit $(if ($failed -gt 0) { 1 } else { 0 })
+
+}
+finally {
+    # `exit` dentro un `try` esegue comunque il `finally`, quindi il rilascio sta
+    # in un posto solo invece che a ognuno dei tre punti d'uscita — che e' il modo
+    # in cui un lucchetto sopravvive a un ramo che qualcuno aggiunge domani.
+    if ($holdsMutex) { $Mutex.ReleaseMutex() }
+    $Mutex.Dispose()
+}

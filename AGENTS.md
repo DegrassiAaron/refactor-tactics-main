@@ -333,7 +333,9 @@ invece di ricordarseli. Da **PowerShell**: Git Bash traduce gli argomenti che in
 l'harness non parte nemmeno.
 
 Quando il motore è occupato da un'altra sessione lo script esce `2` in un istante: **`-WaitMinutes 40`**
-aspetta che si liberi e parte da sola, ridichiarando `HEAD` e albero al risveglio. Non scrivere il ciclo di
+aspetta che si liberi e parte da sola, ridichiarando `HEAD`, albero e binario al risveglio. ⛔ Dopo un'attesa
+lunga **ricompila**: si riparte quando un'altra sessione libera il motore, e il DLL sul disco è quello che ha
+lasciato lei. Non scrivere il ciclo di
 attesa accanto allo script — la condizione di rilascio la conosce lui, e una copia scritta a mano che
 guardasse il solo `UnrealEditor-Cmd` lascerebbe passare un editor interattivo.
 
