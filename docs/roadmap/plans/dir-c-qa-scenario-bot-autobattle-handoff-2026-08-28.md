@@ -327,6 +327,34 @@ Tre mutazioni cumulative che ricostruiscono lo stato pre-#1296, ognuna con build
 contatore va a **zero**: su quella geometria non si è trovato un comportamento del bot che produca
 un'orbita di periodo due.
 
+✅ **Chiuso il 2026-08-28, e non con una quarta mutazione: non manca la mutazione, manca la board**
+([#1550](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1550)). Il 2-ciclo di #1287 chiede
+**due** passi, e su `MakeTestArena` il secondo non si verifica mai. Il punteggio non legge `Context.Origin`
+e il tie-break di `ChooseBestPlan` fa vincere il restare, quindi `A → B` chiede `punteggio(B) >
+punteggio(A)` e `B → A` chiede l'opposto: **con il dominio intero un 2-ciclo non è formabile su nessuna
+board**. A renderlo formabile era il filtro di #1287, che *toglie l'origine dalle candidate* quando è cieca.
+Il ciclo è perciò la congiunzione di «dalla cieca il filtro manda su `B`» e «da `B` il dominio intero
+riporta sulla cieca» — e su quell'arena il muro di `q=0` blocca la vista e **non il passo**, quindi la cella
+del muro è insieme la più vicina al bersaglio **e** una cella che vede: dalla cieca il filtro manda avanti,
+non indietro.
+
+| board | cicli chiusi | coppie (cieca, bersaglio) | muri che bloccano anche il passo |
+|---|---|---|---|
+| `MakeTestArena` | **0** | 9510 | **0** su 5 |
+| `DA_HexMap_Arena` | 34 | 8451 | 9 su 11 |
+
+🔴 **E il controfattuale ritrova l'orbita STORICA.** Fra le 9 coppie distinte della mappa d'autore c'è
+`(1,-1,L0) ↔ (3,-3,L1)` — esattamente quella che #1287 ha misurato in partita, trovata da un predicato che
+di quella misura non sa nulla. È ciò che distingue una misura da un modello plausibile, ed è asserito.
+
+Le due misure sono `Bot.StalemateProbeGeneratedArenaClosesNoOrbitCycle` e
+`Bot.StalemateProbeAuthoredMapClosesTheOrbitCycle`, in `RTBotStalemateProbeTests.cpp`.
+
+⚠️ **La prima stesura di quel predicato era sbagliata, e va detto.** Contava solo il PRIMO passo — «esiste
+una cella cieca più vicina in linea d'aria di ogni cella che vede» — che è una condizione *necessaria*: dava
+127 coppie sull'arena generata contro 230 sulla mappa d'autore, cioè un controfattuale che non discriminava.
+A essere sbagliato era il predicato, non la board.
+
 ### 6.5 Mutazione del RILEVATORE — ✅ e corregge in meglio la riga qui sopra
 
 Togliendo `*Prev != Cell` da `FRTOrbitProbe::Observe` — cioè facendo contare anche lo stare fermo — cadono
@@ -339,9 +367,13 @@ Match.Autobattle.EngagesOnTheGeneratedTestArena   <- la configurazione SPEDITA
 ```
 
 ∴ **L'asserzione sull'arena generata NON è vacua.** La sua soglia è esercitata da dati reali con margine
-reale: su quella board ci sono unità abbastanza ferme da superare il limite, se le si contasse male. Ciò
-che resta non dimostrato è un **percorso di comportamento** — un difetto del bot che, lì, produca
-davvero un'orbita. Un verde dice *«su questa board il bot non orbita»*, non *«il bot non può orbitare»*.
+reale: su quella board ci sono unità abbastanza ferme da superare il limite, se le si contasse male.
+
+✅ **E il percorso di comportamento che le mancava non manca per difetto di ricerca: non esiste su quella
+board** — misurato il 2026-08-28, §6.4, [#1550](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1550).
+Il limite resta, ed è più stretto di come questa riga lo dichiarava: un verde dice *«il ciclo **nella forma
+di #1287** non ha su questa board dove chiudersi»*, non *«il bot non può orbitare»* — un termine di
+punteggio che dipenda dall'origine in un altro modo riaprirebbe la domanda.
 
 ⚠️ **Tutte le mutazioni rimosse**, ripristino verificato: `git diff ad7f212b -- Source/RefactorTactics/Bot/`
 vuoto, `RTOrbitProbeForTest.h` senza residui, e **suite intera 1298 Success / 0 Fail**.
@@ -484,6 +516,20 @@ l'esenzione lo rendeva cieco (9 turni → 2, verde).
 Entrambe le scelte portano evidenza di mutazione. **DIR-C non le ha unificate**: sarebbe una decisione sul
 significato di «stallo», non un refactor, e distruggerebbe la prova che uno dei due porta. Chi la prende
 guardi entrambi i commenti prima di toccarne uno.
+
+✅ **Istruita e proposta il 2026-08-28**, e non lasciata come osservazione:
+[`BOT-STALL-1`](../../OPEN_DECISIONS.md) in `docs/OPEN_DECISIONS.md` porta la domanda, le due evidenze
+misurate e **quattro** uscite col loro costo — (a) esenzione ovunque, che acceca l'oracolo di #1088
+sull'unica board su cui gira · (b) esenzione in nessuno dei due, che rende rosso un kiter legittimo ·
+(c) esenzione condizionata all'**avanzamento** (danno inflitto *e* stato che avanza), che è la distinzione
+che `D-184` fa già a parole ma **non è stata misurata** e porta con sé una soglia nuova · (d) restare
+divergenti, dichiarato. Raccomandata (c) se qualcuno la misura, altrimenti (d). Issue
+[#1551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1551).
+
+⚠️ **E la divergenza è ora scritta in ENTRAMBI i file**, ciascuno che nomina l'altro oracolo e il costo
+dell'allineamento: allinearli «per coerenza» senza leggere l'altro non è più possibile per distrazione.
+🔴 **Nessuna delle due asserzioni è stata cambiata**: cambiarne una sarebbe stato prendere la decisione
+qui, invece che da chi la possiede.
 
 ---
 
