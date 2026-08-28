@@ -1319,7 +1319,12 @@ sessions:
     # dichiara che l'oracolo e' QUESTA seduta. Un `issues:` che elenca una issue chiusa manda a cercare
     # una premessa dove non c'e' piu'; il puntatore resta qui, dove dice anche perche' e' uscito.
     issues: [1095]
-    done_when: la scena di validazione esiste e le sue voci PIE hanno un esito reale, in un verso o nell'altro
+    done_when: la scena di validazione esiste, le sue voci PIE hanno un esito reale in un verso o
+      nell'altro, e `GBX-1` e `GBX-5` hanno un VERDETTO scritto in `OPEN_DECISIONS.md`
+    # ➕ **I due verdetti sono entrati nel `done_when` il 2026-08-28**, e prima non c'erano: la condizione
+    # era soddisfacibile con sei voci PIE eseguite e zero domande chiuse, cioe' chiudeva la seduta lasciando
+    # aperto cio' per cui esisteva. §9 del contratto dichiara che l'oracolo di `GBX-1` e `GBX-5` e' QUESTA
+    # seduta: se non lo e' il `done_when`, non lo e' nessuno.
     unblocks: []
     steps: |
       **Non e' una caccia al bello: e' una domanda sola, ripetuta a tre distanze.** *Guardando la scena
@@ -1348,8 +1353,12 @@ sessions:
 
       `GBX-1` — l'inset — **non** e' bloccante: si sceglie **qui**, guardando, ed e' l'unico modo di
       validarlo. Il valore scelto si scrive in
-      [#1094](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1094), la issue che lo
-      possiede; scriverlo solo nel `.umap` significa perderlo.
+      [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), che e' dove le due domande vivono; scriverlo solo nel
+      `.umap` significa perderlo.
+      🔴 **Questo passo diceva «si scrive in #1094, la issue che lo possiede», e il commento dodici righe
+      piu' su dichiarava la stessa issue CHIUSA dal 2026-08-19.** Due istruzioni in conflitto nello stesso
+      blocco, e chi esegue legge i passi, non i commenti: il verdetto sarebbe finito in una issue chiusa.
+      Corretto il 2026-08-28.
       ⚠️ **`GBX-4` NON blocca questa seduta**, e va detto perche' una stesura precedente lo affermava:
       `L_DevSandbox.umap` e il suo `DA_HexMap_Sandbox` sono **gia' nell'allowlist**, quindi il livello si
       salva e si committa oggi. `GBX-4` morde solo se il volume diventa un **asset separato** sotto un
