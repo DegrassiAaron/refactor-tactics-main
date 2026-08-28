@@ -107,6 +107,32 @@ struct FRTHexAttackIntent
 	ERTHexDoorState DoorState = ERTHexDoorState::Closed;
 
 	/**
+	 * Il bordo che il GIOCATORE ha dichiarato, quando l'ha dichiarato (CP 10.1, `#74`).
+	 *
+	 * 🔴 **Senza questo campo l'operazione agisce su un bordo che nessuno ha scelto.** `FirstDoorEdge` cammina
+	 * la traiettoria e prende la prima porta che incontra: a portata 1 e' il bordo **condiviso** fra attaccante
+	 * e cella bersaglio, che non e' necessariamente quello cliccato — la cella adiacente ne ha sei. Da cui due
+	 * esiti, entrambi silenziosi:
+	 *
+	 *   - sul bordo condiviso non c'e' nessuna porta -> non succede **niente**, e nessuna voce lo dice;
+	 *   - c'e' una porta ma e' un'ALTRA -> si apre **la porta sbagliata**.
+	 *
+	 * Il difetto e' registrato in [D-149], che lo trova dopo il merge: *«la decisione resta valida — la portata
+	 * e' giusta — la sua giustificazione tecnica no, e il divario fra bordo cliccato e bordo agito e' un
+	 * difetto aperto»*. Il piano il bordo ce l'ha gia' (`ARTUnit::PlannedCoverEdge`), ed e' lo stesso che il
+	 * ramo delle COPERTURE legge e su cui rifiuta con reason code: qui non arrivava.
+	 *
+	 * `bHasDeclaredDoorEdge` distingue «non dichiarato» da «dichiarato E» per la stessa ragione di
+	 * `bChangesDoor`: `ERTHexDirection::E` e' lo zero dell'enum, e senza il flag ogni azione che non dichiara
+	 * un bordo ne dichiarerebbe uno.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bHasDeclaredDoorEdge = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	ERTHexDirection DeclaredDoorEdge = ERTHexDirection::E;
+
+	/**
 	 * L'azione si DICHIARA un'aggressione contro un'unita' ([`INT-8`], `#1491`). Un colpo e' un concetto
 	 * solo -- danno, trigger `HitByDirectAttack`, `EnergyOnHit` e `Marked` viaggiano insieme -- quindi chi
 	 * non si dichiara non ne produce nessuno, e nessuno dei quattro consumatori lo vede.
@@ -206,6 +232,23 @@ struct FRTHexBlastPlan
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<int32> UnverifiableIntents;
+
+	/**
+	 * Indici degli intenti che dichiaravano un'operazione su una porta e **non hanno trovato nessuna porta sul
+	 * bordo dichiarato** (CP 10.1, `#74`).
+	 *
+	 * Terzo canale e non un riuso, per la stessa ragione con cui `UnverifiableIntents` e' separato da
+	 * `BlockedIntents`: qui non c'e' nessuna linea di tiro bloccata, e scriverlo nel TurnLog direbbe una cosa
+	 * falsa su una partita vera. Il reason code e' `NoEffect` — l'azione e' stata dichiarata, e' stata
+	 * valutata, e non ha niente su cui agire.
+	 *
+	 * 🔴 **Prima di questo canale il caso era SILENZIOSO**: `FirstDoorEdge` non trovava la porta, non si
+	 * aggiungeva nessuna `DoorOp`, e il turno passava senza una voce. Il giocatore vedeva la propria azione
+	 * sparire, e il TurnLog non aveva niente da spiegare — mentre l'invariante del progetto e' che
+	 * l'attivazione **o la non-attivazione** finisca sempre in traccia.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<int32> DoorlessIntents;
 
 	/**
 	 * Danno raccolto contro le STRUTTURE, sommato per bordo e in ordine canonico (CP 9.2). Sta nel piano e non

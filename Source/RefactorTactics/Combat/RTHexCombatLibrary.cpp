@@ -80,6 +80,35 @@ namespace
 	}
 
 	/**
+	 * C'e' una porta sul bordo fra due celle ADIACENTI?
+	 *
+	 * Una porta APERTA e' comunque una porta — e' proprio quella che si vuole poter chiudere — quindi il
+	 * controllo e' sull'esistenza della voce, non sul fatto che blocchi. E si legge da ENTRAMBI i lati: la
+	 * voce puo' vivere sull'una o sull'altra cella, e guardarne una sola renderebbe la stessa porta presente
+	 * o assente a seconda di da dove la si guarda.
+	 *
+	 * Esiste come funzione perche' la regola era scritta due volte: dentro `FirstDoorEdge` e nel ramo del
+	 * bordo dichiarato di CP 10.1. Due copie della stessa lettura divergono alla prima modifica di una sola.
+	 */
+	bool HasDoorOnEdge(const URTHexMapAsset* Map, const FRTCellId& A, const FRTCellId& B)
+	{
+		if (Map == nullptr) { return false; }
+
+		ERTHexDirection Forward = ERTHexDirection::E;
+		ERTHexDirection Backward = ERTHexDirection::E;
+		if (!URTHexCoverLibrary::EdgeDirection(A, B, Forward)
+			|| !URTHexCoverLibrary::EdgeDirection(B, A, Backward))
+		{
+			return false; // non adiacenti: non c'e' un bordo da guardare
+		}
+
+		const FRTHexCellData* Near = Map->FindCell(A);
+		const FRTHexCellData* Far = Map->FindCell(B);
+		return (Near != nullptr && Near->DoorOn(Forward) != nullptr)
+			|| (Far != nullptr && Far->DoorOn(Backward) != nullptr);
+	}
+
+	/**
 	 * Prima PORTA che la traiettoria attraversa, andando da `From` verso `To`. Simmetrica a
 	 * `FirstCoveredEdge`: e' il varco che il colpo incontra per primo, l'unico su cui puo' agire.
 	 */
@@ -95,20 +124,7 @@ namespace
 		const TArray<FRTCellId> Line = URTHexLibrary::HexLine(Origin, To);
 		for (int32 I = 1; I < Line.Num(); ++I)
 		{
-			// Una porta APERTA e' comunque una porta: e' proprio quella che si vuole poter chiudere. Il
-			// controllo va quindi sull'esistenza della voce, non sul fatto che blocchi.
-			const FRTHexCellData* Near = Map->FindCell(Line[I - 1]);
-			const FRTHexCellData* Far = Map->FindCell(Line[I]);
-			ERTHexDirection Forward = ERTHexDirection::E;
-			ERTHexDirection Backward = ERTHexDirection::E;
-			if (!URTHexCoverLibrary::EdgeDirection(Line[I - 1], Line[I], Forward)
-				|| !URTHexCoverLibrary::EdgeDirection(Line[I], Line[I - 1], Backward))
-			{
-				continue;
-			}
-			const bool bHasDoor = (Near != nullptr && Near->DoorOn(Forward) != nullptr)
-				|| (Far != nullptr && Far->DoorOn(Backward) != nullptr);
-			if (bHasDoor)
+			if (HasDoorOnEdge(Map, Line[I - 1], Line[I]))
 			{
 				OutFrom = Line[I - 1];
 				OutTo = Line[I];
@@ -325,9 +341,56 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 		if (Intent.bChangesDoor)
 		{
 			FRTCellId DoorFrom, DoorTo;
-			if (FirstDoorEdge(Map, Attacker.Cell, AimCell, DoorFrom, DoorTo))
+			bool bFoundDoor = false;
+
+			if (Intent.bHasDeclaredDoorEdge)
+			{
+				// 🔴 **Il bordo DICHIARATO vince sulla traiettoria** (CP 10.1, `#74`, difetto aperto da
+				// [D-149]). Una cella adiacente ha sei facce, e `FirstDoorEdge` ne guarda una sola: quella
+				// condivisa con l'attaccante. Se il giocatore ne ha cliccata un'altra, la traiettoria o non
+				// trovava niente — silenzio — o trovava **un'altra porta**, e l'apriva.
+				//
+				// 🔴 **Il bordo appartiene alla cella BERSAGLIO, non a quella dell'attaccante**, ed e' il
+				// contratto che il puntatore stabilisce: `HandleTargetEdge(Cell, Edge)` scrive
+				// `PlannedAttackCell = Cell` e `PlannedCoverEdge = Edge`, e il ramo delle COPERTURE lo legge
+				// cosi' — `Pending.Add({ TargetCell, Edge, ... })` poi `AddCover(Map, Op.Cell, Op.Edge, ...)`.
+				// La prima stesura ancorava all'attaccante: con il giocatore in `(0,0)` e la porta verso
+				// `(1,0)`, il puntatore produce `(Cell=(1,0), Edge=W)` e la ricerca finiva su `(-1,0)` —
+				// l'azione veniva RIFIUTATA e la porta cliccata restava chiusa. Trovato in code review; i due
+				// test non lo vedevano perche' la fixture costruiva il piano con la stessa assunzione
+				// sbagliata invece che come lo costruisce il puntatore.
+				const FRTCellId Beyond = URTHexLibrary::Neighbor(AimCell, Intent.DeclaredDoorEdge);
+				if (HasDoorOnEdge(Map, AimCell, Beyond))
+				{
+					DoorFrom = AimCell;
+					DoorTo = Beyond;
+					bFoundDoor = true;
+				}
+			}
+			else
+			{
+				// Nessun bordo dichiarato: resta il comportamento di CP 9.3, dove l'operazione nasce dalla
+				// traiettoria di un colpo e non da un click — un'azione ad area che apre la porta che
+				// attraversa non ha un bordo scelto da nessuno.
+				bFoundDoor = FirstDoorEdge(Map, Attacker.Cell, AimCell, DoorFrom, DoorTo);
+			}
+
+			if (bFoundDoor)
 			{
 				Plan.DoorOps.Add(FRTDoorOp(DoorFrom, DoorTo, Intent.DoorState, Intent.AttackerId));
+			}
+			else
+			{
+				// ⛔ **Il caso che prima era silenzioso.** L'azione e' stata dichiarata e valutata, e non ha
+				// trovato niente su cui agire: lo dice, invece di lasciare che il turno passi come se il
+				// giocatore non avesse fatto nulla.
+				Plan.DoorlessIntents.Add(IntentIdx);
+
+				// 🔴 **E si FERMA qui.** Senza il `continue` lo stesso intento proseguiva e poteva finire
+				// anche in `BlockedIntents` — una cella oltre un muro basta — e il TurnLog riceveva DUE voci
+				// con motivi incompatibili per una sola azione: «nessuna linea di tiro» accanto a «non aveva
+				// niente su cui agire». Un'azione ha un motivo, quello vero.
+				continue;
 			}
 		}
 		if (!URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, AimCell))
@@ -394,6 +457,11 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 	});
 	Plan.BlockedIntents.Sort();
 	Plan.UnverifiableIntents.Sort();
+	// Il terzo canale alimenta voci di TurnLog con lo stesso peso degli altri due, quindi ha bisogno della
+	// stessa rete: oggi risulterebbe ordinato solo perche' `IntentIdx` cresce, cioe' per un dettaglio del
+	// ciclo chiamante e non per una garanzia. Un secondo produttore che raccogliesse fuori ordine renderebbe
+	// non deterministica la sequenza delle voci nella traccia archiviata.
+	Plan.DoorlessIntents.Sort();
 	Plan.StructureHits.Sort([](const FRTStructureHit& A, const FRTStructureHit& B)
 	{
 		if (!(A.From == B.From)) { return URTHexLibrary::StableLess(A.From, B.From); }
