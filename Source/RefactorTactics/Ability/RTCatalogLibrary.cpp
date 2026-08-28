@@ -1098,10 +1098,21 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// spec e non leggendone il valore: senza quel flag ogni azione del catalogo ordinerebbe di aprire ogni
 	// porta sulla propria linea di tiro.
 	//
-	// ⚠️ Con portata **1** la «prima porta sulla traiettoria» che `FirstDoorEdge` cerca **e'** il bordo
-	// bersagliato: il meccanismo di CP 9.3 vale per `Interact` senza modifiche. Non e' una coincidenza da
-	// lasciare implicita — se la portata crescesse, l'azione aprirebbe una porta che il giocatore non ha
-	// scelto, ed e' una delle ragioni per cui [D-149] la tiene a 1.
+	// ⚠️ **Questo commento diceva che il meccanismo di CP 9.3 vale per `Interact` senza modifiche, e dal
+	// 2026-08-28 non e' piu' vero** (CP 10.1, `#74`). Diceva: «con portata 1 la prima porta sulla traiettoria
+	// che `FirstDoorEdge` cerca **e'** il bordo bersagliato». Non lo e': la cella bersaglio ha sei facce, e
+	// la traiettoria ne guarda una sola — quella condivisa con chi agisce. Se il giocatore ne clicca un'altra,
+	// `FirstDoorEdge` non trova nulla o trova **un'altra porta**, ed era il difetto che [D-149] registrava in
+	// coda a se stessa come aperto.
+	//
+	// Oggi il resolver usa il bordo DICHIARATO (`FRTHexAttackIntent::DeclaredDoorEdge`), e in partita
+	// `FirstDoorEdge` non viene mai chiamato per `Interact`: `TargetKindForAction` forza il targeting a
+	// `Edge` per ogni azione che dichiara uno `StructureOp`, quindi il piano porta sempre un bordo. Il ramo
+	// della traiettoria resta per chi un bordo non lo dichiara — un'azione ad area che apre la porta che
+	// attraversa.
+	//
+	// La portata **1** resta quella di [D-149], per la ragione che la decisione da' davvero: il giocatore
+	// punta la SORGENTE, che e' adiacente, e i bersagli remoti li raggiunge il grafo di `#833`.
 	//
 	// `Action.Activate` NON E' PIU' NEL CATALOGO (#199). [D-014] la dichiarava «assorbita semanticamente da
 	// `Interact`» e [D-025] lo ha confermato scegliendo le sette generiche senza di lei: il catalogo la

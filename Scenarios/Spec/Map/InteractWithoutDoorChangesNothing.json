@@ -16,7 +16,7 @@
 
   "_nota_cosa_cambia": "Una cosa sola: la cella mirata. R1 sta dove stava — (0,1,0), adiacente al gate — e interagisce verso OVEST, (-1,1,0), dove nessuna porta esiste. Stessa azione, stessa unita', stessa mappa, stesso turno: se `DoorOpened` comparisse comunque, l'effetto non sarebbe legato alla traiettoria.",
 
-  "_nota_perche_non_e_un_errore": "L'azione si pianifica e si risolve: `Action.Interact` senza una porta sulla linea semplicemente non produce nessuna operazione di struttura. Non e' un fallback, non e' un rifiuto — e' l'assenza di un bersaglio applicabile, ed e' la ragione per cui questo scenario si chiude con `TurnsCompleted` e non con un reason code.",
+  "_nota_perche_non_e_un_errore": "L'azione si pianifica e si risolve: `Action.Interact` senza una porta sul bordo bersagliato non produce nessuna operazione di struttura, e lo scenario si chiude con `TurnsCompleted`. ⚠️ CORRETTA il 2026-08-28 (CP 10.1, #74): questa nota diceva anche «non e' un fallback, non e' un rifiuto», e da quel giorno NON e' piu' vero — il turno scrive una voce `Fallback`/`Cancelled` con reason code `NoEffect`, perche' un'azione che sparisce senza spiegazione e' peggio di un'azione rifiutata. Le `expect` di questo file non lo vedono (contano `DoorOpened`, non le voci di fallback), quindi la nota sarebbe rimasta verde continuando a documentare un comportamento che il codice non ha piu': una spec verde che mente.",
 
   "_nota_limite_dichiarato": "Cio' che NON si asserisce qui e' che la porta del gate sia rimasta chiusa: nessun oracolo del formato legge lo stato di un bordo, e l'unico modo di dedurlo sarebbe un movimento che si ferma — cioe' una seconda cosa misurata nello stesso file. Il conteggio a zero e' l'asserzione onesta che il formato permette.",
 
