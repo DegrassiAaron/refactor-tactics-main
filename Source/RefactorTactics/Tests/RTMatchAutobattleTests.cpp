@@ -1799,8 +1799,21 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// STERILE? — posta sui dati reali della configurazione spedita invece che in astratto. Qui si **misura**
 	// e non si decide: nessuna asserzione dell'oracolo cambia.
 	TMap<int32, int32> InertInStreak;     // quanti turni della sequenza corrente sono stati INERTI
-	int32 LongestStillInert = 0;          // ... e quanti lo erano nella sequenza record
-	FString LongestStillWho;              // l'eroe che la porta
+
+	// 🔴 **Il record e' UNA cosa sola, e la prima stesura lo teneva in tre scalari sciolti.** Tenerli
+	// separati permetteva di aggiornarne uno senza gli altri — ed e' il meccanismo con cui il tie-break qui
+	// sotto era diventato cieco. Trovato in code review.
+	struct FRTSequenzaRecord
+	{
+		int32 Turni = 0;
+		int32 Inerti = 0;
+		int32 UnitId = 0;
+		FString Chi;
+	};
+	FRTSequenzaRecord Record;
+
+	// La non-vacuita' del classificatore: quante volte, in tutta la partita, un'unita' ha inflitto danno.
+	int32 TurniArmatiTotali = 0;
 	FRTOrbitProbe Orbite;                 // il ritorno di periodo due, che `StillStreak` non puo' vedere
 	int32 FirstSampleIds = 0;             // chiavi DISTINTE al primo campionamento
 	int32 FirstSampleAlive = 0;           // unita' vive nello stesso istante: se divergono, gli id collidono
@@ -1843,6 +1856,22 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 		// tattica legittima — un duello a distanza in cui gli HP calano ogni turno e' una partita che
 		// AVANZA — e senza questa distinzione l'oracolo andrebbe rosso proprio sul comportamento che il bot
 		// dovrebbe avere. Lo stato assorbente di #1088 e' l'immobilita' STERILE, non l'immobilita'.
+		// ⚠️ **«Inerte» si chiede al predicato, non si deduce dalla categoria** (`#1150`): `Combat` porta anche
+		// il fuoco e il terreno, dove `UnitId` e' chi SUBISCE, quindi un conteggio per categoria direbbe «ha
+		// agito» di chi brucia fermo. E' lo stesso predicato che usa il gemello sulla mappa d'autore — dove
+		// pero' decide l'ORACOLO, mentre qui decide solo il referto.
+		// ⚠️ Il log e' del turno appena risolto: `LockInAndResolve` fa `TurnLog.Reset()`.
+		// ⚠️ **Una passata sola, non una per unita'**: la prima stesura rileggeva l'intero log per ciascuna
+		// unita' viva e anche nei turni in cui il risultato veniva buttato. Trovato in code review.
+		TSet<int32> ChiHaColpito;
+		for (const FRTTurnLogEntry& Voce : TM->GetTurnLog())
+		{
+			if (URTTurnLogLibrary::IsDamageInflictedByActor(Voce))
+			{
+				ChiHaColpito.Add(Voce.UnitId);
+			}
+		}
+
 		TSet<int32> SeenIds;
 		int32 AliveThisTurn = 0;
 		for (const ARTUnit* Unit : CollectAutobattleUnits(World))
@@ -1855,20 +1884,8 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 			const FRTCellId* Last = LastCell.Find(Id);
 			const bool bStill = (Last != nullptr && *Last == Unit->Cell);
 
-			// ⚠️ **«Inerte» si chiede al predicato, non si deduce dalla categoria** (`#1150`): `Combat` porta
-			// anche il fuoco e il terreno, dove `UnitId` e' chi SUBISCE, quindi un conteggio per categoria
-			// direbbe «ha agito» di chi brucia fermo. E' lo stesso predicato che usa il gemello sulla mappa
-			// d'autore — dove pero' decide l'ORACOLO, mentre qui decide solo il referto.
-			// ⚠️ Il log e' del turno appena risolto: `LockInAndResolve` fa `TurnLog.Reset()`.
-			bool bHaColpito = false;
-			for (const FRTTurnLogEntry& Voce : TM->GetTurnLog())
-			{
-				if (Voce.UnitId == Id && URTTurnLogLibrary::IsDamageInflictedByActor(Voce))
-				{
-					bHaColpito = true;
-					break;
-				}
-			}
+			const bool bHaColpito = ChiHaColpito.Contains(Id);
+			if (bHaColpito) { ++TurniArmatiTotali; }
 
 			int32& Inerti = InertInStreak.FindOrAdd(Id);
 			if (bStill)
@@ -1881,16 +1898,19 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 				Streak = 0;
 				Inerti = 0;
 			}
+			LongestStillStreak = FMath::Max(LongestStillStreak, Streak);
 
-			// ⚠️ Confronto STRETTO: a parita' di lunghezza il record resta alla prima unita' nell'ordine
-			// stabile di `CollectAutobattleUnits`, e non oscilla fra due a ogni turno. Se un giorno due
-			// unita' arrivassero entrambe al limite, il referto ne nomina una — e la sequenza e' comunque
-			// quella misurata dall'oracolo, che guarda il massimo e non l'identita'.
-			if (Streak > LongestStillStreak)
+			// 🔴 **A parita' di lunghezza vince la piu' INERTE, e la prima stesura vinceva la prima arrivata.**
+			// Con il confronto stretto, una sequenza armata di 4 turni al quinto turno teneva il record contro
+			// una sequenza STERILE di 4 turni al ventesimo: il referto avrebbe raccontato l'hold-and-shoot e
+			// taciuto il parcheggio, cioe' avrebbe nascosto esattamente cio' che serve leggere. Trovato in
+			// code review.
+			if (Streak > Record.Turni || (Streak == Record.Turni && Inerti > Record.Inerti))
 			{
-				LongestStillStreak = Streak;
-				LongestStillInert = Inerti;
-				LongestStillWho = Unit->HeroId.ToString();
+				Record.Turni = Streak;
+				Record.Inerti = Inerti;
+				Record.UnitId = Id;
+				Record.Chi = Unit->HeroId.ToString();
 			}
 			LastCell.Add(Id, Unit->Cell);
 			// La seconda firma dello stesso stato assorbente, e l'unica che `StillStreak` non puo' produrre:
@@ -2069,13 +2089,22 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 
 	// 🔵 Il referto dice CHI e COME, non solo quanto (`#1602`): senza, il rosso che il margine zero
 	// promette non e' leggibile.
+	//
+	// ⚠️ **L'unita' si nomina con `HeroId` E `StableUnitId`.** Le sequenze sono chiavate sullo Stable ID — e
+	// questo file spende quindici righe a garantire che siano distinti — mentre `HeroId` non lo e' per
+	// costruzione: su un roster che schiera lo stesso eroe due volte, il solo nome non direbbe quale delle
+	// due. Trovato in code review.
+	// 🔴 **E lo zero ha il suo ramo**: senza, `0 inerti == 0 turni` cadeva nel ramo «parcheggio sterile» e il
+	// referto diceva insieme che nessuno si era fermato e che il parcheggio era sterile.
+	const TCHAR* Natura =
+		Record.Turni == 0 ? TEXT("nessuna sequenza")
+		: (Record.Inerti == 0 ? TEXT("hold-and-shoot")
+		: (Record.Inerti == Record.Turni ? TEXT("parcheggio sterile") : TEXT("misto")));
 	AddInfo(FString::Printf(
-		TEXT("piu' lunga sequenza ferma: %d turni — %s, di cui %d inerti e %d armati (%s)"),
+		TEXT("piu' lunga sequenza ferma: %d turni — %s (id %d), di cui %d inerti e %d armati (%s)"),
 		LongestStillStreak,
-		LongestStillWho.IsEmpty() ? TEXT("nessuna unita' e' rimasta ferma") : *LongestStillWho,
-		LongestStillInert, LongestStillStreak - LongestStillInert,
-		LongestStillStreak > 0 && LongestStillInert == 0 ? TEXT("hold-and-shoot")
-			: (LongestStillInert == LongestStillStreak ? TEXT("parcheggio sterile") : TEXT("misto"))));
+		Record.Chi.IsEmpty() ? TEXT("nessuna unita' e' rimasta ferma") : *Record.Chi,
+		Record.UnitId, Record.Inerti, Record.Turni - Record.Inerti, Natura));
 	bool bStatoAssorbenteMisurato = false;
 	if (MaxLegitimateStillTurns >= FormatRoundLimit - 1)
 	{
@@ -2110,39 +2139,62 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 		if (MargineParcheggio >= 0 && MargineParcheggio <= 1)
 		{
 			AddWarning(FString::Printf(
-				TEXT("anti-parcheggio sul filo: sequenza %d su soglia %d, margine %d — %s, %d turni su %d armati"),
+				TEXT("anti-parcheggio sul filo: sequenza %d su soglia %d, margine %d — %s, %d turni su %d ")
+				TEXT("armati (%s); il prossimo ritocco ai pesi del bot lo fa passare rosso"),
 				LongestStillStreak, MaxLegitimateStillTurns, MargineParcheggio,
-				*LongestStillWho, LongestStillStreak - LongestStillInert, LongestStillStreak));
+				*Record.Chi, Record.Turni - Record.Inerti, Record.Turni, Natura));
 
 			// 🔵 **SUL FILO PER QUALE RAGIONE** (`#1602`). Misurato il 2026-08-28: la sequenza che consuma
-			// tutto il margine e' `Hero.Wraith`, **quattro turni su quattro armati** — zero inerti. Il
-			// margine zero non e' un parcheggio a un turno dal rosso: e' `hold-and-shoot`, la condotta che
-			// `ScorePlan` dichiara corretta, e il meccanismo sta gia' scritto nel bot — *«i piani con attacco
-			// nascono in gran parte da `StaySnapshot` con `MoveBudget = 0`, cioe' dalla cella attuale»*, e il
-			// termine di danno vale due ordini di grandezza sopra quelli posizionali.
+			// tutto il margine e' `Hero.Wraith`, **quattro turni su quattro armati** — zero inerti. Il margine
+			// zero non e' un parcheggio a un turno dal rosso: e' `hold-and-shoot`, la condotta che `ScorePlan`
+			// dichiara corretta, e il meccanismo sta gia' scritto nel bot — *«i piani con attacco nascono in
+			// gran parte da `StaySnapshot` con `MoveBudget = 0`, cioe' dalla cella attuale»*, e il termine di
+			// danno vale due ordini di grandezza sopra quelli posizionali.
 			//
 			// ∴ **il rosso che il warning promette sara' un rosso DA LEGGERE**, non un difetto — il costo che
 			// questo file dichiara trenta righe piu' su quando rifiuta l'esenzione per combattimento.
 			//
-			// 🔴 **E se un giorno cade, la lettura si capovolge**: una sequenza STERILE che consuma tutto il
-			// margine e' lo stato assorbente di #1088 a un turno dal tripping, e li' il prossimo rosso sara'
-			// un difetto vero. E' la ragione per cui questa riga asserisce invece di stampare.
-			//
-			// ⚠️ **Nessun gate nuovo**: la condizione e' quella del warning che esisteva gia' — «sul filo» —
-			// e non introduce una soglia che `D-184` non ha deciso. Fuori dal filo la natura della sequenza
-			// resta nell'`AddInfo`, dove invecchia senza rompere.
-			//
-			// 🔵 **E consegna a `BOT-STALL-1` (#1551) l'evidenza che gli mancava.** Le due definizioni di
-			// «stallo» non differiscono solo in principio: **su questa board differiscono per l'intero
-			// margine**. Con la regola della mappa d'autore — che esenta chi ha colpito — questa sequenza
+			// 🔵 **E consegna a `BOT-STALL-1` (#1551) l'evidenza che gli mancava**: le due definizioni di
+			// «stallo» non differiscono solo in principio — **su questa board differiscono per l'intero
+			// margine**. Con la regola della mappa d'autore, che esenta chi ha colpito, questa sequenza
 			// varrebbe ZERO; con quella di qui vale 4 su 4. Il «margine zero» e' un artefatto della
 			// divergenza, non una proprieta' del bot.
-			TestEqual(FString::Printf(
-				TEXT("la sequenza che consuma il margine e' armata, non sterile: %s, %d inerti su %d turni"),
-				*LongestStillWho, LongestStillInert, LongestStillStreak),
-				LongestStillInert, 0);
+			//
+			// ⛔ **E QUI NON SI ASSERISCE, benche' la prima stesura lo facesse.** Portava un
+			// `TestEqual(Inerti, 0)` dentro questo ramo, e la code review ha mostrato che era sbagliato in
+			// tre modi indipendenti:
+			//
+			//   1. **era un gate nuovo**, e la PR sosteneva il contrario: la guardia e' `margine <= 1`, quindi
+			//      scattava anche a sequenza 3 su soglia 4 — dove l'anti-parcheggio e' verde. Un rosso piu'
+			//      stretto di quello che `D-184` ha deciso;
+			//   2. **era zero-tolleranza** mentre il messaggio diceva «armata, non sterile»: un
+			//      `hold-and-shoot` che manca un colpo — `IsDamageInflictedByActor` e' falso anche per il
+			//      whiff e per la linea interrotta — sarebbe stato dichiarato sterile essendo armato 3 su 4.
+			//      Questo stesso referto ha un ramo `misto` che il gate negava;
+			//   3. **prendeva `BOT-STALL-1`**: rendere la sterilita' punibile su questa board e' una fusione
+			//      parziale dei due oracoli, cioe' proprio la mossa che `OPEN_DECISIONS` avverte di non fare
+			//      «per coerenza» — e che questo file argomenta per quindici righe di non fare.
+			//
+			// ∴ la natura della sequenza si **misura e si riporta**; a gatare e' l'oracolo che c'era gia'.
+			// Cio' che resta asserito e' la non-vacuita' del classificatore, piu' sotto: senza, il referto
+			// direbbe «sterile» di qualunque cosa e nessuno se ne accorgerebbe.
 		}
 	}
+
+	// 🔴 **IL CLASSIFICATORE NON DEVE ESSERE BLOCCATO SU FALSO** (`#1602`). Il referto qui sopra distingue
+	// `hold-and-shoot` da `parcheggio sterile` chiedendo a `IsDamageInflictedByActor`: se quella domanda
+	// smettesse di rispondere — un rename, un cambio di tassonomia del TurnLog, un `UnitId` che cambia
+	// significato — ogni sequenza risulterebbe **inerte** e il referto direbbe «sterile» di qualunque cosa,
+	// **senza che nulla suoni**.
+	//
+	// ⚠️ **E' una guardia di non-vacuita', non un giudizio sul comportamento**: non dice quanti turni armati
+	// siano accettabili, dice che il classificatore risponde. Non tocca `BOT-STALL-1`.
+	// ⚠️ Verificata per mutazione: forzando il predicato a `false` questa riga cade, e con lei la fiducia nel
+	// referto. Il suo limite: se un giorno tutto il danno venisse dal terreno — dove `UnitId` e' chi subisce —
+	// il conteggio sarebbe zero legittimamente, e sarebbe una notizia da leggere, non un difetto da correggere.
+	TestTrue(FString::Printf(
+		TEXT("il classificatore del danno risponde: %d turni-unita' con danno inflitto in %d turni giocati"),
+		TurniArmatiTotali, TurnsPlayed), TurniArmatiTotali > 0);
 
 	// 🔴 **LA SECONDA FIRMA DELLO STESSO STATO ASSORBENTE, e fino a oggi era coperta solo altrove.**
 	// `NobodyOscillatesOnTheAuthoredMap` pinna il ritorno di periodo due sulla mappa d'autore; questo test
