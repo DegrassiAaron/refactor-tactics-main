@@ -211,19 +211,25 @@ bool FRTUnitKitCarriesNoUndeclaredDamageTest::RunTest(const FString&)
 /**
  * **Un'azione generica paga la ricarica che il catalogo le dichiara.**
  *
- * 🔴 **Questo test nasce ROSSO, ed e' il quarto campo specchio: `CooldownTurns`.** `MakeGenericActions`
- * copia portata, danno e auto-bersaglio, ma NON la ricarica — e il default di `URTActionData` e' `0`.
- * `ARTUnit::ConsumeAbility` legge lo specchio:
+ * 🔴 **Questo test e' nato ROSSO**, ed e' cosi' che si e' scoperto il quarto campo specchio:
+ * `CooldownTurns`. `MakeGenericActions` copiava portata, danno e auto-bersaglio, ma NON la ricarica — e
+ * il default di `URTActionData` e' `0`. `ARTUnit::ConsumeAbility` legge lo specchio:
  *
  *     if (Ability->CooldownTurns > 0 && AbilityCooldowns.IsValidIndex(Index)) { ... }
  *
- * Con lo specchio a zero non scrive niente, `CanUseAbility` risponde sempre `true`, e `Action.Brace` —
- * che il catalogo dichiara con `Cooldown 1` — e' riarmabile ogni turno da ogni eroe del roster.
+ * Con lo specchio a zero non scriveva niente, `CanUseAbility` rispondeva sempre `true`, e `Action.Brace`
+ * — che il catalogo dichiara con `Cooldown 1` — era riarmabile ogni turno da ogni eroe del roster.
+ * Il primo fallimento diceva: «`Action.Brace`: la ricarica rispecchia il catalogo — atteso 1, era 0».
+ *
+ * ✅ Corretto nello stesso lavoro (#1552): `MakeGenericActions` ora copia anche quella riga, e questo
+ * test e' il guardiano che impedisce alla riga di sparire di nuovo. Verificato per mutazione — tolta la
+ * copia, cadono questo test e quello sotto.
  *
  * ⚠️ **Perche' non se n'era accorto nessuno.** I test che verificano la ricarica di `Brace` costruiscono
  * l'azione con un helper locale (`AddDefAbility` in `RTDefensiveReactionTests.cpp`) che il cooldown lo
- * copia — quindi misurano un oggetto corretto su un percorso che in partita nessuno attraversa. Il kit
- * che l'unita' riceve davvero passa da `MakeGenericActions`, e quello non lo copia.
+ * copia — quindi misuravano un oggetto corretto su un percorso che in partita nessuno attraversa. Il kit
+ * che l'unita' riceve davvero passa da `MakeGenericActions`. I dieci helper di test che riscrivono questa
+ * sequenza, ciascuno copiando campi diversi, sono raccolti in #1588.
  *
  * ⚠️ **Non e' un test di ricarica**: quanto vale la ricarica di ciascuna azione lo pinnano altri test,
  * sul `Def`. Qui si verifica che il valore del catalogo ARRIVI fino al campo che il gioco legge.
