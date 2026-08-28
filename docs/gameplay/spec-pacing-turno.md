@@ -111,7 +111,8 @@ FRTPacingSample                     // un turno
 ├─ int32 MsSinceLastInput           // al momento del lock-in — il campo che rende il vincolo misurabile
 ├─ ERTLockInSource LockInSource     // Input | Timeout
 ├─ int32 MsPlayback                 // risoluzione: durata effettiva
-└─ bool  bPlaybackSkipped           // risoluzione: Spazio premuto
+├─ bool  bPlaybackSkipped           // risoluzione: Spazio premuto
+└─ int32 ReactionWindowsOpened      // reazioni: finestre che hanno OCCUPATO la squadra misurata (CP 14.6)
 ```
 
 Definizioni che non devono restare a interpretazione:
@@ -122,6 +123,7 @@ Definizioni che non devono restare a interpretazione:
 | `SelectionCount` | Quante volte il giocatore ha selezionato un'unità nel turno |
 | `OrderCount` | Quanti ordini (abilità o destinazione) ha impartito nel turno |
 | `MsToFirstInput` | Se il turno si chiude **senza alcun input**, vale `MsToLockIn` |
+| `ReactionWindowsOpened` | Finestre di reazione che hanno **occupato** la squadra misurata nel turno, derivate dal TurnLog (`ERTLogCategory::ReactionDecision`). ⚠️ **Non** tutte le voci: `HoldImmediate` e `HoldCollapsedByCondition` sono commit immediati, e `HoldNoDecider` è la finestra che nessuno ha aspettato — l'unità umana senza UI, cioè ogni finestra del giocatore finché CP 14.6 non consegna l'interfaccia. Il tetto di attesa è `finestre × FastReactionDuration` (`URTPacingLibrary::ReactionDecisionSecondsUpperBound`) e vale se ognuna arriva a scadenza |
 | `MsSinceLastInput` | Se non c'è stato **nessun** input, vale `MsToLockIn` — quindi un turno passato inerte finisce fra gli `IdleTimeouts`, che è la classificazione corretta |
 
 ### Un turno che non è stato misurato non è un turno da zero millisecondi
@@ -209,7 +211,8 @@ FRTPacingSummary  ←  URTPacingLibrary::SummarizeSamples(Samples, CutoffWindowM
 ├─ int32 TrueCutoffs        // Timeout && MsSinceLastInput <  CutoffWindowMs
 ├─ int32 IdleTimeouts       // Timeout && MsSinceLastInput >= CutoffWindowMs
 ├─ int32 SkippedPlaybacks
-└─ int32 MedianMsPlayback
+├─ int32 MedianMsPlayback
+└─ int32 TotalReactionWindows  // somma di sessione, non mediana: il bank è un budget di sessione
 ```
 
 Percentile con **nearest-rank su interi ordinati**: nessuna interpolazione, risultato esatto, test scrivibile
@@ -245,7 +248,7 @@ riserva sul campione (§12).
 | `RefactorTactics.Pacing.PercentileNearestRank` | p50/p90 su sette valori scritti a mano: nearest-rank, nessuna interpolazione |
 | `RefactorTactics.Pacing.SummaryOfEmptySampleIsZero` | Fail-closed su array vuoto: nessuna divisione per zero, nessun indice fuori range |
 | `RefactorTactics.Pacing.CutoffVsIdleTimeout` | La soglia separa i due casi, **confine incluso**: `MsSinceLastInput == CutoffWindowMs` è attesa, non taglio |
-| `RefactorTactics.Pacing.CsvRowMatchesHeader` | La riga ha le colonne dell'header, tutti interi, nessuna virgola da locale |
+| `RefactorTactics.Pacing.CsvRowMatchesHeader` | La riga ha le colonne dell'header — **quattordici** dal 2026-08-28, con `ReactionWindows` **in coda** (CP 14.6) — tutti interi, nessuna virgola da locale. Il numero è pinnato: le colonne si leggono per posizione, e una inserita in mezzo sposterebbe ogni colonna a valle senza errore |
 | `RefactorTactics.Pacing.EveryTurnProducesOneSample` | Su una partita headless completa, campioni == turni giocati |
 | `RefactorTactics.Pacing.DoesNotAffectTurnLogHash` | Stessa partita con sonda accesa e spenta → `HashTurnLog` identico |
 

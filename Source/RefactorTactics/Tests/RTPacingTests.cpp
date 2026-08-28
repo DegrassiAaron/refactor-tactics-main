@@ -205,17 +205,25 @@ bool FRTPacingCsvTest::RunTest(const FString&)
 	S.LockInSource = ERTLockInSource::Input;
 	S.MsPlayback = 5300;
 	S.bPlaybackSkipped = false;
+	S.ReactionWindowsOpened = 6; // due unita' armate dello stesso giocatore, tre passi in zona (CP 14.6)
 
 	TArray<FString> HeaderCols;
 	TArray<FString> RowCols;
 	URTPacingLibrary::CsvHeader().ParseIntoArray(HeaderCols, TEXT(","), /*InCullEmpty=*/ false);
 	URTPacingLibrary::CsvRow(S).ParseIntoArray(RowCols, TEXT(","), /*InCullEmpty=*/ false);
 
-	TestEqual(TEXT("tredici colonne nell'intestazione"), HeaderCols.Num(), 13);
+	// ⚠️ **Quattordici dal 2026-08-28**, con `ReactionWindows` aggiunta in CODA (CP 14.6, `#166`). Il numero
+	// e' pinnato apposta: le colonne di questo CSV si leggono per POSIZIONE da fogli e script gia' scritti, e
+	// una colonna inserita in mezzo sposterebbe ogni colonna a valle senza che nessun errore lo dica. Questo
+	// test e' l'unico posto in cui quel movimento diventa visibile — ed e' cosi' che ha preso l'aggiunta.
+	TestEqual(TEXT("quattordici colonne nell'intestazione"), HeaderCols.Num(), 14);
 	TestEqual(TEXT("la riga ha le stesse colonne dell'intestazione"), RowCols.Num(), HeaderCols.Num());
 
 	// Ogni colonna e' un intero: se un float si intrufolasse, con locale italiano stamperebbe una virgola
-	// e spezzerebbe la riga in 14 colonne. Il controllo qui sopra lo prende; questo dice PERCHE'.
+	// e spezzerebbe la riga in **quindici** colonne. Il controllo qui sopra lo prende; questo dice PERCHE'.
+	// ⚠️ Il numero in questa frase segue il conteggio delle colonne: diceva «14» quando l'intestazione ne
+	// aveva 13, ed e' rimasto indietro all'aggiunta della quattordicesima — cioe' spiegava il caso ROTTO
+	// nominando quello sano. Se aggiungi una colonna, questa riga si aggiorna con l'assert sopra.
 	for (const FString& Col : RowCols)
 	{
 		TestTrue(FString::Printf(TEXT("colonna intera: %s"), *Col), Col.IsNumeric() && !Col.Contains(TEXT(".")));
@@ -225,7 +233,11 @@ bool FRTPacingCsvTest::RunTest(const FString&)
 	TestEqual(TEXT("prima colonna = turno"), RowCols[0], TEXT("7"));
 	TestEqual(TEXT("nona colonna = MsToLockIn"), RowCols[8], TEXT("18400"));
 	TestEqual(TEXT("undicesima colonna = LockInSource Input = 0"), RowCols[10], TEXT("0"));
-	TestEqual(TEXT("ultima colonna = playback non saltato"), RowCols[12], TEXT("0"));
+	TestEqual(TEXT("tredicesima colonna = playback non saltato"), RowCols[12], TEXT("0"));
+
+	// L'ultima, e il suo posto conta quanto il suo valore: se qualcuno la inserisse prima di
+	// `PlaybackSkipped`, la riga sopra leggerebbe le finestre come un booleano e passerebbe comunque.
+	TestEqual(TEXT("ultima colonna = finestre di reazione aperte"), RowCols[13], TEXT("6"));
 	return true;
 }
 
