@@ -7,6 +7,7 @@
 #include "Misc/AutomationTest.h"
 #include "UI/RTScreenHudWidgets.h"
 #include "UI/RTIconLibrary.h"
+#include "UI/RTIconCatalogData.h" // URTIconCatalogData: esplicito, non ereditato da RTIconLibrary.h
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
 #include "Engine/Engine.h"
@@ -209,6 +210,61 @@ bool FRTScreenHudDockNeutralTest::RunTest(const FString&)
 	TestEqual(TEXT("senza selezione nessuna azione e' armata"),
 		Dock->GetArmedActionIndex(), (int32)INDEX_NONE);
 	TestEqual(TEXT("e il dock e' vuoto"), Dock->GetActions().Num(), 0);
+
+	DestroyHudWidgetWorld(World);
+	return true;
+}
+
+/**
+ * `GetIconCatalog` risale alla radice, e la radice legge SE STESSA.
+ *
+ * 🔴 **I tre rami sono asseriti insieme perche' due di loro si coprono a vicenda in modo ingannevole.**
+ * Un'implementazione col solo `GetTypedOuter` passerebbe il caso del dock e fallirebbe **solo** sul
+ * `TacticalHUD` — cioe' l'unico widget che il catalogo ce l'ha davvero. Un'implementazione col solo
+ * `Cast<>(this)` farebbe l'opposto. Testarne uno alla volta lascerebbe verde meta' del difetto.
+ *
+ * ⚠️ Il terzo caso — outer senza HUD — non e' un contorno: e' la condizione in cui il widget vive in un
+ * test o in un'anteprima d'editor, e la risposta corretta e' `nullptr` **senza crash**. Chi consuma passa
+ * da `ResolveIcon`, che con catalogo nullo da' il missing-icon e logga la chiave.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudIconCatalogReachTest,
+	"RefactorTactics.ScreenHud.IconCatalogReachesTheRoot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudIconCatalogReachTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTIconCatalogData* Catalog = NewObject<URTIconCatalogData>(World);
+	URTTacticalHUDWidget* Root = NewObject<URTTacticalHUDWidget>(World);
+	if (!TestNotNull(TEXT("catalogo"), Catalog) || !TestNotNull(TEXT("radice"), Root))
+	{
+		DestroyHudWidgetWorld(World);
+		return false;
+	}
+	Root->IconCatalog = Catalog;
+
+	// (1) La radice legge il PROPRIO catalogo. `GetTypedOuter` cerca fra gli outer e non guarda `this`:
+	// senza il ramo dedicato, il widget su cui il dato vive sarebbe l'unico a non vederlo.
+	TestEqual(TEXT("la radice legge il proprio catalogo"),
+		Root->GetIconCatalog(), (const URTIconCatalogData*)Catalog);
+
+	// (2) Un figlio che ha la radice per outer lo raggiunge risalendo. E' il caso reale del dock innestato
+	// nel `WBP_RT_TacticalHUD`.
+	const URTActionDockWidget* Figlio = NewObject<URTActionDockWidget>(Root);
+	if (TestNotNull(TEXT("figlio della radice"), Figlio))
+	{
+		TestEqual(TEXT("il figlio risale alla radice"),
+			Figlio->GetIconCatalog(), (const URTIconCatalogData*)Catalog);
+	}
+
+	// (3) Fuori dall'HUD: `nullptr`, e nessun crash. Controprova della premessa — se questo caso desse il
+	// catalogo, i due sopra sarebbero veri per costruzione invece che per meccanismo.
+	const URTActionDockWidget* Orfano = NewObject<URTActionDockWidget>(World);
+	if (TestNotNull(TEXT("widget fuori dall'HUD"), Orfano))
+	{
+		TestNull(TEXT("fuori dall'HUD il catalogo non si raggiunge"), Orfano->GetIconCatalog());
+	}
 
 	DestroyHudWidgetWorld(World);
 	return true;

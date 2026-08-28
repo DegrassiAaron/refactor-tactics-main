@@ -85,6 +85,33 @@ protected:
 	/** L'unita' selezionata dal giocatore, o `nullptr`. Protetta: i Blueprint vedono solo le VISTE. */
 	const ARTUnit* GetSelectedUnit() const;
 
+public:
+	/**
+	 * Il catalogo iconografico, o `nullptr`.
+	 *
+	 * 🔴 **Esiste perche' il catalogo vive sulla RADICE e non su questa base**, e nessuno dei widget che
+	 * devono mostrare un'icona lo raggiungeva: `IconCatalog` e' dichiarato su `URTTacticalHUDWidget`, che
+	 * e' una classe **sorella** nella gerarchia — discende da questa base, non la precede. Il dock quindi
+	 * non lo ereditava, e nel grafo di un Blueprint non c'era nodo che lo producesse.
+	 *
+	 * ⚠️ **Dichiararlo qui sulla base sarebbe stata l'altra strada, e costa di piu':** e' un
+	 * `EditDefaultsOnly`, quindi ogni `WBP_RT_*` avrebbe la propria copia da assegnare a mano — N
+	 * occasioni di dimenticarne una, contro l'unica assegnazione sulla radice che c'e' oggi.
+	 *
+	 * ⚠️ **Risale con `GetTypedOuter`, ed e' un idioma NUOVO per questo file.** Il resto della base non
+	 * cammina l'albero UMG: prende gli attori dal mondo (`GetActorOfClass`) o passa da
+	 * `GetOwningPlayer()`. Qui non e' possibile — il catalogo non e' un attore e non appartiene al
+	 * controller, e' un dato di configurazione di un widget. La risalita e' quindi l'unica via, e il suo
+	 * limite si dichiara: **se un widget viene innestato fuori dal `WBP_RT_TacticalHUD` questa funzione
+	 * restituisce `nullptr` in silenzio**.
+	 *
+	 * ✅ Il silenzio non e' pero' una perdita: `URTIconLibrary::ResolveIcon` con catalogo nullo da' il
+	 * missing-icon **con una warning che nomina la chiave e il consumer**. A schermo si vede che manca,
+	 * che e' il comportamento voluto dallo Step 6.4 del piano di `#613`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	const URTIconCatalogData* GetIconCatalog() const;
+
 private:
 	UPROPERTY(Transient)
 	TWeakObjectPtr<ARTTurnManager> TurnManager;

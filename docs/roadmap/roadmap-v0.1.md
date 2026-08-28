@@ -1458,7 +1458,7 @@ Reaction, Coordination, Certainty, Warning, Objective.
 |---|---|---|---|
 | **20.1** ✅ | `URTIconCatalogData` | Le icone si risolvono per **chiave semantica** stabile (`UI.Icon.Status.Wet`, `UI.Icon.Phase.Blast`). Una chiave senza icona è un errore di validazione, non un widget vuoto; una chiave sconosciuta a runtime dà il missing-icon e una warning, mai il vuoto. L'insieme richiesto è **derivato dai dati di gioco** — tag `Status.*`, azioni core, fasi volontarie — non da una lista a mano | `IconCatalog.EveryKeyResolves`, `…MissingKeyIsValidationError`, `…UnknownKeyReturnsFallback`, `…DuplicateIdIsValidationError`, `…RequiredIdsFollowGameData` |
 | **20.2** | Categorie della v0.1 | Popolate le sole categorie che la v0.1 usa davvero: Identity, Action, Phase, Status, Certainty. Le altre sette restano dichiarate e vuote | `IconCatalog.V01CategoriesPopulated` |
-| **20.3** | I widget consumano il catalogo | Nessun widget di E11 referenzia una texture direttamente; l'HUD cambia icona cambiando il dato | `IconCatalog.NoDirectTextureInWidgets` + voce PIE `PIE-ICON-01` |
+| **20.3** | I widget consumano il catalogo | Nessun widget di E11 referenzia una texture direttamente; l'HUD cambia icona cambiando il dato. ⚠️ Il gate copre la superficie **C++**; la metà **Blueprint** resta scoperta e lo dichiara ([`v0.1-issue-plan.md`](v0.1-issue-plan.md) `cp-20-3`) | `ScreenHud.WidgetApiExposesNoTexture` + voce PIE `PIE-ICON-01` |
 
 > ✅ **CP 20.1 chiuso** — il codice esisteva dal 2026-08-09 (`1ca9bcd`, PR `#278`), ma la issue `#218` è
 > rimasta aperta perché quella PR la citava senza chiuderla. Verificato e chiuso lo stesso giorno: i cinque
