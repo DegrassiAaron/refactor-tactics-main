@@ -35,11 +35,11 @@ indovinasse i sinonimi nasconderebbe proprio la deriva che deve mostrare.
 
 | Banner | Significa | Quanti |
 |---|---|--:|
-| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 43 |
+| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 44 |
 | `SNAPSHOT` | Fotografia di una data. **Resta qui** finche' e' l'ultima misura del suo oggetto | 6 |
 | `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | 6 |
 | `PLAN` | Piano gia' **consumato**: resta per la provenienza di cio' che ha prodotto | 1 |
-| **totale** | | **56** |
+| **totale** | | **57** |
 
 In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **43**: quelli che il banner dichiarava gia' storici.
 
@@ -75,19 +75,25 @@ In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **4
 > cui questi numeri stanno — ma dentro **ora si scrive a mano**, e l'unico oracolo rimasto è il blocco
 > Python in fondo a questa pagina, che non dipende da niente di rimosso.
 >
-> 🔴 **Rimisurata il 2026-08-28 DOPO il merge, ed è la seconda misura della stessa giornata — la prima era
-> già scaduta quando è stata scritta.** Sul branch, prima di mergiare `origin/main`, la cartella ne conteneva
-> **55** contro i `51` della cella. Rimisurata sull'**albero unito** ne conta **56**: `CURRENT` **43**,
-> `nessun banner` **6**, `SNAPSHOT` 6, `PLAN` 1. Il file in più è
-> [`action-phases-economy-handoff-2026-08-26.md`](action-phases-economy-handoff-2026-08-26.md), arrivato da
-> `main` mentre questa sessione lavorava; quello aggiunto qui è
-> [`dir-a-v01-integration-spec-panel-2026-08-28.md`](dir-a-v01-integration-spec-panel-2026-08-28.md).
+> 🔴 **Rimisurata TRE volte il 2026-08-28, nella stessa sessione, e ogni volta il numero era cambiato.**
+> `51` diceva la cella; `55` la cartella sul branch prima di mergiare; `56` sull'albero unito; **57** dopo il
+> secondo merge di `origin/main`, arrivato mentre questa sessione lavorava. Valore corrente: `CURRENT` **44**
+> · `SNAPSHOT` 6 · `nessun banner` **6** · `PLAN` 1 = **57**, archivio fermo a **43**. I tre file nuovi:
+> [`action-phases-economy-handoff-2026-08-26.md`](action-phases-economy-handoff-2026-08-26.md) e
+> [`dir-b-core-gameplay-directive-spec-panel-2026-08-28.md`](dir-b-core-gameplay-directive-spec-panel-2026-08-28.md)
+> da `main`, [`dir-a-v01-integration-spec-panel-2026-08-28.md`](dir-a-v01-integration-spec-panel-2026-08-28.md)
+> da qui.
 >
 > ⚠️ **E il conflitto di merge su questa cella è la dimostrazione della regola che la pagina predica.** I due
 > lati portavano `55` e `53`, **entrambi misurati e nessuno dei due giusto**: erano due fotografie di due
-> alberi diversi, e il numero vero esiste solo sull'albero unito. È la settima volta che questa cella lo
-> registra, e la prima in cui il conflitto lo ha reso impossibile da ignorare — un merge non fa la somma dei
-> due conteggi, e nemmeno sceglie il maggiore. L'archivio, ricontato a parte, sta fermo a **43**.
+> alberi diversi, e il numero vero esiste solo sull'albero unito. Un merge non fa la somma dei due conteggi,
+> e nemmeno sceglie il maggiore.
+>
+> 🔴 **La lezione vera è però un'altra, e la terza rimisura la rende evidente: su questa cartella il numero
+> non è un fatto, è un fatto DATATO.** Con più sessioni che scrivono qui — `D-222` lo dichiara come regime —
+> il conteggio è corretto nell'istante in cui lo si conta e può essere falso al merge successivo. Non
+> significa che rimisurare sia inutile: significa che **la cella vale come l'ultima misura, non come lo stato
+> della cartella**, ed è per questo che il blocco Python in fondo alla pagina conta più della cella stessa.
 >
 > ➕ **E i sei `?` non sono sei casi isolati: sono due pattern**, guardati invece che sommati come questa
 > sezione prescrive. **(1) Quattro piani aprono con un'istruzione all'esecutore** invece che con un banner
