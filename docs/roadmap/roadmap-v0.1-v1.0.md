@@ -18,6 +18,8 @@
 
 ---
 
+**Indice** · [1. Le dieci release](#1-le-dieci-release) · [2. Cosa contiene ogni release](#2-cosa-contiene-ogni-release) · [3. Le quattro soglie](#3-le-quattro-soglie) · [4. Focus v0.1 — dove si legge lo stato](#4-focus-v01--dove-si-legge-lo-stato) · [5. Cosa questa pagina non decide](#5-cosa-questa-pagina-non-decide) · [6. Limiti dichiarati](#6-limiti-dichiarati)
+
 ## 1. Le dieci release
 
 ```mermaid

@@ -18,6 +18,8 @@
 
 ---
 
+**Indice** · [1. Il diagramma](#1-il-diagramma) · [2. Che cos'è una lane, in questo repository](#2-che-cosè-una-lane-in-questo-repository) · [3. Le premesse del diagramma, verificate](#3-le-premesse-del-diagramma-verificate) · [4. Le sei wave, con le sedi verificate](#4-le-sei-wave-con-le-sedi-verificate) · [5. Gli otto handoff](#5-gli-otto-handoff) · [6. Il gate finale, tradotto](#6-il-gate-finale-tradotto) · [7. Come si chiude una wave](#7-come-si-chiude-una-wave) · [8. Limiti dichiarati](#8-limiti-dichiarati)
+
 ## 1. Il diagramma
 
 ```mermaid
@@ -187,15 +189,54 @@ ne discende è nella §7.
 Un mandato si esegue dopo aver misurato ciò che presuppone. Sette premesse, misurate sulla base dichiarata
 in testa: **quattro reggono, tre no**.
 
-| # | Il diagramma assume | Esito | Fonte |
-|---|---|---|---|
-| **P1** | `START` · tre directory in parallelo | ⚠️ **Vero a metà.** Il parallelismo è il regime ([D-222](../decisions/RT_PDR_00_Decision_Log.md)), le *directory* no: il mutex del motore è globale. Leggi «lane» = write-set disgiunto — §2 | [D-222](../decisions/RT_PDR_00_Decision_Log.md) · [`../../CLAUDE.md`](../../CLAUDE.md) §4 |
-| **P2** | `A0` · HUD v0.1 e `L_DevSandbox` sono lavoro aperto | ✅ **Confermata.** [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) (CP 11.7, Screen HUD in UMG) è **aperta**, e `L_DevSandbox.umap` è una delle quattro mappe versionate | `gh` · `git ls-files '*.umap'` |
-| **P3** | `B0` · CP 14.6 è la «Reaction Outcome Preview» | ⛔ **Il titolo non è quello.** [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) è aperta e si chiama *«CP 14.6 — Counterplay, UI della finestra e misura del pacing»*: la preview è **una parte**, e la DoD della issue chiede anche il pacing misurato. Una wave che consegna la sola preview lascia il checkpoint aperto | `gh` · [`plans/dir-b-…`](plans/dir-b-core-gameplay-directive-spec-panel-2026-08-28.md) §5 |
-| **P4** | `B1` · `AppliedDamage` è un tipo su cui appoggiarsi | ⛔ **Non esiste.** `git grep -c AppliedDamage` dà **zero** in `Source/` e **cinque** occorrenze in un solo documento — il piano DIR-B che lo nomina. Non è un riuso: è un nome da introdurre, con il costo che ne segue | `git grep` |
-| **P5** | `C0` · l'autobattle reale fa 12 round, 0 `Combat`, pareggio | ⛔ **Falsificata il 2026-08-22.** Sulla sorgente spedita il primo colpo cade al **turno 2** e le voci `Combat` sono **23**. Il difetto non era «non ingaggiano» ma **«ingaggiano e non concludono»**, ed è tracciato su [#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088) — **chiusa**. Oggi il comportamento è presidiato da `Match.Autobattle.EngagesOnTheAuthoredMap` e `…EngagesOnTheGeneratedTestArena` | [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) `PIE-V01-PLAYSPEED` · `git grep Match.Autobattle` |
-| **P6** | `A4` · GrayKit e leggibilità della board sono da fare | ⚠️ **Le due sedi citate sono chiuse.** [#956](https://github.com/DegrassiAaron/refactor-tactics-main/issues/956) (CP 47.3, grammatica visiva) e [#1262](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1262) sono **CLOSED**. Il lavoro residuo esiste ma ha altre sedi: [#286](https://github.com/DegrassiAaron/refactor-tactics-main/issues/286) (E21) e [#289](https://github.com/DegrassiAaron/refactor-tactics-main/issues/289) (CP E21.3) | `gh` |
-| **P7** | `A6` · «Packaged Build» è il traguardo della lane | ⚠️ **Metà è già verde da dodici giorni.** `G12` (packaging Development **e** Shipping) è ✅ dal 2026-08-16. Quel che resta è **`G13`**: la partita giocabile *senza editor* su una mappa d'autore, e la via a punti mai esercitata — due mancanze che sono **dati, non codice** | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3 |
+| # | Il diagramma assume | Verdetto |
+|---|---|---|
+| **P1** | `START` · tre directory in parallelo | ⚠️ vero a metà — il regime sì, le *directory* no |
+| **P2** | `A0` · HUD v0.1 e `L_DevSandbox` sono lavoro aperto | ✅ confermata |
+| **P3** | `B0` · CP 14.6 è la «Reaction Outcome Preview» | ⛔ il checkpoint chiede di più |
+| **P4** | `B1` · `AppliedDamage` è un tipo su cui appoggiarsi | ⛔ non esiste |
+| **P5** | `C0` · l'autobattle fa 12 round, 0 `Combat`, pareggio | ⛔ falsificata il 2026-08-22 |
+| **P6** | `A4` · GrayKit e leggibilità della board sono da fare | ⚠️ le sedi citate sono chiuse |
+| **P7** | `A6` · «Packaged Build» è il traguardo della lane | ⚠️ metà è già verde |
+
+**P1 · il parallelismo è il regime, la directory no.** [D-222](../decisions/RT_PDR_00_Decision_Log.md)
+accetta il lavoro parallelo — misurato, 101 checkout e 6 sessioni in un giorno — ma il mutex del motore è
+globale sull'eseguibile. Leggi «lane» come **write-set disgiunto**, non come cartella: §2.
+*Fonte*: [D-222](../decisions/RT_PDR_00_Decision_Log.md) · [`../../CLAUDE.md`](../../CLAUDE.md) §4.
+
+**P2 · confermata.** [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) (CP 11.7,
+Screen HUD in UMG) è aperta, e `L_DevSandbox.umap` è una delle quattro mappe versionate.
+*Fonte*: `gh` · `git ls-files '*.umap'`.
+
+**P3 · il titolo del checkpoint non è quello.**
+[#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) si chiama *«CP 14.6 — Counterplay,
+UI della finestra e misura del pacing»*: la preview è **una parte**, e la DoD chiede anche il pacing
+misurato. Una wave che consegna la sola preview lascia il checkpoint aperto.
+*Fonte*: `gh` · [`plans/dir-b-core-gameplay-directive-spec-panel-2026-08-28.md`](plans/dir-b-core-gameplay-directive-spec-panel-2026-08-28.md) §5.
+
+**P4 · `AppliedDamage` non esiste.** `git grep -c AppliedDamage` dà **zero** in `Source/` e **cinque**
+occorrenze in un solo documento — il piano DIR-B che lo nomina. Non è un riuso: è un nome da introdurre,
+con il costo che ne segue. *Fonte*: `git grep`.
+
+**P5 · falsificata il 2026-08-22.** Sulla sorgente spedita il primo colpo cade al **turno 2** e le voci
+`Combat` sono **23**. Il difetto non era «non ingaggiano» ma **«ingaggiano e non concludono»**, ed è
+tracciato su [#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088) — **chiusa**. Oggi
+il comportamento è presidiato da `Match.Autobattle.EngagesOnTheAuthoredMap` e
+`Match.Autobattle.EngagesOnTheGeneratedTestArena`.
+*Fonte*: [`../technical/test-manuali-pie.md`](../technical/test-manuali-pie.md) voce `PIE-V01-PLAYSPEED` ·
+`git grep Match.Autobattle`.
+
+**P6 · le due sedi del mandato sono chiuse.**
+[#956](https://github.com/DegrassiAaron/refactor-tactics-main/issues/956) (CP 47.3, grammatica visiva) e
+[#1262](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1262) sono **CLOSED**. Il lavoro
+residuo esiste ma ha altre sedi: [#286](https://github.com/DegrassiAaron/refactor-tactics-main/issues/286)
+(E21) e [#289](https://github.com/DegrassiAaron/refactor-tactics-main/issues/289) (CP E21.3).
+*Fonte*: `gh`.
+
+**P7 · metà del traguardo è verde da dodici giorni.** `G12` — packaging Development **e** Shipping — è ✅
+dal 2026-08-16. Quel che resta è **`G13`**: la partita giocabile *senza editor* su una mappa d'autore, e la
+via a punti mai esercitata — due mancanze che sono **dati, non codice**.
+*Fonte*: [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3.
 
 > 🔴 **P5 è la premessa che costa di più, e vale la pena dire perché.** `C0` è il nodo da cui parte l'intera
 > lane QA: se la wave 1 va a cercare la causa di «zero combattimento», cerca un difetto **corretto sei
@@ -206,44 +247,81 @@ in testa: **quattro reggono, tre no**.
 
 ## 4. Le sei wave, con le sedi verificate
 
-Le colonne «sede» elencano **issue aperte al 2026-08-28** il cui contenuto ricade nella wave. Non sono
+Le colonne «sedi» elencano **issue aperte al 2026-08-28** il cui contenuto ricade nella wave. Non sono
 un'assegnazione e non aggiungono scope: sono il modo per non ripartire da un titolo di riquadro.
 
 ### 🟦 DIR-A · main / editor / integration
 
-| Wave | Contenuto del riquadro | Sedi aperte | Nota di verifica |
-|---|---|---|---|
-| `A0` | HUD v0.1 + `L_DevSandbox`, audit della configurazione spedita | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) | La configurazione spedita è stata **l'oggetto** di due difetti chiusi ([#1069](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1069), [#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088)): l'audit parte da lì, non da zero |
-| `A1` | HUD shell · frontend shell · audit di leggibilità | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#934](https://github.com/DegrassiAaron/refactor-tactics-main/issues/934) · [#286](https://github.com/DegrassiAaron/refactor-tactics-main/issues/286) | `E46` (frontend) è **scope dichiarato nuovo** con [D-144](../decisions/RT_PDR_00_Decision_Log.md) e **nessun gate della v0.1 lo richiede**: è lane A per collocazione, non per obbligo di release |
-| `A2` | Complete match: `Planning → Ready → Resolution → Result` | [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) · [#25](https://github.com/DegrassiAaron/refactor-tactics-main/issues/25) | È il contenuto del gate **`G10`**, che è ⏳ e chiede una partita **registrata** — log o video, non un'asserzione |
-| `A3` | HUD + ghost tattico · warning e certezza · finestra `FIRE`/`HOLD` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1392](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1392) | ⚠️ **La certezza esiste già**: dichiararla mancante è un errore registrato — i tre livelli sono stati trovati implementati durante una seduta PIE che li diceva assenti |
-| `A4` | GrayKit e leggibilità · interazione con la mappa · presentazione dell'obiettivo | [#286](https://github.com/DegrassiAaron/refactor-tactics-main/issues/286) · [#289](https://github.com/DegrassiAaron/refactor-tactics-main/issues/289) · [#171](https://github.com/DegrassiAaron/refactor-tactics-main/issues/171) | Le sedi originali del mandato sono chiuse — vedi **P6** |
-| `A5` | Frontend completo: `Main Menu → Play → Result` · replay / run again | [#934](https://github.com/DegrassiAaron/refactor-tactics-main/issues/934) · [#1330](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1330) | [#1330](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1330) è un difetto **vivo** del percorso di avvio: *«dice impossibile avviare, e premendo back la partita parte lo stesso»* |
-| `A6` | PIE e accettazione visiva · automation editor · build packaged | [#959](https://github.com/DegrassiAaron/refactor-tactics-main/issues/959) | Gate coinvolti: `G9` 🟡 (17 voci `RELEASE-V01`), `G10` ⏳, `G12` ✅, `G13` 🟡 — vedi **P7** |
+| Wave | Cosa consegna | Sedi aperte |
+|---|---|---|
+| `A0` | HUD v0.1 + `L_DevSandbox`, audit della configurazione spedita | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) |
+| `A1` | HUD shell · frontend shell · audit di leggibilità | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#934](https://github.com/DegrassiAaron/refactor-tactics-main/issues/934) · [#286](https://github.com/DegrassiAaron/refactor-tactics-main/issues/286) |
+| `A2` | Complete match: `Planning → Ready → Resolution → Result` | [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) · [#25](https://github.com/DegrassiAaron/refactor-tactics-main/issues/25) |
+| `A3` | HUD + ghost tattico · warning e certezza · finestra `FIRE`/`HOLD` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1392](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1392) |
+| `A4` | GrayKit e leggibilità · interazione mappa · presentazione obiettivo | [#286](https://github.com/DegrassiAaron/refactor-tactics-main/issues/286) · [#289](https://github.com/DegrassiAaron/refactor-tactics-main/issues/289) · [#171](https://github.com/DegrassiAaron/refactor-tactics-main/issues/171) |
+| `A5` | Frontend completo · replay / run again | [#934](https://github.com/DegrassiAaron/refactor-tactics-main/issues/934) · [#1330](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1330) |
+| `A6` | PIE e accettazione visiva · automation editor · build packaged | [#959](https://github.com/DegrassiAaron/refactor-tactics-main/issues/959) |
+
+- `A0` — la configurazione spedita è stata **l'oggetto** di due difetti già chiusi ([#1069](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1069),
+  [#1088](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1088)): l'audit parte da lì, non da zero.
+- `A1` — `E46` è **scope dichiarato nuovo** con [D-144](../decisions/RT_PDR_00_Decision_Log.md) e **nessun
+  gate della v0.1 lo richiede**: è lane A per collocazione, non per obbligo di release.
+- `A2` — è il contenuto del gate **`G10`**, che è ⏳ e chiede una partita **registrata**: log o video, non
+  un'asserzione.
+- `A3` — ⚠️ **la certezza esiste già**, e dichiararla mancante è un errore registrato: i tre livelli sono
+  stati trovati implementati durante una seduta PIE che li diceva assenti.
+- `A4` — le sedi originali del mandato sono chiuse, vedi **P6**.
+- `A5` — [#1330](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1330) è un difetto **vivo** del percorso di avvio: *«dice impossibile avviare, e
+  premendo back la partita parte lo stesso»*.
+- `A6` — gate coinvolti: `G9` 🟡 (17 voci `RELEASE-V01`), `G10` ⏳, `G12` ✅, `G13` 🟡 — vedi **P7**.
 
 ### 🟧 DIR-B · core / gameplay
 
-| Wave | Contenuto del riquadro | Sedi aperte | Nota di verifica |
-|---|---|---|---|
-| `B0` | E14 / CP 14.6 — reaction outcome preview | [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) | ⛔ Il checkpoint chiede **anche** counterplay e pacing misurato — vedi **P3** |
-| `B1` | Reaction query API · `AppliedDamage` · reason code · preview read-only | [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) · [#1118](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1118) | ⛔ `AppliedDamage` non esiste (**P4**). [#1118](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1118) è **esattamente** il problema dei reason code: *«la risposta e la sua ragione sono un enum solo»* |
-| `B2` | Replay / decision verifier · `FIRE` + `HOLD` registrati · nessun prompt live | [#26](https://github.com/DegrassiAaron/refactor-tactics-main/issues/26) | ✅ Il decisore che il mandato presuppone mancante **è atterrato**: `DecisionProvider` è in `RTTurnManager.h` e nel `ScenarioHarness`. Il «no live prompt» non è da costruire, è da **usare** |
-| `B3` | Objective runtime · contest / score · match end | [#24](https://github.com/DegrassiAaron/refactor-tactics-main/issues/24) · [#75](https://github.com/DegrassiAaron/refactor-tactics-main/issues/75) | ⚠️ **Match end esiste già** — `RTMatchEndTests.cpp` copre gli esiti, obiettivo incluso. Ciò che manca è l'**obiettivo contestabile** ([#75](https://github.com/DegrassiAaron/refactor-tactics-main/issues/75), CP 10.2), ed è anche la riserva che tiene `G13` a 🟡: la via a punti non è mai stata esercitata |
-| `B4` | Parità del TurnLog · determinismo · `StateHash` / `LogHash` | [#26](https://github.com/DegrassiAaron/refactor-tactics-main/issues/26) | ✅ `G4` è **verde** dal 2026-08-24 (`Replay.Verifier.ResimulationIsDeterministic`). Questa wave **difende** una proprietà acquisita, non la costruisce |
-| `B5` | Solo bugfix di core, a supporto del complete match | — | Nessuna sede propria per costruzione: la wave esiste per **non** aprirne |
-| `B6` | Feature freeze: solo blocker di determinismo o di esito | — | La regola di ingaggio della lane, non un deliverable |
+| Wave | Cosa consegna | Sedi aperte |
+|---|---|---|
+| `B0` | E14 / CP 14.6 — reaction outcome preview | [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) |
+| `B1` | Reaction query API · reason code · preview read-only | [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) · [#1118](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1118) |
+| `B2` | Replay / decision verifier · `FIRE` e `HOLD` registrati | [#26](https://github.com/DegrassiAaron/refactor-tactics-main/issues/26) |
+| `B3` | Objective runtime · contest / score · match end | [#24](https://github.com/DegrassiAaron/refactor-tactics-main/issues/24) · [#75](https://github.com/DegrassiAaron/refactor-tactics-main/issues/75) |
+| `B4` | Parità del TurnLog · determinismo · `StateHash` / `LogHash` | [#26](https://github.com/DegrassiAaron/refactor-tactics-main/issues/26) |
+| `B5` | Solo bugfix di core, a supporto del complete match | — |
+| `B6` | Feature freeze: solo blocker di determinismo o di esito | — |
+
+- `B0` — ⛔ il checkpoint chiede **anche** counterplay e pacing misurato, vedi **P3**.
+- `B1` — ⛔ `AppliedDamage` non esiste (**P4**). [#1118](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1118) è **esattamente** il problema dei reason
+  code: *«la risposta e la sua ragione sono un enum solo»*.
+- `B2` — ✅ il decisore che il mandato presuppone mancante **è atterrato**: `DecisionProvider` è in
+  `RTTurnManager.h` e nel `ScenarioHarness`. Il «no live prompt» non è da costruire, è da **usare**.
+- `B3` — ⚠️ **match end esiste già**: `RTMatchEndTests.cpp` copre gli esiti, obiettivo incluso. Manca
+  l'**obiettivo contestabile** ([#75](https://github.com/DegrassiAaron/refactor-tactics-main/issues/75), CP 10.2), che è anche la riserva che tiene `G13` a 🟡.
+- `B4` — ✅ `G4` è **verde** dal 2026-08-24 (`Replay.Verifier.ResimulationIsDeterministic`): questa wave
+  **difende** una proprietà acquisita, non la costruisce.
+- `B5`/`B6` — nessuna sede propria per costruzione: esistono per **non** aprirne.
 
 ### 🟩 DIR-C · QA / scenario / bot
 
-| Wave | Contenuto del riquadro | Sedi aperte | Nota di verifica |
-|---|---|---|---|
-| `C0` | Autobattle reale + scenario di complete match | [#952](https://github.com/DegrassiAaron/refactor-tactics-main/issues/952) · [#971](https://github.com/DegrassiAaron/refactor-tactics-main/issues/971) | ⛔ I numeri del riquadro sono superati (**P5**). [#971](https://github.com/DegrassiAaron/refactor-tactics-main/issues/971) è il difetto vivo dell'autobattle: *«l'input non è impedito, un click pianifica ancora»* |
-| `C1` | Root cause dell'autobattle · trace delle decisioni del bot · scenari di reazione | [#952](https://github.com/DegrassiAaron/refactor-tactics-main/issues/952) | La causa da cercare è **«ingaggiano e non concludono»**, non «non attaccano» |
-| `C2` | V01 complete match: combat + reaction + objective + match end | [#153](https://github.com/DegrassiAaron/refactor-tactics-main/issues/153) | Percorso obbligato: `Intent → Planning → Snapshot → Resolver → TurnLog`. Uno scenario che non attraversa il codice vero non prova niente sul codice vero |
-| `C3` | `FIRE`/`HOLD` · parità della preview · equità del bot | [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) | La parità che serve provare è **preview = esito**, e va scritta come asserto falsificabile: un test di invarianza senza l'effetto è vacuo |
-| `C4` | Scenari d'ambiente · regressione della showcase · scenari obiettivo | [#153](https://github.com/DegrassiAaron/refactor-tactics-main/issues/153) · [#75](https://github.com/DegrassiAaron/refactor-tactics-main/issues/75) | `E15` è **consumer**: la showcase legge le epic, non le precede |
-| `C5` | Corpus autobattle · golden + repeat + replay | [#170](https://github.com/DegrassiAaron/refactor-tactics-main/issues/170) | ⚠️ Il golden si **pinna dopo** che i mutatori di stato fuori dal TurnLog sono chiusi: un replay che non spiega la propria divergenza pinna un hash e non una prova |
-| `C6` | Regressione finale · golden / hash · consegna del test packaged | [#959](https://github.com/DegrassiAaron/refactor-tactics-main/issues/959) · [#816](https://github.com/DegrassiAaron/refactor-tactics-main/issues/816) | ⚠️ [#816](https://github.com/DegrassiAaron/refactor-tactics-main/issues/816) è **CP 45.9, post-v0.1**: citata perché è la sede della matrice di smoke su packaged, **non** perché entri nella v0.1 |
+| Wave | Cosa consegna | Sedi aperte |
+|---|---|---|
+| `C0` | Autobattle reale + scenario di complete match | [#952](https://github.com/DegrassiAaron/refactor-tactics-main/issues/952) · [#971](https://github.com/DegrassiAaron/refactor-tactics-main/issues/971) |
+| `C1` | Root cause autobattle · trace del bot · scenari di reazione | [#952](https://github.com/DegrassiAaron/refactor-tactics-main/issues/952) |
+| `C2` | V01 complete match: combat + reaction + objective + match end | [#153](https://github.com/DegrassiAaron/refactor-tactics-main/issues/153) |
+| `C3` | `FIRE`/`HOLD` · parità della preview · equità del bot | [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) |
+| `C4` | Scenari d'ambiente · regressione showcase · scenari obiettivo | [#153](https://github.com/DegrassiAaron/refactor-tactics-main/issues/153) · [#75](https://github.com/DegrassiAaron/refactor-tactics-main/issues/75) |
+| `C5` | Corpus autobattle · golden + repeat + replay | [#170](https://github.com/DegrassiAaron/refactor-tactics-main/issues/170) |
+| `C6` | Regressione finale · golden / hash · handoff del test packaged | [#959](https://github.com/DegrassiAaron/refactor-tactics-main/issues/959) · [#816](https://github.com/DegrassiAaron/refactor-tactics-main/issues/816) |
+
+- `C0` — ⛔ i numeri del riquadro sono superati (**P5**). [#971](https://github.com/DegrassiAaron/refactor-tactics-main/issues/971) è il difetto vivo:
+  *«l'input non è impedito, un click pianifica ancora»*.
+- `C1` — la causa da cercare è **«ingaggiano e non concludono»**, non «non attaccano».
+- `C2` — percorso obbligato: `Intent → Planning → Snapshot → Resolver → TurnLog`. Uno scenario che non
+  attraversa il codice vero non prova niente sul codice vero.
+- `C3` — la parità da provare è **preview = esito**, e va scritta come asserto falsificabile: un test di
+  invarianza senza l'effetto è vacuo.
+- `C4` — `E15` è **consumer**: la showcase legge le epic, non le precede.
+- `C5` — ⚠️ il golden si **pinna dopo** che i mutatori di stato fuori dal TurnLog sono chiusi: un replay
+  che non spiega la propria divergenza pinna un hash, non una prova.
+- `C6` — ⚠️ [#816](https://github.com/DegrassiAaron/refactor-tactics-main/issues/816) è **CP 45.9, post-v0.1**: citata perché è la sede della matrice di smoke su
+  packaged, **non** perché entri nella v0.1.
 
 ---
 
