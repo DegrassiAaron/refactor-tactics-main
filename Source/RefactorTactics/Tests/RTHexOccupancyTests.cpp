@@ -15,6 +15,7 @@
 #include "Ability/RTHeroData.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Tests/RTWorldFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -617,15 +618,6 @@ namespace
 		return U;
 	}
 
-	void PlayOneOccupancyTurn(ARTTurnManager* TM)
-	{
-		TM->PlanBotsForTest();
-		TM->LockInAndResolve();
-		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
-		{
-			TM->Tick(0.05f);
-		}
-	}
 }
 
 /**
@@ -656,7 +648,7 @@ bool FRTOccupancySurvivesSurfaceCycleTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A) { DestroyOccupancyWorld(World); return false; }
 
-	PlayOneOccupancyTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	// Un corridoio stretto: la geometria l'ha reso `Constrained` e la cottura ci ha messo il sovrapprezzo.
 	const FRTCellId Narrow(1, 0, 0);
@@ -678,7 +670,7 @@ bool FRTOccupancySurvivesSurfaceCycleTest::RunTest(const FString&)
 		TestEqual(TEXT("il cambio di superficie NON tocca il sovrapprezzo"), Wet->OccupancySurcharge, 1);
 	}
 
-	PlayOneOccupancyTurn(TM); // il Cleanup fa scadere la superficie e la ripristina
+	RTWorldFixtures::PlayOneTurn(TM); // il Cleanup fa scadere la superficie e la ripristina
 
 	const FRTHexCellData* Restored = Map->FindCell(Narrow);
 	TestTrue(TEXT("la cella esiste dopo il ripristino"), Restored != nullptr);

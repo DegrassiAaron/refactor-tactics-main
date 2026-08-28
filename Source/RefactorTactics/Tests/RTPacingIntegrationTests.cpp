@@ -12,6 +12,7 @@
 #include "Engine/Engine.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Tests/RTWorldFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -75,22 +76,6 @@ namespace
 		return TM;
 	}
 
-	/**
-	 * Nome con suffisso `Pacing` e non `PlayOneTurn`: UE compila piu' .cpp in un'unica unita' di
-	 * traduzione (unity build), quindi due helper omonimi in namespace anonimo di file diversi
-	 * collidono appena il raggruppamento li mette insieme. `RTHexMatchIntegrationTests.cpp` ha gia' un
-	 * `PlayOneTurn`, e la collisione compare o sparisce al cambiare dei file del modulo: un build verde
-	 * non e' garanzia.
-	 */
-	void PlayOnePacingTurn(ARTTurnManager* TM)
-	{
-		TM->PlanBotsForTest();
-		TM->LockInAndResolve();
-		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
-		{
-			TM->Tick(0.05f);
-		}
-	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingSamplePerTurnTest,
@@ -112,7 +97,7 @@ bool FRTPacingSamplePerTurnTest::RunTest(const FString&)
 	int32 TurnsPlayed = 0;
 	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && TurnsPlayed < 40)
 	{
-		PlayOnePacingTurn(TM);
+		RTWorldFixtures::PlayOneTurn(TM);
 		++TurnsPlayed;
 	}
 
@@ -174,7 +159,7 @@ bool FRTPacingUnopenedSampleTest::RunTest(const FString&)
 		&& TestNotNull(TEXT("l'unita' di squadra 1"), B1);
 	if (!bSetup) { DestroyHexPacingWorld(World); return false; }
 
-	PlayOnePacingTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	// Il turno E' STATO GIOCATO: senza questa ancora, l'asserzione sui campioni passerebbe anche se
 	// `LockInAndResolve` fosse uscito subito senza risolvere niente.
@@ -227,7 +212,7 @@ bool FRTPacingCompositionTest::RunTest(const FString&)
 	TM->RecordPlanningInput(ERTPlanningInput::Undo);
 	TM->RecordPlanningInput(ERTPlanningInput::Click); // attivita' generica: non incrementa nessun contatore
 
-	PlayOnePacingTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	if (!TestTrue(TEXT("almeno un campione"), TM->GetPacingSamples().Num() >= 1))
 	{
@@ -271,7 +256,7 @@ bool FRTPacingHashInvarianceTest::RunTest(const FString&)
 		int32 TurnsPlayed = 0;
 		while (TM->GetPhase() != ERTMatchPhase::MatchEnded && TurnsPlayed < 40)
 		{
-			PlayOnePacingTurn(TM);
+			RTWorldFixtures::PlayOneTurn(TM);
 			++TurnsPlayed;
 			OutHashes.Add(URTTurnLogLibrary::HashTurnLog(TM->GetTurnLog()));
 		}

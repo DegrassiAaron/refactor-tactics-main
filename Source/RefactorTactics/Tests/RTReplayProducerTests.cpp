@@ -19,6 +19,7 @@
 #include "HAL/PlatformFileManager.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
+#include "Tests/RTWorldFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -113,16 +114,6 @@ namespace
 		return TM;
 	}
 
-	/** Un turno completo: pianificazione dei bot, risoluzione, playback fino in fondo. */
-	void PlayOneTurn(ARTTurnManager* TM)
-	{
-		TM->PlanBotsForTest();
-		TM->LockInAndResolve();
-		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
-		{
-			TM->Tick(0.05f);
-		}
-	}
 
 	/**
 	 * Digest dello stato del mondo, costruito DAL TEST con la stessa funzione che usano partita e harness.
@@ -156,7 +147,7 @@ namespace
 		int32 Played = 0;
 		while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Played < MaxTurns)
 		{
-			PlayOneTurn(TM);
+			RTWorldFixtures::PlayOneTurn(TM);
 			++Played;
 		}
 		return Played;
@@ -379,8 +370,8 @@ bool FRTReplayProducerPartialArchiveTest::RunTest(const FString&)
 	const FGuid MatchId = TM->GetReplayMatchId();
 
 	// Due turni e basta: la partita non e' finita, e nessuno chiude niente.
-	PlayOneTurn(TM);
-	PlayOneTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	FRTReplayManifest Letto;
 	if (!TestTrue(TEXT("l'archivio parziale si apre"),

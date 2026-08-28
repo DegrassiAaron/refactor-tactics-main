@@ -2,6 +2,7 @@
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Tests/RTAbilityFixtures.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
@@ -113,32 +114,8 @@ namespace
 		return U;
 	}
 
-	/**
-	 * Aggiunge un'azione di CONTROLLO generica all'unita' (dal catalogo core) e ne restituisce l'indice.
-	 *
-	 * `Power` va azzerato esplicitamente: `URTActionData::Power` ha un default legacy di **30** (eredita'
-	 * dell'MVP quadrato, prima del catalogo), e `ResolveCombat` vi ricade quando l'azione non dichiara un
-	 * effetto Damage (`DeclaredDamage>0 ? DeclaredDamage : Ability->Power`). Senza questa riga un'azione di
-	 * controllo senza danno infliggerebbe comunque 30 danni fantasma — e' la stessa disciplina che
-	 * `MakeHeroAction` (Ability/RTHeroCatalogLibrary.cpp, CP 6.2) gia' applica per gli eroi.
-	 */
 	/** Abbastanza da sopravvivere al decremento del Cleanup, e da restare leggibile. */
 	constexpr int32 MinCooldownTurns = 3;
-
-	int32 AddControlAbility(ARTUnit* Unit, const TCHAR* ActionId)
-	{
-		if (!Unit) { return INDEX_NONE; }
-		URTActionData* Ability = NewObject<URTActionData>(Unit);
-		Ability->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
-		Ability->RangeCells = Ability->Def.RangeCells; // specchio legacy: alcuni percorsi lo leggono ancora
-		Ability->Power = 0;
-		for (const FRTActionEffectSpec& Spec : Ability->Def.Effects)
-		{
-			if (Spec.Effect == ERTActionEffect::Damage) { Ability->Power = Spec.Amount; break; }
-		}
-		Unit->Abilities.Add(Ability);
-		return Unit->Abilities.Num() - 1;
-	}
 
 	/**
 	 * Mette l'azione nello **slot 0**, sostituendo l'abilita' che ci stava, e allinea lo specchio legacy del
@@ -146,12 +123,14 @@ namespace
 	 *
 	 * ⚠️ **Serve per poter MISURARE il cooldown**, e non e' un vezzo: `ConsumeAbility` scrive in
 	 * `AbilityCooldowns` solo se l'indice e' valido, e `ConfigureFromHeroData` dimensiona quell'array sulle
-	 * abilita' dell'eroe. Un'abilita' APPESA in coda — quel che fa `AddControlAbility` — sta a un indice che
-	 * l'array non copre, quindi il cooldown non viene mai scritto e `CanUseAbility` risponde sempre `true`.
-	 * Un test che asserisse «non ha pagato» su un'abilita' appesa sarebbe verde **anche col difetto**.
+	 * abilita' dell'eroe. Un'abilita' APPESA in coda — quel che fa `RTAbilityFixtures::AddCoreAbility` —
+	 * sta a un indice che l'array non copre, quindi il cooldown non viene mai scritto e `CanUseAbility`
+	 * risponde sempre `true`. Un test che asserisse «non ha pagato» su un'abilita' appesa sarebbe verde
+	 * **anche col difetto**.
 	 *
-	 * ⚠️ `ConsumeAbility` legge `URTActionData::CooldownTurns`, non `Def.CooldownTurns`: uno specchio
-	 * legacy che `AddControlAbility` non copia, come non copia `RangeCells` e `Power`.
+	 * ⚠️ `ConsumeAbility` legge `URTActionData::CooldownTurns`, non `Def.CooldownTurns`, ed e' l'unico
+	 * specchio legacy che la fixture NON allinea — `RangeCells`, `Power` e `bSelfTarget` li copia dal `Def`.
+	 * Per questo il cooldown lo scrive la riga qui sotto e non chi crea l'azione.
 	 *
 	 * ⚠️ **E il cooldown si alza a `MinCooldownTurns`**, perche' il segnale deve sopravvivere al turno:
 	 * il Cleanup dello stesso turno decrementa, quindi un cooldown da **1** e' gia' tornato a zero quando il
@@ -161,7 +140,7 @@ namespace
 	 */
 	int32 UseControlAbilityInSlot0(ARTUnit* Unit, const TCHAR* ActionId)
 	{
-		const int32 Appesa = AddControlAbility(Unit, ActionId);
+		const int32 Appesa = RTAbilityFixtures::AddCoreAbility(Unit, ActionId);
 		if (Appesa == INDEX_NONE || !Unit->Abilities.IsValidIndex(0)) { return INDEX_NONE; }
 
 		URTActionData* Azione = Unit->Abilities[Appesa];
@@ -210,7 +189,7 @@ namespace
 			return false;
 		}
 
-		Out.InterruptIdx = AddControlAbility(Out.Interrupter, TEXT("Action.Interrupt"));
+		Out.InterruptIdx = RTAbilityFixtures::AddCoreAbility(Out.Interrupter, TEXT("Action.Interrupt"));
 		Out.Interrupter->PlannedAbilityIndex = Out.InterruptIdx;
 		Out.Interrupter->PlannedAttackTarget = Out.Attacker;
 		Out.Interrupter->PlannedCell = Out.Interrupter->Cell;
@@ -325,7 +304,7 @@ bool FRTPushInvalidDestinationTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 PushIdx = AddControlAbility(Pusher, TEXT("Action.Push"));
+	const int32 PushIdx = RTAbilityFixtures::AddCoreAbility(Pusher, TEXT("Action.Push"));
 	Pusher->PlannedAbilityIndex = PushIdx;
 	Pusher->PlannedAttackTarget = Victim;
 	Victim->PlannedAbilityIndex = INDEX_NONE;
@@ -444,7 +423,7 @@ bool FRTPullTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 PullIdx = AddControlAbility(Puller, TEXT("Action.Pull"));
+	const int32 PullIdx = RTAbilityFixtures::AddCoreAbility(Puller, TEXT("Action.Pull"));
 	Puller->PlannedAbilityIndex = PullIdx;
 	Puller->PlannedAttackTarget = Victim;
 
@@ -478,7 +457,7 @@ bool FRTRootCancelsRemainingStepsTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 RootIdx = AddControlAbility(Rooter, TEXT("Action.Root"));
+	const int32 RootIdx = RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root"));
 	Rooter->PlannedAbilityIndex = RootIdx;
 	Rooter->PlannedAttackTarget = Mover;
 	Rooter->PlannedCell = Rooter->Cell; // fermo: solo il Root
@@ -521,7 +500,7 @@ bool FRTRootAllowsAttackTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 RootIdx = AddControlAbility(Rooter, TEXT("Action.Root"));
+	const int32 RootIdx = RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root"));
 	Rooter->PlannedAbilityIndex = RootIdx;
 	Rooter->PlannedAttackTarget = RootedAttacker;
 	Rooter->PlannedCell = Rooter->Cell;
@@ -815,7 +794,7 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 InterruptIdx = AddControlAbility(Interrupter, TEXT("Action.Interrupt"));
+	const int32 InterruptIdx = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
 	TestTrue(TEXT("premessa: l'interruttore e' in portata di chi attacca"),
 		URTHexLibrary::HexDistance(Interrupter->Cell, Attacker->Cell)
 			<= Interrupter->Abilities[InterruptIdx]->Def.RangeCells);
@@ -1031,7 +1010,7 @@ bool FRTInterruptTwiceTracesOnceTest::RunTest(const FString&)
 
 	for (ARTUnit* Interrupter : { PrimoInterrupter, SecondoInterrupter })
 	{
-		const int32 Idx = AddControlAbility(Interrupter, TEXT("Action.Interrupt"));
+		const int32 Idx = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
 		TestTrue(TEXT("premessa: l'interruttore e' in portata di chi attacca"),
 			URTHexLibrary::HexDistance(Interrupter->Cell, Attacker->Cell)
 				<= Interrupter->Abilities[Idx]->Def.RangeCells);
@@ -1142,7 +1121,7 @@ bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
 
 		if (bConCarica)
 		{
-			const int32 ChargeIdx = AddControlAbility(Caricatore, TEXT("Action.Charge"));
+			const int32 ChargeIdx = RTAbilityFixtures::AddCoreAbility(Caricatore, TEXT("Action.Charge"));
 			if (!TestTrue(TEXT("premessa: il catalogo ha una carica"), ChargeIdx != INDEX_NONE))
 			{
 				DestroyControlWorld(World);
@@ -1272,12 +1251,12 @@ bool FRTInterruptChainOrderIndependentTest::RunTest(const FString&)
 			return false;
 		}
 
-		const int32 IdxA = AddControlAbility(A, TEXT("Action.Interrupt"));
+		const int32 IdxA = RTAbilityFixtures::AddCoreAbility(A, TEXT("Action.Interrupt"));
 		A->PlannedAbilityIndex = IdxA;
 		A->PlannedAttackTarget = B;
 		A->PlannedCell = A->Cell;
 
-		const int32 IdxB = AddControlAbility(B, TEXT("Action.Interrupt"));
+		const int32 IdxB = RTAbilityFixtures::AddCoreAbility(B, TEXT("Action.Interrupt"));
 		B->PlannedAbilityIndex = IdxB;
 		B->PlannedAttackTarget = C;
 		B->PlannedCell = B->Cell;
@@ -1476,12 +1455,12 @@ bool FRTInterruptSkipsNonInterruptibleTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 InterruptIdx = AddControlAbility(Interrupter, TEXT("Action.Interrupt"));
+	const int32 InterruptIdx = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
 	Interrupter->PlannedAbilityIndex = InterruptIdx;
 	Interrupter->PlannedAttackTarget = Guarder;
 	Interrupter->PlannedCell = Interrupter->Cell;
 
-	const int32 GuardIdx = AddControlAbility(Guarder, TEXT("Action.Guard"));
+	const int32 GuardIdx = RTAbilityFixtures::AddCoreAbility(Guarder, TEXT("Action.Guard"));
 	Guarder->PlannedAbilityIndex = GuardIdx;
 	Guarder->PlannedCell = Guarder->Cell;
 
@@ -1569,7 +1548,7 @@ bool FRTSlowAppliesInLiveTurnTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 SlowIdx = AddControlAbility(Slower, TEXT("Action.Slow"));
+	const int32 SlowIdx = RTAbilityFixtures::AddCoreAbility(Slower, TEXT("Action.Slow"));
 	Slower->PlannedAbilityIndex = SlowIdx;
 	Slower->PlannedAttackTarget = Mover;
 	Slower->PlannedCell = Slower->Cell;
