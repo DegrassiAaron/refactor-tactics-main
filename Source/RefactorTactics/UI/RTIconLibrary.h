@@ -95,7 +95,22 @@ public:
 	 *
 	 * In Development la warning e' rumorosa apposta; in Shipping il comportamento e' lo stesso e non c'e' nulla
 	 * che possa crashare — non si dereferenzia niente, si copia una soft reference.
+	 *
+	 * ⚠️ **`BlueprintCallable` e NON `BlueprintPure`, ed e' una scelta.** Le tre funzioni qui sopra sono pure
+	 * perche' non lasciano traccia; questa **logga** quando la chiave non si risolve, e una funzione pura in
+	 * un *property binding* viene valutata **a ogni frame**. Con un catalogo incompleto — che e' lo stato
+	 * normale finche' `#220` non chiude — un binding puro trasformerebbe la diagnostica in spam continuo, e
+	 * la warning smetterebbe di dire dove guardare proprio quando serve.
+	 *
+	 * ∴ va chiamata **su evento**: `URTActionSlotWidget::OnActionChanged`, cioe' una volta per cambio
+	 * azione. E' anche cio' che lo Step 6.4 del piano di `#613` prescrive, subito dopo l'evento dello
+	 * Step 6.3.
+	 *
+	 * ⚠️ **`Consumer` non ha un default apposta.** Passarlo e' il costo di chiamarla: una stringa vuota
+	 * produce un log che non dice quale widget ha chiesto l'icona, cioe' toglie alla warning l'unica cosa
+	 * per cui esiste. Chi chiama scrive il proprio nome.
 	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Icons")
 	static FRTIconResolution ResolveIcon(const URTIconCatalogData* Catalog, const FName& IconId,
 		const FName& Consumer);
 };
