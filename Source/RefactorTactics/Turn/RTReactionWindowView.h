@@ -6,25 +6,47 @@
 #include "RTReactionWindowView.generated.h"
 
 /**
- * Un bersaglio proponibile dentro una finestra di reazione: chi e', e la stringa ESATTA che lo sceglie.
+ * Una risposta legale dentro una finestra: la stringa ESATTA da rimandare al core, e il bersaglio quando ne
+ * ha uno.
  *
- * La stringa viaggia insieme all'id invece di essere ricostruita da chi disegna: `FIRE:<UnitId>` e' un
+ * 🔴 **Ogni risposta e' rappresentabile, e non solo le `FIRE:<id>`.** La prima stesura elencava i soli
+ * bersagli, e sarebbe stata muta su ogni finestra che non fosse un Overwatch: `RTTurnManager_Blast.cpp`
+ * costruisce finestre del `Brace` da `URTCatalogLibrary::BraceExecutableResponses`, che offre
+ * `Hold Ground` piu' le maneuver eseguibili del profilo — nessuna col prefisso `FIRE:`. Il widget avrebbe
+ * mostrato un countdown **senza un bottone da premere**, e ogni finestra del `Brace` sarebbe scaduta da
+ * sola. Trovato in code review, non dalla suite: i tre test partivano tutti da una finestra dell'Overwatch.
+ *
+ * La stringa viaggia con l'opzione invece di essere ricomposta da chi disegna: `FIRE:<indice>` e' un
  * FORMATO, e il suo unico produttore e' `URTReactionOpportunityLibrary::FireResponse`. Un widget che se la
- * componesse da solo sarebbe il secondo produttore dello stesso formato — la stessa duplicazione che
+ * componesse da solo sarebbe il secondo produttore dello stesso formato — la duplicazione che
  * `FireResponseTarget` esiste per non far nascere, spostata di un livello e fuori dai test del core.
  */
 USTRUCT(BlueprintType)
-struct FRTReactionWindowTargetView
+struct FRTReactionWindowOptionView
 {
 	GENERATED_BODY()
 
-	/** Unita' bersagliabile. E' gia' nota a chi guarda: ha appena armato il trigger dentro la sua zona. */
-	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
-	int32 UnitId = INDEX_NONE;
-
-	/** La risposta da rimandare al core per colpire questo bersaglio. Si spedisce, non si interpreta. */
+	/** La risposta da rimandare al core. Si spedisce, non si interpreta: e' l'unico campo sempre valorizzato. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
 	FString Response;
+
+	/**
+	 * Il bersaglio, quando la risposta ne ha uno; `INDEX_NONE` per le risposte che non bersagliano —
+	 * `HOLD`, `Hold Ground`, una maneuver del `Brace`.
+	 *
+	 * 🔴 **E' un indice nello spazio di `MakeCurrentSnapshot`, che scarta i morti — NON un id stabile.** Il
+	 * pericolo e' gia' documentato in rosso in `RTTurnManager_Chunk.Blast` per `Key.OwnerId`: *«un solo
+	 * caduto che ordina prima di questa unita' sposta di uno tutti gli indici a valle»*, e chi risolvesse
+	 * l'indice su un roster, su `StableUnitId` o su una lista di Actor nominerebbe **l'unita' sbagliata** in
+	 * ogni partita in cui qualcuno e' gia' caduto. Si risolve solo contro lo stesso array che ha costruito
+	 * la finestra.
+	 *
+	 * ⚠️ Percio' il nome dice `SnapshotIndex` e non `UnitId`: la prima stesura lo chiamava `UnitId`, ed era
+	 * un invito a risolverlo nel posto sbagliato. Portare qui un id stabile e' lavoro del PRODUTTORE, che ha
+	 * lo snapshot in mano — non di questa funzione, che non ce l'ha.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	int32 TargetSnapshotIndex = INDEX_NONE;
 };
 
 /**
@@ -65,8 +87,16 @@ struct FRTReactionWindowView
 	 * identificatore per la stessa finestra — che e' il difetto che `FRTReactionOpportunityKey` esiste per
 	 * impedire. Serve a correlare la risposta quando il decisore umano sara' asincrono: oggi
 	 * `AskReactionDecision` e' sincrono e la correlazione e' implicita.
+	 *
+	 * 🔴 **`UPROPERTY()` semplice, NON `BlueprintReadOnly`, e la differenza e' una decisione.** Esporlo ai
+	 * Blueprint avrebbe richiesto di marcare `BlueprintType` la chiave AUTOREVOLE — cioe' allargare in
+	 * permanenza la superficie di riflessione di un tipo del resolver per un consumatore che questo stesso
+	 * file dichiara futuro. E' lo stesso argomento con cui il campo «posso rispondere?» e' stato rifiutato,
+	 * e va applicato anche quando costa a me: la prima stesura aveva allargato la chiave, e una code review
+	 * ha fatto notare che un `UPROPERTY()` semplice compila lo stesso. Il giorno in cui un widget dovra'
+	 * leggerla, si esporra' allora — con il consumatore davanti.
 	 */
-	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
+	UPROPERTY()
 	FRTReactionOpportunityKey Key;
 
 	/**
@@ -78,9 +108,15 @@ struct FRTReactionWindowView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
 	float WindowSeconds = 0.f;
 
-	/** I bersagli offerti, nell'ordine dell'opportunity. Vuoto quando la finestra non e' aperta. */
+	/**
+	 * Le risposte offerte, **tutte**, nell'ordine dell'opportunity. Vuoto quando la finestra non e' aperta.
+	 *
+	 * Include la scelta sicura: `SafeResponse` dice QUALE delle opzioni e' — non e' una seconda lista. Un
+	 * elenco che la escludesse costringerebbe il widget a ricomporre il bottone «tieni» da solo, e il suo
+	 * nome non e' universale (§`SafeResponse`).
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Reaction")
-	TArray<FRTReactionWindowTargetView> Targets;
+	TArray<FRTReactionWindowOptionView> Options;
 
 	/**
 	 * Cio' che si applica allo scadere del countdown, per nome: `HOLD` nell'Overwatch, `Hold Ground` nel
@@ -115,11 +151,15 @@ public:
 	/**
 	 * La finestra come la riceve `ObserverTeamId`, sapendo che il proprietario e' di `OwnerTeamId`.
 	 *
-	 * - Osservatore della squadra del proprietario -> vista completa: chiave, countdown, bersagli, scelta
+	 * - Osservatore della squadra del proprietario -> vista completa: chiave, countdown, opzioni, scelta
 	 *   sicura. La DoD chiede che la finestra sia *«visibile in sola lettura alla squadra»*, e in v0.1 —
 	 *   2v2 offline, un umano per squadra ([D-155]) — squadra e proprietario coincidono. La distinzione fra
 	 *   «vedo» e «decido» nascera' con il secondo giocatore per squadra, e sara' un campo in piu' con un
 	 *   produttore vero; oggi sarebbe una costante replicata.
+	 * - Squadra non risolta (`INDEX_NONE`, da un lato o dall'altro) -> **vista ai default**. Fail-closed, e
+	 *   non e' teorico: `INDEX_NONE` e' il default dei team id in tutto il progetto, e senza questa guardia
+	 *   un osservatore ignoto e un proprietario ignoto **coinciderebbero** — l'uguaglianza fra due valori
+	 *   che significano «non lo so» avrebbe consegnato la finestra intera. Segnalato in code review.
 	 * - Osservatore avversario -> **vista ai default**: `bOpen` falso e nient'altro. Non un countdown a zero
 	 *   da nascondere: proprio nessun dato.
 	 * - Opportunity senza boundary (`AllowedResponses` ≤ 1) -> vista ai default anche per la propria squadra:

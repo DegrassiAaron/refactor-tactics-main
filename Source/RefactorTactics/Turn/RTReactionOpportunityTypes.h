@@ -20,15 +20,7 @@ class URTHexMapAsset;
  * su una seconda esecuzione. Un `FGuid::NewGuid()` sarebbe piu' breve da scrivere e renderebbe il replay non
  * riproducibile senza che nessun test se ne accorga.
  */
-/**
- * ⚠️ **`BlueprintType` dal 2026-08-28, e solo la chiave.** Viaggia dentro `FRTReactionWindowView` — il DTO
- * sanitizzato di CP 14.6 — e un `USTRUCT()` semplice non puo' stare in una struct esposta ai Blueprint.
- * L'esposizione si ferma qui: `FRTReactionOpportunity`, che porta `AllowedResponses`, resta NON esposta, e
- * la funzione che filtra la finestra e' C++ pura apposta. La chiave e' gia' la parte dichiarata non-futura
- * da `Overwatch.OpportunityLeaksNoFuture` — i suoi sei campi dicono DOVE nella risoluzione ci si trova, mai
- * dove si andra'.
- */
-USTRUCT(BlueprintType)
+USTRUCT()
 struct FRTReactionOpportunityKey
 {
 	GENERATED_BODY()
