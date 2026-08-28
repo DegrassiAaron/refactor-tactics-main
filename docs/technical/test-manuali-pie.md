@@ -56,15 +56,19 @@
 
 *(Rimisurate col comando qui sotto il **2026-08-28**, in due tempi come la regola vuole. Entra **una** voce,
 `PIE-SCEN-COMPOSER`, il percorso PIE del DoD di TD-EDITOR-01 che il contratto del widget dichiarava non
-registrato. 🔴 **Ma il delta non è uno, e lo scarto ha due cause diverse che conviene non confondere**:
-la misura **prima** di toccare il file ha dato `166 · 63/21/2/80` contro l'intestazione `164 · 60/22/2/80`.
-Le **due voci** sono `PIE-BU2c` e `PIE-V01-KIT-HOTKEYS`, entrate il 2026-08-26 con `8cdd071c` senza che
-nessuno rieseguisse il comando: portano `+1` verde e `+1` aperta. ⚠️ **Le altre due unità di scarto non sono
-un movimento, sono un errore già scritto**: al 2026-08-25 il file misurava `62/21/2/79` mentre
-l'intestazione dichiarava `60/22/2/80`, totale giusto e ripartizione sbagliata. Nessuna parziale è
-diventata verde — le parziali sono ferme a `21` da a3d5e7c7 — e leggere `60 → 63` come *tre verdi entrati*
-significa contare due volte un difetto di trascrizione. Il numero scritto non è il numero misurato finché
-qualcuno non lo rimisura, che è la ragione per cui questo paragrafo esiste.
+registrato. 🔴 **Ma il delta non è uno, e ora è ricostruibile voce per voce**: la misura **prima** di toccare il
+file ha dato `166 · 63/21/2/80` contro l'intestazione `164 · 60/22/2/80`. L'intestazione **era corretta
+quando fu scritta** — a `4a50fd4f` il comando dava esattamente `164 · 60/22/2/80` — e lo scarto si è
+aperto dopo, in quattro movimenti che nessuno ha rimisurato: `PIE-AS4a` ⏳→✅ (`da16270b`, 2026-08-25),
+`PIE-HEXPLAY-10` 🟡→✅ (`a3d5e7c7`, stesso giorno — **è la parziale che scende da 22 a 21**), l'ingresso di
+`PIE-BU2c` già ✅ (`293728f0`, stesso giorno) e quello di `PIE-V01-KIT-HOTKEYS` ⏳ (`8cdd071c`,
+2026-08-26). Tre verdi, due voci, una parziale diventata verde: i conti tornano. ⚠️ **La prima correzione
+di questo paragrafo, il 2026-08-28, sosteneva il contrario — che l'intestazione fosse sbagliata all'origine
+e che nessuna parziale fosse diventata verde — ed è registrata qui invece che riscritta in silenzio**:
+nasceva dall'aver misurato `a3d5e7c7` credendolo lo stato *al momento dell'intestazione*, mentre era già il
+terzo dei quattro movimenti. 🔴 *È lo stesso difetto che il paragrafo denuncia, commesso mentre lo si
+denunciava: un ancoraggio scelto per comodità invece che per data.* Il numero scritto non è il numero
+misurato finché qualcuno non lo rimisura, e **rimisurarlo dal commit sbagliato non conta come misurarlo**.
 ⚠️ **La prima stesura di `PIE-SCEN-COMPOSER` ha sbagliato il conteggio, e nel modo che questo file aveva
 già documentato**: la cella di stato citava un comando con `grep -i 'a\|b'`, cioè una **pipe dentro una
 cella**. `awk -F'|'` l'ha letta come separatore, `$(NF-1)` è finito su un altro campo, e la voce ⏳ è
@@ -306,8 +310,9 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   docs/technical/test-manuali-pie.md
 ```
 
-⚠️ **Il numero di voci è quello delle RIGHE DI TABELLA, e un `grep` sugli ID ne conta di più.** Misurato il
-2026-08-25:
+⚠️ **Il numero di voci è quello delle RIGHE DI TABELLA, e un `grep` sugli ID conta un'altra cosa** — a
+volte di più, a volte lo stesso numero per compensazione, mai per verifica: vedi l'aggiornamento del
+2026-08-28 subito sotto il blocco. Misurato il 2026-08-25:
 
 ```bash
 grep -c '^| \*\*PIE-' docs/technical/test-manuali-pie.md                        # 164 — le voci

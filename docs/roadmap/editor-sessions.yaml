@@ -1443,13 +1443,13 @@ sessions:
       `/Game/RT/World/Graybox/`, con la riga d'allowlist scritta nello stesso commit — misurata con
       `git check-ignore -q`, che da' exit 1. Cio' che `asset-map.md` §6 chiedeva **prima** dell'asset
       adesso c'e'.
-      ⏱️ **La seconda ragione diceva: finche' #1155 non atterra il mondo gira a `HexSize = 100`
-      mentre si modella alla scala d'arte di `D-163`, quindi un volume finito e' `1,5x` fuori misura
-      sulla mappa in cui si posa — si modella alla scala nuova e si rimanda il **commit**.
-      ✅ **CADUTA anch'essa: #1155 e' atterrata il 2026-08-25 e il mondo gira a `HexSize = 150`**, la
-      stessa scala con cui si modella. Corretta qui il 2026-08-28: la clausola era sopravvissuta tre
-      giorni all'evento che la smentiva. `artifacts: []` resta per la sola ragione di `U21` —
-      l'oracolo non sa dire se un path e' stato modificato — e non piu' per un divieto di committare.
+      ⏱️ **Restava una clausola sulla scala, e diceva**: finche' #1155 non atterra il mondo gira a
+      `HexSize = 100` mentre si modella alla scala d'arte di `D-163`, quindi un volume finito e' `1,5x`
+      fuori misura sulla mappa in cui si posa — si modella alla scala nuova e si rimanda il **commit**.
+      ✅ **Caduta anche questa: #1155 e' atterrata il 2026-08-25 e il mondo gira a `HexSize = 150`**, la
+      stessa scala con cui si modella. Corretta qui il 2026-08-28, dopo essere sopravvissuta tre giorni
+      all'evento che la smentiva — e non aggiunge un motivo a `artifacts: []`, che resta quello di `U21`
+      gia' scritto qui sopra.
       ⛔ **Fuori da questa seduta**: i diciannove elementi del catalogo. Sette sono `DEFER` — tre per
       dipendenza da feature `IDEA`, due fuori scope v0.1 dichiarato, due proxy senza produttore — e dei
       dodici restanti la maggior parte e' `UPDATE` di presentazione su asset che esistono. Questa

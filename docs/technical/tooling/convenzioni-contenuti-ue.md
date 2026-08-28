@@ -309,7 +309,7 @@ cioè il lato (`RTHexLibrary.cpp`: *«un pointy-top di circumraggio HexSize»*).
 d'autore dello stesso giorno. Chi modella in verticale ha quindi **due riferimenti indipendenti**: il lato
 della cella per la pianta, la quota di piano per l'alzato. Non si deriva l'uno dall'altro.
 
-| | Scala d'arte | Scala del mondo, oggi | Scala del mondo, al canone |
+| | Scala d'arte | Scala del mondo, **fino al** 2026-08-25 | Scala del mondo, **oggi** (canone) |
 |---|---:|---:|---:|
 | Lato della cella | 1,50 m *(dal 2026-08-09)* | 1,00 m | **1,50 m** |
 | Cella lato-a-lato (`C`) | 2,60 m | 1,73 m | **2,60 m** |
@@ -317,8 +317,11 @@ della cella per la pianta, la quota di piano per l'alzato. Non si deriva l'uno d
 
 ⚠️ **La colonna che cambia il 2026-08-17 è la terza, non la prima**: la scala d'arte è quella dal
 2026-08-09 e `D-163` non l'ha toccata — ha deciso che il **mondo** la segue. Chi ha modellato fra il 09 e
-il 17 ha modellato giusto. E finché la issue di migrazione è aperta, la colonna che il gioco usa è la
-**seconda**.
+il 17 ha modellato giusto. ✅ **E dal 2026-08-25 la colonna che il gioco usa è la terza**: `#1155` è atterrata, `HexSize = 150`, e le
+tre colonne coincidono per il lato. 🔴 *Questa riga diceva «finché la issue di migrazione è aperta, la
+colonna che il gioco usa è la **seconda**» — la migrazione era chiusa da tre giorni, e l'intestazione della
+seconda colonna diceva «oggi». Corrette entrambe il 2026-08-28: chi leggeva la tabella top-down modellava
+a `1,00 m`, cioè il difetto che il paragrafo qui sotto dichiara chiuso.*
 
 > 🔴 **Fino al 2026-08-17 questa sezione descriveva una scala che nessuna mappa usava.** Misurato:
 > `HexSize` non compare in **nessun** binario di `Content/RT` — misura e oracolo in
