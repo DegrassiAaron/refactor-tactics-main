@@ -1042,6 +1042,18 @@ namespace
 	 * muove non esiste una funzione di cui cercare i cicli. E' un'idealizzazione, ed e' quella in cui il
 	 * difetto storico e' stato osservato: Riktor fra due celle mentre il resto del campo non decideva.
 	 */
+	FString RTOrbitCellText(const FRTCellId& Cell)
+	{
+		return FString::Printf(TEXT("(%d,%d,L%d)"), Cell.X, Cell.Y, Cell.Layer);
+	}
+
+	/** Chiave d'una coppia, indipendente da quale delle due e' la cieca: un ciclo non ha un verso. */
+	FString RTOrbitPairText(const FRTCellId& A, const FRTCellId& B)
+	{
+		const bool bFirst = URTHexLibrary::StableLess(A, B);
+		return RTOrbitCellText(bFirst ? A : B) + TEXT(" <-> ") + RTOrbitCellText(bFirst ? B : A);
+	}
+
 	struct FRTOrbitCycleReport
 	{
 		int32 WalkableCells = 0;
@@ -1055,6 +1067,8 @@ namespace
 		FRTCellId FirstBlind;
 		FRTCellId FirstSeeing;
 		FRTCellId FirstTarget;
+		/** Le coppie `cieca <-> che vede` distinte, per poter chiedere se una coppia NOTA e' fra loro. */
+		TSet<FString> Pairs;
 	};
 
 	/**
@@ -1262,16 +1276,13 @@ namespace
 					Report.FirstTarget = Walk[E];
 				}
 				++Report.Cycles;
+				Report.Pairs.Add(RTOrbitPairText(Walk[A], Walk[B]));
 			}
 		}
 
 		return Report;
 	}
 
-	FString RTOrbitCellText(const FRTCellId& Cell)
-	{
-		return FString::Printf(TEXT("(%d,%d,L%d)"), Cell.X, Cell.Y, Cell.Layer);
-	}
 
 	/** Il conteggio su tutta la spazzata dei budget, piu' la prima occorrenza in forma leggibile. */
 	struct FRTOrbitSweep
@@ -1279,6 +1290,7 @@ namespace
 		int32 Cycles = 0;
 		int32 Pairs = 0;
 		FString First;
+		TSet<FString> DistinctPairs;
 	};
 
 	FRTOrbitSweep RTSweepOrbitCycles(const URTHexMapAsset* Map)
@@ -1291,6 +1303,7 @@ namespace
 			const FRTOrbitCycleReport R = RTMeasureOrbitCycles(Map, Budget);
 			Sweep.Cycles += R.Cycles;
 			Sweep.Pairs += R.PairsExamined;
+			Sweep.DistinctPairs.Append(R.Pairs);
 			if (R.Cycles > 0 && Sweep.First.IsEmpty())
 			{
 				Sweep.First = FString::Printf(TEXT("budget %d: cieca %s <-> che vede %s, bersaglio %s"),
@@ -1409,6 +1422,21 @@ bool FRTBotAuthoredMapClosesTheOrbitCycleTest::RunTest(const FString&)
 	TestTrue(FString::Printf(
 		TEXT("sulla mappa d'autore il 2-ciclo di #1287 si chiude: %d cicli (sull'arena generata sono zero)"),
 		Sweep.Cycles), Sweep.Cycles > 0);
+
+	TArray<FString> Elencate = Sweep.DistinctPairs.Array();
+	Elencate.Sort();
+	AddInfo(FString::Printf(TEXT("coppie distinte (%d): %s"),
+		Elencate.Num(), *FString::Join(Elencate, TEXT("  |  "))));
+
+	// 🔴 **E fra quelle coppie c'e' QUELLA MISURATA, che e' cio' che rende questo predicato una misura e non
+	// un modello plausibile.** Il consuntivo di #1287 nomina l'orbita osservata in partita — *«Riktor alterna
+	// fra `(1,-1,L0)` e la piattaforma `(3,-3,L1)` otto volte in dodici turni»* — e il predicato, che di
+	// quella misura non sa nulla, la ritrova da solo enumerando la board. Un predicato che trovasse cicli
+	// altrove ma non questo starebbe descrivendo un difetto diverso da quello accaduto.
+	const FString Storica = RTOrbitPairText(FRTCellId(1, -1, 0), FRTCellId(3, -3, 1));
+	TestTrue(FString::Printf(
+		TEXT("fra i cicli c'e' quello MISURATO da #1287 in partita: %s"), *Storica),
+		Sweep.DistinctPairs.Contains(Storica));
 
 	return true;
 }

@@ -1934,6 +1934,23 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// produrrebbe un rosso da leggere, non un difetto. Un limite scritto vale piu' di un test che non puo'
 	// piu' cadere.
 	//
+	// 🔵 **E L'ALTRO ORACOLO DI PARCHEGGIO HA DECISO IL CONTRARIO, APPOSTA** (#1551).
+	// `Match.Autobattle.NobodyParksOnTheAuthoredMap` conta un turno solo se l'unita' e' INERTE — ferma *e*
+	// senza aver inflitto danno (`URTTurnLogLibrary::IsDamageInflictedByActor`) — cioe' concede esattamente
+	// l'esenzione che le tre righe qui sopra hanno misurato e tolto. **Non e' una deriva, ed e' importante
+	// non correggerla come se lo fosse**: anche quella scelta porta evidenza di mutazione. Senza l'esenzione
+	// quell'oracolo accuserebbe di stallo un kiter che presidia la propria distanza di tiro e spara — il
+	// comportamento che `ScorePlan` dichiara corretto — e con l'esenzione resta comunque capace di
+	// falsificare: rimettendo il difetto di #1287 torna rosso a dieci turni fermi.
+	//
+	// ⛔ **Le due risposte non sono una giusta e una sbagliata**: sono due definizioni di stallo —
+	// immobilita' contro immobilita' STERILE — e ciascuna e' quella che rende falsificabile il proprio
+	// oracolo sulla propria board. Allinearne uno all'altro «per coerenza» distrugge la prova che quell'altro
+	// porta, e il rosso che ne segue si legge come un difetto del bot invece che come una soglia spostata.
+	//
+	// ∴ chi vuole unificarli legga prima l'istruttoria: `BOT-STALL-1` in `docs/OPEN_DECISIONS.md`. DIR-C non
+	// l'ha presa, perche' e' una decisione sul significato di «stallo» e il suo owner e' PDR-00.
+	//
 	// ⚠️ **Questa sequenza vede i punti fissi, non i cicli** — un'unita' che oscilla fra due celle si muove
 	// ogni turno, quindi la sequenza resta a zero — e per tre giorni quella meta' e' rimasta scoperta QUI e
 	// coperta altrove: `Match.Autobattle.NobodyOscillatesOnTheAuthoredMap` pinna il ritorno di periodo due
@@ -2073,11 +2090,32 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// sono unita' che restano ferme abbastanza da superare il limite se le si contasse male. L'asserzione
 	// non e' vacua, e non e' un ornamento.
 	//
-	// ⚠️ **Cio' che resta NON dimostrato e' un percorso di COMPORTAMENTO.** Nessuna delle tre mutazioni del
-	// bot fa oscillare i bot qui — sotto la piu' forte il contatore va a ZERO — quindi non si e' trovato un
-	// difetto del bot che, su questa geometria, produca un'orbita di periodo due. Un verde qui dice «su
-	// questa board il bot non orbita», non «il bot non puo' orbitare».
-	// ⚠️ Chi trovera' una mutazione del BOT che lo fa cadere qui la scriva in questa tabella.
+	// ✅ **E il percorso di comportamento non manca per difetto di ricerca: NON ESISTE SU QUESTA BOARD**
+	// (#1550, misurato il 2026-08-28). La riga che chiedeva «chi trovera' una mutazione del BOT che lo fa
+	// cadere qui la scriva in questa tabella» e' chiusa cosi', e non con una quarta mutazione.
+	//
+	// 🔴 **Il ciclo di #1287 chiede DUE passi, e il secondo qui non c'e'.** Il punteggio non legge
+	// `Context.Origin` e il tie-break di `ChooseBestPlan` fa vincere il restare: `A -> B` chiede quindi
+	// `punteggio(B) > punteggio(A)` e `B -> A` chiede l'opposto, cioe' **con il dominio intero un 2-ciclo non
+	// e' formabile su nessuna board**. A renderlo formabile era il filtro di #1287, che TOGLIE l'origine
+	// dalle candidate quando e' cieca: li' il bot deve muoversi anche verso una cella che vale meno. Il ciclo
+	// e' percio' la congiunzione di due condizioni — dalla cieca il filtro manda su `B`, e da `B` il dominio
+	// intero riporta sulla cieca — e su `MakeTestArena` la seconda non si verifica **mai**: il muro di `q=0`
+	// blocca la vista e **non il passo**, e `HasLineOfSight` esclude gli estremi dalla regola per-cella,
+	// quindi la cella del muro e' insieme la piu' vicina al bersaglio **e** una cella che vede. Dalla cieca
+	// il filtro manda avanti, non indietro.
+	//
+	//     board                cicli chiusi   coppie (cieca, bersaglio)   muri che bloccano anche il passo
+	//     MakeTestArena        **0**          9510                        0 su 5
+	//     DA_HexMap_Arena      34             8451                        9 su 11
+	//
+	// Le due misure sono `Bot.StalemateProbeGeneratedArenaClosesNoOrbitCycle` e
+	// `Bot.StalemateProbeAuthoredMapClosesTheOrbitCycle`, e la seconda ritrova fra i propri cicli
+	// **esattamente** l'orbita che #1287 ha misurato in partita: `(1,-1,L0) <-> (3,-3,L1)`.
+	//
+	// ⚠️ **Il limite resta, ed e' piu' stretto di prima.** Un verde qui dice «il ciclo NELLA FORMA DI
+	// #1287 non ha su questa board dove chiudersi», non «il bot non puo' orbitare»: un termine di punteggio
+	// che dipenda dall'origine in un altro modo riaprirebbe la domanda, e quel giorno si rimisura la'.
 	const int32 WorstOrbit = Orbite.WorstReturns();
 	const int32 OrbitLimit = FRTOrbitProbe::LimitForTurns(TurnsPlayed);
 	const int32 OrbitMinTurns = FRTOrbitProbe::MinTurnsToFalsify;

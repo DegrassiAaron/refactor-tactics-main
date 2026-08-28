@@ -46,6 +46,43 @@ reazione di kit**.
 |---|---|---|
 | `BOT-REACT-1` | **Il bot deve preferire la reazione di kit o il modulo di loadout?** | ⏳ **Aperta.** [D-220] ha **dichiarato la regola che c'era già** — prima il kit, il modulo come riserva quando il kit è in ricarica — invece di inventarne una: prima la produceva l'**ordine degli indici**, per accidente. La preferenza ha una ragione (*la reazione di kit è ciò che l'eroe **è**, il modulo è ciò che la composizione gli **aggiunge***), ma non è una valutazione tattica. 🔴 **E invertirla non è una pulizia**: i moduli hanno `CooldownTurns = 0`, quindi un bot che preferisse il loadout non armerebbe **mai più** la reazione d'eroe — un «mai» scambiato col «mai» opposto. 🔴 **E il costo e' misurato, non teorico**: `Interposition` va in ricarica **solo quando scatta** — non in pianificazione — quindi e' utilizzabile quasi ogni turno, e il modulo viene armato solo nei ≤3 turni dopo un'interposizione. Il bot Riktor riceve la `Reaction.Cleanse` che [D-218] gli ha dato in una **minoranza** dei turni. ⚠️ **La domanda vera per E15**: quando conviene una purificazione preventiva e quando un'interposizione? Finché non c'è un'euristica che lo valuti, la regola dichiarata è la risposta meno arbitraria disponibile |
 
+
+---
+
+## Aperta — che cosa conta come «stallo», dal 2026-08-28
+
+Origine: [#1551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1551), osservata mentre si
+chiudeva [#1547](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1547) e **deliberatamente non
+unificata**. I due oracoli di parcheggio dello stato assorbente rispondono in modo **opposto** alla stessa
+domanda, e ciascuno porta la propria evidenza di mutazione: non è un difetto da correggere, è una decisione
+presa due volte in due file senza che nessuno la dichiarasse tale.
+
+| oracolo | board | un turno fermo conta se… |
+|---|---|---|
+| `Match.Autobattle.NobodyParksOnTheAuthoredMap` | mappa d'autore | l'unità è **inerte** — ferma *e* senza aver inflitto danno (`URTTurnLogLibrary::IsDamageInflictedByActor`) |
+| `Match.Autobattle.EngagesOnTheGeneratedTestArena` | configurazione generata | l'unità è **ferma**, punto — e la stessa esenzione è stata scritta, misurata e **tolta** |
+
+**Le due misure sono entrambe vere, e sono le due metà dello stesso costo.**
+
+- Sulla **mappa d'autore** l'esenzione *difende* il potere discriminante: senza, l'oracolo accuserebbe di
+  stallo un kiter che presidia la propria distanza di tiro e spara — il comportamento che `ScorePlan`
+  dichiara corretto. E non lo indebolisce: rimettendo il difetto di [#1287] il test torna rosso a dieci
+  turni fermi.
+- Sull'**arena generata** l'esenzione lo *distrugge*: il difetto di [#1088] è esattamente «sta ferma e
+  spara» — Riktor parcheggiata dieci turni mentre il campo produceva 19 voci `Combat`. Misurato: senza
+  esenzione la sequenza è **9** e il test falsifica; con esenzione globale scende a **2** e passa verde; con
+  esenzione per unità a **3**, e passa lo stesso.
+
+| ID | Domanda | Perché non si deduce, e le uscite col loro costo |
+|---|---|---|
+| `BOT-STALL-1` | **Lo stallo di un'unità è l'immobilità, o l'immobilità STERILE?** Cioè: un turno in cui l'unità non si muove ma infligge danno conta come turno di stallo? | Non si deduce dal codice perché **entrambe le risposte sono già implementate**, ciascuna con la propria verifica di mutazione, e nessuna delle due è la deriva dell'altra. Non si deduce da [`D-184`](decisions/RT_PDR_00_Decision_Log.md), che dichiara legittimo il pareggio allo scadere e distingue *«un pareggio in cui il campo si è consumato»* da *«un pareggio in cui nessuno cade»* — ma **non** dice se «ferma che spara» stia di qua o di là. Quattro uscite: **(a) stallo = immobilità sterile** (esenzione ovunque) → l'oracolo di `#1088` diventa **cieco sull'unica board su cui gira**, e quella è la configurazione che la partita non presidiata carica · **(b) stallo = immobilità** (esenzione in nessuno dei due) → sulla mappa d'autore un duello a distanza tenuto oltre la soglia dà un rosso da **leggere**, non un difetto, e la soglia diventa di fatto un numero di bilanciamento · **(c) esenzione condizionata all'AVANZAMENTO** — un turno fermo non conta se l'unità ha inflitto danno **e** nella finestra lo stato è avanzato (HP nemici calati, o qualcuno caduto). È la distinzione che `D-184` fa già a parole, resa eseguibile; ⚠️ **non è stata misurata**, costa una finestra di HP per unità e **una soglia nuova**, che è materia di `D-184` e non di un test · **(d) restare divergenti, ma dichiarato** — lo stato di oggi dopo #1551: ciascun oracolo tiene la definizione che lo rende falsificabile sulla propria board, e i due file si nominano a vicenda con il costo dell'allineamento scritto. Costo: «stallo» non ha un significato unico nel repository, e il terzo oracolo dovrà scegliere da capo. **Raccomandata: (c) se qualcuno la misura, altrimenti (d)** — (a) e (b) tolgono ciascuna il potere discriminante a un oracolo esistente, e quello è l'unico costo che nessuna delle due compensa. **Innesco**: il primo terzo oracolo di stato assorbente, oppure [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149), che ritarando i pesi del bot consuma il margine — oggi **4 su soglia 4**, margine zero, già segnalato da un `AddWarning` |
+
+> 🔎 **Perché non è urgente, e perché non va nemmeno rimandata all'infinito.** Oggi entrambi gli oracoli sono
+> verdi e ciascuno falsifica il difetto che sorveglia: nessuna partita è misurata male. Diventa urgente
+> quando qualcuno tocca uno dei due — «per coerenza» è il modo tipico — perché allinearli senza leggere
+> l'altro toglie a uno dei due la prova che porta, e il rosso che ne segue si legge come un difetto del bot.
+> Le due note incrociate nei file esistono per rendere quel passo impossibile per distrazione.
+
 ---
 
 ## Aperte — governance documentale, trasferite da `#1396` il 2026-08-27
