@@ -69,7 +69,7 @@ Questa sezione è una **mappa rapida**, non un posto dove mantenere numeri di bi
 - Authority: separata dal presentation layer anche in offline; rete completa è post-v0.1.
 - Privacy intenti: il modello esiste già (`FRTPlannedIntent → FilterForTeam → FRTIntentView`); il gate di rete arriva in M10.
 - Reazioni live: modello deciso `Opportunity → Commit`, Fast Reaction baseline **3,0 s**, timeout `HOLD`; implementazione interattiva è E14.
-- Conoscenza parziale: mappa statica nota; vista/udito alimentano `Team Knowledge`; implementazione è E13.
+- Conoscenza parziale: vista/udito alimentano `Team Knowledge`; implementazione è E13. ⚠️ **La geometria non osservata si nasconde** da [D-225](decisions/RT_PDR_00_Decision_Log.md) (2026-08-28) — questa riga diceva «mappa statica nota».
 - Facing è stato gameplay; implementazione completa è E16.
 
 ### Stato recente misurato su HEAD del 2026-08-08

@@ -105,7 +105,7 @@ a 7, perché dipende dal fatto che **nessuna** azione ci arrivi.
 
 | Documento | Impatto |
 |---|---|
-| [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) §8 | «fog of war» è classificata north-star P1. Lo slice **non** è fog of war (la mappa statica resta nota), ma la distinzione va scritta, altrimenti sembra scope creep |
+| [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) §8 | «fog of war» è classificata north-star P1. 🔴 **Questa riga diceva *«Lo slice non è fog of war (la mappa statica resta nota)»*, e [`D-225`](../decisions/RT_PDR_00_Decision_Log.md) l'ha resa falsa il 2026-08-28**: in v0.1 la geometria non osservata **si nasconde**. Il timore di *«sembrare scope creep»* era fondato e la risposta non è più la distinzione, ma la decisione scritta: il perimetro si è mosso davvero, ed è registrato invece che dedotto |
 | [`h6-4-hex-vision-spec.md`](../technical/systems/h6-4-hex-vision-spec.md) §6 | dichiara `VisibleCells` fuori scope. Va aggiornata: lo slice la introduce |
 | [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md) | il fumo ha già una regola (`Obscured`, cap targeting a **2**). **Prevale il catalogo**: niente densità progressiva |
 | [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) | la frase «Riktor compra HP e resistenza con movimento **e vista**» diventa vera solo con questo slice; oggi è falsa |
