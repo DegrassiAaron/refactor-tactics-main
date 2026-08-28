@@ -566,3 +566,69 @@ PIE, non significa packaged, e non chiude nessun gate che chieda una verifica um
 
 ⛔ **Restano fuori, e restano di DIR-A**: `PIE-HEXPLAY-*`, `G10`, `G13`, `PIE-V01-PLAYSPEED`. Una suite
 headless verde non è una partita guardata da qualcuno.
+
+---
+
+## 11. Seconda passata — 2026-08-28, `v0.2`
+
+> **Cosa è**: due delle domande che la prima passata ha lasciato aperte, chiuse con una misura. **Cosa non
+> è**: un secondo audit della lane — quello sta sopra e non è stato rifatto.
+
+| | |
+|---|---|
+| **HEAD di partenza** | `e9e45381` (`origin/main`, un merge oltre il `38e7dcfc` di #1547) |
+| **Worktree** | `D:/Repositories/wt-dir-c-v02` — path scelto per non collidere con lo schema di pulizia altrui |
+| **Branch** | `test/1550-orbita-geometria-e-parcheggio` |
+| **Issue** | [#1550](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1550) (C-1) · [#1551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1551) (C-2) |
+
+🔴 **Il clone condiviso ha morso di nuovo, e in due modi nuovi.** Fra il primo e il secondo comando del
+pre-flight un'altra sessione ha cambiato **branch** al checkout condiviso (`main` →
+`fix/1548-simboli-duplicati-unity`): due `git branch --show-current` a un minuto di distanza danno risposte
+diverse. E il motore è un **mutex globale**: `rt-suite.ps1` si è rifiutato di partire **quattro volte** —
+tre per una run di automation altrui, una per un Editor interattivo — e una build è stata respinta con
+`Unable to build while Live Coding is active`, dal `LiveCodingConsole` figlio di quell'Editor. Nessuno dei
+due è stato terminato: erano lavoro di qualcun altro. Il costo è tempo d'attesa, e va messo in conto da chi
+pianifica una lane che misura.
+
+### 11.1 C-1 — il percorso di comportamento non manca per difetto di ricerca: non esiste su quella board
+
+La domanda aperta di §6.4/§6.5 è chiusa, e **le due sezioni sono state corrette dove stanno** invece che
+smentite qui. Il risultato in breve:
+
+- Il 2-ciclo di #1287 chiede **due** passi, e su `MakeTestArena` il secondo non si verifica mai.
+- `ScorePlan` non legge `Context.Origin`, e il tie-break di `ChooseBestPlan` fa vincere il restare: `A → B`
+  chiede `punteggio(B) > punteggio(A)` e `B → A` chiede l'opposto. **Con il dominio intero un 2-ciclo non è
+  formabile su nessuna board** — a renderlo formabile era il filtro di #1287, che *toglie l'origine dalle
+  candidate* quando è cieca.
+- Su quell'arena il muro di `q=0` blocca la vista e **non il passo**, e `HasLineOfSight` esclude gli estremi
+  dalla regola per-cella: la cella del muro è insieme la più vicina al bersaglio **e** una cella che vede.
+  Dalla cieca il filtro manda avanti, non indietro.
+
+Le due misure sono in `RTBotStalemateProbeTests.cpp`, e non simulano partite.
+
+⚠️ **La prima stesura del predicato era sbagliata, e lo dice il file.** Contava solo il primo passo — una
+condizione *necessaria* — e su entrambe le board dava un numero positivo: un controfattuale che non
+discriminava. A essere sbagliato era il predicato, non la board. (Il numero misurato allora non è riportato:
+quella run è stata dichiarata `NON VALIDA` da `rt-suite.ps1` per collisione fra sessioni, e un numero non
+registrabile è peggio di nessun numero.)
+
+### 11.2 C-2 — la divergenza è istruita, non risolta
+
+`BOT-STALL-1` in [`docs/OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), con quattro uscite e il costo di
+ciascuna; issue [#1551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1551). **Nessuna delle
+due asserzioni è stata toccata**: cambiarne una sarebbe stato prendere la decisione qui invece che da chi la
+possiede. Ciò che è cambiato sono i **commenti**, ora incrociati: da ciascuno dei due oracoli si arriva
+all'altro e all'istruttoria, e allinearli «per coerenza» non è più possibile per distrazione.
+
+⚠️ **Scritto in `docs/OPEN_DECISIONS.md`, che è fuori dal write-set dichiarato della lane.** È l'inbox che
+quel file dichiara di essere — *«l'elenco di ciò che aspetta una persona»* — e una voce **aperta** non
+chiude nulla; il Decision Log non è stato toccato. Chi possiede PDR-00 la sposti o la respinga.
+
+### 11.3 Cosa NON è stato fatto, e perché
+
+- **Non è stata cercata una quarta mutazione del bot.** La misura dice che il ciclo di #1287 non ha lì dove
+  chiudersi: continuare a cercarla sarebbe stato cercare qualcosa di cui si è appena misurata l'assenza.
+- **Non è stata presa la decisione di `BOT-STALL-1`.** L'uscita raccomandata `(c)` — esenzione condizionata
+  all'*avanzamento* — non è stata nemmeno prototipata: porta con sé una soglia nuova, e le soglie sono
+  materia di `D-184`.
+- **Il margine 4 su 4 resta un `AddWarning`**, per la ragione già scritta in §6.7.
