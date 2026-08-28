@@ -197,7 +197,7 @@ la spinta non si legge, non è un difetto del VFX — è la §8.1.
 | ID | Fixture | Cosa guardi | Stato |
 |---|---|---|---|
 | `Visual.Combat.WaterElectric` | r5 | Phase bagna (prio 50), Gadget scarica potenziato (prio 55): **due regole in un colpo** — la combo firma e la priorità intra-fase. 100−16−32 = 52 | scritto |
-| `Visual.Combat.FallbackTargetMoved` | r4 | Riktor lascia la cella nel Dash, la scarica arriva sulla cella **vuota**: il piano è rivalidato, non annullato | scritto |
+| `Visual.Combat.FallbackTargetMoved` | r5 | Riktor lascia la cella nel Dash, la scarica arriva sulla cella **vuota**: il piano è rivalidato, non annullato | già nel corpus |
 | `Visual.Core.PhaseOrder` | r4 | tre azioni in tre fasi separate — carica, colpo, camminata: `Dash → Blast → Move` deve **vedersi** | scritto |
 | `Visual.Combat.PushResistance` | r4 | la stessa spinta su Riktor (assorbita, PushResist 1) e su Wraith (subìta): una statistica invisibile diventa visibile | scritto |
 | `Visual.Combat.SmokeCapsTargeting` | RelayLite | il bersaglio **si vede** e non si può colpire: il fumo accorcia, non acceca | scritto |

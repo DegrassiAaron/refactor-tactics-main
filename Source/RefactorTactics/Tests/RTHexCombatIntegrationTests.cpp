@@ -434,10 +434,7 @@ bool FRTChargeImpactInBlastTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Charger || !Victim) { DestroyHexBlastWorld(World); return false; }
 
-	URTActionData* Charge = NewObject<URTActionData>(Charger);
-	Charge->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
-	Charge->RangeCells = Charge->Def.RangeCells;
-	Charger->Abilities.Add(Charge);
+	RTAbilityFixtures::AddCoreAbility(Charger, TEXT("Action.Charge"));
 
 	const int32 VictimHealth = Victim->Health;
 	Charger->PlannedDashAbility = Charger->Abilities.Num() - 1;
@@ -482,15 +479,14 @@ bool FRTChargeImpactSurvivesInterruptTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Charger || !Victim || !Interrupter) { DestroyHexBlastWorld(World); return false; }
 
-	URTActionData* Charge = NewObject<URTActionData>(Charger);
-	Charge->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
-	Charge->RangeCells = Charge->Def.RangeCells;
-	Charger->Abilities.Add(Charge);
+	RTAbilityFixtures::AddCoreAbility(Charger, TEXT("Action.Charge"));
 
-	URTActionData* Interrupt = NewObject<URTActionData>(Interrupter);
-	Interrupt->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Interrupt"));
-	Interrupt->RangeCells = Interrupt->Def.RangeCells;
-	Interrupter->Abilities.Add(Interrupt);
+	// ⚠️ Il `Power` lo azzera la fixture derivandolo dal catalogo. Prima questo sito copiava la sola
+	// portata, quindi `Power` restava al default legacy **30**: `Action.Interrupt` non dichiara `Damage`,
+	// e il resolver ricade sullo specchio. L'interruttore infliggeva trenta danni al caricatore che
+	// nessuna riga di catalogo autorizza — invisibile qui perche' il test guarda la salute della VITTIMA,
+	// non quella del caricatore (#1588).
+	RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
 
 	const int32 VictimHealth = Victim->Health;
 	Charger->PlannedDashAbility = Charger->Abilities.Num() - 1;
@@ -538,15 +534,9 @@ bool FRTChargeHeadOnStopsTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexBlastWorld(World); return false; }
 
-	URTActionData* ChargeA = NewObject<URTActionData>(A);
-	ChargeA->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
-	ChargeA->RangeCells = ChargeA->Def.RangeCells;
-	A->Abilities.Add(ChargeA);
+	RTAbilityFixtures::AddCoreAbility(A, TEXT("Action.Charge"));
 
-	URTActionData* ChargeB = NewObject<URTActionData>(B);
-	ChargeB->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
-	ChargeB->RangeCells = ChargeB->Def.RangeCells;
-	B->Abilities.Add(ChargeB);
+	RTAbilityFixtures::AddCoreAbility(B, TEXT("Action.Charge"));
 
 	const int32 HealthA = A->Health;
 	const int32 HealthB = B->Health;

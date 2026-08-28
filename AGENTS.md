@@ -332,6 +332,13 @@ letto un file cambiato a run iniziata; due suite morte a **641/1175** e **662/11
 invece di ricordarseli. Da **PowerShell**: Git Bash traduce gli argomenti che iniziano con `/` e
 l'harness non parte nemmeno.
 
+Quando il motore è occupato da un'altra sessione lo script esce `2` in un istante: **`-WaitMinutes 40`**
+aspetta che si liberi e parte da sola, ridichiarando `HEAD`, albero e binario al risveglio. ⛔ Dopo un'attesa
+lunga **ricompila**: si riparte quando un'altra sessione libera il motore, e il DLL sul disco è quello che ha
+lasciato lei. Non scrivere il ciclo di
+attesa accanto allo script — la condizione di rilascio la conosce lui, e una copia scritta a mano che
+guardasse il solo `UnrealEditor-Cmd` lascerebbe passare un editor interattivo.
+
 ⚠️ **I worktree non sono la via d'uscita**: il mutex Live Coding è globale sull'eseguibile del motore,
 quindi due run di automation si uccidono a vicenda anche da checkout diversi. Isolare il disco
 lascerebbe scoperta proprio la collisione più silenziosa.
@@ -346,12 +353,26 @@ Tre contatori vivono in documenti diversi e nessuno li assegna. Il numero si leg
 assegnato e si **riverifica subito prima del merge**, perché la risposta a *«qual è il primo numero
 libero»* scade mentre lavori:
 
-```powershell
+```bash
 git fetch --prune origin
-git grep -oh "D-[0-9]\+" origin/main -- docs/decisions/RT_PDR_00_Decision_Log.md | sort -V | tail -1
-gh pr list --state open
-gh issue list --search "EPIC in:title"
+
+# Ogni ref remoto, con l'ultimo ID che rivendica. E' la sola rete che vede un branch senza PR.
+for b in $(git branch -r --format='%(refname:short)' | grep -v HEAD); do
+  id=$(git show "$b:docs/decisions/RT_PDR_00_Decision_Log.md" 2>/dev/null \
+       | grep -oE '^\| \*\*D-[0-9]{3}\*\*' | grep -oE 'D-[0-9]{3}' | sort -u | tail -1)
+  [ -n "$id" ] && echo "$b -> $id"
+done
+
+gh issue list --search "EPIC in:title"   # gli `Enn`, che vivono nelle issue e non nei ref
 ```
+
+🔴 **`gh pr list --state open` non basta, ed era il comando prescritto qui fino al 2026-08-28**
+([#1600](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1600)). Due buchi, entrambi
+misurati: (1) fra il commit che prende un ID e l'apertura della sua PR l'ID è **preso e invisibile** —
+9 ref remoti contro 3 PR aperte, cinque branch di lavoro scoperti; (2) elenca le **PR**, non gli **ID**:
+sapere che una PR è aperta non dice quale numero rivendica, e leggerne il diff nessuno lo prescriveva.
+La riga qui sotto — *«un branch aperto è una rivendicazione quanto un merge»* — diceva già la cosa
+giusta; era il comando a non verificarla.
 
 Un branch aperto e un working tree non committato sono rivendicazioni quanto un merge. Se una PR in
 volo dichiara lo stesso ID con una **tesi diversa**, rinumera la seconda: rimandi corretti per coppia

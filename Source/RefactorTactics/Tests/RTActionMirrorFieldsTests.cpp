@@ -226,7 +226,7 @@ bool FRTUnitKitCarriesNoUndeclaredDamageTest::RunTest(const FString&)
  * copia, cadono questo test e quello sotto.
  *
  * ⚠️ **Perche' non se n'era accorto nessuno.** I test che verificano la ricarica di `Brace` costruiscono
- * l'azione con un helper locale (`AddDefAbility` in `RTDefensiveReactionTests.cpp`) che il cooldown lo
+ * l'azione con un helper locale che il cooldown lo
  * copia — quindi misuravano un oggetto corretto su un percorso che in partita nessuno attraversa. Il kit
  * che l'unita' riceve davvero passa da `MakeGenericActions`. I dieci helper di test che riscrivono questa
  * sequenza, ciascuno copiando campi diversi, sono raccolti in #1588.

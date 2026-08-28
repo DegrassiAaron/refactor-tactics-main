@@ -115,7 +115,21 @@ Node ha **zero dipendenze** apposta.
 # Exit: 0 verde · 1 test falliti · 2 non avviata (motore occupato) · 3 NON VALIDA, esito non registrabile.
 ./scripts/rt-suite.ps1
 ./scripts/rt-suite.ps1 -Filter RefactorTactics.Scenario   # una sola area, molto più veloce
+./scripts/rt-suite.ps1 -WaitMinutes 40                    # il motore è occupato: aspetta e parte da sola
 ```
+
+⚠️ **Con `-WaitMinutes` non scriverti il watcher a mano.** Esce `2` in un istante quando un'altra sessione
+tiene il motore, e la tentazione è un `while (Get-Process …) { Start-Sleep }` accanto: in una sola sessione
+del 2026-08-28 quel ciclo è stato riscritto **cinque volte**, e la prima aspettava il solo
+`UnrealEditor-Cmd` — un editor interattivo dell'altro checkout l'ha attraversata e la run è uscita `2` lo
+stesso, dopo aver atteso per niente. La condizione di rilascio la conosce lo script, che al risveglio
+**ridichiara il preambolo intero** — `HEAD`, albero *e binario*: parte da ciò che c'è quando il motore si
+libera, non da ciò che c'era mezz'ora prima. Non termina mai nessun processo — se è di un altro checkout è
+lavoro di qualcun altro.
+
+⛔ **Ma attendere amplifica il punto cieco del binario**: si riparte nell'istante in cui un'altra sessione —
+che stava compilando un altro `HEAD` — libera il motore, e il DLL che trovi è il suo. Lo script dichiara di
+non coprire il binario *già stantio all'avvio*. Dopo un'attesa lunga, **ricompila prima di fidarti del verde**.
 
 PowerShell e **non** Git Bash: MSYS traduce gli argomenti che iniziano con `/` e l'harness non parte nemmeno.
 
@@ -213,12 +227,29 @@ Per implementazioni non banali, preflight breve:
   da [`scripts/rt-suite.ps1`](scripts/rt-suite.ps1) (§4) e non a mano: quei controlli, a mano, si dimenticano.
   ⚠️ Niente worktree per parallelizzare: il mutex del motore e' globale sull'eseguibile, quindi due run
   di automation si uccidono anche da checkout diversi.
-- `D-nnn` si legge dall'ultimo assegnato nel Decision Log e si **riverifica prima del merge**: una PR
-  aperta che rivendica lo stesso ID con una tesi diversa è una collisione, e rinumeri la seconda.
-  Ultimo assegnato al 2026-08-27: **D-222**. Il progetto ha già pagato **sedici** collisioni.
-- Prima del merge: `git fetch --prune origin`, poi `gh pr list --state open` per gli ID in volo — e verifica
-  che il gate sia girato **sul commit che stai mergiando**: il 2026-08-27 due PR sono state mergiate prima che
-  il proprio gate finisse.
+- `D-nnn` si legge dall'ultimo assegnato nel Decision Log e si **riverifica prima del merge**: un branch
+  che rivendica lo stesso ID con una tesi diversa è una collisione, e rinumeri la seconda. Il progetto ha
+  già pagato **diciassette** collisioni. ⛔ **Il numero dell'ultimo assegnato non si copia qui**: scade in
+  ore, e un numero fermo in un documento è la stessa classe di difetto che questa regola previene — si
+  chiede al comando qui sotto, che lo produce in un secondo.
+- 🔴 **La rete sono i ref REMOTI, non `gh pr list`** ([#1600](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1600)).
+  Fra il commit che prende un ID e l'apertura della sua PR c'è una finestra in cui l'ID è **preso e
+  invisibile**; e `gh pr list` elenca comunque le PR, non gli ID che rivendicano. Misurato il 2026-08-28:
+  9 ref remoti contro 3 PR aperte, **cinque branch di lavoro fuori dalla rete**.
+
+  ```bash
+  git fetch --prune origin
+  for b in $(git branch -r --format='%(refname:short)' | grep -v HEAD); do
+    id=$(git show "$b:docs/decisions/RT_PDR_00_Decision_Log.md" 2>/dev/null \
+         | grep -oE '^\| \*\*D-[0-9]{3}\*\*' | grep -oE 'D-[0-9]{3}' | sort -u | tail -1)
+    [ -n "$id" ] && echo "$b -> $id"
+  done
+  ```
+
+  Il *perché* sta nella nota su `D-213` del Decision Log, che ha pagato la collisione da cui questa
+  riga nasce: un branch aveva preso l'ID venticinque minuti prima e nessuna PR poteva mostrarlo.
+- Prima del merge verifica anche che il gate sia girato **sul commit che stai mergiando**: il 2026-08-27
+  due PR sono state mergiate prima che il proprio gate finisse.
 
 ## 8. Decision Boundary
 
