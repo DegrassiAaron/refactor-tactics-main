@@ -171,7 +171,7 @@ lascia fare il resto al commandlet.
 L'handoff del 2026-08-26 su Action Phases sposta `Dash` a **sola macro-fase** e introduce `Dodge` come
 movimento generico della fase Dash. Se quel rename atterra nel catalogo generico:
 
-- `UI.Icon.Action.Dash` **esce** dalle chiavi richieste e `UI.Icon.Action.Dodge` entra — automaticamente,
+- `UI.Icon.Action.Dodge` **esce** dalle chiavi richieste e `UI.Icon.Action.Dodge` entra — automaticamente,
   perché `RequiredIconIds()` legge il catalogo e non una lista;
 - il generatore lo segnalerà come chiave scoperta al primo lancio successivo;
 - `UI.Icon.Phase.Dash` **resta**: la fase non cambia nome.

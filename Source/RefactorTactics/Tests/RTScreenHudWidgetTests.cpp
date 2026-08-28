@@ -13,6 +13,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/Texture2D.h"
+#include "UObject/UObjectIterator.h" // TObjectIterator: le classi widget si interrogano, non si elencano
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -128,23 +129,100 @@ bool FRTScreenHudIconKeyTest::RunTest(const FString&)
 }
 
 /**
- * 🔴 **Nessuna proprieta' dei widget e' una texture.** E' la voce di DoD «nessun widget referenzia una
+ * 🔴 **Nessuna superficie dei widget e' una texture.** E' la voce di DoD «nessun widget referenzia una
  * texture direttamente» (D-031, `#220`) resa verificabile invece che raccomandata.
  *
- * Il controllo gira sulla REFLECTION, non sul testo del sorgente: una `UPROPERTY` aggiunta domani viene
- * vista anche se nessuno rilegge questo file.
+ * Il controllo gira sulla REFLECTION, non sul testo del sorgente: una `UPROPERTY` o una `UFUNCTION`
+ * aggiunta domani viene vista anche se nessuno rilegge questo file.
  *
  * ⚠️ **Il limite va detto, perche' e' meta' della verita'.** Copre la superficie C++. Un Blueprint derivato
  * puo' sempre aggiungersi una variabile `Texture2D`, e nessun gate lo impedisce: i `.uasset` non sono
  * versionati in questo repository. La guida lo scrive come regola per chi costruisce i `WBP_RT_*`; questo
  * test tiene la parte che il codice controlla.
+ *
+ * 🔴 **Tre buchi chiusi il 2026-08-26**, e tutti e tre erano del genere che passa inosservato perche' il
+ * test era verde:
+ *
+ *  1. **Le firme delle `UFUNCTION` non erano guardate.** Era il buco piu' grave, perche' l'header dichiara
+ *     proprio del tipo di ritorno che *«e' la regola: un `FName` non si puo' collegare a un `Image` senza
+ *     passare dal catalogo»*. Un `UFUNCTION(BlueprintPure) UTexture2D* GetIcon()` passava.
+ *  2. **I contenitori non erano guardati.** Un `TArray<TObjectPtr<UTexture2D>>` e' un `FArrayProperty`, non
+ *     un `FObjectPropertyBase`, e il cast falliva in silenzio.
+ *  3. **L'elenco delle classi era scritto a mano**, con un `TestEqual(..., 7)` che sembrava una controprova
+ *     e non lo era: fissava la lunghezza della lista letterale, non la copertura. Un ottavo widget non
+ *     faceva cadere niente — semplicemente non veniva guardato.
+ *
+ * Ora le classi si INTERROGANO. La derivazione non puo' essere «cio' che eredita da
+ * `URTScreenHudWidgetBase`»: `URTActionSlotWidget` deriva direttamente da `UUserWidget`, e una regola cosi'
+ * lo perderebbe proprio mentre sembra piu' rigorosa di una lista.
  */
+namespace
+{
+	/** Vero se il tipo di questa proprieta' e' — o contiene — una `UTexture2D`.
+	 *
+	 *  Ricorsiva perche' un contenitore nasconde il tipo: la texture puo' stare dentro un `TArray`, la
+	 *  chiave o il valore di una `TMap`, un `TSet`. `FObjectPropertyBase` copre gia' hard, soft e weak. */
+	bool HudWidgetCarriesTexture(const FProperty* Prop)
+	{
+		if (!Prop)
+		{
+			return false;
+		}
+		if (const FObjectPropertyBase* AsObject = CastField<FObjectPropertyBase>(Prop))
+		{
+			return AsObject->PropertyClass
+				&& AsObject->PropertyClass->IsChildOf(UTexture2D::StaticClass());
+		}
+		if (const FArrayProperty* AsArray = CastField<FArrayProperty>(Prop))
+		{
+			return HudWidgetCarriesTexture(AsArray->Inner);
+		}
+		if (const FSetProperty* AsSet = CastField<FSetProperty>(Prop))
+		{
+			return HudWidgetCarriesTexture(AsSet->ElementProp);
+		}
+		if (const FMapProperty* AsMap = CastField<FMapProperty>(Prop))
+		{
+			return HudWidgetCarriesTexture(AsMap->KeyProp) || HudWidgetCarriesTexture(AsMap->ValueProp);
+		}
+		return false;
+	}
+
+	/** I widget NOSTRI: nativi, dentro questo modulo. Un Blueprint caricato non entra — il suo caso e'
+	 *  dichiarato fuori scope sopra, e includerlo renderebbe l'esito dipendente da cosa e' in memoria. */
+	TArray<UClass*> ModuleHudWidgetClasses()
+	{
+		TArray<UClass*> Out;
+		for (TObjectIterator<UClass> It; It; ++It)
+		{
+			UClass* Class = *It;
+			if (Class == UUserWidget::StaticClass()
+				|| !Class->IsChildOf(UUserWidget::StaticClass())
+				|| !Class->HasAnyClassFlags(CLASS_Native))
+			{
+				continue;
+			}
+			if (Class->GetOutermost() == URTScreenHudWidgetBase::StaticClass()->GetOutermost())
+			{
+				Out.Add(Class);
+			}
+		}
+		Out.Sort([](const UClass& A, const UClass& B) { return A.GetName() < B.GetName(); });
+		return Out;
+	}
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudNoTextureTest,
 	"RefactorTactics.ScreenHud.WidgetApiExposesNoTexture",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScreenHudNoTextureTest::RunTest(const FString&)
 {
-	const TArray<UClass*> WidgetClasses = {
+	const TArray<UClass*> WidgetClasses = ModuleHudWidgetClasses();
+
+	// Controprova della PREMESSA, e stavolta verifica la copertura invece della lunghezza di una lista:
+	// i sette widget dell'HUD devono essere fra quelli trovati. Se l'enumerazione smettesse di funzionare,
+	// il test cadrebbe qui invece di passare senza guardare niente.
+	const TArray<UClass*> MustBeCovered = {
 		URTScreenHudWidgetBase::StaticClass(),
 		URTTurnHeaderWidget::StaticClass(),
 		URTTeamRosterWidget::StaticClass(),
@@ -153,40 +231,52 @@ bool FRTScreenHudNoTextureTest::RunTest(const FString&)
 		URTActionSlotWidget::StaticClass(),
 		URTTacticalHUDWidget::StaticClass(),
 	};
-
-	// Controprova della premessa: se l'elenco fosse vuoto o le classi non si risolvessero, il test passerebbe
-	// senza guardare niente — il difetto che questo repository chiama «test che smette di verificare».
-	TestEqual(TEXT("le sette classi si risolvono"), WidgetClasses.Num(), 7);
-	for (const UClass* Class : WidgetClasses)
+	for (UClass* Class : MustBeCovered)
 	{
-		if (!TestNotNull(TEXT("classe risolta"), Class)) { return false; }
+		TestTrue(*FString::Printf(TEXT("l'enumerazione copre %s"), *GetNameSafe(Class)),
+			WidgetClasses.Contains(Class));
 	}
 
 	int32 Inspected = 0;
 	for (const UClass* Class : WidgetClasses)
 	{
-		// Solo le proprieta' DICHIARATE da queste classi: `UUserWidget` ne porta di sue (brush di stile,
-		// cursori) che non sono nostre e non sono il difetto che il DoD vieta.
+		// Solo cio' che la classe DICHIARA: `UUserWidget` porta proprieta' sue (brush di stile, cursori)
+		// che non sono nostre e non sono il difetto che il DoD vieta.
 		for (TFieldIterator<FProperty> It(Class, EFieldIterationFlags::None); It; ++It)
 		{
-			const FProperty* Prop = *It;
 			++Inspected;
-
-			const FObjectPropertyBase* AsObject = CastField<FObjectPropertyBase>(Prop);
-			if (AsObject && AsObject->PropertyClass
-				&& AsObject->PropertyClass->IsChildOf(UTexture2D::StaticClass()))
+			if (HudWidgetCarriesTexture(*It))
 			{
 				AddError(FString::Printf(
-					TEXT("%s::%s e' una texture: le icone viaggiano per CHIAVE (`UI.Icon.*`) e si risolvono ")
-					TEXT("dal catalogo (D-031). Un widget che riceve un asset rende la regola una ")
-					TEXT("raccomandazione."),
-					*Class->GetName(), *Prop->GetName()));
+					TEXT("%s::%s e' — o contiene — una texture: le icone viaggiano per CHIAVE ")
+					TEXT("(`UI.Icon.*`) e si risolvono dal catalogo (D-031). Un widget che riceve un ")
+					TEXT("asset rende la regola una raccomandazione."),
+					*Class->GetName(), *It->GetName()));
+			}
+		}
+
+		// E le firme. Il tipo di ritorno E' la regola (§4.1): un `FName` non si puo' collegare a un
+		// `Image` senza passare dal catalogo, un `UTexture2D*` si'.
+		for (TFieldIterator<UFunction> Fn(Class, EFieldIterationFlags::None); Fn; ++Fn)
+		{
+			for (TFieldIterator<FProperty> Param(*Fn, EFieldIterationFlags::None); Param; ++Param)
+			{
+				++Inspected;
+				if (HudWidgetCarriesTexture(*Param))
+				{
+					const bool bIsReturn = Param->HasAnyPropertyFlags(CPF_ReturnParm);
+					AddError(FString::Printf(
+						TEXT("%s::%s espone una texture (%s `%s`): il tipo di ritorno e' la regola — la ")
+						TEXT("chiave si risolve dal catalogo, l'asset no."),
+						*Class->GetName(), *Fn->GetName(),
+						bIsReturn ? TEXT("valore di ritorno") : TEXT("parametro"), *Param->GetName()));
+				}
 			}
 		}
 	}
 
 	// Senza questa riga il test sarebbe verde anche se l'iterazione non vedesse nulla.
-	TestTrue(TEXT("l'iterazione ha davvero guardato delle proprieta'"), Inspected > 0);
+	TestTrue(TEXT("l'iterazione ha davvero guardato delle superfici"), Inspected > 0);
 
 	return true;
 }

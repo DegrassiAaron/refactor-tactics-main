@@ -452,7 +452,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 		}, ERTAbilityShape::Area, /*AreaRadius*/ 1));
 
 	// Indice 2 — FluidTrail. `Dash 3` che crea acqua lungo il percorso: la mobilita' e' rappresentabile
-	// (fase Dash, stile lineare — stessa famiglia di `Action.Dash`), la creazione di terreno no (nessun
+	// (fase Dash, stile lineare — stessa famiglia di `Action.Dodge`), la creazione di terreno no (nessun
 	// effetto di cella dinamica esiste: E8/E9). Nessun Effects dichiarato: il movimento non passa da li', e
 	// l'acqua lasciata dietro non ha un modello da consumare.
 	// Lo slot va dichiarato: `MakeHeroAction` mette `Main` di default, e per una mobilita' che non fa danno
@@ -486,7 +486,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// sotto, lasciava alla lama il `Main` di default.
 	//
 	// Numeri dal CORE: portata 3, fase FastMovement, stile lineare. Il cooldown resta 2 — e' dell'eroe, non
-	// del core (`Action.Dash` ha 1).
+	// del core (`Action.Dodge` ha 1).
 	// ⚠️ Lo SLOT va dichiarato: `MakeHeroAction` mette `Main` di default, e per una mobilita' sarebbe
 	// quello sbagliato (D-028). Chi scatta si e' mosso, ma puo' ancora agire.
 	//
@@ -495,9 +495,9 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// principali in un turno. [D-191] toglie la clausola e fissa il criterio: conta se la mobilita' si
 	// FERMA sul bersaglio (`LinearCharge` -> attacco, slot principale) o lo ATTRAVERSA (`LinearPass` ->
 	// mobilita', slot movimento), non se fa danno.
-	const FRTActionDef DashDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	const FRTActionDef DodgeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	URTActionData* FluidTrail = MakeHeroActionFromCore(TEXT("Hero.Phase.FluidTrail"),
-		TEXT("Action.Dash"), /*Cooldown*/ 2);
+		TEXT("Action.Dodge"), /*Cooldown*/ 2);
 	if (FluidTrail)
 	{
 		// Lo SLOT non si eredita dall'helper (vedi il suo docstring): qui e' `Movement` perche' la mobilita'
@@ -506,7 +506,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 		// Lo STILE va copiato a mano, come prima ci andava la superficie: `MakeHeroAction` prende identita',
 		// fase, portata, ricarica, fallback ed effetti — non i campi di comportamento. Senza questa riga
 		// l'azione risolve e non muove nessuno, cioe' fallisce nel modo piu' silenzioso possibile.
-		FluidTrail->Def.MovementStyle = DashDef.MovementStyle;
+		FluidTrail->Def.MovementStyle = DodgeDef.MovementStyle;
 		Phase->Actions.Add(FluidTrail);
 	}
 

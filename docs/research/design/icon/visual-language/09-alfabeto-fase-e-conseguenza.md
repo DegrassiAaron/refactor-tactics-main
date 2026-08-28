@@ -187,7 +187,7 @@ Binario: tacca a **x 16.2→18.2**, stazione 5, **a destra del varco**.
 Glifo: `g_move` invariato, con i suoi nodi intermedi.
 Registro: **tutte e quattro le stazioni spente, pavimento presente**.
 È il caso che il binario guadagna e che nessun'altra superficie dell'HUD mostra: `Action.Move` ha `ResolutionPhaseCode` 20, lo stesso di `Dash` e `Charge`, ma risolve nella macro-fase `Move`, **dopo** il Blast. Il codice dice «insieme al Dash», il turno dice «dopo il colpo». Il binario segue il turno, perché è il turno che il giocatore vive.
-Contro `Action.Dash` (`FastMovement`, `Effects` vuoto): stesso registro spento, tacche su **lati opposti** del varco. Due azioni di movimento che il codice numera uguale e che il turno separa: è la distinzione che l'alfabeto aggiunge davvero.
+Contro `Action.Dodge` (`FastMovement`, `Effects` vuoto): stesso registro spento, tacche su **lati opposti** del varco. Due azioni di movimento che il codice numera uguale e che il turno separa: è la distinzione che l'alfabeto aggiunge davvero.
 
 ---
 
