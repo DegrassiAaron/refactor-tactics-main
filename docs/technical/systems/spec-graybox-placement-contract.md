@@ -157,9 +157,13 @@ prisma esagonale — la cella logica È un volume, non una superficie
   └─ guide verticali   frazioni di H — §6.2
 ```
 
-⏱️ **I due valori assoluti qui sopra sono il canone, non ciò che il gioco fa oggi**: finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non
-atterra il mondo gira a `HexSize = 100`, quindi `C` vale `1,73 m` — mentre `H = 250` è già vero adesso.
-Le frazioni (`0.28 H` in altezza, `0.92` del lato in larghezza) non ne risentono: è per questo che il contratto misura in frazioni.
+✅ **I due valori assoluti qui sopra sono il canone, ed è anche ciò che il gioco fa**: `C = 259,8 uu` e
+`H = 250 uu` valgono a runtime, non solo sul tavolo di chi modella.
+🔴 **Questa riga diceva «finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non atterra il mondo gira a `HexSize = 100`, quindi `C` vale
+`1,73 m`»: falso dal 2026-08-25**, quando #1155 è atterrata. Rimisurato il 2026-08-28: tutti e quattro i
+siti che decidono il mondo portano `150.f` — l'elenco sta in §7.
+Le frazioni (`0.28 H` in altezza, `0.92` del lato in larghezza) non ne hanno risentito, ed è esattamente
+per questo che il contratto misura in frazioni: la scala è cambiata sotto e nessun budget di §6 si è mosso.
 
 🔑 **`H` è l'altezza del volume, non una distanza fra oggetti separati.** `AxialToWorld` pone i centri di
 layer adiacenti a `Layer · LayerHeight`, quindi i prismi **tassellano** anche in verticale: sopra il
@@ -196,8 +200,10 @@ I riferimenti sono **tre**, e la regola non è «due assi» ma **ogni misura sul
 di **1,73×**. Un pannello appoggiato a un bordo si budgeta sul **bordo** — è `0.92` del lato — mentre un
 inset, che misura quanto un asset si ritrae dal centro verso i vicini, si budgeta su `C`.
 
-⏱️ In metri: `C = 2,60 m` **al canone** (`1,73 m` finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non atterra) e `H = 2,50 m`, che è già il
-valore di oggi. La grammatica è in frazioni proprio perché la prima delle due sta cambiando.
+In metri: `C = 2,60 m` e `H = 2,50 m`, ed entrambi sono i valori di oggi. 🔴 **Questa riga portava un
+secondo numero fra parentesi — «`1,73 m` finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non atterra» — e dal 2026-08-25 quella
+parentesi è caduta, non il numero fuori.** La grammatica resta in frazioni perché è ciò che ha reso il
+cambio di scala indolore, non perché qualcosa stia ancora cambiando.
 
 🔴 **Che siano due è una correzione del 2026-08-17** ([`D-168`](../../decisions/RT_PDR_00_Decision_Log.md)):
 fino a quel giorno anche le **altezze** erano espresse in frazioni di `C`, cioè misurate contro una
@@ -263,10 +269,13 @@ non in alzato.
 > visualizzazione**, che [`D-168`](../../decisions/RT_PDR_00_Decision_Log.md) esclude dal perimetro di questo
 > contratto.
 
-⏱️ **Le due righe qui sopra non sono ancora la stessa.** Finché [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non chiude, `C` vale
-`1,73 m` a runtime e `2,60 m` sul tavolo di chi modella. **Modella per una cella larga `2,60 m`** — cioè
-un lato di `1,50 m`, che è lo stesso vincolo detto nell'altra unità — e **rimanda il commit dei volumi
-finiti** finché non li puoi validare in PIE.
+✅ **Le due righe qui sopra sono ormai la stessa.** `C` vale `2,60 m` a runtime e sul tavolo di chi
+modella: **modella per una cella larga `2,60 m`** — cioè un lato di `1,50 m`, che è lo stesso vincolo
+detto nell'altra unità.
+🔴 **Questa riga aggiungeva «e rimanda il commit dei volumi finiti finché non li puoi validare in
+PIE», e dal 2026-08-25 va letta al contrario**: chiuso [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155), il commit non ha più nulla da
+attendere. Il PIE resta dovuto — §10 del `CLAUDE.md` EDITOR — ma è un gate di qualità, non un divieto di
+versionare, e confonderli tiene fuori dal repository asset che ci possono entrare.
 
 > ⚠️ **Le due misure sono la stessa cosa, e vale la pena dirlo perché i documenti usano numeri diversi.**
 > Qui il termine di paragone è `C`, la larghezza lato-a-lato, perché è a quello che il contratto budgeta le
@@ -275,19 +284,28 @@ finiti** finché non li puoi validare in PIE.
 > quello che `HexSize` contiene. `C = √3 · lato`: `1,50 → 2,60`. Le due righe dicono lo stesso
 > vincolo in unità diverse, e ciascuna usa quella naturale per il proprio documento.
 
-Misurato: `HexSize` vale `100.f` in **16 occorrenze su 10 file** di `Source/`, e **nessuna mappa lo
-sovrascrive**. La distinzione che conta non è il totale ma **a cosa serve ciascuna**: **quattro** sono
-codice di gioco e decidono il mondo, le altre stanno in `Tests/` e fissano una scala arbitraria.
-I due che decidono il mondo sono `RTHexMapAsset.h:151` (l'autorevole: l'asset vince sull'actor) e
-`RTHexMapActor.h:74` (il fallback quando `MapAsset` è assente); gli altri due — `RTHUD.cpp:335` e
-`RTTurnManager.cpp` in `GetHexContext` — sono inizializzatori del ramo «nessuna mappa nel livello».
+Misurato il **2026-08-28**: i quattro siti che decidono il mondo portano tutti `HexSize = 150.f`, e
+**nessuna mappa li sovrascrive**. Sono `RTHexMapAsset.h:190` (l'autorevole: l'asset vince sull'actor),
+`RTHexMapActor.h:132` (il fallback quando `MapAsset` è assente), e i due inizializzatori del ramo
+«nessuna mappa nel livello» — `RTHUD.cpp:506` e `RTTurnManager.cpp:4532` in `GetHexContext`.
 
-🔴 **E i siti da toccare non coincidono con i file da toccare**: c'è anche
-`Source/RefactorTactics/Tests/RTHexMapTests.cpp`, che **pinna** il default a `100.f` come contratto di
-serializzazione e va aggiornato deliberatamente. ⛔ **`RTHexMapTests.cpp` non è assegnato a nessuna track** — è un `D-139` STOP, da sciogliere **prima**,
-non durante — e **`RTTurnManager.cpp` è della track `hotspot_split`, ACTIVE**: non si assegna, si coordina. Il quadro completo, con chi possiede cosa, sta in
-[`D-163`](../../decisions/RT_PDR_00_Decision_Log.md) e in [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155); questo documento non è l'owner del write-set
-e non deve diventarne una seconda copia.
+Le **21 occorrenze residue di `100.f`** non decidono nulla: stanno tutte in `Tests/`, dove fissare una
+scala arbitraria è il loro mestiere, oppure in prosa di commento (`RTGeometryGrammar.h:14`,
+`RTGeometryGrammarTests.cpp:46`). La distinzione che conta non è mai stata il totale ma **a cosa serve
+ciascuna occorrenza**, ed è la ragione per cui il numero grande non allarma.
+
+🔴 **Questo blocco era stale in ogni particolare, ed è stato riscritto il 2026-08-28.** Diceva
+«`HexSize` vale `100.f` in **16 occorrenze su 10 file**», nominava `RTHexMapAsset.h:151` /
+`RTHexMapActor.h:74` / `RTHUD.cpp:335`, e concludeva che `RTHexMapTests.cpp` **pinna** il default a
+`100.f` come contratto di serializzazione «da aggiornare deliberatamente». Oggi quel test pinna `150.f`
+e lo dichiara da sé (`RTHexMapTests.cpp:1325-1342`: *«questo default È CAMBIATO il 2026-08-25,
+deliberatamente: `100.f` -> `150.f` (`#1155`)»*), e le righe citate si erano spostate di decine di
+posizioni. ⚠️ **Valeva la pena correggerlo invece di cancellarlo**: la forma «Misurato:» si legge come
+evidenza, ed è la più costosa da lasciare stale — una misura vecchia non sembra vecchia.
+
+⛔ **Il write-set di [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) è chiuso, e questo documento non ne è mai stato l'owner.** Il quadro
+completo, con chi possedeva cosa, resta in [`D-163`](../../decisions/RT_PDR_00_Decision_Log.md) e nella
+issue; qui sopravvive solo la scala che ne è uscita.
 
 > ⚠️ **Questo elenco non è il write-set, ed è la ragione per cui rimanda invece di ripetere.** Chi esegue
 > la migrazione partendo da qui — ed è il documento che chi modella legge — cambierebbe i siti che vede e
@@ -730,10 +748,16 @@ collisione prima che qualcuno la incontrasse.*
 [`asset-map.md`](../tooling/asset-map.md) §6 lo prescrive perché senza di essa `git add` **tace e non segnala nulla**.
 Oracolo: `git check-ignore -q <file>` → exit **`1`**; con `-v` esce `0` in entrambi i casi e non distingue.
 
-⏱️ **Il percorso non rende committabile un asset oggi**: finché
-[#1155](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non atterra il mondo gira a
-`HexSize = 100` mentre si modella alla scala d'arte di §6.2 — si modella alla scala nuova e si rimanda il
-**commit**, non il lavoro.
+✅ **Il percorso rende committabile un asset, e l'oracolo lo conferma.** Misurato il 2026-08-28 con la
+riga d'allowlist a `.gitignore:192`: `git check-ignore -q
+Content/RT/World/Graybox/Volumes/BP_Graybox_CellPlacementVolume.uasset` esce **`1`**, cioè non ignorato.
+
+🔴 **Questa riga diceva il contrario — «il percorso non rende committabile un asset oggi… si modella
+alla scala nuova e si rimanda il commit, non il lavoro» — ed era la copia stale più dannosa delle sei**,
+perché istruiva a NON committare un asset che è committabile: le altre invecchiavano un numero, questa
+fermava del lavoro finito sulla soglia del repository. Falsa dal 2026-08-25, quando [#1155](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) è
+atterrata e il mondo è passato a `HexSize = 150`. La scala d'arte di §6.2 e la scala di runtime sono ora
+la stessa, e non c'è più niente da rimandare.
 
 ---
 
