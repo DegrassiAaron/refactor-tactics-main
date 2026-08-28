@@ -720,8 +720,12 @@ non c'è nessun rosso preesistente da scontare, e la suite è verde per intero.
 
 ### 11.5 Cosa NON è stato fatto, e perché
 
-- **Non è stata cercata una quarta mutazione del bot.** La misura dice che il ciclo di #1287 non ha lì dove
-  chiudersi: continuare a cercarla sarebbe stato cercare qualcosa di cui si è appena misurata l'assenza.
+- **Non è stata trovata una quarta mutazione del bot, e la ricerca resta APERTA.** Questa riga diceva che
+  continuare a cercarla «sarebbe stato cercare qualcosa di cui si è appena misurata l'assenza»: è la stessa
+  tesi di impossibilità che §6.4 ha ritirato, sopravvissuta qui dopo la correzione. Ciò che è misurato è
+  *dove* la board rende difficile il ciclo — il filtro non arretra dai 4 MP in su — non che la mutazione non
+  esista. [#1550](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1550) **resta aperta** per
+  questo, e il suo criterio d'accettazione poggiava su quella premessa falsa.
 - **Non è stata presa la decisione di `BOT-STALL-1`.** L'uscita raccomandata `(c)` — esenzione condizionata
   all'*avanzamento* — non è stata nemmeno prototipata: porta con sé una soglia nuova, e le soglie sono
   materia di `D-184`.
