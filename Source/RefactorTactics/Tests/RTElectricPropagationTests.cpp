@@ -16,6 +16,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Tests/RTAbilityFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -133,12 +134,7 @@ bool FRTWaterElectricPropagationTest::RunTest(const FString&)
 	}
 
 	// `Action.Electrify` sostituisce lo scatto (indice 3): `AbilityCooldowns` non si allarga da solo.
-	URTActionData* Electrify = NewObject<URTActionData>(Caster);
-	Electrify->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify"));
-	Electrify->RangeCells = Electrify->Def.RangeCells;
-	Electrify->CooldownTurns = Electrify->Def.CooldownTurns;
-	Electrify->Power = URTCatalogLibrary::FirstDamage(Electrify->Def);
-	Caster->Abilities[3] = Electrify;
+	RTAbilityFixtures::AddCoreAbilityInSlot(Caster, TEXT("Action.Electrify"), 3);
 	Caster->PlannedAbilityIndex = 3;
 	Caster->PlannedAttackTarget = Target;
 
