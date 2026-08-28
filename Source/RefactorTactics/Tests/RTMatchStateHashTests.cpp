@@ -636,85 +636,163 @@ bool FRTChecksumSeesArcConductivityTest::RunTest(const FString&)
 }
 
 /**
- * I campi dell'UNITA' entrano nell'hash — scudo, energia, layer.
+ * **Ogni campo del digest entra nell'hash**, e nessuno può sparire in silenzio.
  *
- * 🔴 **Trovato per mutazione il 2026-08-28, e la lacuna non era una svista di distrazione.** Questo file ha
- * otto test del pattern «X entra nell'hash», tutti ben scritti, e coprono ambiente, mappa, identita' delle
- * strutture, confini di stato e archi. Nessuno copriva i campi dell'unita' — che sono quelli che cambiano a
- * ogni turno di ogni partita, mentre terreno e archi cambiano di rado.
+ * 🔴 **Trovato per mutazione**: rimuovendo `Mix(U.Shield)` da `HashMatchState` la suite restava interamente
+ * verde. Due partite che differiscono solo per lo scudo — o per l'energia, o per il piano — producevano lo
+ * stesso `StateHash`, e il replay le avrebbe dichiarate identiche.
  *
- * La misura: rimuovendo `Mix(U.Shield)`, poi `Mix(U.Energy)`, poi `Mix(Cell.Layer)` da `HashMatchState` —
- * una per volta, con build completa e suite intera — l'esito e' stato tre volte `1293/1293 completati,
- * 0 fallimenti`. Si potevano togliere e **nessuno se ne accorgeva**.
+ * ⚠️ **La prima stesura di questo test copriva tre campi, e la review ne ha trovati altri cinque scoperti**:
+ * `UnitId`, `Health`, `bAlive`, `Cell.X` e `Cell.Y` stanno sulle righe *adiacenti* dello stesso ciclo, e
+ * nessun test del repository li variava contro l'hash. Chiudere metà di un punto cieco misurato è peggio che
+ * lasciarlo aperto, perché il verde successivo sembra una conferma. Qui ci sono tutti.
  *
- * ⚠️ Perche' conta piu' di altre lacune: `StateHash` e' la prova di determinismo che `#1117` usa per
- * dimostrare che `RUN -> RESET -> RUN` e' stabile, e che il replay logico ([ADR-0009]) confronta per misurare
- * la divergenza. Un hash cieco su tre campi non rende false quelle prove — la funzione fa la cosa giusta —
- * ma le lascia senza guardiano: una riga che sparisce in un refactor non farebbe rosso da nessuna parte.
+ * Due proprietà che le assertion ovvie NON danno, e per cui servono i casi che seguono:
  *
- * Ogni caso cambia **una cosa sola** rispetto alla baseline, come gli altri test di questo file: due hash che
- * differiscono per due motivi non dicono quale dei due l'hash abbia visto.
+ * 1. **Ogni variazione parte da un valore già diverso da zero.** Variare `0 → 10` è soddisfatto anche da un
+ *    `Mix(Campo != 0)` degradato, che collasserebbe `Shield=10` e `Shield=20` sullo stesso hash. Questo file
+ *    scrive già casi contro quella degradazione per l'identità di porte e archi; qui si applica la stessa
+ *    disciplina ai campi dell'unità.
+ * 2. **Due campi non devono collidere fra loro.** Un `Mix(Shield + Energy)` commutativo passerebbe ogni
+ *    disuguaglianza per-campo, e renderebbe identici `(Shield 25, Energy 0)` e `(Shield 0, Energy 25)`. Solo
+ *    uno **scambio di valori** lo smaschera.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChecksumSeesUnitFieldsTest,
-	"RefactorTactics.Simulation.ChecksumSeesShieldEnergyAndLayer",
+namespace
+{
+	/** Baseline con TUTTI i campi già a valori non nulli: variare da zero non distingue un `Mix` degradato. */
+	TArray<FRTUnitStateDigest> RichBaseUnits()
+	{
+		FRTUnitStateDigest U;
+		U.UnitId = 3;
+		U.Cell = FRTCellId(1, -1, 0);
+		U.Health = 40;
+		U.Shield = 10;
+		U.Energy = 30;
+		U.bAlive = true;
+		return { U };
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChecksumSeesEveryUnitFieldTest,
+	"RefactorTactics.Simulation.ChecksumSeesEveryUnitField",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTChecksumSeesUnitFieldsTest::RunTest(const FString&)
+bool FRTChecksumSeesEveryUnitFieldTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeStateHashMap();
 	const TArray<int32> NoScore = { 0, 0 };
-	const TArray<FRTUnitStateDigest> Units = BaseUnits();
 
-	const uint32 Baseline = URTMatchStateHashLibrary::HashMatchState(Map, Units, NoScore);
-
-	// Riferimento: lo stesso stato da' lo stesso hash. Senza, il resto del test non significherebbe niente —
-	// tre disuguaglianze contro un valore instabile sarebbero vere per rumore.
-	TestEqual(TEXT("stesso stato -> stesso hash"),
-		URTMatchStateHashLibrary::HashMatchState(Map, Units, NoScore), Baseline);
-
-	// 1. SCUDO. `BaseUnits()` lo lascia a 0: qui l'unita' ne guadagna, e nient'altro cambia.
+	auto HashOf = [Map, &NoScore](const TArray<FRTUnitStateDigest>& U)
 	{
-		TArray<FRTUnitStateDigest> Shielded = BaseUnits();
-		Shielded[0].Shield = 10;
-		TestNotEqual(TEXT("lo scudo entra nell'hash"),
-			URTMatchStateHashLibrary::HashMatchState(Map, Shielded, NoScore), Baseline);
+		return URTMatchStateHashLibrary::HashMatchState(Map, U, NoScore);
+	};
+
+	const uint32 Baseline = HashOf(RichBaseUnits());
+
+	// Riferimento: lo stesso stato dà lo stesso hash. Senza, ogni disuguaglianza qui sotto sarebbe vera per
+	// rumore invece che per il campo che dichiara di misurare.
+	TestEqual(TEXT("stesso stato -> stesso hash"), HashOf(RichBaseUnits()), Baseline);
+
+	// Un caso per campo. Ogni mutatore cambia UNA cosa sola, e la cambia da un valore non nullo a un altro
+	// valore non nullo: è ciò che rende il test capace di vedere un `Mix(Campo != 0)` degradato.
+	struct FFieldCase
+	{
+		const TCHAR* What;
+		TFunction<void(FRTUnitStateDigest&)> Mutate;
+	};
+
+	const TArray<FFieldCase> Cases = {
+		{ TEXT("UnitId"),     [](FRTUnitStateDigest& U) { U.UnitId = 7; } },                    // baseline 3
+		{ TEXT("Health"),     [](FRTUnitStateDigest& U) { U.Health = 55; } },                   // baseline 40
+		{ TEXT("Shield"),     [](FRTUnitStateDigest& U) { U.Shield = 20; } },                   // baseline 10
+		{ TEXT("Energy"),     [](FRTUnitStateDigest& U) { U.Energy = 45; } },                   // baseline 30
+		{ TEXT("bAlive"),     [](FRTUnitStateDigest& U) { U.bAlive = false; } },
+		{ TEXT("Cell.X"),     [](FRTUnitStateDigest& U) { U.Cell = FRTCellId(-1, -1, 0); } },   // baseline (1,-1,0)
+		{ TEXT("Cell.Y"),     [](FRTUnitStateDigest& U) { U.Cell = FRTCellId(1,  1, 0); } },
+		{ TEXT("Cell.Layer"), [](FRTUnitStateDigest& U) { U.Cell = FRTCellId(1, -1, 1); } },
+	};
+
+	for (const FFieldCase& Case : Cases)
+	{
+		TArray<FRTUnitStateDigest> Mutated = RichBaseUnits();
+		Case.Mutate(Mutated[0]);
+		TestNotEqual(*FString::Printf(TEXT("%s entra nell'hash"), Case.What), HashOf(Mutated), Baseline);
 	}
 
-	// 2. ENERGIA. Il campo esiste da sempre nel digest e nessuno lo aveva mai variato.
+	// ⚠️ **Lo scambio di valori**: è l'unico caso che smaschera un hash che SOMMA due campi invece di
+	// mescolarli in ordine. `(Shield 25, Energy 0)` e `(Shield 0, Energy 25)` hanno la stessa somma e sono due
+	// stati diversi; ogni assertion per-campo qui sopra passerebbe comunque.
 	{
-		TArray<FRTUnitStateDigest> Charged = BaseUnits();
-		Charged[0].Energy = 50; // la baseline e' 25
-		TestNotEqual(TEXT("l'energia entra nell'hash"),
-			URTMatchStateHashLibrary::HashMatchState(Map, Charged, NoScore), Baseline);
+		TArray<FRTUnitStateDigest> ShieldHeavy = RichBaseUnits();
+		ShieldHeavy[0].Shield = 25;
+		ShieldHeavy[0].Energy = 0;
+
+		TArray<FRTUnitStateDigest> EnergyHeavy = RichBaseUnits();
+		EnergyHeavy[0].Shield = 0;
+		EnergyHeavy[0].Energy = 25;
+
+		TestNotEqual(TEXT("scudo ed energia non collidono fra loro"),
+			HashOf(ShieldHeavy), HashOf(EnergyHeavy));
 	}
 
-	// 3. LAYER. La stessa coordinata assiale su un PIANO diverso e' un'altra posizione: su una mappa
-	// multilivello due unita' sovrapposte in (q,r) ma su layer diversi non si toccano, e uno stato che le
-	// confondesse renderebbe identiche due partite in cui una e' sopra e l'altra sotto.
+	// Stessa domanda per le due coordinate: `(q=2,r=1)` e `(q=1,r=2)` sono celle diverse, e un `MixCell` che
+	// sommasse X e Y le renderebbe lo stesso posto.
 	{
-		TArray<FRTUnitStateDigest> Upstairs = BaseUnits();
-		Upstairs[0].Cell = FRTCellId(0, 0, /*Layer*/ 1); // la baseline e' (0,0,0)
-		TestNotEqual(TEXT("il layer della cella entra nell'hash"),
-			URTMatchStateHashLibrary::HashMatchState(Map, Upstairs, NoScore), Baseline);
-	}
+		TArray<FRTUnitStateDigest> Here = RichBaseUnits();
+		Here[0].Cell = FRTCellId(2, 1, 0);
 
-	// ⚠️ E i tre insieme devono restare distinguibili da ciascuno preso da solo: se l'hash mescolasse i campi
-	// in modo da farli collidere, i tre test qui sopra passerebbero e il difetto resterebbe.
-	{
-		TArray<FRTUnitStateDigest> All = BaseUnits();
-		All[0].Shield = 10;
-		All[0].Energy = 50;
-		All[0].Cell = FRTCellId(0, 0, 1);
-		const uint32 AllChanged = URTMatchStateHashLibrary::HashMatchState(Map, All, NoScore);
+		TArray<FRTUnitStateDigest> There = RichBaseUnits();
+		There[0].Cell = FRTCellId(1, 2, 0);
 
-		TArray<FRTUnitStateDigest> OnlyShield = BaseUnits();
-		OnlyShield[0].Shield = 10;
-
-		TestNotEqual(TEXT("tre campi cambiati != baseline"), AllChanged, Baseline);
-		TestNotEqual(TEXT("tre campi cambiati != solo lo scudo"),
-			AllChanged, URTMatchStateHashLibrary::HashMatchState(Map, OnlyShield, NoScore));
+		TestNotEqual(TEXT("le due coordinate della cella non collidono fra loro"),
+			HashOf(Here), HashOf(There));
 	}
 
 	return true;
 }
+
+/**
+ * **Il guardiano del guardiano**: se qualcuno aggiunge un campo a `FRTUnitStateDigest`, questo test cade.
+ *
+ * ⚠️ Il difetto che `#1540` ha chiuso non era «manca un test per lo scudo»: era **il meccanismo** per cui un
+ * campo può entrare nel digest, essere mescolato nell'hash, e non avere nessuno che se ne accorga se la riga
+ * sparisce. Enumerare i campi a mano — come fa il test qui sopra — chiude i campi di oggi e riproduce il
+ * meccanismo domani, al primo campo aggiunto e dimenticato.
+ *
+ * Questo test non verifica un comportamento: verifica che l'elenco enumerato sia ancora **completo**. Fallisce
+ * dicendo cosa fare, invece di lasciare che il buco si riapra in silenzio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChecksumUnitFieldListIsCompleteTest,
+	"RefactorTactics.Simulation.ChecksumUnitFieldListIsComplete",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChecksumUnitFieldListIsCompleteTest::RunTest(const FString&)
+{
+	const UScriptStruct* Digest = FRTUnitStateDigest::StaticStruct();
+	if (!TestNotNull(TEXT("FRTUnitStateDigest esiste come UScriptStruct"), Digest))
+	{
+		return false;
+	}
+
+	TArray<FString> Fields;
+	for (TFieldIterator<FProperty> It(Digest); It; ++It)
+	{
+		Fields.Add(It->GetName());
+	}
+	Fields.Sort();
+
+	// I campi coperti da `ChecksumSeesEveryUnitField` (uno per uno) e da `ChecksumCoversEnvironment` (gli
+	// stati temporanei, caso 3). Se questo elenco e quello della struct divergono, uno dei due va aggiornato —
+	// e quale non è automatico, per questo il test dice cosa è cambiato invece di adattarsi da solo.
+	TArray<FString> Covered = { TEXT("UnitId"), TEXT("Cell"), TEXT("Health"),
+		TEXT("Shield"), TEXT("Energy"), TEXT("bAlive"), TEXT("Statuses") };
+	Covered.Sort();
+
+	TestEqual(
+		TEXT("l'elenco dei campi coperti combacia con la struct: se è caduto, un campo è stato aggiunto a "
+		     "FRTUnitStateDigest e va coperto in ChecksumSeesEveryUnitField prima di aggiornare questa lista"),
+		FString::Join(Fields, TEXT(",")), FString::Join(Covered, TEXT(",")));
+
+	return true;
+}
+
 
 #endif // WITH_DEV_AUTOMATION_TESTS
