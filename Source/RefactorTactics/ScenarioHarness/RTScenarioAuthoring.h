@@ -109,6 +109,73 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
 	ERTScenarioAuthoringResult SetUnitFacing(const FString& UnitId, ERTHexDirection Facing, FString& OutError);
 
+	// --- authoring dei turni (#1116) --------------------------------------------------------------------
+
+	/** Aggiunge un turno vuoto in coda. `OutTurnIndex` e' l'indice del turno creato; il primo e' `0`. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult AddTurn(int32& OutTurnIndex, FString& OutError);
+
+	/** Toglie un turno. Serve perche' `Validate` accetta un turno vuoto e il runner lo giocherebbe. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult RemoveTurn(int32 TurnIndex, FString& OutError);
+
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
+	int32 GetTurnCount() const { return Draft.NumTurns(); }
+
+	/**
+	 * Assegna un `Move` all'unita' in quel turno: le celle scelte dal viewport finiscono in
+	 * `FRTScenarioIntent::Move`. Sostituisce l'intent che quell'unita' avesse gia' in quel turno.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult SetMoveIntent(int32 TurnIndex, const FString& UnitId,
+		const TArray<FRTCellId>& Path, FString& OutError);
+
+	/** Assegna un `Wait`: l'unita' e' nel turno e non fa nulla. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult SetWaitIntent(int32 TurnIndex, const FString& UnitId, FString& OutError);
+
+	/** Toglie l'intent di quell'unita' da quel turno. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult RemoveIntent(int32 TurnIndex, const FString& UnitId, FString& OutError);
+
+	/** Aggiunge `UnitAtCell`: dove l'unita' deve trovarsi alla fine. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult AddExpectationUnitAtCell(const FString& UnitId, FRTCellId Cell, FString& OutError);
+
+	/** Aggiunge `LogEventCount`: quante volte un evento del TurnLog deve comparire. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult AddExpectationLogEventCount(ERTLogCategory Category, uint8 Outcome, int32 Count,
+		FString& OutError);
+
+	/** Toglie l'assertion in quella posizione. L'indice e' quello che `ListExpectations` riporta. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult RemoveExpectation(int32 ExpectationIndex, FString& OutError);
+
+	/**
+	 * Gli intent di un turno, per mostrarli e per sapere quale togliere.
+	 *
+	 * ⚠️ Senza questa e la sorella, la facade poteva SCRIVERE un turno e non mostrarlo: `RemoveIntent` e
+	 * `RemoveExpectation(indice)` chiedevano di nominare qualcosa che nessuna API sapeva elencare.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
+	TArray<FRTScenarioIntentView> ListIntents(int32 TurnIndex) const;
+
+	/** Le assertion dello scenario, con l'indice che `RemoveExpectation` accetta. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
+	TArray<FRTScenarioExpectationView> ListExpectations() const;
+
+	/**
+	 * Le celle raggiungibili dall'unita' nell'initial state, **chieste al servizio runtime**.
+	 *
+	 * ⚠️ Questa funzione non calcola niente: gira la domanda a `URTHexSimLibrary::ReachableCells`, che ha
+	 * gia' applicato budget, blocchi, occupanti e archi. Un pathfinder nell'Editor mostrerebbe celle che il
+	 * resolver poi non concede — ed e' esattamente cio' che `#1116` vieta.
+	 *
+	 * L'Editor la usa per colorare il viewport; l'esito lo decide comunque il resolver, all'esecuzione.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	TArray<FRTCellId> GetReachableCells(const FString& UnitId, FString& OutError);
+
 	/**
 	 * Gli `HeroId` del roster, per popolare un menu senza scrivere i nomi a mano.
 	 *

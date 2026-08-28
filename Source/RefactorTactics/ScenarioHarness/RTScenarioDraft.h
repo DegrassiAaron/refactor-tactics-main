@@ -101,6 +101,59 @@ struct FRTScenarioUnitView
 };
 
 /**
+ * Vista di sola lettura su un intent gia' scritto. Come le altre: una fotografia, non il modello.
+ *
+ * `Summary` e' pensato per una riga di lista — «Move (3 celle)», «Wait» — e non per essere interpretato: chi
+ * volesse ricostruire l'intent dal testo starebbe scrivendo un parser su una stringa d'interfaccia.
+ */
+USTRUCT(BlueprintType)
+struct FRTScenarioIntentView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString UnitId;
+
+	/** `true` se l'intent dichiara un movimento. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	bool bHasMove = false;
+
+	/** Le celle del percorso, vuote per un'attesa. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	TArray<FRTCellId> Move;
+
+	/** Vuoto se l'intent non dichiara un'abilita'. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FName Ability;
+
+	/** Riga leggibile per una lista. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString Summary;
+};
+
+/** Vista di sola lettura su una assertion. L'indice e' quello che `RemoveExpectation` accetta. */
+USTRUCT(BlueprintType)
+struct FRTScenarioExpectationView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	int32 Index = 0;
+
+	/** Il nome del tipo, come lo scrive il JSON: `UnitAtCell`, `LogEventCount`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString Type;
+
+	/** Vuoto per le assertion che non nominano una unita'. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString UnitId;
+
+	/** Riga leggibile per una lista. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString Summary;
+};
+
+/**
  * Lo scenario **in lavorazione**: apertura, creazione, validazione, salvataggio.
  *
  * C++ puro e senza `UObject`: la logica sta qui e la porta Blueprint (`URTScenarioAuthoring`) traduce e basta.
@@ -195,6 +248,100 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 
 	/** Indice in `Units` dello Stable Unit ID, o `INDEX_NONE`. Gli id sono identita', non posizioni. */
 	int32 IndexOfUnit(const FString& UnitId) const;
+
+	// --- authoring dei turni (#1116) --------------------------------------------------------------------
+	//
+	// La fetta e' volutamente sottile: `Move` e `Wait`, due expectation. Un authoring di tutte le assertion
+	// che il formato conosce sarebbe il «mega framework» che la spec vieta.
+
+	/** Aggiunge un turno vuoto in coda. `OutTurnIndex` e' l'indice del turno creato; il primo e' `0`. */
+	ERTScenarioAuthoringResult AddTurn(int32& OutTurnIndex, FString& OutError);
+
+	/**
+	 * Toglie un turno. `NotFound` se l'indice non esiste.
+	 *
+	 * ⚠️ Serve perche' `Validate` ACCETTA un turno vuoto: senza, un turno aggiunto per sbaglio restava nel
+	 * file e il runner lo giocava — un turno che nessuno ha scritto.
+	 */
+	ERTScenarioAuthoringResult RemoveTurn(int32 TurnIndex, FString& OutError);
+
+	int32 NumTurns() const { return Scenario.Turns.Num(); }
+
+	/**
+	 * Dichiara che l'unita' percorre `Path` in quel turno. Il percorso finisce in `FRTScenarioIntent::Move`,
+	 * che e' il campo che il formato ha gia'.
+	 *
+	 * ⚠️ **Non verifica che il percorso sia percorribile**, ed e' voluto: la raggiungibilita' dipende dallo
+	 * stato al momento del turno — dove sono finite le altre unita', cosa e' cambiato sulla mappa — e questo
+	 * e' un dato, non una simulazione. Chi vuole sapere se una cella e' raggiungibile lo chiede a
+	 * `GetReachableCells`, che gira il servizio runtime. Il giudizio vero lo da' il resolver, all'esecuzione.
+	 *
+	 * Sostituisce l'intent che quell'unita' avesse gia' in quel turno: un editor in cui la stessa unita'
+	 * accumula due piani nello stesso turno e' un editor che mente.
+	 */
+	ERTScenarioAuthoringResult SetMoveIntent(int32 TurnIndex, const FString& UnitId,
+		const TArray<FRTCellId>& Path, FString& OutError);
+
+	/**
+	 * Dichiara che l'unita' **non fa nulla** in quel turno.
+	 *
+	 * ⚠️ Si scrive come un intent che nomina l'unita' e nient'altro, non come `ability: "Action.Wait"`:
+	 * `Action.Wait` risolve in `NormalMovement`, e il loader esige un bersaglio per ogni abilita' che non
+	 * risolva su se' stessa — quindi quella forma verrebbe **rifiutata** in lettura. L'attesa e' l'assenza di
+	 * un piano, e il formato la esprime cosi'.
+	 */
+	ERTScenarioAuthoringResult SetWaitIntent(int32 TurnIndex, const FString& UnitId, FString& OutError);
+
+	/** Toglie l'intent di quell'unita' da quel turno. `NotFound` se non ce n'era uno. */
+	ERTScenarioAuthoringResult RemoveIntent(int32 TurnIndex, const FString& UnitId, FString& OutError);
+
+	/** Aggiunge `UnitAtCell`: dove l'unita' deve trovarsi alla fine. */
+	ERTScenarioAuthoringResult AddExpectationUnitAtCell(const FString& UnitId, const FRTCellId& Cell,
+		FString& OutError);
+
+	/** Aggiunge `LogEventCount`: quante volte un evento del TurnLog deve comparire. */
+	ERTScenarioAuthoringResult AddExpectationLogEventCount(ERTLogCategory Category, uint8 Outcome, int32 Count,
+		FString& OutError);
+
+	/** Toglie l'assertion in quella posizione. `NotFound` se l'indice non esiste. */
+	ERTScenarioAuthoringResult RemoveExpectation(int32 ExpectationIndex, FString& OutError);
+
+	// --- lettura di cio' che si e' scritto ---------------------------------------------------------------
+	//
+	// ⚠️ Senza queste, l'authoring poteva SCRIVERE un turno e non mostrarlo: `RemoveIntent` e
+	// `RemoveExpectation(indice)` chiedevano di nominare qualcosa che nessuna API sapeva elencare, e un
+	// designer con tre assertion non aveva niente su cui cliccare per togliere la seconda. Trovato dalla
+	// review di `#1116`.
+
+	/** Descrizione leggibile degli intent di un turno, nell'ordine in cui il file li porta. */
+	TArray<FRTScenarioIntentView> ListIntents(int32 TurnIndex) const;
+
+	/** Descrizione leggibile delle assertion, nell'ordine in cui `RemoveExpectation` le indicizza. */
+	TArray<FRTScenarioExpectationView> ListExpectations() const;
+
+	// --- preview (#1116) ---------------------------------------------------------------------------------
+
+	/**
+	 * Le celle che l'unita' puo' raggiungere dalla sua posizione iniziale, **chieste al servizio runtime**.
+	 *
+	 * ⚠️ Questo metodo non contiene un algoritmo: costruisce l'arena con
+	 * `URTScenarioArenaLibrary::BuildArena`, monta uno `FRTHexSnapshot` e gira la domanda a
+	 * `URTHexSimLibrary::ReachableCells`, che ha gia' applicato budget, blocchi, occupanti e archi. Un
+	 * pathfinder scritto qui sarebbe il secondo gioco che il §3 della spec vieta — e mostrerebbe celle che il
+	 * resolver poi non concede.
+	 *
+	 * Il budget viene da `URTHeroData::MovePoints`, cioe' dalla stessa fonte da cui `ARTUnit` lo prende
+	 * (`MoveRange = Hero->MovePoints`): non e' una stima, e' il valore.
+	 *
+	 * ⚠️ **E' l'anteprima del PRIMO turno.** Parte dall'initial state, non dallo stato dopo i turni gia'
+	 * scritti: ricostruirlo richiederebbe eseguire lo scenario, che e' `RUN` (#1117) e non una preview.
+	 *
+	 * @param Outer proprietario dell'arena temporanea. ⚠️ **Non puo' essere `nullptr`**: `MakeFlatArena` e
+	 *        `MakeFixtureArena` rifiutano un Outer nullo, e la prima stesura di questa riga prometteva un
+	 *        fallback al transient package che non esiste — l'errore che ne usciva accusava la fixture o il
+	 *        raggio per uno sbaglio del chiamante.
+	 */
+	TArray<FRTCellId> GetReachableCells(const FString& UnitId, UObject* Outer, FString& OutError) const;
 
 	FRTScenarioSummary GetSummary() const;
 	TArray<FRTScenarioUnitView> ListUnits() const;

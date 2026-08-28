@@ -1,4 +1,6 @@
 #include "ScenarioHarness/RTScenarioSession.h"
+
+#include "ScenarioHarness/RTScenarioArena.h" // l'arena la costruisce chi la costruisce anche per l'authoring
 #include "Turn/RTMatchStateHash.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
@@ -387,47 +389,19 @@ namespace
 	 * (`ShowcaseRelay.BasinLayoutMatchesSpec`). Gli override di cella restano validi e si applicano SOPRA la
 	 * fixture: le due strade differiscono solo per come nasce la mappa.
 	 */
-	URTHexMapAsset* BuildScenarioArena(UWorld* World, const FString& Fixture, int32 Radius,
-		const TArray<FRTScenarioCell>& Overrides, ARTHexMapActor*& OutActor)
+	URTHexMapAsset* BuildScenarioArena(UWorld* World, const FRTTestScenario& Scenario,
+		ARTHexMapActor*& OutActor)
 	{
-		URTHexMapAsset* Map = nullptr;
-		if (!Fixture.IsEmpty())
+		// La mappa NON si costruisce piu' qui: `URTScenarioArenaLibrary::BuildArena` e' la stessa arena che
+		// l'authoring interroga per la preview di raggiungibilita' (`#1116`). Se ne esistessero due versioni,
+		// l'editor mostrerebbe celle che il runner poi non concede — e nessuno dei due direbbe di sbagliare.
+		URTHexMapAsset* Map = URTScenarioArenaLibrary::BuildArena(Scenario, World);
+		if (!Map)
 		{
-			// Nome sconosciuto -> nullptr, mai un'arena vuota: quella farebbe girare la partita e produrrebbe
-			// un fallimento che parla di unita' fuori mappa invece che della fixture inesistente.
-			Map = URTMatchSetupLibrary::MakeFixtureArena(World, Fixture);
-			if (!Map)
-			{
-				return nullptr;
-			}
-		}
-		else
-		{
-			// Stesso `Outer` del ramo gemello qui sopra: un asset appeso al transient package
-			// sopravviverebbe al mondo che lo espone, e i due rami avrebbero vite diverse.
-			Map = URTMatchSetupLibrary::MakeFlatArena(World, Radius);
+			return nullptr;
 		}
 
-		// `MakeFlatArena` torna nullptr per un raggio negativo, dove `NewObject` dava sempre un asset:
-		// senza questa guardia le righe qui sotto lo dereferenziano.
-		if (!Map) { return nullptr; }
-
-		// Le modifiche DOPO l'arena piena: una cella elencata due volte vince l'ultima, e l'esito non dipende
-		// dall'ordine di generazione.
-		for (const FRTScenarioCell& Spec : Overrides)
-		{
-			FRTHexCellData Cell(Spec.Cell);
-			Cell.bBlocksMovement = Spec.bBlocksMovement;
-			Cell.bBlocksLineOfSight = Spec.bBlocksLineOfSight;
-			if (Spec.MoveCost > 0)
-			{
-				Cell.MoveCost = Spec.MoveCost;
-			}
-			Cell.OccupancySurcharge = Spec.OccupancySurcharge; // 0 = cella larga, come una non elencata
-			Map->AddOrUpdateCell(Cell);
-		}
-		Map->SortCells();
-
+		// Questa meta' resta della sessione, ed e' presentazione: senza un Actor, in PIE non si vedrebbe niente.
 		ARTHexMapActor* Actor = ARTHexMapActor::FindInWorld(World);
 		if (!Actor)
 		{
@@ -437,6 +411,7 @@ namespace
 		{
 			return nullptr;
 		}
+
 		Actor->MapAsset = Map;
 		Actor->RebuildInstances(); // la vista ISM segue l'asset: senza, in PIE resterebbe la mappa precedente
 		OutActor = Actor;
@@ -535,7 +510,7 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 	}
 
 	ARTHexMapActor* MapActor = nullptr;
-	Map = BuildScenarioArena(InWorld, Scenario.Fixture, Scenario.MapRadius, Scenario.Cells, MapActor);
+	Map = BuildScenarioArena(InWorld, Scenario, MapActor);
 	if (!Map)
 	{
 		// Il nome sbagliato si dice, non si aggira: e' un difetto dello SCENARIO, e va nominato.

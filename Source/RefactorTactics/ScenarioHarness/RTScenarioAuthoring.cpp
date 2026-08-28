@@ -79,6 +79,68 @@ ERTScenarioAuthoringResult URTScenarioAuthoring::SetUnitFacing(const FString& Un
 	return Draft.SetUnitFacing(UnitId, Facing, OutError);
 }
 
+ERTScenarioAuthoringResult URTScenarioAuthoring::AddTurn(int32& OutTurnIndex, FString& OutError)
+{
+	return Draft.AddTurn(OutTurnIndex, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::RemoveTurn(int32 TurnIndex, FString& OutError)
+{
+	return Draft.RemoveTurn(TurnIndex, OutError);
+}
+
+TArray<FRTScenarioIntentView> URTScenarioAuthoring::ListIntents(int32 TurnIndex) const
+{
+	return Draft.ListIntents(TurnIndex);
+}
+
+TArray<FRTScenarioExpectationView> URTScenarioAuthoring::ListExpectations() const
+{
+	return Draft.ListExpectations();
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::SetMoveIntent(int32 TurnIndex, const FString& UnitId,
+	const TArray<FRTCellId>& Path, FString& OutError)
+{
+	return Draft.SetMoveIntent(TurnIndex, UnitId, Path, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::SetWaitIntent(int32 TurnIndex, const FString& UnitId,
+	FString& OutError)
+{
+	return Draft.SetWaitIntent(TurnIndex, UnitId, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::RemoveIntent(int32 TurnIndex, const FString& UnitId,
+	FString& OutError)
+{
+	return Draft.RemoveIntent(TurnIndex, UnitId, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::AddExpectationUnitAtCell(const FString& UnitId, FRTCellId Cell,
+	FString& OutError)
+{
+	return Draft.AddExpectationUnitAtCell(UnitId, Cell, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::AddExpectationLogEventCount(ERTLogCategory Category,
+	uint8 Outcome, int32 Count, FString& OutError)
+{
+	return Draft.AddExpectationLogEventCount(Category, Outcome, Count, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::RemoveExpectation(int32 ExpectationIndex, FString& OutError)
+{
+	return Draft.RemoveExpectation(ExpectationIndex, OutError);
+}
+
+TArray<FRTCellId> URTScenarioAuthoring::GetReachableCells(const FString& UnitId, FString& OutError)
+{
+	// `this` come Outer: l'arena temporanea vive quanto il draft che l'ha chiesta, e sparisce con lui invece
+	// di restare appesa al transient package finche' non passa il GC.
+	return Draft.GetReachableCells(UnitId, this, OutError);
+}
+
 TArray<FName> URTScenarioAuthoring::ListHeroIds()
 {
 	return URTHeroCatalogLibrary::GetHeroIds();

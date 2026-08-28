@@ -741,9 +741,11 @@ percorso — passi 1-9 e 13 — è eseguibile.
 > richiede la mossa gemella in [`tooling/scenario-map.md`](tooling/scenario-map.md) §8 — *«qui e lì insieme»*.
 > Va deciso, non dedotto: il kit graybox non è un contenuto che la v0.1 promette a chi gioca.
 >
-> ⏱️ **Si modella a `C = 2,60 m` e si guarda a `C = 1,73 m`** finché
-> [#1155](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non atterra (§6.2). Ciò che si
-> giudica qui è una **proporzione**, non un numero di centimetri — è la ragione per cui il contratto misura
+> ✅ **Si modella e si guarda alla stessa scala, `C = 2,60 m`.** 🔴 **Questa riga diceva «si modella a
+> `C = 2,60 m` e si guarda a `C = 1,73 m` finché [#1155](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) non atterra
+> (§6.2)»: le due scale hanno smesso di divergere il 2026-08-25**, quando #1155 è atterrata — verificato
+> il 2026-08-28, `HexSize = 150.f` in tutti e quattro i siti che decidono il mondo. Ciò che si giudica
+> qui resta una **proporzione**, non un numero di centimetri, ed è la ragione per cui il contratto misura
 > in frazioni.
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
