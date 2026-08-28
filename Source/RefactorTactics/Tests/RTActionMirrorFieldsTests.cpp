@@ -5,6 +5,7 @@
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Player/RTPointerInteraction.h"
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -307,6 +308,67 @@ bool FRTUnitPaysTheDeclaredCooldownTest::RunTest(const FString&)
 	Unit->ConsumeAbility(Indice);
 	TestTrue(*FString::Printf(TEXT("`%s` dopo l'uso e' in ricarica"),
 		*Unit->GetAbility(Indice)->Def.ActionId.ToString()), Unit->GetAbilityCooldown(Indice) > 0);
+
+	return true;
+}
+
+/**
+ * **L'auto-bersaglio decide cosa il puntatore chiede al giocatore**, ed e' la conseguenza osservabile
+ * della copia di `bSelfTarget`.
+ *
+ * `URTPointerLibrary::TargetKindForAction` legge lo SPECCHIO — non il `Def` — e ne deriva se armare
+ * l'azione richieda di puntare qualcosa:
+ *
+ *     if (bSelfTarget) { return ERTPointerTargetKind::None; }   // niente da puntare
+ *
+ * Senza la copia, `Action.Guard` e `Action.Brace` nascerebbero con `bSelfTarget = false` e il puntatore
+ * chiederebbe un bersaglio per andare in guardia — un'azione che il catalogo descrive come «su se'
+ * stessi: nessun bersaglio da scegliere». Il difetto non sarebbe un numero sbagliato in un log: sarebbe
+ * un'azione che il giocatore non riesce ad armare.
+ *
+ * ⚠️ La verifica e' un **se e solo se**, nelle due direzioni. Asserire solo «le self-target non chiedono
+ * bersaglio» resterebbe vero anche se TUTTE le azioni smettessero di chiederne uno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSelfTargetDecidesWhatThePointerAsksTest,
+	"RefactorTactics.Actions.SelfTargetDecidesWhatThePointerAsks",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSelfTargetDecidesWhatThePointerAsksTest::RunTest(const FString&)
+{
+	const TArray<URTActionData*> Generiche = URTCatalogLibrary::MakeGenericActions(GetTransientPackage());
+	if (!TestTrue(TEXT("ci sono azioni generiche"), Generiche.Num() > 0))
+	{
+		return false;
+	}
+
+	// Anti-vacuita' nelle DUE direzioni: servono generiche di entrambi i tipi, o l'implicazione sotto e'
+	// vera a vuoto per meta'.
+	int32 SuSeStessi = 0;
+	int32 SuAltri = 0;
+
+	for (const URTActionData* Azione : Generiche)
+	{
+		if (!Azione) { continue; }
+
+		const ERTPointerTargetKind Chiede =
+			URTPointerLibrary::TargetKindForAction(Azione->Def, Azione->bSelfTarget, Azione->Shape);
+		const FString Id = Azione->Def.ActionId.ToString();
+
+		if (Azione->Def.bSelfTarget)
+		{
+			++SuSeStessi;
+			TestEqual(*FString::Printf(TEXT("`%s` e' su se stessi: il puntatore non chiede bersaglio"), *Id),
+				Chiede, ERTPointerTargetKind::None);
+		}
+		else
+		{
+			++SuAltri;
+			TestNotEqual(*FString::Printf(TEXT("`%s` non e' su se stessi: qualcosa da puntare c'e'"), *Id),
+				Chiede, ERTPointerTargetKind::None);
+		}
+	}
+
+	TestTrue(TEXT("almeno una generica e' su se stessi"), SuSeStessi > 0);
+	TestTrue(TEXT("e almeno una non lo e', o il confronto vale a vuoto per meta'"), SuAltri > 0);
 
 	return true;
 }
