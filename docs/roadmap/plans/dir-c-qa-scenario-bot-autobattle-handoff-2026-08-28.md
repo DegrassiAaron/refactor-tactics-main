@@ -227,7 +227,13 @@ A  docs/roadmap/plans/dir-c-qa-scenario-bot-autobattle-handoff-2026-08-28.md
 Nessun file di DIR-B (`Bot/` escluso, resolver, reaction core, objective core) e nessuno di DIR-A
 (`Content/`, UI, mappe, UMG) è stato toccato. Nessuno scenario `.json` creato o modificato.
 
-**Commit**: `9280b16f` — `test(autobattle): la configurazione spedita non aveva oracolo per l'oscillazione, e il commento lo diceva`
+**Branch**: `test/dir-c-qa-scenario-bot-autobattle` — tre commit, **non pushati**.
+
+| SHA | messaggio |
+|---|---|
+| `9280b16f` | `test(autobattle): la configurazione spedita non aveva oracolo per l'oscillazione, e il commento lo diceva` |
+| `f689f217` | `docs(dir-c): l'handoff della lane QA, e il difetto vivo che la direttiva cercava era gia' chiuso due volte` |
+| `03d4157b` | `docs(dir-c): l'handoff diceva «nessun test eseguito», e nel frattempo ne aveva eseguiti sei` |
 
 ---
 
