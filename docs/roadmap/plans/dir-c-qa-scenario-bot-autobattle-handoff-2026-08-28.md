@@ -624,7 +624,70 @@ all'altro e all'istruttoria, e allinearli «per coerenza» non è più possibile
 quel file dichiara di essere — *«l'elenco di ciò che aspetta una persona»* — e una voce **aperta** non
 chiude nulla; il Decision Log non è stato toccato. Chi possiede PDR-00 la sposti o la respinga.
 
-### 11.3 Cosa NON è stato fatto, e perché
+### 11.3 Verifica di mutazione — due livelli, e questa volta entrambi cadono
+
+**Soggetto (la board).** Reso il muro di `q=0` di `MakeTestArena` anche ostacolo al movimento
+(`bBlocksMovement = true`), con build e run complete:
+
+| | celle percorribili | muri che bloccano il passo | cicli chiusi | esito |
+|---|---|---|---|---|
+| baseline | 62 | 0 su 5 | **0** | ✅ |
+| muro anche ostacolo | 57 | 5 su 5 | **34** | 🔴 `Fail`, `EXIT CODE: -1` |
+
+E il primo ciclo che compare è `cieca (1,0,L0) ↔ che vede (2,0,L1)`: **la piattaforma**, cioè la stessa
+figura del difetto di #1088 su quella board. L'asserzione misura la board, non una costante. ⚠️ Sotto quella
+mutazione cadono anche `StalemateProbeContendersAreNamed` e `StalemateProbeHeadlessMatchLosesContact`: è
+collaterale atteso — cinque celle in meno cambiano la partita che quei due misurano.
+
+**Rilevatore (il predicato).** Saltato il **secondo** passo del ciclo — cioè tornando alla prima stesura,
+che contava la sola condizione necessaria:
+
+| | arena generata | mappa d'autore |
+|---|---|---|
+| predicato intero | **0** su 9510 | 34 su 8451 |
+| senza il secondo passo | **9510** su 9510 → 🔴 `Fail` | 8451 su 8451 → ✅ resta verde |
+
+∴ il secondo passo è **portante** per l'asserzione dell'arena generata, e il controfattuale sulla mappa
+d'autore da solo non l'avrebbe mai rilevato: asserisce `> 0`, quindi un predicato degenere che dice sempre
+«sì» lo soddisfa. **I due test si falsificano a vicenda i modi degeneri opposti** — uno che dicesse sempre
+zero farebbe cadere il controfattuale, uno che dicesse sempre sì fa cadere l'altro — ed è la ragione per cui
+sono due e non uno.
+
+⚠️ **Mutazioni rimosse e binario RICOSTRUITO**, non solo il sorgente: `rt-suite.ps1` verifica che il binario
+non **cambi** durante la run, non che **corrisponda** al sorgente, e un `.dll` stantio dichiara `VALIDA`
+misurando codice che non esiste in nessun commit. `git status` pulito e binario riscritto dopo l'ultimo
+ripristino, entrambi verificati.
+
+### 11.4 Gate eseguiti, e come vanno letti
+
+Tutto misurato sul merge con `origin/main` a `dace4a50` (#1553), che nel frattempo era avanzato.
+
+| gate | esito |
+|---|---|
+| build `RefactorTacticsEditor` | ✅ `Result: Succeeded`, 0 errori |
+| suite intera | ✅ **`1353/1354 completati, 0 fallimenti`**, dichiarata `VALIDA` da `scripts/rt-suite.ps1` (`Found 1354 automation tests` · `TEST COMPLETE. EXIT CODE: 0`) |
+| `radar/generate.ts --check` | ✅ 4/4 eroi · 20 abilità |
+| `radar/catalog-code.ts` | ✅ le quattro fonti concordano |
+| `radar/doc-tables.ts --check` | ✅ tutte le righe hanno la larghezza delle sorelle |
+| `node --test` (in `tools/radar/`) | ✅ 82/82 |
+| `radar/doc-links.ts --check` | 🔴 **exit 1 — preesistente**: 1 link su 3769, `docs/research/design/hud/mock-elementi-hud-correzioni.md`. È lo stesso di §6.2, non è stato toccato |
+
+⚠️ **Il `1353 su 1354` va spiegato, non arrotondato.** Il test mancante è
+`Vision.VisibleCellsRespectsSight`, ed è l'**ultimo avviato**: la sua riga di conclusione è tagliata dalla
+coda di shutdown del `Quit`. Nella run immediatamente precedente — stessa build, suite intera — quello
+stesso test è `Result={Success}`. `rt-suite.ps1` lo distingue da una troncatura e dichiara comunque `VALIDA`
+con **0 fallimenti**.
+
+**«N eseguiti su M dichiarati», riconciliato a mano** (`D-181`): **1356** nomi `RefactorTactics.*` estratti da
+`Source/` e `Plugins/`, **1354** avviati. La differenza è nominata ed è la stessa di #1547 —
+`RefactorTactics.h` (una stringa di `#include`) e `RefactorTactics.Probe.LatestRunDirectory` (uno
+**scenario ID** dentro `FRTScenarioLatestRunIsTheMostRecentTest`, non un test). ∴ **1354 su 1354.**
+
+🔴 **Una premessa della direttiva v0.2 non regge più, e va corretta dove sta.** `ScreenHud.ActionSlotHasIconSurface`
+è dato per «rosso preesistente, non è tuo». Su `e9e45381` e sul merge con `dace4a50` è **`Result={Success}`**:
+non c'è nessun rosso preesistente da scontare, e la suite è verde per intero.
+
+### 11.5 Cosa NON è stato fatto, e perché
 
 - **Non è stata cercata una quarta mutazione del bot.** La misura dice che il ciclo di #1287 non ha lì dove
   chiudersi: continuare a cercarla sarebbe stato cercare qualcosa di cui si è appena misurata l'assenza.
