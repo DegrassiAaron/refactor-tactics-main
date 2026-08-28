@@ -8,6 +8,8 @@
 
 #include "Ability/RTHeroCatalogLibrary.h" // il roster per la tendina: gli id, non gli eroi costruiti
 #include "ScenarioHarness/RTScenarioIndex.h"
+#include "Engine/Engine.h" // il mondo temporaneo di `Run`: l'Editor non ne ha uno fuori dal PIE
+#include "Engine/World.h"
 
 #define LOCTEXT_NAMESPACE "RTScenarioAuthoring"
 
@@ -139,6 +141,53 @@ TArray<FRTCellId> URTScenarioAuthoring::GetReachableCells(const FString& UnitId,
 	// `this` come Outer: l'arena temporanea vive quanto il draft che l'ha chiesta, e sparisce con lui invece
 	// di restare appesa al transient package finche' non passa il GC.
 	return Draft.GetReachableCells(UnitId, this, OutError);
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::Run(FRTScenarioRunReport& OutReport, FString& OutError)
+{
+	OutReport = FRTScenarioRunReport();
+
+	if (!Draft.IsOpen())
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+
+	// ⚠️ **Un mondo per corsa, costruito qui e smontato subito.**
+	//
+	// L'Editor non ha un `UWorld` di gioco fuori dal PIE, e il runner ne ha bisogno per spawnare unita' e
+	// turn manager. Costruirne uno temporaneo e' la stessa cosa che fanno i test di automation, e ha una
+	// seconda proprieta' che vale piu' della prima: ogni esecuzione parte pulita. `URTScenarioRunner::Run`
+	// non smonta il mondo che riceve, quindi riusarlo lascerebbe in giro le unita' della corsa precedente e
+	// il `RUN` successivo misurerebbe il residuo — non e' un'ipotesi, e' il difetto che la review di `#1116`
+	// ha trovato nel test di mutazione di quella PR.
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (World == nullptr)
+	{
+		OutError = TEXT("mondo temporaneo non creabile");
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+	if (GEngine)
+	{
+		FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
+		Context.SetCurrentWorld(World);
+	}
+
+	const ERTScenarioAuthoringResult Result = Draft.Run(World, OutError);
+
+	if (GEngine)
+	{
+		GEngine->DestroyWorldContext(World);
+	}
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+
+	OutReport = Draft.GetLastRunReport();
+	return Result;
+}
+
+ERTScenarioAuthoringResult URTScenarioAuthoring::Reset(FString& OutError)
+{
+	return Draft.Reset(OutError);
 }
 
 TArray<FName> URTScenarioAuthoring::ListHeroIds()

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
+#include "ScenarioHarness/RTTestResult.h" // FRTTestResult e FRTTurnTrace: l'esito di una corsa
 #include "ScenarioHarness/RTTestScenario.h"
 #include "RTScenarioDraft.generated.h"
 
@@ -151,6 +152,120 @@ struct FRTScenarioExpectationView
 	/** Riga leggibile per una lista. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
 	FString Summary;
+};
+
+/**
+ * Una assertion e il suo esito, come la mostra il pannello.
+ *
+ * ⚠️ `Expected` e `Actual` sono **due campi distinti**, non una frase sola: `#1117` chiede che una assertion
+ * fallita mostri l'uno accanto all'altro, e concatenarli in un messaggio costringerebbe la UI a spezzarlo di
+ * nuovo — o a rinunciare a incolonnarli, che e' il modo in cui un occhio li confronta davvero.
+ */
+USTRUCT(BlueprintType)
+struct FRTScenarioAssertionView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	bool bPassed = false;
+
+	/** Cosa asseriva, in una riga: e' la descrizione che il runner ha gia' scritto. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString Description;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString Expected;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString Actual;
+
+	/** Il turno a cui si riferisce, `0` se vale sull'esito finale. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	int32 Turn = 0;
+};
+
+/** Una voce del TurnLog, leggibile senza uscire dall'editor. */
+USTRUCT(BlueprintType)
+struct FRTScenarioLogEntryView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	int32 Turn = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	ERTLogCategory Category = ERTLogCategory::Move;
+
+	/** Nome leggibile dell'evento: `Environment.BridgeRemoved`. Lo compone `DescribeLogEvent`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString Event;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FRTCellId FromCell = FRTCellId();
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FRTCellId ToCell = FRTCellId();
+};
+
+/**
+ * L'esito di una esecuzione, come lo mostra il pannello.
+ *
+ * ⚠️ Porta `ERTTestOutcome` **così com'è**, con i suoi quattro valori distinti: `Blocked` non è un successo e
+ * `Error` non è un `Fail` — la distinzione fra «il gioco è rotto» e «il test è scritto male» è la ragione per
+ * cui quell'enum ha quattro casi invece di due, e comprimerli in un booleano la butterebbe via.
+ */
+USTRUCT(BlueprintType)
+struct FRTScenarioRunReport
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString ScenarioId;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	ERTTestOutcome Outcome = ERTTestOutcome::Error;
+
+	/** `PASS` / `FAIL` / `ERROR` / `BLOCKED`, come li scrive il runner. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString OutcomeText;
+
+	/** Perche' lo SCENARIO e' scritto male. Vuoto se l'esito non e' `Error`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString ErrorMessage;
+
+	/** Quale capability mancava. Vuoto se l'esito non e' `Blocked`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString BlockedReason;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	int32 TurnsPlayed = 0;
+
+	/**
+	 * Hash dello stato finale, come stringa esadecimale.
+	 *
+	 * `uint32` non attraversa Blueprint — non esiste un pin per quel tipo — e passarlo come `int32` lo
+	 * farebbe comparire NEGATIVO per meta' dei valori possibili: un hash che si legge `-1737890455` non e' lo
+	 * stesso numero che il report headless stampa, e confrontarli a occhio e' precisamente cio' per cui serve.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FString StateHash;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	TArray<FRTScenarioAssertionView> Assertions;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	int32 PassedCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	int32 FailedCount = 0;
+
+	/** Note che il runner ha lasciato: capability saltate, decisioni non consumate. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	TArray<FString> Notes;
+
+	/** `true` se una esecuzione e' avvenuta. Un report vuoto non e' un `ERROR`: e' l'assenza di una corsa. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	bool bHasRun = false;
 };
 
 /**
@@ -319,6 +434,45 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 	/** Descrizione leggibile delle assertion, nell'ordine in cui `RemoveExpectation` le indicizza. */
 	TArray<FRTScenarioExpectationView> ListExpectations() const;
 
+	// --- esecuzione (#1117) ------------------------------------------------------------------------------
+
+	/**
+	 * Esegue lo scenario **dal percorso di gioco reale** e restituisce l'esito.
+	 *
+	 * `Validate` → `URTScenarioRunner::Run` → piani sulle unita' → resolver → TurnLog → `FRTTestResult`.
+	 * Nessuna scorciatoia: niente `SetActorLocation`, nessun danno applicato a mano, nessun resolver
+	 * alternativo. Se questa funzione contenesse una sola riga che decide un esito, il Tactical Designer
+	 * sarebbe diventato il secondo simulatore che il §3 della spec vieta.
+	 *
+	 * ⚠️ **Il draft NON viene toccato.** Il runner lavora su una copia, in un mondo suo, e quello che torna e'
+	 * un report. E' cio' che rende `Reset` banale invece che fragile: non c'e' niente da disfare, perche' non
+	 * c'e' stato niente da rifare. Un'esecuzione che mutasse lo scenario aperto renderebbe `RESET` un undo —
+	 * e un undo di una partita non e' l'initial state, e' lo stato precedente, che e' un'altra cosa.
+	 *
+	 * @param World mondo in cui far girare la partita. **Obbligatorio**: il runner ne ha bisogno per spawnare
+	 *        unita' e turn manager. Chi chiama da un editor senza partita ne costruisce uno temporaneo —
+	 *        `URTScenarioAuthoring::Run` lo fa per conto suo.
+	 */
+	ERTScenarioAuthoringResult Run(UWorld* World, FString& OutError);
+
+	/**
+	 * Scarta il report e riporta lo scenario all'**initial state canonico**.
+	 *
+	 * ⚠️ Non e' un undo della partita: ricarica dalla fonte se lo scenario ne ha una, altrimenti si limita a
+	 * dimenticare l'esecuzione — che e' tutto cio' che serve, perche' `Run` non ha modificato niente. La
+	 * differenza conta: un undo tornerebbe allo stato PRECEDENTE, questo torna a quello DICHIARATO.
+	 *
+	 * ⚠️ Le modifiche d'authoring non salvate vengono perse quando c'e' una fonte da cui ricaricare: e' il
+	 * significato di «torna a cio' che il file dice». `OutError` lo segnala.
+	 */
+	ERTScenarioAuthoringResult Reset(FString& OutError);
+
+	/** L'esito dell'ultima esecuzione. `bHasRun` falso se non ce n'e' stata nessuna. */
+	const FRTScenarioRunReport& GetLastRunReport() const { return LastReport; }
+
+	/** Il TurnLog dell'ultima esecuzione, decodificato. Vuoto se non c'e' stata una corsa. */
+	TArray<FRTScenarioLogEntryView> GetLastRunLog() const;
+
 	// --- preview (#1116) ---------------------------------------------------------------------------------
 
 	/**
@@ -356,6 +510,15 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 private:
 	FRTTestScenario Scenario;
 	FString SourcePath;
+
+	/**
+	 * L'esito dell'ultima esecuzione e le tracce grezze che l'accompagnano.
+	 *
+	 * Le tracce restano BYTE finche' qualcuno non chiede il log: `GetLastRunLog` le decodifica su richiesta.
+	 * Decodificarle a ogni `Run` costerebbe a chi vuole solo sapere se e' PASS.
+	 */
+	FRTScenarioRunReport LastReport;
+	TArray<FRTTurnTrace> LastTraces;
 
 	/**
 	 * Distingue «nessuno scenario aperto» da «scenario aperto e vuoto». Senza questo flag un draft appena

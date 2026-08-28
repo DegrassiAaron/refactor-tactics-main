@@ -176,6 +176,41 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
 	TArray<FRTCellId> GetReachableCells(const FString& UnitId, FString& OutError);
 
+	// --- esecuzione (#1117) -----------------------------------------------------------------------------
+
+	/**
+	 * `RUN`. Esegue lo scenario dal **percorso di gioco reale** e riempie il report.
+	 *
+	 * ⚠️ Costruisce un mondo TEMPORANEO per la corsa e lo smonta subito dopo. Serve perche' l'Editor non ne
+	 * ha uno fuori dal PIE, ed e' anche cio' che rende ogni esecuzione indipendente: un mondo riusato
+	 * conserverebbe unita' e turn manager della corsa precedente, e il secondo `RUN` misurerebbe il residuo
+	 * del primo — un difetto che in questa stessa serie di PR e' gia' costato un test verde per la ragione
+	 * sbagliata.
+	 *
+	 * `Success` significa che **l'esecuzione e' avvenuta**, non che lo scenario sia passato: l'esito del gioco
+	 * sta in `OutReport.Outcome`, e sono due domande diverse. Un `FAIL` e' l'informazione piu' preziosa che
+	 * questo strumento produce, e farlo apparire come un guasto dello strumento la butterebbe via.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult Run(FRTScenarioRunReport& OutReport, FString& OutError);
+
+	/**
+	 * `RESET`. Scarta il report e riporta lo scenario all'**initial state canonico**.
+	 *
+	 * ⚠️ Non e' un undo della partita: `Run` non ha modificato lo scenario, quindi non c'e' niente da
+	 * annullare. Torna a cio' che il file DICHIARA, che e' un'altra cosa dallo stato precedente.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
+	ERTScenarioAuthoringResult Reset(FString& OutError);
+
+	/** L'esito dell'ultima esecuzione. `bHasRun` falso se non ce n'e' stata nessuna. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
+	FRTScenarioRunReport GetLastRunReport() const { return Draft.GetLastRunReport(); }
+
+	/** Il TurnLog dell'ultima esecuzione, consultabile senza uscire dall'editor. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
+	TArray<FRTScenarioLogEntryView> GetLastRunLog() const { return Draft.GetLastRunLog(); }
+
 	/**
 	 * Gli `HeroId` del roster, per popolare un menu senza scrivere i nomi a mano.
 	 *

@@ -14,6 +14,8 @@
 #include "ScenarioHarness/RTScenarioArena.h"  // la stessa arena su cui girera' la partita
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"             // ReachableCells: il pathfinding sta li', e non qui
+#include "ScenarioHarness/RTScenarioRunner.h"  // il percorso di gioco reale, e nessun altro
+#include "Turn/RTTurnLogLibrary.h"             // DeserializeTurnLog: le tracce le decodifica chi le scrive
 
 void FRTScenarioDraft::NewScenario(const FString& ScenarioId, int32 MapRadius)
 {
@@ -724,6 +726,177 @@ TArray<FRTScenarioExpectationView> FRTScenarioDraft::ListExpectations() const
 			break;
 		}
 	}
+	return Views;
+}
+
+// --- esecuzione (#1117) ----------------------------------------------------------------------------------
+
+ERTScenarioAuthoringResult FRTScenarioDraft::Run(UWorld* World, FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+	if (World == nullptr)
+	{
+		// Detto qui e non lasciato esplodere dentro il runner: chi chiama da un editor senza partita deve
+		// sapere che il mondo lo deve fornire, non che «lo scenario non gira».
+		OutError = TEXT("nessun mondo in cui eseguire: il runner spawna unita' e turn manager");
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+
+	// `Validate` PRIMA di far girare qualcosa. Il runner la rifarebbe, ma qui serve a distinguere gli esiti:
+	// uno scenario invalido e' `Invalid` con l'errore che nomina il campo, non un `ERROR` di esecuzione che
+	// manderebbe a cercare il difetto nel gioco.
+	FString ValidationError;
+	if (!URTScenarioLoader::Validate(Scenario, ValidationError))
+	{
+		OutError = ValidationError;
+		return ERTScenarioAuthoringResult::Invalid;
+	}
+
+	// ⚠️ **Il percorso reale, e nient'altro.** `URTScenarioRunner::Run` porta lo scenario attraverso piani
+	// sulle unita', resolver e TurnLog. Non c'e' un ramo alternativo, non c'e' un `if Editor`, e non c'e' una
+	// scorciatoia: se ci fosse, il Tactical Designer sarebbe il secondo simulatore che il §3 vieta.
+	//
+	// Lo scenario passa per COPIA e il draft non viene toccato: e' cio' che rende `Reset` un ritorno
+	// all'initial state invece che un undo.
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+
+	LastTraces = Result.TurnTraces;
+
+	FRTScenarioRunReport Report;
+	Report.bHasRun = true;
+	Report.ScenarioId = Result.ScenarioId;
+	Report.Outcome = Result.Outcome;
+	Report.OutcomeText = Result.OutcomeString();
+	Report.ErrorMessage = Result.ErrorMessage;
+	Report.BlockedReason = Result.BlockedReason;
+	Report.TurnsPlayed = Result.TurnsPlayed;
+	Report.PassedCount = Result.PassedCount();
+	Report.FailedCount = Result.FailedCount();
+	Report.Notes = Result.Notes;
+
+	// Esadecimale e non un intero: `uint32` non ha un pin Blueprint, e come `int32` meta' degli hash
+	// comparirebbero negativi — irriconoscibili accanto a quelli che il report headless stampa.
+	Report.StateHash = FString::Printf(TEXT("%08x"), Result.StateHash);
+
+	Report.Assertions.Reserve(Result.Assertions.Num());
+	for (const FRTAssertionResult& Assertion : Result.Assertions)
+	{
+		FRTScenarioAssertionView& View = Report.Assertions.AddDefaulted_GetRef();
+		View.bPassed = Assertion.bPassed;
+		View.Description = Assertion.Description;
+		// I due campi restano separati: e' cio' che permette al pannello di incolonnarli.
+		View.Expected = Assertion.Expected;
+		View.Actual = Assertion.Actual;
+		View.Turn = Assertion.Turn;
+	}
+
+	LastReport = MoveTemp(Report);
+
+	// ⚠️ L'esito dell'operazione e' `Success` anche quando lo scenario FALLISCE: sono due domande diverse.
+	// «L'esecuzione e' avvenuta» e «il gioco si e' comportato come atteso» non sono la stessa cosa, e
+	// confonderle farebbe apparire un `FAIL` — che e' un difetto del gioco, l'informazione piu' preziosa che
+	// questo strumento produce — come un guasto dello strumento.
+	return ERTScenarioAuthoringResult::Success;
+}
+
+ERTScenarioAuthoringResult FRTScenarioDraft::Reset(FString& OutError)
+{
+	OutError.Reset();
+
+	if (!bOpen)
+	{
+		OutError = TEXT("nessuno scenario aperto");
+		return ERTScenarioAuthoringResult::NoScenarioOpen;
+	}
+
+	// Il report se ne va comunque: e' cio' che `RESET` significa prima di tutto — smettere di mostrare l'esito
+	// di una corsa che non descrive piu' lo stato su cui si sta lavorando.
+	LastReport = FRTScenarioRunReport();
+	LastTraces.Reset();
+
+	if (SourcePath.IsEmpty())
+	{
+		// Uno scenario mai salvato non ha un «file dice» a cui tornare. Non e' un errore: il report e' stato
+		// scartato, e l'initial state e' quello che l'authoring ha in mano — non c'e' altra fonte.
+		return ERTScenarioAuthoringResult::Success;
+	}
+
+	// ⚠️ Si ricarica dalla FONTE, non si disfa la partita. `Run` non ha modificato lo scenario, quindi non
+	// c'e' niente da annullare: quello che questa riga recupera sono le modifiche d'authoring non salvate, e
+	// `#1117` chiede esattamente questo — che `RESET` riporti a cio' che il file DICHIARA, non allo stato
+	// precedente.
+	FRTTestScenario Reloaded;
+	FString LoadError;
+	if (!URTScenarioLoader::LoadFromFile(SourcePath, Reloaded, LoadError))
+	{
+		OutError = FString::Printf(TEXT("il file di origine non si rilegge: %s"), *LoadError);
+		return ERTScenarioAuthoringResult::NotFound;
+	}
+
+	// ⚠️ **Il confronto e' sul CONTENUTO, non sui conteggi.**
+	//
+	// La prima stesura confrontava `Units.Num()`, `Turns.Num()` ed `Expect.Num()`, e non vedeva la modifica
+	// piu' comune di tutte: spostare una unita' cambia una cella e nessun conteggio. Il test l'ha preso
+	// subito — ed era lo stesso difetto delle due review precedenti, un controllo che sembra funzionare
+	// perche' nessuno gli ha mostrato il caso normale.
+	//
+	// La forma canonica del writer e' deterministica per costruzione (`#1114`), quindi due testi diversi
+	// significano due scenari diversi. Se uno dei due non si serializza — puo' succedere a uno scenario in
+	// lavorazione — si assume che ci siano modifiche: il costo di un avviso di troppo e' una frase, quello di
+	// un avviso mancato e' lavoro perso senza sapere perche'.
+	FString Current;
+	FString OnDisk;
+	FString Ignored;
+	const bool bBothSerialize = URTScenarioLoader::SaveToString(Scenario, Current, Ignored)
+		&& URTScenarioLoader::SaveToString(Reloaded, OnDisk, Ignored);
+	const bool bHadUnsavedEdits = !bBothSerialize || Current != OnDisk;
+
+	Scenario = MoveTemp(Reloaded);
+
+	if (bHadUnsavedEdits)
+	{
+		// Perdere modifiche e' il significato dell'operazione, ma dirlo non lo e': un RESET muto che cancella
+		// mezz'ora di lavoro e' la stessa cancellazione silenziosa che `RemoveUnit` si rifiuta di fare.
+		OutError = TEXT("scenario riportato a cio' che il file dichiara: le modifiche non salvate sono perse");
+	}
+	return ERTScenarioAuthoringResult::Success;
+}
+
+TArray<FRTScenarioLogEntryView> FRTScenarioDraft::GetLastRunLog() const
+{
+	TArray<FRTScenarioLogEntryView> Views;
+
+	// Le tracce sono BYTE finche' qualcuno non chiede il log: decodificarle a ogni `Run` costerebbe a chi
+	// vuole solo sapere se e' PASS.
+	for (int32 TurnIndex = 0; TurnIndex < LastTraces.Num(); ++TurnIndex)
+	{
+		TArray<FRTTurnLogEntry> Entries;
+		if (!URTTurnLogLibrary::DeserializeTurnLog(LastTraces[TurnIndex].Bytes, Entries))
+		{
+			// Una traccia illeggibile non fa sparire le altre: il log e' uno strumento di diagnosi, e un
+			// turno mancante e' meno peggio di un pannello vuoto che non dice perche'.
+			continue;
+		}
+
+		for (const FRTTurnLogEntry& Entry : Entries)
+		{
+			FRTScenarioLogEntryView& View = Views.AddDefaulted_GetRef();
+			View.Turn = TurnIndex + 1; // i turni si contano da 1 per chi legge, da 0 per l'array
+			View.Category = Entry.Category;
+			// Il nome leggibile lo compone il loader, che e' l'unico posto che sa quale enum di esiti
+			// appartiene a quale categoria: una tabella qui divergerebbe da quella.
+			View.Event = URTScenarioLoader::DescribeLogEvent(Entry.Category, Entry.Outcome);
+			View.FromCell = Entry.SrcCell;
+			View.ToCell = Entry.TgtCell;
+		}
+	}
+
 	return Views;
 }
 
