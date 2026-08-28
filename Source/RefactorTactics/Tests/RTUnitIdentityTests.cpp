@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Tests/RTWorldFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -70,17 +71,6 @@ namespace
 		return U;
 	}
 
-	/** Un turno completo sul percorso reale: pianificazione dei bot, risoluzione, playback fino in fondo. */
-	void PlayOneTurn(ARTTurnManager* TM)
-	{
-		TM->PlanBotsForTest();
-		TM->LockInAndResolve();
-		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
-		{
-			TM->Tick(0.05f);
-		}
-	}
-
 	/** Le unita' VIVE del mondo, cioe' esattamente cio' che `MakeCurrentSnapshot` indicizzerebbe. */
 	TArray<ARTUnit*> LiveUnits(UWorld* World)
 	{
@@ -120,7 +110,7 @@ bool FRTUnitIdentitySurvivesDeathTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyIdentityWorld(World); return false; }
 
-	PlayOneTurn(TM); // il primo turno costruisce il roster
+	RTWorldFixtures::PlayOneTurn(TM); // il primo turno costruisce il roster
 
 	// Fotografia dell'identita' PRIMA di qualunque morte.
 	TMap<ARTUnit*, int32> IdBefore;
@@ -136,7 +126,7 @@ bool FRTUnitIdentitySurvivesDeathTest::RunTest(const FString&)
 	while (LiveUnits(World).Num() == AliveBefore && TurnsPlayed < 40
 		&& TM->GetPhase() != ERTMatchPhase::MatchEnded)
 	{
-		PlayOneTurn(TM);
+		RTWorldFixtures::PlayOneTurn(TM);
 		++TurnsPlayed;
 	}
 	const TArray<ARTUnit*> Survivors = LiveUnits(World);
@@ -208,7 +198,7 @@ bool FRTUnitIdentityIgnoresSpawnOrderTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM) { DestroyIdentityWorld(World); return false; }
 
-		PlayOneTurn(TM); // costruisce il roster
+		RTWorldFixtures::PlayOneTurn(TM); // costruisce il roster
 
 		for (ARTUnit* Unit : LiveUnits(World))
 		{
@@ -271,7 +261,7 @@ bool FRTUnitIdentityStartsAtOneTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyIdentityWorld(World); return false; }
 
-	PlayOneTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	TArray<int32> Ids;
 	for (ARTUnit* Unit : LiveUnits(World)) { Ids.Add(Unit->StableUnitId); }
@@ -314,7 +304,7 @@ bool FRTUnitIdentityEnvironmentActorTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !Map) { DestroyIdentityWorld(World); return false; }
 
-	PlayOneTurn(TM); // il roster nasce qui: prima, `A` non ha ancora un'identita'
+	RTWorldFixtures::PlayOneTurn(TM); // il roster nasce qui: prima, `A` non ha ancora un'identita'
 	const int32 CauseId = A->StableUnitId;
 	if (!TestTrue(TEXT("l'unita' che causera' la trasformazione ha un'identita'"), CauseId > 0))
 	{
@@ -341,7 +331,7 @@ bool FRTUnitIdentityEnvironmentActorTest::RunTest(const FString&)
 	TestEqual(TEXT("la trasformazione dichiara l'unita' che l'ha causata"), ChangedWithCause, 1);
 
 	// META' 2 — la SCADENZA, che nessuno ha causato, resta senza attore.
-	PlayOneTurn(TM); // il Cleanup di questo turno porta la durata a zero e ripristina
+	RTWorldFixtures::PlayOneTurn(TM); // il Cleanup di questo turno porta la durata a zero e ripristina
 
 	int32 Restored = 0;
 	int32 RestoredWithActor = 0;
@@ -393,7 +383,7 @@ bool FRTFacingEntriesCarryContextTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM) { DestroyIdentityWorld(World); return false; }
 
-	PlayOneTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	// Gli id validi del roster: `UnitId` deve essere uno di questi, non un indice della simulazione ne' zero.
 	TSet<int32> IdValidi;
@@ -458,7 +448,7 @@ bool FRTTurnLogGraphRevisionRisesWithinTurnTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !Map) { DestroyIdentityWorld(World); return false; }
 
-	PlayOneTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	// Due eventi strutturali nello STESSO turno, su celle diverse: ognuno tocca la mappa e ne alza la
 	// revisione prima di emettere la propria voce.

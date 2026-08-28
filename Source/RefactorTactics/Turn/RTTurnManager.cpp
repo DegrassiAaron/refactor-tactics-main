@@ -5094,6 +5094,16 @@ void ARTTurnManager::ResolvePredictiveBoundary(const URTHexMapAsset* Map, const 
 	}
 }
 
+FRTReactionWindowView ARTTurnManager::MakeReactionWindowView(const FRTReactionOpportunity& Opportunity,
+	int32 OwnerTeamId, int32 ObserverTeamId) const
+{
+	// L'unico contenuto di questo metodo e' il valore che una funzione pura non puo' avere: la durata
+	// autorevole. Tutto il resto — privacy, cardinalita', forma delle opzioni — resta nella libreria, che
+	// per questo si verifica senza mondo.
+	return URTReactionWindowLibrary::FilterWindowForTeam(ObserverTeamId, OwnerTeamId, Opportunity,
+		FastReactionDuration);
+}
+
 FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportunity& Opportunity,
 	int32 OwnerUnitId, bool bOwnerIsBot) const
 {

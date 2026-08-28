@@ -23,6 +23,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "RTGameMode.h"
+#include "RTOrbitProbeForTest.h" // il ritorno di periodo due, condiviso con `EngagesOnTheGeneratedTestArena`
 #include "RTWorldFixtures.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h" // #1150: «inflitto» si chiede al predicato, non si deduce dalla categoria
@@ -347,11 +348,11 @@ bool FRTAuthoredMapNoOscillationTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Le ULTIME DUE celle per unita': tutto cio' che serve a vedere un ciclo di periodo due, e niente di
-	// piu' — una storia intera inviterebbe a cercarci dentro cicli piu' lunghi, che sono un'altra domanda.
-	TMap<int32, FRTCellId> Ultima;
-	TMap<int32, FRTCellId> Penultima;
-	TMap<int32, int32> Ritorni;
+	// Il rilevatore sta in `RTOrbitProbeForTest.h`, e non e' un'estrazione di comodo: la configurazione
+	// SPEDITA — `MapSource = GeneratedTestArena` — non aveva alcun oracolo di oscillazione, e riscriverne
+	// una seconda copia la' avrebbe messo due implementazioni della stessa firma a divergere in silenzio.
+	// I limiti dichiarati (periodo due si', periodo tre no) sono nella sonda, in un posto solo.
+	FRTOrbitProbe Orbite;
 
 	const int32 MaxTurni = 12;
 	int32 Turni = 0;
@@ -377,31 +378,19 @@ bool FRTAuthoredMapNoOscillationTest::RunTest(const FString&)
 
 		for (const ARTUnit* U : RTAuthoredEngagement::LiveUnits(World))
 		{
-			const int32 Id = U->GetUniqueID();
-			const FRTCellId* Prev = Ultima.Find(Id);
-			const FRTCellId* Prev2 = Penultima.Find(Id);
-			if (Prev2 && Prev && *Prev2 == U->Cell && *Prev != U->Cell)
-			{
-				Ritorni.FindOrAdd(Id) += 1;
-			}
-			if (Prev) { Penultima.FindOrAdd(Id) = *Prev; }
-			Ultima.FindOrAdd(Id) = U->Cell;
+			Orbite.Observe(U->GetUniqueID(), U->Cell);
 		}
 	}
 
-	int32 Peggiore = 0;
-	for (const TPair<int32, int32>& P : Ritorni) { Peggiore = FMath::Max(Peggiore, P.Value); }
+	const int32 Peggiore = Orbite.WorstReturns();
 
-	// 🔴 **La soglia si deriva dai turni GIOCATI, non dalla costante.** Con `MaxTurni / 3` il limite restava
-	// 4 anche quando la partita finiva prima, e un ritorno di periodo due e' osservabile solo dal terzo
-	// turno: una partita decisa al quinto ne poteva produrre al massimo tre e passava **per aritmetica**.
-	// Poiche' lo scopo di questo lavoro e' proprio far decidere prima la partita, il fix avrebbe potuto
-	// rendere vacuo il proprio test. Trovato in code review.
-	const int32 Limite = FMath::Max(1, Turni / 3);
+	// La soglia si deriva dai turni GIOCATI, non da un tetto costante — la ragione, e il difetto per
+	// aritmetica che quella forma produceva, stanno su `FRTOrbitProbe::LimitForTurns`.
+	const int32 Limite = FRTOrbitProbe::LimitForTurns(Turni);
 
 	// E la premessa va asserita, non sperata: senza abbastanza turni l'oracolo non puo' cadere, e un verde
 	// li' non dice niente.
-	const int32 TurniMinimi = 6;
+	const int32 TurniMinimi = FRTOrbitProbe::MinTurnsToFalsify;
 	if (!TestTrue(*FString::Printf(
 		TEXT("la partita e' durata abbastanza perche' l'oracolo possa cadere (%d turni, minimo %d)"),
 		Turni, TurniMinimi), Turni >= TurniMinimi))

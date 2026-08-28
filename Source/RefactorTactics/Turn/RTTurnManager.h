@@ -18,6 +18,7 @@
 #include "Turn/RTReactionLibrary.h" // ERTReactionPassPoint/FRTReactionTriggerHit: la firma del pass reazioni li usa
 #include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: l'Overwatch armato porta con se' la condizione dichiarata
 #include "Turn/RTReactionOpportunityTypes.h" // FRTReactionOpportunity/FRTReactionDecision: le firme del boundary li usano
+#include "Turn/RTReactionWindowView.h" // FRTReactionWindowView: il DTO che questo manager consegna alla presentazione
 #include "Turn/RTReactionPassResult.h" // FRTReactionPassResult/FRTDisplacementCause: cio' che il pass reazioni raccoglie
 #include "Turn/RTBlastContext.h" // FRTBlastContext: lo stato che i pass del Blast si passano l'un l'altro
 #include "RTTurnManager.generated.h"
@@ -379,6 +380,44 @@ public:
 	/** Durata corrente della pianificazione (diagnostica e test). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	float GetPlanningSeconds() const { return PlanningSeconds; }
+
+	/**
+	 * Durata della finestra Fast Reaction (ADR-0004 §8). E' cio' che alimenta il countdown del DTO di
+	 * CP 14.6: la presentazione la LEGGE da qui, non ne tiene una copia.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetFastReactionDuration() const { return FastReactionDuration; }
+
+	/**
+	 * Cambia la durata della finestra, clampando alla FONTE come fa `SetPlanningSeconds`.
+	 *
+	 * `ClampMin` sulla `UPROPERTY` copre l'authoring in Editor e nient'altro: un valore negativo assegnato da
+	 * codice o da un Blueprint lo attraverserebbe, e un countdown negativo e' un timer che non scatta mai. Il
+	 * clamp del DTO protegge una copia sola — questo protegge il campo.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
+	void SetFastReactionDuration(float NewSeconds) { FastReactionDuration = FMath::Max(0.f, NewSeconds); }
+
+	/**
+	 * La finestra `Opportunity` come la riceve `ObserverTeamId`, con il countdown autorevole di questo
+	 * manager (CP 14.6, `#166`).
+	 *
+	 * E' il **punto d'ingresso unico** fra il core e la presentazione della finestra, e la ragione per cui
+	 * esiste invece di lasciare che ciascun chiamante componga la coppia (filtro, durata): sono due decisioni
+	 * che devono restare insieme. La regola di sanitizzazione vive in
+	 * `URTReactionWindowLibrary::FilterWindowForTeam`, che resta pura e testabile senza mondo; qui si aggiunge
+	 * la sola cosa che una funzione pura non puo' avere — il valore autorevole della durata.
+	 *
+	 * ⚠️ **Non e' una `UFUNCTION`**: prende `FRTReactionOpportunity`, e per esporla ai Blueprint bisognerebbe
+	 * rendere `BlueprintType` l'opportunity autorevole. Il risultato invece lo e' per intero.
+	 *
+	 * ⛔ **Nessun chiamante di produzione, oggi**, ed e' una conseguenza e non una svista: `AskReactionDecision`
+	 * e' sincrono e non esiste una finestra persistente da interrogare. Il chiamante nasce con il decisore
+	 * umano asincrono di DIR-A. Cio' che questo metodo garantisce da subito e' che quel chiamante non debba
+	 * scegliere da dove prende i 3,0 s — la seconda sorgente che ADR-0005 §4c vieta.
+	 */
+	FRTReactionWindowView MakeReactionWindowView(const FRTReactionOpportunity& Opportunity,
+		int32 OwnerTeamId, int32 ObserverTeamId) const;
 
 	/** Progresso obiettivo di una squadra (intero, mai un float). Squadra sconosciuta -> 0. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
@@ -1420,6 +1459,31 @@ protected:
 	/** Durata della fase di pianificazione; allo scadere scatta il lock-in automatico. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	float PlanningSeconds = 30.f;
+
+	/**
+	 * Durata della finestra Fast Reaction, in secondi (ADR-0004 §8, CP 14.6): **3,0 s**.
+	 *
+	 * Sta qui e non in `FRTMatchRules` per la ragione che quel file dichiara di se': e' un tempo di PARETE,
+	 * non un parametro di regola da cui l'esito dipende. L'esito allo scadere e' `SafeResponse` — mai `FIRE`
+	 * — e non cambia con la durata: quello che cambia e' quanto si ha per decidere.
+	 *
+	 * ⚠️ **Nasce con un lettore, ed e' il motivo per cui nasce adesso.** CP 14.5 rinvio' questo valore
+	 * proprio perche' nessuno lo leggeva (`roadmap-v0.1.md`: *«spostata a CP 14.6: qui non aveva un
+	 * lettore»*), e fino a oggi `FastReactionDuration` esisteva solo dentro due commenti. Il lettore e'
+	 * `MakeReactionWindowView`, che lo consegna alla presentazione come countdown del DTO.
+	 *
+	 * 🔴 **La prima stesura diceva che il lettore era `FilterWindowForTeam`, e non era vero**: quella
+	 * funzione riceve la durata come PARAMETRO e non ha mai letto questo campo. Il commento affermava un
+	 * cablaggio inesistente — cioe' esattamente il difetto che descriveva — e lo ha trovato una code review.
+	 *
+	 * `ClampMin` sulla FONTE e non solo nel consumatore: un valore negativo qui produrrebbe un timer che non
+	 * scatta mai per ogni lettore futuro, e un clamp che vive solo a valle protegge una copia sola.
+	 *
+	 * Server-authoritative: un client lento non allunga la finestra. In v0.1 offline la distinzione non e'
+	 * osservabile, e il campo esiste al singolare apposta — due sorgenti sarebbero due verita' (ADR-0005 §4c).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn", meta = (ClampMin = "0.0"))
+	float FastReactionDuration = 3.f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	ERTMatchPhase Phase = ERTMatchPhase::Planning;
