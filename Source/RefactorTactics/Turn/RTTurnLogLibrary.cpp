@@ -249,17 +249,41 @@ namespace
 	}
 }
 
-TArray<FString> URTTurnLogLibrary::DescribeTurnLog(TArray<FRTTurnLogEntry> Entries)
+TArray<FRTDescribedLine> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries)
 {
 	// Per VALORE e ordinato qui dentro: la sequenza leggibile non deve dipendere dall'ordine in cui le voci
 	// sono arrivate, e ordinare la copia evita di riordinare il TurnLog del chiamante come effetto collaterale.
 	SortTurnLog(Entries);
 
-	TArray<FString> Lines;
+	TArray<FRTDescribedLine> Lines;
 	Lines.Reserve(Entries.Num());
 	for (const FRTTurnLogEntry& Entry : Entries)
 	{
-		Lines.Add(DescribeEntry(Entry));
+		// ⚠️ Due sentinelle diverse per la stessa assenza, e la traduzione sta QUI. Nel TurnLog «nessuna
+		// unita' dichiarata» e' `0` (D-063, e gli `StableUnitId` partono da 1); nel combat log e'
+		// `INDEX_NONE`. Passare lo zero cosi' com'e' farebbe cercare l'unita' 0 nella vista di conoscenza,
+		// che non esiste: ogni riga di mondo sparirebbe fail-closed.
+		FRTDescribedLine& Line = Lines.AddDefaulted_GetRef();
+		Line.Text = DescribeEntry(Entry);
+		Line.SubjectStableUnitId = Entry.UnitId == 0 ? INDEX_NONE : Entry.UnitId;
+		// 🔴 Il verdetto si TRASPORTA. Ricalcolarlo qui sarebbe calcolarlo a fine turno, cioe' sulla
+		// conoscenza sbagliata: e' il difetto che [D-223] esiste per chiudere.
+		Line.Verdict = Entry.Verdict;
+	}
+	return Lines;
+}
+
+TArray<FString> URTTurnLogLibrary::DescribeTurnLog(TArray<FRTTurnLogEntry> Entries)
+{
+	// Adattatore, non un secondo produttore: testo e ordine nascono in un posto solo, quindi le due forme
+	// non possono divergere il giorno in cui una delle due cambia.
+	TArray<FRTDescribedLine> WithSubjects = DescribeTurnLogWithSubjects(MoveTemp(Entries));
+
+	TArray<FString> Lines;
+	Lines.Reserve(WithSubjects.Num());
+	for (FRTDescribedLine& Line : WithSubjects)
+	{
+		Lines.Add(MoveTemp(Line.Text));
 	}
 	return Lines;
 }
@@ -278,7 +302,13 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::OnCooldown:     return TEXT("l'abilita' e' in ricarica");
 	// CP 13.2: la squadra non sa dove sia, e non ne ha un ricordo su cui ripiegare. Senza questo caso
 	// cadeva nel generico «non eseguibile», che e' la forma di riga che questo ramo esiste per non produrre.
-	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto");
+	//
+	// ⚠️ Il testo dice «alla squadra» e non e' pleonastico: la conoscenza e' di SQUADRA (E13), quindi un
+	// bersaglio puo' essere ignoto a chi agisce e noto a un compagno. «Bersaglio ignoto» lascerebbe
+	// intendere che nessuno lo veda, che e' una frase piu' forte di quella che il dato autorizza.
+	// (Entrambi i rami del merge del 2026-08-28 avevano aggiunto questo case, in punti diversi dello
+	// switch: git non ha visto un conflitto e ne ha prodotti DUE. Il compilatore l'ha fermato — C2196.)
+	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto alla squadra");
 	case ERTActionInvalidReason::Interrupted:    return TEXT("interrotta");
 	case ERTActionInvalidReason::NoEffect:       return TEXT("nessun effetto da applicare");
 	// ⚠️ Diverso da «interrotta»: quella e' stata CANCELLATA, questa e' avvenuta senza ottenere niente.
