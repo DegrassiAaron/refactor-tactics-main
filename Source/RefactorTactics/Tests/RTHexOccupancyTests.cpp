@@ -121,7 +121,12 @@ namespace
 	using RTOccupancyFixtures::PointAt;
 	using RTOccupancyFixtures::OpenLine;
 	using RTOccupancyFixtures::ClosedSquare;
-	constexpr float TestHexSize = RTOccupancyFixtures::HexSize;
+	// ⚠️ Il nome porta il prefisso del file, e non e' pedanteria: la unity build condivide la translation
+	// unit, e `OccupancyTestHexSize` esisteva GIA' in `RTGeometryGrammarTests.cpp` con lo stesso valore. I due si
+	// incontravano solo quando l'adaptive build metteva entrambi i file nella stessa TU — cioe' a seconda
+	// di cosa era stato modificato di recente — e la compilazione moriva con `C2374: ridefinizione` per una
+	// modifica che con questi test non c'entrava niente.
+	constexpr float OccupancyTestHexSize = RTOccupancyFixtures::HexSize;
 }
 
 /**
@@ -135,7 +140,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOccupancySectorAnchorTest,
 bool FRTOccupancySectorAnchorTest::RunTest(const FString&)
 {
 	TArray<FVector2D> P;
-	URTHexOccupancyLibrary::SectorBoundaryPoints(TestHexSize, P);
+	URTHexOccupancyLibrary::SectorBoundaryPoints(OccupancyTestHexSize, P);
 
 	TestEqual(TEXT("dodici punti di confine"), P.Num(), RT_OccupancySectorCount);
 	if (P.Num() != RT_OccupancySectorCount)
@@ -166,7 +171,7 @@ bool FRTOccupancySingleSegmentTest::RunTest(const FString&)
 	// Il settore 0 copre gli angoli [-30, 0). Entrambi gli estremi ci stanno dentro con margine.
 	const TArray<FRTOccupancyPolyline> Geometry = RTOccupancyFixtures::SingleSolidSegment();
 
-	const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(Geometry, TestHexSize);
+	const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(Geometry, OccupancyTestHexSize);
 	TestEqual(TEXT("solo il settore 0"), M.Sectors, 1 << 0);
 	TestEqual(TEXT("un settore occupato"), URTHexOccupancyLibrary::NumOccupiedSectors(M), 1);
 	TestFalse(TEXT("il centro resta libero"), M.bCoreBlocked);
@@ -183,9 +188,9 @@ bool FRTOccupancyOrderIndependenceTest::RunTest(const FString&)
 	const FRTOccupancyPolyline B = OpenLine({ PointAt(100.0, 0.3), PointAt(110.0, 0.6) });
 	const FRTOccupancyPolyline C = OpenLine({ PointAt(200.0, 0.3), PointAt(210.0, 0.6) });
 
-	const FRTOccupancyMask Forward = URTHexOccupancyLibrary::ComputeMask({ A, B, C }, TestHexSize);
-	const FRTOccupancyMask Shuffled = URTHexOccupancyLibrary::ComputeMask({ C, A, B }, TestHexSize);
-	const FRTOccupancyMask Reversed = URTHexOccupancyLibrary::ComputeMask({ C, B, A }, TestHexSize);
+	const FRTOccupancyMask Forward = URTHexOccupancyLibrary::ComputeMask({ A, B, C }, OccupancyTestHexSize);
+	const FRTOccupancyMask Shuffled = URTHexOccupancyLibrary::ComputeMask({ C, A, B }, OccupancyTestHexSize);
+	const FRTOccupancyMask Reversed = URTHexOccupancyLibrary::ComputeMask({ C, B, A }, OccupancyTestHexSize);
 
 	TestEqual(TEXT("stessa maschera con ordine mescolato"), Shuffled.Sectors, Forward.Sectors);
 	TestEqual(TEXT("stessa maschera con ordine invertito"), Reversed.Sectors, Forward.Sectors);
@@ -202,7 +207,7 @@ bool FRTOccupancyCornerTest::RunTest(const FString&)
 	// -20 sta nel settore 0 ([-30,0)), 10 nel settore 1 ([0,30)), 40 nel settore 2 ([30,60)).
 	const TArray<FRTOccupancyPolyline> Geometry = RTOccupancyFixtures::Corner();
 
-	const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(Geometry, TestHexSize);
+	const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(Geometry, OccupancyTestHexSize);
 	TestEqual(TEXT("settori 0, 1 e 2"), M.Sectors, (1 << 0) | (1 << 1) | (1 << 2));
 	TestFalse(TEXT("il centro resta libero"), M.bCoreBlocked);
 	return true;
@@ -226,7 +231,7 @@ bool FRTOccupancySectorBoundaryTest::RunTest(const FString&)
 {
 	// Sul confine: l'asse a 0 gradi separa il settore 0 ([-30,0)) dal settore 1 ([0,30)).
 	const FRTOccupancyMask OnBoundary =
-		URTHexOccupancyLibrary::ComputeMask(RTOccupancyFixtures::SegmentOnSectorBoundary(), TestHexSize);
+		URTHexOccupancyLibrary::ComputeMask(RTOccupancyFixtures::SegmentOnSectorBoundary(), OccupancyTestHexSize);
 	TestEqual(TEXT("il contatto sul confine invade ENTRAMBI i settori adiacenti"),
 		OnBoundary.Sectors, (1 << 0) | (1 << 1));
 	TestEqual(TEXT("due settori occupati"),
@@ -236,7 +241,7 @@ bool FRTOccupancySectorBoundaryTest::RunTest(const FString&)
 	// Gemello di controllo: stesso segmento, ruotato di 15 gradi, tutto dentro il settore 1.
 	// Senza questo, «due settori» passerebbe anche con un'implementazione che ne accende sempre due.
 	const FRTOccupancyMask OffBoundary =
-		URTHexOccupancyLibrary::ComputeMask(RTOccupancyFixtures::SegmentJustOffSectorBoundary(), TestHexSize);
+		URTHexOccupancyLibrary::ComputeMask(RTOccupancyFixtures::SegmentJustOffSectorBoundary(), OccupancyTestHexSize);
 	TestEqual(TEXT("fuori dal confine ne accende UNO solo"), OffBoundary.Sectors, (1 << 1));
 	TestEqual(TEXT("un settore occupato"),
 		URTHexOccupancyLibrary::NumOccupiedSectors(OffBoundary), 1);
@@ -275,7 +280,7 @@ bool FRTOccupancyPerimeterWallsTest::RunTest(const FString&)
 	for (int32 NumWalls = 1; NumWalls <= 3; ++NumWalls)
 	{
 		const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(
-			RTOccupancyFixtures::WallsOnConsecutiveEdges(NumWalls), TestHexSize);
+			RTOccupancyFixtures::WallsOnConsecutiveEdges(NumWalls), OccupancyTestHexSize);
 
 		const int32 Occupied = URTHexOccupancyLibrary::NumOccupiedSectors(M);
 		const ERTCellOccupancy Class = URTHexOccupancyLibrary::Classify(M, Thresholds);
@@ -309,9 +314,9 @@ bool FRTOccupancyPerimeterWallsTest::RunTest(const FString&)
 	// due vertici dell'esagono. Cio' che sparisce e' il contributo PUNTUALE — settori toccati in un solo
 	// punto, area invasa nulla — e cio' che resta e' l'invasione vera.
 	const FRTOccupancyMask Whole =
-		URTHexOccupancyLibrary::ComputeMask({ RTOccupancyFixtures::WallOnHexEdge(0) }, TestHexSize);
+		URTHexOccupancyLibrary::ComputeMask({ RTOccupancyFixtures::WallOnHexEdge(0) }, OccupancyTestHexSize);
 	const FRTOccupancyMask Inset =
-		URTHexOccupancyLibrary::ComputeMask({ RTOccupancyFixtures::WallOnHexEdgeInset(0) }, TestHexSize);
+		URTHexOccupancyLibrary::ComputeMask({ RTOccupancyFixtures::WallOnHexEdgeInset(0) }, OccupancyTestHexSize);
 
 	const int32 WholeCount = URTHexOccupancyLibrary::NumOccupiedSectors(Whole);
 	const int32 InsetCount = URTHexOccupancyLibrary::NumOccupiedSectors(Inset);
@@ -334,7 +339,7 @@ bool FRTOccupancySolidFootprintTest::RunTest(const FString&)
 {
 	const TArray<FRTOccupancyPolyline> Geometry = RTOccupancyFixtures::SolidFootprint();
 
-	const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(Geometry, TestHexSize);
+	const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(Geometry, OccupancyTestHexSize);
 	TestTrue(TEXT("il centro e' bloccato"), M.bCoreBlocked);
 	TestEqual(TEXT("un contorno attorno al centro attraversa tutti i settori"), M.Sectors, 0xFFF);
 
@@ -356,7 +361,7 @@ bool FRTOccupancyVoidFootprintTest::RunTest(const FString&)
 {
 	const TArray<FRTOccupancyPolyline> Geometry = RTOccupancyFixtures::VoidFootprint();
 
-	const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(Geometry, TestHexSize);
+	const FRTOccupancyMask M = URTHexOccupancyLibrary::ComputeMask(Geometry, OccupancyTestHexSize);
 	TestFalse(TEXT("il centro NON e' bloccato"), M.bCoreBlocked);
 	TestEqual(TEXT("occupa il solo settore 0"), M.Sectors, 1 << 0);
 	return true;
