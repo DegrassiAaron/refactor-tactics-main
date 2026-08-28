@@ -105,6 +105,26 @@ struct FRTPacingSample
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 MsPlayback = 0;
 
+	/**
+	 * Quante finestre di reazione si sono APERTE in questo turno alla squadra misurata (CP 14.6, `#166`).
+	 *
+	 * E' il moltiplicatore della componente di decisione, che ADR-0004 tratta come aritmetica:
+	 * `finestre × FastReactionDuration` e' il tempo che un giocatore puo' vedersi occupare, e la sola meta'
+	 * di quel prodotto che un test headless puo' misurare. L'altra — quanto ci mette **davvero** a
+	 * rispondere — richiede decisori veri, e non si simula.
+	 *
+	 * 🔴 **Si conta per SQUADRA e non per partita**, ed e' la distinzione che [D-167] rende vincolante: due
+	 * unita' armate su squadre **diverse** aprono due finestre che due persone aspettano **in parallelo**,
+	 * due dello **stesso** giocatore gliene impilano due **in fila**. Sommarle darebbe la baseline di un
+	 * gioco che non giochiamo.
+	 *
+	 * Derivato dal TurnLog e non contato a parte: una finestra che si apre e' gia' un fatto registrato
+	 * (`ERTLogCategory::ReactionDecision`), e un secondo contatore nel resolver sarebbe una seconda verita'
+	 * che diverge al primo esito nuovo.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	int32 ReactionWindowsOpened = 0;
+
 	/** Vero se il giocatore ha saltato il playback. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	bool bPlaybackSkipped = false;

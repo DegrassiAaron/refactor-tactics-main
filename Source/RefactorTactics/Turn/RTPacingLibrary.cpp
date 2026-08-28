@@ -78,16 +78,67 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 	return Out;
 }
 
+int32 URTPacingLibrary::CountOpenedReactionWindows(const TArray<FRTTurnLogEntry>& Entries,
+	const TSet<int32>& ResponderUnitIds)
+{
+	if (ResponderUnitIds.Num() == 0)
+	{
+		return 0;
+	}
+
+	int32 Opened = 0;
+	for (const FRTTurnLogEntry& Entry : Entries)
+	{
+		if (Entry.Category != ERTLogCategory::ReactionDecision)
+		{
+			continue;
+		}
+		if (!ResponderUnitIds.Contains(Entry.UnitId))
+		{
+			continue;
+		}
+
+		// I due esiti che NON sono una finestra. Elencati per nome invece di dedurli «tutto tranne gli HOLD»:
+		// `HoldChosen`, `HoldTimeout`, `HoldNoDecider` e `HoldRejected` sono finestre APERTE che hanno
+		// prodotto un hold — hanno occupato il giocatore comunque — e un filtro sul prefisso del nome le
+		// avrebbe scartate tutte e quattro.
+		// `Outcome` e' un `uint8` condiviso da tutte le categorie: il cast e' legittimo SOLO dopo il filtro
+		// sulla categoria qui sopra, che e' la ragione per cui i due controlli sono in quest'ordine.
+		const ERTReactionDecisionOutcome Outcome = static_cast<ERTReactionDecisionOutcome>(Entry.Outcome);
+		if (Outcome == ERTReactionDecisionOutcome::HoldImmediate
+			|| Outcome == ERTReactionDecisionOutcome::HoldCollapsedByCondition)
+		{
+			continue;
+		}
+
+		++Opened;
+	}
+
+	return Opened;
+}
+
+float URTPacingLibrary::ReactionDecisionSecondsUpperBound(int32 OpenedWindows, float WindowSeconds)
+{
+	if (OpenedWindows <= 0 || WindowSeconds <= 0.f)
+	{
+		return 0.f;
+	}
+	return static_cast<float>(OpenedWindows) * WindowSeconds;
+}
+
 FString URTPacingLibrary::CsvHeader()
 {
+	// ⚠️ `ReactionWindows` in CODA e non in mezzo: le colonne si leggono per posizione da fogli e script gia'
+	// scritti, e inserirla prima sposterebbe ogni colonna a valle senza che nessun errore lo dica.
 	return TEXT("Turn,AliveT0,AliveT1,ActionsAvailable,MsToFirstInput,SelectionCount,OrderCount,")
-		   TEXT("UndoCount,MsToLockIn,MsSinceLastInput,LockInSource,MsPlayback,PlaybackSkipped");
+		   TEXT("UndoCount,MsToLockIn,MsSinceLastInput,LockInSource,MsPlayback,PlaybackSkipped,")
+		   TEXT("ReactionWindows");
 }
 
 FString URTPacingLibrary::CsvRow(const FRTPacingSample& Sample)
 {
 	// Tutti %d: nessun float, quindi nessuna virgola decimale da locale che spezzi le colonne.
-	return FString::Printf(TEXT("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d"),
+	return FString::Printf(TEXT("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d"),
 		Sample.TurnNumber,
 		Sample.UnitsAliveTeam0,
 		Sample.UnitsAliveTeam1,
@@ -100,5 +151,6 @@ FString URTPacingLibrary::CsvRow(const FRTPacingSample& Sample)
 		Sample.MsSinceLastInput,
 		static_cast<int32>(Sample.LockInSource),
 		Sample.MsPlayback,
-		Sample.bPlaybackSkipped ? 1 : 0);
+		Sample.bPlaybackSkipped ? 1 : 0,
+		Sample.ReactionWindowsOpened);
 }

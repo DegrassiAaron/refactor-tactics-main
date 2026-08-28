@@ -20,6 +20,7 @@
 #include "Turn/RTReactionWindowView.h"        // il DTO di CP 14.6: stesso elenco chiuso, stesso guardiano
 #include "Turn/RTTurnManager.h"               // la fonte autorevole del countdown, misurata dal DTO
 #include "Tests/RTWorldFixtures.h"            // MakeWorld/DestroyWorld: il manager e' un Actor, serve un mondo
+#include "Turn/RTPacingLibrary.h"             // il conteggio delle finestre e il tetto in secondi (CP 14.6)
 #include "Combat/RTOffensiveActionLibrary.h"  // MakeSuppressiveZone: la stessa geometria del resolver
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"                 // Neighbor: il facing dichiarato diventa una cella
@@ -802,6 +803,191 @@ bool FRTReactionWindowReadsManagerDurationTest::RunTest(const FString&)
 	TestFalse(TEXT("l'avversario non riceve la finestra nemmeno dal manager"), ToEnemy.bOpen);
 
 	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **La misura del pacing di CP 14.6, la metà che si chiude senza Editor**: quante finestre si aprono a UN
+ * giocatore con **1, 2 e 3 unità armate** — i tre punti che la DoD di `#166` chiede per nome.
+ *
+ * 🔴 **Perché tre misure e non una media.** [D-167]: due unità armate su squadre **diverse** aprono finestre
+ * che due persone aspettano **in parallelo**; due dello **stesso** giocatore gliene impilano due **in fila**.
+ * Qui i watcher sono tutti del team 0 apposta — è il caso che la v0.1 gioca davvero ([D-155]: un umano, due
+ * unità), ed è quello che tara `InitialBank` e `Grace`.
+ *
+ * ⛔ **Ciò che questo test NON misura, e nessun test headless può**: quanto ci mette un giocatore a
+ * rispondere. Con un decisore che risponde subito il Decision Time è **nullo per costruzione** — lo dichiara
+ * già `Overwatch.SegmentedResolutionOverhead` — quindi il `p50`/`p90` che
+ * `spec-decision-time-bank.md` §3.2 chiede per promuovere i parametri resta **playtest**, e nessuna clausola
+ * lo sostituisce. Ciò che si misura qui è l'**altro fattore** dello stesso prodotto: il numero di finestre,
+ * che è deterministico, e con esso il tetto `finestre × FastReactionDuration`.
+ *
+ * Non asserisce una soglia temporale: sarebbe rossa a giorni alterni su macchine diverse senza dire niente
+ * di nessuno. Asserisce la **struttura** — che il carico cresca con le unità armate, e in che proporzione —
+ * e registra i numeri con `AddInfo`, che è dove «misurata e registrata» diventa un fatto ripetibile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowsPerArmedUnitTest,
+	"RefactorTactics.Reactions.WindowsOpenedScaleWithArmedUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowsPerArmedUnitTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeZoneFollowMap();
+	if (!TestNotNull(TEXT("mappa di prova"), Map)) { return false; }
+
+	// Un mover nemico che percorre il corridoio controllato **per intero**: e' lo stesso di
+	// `ArmedZoneFollowsCurrentCell`, e non e' un dettaglio di comodo. Un percorso che sfiorasse la zona per un
+	// passo solo darebbe una finestra per unita' armata — un numero vero e una baseline **falsa**, perche' le
+	// finestre si aprono **per micro-step dentro la zona** (`Overwatch.TriggersPerMicroStep`), ed e' quella
+	// moltiplicazione che il bank deve reggere. La prima stesura di questo test aveva esattamente quel
+	// difetto, e i suoi numeri erano un terzo del vero.
+	//
+	// Il bersaglio e' unico: con un bersaglio le risposte sono `FIRE:9` e `HOLD`, cioe' cardinalita' 2, cioe'
+	// una finestra vera.
+	const FRTCellId Origin(0, 0, 0);
+	const TArray<FRTCellId> Path = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
+	const TArray<FRTSuppressionMover> Movers = { MakeZoneFollowMover(9, Path) };
+
+	TMap<int32, FRTTargetVitals> Vitals;
+	Vitals.Add(9, FRTTargetVitals(10, 10));
+
+	// Il valore autorevole della finestra, letto dal default del manager e non riscritto qui: se ADR-0004 §8
+	// cambiasse, questa misura cambierebbe con lui invece di restare ferma su un 3.0 copiato.
+	const float WindowSeconds = GetDefault<ARTTurnManager>()->GetFastReactionDuration();
+	TestTrue(TEXT("la durata della finestra e' un valore positivo e autorevole"), WindowSeconds > 0.f);
+
+	int32 PreviousWindows = 0;
+	int32 WindowsWithOne = 0;
+
+	for (int32 ArmedUnits = 1; ArmedUnits <= 3; ++ArmedUnits)
+	{
+		// N watcher DELLO STESSO GIOCATORE (team 0), ciascuno con la propria zona sullo stesso corridoio:
+		// e' la forma di un giocatore che ha armato N unita', non di N giocatori.
+		TArray<FRTOverwatchWatcher> Watchers;
+		for (int32 W = 0; W < ArmedUnits; ++W)
+		{
+			Watchers.Add(MakeZoneFollowWatcher(Map, Origin, ERTHexDirection::E,
+				/*OwnerIdx*/ W, /*StableId*/ W, /*InstanceId*/ W));
+		}
+
+		const TArray<FRTOverwatchTrigger> Triggers =
+			URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, /*TurnNumber*/ 1, Watchers, Movers, Vitals);
+
+		// Una finestra si apre solo dove c'e' un boundary: la cardinalita' resta la regola (ADR-0004 §2), e
+		// contare i trigger invece delle finestre gonfierebbe la baseline con commit immediati.
+		int32 OpenedWindows = 0;
+		for (const FRTOverwatchTrigger& Trigger : Triggers)
+		{
+			if (URTReactionOpportunityLibrary::RequiresDecisionBoundary(Trigger.Opportunity))
+			{
+				++OpenedWindows;
+			}
+		}
+
+		const float UpperBoundSeconds =
+			URTPacingLibrary::ReactionDecisionSecondsUpperBound(OpenedWindows, WindowSeconds);
+
+		// 📋 LA REGISTRAZIONE. E' il deliverable: tre punti, con il numero di finestre e il tetto in secondi
+		// che quelle finestre possono occupare a UNA persona.
+		AddInfo(FString::Printf(
+			TEXT("[PACING CP 14.6] unita' armate=%d (stesso giocatore) -> finestre aperte=%d, ")
+			TEXT("tetto attesa=%.1f s (= %d x %.1f s, se ognuna arriva a scadenza)"),
+			ArmedUnits, OpenedWindows, UpperBoundSeconds, OpenedWindows, WindowSeconds));
+
+		TestTrue(FString::Printf(TEXT("con %d unita' armate almeno una finestra si apre"), ArmedUnits),
+			OpenedWindows > 0);
+
+		// La proprieta' strutturale: il carico di UN giocatore CRESCE con le unita' che arma. E' ciò che
+		// [D-156] chiama carico di controllo, ed e' la ragione per cui il bank e' del giocatore e non
+		// dell'unita'.
+		TestTrue(FString::Printf(TEXT("con %d unita' armate le finestre non diminuiscono"), ArmedUnits),
+			OpenedWindows >= PreviousWindows);
+
+		if (ArmedUnits == 1)
+		{
+			WindowsWithOne = OpenedWindows;
+		}
+		else
+		{
+			// Zone identiche, quindi il carico e' esattamente proporzionale: e' la forma piu' semplice del
+			// caso peggiore, e va detta con un numero invece che con «cresce».
+			TestEqual(FString::Printf(TEXT("%d unita' armate aprono %d volte le finestre di una"),
+					ArmedUnits, ArmedUnits),
+				OpenedWindows, WindowsWithOne * ArmedUnits);
+		}
+
+		// Il tetto segue il conteggio, e non e' una costante scritta accanto.
+		TestEqual(TEXT("il tetto in secondi e' finestre x durata"),
+			UpperBoundSeconds, OpenedWindows * WindowSeconds);
+
+		PreviousWindows = OpenedWindows;
+	}
+
+	return true;
+}
+
+/**
+ * Il conteggio delle finestre si DERIVA dal TurnLog, e i due esiti che non sono una finestra non entrano.
+ *
+ * 🔴 `HoldImmediate` e `HoldCollapsedByCondition` sono commit immediati: non occupano un secondo del
+ * giocatore. Contarli gonfierebbe la baseline del bank con attese che non esistono — ed e' precisamente il
+ * motivo per cui i due esiti sono stati separati invece di stare sotto lo stesso numero.
+ *
+ * I quattro `Hold*` restanti invece **sono** finestre aperte: hanno chiesto, e la risposta e' arrivata o e'
+ * scaduta. Un filtro scritto sul prefisso del nome — «tutto tranne gli HOLD» — li avrebbe persi tutti e
+ * quattro, ed e' l'errore che questo test rende impossibile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowCountFromLogTest,
+	"RefactorTactics.Reactions.OpenedWindowsAreCountedFromTheLog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowCountFromLogTest::RunTest(const FString&)
+{
+	auto MakeDecisionEntry = [](int32 UnitId, ERTReactionDecisionOutcome Outcome)
+	{
+		FRTTurnLogEntry E;
+		E.Category = ERTLogCategory::ReactionDecision;
+		E.UnitId = UnitId;
+		E.Outcome = static_cast<uint8>(Outcome);
+		return E;
+	};
+
+	TArray<FRTTurnLogEntry> Entries;
+	// Le quattro che CONTANO: hanno aperto una finestra, comunque sia finita.
+	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::FireChosen));
+	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::HoldChosen));
+	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldTimeout));
+	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldNoDecider));
+	// E le due che NON contano: nessuna finestra si e' aperta.
+	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::HoldImmediate));
+	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldCollapsedByCondition));
+	// Piu' una voce di un'altra categoria e una di un responder avversario: nessuna delle due e' del
+	// giocatore misurato.
+	FRTTurnLogEntry Move;
+	Move.Category = ERTLogCategory::Move;
+	Move.UnitId = 1;
+	Entries.Add(Move);
+	Entries.Add(MakeDecisionEntry(7, ERTReactionDecisionOutcome::FireChosen));
+
+	const TSet<int32> MyTeam = { 1, 2 };
+	TestEqual(TEXT("quattro finestre aperte, non sei e non cinque"),
+		URTPacingLibrary::CountOpenedReactionWindows(Entries, MyTeam), 4);
+
+	// Il responder avversario ha la SUA finestra, e non entra nel bank del giocatore misurato: e' la
+	// distinzione fra due attese parallele e due in fila ([D-167]).
+	const TSet<int32> EnemyTeam = { 7 };
+	TestEqual(TEXT("le finestre dell'avversario si contano a parte"),
+		URTPacingLibrary::CountOpenedReactionWindows(Entries, EnemyTeam), 1);
+
+	TestEqual(TEXT("nessun responder, nessuna finestra"),
+		URTPacingLibrary::CountOpenedReactionWindows(Entries, TSet<int32>()), 0);
+
+	// Il tetto: zero finestre non e' un'attesa, e nemmeno una durata negativa.
+	TestEqual(TEXT("zero finestre, zero attesa"),
+		URTPacingLibrary::ReactionDecisionSecondsUpperBound(0, 3.f), 0.f);
+	TestEqual(TEXT("una durata negativa non e' un'attesa"),
+		URTPacingLibrary::ReactionDecisionSecondsUpperBound(3, -1.f), 0.f);
+	TestEqual(TEXT("due finestre da 3,0 s fanno 6,0 s su UNA persona"),
+		URTPacingLibrary::ReactionDecisionSecondsUpperBound(2, 3.f), 6.f);
+
 	return true;
 }
 

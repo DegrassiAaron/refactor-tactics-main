@@ -6337,6 +6337,41 @@ void ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)
 void ARTTurnManager::ClosePacingSample()
 {
 	PacingCurrent.MsPlayback = FMath::RoundToInt(PlaybackElapsedTotal * 1000.f);
+
+	// Quante finestre di reazione hanno occupato la squadra misurata in QUESTO turno (CP 14.6, `#166`).
+	//
+	// Si DERIVA dal TurnLog invece di essere contato durante la risoluzione: l'apertura di una finestra e' gia'
+	// un fatto registrato, e un contatore parallelo nel resolver sarebbe una seconda verita' che diverge al
+	// primo esito nuovo — con l'aggravante di essere uno stato mutabile su un percorso che deve restare
+	// deterministico. Qui la misura e' telemetria pura: legge, non decide.
+	{
+		TSet<int32> Responders;
+		TArray<AActor*> UnitActors;
+		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), UnitActors);
+		for (AActor* Actor : UnitActors)
+		{
+			// ⚠️ **Nessun filtro su `IsAlive()`**, a differenza di `BeginPacingSample`: un'unita' caduta
+			// DURANTE il turno ha comunque potuto aprire finestre prima di cadere, e scartarla farebbe
+			// sparire proprio le attese dei turni piu' concitati — cioe' quelle che tarano il bank.
+			if (const ARTUnit* Unit = Cast<ARTUnit>(Actor))
+			{
+				if (Unit->TeamId == PacingTeamId)
+				{
+					Responders.Add(Unit->StableUnitId);
+				}
+			}
+		}
+
+		// `PacingCurrent.TurnNumber` e non `TurnNumber`: il campione porta il turno che ha APERTO, e il
+		// contatore del manager puo' essere gia' avanzato quando si chiude.
+		const int32 SampleTurn = PacingCurrent.TurnNumber;
+		const TArray<FRTTurnLogEntry> ThisTurn = TurnLog.FilterByPredicate(
+			[SampleTurn](const FRTTurnLogEntry& E) { return E.TurnNumber == SampleTurn; });
+
+		PacingCurrent.ReactionWindowsOpened =
+			URTPacingLibrary::CountOpenedReactionWindows(ThisTurn, Responders);
+	}
+
 	PacingSamples.Add(PacingCurrent);
 	if (bRecordPacing)
 	{
