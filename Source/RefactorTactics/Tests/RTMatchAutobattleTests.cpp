@@ -26,6 +26,7 @@
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
 #include "RTAttackPlaybackProbeForTest.h"
+#include "RTOrbitProbeForTest.h" // il ritorno di periodo due, condiviso con `NobodyOscillatesOnTheAuthoredMap`
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "HAL/IConsoleManager.h"
@@ -1785,6 +1786,7 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	TMap<int32, FRTCellId> LastCell;      // ultima cella vista, per unita'
 	TMap<int32, int32> StillStreak;       // turni consecutivi senza muoversi
 	int32 LongestStillStreak = 0;
+	FRTOrbitProbe Orbite;                 // il ritorno di periodo due, che `StillStreak` non puo' vedere
 	int32 FirstSampleIds = 0;             // chiavi DISTINTE al primo campionamento
 	int32 FirstSampleAlive = 0;           // unita' vive nello stesso istante: se divergono, gli id collidono
 
@@ -1823,6 +1825,10 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 			Streak = bStill ? Streak + 1 : 0;
 			LongestStillStreak = FMath::Max(LongestStillStreak, Streak);
 			LastCell.Add(Id, Unit->Cell);
+			// La seconda firma dello stesso stato assorbente, e l'unica che `StillStreak` non puo' produrre:
+			// l'alternanza azzera la sequenza a ogni turno. La guardia sulla distinzione degli id qui sotto
+			// vale per entrambe — con una chiave condivisa nessuno dei due contatori crescerebbe.
+			Orbite.Observe(Id, Unit->Cell);
 		}
 		if (FirstSampleAlive == 0)
 		{
@@ -1905,11 +1911,16 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// produrrebbe un rosso da leggere, non un difetto. Un limite scritto vale piu' di un test che non puo'
 	// piu' cadere.
 	//
-	// ⚠️ **E vede i punti fissi, non i cicli.** Un'unita' che oscillasse
-	// fra due celle si muoverebbe ogni turno, la sequenza resterebbe a zero, e la partita potrebbe
-	// pareggiare lo stesso — e' uno stato assorbente di periodo 2, altrettanto sterile e invisibile qui.
-	// Il ciclo misurato in #1088 aveva periodo 3 sui Blast ma le POSIZIONI erano ferme, quindi questo
-	// oracolo lo coglie; un difetto futuro con posizioni oscillanti no.
+	// ⚠️ **Questa sequenza vede i punti fissi, non i cicli** — un'unita' che oscilla fra due celle si muove
+	// ogni turno, quindi la sequenza resta a zero — e per tre giorni quella meta' e' rimasta scoperta QUI e
+	// coperta altrove: `Match.Autobattle.NobodyOscillatesOnTheAuthoredMap` pinna il ritorno di periodo due
+	// sulla mappa d'autore, e la configurazione SPEDITA — che e' questa — non aveva nessun oracolo.
+	// L'asimmetria non era teorica: e' precisamente la forma con cui #1287 e' passato, e il commento che
+	// stava qui la dichiarava senza chiuderla.
+	// ✅ Chiusa piu' sotto con `FRTOrbitProbe`, la stessa sonda dell'altro oracolo e non una seconda copia.
+	// 🔴 **Resta scoperto il periodo TRE e oltre**, ed e' dichiarato sulla sonda: il ciclo misurato in #1088
+	// aveva periodo 3 sui Blast ma POSIZIONI ferme, quindi lo coglie la sequenza qui sopra; un'orbita
+	// `A -> B -> C -> A` non la coglie nessuno dei due.
 	// ⚠️ **La soglia si deriva dal formato, come quella del primo colpo.** Era il letterale `5`, in un test
 	// che trenta righe sotto argomenta che i letterali invecchiano: con un `RoundLimit` corto — il ripiego ne
 	// ha portato 5 fino al 2026-08-10 — la sequenza piu' lunga possibile e' `TurnsPlayed - 1` e l'asserzione
@@ -1934,13 +1945,17 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// 2026-08-10 — e li' il rosso direbbe «la soglia non lascia spazio», cioe' nomina un problema di soglia
 	// mentre il test esiste per un difetto del bot. Si dichiara e si salta, invece di fallire per la ragione
 	// sbagliata.
-	if (MaxLegitimateStillTurns >= FormatRoundLimit - 1)
-	{
-		AddWarning(FString::Printf(
-			TEXT("formato troppo corto per esercitare l'anti-parcheggio: soglia %d su %d round — non misurato"),
-			MaxLegitimateStillTurns, FormatRoundLimit));
-	}
-	else
+	// 🔴 **L'`else` era SENZA GRAFFE, e si legava allo statement sbagliato.** Copriva il `TestEqual` sugli
+	// `StableUnitId` qui sotto — cioe' saltava la PREMESSA — mentre l'asserzione anti-parcheggio, l'unica
+	// che la soglia rende non esercitabile, restava fuori e girava lo stesso. Il commento sopra dichiara
+	// l'intento opposto: «si dichiara e si salta, invece di fallire per la ragione sbagliata».
+	// ⚠️ **Oggi e' latente e va detto**: la condizione e' vera solo per `RoundLimit <= 3`, e il formato
+	// spedito ne porta 12 — con 12 il ramo preso e' lo stesso di prima, quindi questa correzione non muove
+	// nessuna asserzione sulla configurazione reale. E' il legame a essere sbagliato, non l'esito di oggi.
+	//
+	// La premessa sugli id sta ORA fuori dal condizionale, dov'e' il suo posto: che due unita' non
+	// condividano una chiave e' vero indipendentemente da quanto e' lungo il formato, e vale per ENTRAMBI i
+	// contatori — con una chiave condivisa ne' la sequenza ferma ne' i ritorni di periodo due crescerebbero.
 
 	// ⚠️ **Contro il roster INIZIALE, non contro i superstiti.** La guardia nominava «le quattro unita'
 	// collassate su una chiave sola» e ne catturava solo il collasso totale: con due unita' che condividono
@@ -1960,13 +1975,55 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 		FirstSampleIds, FirstSampleAlive);
 	TestTrue(FString::Printf(TEXT("e il campione non e' vuoto: %d"), FirstSampleAlive), FirstSampleAlive > 1);
 
-	TestTrue(FString::Printf(
-		TEXT("nessuna unita' si parcheggia: piu' lunga sequenza ferma %d turni (limite %d) — %s - %s al turno %d"),
-		LongestStillStreak, MaxLegitimateStillTurns,
-		*URTTurnRules::DescribeOutcome(Result.Outcome),
-		*URTTurnRules::DescribeEndReason(Result.Reason), TurnsPlayed),
-		LongestStillStreak <= MaxLegitimateStillTurns);
 	AddInfo(FString::Printf(TEXT("piu' lunga sequenza ferma: %d turni"), LongestStillStreak));
+	if (MaxLegitimateStillTurns >= FormatRoundLimit - 1)
+	{
+		AddWarning(FString::Printf(
+			TEXT("formato troppo corto per esercitare l'anti-parcheggio: soglia %d su %d round — non misurato"),
+			MaxLegitimateStillTurns, FormatRoundLimit));
+	}
+	else
+	{
+		TestTrue(FString::Printf(
+			TEXT("nessuna unita' si parcheggia: piu' lunga sequenza ferma %d turni (limite %d) — %s - %s al turno %d"),
+			LongestStillStreak, MaxLegitimateStillTurns,
+			*URTTurnRules::DescribeOutcome(Result.Outcome),
+			*URTTurnRules::DescribeEndReason(Result.Reason), TurnsPlayed),
+			LongestStillStreak <= MaxLegitimateStillTurns);
+	}
+
+	// 🔴 **LA SECONDA FIRMA DELLO STESSO STATO ASSORBENTE, e fino a oggi era coperta solo altrove.**
+	// `NobodyOscillatesOnTheAuthoredMap` pinna il ritorno di periodo due sulla mappa d'autore; questo test
+	// e' l'unico che gira sulla configurazione SPEDITA, e la sua sequenza ferma non puo' vedere
+	// un'alternanza — che azzera il contatore a ogni turno. E' la forma con cui #1287 e' passato: otto
+	// alternanze in dodici turni in partita, trentasette in quaranta sullo scenario `AutoBattle.ArenaV01`.
+	//
+	// ⚠️ **Soglia e premessa sono SUE, non quelle del parcheggio**, e non e' un dettaglio: si derivano dai
+	// turni GIOCATI e non dal `RoundLimit`, perche' un ritorno e' osservabile solo dal terzo turno e una
+	// partita decisa presto ne puo' produrre troppo pochi perche' l'oracolo cada — cioe' passerebbe per
+	// aritmetica, esattamente il difetto che la code review di #1296 ha trovato sull'altro oracolo.
+	// Condividere la soglia del parcheggio avrebbe fatto muovere l'una ritarando l'altra, che e' la ragione
+	// per cui `MaxLegitimateStillTurns` e `FirstBloodDeadline` sono gia' due nomi distinti in questo file.
+	const int32 WorstOrbit = Orbite.WorstReturns();
+	const int32 OrbitLimit = FRTOrbitProbe::LimitForTurns(TurnsPlayed);
+	const int32 OrbitMinTurns = FRTOrbitProbe::MinTurnsToFalsify;
+	AddInfo(FString::Printf(TEXT("piu' ritorni di periodo due su una unita': %d (limite %d, su %d turni)"),
+		WorstOrbit, OrbitLimit, TurnsPlayed));
+	if (TurnsPlayed < OrbitMinTurns)
+	{
+		AddWarning(FString::Printf(
+			TEXT("partita troppo breve per esercitare l'anti-oscillazione: %d turni, minimo %d — non misurato"),
+			TurnsPlayed, OrbitMinTurns));
+	}
+	else
+	{
+		TestTrue(FString::Printf(
+			TEXT("nessuna unita' oscilla fra due celle: %d ritorni di periodo due (limite %d) — %s - %s al turno %d"),
+			WorstOrbit, OrbitLimit,
+			*URTTurnRules::DescribeOutcome(Result.Outcome),
+			*URTTurnRules::DescribeEndReason(Result.Reason), TurnsPlayed),
+			WorstOrbit <= OrbitLimit);
+	}
 
 	// 🔴 IL NUMERO CHE CONTA: il primo colpo deve cadere PRESTO, non solo cadere.
 	//
