@@ -327,6 +327,53 @@ Tre mutazioni cumulative che ricostruiscono lo stato pre-#1296, ognuna con build
 contatore va a **zero**: su quella geometria non si è trovato un comportamento del bot che produca
 un'orbita di periodo due.
 
+🔵 **Spiegato il 2026-08-28, e la ricerca NON è chiusa**
+([#1550](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1550)). Il ciclo di #1287 può
+chiudersi solo se il filtro sul dominio, dalla cella **cieca**, fa **arretrare**: manda su una cella che
+vede ma più *lontana* dal bersaglio. Se manda avanti, tornare indietro significa allontanarsi, e qualunque
+termine di avvicinamento lo penalizza. Su `MakeTestArena` il muro di `q=0` blocca la vista e **non il
+passo**, e `HasLineOfSight` esclude gli estremi dalla regola per-cella: la cella del muro è insieme la più
+vicina al bersaglio **e** una cella che vede. Sulla mappa d'autore l'ostacolo centrale blocca vista **e**
+passo, e lì la cella che vede sta dietro.
+
+Passi indietro su coppie `(cella cieca, bersaglio)` esaminate, **per budget di movimento** — non sommati:
+
+| board | 2 MP | 3 MP | 4 MP | **5 MP (`Move`)** | 6 MP | 7 MP | **8 MP (`Sprint`)** | primo budget pulito |
+|---|---|---|---|---|---|---|---|---|
+| `MakeTestArena` — 0 su 5 muri bloccano anche il passo | 48 | 19 | 0 | **0** | 0 | 0 | **0** | **4 MP** |
+| `DA_HexMap_Arena` — 9 su 11 | 154 | 162 | 170 | **104** | 38 | 9 | 0 | **8 MP** |
+
+∴ le due board si distinguono per **dove cade la soglia**, e il profilo neutro (`MovementMode.Move`, 5 MP)
+cade sui due lati opposti. ⚠️ **A 2 e 3 MP il passo indietro esiste anche sull'arena generata**, ed è
+dichiarato nel test: il 2 è il ripiegamento che *«non si sceglie: lo impone l'Overwatch»* (`D-070`), e
+un'orbita sostenuta chiede lo stesso budget a ogni turno — ma è un argomento, non una misura.
+
+🔴 **E il controfattuale ritrova l'orbita STORICA.** Fra le coppie distinte della mappa d'autore c'è
+`(1,-1,L0) ↔ (3,-3,L1)` — esattamente quella che #1287 ha misurato in partita, trovata da un predicato che
+di quella misura non sa nulla. È ciò che distingue una misura da un modello plausibile, ed è asserito.
+
+Le due misure sono `Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack` e
+`Bot.StalemateProbeAuthoredMapFilterStepsBack`, in `RTBotStalemateProbeTests.cpp`.
+
+🔴 **Ciò che questa spiegazione NON è: una dimostrazione di impossibilità — e una stesura precedente di
+questa sezione lo sosteneva.** Diceva che `ScorePlan` non legge `Context.Origin`, quindi `A → B` e `B → A`
+chiedono disuguaglianze opposte e il 2-ciclo non sarebbe formabile su nessuna board. **È falso**, ed è caduto
+in code review: il punteggio dipende dalla provenienza attraverso il **facing d'arrivo** —
+`RTHexBotLibrary.cpp` sottrae `WDamage × max(0, CoperturaQui − CoperturaTenuta)`, e con
+`WDamage == WApproach == 10` un punto di copertura vale esattamente una cella di avvicinamento. La tesi è
+ritirata, e con lei la parola «chiuso».
+
+⚠️ **Quindi la riga della tabella resta aperta, e vale ancora**: chi troverà una mutazione del **bot** che fa
+cadere quell'asserzione la scriva lì — e con lei cade questa spiegazione. Ciò che è cambiato non è che la
+ricerca sia finita: è che ora si sa **dove** guardare — a un termine che paghi l'arretramento da solo, o a un
+budget di movimento sotto i 4 MP.
+
+⚠️ **Due stesure sbagliate del predicato, prima di questa, e vanno dette.** La prima contava una condizione
+*necessaria* diversa e dava un numero positivo su entrambe le board — un controfattuale che non discriminava.
+La seconda modellava il punteggio con la sola distanza, dichiarava «lo stesso tie-break di `ChooseBestPlan`»
+mentre risolveva le parità di quota **al contrario**, e pubblicava come «coppie» delle **somme sui sette
+budget**: 9510 su una board che ne ha al massimo 62×61 = 3782. Entrambe trovate in code review.
+
 ### 6.5 Mutazione del RILEVATORE — ✅ e corregge in meglio la riga qui sopra
 
 Togliendo `*Prev != Cell` da `FRTOrbitProbe::Observe` — cioè facendo contare anche lo stare fermo — cadono
@@ -339,9 +386,13 @@ Match.Autobattle.EngagesOnTheGeneratedTestArena   <- la configurazione SPEDITA
 ```
 
 ∴ **L'asserzione sull'arena generata NON è vacua.** La sua soglia è esercitata da dati reali con margine
-reale: su quella board ci sono unità abbastanza ferme da superare il limite, se le si contasse male. Ciò
-che resta non dimostrato è un **percorso di comportamento** — un difetto del bot che, lì, produca
-davvero un'orbita. Un verde dice *«su questa board il bot non orbita»*, non *«il bot non può orbitare»*.
+reale: su quella board ci sono unità abbastanza ferme da superare il limite, se le si contasse male.
+
+✅ **E il percorso di comportamento che le mancava non manca per difetto di ricerca: non esiste su quella
+board** — misurato il 2026-08-28, §6.4, [#1550](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1550).
+Il limite resta, ed è più stretto di come questa riga lo dichiarava: un verde dice *«il ciclo **nella forma
+di #1287** non ha su questa board dove chiudersi»*, non *«il bot non può orbitare»* — un termine di
+punteggio che dipenda dall'origine in un altro modo riaprirebbe la domanda.
 
 ⚠️ **Tutte le mutazioni rimosse**, ripristino verificato: `git diff ad7f212b -- Source/RefactorTactics/Bot/`
 vuoto, `RTOrbitProbeForTest.h` senza residui, e **suite intera 1298 Success / 0 Fail**.
@@ -485,6 +536,20 @@ Entrambe le scelte portano evidenza di mutazione. **DIR-C non le ha unificate**:
 significato di «stallo», non un refactor, e distruggerebbe la prova che uno dei due porta. Chi la prende
 guardi entrambi i commenti prima di toccarne uno.
 
+✅ **Istruita e proposta il 2026-08-28**, e non lasciata come osservazione:
+[`BOT-STALL-1`](../../OPEN_DECISIONS.md) in `docs/OPEN_DECISIONS.md` porta la domanda, le due evidenze
+misurate e **quattro** uscite col loro costo — (a) esenzione ovunque, che acceca l'oracolo di #1088
+sull'unica board su cui gira · (b) esenzione in nessuno dei due, che rende rosso un kiter legittimo ·
+(c) esenzione condizionata all'**avanzamento** (danno inflitto *e* stato che avanza), che è la distinzione
+che `D-184` fa già a parole ma **non è stata misurata** e porta con sé una soglia nuova · (d) restare
+divergenti, dichiarato. Raccomandata (c) se qualcuno la misura, altrimenti (d). Issue
+[#1551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1551).
+
+⚠️ **E la divergenza è ora scritta in ENTRAMBI i file**, ciascuno che nomina l'altro oracolo e il costo
+dell'allineamento: allinearli «per coerenza» senza leggere l'altro non è più possibile per distrazione.
+🔴 **Nessuna delle due asserzioni è stata cambiata**: cambiarne una sarebbe stato prendere la decisione
+qui, invece che da chi la possiede.
+
 ---
 
 ## 9. Dipendenze verso DIR-A
@@ -520,3 +585,144 @@ PIE, non significa packaged, e non chiude nessun gate che chieda una verifica um
 
 ⛔ **Restano fuori, e restano di DIR-A**: `PIE-HEXPLAY-*`, `G10`, `G13`, `PIE-V01-PLAYSPEED`. Una suite
 headless verde non è una partita guardata da qualcuno.
+
+---
+
+## 11. Seconda passata — 2026-08-28, `v0.2`
+
+> **Cosa è**: due delle domande che la prima passata ha lasciato aperte, chiuse con una misura. **Cosa non
+> è**: un secondo audit della lane — quello sta sopra e non è stato rifatto.
+
+| | |
+|---|---|
+| **HEAD di partenza** | `e9e45381` (`origin/main`, un merge oltre il `38e7dcfc` di #1547) |
+| **Worktree** | `D:/Repositories/wt-dir-c-v02` — path scelto per non collidere con lo schema di pulizia altrui |
+| **Branch** | `test/1550-orbita-geometria-e-parcheggio` |
+| **Issue** | [#1550](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1550) (C-1) · [#1551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1551) (C-2) |
+
+🔴 **Il clone condiviso ha morso di nuovo, e in due modi nuovi.** Fra il primo e il secondo comando del
+pre-flight un'altra sessione ha cambiato **branch** al checkout condiviso (`main` →
+`fix/1548-simboli-duplicati-unity`): due `git branch --show-current` a un minuto di distanza danno risposte
+diverse. E il motore è un **mutex globale**, quindi il worktree isola il checkout ma **non** la misura:
+`rt-suite.ps1` ha risposto **cinque volte `NON AVVIATA`** (tre per un Editor interattivo altrui, due per una
+run di automation altrui) e **una volta `NON VALIDA`** — quella era partita e un'altra run le è comparsa
+accanto, quindi i suoi numeri non sono registrabili e non sono stati usati. In più una build è stata respinta
+con `Unable to build while Live Coding is active`, dal `LiveCodingConsole` figlio di quell'Editor. **Nessun
+processo altrui è stato terminato.** Il costo è tempo d'attesa, e va messo in conto da chi pianifica una lane
+che misura: il pattern che funziona è un comando in background che attende il motore e **poi** lancia la
+misura nello stesso comando, così una mutazione di verifica non resta sul disco nella finestra fra «motore
+libero» e «run partita».
+
+### 11.1 C-1 — perché quella mutazione non si trova, e perché la ricerca resta aperta
+
+La domanda di §6.4/§6.5 ha una **spiegazione misurata**, e le due sezioni sono state corrette dove stanno
+invece che smentite qui. Il risultato in breve:
+
+- Il ciclo di #1287 si chiude solo se il filtro, dalla cella **cieca**, fa **arretrare**. Se manda avanti,
+  tornare indietro costa avvicinamento e nessun termine lo compensa da solo.
+- Su `MakeTestArena` il filtro non arretra **dai 4 MP in su**, e il profilo neutro ne porta 5; sulla mappa
+  d'autore arretra fino ai 7. La tabella per budget è in §6.4.
+- La causa strutturale: lì i muri bloccano la vista e **non il passo** (0 su 5), qui bloccano entrambi
+  (9 su 11).
+
+Le due misure sono in `RTBotStalemateProbeTests.cpp`, e non simulano partite.
+
+🔴 **E la prima conclusione di questa lane era troppo forte.** Sosteneva che un 2-ciclo non fosse formabile
+su *nessuna* board perché `ScorePlan` non legge `Context.Origin`. È falso — il facing d'arrivo lo rende
+dipendente dalla provenienza, con lo stesso peso di una cella di avvicinamento — ed è stato trovato in code
+review. La tesi è ritirata, la riga *«chi troverà una mutazione del bot la scriva in questa tabella»* è
+tornata dov'era, e ciò che resta è una spiegazione con il proprio limite scritto.
+
+⚠️ **Tre stesure del predicato, e le prime due sbagliate in modo diverso.** La prima contava una condizione
+necessaria che non discriminava fra le due board. La seconda modellava il punteggio con la sola distanza,
+dichiarava un tie-break che non aveva, e pubblicava come «coppie» delle somme sui sette budget — numeri più
+grandi delle coppie che la board possiede. La terza non modella il punteggio affatto: chiede solo se il
+filtro avvicini o allontani, che è l'unica cosa di cui il ciclo ha bisogno.
+
+### 11.2 C-2 — la divergenza è istruita, non risolta
+
+`BOT-STALL-1` in [`docs/OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), con quattro uscite e il costo di
+ciascuna; issue [#1551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1551). **Nessuna delle
+due asserzioni è stata toccata**: cambiarne una sarebbe stato prendere la decisione qui invece che da chi la
+possiede. Ciò che è cambiato sono i **commenti**, ora incrociati: da ciascuno dei due oracoli si arriva
+all'altro e all'istruttoria, e allinearli «per coerenza» non è più possibile per distrazione.
+
+⚠️ **Scritto in `docs/OPEN_DECISIONS.md`, che è fuori dal write-set dichiarato della lane.** È l'inbox che
+quel file dichiara di essere — *«l'elenco di ciò che aspetta una persona»* — e una voce **aperta** non
+chiude nulla; il Decision Log non è stato toccato. Chi possiede PDR-00 la sposti o la respinga.
+
+### 11.3 Verifica di mutazione — due livelli, e questa volta entrambi cadono
+
+**Soggetto (la board).** Reso il muro di `q=0` di `MakeTestArena` anche ostacolo al movimento
+(`bBlocksMovement = true`), con build e run complete. Passi indietro sull'arena generata, per budget:
+
+| | 2 | 3 | 4 | **5 (`Move`)** | 6 | 7 | **8** | esito |
+|---|---|---|---|---|---|---|---|---|
+| baseline — 0 su 5 muri bloccano il passo | 48 | 19 | 0 | **0** | 0 | 0 | **0** | ✅ |
+| muro anche ostacolo — 5 su 5 | 103 | 157 | 102 | **21** | 4 | 0 | **0** | 🔴 `Fail`, `EXIT CODE: -1` |
+
+Cadono **entrambe** le asserzioni che dovevano cadere: quella strutturale (*«nessuna di quelle celle blocca
+il passo»*, 5 invece di 0) e quella portante (*«col profilo neutro il filtro non fa mai arretrare»*, 21
+invece di 0). Il controfattuale sulla mappa d'autore **non si muove**, che è giusto: è un'altra board.
+⚠️ Cadono anche `StalemateProbeContendersAreNamed` e `StalemateProbeHeadlessMatchLosesContact`: collaterale
+atteso — cinque celle in meno cambiano la partita che quei due misurano.
+
+**Rilevatore (il predicato).** Disattivato il filtro, cioè facendo scegliere la cella più vicina *senza*
+chiedere che veda:
+
+| | arena generata (5 MP) | mappa d'autore (5 MP) | esito |
+|---|---|---|---|
+| predicato intero | **0** su 1470 | 104 su 1375 | ✅ ✅ |
+| filtro disattivato | 0 su 1470 | 28 su 1501 | 🔴 il **controfattuale** cade |
+
+🔴 **E cade sull'asserzione giusta: la coppia storica.** Senza il filtro la cella scelta è la più vicina in
+assoluto, e `(1,-1,L0) ↔ (3,-3,L1)` — l'orbita che #1287 ha misurato in partita — sparisce dalle coppie
+trovate. Il messaggio è letteralmente *«fra le coppie c'e' quella MISURATA da #1287 in partita»*. È
+l'asserzione che distingue «il predicato trova qualcosa» da «il predicato trova **quel** difetto».
+
+∴ **i due test si falsificano a vicenda i modi degeneri opposti**: un predicato che dicesse sempre «sì» fa
+cadere il gemello sull'arena generata (mutazione del soggetto), uno che perde il difetto vero fa cadere il
+controfattuale (mutazione del rilevatore). È la ragione per cui sono due e non uno.
+
+⚠️ **Mutazioni rimosse e binario RICOSTRUITO**, non solo il sorgente: `rt-suite.ps1` verifica che il binario
+non **cambi** durante la run, non che **corrisponda** al sorgente, e un `.dll` stantio dichiara `VALIDA`
+misurando codice che non esiste in nessun commit. `git status` pulito e binario riscritto dopo l'ultimo
+ripristino, entrambi verificati.
+
+### 11.4 Gate eseguiti, e come vanno letti
+
+Tutto misurato sul merge con `origin/main` a `dace4a50` (#1553), che nel frattempo era avanzato.
+
+| gate | esito |
+|---|---|
+| build `RefactorTacticsEditor` | ✅ `Result: Succeeded`, 0 errori |
+| suite intera | ✅ **`1354/1354 completati, 0 fallimenti`**, dichiarata `VALIDA` da `scripts/rt-suite.ps1` (`Found 1354 automation tests` · `TEST COMPLETE. EXIT CODE: 0`) |
+| `radar/generate.ts --check` | ✅ 4/4 eroi · 20 abilità |
+| `radar/catalog-code.ts` | ✅ le quattro fonti concordano |
+| `radar/doc-tables.ts --check` | ✅ tutte le righe hanno la larghezza delle sorelle |
+| `node --test` (in `tools/radar/`) | ✅ 82/82 |
+| `radar/doc-links.ts --check` | 🔴 **exit 1 — preesistente**: 1 link su 3769, `docs/research/design/hud/mock-elementi-hud-correzioni.md`. È lo stesso di §6.2, non è stato toccato |
+
+⚠️ **In una run precedente il conteggio era `1353 su 1354`, e va spiegato invece che dimenticato.** Il
+test mancante era `Vision.VisibleCellsRespectsSight`, l'**ultimo avviato**: la sua riga di conclusione era
+tagliata dalla coda di shutdown del `Quit`. `rt-suite.ps1` distingue quel caso da una troncatura e dichiara
+comunque `VALIDA`. Nella run finale, sulla stessa build, tutte e 1354 le righe di conclusione ci sono —
+quindi il `1353` era la coda del log, non un test che non gira.
+
+**«N eseguiti su M dichiarati», riconciliato a mano** (`D-181`): **1356** nomi `RefactorTactics.*` estratti da
+`Source/` e `Plugins/`, **1354** avviati e **1354** conclusi `Success`. La differenza è nominata ed è la stessa di #1547 —
+`RefactorTactics.h` (una stringa di `#include`) e `RefactorTactics.Probe.LatestRunDirectory` (uno
+**scenario ID** dentro `FRTScenarioLatestRunIsTheMostRecentTest`, non un test). ∴ **1354 su 1354.**
+
+🔴 **Una premessa della direttiva v0.2 non regge più, e va corretta dove sta.** `ScreenHud.ActionSlotHasIconSurface`
+è dato per «rosso preesistente, non è tuo». Su `e9e45381` e sul merge con `dace4a50` è **`Result={Success}`**:
+non c'è nessun rosso preesistente da scontare, e la suite è verde per intero.
+
+### 11.5 Cosa NON è stato fatto, e perché
+
+- **Non è stata cercata una quarta mutazione del bot.** La misura dice che il ciclo di #1287 non ha lì dove
+  chiudersi: continuare a cercarla sarebbe stato cercare qualcosa di cui si è appena misurata l'assenza.
+- **Non è stata presa la decisione di `BOT-STALL-1`.** L'uscita raccomandata `(c)` — esenzione condizionata
+  all'*avanzamento* — non è stata nemmeno prototipata: porta con sé una soglia nuova, e le soglie sono
+  materia di `D-184`.
+- **Il margine 4 su 4 resta un `AddWarning`**, per la ragione già scritta in §6.7.
