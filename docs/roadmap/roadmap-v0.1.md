@@ -1454,6 +1454,12 @@ Decisione: [D-031](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-08), da
 definisce dodici categorie: Identity, Action, Phase, Environment, Map/Interaction, Status, Information,
 Reaction, Coordination, Certainty, Warning, Objective.
 
+> ⚠️ **La Skill Card Grammar ([D-231](../decisions/RT_PDR_00_Decision_Log.md)) NON aggiunge scope a E20.**
+> Descrive come una card è **composta**; E20 possiede il minimo v0.1 del **catalogo**, e le dodici categorie
+> non cambiano. Owner: [`../technical/systems/spec-icon-card-grammar.md`](../technical/systems/spec-icon-card-grammar.md).
+> Chi produce le icone della v0.1 ne applica i vincoli percettivi (silhouette prima del colore); `RequiredIconIds()`
+> resta la sola sorgente delle chiavi.
+
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
 | **20.1** ✅ | `URTIconCatalogData` | Le icone si risolvono per **chiave semantica** stabile (`UI.Icon.Status.Wet`, `UI.Icon.Phase.Blast`). Una chiave senza icona è un errore di validazione, non un widget vuoto; una chiave sconosciuta a runtime dà il missing-icon e una warning, mai il vuoto. L'insieme richiesto è **derivato dai dati di gioco** — tag `Status.*`, azioni core, fasi volontarie — non da una lista a mano | `IconCatalog.EveryKeyResolves`, `…MissingKeyIsValidationError`, `…UnknownKeyReturnsFallback`, `…DuplicateIdIsValidationError`, `…RequiredIdsFollowGameData` |
