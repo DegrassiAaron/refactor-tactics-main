@@ -223,6 +223,7 @@ nascosta. La premessa non vuota (`LogEventCount`) è già asserita. Nulla da agg
 
 ```text
 A  Source/RefactorTactics/Tests/RTOrbitProbeForTest.h
+A  Source/RefactorTactics/Tests/RTOrbitProbeTests.cpp
 M  Source/RefactorTactics/Tests/RTMatchAutobattleTests.cpp
 M  Source/RefactorTactics/Tests/RTAuthoredMapEngagementTests.cpp
 A  docs/roadmap/plans/dir-c-qa-scenario-bot-autobattle-handoff-2026-08-28.md
@@ -231,7 +232,7 @@ A  docs/roadmap/plans/dir-c-qa-scenario-bot-autobattle-handoff-2026-08-28.md
 Nessun file di DIR-B (`Bot/` escluso, resolver, reaction core, objective core) e nessuno di DIR-A
 (`Content/`, UI, mappe, UMG) è stato toccato. Nessuno scenario `.json` creato o modificato.
 
-**Branch**: `test/dir-c-qa-scenario-bot-autobattle`, **non pushato**. I due commit che portano codice:
+**Branch**: `test/dir-c-qa-scenario-bot-autobattle`, pushato — **PR [#1547](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1547)** verso `main`. I commit che portano codice:
 
 | SHA | messaggio |
 |---|---|
@@ -244,11 +245,6 @@ segnala altrove.
 
 ⚠️ **`Source/RefactorTactics/Bot/` è byte-identico a `ad7f212b`**: verificato con
 `git diff ad7f212b -- Source/RefactorTactics/Bot/`, vuoto. Le mutazioni di §6.4 non sono sopravvissute.
-
----|---|
-| `9280b16f` | `test(autobattle): la configurazione spedita non aveva oracolo per l'oscillazione, e il commento lo diceva` |
-| `f689f217` | `docs(dir-c): l'handoff della lane QA, e il difetto vivo che la direttiva cercava era gia' chiuso due volte` |
-| `03d4157b` | `docs(dir-c): l'handoff diceva «nessun test eseguito», e nel frattempo ne aveva eseguiti sei` |
 
 ---
 
@@ -381,12 +377,47 @@ anti-parcheggio sul filo: sequenza 4 su soglia 4, margine 0
 ⚠️ **Warning e non asserzione, deliberatamente**: un margine sottile non è un difetto, e asserirlo
 introdurrebbe di lato una soglia che `D-184` non ha deciso.
 
-### 6.5 Cosa resta misura statica
+### 6.9 La code review, e cosa ha trovato
+
+Un giro a effort alto sulla PR. **Dodici rilievi: undici accolti, uno declinato.** Due erano gravi, ed
+erano miei.
+
+| # | rilievo | esito |
+|---|---|---|
+| 1 | il nuovo punto di campionamento non verifica `IsResolving()` dopo il tetto di 400 tick — viola la precondizione che la PR stessa scrive sulla sonda, e che il test gemello applica | ✅ guardia aggiunta |
+| 2 | **due commenti aggiunti dalla PR ripetono la falsità che la PR dichiara di aver corretto** sulle chiavi condivise, e il suo stesso nuovo test li smentisce | ✅ riscritti |
+| 3 | `MinTurnsToFalsify = 6` ha una giustificazione **aritmeticamente sbagliata**: con `N` campioni il massimo è `N-2` contro un limite `max(1, N/3)`, quindi è falsificabile **da 4** | ✅ portato a 4, con la minimalità pinnata da un test |
+| 4 | i due chiamanti divergono sulla politica della premessa (asserisce/avverte) | ✅ documentata come scelta, non come deriva |
+| 5 | correggere l'`else` ha reso **saltabile** l'anti-parcheggio: con l'altra rinuncia il test può passare verde senza misurare lo stato assorbente in nessuna forma | ✅ asserzione «almeno una forma è stata misurata» |
+| 6 | l'intestazione del nuovo file contraddice la conclusione corretta in §6.5 | ✅ riscritta |
+| 7 | l'handoff dichiarava «nessuna automation è stata eseguita» mentre §6.3 la riporta | ✅ |
+| 8 | frammento di tabella orfano con SHA in conflitto — e `doc-tables` **non può vederlo**, perché guarda solo le righe che iniziano con una pipe | ✅ rimosso |
+| 9 | l'elenco dei file omette `RTOrbitProbeTests.cpp`, e «non pushato» era falso | ✅ |
+| 10 | due sezioni numerate `### 6.5` | ✅ rinumerate |
+| 11 | tre `TMap` paralleli invece di una `TMap<int32, FEntry>` | ⛔ **declinato** |
+| 12 | il warning sul margine sparava anche a oracolo già rosso, stampando un margine negativo | ✅ guardia `>= 0` |
+
+⛔ **Perché il rilievo 11 è declinato.** È corretto che una `TMap` sola renderebbe strutturale l'invariante
+«`Penultima` vale solo se `Ultima` esiste», oggi tenuto da un `if (Prev)`. Ma la sonda ha appena acquisito
+cinque test che pinnano il comportamento e due verifiche di mutazione: riscriverne la forma interna adesso
+scambia una prova appena costruita con un'eleganza, e il guadagno — un `Find` invece di cinque, su quattro
+unità per turno — non è misurabile in una suite che gira in novanta secondi. Resta un buon lavoro per chi
+toccherà la sonda per il periodo tre, quando la forma dovrà cambiare comunque.
+
+💡 **E un errore di processo, registrato perché non si ripeta.** Per rimuovere la mutazione di verifica ho
+usato `git checkout -- <file>` su un file che portava **anche** correzioni non committate, e le ho perse
+insieme alla mutazione. La regola che ne esce: **committare le correzioni prima di mutare**, oppure mutare
+un file diverso da quello che si sta modificando.
+
+### 6.8 Cosa resta misura statica
 
 Inventario di scenari, test e golden; registro delle capability; verifica che il fix di #1088 e quello di
 `D-185` siano su `HEAD`; ancestralità di `f3d0ffa3`.
 
-⛔ **Nessun gate di release è dichiarato verde da DIR-C, e nessuna automation è stata eseguita.**
+⛔ **Nessun gate di RELEASE è dichiarato verde da DIR-C.** L'automation headless è stata eseguita (§6.3–§6.5),
+e questa riga diceva il contrario: era la stesura pre-deroga, rimasta dopo che §6.3 la superava. Ciò che
+resta vero è il resto — una suite verde non è una partita guardata da qualcuno, e `PIE-HEXPLAY-*`, `G10`,
+`G13`, `PIE-V01-PLAYSPEED` restano verifiche umane di DIR-A.
 
 ---
 

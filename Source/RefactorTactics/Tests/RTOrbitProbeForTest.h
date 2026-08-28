@@ -73,11 +73,32 @@ struct FRTOrbitProbe
 	}
 
 	/**
-	 * Sotto questa durata l'oracolo non puo' cadere, e un verde non direbbe niente: il primo ritorno e'
-	 * osservabile dal terzo turno, quindi con meno di sei turni la soglia non e' esercitabile. La premessa
-	 * va ASSERITA dal chiamante, non sperata.
+	 * Sotto questa durata l'oracolo non puo' cadere, e un verde non direbbe niente.
+	 *
+	 * 🔴 **Il numero e' 4, e la prima stesura diceva 6 con un'aritmetica sbagliata.** Sosteneva che «il primo
+	 * ritorno e' osservabile dal terzo turno, quindi con meno di sei turni la soglia non e' esercitabile»:
+	 * il primo dato e' giusto, la conclusione no. Con `N` campioni il massimo dei ritorni osservabili e'
+	 * `N - 2`, e il limite e' `max(1, N / 3)`:
+	 *
+	 *     N = 3   ->  max 1  contro limite 1   -> NON falsificabile
+	 *     N = 4   ->  max 2  contro limite 1   -> falsificabile
+	 *     N = 5   ->  max 3  contro limite 1   -> falsificabile
+	 *
+	 * ⚠️ **E il 6 non era prudenza gratuita, faceva danno.** Il chiamante che ASSERISCE la premessa —
+	 * `NobodyOscillatesOnTheAuthoredMap` — va rosso quando la partita finisce prima, con un messaggio che
+	 * dice «la partita non e' durata abbastanza». Cioe' un rosso per il bot che decide PRIMA, che e'
+	 * esattamente il miglioramento che #1287/#1296 ed E47.1 esistono per produrre — lo stesso difetto che
+	 * `RTMatchAutobattleTests.cpp` ha gia' documentato sulla propria soglia sorella. Pinnato da
+	 * `Meta.OrbitProbeThresholdFollowsTheTurns`, che verifica anche la MINIMALITA': a 3 non e' esercitabile,
+	 * a 4 si'. Verificato per mutazione: rimettendo 6, quel test cade.
+	 *
+	 * ⚠️ **La premessa e' del chiamante, e le due politiche legittime sono due.** Chi ha l'oscillazione come
+	 * UNICA asserzione la assicura e si ferma — senza turni a sufficienza quel test non misura niente.
+	 * Chi la affianca ad altre asserzioni (combattimento, primo colpo, parcheggio) avverte e prosegue,
+	 * perche' fermarsi butterebbe via le misure che restano valide. Non e' una divergenza accidentale: e'
+	 * la stessa domanda con due risposte giuste, e il chiamante deve sceglierne una in modo esplicito.
 	 */
-	static constexpr int32 MinTurnsToFalsify = 6;
+	static constexpr int32 MinTurnsToFalsify = 4;
 
 private:
 	TMap<int32, FRTCellId> Ultima;

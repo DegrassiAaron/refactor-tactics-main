@@ -4,10 +4,15 @@
 // `Match.Autobattle.EngagesOnTheGeneratedTestArena` — e fino a questo file la sua correttezza era provata
 // solo **di rimbalzo**: una mutazione del bot faceva cadere il primo, quindi il rilevatore «funzionava».
 //
-// 🔴 **Quella prova non basta, e la ragione sta scritta nell'altro oracolo**: sull'arena generata nessuna
-// delle tre mutazioni provate il 2026-08-28 lo fa cadere, quindi li' il rilevatore non e' esercitato da
-// nessuna misura. Un rilevatore che spara solo su una board e' indistinguibile da uno rotto, se l'unica
-// prova che si ha e' quella board.
+// 🔴 **Quella prova non basta**, e la ragione non e' che il rilevatore sia inerte altrove — misurato il
+// 2026-08-28, togliere `*Prev != Cell` da `Observe` fa cadere anche `EngagesOnTheGeneratedTestArena`, quindi
+// entrambi gli oracoli lo esercitano. E' che una prova di rimbalzo dice «qualcosa e' cambiato», non **cosa**:
+// un rilevatore che contasse la meta' dei ritorni, o che contasse anche il parcheggio, farebbe cadere quegli
+// stessi test e nessuno saprebbe distinguere il difetto dalla correzione.
+//
+// ⚠️ Cio' che resta davvero non dimostrato e' un percorso di COMPORTAMENTO sull'arena generata: nessuna delle
+// tre mutazioni del BOT provate quel giorno vi produce un'orbita vera. E' scritto in
+// `RTMatchAutobattleTests.cpp`, accanto all'asserzione, e non e' quello che questo file va a coprire.
 //
 // Qui le sequenze sono SINTETICHE: niente bot, niente mappa, niente turni. Si scrive la storia di celle e
 // si controlla il numero. E' l'unico posto in cui «conta le alternanze e non i percorsi» e' un'affermazione
@@ -185,6 +190,17 @@ bool FRTOrbitProbeThresholdFollowsTheTurnsTest::RunTest(const FString&)
 		TEXT("con %d turni un'oscillazione totale (%d ritorni) supera la soglia (%d)"),
 		Minimo, MassimoOsservabile, FRTOrbitProbe::LimitForTurns(Minimo)),
 		MassimoOsservabile > FRTOrbitProbe::LimitForTurns(Minimo));
+
+	// 🔴 **E la MINIMALITA', che e' la meta' mancata dalla prima stesura.** Verificare solo che la premessa
+	// funzioni AL valore scelto lascia passare qualunque numero piu' grande — ed e' cosi' che il 6 iniziale,
+	// aritmeticamente sbagliato, e' stato pinnato senza che nessuno se ne accorgesse. Un minimo troppo alto
+	// non e' prudenza: fa andare rosso il chiamante che ASSERISCE la premessa quando la partita finisce
+	// prima, cioe' punisce il bot che decide in fretta.
+	const int32 SottoIlMinimo = Minimo - 1;
+	TestFalse(FString::Printf(
+		TEXT("a %d turni la soglia NON e' esercitabile (%d ritorni al massimo contro limite %d): %d e' minimale"),
+		SottoIlMinimo, SottoIlMinimo - 2, FRTOrbitProbe::LimitForTurns(SottoIlMinimo), Minimo),
+		(SottoIlMinimo - 2) > FRTOrbitProbe::LimitForTurns(SottoIlMinimo));
 
 	return true;
 }
