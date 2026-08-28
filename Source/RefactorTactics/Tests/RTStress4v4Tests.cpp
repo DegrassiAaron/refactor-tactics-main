@@ -127,17 +127,6 @@ namespace
 		return Cells;
 	}
 
-	/** Un turno completo: pianificazione dei bot, risoluzione e playback fino in fondo. */
-	void PlayStressTurn(ARTTurnManager* TM)
-	{
-		TM->PlanBotsForTest();
-		TM->LockInAndResolve();
-		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
-		{
-			TM->Tick(0.05f);
-		}
-	}
-
 	/** Le unita' vive del mondo, in ordine di `StableUnitId` (mai l'ordine di `GetAllActorsOfClass`). */
 	TArray<ARTUnit*> StressUnits(UWorld* World, bool bOnlyAlive)
 	{
@@ -209,7 +198,7 @@ bool FRTStressCoreRoster4v4CompletesTest::RunTest(const FString&)
 	int32 TurnsPlayed = 0;
 	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && TurnsPlayed < MaxTurns)
 	{
-		PlayStressTurn(TM);
+		RTWorldFixtures::PlayOneTurn(TM);
 		++TurnsPlayed;
 
 		TSet<FRTCellId> Occupied;
@@ -277,7 +266,7 @@ bool FRTStressNoTeamSizeAssumptionTest::RunTest(const FString&)
 		TestEqual(FString::Printf(TEXT("%dv%d: allestite %d unita'"), PerTeam, PerTeam, Expected),
 			StressUnits(World, /*bOnlyAlive=*/ true).Num(), Expected);
 
-		PlayStressTurn(TM);
+		RTWorldFixtures::PlayOneTurn(TM);
 
 		// Gli id stabili sono assegnati dalla prima risoluzione in poi: raccoglierli PRIMA darebbe tutti `0`.
 		TSet<int32> AliveIds;
@@ -353,7 +342,7 @@ bool FRTStressReplayDivergenceZeroAt4v4Test::RunTest(const FString&)
 
 		while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Run.Turns < 60)
 		{
-			PlayStressTurn(TM);
+			RTWorldFixtures::PlayOneTurn(TM);
 			++Run.Turns;
 			// Il TurnLog e' per turno (`TurnLog.Reset()` a inizio risoluzione): l'hash si prende subito, o
 			// il turno successivo lo cancella.

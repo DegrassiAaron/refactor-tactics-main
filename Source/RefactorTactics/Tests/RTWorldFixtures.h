@@ -4,6 +4,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
+#include "Turn/RTTurnManager.h"
 
 /**
  * IL MONDO DI PROVA DEI TEST, dichiarato una volta invece che quarantatre'.
@@ -96,6 +97,38 @@ namespace RTWorldFixtures
 			GEngine->DestroyWorldContext(World);
 		}
 		World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	}
+
+	/**
+	 * Un turno completo sul percorso reale: pianificazione dei bot, risoluzione, playback fino in fondo.
+	 *
+	 * Misurato prima di questa estrazione: **otto** file dichiaravano questo corpo, byte per byte identico.
+	 * Tre lo chiamavano `PlayOneTurn` e collidevano davvero; gli altri cinque avevano gia' un nome
+	 * distinto — `PlayOnePacingTurn`, `PlayOneOccupancyTurn`, `PlayOneRecTurn`, `PlayOneShowcaseTurn`,
+	 * `PlayStressTurn` — proprio per schivare la collisione, e `RTPacingIntegrationTests` la descriveva
+	 * per esteso nel proprio commento. E' la difesa locale corretta e non toglie una riga di duplicazione:
+	 * otto copie della stessa funzione con otto nomi (#1548, stessa famiglia di #1530).
+	 *
+	 * ⚠️ **Cercarle per NOME ne trovava sette.** L'ottava, `PlayStressTurn`, non contiene «PlayOne» e non
+	 * compariva in nessun grep sul nome: e' emersa cercando il CORPO. Un elenco di omonimi non e' un elenco
+	 * di duplicati.
+	 *
+	 * ⚠️ **Le 400 iterazioni sono un tetto, non un'attesa.** Il ciclo esce appena `IsResolving()` e' falso;
+	 * il limite esiste perche' un turno che non chiude mai deve far fallire il test invece di appendere la
+	 * suite. Se un test ci sbatte contro, il difetto e' nella risoluzione, non in questo numero.
+	 *
+	 * ⚠️ **Il passo di 0,05 s non decide nulla di competitivo** (guardrail: niente `DeltaTime` nel
+	 * sequencing). Serve solo a far avanzare il playback della presentazione, che e' cio' che `Tick`
+	 * consuma; l'esito logico del turno lo ha gia' fissato `LockInAndResolve`.
+	 */
+	inline void PlayOneTurn(ARTTurnManager* TM)
+	{
+		TM->PlanBotsForTest();
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
 	}
 
 	/**
