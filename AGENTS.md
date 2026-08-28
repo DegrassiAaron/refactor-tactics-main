@@ -332,6 +332,13 @@ letto un file cambiato a run iniziata; due suite morte a **641/1175** e **662/11
 invece di ricordarseli. Da **PowerShell**: Git Bash traduce gli argomenti che iniziano con `/` e
 l'harness non parte nemmeno.
 
+Quando il motore è occupato da un'altra sessione lo script esce `2` in un istante: **`-WaitMinutes 40`**
+aspetta che si liberi e parte da sola, ridichiarando `HEAD`, albero e binario al risveglio. ⛔ Dopo un'attesa
+lunga **ricompila**: si riparte quando un'altra sessione libera il motore, e il DLL sul disco è quello che ha
+lasciato lei. Non scrivere il ciclo di
+attesa accanto allo script — la condizione di rilascio la conosce lui, e una copia scritta a mano che
+guardasse il solo `UnrealEditor-Cmd` lascerebbe passare un editor interattivo.
+
 ⚠️ **I worktree non sono la via d'uscita**: il mutex Live Coding è globale sull'eseguibile del motore,
 quindi due run di automation si uccidono a vicenda anche da checkout diversi. Isolare il disco
 lascerebbe scoperta proprio la collisione più silenziosa.
