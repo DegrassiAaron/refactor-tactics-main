@@ -12,6 +12,26 @@ FRTTeamKnowledge URTTeamKnowledgeLibrary::Observe(const URTHexMapAsset* Map, int
 	Out.TurnNumber = TurnNumber;
 	Out.VisibleCells = URTPerceptionLibrary::TeamVisibleCells(Map, Observers);
 
+	// Il terreno esplorato ACCUMULA ([D-227]): cio' che si vede ora, piu' tutto cio' che si e' gia' visto.
+	//
+	// ⚠️ Nessun controllo di scadenza, ed e' la differenza con i contatti sotto: il terreno non si muove,
+	// quindi non c'e' niente che invecchi. La guardia sulla versione e' la stessa dei contatti — una
+	// `Previous` illeggibile non concede nemmeno la geometria, e la mappa si richiude — ma qui il ramo e'
+	// separato perche' le due memorie condividono la guardia, non la legge.
+	TSet<FRTCellId> Explored(Out.VisibleCells);
+	if (Previous.Version == FRTTeamKnowledge::CurrentVersion)
+	{
+		// `Append` prende gia' una vista sull'array: costruire un `TSet` temporaneo solo per riversarlo qui
+		// costerebbe una seconda tabella hash da 7 651 elementi, per squadra e due volte per turno, su un
+		// campo che per dichiarazione cresce in modo monotono.
+		Explored.Append(Previous.ExploredCells);
+	}
+	Out.ExploredCells = Explored.Array();
+	// Stesso comparatore di `TeamVisibleCells`, per la stessa ragione: l'ordine di un `TSet` dipende
+	// dall'hash e dall'inserimento, e questa memoria entra nello snapshot — due tracce divergerebbero
+	// senza che nessuna asserzione lo dica (invariante #3).
+	Out.ExploredCells.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
+
 	// Ricerca per cella su un TSet: l'appartenenza e' una domanda puntuale e ripetuta una volta per nemico.
 	// L'insieme NON viene mai iterato — il suo ordine dipenderebbe dall'hash, e l'ordine dell'output lo
 	// decide il Sort finale su `StableUnitId`.

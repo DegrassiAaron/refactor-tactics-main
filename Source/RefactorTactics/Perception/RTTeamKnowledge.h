@@ -61,7 +61,7 @@ struct FRTTeamKnowledge
 	 * Versione del FORMATO, non del contenuto. Si incrementa quando cambia la forma della struttura, e chi
 	 * rilegge una traccia con una versione che non conosce deve rifiutarla, non indovinarla.
 	 */
-	static constexpr int32 CurrentVersion = 1;
+	static constexpr int32 CurrentVersion = 2;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Perception")
 	int32 Version = CurrentVersion;
@@ -77,6 +77,24 @@ struct FRTTeamKnowledge
 	/** Cio' che la squadra VEDE ora, in ordine stabile: l'unione dei suoi osservatori. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Perception")
 	TArray<FRTCellId> VisibleCells;
+
+	/**
+	 * Il terreno che la squadra ha GIA' VISTO almeno una volta, ordinato con `URTHexLibrary::StableLess`
+	 * ([D-227]). E' un sovrainsieme di `VisibleCells`, e la differenza fra i due e' esattamente cio' che il
+	 * velo di `#1467` disegna in penombra invece che nascondere.
+	 *
+	 * ⚠️ **Non scade, e l'asimmetria con `Contacts` e' deliberata.** Un contatto vive
+	 * `ContactLifetimeTurns` turni perche' **l'unita' si muove**: un ricordo che gli sopravvivesse sarebbe la
+	 * vista sotto mentite spoglie. Il terreno non si muove — dimenticarlo sarebbe una regola nuova, non una
+	 * conseguenza. Dare a questo campo la scadenza dei contatti e' la simmetria che viene naturale scrivere,
+	 * ed e' il difetto che `Perception.KnowledgeRemembersExploredCells` esiste per prendere.
+	 *
+	 * ⛔ **Cresce in modo monotono**, fino alle 7 651 celle dell'arena di raggio 50 e per squadra, e
+	 * viaggia in ogni snapshot perche' `FRTTeamKnowledge` sta in `FRTHexSim`. Il costo e' **accettato** in
+	 * [D-227]: se diventasse misurabile la risposta e' una rappresentazione compressa, **mai** una scadenza.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Perception")
+	TArray<FRTCellId> ExploredCells;
 
 	/** I ricordi vivi, ordinati per `StableUnitId` (ordine stabile, mai quello di scoperta). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Perception")
