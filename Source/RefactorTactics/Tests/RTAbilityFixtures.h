@@ -40,7 +40,7 @@
  *
  * ## Percio' questa versione non inventa niente: e' l'idioma della produzione
  *
- * Le stesse quattro righe di `URTCatalogLibrary::MakeGenericActions` e di `MakeEquipmentAction`. Un test che
+ * Le stesse righe di `URTCatalogLibrary::MakeGenericActions` e di `MakeEquipmentAction`. Un test che
  * costruisce l'azione diversamente da come la costruisce il gioco misura un oggetto che in partita non
  * esiste.
  */
@@ -50,10 +50,15 @@ namespace RTAbilityFixtures
 	 * Da' all'unita' un'azione del catalogo generico e ne restituisce l'indice; `INDEX_NONE` se l'unita' e'
 	 * nulla.
 	 *
-	 * ⚠️ I campi SPECCHIO (`RangeCells`, `Power`, `bSelfTarget`) si copiano dal `Def` perche' `URTActionData`
-	 * li ha ai default legacy dell'MVP quadrato — portata 5 e potenza 30 — e `ARTTurnManager` legge ancora
-	 * quelli e non il `Def`. Senza la copia, `Action.Wait` entrerebbe nel kit come un colpo da 30 a
-	 * distanza 5.
+	 * ⚠️ I campi SPECCHIO — `RangeCells`, `Power`, `bSelfTarget`, `CooldownTurns` — si copiano dal `Def`
+	 * perche' `URTActionData` li ha ai default legacy dell'MVP quadrato (portata 5, potenza 30, ricarica 0)
+	 * e `ARTTurnManager` legge ancora quelli e non il `Def`. Senza la copia, `Action.Wait` entrerebbe nel
+	 * kit come un colpo da 30 a distanza 5.
+	 *
+	 * 🔴 **La ricarica e' arrivata dopo, e per un difetto vero** (#1552): `MakeGenericActions` non la
+	 * copiava, quindi `Action.Brace` — `Cooldown 1` nel catalogo — era riarmabile ogni turno da ogni eroe.
+	 * Corretta in produzione, e qui di conseguenza: una fixture che dichiara di seguire l'idioma di
+	 * produzione e ne segue una versione vecchia costruisce un oggetto che in partita non esiste piu'.
 	 */
 	inline int32 AddCoreAbility(ARTUnit* Unit, const TCHAR* ActionId)
 	{
@@ -65,6 +70,7 @@ namespace RTAbilityFixtures
 		Action->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
 		Action->RangeCells = Action->Def.RangeCells;
 		Action->bSelfTarget = Action->Def.bSelfTarget;
+		Action->CooldownTurns = Action->Def.CooldownTurns;
 		Action->Power = 0;
 		for (const FRTActionEffectSpec& Spec : Action->Def.Effects)
 		{

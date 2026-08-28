@@ -1756,6 +1756,13 @@ TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
 		// 0 e di danno nessuno, fra le candidate d'ATTACCO come un colpo da 30 a distanza 5.
 		Action->RangeCells = Def.RangeCells;
 		Action->bSelfTarget = Def.bSelfTarget;
+		// 🔴 La RICARICA mancava, e non era un dettaglio di test (#1552). `ConsumeAbility` legge questo
+		// specchio e non il `Def`: con lo zero di default non scriveva niente in `AbilityCooldowns`,
+		// `CanUseAbility` rispondeva sempre `true`, e `Action.Brace` — che il catalogo dichiara con
+		// `Cooldown 1` — era riarmabile ogni turno da OGNI eroe del roster, perche' le generiche si
+		// accodano al kit di tutti. Gli altri tre costruttori la copiavano gia' (`MakeHeroAction`,
+		// `MakeEquipmentAction`, l'attacco base): questo era l'unico che non lo faceva.
+		Action->CooldownTurns = Def.CooldownTurns;
 		Action->Power = 0;
 		for (const FRTActionEffectSpec& Spec : Def.Effects)
 		{
