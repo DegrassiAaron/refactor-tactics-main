@@ -327,33 +327,52 @@ Tre mutazioni cumulative che ricostruiscono lo stato pre-#1296, ognuna con build
 contatore va a **zero**: su quella geometria non si è trovato un comportamento del bot che produca
 un'orbita di periodo due.
 
-✅ **Chiuso il 2026-08-28, e non con una quarta mutazione: non manca la mutazione, manca la board**
-([#1550](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1550)). Il 2-ciclo di #1287 chiede
-**due** passi, e su `MakeTestArena` il secondo non si verifica mai. Il punteggio non legge `Context.Origin`
-e il tie-break di `ChooseBestPlan` fa vincere il restare, quindi `A → B` chiede `punteggio(B) >
-punteggio(A)` e `B → A` chiede l'opposto: **con il dominio intero un 2-ciclo non è formabile su nessuna
-board**. A renderlo formabile era il filtro di #1287, che *toglie l'origine dalle candidate* quando è cieca.
-Il ciclo è perciò la congiunzione di «dalla cieca il filtro manda su `B`» e «da `B` il dominio intero
-riporta sulla cieca» — e su quell'arena il muro di `q=0` blocca la vista e **non il passo**, quindi la cella
-del muro è insieme la più vicina al bersaglio **e** una cella che vede: dalla cieca il filtro manda avanti,
-non indietro.
+🔵 **Spiegato il 2026-08-28, e la ricerca NON è chiusa**
+([#1550](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1550)). Il ciclo di #1287 può
+chiudersi solo se il filtro sul dominio, dalla cella **cieca**, fa **arretrare**: manda su una cella che
+vede ma più *lontana* dal bersaglio. Se manda avanti, tornare indietro significa allontanarsi, e qualunque
+termine di avvicinamento lo penalizza. Su `MakeTestArena` il muro di `q=0` blocca la vista e **non il
+passo**, e `HasLineOfSight` esclude gli estremi dalla regola per-cella: la cella del muro è insieme la più
+vicina al bersaglio **e** una cella che vede. Sulla mappa d'autore l'ostacolo centrale blocca vista **e**
+passo, e lì la cella che vede sta dietro.
 
-| board | cicli chiusi | coppie (cieca, bersaglio) | muri che bloccano anche il passo |
-|---|---|---|---|
-| `MakeTestArena` | **0** | 9510 | **0** su 5 |
-| `DA_HexMap_Arena` | 34 | 8451 | 9 su 11 |
+Passi indietro su coppie `(cella cieca, bersaglio)` esaminate, **per budget di movimento** — non sommati:
 
-🔴 **E il controfattuale ritrova l'orbita STORICA.** Fra le 9 coppie distinte della mappa d'autore c'è
+| board | 2 MP | 3 MP | 4 MP | **5 MP (`Move`)** | 6 MP | 7 MP | **8 MP (`Sprint`)** | primo budget pulito |
+|---|---|---|---|---|---|---|---|---|
+| `MakeTestArena` — 0 su 5 muri bloccano anche il passo | 48 | 19 | 0 | **0** | 0 | 0 | **0** | **4 MP** |
+| `DA_HexMap_Arena` — 9 su 11 | 154 | 162 | 170 | **104** | 38 | 9 | 0 | **8 MP** |
+
+∴ le due board si distinguono per **dove cade la soglia**, e il profilo neutro (`MovementMode.Move`, 5 MP)
+cade sui due lati opposti. ⚠️ **A 2 e 3 MP il passo indietro esiste anche sull'arena generata**, ed è
+dichiarato nel test: il 2 è il ripiegamento che *«non si sceglie: lo impone l'Overwatch»* (`D-070`), e
+un'orbita sostenuta chiede lo stesso budget a ogni turno — ma è un argomento, non una misura.
+
+🔴 **E il controfattuale ritrova l'orbita STORICA.** Fra le coppie distinte della mappa d'autore c'è
 `(1,-1,L0) ↔ (3,-3,L1)` — esattamente quella che #1287 ha misurato in partita, trovata da un predicato che
 di quella misura non sa nulla. È ciò che distingue una misura da un modello plausibile, ed è asserito.
 
-Le due misure sono `Bot.StalemateProbeGeneratedArenaClosesNoOrbitCycle` e
-`Bot.StalemateProbeAuthoredMapClosesTheOrbitCycle`, in `RTBotStalemateProbeTests.cpp`.
+Le due misure sono `Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack` e
+`Bot.StalemateProbeAuthoredMapFilterStepsBack`, in `RTBotStalemateProbeTests.cpp`.
 
-⚠️ **La prima stesura di quel predicato era sbagliata, e va detto.** Contava solo il PRIMO passo — «esiste
-una cella cieca più vicina in linea d'aria di ogni cella che vede» — che è una condizione *necessaria*: dava
-127 coppie sull'arena generata contro 230 sulla mappa d'autore, cioè un controfattuale che non discriminava.
-A essere sbagliato era il predicato, non la board.
+🔴 **Ciò che questa spiegazione NON è: una dimostrazione di impossibilità — e una stesura precedente di
+questa sezione lo sosteneva.** Diceva che `ScorePlan` non legge `Context.Origin`, quindi `A → B` e `B → A`
+chiedono disuguaglianze opposte e il 2-ciclo non sarebbe formabile su nessuna board. **È falso**, ed è caduto
+in code review: il punteggio dipende dalla provenienza attraverso il **facing d'arrivo** —
+`RTHexBotLibrary.cpp` sottrae `WDamage × max(0, CoperturaQui − CoperturaTenuta)`, e con
+`WDamage == WApproach == 10` un punto di copertura vale esattamente una cella di avvicinamento. La tesi è
+ritirata, e con lei la parola «chiuso».
+
+⚠️ **Quindi la riga della tabella resta aperta, e vale ancora**: chi troverà una mutazione del **bot** che fa
+cadere quell'asserzione la scriva lì — e con lei cade questa spiegazione. Ciò che è cambiato non è che la
+ricerca sia finita: è che ora si sa **dove** guardare — a un termine che paghi l'arretramento da solo, o a un
+budget di movimento sotto i 4 MP.
+
+⚠️ **Due stesure sbagliate del predicato, prima di questa, e vanno dette.** La prima contava una condizione
+*necessaria* diversa e dava un numero positivo su entrambe le board — un controfattuale che non discriminava.
+La seconda modellava il punteggio con la sola distanza, dichiarava «lo stesso tie-break di `ChooseBestPlan`»
+mentre risolveva le parità di quota **al contrario**, e pubblicava come «coppie» delle **somme sui sette
+budget**: 9510 su una board che ne ha al massimo 62×61 = 3782. Entrambe trovate in code review.
 
 ### 6.5 Mutazione del RILEVATORE — ✅ e corregge in meglio la riga qui sopra
 
@@ -594,27 +613,31 @@ che misura: il pattern che funziona è un comando in background che attende il m
 misura nello stesso comando, così una mutazione di verifica non resta sul disco nella finestra fra «motore
 libero» e «run partita».
 
-### 11.1 C-1 — il percorso di comportamento non manca per difetto di ricerca: non esiste su quella board
+### 11.1 C-1 — perché quella mutazione non si trova, e perché la ricerca resta aperta
 
-La domanda aperta di §6.4/§6.5 è chiusa, e **le due sezioni sono state corrette dove stanno** invece che
-smentite qui. Il risultato in breve:
+La domanda di §6.4/§6.5 ha una **spiegazione misurata**, e le due sezioni sono state corrette dove stanno
+invece che smentite qui. Il risultato in breve:
 
-- Il 2-ciclo di #1287 chiede **due** passi, e su `MakeTestArena` il secondo non si verifica mai.
-- `ScorePlan` non legge `Context.Origin`, e il tie-break di `ChooseBestPlan` fa vincere il restare: `A → B`
-  chiede `punteggio(B) > punteggio(A)` e `B → A` chiede l'opposto. **Con il dominio intero un 2-ciclo non è
-  formabile su nessuna board** — a renderlo formabile era il filtro di #1287, che *toglie l'origine dalle
-  candidate* quando è cieca.
-- Su quell'arena il muro di `q=0` blocca la vista e **non il passo**, e `HasLineOfSight` esclude gli estremi
-  dalla regola per-cella: la cella del muro è insieme la più vicina al bersaglio **e** una cella che vede.
-  Dalla cieca il filtro manda avanti, non indietro.
+- Il ciclo di #1287 si chiude solo se il filtro, dalla cella **cieca**, fa **arretrare**. Se manda avanti,
+  tornare indietro costa avvicinamento e nessun termine lo compensa da solo.
+- Su `MakeTestArena` il filtro non arretra **dai 4 MP in su**, e il profilo neutro ne porta 5; sulla mappa
+  d'autore arretra fino ai 7. La tabella per budget è in §6.4.
+- La causa strutturale: lì i muri bloccano la vista e **non il passo** (0 su 5), qui bloccano entrambi
+  (9 su 11).
 
 Le due misure sono in `RTBotStalemateProbeTests.cpp`, e non simulano partite.
 
-⚠️ **La prima stesura del predicato era sbagliata, e lo dice il file.** Contava solo il primo passo — una
-condizione *necessaria* — e su entrambe le board dava un numero positivo: un controfattuale che non
-discriminava. A essere sbagliato era il predicato, non la board. (Il numero misurato allora non è riportato:
-quella run è stata dichiarata `NON VALIDA` da `rt-suite.ps1` per collisione fra sessioni, e un numero non
-registrabile è peggio di nessun numero.)
+🔴 **E la prima conclusione di questa lane era troppo forte.** Sosteneva che un 2-ciclo non fosse formabile
+su *nessuna* board perché `ScorePlan` non legge `Context.Origin`. È falso — il facing d'arrivo lo rende
+dipendente dalla provenienza, con lo stesso peso di una cella di avvicinamento — ed è stato trovato in code
+review. La tesi è ritirata, la riga *«chi troverà una mutazione del bot la scriva in questa tabella»* è
+tornata dov'era, e ciò che resta è una spiegazione con il proprio limite scritto.
+
+⚠️ **Tre stesure del predicato, e le prime due sbagliate in modo diverso.** La prima contava una condizione
+necessaria che non discriminava fra le due board. La seconda modellava il punteggio con la sola distanza,
+dichiarava un tie-break che non aveva, e pubblicava come «coppie» delle somme sui sette budget — numeri più
+grandi delle coppie che la board possiede. La terza non modella il punteggio affatto: chiede solo se il
+filtro avvicini o allontani, che è l'unica cosa di cui il ciclo ha bisogno.
 
 ### 11.2 C-2 — la divergenza è istruita, non risolta
 
@@ -631,31 +654,35 @@ chiude nulla; il Decision Log non è stato toccato. Chi possiede PDR-00 la spost
 ### 11.3 Verifica di mutazione — due livelli, e questa volta entrambi cadono
 
 **Soggetto (la board).** Reso il muro di `q=0` di `MakeTestArena` anche ostacolo al movimento
-(`bBlocksMovement = true`), con build e run complete:
+(`bBlocksMovement = true`), con build e run complete. Passi indietro sull'arena generata, per budget:
 
-| | celle percorribili | muri che bloccano il passo | cicli chiusi | esito |
-|---|---|---|---|---|
-| baseline | 62 | 0 su 5 | **0** | ✅ |
-| muro anche ostacolo | 57 | 5 su 5 | **34** | 🔴 `Fail`, `EXIT CODE: -1` |
+| | 2 | 3 | 4 | **5 (`Move`)** | 6 | 7 | **8** | esito |
+|---|---|---|---|---|---|---|---|---|
+| baseline — 0 su 5 muri bloccano il passo | 48 | 19 | 0 | **0** | 0 | 0 | **0** | ✅ |
+| muro anche ostacolo — 5 su 5 | 103 | 157 | 102 | **21** | 4 | 0 | **0** | 🔴 `Fail`, `EXIT CODE: -1` |
 
-E il primo ciclo che compare è `cieca (1,0,L0) ↔ che vede (2,0,L1)`: **la piattaforma**, cioè la stessa
-figura del difetto di #1088 su quella board. L'asserzione misura la board, non una costante. ⚠️ Sotto quella
-mutazione cadono anche `StalemateProbeContendersAreNamed` e `StalemateProbeHeadlessMatchLosesContact`: è
-collaterale atteso — cinque celle in meno cambiano la partita che quei due misurano.
+Cadono **entrambe** le asserzioni che dovevano cadere: quella strutturale (*«nessuna di quelle celle blocca
+il passo»*, 5 invece di 0) e quella portante (*«col profilo neutro il filtro non fa mai arretrare»*, 21
+invece di 0). Il controfattuale sulla mappa d'autore **non si muove**, che è giusto: è un'altra board.
+⚠️ Cadono anche `StalemateProbeContendersAreNamed` e `StalemateProbeHeadlessMatchLosesContact`: collaterale
+atteso — cinque celle in meno cambiano la partita che quei due misurano.
 
-**Rilevatore (il predicato).** Saltato il **secondo** passo del ciclo — cioè tornando alla prima stesura,
-che contava la sola condizione necessaria:
+**Rilevatore (il predicato).** Disattivato il filtro, cioè facendo scegliere la cella più vicina *senza*
+chiedere che veda:
 
-| | arena generata | mappa d'autore |
-|---|---|---|
-| predicato intero | **0** su 9510 | 34 su 8451 |
-| senza il secondo passo | **9510** su 9510 → 🔴 `Fail` | 8451 su 8451 → ✅ resta verde |
+| | arena generata (5 MP) | mappa d'autore (5 MP) | esito |
+|---|---|---|---|
+| predicato intero | **0** su 1470 | 104 su 1375 | ✅ ✅ |
+| filtro disattivato | 0 su 1470 | 28 su 1501 | 🔴 il **controfattuale** cade |
 
-∴ il secondo passo è **portante** per l'asserzione dell'arena generata, e il controfattuale sulla mappa
-d'autore da solo non l'avrebbe mai rilevato: asserisce `> 0`, quindi un predicato degenere che dice sempre
-«sì» lo soddisfa. **I due test si falsificano a vicenda i modi degeneri opposti** — uno che dicesse sempre
-zero farebbe cadere il controfattuale, uno che dicesse sempre sì fa cadere l'altro — ed è la ragione per cui
-sono due e non uno.
+🔴 **E cade sull'asserzione giusta: la coppia storica.** Senza il filtro la cella scelta è la più vicina in
+assoluto, e `(1,-1,L0) ↔ (3,-3,L1)` — l'orbita che #1287 ha misurato in partita — sparisce dalle coppie
+trovate. Il messaggio è letteralmente *«fra le coppie c'e' quella MISURATA da #1287 in partita»*. È
+l'asserzione che distingue «il predicato trova qualcosa» da «il predicato trova **quel** difetto».
+
+∴ **i due test si falsificano a vicenda i modi degeneri opposti**: un predicato che dicesse sempre «sì» fa
+cadere il gemello sull'arena generata (mutazione del soggetto), uno che perde il difetto vero fa cadere il
+controfattuale (mutazione del rilevatore). È la ragione per cui sono due e non uno.
 
 ⚠️ **Mutazioni rimosse e binario RICOSTRUITO**, non solo il sorgente: `rt-suite.ps1` verifica che il binario
 non **cambi** durante la run, non che **corrisponda** al sorgente, e un `.dll` stantio dichiara `VALIDA`
