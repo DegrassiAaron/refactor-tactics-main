@@ -326,15 +326,19 @@ il 17 ha modellato giusto. E finché la issue di migrazione è aperta, la colonn
 > atterrava. Non era un errore di questa sezione: era che nessuno aveva chiuso il cerchio sul codice.
 > `GBX-6` in [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) ha reso visibile il divario e `D-163` lo chiude.
 
-⏱️ **Finché la issue [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) è aperta, il mondo gira ancora a `1,00 m`**: chi modella secondo
-questa sezione produce asset corretti per il canone e `1,5×` grandi per la mappa di oggi. È uno stato
-dichiarato, non un difetto da scoprire.
+✅ **[`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) è atterrata il 2026-08-25: il mondo gira a `1,5 m`**, la stessa scala con cui questa
+sezione dice di modellare. Le due scale coincidono, quindi un asset autorato qui è corretto per il canone
+**e** per la mappa in cui si posa.
 
-**Cosa fare nel frattempo — e le due istruzioni non si contraddicono**: si modella **alla scala nuova**
-(`1,5 m`), perché rifare un asset alla scala vecchia significherebbe rifarlo due volte. Quello che conviene
-rimandare non è modellare: è **committare volumi finiti** prima che il cambio atterri, perché fino a quel
-momento non si possono validare *guardandoli in PIE* — e la validazione visiva è il solo modo di chiudere
-`GBX-1` e `GBX-5`.
+🔴 **Questa sezione diceva il contrario fino al 2026-08-28**: *«finché `#1155` è aperta il mondo gira ancora
+a `1,00 m`»*, e concludeva che conveniva rimandare **il commit** dei volumi finiti «prima che il cambio
+atterri». Il cambio è atterrato tre giorni prima, e la clausola gli è sopravvissuta — è la stessa deriva
+corretta in [`D-173`](../../decisions/RT_PDR_00_Decision_Log.md), che cita questa sezione come normativa:
+chi seguiva il rinvio atterrava sull'istruzione che lo smentiva.
+
+**Il commit non attende più nulla.** La validazione *in PIE* resta il solo modo di chiudere `GBX-1` e
+`GBX-5`, ma è un gate di qualità e non un divieto di versionare: confonderli tiene fuori dal repository
+asset che ci possono entrare.
 
 > ⚠️ *La prima stesura diceva «una ragione per non produrre volumi finiti», mentre
 > [`spec-graybox-placement-contract.md`](../systems/spec-graybox-placement-contract.md) §6.1 diceva «modella a

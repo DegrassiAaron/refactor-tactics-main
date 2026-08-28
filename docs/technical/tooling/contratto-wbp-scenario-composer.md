@@ -232,9 +232,11 @@ Il DoD di TD-EDITOR-01 chiede PIE: *piazza almeno due unità, salva, riapri, ver
 🔴 **Questa sezione diceva «non è eseguibile finché i mutatori non esistono»**: vero fino al 2026-08-27,
 falso dal merge di [PR #1513](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1513).
 
-Resta vero che il percorso **non ha ancora una voce** in
-[`test-manuali-pie.md`](../test-manuali-pie.md): va registrato lì e nella seduta che lo rivendica — una
-verifica PIE che non appartiene a una seduta tende a non essere mai eseguita
+✅ **Il percorso ha una voce dal 2026-08-28**: `PIE-SCEN-COMPOSER` in
+[`test-manuali-pie.md`](../test-manuali-pie.md). *Questa riga diceva «non ha ancora una voce», ed era
+vera fino a quel giorno.* Nasce ⏳ e non eseguibile — l'asset non esiste — e **nessuna seduta la
+rivendica**: quello resta da fare, in [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml), perché
+una verifica PIE che non appartiene a una seduta tende a non essere mai eseguita
 (`spec-tactical-designer.md` §9).
 
 ⚠️ **Un passo in più rispetto al DoD, e nasce dalla differenza 1.** Siccome è il widget a coniare `UnitId`,

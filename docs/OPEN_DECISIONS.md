@@ -421,7 +421,11 @@ decisione, [`D-173`](decisions/RT_PDR_00_Decision_Log.md).
 ⏱️ **Ma «si può modellare» non è «si può committare»**, e il blocco che resta non è in questa tabella: è
 quello registrato qui sopra. ✅ **Sciolto il 2026-08-25**: fino all'atterraggio di [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155)
 un volume autorato era corretto per il canone e **1,5× fuori misura** per la mappa in cui si
-posa — quindi si modella alla scala nuova e si **rimanda il commit**, non il lavoro.
+posava, e la regola di allora era modellare alla scala nuova rimandando il commit. 🔴 **La coda
+diceva ancora *«si rimanda il commit»* al presente, ed è stata corretta il 2026-08-28**: con `#1155`
+atterrata le due scale coincidono e il commit non attende più nulla. Il PIE resta dovuto, ma come
+gate di qualità — non come divieto di versionare. Vedi
+[`D-173`](decisions/RT_PDR_00_Decision_Log.md).
 
 > ⚠️ *Questo paragrafo diceva che «tre delle quattro riguardano un numero o un percorso che si fissa quando
 > il primo asset viene prodotto», ed era il gemello non corretto della frase in testa alla sezione: falso
