@@ -17,7 +17,36 @@
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Engine/Canvas.h"
+#include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
+
+/**
+ * L'interruttore dei pannelli **screen-space** di questo Canvas HUD.
+ *
+ * 🔴 **Taglia esattamente lungo il confine della spec**, e non e' una scorciatoia di comodo:
+ * `progettazione-hud.md` separa il **§4.1 Screen HUD** — turno, fase, timer, combat log, barra abilita',
+ * terna degli slot — dal **§4.2 Tactical World Overlay** — barre sopra le unita', path, waypoint, AoE,
+ * fuoco amico. Questa variabile spegne il primo e **non tocca** il secondo.
+ *
+ * Serve perche' CP 11.7 sta ricostruendo il §4.1 in UMG (`WBP_RT_*`): finche' i due coesistono, le stesse
+ * informazioni compaiono due volte a schermo, e i pannelli Canvas coprono le zone dove i widget nuovi
+ * devono stare. Con `rt.HUD.CanvasPanels 0` si lavora sul layer nuovo senza il vecchio sotto.
+ *
+ * ⚠️ **Non e' una decisione di architettura**: quale dei due layer debba disegnare cosa resta aperto — il
+ * piano lo chiama «Task 7-bis» — e questa variabile serve a poterlo *decidere guardando*, invece che a
+ * deciderlo adesso cancellando codice coperto da `RefactorTactics.HUD.*`.
+ *
+ * Default `1`: il comportamento di prima resta quello che si ottiene senza fare nulla.
+ */
+static TAutoConsoleVariable<int32> CVarHudCanvasPanels(
+	TEXT("rt.HUD.CanvasPanels"),
+	1,
+	TEXT("Pannelli screen-space del Canvas HUD (progettazione-hud.md §4.1).\n")
+	TEXT("  1 = accesi (default)  |  0 = spenti\n")
+	TEXT("Spegne: intestazione di turno, combat log, barra abilita', terna degli slot.\n")
+	TEXT("NON tocca il §4.2 world-space (barre sopra le unita', path, AoE, fuoco amico) ne' il banner\n")
+	TEXT("di scenario, che spiega perche' una mappa senza partita non mostra nulla."),
+	ECVF_Default);
 
 namespace
 {
@@ -93,6 +122,32 @@ void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerT
 			}
 		}
 	}
+}
+
+bool ARTHUD::ShouldDrawUnitOverlay(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam)
+{
+	if (bIsOwnTeam)
+	{
+		return true;
+	}
+
+	// 🔴 «Esiste una voce» NON e' «la posizione e' attuale». Un `Remembered` ha una voce per costruzione
+	// (`ViewForTeam`: `CellOnly` -> contatto -> voce), e disegnarlo significherebbe disegnarlo DUE volte —
+	// il personaggio vero dov'e' davvero, piu' la sagoma dove lo si ricordava. Questo predicato e'
+	// COMPLEMENTARE a `ContactGhostTargetForUnit`: o si vede l'unita', o si vede il suo ricordo.
+	return Entry != nullptr && Entry->Visibility == ERTKnowledgeVisibility::Live;
+}
+
+TOptional<FRTContactGhostTarget> ARTHUD::ContactGhostTargetForUnit(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam)
+{
+	if (bIsOwnTeam || Entry == nullptr || Entry->Visibility != ERTKnowledgeVisibility::Remembered)
+	{
+		return TOptional<FRTContactGhostTarget>();
+	}
+	FRTContactGhostTarget Target;
+	Target.Cell = Entry->Cell;
+	Target.ContactTurn = Entry->ContactTurn;
+	return Target;
 }
 
 namespace
@@ -373,6 +428,11 @@ void ARTHUD::DrawHUD()
 		return;
 	}
 
+	// Il team del giocatore, UNA sola costante per tutta la funzione: prima erano due letterali
+	// indipendenti (l'argomento di `ComputePlannedHitMarks` e un `PlayerTeam` locale piu' sotto), e la
+	// conoscenza di squadra introdotta con la porta ne avrebbe fatto un terzo.
+	const int32 PlayerTeamId = 0;
+
 	// Barre HP/scudo sopra ogni unita' viva.
 	TArray<AActor*> Actors;
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
@@ -388,11 +448,112 @@ void ARTHUD::DrawHUD()
 	}
 	TSet<FRTCellId> PlannedHitCells;
 	TSet<FRTCellId> PlannedAllyHitCells;
-	ComputePlannedHitMarks(AllUnits, /*PlayerTeamId=*/ 0, PlannedHitCells, PlannedAllyHitCells);
+	ComputePlannedHitMarks(AllUnits, PlayerTeamId, PlannedHitCells, PlannedAllyHitCells);
+
+	// Recuperato QUI, PRIMA del ciclo delle unita': la vista di conoscenza sotto ha bisogno del
+	// TurnManager, e recuperarlo dopo il ciclo (come accadeva prima di questo task) lascerebbe la vista
+	// sempre vuota — un filtro che non filtra nulla.
+	const ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+
+	// Costruita UNA volta prima del ciclo: `ViewForTeam` e' pura ma il ciclo gira su ogni unita' a ogni
+	// frame, e ricostruirla per ognuna sarebbe lavoro ripetuto per un risultato identico.
+	FRTKnowledgeView KnowledgeView;
+	if (TurnManager)
+	{
+		TArray<FRTKnowledgeSubject> Subjects;
+		Subjects.Reserve(AllUnits.Num());
+		for (ARTUnit* U : AllUnits)
+		{
+			if (!U) { continue; }
+			FRTKnowledgeSubject S;
+			S.StableUnitId = U->StableUnitId;
+			S.TeamId = U->TeamId;
+			S.Cell = U->Cell;
+			S.HeroId = U->HeroId;
+			S.HeroDisplayName = U->HeroDisplayName;
+			S.bAlive = U->IsAlive();
+			Subjects.Add(S);
+		}
+		KnowledgeView = URTKnowledgeViewLibrary::ViewForTeam(
+			TurnManager->KnowledgeForTeamPublic(PlayerTeamId), Subjects, PlayerTeamId);
+	}
+
+	// Geometria della mappa ESAGONALE: unica fonte di scala per ogni conversione cella -> schermo di questa
+	// HUD (traccia, anteprime, waypoint, e ora anche la sagoma dell'ultimo contatto). La stessa che usano
+	// risoluzione e playback (ARTHexMapActor).
+	//
+	// ⚠️ Recuperata QUI, PRIMA del ciclo delle unita' — spostata da dopo il ciclo, dov'era finche' solo la
+	// visualizzazione degli intenti (sotto) ne aveva bisogno: il ciclo ora chiama `UpdateContactGhost`, che
+	// richiede la stessa conversione cella -> mondo per posizionare la sagoma di un ricordo (CP 13.5).
+	//
+	// ⚠️ **Non e' l'unico punto del file che interroga `ARTHexMapActor`**, e la riga che lo affermava era
+	// falsa gia' quando e' stata scritta. Il secondo e' il pannello della terna piu' sotto in questa stessa
+	// funzione (la riga «TIRO: N celle»), che lo raggiunge con un meccanismo DIVERSO —
+	// `Cast<ARTHexMapActor>(UGameplayStatics::GetActorOfClass(...))` invece di `ARTHexMapActor::FindInWorld`.
+	// Cio' che e' vero e' piu' stretto: e' l'unico punto che ne ricava la GEOMETRIA (origine, dimensione
+	// della cella, altezza del layer), quindi ogni conversione cella -> schermo di questa HUD nasce da qui.
+	// Unificare i due meccanismi non e' compito di questa riga — ma nominarli entrambi si', perche' chi
+	// cercasse «dove si prende la mappa» seguendo la vecchia frase ne troverebbe uno solo.
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 150.f;
+	float LayerH = 250.f;
+	const URTHexMapAsset* Map = nullptr;
+	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		Map = HexMap->GetHexContext(Origin, HexSize, LayerH);
+	}
+
 	for (AActor* Actor : Actors)
 	{
-		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		ARTUnit* Unit = Cast<ARTUnit>(Actor);
 		if (!Unit || !Unit->IsAlive())
+		{
+			continue;
+		}
+
+		// La voce di conoscenza si cerca UNA volta per unita' e alimenta ENTRAMBE le decisioni sotto
+		// (`ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit`) — non due `FindEntry` separate per la
+		// stessa domanda (review). Per la propria squadra non si cerca nemmeno: entrambe le funzioni
+		// decidono da `bIsOwnTeam` prima di guardare `Entry`, esattamente come faceva prima questo ramo.
+		const bool bIsOwnTeam = (Unit->TeamId == PlayerTeamId);
+		const FRTKnowledgeEntry* Entry = bIsOwnTeam
+			? nullptr
+			: URTKnowledgeViewLibrary::FindEntry(KnowledgeView, Unit->StableUnitId);
+
+		// `ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit` sono statiche e PURE (dichiarate in
+		// `RTHUD.h`, testate senza montare un HUD): ricalcolare una qualunque delle due regole inline qui
+		// sarebbe una seconda definizione, e le due potrebbero divergere (review).
+		const bool bIsKnownToObserver = ShouldDrawUnitOverlay(Entry, bIsOwnTeam);
+
+		// Applica lo stato di conoscenza PRIMA del filtro sottostante: altrimenti l'unita' saltata dal
+		// `continue` qui sotto non riceverebbe mai il comando e resterebbe visibile.
+		Unit->SetKnownToObserver(bIsKnownToObserver);
+
+		// Sagoma dell'ultimo contatto (Task 6b, CP 13.5): SPENTA per default, e accesa SOLO per un
+		// ricordo (`Remembered`) di un nemico. Gira per OGNI unita' viva — prima del filtro sottostante —
+		// perche' spegnerla vale anche per chi quel filtro sta per saltare: un nemico senza voce nella vista
+		// (`Rejected`, ricordo scaduto) non ha nemmeno una sagoma, e resterebbe accesa dall'ultima volta se
+		// il `continue` la saltasse prima di arrivarci.
+		if (const TOptional<FRTContactGhostTarget> GhostTarget = ContactGhostTargetForUnit(Entry, bIsOwnTeam))
+		{
+			// `GhostTarget->Cell` e' quella del CONTATTO (Task 2), mai la posizione attuale dell'attore:
+			// `ContactGhostTargetForUnit` non riceve nemmeno `Unit`, quindi non puo' leggerla per sbaglio.
+			const int32 CurrentTurn = TurnManager ? TurnManager->GetTurnNumber() : 0;
+			Unit->UpdateContactGhost(HexCellWorld(GhostTarget->Cell, Origin, HexSize, LayerH),
+				GhostTarget->ContactTurn, CurrentTurn);
+		}
+		else
+		{
+			// Niente da ricordare: propria squadra, nemico `Live`, o nemico `Rejected`.
+			Unit->HideContactGhost();
+		}
+
+		// Filtro di conoscenza (CP 13.5): un'unita' avversaria si disegna solo se la squadra del giocatore
+		// la VEDE ORA (`Live`). Un ricordo (`Remembered`) non si disegna qui — lo disegna la sagoma qui
+		// sopra, alla cella del contatto: le due strade sono complementari, mai contemporanee.
+		// La propria squadra si disegna sempre.
+		if (!bIsKnownToObserver)
 		{
 			continue;
 		}
@@ -497,30 +658,29 @@ void ARTHUD::DrawHUD()
 		DrawText(HeroName, NameColor, CenterX - NameW * 0.5f, Y - 36.f, nullptr, 0.9f);
 	}
 
-	const ARTTurnManager* TurnManager =
-		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
-
-	// Geometria della mappa ESAGONALE: unica fonte di scala per ogni conversione cella -> schermo di questa
-	// HUD (traccia, anteprime, waypoint). La stessa che usano risoluzione e playback (ARTHexMapActor).
-	FVector Origin = FVector::ZeroVector;
-	float HexSize = 150.f;
-	float LayerH = 250.f;
-	const URTHexMapAsset* Map = nullptr;
-	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
-	{
-		Map = HexMap->GetHexContext(Origin, HexSize, LayerH);
-	}
-
 	// Traccia post-lock: il percorso realmente eseguito nell'ultima risoluzione (grigio, sotto le preview).
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
 	{
+		// Il filtro di conoscenza di [D-223], e **non si decide qui**: la rotta porta gia' un verdetto per
+		// cella, congelato quando e' stata percorsa. Questo ciclo consuma e non costruisce nulla — niente
+		// `ViewForTeam`, niente `GetAllActorsOfClass`, nessuna seconda rilettura della regola.
+		//
+		// 🔴 **`VisibleTrailFor` TRONCA**, e per questo il ciclo scorre il suo risultato invece di
+		// `Route.Cells`: la traccia mostra il tratto che l'osservatore ha visto e finisce dove ha perso il
+		// soggetto. Saltare le celle non ammesse tenderebbe un segmento fra due celle non adiacenti, proprio
+		// sopra il tratto da nascondere.
+		//
+		// ⚠️ La regola vive in una statica PURA di `ARTTurnManager`, gemella di `ComposeVisibleLogLines`:
+		// `DrawHUD` non ha copertura headless, quindi cio' che si puo' sbagliare deve stare dove i test
+		// arrivano.
 		const FLinearColor TrailColor(0.6f, 0.6f, 0.6f, 0.5f);
-		for (const TArray<FRTCellId>& Route : TurnManager->GetLastMoveRoutes())
+		for (const FRTMoveRoute& Route : TurnManager->GetLastMoveRoutes())
 		{
-			for (int32 i = 1; i < Route.Num(); ++i)
+			const TArray<FRTCellId> Trail = ARTTurnManager::VisibleTrailFor(Route, PlayerTeamId);
+			for (int32 i = 1; i < Trail.Num(); ++i)
 			{
-				const FVector A = Project(HexCellWorld(Route[i - 1], Origin, HexSize, LayerH));
-				const FVector B = Project(HexCellWorld(Route[i], Origin, HexSize, LayerH));
+				const FVector A = Project(HexCellWorld(Trail[i - 1], Origin, HexSize, LayerH));
+				const FVector B = Project(HexCellWorld(Trail[i], Origin, HexSize, LayerH));
 				if (A.Z > 0.f && B.Z > 0.f)
 				{
 					DrawLine(A.X, A.Y, B.X, B.Y, TrailColor, 1.5f);
@@ -542,8 +702,6 @@ void ARTHUD::DrawHUD()
 	// viene mai copiata in una vista avversaria.
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning && !TurnManager->IsResolving())
 	{
-		const int32 PlayerTeam = 0; // il giocatore controlla il team 0 (blu)
-
 		// 1. RACCOGLI i piani autorevoli (in rete: lato server, mai spediti cosi' come sono).
 		// ⚠️ Il ciclo che li costruiva stava qui fino al 2026-08-24 ed e' ora in `URTHudViewModel`: lo
 		// condivide con `rt.Debug.DrawIntent` (CP 11.4, #80), che deve mostrare **gli stessi** intenti che
@@ -552,7 +710,7 @@ void ARTHUD::DrawHUD()
 		const TArray<FRTPlannedIntent> Authoritative = URTHudViewModel::BuildAuthoritativeIntents(Actors);
 
 		// 2. FILTRA per l'osservatore. Da qui in giu' lo stato completo non si tocca piu'.
-		const TArray<FRTIntentView> Views = URTIntentPrivacyLibrary::FilterForTeam(PlayerTeam, Authoritative);
+		const TArray<FRTIntentView> Views = URTIntentPrivacyLibrary::FilterForTeam(PlayerTeamId, Authoritative);
 
 		// Disegna cio' che `ComposeDashSegments` ha gia' deciso. Qui non resta nessuna scelta: il conteggio
 		// dei tratti, il rapporto acceso/spento e il tetto vivono nella statica, dove un test li raggiunge.
@@ -717,8 +875,13 @@ void ARTHUD::DrawHUD()
 		}
 	}
 
-	// Barra di stato in alto: turno, fase e timer/avanzamento.
-	if (TurnManager)
+	// Letta UNA volta per frame, non a ogni pannello: tre `GetValueOnGameThread()` nello stesso `DrawHUD`
+	// potrebbero in teoria vedere valori diversi se la console cambiasse a meta' — e mezzo HUD acceso
+	// sarebbe piu' difficile da diagnosticare di entrambi gli stati interi.
+	const bool bCanvasPanels = CVarHudCanvasPanels.GetValueOnGameThread() != 0;
+
+	// Barra di stato in alto: turno, fase e timer/avanzamento. (§4.1 — vedi `rt.HUD.CanvasPanels`)
+	if (bCanvasPanels && TurnManager)
 	{
 		// Contatore del turno: con un formato in vigore mostra anche il limite, altrimenti resta il solo
 		// numero — un "su 0" direbbe che la partita e' gia' scaduta, che non e' cio' che accade.
@@ -796,9 +959,10 @@ void ARTHUD::DrawHUD()
 	}
 
 	// Combat log in basso a sinistra (dal piu' vecchio in alto al piu' recente in basso).
-	if (TurnManager)
+	// (§4.1 — vedi `rt.HUD.CanvasPanels`)
+	if (bCanvasPanels && TurnManager)
 	{
-		const TArray<FString>& Events = TurnManager->GetRecentEvents();
+		const TArray<FString> Events = TurnManager->GetRecentEventsForTeam(PlayerTeamId);
 		const float LineH = 16.f;
 		float Y = Canvas->SizeY - 24.f - LineH * (Events.Num() - 1);
 		for (const FString& Line : Events)
@@ -808,8 +972,14 @@ void ARTHUD::DrawHUD()
 		}
 	}
 
-	// Barra abilita' dell'unita' selezionata (in basso al centro).
-	if (const ARTPlayerController* RTPC = Cast<ARTPlayerController>(GetOwningPlayerController()))
+	// Barra abilita' dell'unita' selezionata (in basso al centro) e terna degli slot (in basso a destra).
+	// (§4.1 — vedi `rt.HUD.CanvasPanels`)
+	//
+	// ⚠️ Le due sezioni condividono una guardia sola perche' condividono il blocco della selezione: la
+	// barra abilita' e la terna leggono entrambe `Sel`, e separarle vorrebbe dire duplicare il `Cast` e la
+	// `GetSelectedUnit()`. Se in futuro servisse spegnerne una sola, il punto dove dividerle e' qui.
+	if (const ARTPlayerController* RTPC = Cast<ARTPlayerController>(GetOwningPlayerController());
+		bCanvasPanels && RTPC)
 	{
 		if (const ARTUnit* Sel = RTPC->GetSelectedUnit())
 		{

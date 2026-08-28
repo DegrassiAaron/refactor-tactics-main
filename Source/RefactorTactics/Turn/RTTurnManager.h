@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Core/RTTypes.h"
+#include "Perception/RTKnowledgeView.h" // FRTKnowledgeView: il combat log filtra da qui, non da un secondo canale
 #include "Bot/RTHexBotLibrary.h" // i pesi del bot hanno UNA sorgente: i default della struct
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTResolvedEvent.h"
@@ -155,6 +156,16 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FRTAttackPlaybackSignature, ARTUn
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRTPlaybackFinishedSignature);
 
 /**
+ * La conoscenza di squadra e' stata rinfrescata: chi la DISEGNA puo' rileggerla ([D-227], `#1467`).
+ *
+ * ⚠️ Non e' un momento nuovo inventato per il velo: sono i **due** punti che gia' rinfrescano la conoscenza —
+ * `RefreshTeamKnowledgeForPlanning` a inizio turno e `RefreshTeamKnowledgeForBlast` **dentro la risoluzione**.
+ * Un aggiornamento a `Tick` darebbe lo stesso risultato visivo e sarebbe sbagliato: il velo seguirebbe il
+ * tempo reale invece dello stato del turno, ed e' cio' che `Veil.FollowsRefreshPoints` esiste per impedire.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTTeamKnowledgeRefreshedSignature, int32, TurnNumber);
+
+/**
  * La partita è finita, con il verdetto e lo stato che lo motiva (CP 46.5, `#940`).
  *
  * ⚠️ **È un annuncio, non un comando**, ed è la ragione per cui esiste invece di far chiamare al
@@ -163,6 +174,137 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRTPlaybackFinishedSignature);
  * È la stessa forma di `URTFrontendNavigator::OnMatchRequested`: chi sa annuncia, chi può agire consuma.
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FRTOnMatchEndedSignature, const FRTMatchResult&, Result, const FRTMatchState&, State);
+
+/**
+ * Una riga di combat log, col SOGGETTO accanto al testo.
+ *
+ * Il soggetto e' `ARTUnit::StableUnitId` — l'identita' che attraversa fasi e turni — oppure `INDEX_NONE`
+ * per le righe che parlano del MONDO e non di un'unita' («Turno 3 - pianificazione», una superficie che
+ * scade). Senza questo campo il filtro dovrebbe cercare coordinate dentro una stringa gia' formattata.
+ */
+/**
+ * Di CHI parla una riga di log: un'unita', oppure il mondo. Mai «non ci ho pensato».
+ *
+ * 🔴 **E' un tipo e non un `int32` perche' il gate diventi il compilatore** (`#1499`). Il vecchio parametro
+ * aveva un default `INDEX_NONE` fail-open: un sito nuovo che nominava un nemico passava il filtro di
+ * conoscenza per omissione, e l'omissione non fa rumore. Ora non esiste conversione implicita da `int32`:
+ * `AddLogEvent(Testo, INDEX_NONE)` non compila, e un sito senza soggetto deve **dichiararsi** `World()`.
+ *
+ * ⚠️ **`World()` non e' il vecchio default con un altro nome.** Dice «questa riga riguarda tutti» — una
+ * superficie che scade, il marker di turno, la fine partita — ed e' una scelta che si legge. Il default
+ * diceva soltanto che nessuno aveva deciso.
+ */
+struct FRTLogSubject
+{
+	/** Un'unita' viva, con tutto cio' che serve a congelarne il verdetto ([D-223]). */
+	static FRTLogSubject Unit(const ARTUnit* InUnit);
+
+	/**
+	 * Un soggetto che porta GIA' la propria risposta, congelata altrove e prima.
+	 *
+	 * 🔴 **E' la forma del canale derivato dal TurnLog**, ed esiste perche' a fine turno il verdetto non e'
+	 * piu' calcolabile correttamente: la conoscenza disponibile e' quella del Blast, le celle sono gia'
+	 * post-Move, e `AwarenessOfUnit` confronta proprio quei due. La voce lo ha calcolato quando e' nata
+	 * (`AppendLogEntry`), e qui si trasporta.
+	 *
+	 * ⚠️ **Non esiste una forma che prenda il solo `StableUnitId`**, ed e' deliberato: da un id soltanto il
+	 * verdetto non si calcola — `ClassifyTarget` vuole anche squadra e cella — e una forma del genere
+	 * inviterebbe a produrre righe fail-closed senza accorgersene.
+	 */
+	static FRTLogSubject Frozen(int32 InStableUnitId, const FRTKnowledgeVerdict& InVerdict);
+
+	/** Un fatto che riguarda tutti: nessun soggetto da conoscere, nessuna ragione per nasconderlo. */
+	static FRTLogSubject World();
+
+	bool IsWorld() const { return bWorld; }
+	int32 GetStableUnitId() const { return StableUnitId; }
+	const ARTUnit* GetUnit() const { return Unit_; }
+
+	/** Vero se il verdetto viaggia col soggetto: chi lo consuma non deve ricalcolarlo. */
+	bool HasFrozenVerdict() const { return bFrozen; }
+	const FRTKnowledgeVerdict& GetFrozenVerdict() const { return FrozenVerdict; }
+
+private:
+	FRTLogSubject() = default;
+
+	bool bWorld = false;
+	bool bFrozen = false;
+	int32 StableUnitId = INDEX_NONE;
+	const ARTUnit* Unit_ = nullptr;
+	FRTKnowledgeVerdict FrozenVerdict;
+};
+
+USTRUCT()
+struct FRTCombatLogLine
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Text;
+
+	/** Chi ha prodotto il fatto. Resta per diagnosi e per i test: il filtro NON lo usa piu'. */
+	UPROPERTY()
+	int32 SubjectStableUnitId = INDEX_NONE;
+
+	/**
+	 * Chi puo' leggere questa riga, deciso quando la riga e' nata ([D-223]).
+	 *
+	 * 🔴 **Il default nasconde**: una riga che arrivasse qui senza verdetto non si legge. E' l'opposto del
+	 * default che `#1499` ha rimosso, ed e' la direzione giusta per un filtro di privacy — si perde una
+	 * riga, non si regala una posizione.
+	 */
+	UPROPERTY()
+	FRTKnowledgeVerdict Verdict;
+};
+
+/**
+ * Una rotta percorsa nell'ultima risoluzione, col SOGGETTO accanto alle celle.
+ *
+ * Stessa forma di `FRTCombatLogLine` e per la stessa ragione: un dato destinato alla presentazione porta
+ * l'identita' di CHI lo ha prodotto, perche' a valle non c'e' modo di ricostruirla.
+ *
+ * 🔴 **L'indice dell'array non e' mai stato un'identita', e non puo' diventarlo** (`#1497`): la raccolta e'
+ * COMPATTATA — aggiunge una voce solo per chi si e' davvero mosso — quindi con le unita' 1 e 3 in movimento
+ * e la 2 ferma le due rotte stanno agli indici `0` e `1`. Una stesura precedente di `rt.Debug.DrawPaths`
+ * stampava «unita %d» su quell'indice e nominava un'unita' che non si era mossa.
+ *
+ * Senza questo campo la traccia non e' filtrabile contro la conoscenza di squadra, e il percorso di un
+ * nemico che non si vede resta disegnato a schermo.
+ */
+USTRUCT()
+struct FRTMoveRoute
+{
+	GENERATED_BODY()
+
+	/** Chi ha percorso questa rotta. `ARTUnit::StableUnitId`, mai un indice di array. */
+	UPROPERTY()
+	int32 StableUnitId = INDEX_NONE;
+
+	/** Cella di partenza seguita dalle celle attraversate, nell'ordine in cui sono state percorse. */
+	UPROPERTY()
+	TArray<FRTCellId> Cells;
+
+	/**
+	 * Chi puo' vedere disegnata CIASCUNA cella di `Cells`, deciso quando la rotta e' stata raccolta
+	 * ([D-223], emendamento del 2026-08-28). Parallelo a `Cells`, stesso indice.
+	 *
+	 * 🔴 **Un verdetto per cella e non uno per rotta, perche' una rotta non e' un fatto puntuale.** Una riga
+	 * di log ha un istante; una rotta e' una traiettoria che ne attraversa due — partenza e arrivo — e un
+	 * verdetto congelato sulla partenza autorizzerebbe a disegnare l'arrivo. Sono i due errori speculari che
+	 * [D-223] esiste per chiudere: il **leak** (la polilinea entra nella nebbia) e la **contraddizione** (la
+	 * traccia nascosta mentre il modello e' disegnato).
+	 *
+	 * ⚠️ **E il caso piu' comune non e' agli estremi**: `VisibleCells` e' un insieme *bucato* — LOS, cono
+	 * frontale e close range — non un raggio, quindi il mezzo di un percorso puo' sparire mentre partenza e
+	 * arrivo si vedono. Un verdetto per rotta non lo copre in nessuna delle sue forme.
+	 *
+	 * 🔴 **Non si consuma leggendo questo array**: la regola vive in `VisibleTrailFor`, che tronca. Chi
+	 * ciclasse qui saltando le celle non ammesse disegnerebbe un segmento fra due celle non adiacenti, cioe'
+	 * una linea che attraversa proprio il tratto da nascondere.
+	 */
+	UPROPERTY()
+	TArray<FRTKnowledgeVerdict> CellVerdicts;
+};
 
 /**
  * Orchestratore del turno: tiene fase e numero di turno e, al lock-in, risolve il turno (logica sincrona,
@@ -269,8 +411,51 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Turn")
 	void SkipPlayback();
 
-	/** Ultimi eventi (combat log) per la HUD, dal piu' vecchio al piu' recente. */
-	const TArray<FString>& GetRecentEvents() const { return RecentEvents; }
+	/**
+	 * Ultimi eventi (combat log), dal piu' vecchio al piu' recente. NON filtrati per squadra: e' la vista
+	 * completa, la stessa forma che aveva prima che RecentEvents portasse un soggetto. Chi disegna per un
+	 * giocatore deve chiamare `GetRecentEventsForTeam`, non questa.
+	 */
+	TArray<FString> GetRecentEvents() const;
+
+	/**
+	 * Le righe che un osservatore puo' leggere. Statica e PURA: la si interroga senza montare una partita.
+	 *
+	 * 🔴 Una riga il cui soggetto e' ignoto **sparisce intera**, non viene oscurata: una riga oscurata
+	 * dice comunque che qualcosa e' successo, e quando e' successo.
+	 * L'ORDINE di produzione si conserva: un combat log riordinato non e' un log.
+	 *
+	 * 🔴 **Ignoto significa «non visto ORA»**, non «senza voce»: un soggetto `Remembered` ha una voce, ma
+	 * le coordinate stampate nella riga sono quelle attuali, cioe' cio' che la squadra ha smesso di sapere.
+	 * Stessa regola di `ARTHUD::ShouldDrawUnitOverlay`, e per la stessa ragione.
+	 */
+	static TArray<FString> ComposeVisibleLogLines(const TArray<FRTCombatLogLine>& Lines, int32 ObserverTeamId);
+
+	/**
+	 * Il tratto di una rotta che un osservatore puo' vedere disegnato: il PREFISSO che il verdetto ammette.
+	 *
+	 * E' il gemello di `ComposeVisibleLogLines` per il secondo canale che [D-223] congela, ed e' statica e
+	 * PURA per la stessa ragione di `ARTHUD::ShouldDrawUnitOverlay`: `DrawHUD` non ha copertura headless,
+	 * quindi la regola vive dove la si puo' interrogare senza montare un HUD ne' una partita.
+	 *
+	 * 🔴 **Tronca, non salta.** La rotta porta il tratto OSSERVATO e si interrompe dove l'osservatore ha
+	 * perso il soggetto: *«ho visto questa parte del suo movimento»* e' l'unica frase vera in ogni caso.
+	 * Saltare le celle non ammesse e riprendere piu' avanti disegnerebbe un segmento fra due celle non
+	 * adiacenti — una linea tesa attraverso il tratto che si voleva nascondere, cioe' il leak in forma
+	 * peggiore.
+	 *
+	 * ⚠️ **Fail-closed due volte**: un verdetto assente non ammette nessuno (`FRTKnowledgeVerdict` nasce a
+	 * maschera vuota), e una rotta i cui verdetti non siano allineati alle celle non si disegna affatto —
+	 * senza quel controllo, un `Cells.Add` futuro senza il verdetto corrispondente leggerebbe fuori array.
+	 *
+	 * ⚠️ Un tratto di UNA cella non produce nessun segmento a schermo, ed e' corretto: la cella di partenza
+	 * era gia' osservata: disegnarne il punto non aggiunge nulla che l'osservatore non sapesse.
+	 */
+	static TArray<FRTCellId> VisibleTrailFor(const FRTMoveRoute& Route, int32 ObserverTeamId);
+
+	/** Le righe recenti gia' filtrate per una squadra. E' cio' che l'HUD deve chiamare. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	TArray<FString> GetRecentEventsForTeam(int32 ObserverTeamId) const;
 
 	/** Esiti autoritativi dell'ultimo turno risolto (Movimento + Combat), ordinati deterministicamente. */
 	const TArray<FRTTurnLogEntry>& GetTurnLog() const { return TurnLog; }
@@ -318,8 +503,28 @@ public:
 	/** Ultimo checksum di stato catturato. `0` = mai calcolato (registrazione spenta, o nessun turno risolto). */
 	int64 GetPendingFinalStateHash() const { return PendingFinalStateHash; }
 
-	/** Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito). */
-	const TArray<TArray<FRTCellId>>& GetLastMoveRoutes() const { return LastMoveRoutes; }
+	/**
+	 * Rotte effettivamente percorse nell'ultima risoluzione (viz post-lock del percorso eseguito).
+	 *
+	 * ⚠️ **Non e' filtrata per conoscenza**: porta le rotte di ENTRAMBE le squadre, e ogni consumatore che
+	 * la disegna o la stampa deve filtrarla per conto proprio. Il campo `StableUnitId` esiste perche' quel
+	 * filtro sia possibile (`#1497`); la regola con cui filtrare e' la domanda aperta di `#1496`.
+	 */
+	const TArray<FRTMoveRoute>& GetLastMoveRoutes() const { return LastMoveRoutes; }
+
+	/**
+	 * La conoscenza di UNA squadra, per la presentazione. Copia piccola: NON e' `MakeCurrentSnapshot`, che
+	 * fa `GetAllActorsOfClass` e due `Sort` ed e' proibitiva a ogni frame.
+	 *
+	 * 🔴 **NON e' una `UFUNCTION`, ed e' deliberato.** Una prima stesura la esponeva come `BlueprintPure`, e
+	 * sarebbe stata il PRIMO canale Blueprint verso la conoscenza NON filtrata di una squadra qualunque:
+	 * `MakeCurrentSnapshot` non e' esposta, quindi finora nessun Blueprint poteva ottenere un
+	 * `FRTTeamKnowledge`, e le `UFUNCTION` di `URTTeamKnowledgeLibrary` sono gia' li' per interrogarlo.
+	 * Un widget avrebbe potuto chiamare `KnowledgeForTeamPublic(1)` e leggere `VisibleCells` e `Contacts`
+	 * dell'avversario — aprire un canale non filtrato nello stesso commit che ne chiude uno.
+	 * Chi ha bisogno della conoscenza in Blueprint passa da `FRTKnowledgeView`, che e' la porta.
+	 */
+	FRTTeamKnowledge KnowledgeForTeamPublic(int32 TeamId) const { return KnowledgeForTeam(TeamId); }
 
 	// --- Sonda di pacing (TELEMETRIA: nessun ritorno verso il gameplay) --------------------------
 	/**
@@ -327,6 +532,14 @@ public:
 	 * tempo vive qui, in un posto solo. Ignorata fuori dalla fase di pianificazione.
 	 */
 	void RecordPlanningInput(ERTPlanningInput Kind);
+
+	/**
+	 * Emesso dai due punti di refresh, con il turno a cui la fotografia si riferisce. Il consumatore naturale
+	 * e' la presentazione — `ARTHexMapActor::ApplyKnowledgeVeil` — che sceglie DI CHI e' la conoscenza da
+	 * disegnare: questo delegate non lo decide, e non deve.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Perception")
+	FRTTeamKnowledgeRefreshedSignature OnTeamKnowledgeRefreshed;
 
 	/** Campioni di pacing della sessione corrente (sola lettura; telemetria, non stato di gioco). */
 	const TArray<FRTPacingSample>& GetPacingSamples() const { return PacingSamples; }
@@ -1093,8 +1306,39 @@ protected:
 	bool bPacingHadInput = false;
 	FString PacingFilePath;            // vuoto finche' non si scrive la prima riga
 
-	/** Registra un evento: lo scrive nel log LogRT e lo accoda al combat log della HUD. */
-	void AddLogEvent(const FString& Message);
+	/**
+	 * Registra un evento: lo scrive nel log LogRT (completo, diagnosi per sviluppatore) e lo accoda al
+	 * combat log della HUD col suo SOGGETTO.
+	 *
+	 * 🔴 **Il soggetto e' OBBLIGATORIO, e non c'e' un valore che significhi «non ci ho pensato»** (`#1499`).
+	 * Fino al 2026-08-28 il parametro era un `int32` con default `INDEX_NONE`, fail-open: un sito nuovo che
+	 * nominava un nemico passava il filtro di conoscenza per omissione, e l'omissione non faceva rumore.
+	 * Ora il tipo non converte da `int32`, quindi il compilatore enumera chi dimentica.
+	 *
+	 * Le due forme sono entrambe una dichiarazione, e si leggono:
+	 * - `FRTLogSubject::Unit(U)` — la riga parla di quell'unita', e il verdetto di [D-223] si congela qui;
+	 * - `FRTLogSubject::World()` — la riga riguarda tutti, e lo dice.
+	 *
+	 * ⚠️ **`World()` non e' il vecchio default con un nome nuovo**: il default diceva soltanto che nessuno
+	 * aveva deciso, e copriva per sbaglio anche righe che nominavano un'unita'.
+	 *
+	 * Il caso che rende la distinzione concreta sono le **righe di morte**: prima passavano per omissione,
+	 * adesso portano `World()` perche' [D-223] ha deciso che un'eliminazione e' pubblica. Stesso esito a
+	 * schermo, ragione opposta — e la ragione e' cio' che il prossimo autore puo' cambiare sapendo cosa fa.
+	 *
+	 * Il censimento — quanti siti, su quali file — si rimisura sul branch: un numero letterale in un
+	 * commento invecchia al primo sito aggiunto e nessuno lo rilegge.
+	 */
+	void AddLogEvent(const FString& Message, FRTLogSubject Subject);
+
+	/**
+	 * Il verdetto di [D-223] per un soggetto, calcolato ADESSO sulla conoscenza corrente di tutte le squadre.
+	 *
+	 * ⚠️ **Fail-closed quando non e' calcolabile**: un soggetto che porta il solo `StableUnitId` non ha
+	 * squadra ne' cella, e `ClassifyTarget` le vuole entrambe. Restituisce `NoOne()` — una riga che non si
+	 * legge, mai una che si legge per sbaglio.
+	 */
+	FRTKnowledgeVerdict FreezeVerdictFor(const FRTLogSubject& Subject) const;
 
 	/**
 	 * Applica gli OnEnterEffects (URTTerrainLibrary) di ogni cella in Entered a Unit: Damage via
@@ -1117,7 +1361,7 @@ protected:
 	static TArray<FRTCellId> CellsEnteredAlong(const TArray<FRTCellId>& Path);
 
 	UPROPERTY()
-	TArray<FString> RecentEvents;
+	TArray<FRTCombatLogLine> RecentEvents;
 
 	/** TurnLog dell'ultimo turno risolto (osservabilita' autoritativa; ordinato in LockInAndResolve). */
 	TArray<FRTTurnLogEntry> TurnLog;
@@ -1154,8 +1398,8 @@ protected:
 	/** Istante d'inizio in UTC, per la riga dell'indice (`#416`). Il manifest porta una durata, non un inizio. */
 	FDateTime ReplayStartedUtc = FDateTime(0);
 
-	/** Rotte (celle) percorse da ogni unita' che si e' mossa nell'ultima risoluzione. */
-	TArray<TArray<FRTCellId>> LastMoveRoutes;
+	/** Rotte percorse da ogni unita' che si e' mossa nell'ultima risoluzione, ciascuna col proprio soggetto. */
+	TArray<FRTMoveRoute> LastMoveRoutes;
 
 	/**
 	 * Quante righe di log il manager conserva.

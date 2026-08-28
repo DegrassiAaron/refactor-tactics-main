@@ -36,3 +36,16 @@ constexpr float RTCellFlatScale = 0.05f;
  * stesso numero dentro lo stesso file.
  */
 constexpr float RTCellTopZ = RTCellPrismRadius * RTCellFlatScale;
+
+/**
+ * Quota MONDO della sagoma dell'ultimo contatto (Task 6), sopra il CENTRO della cella (lo stesso riferimento
+ * che da' `URTHexLibrary::AxialToWorld`, prima di qualunque `VisualZOffset`).
+ *
+ * ⚠️ **Non e' una delle quote gia' assegnate in `RTHexMapActor.cpp`** — superficie `RTCellTopZ + 0,5`, glifo
+ * `RTCellTopZ + 0,3`, marker di blocco `RTCellTopZ + 1,5`, anteprima di pianificazione `RTCellTopZ + 2,5` —
+ * che restano locali a quel file perche' decorano la FACCIA del disco. Questa e' diversa per natura (la base
+ * di una sagoma VOLUMETRICA, non un decoro piatto) e vive qui, non in `RTUnit.cpp`, perche' quel file la deve
+ * leggere senza ricopiare il numero (#983): sotto `RTCellTopZ` finirebbe dentro il disco e sparirebbe, com'e'
+ * gia' successo due volte.
+ */
+constexpr float RTLastContactGhostZ = RTCellTopZ + 1.0f;

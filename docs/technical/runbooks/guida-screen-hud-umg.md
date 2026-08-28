@@ -7,9 +7,15 @@
 Questo file dice **come costruire i Blueprint**. Non dice cosa l'HUD mostra — quello è `progettazione-hud.md`
 — e non dichiara regole di gioco.
 
-Esiste perché i `.uasset` **non sono versionati** in questo repository (`Content/**/*.uasset` in
-`.gitignore`): il codice può preparare tutto tranne l'ultimo passo, e senza una ricetta scritta quell'ultimo
-passo si rifà a memoria ogni volta.
+Esiste perché il codice può preparare tutto tranne l'ultimo passo — un `.uasset` si costruisce nell'Editor —
+e senza una ricetta scritta quell'ultimo passo si rifà a memoria ogni volta.
+
+> 🔁 **Corretto il 2026-08-26.** Questa riga diceva che i `.uasset` **non sono versionati** (`Content/**/*.uasset`
+> in `.gitignore`). È **falso per questo percorso**: `.gitignore:78` porta l'eccezione
+> `!Content/RT/UI/**/*.uasset`, quindi i Blueprint che costruirai qui **entrano nel repository** come
+> qualunque sorgente. Non è un dettaglio amministrativo: cambia cosa fai a fine lavoro (`git add` del
+> binario, non «l'ho fatto in locale»), e ricorda che un `.uasset` **non si fonde** — si tocca da un lavoro
+> solo per volta.
 
 ---
 
@@ -20,9 +26,14 @@ passo si rifà a memoria ogni volta.
 | Classi base C++ dei widget | `Source/RefactorTactics/UI/RTScreenHudWidgets.h` | ✅ |
 | Viste sanitizzate (round, roster, slot, cooldown) | `URTHudViewModel` | ✅ |
 | Catalogo icone (chiave → asset) | `URTIconCatalogData` + `URTIconLibrary` | 🟡 codice sì, **il `.uasset` no** ([#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220)) |
-| I sei `WBP_RT_*` | `Content/RT/UI/` | ⛔ **questo lavoro** |
+| Il layer che lo mette a schermo | `URTFrontendNavigator::PresentMatchHud` | ✅ **dal 2026-08-26** (#613, Task 1) |
+| I sei `WBP_RT_*` | `Content/RT/UI/Match/` | ⛔ **questo lavoro** |
 
-`Content/RT/UI/` **non esiste**: va creata.
+> 🔁 **Corretto il 2026-08-26.** Qui c'era scritto «`Content/RT/UI/` **non esiste**: va creata». Esiste, e
+> contiene già otto `WBP_RT_*` — ma sono la shell di frontend di E46 (`MainMenu`, `LoadingScreen`,
+> `SettingsPanel`, `ModalLayer`…), in `Content/RT/UI/Framework/`. **Nessuno dei sei nomi di questo
+> checkpoint.** Il tuo lavoro va in una cartella nuova, `Content/RT/UI/Match/`, che sta accanto a
+> `Framework/` e non dentro.
 
 ---
 
@@ -128,18 +139,48 @@ binding ingenuo stampa `Round 3/0`, che si legge come una partita già scaduta.
 
 ## 6. Agganciare l'HUD
 
-`WBP_RT_TacticalHUD` va creato e aggiunto al viewport dal `PlayerController` o dal `GameMode`. Oggi **non c'è
-codice che lo faccia**: `ARTHUD` è un `AHUD` in Canvas e non conosce UMG.
+> 🔁 **Riscritto il 2026-08-26.** Questa sezione diceva: *«`WBP_RT_TacticalHUD` va creato e aggiunto al
+> viewport dal `PlayerController` o dal `GameMode`. Oggi non c'è codice che lo faccia»*. Entrambe le metà
+> sono superate — il codice c'è, e **non** va nel `PlayerController`.
 
-Quando aggiungi l'aggancio, `bShowDebug` resta `false` — è `EditDefaultsOnly` sulla classe proprio per non
-restare acceso in una sola schermata dimenticata.
+**Non devi scrivere codice di aggancio.** `URTFrontendNavigator::PresentMatchHud()` lo fa già, ed è chiamato
+da `EnterMatch()`. Ti resta **una riga di configurazione**.
+
+In `Config/DefaultGame.ini`, sezione `[/Script/RefactorTactics.RTFrontendNavigator]`, scommenta:
+
+```ini
+MatchHudWidgetClass="/Game/RT/UI/Match/WBP_RT_TacticalHUD.WBP_RT_TacticalHUD_C"
+```
+
+⚠️ **Nessun test verifica quel percorso.** `EveryConfiguredScreenLoads` esige che ogni riga punti a un widget
+che carica davvero, ma itera `GetRegisteredScreenIds()` — cioè le sole voci `+Screens=`, e questa non lo è.
+Un refuso non fa fallire nulla: l'unico segnale è la warning che `PresentMatchHud` logga nominando il
+percorso. Controlla il log alla prima PIE.
+
+### Perché non è una schermata, e perché non è nel `PlayerController`
+
+Due porte che sembravano ovvie e sono entrambe chiuse:
+
+- **Un binding di `RTScreenIds::Match`** — «nessun widget» è la *definizione* di quella schermata
+  (`RTFrontendScreenIds.h`): dargliene uno rimetterebbe qualcosa sopra il gioco a ogni `RESUME`.
+- **`SyncPresentation` smonta** ogni widget di `LiveWidgets` che non sia la cima dello stack o un modale.
+  Un HUD registrato lì **sparirebbe all'apertura della pausa**.
+
+Per questo il HUD vive in un campo suo, fuori dalla mappa, con `ZOrder -100` — sotto le schermate. E per
+questo l'aggancio sta nel navigator e non nel `PlayerController`: l'invariante «un solo posto chiama
+`CreateWidget`» è il criterio con cui tutto il frontend si verifica con un `grep`.
+
+`bShowDebug` resta `false` — è `EditDefaultsOnly` sulla classe proprio per non restare acceso in una sola
+schermata dimenticata.
 
 ---
 
 ## 7. Cosa NON migrare
 
 ⚠️ `ARTHUD::DrawHUD` **resta dov'è**. La spec dice testualmente che il layer §4.2 «non deve essere
-realizzato come grandi widget HUD statici», e sono 594 righe coperte da `RefactorTactics.HUD.*`.
+realizzato come grandi widget HUD statici», e sono **910 righe** coperte da `RefactorTactics.HUD.*`
+*(misurate il 2026-08-26; la riga diceva 594, che era il conteggio del 2026-08-13 — se lo citi, rimisuralo
+con `wc -l` invece di copiarlo)*.
 
 | Elemento | Layer |
 |---|---|
@@ -159,5 +200,25 @@ Quando i sei Blueprint esistono e l'HUD è agganciato, esegui **`PIE-V01-HUD`**
 leggibilità delle barre, ingombro, coerenza visiva durante il playback, e il **centro libero** che nessun
 test automatico può guardare.
 
-I gate di `RT-FEAT-UI-SCREEN-HUD` in `feature-registry.yaml` restano
-`partial` finché quel passo non è fatto: **lo stato vive lì**, non in questo file.
+Registra l'esito in [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml), seduta **U15** — è la
+seduta che dichiara `PIE-V01-HUD` fra le sue `verifies`. ⚠️ L'header di quel file è normativo: leggilo prima
+di scrivere.
+
+Cosa **non** serve la PIE per verificarlo, e quindi non va rimandato lì:
+
+```bash
+"D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
+  "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
+  -ExecCmds="Automation RunTests RefactorTactics.Frontend+Quit" \
+  -unattended -nopause -nullrhi -NoSound
+```
+
+I quattro `RefactorTactics.Frontend.MatchHud*` provano il ciclo di vita del layer senza aprire l'Editor.
+
+⚠️ **L'exit code di `UnrealEditor-Cmd` non dice se i test sono girati** — il processo può restare appeso
+dopo il `Quit` e uscire con `127` a suite completata. Giudica dal log (`Saved/Logs/RefactorTactics.log`):
+cerca `Found N tests` e i `Test Completed. Result={...}`.
+
+> 🔁 **Corretto il 2026-08-26.** Questa sezione rimandava ai gate di `RT-FEAT-UI-SCREEN-HUD` in
+> `feature-registry.yaml`. ⛔ **Quel file non esiste più**: il tooling è uscito dal repository con
+> **D-181/D-182** (2026-08-21). Puntare lì mandava a cercare uno stato che nessuno scrive più.

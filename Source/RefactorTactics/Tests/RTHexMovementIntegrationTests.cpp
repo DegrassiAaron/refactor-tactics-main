@@ -16,6 +16,8 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Turn/RTTurnLogLibrary.h" // DescribeEntry/DescribeInvalidReason: la voce nuova deve LEGGERSI, non solo esistere
+#include "Perception/RTKnowledgeView.h" // ViewForTeam/FindEntry: il canale della SAGOMA, accanto a quello della traccia
+#include "UI/RTHUD.h"                   // ShouldDrawUnitOverlay/ContactGhostTargetForUnit: le due statiche pure dell'HUD
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -1458,6 +1460,306 @@ bool FRTMainLeavesMovementAvailableTest::RunTest(const FString&)
 		(Foe->Health + Foe->Shield) < FoeBefore);
 	TestTrue(TEXT("lo slot movimento e' rimasto libero: l'unita' e' arrivata dove aveva pianificato"),
 		Shooter->Cell == MoveTo);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+/**
+ * La traccia post-lock porta l'IDENTITA' di chi si e' mosso, non la posizione in un array compattato.
+ *
+ * 🔴 **Il caso e' costruito perche' l'indice MENTA** (`#1497`): tre unita', quella di mezzo ferma. La
+ * raccolta aggiunge una voce solo per chi si e' mosso, quindi le due rotte finiscono agli indici `0` e `1`
+ * mentre appartengono alle unita' con `StableUnitId` **1** e **3**. Chi legge l'indice come un'identita'
+ * nomina l'unita' sbagliata — ed e' esattamente cio' che `rt.Debug.DrawPaths` documentava di non poter fare.
+ *
+ * ⚠️ **Il movimento e' di fase Move, e non e' un dettaglio di stesura**: `LastMoveRoutes.Reset()` vive in
+ * `ResolveMovement`, che gira SEMPRE dopo `ResolveDash` nella stessa risoluzione. Uno scenario costruito su
+ * uno scatto misurerebbe un array gia' azzerato e passerebbe per assenza invece che per merito.
+ *
+ * Le attese non sono letterali: gli id si chiedono alle unita' stesse. Un test che scrivesse `1` e `3` a
+ * mano cadrebbe il giorno in cui cambia l'ordinamento del roster, misurando quello invece dell'identita'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveRoutesCarryIdentityTest,
+	"RefactorTactics.HexMove.MoveRoutesCarryUnitIdentity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveRoutesCarryIdentityTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 4);
+
+	// L'ordine del roster e' (TeamId, Cell.X, Cell.Y, Layer, nome): team 0 prima, e dentro il team la X
+	// crescente. Quindi Mover -> 1, Fermo -> 2, Avversario -> 3, e il fermo sta in MEZZO.
+	//
+	// ⚠️ Il fermo sta in `(1, 1)`, **fuori** dai percorsi minimi di chi si muove: su `(1, 0)` sarebbe un
+	// ostacolo sul cammino del mover, e un fallimento misurerebbe il pathfinding invece dell'identita'.
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Fermo = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, 1));
+	ARTUnit* Avversario = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Fermo || !Avversario) { DestroyHexMoveWorld(World); return false; }
+
+	const FRTCellId MoverStart = Mover->Cell;
+	const FRTCellId AvversarioStart = Avversario->Cell;
+
+	Mover->PlannedCell = FRTCellId(2, -1);
+	Avversario->PlannedCell = FRTCellId(3, -2);
+	Fermo->PlannedCell = Fermo->Cell; // niente rotta: e' lui a disallineare l'indice
+
+	RunTurn(TM);
+
+	const TArray<FRTMoveRoute>& Routes = TM->GetLastMoveRoutes();
+
+	// Anti-vacuita': senza questa riga tutte le asserzioni sotto sarebbero vere su un array vuoto.
+	if (!TestEqual(TEXT("due rotte: si sono mosse due unita' su tre"), Routes.Num(), 2))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	TSet<int32> Ids;
+	for (const FRTMoveRoute& Route : Routes)
+	{
+		Ids.Add(Route.StableUnitId);
+	}
+	TestTrue(TEXT("la rotta di chi si e' mosso porta il suo StableUnitId"),
+		Ids.Contains(Mover->StableUnitId) && Ids.Contains(Avversario->StableUnitId));
+	TestFalse(TEXT("chi non si e' mosso non compare fra le rotte"),
+		Ids.Contains(Fermo->StableUnitId));
+
+	// L'aggancio incrociato: e' questo che cade se l'identita' viene dall'indice compattato invece che
+	// dall'unita'. Ogni rotta deve partire dalla cella da cui e' partita PROPRIO quell'unita'.
+	for (const FRTMoveRoute& Route : Routes)
+	{
+		if (!TestTrue(TEXT("la rotta non e' vuota"), Route.Cells.Num() > 0)) { continue; }
+
+		const FRTCellId Attesa = (Route.StableUnitId == Mover->StableUnitId) ? MoverStart : AvversarioStart;
+		TestTrue(TEXT("la rotta parte dalla cella di partenza dell'unita' che dichiara"),
+			Route.Cells[0] == Attesa);
+	}
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+/**
+ * [D-223] / `#1497` — la traccia post-lock non disegna il percorso di chi la squadra non vedeva.
+ *
+ * E' l'esempio eseguibile della issue, alla lettera:
+ *
+ *     Dato che A1 vede B1 e B1 si muove nella fase Move
+ *       e che B2 si muove fuori da ogni vista della squadra di A, nella stessa fase
+ *     Quando si apre il Planning del turno successivo
+ *     Allora l'HUD disegna UNA traccia (quella di B1)
+ *       e nessuna cella del percorso di B2 compare a schermo
+ *
+ * "Il movimento e' di fase Move, e non e' un dettaglio di stesura": `LastMoveRoutes.Reset()` vive in
+ * `ResolveMovement`, che gira SEMPRE dopo `ResolveDash`. Uno scenario costruito su uno scatto misurerebbe
+ * un array gia' azzerato e passerebbe per assenza invece che per merito.
+ *
+ * La DISTANZA fa il nascondimento di B2, non l'orientamento — e il numero e' MISURATO, non dedotto:
+ * l'osservatore e' Wraith, che ha `VisionRange = 6` e non il `5` del default di `ARTUnit`. B2 resta a
+ * distanza 8 per l'intera rotta, quindi il caso non dipende dal `Facing` ne' dall'apertura del cono. Con
+ * B2 a distanza 6 il test sarebbe passato lo stesso, ma per l'arco frontale: la stessa asserzione con una
+ * premessa diversa da quella dichiarata.
+ *
+ * B1 invece cammina lungo la direzione E pura, dentro il cono e dentro la portata, per tutta la rotta: che
+ * sia OSSERVATO e' una premessa, e l'asserto «la sua traccia e' intera» e' cio' che la verifica — se un
+ * giorno il cono si stringesse, questo test diventerebbe rosso invece di svuotarsi in silenzio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveTrailHidesUnobservedRouteTest,
+	"RefactorTactics.HexMove.TrailHidesUnobservedRoute",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveTrailHidesUnobservedRouteTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	ARTUnit* A1 = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* B1 = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(2, 0));
+	ARTUnit* B2 = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-8, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A1 || !B1 || !B2) { DestroyHexMoveWorld(World); return false; }
+
+	// Esplicito invece che ereditato: il caso di B1 dipende dal cono, e un default che cambiasse
+	// trasformerebbe questo test in una misura di qualcos'altro senza dirlo.
+	A1->Facing = ERTHexDirection::E;
+
+	A1->PlannedCell = A1->Cell;        // l'osservatore resta fermo: la vista non si muove sotto i piedi
+	B1->PlannedCell = FRTCellId(5, 0); // (2,0) -> (5,0): direzione E pura, sempre entro VisionRange
+	B2->PlannedCell = FRTCellId(-8, 2); // (-8,0) -> (-8,1) -> (-8,2): distanza 8 da A1 a ogni passo
+
+	RunTurn(TM);
+
+	const TArray<FRTMoveRoute>& Routes = TM->GetLastMoveRoutes();
+
+	// Anti-vacuita' #1: si sono mosse DUE unita', e le due rotte esistono. Senza questa riga tutto il
+	// resto sarebbe vero su un array vuoto — cioe' su un turno in cui non e' successo niente.
+	if (!TestEqual(TEXT("due rotte: si sono mossi B1 e B2"), Routes.Num(), 2))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const FRTMoveRoute* RouteB1 = Routes.FindByPredicate(
+		[B1](const FRTMoveRoute& R) { return R.StableUnitId == B1->StableUnitId; });
+	const FRTMoveRoute* RouteB2 = Routes.FindByPredicate(
+		[B2](const FRTMoveRoute& R) { return R.StableUnitId == B2->StableUnitId; });
+	if (!TestNotNull(TEXT("la rotta di B1 c'e'"), RouteB1)
+		|| !TestNotNull(TEXT("la rotta di B2 c'e'"), RouteB2))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	// Anti-vacuita' #2: entrambi si sono mossi DAVVERO. Se il pathfinding non li avesse portati da nessuna
+	// parte le due rotte esisterebbero comunque (una cella sola) e gli asserti sotto sarebbero vuoti.
+	if (!TestTrue(TEXT("B1 ha percorso piu' di una cella"), RouteB1->Cells.Num() > 1)
+		|| !TestTrue(TEXT("B2 ha percorso piu' di una cella"), RouteB2->Cells.Num() > 1))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const TArray<FRTCellId> TrailB1 = ARTTurnManager::VisibleTrailFor(*RouteB1, /*ObserverTeamId*/ 0);
+	const TArray<FRTCellId> TrailB2 = ARTTurnManager::VisibleTrailFor(*RouteB2, /*ObserverTeamId*/ 0);
+
+	// "L'HUD disegna UNA traccia": quella di B1, per intero.
+	TestEqual(TEXT("la traccia di B1 e' quella che A1 ha osservato: tutta"),
+		TrailB1.Num(), RouteB1->Cells.Num());
+
+	// "e nessuna cella del percorso di B2 compare a schermo". L'asserto e' sull'INSIEME e non solo sul
+	// conteggio: e' cosi' che si dice "nessuna cella", e resta vero se un giorno la rotta ne avesse una in piu'.
+	TestEqual(TEXT("della rotta di B2 non si disegna nulla"), TrailB2.Num(), 0);
+	for (const FRTCellId& Cell : RouteB2->Cells)
+	{
+		TestFalse(TEXT("nessuna cella del percorso di B2 finisce nella traccia disegnata"),
+			TrailB2.Contains(Cell));
+	}
+
+	// La squadra di B le vede entrambe: il troncamento e' conoscenza parziale, non censura.
+	TestEqual(TEXT("chi ha percorso la rotta la vede intera"),
+		ARTTurnManager::VisibleTrailFor(*RouteB2, /*ObserverTeamId*/ 1).Num(), RouteB2->Cells.Num());
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+/**
+ * I DUE canali sullo stesso soggetto: la traccia e la sagoma non possono contraddirsi.
+ *
+ * Sul modello di `Knowledge.OverlayAndGhostAreComplementary`, che pero' pinna solo overlay e sagoma — due
+ * canali calcolati nello STESSO istante. La traccia entra con un istante diverso (congelato al Move) e
+ * nessun test la vedeva rompersi: e' la lacuna che il DoD di `#1497` dichiara.
+ *
+ * L'invariante e' una frase sola: se la sagoma del ricordo e' disegnata, allora la cella VERA del soggetto
+ * non e' a schermo — ne' come modello, ne' come ultimo vertice di una polilinea grigia. E' il difetto che
+ * `PIE-KNOW4` ha osservato dal vivo, "la traccia arriva dove il nemico sta davvero": due canali, lo stesso
+ * soggetto, due regole opposte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveTrailAndGhostAgreeTest,
+	"RefactorTactics.HexMove.TrailAndContactGhostAgree",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveTrailAndGhostAgreeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	// B parte a distanza 5 (il limite di VisionRange, in direzione E pura: visto) e cammina fino a 7,
+	// dove nessuno lo vede piu'. E' il soggetto che si perde di vista MUOVENDOSI, l'unico caso in cui
+	// ricordo e posizione vera non coincidono — senza il movimento la verifica sarebbe vuota.
+	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(5, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A || !B) { DestroyHexMoveWorld(World); return false; }
+	A->Facing = ERTHexDirection::E;
+
+	A->PlannedCell = A->Cell;
+	B->PlannedCell = FRTCellId(7, 0);
+
+	RunTurn(TM);
+
+	// La conoscenza del Planning che si apre: e' lo stato con cui l'HUD disegnerebbe il frame successivo.
+	TM->PlanBotsForTest();
+
+	const FRTCellId CellaVera = B->Cell;
+	if (!TestTrue(TEXT("B si e' davvero spostato: senza, ricordo e posizione coincidono e il test e' vuoto"),
+		CellaVera != FRTCellId(5, 0)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	// --- Canale 1: la SAGOMA ---------------------------------------------------------------------------
+	TArray<FRTKnowledgeSubject> Subjects;
+	for (ARTUnit* U : { A, B })
+	{
+		FRTKnowledgeSubject S;
+		S.StableUnitId = U->StableUnitId;
+		S.TeamId = U->TeamId;
+		S.Cell = U->Cell;
+		S.bAlive = U->IsAlive();
+		Subjects.Add(S);
+	}
+	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(
+		TM->KnowledgeForTeamPublic(0), Subjects, /*ObserverTeamId*/ 0);
+	const FRTKnowledgeEntry* Entry = URTKnowledgeViewLibrary::FindEntry(View, B->StableUnitId);
+
+	const bool bModello = ARTHUD::ShouldDrawUnitOverlay(Entry, /*bIsOwnTeam*/ false);
+	const TOptional<FRTContactGhostTarget> Sagoma =
+		ARTHUD::ContactGhostTargetForUnit(Entry, /*bIsOwnTeam*/ false);
+
+	// Anti-vacuita': lo scenario deve aver prodotto DAVVERO un ricordo. Se B fosse rimasto visibile
+	// l'invariante sotto sarebbe vera per un'altra ragione, e non misurerebbe piu' nulla.
+	if (!TestTrue(TEXT("B e' un ricordo: la sagoma c'e' e il modello no"), Sagoma.IsSet() && !bModello))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+	TestFalse(TEXT("la sagoma sta alla cella del contatto, mai a quella vera"), Sagoma->Cell == CellaVera);
+
+	// --- Canale 2: la TRACCIA --------------------------------------------------------------------------
+	const TArray<FRTMoveRoute>& Routes = TM->GetLastMoveRoutes();
+	const FRTMoveRoute* RouteB = Routes.FindByPredicate(
+		[B](const FRTMoveRoute& R) { return R.StableUnitId == B->StableUnitId; });
+	if (!TestNotNull(TEXT("la rotta di B c'e'"), RouteB)) { DestroyHexMoveWorld(World); return false; }
+
+	// Anti-vacuita': la rotta RAGGIUNGE la cella vera. Senza questa riga l'asserto seguente sarebbe vero
+	// per costruzione — non si puo' nascondere una cella che la rotta non contiene.
+	if (!TestTrue(TEXT("la rotta grezza arriva alla cella vera: c'e' qualcosa da nascondere"),
+		RouteB->Cells.Contains(CellaVera)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const TArray<FRTCellId> Trail = ARTTurnManager::VisibleTrailFor(*RouteB, /*ObserverTeamId*/ 0);
+
+	// L'invariante fra i due canali, in una riga.
+	TestFalse(TEXT("finche' si vede la sagoma, la traccia NON arriva alla cella vera"),
+		Trail.Contains(CellaVera));
+	TestTrue(TEXT("ne' vi arriva l'ultimo vertice della polilinea"),
+		Trail.Num() == 0 || Trail.Last() != CellaVera);
+
+	// E il tratto che resta e' cio' che era osservato, con la sagoma DENTRO e mai oltre.
+	//
+	// L'asserto e' `Contains`, non `Trail.Last() == Sagoma->Cell`, e la differenza e' un fatto misurato:
+	// con Wraith (`VisionRange = 6`) la traccia arriva a `(6,0)` mentre la sagoma resta a `(5,0)`. Non e'
+	// una fuga — `(6,0)` A la vedeva davvero quando B ci e' passato, e «ho visto questa parte del suo
+	// movimento» resta vero — ma e' il LIMITE che [D-223] dichiara: i due canali campionano a granularita'
+	// diverse. La sagoma nasce dal refresh di FASE (`RefreshTeamKnowledgeForPlanning` / `ResolveCombat`,
+	// due assegnazioni per turno), la traccia da CELLE percorse. Pretendere che coincidano vorrebbe dire
+	// pinnare quella coincidenza invece della regola, e il test cadrebbe al primo eroe con un'altra vista.
+	if (Trail.Num() > 0)
+	{
+		TestTrue(TEXT("il tratto disegnato parte da dove B era quando lo si vedeva"),
+			Trail[0] == FRTCellId(5, 0));
+		TestTrue(TEXT("la cella dove la sagoma ricorda B e' una di quelle che la traccia mostra"),
+			Trail.Contains(Sagoma->Cell));
+	}
 
 	DestroyHexMoveWorld(World);
 	return true;
