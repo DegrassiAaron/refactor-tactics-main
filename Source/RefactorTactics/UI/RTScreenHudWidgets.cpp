@@ -99,6 +99,31 @@ const ARTUnit* URTScreenHudWidgetBase::GetSelectedUnit() const
 	return PC ? PC->GetSelectedUnit() : nullptr;
 }
 
+const URTIconCatalogData* URTScreenHudWidgetBase::GetIconCatalog() const
+{
+	// La radice PUO' essere questo stesso widget: `URTTacticalHUDWidget` deriva da questa base, e
+	// `GetTypedOuter` cerca fra gli OUTER — non guarda `this`. Senza questo ramo il contenitore sarebbe
+	// l'unico widget dell'HUD incapace di leggere il proprio catalogo, che e' il difetto piu' facile da non
+	// notare: funziona ovunque tranne dove il dato vive.
+	if (const URTTacticalHUDWidget* Self = Cast<URTTacticalHUDWidget>(this))
+	{
+		return Self->IconCatalog;
+	}
+
+	// Un `UUserWidget` innestato nel Designer ha per outer il `UWidgetTree` del padre, il cui outer e' il
+	// `UUserWidget` padre: la catena arriva alla radice. Vale anche per un widget creato a runtime con
+	// `CreateWidget(this, ...)` da un figlio dell'HUD, perche' l'outer e' allora il chiamante.
+	if (const URTTacticalHUDWidget* Root = GetTypedOuter<URTTacticalHUDWidget>())
+	{
+		return Root->IconCatalog;
+	}
+
+	// ⚠️ `nullptr` e' un esito legittimo, non un errore da segnalare qui: il widget puo' vivere fuori
+	// dall'HUD (un test, un'anteprima d'editor). Chi consuma passa da `ResolveIcon`, che con catalogo nullo
+	// da' il missing-icon e logga la chiave — la diagnostica sta li', in un posto solo.
+	return nullptr;
+}
+
 // =====================================================================================================
 // Turn header
 // =====================================================================================================
