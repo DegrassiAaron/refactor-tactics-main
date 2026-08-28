@@ -4364,10 +4364,21 @@ void ARTTurnManager::ResolveCombat()
 		// perche' nessuno aveva dichiarato un soggetto; adesso passano perche' qualcuno ha deciso che
 		// devono. La differenza non si vede nell'output e si vede nel codice, ed e' il punto della issue.
 		//
-		// ⚠️ **Cosa si rivela, e cosa no.** Il testo porta nome e squadra, mai una cella: chi uccide con
+		// ⚠️ **Cosa si rivela, e cosa no.** QUESTO testo porta nome e squadra, mai una cella: chi uccide con
 		// un'AoE un nemico mai visto scopre che esisteva e che e' caduto, non dove fosse. E dopo la morte
 		// non c'e' piu' una posizione da proteggere. Le altre quattro righe di morte seguono la stessa
 		// regola: fiamme, scarica e i due annunci del playback.
+		//
+		// 🔴 **Ma «pubblica» vale per l'ANNUNCIO, non per il racconto del colpo, e c'e' una SESTA riga di
+		// morte che resta filtrata.** Il canale derivato produce, per un esito `Lethal`,
+		// *«(q,r,L) -> (q,r,L): N danni, eliminata»* (`URTTurnLogLibrary::DescribeEntry`): quella porta DUE
+		// celle — attaccante e vittima — e passa dal verdetto congelato della propria voce. Il criterio non
+		// e' «di cosa parla la riga» ma «cosa rivela»: e' pubblico CHE un'unita' sia caduta, non COME ne'
+		// DA DOVE.
+		//
+		// ⚠️ E il soggetto di quella voce non e' sempre lo stesso: e' l'ATTACCANTE per il Blast e per la
+		// scarica, la VITTIMA per `Status.Burning` e per il danno da terreno. Chi ci lavora sopra lo
+		// verifichi invece di dedurlo — sono due convenzioni opposte nello stesso formato di riga.
 		AddLogEvent(FString::Printf(TEXT("Eliminata: %s (team %d)"), *Units[Idx]->GetName(), Units[Idx]->TeamId), FRTLogSubject::World());
 		FRTResolvedEvent Ev;
 		Ev.Phase = ERTMatchPhase::Blast;

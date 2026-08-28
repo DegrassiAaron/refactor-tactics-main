@@ -619,4 +619,74 @@ bool FRTLogDeathIsPublicTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * L'esempio eseguibile di `#1498`, sul percorso vero: **chi muore nel turno lascia comunque il racconto di
+ * cio' che ha fatto prima di cadere.**
+ *
+ * Era il difetto che la issue descriveva: il filtro girava in LETTURA, e nell'istante in cui l'unita' veniva
+ * distrutta ogni riga gia' scritta che la nominava perdeva la propria voce nella vista — retroattivamente
+ * su tutto il buffer. Il giocatore perdeva la narrazione del turno che voleva rileggere.
+ *
+ * Con [D-223] il verdetto e' congelato quando la riga nasce, cioe' mentre il soggetto e' ancora vivo e
+ * osservabile: la morte non lo tocca piu'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLogKeepsTheTurnOfTheFallenTest,
+	"RefactorTactics.UI.LogKeepsTheTurnOfTheFallen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLogKeepsTheTurnOfTheFallenTest::RunTest(const FString&)
+{
+	UWorld* World = RTCombatLogFixture::MakeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	RTCombatLogFixture::SpawnMap(World);
+
+	// Due unita' vicine che si colpiscono nello stesso Blast — i turni sono simultanei, quindi entrambi i
+	// colpi partono. La mia ha vita bassa: cade nello stesso segmento in cui mette a segno il proprio.
+	ARTUnit* Mia = RTCombatLogFixture::SpawnUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Nemica = RTCombatLogFixture::SpawnUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mia || !Nemica) { RTCombatLogFixture::DestroyWorld(World); return false; }
+
+	Mia->Health = 1;
+	Mia->Shield = 0;
+	Mia->PlannedAbilityIndex = 0;
+	Mia->PlannedAttackTarget = Nemica;
+	Nemica->PlannedAbilityIndex = 0;
+	Nemica->PlannedAttackTarget = Mia;
+
+	const int32 VitaNemicaPrima = Nemica->Health + Nemica->Shield;
+
+	RTCombatLogFixture::RunTurn(TM);
+
+	// Le due premesse si ASSERISCONO: senza, il test misurerebbe uno scenario che non e' accaduto.
+	if (!TestFalse(TEXT("premessa: la mia unita' e' caduta"), Mia->IsAlive()))
+	{
+		RTCombatLogFixture::DestroyWorld(World); return false;
+	}
+	if (!TestTrue(TEXT("premessa: prima di cadere ha messo a segno il colpo"),
+		(Nemica->Health + Nemica->Shield) < VitaNemicaPrima))
+	{
+		RTCombatLogFixture::DestroyWorld(World); return false;
+	}
+
+	// La lettura avviene DOPO `ConcludeTurn`, che e' la finestra in cui il difetto si manifestava: l'attore
+	// e' gia' distrutto e la vista costruita adesso non avrebbe piu' una voce per lui.
+	const TArray<FString> Visibili = TM->GetRecentEventsForTeam(0);
+
+	bool bAnnuncioMorte = false, bColpoInflitto = false;
+	for (const FString& L : Visibili)
+	{
+		if (L.Contains(TEXT("Eliminata: ")) || L.Contains(TEXT("Morte mostrata"))) { bAnnuncioMorte = true; }
+		// Il racconto del colpo: la riga derivata con l'esito, dove il soggetto e' l'ATTACCANTE — cioe' la
+		// mia unita' caduta. E' precisamente la riga che il filtro in lettura faceva sparire.
+		if (L.Contains(TEXT("danni"))) { bColpoInflitto = true; }
+	}
+
+	TestTrue(TEXT("l'annuncio della morte si legge"), bAnnuncioMorte);
+	TestTrue(*FString::Printf(TEXT("e si legge anche il colpo che ha messo a segno prima di cadere (%d righe)"),
+		Visibili.Num()), bColpoInflitto);
+
+	RTCombatLogFixture::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
