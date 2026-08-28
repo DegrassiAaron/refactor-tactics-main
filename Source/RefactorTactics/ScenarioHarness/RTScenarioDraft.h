@@ -25,7 +25,16 @@ enum class ERTScenarioAuthoringResult : uint8
 	/** Validato ma non scritto: percorso non scrivibile, disco pieno, file in sola lettura. */
 	WriteFailed,
 	/** Si e' chiesto qualcosa a un draft che non ha nessuno scenario aperto. */
-	NoScenarioOpen
+	NoScenarioOpen,
+	/**
+	 * L'esecuzione non e' potuta avvenire per un guasto dello STRUMENTO — un mondo che non si crea, non uno
+	 * scenario scritto male.
+	 *
+	 * ⚠️ Esiste perche' riportare questo caso come `Invalid` direbbe al designer che il suo scenario e'
+	 * malformato quando il difetto e' altrove: la stessa confusione fra «il gioco e' rotto» e «il test e'
+	 * scritto male» che `ERTTestOutcome` tiene separata con `Error` e `Fail`, un livello piu' su.
+	 */
+	RunFailed
 };
 
 /**
@@ -179,7 +188,13 @@ struct FRTScenarioAssertionView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
 	FString Actual;
 
-	/** Il turno a cui si riferisce, `0` se vale sull'esito finale. */
+	/**
+	 * Il turno a cui l'assertion si riferisce.
+	 *
+	 * ⚠️ Per le assertion di fine scenario e' l'**ultimo turno giocato**, non `0`: la sessione le valuta a
+	 * partita finita e le marca con `TurnsPlayed`. La prima stesura di questa riga prometteva `0`, e un
+	 * pannello che avesse filtrato su quel valore per mostrarle avrebbe reso una lista vuota.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
 	int32 Turn = 0;
 };
@@ -199,6 +214,22 @@ struct FRTScenarioLogEntryView
 	/** Nome leggibile dell'evento: `Environment.BridgeRemoved`. Lo compone `DescribeLogEvent`. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
 	FString Event;
+
+	/**
+	 * Il numero che l'evento porta: danno per un `Combat`, celle percorse per un `Move`, codice di motivo per
+	 * un `Fallback`. Senza, il pannello mostrerebbe «Combat.Hit» senza dire **quanto** — che e' l'unica cosa
+	 * che serve sapere di un colpo.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	int32 Amount = 0;
+
+	/**
+	 * Quale azione ha prodotto l'evento. Senza, `Riktor.Interposition` e `Action.Intercept` comparirebbero
+	 * identici — ed e' esattamente il caso che `RTTurnLog.h` dice essere la ragione per cui questo campo
+	 * esiste.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	FName ActionId;
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
 	FRTCellId FromCell = FRTCellId();
@@ -249,6 +280,16 @@ struct FRTScenarioRunReport
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
 	FString StateHash;
+
+	/**
+	 * `false` quando l'esecuzione non produce un hash ne' un TurnLog confrontabili.
+	 *
+	 * ⚠️ Succede con gli scenari a **varianti**: il runner aggrega piu' corse e non assegna ne' `StateHash` ne'
+	 * `TurnTraces` all'aggregato. Senza questo campo il pannello mostrerebbe `00000000` — indistinguibile da
+	 * un hash vero che vale zero — e un TurnLog vuoto per una partita che ha giocato dei turni.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
+	bool bHasTrace = false;
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Scenario")
 	TArray<FRTScenarioAssertionView> Assertions;
@@ -305,15 +346,22 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 	/** `URTScenarioLoader::Validate` sullo scenario corrente. L'unico giudice della validita', e sta dove stava. */
 	ERTScenarioAuthoringResult Validate(FString& OutError) const;
 
-	/** Valida e scrive via `URTScenarioLoader::SaveToFile`. Uno scenario invalido non tocca il disco. */
-	ERTScenarioAuthoringResult SaveToFile(const FString& FilePath, FString& OutError) const;
+	/**
+	 * Valida e scrive via `URTScenarioLoader::SaveToFile`. Uno scenario invalido non tocca il disco.
+	 *
+	 * ⚠️ **Non e' `const`, e la ragione non e' tecnica**: un salvataggio riuscito REGISTRA il percorso come
+	 * fonte dello scenario. Senza, uno scenario creato nell'editor non ne avrebbe mai una — `SourcePath` lo
+	 * scriveva solo `OpenFromFile` — e `Reset` diventava un no-op silenzioso per tutto il flusso di `#1115`:
+	 * crea, modifica, salva, modifica ancora, RESET, e non tornava niente. Trovato dalla review di `#1117`.
+	 */
+	ERTScenarioAuthoringResult SaveToFile(const FString& FilePath, FString& OutError);
 
 	/**
 	 * Salva dove l'indice dice che questo scenario vive. Fallisce con `NotFound` se l'ID non e' ancora
 	 * nell'indice — un file nuovo non ha ancora un posto, e inventarglielo qui significherebbe decidere una
 	 * convenzione di cartelle che appartiene a chi le organizza.
 	 */
-	ERTScenarioAuthoringResult SaveInPlace(FString& OutError) const;
+	ERTScenarioAuthoringResult SaveInPlace(FString& OutError);
 
 	// --- editing dell'initial state (#1115) -------------------------------------------------------------
 	//
@@ -463,9 +511,11 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 	 * differenza conta: un undo tornerebbe allo stato PRECEDENTE, questo torna a quello DICHIARATO.
 	 *
 	 * ⚠️ Le modifiche d'authoring non salvate vengono perse quando c'e' una fonte da cui ricaricare: e' il
-	 * significato di «torna a cio' che il file dice». `OutError` lo segnala.
+	 * significato di «torna a cio' che il file dice». Lo segnala **`bOutDiscardedEdits`**, non `OutError`: un
+	 * avviso scritto nel canale degli errori non si distingue da un errore, e una UI cablata come
+	 * `if (!OutError.IsEmpty()) mostraBanner()` colorerebbe di rosso un RESET andato esattamente come doveva.
 	 */
-	ERTScenarioAuthoringResult Reset(FString& OutError);
+	ERTScenarioAuthoringResult Reset(bool& bOutDiscardedEdits, FString& OutError);
 
 	/** L'esito dell'ultima esecuzione. `bHasRun` falso se non ce n'e' stata nessuna. */
 	const FRTScenarioRunReport& GetLastRunReport() const { return LastReport; }
@@ -519,6 +569,19 @@ private:
 	 */
 	FRTScenarioRunReport LastReport;
 	TArray<FRTTurnTrace> LastTraces;
+
+	/**
+	 * Il log decodificato, e se lo e' gia'.
+	 *
+	 * `mutable` perche' `GetLastRunLog` e' logicamente const — non cambia lo scenario — ma la decodifica va
+	 * fatta una volta sola: un nodo Blueprint legato a una lista viene rivalutato a ogni frame, e rifare
+	 * `DeserializeTurnLog` su tutte le tracce sessanta volte al secondo non e' un dettaglio.
+	 */
+	mutable TArray<FRTScenarioLogEntryView> LastLog;
+	mutable bool bLogDecoded = false;
+
+	/** Dimentica l'ultima corsa: report, tracce e log decodificato. Chiamata a ogni cambio di scenario. */
+	void ForgetLastRun();
 
 	/**
 	 * Distingue «nessuno scenario aperto» da «scenario aperto e vuoto». Senza questo flag un draft appena

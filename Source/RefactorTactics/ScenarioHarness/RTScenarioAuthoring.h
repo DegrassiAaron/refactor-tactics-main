@@ -201,14 +201,16 @@ public:
 	 * annullare. Torna a cio' che il file DICHIARA, che e' un'altra cosa dallo stato precedente.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
-	ERTScenarioAuthoringResult Reset(FString& OutError);
+	ERTScenarioAuthoringResult Reset(bool& bOutDiscardedEdits, FString& OutError);
 
 	/** L'esito dell'ultima esecuzione. `bHasRun` falso se non ce n'e' stata nessuna. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
 	FRTScenarioRunReport GetLastRunReport() const { return Draft.GetLastRunReport(); }
 
 	/** Il TurnLog dell'ultima esecuzione, consultabile senza uscire dall'editor. */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
+	// `BlueprintCallable` e non `Pure`: un nodo puro viene rivalutato a ogni uso e a ogni frame, e questo
+	// restituisce un array che il chiamante deve tenere, non un valore da leggere di continuo.
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Scenario")
 	TArray<FRTScenarioLogEntryView> GetLastRunLog() const { return Draft.GetLastRunLog(); }
 
 	/**

@@ -164,8 +164,12 @@ ERTScenarioAuthoringResult URTScenarioAuthoring::Run(FRTScenarioRunReport& OutRe
 	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
 	if (World == nullptr)
 	{
-		OutError = TEXT("mondo temporaneo non creabile");
-		return ERTScenarioAuthoringResult::Invalid;
+		// ⚠️ `RunFailed` e NON `Invalid`: `Invalid` significa «lo scenario non passa `Validate`», e usarlo qui
+		// direbbe al designer che il suo scenario e' scritto male quando a rompersi e' stato lo strumento. E'
+		// la stessa confusione fra difetto del gioco e difetto del test che questo harness esiste per
+		// impedire, un livello piu' su.
+		OutError = TEXT("mondo temporaneo non creabile: e' un guasto dello strumento, non dello scenario");
+		return ERTScenarioAuthoringResult::RunFailed;
 	}
 	if (GEngine)
 	{
@@ -181,13 +185,22 @@ ERTScenarioAuthoringResult URTScenarioAuthoring::Run(FRTScenarioRunReport& OutRe
 	}
 	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
 
-	OutReport = Draft.GetLastRunReport();
+	// ⚠️ Il report si copia SOLO se l'esecuzione e' avvenuta.
+	//
+	// La prima stesura lo copiava sempre, e `FRTScenarioDraft::Run` non tocca `LastReport` quando rifiuta:
+	// un RUN respinto da `Validate` restituiva quindi il report della corsa PRECEDENTE — `bHasRun` vero,
+	// `PASS`, hash vecchio, TurnLog vecchio. Il pannello mostrava un verde per una corsa mai avvenuta, che e'
+	// il modo piu' diretto di far fidare qualcuno di un risultato che non esiste.
+	if (Result == ERTScenarioAuthoringResult::Success)
+	{
+		OutReport = Draft.GetLastRunReport();
+	}
 	return Result;
 }
 
-ERTScenarioAuthoringResult URTScenarioAuthoring::Reset(FString& OutError)
+ERTScenarioAuthoringResult URTScenarioAuthoring::Reset(bool& bOutDiscardedEdits, FString& OutError)
 {
-	return Draft.Reset(OutError);
+	return Draft.Reset(bOutDiscardedEdits, OutError);
 }
 
 TArray<FName> URTScenarioAuthoring::ListHeroIds()
@@ -221,6 +234,8 @@ FText URTScenarioAuthoring::DescribeResult(ERTScenarioAuthoringResult Result)
 		return LOCTEXT("WriteFailed", "Scrittura fallita");
 	case ERTScenarioAuthoringResult::NoScenarioOpen:
 		return LOCTEXT("NoScenarioOpen", "Nessuno scenario aperto");
+	case ERTScenarioAuthoringResult::RunFailed:
+		return LOCTEXT("RunFailed", "Esecuzione non riuscita: e' lo strumento, non lo scenario");
 	}
 
 	return LOCTEXT("Unknown", "Esito sconosciuto");

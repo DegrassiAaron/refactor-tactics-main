@@ -24,6 +24,7 @@ void FRTScenarioDraft::NewScenario(const FString& ScenarioId, int32 MapRadius)
 	Scenario.MapRadius = MapRadius;
 	SourcePath.Reset();
 	bOpen = true;
+	ForgetLastRun();
 
 	// ⚠️ Niente `Validate` qui, ed e' voluto: uno scenario appena creato NON e' valido — non ha unita' e non
 	// ha assertion. Rifiutarlo alla nascita renderebbe impossibile crearne uno, che e' il punto di `#1115`.
@@ -60,6 +61,9 @@ ERTScenarioAuthoringResult FRTScenarioDraft::OpenFromFile(const FString& FilePat
 	Scenario = MoveTemp(Loaded);
 	SourcePath = FilePath;
 	bOpen = true;
+	// Il report di un ALTRO scenario non deve sopravvivere qui: il pannello attribuirebbe a questo l'esito,
+	// l'hash e il TurnLog di quello precedente, che non e' mai stato eseguito. Idem in `Close` e `NewScenario`.
+	ForgetLastRun();
 	return ERTScenarioAuthoringResult::Success;
 }
 
@@ -68,6 +72,15 @@ void FRTScenarioDraft::Close()
 	Scenario = FRTTestScenario();
 	SourcePath.Reset();
 	bOpen = false;
+	ForgetLastRun();
+}
+
+void FRTScenarioDraft::ForgetLastRun()
+{
+	LastReport = FRTScenarioRunReport();
+	LastTraces.Reset();
+	LastLog.Reset();
+	bLogDecoded = false;
 }
 
 ERTScenarioAuthoringResult FRTScenarioDraft::Validate(FString& OutError) const
@@ -85,7 +98,7 @@ ERTScenarioAuthoringResult FRTScenarioDraft::Validate(FString& OutError) const
 		: ERTScenarioAuthoringResult::Invalid;
 }
 
-ERTScenarioAuthoringResult FRTScenarioDraft::SaveToFile(const FString& FilePath, FString& OutError) const
+ERTScenarioAuthoringResult FRTScenarioDraft::SaveToFile(const FString& FilePath, FString& OutError)
 {
 	OutError.Reset();
 
@@ -110,10 +123,14 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SaveToFile(const FString& FilePath,
 		return ERTScenarioAuthoringResult::WriteFailed;
 	}
 
+	// ⚠️ Da qui in poi lo scenario HA una fonte, e `Reset` sa dove tornare. Senza questa riga uno scenario
+	// creato nell'editor non ne aveva mai una, e `Reset` era un no-op silenzioso per l'intero flusso di
+	// `#1115`: crea, modifica, salva, modifica ancora, RESET — e non tornava niente.
+	SourcePath = FilePath;
 	return ERTScenarioAuthoringResult::Success;
 }
 
-ERTScenarioAuthoringResult FRTScenarioDraft::SaveInPlace(FString& OutError) const
+ERTScenarioAuthoringResult FRTScenarioDraft::SaveInPlace(FString& OutError)
 {
 	OutError.Reset();
 
@@ -766,7 +783,13 @@ ERTScenarioAuthoringResult FRTScenarioDraft::Run(UWorld* World, FString& OutErro
 	// all'initial state invece che un undo.
 	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
 
+	// ⚠️ La cache del log si invalida QUI, non solo nei cambi di scenario. La prima stesura della cache lo
+	// dimenticava: chi avesse chiesto il log PRIMA di correre — un pannello che si disegna vuoto all'apertura
+	// — avrebbe fissato un risultato vuoto, e dopo `Run` avrebbe continuato a mostrarlo. Il test lo ha preso
+	// al primo giro, ed e' la ragione per cui `nessun log prima di correre` sta prima di `Run` in quel test.
 	LastTraces = Result.TurnTraces;
+	LastLog.Reset();
+	bLogDecoded = false;
 
 	FRTScenarioRunReport Report;
 	Report.bHasRun = true;
@@ -782,7 +805,11 @@ ERTScenarioAuthoringResult FRTScenarioDraft::Run(UWorld* World, FString& OutErro
 
 	// Esadecimale e non un intero: `uint32` non ha un pin Blueprint, e come `int32` meta' degli hash
 	// comparirebbero negativi — irriconoscibili accanto a quelli che il report headless stampa.
-	Report.StateHash = FString::Printf(TEXT("%08x"), Result.StateHash);
+	// ⚠️ Con le VARIANTI il runner aggrega piu' corse e non assegna ne' `StateHash` ne' `TurnTraces`
+	// all'aggregato. Mostrare `00000000` sarebbe indistinguibile da un hash vero che vale zero, e un TurnLog
+	// vuoto sembrerebbe una partita che non ha fatto niente: `bHasTrace` dice che non sono applicabili.
+	Report.bHasTrace = Scenario.Variants.Num() == 0;
+	Report.StateHash = Report.bHasTrace ? FString::Printf(TEXT("%08x"), Result.StateHash) : FString();
 
 	Report.Assertions.Reserve(Result.Assertions.Num());
 	for (const FRTAssertionResult& Assertion : Result.Assertions)
@@ -805,9 +832,10 @@ ERTScenarioAuthoringResult FRTScenarioDraft::Run(UWorld* World, FString& OutErro
 	return ERTScenarioAuthoringResult::Success;
 }
 
-ERTScenarioAuthoringResult FRTScenarioDraft::Reset(FString& OutError)
+ERTScenarioAuthoringResult FRTScenarioDraft::Reset(bool& bOutDiscardedEdits, FString& OutError)
 {
 	OutError.Reset();
+	bOutDiscardedEdits = false;
 
 	if (!bOpen)
 	{
@@ -815,13 +843,12 @@ ERTScenarioAuthoringResult FRTScenarioDraft::Reset(FString& OutError)
 		return ERTScenarioAuthoringResult::NoScenarioOpen;
 	}
 
-	// Il report se ne va comunque: e' cio' che `RESET` significa prima di tutto — smettere di mostrare l'esito
-	// di una corsa che non descrive piu' lo stato su cui si sta lavorando.
-	LastReport = FRTScenarioRunReport();
-	LastTraces.Reset();
-
 	if (SourcePath.IsEmpty())
 	{
+		// ⚠️ Il report si scarta QUI e non prima: se il reload piu' sotto fallisse, azzerarlo in anticipo
+		// lascerebbe il draft mezzo resettato — scenario intatto ed evidenza della corsa persa, cioe' proprio
+		// cio' che l'header di questo modulo dichiara di non fare mai.
+		ForgetLastRun();
 		// Uno scenario mai salvato non ha un «file dice» a cui tornare. Non e' un errore: il report e' stato
 		// scartato, e l'initial state e' quello che l'authoring ha in mano — non c'e' altra fonte.
 		return ERTScenarioAuthoringResult::Success;
@@ -835,6 +862,8 @@ ERTScenarioAuthoringResult FRTScenarioDraft::Reset(FString& OutError)
 	FString LoadError;
 	if (!URTScenarioLoader::LoadFromFile(SourcePath, Reloaded, LoadError))
 	{
+		// Niente e' stato toccato: il report e' ancora consultabile, e chi ha appena eseguito puo' rileggere
+		// l'hash della corsa che ha fatto invece di trovarsi con le mani vuote.
 		OutError = FString::Printf(TEXT("il file di origine non si rilegge: %s"), *LoadError);
 		return ERTScenarioAuthoringResult::NotFound;
 	}
@@ -858,22 +887,31 @@ ERTScenarioAuthoringResult FRTScenarioDraft::Reset(FString& OutError)
 	const bool bHadUnsavedEdits = !bBothSerialize || Current != OnDisk;
 
 	Scenario = MoveTemp(Reloaded);
+	ForgetLastRun();
 
-	if (bHadUnsavedEdits)
-	{
-		// Perdere modifiche e' il significato dell'operazione, ma dirlo non lo e': un RESET muto che cancella
-		// mezz'ora di lavoro e' la stessa cancellazione silenziosa che `RemoveUnit` si rifiuta di fare.
-		OutError = TEXT("scenario riportato a cio' che il file dichiara: le modifiche non salvate sono perse");
-	}
+	// Perdere modifiche e' il significato dell'operazione, ma dirlo non lo e'. Lo dice un flag e NON
+	// `OutError`: un avviso scritto nel canale degli errori non si distingue da un errore, e chi lo legge
+	// dovrebbe confrontare stringhe per capire quale dei due ha ricevuto.
+	bOutDiscardedEdits = bHadUnsavedEdits;
 	return ERTScenarioAuthoringResult::Success;
 }
 
 TArray<FRTScenarioLogEntryView> FRTScenarioDraft::GetLastRunLog() const
 {
+	// ⚠️ **Decodificato una volta e messo in cache.**
+	//
+	// Le tracce restano byte finche' qualcuno non chiede il log — chi vuole solo sapere se e' PASS non paga la
+	// decodifica — ma la prima stesura la rifaceva a OGNI chiamata. Un nodo Blueprint legato a una lista viene
+	// rivalutato a ogni frame, quindi «una volta per richiesta» sarebbe diventato «una volta per frame per
+	// widget»: `DeserializeTurnLog` su tutte le tracce piu' `DescribeLogEvent` per voce, sessanta volte al
+	// secondo. La cache si azzera in `ForgetLastRun`, cioe' a ogni `Run`, `Reset`, apertura o chiusura.
+	if (bLogDecoded)
+	{
+		return LastLog;
+	}
+
 	TArray<FRTScenarioLogEntryView> Views;
 
-	// Le tracce sono BYTE finche' qualcuno non chiede il log: decodificarle a ogni `Run` costerebbe a chi
-	// vuole solo sapere se e' PASS.
 	for (int32 TurnIndex = 0; TurnIndex < LastTraces.Num(); ++TurnIndex)
 	{
 		TArray<FRTTurnLogEntry> Entries;
@@ -894,10 +932,16 @@ TArray<FRTScenarioLogEntryView> FRTScenarioDraft::GetLastRunLog() const
 			View.Event = URTScenarioLoader::DescribeLogEvent(Entry.Category, Entry.Outcome);
 			View.FromCell = Entry.SrcCell;
 			View.ToCell = Entry.TgtCell;
+			// Il numero e l'azione: senza, il pannello direbbe «Combat.Hit» senza dire quanto, e
+			// `Riktor.Interposition` sarebbe indistinguibile da `Action.Intercept`.
+			View.Amount = Entry.Amount;
+			View.ActionId = Entry.ActionId;
 		}
 	}
 
-	return Views;
+	LastLog = MoveTemp(Views);
+	bLogDecoded = true;
+	return LastLog;
 }
 
 // --- preview (#1116) -------------------------------------------------------------------------------------

@@ -281,12 +281,17 @@ bool FRTScenarioResetReturnsToTheDeclaredStateTest::RunTest(const FString&)
 		Authoring->GetDraft().GetScenario().Units[0].Cell, FRTCellId(-1, 1, 0));
 
 	// --- RESET
-	TestEqual(TEXT("reset"), Authoring->Reset(Error), ERTScenarioAuthoringResult::Success);
+	bool bDiscarded = false;
+	TestEqual(TEXT("reset"), Authoring->Reset(bDiscarded, Error), ERTScenarioAuthoringResult::Success);
 	// ⚠️ Avvisare qui non e' cortesia: `RESET` **perde** le modifiche non salvate, ed e' il suo significato —
 	// ma un RESET muto che cancella mezz'ora di lavoro e' la stessa cancellazione silenziosa che `RemoveUnit`
 	// si rifiuta di fare. La prima stesura confrontava i conteggi e non vedeva uno spostamento: questo test
 	// l'ha preso.
-	TestFalse(TEXT("e non e' muto sulle modifiche perse"), Error.IsEmpty());
+	// L'avviso sta su un canale SUO, non su quello degli errori: `OutError` resta vuoto perche' non c'e'
+	// stato nessun errore, e `bDiscarded` dice che qualcosa e' andato perso. Una UI cablata come
+	// `if (!OutError.IsEmpty()) mostraBanner()` non deve colorare di rosso un RESET riuscito.
+	TestTrue(TEXT("le modifiche perse sono segnalate"), bDiscarded);
+	TestTrue(TEXT("e il canale degli errori resta pulito"), Error.IsEmpty());
 
 	// #1117: «asserito confrontando lo stato dopo RESET con lo scenario CARICATO, non con lo stato precedente».
 	FRTTestScenario FromDisk;
@@ -314,10 +319,11 @@ bool FRTScenarioResetReturnsToTheDeclaredStateTest::RunTest(const FString&)
 	// l'avvertimento diventa rumore e chi lo legge smette di distinguerlo dal caso che conta.
 	{
 		FString QuietError;
+		bool bQuietDiscarded = true;
 		TestEqual(TEXT("un secondo reset senza modifiche riesce"),
-			Authoring->Reset(QuietError), ERTScenarioAuthoringResult::Success);
-		TestTrue(*FString::Printf(TEXT("e non avvisa di niente (era: %s)"), *QuietError),
-			QuietError.IsEmpty());
+			Authoring->Reset(bQuietDiscarded, QuietError), ERTScenarioAuthoringResult::Success);
+		TestFalse(TEXT("e non dichiara di aver scartato niente"), bQuietDiscarded);
+		TestTrue(TEXT("ne' scrive errori"), QuietError.IsEmpty());
 	}
 
 	TestEqual(TEXT("RUN -> RESET -> RUN da' lo stesso esito"), Second.OutcomeText, First.OutcomeText);
@@ -442,11 +448,18 @@ bool FRTScenarioRunDetectsAMutatedExpectationTest::RunTest(const FString&)
 		[](const FRTScenarioAssertionView& A) { return !A.bPassed; });
 	if (TestNotNull(TEXT("c'e' una assertion fallita"), Failed))
 	{
-		// `actual` deve nominare la cella VERA: e' cio' che distingue un report utile da un rosso muto.
-		TestTrue(*FString::Printf(TEXT("actual nomina dove l'unita' e' finita davvero (era: %s)"),
-			*Failed->Actual), Failed->Actual.Contains(TEXT("-1")));
-		TestTrue(*FString::Printf(TEXT("expected nomina cio' che era stato chiesto (era: %s)"),
-			*Failed->Expected), Failed->Expected.Contains(TEXT("1")));
+		// 🔴 Il confronto e' con le stringhe ESATTE delle due celle, non con frammenti.
+		//
+		// La prima stesura cercava `Actual.Contains("-1")` ed `Expected.Contains("1")` — entrambi veri per
+		// ENTRAMBE le stringhe, visto che `FRTCellId::ToString()` e' `(q=%d,r=%d,L=%d)`. Il test sarebbe
+		// passato anche a campi SCAMBIATI, cioe' proprio nel caso che dichiara di sorvegliare. Trovato dalla
+		// review di `#1117`.
+		const FString RealCell = FRTCellId(-1, 0, 0).ToString();   // dove l'unita' arriva davvero
+		const FString AskedCell = FRTCellId(1, -1, 0).ToString();  // cio' che l'expectation mutata chiede
+
+		TestEqual(TEXT("actual e' la cella in cui l'unita' e' finita davvero"), Failed->Actual, RealCell);
+		TestEqual(TEXT("expected e' la cella che l'assertion chiedeva"), Failed->Expected, AskedCell);
+		TestNotEqual(TEXT("e le due differiscono davvero"), Failed->Expected, Failed->Actual);
 	}
 
 	// Il gioco non e' cambiato: solo l'attesa. Lo stato finale e' lo stesso, e l'hash lo dimostra — se
@@ -498,6 +511,212 @@ bool FRTScenarioRunIsExposedTest::RunTest(const FString&)
 	{
 		TestTrue(TEXT("ed e' BlueprintType"), OutcomeEnum->GetBoolMetaData(TEXT("BlueprintType")));
 		TestEqual(TEXT("con i suoi quattro esiti distinti"), OutcomeEnum->NumEnums() - 1, 4);
+	}
+
+	return true;
+}
+
+// --- i difetti che la review ha trovato -----------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRunNeverShowsAStaleReportTest,
+	"RefactorTactics.Scenario.ARefusedRunNeverShowsThePreviousResult",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRunNeverShowsAStaleReportTest::RunTest(const FString&)
+{
+	// 🔴 **Il difetto piu' grave che la review di `#1117` ha trovato.**
+	//
+	// La facade copiava il report SEMPRE, e `FRTScenarioDraft::Run` non tocca `LastReport` quando rifiuta:
+	// un RUN respinto da `Validate` restituiva quindi il report della corsa PRECEDENTE — `bHasRun` vero,
+	// `PASS`, hash vecchio, TurnLog vecchio. Il pannello mostrava un verde per una corsa mai avvenuta.
+	//
+	// Il test precedente non lo vedeva perche' usava un draft NUOVO, il cui report e' ancora vuoto: serve
+	// una corsa riuscita PRIMA del rifiuto.
+	URTScenarioAuthoring* Authoring = URTScenarioAuthoring::CreateScenarioDraft(nullptr);
+	if (!TestNotNull(TEXT("draft creato"), Authoring)) { return false; }
+
+	FString Error;
+	FRTTestScenario Scenario;
+	if (!TestTrue(TEXT("scenario caricato"),
+		URTScenarioLoader::LoadFromString(RunResetPassingJson, Scenario, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	Authoring->NewScenario(TEXT("segnaposto"), 3);
+	Authoring->GetDraft().MutableScenario() = Scenario;
+
+	// 1. una corsa che riesce, cosi' il draft HA un report da cui pescare per sbaglio
+	FRTScenarioRunReport Good;
+	if (!TestEqual(TEXT("la prima corsa riesce"),
+		Authoring->Run(Good, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestEqual(TEXT("ed e' PASS"), Good.OutcomeText, FString(TEXT("PASS")));
+
+	// 2. si rompe lo scenario: l'assertion nomina una unita' che non c'e' piu'
+	Authoring->RemoveUnit(TEXT("A1"), Error);
+
+	// 3. RUN viene rifiutato — e il report che torna NON deve essere quello di prima
+	FRTScenarioRunReport AfterRefusal;
+	const ERTScenarioAuthoringResult Refused = Authoring->Run(AfterRefusal, Error);
+	TestEqual(TEXT("il RUN e' rifiutato"), Refused, ERTScenarioAuthoringResult::Invalid);
+	TestFalse(TEXT("e il report NON dichiara di aver girato"), AfterRefusal.bHasRun);
+	TestNotEqual(TEXT("ne' riporta il PASS della corsa precedente"),
+		AfterRefusal.OutcomeText, FString(TEXT("PASS")));
+	TestTrue(TEXT("ne' il suo StateHash"), AfterRefusal.StateHash.IsEmpty());
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRunReportDoesNotSurviveAScenarioChangeTest,
+	"RefactorTactics.Scenario.ARunReportDoesNotSurviveIntoAnotherScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRunReportDoesNotSurviveAScenarioChangeTest::RunTest(const FString&)
+{
+	// Un report che sopravvive a un cambio di scenario attribuisce a quello nuovo l'esito, l'hash e il
+	// TurnLog di quello vecchio — che non e' mai stato eseguito.
+	URTScenarioAuthoring* Authoring = URTScenarioAuthoring::CreateScenarioDraft(nullptr);
+	if (!TestNotNull(TEXT("draft creato"), Authoring)) { return false; }
+
+	FString Error;
+	FRTTestScenario Scenario;
+	URTScenarioLoader::LoadFromString(RunResetPassingJson, Scenario, Error);
+	Authoring->NewScenario(TEXT("segnaposto"), 3);
+	Authoring->GetDraft().MutableScenario() = Scenario;
+
+	FRTScenarioRunReport Report;
+	if (!TestEqual(TEXT("corsa riuscita"), Authoring->Run(Report, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestTrue(TEXT("il report c'e'"), Authoring->GetLastRunReport().bHasRun);
+	TestTrue(TEXT("e il TurnLog anche"), Authoring->GetLastRunLog().Num() > 0);
+
+	// --- uno scenario NUOVO non eredita niente
+	Authoring->NewScenario(TEXT("Altro.Scenario"), 3);
+	TestFalse(TEXT("uno scenario nuovo non ha un report"), Authoring->GetLastRunReport().bHasRun);
+	TestEqual(TEXT("ne' un TurnLog"), Authoring->GetLastRunLog().Num(), 0);
+
+	// --- e nemmeno dopo Close
+	Authoring->GetDraft().MutableScenario() = Scenario;
+	Authoring->Run(Report, Error);
+	Authoring->Close();
+	TestFalse(TEXT("dopo Close il report se ne va"), Authoring->GetLastRunReport().bHasRun);
+	TestEqual(TEXT("e il TurnLog pure"), Authoring->GetLastRunLog().Num(), 0);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioResetWorksForScenariosAuthoredHereTest,
+	"RefactorTactics.Scenario.ResetWorksForAScenarioCreatedInTheEditor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioResetWorksForScenariosAuthoredHereTest::RunTest(const FString&)
+{
+	// 🔴 `RESET` era un **no-op silenzioso** per ogni scenario creato nell'editor: `SourcePath` lo scriveva
+	// solo `OpenFromFile`, mai un salvataggio — che era `const` e quindi non poteva. Il flusso principale di
+	// `#1115` (crea, modifica, salva, modifica ancora, RESET) non tornava a niente e non lo diceva. Il test
+	// precedente lo evitava passando da `OpenFromFile`.
+	const FString Dir = RunResetTempDir();
+	const FString Path = FPaths::Combine(Dir, TEXT("Authored.json"));
+	ON_SCOPE_EXIT{ IFileManager::Get().DeleteDirectory(*Dir, false, true); };
+
+	URTScenarioAuthoring* Authoring = URTScenarioAuthoring::CreateScenarioDraft(nullptr);
+	if (!TestNotNull(TEXT("draft creato"), Authoring)) { return false; }
+
+	FString Error;
+	FRTTestScenario Scenario;
+	URTScenarioLoader::LoadFromString(RunResetPassingJson, Scenario, Error);
+
+	// Il flusso di #1115: si CREA, non si apre.
+	Authoring->NewScenario(TEXT("Movement.AuthoredHere"), 3);
+	Authoring->GetDraft().MutableScenario() = Scenario;
+	Authoring->GetDraft().MutableScenario().ScenarioId = TEXT("Movement.AuthoredHere");
+
+	if (!TestEqual(TEXT("salvato per la prima volta"),
+		Authoring->SaveToFile(Path, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// Una modifica dopo il salvataggio, che RESET deve scartare.
+	Authoring->MoveUnit(TEXT("A1"), FRTCellId(-1, 1, 0), Error);
+	TestEqual(TEXT("la modifica c'e'"),
+		Authoring->GetDraft().GetScenario().Units[0].Cell, FRTCellId(-1, 1, 0));
+
+	bool bDiscarded = false;
+	TestEqual(TEXT("reset"), Authoring->Reset(bDiscarded, Error), ERTScenarioAuthoringResult::Success);
+	TestTrue(TEXT("dichiara di aver scartato modifiche"), bDiscarded);
+
+	// La prova: lo scenario e' tornato a cio' che il FILE dichiara, non e' rimasto com'era.
+	TestEqual(TEXT("l'unita' e' tornata dove il file la mette"),
+		Authoring->GetDraft().GetScenario().Units[0].Cell, FRTCellId(-2, 0, 0));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRunReportsBlockedWithAReasonTest,
+	"RefactorTactics.Scenario.RunReportsBlockedWithItsReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRunReportsBlockedWithAReasonTest::RunTest(const FString&)
+{
+	// La review ha notato che dei quattro esiti il file ne copriva due: `Blocked` non compariva mai, e
+	// `Error` veniva intercettato da `Validate` prima di diventare un `ERTTestOutcome`. `BLOCKED` e' quello
+	// che conta di piu' non perdere: non e' un successo, e mostrarlo senza il motivo lo renderebbe
+	// indistinguibile da uno.
+	//
+	// ⚠️ La capability dev'essere **NOTA ma non disponibile**, non inventata: una sconosciuta e' un difetto
+	// del TEST e produce `ERROR`, che e' un'altra cosa. La prima stesura ne usava una inventata e il test
+	// falliva chiedendo BLOCKED a un ERROR — la stessa distinzione che questo test esiste per proteggere,
+	// sbagliata nel test stesso. `ReactionClash` e' dichiarata in `KnownUnavailableCapabilities()`.
+	const TCHAR* BlockedJson = TEXT(R"JSON(
+	{
+	  "scenarioId": "Movement.BlockedProbe",
+	  "version": 1,
+	  "mapRadius": 3,
+	  "units": [
+	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
+	  ],
+	  "turns": [ { "intents": [], "requires": ["ReactionClash"] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	}
+	)JSON");
+
+	FString Error;
+	FRTTestScenario Scenario;
+	if (!URTScenarioLoader::LoadFromString(BlockedJson, Scenario, Error))
+	{
+		// Una capability sconosciuta puo' essere rifiutata in lettura come ERRORE del test: se il loader la
+		// tratta cosi', questo caso non e' costruibile e va detto invece di far finta.
+		AddWarning(FString::Printf(
+			TEXT("il loader rifiuta una capability sconosciuta ('%s'): il caso BLOCKED non e' costruibile da qui"),
+			*Error));
+		return true;
+	}
+
+	URTScenarioAuthoring* Authoring = URTScenarioAuthoring::CreateScenarioDraft(nullptr);
+	if (!TestNotNull(TEXT("draft creato"), Authoring)) { return false; }
+	Authoring->NewScenario(TEXT("segnaposto"), 3);
+	Authoring->GetDraft().MutableScenario() = Scenario;
+
+	FRTScenarioRunReport Report;
+	if (!TestEqual(TEXT("l'esecuzione avviene"),
+		Authoring->Run(Report, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	if (TestEqual(TEXT("l'esito e' BLOCKED"), Report.OutcomeText, FString(TEXT("BLOCKED"))))
+	{
+		// ⚠️ Un BLOCKED senza motivo e' peggio di un errore: sembra un successo con una nota.
+		TestFalse(TEXT("e porta il motivo"), Report.BlockedReason.IsEmpty());
+		TestNotEqual(TEXT("e non viene mostrato come PASS"),
+			static_cast<int32>(Report.Outcome), static_cast<int32>(ERTTestOutcome::Pass));
 	}
 
 	return true;
