@@ -2004,6 +2004,30 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// aritmetica, esattamente il difetto che la code review di #1296 ha trovato sull'altro oracolo.
 	// Condividere la soglia del parcheggio avrebbe fatto muovere l'una ritarando l'altra, che e' la ragione
 	// per cui `MaxLegitimateStillTurns` e `FirstBloodDeadline` sono gia' due nomi distinti in questo file.
+	//
+	// 🔴 **VERIFICA DI MUTAZIONE — misurata il 2026-08-28, e dice MENO di quanto si sperava.**
+	// Ricostruito lo stato pre-#1296 in tre pezzi cumulativi, e rimisurato ogni volta l'intero
+	// `RefactorTactics.Match.Autobattle` (21 test):
+	//
+	//     mutazione                                        questa arena   mappa d'autore
+	//     nessuna (baseline)                               1 su lim. 3    1 su lim. 4
+	//     + filtro sul dominio di #1287                    2 su lim. 3    3 su lim. 4
+	//     + `WEngage = 0` (pre-D-185)                      2 su lim. 4    2 su lim. 4
+	//     + avvicinamento in linea d'aria (pre-#1296)      0 su lim. 4    7 su lim. 4  -> **Fail**
+	//
+	// ✅ Il rilevatore FALSIFICA: la terza riga fa cadere `NobodyOscillatesOnTheAuthoredMap` riproducendo
+	// la misura storica di #1287 («otto alternanze in dodici turni»), quindi l'estrazione in
+	// `FRTOrbitProbe` non ha tolto potere discriminante a quell'oracolo.
+	//
+	// 🔴 **Ma su QUESTA arena l'asserzione non e' dimostrata falsificabile.** Non e' vacua per costruzione
+	// — la soglia e' esercitabile, 12 turni contro un minimo di 6, e le due mutazioni parziali muovono il
+	// contatore, quindi risponde al meccanismo — ma nessuna delle tre fa oscillare i bot qui: la geometria
+	// dell'arena generata non produce il ciclo che la mappa d'autore produce, e sotto la mutazione piu'
+	// forte il contatore va a ZERO. **Vale come assicurazione contro una regressione futura, non come
+	// riproduzione di un difetto noto**, e chi la legge deve saperlo: un verde qui non e' la prova che il
+	// bot non possa oscillare, e' la prova che su questa board non lo fa.
+	// ⚠️ Chi trovera' una mutazione che lo fa cadere QUI la scriva in questa tabella: sarebbe la prova che
+	// oggi manca.
 	const int32 WorstOrbit = Orbite.WorstReturns();
 	const int32 OrbitLimit = FRTOrbitProbe::LimitForTurns(TurnsPlayed);
 	const int32 OrbitMinTurns = FRTOrbitProbe::MinTurnsToFalsify;

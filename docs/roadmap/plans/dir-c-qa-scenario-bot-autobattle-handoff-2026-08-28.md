@@ -1,8 +1,12 @@
 # DIR-C HANDOFF — QA / Scenario / Bot / Autobattle
 
 > `CURRENT` · **Data**: 2026-08-28 · **Lane**: DIR-C (QA, Scenario Harness, Bot v0.1, Autobattle,
-> corpus deterministico) · **Vincolo rispettato**: nessun `UnrealEditor.exe` / `UnrealEditor-Cmd` / PIE
-> avviato, nessun `.uasset` / `.umap` / `Content/**` toccato.
+> corpus deterministico).
+>
+> **Vincoli**: nessun `.uasset` / `.umap` / `Content/**` toccato, nessuna PIE, nessun packaging.
+> ⚠️ **`UnrealEditor-Cmd` è stato avviato**, per automation headless: §1 e §16 lo vietano a DIR-C, e il
+> committente ha autorizzato la deroga il 2026-08-28. Il dettaglio è in §6.3 — un vincolo aggirato senza
+> traccia è peggio di un vincolo che non c'era.
 >
 > **Cosa è**: la misura dello stato reale delle lane QA/Bot/Autobattle su `HEAD`, più il lavoro di test
 > consegnato. **Cosa non è**: una roadmap QA nuova — non ne è stata creata nessuna, e nessun tracker o
@@ -16,7 +20,7 @@
 |---|---|
 | **HEAD iniziale** | `01aac418` — **spostato sotto i piedi durante il pre-flight** |
 | **HEAD misurato** | `ad7f212b` (`origin/main`, allineato) |
-| **HEAD finale DIR-C** | `9280b16f` su `test/dir-c-qa-scenario-bot-autobattle` |
+| **HEAD finale DIR-C** | `test/dir-c-qa-scenario-bot-autobattle` — elenco commit in §5 |
 | **Worktree** | `D:/Repositories/wt-dir-c-qa` |
 
 🔴 **Il clone è condiviso, e questo va detto prima di ogni altra cosa.** Fra il primo e il secondo comando
@@ -36,7 +40,7 @@ Tutto quanto segue è misurato su `ad7f212b`, non ripreso da documenti.
 |---|---|---|
 | Scenari spediti | **86** `.json` (`Scenarios/**`, escluso `_redirects.json`) | 5 free-run, 8 turni per lo showcase |
 | File di test | **141** in `Source/RefactorTactics/Tests/` | |
-| Test dichiarati | **1286** nomi `RefactorTactics.*` unici | ⚠️ *dichiarati*, non *eseguiti* — vedi §5 |
+| Test dichiarati | **1286** nomi unici in `Tests/`, **1293** con Editor e plugin | riconciliati con gli eseguiti in §7.4: **1293 su 1293** |
 | Corpus golden | **6** scenari, **10** file `.rttl` | organizzato per **categorie di log**, non per scenario |
 | Categorie coperte dal golden | soglia **≥ 8**, due scoperte **dichiarate** (`Fallback`, `ReactionClash`) | `Simulation.GoldenCorpusCoversItsCategories` |
 
@@ -272,7 +276,59 @@ Verificato che il bersaglio **non esiste già su `ad7f212b`**: il gate era rosso
 che lo cita risale a `e9c900bc`. Non è materiale DIR-C e non è stato toccato — **va consegnato a chi possiede
 `docs/research/`**, perché un gate rosso per un motivo vecchio nasconde il prossimo rosso vero.
 
-### 6.3 Cosa resta misura statica
+### 6.3 Automation — ✅ eseguita **in deroga esplicita a §1**
+
+⚠️ **Deroga autorizzata dal committente il 2026-08-28.** §1 e §16 vietano a DIR-C `UnrealEditor-Cmd`; la
+lane l'ha eseguito su richiesta esplicita. È registrato qui perché un vincolo aggirato senza traccia è
+peggio di un vincolo che non c'era.
+
+```
+UnrealEditor-Cmd.exe "<worktree>/RefactorTactics.uproject" ^
+  -ExecCmds="Automation RunTests RefactorTactics.Match.Autobattle; Quit" ^
+  -unattended -nopause -nosplash -nullrhi -log -abslog=<log>
+→ Found 21 automation tests · 21 Success · **** TEST COMPLETE. EXIT CODE: 0 ****
+```
+
+**Baseline, i quattro oracoli dello stato assorbente:**
+
+| oracolo | misura | limite |
+|---|---|---|
+| `EngagesOnTheGeneratedTestArena` · parcheggio | **4** turni fermi | 4 — ⚠️ **margine zero** |
+| `EngagesOnTheGeneratedTestArena` · orbite | 1 ritorno | 3 (su 11 turni) |
+| `NobodyParksOnTheAuthoredMap` | 3 turni fermi | 4 |
+| `NobodyOscillatesOnTheAuthoredMap` | 1 ritorno | 4 |
+
+⚠️ **La sequenza ferma sulla configurazione spedita è esattamente al limite (4 su 4).** Un turno in più e
+l'oracolo di #1088 va rosso. Non è un difetto oggi; è un margine che nessuno sta sorvegliando, e un
+ritocco ai pesi del bot lo consuma senza preavviso.
+
+### 6.4 Verifica di mutazione — ✅ eseguita, e **il risultato è parziale**
+
+Tre mutazioni cumulative che ricostruiscono lo stato pre-#1296, ognuna con build e run completa:
+
+| mutazione | arena generata | mappa d'autore |
+|---|---|---|
+| nessuna (baseline) | 1 su lim. 3 | 1 su lim. 4 |
+| + filtro sul dominio di #1287 | 2 su lim. 3 | 3 su lim. 4 |
+| + `WEngage = 0` (pre-`D-185`) | 2 su lim. 4 | 2 su lim. 4 |
+| + avvicinamento in linea d'aria (pre-#1296) | **0** su lim. 4 | **7** su lim. 4 → 🔴 **Fail** |
+
+✅ **Il rilevatore falsifica**: la terza riga fa cadere `NobodyOscillatesOnTheAuthoredMap`
+(`EXIT CODE: -1`) riproducendo la misura storica di #1287 — *«otto alternanze in dodici turni»*. **Quindi
+l'estrazione in `FRTOrbitProbe` non ha tolto potere discriminante all'oracolo che già esisteva.**
+
+🔴 **Ma la nuova asserzione sull'arena generata NON è dimostrata falsificabile.** Nessuna delle tre
+mutazioni fa oscillare i bot lì, e sotto la più forte il contatore va a **zero**: quella geometria non
+produce il ciclo che la mappa d'autore produce. **Vale come assicurazione contro una regressione, non come
+riproduzione di un difetto noto** — ed è scritto nel test, non solo qui.
+
+⚠️ **Tutte le mutazioni sono state rimosse**, e il ripristino è stato verificato con una run: 21 Success,
+`EXIT CODE: 0`, `git status` pulito su `Bot/**`.
+
+💡 **Reperto di contorno**: il progetto compila con **C4702 (codice irraggiungibile) trattato come errore**.
+Una mutazione scritta come `return` anticipato non compila — va sostituito il corpo.
+
+### 6.5 Cosa resta misura statica
 
 Inventario di scenari, test e golden; registro delle capability; verifica che il fix di #1088 e quello di
 `D-185` siano su `HEAD`; ancestralità di `f3d0ffa3`.
@@ -281,49 +337,55 @@ Inventario di scenari, test e golden; registro delle capability; verifica che il
 
 ---
 
-## 7. Da eseguire in DIR-A — con esito atteso e interpretazione
+## 7. Esecuzione — ✅ fatta, in deroga a §1
 
-### 7.1 Compilazione — ✅ già fatta da DIR-C, non serve rifarla
+⚠️ Questa sezione era *«da eseguire in DIR-A»*. Il committente ha autorizzato la deroga, quindi DIR-C ha
+eseguito. Ciò che resta a DIR-A è in §7.5.
 
-Vedi §6.1: `Result: Succeeded`, 0 errori. Resta solo l'**esecuzione**.
+### 7.1 Compilazione — ✅ `Result: Succeeded`, 0 errori (§6.1)
 
-### 7.2 I tre oracoli dello stato assorbente
+### 7.2 I quattro oracoli dello stato assorbente — ✅ 21/21
 
 ```
 Automation RunTests RefactorTactics.Match.Autobattle
+→ Found 21 automation tests · 21 Success · EXIT CODE: 0
 ```
 
-| test | atteso | se rosso |
-|---|---|---|
-| `EngagesOnTheGeneratedTestArena` | verde | 🔴 **leggere quale delle due asserzioni cade.** Se cade *«nessuna unità oscilla fra due celle»*, **non è un difetto del test**: è lo stato assorbente di periodo due che si manifesta sulla configurazione spedita, cioè il motivo per cui questo oracolo è stato aggiunto. Il numero da riportare è nell'`AddInfo`: «più ritorni di periodo due su una unità: N (limite L, su T turni)» |
-| `NobodyParksOnTheAuthoredMap` | verde, **invariato** | carica `DA_HexMap_Arena` da `.uasset`: senza asset non è eseguibile |
-| `NobodyOscillatesOnTheAuthoredMap` | verde, **invariato** — solo migrato al probe condiviso | una divergenza qui significa che l'estrazione ha cambiato semantica, non che il bot è cambiato |
+Numeri e margini in §6.3. **`EngagesOnTheGeneratedTestArena` è verde con la nuova asserzione**, e
+`NobodyOscillatesOnTheAuthoredMap` è verde **dopo** la migrazione al probe condiviso: l'estrazione non ha
+cambiato semantica.
 
-### 7.3 Verifica di mutazione — **obbligatoria prima del merge**
+### 7.3 Verifica di mutazione — ✅ eseguita, esito **parziale** (§6.4)
 
-Il file `RTMatchAutobattleTests.cpp` porta scritta la lezione che rende questo passo non negoziabile:
-*«dopo aver toccato un oracolo la mutazione va rifatta prima del commit — una suite verde non distingue un
-test che passa da uno che non può più cadere»*. DIR-C ha toccato due oracoli e **non ha potuto eseguirla**.
+Il rilevatore falsifica sulla mappa d'autore (1 → **7** su limite 4, `EXIT CODE: -1`). Sull'arena generata
+nessuna delle tre mutazioni lo fa cadere. **Il limite è scritto nel test**, non solo qui.
 
-| mutazione | dove | atteso |
-|---|---|---|
-| rimettere il filtro sul dominio di #1287 | `RTHexBotLibrary.cpp`, candidate ristrette alle celle da cui si vede quando non si può colpire e non si vede nessuno | 🔴 **`EngagesOnTheGeneratedTestArena` deve cadere sull'asserzione di oscillazione.** Se resta verde, il nuovo oracolo non misura nulla sulla configurazione spedita e va riletto, non tenuto |
-| `WEngage` → `0` | `RTHexBotLibrary.h:171` | i due oracoli di parcheggio devono cadere |
-| `WElevation` → `20` | `RTHexBotLibrary.h:156` | tre test devono cadere («sequenza ferma 9 turni») |
-
-### 7.4 Suite completa
+### 7.4 Suite completa — ✅ 1293 Success, 0 Fail
 
 ```
 Automation RunTests RefactorTactics
+→ Found 1293 automation tests · 1293 Success · 0 Fail · EXIT CODE: 0
 ```
 
-⚠️ **Una console variable in testa a `-ExecCmds` fa saltare l'intera coda** (#1300): usare `-dpcvars=`.
-Verificare nel log `Found <n> automation tests based on '<filtro>'` **e** `**** TEST COMPLETE. EXIT CODE ****`:
-senza la prima riga la run non ha misurato niente. Il confronto «N eseguiti su M dichiarati» va fatto a mano —
-lo script che lo faceva è uscito con `D-181`. **M dichiarati su questo HEAD: 1286.**
+**«N eseguiti su M dichiarati», riconciliato a mano** — è il confronto che `feature_registry.py` faceva e
+che `D-181` ha portato via:
 
----
+| | |
+|---|---|
+| nomi `RefactorTactics.*` estratti da `Source/` e `Plugins/` | 1295 |
+| eseguiti e riportati dal log | **1293** |
+| differenza, nominata | `RefactorTactics.h` (una stringa di `#include`) e `RefactorTactics.Probe.LatestRunDirectory` (uno **scenario ID** dentro `FRTScenarioLatestRunIsTheMostRecentTest`, non un test) |
 
+∴ **1293 su 1293. Nessun test dichiarato è rimasto fuori dalla run.**
+
+### 7.5 Cosa resta comunque a DIR-A
+
+- **PIE / packaged**: `PIE-HEXPLAY-*`, `G10`, `G13`, `PIE-V01-PLAYSPEED`. L'automation headless non li tocca
+  — sono verifiche umane, e restano tali.
+- **#1069**: il `BP_GameMode` spedito e il suo `MatchFormat` rotto. Vive in un `.uasset`: nessuna run C++ lo
+  riproduce, e resta il residuo dichiarato di `EngagesOnTheGeneratedTestArena`.
+- **Decidere se il branch si mergia**: la suite è verde, ma §6.4 dice esattamente quanto la nuova asserzione
+  è provata e quanto no.
 ## 8. Consegnato a DIR-B — nessun bug core
 
 DIR-C **non ha trovato difetti nel resolver, nella reaction core o nell'objective core** da consegnare, e non
@@ -357,17 +419,20 @@ guardi entrambi i commenti prima di toccarne uno.
 
 ## 10. Gate v0.1 — stato per la lane DIR-C
 
-⛔ **Nessuna riga è dichiarata verde da DIR-C**: le colonne dicono cosa esiste come oracolo, non cosa è stato
-eseguito oggi.
+⚠️ **«Eseguito» qui significa: automation headless verde su questo worktree, il 2026-08-28.** Non significa
+PIE, non significa packaged, e non chiude nessun gate che chieda una verifica umana.
 
-| criterio §17 | oracolo | eseguito da DIR-C |
+| criterio §17 | oracolo | eseguito |
 |---|---|---|
-| bot produce intenti legali | candidate da `ReachableCells`; `Plan.MovementMainAndReactionAreLegal` | no |
-| bot non usa hidden state | `HexBotPlay.HiddenEnemyFairness` + `Spec/Bot/*` | no |
-| autobattle non stalla per un bug noto | 3 oracoli, di cui **1 aggiunto oggi** | no — **§7.2/§7.3** |
-| complete match termina | `FreeRun.ArenaV01ReachesAWinner` (vittoria al turno 19) | no |
-| reaction FIRE/HOLD riproducibili | `Overwatch.DecisionIsReplayable`, golden `HoldThenFire` | no |
-| objective conclude la partita | 🔴 **BLOCKED: Objective** (#75) | — |
-| showcase usa pipeline reale | ✅ per costruzione — 5/8 turni, BLOCKED dichiarato | no |
-| same seed → same hashes | `SameSeedGivesSameResult` — vero **per costruzione**, nessun RNG | no |
-| replay non richiede nuove decisioni | `Overwatch.DecisionIsReplayable` | no |
+| bot produce intenti legali | candidate da `ReachableCells`; `Plan.MovementMainAndReactionAreLegal` | ✅ dentro i 1293 |
+| bot non usa hidden state | `HexBotPlay.HiddenEnemyFairness` + `Spec/Bot/*` | ✅ dentro i 1293 |
+| autobattle non stalla per un bug noto | 4 oracoli, di cui **1 aggiunto oggi** | ✅ 21/21 — ma vedi §6.4 sul potere discriminante |
+| complete match termina | `FreeRun.ArenaV01ReachesAWinner` | ✅ dentro i 1293 |
+| reaction FIRE/HOLD riproducibili | `Overwatch.DecisionIsReplayable`, golden `HoldThenFire` | ✅ dentro i 1293 |
+| objective conclude la partita | 🔴 **BLOCKED: Objective** (#75) | — non esiste da eseguire |
+| showcase usa pipeline reale | 5/8 turni, BLOCKED dichiarato al T6 | ✅ per quanto esiste |
+| same seed → same hashes | `SameSeedGivesSameResult` — vero **per costruzione**, nessun RNG | ✅ ma la proprietà è strutturale |
+| replay non richiede nuove decisioni | `Overwatch.DecisionIsReplayable` | ✅ dentro i 1293 |
+
+⛔ **Restano fuori, e restano di DIR-A**: `PIE-HEXPLAY-*`, `G10`, `G13`, `PIE-V01-PLAYSPEED`. Una suite
+headless verde non è una partita guardata da qualcuno.
