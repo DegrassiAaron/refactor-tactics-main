@@ -316,6 +316,16 @@ public:
 	 *
 	 * ⚠️ **Chi sia il viewer NON lo decide questa firma**: riceve una conoscenza gia' scelta dal chiamante.
 	 * In 2v2 offline contro bot e' il team del giocatore; spettatore e replay riporteranno la domanda.
+	 *
+	 * 🔴 **Copre TUTTE E CINQUE le famiglie di istanze che `RebuildInstances` monta**, non il solo disco:
+	 * `Cells`, `SurfaceGlyphs`, `Relief`, `Blockers` ed `EdgeFeatures`. Velare il disco e lasciare in piedi
+	 * colonne, lastre e pannelli farebbe leggere muri, coperture e porte dell'INTERA board prima di averla
+	 * esplorata — cioe' proprio l'informazione che [D-225] dichiara di non disegnare — e il difetto sarebbe
+	 * invisibile a `GetVeilCounts`, che guarda il solo `Cells`.
+	 *
+	 * ⚠️ **Su quelle tre il velo NASCONDE e basta, non attenua.** Non portano custom data per istanza — nessun
+	 * `SetCustomDataValue` in `RebuildInstances` — quindi un ricordo si distingue da un'osservazione solo sul
+	 * disco sottostante. Attenuarle richiederebbe un canale nei loro materiali, che questa fetta non apre.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
 	void ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge);
@@ -328,6 +338,17 @@ public:
 
 	/** Quante istanze il velo ha lasciato accese, ricordate e nascoste. Diagnostica e test. */
 	void GetVeilCounts(int32& OutVisible, int32& OutExplored, int32& OutHidden) const;
+
+	/**
+	 * Lo stesso conteggio per le famiglie che NON sono il disco: rilievo del costo, volumi di blocco e
+	 * pannelli di bordo. Disegnate contro nascoste, e non tre stati — su queste il velo non attenua.
+	 *
+	 * ⚠️ Esiste perche' `GetVeilCounts` guarda il solo `Cells`: un velo che nascondesse il disco e lasciasse
+	 * in piedi colonne, lastre e pannelli tornerebbe **un conteggio perfetto** mentre rivela muri, coperture
+	 * e porte dell'intera board. Sulla graybox il difetto e' invisibile — `MakeFlatArena` non produce nessuna
+	 * di queste geometrie — quindi serve un canale che le guardi.
+	 */
+	void GetAuxiliaryVeilCounts(int32& OutDrawn, int32& OutHidden) const;
 
 	/**
 	 * Quante istanze l'ultimo `ApplyKnowledgeVeil` ha davvero TOCCATO.
@@ -585,6 +606,25 @@ protected:
 	TArray<FVector> GlyphBaseScale[4];
 
 	/**
+	 * Gli stessi due array per le TRE famiglie di geometria che non sono ne' il disco ne' il glifo: il rilievo
+	 * del costo, i volumi di blocco vista/movimento e i pannelli di bordo (coperture e porte).
+	 *
+	 * ⚠️ La loro indicizzazione non e' quella delle celle **e non e' nemmeno uno-a-uno**: `Relief` salta il
+	 * pavimento, `Blockers` puo' aggiungere DUE istanze sulla stessa cella — lastra e colonna insieme — ed
+	 * `EdgeFeatures` una per copertura e una per porta. Ecco perche' la cella si registra per ISTANZA e non
+	 * si ricava: senza, il velo colpirebbe la geometria di un'altra cella.
+	 */
+	TArray<FRTCellId> ReliefCells;
+	TArray<FVector> ReliefBaseScale;
+	TArray<uint8> LastReliefVeilState;
+	TArray<FRTCellId> BlockerCells;
+	TArray<FVector> BlockerBaseScale;
+	TArray<uint8> LastBlockerVeilState;
+	TArray<FRTCellId> EdgeFeatureCells;
+	TArray<FVector> EdgeFeatureBaseScale;
+	TArray<uint8> LastEdgeFeatureVeilState;
+
+	/**
 	 * Lo stato che il velo ha SCRITTO per ultimo su ogni istanza: `0` nascosta, `1` ricordata, `2` accesa —
 	 * `0xFF` quando non e' mai stato scritto. Stato DERIVATO, azzerato da `RebuildInstances` insieme agli
 	 * indici a cui si riferisce.
@@ -599,6 +639,22 @@ protected:
 
 	/** Quante istanze l'ultimo velo ha toccato. Diagnostica: vedi `GetLastVeilTouchedCells`. */
 	int32 LastVeilTouchedCells = 0;
+
+	/**
+	 * Il velo su UNA famiglia di istanze. Esiste perche' le famiglie sono cinque e la regola e' una sola:
+	 * scritta cinque volte, la sesta famiglia nascerebbe scoperta e nessun conteggio se ne accorgerebbe — che
+	 * e' esattamente come `Relief`, `Blockers` ed `EdgeFeatures` erano rimasti fuori dalla prima stesura.
+	 *
+	 * `BaseColor` riempie il colore PIENO della cella e risponde `false` se quella famiglia non ha un canale
+	 * colore per istanza: in quel caso il velo agisce sulla sola scala, e ricordato e osservato restano
+	 * indistinguibili su quella geometria.
+	 *
+	 * @return quante istanze sono state davvero toccate.
+	 */
+	int32 VeilInstances(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,
+		const TArray<FVector>& BaseScale, TArray<uint8>& LastState,
+		const TSet<FRTCellId>& Visible, const TSet<FRTCellId>& Explored,
+		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor);
 
 	/** Stato DERIVATO, non serializzato: cache pigra, invalidata da `RebuildInstances`. */
 	mutable TArray<FRTCellId> UnreachableCells;

@@ -777,6 +777,15 @@ void ARTHexMapActor::RebuildInstances()
 		GlyphBaseScale[Ring].Reset();
 		LastGlyphVeilState[Ring].Reset();
 	}
+	ReliefCells.Reset();
+	ReliefBaseScale.Reset();
+	LastReliefVeilState.Reset();
+	BlockerCells.Reset();
+	BlockerBaseScale.Reset();
+	LastBlockerVeilState.Reset();
+	EdgeFeatureCells.Reset();
+	EdgeFeatureBaseScale.Reset();
+	LastEdgeFeatureVeilState.Reset();
 
 	// I glifi si ricostruiscono con le celle: `RebuildInstances` gira a ogni pennellata, e istanze vecchie
 	// resterebbero appese a superfici che nel frattempo sono cambiate.
@@ -956,6 +965,10 @@ void ARTHexMapActor::RebuildInstances()
 			const FTransform ReliefXf(FRotator::ZeroRotator, ReliefCenter,
 				FVector(PlanarScale * 0.6f, PlanarScale * 0.6f, ReliefHeight / 100.f));
 			Relief->AddInstance(ReliefXf, /*bWorldSpace=*/ true);
+			// La cella si registra per ISTANZA, come per i glifi: il pavimento non produce rilievo, quindi il
+			// rilievo `N` non e' la cella `N` ([D-227]).
+			ReliefCells.Add(CellIds[I]);
+			ReliefBaseScale.Add(ReliefXf.GetScale3D());
 		}
 
 		// Volumi delle due regole. Sono INDIPENDENTI: una cella puo' averne una, l'altra o entrambe, e in
@@ -971,6 +984,10 @@ void ARTHexMapActor::RebuildInstances()
 				const FTransform VolumeXf(FRotator::ZeroRotator, Center,
 					FVector(PlanarScale * PlanarFraction, PlanarScale * PlanarFraction, VolumeHeight / 100.f));
 				Blockers->AddInstance(VolumeXf, /*bWorldSpace=*/ true);
+				// Una cella puo' passare di qui DUE volte — lastra e colonna insieme — e le due istanze
+				// vanno velate entrambe: la mappatura e' per istanza, non per cella ([D-227]).
+				BlockerCells.Add(CellIds[I]);
+				BlockerBaseScale.Add(VolumeXf.GetScale3D());
 			};
 
 			if (BlocksSight[I]) { AddVolume(RTSightSlabScale, RTSightSlabHeight); }
@@ -994,6 +1011,9 @@ void ARTHexMapActor::RebuildInstances()
 						UseHexSize / 100.f * RTEdgePanelWidth,
 						PanelHeight / 100.f));
 				EdgeFeatures->AddInstance(PanelXf, /*bWorldSpace=*/ true);
+				// Una per copertura e una per porta, quindi piu' istanze sulla stessa cella ([D-227]).
+				EdgeFeatureCells.Add(CellIds[I]);
+				EdgeFeatureBaseScale.Add(PanelXf.GetScale3D());
 			};
 
 			for (const FRTHexCover& Cover : Data.Covers)
@@ -1056,9 +1076,12 @@ void ARTHexMapActor::RebuildInstances()
 				? RTCoverHighHeight : RTCoverLowHeight;
 
 			const FVector CellBase(Centre.X, Centre.Y, Centre.Z + CellTop);
-			EdgeFeatures->AddInstance(
-				InteriorWallPanel(A, B, CellBase, PanelHeight, RTEdgePanelThickness),
-				/*bWorldSpace=*/ true);
+			const FTransform WallXf = InteriorWallPanel(A, B, CellBase, PanelHeight, RTEdgePanelThickness);
+			EdgeFeatures->AddInstance(WallXf, /*bWorldSpace=*/ true);
+			// Il SECONDO sito che monta pannelli di bordo: i muri interni. Dimenticarlo qui lascerebbe
+			// disallineati gli indici di TUTTI i pannelli, non solo dei suoi ([D-227]).
+			EdgeFeatureCells.Add(Wall.Cell);
+			EdgeFeatureBaseScale.Add(WallXf.GetScale3D());
 		}
 	}
 }
@@ -1280,19 +1303,9 @@ bool ARTHexMapActor::RemoveTransitionData(const FRTCellId& From, const FRTCellId
 
 // --- Il velo della fog of war ([D-225], [D-227]) --------------------------------------------------------
 
-namespace
-{
-	/**
-	 * Il colore di una superficie dopo il velo. Moltiplica l'RGB **lineare** invece di aggiungere un quarto
-	 * float: il quarto float richiederebbe di toccare `M_HexCell.uasset` — un binario, human-first, un lavoro
-	 * per volta — per un risultato che il ricalcolo ottiene gia'. `NumCustomDataFloats` resta **3**.
-	 */
-	FLinearColor RTVeiled(const FColor& Base, float Factor)
-	{
-		const FLinearColor Linear = FLinearColor::FromSRGBColor(Base);
-		return FLinearColor(Linear.R * Factor, Linear.G * Factor, Linear.B * Factor, Linear.A);
-	}
-}
+// Il velo MOLTIPLICA l'RGB lineare invece di aggiungere un quarto float: il quarto float richiederebbe di
+// toccare `M_HexCell.uasset` — un binario, human-first, un lavoro per volta — per un risultato che il
+// ricalcolo ottiene gia'. `NumCustomDataFloats` resta **3**.
 
 ERTHexSurface ARTHexMapActor::SurfaceForCell(const FRTCellId& Cell) const
 {
@@ -1309,141 +1322,138 @@ ERTHexSurface ARTHexMapActor::SurfaceForCell(const FRTCellId& Cell) const
 	return ERTHexSurface::Floor;
 }
 
-void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
+int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
+	const TArray<FRTCellId>& CellsOfInstance, const TArray<FVector>& BaseScale, TArray<uint8>& LastState,
+	const TSet<FRTCellId>& Visible, const TSet<FRTCellId>& Explored,
+	TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor)
 {
-	if (!Cells)
+	if (!Component || CellsOfInstance.Num() == 0)
 	{
-		return;
+		return 0;
 	}
 
-	// La precondizione DICHIARATA: `InstanceCells` e' stato derivato, e un `RebuildInstances` passato di mezzo
-	// lascia indici stantii. L'esito non e' un crash ma celle velate SBAGLIATE — il difetto che si legge come
-	// «problema grafico» per settimane, finche' qualcuno non lo misura.
-	if (!ensureMsgf(Cells->GetInstanceCount() == InstanceCells.Num(),
-		TEXT("ApplyKnowledgeVeil: %d istanze contro %d celle mappate — RebuildInstances e' passato di mezzo"),
-		Cells->GetInstanceCount(), InstanceCells.Num()))
+	// La precondizione DICHIARATA: la mappatura e' stata DERIVATA da `RebuildInstances`, e una ricostruzione
+	// passata di mezzo lascia indici stantii. L'esito non e' un crash ma celle velate SBAGLIATE — il difetto
+	// che si legge come «problema grafico» per settimane, finche' qualcuno non lo misura.
+	if (!ensureMsgf(Component->GetInstanceCount() == CellsOfInstance.Num(),
+		TEXT("ApplyKnowledgeVeil: %s ha %d istanze contro %d celle mappate — RebuildInstances e' passato di mezzo"),
+		*Component->GetName(), Component->GetInstanceCount(), CellsOfInstance.Num()))
 	{
-		return;
+		return 0;
 	}
-
-	// Appartenenza puntuale, ripetuta una volta per istanza: `TSet` e non `TArray::Contains`, che su 7 351
-	// celle sarebbe quadratico. Nessuno dei due insiemi viene ITERATO — il loro ordine dipenderebbe
-	// dall'hash, e qui l'ordine e' quello delle istanze.
-	const TSet<FRTCellId> Visible(Knowledge.VisibleCells);
-	const TSet<FRTCellId> Explored(Knowledge.ExploredCells);
 
 	// Lo stato precedente, per saltare cio' che non cambia. La prima volta e' tutto `Unwritten`, quindi il
 	// primo velo tocca ogni istanza; dal secondo in poi tocca solo il bordo del cono.
-	if (LastVeilState.Num() != InstanceCells.Num())
+	if (LastState.Num() != CellsOfInstance.Num())
 	{
-		LastVeilState.Init(RTVeilUnwritten, InstanceCells.Num());
+		LastState.Init(RTVeilUnwritten, CellsOfInstance.Num());
 	}
 
 	int32 Toccate = 0;
-	for (int32 I = 0; I < InstanceCells.Num(); ++I)
+	for (int32 I = 0; I < CellsOfInstance.Num(); ++I)
 	{
-		const FRTCellId& Cell = InstanceCells[I];
+		const FRTCellId& Cell = CellsOfInstance[I];
 		const bool bVisible = Visible.Contains(Cell);
 		const bool bKnown = bVisible || Explored.Contains(Cell);
 		const uint8 State = bVisible ? RTVeilLit : (bKnown ? RTVeilRemembered : RTVeilHidden);
 
 		// 🔴 Il salto. `UpdateInstanceTransform` e `SetCustomDataValue` costano anche quando riscrivono lo
 		// stesso valore, ed e' li' che finivano i 2 624 ms della misura.
-		if (LastVeilState[I] == State)
+		if (LastState[I] == State)
 		{
 			continue;
 		}
-		LastVeilState[I] = State;
-		++Toccate;
 
 		// Mai vista: non si disegna ([D-225]). Non e' un velo opaco steso SOPRA un terreno noto — quella
 		// sarebbe la «mappa nera» che §25 dell'HUD vieta — ma l'assenza del disegno.
 		FTransform Xf;
-		if (Cells->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true))
+		if (!Component->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true))
 		{
-			const FVector Full = InstanceBaseScale.IsValidIndex(I) ? InstanceBaseScale[I] : FVector::OneVector;
-			Xf.SetScale3D(bKnown ? Full : FVector::ZeroVector);
-			Cells->UpdateInstanceTransform(I, Xf, /*bWorldSpace=*/ true, /*bMarkRenderStateDirty=*/ false);
+			// ⚠️ Lo stato NON si segna: marcarlo qui direbbe «applicato» a una scrittura che non e' avvenuta,
+			// e ogni chiamata successiva salterebbe l'istanza — la cella resterebbe alla scala sbagliata
+			// finche' non passa un `RebuildInstances`.
+			continue;
 		}
+		const FVector Full = BaseScale.IsValidIndex(I) ? BaseScale[I] : FVector::OneVector;
+		Xf.SetScale3D(bKnown ? Full : FVector::ZeroVector);
+		Component->UpdateInstanceTransform(I, Xf, /*bWorldSpace=*/ true, /*bMarkRenderStateDirty=*/ false);
 
-		if (!bKnown)
+		LastState[I] = State;
+		++Toccate;
+
+		FLinearColor Base;
+		if (!bKnown || !BaseColor(Cell, Base))
 		{
-			continue; // niente colore da scrivere su cio' che non si disegna
+			// Niente colore da scrivere: su cio' che non si disegna, e sulle famiglie che non hanno un canale
+			// colore per istanza — dove ricordato e osservato restano indistinguibili.
+			continue;
 		}
-
-		const FLinearColor Color = RTVeiled(URTHexLibrary::SurfaceColor(SurfaceForCell(Cell)),
-			bVisible ? 1.f : RTVeilExploredFactor);
-		Cells->SetCustomDataValue(I, 0, Color.R);
-		Cells->SetCustomDataValue(I, 1, Color.G);
-		Cells->SetCustomDataValue(I, 2, Color.B, /*bMarkRenderStateDirty=*/ false);
+		const float Factor = bVisible ? 1.f : RTVeilExploredFactor;
+		Component->SetCustomDataValue(I, 0, Base.R * Factor);
+		Component->SetCustomDataValue(I, 1, Base.G * Factor);
+		Component->SetCustomDataValue(I, 2, Base.B * Factor, /*bMarkRenderStateDirty=*/ false);
 	}
+
 	// Una volta sola, in coda, e SOLO se qualcosa e' cambiato: marcarlo a ogni canale ricostruirebbe il
 	// buffer 3N volte, e marcarlo a vuoto ricostruirebbe tutto per niente.
 	if (Toccate > 0)
 	{
-		Cells->MarkRenderStateDirty();
+		Component->MarkRenderStateDirty();
 	}
-	LastVeilTouchedCells = Toccate;
+	return Toccate;
+}
+
+void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
+{
+	// ⚠️ Si azzera SUBITO: su un'uscita anticipata un contatore lasciato al valore precedente dichiarerebbe
+	// lavoro svolto proprio nel caso in cui non se n'e' fatto nessuno, ed e' la misura su cui
+	// `Veil.FullScanCostIsMeasured` asserisce.
+	LastVeilTouchedCells = 0;
+	if (!Cells)
+	{
+		return;
+	}
+
+	// Appartenenza puntuale, ripetuta una volta per istanza: `TSet` e non `TArray::Contains`, che su 7 651
+	// celle sarebbe quadratico. Nessuno dei due insiemi viene ITERATO — il loro ordine dipenderebbe
+	// dall'hash, e qui l'ordine e' quello delle istanze.
+	const TSet<FRTCellId> Visible(Knowledge.VisibleCells);
+	const TSet<FRTCellId> Explored(Knowledge.ExploredCells);
+
+	// Il disco: l'unica famiglia con un colore PROPRIO per cella, riletto dall'asset a ogni velo invece che
+	// memorizzato — un colore cachato sarebbe la seconda verita' sulla superficie.
+	LastVeilTouchedCells = VeilInstances(Cells, InstanceCells, InstanceBaseScale, LastVeilState,
+		Visible, Explored,
+		[this](const FRTCellId& Cell, FLinearColor& Out)
+		{
+			Out = FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(SurfaceForCell(Cell)));
+			return true;
+		});
 
 	// La corona segue il disco, e con lo STESSO fattore. Una prima stesura della spec la lasciava a piena
 	// luminosita': una cella NON osservata sarebbe risultata piu' appariscente di una osservata. Lo stesso
 	// moltiplicatore su entrambi i canali e' anche cio' che preserva il contrasto fra glifo e superficie.
+	//
+	// Stessa costante scura di `RebuildInstances` ([D-183]): il glifo non ha una tavolozza propria.
+	const FLinearColor GlyphBase = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
 	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
 	{
-		UInstancedStaticMeshComponent* Glyphs = SurfaceGlyphs[Ring];
-		if (!Glyphs || GlyphCells[Ring].Num() == 0)
-		{
-			continue;
-		}
-		if (!ensureMsgf(Glyphs->GetInstanceCount() == GlyphCells[Ring].Num(),
-			TEXT("ApplyKnowledgeVeil: glifi[%d] disallineati (%d istanze contro %d celle)"),
-			Ring, Glyphs->GetInstanceCount(), GlyphCells[Ring].Num()))
-		{
-			continue;
-		}
-
-		// Stessa costante scura di `RebuildInstances` ([D-183]): il glifo non ha una tavolozza propria.
-		const FLinearColor GlyphBase = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
-		if (LastGlyphVeilState[Ring].Num() != GlyphCells[Ring].Num())
-		{
-			LastGlyphVeilState[Ring].Init(RTVeilUnwritten, GlyphCells[Ring].Num());
-		}
-		int32 GlyphToccati = 0;
-		for (int32 G = 0; G < GlyphCells[Ring].Num(); ++G)
-		{
-			const FRTCellId& Cell = GlyphCells[Ring][G];
-			const bool bVisible = Visible.Contains(Cell);
-			const bool bKnown = bVisible || Explored.Contains(Cell);
-			const uint8 State = bVisible ? RTVeilLit : (bKnown ? RTVeilRemembered : RTVeilHidden);
-			if (LastGlyphVeilState[Ring][G] == State)
-			{
-				continue;
-			}
-			LastGlyphVeilState[Ring][G] = State;
-			++GlyphToccati;
-
-			FTransform Xf;
-			if (Glyphs->GetInstanceTransform(G, Xf, /*bWorldSpace=*/ true))
-			{
-				const FVector Full = GlyphBaseScale[Ring].IsValidIndex(G)
-					? GlyphBaseScale[Ring][G] : FVector::OneVector;
-				Xf.SetScale3D(bKnown ? Full : FVector::ZeroVector);
-				Glyphs->UpdateInstanceTransform(G, Xf, /*bWorldSpace=*/ true, /*bMarkRenderStateDirty=*/ false);
-			}
-			if (!bKnown)
-			{
-				continue;
-			}
-			const float Factor = bVisible ? 1.f : RTVeilExploredFactor;
-			Glyphs->SetCustomDataValue(G, 0, GlyphBase.R * Factor);
-			Glyphs->SetCustomDataValue(G, 1, GlyphBase.G * Factor);
-			Glyphs->SetCustomDataValue(G, 2, GlyphBase.B * Factor, /*bMarkRenderStateDirty=*/ false);
-		}
-		if (GlyphToccati > 0)
-		{
-			Glyphs->MarkRenderStateDirty();
-		}
+		VeilInstances(SurfaceGlyphs[Ring], GlyphCells[Ring], GlyphBaseScale[Ring], LastGlyphVeilState[Ring],
+			Visible, Explored,
+			[&GlyphBase](const FRTCellId&, FLinearColor& Out) { Out = GlyphBase; return true; });
 	}
+
+	// 🔴 Le TRE famiglie che la prima stesura aveva lasciato fuori, ed e' il difetto piu' grave che questa
+	// funzione poteva avere: velare il disco e lasciare in piedi rilievo, volumi di blocco e pannelli di
+	// bordo fa leggere muri, coperture e porte dell'INTERA board prima di averla esplorata. Sulla graybox non
+	// si vede — `MakeFlatArena` non ne produce nessuno — quindi nemmeno `GetVeilCounts` se ne accorgerebbe.
+	//
+	// Su queste il velo NASCONDE e basta: non portano custom data per istanza, quindi `false` e nessun colore.
+	auto SenzaColore = [](const FRTCellId&, FLinearColor&) { return false; };
+	VeilInstances(Relief, ReliefCells, ReliefBaseScale, LastReliefVeilState, Visible, Explored, SenzaColore);
+	VeilInstances(Blockers, BlockerCells, BlockerBaseScale, LastBlockerVeilState, Visible, Explored, SenzaColore);
+	VeilInstances(EdgeFeatures, EdgeFeatureCells, EdgeFeatureBaseScale, LastEdgeFeatureVeilState,
+		Visible, Explored, SenzaColore);
 }
 
 void ARTHexMapActor::GetVeilCounts(int32& OutVisible, int32& OutExplored, int32& OutHidden) const
@@ -1489,3 +1499,33 @@ void ARTHexMapActor::GetVeilCounts(int32& OutVisible, int32& OutExplored, int32&
 	}
 }
 
+
+void ARTHexMapActor::GetAuxiliaryVeilCounts(int32& OutDrawn, int32& OutHidden) const
+{
+	OutDrawn = 0;
+	OutHidden = 0;
+
+	// Si legge lo stato REALE delle istanze, non un contatore scritto dal velo: un contatore proverebbe che
+	// la funzione sa contare, non che ha nascosto.
+	auto Count = [&OutDrawn, &OutHidden](const UInstancedStaticMeshComponent* Component, int32 Mapped)
+	{
+		if (!Component)
+		{
+			return;
+		}
+		const int32 Num = FMath::Min(Component->GetInstanceCount(), Mapped);
+		for (int32 I = 0; I < Num; ++I)
+		{
+			FTransform Xf;
+			if (!Component->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true))
+			{
+				continue;
+			}
+			if (Xf.GetScale3D().IsNearlyZero()) { ++OutHidden; } else { ++OutDrawn; }
+		}
+	};
+
+	Count(Relief, ReliefCells.Num());
+	Count(Blockers, BlockerCells.Num());
+	Count(EdgeFeatures, EdgeFeatureCells.Num());
+}

@@ -21,7 +21,10 @@ FRTTeamKnowledge URTTeamKnowledgeLibrary::Observe(const URTHexMapAsset* Map, int
 	TSet<FRTCellId> Explored(Out.VisibleCells);
 	if (Previous.Version == FRTTeamKnowledge::CurrentVersion)
 	{
-		Explored.Append(TSet<FRTCellId>(Previous.ExploredCells));
+		// `Append` prende gia' una vista sull'array: costruire un `TSet` temporaneo solo per riversarlo qui
+		// costerebbe una seconda tabella hash da 7 651 elementi, per squadra e due volte per turno, su un
+		// campo che per dichiarazione cresce in modo monotono.
+		Explored.Append(Previous.ExploredCells);
 	}
 	Out.ExploredCells = Explored.Array();
 	// Stesso comparatore di `TeamVisibleCells`, per la stessa ragione: l'ordine di un `TSet` dipende

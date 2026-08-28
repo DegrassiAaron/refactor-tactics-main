@@ -126,6 +126,100 @@ bool FRTVeilCoversExactlyUnobservedCellsTest::RunTest(const FString&)
 }
 
 /**
+ * 🔴 **Il velo copre TUTTE le famiglie di istanze, non il solo disco.**
+ *
+ * `RebuildInstances` monta cinque famiglie per cella: disco, glifo, rilievo del costo, volumi di blocco e
+ * pannelli di bordo. Velare le prime due e lasciare in piedi le altre tre fa leggere **muri, coperture e
+ * porte dell'intera board** prima di averla esplorata — l'informazione che [D-225] dichiara di non disegnare.
+ *
+ * ⚠️ **Questo test esiste perche' il difetto e' invisibile agli altri.** `MakeFlatArena` non produce nessuna
+ * di quelle tre geometrie, e `GetVeilCounts` guarda il solo `Cells`: la partizione tornerebbe **esatta**
+ * mentre la board rivela la propria struttura. Serve una mappa d'AUTORE, con le regole accese.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilCoversEveryInstanceFamilyTest,
+	"RefactorTactics.Veil.CoversEveryInstanceFamily",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilCoversEveryInstanceFamilyTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("board"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Una mappa con le REGOLE accese: ogni cella blocca vista e movimento, porta una copertura e una porta.
+	// E' il caso che la graybox non produce, ed e' l'unico in cui il difetto e' osservabile.
+	URTHexMapAsset* Asset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 3);
+	if (!TestNotNull(TEXT("asset"), Asset))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	for (FRTHexCellData& Cell : Asset->Cells)
+	{
+		Cell.bBlocksMovement = true;
+		Cell.bBlocksLineOfSight = true;
+		Cell.Surface = ERTHexSurface::Rough; // costo > 1: e' cio' che produce il rilievo
+		FRTHexCover Cover;
+		Cover.Edge = ERTHexDirection::E;
+		Cover.Type = ERTHexCoverType::High;
+		Cell.Covers.Add(Cover);
+		FRTHexDoor Door;
+		Door.Edge = ERTHexDirection::W;
+		Door.State = ERTHexDoorState::Closed;
+		Cell.Doors.Add(Door);
+	}
+	Asset->InvalidateLookup();
+	HexMap->MapAsset = Asset;
+	HexMap->RebuildInstances();
+
+	int32 Disegnate = 0, Nascoste = 0;
+	HexMap->GetAuxiliaryVeilCounts(Disegnate, Nascoste);
+	// Anti-vacuita': senza queste geometrie il test non misurerebbe niente e passerebbe comunque.
+	if (!TestTrue(TEXT("la mappa d'autore produce davvero rilievo, blocchi e pannelli"), Disegnate > 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	const int32 TotaleAusiliarie = Disegnate + Nascoste;
+
+	// Una sola cella osservata, nessun ricordo: tutto il resto della board non e' mai stato visto.
+	const TArray<FRTCellId> Visibili = { FRTCellId(0, 0) };
+	HexMap->ApplyKnowledgeVeil(KnowledgeOf(Visibili, Visibili));
+
+	HexMap->GetAuxiliaryVeilCounts(Disegnate, Nascoste);
+	TestTrue(TEXT("le geometrie delle celle MAI VISTE sono nascoste"), Nascoste > 0);
+	TestEqual(TEXT("resta disegnato solo cio' che appartiene alla cella osservata"),
+		Disegnate + Nascoste, TotaleAusiliarie);
+
+	// 🔴 Il cuore: nessuna geometria puo' sopravvivere su una cella che nessuno ha mai visto. Il conteggio
+	// delle disegnate deve coincidere con quelle della sola cella osservata — non «meno di prima».
+	int32 AccesseDisco = 0, RicordateDisco = 0, NascosteDisco = 0;
+	HexMap->GetVeilCounts(AccesseDisco, RicordateDisco, NascosteDisco);
+	TestEqual(TEXT("sul disco resta accesa la sola cella osservata"), AccesseDisco, 1);
+	TestTrue(*FString::Printf(
+			TEXT("le geometrie superstiti sono poche quanto una cella (%d disegnate su %d)"),
+			Disegnate, TotaleAusiliarie),
+		Disegnate * 4 < TotaleAusiliarie);
+
+	// E si rialza: la geometria di una cella tornata nota deve tornare disegnata, altrimenti il velo sarebbe
+	// irreversibile anche qui — lo stesso difetto che `InstanceBaseScale` chiude sul disco.
+	TArray<FRTCellId> Tutte;
+	for (int32 I = 0; I < HexMap->NumInstanceCells(); ++I) { Tutte.Add(HexMap->CellForInstance(I)); }
+	HexMap->ApplyKnowledgeVeil(KnowledgeOf(Tutte, Tutte));
+	HexMap->GetAuxiliaryVeilCounts(Disegnate, Nascoste);
+	TestEqual(TEXT("il velo si RIALZA anche sulle geometrie ausiliarie"), Nascoste, 0);
+	TestEqual(TEXT("e tornano tutte disegnate"), Disegnate, TotaleAusiliarie);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
  * Il velo segue i PUNTI DI REFRESH, non il tempo reale.
  *
  * ⚠️ **Il conteggio e' l'unica cosa che discrimina.** Un velo aggiornato a `Tick` darebbe lo stesso risultato
@@ -181,7 +275,19 @@ bool FRTVeilFollowsRefreshPointsTest::RunTest(const FString&)
 
 	// 🔴 La guardia anti-`Tick`, che e' la ragione d'essere del test. Con un aggiornamento legato al tempo
 	// reale le emissioni crescerebbero con i tick spesi, non con i turni.
-	if (TickSpesi > 0)
+	//
+	// ⚠️ **Anti-vacuita', e non e' un contorno**: se il playback si risolvesse in modo sincrono il ciclo dei
+	// tick non girerebbe, `TickSpesi` resterebbe zero e la guardia sotto non misurerebbe NIENTE passando
+	// verde. Il tetto `<= 2 * Turni` sopra reggerebbe da solo, ma questo test dichiara di confrontare le
+	// emissioni con i tick: se i tick non ci sono, va detto invece che taciuto.
+	TestTrue(TEXT("il playback ha davvero speso tick, altrimenti la guardia anti-Tick non misura nulla"),
+		TickSpesi > 0);
+	// ⚠️ Il confronto NON e' `emissioni < tick` in assoluto: con due turni le emissioni sono quattro, e un
+	// playback che si chiudesse in tre tick renderebbe rosso un comportamento corretto. Cio' che discrimina
+	// e' che le emissioni restino ancorate ai TURNI mentre i tick crescono — quindi il confronto vale solo
+	// dove i tick hanno superato il tetto per turno, e li' e' vero per costruzione se il velo non segue il
+	// tempo reale.
+	if (TickSpesi > 2 * Turni)
 	{
 		TestTrue(*FString::Printf(TEXT("le emissioni seguono i TURNI, non i tick (%d emissioni contro %d tick)"),
 				Probe->RefreshTurns.Num(), TickSpesi),
@@ -275,16 +381,29 @@ bool FRTVeilFullScanCostTest::RunTest(const FString&)
 		Cambiate, Totale, RegimeMs, RegimeToccate));
 	TestEqual(TEXT("il velo di regime tocca solo cio' che e' cambiato"), RegimeToccate, Cambiate);
 
-	// ⚠️ Il gate sta sul REGIME, non sul primo velo: e' il costo che si paga due volte per turno. Il primo
-	// velo avviene una volta e sta nello stesso ordine di grandezza di `RebuildInstances`, che monta le
-	// stesse 7 651 istanze e nessuno ha mai considerato un problema.
-	TestTrue(*FString::Printf(TEXT("il velo di regime sta sotto i 50 ms (misurato %.2f ms)"), RegimeMs),
-		RegimeMs < 50.0);
+	// ⚠️ **Il gate e' RELATIVO, non un tetto in millisecondi.** Un `RegimeMs < 50.0` misura l'orologio di
+	// una macchina sotto carico ignoto — l'editor che compila shader accanto lo fa cadere senza che nulla
+	// sia regredito — e sarebbe rosso per un motivo che non e' il codice. Il rapporto invece sopravvive alla
+	// macchina: il regime tocca 80 istanze contro 7 651, quindi la distanza reale e' di due ordini di
+	// grandezza e un fattore 4 lascia margine larghissimo restando significativo.
+	//
+	// Il gate sta sul REGIME, non sul primo velo: e' il costo che si paga due volte per turno. Il primo velo
+	// avviene una volta e sta nello stesso ordine di grandezza di `RebuildInstances`, che monta le stesse
+	// 7 651 istanze e nessuno ha mai considerato un problema.
+	TestTrue(*FString::Printf(
+			TEXT("il velo di regime costa molto meno del primo (%.2f ms contro %.2f ms)"), RegimeMs, PrimoMs),
+		RegimeMs * 4.0 < PrimoMs);
 
 	// La scansione resta COMPLETA — si itera comunque `InstanceCells`, senza mappa inversa — e questa riga
 	// dice che iterare 7 651 celle senza scrivere nulla non e' il costo: il costo era la SCRITTURA.
-	TestTrue(*FString::Printf(TEXT("iterare l'intera board a vuoto costa poco (%.2f ms)"), IdenticoMs),
-		IdenticoMs < 50.0);
+	TestTrue(*FString::Printf(
+			TEXT("iterare l'intera board a vuoto costa molto meno che riscriverla (%.2f ms contro %.2f ms)"),
+			IdenticoMs, PrimoMs),
+		IdenticoMs * 4.0 < PrimoMs);
+
+	// 🔴 Il numero che discrimina davvero non dipende dall'orologio, ed e' gia' asserito sopra:
+	// `GetLastVeilTouchedCells` vale `Totale` al primo velo, **zero** su un velo identico e `Cambiate` a
+	// regime. I millisecondi restano nel referto come misura, non come gate.
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
