@@ -1029,10 +1029,10 @@ namespace
 	 *     (1) dalla cella CIECA `A`, con il filtro acceso, la migliore fra quelle che vedono e' `B`;
 	 *     (2) da `B`, dove il filtro e' spento per costruzione, la migliore in assoluto e' di nuovo `A`.
 	 *
-	 * La (1) da sola non basta, ed e' l'errore che questa misura ha fatto alla prima stesura: sull'arena
-	 * generata esistono 127 coppie in cui l'ottimo in linea d'aria e' una cella cieca — la piattaforma `L1`
-	 * vede e la cella `(1,0,L0)` sotto di lei e' cieca e piu' vicina — eppure il ciclo non si chiude,
-	 * perche' dalla cieca il filtro manda **avanti** (sul muro di `q=0`, che vede) e non indietro.
+	 * La (1) da sola non basta, ed e' l'errore che questa misura ha fatto alla prima stesura: la contava da
+	 * sola, e su ENTRAMBE le board dava un numero positivo — sull'arena generata la piattaforma `L1` vede e
+	 * la cella `(1,0,L0)` sotto di lei e' cieca e piu' vicina — eppure li' il ciclo non si chiude, perche'
+	 * dalla cieca il filtro manda **avanti** (sul muro di `q=0`, che vede) e non indietro.
 	 *
 	 * ⚠️ **La metrica e' la LINEA D'ARIA, che e' la mutazione pre-#1296 e non il codice di oggi.** E' voluto:
 	 * la domanda non e' se il bot attuale orbiti — non lo fa, e `ApproachSteps` e' la ragione — ma se questa
