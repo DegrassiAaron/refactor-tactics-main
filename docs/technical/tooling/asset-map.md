@@ -40,17 +40,26 @@ root = subprocess.run(['git','rev-parse','--show-toplevel'],
 os.chdir(root)
 allow = [l[1:].strip() for l in open('.gitignore', encoding='utf-8').read().splitlines()
          if l.startswith('!Content/') and not l.rstrip().endswith('/')]
+# le righe glob sono FAMIGLIE aperte, non path: contarle fra gli attesi produce falsi ASSENTE
+concrete = sorted(a for a in allow if '*' not in a)
+globs    = sorted(a for a in allow if '*' in a)
 # -z: i path con spazi o accenti non si spezzano e git non li quota
 tracked = set(subprocess.run(['git','ls-files','-z','Content'],
                              capture_output=True, text=True).stdout.split('\0')) - {''}
-for a in sorted(allow):
+for a in concrete:
     print(('OK      ' if a in tracked else ('DISCO   ' if os.path.exists(a) else 'ASSENTE ')) + a)
-extra = sorted(tracked - set(allow))
-print(f"
-{len(allow)} attesi · {sum(a in tracked for a in allow)} committati")
-print(f"tracciati FUORI allowlist: {len(extra)}")
-for e in extra:
-    print('  ' + e)
+print(f"\n{len(concrete)} attesi · {sum(a in tracked for a in concrete)} committati"
+      f" · {len(globs)} righe glob (famiglie aperte, non path):")
+for g in globs:
+    print('    ' + g)
+# seconda direzione: un binario tracciato che .gitignore NON riammette. L'oracolo è
+# `git check-ignore`, lo stesso di §6: exit 0 = ignorato, cioè muto a `git add`.
+binari = sorted(t for t in tracked if t.endswith(('.uasset', '.umap')))
+muti = [b for b in binari
+        if subprocess.run(['git','check-ignore','-q',b]).returncode == 0]
+print(f"binari tracciati ({len(binari)}) FUORI allowlist: {len(muti)}")
+for m in muti:
+    print('  ' + m)
 PY
 ```
 
@@ -58,11 +67,35 @@ PY
 un'affermazione falsa (§2). Un comando che itera solo la lista attesa non può scoprire ciò che la
 lista non prevede: le due direzioni si controllano separatamente.
 
-**Misurato il 2026-08-17** su `HEAD` `a4a393b6`: **21 attesi · 16 committati · 0 su disco · 5 assenti**.
+🔴 **Il comando qui sopra è stato riscritto il 2026-08-28, e la stesura precedente aveva due difetti
+di cui il primo è il peggiore.**
 
-*(Prima misura, 2026-08-13 su `515c5c88`: 17 attesi · 13 committati · 4 mancanti. I quattro path nuovi
-sono `Core/Grid/M_HexCell.uasset` e i tre `UI/Framework/WBP_RT_*` di **U24**; tre dei quattro sono già
-committati.)*
+1. **Non era eseguibile.** L'`f-string` finale era spezzata su due righe senza virgolette triple:
+   `SyntaxError: unterminated f-string literal` su Python 3.12, cioè prima di stampare qualunque cosa.
+   Un documento che dice *«esegui questo per sapere com'è messo il repository»* spediva uno script morto,
+   e nessuna delle misure qui sotto poteva esserne uscita.
+2. **Trattava le righe glob come path concreti.** `.gitignore` ha **4** righe d'allowlist con `**`
+   (`RT/UI/**/*.uasset`, `RT/Maps/**/*.umap`, `RT/Maps/**/*.uasset`, `RT/World/Graybox/**/*.uasset`):
+   sono **famiglie**, non file, e nessuna sarà mai in `git ls-files`. Contate fra gli attesi producevano
+   **4 falsi `ASSENTE`** e gonfiavano il totale da 24 a 28. Nella direzione opposta l'errore si
+   specchiava: i 5 asset che **solo** quelle righe riammettono — `WBP_RT_MainMenu`, `WBP_RT_MenuEntry`,
+   `WBP_RT_SettingsPanel`, `L_Frontend.umap`, `DA_HexMap_Scratch_Basin.uasset` — finivano fra i
+   «tracciati FUORI allowlist», cioè accusati di essere muti proprio mentre l'allowlist li ammetteva.
+
+⚠️ **La direzione inversa ora usa `git check-ignore` invece dell'appartenenza a un insieme**, ed è la
+correzione che rende il controllo robusto ai glob futuri: è lo stesso oracolo che §6 già dichiara, e
+l'unico che sa leggere `.gitignore` come git lo legge. Il confronto per stringa non lo saprà mai.
+
+**Misurato il 2026-08-28** su `HEAD` `d0e35814`: **24 attesi · 20 committati · 0 su disco · 4 assenti**,
+più **4 righe glob** che aprono altrettante famiglie. I quattro assenti sono gli `ABP_*` dei personaggi,
+il perimetro della seduta **U8**.
+
+*(Misura precedente, 2026-08-17 su `a4a393b6`: 21 attesi · 16 committati · 0 su disco · 5 assenti. Prima
+ancora, 2026-08-13 su `515c5c88`: 17 attesi · 13 committati · 4 mancanti.)*
+
+⚠️ **I quattro committati in più dal 17 agosto sono i cinque `WBP_RT_*` di U24 meno uno**: l'allowlist
+nel frattempo ha riammesso anche `WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer` (`.gitignore:174-175`), che
+§2.1 dava ancora come famiglia senza riga — vedi la correzione lì.
 
 🔴 **Il 🟡 non è durato quattro giorni, e non è stato committato: è stato cancellato.** Il 13 agosto
 `ABP_Gadget.uasset` esisteva sul disco di chi sviluppa e non era nel repository. Oggi non esiste più
@@ -78,11 +111,20 @@ gesto. **Il momento di committare un asset è quando lo si salva la prima volta*
 — un anim BP a metà, committato, si riprende; lo stesso file non committato è un lavoro che nessun
 `git` può restituire. È il perimetro della seduta **U8**, che dopo la cancellazione riparte da zero.
 
-⚠️ **Tre file tracciati stanno fuori dall'allowlist**: `Content/.gitkeep`,
-`Content/RT_UI_AssetPack_FromHUD/README.md` e `.../manifest.json`. Non sono `.uasset` — le regole di
-`.gitignore` che li lasciano passare sono altre — ma la prima stesura di questo documento dichiarava
-«nessun asset è tracciato fuori dall'allowlist» perché il controllo escludeva `.md`, `.json` e
-`.gitkeep`: aveva filtrato via esattamente i casi che lo smentivano.
+⚠️ **Nessun `.uasset` o `.umap` sta fuori dall'allowlist, e i file non binari che ci stanno sono
+145** — misurato il 2026-08-28: `Content/.gitkeep`, i due di `RT_UI_AssetPack_FromHUD/`, e i **137 SVG
+più il manifest** di `Content/Icons/`, arrivati dopo il 17 agosto. Non sono `.uasset`: le regole di
+`.gitignore` che li lasciano passare sono altre.
+
+🔴 **Questa riga diceva «Tre file tracciati», ed era vera il 2026-08-17.** Il numero è cresciuto di
+due ordini di grandezza senza che nessuna regola cambiasse, il che dice qualcosa sul controllo e non sul
+repository: contare **file** in questa direzione misura soprattutto quanti `.svg` sono entrati. Ciò che
+il documento vuole sapere è *se un binario è muto a `git add`*, e la risposta — **0 su 25** — è quella
+che il comando di §1 ora isola.
+
+⚠️ Vale comunque la lezione originale: la prima stesura dichiarava «nessun asset è tracciato fuori
+dall'allowlist» perché il controllo escludeva `.md`, `.json` e `.gitkeep` — aveva filtrato via
+esattamente i casi che lo smentivano.
 
 ---
 
@@ -127,14 +169,27 @@ seduta ne risponda. Non è un difetto da correggere qui — è un buco della fon
 
 ### 2.1 Famiglie attese che non hanno una riga d'allowlist
 
-**Cinque** cose che la v0.1 richiede e per cui **`git add` tace**, perché nessuna riga di `.gitignore` le
-riammette. È l'unico predicato vero di tutte e cinque: il *percorso* ce l'hanno in tre (le icone lo hanno
-deciso, i sorgenti icona esistono già sul disco, i due `WBP_RT_*` lo portano scritto negli `artifacts` di
-U24), la *seduta* in tre (U21, U25, U24). Non sono dimenticanze di questo file: sono buchi delle fonti, e
-vanno chiusi lì.
+**Tre** cose che la v0.1 richiede e per cui **`git add` tace**, perché nessuna riga di `.gitignore` le
+riammette. È l'unico predicato vero di tutte e tre: il *percorso* ce l'hanno in due (le icone lo hanno
+deciso, i sorgenti icona esistono già sul disco), la *seduta* in una (U21). Non sono dimenticanze di
+questo file: sono buchi delle fonti, e vanno chiusi lì.
 
-La quinta riga è **l'unica con entrambi**, ed è per questo la più vicina a mordere: percorso esatto e
-seduta che la rivendica, e comunque `git add` tace.
+🔴 **Erano cinque fino al 2026-08-28, e due si sono chiuse — verificato, non deciso qui.**
+
+- **`WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer`** hanno la loro riga d'allowlist: `.gitignore:174-175`.
+  Entrambi risultano **committati**. ⚠️ La riga citava *«righe 124–126 del `.gitignore`»* per gli altri
+  tre, che oggi stanno a **168–170**: i numeri di riga di un file che cresce non sono un ancoraggio, e
+  qui hanno retto un giorno più del contenuto.
+- **Il kit graybox degli oggetti** ha percorso e riga: [`D-173`](../../decisions/RT_PDR_00_Decision_Log.md)
+  ha chiuso `GBX-4` il **2026-08-18** fissando `/Game/RT/World/Graybox/` con
+  `Cover/ · Doors/ · Surfaces/ · Volumes/`, e la riga è a `.gitignore:192`
+  (`!Content/RT/World/Graybox/**/*.uasset`, pattern di cartella). Oracolo verificato il 2026-08-28:
+  `git check-ignore -q Content/RT/World/Graybox/Volumes/BP_Graybox_CellPlacementVolume.uasset` esce
+  **`1`**. ⛔ **Questo non significa che il kit esista**: `git ls-files 'Content/RT/World/Graybox/*'`
+  dà tuttora **0**. La porta è aperta e non c'è ancora passato nessuno — è la seduta **U25**.
+
+La terza riga rimasta è **l'unica con percorso e seduta insieme**, ed è per questo la più vicina a
+mordere: percorso esatto e seduta che la rivendica, e comunque `git add` tace.
 
 > ⚠️ *Questa frase ha sbagliato **tre volte** e ogni correzione ne ha riletta una parte sola: prima il
 > numero («Due» con tre righe), poi il predicato «né in una seduta» (falso per U21 e U25), poi «manca il

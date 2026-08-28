@@ -23,6 +23,8 @@ public class RefactorTacticsEditor : ModuleRules
 			"LevelEditor",
 			"InteractiveToolsFramework",
 			"EditorInteractiveToolsFramework",
+			// Import delle texture e creazione del DA_IconCatalog dal commandlet RTBuildIconCatalog.
+			"AssetTools",
 			"RefactorTactics" // modulo runtime: URTHexMapAsset / URTHexLibrary / ARTHexMapActor (usati da H5b)
 		});
 	}

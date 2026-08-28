@@ -82,7 +82,7 @@ leggerlo qui.
 ### 1.4 Il substrato non esiste — tre buchi distinti
 
 > ⚠️ Misurati contro un **velo**. Con la fog decisa da
-> [D-222](../../decisions/RT_PDR_00_Decision_Log.md) **i primi due cadono**: vedi §5.3.
+> [D-225](../../decisions/RT_PDR_00_Decision_Log.md) **i primi due cadono**: vedi §5.3.
 
 1. **Il canale**: `Cells->NumCustomDataFloats = 3`, e tutti e tre portano l'RGB della superficie che
    `RebuildInstances` scrive. `M_HexCell` è **Unlit + Opaque**, ha **un solo** nodo
@@ -231,7 +231,7 @@ mostrata**: due canali, lo stesso soggetto, due regole opposte.
 | Traccia post-lock | **alla scrittura, per cella** | una rotta non è un fatto puntuale: porta il tratto **osservato** e si tronca dove l'osservatore ha perso il soggetto (**#1497**) |
 | Sagoma dell'ultimo contatto | **alla lettura** | risponde a *«adesso non lo conosco»*: è il canale del ricordo, e in lettura è dove deve stare |
 | Overlay e modello | **alla lettura** | descrivono il presente |
-| Fog of war ([D-222]) | **alla lettura** | è visibilità di **celle**, non di soggetti |
+| Fog of war ([D-225]) | **alla lettura** | è visibilità di **celle**, non di soggetti |
 | **Playback** (`TickPlayback`) | ⛔ **nessuno** | canale non censito da questa tabella fino al 2026-08-28: muove il modello lungo il percorso eseguito, per entrambe le squadre. Vive in **#1525** |
 
 #### 🔴 Per la traccia «quando il fatto è accaduto» non è definito, e la rotta si tronca
@@ -482,7 +482,7 @@ repository non possiede.
 ## 5. Fase B — La fog of war
 
 > ⛔ **Fino al 2026-08-27 questa sezione descriveva un *velo*: il colore di superficie scalato.**
-> [D-222](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso che la fog of war **entra nella v0.1 e
+> [D-225](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso che la fog of war **entra nella v0.1 e
 > nasconde**. Non è una differenza di intensità — un velo lascia leggere il contenuto della cella più
 > debolmente, la fog non lo mostra affatto. Ciò che il velo aveva imparato e che sopravvive è marcato ➕;
 > ciò che cade perché nascondere è più semplice che velare è marcato ➖.
@@ -513,16 +513,16 @@ categoria per le *celle* non esiste in nessuna decisione. Inventarla qui creereb
 Il divieto resta, e riguarda il **vuoto piatto**: una mappa nera cancella la lettura *spaziale* — dove sono
 le celle, quanto dista un punto, che forma ha il terreno. Un prisma che **occupa** la cella non la cancella:
 la griglia continua a tassellare, la distanza si continua a contare, il terreno perde il proprio *tipo* e non
-la propria *posizione*. È la distinzione che [D-222](../../decisions/RT_PDR_00_Decision_Log.md) scrive, e
+la propria *posizione*. È la distinzione che [D-225](../../decisions/RT_PDR_00_Decision_Log.md) scrive, e
 senza la quale la fog sembrerebbe violare §25 mentre lo rispetta.
 
 Il rapporto con [D-146](../../decisions/RT_PDR_00_Decision_Log.md) è chiarito da
-[D-221](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-27), e **non c'è conflitto**: D-146 governa come
+[D-228](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-27), e **non c'è conflitto**: D-146 governa come
 una cella **mostrata** comunica la propria superficie — è una regola di *encoding*, non di *visibilità*. Non
 dice **se** una cella vada mostrata. Una cella che nessuno osserva, e che quindi non si legge, non è un
 fallimento di leggibilità: è lo scopo.
 
-D-221 dichiara anche il perimetro che entrambe presupponevano: **la forma è graybox e cadrà** con i
+D-228 dichiara anche il perimetro che entrambe presupponevano: **la forma è graybox e cadrà** con i
 materiali per superficie di M8/M9 — dischi, corona incisa, `Relief`, `Blockers`, `EdgeFeatures` sono un
 ponteggio — mentre **la regola dei due canali resta e vincolerà anche l'arte**, perché è ciò che regge
 l'accessibilità (daltonismo, scala di grigi, video ricompresso) e i gate `G10`/`G13`. L'effetto fumo/nebbia
@@ -834,16 +834,46 @@ risorsa contesa.**
    su **`D-213`**. Rinumerate a `D-214` (perimetro) e `D-215` (fog of war in v0.1).
 2. **Sera**, al momento del merge: `origin/main` era passata a **`D-220`**, e il branch aperto
    `claude/spec-panel-map-scenario-menu-*` rivendicava **`D-214` … `D-217`** con tesi tutt'altre
-   (affordance di sviluppo, menu degli scenari). Seconda rinumerazione: **`D-221`** il perimetro,
-   **`D-222`** la fog of war. **`D-223`** è la regola sul momento del verdetto (§3.5, chiude `#1496`),
-   registrata il 2026-08-27. Le tesi qui sotto ancora da registrare partono quindi da **`D-224`**.
+   (affordance di sviluppo, menu degli scenari). Seconda rinumerazione: `D-221` il perimetro,
+   `D-222` la fog of war. **`D-223`** è la regola sul momento del verdetto (§3.5, chiude `#1496`),
+   registrata il 2026-08-27.
+3. **Il giorno dopo, al merge vero**: entrambe erano state prese da `origin/main`. Terza rinumerazione, e
+   quella che vale: **`D-228`** il perimetro, **`D-225`** la fog of war, `D-223` invariato. Le tesi ancora
+   da registrare partono quindi da **`D-230`** — numero che si riverifica di nuovo prima del proprio merge,
+   perché è esattamente ciò che questo elenco dimostra tre volte.
 
-🔴 **Terza collisione, trovata il 2026-08-27 e NON ancora riparata.** `origin/main` ha assorbito un
-**`D-221`** proprio — *«un colpo è un concetto solo, `bCountsAsAttack`»*, che chiude `INT-8` e `#1491` —
-mentre questo branch usa lo stesso numero per il perimetro di D-146/D-183. Sono **due tesi diverse con lo
-stesso ID**, e per la regola di [`AGENTS.md`](../../../AGENTS.md) la seconda è quella non ancora mergiata:
-va rinumerata **questa**, non quella. `D-222` (fog of war) invece **non** collide: su `origin/main` è libero.
-⚠️ Chi ripara scelga un numero **oltre** `D-223`, che è ormai assegnato.
+🔴 **Terza collisione, trovata il 2026-08-27 — ✅ riparata il 2026-08-28, al merge.** `origin/main` ha
+assorbito un **`D-221`** proprio — *«un colpo è un concetto solo, `bCountsAsAttack`»*, che chiude `INT-8` e
+`#1491` — mentre questo branch usava lo stesso numero per il perimetro di D-146/D-183. Sono **due tesi
+diverse con lo stesso ID**, e per la regola di [`AGENTS.md`](../../../AGENTS.md) la seconda è quella non
+ancora mergiata: è stata rinumerata **questa**, non quella. Il perimetro è ora **`D-228`**.
+
+🔴 **E la stessa riga dichiarava `D-222` libero: era vero quando è stata scritta, ed è durato un giorno.**
+Diceva *«`D-222` (fog of war) invece non collide: su `origin/main` è libero»*. Rimisurato il 2026-08-28
+immediatamente prima del merge, `origin/main` porta un **`D-222`** proprio — *«lo sviluppo parallelo si
+accetta come regime, e ciò che si protegge è la MISURA»* — che nel frattempo è finito in `CLAUDE.md`,
+`AGENTS.md` e `CONTEXT_INDEX.md`. **Quarta collisione.**
+
+✅ **Ma la fog of war non è stata rinumerata: è stata ADOTTATA, ed è un esito migliore.** Rinumerandola si
+sarebbe scritta una voce nuova — e `origin/main` porta già **`D-225`**, *«la fog of war della v0.1 NASCONDE
+la geometria che nessuno della squadra osserva»*: **la stessa tesi**, registrata da un'altra sessione
+mentre questo branch la teneva ferma sotto un numero proprio. Una rinumerazione meccanica avrebbe messo nel
+documento canonico **due voci per una decisione sola** — difetto peggiore della collisione, perché con ID
+diversi nessun controllo di unicità lo vede. Tutti i riferimenti di questa spec puntano ora a `D-225`.
+
+∴ **prima di rinumerare si confronta la TESI, non solo l'ID.** Due numeri diversi sulla stessa decisione
+non collidono per costruzione, e proprio per questo passano.
+
+∴ **la lezione non è che la misura fosse sbagliata: è che una misura di disponibilità vale finché non la
+si usa.** Questo documento conteneva già la regola giusta — *«`git fetch --prune origin` + `git branch -r`
+immediatamente prima del merge»* — e la collisione è arrivata lo stesso, perché fra lo scrivere il numero e
+il mergiarlo è passato un giorno. Un ID scritto in un branch non pushato **non è prenotato**: è
+un'intenzione, e la prenotazione avviene solo al merge.
+
+⚠️ **`D-223` invece NON è stato toccato, e la ragione è misurata**: l'unico ref remoto che lo rivendica è
+`origin/fix/1497-lastmoveroutes-porta-identita`, che porta **la stessa identica tesi** — è questo lavoro,
+pushato sotto un altro nome, non un secondo autore. Verificato con `git rev-list`: **0** commit presenti là
+e non qui. Rinumerarlo avrebbe creato una divergenza dove non c'era un conflitto.
 
 ⚠️ **La prima misura non era sbagliata: era scaduta.** Fra le due sono passate poche ore, e in mezzo
 `origin/main` ha assorbito otto decisioni. Per questo la regola non è «misura una volta e scrivi»: è

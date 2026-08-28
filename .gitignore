@@ -86,6 +86,14 @@ Content/**/*.txt
 # PR che non lo nominava. Un `.uasset` non si fonde, e nessuno sa se e' sicuro cancellarlo.
 Content/RT/Maps/**/_Scratch/
 
+# ---- Asset HUD derivati (2026-08-26) ----
+# `tools/hud-assets/generate_hud_assets.py` scrive qui SVG, PNG e manifest. Sono **derivati**: la
+# sorgente e' lo script, e un PNG in repository invecchia in silenzio il giorno in cui la grammatica di
+# `docs/research/design/icon/visual-language/` cambia. Si rigenerano con un comando.
+# Ignorata come DIRECTORY per la stessa ragione di `_Scratch/`: e' l'unico modo perche' valga anche per
+# gli SVG, che nessuna riga sopra esclude.
+Content/RT/UI/_Generated/
+
 # ---- Asset di terze parti scaricati da Fab (2026-08-06) ----
 # I pack stanno NEL progetto sotto Content/FabAsset/ ma NON nel repo: chi clona se li scarica da Fab
 # e li mette li' (procedura nel README e in convenzioni-contenuti-ue.md, appendice B).
@@ -205,3 +213,6 @@ __pycache__/
 
 # File di lavoro locale (prompt di sessione), non versionato
 /nextStep.md
+
+# ---- Artefatti generati dai tool del repo ----
+/build/

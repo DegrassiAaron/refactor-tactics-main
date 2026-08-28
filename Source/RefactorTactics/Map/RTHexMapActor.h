@@ -181,7 +181,13 @@ public:
 
 	/**
 	 * Nome della fixture da scrivere nell'asset: `ArenaV01`, `RelayBasin`, `RelayLite`, `TestArena`,
-	 * `CoverYard`, `DemoArena`. L'elenco e' quello di `URTMatchSetupLibrary::MakeFixtureArena`.
+	 * `CoverYard`.
+	 *
+	 * ⚠️ **L'autorita' e' `URTMatchSetupLibrary::KnownFixtureIds()`**, non questa riga: e' un tooltip di
+	 * `UPROPERTY`, quindi un literal che UHT deve poter leggere a compile time e che non puo' chiamare una
+	 * funzione. Resta percio' un elenco a mano — l'ultimo — e nominava `DemoArena`, che non ha un ramo nel
+	 * dispatcher (`#1459`). A tenerlo allineato ci pensa
+	 * `RefactorTactics.HexMap.EveryListedFixtureNameBuilds`.
 	 */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
 	FString FixtureId = TEXT("ArenaV01");

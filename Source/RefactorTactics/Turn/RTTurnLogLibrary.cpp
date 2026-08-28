@@ -3,6 +3,9 @@
 #include "Turn/RTReactionLibrary.h" // ERTReactionOutcome: l'esito di una reazione, leggibile nel log
 #include "Core/RTGameplayTags.h" // TAG_Status_Burning: la causa ambientale si CHIEDE al tag, non si riscrive
 #include "Misc/FileHelper.h"
+#include "Containers/ArrayView.h" // i campi discriminanti viaggiano come una vista, non come copie
+#include "Templates/Function.h"   // TFunctionRef: il visitor dei campi non alloca
+#include "UObject/ReflectedTypeAccessors.h" // StaticEnum: i nomi degli enum si CHIEDONO, non si ricopiano
 
 bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
 {
@@ -191,11 +194,59 @@ FString URTTurnLogLibrary::DescribeActionIdentity(const FRTTurnLogEntry& Entry)
 	//
 	// Il caso `BaseActionId == ActionId` non produce «X · X»: un'azione generica usata direttamente e' il
 	// profilo di se stessa, e ripeterla due volte sarebbe rumore.
+	// ⚠️ Solo il profilo, senza l'azione: una traccia deserializzata puo' portarlo, e un produttore che
+	// riempisse prima l'azione base pure. Senza questo ramo la riga direbbe `Action.BasicAttack · None`,
+	// cioe' spaccerebbe per id d'azione il `None` di un `FName` non impostato.
+	if (Entry.ActionId.IsNone())
+	{
+		return Entry.BaseActionId.ToString();
+	}
 	if (Entry.BaseActionId.IsNone() || Entry.BaseActionId == Entry.ActionId)
 	{
 		return Entry.ActionId.ToString();
 	}
 	return FString::Printf(TEXT("%s · %s"), *Entry.BaseActionId.ToString(), *Entry.ActionId.ToString());
+}
+
+namespace
+{
+	/**
+	 * La voce dichiara un'azione?
+	 *
+	 * ⚠️ Si chiede a ENTRAMBI i nomi: `ActionId` da solo lascerebbe cadere una voce che porta il profilo e
+	 * non l'azione, e la riga direbbe «non dichiarata» su un log che l'azione base ce l'ha scritta.
+	 */
+	bool HasDeclaredAction(const FRTTurnLogEntry& Entry)
+	{
+		return !Entry.ActionId.IsNone() || !Entry.BaseActionId.IsNone();
+	}
+
+	/**
+	 * L'identita' dell'azione, o cio' che si dice quando non c'e'.
+	 *
+	 * In un posto solo perche' l'idioma era ricopiato in cinque rami di `DescribeEntry`, ognuno con la sua
+	 * guardia — ed e' esattamente per questo che il sesto (`Fallback`) se l'era dimenticato: non c'era
+	 * niente di centrale da scordarsi di chiamare (`#1412`). Una categoria nuova eredita il comportamento
+	 * invece di doverlo ricordare.
+	 */
+	FString ActionIdentityOr(const FRTTurnLogEntry& Entry, const TCHAR* Missing)
+	{
+		return HasDeclaredAction(Entry)
+			? URTTurnLogLibrary::DescribeActionIdentity(Entry) : FString(Missing);
+	}
+
+	/** Il suffisso ` (azione, pN)` delle categorie che lo appendono in coda, o niente se non c'e' azione. */
+	FString ActionIdentitySuffix(const FRTTurnLogEntry& Entry)
+	{
+		if (!HasDeclaredAction(Entry))
+		{
+			return FString();
+		}
+		// `p0` non si stampa: su tracce scritte prima della v7 lo zero significa «priorita' non dichiarata».
+		return Entry.Priority != 0
+			? FString::Printf(TEXT(" (%s, p%d)"), *URTTurnLogLibrary::DescribeActionIdentity(Entry), Entry.Priority)
+			: FString::Printf(TEXT(" (%s)"), *URTTurnLogLibrary::DescribeActionIdentity(Entry));
+	}
 }
 
 TArray<FRTDescribedLine> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries)
@@ -250,6 +301,13 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto alla squadra");
 	case ERTActionInvalidReason::SlotOccupied:   return TEXT("lo slot e' gia' occupato");
 	case ERTActionInvalidReason::OnCooldown:     return TEXT("l'abilita' e' in ricarica");
+	// CP 13.2: la squadra non sa dove sia, e non ne ha un ricordo su cui ripiegare. Senza questo caso
+	// cadeva nel generico «non eseguibile», che e' la forma di riga che questo ramo esiste per non produrre.
+	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto");
+	case ERTActionInvalidReason::Interrupted:    return TEXT("interrotta");
+	case ERTActionInvalidReason::NoEffect:       return TEXT("nessun effetto da applicare");
+	// ⚠️ Diverso da «interrotta»: quella e' stata CANCELLATA, questa e' avvenuta senza ottenere niente.
+	case ERTActionInvalidReason::Neutralised:    return TEXT("neutralizzata da un'interruzione reciproca");
 	default:                                     return TEXT("non eseguibile");
 	}
 }
@@ -317,11 +375,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// PERCHE' si e' mossa (#307): l'azione che ha causato lo spostamento, quando la voce la dichiara.
 		// `Action.Move` compreso — un movimento volontario e uno scatto vanno distinti, e sono la stessa
 		// categoria di voce con `ActionId` diverso.
-		const FString Cause = Entry.ActionId.IsNone()
-			? FString()
-			: (Entry.Priority != 0
-				? FString::Printf(TEXT(" (%s, p%d)"), *DescribeActionIdentity(Entry), Entry.Priority)
-				: FString::Printf(TEXT(" (%s)"), *DescribeActionIdentity(Entry)));
+		const FString Cause = ActionIdentitySuffix(Entry);
 
 		// `SupersededByDash` sta QUI e non nel ramo breve: la sua ragione d'essere e' la destinazione mai
 		// raggiunta, e un rendering che stampa solo `SrcCell` la nasconde. La coppia descrive la rotta
@@ -387,8 +441,20 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 
 		const FString Why = DescribeInvalidReason(static_cast<ERTActionInvalidReason>(Entry.Amount));
 
-		return FString::Printf(TEXT("%s -> %s: azione %s (%s)"),
-			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), What, *Why);
+		// 🔴 **QUALE azione** (`#1412`). Era l'unico ramo con un'azione da nominare che non la nominava:
+		// rendeva celle, esito e motivo — pura geometria. Due azioni annullate dalla stessa unita' nello
+		// stesso turno producevano righe identiche byte a byte, e [D-063] vieta di dedurre l'unita' da
+		// `SrcCell`, quindi non c'era modo di dire quale delle due fosse.
+		//
+		// ⚠️ Il suffisso e' CONDIZIONALE e in tondo, come `Move` e `Combat`: una riga che finisse sempre con
+		// un «non dichiarata» direbbe al giocatore una lacuna interna a ogni annullamento, e nessuna delle
+		// due cose gli serve. Dei tre produttori di questa categoria due l'azione la scrivono gia'
+		// (`RTTurnManager_Blast.cpp:294`, `RTTurnManager.cpp:3457`) e da oggi si leggono; il terzo
+		// (`FallbackEntry`, `Blast.cpp:455`) no, e riempirlo cambia l'hash delle tracce — `ActionId` entra
+		// in `VisitDiscriminatingFields` — quindi e' un cambio d'identita' da dichiarare a parte.
+		return FString::Printf(TEXT("%s -> %s: azione %s (%s)%s"),
+			*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), What, *Why,
+			*ActionIdentitySuffix(Entry));
 	}
 
 	// Reazione: attivata o no, e perche' — mai in silenzio (CP 5.1).
@@ -403,7 +469,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		}
 		// QUALE reazione, quando l'identita' c'e': fra `Riktor.Interposition` e `Action.Intercept` cambia
 		// l'abilita' spesa e il cooldown, non solo l'esito (CP 5.5).
-		if (!Entry.ActionId.IsNone())
+		if (HasDeclaredAction(Entry))
 		{
 			return FString::Printf(TEXT("%s: %s (%s)"),
 				*CellText(Entry.SrcCell), What, *DescribeActionIdentity(Entry));
@@ -416,8 +482,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	// da un turno in cui l'azione non e' mai stata dichiarata.
 	if (Entry.Category == ERTLogCategory::Predictive)
 	{
-		const FString Who = Entry.ActionId.IsNone()
-			? FString(TEXT("previsione")) : DescribeActionIdentity(Entry);
+		const FString Who = ActionIdentityOr(Entry, TEXT("previsione"));
 
 		if (static_cast<ERTPredictiveOutcome>(Entry.Outcome) == ERTPredictiveOutcome::TriggerMatched)
 		{
@@ -434,8 +499,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	// proprio la distinzione per cui il motivo esiste.
 	if (Entry.Category == ERTLogCategory::ReactionDecision)
 	{
-		const FString Who = Entry.ActionId.IsNone()
-			? FString(TEXT("overwatch")) : DescribeActionIdentity(Entry);
+		const FString Who = ActionIdentityOr(Entry, TEXT("overwatch"));
 
 		// 🔴 **«la reazione» e non «overwatch», dal 2026-08-20.** Ogni arma di questo `switch` diceva
 		// *overwatch* alla lettera, ed era vero finche' quello era l'unico produttore di decisioni. Con
@@ -516,9 +580,14 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			return FString::Printf(TEXT("%s: il colpo usa l'orientamento %s"), *CellText(Entry.SrcCell), Dir);
 		case ERTFacingOutcome::UsedByOverwatch:
 			return FString::Printf(TEXT("%s: l'overwatch usa l'orientamento %s"), *CellText(Entry.SrcCell), Dir);
-		case ERTFacingOutcome::RearHitBypassedCover:
-			return FString::Printf(TEXT("%s -> %s: colpo fuori dall'arco frontale (guardava %s), la protezione non vale"),
+		case ERTFacingOutcome::RearHitBypassedGuard:
+			return FString::Printf(TEXT("%s -> %s: colpo fuori dall'arco frontale (guardava %s), la Guard non vale"),
 				*CellText(Entry.TgtCell), *CellText(Entry.SrcCell), Dir);
+		case ERTFacingOutcome::RearHitBypassedCover:
+			// ⚠️ Qui `Amount` NON e' una direzione: sono i punti di riduzione scavalcati, quindi `Dir` non si
+			// usa. E' la ragione per cui i due esiti sono separati (`#1430`, [D-199]).
+			return FString::Printf(TEXT("%s -> %s: colpo alle spalle, la copertura non vale (%d punti scavalcati)"),
+				*CellText(Entry.TgtCell), *CellText(Entry.SrcCell), Entry.Amount);
 		default:
 			return FString::Printf(TEXT("%s: orientamento %s"), *CellText(Entry.SrcCell), Dir);
 		}
@@ -533,11 +602,7 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	// Con che cosa, e **con quale precedenza** (CP 11.3, formato v7). La priorita' compare solo quando la
 	// voce la dichiara: `p0` su ogni riga sarebbe rumore su tracce scritte prima della v7, dove lo zero
 	// significa «non dichiarata» e non «priorita' zero».
-	const FString Tail = Entry.ActionId.IsNone()
-		? FString()
-		: (Entry.Priority != 0
-			? FString::Printf(TEXT(" (%s, p%d)"), *DescribeActionIdentity(Entry), Entry.Priority)
-			: FString::Printf(TEXT(" (%s)"), *DescribeActionIdentity(Entry)));
+	const FString Tail = ActionIdentitySuffix(Entry);
 
 	switch (static_cast<ERTCombatOutcome>(Entry.Outcome))
 	{
@@ -569,72 +634,251 @@ namespace
 	constexpr uint32 RT_FNV_PRIME        = 16777619u;
 
 	/**
+	 * Nome di un valore d'enum, via reflection.
+	 *
+	 * NON uno switch scritto a mano: sarebbe un secondo elenco degli stessi valori — la classe di difetto
+	 * che questo file esiste per chiudere — e degraderebbe pure peggio, perche' un valore aggiunto all'enum
+	 * e non allo switch si renderebbe come «?», indistinguibile da qualunque altro valore ignoto. Con la
+	 * reflection un valore fuori enum si mostra GREZZO, che e' l'unica risposta onesta: stesso criterio, e
+	 * stesse parole, di `URTScenarioLoader::DescribeLogEvent`.
+	 */
+	template <typename TEnum>
+	FString EnumName(TEnum Value)
+	{
+		const UEnum* Enum = StaticEnum<TEnum>();
+		const FString Name = Enum ? Enum->GetNameStringByValue(static_cast<int64>(Value)) : FString();
+		return Name.IsEmpty() ? FString::FromInt(static_cast<int32>(Value)) : Name;
+	}
+
+	/**
+	 * Il visitor dei campi discriminanti.
+	 *
+	 * Un campo e' NUMERICO (`Nums`) oppure TESTUALE (`Chars`, che si mescola char per char). La distinzione
+	 * non e' estetica: questo percorso e' anche quello dell'hash, e copiare una stringa in un buffer di
+	 * interi solo per darla al mixer sarebbe un costo che prima non c'era.
+	 *
+	 * `Display` e' **pigro**: l'hash non lo chiama mai, quindi non paga nessuna formattazione. Cio' che
+	 * l'hash paga comunque e' `FName::ToString()` per `ActionId`, esattamente come prima di questo elenco.
+	 */
+	using FDiscriminatingFieldVisitor = TFunctionRef<void(const TCHAR* Name, TArrayView<const uint32> Nums,
+		const FString* Chars, TFunctionRef<FString()> Display)>;
+
+	/**
+	 * L'elenco UNICO dei campi che DISCRIMINANO una voce di TurnLog.
+	 *
+	 * Lo percorrono in due: `MixEntryFields`, che li mescola nell'hash, e `DescribeFirstDivergence`, che
+	 * nomina quello cambiato quando due tracce divergono. Erano due elenchi, ed e' la ragione per cui la
+	 * diagnosi ha taciuto il campo che diverge **tre volte** — `ActionId` (trovato in mutazione), `TgtCell`,
+	 * e da ultimo `GraphRevision` (`#1423`), che produceva «atteso [X], trovato [X]» su ogni campo stampato.
+	 *
+	 * ⚠️ **L'ORDINE E' L'HASH.** FNV-1a e' sensibile alla sequenza: spostare una riga qui sotto cambia
+	 * l'hash di ogni voce del progetto, quindi il corpus golden, gli `OrderedHashPerTurn` degli archivi di
+	 * replay e il checksum di fine partita. Un campo nuovo si aggiunge **in coda**, e resta comunque un
+	 * cambio dell'identita' delle tracce: si dichiara, non si scopre. A pinnarlo e' `TurnLog.HashMixesThe
+	 * DeclaredFieldsInOrder`, che rifa' il conto a mano — il corpus golden NON lo pinna, perche'
+	 * `CompareSerializedTraces` ricalcola l'hash su entrambi i lati e un cambio qui li muove insieme.
+	 *
+	 * Cosa NON entra, e perche', sta scritto voce per voce in `FRTTurnLogEntry` — che resta l'inventario
+	 * autoritativo, non questo commento: `UnitId` e `TurnNumber` (D-063: rendono la traccia spiegabile, non
+	 * la discriminano), `Priority`, `ReactionInstanceId` (numero d'ordine dell'armamento: due tracce che
+	 * differissero solo per lui differirebbero gia' per l'`OpportunityId`), `OriginalTargetUnitId` (gia'
+	 * discriminato da `SrcCell`) e `ReactionResponse` (gia' discriminata da `Outcome` e
+	 * `SelectedTargetUnitId`). Un campo che non entra qui non fa divergere due tracce, quindi non ha niente
+	 * da nominare in una diagnosi: sono lo stesso elenco letto da due lati.
+	 *
+	 * ⚠️ `BaseActionId` sta fuori per una proprieta' che puo' SMETTERE di valere: e' una FUNZIONE di
+	 * `ActionId`, che qui c'e' gia', quindi due tracce non possono differire solo per quel campo e
+	 * mescolarlo aggiungerebbe zero potere discriminante — stesso ragionamento di `FormatId` (CP 10.3). Se
+	 * un giorno smettesse di essere derivabile da `ActionId`, questa riga diventa falsa e il campo deve
+	 * entrare: e' la condizione da ricontrollare, non una proprieta' per sempre.
+	 */
+	void VisitDiscriminatingFields(const FRTTurnLogEntry& E, FDiscriminatingFieldVisitor Visit)
+	{
+		auto Number = [&Visit](const TCHAR* Name, int32 Value)
+		{
+			const uint32 Nums[] = { static_cast<uint32>(Value) };
+			auto Display = [Value] { return FString::FromInt(Value); };
+			Visit(Name, MakeArrayView(Nums, UE_ARRAY_COUNT(Nums)), nullptr, Display);
+		};
+		auto Named = [&Visit](const TCHAR* Name, int32 Value, const FString& Text)
+		{
+			const uint32 Nums[] = { static_cast<uint32>(Value) };
+			auto Display = [&Text] { return Text; };
+			Visit(Name, MakeArrayView(Nums, UE_ARRAY_COUNT(Nums)), nullptr, Display);
+		};
+		auto Cell = [&Visit](const TCHAR* Name, const FRTCellId& C)
+		{
+			const uint32 Nums[] = { static_cast<uint32>(C.X), static_cast<uint32>(C.Y),
+				static_cast<uint32>(C.Layer) };
+			// `FRTCellId::ToString()`, non un formato nuovo: la prima meta' del messaggio di divergenza
+			// rende le celle con `DescribeEntry`, che usa quella. Due notazioni nella stessa riga
+			// obbligherebbero chi legge a indovinare se il secondo triplo sia (q,r,L) o (x,y,z).
+			auto Display = [&C] { return C.ToString(); };
+			Visit(Name, MakeArrayView(Nums, UE_ARRAY_COUNT(Nums)), nullptr, Display);
+		};
+		auto Text = [&Visit](const TCHAR* Name, const FString& S)
+		{
+			// Char per char, ed e' la semantica dell'hash da CP 5.5: una stringa vuota non mescola nulla,
+			// perche' il ciclo non gira.
+			//
+			// ⚠️ Un `FName` NON impostato NON e' una stringa vuota: `FName().ToString()` rende `None`, e
+			// quei quattro caratteri li mescola. Il serializzatore lo sa e mette la guardia
+			// (`E.ActionId.IsNone() ? FString() : ...`); qui la guardia NON c'e', ed e' cosi' da prima di
+			// questo elenco. Toglierla o metterla cambia l'hash di ogni voce senza azione, quindi e' un
+			// cambio dell'identita' delle tracce: va deciso, non corretto di passaggio.
+			auto Display = [&S] { return FString::Printf(TEXT("'%s'"), *S); };
+			Visit(Name, TArrayView<const uint32>(), &S, Display);
+		};
+
+		Named(TEXT("phase"), static_cast<int32>(E.Phase), EnumName(E.Phase));
+		Named(TEXT("category"), static_cast<int32>(E.Category), EnumName(E.Category));
+		// ⚠️ `outcome` resta un numero: il suo significato dipende dalla categoria, e a risolverlo c'e' gia'
+		// `URTScenarioLoader::OutcomeEnumForCategory` — che pero' vive in `ScenarioHarness`, il quale dipende
+		// da `Turn` e non viceversa. Portarla qui e' il lavoro giusto e non e' questo (`#1427`).
+		// ⚠️ `outcome` e' l'unico campo il cui significato dipende dalla CATEGORIA, ed e' per questo che si
+		// rende per nome (`#1427`): «atteso 2, trovato 5» mandava chi legge a cercare in `RTTurnLog.h` se
+		// `2` fosse `Lethal`, `AppliedWhileOnCell` o `BlockedByUnit` — il viaggio di ritorno che questo
+		// report esiste per togliere. Il valore mescolato resta il numero: cambia la resa, non l'identita'.
+		Named(TEXT("outcome"), E.Outcome, URTTurnLogLibrary::DescribeOutcome(E.Category, E.Outcome));
+		Cell(TEXT("src"), E.SrcCell);
+		Cell(TEXT("tgt"), E.TgtCell);
+		Number(TEXT("amount"), E.Amount);
+		// L'identita' dell'azione entra byte per byte: due reazioni con la stessa geometria e lo stesso esito,
+		// ma abilita' diverse, devono produrre hash diversi — altrimenti il replay di CP 12.6 non
+		// distinguerebbe `Riktor.Interposition` da `Action.Intercept`.
+		const FString ActionIdText = E.ActionId.ToString();
+		Text(TEXT("actionId"), ActionIdText);
+		// `GraphRevision` ENTRA (D-067): due tracce possono differire SOLO per lei — stessi eventi, ma grafo
+		// modificato in un turno precedente — e sono due partite diverse. Un movimento validato su un grafo e
+		// uno validato su un altro non sono lo stesso evento, anche quando le celle coincidono.
+		Number(TEXT("graphRevision"), E.GraphRevision);
+		Text(TEXT("opportunityId"), E.OpportunityId);
+		if (!E.OpportunityId.IsEmpty())
+		{
+			// La DECISIONE di una finestra ENTRA (v8, CP 14.5): due partite con gli stessi movimenti in cui un
+			// giocatore ha sparato e l'altro ha tenuto sono due partite diverse. Solo DENTRO il ramo: mescolare
+			// `INDEX_NONE` incondizionatamente cambierebbe l'hash di **ogni** voce del progetto.
+			Number(TEXT("selectedTarget"), E.SelectedTargetUnitId);
+		}
+	}
+
+	/**
 	 * Mescola i CAMPI di una voce in un FNV-1a a 32 bit.
 	 *
 	 * Estratto perche' i due hash del TurnLog — `HashTurnLog` (canonico) e `HashTurnLogOrdered` — devono
 	 * mescolare **esattamente gli stessi campi**: l'unica differenza fra loro e' il sort davanti. Se i due
 	 * elenchi di campi divergessero, i due hash risponderebbero a domande diverse da quelle documentate e
 	 * nessun test se ne accorgerebbe.
+	 *
+	 * L'elenco non e' piu' qui: sta in `VisitDiscriminatingFields`, che lo condivide con la diagnosi.
 	 */
 	void MixEntryFields(uint32& Hash, const FRTTurnLogEntry& E)
 	{
-		auto Mix = [&Hash](uint32 V)
+		VisitDiscriminatingFields(E,
+			[&Hash](const TCHAR*, TArrayView<const uint32> Nums, const FString* Chars, TFunctionRef<FString()>)
+			{
+				auto Mix = [&Hash](uint32 Value)
+				{
+					Hash ^= Value;
+					Hash *= RT_FNV_PRIME;
+				};
+				if (Chars)
+				{
+					for (const TCHAR Ch : *Chars)
+					{
+						Mix(static_cast<uint32>(Ch));
+					}
+					return;
+				}
+				for (const uint32 Value : Nums)
+				{
+					Mix(Value);
+				}
+			});
+	}
+
+	/** Un campo raccolto per il confronto: la SEQUENZA che l'hash mescolerebbe, piu' come si scrive. */
+	struct FCollectedField
+	{
+		FString Name;
+		TArray<uint32> Mixed;
+		FString Display;
+	};
+
+	TArray<FCollectedField> CollectDiscriminatingFields(const FRTTurnLogEntry& E)
+	{
+		TArray<FCollectedField> Fields;
+		VisitDiscriminatingFields(E,
+			[&Fields](const TCHAR* Name, TArrayView<const uint32> Nums, const FString* Chars,
+				TFunctionRef<FString()> Display)
+			{
+				FCollectedField& Field = Fields.AddDefaulted_GetRef();
+				Field.Name = Name;
+				Field.Display = Display();
+				if (Chars)
+				{
+					Field.Mixed.Reserve(Chars->Len());
+					for (const TCHAR Ch : *Chars)
+					{
+						Field.Mixed.Add(static_cast<uint32>(Ch));
+					}
+					return;
+				}
+				Field.Mixed.Append(Nums.GetData(), Nums.Num());
+			});
+		return Fields;
+	}
+
+	/**
+	 * I campi in cui due voci differiscono, nominati coi due valori.
+	 *
+	 * 🔴 Il confronto e' sulla **sequenza mescolata**, non sul testo reso, ed e' la parte che conta: due
+	 * valori diversi possono scriversi uguali — un `Outcome` fuori dall'enum, una categoria che questa build
+	 * non conosce — e confrontare il display li dichiarerebbe identici. Cioe' esattamente il difetto che
+	 * questa funzione esiste per chiudere, riaperto un livello piu' sotto. «Uguale» qui significa «uguale
+	 * per l'hash», che e' la stessa regola con cui `GoldenEntriesMatch` ha dichiarato la divergenza.
+	 */
+	FString DescribeDivergingFields(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
+	{
+		const TArray<FCollectedField> Expected = CollectDiscriminatingFields(A);
+		const TArray<FCollectedField> Found = CollectDiscriminatingFields(B);
+
+		auto ByName = [](const TArray<FCollectedField>& Fields, const FString& Name)
 		{
-			Hash ^= V;
-			Hash *= RT_FNV_PRIME;
+			return Fields.FindByPredicate([&Name](const FCollectedField& Field) { return Field.Name == Name; });
 		};
-		Mix(static_cast<uint32>(E.Phase));
-		Mix(static_cast<uint32>(E.Category));
-		Mix(static_cast<uint32>(E.Outcome));
-		Mix(static_cast<uint32>(E.SrcCell.X));
-		Mix(static_cast<uint32>(E.SrcCell.Y));
-		Mix(static_cast<uint32>(E.SrcCell.Layer));
-		Mix(static_cast<uint32>(E.TgtCell.X));
-		Mix(static_cast<uint32>(E.TgtCell.Y));
-		Mix(static_cast<uint32>(E.TgtCell.Layer));
-		Mix(static_cast<uint32>(E.Amount));
-		// L'identita' dell'azione entra nell'hash byte per byte: due reazioni con la stessa geometria e lo
-		// stesso esito, ma abilita' diverse, devono produrre hash diversi — altrimenti il replay di CP 12.6
-		// non distinguerebbe `Riktor.Interposition` da `Action.Intercept`. Un nome vuoto non mescola nulla,
-		// quindi le tracce senza ActionId hanno lo stesso hash di prima di CP 5.5.
-		for (const TCHAR Ch : E.ActionId.ToString())
+		const FString Absent = TEXT("<assente>");
+
+		TArray<FString> Diverging;
+		for (const FCollectedField& Field : Expected)
 		{
-			Mix(static_cast<uint32>(Ch));
+			// Un campo puo' esserci da una parte sola: `selectedTarget` entra solo dentro una finestra,
+			// quindi due voci di cui una senza `OpportunityId` non hanno lo stesso elenco. Dirlo assente e'
+			// piu' onesto che stampare un valore che quella voce non porta.
+			const FCollectedField* Other = ByName(Found, Field.Name);
+			if (!Other)
+			{
+				Diverging.Add(FString::Printf(TEXT("%s atteso %s, trovato %s"),
+					*Field.Name, *Field.Display, *Absent));
+			}
+			else if (Other->Mixed != Field.Mixed)
+			{
+				Diverging.Add(FString::Printf(TEXT("%s atteso %s, trovato %s"),
+					*Field.Name, *Field.Display, *Other->Display));
+			}
 		}
-		// `BaseActionId` NON entra, ed e' deliberato: e' una FUNZIONE di `ActionId`, che qui c'e' gia'.
-		// Due tracce non possono differire solo per quel campo, quindi mescolarlo aggiungerebbe zero potere
-		// discriminante — e invaliderebbe in blocco ogni hash golden. Stesso ragionamento di `FormatId`
-		// (CP 10.3). Se un giorno `BaseActionId` smettesse di essere derivabile da `ActionId`, questa riga
-		// di commento diventa falsa e il campo deve entrare: e' la condizione da ricontrollare, non una
-		// proprieta' per sempre.
-		//
-		// `GraphRevision` ENTRA: due tracce possono differire SOLO per lei — stessi eventi, ma grafo modificato
-		// in un turno precedente — e sono due partite diverse. Un movimento validato su un grafo e uno
-		// validato su un altro non sono lo stesso evento, anche quando le celle coincidono.
-		Mix(static_cast<uint32>(E.GraphRevision));
-		// `UnitId` e `TurnNumber` NON entrano, per lo stesso criterio (D-063): servono a rendere la traccia
-		// spiegabile — chi ha agito, in quale turno — non a discriminarla. Includerli invaliderebbe in blocco
-		// ogni hash golden senza aggiungere potere discriminante.
-		//
-		// La DECISIONE di una finestra ENTRA (v8, CP 14.5), e mescolarla e' il punto: due partite con gli
-		// stessi movimenti in cui un giocatore ha sparato e l'altro ha tenuto sono due partite diverse, ed e'
-		// esattamente cio' che E14 aggiunge al gioco. `Outcome` e `Amount` — la risposta e il suo motivo —
-		// sono gia' mescolati sopra insieme a tutti gli altri esiti; qui restano i due che li qualificano.
-		//
-		// ⚠️ Un id VUOTO non mescola nulla, ed e' questo che tiene fermi gli hash golden delle tracce senza
-		// decisioni: il ciclo non gira, e `SelectedTargetUnitId` e' mescolato solo dentro il ramo. Se lo si
-		// mescolasse incondizionatamente, `INDEX_NONE` cambierebbe l'hash di **ogni** voce del progetto.
-		for (const TCHAR Ch : E.OpportunityId)
+		for (const FCollectedField& Field : Found)
 		{
-			Mix(static_cast<uint32>(Ch));
+			if (!ByName(Expected, Field.Name))
+			{
+				Diverging.Add(FString::Printf(TEXT("%s atteso %s, trovato %s"),
+					*Field.Name, *Absent, *Field.Display));
+			}
 		}
-		if (!E.OpportunityId.IsEmpty())
-		{
-			Mix(static_cast<uint32>(E.SelectedTargetUnitId));
-		}
-		// `ReactionInstanceId` NON entra: e' un numero d'ordine dell'armamento, quindi spiega e non discrimina.
-		// Due tracce che differissero solo per lui differirebbero gia' per l'`OpportunityId`, che l'istanza la
-		// porta dentro attraverso `Seq`.
+
+		return Diverging.Num() > 0
+			? FString::Printf(TEXT(" — campi: %s"), *FString::Join(Diverging, TEXT("; ")))
+			: FString();
 	}
 }
 
@@ -1093,40 +1337,74 @@ ERTTraceComparison URTTurnLogLibrary::CompareSerializedTraces(const TArray<uint8
 		: ERTTraceComparison::Divergence;
 }
 
-namespace
+/**
+ * Uguaglianza secondo i campi che entrano nell'HASH, non campo per campo a mano.
+ *
+ * Cosi' la diagnosi considera divergenza esattamente cio' che `HashTurnLog` considera, che e' l'unica
+ * regola con cui ha senso confrontarsi: `DescribeFirstDivergence` viene chiamata *dopo* che l'hash ha
+ * dichiarato una divergenza, e deve indicare **dove** quell'hash e' cambiato.
+ *
+ * ⚠️ Confrontava con `EntryLess`, ed era corretto finche' i campi dell'ordinamento coincidevano con
+ * quelli dell'hash. Non e' piu' vero: `UnitId` e `TurnNumber` sono entrati in `EntryLess` per chiudere
+ * la forma canonica della serializzazione (D-067) e restano fuori dall'hash (D-063). Con `EntryLess`
+ * questa funzione discriminerebbe **piu'** dell'hash e si fermerebbe su una voce identica per l'hash —
+ * per giunta mostrando due descrizioni uguali, perche' quei campi nessuno li stampa.
+ *
+ * Passa dalla `HashTurnLogOrdered` di una voce sola invece di elencare i campi a mano: cosi' l'elenco
+ * resta uno solo (`MixEntryFields`) e non puo' divergere in silenzio da quello vero.
+ */
+const UEnum* URTTurnLogLibrary::OutcomeEnumForCategory(ERTLogCategory Category)
 {
-	/** Nome della fase per la diagnosi. Switch esplicito, come gli altri di questo file. */
-	const TCHAR* GoldenPhaseName(ERTMatchPhase Phase)
+	switch (Category)
 	{
-		switch (Phase)
-		{
-		case ERTMatchPhase::Planning:   return TEXT("Planning");
-		case ERTMatchPhase::Prep:       return TEXT("Prep");
-		case ERTMatchPhase::Dash:       return TEXT("Dash");
-		case ERTMatchPhase::Blast:      return TEXT("Blast");
-		case ERTMatchPhase::Move:       return TEXT("Move");
-		case ERTMatchPhase::Cleanup:    return TEXT("Cleanup");
-		case ERTMatchPhase::MatchEnded: return TEXT("MatchEnded");
-		default:                        return TEXT("?");
-		}
+	case ERTLogCategory::Move:             return StaticEnum<ERTMoveOutcome>();
+	case ERTLogCategory::Combat:           return StaticEnum<ERTCombatOutcome>();
+	case ERTLogCategory::Fallback:         return StaticEnum<ERTFallbackOutcome>();
+	case ERTLogCategory::Reaction:         return StaticEnum<ERTReactionOutcome>();
+	case ERTLogCategory::Environment:      return StaticEnum<ERTEnvironmentOutcome>();
+	case ERTLogCategory::Facing:           return StaticEnum<ERTFacingOutcome>();
+	case ERTLogCategory::Status:           return StaticEnum<ERTStatusOutcome>();
+	case ERTLogCategory::Predictive:       return StaticEnum<ERTPredictiveOutcome>();
+	case ERTLogCategory::ReactionDecision: return StaticEnum<ERTReactionDecisionOutcome>();
+	case ERTLogCategory::ReactionClash:    return StaticEnum<ERTClashLogEvent>();
+	default:                               return nullptr;
 	}
+}
 
-	/**
-	 * Uguaglianza secondo i campi che entrano nell'HASH, non campo per campo a mano.
-	 *
-	 * Cosi' la diagnosi considera divergenza esattamente cio' che `HashTurnLog` considera, che e' l'unica
-	 * regola con cui ha senso confrontarsi: `DescribeFirstDivergence` viene chiamata *dopo* che l'hash ha
-	 * dichiarato una divergenza, e deve indicare **dove** quell'hash e' cambiato.
-	 *
-	 * ⚠️ Confrontava con `EntryLess`, ed era corretto finche' i campi dell'ordinamento coincidevano con
-	 * quelli dell'hash. Non e' piu' vero: `UnitId` e `TurnNumber` sono entrati in `EntryLess` per chiudere
-	 * la forma canonica della serializzazione (D-067) e restano fuori dall'hash (D-063). Con `EntryLess`
-	 * questa funzione discriminerebbe **piu'** dell'hash e si fermerebbe su una voce identica per l'hash —
-	 * per giunta mostrando due descrizioni uguali, perche' quei campi nessuno li stampa.
-	 *
-	 * Passa dalla `HashTurnLogOrdered` di una voce sola invece di elencare i campi a mano: cosi' l'elenco
-	 * resta uno solo (`MixEntryFields`) e non puo' divergere in silenzio da quello vero.
-	 */
+FString URTTurnLogLibrary::DescribeOutcome(ERTLogCategory Category, uint8 Outcome)
+{
+	const UEnum* Enum = OutcomeEnumForCategory(Category);
+	const FString Nome = Enum ? Enum->GetNameStringByValue(static_cast<int64>(Outcome)) : FString();
+	// Un esito fuori dall'enum non e' impossibile — il campo e' un `uint8` e una traccia vecchia puo'
+	// portarne uno che questa build non conosce piu': mostrarlo GREZZO e' l'unica risposta onesta.
+	return Nome.IsEmpty() ? FString::FromInt(static_cast<int32>(Outcome)) : Nome;
+}
+
+bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
+{
+	if (Entry.UnitId == 0)
+	{
+		return false; // nessuna unita' dichiarata: non c'e' nessun soggetto di cui dire il ruolo
+	}
+	// Il danno ambientale: la domanda ce l'ha gia' una funzione sua, e passarci evita di duplicarne il
+	// riconoscimento della causa — che ha una rete di sicurezza e un motivo per averla.
+	if (IsEnvironmentalDamage(Entry))
+	{
+		return true;
+	}
+	// La guardia (o la copertura) scavalcata da un colpo alle spalle: la voce descrive l'orientamento del
+	// DIFENSORE, quindi il soggetto e' chi ha subito il colpo. L'attaccante e' in `SrcCell` (`#1418`).
+	if (Entry.Category == ERTLogCategory::Facing
+		&& (Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover)
+			|| Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard)))
+	{
+		return true;
+	}
+	// L'azione cancellata da un `Action.Interrupt`: `UnitId` porta chi l'ha SUBITA, non chi ha interrotto
+	// — chi ha interrotto non e' nella voce affatto (`#1437`, [D-196]). Senza questo caso, chi conta le
+	// azioni compiute da un'unita' le accrediterebbe una cancellazione che ha solo subito.
+	return Entry.Category == ERTLogCategory::Fallback
+		&& Entry.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
 }
 
 bool URTTurnLogLibrary::GoldenEntriesMatch(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
@@ -1152,37 +1430,30 @@ FString URTTurnLogLibrary::DescribeFirstDivergence(int32 TurnNumber, const TArra
 		// `DescribeEntry` non lo stampa per le voci `Move`, quindi una regressione che cambia SOLO l'azione
 		// produceva «atteso [X], trovato [X]» — due stringhe identiche accanto alla parola «diverge». Trovato
 		// con la verifica di mutazione, che e' esattamente il caso per cui serve.
-		const bool bSameAction = Golden[i].ActionId == Actual[i].ActionId;
-		const FString ActionText = bSameAction
-			? FString::Printf(TEXT("azione '%s'"), *Golden[i].ActionId.ToString())
-			: FString::Printf(TEXT("azione attesa '%s', trovata '%s'"),
-				*Golden[i].ActionId.ToString(), *Actual[i].ActionId.ToString());
+		// L'azione si nomina come il DoD di CP 12.6 chiede per nome. Forma BREVE anche quando diverge: se e'
+		// lei a cambiare lo dice l'elenco dei campi qui sotto, che la tratta come ogni altro campo — dirlo
+		// due volte nella stessa riga e' la riga piu' letta del report che ripete se stessa.
+		const FString ActionText = FString::Printf(TEXT("azione '%s'"), *Golden[i].ActionId.ToString());
 
 		const FString GoldenText = DescribeEntry(Golden[i]);
 		const FString ActualText = DescribeEntry(Actual[i]);
 
-		// Se le due descrizioni COINCIDONO, il campo che diverge e' uno che `DescribeEntry` non stampa per
-		// quella categoria — `TgtCell` fuori da `Moved`, per dirne uno. Mostrare «atteso [X], trovato [X]»
-		// farebbe concludere che il confronto e' rotto: e' successo con l'ActionId, trovato in mutazione, e
-		// qui si chiude la CLASSE invece del singolo caso. I campi grezzi non sono belli da leggere, ma
-		// rispondono alla sola domanda che conta quando la prosa non basta.
-		FString RawDetail;
-		if (GoldenText.Equals(ActualText))
-		{
-			auto RawOf = [](const FRTTurnLogEntry& E)
-			{
-				return FString::Printf(TEXT("outcome=%u amount=%d src=(%d,%d,%d) tgt=(%d,%d,%d)"),
-					E.Outcome, E.Amount,
-					E.SrcCell.X, E.SrcCell.Y, E.SrcCell.Layer,
-					E.TgtCell.X, E.TgtCell.Y, E.TgtCell.Layer);
-			};
-			RawDetail = FString::Printf(TEXT(" — campi: atteso {%s}, trovato {%s}"),
-				*RawOf(Golden[i]), *RawOf(Actual[i]));
-		}
+		// **Quale campo** e' cambiato, coi due valori. La prosa non basta e non puo' bastare: `DescribeEntry`
+		// rende cio' che serve a un umano che rilegge una partita, non l'insieme di cio' che distingue due
+		// tracce — e i due insiemi non coincidono per nessuna categoria.
+		//
+		// L'elenco da cui questo nasce e' lo STESSO che alimenta l'hash (`VisitDiscriminatingFields`), e non
+		// e' un dettaglio di implementazione: `GoldenEntriesMatch` confronta gli hash, quindi l'insieme dei
+		// campi che possono far divergere due voci **e' per costruzione** quello. Finche' erano due elenchi
+		// separati la diagnosi ha taciuto tre volte il campo che divergeva — `ActionId`, `TgtCell`,
+		// `GraphRevision` — e ogni volta si e' chiuso il caso singolo. Qui si chiude la classe.
+		//
+		// Si nominano SOLO i campi diversi: elencarli tutti rimetterebbe chi legge a cercare.
+		const FString RawDetail = DescribeDivergingFields(Golden[i], Actual[i]);
 
 		return FString::Printf(
 			TEXT("turno %d, voce %d: fase %s, %s — atteso [%s], trovato [%s]%s"),
-			TurnNumber, i, GoldenPhaseName(Golden[i].Phase), *ActionText,
+			TurnNumber, i, *EnumName(Golden[i].Phase), *ActionText,
 			*GoldenText, *ActualText, *RawDetail);
 	}
 
@@ -1196,7 +1467,7 @@ FString URTTurnLogLibrary::DescribeFirstDivergence(int32 TurnNumber, const TArra
 			TEXT("turno %d: %d voci attese, %d trovate — la prima %s e' in fase %s, azione '%s' [%s]"),
 			TurnNumber, Golden.Num(), Actual.Num(),
 			bMissing ? TEXT("MANCANTE") : TEXT("IN PIU'"),
-			GoldenPhaseName(Odd.Phase), *Odd.ActionId.ToString(), *DescribeEntry(Odd));
+			*EnumName(Odd.Phase), *Odd.ActionId.ToString(), *DescribeEntry(Odd));
 	}
 
 	return FString();

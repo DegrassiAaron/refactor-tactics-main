@@ -1171,8 +1171,10 @@ bool FRTScenarioPassingBladeTest::RunTest(const FString&)
 
 	// Le DUE meta' della stessa regola, separate: si arriva oltre, E chi sta in mezzo lo paga. Un test che
 	// verificasse solo la posizione passerebbe anche con i 20 danni mai applicati.
+	// [D-224] 80 e non 75: dei 20 della lama, 5 li ferma lo scudo base. Cio' che il test dimostra resta che
+	// chi sta in mezzo LI PAGA — un'unita' attraversata e illesa avrebbe ancora 95.
 	FRTTestExpectation E1; E1.Kind = ERTAssertionKind::UnitAtCell;   E1.UnitId = TEXT("V"); E1.Cell = FRTCellId(1, 0, 0);
-	FRTTestExpectation E2; E2.Kind = ERTAssertionKind::UnitHpEquals; E2.UnitId = TEXT("R"); E2.Value = 75;
+	FRTTestExpectation E2; E2.Kind = ERTAssertionKind::UnitHpEquals; E2.UnitId = TEXT("R"); E2.Value = 80;
 	S.Expect.Add(E1); S.Expect.Add(E2);
 
 	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
@@ -1224,8 +1226,9 @@ bool FRTScenarioCellTargetTest::RunTest(const FString&)
 	T.Intents.Add(I);
 	S.Turns.Add(T);
 
-	// 95 meno i 18 dell'area: Phase e' presa dal RAGGIO, non perche' la si sia bersagliata.
-	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitHpEquals; E.UnitId = TEXT("R"); E.Value = 77;
+	// 95 meno i 18 dell'area, piu' i 5 che lo scudo base assorbe ([D-224]): Phase e' presa dal RAGGIO, non
+	// perche' la si sia bersagliata. Lo scudo non cambia CHI viene colpito, che e' la proprieta' in esame.
+	FRTTestExpectation E; E.Kind = ERTAssertionKind::UnitHpEquals; E.UnitId = TEXT("R"); E.Value = 82;
 	S.Expect.Add(E);
 
 	const FRTTestResult Result = URTScenarioRunner::Run(World, S);

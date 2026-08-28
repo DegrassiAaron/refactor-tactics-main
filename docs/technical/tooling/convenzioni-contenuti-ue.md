@@ -309,7 +309,7 @@ cioè il lato (`RTHexLibrary.cpp`: *«un pointy-top di circumraggio HexSize»*).
 d'autore dello stesso giorno. Chi modella in verticale ha quindi **due riferimenti indipendenti**: il lato
 della cella per la pianta, la quota di piano per l'alzato. Non si deriva l'uno dall'altro.
 
-| | Scala d'arte | Scala del mondo, oggi | Scala del mondo, al canone |
+| | Scala d'arte | Scala del mondo, **fino al** 2026-08-25 | Scala del mondo, **oggi** (canone) |
 |---|---:|---:|---:|
 | Lato della cella | 1,50 m *(dal 2026-08-09)* | 1,00 m | **1,50 m** |
 | Cella lato-a-lato (`C`) | 2,60 m | 1,73 m | **2,60 m** |
@@ -317,8 +317,11 @@ della cella per la pianta, la quota di piano per l'alzato. Non si deriva l'uno d
 
 ⚠️ **La colonna che cambia il 2026-08-17 è la terza, non la prima**: la scala d'arte è quella dal
 2026-08-09 e `D-163` non l'ha toccata — ha deciso che il **mondo** la segue. Chi ha modellato fra il 09 e
-il 17 ha modellato giusto. E finché la issue di migrazione è aperta, la colonna che il gioco usa è la
-**seconda**.
+il 17 ha modellato giusto. ✅ **E dal 2026-08-25 la colonna che il gioco usa è la terza**: `#1155` è atterrata, `HexSize = 150`, e le
+tre colonne coincidono per il lato. 🔴 *Questa riga diceva «finché la issue di migrazione è aperta, la
+colonna che il gioco usa è la **seconda**» — la migrazione era chiusa da tre giorni, e l'intestazione della
+seconda colonna diceva «oggi». Corrette entrambe il 2026-08-28: chi leggeva la tabella top-down modellava
+a `1,00 m`, cioè il difetto che il paragrafo qui sotto dichiara chiuso.*
 
 > 🔴 **Fino al 2026-08-17 questa sezione descriveva una scala che nessuna mappa usava.** Misurato:
 > `HexSize` non compare in **nessun** binario di `Content/RT` — misura e oracolo in
@@ -326,15 +329,19 @@ il 17 ha modellato giusto. E finché la issue di migrazione è aperta, la colonn
 > atterrava. Non era un errore di questa sezione: era che nessuno aveva chiuso il cerchio sul codice.
 > `GBX-6` in [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) ha reso visibile il divario e `D-163` lo chiude.
 
-⏱️ **Finché la issue [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) è aperta, il mondo gira ancora a `1,00 m`**: chi modella secondo
-questa sezione produce asset corretti per il canone e `1,5×` grandi per la mappa di oggi. È uno stato
-dichiarato, non un difetto da scoprire.
+✅ **[`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155) è atterrata il 2026-08-25: il mondo gira a `1,5 m`**, la stessa scala con cui questa
+sezione dice di modellare. Le due scale coincidono, quindi un asset autorato qui è corretto per il canone
+**e** per la mappa in cui si posa.
 
-**Cosa fare nel frattempo — e le due istruzioni non si contraddicono**: si modella **alla scala nuova**
-(`1,5 m`), perché rifare un asset alla scala vecchia significherebbe rifarlo due volte. Quello che conviene
-rimandare non è modellare: è **committare volumi finiti** prima che il cambio atterri, perché fino a quel
-momento non si possono validare *guardandoli in PIE* — e la validazione visiva è il solo modo di chiudere
-`GBX-1` e `GBX-5`.
+🔴 **Questa sezione diceva il contrario fino al 2026-08-28**: *«finché `#1155` è aperta il mondo gira ancora
+a `1,00 m`»*, e concludeva che conveniva rimandare **il commit** dei volumi finiti «prima che il cambio
+atterri». Il cambio è atterrato tre giorni prima, e la clausola gli è sopravvissuta — è la stessa deriva
+corretta in [`D-173`](../../decisions/RT_PDR_00_Decision_Log.md), che cita questa sezione come normativa:
+chi seguiva il rinvio atterrava sull'istruzione che lo smentiva.
+
+**Il commit non attende più nulla.** La validazione *in PIE* resta il solo modo di chiudere `GBX-1` e
+`GBX-5`, ma è un gate di qualità e non un divieto di versionare: confonderli tiene fuori dal repository
+asset che ci possono entrare.
 
 > ⚠️ *La prima stesura diceva «una ragione per non produrre volumi finiti», mentre
 > [`spec-graybox-placement-contract.md`](../systems/spec-graybox-placement-contract.md) §6.1 diceva «modella a

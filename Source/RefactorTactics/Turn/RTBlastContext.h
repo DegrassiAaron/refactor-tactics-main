@@ -25,6 +25,17 @@ struct FRTPendingArcOp
 	FRTCellId From;
 	FRTCellId To;
 	ARTUnit* Actor = nullptr;
+
+	/**
+	 * QUALE azione ha modificato l'arco.
+	 *
+	 * 🔴 Non si ricostruisce a valle scrivendo `Action.ModifyArc` a mano: `MakeEquipmentAction` riscrive
+	 * `ActionId` con l'id del PEZZO ([D-195]), e da `#1443` il resolver riconosce anche le azioni derivate.
+	 * Senza questo campo un gadget si leggeva col proprio nome quando FALLIVA — `ArcRejected` copia la def —
+	 * e con quello generico quando riusciva: lo stesso pezzo con due nomi a seconda dell'esito, e `ActionId`
+	 * entra nell'hash ([D-067]).
+	 */
+	FRTActionDef Def;
 };
 
 /**
@@ -89,13 +100,27 @@ struct FRTBlastContext
 	/** Chi cura: una cella non identifica un'unita' ([D-063]), e il TurnLog deve dire chi ha agito (#405). */
 	TArray<ARTUnit*> HealActors;
 
-	/** Registra una cura pianificata mantenendo allineati i quattro array. */
-	void AddHeal(ARTUnit* Actor, ARTUnit* Target, int32 Amount, const FRTCellId& SourceCell)
+	/**
+	 * QUALE azione ha curato.
+	 *
+	 * 🔴 Non si ricostruisce a valle, e la voce non puo' scrivere `Action.Heal` a mano: `MakeEquipmentAction`
+	 * riscrive `ActionId` con l'id del PEZZO ([D-195]), quindi una cura da `Gadget.Medkit` deve leggersi
+	 * come tale. Fino a `#1443` la voce di successo diceva `Action.Heal` mentre quelle di FALLIMENTO —
+	 * scritte nello stesso file, dallo stesso piano — dicevano `Gadget.Medkit`: lo stesso gadget con due
+	 * nomi a seconda che avesse funzionato. E `ActionId` entra nell'hash ([D-067]), quindi la traccia
+	 * archiviata era autoritativa e sbagliata.
+	 */
+	TArray<FRTActionDef> HealDefs;
+
+	/** Registra una cura pianificata mantenendo allineati i cinque array. */
+	void AddHeal(ARTUnit* Actor, ARTUnit* Target, int32 Amount, const FRTCellId& SourceCell,
+		const FRTActionDef& Def)
 	{
 		HealActors.Add(Actor);
 		HealTargets.Add(Target);
 		HealAmounts.Add(Amount);
 		HealSources.Add(SourceCell);
+		HealDefs.Add(Def);
 	}
 
 	// --- Intenti d'attacco raccolti dai piani, prima che diventino colpi --------------------------
@@ -156,8 +181,37 @@ struct FRTBlastContext
 	// --- Chi ha colpito, e con quale abilita' ------------------------------------------------------
 
 	/** Attaccanti sopravvissuti al Blast, paralleli a `UsedAbilityIndex`: l'abilita' si spende a fase finita. */
+	// ⚠️ **Chi ha COLPITO**, e solo quello: un'unita' che ha speso un'azione senza lasciare un colpo — un
+	// `Action.Interrupt`, i cui colpi vengono tolti tutti — NON entra qui, e paga la propria azione dove
+	// quell'azione vive (`#1444`). Chi legge questo array puo' contare su un `FRTAttack` corrispondente.
 	TArray<ARTUnit*> Attackers;
 	TArray<int32> UsedAbilityIndex;
+
+	// --- Le azioni pianificate che sono PARTITE, e che percio' si pagano ---------------------------
+	//
+	// 🔴 **Un solo posto scrive il cooldown di un'azione pianificata del Blast** (`#1451` punto 3).
+	// Prima ne scrivevano cinque — `ResolveCleanseActions`, `CollectHealActions`, `ModifyArc` dentro
+	// `CollectAttackIntents`, `ApplyInterrupts`, `MarkAttackerAbilitiesSpent` — e ognuno decideva da se' che
+	// cosa significasse «spesa». Ogni azione nuova che potesse validarsi senza colpire ne voleva un sesto.
+	//
+	// ⚠️ **Qui non si decide, si annota.** Il criterio «l'azione e' PARTITA» resta a chi raccoglie, e deve:
+	// e' l'unico che sa cosa puo' sapere in quel momento. [D-200] lo scrive per la portata — l'unico modo di
+	// fallire noto in pianificazione — e ogni punto lo applica con cio' che ha in mano. Cio' che era
+	// duplicato e non doveva esserlo e' il GESTO di pagare.
+	//
+	// ⚠️ **E le guardie di vita restano al momento dell'annotazione, non qui**: chi cura e' vivo all'inizio
+	// del Blast, chi attacca deve esserlo alla FINE (`Attackers` raccoglie i sopravvissuti). Centralizzare
+	// un `IsAlive()` in fondo cambierebbe il gioco per il curatore che cade a meta' fase — e sarebbe un
+	// cambio di comportamento travestito da pulizia.
+	TArray<ARTUnit*> SpentActors;
+	TArray<int32> SpentAbilityIndex;
+
+	/** Annota un'azione pianificata PARTITA. La spende `ARTTurnManager::SpendStartedAbilities`. */
+	void MarkAbilitySpent(ARTUnit* Actor, int32 AbilityIndex)
+	{
+		SpentActors.Add(Actor);
+		SpentAbilityIndex.Add(AbilityIndex);
+	}
 
 	// --- Stati applicati dai colpi, a bersagli sopravvissuti --------------------------------------
 	//

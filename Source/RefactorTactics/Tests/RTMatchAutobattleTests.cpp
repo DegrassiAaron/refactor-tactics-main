@@ -11,6 +11,7 @@
 // perche' un'estensione che cambia il default sarebbe una regressione mascherata da feature.
 
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "RTWorldFixtures.h"
 #include "RTGameMode.h"
 #include "Ability/RTHeroCatalogLibrary.h"
@@ -97,12 +98,7 @@ namespace
 	/** Mappa esagonale piena: abbastanza celle percorribili per le quattro posizioni di partenza. */
 	ARTHexMapActor* SpawnAutobattleMap(UWorld* World, int32 Radius = 5)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = M;

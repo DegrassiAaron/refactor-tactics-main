@@ -48,7 +48,7 @@
     { "type": "UnitAtCell",     "unit": "F1", "cell": [-2, -1, 0] },
     { "type": "UnitAtCell",     "unit": "R1", "cell": [ 0, -1, 0] },
     { "type": "UnitAtCell",     "unit": "V1", "cell": [ 2, -1, 0] },
-    { "type": "UnitHpEquals",   "unit": "R1", "value": 74 },
+    { "type": "UnitHpEquals",   "unit": "R1", "value": 79 },
     { "type": "UnitHpEquals",   "unit": "F1", "value": 90 },
     { "type": "TurnsCompleted", "value": 2 }
   ]

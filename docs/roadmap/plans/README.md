@@ -35,15 +35,29 @@ indovinasse i sinonimi nasconderebbe proprio la deriva che deve mostrare.
 
 | Banner | Significa | Quanti |
 |---|---|--:|
-| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 42 |
+| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 43 |
 | `SNAPSHOT` | Fotografia di una data. **Resta qui** finche' e' l'ultima misura del suo oggetto | 6 |
 | `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | 6 |
 | `PLAN` | Piano gia' **consumato**: resta per la provenienza di cio' che ha prodotto | 1 |
-| **totale** | | **55** |
+| **totale** | | **56** |
 
 In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **43**: quelli che il banner dichiarava gia' storici.
 
 <!-- RT_PIANI_BANNER:END -->
+
+> 🔴 **Rimisurata il 2026-08-26, e la deriva era di uno prima ancora che questo giro aggiungesse un file.**
+> La cella diceva `CURRENT 41 · SNAPSHOT 6 · nessun banner 3 · PLAN 1 · totale 51`; la cartella ne conteneva
+> **52**, con `nessun banner` a **4**. Gli addendi sono stati **riletti dai banner sul disco**, non
+> incrementati — è la contromisura che questa pagina prescrive da nove voci — e col
+> [`action-phases-economy-handoff-2026-08-26.md`](action-phases-economy-handoff-2026-08-26.md) di oggi
+> diventano `CURRENT` **42** · `SNAPSHOT` 6 · nessun banner **4** · `PLAN` 1 = **53**, e la somma torna col
+> totale contato a parte. L'archivio resta **43**: questo giro non ci ha spostato niente — il documento che
+> supera è un **sorgente**, e i sorgenti vanno in
+> [`../../archive/src/handoff/`](../../archive/src/README.md), che ha un conteggio suo.
+>
+> ⚠️ **Da `D-182` nessun `--check` può più dirlo**, e infatti nessuno l'ha detto per cinque giorni: la deriva
+> su `nessun banner` risale a prima del 2026-08-25, quando l'ultima rimisura sistemò tre numeri su quattro e
+> lasciò il quarto. Un addendo fermo non si vede finché qualcuno non conta la cartella intera.
 
 > 🔵 **Dal 2026-08-19 questa tabella è generata**, e le note qui sotto restano perché la storia di
 > come ci si è arrivati vale più del numero. La cella è andata fuori sincrono **tre volte in un
@@ -61,14 +75,19 @@ In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **4
 > cui questi numeri stanno — ma dentro **ora si scrive a mano**, e l'unico oracolo rimasto è il blocco
 > Python in fondo a questa pagina, che non dipende da niente di rimosso.
 >
-> 🔴 **Rimisurata il 2026-08-28, e lo scarto era di quattro — di cui uno solo era di questo giro.** La
-> cella diceva `CURRENT 41 · SNAPSHOT 6 · nessun banner 3 · PLAN 1 · totale 51`; la cartella ne contiene
-> **55**. Questa sessione ne aggiunge **uno**
-> ([`dir-a-v01-integration-spec-panel-2026-08-28.md`](dir-a-v01-integration-spec-panel-2026-08-28.md),
-> `CURRENT`): gli **altri tre** erano atterrati nei giorni precedenti senza che la cella si muovesse, ed è
-> la deriva che questa pagina dichiara sette volte e subisce all'ottava. Gli addendi sono stati **riletti
-> dai banner sul disco** col blocco Python qui sotto, non incrementati: `CURRENT` **42**, `nessun banner`
-> 3 → **6**, `SNAPSHOT` e `PLAN` invariati. L'archivio è stato ricontato a parte e sta fermo a **43**.
+> 🔴 **Rimisurata il 2026-08-28 DOPO il merge, ed è la seconda misura della stessa giornata — la prima era
+> già scaduta quando è stata scritta.** Sul branch, prima di mergiare `origin/main`, la cartella ne conteneva
+> **55** contro i `51` della cella. Rimisurata sull'**albero unito** ne conta **56**: `CURRENT` **43**,
+> `nessun banner` **6**, `SNAPSHOT` 6, `PLAN` 1. Il file in più è
+> [`action-phases-economy-handoff-2026-08-26.md`](action-phases-economy-handoff-2026-08-26.md), arrivato da
+> `main` mentre questa sessione lavorava; quello aggiunto qui è
+> [`dir-a-v01-integration-spec-panel-2026-08-28.md`](dir-a-v01-integration-spec-panel-2026-08-28.md).
+>
+> ⚠️ **E il conflitto di merge su questa cella è la dimostrazione della regola che la pagina predica.** I due
+> lati portavano `55` e `53`, **entrambi misurati e nessuno dei due giusto**: erano due fotografie di due
+> alberi diversi, e il numero vero esiste solo sull'albero unito. È la settima volta che questa cella lo
+> registra, e la prima in cui il conflitto lo ha reso impossibile da ignorare — un merge non fa la somma dei
+> due conteggi, e nemmeno sceglie il maggiore. L'archivio, ricontato a parte, sta fermo a **43**.
 >
 > ➕ **E i sei `?` non sono sei casi isolati: sono due pattern**, guardati invece che sommati come questa
 > sezione prescrive. **(1) Quattro piani aprono con un'istruzione all'esecutore** invece che con un banner

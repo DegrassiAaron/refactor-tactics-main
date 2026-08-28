@@ -15,7 +15,6 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
@@ -63,12 +62,7 @@ namespace
 		}
 		// `World` come Outer, non il transient package: e' la stessa disciplina di
 		// `URTMatchSetupLibrary::MakeTestArena`, che rifiuta un Outer nullo invece di inventarsene uno.
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>(World);
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(World, Radius);
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		if (!Actor)
 		{
@@ -877,6 +871,233 @@ bool FRTSupersededEntryRendersTheDiscardedRouteTest::RunTest(const FString&)
 	TestTrue(TEXT("nomina la cella di partenza"), Testo.Contains(TEXT("q=1,r=1")));
 	TestTrue(TEXT("e la destinazione mai raggiunta"), Testo.Contains(TEXT("q=2,r=1")));
 	TestTrue(TEXT("e quante celle sono state scartate"), Testo.Contains(TEXT("2 celle")));
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInRejectionsFollowTheStableOrderTest,
+	"RefactorTactics.PlayerInteraction.LockInRejectionsFollowTheStableOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLockInRejectionsFollowTheStableOrderTest::RunTest(const FString&)
+{
+	// 🔴 **L'ordine delle righe di rifiuto non deve dipendere dall'ordine di SPAWN.**
+	// `ValidatePlansAtLockIn` itera `CollectLivingUnits`, che ordina per cella con `StableLess`. Sostituire
+	// quella chiamata con un `GetAllActorsOfClass` grezzo lascerebbe verde tutto il resto della suite e
+	// renderebbe il combat log dipendente dall'ordine in cui il livello tiene gli Actor — la stessa classe di
+	// difetto che `Match.Autobattle.DeterminismSurvivesUnitPermutation` difende per la risoluzione, e che
+	// qui non era difesa da nessuno.
+	//
+	// Le due unita' si spawnano di proposito nell'ordine OPPOSTO a quello canonico: `StableLess` confronta
+	// prima `Layer`, poi `X`, poi `Y`, quindi `(1,0)` precede `(3,0)` mentre lo spawn fa il contrario.
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	if (!TestNotNull(TEXT("mappa senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 6)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	const FRTCellId CellaTardi(3, 0); // spawnata per PRIMA, canonicamente SECONDA
+	const FRTCellId CellaPrima(1, 0); // spawnata per SECONDA, canonicamente PRIMA
+	ARTUnit* Tardi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), CellaTardi);
+	ARTUnit* Prima = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), CellaPrima);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("unita' spawnata per prima"), Tardi) || !TestNotNull(TEXT("unita' spawnata per seconda"), Prima)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	// Un piano illegale su ENTRAMBE: scatto piu' movimento, due azioni sullo slot Movimento.
+	for (ARTUnit* U : { Tardi, Prima })
+	{
+		const int32 DashIdx = U->FindDashAbilityIndex();
+		if (!TestNotEqual(TEXT("premessa: l'eroe ha una mobilita' rapida"), DashIdx, static_cast<int32>(INDEX_NONE)))
+		{
+			DestroyInteractionWorld(World);
+			return false;
+		}
+		U->PlannedDashAbility = DashIdx;
+		U->PlannedDashCell = FRTCellId(U->Cell.X, U->Cell.Y + 1);
+		U->PlannedCell = FRTCellId(U->Cell.X, U->Cell.Y + 2); // il movimento normale che rende il piano illegale
+	}
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	// La posizione delle due righe di rifiuto nel combat log, nell'ordine in cui sono state emesse.
+	int32 PosPrima = INDEX_NONE;
+	int32 PosTardi = INDEX_NONE;
+	const TArray<FString>& Eventi = TM->GetRecentEvents();
+	for (int32 I = 0; I < Eventi.Num(); ++I)
+	{
+		if (!Eventi[I].Contains(TEXT("piano non valido al lock-in"))) { continue; }
+		if (Eventi[I].Contains(Prima->GetName()) && PosPrima == INDEX_NONE) { PosPrima = I; }
+		if (Eventi[I].Contains(Tardi->GetName()) && PosTardi == INDEX_NONE) { PosTardi = I; }
+	}
+
+	if (!TestNotEqual(TEXT("premessa: l'unita' canonicamente prima ha una riga"), PosPrima, static_cast<int32>(INDEX_NONE))
+		|| !TestNotEqual(TEXT("premessa: l'altra unita' ha una riga"), PosTardi, static_cast<int32>(INDEX_NONE)))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+
+	TestTrue(TEXT("le righe seguono l'ordine canonico per cella, non quello di spawn"), PosPrima < PosTardi);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * **Ogni voce del kit e' raggiungibile dall'input.** L'invariante che #1409 e #1034 chiedevano, e la ragione
+ * per cui i tasti abilita' sono diventati una collezione invece di quattro campi distinti.
+ *
+ * Il difetto che copre e' stato osservato in PIE il 2026-08-16 (seduta U18): il kit di un'unita' e' cinque
+ * voci d'eroe piu' le generiche accodate (D-025), i tasti mappati erano `1`..`4`, e tutto cio' che stava
+ * oltre l'indice `3` — `Overwatch`, `Guard`, `Brace`, `Wait`, `Interact` e la reazione di tre eroi su
+ * quattro — il giocatore non poteva armarlo. **Il bot invece le arma da se'**, ed e' la ragione per cui il
+ * difetto era difficile da vedere guardando una partita: le reazioni si vedevano comunque accadere.
+ *
+ * ⚠️ **Si confronta con `AbilityHotkeys().Num()`, mai con un letterale.** Un `TestEqual(..., 4)` sarebbe
+ * stato verde il giorno prima e falso il giorno dopo senza che nessuno lo toccasse — e soprattutto avrebbe
+ * misurato il numero che qualcuno ha scritto, non quello che l'input raggiunge davvero.
+ *
+ * Cade in tre modi, e sono i tre modi in cui il difetto puo' tornare: un eroe con piu' abilita', una
+ * generica accodata in piu' (`GetGenericActionIds`), o un tasto tolto dalla lista.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputEveryKitEntryIsReachableTest,
+	"RefactorTactics.PlayerInput.EveryKitEntryIsReachable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputEveryKitEntryIsReachableTest::RunTest(const FString&)
+{
+	const TArray<FKey>& Hotkeys = ARTPlayerController::AbilityHotkeys();
+	const int32 Generiche = URTCatalogLibrary::GetGenericActionIds().Num();
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+
+	// Anti-vacuita': con un roster vuoto o senza tasti il ciclo sotto non asserirebbe nulla e il test
+	// resterebbe verde raccontando che va tutto bene.
+	TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0);
+	TestTrue(TEXT("almeno un tasto arma una posizione del kit"), Hotkeys.Num() > 0);
+	TestTrue(TEXT("le generiche esistono: sono parte del kit di ogni unita' (D-025)"), Generiche > 0);
+
+	// ⚠️ **Non si confrontano piu' due totali, e la differenza conta.** Fino a quando l'input aveva un solo
+	// canale, `Hotkeys.Num() >= VociDelKit` bastava. Ora i canali sono due — i numeri per POSIZIONE, i tasti
+	// generici per NOME — e quella somma sarebbe verde per il motivo sbagliato: quindici tasti contro undici
+	// voci tornerebbe vero anche se un'abilita' d'eroe finisse oltre la decima posizione, dove nessun numero
+	// la raggiunge. Si guarda voce per voce, ognuna col canale che la serve davvero.
+	TSet<FName> GenericheConTasto;
+	for (const TPair<FName, FKey>& Riga : ARTPlayerController::GenericHotkeys())
+	{
+		GenericheConTasto.Add(Riga.Key);
+	}
+	TestEqual(TEXT("ogni generica del catalogo ha il suo tasto"), GenericheConTasto.Num(), Generiche);
+
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero) { continue; }
+
+		// Le abilita' d'EROE stanno in testa al kit e si raggiungono per posizione: servono tanti numeri
+		// quante sono. E' il vincolo che ha bloccato `Action.Shield` finche' le generiche occupavano la fila.
+		TestTrue(*FString::Printf(
+				TEXT("%s: %d abilita' d'eroe, %d posizioni numeriche"),
+				*Hero->HeroId.ToString(), Hero->Actions.Num(), Hotkeys.Num()),
+			Hotkeys.Num() >= Hero->Actions.Num());
+
+		// Le GENERICHE sono accodate dopo, e il loro indice dipende da quante azioni porta l'eroe: si
+		// raggiungono per nome, quindi cio' che va verificato e' che ognuna abbia un tasto — non che ci
+		// stia dentro una posizione.
+		for (const FName& Id : URTCatalogLibrary::GetGenericActionIds())
+		{
+			TestTrue(*FString::Printf(TEXT("%s: la generica %s ha un tasto"),
+					*Hero->HeroId.ToString(), *Id.ToString()),
+				GenericheConTasto.Contains(Id));
+		}
+	}
+
+	// Due tasti uguali renderebbero una posizione irraggiungibile in silenzio: la seconda mappatura
+	// vincerebbe e l'indice della prima non risponderebbe piu' a niente.
+	TSet<FKey> Distinti;
+	for (const FKey& K : Hotkeys)
+	{
+		bool bGiaPresente = false;
+		Distinti.Add(K, &bGiaPresente);
+		TestFalse(*FString::Printf(TEXT("il tasto %s compare una volta sola"), *K.ToString()), bGiaPresente);
+	}
+
+	// I tasti generici entrano nello STESSO insieme, e non in uno separato: una `G` che servisse sia una
+	// posizione sia una generica sarebbe la stessa collisione silenziosa, e due controlli distinti non la
+	// vedrebbero. E' il verso che copre l'aggiunta di un tasto qualsiasi da una delle due parti.
+	for (const TPair<FName, FKey>& Riga : ARTPlayerController::GenericHotkeys())
+	{
+		bool bGiaPresente = false;
+		Distinti.Add(Riga.Value, &bGiaPresente);
+		TestFalse(*FString::Printf(TEXT("il tasto %s di %s non collide"),
+			*Riga.Value.ToString(), *Riga.Key.ToString()), bGiaPresente);
+	}
+
+	return true;
+}
+
+/**
+ * La proprieta' per cui il canale generico risolve per NOME invece che per posizione.
+ *
+ * Le generiche sono accodate al kit, quindi il loro indice dipende da quante azioni porta l'eroe: Phase ne
+ * ha sei e Gadget cinque, e la stessa `Action.Guard` sta a indici DIVERSI sui due. Un tasto legato a una
+ * posizione fissa punterebbe a un'abilita' d'eroe sull'uno e alla generica giusta sull'altro.
+ *
+ * ⚠️ **Serve un roster con kit di lunghezza diversa, ed e' la ragione per cui questo test non esisteva
+ * prima**: finche' tutti e quattro gli eroi avevano cinque azioni, la risoluzione per indice e quella per
+ * nome davano lo stesso risultato e nessun test poteva distinguerle.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputGenericResolvesByNameTest,
+	"RefactorTactics.PlayerInput.GenericHotkeyResolvesByNameNotPosition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputGenericResolvesByNameTest::RunTest(const FString&)
+{
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	// Anti-vacuita' che vale per questo test soltanto: se ogni eroe avesse lo stesso numero di azioni, gli
+	// indici coinciderebbero e il test passerebbe senza dimostrare niente.
+	TSet<int32> Lunghezze;
+	for (const URTHeroData* Hero : Roster) { if (Hero) { Lunghezze.Add(Hero->Actions.Num()); } }
+	if (!TestTrue(TEXT("il roster ha kit di lunghezza DIVERSA: senza, il test non discrimina"),
+			Lunghezze.Num() > 1))
+	{
+		return false;
+	}
+
+	for (const TPair<FName, FKey>& Riga : ARTPlayerController::GenericHotkeys())
+	{
+		TSet<int32> IndiciTrovati;
+		for (const URTHeroData* Hero : Roster)
+		{
+			if (!Hero) { continue; }
+			ARTUnit* Unit = NewObject<ARTUnit>();
+			if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+			Unit->ConfigureFromHeroData(Hero);
+
+			int32 Trovato = INDEX_NONE;
+			for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+			{
+				const URTActionData* A = Unit->GetAbility(i);
+				if (A && A->Def.ActionId == Riga.Key) { Trovato = i; break; }
+			}
+			TestTrue(*FString::Printf(TEXT("%s ha %s nel kit"),
+				*Hero->HeroId.ToString(), *Riga.Key.ToString()), Trovato != INDEX_NONE);
+			if (Trovato != INDEX_NONE) { IndiciTrovati.Add(Trovato); }
+		}
+
+		// Il cuore: la stessa generica NON sta allo stesso indice su tutti. Se un giorno il roster tornasse
+		// uniforme questo asserto cadrebbe, ed e' corretto che cada — direbbe che il test ha smesso di
+		// discriminare, non che il codice e' rotto.
+		TestTrue(*FString::Printf(
+				TEXT("%s sta a indici diversi a seconda dell'eroe: %d indici distinti"),
+				*Riga.Key.ToString(), IndiciTrovati.Num()),
+			IndiciTrovati.Num() > 1);
+	}
 
 	return true;
 }

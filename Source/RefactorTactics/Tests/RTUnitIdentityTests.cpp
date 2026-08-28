@@ -1,11 +1,11 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLog.h"
 #include "Unit/RTUnit.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -49,12 +49,7 @@ namespace
 
 	URTHexMapAsset* SpawnIdentityMap(UWorld* World, int32 Radius)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = M;
@@ -360,6 +355,79 @@ bool FRTUnitIdentityEnvironmentActorTest::RunTest(const FString&)
 	// Il conteggio e' pinnato: senza, il criterio sotto sarebbe verde anche se la scadenza non avvenisse mai.
 	TestEqual(TEXT("la superficie e' scaduta e la scadenza e' registrata"), Restored, 1);
 	TestEqual(TEXT("la scadenza non si attribuisce nessuna unita'"), RestoredWithActor, 0);
+
+	DestroyIdentityWorld(World);
+	return true;
+}
+
+
+/**
+ * **Una voce `Facing` derivata porta il contesto come tutte le altre** (`#1429`).
+ *
+ * `URTFacingLibrary` scriveva le sue voci direttamente nel `TurnLog` che riceveva per riferimento, quindi non
+ * passavano da `AppendLogEntry` — l'unico posto dove si stampano `TurnNumber`, `GraphRevision` e `UnitId`. Ogni
+ * rotazione derivata dal movimento, dallo scatto, da uno spostamento forzato o dalla mira nasceva con **turno
+ * 0, revisione del grafo 0 e nessuna unita' dichiarata**: la traccia archiviata affermava «grafo revisione 0»
+ * su voci prodotte in un grafo che aveva un'altra revisione.
+ *
+ * ⚠️ **La rotazione arriva giocando**, non chiamando la libreria a mano: la libreria da sola non ha i tre
+ * campi — lavora su `FRTHexSimUnit`, che porta l'indice della simulazione e non `StableUnitId` — quindi un
+ * test che la chiamasse direttamente misurerebbe il montaggio invece del percorso reale, e resterebbe verde
+ * con la correzione tolta.
+ *
+ * ⚠️ Si guarda `TurnNumber > 0` e non un valore preciso: il numero dipende da quanti turni la fixture ha
+ * giocato, e pinnarlo legherebbe il test alla fixture. Cio' che il difetto produceva era **zero**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingEntriesCarryContextTest,
+	"RefactorTactics.TurnLog.FacingEntriesCarryTheirContext",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingEntriesCarryContextTest::RunTest(const FString&)
+{
+	UWorld* World = MakeIdentityWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnIdentityMap(World, /*Radius=*/ 4);
+
+	// Distanti, cosi' i bot si avvicinano: e' il movimento che produce `DerivedFromMove`.
+	SpawnIdentityUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
+	SpawnIdentityUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM) { DestroyIdentityWorld(World); return false; }
+
+	PlayOneTurn(TM);
+
+	// Gli id validi del roster: `UnitId` deve essere uno di questi, non un indice della simulazione ne' zero.
+	TSet<int32> IdValidi;
+	for (const ARTUnit* U : LiveUnits(World))
+	{
+		IdValidi.Add(U->StableUnitId);
+	}
+
+	TArray<FRTTurnLogEntry> Facing;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Facing) { Facing.Add(E); }
+	}
+
+	if (!TestTrue(TEXT("premessa: il turno ha prodotto voci Facing"), Facing.Num() > 0))
+	{
+		DestroyIdentityWorld(World);
+		return false;
+	}
+	AddInfo(FString::Printf(TEXT("%d voci Facing nel turno"), Facing.Num()));
+
+	int32 SenzaTurno = 0;
+	int32 SenzaRevisione = 0;
+	int32 SenzaUnita = 0;
+	for (const FRTTurnLogEntry& E : Facing)
+	{
+		if (E.TurnNumber <= 0) { ++SenzaTurno; }
+		if (E.GraphRevision <= 0) { ++SenzaRevisione; }
+		if (!IdValidi.Contains(E.UnitId)) { ++SenzaUnita; }
+	}
+
+	TestEqual(TEXT("nessuna voce Facing senza turno"), SenzaTurno, 0);
+	TestEqual(TEXT("nessuna voce Facing senza revisione del grafo"), SenzaRevisione, 0);
+	TestEqual(TEXT("ogni voce Facing nomina un'unita' del roster"), SenzaUnita, 0);
 
 	DestroyIdentityWorld(World);
 	return true;

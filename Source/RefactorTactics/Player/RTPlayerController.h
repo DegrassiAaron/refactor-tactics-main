@@ -68,17 +68,25 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> RestartAction;
 
+	/**
+	 * Un `UInputAction` per POSIZIONE del kit, nell'ordine di `AbilityHotkeys()`: l'indice qui e' l'indice
+	 * nell'elenco dell'unita' selezionata.
+	 *
+	 * 🔴 **Erano quattro campi distinti — `Ability1Action`..`Ability4Action` — e la forma era il difetto.**
+	 * Con quattro campi *«quante posizioni del kit raggiunge l'input»* non era una domanda interrogabile, e
+	 * un test poteva solo confrontare il letterale `4`, cioe' invecchiare al primo tasto aggiunto. La
+	 * collezione e' cio' che [#1409] e [#1034] dichiarano parte del proprio lavoro proprio per questo.
+	 */
 	UPROPERTY(Transient)
-	TObjectPtr<UInputAction> Ability1Action;
+	TArray<TObjectPtr<UInputAction>> AbilityActions;
 
+	/**
+	 * Un `UInputAction` per AZIONE GENERICA, nell'ordine di `GenericHotkeys()`. Sono l'altro canale di
+	 * selezione, e la differenza con `AbilityActions` non e' cosmetica: quelle scelgono una **posizione**,
+	 * queste una **azione per nome**.
+	 */
 	UPROPERTY(Transient)
-	TObjectPtr<UInputAction> Ability2Action;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UInputAction> Ability3Action;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UInputAction> Ability4Action;
+	TArray<TObjectPtr<UInputAction>> GenericActions;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> UndoAction;
@@ -163,14 +171,60 @@ public:
 	 */
 	static void ApplyNextPlaybackSpeed(class ARTTurnManager* TurnManager);
 
+	/**
+	 * I tasti che armano una POSIZIONE del kit, in ordine: l'indice nell'elenco **e'** l'indice nel kit
+	 * dell'unita' selezionata. Dieci, `1`..`9` piu' `0`.
+	 *
+	 * ⚠️ **E' la sorgente unica del conteggio**, ed e' il motivo per cui esiste come funzione invece che
+	 * come sequenza di `MapKey` scritti a mano: la mappatura la percorre, la bindatura la percorre, e un
+	 * test puo' chiedere *«quante posizioni raggiunge l'input?»* senza confrontare un letterale che
+	 * invecchia al primo tasto aggiunto. Interrogata da `PlayerInput.EveryKitEntryIsReachable`.
+	 *
+	 * Il tasto sceglie una **posizione**, non un'azione: quale abilita' occupi l'indice N dipende dall'eroe.
+	 */
+	static const TArray<FKey>& AbilityHotkeys();
+
+	/**
+	 * Le azioni GENERICHE e il tasto che le arma, in coppia. Sono l'altro canale di selezione del kit, e
+	 * risolvono per **nome** invece che per posizione.
+	 *
+	 * 🔴 **Il nome non e' un vezzo, e' l'unica forma corretta.** Le generiche sono ACCODATE al kit
+	 * (`ARTUnit::EnsureDefaultAbilities`), quindi il loro indice dipende da quante azioni porta l'eroe: con
+	 * cinque stanno a `5..9`, con sei a `6..10`. Un tasto legato a una posizione fissa punterebbe a cose
+	 * diverse su eroi diversi — e su quello che ne ha una in piu' punterebbe a un'abilita' d'eroe.
+	 *
+	 * ⚠️ **Perche' esistono**: dieci posizioni non bastano piu'. Un eroe con sei azioni porta il kit a
+	 * **undici** voci contro i dieci tasti numerici, e `PlayerInput.EveryKitEntryIsReachable` lo dichiara.
+	 * Togliendo le cinque generiche dalla fila dei numeri, quella fila torna a servire i soli eroi.
+	 */
+	static const TArray<TPair<FName, FKey>>& GenericHotkeys();
+
 private:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
 	void OnRestart(const FInputActionValue& Value);
+	// Uno per posizione del kit, e sono one-liner che passano tutti da `SelectAbilityForCurrent`. Uno per
+	// posizione e non un handler solo perche' l'indice deve arrivare dalla BINDATURA: `FInputActionValue`
+	// porta il valore, non l'azione che l'ha prodotto, quindi un handler unico non saprebbe quale tasto e'
+	// stato premuto. La tabella che li lega ai tasti sta in `SetupInputComponent`, in un punto solo.
 	void OnAbility1(const FInputActionValue& Value);
 	void OnAbility2(const FInputActionValue& Value);
 	void OnAbility3(const FInputActionValue& Value);
-	void OnAbility4(const FInputActionValue& Value); // seleziona la 4a abilita' dell'eroe, qualunque essa sia
+	void OnAbility4(const FInputActionValue& Value);
+	void OnAbility5(const FInputActionValue& Value);
+	void OnAbility6(const FInputActionValue& Value);
+	void OnAbility7(const FInputActionValue& Value);
+	void OnAbility8(const FInputActionValue& Value);
+	void OnAbility9(const FInputActionValue& Value);
+	void OnAbility10(const FInputActionValue& Value);
+	// Uno per azione generica, e per la stessa ragione dei dieci qui sopra: la bindatura e' l'unico posto da
+	// cui puo' arrivare QUALE azione e' stata premuta. La tabella che li lega ai tasti sta in
+	// `GenericHotkeys()`, e questi handler ne leggono l'`ActionId` invece di ripeterlo.
+	void OnGeneric1(const FInputActionValue& Value);
+	void OnGeneric2(const FInputActionValue& Value);
+	void OnGeneric3(const FInputActionValue& Value);
+	void OnGeneric4(const FInputActionValue& Value);
+	void OnGeneric5(const FInputActionValue& Value);
 	void OnUndoWaypoint(const FInputActionValue& Value);
 	void OnCyclePlaybackSpeed(const FInputActionValue& Value);
 	void OnRecenter(const FInputActionValue& Value);
@@ -180,6 +234,18 @@ private:
 	void RebuildPlannedPath();
 
 	void SelectAbilityForCurrent(int32 Index);
+
+	/**
+	 * Arma l'azione con questo `ActionId` nel kit dell'unita' selezionata, cercandone l'indice.
+	 *
+	 * Delega a `SelectAbilityForCurrent` invece di duplicarne il corpo: cooldown, slot reazione e
+	 * self-target restano un percorso solo, e un tasto generico non puo' aggirare un controllo che il
+	 * numero rispetta.
+	 */
+	void SelectAbilityByIdForCurrent(const FName& ActionId);
+
+	/** Handler comune dei tasti generici: legge l'`ActionId` dalla riga `GenericHotkeys()[Slot]`. */
+	void SelectGenericSlot(int32 Slot);
 
 public:
 	/** Unita' attualmente selezionata dal giocatore (nullo se nessuna). */
@@ -281,7 +347,7 @@ public:
 	 * 🔴 **Esiste perche' il contesto `Modal` da solo NON toglieva niente, e per un'intera revisione la
 	 * pausa e' stata una promessa.** `GetPointerContext()` era letto da tre soli consumatori —
 	 * `HandleTargetCell`, `HandleTargetUnit`, `HandleDeclareFacing`, cioe' i **click sul mondo** — mentre
-	 * `OnLockIn` (Spazio), `OnSelect`, `OnRestart`, `OnAbility1..4` e `OnUndoWaypoint` non lo guardavano
+	 * `OnLockIn` (Spazio), `OnSelect`, `OnRestart`, le `OnAbility*` e `OnUndoWaypoint` non lo guardavano
 	 * affatto. Con la pausa aperta, **Spazio risolveva il turno dietro la schermata**. Il DoD dice «una
 	 * schermata copre la partita e le toglie il puntatore»: era vero del puntatore e falso della tastiera.
 	 * Trovato in code review sulla PR #1304.

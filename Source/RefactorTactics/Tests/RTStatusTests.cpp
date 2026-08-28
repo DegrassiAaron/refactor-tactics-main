@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
@@ -10,7 +11,6 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 
@@ -54,11 +54,7 @@ namespace
 	ARTHexMapActor* SpawnStatusMap(UWorld* World, int32 Radius, const FRTCellId& Special, ERTHexSurface Surface,
 		int32 MoveCost)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		FRTHexCellData SpecialCell(Special);
 		SpecialCell.Surface = Surface;
 		SpecialCell.MoveCost = MoveCost;
@@ -80,6 +76,10 @@ namespace
 		U->ConfigureFromHeroData(Hero);
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
+		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
+		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
+		U->Shield = 0;
 		return U;
 	}
 
@@ -386,6 +386,11 @@ bool FRTStatusWetAmplifiesGadgetDischargeTest::RunTest(const FString&)
 		WetDamage, 24 + URTCombatLibrary::GadgetWetDischargeBonus);
 
 	// Controprova nello stesso mondo: stesso attaccante, stessa azione, bersaglio ASCIUTTO -> nessun bonus.
+	//
+	// ⚠️ [D-224] Lo scudo va riazzerato: l'helper lo mette a zero allo spawn, ma il `RunStatusTurn` qui sopra
+	// ha attraversato un Cleanup e la ricarica ha rimesso i 5 punti base. Senza questa riga la controprova
+	// misurerebbe «24 meno lo scudo» e accuserebbe il bonus dell'acqua di una differenza che non ha causato.
+	DryTarget->Shield = 0;
 	Gadget->PlannedAbilityIndex = DischargeIdx;
 	Gadget->PlannedAttackTarget = DryTarget;
 	Gadget->PlannedCell = Gadget->Cell;

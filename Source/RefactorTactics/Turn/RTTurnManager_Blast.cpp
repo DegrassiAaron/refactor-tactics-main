@@ -57,6 +57,67 @@
 // quali un pass leggesse senza leggerli tutti.
 // =================================================================================================
 
+namespace
+{
+	/**
+	 * L'azione E' quella core indicata, direttamente o per derivazione?
+	 *
+	 * 🔴 **`ActionId` da solo non basta, e non e' un dettaglio** (`#1443`). `MakeEquipmentAction` riscrive
+	 * `ActionId` con l'id del PEZZO — «nel TurnLog si legge il gadget, non l'azione generica» — e conserva
+	 * la provenienza in `DerivedFromActionId` ([D-195]); le abilita' d'eroe costruite da un'azione core
+	 * fanno lo stesso. Chi confronta il solo `ActionId` letterale non riconosce ne' l'una ne' l'altra.
+	 *
+	 * L'effetto misurato: `Gadget.Medkit` — che il catalogo dichiara «la versione portatile di
+	 * `Action.Heal`» — non passava dal percorso delle cure.
+	 *
+	 * ⚠️ **Non e' nel loadout di default**, contro quanto diceva la prima stesura di questo commento:
+	 * `DefaultGadgetFor` assegna Insulator, Sprinkler, PortableCover e Sensor, e il medkit non e' fra
+	 * quelli. Ci arriva uno scenario che lo dichiara. L'impatto e' quindi piu' piccolo di come l'avevo
+	 * scritto — ma un gadget spedito che non fa cio' che dichiara resta un difetto, non una svista di
+	 * priorita'. Finiva fra gli intenti d'attacco, `ValidateInstance` rispondeva `TargetFriendly`
+	 * sull'alleato e il fallback lo annullava: **il medkit curava zero**, e la riga di log dava la colpa al
+	 * bersaglio.
+	 *
+	 * ⚠️ Si guarda la derivazione, NON `BaseActionId`: quello dice di quale delle SETTE generiche un'azione
+	 * e' il profilo ([D-033]), e `Heal`/`Cleanse`/`Interrupt` fra le sette non ci sono.
+	 */
+	bool IsCoreAction(const FRTActionDef& Def, const FName& Core)
+	{
+		return Def.ActionId == Core || Def.DerivedFromActionId == Core;
+	}
+
+	// ⚠️ Costruite UNA volta per il processo: `FName(TEXT("..."))` fa un hash case-insensitive piu' una
+	// ricerca nella tabella globale sotto lock, e questo helper viene chiamato anche dentro il filtro
+	// per-colpo di `ApplyInterrupts`.
+	const FName ActionHeal(TEXT("Action.Heal"));
+	const FName ActionCleanse(TEXT("Action.Cleanse"));
+	const FName ActionInterrupt(TEXT("Action.Interrupt"));
+	const FName ActionModifyArc(TEXT("Action.ModifyArc"));
+
+	/**
+	 * La voce `Fallback` di un'azione di supporto che non avviene: cambia solo il MOTIVO.
+	 *
+	 * Un builder invece di tre copie da nove campi: questo file porta gia' diversi costruttori quasi
+	 * identici della stessa famiglia, e un campo aggiunto domani andrebbe ricordato in tutti. Stessa
+	 * ragione per cui `#1415` ha collassato 49 builder di arena in uno.
+	 */
+	FRTTurnLogEntry MakeSupportFallback(const ARTUnit* Autore, const ARTUnit* Bersaglio,
+		const FRTActionDef& Def, ERTActionInvalidReason Motivo)
+	{
+		FRTTurnLogEntry Entry;
+		Entry.Phase = ERTMatchPhase::Blast;
+		Entry.Category = ERTLogCategory::Fallback;
+		Entry.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Entry.SrcCell = Autore ? Autore->Cell : FRTCellId();
+		Entry.TgtCell = Bersaglio ? Bersaglio->Cell : Entry.SrcCell;
+		Entry.Amount = static_cast<int32>(Motivo);
+		Entry.ActionId = Def.ActionId;
+		Entry.BaseActionId = Def.BaseActionId;
+		Entry.Priority = Def.Priority;
+		return Entry;
+	}
+}
+
 void ARTTurnManager::GatherBlastUnits(FRTBlastContext& Ctx) const
 {
 	// Mappa ESAGONALE autorevole: portata (distanza esagonale) e linea di tiro si valutano qui.
@@ -84,7 +145,10 @@ void ARTTurnManager::GatherBlastUnits(FRTBlastContext& Ctx) const
 	{
 		ARTUnit* Unit = Ctx.Units[i];
 		Ctx.IndexOf.Add(Unit, i);
-		Ctx.States.Add(FRTUnitCombatState(Unit->Health, Unit->Shield));
+		// [D-224] La quota TEMPORANEA viaggia con lo snapshot: senza, il resolver leggerebbe `TemporaryShield`
+		// a zero e tratterebbe come BASE tutto lo scudo — cioe' sbaglierebbe l'unica domanda per cui il campo
+		// esiste, «quanta protezione deve saltare il danno ambientale».
+		Ctx.States.Add(FRTUnitCombatState(Unit->Health, Unit->Shield, Unit->GetTemporaryShield()));
 
 		FRTHexCombatUnit HexUnit;
 		HexUnit.UnitId = i; // identita' = indice (come FRTHexSnapshot::Units)
@@ -136,7 +200,7 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 	TeamKnowledgeState = MoveTemp(Refreshed);
 }
 
-void ARTTurnManager::ResolveCleanseActions(const FRTBlastContext& Ctx)
+void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 {
 	// `Action.Cleanse` (CP 5.2): azione PRINCIPALE, non una reazione, e l'unica del Blast che agisce su CHI LA
 	// USA invece che su un bersaglio. Risolve PRIMA del ciclo degli intenti, per due motivi indipendenti:
@@ -158,7 +222,14 @@ void ARTTurnManager::ResolveCleanseActions(const FRTBlastContext& Ctx)
 		ARTUnit* Unit = Ctx.Units[i];
 		const int32 CleanseIdx = Unit->PlannedAbilityIndex;
 		const URTActionData* Cleanse = Unit->GetAbility(CleanseIdx);
-		if (!Cleanse || Cleanse->Def.ActionId != FName(TEXT("Action.Cleanse")) || !Unit->CanUseAbility(CleanseIdx))
+		// Stessa guardia della cura, e per la stessa ragione: un cadavere non purifica, e soprattutto non
+		// lascia una voce nell'hash del replay.
+		if (!Unit->IsAlive())
+		{
+			continue;
+		}
+
+		if (!Cleanse || !IsCoreAction(Cleanse->Def, ActionCleanse) || !Unit->CanUseAbility(CleanseIdx))
 		{
 			continue;
 		}
@@ -180,9 +251,25 @@ void ARTTurnManager::ResolveCleanseActions(const FRTBlastContext& Ctx)
 			}
 		}
 
-		Unit->ConsumeAbility(CleanseIdx);
+		Ctx.MarkAbilitySpent(Unit, CleanseIdx); // parte qui, si paga in `SpendStartedAbilities` (`#1451`)
 		Unit->PlannedAbilityIndex = INDEX_NONE; // consumata qui: non deve diventare anche un intento d'attacco
 		Unit->PlannedAttackTarget = nullptr;
+
+		// 🔴 Una purificazione che non purifica **non sparisce in silenzio** ([D-196], `#1437`): e' lo stesso
+		// difetto della cura senza effetti sessanta righe piu' sotto, nella stessa funzione — l'azione e' gia'
+		// stata ANNOTATA come partita, quindi il cooldown verra' scritto comunque, e il record autoritativo
+		// non conteneva niente. Chiuderne uno e lasciare il gemello lascerebbe la classe mezza aperta.
+		//
+		// ⚠️ Fino a `#1451` questa riga diceva «ci si arriva dopo `ConsumeAbility`, quindi il cooldown e' gia'
+		// bruciato»: vero allora, falso da quando il pagamento e' in `SpendStartedAbilities`. Il MOTIVO per cui
+		// la voce serve non cambia — l'abilita' risultera' comunque spesa — ma la premessa si', e questo file
+		// tratta i commenti come specifica.
+		if (!Removed.IsValid())
+		{
+			FRTTurnLogEntry PurgaVuota = MakeSupportFallback(
+				Unit, Unit, Cleanse->Def, ERTActionInvalidReason::NoEffect);
+			AppendLogEntry(PurgaVuota, Unit);
+		}
 
 		AddLogEvent(Removed.IsValid()
 			? FString::Printf(TEXT("%s: purificato %s"), *Unit->GetName(), *Removed.ToString())
@@ -201,7 +288,19 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		ARTUnit* Unit = Ctx.Units[i];
 		const int32 HealIdx = Unit->PlannedAbilityIndex;
 		const URTActionData* Heal = Unit->GetAbility(HealIdx);
-		if (!Heal || Heal->Def.ActionId != FName(TEXT("Action.Heal")) || !Unit->CanUseAbility(HealIdx))
+		// ⚠️ Un'unita' UCCISA nella fase Dash arriva qui col piano ancora addosso — `GatherBlastUnits` non
+		// filtra i morti — e senza questa guardia un cadavere consuma l'abilita' e lascia le sue voci nel
+		// TurnLog: deterministiche, ma rumore che entra nell'hash del replay. E' la stessa ragione per cui
+		// `CollectAttackIntents` controlla `IsAlive()`.
+		//
+		// ⚠️ **Prima di tutto**, non a meta' funzione: la prima stesura di `#1437` la metteva dopo il
+		// controllo di portata, che e' gia' un punto che scrive una voce. Trovato in code review.
+		if (!Unit->IsAlive())
+		{
+			continue;
+		}
+
+		if (!Heal || !IsCoreAction(Heal->Def, ActionHeal) || !Unit->CanUseAbility(HealIdx))
 		{
 			continue;
 		}
@@ -209,28 +308,84 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// Bersaglio: chi e' stato scelto in pianificazione, oppure SE STESSI se non c'e' nessuno — il catalogo
 		// dichiara che la cura «puo' bersagliare se stessi», e curare a vuoto non e' un'alternativa sensata.
 		ARTUnit* HealTarget = Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget.Get() : Unit;
+		// Il PIANO si azzera qui, il COOLDOWN piu' sotto (`#1445`, [D-200]): l'unita' ha speso il suo turno —
+		// non puo' riagire — ma l'abilita' si paga solo se l'azione e' PARTITA. Azzerare il piano piu' in
+		// basso lascerebbe il ciclo degli intenti costruire un attacco su un alleato, che e' la ragione per
+		// cui questa raccolta viene prima.
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 		Unit->PlannedAttackTarget = nullptr;
-		Unit->ConsumeAbility(HealIdx);
 
 		// Portata dal catalogo, misurata come per ogni altra azione: una cura a distanza infinita sarebbe una
 		// regola diversa da quella scritta.
 		if (URTHexLibrary::HexDistance(Unit->Cell, HealTarget->Cell) > Heal->Def.RangeCells)
 		{
-			AddLogEvent(FString::Printf(TEXT("%s: cura fuori portata"), *Unit->GetName()), FRTLogSubject::Unit(Unit));
+			// 🔴 **L'asimmetria INVERSA** ([D-196], `#1412` punto 4): fino a qui questa cura mancata viveva
+			// SOLO nel combat log. Il record autoritativo non la conteneva, quindi un replay non poteva
+			// riprodurla e un rapporto di divergenza non poteva spiegare perche' l'alleato non fosse stato
+			// curato. La superficie leggibile sapeva qualcosa che la traccia non registrava — il verso
+			// opposto dei duplicati, e quello piu' difficile da vedere: non c'e' una riga di troppo, ce n'e'
+			// una che non c'e'.
+			// 🔴 **E il cooldown NON si paga** (`#1445`, [D-200]). Fino al 2026-08-27 si arrivava qui con
+			// l'abilita' gia' bruciata, mentre `ModifyArc` — l'altra azione di supporto di questo stesso file —
+			// dichiarava la regola opposta a centoventi righe di distanza: «il cooldown paga solo cio' che ha
+			// davvero toccato la mappa». Due azioni di supporto, due regole, nessuna delle due dichiarata.
+			//
+			// ⚠️ **La portata decide se l'azione PARTE**, e non e' una sfumatura: e' l'unico dei quattro modi
+			// di fallire che si conosce in pianificazione. Il bersaglio caduto nella simultaneita'
+			// (`TargetDead`, [D-197]) e la def senza effetto utile (`NoEffect`) sono ESITI di un'azione
+			// partita, e restano a carico. Un esito si paga; una mira impossibile no.
+			FRTTurnLogEntry CuraMancata = MakeSupportFallback(
+				Unit, HealTarget, Heal->Def, ERTActionInvalidReason::OutOfRange);
+			AppendLogEntry(CuraMancata, Unit);
+			// ⛔ **Niente `AddLogEvent`**: `ConcludeTurn` deriva una riga per ogni voce di TurnLog, quindi
+			// tenerla avrebbe creato un duplicato nuovo. La riga derivata porta azione, motivo e celle; il
+			// nome dell'unita' e' il debito noto di `#1412` punto 2.
 			continue;
 		}
+
+		// 🔴 **Qui l'azione e' PARTITA** ([D-200]): il bersaglio e' raggiungibile, e da questo punto in poi
+		// qualunque cosa vada storta e' un esito. Il cooldown si paga, e resta pagato anche se la
+		// simultaneita' disfa la cura piu' tardi — il bersaglio che cade nello stesso Blast, [D-197].
+		Ctx.MarkAbilitySpent(Unit, HealIdx); // parte qui, si paga in `SpendStartedAbilities` (`#1451`)
 
 		int32 Amount = 0;
 		for (const FRTActionEffectSpec& Spec : Heal->Def.Effects)
 		{
 			if (Spec.Effect == ERTActionEffect::Heal) { Amount = Spec.Amount; break; }
 		}
-		if (Amount <= 0) { continue; }
+		// 🔴 Una cura che non cura **non sparisce in silenzio** (`#1437`). Ci si arriva DOPO l'ANNOTAZIONE
+		// — il cooldown lo scrivera' `SpendStartedAbilities` a fase finita (`#1451`; fino ad allora questa
+		// riga diceva «gia' bruciato», che era vero e non lo e' piu') — e dopo che il piano e' azzerato: senza
+		// questa voce non restava niente, ne' nel TurnLog ne' nel combat log, e un replay non poteva
+		// spiegare perche' il turno del curatore non avesse prodotto nulla e perche' l'abilita' fosse in
+		// ricarica. Strettamente peggio del caso «fuori portata» qui sopra, che almeno una riga ce l'aveva.
+		//
+		// Ci si arriva con un'abilita' il cui `ActionId` e' letteralmente `Action.Heal` e i cui `Effects` non
+		// portano un `Heal` utile: un data asset scritto male, o un catalogo modificato.
+		//
+		// ⚠️ Da `#1443` ci arriva **anche** un equipaggiamento: il filtro guarda `DerivedFromActionId`, non
+		// il solo `ActionId`. Un gadget i cui `GrantedEffects` sostituissero la cura senza metterne una —
+		// come `Gadget.BreachCharge` fa con `Action.HeavyAttack` — finirebbe qui.
+		//
+		// ⚠️ Il motivo e' `NoEffect`, aggiunto per questo: `None` significa «l'azione e' eseguibile», e la
+		// resa generica direbbe «non eseguibile» — falso in tutti e due i versi. L'azione era valida e non
+		// aveva niente da applicare.
+		//
+		// ⚠️ **E il cooldown resta pagato**, a differenza del caso «fuori portata» ([D-200]): l'azione era
+		// valida, e' partita e ha raggiunto il bersaglio. Che la def non portasse un `Heal` utile e' un
+		// difetto del DATO, non una mira impossibile — e un catalogo rotto non e' una leva di bilanciamento
+		// su cui valga la pena costruire un'eccezione.
+		if (Amount <= 0)
+		{
+			FRTTurnLogEntry CuraVuota = MakeSupportFallback(
+				Unit, HealTarget, Heal->Def, ERTActionInvalidReason::NoEffect);
+			AppendLogEntry(CuraVuota, Unit);
+			continue;
+		}
 
 		// Chi cura, accanto a da-dove: la cella del curatore non identifica un'unita' ([D-063]), e il TurnLog
 		// deve dire chi ha agito (#405). `AddHeal` tiene allineati i quattro array paralleli.
-		Ctx.AddHeal(Unit, HealTarget, Amount, Unit->Cell);
+		Ctx.AddHeal(Unit, HealTarget, Amount, Unit->Cell, Heal->Def);
 	}
 }
 
@@ -269,7 +424,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		//
 		// L'arco e' identificato dalla COPPIA (chi la usa, il bersaglio): la pianificazione non ha un
 		// bersaglio-arco, e questo resta un limite dichiarato finche' l'HUD di E11 non ne porta uno.
-		if (PlannedNow && PlannedNow->Def.ActionId == FName(TEXT("Action.ModifyArc")))
+		if (PlannedNow && IsCoreAction(PlannedNow->Def, ActionModifyArc))
 		{
 			ARTUnit* ArcTarget = Unit->PlannedAttackTarget;
 			const int32 ArcAbilityIndex = Unit->PlannedAbilityIndex;
@@ -291,7 +446,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					ArcRejected.Phase = ERTMatchPhase::Blast;
 					ArcRejected.Category = ERTLogCategory::Fallback;
 					ArcRejected.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+					// La tripla completa, come gli altri produttori `Fallback` di questo file ([D-196]).
 					ArcRejected.ActionId = PlannedNow->Def.ActionId;
+					ArcRejected.BaseActionId = PlannedNow->Def.BaseActionId;
+					ArcRejected.Priority = PlannedNow->Def.Priority;
 					ArcRejected.SrcCell = Unit->Cell;
 					ArcRejected.TgtCell = ArcTarget->Cell;
 					ArcRejected.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
@@ -306,8 +464,8 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					continue;
 				}
 
-				Unit->ConsumeAbility(ArcAbilityIndex);
-				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell, Unit });
+				Ctx.MarkAbilitySpent(Unit, ArcAbilityIndex); // parte qui, si paga in `SpendStartedAbilities`
+				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell, Unit, PlannedNow->Def });
 			}
 			continue;
 		}
@@ -349,8 +507,8 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			{
 				FRTHexSimUnit Attacker(i, Unit->Cell, /*InMoveBudget=*/ 0);
 				Attacker.Facing = Unit->Facing;
-				URTFacingLibrary::RecordFacingChange(Attacker, TowardsTarget, ERTFacingOutcome::TargetingReoriented,
-					ERTMatchPhase::Blast, TurnLog);
+				RecordFacingChange(Attacker, TowardsTarget, ERTFacingOutcome::TargetingReoriented,
+					ERTMatchPhase::Blast, Unit);
 				Unit->Facing = Attacker.Facing;
 
 				// Anche nella copia del Blast: `HexUnits` e' stato costruito PRIMA di questo ciclo, e la difesa
@@ -459,6 +617,20 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			FallbackEntry.SrcCell = Unit->Cell;
 			FallbackEntry.TgtCell = Instance.TargetCell;
 			FallbackEntry.Amount = static_cast<int32>(Reason);
+			// QUALE azione e' fallita ([D-196], `#1412`). Stesso modello della voce `NoLos` 350 righe piu'
+			// sotto, e per la stessa ragione: un'azione che non avviene lascia SOLO questa voce, e senza
+			// l'identita' non dice se a mancare sia stata l'ultimate o l'attacco base. Due azioni annullate
+			// dalla stessa unita' nello stesso turno producevano righe identiche byte a byte.
+			//
+			// ⚠️ `Instance.Def` e' ancora quella ORIGINALE: `Instance` viene riassegnata all'istanza del
+			// fallback solo dopo questo blocco. L'azione da nominare e' quella che e' fallita, non il suo
+			// ripiego.
+			//
+			// ⚠️ `ActionId` **entra nell'hash**: e' un cambio d'identita' delle tracce archiviate, dichiarato
+			// in [D-196] e pagato con la rigenerazione del corpus nella stessa PR.
+			FallbackEntry.ActionId = Instance.Def.ActionId;
+			FallbackEntry.BaseActionId = Instance.Def.BaseActionId;
+			FallbackEntry.Priority = Instance.Def.Priority;
 			AppendLogEntry(FallbackEntry, Unit);
 			// Stesso soggetto della voce: vedi `ArcRejected` poco sopra — la copia derivata da
 			// `ConcludeTurn` e questa devono passare o cadere insieme.
@@ -483,6 +655,9 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// l'intento nasceva sempre a false e nessuna area colpiva un alleato in partita, benche' il dato
 		// esistesse nel catalogo e il resolver puro lo rispettasse. Difetto trovato al CP 8.2 e corretto qui.
 		Intent.bFriendlyFire = Instance.Def.bFriendlyFire;
+		// Stessa storia, stesso rimedio ([`INT-8`]): senza questa riga l'intento nascerebbe sempre a `false` e
+		// NESSUN attacco produrrebbe un colpo, benche' il catalogo lo dichiari.
+		Intent.bCountsAsAttack = Instance.Def.bCountsAsAttack;
 		// Danno DICHIARATO dagli effetti dell'azione: e' il catalogo a dirlo. Il campo legacy `Power` resta
 		// come ripiego per le abilita' non ancora catalogate (quelle generiche di EnsureDefaultAbilities):
 		// finche' esistono, toglierlo del tutto trasformerebbe i loro colpi in danno zero.
@@ -557,6 +732,11 @@ void ARTTurnManager::AppendChargeImpactIntents(FRTBlastContext& Ctx)
 		Intent.Shape = ERTAbilityShape::Single;
 		Intent.RangeCells = 1; // dopo l'impatto si e' adiacenti: e' questa la portata del colpo
 		Intent.AreaRadius = 0;
+		// [`INT-8`]: anche qui il colpo si dichiara, e si legge dall'azione che l'ha prodotto invece di darlo
+		// per scontato. E' il SECONDO punto in cui nasce un intento -- l'impatto della carica non passa dal
+		// ciclo dei piani -- quindi la propagazione va ripetuta, o gli impatti smetterebbero di colpire mentre
+		// tutto il resto funziona.
+		Intent.bCountsAsAttack = Impact.Def.bCountsAsAttack;
 
 		const int32 ImpactDamage = URTCatalogLibrary::FirstDamage(Impact.Def);
 		Intent.Power = URTCombatLibrary::EffectiveAttackPower(ImpactDamage, /*OccupantDamageBonus=*/ 0);
@@ -586,46 +766,324 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// CollectHexAttacks (e' un intento come un altro, portata 1): un Interrupt senza linea di tiro sul
 	// bersaglio non produce un Hit, quindi non cancella nulla, esattamente come un attacco bloccato dalla
 	// copertura.
-	TSet<int32> InterruptedAttackerIds;
+	// 🔴 **Si tiene traccia degli INTENTI cancellati, non delle unita'** (`#1437`). Un'unita' puo' possedere
+	// piu' di un intento nello stesso turno — `AppendChargeImpactIntents` ne aggiunge uno per l'impatto di
+	// una carica — e la versione precedente ne cercava UNO solo, col `break` al primo trovato, per poi
+	// cancellare col filtro **tutti** i colpi di quell'attaccante. Ne seguivano due esiti sbagliati e
+	// simmetrici:
+	//
+	// - primo intento non interrompibile e secondo si': la guardia falliva sul primo e **non si interrompeva
+	//   niente**, mentre un'azione interrompibile c'era;
+	// - primo interrompibile e secondo no: si cancellavano **entrambi**, incluso quello che dichiara di non
+	//   poter essere interrotto, e la traccia ne nominava uno solo.
+	//
+	// Con gli indici degli intenti la domanda si fa per azione, che e' l'unita' su cui `bCanBeInterrupted`
+	// e' dichiarato — e la deduplicazione viene gratis: due Interrupt sulla stessa vittima aggiungono lo
+	// stesso indice al `TSet` e producono una voce sola.
+	// 🔴 **PASSATA 1 di 3 — si costruisce il GRAFO, non si cancella ancora niente** (`#1451`, [D-202]).
+	//
+	// La versione precedente decideva e applicava nello stesso ciclo, e la guardia «un Interrupt gia'
+	// cancellato non interrompe» (`#1437`) funzionava quindi **solo in una delle due direzioni**. `Plan.Hits`
+	// e' ordinato per `AttackerId`, quindi con A che interrompe B e B che interrompe C:
+	//
+	// - indice di A **minore** di quello di B: si vede `Hit(A→B)` per primo, l'intento di B entra
+	//   nell'insieme, e `Hit(B→C)` viene saltato. L'azione di C sopravvive. ✅
+	// - indice **maggiore**: si vede `Hit(B→C)` per primo — l'azione di C e' gia' cancellata — e solo dopo
+	//   si scopre che B era a sua volta interrotto. ❌
+	//
+	// «E' come se non fosse mai partita» valeva o non valeva a seconda dell'ORDINE DI SPAWN delle unita'.
+	// E da `#1449` c'era un secondo verso: B non paga (e' cancellato), quindi C perdeva la propria azione
+	// per un Interrupt annullato **e** gratuito.
+	//
+	// Gli archi si tengono in due array PARALLELI e non in una `TMap`: iterare una `TMap` non ha ordine
+	// dichiarato, e qui l'ordine decide cosa la traccia archiviata contiene.
+	TArray<int32> Interruttori;            // intenti Interrupt che cancellerebbero qualcosa, crescenti
+	TArray<TArray<int32>> Cancellerebbe;   // parallelo: gli intenti che ciascuno annullerebbe
+
+	auto ArcoDa = [&Interruttori, &Cancellerebbe](int32 IntentoInterrupt) -> TArray<int32>&
+	{
+		const int32 Trovato = Interruttori.Find(IntentoInterrupt);
+		if (Trovato != INDEX_NONE) { return Cancellerebbe[Trovato]; }
+		Interruttori.Add(IntentoInterrupt);
+		return Cancellerebbe.AddDefaulted_GetRef();
+	};
+
 	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
-			|| IntentDefs[Hit.IntentIndex].ActionId != FName(TEXT("Action.Interrupt")))
+			|| !IsCoreAction(IntentDefs[Hit.IntentIndex], ActionInterrupt))
 		{
 			continue;
 		}
-		if (!Units.IsValidIndex(Hit.TargetId)) { continue; }
+		if (!Units.IsValidIndex(Hit.TargetId) || !Units[Hit.TargetId]) { continue; }
 
-		// L'azione pianificata dal BERSAGLIO non si legge da `Unit->PlannedAbilityIndex`: il ciclo che ha
-		// costruito `Intents`, qualche riga sopra, l'ha gia' CONSUMATA (azzerata) per ogni unita', bersaglio
-		// compreso — e' cosi' che il turno evita di rieseguire due volte la stessa azione. Va cercata fra gli
-		// `Intents` gia' catturati, nell'entrata che il bersaglio ha prodotto per SE STESSO (AttackerId ==
-		// l'indice del bersaglio dell'Interrupt): e' li' che la definizione originale sopravvive al reset.
-		int32 VictimIntentIdx = INDEX_NONE;
+		// Le azioni pianificate dal BERSAGLIO non si leggono da `Unit->PlannedAbilityIndex`: il ciclo che ha
+		// costruito `Intents`, qualche riga sopra, le ha gia' CONSUMATE (azzerate) per ogni unita', bersaglio
+		// compreso — e' cosi' che il turno evita di rieseguire due volte la stessa azione. Vanno cercate fra
+		// gli `Intents` gia' catturati, nelle entrate che il bersaglio ha prodotto per SE STESSO
+		// (`AttackerId` == l'indice del bersaglio dell'Interrupt): e' li' che le definizioni originali
+		// sopravvivono al reset.
 		for (int32 k = 0; k < Intents.Num(); ++k)
 		{
-			if (Intents[k].AttackerId == Hit.TargetId) { VictimIntentIdx = k; break; }
-		}
+			if (Intents[k].AttackerId != Hit.TargetId) { continue; }
 
-		// Solo se il bersaglio ha DAVVERO pianificato un'azione interrompibile: un Interrupt su chi non ha
-		// pianificato nulla (o ha pianificato Guard, non interrompibile) non ha niente da cancellare.
-		if (VictimIntentIdx != INDEX_NONE && IntentDefs.IsValidIndex(VictimIntentIdx)
-			&& IntentDefs[VictimIntentIdx].bCanBeInterrupted)
-		{
-			InterruptedAttackerIds.Add(Hit.TargetId);
-			AddLogEvent(FString::Printf(TEXT("%s: interrotto da %s"),
-				*Units[Hit.TargetId]->GetName(), *Units[Hit.AttackerId]->GetName()), FRTLogSubject::Unit(Units[Hit.TargetId]));
+			// 🔴 **L'impatto di una carica NON si interrompe qui**, e il flag del catalogo non basta a dirlo:
+			// `Action.Charge` dichiara `bInterruptible = true`, ma quel «si'» riguarda la carica come azione
+			// PIANIFICATA — il movimento, che risolve nella fase Dash. Quando l'impatto arriva nel Blast lo
+			// scatto e' gia' avvenuto: cancellarlo qui annullerebbe a posteriori la coda di un'azione
+			// risolta a meta', lasciando l'unita' dove la carica l'ha portata e togliendole il colpo.
+			//
+			// Si riconoscono da `IntentAbilityIndex == INDEX_NONE`, che `AppendChargeImpactIntents` scrive
+			// proprio perche' non c'e' un'abilita' da consumare: lo scatto l'ha gia' fatto.
+			//
+			// ⚠️ Prima di `#1437` questo caso non si presentava per una ragione ACCIDENTALE: il ciclo si
+			// fermava al primo intento della vittima, quindi l'impatto veniva raggiunto solo se era il primo.
+			// Togliendo quel `break` sarebbe diventato interrompibile sempre — un cambio di gioco che nessuno
+			// ha deciso. Se un giorno si vorra' che l'Interrupt annulli anche l'impatto, e' una scelta di
+			// bilanciamento da dichiarare, non l'effetto di un ciclo.
+			if (!Ctx.IntentAbilityIndex.IsValidIndex(k) || Ctx.IntentAbilityIndex[k] == INDEX_NONE)
+			{
+				continue;
+			}
+
+			// Solo cio' che DICHIARA di poter essere interrotto: un Interrupt su chi ha pianificato Guard
+			// (`bCanBeInterrupted = false`) non ha niente da cancellare.
+			if (!IntentDefs.IsValidIndex(k) || !IntentDefs[k].bCanBeInterrupted) { continue; }
+
+			// L'arco: questo Interrupt cancellerebbe questa azione. **Se** sara' efficace lo decide la
+			// passata 2 — qui non si cancella niente, e i colpi restano tutti al loro posto.
+			ArcoDa(Hit.IntentIndex).AddUnique(k);
 		}
 	}
+
+	// 🔴 **PASSATA 2 di 3 — chi cancella davvero**, a punto fisso ([D-202]).
+	//
+	// Un Interrupt e' **efficace** se nessun Interrupt efficace lo cancella. Si stratifica dalla radice: chi
+	// non e' bersaglio di nessun Interrupt e' efficace subito, e da li' si propaga. La catena A→B→C si
+	// risolve allo stesso modo qualunque sia l'ordine degli indici — A e' alla radice, quindi B cade e C
+	// sopravvive, sempre.
+	//
+	// ⚠️ **Un CICLO non ha radice, e resta indeciso**: due unita' adiacenti che si interrompono a vicenda
+	// — `Action.Interrupt` ha portata 1, quindi e' del tutto ordinario — non raggiungono mai un livello.
+	// Restano **inefficaci**: nessuno dei due cancella, ed entrambe le azioni originali procedono. E' la
+	// lettura letterale di `#1437` («un Interrupt cancellato non interrompe») applicata a entrambi
+	// insieme, invece che al primo che l'ordine degli indici incontrava.
+	//
+	// ⚠️ **Pagano lo stesso**: hanno prodotto un colpo, quindi la regola di `#1449` li raggiunge piu'
+	// sotto. Si sono neutralizzati, non hanno rinunciato.
+	enum class EStato : uint8 { Indeciso, Efficace, Cancellato };
+	TArray<EStato> Stato;
+	Stato.Init(EStato::Indeciso, Interruttori.Num());
+
+	// Gli Interrupt che minacciano un dato intento: si cerca fra gli archi, senza `TMap`.
+	auto MinacceContro = [&Interruttori, &Cancellerebbe](int32 Intento, TArray<int32>& Out)
+	{
+		Out.Reset();
+		for (int32 i = 0; i < Interruttori.Num(); ++i)
+		{
+			if (Cancellerebbe[i].Contains(Intento)) { Out.Add(i); }
+		}
+	};
+
+	TArray<int32> Minacce;
+	bool bProgresso = true;
+	while (bProgresso)
+	{
+		bProgresso = false;
+		for (int32 i = 0; i < Interruttori.Num(); ++i)
+		{
+			if (Stato[i] != EStato::Indeciso) { continue; }
+
+			MinacceContro(Interruttori[i], Minacce);
+			bool bCancellatoDaEfficace = false;
+			bool bQualcunoIndeciso = false;
+			for (int32 j : Minacce)
+			{
+				if (Stato[j] == EStato::Efficace) { bCancellatoDaEfficace = true; break; }
+				if (Stato[j] == EStato::Indeciso) { bQualcunoIndeciso = true; }
+			}
+
+			if (bCancellatoDaEfficace)
+			{
+				Stato[i] = EStato::Cancellato;
+				bProgresso = true;
+			}
+			else if (!bQualcunoIndeciso)
+			{
+				// Nessuna minaccia viva: o non ne aveva, o tutte sono state cancellate a loro volta.
+				Stato[i] = EStato::Efficace;
+				bProgresso = true;
+			}
+		}
+	}
+
+	// Cio' che gli Interrupt EFFICACI cancellano. Gli indecisi — i cicli — non contribuiscono.
+	TSet<int32> InterruptedIntents;
+	for (int32 i = 0; i < Interruttori.Num(); ++i)
+	{
+		if (Stato[i] != EStato::Efficace) { continue; }
+		for (int32 Bersaglio : Cancellerebbe[i])
+		{
+			InterruptedIntents.Add(Bersaglio);
+		}
+	}
+
+	// 🔴 **Chi si e' neutralizzato lascia traccia** (`#1460`, [D-203]).
+	//
+	// Un Interrupt rimasto `Indeciso` e' in un ciclo: ha speso l'azione, ha raggiunto il bersaglio e non ha
+	// cancellato niente, perche' cio' che stava annullando stava annullando lui. Senza questa voce quel turno
+	// non lasciava **nessuna** traccia autoritativa — due unita' che pagano un cooldown e producono zero
+	// voci — ed e' la classe che [D-196] ha chiuso quattro volte: *non una riga di troppo, una che non c'e'*.
+	//
+	// ⚠️ Si scrive PRIMA delle cancellazioni e in ordine d'indice, come quelle: l'ordine di emissione non
+	// conta per l'hash — il TurnLog si ordina canonicamente — ma conta per chi legge il log a schermo.
+	for (int32 i = 0; i < Interruttori.Num(); ++i)
+	{
+		if (Stato[i] != EStato::Indeciso) { continue; }
+
+		const int32 k = Interruttori[i];
+		if (!Intents.IsValidIndex(k) || !IntentDefs.IsValidIndex(k)) { continue; }
+		ARTUnit* Speso = Units.IsValidIndex(Intents[k].AttackerId) ? Units[Intents[k].AttackerId] : nullptr;
+		if (!Speso) { continue; }
+
+		// Qui il soggetto e' chi ha SPESO l'Interrupt, non chi lo subiva: e' la sua azione che non ha
+		// ottenuto niente. E' il verso opposto della voce `Cancelled` qui sotto, dove il soggetto e' la
+		// vittima — e i due sono coerenti perche' entrambe nominano l'unita' di cui raccontano l'azione.
+		const int32 BersaglioId = Intents[k].TargetId;
+		const FRTCellId CellaMirata = Units.IsValidIndex(BersaglioId) && Units[BersaglioId]
+			? Units[BersaglioId]->Cell
+			: Intents[k].TargetCell;
+		FRTTurnLogEntry Neutralizzata;
+		Neutralizzata.Phase = ERTMatchPhase::Blast;
+		Neutralizzata.Category = ERTLogCategory::Fallback;
+		Neutralizzata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Neutralizzata.SrcCell = Speso->Cell;
+		Neutralizzata.TgtCell = CellaMirata;
+		Neutralizzata.Amount = static_cast<int32>(ERTActionInvalidReason::Neutralised);
+		Neutralizzata.ActionId = IntentDefs[k].ActionId;
+		Neutralizzata.BaseActionId = IntentDefs[k].BaseActionId;
+		Neutralizzata.Priority = IntentDefs[k].Priority;
+		AppendLogEntry(Neutralizzata, Speso);
+	}
+
+	// 🔴 **PASSATA 3 di 3 — gli effetti**, sull'insieme ormai deciso.
+	//
+	// Una voce per AZIONE cancellata, non per colpo: `InterruptedIntents` porta intenti, quindi due Interrupt
+	// sulla stessa vittima producono una voce sola. Si scorre in ordine crescente d'indice perche' l'ordine
+	// di `TSet` non e' dichiarato e queste voci entrano nella traccia archiviata.
+	TArray<int32> Cancellati = InterruptedIntents.Array();
+	Cancellati.Sort();
+	for (int32 k : Cancellati)
+	{
+		if (!Intents.IsValidIndex(k) || !IntentDefs.IsValidIndex(k)) { continue; }
+		ARTUnit* Vittima = Units.IsValidIndex(Intents[k].AttackerId) ? Units[Intents[k].AttackerId] : nullptr;
+		if (!Vittima) { continue; }
+
+		// 🔴 **L'asimmetria INVERSA**, secondo sito ([D-196], `#1412` punto 4): un'azione cancellata da
+		// un'altra unita' non lasciava nessuna traccia autoritativa. Il piano della vittima sparisce dal
+		// turno e il replay non sa perche'.
+		//
+		// `SrcCell` e' la cella di chi SUBISCE l'interruzione — e' la sua azione a essere annullata,
+		// quindi e' lei il soggetto della voce — e `UnitId` la segue, come il combat log (`#1418`).
+		//
+		// ⚠️ `TgtCell` porta **dove puntava l'azione cancellata**, come in ogni altra voce `Fallback`
+		// della famiglia (`CuraMancata`, `FallbackEntry`, `ArcRejected`, `SlotOccupied`). Metterci la
+		// cella di chi ha interrotto faceva leggere «la vittima attaccava l'interruttore» — preciso e
+		// falso, e il campo entra nell'hash.
+		//
+		// ⚠️ **Chi ha interrotto non entra nella voce**: `UnitId` e' uno solo e lo prende il soggetto.
+		// Stesso costo di `#1430` per `RearHitBypassedGuard`/`RearHitBypassedCover`.
+		//
+		// ⚠️ Un intento puo' puntare a una CELLA e non a un'unita': dopo un fallback `AttackCell`, o su
+		// un colpo a memoria di CP 13.2, `TargetId` e' `INDEX_NONE` e il punto di mira sta in `TargetCell`.
+		// Ripiegare sulla cella della vittima scriverebbe «si e' attaccata da sola» — preciso e falso, e
+		// `TgtCell` entra nell'hash.
+		const int32 BersaglioId = Intents[k].TargetId;
+		const FRTCellId CellaMirata = Units.IsValidIndex(BersaglioId) && Units[BersaglioId]
+			? Units[BersaglioId]->Cell
+			: Intents[k].TargetCell;
+		FRTTurnLogEntry Interrotta;
+		Interrotta.Phase = ERTMatchPhase::Blast;
+		Interrotta.Category = ERTLogCategory::Fallback;
+		Interrotta.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Interrotta.SrcCell = Vittima->Cell;
+		Interrotta.TgtCell = CellaMirata;
+		Interrotta.Amount = static_cast<int32>(ERTActionInvalidReason::Interrupted);
+		Interrotta.ActionId = IntentDefs[k].ActionId;
+		Interrotta.BaseActionId = IntentDefs[k].BaseActionId;
+		Interrotta.Priority = IntentDefs[k].Priority;
+		AppendLogEntry(Interrotta, Vittima);
+
+		// ⛔ **Niente `AddLogEvent` qui**: la riga arriva al combat log attraverso `ConcludeTurn`, che
+		// deriva una riga per ogni voce di TurnLog. Tenerla creerebbe un duplicato — la stessa
+		// informazione in due formati — che e' il debito noto di `#1412` punto 2.
+	}
+
+	// Quali intenti hanno prodotto almeno un colpo: e' la differenza fra «l'azione e' avvenuta» e «e' stata
+	// dichiarata e basta», e serve subito sotto.
+	TSet<int32> IntentiConColpo;
+	for (const FRTHexAttackHit& Hit : Plan.Hits)
+	{
+		IntentiConColpo.Add(Hit.IntentIndex);
+	}
+
+	// 🔴 **Chi ha interrotto paga l'azione che ha speso** (`#1444`, `#1449`).
+	//
+	// Si scorrono gli INTENTI e non i colpi perche' un Interrupt puo' non produrne nessuno pur essendo stato
+	// speso: mirato a una CELLA — direttamente, o su una cella ricordata di CP 13.2 da cui il bersaglio si
+	// e' spostato — l'intento e' valido e non c'e' nessuno da colpire.
+	//
+	// ⚠️ **Ma non paga TUTTO cio' che non ha colpito**, e la prima stesura di `#1449` lo faceva: un
+	// Interrupt fuori portata, senza linea di tiro, senza mappa autorevole o su un alleato non produce colpi
+	// per le stesse ragioni per cui non ne produce un attacco qualunque, e quelli restano gratuiti. Farli
+	// pagare avrebbe dato all'Interrupt una regola sua, contraddicendo il commento venticinque righe piu'
+	// su — «un Interrupt senza linea di tiro non cancella nulla, esattamente come un attacco bloccato dalla
+	// copertura». Si paga il colpo che c'e' stato, oppure l'intento che mirava a una cella.
+	for (int32 k = 0; k < Intents.Num(); ++k)
+	{
+		if (!IntentDefs.IsValidIndex(k) || !IsCoreAction(IntentDefs[k], ActionInterrupt)
+			|| InterruptedIntents.Contains(k))
+		{
+			continue; // non e' un Interrupt, oppure e' stato annullato a sua volta: non paga
+		}
+		const bool bMirataACella = Intents[k].TargetId == INDEX_NONE;
+		if (!IntentiConColpo.Contains(k) && !bMirataACella)
+		{
+			continue; // niente colpo e nessuna cella mirata: e' un'azione non avvenuta come le altre
+		}
+		if (!Ctx.IntentAbilityIndex.IsValidIndex(k) || Ctx.IntentAbilityIndex[k] == INDEX_NONE)
+		{
+			continue;
+		}
+		ARTUnit* Interruttore = Units.IsValidIndex(Intents[k].AttackerId)
+			? Units[Intents[k].AttackerId] : nullptr;
+		// ⚠️ `IsAlive()`: un'unita' uccisa in Prep o nel Dash arriva al Blast col piano ancora addosso —
+		// `CollectAttackIntents` non filtra i morti, e lo dichiara — quindi senza questa guardia un cadavere
+		// pagherebbe un'azione che non ha mai eseguito.
+		//
+		// ⚠️ **NON e' la stessa regola di `MarkAttackerAbilitiesSpent`**, e fino al 2026-08-27 questa riga
+		// diceva che lo fosse. Qui si gira PRIMA del danno, quindi `IsAlive()` vuol dire «vivo quando
+		// annota»; li' si gira DOPO, e vuol dire «sopravvissuto alla fase». Sono i due lati dell'asimmetria
+		// di [D-209], e scambiarli cambia il gioco — lo fanno diventare rosse le due righe
+		// `curatore che cade nel Blast` e `attaccante che colpisce e cade`.
+		if (Interruttore && Interruttore->IsAlive())
+		{
+			Ctx.MarkAbilitySpent(Interruttore, Ctx.IntentAbilityIndex[k]);
+		}
+	}
+
 	// Il colpo dell'Interrupt STESSO non deve mai diventare un `FRTAttack`: non fa danno (`Effects` vuoto),
 	// ma un colpo a Power 0 nell'array conterebbe comunque come "primo colpo" per `ApplyFirstHitDelta` —
 	// consumando il bonus/malus di Guard/Exposed/Marked su un colpo fantasma invece che sull'attacco vero
-	// che dovrebbe riceverlo. Si toglie insieme ai colpi degli interrotti, nello stesso filtro.
-	Plan.Hits.RemoveAll([&InterruptedAttackerIds, &IntentDefs](const FRTHexAttackHit& Hit)
+	// che dovrebbe riceverlo. Si toglie insieme ai colpi degli intenti interrotti, nello stesso filtro.
+	//
+	// ⚠️ Il filtro guarda l'INTENTO, non l'attaccante: cosi' un'azione non interrompibile della stessa unita'
+	// sopravvive, che e' cio' che `bCanBeInterrupted` dichiara (`#1437`).
+	Plan.Hits.RemoveAll([&InterruptedIntents, &IntentDefs](const FRTHexAttackHit& Hit)
 	{
-		if (InterruptedAttackerIds.Contains(Hit.AttackerId)) { return true; }
+		if (InterruptedIntents.Contains(Hit.IntentIndex)) { return true; }
 		return IntentDefs.IsValidIndex(Hit.IntentIndex)
-			&& IntentDefs[Hit.IntentIndex].ActionId == FName(TEXT("Action.Interrupt"));
+			&& IsCoreAction(IntentDefs[Hit.IntentIndex], ActionInterrupt);
 	});
 }
 
@@ -943,10 +1401,20 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 	//    azione vista dai due lati. Il ponte creato e' TEMPORANEO (2 turni, come le altre modifiche ambientali
 	//    del catalogo) e CONDUTTIVO: la scarica lo risale, quindi e' un rischio oltre che una scorciatoia.
 	//    Ordine canonico prima di applicare: l'ordine delle unita' non deve decidere l'esito.
+	// ⚠️ L'ordinamento deve essere TOTALE: da [D-197] la voce porta anche `ActionId`, che entra nell'hash,
+	// quindi due operazioni sullo stesso arco non possono piu' avere un ordine indeterminato — deciderebbero
+	// quale azione la traccia archiviata nomina. `TArray::Sort` non e' stabile.
 	PendingArcOps.Sort([](const FRTPendingArcOp& A, const FRTPendingArcOp& B)
 	{
 		if (!(A.From == B.From)) { return URTHexLibrary::StableLess(A.From, B.From); }
-		return URTHexLibrary::StableLess(A.To, B.To);
+		if (!(A.To == B.To)) { return URTHexLibrary::StableLess(A.To, B.To); }
+		// Spareggio sull'unita' e poi sull'azione: due operazioni sullo STESSO arco avevano un ordine
+		// indeterminato — `TArray::Sort` non e' stabile — e da [D-197] quell'ordine decide quale `ActionId`
+		// la voce archivia. `StableUnitId` e' l'identita' che non dipende dall'ordine di spawn.
+		const int32 UnitA = A.Actor ? A.Actor->StableUnitId : 0;
+		const int32 UnitB = B.Actor ? B.Actor->StableUnitId : 0;
+		if (UnitA != UnitB) { return UnitA < UnitB; }
+		return A.Def.ActionId.LexicalLess(B.Def.ActionId);
 	});
 	for (const FRTPendingArcOp& Op : PendingArcOps)
 	{
@@ -980,7 +1448,23 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 		Entry.Category = ERTLogCategory::Environment;
 		Entry.Outcome = static_cast<uint8>(
 			bRemoved ? ERTEnvironmentOutcome::BridgeRemoved : ERTEnvironmentOutcome::BridgeCreated);
-		Entry.ActionId = FName(TEXT("Action.ModifyArc"));
+		// QUALE azione, non l'azione generica ([D-195], [D-197], `#1447`): il percorso di FALLIMENTO
+		// (`ArcRejected`) la nomina gia' cosi', e i due devono dire la stessa cosa.
+		//
+		// ⚠️ Se la def manca si degrada **insieme**: nome generico, e gli altri due campi a zero. Prendere
+		// `Op.Def.Priority` da una def costruita per default scriverebbe **50** — il valore di partenza del
+		// campo — mentre il catalogo dichiara 75 per `Action.ModifyArc`, e `Priority` discrimina in
+		// `EntryLess`: la voce affermerebbe una precedenza che il resolver non ha usato.
+		if (Op.Def.ActionId.IsNone())
+		{
+			Entry.ActionId = ActionModifyArc;
+		}
+		else
+		{
+			Entry.ActionId = Op.Def.ActionId;
+			Entry.BaseActionId = Op.Def.BaseActionId;
+			Entry.Priority = Op.Def.Priority;
+		}
 		Entry.SrcCell = Op.From;
 		Entry.TgtCell = Op.To;
 		Entry.Amount = bRemoved ? 0 : 2; // turni di durata del ponte creato
@@ -1427,12 +1911,18 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	}
 }
 
-void ARTTurnManager::ConsumeAttackerAbilities(FRTBlastContext& Ctx)
+void ARTTurnManager::MarkAttackerAbilitiesSpent(FRTBlastContext& Ctx)
 {
 	TArray<ARTUnit*>& Attackers = Ctx.Attackers;
 	TArray<int32>& UsedAbilityIndex = Ctx.UsedAbilityIndex;
 
-	// Attaccanti sopravvissuti: consuma l'abilita' (energia+cooldown); se gratuita, accumula energia.
+	// Attaccanti SOPRAVVISSUTI: qui si decide CHI paga e si assegna l'energia — due cose, e il nome dice
+	// la prima. A scrivere il cooldown e' `SpendStartedAbilities`, l'unico punto che lo fa (`#1451`).
+	//
+	// ⚠️ **La guardia `IsAlive()` resta QUI e non si sposta**: per un attaccante «spesa» significa
+	// *sopravvissuto alla fase*, non *partita* — e' l'unico dei cinque punti in cui il criterio si conosce
+	// solo a danno risolto. Portarla nella passata unica farebbe smettere di pagare anche il curatore che
+	// cade a meta' Blast, che oggi paga: un cambio di gioco, non una pulizia.
 	for (int32 i = 0; i < Attackers.Num(); ++i)
 	{
 		ARTUnit* Attacker = Attackers[i];
@@ -1441,7 +1931,7 @@ void ARTTurnManager::ConsumeAttackerAbilities(FRTBlastContext& Ctx)
 			continue;
 		}
 		const URTActionData* Ability = Attacker->GetAbility(UsedAbilityIndex[i]);
-		Attacker->ConsumeAbility(UsedAbilityIndex[i]);
+		Ctx.MarkAbilitySpent(Attacker, UsedAbilityIndex[i]);
 		if (Ability && Ability->EnergyCost > 0)
 		{
 			AddLogEvent(FString::Printf(TEXT("Ultimate! %s"), *Attacker->GetName()), FRTLogSubject::Unit(Attacker));
@@ -1546,5 +2036,78 @@ void ARTTurnManager::ApplyControlStatuses(FRTBlastContext& Ctx)
 			}
 			AddLogEvent(FString::Printf(TEXT("Status: %s"), *Slowed->GetName()), FRTLogSubject::Unit(Slowed));
 		}
+	}
+}
+
+void ARTTurnManager::SpendStartedAbilities(const FRTBlastContext& Ctx)
+{
+	// 🔴 **L'UNICO posto in cui un'azione pianificata del Blast paga il proprio cooldown** (`#1451` punto 3).
+	//
+	// Prima erano cinque, con cinque criteri: `ResolveCleanseActions` subito dopo le guardie di validita',
+	// `CollectHealActions` dopo la portata ([D-200]), `ModifyArc` solo se l'op finiva in coda,
+	// `ApplyInterrupts` dagli INTENTI con le eccezioni di `#1449`, `MarkAttackerAbilitiesSpent` dai colpi
+	// sopravvissuti. Ogni azione nuova che potesse validarsi senza colpire ne voleva un sesto — ed e' la
+	// ragione per cui il difetto e' stato trovato cinque volte in quarantotto ore (#1437, #1443, #1444,
+	// #1445, #1449).
+	//
+	// ⚠️ **Quel che si e' unificato e' il GESTO, non il criterio**, e la distinzione e' la sostanza della
+	// correzione. «L'azione e' partita?» resta a chi raccoglie, perche' e' l'unico che sa cosa puo' sapere in
+	// quel momento: la portata si conosce in pianificazione, un colpo prodotto no, e la sopravvivenza di chi
+	// attacca si sa solo a danno risolto. Pretendere un criterio solo qui avrebbe voluto dire scrivere un
+	// `switch` sull'azione — cioe' rifare le cinque regole con un nome nuovo.
+	//
+	// ⚠️ **E per la stessa ragione qui NON si riguarda `IsAlive()`**: chi cura o purifica e' vivo all'inizio
+	// del Blast, chi attacca deve esserlo alla fine. Un controllo unico in questo punto farebbe smettere di
+	// pagare il curatore che cade a meta' fase — un cambio di comportamento travestito da pulizia.
+	//
+	// ⚠️ **Fuori di qui, e dichiarato**: le REAZIONI (`ResolveInterceptions`, `RunReactionPass`) non sono
+	// azioni pianificate ma inneschi condizionali, e a governarle e' [D-092] col proprio contatore di
+	// attivazioni; le altre fasi (Prep, Move, Dash, Environment) hanno tempistiche proprie, e ricondurle a
+	// [D-200] e' una decisione che non e' stata presa.
+	//
+	// ⚠️ **Un accoppiamento latente, dichiarato perche' oggi e' irraggiungibile e domani forse no.**
+	//
+	// `CanUseAbility` e' `IsAbilityUsable(GetAbilityCooldown(Index), Energy, EnergyCost)`: legge **il
+	// cooldown E l'energia**, cioe' entrambe le cose che questa passata ha differito. Quattro punti la
+	// chiamano dopo che qualcuno ha annotato — `ResolveInterceptions`, `RunReactionPass(BlastHits)`,
+	// `RunReactionPass(BlastDisplacement)` e `RunReactionPass(BlastStatus)`, quest'ultimo anche dopo
+	// `MarkAttackerAbilitiesSpent`.
+	//
+	// MISURATO il 2026-08-27, e sono due condizioni indipendenti che oggi non si verificano:
+	// - **energia**: nessuna delle sei reazioni spedite dichiara `EnergyCost` (default 0), quindi
+	//   l'ultimate differita non puo' rendere attivabile una reazione che prima non lo era;
+	// - **cooldown**: perche' si vedesse, un'unita' dovrebbe avere lo STESSO indice come azione principale
+	//   e come reazione. `CollectAttackIntents` non filtra su `Def.Slot`, quindi il caso e' costruibile —
+	//   ma i due percorsi di produzione che armano una reazione (`ARTPlayerController` e il bot) scrivono
+	//   `PlannedReactionAbility` e RITORNANO, senza mai toccare `PlannedAbilityIndex`. Ci arriva solo chi
+	//   scrive il piano a mano: test e scenari.
+	//
+	// Chi spedira' una reazione con un costo, o rendera' pianificabile come principale un'abilita' di slot
+	// reazione, guardi qui prima.
+	//
+	// L'ordine e' quello di annotazione, che e' l'ordine dei pass: `ConsumeAbility` scrive su unita' diverse,
+	// quindi non c'e' esito che dipenda dall'ordine — ma un array, e non una `TMap`, perche' la regola del
+	// progetto e' non dipendere mai dall'ordine di iterazione, non «non dipenderne quando si vede».
+	// I due array si riempiono in una sola istruzione (`MarkAbilitySpent`), che ne e' l'unico scrittore:
+	// la cardinalita' e' un invariante del tipo, non una condizione da tollerare. Dichiararlo qui evita di
+	// suggerire al prossimo lettore che possano divergere — e quindi di «aggiustare» lo sbilanciamento
+	// invece di preservare l'accoppiata.
+	//
+	// ⚠️ **`check` e non `checkSlow`**: `checkSlow` e' attivo solo sotto `DO_GUARD_SLOW`, cioe' in Debug —
+	// ne' l'Editor Development su cui gira l'automation ne' la Shipping lo compilano. Un invariante
+	// dichiarato con `checkSlow` non e' verificato da nessuna build che questo progetto produce davvero.
+	check(Ctx.SpentActors.Num() == Ctx.SpentAbilityIndex.Num());
+
+	for (int32 i = 0; i < Ctx.SpentActors.Num(); ++i)
+	{
+		ARTUnit* Attore = Ctx.SpentActors[i];
+		// ⚠️ Nessuna unita' viene DISTRUTTA dentro il Blast — `DestroyDefeatedUnits` gira in `ConcludeTurn`,
+		// dopo — quindi questa guardia oggi non scatta mai. Resta perche' il contesto tiene puntatori grezzi,
+		// come `Attackers`: se un giorno un pass distruggesse un attore, saltare e' meglio che dereferenziare.
+		if (!IsValid(Attore))
+		{
+			continue;
+		}
+		Attore->ConsumeAbility(Ctx.SpentAbilityIndex[i]);
 	}
 }

@@ -15,12 +15,7 @@ namespace
 	/** Esagono pieno di raggio R sul layer 0, tutto pavimento a costo 1. Punto di partenza di ogni fixture. */
 	URTHexMapAsset* MakeFlatHex(int32 Radius)
 	{
-		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			Map->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		Map->SortCells();
+		URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		return Map;
 	}
 

@@ -92,6 +92,21 @@ Le **sette** azioni che ogni eroe possiede, indipendentemente dal kit
 Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch
 ```
 
+> 🔵 **Sette è l'elenco canonico; a entrare nel kit di ogni unità sono cinque** — `Wait`, `Guard`, `Brace`,
+> `Overwatch`, `Interact` — e le due che mancano non mancano davvero: `Move` passa da `PlannedPath` e non da
+> uno slot azione, `BasicAttack` è **l'indice 0** del kit di ogni eroe. Le accoda
+> `URTCatalogLibrary::MakeGenericActions`, sempre **in coda**, perché `PlannedAbilityIndex` è un indice.
+>
+> `Interact` è entrata il **2026-08-26**: era fuori perché *«nessun codice risolve un'interazione»*, e quel
+> motivo è scaduto con [D-148](../decisions/RT_PDR_00_Decision_Log.md)/[D-151](../decisions/RT_PDR_00_Decision_Log.md)
+> — apre le porte, e solo quelle. Il criterio d'ammissione è sempre lo stesso: *si aggiunge la generica quando
+> l'altra metà esiste*. Storia e riserve in
+> [`../gameplay/brief-azioni-generiche-overwatch.md`](../gameplay/brief-azioni-generiche-overwatch.md).
+>
+> ⌨️ **E dal 2026-08-26 il giocatore le raggiunge tutte**: i tasti abilità sono `1`–`9` più `0`, dieci
+> posizioni contro le dieci voci del kit. Prima erano quattro, e `Overwatch`, `Guard`, `Brace`, `Wait` e la
+> reazione di tre eroi su quattro le usava solo il bot.
+
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Range | CD | Rumore | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---:|---|---|
 | `Action.Wait` | Attesa | — | Move | 20 | 100 | — | 0 | 0 | — | no |
@@ -266,11 +281,18 @@ non cambia *che cosa* ha speso.
 
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Distanza | CD | Rumore | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---:|---|---|
-| `Action.Sprint` *(vedi §2.1)* | Scatto lungo | Movimento + Principale ⚠️ | **Dash** ⚠️ | 20 | 60 | 8 MP | 0 | 5 | `Fallback.Stop` | sì |
+| `Action.Sprint` *(vedi §2.1)* | Scatto lungo | **Movimento** | **Dash** ⚠️ | 20 | 60 | 8 MP | 0 | 5 | `Fallback.Stop` | sì |
 | `Action.Dash` | Scatto | **Movimento** | **Dash** | 20 | 30 | 3 celle | 1 | 6 | `Fallback.Stop` | sì |
 | `Action.Charge` | Carica | **Movimento** | **Dash** | 20/30 | 35 | 3 celle | 2 | — | `Fallback.Stop` | sì |
 | `Action.Leap` | Balzo | **Movimento** | **Dash** | 20 | 25 | 3 celle | 2 | — | `Fallback.Stop` | sì |
 | `Action.Reposition` | Riposizionamento | **Movimento** | **Dash** | 20 | 40 | 2 celle | 1 | — | `Fallback.Stop` | sì |
+
+> 🔴 **Corretta il 2026-08-26 — la cella «Slot» di `Action.Sprint` diceva «Movimento + Principale ⚠️», e
+> contraddiceva il capoverso qui sotto, [D-028](../decisions/RT_PDR_00_Decision_Log.md) e il dato.** In
+> `URTCatalogLibrary::GetCoreActionCatalog` lo scatto lungo entra con `ERTActionSlot::Movement`, e
+> `RefactorTactics.Actions.PrecisionAttack.WeaponRangePlusOne` verifica che la principale resti libera. La
+> ⚠️ sulla colonna **Macro-fase** invece **resta vera**: `ERTResolutionPhase::FastMovement` è l'arretrato
+> di [D-116](../decisions/RT_PDR_00_Decision_Log.md), lavoro di E38.
 
 **Sprint** — fornisce 8 MP · occupa il **solo slot movimento** ([D-028](../decisions/RT_PDR_00_Decision_Log.md),
 coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` (**+5** al primo danno diretto ricevuto). ⚠️ **Durata: da `1` a `2` turni** con [D-116](../decisions/RT_PDR_00_Decision_Log.md) — non è un ribilanciamento, è la contropartita della migrazione di fase: con lo Sprint dopo il Blast, un `Exposed` che scade nel Cleanup dello stesso turno non incontrerebbe mai un attacco.
@@ -313,7 +335,14 @@ all'impatto (controllo), che nel progetto resta dentro il **Blast** per priorit�
 > cooldown 2). Se un giorno il codice dimostrasse che è solo un duplicato nominale dell'Overwatch, la
 > conclusione sarebbe una **issue di refactor**, non una cancellazione durante un riordino documentale.
 
-**Precision Attack** — range dell'arma **+1** · ignora la copertura bassa · **non** utilizzabile dopo Sprint.
+**Precision Attack** — range dell'arma **+1** · ignora la copertura bassa · **utilizzabile dopo lo Sprint**.
+
+> 🔴 **Questa riga diceva «*non* utilizzabile dopo Sprint» fino al 2026-08-26**, ed era la regola di
+> prima di [D-028](../decisions/RT_PDR_00_Decision_Log.md): quando lo scatto lungo occupava anche la
+> principale, l'attacco non trovava più lo slot. Con lo Sprint sul **solo** movimento il piano è legale —
+> *corro e sparo* — e non per un'eccezione sull'`ActionId`: lo decide la stessa regola di slot che vieta due
+> principali. Lo pinna `RefactorTactics.Actions.PrecisionAttack.WeaponRangePlusOne`, che verifica
+> `ValidateActionSlots({ Sprint, PrecisionAttack })` **senza errori**.
 
 **Heavy Attack** — priorità bassa (risolve tardi) · infligge **20** danni alle coperture distruttibili · se
 interrotto prima della fase d'attacco non produce alcun effetto.
@@ -438,14 +467,24 @@ movimento volontario** dell'eroe.
 **Shield** — applica **25** punti scudo, consumati prima della salute · scade nel Cleanup del turno · non protegge
 dagli effetti di controllo privi di danno.
 
-**Cleanse** — rimuove **un solo** stato fra `Burning`, `Electrified`, `Rooted`, `Marked`, `Exposed`. La priorità
+**Cleanse** — rimuove **un solo** stato, e soltanto fra quelli che **il piano ha elencato**. La priorità
 di rimozione è scelta dal giocatore **durante il planning** (non a runtime: nessuna scelta implicita).
 
-> **Limite v0.1**: `Burning` ed `Electrified` non esistono ancora come stato di unità (sono ambiente, epic E8 /
-> CP 8.2), quindi oggi `Cleanse` opera sui soli `Rooted`/`Marked`/`Exposed`. Il meccanismo scorre una lista di
-> tag dichiarata nel piano: in E8 basterà rendere pianificabili i due nuovi stati, senza toccare il resolver.
-> Senza un ordine dichiarato **non rimuove nulla** (fail-closed): "nessuna scelta implicita" significa che il
-> resolver non sceglie al posto del giocatore neppure quando il candidato sarebbe uno solo.
+> **Limite v0.1, riscritto il 2026-08-27** ([D-211](../decisions/RT_PDR_00_Decision_Log.md)) — la riga precedente diceva
+> *«oggi `Cleanse` opera sui soli `Rooted`/`Marked`/`Exposed`, perché `Burning` ed `Electrified` non esistono
+> come stato di unità»*, e sbagliava due volte: `Burning` **esiste** come stato di unità, e il limite non è un
+> insieme fisso di stati.
+>
+> **L'insieme rimovibile lo dichiara il piano**, tag per tag: `ARTUnit::PlannedCleansePriority` è insieme
+> l'**ordine** e il **filtro** — un tag che l'unità possiede ma che il piano non elenca **non si toglie**
+> (`Reactions.Cleanse.NoImplicitChoice`). Senza lista non rimuove nulla (fail-closed): *«nessuna scelta
+> implicita»* significa che il resolver non sceglie al posto del giocatore neppure quando il candidato
+> sarebbe uno solo.
+>
+> 🔴 **E quella lista non ha produttori**: la scrivono solo i test. In partita `Cleanse` non rimuove niente,
+> paga il cooldown ([D-200](../decisions/RT_PDR_00_Decision_Log.md)) e lascia una voce `NoEffect`. L'argomento sta in
+> [D-211](../decisions/RT_PDR_00_Decision_Log.md) e nella riga **78** di [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md), e **non si
+> duplica qui**.
 
 ---
 

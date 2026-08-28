@@ -1547,8 +1547,8 @@ Leggi `Found N tests` e confronta gli **eseguiti** con i **dichiarati**: sono du
 - [ ] **Decisione nuova.** Registra nel Decision Log la grammatica visiva — sagoma volumetrica sia per *Last
   Contact* sia per *Action Ghost*, distinte su due canali — che emenda `progettazione-hud.md` §9 e §25.
   ✅ **Riverificato il 2026-08-27**: `D-196` era gia' preso su `origin/main` (corpus golden), che era arrivata
-  a **`D-212`** con la PR aperta **#1481** su `D-213`. La voce di questo branch e' quindi **`D-221`**, e la
-  fog of war in v0.1 e' **`D-222`**.
+  a **`D-212`** con la PR aperta **#1481** su `D-213`. La voce di questo branch e' quindi **`D-228`**, e la
+  fog of war in v0.1 e' **`D-225`**.
 - [ ] **PR** con base il branch padre (`git config branch.<current>.parent` o `git merge-base`), **non**
   automaticamente `main`.
 - [ ] **Verifiche PIE** registrate in `docs/technical/test-manuali-pie.md`: sono tre (Step 3.8, 5.7, 6.8) e

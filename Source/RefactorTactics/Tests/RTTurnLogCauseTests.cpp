@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Core/RTGameplayTags.h"
@@ -58,12 +59,7 @@ namespace
 
 	ARTHexMapActor* SpawnCauseMap(UWorld* World, int32 Radius = 6)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = M;
@@ -158,6 +154,7 @@ bool FRTCombatEntryNamesItsActionTest::RunTest(const FString&)
 	Shot->Def.RangeCells = 4;
 	Shot->Def.Effects.Reset();
 	Shot->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 12));
+	Shot->Def.bCountsAsAttack = true; // aggressione: da [`INT-8`] va dichiarata
 	Shot->RangeCells = 4;
 	Shot->Power = 12;
 	Shooter->Abilities.Add(Shot);
@@ -484,6 +481,7 @@ bool FRTBasicAttackProfilePairInLogTest::RunTest(const FString&)
 	Shot->Def.RangeCells = 4;
 	Shot->Def.Effects.Reset();
 	Shot->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 12));
+	Shot->Def.bCountsAsAttack = true; // aggressione: da [`INT-8`] va dichiarata
 	Shot->RangeCells = 4;
 	Shot->Power = 12;
 	Attacker->Abilities.Add(Shot);

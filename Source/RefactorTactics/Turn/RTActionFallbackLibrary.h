@@ -42,6 +42,7 @@ enum class ERTActionInvalidReason : uint8
 	 */
 	TargetUnknown,
 
+
 	/**
 	 * Lo slot che l'azione occupa e' gia' preso da un'altra voce dello stesso piano (CP 38.2).
 	 *
@@ -69,7 +70,60 @@ enum class ERTActionInvalidReason : uint8
 	InsufficientMovementPoints,
 
 	/** L'abilita' non e' ancora ripetibile: il cooldown residuo e' maggiore di zero. */
-	OnCooldown
+	OnCooldown,
+
+	/**
+	 * L'azione e' stata INTERROTTA da un'altra unita' (`Action.Interrupt`, CP 5.4).
+	 *
+	 * Motivo proprio e non `TargetGone`: non e' mancato niente al bersaglio ne' alla geometria — l'azione
+	 * era valida e qualcuno l'ha fermata. E' l'unico motivo di questo enum che ha un AUTORE.
+	 *
+	 * 🔴 **In CODA, e non e' pedanteria.** La prima stesura di `#1412` punto 4 lo aveva messo dopo
+	 * `TargetUnknown`, e questo enum viaggia come intero grezzo in `FRTTurnLogEntry::Amount`: inserirlo in
+	 * mezzo rinumerava `SlotOccupied` 8->9, `InsufficientMovementPoints` 9->10 e `OnCooldown` 10->11, cioe'
+	 * cambiava il SIGNIFICATO di ogni traccia gia' scritta che portasse uno di quei motivi — un cambio
+	 * d'identita' in piu' rispetto ai tre che [D-196] dichiara, e per giunta silenzioso, perche' ogni test
+	 * usa i nomi simbolici e nessun golden porta quelle voci. Trovato in code review.
+	 *
+	 * E' lo stesso divieto che il commento di `InsufficientMovementPoints` scrive per se': togliere o
+	 * spostare una voce sposta le successive.
+	 */
+	Interrupted,
+
+	/**
+	 * L'azione era VALIDA e non ha prodotto effetti utili (`#1437`).
+	 *
+	 * Non e' un difetto di geometria ne' di conoscenza: bersaglio giusto, portata giusta, e nessun effetto
+	 * da applicare — una cura marcata tale i cui `Effects` non portano un `Heal` utile, per esempio da un
+	 * data asset scritto male o da un equipaggiamento che li ha sostituiti. Ha un motivo proprio perche'
+	 * `None` significa «l'azione e' eseguibile» e la resa generica direbbe «non eseguibile», che qui e'
+	 * falso in tutti e due i versi.
+	 *
+	 * ⚠️ In CODA come `Interrupted`: il motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e
+	 * inserirne uno in mezzo cambierebbe il significato delle tracce gia' scritte.
+	 */
+	NoEffect,
+
+	/**
+	 * L'azione e' partita, ha raggiunto il bersaglio, e un'altra azione l'ha resa priva di effetto
+	 * **senza cancellarla** (`#1460`, [D-203]).
+	 *
+	 * L'unico produttore in v0.1 sono due `Action.Interrupt` reciproci: [D-202] li lascia entrambi
+	 * **inefficaci** — un ciclo non ha radice, e ogni tie-break sarebbe arbitrario — quindi nessuno dei due
+	 * cancella e le due azioni originali procedono. Chi ha speso l'Interrupt ha pagato e non ha ottenuto
+	 * niente, e senza questa voce quel turno non lasciava **nessuna** traccia autoritativa.
+	 *
+	 * ⚠️ **Non e' `NoEffect`**, e la distinzione e' quella che `#1430` ha appena pagato per un'altra
+	 * coppia: `NoEffect` dice che l'azione non aveva niente da applicare — un catalogo scritto male, uno
+	 * stato che non c'era. Qui l'azione aveva esattamente qualcosa da applicare, ed e' stata neutralizzata
+	 * da cio' che stava annullando. Metterle sotto lo stesso motivo rifarebbe due significati per una
+	 * coppia sola.
+	 *
+	 * ⚠️ **In coda**, come `Interrupted` e `NoEffect` prima: il motivo viaggia in `Amount`, un `int32`
+	 * serializzato, e inserirne uno in mezzo rinumera tutti quelli che seguono riscrivendo il significato di
+	 * ogni traccia archiviata. Lezione gia' pagata inserendo `Interrupted` a meta' di questo stesso enum.
+	 */
+	Neutralised
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

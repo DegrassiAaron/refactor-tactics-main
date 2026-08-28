@@ -689,6 +689,38 @@ public:
 	 */
 	FRTHexSnapshot MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const;
 
+	/**
+	 * Le unita' VIVE del livello, in ordine stabile per cella.
+	 *
+	 * E' la prima meta' di `MakeCurrentSnapshot`, estratta perche' chi ha bisogno delle unita' ma NON dello
+	 * snapshot non paghi la seconda: `ValidatePlansAtLockIn` iterava un `FRTHexSnapshot` completo — un
+	 * `GetAllActorsOfClass` sull'intero livello, un `FRTHexSimUnit` per unita', la vista di mappa e
+	 * occupazione, una copia di `TeamKnowledgeState` — per passarne un elemento a `URTPlanValidationLibrary`,
+	 * che dopo [D-190] non lo legge affatto.
+	 *
+	 * 🔴 **Il `Sort` non e' una rifinitura**: senza, l'ordine di spawn decide la partita (#990), e cade
+	 * `Match.Autobattle.DeterminismSurvivesUnitPermutation` — verificato per mutazione.
+	 *
+	 * ⚠️ Questo NON e' l'unico `StableLess` su unita' del progetto: `ResolveEnvironment` e `ResolvePrep`
+	 * ordinano array propri con lo stesso comparatore, e `ResolveCombat` pure. Questo helper e' la sorgente
+	 * unica per **chi vuole le unita' vive del livello**, non un consolidamento di tutti gli ordinamenti:
+	 * cambiare il comparatore qui non lo cambia la'.
+	 */
+	/**
+	 * Lo stato di simulazione di UNA unita', con tutti i campi che lo snapshot le darebbe.
+	 *
+	 * Esiste perche' chi ha bisogno dello stato di un'unita' — `ValidatePlansAtLockIn` — non debba
+	 * costruirselo a mano: e' cosi' che e' nato un difetto trovato in code review, con `MoveCostModifier` e
+	 * `Facing` dimenticati. `MakeCurrentSnapshot` chiama questo stesso helper nel proprio loop, quindi i due
+	 * non possono divergere.
+	 *
+	 * ⚠️ `Index` e' l'identita' NELLO SNAPSHOT, non `StableUnitId`: due numerazioni diverse (si veda il
+	 * commento sui contatti in `MakeCurrentSnapshot`).
+	 */
+	FRTHexSimUnit MakeSimUnit(int32 Index, const ARTUnit* Unit) const;
+
+	void CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -721,7 +753,7 @@ protected:
 	 * Il controllo (codice 30) viene prima del danno (40): purificarsi da `Exposed` dopo averne incassato il
 	 * malus non servirebbe a niente.
 	 */
-	void ResolveCleanseActions(const FRTBlastContext& Ctx);
+	void ResolveCleanseActions(FRTBlastContext& Ctx);
 
 	/**
 	 * `Action.Heal` (CP 8.5): si RACCOGLIE qui, prima che il ciclo degli intenti azzeri i piani, e si applica
@@ -797,8 +829,31 @@ protected:
 	 */
 	void ApplyDisplacements(FRTBlastContext& Ctx);
 
-	/** Gli attaccanti sopravvissuti spendono l'abilita' (energia e cooldown); se gratuita, accumulano energia. */
-	void ConsumeAttackerAbilities(FRTBlastContext& Ctx);
+	/**
+	 * Decide QUALI attaccanti pagano — i sopravvissuti — e assegna energia o la voce `Ultimate!`.
+	 *
+	 * ⚠️ Il cooldown NON lo scrive: annota con `MarkAbilitySpent`, e a pagare e' `SpendStartedAbilities`
+	 * (`#1451` punto 3). Si chiamava `ConsumeAttackerAbilities`, e il nome e' stato cambiato perche' dopo
+	 * quel refactor non consumava piu' niente: chi cercasse `Consume` per capire dove nasce un cooldown
+	 * sarebbe atterrato qui senza trovare nessuna scrittura.
+	 */
+	void MarkAttackerAbilitiesSpent(FRTBlastContext& Ctx);
+
+	/**
+	 * L'UNICO punto in cui un'azione pianificata del Blast paga il proprio cooldown (`#1451` punto 3).
+	 *
+	 * Consuma cio' che i pass hanno annotato con `FRTBlastContext::MarkAbilitySpent`. Il criterio
+	 * «l'azione e' PARTITA» resta a chi annota — [D-200] lo scrive per la portata — e qui non si
+	 * ridecide niente, nemmeno `IsAlive()`: le guardie di vita valgono al momento dell'annotazione.
+	 * Il contesto e' `const` perche' questa passata non ha niente da aggiungergli. ⚠️ **Non e' il
+	 * compilatore a difendere l'asimmetria di [D-209]**: `IsAlive()` e' un metodo const e `SpentActors[i]`
+	 * restituisce un puntatore a non-const, quindi infilare qui `if (!Attore->IsAlive()) continue;`
+	 * compila benissimo. A renderlo rosso sono le due righe di `PlannedActionPaysOnlyIfItStarted`.
+	 */
+	void SpendStartedAbilities(const FRTBlastContext& Ctx);
+
+	/** La sequenza dei pass del Blast. Ha un'uscita anticipata: il pagamento sta in `ResolveCombat`. */
+	void ResolveCombatPasses(FRTBlastContext& Ctx);
 
 	/**
 	 * Applica ai bersagli sopravvissuti gli stati dichiarati dai colpi, consultando prima chi ha annullato il
@@ -1028,7 +1083,8 @@ protected:
 	 * da `Sources` — quella e' una cella, e una cella non e' un'unita' ([D-063]).
 	 */
 	void ApplyPlannedHeals(const TArray<ARTUnit*>& Targets, const TArray<int32>& Amounts,
-		const TArray<FRTCellId>& Sources, const TArray<ARTUnit*>& Healers);
+		const TArray<FRTCellId>& Sources, const TArray<ARTUnit*>& Healers,
+		const TArray<FRTActionDef>& Defs);
 
 	/**
 	 * Voce di TurnLog per uno spostamento SUBITO — spinta o trazione (#307). Chiamata dai due punti che
@@ -1218,6 +1274,15 @@ protected:
 
 	TArray<FRTPacingSample> PacingSamples;
 	FRTPacingSample PacingCurrent;
+	/**
+	 * Vero fra `BeginPacingSample()` e `ClosePacingSample()`.
+	 *
+	 * ⚠️ Non e' ridondante con `PacingPlanningStart != 0.0`: quel confronto risponde «l'origine e' stata
+	 * scritta almeno una volta», che dopo il primo turno resta vero per sempre — e il campione di un turno
+	 * successivo aperto da un percorso che non passa dal timer si misurerebbe da un'origine di due turni
+	 * fa. Lo stato si chiede a un flag, non lo si deduce da un valore.
+	 */
+	bool bPacingSampleOpen = false;
 	double PacingPlanningStart = 0.0;  // FPlatformTime::Seconds() all'apertura della pianificazione
 	double PacingLastInput = 0.0;
 	bool bPacingHadInput = false;
@@ -1384,6 +1449,24 @@ protected:
 	 * non da subire: il parametro non ha default apposta.
 	 */
 	void AppendLogEntry(FRTTurnLogEntry& Entry, const ARTUnit* Actor);
+
+	/**
+	 * Registra un cambio d'orientamento e ne appende le voci **passando da `AppendLogEntry`**.
+	 *
+	 * ⚠️ `URTFacingLibrary` lavora su `FRTHexSimUnit`, che porta l'INDICE della simulazione e non
+	 * `StableUnitId`: la libreria non puo' riempire da sola i tre campi di contesto, e finche' i chiamanti le
+	 * passavano `TurnLog` per riferimento ogni voce `Facing` derivata nasceva con **turno 0, revisione 0 e
+	 * nessuna unita'** (`#1429`). Il commento di `AppendLogEntry` prometteva che ogni emissione passasse di
+	 * li'; era vero *del file*, non del TurnLog.
+	 *
+	 * L'attore arriva come parametro per la stessa ragione per cui ce l'ha `AppendLogEntry`: dalla voce non si
+	 * deduce, e dedurlo dall'indice della simulazione legherebbe la traccia a una corrispondenza
+	 * (`StableUnitId == FRTHexSimUnit::UnitId + 1`) che nessuno ha dichiarato.
+	 */
+	// `LogPhase` e non `Phase`: il manager ha un membro con quel nome, e ombreggiarlo e' un warning trattato
+	// come errore.
+	void RecordFacingChange(FRTHexSimUnit& Unit, ERTHexDirection NewFacing, ERTFacingOutcome Reason,
+		ERTMatchPhase LogPhase, const ARTUnit* Actor);
 
 	/**
 	 * Valida il piano di ogni unita' viva al COMMIT, e registra nel COMBAT LOG quello che non torna (CP 38.2).

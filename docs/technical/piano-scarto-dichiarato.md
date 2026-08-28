@@ -110,7 +110,7 @@ hash storici. Se un golden cade, è un difetto vero — non rigenerarlo.
 
 ### Task 1: Il validatore al lock-in acquista un test
 
-Oggi `grep -rn ValidatePlansAtLockIn Source/` restituisce **tre** occorrenze — dichiarazione, definizione,
+Quando questo piano è stato scritto, `grep -rn ValidatePlansAtLockIn Source/` restituiva **tre** occorrenze — dichiarazione, definizione,
 chiamata — e **zero** test. La riga di #605 che questa PR chiude si può cancellare senza che la suite se ne
 accorga.
 
@@ -1018,13 +1018,14 @@ git commit -m "feat(605): anche lo slot principale dichiara cio' che perde"
 
 ## Cosa questo piano NON fa
 
-- **Lo snapshot inutile al lock-in.** `ValidatePlansAtLockIn` costruisce un `MakeCurrentSnapshot` completo
-  per un parametro che `ValidatePlan` documenta di non leggere dopo D-190. È spreco misurabile, non un
-  difetto di comportamento: merita una issue sua, non un task dentro una PR che sta già chiudendo quattro
-  giri di review.
-- **Il predicato «ha un movimento pianificato» in due file.** `MakePlanFor` e `ResolveDash` calcolano la
-  stessa regola con gli operandi invertiti. Unificarlo in `ARTUnit` o in `URTPlanValidationLibrary` è la cosa
-  giusta, e tocca un terzo file: fuori scope qui.
+- ~~**Lo snapshot inutile al lock-in.**~~ ✅ **Fatto** in [#1419](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1419)
+  (issue [#1413](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1413)): la raccolta è
+  estratta in `ARTTurnManager::CollectLivingUnits` e lo stato dell'unità in `MakeSimUnit`, così il lock-in
+  non paga più la mappa e non costruisce niente a mano.
+- ~~**Il predicato «ha un movimento pianificato» in due file.**~~ ✅ **Fatto** nella stessa PR (issue
+  [#1414](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1414)): è
+  `ARTUnit::HasPlannedNormalMove()`, e i chiamanti sono diventati **tre** — la HUD ne teneva una copia con
+  metà regola.
 - **Il ventunesimo builder di mappa piatta nei test.** Questo piano non ne aggiunge uno nuovo — riusa gli
   helper già presenti in `RTPlayerInteractionTests.cpp` — ma non promuove nemmeno quelli esistenti in
   `URTMatchSetupLibrary`, che è il consolidamento che venti file aspettano.

@@ -10,6 +10,7 @@
 // col 2v2: due dimensioni non distinguono «funziona per ogni N» da «funziona per i due N che ho provato».
 
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "RTWorldFixtures.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -18,7 +19,6 @@
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTMatchStateHash.h"
@@ -50,11 +50,7 @@ namespace
 	 */
 	URTHexMapAsset* MakeStressArena(UWorld* World, int32 Radius = 8)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 
 		// Due barriere verticali che lasciano tre varchi: nord, centro, sud. Celle che bloccano passo e vista,
 		// cioe' il dato che il progetto usa gia' per la copertura alta — nessuna geometria nuova.

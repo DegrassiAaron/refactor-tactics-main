@@ -20,11 +20,11 @@
 // comunque difendibile — cio' che il test pinna e' il PRODUTTORE di questi trigger, non il catalogo in se'.
 
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTCatalogLibrary.h" // `Action.Overwatch`: il produttore che CP 14.5 aggiunge al catalogo core
 #include "Combat/RTOffensiveActionLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
-#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "Perception/RTPerceptionLibrary.h"
@@ -51,12 +51,7 @@ namespace
 	/** Nomi distinti per file: la unity build condivide la translation unit. */
 	URTHexMapAsset* MakeOverwatchMap(int32 Radius = 6)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		return M;
 	}
 
@@ -727,11 +722,12 @@ bool FRTOverwatchActionIsInCoreCatalogTest::RunTest(const FString&)
 	const TArray<FName> Generic = URTCatalogLibrary::GetGenericActionIds();
 	TestTrue(TEXT("e' fra le azioni generiche"), Generic.Contains(FName(TEXT("Action.Overwatch"))));
 
-	// L'ordine, per intero e non solo «l'ultima»: cosi' il test cade anche se qualcuno ne inserisse una quinta
+	// L'ordine, per intero e non solo «l'ultima»: cosi' il test cade anche se qualcuno ne inserisse una nuova
 	// prima delle esistenti invece che dopo.
 	const TArray<FName> Expected = {
-		TEXT("Action.Wait"), TEXT("Action.Guard"), TEXT("Action.Brace"), TEXT("Action.Overwatch") };
-	TestEqual(TEXT("le generiche sono quattro"), Generic.Num(), Expected.Num());
+		TEXT("Action.Wait"), TEXT("Action.Guard"), TEXT("Action.Brace"), TEXT("Action.Overwatch"),
+		TEXT("Action.Interact") };
+	TestEqual(TEXT("le generiche sono cinque"), Generic.Num(), Expected.Num());
 	for (int32 i = 0; i < Expected.Num() && i < Generic.Num(); ++i)
 	{
 		TestEqual(FString::Printf(TEXT("la generica %d e' `%s`"), i, *Expected[i].ToString()),

@@ -51,11 +51,12 @@ Sette punti su venti del §20 sono **già canone**. Vanno letti come conferma es
 **C1 — Il roster degli esempi è superato.** §7 usa *Aegis* e *Drift*. Roster vigente: **Gadget · Phase ·
 Riktor · Wraith** (`showcase-v0.1.md` §0). Gli esempi restano validi come forma, non come contenuto.
 
-**C2 — «Fog of War» era fuori dal modello di questo progetto, e da `D-222` (2026-08-27) non lo è più.** §6
-la elenca fra le cause d'incertezza, ed è tornato corretto: la fog of war è entrata nella **v0.1** dentro
-**E13**, e **nasconde** il contenuto delle celle che nessuno della squadra osserva. Resta distinta dalla
-**conoscenza parziale** vera e propria — i tre livelli `Nascosto / Incerto / Rilevato` riguardano **unità ed
-eventi**; la fog è come quella conoscenza si legge sulla mappa. Conseguenza pratica: prima di E13 la classe *incerto* può
+**C2 — «Fog of War» non è il modello di questo progetto.** §6 elenca la FoW fra le cause d'incertezza. La
+**conoscenza parziale** (tre livelli `Nascosto / Incerto / Rilevato`) è **E13**. 🔴 **Questo capoverso diceva
+anche *«il canone non ha fog of war: la mappa statica resta nota»*, e
+[D-225](../../decisions/RT_PDR_00_Decision_Log.md) l'ha reso falso il 2026-08-28**: in v0.1 la geometria che
+nessuno osserva non viene disegnata. Ciò che resta vero di C2 è il seguito — prima di E13 la classe *incerto*
+non può coprire la visibilità. Conseguenza pratica: prima di E13 la classe *incerto* può
 coprire solo ciò che dipende dall'avversario — bersaglio che può spostarsi, collisione possibile, reaction
 avversaria — **non** la visibilità. Dichiararlo, invece di mostrare un `?` che finge un sistema assente.
 

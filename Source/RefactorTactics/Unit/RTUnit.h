@@ -440,6 +440,31 @@ public:
 	 */
 	int32 FindDashAbilityIndex() const;
 
+	/**
+	 * Vero se questa unita' ha pianificato un MOVIMENTO NORMALE — una destinazione diversa dalla cella
+	 * attuale, oppure un percorso con almeno un passo.
+	 *
+	 * 🔴 **Un solo posto, ed e' il motivo per cui esiste.** La stessa domanda si faceva in due file con gli
+	 * operandi invertiti: `URTPlanValidationLibrary::MakePlanFor` decide se il piano CONTIENE una voce
+	 * `Action.Move`, `ARTTurnManager::ResolveDash` decide se scrivere la voce che dichiara quel movimento
+	 * SCARTATO. Sono la stessa regola: se una delle due guadagnasse un caso — un piano con soli
+	 * `PlannedWaypoints`, un bot che cominciasse a scrivere `PlannedPath` — validatore e resolver
+	 * risponderebbero diversamente sulla stessa unita' nello stesso turno, in silenzio.
+	 *
+	 * ⚠️ **Non e' la stessa condizione che `ResolveMovement` applica per PERCORRERE il piano**: quello esige
+	 * anche che il percorso sia ancorato — `PlannedPath[0] == Cell` — e altrimenti ripiega su `PlannedCell`.
+	 * Qui la domanda e' se un movimento sia stato DICHIARATO, non se sia percorribile. Oggi la differenza non
+	 * e' raggiungibile (entrambi gli scrittori di `Cell` azzerano `PlannedPath`), ma il controllo d'ancoraggio
+	 * esiste perche' quell'invariante non e' data per scontata: se un giorno cadesse, questo predicato
+	 * direbbe «si muove» dove il resolver terrebbe l'unita' ferma.
+	 *
+	 * ⚠️ **Si legge PRIMA che `Cell` venga riscritta.** In `ResolveDash` la cella d'arrivo dello scatto
+	 * sovrascrive `Cell`: chiamato dopo, il confronto con `PlannedCell` e' vero per OGNI scatto che ha
+	 * spostato l'unita', anche per chi non aveva pianificato nulla. E' un difetto misurato il 2026-08-26,
+	 * ed e' difeso da `PlayerInteraction.NoSupersededEntryOnADashWithoutAPlannedMove`.
+	 */
+	bool HasPlannedNormalMove() const { return PlannedCell != Cell || PlannedPath.Num() > 1; }
+
 	/** Vero se l'abilita' e' pronta (non in ricarica) e c'e' energia sufficiente. */
 	bool CanUseAbility(int32 Index) const;
 
@@ -473,6 +498,24 @@ public:
 
 	/** Rimuove la parte temporanea dello scudo (fine turno). Lo scudo BASE dell'unita' resta. */
 	void ExpireTemporaryShield();
+
+	/**
+	 * Riporta lo scudo BASE al suo valore pieno ([D-224]): 5 punti che ogni unita' porta, non crescono e
+	 * tornano interi a fine turno. Chiamata dal COSTRUTTORE — un'unita' esiste gia' protetta — e in coda al
+	 * Cleanup, dove il temporaneo e' appena scaduto.
+	 *
+	 * ⚠️ **Non da `BeginPlay`, ed e' una correzione misurata**: i mondi di test costruiti con
+	 * `UWorld::CreateWorld` non fanno partire `BeginPlay`, quindi lo scudo sarebbe esistito in partita e
+	 * NON dove lo si verifica. Il costruttore gira su `NewObject` come su ogni `SpawnActor`.
+	 *
+	 * Non e' nemmeno il default del campo `Shield`: il valore lo dichiara `URTCombatLibrary::BaseShield`
+	 * insieme alle altre costanti di combattimento, e un solo punto lo applica.
+	 *
+	 * La somma con `TemporaryShield` e' ridondante nella posizione attuale — li' vale sempre 0 — ma tiene
+	 * l'invariante `Shield = base + temporaneo` vera se un giorno l'ordine delle due chiamate cambiasse.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Unit")
+	void RechargeBaseShield();
 
 	/** Quota dello scudo corrente che scadra' a fine turno (diagnostica/HUD). */
 	int32 GetTemporaryShield() const { return TemporaryShield; }

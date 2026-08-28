@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Combat/RTCombatLibrary.h"
@@ -51,12 +52,7 @@ namespace
 
 	ARTHexMapActor* SpawnDefMap(UWorld* World, int32 Radius = 6)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
 		Actor->MapAsset = M;
@@ -75,6 +71,10 @@ namespace
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo: questi test guardano il Blast
+		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
+		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
+		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
+		U->Shield = 0;
 		return U;
 	}
 
@@ -816,6 +816,10 @@ namespace
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
+		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
+		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
+		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
+		U->Shield = 0;
 		return U;
 	}
 
@@ -1260,6 +1264,95 @@ bool FRTBraceBotAnswerIsLegalTest::RunTest(const FString&)
 	TestEqual(TEXT("sull'Overwatch il bot spara come sempre"),
 		URTHexBotLibrary::DecideReactionResponse(Overwatch),
 		URTReactionOpportunityLibrary::FireResponse(3));
+
+	return true;
+}
+
+/**
+ * **Il modulo reazione di default non duplica la reazione che l'eroe ha già nel kit.**
+ *
+ * Uno slot di loadout speso su una capacità che l'eroe possiede già non è una scelta: è una voce in più
+ * nella lista, e il giocatore che arma l'una o l'altra ottiene la stessa cosa. Trovato misurando `#1403`:
+ * `Hero.Riktor.Interposition` e `Reaction.AllyIntercept` erano **entrambi** costruiti su `Action.Intercept`.
+ *
+ * ⚠️ **A tabella, e la forma è la lezione di [D-201]**: il difetto era su **due** eroi su quattro, e
+ * correggerne uno solo avrebbe reso quello l'eccezione mentre l'altro restava. Una riga per eroe, e chi
+ * resta duplicato deve dichiararsi.
+ *
+ * ⚠️ **`DerivedFromActionId` e non `ActionId`**: sia `MakeHeroReactionFromCoreAction` sia
+ * `MakeEquipmentAction` riscrivono il nome e conservano la derivazione ([D-195], `#1443`). Confrontare i
+ * nomi darebbe sempre «diversi», e il test sarebbe verde per costruzione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefaultReactionModuleIsNotADuplicateTest,
+	"RefactorTactics.Equipment.DefaultReactionModuleIsNotADuplicate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDefaultReactionModuleIsNotADuplicateTest::RunTest(const FString&)
+{
+	struct FCaso
+	{
+		const TCHAR* HeroId;
+		const URTHeroData* (*Make)();
+		bool bDuplicatoDichiarato; //< eccezione nota, con la sua ragione qui sotto
+		const TCHAR* Nota;
+	};
+
+	const FCaso Casi[] = {
+		{ TEXT("Hero.Gadget"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeGadget(); },
+		  true,
+		  TEXT("⚠️ DUPLICATO DICHIARATO: `ReactiveShield` e `ReactiveCapacitor` sono entrambi `Action.Counter`. "
+		       "Non corretto insieme a Riktor perche' il loadout di Gadget e' comunque VUOTO — `Gadget.Insulator` "
+		       "non e' spedito e `DefaultLoadoutFor` e' tutto-o-niente — quindi il duplicato non raggiunge il "
+		       "campo. Va corretto quando quel gadget arriva, e questa riga e' il promemoria (#1403).") },
+		{ TEXT("Hero.Phase"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakePhase(); },
+		  false, TEXT("nessuna reazione nel kit: qualunque modulo e' una capacita' nuova") },
+		{ TEXT("Hero.Riktor"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeRiktor(); },
+		  false, TEXT("`Reaction.Cleanse` contro `Interposition` di kit: due capacita' diverse ([D-218])") },
+		{ TEXT("Hero.Wraith"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeWraith(); },
+		  false, TEXT("`EmergencyDash` (Counter) contro `Deflection` di kit (Deflect)") },
+	};
+
+	for (const FCaso& C : Casi)
+	{
+		const URTHeroData* Hero = C.Make();
+		if (!TestNotNull(*FString::Printf(TEXT("%s: dato d'eroe"), C.HeroId), Hero)) { continue; }
+
+		// La reazione che l'eroe porta nel proprio kit, se ne ha una.
+		FName CoreDelKit;
+		for (const URTActionData* A : Hero->Actions)
+		{
+			if (A && A->Def.Slot == ERTActionSlot::Reaction)
+			{
+				CoreDelKit = A->Def.DerivedFromActionId;
+				break;
+			}
+		}
+
+		const FName ModuloId = URTCatalogLibrary::DefaultReactionModuleFor(FName(C.HeroId));
+		const URTEquipmentData* Modulo = URTCatalogLibrary::FindEquipment(ModuloId);
+		if (!TestNotNull(*FString::Printf(TEXT("%s: il modulo prescritto e' spedito (%s)"),
+			C.HeroId, *ModuloId.ToString()), Modulo))
+		{
+			continue;
+		}
+
+		const URTActionData* Concessa = URTCatalogLibrary::MakeEquipmentAction(Modulo, GetTransientPackage());
+		if (!TestNotNull(*FString::Printf(TEXT("%s: il modulo concede un'azione"), C.HeroId), Concessa))
+		{
+			continue;
+		}
+		const FName CoreDelModulo = Concessa->Def.DerivedFromActionId;
+
+		AddInfo(FString::Printf(TEXT("%s: kit=%s modulo=%s (%s) — %s"),
+			C.HeroId, *CoreDelKit.ToString(), *ModuloId.ToString(), *CoreDelModulo.ToString(), C.Nota));
+
+		// Un eroe senza reazione di kit non puo' duplicare niente: la riga passa per costruzione, ed e'
+		// giusto che ci sia lo stesso — il giorno in cui quell'eroe ne acquista una, la tabella se ne accorge.
+		if (CoreDelKit.IsNone()) { continue; }
+
+		const bool bDuplicato = (CoreDelKit == CoreDelModulo);
+		TestEqual(*FString::Printf(TEXT("%s: lo slot di loadout non spende su cio' che l'eroe ha gia'"), C.HeroId),
+			bDuplicato, C.bDuplicatoDichiarato);
+	}
 
 	return true;
 }

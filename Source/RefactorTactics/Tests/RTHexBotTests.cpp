@@ -1,4 +1,6 @@
 #include "Misc/AutomationTest.h"
+#include "UObject/StrongObjectPtr.h" // tiene vive le arene del test attraverso un eventuale GC
+#include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Bot/RTHexBotLibrary.h"
 #include "Combat/RTCombatLibrary.h" // LowCoverDamageReduction: il bonus direzionale si confronta col catalogo
@@ -18,12 +20,7 @@ namespace
 	/** Esagono pieno di raggio N sul layer 0. Nome distinto per file (unity build). */
 	URTHexMapAsset* MakeBotMap(int32 Radius)
 	{
-		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
-		for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
-		{
-			M->AddOrUpdateCell(FRTHexCellData(Id));
-		}
-		M->SortCells();
+		URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), Radius);
 		return M;
 	}
 
@@ -138,6 +135,108 @@ namespace
 // ---------------------------------------------------------------------------------------------------------
 // Scoring
 // ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **Due mappe vive non si scambiano il campo di distanze.**
+ *
+ * `StepsToGoalField` cachea una BFS con chiave `(asset, Revision, goal)`. Dopo [D-196] la `Revision` non
+ * distingue piu' due arene piatte — nascono tutte con `1`, mentre prima ne portavano una per cella e si
+ * discriminavano **per caso** — quindi a tenerle separate resta la sola identita' dell'asset.
+ *
+ * ⚠️ **Cosa questo test NON prova.** `#1436` riguarda il riuso di un INDIRIZZO dopo il GC: due oggetti
+ * diversi che finiscono allo stesso posto, dove un puntatore grezzo non li distingue e `FObjectKey` — che
+ * porta anche il serial number — si'. Qui le due arene sono vive **insieme**, quindi hanno indirizzi
+ * diversi e il test resta verde anche col puntatore grezzo: verificato per mutazione, e la prima stesura di
+ * questo commento sosteneva il contrario.
+ *
+ * Riprodurre il riuso vorrebbe dire pilotare collettore e allocatore di UObject, e un test che ci prova
+ * senza garanzie sarebbe intermittente — peggio di non averlo. Questo pinna la proprieta' piu' debole che
+ * si puo' pinnare in modo deterministico: **l'asset e' nella chiave**, che e' il modo in cui il difetto
+ * tornerebbe per una svista.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotFieldCacheKeepsMapsApartTest,
+	"RefactorTactics.HexBot.PathFieldCacheKeepsLiveMapsApart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotFieldCacheKeepsMapsApartTest::RunTest(const FString&)
+{
+	// ⚠️ `TStrongObjectPtr`: sono UObject non rooted, e un GC fra qui e la fine del test li porterebbe via
+	// lasciando due puntatori penzolanti. In un test che parla di identita' attraverso il GC, la premessa
+	// dev'essere sicura invece che fortunata.
+	TStrongObjectPtr<URTHexMapAsset> Libera(MakeBotMap(4));
+	TStrongObjectPtr<URTHexMapAsset> ConMuro(MakeBotMap(4));
+	if (!TestNotNull(TEXT("arena libera"), Libera.Get()))
+	{
+		return false;
+	}
+	if (!TestNotNull(TEXT("arena col muro"), ConMuro.Get()))
+	{
+		return false;
+	}
+
+	// Il muro si aggiunge con UNA `ReplaceContent`, non ricostruendo l'arena a mano: cosi' il builder
+	// condiviso resta nel percorso.
+	//
+	// ⚠️ La stessa operazione si applica a ENTRAMBE, anche a quella che non cambia: `ReplaceContent` muove
+	// la `Revision`, quindi rimpiazzare le celle di una sola le renderebbe distinguibili proprio per il
+	// campo che questo test vuole neutralizzare. La prima stesura lo faceva, e la premessa cadeva.
+	auto Rimpiazza = [](URTHexMapAsset* Mappa, bool bConMuro)
+	{
+		TArray<FRTHexCellData> Celle;
+		for (const FRTHexCellData& Cella : Mappa->Cells)
+		{
+			FRTHexCellData Copia = Cella;
+			// Colonna q=0 murata con UN varco in cima (r = -4): obbliga a girarci intorno, quindi i PASSI
+			// cambiano mentre la distanza in linea d'aria no.
+			//
+			// ⚠️ Il varco serve: murata tutta, l'arena si spezza in due e `ApproachSteps` ricade su
+			// `HexDistance` — le due mappe tornerebbero a dare lo stesso numero, verde per il motivo
+			// sbagliato. E l'origine va murata: lasciarla libera lascia aperta la retta fra le due celle.
+			if (bConMuro && Copia.Id.X == 0 && Copia.Id.Y > -4)
+			{
+				Copia.bBlocksMovement = true;
+			}
+			Celle.Add(Copia);
+		}
+		Mappa->ReplaceContent(Celle, {});
+		Mappa->SortCells();
+	};
+	Rimpiazza(ConMuro.Get(), /*bConMuro=*/ true);
+	Rimpiazza(Libera.Get(), /*bConMuro=*/ false);
+
+	// La premessa che rende il test significativo: la `Revision` NON le distingue.
+	TestEqual(TEXT("premessa: le due arene portano la stessa Revision"),
+		Libera->Revision, ConMuro->Revision);
+
+	FRTHexBotContext Ctx;
+	Ctx.Enemies.Add(FRTCellId(3, 0, 0));
+	// ⚠️ `EnemyRanges` va popolato: il termine di avvicinamento gira su
+	// `Min(Enemies.Num(), EnemyRanges.Num())`, quindi senza questa riga il ciclo NON parte, `ApproachSteps`
+	// non viene mai chiamato e i due punteggi coincidono — un test verde per il motivo sbagliato, che e'
+	// come questa fixture ha fallito la prima volta.
+	Ctx.EnemyRanges.Add(1);
+
+	// Nessun attacco: si misura il solo termine di avvicinamento. `TargetIndex` resta `INDEX_NONE` come
+	// vuole la convenzione di questo file per i piani senza attacco.
+	FRTHexBotPlan Plan;
+	Plan.FromCell = FRTCellId(-3, 0, 0);
+	Plan.DestCell = FRTCellId(-3, 0, 0);
+	Plan.TargetIndex = INDEX_NONE;
+	Plan.bHasAttack = false;
+
+	// L'ordine conta: la prima chiamata popola la cache, la seconda la troverebbe se la chiave non
+	// distinguesse le due mappe.
+	const int32 ScoreConMuro = URTHexBotLibrary::ScorePlan(ConMuro.Get(), Plan, Ctx);
+	const int32 ScoreLibera = URTHexBotLibrary::ScorePlan(Libera.Get(), Plan, Ctx);
+
+	AddInfo(FString::Printf(TEXT("punteggi: col muro %d, libera %d"), ScoreConMuro, ScoreLibera));
+
+	// Girare intorno al muro costa passi, e l'avvicinamento entra nel punteggio: due topologie diverse non
+	// possono dare lo stesso numero, a meno che la seconda non abbia riletto il campo della prima.
+	TestNotEqual(TEXT("due mappe diverse non condividono il campo di distanze"),
+		ScoreConMuro, ScoreLibera);
+
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotFocusFireTest,
 	"RefactorTactics.HexBot.ScoreFocusFire",

@@ -765,8 +765,15 @@ FName URTCatalogLibrary::DefaultReactionModuleFor(const FName& HeroId)
 		{ FName(TEXT("Hero.Gadget")), FName(TEXT("Reaction.ReactiveShield")) },
 		// Fuga hazard: `Reposition 1` quando la cella diventa pericolosa.
 		{ FName(TEXT("Hero.Phase")), FName(TEXT("Reaction.HazardEscape")) },
-		// Interposizione: cambia bersaglio quando un alleato e' bersagliato.
-		{ FName(TEXT("Hero.Riktor")), FName(TEXT("Reaction.AllyIntercept")) },
+		// 🔴 **Purificazione, non interposizione** (`#1403`, [D-218]). §4 prescriveva
+		// `Reaction.AllyIntercept`, costruito su `Action.Intercept` — e la reazione di KIT di Riktor,
+		// `Hero.Riktor.Interposition`, e' costruita sullo **stesso** `Action.Intercept`. Lo slot di loadout
+		// spendeva su cio' che l'eroe ha gia': due voci per una capacita' sola, e nessuna scelta reale al
+		// giocatore. `Reaction.Cleanse` non gli toglie niente e gli da' l'unica risposta esistente allo
+		// `Status.Slow` che `Hero.Riktor.ImpactShot` — il suo **attacco base** — applica a ogni colpo
+		// (`#1479`). ⚠️ Questa riga si scosta da §4 del catalogo equipaggiamento, e lo dichiara: la fonte
+		// prescriveva un duplicato, e per [D-210] il codice recepito prevale su un catalogo di `balance/`.
+		{ FName(TEXT("Hero.Riktor")), FName(TEXT("Reaction.Cleanse")) },
 		// Dash d'emergenza: `Reposition 1` quando sei bersagliato.
 		{ FName(TEXT("Hero.Wraith")), FName(TEXT("Reaction.EmergencyDash")) },
 	};
@@ -1021,7 +1028,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 {
 	TArray<FRTActionDef> Catalog;
 
-	// `Action.Sprint` (catalogo v0.1 §2) — 8 MP, consuma movimento E azione principale, applica `Status.Exposed`
+	// `Action.Sprint` (catalogo v0.1 §2) — 8 MP, occupa il SOLO slot movimento [D-028], applica `Status.Exposed`
 	// fino al Cleanup. Per le azioni di mobilita' rapida `RangeCells` e' il BUDGET in punti movimento, non un
 	// numero di celle: su terreno difficile si arriva meno lontano (e' lo stesso budget del movimento normale,
 	// con un'altra quantita').
@@ -1057,6 +1064,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.BasicAttack"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
 		/*bInterruptible*/ true, ERTActionSlot::Main));
+	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// `Action.Guard` — si prepara nel Prep e vale per il turno: -15 al primo danno diretto, resiste a una
 	// spinta di 1 cella, scade nel Cleanup. Non interrompibile (catalogo §1).
@@ -1158,9 +1166,13 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20), FRTActionEffectSpec(ERTActionEffect::Push, 1) },
 		/*bInterruptible*/ true, ERTActionSlot::Movement, ERTMovementStyle::LinearCharge));
-	// L'UNICA mobilita' lineare che resta sulla principale, e la ragione e' nei suoi Effects: fa danno, quindi
-	// e' un attacco che ti porta addosso al bersaglio, non mobilita' generica (D-028). Chi carica conserva il
-	// movimento e si sposta DOPO il Blast - l'economia opposta allo scatto, non la stessa a prezzo diverso.
+	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
+	// Occupa il MOVIMENTO come ogni altra mobilita' rapida [D-191]: che una carica faccia danno a chi raggiunge
+	// non cambia CHE COSA ha speso. Fino al 2026-08-26 questo capoverso diceva l'opposto - «l'unica mobilita'
+	// lineare che resta sulla principale, e chi carica conserva il movimento» - seguendo la clausola di D-028
+	// che D-191 ha superato: con la carica sulla principale Riktor pianificava `Ram` E l'attacco base, e il
+	// resolver eseguiva entrambe. Chi vuole che una mobilita' costi ANCHE la principale lo dichiara con
+	// `MovementAndMain`, che oggi nessuna azione dei cataloghi usa.
 
 	// `Leap` — 3 celle scavalcando cio' che sta in mezzo (unita', coperture basse). La cella d'atterraggio
 	// invece la si subisce: dev'essere percorribile e libera.
@@ -1181,12 +1193,15 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// dello stesso turno; il pesante per ultimo perche' e' cio' che il catalogo compra con i suoi 35 danni.
 
 	// `PrecisionAttack` — 24 danni fissi, portata dell'arma +1 (la mette MakePrecisionAttack: qui, come per
-	// `BasicAttack`, un numero sarebbe arbitrario). Non e' usabile dopo uno Sprint, ma questo NON e' scritto
-	// qui: `Sprint` occupa gia' movimento e azione principale, e ValidateActionSlots ne fa un caso della
-	// regola generale invece di un'eccezione sull'ActionId.
+	// `BasicAttack`, un numero sarebbe arbitrario). E' usabile DOPO uno Sprint da [D-028], e non per un `if`
+	// sull'ActionId: lo scatto lungo occupa il solo slot movimento, quindi la principale resta libera - *corro
+	// e sparo*, la stessa forma di *schivo e sparo*. Prima di D-028 il catalogo la dichiarava illegale e
+	// ValidateActionSlots lo otteneva come caso della regola generale; oggi la stessa regola generale la
+	// AMMETTE, ed e' cio' che pinna `RefactorTactics.Actions.PrecisionAttack.WeaponRangePlusOne`.
 	Catalog.Add(ShippedAction(TEXT("Action.PrecisionAttack"), ERTResolutionPhase::Attack, /*Priority*/ 60,
 		/*Range*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }));
+	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// `HeavyAttack` — 35 danni e priorita' 80: risolve tardi, ed e' il prezzo che paga per essere il colpo
 	// piu' duro. Interrompibile: se un `Action.Interrupt` la coglie prima del Blast non produce NULLA — non
@@ -1198,6 +1213,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 0, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 35),
 		  FRTActionEffectSpec(ERTActionEffect::DamageStructure, 20) }));
+	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// `LineAttack` — 22 danni al PRIMO bersaglio valido su una delle sei direzioni, portata 5. Non e' la
 	// `Shape::Line` delle abilita' d'archetipo (che colpisce tutti quelli attraversati): la risolve
@@ -1206,6 +1222,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.LineAttack"), ERTResolutionPhase::Attack, /*Priority*/ 55,
 		/*Range*/ 5, /*Cooldown*/ 1, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 22) }));
+	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// `CircularAoE` — 18 danni in un esagono di raggio 1, centro entro 4 celle. `RangeCells` e' la portata
 	// del CENTRO, il raggio dell'area sta nell'intento (`FRTHexAttackIntent::AreaRadius`): sono due numeri
@@ -1218,6 +1235,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.CircularAoE"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range (centro)*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }));
+	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// `SuppressiveLine` — si PREPARA (fase 10, quindi macro-fase Prep) e si attiva su un trigger: il primo
 	// nemico che entra in una cella controllata durante il Move prende 16 danni e si ferma li'. Una sola
@@ -1229,6 +1247,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 5, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) },
 		/*bInterruptible*/ false));
+	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 
 	// `MarkTarget` — nessun danno proprio: applica `Status.Marked` per un turno, e il prossimo attacco
 	// alleato contro quel bersaglio infligge +6 e consuma il marchio. Priorita' 40, la piu' bassa delle
@@ -1239,6 +1258,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.MarkTarget"), ERTResolutionPhase::Attack, /*Priority*/ 40,
 		/*Range*/ 0, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Marked, /*Turni*/ 1) }));
+	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
 	// --- Difensive e reazioni (catalogo §4) ---------------------------------------------------------------
 	// ATTENZIONE alla riga «Slot» della tabella: solo `Counter`, `Intercept` e `Deflect` occupano lo slot
@@ -1408,6 +1428,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Push"), ERTResolutionPhase::Control, /*Priority*/ 40,
 		/*Range*/ 1, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Push, 1) }));
+	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// `Pull` — trazione di 1 cella, che avvicina: prima azione del catalogo a usare `ERTActionEffect::Pull`.
 	// Range **2**, non 1 come le altre quattro: con targeting a 1 (adiacenza) e trazione di 1, il bersaglio
@@ -1417,6 +1438,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Pull"), ERTResolutionPhase::Control, /*Priority*/ 40,
 		/*Range*/ 2, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Pull, 1) }));
+	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// `Root` — blocca il movimento per 1 turno. Cancella i micro-step di movimento NON ANCORA risolti (fase
 	// Move, dopo il Blast) tramite `GetEffectiveMoveRange`, che azzera il budget per chi e' radicato — non
@@ -1424,6 +1446,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Root"), ERTResolutionPhase::Control, /*Priority*/ 25,
 		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Root, /*Turni*/ 1) }));
+	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// `Slow` — +1 al costo di OGNI cella per 1 turno (non dimezza il raggio: e' un meccanismo diverso da
 	// quello che `Ranger.Burst` applicava allo stesso tag prima di questo checkpoint — vedi
@@ -1433,12 +1456,14 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Slow"), ERTResolutionPhase::Control, /*Priority*/ 50,
 		/*Range*/ 1, /*Cooldown*/ 1, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Slow, /*Turni*/ 1) }));
+	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// `Interrupt` — nessun effetto dichiarabile: la sua conseguenza e' cancellare l'azione di un'altra unita',
 	// non modificarne le statistiche. Agisce solo su chi dichiara `bCanBeInterrupted = true` — il controllo
 	// e' fatto da `ARTTurnManager::ResolveCombat`, non da un flag che questa azione porterebbe con se'.
 	Catalog.Add(ShippedAction(TEXT("Action.Interrupt"), ERTResolutionPhase::Control, /*Priority*/ 20,
 		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// --- Azioni AMBIENTALI (catalogo §6) -----------------------------------------------------------------
 	// `Electrify` — la combo firma del gioco (CP 8.3). Fase `Environment` (codice 50), quindi risolve nel
@@ -1658,7 +1683,7 @@ FRTActionDef URTCatalogLibrary::FindCoreAction(const FName& ActionId)
 
 TArray<FName> URTCatalogLibrary::GetGenericActionIds()
 {
-	// L'ordine e' quello di D-025 per le quattro che entrano, e conta: sono accodate al kit, quindi diventano
+	// L'ordine e' quello di D-025 per le cinque che entrano, e conta: sono accodate al kit, quindi diventano
 	// indici stabili. Cambiarlo sposta gli indici di ogni unita' — e `PlannedAbilityIndex` e' un indice.
 	//
 	// ⚠️ `Action.Overwatch` entra IN CODA (CP 14.5), e la posizione non e' estetica: in D-025 e' comunque
@@ -1666,7 +1691,48 @@ TArray<FName> URTCatalogLibrary::GetGenericActionIds()
 	// avevano. Inserirla in mezzo avrebbe spostato `Guard` e `Brace` sotto i piedi di ogni piano gia' scritto
 	// — `PlannedAbilityIndex` e `PlannedReactionAbility` sono indici — senza che nulla smettesse di compilare.
 	// Pinnato da `Overwatch.ActionIsInCoreCatalog`, che confronta la lista per intero e non solo l'ultima.
-	return { TEXT("Action.Wait"), TEXT("Action.Guard"), TEXT("Action.Brace"), TEXT("Action.Overwatch") };
+	//
+	// ⚠️ `Action.Interact` entra IN CODA per la stessa ragione, e con la stessa storia: fino al 2026-08-26 era
+	// fuori perche' *«nessun codice risolve un'interazione»*, e quel motivo e' scaduto. Oggi l'azione dichiara
+	// `SetDoorState -> Open` [D-148/D-151], `ARTTurnManager` traduce l'effetto in `bChangesDoor`/`DoorState`
+	// per QUALUNQUE principale pianificata, `URTHexCombatLibrary` raccoglie l'op sulla prima porta della
+	// traiettoria e `URTHexDoorLibrary::SetDoorState` la applica. L'altra meta' esiste: e' il criterio con cui
+	// erano entrate `Guard`, `Brace` e poi `Overwatch`.
+	//
+	// ⚠️ Entra con UN bersaglio funzionante — le porte. Consolle, ascensori, generatori, sprinkler, ponti e
+	// obiettivi del catalogo §1 non esistono, e questa riga non li promette.
+	return { TEXT("Action.Wait"), TEXT("Action.Guard"), TEXT("Action.Brace"), TEXT("Action.Overwatch"),
+	         TEXT("Action.Interact") };
+}
+
+namespace
+{
+	/**
+	 * Il nome player-facing di un'azione generica. I cinque valori sono la colonna «Azione» di
+	 * `docs/balance/RT_ActionCatalog_v0.1.md` §1: **presi**, non scelti qui.
+	 *
+	 * ⚠️ Un `ActionId` non presente restituisce testo vuoto, e
+	 * `RefactorTactics.Actions.EveryGenericHasADisplayName` diventa rosso. E' voluto, ed e' lo stesso
+	 * meccanismo di `HeroActionDisplayName`: una generica aggiunta domani senza nome si fa notare subito
+	 * invece di comparire in partita come `[RT] RTUnit_0: abilita' attiva -> `.
+	 *
+	 * 🔴 **Fino al 2026-08-26 questa tabella non esisteva e le generiche entravano nel kit SENZA nome.**
+	 * Il difetto era invisibile perche' nessun tasto le raggiungeva: [#1439](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1439)
+	 * ha dato loro un tasto, e la prima pressione lo avrebbe mostrato a schermo. E' la stessa famiglia di
+	 * [#892], che aveva coperto le venti abilita' d'eroe e non queste — perche' allora non si vedevano.
+	 */
+	FText GenericActionDisplayName(const FName& Id)
+	{
+		static const TMap<FName, FString> Names = {
+			{ TEXT("Action.Wait"),      TEXT("Attesa") },
+			{ TEXT("Action.Guard"),     TEXT("Guardia") },
+			{ TEXT("Action.Brace"),     TEXT("Irrigidimento") },
+			{ TEXT("Action.Overwatch"), TEXT("Guardia reattiva") },
+			{ TEXT("Action.Interact"),  TEXT("Interagisci") },
+		};
+		const FString* Found = Names.Find(Id);
+		return Found ? FText::FromString(*Found) : FText::GetEmpty();
+	}
 }
 
 TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
@@ -1695,6 +1761,9 @@ TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
 		{
 			if (Spec.Effect == ERTActionEffect::Damage) { Action->Power = Spec.Amount; break; }
 		}
+		// Il NOME arriva dal catalogo di bilanciamento, e senza di esso l'azione entra nel kit muta: il
+		// giocatore che la arma legge `abilita' attiva -> ` e non sa cosa ha armato.
+		Action->DisplayName = GenericActionDisplayName(Id);
 		Actions.Add(Action);
 	}
 	return Actions;

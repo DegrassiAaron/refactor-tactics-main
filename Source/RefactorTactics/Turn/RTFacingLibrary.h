@@ -91,6 +91,15 @@ public:
 	 * evento, e riempirne il log renderebbe l'hash del replay sensibile a scritture che non decidono niente.
 	 * L'unica eccezione e' `DeclarationRejected`, che e' un esito osservabile proprio perche' NON cambia nulla.
 	 */
+	/**
+	 * ⚠️ **Le voci prodotte NON hanno contesto**: `Phase`, `Category`, `Outcome`, `SrcCell`, `TgtCell` e
+	 * `Amount` si riempiono qui; `TurnNumber`, `GraphRevision` e `UnitId` no, e da `FRTHexSimUnit` non si
+	 * possono dedurre — porta l'indice della simulazione, non `StableUnitId`.
+	 *
+	 * Passare `ARTTurnManager::TurnLog` direttamente a questo `Log` e' il difetto di `#1429`: le voci
+	 * entravano nella traccia con turno 0, revisione del grafo 0 e nessuna unita'. Dal manager si chiama
+	 * `ARTTurnManager::RecordFacingChange`, che travasa con `AppendLogEntry`.
+	 */
 	static void RecordFacingChange(FRTHexSimUnit& Unit, ERTHexDirection NewFacing, ERTFacingOutcome Reason,
 		ERTMatchPhase Phase, TArray<FRTTurnLogEntry>& Log);
 

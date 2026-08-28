@@ -89,6 +89,42 @@ public:
 	 */
 	static bool GoldenEntriesMatch(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B);
 
+	/**
+	 * `UnitId` di questa voce porta CHI SUBISCE invece di chi ha agito?
+	 *
+	 * Le inversioni sono deliberate e documentate una per una in `FRTTurnLogEntry::UnitId`, ma finche' la
+	 * risposta viveva solo in prosa un consumatore doveva **ricordarsi** di averla letta — e chi non l'ha
+	 * letta ottiene un numero plausibile e sbagliato che nessun errore segnala. Stessa ragione per cui
+	 * esiste `IsDamageInflictedByActor`: la tassonomia sta in un posto solo, e si CHIEDE.
+	 *
+	 * Copre il danno ambientale (`#625`, `#1067`) e le due voci di protezione scavalcata —
+	 * `Facing`/`RearHitBypassedCover` e `Facing`/`RearHitBypassedGuard` (`#1418`, separate da `#1430`).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|TurnLog")
+	static bool IsSubjectTheSufferer(const FRTTurnLogEntry& Entry);
+
+	/**
+	 * L'enum degli esiti che vale per una categoria, o `nullptr` se quella categoria non lo dichiara.
+	 *
+	 * `FRTTurnLogEntry::Outcome` e' un `uint8` il cui significato lo decide la CATEGORIA: `2` puo' essere
+	 * `Lethal`, `AppliedWhileOnCell` o `BlockedByUnit`. Questa e' quella corrispondenza resa eseguibile, ed
+	 * e' una proprieta' del TurnLog — non di chi lo legge.
+	 *
+	 * ⚠️ Stava in `URTScenarioLoader` fino al 2026-08-27 (`#1427`), e da li' non era raggiungibile: lo
+	 * `ScenarioHarness` dipende da `Turn`, non viceversa, quindi il report della divergenza golden non
+	 * poteva chiamarla e rendeva `Outcome` come intero nudo — mandando chi legge a cercare in `RTTurnLog.h`
+	 * quale enum intendesse. Ricopiarne lo switch avrebbe creato un secondo elenco delle dieci categorie,
+	 * cioe' la classe di difetto che `#1423` ha appena chiuso.
+	 *
+	 * ⚠️ Una categoria nuova senza il suo caso torna `nullptr`: chi la nomina riceve «esito sconosciuto»
+	 * invece di un confronto fra interi che passerebbe per caso.
+	 */
+	static const UEnum* OutcomeEnumForCategory(ERTLogCategory Category);
+
+	/** Il nome dell'esito per la sua categoria, o il numero grezzo se l'enum non lo conosce. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|TurnLog")
+	static FString DescribeOutcome(ERTLogCategory Category, uint8 Outcome);
+
 	/** Ordina il TurnLog in place con EntryLess (ordine totale deterministico). */
 	static void SortTurnLog(TArray<FRTTurnLogEntry>& Entries);
 

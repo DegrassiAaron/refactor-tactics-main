@@ -269,7 +269,11 @@ public:
 	/**
 	 * I moduli di reazione del catalogo §3 che il motore **sa far scattare** (CP 7.3 `#62`, CP 7.5 `#505`).
 	 *
-	 * Sono **sei** dei sette. L'unico assente e' `HazardEscape`, e non gli manca un dato: gli manca un
+	 * ⚠️ **Sono SETTE, tutti** — questa riga diceva «sei dei sette, l'unico assente e' `HazardEscape`», ed e'
+	 * scaduta quando il prerequisito e' arrivato (`#570`: una superficie che nasce sotto un'unita' ferma le
+	 * fa qualcosa). Corretta il 2026-08-27 ([D-220], `#1403`), che ha reso questo elenco load-bearing per la
+	 * scelta della reazione del bot. La storia resta perche' spiega la forma:
+	 * `HazardEscape` era l'ultimo, e non gli mancava un dato: gli mancava un
 	 * PREREQUISITO. Una superficie che nasce sotto un'unita' ferma oggi non le fa niente — tranne l'acqua,
 	 * che ha un ramo suo — quindi nel Cleanup non c'e' nessun danno imminente da cui fuggire e il modulo
 	 * sarebbe inerte: la trappola di `Phase.MistVeil` (`#353`). Lo chiude `#570`, e questo modulo lo segue.
@@ -494,17 +498,20 @@ public:
 
 	/**
 	 * Errori negli SLOT di un piano di turno di una singola unita' (vuoto = piano valido): due azioni non
-	 * possono occupare lo stesso slot, e chi consuma entrambi (`Action.Sprint`) non lascia spazio a nessuna
-	 * azione principale.
+	 * possono occupare lo stesso slot, e chi dichiara `MovementAndMain` non lascia spazio a nessuna azione
+	 * principale.
 	 *
-	 * E' qui che «PrecisionAttack non e' usabile dopo Sprint» diventa una regola generale invece di
-	 * un'eccezione sull'ActionId: lo Sprint prende la principale, e l'attacco non la trova piu'.
+	 * ⚠️ **Nessuna azione dei cataloghi dichiara oggi `MovementAndMain`.** `Action.Sprint` lo faceva fino a
+	 * [D-028] e occupa ora il solo movimento, quindi «PrecisionAttack dopo Sprint» e' un piano LEGALE: non e'
+	 * cambiata la regola generale, e' cambiato l'esempio. La forma resta esprimibile per un kit che voglia far
+	 * costare una mobilita' anche la principale [D-191].
 	 */
 	static TArray<FString> ValidateActionSlots(const TArray<FRTActionDef>& PlannedActions);
 
 	/**
-	 * Quale dei due slot del turno consuma un'azione. `MovementAndMain` (`Action.Sprint`) risponde **vero a
-	 * entrambe**, ed e' l'unico motivo per cui queste sono due funzioni e non un `== Slot`.
+	 * Quale dei due slot del turno consuma un'azione. `MovementAndMain` risponde **vero a entrambe**, ed e'
+	 * l'unico motivo per cui queste sono due funzioni e non un `== Slot` - anche se oggi nessuna azione dei
+	 * cataloghi lo dichiara (`Action.Sprint` lo faceva fino a [D-028]).
 	 *
 	 * Estratte da `ValidateActionSlots` il 2026-08-13, quando la HUD di CP 11.1 ha avuto bisogno della stessa
 	 * domanda al contrario — non «questo piano e' valido?» ma «quali slot risultano occupati?». La regola
@@ -521,13 +528,18 @@ public:
 	/**
 	 * Gli `ActionId` delle azioni **generiche** che ogni unita' possiede in aggiunta al proprio kit (D-025).
 	 *
-	 * Sono **quattro** delle sette dichiarate, e le altre tre mancano per ragioni diverse che vale la pena
-	 * distinguere:
+	 * Sono **cinque** delle sette dichiarate, e le due che mancano non mancano davvero: `Move` e `BasicAttack`
+	 * **ci sono gia'**, per altre strade — il movimento passa da `PlannedPath` e non da uno slot azione, e
+	 * l'attacco base e' l'indice 0 del kit di ogni eroe (catalogo v0.1).
 	 *
-	 * - `Move` e `BasicAttack` **ci sono gia'**, per altre strade: il movimento passa da `PlannedPath` e non
-	 *   da uno slot azione, e l'attacco base e' l'indice 0 del kit di ogni eroe (catalogo v0.1);
-	 * - `Interact` non ha un **consumatore**: nessun codice risolve un'interazione. Aggiungerla darebbe a ogni
-	 *   unita' un comando che non fa niente — cioe' lo stesso difetto che questa lista corregge.
+	 * 🔴 **Erano quattro fino al 2026-08-26**, e la terza esclusa era `Interact` con questa ragione: *«non ha
+	 * un **consumatore**: nessun codice risolve un'interazione. Aggiungerla darebbe a ogni unita' un comando
+	 * che non fa niente»*. Il motivo e' **scaduto**, non era sbagliato: da [D-148]/[D-151] l'azione dichiara
+	 * `SetDoorState`, e il consumatore esiste per intero — `ARTTurnManager` alza `bChangesDoor` dagli Effects
+	 * di qualunque principale pianificata, `URTHexCombatLibrary` raccoglie l'op sulla prima porta della
+	 * traiettoria, `URTHexDoorLibrary::SetDoorState` la applica e il TurnLog scrive `DoorOpened`.
+	 * ⚠️ Con **un** bersaglio funzionante: le porte. Consolle, ascensori, generatori, sprinkler, ponti e
+	 * obiettivi che il catalogo §1 elenca non esistono, e la generica non li promette.
 	 *
 	 * `Guard`, `Brace` e `Wait` entrano perche' sono complete dall'altra parte: `Status.Guarded` e
 	 * `Status.Braced` hanno gia' quattro consumatori nel `TurnManager` — riduzione del danno e resistenza alle
@@ -538,9 +550,10 @@ public:
 	 * lei — CP 14.3 e CP 14.4 hanno consegnato `FRTReactionOpportunity` e `BuildOverwatchTriggers` — e la
 	 * riga era diventata la descrizione del difetto invece che di un rinvio: i `FRTOverwatchWatcher` li
 	 * costruivano **solo i test**, quindi nessuna partita poteva aprire una finestra. E' lo stesso criterio
-	 * con cui `Guard` e `Brace` erano entrate: si aggiunge la generica quando l'altra meta' esiste.
+	 * con cui `Guard` e `Brace` erano entrate: si aggiunge la generica quando l'altra meta' esiste — e con cui
+	 * e' poi entrata `Interact`, che ha ripetuto la stessa storia riga per riga.
 	 *
-	 * ⚠️ L'ordine e' un indice stabile: vedi il commento all'implementazione. `Overwatch` va in CODA.
+	 * ⚠️ L'ordine e' un indice stabile: vedi il commento all'implementazione. Le nuove vanno in CODA.
 	 */
 	static TArray<FName> GetGenericActionIds();
 
