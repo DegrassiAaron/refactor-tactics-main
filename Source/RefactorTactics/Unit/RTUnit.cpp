@@ -20,6 +20,12 @@ ARTUnit::ARTUnit()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
+	// [D-224]: lo scudo base esiste da subito, e sta nel COSTRUTTORE per una ragione misurata — i mondi
+	// di test (`UWorld::CreateWorld` senza `BeginPlay`) non fanno partire `BeginPlay`, quindi metterlo li'
+	// lo avrebbe reso invisibile a meta' della suite: presente in partita, assente dove lo si verifica.
+	// Il costruttore gira su `NewObject` come su ogni `SpawnActor`, e non ha quel buco.
+	RechargeBaseShield();
+
 	// ROOT NEUTRO (#593). Il root non porta scala, e questa e' l'unica proprieta' che conta: **qualunque
 	// componente aggiunto in Blueprint eredita la scala del root**. Finche' il root era il cilindro
 	// segnaposto — `(1.2, 1.2, 1.8)` — una Skeletal Mesh attaccata sotto veniva stirata di `1.8/1.2 = 1.5x`.
@@ -210,6 +216,17 @@ void ARTUnit::ExpireTemporaryShield()
 {
 	Shield = FMath::Max(0, Shield - TemporaryShield);
 	TemporaryShield = 0;
+}
+
+void ARTUnit::RechargeBaseShield()
+{
+	// Un'unita' abbattuta non si ricarica: il suo stato logico e' finale finche' il turno non la rimuove,
+	// e uno scudo su un cadavere comparirebbe nell'hash di fine partita.
+	if (Health <= 0)
+	{
+		return;
+	}
+	Shield = URTCombatLibrary::BaseShield + TemporaryShield;
 }
 
 void ARTUnit::HideForDefeat()

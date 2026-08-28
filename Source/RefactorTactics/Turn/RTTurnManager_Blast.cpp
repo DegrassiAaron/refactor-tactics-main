@@ -145,7 +145,10 @@ void ARTTurnManager::GatherBlastUnits(FRTBlastContext& Ctx) const
 	{
 		ARTUnit* Unit = Ctx.Units[i];
 		Ctx.IndexOf.Add(Unit, i);
-		Ctx.States.Add(FRTUnitCombatState(Unit->Health, Unit->Shield));
+		// [D-224] La quota TEMPORANEA viaggia con lo snapshot: senza, il resolver leggerebbe `TemporaryShield`
+		// a zero e tratterebbe come BASE tutto lo scudo — cioe' sbaglierebbe l'unica domanda per cui il campo
+		// esiste, «quanta protezione deve saltare il danno ambientale».
+		Ctx.States.Add(FRTUnitCombatState(Unit->Health, Unit->Shield, Unit->GetTemporaryShield()));
 
 		FRTHexCombatUnit HexUnit;
 		HexUnit.UnitId = i; // identita' = indice (come FRTHexSnapshot::Units)

@@ -5,6 +5,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Unit/RTUnit.h"
+#include "Combat/RTCombatLibrary.h" // BaseShield: il valore lo dichiara il combattimento, non il test
 #include "Map/RTMapVisuals.h"
 #include "Unit/RTUnitAnimInstance.h" // #288: il grafo di locomozione vive in C++ // #983: si include invece di fidarsi della transitivita' di RTUnit.h
 
@@ -471,6 +472,100 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 		TestEqual(TEXT("l'unita' usa il grafo C++ per default"),
 			UnitCdo->UnitAnimClass.Get(), URTUnitAnimInstance::StaticClass());
 	}
+	return true;
+}
+
+// ─── [D-224] Lo scudo base che torna ────────────────────────────────────────────────────────────────
+//
+// `RechargeBaseShield` e' l'UNICO punto che stabilisce il valore dello scudo base: lo assegna in
+// `BeginPlay` e lo ripristina in coda al Cleanup. Questi test usano `NewObject`, quindi `BeginPlay` non
+// gira e lo stato di partenza e' quello che il test scrive — cio' che si misura qui e' la funzione, non
+// il ciclo del turno.
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitRechargesBaseShieldTest,
+	"RefactorTactics.Unit.RechargeRestoresBaseShield",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitRechargesBaseShieldTest::RunTest(const FString&)
+{
+	ARTUnit* Unit = NewObject<ARTUnit>();
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+	Unit->MaxHealth = 100;
+	Unit->Health = 100;
+	Unit->Shield = 2; // base erosa da un colpo del turno precedente
+
+	Unit->RechargeBaseShield();
+	TestEqual(TEXT("la base torna piena"), Unit->Shield, URTCombatLibrary::BaseShield);
+	TestEqual(TEXT("nessun temporaneo introdotto"), Unit->GetTemporaryShield(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitDefeatedDoesNotRechargeTest,
+	"RefactorTactics.Unit.DefeatedUnitDoesNotRechargeShield",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitDefeatedDoesNotRechargeTest::RunTest(const FString&)
+{
+	ARTUnit* Unit = NewObject<ARTUnit>();
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+	Unit->MaxHealth = 100;
+	Unit->Health = 0;
+	Unit->Shield = 0;
+
+	Unit->RechargeBaseShield();
+	TestEqual(TEXT("un'unita' abbattuta non si ricarica"), Unit->Shield, 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitRechargeKeepsTemporaryTest,
+	"RefactorTactics.Unit.RechargeAddsBaseOnTopOfTemporaryShield",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitRechargeKeepsTemporaryTest::RunTest(const FString&)
+{
+	// La ricarica gira DOPO `ExpireTemporaryShield`, quindi in produzione il temporaneo vale sempre 0 qui.
+	// Il test esercita il caso che quella posizione rende impossibile, perche' l'invariante
+	// `Shield = base + temporaneo` deve reggere anche se un giorno le due chiamate si invertissero.
+	ARTUnit* Unit = NewObject<ARTUnit>();
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+	Unit->MaxHealth = 100;
+	Unit->Health = 100;
+	Unit->Shield = 0;
+
+	Unit->AddTemporaryShield(25);
+	Unit->RechargeBaseShield();
+	TestEqual(TEXT("la base si somma ai 25 temporanei"),
+		Unit->Shield, URTCombatLibrary::BaseShield + 25);
+	TestEqual(TEXT("il temporaneo non e' stato toccato"), Unit->GetTemporaryShield(), 25);
+
+	// E scadendo lascia esattamente la base.
+	Unit->ExpireTemporaryShield();
+	TestEqual(TEXT("dopo la scadenza resta la sola base"), Unit->Shield, URTCombatLibrary::BaseShield);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitBaseShieldSurvivesTemporaryExpiryTest,
+	"RefactorTactics.Unit.BaseShieldSurvivesPartialTemporaryConsumption",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitBaseShieldSurvivesTemporaryExpiryTest::RunTest(const FString&)
+{
+	// Il caso che vale la pena pinnare: 5 di base + 25 di temporaneo, dieci danni incassati, e a fine
+	// turno la base deve essere ANCORA li'. Regge perche' `ApplyCombatState` decrementa il temporaneo in
+	// proporzione allo scudo perso — comportamento gia' corretto prima di [D-224] e mai testato.
+	ARTUnit* Unit = NewObject<ARTUnit>();
+	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
+	Unit->MaxHealth = 100;
+	Unit->Health = 100;
+	Unit->Shield = URTCombatLibrary::BaseShield;
+
+	Unit->AddTemporaryShield(25);
+	TestEqual(TEXT("totale 30"), Unit->Shield, 30);
+
+	const FRTDamageResult Colpo = URTCombatLibrary::ApplyDamage(
+		10, ERTDamageSource::Direct, Unit->Shield, Unit->GetTemporaryShield(), Unit->Health);
+	Unit->ApplyCombatState(Colpo.Health, Colpo.Shield);
+	TestEqual(TEXT("i dieci danni escono dal temporaneo"), Unit->GetTemporaryShield(), 15);
+
+	Unit->ExpireTemporaryShield();
+	TestEqual(TEXT("la base e' sopravvissuta alla scadenza"), Unit->Shield, URTCombatLibrary::BaseShield);
+	TestEqual(TEXT("HP intatti"), Unit->Health, 100);
 	return true;
 }
 

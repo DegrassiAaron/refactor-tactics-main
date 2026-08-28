@@ -498,6 +498,10 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		{ TEXT("Action.Push"),            TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.Reposition"),      TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.Root"),            TEXT("Aspetta il suo eroe") },
+		// ⚠️ Provato a darle un portatore il 2026-08-28 ([D-224]) e RITIRATO prima del merge: un sesto
+		// slot d'eroe porta il kit a **11 voci** contro le **10** di `ARTPlayerController::AbilityHotkeys()`,
+		// e `PlayerInput.EveryKitEntryIsReachable` l'ha detto. L'azione sarebbe diventata raggiungibile per
+		// QUESTO gate e sarebbe rimasta impremibile per il giocatore: un verde che mente.
 		{ TEXT("Action.Shield"),          TEXT("Aspetta il suo eroe: adr-0003 la da' per arrivata") },
 		{ TEXT("Action.Slow"),            TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.SuppressiveLine"), TEXT("Aspetta il suo eroe") },
