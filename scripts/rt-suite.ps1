@@ -12,10 +12,14 @@
     Invarianti lette PRIMA e DOPO la run:
 
       HEAD        il commit su cui gira il codice
-      albero      `git diff HEAD` piu' l'elenco degli untracked: e' un digest del
-                  CONTENUTO, non di `git status --porcelain` — quello elenca i
-                  path e resta identico se cambia cio' che c'e' DENTRO a un file
-                  gia' modificato, che e' il caso piu' comune
+      albero      `git diff HEAD` piu' gli untracked con il loro `hash-object`:
+                  e' un digest del CONTENUTO, non di `git status --porcelain` —
+                  quello elenca i path e resta identico se cambia cio' che c'e'
+                  DENTRO a un file gia' modificato, che e' il caso piu' comune.
+                  ⚠️ Fino al 2026-08-28 degli untracked prendeva i soli PATH, e
+                  un file nuovo poteva essere riscritto e ricompilato fra due run
+                  senza che il digest cambiasse: due misure, una verde e una
+                  rossa, dichiarate VALIDE con lo stesso identificatore
       binario     mtime + dimensione di ENTRAMBI i moduli, `-RefactorTactics` e
                   `-RefactorTacticsEditor`: una build editor-only tocca il secondo.
                   ⛔ **Copre il binario che cambia DURANTE la run, non un binario
@@ -56,6 +60,7 @@
       1  VALIDA, ma dei test falliscono   -> difetto del gioco
       3  NON VALIDA                       -> esito non registrabile, non e' rosso
       2  NON AVVIATA                      -> il motore era gia' occupato
+         (con `-WaitMinutes N` aspetta che si liberi invece di uscire subito)
 
 .PARAMETER Filter
     Filtro di automation. Default `RefactorTactics`, cioe' la suite intera.
@@ -63,14 +68,43 @@
 .PARAMETER LogName
     Nome del file di log sotto Saved/Logs. Default `rt-suite.log`.
 
+.PARAMETER WaitMinutes
+    Minuti di attesa se il motore e' occupato da un'altra sessione; `0` (default)
+    esce subito con `2`. L'attesa rifa' lo snapshot a ogni giro, quindi la run
+    parte da cio' che c'e' quando si libera — non da cio' che c'era mezz'ora
+    prima. Non termina mai nessun processo: se e' di un altro checkout e' lavoro
+    di qualcun altro, e questo script non lo tocca.
+
+.PARAMETER PollSeconds
+    Ogni quanto ricontrollare durante l'attesa. Default 30.
+
 .EXAMPLE
     ./scripts/rt-suite.ps1
     ./scripts/rt-suite.ps1 -Filter RefactorTactics.Scenario
+    ./scripts/rt-suite.ps1 -WaitMinutes 40      # parte da sola quando il motore si libera
 #>
 [CmdletBinding()]
 param(
     [string] $Filter = 'RefactorTactics',
-    [string] $LogName = 'rt-suite.log'
+    [string] $LogName = 'rt-suite.log',
+
+    # Minuti di attesa se il motore e' occupato da un'altra sessione. `0` = non
+    # attende ed esce `2`, che resta il default: un'attesa implicita in uno
+    # script lanciato a mano lo farebbe sembrare appeso.
+    #
+    # ⚠️ **Esiste perche' l'attesa la scrivevano tutti a mano, ogni volta
+    # diversa.** In una sola sessione del 2026-08-28 lo stesso
+    # `while (Get-Process …) { Start-Sleep }` e' stato riscritto CINQUE volte, e
+    # la prima aspettava il solo `UnrealEditor-Cmd`: un editor interattivo
+    # dell'altro checkout l'ha attraversata, e la run e' uscita `2` lo stesso
+    # dopo aver atteso per niente. La condizione di rilascio e' la stessa che
+    # questo script gia' controlla — tenerla in due posti significa che uno dei
+    # due e' sbagliato.
+    [int] $WaitMinutes = 0,
+
+    # Ogni quanto ricontrollare, mentre attende. Trenta secondi e' il compromesso
+    # fra «riparte presto» e «non interroga WMI di continuo per mezz'ora».
+    [int] $PollSeconds = 30
 )
 
 $ErrorActionPreference = 'Stop'
@@ -113,7 +147,35 @@ function Get-Snapshot {
         # Con quel digest l'invariante piu' importante sarebbe stata cieca proprio
         # sul caso piu' comune.
         $tracked = (& git diff HEAD 2>$null) -join "`n"
-        $untracked = (& git ls-files --others --exclude-standard 2>$null) -join "`n"
+
+        # 🔴 Degli untracked serve il CONTENUTO, non l'elenco dei path, ed e' lo
+        # stesso argomento del blocco qui sopra applicato all'altra meta'.
+        # Misurato il 2026-08-28 lavorando su `#166`: un `.cpp` nuovo non ancora
+        # `git add`-ato e' stato MUTATO fra due run e ricompilato, e il digest e'
+        # rimasto `b8e81adc` in entrambe — due misure, una verde e una rossa,
+        # dichiarate VALIDE con lo stesso identificatore d'albero. L'invariante
+        # era cieca proprio sul file che si sta scrivendo in quel momento.
+        #
+        # `git hash-object` e non una lettura diretta: gestisce i binari, non
+        # carica il file in memoria, e una sola invocazione con `--stdin-paths`
+        # copre l'intero elenco.
+        $untrackedPaths = @(& git ls-files --others --exclude-standard 2>$null)
+        if ($untrackedPaths.Count -gt 0) {
+            $hashes = @($untrackedPaths | git hash-object --stdin-paths 2>$null)
+            # ⚠️ Se `hash-object` non risponde per TUTTI — file sparito fra
+            # l'elenco e la lettura, permesso negato — si ripiega sui soli path
+            # invece di appaiare hash sbagliati a file sbagliati: un digest
+            # disallineato direbbe «cambiato» a ogni run e renderebbe il gate
+            # rumore da ignorare, che e' il modo in cui un gate muore.
+            $untracked = if ($hashes.Count -eq $untrackedPaths.Count) {
+                (0..($untrackedPaths.Count - 1) | ForEach-Object { "$($untrackedPaths[$_]) $($hashes[$_])" }) -join "`n"
+            } else {
+                ($untrackedPaths -join "`n")
+            }
+        } else {
+            $untracked = ''
+        }
+
         $paths = (& git status --porcelain 2>$null)
     }
     finally { Pop-Location }
@@ -169,8 +231,39 @@ if ($before.EngineError) {
 # Un motore gia' vivo PRIMA e' l'unico caso in cui vale la pena non partire: la
 # run morirebbe a meta' e il log andrebbe perso nella rotazione. Non contraddice
 # l'«esegui e poi dichiara» — non c'e' ancora niente da preservare.
+if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
+    $waitUntil = (Get-Date).AddMinutes($WaitMinutes)
+    # ⚠️ Doppi apici: qui `''` NON e' un escape e finirebbe a schermo come due
+    # apostrofi. L'escape raddoppiato vale nelle stringhe ad apice singolo, che
+    # sono la maggioranza delle altre righe di questo script.
+    Say ("in attesa: il motore e' occupato, ricontrollo ogni {0}s fino a un massimo di {1} min" -f $PollSeconds, $WaitMinutes)
+    foreach ($e in $before.Engines) { Say "  $e" }
+
+    while ($before.EngineCount -gt 0 -and (Get-Date) -lt $waitUntil) {
+        Start-Sleep -Seconds $PollSeconds
+        $before = Get-Snapshot
+        # 🔴 Lo snapshot si RIFA' per intero, non solo la query sui processi. Chi
+        # attende mezz'ora attende in un albero che le altre sessioni muovono: se
+        # `HEAD` o l'albero cambiano mentre si aspetta, la run deve partire da
+        # cio' che c'e' ADESSO, e i controlli di fine run confrontarsi con quello.
+        # Aggiornare il solo conteggio dei processi avrebbe misurato la fine
+        # contro un inizio che non esisteva piu'.
+        if ($before.EngineError) { break }
+    }
+
+    if ($before.EngineCount -eq 0) {
+        Say ("motore libero: si parte (HEAD {0}, albero {1})" -f $before.Head.Substring(0, 8), $before.TreeHash)
+    }
+}
+
+if ($before.EngineError) {
+    Say "NON AVVIATA: la query sui processi e' fallita durante l'attesa — $($before.EngineError)"
+    exit 2
+}
+
 if ($before.EngineCount -gt 0) {
     Say 'NON AVVIATA: un processo del motore e'' gia'' attivo.'
+    if ($WaitMinutes -gt 0) { Say ("  (dopo {0} minuti di attesa)" -f $WaitMinutes) }
     foreach ($e in $before.Engines) { Say "  $e" }
     Say 'Due run di automation si uccidono a vicenda: il mutex e'' globale sull''eseguibile del'
     Say 'motore, quindi vale anche fra checkout diversi. Se e'' di un ALTRO checkout non'
@@ -182,6 +275,9 @@ if ($before.EngineCount -gt 0) {
     # perdere. Senza questa riga si aspetta un processo morto all'infinito.
     Say 'Se e'' di QUESTO checkout e sospetti sia uno zombie: guarda l''mtime del suo log —'
     Say 'fermo da minuti + ultima riga `Engine exit requested` ⇒ non c''e'' nulla da perdere.'
+    if ($WaitMinutes -le 0) {
+        Say 'Per attendere che si liberi e partire da sola: -WaitMinutes 40'
+    }
     exit 2
 }
 
