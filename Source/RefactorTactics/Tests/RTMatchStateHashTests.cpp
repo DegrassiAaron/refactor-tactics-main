@@ -635,4 +635,86 @@ bool FRTChecksumSeesArcConductivityTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * I campi dell'UNITA' entrano nell'hash — scudo, energia, layer.
+ *
+ * 🔴 **Trovato per mutazione il 2026-08-28, e la lacuna non era una svista di distrazione.** Questo file ha
+ * otto test del pattern «X entra nell'hash», tutti ben scritti, e coprono ambiente, mappa, identita' delle
+ * strutture, confini di stato e archi. Nessuno copriva i campi dell'unita' — che sono quelli che cambiano a
+ * ogni turno di ogni partita, mentre terreno e archi cambiano di rado.
+ *
+ * La misura: rimuovendo `Mix(U.Shield)`, poi `Mix(U.Energy)`, poi `Mix(Cell.Layer)` da `HashMatchState` —
+ * una per volta, con build completa e suite intera — l'esito e' stato tre volte `1293/1293 completati,
+ * 0 fallimenti`. Si potevano togliere e **nessuno se ne accorgeva**.
+ *
+ * ⚠️ Perche' conta piu' di altre lacune: `StateHash` e' la prova di determinismo che `#1117` usa per
+ * dimostrare che `RUN -> RESET -> RUN` e' stabile, e che il replay logico ([ADR-0009]) confronta per misurare
+ * la divergenza. Un hash cieco su tre campi non rende false quelle prove — la funzione fa la cosa giusta —
+ * ma le lascia senza guardiano: una riga che sparisce in un refactor non farebbe rosso da nessuna parte.
+ *
+ * Ogni caso cambia **una cosa sola** rispetto alla baseline, come gli altri test di questo file: due hash che
+ * differiscono per due motivi non dicono quale dei due l'hash abbia visto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChecksumSeesUnitFieldsTest,
+	"RefactorTactics.Simulation.ChecksumSeesShieldEnergyAndLayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChecksumSeesUnitFieldsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeStateHashMap();
+	const TArray<int32> NoScore = { 0, 0 };
+	const TArray<FRTUnitStateDigest> Units = BaseUnits();
+
+	const uint32 Baseline = URTMatchStateHashLibrary::HashMatchState(Map, Units, NoScore);
+
+	// Riferimento: lo stesso stato da' lo stesso hash. Senza, il resto del test non significherebbe niente —
+	// tre disuguaglianze contro un valore instabile sarebbero vere per rumore.
+	TestEqual(TEXT("stesso stato -> stesso hash"),
+		URTMatchStateHashLibrary::HashMatchState(Map, Units, NoScore), Baseline);
+
+	// 1. SCUDO. `BaseUnits()` lo lascia a 0: qui l'unita' ne guadagna, e nient'altro cambia.
+	{
+		TArray<FRTUnitStateDigest> Shielded = BaseUnits();
+		Shielded[0].Shield = 10;
+		TestNotEqual(TEXT("lo scudo entra nell'hash"),
+			URTMatchStateHashLibrary::HashMatchState(Map, Shielded, NoScore), Baseline);
+	}
+
+	// 2. ENERGIA. Il campo esiste da sempre nel digest e nessuno lo aveva mai variato.
+	{
+		TArray<FRTUnitStateDigest> Charged = BaseUnits();
+		Charged[0].Energy = 50; // la baseline e' 25
+		TestNotEqual(TEXT("l'energia entra nell'hash"),
+			URTMatchStateHashLibrary::HashMatchState(Map, Charged, NoScore), Baseline);
+	}
+
+	// 3. LAYER. La stessa coordinata assiale su un PIANO diverso e' un'altra posizione: su una mappa
+	// multilivello due unita' sovrapposte in (q,r) ma su layer diversi non si toccano, e uno stato che le
+	// confondesse renderebbe identiche due partite in cui una e' sopra e l'altra sotto.
+	{
+		TArray<FRTUnitStateDigest> Upstairs = BaseUnits();
+		Upstairs[0].Cell = FRTCellId(0, 0, /*Layer*/ 1); // la baseline e' (0,0,0)
+		TestNotEqual(TEXT("il layer della cella entra nell'hash"),
+			URTMatchStateHashLibrary::HashMatchState(Map, Upstairs, NoScore), Baseline);
+	}
+
+	// ⚠️ E i tre insieme devono restare distinguibili da ciascuno preso da solo: se l'hash mescolasse i campi
+	// in modo da farli collidere, i tre test qui sopra passerebbero e il difetto resterebbe.
+	{
+		TArray<FRTUnitStateDigest> All = BaseUnits();
+		All[0].Shield = 10;
+		All[0].Energy = 50;
+		All[0].Cell = FRTCellId(0, 0, 1);
+		const uint32 AllChanged = URTMatchStateHashLibrary::HashMatchState(Map, All, NoScore);
+
+		TArray<FRTUnitStateDigest> OnlyShield = BaseUnits();
+		OnlyShield[0].Shield = 10;
+
+		TestNotEqual(TEXT("tre campi cambiati != baseline"), AllChanged, Baseline);
+		TestNotEqual(TEXT("tre campi cambiati != solo lo scudo"),
+			AllChanged, URTMatchStateHashLibrary::HashMatchState(Map, OnlyShield, NoScore));
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
