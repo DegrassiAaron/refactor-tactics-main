@@ -22,11 +22,15 @@
  * una soglia propria, e nessun difetto misurato l'ha ancora prodotto. Chi ne misura uno estende qui, con la
  * propria verifica di mutazione.
  *
- * ⚠️ **La chiave e' del chiamante.** `NobodyOscillatesOnTheAuthoredMap` usa `GetUniqueID()`,
- * `EngagesOnTheGeneratedTestArena` usa `StableUnitId` — che vale 0 finche' `EnsureMatchRoster()` non lo
- * assegna, e li' il test ha la propria guardia sulla distinzione delle chiavi. Due unita' che ne
- * condividessero una si sovrascriverebbero, e l'oscillante non farebbe crescere nessun contatore: chi passa
- * una chiave deve sapere che e' distinta, perche' questa sonda non puo' verificarlo per lui.
+ * ⚠️ **La chiave e' del chiamante, e deve essere DISTINTA.** `NobodyOscillatesOnTheAuthoredMap` usa
+ * `GetUniqueID()`, `EngagesOnTheGeneratedTestArena` usa `StableUnitId` — che vale 0 finche'
+ * `EnsureMatchRoster()` non lo assegna, e li' il test ha la propria guardia.
+ *
+ * 🔴 **E la guardia serve contro un falso POSITIVO, non contro un falso negativo.** Questa nota diceva che
+ * con una chiave condivisa «l'oscillante non farebbe crescere nessun contatore»: misurato, e' il contrario.
+ * Due unita' FERME su celle diverse che scrivono la stessa chiave producono `A B A B ...` — un'oscillazione
+ * perfetta in cui nessuno si e' mosso. Pinnato da `Meta.OrbitProbeKeepsUnitsApart`. Questa sonda non puo'
+ * verificare la distinzione per conto del chiamante, e se non ce l'ha inventa un difetto.
  *
  * ⚠️ **Si campiona a FINE TURNO, una volta per turno.** Chiamarla a turno mezzo risolto misura posizioni che
  * non sono mai state uno stato di fine turno — e' il difetto trovato in code review su #1296, dove il tetto

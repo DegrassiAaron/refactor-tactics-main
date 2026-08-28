@@ -1990,6 +1990,24 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 			*URTTurnRules::DescribeOutcome(Result.Outcome),
 			*URTTurnRules::DescribeEndReason(Result.Reason), TurnsPlayed),
 			LongestStillStreak <= MaxLegitimateStillTurns);
+
+		// 🔴 **IL MARGINE, non solo l'esito.** Misurato il 2026-08-28 sulla configurazione spedita: sequenza
+		// piu' lunga **4 su soglia 4**, cioe' margine ZERO. L'oracolo e' verde e sta sul filo: il prossimo
+		// ritocco ai pesi del bot lo fa passare rosso, e chi lo vedra' rosso non sapra' che era sul filo da
+		// prima. Un verde che non dice quanto manca al bordo e' un verde che sorprende.
+		//
+		// ⚠️ **Warning e non asserzione, deliberatamente.** Un margine sottile non e' un difetto — asserirlo
+		// renderebbe rosso un comportamento che [D-184] dichiara accettabile, e sarebbe una soglia nuova
+		// introdotta di lato invece che decisa. Il warning informa senza spostare il gate.
+		// ⚠️ L'oracolo gemello delle orbite oggi ha margine 2 e non e' incluso: qui si segnala cio' che e'
+		// stato **misurato** stretto, non si aggiunge simmetria per estetica.
+		const int32 MargineParcheggio = MaxLegitimateStillTurns - LongestStillStreak;
+		if (MargineParcheggio <= 1)
+		{
+			AddWarning(FString::Printf(
+				TEXT("anti-parcheggio sul filo: sequenza %d su soglia %d, margine %d — il prossimo ritocco ai pesi del bot lo fa passare rosso"),
+				LongestStillStreak, MaxLegitimateStillTurns, MargineParcheggio));
+		}
 	}
 
 	// 🔴 **LA SECONDA FIRMA DELLO STESSO STATO ASSORBENTE, e fino a oggi era coperta solo altrove.**
