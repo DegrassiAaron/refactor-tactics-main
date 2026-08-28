@@ -1029,7 +1029,13 @@ Non usare sei pannelli sempre aperti.
 
 Non usare una classica mappa nera.
 
-La mappa statica resta leggibile.
+Una mappa nera è un velo opaco steso **sopra** un terreno noto: resta vietata.
+
+🔴 **Qui seguiva «La mappa statica resta leggibile», e [D-225](../../decisions/RT_PDR_00_Decision_Log.md) l'ha
+resa falsa il 2026-08-28.** La geometria che nessuno della squadra osserva **non si disegna** — che è un'altra
+cosa dal coprirla: è l'assenza del disegno, non un disegno che nasconde.
+
+Resta leggibile ciò che la squadra osserva o ha osservato.
 
 Stati informativi:
 
