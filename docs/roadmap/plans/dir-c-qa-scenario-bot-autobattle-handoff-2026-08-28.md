@@ -231,30 +231,55 @@ Nessun file di DIR-B (`Bot/` escluso, resolver, reaction core, objective core) e
 
 ---
 
-## 6. Test eseguiti senza Editor
+## 6. Eseguito senza Editor
 
-**Nessuno, e va detto così.** §1 vieta a DIR-C `UnrealEditor.exe` e `UnrealEditor-Cmd`, e l'Unreal Automation
-Framework non ha un runner fuori dall'Editor. Ciò che è stato fatto senza Editor è **misura statica**:
-inventario di scenari, test e golden; lettura del registro delle capability; verifica che il fix di #1088 e
-quello di `D-185` siano su `HEAD`; verifica dell'ancestralità di `f3d0ffa3`.
+§1 vieta `UnrealEditor.exe` e `UnrealEditor-Cmd`; **non vieta la compilazione**, che passa da UBT. Quindi:
 
-⛔ **Nessun gate è dichiarato verde da DIR-C.**
+### 6.1 Compilazione — ✅ eseguita
+
+```
+Build.bat RefactorTacticsEditor Win64 Development -Project="D:/Repositories/wt-dir-c-qa/RefactorTactics.uproject" -WaitMutex
+→ Result: Succeeded · 0 errori · 292 s · 41 azioni
+→ UnrealEditor-RefactorTactics.dll ricostruita (15 unity chunk del modulo di gioco)
+```
+
+**Il codice consegnato compila e linka.** DIR-A non eredita un errore di sintassi.
+
+### 6.2 Gate Node — eseguiti tutti e cinque, più la suite
+
+| gate | esito |
+|---|---|
+| `node tools/radar/generate.ts --check` | ✅ 4/4 eroi · 20 abilità · radar allineati |
+| `node tools/radar/catalog-code.ts` | ✅ le quattro fonti concordano su tutti i campi |
+| `node tools/radar/doc-tables.ts --check` | ✅ 1605 tabelle in 265 documenti — **incluse quelle di questo handoff** |
+| `node --test` (da dentro `tools/radar/`) | ✅ **82/82** |
+| `node tools/radar/doc-links.ts --check` | 🔴 **exit 1** — vedi sotto |
+
+🔴 **`doc-links` è rosso, e non per colpa di questo lavoro.** 3698 link in 265 documenti, **1** non risolve:
+
+```
+docs/research/design/hud/mock-elementi-hud-correzioni.md
+  → docs/research/handoff/RefactorTactics_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_2026-08-26.md
+```
+
+Verificato che il bersaglio **non esiste già su `ad7f212b`**: il gate era rosso prima di DIR-C. Il documento
+che lo cita risale a `e9c900bc`. Non è materiale DIR-C e non è stato toccato — **va consegnato a chi possiede
+`docs/research/`**, perché un gate rosso per un motivo vecchio nasconde il prossimo rosso vero.
+
+### 6.3 Cosa resta misura statica
+
+Inventario di scenari, test e golden; registro delle capability; verifica che il fix di #1088 e quello di
+`D-185` siano su `HEAD`; ancestralità di `f3d0ffa3`.
+
+⛔ **Nessun gate di release è dichiarato verde da DIR-C, e nessuna automation è stata eseguita.**
 
 ---
 
 ## 7. Da eseguire in DIR-A — con esito atteso e interpretazione
 
-### 7.1 Compilazione
+### 7.1 Compilazione — ✅ già fatta da DIR-C, non serve rifarla
 
-```
-"<UE>/Engine/Build/BatchFiles/Build.bat" RefactorTacticsEditor Win64 Development ^
-  -Project="<worktree>/RefactorTactics.uproject" -WaitMutex
-```
-
-**Atteso**: compila. Il nuovo header sta sotto `Source/RefactorTactics/Tests/`, e
-`PublicIncludePaths.Add(ModuleDirectory)` risolve `Map/RTCellId.h`; UBT raccoglie i file nuovi da sé.
-**Se fallisce**: è il primo consumatore di `FRTOrbitProbe`, quindi l'errore è locale al probe o all'include —
-non tocca nessuna API di gioco.
+Vedi §6.1: `Result: Succeeded`, 0 errori. Resta solo l'**esecuzione**.
 
 ### 7.2 I tre oracoli dello stato assorbente
 
@@ -319,6 +344,8 @@ guardi entrambi i commenti prima di toccarne uno.
   È un difetto che vive in un binario: nessun test C++ lo riproduce, e resta il residuo dichiarato di
   `EngagesOnTheGeneratedTestArena`, che istanzia `ARTGameMode` e non il Blueprint.
 - **`showcase-v01-audit.md`** è stale di venti giorni (§4).
+- **`doc-links.ts --check` è rosso su `main`** per un link preesistente in `docs/research/` (§6.2). Non è
+  DIR-C, ma finché resta rosso il gate non sa più segnalare il prossimo link rotto davvero nuovo.
 
 ---
 
