@@ -731,6 +731,21 @@ classificazione. I sette `DEFER` si dividono per **ragione**, e le ragioni sono 
   Volumes/     BP_Graybox_CellPlacementVolume
 ```
 
+🔑 **In che forma esistono — deciso il 2026-08-28, [`D-229`](../../decisions/RT_PDR_00_Decision_Log.md).** Le sei
+`SM_Graybox_*` sono **generate in C++ e salvate** come `.uasset` da un commandlet del modulo editor: la
+geometria vive in una funzione che si diffa e si testa, il file è il suo output. `D-173` aveva deciso **dove**
+vivono e questa riga dice **come**, che è la domanda che restava.
+
+> ⛔ **Non sono transienti come `ARTHexMapActor::GetCellPrismMesh`**, e la ragione non è di gusto: una mesh in
+> `GetTransientPackage()` **non si serializza in un `.umap`**, quindi la scena di validazione perderebbe i suoi
+> riferimenti alla riapertura. Il prisma della cella può permetterselo perché nasce a ogni avvio dentro
+> l'attore che lo consuma; un asset posato in un livello salvato no.
+>
+> ⚠️ **E `D-228` non dice il contrario, per quanto lo sembri**: *«mesh generate in C++ … e nessun `.uasset`»* è
+> vero della **board** — `Cells`, `SurfaceGlyphs`, `Relief`, `Blockers`, `EdgeFeatures` — che è la resa di
+> sviluppo e cadrà con l'art pass. Il kit di questo catalogo sono **asset di mappa posati**, ed è un altro
+> dominio: leggerla come regola del repository invece che del suo dominio porta alla conclusione opposta.
+
 Sotto `World/` e non sotto `World/Grid/`: §5 di
 [`convenzioni-contenuti-ue.md`](../tooling/convenzioni-contenuti-ue.md) descrive già `Grid/Generation/` come
 *«generatori graybox»*, e porte e coperture stanno sui **bordi** (§3), non sulla griglia. Non un top-level
