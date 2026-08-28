@@ -80,6 +80,14 @@ protected:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UInputAction>> AbilityActions;
 
+	/**
+	 * Un `UInputAction` per AZIONE GENERICA, nell'ordine di `GenericHotkeys()`. Sono l'altro canale di
+	 * selezione, e la differenza con `AbilityActions` non e' cosmetica: quelle scelgono una **posizione**,
+	 * queste una **azione per nome**.
+	 */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UInputAction>> GenericActions;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> UndoAction;
 
@@ -176,6 +184,21 @@ public:
 	 */
 	static const TArray<FKey>& AbilityHotkeys();
 
+	/**
+	 * Le azioni GENERICHE e il tasto che le arma, in coppia. Sono l'altro canale di selezione del kit, e
+	 * risolvono per **nome** invece che per posizione.
+	 *
+	 * 🔴 **Il nome non e' un vezzo, e' l'unica forma corretta.** Le generiche sono ACCODATE al kit
+	 * (`ARTUnit::EnsureDefaultAbilities`), quindi il loro indice dipende da quante azioni porta l'eroe: con
+	 * cinque stanno a `5..9`, con sei a `6..10`. Un tasto legato a una posizione fissa punterebbe a cose
+	 * diverse su eroi diversi — e su quello che ne ha una in piu' punterebbe a un'abilita' d'eroe.
+	 *
+	 * ⚠️ **Perche' esistono**: dieci posizioni non bastano piu'. Un eroe con sei azioni porta il kit a
+	 * **undici** voci contro i dieci tasti numerici, e `PlayerInput.EveryKitEntryIsReachable` lo dichiara.
+	 * Togliendo le cinque generiche dalla fila dei numeri, quella fila torna a servire i soli eroi.
+	 */
+	static const TArray<TPair<FName, FKey>>& GenericHotkeys();
+
 private:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
@@ -194,6 +217,14 @@ private:
 	void OnAbility8(const FInputActionValue& Value);
 	void OnAbility9(const FInputActionValue& Value);
 	void OnAbility10(const FInputActionValue& Value);
+	// Uno per azione generica, e per la stessa ragione dei dieci qui sopra: la bindatura e' l'unico posto da
+	// cui puo' arrivare QUALE azione e' stata premuta. La tabella che li lega ai tasti sta in
+	// `GenericHotkeys()`, e questi handler ne leggono l'`ActionId` invece di ripeterlo.
+	void OnGeneric1(const FInputActionValue& Value);
+	void OnGeneric2(const FInputActionValue& Value);
+	void OnGeneric3(const FInputActionValue& Value);
+	void OnGeneric4(const FInputActionValue& Value);
+	void OnGeneric5(const FInputActionValue& Value);
 	void OnUndoWaypoint(const FInputActionValue& Value);
 	void OnCyclePlaybackSpeed(const FInputActionValue& Value);
 	void OnRecenter(const FInputActionValue& Value);
@@ -203,6 +234,18 @@ private:
 	void RebuildPlannedPath();
 
 	void SelectAbilityForCurrent(int32 Index);
+
+	/**
+	 * Arma l'azione con questo `ActionId` nel kit dell'unita' selezionata, cercandone l'indice.
+	 *
+	 * Delega a `SelectAbilityForCurrent` invece di duplicarne il corpo: cooldown, slot reazione e
+	 * self-target restano un percorso solo, e un tasto generico non puo' aggirare un controllo che il
+	 * numero rispetta.
+	 */
+	void SelectAbilityByIdForCurrent(const FName& ActionId);
+
+	/** Handler comune dei tasti generici: legge l'`ActionId` dalla riga `GenericHotkeys()[Slot]`. */
+	void SelectGenericSlot(int32 Slot);
 
 public:
 	/** Unita' attualmente selezionata dal giocatore (nullo se nessuna). */

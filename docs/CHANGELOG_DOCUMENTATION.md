@@ -2,6 +2,31 @@
 
 ---
 
+## 2026-08-28 — Le generiche hanno un nome, e `Action.Shield` un portatore
+
+**Origine**: [D-226](decisions/RT_PDR_00_Decision_Log.md) — le cinque azioni generiche escono dalla fila dei
+numeri e prendono un tasto proprio, risolto per nome. Un eroe può quindi portarne sei.
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | riga **D-226** |
+| [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) | `CLEANSE-1` non lega più l'uscita di `Action.Shield` a quella di `Cleanse` |
+
+### La clausola che è diventata falsa
+
+`CLEANSE-1` diceva *«e allora `Action.Shield`, nella stessa condizione, esce con lei»*. Le due azioni non
+sono più nella stessa condizione: quella di `Shield` era **un tasto mancante** per la sesta abilità d'eroe,
+e D-226 l'ha risolto; quella di `Cleanse` è **un produttore mancante** per `PlannedCleansePriority`, e resta.
+Si decidono ora separatamente, e `#1403` resta aperta sulla sola `Cleanse`.
+
+⚠️ **`adr-0003` e il catalogo azioni non sono stati toccati**, ed è deliberato: il primo dice una cosa
+storica che resta vera (*«`Action.Shield` è arrivata senza una riga di codice»*), il secondo è una riga di
+dati che non rivendica un portatore.
+
+---
+
 ## 2026-08-28 — Lo scudo base entra nel canone, e dichiara cosa supera
 
 **Origine**: [D-224](decisions/RT_PDR_00_Decision_Log.md) — ogni unità porta 5 punti di scudo base che si
