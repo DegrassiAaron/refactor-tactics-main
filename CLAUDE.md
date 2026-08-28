@@ -215,7 +215,8 @@ Per implementazioni non banali, preflight breve:
   di automation si uccidono anche da checkout diversi.
 - `D-nnn` si legge dall'ultimo assegnato nel Decision Log e si **riverifica prima del merge**: una PR
   aperta che rivendica lo stesso ID con una tesi diversa è una collisione, e rinumeri la seconda.
-  Ultimo assegnato al 2026-08-27: **D-222**. Il progetto ha già pagato **sedici** collisioni.
+  Ultimo assegnato al 2026-08-28: **D-233**. Il progetto ha già pagato **sedici** collisioni.
+  ⚠️ **Questa riga è stata trovata ferma a `D-222` mentre `main` era a `D-229`**: stantia di sette, e a fidarsene si sarebbe presa una collisione al primo tentativo. Il numero qui è una fotografia — misuralo, non leggerlo: `git grep -ohE 'D-[0-9]{3}' origin/main -- docs/decisions/RT_PDR_00_Decision_Log.md | sort -u | tail -1`, poi `gh pr list --state open` per gli ID in volo. `D-230` era rivendicato da una PR aperta e non compariva da nessuna parte su `main`.
 - Prima del merge: `git fetch --prune origin`, poi `gh pr list --state open` per gli ID in volo — e verifica
   che il gate sia girato **sul commit che stai mergiando**: il 2026-08-27 due PR sono state mergiate prima che
   il proprio gate finisse.
