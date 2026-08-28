@@ -530,6 +530,86 @@ bool FRTKnowledgeOverlayAndGhostAreComplementaryTest::RunTest(const FString&)
 	return true;
 }
 
+namespace
+{
+	/** Una rotta con un verdetto per cella. Le maschere si passano come liste di `TeamId` ammessi. */
+	FRTMoveRoute KvRoute(const TArray<FRTCellId>& Cells, const TArray<TArray<int32>>& AllowedPerCell)
+	{
+		FRTMoveRoute R;
+		R.StableUnitId = 7;
+		R.Cells = Cells;
+		for (const TArray<int32>& Allowed : AllowedPerCell)
+		{
+			FRTKnowledgeVerdict V;
+			for (int32 TeamId : Allowed) { V.AllowTeam(TeamId); }
+			R.CellVerdicts.Add(V);
+		}
+		return R;
+	}
+}
+
+/**
+ * [D-223] — la traccia post-lock porta il tratto OSSERVATO, e si TRONCA dove l'osservatore ha perso il
+ * soggetto.
+ *
+ * 🔴 **L'asserto che distingue `break` da `continue`, ed e' il cuore del test.** Con un buco in mezzo alla
+ * rotta un filtro che *salta* le celle non ammesse restituirebbe la partenza E l'arrivo, e l'HUD unirebbe
+ * due celle NON adiacenti con un segmento dritto — una linea tesa esattamente sopra il tratto da
+ * nascondere. Troncare mostra meno; saltare mostra di piu' di quanto mostrasse il difetto originale.
+ *
+ * Statica e PURA: nessun HUD, nessun mondo, nessuna partita. E' la condizione che il DoD di `#1497` chiede,
+ * perche' il disegno della traccia in `DrawHUD` non ha copertura headless e non puo' averne.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeVisibleTrailTruncatesTest,
+	"RefactorTactics.Knowledge.VisibleTrailTruncatesAtLostSubject",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeVisibleTrailTruncatesTest::RunTest(const FString&)
+{
+	const TArray<FRTCellId> Cells = {
+		FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
+
+	// Il soggetto e' della squadra 1 e la 0 lo perde dopo due celle: e' il caso che PIE-KNOW4 osserva.
+	const FRTMoveRoute Persa = KvRoute(Cells, { {0, 1}, {0, 1}, {1}, {1} });
+
+	const TArray<FRTCellId> PerZero = ARTTurnManager::VisibleTrailFor(Persa, /*ObserverTeamId*/ 0);
+	TestEqual(TEXT("l'osservatore vede il tratto che ha osservato, e finisce li'"), PerZero.Num(), 2);
+	if (PerZero.Num() == 2)
+	{
+		TestTrue(TEXT("il tratto parte dalla partenza"), PerZero[0] == Cells[0]);
+		TestTrue(TEXT("e finisce sull'ultima cella osservata"), PerZero[1] == Cells[1]);
+	}
+	TestFalse(TEXT("la cella d'arrivo non e' nel tratto: e' li' che la polilinea entrava nella nebbia"),
+		PerZero.Contains(Cells[3]));
+
+	// Anti-vacuita': il troncamento non e' «la traccia sparisce sempre». Chi ha percorso la rotta la vede
+	// intera, e senza questa riga un `VisibleTrailFor` che rendesse sempre un array vuoto passerebbe.
+	TestEqual(TEXT("la squadra del soggetto vede la propria rotta intera"),
+		ARTTurnManager::VisibleTrailFor(Persa, /*ObserverTeamId*/ 1).Num(), Cells.Num());
+
+	// 🔴 Il buco in MEZZO: partenza e arrivo osservati, il tratto centrale no. E' il caso comune —
+	// `VisibleCells` e' un insieme bucato (LOS + cono + close range), non un raggio.
+	const FRTMoveRoute Bucata = KvRoute(Cells, { {0}, {}, {}, {0} });
+	const TArray<FRTCellId> Troncata = ARTTurnManager::VisibleTrailFor(Bucata, 0);
+	TestEqual(TEXT("il tratto si ferma al buco: UNA cella, non tre"), Troncata.Num(), 1);
+	TestFalse(TEXT("l'arrivo osservato NON viene ricucito alla partenza"), Troncata.Contains(Cells[3]));
+
+	// Perso subito: niente da disegnare, nemmeno la partenza.
+	TestEqual(TEXT("chi non ha mai visto il soggetto non vede nulla della sua rotta"),
+		ARTTurnManager::VisibleTrailFor(KvRoute(Cells, { {1}, {1}, {1}, {1} }), 0).Num(), 0);
+
+	// Fail-closed sul disallineamento: senza il controllo, questa chiamata leggerebbe fuori array.
+	FRTMoveRoute Malformata = KvRoute(Cells, { {0}, {0} });
+	TestEqual(TEXT("una rotta con meno verdetti che celle non si disegna affatto"),
+		ARTTurnManager::VisibleTrailFor(Malformata, 0).Num(), 0);
+
+	// E il default nasconde: una rotta raccolta senza verdetti e' silenziosa, non pubblica.
+	FRTMoveRoute SenzaVerdetti;
+	SenzaVerdetti.Cells = Cells;
+	TestEqual(TEXT("nessun verdetto significa nessuno, non tutti"),
+		ARTTurnManager::VisibleTrailFor(SenzaVerdetti, 0).Num(), 0);
+	return true;
+}
+
 /**
  * [D-223] — il verdetto congelato dice CHI puo' leggere un fatto, e lo dice come lo direbbe `ViewForTeam`.
  *

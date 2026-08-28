@@ -661,16 +661,26 @@ void ARTHUD::DrawHUD()
 	// Traccia post-lock: il percorso realmente eseguito nell'ultima risoluzione (grigio, sotto le preview).
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
 	{
-		// ⚠️ **Ancora senza filtro di conoscenza**: la rotta ora PORTA il soggetto (`FRTMoveRoute::StableUnitId`,
-		// `#1497`), ma la regola con cui filtrarla — «lo conosco adesso» o «lo conoscevo allora» — e' la
-		// decisione aperta di `#1496`. Finche' non e' presa, qui si disegna tutto, e `PIE-KNOW4` lo dichiara.
+		// Il filtro di conoscenza di [D-223], e **non si decide qui**: la rotta porta gia' un verdetto per
+		// cella, congelato quando e' stata percorsa. Questo ciclo consuma e non costruisce nulla — niente
+		// `ViewForTeam`, niente `GetAllActorsOfClass`, nessuna seconda rilettura della regola.
+		//
+		// 🔴 **`VisibleTrailFor` TRONCA**, e per questo il ciclo scorre il suo risultato invece di
+		// `Route.Cells`: la traccia mostra il tratto che l'osservatore ha visto e finisce dove ha perso il
+		// soggetto. Saltare le celle non ammesse tenderebbe un segmento fra due celle non adiacenti, proprio
+		// sopra il tratto da nascondere.
+		//
+		// ⚠️ La regola vive in una statica PURA di `ARTTurnManager`, gemella di `ComposeVisibleLogLines`:
+		// `DrawHUD` non ha copertura headless, quindi cio' che si puo' sbagliare deve stare dove i test
+		// arrivano.
 		const FLinearColor TrailColor(0.6f, 0.6f, 0.6f, 0.5f);
 		for (const FRTMoveRoute& Route : TurnManager->GetLastMoveRoutes())
 		{
-			for (int32 i = 1; i < Route.Cells.Num(); ++i)
+			const TArray<FRTCellId> Trail = ARTTurnManager::VisibleTrailFor(Route, PlayerTeamId);
+			for (int32 i = 1; i < Trail.Num(); ++i)
 			{
-				const FVector A = Project(HexCellWorld(Route.Cells[i - 1], Origin, HexSize, LayerH));
-				const FVector B = Project(HexCellWorld(Route.Cells[i], Origin, HexSize, LayerH));
+				const FVector A = Project(HexCellWorld(Trail[i - 1], Origin, HexSize, LayerH));
+				const FVector B = Project(HexCellWorld(Trail[i], Origin, HexSize, LayerH));
 				if (A.Z > 0.f && B.Z > 0.f)
 				{
 					DrawLine(A.X, A.Y, B.X, B.Y, TrailColor, 1.5f);

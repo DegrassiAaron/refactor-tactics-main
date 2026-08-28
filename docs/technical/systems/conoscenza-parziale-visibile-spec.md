@@ -46,17 +46,38 @@ dell'anteprima di pianificazione.
 «non lo so» e «lo so e faccio finta di no», e la seconda è ciò che
 [`progettazione-hud.md`](progettazione-hud.md) §17 vieta e che l'invariante #6 esclude per costruzione.
 
-### 1.3 Due canali stampano a schermo ciò che la squadra non sa
+### 1.3 Quali canali possono stampare a schermo un fatto che la squadra non conosce
 
-Non erano nel DoD di nessuno, e sono **portanti**: senza chiuderli, nascondere il modello è teatro.
+*(Riscritta il 2026-08-28, dopo `#1497`. La stesura precedente si intitolava «Due canali», e la cifra era il
+primo dei suoi errori: contava i canali **noti allora**, non quelli esistenti. Le sue due celle «Misura»
+citavano inoltre codice che nel frattempo è stato sostituito — l'unico filtro `IsAlive()` di `DrawHUD` e
+`GetRecentEvents()` disegnata senza gate — e un «terzo dettaglio» sullo zero cablato che non c'è più.)*
 
-| Canale | Cosa perde | Misura |
+🔴 **Un conteggio di canali non significa nulla senza la domanda a cui risponde**, e due domande vicine
+danno numeri distanti un ordine di grandezza:
+
+| Domanda | Che cosa conta | Ordine |
 |---|---|---|
-| `ARTHUD::DrawHUD` | **nome eroe, barra HP e scudo di ogni unità viva, nemici inclusi** | itera `GetAllActorsOfClass(ARTUnit)` e l'unico filtro è `if (!Unit \|\| !Unit->IsAlive()) continue;` |
-| Combat log | **la cella esatta di ogni movimento** e i **punteggi di utility del bot con cella e bersaglio** | `AddLogEvent` li scrive; `ARTHUD` disegna `GetRecentEvents()` senza gate |
+| *«quanti elementi disegna `DrawHUD` da dati di unità?»* | nome, barra HP, scudo, anelli, status, waypoint, anteprime, marker di fuoco amico, traccia, sagoma… | **decine**, e cresce a ogni feature di presentazione |
+| *«quanti canali possono mostrare un fatto che l'osservatore non conosce?»* | quelli sotto, ciascuno con un owner | **l'elenco che segue**, non una cifra |
 
-⚠️ Un terzo dettaglio: `ARTHUD::DrawHUD` chiama `ComputePlannedHitMarks(AllUnits, /*PlayerTeamId=*/ 0, …)`
-con lo **zero scritto a mano**. L'osservatore oggi è cablato in un letterale.
+Il secondo è quello che questa specifica governa; il primo non è mai stato la domanda. Per questo qui c'è
+una **tabella** e non un numero: una cifra in prosa invecchia in silenzio, un elenco no — chi aggiunge un
+canale deve aggiungere una riga, e chi ne chiude uno deve cambiarne lo stato.
+
+| Canale | Cosa rivelerebbe | Stato | Misura |
+|---|---|---|---|
+| `ARTHUD::DrawHUD` — overlay e modello | nome eroe, barra HP e scudo di ogni unità viva | ✅ **chiuso** | `ShouldDrawUnitOverlay` decide, e `if (!bIsKnownToObserver) { continue; }` salta l'unità |
+| Combat log | la cella esatta di ogni movimento, e i punteggi di utility del bot con cella e bersaglio | ✅ **chiuso** ([D-223]) | l'HUD chiama `GetRecentEventsForTeam(PlayerTeamId)`; `GetRecentEvents()` non ha **più alcun chiamante fuori dai test** |
+| Traccia post-lock | il percorso realmente eseguito da ogni unità, entrambe le squadre | ✅ **chiuso** (`#1497`) | `FRTMoveRoute::CellVerdicts` porta un verdetto **per cella**; `ARTTurnManager::VisibleTrailFor` tronca, e `DrawHUD` disegna solo il tratto che rende |
+| Sagoma dell'ultimo contatto | dove un nemico era l'ultima volta | ✅ **per costruzione** | `ContactGhostTargetForUnit` è complementare a `ShouldDrawUnitOverlay`: o l'uno o l'altra |
+| `rt.Debug.DrawPaths` | le rotte di entrambe le squadre, cella per cella, **in console** | ⚠️ **aperto e DICHIARATO** | **zero** `#if` nel file (`Debug/RTDebugConsole.cpp`), quindi non è un attrezzo da editor. Resta non filtrato per scelta: chi apre la console possiede già lo stato del client, e il comando stampa accanto il tratto che `VisibleTrailFor` concede — è così che il filtro si verifica |
+| **Playback** (`TickPlayback`) | il modello di ogni unità che cammina lungo il percorso eseguito | 🔴 **aperto**, vive in **#1525** | non censito da nessun documento fino al 2026-08-28. La rotta gli arriva da `ResolvedTimeline`, che `ResolveMovement` **non** azzera |
+
+⚠️ **E le due colonne cambiano fra Development e Shipping**, che è la seconda ragione per cui una cifra in
+prosa non regge: la riga `rt.Debug.DrawPaths` dipende da come il target tratta i comandi console, non da
+questo documento — chi ha bisogno del numero esatto lo misura sul target che gli interessa, invece di
+leggerlo qui.
 
 ### 1.4 Il substrato non esiste — tre buchi distinti
 
@@ -197,10 +218,12 @@ vera, e quella non deve attraversare la porta. La conversione avviene **dentro**
 > **Un canale che racconta il PASSATO porta il verdetto di conoscenza calcolato quando il fatto è accaduto;
 > solo la sagoma dell'ultimo contatto risponde al presente, ed è per costruzione.**
 
-Il filtro chiedeva *«lo conosco adesso?»* costruendo la vista **al momento della lettura**, mentre tre canali
-su cinque raccontano ciò che è già successo. Un nemico che era `Live` mentre si muoveva e ora è `Remembered`
-avrebbe — filtrando la traccia come si filtra il log — **la traccia nascosta e la sagoma mostrata**: due
-canali, lo stesso soggetto, due regole opposte.
+Il filtro chiedeva *«lo conosco adesso?»* costruendo la vista **al momento della lettura**, mentre parte dei
+canali racconta ciò che è **già successo** — quali, lo dice la colonna «Quando si decide» qui sotto, e non
+una cifra in questa frase: la stesura precedente diceva *«tre canali su cinque»*, ed è invecchiata il giorno
+in cui il **playback** è entrato nella tabella come sesto. Un nemico che era `Live` mentre si muoveva e ora
+è `Remembered` avrebbe — filtrando la traccia come si filtra il log — **la traccia nascosta e la sagoma
+mostrata**: due canali, lo stesso soggetto, due regole opposte.
 
 | Canale | Quando si decide | Perché |
 |---|---|---|
@@ -942,8 +965,9 @@ Le Fasi A e B **non si allargano dentro #160 in silenzio**: servono due issue pr
   `TActorIterator<ARTUnit>` su **tutto** il mondo, quindi *«non interroga lo stato autorevole» è falso
   oggi*. **Ma non è un terzo leak**: valuta `It->TeamId == TeamId && It->IsAlive()` e calcola il centroide
   della **propria** squadra, quindi nessuna informazione avversaria esce dalla camera. È un debito di
-  **disciplina**, non di informazione, e confonderlo con i due canali di §1.3 gonfierebbe la Fase A con
-  lavoro che non serve a nascondere niente. La porta di §3 lo rende *riparabile*; ripararlo è un'altra
+  **disciplina**, non di informazione, e confonderlo con i canali elencati in §1.3 gonfierebbe la Fase A
+  con lavoro che non serve a nascondere niente. *(Diceva «i due canali di §1.3» finché quella sezione ne
+  contava due: la cifra è caduta con `#1497`, il rimando resta.)* La porta di §3 lo rende *riparabile*; ripararlo è un'altra
   issue.
 
 ---

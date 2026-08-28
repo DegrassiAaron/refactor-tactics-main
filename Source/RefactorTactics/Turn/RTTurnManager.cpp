@@ -175,6 +175,129 @@ TArray<FString> ARTTurnManager::ComposeVisibleLogLines(const TArray<FRTCombatLog
 	return Out; // ordine di produzione, mai riordinato
 }
 
+TArray<FRTCellId> ARTTurnManager::VisibleTrailFor(const FRTMoveRoute& Route, int32 ObserverTeamId)
+{
+	TArray<FRTCellId> Trail;
+
+	// Fail-closed sul disallineamento: senza questo controllo un `Cells.Add` futuro senza il verdetto
+	// corrispondente leggerebbe fuori dall'array dei verdetti. Una rotta malformata non si disegna.
+	if (Route.CellVerdicts.Num() != Route.Cells.Num())
+	{
+		return Trail;
+	}
+
+	Trail.Reserve(Route.Cells.Num());
+	for (int32 i = 0; i < Route.Cells.Num(); ++i)
+	{
+		// 🔴 `break`, non `continue`. Riprendere dopo un buco unirebbe due celle NON adiacenti con un
+		// segmento dritto, che passa esattamente sopra il tratto da nascondere: peggio che non filtrare.
+		if (!Route.CellVerdicts[i].AllowsTeam(ObserverTeamId))
+		{
+			break;
+		}
+		Trail.Add(Route.Cells[i]);
+	}
+	return Trail;
+}
+
+namespace
+{
+	/** Gli osservatori di una squadra, alle posizioni con cui si decide il verdetto della traccia. */
+	struct FRTRouteObserverTeam
+	{
+		int32 TeamId = INDEX_NONE;
+		TArray<FRTPerceiver> Observers;
+	};
+
+	/**
+	 * Un gruppo di osservatori per ogni squadra VIVA, dalle posizioni correnti degli attori.
+	 *
+	 * ⚠️ **Chiamata PRIMA di `PlaceOnCell`**, quindi le celle sono quelle di inizio fase: e' il campione
+	 * dichiarato come limite in [D-223] — `TeamKnowledgeState` ha due sole assegnazioni per turno, entrambe
+	 * per fase, e un campione per micro-step non esiste. Risponde bene quando a nascondere e' il movimento
+	 * del NEMICO, sbaglia quando e' quello dell'osservatore.
+	 *
+	 * Costruita UNA volta per risoluzione e non per rotta: `VisibleCells` ricostruisce l'area visibile a
+	 * ogni chiamata, e rifarla per ogni cella di ogni percorso sarebbe lo stesso lavoro moltiplicato.
+	 *
+	 * L'ordine e' quello dei `TeamId` crescenti, come `RefreshTeamKnowledgeForPlanning`: l'ordine di un
+	 * `TSet` dipende dall'hash, e qui si itera (invariante #3).
+	 */
+	TArray<FRTRouteObserverTeam> BuildRouteObserverTeams(const TArray<ARTUnit*>& Units)
+	{
+		TSet<int32> Teams;
+		for (const ARTUnit* U : Units)
+		{
+			if (IsValid(U) && U->IsAlive()) { Teams.Add(U->TeamId); }
+		}
+		TArray<int32> SortedTeams = Teams.Array();
+		SortedTeams.Sort();
+
+		TArray<FRTRouteObserverTeam> Out;
+		Out.Reserve(SortedTeams.Num());
+		for (int32 TeamId : SortedTeams)
+		{
+			FRTRouteObserverTeam Entry;
+			Entry.TeamId = TeamId;
+			for (const ARTUnit* U : Units)
+			{
+				// Un cadavere non vede: stessa guardia di `RefreshTeamKnowledgeForPlanning`.
+				if (!IsValid(U) || !U->IsAlive() || U->TeamId != TeamId) { continue; }
+				FRTPerceiver P;
+				P.Cell = U->Cell;
+				P.Facing = U->Facing;
+				P.VisionRange = U->VisionRange;
+				Entry.Observers.Add(P);
+			}
+			Out.Add(MoveTemp(Entry));
+		}
+		return Out;
+	}
+
+	/**
+	 * Chi puo' vedere disegnata UNA cella percorsa da un soggetto di `SubjectTeamId` ([D-223]).
+	 *
+	 * 🔴 **La squadra del soggetto vede sempre la propria traccia**, e non passa dalla percezione: sai dove
+	 * si e' mosso il tuo anche se in quel momento nessun compagno lo guardava. E' lo stesso ramo che
+	 * `ARTHUD::ShouldDrawUnitOverlay` risolve con `bIsOwnTeam` e che `ClassifyTarget` risolve con
+	 * `TargetTeamId == Knowledge.TeamId`: senza, la traccia di un proprio esploratore sparirebbe a chi lo ha
+	 * mandato avanti, che non e' conoscenza parziale ma amnesia.
+	 *
+	 * ⚠️ **Il predicato e' `TeamAwarenessOfCell`, quello che la produzione usa gia'** nel ciclo a micro-step
+	 * del Move: riscrivere qui un confronto su `VisibleCells` sarebbe la terza via che [D-223] vieta — due
+	 * riletture della stessa regola, libere di divergere.
+	 *
+	 * Fail-closed per costruzione: una squadra assente da `Teams` non riceve il bit, e senza mappa il
+	 * verdetto e' `NoOne()` — la traccia sparisce, mai il contrario.
+	 */
+	FRTKnowledgeVerdict FreezeRouteCellVerdict(const URTHexMapAsset* Map,
+		const TArray<FRTRouteObserverTeam>& Teams, int32 SubjectTeamId, const FRTCellId& Cell)
+	{
+		FRTKnowledgeVerdict Verdict;
+		for (const FRTRouteObserverTeam& Team : Teams)
+		{
+			if (Team.TeamId == SubjectTeamId
+				|| URTPerceptionLibrary::TeamAwarenessOfCell(Map, Team.Observers, Cell) == ERTAwareness::Detected)
+			{
+				Verdict.AllowTeam(Team.TeamId);
+			}
+		}
+		return Verdict;
+	}
+
+	/** I verdetti di una rotta intera, uno per cella e nello stesso ordine. */
+	void FreezeRouteVerdicts(const URTHexMapAsset* Map, const TArray<FRTRouteObserverTeam>& Teams,
+		int32 SubjectTeamId, const TArray<FRTCellId>& Cells, TArray<FRTKnowledgeVerdict>& Out)
+	{
+		Out.Reset();
+		Out.Reserve(Cells.Num());
+		for (const FRTCellId& Cell : Cells)
+		{
+			Out.Add(FreezeRouteCellVerdict(Map, Teams, SubjectTeamId, Cell));
+		}
+	}
+}
+
 TArray<FString> ARTTurnManager::GetRecentEventsForTeam(int32 ObserverTeamId) const
 {
 	// ✅ **Venticinque righe sparite con [D-223], e vale la pena dire cosa facevano**: `GetAllActorsOfClass`,
@@ -3354,7 +3477,9 @@ void ARTTurnManager::ResolveDash()
 		}
 	}
 
-	// Eventi per il playback (Move-type, fase Dash) + traccia post-lock. Catturati PRIMA del placement.
+	// Eventi per il playback (Move-type, fase Dash) + traccia post-lock. Catturati PRIMA del placement,
+	// osservatori inclusi: le celle da cui si guarda sono quelle di inizio fase ([D-223]).
+	const TArray<FRTRouteObserverTeam> ObserverTeams = BuildRouteObserverTeams(Units);
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		if (DashAbilityIdx[i] != INDEX_NONE && Resolved[i].Entered.Num() > 0)
@@ -3368,6 +3493,15 @@ void ARTTurnManager::ResolveDash()
 			FRTMoveRoute& Tracked = LastMoveRoutes.AddDefaulted_GetRef();
 			Tracked.StableUnitId = Units[i]->StableUnitId;
 			Tracked.Cells = Route;
+
+			// Il verdetto per cella di [D-223], come nel sito del Move.
+			//
+			// ⚠️ **Queste rotte non arrivano a schermo**, e il verdetto si calcola lo stesso: `ResolveMovement`
+			// gira SEMPRE dopo `ResolveDash` nella stessa risoluzione e apre con `LastMoveRoutes.Reset()`.
+			// Una voce senza verdetto qui sarebbe pero' una voce fail-closed pronta a diventare visibile il
+			// giorno in cui quell'ordine cambia — cioe' una traccia che sparisce senza che nessuno capisca
+			// perche'. Il costo e' una risoluzione di percezione per cella, una volta per turno.
+			FreezeRouteVerdicts(Snapshot.Map, ObserverTeams, Units[i]->TeamId, Route, Tracked.CellVerdicts);
 
 			FRTResolvedEvent Ev;
 			Ev.Phase = ERTMatchPhase::Dash;
@@ -5368,6 +5502,12 @@ void ARTTurnManager::ResolveMovement()
 
 	// Traccia post-lock: rotte effettivamente percorse (viz del percorso risolto). Catturate PRIMA
 	// del placement, cosi' includono la cella di partenza reale.
+	//
+	// ⚠️ **«Prima del placement» vale anche per gli OSSERVATORI, ed e' il campione dichiarato da [D-223]**:
+	// costruiti qui, guardano dalle celle di inizio fase. Un campione per micro-step non esiste — la
+	// conoscenza di squadra ha due sole assegnazioni per turno, entrambe per fase — e questo e' il limite
+	// scritto nella decisione, non un difetto da riparare qui.
+	const TArray<FRTRouteObserverTeam> ObserverTeams = BuildRouteObserverTeams(Units);
 	LastMoveRoutes.Reset();
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
@@ -5382,6 +5522,11 @@ void ARTTurnManager::ResolveMovement()
 			FRTMoveRoute& Tracked = LastMoveRoutes.AddDefaulted_GetRef();
 			Tracked.StableUnitId = Units[i]->StableUnitId;
 			Tracked.Cells = Route;
+
+			// Il verdetto di [D-223], una cella alla volta: la traccia porta il tratto OSSERVATO e si
+			// tronca dove l'osservatore ha perso il soggetto. Congelato QUI e non letto a valle, perche' al
+			// prossimo Planning la conoscenza sara' un'altra e il soggetto potrebbe non esistere piu'.
+			FreezeRouteVerdicts(Snapshot.Map, ObserverTeams, Units[i]->TeamId, Route, Tracked.CellVerdicts);
 
 			// Evento per il playback: rotta percorsa (start + celle attraversate) da animare.
 			FRTResolvedEvent Ev;
