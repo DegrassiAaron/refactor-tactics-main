@@ -99,6 +99,15 @@ namespace
 	 * L'azione arriva DAL CATALOGO e basta il `Def`: niente `bDash`, niente `RangeCells` sull'asset (che vale 5
 	 * per default). Se il resolver leggesse ancora il campo legacy invece del catalogo, gli 8 MP non ci
 	 * sarebbero e i test qui sotto fallirebbero — che e' esattamente cio' che devono sorvegliare.
+	 *
+	 * ⛔ **NON sostituire con `RTAbilityFixtures::AddCoreAbility`**, benche' sia il rimedio applicato a tutti
+	 * gli altri helper simili (#1588). Quella copia i campi specchio dal `Def`, e riempire `RangeCells`
+	 * renderebbe questo test verde ANCHE se il resolver leggesse lo specchio: la proprieta' sorvegliata
+	 * sparirebbe senza che niente diventi rosso.
+	 *
+	 * ✅ **Misurato, non supposto** (#1588): sostituendo in `ResolveDash` la lettura del `Def` con quella
+	 * dello specchio, cade `RefactorTactics.Actions.Sprint.AppliesExposed` con «lo Sprint copre 6 celle: il
+	 * budget e' quello del catalogo (8 MP)». Il vuoto qui e' la misura.
 	 */
 	int32 AddSprintAbility(ARTUnit* Unit)
 	{
