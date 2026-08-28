@@ -73,6 +73,8 @@ public:
 	 * 🔵 Generata invece che autorata come `.uasset`: un binario in piu' sarebbe un path da leasare, e due
 	 * `.uasset` non si fondono. Questa si diffa e si testa.
 	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexMap",
+		meta = (ToolTip = "Il prisma esagonale della cella: circumraggio RTCellPrismRadius (50 uu), mezza-altezza 50 uu, centrato sull'origine. Chi lo posa lo scala."))
 	static UStaticMesh* GetCellPrismMesh();
 
 	/**
