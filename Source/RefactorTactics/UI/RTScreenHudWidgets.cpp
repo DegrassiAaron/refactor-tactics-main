@@ -232,11 +232,25 @@ int32 URTActionDockWidget::GetArmedActionIndex() const
 // Action slot
 // =====================================================================================================
 
-void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool bInArmed)
+void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool bInArmed,
+	const URTIconCatalogData* InCatalog)
 {
 	Action = InAction;
 	bArmed = bInArmed;
+	ReceivedCatalog = InCatalog;
+
+	// ⚠️ L'evento va per ULTIMO: e' il Blueprint che disegna, e disegna leggendo i tre campi qui sopra. Se
+	// partisse prima, un'implementazione che chiama `GetResolvedIcon()` leggerebbe il catalogo del turno
+	// PRECEDENTE — un difetto che a schermo somiglia a un ritardo di un frame invece che a un errore.
 	OnActionChanged();
+}
+
+FRTIconResolution URTActionSlotWidget::GetResolvedIcon() const
+{
+	// Il consumer e' fisso qui e non arriva dal grafo: `ResolveIcon` lo usa per dire QUALE widget ha chiesto
+	// un'icona che non c'era, e sei slot che lo compongono ciascuno per conto proprio possono scriverci sei
+	// stringhe diverse — o nessuna. La warning perderebbe l'unica cosa per cui esiste.
+	return URTIconLibrary::ResolveIcon(ReceivedCatalog, GetIconId(), TEXT("ActionSlot"));
 }
 
 FName URTActionSlotWidget::GetIconId() const

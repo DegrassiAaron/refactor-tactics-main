@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "UI/RTHudViewModel.h"
+#include "UI/RTIconCatalogData.h" // FRTIconResolution e' un valore di ritorno: serve la definizione, non basta la forward
 #include "RTScreenHudWidgets.generated.h"
 
 class ARTTurnManager;
@@ -225,8 +226,53 @@ public:
 	bool bArmed = false;
 
 	/** Il dock chiama questa; lo slot non si aggiorna da solo. */
+	/**
+	 * Il catalogo da cui risolvere l'icona. Lo **riceve**, non va a prenderlo.
+	 *
+	 * ⚠️ E' la stessa disciplina per cui questa classe non estende `URTScreenHudWidgetBase`: uno slot che
+	 * andasse a cercarsi il catalogo sarebbe un secondo posto che decide da dove viene, e sei slot che lo
+	 * cercano ciascuno per conto proprio possono trovarne sei diversi. Chi crea lo slot lo passa.
+	 *
+	 * ✅ E' un `URTIconCatalogData*`, **non** una `UTexture2D*`: `ScreenHud.WidgetApiExposesNoTexture`
+	 * continua a valere, ed e' il punto — l'icona resta una CHIAVE risolta da un catalogo ([D-031]), non un
+	 * asset che il widget si tiene.
+	 *
+	 * ⚠️ **Si chiama `ReceivedCatalog` e non `IconCatalog`, e il nome e' una CORREZIONE.** Con `IconCatalog`
+	 * il getter automatico del Blueprint diventava `Get IconCatalog`, indistinguibile a occhio da
+	 * `Get Icon Catalog` — la funzione che la base espone — nel menu di ricerca dei nodi. Un autore che
+	 * trascinava dal pin `In Catalog` del dock prendeva la variabile dello SLOT invece della funzione della
+	 * base, e il compilatore rispondeva *«This blueprint (self) is not a RTActionSlotWidget»*: un errore che
+	 * nomina il sintomo e non la causa. E' successo davvero, due volte di fila.
+	 *
+	 * ∴ i due nomi ora divergono, e il verbo dice anche la disciplina: lo slot **riceve** il catalogo.
+	 */
+	UPROPERTY(BlueprintReadOnly, Transient, Category = "RefactorTactics|HUD")
+	TObjectPtr<const URTIconCatalogData> ReceivedCatalog;
+
+	/**
+	 * ⚠️ `InCatalog` ha un default `nullptr` per una ragione dichiarata: senza catalogo lo slot mostra il
+	 * missing-icon, che e' il comportamento voluto, e un chiamante che non lo passa non e' un errore da
+	 * bloccare. Chi lo passa e' il dock, che il catalogo lo raggiunge con `GetIconCatalog()`.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
-	void SetAction(const FRTAbilityCooldownView& InAction, bool bInArmed);
+	void SetAction(const FRTAbilityCooldownView& InAction, bool bInArmed,
+		const URTIconCatalogData* InCatalog = nullptr);
+
+	/**
+	 * L'icona di questa azione, risolta dal catalogo — o il missing-icon.
+	 *
+	 * 🔴 **Esiste perche' il Blueprint non deve comporre la chiamata da solo.** `ResolveIcon` vuole tre
+	 * ingressi (catalogo, chiave, consumer) e il terzo serve al log: *«senza, "icona mancante" in una
+	 * partita con dieci widget non dice dove guardare»*. Lasciarli comporre nel grafo significherebbe che
+	 * ogni slot puo' scriverci una stringa diversa, o vuota — e la warning perderebbe l'unica cosa per cui
+	 * esiste. Qui il consumer e' fisso e corretto per costruzione.
+	 *
+	 * ⚠️ **`BlueprintPure` nonostante `ResolveIcon` logghi**, e la differenza rispetto a li' e' il punto di
+	 * chiamata: questa si consuma dentro `OnActionChanged` — un evento, una volta per cambio azione — non
+	 * in un property binding valutato a ogni frame.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FRTIconResolution GetResolvedIcon() const;
 
 	/** Ridisegna. Il Blueprint la implementa: qui non c'e' layout. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|HUD")

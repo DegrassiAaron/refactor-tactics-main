@@ -730,3 +730,54 @@ non c'è nessun rosso preesistente da scontare, e la suite è verde per intero.
   all'*avanzamento* — non è stata nemmeno prototipata: porta con sé una soglia nuova, e le soglie sono
   materia di `D-184`.
 - **Il margine 4 su 4 resta un `AddWarning`**, per la ragione già scritta in §6.7.
+
+### 11.6 Terzo lavoro — il corpus golden dichiarava scoperta una categoria che aveva già il suo scenario
+
+`#1593` / PR `#1595`. Il corpus dichiarava **due** categorie scoperte, `Fallback` e `ReactionClash`, con la
+stessa frase e lo stesso invito — *«chi ne scrive uno che le tocca alzi la soglia»*. I due casi non erano lo
+stesso caso:
+
+| categoria | stato | esito |
+|---|---|---|
+| `ReactionClash` | in `KnownUnavailableCapabilities()`, owner **#314** (OPEN) | ⛔ resta scoperta, e ora la nota dice **perché** e **cosa fare quando si sblocca** (soglia 9 → 10) |
+| `Fallback` | categoria di log emessa da **sette** siti del runtime, e uno scenario che la produce **esisteva già** | ✅ coperta, senza scrivere niente in `Scenarios/` |
+
+`Visual.Combat.FallbackTargetMoved` è il fallback `AttackCell` per costruzione. Misurato:
+`1 turni, categorie {Combat, Facing, Fallback, Move}` → **il corpus passa da 8 a 9 categorie su 10**.
+
+⚠️ **La categoria è rimasta scoperta per settimane non perché fosse difficile**, ma perché una riga metteva
+insieme un lavoro bloccato e uno pronto. Due cose diverse nella stessa frase aspettano alla velocità della
+più lenta.
+
+🔴 **E la code review ha trovato che il diff aveva reso falso un commento che non aveva toccato.**
+L'avvertenza secondo cui `Combat.CounterStrikesBack` era *«l'unico fornitore»* di quattro categorie e valeva
+*«metà della soglia»* smette di valere appena un secondo scenario porta `Combat` e `Facing`: perderle lì non
+produce più nessun rosso, e la regola di diagnosi che quella riga insegnava manda a cercare il difetto nel
+posto sbagliato. È la stessa specie di difetto che il lavoro era andato a correggere — **una nota che
+sopravvive al fatto che descriveva** — e la seconda volta l'ha presa la review invece di tre settimane.
+
+Undici rilievi accolti su dodici. Il declinato è aperto come [`#1598`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1598):
+nessun test rileva una cartella golden **orfana**, e la mutazione che il commento del corpus prescrive ne
+produce una.
+
+---
+
+## 12. Quanti lavori ha consegnato la lane, e perché non cinque
+
+⚠️ **La direttiva v0.2 §3 si intitola «I CINQUE LAVORI» e ne contiene DUE.** Il testo di `C-3`, `C-4` e `C-5`
+non è mai arrivato. Non sono stati ricostruiti: tre bersagli inventati su un repository condiviso sembrerebbero
+autorevoli, ed è il difetto che questo handoff dichiara altrove di non commettere.
+
+**Consegnati tre**, e il terzo è un candidato **dedotto**, non uno dei tre mancanti:
+
+| | esito |
+|---|---|
+| `C-1` → [#1550](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1550) | ⏳ **resta aperta**: il suo criterio d'accettazione chiedeva di dimostrare una non-esistenza. Il lavoro è dentro `main`, la ricerca no |
+| `C-2` → [#1551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1551) | ⏳ istruita come `BOT-STALL-1`, decisione a PDR-00 |
+| dedotto → [#1593](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1593) | ✅ chiusa |
+
+🔴 **Il documento portava la propria checksum e nessuno l'ha verificata.** Il numero è nel titolo: bastava
+contare. §2.6 della stessa direttiva prescrive alla lane *«"N eseguiti su M dichiarati", a mano (`D-181`)»* —
+cioè esige dai test la riconciliazione che il documento non applica a sé stesso, ed è esattamente il difetto
+che ne è uscito. Chi scrive la prossima direttiva ripeta i titoli dei lavori in un indice in testa: una lista
+che compare due volte rende la perdita **visibile** invece che silenziosa.
