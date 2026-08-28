@@ -29,20 +29,32 @@ python3 tools/hud-assets/generate_hud_assets.py
 Devi leggere esattamente questo:
 
 ```text
-66 icone + 9 cornici -> Content/RT/UI/_Generated
+121 icone + 9 cornici -> Content/RT/UI/_Generated
+✅ gate dell'alfabeto: T1 banda libera · T3 riquadro libero · T5 fasi note · T6 aperiodico · T7 fase derivata · T8 colore = fase · T9 palette distinguibile
 ✅ copertura completa: 61 chiavi richieste, tutte disegnate
-ℹ️  5 icone fuori dal set richiesto (attese: ability degli eroi)
-344 PNG rasterizzati
+ℹ️  60 icone fuori dal set richiesto (attese: ability degli eroi + censimento delle sette categorie)
+N PNG rasterizzati
 ```
+
+> ⚠️ **I numeri qui sopra sono stati rimisurati il 2026-08-28, e i precedenti erano stantî** — dicevano
+> «66 icone» e «5 fuori dal set» quando erano **121** e **60**, e omettevano del tutto la riga dei gate.
+> Il pack cresce, e un blocco che dice *«devi leggere esattamente questo»* invecchia da solo. **Confronta
+> la forma, non le cifre**: quattro righe di riepilogo più la riga dei gate; le due che contano davvero
+> sono `✅ gate dell'alfabeto` e `✅ copertura completa`. Il conteggio dei PNG dipende da `cairosvg` e
+> non è stato misurato qui — se manca la libreria, quella riga non compare e i gate `T1/T3` si dichiarano
+> «non misurabili» invece di tacere.
 
 **Se leggi `⛔ N chiavi richieste SENZA icona`, fermati qui.** Significa che il gioco ha guadagnato una
 chiave da quando il generatore è stato scritto — una azione nuova a catalogo, un tag `Status.` nuovo, un
 eroe in più. Il generatore stampa quali: vanno disegnate prima, non aggirate. Un catalogo con una chiave
 scoperta è rotto in un modo che la validazione non distingue da «qualcuno ha cancellato un'icona».
 
-Le 5 «fuori dal set richiesto» sono attese: sono le ability di Gadget. Hanno una chiave regolare sotto
-`Action.` ma non stanno nel catalogo generico, quindi `RequiredIconIds()` non le pretende — servono alla
-skill bar, non alla copertura.
+Le 60 «fuori dal set richiesto» sono attese, e sono **due gruppi**: le **20 ability degli eroi**, che hanno
+una chiave regolare sotto `Action.` ma non stanno nel catalogo generico — `RequiredIconIds()` non le pretende,
+servono alla skill bar e non alla copertura — e le **40 chiavi del censimento delle sette categorie**
+([`10-catalogo-sette-categorie.md`](../../research/design/icon/visual-language/10-catalogo-sette-categorie.md)),
+che sono **asset e non chiavi richieste**: `RefactorTactics.IconCatalog.V01CategoriesPopulated` fallisce se una
+di loro comparisse in `RequiredIconIds()`, e la roadmap le assegna a **E25**.
 
 > ⚠️ L'output sta in `Content/RT/UI/_Generated/`, che è **ignorato da git**. È corretto: si rigenera. Non
 > aggiungerlo al repository.
