@@ -380,6 +380,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	float GetPlanningSeconds() const { return PlanningSeconds; }
 
+	/**
+	 * Durata della finestra Fast Reaction (ADR-0004 §8). E' cio' che alimenta il countdown del DTO di
+	 * CP 14.6: la presentazione la LEGGE da qui, non ne tiene una copia.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
+	float GetFastReactionDuration() const { return FastReactionDuration; }
+
 	/** Progresso obiettivo di una squadra (intero, mai un float). Squadra sconosciuta -> 0. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	int32 GetTeamScore(int32 TeamId) const;
@@ -1420,6 +1427,24 @@ protected:
 	/** Durata della fase di pianificazione; allo scadere scatta il lock-in automatico. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	float PlanningSeconds = 30.f;
+
+	/**
+	 * Durata della finestra Fast Reaction, in secondi (ADR-0004 §8, CP 14.6): **3,0 s**.
+	 *
+	 * Sta qui e non in `FRTMatchRules` per la ragione che quel file dichiara di se': e' un tempo di PARETE,
+	 * non un parametro di regola da cui l'esito dipende. L'esito allo scadere e' `SafeResponse` — mai `FIRE`
+	 * — e non cambia con la durata: quello che cambia e' quanto si ha per decidere.
+	 *
+	 * ⚠️ **Nasce con un lettore, ed e' il motivo per cui nasce adesso.** CP 14.5 rinvio' questo valore
+	 * proprio perche' nessuno lo leggeva (`roadmap-v0.1.md`: *«spostata a CP 14.6: qui non aveva un
+	 * lettore»*), e fino a oggi `FastReactionDuration` esisteva solo dentro due commenti. Il lettore e'
+	 * `URTReactionWindowLibrary::FilterWindowForTeam`, che lo consegna alla UI come countdown.
+	 *
+	 * Server-authoritative: un client lento non allunga la finestra. In v0.1 offline la distinzione non e'
+	 * osservabile, e il campo esiste al singolare apposta — due sorgenti sarebbero due verita' (ADR-0005 §4c).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
+	float FastReactionDuration = 3.f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Turn")
 	ERTMatchPhase Phase = ERTMatchPhase::Planning;
