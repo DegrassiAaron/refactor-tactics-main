@@ -116,6 +116,29 @@ FVector URTHexLibrary::AxialToWorld(const FRTCellId& Cell, const FVector& Origin
 		Origin.Z + static_cast<double>(Cell.Layer) * static_cast<double>(LayerHeight));
 }
 
+TArray<FVector> URTHexLibrary::CellCorners(const FRTCellId& Cell, const FVector& Origin, float HexSize, float LayerHeight)
+{
+	// Stesso centro che usa chiunque altro: i vertici sono un offset da AxialToWorld, non una seconda
+	// derivazione della griglia. Cosi' se il centro si muove, i vertici lo seguono per costruzione.
+	const FVector Center = AxialToWorld(Cell, Origin, HexSize, LayerHeight);
+	const double  Size   = static_cast<double>(HexSize);
+
+	TArray<FVector> Corners;
+	Corners.Reserve(6);
+	for (int32 i = 0; i < 6; ++i)
+	{
+		// Pointy-top: i vertici stanno a 60*i - 30 gradi, quindi le punte cadono sull'asse Y e il
+		// lato-a-lato (sqrt(3)*Size) sull'asse X — lo stesso accoppiamento di assi che AxialToWorld
+		// usa per i passi, dove X porta sqrt(3) e Y porta 1.5.
+		const double Angle = FMath::DegreesToRadians(60.0 * static_cast<double>(i) - 30.0);
+		Corners.Emplace(
+			Center.X + Size * FMath::Cos(Angle),
+			Center.Y + Size * FMath::Sin(Angle),
+			Center.Z);
+	}
+	return Corners;
+}
+
 FRTCellId URTHexLibrary::WorldToAxial(const FVector& World, const FVector& Origin, float HexSize, int32 Layer)
 {
 	const double Size = static_cast<double>(HexSize);

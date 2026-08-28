@@ -56,6 +56,19 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static FVector AxialToWorld(const FRTCellId& Cell, const FVector& Origin, float HexSize, float LayerHeight);
 
+	/**
+	 * I sei vertici-mondo della cella, in ordine stabile a partire da -30 gradi e in senso antiorario,
+	 * complanari al centro (stesso Z). Il raggio e' HexSize: la "dimensione" di un pointy-top e' il
+	 * circumraggio, cioe' il lato.
+	 *
+	 * Esiste perche' il Cell Placement Volume (contratto graybox §5) dev'essere DERIVATO dalla cella
+	 * logica e non ricalcolato altrove: due celle adiacenti condividono esattamente due di questi
+	 * vertici, e una guida d'authoring che non tassella e' peggio di nessuna guida. Chi disegna il
+	 * prisma chiama questa, non riscrive la trigonometria in Blueprint.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static TArray<FVector> CellCorners(const FRTCellId& Cell, const FVector& Origin, float HexSize, float LayerHeight);
+
 	/** Cella che contiene il punto-mondo (arrotondamento cubico), sul Layer indicato (layer attivo). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static FRTCellId WorldToAxial(const FVector& World, const FVector& Origin, float HexSize, int32 Layer);
