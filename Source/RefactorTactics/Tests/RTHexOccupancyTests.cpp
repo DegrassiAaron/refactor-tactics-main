@@ -121,11 +121,15 @@ namespace
 	using RTOccupancyFixtures::PointAt;
 	using RTOccupancyFixtures::OpenLine;
 	using RTOccupancyFixtures::ClosedSquare;
-	// ⚠️ Il nome porta il prefisso del file, e non e' pedanteria: la unity build condivide la translation
-	// unit, e `OccupancyTestHexSize` esisteva GIA' in `RTGeometryGrammarTests.cpp` con lo stesso valore. I due si
-	// incontravano solo quando l'adaptive build metteva entrambi i file nella stessa TU — cioe' a seconda
-	// di cosa era stato modificato di recente — e la compilazione moriva con `C2374: ridefinizione` per una
-	// modifica che con questi test non c'entrava niente.
+	// ⚠️ Il nome porta il prefisso del file, e non e' pedanteria: prima si chiamava `TestHexSize`, e
+	// `TestHexSize` esisteva GIA' in `RTGeometryGrammarTests.cpp` con lo stesso valore (100). La unity build
+	// compila piu' .cpp in un'unica translation unit, e due namespace anonimi finiti nella stessa TU
+	// diventano lo stesso namespace: la compilazione moriva con `C2374: ridefinizione`.
+	//
+	// 🔴 Il motivo per cui il difetto e' rimasto nascosto e' l'unity build **adattiva**: UBT esclude
+	// dall'unita' i file del working set — quelli che `git status` segnala modificati. I due file si
+	// incontravano solo quando nessuno dei due era in lavorazione, quindi la rottura compariva a chi non
+	// aveva toccato ne' l'uno ne' l'altro, per una modifica che con questi test non c'entrava niente.
 	constexpr float OccupancyTestHexSize = RTOccupancyFixtures::HexSize;
 }
 

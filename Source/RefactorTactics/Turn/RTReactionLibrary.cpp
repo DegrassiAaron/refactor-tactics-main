@@ -137,7 +137,7 @@ ERTReactionPassPoint URTReactionLibrary::PassPointFor(ERTReactionTrigger Trigger
 	case ERTReactionTrigger::AboutToReceiveControl:
 		return ERTReactionPassPoint::BlastStatus;
 	case ERTReactionTrigger::CellBecameHazardous:
-		return ERTReactionPassPoint::Never;
+		return ERTReactionPassPoint::CleanupSurfaceBirth;
 	}
 	return ERTReactionPassPoint::Never;
 }
