@@ -60,6 +60,7 @@ namespace
 			{ TEXT("Hero.Phase.FluidTrail"),         TEXT("Scia fluida") },
 			{ TEXT("Hero.Phase.MistVeil"),           TEXT("Velo di nebbia") },
 			{ TEXT("Hero.Phase.FlowReaction"),       TEXT("Reazione di flusso") },
+			{ TEXT("Hero.Phase.TideGuard"),          TEXT("Guardia di marea") },
 
 			// Riktor (`Hero.Riktor`)
 			{ TEXT("Hero.Riktor.ImpactShot"),      TEXT("Colpo d'impatto") },
@@ -74,6 +75,7 @@ namespace
 			{ TEXT("Hero.Wraith.PassingBlade"),     TEXT("Lama di passaggio") },
 			{ TEXT("Hero.Wraith.Deflection"),       TEXT("Deviazione") },
 			{ TEXT("Hero.Wraith.Feint"),            TEXT("Finta") },
+			{ TEXT("Hero.Wraith.PhaseGuard"),       TEXT("Guardia di fase") },
 		};
 
 		if (const FString* Found = Names.Find(Id))
@@ -119,6 +121,14 @@ namespace
 
 		Action->DisplayName = HeroActionDisplayName(Id);
 
+		// [`INT-8`]: un'abilita' d'eroe che dichiara DANNO e' un'aggressione. Il campo resta comunque
+		// dichiarato e sovrascrivibile dal chiamante -- serve a chi avra' l'equivalente d'eroe di
+		// `Action.MarkTarget`, ostile e da zero danni, che questa riga da sola non riconoscerebbe.
+		for (const FRTActionEffectSpec& Spec : Effects)
+		{
+			if (Spec.Effect == ERTActionEffect::Damage) { Action->Def.bCountsAsAttack = true; break; }
+		}
+
 		return Action;
 	}
 
@@ -162,8 +172,21 @@ TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHero
 	TArray<FString> Errors;
 	TSet<FName> Seen;
 
-	// Numero di azioni atteso: 1 attacco base + 4 abilita' fondamentali (catalogo v0.1 §"Struttura di un eroe").
-	constexpr int32 ExpectedActionCount = 5;
+	// Numero di azioni: 1 attacco base + 4 abilita' fondamentali (catalogo v0.1 §"Struttura di un eroe"),
+	// piu' al massimo UNA generica del catalogo core portata nel kit.
+	//
+	// ⚠️ **Era `== 5` esatte, ed e' diventato un intervallo con un costo dichiarato**: il validatore non dice
+	// piu' *«questo eroe e' completo»* ma *«e' nell'intervallo»*. Un eroe a cui mancasse una fondamentale e
+	// che ne portasse una generica passerebbe. Si accetta perche' l'alternativa — alzare il minimo a 6 —
+	// renderebbe **invalidi** Gadget e Riktor, che di azioni ne hanno cinque: sposterebbe il rosso invece di
+	// toglierlo.
+	//
+	// ⛔ **Il tetto e' 6 e non "quante ne vuoi"**: oltre, il kit supera le posizioni che l'input raggiunge.
+	// Con dieci tasti numerici e le generiche su tasti propri, sei azioni d'eroe sono il massimo premibile —
+	// `PlayerInput.EveryKitEntryIsReachable` e' il gate che lo misura, e questo numero senza quel gate
+	// tornerebbe a essere un'opinione.
+	constexpr int32 MinActionCount = 5;
+	constexpr int32 MaxActionCount = 6;
 
 	for (int32 i = 0; i < Heroes.Num(); ++i)
 	{
@@ -225,11 +248,12 @@ TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHero
 			Errors.Add(FString::Printf(TEXT("%s: debolezza non dichiarata"), *Where));
 		}
 
-		if (Hero->Actions.Num() != ExpectedActionCount)
+		if (Hero->Actions.Num() < MinActionCount || Hero->Actions.Num() > MaxActionCount)
 		{
 			Errors.Add(FString::Printf(
-				TEXT("%s: attese %d azioni (attacco base + quattro fondamentali), trovate %d"),
-				*Where, ExpectedActionCount, Hero->Actions.Num()));
+				TEXT("%s: attese da %d a %d azioni (attacco base + quattro fondamentali, piu' al piu' una "
+				     "generica), trovate %d"),
+				*Where, MinActionCount, MaxActionCount, Hero->Actions.Num()));
 			continue; // struttura gia' rotta: contare le varianti su un array della forma sbagliata non aiuta
 		}
 
@@ -529,6 +553,19 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 		/*Range*/ 0, /*Cooldown*/ 3, ERTActionFallback::Cancel, {}, ERTAbilityShape::Single, /*AreaRadius*/ 0,
 		ERTActionSlot::None, /*bInterruptible*/ false));
 
+	// `Hero.Phase.TideGuard` — lo scudo PROATTIVO, derivato da `Action.Shield`: Preparation, 25 punti di
+	// scudo temporaneo, cooldown 2. E' l'unico scudo del gioco che si sceglie PRIMA di sapere se sarai
+	// colpito: `Gadget.ReactiveCapacitor` e `Reaction.ReactiveShield` rispondono a un colpo gia' partito.
+	//
+	// Uno per squadra — il gemello e' `Hero.Wraith.PhaseGuard` — perche' le formazioni sono fisse
+	// (`ARTGameMode::Team0Heroes`/`Team1Heroes`). Non va a Gadget, che porta gia' `ReactiveCapacitor`:
+	// sarebbe la terza fonte di scudo sullo stesso eroe, il difetto che [D-218] ha corretto altrove.
+	//
+	// ⚠️ **E' la SESTA azione di Phase, e prima non ci sarebbe stata**: fino a quando le generiche
+	// occupavano la fila dei numeri, un kit da undici voci ne lasciava una impremibile.
+	Phase->Actions.Add(MakeHeroActionFromCore(TEXT("Hero.Phase.TideGuard"), TEXT("Action.Shield"),
+		/*Cooldown*/ 2));
+
 	// Variante di CircularTide (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
 	// Curativa: cura 24 (invece di 18), MA non applica Wet ai nemici — rinuncia al setup della combo con
 	// Gadget per curare di piu'.
@@ -810,6 +847,11 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// che lo porti resta dichiarato nel catalogo eroi, non simulato in un campo che nessuno leggerebbe.
 	Wraith->Actions.Add(MakeHeroAction(TEXT("Hero.Wraith.Feint"), ERTResolutionPhase::Control, /*Priority*/ 40,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+
+	// `Hero.Wraith.PhaseGuard` — gemello di `Hero.Phase.TideGuard`, uno per squadra. Su Wraith costa una
+	// scelta vera: la Preparation spesa qui e' quella che non arma `InterceptShot`.
+	Wraith->Actions.Add(MakeHeroActionFromCore(TEXT("Hero.Wraith.PhaseGuard"), TEXT("Action.Shield"),
+		/*Cooldown*/ 2));
 
 	// Variante di InterceptShot (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
 	// Preciso: 20 danni ma controlla UNA cella. Esteso: 14 danni ma una LINEA di 3 celle. Il danno e' un

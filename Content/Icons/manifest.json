@@ -1,0 +1,4102 @@
+{
+  "generator": "tools/hud-assets/generate_hud_assets.py",
+  "grammatica": "docs/research/design/icon/visual-language/",
+  "nota": "Asset derivati e rigenerabili. Master monocromatico e tintabile, niente testo incorporato, niente riempimento percentuale cotto.",
+  "icons": [
+    {
+      "AssetName": "RT_UI_Icon_Action_Move",
+      "IconId": "UI.Icon.Action.Move",
+      "Category": "Action",
+      "Axes": {
+        "phase": "NormalMovement",
+        "priority": 50,
+        "range": 5,
+        "cooldown": 0,
+        "fallback": "Stop",
+        "effects": [],
+        "interruptible": true,
+        "slot": "Movement",
+        "movement": "Budget"
+      },
+      "Alphabet": {
+        "PhaseStation": 17.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#009E73",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 05/11 — invariato"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Sprint",
+      "IconId": "UI.Icon.Action.Sprint",
+      "Category": "Action",
+      "Axes": {
+        "phase": "FastMovement",
+        "priority": 60,
+        "range": 8,
+        "cooldown": 0,
+        "fallback": "Stop",
+        "effects": [
+          {
+            "kind": "Status",
+            "status": "Status.Exposed"
+          }
+        ],
+        "interruptible": true,
+        "slot": "Movement",
+        "movement": "Budget"
+      },
+      "Alphabet": {
+        "PhaseStation": 6.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#009E73",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 05/12 — endpoint che chiude: Sprint nega la reazione"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Dash",
+      "IconId": "UI.Icon.Action.Dash",
+      "Category": "Action",
+      "Axes": {
+        "phase": "FastMovement",
+        "priority": 30,
+        "range": 3,
+        "cooldown": 1,
+        "fallback": "Stop",
+        "effects": [],
+        "interruptible": true,
+        "slot": "Movement",
+        "movement": "LinearDash"
+      },
+      "Alphabet": {
+        "PhaseStation": 6.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#009E73",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 05/13 — invariato"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Charge",
+      "IconId": "UI.Icon.Action.Charge",
+      "Category": "Action",
+      "Axes": {
+        "phase": "FastMovement",
+        "priority": 35,
+        "range": 3,
+        "cooldown": 2,
+        "fallback": "Stop",
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          },
+          {
+            "kind": "Push",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Movement",
+        "movement": "LinearCharge"
+      },
+      "Alphabet": {
+        "PhaseStation": 6.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#009E73",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Leap",
+      "IconId": "UI.Icon.Action.Leap",
+      "Category": "Action",
+      "Axes": {
+        "phase": "FastMovement",
+        "priority": 25,
+        "range": 3,
+        "cooldown": 2,
+        "fallback": "Stop",
+        "effects": [],
+        "interruptible": true,
+        "slot": "Movement",
+        "movement": "LinearLeap"
+      },
+      "Alphabet": {
+        "PhaseStation": 6.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#009E73",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Reposition",
+      "IconId": "UI.Icon.Action.Reposition",
+      "Category": "Action",
+      "Axes": {
+        "phase": "FastMovement",
+        "priority": 40,
+        "range": 2,
+        "cooldown": 1,
+        "fallback": "Stop",
+        "effects": [],
+        "interruptible": true,
+        "slot": "Movement",
+        "movement": "LinearDash"
+      },
+      "Alphabet": {
+        "PhaseStation": 6.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#009E73",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Evade",
+      "IconId": "UI.Icon.Action.Evade",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "priority": 5,
+        "range": 0,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "SelfReposition",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Reaction",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_BasicAttack",
+      "IconId": "UI.Icon.Action.BasicAttack",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "priority": 50,
+        "range": 0,
+        "cooldown": 0,
+        "fallback": "Cancel",
+        "effects": [],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 06/14 — invariato"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_PrecisionAttack",
+      "IconId": "UI.Icon.Action.PrecisionAttack",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "priority": 60,
+        "range": 0,
+        "cooldown": 1,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_HeavyAttack",
+      "IconId": "UI.Icon.Action.HeavyAttack",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "priority": 80,
+        "range": 0,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          },
+          {
+            "kind": "DamageStructure",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_LineAttack",
+      "IconId": "UI.Icon.Action.LineAttack",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "priority": 55,
+        "range": 5,
+        "cooldown": 1,
+        "fallback": "AttackCell",
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_CircularAoE",
+      "IconId": "UI.Icon.Action.CircularAoE",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "priority": 65,
+        "range": 4,
+        "cooldown": 2,
+        "fallback": "AttackCell",
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_SuppressiveLine",
+      "IconId": "UI.Icon.Action.SuppressiveLine",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Preparation",
+        "priority": 30,
+        "range": 5,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          }
+        ],
+        "interruptible": false,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 4.4,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_MarkTarget",
+      "IconId": "UI.Icon.Action.MarkTarget",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "priority": 40,
+        "range": 0,
+        "cooldown": 1,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Status",
+            "status": "Status.Marked"
+          }
+        ],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Guard",
+      "IconId": "UI.Icon.Action.Guard",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Preparation",
+        "priority": 40,
+        "range": 0,
+        "cooldown": 0,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Status",
+            "status": "Status.Guarded"
+          }
+        ],
+        "interruptible": false,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 4.4,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "AGGIUNTO — una delle sette generiche (D-025)"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Brace",
+      "IconId": "UI.Icon.Action.Brace",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Preparation",
+        "priority": 30,
+        "range": 0,
+        "cooldown": 1,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Status",
+            "status": "Status.Braced"
+          },
+          {
+            "kind": "Status",
+            "status": "Status.Root"
+          }
+        ],
+        "interruptible": false,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 4.4,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 07/19 — spostato da Reaction a Defense"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Shield",
+      "IconId": "UI.Icon.Action.Shield",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Preparation",
+        "priority": 35,
+        "range": 0,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Shield",
+            "status": null
+          }
+        ],
+        "interruptible": false,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 4.4,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Anchor",
+      "IconId": "UI.Icon.Action.Anchor",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "priority": 5,
+        "range": 0,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "CancelDisplacement",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Reaction",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Counter",
+      "IconId": "UI.Icon.Action.Counter",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "priority": 20,
+        "range": 0,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Reaction",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#CC79A7",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Deflect",
+      "IconId": "UI.Icon.Action.Deflect",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "priority": 15,
+        "range": 0,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "DamageReduction",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Reaction",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#CC79A7",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Intercept",
+      "IconId": "UI.Icon.Action.Intercept",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "priority": 10,
+        "range": 2,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [],
+        "interruptible": true,
+        "slot": "Reaction",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#CC79A7",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Overwatch",
+      "IconId": "UI.Icon.Action.Overwatch",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Preparation",
+        "priority": 45,
+        "range": 0,
+        "cooldown": 0,
+        "fallback": "Cancel",
+        "effects": [],
+        "interruptible": false,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 4.4,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#CC79A7",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 07/20 — invariato"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Push",
+      "IconId": "UI.Icon.Action.Push",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "priority": 40,
+        "range": 1,
+        "cooldown": 1,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Push",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Pull",
+      "IconId": "UI.Icon.Action.Pull",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "priority": 40,
+        "range": 2,
+        "cooldown": 1,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Pull",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Root",
+      "IconId": "UI.Icon.Action.Root",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "priority": 25,
+        "range": 1,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Status",
+            "status": "Status.Root"
+          }
+        ],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Slow",
+      "IconId": "UI.Icon.Action.Slow",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "priority": 50,
+        "range": 1,
+        "cooldown": 1,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Status",
+            "status": "Status.Slow"
+          }
+        ],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Interrupt",
+      "IconId": "UI.Icon.Action.Interrupt",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "priority": 20,
+        "range": 1,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Purge",
+      "IconId": "UI.Icon.Action.Purge",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "priority": 5,
+        "range": 0,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "CancelStatus",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Reaction",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_ModifyArc",
+      "IconId": "UI.Icon.Action.ModifyArc",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "priority": 75,
+        "range": 3,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Heal",
+      "IconId": "UI.Icon.Action.Heal",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "priority": 70,
+        "range": 3,
+        "cooldown": 1,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Heal",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Cleanse",
+      "IconId": "UI.Icon.Action.Cleanse",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "priority": 25,
+        "range": 0,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Interact",
+      "IconId": "UI.Icon.Action.Interact",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "priority": 80,
+        "range": 1,
+        "cooldown": 0,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "SetDoorState",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 09/22 — la mano diventa Object + ingaggio"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Wait",
+      "IconId": "UI.Icon.Action.Wait",
+      "Category": "Action",
+      "Axes": {
+        "phase": "NormalMovement",
+        "priority": 100,
+        "range": 0,
+        "cooldown": 0,
+        "fallback": "Stop",
+        "effects": [],
+        "interruptible": false,
+        "slot": "None",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 17.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 09/23 — invariato"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_CreateCover",
+      "IconId": "UI.Icon.Action.CreateCover",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Preparation",
+        "priority": 75,
+        "range": 3,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 4.4,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_CreateWater",
+      "IconId": "UI.Icon.Action.CreateWater",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Environment",
+        "priority": 60,
+        "range": 4,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 19.6,
+        "SurfaceCreated": "ShallowWater"
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Electrify",
+      "IconId": "UI.Icon.Action.Electrify",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Environment",
+        "priority": 30,
+        "range": 4,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          }
+        ],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 19.6,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#F0E442",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Ignite",
+      "IconId": "UI.Icon.Action.Ignite",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Environment",
+        "priority": 60,
+        "range": 4,
+        "cooldown": 2,
+        "fallback": "Cancel",
+        "effects": [],
+        "interruptible": true,
+        "slot": "Main",
+        "movement": "None"
+      },
+      "Alphabet": {
+        "PhaseStation": 19.6,
+        "SurfaceCreated": "Fire"
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Gadget_ArcPulse",
+      "IconId": "UI.Icon.Action.Hero.Gadget.ArcPulse",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "shape": null,
+        "effects": [],
+        "derived_from": "Action.BasicAttack",
+        "display": "Impulso ad arco",
+        "hero": "Gadget"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#F0E442",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 16 — rimappato: kit fuori roster"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Gadget_LinearDischarge",
+      "IconId": "UI.Icon.Action.Hero.Gadget.LinearDischarge",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "shape": "Line",
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          }
+        ],
+        "derived_from": null,
+        "display": "Scarica lineare",
+        "hero": "Gadget"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#F0E442",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 16 — «Chain Discharge» non esiste: Line, non Chain"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Gadget_ConductiveNode",
+      "IconId": "UI.Icon.Action.Hero.Gadget.ConductiveNode",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Environment",
+        "shape": null,
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          }
+        ],
+        "derived_from": "Action.Electrify",
+        "display": "Nodo conduttivo",
+        "hero": "Gadget"
+      },
+      "Alphabet": {
+        "PhaseStation": 19.6,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#F0E442",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 17 — «Static Field» rimappato"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Gadget_ReactiveCapacitor",
+      "IconId": "UI.Icon.Action.Hero.Gadget.ReactiveCapacitor",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "shape": null,
+        "effects": [
+          {
+            "kind": "Shield",
+            "status": null
+          },
+          {
+            "kind": "Damage",
+            "status": null
+          }
+        ],
+        "derived_from": "Action.Counter",
+        "display": "Condensatore reattivo",
+        "hero": "Gadget"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#F0E442",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "AGGIUNTO — quinto token del kit"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Gadget_Overload",
+      "IconId": "UI.Icon.Action.Hero.Gadget.Overload",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "shape": "Area",
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          }
+        ],
+        "derived_from": null,
+        "display": "Sovraccarico",
+        "hero": "Gadget"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 18 — nome corretto, glifo su grammatica Damage"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Phase_PressureJet",
+      "IconId": "UI.Icon.Action.Hero.Phase.PressureJet",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "shape": "Line",
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          },
+          {
+            "kind": "Status",
+            "status": "Status.Wet"
+          },
+          {
+            "kind": "Push",
+            "status": null
+          }
+        ],
+        "derived_from": null,
+        "display": "Getto in pressione",
+        "hero": "Phase"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — Attack/Line, Damage + Wet + Push"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Phase_CircularTide",
+      "IconId": "UI.Icon.Action.Hero.Phase.CircularTide",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "shape": "Area",
+        "effects": [
+          {
+            "kind": "Heal",
+            "status": null
+          }
+        ],
+        "derived_from": null,
+        "display": "Marea circolare",
+        "hero": "Phase"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — Attack/Area, l'unica d'area che cura"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Phase_FluidTrail",
+      "IconId": "UI.Icon.Action.Hero.Phase.FluidTrail",
+      "Category": "Action",
+      "Axes": {
+        "phase": "FastMovement",
+        "shape": null,
+        "effects": [],
+        "derived_from": "Action.Dash",
+        "display": "Scia fluida",
+        "hero": "Phase"
+      },
+      "Alphabet": {
+        "PhaseStation": 6.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — FastMovement, la scia e' meta' del significato"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Phase_MistVeil",
+      "IconId": "UI.Icon.Action.Hero.Phase.MistVeil",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Environment",
+        "shape": "Area",
+        "effects": [],
+        "derived_from": "Action.Ignite",
+        "display": "Velo di nebbia",
+        "hero": "Phase"
+      },
+      "Alphabet": {
+        "PhaseStation": 19.6,
+        "SurfaceCreated": "Smoke"
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — Environment/Area, da tenere distinta da Status.Obscured"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Phase_FlowReaction",
+      "IconId": "UI.Icon.Action.Hero.Phase.FlowReaction",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Preparation",
+        "shape": "Single",
+        "effects": [],
+        "derived_from": null,
+        "display": "Reazione di flusso",
+        "hero": "Phase"
+      },
+      "Alphabet": {
+        "PhaseStation": 4.4,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#CC79A7",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — Preparation, si arma e risponde"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_ImpactShot",
+      "IconId": "UI.Icon.Action.Hero.Riktor.ImpactShot",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "shape": null,
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          },
+          {
+            "kind": "Status",
+            "status": "Status.Slow"
+          }
+        ],
+        "derived_from": null,
+        "display": "Colpo d'impatto",
+        "hero": "Riktor"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — Attack, Damage + Slow"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_KineticPanel",
+      "IconId": "UI.Icon.Action.Hero.Riktor.KineticPanel",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Preparation",
+        "shape": null,
+        "effects": [],
+        "derived_from": "Action.CreateCover",
+        "display": "Pannello cinetico",
+        "hero": "Riktor"
+      },
+      "Alphabet": {
+        "PhaseStation": 4.4,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — Preparation, deriva da Action.CreateCover"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_Reconfigure",
+      "IconId": "UI.Icon.Action.Hero.Riktor.Reconfigure",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Preparation",
+        "shape": null,
+        "effects": [],
+        "derived_from": null,
+        "display": "Riconfigurazione",
+        "hero": "Riktor"
+      },
+      "Alphabet": {
+        "PhaseStation": 4.4,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — Preparation"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_Ram",
+      "IconId": "UI.Icon.Action.Hero.Riktor.Ram",
+      "Category": "Action",
+      "Axes": {
+        "phase": "FastMovement",
+        "shape": null,
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          },
+          {
+            "kind": "Push",
+            "status": null
+          }
+        ],
+        "derived_from": "Action.Charge",
+        "display": "Carica d'ariete",
+        "hero": "Riktor"
+      },
+      "Alphabet": {
+        "PhaseStation": 6.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — FastMovement/LinearCharge, Damage + Push"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Riktor_Interposition",
+      "IconId": "UI.Icon.Action.Hero.Riktor.Interposition",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "shape": null,
+        "effects": [],
+        "derived_from": "Action.Intercept",
+        "display": "Interposizione",
+        "hero": "Riktor"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#CC79A7",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — Control, deriva da Action.Intercept"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Wraith_PulseShot",
+      "IconId": "UI.Icon.Action.Hero.Wraith.PulseShot",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Attack",
+        "shape": null,
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          }
+        ],
+        "derived_from": null,
+        "display": "Colpo a impulsi",
+        "hero": "Wraith"
+      },
+      "Alphabet": {
+        "PhaseStation": 14.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — Attack, Damage"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Wraith_InterceptShot",
+      "IconId": "UI.Icon.Action.Hero.Wraith.InterceptShot",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Preparation",
+        "shape": "Single",
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          }
+        ],
+        "derived_from": null,
+        "display": "Intercetto",
+        "hero": "Wraith"
+      },
+      "Alphabet": {
+        "PhaseStation": 4.4,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#CC79A7",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — Preparation, thin slice Predictive della v0.1"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Wraith_PassingBlade",
+      "IconId": "UI.Icon.Action.Hero.Wraith.PassingBlade",
+      "Category": "Action",
+      "Axes": {
+        "phase": "FastMovement",
+        "shape": "Single",
+        "effects": [
+          {
+            "kind": "Damage",
+            "status": null
+          }
+        ],
+        "derived_from": null,
+        "display": "Lama di passaggio",
+        "hero": "Wraith"
+      },
+      "Alphabet": {
+        "PhaseStation": 6.8,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — FastMovement, attraversa e colpisce"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Wraith_Deflection",
+      "IconId": "UI.Icon.Action.Hero.Wraith.Deflection",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "shape": null,
+        "effects": [
+          {
+            "kind": "DamageReduction",
+            "status": null
+          }
+        ],
+        "derived_from": "Action.Deflect",
+        "display": "Deviazione",
+        "hero": "Wraith"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#CC79A7",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — Control, deriva da Action.Deflect"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Hero_Wraith_Feint",
+      "IconId": "UI.Icon.Action.Hero.Wraith.Feint",
+      "Category": "Action",
+      "Axes": {
+        "phase": "Control",
+        "shape": null,
+        "effects": [],
+        "derived_from": null,
+        "display": "Finta",
+        "hero": "Wraith"
+      },
+      "Alphabet": {
+        "PhaseStation": 9.2,
+        "SurfaceCreated": null
+      },
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "roster — Control, il tratteggio qui significa «falso», non «previsto»"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Action_Dodge",
+      "IconId": "UI.Icon.Action.Dodge",
+      "Category": "Action",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#009E73",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "handoff 2026-08-26 §4.1 — NON nel catalogo generico"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Phase_Prep",
+      "IconId": "UI.Icon.Phase.Prep",
+      "Category": "Phase",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 24,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 03 — sostituisce la timeline a iniziativa"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Phase_Dash",
+      "IconId": "UI.Icon.Phase.Dash",
+      "Category": "Phase",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 24,
+      "SuggestedTint": "#009E73",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 03 — idem"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Phase_Blast",
+      "IconId": "UI.Icon.Phase.Blast",
+      "Category": "Phase",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 24,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 03 — idem"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Phase_Move",
+      "IconId": "UI.Icon.Phase.Move",
+      "Category": "Phase",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 24,
+      "SuggestedTint": "#009E73",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 03 — idem"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Certainty_Confirmed",
+      "IconId": "UI.Icon.Certainty.Confirmed",
+      "Category": "Certainty",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 20,
+      "SuggestedTint": null,
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 08 — piu' la marca di forma"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Certainty_Predicted",
+      "IconId": "UI.Icon.Certainty.Predicted",
+      "Category": "Certainty",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 20,
+      "SuggestedTint": null,
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 08 — piu' la marca di forma"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Certainty_Uncertain",
+      "IconId": "UI.Icon.Certainty.Uncertain",
+      "Category": "Certainty",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 20,
+      "SuggestedTint": null,
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "mock 08 — la marca e' un'area (§2.1)"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Status_Braced",
+      "IconId": "UI.Icon.Status.Braced",
+      "Category": "Status",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Status_Burning",
+      "IconId": "UI.Icon.Status.Burning",
+      "Category": "Status",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Status_Electrified",
+      "IconId": "UI.Icon.Status.Electrified",
+      "Category": "Status",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#F0E442",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Status_Exposed",
+      "IconId": "UI.Icon.Status.Exposed",
+      "Category": "Status",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Status_Guarded",
+      "IconId": "UI.Icon.Status.Guarded",
+      "Category": "Status",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Status_Marked",
+      "IconId": "UI.Icon.Status.Marked",
+      "Category": "Status",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Status_Obscured",
+      "IconId": "UI.Icon.Status.Obscured",
+      "Category": "Status",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Status_Reveal",
+      "IconId": "UI.Icon.Status.Reveal",
+      "Category": "Status",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Status_Root",
+      "IconId": "UI.Icon.Status.Root",
+      "Category": "Status",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Status_Slow",
+      "IconId": "UI.Icon.Status.Slow",
+      "Category": "Status",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Status_Wet",
+      "IconId": "UI.Icon.Status.Wet",
+      "Category": "Status",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Identity_Gadget",
+      "IconId": "UI.Icon.Identity.Gadget",
+      "Category": "Identity",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#F0E442",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Identity_Phase",
+      "IconId": "UI.Icon.Identity.Phase",
+      "Category": "Identity",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Identity_Riktor",
+      "IconId": "UI.Icon.Identity.Riktor",
+      "Category": "Identity",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Identity_Wraith",
+      "IconId": "UI.Icon.Identity.Wraith",
+      "Category": "Identity",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#CC79A7",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Identity_Ally",
+      "IconId": "UI.Icon.Identity.Ally",
+      "Category": "Identity",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Identity_Enemy",
+      "IconId": "UI.Icon.Identity.Enemy",
+      "Category": "Identity",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "assente dal mock"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Environment_ShallowWater",
+      "IconId": "UI.Icon.Environment.ShallowWater",
+      "Category": "Environment",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — autorata in ogni arena"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Environment_Fire",
+      "IconId": "UI.Icon.Environment.Fire",
+      "Category": "Environment",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — 2 MP, 10 danni, Burning 2 turni"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Environment_Rough",
+      "IconId": "UI.Icon.Environment.Rough",
+      "Category": "Environment",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — blocca Dash e Charge"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Environment_Ice",
+      "IconId": "UI.Icon.Environment.Ice",
+      "Category": "Environment",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — scivolata di una cella"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Environment_Conductive",
+      "IconId": "UI.Icon.Environment.Conductive",
+      "Category": "Environment",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#F0E442",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — materiale che porterebbe la scarica, non scarica"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Environment_Smoke",
+      "IconId": "UI.Icon.Environment.Smoke",
+      "Category": "Environment",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#6B7280",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — targeting tappato a 2 celle"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Environment_HighGround",
+      "IconId": "UI.Icon.Environment.HighGround",
+      "Category": "Environment",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — in v0.1 non cambia nessun numero"
+    },
+    {
+      "AssetName": "RT_UI_Icon_MapInteraction_Cover_High",
+      "IconId": "UI.Icon.MapInteraction.Cover.High",
+      "Category": "MapInteraction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — nega vista, passo e proiettili"
+    },
+    {
+      "AssetName": "RT_UI_Icon_MapInteraction_Cover_Low",
+      "IconId": "UI.Icon.MapInteraction.Cover.Low",
+      "Category": "MapInteraction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — -10 al danno da quel bordo"
+    },
+    {
+      "AssetName": "RT_UI_Icon_MapInteraction_Door_Closed",
+      "IconId": "UI.Icon.MapInteraction.Door.Closed",
+      "Category": "MapInteraction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — coppia piu' pericolosa del set, con Cover.High"
+    },
+    {
+      "AssetName": "RT_UI_Icon_MapInteraction_Door_Open",
+      "IconId": "UI.Icon.MapInteraction.Door.Open",
+      "Category": "MapInteraction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — l'unico verbo di mappa che la v0.1 spedisce"
+    },
+    {
+      "AssetName": "RT_UI_Icon_MapInteraction_Arc_Active",
+      "IconId": "UI.Icon.MapInteraction.Arc.Active",
+      "Category": "MapInteraction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — senza l'arco le due celle NON sono adiacenti"
+    },
+    {
+      "AssetName": "RT_UI_Icon_MapInteraction_Cover_Temporary",
+      "IconId": "UI.Icon.MapInteraction.Cover.Temporary",
+      "Category": "MapInteraction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — integrita' 30, scade in 2 turni"
+    },
+    {
+      "AssetName": "RT_UI_Icon_MapInteraction_Cover_Destroyed",
+      "IconId": "UI.Icon.MapInteraction.Cover.Destroyed",
+      "Category": "MapInteraction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#6B7280",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — da qui in poi si attraversa e si tira"
+    },
+    {
+      "AssetName": "RT_UI_Icon_MapInteraction_Arc_Destroyed",
+      "IconId": "UI.Icon.MapInteraction.Arc.Destroyed",
+      "Category": "MapInteraction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#6B7280",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — crollo terminale, le macerie restano"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Information_LastContact",
+      "IconId": "UI.Icon.Information.LastContact",
+      "Category": "Information",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — Detected non si disegna: e' rappresentazione normale"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Information_CellOnly",
+      "IconId": "UI.Icon.Information.CellOnly",
+      "Category": "Information",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#0072B2",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — nessuna silhouette di unita', o l'icona mente"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Reaction_Armed",
+      "IconId": "UI.Icon.Reaction.Armed",
+      "Category": "Reaction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#CC79A7",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — stato, non l'azione che arma"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Reaction_Opportunity",
+      "IconId": "UI.Icon.Reaction.Opportunity",
+      "Category": "Reaction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#CC79A7",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — finestra, non countdown"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Reaction_Hold",
+      "IconId": "UI.Icon.Reaction.Hold",
+      "Category": "Reaction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#CC79A7",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — D-049: collide con HoldGround"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Reaction_Fire",
+      "IconId": "UI.Icon.Reaction.Fire",
+      "Category": "Reaction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#CC79A7",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — deve reggere ripetuta e affiancata"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Reaction_HoldGround",
+      "IconId": "UI.Icon.Reaction.HoldGround",
+      "Category": "Reaction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — tiene la cella e assorbe"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Reaction_Sidestep",
+      "IconId": "UI.Icon.Reaction.Sidestep",
+      "Category": "Reaction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#009E73",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — esce dalla linea, non arretra (2026-08-19)"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Reaction_ReactiveShield",
+      "IconId": "UI.Icon.Reaction.ReactiveShield",
+      "Category": "Reaction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — modulo di Gadget"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Reaction_HazardEscape",
+      "IconId": "UI.Icon.Reaction.HazardEscape",
+      "Category": "Reaction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#009E73",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — modulo di Phase, vive nel Cleanup"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Reaction_AllyIntercept",
+      "IconId": "UI.Icon.Reaction.AllyIntercept",
+      "Category": "Reaction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#56B4E9",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — modulo di Riktor"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Reaction_EmergencyDash",
+      "IconId": "UI.Icon.Reaction.EmergencyDash",
+      "Category": "Reaction",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#009E73",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — modulo di Wraith, facing conservato"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Warning_Cooldown",
+      "IconId": "UI.Icon.Warning.Cooldown",
+      "Category": "Warning",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#6B7280",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — tempo, non economia"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Warning_SlotOccupied",
+      "IconId": "UI.Icon.Warning.SlotOccupied",
+      "Category": "Warning",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — relazione fra due voci del piano"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Warning_OutOfRange",
+      "IconId": "UI.Icon.Warning.OutOfRange",
+      "Category": "Warning",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — coppia opposta a NoLineOfSight"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Warning_NoLineOfSight",
+      "IconId": "UI.Icon.Warning.NoLineOfSight",
+      "Category": "Warning",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — l'avviso e' la linea spezzata, non l'ostacolo"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Warning_PathBlocked",
+      "IconId": "UI.Icon.Warning.PathBlocked",
+      "Category": "Warning",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — ostacolo, non occupante"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Warning_OutOfMoveBudget",
+      "IconId": "UI.Icon.Warning.OutOfMoveBudget",
+      "Category": "Warning",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — deve portare il «quanto ti manca»"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Warning_CellOccupied",
+      "IconId": "UI.Icon.Warning.CellOccupied",
+      "Category": "Warning",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — la CELLA e' presa"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Warning_FriendlyFire",
+      "IconId": "UI.Icon.Warning.FriendlyFire",
+      "Category": "Warning",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — il taglio va sull'area, non sull'alleato"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Warning_TargetFriendly",
+      "IconId": "UI.Icon.Warning.TargetFriendly",
+      "Category": "Warning",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#D55E00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — deve contenere il segno di alleato"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Warning_Collision",
+      "IconId": "UI.Icon.Warning.Collision",
+      "Category": "Warning",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — la simultaneita' e' il pilastro"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Warning_TargetLost",
+      "IconId": "UI.Icon.Warning.TargetLost",
+      "Category": "Warning",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#6B7280",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — assenza avvenuta"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Warning_PathInvalidated",
+      "IconId": "UI.Icon.Warning.PathInvalidated",
+      "Category": "Warning",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#E69F00",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — dopo il commit, non prima"
+    },
+    {
+      "AssetName": "RT_UI_Icon_Warning_TargetUnknown",
+      "IconId": "UI.Icon.Warning.TargetUnknown",
+      "Category": "Warning",
+      "Axes": null,
+      "Alphabet": null,
+      "NativeSize": [
+        24,
+        24
+      ],
+      "PngSizes": [
+        16,
+        20,
+        24,
+        32,
+        48
+      ],
+      "MinReadableSize": 16,
+      "SuggestedTint": "#6B7280",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "CVDSafe": "verificare sulla contact sheet in scala di grigi",
+      "MockOrigin": "E25 — il ? e' marca, non stile"
+    }
+  ],
+  "frames": [
+    {
+      "AssetName": "RT_UI_Panel_Primary_9S",
+      "NativeSize": [
+        96,
+        96
+      ],
+      "NineSliceMargins": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "DrawAs": "Box (9-slice)",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "ExpectedUMGUsage": "pannelli HUD: stato unita', obiettivi, dettaglio abilita'",
+      "MockOrigin": "01/02/04"
+    },
+    {
+      "AssetName": "RT_UI_Slot_Universal_9S",
+      "NativeSize": [
+        64,
+        64
+      ],
+      "NineSliceMargins": [
+        14,
+        14,
+        14,
+        14
+      ],
+      "DrawAs": "Box (9-slice)",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "ExpectedUMGUsage": "slot di azione e di kit, stato base",
+      "MockOrigin": "06/11-20"
+    },
+    {
+      "AssetName": "RT_UI_Slot_Universal_Selected_9S",
+      "NativeSize": [
+        64,
+        64
+      ],
+      "NineSliceMargins": [
+        14,
+        14,
+        14,
+        14
+      ],
+      "DrawAs": "Box (9-slice)",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "ExpectedUMGUsage": "slot selezionato — variante di stato, non un secondo glifo",
+      "MockOrigin": "06 (Chain Discharge attivo)"
+    },
+    {
+      "AssetName": "RT_UI_Button_Primary_9S",
+      "NativeSize": [
+        160,
+        44
+      ],
+      "NineSliceMargins": [
+        24,
+        10,
+        24,
+        10
+      ],
+      "DrawAs": "Box (9-slice)",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "ExpectedUMGUsage": "conferma di piano / READY",
+      "MockOrigin": "09/21"
+    },
+    {
+      "AssetName": "RT_UI_Button_Secondary_9S",
+      "NativeSize": [
+        128,
+        36
+      ],
+      "NineSliceMargins": [
+        18,
+        8,
+        18,
+        8
+      ],
+      "DrawAs": "Box (9-slice)",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "ExpectedUMGUsage": "azioni di contesto: Interact, Wait",
+      "MockOrigin": "09/22/23"
+    },
+    {
+      "AssetName": "RT_UI_PortraitFrame_Hex",
+      "NativeSize": [
+        96,
+        96
+      ],
+      "NineSliceMargins": null,
+      "DrawAs": "Image",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "ExpectedUMGUsage": "ritratti roster e header di unita'",
+      "MockOrigin": "01/03"
+    },
+    {
+      "AssetName": "RT_UI_Timeline_Node",
+      "NativeSize": [
+        32,
+        32
+      ],
+      "NineSliceMargins": null,
+      "DrawAs": "Image",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "ExpectedUMGUsage": "nodo di fase sulla banda del turno",
+      "MockOrigin": "03 (riusato, semantica cambiata)"
+    },
+    {
+      "AssetName": "RT_UI_Bar_Frame_9S",
+      "NativeSize": [
+        128,
+        14
+      ],
+      "NineSliceMargins": [
+        8,
+        4,
+        8,
+        4
+      ],
+      "DrawAs": "Box (9-slice)",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "ExpectedUMGUsage": "cornice di barra risorsa — il riempimento e' dinamico, mai cotto",
+      "MockOrigin": "01"
+    },
+    {
+      "AssetName": "RT_UI_Keybind_Chip_9S",
+      "NativeSize": [
+        28,
+        22
+      ],
+      "NineSliceMargins": [
+        7,
+        6,
+        7,
+        6
+      ],
+      "DrawAs": "Box (9-slice)",
+      "Tintable": true,
+      "AlphaMode": "straight RGBA, nessun matte",
+      "EmbeddedText": false,
+      "ExpectedUMGUsage": "chip del tasto — vuoto: il binding e' rimappabile",
+      "MockOrigin": "05/06/07/09"
+    }
+  ],
+  "missingIcon": {
+    "AssetName": "RT_UI_Icon_MissingIcon",
+    "Field": "URTIconCatalogData::MissingIcon",
+    "Nota": "non e' una voce di Icons[]: e' il campo che ResolveIcon restituisce con bResolved=false"
+  }
+}

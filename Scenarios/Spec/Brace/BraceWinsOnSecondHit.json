@@ -43,8 +43,8 @@
   ],
 
   "expect": [
-    { "type": "UnitHpEquals", "unit": "DG", "value": 73 },
-    { "type": "UnitHpEquals", "unit": "DB", "value": 78 },
+    { "type": "UnitHpEquals", "unit": "DG", "value": 78 },
+    { "type": "UnitHpEquals", "unit": "DB", "value": 83 },
     { "type": "UnitAlive",    "unit": "DG", "value": true },
     { "type": "UnitAlive",    "unit": "DB", "value": true },
 

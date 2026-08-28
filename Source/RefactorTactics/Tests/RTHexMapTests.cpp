@@ -1,8 +1,10 @@
 #include "Misc/AutomationTest.h"
+#include "HAL/IConsoleManager.h" // l'help di rt.Map.Fixture e' l'ultimo elenco a mano (#1459)
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
+#include "RTAuthoredArenaForTest.h" // il path della mappa d'autore in un posto solo
 #include "Map/RTHexMapCustomVersion.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
@@ -693,6 +695,193 @@ bool FRTHexFixtureLoaderTest::RunTest(const FString&)
 }
 
 /**
+ * **Ogni nome elencato costruisce un'arena, e ogni arena costruibile e' elencata** (`#1459`).
+ *
+ * L'elenco delle fixture era scritto a mano in tre posti — l'if-chain di `MakeFixtureArena`, la doc della
+ * funzione e il messaggio d'errore di `GenerateFixtureIntoAsset` — e nessuno dei tre coincideva: due
+ * nominavano `DemoArena`, che non aveva un ramo, e omettevano `ArenaV01`, che ce l'aveva. Chi chiedeva
+ * `DemoArena` riceveva «fixture sconosciuta» seguito da un elenco **che la conteneva**.
+ *
+ * ⚠️ **Il test guarda i due versi**, e serve: `KnownFixtureIds()` deriva dalla tabella, quindi il primo
+ * verso e' quasi tautologico — ma il secondo no. Un builder aggiunto al dispatcher senza entrare nella
+ * tabella, o una voce di tabella che punta al builder sbagliato, cadono qui.
+ *
+ * ⚠️ Il confronto e' case-insensitive perche' `MakeFixtureArena` lo e': chi scrive `relaybasin` in un
+ * campo dell'editor deve ottenere la stessa arena, ed e' una promessa che vale la pena pinnare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFixtureNamesMatchTheDispatcherTest,
+	"RefactorTactics.HexMap.EveryListedFixtureNameBuilds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFixtureNamesMatchTheDispatcherTest::RunTest(const FString&)
+{
+	const TArray<FString> Nomi = URTMatchSetupLibrary::KnownFixtureIds();
+
+	// La premessa: senza, «ogni nome costruisce» sarebbe vero anche di un elenco vuoto.
+	if (!TestTrue(FString::Printf(TEXT("premessa: l'elenco non e' vuoto (%d nomi)"), Nomi.Num()),
+			Nomi.Num() > 0))
+	{
+		return false;
+	}
+	AddInfo(FString::Printf(TEXT("fixture dichiarate: %s"), *FString::Join(Nomi, TEXT(", "))));
+
+	// Verso 1: ogni nome elencato costruisce davvero qualcosa.
+	for (const FString& Nome : Nomi)
+	{
+		URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), Nome);
+		if (TestNotNull(*FString::Printf(TEXT("'%s' costruisce un'arena"), *Nome), Arena))
+		{
+			TestTrue(*FString::Printf(TEXT("'%s' porta celle"), *Nome), Arena->NumCells() > 0);
+		}
+
+		// E in minuscolo, che e' la promessa di `ESearchCase::IgnoreCase`.
+		TestNotNull(*FString::Printf(TEXT("'%s' costruisce anche in minuscolo"), *Nome),
+			URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), Nome.ToLower()));
+	}
+
+	// Verso 2: i builder che il dispatcher puo' raggiungere sono tutti elencati. Si confrontano le celle,
+	// perche' e' cio' che distingue un'arena dall'altra senza dipendere dal nome.
+	struct FBuilder { const TCHAR* Atteso; TFunction<URTHexMapAsset*(UObject*)> Make; };
+	const FBuilder Costruibili[] = {
+		{ TEXT("RelayBasin"), [](UObject* O) { return URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(O); } },
+		{ TEXT("RelayLite"),  [](UObject* O) { return URTMatchSetupLibrary::MakeShowcaseRelayLiteArena(O); } },
+		{ TEXT("TestArena"),  [](UObject* O) { return URTMatchSetupLibrary::MakeTestArena(O); } },
+		{ TEXT("ArenaV01"),   [](UObject* O) { return URTMatchSetupLibrary::MakeArenaV01(O); } },
+		{ TEXT("CoverYard"),  [](UObject* O) { return URTMatchSetupLibrary::MakeCoverYardArena(O); } },
+	};
+	// ⚠️ **La premessa su cui l'oracolo si regge**: due arene diverse devono avere firme diverse, o
+	// confrontarle non distinguerebbe un dispatch sbagliato. Oggi e' vero — 45/0, 91/0, 65/2, 64/2, 37/0 —
+	// ma e' una proprieta' dei NUMERI, non del test: se un giorno due fixture coincidessero, questo verso
+	// smetterebbe di discriminare in silenzio. Meglio che lo dica.
+	TSet<FString> Firme;
+	for (const FBuilder& B : Costruibili)
+	{
+		if (const URTHexMapAsset* A = B.Make(GetTransientPackage()))
+		{
+			bool bGia = false;
+			Firme.Add(FString::Printf(TEXT("%d/%d"), A->NumCells(), A->Transitions.Num()), &bGia);
+			TestFalse(*FString::Printf(TEXT("premessa: la firma di '%s' e' distinta dalle altre"), B.Atteso),
+				bGia);
+		}
+	}
+
+	for (const FBuilder& B : Costruibili)
+	{
+		if (!TestTrue(*FString::Printf(TEXT("'%s' e' fra i nomi dichiarati"), B.Atteso), Nomi.Contains(B.Atteso)))
+		{
+			continue;
+		}
+		const URTHexMapAsset* PerNome = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), B.Atteso);
+		const URTHexMapAsset* Diretta = B.Make(GetTransientPackage());
+		if (PerNome && Diretta)
+		{
+			// Il nome dispaccia al builder GIUSTO: due arene diverse hanno conteggi diversi.
+			TestEqual(*FString::Printf(TEXT("'%s' dispaccia al builder giusto (celle)"), B.Atteso),
+				PerNome->NumCells(), Diretta->NumCells());
+			TestEqual(*FString::Printf(TEXT("'%s' dispaccia al builder giusto (transizioni)"), B.Atteso),
+				PerNome->Transitions.Num(), Diretta->Transitions.Num());
+		}
+	}
+
+	// Un nome che non esiste non costruisce niente: e' la meta' che rende l'elenco CHIUSO.
+	TestNull(TEXT("un nome inventato non costruisce niente"),
+		URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), TEXT("NonEsiste")));
+
+	// 🔴 E il nome che il difetto riguardava: `DemoArena` non e' piu' dichiarata, quindi non deve costruire.
+	// `MakeDemoArena` vuole un raggio che l'interfaccia per nome non ha modo di fornire.
+	TestFalse(TEXT("`DemoArena` non e' fra i nomi dichiarati"), Nomi.Contains(TEXT("DemoArena")));
+	TestNull(TEXT("e infatti non costruisce"),
+		URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), TEXT("DemoArena")));
+
+	// 🔴 **L'ultimo elenco a mano, tenuto allineato da qui** (`#1459`). L'help di `rt.Map.Fixture` e' un
+	// literal di `TAutoConsoleVariable`, costruito prima che qualunque funzione possa girare: non puo'
+	// chiedere `KnownFixtureIds()`, quindi resta scritto a mano. E' pero' la superficie che un utente legge
+	// in console, ed e' una delle sei che nominavano `DemoArena` fra i nomi validi.
+	//
+	// ⚠️ Si controllano i DUE versi anche qui: ogni nome vero compare nell'help, e l'help non nomina quello
+	// che il dispatcher rifiuta. Il secondo e' la regressione specifica; il primo copre il caso opposto —
+	// una fixture nuova aggiunta alla tabella e non all'help.
+	if (IConsoleVariable* Cvar = IConsoleManager::Get().FindConsoleVariable(TEXT("rt.Map.Fixture")))
+	{
+		const FString Help = Cvar->GetHelp();
+		AddInfo(FString::Printf(TEXT("help di rt.Map.Fixture: %s"), *Help));
+		for (const FString& Nome : Nomi)
+		{
+			TestTrue(*FString::Printf(TEXT("l'help della cvar nomina '%s'"), *Nome), Help.Contains(Nome));
+		}
+		TestFalse(TEXT("e non nomina `DemoArena`, che il dispatcher rifiuta"),
+			Help.Contains(TEXT("DemoArena")));
+	}
+	else
+	{
+		AddWarning(TEXT("`rt.Map.Fixture` non registrata: l'help non e' verificabile in questo contesto"));
+	}
+
+	return true;
+}
+
+/**
+ * **Ogni builder di arena consegna UNA revisione**, non uno solo di loro (`#1435`, [D-201]).
+ *
+ * [D-196] aveva corretto `MakeFlatArena`, e questo rendeva quel builder **l'eccezione invece della regola**:
+ * gli altri sei chiamavano ancora `AddOrUpdateCell` per cella, quindi consegnavano a `CurrentGraphRevision()`
+ * un numero a forma di **conteggio celle** — 91 per un raggio 5. `AppendLogEntry` lo stampiglia in ogni voce
+ * di TurnLog, dove entra nell'hash ([D-067]) e nell'hash di stato partita.
+ *
+ * `Revision` significa «quante volte questo grafo e' cambiato»: un'arena appena costruita che ne dichiara 91
+ * dice il falso, e il campo esiste per rendere le tracce spiegabili.
+ *
+ * ⚠️ **Il test scorre una TABELLA di builder**, e non ne prova uno: era esattamente la forma «uno solo e'
+ * coperto» a lasciare passare il difetto per due volte. Chi aggiunge un builder lo trova qui — e se non lo
+ * aggiunge, la premessa sul conteggio non lo protegge da niente.
+ *
+ * ⚠️ **Si conta la revisione dopo la costruzione, non la differenza**: l'asset nasce da `NewObject` con
+ * `Revision = 0`, e il builder e' l'unico a toccarlo. Un `+1` su un numero gia' sbagliato sarebbe verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArenaBuildersAreOneRevisionTest,
+	"RefactorTactics.HexMap.EveryArenaBuilderIsOneRevision",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArenaBuildersAreOneRevisionTest::RunTest(const FString&)
+{
+	struct FBuilder
+	{
+		const TCHAR* Name;
+		TFunction<URTHexMapAsset*(UObject*)> Make;
+	};
+	const FBuilder Builders[] = {
+		{ TEXT("MakeFlatArena"),               [](UObject* O) { return URTMatchSetupLibrary::MakeFlatArena(O, 5); } },
+		{ TEXT("MakeDemoArena"),               [](UObject* O) { return URTMatchSetupLibrary::MakeDemoArena(O, 4); } },
+		{ TEXT("MakeTestArena"),               [](UObject* O) { return URTMatchSetupLibrary::MakeTestArena(O); } },
+		{ TEXT("MakeShowcaseRelayLiteArena"),  [](UObject* O) { return URTMatchSetupLibrary::MakeShowcaseRelayLiteArena(O); } },
+		{ TEXT("MakeShowcaseRelayBasinArena"), [](UObject* O) { return URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(O); } },
+		{ TEXT("MakeCoverYardArena"),          [](UObject* O) { return URTMatchSetupLibrary::MakeCoverYardArena(O); } },
+		{ TEXT("MakeArenaV01"),                [](UObject* O) { return URTMatchSetupLibrary::MakeArenaV01(O); } },
+	};
+
+	for (const FBuilder& B : Builders)
+	{
+		URTHexMapAsset* Arena = B.Make(GetTransientPackage());
+		if (!TestNotNull(*FString::Printf(TEXT("%s costruisce un'arena"), B.Name), Arena))
+		{
+			continue;
+		}
+
+		// La premessa: senza questa, «una revisione» sarebbe vero anche di un'arena vuota.
+		const int32 Celle = Arena->NumCells();
+		if (!TestTrue(*FString::Printf(TEXT("%s: premessa, porta molte celle (%d)"), B.Name, Celle), Celle > 10))
+		{
+			continue;
+		}
+
+		AddInfo(FString::Printf(TEXT("%s: %d celle, %d transizioni, revisione %d"),
+			B.Name, Celle, Arena->Transitions.Num(), Arena->Revision));
+		TestEqual(*FString::Printf(TEXT("%s: costruirla e' UN evento, non %d"), B.Name, Celle),
+			Arena->Revision, 1);
+	}
+
+	return true;
+}
+
+/**
  * `#905`: **generare una fixture e' UN evento, e muove la revisione una volta**.
  *
  * Il metodo scriveva il rimpiazzo a mano — `Cells.Reset()` piu' un `AddOrUpdateCell` per cella — quindi
@@ -781,7 +970,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSerializedAssetMigrationTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexSerializedAssetMigrationTest::RunTest(const FString&)
 {
-	const TCHAR* AssetPath = TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.DA_HexMap_Arena");
+	const TCHAR* AssetPath = RTAuthoredArena::Path();
 	URTHexMapAsset* Loaded = LoadObject<URTHexMapAsset>(nullptr, AssetPath);
 
 	// Se l'asset sparisse, la migrazione tornerebbe senza soggetto e nessuno se ne accorgerebbe: il test deve
@@ -1214,7 +1403,7 @@ bool FRTAuthoredCoversNotBelowCatalogTest::RunTest(const FString&)
 	// I tre `URTHexMapAsset` versionati al 2026-08-24 (`git ls-files "Content/**/*.uasset"`).
 	const TCHAR* PercorsiAsset[] =
 	{
-		TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.DA_HexMap_Arena"),
+		RTAuthoredArena::Path(),
 		TEXT("/Game/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.DA_HexMap_Sandbox"),
 		TEXT("/Game/RT/Maps/Dev/_Scratch/DA_HexMap_Scratch_Basin.DA_HexMap_Scratch_Basin"),
 	};

@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Map/RTCellId.h"
+#include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: l'ingresso del velo ([D-227])
 #include "Map/RTHexCellData.h"
 #include "RTHexMapActor.generated.h"
 
@@ -73,6 +74,8 @@ public:
 	 * 🔵 Generata invece che autorata come `.uasset`: un binario in piu' sarebbe un path da leasare, e due
 	 * `.uasset` non si fondono. Questa si diffa e si testa.
 	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexMap",
+		meta = (ToolTip = "Il prisma esagonale della cella: circumraggio RTCellPrismRadius (50 uu), mezza-altezza 50 uu, centrato sull'origine. Chi lo posa lo scala."))
 	static UStaticMesh* GetCellPrismMesh();
 
 	/**
@@ -181,7 +184,13 @@ public:
 
 	/**
 	 * Nome della fixture da scrivere nell'asset: `ArenaV01`, `RelayBasin`, `RelayLite`, `TestArena`,
-	 * `CoverYard`, `DemoArena`. L'elenco e' quello di `URTMatchSetupLibrary::MakeFixtureArena`.
+	 * `CoverYard`.
+	 *
+	 * ⚠️ **L'autorita' e' `URTMatchSetupLibrary::KnownFixtureIds()`**, non questa riga: e' un tooltip di
+	 * `UPROPERTY`, quindi un literal che UHT deve poter leggere a compile time e che non puo' chiamare una
+	 * funzione. Resta percio' un elenco a mano — l'ultimo — e nominava `DemoArena`, che non ha un ramo nel
+	 * dispatcher (`#1459`). A tenerlo allineato ci pensa
+	 * `RefactorTactics.HexMap.EveryListedFixtureNameBuilds`.
 	 */
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HexMap")
 	FString FixtureId = TEXT("ArenaV01");
@@ -286,6 +295,83 @@ public:
 
 	/** Numero di celle attualmente rappresentate (istanze ISM). Diagnostica e test. */
 	int32 NumInstanceCells() const { return InstanceCells.Num(); }
+
+	/**
+	 * Stende il velo della fog of war sulla board, secondo cio' che UNA squadra sa ([D-225], [D-227]).
+	 *
+	 * Tre stati e non due, ed e' la conseguenza diretta di [D-227]:
+	 *
+	 * | stato della cella | resa |
+	 * |---|---|
+	 * | in `VisibleCells` — osservata ORA | piena luminosita' |
+	 * | in `ExploredCells` ma non visibile — **ricordo** | RGB moltiplicato per `RTVeilExploredFactor` |
+	 * | in nessuna delle due — mai vista | **non disegnata** ([D-225]) |
+	 *
+	 * 🔴 **Non e' un costruttore.** `RebuildInstances` resta l'unico, e questa funzione **ricalcola** il colore
+	 * da `URTHexLibrary::SurfaceColor` invece di memorizzarlo: un colore cachato sarebbe la seconda verita'
+	 * sulla superficie, e le due divergerebbero al primo colpo di pennello.
+	 *
+	 * ⚠️ **Precondizione dichiarata e verificata.** `InstanceCells` e' stato DERIVATO: un `RebuildInstances`
+	 * fra il calcolo del velo e la sua applicazione lascia indici stantii, e l'esito non e' un crash ma
+	 * **celle velate sbagliate** — un difetto che si legge come «problema grafico» per settimane. L'`ensure`
+	 * costa nulla e lo rende rumoroso.
+	 *
+	 * ⚠️ **Chi sia il viewer NON lo decide questa firma**: riceve una conoscenza gia' scelta dal chiamante.
+	 * In 2v2 offline contro bot e' il team del giocatore; spettatore e replay riporteranno la domanda.
+	 *
+	 * 🔴 **Copre TUTTE E CINQUE le famiglie di istanze che `RebuildInstances` monta**, non il solo disco:
+	 * `Cells`, `SurfaceGlyphs`, `Relief`, `Blockers` ed `EdgeFeatures`. Velare il disco e lasciare in piedi
+	 * colonne, lastre e pannelli farebbe leggere muri, coperture e porte dell'INTERA board prima di averla
+	 * esplorata — cioe' proprio l'informazione che [D-225] dichiara di non disegnare — e il difetto sarebbe
+	 * invisibile a `GetVeilCounts`, che guarda il solo `Cells`.
+	 *
+	 * ⚠️ **Su quelle tre il velo NASCONDE e basta, non attenua.** Non portano custom data per istanza — nessun
+	 * `SetCustomDataValue` in `RebuildInstances` — quindi un ricordo si distingue da un'osservazione solo sul
+	 * disco sottostante. Attenuarle richiederebbe un canale nei loro materiali, che questa fetta non apre.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
+	void ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge);
+
+	/**
+	 * Quanto resta acceso il terreno RICORDATO ma non osservato. Non e' una preferenza estetica: sotto una
+	 * certa soglia il ricordo diventa indistinguibile dal nascosto, e i tre stati tornano due.
+	 */
+	static constexpr float RTVeilExploredFactor = 0.35f;
+
+	/** Quante istanze il velo ha lasciato accese, ricordate e nascoste. Diagnostica e test. */
+	void GetVeilCounts(int32& OutVisible, int32& OutExplored, int32& OutHidden) const;
+
+	/**
+	 * Lo stesso conteggio per le famiglie che NON sono il disco: rilievo del costo, volumi di blocco e
+	 * pannelli di bordo. Disegnate contro nascoste, e non tre stati — su queste il velo non attenua.
+	 *
+	 * ⚠️ Esiste perche' `GetVeilCounts` guarda il solo `Cells`: un velo che nascondesse il disco e lasciasse
+	 * in piedi colonne, lastre e pannelli tornerebbe **un conteggio perfetto** mentre rivela muri, coperture
+	 * e porte dell'intera board. Sulla graybox il difetto e' invisibile — `MakeFlatArena` non produce nessuna
+	 * di queste geometrie — quindi serve un canale che le guardi.
+	 */
+	void GetAuxiliaryVeilCounts(int32& OutDrawn, int32& OutHidden) const;
+
+	/**
+	 * Quante istanze l'ultimo `ApplyKnowledgeVeil` ha davvero TOCCATO.
+	 *
+	 * ⚠️ E' la misura che rende visibile il salto: senza, un velo che riscrive tutto e uno che riscrive il
+	 * bordo del cono sono indistinguibili — stesso risultato a schermo, due ordini di grandezza di
+	 * differenza nel costo.
+	 */
+	int32 GetLastVeilTouchedCells() const { return LastVeilTouchedCells; }
+
+	/** Stati che il velo scrive per istanza. `Unwritten` distingue «mai velata» da «velata e nascosta». */
+	static constexpr uint8 RTVeilUnwritten = 0xFF;
+	static constexpr uint8 RTVeilHidden = 0;
+	static constexpr uint8 RTVeilRemembered = 1;
+	static constexpr uint8 RTVeilLit = 2;
+
+	/**
+	 * La superficie di una cella, riletta dall'asset. Fuori dall'asset — o sul graybox demo, che non ha
+	 * terreni — risponde `Floor`, che e' cio' che `RebuildInstances` disegna nello stesso caso.
+	 */
+	ERTHexSurface SurfaceForCell(const FRTCellId& Cell) const;
 
 	/**
 	 * Il colpo di un raycast di selezione cade su una cella selezionabile di QUESTO actor?
@@ -499,6 +585,79 @@ protected:
 	 * viene rigenerato da RebuildInstances a ogni costruzione dell'actor.
 	 */
 	TArray<FRTCellId> InstanceCells;
+
+	/**
+	 * La scala PIENA di ogni istanza di `Cells`, per indice. Stato DERIVATO come `InstanceCells`.
+	 *
+	 * ⚠️ Serve perche' il velo nasconde portando la scala a zero, e da una scala **gia'** a zero non si
+	 * risale a quella piena: senza questo array il primo `ApplyKnowledgeVeil` sarebbe irreversibile, e la
+	 * cella tornata visibile resterebbe invisibile per sempre.
+	 */
+	TArray<FVector> InstanceBaseScale;
+
+	/**
+	 * Mapping instance index -> `FRTCellId` per i QUATTRO componenti dei glifi, e le loro scale piene.
+	 * Stato DERIVATO, rigenerato da `RebuildInstances`.
+	 *
+	 * ⚠️ Esistono perche' i glifi hanno un'indicizzazione PROPRIA: il glifo `N` non e' la cella `N`, dato che
+	 * cinque superfici su nove non ne ricevono nessuno (`SurfaceRingCount` restituisce zero). Velare la corona
+	 * riusando gli indici di `InstanceCells` colpirebbe la cella sbagliata — e il difetto sarebbe silenzioso,
+	 * perche' il conteggio delle istanze velate tornerebbe giusto.
+	 */
+	TArray<FRTCellId> GlyphCells[4];
+	TArray<FVector> GlyphBaseScale[4];
+
+	/**
+	 * Gli stessi due array per le TRE famiglie di geometria che non sono ne' il disco ne' il glifo: il rilievo
+	 * del costo, i volumi di blocco vista/movimento e i pannelli di bordo (coperture e porte).
+	 *
+	 * ⚠️ La loro indicizzazione non e' quella delle celle **e non e' nemmeno uno-a-uno**: `Relief` salta il
+	 * pavimento, `Blockers` puo' aggiungere DUE istanze sulla stessa cella — lastra e colonna insieme — ed
+	 * `EdgeFeatures` una per copertura e una per porta. Ecco perche' la cella si registra per ISTANZA e non
+	 * si ricava: senza, il velo colpirebbe la geometria di un'altra cella.
+	 */
+	TArray<FRTCellId> ReliefCells;
+	TArray<FVector> ReliefBaseScale;
+	TArray<uint8> LastReliefVeilState;
+	TArray<FRTCellId> BlockerCells;
+	TArray<FVector> BlockerBaseScale;
+	TArray<uint8> LastBlockerVeilState;
+	TArray<FRTCellId> EdgeFeatureCells;
+	TArray<FVector> EdgeFeatureBaseScale;
+	TArray<uint8> LastEdgeFeatureVeilState;
+
+	/**
+	 * Lo stato che il velo ha SCRITTO per ultimo su ogni istanza: `0` nascosta, `1` ricordata, `2` accesa —
+	 * `0xFF` quando non e' mai stato scritto. Stato DERIVATO, azzerato da `RebuildInstances` insieme agli
+	 * indici a cui si riferisce.
+	 *
+	 * ⚠️ **Non e' un'ottimizzazione preventiva: e' la risposta a una misura.** Riscrivere tutte le istanze a
+	 * ogni velo costa **~2,2 s** su arena piena (7 651 celle; 2 624 ms alla prima misura, 2 160 ms sulla suite
+	 * del 2026-08-28 — la macchina sposta il numero, non l'ordine di grandezza), contro un budget di
+	 * due refresh per turno. Fra due refresh consecutivi pero' cambia solo il bordo del cono, quindi il
+	 * lavoro utile e' una frazione minima del totale: si tocca cio' che cambia, e il resto si salta.
+	 */
+	TArray<uint8> LastVeilState;
+	TArray<uint8> LastGlyphVeilState[4];
+
+	/** Quante istanze l'ultimo velo ha toccato. Diagnostica: vedi `GetLastVeilTouchedCells`. */
+	int32 LastVeilTouchedCells = 0;
+
+	/**
+	 * Il velo su UNA famiglia di istanze. Esiste perche' le famiglie sono cinque e la regola e' una sola:
+	 * scritta cinque volte, la sesta famiglia nascerebbe scoperta e nessun conteggio se ne accorgerebbe — che
+	 * e' esattamente come `Relief`, `Blockers` ed `EdgeFeatures` erano rimasti fuori dalla prima stesura.
+	 *
+	 * `BaseColor` riempie il colore PIENO della cella e risponde `false` se quella famiglia non ha un canale
+	 * colore per istanza: in quel caso il velo agisce sulla sola scala, e ricordato e osservato restano
+	 * indistinguibili su quella geometria.
+	 *
+	 * @return quante istanze sono state davvero toccate.
+	 */
+	int32 VeilInstances(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,
+		const TArray<FVector>& BaseScale, TArray<uint8>& LastState,
+		const TSet<FRTCellId>& Visible, const TSet<FRTCellId>& Explored,
+		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor);
 
 	/** Stato DERIVATO, non serializzato: cache pigra, invalidata da `RebuildInstances`. */
 	mutable TArray<FRTCellId> UnreachableCells;

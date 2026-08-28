@@ -28,6 +28,8 @@
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
 #include "Bot/RTHexBotLibrary.h"
+#include "RTAuthoredArenaForTest.h" // il path della mappa d'autore in un posto solo
+#include "Pathfinding/RTHexPathLibrary.h" // GraphNeighbors: gli archi del gioco, non una loro copia
 #include "Perception/RTTeamKnowledge.h"
 #include "Perception/RTPerceptionLibrary.h"
 
@@ -999,6 +1001,534 @@ bool FRTBotStalemateTeamPlanningBreaksItTest::RunTest(const FString&)
 		After.Contests < Before.Contests);
 
 	TestTrue(TEXT("e le unita' si muovono davvero"), After.TurnsWithAnyMove > 0);
+
+	return true;
+}
+
+
+
+// ============================================================================================
+// #1287 — IL PASSO CHE CHIUDE L'ANELLO, CHIESTO ALLA BOARD INVECE CHE A UNA PARTITA
+// ============================================================================================
+
+namespace
+{
+	FString RTOrbitCellText(const FRTCellId& Cell)
+	{
+		return FString::Printf(TEXT("(%d,%d,L%d)"), Cell.X, Cell.Y, Cell.Layer);
+	}
+
+	/** Chiave d'una coppia, indipendente da quale delle due e' la cieca: un anello non ha un verso. */
+	FString RTOrbitPairText(const FRTCellId& A, const FRTCellId& B)
+	{
+		const bool bFirst = URTHexLibrary::StableLess(A, B);
+		return RTOrbitCellText(bFirst ? A : B) + TEXT(" <-> ") + RTOrbitCellText(bFirst ? B : A);
+	}
+
+	/**
+	 * Il ciclo di periodo due di #1287, ridotto al passo che lo rende possibile — e a NIENT'ALTRO.
+	 *
+	 * Il difetto aveva due strati che lavoravano insieme: il filtro sul dominio (`BuildCandidates`) si
+	 * accendeva quando il bot **era cieco** e si spegneva appena vedeva, e l'avvicinamento si misurava in
+	 * linea d'aria. La sequenza e': cella cieca -> il filtro obbliga a una cella che vede -> li' il filtro e'
+	 * spento -> la cieca torna la migliore -> cella cieca.
+	 *
+	 * 🔴 **Il passo che chiude l'anello e' il RITORNO, e per poterlo compiere il primo passo deve andare
+	 * INDIETRO.** Se il filtro, dalla cella cieca, manda su una cella che vede ed e' piu' VICINA al
+	 * bersaglio, tornare indietro significa allontanarsi — e ogni punteggio che contenga un termine di
+	 * avvicinamento lo penalizza. L'anello si chiude solo se il filtro fa **arretrare**.
+	 *
+	 * Questa e' la condizione che si conta qui, e si chiama PASSO INDIETRO:
+	 *
+	 *     esiste (A cieca rispetto a E, E bersaglio) tale che, fra le celle raggiungibili da A che VEDONO E,
+	 *     la piu' vicina a E non e' piu' vicina di A stessa.
+	 *
+	 * ⚠️ **E' una condizione NECESSARIA, non sufficiente, e la sua forza sta in cio' che NON assume.** Non
+	 * modella il punteggio: chiede soltanto che, a parita' d'altro, avvicinarsi valga piu' che allontanarsi —
+	 * cioe' che esista un termine di avvicinamento, che e' l'unica cosa che #1287 e #1296 hanno in comune. In
+	 * particolare **non** pretende di riprodurre `ChooseBestPlan`: elevazione, minaccia, copertura, ingaggio e
+	 * attacco restano fuori, e con loro la possibilita' che uno di quei termini paghi l'arretramento da solo.
+	 *
+	 * 🔴 **E NON dimostra che un 2-ciclo sia impossibile.** Una stesura precedente di questo commento lo
+	 * sosteneva, per via che `ScorePlan` non legge `Context.Origin` e che il tie-break di `ChooseBestPlan` fa
+	 * vincere il restare: sarebbe seguito che `A -> B` chiede `punteggio(B) > punteggio(A)` e `B -> A`
+	 * l'opposto. **L'argomento e' falso**, ed e' caduto in code review: il punteggio DIPENDE dalla
+	 * provenienza attraverso il facing d'arrivo — `RTHexBotLibrary.cpp` sottrae
+	 * `WDamage * max(0, CoperturaQui - CoperturaTenuta)`, dove la seconda si deriva da `Plan.FromCell` — e con
+	 * `WDamage == WApproach == 10` un punto di copertura perso vale esattamente una cella di avvicinamento.
+	 * `punteggio(B) da A` e `punteggio(B) da altrove` sono numeri diversi, quindi le due disuguaglianze non
+	 * sono incompatibili.
+	 *
+	 * ⚠️ **Un nemico solo, fermo.** Un'orbita e' un comportamento stazionario, e con il bersaglio che si muove
+	 * non esiste una funzione di cui cercare i cicli. E' l'idealizzazione in cui il difetto storico e' stato
+	 * osservato: Riktor fra due celle mentre il resto del campo non decideva.
+	 */
+	struct FRTOrbitBoard
+	{
+		TArray<FRTCellId> Walk;
+		TMap<FRTCellId, int32> Index;
+		/** `Sees[A * N + B]`: da `Walk[A]` si vede `Walk[B]`. Verso OFFENSIVO, come `BuildCandidates`. */
+		TArray<uint8> Sees;
+		int32 SightBlockers = 0;
+		int32 SightBlockersAlsoBlockingMovement = 0;
+	};
+
+	/**
+	 * Celle percorribili, indice e matrice di visibilita': si leggono UNA volta per board.
+	 *
+	 * ⚠️ La visibilita' non dipende dal budget di movimento, e ricalcolarla a ogni budget costava sette
+	 * volte `N x N` chiamate a `HexLine` per board. Trovato in code review.
+	 */
+	FRTOrbitBoard RTOrbitReadBoard(const URTHexMapAsset* Map)
+	{
+		FRTOrbitBoard Board;
+		if (Map == nullptr)
+		{
+			return Board;
+		}
+
+		for (const FRTHexCellData& Cell : Map->Cells)
+		{
+			if (Cell.bBlocksLineOfSight)
+			{
+				++Board.SightBlockers;
+				if (Cell.bBlocksMovement)
+				{
+					++Board.SightBlockersAlsoBlockingMovement;
+				}
+			}
+			if (!Cell.bBlocksMovement)
+			{
+				Board.Walk.Add(Cell.Id);
+			}
+		}
+
+		const int32 N = Board.Walk.Num();
+		for (int32 I = 0; I < N; ++I)
+		{
+			Board.Index.Add(Board.Walk[I], I);
+		}
+
+		// Il verso e' `cella -> bersaglio`, lo stesso di `BuildCandidates` e del termine di ingaggio:
+		// `HexLine` costruisce la linea sul layer del TIRATORE, e fra layer diversi i due versi non
+		// coincidono.
+		Board.Sees.SetNumZeroed(N * N);
+		for (int32 A = 0; A < N; ++A)
+		{
+			for (int32 B = 0; B < N; ++B)
+			{
+				Board.Sees[A * N + B] = URTHexVisionLibrary::HasLineOfSight(Map, Board.Walk[A], Board.Walk[B]) ? 1 : 0;
+			}
+		}
+		return Board;
+	}
+
+	/**
+	 * Le celle che un budget di movimento raggiunge sul grafo, occupanti esclusi.
+	 *
+	 * ⚠️ **Non e' `ReachableCells`, e la differenza e' dichiarata**: qui non c'e' partita, quindi nessuna
+	 * unita' occupa celle. L'intorno che ne esce e' un SOVRAINSIEME di quello vero, e un sovrainsieme offre
+	 * al filtro piu' celle su cui posarsi — rende «nessun passo indietro» piu' difficile da ottenere.
+	 *
+	 * ⚠️ Si percorre `GraphNeighbors`, la stessa primitiva su cui `ApproachSteps` costruisce il proprio campo
+	 * di distanze, e **senza pavimento sul costo**: `ReachableCells` non ne mette uno, e una stesura
+	 * precedente aveva un `FMath::Max(1, ...)` giustificato con «un arco a costo zero farebbe girare la
+	 * frontiera all'infinito» — falso, perche' il rilassamento qui sotto ri-accoda solo su `<` stretto. Quel
+	 * pavimento rendeva l'intorno piu' PICCOLO di quello del gioco su una mappa con un arco gratuito. Trovato
+	 * in code review.
+	 *
+	 * ⚠️ **L'uscita e' ordinata**, e non e' pedanteria: `GenerateKeyArray` consegna l'ordine interno della
+	 * `TMap`, e `CLAUDE.md` §7 vieta di dipenderne. Oggi il conteggio sopravviverebbe lo stesso — il
+	 * criterio ha un tie-break totale — ma il primo chiamante che leggesse `Neigh[O][0]` otterrebbe un
+	 * risultato che cambia fra due build.
+	 */
+	void RTOrbitCellsWithinBudget(const URTHexMapAsset* Map, const FRTCellId& Origin, int32 Budget,
+		TArray<FRTCellId>& Out)
+	{
+		Out.Reset();
+		if (Map == nullptr)
+		{
+			return;
+		}
+
+		TMap<FRTCellId, int32> Best;
+		Best.Add(Origin, 0);
+		TArray<FRTCellId> Frontier;
+		Frontier.Add(Origin);
+		while (Frontier.Num() > 0)
+		{
+			const FRTCellId Cur = Frontier.Pop(EAllowShrinking::No);
+			const int32 CurCost = Best.FindChecked(Cur);
+			for (const TPair<FRTCellId, int32>& Arc : URTHexPathLibrary::GraphNeighbors(Map, Cur))
+			{
+				const int32 NextCost = CurCost + Arc.Value;
+				if (NextCost > Budget)
+				{
+					continue;
+				}
+				const int32* Known = Best.Find(Arc.Key);
+				if (Known == nullptr || NextCost < *Known)
+				{
+					Best.Add(Arc.Key, NextCost);
+					Frontier.Add(Arc.Key);
+				}
+			}
+		}
+		Best.GenerateKeyArray(Out);
+		Out.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
+	}
+
+	struct FRTOrbitBackstepReport
+	{
+		/** Coppie `(cella cieca, bersaglio)` in cui il filtro ha dove mandare il bot: il denominatore. */
+		int32 BlindPairsWithSomewhereToGo = 0;
+		/** ... di cui il filtro NON avvicina, cioe' quelle in cui l'anello puo' chiudersi. */
+		int32 Backsteps = 0;
+		/** Le coppie `cieca <-> che vede` distinte, per poter chiedere se una coppia NOTA e' fra loro. */
+		TSet<FString> Pairs;
+	};
+
+	/**
+	 * La piu' vicina al bersaglio fra le celle del dominio, con la FORMA di tie-break di `ChooseBestPlan`:
+	 * mossa minima dall'origine, poi ordine stabile.
+	 *
+	 * ⛔ **La forma, non il criterio.** `ChooseBestPlan` ordina per `ScorePlan` e usa quei due solo a parita';
+	 * qui il criterio primario e' la distanza in linea d'aria, cioe' la METRICA PRE-#1296, e gli altri termini
+	 * del punteggio non ci sono. Il tie-break serve a rendere il nome della cella deterministico per il
+	 * referto — **il conteggio dei passi indietro non ne dipende**, perche' guarda la distanza minima e non
+	 * quale cella la realizza.
+	 */
+	int32 RTOrbitNearestInDomain(const TArray<FRTCellId>& Walk, const TArray<int32>& Domain,
+		const FRTCellId& Origin, const FRTCellId& Target)
+	{
+		int32 Best = INDEX_NONE;
+		int32 BestDist = MAX_int32;
+		int32 BestMove = MAX_int32;
+		for (const int32 C : Domain)
+		{
+			const int32 Dist = URTHexLibrary::HexDistance(Walk[C], Target);
+			const int32 Move = URTHexLibrary::HexDistance(Walk[C], Origin);
+			bool bBetter = (Best == INDEX_NONE) || Dist < BestDist;
+			if (!bBetter && Dist == BestDist)
+			{
+				if (Move < BestMove)
+				{
+					bBetter = true;
+				}
+				else if (Move == BestMove)
+				{
+					bBetter = URTHexLibrary::StableLess(Walk[C], Walk[Best]);
+				}
+			}
+			if (bBetter)
+			{
+				Best = C;
+				BestDist = Dist;
+				BestMove = Move;
+			}
+		}
+		return Best;
+	}
+
+	FRTOrbitBackstepReport RTMeasureOrbitBacksteps(const URTHexMapAsset* Map, const FRTOrbitBoard& Board,
+		int32 Budget)
+	{
+		FRTOrbitBackstepReport Report;
+		const int32 N = Board.Walk.Num();
+		if (N == 0)
+		{
+			return Report;
+		}
+
+		TArray<TArray<int32>> Neigh;
+		Neigh.SetNum(N);
+		TArray<FRTCellId> Reach;
+		for (int32 O = 0; O < N; ++O)
+		{
+			RTOrbitCellsWithinBudget(Map, Board.Walk[O], Budget, Reach);
+			for (const FRTCellId& Cell : Reach)
+			{
+				if (const int32* Found = Board.Index.Find(Cell))
+				{
+					Neigh[O].Add(*Found);
+				}
+			}
+		}
+
+		TArray<int32> Filtered;
+		for (int32 E = 0; E < N; ++E)
+		{
+			for (int32 A = 0; A < N; ++A)
+			{
+				// `A` dev'essere CIECA: e' la condizione con cui il filtro di #1287 si accendeva, ed e' anche
+				// la ragione per cui li' il bot non poteva colpire — senza linea di tiro non c'e' attacco.
+				if (A == E || Board.Sees[A * N + E] != 0)
+				{
+					continue;
+				}
+
+				// Il filtro acceso: solo le celle DA CUI SI VEDE. L'origine e' cieca, quindi resta fuori — ed
+				// e' cio' che obbliga il bot a muoversi anche verso una cella che vale meno.
+				Filtered.Reset();
+				for (const int32 C : Neigh[A])
+				{
+					if (C != E && Board.Sees[C * N + E] != 0)
+					{
+						Filtered.Add(C);
+					}
+				}
+				if (Filtered.Num() == 0)
+				{
+					continue; // il filtro non ha dove mandarlo: nessun primo passo, nessun anello
+				}
+				++Report.BlindPairsWithSomewhereToGo;
+
+				const int32 B = RTOrbitNearestInDomain(Board.Walk, Filtered, Board.Walk[A], Board.Walk[E]);
+				const int32 DistA = URTHexLibrary::HexDistance(Board.Walk[A], Board.Walk[E]);
+				const int32 DistB = URTHexLibrary::HexDistance(Board.Walk[B], Board.Walk[E]);
+
+				// ⚠️ `>=` e non `>`: a parita' di distanza il ritorno non costa avvicinamento, quindi il
+				// termine che dovrebbe impedirlo vale zero. Contare anche le parita' e' la scelta che rende
+				// il verdetto «nessun passo indietro» piu' difficile, non piu' facile.
+				if (DistB >= DistA)
+				{
+					++Report.Backsteps;
+					Report.Pairs.Add(RTOrbitPairText(Board.Walk[A], Board.Walk[B]));
+				}
+			}
+		}
+
+		return Report;
+	}
+
+	/** Il referto della spazzata: per budget, piu' le coppie distinte. Nessuna somma spacciata per conteggio. */
+	struct FRTOrbitSweep
+	{
+		/** Passi indietro e coppie esaminate, PER BUDGET. Sommarli darebbe numeri piu' grandi delle coppie
+		 *  che la board possiede — ed e' il difetto che la prima stesura pubblicava. */
+		TMap<int32, int32> BackstepsByBudget;
+		TMap<int32, int32> PairsByBudget;
+		/** Il primo budget in cui il filtro non arretra piu', o `INDEX_NONE` se non arriva mai. */
+		int32 FirstCleanBudget = INDEX_NONE;
+		TSet<FString> DistinctPairs;
+		FString PerBudget;
+
+		int32 BackstepsAt(int32 Budget) const { return BackstepsByBudget.FindRef(Budget); }
+		int32 PairsAt(int32 Budget) const { return PairsByBudget.FindRef(Budget); }
+	};
+
+	/**
+	 * I budget di movimento che la v0.1 SPEDISCE, e non una soglia tarata sui dati.
+	 *
+	 * 🔴 **La differenza conta**: la prima stesura di questa misura asseriva «zero passi indietro» sommando
+	 * i budget da 2 a 8, e il numero era zero solo perche' la somma nascondeva i due estremi bassi. Misurato:
+	 * sull'arena generata il filtro arretra a **2** e a **3** MP, e non arretra piu' da **4** in su. Scegliere
+	 * «>= 4» come soglia sarebbe stato tararla sul risultato; il catalogo v0.1 ne dichiara invece tre, e sono
+	 * un dato del gioco: `MovementMode.Move` **5 MP** (il profilo neutro), `MovementMode.Sprint` **8**,
+	 * `MovementMode.Withdraw` **2** — e quest'ultimo *«non si scieglie: lo impone l'Overwatch»* ([D-070]).
+	 *
+	 * ⚠️ **Il caso a 2 MP resta scoperto, e va detto invece che nascosto.** Li' il filtro puo' arretrare
+	 * anche sull'arena generata. Che non fondi un'orbita *sostenuta* e' un argomento, non una misura: un
+	 * ciclo di periodo due chiede lo stesso budget a ogni turno, e il ripiegamento a 2 MP dura quanto
+	 * l'Overwatch che lo impone.
+	 */
+	constexpr int32 RTOrbitNeutralMoveMP = 5;
+	constexpr int32 RTOrbitSprintMP = 8;
+	constexpr int32 RTOrbitWithdrawMP = 2;
+
+	/**
+	 * ⚠️ **La spazzata dei budget e' fissa, 2..8, e va detto da dove viene e cosa NON garantisce.** Copre
+	 * l'intervallo del catalogo v0.1 — `Action.Withdraw` 2 MP, `Action.Move` 5, `Action.Sprint` 8 — ma **non
+	 * e' derivata da lui**: se `#149` porta lo `Sprint` a 9, questa spazzata smette di coprire il formato
+	 * spedito e nessuna asserzione cade. Chi sposta quel numero allarghi anche questo. Legarla al valore di un
+	 * eroe e' l'alternativa scartata: renderebbe una proprieta' della board dipendente da una taratura del
+	 * roster, e la taratura si muove piu' spesso della board.
+	 */
+	FRTOrbitSweep RTSweepOrbitBacksteps(const URTHexMapAsset* Map)
+	{
+		FRTOrbitSweep Sweep;
+		const FRTOrbitBoard Board = RTOrbitReadBoard(Map);
+		TArray<FString> Righe;
+		for (int32 Budget = 2; Budget <= 8; ++Budget)
+		{
+			const FRTOrbitBackstepReport R = RTMeasureOrbitBacksteps(Map, Board, Budget);
+			Sweep.BackstepsByBudget.Add(Budget, R.Backsteps);
+			Sweep.PairsByBudget.Add(Budget, R.BlindPairsWithSomewhereToGo);
+			if (R.Backsteps == 0 && Sweep.FirstCleanBudget == INDEX_NONE)
+			{
+				Sweep.FirstCleanBudget = Budget;
+			}
+			Sweep.DistinctPairs.Append(R.Pairs);
+			Righe.Add(FString::Printf(TEXT("b%d: %d/%d"), Budget, R.Backsteps, R.BlindPairsWithSomewhereToGo));
+		}
+		Sweep.PerBudget = FString::Join(Righe, TEXT("  "));
+		return Sweep;
+	}
+}
+
+/**
+ * **Perche' nessuna mutazione del bot fa oscillare qualcuno sull'arena generata.**
+ *
+ * `Match.Autobattle.EngagesOnTheGeneratedTestArena` porta un'asserzione anti-oscillazione, e la sua verifica
+ * di mutazione dice due cose: il RILEVATORE falsifica (mutandolo cadono tre test), ma nessuna mutazione del
+ * BOT lo fa cadere li' — sotto la piu' forte, l'avvicinamento in linea d'aria del pre-#1296, il contatore va
+ * a ZERO mentre sulla mappa d'autore va a sette. Restava da sapere se mancasse la mutazione o la board.
+ *
+ * ✅ **Manca alla board il passo che chiude l'anello, ai budget che il gioco spedisce.** Il ciclo di #1287
+ * puo' chiudersi solo se il filtro, dalla cella cieca, fa **arretrare**: se manda su una cella che vede ed e'
+ * piu' vicina al bersaglio, tornare indietro significa allontanarsi, e ogni termine di avvicinamento lo
+ * penalizza. Su `MakeTestArena` il muro di `q=0` blocca la vista e **non il passo**, e `HasLineOfSight`
+ * esclude gli estremi dalla regola per-cella (*«non ci si oscura da soli»*): la cella del muro e' insieme
+ * piu' vicina al bersaglio **e** una cella che vede, quindi il filtro manda avanti. Sulla mappa d'autore
+ * l'ostacolo centrale blocca vista **e** passo — la riga che #1287 cita, *«(-1,1) e (1,-1) distano 2 ma sono
+ * ai lati opposti di (0,0), che blocca vista e passo»* — e li' la cella che vede sta dietro.
+ *
+ * 🔴 **E il «mai» va qualificato, perche' la misura lo qualifica.** Il passo indietro dipende da quanto
+ * lontano si arriva in un turno, e questa riga diceva «mai» sommando i budget invece di guardarli uno per
+ * uno. Misurato, passi indietro su coppie esaminate:
+ *
+ *     budget MP                2      3      4      5(Move)  6     7     8(Sprint)
+ *     MakeTestArena           48     19      0      **0**     0     0      **0**
+ *     DA_HexMap_Arena        154    162    170    **104**    38     9        0
+ *
+ * ∴ **le due board si distinguono per DOVE cade la soglia**, e il budget spedito cade sui due lati opposti:
+ * sull'arena generata il filtro smette di arretrare da **4 MP**, sulla mappa d'autore solo da **8**. Il
+ * profilo neutro `MovementMode.Move` ne porta **5**. ⚠️ A 2 e 3 MP il passo indietro esiste anche qui, ed e'
+ * dichiarato nel test invece che nascosto in una somma.
+ *
+ * ⛔ **Cosa questo test NON dice, e la prima stesura lo diceva.** Non dimostra che un 2-ciclo sia
+ * impossibile: la condizione misurata e' NECESSARIA, non sufficiente, e resta fuori la possibilita' che un
+ * altro termine del punteggio — elevazione, copertura, minaccia — paghi l'arretramento da solo. Il verde qui
+ * dice «su questa board, coi budget spediti, il primo passo del ciclo di #1287 non arretra», che e' meno di
+ * «il bot non puo' orbitare» e piu' di «non ho trovato la mutazione».
+ *
+ * ⚠️ **Quindi la ricerca di una mutazione del bot che falsifichi quell'oracolo NON e' chiusa**, ed e'
+ * scritto anche li': chi ne trova una la scriva nella tabella di `RTMatchAutobattleTests.cpp`, e con lei
+ * cade questa spiegazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotGeneratedArenaFilterNeverStepsBackTest,
+	"RefactorTactics.Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotGeneratedArenaFilterNeverStepsBackTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena di prova generata"), Arena)) { return false; }
+
+	// La CAUSA, prima della conseguenza: su questa board nessuna cella che blocca la vista blocca il passo.
+	// E' la riga che manda il filtro avanti invece che indietro; se cade, la conclusione va rifatta.
+	const FRTOrbitBoard Board = RTOrbitReadBoard(Arena);
+	AddInfo(FString::Printf(
+		TEXT("arena generata: %d celle percorribili, %d bloccano la vista, di cui %d bloccano anche il passo"),
+		Board.Walk.Num(), Board.SightBlockers, Board.SightBlockersAlsoBlockingMovement));
+	TestTrue(TEXT("premessa: l'arena ha celle percorribili"), Board.Walk.Num() > 0);
+	TestTrue(TEXT("premessa: l'arena ha un muro che blocca la vista"), Board.SightBlockers > 0);
+	TestEqual(TEXT("e nessuna di quelle celle blocca il passo: sul muro ci si sale, e da li' si vede"),
+		Board.SightBlockersAlsoBlockingMovement, 0);
+
+	const FRTOrbitSweep Sweep = RTSweepOrbitBacksteps(Arena);
+	AddInfo(FString::Printf(TEXT("passi indietro per budget (indietro/coppie) — %s"), *Sweep.PerBudget));
+	AddInfo(FString::Printf(TEXT("primo budget senza passo indietro: %d MP"), Sweep.FirstCleanBudget));
+
+	// La misura ha un denominatore: senza, «zero» sarebbe il numero di una board senza celle cieche.
+	// ⚠️ Il denominatore e' quello DEL BUDGET, non una somma sui sette: una somma non e' un conteggio di
+	// coppie, e pubblicarla come tale dava numeri piu' grandi delle coppie che la board possiede — 9510 su
+	// una board che ne ha al massimo 62x61 = 3782. Trovato in code review.
+	TestTrue(FString::Printf(TEXT("col profilo neutro il filtro ha dove mandare il bot in %d coppie"),
+		Sweep.PairsAt(RTOrbitNeutralMoveMP)), Sweep.PairsAt(RTOrbitNeutralMoveMP) > 0);
+
+	// 🔴 **L'asserzione sta sui budget che il gioco SPEDISCE**, non su una soglia scelta dopo aver visto i
+	// numeri: `MovementMode.Move` porta 5 MP ed e' il profilo neutro, `Sprint` ne porta 8.
+	TestEqual(FString::Printf(
+		TEXT("col profilo neutro (%d MP) il filtro non fa mai arretrare: %d passi indietro su %d coppie"),
+		RTOrbitNeutralMoveMP, Sweep.BackstepsAt(RTOrbitNeutralMoveMP), Sweep.PairsAt(RTOrbitNeutralMoveMP)),
+		Sweep.BackstepsAt(RTOrbitNeutralMoveMP), 0);
+	TestEqual(FString::Printf(TEXT("e nemmeno con lo Sprint (%d MP): %d passi indietro"),
+		RTOrbitSprintMP, Sweep.BackstepsAt(RTOrbitSprintMP)),
+		Sweep.BackstepsAt(RTOrbitSprintMP), 0);
+
+	// ⚠️ **Il caso a 2 MP e' scoperto, e si dichiara invece di nasconderlo in una somma.** Con il budget del
+	// ripiegamento il filtro arretra anche qui, e la prima stesura di questo test non se ne accorgeva perche'
+	// sommava i sette budget insieme. Non e' un'asserzione perche' non e' un difetto misurato: quel budget
+	// non si sceglie — «lo impone l'Overwatch» (`D-070`) — e un'orbita sostenuta chiede lo stesso budget a
+	// ogni turno. Chi misurera' un'orbita sotto Overwatch la porti qui.
+	if (Sweep.BackstepsAt(RTOrbitWithdrawMP) > 0)
+	{
+		AddInfo(FString::Printf(
+			TEXT("col budget del ripiegamento (%d MP, imposto dall'Overwatch) il filtro arretra in %d coppie ")
+			TEXT("su %d: scoperto e dichiarato, non asserito"),
+			RTOrbitWithdrawMP, Sweep.BackstepsAt(RTOrbitWithdrawMP), Sweep.PairsAt(RTOrbitWithdrawMP)));
+	}
+
+	return true;
+}
+
+/**
+ * **Il controfattuale, sulla stessa domanda: sulla mappa d'autore il filtro arretra.**
+ *
+ * ⚠️ **Esiste per non far dire al test qui sopra piu' di quanto misura** — la stessa ragione per cui questo
+ * file affianca l'arena demo all'arena di prova. «Zero» significa qualcosa solo se si sa quanto vale su una
+ * board dove il ciclo si e' formato davvero: senza termine di paragone, uno zero puo' venire dal predicato
+ * sbagliato invece che dalla geometria. La prima stesura di questa misura contava una condizione diversa e
+ * dava un numero positivo su ENTRAMBE le board: era il controfattuale a non discriminare.
+ *
+ * 🔴 **Ed e' la premessa di `NobodyOscillatesOnTheAuthoredMap`.** Quell'oracolo cade sotto la mutazione in
+ * linea d'aria (1 -> 7 ritorni su limite 4); il suo gemello sull'arena generata no. Se un giorno questo
+ * numero andasse a zero — un rimaneggiamento della mappa che rende l'ostacolo centrale attraversabile —
+ * allora **anche quell'oracolo** perderebbe il proprio percorso di comportamento, e la verifica di mutazione
+ * di #1287 andrebbe rifatta invece che ereditata. E' il giorno in cui si vuole essere avvisati.
+ *
+ * ⚠️ **Asserisce su un `.uasset` di DIR-A, e lo dichiara**: un rosso qui non e' un difetto del bot, e' un
+ * cambio di contenuto che sposta il significato di un test del bot.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotAuthoredMapFilterStepsBackTest,
+	"RefactorTactics.Bot.StalemateProbeAuthoredMapFilterStepsBack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotAuthoredMapFilterStepsBackTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Authored = RTAuthoredArena::Load();
+	if (!TestNotNull(TEXT("la mappa d'autore si carica"), Authored)) { return false; }
+
+	const FRTOrbitBoard Board = RTOrbitReadBoard(Authored);
+	AddInfo(FString::Printf(
+		TEXT("mappa d'autore: %d celle percorribili, %d bloccano la vista, di cui %d bloccano anche il passo"),
+		Board.Walk.Num(), Board.SightBlockers, Board.SightBlockersAlsoBlockingMovement));
+
+	// ⚠️ **Le stesse premesse del gemello, asserite e non solo stampate.** Senza, una mappa rimaneggiata fino
+	// a una board degenere potrebbe superare il controfattuale mentre il commento sostiene che le due board
+	// differiscono strutturalmente — cioe' esattamente il modo di fallire che questo test dichiara di
+	// prevenire. Trovato in code review.
+	TestTrue(TEXT("premessa: la mappa ha celle percorribili"), Board.Walk.Num() > 0);
+	TestTrue(TEXT("premessa: la mappa ha celle che bloccano la vista"), Board.SightBlockers > 0);
+
+	// La differenza fra le due board, in una riga: qui i muri sono anche ostacoli.
+	TestTrue(FString::Printf(TEXT("e %d di quelle bloccano anche il passo (sull'arena generata sono zero)"),
+		Board.SightBlockersAlsoBlockingMovement),
+		Board.SightBlockersAlsoBlockingMovement > 0);
+
+	const FRTOrbitSweep Sweep = RTSweepOrbitBacksteps(Authored);
+	AddInfo(FString::Printf(TEXT("passi indietro per budget (indietro/coppie) — %s"), *Sweep.PerBudget));
+
+	AddInfo(FString::Printf(TEXT("primo budget senza passo indietro: %d MP"), Sweep.FirstCleanBudget));
+	TestTrue(FString::Printf(TEXT("col profilo neutro il filtro ha dove mandare il bot in %d coppie"),
+		Sweep.PairsAt(RTOrbitNeutralMoveMP)), Sweep.PairsAt(RTOrbitNeutralMoveMP) > 0);
+
+	AddInfo(FString::Printf(TEXT("coppie distinte su tutti i budget: %d"), Sweep.DistinctPairs.Num()));
+
+	// Il verso opposto del gemello, sullo STESSO budget: e' il confronto che rende la misura una misura.
+	TestTrue(FString::Printf(
+		TEXT("sulla mappa d'autore il filtro arretra gia' col profilo neutro (%d MP): %d passi indietro su %d ")
+		TEXT("coppie — sull'arena generata sono zero"),
+		RTOrbitNeutralMoveMP, Sweep.BackstepsAt(RTOrbitNeutralMoveMP), Sweep.PairsAt(RTOrbitNeutralMoveMP)),
+		Sweep.BackstepsAt(RTOrbitNeutralMoveMP) > 0);
+
+	// 🔴 **E fra quelle coppie c'e' QUELLA MISURATA, che e' cio' che rende questo predicato una misura e non
+	// un modello plausibile.** Il consuntivo di #1287 nomina l'orbita osservata in partita — *«Riktor alterna
+	// fra `(1,-1,L0)` e la piattaforma `(3,-3,L1)` otto volte in dodici turni»* — e il predicato, che di
+	// quella misura non sa nulla, la ritrova enumerando la board.
+	const FString Storica = RTOrbitPairText(FRTCellId(1, -1, 0), FRTCellId(3, -3, 1));
+	TestTrue(FString::Printf(
+		TEXT("fra le coppie c'e' quella MISURATA da #1287 in partita: %s"), *Storica),
+		Sweep.DistinctPairs.Contains(Storica));
 
 	return true;
 }

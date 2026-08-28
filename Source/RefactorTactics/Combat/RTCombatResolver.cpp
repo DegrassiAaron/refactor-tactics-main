@@ -18,8 +18,12 @@ TArray<FRTUnitCombatState> URTCombatResolver::ResolveAttacks(const TArray<FRTUni
 	for (const TPair<int32, int32>& Pair : DamageByTarget)
 	{
 		const FRTUnitCombatState& Initial = Units[Pair.Key];
-		const FRTDamageResult Damaged = URTCombatLibrary::ApplyDamage(Pair.Value, Initial.Shield, Initial.Health);
-		Result[Pair.Key] = FRTUnitCombatState(Damaged.Health, Damaged.Shield);
+		// `Direct` come costante e non come campo di `FRTAttack`: ogni colpo che attraversa questo resolver
+		// viene dal Blast, e un campo che avrebbe sempre lo stesso valore sarebbe speculazione. Il danno
+		// ambientale non passa di qui — chiama `ApplyDamage` direttamente dal TurnManager.
+		const FRTDamageResult Damaged = URTCombatLibrary::ApplyDamage(Pair.Value, ERTDamageSource::Direct,
+			Initial.Shield, Initial.TemporaryShield, Initial.Health);
+		Result[Pair.Key] = FRTUnitCombatState(Damaged.Health, Damaged.Shield, Damaged.TemporaryShield);
 	}
 	return Result;
 }

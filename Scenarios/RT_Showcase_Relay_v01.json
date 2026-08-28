@@ -159,6 +159,22 @@
               0
             ]
           ]
+        },
+        {
+          "_intento": "L'AVVICINAMENTO AL GATE, e non e' una comparsa. Riktor sta a (3,0,0) dal T1 e non ha intenti fino al T7: due passi su `Conductive` (`MoveCost` 1 ciascuno, contro i suoi 4 `MovePoints`) lo portano sul lato est del varco. La portata di `Action.Interact` e' **1** ([D-149]), quindi per aprirlo deve stare SU (0,1,0) o (1,1,0) — non esiste un modo di farlo da lontano. ✅ **E rimuove il primo dei due ostacoli al T6**: `Hero.Riktor.Interposition` eredita da `Action.Intercept` la portata **2**, e da (3,0,0) la distanza da Wraith in (1,-1,0) e' **3** — l'interposizione che il §T6 della spec descrive non avrebbe mai potuto scattare, e nessuno se n'era accorto perche' il T6 e' `BLOCKED`. Da (1,1,0) e' esattamente 2. ⚠️ **Ma la portata dell'alleato non e' l'unica condizione, e questa nota lo taceva**: `FindInterceptableHit` chiede ANCHE la linea di tiro dell'attaccante verso chi si interpone (`RTReactionLibrary.cpp:115`), e `RedirectHitTo` non rivalida la portata dell'attaccante. Al T6 Gadget attacca da (-3,-1,0), che dista **6** da (1,1,0) mentre le sue azioni arrivano a 5. Se il colpo rediretto sia legittimo a quella distanza **non e' deciso**, e il T6 ha ancora `intents: []`: qui si toglie un ostacolo misurato, non si dichiara il turno riparato. ⚠️ I waypoint sono espliciti per FISSARE LA SCENA, non per evitare un'ambiguita'. ⛔ Questa riga diceva che senza di essi l'A* «potrebbe passare da (2,0,0), che e' `Rough` e costa 2»: **falso, e non misurato** — quella strada costa 3 (`Rough` 2 + `Conductive` 1) contro i 2 della strada nominata, e un router che minimizza il costo non la sceglie mai. Restano utili come dichiarazione di intenti; non come rimedio a un pericolo che non c'e'. ⚠️ Il turno e' scelto: il T4 e' quello dell'Overwatch, dove l'ordine dei micro-step e' coreografato al passo — aggiungere un mover li' avrebbe toccato la finestra.",
+          "unit": "Riktor",
+          "move": [
+            [
+              2,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              0
+            ]
+          ]
         }
       ]
     },
@@ -212,7 +228,7 @@
       "_nota_ordine_dei_due_ingressi": "I due percorsi hanno LUNGHEZZA diversa apposta: Gadget entra al micro-step 0 e Phase all'1. `BuildOverwatchTriggers` raggruppa per passo, quindi due bersagli nello stesso micro-step darebbero UNA sola opportunity (`Overwatch.SimultaneousTargetsSingleOpportunity`) — cioe' una decisione invece di due, e la spec non sarebbe piu' dimostrata. ⚠️ Le celle d'ingresso sono diverse per la stessa ragione per cui i passi lo sono: con la stessa cella, il secondo la troverebbe occupata dal primo."
     },
     {
-      "_turno": "T5 — fumo e struttura, piu' l'avvicinamento che il T7 richiede. Riktor apre il gate: la topologia cambia e la revisione della mappa sale (⛔ non ancora implementabile, #833). Phase intanto risale la riga r=-1 fino a (0,-1), adiacente alla fascia `Fire`: e' da li' che al T7 lo Sprinkler puo' arrivarci.",
+      "_turno": "T5 — fumo e struttura. **Riktor apre il gate** (0,1)<->(1,1) dal lato est: la topologia cambia, la revisione della mappa sale, e un percorso che prima non esisteva diventa percorribile. **Wraith arma la `Deflection`** e non ha niente da deviare — che e' un esito, non un vuoto. Phase intanto risale la riga r=-1 fino a (0,-1), adiacente alla fascia `Fire`: e' da li' che al T7 lo Sprinkler puo' arrivarci. ⛔ Delle quattro battute del §T5 ne mancano due, e per motivi diversi: il piano invalido di Gadget non e' SCRIVIBILE in modo onesto — vedi `_nota_piano_invalido`, e `MistVeil` non ha un piazzamento innocuo — vedi `_nota_mistveil`.",
       "intents": [
         {
           "unit": "Phase",
@@ -228,9 +244,38 @@
               0
             ]
           ]
+        },
+        {
+          "_intento": "LA BATTUTA DEL TURNO. Si punta la cella OLTRE la porta, non il bordo: il resolver cerca la prima porta sulla traiettoria fra chi agisce e la cella mirata (`FirstDoorEdge`), e da (1,1,0) a (0,1,0) quella traiettoria E' il bordo del gate. ⚠️ Il formato ha un campo `edge` per le azioni su struttura (CP 9.5) e #833 dice che il produttore giusto lato giocatore e' `HandleTargetEdge` — ma il percorso runtime dell'`Interact` non lo legge: `URTHexCombatLibrary` lavora su `AimCell`. Il bordo resta la domanda aperta di #833, non una scelta di questo turno. ⚠️ Una porta chiusa toglie la LOS, quindi l'intento finisce fra i `BlockedIntents` — e si apre lo stesso, perche' l'operazione sulla porta si raccoglie PRIMA del controllo della linea di tiro. Il meccanismo, con la sua verifica di mutazione, sta in `Spec.Map.InteractOpensDoor`. 🔴 **E il Move dello stesso turno LIBERA il varco, che e' la meta' che mancava.** Restando su (1,1,0) — una delle due celle del gate — Riktor avrebbe reso il passaggio appena aperto **impercorribile**: ogni rotta attraverso quel bordo entra o esce da li', e l'occupazione ferma il movimento (e' il meccanismo su cui si regge l'ordine dei due ingressi al T4). L'`Expected` della spec — «un percorso che prima non esisteva» — sarebbe passato da non dimostrato a **falsificato dalla coreografia stessa**. Il Move risolve DOPO il Blast, quindi aprire e spostarsi stanno nello stesso turno; `ability` e `move` nello stesso intento hanno un precedente nel corpus (`Visual/Map/HighCoverBlocks.json`). ⚠️ (2,0,0) e' `Rough` e costa 2 dei 4 `MovePoints` di Riktor, resta a distanza 2 da Wraith — quindi l'interposizione del T6 regge — ed e' fuori dai waypoint che Wraith percorre al T7.",
+          "unit": "Riktor",
+          "ability": "Action.Interact",
+          "targetCell": [
+            0,
+            1,
+            0
+          ],
+          "move": [
+            [
+              2,
+              0,
+              0
+            ]
+          ]
+        },
+        {
+          "_intento": "La `Deflection` del §T5, ARMATA e non scattata — ed e' misurabile, non decorativa: una reazione pianificata e disponibile che non trova un trigger scrive comunque nel TurnLog, con `ERTReactionOutcome::NotTriggered` («pianificata e disponibile, ma nessun trigger valido in questo Blast»). Al T5 nessuno colpisce Wraith, quindi l'esito atteso e' esattamente quello. ⚠️ Armarla non consuma la ricarica: una reazione va in ricarica quando SCATTA.",
+          "unit": "Wraith",
+          "reaction": "Hero.Wraith.Deflection"
         }
       ],
-      "_nota_avvicinamento_di_phase": "⚠️ **Deviazione DICHIARATA dalla spec di questo turno, e la ragione e' del turno DOPO.** `showcase-v0.1.md` §T5 descrive solo l'apertura del gate, che oggi non e' implementabile (#833: nessuna azione del catalogo dichiara `SetDoorState`). Il T7 pero' chiede che Phase porti acqua su una zona `Fire`, e dal 2026-08-16 (#1006) l'unico produttore d'acqua e' l'EQUIPAGGIAMENTO — `Gadget.Sprinkler`. ⛔ **Corretto il 2026-08-24 (#1111): la giustificazione che stava qui era falsa due volte.** Diceva «portata **1** — un'abilita' si risolve dalla posizione INIZIALE del turno, perche' il Move viene dopo il Blast». *(a)* La portata e' **4**, ereditata dal core `Action.CreateWater`, e l'1 e' il `SurfaceRadius`: da `(-2,-1)` a `(1,-1)` la distanza e' **3 ≤ 4**, quindi per arrivare a portata non serviva avvicinarsi. *(b)* Il ragionamento sulla posizione iniziale non si applica a **questa** azione: `Action.CreateWater` e' `Environment` e `MapResolutionPhase` la manda in **Cleanup** (`RTCatalogLibrary.cpp`, pinnato da `RTCatalogTests.cpp`), cioe' **dopo** il Move, non prima. ✅ **L'approccio resta**, e la ragione vera e' un'altra: la coreografia del T7 vuole Phase vicina alla fascia `Fire` — chi la togliesse cambierebbe la scena, non la raggiungibilita'. ⛔ Quando #833 sblocca il gate, chi riempie questo turno tiene ENTRAMBE le cose: l'apertura e' l'azione di Riktor, l'approccio e' il movimento di Phase, e non si escludono."
+      "_nota_apertura_del_gate": "✅ **Il gate si apre qui, e non ha mai avuto #833 come blocco.** [D-160] (2026-08-17) lo mette agli atti: l'handoff che affermava che #833 «abilita una parte del T5 dello showcase» era **falso** — «il gate del turno 5 e' una porta risolta da `EdgeDisabled -> EdgeEnabled` piu' `GraphRevision`, con `E9.3` chiuso». E la tabella §5 di `docs/product/showcase-v0.1.md` assegna al T5 `FixtureReference` e nient'altro. Il meccanismo esiste dal 2026-08-16: `Action.Interact` dichiara `SetDoorState -> Open` ([D-148]/[D-151], `RTCatalogLibrary.cpp`). ⚠️ **Cio' che mancava era una scelta di coreografia**, ed e' il T3: Riktor doveva essere adiacente al varco, e non lo era. ⛔ **L'`Expected` della spec chiede anche «un percorso che prima non esisteva», e QUI non si dimostra**: la partita si ferma al T6 (`BLOCKED` su `InterceptRevalidation`) e nessuno attraversa mai. Non e' una lacuna da riempire qui — la traversata la prova `Spec.Map.InteractOpensDoor`, con l'oracolo sulla LUNGHEZZA del percorso (`LogEventAmount` su `Move`/`Moved`): un passo attraverso il varco, due aggirandolo. Ripeterla qui misurerebbe la stessa cosa in un turno che non gira. ⚠️ E per `GraphRevisionChanged`, la seconda riga dell'`Expected`, **nessun oracolo del formato legge la revisione**: il conteggio `DoorOpened` e' l'asserzione onesta che si puo' scrivere.",
+      "_nota_avvicinamento_di_phase": "⚠️ **Deviazione DICHIARATA dalla spec di questo turno, e la ragione e' del turno DOPO.** `showcase-v0.1.md` §T5 descrive solo l'apertura del gate, che questa nota diceva non implementabile (#833: «nessuna azione del catalogo dichiara `SetDoorState`») — ⛔ **e l'attribuzione a #833 era falsa gia' allora, non solo oggi**: la ritira [D-160], e la correzione sta in `_nota_apertura_del_gate`. Il T7 pero' chiede che Phase porti acqua su una zona `Fire`, e dal 2026-08-16 (#1006) l'unico produttore d'acqua e' l'EQUIPAGGIAMENTO — `Gadget.Sprinkler`. ⛔ **Corretto il 2026-08-24 (#1111): la giustificazione che stava qui era falsa due volte.** Diceva «portata **1** — un'abilita' si risolve dalla posizione INIZIALE del turno, perche' il Move viene dopo il Blast». *(a)* La portata e' **4**, ereditata dal core `Action.CreateWater`, e l'1 e' il `SurfaceRadius`: da `(-2,-1)` a `(1,-1)` la distanza e' **3 ≤ 4**, quindi per arrivare a portata non serviva avvicinarsi. *(b)* Il ragionamento sulla posizione iniziale non si applica a **questa** azione: `Action.CreateWater` e' `Environment` e `MapResolutionPhase` la manda in **Cleanup** (`RTCatalogLibrary.cpp`, pinnato da `RTCatalogTests.cpp`), cioe' **dopo** il Move, non prima. ✅ **L'approccio resta**, e la ragione vera e' un'altra: la coreografia del T7 vuole Phase vicina alla fascia `Fire` — chi la togliesse cambierebbe la scena, non la raggiungibilita'. ✅ **Ed e' cosi' che il turno e' stato riempito il 2026-08-27**: l'apertura e' l'azione di Riktor, l'approccio e' il movimento di Phase, e le due non si escludono. Non c'era nessun #833 da aspettare, e non c'e' mai stato.",
+      "_nota_mistveil": "⛔ **`MistVeil` non c'e', e la ragione e' geometrica invece che tecnica.** L'abilita' esiste (`Hero.Phase.MistVeil`, `Environment` -> Cleanup, portata 4, crea `Smoke` raggio 1) e Phase la porta. Ma il fumo ha `MaxTargetingRangeThrough = 2`, **non scade** (nessun campo di durata in `FRTHexCellData`) e SOSTITUISCE la superficie che trova; e si alza nel Cleanup, quindi copre il turno DOPO. Due cose gli stanno in mezzo: la linea **Gadget (-3,-1) -> Wraith (1,-1)**, lunga 4, che un solo esagono di fumo cappa a 2 — e il colpo del T6 non parte piu'; e la **corsia d'acqua/conduttiva** (-3,1)...(2,1), che e' il payoff elettrico del T7 e che il fumo cancellerebbe. ⚠️ **Enumerato, non stimato**: su tutte le celle a portata 4 da Phase dopo il suo Move ne restano **sette** il cui fumo raggio 1 non tocca ne' la linea ne' la corsia — (-1,-3), (0,-3), (1,-3) alla punta nord, (-2,3), (-1,3), (0,3) a quella sud, e (3,-1) sulla cresta. Le tre del sud mangiano l'`Ice` che il T7 usa, (3,-1) spegne il `Fire` di (2,-1); restano tre esagoni vuoti in un angolo dove non c'e' nessuno. ∴ Il fumo del §T5 serviva a Gadget — «dichiara di proposito un piano non valido ATTRAVERSO il fumo» — che e' l'altra battuta mancante. Chi scrive il T6 lo piazza sapendo dov'e' la linea di tiro; qui sarebbe stato o dannoso o muto.",
+      "requires": [
+        "ReactionPlanning"
+      ],
+      "_nota_requires": "`ReactionPlanning` e' la capability che serve ad ARMARE una reazione, ed e' dichiarata come in `Spec/Reaction/AnchorCancelsPush.json` e `Spec/Reaction/InteractIsNotADirectHit.json`. ⛔ Mancava, e l'omissione non era innocua: se un domani il produttore di `PlannedReactionAbility` sparisse, questo turno **fallirebbe** su `LogEventCount(Reaction, NotTriggered)` invece di riportare `BLOCKED`, mandando chi legge a cercare una regressione nella `Deflection` di Wraith invece che un canale d'ingresso mancante. Il T2 di questo stesso file dichiara `PredictiveAction` benche' disponibile, per la stessa ragione.",
+      "_nota_piano_invalido": "⛔ **La battuta di Gadget del §T5 — «dichiara di proposito un piano non valido, riceve un reason, poi committa un'azione valida» — resta fuori, ma la ragione scritta prima era sbagliata.** Diceva «non e' esprimibile: un intent per unita' per turno». **Falso, misurato**: `ValidateScenarioTurns` non contiene nessun controllo di `UnitId` duplicato, e `RTScenarioSession` applica gli intenti in ordine — il secondo **sovrascrive** il primo, slot per slot, in silenzio. Il formato quindi lo TOLLERA, ed e' peggio che vietarlo: si scriverebbe una battuta a due tempi che il runner appiattisce su uno, con lo scenario verde. ∴ Cio' che manca non e' la sintassi ma un modo di OSSERVARE il rifiuto e il ricommit come due eventi distinti. Va deciso prima di essere scritto."
     },
     {
       "_turno": "T6 — interposizione. Riktor incassa il colpo diretto a Wraith. Interposition e' gia' cablata ed e' automatica: manca la RIVALIDAZIONE della geometria sul bersaglio effettivo (D-017).",
@@ -240,7 +285,7 @@
       "intents": []
     },
     {
-      "_turno": "T7 — combo ambientale, ⛔ **NON ottenibile in un turno solo cosi' com'e' scritta (#1111)**. L'intento e': Phase bagna Wraith sulla fascia `Fire` a (1,-1), l'acqua spegne il fuoco, e `LinearDischarge` legge lo STATO — non l'identita' di chi ha portato l'acqua. **L'ordine di risoluzione lo impedisce**: `Gadget.Sprinkler` = `Action.CreateWater` e' `Environment` → **Cleanup**, `Hero.Gadget.LinearDischarge` e' `Attack` → **Blast**, e Blast precede Cleanup. Nello stesso turno la scarica risolve **prima che l'acqua esista**: legge Wraith non bagnato e la fascia ancora accesa. ⚠️ Lo stesso ordine mette il **Move** fra le due, quindi Wraith lascia (1,-1) prima del Cleanup: dove finisca l'acqua e' un secondo effetto da verificare quando il turno diventera' eseguibile. ✅ **Il modello che funziona esiste** ed e' `showcase-v0.1.md` §T2: il bersaglio entra nell'acqua **nel Dash**, cioe' il problema d'ordine si risolve invece di ignorarlo. Chi riempira' questo turno quando il T6 si sblocca sceglie fra quel modello e due turni distinti; questa nota registra il vincolo, non lo scioglie. Wraith fa un Move normale che TERMINA su `Ice` a (1,2) e scivola in modo deterministico. Riktor dichiara un `Ram` attraverso il `Rough` di (2,0): il planning lo RIFIUTA, perche' `Rough` ha `bBlocksDashCharge`.",
+      "_turno": "T7 — combo ambientale, ⛔ **NON ottenibile in un turno solo cosi' com'e' scritta (#1111)**. L'intento e': Phase bagna Wraith sulla fascia `Fire` a (1,-1), l'acqua spegne il fuoco, e `LinearDischarge` legge lo STATO — non l'identita' di chi ha portato l'acqua. **L'ordine di risoluzione lo impedisce**: `Gadget.Sprinkler` = `Action.CreateWater` e' `Environment` → **Cleanup**, `Hero.Gadget.LinearDischarge` e' `Attack` → **Blast**, e Blast precede Cleanup. Nello stesso turno la scarica risolve **prima che l'acqua esista**: legge Wraith non bagnato e la fascia ancora accesa. ⚠️ Lo stesso ordine mette il **Move** fra le due, quindi Wraith lascia (1,-1) prima del Cleanup: dove finisca l'acqua e' un secondo effetto da verificare quando il turno diventera' eseguibile. ✅ **Il modello che funziona esiste** ed e' `showcase-v0.1.md` §T2: il bersaglio entra nell'acqua **nel Dash**, cioe' il problema d'ordine si risolve invece di ignorarlo. Chi riempira' questo turno quando il T6 si sblocca sceglie fra quel modello e due turni distinti; questa nota registra il vincolo, non lo scioglie. Wraith fa un Move normale che TERMINA su `Ice` a (1,2) e scivola in modo deterministico. Riktor dichiara un `Ram` attraverso il `Rough` di (2,0): il planning lo RIFIUTA, perche' `Rough` ha `bBlocksDashCharge`. ⛔ **E dal 2026-08-27 il `Ram` di Riktor parte da un'altra cella**, che va detto perche' cambia cosa dimostrerebbe: dopo aver aperto il gate al T5 Riktor si ferma su **(2,0,0)**, che e' `Rough`. Il piano dichiarato qui — `Ram` verso (1,0,0) — nasceva per essere RIFIUTATO dal planning, perche' la traiettoria attraversava il `Rough`; partendo gia' da una cella `Rough` il rifiuto avrebbe un'altra causa, o nessuna. ✅ I waypoint di Wraith restano invece liberi: (1,0,0), (1,1,0) e (1,2,0) non sono occupati da nessuno. Non riscrivo un turno che nessuno puo' eseguire; chi lo rendera' eseguibile trova qui cosa guardare.",
       "intents": [
         {
           "unit": "Phase",
@@ -312,7 +357,7 @@
     {
       "type": "UnitHpEquals",
       "unit": "Phase",
-      "value": 74
+      "value": 79
     },
     {
       "type": "UnitAtCell",
@@ -336,10 +381,11 @@
       "type": "UnitAtCell",
       "unit": "Riktor",
       "cell": [
-        3,
+        2,
         0,
         0
-      ]
+      ],
+      "_assertion": "Riktor ha aperto il varco e se n'e' tolto di mezzo: `Action.Interact` cambia il dato di mappa, e il Move dello stesso turno lo porta fuori dalle due celle del gate. ⛔ La riga diceva (3,0,0) prima che il turno esistesse, e (1,1,0) quando Riktor ci restava sopra — cioe' occupando la cella che il passaggio appena aperto richiede."
     },
     {
       "type": "UnitAtCell",
@@ -349,6 +395,27 @@
         -1,
         0
       ]
+    },
+    {
+      "_assertion": "IL DISCRIMINANTE DEL TURNO: il varco si e' aperto, una volta sola. Se l'operazione venisse applicata due volte la revisione della mappa salirebbe di due e il replay divergerebbe.",
+      "type": "LogEventCount",
+      "category": "Environment",
+      "outcome": "DoorOpened",
+      "value": 1
+    },
+    {
+      "_assertion": "La `Deflection` era armata e disponibile, e non ha trovato niente da deviare. ⚠️ **`LogEventCount` non filtra per unita' ne' per azione**: conta ogni voce `Reaction/NotTriggered` dell'intera partita. Vale 1 perche' la partita si ferma al T6 — che e' proprio il turno in cui `Hero.Riktor.Interposition` andra' armata, e che quindi portera' questo conteggio a 2. Chi sblocca `InterceptRevalidation` aggiorna questa riga: non e' una regressione della `Deflection`. La riga qui sotto e' cio' che la rende discriminante, come nel gemello `Spec/Reaction/InteractIsNotADirectHit.json`.",
+      "type": "LogEventCount",
+      "category": "Reaction",
+      "outcome": "NotTriggered",
+      "value": 1
+    },
+    {
+      "_assertion": "NESSUNA reazione e' SCATTATA. Senza questa riga il conteggio qui sopra sarebbe soddisfatto anche da una `Deflection` che si attiva per errore su un colpo che non esiste — «armata e muta» e «armata e partita» darebbero lo stesso verde.",
+      "type": "LogEventCount",
+      "category": "Reaction",
+      "outcome": "Activated",
+      "value": 0
     }
   ],
   "_nota_cosa_non_e_asserribile": "⏱️ **Aggiornata il 2026-08-16: il T2 ORA asserisce il proprio whiff.** Questa nota diceva che `LogEventCount` non copriva `Predictive` — `OutcomeEnumForCategory` restituiva `nullptr` e un `PredictionWhiffed` faceva fallire il CARICAMENTO dello scenario. Le due righe che mancavano al loader sono state aggiunte (`Predictive` e `ReactionDecision`, entrambi `UENUM` quindi risolvibili), e il T2 ha la sua assertion: se la previsione non fallisse — o se il turno non girasse affatto — il conteggio non sarebbe 1. ⛔ **Resta senza assertion propria il T3**, e la ragione e' diversa: il danno da hazard non ha un esito in `ERTEnvironmentOutcome`, cioe' #625 — `Burning` uccide fuori dal TurnLog canonico. Cio' che prova il T3 indirettamente e' la posizione finale di Wraith a (1,-1): ci si arriva solo salendo sulla cresta al T1 e scendendo per il fuoco al T3."

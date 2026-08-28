@@ -2,7 +2,12 @@
 
 Overlay operativo per **Claude Code / SuperClaude**.
 Le regole condivise del repository sono in **[`AGENTS.md`](AGENTS.md)**: leggilo prima di lavorare.
-Questo file resta volutamente corto per ridurre duplicazioni e drift.
+Questo file resta volutamente corto: dà la **mappa**, i **comandi** e i **pin verificati**, e per ogni regola
+rimanda al suo owner. Ridurre le duplicazioni è ciò che tiene bassa la deriva.
+
+> Riallineata al codice il **2026-08-27**, su HEAD `9c08e98`. I fatti strutturali qui sotto sono stati
+> **misurati**, non ricordati. I numeri volatili — test, scenari, issue — non stanno qui apposta: si misurano
+> sul branch corrente quando servono, mai copiati da un documento.
 
 ## 1. Context protocol
 
@@ -30,18 +35,61 @@ rationale storico o confronto richiesto; se è l'export di una spec Markdown cor
 sigla `PDR` nel nome di un file Markdown non lo rende storico — `docs/decisions/RT_PDR_00_Decision_Log.md` è
 canonico perché è l'owner corrente. Regola estesa in [`AGENTS.md`](AGENTS.md).
 
-## 2. Pin rapidi
+Quando un catalogo di `docs/balance/` contraddice una spec di `docs/gameplay/` che il codice ha **già
+recepito**, vince la spec (**D-210**): è l'unico caso in cui la gerarchia numerica delle fonti si inverte, ed
+è stato deciso perché nessuna delle quattro formulazioni di prevalenza del repository lo copriva.
+
+## 2. Mappa del repository
+
+| Percorso | Cosa contiene | Owner / nota |
+|---|---|---|
+| `Source/RefactorTactics/` | modulo **Runtime**: regole, resolver, mappa, pathfinding, TurnLog, harness, test | mappa per cartella: [`architettura-codice.md`](docs/technical/architecture/architettura-codice.md) |
+| `Source/RefactorTacticsEditor/` | modulo **Editor**: strumenti di authoring e i loro test | — |
+| `Plugins/RTDeveloperTools/` | plugin **Editor-only**: il ponte MCP di sola lettura (§5) | [`brief-mcp-developer-bridge.md`](docs/technical/tooling/brief-mcp-developer-bridge.md) |
+| `Content/RT/` | asset proprietari sotto `/Game/RT/`, struttura feature-first | [`convenzioni-contenuti-ue.md`](docs/technical/tooling/convenzioni-contenuti-ue.md) |
+| `Scenarios/` | corpus JSON dello Scenario Harness, alla **radice** e non in `Content/`: un `.uasset` non è diffabile in una PR | [`test-automatico-unreal.md`](docs/technical/tooling/test-automatico-unreal.md) |
+| `Config/` | `.ini` di progetto | — |
+| `docs/` | canone, decisioni, specifiche, roadmap, cataloghi | indice: [`CONTEXT_INDEX.md`](docs/CONTEXT_INDEX.md) · gerarchia: [`docs/README.md`](docs/README.md) |
+| `tools/radar/`, `tools/asset-refs/` | toolchain **Node 22**, zero dipendenze: i controlli vivi (§4) | il docstring in testa a ogni file |
+| `scripts/rt-suite.ps1` | l'**unico** file di `scripts/`: la suite che dichiara se la misura vale | **D-222** |
+
+Dentro il modulo runtime, a grana grossa — il dettaglio per file è dell'owner citato sopra, non di qui:
+
+| Cartelle | Responsabilità |
+|---|---|
+| `Core/` `Map/` `Pathfinding/` | tipi base, `FRTCellId`, asset autorevole della mappa, A\* deterministico sul grafo tattico |
+| `Turn/` | fasi, autorità (`ARTTurnManager`), reazioni, TurnLog, privacy degli intenti, formati di partita |
+| `Combat/` `Ability/` `Unit/` `Terrain/` `Perception/` | danno e attacchi, azioni data-driven, unità, terreni/stati, vista e udito |
+| `Bot/` | l'avversario offline della v0.1 |
+| `ScenarioHarness/` `Replay/` | scenario JSON → **stesso** percorso di gioco; replay logico canonico |
+| `UI/` `Frontend/` `Camera/` `Player/` `Selection/` `Debug/` | presentazione e input: **non decidono esiti** |
+| `Tests/` | Automation Framework: dominio, regressione, corpus golden |
+
+I test stanno **dentro** il modulo runtime (`Source/RefactorTactics/Tests/`), più quelli del modulo Editor e i
+sei del plugin MCP. Le regole vivono in `UBlueprintFunctionLibrary` con funzioni statiche pure: si testano
+senza mondo e senza Actor, ed è il motivo per cui la suite gira headless.
+
+## 3. Pin rapidi
 
 - UE **5.8.1**; v0.1 **2v2 offline vs bot**; hex multilivello; roster **Gadget/Phase/Riktor/Wraith**
   (**D-120**). I nomi legacy sono **usciti dal repository** (**D-130**): gli `Hero.<Nome>` sono stati
   rinominati e i venti token abilità sono atterrati su `Hero.<Nome>.<Abilità>` **senza redirect** — **D-134**
   ha cancellato `ResolveLegacyActionId`, quindi non esiste una doppia verità da risolvere in lettura.
-  ✅ Le cinque fette del piano sono chiuse (#753–#757) e il gate **era** verde senza esenzioni: un nome
-  legacy che ricompare è un difetto, non un residuo da tollerare —
+  Le cinque fette del piano sono chiuse (#753–#757) —
   [`docs/technical/piano-migrazione-roster.md`](docs/technical/piano-migrazione-roster.md).
-  ⛔ Il gate che lo controllava — `scripts/check-docs-naming.py` — è uscito con **D-182** (2026-08-21):
-  oggi un nome legacy che ricompare non lo segnala nessuno.
+  ⚠️ **Chi lo controlla oggi, e chi no.** Il gate documentale `scripts/check-docs-naming.py` è uscito con
+  **D-182**, quindi un nome ritirato che ricompare **in prosa** non lo segnala nessuno. Gli **ID** invece
+  restano coperti da due test C++ che interrogano il **roster reale**, non una lista di ID scritta nel test:
+  `Heroes.AbilityIdsAreNamespacedUnderTheirHero` e `Unit.CanonicalHeroIdHasNoLegacyName`, sotto il prefisso
+  `RefactorTactics.`. Un ID che contiene un nome ritirato, o un'abilità che non sta sotto il proprio eroe,
+  fanno **rosso** — e un quinto eroe col nome sbagliato pure, senza che nessuno aggiorni il test.
+  🔴 Le due liste `{ Flux, Riva, Bastion, Vektor }` scritte in quei test **non si rinominano**: sono l'unico
+  posto del progetto in cui nominarli è il punto, e un rename massivo le ha già rovesciate due volte.
 - Fasi: `Planning → Prep → Dash → Blast → Move → Cleanup`; Move normale resta dopo Blast.
+- Movimento in due famiglie (**D-118**), e la linea non è la velocità: **`Traversal` percorre lo spazio**
+  (`Move · Dash · Forced`, produce celle attraversate e ogni cella è un fatto), **`Transfer` cambia posizione
+  senza percorrerlo** (`Leap` oggi). La riga si verifica in codice, ed è cosa contiene `Result.Entered`.
+  `Reaction` è una causa, non una famiglia; `Portal` è topologia del grafo.
 - Un solo substrato: `FRTCellId`; no gameplay quadrato parallelo.
 - **No GAS nella v0.1**: `URTActionData` / `URTHeroData` / `URTEquipmentData`.
 - Azioni generiche (sette, **D-025**): `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`.
@@ -55,7 +103,84 @@ canonico perché è l'owner corrente. Regola estesa in [`AGENTS.md`](AGENTS.md).
 
 Il dettaglio resta negli owner documentali; non duplicarlo qui.
 
-## 3. Classifica il task
+## 4. Comandi e controlli
+
+**Nessuna CI, per scelta dichiarata**: `.github/workflows/` non esiste (**D-182**, il nucleo regge). Tutto
+quanto segue si esegue a mano. Non introdurre CI, package manager o build step senza chiedere — la toolchain
+Node ha **zero dipendenze** apposta.
+
+```powershell
+# La suite. L'unica via che dichiara se la misura VALE (§7): legge HEAD, albero, binario e processi del
+# motore prima e dopo, e confronta `Test Completed` con il `Found N` dichiarato in testa al log.
+# Exit: 0 verde · 1 test falliti · 2 non avviata (motore occupato) · 3 NON VALIDA, esito non registrabile.
+./scripts/rt-suite.ps1
+./scripts/rt-suite.ps1 -Filter RefactorTactics.Scenario   # una sola area, molto più veloce
+```
+
+PowerShell e **non** Git Bash: MSYS traduce gli argomenti che iniziano con `/` e l'harness non parte nemmeno.
+
+```powershell
+# Build. L'Editor deve essere CHIUSO, altrimenti il link fallisce con LNK1104. Cerca `Result: Succeeded`.
+& "<engine>/Engine/Build/BatchFiles/Build.bat" RefactorTacticsEditor Win64 Development `
+    -project="<repo>/RefactorTactics.uproject" -waitmutex
+```
+
+```sh
+# I controlli vivi. Nessuno è imposto da uno script: li esegue chi committa, o non li esegue nessuno.
+node tools/radar/generate.ts --check                      # gli SVG dei radar contro i cataloghi di balance
+node tools/radar/generate.ts                              # riscrive gli otto SVG: sono output, non si editano
+node tools/radar/wiki-alt.ts --wiki-root <clone> --check  # gli alt sulla Wiki, che il primo NON copre
+node tools/radar/doc-links.ts --check                     # i percorsi citati da docs/ + AGENTS.md + CLAUDE.md + README.md
+node tools/radar/catalog-code.ts                          # stat base degli eroi: catalogo contro C++
+node tools/radar/doc-tables.ts --check                    # righe di tabella più strette o più larghe delle sorelle
+node tools/asset-refs/check.ts                            # .uasset versionati che citano file assenti da git
+cd tools/radar && node --test                             # la suite: da DENTRO la cartella, non dalla radice
+```
+
+⚠️ **`tools/asset-refs/check.ts` è il sesto controllo, e l'elenco «cinque» di `AGENTS.md` non lo nomina.** È
+lo stesso difetto che `CONTEXT_INDEX.md` §«Le due toolchain» dichiara per i gate: un elenco scritto a mano non
+si accorge di un file nuovo. Prima di fidarti di un elenco di strumenti, `ls` la cartella.
+
+⚠️ Ogni gate dichiara nel proprio docstring **cosa non copre** — ancore e URL per `doc-links.ts`, la riga di
+tabella staccata dalla sua tabella per `doc-tables.ts`, «cita» invece di «dipende» per `asset-refs`. Leggilo
+prima di trattare un verde come una prova.
+
+⚠️ **`tools/radar/` non è solo documentazione**: i rating si calcolano dai cataloghi di bilanciamento
+(**D-106**), quindi cambiare una `Salute`, un danno o un cooldown rende rossi gli SVG versionati finché non li
+rigeneri **nello stesso commit** (**D-108**).
+
+### Le tre trappole della misura
+
+- 🔴 **Una console variable in testa a `-ExecCmds` fa saltare l'intera coda di automation**: l'editor esegue la
+  CVar, all'automation non arriva niente, e il log finisce a metà avvio somigliando a una run riuscita. La via
+  d'uscita è **`-dpcvars="nome=valore"`**, che imposta la CVar senza toccare la coda.
+- **Nel log servono due righe**: `Found <n> automation tests based on '<filtro>'` in testa e
+  `**** TEST COMPLETE. EXIT CODE: <n> ****` in fondo. Se manca la prima, la run non ha misurato niente.
+- **L'exit code non è un oracolo**: è misurato che una run sia uscita `0` con un test fallito. Leggi i
+  `Result={...}`, non il codice di ritorno. E un numero di test sono **due** numeri: «N eseguiti su M
+  dichiarati» — lo script che li confrontava è uscito con **D-181**, oggi il filtro si legge a mano nel log.
+
+## 5. Ponte MCP verso l'Editor
+
+Dal **2026-08-27** esiste un canale di sola lettura fra Claude Code e l'Unreal Editor. Serve a **ispezionare**,
+non a decidere: non è un'autorità sul canone e non sostituisce build e test.
+
+- `.mcp.json` dichiara il server `unreal-mcp` su `http://127.0.0.1:8765/mcp` — porta non standard perché la
+  8000 di default era occupata sulla macchina di sviluppo.
+- Il server è il plugin **ufficiale Epic** `ModelContextProtocol` di UE 5.8; i tool RT vivono in
+  [`Plugins/RTDeveloperTools/`](Plugins/RTDeveloperTools/RTDeveloperTools.uplugin), registrati come
+  `UToolsetDefinition` del `ToolsetRegistry`. **Zero Python**, nessuna dipendenza nel modulo runtime.
+- Cinque tool, tutti **facade** sul codice autorevole: `ProjectStatus`, `GetCurrentMap`, `DumpCell`,
+  `FindPath`, `ValidateTacticalMap`. Il percorso lo calcola `URTHexPathLibrary::FindPath`, la cella la
+  risponde `URTHexMapAsset`, la validazione `ValidateMap`: nessun A\* riscritto, nessuna scrittura.
+- **Se la connessione è rifiutata non è un errore da diagnosticare a lungo**: l'Editor non è aperto, il plugin
+  non è abilitato su questa macchina, oppure `bAutoStartServer` è `false`. Quel flag vive in
+  `EditorPerProjectUserSettings` — **per utente e non versionato** — quindi si accende una volta per macchina
+  e non comparirà mai in un diff.
+- Con `bEnableToolSearch = true` (default) `tools/list` espone **solo** i tre meta-tool `list_toolsets`,
+  `describe_toolset` e `call_tool`: i cinque tool RT si raggiungono attraverso quelli.
+
+## 6. Classifica il task
 
 **Documentale/analitico** (`/sc:brainstorm`, `research`, `design`, `workflow`, `analyze`, `estimate`, panel,
 `troubleshoot` senza `--fix`): produci l'output richiesto e **non passare automaticamente al codice**.
@@ -67,7 +192,7 @@ Per implementazioni non banali, preflight breve:
 
 **Obiettivo · Stato verificato · Assunzioni · File · Approccio · Rischi · Test**
 
-## 4. Guardrail Claude
+## 7. Guardrail Claude
 
 - Non inventare API Unreal: verifica la **5.8.1** e le firme realmente presenti.
 - Simulazione/authority in C++; presentazione/configurazione in Blueprint/Data dove appropriato.
@@ -80,14 +205,22 @@ Per implementazioni non banali, preflight breve:
   non si fondono, quindi un binario si modifica da un lavoro solo per volta.
 - Prima di cancellare/rinominare cerca riferimenti C++, config, reflection, soft reference e Blueprint.
 - Un handoff/audit non è autorità e non autorizza da solo a implementare tutto ciò che contiene.
-- **Sviluppo sequenziale** (**D-178**): una sessione esecutiva, una working directory, un branch alla
-  volta. Niente worktree per parallelizzare: un task troppo grosso si spezza in issue che si fanno in
-  fila. Se due task condividono una working directory, dillo invece di conviverci.
+- **Sviluppo parallelo, misura protetta** (**D-222**, supera la clausola operativa di **D-178**): piu'
+  sessioni condividono davvero questa working directory — misurato, 101 checkout e 6 sessioni in un
+  giorno. Non fingere che sia una alla volta. Cio' che va protetto e' la **misura**: una suite vale solo
+  se `HEAD`, l'albero, il binario e i processi del motore sono gli stessi all'inizio e alla fine.
+  Altrimenti non e' rossa ne' verde: e' **NON VALIDA**, e non si registra. Per questo la suite si lancia
+  da [`scripts/rt-suite.ps1`](scripts/rt-suite.ps1) (§4) e non a mano: quei controlli, a mano, si dimenticano.
+  ⚠️ Niente worktree per parallelizzare: il mutex del motore e' globale sull'eseguibile, quindi due run
+  di automation si uccidono anche da checkout diversi.
 - `D-nnn` si legge dall'ultimo assegnato nel Decision Log e si **riverifica prima del merge**: una PR
   aperta che rivendica lo stesso ID con una tesi diversa è una collisione, e rinumeri la seconda.
-- Prima del merge: `git fetch --prune origin`, poi `gh pr list --state open` per gli ID in volo.
+  Ultimo assegnato al 2026-08-27: **D-222**. Il progetto ha già pagato **sedici** collisioni.
+- Prima del merge: `git fetch --prune origin`, poi `gh pr list --state open` per gli ID in volo — e verifica
+  che il gate sia girato **sul commit che stai mergiando**: il 2026-08-27 due PR sono state mergiate prima che
+  il proprio gate finisse.
 
-## 5. Decision Boundary
+## 8. Decision Boundary
 
 Una finestra live non è un'attesa del resolver:
 
@@ -96,11 +229,12 @@ Una finestra live non è un'attesa del resolver:
 Visual può rallentare la presentazione; Fast/Headless risponde subito tramite policy. Il risultato logico non
 dipende dal tempo reale. Non inviare al client trigger futuri, percorsi futuri o intenti privati avversari.
 
-## 6. Test e consegna
+## 9. Test e consegna
 
 Ordine preferito: **test mirati → regressione correlata → suite richiesta dal DoD → build → PIE/packaged se gate**.
 Per scenari integrati usa il **RT Scenario Test Harness** e il percorso reale
-`Intent → Planning → Snapshot → Resolver → TurnLog`.
+`Intent → Planning → Snapshot → Resolver → TurnLog`. Uno scenario che non attraversa il codice vero non prova
+niente sul codice vero.
 
 Non copiare conteggi test dalla roadmap: **misurali sul branch corrente** quando servono.
 Prima di consegnare controlla `git status` e diff. Niente commit/push/merge/force/delete remoto senza richiesta

@@ -19,6 +19,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Bot/RTHexBotLibrary.h" // DecideReactionResponse: la risposta del bot dev'essere legale anche sul `Brace`
+#include "Tests/RTAbilityFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -71,6 +72,10 @@ namespace
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo: questi test guardano il Blast
+		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
+		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
+		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
+		U->Shield = 0;
 		return U;
 	}
 
@@ -87,21 +92,6 @@ namespace
 	 * `ARTTurnManager` legge ancora (`CooldownTurns`/`RangeCells`), come fa `MakeHeroAction` per gli eroi, e
 	 * azzera `Power` (default legacy 30) per le azioni che non dichiarano danno.
 	 */
-	int32 AddDefAbility(ARTUnit* Unit, const TCHAR* ActionId, int32 SlotIndex = 3)
-	{
-		if (!Unit || !Unit->Abilities.IsValidIndex(SlotIndex)) { return INDEX_NONE; }
-		URTActionData* Ability = NewObject<URTActionData>(Unit);
-		Ability->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
-		Ability->CooldownTurns = Ability->Def.CooldownTurns;
-		Ability->RangeCells = Ability->Def.RangeCells;
-		Ability->Power = 0;
-		for (const FRTActionEffectSpec& Spec : Ability->Def.Effects)
-		{
-			if (Spec.Effect == ERTActionEffect::Damage) { Ability->Power = Spec.Amount; break; }
-		}
-		Unit->Abilities[SlotIndex] = Ability;
-		return SlotIndex;
-	}
 
 	void RunDefTurn(ARTTurnManager* TM)
 	{
@@ -221,7 +211,7 @@ bool FRTCounterDealsDamageTest::RunTest(const FString&)
 		return false;
 	}
 
-	Reactor->PlannedReactionAbility = AddDefAbility(Reactor, TEXT("Action.Counter"));
+	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
 	Reactor->PlannedAbilityIndex = INDEX_NONE;
 
 	const int32 AttackerHealth = Attacker->Health;
@@ -303,7 +293,7 @@ bool FRTDeflectReducesDamageTest::RunTest(const FString&)
 		return false;
 	}
 
-	Reactor->PlannedReactionAbility = AddDefAbility(Reactor, TEXT("Action.Deflect"));
+	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Deflect"), 3);
 	Reactor->PlannedAbilityIndex = INDEX_NONE;
 
 	const int32 Before = Reactor->Health;
@@ -357,7 +347,7 @@ bool FRTDeflectZeroDamageStillHitsTest::RunTest(const FString&)
 		return false;
 	}
 
-	Reactor->PlannedReactionAbility = AddDefAbility(Reactor, TEXT("Action.Deflect"));
+	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Deflect"), 3);
 	Reactor->PlannedAbilityIndex = INDEX_NONE;
 	// Guardia ADDOSSO al deflettore: -15 (Guard) -20 (Deflect) su un colpo da 25 -> ampiamente sotto zero.
 	Reactor->ApplyStatus(TAG_Status_Guarded, 1);
@@ -399,7 +389,7 @@ bool FRTBraceTest::RunTest(const FString&)
 	}
 
 	// Brace e' un'azione PRINCIPALE di Prep: si pianifica come tale, non nello slot reazione.
-	Bracer->PlannedAbilityIndex = AddDefAbility(Bracer, TEXT("Action.Brace"));
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
 	Bracer->PlannedCell = FRTCellId(3, 0); // proverebbe a muoversi: Brace deve impedirglielo
 
 	const int32 Before = Bracer->Health;
@@ -440,10 +430,10 @@ bool FRTBraceBlocksPushTest::RunTest(const FString&)
 		return false;
 	}
 
-	Bracer->PlannedAbilityIndex = AddDefAbility(Bracer, TEXT("Action.Brace"));
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
 	Bracer->PlannedCell = Bracer->Cell;
 
-	Pusher->PlannedAbilityIndex = AddDefAbility(Pusher, TEXT("Action.Push"));
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
 	Pusher->PlannedAttackTarget = Bracer;
 	Pusher->PlannedCell = Pusher->Cell;
 
@@ -478,7 +468,7 @@ bool FRTShieldTest::RunTest(const FString&)
 	// Il Ranger parte senza scudo: quello che si vede dopo viene tutto dall'azione.
 	TestEqual(TEXT("il Ranger parte senza scudo"), Shielded->Shield, 0);
 
-	Shielded->PlannedAbilityIndex = AddDefAbility(Shielded, TEXT("Action.Shield"));
+	Shielded->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Shielded, TEXT("Action.Shield"), 3);
 	Shielded->PlannedCell = Shielded->Cell;
 
 	const int32 BeforeHealth = Shielded->Health;
@@ -514,7 +504,7 @@ bool FRTCleanseTest::RunTest(const FString&)
 
 	Cleanser->ApplyStatus(TAG_Status_Root, 3);
 	Cleanser->ApplyStatus(TAG_Status_Marked, 3);
-	Cleanser->PlannedAbilityIndex = AddDefAbility(Cleanser, TEXT("Action.Cleanse"));
+	Cleanser->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3);
 	Cleanser->PlannedCell = Cleanser->Cell;
 	// L'ordine dichiarato mette Marked davanti: e' quello che deve sparire, non Root.
 	Cleanser->PlannedCleansePriority = { TAG_Status_Marked, TAG_Status_Root };
@@ -549,7 +539,7 @@ bool FRTCleanseNoImplicitChoiceTest::RunTest(const FString&)
 	}
 
 	Cleanser->ApplyStatus(TAG_Status_Root, 3);
-	Cleanser->PlannedAbilityIndex = AddDefAbility(Cleanser, TEXT("Action.Cleanse"));
+	Cleanser->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3);
 	Cleanser->PlannedCell = Cleanser->Cell;
 	Cleanser->PlannedCleansePriority.Reset(); // nessuna scelta dichiarata
 
@@ -560,7 +550,7 @@ bool FRTCleanseNoImplicitChoiceTest::RunTest(const FString&)
 
 	// Controprova sullo stato NON elencato: dichiarare una lista che non contiene lo stato posseduto non
 	// autorizza a togliere quello che c'e'.
-	Cleanser->PlannedAbilityIndex = AddDefAbility(Cleanser, TEXT("Action.Cleanse"));
+	Cleanser->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Cleanser, TEXT("Action.Cleanse"), 3);
 	Cleanser->PlannedCell = Cleanser->Cell;
 	Cleanser->PlannedCleansePriority = { TAG_Status_Exposed }; // che l'unita' non ha
 
@@ -812,6 +802,10 @@ namespace
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
+		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
+		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
+		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
+		U->Shield = 0;
 		return U;
 	}
 
@@ -858,7 +852,7 @@ namespace
 		FRTCellId Result;
 		if (Attaccante && Difensore && TM)
 		{
-			const int32 Push = AddDefAbility(Attaccante, TEXT("Action.Push"));
+			const int32 Push = RTAbilityFixtures::AddCoreAbilityInSlot(Attaccante, TEXT("Action.Push"), 3);
 			Attaccante->PlannedAbilityIndex = Push;
 			Attaccante->PlannedAttackTarget = Difensore;
 			Difensore->ApplyStatus(TAG_Status_Braced, 1);
@@ -1256,6 +1250,95 @@ bool FRTBraceBotAnswerIsLegalTest::RunTest(const FString&)
 	TestEqual(TEXT("sull'Overwatch il bot spara come sempre"),
 		URTHexBotLibrary::DecideReactionResponse(Overwatch),
 		URTReactionOpportunityLibrary::FireResponse(3));
+
+	return true;
+}
+
+/**
+ * **Il modulo reazione di default non duplica la reazione che l'eroe ha già nel kit.**
+ *
+ * Uno slot di loadout speso su una capacità che l'eroe possiede già non è una scelta: è una voce in più
+ * nella lista, e il giocatore che arma l'una o l'altra ottiene la stessa cosa. Trovato misurando `#1403`:
+ * `Hero.Riktor.Interposition` e `Reaction.AllyIntercept` erano **entrambi** costruiti su `Action.Intercept`.
+ *
+ * ⚠️ **A tabella, e la forma è la lezione di [D-201]**: il difetto era su **due** eroi su quattro, e
+ * correggerne uno solo avrebbe reso quello l'eccezione mentre l'altro restava. Una riga per eroe, e chi
+ * resta duplicato deve dichiararsi.
+ *
+ * ⚠️ **`DerivedFromActionId` e non `ActionId`**: sia `MakeHeroReactionFromCoreAction` sia
+ * `MakeEquipmentAction` riscrivono il nome e conservano la derivazione ([D-195], `#1443`). Confrontare i
+ * nomi darebbe sempre «diversi», e il test sarebbe verde per costruzione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefaultReactionModuleIsNotADuplicateTest,
+	"RefactorTactics.Equipment.DefaultReactionModuleIsNotADuplicate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDefaultReactionModuleIsNotADuplicateTest::RunTest(const FString&)
+{
+	struct FCaso
+	{
+		const TCHAR* HeroId;
+		const URTHeroData* (*Make)();
+		bool bDuplicatoDichiarato; //< eccezione nota, con la sua ragione qui sotto
+		const TCHAR* Nota;
+	};
+
+	const FCaso Casi[] = {
+		{ TEXT("Hero.Gadget"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeGadget(); },
+		  true,
+		  TEXT("⚠️ DUPLICATO DICHIARATO: `ReactiveShield` e `ReactiveCapacitor` sono entrambi `Action.Counter`. "
+		       "Non corretto insieme a Riktor perche' il loadout di Gadget e' comunque VUOTO — `Gadget.Insulator` "
+		       "non e' spedito e `DefaultLoadoutFor` e' tutto-o-niente — quindi il duplicato non raggiunge il "
+		       "campo. Va corretto quando quel gadget arriva, e questa riga e' il promemoria (#1403).") },
+		{ TEXT("Hero.Phase"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakePhase(); },
+		  false, TEXT("nessuna reazione nel kit: qualunque modulo e' una capacita' nuova") },
+		{ TEXT("Hero.Riktor"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeRiktor(); },
+		  false, TEXT("`Reaction.Cleanse` contro `Interposition` di kit: due capacita' diverse ([D-218])") },
+		{ TEXT("Hero.Wraith"), []() -> const URTHeroData* { return URTHeroCatalogLibrary::MakeWraith(); },
+		  false, TEXT("`EmergencyDash` (Counter) contro `Deflection` di kit (Deflect)") },
+	};
+
+	for (const FCaso& C : Casi)
+	{
+		const URTHeroData* Hero = C.Make();
+		if (!TestNotNull(*FString::Printf(TEXT("%s: dato d'eroe"), C.HeroId), Hero)) { continue; }
+
+		// La reazione che l'eroe porta nel proprio kit, se ne ha una.
+		FName CoreDelKit;
+		for (const URTActionData* A : Hero->Actions)
+		{
+			if (A && A->Def.Slot == ERTActionSlot::Reaction)
+			{
+				CoreDelKit = A->Def.DerivedFromActionId;
+				break;
+			}
+		}
+
+		const FName ModuloId = URTCatalogLibrary::DefaultReactionModuleFor(FName(C.HeroId));
+		const URTEquipmentData* Modulo = URTCatalogLibrary::FindEquipment(ModuloId);
+		if (!TestNotNull(*FString::Printf(TEXT("%s: il modulo prescritto e' spedito (%s)"),
+			C.HeroId, *ModuloId.ToString()), Modulo))
+		{
+			continue;
+		}
+
+		const URTActionData* Concessa = URTCatalogLibrary::MakeEquipmentAction(Modulo, GetTransientPackage());
+		if (!TestNotNull(*FString::Printf(TEXT("%s: il modulo concede un'azione"), C.HeroId), Concessa))
+		{
+			continue;
+		}
+		const FName CoreDelModulo = Concessa->Def.DerivedFromActionId;
+
+		AddInfo(FString::Printf(TEXT("%s: kit=%s modulo=%s (%s) — %s"),
+			C.HeroId, *CoreDelKit.ToString(), *ModuloId.ToString(), *CoreDelModulo.ToString(), C.Nota));
+
+		// Un eroe senza reazione di kit non puo' duplicare niente: la riga passa per costruzione, ed e'
+		// giusto che ci sia lo stesso — il giorno in cui quell'eroe ne acquista una, la tabella se ne accorge.
+		if (CoreDelKit.IsNone()) { continue; }
+
+		const bool bDuplicato = (CoreDelKit == CoreDelModulo);
+		TestEqual(*FString::Printf(TEXT("%s: lo slot di loadout non spende su cio' che l'eroe ha gia'"), C.HeroId),
+			bDuplicato, C.bDuplicatoDichiarato);
+	}
 
 	return true;
 }

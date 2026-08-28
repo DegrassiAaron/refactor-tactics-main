@@ -31,6 +31,31 @@ enum class ERTTraceComparison : uint8
  * (invariante #4: niente float). L'hash e' usato per la verifica di replay ("replay divergence = 0"),
  * mai per la logica di gioco.
  */
+/**
+ * Una voce del TurnLog resa leggibile, col suo soggetto e col verdetto congelato che porta da [D-223].
+ *
+ * 🔴 **Sostituisce un `TPair<FString, int32>`, e non e' cosmesi.** Quel `TPair` riciclava l'identita' in un
+ * `int32` proprio sul canale che genera la maggior parte delle righe del combat log: `#1499` poteva
+ * tipizzare tutti i call site sparsi e lasciare qui, dove le righe nascono davvero, un intero che il
+ * compilatore non guarda.
+ */
+USTRUCT()
+struct FRTDescribedLine
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Text;
+
+	/** `INDEX_NONE` = voce di mondo. La traduzione dallo `0` del TurnLog avviene una volta sola, qui. */
+	UPROPERTY()
+	int32 SubjectStableUnitId = INDEX_NONE;
+
+	/** Il verdetto che la voce portava: si trasporta, non si ricalcola a valle. */
+	UPROPERTY()
+	FRTKnowledgeVerdict Verdict;
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTTurnLogLibrary : public UBlueprintFunctionLibrary
 {
@@ -72,10 +97,33 @@ public:
 	 * letta ottiene un numero plausibile e sbagliato che nessun errore segnala. Stessa ragione per cui
 	 * esiste `IsDamageInflictedByActor`: la tassonomia sta in un posto solo, e si CHIEDE.
 	 *
-	 * Copre il danno ambientale (`#625`, `#1067`) e `Facing`/`RearHitBypassedCover` (`#1418`).
+	 * Copre il danno ambientale (`#625`, `#1067`) e le due voci di protezione scavalcata —
+	 * `Facing`/`RearHitBypassedCover` e `Facing`/`RearHitBypassedGuard` (`#1418`, separate da `#1430`).
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|TurnLog")
 	static bool IsSubjectTheSufferer(const FRTTurnLogEntry& Entry);
+
+	/**
+	 * L'enum degli esiti che vale per una categoria, o `nullptr` se quella categoria non lo dichiara.
+	 *
+	 * `FRTTurnLogEntry::Outcome` e' un `uint8` il cui significato lo decide la CATEGORIA: `2` puo' essere
+	 * `Lethal`, `AppliedWhileOnCell` o `BlockedByUnit`. Questa e' quella corrispondenza resa eseguibile, ed
+	 * e' una proprieta' del TurnLog — non di chi lo legge.
+	 *
+	 * ⚠️ Stava in `URTScenarioLoader` fino al 2026-08-27 (`#1427`), e da li' non era raggiungibile: lo
+	 * `ScenarioHarness` dipende da `Turn`, non viceversa, quindi il report della divergenza golden non
+	 * poteva chiamarla e rendeva `Outcome` come intero nudo — mandando chi legge a cercare in `RTTurnLog.h`
+	 * quale enum intendesse. Ricopiarne lo switch avrebbe creato un secondo elenco delle dieci categorie,
+	 * cioe' la classe di difetto che `#1423` ha appena chiuso.
+	 *
+	 * ⚠️ Una categoria nuova senza il suo caso torna `nullptr`: chi la nomina riceve «esito sconosciuto»
+	 * invece di un confronto fra interi che passerebbe per caso.
+	 */
+	static const UEnum* OutcomeEnumForCategory(ERTLogCategory Category);
+
+	/** Il nome dell'esito per la sua categoria, o il numero grezzo se l'enum non lo conosce. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|TurnLog")
+	static FString DescribeOutcome(ERTLogCategory Category, uint8 Outcome);
 
 	/** Ordina il TurnLog in place con EntryLess (ordine totale deterministico). */
 	static void SortTurnLog(TArray<FRTTurnLogEntry>& Entries);
@@ -159,8 +207,33 @@ public:
 	 *
 	 * Ordina con `SortTurnLog` prima di descrivere, cosi' la sequenza non dipende dall'ordine di arrivo.
 	 * Pura: nessun Actor, nessuno stato.
+	 *
+	 * ⚠️ Le righe escono SENZA soggetto. Chi le mostra a un giocatore — cioe' chi deve poterle filtrare per
+	 * conoscenza — usi `DescribeTurnLogWithSubjects`.
 	 */
 	static TArray<FString> DescribeTurnLog(TArray<FRTTurnLogEntry> Entries);
+
+	/**
+	 * Le STESSE righe di `DescribeTurnLog`, ciascuna col SOGGETTO che l'ha prodotta.
+	 *
+	 * 🔴 Esiste perche' il combat log del giocatore si **deriva** da qui (CP 11.3, `#79`): senza soggetto
+	 * ogni riga derivata arriva a `ARTTurnManager::AddLogEvent` come «riga di mondo» e passa il filtro di
+	 * conoscenza SEMPRE — comprese quelle che stampano `SrcCell`/`TgtCell` di un nemico che la squadra non
+	 * vede. Il canale primario non puo' essere l'unico che non porta l'informazione per filtrarsi.
+	 *
+	 * Il soggetto e' `FRTTurnLogEntry::UnitId`, che e' uno `StableUnitId` ([D-063]). ⚠️ **`UnitId == 0`
+	 * diventa `INDEX_NONE`**: lo zero significa «nessuna unita' dichiarata» e gli `StableUnitId` partono da
+	 * 1, mentre a valle il sentinella di «riga senza soggetto» e' `INDEX_NONE`. Due sentinelle diverse per
+	 * la stessa assenza: la traduzione sta qui, in un posto solo.
+	 *
+	 * ⚠️ Per il danno AMBIENTALE `UnitId` porta chi SUBISCE, non chi ha agito (`#1150`). Per questa domanda
+	 * — «chi deve conoscere l'unita' per leggere la riga?» — e' il soggetto giusto: la riga nomina la
+	 * vittima e la sua cella.
+	 *
+	 * `DescribeTurnLog` e' un adattatore su questa: un solo produttore, quindi testo e ordine non possono
+	 * divergere fra le due forme.
+	 */
+	static TArray<FRTDescribedLine> DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries);
 
 	/**
 	 * L'identita' dell'azione di una voce, come **azione base + profilo** quando la voce sa dirlo:

@@ -21,7 +21,22 @@ enum class ERTHexTargetReason : uint8
 	NoLineOfSight   // in portata, ma la traiettoria e' bloccata
 };
 
-/** Esito dell'applicazione del danno: HP e scudo risultanti. */
+/**
+ * Da dove viene il danno ([D-224]). Decide se lo scudo BASE partecipa all'assorbimento: il cuscinetto
+ * passivo che ogni unita' porta ferma i colpi, non gli hazard. Lo scudo TEMPORANEO assorbe entrambi —
+ * quello e' protezione che qualcuno ha speso un'azione per costruire.
+ *
+ * Non e' `DamageType` (`Kinetic`/`Fire`/...), che risponde a un'altra domanda — quale resistenza leggere —
+ * e arriva con E49. Qui la domanda e' una sola e binaria: la base partecipa?
+ */
+UENUM(BlueprintType)
+enum class ERTDamageSource : uint8
+{
+	Direct,         // colpi: Blast, decision boundary, Overwatch
+	Environmental   // Burning, danno da terreno, propagazione elettrica
+};
+
+/** Esito dell'applicazione del danno: HP, scudo e quota temporanea risultanti. */
 USTRUCT(BlueprintType)
 struct FRTDamageResult
 {
@@ -33,8 +48,13 @@ struct FRTDamageResult
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
 	int32 Shield = 0;
 
+	/** Quota di `Shield` che scade nel Cleanup: il resto e' scudo base dell'unita'. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 TemporaryShield = 0;
+
 	FRTDamageResult() = default;
-	FRTDamageResult(int32 InHealth, int32 InShield) : Health(InHealth), Shield(InShield) {}
+	FRTDamageResult(int32 InHealth, int32 InShield, int32 InTemporaryShield = 0)
+		: Health(InHealth), Shield(InShield), TemporaryShield(InTemporaryShield) {}
 };
 
 /** Calcoli puri di combattimento (indipendenti dagli Actor, testabili). */
@@ -65,6 +85,18 @@ public:
 	 * colpi del Blast), e il catalogo lo conferma escludendo `Counter` dal danno ambientale.
 	 */
 	static constexpr int32 BurningCleanupDamage = 8;
+
+	/**
+	 * Scudo BASE di ogni unita' ([D-224]): 5 punti che non crescono e tornano pieni a fine turno.
+	 *
+	 * Sta qui e non in `Config/` perche' non e' un parametro di formato come `RoundLimit`: e' una regola del
+	 * combattimento, e le altre nove vivono in questa stessa lista.
+	 *
+	 * ⚠️ Ferma solo il danno `Direct`. La ragione e' misurata: a 5 punti indistinti un contrattacco da 10
+	 * perderebbe meta' del suo peso e `BurningCleanupDamage` due terzi, e le fonti di danno piccole
+	 * diventerebbero ornamentali.
+	 */
+	static constexpr int32 BaseShield = 5;
 
 	/**
 	 * Danno che la propagazione elettrica porta OLTRE la cella colpita (catalogo terreni §2, CP 8.3): 12,
@@ -134,9 +166,21 @@ public:
 	 */
 	static constexpr int32 GadgetWetDischargeBonus = 8;
 
-	/** Applica il danno: lo scudo assorbe per primo, poi gli HP. Nessun valore scende sotto 0. */
+	/**
+	 * Applica il danno: erode il temporaneo, poi — solo se la sorgente e' `Direct` — lo scudo base, poi gli
+	 * HP. Nessun valore scende sotto 0.
+	 *
+	 * `TemporaryShield` non e' ridondante con `Shield`: e' la QUOTA di `Shield` che scade nel Cleanup, e
+	 * senza di essa la funzione non puo' sapere quanta protezione e' base — cioe' quanta ne deve saltare
+	 * quando il danno viene dall'ambiente.
+	 *
+	 * ⚠️ Nessun overload con la firma vecchia, di proposito: lascerebbe un chiamante a saltare la regola
+	 * della sorgente senza accorgersene, e un errore di compilazione e' preferibile a un danno che ignora
+	 * lo scudo base in silenzio.
+	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
-	static FRTDamageResult ApplyDamage(int32 Damage, int32 Shield, int32 Health);
+	static FRTDamageResult ApplyDamage(int32 Damage, ERTDamageSource Source, int32 Shield,
+		int32 TemporaryShield, int32 Health);
 
 	/** Accumula energia con clamp in [0, Max]. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")

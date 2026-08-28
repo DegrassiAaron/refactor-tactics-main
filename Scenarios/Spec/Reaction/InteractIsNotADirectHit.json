@@ -1,0 +1,43 @@
+{
+  "scenarioId": "Spec.Reaction.InteractIsNotADirectHit",
+  "tags": ["spec", "reactions", "interact", "generiche", "gadget", "riktor"],
+  "version": 2,
+  "seed": 0,
+  "mapRadius": 3,
+
+  "_nota": "Pinna la REGOLA di [`INT-8`], non piu' il difetto di `#1491`: un'azione che non si dichiara aggressione non produce un colpo, e quindi non innesca reazioni, non carica energia, non marchia e non fa danno. `Action.Interact` dichiara `bCountsAsAttack = false` (default), quindi puntarla su un'unita' non e' un attacco -- coerentemente con il puntatore, che per `StructureOp != None` chiede un BORDO e non un'unita' (`RTPointerInteraction.cpp`).",
+
+  "_nota_v1_diceva_il_contrario": "La v1 di questo file si chiamava `InteractCountsAsADirectHit` e asseriva `Reaction/Activated = 1` con B1 a 110: era la MISURA del difetto, scritta prima che ci fosse una regola. Il vecchio ID resta in `_redirects.json`. Non e' stato ribaltato per far passare la suite -- e' stato ribaltato perche' la risposta a `INT-8` ha cambiato cio' che il gioco deve fare.",
+
+  "_nota_oracolo": "🔴 L'assertion che risponde e' `Reaction/NotTriggered = 1`, NON `Activated = 0`. Zero attivazioni sarebbe vero anche in un mondo dove il turno non gira affatto, dove A1 non arma nulla o dove lo scenario viene saltato per una capability mancante -- tre modi di essere verde senza misurare niente. `NotTriggered` invece dice che la reazione **c'era, e' stata valutata, e non e' scattata**: e' l'unica riga che distingue «la regola funziona» da «non e' successo niente».",
+
+  "_nota_energia": "⚠️ La meta' piu' sfruttabile di `#1491` -- l'interazione che caricava `EnergyOnHit = 15` a ogni turno, incondizionatamente -- e' chiusa dalla stessa regola e per costruzione: senza colpo non c'e' guadagno. Non e' asserita qui perche' il formato non ha un'assertion sull'energia, ed e' il limite dichiarato di questo file.",
+
+  "_nota_geometria": "B1 e' ADIACENTE (distanza 1) perche' `Action.Interact` ha portata 1: se il colpo non nasce, non puo' essere perche' l'azione era fuori portata. E' la stessa ragione per cui la v1 stava a distanza 1 e non a 2 come `Combat.CounterStrikesBack`.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [0, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "requires": ["ReactionPlanning"],
+      "_turno": "A1 arma la reazione da colpo; B1 la INTERAGISCE, adiacente e a portata.",
+      "intents": [
+        { "unit": "A1", "reaction": "Hero.Gadget.ReactiveCapacitor" },
+        { "unit": "B1", "ability": "Action.Interact", "target": "A1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "L'ANCORA: la reazione c'era ed e' stata valutata. Senza questa riga, le altre due sarebbero vere anche in un turno che non e' mai girato.",
+      "type": "LogEventCount", "category": "Reaction", "outcome": "NotTriggered", "value": 1 },
+    { "_assertion": "LA REGOLA: nessuna attivazione, perche' l'interazione non e' un colpo.",
+      "type": "LogEventCount", "category": "Reaction", "outcome": "Activated", "value": 0 },
+    { "_assertion": "Corroborazione: nessun contrattacco, quindi Riktor resta pieno.",
+      "type": "UnitHpEquals", "unit": "B1", "value": 120 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

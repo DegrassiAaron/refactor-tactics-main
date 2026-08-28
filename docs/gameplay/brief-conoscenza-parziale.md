@@ -27,6 +27,8 @@ Il design di partenza separa correttamente tre cose che di solito vengono confus
 | **Rilevamento** | il personaggio percepisce che qualcosa c'è? | 🟡 **entra ora**, su due canali: vista e **udito** |
 | **Identificazione** | capisce chi è e cosa sta facendo? | ⏳ rimandata (§9) |
 
+⚠️ Gli stati qui sotto sono quelli delle **unità**. Il **terreno** ha un asse suo, deciso dopo da [`D-225`](../decisions/RT_PDR_00_Decision_Log.md) e [`D-227`](../decisions/RT_PDR_00_Decision_Log.md) — *osservato ora* / *esplorato e ricordato* / *mai visto, non disegnato* — e non va confuso con questi.
+
 Lo slice adotta **tre stati** invece di cinque: `Nascosto`, `ContattoIncerto`, `Rilevato` — più la memoria
 `UltimoContatto`. `Identificato` richiede la firma visiva e resta fuori.
 
@@ -42,6 +44,7 @@ Lo slice adotta **tre stati** invece di cinque: `Nascosto`, `ContattoIncerto`, `
 | **D1** | **Slice minimo dentro la v0.1**, non epic completa | La v0.1 ha già 59 CP col rischio scope dichiarato H/H. Entra ciò che dà significato a una statistica **già a catalogo** (range visivo), non un sistema nuovo |
 | **D2** | La visibilità è **vista derivata**: funzione pura di `(stato unità, mappa)` | Non entra nel checksum né nel formato serializzato; ricalcolabile e testabile headless. Coerente con l'invariante #4 |
 | **D3** | L'**ultimo contatto** è memoria, e vive in un campo **per squadra nello snapshot**, con versione di formato incrementata | L'unica cosa non deducibile dallo stato corrente. Esplicito e nel TurnLog invece che in un componente a lato che potrebbe divergere dal replay |
+| **D3-bis** | Il **terreno esplorato** è una **seconda** memoria, accanto a quella del contatto, e **non scade** — [`D-227`](../decisions/RT_PDR_00_Decision_Log.md) *(2026-08-28)*, che porta `FRTTeamKnowledge::CurrentVersion` da 1 a **2** | Un contatto scade dopo un turno perché **l'unità si muove**; il terreno non si muove, quindi dimenticarlo sarebbe una regola nuova invece che una conseguenza. ⚠️ Senza questa memoria il velo deciso da [`D-225`](../decisions/RT_PDR_00_Decision_Log.md) farebbe **richiudere la mappa alle spalle del giocatore**, due volte per turno. ⛔ Il costo accettato: il campo cresce in modo monotono e viaggia in ogni snapshot |
 | **D4** | La visibilità si ricalcola ai **confini di fase**, non a ogni micro-step | Il Dash precede il Blast: riposizionarsi *può* ancora aprire o chiudere una linea prima degli attacchi — il 90% del valore tattico, senza toccare «raccogli poi applica» (invariante #3) |
 | **D5** | Il **targeting** è limitato alla conoscenza **di squadra**, non individuale | È la «copertura informativa»: chi vede più lontano estende la portata utile di chi vede meno. Emerge dai numeri esistenti, senza una regola nuova |
 | **D6** | Il **bot** pianifica sulla **stessa** conoscenza parziale | In un 2v2 offline, nascondersi da un avversario onnisciente è teatro. È la voce più costosa dello slice ed è deliberata |
@@ -105,7 +108,7 @@ a 7, perché dipende dal fatto che **nessuna** azione ci arrivi.
 
 | Documento | Impatto |
 |---|---|
-| [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) §8 | «fog of war» è classificata north-star P1. Lo slice **non** è fog of war (la mappa statica resta nota), ma la distinzione va scritta, altrimenti sembra scope creep |
+| [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) §8 | «fog of war» è classificata north-star P1. 🔴 **Questa riga diceva *«Lo slice non è fog of war (la mappa statica resta nota)»*, e [`D-225`](../decisions/RT_PDR_00_Decision_Log.md) l'ha resa falsa il 2026-08-28**: in v0.1 la geometria non osservata **si nasconde**. Il timore di *«sembrare scope creep»* era fondato e la risposta non è più la distinzione, ma la decisione scritta: il perimetro si è mosso davvero, ed è registrato invece che dedotto |
 | [`h6-4-hex-vision-spec.md`](../technical/systems/h6-4-hex-vision-spec.md) §6 | dichiara `VisibleCells` fuori scope. Va aggiornata: lo slice la introduce |
 | [`RT_TerrainCatalog_v0.1.md`](../balance/RT_TerrainCatalog_v0.1.md) | il fumo ha già una regola (`Obscured`, cap targeting a **2**). **Prevale il catalogo**: niente densità progressiva |
 | [`RT_HeroCatalog_v0.1.md`](../balance/RT_HeroCatalog_v0.1.md) | la frase «Riktor compra HP e resistenza con movimento **e vista**» diventa vera solo con questo slice; oggi è falsa |

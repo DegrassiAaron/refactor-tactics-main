@@ -245,7 +245,7 @@ def g_sprint() -> str:
 def g_dash() -> str:
     """`Dodge` = `●──»──»──►`. A 16 px collassa in `● » ►` e regge (§5).
 
-    ⚠️ Si chiamava `Action.Dash` fino a **D-196**, e il glifo NON e' cambiato: la meccanica e' la stessa
+    ⚠️ Si chiamava `Action.Dash` fino a **D-230**, e il glifo NON e' cambiato: la meccanica e' la stessa
     — `LinearDash`, `FastMovement`, slot `Movement`. A cambiare e' stato il nome, perche' `Dash` era
     anche la macro-fase. Il chevron resta la famiglia condivisa con `UI.Icon.Phase.Dash`, ed e' corretto
     che lo sia: il chip esagonale distingue il momento dall'azione che ci accade dentro.
@@ -2017,7 +2017,7 @@ ICONS = [
     ("Action.Sprint", g_sprint, "Movement",
      "mock 05/12 — endpoint che chiude: Sprint nega la reazione"),
     ("Action.Dodge", g_dash, "Movement",
-     "mock 05/13 — glifo invariato, chiave rinominata da Action.Dash (D-196)"),
+     "mock 05/13 — glifo invariato, chiave rinominata da Action.Dash (D-230)"),
     ("Action.Charge", g_charge, "Movement",
      "assente dal mock"),
     ("Action.Leap", g_leap, "Movement",
@@ -2367,7 +2367,7 @@ SURFACE_BOX = (17.4, 18.8, 21.6, 23.2)
 # ⛔ Il giorno in cui il rename atterra, questa riga si CANCELLA e il glifo prende la sua stazione da
 # solo. Se qualcuno la trova ancora qui dopo, e' un residuo — e a quel punto `Action.Evade` e
 # `Action.Dodge` vanno riconciliate, che e' la domanda aperta da allora.
-# Vuoto, ed e' l'esito giusto: `Action.Dodge` e' entrata nel catalogo con D-196 e la sua stazione la
+# Vuoto, ed e' l'esito giusto: `Action.Dodge` e' entrata nel catalogo con D-230 e la sua stazione la
 # prende da sola. Il meccanismo resta perche' la prossima deroga si DICHIARI invece di essere
 # silenziata — e perche' e' stato T7 a tenere questa visibile finche' e' durata.
 ALPHABET_EXEMPT: dict[str, str] = {}
@@ -2571,7 +2571,7 @@ def main() -> int:
     gate_errors = check_alphabet_gates(ICONS)
     manifest["alphabet_gates"] = gate_errors or "passati"
 
-    # ⚠️ Gli orfani vanno TOLTI, e la ragione l'ha mostrata D-196: rinominando `Action.Dash` in
+    # ⚠️ Gli orfani vanno TOLTI, e la ragione l'ha mostrata D-230: rinominando `Action.Dash` in
     # `Action.Dodge` il file vecchio e' rimasto nella cartella. Chi importasse quella cartella
     # porterebbe in Unreal una texture per una chiave che non esiste piu' — e nessun gate la vedrebbe,
     # perche' `check_coverage()` guarda cosa MANCA, non cosa avanza.

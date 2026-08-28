@@ -202,30 +202,46 @@ static void RTDebugDrawPathsCommand(const TArray<FString>& Args, UWorld* World, 
 	ARTTurnManager* TM = FindTurnManager(World, Ar);
 	if (!TM) { return; }
 
-	const TArray<TArray<FRTCellId>>& Routes = TM->GetLastMoveRoutes();
+	const TArray<FRTMoveRoute>& Routes = TM->GetLastMoveRoutes();
 	if (Routes.Num() == 0)
 	{
 		Ar.Log(TEXT("[RT] Nessun percorso: la partita non ha ancora risolto un movimento."));
 		return;
 	}
-	// ⚠️ **L'indice NON e' un `UnitId`, e non e' nemmeno l'indice dell'unita'.** `LastMoveRoutes` e'
-	// COMPATTATO: `RTTurnManager.cpp` vi aggiunge una voce solo quando `Entered.Num() > 0`, quindi con le
-	// unita' 0 e 2 in movimento e la 1 ferma i due percorsi sono `#0` e `#1`. Una stesura precedente
-	// stampava «unita %d» su questo indice e nominava un'unita' che non si era mossa. La prima cella del
-	// percorso dice **da dove** parte, ed e' l'unico aggancio corretto disponibile qui.
+	// ⚠️ **L'indice resta cio' che era — un numero d'ordine, non un'identita'** — ma adesso non serve piu':
+	// `FRTMoveRoute` porta lo `StableUnitId` di chi ha percorso la rotta (`#1497`). La stesura che stampava
+	// «unita %d» sull'indice nominava un'unita' che non si era mossa, perche' la raccolta e' COMPATTATA:
+	// `RTTurnManager` vi aggiunge una voce solo quando `Entered.Num() > 0`.
+	//
+	// 🔴 **Questo comando stampa la rotta INTERA, e adesso e' una scelta invece di un'attesa.** La stesura
+	// precedente rimandava alla «regola scelta in `#1496`»: la regola c'e' da [D-223], ed e' il troncamento
+	// per cella che l'HUD applica. Qui non si applica, e si dichiara — chi apre la console possiede gia'
+	// tutto lo stato del client, quindi filtrare non proteggerebbe nulla e toglierebbe l'unico strumento
+	// con cui il filtro si verifica.
+	//
+	// ➕ **E lo verifica davvero**: accanto alla rotta autoritativa il comando stampa il tratto che
+	// `ARTTurnManager::VisibleTrailFor` concede all'osservatore — la stessa funzione che disegna `DrawHUD`,
+	// non una seconda lettura della regola. `celle` e `visto` che differiscono sono un troncamento avvenuto;
+	// uguali, una rotta osservata per intero; `visto 0` una rotta invisibile a quella squadra. E' cosi' che
+	// `PIE-KNOW4` si controlla senza fidarsi dell'occhio.
+	const int32 ObserverTeamId = ObserverTeamFromArgs(Args);
 	for (int32 i = 0; i < Routes.Num(); ++i)
 	{
 		FString Path;
-		for (const FRTCellId& Cell : Routes[i])
+		for (const FRTCellId& Cell : Routes[i].Cells)
 		{
 			if (!Path.IsEmpty()) { Path += TEXT(" -> "); }
 			Path += Cell.ToString();
 		}
-		Ar.Logf(TEXT("[RT]   percorso #%d (da %s): %s"), i,
-			Routes[i].Num() > 0 ? *Routes[i][0].ToString() : TEXT("?"), *Path);
+		Ar.Logf(TEXT("[RT]   percorso #%d (unita' %d, da %s): %s [celle %d, visto dal team %d: %d]"),
+			i, Routes[i].StableUnitId,
+			Routes[i].Cells.Num() > 0 ? *Routes[i].Cells[0].ToString() : TEXT("?"), *Path,
+			Routes[i].Cells.Num(), ObserverTeamId,
+			ARTTurnManager::VisibleTrailFor(Routes[i], ObserverTeamId).Num());
 	}
-	Ar.Logf(TEXT("[RT] Percorsi dell'ultima risoluzione: %d — solo le unita' che si sono MOSSE."),
-		Routes.Num());
+	Ar.Logf(TEXT("[RT] Percorsi dell'ultima risoluzione: %d — solo le unita' che si sono MOSSE. "
+		"Il team osservatore e' %d (primo argomento); la colonna «visto» e' cio' che l'HUD ne disegnerebbe."),
+		Routes.Num(), ObserverTeamId);
 }
 
 static void RTDebugDrawResolutionCommand(const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
@@ -303,7 +319,13 @@ static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawCover(
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawPaths(
 	TEXT("rt.Debug.DrawPaths"),
 	TEXT("ELENCA in console i percorsi dell'ultima risoluzione, cella per cella — solo le unita' che si "
-		 "sono mosse. Non disegna."),
+		 "sono mosse, ciascuna col proprio StableUnitId. Non disegna. Argomento opzionale: il TeamId "
+		 "dell'osservatore (default 0). ATTENZIONE: la ROTTA stampata NON e' filtrata per conoscenza — "
+		 "mostra le rotte di ENTRAMBE le squadre, compresa quella di un nemico che il giocatore non vede. "
+		 "Accanto a ciascuna, «visto» dice quante celle l'HUD ne disegnerebbe a quell'osservatore dopo il "
+		 "troncamento di D-223: e' con quel confronto che si verifica il filtro. E' uno strumento di "
+		 "sviluppo locale, dove chi lo esegue possiede gia' tutto lo stato. In rete (M10) dovra' essere "
+		 "lato server o non esistere."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugDrawPathsCommand));
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawResolution(

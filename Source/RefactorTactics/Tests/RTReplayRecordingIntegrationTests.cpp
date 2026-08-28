@@ -17,6 +17,7 @@
 #include "Engine/Engine.h"
 #include "HAL/PlatformFileManager.h"
 #include "Misc/Paths.h"
+#include "Tests/RTWorldFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -73,16 +74,6 @@ namespace
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		return U;
 	}
-
-	void PlayOneRecTurn(ARTTurnManager* TM)
-	{
-		TM->PlanBotsForTest();
-		TM->LockInAndResolve();
-		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
-		{
-			TM->Tick(0.05f);
-		}
-	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayRecordingIntegrationTest,
@@ -122,8 +113,8 @@ bool FRTReplayRecordingIntegrationTest::RunTest(const FString&)
 	const FGuid MatchId = TM->GetReplayMatchId();
 	TestTrue(TEXT("ora la partita ha un id"), MatchId.IsValid());
 
-	PlayOneRecTurn(TM);
-	PlayOneRecTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	// Le tracce dei due turni sono su disco, col nome che il recorder dichiara.
 	const FString Dir = URTReplayRecorderLibrary::MatchDirectory(Root, MatchId);
@@ -163,7 +154,7 @@ bool FRTReplayRecordingIntegrationTest::RunTest(const FString&)
 	int32 Giri = 0;
 	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Giri < 60)
 	{
-		PlayOneRecTurn(TM);
+		RTWorldFixtures::PlayOneTurn(TM);
 		++Giri;
 	}
 	if (!TestTrue(TEXT("la partita si decide entro il limite"), TM->GetPhase() == ERTMatchPhase::MatchEnded))
@@ -219,8 +210,8 @@ bool FRTReplayNoRecordingWithoutStartTest::RunTest(const FString&)
 	TM->ReplaysRootOverride = Root;
 	TM->DispatchBeginPlay();   // e nessuna `BeginReplayRecording`: e' il caso di ogni test del repository
 
-	PlayOneRecTurn(TM);
-	PlayOneRecTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	TestFalse(TEXT("nessun id di registrazione"), TM->GetReplayMatchId().IsValid());
 	TestFalse(TEXT("e nessuna cartella di archivi creata"), PF.DirectoryExists(*Root));

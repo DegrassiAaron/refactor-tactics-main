@@ -118,7 +118,10 @@ bool FRTChecksumCoversEnvironmentTest::RunTest(const FString&)
 
 		// E due stati DIVERSI restano distinguibili: l'ordinamento non deve degenerare in «tutti uguali».
 		TArray<FRTUnitStateDigest> Different = Units;
-		Different[0].Statuses = { FName(TEXT("Status.Burning")), FName(TEXT("Status.Rooted")) };
+		// ⚠️ `Status.Root`, non `Status.Rooted`: quest'ultimo non esiste nel gioco. Il test restava verde perche'
+		// gli basta una stringa DIVERSA, quindi un nome inventato non lo faceva cadere — e da [D-182] nessun
+		// gate segnala un nome che non esiste (`#1389`).
+		Different[0].Statuses = { FName(TEXT("Status.Burning")), FName(TEXT("Status.Root")) };
 		TestNotEqual(TEXT("stati diversi -> hash diversi"),
 			URTMatchStateHashLibrary::HashMatchState(Map, OneOrder, NoScore),
 			URTMatchStateHashLibrary::HashMatchState(Map, Different, NoScore));
@@ -631,5 +634,165 @@ bool FRTChecksumSeesArcConductivityTest::RunTest(const FString&)
 
 	return true;
 }
+
+/**
+ * **Ogni campo del digest entra nell'hash**, e nessuno può sparire in silenzio.
+ *
+ * 🔴 **Trovato per mutazione**: rimuovendo `Mix(U.Shield)` da `HashMatchState` la suite restava interamente
+ * verde. Due partite che differiscono solo per lo scudo — o per l'energia, o per il piano — producevano lo
+ * stesso `StateHash`, e il replay le avrebbe dichiarate identiche.
+ *
+ * ⚠️ **La prima stesura di questo test copriva tre campi, e la review ne ha trovati altri cinque scoperti**:
+ * `UnitId`, `Health`, `bAlive`, `Cell.X` e `Cell.Y` stanno sulle righe *adiacenti* dello stesso ciclo, e
+ * nessun test del repository li variava contro l'hash. Chiudere metà di un punto cieco misurato è peggio che
+ * lasciarlo aperto, perché il verde successivo sembra una conferma. Qui ci sono tutti.
+ *
+ * Due proprietà che le assertion ovvie NON danno, e per cui servono i casi che seguono:
+ *
+ * 1. **Ogni variazione parte da un valore già diverso da zero.** Variare `0 → 10` è soddisfatto anche da un
+ *    `Mix(Campo != 0)` degradato, che collasserebbe `Shield=10` e `Shield=20` sullo stesso hash. Questo file
+ *    scrive già casi contro quella degradazione per l'identità di porte e archi; qui si applica la stessa
+ *    disciplina ai campi dell'unità.
+ * 2. **Due campi non devono collidere fra loro.** Un `Mix(Shield + Energy)` commutativo passerebbe ogni
+ *    disuguaglianza per-campo, e renderebbe identici `(Shield 25, Energy 0)` e `(Shield 0, Energy 25)`. Solo
+ *    uno **scambio di valori** lo smaschera.
+ */
+namespace
+{
+	/** Baseline con TUTTI i campi già a valori non nulli: variare da zero non distingue un `Mix` degradato. */
+	TArray<FRTUnitStateDigest> RichBaseUnits()
+	{
+		FRTUnitStateDigest U;
+		U.UnitId = 3;
+		U.Cell = FRTCellId(1, -1, 0);
+		U.Health = 40;
+		U.Shield = 10;
+		U.Energy = 30;
+		U.bAlive = true;
+		return { U };
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChecksumSeesEveryUnitFieldTest,
+	"RefactorTactics.Simulation.ChecksumSeesEveryUnitField",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChecksumSeesEveryUnitFieldTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeStateHashMap();
+	const TArray<int32> NoScore = { 0, 0 };
+
+	auto HashOf = [Map, &NoScore](const TArray<FRTUnitStateDigest>& U)
+	{
+		return URTMatchStateHashLibrary::HashMatchState(Map, U, NoScore);
+	};
+
+	const uint32 Baseline = HashOf(RichBaseUnits());
+
+	// Riferimento: lo stesso stato dà lo stesso hash. Senza, ogni disuguaglianza qui sotto sarebbe vera per
+	// rumore invece che per il campo che dichiara di misurare.
+	TestEqual(TEXT("stesso stato -> stesso hash"), HashOf(RichBaseUnits()), Baseline);
+
+	// Un caso per campo. Ogni mutatore cambia UNA cosa sola, e la cambia da un valore non nullo a un altro
+	// valore non nullo: è ciò che rende il test capace di vedere un `Mix(Campo != 0)` degradato.
+	struct FFieldCase
+	{
+		const TCHAR* What;
+		TFunction<void(FRTUnitStateDigest&)> Mutate;
+	};
+
+	const TArray<FFieldCase> Cases = {
+		{ TEXT("UnitId"),     [](FRTUnitStateDigest& U) { U.UnitId = 7; } },                    // baseline 3
+		{ TEXT("Health"),     [](FRTUnitStateDigest& U) { U.Health = 55; } },                   // baseline 40
+		{ TEXT("Shield"),     [](FRTUnitStateDigest& U) { U.Shield = 20; } },                   // baseline 10
+		{ TEXT("Energy"),     [](FRTUnitStateDigest& U) { U.Energy = 45; } },                   // baseline 30
+		{ TEXT("bAlive"),     [](FRTUnitStateDigest& U) { U.bAlive = false; } },
+		{ TEXT("Cell.X"),     [](FRTUnitStateDigest& U) { U.Cell = FRTCellId(-1, -1, 0); } },   // baseline (1,-1,0)
+		{ TEXT("Cell.Y"),     [](FRTUnitStateDigest& U) { U.Cell = FRTCellId(1,  1, 0); } },
+		{ TEXT("Cell.Layer"), [](FRTUnitStateDigest& U) { U.Cell = FRTCellId(1, -1, 1); } },
+	};
+
+	for (const FFieldCase& Case : Cases)
+	{
+		TArray<FRTUnitStateDigest> Mutated = RichBaseUnits();
+		Case.Mutate(Mutated[0]);
+		TestNotEqual(*FString::Printf(TEXT("%s entra nell'hash"), Case.What), HashOf(Mutated), Baseline);
+	}
+
+	// ⚠️ **Lo scambio di valori**: è l'unico caso che smaschera un hash che SOMMA due campi invece di
+	// mescolarli in ordine. `(Shield 25, Energy 0)` e `(Shield 0, Energy 25)` hanno la stessa somma e sono due
+	// stati diversi; ogni assertion per-campo qui sopra passerebbe comunque.
+	{
+		TArray<FRTUnitStateDigest> ShieldHeavy = RichBaseUnits();
+		ShieldHeavy[0].Shield = 25;
+		ShieldHeavy[0].Energy = 0;
+
+		TArray<FRTUnitStateDigest> EnergyHeavy = RichBaseUnits();
+		EnergyHeavy[0].Shield = 0;
+		EnergyHeavy[0].Energy = 25;
+
+		TestNotEqual(TEXT("scudo ed energia non collidono fra loro"),
+			HashOf(ShieldHeavy), HashOf(EnergyHeavy));
+	}
+
+	// Stessa domanda per le due coordinate: `(q=2,r=1)` e `(q=1,r=2)` sono celle diverse, e un `MixCell` che
+	// sommasse X e Y le renderebbe lo stesso posto.
+	{
+		TArray<FRTUnitStateDigest> Here = RichBaseUnits();
+		Here[0].Cell = FRTCellId(2, 1, 0);
+
+		TArray<FRTUnitStateDigest> There = RichBaseUnits();
+		There[0].Cell = FRTCellId(1, 2, 0);
+
+		TestNotEqual(TEXT("le due coordinate della cella non collidono fra loro"),
+			HashOf(Here), HashOf(There));
+	}
+
+	return true;
+}
+
+/**
+ * **Il guardiano del guardiano**: se qualcuno aggiunge un campo a `FRTUnitStateDigest`, questo test cade.
+ *
+ * ⚠️ Il difetto che `#1540` ha chiuso non era «manca un test per lo scudo»: era **il meccanismo** per cui un
+ * campo può entrare nel digest, essere mescolato nell'hash, e non avere nessuno che se ne accorga se la riga
+ * sparisce. Enumerare i campi a mano — come fa il test qui sopra — chiude i campi di oggi e riproduce il
+ * meccanismo domani, al primo campo aggiunto e dimenticato.
+ *
+ * Questo test non verifica un comportamento: verifica che l'elenco enumerato sia ancora **completo**. Fallisce
+ * dicendo cosa fare, invece di lasciare che il buco si riapra in silenzio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChecksumUnitFieldListIsCompleteTest,
+	"RefactorTactics.Simulation.ChecksumUnitFieldListIsComplete",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChecksumUnitFieldListIsCompleteTest::RunTest(const FString&)
+{
+	const UScriptStruct* Digest = FRTUnitStateDigest::StaticStruct();
+	if (!TestNotNull(TEXT("FRTUnitStateDigest esiste come UScriptStruct"), Digest))
+	{
+		return false;
+	}
+
+	TArray<FString> Fields;
+	for (TFieldIterator<FProperty> It(Digest); It; ++It)
+	{
+		Fields.Add(It->GetName());
+	}
+	Fields.Sort();
+
+	// I campi coperti da `ChecksumSeesEveryUnitField` (uno per uno) e da `ChecksumCoversEnvironment` (gli
+	// stati temporanei, caso 3). Se questo elenco e quello della struct divergono, uno dei due va aggiornato —
+	// e quale non è automatico, per questo il test dice cosa è cambiato invece di adattarsi da solo.
+	TArray<FString> Covered = { TEXT("UnitId"), TEXT("Cell"), TEXT("Health"),
+		TEXT("Shield"), TEXT("Energy"), TEXT("bAlive"), TEXT("Statuses") };
+	Covered.Sort();
+
+	TestEqual(
+		TEXT("l'elenco dei campi coperti combacia con la struct: se è caduto, un campo è stato aggiunto a "
+		     "FRTUnitStateDigest e va coperto in ChecksumSeesEveryUnitField prima di aggiornare questa lista"),
+		FString::Join(Fields, TEXT(",")), FString::Join(Covered, TEXT(",")));
+
+	return true;
+}
+
 
 #endif // WITH_DEV_AUTOMATION_TESTS

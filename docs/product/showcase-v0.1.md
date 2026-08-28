@@ -220,7 +220,7 @@ si verifica. La regola vale per tutti: **nessun turno introduce codice speciale 
 | 2 | `Wet`, Push, setup conduttivo, reconfigure, **Predictive Action**, **whiff** | `FixtureReference` + **`PredictiveAction`** (E18) | `RT.Scenario.Showcase.T2` |
 | 3 | Dash prima del Blast, `Fire`, `Burning`, **moving target**, fallback, AoE | **`FixtureReference`** · policy moving-target **da leggere dal catalogo** | `RT.Scenario.Showcase.T3` |
 | 4 | Reaction Opportunity, **Decision Boundary**, `HOLD`/`FIRE`, facing, trigger per micro-step | `FixtureReference` + **`DecisionBoundary` + `Reaction` + `Facing`** (E14 dopo E13, E16) | `RT.Scenario.Showcase.T4` |
-| 5 | `Smoke`, validazione LOS/target, correzione del piano, `Deflection`, **Interact sul gate**, `GraphRevision++` | **`FixtureReference`** — il gate è una porta, CP 9.3 è chiuso | `RT.Scenario.Showcase.T5` |
+| 5 | `Smoke`, validazione LOS/target, correzione del piano, `Deflection`, **Interact sul gate**, `GraphRevision++` | **`FixtureReference`** — il gate è una porta, CP 9.3 è chiuso · **`ReactionPlanning`** — la `Deflection` si arma (aggiunta il 2026-08-27, quando il turno è stato scritto: la riga diceva solo `FixtureReference` e lo scenario la citava come prova di non aver bisogno d'altro) | `RT.Scenario.Showcase.T5` |
 | 6 | `Intercept`, redirect del bersaglio, **rivalidazione della copertura**, `Wet`, Push, **nessuna reaction annidata** | `FixtureReference` + **`InterceptRevalidation`** ([D-017](../decisions/RT_PDR_00_Decision_Log.md)) — **non** serve il Decision Boundary: `Interposition` è automatica | `RT.Scenario.Showcase.T6` |
 | 7 | Acqua+Fuoco, elettricità, `Wet`, conduttivo, `Ice`, `Rough`, validazione in planning | **`FixtureReference`** — E8 è chiusa | `RT.Scenario.Showcase.T7` |
 | 8 | Predizione, rotta alternativa, KO, **objective**, cleanup, `MatchEnded` | `FixtureReference` + **`PredictiveAction` + `Objective`** (E18 + E10 CP 10.1/10.2) | `RT.Scenario.Showcase.T8` |
@@ -358,7 +358,8 @@ Nessuna riga di questa tabella si costruisce dentro E15.
 
 | Delta | Stato | Epic / CP proprietario |
 |---|---|---|
-| Stati temporanei con durata e scadenza deterministica (`Wet`, `Burning`, `Electrified`, `Obscured`, `Rooted`, `Exposed`, `Marked`, `Slow`) | ✅ | **CP 8.2** chiuso |
+| Stati temporanei con durata e scadenza deterministica (`Wet`, `Burning`, `Obscured`, `Root`, `Exposed`, `Marked`, `Slow`) | ✅ | **CP 8.2** chiuso |
+| `Status.Electrified` — dichiarato, **mai applicato a un'unità**: fuori perimetro, non lavoro da fare | ✅ | **CP 8.3** — [`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) §D6 (*«non viene applicato»*). Era nella riga sopra come stato consegnato fino al 2026-08-27 ([D-211](../decisions/RT_PDR_00_Decision_Log.md)); se debba esistere è [#1324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1324) |
 | Propagazione elettrica (≤ 3 celle, 20/12 danni, una volta per unità, ordine `distanza → CellId → UnitId`) | ✅ | **CP 8.3** chiuso |
 | Acqua spegne il fuoco, `Wet` cancella `Burning` | ✅ | **CP 8.4** chiuso |
 | Azioni che **creano** terreno (`CreateWater`, `Ignite`, `Electrify`, fumo di `MistVeil`, `ConductiveNode`, acqua di `FluidTrail`) | ✅ | **CP 8.5** chiuso — `CreateCover` rinviata a E9 |

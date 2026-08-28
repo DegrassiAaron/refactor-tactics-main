@@ -114,11 +114,12 @@ costruzione).
 |---|---|---|---|
 | `Wet` | acqua bassa, `CreateWater`, Phase | conduce elettricità, rimuove `Burning` | finché sulla cella / **1 turno** se applicato da un'abilità (CP 8.2) |
 | `Burning` | fuoco, `Ignite` | 8 danni nel Cleanup | 2 turni, rimosso da `Wet` |
-| `Electrified` | propagazione elettrica | danno dell'evento | istantaneo (una sola volta per evento) |
+| ~~`Electrified`~~ | propagazione elettrica | danno dell'evento | ⚠️ **non è uno stato**: la scarica è istantanea e `Status.Electrified` non viene mai applicato a un'unità — [`spec-propagazione-elettrica-cp83.md`](../gameplay/spec-propagazione-elettrica-cp83.md) §D6, [D-211](../decisions/RT_PDR_00_Decision_Log.md) |
 | `Obscured` | fumo | targeting limitato a 2 celle | finché nel fumo |
 | `Sliding` | ghiaccio | scivolamento di 1 cella | all'ingresso |
 
-Gli stati non-ambientali (`Rooted`, `Exposed`, `Marked`, `Slow`) sono nel [catalogo azioni](RT_ActionCatalog_v0.1.md).
+Gli stati non-ambientali (`Root`, `Exposed`, `Marked`, `Slow`) sono nel [catalogo azioni](RT_ActionCatalog_v0.1.md).
+⚠️ Il tag è `Status.Root`: `Rooted` non esiste in `Source/` ([D-211](../decisions/RT_PDR_00_Decision_Log.md)).
 
 ---
 

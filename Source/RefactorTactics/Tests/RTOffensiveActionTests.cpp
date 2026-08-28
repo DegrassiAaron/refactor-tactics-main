@@ -335,6 +335,7 @@ bool FRTAoEFriendlyFireTest::RunTest(const FString&)
 	Intent.AreaRadius = 1;
 	Intent.RangeCells = Def.RangeCells;
 	Intent.Power = DeclaredDamage(Def);
+	Intent.bCountsAsAttack = true; // intento d'attacco, e da [`INT-8`] va dichiarato
 	Intent.bFriendlyFire = Def.bFriendlyFire;
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, { Intent }, Map);

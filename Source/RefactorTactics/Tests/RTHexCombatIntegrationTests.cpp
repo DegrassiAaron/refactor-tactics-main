@@ -11,6 +11,7 @@
 #include "Turn/RTActionFallbackLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Tests/RTAbilityFixtures.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Kismet/GameplayStatics.h"
@@ -79,6 +80,10 @@ namespace
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo: il test verifica il Blast, non il movimento
+		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
+		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
+		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
+		U->Shield = 0;
 		return U;
 	}
 
@@ -128,8 +133,13 @@ bool FRTHexBlastDealsDamageTest::RunTest(const FString&)
 	TestTrue(TEXT("il bersaglio ha incassato il colpo"), Foe->Shield < ShieldBefore || Foe->Health < HealthBefore);
 	// Il colpo pieno lo dichiara l'attacco base di chi spara: la proprieta' e' «lo scudo assorbe per primo».
 	const int32 FullHit = Shooter->AttackPower;
-	TestEqual(TEXT("scudo assorbito per primo, poi HP"), Foe->Shield, FMath::Max(0, ShieldBefore - FullHit));
-	TestEqual(TEXT("HP residui coerenti col danno"), Foe->Health, HealthBefore - FMath::Max(0, FullHit - ShieldBefore));
+	// ⚠️ [D-224] L'assorbimento NON si legge piu' dallo scudo a fine turno: `RechargeBaseShield` gira nel
+	// Cleanup, quindi ogni unita' viva chiude il turno con lo scudo base pieno qualunque cosa abbia incassato.
+	// Cio' che resta osservabile — ed e' la proprieta' in esame — sono gli HP.
+	TestEqual(TEXT("gli HP dicono quanto ha assorbito lo scudo"),
+		Foe->Health, HealthBefore - FMath::Max(0, FullHit - ShieldBefore));
+	TestEqual(TEXT("e a fine turno lo scudo base e' tornato pieno"),
+		Foe->Shield, URTCombatLibrary::BaseShield);
 	TestTrue(TEXT("il TurnLog registra il colpo"), CountCombatOutcome(TM, ERTCombatOutcome::Hit) >= 1);
 
 	DestroyHexBlastWorld(World);
@@ -163,7 +173,10 @@ bool FRTHexBlastBlockedBySightTest::RunTest(const FString&)
 	RunBlastTurn(TM);
 
 	TestEqual(TEXT("nessun danno attraverso la copertura"), Foe->Health, HealthBefore);
-	TestEqual(TEXT("scudo intatto"), Foe->Shield, ShieldBefore);
+	// [D-224] Non si confronta con `ShieldBefore`: la ricarica del Cleanup renderebbe verde questo asserto
+	// anche se lo scudo fosse stato consumato e poi ripristinato. Il colpo che non parte si dimostra con gli
+	// HP intatti qui sopra e con la voce `NoLineOfSight` qui sotto.
+	TestEqual(TEXT("a fine turno lo scudo base e' pieno"), Foe->Shield, URTCombatLibrary::BaseShield);
 	TestEqual(TEXT("il TurnLog spiega il perche' (nessuna linea di tiro)"),
 		CountCombatOutcome(TM, ERTCombatOutcome::NoLineOfSight), 1);
 
@@ -221,6 +234,9 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 	const int32 HealthBefore = Runner->Health;
 	Attacker->PlannedAbilityIndex = 0;
 	Attacker->PlannedAttackTarget = Runner;
+	// Letto ADESSO: la risoluzione azzera il piano, e dopo il turno non resta niente da cui ricavarlo.
+	const FName AzionePianificata = Attacker->Abilities.IsValidIndex(0) && Attacker->Abilities[0]
+		? Attacker->Abilities[0]->Def.ActionId : FName();
 
 	// Il bersaglio scatta lontano quanto la portata del PROPRIO scatto: era scritto `7`, che solo lo scatto
 	// da 5 celle del Ranger legacy raggiungeva. La destinazione si deriva, cosi' la premessa del test —
@@ -246,6 +262,7 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 
 	int32 Fallbacks = 0;
 	int32 OutOfRangeReasons = 0;
+	int32 ConIdentitaGiusta = 0;
 	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 	{
 		if (E.Category != ERTLogCategory::Fallback) { continue; }
@@ -255,9 +272,22 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 		{
 			++OutOfRangeReasons;
 		}
+		// ⚠️ L'azione ATTESA, non «una qualsiasi»: `Instance` viene riassegnata all'istanza del FALLBACK
+		// subito dopo che la voce e' stata scritta, quindi leggere l'identita' una riga piu' in basso
+		// nominerebbe il ripiego invece dell'azione fallita — e un test che chiedesse solo «non e' vuoto»
+		// resterebbe verde.
+		if (E.ActionId == AzionePianificata)
+		{
+			++ConIdentitaGiusta;
+		}
 	}
 	TestEqual(TEXT("il TurnLog registra un fallback"), Fallbacks, 1);
 	TestEqual(TEXT("annullata perche' fuori portata: l'esito dice anche il motivo"), OutOfRangeReasons, 1);
+	// QUALE azione e' fallita ([D-196], `#1412` punto 1b). Senza, un'azione che non avviene lascia una voce
+	// che non dice se a mancare sia stata l'ultimate o l'attacco base — e due annullamenti della stessa
+	// unita' nello stesso turno erano indistinguibili.
+	TestEqual(*FString::Printf(TEXT("e la voce nomina l'azione fallita (%s)"), *AzionePianificata.ToString()),
+		ConIdentitaGiusta, 1);
 
 	// E lo dice anche il combat log della HUD, non solo il log autoritativo.
 	bool bInCombatLog = false;
@@ -273,19 +303,6 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 
 namespace
 {
-	/** Da' all'unita' un'azione del catalogo generico e ne restituisce l'indice. */
-	int32 AddCoreAbility(ARTUnit* Unit, const TCHAR* ActionId)
-	{
-		if (!Unit) { return INDEX_NONE; }
-		URTActionData* Action = NewObject<URTActionData>(Unit);
-		Action->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
-		Action->RangeCells = Action->Def.RangeCells;
-		Action->Power = 0;
-		Action->bSelfTarget = true;
-		Unit->Abilities.Add(Action);
-		return Unit->Abilities.Num() - 1;
-	}
-
 	/** Un attacco di prova che spinge di N celle: serve a distinguere la spinta da 1 da quella piu' forte. */
 	int32 AddPushAbility(ARTUnit* Unit, int32 PushCells)
 	{
@@ -297,6 +314,7 @@ namespace
 		Action->Def.Fallback = ERTActionFallback::Cancel;
 		Action->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 10));
 		Action->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, PushCells));
+		Action->Def.bCountsAsAttack = true; // aggressione: da [`INT-8`] va dichiarata
 		Action->RangeCells = 3;
 		Action->Power = 10;
 		Unit->Abilities.Add(Action);
@@ -324,7 +342,7 @@ bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 	if (!TM || !Defender || !Shooter) { DestroyHexBlastWorld(World); return false; }
 
 	const int32 StartHealth = Defender->Health;
-	const int32 GuardIdx = AddCoreAbility(Defender, TEXT("Action.Guard"));
+	const int32 GuardIdx = RTAbilityFixtures::AddCoreAbility(Defender, TEXT("Action.Guard"));
 	Defender->PlannedAbilityIndex = GuardIdx;
 	Defender->PlannedAttackTarget = Defender; // su se stessi: la guardia si prepara addosso
 	Shooter->PlannedAbilityIndex = 0;
@@ -369,7 +387,7 @@ bool FRTGuardResistsPushTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Defender || !Pusher) { DestroyHexBlastWorld(World); return false; }
 
-	const int32 GuardIdx = AddCoreAbility(Defender, TEXT("Action.Guard"));
+	const int32 GuardIdx = RTAbilityFixtures::AddCoreAbility(Defender, TEXT("Action.Guard"));
 	const int32 Push1 = AddPushAbility(Pusher, /*PushCells=*/ 1);
 	const FRTCellId Start = Defender->Cell;
 
@@ -385,7 +403,7 @@ bool FRTGuardResistsPushTest::RunTest(const FString&)
 	// Una spinta piu' forte passa comunque: la guardia attutisce, non ancora.
 	Defender->PlaceOnCell(Start, FVector::ZeroVector, 100.f, 250.f);
 	Defender->PlannedCell = Start;
-	Defender->PlannedAbilityIndex = AddCoreAbility(Defender, TEXT("Action.Guard"));
+	Defender->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Defender, TEXT("Action.Guard"));
 	Defender->PlannedAttackTarget = Defender;
 	Pusher->PlannedAbilityIndex = AddPushAbility(Pusher, /*PushCells=*/ 2);
 	Pusher->PlannedAttackTarget = Defender;
@@ -416,10 +434,7 @@ bool FRTChargeImpactInBlastTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Charger || !Victim) { DestroyHexBlastWorld(World); return false; }
 
-	URTActionData* Charge = NewObject<URTActionData>(Charger);
-	Charge->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
-	Charge->RangeCells = Charge->Def.RangeCells;
-	Charger->Abilities.Add(Charge);
+	RTAbilityFixtures::AddCoreAbility(Charger, TEXT("Action.Charge"));
 
 	const int32 VictimHealth = Victim->Health;
 	Charger->PlannedDashAbility = Charger->Abilities.Num() - 1;
@@ -430,6 +445,70 @@ bool FRTChargeImpactInBlastTest::RunTest(const FString&)
 	TestTrue(TEXT("la carica si ferma davanti al bersaglio, non lo attraversa"), Charger->Cell == FRTCellId(1, 0));
 	TestEqual(TEXT("l'impatto fa 20 danni, applicati nel Blast"), VictimHealth - Victim->Health, 20);
 	TestTrue(TEXT("e lo spinge di una cella"), Victim->Cell == FRTCellId(3, 0));
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * **Un `Action.Interrupt` NON annulla l'impatto di una carica gia' risolta.**
+ *
+ * Il movimento della carica avviene nella fase Dash; l'impatto entra nel Blast come intento a portata 1.
+ * Cancellarlo li' annullerebbe **a posteriori** la coda di un'azione risolta a meta': l'unita' resta dove
+ * la carica l'ha portata e perde il colpo.
+ *
+ * ⚠️ `Action.Charge` dichiara `bInterruptible = true`, e quel «si'» non basta a decidere: riguarda la
+ * carica come azione PIANIFICATA, non la sua coda. Prima di `#1437` l'impatto sopravviveva per una ragione
+ * **accidentale** — il ciclo si fermava al primo intento della vittima — e togliendo quel `break` sarebbe
+ * diventato interrompibile sempre, un cambio di gioco che nessuno ha deciso. Trovato in code review.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeImpactSurvivesInterruptTest,
+	"RefactorTactics.Actions.Charge.ImpactSurvivesInterrupt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeImpactSurvivesInterruptTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Charger = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
+	// L'interruttore parte adiacente a dove la carica FERMA il caricatore — (1,0) — perche'
+	// `Action.Interrupt` ha portata 1 e il colpo si valida sulle posizioni del Blast, dopo il Dash.
+	ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, -1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Charger || !Victim || !Interrupter) { DestroyHexBlastWorld(World); return false; }
+
+	RTAbilityFixtures::AddCoreAbility(Charger, TEXT("Action.Charge"));
+
+	// ⚠️ Il `Power` lo azzera la fixture derivandolo dal catalogo. Prima questo sito copiava la sola
+	// portata, quindi `Power` restava al default legacy **30**: `Action.Interrupt` non dichiara `Damage`,
+	// e il resolver ricade sullo specchio. L'interruttore infliggeva trenta danni al caricatore che
+	// nessuna riga di catalogo autorizza — invisibile qui perche' il test guarda la salute della VITTIMA,
+	// non quella del caricatore (#1588).
+	RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
+
+	const int32 VictimHealth = Victim->Health;
+	Charger->PlannedDashAbility = Charger->Abilities.Num() - 1;
+	Charger->PlannedDashCell = FRTCellId(3, 0); // dritto: incontra il bersaglio a (2,0) per strada
+
+	Interrupter->PlannedAbilityIndex = Interrupter->Abilities.Num() - 1;
+	Interrupter->PlannedAttackTarget = Charger;
+
+	RunBlastTurn(TM);
+
+	TestTrue(TEXT("premessa: la carica si e' mossa e si e' fermata davanti al bersaglio"),
+		Charger->Cell == FRTCellId(1, 0));
+	TestEqual(TEXT("l'impatto fa danno lo stesso: l'Interrupt non annulla una carica gia' risolta"),
+		VictimHealth - Victim->Health, 20);
+
+	// E nessuna voce dice che l'abbia annullata.
+	const bool bAnnullata = TM->GetTurnLog().ContainsByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+	});
+	TestFalse(TEXT("e il TurnLog non registra nessuna interruzione"), bAnnullata);
 
 	DestroyHexBlastWorld(World);
 	return true;
@@ -455,15 +534,9 @@ bool FRTChargeHeadOnStopsTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexBlastWorld(World); return false; }
 
-	URTActionData* ChargeA = NewObject<URTActionData>(A);
-	ChargeA->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
-	ChargeA->RangeCells = ChargeA->Def.RangeCells;
-	A->Abilities.Add(ChargeA);
+	RTAbilityFixtures::AddCoreAbility(A, TEXT("Action.Charge"));
 
-	URTActionData* ChargeB = NewObject<URTActionData>(B);
-	ChargeB->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
-	ChargeB->RangeCells = ChargeB->Def.RangeCells;
-	B->Abilities.Add(ChargeB);
+	RTAbilityFixtures::AddCoreAbility(B, TEXT("Action.Charge"));
 
 	const int32 HealthA = A->Health;
 	const int32 HealthB = B->Health;

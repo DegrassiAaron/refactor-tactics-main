@@ -1,3 +1,65 @@
+> 🔎 **ESITO DELLA REVISIONE — 2026-08-26.** Sorgente **recepito in parte**. Referto:
+> [`action-phases-economy-handoff-2026-08-26.md`](../../../roadmap/plans/action-phases-economy-handoff-2026-08-26.md),
+> che da oggi è il documento corrente del dominio e **supera questo file** come lettura delle fasi delle azioni.
+>
+> ✅ **Tre tesi sono vere, e il repository le soddisfaceva già prima di riceverle**, il che le sposta da lavoro
+> a regressione: l'Overwatch standard guarda solo la fase `Move` (il ciclo a micro-step vive dentro
+> `ResolveMovement`, e `ResolveDash` non ci passa — non c'è nessun `position changed` da filtrare); *«Dash +
+> Move»* non esiste da [D-028](../../../decisions/RT_PDR_00_Decision_Log.md)/[D-191](../../../decisions/RT_PDR_00_Decision_Log.md),
+> con `Spec.Movement.DashDiscardsPlannedMove` che lo misura; `Sprint ≠ Dash` è deciso da
+> [D-015](../../../decisions/RT_PDR_00_Decision_Log.md)/[D-116](../../../decisions/RT_PDR_00_Decision_Log.md) e
+> la sua migrazione è debito **dichiarato** di E38, non un buco scoperto qui.
+>
+> ✅ **Tre tesi hanno prodotto due decisioni, il 2026-08-27** in sessione socratica con l'autore:
+> [D-204](../../../decisions/RT_PDR_00_Decision_Log.md) — `Hold Ground` risponde a **un evento** e smette di
+> coprire il turno — e [D-205](../../../decisions/RT_PDR_00_Decision_Log.md) — la `Guard` è la difesa
+> **piantata**, mitigazione sostenuta e `Status.Slow`. Riaprono `BAL-1`, che `D-121` aveva chiuso.
+>
+> 🔴 **La prima stesura di questo banner diceva due cose false, e le diceva il revisore.** Affermava che
+> *«`Action.Brace` è mitigazione, non un counter anti-Dash»* e che il §10 del sorgente contraddiceva il
+> repository: [D-047](../../../decisions/RT_PDR_00_Decision_Log.md) classifica il `Brace` come azione che
+> **arma un profilo di reazione** dal 2026-08-09, ed è **implementata** —
+> `Reactions.Brace.ProfileDecidesInPlay` e altri tre test girano oggi. Il sorgente aveva ragione, e a
+> sbagliare era la revisione, che aveva letto il testo di una decisione come una descrizione dello stato.
+>
+> 🔴 **E sul movimento della Guardia aveva ragione il §5, non il catalogo.** Il banner diceva *«il §5 aveva
+> Guard e Brace scambiati»*: misurato contro il catalogo era esatto — la `Guard` non tocca il movimento, il
+> `Brace` inchioda con `Status.Root` — ma attribuiva l'errore alla parte sbagliata. `D-205` scambia i due
+> mestieri nel verso che il §5 chiedeva.
+>
+> ⚠️ **Resta non adottato il payload anti-Dash del §4.4**: `Reaction.Anchor` ha già il trigger
+> `AboutToBeDisplaced` e lo scenario `Spec.Reaction.AnchorCancelsPush`, e due entità che annullano la stessa
+> spinta si pagano a ogni lettura del TurnLog — il criterio di `D-070` e `D-082`.
+>
+> ⚠️ **E la tesi «Reaction non gratuita» del §4.7 non è diventata una regola**: il meccanismo esisteva già
+> (`bAllowsReaction`, un dato applicato in due punti del resolver, usato da **una** azione — `Action.Sprint`),
+> quindi la tesi si è ridotta a **un booleano su un'azione**, registrato come `BAL-4`.
+>
+> ⛔ **Il §9 è respinto per intero**: la ladder `AE-PHASE-v0.1` … `AE-LAUNCH-v1.0` è la seconda roadmap che il
+> documento stesso vieta al §9. Le release `v0.2`–`v1.0` esistono con le loro epic in
+> [`roadmap-post-v0.1.md`](../../../roadmap/roadmap-post-v0.1.md) — **E38** possiede questo dominio, **E40**–**E45**
+> sono la vista di release di tutto il progetto e non si riusano.
+>
+> ⛔ **Sette delle dodici domande del §15 hanno già un ID** in [`OPEN_DECISIONS.md`](../../../OPEN_DECISIONS.md):
+> `AE-1` e `AE-2` **chiuse** (D-114, D-116), `AE-3` `AE-5` `AE-7` `AE-8` aperte, e il divieto di `Dash` a chi
+> arma l'Overwatch è una **conseguenza** di [D-070](../../../decisions/RT_PDR_00_Decision_Log.md), non una
+> regola da scrivere. `AE-7` ospita già il caso concreto *Dash + attacco + Move*.
+>
+> ⚠️ **I nomi proposti al §6 e §7 sono inventati** e hanno equivalenti reali: `ActionDefinition` è
+> `FRTActionDef`, `ResolvePhase` è `ERTResolutionPhase`, `MovementKind` è `ERTMovementStyle`, e i reason code
+> `ActionConflict.*` sarebbero l'enum parallelo già respinto da
+> [`spec-tassonomia-movimento.md`](../../../gameplay/spec-tassonomia-movimento.md) §6 — `ERTMoveOutcome` porta
+> già `SupersededByDash` e `StoppedByOverwatch`.
+>
+> ✅ **Ciò che sopravvive intero è una tesi sola, ed è nuova**: `Action.Dash` e `ERTMatchPhase::Dash` nominano
+> contenitore e contenuto, e il costo si paga a ogni lettura del TurnLog. Il nome sostitutivo però non è
+> ancora disponibile — `Action.Evade` è **già occupato** da una reazione, `Action.Dash` è uno Stable ID che
+> [D-134](../../../decisions/RT_PDR_00_Decision_Log.md) permette di cancellare solo dopo aver misurato il
+> corpus golden, e il gate che sorvegliava i nomi legacy è uscito con
+> [D-182](../../../decisions/RT_PDR_00_Decision_Log.md).
+
+---
+
 # REFACTORTACTICS — HANDOFF PER CLAUDE / CLAUDE CODE
 ## Action Phases, Dodge, Guard, Brace, Interact, Overwatch e Reaction Economy — Epic/Issue roadmap fino a v1.0
 

@@ -116,7 +116,12 @@ TAutoConsoleVariable<int32> CVarRTCameraTopDown(
 TAutoConsoleVariable<FString> CVarRTMapFixture(
 	TEXT("rt.Map.Fixture"),
 	TEXT(""),
-	TEXT("Fixture di mappa per nome (ArenaV01, RelayBasin, RelayLite, TestArena, CoverYard, DemoArena). "
+	// ⚠️ L'help e' un literal di `TAutoConsoleVariable`, costruito prima che qualunque funzione possa
+	// girare: non puo' chiedere `KnownFixtureIds()`. Resta un elenco a mano, e nominava `DemoArena` — che
+	// non ha un ramo nel dispatcher (`#1459`). Lo tiene allineato
+	// `RefactorTactics.HexMap.EveryListedFixtureNameBuilds`, che legge QUESTO help e lo confronta con
+	// l'autorita'.
+	TEXT("Fixture di mappa per nome (ArenaV01, RelayBasin, RelayLite, TestArena, CoverYard). "
 		 "Vince su rt.Map.Source. Vuoto = nessun effetto."),
 	ECVF_Default);
 

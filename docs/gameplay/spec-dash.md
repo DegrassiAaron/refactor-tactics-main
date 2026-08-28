@@ -10,7 +10,7 @@
 > al pathfinding a grafo ([`spec-pathfinding-pf3-pf4.md`](../technical/architecture/spec-pathfinding-pf3-pf4.md)) e all'animazione della
 > risoluzione ([`spec-anima-risoluzione.md`](spec-anima-risoluzione.md)).
 >
-> ⚠️ **Il nome dell'azione è cambiato il 2026-08-26 con [D-196](../decisions/RT_PDR_00_Decision_Log.md):
+> ⚠️ **Il nome dell'azione è cambiato il 2026-08-26 con [D-230](../decisions/RT_PDR_00_Decision_Log.md):
 > l'azione generica si chiama `Action.Dodge`, e `Dash` resta il nome della sola macro-fase.** Questa
 > pagina continua a essere l'owner della **fase**. Il motivo è che un nome faceva due lavori: un turno
 > risolve `ERTMatchPhase::Dash`, e dentro quella fase ci sono `Dodge`, `Charge`, `Leap`, `Reposition` e

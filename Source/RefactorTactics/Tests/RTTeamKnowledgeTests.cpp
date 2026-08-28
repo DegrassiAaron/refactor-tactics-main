@@ -2,6 +2,7 @@
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h" // StableLess: l'ordine canonico di ExploredCells
 #include "Map/RTHexMapAsset.h"
 #include "Perception/RTTeamKnowledge.h"
 
@@ -40,6 +41,18 @@ namespace
 	FRTLastKnownContact EnemyAt(int32 StableUnitId, const FRTCellId& Cell)
 	{
 		return FRTLastKnownContact(StableUnitId, Cell, /*ignorato*/ 0);
+	}
+
+	/**
+	 * Squadra 0 con un solo osservatore all'origine, che guarda DOVE si dice. Esiste per `ExploredCells`:
+	 * la memoria del terreno si vede solo girando lo sguardo, perche' finche' la direzione non cambia
+	 * `VisibleCells` ed `ExploredCells` coincidono e un test non potrebbe distinguerle.
+	 */
+	FRTTeamKnowledge ObserveFacing(const URTHexMapAsset* Map, int32 TurnNumber, ERTHexDirection Facing,
+		const TArray<FRTLastKnownContact>& Enemies, const FRTTeamKnowledge& Previous)
+	{
+		const TArray<FRTPerceiver> Team = { KnowledgeWatcher(FRTCellId(0, 0), Facing) };
+		return URTTeamKnowledgeLibrary::Observe(Map, /*TeamId*/ 0, TurnNumber, Team, Enemies, Previous);
 	}
 
 	/** Squadra 0 con un solo osservatore, che guarda a est dall'origine. */
@@ -250,6 +263,93 @@ bool FRTKnowledgeLastContactExpiresTest::RunTest(const FString&)
 	TestEqual(TEXT("e leggerla direttamente e' fail-closed"),
 		static_cast<int32>(URTTeamKnowledgeLibrary::AwarenessOfUnit(Futura, 4, SeenAt)),
 		static_cast<int32>(ERTAwareness::Hidden));
+	return true;
+}
+
+/**
+ * [D-227] — **il terreno esplorato resta noto, e non scade.**
+ *
+ * `Contacts` e `ExploredCells` sono due memorie con due leggi diverse, e la differenza non e' un dettaglio:
+ * un contatto scade dopo `ContactLifetimeTurns` perche' **l'unita' si muove**, e un ricordo che sopravvivesse
+ * sarebbe la vista sotto mentite spoglie. Il terreno **non si muove**, quindi dimenticarlo sarebbe una regola
+ * nuova invece che una conseguenza.
+ *
+ * ⚠️ **Il turno 4 e' il punto del test, non un contorno.** Senza di lui, un'implementazione che riusasse la
+ * scadenza dei contatti — la simmetria che viene naturale scrivere — passerebbe verde: fino al turno 2 le due
+ * leggi danno lo stesso risultato, e solo oltre `ContactLifetimeTurns` divergono.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTeamKnowledgeRemembersExploredCells,
+	"RefactorTactics.Perception.KnowledgeRemembersExploredCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTTeamKnowledgeRemembersExploredCells::RunTest(const FString& Parameters)
+{
+	const URTHexMapAsset* Map = MakeKnowledgeMap(6);
+	TestNotNull(TEXT("mappa"), Map);
+	if (!Map)
+	{
+		return false;
+	}
+
+	// Turno 1: si guarda a EST. Cio' che si vede e' anche cio' che si e' esplorato — le due memorie coincidono,
+	// ed e' la ragione per cui il test non puo' fermarsi qui.
+	const FRTTeamKnowledge T1 = ObserveFacing(Map, 1, ERTHexDirection::E, {}, FRTTeamKnowledge());
+	TestTrue(TEXT("turno 1: si vede qualcosa"), T1.VisibleCells.Num() > 0);
+	TestEqual(TEXT("turno 1: esplorato == visto"), T1.ExploredCells.Num(), T1.VisibleCells.Num());
+
+	const TSet<FRTCellId> VisteAEst(T1.VisibleCells);
+
+	// Turno 2: lo sguardo gira a OVEST. Le celle a est ESCONO dalla vista, e sono quelle su cui il test decide.
+	const FRTTeamKnowledge T2 = ObserveFacing(Map, 2, ERTHexDirection::W, {}, T1);
+
+	int32 UsciteDallaVista = 0;
+	for (const FRTCellId& Cell : VisteAEst)
+	{
+		if (!T2.VisibleCells.Contains(Cell))
+		{
+			++UsciteDallaVista;
+			TestTrue(TEXT("turno 2: una cella uscita dalla vista resta ESPLORATA"), T2.ExploredCells.Contains(Cell));
+		}
+	}
+	// Anti-vacuita': se girando lo sguardo non uscisse dalla vista nemmeno una cella, il ciclo sopra non
+	// asserirebbe niente e il test sarebbe verde senza aver misurato nulla.
+	TestTrue(TEXT("girando lo sguardo qualcosa esce davvero dalla vista"), UsciteDallaVista > 0);
+	TestTrue(TEXT("turno 2: la memoria e' CRESCIUTA"), T2.ExploredCells.Num() > T1.ExploredCells.Num());
+
+	// L'invariante che tiene insieme le due: cio' che si vede ora e' sempre anche esplorato.
+	for (const FRTCellId& Cell : T2.VisibleCells)
+	{
+		TestTrue(TEXT("VisibleCells e' sempre un sottoinsieme di ExploredCells"), T2.ExploredCells.Contains(Cell));
+	}
+
+	// ⚠️ Turno 4 — OLTRE `ContactLifetimeTurns`. Qui le due leggi divergono: un contatto del turno 1 sarebbe
+	// gia' scaduto da un pezzo, il terreno del turno 1 no. E' cio' che questo test esiste per fissare.
+	const FRTTeamKnowledge T3 = ObserveFacing(Map, 3, ERTHexDirection::W, {}, T2);
+	const FRTTeamKnowledge T4 = ObserveFacing(Map, 4, ERTHexDirection::W, {}, T3);
+	for (const FRTCellId& Cell : VisteAEst)
+	{
+		TestTrue(TEXT("turno 4: il terreno esplorato NON scade come un contatto"), T4.ExploredCells.Contains(Cell));
+	}
+	TestTrue(TEXT("turno 4: la memoria non si e' ristretta"), T4.ExploredCells.Num() >= T2.ExploredCells.Num());
+
+	// Ordine canonico e nessun duplicato: la memoria entra nello snapshot, e un ordine dipendente dall'hash
+	// farebbe divergere due tracce serializzate senza che nessuna asserzione lo dica (invariante #3).
+	for (int32 i = 1; i < T4.ExploredCells.Num(); ++i)
+	{
+		TestTrue(TEXT("ExploredCells e' ordinata con StableLess"),
+			URTHexLibrary::StableLess(T4.ExploredCells[i - 1], T4.ExploredCells[i]));
+	}
+	TestEqual(TEXT("nessuna cella compare due volte"),
+		TSet<FRTCellId>(T4.ExploredCells).Num(), T4.ExploredCells.Num());
+
+	// Fail-closed, come per i contatti: una memoria di versione ignota non si eredita. Per il terreno
+	// significa che la mappa si richiude — ed e' il comportamento coerente, non un effetto collaterale:
+	// una conoscenza illeggibile non concede nulla, nemmeno la geometria.
+	FRTTeamKnowledge Futura = T4;
+	Futura.Version = FRTTeamKnowledge::CurrentVersion + 1;
+	const FRTTeamKnowledge DalFuturo = ObserveFacing(Map, 5, ERTHexDirection::W, {}, Futura);
+	TestEqual(TEXT("versione ignota: il terreno esplorato non viene ereditato"),
+		DalFuturo.ExploredCells.Num(), DalFuturo.VisibleCells.Num());
 	return true;
 }
 

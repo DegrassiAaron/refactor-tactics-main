@@ -5,7 +5,7 @@
 #include "Misc/FileHelper.h"
 #include "Containers/ArrayView.h" // i campi discriminanti viaggiano come una vista, non come copie
 #include "Templates/Function.h"   // TFunctionRef: il visitor dei campi non alloca
-#include "UObject/ReflectedTypeAccessors.h" // StaticEnum: i nomi degli enum si CHIEDONO, non si ricopiano
+#include "Core/RTEnumName.h" // RTReflection::EnumName: i nomi degli enum si CHIEDONO, non si ricopiano
 
 bool URTTurnLogLibrary::EntryLess(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
 {
@@ -249,17 +249,41 @@ namespace
 	}
 }
 
-TArray<FString> URTTurnLogLibrary::DescribeTurnLog(TArray<FRTTurnLogEntry> Entries)
+TArray<FRTDescribedLine> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries)
 {
 	// Per VALORE e ordinato qui dentro: la sequenza leggibile non deve dipendere dall'ordine in cui le voci
 	// sono arrivate, e ordinare la copia evita di riordinare il TurnLog del chiamante come effetto collaterale.
 	SortTurnLog(Entries);
 
-	TArray<FString> Lines;
+	TArray<FRTDescribedLine> Lines;
 	Lines.Reserve(Entries.Num());
 	for (const FRTTurnLogEntry& Entry : Entries)
 	{
-		Lines.Add(DescribeEntry(Entry));
+		// ⚠️ Due sentinelle diverse per la stessa assenza, e la traduzione sta QUI. Nel TurnLog «nessuna
+		// unita' dichiarata» e' `0` (D-063, e gli `StableUnitId` partono da 1); nel combat log e'
+		// `INDEX_NONE`. Passare lo zero cosi' com'e' farebbe cercare l'unita' 0 nella vista di conoscenza,
+		// che non esiste: ogni riga di mondo sparirebbe fail-closed.
+		FRTDescribedLine& Line = Lines.AddDefaulted_GetRef();
+		Line.Text = DescribeEntry(Entry);
+		Line.SubjectStableUnitId = Entry.UnitId == 0 ? INDEX_NONE : Entry.UnitId;
+		// 🔴 Il verdetto si TRASPORTA. Ricalcolarlo qui sarebbe calcolarlo a fine turno, cioe' sulla
+		// conoscenza sbagliata: e' il difetto che [D-223] esiste per chiudere.
+		Line.Verdict = Entry.Verdict;
+	}
+	return Lines;
+}
+
+TArray<FString> URTTurnLogLibrary::DescribeTurnLog(TArray<FRTTurnLogEntry> Entries)
+{
+	// Adattatore, non un secondo produttore: testo e ordine nascono in un posto solo, quindi le due forme
+	// non possono divergere il giorno in cui una delle due cambia.
+	TArray<FRTDescribedLine> WithSubjects = DescribeTurnLogWithSubjects(MoveTemp(Entries));
+
+	TArray<FString> Lines;
+	Lines.Reserve(WithSubjects.Num());
+	for (FRTDescribedLine& Line : WithSubjects)
+	{
+		Lines.Add(MoveTemp(Line.Text));
 	}
 	return Lines;
 }
@@ -278,7 +302,17 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	case ERTActionInvalidReason::OnCooldown:     return TEXT("l'abilita' e' in ricarica");
 	// CP 13.2: la squadra non sa dove sia, e non ne ha un ricordo su cui ripiegare. Senza questo caso
 	// cadeva nel generico «non eseguibile», che e' la forma di riga che questo ramo esiste per non produrre.
-	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto");
+	//
+	// ⚠️ Il testo dice «alla squadra» e non e' pleonastico: la conoscenza e' di SQUADRA (E13), quindi un
+	// bersaglio puo' essere ignoto a chi agisce e noto a un compagno. «Bersaglio ignoto» lascerebbe
+	// intendere che nessuno lo veda, che e' una frase piu' forte di quella che il dato autorizza.
+	// (Entrambi i rami del merge del 2026-08-28 avevano aggiunto questo case, in punti diversi dello
+	// switch: git non ha visto un conflitto e ne ha prodotti DUE. Il compilatore l'ha fermato — C2196.)
+	case ERTActionInvalidReason::TargetUnknown:  return TEXT("bersaglio ignoto alla squadra");
+	case ERTActionInvalidReason::Interrupted:    return TEXT("interrotta");
+	case ERTActionInvalidReason::NoEffect:       return TEXT("nessun effetto da applicare");
+	// ⚠️ Diverso da «interrotta»: quella e' stata CANCELLATA, questa e' avvenuta senza ottenere niente.
+	case ERTActionInvalidReason::Neutralised:    return TEXT("neutralizzata da un'interruzione reciproca");
 	default:                                     return TEXT("non eseguibile");
 	}
 }
@@ -551,9 +585,14 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 			return FString::Printf(TEXT("%s: il colpo usa l'orientamento %s"), *CellText(Entry.SrcCell), Dir);
 		case ERTFacingOutcome::UsedByOverwatch:
 			return FString::Printf(TEXT("%s: l'overwatch usa l'orientamento %s"), *CellText(Entry.SrcCell), Dir);
-		case ERTFacingOutcome::RearHitBypassedCover:
-			return FString::Printf(TEXT("%s -> %s: colpo fuori dall'arco frontale (guardava %s), la protezione non vale"),
+		case ERTFacingOutcome::RearHitBypassedGuard:
+			return FString::Printf(TEXT("%s -> %s: colpo fuori dall'arco frontale (guardava %s), la Guard non vale"),
 				*CellText(Entry.TgtCell), *CellText(Entry.SrcCell), Dir);
+		case ERTFacingOutcome::RearHitBypassedCover:
+			// ⚠️ Qui `Amount` NON e' una direzione: sono i punti di riduzione scavalcati, quindi `Dir` non si
+			// usa. E' la ragione per cui i due esiti sono separati (`#1430`, [D-199]).
+			return FString::Printf(TEXT("%s -> %s: colpo alle spalle, la copertura non vale (%d punti scavalcati)"),
+				*CellText(Entry.TgtCell), *CellText(Entry.SrcCell), Entry.Amount);
 		default:
 			return FString::Printf(TEXT("%s: orientamento %s"), *CellText(Entry.SrcCell), Dir);
 		}
@@ -598,23 +637,6 @@ namespace
 {
 	constexpr uint32 RT_FNV_OFFSET_BASIS = 2166136261u;
 	constexpr uint32 RT_FNV_PRIME        = 16777619u;
-
-	/**
-	 * Nome di un valore d'enum, via reflection.
-	 *
-	 * NON uno switch scritto a mano: sarebbe un secondo elenco degli stessi valori — la classe di difetto
-	 * che questo file esiste per chiudere — e degraderebbe pure peggio, perche' un valore aggiunto all'enum
-	 * e non allo switch si renderebbe come «?», indistinguibile da qualunque altro valore ignoto. Con la
-	 * reflection un valore fuori enum si mostra GREZZO, che e' l'unica risposta onesta: stesso criterio, e
-	 * stesse parole, di `URTScenarioLoader::DescribeLogEvent`.
-	 */
-	template <typename TEnum>
-	FString EnumName(TEnum Value)
-	{
-		const UEnum* Enum = StaticEnum<TEnum>();
-		const FString Name = Enum ? Enum->GetNameStringByValue(static_cast<int64>(Value)) : FString();
-		return Name.IsEmpty() ? FString::FromInt(static_cast<int32>(Value)) : Name;
-	}
 
 	/**
 	 * Il visitor dei campi discriminanti.
@@ -696,12 +718,16 @@ namespace
 			Visit(Name, TArrayView<const uint32>(), &S, Display);
 		};
 
-		Named(TEXT("phase"), static_cast<int32>(E.Phase), EnumName(E.Phase));
-		Named(TEXT("category"), static_cast<int32>(E.Category), EnumName(E.Category));
+		Named(TEXT("phase"), static_cast<int32>(E.Phase), RTReflection::EnumName(E.Phase));
+		Named(TEXT("category"), static_cast<int32>(E.Category), RTReflection::EnumName(E.Category));
 		// ⚠️ `outcome` resta un numero: il suo significato dipende dalla categoria, e a risolverlo c'e' gia'
 		// `URTScenarioLoader::OutcomeEnumForCategory` — che pero' vive in `ScenarioHarness`, il quale dipende
 		// da `Turn` e non viceversa. Portarla qui e' il lavoro giusto e non e' questo (`#1427`).
-		Number(TEXT("outcome"), E.Outcome);
+		// ⚠️ `outcome` e' l'unico campo il cui significato dipende dalla CATEGORIA, ed e' per questo che si
+		// rende per nome (`#1427`): «atteso 2, trovato 5» mandava chi legge a cercare in `RTTurnLog.h` se
+		// `2` fosse `Lethal`, `AppliedWhileOnCell` o `BlockedByUnit` — il viaggio di ritorno che questo
+		// report esiste per togliere. Il valore mescolato resta il numero: cambia la resa, non l'identita'.
+		Named(TEXT("outcome"), E.Outcome, URTTurnLogLibrary::DescribeOutcome(E.Category, E.Outcome));
 		Cell(TEXT("src"), E.SrcCell);
 		Cell(TEXT("tgt"), E.TgtCell);
 		Number(TEXT("amount"), E.Amount);
@@ -1315,6 +1341,33 @@ ERTTraceComparison URTTurnLogLibrary::CompareSerializedTraces(const TArray<uint8
  * Passa dalla `HashTurnLogOrdered` di una voce sola invece di elencare i campi a mano: cosi' l'elenco
  * resta uno solo (`MixEntryFields`) e non puo' divergere in silenzio da quello vero.
  */
+const UEnum* URTTurnLogLibrary::OutcomeEnumForCategory(ERTLogCategory Category)
+{
+	switch (Category)
+	{
+	case ERTLogCategory::Move:             return StaticEnum<ERTMoveOutcome>();
+	case ERTLogCategory::Combat:           return StaticEnum<ERTCombatOutcome>();
+	case ERTLogCategory::Fallback:         return StaticEnum<ERTFallbackOutcome>();
+	case ERTLogCategory::Reaction:         return StaticEnum<ERTReactionOutcome>();
+	case ERTLogCategory::Environment:      return StaticEnum<ERTEnvironmentOutcome>();
+	case ERTLogCategory::Facing:           return StaticEnum<ERTFacingOutcome>();
+	case ERTLogCategory::Status:           return StaticEnum<ERTStatusOutcome>();
+	case ERTLogCategory::Predictive:       return StaticEnum<ERTPredictiveOutcome>();
+	case ERTLogCategory::ReactionDecision: return StaticEnum<ERTReactionDecisionOutcome>();
+	case ERTLogCategory::ReactionClash:    return StaticEnum<ERTClashLogEvent>();
+	default:                               return nullptr;
+	}
+}
+
+FString URTTurnLogLibrary::DescribeOutcome(ERTLogCategory Category, uint8 Outcome)
+{
+	const UEnum* Enum = OutcomeEnumForCategory(Category);
+	const FString Nome = Enum ? Enum->GetNameStringByValue(static_cast<int64>(Outcome)) : FString();
+	// Un esito fuori dall'enum non e' impossibile — il campo e' un `uint8` e una traccia vecchia puo'
+	// portarne uno che questa build non conosce piu': mostrarlo GREZZO e' l'unica risposta onesta.
+	return Nome.IsEmpty() ? FString::FromInt(static_cast<int32>(Outcome)) : Nome;
+}
+
 bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
 {
 	if (Entry.UnitId == 0)
@@ -1329,8 +1382,17 @@ bool URTTurnLogLibrary::IsSubjectTheSufferer(const FRTTurnLogEntry& Entry)
 	}
 	// La guardia (o la copertura) scavalcata da un colpo alle spalle: la voce descrive l'orientamento del
 	// DIFENSORE, quindi il soggetto e' chi ha subito il colpo. L'attaccante e' in `SrcCell` (`#1418`).
-	return Entry.Category == ERTLogCategory::Facing
-		&& Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+	if (Entry.Category == ERTLogCategory::Facing
+		&& (Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover)
+			|| Entry.Outcome == static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard)))
+	{
+		return true;
+	}
+	// L'azione cancellata da un `Action.Interrupt`: `UnitId` porta chi l'ha SUBITA, non chi ha interrotto
+	// — chi ha interrotto non e' nella voce affatto (`#1437`, [D-196]). Senza questo caso, chi conta le
+	// azioni compiute da un'unita' le accrediterebbe una cancellazione che ha solo subito.
+	return Entry.Category == ERTLogCategory::Fallback
+		&& Entry.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
 }
 
 bool URTTurnLogLibrary::GoldenEntriesMatch(const FRTTurnLogEntry& A, const FRTTurnLogEntry& B)
@@ -1379,7 +1441,7 @@ FString URTTurnLogLibrary::DescribeFirstDivergence(int32 TurnNumber, const TArra
 
 		return FString::Printf(
 			TEXT("turno %d, voce %d: fase %s, %s — atteso [%s], trovato [%s]%s"),
-			TurnNumber, i, *EnumName(Golden[i].Phase), *ActionText,
+			TurnNumber, i, *RTReflection::EnumName(Golden[i].Phase), *ActionText,
 			*GoldenText, *ActualText, *RawDetail);
 	}
 
@@ -1393,7 +1455,7 @@ FString URTTurnLogLibrary::DescribeFirstDivergence(int32 TurnNumber, const TArra
 			TEXT("turno %d: %d voci attese, %d trovate — la prima %s e' in fase %s, azione '%s' [%s]"),
 			TurnNumber, Golden.Num(), Actual.Num(),
 			bMissing ? TEXT("MANCANTE") : TEXT("IN PIU'"),
-			*EnumName(Odd.Phase), *Odd.ActionId.ToString(), *DescribeEntry(Odd));
+			*RTReflection::EnumName(Odd.Phase), *Odd.ActionId.ToString(), *DescribeEntry(Odd));
 	}
 
 	return FString();

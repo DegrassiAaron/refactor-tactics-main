@@ -18,6 +18,7 @@
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
+#include "Tests/RTWorldFixtures.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -77,18 +78,11 @@ namespace
 		// risulta sempre pronta: una partita di prova che non lo chiama misura un gioco che non esiste.
 		U->DispatchBeginPlay();
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
+		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
+		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
+		U->Shield = 0;
 		return U;
-	}
-
-	/** Un turno completo: pianificazione dei bot, risoluzione e playback fino in fondo. */
-	void PlayOneTurn(ARTTurnManager* TM)
-	{
-		TM->PlanBotsForTest();
-		TM->LockInAndResolve();
-		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
-		{
-			TM->Tick(0.05f);
-		}
 	}
 }
 
@@ -116,7 +110,7 @@ bool FRTHexFullMatchTest::RunTest(const FString&)
 	int32 TurnsPlayed = 0;
 	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && TurnsPlayed < MaxTurns)
 	{
-		PlayOneTurn(TM);
+		RTWorldFixtures::PlayOneTurn(TM);
 		++TurnsPlayed;
 		// INVARIANTE DI TURNO: nessuna unita' viva finisce fuori dalla mappa o sopra un'altra.
 		TArray<AActor*> Actors;
@@ -166,7 +160,7 @@ bool FRTHexMatchLogTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMatchWorld(World); return false; }
 
-	PlayOneTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	// Osservabilita': il turno deve lasciare una traccia leggibile, con celle in coordinate assiali.
 	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
@@ -327,7 +321,7 @@ bool FRTHexArenaAnomalyTest::RunTest(const FString&)
 	int32 LayerChanges = 0;
 	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Turns < 12)
 	{
-		PlayOneTurn(TM);
+		RTWorldFixtures::PlayOneTurn(TM);
 		++Turns;
 
 		TSet<FRTCellId> Occupied;
@@ -404,7 +398,7 @@ bool FRTHexClimbViaTransitionTest::RunTest(const FString&)
 		URTHexPathLibrary::FindPath(Arena, Ground, Platform).Status == ERTHexPathStatus::Success);
 
 	Climber->PlannedCell = Platform;
-	PlayOneTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	TestTrue(TEXT("l'unita' e' salita sulla piattaforma"), Climber->Cell == Platform);
 	TestEqual(TEXT("ora sta sul layer 1"), Climber->Cell.Layer, 1);
@@ -415,7 +409,7 @@ bool FRTHexClimbViaTransitionTest::RunTest(const FString&)
 	Climber->PlannedWaypoints.Reset();
 	Climber->PlannedPath.Reset();
 	Climber->PlannedCell = Platform;
-	PlayOneTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	TestEqual(TEXT("senza la transizione l'unita' resta sul layer 0"), Climber->Cell.Layer, 0);
 	TestTrue(TEXT("e non e' finita sulla piattaforma"), Climber->Cell != Platform);
@@ -487,7 +481,7 @@ bool FRTHexHeroDashIsLinearTest::RunTest(const FString&)
 
 		Unit->PlannedDashAbility = DashIdx;
 		Unit->PlannedDashCell = FRTCellId(3, 0); // oltre il muro, in linea
-		PlayOneTurn(TM);
+		RTWorldFixtures::PlayOneTurn(TM);
 
 		// Il muro ferma la traiettoria: si arriva a (1,0), non a (3,0) girandoci attorno.
 		TestTrue(FString::Printf(TEXT("%s: lo scatto non supera il muro"), *Who),
@@ -553,7 +547,7 @@ bool FRTHexChargeImpactTest::RunTest(const FString&)
 	const int32 HealthBefore = Target->Health;
 	Charger->PlannedDashAbility = ChargeIdx;
 	Charger->PlannedDashCell = Target->Cell; // si carica CONTRO il nemico
-	PlayOneTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	// Si ferma ADDOSSO: adiacente al bersaglio, non sopra e non oltre.
 	TestEqual(TEXT("chi carica si ferma davanti al nemico"), Charger->Cell.ToString(), FRTCellId(2, 0, 0).ToString());
@@ -626,7 +620,7 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 
 	Dasher->PlannedDashAbility = DashIdx;
 	Dasher->PlannedDashCell = Blocked;
-	PlayOneTurn(TM);
+	RTWorldFixtures::PlayOneTurn(TM);
 
 	TestTrue(TEXT("lo scatto non entra nella cella bloccata"), Dasher->Cell != Blocked);
 	// `Fallback.Stop`: ci si ferma nell'ultima cella valida della traiettoria, non si annulla e non si aggira.

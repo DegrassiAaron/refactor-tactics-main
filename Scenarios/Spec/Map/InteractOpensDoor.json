@@ -1,0 +1,71 @@
+{
+  "scenarioId": "Spec.Map.InteractOpensDoor",
+  "tags": [
+    "spec",
+    "map",
+    "door",
+    "interact",
+    "generiche",
+    "riktor"
+  ],
+  "version": 1,
+  "seed": 0,
+  "fixture": "RelayBasin",
+
+  "_nota": "SPECIFICA ESEGUIBILE della catena che #833 chiamava «catena locale»: un'unita' adiacente a una porta chiusa la apre, e da quel momento il varco si attraversa. Il gate della lane sud di `RelayBasin` e' chiuso per costruzione — bordo fra (0,1,0) e (1,1,0), `MakeShowcaseRelayBasinArena` — quindi la porta non e' allestita qui: e' quella dello showcase.",
+
+  "_nota_perche_esiste": "Fino al 2026-08-26 questo scenario non era scrivibile, e non per la porta: `Action.Interact` non stava nel kit di nessun eroe, quindi `FindAbilityIndex` avrebbe restituito INDEX_NONE e il runner sarebbe uscito con «'R1' non possiede l'abilita' 'Action.Interact'». E' entrata fra le generiche di D-025 quando il motivo che la teneva fuori — «nessun codice risolve un'interazione» — e' scaduto con D-148/D-151.",
+
+  "_nota_cosa_dimostra_davvero": "⛔ **Questa nota elencava i quattro anelli — kit, `bChangesDoor`, `FirstDoorEdge`, `SetDoorState` — come se fossero il contributo di questo file. Non lo sono**: li copre gia' `RefactorTactics.Structures.Door.InteractFromKitOpensDoor` (`RTHexCombatIntegrationTests.cpp`), scritto il 2026-08-26 e con le stesse quattro righe nel commento. Cio' che qui e' NUOVO e' il T2: una pianificazione di movimento che consuma la revisione nuova, cioe' «un percorso che prima non esisteva» — l'`Expected` letterale del §T5 di `docs/product/showcase-v0.1.md`. Il test C++ arriva fino al TurnLog — asserisce `BlocksTraversal == false` sull'asset **e** l'unica voce `Environment/DoorOpened` col bordo scritto come coppia di celle — ma si ferma allo STATO: non pianifica un percorso su quello stato. ⚠️ **E non e' che nessuno pianifichi percorsi attorno a una porta**: `RefactorTactics.Structures.Door.InvalidatesPathCache` chiama `FindPath` prima e dopo un cambio di stato — ma nella direzione opposta (aperta -> chiusa) e a livello di libreria, su una mappa costruita a mano. Qui la direzione e' APRIRE, e il percorso lo compone la pipeline vera: intento -> Planning -> resolver -> fase Move. ⚠️ **Le due assertion sul log non sono percio' ridondanti e non si potano**: `DoorOpened == 1` e `DoorClosed == 0` sono cio' che rende INTERPRETABILE il passo del T2 — senza, la lunghezza 1 direbbe che si e' passati di li', non che a farlo passare sia stato il gate.",
+
+  "_nota_perche_due_turni": "Il T1 apre, il T2 attraversa — e i due NON si fondono in uno. Il piano di movimento si compone in pianificazione, quando la porta e' ancora chiusa: chiedere il passo nello stesso turno misurerebbe se il percorso viene rivalutato dopo il Blast, che e' un'altra domanda e non ha una risposta dichiarata. Separandoli, il T2 pianifica su una mappa in cui la porta e' gia' aperta, e cio' che verifica e' il DATO cambiato — non l'ordine interno di un turno.",
+
+  "_nota_bersaglio": "Si punta la cella OLTRE la porta, non il bordo: il resolver cerca la prima porta sulla traiettoria fra chi agisce e la cella mirata (`FirstDoorEdge`), e da (0,1,0) a (1,1,0) quella traiettoria e' il bordo del gate. La portata di `Action.Interact` e' 1 (D-149) e le due celle sono adiacenti.",
+
+  "_nota_la_porta_chiusa_non_blocca_la_propria_apertura": "Il punto piu' sottile, e va detto perche' chi legge si chiede come si apra una porta che toglie la vista a cio' che sta oltre. Una porta chiusa blocca la LOS, quindi `ValidateInstance` restituisce `NoLineOfSight` — ma quel motivo e' uno dei due che il Blast NON degrada al fallback (`bHandledByPlan`), e `URTHexCombatLibrary` raccoglie l'operazione sulla porta PRIMA del controllo della linea di tiro. E' deliberato, e il commento accanto al ramo lo dichiara: «chiuderla sarebbe impossibile se il proprio effetto venisse scartato dalla porta stessa». Se un giorno quel ramo si spostasse dopo il controllo, questo scenario diventerebbe rosso. ⛔ **Questa riga proseguiva con «ed e' l'unico posto che lo sorveglia», e la misura lo smentisce**: spostando davvero il ramo (2026-08-27, sulla suite intera) cadono DUE test e nessun altro — questo e `RefactorTactics.Structures.Door.InteractFromKitOpensDoor`, che mette l'apritore adiacente a una porta chiusa e quindi attraversa lo stesso ramo. Il presidio e' doppio, e il piu' vecchio e' quello C++. ⚠️ Questa e' l'UNICA nota del file che racconta quella mutazione: raccontarla due volte significherebbe tenerne allineate due.",
+
+  "_nota_superfici": "(0,1,0) e' `ShallowWater` e (1,1,0) e' `Conductive`: sono le superfici dello showcase e non c'entrano con la porta. Nessuna delle due fa danno da sola, quindi non compaiono nelle assertion — e se un giorno lo facessero, cadrebbe l'assertion sulla vita, che e' li' apposta.",
+
+  "_nota_avversario": "W1 sta all'estremita' opposta del bacino e non dichiara intenti: serve solo perche' la partita abbia due squadre. Le sue assertion di posizione e vita sono la controprova che il turno non ha fatto altro.",
+
+  "units": [
+    { "id": "R1", "hero": "Hero.Riktor", "team": 0, "cell": [0, 1, 0] },
+    { "id": "W1", "hero": "Hero.Wraith", "team": 1, "cell": [0, -3, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — R1 interagisce con il gate. Nessun movimento: cio' che si misura e' il cambio di stato della porta.",
+      "intents": [
+        { "unit": "R1", "ability": "Action.Interact", "targetCell": [1, 1, 0] }
+      ]
+    },
+    {
+      "_turno": "T2 — con la porta aperta il passo esiste. Un solo waypoint: la cella oltre il varco.",
+      "intents": [
+        { "unit": "R1", "move": [[1, 1, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "IL DISCRIMINANTE. Una porta aperta, una sola volta: se l'operazione venisse applicata due volte la revisione della mappa salirebbe di due e il replay divergerebbe.",
+      "type": "LogEventCount", "category": "Environment", "outcome": "DoorOpened", "value": 1 },
+
+    { "_assertion": "Nessuna porta CHIUSA: `Action.Interact` chiede solo `Open` (D-151), e il giocatore non puo' commutare. Se un giorno l'azione tornasse a commutare, questa riga cade prima che il difetto arrivi al playtest.",
+      "type": "LogEventCount", "category": "Environment", "outcome": "DoorClosed", "value": 0 },
+
+    { "_assertion": "R1 e' arrivato dall'altra parte — ma da solo questo NON dimostra che ci sia passato ATTRAVERSO. ⛔ La riga diceva «l'effetto, misurato sul dato e non dedotto dal log»: misurato il 2026-08-27, con la porta mai aperta l'A* aggira il gate e arriva alla STESSA cella — due passi invece di uno — e l'assertion passa lo stesso. ⚠️ E il repository lo sapeva gia': `RefactorTactics.Structures.Door.InvalidatesPathCache` lo scrive nel suo commento — «la cella resta raggiungibile, e' il bordo a non essere piu' attraversabile: una porta non toglie celle dalla mappa» — e asserisce `Path.Num() > 2`. Il discriminante sul dato e' quello qui sotto.",
+      "type": "UnitAtCell", "unit": "R1", "cell": [1, 1, 0] },
+
+    { "_assertion": "IL DISCRIMINANTE SUL DATO: il percorso e' lungo UN passo, cioe' e' passato dal varco invece di aggirarlo. `Amount` di una voce `Move`/`Moved` sono le celle effettivamente percorse (`Entered.Num()`, `RTHexSimLibrary.cpp`), e l'oracolo legge la PRIMA occorrenza. ⚠️ **`LogEventAmount` non nomina l'unita'** — `IndexOfScenarioLogEvent` confronta solo categoria e outcome, e il formato non ha un campo `unit` per questa assertion — quindi la riga si regge su un'invariante di QUESTO file: il passo del T2 di R1 e' la prima voce `Moved` dell'intera partita. Regge perche' nel T1 nessuno si muove (R1 fa `Interact`, W1 non dichiara intenti: entrambi loggano `Stayed`) e W1 resta fermo fino alla fine. ⛔ Chi dia un movimento a W1, o inserisca un turno prima del T2, sposta l'oracolo su un altro passo **senza che nulla diventi rosso**: in quel caso si aggiunge il turno DOPO, non prima. Attraverso il gate vale 1; aggirandolo vale 2, con la stessa cella d'arrivo. E se il movimento non avvenisse affatto l'evento sarebbe assente, che l'oracolo tratta come fallimento e non come zero.",
+      "type": "LogEventAmount", "category": "Move", "outcome": "Moved", "value": 1 },
+
+    { "_assertion": "L'avversario non si e' mosso e non ha subito nulla: il turno ha fatto una cosa sola.",
+      "type": "UnitAtCell", "unit": "W1", "cell": [0, -3, 0] },
+    { "type": "UnitHpEquals", "unit": "W1", "value": 90 },
+    { "type": "UnitHpEquals", "unit": "R1", "value": 120 },
+
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}

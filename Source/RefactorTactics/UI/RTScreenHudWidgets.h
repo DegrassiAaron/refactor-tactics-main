@@ -62,6 +62,20 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 
+	/**
+	 * Riprova ad acquisire il contesto finche' non c'e'.
+	 *
+	 * 🔴 **Il widget puo' nascere PRIMA del `TurnManager`, e nel percorso normale succede.**
+	 * `ARTGameMode::BeginPlay` chiama `EnterMatch()` — che presenta il HUD — alla riga 295, e spawna il
+	 * `ARTTurnManager` alla riga 337. `NativeConstruct` cerca un actor che non esiste ancora, trova
+	 * `nullptr`, e senza questo tick resterebbe senza contesto **per sempre**: `HasMatchContext()` falso,
+	 * tutte le viste neutre, e a schermo «—» al posto di «Round 1/12».
+	 *
+	 * ⚠️ **Il costo e' limitato per costruzione**: la ricerca gira solo finche' `TurnManager` e' invalido,
+	 * cioe' i pochi frame iniziali. Appena il contesto c'e', questo tick non fa piu' nulla.
+	 */
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
 	/** Risolve il contesto dall'owning player. Chiamata da `NativeConstruct`; ripetibile. */
 	void AcquireMatchContext();
 
@@ -70,6 +84,33 @@ protected:
 
 	/** L'unita' selezionata dal giocatore, o `nullptr`. Protetta: i Blueprint vedono solo le VISTE. */
 	const ARTUnit* GetSelectedUnit() const;
+
+public:
+	/**
+	 * Il catalogo iconografico, o `nullptr`.
+	 *
+	 * 🔴 **Esiste perche' il catalogo vive sulla RADICE e non su questa base**, e nessuno dei widget che
+	 * devono mostrare un'icona lo raggiungeva: `IconCatalog` e' dichiarato su `URTTacticalHUDWidget`, che
+	 * e' una classe **sorella** nella gerarchia — discende da questa base, non la precede. Il dock quindi
+	 * non lo ereditava, e nel grafo di un Blueprint non c'era nodo che lo producesse.
+	 *
+	 * ⚠️ **Dichiararlo qui sulla base sarebbe stata l'altra strada, e costa di piu':** e' un
+	 * `EditDefaultsOnly`, quindi ogni `WBP_RT_*` avrebbe la propria copia da assegnare a mano — N
+	 * occasioni di dimenticarne una, contro l'unica assegnazione sulla radice che c'e' oggi.
+	 *
+	 * ⚠️ **Risale con `GetTypedOuter`, ed e' un idioma NUOVO per questo file.** Il resto della base non
+	 * cammina l'albero UMG: prende gli attori dal mondo (`GetActorOfClass`) o passa da
+	 * `GetOwningPlayer()`. Qui non e' possibile — il catalogo non e' un attore e non appartiene al
+	 * controller, e' un dato di configurazione di un widget. La risalita e' quindi l'unica via, e il suo
+	 * limite si dichiara: **se un widget viene innestato fuori dal `WBP_RT_TacticalHUD` questa funzione
+	 * restituisce `nullptr` in silenzio**.
+	 *
+	 * ✅ Il silenzio non e' pero' una perdita: `URTIconLibrary::ResolveIcon` con catalogo nullo da' il
+	 * missing-icon **con una warning che nomina la chiave e il consumer**. A schermo si vede che manca,
+	 * che e' il comportamento voluto dallo Step 6.4 del piano di `#613`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	const URTIconCatalogData* GetIconCatalog() const;
 
 private:
 	UPROPERTY(Transient)

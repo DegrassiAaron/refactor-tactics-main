@@ -1,5 +1,7 @@
 #include "Debug/RTDebugReportLibrary.h"
 
+#include "Core/RTEnumName.h"
+
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
 #include "Terrain/RTTerrainLibrary.h"
@@ -10,17 +12,6 @@
 
 namespace
 {
-	/** Il nome di un valore di enum riflesso, senza il prefisso del tipo. Vuoto se l'enum non e' UENUM. */
-	template <typename TEnum>
-	FString EnumName(TEnum Value)
-	{
-		if (const UEnum* Meta = StaticEnum<TEnum>())
-		{
-			return Meta->GetNameStringByValue(static_cast<int64>(Value));
-		}
-		return FString::FromInt(static_cast<int64>(Value));
-	}
-
 	/** Il livello di certezza in una parola, per la riga di `DrawIntent`. */
 	const TCHAR* CertaintyLabel(ERTIntentCertainty Certainty)
 	{
@@ -135,7 +126,7 @@ FRTDebugReplayVerdict URTDebugReportLibrary::VerifyReplay(const TArray<uint8>& G
 FString URTDebugReportLibrary::DescribeCell(const FRTHexCellData& Cell, int32 OccupantUnitId, int32 Revision)
 {
 	FString Line = FString::Printf(TEXT("%s %s cost=%d"),
-		*Cell.Id.ToString(), *EnumName(Cell.Surface), Cell.TotalMoveCost());
+		*Cell.Id.ToString(), *RTReflection::EnumName(Cell.Surface), Cell.TotalMoveCost());
 
 	// `INDEX_NONE` = libera. Si OMETTE il campo invece di stamparne uno vuoto: una riga che dice
 	// `occupante=` invita a chiedersi di chi sia quella stringa vuota.
@@ -149,7 +140,7 @@ FString URTDebugReportLibrary::DescribeCell(const FRTHexCellData& Cell, int32 Oc
 	for (const FRTHexCover& Cover : Cell.Covers)
 	{
 		Line += FString::Printf(TEXT(" cover[%s:%s/%d]"),
-			*EnumName(Cover.Edge), *EnumName(Cover.Type), Cover.Integrity);
+			*RTReflection::EnumName(Cover.Edge), *RTReflection::EnumName(Cover.Type), Cover.Integrity);
 	}
 
 	// Gli stati che la superficie impone a chi ci sta sopra. Derivati, non memorizzati — ed e' la
@@ -189,8 +180,8 @@ FString URTDebugReportLibrary::DescribeLogEntry(const FRTTurnLogEntry& Entry, in
 	FString Line = FString::Printf(TEXT("#%d T%d %s %s %s unita=%d p%d %s -> %s"),
 		SequenceIndex,
 		Entry.TurnNumber,
-		*EnumName(Entry.Phase),
-		*EnumName(Entry.Category),
+		*RTReflection::EnumName(Entry.Phase),
+		*RTReflection::EnumName(Entry.Category),
 		Entry.ActionId.IsNone() ? TEXT("(senza azione)") : *Entry.ActionId.ToString(),
 		Entry.UnitId,
 		Entry.Priority,
@@ -234,7 +225,7 @@ TArray<FString> URTDebugReportLibrary::DescribeSnapshot(const FRTHexSnapshot& Sn
 	{
 		Lines.Add(FString::Printf(TEXT("[RT]   unita %d %s %s mp=%d facing=%s"),
 			U.UnitId, *U.Cell.ToString(), U.bAlive ? TEXT("viva") : TEXT("ELIMINATA"),
-			U.MoveBudget, *EnumName(U.Facing)));
+			U.MoveBudget, *RTReflection::EnumName(U.Facing)));
 	}
 
 	if (const URTHexMapAsset* Map = Snapshot.Map)

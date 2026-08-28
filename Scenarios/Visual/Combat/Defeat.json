@@ -5,7 +5,9 @@
   "seed": 0,
   "mapRadius": 4,
 
-  "_nota": "BANCO VFX per il KO. Due nemici colpiscono Gadget con gli attacchi base: 8 (Hero.Riktor.ImpactShot) + 21 (Hero.Wraith.PulseShot) = 29 a turno, e i 90 HP di Gadget finiscono nel QUARTO. Nessun cooldown in mezzo: entrambe le azioni hanno cooldown 0. Arena liscia e nessun terreno, perche' l'unica cosa da guardare qui e' l'eliminazione. Fino ad ADR-0007 ImpactShot faceva 24, la somma era 45 e i 90 finivano ESATTAMENTE in due turni: quella coincidenza era una comodita' del banco, non una proprieta' del gioco, e con Riktor portato a 8 non c'e' piu'. Serviva scegliere fra allungare a quattro turni e cambiare le azioni: allungare conserva cio' che lo scenario deve mostrare — il KO con gli ATTACCHI BASE — mentre sostituirle avrebbe misurato altro.",
+  "_nota": "BANCO VFX per il KO. Due nemici colpiscono Gadget con gli attacchi base: 8 (Hero.Riktor.ImpactShot) + 21 (Hero.Wraith.PulseShot). Nessun cooldown in mezzo: entrambe le azioni hanno cooldown 0. Arena liscia e nessun terreno, perche' l'unica cosa da guardare qui e' l'eliminazione. Fino ad ADR-0007 ImpactShot faceva 24, la somma era 45 e i 90 HP finivano ESATTAMENTE in due turni: quella coincidenza era una comodita' del banco, non una proprieta' del gioco, e con Riktor portato a 8 non c'e' piu'. Serviva scegliere fra allungare i turni e cambiare le azioni: allungare conserva cio' che lo scenario deve mostrare — il KO con gli ATTACCHI BASE — mentre sostituirle avrebbe misurato altro.",
+
+  "_nota_scudo": "[D-224] Allungato da QUATTRO a SEI turni, per la stessa ragione per cui era gia' passato da due a quattro. Lo scudo base assorbe 5 punti per turno e si ricarica nel Cleanup, quindi ogni turno arriva a segno meno di prima: MISURATO il 2026-08-28, con quattro turni Gadget chiudeva a 18 HP invece che abbattuto, e col quinto a 2. Lo scenario smetteva di mostrare la cosa che gli da' il nome. Il sesto lo rimette a zero. I due numeri sono MISURATI con una sonda `UnitHpEquals`, non dedotti: il danno per turno non e' costante e una stima lineare aveva sbagliato di un turno. ⚠️ Il danno per turno NON e' uniforme e non viene dichiarato qui: `Hero.Gadget.ReactiveCapacitor` e' una reazione di kit con cooldown 3 che concede scudo temporaneo quando Gadget incassa, quindi i turni in cui e' pronta assorbono piu' degli altri. Le quote intermedie che questo file dichiarava turno per turno erano vere prima di D-224 e sono state tolte invece di essere riscritte a occhio.",
 
   "_nota_riva": "Phase sta in un angolo e non fa nulla, e non e' decorazione: senza di lei il team 0 verrebbe annientato con Gadget e la partita finirebbe, portandosi via il secondo turno che questo scenario deve completare.",
 
@@ -20,28 +22,42 @@
 
   "turns": [
     {
-      "_turno": "T1 — 90 -> 61. Si guarda l'incassare: due colpi nello stesso Blast, e la barra che scende due volte.",
+      "_turno": "T1 — si guarda l'incassare: due colpi nello stesso Blast, e la barra che scende due volte.",
       "intents": [
         { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" },
         { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
       ]
     },
     {
-      "_turno": "T2 — 61 -> 32. Stessi due colpi, nessuna variazione: qui si guarda che la barra scenda in modo uguale a se stessa.",
+      "_turno": "T2 — stessi due colpi. Qui si guarda la ripetizione, non una quota: con la reazione di Gadget in cooldown alterno il passo non e' uniforme.",
       "intents": [
         { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" },
         { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
       ]
     },
     {
-      "_turno": "T3 — 32 -> 3. L'ultimo turno in cui Gadget sopravvive, e per soli 3 HP: e' il fotogramma da guardare se il KO scattasse in anticipo.",
+      "_turno": "T3 — meta' corsa. Nessun evento nuovo da guardare: serve a portare la barra in zona critica.",
       "intents": [
         { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" },
         { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
       ]
     },
     {
-      "_turno": "T4 — 3 -> 0. Gia' il primo dei due colpi porta a zero: e' qui che si guarda il KO.",
+      "_turno": "T4 — l'ultimo turno in cui Gadget sopravvive: e' il fotogramma da guardare se il KO scattasse in anticipo.",
+      "intents": [
+        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
+      ]
+    },
+    {
+      "_turno": "T5 — l'ultimo turno in cui Gadget sopravvive, e per soli 2 HP: e' il fotogramma da guardare se il KO scattasse in anticipo. [D-224] Prima di questa decisione il quarto turno bastava.",
+      "intents": [
+        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" },
+        { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
+      ]
+    },
+    {
+      "_turno": "T6 — qui si guarda il KO. Gia' il primo dei due colpi porta a zero.",
       "intents": [
         { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "F1" },
         { "unit": "V1", "ability": "Hero.Wraith.PulseShot",   "target": "F1" }
@@ -53,6 +69,6 @@
     { "type": "UnitAlive",     "unit": "F1", "value": false },
     { "type": "UnitAlive",     "unit": "R1", "value": true },
     { "type": "UnitHpEquals",  "unit": "R1", "value": 95 },
-    { "type": "TurnsCompleted", "value": 4 }
+    { "type": "TurnsCompleted", "value": 6 }
   ]
 }
