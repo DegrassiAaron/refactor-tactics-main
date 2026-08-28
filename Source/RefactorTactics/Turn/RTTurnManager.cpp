@@ -6337,6 +6337,44 @@ void ARTTurnManager::RecordPlanningInput(ERTPlanningInput Kind)
 void ARTTurnManager::ClosePacingSample()
 {
 	PacingCurrent.MsPlayback = FMath::RoundToInt(PlaybackElapsedTotal * 1000.f);
+
+	// Quante finestre di reazione hanno occupato la squadra misurata in QUESTO turno (CP 14.6, `#166`).
+	//
+	// Si DERIVA dal TurnLog invece di essere contato durante la risoluzione: l'apertura di una finestra e' gia'
+	// un fatto registrato, e un contatore parallelo nel resolver sarebbe una seconda verita' che diverge al
+	// primo esito nuovo — con l'aggravante di essere uno stato mutabile su un percorso che deve restare
+	// deterministico. Qui la misura e' telemetria pura: legge, non decide.
+	{
+		TSet<int32> Responders;
+		TArray<AActor*> UnitActors;
+		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), UnitActors);
+		for (AActor* Actor : UnitActors)
+		{
+			// ⚠️ **Nessun filtro su `IsAlive()`**, a differenza di `BeginPacingSample`: un'unita' caduta
+			// DURANTE il turno ha comunque potuto aprire finestre prima di cadere, e scartarla farebbe
+			// sparire proprio le attese dei turni piu' concitati — cioe' quelle che tarano il bank.
+			if (const ARTUnit* Unit = Cast<ARTUnit>(Actor))
+			{
+				// 🔴 **Lo `0` non entra**: [D-063] lo riserva a «nessuna unita' dichiarata», e
+				// `EnsureMatchRoster` assegna gli id da 1 lasciandolo libero apposta. Un'unita' spawnata
+				// DOPO il congelamento del roster lo conserva — e con `0` nel set, una voce di log senza
+				// soggetto, o un'evocazione avversaria nella stessa condizione, finirebbe nel bank del
+				// giocatore misurato: esattamente la confusione fra squadre che il filtro per responder
+				// esiste per impedire ([D-167]).
+				if (Unit->TeamId == PacingTeamId && Unit->StableUnitId != 0)
+				{
+					Responders.Add(Unit->StableUnitId);
+				}
+			}
+		}
+
+		// ⚠️ Nessun filtro per turno, e non e' una dimenticanza: `LockInAndResolve` fa `TurnLog.Reset()`
+		// prima di ogni risoluzione, quindi il log contiene **gia' e solo** il turno corrente. Il filtro che
+		// stava qui copiava l'intero array — ogni voce con le sue `FString` — per un predicato sempre vero.
+		PacingCurrent.ReactionWindowsOpened =
+			URTPacingLibrary::CountOpenedReactionWindows(TurnLog, Responders);
+	}
+
 	PacingSamples.Add(PacingCurrent);
 	if (bRecordPacing)
 	{

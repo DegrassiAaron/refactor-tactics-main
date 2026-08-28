@@ -32,6 +32,18 @@ static void RTDebugPacingCommand(const TArray<FString>& Args, UWorld* World, FOu
 	Ar.Logf(TEXT("[RT]   lock-in: mediana %d ms, p90 %d ms"), S.MedianMsToLockIn, S.P90MsToLockIn);
 	Ar.Logf(TEXT("[RT]   tagli veri: %d | attese a vuoto: %d"), S.TrueCutoffs, S.IdleTimeouts);
 	Ar.Logf(TEXT("[RT]   playback: mediana %d ms, saltati %d"), S.MedianMsPlayback, S.SkippedPlaybacks);
+
+	// Il carico di decisione (CP 14.6). Il tetto e' `finestre × FastReactionDuration` e vale se ognuna arriva
+	// a scadenza: e' cio' che `InitialBankMs` deve poter coprire, non il tempo che il giocatore ha speso
+	// davvero — quello lo dira' il playtest, e questa riga e' dove si vedra' se i due divergono.
+	if (const ARTTurnManager* Manager = TM)
+	{
+		const float WindowSeconds = Manager->GetFastReactionDuration();
+		Ar.Logf(TEXT("[RT]   finestre di reazione: %d in sessione, tetto %.1f s (= %d x %.1f s a scadenza)"),
+			S.TotalReactionWindows,
+			URTPacingLibrary::ReactionDecisionSecondsUpperBound(S.TotalReactionWindows, WindowSeconds),
+			S.TotalReactionWindows, WindowSeconds);
+	}
 	Ar.Logf(TEXT("[RT]   lettura: tagli > 0 -> alza PlanningSeconds; tagli 0 e attese alte -> e' l'interfaccia, non il timer."));
 }
 
