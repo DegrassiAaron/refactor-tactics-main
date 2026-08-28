@@ -1136,6 +1136,19 @@ save/replay** · soak da release candidate.
 
 **Ranked e rating** stanno qui e non in E42: un rating ha senso quando le regole non cambiano più.
 
+> 🔴 **Questa frase ha promesso ranked e rating per quindici giorni senza un owner, e il rimando era
+> circolare** (misurato il 2026-08-28). I quattro checkpoint di E44 sono freeze, hardening, migrazione e
+> soak; `CP 45.3` ([#810](https://github.com/DegrassiAaron/refactor-tactics-main/issues/810)) metteva il
+> rating fuori scope dicendo «*`44` ha già deciso il perimetro*», e `44` aveva solo questa riga. Ricerca nel
+> tracker lo stesso giorno: **0** issue con `ranked`, **0** con `MMR`, **1** con `matchmaking` — quella.
+>
+> ✅ L'owner ora è **`CP 44.5`** ([#1604](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1604)),
+> e il perimetro è `RNK-1` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
+>
+> ⚠️ **Resta una contraddizione interna a questa sezione, e va sciolta lì**: apre con «*Niente di nuovo.
+> Questa epic non aggiunge meccaniche*» e poi rivendica ranked e rating, che sono meccaniche nuove. È
+> plausibilmente il motivo per cui il checkpoint non è mai stato scritto.
+
 ⚠️ **Cuttable, dichiarato in anticipo**: progressione orizzontale e modding data-only. Non devono bloccare la
 1.0 se il core competitivo è pronto — e dirlo ora costa meno che negoziarlo sotto scadenza.
 

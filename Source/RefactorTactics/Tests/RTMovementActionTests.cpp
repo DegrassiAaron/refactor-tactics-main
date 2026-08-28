@@ -189,7 +189,7 @@ bool FRTSprintNoReactionTest::RunTest(const FString&)
 
 	// Le altre mobilita' invece la consentono: la differenza e' il punto: se tutte la negassero, il dato non
 	// distinguerebbe nulla.
-	const TCHAR* Others[] = { TEXT("Action.Dash"), TEXT("Action.Charge"), TEXT("Action.Leap"),
+	const TCHAR* Others[] = { TEXT("Action.Dodge"), TEXT("Action.Charge"), TEXT("Action.Leap"),
 		TEXT("Action.Reposition"), TEXT("Action.Move"), TEXT("Action.Wait") };
 	for (const TCHAR* Id : Others)
 	{
@@ -215,7 +215,7 @@ bool FRTMovementCatalogTest::RunTest(const FString&)
 	struct FExpected { const TCHAR* Id; ERTMatchPhase Macro; ERTMovementStyle Style; int32 Range; int32 Cooldown; };
 	const FExpected Expected[] = {
 		{ TEXT("Action.Sprint"),     ERTMatchPhase::Dash, ERTMovementStyle::Budget,       8, 0 },
-		{ TEXT("Action.Dash"),       ERTMatchPhase::Dash, ERTMovementStyle::LinearDash,   3, 1 },
+		{ TEXT("Action.Dodge"),       ERTMatchPhase::Dash, ERTMovementStyle::LinearDash,   3, 1 },
 		{ TEXT("Action.Charge"),     ERTMatchPhase::Dash, ERTMovementStyle::LinearCharge, 3, 2 },
 		{ TEXT("Action.Leap"),       ERTMatchPhase::Dash, ERTMovementStyle::LinearLeap,   3, 2 },
 		{ TEXT("Action.Reposition"), ERTMatchPhase::Dash, ERTMovementStyle::LinearDash,   2, 1 },
@@ -299,8 +299,8 @@ bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
 	// `None` stava annullando. Le due asserzioni stavano su `Ranger.Dash` e `Guardian.Charge`, cioe' sul
 	// catalogo dei due archetipi legacy, rimosso il 2026-08-10: verificavano lo stile su azioni che nessuna
 	// partita spediva. Ora stanno sul catalogo generico e sul roster, che sono cio' che il gioco usa.
-	const FRTActionDef CoreDash = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
-	TestTrue(TEXT("Action.Dash e' uno scatto lineare"), CoreDash.MovementStyle == ERTMovementStyle::LinearDash);
+	const FRTActionDef CoreDodge = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
+	TestTrue(TEXT("Action.Dodge e' uno scatto lineare"), CoreDodge.MovementStyle == ERTMovementStyle::LinearDash);
 
 	const FRTActionDef CoreCharge = URTCatalogLibrary::FindCoreAction(TEXT("Action.Charge"));
 	TestTrue(TEXT("Action.Charge e' una carica"), CoreCharge.MovementStyle == ERTMovementStyle::LinearCharge);
@@ -346,7 +346,7 @@ bool FRTFastMovementDeclaresStyleTest::RunTest(const FString&)
 // 20 le unita' ATTRAVERSATE») ma usava `LinearDash`, quindi non attraversava nessuno e quei 20 danni non
 // avevano un momento in cui applicarsi.
 //
-// Stile NUOVO invece di cambiare `LinearDash`: quello e' condiviso con `Action.Dash` e `Action.Reposition`,
+// Stile NUOVO invece di cambiare `LinearDash`: quello e' condiviso con `Action.Dodge` e `Action.Reposition`,
 // dove fermarsi davanti a un nemico e' il comportamento giusto. Cambiarlo li' avrebbe fatto passare ogni
 // scatto attraverso le linee avversarie.
 // =====================================================================================================

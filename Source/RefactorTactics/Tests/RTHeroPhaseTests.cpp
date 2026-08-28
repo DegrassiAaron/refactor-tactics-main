@@ -72,8 +72,8 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 	// l'unico produttore INNATO di superficie acqua, quindi `Gadget.ConductiveNode` — che propaga sul grafo
 	// conduttivo — dipende dalla mappa o dallo Sprinkler. La vetrina Conflux di D-046 ne risente.
 	const URTActionData* FluidTrail = Phase->Actions[2];
-	const FRTActionDef DashDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
-	TestEqual(TEXT("FluidTrail: portata dal core, non un numero nuovo"), FluidTrail->Def.RangeCells, DashDef.RangeCells);
+	const FRTActionDef DodgeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
+	TestEqual(TEXT("FluidTrail: portata dal core, non un numero nuovo"), FluidTrail->Def.RangeCells, DodgeDef.RangeCells);
 	TestEqual(TEXT("FluidTrail: cooldown 2, il proprio e non quello del core"), FluidTrail->Def.CooldownTurns, 2);
 	TestTrue(TEXT("FluidTrail: e' movimento rapido, non ambiente"),
 		FluidTrail->Def.ResolutionPhase == ERTResolutionPhase::FastMovement);

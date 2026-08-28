@@ -37,7 +37,7 @@ ICONS = REPO_ROOT / "Content/RT/UI/_Generated/Icons"
 DOC_PAIRS = [
     ("Action_LineAttack", "Action_Move"),
     ("Action_Move", "Action_Sprint"),
-    ("Action_Sprint", "Action_Dash"),
+    ("Action_Sprint", "Action_Dodge"),
     ("Action_Hero_Gadget_ArcPulse", "Action_Overwatch"),
     ("Action_Shield", "Action_Brace"),
     ("Action_Brace", "Action_CreateCover"),
@@ -51,7 +51,7 @@ DOC_PAIRS = [
     ("Identity_Ally", "Identity_Enemy"),
     ("Certainty_Confirmed", "Certainty_Predicted"),
     ("Certainty_Predicted", "Certainty_Uncertain"),
-    ("Action_Push", "Action_Dash"),
+    ("Action_Push", "Action_Dodge"),
     ("Action_Interact", "Action_MarkTarget"),
     # aggiunte dalla misura, non dal documento: azione contro stato omonimo
     ("Action_Root", "Status_Root"),

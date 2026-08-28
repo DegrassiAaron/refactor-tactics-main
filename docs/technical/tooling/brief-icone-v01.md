@@ -80,7 +80,7 @@ l'altra.
 
 | Token | HEX | Usato da |
 |---|---|---|
-| `RT_Sem_Movement` | `#009E73` | `Action.Move` · `Action.Sprint` · `Action.Dash` · `Action.Leap` |
+| `RT_Sem_Movement` | `#009E73` | `Action.Move` · `Action.Sprint` · `Action.Dodge` · `Action.Leap` |
 | `RT_Sem_Attack` | `#D55E00` | `Action.BasicAttack` · `Action.Charge` |
 | `RT_Sem_Utility` | `#0072B2` | `Action.Interact` |
 | `RT_Sem_Defense` | `#56B4E9` | `Action.Guard` · `Status.Guarded` · `Status.Braced` |
