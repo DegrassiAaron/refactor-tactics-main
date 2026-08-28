@@ -1178,6 +1178,33 @@ namespace
 		Out.Sort([](const FRTCellId& A, const FRTCellId& B) { return URTHexLibrary::StableLess(A, B); });
 	}
 
+	/**
+	 * L'intorno di ogni cella, per indice. **Una sola implementazione**: era copiata verbatim fra la misura
+	 * dei passi indietro e quella dei cicli, e una correzione applicata a una sola delle due le avrebbe fatte
+	 * dissentire sulla stessa board mentre entrambe dichiarano di modellare lo stesso filtro. Trovato in code
+	 * review.
+	 */
+	TArray<TArray<int32>> RTOrbitBuildNeighborhood(const URTHexMapAsset* Map, const FRTOrbitBoard& Board,
+		int32 Budget)
+	{
+		const int32 N = Board.Walk.Num();
+		TArray<TArray<int32>> Neigh;
+		Neigh.SetNum(N);
+		TArray<FRTCellId> Reach;
+		for (int32 O = 0; O < N; ++O)
+		{
+			RTOrbitCellsWithinBudget(Map, Board.Walk[O], Budget, Reach);
+			for (const FRTCellId& Cell : Reach)
+			{
+				if (const int32* Found = Board.Index.Find(Cell))
+				{
+					Neigh[O].Add(*Found);
+				}
+			}
+		}
+		return Neigh;
+	}
+
 	struct FRTOrbitBackstepReport
 	{
 		/** Coppie `(cella cieca, bersaglio)` in cui il filtro ha dove mandare il bot: il denominatore. */
@@ -1194,9 +1221,14 @@ namespace
 	 *
 	 * ⛔ **La forma, non il criterio.** `ChooseBestPlan` ordina per `ScorePlan` e usa quei due solo a parita';
 	 * qui il criterio primario e' la distanza in linea d'aria, cioe' la METRICA PRE-#1296, e gli altri termini
-	 * del punteggio non ci sono. Il tie-break serve a rendere il nome della cella deterministico per il
-	 * referto — **il conteggio dei passi indietro non ne dipende**, perche' guarda la distanza minima e non
-	 * quale cella la realizza.
+	 * del punteggio non ci sono.
+	 *
+	 * ⚠️ **Per il PASSO INDIETRO il tie-break serve solo a nominare la cella**: quel conteggio guarda la
+	 * distanza minima, non quale cella la realizza.
+	 * 🔴 **Per la TRAIETTORIA invece e' portante** (`#1603`): `RTScanOrbitCycles` usa la cella scelta come
+	 * passo successivo, quindi ogni numero che i due test sui cicli asseriscono dipende da questo tie-break.
+	 * Chi lo tocca sulla fede della riga qui sopra cambierebbe tutti quei conteggi in silenzio. Trovato in
+	 * code review.
 	 */
 	int32 RTOrbitNearestInDomain(const TArray<FRTCellId>& Walk, const TArray<int32>& Domain,
 		const FRTCellId& Origin, const FRTCellId& Target)
@@ -1240,20 +1272,7 @@ namespace
 			return Report;
 		}
 
-		TArray<TArray<int32>> Neigh;
-		Neigh.SetNum(N);
-		TArray<FRTCellId> Reach;
-		for (int32 O = 0; O < N; ++O)
-		{
-			RTOrbitCellsWithinBudget(Map, Board.Walk[O], Budget, Reach);
-			for (const FRTCellId& Cell : Reach)
-			{
-				if (const int32* Found = Board.Index.Find(Cell))
-				{
-					Neigh[O].Add(*Found);
-				}
-			}
-		}
+		const TArray<TArray<int32>> Neigh = RTOrbitBuildNeighborhood(Map, Board, Budget);
 
 		TArray<int32> Filtered;
 		for (int32 E = 0; E < N; ++E)
@@ -1332,6 +1351,17 @@ namespace
 	 * ciclo di periodo due chiede lo stesso budget a ogni turno, e il ripiegamento a 2 MP dura quanto
 	 * l'Overwatch che lo impone.
 	 */
+	/**
+	 * I limiti della spazzata, **condivisi dalle due misure**.
+	 *
+	 * 🔴 Erano due `for (Budget = 2; Budget <= 8; ...)` indipendenti, e la nota che dice «se `#149` porta lo
+	 * Sprint a 9, allarga anche questo» ne documentava uno solo: chi l'avesse seguita avrebbe allargato la
+	 * spazzata dei passi indietro e non quella dei cicli, e i due referti avrebbero smesso di parlare della
+	 * stessa cosa senza che nulla lo dicesse. Trovato in code review.
+	 */
+	constexpr int32 RTOrbitBudgetMin = 2;
+	constexpr int32 RTOrbitBudgetMax = 8;
+
 	constexpr int32 RTOrbitNeutralMoveMP = 5;
 	constexpr int32 RTOrbitSprintMP = 8;
 	constexpr int32 RTOrbitWithdrawMP = 2;
@@ -1344,6 +1374,27 @@ namespace
 	 * eroe e' l'alternativa scartata: renderebbe una proprieta' della board dipendente da una taratura del
 	 * roster, e la taratura si muove piu' spesso della board.
 	 */
+	FRTOrbitSweep RTSweepOrbitBacksteps(const URTHexMapAsset* Map)
+	{
+		FRTOrbitSweep Sweep;
+		const FRTOrbitBoard Board = RTOrbitReadBoard(Map);
+		TArray<FString> Righe;
+		for (int32 Budget = RTOrbitBudgetMin; Budget <= RTOrbitBudgetMax; ++Budget)
+		{
+			const FRTOrbitBackstepReport R = RTMeasureOrbitBacksteps(Map, Board, Budget);
+			Sweep.BackstepsByBudget.Add(Budget, R.Backsteps);
+			Sweep.PairsByBudget.Add(Budget, R.BlindPairsWithSomewhereToGo);
+			if (R.Backsteps == 0 && Sweep.FirstCleanBudget == INDEX_NONE)
+			{
+				Sweep.FirstCleanBudget = Budget;
+			}
+			Sweep.DistinctPairs.Append(R.Pairs);
+			Righe.Add(FString::Printf(TEXT("b%d: %d/%d"), Budget, R.Backsteps, R.BlindPairsWithSomewhereToGo));
+		}
+		Sweep.PerBudget = FString::Join(Righe, TEXT("  "));
+		return Sweep;
+	}
+
 	/**
 	 * Il ritorno di QUALUNQUE periodo, seguendo la traiettoria invece di cercarne la forma.
 	 *
@@ -1377,10 +1428,13 @@ namespace
 	{
 		/** Traiettorie seguite: una per coppia `(cella cieca, bersaglio)` da cui il filtro ha dove mandare. */
 		int32 Traiettorie = 0;
-		/** Quante tornano al punto di partenza, per periodo. */
+		/** ... di cui interrotte prima dei passi previsti, perche' il dominio si e' svuotato o ci si e' fermati. */
+		int32 Interrotte = 0;
+		/** Quante tornano al punto di partenza, per periodo. **Di QUESTO budget**, mai sommate agli altri. */
 		TMap<int32, int32> RitorniPerPeriodo;
 		int32 RitorniTotali = 0;
-		FString Primo;
+		/** I cicli distinti, come `p2 (cella) <-> (cella)`: serve a chiedere se un ciclo NOTO sia fra loro. */
+		TSet<FString> Cicli;
 	};
 
 	/** Quanti passi si seguono prima di dichiarare che non torna. Sei copre il due, il tre e oltre. */
@@ -1395,20 +1449,7 @@ namespace
 			return Scan;
 		}
 
-		TArray<TArray<int32>> Neigh;
-		Neigh.SetNum(N);
-		TArray<FRTCellId> Reach;
-		for (int32 O = 0; O < N; ++O)
-		{
-			RTOrbitCellsWithinBudget(Map, Board.Walk[O], Budget, Reach);
-			for (const FRTCellId& Cell : Reach)
-			{
-				if (const int32* Found = Board.Index.Find(Cell))
-				{
-					Neigh[O].Add(*Found);
-				}
-			}
-		}
+		const TArray<TArray<int32>> Neigh = RTOrbitBuildNeighborhood(Map, Board, Budget);
 
 		TArray<int32> Dominio;
 		for (int32 E = 0; E < N; ++E)
@@ -1422,7 +1463,12 @@ namespace
 				}
 
 				int32 Cur = A;
-				bool bContata = false;
+				int32 PrimoPasso = INDEX_NONE;
+				bool bChiuso = false;
+				// ⚠️ **La traiettoria si conta UNA volta, e prima di seguirla.** Il conteggio stava dentro il
+				// ciclo dietro una bandiera che poteva scattare solo al primo passo: era stato morto, e
+				// lasciava credere che una traiettoria potesse essere contata al terzo o al quarto — cioe' un
+				// denominatore diverso da quello che i test asseriscono. Trovato in code review.
 				for (int32 Passo = 1; Passo <= RTOrbitPassiSeguiti; ++Passo)
 				{
 					// Il filtro si accende sulla cella in cui ci si TROVA, non su quella dove si va: e' la
@@ -1445,13 +1491,16 @@ namespace
 					{
 						break; // il filtro non ha dove mandarlo
 					}
-					if (!bContata)
+					if (Passo == 1)
 					{
 						++Scan.Traiettorie;
-						bContata = true;
 					}
 
 					const int32 Next = RTOrbitNearestInDomain(Board.Walk, Dominio, Board.Walk[Cur], Board.Walk[E]);
+					if (Passo == 1)
+					{
+						PrimoPasso = Next;
+					}
 					if (Next == Cur)
 					{
 						break; // si ferma: una traiettoria che si ferma non e' un ciclo
@@ -1460,15 +1509,24 @@ namespace
 					{
 						++Scan.RitorniTotali;
 						Scan.RitorniPerPeriodo.FindOrAdd(Passo) += 1;
-						if (Scan.Primo.IsEmpty())
-						{
-							Scan.Primo = FString::Printf(TEXT("periodo %d: %s -> ... -> %s, bersaglio %s"),
-								Passo, *RTOrbitCellText(Board.Walk[A]), *RTOrbitCellText(Board.Walk[Cur]),
-								*RTOrbitCellText(Board.Walk[E]));
-						}
+						// La chiave porta il periodo e la coppia `partenza <-> primo passo`: e' la stessa
+						// forma con cui il passo indietro nomina le sue, e permette di chiedere se un ciclo
+						// NOTO sia fra quelli trovati.
+						Scan.Cicli.Add(FString::Printf(TEXT("p%d %s"), Passo,
+							*RTOrbitPairText(Board.Walk[A], Board.Walk[PrimoPasso])));
+						bChiuso = true;
 						break;
 					}
 					Cur = Next;
+					if (Passo == RTOrbitPassiSeguiti)
+					{
+						// Sei passi senza tornare: non e' un ciclo entro la finestra che si guarda.
+						bChiuso = true;
+					}
+				}
+				if (!bChiuso)
+				{
+					++Scan.Interrotte;
 				}
 			}
 		}
@@ -1481,12 +1539,22 @@ namespace
 	{
 		TMap<int32, int32> RitorniPerBudget;
 		TMap<int32, int32> TraiettoriePerBudget;
-		TMap<int32, int32> RitorniPerPeriodo;
+		TMap<int32, int32> InterrottePerBudget;
+		/**
+		 * 🔴 **I periodi si tengono PER BUDGET, e la prima stesura li sommava sui sette.** Il referto
+		 * pubblicava `2x34` come se fossero trentaquattro cicli: `5+11+13+3+2` fa esattamente 34, cioe' era
+		 * la somma dei ritorni per budget — lo stesso ciclo contato una volta per ogni budget in cui esiste.
+		 * E' il difetto che il gemello dei passi indietro documenta come **gia' corretto**, reintrodotto
+		 * copiandone la forma. Trovato in code review.
+		 */
+		TMap<int32, TMap<int32, int32>> PeriodiPerBudget;
+		/** I cicli distinti su TUTTI i budget: si usa per l'esistenza di un ciclo noto, mai per contarli. */
+		TSet<FString> CicliDistinti;
 		FString PerBudget;
-		FString Primo;
 
 		int32 RitorniAt(int32 Budget) const { return RitorniPerBudget.FindRef(Budget); }
 		int32 TraiettorieAt(int32 Budget) const { return TraiettoriePerBudget.FindRef(Budget); }
+		const TMap<int32, int32>* PeriodiAt(int32 Budget) const { return PeriodiPerBudget.Find(Budget); }
 	};
 
 	FRTOrbitCycleSweep RTSweepOrbitCycles(const URTHexMapAsset* Map)
@@ -1494,20 +1562,17 @@ namespace
 		FRTOrbitCycleSweep Sweep;
 		const FRTOrbitBoard Board = RTOrbitReadBoard(Map);
 		TArray<FString> Righe;
-		for (int32 Budget = 2; Budget <= 8; ++Budget)
+		for (int32 Budget = RTOrbitBudgetMin; Budget <= RTOrbitBudgetMax; ++Budget)
 		{
 			const FRTOrbitCycleScan S = RTScanOrbitCycles(Map, Board, Budget);
 			Sweep.RitorniPerBudget.Add(Budget, S.RitorniTotali);
 			Sweep.TraiettoriePerBudget.Add(Budget, S.Traiettorie);
-			for (const TPair<int32, int32>& P : S.RitorniPerPeriodo)
-			{
-				Sweep.RitorniPerPeriodo.FindOrAdd(P.Key) += P.Value;
-			}
-			if (Sweep.Primo.IsEmpty() && !S.Primo.IsEmpty())
-			{
-				Sweep.Primo = FString::Printf(TEXT("budget %d, %s"), Budget, *S.Primo);
-			}
-			Righe.Add(FString::Printf(TEXT("b%d: %d/%d"), Budget, S.RitorniTotali, S.Traiettorie));
+			Sweep.InterrottePerBudget.Add(Budget, S.Interrotte);
+			Sweep.PeriodiPerBudget.Add(Budget, S.RitorniPerPeriodo);
+			Sweep.CicliDistinti.Append(S.Cicli);
+			Righe.Add(FString::Printf(TEXT("b%d: %d/%d [%s]%s"),
+				Budget, S.RitorniTotali, S.Traiettorie, *RTOrbitPeriodiText(S.RitorniPerPeriodo),
+				S.Interrotte > 0 ? *FString::Printf(TEXT(" %d interrotte"), S.Interrotte) : TEXT("")));
 		}
 		Sweep.PerBudget = FString::Join(Righe, TEXT("  "));
 		return Sweep;
@@ -1525,27 +1590,6 @@ namespace
 			Pezzi.Add(FString::Printf(TEXT("%dx%d"), P, PerPeriodo[P]));
 		}
 		return Pezzi.Num() > 0 ? FString::Join(Pezzi, TEXT(" ")) : FString(TEXT("nessuno"));
-	}
-
-	FRTOrbitSweep RTSweepOrbitBacksteps(const URTHexMapAsset* Map)
-	{
-		FRTOrbitSweep Sweep;
-		const FRTOrbitBoard Board = RTOrbitReadBoard(Map);
-		TArray<FString> Righe;
-		for (int32 Budget = 2; Budget <= 8; ++Budget)
-		{
-			const FRTOrbitBackstepReport R = RTMeasureOrbitBacksteps(Map, Board, Budget);
-			Sweep.BackstepsByBudget.Add(Budget, R.Backsteps);
-			Sweep.PairsByBudget.Add(Budget, R.BlindPairsWithSomewhereToGo);
-			if (R.Backsteps == 0 && Sweep.FirstCleanBudget == INDEX_NONE)
-			{
-				Sweep.FirstCleanBudget = Budget;
-			}
-			Sweep.DistinctPairs.Append(R.Pairs);
-			Righe.Add(FString::Printf(TEXT("b%d: %d/%d"), Budget, R.Backsteps, R.BlindPairsWithSomewhereToGo));
-		}
-		Sweep.PerBudget = FString::Join(Righe, TEXT("  "));
-		return Sweep;
 	}
 }
 
@@ -1718,21 +1762,22 @@ bool FRTBotAuthoredMapFilterStepsBackTest::RunTest(const FString&)
 
 
 /**
- * **Il periodo tre era dichiarato scoperto, e la board risponde per tutti i periodi insieme.**
+ * **Il periodo tre, chiesto alla board invece che dichiarato scoperto.**
  *
- * `FRTOrbitProbe` vede il ritorno di periodo DUE e non il tre, e lo dichiara. La ragione per cui non e' stato
- * esteso e' buona — *«chiede una storia per unita' e una soglia propria, e nessun difetto misurato l'ha ancora
+ * `FRTOrbitProbe` vede il ritorno di periodo DUE e non il tre, e lo dichiara. La ragione per non estenderlo e'
+ * buona — *«chiede una storia per unita' e una soglia propria, e nessun difetto misurato l'ha ancora
  * prodotto»* — e questo test **non** la contraddice: il rilevatore resta com'e'.
  *
- * 🔵 **Cambia la domanda, non il rilevatore.** «Un ciclo di periodo tre e' formabile su questa board?» non ha
- * bisogno di un rilevatore che lo veda in partita: si chiede alla geometria, come per il periodo due. E la
- * risposta arriva per **tutti** i periodi in una volta, perche' il passo indietro non e' una condizione del
- * due — e' la condizione di ogni ritorno. L'argomento sta su `RTScanOrbitCycles`.
+ * 🔵 **Cambia la domanda.** «Un ciclo di periodo tre e' formabile su questa board?» si chiede alla geometria,
+ * come per il periodo due, e la risposta arriva per **tutti** i periodi in una volta: il passo indietro non e'
+ * una condizione del due, e' la condizione di ogni ritorno. L'argomento sta su `RTScanOrbitCycles`.
  *
- * ⚠️ **Cosa questo test asserisce davvero**: che seguendo la traiettoria da ogni cella cieca, coi budget che
- * il gioco spedisce, non si torna mai al punto di partenza entro sei passi. Non «il bot non puo' orbitare»:
- * il modello e' quello dichiarato — distanza in linea d'aria, nessun altro termine del punteggio — ed e' lo
- * stesso del passo indietro, con gli stessi limiti.
+ * 🔴 **E il modello e' il bot STORICO, non quello spedito.** Il filtro di #1287 e' stato **rimosso** da
+ * `BuildCandidates` — la riga «⛔ QUI STAVA IL LIVELLO 2» ne segna il posto — e l'avvicinamento spedito si
+ * misura in `ApproachSteps`, non in linea d'aria. Questa misura ricostruisce **entrambi** i comportamenti
+ * tolti, e risponde alla domanda «quella board poteva ospitare il difetto?», non «il bot di oggi orbita?».
+ * Sul bot di oggi il filtro non c'e', quindi la domanda non si pone nemmeno. Trovato in code review, dove la
+ * prima stesura presentava l'esito come proprieta' del bot attuale.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotGeneratedArenaClosesNoCycleTest,
 	"RefactorTactics.Bot.StalemateProbeGeneratedArenaClosesNoCycleOfAnyPeriod",
@@ -1742,47 +1787,65 @@ bool FRTBotGeneratedArenaClosesNoCycleTest::RunTest(const FString&)
 	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
 	if (!TestNotNull(TEXT("arena di prova generata"), Arena)) { return false; }
 
-	// 🔴 **LA PREMESSA DELL'ARGOMENTO, e senza di lei l'argomento non regge.** «Con il filtro spento la
-	// distanza non cresce» vale perche' il dominio contiene l'ORIGINE STESSA: restare e' sempre un'opzione, e
-	// l'argmin non e' mai peggiore. Se `RTOrbitCellsWithinBudget` smettesse di includere il punto di partenza
-	// — un `Best` inizializzato male, un filtro sul costo che scarta lo zero — ogni scelta diventerebbe una
-	// mossa obbligata, la distanza potrebbe crescere ovunque e il ragionamento cadrebbe **in silenzio**.
-	// Si asserisce, invece di sperarlo.
+	// Le stesse premesse strutturali del gemello sui passi indietro, e per la stessa ragione: sono i fatti che
+	// portano la spiegazione dello zero. Senza, uno zero misurato su una board rimaneggiata continuerebbe a
+	// passare mentre il commento che lo spiega e' gia' falso. Trovato in code review.
+	const FRTOrbitBoard Board = RTOrbitReadBoard(Arena);
+	AddInfo(FString::Printf(
+		TEXT("arena generata: %d celle percorribili, %d bloccano la vista, di cui %d bloccano anche il passo"),
+		Board.Walk.Num(), Board.SightBlockers, Board.SightBlockersAlsoBlockingMovement));
+	TestTrue(TEXT("premessa: l'arena ha celle percorribili"), Board.Walk.Num() > 0);
+	TestTrue(TEXT("premessa: l'arena ha un muro che blocca la vista"), Board.SightBlockers > 0);
+	TestEqual(TEXT("e nessuna di quelle celle blocca il passo: sul muro ci si sale, e da li' si vede"),
+		Board.SightBlockersAlsoBlockingMovement, 0);
+
+	// 🔴 **LA PREMESSA DELL'ARGOMENTO, chiesta al GIOCO e non al modello.** «Con il filtro spento la distanza
+	// non cresce» vale perche' restare e' sempre un'opzione, cioe' perche' la cella di partenza e' fra quelle
+	// raggiungibili. La prima stesura lo asseriva su `RTOrbitCellsWithinBudget`, dove vale **per costruzione**
+	// — `Best.Add(Origin, 0)` prima del ciclo — quindi non poteva cadere: asseriva una proprieta' del proprio
+	// mock. L'invariante che conta vive in `URTHexSimLibrary::ReachableCells`, ed e' li' che si chiede.
+	// Trovato in code review.
 	{
-		const FRTOrbitBoard Board = RTOrbitReadBoard(Arena);
-		int32 SenzaSeStesse = 0;
-		TArray<FRTCellId> Reach;
-		for (const FRTCellId& Origine : Board.Walk)
+		TArray<FRTHexSimUnit> Sonda;
+		Sonda.Add(FRTHexSimUnit(1, Board.Walk[0], RTOrbitNeutralMoveMP));
+		const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Arena, Sonda);
+		const TArray<FRTHexReachableCell> Raggiungibili = URTHexSimLibrary::ReachableCells(Snapshot, 1);
+		bool bTrovaSeStessa = false;
+		for (const FRTHexReachableCell& Cella : Raggiungibili)
 		{
-			RTOrbitCellsWithinBudget(Arena, Origine, RTOrbitNeutralMoveMP, Reach);
-			if (!Reach.Contains(Origine)) { ++SenzaSeStesse; }
+			if (Cella.Cell == Board.Walk[0]) { bTrovaSeStessa = true; break; }
 		}
-		TestTrue(TEXT("premessa: la board ha celle percorribili"), Board.Walk.Num() > 0);
-		TestEqual(TEXT("ogni cella e' raggiungibile da se stessa: restare e' sempre un'opzione"),
-			SenzaSeStesse, 0);
+		TestTrue(TEXT("il gioco include la cella di partenza fra le raggiungibili: restare e' sempre un'opzione"),
+			bTrovaSeStessa);
 	}
 
 	const FRTOrbitCycleSweep Sweep = RTSweepOrbitCycles(Arena);
-	AddInfo(FString::Printf(TEXT("ritorni per budget (ritorni/traiettorie) — %s"), *Sweep.PerBudget));
-	AddInfo(FString::Printf(TEXT("periodi trovati: %s%s"), *RTOrbitPeriodiText(Sweep.RitorniPerPeriodo),
-		Sweep.Primo.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" — %s"), *Sweep.Primo)));
+	AddInfo(FString::Printf(TEXT("ritorni per budget (ritorni/traiettorie [periodi]) — %s"), *Sweep.PerBudget));
 
-	// Il denominatore e' quello DEL BUDGET, non una somma sui sette.
+	// I denominatori sono quelli DEL BUDGET su cui si asserisce, non una somma sui sette — e servono
+	// **entrambi**: senza, uno zero potrebbe venire da zero traiettorie seguite. Trovato in code review.
 	TestTrue(FString::Printf(TEXT("col profilo neutro si seguono %d traiettorie"),
 		Sweep.TraiettorieAt(RTOrbitNeutralMoveMP)), Sweep.TraiettorieAt(RTOrbitNeutralMoveMP) > 0);
+	TestTrue(FString::Printf(TEXT("e con lo Sprint %d"),
+		Sweep.TraiettorieAt(RTOrbitSprintMP)), Sweep.TraiettorieAt(RTOrbitSprintMP) > 0);
 
 	// 🔴 L'asserzione sta sui budget che il gioco SPEDISCE, non su una soglia scelta dopo aver visto i numeri.
 	TestEqual(FString::Printf(
 		TEXT("col profilo neutro (%d MP) nessuna traiettoria torna al punto di partenza entro %d passi: %d ritorni"),
 		RTOrbitNeutralMoveMP, RTOrbitPassiSeguiti, Sweep.RitorniAt(RTOrbitNeutralMoveMP)),
 		Sweep.RitorniAt(RTOrbitNeutralMoveMP), 0);
-	TestEqual(FString::Printf(TEXT("e nemmeno con lo Sprint (%d MP): %d ritorni"),
+
+	// ⚠️ **Questa riga non ha un controfattuale, e va detto.** Sulla mappa d'autore il conteggio a 8 MP e'
+	// **zero anche li'**: nessuna delle due board mostra un ritorno con lo Sprint, quindi non esiste il
+	// termine di paragone che rende leggibile uno zero. Si tiene perche' il budget e' spedito e la sua
+	// assenza sarebbe una lacuna, ma la sua forza sta nella riga del profilo neutro, che il controfattuale ce
+	// l'ha. Trovato in code review.
+	TestEqual(FString::Printf(TEXT("e nemmeno con lo Sprint (%d MP): %d ritorni — senza controfattuale"),
 		RTOrbitSprintMP, Sweep.RitorniAt(RTOrbitSprintMP)),
 		Sweep.RitorniAt(RTOrbitSprintMP), 0);
 
-	// ⚠️ Il budget del ripiegamento resta scoperto qui come lo e' per il passo indietro, e per la stessa
-	// ragione: quel budget non si sceglie, lo impone l'Overwatch (`D-070`), e un ciclo sostenuto chiede lo
-	// stesso budget a ogni turno. Si dichiara invece di nasconderlo in una somma.
+	// ⚠️ Il budget del ripiegamento resta scoperto qui come per il passo indietro: non si sceglie, lo impone
+	// l'Overwatch (`D-070`), e un ciclo sostenuto chiede lo stesso budget a ogni turno.
 	if (Sweep.RitorniAt(RTOrbitWithdrawMP) > 0)
 	{
 		AddInfo(FString::Printf(
@@ -1795,17 +1858,19 @@ bool FRTBotGeneratedArenaClosesNoCycleTest::RunTest(const FString&)
 }
 
 /**
- * **Il controfattuale: sulla mappa d'autore le traiettorie tornano.**
+ * **Il controfattuale: sulla mappa d'autore le traiettorie tornano, e ritrovano l'orbita MISURATA.**
  *
- * ⚠️ **Esiste per non far dire al test qui sopra piu' di quanto misura**, ed e' la stessa ragione per cui il
- * passo indietro ha il suo. Uno zero significa qualcosa solo se si sa quanto vale su una board dove il ciclo
- * si e' formato davvero: senza termine di paragone, uno zero puo' venire dal predicato sbagliato invece che
- * dalla geometria — ed e' successo due volte in `#1555`, dove le prime due stesure davano un numero positivo
- * su entrambe le board.
+ * ⚠️ **Esiste per non far dire al test qui sopra piu' di quanto misura.** Uno zero significa qualcosa solo se
+ * si sa quanto vale su una board dove il ciclo si e' formato davvero: senza termine di paragone puo' venire
+ * dal predicato sbagliato invece che dalla geometria — ed e' successo **due volte** in `#1555`, dove le prime
+ * due stesure davano un numero positivo su entrambe le board.
  *
  * 🔵 **E dice anche QUALI periodi.** Se fra quelli comparisse un tre, il limite dichiarato di `FRTOrbitProbe`
  * smetterebbe di essere teorico su questa mappa e la sua estensione acquisterebbe il soggetto che oggi le
- * manca — che e' l'uscita che `#1603` metteva in conto.
+ * manca — l'uscita che `#1603` metteva in conto.
+ *
+ * ⚠️ **Asserisce su un `.uasset` di DIR-A, e lo dichiara**: un rosso qui non e' un difetto del bot, e' un
+ * cambio di contenuto che sposta il significato di un test del bot.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotAuthoredMapClosesCyclesTest,
 	"RefactorTactics.Bot.StalemateProbeAuthoredMapClosesCyclesOfSomePeriod",
@@ -1815,10 +1880,26 @@ bool FRTBotAuthoredMapClosesCyclesTest::RunTest(const FString&)
 	URTHexMapAsset* Authored = RTAuthoredArena::Load();
 	if (!TestNotNull(TEXT("la mappa d'autore si carica"), Authored)) { return false; }
 
+	// Le premesse strutturali che il gemello asserisce, e che la prima stesura di questo test aveva perso
+	// copiandolo: senza, una mappa rimaneggiata fino a una board degenere supererebbe il controfattuale
+	// mentre il commento sostiene che le due board differiscono strutturalmente. Trovato in code review.
+	const FRTOrbitBoard Board = RTOrbitReadBoard(Authored);
+	AddInfo(FString::Printf(
+		TEXT("mappa d'autore: %d celle percorribili, %d bloccano la vista, di cui %d bloccano anche il passo"),
+		Board.Walk.Num(), Board.SightBlockers, Board.SightBlockersAlsoBlockingMovement));
+	TestTrue(TEXT("premessa: la mappa ha celle percorribili"), Board.Walk.Num() > 0);
+	TestTrue(TEXT("premessa: la mappa ha celle che bloccano la vista"), Board.SightBlockers > 0);
+	TestTrue(FString::Printf(TEXT("e %d di quelle bloccano anche il passo (sull'arena generata sono zero)"),
+		Board.SightBlockersAlsoBlockingMovement),
+		Board.SightBlockersAlsoBlockingMovement > 0);
+
 	const FRTOrbitCycleSweep Sweep = RTSweepOrbitCycles(Authored);
-	AddInfo(FString::Printf(TEXT("ritorni per budget (ritorni/traiettorie) — %s"), *Sweep.PerBudget));
-	AddInfo(FString::Printf(TEXT("periodi trovati: %s%s"), *RTOrbitPeriodiText(Sweep.RitorniPerPeriodo),
-		Sweep.Primo.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" — %s"), *Sweep.Primo)));
+	AddInfo(FString::Printf(TEXT("ritorni per budget (ritorni/traiettorie [periodi]) — %s"), *Sweep.PerBudget));
+
+	TArray<FString> Elencati = Sweep.CicliDistinti.Array();
+	Elencati.Sort();
+	AddInfo(FString::Printf(TEXT("cicli distinti su tutti i budget (%d): %s"),
+		Elencati.Num(), *FString::Join(Elencati, TEXT("  |  "))));
 
 	TestTrue(FString::Printf(TEXT("col profilo neutro si seguono %d traiettorie"),
 		Sweep.TraiettorieAt(RTOrbitNeutralMoveMP)), Sweep.TraiettorieAt(RTOrbitNeutralMoveMP) > 0);
@@ -1829,6 +1910,17 @@ bool FRTBotAuthoredMapClosesCyclesTest::RunTest(const FString&)
 		TEXT("traiettorie — sull'arena generata sono zero"),
 		RTOrbitNeutralMoveMP, Sweep.RitorniAt(RTOrbitNeutralMoveMP), Sweep.TraiettorieAt(RTOrbitNeutralMoveMP)),
 		Sweep.RitorniAt(RTOrbitNeutralMoveMP) > 0);
+
+	// 🔴 **E fra i cicli c'e' QUELLO MISURATO, che e' cio' che rende questo predicato una misura e non un
+	// modello plausibile.** Il consuntivo di #1287 nomina l'orbita osservata in partita — *«Riktor alterna fra
+	// `(1,-1,L0)` e la piattaforma `(3,-3,L1)`»* — e lo scanner, che di quella misura non sa nulla, la ritrova
+	// seguendo le traiettorie. Senza questa riga qualunque numero positivo soddisferebbe l'asserzione sopra,
+	// anche trovando tre cicli che con il difetto storico non c'entrano nulla. Il gemello dei passi indietro
+	// ha la stessa ancora, e questa copia l'aveva persa. Trovato in code review.
+	const FString Storico = FString::Printf(TEXT("p2 %s"),
+		*RTOrbitPairText(FRTCellId(1, -1, 0), FRTCellId(3, -3, 1)));
+	TestTrue(FString::Printf(TEXT("fra i cicli c'e' quello MISURATO da #1287 in partita: %s"), *Storico),
+		Sweep.CicliDistinti.Contains(Storico));
 
 	return true;
 }
