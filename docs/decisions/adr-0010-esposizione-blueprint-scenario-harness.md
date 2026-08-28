@@ -117,6 +117,24 @@ Blueprint, perché nessun Blueprint nomina i campi.
 scorciatoia di marcare la struct e lasciare che Blueprint si arrangi. È lavoro in più su C++ a ogni slice, ed è
 esattamente il prezzo che compra l'invariante — chi lo trova troppo caro sta chiedendo di pagare l'altro.
 
+> 🟡 **Un'eccezione, deliberata il 2026-08-28 con [#1117](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1117): `ERTTestOutcome` e' `UENUM(BlueprintType)`.**
+>
+> Il divieto qui sotto riguarda le **`USTRUCT` del formato**, e la ragione e' precisa: una struct esposta
+> lascia comporre uno scenario incoerente membro per membro. Un enum di quattro valori non lo permette — non
+> c'e' niente da comporre male — e `ERTTestOutcome` non e' il modello dello scenario: e' il **valore di
+> ritorno** di una sua esecuzione, che il pannello di `RUN` deve poter ramificare per non mostrare un
+> `Blocked` come se fosse un successo.
+>
+> ⚠️ **L'alternativa era un secondo enum DTO con gli stessi quattro valori, e sarebbe stata peggiore**: due
+> elenchi paralleli divergono al primo esito aggiunto a uno solo dei due, ed e' il difetto che questo
+> repository ha gia' pagato con le tabelle scritte a mano nel loader. Fra esporre un tipo che non puo' essere
+> composto male e mantenere due copie della stessa lista, la prima costa meno.
+>
+> Il guardiano e' `RefactorTactics.Scenario.RunAndResetAreReachableFromBlueprint`, che verifica sia il
+> `BlueprintType` sia che i valori restino **quattro**: comprimerli in due — «passato» e «non passato» —
+> butterebbe via la distinzione fra difetto del gioco e difetto del test, che e' la ragione per cui quell'enum
+> esiste nella forma che ha.
+
 ⚠️ **Cosa questo ADR NON autorizza**:
 
 - ❌ marcare `BlueprintType` una qualunque delle nove `USTRUCT` del formato scenario;

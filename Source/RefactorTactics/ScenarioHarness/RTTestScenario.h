@@ -18,8 +18,22 @@
  * essere leggibili e diffabili in una PR.
  */
 
-/** Esito di una esecuzione. `Error` NON e' un `Fail`: distinguere i due e' cio' che impedisce a uno scenario rotto di travestirsi da regressione di gioco. */
-UENUM()
+/**
+ * Esito di una esecuzione. `Error` NON e' un `Fail`: distinguere i due e' cio' che impedisce a uno scenario
+ * rotto di travestirsi da regressione di gioco.
+ *
+ * ⚠️ **`BlueprintType` dal `#1117`, ed e' l'unica eccezione a
+ * [ADR-0010](../../../docs/decisions/adr-0010-esposizione-blueprint-scenario-harness.md).** Quell'ADR vieta di
+ * marcare le **nove `USTRUCT` del formato**, e la ragione e' precisa: una struct esposta permette a Blueprint
+ * di costruire uno scenario incoerente membro per membro. Un enum di quattro valori non lo permette — non c'e'
+ * niente da comporre male — e questo non e' il modello dello scenario: e' il **valore di ritorno** di una sua
+ * esecuzione, che la UI deve poter ramificare per non mostrare un `Blocked` come se fosse un successo.
+ *
+ * L'alternativa era un secondo enum DTO con gli stessi quattro valori. Sarebbe stata la scelta piu' letterale
+ * e la peggiore: due elenchi paralleli divergono al primo esito aggiunto a uno solo dei due, ed e' esattamente
+ * il difetto che questo repository ha gia' pagato con le tabelle scritte a mano nel loader.
+ */
+UENUM(BlueprintType)
 enum class ERTTestOutcome : uint8
 {
 	/** Simulazione completata, tutte le assertion soddisfatte. */
