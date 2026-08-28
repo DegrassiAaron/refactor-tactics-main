@@ -360,16 +360,25 @@ namespace
 	 *   Spec.Environment.WaterQuenchesFire       Environment
 	 *   Spec.Predictive.WhiffOnEmptyCell         Predictive
 	 *   Spec.Overwatch.HoldThenFire              ReactionDecision
+	 *   Visual.Combat.FallbackTargetMoved        Fallback       (`#1593`)
 	 *
 	 * ⚠️ **`Combat.CounterStrikesBack` vale da solo META' della soglia**: e' l'unico fornitore di `Combat`,
 	 * `Facing`, `Reaction` e `Status`. Se un giorno smettesse di produrne una — la reazione che perde la voce
 	 * `Facing`, lo stato che non viene applicato — il test non cadrebbe per una categoria ma per quattro
 	 * insieme, e chi legge il rosso potrebbe cercare il difetto nel posto sbagliato. Misurato, non temuto.
 	 *
-	 * ⚠️ **Due categorie restano scoperte, ed e' dichiarato**: `Fallback` e `ReactionClash`. Nessuno degli
-	 * scenari provati le produce — gli scenari `Spec/Clash` risolvono senza emettere voci `ReactionClash`, e
-	 * `Fallback` nasce da azioni che si degradano, che nessuno scenario del corpus esercita. Chi ne scrive uno
-	 * che le tocca alzi la soglia in `GoldenCorpusCoversItsCategories`.
+	 * ⚠️ **UNA categoria resta scoperta, ed e' dichiarato**: `ReactionClash`. Non e' un lavoro rimandato, e' un
+	 * lavoro **BLOCCATO** — sta in `KnownUnavailableCapabilities()` con owner `#314`, e uno scenario che la
+	 * chiedesse sarebbe un file che nessuno esegue e che *sembra* copertura. Gli scenari `Spec/Clash`
+	 * risolvono senza emettere quelle voci, ed e' coerente: la macchina non ha chiamanti nel resolver.
+	 *
+	 * 🔴 **`Fallback` stava nella stessa riga e non era lo stesso caso** (`#1593`). Non e' una capability: e'
+	 * una categoria che il runtime emette da SETTE siti (`RTTurnManager.cpp` x2, `RTTurnManager_Blast.cpp`
+	 * x5), e uno scenario che la produce **esisteva gia'** — `Visual.Combat.FallbackTargetMoved`, il fallback
+	 * `AttackCell` di un bersaglio uscito di portata. La nota diceva *«chi ne scrive uno»* e chiedeva un
+	 * lavoro gia' fatto: la categoria e' rimasta scoperta per settimane non perche' fosse difficile, ma
+	 * perche' questa frase metteva insieme un caso bloccato e uno pronto. **Due cose diverse nella stessa
+	 * riga aspettano alla velocita' della piu' lenta.**
 	 */
 	const TCHAR* GoldenScenarioIds[] = {
 		TEXT("Movement.Collision"), TEXT("Movement.Basic"),
@@ -377,6 +386,7 @@ namespace
 		TEXT("Spec.Environment.WaterQuenchesFire"),
 		TEXT("Spec.Predictive.WhiffOnEmptyCell"),
 		TEXT("Spec.Overwatch.HoldThenFire"),
+		TEXT("Visual.Combat.FallbackTargetMoved"),
 	};
 }
 
@@ -469,9 +479,16 @@ bool FRTGoldenCorpusCoverageTest::RunTest(const FString&)
 
 	// 🔴 **Il patto**: questa soglia e' cio' che il corpus promette di coprire. Alzarla e' un miglioramento;
 	// abbassarla e' una decisione da dichiarare, non un effetto collaterale.
-	// 🔴 **Otto**, misurato: `Fallback` e `ReactionClash` restano scoperte e la ragione sta accanto a
-	// `GoldenScenarioIds`. Chi scrive uno scenario che le tocca alza questo numero.
-	constexpr int32 CategorieMinime = 8;
+	// 🔴 **Nove**, misurato il 2026-08-28 (`#1593`): resta scoperta la sola `ReactionClash`, e la ragione —
+	// BLOCCATA, owner `#314` — sta accanto a `GoldenScenarioIds`. Era **otto** finche' `Fallback` era
+	// dichiarata scoperta insieme a lei, pur avendo gia' il proprio scenario.
+	//
+	// ⚠️ **Alzare questo numero e' cio' che rende la copertura nuova falsificabile.** Aggiungere lo scenario
+	// all'elenco senza toccare la soglia avrebbe lasciato il test verde **prima e dopo**: la categoria in
+	// piu' non sarebbe stata misurata da nessuno, e toglierla di nuovo non avrebbe fatto rumore. Verificato
+	// per mutazione: togliendo `Visual.Combat.FallbackTargetMoved` dall'elenco, con la soglia a nove questo
+	// test va rosso; con la soglia a otto sarebbe restato verde.
+	constexpr int32 CategorieMinime = 9;
 	TestTrue(*FString::Printf(TEXT("il corpus copre almeno %d categorie (ne copre %d)"),
 		CategorieMinime, Coperte.Num()), Coperte.Num() >= CategorieMinime);
 
