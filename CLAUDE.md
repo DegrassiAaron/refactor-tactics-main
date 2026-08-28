@@ -115,7 +115,21 @@ Node ha **zero dipendenze** apposta.
 # Exit: 0 verde · 1 test falliti · 2 non avviata (motore occupato) · 3 NON VALIDA, esito non registrabile.
 ./scripts/rt-suite.ps1
 ./scripts/rt-suite.ps1 -Filter RefactorTactics.Scenario   # una sola area, molto più veloce
+./scripts/rt-suite.ps1 -WaitMinutes 40                    # il motore è occupato: aspetta e parte da sola
 ```
+
+⚠️ **Con `-WaitMinutes` non scriverti il watcher a mano.** Esce `2` in un istante quando un'altra sessione
+tiene il motore, e la tentazione è un `while (Get-Process …) { Start-Sleep }` accanto: in una sola sessione
+del 2026-08-28 quel ciclo è stato riscritto **cinque volte**, e la prima aspettava il solo
+`UnrealEditor-Cmd` — un editor interattivo dell'altro checkout l'ha attraversata e la run è uscita `2` lo
+stesso, dopo aver atteso per niente. La condizione di rilascio la conosce lo script, che al risveglio
+**ridichiara il preambolo intero** — `HEAD`, albero *e binario*: parte da ciò che c'è quando il motore si
+libera, non da ciò che c'era mezz'ora prima. Non termina mai nessun processo — se è di un altro checkout è
+lavoro di qualcun altro.
+
+⛔ **Ma attendere amplifica il punto cieco del binario**: si riparte nell'istante in cui un'altra sessione —
+che stava compilando un altro `HEAD` — libera il motore, e il DLL che trovi è il suo. Lo script dichiara di
+non coprire il binario *già stantio all'avvio*. Dopo un'attesa lunga, **ricompila prima di fidarti del verde**.
 
 PowerShell e **non** Git Bash: MSYS traduce gli argomenti che iniziano con `/` e l'harness non parte nemmeno.
 
