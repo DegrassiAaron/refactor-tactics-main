@@ -1358,7 +1358,7 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 		const uint8 State = bVisible ? RTVeilLit : (bKnown ? RTVeilRemembered : RTVeilHidden);
 
 		// 🔴 Il salto. `UpdateInstanceTransform` e `SetCustomDataValue` costano anche quando riscrivono lo
-		// stesso valore, ed e' li' che finivano i 2 624 ms della misura.
+		// stesso valore, ed e' li' che finiva la misura del velo ingenuo — 2,2 s su arena piena.
 		if (LastState[I] == State)
 		{
 			continue;

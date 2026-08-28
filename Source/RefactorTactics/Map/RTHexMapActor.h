@@ -630,7 +630,8 @@ protected:
 	 * indici a cui si riferisce.
 	 *
 	 * ⚠️ **Non e' un'ottimizzazione preventiva: e' la risposta a una misura.** Riscrivere tutte le istanze a
-	 * ogni velo costa **2 624 ms** su arena piena (7 651 celle, misurato il 2026-08-28), contro un budget di
+	 * ogni velo costa **~2,2 s** su arena piena (7 651 celle; 2 624 ms alla prima misura, 2 160 ms sulla suite
+	 * del 2026-08-28 — la macchina sposta il numero, non l'ordine di grandezza), contro un budget di
 	 * due refresh per turno. Fra due refresh consecutivi pero' cambia solo il bordo del cono, quindi il
 	 * lavoro utile e' una frazione minima del totale: si tocca cio' che cambia, e il resto si salta.
 	 */

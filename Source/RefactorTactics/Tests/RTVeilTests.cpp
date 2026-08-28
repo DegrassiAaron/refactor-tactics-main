@@ -306,7 +306,8 @@ bool FRTVeilFollowsRefreshPointsTest::RunTest(const FString&)
  * piena, e quale strategia di aggiornamento regge.
  *
  * 🔴 **La prima misura ha risposto NO alla scansione completa ingenua**: riscrivere tutte le istanze a ogni
- * velo costa **2 624 ms** (2026-08-28), contro **due** refresh per turno. La risposta non e' pero' la mappa
+ * velo costa **~2,2 s** (2 624 ms alla prima misura, 2 160 ms sulla suite del 2026-08-28), contro **due**
+ * refresh per turno. La risposta non e' pero' la mappa
  * inversa cella→istanza — che risolverebbe un problema che non c'e', dato che `InstanceCells` da' gia'
  * l'indice — ma il **salto di cio' che non cambia**: fra due refresh consecutivi si muove il bordo del cono,
  * non la board.
