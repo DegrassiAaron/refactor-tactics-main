@@ -916,10 +916,22 @@ contando ferite. Le verifiche di questo dominio sono **manuali**, di classe **C*
 > [`test-manuali-pie.md`](../test-manuali-pie.md), che ne è l'owner — qui non si ricopiano — e la seduta
 > **U25** le dichiara in `verifies:`, dove fino a quel giorno c'era `[]`.
 >
-> ⏳ **Scritte non è eseguite, ed è la distinzione per cui quel registro esiste.** Tutte e sei nascono
-> aperte per **una causa sola e misurabile**: `git ls-files 'Content/RT/World/Graybox/*'` dà **0**. Il
-> percorso è deciso (`D-173`, §8.1) e la riga d'allowlist c'è già; le sette mesh no. **Questo documento
-> resta non verificato**, e adesso si sa esattamente da cosa dipende smettere di esserlo.
+> ⏳ **Scritte non è eseguite, ed è la distinzione per cui quel registro esiste.** Tutte e sei restano
+> aperte, ma **la causa è cambiata il 2026-08-28**: `git ls-files 'Content/RT/World/Graybox/*'` dà ora
+> **7** — le sei mesh di §8.1 più il volume di posa — quindi non aspettano più un asset, aspettano una
+> **persona che guardi**. È la seduta **U25**, ed è l'unica cosa che abbiano mai aspettato davvero.
+>
+> 🔴 **Questa riga diceva «dà **0** … le sette mesh no», e conteneva anche un errore di conto**: gli
+> asset di §8.1 sono **sei mesh più un Blueprint**, e il volume di posa non è una mesh. È stata
+> riscritta quando la causa è decaduta, e il numero corretto insieme.
+>
+> ✅ **E una parte di questo contratto è ora difesa da un gate**, contro quanto l'apertura di §10
+> dichiara: `RefactorTactics.Graybox.*` — cinque test nel modulo editor — lega gli `.uasset` alle
+> frazioni di §6.3 **derivandole dal CDO invece di scriverle in uu**, e guarda i numeri che decidono
+> le coppie: il fattore `2` in pianta fra le due coperture, la traversa su entrambe le facce, le sei
+> quote del ghiaccio contro la lastra sola dell'acqua. Quello che resta senza gate è ciò che
+> l'apertura dice davvero: l'oracolo di *«si legge»*, che non esiste nell'harness e non va simulato.
+> Quello di *«è spesso `0.10` del lato»* esisteva, ed era una sottrazione.
 >
 > 🔑 **`PIE-GBX-FIT` è l'oracolo di `GBX-1`**, la domanda che §9 lascia aperta: la frazione di `C` che è il
 > Safe Placement inset **si decide guardando**, in quella voce, e l'esito va riportato in
