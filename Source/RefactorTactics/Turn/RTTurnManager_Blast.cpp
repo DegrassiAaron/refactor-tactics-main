@@ -700,6 +700,12 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			{
 				Intent.bChangesDoor = true;
 				Intent.DoorState = static_cast<ERTHexDoorState>(Spec.Amount);
+
+				// Il bordo che il giocatore ha CLICCATO, se l'ha dichiarato (CP 10.1, `#74`). Lo stesso campo
+				// del piano che il ramo delle coperture legge da sempre: qui non arrivava, e l'operazione
+				// finiva su un bordo dedotto dalla traiettoria — un bordo che nessuno aveva scelto ([D-149]).
+				Intent.bHasDeclaredDoorEdge = Unit->bHasPlannedCoverEdge;
+				Intent.DeclaredDoorEdge = Unit->PlannedCoverEdge;
 			}
 			break;
 		}
@@ -1281,6 +1287,42 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 			*Units[Blocked.AttackerId]->GetName(),
 			bTargetsUnit ? *Units[Blocked.TargetId]->GetName() : TEXT("cella")),
 			FRTLogSubject::Unit(Units.IsValidIndex(Blocked.AttackerId) ? Units[Blocked.AttackerId] : nullptr));
+	}
+
+	// Interazioni dichiarate su un bordo dove non c'e' nessuna porta (CP 10.1, `#74`).
+	//
+	// ⛔ **Prima non lasciavano traccia.** L'operazione non veniva raccolta, il turno passava, e il giocatore
+	// vedeva la propria azione sparire senza che il TurnLog avesse niente da spiegare. La voce e' `Fallback`
+	// con `NoEffect` e non `Combat` con `NoLineOfSight`: non c'e' nessuna copertura di mezzo, e dirlo
+	// scriverebbe una cosa falsa su una partita vera — la stessa ragione per cui `UnverifiableIntents` e'
+	// tenuto separato da `BlockedIntents`.
+	for (const int32 DoorlessIdx : Plan.DoorlessIntents)
+	{
+		if (!Intents.IsValidIndex(DoorlessIdx)) { continue; }
+		const FRTHexAttackIntent& Doorless = Intents[DoorlessIdx];
+		if (!HexUnits.IsValidIndex(Doorless.AttackerId)) { continue; }
+
+		FRTTurnLogEntry NoDoor;
+		NoDoor.Phase = ERTMatchPhase::Blast;
+		NoDoor.Category = ERTLogCategory::Fallback;
+		NoDoor.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		NoDoor.SrcCell = HexUnits[Doorless.AttackerId].Cell;
+		NoDoor.TgtCell = HexUnits.IsValidIndex(Doorless.TargetId)
+			? HexUnits[Doorless.TargetId].Cell : Doorless.TargetCell;
+		// Il PERCHE' viaggia in `Amount`, come ogni voce `Fallback`: `NoEffect` — l'azione e' stata
+		// dichiarata, e' stata valutata, e non aveva niente su cui agire.
+		NoDoor.Amount = static_cast<int32>(ERTActionInvalidReason::NoEffect);
+		if (IntentDefs.IsValidIndex(DoorlessIdx))
+		{
+			NoDoor.ActionId = IntentDefs[DoorlessIdx].ActionId;
+			NoDoor.BaseActionId = IntentDefs[DoorlessIdx].BaseActionId;
+			NoDoor.Priority = IntentDefs[DoorlessIdx].Priority;
+		}
+
+		ARTUnit* Actor = Units.IsValidIndex(Doorless.AttackerId) ? Units[Doorless.AttackerId] : nullptr;
+		AppendLogEntry(NoDoor, Actor);
+		AddLogEvent(FString::Printf(TEXT("%s: nessuna porta sul bordo dichiarato"),
+			Actor ? *Actor->GetName() : TEXT("unita'")), FRTLogSubject::Unit(Actor));
 	}
 }
 

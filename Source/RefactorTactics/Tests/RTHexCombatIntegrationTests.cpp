@@ -921,6 +921,189 @@ bool FRTHexInteractFromKitOpensDoorTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Un `Interact` dichiarato su un bordo **senza porta** viene RIFIUTATO, e il rifiuto finisce in traccia
+ * (CP 10.1, `#74`).
+ *
+ * ⛔ **Prima non succedeva niente, in silenzio.** E' il difetto che [D-149] registra dopo il proprio merge:
+ * *«la decisione resta valida — la portata e' giusta — la sua giustificazione tecnica no, e il divario fra
+ * bordo cliccato e bordo agito e' un difetto aperto»*. `FirstDoorEdge` cammina la traiettoria e guarda il
+ * solo bordo condiviso con la cella bersaglio; se il giocatore ne clicca un altro dei sei, l'operazione non
+ * trova nulla, non viene raccolta, e il turno passa senza una voce.
+ *
+ * L'invariante che questo test difende e' quella dichiarata dal progetto per le reazioni e valida qui
+ * uguale: **l'attivazione o la non-attivazione finisce SEMPRE nel TurnLog**. Un'azione che sparisce senza
+ * spiegazione e' peggio di un'azione rifiutata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexInteractDoorlessEdgeRefusedTest,
+	"RefactorTactics.Structures.Door.InteractOnDoorlessEdgeIsRefused",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexInteractDoorlessEdgeRefusedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	// La porta sta sul bordo E, e il giocatore dichiarera' il bordo NE: due delle sei facce della stessa
+	// cella. La cella bersaglio resta quella oltre E — cioe' esattamente lo scenario in cui la traiettoria
+	// trova una porta e la scelta del giocatore non ce l'ha.
+	const FRTCellId Hinge(0, 0);
+	const FRTCellId Beyond(1, 0);
+	FRTHexCellData WithDoor = *MapActor->MapAsset->FindCell(Hinge);
+	WithDoor.Doors.Add(FRTHexDoor(ERTHexDirection::E, ERTHexDoorState::Closed));
+	MapActor->MapAsset->AddOrUpdateCell(WithDoor);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Hinge);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	int32 InteractIdx = INDEX_NONE;
+	for (int32 i = 0; i < Opener->Abilities.Num(); ++i)
+	{
+		if (Opener->Abilities[i] && Opener->Abilities[i]->Def.ActionId == FName(TEXT("Action.Interact")))
+		{
+			InteractIdx = i;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("`Action.Interact` e' nel kit"), InteractIdx != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	Opener->PlannedAbilityIndex = InteractIdx;
+	Opener->PlannedAttackTarget = nullptr;
+	Opener->PlannedAttackCell = Beyond;
+	Opener->bAttackTargetsCell = true;
+	// Il bordo CLICCATO: `NE`, dove non c'e' nessuna porta.
+	Opener->bHasPlannedCoverEdge = true;
+	Opener->PlannedCoverEdge = ERTHexDirection::NE;
+
+	RunBlastTurn(TM);
+
+	// 🔴 La meta' che conta: la porta su E **non si apre**. Prima si apriva — la traiettoria la trovava, e il
+	// bordo che il giocatore aveva scelto non arrivava fin li'.
+	TestTrue(TEXT("la porta su un bordo che nessuno ha dichiarato resta chiusa"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Hinge, Beyond));
+
+	int32 DoorOpened = 0;
+	int32 RefusedNoEffect = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::DoorOpened))
+		{
+			++DoorOpened;
+		}
+		if (Entry.Category == ERTLogCategory::Fallback
+			&& Entry.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+			&& Entry.Amount == static_cast<int32>(ERTActionInvalidReason::NoEffect)
+			&& Entry.ActionId == FName(TEXT("Action.Interact")))
+		{
+			++RefusedNoEffect;
+		}
+	}
+
+	TestEqual(TEXT("nessuna porta aperta"), DoorOpened, 0);
+	// E il rifiuto e' REGISTRATO: senza questa riga il test non distinguerebbe «rifiutata» da «sparita».
+	TestEqual(TEXT("una voce di rifiuto con reason code NoEffect"), RefusedNoEffect, 1);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * Con due porte sulla stessa cella, `Interact` agisce su **quella dichiarata** e non su quella che la
+ * traiettoria incontra per prima (CP 10.1, `#74`).
+ *
+ * 🔴 **E' il difetto peggiore dei due**, e non produceva silenzio ma un esito sbagliato: il giocatore
+ * clicca il bordo `NE`, la traiettoria verso la cella oltre `E` trova la porta su `E`, e si apriva quella —
+ * un'altra porta, in un'altra direzione, senza che niente lo dicesse. Un test che guardasse solo «una porta
+ * si e' aperta» sarebbe rimasto verde su entrambe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexInteractUsesDeclaredEdgeTest,
+	"RefactorTactics.Structures.Door.InteractActsOnTheDeclaredEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexInteractUsesDeclaredEdgeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnHexBlastMap(World, /*Radius=*/ 4);
+
+	const FRTCellId Hinge(0, 0);
+	const FRTCellId BeyondEast(1, 0);
+	const FRTCellId BeyondNorthEast = URTHexLibrary::Neighbor(Hinge, ERTHexDirection::NE);
+
+	// DUE porte chiuse sulla stessa cella: una su E, una su NE. E' la configurazione che distingue «apre la
+	// porta» da «apre LA porta giusta».
+	FRTHexCellData TwoDoors = *MapActor->MapAsset->FindCell(Hinge);
+	TwoDoors.Doors.Add(FRTHexDoor(ERTHexDirection::E, ERTHexDoorState::Closed));
+	TwoDoors.Doors.Add(FRTHexDoor(ERTHexDirection::NE, ERTHexDoorState::Closed));
+	MapActor->MapAsset->AddOrUpdateCell(TwoDoors);
+	MapActor->MapAsset->SortCells();
+
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Hinge);
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	TestTrue(TEXT("premessa: entrambe le porte bloccano"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Hinge, BeyondEast)
+		&& URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Hinge, BeyondNorthEast));
+
+	int32 InteractIdx = INDEX_NONE;
+	for (int32 i = 0; i < Opener->Abilities.Num(); ++i)
+	{
+		if (Opener->Abilities[i] && Opener->Abilities[i]->Def.ActionId == FName(TEXT("Action.Interact")))
+		{
+			InteractIdx = i;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("`Action.Interact` e' nel kit"), InteractIdx != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	Opener->PlannedAbilityIndex = InteractIdx;
+	Opener->PlannedAttackTarget = nullptr;
+	// La cella mirata sta oltre E — la traiettoria passa dalla porta su E...
+	Opener->PlannedAttackCell = BeyondEast;
+	Opener->bAttackTargetsCell = true;
+	// ...ma il bordo CLICCATO e' NE, ed e' quello che deve valere.
+	Opener->bHasPlannedCoverEdge = true;
+	Opener->PlannedCoverEdge = ERTHexDirection::NE;
+
+	RunBlastTurn(TM);
+
+	TestFalse(TEXT("si apre la porta DICHIARATA (NE)"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Hinge, BeyondNorthEast));
+	// L'altra meta', e senza di lei il test passerebbe anche se si aprissero entrambe.
+	TestTrue(TEXT("e quella sulla traiettoria (E) resta chiusa"),
+		URTHexCoverLibrary::BlocksTraversal(MapActor->MapAsset, Hinge, BeyondEast));
+
+	int32 DoorOpened = 0;
+	for (const FRTTurnLogEntry& Entry : TM->GetTurnLog())
+	{
+		if (Entry.Category == ERTLogCategory::Environment
+			&& Entry.Outcome == static_cast<uint8>(ERTEnvironmentOutcome::DoorOpened))
+		{
+			++DoorOpened;
+			TestTrue(TEXT("e la voce nomina il bordo NE, non quello della traiettoria"),
+				(Entry.SrcCell == Hinge && Entry.TgtCell == BeyondNorthEast)
+				|| (Entry.SrcCell == BeyondNorthEast && Entry.TgtCell == Hinge));
+		}
+	}
+	TestEqual(TEXT("una sola porta aperta"), DoorOpened, 1);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.

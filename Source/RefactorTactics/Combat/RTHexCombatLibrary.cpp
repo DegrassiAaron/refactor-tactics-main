@@ -325,9 +325,54 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 		if (Intent.bChangesDoor)
 		{
 			FRTCellId DoorFrom, DoorTo;
-			if (FirstDoorEdge(Map, Attacker.Cell, AimCell, DoorFrom, DoorTo))
+			bool bFoundDoor = false;
+
+			if (Intent.bHasDeclaredDoorEdge)
+			{
+				// 🔴 **Il bordo DICHIARATO vince sulla traiettoria** (CP 10.1, `#74`, difetto aperto da
+				// [D-149]). Una cella adiacente ha sei facce, e `FirstDoorEdge` ne guarda una sola: quella
+				// condivisa con l'attaccante. Se il giocatore ne ha cliccata un'altra, la traiettoria o non
+				// trovava niente — silenzio — o trovava **un'altra porta**, e l'apriva.
+				//
+				// Qui si agisce su cio' che e' stato scelto, e nient'altro: e' la stessa disciplina del ramo
+				// delle COPERTURE, che il bordo dichiarato lo legge da sempre.
+				const FRTCellId Beyond = URTHexLibrary::Neighbor(Attacker.Cell, Intent.DeclaredDoorEdge);
+				const FRTHexCellData* Near = Map->FindCell(Attacker.Cell);
+				const FRTHexCellData* Far = Map->FindCell(Beyond);
+
+				ERTHexDirection Backward = ERTHexDirection::E;
+				const bool bHasBackward = URTHexCoverLibrary::EdgeDirection(Beyond, Attacker.Cell, Backward);
+
+				// Una porta APERTA e' comunque una porta — e' proprio quella che si vuole poter chiudere — e
+				// il bordo si legge da ENTRAMBI i lati: la voce puo' vivere sull'una o sull'altra cella.
+				const bool bHasDoor = (Near != nullptr && Near->DoorOn(Intent.DeclaredDoorEdge) != nullptr)
+					|| (bHasBackward && Far != nullptr && Far->DoorOn(Backward) != nullptr);
+
+				if (bHasDoor)
+				{
+					DoorFrom = Attacker.Cell;
+					DoorTo = Beyond;
+					bFoundDoor = true;
+				}
+			}
+			else
+			{
+				// Nessun bordo dichiarato: resta il comportamento di CP 9.3, dove l'operazione nasce dalla
+				// traiettoria di un colpo e non da un click — un'azione ad area che apre la porta che
+				// attraversa non ha un bordo scelto da nessuno.
+				bFoundDoor = FirstDoorEdge(Map, Attacker.Cell, AimCell, DoorFrom, DoorTo);
+			}
+
+			if (bFoundDoor)
 			{
 				Plan.DoorOps.Add(FRTDoorOp(DoorFrom, DoorTo, Intent.DoorState, Intent.AttackerId));
+			}
+			else
+			{
+				// ⛔ **Il caso che prima era silenzioso.** L'azione e' stata dichiarata e valutata, e non ha
+				// trovato niente su cui agire: lo dice, invece di lasciare che il turno passi come se il
+				// giocatore non avesse fatto nulla.
+				Plan.DoorlessIntents.Add(IntentIdx);
 			}
 		}
 		if (!URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, AimCell))
