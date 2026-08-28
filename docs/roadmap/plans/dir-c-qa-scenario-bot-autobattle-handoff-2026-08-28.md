@@ -231,10 +231,21 @@ A  docs/roadmap/plans/dir-c-qa-scenario-bot-autobattle-handoff-2026-08-28.md
 Nessun file di DIR-B (`Bot/` escluso, resolver, reaction core, objective core) e nessuno di DIR-A
 (`Content/`, UI, mappe, UMG) è stato toccato. Nessuno scenario `.json` creato o modificato.
 
-**Branch**: `test/dir-c-qa-scenario-bot-autobattle` — tre commit, **non pushati**.
+**Branch**: `test/dir-c-qa-scenario-bot-autobattle`, **non pushato**. I due commit che portano codice:
 
 | SHA | messaggio |
 |---|---|
+| `9280b16f` | `test(autobattle): la configurazione spedita non aveva oracolo per l'oscillazione, e il commento lo diceva` |
+| `738408c9` | `test(autobattle): la mutazione dice che l'oracolo nuovo falsifica sulla mappa d'autore e non su questa arena` |
+
+Gli altri sono aggiornamenti di questo handoff: `git log --oneline ad7f212b..HEAD` li elenca tutti, e
+un'elenco scritto a mano qui si invaliderebbe a ogni correzione — che è il difetto che questo documento
+segnala altrove.
+
+⚠️ **`Source/RefactorTactics/Bot/` è byte-identico a `ad7f212b`**: verificato con
+`git diff ad7f212b -- Source/RefactorTactics/Bot/`, vuoto. Le mutazioni di §6.4 non sono sopravvissute.
+
+---|---|
 | `9280b16f` | `test(autobattle): la configurazione spedita non aveva oracolo per l'oscillazione, e il commento lo diceva` |
 | `f689f217` | `docs(dir-c): l'handoff della lane QA, e il difetto vivo che la direttiva cercava era gia' chiuso due volte` |
 | `03d4157b` | `docs(dir-c): l'handoff diceva «nessun test eseguito», e nel frattempo ne aveva eseguiti sei` |
