@@ -155,6 +155,16 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FRTAttackPlaybackSignature, ARTUn
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRTPlaybackFinishedSignature);
 
 /**
+ * La conoscenza di squadra e' stata rinfrescata: chi la DISEGNA puo' rileggerla ([D-227], `#1467`).
+ *
+ * ⚠️ Non e' un momento nuovo inventato per il velo: sono i **due** punti che gia' rinfrescano la conoscenza —
+ * `RefreshTeamKnowledgeForPlanning` a inizio turno e `RefreshTeamKnowledgeForBlast` **dentro la risoluzione**.
+ * Un aggiornamento a `Tick` darebbe lo stesso risultato visivo e sarebbe sbagliato: il velo seguirebbe il
+ * tempo reale invece dello stato del turno, ed e' cio' che `Veil.FollowsRefreshPoints` esiste per impedire.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTTeamKnowledgeRefreshedSignature, int32, TurnNumber);
+
+/**
  * La partita è finita, con il verdetto e lo stato che lo motiva (CP 46.5, `#940`).
  *
  * ⚠️ **È un annuncio, non un comando**, ed è la ragione per cui esiste invece di far chiamare al
@@ -327,6 +337,14 @@ public:
 	 * tempo vive qui, in un posto solo. Ignorata fuori dalla fase di pianificazione.
 	 */
 	void RecordPlanningInput(ERTPlanningInput Kind);
+
+	/**
+	 * Emesso dai due punti di refresh, con il turno a cui la fotografia si riferisce. Il consumatore naturale
+	 * e' la presentazione — `ARTHexMapActor::ApplyKnowledgeVeil` — che sceglie DI CHI e' la conoscenza da
+	 * disegnare: questo delegate non lo decide, e non deve.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Perception")
+	FRTTeamKnowledgeRefreshedSignature OnTeamKnowledgeRefreshed;
 
 	/** Campioni di pacing della sessione corrente (sola lettura; telemetria, non stato di gioco). */
 	const TArray<FRTPacingSample>& GetPacingSamples() const { return PacingSamples; }

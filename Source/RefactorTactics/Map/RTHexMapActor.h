@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Map/RTCellId.h"
+#include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: l'ingresso del velo ([D-227])
 #include "Map/RTHexCellData.h"
 #include "RTHexMapActor.generated.h"
 
@@ -294,6 +295,62 @@ public:
 	int32 NumInstanceCells() const { return InstanceCells.Num(); }
 
 	/**
+	 * Stende il velo della fog of war sulla board, secondo cio' che UNA squadra sa ([D-225], [D-227]).
+	 *
+	 * Tre stati e non due, ed e' la conseguenza diretta di [D-227]:
+	 *
+	 * | stato della cella | resa |
+	 * |---|---|
+	 * | in `VisibleCells` — osservata ORA | piena luminosita' |
+	 * | in `ExploredCells` ma non visibile — **ricordo** | RGB moltiplicato per `RTVeilExploredFactor` |
+	 * | in nessuna delle due — mai vista | **non disegnata** ([D-225]) |
+	 *
+	 * 🔴 **Non e' un costruttore.** `RebuildInstances` resta l'unico, e questa funzione **ricalcola** il colore
+	 * da `URTHexLibrary::SurfaceColor` invece di memorizzarlo: un colore cachato sarebbe la seconda verita'
+	 * sulla superficie, e le due divergerebbero al primo colpo di pennello.
+	 *
+	 * ⚠️ **Precondizione dichiarata e verificata.** `InstanceCells` e' stato DERIVATO: un `RebuildInstances`
+	 * fra il calcolo del velo e la sua applicazione lascia indici stantii, e l'esito non e' un crash ma
+	 * **celle velate sbagliate** — un difetto che si legge come «problema grafico» per settimane. L'`ensure`
+	 * costa nulla e lo rende rumoroso.
+	 *
+	 * ⚠️ **Chi sia il viewer NON lo decide questa firma**: riceve una conoscenza gia' scelta dal chiamante.
+	 * In 2v2 offline contro bot e' il team del giocatore; spettatore e replay riporteranno la domanda.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
+	void ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge);
+
+	/**
+	 * Quanto resta acceso il terreno RICORDATO ma non osservato. Non e' una preferenza estetica: sotto una
+	 * certa soglia il ricordo diventa indistinguibile dal nascosto, e i tre stati tornano due.
+	 */
+	static constexpr float RTVeilExploredFactor = 0.35f;
+
+	/** Quante istanze il velo ha lasciato accese, ricordate e nascoste. Diagnostica e test. */
+	void GetVeilCounts(int32& OutVisible, int32& OutExplored, int32& OutHidden) const;
+
+	/**
+	 * Quante istanze l'ultimo `ApplyKnowledgeVeil` ha davvero TOCCATO.
+	 *
+	 * ⚠️ E' la misura che rende visibile il salto: senza, un velo che riscrive tutto e uno che riscrive il
+	 * bordo del cono sono indistinguibili — stesso risultato a schermo, due ordini di grandezza di
+	 * differenza nel costo.
+	 */
+	int32 GetLastVeilTouchedCells() const { return LastVeilTouchedCells; }
+
+	/** Stati che il velo scrive per istanza. `Unwritten` distingue «mai velata» da «velata e nascosta». */
+	static constexpr uint8 RTVeilUnwritten = 0xFF;
+	static constexpr uint8 RTVeilHidden = 0;
+	static constexpr uint8 RTVeilRemembered = 1;
+	static constexpr uint8 RTVeilLit = 2;
+
+	/**
+	 * La superficie di una cella, riletta dall'asset. Fuori dall'asset — o sul graybox demo, che non ha
+	 * terreni — risponde `Floor`, che e' cio' che `RebuildInstances` disegna nello stesso caso.
+	 */
+	ERTHexSurface SurfaceForCell(const FRTCellId& Cell) const;
+
+	/**
 	 * Il colpo di un raycast di selezione cade su una cella selezionabile di QUESTO actor?
 	 *
 	 * Vero solo se e' stato colpito **proprio** il componente delle celle — non un altro componente dello
@@ -505,6 +562,43 @@ protected:
 	 * viene rigenerato da RebuildInstances a ogni costruzione dell'actor.
 	 */
 	TArray<FRTCellId> InstanceCells;
+
+	/**
+	 * La scala PIENA di ogni istanza di `Cells`, per indice. Stato DERIVATO come `InstanceCells`.
+	 *
+	 * ⚠️ Serve perche' il velo nasconde portando la scala a zero, e da una scala **gia'** a zero non si
+	 * risale a quella piena: senza questo array il primo `ApplyKnowledgeVeil` sarebbe irreversibile, e la
+	 * cella tornata visibile resterebbe invisibile per sempre.
+	 */
+	TArray<FVector> InstanceBaseScale;
+
+	/**
+	 * Mapping instance index -> `FRTCellId` per i QUATTRO componenti dei glifi, e le loro scale piene.
+	 * Stato DERIVATO, rigenerato da `RebuildInstances`.
+	 *
+	 * ⚠️ Esistono perche' i glifi hanno un'indicizzazione PROPRIA: il glifo `N` non e' la cella `N`, dato che
+	 * cinque superfici su nove non ne ricevono nessuno (`SurfaceRingCount` restituisce zero). Velare la corona
+	 * riusando gli indici di `InstanceCells` colpirebbe la cella sbagliata — e il difetto sarebbe silenzioso,
+	 * perche' il conteggio delle istanze velate tornerebbe giusto.
+	 */
+	TArray<FRTCellId> GlyphCells[4];
+	TArray<FVector> GlyphBaseScale[4];
+
+	/**
+	 * Lo stato che il velo ha SCRITTO per ultimo su ogni istanza: `0` nascosta, `1` ricordata, `2` accesa —
+	 * `0xFF` quando non e' mai stato scritto. Stato DERIVATO, azzerato da `RebuildInstances` insieme agli
+	 * indici a cui si riferisce.
+	 *
+	 * ⚠️ **Non e' un'ottimizzazione preventiva: e' la risposta a una misura.** Riscrivere tutte le istanze a
+	 * ogni velo costa **2 624 ms** su arena piena (7 651 celle, misurato il 2026-08-28), contro un budget di
+	 * due refresh per turno. Fra due refresh consecutivi pero' cambia solo il bordo del cono, quindi il
+	 * lavoro utile e' una frazione minima del totale: si tocca cio' che cambia, e il resto si salta.
+	 */
+	TArray<uint8> LastVeilState;
+	TArray<uint8> LastGlyphVeilState[4];
+
+	/** Quante istanze l'ultimo velo ha toccato. Diagnostica: vedi `GetLastVeilTouchedCells`. */
+	int32 LastVeilTouchedCells = 0;
 
 	/** Stato DERIVATO, non serializzato: cache pigra, invalidata da `RebuildInstances`. */
 	mutable TArray<FRTCellId> UnreachableCells;

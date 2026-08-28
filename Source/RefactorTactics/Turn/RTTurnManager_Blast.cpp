@@ -198,6 +198,8 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 			KnowledgeForTeam(TeamId)));
 	}
 	TeamKnowledgeState = MoveTemp(Refreshed);
+	// Il secondo punto: una cella rivelata da un'esplosione compare a META' playback ([D-227]).
+	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
 }
 
 void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
