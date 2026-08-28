@@ -204,7 +204,7 @@ non esporta i PNG sotto soglia — un asset illeggibile in cartella è un invito
 
 ## 6. Conflitti aperti dall'handoff Action Phases del 2026-08-26
 
-[`RefactorTactics_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_2026-08-26.md`](../../handoff/RefactorTactics_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_2026-08-26.md)
+[`RefactorTactics_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_2026-08-26.md`](../../../archive/src/handoff/2026-08-26-action-phases-dodge-guard-brace-overwatch.md) — *da `docs/research/handoff/`, archiviato col proprio verdetto e rimosso dall'inbox il 2026-08-27; il link è stato ripuntato il 2026-08-28* —
 è entrato nel repository come **input**, non come autorità: lo dice `CLAUDE.md` («un handoff non è
 autorità») e lo dice il documento stesso, che impone di auditare `main` prima e di aprire una Decision
 Issue sui conflitti invece di sovrascrivere.

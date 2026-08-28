@@ -401,6 +401,15 @@ gameplay per poter mostrare un'icona.
 | **25.4** | Accessibility, Wiki e documentazione | `Confirmed/Predicted/Uncertain` distinguibili in **grayscale**: la differenza è nella forma. Le pagine Wiki distinguono SPECIFICATO, DATO PRESENTE e CONSUMATO A RUNTIME, e non chiamano «implementato» un dato |
 
 **Dipendenze**: E20 (fondazione), poi E11, E14, E13/E27, E35 per i consumer.
+
+> **Skill Card Grammar** ([D-231](../decisions/RT_PDR_00_Decision_Log.md), owner
+> [`../technical/systems/spec-icon-card-grammar.md`](../technical/systems/spec-icon-card-grammar.md)): è la
+> fondazione compositiva di questa epic. **CP 25.1** la possiede come governance — grammatica e catalogo
+> hanno owner separati ma collegati, e le primitive compositive (`Target`, `Shape`, `Delivery`, `HitRule`,
+> `Effect`) **non** diventano categorie runtime. **CP 25.2** vi aggancia l'authoring: uno schema o un
+> validator di caps nasce solo con un consumer reale. **CP 25.4** ne eredita i test percettivi (grayscale,
+> 24 px, card densa al cap). 🔴 Resta **aperto** a che cosa serva il colore: tre owner si contraddicono, e
+> uno dei tre è già implementato nel generatore. Non si chiude per simmetria.
 **Fuori scope**: rifacimento dell'HUD della v0.1; authoring workflow completo, localization audit, theme
 variants, high-contrast pack ed export generato del catalogo, che restano post-v0.2.
 
@@ -1126,6 +1135,19 @@ save/replay** · soak da release candidate.
 > primo passo trasformativo in poi non è più vero, e il costo cresce da solo.
 
 **Ranked e rating** stanno qui e non in E42: un rating ha senso quando le regole non cambiano più.
+
+> 🔴 **Questa frase ha promesso ranked e rating per quindici giorni senza un owner, e il rimando era
+> circolare** (misurato il 2026-08-28). I quattro checkpoint di E44 sono freeze, hardening, migrazione e
+> soak; `CP 45.3` ([#810](https://github.com/DegrassiAaron/refactor-tactics-main/issues/810)) metteva il
+> rating fuori scope dicendo «*`44` ha già deciso il perimetro*», e `44` aveva solo questa riga. Ricerca nel
+> tracker lo stesso giorno: **0** issue con `ranked`, **0** con `MMR`, **1** con `matchmaking` — quella.
+>
+> ✅ L'owner ora è **`CP 44.5`** ([#1604](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1604)),
+> e il perimetro è `RNK-1` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
+>
+> ⚠️ **Resta una contraddizione interna a questa sezione, e va sciolta lì**: apre con «*Niente di nuovo.
+> Questa epic non aggiunge meccaniche*» e poi rivendica ranked e rating, che sono meccaniche nuove. È
+> plausibilmente il motivo per cui il checkpoint non è mai stato scritto.
 
 ⚠️ **Cuttable, dichiarato in anticipo**: progressione orizzontale e modding data-only. Non devono bloccare la
 1.0 se il core competitivo è pronto — e dirlo ora costa meno che negoziarlo sotto scadenza.
