@@ -391,6 +391,8 @@ che è esattamente ciò che §6 esiste per impedire.
 | larghezza di un pannello di bordo | `0.92` | **lato** — 138 cm | tutti gli `EdgeBound` |
 | **spessore** della copertura bassa | `0.10` | **lato** — 15 cm | `SM_Graybox_Cover_Low` |
 | **spessore** della copertura alta | `0.20` | **lato** — 30 cm | `SM_Graybox_Cover_High` |
+| altezza di un pannello di porta | `0.85 H` | `H` — 213 cm | `SM_Graybox_Door_Panel` · `_Locked` |
+| spessore di un pannello di porta | `0.10` | **lato** — 15 cm | `SM_Graybox_Door_Panel` · `_Locked` |
 | fascia della traversa di `Locked` | `0.12 H` | `H` — 30 cm | `SM_Graybox_Door_Locked` |
 | rilievo della traversa, **per faccia** | `0.06` | **lato** — 9 cm | `SM_Graybox_Door_Locked` |
 | spessore di una superficie | `0.02 H` | `H` — 5 cm | `SM_Graybox_Surface_*` |
@@ -408,6 +410,12 @@ superficie — `9,7%` contro `18,4%` per uno e due anelli, `PIE-HEX-VIZ-COSTO` �
 > ⛔ **Scartata la feritoia**, che sarebbe stata il canale in pianta più vistoso: una copertura alta con
 > un'apertura **mente su una regola**. CP 9.2 la dichiara bloccante per la linea di tiro, e una silhouette che
 > suggerisce il contrario insegna al giocatore una cosa falsa — che è peggio di una silhouette ambigua.
+
+⚠️ **La porta è larga `0.92` del lato come ogni altro pannello di bordo, e non meno.** Restringerla avrebbe
+dato il canale in pianta che la separa da una copertura — ma una porta **chiusa nega il passaggio**, e due
+fessure ai lati direbbero il contrario: è lo stesso difetto della feritoia, su un altro asset. La coppia
+*porta vs copertura* non è fra quelle che §10 enumera; quelle che ci sono — i **quattro stati** della porta —
+si separano fra loro, ed è lì che il canale serve.
 
 🔑 **La traversa di `Locked` sporge su ENTRAMBE le facce**, e discende da §3: un `EdgeBound` non appartiene a
 nessuna delle due celle che condividono il bordo, quindi si guarda da entrambi i lati. Un marcatore su una

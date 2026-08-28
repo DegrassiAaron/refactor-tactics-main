@@ -9,6 +9,7 @@
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
 
+#include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogRTGrayboxMeshes, Log, All);
@@ -159,6 +160,197 @@ namespace
 		return Description;
 	}
 
+
+	/**
+	 * Aggiunge un prisma retto da un poligono in pianta, con normali per faccia.
+	 *
+	 * Il poligono si passa ANTIORARIO: e' l'ordine di `URTHexLibrary::HexCorners`, ed e' cio' che rende
+	 * uscenti le normali dei fianchi senza doverle correggere caso per caso.
+	 */
+	void AppendPrism(
+		FMeshDescription& Description,
+		FStaticMeshAttributes& Attributes,
+		const FPolygonGroupID Group,
+		const TArray<FVector2f>& Plan,
+		const float ZMin,
+		const float ZMax)
+	{
+		if (Plan.Num() < 3)
+		{
+			return;
+		}
+
+		TVertexAttributesRef<FVector3f> Positions = Attributes.GetVertexPositions();
+		TVertexInstanceAttributesRef<FVector3f> Normals = Attributes.GetVertexInstanceNormals();
+		TVertexInstanceAttributesRef<FVector2f> UVs = Attributes.GetVertexInstanceUVs();
+
+		constexpr float UvScale = 0.01f;
+
+		TArray<FVertexID> Top;
+		TArray<FVertexID> Bottom;
+		Top.Reserve(Plan.Num());
+		Bottom.Reserve(Plan.Num());
+		for (const FVector2f& Point : Plan)
+		{
+			const FVertexID TopId = Description.CreateVertex();
+			Positions[TopId] = FVector3f(Point.X, Point.Y, ZMax);
+			Top.Add(TopId);
+
+			const FVertexID BottomId = Description.CreateVertex();
+			Positions[BottomId] = FVector3f(Point.X, Point.Y, ZMin);
+			Bottom.Add(BottomId);
+		}
+
+		auto AddPolygon = [&](const TArray<FVertexID>& Ring, const FVector3f& Normal)
+		{
+			TArray<FVertexInstanceID> Instances;
+			Instances.Reserve(Ring.Num());
+			for (const FVertexID Vertex : Ring)
+			{
+				const FVertexInstanceID Instance = Description.CreateVertexInstance(Vertex);
+				Normals[Instance] = Normal;
+
+				const FVector3f& P = Positions[Vertex];
+				const FVector2f Uv = FMath::Abs(Normal.Z) > 0.5f ? FVector2f(P.X, P.Y) : FVector2f(P.X + P.Y, P.Z);
+				UVs[Instance] = Uv * UvScale;
+
+				Instances.Add(Instance);
+			}
+			Description.CreatePolygon(Group, Instances);
+		};
+
+		AddPolygon(Top, FVector3f(0.f, 0.f, 1.f));
+
+		TArray<FVertexID> BottomReversed = Bottom;
+		Algo::Reverse(BottomReversed);
+		AddPolygon(BottomReversed, FVector3f(0.f, 0.f, -1.f));
+
+		for (int32 Index = 0; Index < Plan.Num(); ++Index)
+		{
+			const int32 Next = (Index + 1) % Plan.Num();
+			const FVector2f Edge = Plan[Next] - Plan[Index];
+			const FVector3f Outward = FVector3f(Edge.Y, -Edge.X, 0.f).GetSafeNormal();
+			AddPolygon(TArray<FVertexID>{ Bottom[Index], Bottom[Next], Top[Next], Top[Index] }, Outward);
+		}
+	}
+
+	/** Il footprint esterno della cella, in pianta e centrato sull'origine: i vertici li da' la libreria. */
+	TArray<FVector2f> CellPlan(const FRTGrayboxBudget& Budget)
+	{
+		TArray<FVector2f> Plan;
+		for (const FVector& Corner : URTHexLibrary::HexCorners(FVector::ZeroVector, Budget.Side))
+		{
+			Plan.Add(FVector2f(static_cast<float>(Corner.X), static_cast<float>(Corner.Y)));
+		}
+		return Plan;
+	}
+
+	/** Copertura alta: `0.85 H`, e spessore `0.20` del lato — il DOPPIO della bassa (§6.3). */
+	FMeshDescription BuildCoverHigh(const FRTGrayboxBudget& Budget)
+	{
+		FMeshDescription Description;
+		FStaticMeshAttributes Attributes(Description);
+		const FPolygonGroupID Group = BeginDescription(Description, Attributes);
+
+		const float HalfThickness = 0.20f * Budget.Side * 0.5f;
+		const float HalfLength    = 0.92f * Budget.Side * 0.5f;
+		const float Height        = 0.85f * Budget.H;
+
+		AppendBox(Description, Attributes, Group,
+			FVector3f(-HalfThickness, -HalfLength, 0.f),
+			FVector3f( HalfThickness,  HalfLength, Height));
+
+		return Description;
+	}
+
+	/** Il pannello nudo della porta: largo `0.92` del lato come ogni pannello di bordo, alto `0.85 H`. */
+	FMeshDescription BuildDoorPanel(const FRTGrayboxBudget& Budget)
+	{
+		FMeshDescription Description;
+		FStaticMeshAttributes Attributes(Description);
+		const FPolygonGroupID Group = BeginDescription(Description, Attributes);
+
+		const float HalfThickness = 0.10f * Budget.Side * 0.5f;
+		const float HalfLength    = 0.92f * Budget.Side * 0.5f;
+		const float Height        = 0.85f * Budget.H;
+
+		AppendBox(Description, Attributes, Group,
+			FVector3f(-HalfThickness, -HalfLength, 0.f),
+			FVector3f( HalfThickness,  HalfLength, Height));
+
+		return Description;
+	}
+
+	/**
+	 * `Locked`: lo stesso pannello PIU' la traversa in rilievo di `D-171`.
+	 *
+	 * ⚠️ Sporge su ENTRAMBE le facce, e discende da §3: un `EdgeBound` non appartiene a nessuna delle due
+	 * celle che condividono il bordo, quindi si guarda da entrambi i lati. Un marcatore su una faccia sola
+	 * sarebbe leggibile dalla meta' delle posizioni di camera, e `D-171` ha scelto la geometria proprio per
+	 * non dipendere dal punto di vista.
+	 */
+	FMeshDescription BuildDoorLocked(const FRTGrayboxBudget& Budget)
+	{
+		FMeshDescription Description = BuildDoorPanel(Budget);
+		FStaticMeshAttributes Attributes(Description);
+		const FPolygonGroupID Group = Description.PolygonGroups().GetFirstValidID();
+
+		const float HalfThickness = 0.10f * Budget.Side * 0.5f;
+		const float Relief        = 0.06f * Budget.Side;
+		const float HalfLength    = 0.92f * Budget.Side * 0.5f;
+		const float Height        = 0.85f * Budget.H;
+		const float HalfBand      = 0.12f * Budget.H * 0.5f;
+
+		AppendBox(Description, Attributes, Group,
+			FVector3f(-HalfThickness - Relief, -HalfLength, Height * 0.5f - HalfBand),
+			FVector3f( HalfThickness + Relief,  HalfLength, Height * 0.5f + HalfBand));
+
+		return Description;
+	}
+
+	/** Acqua: una lastra PIATTA e CONTINUA sul footprint esterno. E' il termine di paragone del ghiaccio. */
+	FMeshDescription BuildSurfaceWater(const FRTGrayboxBudget& Budget)
+	{
+		FMeshDescription Description;
+		FStaticMeshAttributes Attributes(Description);
+		const FPolygonGroupID Group = BeginDescription(Description, Attributes);
+
+		AppendPrism(Description, Attributes, Group, CellPlan(Budget), 0.f, 0.02f * Budget.H);
+		return Description;
+	}
+
+	/**
+	 * Ghiaccio: sei lastre triangolari a quote diverse dentro lo stesso `0.02 H`.
+	 *
+	 * Il canale e' la FRATTURA, non la tinta: in pianta si vedono le sei linee, e i dislivelli fra settori
+	 * adiacenti sono pareti verticali che sotto la stessa luce hanno una luminanza diversa dalle facce
+	 * orizzontali. 🔴 E' il budget che dipende dalle normali — se arrivassero degeneri, il ghiaccio sarebbe
+	 * un'acqua con qualche linea, ed e' il motivo per cui `MeshesHaveFaceNormals` esiste.
+	 *
+	 * Le quote sono FISSE e non casuali: un generatore che sorteggiasse darebbe un asset diverso a ogni
+	 * esecuzione, e due `.uasset` che si diffano sono meta' della ragione per cui `D-229` genera invece di
+	 * far modellare.
+	 */
+	FMeshDescription BuildSurfaceIce(const FRTGrayboxBudget& Budget)
+	{
+		FMeshDescription Description;
+		FStaticMeshAttributes Attributes(Description);
+		const FPolygonGroupID Group = BeginDescription(Description, Attributes);
+
+		const TArray<FVector2f> Plan = CellPlan(Budget);
+		const float FullHeight = 0.02f * Budget.H;
+		static const float SectorHeights[6] = { 1.00f, 0.55f, 0.85f, 0.40f, 0.70f, 0.25f };
+
+		for (int32 Sector = 0; Sector < Plan.Num(); ++Sector)
+		{
+			const int32 Next = (Sector + 1) % Plan.Num();
+			const TArray<FVector2f> Wedge = { FVector2f::ZeroVector, Plan[Sector], Plan[Next] };
+			AppendPrism(Description, Attributes, Group, Wedge, 0.f, FullHeight * SectorHeights[Sector]);
+		}
+
+		return Description;
+	}
+
 	struct FRTGrayboxAsset
 	{
 		/** Nome dell'asset, senza prefisso di percorso. */
@@ -171,15 +363,19 @@ namespace
 	};
 
 	/**
-	 * Le mesh che questo commandlet sa costruire OGGI.
+	 * Le sei mesh di §8.1, e sono tutte.
 	 *
-	 * ⚠️ Ne manca cinque delle sei di §8.1, e l'assenza e' deliberata: `D-229` prescrive di generarne
-	 * UNA, posarla nella scena illuminata e guardarla prima di scriverne sei — se le normali non
-	 * bastassero, la strada cadrebbe dopo una mesh invece che dopo sei. Le altre entrano qui quando
-	 * quella verifica ha un esito.
+	 * ⚠️ Per un tempo questa tabella ne ha avuta UNA, e non era incompletezza: `D-229` prescrive di
+	 * generarne una sola, verificarne le normali e poi continuare — la verifica ha un esito
+	 * (`RefactorTactics.Graybox.MeshesHaveFaceNormals`), quindi le altre cinque sono entrate.
 	 */
 	const FRTGrayboxAsset GGrayboxAssets[] = {
-		{ TEXT("SM_Graybox_Cover_Low"), TEXT("Cover"), &BuildCoverLow },
+		{ TEXT("SM_Graybox_Cover_Low"),     TEXT("Cover"),    &BuildCoverLow     },
+		{ TEXT("SM_Graybox_Cover_High"),    TEXT("Cover"),    &BuildCoverHigh    },
+		{ TEXT("SM_Graybox_Door_Panel"),    TEXT("Doors"),    &BuildDoorPanel    },
+		{ TEXT("SM_Graybox_Door_Locked"),   TEXT("Doors"),    &BuildDoorLocked   },
+		{ TEXT("SM_Graybox_Surface_Water"), TEXT("Surfaces"), &BuildSurfaceWater },
+		{ TEXT("SM_Graybox_Surface_Ice"),   TEXT("Surfaces"), &BuildSurfaceIce   },
 	};
 
 	bool SaveAssetPackage(UObject* Asset)
