@@ -11,6 +11,7 @@
 #include "Turn/RTActionFallbackLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Tests/RTAbilityFixtures.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Kismet/GameplayStatics.h"
@@ -302,19 +303,6 @@ bool FRTHexBlastFallbackLoggedTest::RunTest(const FString&)
 
 namespace
 {
-	/** Da' all'unita' un'azione del catalogo generico e ne restituisce l'indice. */
-	int32 AddCoreAbility(ARTUnit* Unit, const TCHAR* ActionId)
-	{
-		if (!Unit) { return INDEX_NONE; }
-		URTActionData* Action = NewObject<URTActionData>(Unit);
-		Action->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
-		Action->RangeCells = Action->Def.RangeCells;
-		Action->Power = 0;
-		Action->bSelfTarget = true;
-		Unit->Abilities.Add(Action);
-		return Unit->Abilities.Num() - 1;
-	}
-
 	/** Un attacco di prova che spinge di N celle: serve a distinguere la spinta da 1 da quella piu' forte. */
 	int32 AddPushAbility(ARTUnit* Unit, int32 PushCells)
 	{
@@ -354,7 +342,7 @@ bool FRTGuardReducesDamageInMatchTest::RunTest(const FString&)
 	if (!TM || !Defender || !Shooter) { DestroyHexBlastWorld(World); return false; }
 
 	const int32 StartHealth = Defender->Health;
-	const int32 GuardIdx = AddCoreAbility(Defender, TEXT("Action.Guard"));
+	const int32 GuardIdx = RTAbilityFixtures::AddCoreAbility(Defender, TEXT("Action.Guard"));
 	Defender->PlannedAbilityIndex = GuardIdx;
 	Defender->PlannedAttackTarget = Defender; // su se stessi: la guardia si prepara addosso
 	Shooter->PlannedAbilityIndex = 0;
@@ -399,7 +387,7 @@ bool FRTGuardResistsPushTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Defender || !Pusher) { DestroyHexBlastWorld(World); return false; }
 
-	const int32 GuardIdx = AddCoreAbility(Defender, TEXT("Action.Guard"));
+	const int32 GuardIdx = RTAbilityFixtures::AddCoreAbility(Defender, TEXT("Action.Guard"));
 	const int32 Push1 = AddPushAbility(Pusher, /*PushCells=*/ 1);
 	const FRTCellId Start = Defender->Cell;
 
@@ -415,7 +403,7 @@ bool FRTGuardResistsPushTest::RunTest(const FString&)
 	// Una spinta piu' forte passa comunque: la guardia attutisce, non ancora.
 	Defender->PlaceOnCell(Start, FVector::ZeroVector, 100.f, 250.f);
 	Defender->PlannedCell = Start;
-	Defender->PlannedAbilityIndex = AddCoreAbility(Defender, TEXT("Action.Guard"));
+	Defender->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Defender, TEXT("Action.Guard"));
 	Defender->PlannedAttackTarget = Defender;
 	Pusher->PlannedAbilityIndex = AddPushAbility(Pusher, /*PushCells=*/ 2);
 	Pusher->PlannedAttackTarget = Defender;
