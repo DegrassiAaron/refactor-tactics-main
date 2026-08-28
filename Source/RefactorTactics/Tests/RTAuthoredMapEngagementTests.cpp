@@ -24,6 +24,7 @@
 #include "Map/RTHexVisionLibrary.h"
 #include "RTGameMode.h"
 #include "RTOrbitProbeForTest.h" // il ritorno di periodo due, condiviso con `EngagesOnTheGeneratedTestArena`
+#include "RTAuthoredArenaForTest.h" // il path della mappa d'autore in un posto solo
 #include "RTWorldFixtures.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h" // #1150: «inflitto» si chiede al predicato, non si deduce dalla categoria
@@ -95,8 +96,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAuthoredMapNobodyParksTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTAuthoredMapNobodyParksTest::RunTest(const FString&)
 {
-	const TCHAR* AssetPath = TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.DA_HexMap_Arena");
-	URTHexMapAsset* Authored = Cast<URTHexMapAsset>(StaticLoadObject(URTHexMapAsset::StaticClass(), nullptr, AssetPath));
+	URTHexMapAsset* Authored = RTAuthoredArena::Load();
 	if (!TestNotNull(TEXT("la mappa d'autore si carica"), Authored)) { return false; }
 
 	UWorld* World = RTWorldFixtures::MakeWorld();
@@ -228,8 +228,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAuthoredMapEngagesTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTAuthoredMapEngagesTest::RunTest(const FString&)
 {
-	const TCHAR* AssetPath = TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.DA_HexMap_Arena");
-	URTHexMapAsset* Authored = Cast<URTHexMapAsset>(StaticLoadObject(URTHexMapAsset::StaticClass(), nullptr, AssetPath));
+	URTHexMapAsset* Authored = RTAuthoredArena::Load();
 	if (!TestNotNull(TEXT("la mappa d'autore si carica"), Authored)) { return false; }
 
 	UWorld* World = RTWorldFixtures::MakeWorld();
@@ -336,8 +335,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAuthoredMapNoOscillationTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTAuthoredMapNoOscillationTest::RunTest(const FString&)
 {
-	const TCHAR* AssetPath = TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.DA_HexMap_Arena");
-	URTHexMapAsset* Authored = Cast<URTHexMapAsset>(StaticLoadObject(URTHexMapAsset::StaticClass(), nullptr, AssetPath));
+	URTHexMapAsset* Authored = RTAuthoredArena::Load();
 	if (!TestNotNull(TEXT("la mappa d'autore si carica"), Authored)) { return false; }
 
 	UWorld* World = RTWorldFixtures::MakeWorld();

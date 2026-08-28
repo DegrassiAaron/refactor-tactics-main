@@ -2090,32 +2090,36 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// sono unita' che restano ferme abbastanza da superare il limite se le si contasse male. L'asserzione
 	// non e' vacua, e non e' un ornamento.
 	//
-	// ✅ **E il percorso di comportamento non manca per difetto di ricerca: NON ESISTE SU QUESTA BOARD**
-	// (#1550, misurato il 2026-08-28). La riga che chiedeva «chi trovera' una mutazione del BOT che lo fa
-	// cadere qui la scriva in questa tabella» e' chiusa cosi', e non con una quarta mutazione.
+	// 🔵 **UNA SPIEGAZIONE, non la chiusura della ricerca** (#1550, misurato il 2026-08-28). Il ciclo di
+	// #1287 puo' chiudersi solo se il filtro sul dominio, dalla cella CIECA, fa **arretrare**: manda su una
+	// cella che vede ma piu' LONTANA dal bersaglio. Se manda avanti, tornare indietro significa allontanarsi,
+	// e qualunque termine di avvicinamento lo penalizza. Su `MakeTestArena` il muro di `q=0` blocca la vista
+	// e **non il passo**, e `HasLineOfSight` esclude gli estremi dalla regola per-cella: la cella del muro e'
+	// insieme la piu' vicina al bersaglio **e** una cella che vede. Sulla mappa d'autore l'ostacolo centrale
+	// blocca vista **e** passo, e li' la cella che vede sta dietro.
 	//
-	// 🔴 **Il ciclo di #1287 chiede DUE passi, e il secondo qui non c'e'.** Il punteggio non legge
-	// `Context.Origin` e il tie-break di `ChooseBestPlan` fa vincere il restare: `A -> B` chiede quindi
-	// `punteggio(B) > punteggio(A)` e `B -> A` chiede l'opposto, cioe' **con il dominio intero un 2-ciclo non
-	// e' formabile su nessuna board**. A renderlo formabile era il filtro di #1287, che TOGLIE l'origine
-	// dalle candidate quando e' cieca: li' il bot deve muoversi anche verso una cella che vale meno. Il ciclo
-	// e' percio' la congiunzione di due condizioni — dalla cieca il filtro manda su `B`, e da `B` il dominio
-	// intero riporta sulla cieca — e su `MakeTestArena` la seconda non si verifica **mai**: il muro di `q=0`
-	// blocca la vista e **non il passo**, e `HasLineOfSight` esclude gli estremi dalla regola per-cella,
-	// quindi la cella del muro e' insieme la piu' vicina al bersaglio **e** una cella che vede. Dalla cieca
-	// il filtro manda avanti, non indietro.
+	// Passi indietro su coppie `(cella cieca, bersaglio)` esaminate, per budget di movimento:
 	//
-	//     board                cicli chiusi   coppie (cieca, bersaglio)   muri che bloccano anche il passo
-	//     MakeTestArena        **0**          9510                        0 su 5
-	//     DA_HexMap_Arena      34             8451                        9 su 11
+	//     budget MP                2      3      4     5 (Move)    6     7    8 (Sprint)
+	//     MakeTestArena           48     19      0        0        0     0        0
+	//     DA_HexMap_Arena        154    162    170      104       38     9        0
 	//
-	// Le due misure sono `Bot.StalemateProbeGeneratedArenaClosesNoOrbitCycle` e
-	// `Bot.StalemateProbeAuthoredMapClosesTheOrbitCycle`, e la seconda ritrova fra i propri cicli
+	// ∴ le due board si distinguono per DOVE cade la soglia, e il profilo neutro (`MovementMode.Move`, 5 MP)
+	// cade sui due lati opposti. Le misure sono `Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack` e
+	// `Bot.StalemateProbeAuthoredMapFilterStepsBack`, e la seconda ritrova fra le proprie coppie
 	// **esattamente** l'orbita che #1287 ha misurato in partita: `(1,-1,L0) <-> (3,-3,L1)`.
 	//
-	// ⚠️ **Il limite resta, ed e' piu' stretto di prima.** Un verde qui dice «il ciclo NELLA FORMA DI
-	// #1287 non ha su questa board dove chiudersi», non «il bot non puo' orbitare»: un termine di punteggio
-	// che dipenda dall'origine in un altro modo riaprirebbe la domanda, e quel giorno si rimisura la'.
+	// 🔴 **Cio' che questa spiegazione NON e': una dimostrazione di impossibilita'.** Una stesura precedente
+	// lo sosteneva — «`ScorePlan` non legge `Context.Origin`, quindi `A->B` e `B->A` chiedono disuguaglianze
+	// opposte» — ed **e' falso**: il punteggio dipende dalla provenienza attraverso il facing d'arrivo
+	// (`RTHexBotLibrary.cpp` sottrae `WDamage * max(0, CoperturaQui - CoperturaTenuta)`), e con
+	// `WDamage == WApproach == 10` un punto di copertura vale una cella di avvicinamento. Trovato in code
+	// review, e la tesi e' ritirata.
+	//
+	// ⚠️ **Quindi la riga resta aperta, e vale ancora: chi trovera' una mutazione del BOT che fa cadere
+	// questa asserzione la scriva in questa tabella** — e con lei cade la spiegazione qui sopra. Cio' che e'
+	// cambiato non e' che la ricerca sia finita: e' che ora si sa **dove** guardare, cioe' a un termine che
+	// paghi l'arretramento da solo, o a un budget di movimento sotto i 4 MP.
 	const int32 WorstOrbit = Orbite.WorstReturns();
 	const int32 OrbitLimit = FRTOrbitProbe::LimitForTurns(TurnsPlayed);
 	const int32 OrbitMinTurns = FRTOrbitProbe::MinTurnsToFalsify;
