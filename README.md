@@ -71,7 +71,7 @@ docs/                          # >>> README.md e' il punto d'ingresso <<<
   balance/                     # numeri vigenti (cataloghi) + workbook
   roadmap/                     # milestone, release v0.1, DoD, requisiti F0-F6
   decisions/                   # ADR e Decision Log
-  src/                         # sorgenti non normativi (PRD di visione, brief grezzi)
+  research/                    # non normativo: PRD di visione, design, handoff (era src/)
   archive/                     # materiale superato
 CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
 ```
@@ -82,7 +82,9 @@ CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
 |---|---|
 | [`docs/README.md`](docs/README.md) | 🧭 **Da qui**: gerarchia delle fonti, chi possiede quale concetto, le risposte brevi |
 | [`docs/product/piano-canonico-mvp.md`](docs/product/piano-canonico-mvp.md) | ⭐ **Canone**: decisioni vincolanti, invarianti, regole numeriche |
-| [`docs/roadmap/roadmap-v0.1.md`](docs/roadmap/roadmap-v0.1.md) | Release **v0.1**: 16 epic, 82 checkpoint, stato feature → file |
+| [`docs/roadmap/roadmap-main-v0.1.md`](docs/roadmap/roadmap-main-v0.1.md) | 🗺️ **Il lavoro aperto in un diagramma**: tre lane, sei wave, handoff e gate finale |
+| [`docs/roadmap/roadmap-v0.1-v1.0.md`](docs/roadmap/roadmap-v0.1-v1.0.md) | La traiettoria **v0.1 → v1.0** in una pagina, e le quattro soglie fra le release |
+| [`docs/roadmap/roadmap-v0.1.md`](docs/roadmap/roadmap-v0.1.md) | Release **v0.1**: epic, checkpoint, stato feature → file. Il **totale** si legge di lì (§3), non da qui |
 | [`docs/roadmap/v0.1-definition-of-done.md`](docs/roadmap/v0.1-definition-of-done.md) | Gate di release, KPI, checklist di contenuto |
 | [`docs/roadmap/roadmap-checkpoint.md`](docs/roadmap/roadmap-checkpoint.md) | Milestone M6–M11 con DoD misurabile e stato |
 | [`docs/technical/architecture/architettura-codice.md`](docs/technical/architecture/architettura-codice.md) | Mappa delle classi C++ |

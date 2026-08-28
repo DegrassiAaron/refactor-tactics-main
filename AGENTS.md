@@ -233,9 +233,14 @@ validazione · serializzazione/replay · privacy intenti.
   stesso non è stato provato.
 - Le verifiche PIE/Editor non sono verdi finché qualcuno non le ha realmente eseguite.
 - ⛔ **Il repository non ha più gate Python.** Restano **Node 22** in `tools/radar/` — rubrica dei
-  rating, generatore SVG dei radar e allineatore degli alt sulla Wiki — e un solo file Python
-  versionato, `tools/icons-downloader/paragon_skill_icons_downloader.py`, che è un **downloader** e non
-  un gate. I controlli vivi sono **cinque**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi), `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), `node tools/radar/doc-links.ts --check` (i percorsi citati dai documenti), `node tools/radar/catalog-code.ts` (le stat base degli eroi fra catalogo e C++ — non ha `--check` perché non scrive mai: esce `1` e basta) e `node tools/radar/doc-tables.ts --check` (le righe di tabella che non hanno la larghezza delle sorelle), piu' la suite `node --test` di `tools/radar/` — si lancia **da dentro la cartella**, `node --test tools/radar/` fallisce con `MODULE_NOT_FOUND`.
+  rating, generatore SVG dei radar e allineatore degli alt sulla Wiki — e **tre** file Python
+  versionati, nessuno dei quali è un gate: `tools/icons-downloader/paragon_skill_icons_downloader.py`
+  è un **downloader**, e i due di `tools/decision-log/` sono un **generatore di vista** e il suo
+  raccoglitore di dati. Non hanno `--check`, non escono `1` su una divergenza, e nessun DoD li nomina.
+  *(Corretto il 2026-08-27: questa riga diceva «un solo file Python versionato», ed era vera fino a
+  quando `tools/decision-log/` non è atterrato. Il difetto è quello che `CONTEXT_INDEX.md` §«Le due
+  toolchain» ha già dichiarato per i gate: un elenco scritto a mano non si accorge di un file nuovo,
+  e chi aggiunge il file non passa di qui.)* I controlli vivi sono **cinque**, più una suite: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi), `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), `node tools/radar/doc-links.ts --check` (i percorsi citati dai documenti), `node tools/radar/catalog-code.ts` (le stat base degli eroi fra catalogo e C++ — non ha `--check` perché non scrive mai: esce `1` e basta) e `node tools/radar/doc-tables.ts --check` (le righe di tabella che non hanno la larghezza delle sorelle), piu' la suite `node --test` di `tools/radar/` — si lancia **da dentro la cartella**, `node --test tools/radar/` fallisce con `MODULE_NOT_FOUND`.
   La cartella `scripts/` è stata **rimossa** il 2026-08-21 (**D-182**): con lei sono usciti i nove
   script Python e i loro test — i cinque gate documentali (link, nomi, simboli, tabelle, inventario),
   i due controlli sui dati di gioco (`check-capability-owners`, `check-equipment-defaults`) e i due
@@ -303,16 +308,37 @@ Repository: `DegrassiAaron/refactor-tactics-main`.
 - Niente commit, push, merge, force, delete remoti o operazioni distruttive senza richiesta esplicita.
 - Non confondere “ho modificato i file” con “ho verificato build/PIE/packaged” (§*Test e Definition of Done*).
 
-### Una sessione per volta
+### Più sessioni, e la misura che non mente
 
-Lo sviluppo è **sequenziale**: una sessione esecutiva, una working directory, un branch alla volta
-([D-178](docs/decisions/RT_PDR_00_Decision_Log.md)). Non spezzare un lavoro fra più sessioni
-contemporanee, e non aprire worktree per parallelizzare: se un task è troppo grosso, si spezza in
-issue che si fanno **in fila**.
+Lo sviluppo è **parallelo di fatto**, e va trattato come tale
+([D-222](docs/decisions/RT_PDR_00_Decision_Log.md), che supera la clausola operativa di
+[D-178](docs/decisions/RT_PDR_00_Decision_Log.md)). ⛔ Questa sezione diceva *«lo sviluppo è
+sequenziale: una sessione, una working directory, un branch alla volta»*, e **descriveva un regime che
+non è quello praticato**: il 2026-08-27 sono stati misurati **101** checkout di `HEAD` in 24 ore,
+**6 sessioni** distinte a committare e **4 nella stessa finestra di 6 minuti**, tutte sullo stesso
+worktree.
 
-Due sessioni nella stessa working directory continuano a scriversi addosso — stesso file, stesso
-`git status`, branch cambiato sotto i piedi dell'altra. Se te ne accorgi, **non «gestirlo con
-attenzione»**: fermati e dillo.
+Più sessioni condividono quindi disco, `HEAD` e binario, e continuano a scriversi addosso. Ciò che
+cambia è **cosa si protegge**: non la working directory, che nessuno può riservarsi, ma la **misura**.
+
+> Una suite vale solo se `HEAD`, l'albero di lavoro, il binario e i processi del motore sono gli stessi
+> all'inizio e alla fine. Altrimenti non è né rossa né verde: è **NON VALIDA**.
+
+Il difetto che questo chiude non è il parallelismo: è il **silenzio**. Nessuna di queste collisioni
+produce un errore — producono verde che misura un'altra cosa. Una suite `1233/1233, 0 fail` che aveva
+letto un file cambiato a run iniziata; due suite morte a **641/1175** e **662/1191** con `Fail = 0`.
+
+**Per la suite si usa [`scripts/rt-suite.ps1`](scripts/rt-suite.ps1)**, che quei controlli li fa sempre
+invece di ricordarseli. Da **PowerShell**: Git Bash traduce gli argomenti che iniziano con `/` e
+l'harness non parte nemmeno.
+
+⚠️ **I worktree non sono la via d'uscita**: il mutex Live Coding è globale sull'eseguibile del motore,
+quindi due run di automation si uccidono a vicenda anche da checkout diversi. Isolare il disco
+lascerebbe scoperta proprio la collisione più silenziosa.
+
+⚠️ **Il merge resta scoperto**: il 2026-08-27 due PR sono state mergiate **prima che il proprio gate
+finisse**, entrambe da un'altra sessione. Uno script locale non lo intercetta. Prima di mergiare,
+verifica che il gate sia girato sul commit che stai mergiando.
 
 ### ID condivisi: `D-nnn`, `Enn`, `XXX-n`
 
@@ -320,22 +346,38 @@ Tre contatori vivono in documenti diversi e nessuno li assegna. Il numero si leg
 assegnato e si **riverifica subito prima del merge**, perché la risposta a *«qual è il primo numero
 libero»* scade mentre lavori:
 
-```powershell
+```bash
 git fetch --prune origin
-git grep -oh "D-[0-9]\+" origin/main -- docs/decisions/RT_PDR_00_Decision_Log.md | sort -V | tail -1
-gh pr list --state open
-gh issue list --search "EPIC in:title"
+
+# Ogni ref remoto, con l'ultimo ID che rivendica. E' la sola rete che vede un branch senza PR.
+for b in $(git branch -r --format='%(refname:short)' | grep -v HEAD); do
+  id=$(git show "$b:docs/decisions/RT_PDR_00_Decision_Log.md" 2>/dev/null \
+       | grep -oE '^\| \*\*D-[0-9]{3}\*\*' | grep -oE 'D-[0-9]{3}' | sort -u | tail -1)
+  [ -n "$id" ] && echo "$b -> $id"
+done
+
+gh issue list --search "EPIC in:title"   # gli `Enn`, che vivono nelle issue e non nei ref
 ```
+
+🔴 **`gh pr list --state open` non basta, ed era il comando prescritto qui fino al 2026-08-28**
+([#1600](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1600)). Due buchi, entrambi
+misurati: (1) fra il commit che prende un ID e l'apertura della sua PR l'ID è **preso e invisibile** —
+9 ref remoti contro 3 PR aperte, cinque branch di lavoro scoperti; (2) elenca le **PR**, non gli **ID**:
+sapere che una PR è aperta non dice quale numero rivendica, e leggerne il diff nessuno lo prescriveva.
+La riga qui sotto — *«un branch aperto è una rivendicazione quanto un merge»* — diceva già la cosa
+giusta; era il comando a non verificarla.
 
 Un branch aperto e un working tree non committato sono rivendicazioni quanto un merge. Se una PR in
 volo dichiara lo stesso ID con una **tesi diversa**, rinumera la seconda: rimandi corretti per coppia
 `(file, riga)` — mai con una sostituzione globale — contenuto invariato. Se l'altra è già su `main`,
 la seconda sei tu, e la registri nelle Note.
 
-⚠️ **Limite noto, non aggirato**: questo è un controllo a vista, e il progetto ha già pagato sedici
-collisioni con lo stesso metodo prima di automatizzarlo. Con una sola sessione per volta la finestra
-di race si chiude quasi tutta, ma resta aperta finché esistono PR non mergiate — perciò il `fetch`
-prima del merge non è facoltativo.
+⚠️ **Limite noto, non aggirato — e più largo di quanto questa riga dicesse.** È un controllo a vista, e
+il progetto ha già pagato **sedici** collisioni con lo stesso metodo prima di automatizzarlo. ⛔ Qui
+seguiva *«con una sola sessione per volta la finestra di race si chiude quasi tutta»*: quella premessa è
+**falsa**, misurata il 2026-08-27 ([D-222](docs/decisions/RT_PDR_00_Decision_Log.md)) — 101 checkout in
+24 ore e 6 sessioni a committare, che è lo stesso regime in cui quelle sedici collisioni erano avvenute.
+La finestra resta aperta quanto le PR non mergiate, e il `fetch` prima del merge non è facoltativo.
 
 ## Lingua
 

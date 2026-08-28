@@ -12,6 +12,7 @@
 
 class UStaticMeshComponent;
 class UArrowComponent;
+class USkeletalMeshComponent;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class URTActionData;
@@ -498,6 +499,24 @@ public:
 	/** Rimuove la parte temporanea dello scudo (fine turno). Lo scudo BASE dell'unita' resta. */
 	void ExpireTemporaryShield();
 
+	/**
+	 * Riporta lo scudo BASE al suo valore pieno ([D-224]): 5 punti che ogni unita' porta, non crescono e
+	 * tornano interi a fine turno. Chiamata dal COSTRUTTORE — un'unita' esiste gia' protetta — e in coda al
+	 * Cleanup, dove il temporaneo e' appena scaduto.
+	 *
+	 * ⚠️ **Non da `BeginPlay`, ed e' una correzione misurata**: i mondi di test costruiti con
+	 * `UWorld::CreateWorld` non fanno partire `BeginPlay`, quindi lo scudo sarebbe esistito in partita e
+	 * NON dove lo si verifica. Il costruttore gira su `NewObject` come su ogni `SpawnActor`.
+	 *
+	 * Non e' nemmeno il default del campo `Shield`: il valore lo dichiara `URTCombatLibrary::BaseShield`
+	 * insieme alle altre costanti di combattimento, e un solo punto lo applica.
+	 *
+	 * La somma con `TemporaryShield` e' ridondante nella posizione attuale — li' vale sempre 0 — ma tiene
+	 * l'invariante `Shield = base + temporaneo` vera se un giorno l'ordine delle due chiamate cambiasse.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Unit")
+	void RechargeBaseShield();
+
 	/** Quota dello scudo corrente che scadra' a fine turno (diagnostica/HUD). */
 	int32 GetTemporaryShield() const { return TemporaryShield; }
 
@@ -898,7 +917,139 @@ public:
 	/** Quota locale dell'anello di SELEZIONE: resta alla quota-terra di riferimento, e fa da cornice esterna. */
 	static float SelectionRingLocalZ(float VisualZOffset);
 
+	/**
+	 * Se l'unita' va renderizzata, date le DUE variabili che lo decidono.
+	 *
+	 * 🔴 Pura, statica e in un posto solo perche' il difetto naturale e' calcolarla in due: un morto che
+	 * «diventa noto» tornerebbe visibile. La morte vince sempre sulla conoscenza.
+	 */
+	static bool ShouldBeRendered(bool bAlive, bool bKnownToObserver);
+
+	/**
+	 * Se il CILINDRO SEGNAPOSTO va mostrato.
+	 *
+	 * 🔴 Il cilindro e' un segnaposto, e il posto non e' piu' vuoto quando l'eroe porta la propria skeletal:
+	 * mostrarlo allora rimette un cilindro dentro il personaggio. Il predicato si CALCOLA da qui invece di
+	 * rileggere cio' che il Blueprint ha impostato, cosi' il valore non dipende da quale delle due forme il
+	 * `BP_Unit_*` abbia usato per nascondere il cilindro.
+	 *
+	 * ⚠️ **`SetVisibility` NON scavalca `bHiddenInGame`**, e una stesura precedente di questa riga diceva
+	 * il contrario. Sono due flag distinti e un componente si disegna solo se `bVisible && !bHiddenInGame`:
+	 * su un `BP_Unit_*` che nasconda il cilindro con `bHiddenInGame = true`, `SetVisibility(true)` non lo
+	 * riporterebbe a schermo. Cio' che regge davvero e' piu' stretto: **sugli eroi il predicato calcola
+	 * `false` in entrambi i casi** (`bHasHeroMesh` e' vero, quindi il cilindro va nascosto comunque), e le
+	 * due forme coincidono per VERSO, non per una proprieta' di `SetVisibility`. Un'unita' **senza**
+	 * skeletal il cui Blueprint usasse `bHiddenInGame = true` resterebbe invisibile mentre questo codice
+	 * chiede di mostrarla: quel caso oggi non esiste nel repository, e se nascesse va risolto qui —
+	 * togliendo il flag alla fonte o chiamando anche `SetHiddenInGame`, non fidandosi di `SetVisibility`.
+	 *
+	 * ⚠️ Nascosto NON significa scollegato: `Mesh` resta il proxy di click (QueryOnly + `ECR_Block`), e la
+	 * collisione la decide `bRender`, non questo predicato.
+	 */
+	static bool ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh);
+
+	/**
+	 * Se l'ANELLO DI SELEZIONE va mostrato: serve che l'unita' si veda, che sia selezionata, e che un
+	 * materiale di selezione esista (senza, il ripiego e' non mostrarlo affatto).
+	 *
+	 * 🔴 Prende `bSelected` come PARAMETRO e non legge `SelectionRing->IsVisible()`: dopo una refresh con
+	 * `bRender == false` quella risponderebbe «no» anche su un'unita' selezionata, e la selezione si
+	 * perderebbe al primo riavvistamento. Lo stato sta nel flag, la visibilita' e' la sua funzione.
+	 */
+	static bool ShouldShowSelectionRing(bool bRender, bool bSelected, bool bHasSelectionMaterial);
+
+	/** Se l'ANELLO DI SQUADRA va mostrato: senza il suo materiale il ripiego e' il colore sul cilindro. */
+	static bool ShouldShowTeamRing(bool bRender, bool bHasTeamRingMaterial);
+
+	/**
+	 * Dichiara se l'osservatore locale conosce questa unita'. REVERSIBILE, a differenza di `HideForDefeat`,
+	 * che significa morte ed e' a senso unico per SEMANTICA.
+	 */
+	void SetKnownToObserver(bool bKnown);
+
+	/**
+	 * Opacita' della sagoma del ricordo. Pura: la dissolvenza e' PRESENTAZIONE e non ha effetti logici, ma
+	 * la sua REGOLA e' testabile e va tenuta fuori dal Tick.
+	 *
+	 * `URTTeamKnowledgeLibrary::ContactLifetimeTurns` vale 1: il ricordo vive il turno successivo, poi basta.
+	 * Un contatto con turno maggiore di quello corrente e' incoerente -> zero (fail-closed).
+	 *
+	 * 🔴 **Nessuna eta' produce `1.0`**: la sagoma e' SEMITRASPARENTE per specifica
+	 * (`docs/technical/systems/conoscenza-parziale-visibile-spec.md` **S4**), e da quando l'unita' ignota
+	 * sparisce e' l'unica cosa che il giocatore vede di quel nemico — nella cella dell'ULTIMO CONTATTO, non
+	 * in quella vera. Fresca `0.75`, al turno dopo `0.45`, poi zero.
+	 */
+	static float GhostOpacityForContact(int32 ContactTurn, int32 CurrentTurn);
+
+	/**
+	 * Mostra/aggiorna/nasconde la sagoma dell'ultimo contatto (Task 6). `CellCenterWorld` e' il centro della
+	 * cella del CONTATTO — lo stesso riferimento che darebbe `URTHexLibrary::AxialToWorld` per
+	 * `FRTKnowledgeEntry::Cell` (Task 2) — mai la posizione ATTUALE di questo attore: `ContactGhost` porta
+	 * `SetUsingAbsoluteLocation`/`Rotation`, quindi resta li' anche se l'unita' vera si e' spostata altrove.
+	 *
+	 * Fail-closed sull'eta' del contatto (`GhostOpacityForContact`): un `ContactTurn` scaduto o incoerente
+	 * nasconde la sagoma invece di disegnarla a caso.
+	 *
+	 * La mesh/posa si copiano dalla skeletal VIVA del Blueprint (Step 6.1, `FindHeroSkeletal`): un'unita' col
+	 * solo cilindro segnaposto non ha nulla da copiare, e la sagoma resta nascosta. Il materiale
+	 * (`ContactGhostMaterial`) e' OPZIONALE: se `M_LastContactGhost` non risolve — non ancora creato, o
+	 * rimosso — la sagoma resta comunque visibile col materiale di default della mesh: una sagoma non
+	 * colorata, mai un crash.
+	 */
+	void UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTurn, int32 CurrentTurn);
+
+	/**
+	 * Spegne la sagoma dell'ultimo contatto, senza bisogno di un `ContactTurn` (Task 6b).
+	 *
+	 * ⚠️ Esiste perche' un chiamante che decide «non c'e' nulla da ricordare» — propria squadra, nemico
+	 * VISTO ora, nemico senza voce nella vista (ricordo scaduto) — non ha un contatto vero da passare a
+	 * `UpdateContactGhost`. Inventarne uno "incoerente" (es. dal futuro) solo per sfruttare il fail-closed di
+	 * `GhostOpacityForContact` userebbe un CAMPO DATI come segnale di rendering: `ContactTurn` diventerebbe
+	 * indistinguibile fra "contatto vero ma scaduto" e "spenta di proposito", ed e' esattamente il pattern
+	 * che questo repository ha gia' pagato altrove. Qui lo spegnimento e' deciso dal rendering, non dal dato.
+	 */
+	void HideContactGhost();
+
 protected:
+	/** Vero finche' l'osservatore locale non dichiara il contrario: un'unita' nasce nota. */
+	UPROPERTY()
+	bool bKnownToObserver = true;
+
+	/**
+	 * Vero fra `OnSelected` e `OnDeselected`. E' lo STATO della selezione su questa unita', e nessuno lo
+	 * deduce dai componenti: l'anello puo' essere nascosto perche' non si e' selezionati, perche' non si
+	 * vede l'unita', o perche' manca il materiale, e le tre cose non si distinguono guardando un `bVisible`.
+	 */
+	UPROPERTY()
+	bool bSelected = false;
+
+	/**
+	 * Ricalcola la visibilita' di TUTTI i componenti visivi dallo stato dell'unita'
+	 * (`bKnownToObserver`, `bSelected`, `bShowFacingArrow`, i materiali, la vita).
+	 *
+	 * 🔴 **Deriva, non assegna.** Chi cambia stato — `SetKnownToObserver`, `OnSelected`, `OnDeselected`,
+	 * `ApplyTeamColor` — muta il proprio flag e chiama questa: nessuno di loro scrive su un componente. Con
+	 * W scrittori e F flag l'alternativa sono W×F congiunzioni sparse, e ognuna e' una che qualcuno
+	 * dimentichera' — che e' esattamente come `SetKnownToObserver(true)` finiva per accendere l'anello di
+	 * selezione su un nemico che nessuno aveva selezionato. Qui il posto che sa quali componenti esistono
+	 * e' uno solo.
+	 *
+	 * 🔴 **Non usa `SetActorHiddenInGame`, ed e' il punto di questa funzione.** Quella propaga a TUTTI i
+	 * componenti dell'actor, inclusa la sagoma dell'ultimo contatto (Task 6), che vive su questo stesso
+	 * actor e deve vedersi **proprio quando l'unita' non si vede**. Nascondere l'actor renderebbe la sagoma
+	 * inerte, e nessun test automatico lo prenderebbe: si vedrebbe solo in PIE.
+	 */
+	void RefreshComponentVisibility();
+
+	/**
+	 * La skeletal dell'EROE, aggiunta dal Blueprint `BP_Unit_*` (Step 6.1) — MAI `ContactGhost`, che e' un
+	 * SECONDO `USkeletalMeshComponent`, nativo, per la sagoma del ricordo (Task 6). Un `FindComponentByClass`
+	 * cieco potrebbe restituire l'uno o l'altro a seconda dell'ordine di registrazione dei componenti:
+	 * l'esclusione qui e' esplicita ed e' per QUESTO che `RefreshComponentVisibility` non spegne mai la sagoma
+	 * per sbaglio invece del personaggio vero (o viceversa).
+	 */
+	USkeletalMeshComponent* FindHeroSkeletal() const;
+
 	virtual void BeginPlay() override;
 
 	/**
@@ -987,4 +1138,30 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
 	TSoftObjectPtr<UMaterialInterface> UnitMaterial =
 		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/RT/Art/GlobalMaterials/M_Global_Tint.M_Global_Tint")));
+
+	/**
+	 * Sagoma dell'ultimo contatto (Task 6). Figlia di `SceneRoot` ma NON ne eredita il transform:
+	 * `SetUsingAbsoluteLocation`/`Rotation` (costruttore) la sganciano, cosi' `UpdateContactGhost` puo'
+	 * fissarla alla cella del RICORDO senza che seguisse l'attore vero altrove. `NoCollision` e
+	 * `CastShadow = false`: e' presentazione pura, mai un proxy di click ne' un'ombra che tradisce la
+	 * posizione vera attraverso un'illuminazione sbagliata.
+	 *
+	 * ⚠️ **Esclusa per identita' da `RefreshComponentVisibility`, `ApplyUnitAnimClass` e `ApplyMeshYawOffset`**
+	 * (via `FindHeroSkeletal`, o perche' priva di mesh finche' `UpdateContactGhost` non gliene assegna una):
+	 * deve vedersi PROPRIO QUANDO l'unita' vera non si vede, mai essere spenta dallo stesso percorso.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TObjectPtr<USkeletalMeshComponent> ContactGhost;
+
+	/**
+	 * Materiale della sagoma (M_LastContactGhost: Translucent, Unlit, emissivo grigio monocromo, parametro
+	 * scalare "GhostOpacity"). Assente -> `UpdateContactGhost` lascia il materiale di DEFAULT della mesh:
+	 * la sagoma resta visibile, senza dissolvenza — degrada, non crasha.
+	 */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Unit")
+	TSoftObjectPtr<UMaterialInterface> ContactGhostMaterial =
+		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/RT/Characters/Shared/Materials/M_LastContactGhost.M_LastContactGhost")));
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> ContactGhostDynMaterial;
 };

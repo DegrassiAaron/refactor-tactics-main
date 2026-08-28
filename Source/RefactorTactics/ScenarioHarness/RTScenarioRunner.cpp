@@ -35,48 +35,6 @@ namespace
 		return Result;
 	}
 
-	/**
-	 * Arena esagonale piena di raggio N sul layer 0: mappa da codice, nessun `.umap` da versionare.
-	 *
-	 * RIUSA l'actor mappa gia' presente se c'e'. Serve a far girare lo stesso runner in due contesti diversi:
-	 * un mondo vuoto (test di automazione) e una PIE dove il GameMode ha gia' spawnato mappa, luce e turn
-	 * manager. Spawnarne un secondo darebbe due griglie sovrapposte e un raycast ambiguo.
-	 */
-	URTHexMapAsset* BuildArena(UWorld* World, int32 Radius, const TArray<FRTScenarioCell>& Overrides)
-	{
-		// `MakeFlatArena` torna nullptr per un raggio negativo, dove `NewObject` dava sempre un asset: senza
-		// questa guardia le righe qui sotto lo dereferenziano.
-		URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(World, Radius);
-		if (!Map) { return nullptr; }
-
-		// Poi le modifiche dello scenario: ostacoli, muri, terreno costoso. Applicate DOPO l'arena piena, cosi'
-		// una cella elencata due volte vince l'ultima e non dipende dall'ordine di generazione.
-		for (const FRTScenarioCell& Spec : Overrides)
-		{
-			FRTHexCellData Cell(Spec.Cell);
-			Cell.bBlocksMovement = Spec.bBlocksMovement;
-			Cell.bBlocksLineOfSight = Spec.bBlocksLineOfSight;
-			if (Spec.MoveCost > 0)
-			{
-				Cell.MoveCost = Spec.MoveCost;
-			}
-			Map->AddOrUpdateCell(Cell);
-		}
-		Map->SortCells();
-
-		ARTHexMapActor* Actor = ARTHexMapActor::FindInWorld(World);
-		if (!Actor)
-		{
-			Actor = World->SpawnActor<ARTHexMapActor>();
-		}
-		if (!Actor)
-		{
-			return nullptr;
-		}
-		Actor->MapAsset = Map;
-		Actor->RebuildInstances(); // la vista ISM segue l'asset: senza, in PIE resterebbe la mappa precedente
-		return Map;
-	}
 
 	/** L'eroe del catalogo con quell'ID stabile, o nullptr. Il roster e' la fonte: nessun elenco duplicato qui. */
 	URTHeroData* FindHero(FName HeroId)

@@ -15,10 +15,17 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/ArrowComponent.h"
 #include "Unit/RTUnitAnimInstance.h"
+#include "Perception/RTTeamKnowledge.h" // ContactLifetimeTurns: la durata del ricordo ha un owner, non si ricopia
 
 ARTUnit::ARTUnit()
 {
 	PrimaryActorTick.bCanEverTick = false;
+
+	// [D-224]: lo scudo base esiste da subito, e sta nel COSTRUTTORE per una ragione misurata — i mondi
+	// di test (`UWorld::CreateWorld` senza `BeginPlay`) non fanno partire `BeginPlay`, quindi metterlo li'
+	// lo avrebbe reso invisibile a meta' della suite: presente in partita, assente dove lo si verifica.
+	// Il costruttore gira su `NewObject` come su ogni `SpawnActor`, e non ha quel buco.
+	RechargeBaseShield();
 
 	// ROOT NEUTRO (#593). Il root non porta scala, e questa e' l'unica proprieta' che conta: **qualunque
 	// componente aggiunto in Blueprint eredita la scala del root**. Finche' il root era il cilindro
@@ -108,6 +115,19 @@ ARTUnit::ARTUnit()
 	FacingArrow->ArrowLength = 90.f;
 	FacingArrow->ArrowColor = FColor(255, 210, 30);
 	FacingArrow->SetHiddenInGame(false); // di default un ArrowComponent si vede solo in editor
+
+	// Sagoma dell'ultimo contatto (Task 6): SEPARATA dagli anelli e dalla freccia, che seguono l'attore.
+	// `SetUsingAbsoluteLocation`/`Rotation` la sganciano dal transform del padre — un componente figlio
+	// normale erediterebbe il transform e la trascinerebbe con l'unita' vera, che nel frattempo puo' essersi
+	// mossa altrove. La aggiorna solo `UpdateContactGhost`, mai `RefreshComponentVisibility` (che nasconde il
+	// personaggio vero) ne' `ApplyTeamColor`/`ApplyFacingArrow` (che sono presentazione del vivo).
+	ContactGhost = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ContactGhost"));
+	ContactGhost->SetupAttachment(SceneRoot);
+	ContactGhost->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ContactGhost->SetCastShadow(false);
+	ContactGhost->SetUsingAbsoluteLocation(true);
+	ContactGhost->SetUsingAbsoluteRotation(true);
+	ContactGhost->SetVisibility(false); // niente finche' non c'e' un ricordo da mostrare (UpdateContactGhost)
 }
 
 void ARTUnit::BeginPlay()
@@ -212,12 +232,225 @@ void ARTUnit::ExpireTemporaryShield()
 	TemporaryShield = 0;
 }
 
+void ARTUnit::RechargeBaseShield()
+{
+	// Un'unita' abbattuta non si ricarica: il suo stato logico e' finale finche' il turno non la rimuove,
+	// e uno scudo su un cadavere comparirebbe nell'hash di fine partita.
+	if (Health <= 0)
+	{
+		return;
+	}
+	Shield = URTCombatLibrary::BaseShield + TemporaryShield;
+}
+
 void ARTUnit::HideForDefeat()
 {
 	// Morte visiva: nasconde la mesh e disabilita la collisione. Lo stato logico e' gia' HP=0;
 	// la distruzione effettiva dell'Actor avviene a fine turno (ARTTurnManager::ConcludeTurn).
 	SetActorHiddenInGame(true);
 	SetActorEnableCollision(false);
+}
+
+bool ARTUnit::ShouldBeRendered(bool bAlive, bool bKnownToObserver)
+{
+	return bAlive && bKnownToObserver;
+}
+
+void ARTUnit::SetKnownToObserver(bool bKnown)
+{
+	if (bKnownToObserver == bKnown)
+	{
+		return; // niente churn di stato render a ogni frame
+	}
+	bKnownToObserver = bKnown;
+	RefreshComponentVisibility();
+}
+
+bool ARTUnit::ShouldShowPlaceholderMesh(bool bRender, bool bHasHeroMesh)
+{
+	return bRender && !bHasHeroMesh;
+}
+
+bool ARTUnit::ShouldShowSelectionRing(bool bRender, bool bSelected, bool bHasSelectionMaterial)
+{
+	return bRender && bSelected && bHasSelectionMaterial;
+}
+
+bool ARTUnit::ShouldShowTeamRing(bool bRender, bool bHasTeamRingMaterial)
+{
+	return bRender && bHasTeamRingMaterial;
+}
+
+void ARTUnit::RefreshComponentVisibility()
+{
+	const bool bRender = ShouldBeRendered(IsAlive(), bKnownToObserver);
+
+	// La skeletal arriva dal Blueprint `BP_Unit_*`, non dal C++: si cerca fra i componenti, escludendo
+	// SEMPRE `ContactGhost` (Task 6) per identita' — vedi `FindHeroSkeletal`. Cercata UNA volta: serve sia
+	// a mostrarla sia a decidere del cilindro segnaposto qui sotto.
+	USkeletalMeshComponent* HeroSkeletal = FindHeroSkeletal();
+	const bool bHasHeroMesh = HeroSkeletal != nullptr && HeroSkeletal->GetSkeletalMeshAsset() != nullptr;
+
+	// 🔴 Si nascondono i COMPONENTI, non l'actor. `SetActorHiddenInGame` propaga a tutti i componenti,
+	// sagoma dell'ultimo contatto compresa (Task 6) — che deve vedersi proprio quando l'unita' non si vede.
+	//
+	// 🔴 **Ogni riga qui e' una FUNZIONE dello stato, mai un'assegnazione che sovrascrive un altro owner.**
+	// La forma precedente accendeva `Mesh` e `SelectionRing` incondizionatamente su `bRender`, e quel
+	// «true» clobberava due decisioni prese altrove: il cilindro segnaposto nascosto sugli eroi skeletal
+	// tornava dentro il personaggio, e l'anello di selezione si accendeva su un nemico che nessuno aveva
+	// selezionato — bastava perderlo di vista e riavvistarlo. Con W scrittori e F flag servirebbero W×F
+	// congiunzioni sparse, e ognuna e' una che qualcuno dimentichera': qui i flag sono lo STATO e questa
+	// funzione e' l'unico posto che sa quali componenti esistono.
+	if (Mesh)
+	{
+		// ⚠️ Il cilindro e' un SEGNAPOSTO, e il posto non e' piu' vuoto quando l'eroe ha la sua skeletal.
+		// Il predicato si CALCOLA da qui invece di rileggere cio' che il Blueprint ha impostato.
+		//
+		// 🔴 **`SetVisibility` non scavalca `bHiddenInGame`** — una stesura precedente di questo commento
+		// affermava che «non conta» quale delle due forme il Blueprint usi, ed era falso in generale. Sono
+		// due flag distinti (si disegna solo con `bVisible && !bHiddenInGame`). Qui regge per una ragione
+		// piu' stretta: **sugli eroi il predicato vale `false` in entrambi i casi**, perche' `bHasHeroMesh`
+		// e' vero e il cilindro va nascosto comunque — le due forme coincidono per VERSO. Su un'unita'
+		// senza skeletal il cui `BP_Unit_*` usasse `bHiddenInGame = true`, questa riga chiederebbe di
+		// mostrare il cilindro e il cilindro resterebbe invisibile. Vedi `ShouldShowPlaceholderMesh`.
+		Mesh->SetVisibility(ShouldShowPlaceholderMesh(bRender, bHasHeroMesh), /*bPropagateToChildren*/ false);
+	}
+
+	// L'anello di squadra esiste solo se `ApplyTeamColor` ha trovato il materiale: senza, il ripiego e' il
+	// colore sul cilindro, e accenderlo mostrerebbe un disco grigio che non dice niente.
+	if (TeamRing)
+	{
+		TeamRing->SetVisibility(ShouldShowTeamRing(bRender, RingDynMaterial != nullptr), false);
+	}
+
+	// L'anello di selezione dipende dalla SELEZIONE, che e' uno stato di questa unita' e non si legge da
+	// `IsVisible()`: dopo un `RefreshComponentVisibility` con `bRender == false` quella risponderebbe «no»
+	// anche su un'unita' selezionata, e la selezione si perderebbe al primo riavvistamento.
+	if (SelectionRing)
+	{
+		SelectionRing->SetVisibility(
+			ShouldShowSelectionRing(bRender, bSelected, SelectionRingDynMaterial != nullptr), false);
+	}
+
+	// La freccia di facing ha il proprio interruttore di presentazione.
+	if (FacingArrow)   { FacingArrow->SetVisibility(bRender && bShowFacingArrow, false); }
+
+	if (HeroSkeletal)
+	{
+		HeroSkeletal->SetVisibility(bRender, false);
+	}
+
+	// La collisione si spegne sull'ACTOR: `SetVisibility` non la tocca, e l'unico proxy di click e' `Mesh`
+	// (QueryOnly + ECR_Block su tutti i canali). Un'unita' invisibile ma cliccabile e' peggio di una
+	// visibile: il giocatore selezionerebbe qualcosa che non vede. La sagoma e' `NoCollision`, quindi
+	// spegnere la collisione dell'actor non la riguarda.
+	//
+	// ⚠️ Resta su `bRender` e NON sul cilindro: il proxy di click deve rispondere anche su un eroe skeletal,
+	// dove il cilindro e' nascosto ma continua a fare da forma di collisione.
+	SetActorEnableCollision(bRender);
+}
+
+USkeletalMeshComponent* ARTUnit::FindHeroSkeletal() const
+{
+	TArray<USkeletalMeshComponent*> Skeletals;
+	GetComponents<USkeletalMeshComponent>(Skeletals);
+	for (USkeletalMeshComponent* Skeletal : Skeletals)
+	{
+		if (Skeletal != nullptr && Skeletal != ContactGhost)
+		{
+			return Skeletal;
+		}
+	}
+	return nullptr;
+}
+
+float ARTUnit::GhostOpacityForContact(int32 ContactTurn, int32 CurrentTurn)
+{
+	const int32 Age = CurrentTurn - ContactTurn;
+	if (Age < 0 || Age > URTTeamKnowledgeLibrary::ContactLifetimeTurns)
+	{
+		return 0.0f;
+	}
+	// 🔴 **`0.75`, non `1.0`.** La spec dichiara che il ricordo e' una sagoma **semitrasparente**
+	// (`docs/technical/systems/conoscenza-parziale-visibile-spec.md`, decisione **S4** in §2, ripetuta
+	// dall'emendamento a `progettazione-hud.md` in §7). ⚠️ Il riferimento NON e' §4 A4, che dichiara altri
+	// due canali — *monocromo desaturato* e *senza freccia di facing* — e distingue la sagoma dall'Action
+	// Ghost, non da un'unita' viva: chi venisse a rileggere A4 non ci troverebbe questa regola.
+	//
+	// `1.0` e' opaco, e `Age == 0` — «perso di vista in QUESTO
+	// turno» — e' il caso piu' frequente, non un angolo. Finche' l'unita' vera restava disegnata accanto
+	// alla sagoma l'opacita' era cosmetica; da quando l'unita' ignota sparisce, la sagoma e' l'unica cosa
+	// che il giocatore vede di quel nemico e sta nella cella dell'ULTIMO CONTATTO, non in quella vera:
+	// dichiararla «non e' piu' li'» e' il lavoro della trasparenza.
+	//
+	// Il valore: piu' leggibile di `0.45` perche' il contatto e' fresco, e abbastanza sotto `1.0` da far
+	// vedere il terreno attraverso la sagoma. ⚠️ **Non e' il canale portante** — nome, barra HP, anello di
+	// squadra, anello di selezione e freccia di facing sono gia' spenti su un'unita' ignota, e sono loro a
+	// distinguere il ricordo da un'unita' viva. E' il canale **dichiarato**, ed era violato.
+	return (Age == 0) ? 0.75f : 0.45f;
+}
+
+void ARTUnit::HideContactGhost()
+{
+	if (ContactGhost)
+	{
+		ContactGhost->SetVisibility(false, false);
+	}
+}
+
+void ARTUnit::UpdateContactGhost(const FVector& CellCenterWorld, int32 ContactTurn, int32 CurrentTurn)
+{
+	if (ContactGhost == nullptr)
+	{
+		return;
+	}
+
+	const float Opacity = GhostOpacityForContact(ContactTurn, CurrentTurn);
+	if (Opacity <= 0.0f)
+	{
+		HideContactGhost();
+		return;
+	}
+
+	// La mesh/posa arrivano dalla skeletal VIVA del Blueprint (Step 6.1), mai dal C++: un'unita' col solo
+	// cilindro segnaposto (#287) non ha nulla da copiare, e la sagoma resta nascosta invece di mostrare
+	// un vuoto.
+	USkeletalMeshComponent* HeroSkeletal = FindHeroSkeletal();
+	if (HeroSkeletal == nullptr || HeroSkeletal->GetSkeletalMeshAsset() == nullptr)
+	{
+		HideContactGhost();
+		return;
+	}
+
+	if (ContactGhost->GetSkeletalMeshAsset() != HeroSkeletal->GetSkeletalMeshAsset())
+	{
+		ContactGhost->SetSkeletalMesh(HeroSkeletal->GetSkeletalMeshAsset());
+	}
+
+	// Materiale OPZIONALE (Task 6): se `M_LastContactGhost` non risolve — non ancora creato, o rimosso — la
+	// sagoma resta visibile col materiale di DEFAULT della mesh: una sagoma non colorata, mai un crash.
+	if (ContactGhostDynMaterial == nullptr && !ContactGhostMaterial.IsNull())
+	{
+		if (UMaterialInterface* BaseMaterial = ContactGhostMaterial.LoadSynchronous())
+		{
+			ContactGhostDynMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
+			if (ContactGhostDynMaterial)
+			{
+				ContactGhost->SetMaterial(0, ContactGhostDynMaterial);
+			}
+		}
+	}
+	if (ContactGhostDynMaterial)
+	{
+		ContactGhostDynMaterial->SetScalarParameterValue(TEXT("GhostOpacity"), Opacity);
+	}
+
+	// Quota dedicata (#983 + Task 6): sopra `RTCellTopZ`, come ogni decoro a terra deve stare. Posizione nel
+	// MONDO, non relativa: `ContactGhost` porta `SetUsingAbsoluteLocation`/`Rotation`, quindi non segue mai
+	// l'attore, che nel frattempo puo' essersi mosso altrove.
+	ContactGhost->SetWorldLocation(CellCenterWorld + FVector(0.f, 0.f, RTLastContactGhostZ));
+	ContactGhost->SetWorldRotation(FRotator(0.f, MeshYawOffset, 0.f)); // stessa compensazione della skeletal viva; nessuna freccia di facing per la sagoma
+	ContactGhost->SetVisibility(true, false);
 }
 
 FLinearColor ARTUnit::TeamColorFor(int32 InTeamId, const FLinearColor& Team0, const FLinearColor& Team1)
@@ -305,7 +538,9 @@ void ARTUnit::ApplyTeamColor()
 	const float TeamRingZ = TeamRingLocalZ(VisualZOffset);
 	const float SelectionRingZ = SelectionRingLocalZ(VisualZOffset);
 
-	// Anello di team: colorato se M_TeamRing c'e', altrimenti nascosto (fallback: resta il colore sul cilindro).
+	// Anello di team: colorato se M_TeamRing c'e', altrimenti resta il colore sul cilindro (fallback).
+	// ⚠️ Qui si decide il MATERIALE, non la visibilita': quella la deriva `RefreshComponentVisibility` in
+	// fondo, che e' l'unico posto a conoscere anche `bKnownToObserver` e la morte.
 	if (TeamRing)
 	{
 		TeamRing->SetRelativeLocation(FVector(0.f, 0.f, TeamRingZ));
@@ -314,16 +549,12 @@ void ARTUnit::ApplyTeamColor()
 			RingDynMaterial = UMaterialInstanceDynamic::Create(RingBase, this);
 			TeamRing->SetMaterial(0, RingDynMaterial);
 			RingDynMaterial->SetVectorParameterValue(TEXT("Color"), TeamColor);
-			TeamRing->SetVisibility(true);
-		}
-		else
-		{
-			TeamRing->SetVisibility(false);
 		}
 	}
 
-	// Anello di selezione: quota-terra di riferimento (il TeamRing gli sta sopra), colore di selezione. Resta NASCOSTO finche'
-	// OnSelected non lo mostra. Senza materiale di selezione non compare (fallback come il TeamRing).
+	// Anello di selezione: quota-terra di riferimento (il TeamRing gli sta sopra), colore di selezione.
+	// Senza materiale di selezione non compare mai — ed e' il predicato `ShouldShowSelectionRing`, non un
+	// `SetVisibility(false)` scritto qui, a dirlo.
 	if (SelectionRing)
 	{
 		SelectionRing->SetRelativeLocation(FVector(0.f, 0.f, SelectionRingZ)); // sotto il TeamRing, non complanare
@@ -333,8 +564,11 @@ void ARTUnit::ApplyTeamColor()
 			SelectionRing->SetMaterial(0, SelectionRingDynMaterial);
 			SelectionRingDynMaterial->SetVectorParameterValue(TEXT("Color"), SelectionColor);
 		}
-		SelectionRing->SetVisibility(false);
 	}
+
+	// I due materiali appena decisi entrano nello stato: la visibilita' e' una funzione di quello stato, e
+	// si ricalcola qui invece di essere assegnata componente per componente qui sopra.
+	RefreshComponentVisibility();
 }
 
 void ARTUnit::PlaceOnCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight)
@@ -397,12 +631,13 @@ void ARTUnit::OnSelected()
 	{
 		Mesh->SetRelativeScale3D(BaseMeshScale * 1.15f); // cilindro segnaposto: ingrandisce del 15%
 	}
-	// Anello di selezione a terra: riscontro visibile anche sugli skeletal (dove il cilindro e' nascosto).
-	// Compare solo se un materiale di selezione e' stato assegnato (MID creato in ApplyTeamColor).
-	if (SelectionRing && SelectionRingDynMaterial)
-	{
-		SelectionRing->SetVisibility(true);
-	}
+
+	// La selezione muta il proprio FLAG e chiede una refresh: non tocca componenti. Il riscontro visibile
+	// resta l'anello a terra — che compare anche sugli skeletal, dove il cilindro e' nascosto — ma la
+	// decisione «si vede o no» la prende `RefreshComponentVisibility`, che conosce anche la conoscenza e il
+	// materiale. Accenderlo da qui rimetterebbe uno scrittore in piu' sullo stesso componente.
+	bSelected = true;
+	RefreshComponentVisibility();
 }
 
 void ARTUnit::OnDeselected()
@@ -411,10 +646,8 @@ void ARTUnit::OnDeselected()
 	{
 		Mesh->SetRelativeScale3D(BaseMeshScale);
 	}
-	if (SelectionRing)
-	{
-		SelectionRing->SetVisibility(false);
-	}
+	bSelected = false;
+	RefreshComponentVisibility();
 }
 
 bool ARTUnit::ApplyStatus(FGameplayTag Tag, int32 Turns)

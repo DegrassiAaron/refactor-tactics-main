@@ -108,6 +108,26 @@ struct FRTPacingSample
 	/** Vero se il giocatore ha saltato il playback. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	bool bPlaybackSkipped = false;
+
+	/**
+	 * Quante finestre di reazione si sono APERTE in questo turno alla squadra misurata (CP 14.6, `#166`).
+	 *
+	 * E' il moltiplicatore della componente di decisione, che ADR-0004 tratta come aritmetica:
+	 * `finestre × FastReactionDuration` e' il tempo che un giocatore puo' vedersi occupare, e la sola meta'
+	 * di quel prodotto che un test headless puo' misurare. L'altra — quanto ci mette **davvero** a
+	 * rispondere — richiede decisori veri, e non si simula.
+	 *
+	 * 🔴 **Si conta per SQUADRA e non per partita**, ed e' la distinzione che [D-167] rende vincolante: due
+	 * unita' armate su squadre **diverse** aprono due finestre che due persone aspettano **in parallelo**,
+	 * due dello **stesso** giocatore gliene impilano due **in fila**. Sommarle darebbe la baseline di un
+	 * gioco che non giochiamo.
+	 *
+	 * Derivato dal TurnLog e non contato a parte: una finestra che si apre e' gia' un fatto registrato
+	 * (`ERTLogCategory::ReactionDecision`), e un secondo contatore nel resolver sarebbe una seconda verita'
+	 * che diverge al primo esito nuovo.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	int32 ReactionWindowsOpened = 0;
 };
 
 /** Sommario di una sessione di campioni. Prodotto da URTPacingLibrary::SummarizeSamples. */
@@ -148,4 +168,18 @@ struct FRTPacingSummary
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 MedianMsPlayback = 0;
+
+	/**
+	 * Finestre di reazione aperte alla squadra misurata in TUTTA la sessione (CP 14.6, `#166`).
+	 *
+	 * E' una somma e non una mediana, ed e' voluto: il bank e' un budget di **sessione**, quindi cio' che si
+	 * confronta con `InitialBankMs` e' il totale delle attese, non il turno tipico. La mediana per turno si
+	 * ricava dal CSV, dove ogni riga porta la propria colonna.
+	 *
+	 * ⚠️ **Senza questo campo il numero non arriva a chi lo deve leggere.** `rt.Debug.Pacing` e' la lettura
+	 * che un playtester ha davvero, e una sessione con zero finestre — perche' nessuno ha armato, o perche'
+	 * l'UI non c'e' ancora — sarebbe indistinguibile da una sana. Segnalato in code review.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	int32 TotalReactionWindows = 0;
 };

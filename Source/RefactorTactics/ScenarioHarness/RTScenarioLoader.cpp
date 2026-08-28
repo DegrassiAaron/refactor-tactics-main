@@ -1077,6 +1077,25 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 	Root->TryGetStringField(TEXT("fixture"), OutScenario.Fixture);
 	Root->TryGetNumberField(TEXT("mapRadius"), OutScenario.MapRadius);
 
+	// I tag, GREZZI. La chiave `tags` era gia' nel formato ma la leggeva solo `URTScenarioIndex::ReadHeader`:
+	// il loader la ignorava, quindi il modello in memoria non la portava e un `load → save` l'avrebbe
+	// cancellata da ogni file che la dichiara. La normalizzazione resta dell'indice — se la applicasse anche
+	// qui, salvare uno scenario ne riscriverebbe i tag senza che nessuno l'abbia chiesto.
+	const TArray<TSharedPtr<FJsonValue>>* TagsJson = nullptr;
+	if (Root->TryGetArrayField(TEXT("tags"), TagsJson))
+	{
+		for (const TSharedPtr<FJsonValue>& Value : *TagsJson)
+		{
+			FString Tag;
+			if (!Value.IsValid() || !Value->TryGetString(Tag))
+			{
+				OutError = TEXT("tags: ogni voce deve essere una stringa");
+				return false;
+			}
+			OutScenario.Tags.Add(Tag);
+		}
+	}
+
 	// Le sezioni si leggono nell'ordine in cui il formato le dichiara, e ognuna si ferma al primo errore:
 	// uno scenario mezzo caricato sarebbe peggio di uno rifiutato, perche' girerebbe.
 	if (!ParseScenarioCells(Root, OutScenario, OutError)) { return false; }
@@ -1200,111 +1219,40 @@ namespace
 	 * `units`: eroi esistenti, id unici, celle libere e legali.
 	 * PRODUCE `SeenIds` e `BotIds`, che le sezioni successive consumano.
 	 */
-	bool ValidateScenarioUnits(const FRTTestScenario& Scenario, bool bUsesFixture,
+	// `bUsesFixture` NON e' un parametro: la fixture la rilegge `ValidateUnitPlacement` dallo scenario, e un
+	// secondo canale per la stessa verita' e' un canale che puo' contraddire il primo.
+	bool ValidateScenarioUnits(const FRTTestScenario& Scenario,
 		TSet<FString>& SeenIds, TSet<FString>& BotIds, FString& OutError)
 	{
+		// Le regole per-unita' NON stanno piu' qui: sono in `URTScenarioLoader::ValidateUnitPlacement`, perche'
+		// servono anche a chi piazza UNA unita' per volta (l'authoring, `#1115`) e una seconda copia scritta li'
+		// diverge da questa al primo campo aggiunto. Questo ciclo resta l'unico posto che conosce l'INSIEME:
+		// raccoglie `SeenIds` e `BotIds`, che le validazioni successive — turni, assertion, free-run — usano per
+		// sapere chi e' schierato e chi guida il bot.
+		//
+		// Il roster si legge UNA volta, non una per unita': `KnownHeroIds()` costruisce quattro `URTHeroData`
+		// con tutte le loro abilita' a ogni chiamata.
 		const TSet<FName> Heroes = KnownHeroIds();
 		TSet<FRTCellId> SeenCells;
-		for (const FRTScenarioUnit& Unit : Scenario.Units)
+
+		FRTUnitPlacementScratch Scratch;
+		Scratch.KnownHeroes = &Heroes;
+		Scratch.IdsBefore = &SeenIds;
+		Scratch.CellsBefore = &SeenCells;
+
+		for (int32 Index = 0; Index < Scenario.Units.Num(); ++Index)
 		{
-			if (Unit.Id.IsEmpty())
+			const FRTScenarioUnit& Unit = Scenario.Units[Index];
+
+			// Con lo scratch i confronti guardano le unita' PRECEDENTI, che e' la semantica che questo ciclo
+			// aveva prima dell'estrazione: `IgnoreUnitIndex` resta per il caso senza scratch.
+			if (!URTScenarioLoader::ValidateUnitPlacement(Scenario, Unit, Index, OutError, &Scratch))
 			{
-				OutError = TEXT("un'unita' non ha id");
 				return false;
 			}
-			if (SeenIds.Contains(Unit.Id))
-			{
-				OutError = FString::Printf(TEXT("id unita' duplicato: '%s'"), *Unit.Id);
-				return false;
-			}
+
 			SeenIds.Add(Unit.Id);
-
-			// `loadout` (`#602`): i pezzi devono esistere nel catalogo e l'insieme dev'essere LEGALE secondo la
-			// stessa regola del gioco (`ValidateLoadout`, 1+1+1 — CP 7.4). Uno scenario che monti due gadget va
-			// rifiutato con un motivo, esattamente come lo sarebbe una configurazione illegale in partita:
-			// altrimenti l'harness diventa piu' PERMISSIVO del gioco, che e' l'altra meta' dell'asimmetria per cui
-			// `ReactionPlanning` resta fuori.
-			if (Unit.Loadout.Num() > 0)
-			{
-				TArray<const URTEquipmentData*> Pieces;
-				for (const FName& PieceId : Unit.Loadout)
-				{
-					const URTEquipmentData* Found = URTCatalogLibrary::FindEquipment(PieceId);
-					if (Found == nullptr)
-					{
-						OutError = FString::Printf(TEXT("unita' '%s': equipaggiamento sconosciuto '%s'"),
-							*Unit.Id, *PieceId.ToString());
-						return false;
-					}
-					Pieces.Add(Found);
-				}
-
-				const TArray<FString> LoadoutErrors = URTCatalogLibrary::ValidateLoadout(Pieces);
-				if (LoadoutErrors.Num() > 0)
-				{
-					OutError = FString::Printf(TEXT("unita' '%s': loadout illegale — %s"),
-						*Unit.Id, *LoadoutErrors[0]);
-					return false;
-				}
-			}
-
-			if (!Heroes.Contains(Unit.HeroId))
-			{
-				// Il caso che il documento di specifica sbagliava per primo, citando eroi inesistenti.
-				OutError = FString::Printf(TEXT("unita' '%s': eroe sconosciuto '%s' (attesi %d eroi dal catalogo)"),
-					*Unit.Id, *Unit.HeroId.ToString(), Heroes.Num());
-				return false;
-			}
-			// Con una fixture la forma non e' un raggio: che la cella esista lo verifica il RUNNER sulla mappa
-			// vera (vedi `Run`), che e' l'unico posto dove la geometria reale e' disponibile.
-			if (!bUsesFixture && URTHexLibrary::HexDistance(Unit.Cell, FRTCellId(0, 0, Unit.Cell.Layer)) > Scenario.MapRadius)
-			{
-				OutError = FString::Printf(TEXT("unita' '%s': cella %s fuori dall'arena di raggio %d"),
-					*Unit.Id, *Unit.Cell.ToString(), Scenario.MapRadius);
-				return false;
-			}
-			if (SeenCells.Contains(Unit.Cell))
-			{
-				OutError = FString::Printf(TEXT("due unita' partono dalla stessa cella %s"), *Unit.Cell.ToString());
-				return false;
-			}
 			SeenCells.Add(Unit.Cell);
-
-			// Un'unita' che parte dentro un ostacolo e' uno scenario impossibile: il gioco non la piazzerebbe mai
-			// li', e ogni assertion successiva misurerebbe una situazione che non puo' esistere.
-			const FRTScenarioCell* OnBlocked = Scenario.Cells.FindByPredicate(
-				[&Unit](const FRTScenarioCell& C) { return C.Cell == Unit.Cell && C.bBlocksMovement; });
-			if (OnBlocked)
-			{
-				OutError = FString::Printf(TEXT("unita' '%s' parte su una cella che blocca il movimento %s"),
-					*Unit.Id, *Unit.Cell.ToString());
-				return false;
-			}
-
-			// Una salute dichiarata a zero schiererebbe un cadavere: il gioco non lo farebbe mai, e ogni assertion
-			// successiva misurerebbe una partita che non puo' esistere. Il tetto (`MaxHealth`) lo verifica la
-			// sessione, che e' l'unico posto dove il valore del roster e' davvero disponibile.
-			if (Unit.Health != -1 && Unit.Health <= 0)
-			{
-				OutError = FString::Printf(TEXT("unita' '%s': health dichiarata a %d (dev'essere > 0, oppure omessa)"),
-					*Unit.Id, Unit.Health);
-				return false;
-			}
-			if (Unit.Shield != -1 && Unit.Shield < 0)
-			{
-				OutError = FString::Printf(TEXT("unita' '%s': shield dichiarato a %d (dev'essere >= 0, oppure omesso)"),
-					*Unit.Id, Unit.Shield);
-				return false;
-			}
-			// `0` e' legittimo — un'unita' cieca e' una premessa scrivibile — e il catalogo eroi applica lo stesso
-			// vincolo («range visivo negativo»), quindi qui si rifiuta la stessa cosa che rifiuterebbe il gioco.
-			if (Unit.VisionRange != -1 && Unit.VisionRange < 0)
-			{
-				OutError = FString::Printf(TEXT("unita' '%s': visionRange dichiarato a %d (dev'essere >= 0, oppure omesso)"),
-					*Unit.Id, Unit.VisionRange);
-				return false;
-			}
-
 			if (Unit.bBotControlled)
 			{
 				BotIds.Add(Unit.Id);
@@ -1609,6 +1557,23 @@ namespace
 						*Variant.Name, *Moved.Cell.ToString(), *Moved.Id, Scenario.MapRadius);
 					return false;
 				}
+
+				// 🔴 **Questo controllo mancava**, e il percorso `units` lo ha da sempre: una variante poteva
+				// piazzare una unita' dentro un ostacolo e `Validate` la accettava. E' lo stesso «scenario
+				// impossibile» che la regola di base rifiuta a due funzioni di distanza — il gioco non
+				// piazzerebbe mai li', e ogni assertion della variante misurerebbe una situazione che non puo'
+				// esistere. Trovato dalla review di `#1115`, quando l'estrazione di `ValidateUnitPlacement` ha
+				// reso visibile che le varianti erano rimaste con una copia PARZIALE della regola.
+				const FRTScenarioCell* OnBlocked = Scenario.Cells.FindByPredicate(
+					[&Moved](const FRTScenarioCell& C) { return C.Cell == Moved.Cell && C.bBlocksMovement; });
+				if (OnBlocked)
+				{
+					OutError = FString::Printf(
+						TEXT("la variante '%s' mette '%s' su una cella che blocca il movimento %s"),
+						*Variant.Name, *Moved.Id, *Moved.Cell.ToString());
+					return false;
+				}
+
 				CellsInVariant.Add(Moved.Id, Moved.Cell);
 			}
 
@@ -1730,6 +1695,153 @@ namespace
 	}
 }
 
+bool URTScenarioLoader::ValidateUnitPlacement(const FRTTestScenario& Scenario, const FRTScenarioUnit& Unit,
+	int32 IgnoreUnitIndex, FString& OutError, const FRTUnitPlacementScratch* Scratch)
+{
+	OutError.Reset();
+
+	// ⚠️ L'ordine dei controlli e' quello che aveva `ValidateScenarioUnits` prima dell'estrazione, e non e'
+	// arbitrario: i messaggi d'errore sono asseriti da test che nominano il PRIMO problema trovato. Cambiarlo
+	// farebbe accusare un campo diverso a scenari che oggi accusano quello giusto.
+
+	if (Unit.Id.IsEmpty())
+	{
+		OutError = TEXT("un'unita' non ha id");
+		return false;
+	}
+
+	// Con lo scratch il confronto guarda solo le unita' PRECEDENTI, come faceva il `TSet` accumulato prima
+	// dell'estrazione: e' cio' che decide quale unita' viene accusata quando un file ha piu' di un difetto.
+	// Senza, il confronto e' simmetrico — l'unica forma possibile per chi piazza una unita' che non e' ancora
+	// nell'array. Vedi `FRTUnitPlacementScratch`.
+	const bool bDuplicateId = Scratch && Scratch->IdsBefore
+		? Scratch->IdsBefore->Contains(Unit.Id)
+		: [&]()
+		{
+			for (int32 Other = 0; Other < Scenario.Units.Num(); ++Other)
+			{
+				if (Other == IgnoreUnitIndex) { continue; }
+				if (Scenario.Units[Other].Id == Unit.Id) { return true; }
+			}
+			return false;
+		}();
+	if (bDuplicateId)
+	{
+		OutError = FString::Printf(TEXT("id unita' duplicato: '%s'"), *Unit.Id);
+		return false;
+	}
+
+	// `loadout` (`#602`): i pezzi devono esistere nel catalogo e l'insieme dev'essere LEGALE secondo la stessa
+	// regola del gioco (`ValidateLoadout`, 1+1+1 — CP 7.4). Uno scenario che monti due gadget va rifiutato con
+	// un motivo, esattamente come lo sarebbe una configurazione illegale in partita: altrimenti l'harness
+	// diventa piu' PERMISSIVO del gioco.
+	if (Unit.Loadout.Num() > 0)
+	{
+		TArray<const URTEquipmentData*> Pieces;
+		for (const FName& PieceId : Unit.Loadout)
+		{
+			const URTEquipmentData* Found = URTCatalogLibrary::FindEquipment(PieceId);
+			if (Found == nullptr)
+			{
+				OutError = FString::Printf(TEXT("unita' '%s': equipaggiamento sconosciuto '%s'"),
+					*Unit.Id, *PieceId.ToString());
+				return false;
+			}
+			Pieces.Add(Found);
+		}
+
+		const TArray<FString> LoadoutErrors = URTCatalogLibrary::ValidateLoadout(Pieces);
+		if (LoadoutErrors.Num() > 0)
+		{
+			OutError = FString::Printf(TEXT("unita' '%s': loadout illegale — %s"), *Unit.Id, *LoadoutErrors[0]);
+			return false;
+		}
+	}
+
+	// ⚠️ `KnownHeroIds()` costruisce quattro `URTHeroData` **con tutte le loro abilita'**: rifarlo per ogni
+	// unita' di ogni validazione e' il costo che lo scratch esiste per evitare. Il ramo che lo ricostruisce
+	// serve a chi piazza una unita' sola — una volta per click, non una per unita' schierata.
+	TSet<FName> LocalHeroes;
+	if (!Scratch || !Scratch->KnownHeroes)
+	{
+		LocalHeroes = KnownHeroIds();
+	}
+	const TSet<FName>& Heroes = (Scratch && Scratch->KnownHeroes) ? *Scratch->KnownHeroes : LocalHeroes;
+
+	if (!Heroes.Contains(Unit.HeroId))
+	{
+		// Il caso che il documento di specifica sbagliava per primo, citando eroi inesistenti.
+		OutError = FString::Printf(TEXT("unita' '%s': eroe sconosciuto '%s' (attesi %d eroi dal catalogo)"),
+			*Unit.Id, *Unit.HeroId.ToString(), Heroes.Num());
+		return false;
+	}
+
+	// Con una fixture la forma non e' un raggio: che la cella esista lo verifica il RUNNER sulla mappa vera
+	// (vedi `Run`), che e' l'unico posto dove la geometria reale e' disponibile.
+	const bool bUsesFixture = !Scenario.Fixture.IsEmpty();
+	if (!bUsesFixture
+		&& URTHexLibrary::HexDistance(Unit.Cell, FRTCellId(0, 0, Unit.Cell.Layer)) > Scenario.MapRadius)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s': cella %s fuori dall'arena di raggio %d"),
+			*Unit.Id, *Unit.Cell.ToString(), Scenario.MapRadius);
+		return false;
+	}
+
+	// Stessa logica del duplicato di id: accumulativo quando il chiamante ha un «prima», simmetrico quando no.
+	const bool bCellTaken = Scratch && Scratch->CellsBefore
+		? Scratch->CellsBefore->Contains(Unit.Cell)
+		: [&]()
+		{
+			for (int32 Other = 0; Other < Scenario.Units.Num(); ++Other)
+			{
+				if (Other == IgnoreUnitIndex) { continue; }
+				if (Scenario.Units[Other].Cell == Unit.Cell) { return true; }
+			}
+			return false;
+		}();
+	if (bCellTaken)
+	{
+		OutError = FString::Printf(TEXT("due unita' partono dalla stessa cella %s"), *Unit.Cell.ToString());
+		return false;
+	}
+
+	// Un'unita' che parte dentro un ostacolo e' uno scenario impossibile: il gioco non la piazzerebbe mai li',
+	// e ogni assertion successiva misurerebbe una situazione che non puo' esistere.
+	const FRTScenarioCell* OnBlocked = Scenario.Cells.FindByPredicate(
+		[&Unit](const FRTScenarioCell& C) { return C.Cell == Unit.Cell && C.bBlocksMovement; });
+	if (OnBlocked)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s' parte su una cella che blocca il movimento %s"),
+			*Unit.Id, *Unit.Cell.ToString());
+		return false;
+	}
+
+	// Una salute dichiarata a zero schiererebbe un cadavere: il gioco non lo farebbe mai. Il tetto
+	// (`MaxHealth`) lo verifica la sessione, che e' l'unico posto dove il valore del roster e' disponibile.
+	if (Unit.Health != -1 && Unit.Health <= 0)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s': health dichiarata a %d (dev'essere > 0, oppure omessa)"),
+			*Unit.Id, Unit.Health);
+		return false;
+	}
+	if (Unit.Shield != -1 && Unit.Shield < 0)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s': shield dichiarato a %d (dev'essere >= 0, oppure omesso)"),
+			*Unit.Id, Unit.Shield);
+		return false;
+	}
+	// `0` e' legittimo — un'unita' cieca e' una premessa scrivibile — e il catalogo eroi applica lo stesso
+	// vincolo, quindi qui si rifiuta la stessa cosa che rifiuterebbe il gioco.
+	if (Unit.VisionRange != -1 && Unit.VisionRange < 0)
+	{
+		OutError = FString::Printf(TEXT("unita' '%s': visionRange dichiarato a %d (dev'essere >= 0, oppure omesso)"),
+			*Unit.Id, Unit.VisionRange);
+		return false;
+	}
+
+	return true;
+}
+
 bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutError)
 {
 	OutError.Reset();
@@ -1758,7 +1870,7 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 	TSet<FString> BotIds;
 
 	if (!ValidateScenarioCells(Scenario, bUsesFixture, OutError)) { return false; }
-	if (!ValidateScenarioUnits(Scenario, bUsesFixture, SeenIds, BotIds, OutError)) { return false; }
+	if (!ValidateScenarioUnits(Scenario, SeenIds, BotIds, OutError)) { return false; }
 	if (!ValidateScenarioTurns(Scenario, SeenIds, BotIds, OutError)) { return false; }
 	if (!ValidateScenarioExpectations(Scenario, SeenIds, OutError)) { return false; }
 	if (!ValidateScenarioVariants(Scenario, bUsesFixture, SeenIds, OutError)) { return false; }

@@ -1,8 +1,17 @@
 # RefactorTactics — Roadmap oltre la v0.1
 
-> `CURRENT` · **Creato**: 2026-08-08 · **Owner**: questo file per le release **v0.2 → v0.4**.
+> `CURRENT` · **Creato**: 2026-08-08 · **Owner**: questo file per le release **v0.2 → v1.0**.
+>
+> ⚠️ **Questa riga diceva «v0.2 → v0.4» fino al 2026-08-27, ed era falsa di sei release.** Il documento
+> contiene già `## v0.5 — «Online Foundation»`, `## v0.6 — «Ability Runtime»`, `## v0.7 — «Competitive
+> Alpha»`, `## v0.8 — «Beta / Balance»`, `## v0.9 — «Release Candidate»` e `## v1.0 — «Launch»`: dieci
+> release, non tre. Non è un dettaglio di intestazione — è la riga che si legge per decidere **se aprire il
+> file**, e chi cercava la strada verso la v1.0 concludeva che non esistesse e ne scriveva un'altra.
+> Trovata così, il 2026-08-27, mentre si stava per farlo.
 > La v0.1 resta in [`roadmap-v0.1.md`](roadmap-v0.1.md); lo stato di esecuzione in
-> [`roadmap-checkpoint.md`](roadmap-checkpoint.md).
+> [`roadmap-checkpoint.md`](roadmap-checkpoint.md). La traiettoria intera — questo file più la v0.1, con le
+> soglie che separano le release — si legge in una pagina sola in [`roadmap-v0.1-v1.0.md`](roadmap-v0.1-v1.0.md),
+> che è una **vista** e non sposta di qui l'autorità sullo scope.
 >
 > **Questo documento non apre lavoro.** Nessuna epic qui dentro si implementa prima che i 15 gate della v0.1
 > siano verdi ([`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3). Serve a decidere **oggi** le

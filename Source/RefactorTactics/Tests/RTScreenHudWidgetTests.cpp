@@ -7,6 +7,7 @@
 #include "Misc/AutomationTest.h"
 #include "UI/RTScreenHudWidgets.h"
 #include "UI/RTIconLibrary.h"
+#include "UI/RTIconCatalogData.h" // URTIconCatalogData: esplicito, non ereditato da RTIconLibrary.h
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
 #include "Engine/Engine.h"
@@ -211,6 +212,113 @@ bool FRTScreenHudDockNeutralTest::RunTest(const FString&)
 	TestEqual(TEXT("e il dock e' vuoto"), Dock->GetActions().Num(), 0);
 
 	DestroyHudWidgetWorld(World);
+	return true;
+}
+
+/**
+ * `GetIconCatalog` risale alla radice, e la radice legge SE STESSA.
+ *
+ * 🔴 **I tre rami sono asseriti insieme perche' due di loro si coprono a vicenda in modo ingannevole.**
+ * Un'implementazione col solo `GetTypedOuter` passerebbe il caso del dock e fallirebbe **solo** sul
+ * `TacticalHUD` — cioe' l'unico widget che il catalogo ce l'ha davvero. Un'implementazione col solo
+ * `Cast<>(this)` farebbe l'opposto. Testarne uno alla volta lascerebbe verde meta' del difetto.
+ *
+ * ⚠️ Il terzo caso — outer senza HUD — non e' un contorno: e' la condizione in cui il widget vive in un
+ * test o in un'anteprima d'editor, e la risposta corretta e' `nullptr` **senza crash**. Chi consuma passa
+ * da `ResolveIcon`, che con catalogo nullo da' il missing-icon e logga la chiave.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudIconCatalogReachTest,
+	"RefactorTactics.ScreenHud.IconCatalogReachesTheRoot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudIconCatalogReachTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTIconCatalogData* Catalog = NewObject<URTIconCatalogData>(World);
+	URTTacticalHUDWidget* Root = NewObject<URTTacticalHUDWidget>(World);
+	if (!TestNotNull(TEXT("catalogo"), Catalog) || !TestNotNull(TEXT("radice"), Root))
+	{
+		DestroyHudWidgetWorld(World);
+		return false;
+	}
+	Root->IconCatalog = Catalog;
+
+	// (1) La radice legge il PROPRIO catalogo. `GetTypedOuter` cerca fra gli outer e non guarda `this`:
+	// senza il ramo dedicato, il widget su cui il dato vive sarebbe l'unico a non vederlo.
+	TestEqual(TEXT("la radice legge il proprio catalogo"),
+		Root->GetIconCatalog(), (const URTIconCatalogData*)Catalog);
+
+	// (2) Un figlio che ha la radice per outer lo raggiunge risalendo. E' il caso reale del dock innestato
+	// nel `WBP_RT_TacticalHUD`.
+	const URTActionDockWidget* Figlio = NewObject<URTActionDockWidget>(Root);
+	if (TestNotNull(TEXT("figlio della radice"), Figlio))
+	{
+		TestEqual(TEXT("il figlio risale alla radice"),
+			Figlio->GetIconCatalog(), (const URTIconCatalogData*)Catalog);
+	}
+
+	// (3) Fuori dall'HUD: `nullptr`, e nessun crash. Controprova della premessa — se questo caso desse il
+	// catalogo, i due sopra sarebbero veri per costruzione invece che per meccanismo.
+	const URTActionDockWidget* Orfano = NewObject<URTActionDockWidget>(World);
+	if (TestNotNull(TEXT("widget fuori dall'HUD"), Orfano))
+	{
+		TestNull(TEXT("fuori dall'HUD il catalogo non si raggiunge"), Orfano->GetIconCatalog());
+	}
+
+	DestroyHudWidgetWorld(World);
+	return true;
+}
+
+/**
+ * Lo slot risolve la propria icona dal catalogo che ha RICEVUTO.
+ *
+ * 🔴 **La coppia e' il test, non la singola asserzione.** Senza catalogo `ResolveIcon` restituisce
+ * `bResolved = false`; con il catalogo giusto `true`. Asserire solo il secondo caso lascerebbe passare
+ * un'implementazione che risponde sempre «risolta» — e a schermo si vedrebbe il missing-icon con la
+ * barra verde, cioe' il difetto piu' difficile da attribuire.
+ *
+ * ⚠️ Il test NON verifica che l'icona si veda: `Asset` e' una soft reference, e questa suite non carica
+ * texture. La leggibilita' a schermo e' `PIE-ICON-01`, e nessun test la sostituisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionSlotResolvesFromCatalogTest,
+	"RefactorTactics.ScreenHud.ActionSlotResolvesFromCatalog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionSlotResolvesFromCatalogTest::RunTest(const FString&)
+{
+	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>();
+	if (!TestNotNull(TEXT("slot"), Slot)) { return false; }
+
+	FRTAbilityCooldownView Azione;
+	Azione.ActionId = TEXT("Action.Move");
+	const FName ChiaveAttesa = URTIconLibrary::MakeIconId(Azione.ActionId);
+
+	// (1) Senza catalogo: il missing-icon, e `bResolved` lo DICHIARA. E' lo stato in cui lo slot vive
+	// finche' qualcuno non gli passa il catalogo, ed e' voluto — non un errore da nascondere.
+	Slot->SetAction(Azione, /*bArmed=*/ false);
+	TestFalse(TEXT("senza catalogo l'icona non e' risolta"), Slot->GetResolvedIcon().bResolved);
+
+	// (2) Con un catalogo che contiene la chiave: risolta.
+	URTIconCatalogData* Catalogo = NewObject<URTIconCatalogData>();
+	if (!TestNotNull(TEXT("catalogo"), Catalogo)) { return false; }
+	Catalogo->Icons.Add(FRTIconDef(ChiaveAttesa, ERTIconCategory::Action,
+		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Prova/T_Prova.T_Prova")))));
+
+	Slot->SetAction(Azione, /*bArmed=*/ false, Catalogo);
+	const FRTIconResolution Risolta = Slot->GetResolvedIcon();
+	TestTrue(TEXT("col catalogo l'icona e' risolta"), Risolta.bResolved);
+	TestEqual(TEXT("ed e' l'asset dichiarato per quella chiave"),
+		Risolta.Asset.ToString(), FString(TEXT("/Game/Prova/T_Prova.T_Prova")));
+
+	// (3) La chiave che lo slot chiede e' quella dell'AZIONE, non una costante: cambiando azione cambia
+	// chiave, e una chiave che il catalogo non ha torna non risolta. Senza questo caso, un'implementazione
+	// che ignora `Action` e risolve sempre la stessa icona passerebbe i due sopra.
+	FRTAbilityCooldownView Altra;
+	Altra.ActionId = TEXT("Action.Guard");
+	Slot->SetAction(Altra, /*bArmed=*/ false, Catalogo);
+	TestFalse(TEXT("un'altra azione chiede un'altra chiave, che il catalogo non ha"),
+		Slot->GetResolvedIcon().bResolved);
+
 	return true;
 }
 

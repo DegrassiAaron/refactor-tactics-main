@@ -16,6 +16,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Tests/RTAbilityFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -78,6 +79,10 @@ namespace
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
+		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
+		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
+		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
+		U->Shield = 0;
 		return U;
 	}
 
@@ -93,17 +98,6 @@ namespace
 		return (Hero && Hero->Actions.Num() > 0 && Hero->Actions[0]) ? Hero->Actions[0]->Power : 0;
 	}
 
-	int32 AddItcAbility(ARTUnit* Unit, const TCHAR* ActionId, int32 SlotIndex = 3)
-	{
-		if (!Unit || !Unit->Abilities.IsValidIndex(SlotIndex)) { return INDEX_NONE; }
-		URTActionData* Ability = NewObject<URTActionData>(Unit);
-		Ability->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
-		Ability->CooldownTurns = Ability->Def.CooldownTurns;
-		Ability->RangeCells = Ability->Def.RangeCells;
-		Ability->Power = 0;
-		Unit->Abilities[SlotIndex] = Ability;
-		return SlotIndex;
-	}
 
 	void RunItcTurn(ARTTurnManager* TM)
 	{
@@ -191,7 +185,7 @@ namespace
 			return Out;
 		}
 
-		Saver->PlannedReactionAbility = AddItcAbility(Saver, TEXT("Action.Intercept"));
+		Saver->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3);
 		Saver->PlannedAbilityIndex = INDEX_NONE;
 		Saver->Facing = SaverFacing; // CP 16.2: da che lato e' scoperto CHI incassa
 
@@ -288,7 +282,7 @@ bool FRTInterceptTest::RunTest(const FString&)
 		return false;
 	}
 
-	Saver->PlannedReactionAbility = AddItcAbility(Saver, TEXT("Action.Intercept"));
+	Saver->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3);
 	Saver->PlannedAbilityIndex = INDEX_NONE;
 
 	const int32 VictimHealth = Victim->Health;
@@ -479,9 +473,9 @@ bool FRTInterceptBeforeOtherReactionsTest::RunTest(const FString&)
 		return false;
 	}
 
-	Saver->PlannedReactionAbility = AddItcAbility(Saver, TEXT("Action.Intercept"));
+	Saver->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3);
 	Saver->PlannedAbilityIndex = INDEX_NONE;
-	Victim->PlannedReactionAbility = AddItcAbility(Victim, TEXT("Action.Counter"));
+	Victim->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Victim, TEXT("Action.Counter"), 3);
 	Victim->PlannedAbilityIndex = INDEX_NONE;
 
 	const int32 AttackerHealth = Attacker->Health;
@@ -601,9 +595,9 @@ bool FRTInterceptNoSecondOpportunityTest::RunTest(const FString&)
 		return false;
 	}
 
-	Saver->PlannedReactionAbility = AddItcAbility(Saver, TEXT("Action.Intercept"));
+	Saver->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Saver, TEXT("Action.Intercept"), 3);
 	Saver->PlannedAbilityIndex = INDEX_NONE;
-	const int32 ThirdReactionIdx = AddItcAbility(Third, TEXT("Action.Intercept"));
+	const int32 ThirdReactionIdx = RTAbilityFixtures::AddCoreAbilityInSlot(Third, TEXT("Action.Intercept"), 3);
 	Third->PlannedReactionAbility = ThirdReactionIdx;
 	Third->PlannedAbilityIndex = INDEX_NONE;
 

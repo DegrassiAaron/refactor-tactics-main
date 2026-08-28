@@ -4,6 +4,7 @@
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
+#include "RTAuthoredArenaForTest.h" // il path della mappa d'autore in un posto solo
 #include "Map/RTHexMapCustomVersion.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
@@ -969,7 +970,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSerializedAssetMigrationTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexSerializedAssetMigrationTest::RunTest(const FString&)
 {
-	const TCHAR* AssetPath = TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.DA_HexMap_Arena");
+	const TCHAR* AssetPath = RTAuthoredArena::Path();
 	URTHexMapAsset* Loaded = LoadObject<URTHexMapAsset>(nullptr, AssetPath);
 
 	// Se l'asset sparisse, la migrazione tornerebbe senza soggetto e nessuno se ne accorgerebbe: il test deve
@@ -1402,7 +1403,7 @@ bool FRTAuthoredCoversNotBelowCatalogTest::RunTest(const FString&)
 	// I tre `URTHexMapAsset` versionati al 2026-08-24 (`git ls-files "Content/**/*.uasset"`).
 	const TCHAR* PercorsiAsset[] =
 	{
-		TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.DA_HexMap_Arena"),
+		RTAuthoredArena::Path(),
 		TEXT("/Game/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.DA_HexMap_Sandbox"),
 		TEXT("/Game/RT/Maps/Dev/_Scratch/DA_HexMap_Scratch_Basin.DA_HexMap_Scratch_Basin"),
 	};

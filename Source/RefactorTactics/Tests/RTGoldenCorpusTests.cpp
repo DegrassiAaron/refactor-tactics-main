@@ -357,19 +357,104 @@ namespace
 	 *
 	 *   Movement.Basic / Movement.Collision      Move          (le due storiche)
 	 *   Combat.CounterStrikesBack                Combat, Facing, Reaction, Status
+	 *                                            (`Combat` e `Facing` da `#1593` li porta anche il fallback)
 	 *   Spec.Environment.WaterQuenchesFire       Environment
 	 *   Spec.Predictive.WhiffOnEmptyCell         Predictive
 	 *   Spec.Overwatch.HoldThenFire              ReactionDecision
+	 *   Visual.Combat.FallbackTargetMoved        Fallback       (`#1593`)
 	 *
-	 * ⚠️ **`Combat.CounterStrikesBack` vale da solo META' della soglia**: e' l'unico fornitore di `Combat`,
-	 * `Facing`, `Reaction` e `Status`. Se un giorno smettesse di produrne una — la reazione che perde la voce
-	 * `Facing`, lo stato che non viene applicato — il test non cadrebbe per una categoria ma per quattro
-	 * insieme, e chi legge il rosso potrebbe cercare il difetto nel posto sbagliato. Misurato, non temuto.
+	 * ⚠️ **`Combat.CounterStrikesBack` e' l'unico fornitore di `Reaction` e `Status`**: se smettesse di
+	 * produrne una — la reazione che perde la voce, lo stato che non viene applicato — il test cade e il
+	 * difetto sta li'. Misurato, non temuto.
 	 *
-	 * ⚠️ **Due categorie restano scoperte, ed e' dichiarato**: `Fallback` e `ReactionClash`. Nessuno degli
-	 * scenari provati le produce — gli scenari `Spec/Clash` risolvono senza emettere voci `ReactionClash`, e
-	 * `Fallback` nasce da azioni che si degradano, che nessuno scenario del corpus esercita. Chi ne scrive uno
-	 * che le tocca alzi la soglia in `GoldenCorpusCoversItsCategories`.
+	 * 🔴 **Questa riga diceva «vale da solo META' della soglia» e nominava QUATTRO categorie, ed e' stata
+	 * falsificata dal diff di `#1593` che l'ha lasciata intatta.** `Visual.Combat.FallbackTargetMoved` porta
+	 * anche `Combat` e `Facing`, quindi quelle due hanno ora due fornitori: perderle in `CounterStrikesBack`
+	 * **non produce piu' nessun rosso**. L'avvertenza operativa — «non cadrebbe per una categoria ma per
+	 * quattro insieme» — era diventata una regola di diagnosi che non vale piu', cioe' esattamente il modo in
+	 * cui un commento fa cercare il difetto nel posto sbagliato. Trovato in code review.
+	 *
+	 * ⚠️ **UNA categoria resta scoperta, ed e' dichiarato**: `ReactionClash`. Non e' un lavoro rimandato, e' un
+	 * lavoro **BLOCCATO** — sta in `KnownUnavailableCapabilities()` con owner `#314`, e uno scenario che la
+	 * chiedesse non verrebbe eseguito affatto.
+	 *
+	 * 🔴 **E la prova sta nei quattro scenari che gia' la chiedono.** `Scenarios/Spec/Clash/*.json` dichiarano
+	 * `requires: ["DecisionBoundary", "ReactionClash"]` ed escono **`Blocked`** — la loro stessa nota lo
+	 * scrive: *«Esce BLOCKED finche' `ReactionClash` non esiste, e va bene»*. Questa riga sosteneva che
+	 * *«risolvono senza emettere quelle voci»*, che e' falso e contraddiceva la frase sopra di lei nello
+	 * stesso paragrafo: uno scenario BLOCKED non risolve, non gira affatto. Trovato in code review.
+	 *
+	 * ➕ **QUANDO `#314` ATTERRA**: uno dei quattro `Spec/Clash` entra in `GoldenScenarioIds` e
+	 * `CategorieMinime` sale da **9** a **10**. L'istruzione stava qui prima di `#1593` — *«chi ne scrive uno
+	 * che le tocca alzi la soglia»* — e quel diff l'ha tolta spiegando il blocco senza dire piu' cosa fare
+	 * quando si sblocca. E' la stessa forma di difetto che `#1593` e' andato a correggere: una nota la cui
+	 * formulazione decide se un lavoro pronto viene fatto.
+	 *
+	 * 🔴 **`Fallback` stava nella stessa riga e non era lo stesso caso** (`#1593`). Non e' una capability: e'
+	 * una categoria che il runtime emette da SETTE siti (`RTTurnManager.cpp` x2, `RTTurnManager_Blast.cpp`
+	 * x5), e uno scenario che la produce **esisteva gia'** — `Visual.Combat.FallbackTargetMoved`, il fallback
+	 * `AttackCell` di un bersaglio uscito di portata. La nota diceva *«chi ne scrive uno»* e chiedeva un
+	 * lavoro gia' fatto: la categoria e' rimasta scoperta per settimane non perche' fosse difficile, ma
+	 * perche' questa frase metteva insieme un caso bloccato e uno pronto. **Due cose diverse nella stessa
+	 * riga aspettano alla velocita' della piu' lenta.**
+	 */
+	/**
+	 * Carica ed esegue uno scenario del corpus, con la guardia. Vero se il risultato e' utilizzabile.
+	 *
+	 * 🔴 **Le due copie di questo blocco erano divergite, ed e' la ragione per cui ora e' una sola.**
+	 * `GoldenCorpusMatches` aveva la guardia su `Error`/`Blocked`, `GoldenCorpusCoversItsCategories` no: uno
+	 * scenario che smettesse di girare — un `requires` aggiunto al JSON, una capability tornata fra le non
+	 * disponibili — gli avrebbe dato zero tracce e zero categorie, e il rosso avrebbe detto solo «ne copre
+	 * otto» senza nominare lo scenario che non e' partito. Cioe' proprio *«un file che nessuno esegue e che
+	 * sembra copertura»*, lasciato senza presidio dentro il test che la copertura la misura. Trovato in code
+	 * review, e la duplicazione era il veicolo della divergenza.
+	 *
+	 * ⚠️ Ogni voce del corpus costa **due** esecuzioni qui piu' quella di `Scenario.EveryShippedScenarioRuns`:
+	 * e' il prezzo dichiarato di «poche e deterministiche», e va speso solo per una categoria in piu'.
+	 */
+	bool RTRunGoldenScenario(const TCHAR* ScenarioId, FAutomationTestBase& Test, FRTTestResult& OutResult)
+	{
+		FString Error;
+		const FString Path = URTScenarioIndex::ResolvePath(ScenarioId, Error);
+		FRTTestScenario Scenario;
+		if (Path.IsEmpty() || !URTScenarioLoader::LoadFromFile(Path, Scenario, Error))
+		{
+			Test.AddError(FString::Printf(TEXT("scenario '%s' non caricabile: %s"), ScenarioId, *Error));
+			return false;
+		}
+
+		UWorld* World = MakeGoldenWorld();
+		if (!World)
+		{
+			Test.AddError(TEXT("world di prova non creato"));
+			return false;
+		}
+		OutResult = URTScenarioRunner::Run(World, Scenario);
+		DestroyGoldenWorld(World);
+
+		// Uno scenario che non gira produrrebbe zero tracce, e una misura su zero tracce e' verde per il
+		// motivo sbagliato.
+		if (OutResult.Outcome == ERTTestOutcome::Error || OutResult.Outcome == ERTTestOutcome::Blocked)
+		{
+			Test.AddError(FString::Printf(TEXT("'%s' non eseguibile (%s): %s%s"),
+				ScenarioId, *OutResult.OutcomeString(), *OutResult.ErrorMessage, *OutResult.BlockedReason));
+			return false;
+		}
+		return true;
+	}
+
+	/**
+	 * ⚠️ **`Visual.Combat.FallbackTargetMoved` e' di classe B, e diventando golden acquisisce un vincolo che
+	 * il suo runbook non gli metteva.** `scenario-map.md` §2 classifica `Scenarios/Visual/` come *«la macchina
+	 * esegue, l'umano giudica»*, e `runbooks/scenari-validazione-visiva.md` esiste per **rivederli** finche'
+	 * l'effetto non si legge — quello scenario e' gia' stato rivisto una volta per quella ragione, e la sua
+	 * voce PIE non e' ancora stata guardata. Da ora una revisione della geometria fa divergere la traccia, e
+	 * per l'intestazione di questo file un rebalance legittimo e un difetto del resolver *«si presentano
+	 * identici»*.
+	 *
+	 * Il presidio sta nel documento dove quella revisione si progetta: la riga del runbook porta lo stato
+	 * **«gia' nel corpus»**, come le altre due voci golden. Chi la rivede rigenera la traccia nello stesso
+	 * commit — la convenzione e' gia' scritta in testa a questo file. Trovato in code review.
 	 */
 	const TCHAR* GoldenScenarioIds[] = {
 		TEXT("Movement.Collision"), TEXT("Movement.Basic"),
@@ -377,6 +462,7 @@ namespace
 		TEXT("Spec.Environment.WaterQuenchesFire"),
 		TEXT("Spec.Predictive.WhiffOnEmptyCell"),
 		TEXT("Spec.Overwatch.HoldThenFire"),
+		TEXT("Visual.Combat.FallbackTargetMoved"),
 	};
 }
 
@@ -396,8 +482,12 @@ namespace
  * e deve decidere — abbassare la soglia dichiarando cosa si perde, o rimettere la copertura. Un `>=` largo
  * lascerebbe scivolare via la copertura una categoria alla volta, che e' come e' arrivata a una.
  *
- * ⚠️ Si legge dalle tracce SERIALIZZATE, non dal TurnLog vivo: e' cio' che il corpus archivia, ed e' quindi
- * cio' di cui si sta misurando la copertura.
+ * ⚠️ Si legge dalle tracce SERIALIZZATE e non dal TurnLog vivo, cioe' nella forma in cui il corpus le
+ * archivia — ma sono le tracce che il runner ha appena PRODOTTO, non i file `.rttl` su disco: cancellando
+ * `Golden/` questo test resta verde. La distinzione che regge e' serializzato-contro-struttura-viva; dire
+ * «ed e' quindi cio' di cui si sta misurando la copertura» faceva credere che a essere misurato fosse
+ * l'archivio, e su quella storia poggia una soglia. A confrontare i file e' `GoldenCorpusMatches`. Trovato
+ * in code review.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGoldenCorpusCoverageTest,
 	"RefactorTactics.Simulation.GoldenCorpusCoversItsCategories",
@@ -409,19 +499,11 @@ bool FRTGoldenCorpusCoverageTest::RunTest(const FString&)
 
 	for (const TCHAR* ScenarioId : GoldenScenarioIds)
 	{
-		FString Error;
-		const FString Path = URTScenarioIndex::ResolvePath(ScenarioId, Error);
-		FRTTestScenario Scenario;
-		if (Path.IsEmpty() || !URTScenarioLoader::LoadFromFile(Path, Scenario, Error))
+		FRTTestResult Result;
+		if (!RTRunGoldenScenario(ScenarioId, *this, Result))
 		{
-			AddError(FString::Printf(TEXT("scenario '%s' non caricabile: %s"), ScenarioId, *Error));
 			continue;
 		}
-
-		UWorld* World = MakeGoldenWorld();
-		if (!World) { AddError(TEXT("world di prova non creato")); continue; }
-		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
-		DestroyGoldenWorld(World);
 
 		TSet<ERTLogCategory> DiQuesto;
 		for (const FRTTurnTrace& Trace : Result.TurnTraces)
@@ -463,17 +545,47 @@ bool FRTGoldenCorpusCoverageTest::RunTest(const FString&)
 	}
 	Tutte.Sort();
 
-	const int32 Dichiarate = StaticEnum<ERTLogCategory>() ? StaticEnum<ERTLogCategory>()->NumEnums() - 1 : 0;
+	const UEnum* CategorieEnum = StaticEnum<ERTLogCategory>();
+	const int32 Dichiarate = CategorieEnum ? CategorieEnum->NumEnums() - 1 : 0;
 	AddInfo(FString::Printf(TEXT("il corpus copre %d categorie su %d: %s"),
 		Coperte.Num(), Dichiarate, *FString::Join(Tutte, TEXT(", "))));
 
 	// 🔴 **Il patto**: questa soglia e' cio' che il corpus promette di coprire. Alzarla e' un miglioramento;
 	// abbassarla e' una decisione da dichiarare, non un effetto collaterale.
-	// 🔴 **Otto**, misurato: `Fallback` e `ReactionClash` restano scoperte e la ragione sta accanto a
-	// `GoldenScenarioIds`. Chi scrive uno scenario che le tocca alza questo numero.
-	constexpr int32 CategorieMinime = 8;
+	// 🔴 **Nove**, misurato il 2026-08-28 (`#1593`): resta scoperta la sola `ReactionClash`, e la ragione —
+	// BLOCCATA, owner `#314` — sta accanto a `GoldenScenarioIds`. Era **otto** finche' `Fallback` era
+	// dichiarata scoperta insieme a lei, pur avendo gia' il proprio scenario.
+	//
+	// ⚠️ **Alzare questo numero e' cio' che rende la copertura nuova falsificabile.** Aggiungere lo scenario
+	// all'elenco senza toccare la soglia avrebbe lasciato il test verde **prima e dopo**: la categoria in
+	// piu' non sarebbe stata misurata da nessuno, e toglierla di nuovo non avrebbe fatto rumore. Verificato
+	// per mutazione: togliendo `Visual.Combat.FallbackTargetMoved` dall'elenco, con la soglia a nove questo
+	// test va rosso; con la soglia a otto sarebbe restato verde.
+	constexpr int32 CategorieMinime = 9;
 	TestTrue(*FString::Printf(TEXT("il corpus copre almeno %d categorie (ne copre %d)"),
 		CategorieMinime, Coperte.Num()), Coperte.Num() >= CategorieMinime);
+
+	// 🔴 **E l'IDENTITA' di cio' che resta scoperto, non solo il conteggio.** Un cambio che perdesse una
+	// categoria guadagnandone un'altra terrebbe il numero a nove e questo test verde, mentre la nota accanto
+	// a `GoldenScenarioIds` — «resta scoperta la sola `ReactionClash`» — diventerebbe falsa **senza segnale**.
+	// E' lo stesso argomento della soglia applicato al NOME invece che alla cardinalita': una promessa che
+	// nessuno misura non e' falsificabile. Una categoria NUOVA dell'enum, senza copertura, fa cadere anche
+	// questa riga — ed e' voluto: va dichiarata, non ereditata. Trovato in code review.
+	TArray<FString> Scoperte;
+	if (CategorieEnum)
+	{
+		for (int32 I = 0; I < CategorieEnum->NumEnums() - 1; ++I)
+		{
+			const ERTLogCategory Categoria = static_cast<ERTLogCategory>(CategorieEnum->GetValueByIndex(I));
+			if (!Coperte.Contains(Categoria))
+			{
+				Scoperte.Add(EnumNameOr(Categoria));
+			}
+		}
+	}
+	Scoperte.Sort();
+	TestEqual(TEXT("e a restare scoperta e' esattamente `ReactionClash` (owner #314)"),
+		FString::Join(Scoperte, TEXT(", ")), FString(TEXT("ReactionClash")));
 
 	return true;
 }
@@ -487,30 +599,9 @@ bool FRTGoldenCorpusMatchesTest::RunTest(const FString&)
 
 	for (const TCHAR* ScenarioId : GoldenScenarioIds)
 	{
-		FString Error;
-		const FString Path = URTScenarioIndex::ResolvePath(ScenarioId, Error);
-		FRTTestScenario Scenario;
-		if (Path.IsEmpty() || !URTScenarioLoader::LoadFromFile(Path, Scenario, Error))
+		FRTTestResult Result;
+		if (!RTRunGoldenScenario(ScenarioId, *this, Result))
 		{
-			AddError(FString::Printf(TEXT("scenario '%s' non caricabile: %s"), ScenarioId, *Error));
-			continue;
-		}
-
-		UWorld* World = MakeGoldenWorld();
-		if (!World)
-		{
-			AddError(TEXT("world di prova non creato"));
-			continue;
-		}
-		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
-		DestroyGoldenWorld(World);
-
-		// Uno scenario che non gira produrrebbe zero tracce, e un confronto su zero tracce e' verde per il
-		// motivo sbagliato.
-		if (Result.Outcome == ERTTestOutcome::Error || Result.Outcome == ERTTestOutcome::Blocked)
-		{
-			AddError(FString::Printf(TEXT("'%s' non eseguibile (%s): %s%s"),
-				ScenarioId, *Result.OutcomeString(), *Result.ErrorMessage, *Result.BlockedReason));
 			continue;
 		}
 		if (!TestTrue(FString::Printf(TEXT("'%s' ha prodotto almeno un turno"), ScenarioId),

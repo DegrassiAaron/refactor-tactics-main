@@ -481,7 +481,9 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		// Concesse da un pezzo che ESISTE ma che nessun eroe porta di default: il canale funziona, manca
 		// l'assegnazione. Escono da qui il giorno in cui un eroe riceve quel pezzo nel suo loadout.
 		{ TEXT("Action.Anchor"),          TEXT("Pezzo non assegnato: base di Reaction.Anchor, default di nessuno") },
-		{ TEXT("Action.Purge"),           TEXT("Pezzo non assegnato: base di Reaction.Cleanse, default di nessuno") },
+		// `Action.Purge` e' USCITA da questo elenco il 2026-08-27 ([D-218], `#1403`): `Reaction.Cleanse` e'
+		// il modulo di default di Riktor, quindi la base e' raggiungibile. La riga la toglie il gate stesso,
+		// che dice «ORA e' raggiungibile: togli la riga» invece di lasciarla marcire fra le esclusioni.
 		// Bloccata da una migrazione decisa e non fatta.
 		{ TEXT("Action.Sprint"),          TEXT("E38: forma canonica profilo Move (D-015/D-116), il codice ha FastMovement") },
 		// Contenuto che aspetta il suo portatore: diventeranno raggiungibili quando entrera' l'eroe che le
@@ -496,7 +498,11 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		{ TEXT("Action.Push"),            TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.Reposition"),      TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.Root"),            TEXT("Aspetta il suo eroe") },
-		{ TEXT("Action.Shield"),          TEXT("Aspetta il suo eroe: adr-0003 la da' per arrivata") },
+		// `Action.Shield` e' USCITA da questo elenco: la portano `Hero.Phase.TideGuard` e
+		// `Hero.Wraith.PhaseGuard`, uno per squadra. Ci si era provato il 2026-08-28 con [D-224] e il
+		// tentativo era stato RITIRATO — un sesto slot d'eroe portava il kit a 11 voci contro i 10 tasti
+		// numerici, e l'azione sarebbe stata raggiungibile per QUESTO gate e impremibile per il giocatore.
+		// Il vincolo e' caduto spostando le generiche su tasti propri (`GenericHotkeys()`), non ignorandolo.
 		{ TEXT("Action.Slow"),            TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.SuppressiveLine"), TEXT("Aspetta il suo eroe") },
 	};
@@ -589,6 +595,62 @@ bool FRTGenericActionDisplayNameTest::RunTest(const FString&)
 			!Azione->DisplayName.IsEmpty());
 	}
 
+	return true;
+}
+
+/**
+ * L'insieme ESATTO delle azioni core che si dichiarano aggressione ([`INT-8`], [D-221]).
+ *
+ * 🔴 **Si pinna l'INSIEME e non il conteggio**, e la differenza e' il difetto che questo test nasce per
+ * prendere: una riga `Catalog.Last().bCountsAsAttack = true` finita dopo il blocco SBAGLIATO dichiara
+ * l'azione precedente e non quella voluta -- `Catalog.Last()` punta all'ultima aggiunta e non protesta.
+ * Un conteggio sopravvive a uno scambio; un insieme no.
+ *
+ * ⚠️ **Ed e' esattamente cosi' che e' andata**: `Action.Brace` (self-target di Prep) e `Action.ModifyArc`
+ * (intercettata per nome prima della raccolta) sono state dichiarate aggressioni per errore, e **1233 test
+ * verdi non se ne sono accorti** -- perche' nessuna delle due raggiunge `CollectHexAttacks`, quindi la
+ * dichiarazione sbagliata era INERTE. Sbagliata e invisibile: la combinazione peggiore, e l'unica che un
+ * gate sull'insieme prende.
+ *
+ * ⚠️ **Chi NON e' nell'elenco e potrebbe sorprendere**: `Action.Counter`, `Action.Deflect` (reazioni: il
+ * loro danno passa da `URTActionEffectLibrary::ProduceEvents`, mai dai colpi) e `Action.Electrify`
+ * (`Environment`, risolve nel Cleanup). Sono aggressioni nel senso comune, ma non producono colpi -- e il
+ * campo dichiara quello. Il giorno in cui una di esse venisse instradata nel Blast, il fail-closed la
+ * rende muta e il primo test che la esercita diventa rosso: e' li' che si dichiarera'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoreActionsDeclareAggressionTest,
+	"RefactorTactics.Actions.OnlyAggressionsDeclareThemselves",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoreActionsDeclareAggressionTest::RunTest(const FString&)
+{
+	static const TSet<FName> Attese = {
+		TEXT("Action.BasicAttack"), TEXT("Action.PrecisionAttack"), TEXT("Action.HeavyAttack"),
+		TEXT("Action.LineAttack"),  TEXT("Action.CircularAoE"),     TEXT("Action.SuppressiveLine"),
+		TEXT("Action.Charge"),      TEXT("Action.MarkTarget"),
+		TEXT("Action.Push"),        TEXT("Action.Pull"),            TEXT("Action.Root"),
+		TEXT("Action.Slow"),        TEXT("Action.Interrupt") };
+
+	TSet<FName> Dichiarate;
+	int32 Totali = 0;
+	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+	{
+		++Totali;
+		if (Def.bCountsAsAttack) { Dichiarate.Add(Def.ActionId); }
+	}
+
+	// ANTI-VACUITA': un catalogo vuoto farebbe passare entrambi i cicli senza asserire niente.
+	if (!TestTrue(TEXT("il catalogo core non e' vuoto"), Totali > 20)) { return false; }
+
+	for (const FName& Id : Attese)
+	{
+		TestTrue(FString::Printf(TEXT("%s deve dichiararsi aggressione"), *Id.ToString()),
+			Dichiarate.Contains(Id));
+	}
+	for (const FName& Id : Dichiarate)
+	{
+		TestTrue(FString::Printf(TEXT("%s NON deve dichiararsi aggressione"), *Id.ToString()),
+			Attese.Contains(Id));
+	}
 	return true;
 }
 

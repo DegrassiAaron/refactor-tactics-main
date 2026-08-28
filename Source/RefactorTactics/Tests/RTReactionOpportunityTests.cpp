@@ -17,6 +17,10 @@
 #include "Unit/RTUnit.h"
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTReactionOpportunityTypes.h"
+#include "Turn/RTReactionWindowView.h"        // il DTO di CP 14.6: stesso elenco chiuso, stesso guardiano
+#include "Turn/RTTurnManager.h"               // la fonte autorevole del countdown, misurata dal DTO
+#include "Tests/RTWorldFixtures.h"            // MakeWorld/DestroyWorld: il manager e' un Actor, serve un mondo
+#include "Turn/RTPacingLibrary.h"             // il conteggio delle finestre e il tetto in secondi (CP 14.6)
 #include "Combat/RTOffensiveActionLibrary.h"  // MakeSuppressiveZone: la stessa geometria del resolver
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"                 // Neighbor: il facing dichiarato diventa una cella
@@ -253,6 +257,22 @@ bool FRTOpportunityLeaksNoFutureTest::RunTest(const FString&)
 		{ TEXT("TurnNumber"), TEXT("MacroPhase"), TEXT("MicroStepIndex"),
 		  TEXT("OwnerId"), TEXT("ReactionDefId"), TEXT("Seq") });
 
+	// Il DTO che alimenta la UI della finestra (CP 14.6, `#166`) e' l'altra faccia dello stesso vincolo, e per
+	// questo lo chiude questo test invece di uno parallelo: e' cio' che ESCE dal core verso la presentazione,
+	// quindi il posto in cui un campo di troppo diventa un'esposizione vera e non piu' solo un rischio.
+	//
+	// Perche' ciascuno e' ammesso: `Key` porta i sei campi gia' dichiarati non-futuri due righe sopra;
+	// `WindowSeconds` e' un parametro pubblico della regola (ADR-0004 §8), non uno stato di partita;
+	// `Options` sono le risposte che il proprietario puo' gia' scegliere; `SafeResponse` e' cio' che accade
+	// allo scadere, cioe' una conseguenza gia' decisa e non una previsione.
+	CheckClosedFieldSet(FRTReactionWindowView::StaticStruct(), TEXT("FRTReactionWindowView"),
+		{ TEXT("bOpen"), TEXT("Key"), TEXT("WindowSeconds"), TEXT("Options"), TEXT("SafeResponse") });
+
+	// `TargetSnapshotIndex` porta il nome del proprio spazio di id apposta: e' un indice in
+	// `MakeCurrentSnapshot`, non un id stabile, e chiamarlo `UnitId` invitava a risolverlo altrove.
+	CheckClosedFieldSet(FRTReactionWindowOptionView::StaticStruct(), TEXT("FRTReactionWindowOptionView"),
+		{ TEXT("Response"), TEXT("TargetSnapshotIndex") });
+
 	return true;
 }
 
@@ -459,6 +479,549 @@ bool FRTArmedZoneFollowsCurrentCellTest::RunTest(const FString&)
 
 	TestEqual(TEXT("simmetrica: il watcher a est non copre il corridoio nord-est"),
 		TriggerCount(AtOrigin, NorthEastFromOrigin), 0);
+
+	return true;
+}
+namespace
+{
+	// Una finestra dell'Overwatch come `BuildOverwatchTriggers` la produce: un `FIRE:` per bersaglio, `HOLD`
+	// in coda. Nome distinto da ogni altro helper del file: la unity build condivide la translation unit.
+	//
+	// ⚠️ **Ogni campo che distingue due finestre e' un parametro**, e non e' pedanteria: la prima stesura
+	// fissava `OwnerId`, `MacroPhase` e `Seq` nell'helper, e il confronto «due finestre diverse danno
+	// all'avversario la stessa vista» risultava vero **per costruzione** su quattro assertion su sei —
+	// confrontavano 7 con 7. Rilevato in code review.
+	FRTReactionOpportunity MakeOverwatchWindowForViewTest(int32 FirstTarget, int32 SecondTarget,
+		int32 TurnNumber, int32 OwnerId, ERTMatchPhase MacroPhase, int32 Seq)
+	{
+		FRTReactionOpportunity Opportunity;
+		Opportunity.Key.TurnNumber = TurnNumber;
+		Opportunity.Key.MacroPhase = MacroPhase;
+		Opportunity.Key.MicroStepIndex = 1;
+		Opportunity.Key.OwnerId = OwnerId;
+		Opportunity.Key.ReactionDefId = TEXT("Action.Overwatch");
+		Opportunity.Key.Seq = Seq;
+
+		Opportunity.AllowedResponses = {
+			URTReactionOpportunityLibrary::FireResponse(FirstTarget),
+			URTReactionOpportunityLibrary::FireResponse(SecondTarget),
+			FString(URTReactionOpportunityLibrary::HoldResponse())
+		};
+
+		return Opportunity;
+	}
+
+	// La forma dell'ALTRO produttore di finestre, `RTTurnManager_Chunk.Blast` da
+	// `URTCatalogLibrary::BraceExecutableResponses`: nessuna risposta col prefisso `FIRE:`, e la scelta
+	// sicura in TESTA invece che in coda ([D-047] §2.1).
+	FRTReactionOpportunity MakeBraceWindowForViewTest()
+	{
+		FRTReactionOpportunity Opportunity;
+		Opportunity.Key.TurnNumber = 5;
+		Opportunity.Key.MacroPhase = ERTMatchPhase::Blast; // la spinta si risolve li'
+		Opportunity.Key.OwnerId = 2;
+		Opportunity.Key.ReactionDefId = TEXT("Action.Brace");
+
+		Opportunity.AllowedResponses = { TEXT("Hold Ground"), TEXT("Sidestep") };
+		return Opportunity;
+	}
+}
+
+/**
+ * Per un avversario la finestra NON ESISTE: la vista e' ai default, e due finestre diverse gliene danno una
+ * identica (DoD di `#166`, invariante #6).
+ *
+ * ⚠️ **Il secondo confronto e' il punto**, ed e' la stessa forma di `UI.NoEnemyIntentExposed`: un test che
+ * guardasse solo `bOpen == false` passerebbe accanto a un `Key.OwnerId` popolato, a un countdown scritto
+ * «tanto il widget non lo mostra», a un elenco di opzioni lasciato dentro. Quei campi non si vedono a
+ * schermo — ma in rete (M10) sono sul filo, e un avversario che riceve due strutture DIVERSE sa che qualcosa
+ * di diverso sta accadendo, che e' gia' informazione.
+ *
+ * 🔴 **Le due finestre differiscono in OGNI campo che il proprietario vede** — bersagli, turno, proprietario,
+ * macro-fase, `Seq`, durata — perche' un confronto fra due valori identici alla fonte non prova niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowHiddenFromEnemyTest,
+	"RefactorTactics.Reactions.WindowViewHiddenFromEnemyTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowHiddenFromEnemyTest::RunTest(const FString&)
+{
+	const int32 OwnerTeam = 0;
+	const int32 EnemyTeam = 1;
+
+	const FRTReactionOpportunity First =
+		MakeOverwatchWindowForViewTest(4, 9, 3, /*OwnerId=*/7, ERTMatchPhase::Move, /*Seq=*/0);
+	const FRTReactionOpportunity Second =
+		MakeOverwatchWindowForViewTest(11, 12, 8, /*OwnerId=*/2, ERTMatchPhase::Blast, /*Seq=*/4);
+
+	const FRTReactionWindowView ToEnemy =
+		URTReactionWindowLibrary::FilterWindowForTeam(EnemyTeam, OwnerTeam, First, 3.f);
+
+	TestFalse(TEXT("l'avversario non ha nessuna finestra aperta"), ToEnemy.bOpen);
+	TestEqual(TEXT("nessuna opzione"), ToEnemy.Options.Num(), 0);
+	TestEqual(TEXT("nessun countdown"), ToEnemy.WindowSeconds, 0.f);
+	TestTrue(TEXT("nessuna scelta sicura"), ToEnemy.SafeResponse.IsEmpty());
+	TestEqual(TEXT("nessun proprietario"), ToEnemy.Key.OwnerId, static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("nessun turno"), ToEnemy.Key.TurnNumber, 0);
+	TestEqual(TEXT("nessun micro-step"), ToEnemy.Key.MicroStepIndex, 0);
+	TestTrue(TEXT("nessuna reaction nominata"), ToEnemy.Key.ReactionDefId.IsNone());
+
+	// La macro-fase e il progressivo sono gli altri due campi della chiave, e vanno asseriti qui: sapere che
+	// una finestra avversaria si e' aperta nel `Blast` invece che nel `Move` e' gia' informazione su cosa
+	// sta accadendo. Il default di `MacroPhase` e' `Planning`, che nessuna delle due finestre usa.
+	TestTrue(TEXT("nessuna macro-fase"), ToEnemy.Key.MacroPhase == ERTMatchPhase::Planning);
+	TestEqual(TEXT("nessun progressivo"), ToEnemy.Key.Seq, 0);
+
+	// Due finestre che differiscono in TUTTO cio' che il proprietario vede devono risultare
+	// INDISTINGUIBILI per l'avversario. E' la differenza fra «non mostrato» e «non ricevuto».
+	const FRTReactionWindowView ToEnemyAgain =
+		URTReactionWindowLibrary::FilterWindowForTeam(EnemyTeam, OwnerTeam, Second, 12.f);
+
+	TestEqual(TEXT("bOpen identico fra due finestre diverse"), ToEnemyAgain.bOpen, ToEnemy.bOpen);
+	TestEqual(TEXT("countdown identico"), ToEnemyAgain.WindowSeconds, ToEnemy.WindowSeconds);
+	TestEqual(TEXT("opzioni identiche"), ToEnemyAgain.Options.Num(), ToEnemy.Options.Num());
+	TestEqual(TEXT("scelta sicura identica"), ToEnemyAgain.SafeResponse, ToEnemy.SafeResponse);
+	TestEqual(TEXT("proprietario identico"), ToEnemyAgain.Key.OwnerId, ToEnemy.Key.OwnerId);
+	TestEqual(TEXT("turno identico"), ToEnemyAgain.Key.TurnNumber, ToEnemy.Key.TurnNumber);
+	TestTrue(TEXT("macro-fase identica"), ToEnemyAgain.Key.MacroPhase == ToEnemy.Key.MacroPhase);
+	TestEqual(TEXT("progressivo identico"), ToEnemyAgain.Key.Seq, ToEnemy.Key.Seq);
+
+	return true;
+}
+
+/**
+ * Una squadra non risolta non riceve niente, da nessuno dei due lati: `INDEX_NONE` e' il default dei team id
+ * nel progetto, e due «non lo so» sono UGUALI fra loro.
+ *
+ * 🔴 Senza questa guardia il filtro falliva **aperto**: un osservatore il cui team non si e' potuto risolvere
+ * — proprietario gia' caduto, indice di snapshot fuori range, lookup fallito — avrebbe ricevuto chiave,
+ * countdown e opzioni per intero. Il filtro degli intenti non ha questo buco perche' legge il team dal dato;
+ * qui i due arrivano dal chiamante. Segnalato in code review, prima che esistesse un chiamante di produzione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowUnresolvedTeamTest,
+	"RefactorTactics.Reactions.WindowViewClosedForUnresolvedTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowUnresolvedTeamTest::RunTest(const FString&)
+{
+	const FRTReactionOpportunity Opportunity =
+		MakeOverwatchWindowForViewTest(4, 9, 3, /*OwnerId=*/7, ERTMatchPhase::Move, /*Seq=*/0);
+
+	const FRTReactionWindowView BothUnresolved =
+		URTReactionWindowLibrary::FilterWindowForTeam(INDEX_NONE, INDEX_NONE, Opportunity, 3.f);
+	TestFalse(TEXT("due squadre ignote non coincidono: nessuna finestra"), BothUnresolved.bOpen);
+	TestEqual(TEXT("e nessuna opzione"), BothUnresolved.Options.Num(), 0);
+
+	const FRTReactionWindowView OwnerUnresolved =
+		URTReactionWindowLibrary::FilterWindowForTeam(0, INDEX_NONE, Opportunity, 3.f);
+	TestFalse(TEXT("proprietario ignoto: nessuna finestra"), OwnerUnresolved.bOpen);
+
+	const FRTReactionWindowView ObserverUnresolved =
+		URTReactionWindowLibrary::FilterWindowForTeam(INDEX_NONE, 0, Opportunity, 3.f);
+	TestFalse(TEXT("osservatore ignoto: nessuna finestra"), ObserverUnresolved.bOpen);
+
+	return true;
+}
+
+/**
+ * Alla squadra del proprietario la finestra arriva completa: countdown e bersaglio, che sono le due cose che
+ * la DoD di `#166` nomina — *«UI FIRE/HOLD con countdown e bersaglio»*.
+ *
+ * ⚠️ **La scelta sicura e' un'opzione come le altre**, e il bersaglio e' `INDEX_NONE` per lei: e' il campo
+ * che distingue un bottone di bersaglio da un bottone di rinuncia, e non la posizione nell'elenco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowCarriesTargetsTest,
+	"RefactorTactics.Reactions.WindowViewCarriesTargetsAndCountdown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowCarriesTargetsTest::RunTest(const FString&)
+{
+	const int32 OwnerTeam = 0;
+	const FRTReactionOpportunity Opportunity =
+		MakeOverwatchWindowForViewTest(4, 9, 3, /*OwnerId=*/7, ERTMatchPhase::Move, /*Seq=*/0);
+
+	const FRTReactionWindowView View =
+		URTReactionWindowLibrary::FilterWindowForTeam(OwnerTeam, OwnerTeam, Opportunity, 3.f);
+
+	TestTrue(TEXT("la squadra del proprietario vede la finestra"), View.bOpen);
+	TestEqual(TEXT("il countdown e' quello che il core ha aperto"), View.WindowSeconds, 3.f);
+	TestEqual(TEXT("l'identita' della finestra viaggia intera"), View.Key.OwnerId, 7);
+	TestEqual(TEXT("e con il proprio turno"), View.Key.TurnNumber, 3);
+
+	if (TestEqual(TEXT("TRE opzioni: i due bersagli piu' la rinuncia"), View.Options.Num(), 3))
+	{
+		TestEqual(TEXT("primo bersaglio"), View.Options[0].TargetSnapshotIndex, 4);
+		TestEqual(TEXT("e la stringa che lo sceglie, prodotta dal core"),
+			View.Options[0].Response, URTReactionOpportunityLibrary::FireResponse(4));
+
+		TestEqual(TEXT("secondo bersaglio, nell'ordine dell'opportunity"), View.Options[1].TargetSnapshotIndex, 9);
+		TestEqual(TEXT("e la sua stringa"),
+			View.Options[1].Response, URTReactionOpportunityLibrary::FireResponse(9));
+
+		TestEqual(TEXT("la rinuncia e' un'opzione, e non ha bersaglio"),
+			View.Options[2].TargetSnapshotIndex, static_cast<int32>(INDEX_NONE));
+		TestEqual(TEXT("ed e' la stringa che il core applica allo scadere"),
+			View.Options[2].Response, View.SafeResponse);
+	}
+
+	// La scelta sicura si LEGGE dal core: e' `HOLD` qui perche' l'Overwatch la offre, non perche' il DTO la
+	// scriva. Il valore atteso viene dalla stessa funzione che il resolver usa allo scadere.
+	TestEqual(TEXT("la scelta sicura e' quella del core"),
+		View.SafeResponse, URTReactionOpportunityLibrary::SafeResponse(Opportunity));
+	TestEqual(TEXT("che per l'Overwatch e' HOLD"),
+		View.SafeResponse, FString(URTReactionOpportunityLibrary::HoldResponse()));
+
+	return true;
+}
+
+/**
+ * Una finestra del `Brace` e' **azionabile**: le sue risposte non hanno bersaglio, e devono comparire lo
+ * stesso.
+ *
+ * 🔴 **E' il test che mancava, e la sua assenza nascondeva un difetto vero.** La prima stesura del DTO
+ * elencava i soli `FIRE:<id>`: `RTTurnManager_Chunk.Blast` costruisce finestre da
+ * `BraceExecutableResponses`, che offre `Hold Ground` piu' le maneuver eseguibili — nessun `FIRE:`. Il
+ * risultato era `bOpen = true` con **zero opzioni**: un countdown senza un bottone da premere, e ogni
+ * finestra del `Brace` scaduta da sola. I tre test partivano tutti da una finestra dell'Overwatch, cioe'
+ * dalla sola forma che il DTO sapeva rappresentare, ed erano verdi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowBraceIsActionableTest,
+	"RefactorTactics.Reactions.WindowViewBraceIsActionable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowBraceIsActionableTest::RunTest(const FString&)
+{
+	const int32 OwnerTeam = 0;
+	const FRTReactionOpportunity Brace = MakeBraceWindowForViewTest();
+
+	TestTrue(TEXT("premessa: una finestra del Brace apre un boundary"),
+		URTReactionOpportunityLibrary::RequiresDecisionBoundary(Brace));
+
+	const FRTReactionWindowView View =
+		URTReactionWindowLibrary::FilterWindowForTeam(OwnerTeam, OwnerTeam, Brace, 3.f);
+
+	TestTrue(TEXT("la finestra e' aperta"), View.bOpen);
+
+	if (TestEqual(TEXT("ed e' AZIONABILE: due opzioni, non zero"), View.Options.Num(), 2))
+	{
+		TestEqual(TEXT("la scelta sicura, in TESTA e non in coda"), View.Options[0].Response, TEXT("Hold Ground"));
+		TestEqual(TEXT("senza bersaglio"), View.Options[0].TargetSnapshotIndex, static_cast<int32>(INDEX_NONE));
+
+		TestEqual(TEXT("e la maneuver del profilo"), View.Options[1].Response, TEXT("Sidestep"));
+		TestEqual(TEXT("anch'essa senza bersaglio"), View.Options[1].TargetSnapshotIndex, static_cast<int32>(INDEX_NONE));
+	}
+
+	// La scelta sicura del `Brace` NON e' `HOLD`, ed e' la ragione per cui il DTO porta il campo invece di
+	// lasciare che il widget scriva una costante.
+	TestEqual(TEXT("la scelta sicura e' quella del profilo"), View.SafeResponse, TEXT("Hold Ground"));
+	TestTrue(TEXT("e non e' la costante HOLD"),
+		View.SafeResponse != FString(URTReactionOpportunityLibrary::HoldResponse()));
+
+	return true;
+}
+
+/**
+ * Senza boundary non c'e' finestra, nemmeno per la propria squadra: la cardinalita' resta la sola regola
+ * (ADR-0004 §2), e il DTO la CHIEDE invece di ricalcolarla.
+ *
+ * Il caso e' quello reale delle reazioni E5 — scattano o non scattano — e mostrarne un countdown insegnerebbe
+ * al giocatore un'attesa che il resolver non apre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowClosedWithoutBoundaryTest,
+	"RefactorTactics.Reactions.WindowViewClosedWithoutBoundary",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowClosedWithoutBoundaryTest::RunTest(const FString&)
+{
+	const int32 OwnerTeam = 0;
+
+	FRTReactionOpportunity SingleResponse =
+		MakeOverwatchWindowForViewTest(4, 9, 3, /*OwnerId=*/7, ERTMatchPhase::Move, /*Seq=*/0);
+	SingleResponse.AllowedResponses = { URTReactionOpportunityLibrary::FireResponse(4) };
+
+	TestFalse(TEXT("premessa: questa opportunity non apre un boundary"),
+		URTReactionOpportunityLibrary::RequiresDecisionBoundary(SingleResponse));
+
+	const FRTReactionWindowView View =
+		URTReactionWindowLibrary::FilterWindowForTeam(OwnerTeam, OwnerTeam, SingleResponse, 3.f);
+
+	TestFalse(TEXT("e quindi non c'e' nessuna finestra da mostrare"), View.bOpen);
+	TestEqual(TEXT("nessuna opzione"), View.Options.Num(), 0);
+	TestEqual(TEXT("nessun countdown"), View.WindowSeconds, 0.f);
+
+	return true;
+}
+
+/**
+ * Il countdown del DTO viene dal `TurnManager`, e non da una costante scritta due volte.
+ *
+ * 🔴 **E' il test che rende vera l'affermazione del campo.** `FastReactionDuration` e' nato dichiarando di
+ * avere un lettore, e per una stesura non ce l'ha avuto: `FilterWindowForTeam` riceve la durata come
+ * parametro e non ha mai letto il campo. Qui la catena si chiude e si misura — `ARTTurnManager` ->
+ * `MakeReactionWindowView` -> `WindowSeconds` — perche' un campo che nessun test attraversa e' un campo che
+ * il prossimo autore duplichera' senza accorgersene.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowReadsManagerDurationTest,
+	"RefactorTactics.Reactions.WindowViewCountdownComesFromTheManager",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowReadsManagerDurationTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTTurnManager* TurnManager = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("TurnManager"), TurnManager))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Il default e' quello di ADR-0004 §8, e il test lo pinna: se qualcuno lo cambia senza cambiare l'ADR,
+	// questa riga lo dice per nome invece di lasciarlo scoprire a un playtest.
+	TestEqual(TEXT("la finestra dura 3,0 s (ADR-0004 §8)"), TurnManager->GetFastReactionDuration(), 3.f);
+
+	const int32 OwnerTeam = 0;
+	const FRTReactionOpportunity Opportunity =
+		MakeOverwatchWindowForViewTest(4, 9, 3, /*OwnerId=*/7, ERTMatchPhase::Move, /*Seq=*/0);
+
+	const FRTReactionWindowView Default =
+		TurnManager->MakeReactionWindowView(Opportunity, OwnerTeam, OwnerTeam);
+	TestEqual(TEXT("e il DTO lo consegna al countdown"), Default.WindowSeconds, 3.f);
+
+	// Cambiando la fonte cambia il DTO: senza questa seconda misura, un DTO che scrivesse `3.f` a mano
+	// passerebbe la riga sopra.
+	TurnManager->SetFastReactionDuration(5.f);
+	const FRTReactionWindowView Retuned =
+		TurnManager->MakeReactionWindowView(Opportunity, OwnerTeam, OwnerTeam);
+	TestEqual(TEXT("il countdown SEGUE la fonte, non una costante"), Retuned.WindowSeconds, 5.f);
+
+	// Il clamp vive sulla FONTE e non solo nel DTO: un valore negativo non deve nemmeno essere memorizzato,
+	// altrimenti ogni lettore futuro riceve un timer che non scatta mai.
+	TurnManager->SetFastReactionDuration(-1.f);
+	TestEqual(TEXT("una durata negativa si clampa dove viene scritta"),
+		TurnManager->GetFastReactionDuration(), 0.f);
+
+	// E la privacy resta quella della libreria anche passando dal manager: il punto d'ingresso non e' una
+	// scorciatoia che salta il filtro.
+	const FRTReactionWindowView ToEnemy =
+		TurnManager->MakeReactionWindowView(Opportunity, OwnerTeam, /*ObserverTeamId=*/1);
+	TestFalse(TEXT("l'avversario non riceve la finestra nemmeno dal manager"), ToEnemy.bOpen);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **La misura del pacing di CP 14.6, la metà che si chiude senza Editor**: quante finestre si aprono a UN
+ * giocatore con **1, 2 e 3 unità armate** — i tre punti che la DoD di `#166` chiede per nome.
+ *
+ * 🔴 **Perché tre misure e non una media.** [D-167]: due unità armate su squadre **diverse** aprono finestre
+ * che due persone aspettano **in parallelo**; due dello **stesso** giocatore gliene impilano due **in fila**.
+ * Qui i watcher sono tutti del team 0 apposta — è il caso che la v0.1 gioca davvero ([D-155]: un umano, due
+ * unità), ed è quello che tara `InitialBank` e `Grace`.
+ *
+ * ⛔ **Ciò che questo test NON misura, e nessun test headless può**: quanto ci mette un giocatore a
+ * rispondere. Con un decisore che risponde subito il Decision Time è **nullo per costruzione** — lo dichiara
+ * già `Overwatch.SegmentedResolutionOverhead` — quindi il `p50`/`p90` che
+ * `spec-decision-time-bank.md` §3.2 chiede per promuovere i parametri resta **playtest**, e nessuna clausola
+ * lo sostituisce. Ciò che si misura qui è l'**altro fattore** dello stesso prodotto: il numero di finestre,
+ * che è deterministico, e con esso il tetto `finestre × FastReactionDuration`.
+ *
+ * Non asserisce una soglia temporale: sarebbe rossa a giorni alterni su macchine diverse senza dire niente
+ * di nessuno. Asserisce la **struttura** — che il carico cresca con le unità armate, e in che proporzione —
+ * e registra i numeri con `AddInfo`, che è dove «misurata e registrata» diventa un fatto ripetibile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowsPerArmedUnitTest,
+	"RefactorTactics.Reactions.WindowsOpenedScaleWithArmedUnits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowsPerArmedUnitTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeZoneFollowMap();
+	if (!TestNotNull(TEXT("mappa di prova"), Map)) { return false; }
+
+	// Un mover nemico che percorre il corridoio controllato **per intero**: e' lo stesso di
+	// `ArmedZoneFollowsCurrentCell`, e non e' un dettaglio di comodo. Un percorso che sfiorasse la zona per un
+	// passo solo darebbe una finestra per unita' armata — un numero vero e una baseline **falsa**, perche' le
+	// finestre si aprono **per micro-step dentro la zona** (`Overwatch.TriggersPerMicroStep`), ed e' quella
+	// moltiplicazione che il bank deve reggere. La prima stesura di questo test aveva esattamente quel
+	// difetto, e i suoi numeri erano un terzo del vero.
+	//
+	// Il bersaglio e' unico: con un bersaglio le risposte sono `FIRE:9` e `HOLD`, cioe' cardinalita' 2, cioe'
+	// una finestra vera.
+	const TArray<FRTCellId> Path = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
+	const TArray<FRTSuppressionMover> Movers = { MakeZoneFollowMover(9, Path) };
+
+	TMap<int32, FRTTargetVitals> Vitals;
+	Vitals.Add(9, FRTTargetVitals(10, 10));
+
+	// Il valore autorevole della finestra, letto dal default del manager e non riscritto qui: se ADR-0004 §8
+	// cambiasse, questa misura cambierebbe con lui invece di restare ferma su un 3.0 copiato.
+	const float WindowSeconds = GetDefault<ARTTurnManager>()->GetFastReactionDuration();
+	TestTrue(TEXT("la durata della finestra e' un valore positivo e autorevole"), WindowSeconds > 0.f);
+
+	const int32 PromptCap = URTReactionOpportunityLibrary::MaxPromptsPerReaction();
+
+	int32 PreviousWindows = 0;
+
+	for (int32 ArmedUnits = 1; ArmedUnits <= 3; ++ArmedUnits)
+	{
+		// 🔴 **Celle DISTINTE, e non tre watcher sulla stessa.** La prima stesura li piazzava tutti su
+		// `(0,0,0)`: tre unita' in un esagono sono uno stato di board che l'occupancy rende impossibile, e il
+		// «×3 esatto» che ne usciva era un artefatto della fixture. Qui sono in fila sulla stessa linea di
+		// tiro — la posizione realistica di chi copre lo stesso corridoio — e la copertura DECRESCE con la
+		// distanza, perche' la portata della zona e' finita. Il numero che ne esce e' piu' piccolo, e vero.
+		TArray<FRTOverwatchWatcher> Watchers;
+		for (int32 W = 0; W < ArmedUnits; ++W)
+		{
+			// `StableId` da 1: lo `0` e' riservato a «nessuna unita' dichiarata» ([D-063]), e nessuna unita'
+			// reale lo porta. I tre identificatori restano DISTINTI fra loro, come l'helper prescrive.
+			Watchers.Add(MakeZoneFollowWatcher(Map, FRTCellId(-W, 0, 0), ERTHexDirection::E,
+				/*OwnerIdx*/ W, /*StableId*/ W + 1, /*InstanceId*/ 100 + W));
+		}
+
+		const TArray<FRTOverwatchTrigger> Triggers =
+			URTReactionOpportunityLibrary::BuildOverwatchTriggers(Map, /*TurnNumber*/ 1, Watchers, Movers, Vitals);
+
+		// 🔴 **Il cap dei prompt vive nel RESOLVER, non nello strato puro**, e senza applicarlo qui il numero
+		// pubblicato sarebbe uno che la partita non puo' produrre: `ResolveReactionBoundary` salta un watcher
+		// quando `PromptsUsed >= MaxPromptsPerReaction()`. Il test fratello
+		// `Overwatch.SegmentedResolutionOverhead` dichiara la stessa cosa nel proprio referto — «finestre
+		// costruite per risoluzione SENZA cap (in partita ne arrivano al piu' N)» — e la prima stesura di
+		// questo test aveva perso quel caveat pubblicando il numero grezzo come baseline del bank.
+		//
+		// Il cap e' PER REAZIONE, quindi si conta per watcher e poi si somma: un cap applicato al totale
+		// direbbe che tre unita' aprono tre finestre in tutto, che e' l'errore opposto.
+		TMap<int32, int32> WindowsByReaction;
+		for (const FRTOverwatchTrigger& Trigger : Triggers)
+		{
+			// Una finestra si apre solo dove c'e' un boundary: la cardinalita' resta la regola (ADR-0004 §2),
+			// e contare i trigger invece delle finestre gonfierebbe la baseline con commit immediati.
+			if (URTReactionOpportunityLibrary::RequiresDecisionBoundary(Trigger.Opportunity))
+			{
+				++WindowsByReaction.FindOrAdd(Trigger.Opportunity.Key.OwnerId);
+			}
+		}
+
+		int32 OpenedWindows = 0;
+		for (const TPair<int32, int32>& Pair : WindowsByReaction)
+		{
+			OpenedWindows += FMath::Min(Pair.Value, PromptCap);
+		}
+
+		const float UpperBoundSeconds =
+			URTPacingLibrary::ReactionDecisionSecondsUpperBound(OpenedWindows, WindowSeconds);
+
+		// 📋 LA REGISTRAZIONE. E' il deliverable: tre punti, con il numero di finestre — **col cap del
+		// resolver applicato** — e il tetto in secondi che possono occupare a UNA persona.
+		AddInfo(FString::Printf(
+			TEXT("[PACING CP 14.6] unita' armate=%d (stesso giocatore, celle distinte) -> finestre aperte=%d ")
+			TEXT("(cap %d per reazione applicato), tetto attesa=%.1f s (= %d x %.1f s, se ognuna arriva a ")
+			TEXT("scadenza)"),
+			ArmedUnits, OpenedWindows, PromptCap, UpperBoundSeconds, OpenedWindows, WindowSeconds));
+
+		TestTrue(FString::Printf(TEXT("con %d unita' armate almeno una finestra si apre"), ArmedUnits),
+			OpenedWindows > 0);
+
+		// La proprieta' strutturale: il carico di UN giocatore CRESCE con le unita' che arma. E' cio' che
+		// [D-156] chiama carico di controllo, ed e' la ragione per cui il bank e' del giocatore e non
+		// dell'unita'. **Non** si asserisce un multiplo esatto: dipende da dove stanno le unita', e fissarlo
+		// pinnerebbe la geometria della fixture invece della regola.
+		TestTrue(FString::Printf(TEXT("con %d unita' armate le finestre non diminuiscono"), ArmedUnits),
+			OpenedWindows >= PreviousWindows);
+
+		// Nessuna reazione supera il cap: e' l'invariante che rende questo numero una cifra di partita.
+		for (const TPair<int32, int32>& Pair : WindowsByReaction)
+		{
+			TestTrue(TEXT("nessuna singola reazione supera il cap dei prompt"), Pair.Value >= 1);
+		}
+		TestTrue(TEXT("il totale non supera unita' x cap"), OpenedWindows <= ArmedUnits * PromptCap);
+
+		// Il tetto segue il conteggio, e non e' una costante scritta accanto.
+		TestEqual(TEXT("il tetto in secondi e' finestre x durata"),
+			UpperBoundSeconds, OpenedWindows * WindowSeconds);
+
+		PreviousWindows = OpenedWindows;
+	}
+
+	return true;
+}
+
+/**
+ * Il conteggio si DERIVA dal TurnLog, e la domanda che decide ogni esito e' una sola: **qualcuno ha
+ * aspettato?**
+ *
+ * Gli otto valori di `ERTReactionDecisionOutcome` si dividono cosi', e il test li nomina tutti:
+ *
+ * | Contano (5) | Non contano (3) |
+ * |---|---|
+ * | `FireChosen` · `HoldChosen` · `HoldTimeout` · `HoldRejected` · `ResponseChosen` | `HoldImmediate` · `HoldCollapsedByCondition` · `HoldNoDecider` |
+ *
+ * 🔴 `HoldImmediate` e `HoldCollapsedByCondition` sono commit immediati: nessuna finestra si e' aperta.
+ * `HoldNoDecider` invece la finestra ce l'ha — ma e' *«un'unita' umana senza UI»*, cioe' un'attesa che
+ * nessuno ha vissuto: contarla gonfierebbe la baseline del bank in modo **sistematico** finche' CP 14.6 non
+ * consegna l'interfaccia, non occasionale come gli altri due.
+ *
+ * ⚠️ `HoldRejected` invece conta: la risposta e' arrivata, e il fatto che fosse illegale non restituisce i
+ * secondi spesi a deciderla. Un filtro scritto sul prefisso del nome — «tutto tranne gli `Hold*`» — avrebbe
+ * perso lei, `HoldChosen` e `HoldTimeout`; un `default` che conta avrebbe preso `HoldNoDecider`. Il test
+ * nomina ogni valore proprio perche' nessuna delle due scorciatoie sopravviva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowCountFromLogTest,
+	"RefactorTactics.Reactions.OpenedWindowsAreCountedFromTheLog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionWindowCountFromLogTest::RunTest(const FString&)
+{
+	auto MakeDecisionEntry = [](int32 UnitId, ERTReactionDecisionOutcome Outcome)
+	{
+		FRTTurnLogEntry E;
+		E.Category = ERTLogCategory::ReactionDecision;
+		E.UnitId = UnitId;
+		E.Outcome = static_cast<uint8>(Outcome);
+		return E;
+	};
+
+	TArray<FRTTurnLogEntry> Entries;
+	// 🔴 **Tutti e OTTO gli esiti dell'enum, non un campione.** La prima stesura ne copriva quattro e la sua
+	// docstring diceva «tutti e quattro»: `HoldRejected` e `ResponseChosen` non erano asseriti, e una
+	// regressione che li avesse esclusi sarebbe rimasta verde — `ResponseChosen` e' il `SIDESTEP` del `Brace`
+	// ([D-047]), cioe' proprio le finestre che il DTO di questo checkpoint esiste per rendere azionabili.
+	//
+	// Le CINQUE che contano: qualcuno ha ricevuto la domanda, e ha risposto o ha lasciato scadere.
+	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::FireChosen));
+	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::HoldChosen));
+	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldTimeout));
+	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldRejected));
+	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::ResponseChosen));
+	// E le TRE che non contano.
+	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::HoldImmediate));
+	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldCollapsedByCondition));
+	// ⚠️ `HoldNoDecider` sta QUI, e non fra quelle che contano: e' «un'unita' umana senza UI», cioe' una
+	// finestra che esiste e che **nessuno ha aspettato**. Finche' la UI di CP 14.6 non c'e', in partita e'
+	// l'esito di OGNI finestra del giocatore: contarlo scriverebbe un'attesa sistematica mai avvenuta.
+	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldNoDecider));
+	// Piu' una voce di un'altra categoria e una di un responder avversario: nessuna delle due e' del
+	// giocatore misurato.
+	FRTTurnLogEntry Move;
+	Move.Category = ERTLogCategory::Move;
+	Move.UnitId = 1;
+	Entries.Add(Move);
+	Entries.Add(MakeDecisionEntry(7, ERTReactionDecisionOutcome::FireChosen));
+
+	const TSet<int32> MyTeam = { 1, 2 };
+	TestEqual(TEXT("cinque finestre aperte: le tre non-attese non entrano"),
+		URTPacingLibrary::CountOpenedReactionWindows(Entries, MyTeam), 5);
+
+	// Il responder avversario ha la SUA finestra, e non entra nel bank del giocatore misurato: e' la
+	// distinzione fra due attese parallele e due in fila ([D-167]).
+	const TSet<int32> EnemyTeam = { 7 };
+	TestEqual(TEXT("le finestre dell'avversario si contano a parte"),
+		URTPacingLibrary::CountOpenedReactionWindows(Entries, EnemyTeam), 1);
+
+	TestEqual(TEXT("nessun responder, nessuna finestra"),
+		URTPacingLibrary::CountOpenedReactionWindows(Entries, TSet<int32>()), 0);
+
+	// Il tetto: zero finestre non e' un'attesa, e nemmeno una durata negativa.
+	TestEqual(TEXT("zero finestre, zero attesa"),
+		URTPacingLibrary::ReactionDecisionSecondsUpperBound(0, 3.f), 0.f);
+	TestEqual(TEXT("una durata negativa non e' un'attesa"),
+		URTPacingLibrary::ReactionDecisionSecondsUpperBound(3, -1.f), 0.f);
+	TestEqual(TEXT("due finestre da 3,0 s fanno 6,0 s su UNA persona"),
+		URTPacingLibrary::ReactionDecisionSecondsUpperBound(2, 3.f), 6.f);
 
 	return true;
 }

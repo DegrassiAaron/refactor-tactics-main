@@ -23,6 +23,8 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "RTGameMode.h"
+#include "RTOrbitProbeForTest.h" // il ritorno di periodo due, condiviso con `EngagesOnTheGeneratedTestArena`
+#include "RTAuthoredArenaForTest.h" // il path della mappa d'autore in un posto solo
 #include "RTWorldFixtures.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h" // #1150: «inflitto» si chiede al predicato, non si deduce dalla categoria
@@ -63,6 +65,22 @@ namespace RTAuthoredEngagement
  * distanza in linea d'aria al posto dei passi — questo test torna rosso, perche' li' le unita' stanno
  * ferme **e** non sparano.
  *
+ * 🔵 **E IL GEMELLO SULL'ARENA GENERATA HA DECISO IL CONTRARIO, APPOSTA** (#1551).
+ * `Match.Autobattle.EngagesOnTheGeneratedTestArena` rifiuta questa stessa esenzione **per iscritto**, e con
+ * la propria misura: il difetto di #1088 e' esattamente *«sta ferma e spara»* — Riktor parcheggiata dieci
+ * turni mentre il campo produceva 19 voci `Combat` — quindi li' l'esenzione rende l'oracolo cieco. Misurato
+ * su quella board: senza esenzione la sequenza e' 9 turni e il test **falsifica**; con esenzione globale
+ * scende a 2 e passa verde; con esenzione per unita' a 3, e passa lo stesso.
+ *
+ * ⛔ **Le due risposte non sono una giusta e una sbagliata**: sono due definizioni di stallo — immobilita'
+ * contro immobilita' STERILE — e ciascuna e' quella che rende falsificabile il proprio oracolo sulla propria
+ * board. Qui l'esenzione **difende** il potere discriminante (senza, il rosso arriverebbe su un kiter
+ * legittimo); la', **lo distrugge**. Allineare i due «per coerenza» toglie a uno dei due la prova che porta,
+ * e il rosso che ne segue si legge come un difetto del bot invece che come una soglia spostata.
+ *
+ * ∴ chi vuole unificarli legga prima l'istruttoria: `BOT-STALL-1` in `docs/OPEN_DECISIONS.md`. DIR-C non
+ * l'ha presa, perche' e' una decisione sul significato di «stallo» e il suo owner e' PDR-00.
+ *
  * 🔴 **NON e' il rilevatore di OSCILLAZIONE, benche' lo dichiarasse.** Questa riga diceva che un bot che
  * alterna fra «cerca» e «avvicinati» «tornerebbe sulle stesse celle». Il suo oracolo conta i turni
  * **consecutivi sulla stessa cella** — il contatore si azzera appena la cella cambia — quindi un'alternanza
@@ -78,8 +96,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAuthoredMapNobodyParksTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTAuthoredMapNobodyParksTest::RunTest(const FString&)
 {
-	const TCHAR* AssetPath = TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.DA_HexMap_Arena");
-	URTHexMapAsset* Authored = Cast<URTHexMapAsset>(StaticLoadObject(URTHexMapAsset::StaticClass(), nullptr, AssetPath));
+	URTHexMapAsset* Authored = RTAuthoredArena::Load();
 	if (!TestNotNull(TEXT("la mappa d'autore si carica"), Authored)) { return false; }
 
 	UWorld* World = RTWorldFixtures::MakeWorld();
@@ -211,8 +228,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAuthoredMapEngagesTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTAuthoredMapEngagesTest::RunTest(const FString&)
 {
-	const TCHAR* AssetPath = TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.DA_HexMap_Arena");
-	URTHexMapAsset* Authored = Cast<URTHexMapAsset>(StaticLoadObject(URTHexMapAsset::StaticClass(), nullptr, AssetPath));
+	URTHexMapAsset* Authored = RTAuthoredArena::Load();
 	if (!TestNotNull(TEXT("la mappa d'autore si carica"), Authored)) { return false; }
 
 	UWorld* World = RTWorldFixtures::MakeWorld();
@@ -319,8 +335,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAuthoredMapNoOscillationTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTAuthoredMapNoOscillationTest::RunTest(const FString&)
 {
-	const TCHAR* AssetPath = TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.DA_HexMap_Arena");
-	URTHexMapAsset* Authored = Cast<URTHexMapAsset>(StaticLoadObject(URTHexMapAsset::StaticClass(), nullptr, AssetPath));
+	URTHexMapAsset* Authored = RTAuthoredArena::Load();
 	if (!TestNotNull(TEXT("la mappa d'autore si carica"), Authored)) { return false; }
 
 	UWorld* World = RTWorldFixtures::MakeWorld();
@@ -347,11 +362,11 @@ bool FRTAuthoredMapNoOscillationTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Le ULTIME DUE celle per unita': tutto cio' che serve a vedere un ciclo di periodo due, e niente di
-	// piu' — una storia intera inviterebbe a cercarci dentro cicli piu' lunghi, che sono un'altra domanda.
-	TMap<int32, FRTCellId> Ultima;
-	TMap<int32, FRTCellId> Penultima;
-	TMap<int32, int32> Ritorni;
+	// Il rilevatore sta in `RTOrbitProbeForTest.h`, e non e' un'estrazione di comodo: la configurazione
+	// SPEDITA — `MapSource = GeneratedTestArena` — non aveva alcun oracolo di oscillazione, e riscriverne
+	// una seconda copia la' avrebbe messo due implementazioni della stessa firma a divergere in silenzio.
+	// I limiti dichiarati (periodo due si', periodo tre no) sono nella sonda, in un posto solo.
+	FRTOrbitProbe Orbite;
 
 	const int32 MaxTurni = 12;
 	int32 Turni = 0;
@@ -377,31 +392,19 @@ bool FRTAuthoredMapNoOscillationTest::RunTest(const FString&)
 
 		for (const ARTUnit* U : RTAuthoredEngagement::LiveUnits(World))
 		{
-			const int32 Id = U->GetUniqueID();
-			const FRTCellId* Prev = Ultima.Find(Id);
-			const FRTCellId* Prev2 = Penultima.Find(Id);
-			if (Prev2 && Prev && *Prev2 == U->Cell && *Prev != U->Cell)
-			{
-				Ritorni.FindOrAdd(Id) += 1;
-			}
-			if (Prev) { Penultima.FindOrAdd(Id) = *Prev; }
-			Ultima.FindOrAdd(Id) = U->Cell;
+			Orbite.Observe(U->GetUniqueID(), U->Cell);
 		}
 	}
 
-	int32 Peggiore = 0;
-	for (const TPair<int32, int32>& P : Ritorni) { Peggiore = FMath::Max(Peggiore, P.Value); }
+	const int32 Peggiore = Orbite.WorstReturns();
 
-	// 🔴 **La soglia si deriva dai turni GIOCATI, non dalla costante.** Con `MaxTurni / 3` il limite restava
-	// 4 anche quando la partita finiva prima, e un ritorno di periodo due e' osservabile solo dal terzo
-	// turno: una partita decisa al quinto ne poteva produrre al massimo tre e passava **per aritmetica**.
-	// Poiche' lo scopo di questo lavoro e' proprio far decidere prima la partita, il fix avrebbe potuto
-	// rendere vacuo il proprio test. Trovato in code review.
-	const int32 Limite = FMath::Max(1, Turni / 3);
+	// La soglia si deriva dai turni GIOCATI, non da un tetto costante — la ragione, e il difetto per
+	// aritmetica che quella forma produceva, stanno su `FRTOrbitProbe::LimitForTurns`.
+	const int32 Limite = FRTOrbitProbe::LimitForTurns(Turni);
 
 	// E la premessa va asserita, non sperata: senza abbastanza turni l'oracolo non puo' cadere, e un verde
 	// li' non dice niente.
-	const int32 TurniMinimi = 6;
+	const int32 TurniMinimi = FRTOrbitProbe::MinTurnsToFalsify;
 	if (!TestTrue(*FString::Printf(
 		TEXT("la partita e' durata abbastanza perche' l'oracolo possa cadere (%d turni, minimo %d)"),
 		Turni, TurniMinimi), Turni >= TurniMinimi))

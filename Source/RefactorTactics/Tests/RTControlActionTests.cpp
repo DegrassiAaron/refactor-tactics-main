@@ -2,6 +2,7 @@
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Tests/RTAbilityFixtures.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Core/RTGameplayTags.h"
@@ -53,6 +54,10 @@ namespace
 		Def.bCanBeInterrupted = true;
 		Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 30));
 		Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 2));
+		// `Test.Push2` e' un'aggressione -- 30 di danno e una spinta -- e da [`INT-8`] deve dichiararlo:
+		// il default e' `false`, quindi senza questa riga non produrrebbe nessun colpo e la spinta non
+		// arriverebbe mai al bersaglio.
+		Def.bCountsAsAttack = true;
 		return Def;
 	}
 
@@ -102,35 +107,15 @@ namespace
 		// gli spawn del file — l'alternativa era ripetere l'assegnazione a ogni chiamata e dimenticarla,
 		// che e' esattamente cio' che succedeva.
 		U->PlannedCell = Cell;
+		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
+		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
+		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
+		U->Shield = 0;
 		return U;
 	}
 
-	/**
-	 * Aggiunge un'azione di CONTROLLO generica all'unita' (dal catalogo core) e ne restituisce l'indice.
-	 *
-	 * `Power` va azzerato esplicitamente: `URTActionData::Power` ha un default legacy di **30** (eredita'
-	 * dell'MVP quadrato, prima del catalogo), e `ResolveCombat` vi ricade quando l'azione non dichiara un
-	 * effetto Damage (`DeclaredDamage>0 ? DeclaredDamage : Ability->Power`). Senza questa riga un'azione di
-	 * controllo senza danno infliggerebbe comunque 30 danni fantasma — e' la stessa disciplina che
-	 * `MakeHeroAction` (Ability/RTHeroCatalogLibrary.cpp, CP 6.2) gia' applica per gli eroi.
-	 */
 	/** Abbastanza da sopravvivere al decremento del Cleanup, e da restare leggibile. */
 	constexpr int32 MinCooldownTurns = 3;
-
-	int32 AddControlAbility(ARTUnit* Unit, const TCHAR* ActionId)
-	{
-		if (!Unit) { return INDEX_NONE; }
-		URTActionData* Ability = NewObject<URTActionData>(Unit);
-		Ability->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
-		Ability->RangeCells = Ability->Def.RangeCells; // specchio legacy: alcuni percorsi lo leggono ancora
-		Ability->Power = 0;
-		for (const FRTActionEffectSpec& Spec : Ability->Def.Effects)
-		{
-			if (Spec.Effect == ERTActionEffect::Damage) { Ability->Power = Spec.Amount; break; }
-		}
-		Unit->Abilities.Add(Ability);
-		return Unit->Abilities.Num() - 1;
-	}
 
 	/**
 	 * Mette l'azione nello **slot 0**, sostituendo l'abilita' che ci stava, e allinea lo specchio legacy del
@@ -138,12 +123,14 @@ namespace
 	 *
 	 * ⚠️ **Serve per poter MISURARE il cooldown**, e non e' un vezzo: `ConsumeAbility` scrive in
 	 * `AbilityCooldowns` solo se l'indice e' valido, e `ConfigureFromHeroData` dimensiona quell'array sulle
-	 * abilita' dell'eroe. Un'abilita' APPESA in coda — quel che fa `AddControlAbility` — sta a un indice che
-	 * l'array non copre, quindi il cooldown non viene mai scritto e `CanUseAbility` risponde sempre `true`.
-	 * Un test che asserisse «non ha pagato» su un'abilita' appesa sarebbe verde **anche col difetto**.
+	 * abilita' dell'eroe. Un'abilita' APPESA in coda — quel che fa `RTAbilityFixtures::AddCoreAbility` —
+	 * sta a un indice che l'array non copre, quindi il cooldown non viene mai scritto e `CanUseAbility`
+	 * risponde sempre `true`. Un test che asserisse «non ha pagato» su un'abilita' appesa sarebbe verde
+	 * **anche col difetto**.
 	 *
-	 * ⚠️ `ConsumeAbility` legge `URTActionData::CooldownTurns`, non `Def.CooldownTurns`: uno specchio
-	 * legacy che `AddControlAbility` non copia, come non copia `RangeCells` e `Power`.
+	 * ⚠️ `ConsumeAbility` legge `URTActionData::CooldownTurns`, non `Def.CooldownTurns`, ed e' l'unico
+	 * specchio legacy che la fixture NON allinea — `RangeCells`, `Power` e `bSelfTarget` li copia dal `Def`.
+	 * Per questo il cooldown lo scrive la riga qui sotto e non chi crea l'azione.
 	 *
 	 * ⚠️ **E il cooldown si alza a `MinCooldownTurns`**, perche' il segnale deve sopravvivere al turno:
 	 * il Cleanup dello stesso turno decrementa, quindi un cooldown da **1** e' gia' tornato a zero quando il
@@ -153,7 +140,7 @@ namespace
 	 */
 	int32 UseControlAbilityInSlot0(ARTUnit* Unit, const TCHAR* ActionId)
 	{
-		const int32 Appesa = AddControlAbility(Unit, ActionId);
+		const int32 Appesa = RTAbilityFixtures::AddCoreAbility(Unit, ActionId);
 		if (Appesa == INDEX_NONE || !Unit->Abilities.IsValidIndex(0)) { return INDEX_NONE; }
 
 		URTActionData* Azione = Unit->Abilities[Appesa];
@@ -202,7 +189,7 @@ namespace
 			return false;
 		}
 
-		Out.InterruptIdx = AddControlAbility(Out.Interrupter, TEXT("Action.Interrupt"));
+		Out.InterruptIdx = RTAbilityFixtures::AddCoreAbility(Out.Interrupter, TEXT("Action.Interrupt"));
 		Out.Interrupter->PlannedAbilityIndex = Out.InterruptIdx;
 		Out.Interrupter->PlannedAttackTarget = Out.Attacker;
 		Out.Interrupter->PlannedCell = Out.Interrupter->Cell;
@@ -317,7 +304,7 @@ bool FRTPushInvalidDestinationTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 PushIdx = AddControlAbility(Pusher, TEXT("Action.Push"));
+	const int32 PushIdx = RTAbilityFixtures::AddCoreAbility(Pusher, TEXT("Action.Push"));
 	Pusher->PlannedAbilityIndex = PushIdx;
 	Pusher->PlannedAttackTarget = Victim;
 	Victim->PlannedAbilityIndex = INDEX_NONE;
@@ -436,7 +423,7 @@ bool FRTPullTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 PullIdx = AddControlAbility(Puller, TEXT("Action.Pull"));
+	const int32 PullIdx = RTAbilityFixtures::AddCoreAbility(Puller, TEXT("Action.Pull"));
 	Puller->PlannedAbilityIndex = PullIdx;
 	Puller->PlannedAttackTarget = Victim;
 
@@ -470,7 +457,7 @@ bool FRTRootCancelsRemainingStepsTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 RootIdx = AddControlAbility(Rooter, TEXT("Action.Root"));
+	const int32 RootIdx = RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root"));
 	Rooter->PlannedAbilityIndex = RootIdx;
 	Rooter->PlannedAttackTarget = Mover;
 	Rooter->PlannedCell = Rooter->Cell; // fermo: solo il Root
@@ -513,7 +500,7 @@ bool FRTRootAllowsAttackTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 RootIdx = AddControlAbility(Rooter, TEXT("Action.Root"));
+	const int32 RootIdx = RTAbilityFixtures::AddCoreAbility(Rooter, TEXT("Action.Root"));
 	Rooter->PlannedAbilityIndex = RootIdx;
 	Rooter->PlannedAttackTarget = RootedAttacker;
 	Rooter->PlannedCell = Rooter->Cell;
@@ -807,7 +794,7 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 InterruptIdx = AddControlAbility(Interrupter, TEXT("Action.Interrupt"));
+	const int32 InterruptIdx = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
 	TestTrue(TEXT("premessa: l'interruttore e' in portata di chi attacca"),
 		URTHexLibrary::HexDistance(Interrupter->Cell, Attacker->Cell)
 			<= Interrupter->Abilities[InterruptIdx]->Def.RangeCells);
@@ -1023,7 +1010,7 @@ bool FRTInterruptTwiceTracesOnceTest::RunTest(const FString&)
 
 	for (ARTUnit* Interrupter : { PrimoInterrupter, SecondoInterrupter })
 	{
-		const int32 Idx = AddControlAbility(Interrupter, TEXT("Action.Interrupt"));
+		const int32 Idx = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
 		TestTrue(TEXT("premessa: l'interruttore e' in portata di chi attacca"),
 			URTHexLibrary::HexDistance(Interrupter->Cell, Attacker->Cell)
 				<= Interrupter->Abilities[Idx]->Def.RangeCells);
@@ -1134,7 +1121,7 @@ bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
 
 		if (bConCarica)
 		{
-			const int32 ChargeIdx = AddControlAbility(Caricatore, TEXT("Action.Charge"));
+			const int32 ChargeIdx = RTAbilityFixtures::AddCoreAbility(Caricatore, TEXT("Action.Charge"));
 			if (!TestTrue(TEXT("premessa: il catalogo ha una carica"), ChargeIdx != INDEX_NONE))
 			{
 				DestroyControlWorld(World);
@@ -1264,12 +1251,12 @@ bool FRTInterruptChainOrderIndependentTest::RunTest(const FString&)
 			return false;
 		}
 
-		const int32 IdxA = AddControlAbility(A, TEXT("Action.Interrupt"));
+		const int32 IdxA = RTAbilityFixtures::AddCoreAbility(A, TEXT("Action.Interrupt"));
 		A->PlannedAbilityIndex = IdxA;
 		A->PlannedAttackTarget = B;
 		A->PlannedCell = A->Cell;
 
-		const int32 IdxB = AddControlAbility(B, TEXT("Action.Interrupt"));
+		const int32 IdxB = RTAbilityFixtures::AddCoreAbility(B, TEXT("Action.Interrupt"));
 		B->PlannedAbilityIndex = IdxB;
 		B->PlannedAttackTarget = C;
 		B->PlannedCell = B->Cell;
@@ -1468,12 +1455,12 @@ bool FRTInterruptSkipsNonInterruptibleTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 InterruptIdx = AddControlAbility(Interrupter, TEXT("Action.Interrupt"));
+	const int32 InterruptIdx = RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
 	Interrupter->PlannedAbilityIndex = InterruptIdx;
 	Interrupter->PlannedAttackTarget = Guarder;
 	Interrupter->PlannedCell = Interrupter->Cell;
 
-	const int32 GuardIdx = AddControlAbility(Guarder, TEXT("Action.Guard"));
+	const int32 GuardIdx = RTAbilityFixtures::AddCoreAbility(Guarder, TEXT("Action.Guard"));
 	Guarder->PlannedAbilityIndex = GuardIdx;
 	Guarder->PlannedCell = Guarder->Cell;
 
@@ -1561,7 +1548,7 @@ bool FRTSlowAppliesInLiveTurnTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 SlowIdx = AddControlAbility(Slower, TEXT("Action.Slow"));
+	const int32 SlowIdx = RTAbilityFixtures::AddCoreAbility(Slower, TEXT("Action.Slow"));
 	Slower->PlannedAbilityIndex = SlowIdx;
 	Slower->PlannedAttackTarget = Mover;
 	Slower->PlannedCell = Slower->Cell;
@@ -2091,6 +2078,92 @@ bool FRTPlannedActionPaysOnlyIfItStartedTest::RunTest(const FString&)
 		DestroyControlWorld(World);
 	}
 
+	return true;
+}
+
+/**
+ * **Anche un curatore caduto lascia la voce della cura mancata.**
+ *
+ * `ApplyPlannedHeals` decideva con **due predicati opposti** se scrivere: il ramo di fallimento guardava
+ * `Curatore->IsAlive()`, quello di successo — quaranta righe piu' sotto, nella stessa funzione — scriveva
+ * senza nessuna guardia. Un curatore che cadeva mentre anche il bersaglio cadeva non lasciava **niente**:
+ * un turno speso, un cooldown pagato e il replay senza una riga che lo spiegasse (`#1473`, [D-219]).
+ *
+ * 🔴 **L'oracolo e' la VOCE, non lo stato del mondo**: la cura non avviene in nessuno dei due casi, quindi
+ * salute e cooldown sono identici col difetto e senza. Solo la traccia distingue.
+ *
+ * ⚠️ **Il curatore si legge da distrutto**: `ConcludeTurn` chiama `DestroyDefeatedUnits`, quindi a turno
+ * finito l'attore non c'e' piu'. `StableUnitId` si cattura PRIMA — e' un dato, non un puntatore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallenHealerStillLeavesTheEntryTest,
+	"RefactorTactics.Actions.Heal.FallenHealerStillLeavesTheEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallenHealerStillLeavesTheEntryTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 6);
+
+	ARTUnit* Curatore = SpawnControlUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Ferito   = SpawnControlUnit(World, 0, FRTCellId(1, 0));
+	ARTUnit* Boia1    = SpawnControlUnit(World, 1, FRTCellId(0, 1)); // adiacente al curatore
+	ARTUnit* Boia2    = SpawnControlUnit(World, 1, FRTCellId(2, 0)); // adiacente al ferito
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Curatore"), Curatore) || !TestNotNull(TEXT("Ferito"), Ferito)
+		|| !TestNotNull(TEXT("Boia1"), Boia1) || !TestNotNull(TEXT("Boia2"), Boia2)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	const int32 HealIdx = UseControlAbilityInSlot0(Curatore, TEXT("Action.Heal"));
+	Curatore->PlannedAbilityIndex = HealIdx;
+	Curatore->PlannedAttackTarget = Ferito;
+
+	// Entrambi cadono NELLO STESSO Blast in cui la cura era stata accettata: e' il caso che la voce
+	// `TargetDead` esiste per registrare, piu' la morte del curatore che la faceva sparire.
+	Curatore->Health = 1;
+	Ferito->Health = 1;
+	Boia1->PlannedAbilityIndex = 0; // attacco base dell'eroe
+	Boia1->PlannedAttackTarget = Curatore;
+	Boia2->PlannedAbilityIndex = 0;
+	Boia2->PlannedAttackTarget = Ferito;
+
+	// ⚠️ **`StableUnitId` si legge DOPO il turno, non allo spawn**: lo assegna l'allestimento al lock-in, e
+	// prima vale **zero** per tutti. MISURATO: catturandolo qui il predicato cercava `UnitId == 0` e non
+	// trovava la voce, che porta `1`. L'attore non sopravvive a `ConcludeTurn`, quindi si rilegge da
+	// `PendingKill` — l'oggetto non e' raccolto, e `StableUnitId` e' un `int32` sull'attore.
+	const TWeakObjectPtr<ARTUnit> CuratoreDebole(Curatore);
+
+	RunControlTurn(TM);
+
+	ARTUnit* CuratoreDopo = CuratoreDebole.Get(/*bEvenIfPendingKill*/ true);
+	if (!TestNotNull(TEXT("il curatore e' ancora leggibile"), CuratoreDopo))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+	if (!TestFalse(TEXT("premessa: il curatore e' davvero caduto nel Blast"), CuratoreDopo->IsAlive()))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+	const int32 IdCuratore = CuratoreDopo->StableUnitId;
+
+	const FRTTurnLogEntry* Mancata = TM->GetTurnLog().FindByPredicate([IdCuratore](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::TargetDead)
+			&& E.UnitId == IdCuratore;
+	});
+
+	if (TestNotNull(TEXT("la cura mancata e' nel record autoritativo anche se chi curava e' caduto"), Mancata))
+	{
+		TestEqual(TEXT("e nomina l'azione, non la generica"), Mancata->ActionId, FName(TEXT("Action.Heal")));
+	}
+
+	DestroyControlWorld(World);
 	return true;
 }
 

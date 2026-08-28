@@ -15,6 +15,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Tests/RTAbilityFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -88,17 +89,6 @@ namespace
 	 * non `Def.CooldownTurns` (stessa disciplina di `RTHeroCatalogLibrary::MakeHeroAction`, che li specchia
 	 * entrambi): senza mirroring il cooldown della reazione non scatterebbe mai, in silenzio.
 	 */
-	int32 AddReactionAbility(ARTUnit* Unit, const TCHAR* ActionId)
-	{
-		if (!Unit || !Unit->Abilities.IsValidIndex(3)) { return INDEX_NONE; }
-		URTActionData* Ability = NewObject<URTActionData>(Unit);
-		Ability->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
-		Ability->CooldownTurns = Ability->Def.CooldownTurns;
-		Ability->RangeCells = Ability->Def.RangeCells;
-		Ability->Power = 0; // Action.Counter non dichiara ancora un effetto Damage (CP 5.2): niente danno fantasma
-		Unit->Abilities[3] = Ability;
-		return 3;
-	}
 
 	void RunReactionTurn(ARTTurnManager* TM)
 	{
@@ -145,7 +135,7 @@ bool FRTReactionSingleActivationTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 CounterIdx = AddReactionAbility(Reactor, TEXT("Action.Counter"));
+	const int32 CounterIdx = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
 	Reactor->PlannedReactionAbility = CounterIdx;
 	Reactor->PlannedAbilityIndex = INDEX_NONE; // niente azione principale: solo la reazione, pronta
 
@@ -184,7 +174,7 @@ bool FRTReactionNoTriggerLoggedTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 CounterIdx = AddReactionAbility(Reactor, TEXT("Action.Counter"));
+	const int32 CounterIdx = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
 	Reactor->PlannedReactionAbility = CounterIdx;
 	Reactor->PlannedAbilityIndex = INDEX_NONE;
 
@@ -221,7 +211,7 @@ bool FRTReactionMultipleTriggersStillOnceTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 CounterIdx = AddReactionAbility(Reactor, TEXT("Action.Counter"));
+	const int32 CounterIdx = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
 	Reactor->PlannedReactionAbility = CounterIdx;
 	Reactor->PlannedAbilityIndex = INDEX_NONE;
 
@@ -259,7 +249,7 @@ bool FRTReactionSprintBlocksTest::RunTest(const FString&)
 		return false;
 	}
 
-	const int32 CounterIdx = AddReactionAbility(Sprinter, TEXT("Action.Counter"));
+	const int32 CounterIdx = RTAbilityFixtures::AddCoreAbilityInSlot(Sprinter, TEXT("Action.Counter"), 3);
 	Sprinter->PlannedReactionAbility = CounterIdx;
 
 	URTActionData* Sprint = NewObject<URTActionData>(Sprinter);
@@ -441,7 +431,7 @@ bool FRTReactionCounterBlocksSecondTest::RunTest(const FString&)
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!Reactor || !Attacker || !TM) { DestroyReactionWorld(World); return false; }
 
-		Reactor->PlannedReactionAbility = AddReactionAbility(Reactor, TEXT("Action.Counter"));
+		Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
 		Reactor->PlannedAbilityIndex = INDEX_NONE;
 		Attacker->PlannedAbilityIndex = 0;
 		Attacker->PlannedAttackTarget = Reactor;
@@ -469,7 +459,7 @@ bool FRTReactionCounterBlocksSecondTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Reactor || !Attacker || !TM) { DestroyReactionWorld(World); return false; }
 
-	Reactor->PlannedReactionAbility = AddReactionAbility(Reactor, TEXT("Action.Counter"));
+	Reactor->PlannedReactionAbility = RTAbilityFixtures::AddCoreAbilityInSlot(Reactor, TEXT("Action.Counter"), 3);
 	Reactor->PlannedAbilityIndex = INDEX_NONE;
 
 	// Lo stato in cui l'unita' arriverebbe al SECONDO punto di valutazione dello stesso turno.

@@ -1,0 +1,54 @@
+{
+  "project": "RefactorTactics",
+  "repository": "DegrassiAaron/refactor-tactics-main",
+  "date": "2026-08-28",
+  "purpose": "Master issue reconciliation input for Claude Cloud",
+  "policy": {
+    "search_before_create": true,
+    "reuse_existing_owner": true,
+    "do_not_reopen_closed_for_new_scope": true,
+    "do_not_create_parallel_roadmap": true,
+    "verify_origin_main_first": true
+  },
+  "release_ladder": [
+    "v0.1 Vertical Slice",
+    "v0.2 Structure and Windows / 3v3",
+    "v0.3 Information",
+    "v0.4 Operations",
+    "v0.5 Online Foundation",
+    "v0.6 Ability Runtime",
+    "v0.7 Competitive Alpha",
+    "v0.8 Beta / Balance",
+    "v0.9 Release Candidate",
+    "v1.0 Launch"
+  ],
+  "domains": [
+    {"id":"HUD","known_issues":[25,77,78,79,172,173,613,705]},
+    {"id":"ICON_GRAMMAR","known_issues":[217,218,219,220,265,266,267,268,269]},
+    {"id":"FACING_PIVOT","known_issues":[175,176,177,291,339,726,1429]},
+    {"id":"PLACEMENT_COVER_ANCHOR","known_issues":[286,1094,1095,1096,1392]},
+    {"id":"COVER_GUARD_BRACE","known_issues":[69,649,888,1430]},
+    {"id":"OVERWATCH_FAST_REACTION","known_issues":[152,165,166,314,319,583,657,888]},
+    {"id":"NOISE_PERCEPTION","known_issues":[159,160,686,690]},
+    {"id":"CAMERA","known_issues":[]},
+    {"id":"FRONTEND_SHELL","known_epics":["E46","E47"]},
+    {"id":"SPATIAL_TRANSFER","known_issues":[700,701,702,703,704]},
+    {"id":"PREDICTIVE_STATUS_REACTIONS_SUPER","known_issues":[225,226,227,329,330,505,541,605,610,625]},
+    {"id":"EQUIPMENT_CUSTOMIZATION","known_issues":[21,60,61,62,63,505,509,510,602]},
+    {"id":"MAP_GRAYBOX_VERTICALITY","known_issues":[48,324,621,1094,1095,1096]},
+    {"id":"OBJECTIVES_CONTESTED_AREAS","known_issues":[24,75,326,332]},
+    {"id":"BOT_AI","known_issues":[160,649,657]},
+    {"id":"ONLINE_TO_LAUNCH","known_epics":["E40","E41","E42","E43","E44","E45"],"known_issue_range_hint":"773-816"},
+    {"id":"RANKED_MATCHMAKING","known_issues":[810]}
+  ],
+  "required_actions": [
+    "audit",
+    "deduplicate",
+    "update existing issues",
+    "create missing issues",
+    "cross-link owners",
+    "record open decisions",
+    "map to releases",
+    "produce final report with GitHub links"
+  ]
+}

@@ -145,7 +145,10 @@ void ARTTurnManager::GatherBlastUnits(FRTBlastContext& Ctx) const
 	{
 		ARTUnit* Unit = Ctx.Units[i];
 		Ctx.IndexOf.Add(Unit, i);
-		Ctx.States.Add(FRTUnitCombatState(Unit->Health, Unit->Shield));
+		// [D-224] La quota TEMPORANEA viaggia con lo snapshot: senza, il resolver leggerebbe `TemporaryShield`
+		// a zero e tratterebbe come BASE tutto lo scudo — cioe' sbaglierebbe l'unica domanda per cui il campo
+		// esiste, «quanta protezione deve saltare il danno ambientale».
+		Ctx.States.Add(FRTUnitCombatState(Unit->Health, Unit->Shield, Unit->GetTemporaryShield()));
 
 		FRTHexCombatUnit HexUnit;
 		HexUnit.UnitId = i; // identita' = indice (come FRTHexSnapshot::Units)
@@ -195,6 +198,8 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 			KnowledgeForTeam(TeamId)));
 	}
 	TeamKnowledgeState = MoveTemp(Refreshed);
+	// Il secondo punto: una cella rivelata da un'esplosione compare a META' playback ([D-227]).
+	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
 }
 
 void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
@@ -270,7 +275,7 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 
 		AddLogEvent(Removed.IsValid()
 			? FString::Printf(TEXT("%s: purificato %s"), *Unit->GetName(), *Removed.ToString())
-			: FString::Printf(TEXT("%s: nessuno stato da purificare"), *Unit->GetName()));
+			: FString::Printf(TEXT("%s: nessuno stato da purificare"), *Unit->GetName()), FRTLogSubject::Unit(Unit));
 	}
 }
 
@@ -451,8 +456,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					ArcRejected.TgtCell = ArcTarget->Cell;
 					ArcRejected.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
 					AppendLogEntry(ArcRejected, Unit);
+					// Stesso soggetto della voce: `ConcludeTurn` ne deriva una riga identica a questa, e
+					// due soggetti diversi sulla stessa frase farebbero passare una copia e non l'altra.
 					AddLogEvent(FString::Printf(TEXT("%s: %s"),
-						*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(ArcRejected)));
+						*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(ArcRejected)), FRTLogSubject::Unit(Unit));
 
 					// L'abilita' NON si consuma: il piano e' gia' stato azzerato sopra (si spende nel turno,
 					// attivata o no), ma il cooldown paga solo cio' che ha davvero toccato la mappa.
@@ -627,8 +634,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			FallbackEntry.BaseActionId = Instance.Def.BaseActionId;
 			FallbackEntry.Priority = Instance.Def.Priority;
 			AppendLogEntry(FallbackEntry, Unit);
+			// Stesso soggetto della voce: vedi `ArcRejected` poco sopra — la copia derivata da
+			// `ConcludeTurn` e questa devono passare o cadere insieme.
 			AddLogEvent(FString::Printf(TEXT("%s: %s"),
-				*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(FallbackEntry)));
+				*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(FallbackEntry)), FRTLogSubject::Unit(Unit));
 
 			if (!Fallback.bProducesEffects)
 			{
@@ -648,6 +657,9 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// l'intento nasceva sempre a false e nessuna area colpiva un alleato in partita, benche' il dato
 		// esistesse nel catalogo e il resolver puro lo rispettasse. Difetto trovato al CP 8.2 e corretto qui.
 		Intent.bFriendlyFire = Instance.Def.bFriendlyFire;
+		// Stessa storia, stesso rimedio ([`INT-8`]): senza questa riga l'intento nascerebbe sempre a `false` e
+		// NESSUN attacco produrrebbe un colpo, benche' il catalogo lo dichiari.
+		Intent.bCountsAsAttack = Instance.Def.bCountsAsAttack;
 		// Danno DICHIARATO dagli effetti dell'azione: e' il catalogo a dirlo. Il campo legacy `Power` resta
 		// come ripiego per le abilita' non ancora catalogate (quelle generiche di EnsureDefaultAbilities):
 		// finche' esistono, toglierlo del tutto trasformerebbe i loro colpi in danno zero.
@@ -722,6 +734,11 @@ void ARTTurnManager::AppendChargeImpactIntents(FRTBlastContext& Ctx)
 		Intent.Shape = ERTAbilityShape::Single;
 		Intent.RangeCells = 1; // dopo l'impatto si e' adiacenti: e' questa la portata del colpo
 		Intent.AreaRadius = 0;
+		// [`INT-8`]: anche qui il colpo si dichiara, e si legge dall'azione che l'ha prodotto invece di darlo
+		// per scontato. E' il SECONDO punto in cui nasce un intento -- l'impatto della carica non passa dal
+		// ciclo dei piani -- quindi la propagazione va ripetuta, o gli impatti smetterebbero di colpire mentre
+		// tutto il resto funziona.
+		Intent.bCountsAsAttack = Impact.Def.bCountsAsAttack;
 
 		const int32 ImpactDamage = URTCatalogLibrary::FirstDamage(Impact.Def);
 		Intent.Power = URTCombatLibrary::EffectiveAttackPower(ImpactDamage, /*OccupantDamageBonus=*/ 0);
@@ -1164,7 +1181,7 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 			// dalla singola risoluzione — che e' esattamente cio' che un'assertion di scenario deve confrontare.
 			Entry.OriginalTargetUnitId = Units[OriginalTarget]->StableUnitId;
 			AddLogEvent(FString::Printf(TEXT("%s: si interpone per %s"),
-				*Unit->GetName(), *Units[OriginalTarget]->GetName()));
+				*Unit->GetName(), *Units[OriginalTarget]->GetName()), FRTLogSubject::Unit(Unit));
 		}
 		else
 		{
@@ -1174,7 +1191,9 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 		// Chi REAGISCE. Nell'interposizione `SrcCell` e' la cella del protetto, non la sua: dedurre
 		// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
 		AppendLogEntry(Entry, Unit);
-		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)));
+		// Stesso soggetto della voce: la copia che `ConcludeTurn` deriva e questa raccontano lo stesso
+		// evento con le stesse coordinate, e devono passare o cadere insieme.
+		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)), FRTLogSubject::Unit(Unit));
 	}
 	// APPLICA: i bersagli si riscrivono solo ora, quando ogni decisione e' stata presa sullo stesso snapshot.
 	//
@@ -1254,9 +1273,14 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 			NoLos.Priority = IntentDefs[BlockedIdx].Priority;
 		}
 		AppendLogEntry(NoLos, Units.IsValidIndex(Blocked.AttackerId) ? Units[Blocked.AttackerId] : nullptr);
-		AddLogEvent(FString::Printf(TEXT("%s (%s -> %s)"), *URTTurnLogLibrary::DescribeEntry(NoLos),
+		// ⚠️ Il soggetto e' l'ATTACCANTE anche se la frase nomina entrambi i capi: e' quello che
+		// `AppendLogEntry` scrive nella voce, e `ConcludeTurn` ne deriva una riga gemella di questa.
+		// Scegliere il bersaglio qui farebbe filtrare le due copie con criteri diversi.
+		AddLogEvent(FString::Printf(TEXT("%s (%s -> %s)"),
+			*URTTurnLogLibrary::DescribeEntry(NoLos),
 			*Units[Blocked.AttackerId]->GetName(),
-			bTargetsUnit ? *Units[Blocked.TargetId]->GetName() : TEXT("cella")));
+			bTargetsUnit ? *Units[Blocked.TargetId]->GetName() : TEXT("cella")),
+			FRTLogSubject::Unit(Units.IsValidIndex(Blocked.AttackerId) ? Units[Blocked.AttackerId] : nullptr));
 	}
 }
 
@@ -1296,7 +1320,7 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 		AppendLogEntry(Entry, Units.IsValidIndex(Change.AttackerId) ? Units[Change.AttackerId] : nullptr);
 		AddLogEvent(FString::Printf(TEXT("Copertura (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s (integrita' %d)"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
-			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity));
+			Change.bDestroyed ? TEXT("abbattuta") : TEXT("danneggiata"), Change.RemainingIntegrity), FRTLogSubject::World());
 
 		// Una copertura abbattuta smette di essere anche una copertura TEMPORANEA (CP 9.5). Senza questa
 		// riga l'entry sopravvive al proprio riparo, e siccome identifica la barriera con la sola coppia
@@ -1350,7 +1374,7 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 			AddLogEvent(FString::Printf(TEXT("Ponte (q=%d,r=%d,L%d) -> (q=%d,r=%d,L%d): %s (integrita' %d)"),
 				Change.From.X, Change.From.Y, Change.From.Layer,
 				Change.To.X, Change.To.Y, Change.To.Layer,
-				Change.bBroken ? TEXT("crollato") : TEXT("danneggiato"), Change.RemainingIntegrity));
+				Change.bBroken ? TEXT("crollato") : TEXT("danneggiato"), Change.RemainingIntegrity), FRTLogSubject::World());
 
 			// Un ponte ABBATTUTO smette di essere anche un ponte TEMPORANEO. Senza questa riga l'entry
 			// sopravvive al proprio ponte, e non in modo innocuo: `DamageArc` non RIMUOVE l'arco, lo marca
@@ -1449,7 +1473,7 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 		AppendLogEntry(Entry, Op.Actor);
 		AddLogEvent(FString::Printf(TEXT("Collegamento %s: (q=%d,r=%d,L%d) -> (q=%d,r=%d,L%d)"),
 			bRemoved ? TEXT("rimosso") : TEXT("creato"),
-			Op.From.X, Op.From.Y, Op.From.Layer, Op.To.X, Op.To.Y, Op.To.Layer));
+			Op.From.X, Op.From.Y, Op.From.Layer, Op.To.X, Op.To.Y, Op.To.Layer), FRTLogSubject::World());
 	}
 
 	// PORTE (CP 9.3): stessa disciplina delle strutture — gli ordini si applicano ORA, a colpi risolti, non
@@ -1473,7 +1497,7 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 		AppendLogEntry(Entry, Units.IsValidIndex(Change.ActorId) ? Units[Change.ActorId] : nullptr);
 		AddLogEvent(FString::Printf(TEXT("Porta (q=%d,r=%d,L%d) verso (q=%d,r=%d): %s"),
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
-			Change.bBlocking ? TEXT("chiusa") : TEXT("aperta")));
+			Change.bBlocking ? TEXT("chiusa") : TEXT("aperta")), FRTLogSubject::World());
 	}
 }
 
@@ -1587,7 +1611,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// dichiarata ha la precedenza su uno stato che non si consuma.
 			if (DisplacementReactions.CancelledDisplacements.Contains(Units.IndexOfByKey(T)))
 			{
-				AddLogEvent(FString::Printf(TEXT("%s: ancorato, la spinta non lo sposta"), *T->GetName()));
+				AddLogEvent(FString::Printf(TEXT("%s: ancorato, la spinta non lo sposta"), *T->GetName()), FRTLogSubject::Unit(T));
 				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Anchored, &PushCause);
 				continue;
 			}
@@ -1602,7 +1626,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// Pinnato da `Equipment.PushTwoSeparatesGuardFromBrace`.
 			if (T->HasStatus(TAG_Status_Guarded) && KnockDist[T] <= URTCombatLibrary::GuardResistedPushDistance)
 			{
-				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()));
+				AddLogEvent(FString::Printf(TEXT("%s: in guardia, resiste alla spinta"), *T->GetName()), FRTLogSubject::Unit(T));
 				// La stringa sopra e' per l'HUD e non finisce nel file (#420): la voce di TurnLog e' questa, ed
 				// e' cio' che permette a un replay di dire QUALE difesa ha retto invece del solo «non si e' mosso».
 				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Guarded, &PushCause);
@@ -1801,10 +1825,10 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					// consuma, qui `Hold Ground` non e' una risorsa. Chi sceglie di scartare non deve finire
 					// meno protetto di chi non ha scelto affatto.
 					AddLogEvent(FString::Printf(
-						TEXT("%s: nessuna cella per scartare, tiene la posizione"), *T->GetName()));
+						TEXT("%s: nessuna cella per scartare, tiene la posizione"), *T->GetName()), FRTLogSubject::Unit(T));
 				}
 
-				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()));
+				AddLogEvent(FString::Printf(TEXT("%s: irrigidito, la spinta non lo sposta"), *T->GetName()), FRTLogSubject::Unit(T));
 				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Braced, &PushCause);
 				continue;
 			}
@@ -1864,7 +1888,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			// chi e' spinto e tirato nello stesso Blast non paga due reazioni.
 			if (DisplacementReactions.CancelledDisplacements.Contains(Units.IndexOfByKey(T)))
 			{
-				AddLogEvent(FString::Printf(TEXT("%s: ancorato, la trazione non lo sposta"), *T->GetName()));
+				AddLogEvent(FString::Printf(TEXT("%s: ancorato, la trazione non lo sposta"), *T->GetName()), FRTLogSubject::Unit(T));
 				AppendDisplacementResistedEntry(T, ERTDisplacementBlockReason::Anchored, &PullCause);
 				continue;
 			}
@@ -1912,7 +1936,7 @@ void ARTTurnManager::MarkAttackerAbilitiesSpent(FRTBlastContext& Ctx)
 		Ctx.MarkAbilitySpent(Attacker, UsedAbilityIndex[i]);
 		if (Ability && Ability->EnergyCost > 0)
 		{
-			AddLogEvent(FString::Printf(TEXT("Ultimate! %s"), *Attacker->GetName()));
+			AddLogEvent(FString::Printf(TEXT("Ultimate! %s"), *Attacker->GetName()), FRTLogSubject::Unit(Attacker));
 		}
 		else
 		{
@@ -1991,7 +2015,7 @@ void ARTTurnManager::ApplyControlStatuses(FRTBlastContext& Ctx)
 		{
 			CancelledStatusIdx.Add(BestIdx);
 			AddLogEvent(FString::Printf(TEXT("%s: %s annullato dalla purificazione"),
-				*Canceller->GetName(), *StatusTags[BestIdx].ToString()));
+				*Canceller->GetName(), *StatusTags[BestIdx].ToString()), FRTLogSubject::Unit(Canceller));
 		}
 	}
 
@@ -2012,7 +2036,7 @@ void ARTTurnManager::ApplyControlStatuses(FRTBlastContext& Ctx)
 					StatusDurations[i], /*bFromTerrain=*/ false);
 				AppendLogEntry(Nato, Slowed);
 			}
-			AddLogEvent(FString::Printf(TEXT("Status: %s"), *Slowed->GetName()));
+			AddLogEvent(FString::Printf(TEXT("Status: %s"), *Slowed->GetName()), FRTLogSubject::Unit(Slowed));
 		}
 	}
 }

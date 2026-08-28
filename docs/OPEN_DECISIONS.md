@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-25
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-08-28
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -15,6 +15,94 @@
 
 ---
 
+## Aperta — la vista attraverso una frontiera interna, da `D-179`
+
+[`D-179`](decisions/RT_PDR_00_Decision_Log.md) ha reso la geometria dentro la cella **dato di gioco**: si
+conserva sempre, entra nell'hash, e un muro a `Offset == 0` rende la cella non entrabile. Il suo punto (3)
+lascia però la **vista** deliberatamente fuori — *«la LoS del progetto è cella-a-cella, e la sua regola è
+un'altra domanda»* — e [`#1239`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1239) la mette
+fra i «Non fare», perché dedurla dal movimento sarebbe una conseguenza inventata.
+
+Il silenzio è quindi **scelto**, e questa voce esiste perché non venga riscoperto come omissione.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `GEO-4` | Un muro interno che taglia una cella blocca la **linea di vista** e i **proiettili** che l'attraversano, o la LoS resta cella-a-cella e lo ignora? | Non si deduce dal codice perché **non esiste il caso**: `InteriorWalls` ha oggi tre soli consumatori — il bake che lo scrive, `ValidateMap`, e il pannello che lo disegna (`RTHexMapActor.cpp:998`) — e **nessuno** in `Combat/`. Non si deduce da `D-179` perché quella decisione **si è fermata prima di proposito**. Due uscite: **(a) la LoS resta cella-a-cella** e la geometria intra-cella non la tocca — coerente con il modello attuale, al prezzo che un muro che taglia l'esagono a metà otticamente copra e logicamente no · **(b) la LoS consulta i segmenti**, e allora serve una regola di attraversamento vista-contro-segmento, che è il **primo** caso in cui la geometria entra in una regola diversa dal movimento e va scritta come tale. ⚠️ La stessa domanda vale per il **proiettile**, che oggi ha il suo owner in [`#1392`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1392), e le due non vanno separate: risposte diverse renderebbero visibile un bersaglio che non si può colpire. **Innesco**: il primo consumatore di LoS che legga geometria intra-cella — plausibilmente `E13`/[`#1467`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1467), o `#1392` se arriva prima |
+
+> 🔎 **Perché non è urgente.** Nessun contenuto versionato usa ancora il campo — `D-179` ha misurato
+> `InteriorWall` in **0** dei 17 `.uasset` — quindi oggi non esiste una mappa in cui la domanda cambi una
+> partita. Diventa urgente **insieme** al primo muro interno di produzione, non prima.
+
+---
+
+## Aperta — come il bot sceglie fra due reazioni, dal 2026-08-27
+
+Origine: [D-220](decisions/RT_PDR_00_Decision_Log.md). Fino a [D-218](decisions/RT_PDR_00_Decision_Log.md)
+ogni eroe ne portava **una** e la domanda non esisteva. Oggi ne porta due **un eroe solo**: Riktor. Gadget e
+Wraith hanno il loadout **vuoto** (i gadget prescritti non sono spediti), Phase ha il modulo ma **nessuna
+reazione di kit**.
+
+| ID | Domanda | Esito, e l'istruttoria che ci è arrivata sotto |
+|---|---|---|
+| `BOT-REACT-1` | **Il bot deve preferire la reazione di kit o il modulo di loadout?** | ⏳ **Aperta.** [D-220] ha **dichiarato la regola che c'era già** — prima il kit, il modulo come riserva quando il kit è in ricarica — invece di inventarne una: prima la produceva l'**ordine degli indici**, per accidente. La preferenza ha una ragione (*la reazione di kit è ciò che l'eroe **è**, il modulo è ciò che la composizione gli **aggiunge***), ma non è una valutazione tattica. 🔴 **E invertirla non è una pulizia**: i moduli hanno `CooldownTurns = 0`, quindi un bot che preferisse il loadout non armerebbe **mai più** la reazione d'eroe — un «mai» scambiato col «mai» opposto. 🔴 **E il costo e' misurato, non teorico**: `Interposition` va in ricarica **solo quando scatta** — non in pianificazione — quindi e' utilizzabile quasi ogni turno, e il modulo viene armato solo nei ≤3 turni dopo un'interposizione. Il bot Riktor riceve la `Reaction.Cleanse` che [D-218] gli ha dato in una **minoranza** dei turni. ⚠️ **La domanda vera per E15**: quando conviene una purificazione preventiva e quando un'interposizione? Finché non c'è un'euristica che lo valuti, la regola dichiarata è la risposta meno arbitraria disponibile |
+
+
+---
+
+## Aperta — che cosa conta come «stallo», dal 2026-08-28
+
+Origine: [#1551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1551), osservata mentre si
+chiudeva [#1547](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1547) e **deliberatamente non
+unificata**. I due oracoli di parcheggio dello stato assorbente rispondono in modo **opposto** alla stessa
+domanda, e ciascuno porta la propria evidenza di mutazione: non è un difetto da correggere, è una decisione
+presa due volte in due file senza che nessuno la dichiarasse tale.
+
+| oracolo | board | un turno fermo conta se… |
+|---|---|---|
+| `Match.Autobattle.NobodyParksOnTheAuthoredMap` | mappa d'autore | l'unità è **inerte** — ferma *e* senza aver inflitto danno (`URTTurnLogLibrary::IsDamageInflictedByActor`) |
+| `Match.Autobattle.EngagesOnTheGeneratedTestArena` | configurazione generata | l'unità è **ferma**, punto — e la stessa esenzione è stata scritta, misurata e **tolta** |
+
+**Le due misure sono entrambe vere, e sono le due metà dello stesso costo.**
+
+- Sulla **mappa d'autore** l'esenzione *difende* il potere discriminante: senza, l'oracolo accuserebbe di
+  stallo un kiter che presidia la propria distanza di tiro e spara — il comportamento che `ScorePlan`
+  dichiara corretto. E non lo indebolisce: rimettendo il difetto di [#1287] il test torna rosso a dieci
+  turni fermi.
+- Sull'**arena generata** l'esenzione lo *distrugge*: il difetto di [#1088] è esattamente «sta ferma e
+  spara» — Riktor parcheggiata dieci turni mentre il campo produceva 19 voci `Combat`. Misurato: senza
+  esenzione la sequenza è **9** e il test falsifica; con esenzione globale scende a **2** e passa verde; con
+  esenzione per unità a **3**, e passa lo stesso.
+
+| ID | Domanda | Perché non si deduce, e le uscite col loro costo |
+|---|---|---|
+| `BOT-STALL-1` | **Lo stallo di un'unità è l'immobilità, o l'immobilità STERILE?** Cioè: un turno in cui l'unità non si muove ma infligge danno conta come turno di stallo? | Non si deduce dal codice perché **entrambe le risposte sono già implementate**, ciascuna con la propria verifica di mutazione, e nessuna delle due è la deriva dell'altra. Non si deduce da [`D-184`](decisions/RT_PDR_00_Decision_Log.md), che dichiara legittimo il pareggio allo scadere e distingue *«un pareggio in cui il campo si è consumato»* da *«un pareggio in cui nessuno cade»* — ma **non** dice se «ferma che spara» stia di qua o di là. Quattro uscite: **(a) stallo = immobilità sterile** (esenzione ovunque) → l'oracolo di `#1088` diventa **cieco sull'unica board su cui gira**, e quella è la configurazione che la partita non presidiata carica · **(b) stallo = immobilità** (esenzione in nessuno dei due) → sulla mappa d'autore un duello a distanza tenuto oltre la soglia dà un rosso da **leggere**, non un difetto, e la soglia diventa di fatto un numero di bilanciamento · **(c) esenzione condizionata all'AVANZAMENTO** — un turno fermo non conta se l'unità ha inflitto danno **e** nella finestra lo stato è avanzato (HP nemici calati, o qualcuno caduto). È la distinzione che `D-184` fa già a parole, resa eseguibile; ⚠️ **non è stata misurata**, costa una finestra di HP per unità e **una soglia nuova**, che è materia di `D-184` e non di un test · **(d) restare divergenti, ma dichiarato** — lo stato di oggi dopo #1551: ciascun oracolo tiene la definizione che lo rende falsificabile sulla propria board, e i due file si nominano a vicenda con il costo dell'allineamento scritto. Costo: «stallo» non ha un significato unico nel repository, e il terzo oracolo dovrà scegliere da capo. **Raccomandata: (c) se qualcuno la misura, altrimenti (d)** — (a) e (b) tolgono ciascuna il potere discriminante a un oracolo esistente, e quello è l'unico costo che nessuna delle due compensa. **Innesco**: il primo terzo oracolo di stato assorbente, oppure [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149), che ritarando i pesi del bot consuma il margine — oggi **4 su soglia 4**, margine zero, già segnalato da un `AddWarning` |
+
+> 🔎 **Perché non è urgente, e perché non va nemmeno rimandata all'infinito.** Oggi entrambi gli oracoli sono
+> verdi e ciascuno falsifica il difetto che sorveglia: nessuna partita è misurata male. Diventa urgente
+> quando qualcuno tocca uno dei due — «per coerenza» è il modo tipico — perché allinearli senza leggere
+> l'altro toglie a uno dei due la prova che porta, e il rosso che ne segue si legge come un difetto del bot.
+> Le due note incrociate nei file esistono per rendere quel passo impossibile per distrazione.
+
+---
+
+## Aperte — governance documentale, trasferite da `#1396` il 2026-08-27
+
+`#1396` è stata **chiusa** perché il suo unico creditore — `#1389` — è chiuso, e la matrice ha **zero** righe
+in stato `CONFLICT`: nessuna riga aspettava quella risposta. Il caso concreto che la bloccava l'ha risolto
+[D-210](decisions/RT_PDR_00_Decision_Log.md). Le tre domande di fondo restano vere e senza consumatore, e
+questo è il posto di ciò che aspetta una persona senza fingere di essere lavoro pendente.
+
+| ID | Domanda | Esito, e l'istruttoria che ci è arrivata sotto |
+|---|---|---|
+| `GOV-1` | **Le quattro formulazioni di prevalenza sono una gerarchia espressa male, o quattro con oggetti diversi?** | ⏳ **Aperta.** Una ordina **documenti** (`README.md` §Gerarchia), una **tipi di affermazione** (header del Decision Log), una **fonti di natura diversa** (prosa di `DOC_CONFLICT_MATRIX.md`, ora normativa per [D-210]), una un **taglio del canone** (`piano-canonico-mvp.md` §1). ⚠️ **Se ordinano oggetti diversi non sono in conflitto**, e la premessa di `#1396` — «quattro formulazioni di prevalenza» — è la cosa da correggere, non la gerarchia |
+| `GOV-2` | **Il canone contiene una gerarchia che batte quella che lo classifica: paradosso o delega?** | ⏳ **Aperta.** `piano-canonico-mvp.md` §1 sta al **livello 1** della tabella del README, che lo annota «prevale su tutto». Delle due: o è un paradosso di governance, o è una **delega** — il README dice «per i documenti chiedi al canone». La seconda lettura non richiede nessuna correzione, solo una riga che la dichiari |
+| `GOV-3` | **Dove stanno i cataloghi di `balance/` nella prosa della matrice, che non li nomina?** | ⏳ **Aperta, e già mezza risposta.** [D-210] li ha collocati nella tabella del README — sotto le specifiche, «numeri non regole» — ma la scala normativa in cima a `DOC_CONFLICT_MATRIX.md` continua a non nominarli. Coerente, incompleta |
+
+⚠️ **Nessuna delle tre blocca niente oggi.** Vanno riaperte come issue il giorno in cui una riga di matrice
+finisce in `CONFLICT` per causa loro — non prima.
+
+---
+
 ## Aperte — `Action.Cleanse`, dal consolidamento documentale del 2026-08-27
 
 Origine: [D-211](decisions/RT_PDR_00_Decision_Log.md), che ha allineato tre documenti sul limite reale di
@@ -24,8 +112,8 @@ Origine: [D-211](decisions/RT_PDR_00_Decision_Log.md), che ha allineato tre docu
 
 | ID | Domanda | Esito, e l'istruttoria che ci è arrivata sotto |
 |---|---|---|
-| `CLEANSE-1` | **`Action.Cleanse` spedisce in v0.1? E se sì, chi riempie `PlannedCleansePriority`?** | ⏳ **Aperta.** Le due metà non si decidono separate: una `Cleanse` raggiungibile con lista vuota non fa niente, e una lista piena su un'azione irraggiungibile nemmeno. 🔴 **Misure che restringono il lavoro che l'azione fa**: la cleanse **reattiva** (`Reaction.Cleanse` → `Action.Purge`) è costruita e testata, e annulla `Root` e `Slow` **in arrivo** — sono le due sole voci di `ControlStatusesBySeverity()`. `Burning` lo spegne **l'acqua** (`ARTUnit::ApplyStatus`: *«rimosso da `Wet`»*), e `Gadget.Sprinkler` è il default di Phase. `Marked` ed `Exposed` si consumano da soli. 🔴 **Misura del 2026-08-27, alla seconda stesura** ([#1479](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1479)) — ⚠️ **la prima era sbagliata e diceva che nessuno stato inflitto da un nemico fosse purificabile.** Falso: la Cleanse è il **primo** pass del Blast e precede tutti e tre i punti in cui gli stati vengono letti (`bMarkedBeforeBlast` `:3903`, `bWetBeforeBlast` `:4026`, `Exposed` `:4044`), quindi previene già **`Marked`** — che è inflitto da un avversario — oltre a `Wet`, `Exposed` e `Burning`. Gli unici due che non contrasta **mai** sono **`Root`** e **`Slow`**: applicati in coda al Blast, consumati dal Move, scaduti nello stesso `Cleanup`. E la leva non è la posizione della Cleanse — spostarla è uno scambio a somma quasi nulla, provato e chiuso senza merge in #1481 — ma la **durata** di quei due stati. ∴ l'insieme utile per il produttore è più largo di `{ Status.Burning }`: ci stanno anche `Wet` ed `Exposed`, che sono contrastabili oggi. ⚠️ **Resta da nominare il caso che solo l'attiva risolve**: se non c'è, la risposta è che esce dalla v0.1 — e allora `Action.Shield`, nella stessa condizione, esce con lei. ⚠️ **La forma costa**: `PlannedCleansePriority` è l'unico dei **dodici** parametri di piano con zero produttori, ed è anche il più caro da esporre — gli altri undici sono una cella, un bersaglio, una direzione: cose che si cliccano. Un ordinamento di N tag no. Le alternative sono un **default d'eroe** in `URTHeroData` (dato, nessuna UI — ma supera *«la priorità è scelta dal giocatore durante il planning»*, e va superata esplicitamente) o **una scelta sola** invece di una lista |
-| `CLEANSE-2` | **`Reaction.Cleanse` entra in un loadout di default?** | ⏳ **Aperta, e più piccola.** `Action.Purge` **è** costruita — è la base del modulo — e le manca **una riga** in `URTCatalogLibrary::DefaultReactionModuleFor`. Il costo non è la riga: lo **slot reazione è uno per eroe**, e tre eroi su quattro hanno già una reazione nel proprio kit all'indice `[4]`. La domanda è se per qualcuno *«annulla il `Root` o lo `Slow` in arrivo»* sia più identitario di ciò che ha. Se la risposta è no, `Purge` resta costruita e non prescritta — e va **dichiarato**, non lasciato sembrare una svista ([#1403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1403)) |
+| `CLEANSE-1` | **`Action.Cleanse` spedisce in v0.1? E se sì, chi riempie `PlannedCleansePriority`?** | ⏳ **Aperta.** Le due metà non si decidono separate: una `Cleanse` raggiungibile con lista vuota non fa niente, e una lista piena su un'azione irraggiungibile nemmeno. 🔴 **Misure che restringono il lavoro che l'azione fa**: la cleanse **reattiva** (`Reaction.Cleanse` → `Action.Purge`) è costruita e testata, e annulla `Root` e `Slow` **in arrivo** — sono le due sole voci di `ControlStatusesBySeverity()`. `Burning` lo spegne **l'acqua** (`ARTUnit::ApplyStatus`: *«rimosso da `Wet`»*), e `Gadget.Sprinkler` è il default di Phase. `Marked` ed `Exposed` si consumano da soli. 🔴 **Misura del 2026-08-27, alla seconda stesura** ([#1479](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1479)) — ⚠️ **la prima era sbagliata e diceva che nessuno stato inflitto da un nemico fosse purificabile.** Falso: la Cleanse è il **primo** pass del Blast e precede tutti e tre i punti in cui gli stati vengono letti (`bMarkedBeforeBlast` `:3903`, `bWetBeforeBlast` `:4026`, `Exposed` `:4044`), quindi previene già **`Marked`** — che è inflitto da un avversario — oltre a `Wet`, `Exposed` e `Burning`. Gli unici due che non contrasta **mai** sono **`Root`** e **`Slow`**: applicati in coda al Blast, consumati dal Move, scaduti nello stesso `Cleanup`. E la leva non è la posizione della Cleanse — spostarla è uno scambio a somma quasi nulla, provato e chiuso senza merge in #1481 — ma la **durata** di quei due stati. ∴ l'insieme utile per il produttore è più largo di `{ Status.Burning }`: ci stanno anche `Wet` ed `Exposed`, che sono contrastabili oggi. ⚠️ **Resta da nominare il caso che solo l'attiva risolve**: se non c'è, la risposta è che esce dalla v0.1. 🔴 **Questa riga diceva anche «e allora `Action.Shield`, nella stessa condizione, esce con lei», e [D-226](decisions/RT_PDR_00_Decision_Log.md) l'ha resa falsa il 2026-08-28**: `Action.Shield` non è più nella stessa condizione — la portano `Hero.Phase.TideGuard` e `Hero.Wraith.PhaseGuard`, e il suo problema (nessun eroe la portava, perché non c'era un tasto per la sesta azione) è stato risolto. Quello di `Cleanse` no, ed è di natura diversa: non un tasto ma un produttore per `PlannedCleansePriority`. Le due azioni si decidono ora **separatamente**. ⚠️ **La forma costa**: `PlannedCleansePriority` è l'unico dei **dodici** parametri di piano con zero produttori, ed è anche il più caro da esporre — gli altri undici sono una cella, un bersaglio, una direzione: cose che si cliccano. Un ordinamento di N tag no. Le alternative sono un **default d'eroe** in `URTHeroData` (dato, nessuna UI — ma supera *«la priorità è scelta dal giocatore durante il planning»*, e va superata esplicitamente) o **una scelta sola** invece di una lista |
+| ~~`CLEANSE-2`~~ | ~~**`Reaction.Cleanse` entra in un loadout di default?**~~ | ✅ **SÌ, A RIKTOR — chiusa il 2026-08-27 da [D-218](decisions/RT_PDR_00_Decision_Log.md)**, [PR #1485](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1485). Il «a chi» è stato **misurato, non scelto**: il modulo prescritto a Riktor era `Reaction.AllyIntercept`, costruito su `Action.Intercept` — lo **stesso core** della sua reazione di kit `Hero.Riktor.Interposition`. Lo slot spendeva su una capacità già posseduta, quindi sostituirlo non gli toglie un mestiere. ⚠️ **Non a costo zero come diceva la prima stesura**: `Interposition` ha cooldown 3 e il modulo 0, quindi si perde un'interposizione *ogni turno* in cambio di *ogni tre* — piccolo, ma reale. ⚠️ **Gadget ha lo stesso duplicato e resta**: il suo loadout è vuoto perché `Gadget.Insulator` non è spedito, e l'eccezione è dichiarata nel test `Equipment.DefaultReactionModuleIsNotADuplicate` |
 
 ---
 
@@ -367,10 +455,16 @@ perché la riga d'allowlist viene **prima** dell'asset, o `git add` tace e il la
 percorso è `/Game/RT/World/Graybox/` e la riga in `.gitignore` è stata scritta nello stesso commit della
 decisione, [`D-173`](decisions/RT_PDR_00_Decision_Log.md).
 
-⏱️ **Ma «si può modellare» non è «si può committare»**, e il blocco che resta non è in questa tabella: è
-quello registrato qui sopra. ✅ **Sciolto il 2026-08-25**: fino all'atterraggio di [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155)
+✅ **«Si può modellare» e «si può committare» oggi coincidono**, e il blocco che le separava non c'è più.
+*L'apertura di questo paragrafo diceva «**Ma** si può modellare non è si può committare», al presente,
+mentre la coda quattro righe sotto dichiarava il contrario: corretta il 2026-08-28 — correggere la
+chiusura di una sezione e non la sua apertura è lo stesso difetto due volte nello stesso testo.* ✅ **Sciolto il 2026-08-25**: fino all'atterraggio di [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155)
 un volume autorato era corretto per il canone e **1,5× fuori misura** per la mappa in cui si
-posa — quindi si modella alla scala nuova e si **rimanda il commit**, non il lavoro.
+posava, e la regola di allora era modellare alla scala nuova rimandando il commit. 🔴 **La coda
+diceva ancora *«si rimanda il commit»* al presente, ed è stata corretta il 2026-08-28**: con `#1155`
+atterrata le due scale coincidono e il commit non attende più nulla. Il PIE resta dovuto, ma come
+gate di qualità — non come divieto di versionare. Vedi
+[`D-173`](decisions/RT_PDR_00_Decision_Log.md).
 
 > ⚠️ *Questo paragrafo diceva che «tre delle quattro riguardano un numero o un percorso che si fissa quando
 > il primo asset viene prodotto», ed era il gemello non corretto della frase in testa alla sezione: falso
@@ -956,6 +1050,7 @@ prima che E10 le incontri in codice.
 | `INT-5` | Se **più sorgenti** comandano lo stesso bersaglio, come si compongono: `AND`, `OR`, priorità, sequenza? | Aperta il 2026-08-14 con [D-138](decisions/RT_PDR_00_Decision_Log.md). `1→1` e `1→N` sono cardinalità: si rappresentano e si risolvono con un ordine deterministico, e `#833` le porta. `N→1` **non è una cardinalità in più**: è una **semantica**, e ognuna delle quattro risposte è un gioco diverso — con `AND` due giocatori devono coordinarsi nello stesso turno, con `OR` il secondo interruttore è ridondanza, con la priorità nasce un conflitto fra squadre avversarie sullo stesso bersaglio. Il dato può reggerle tutte; sceglierne una guardando il codice significa sceglierla per comodità di implementazione. ⚠️ Innesco: la prima mappa che metta due sorgenti su una porta. Fino ad allora `#833` **rappresenta** più sorgenti senza comporle |
 | `INT-7` | Un `Interact` può **richiudere** ciò che ha aperto, o serve un'azione distinta? | Aperta il 2026-08-17 con [D-151](decisions/RT_PDR_00_Decision_Log.md), che spedisce il solo `Open`. **Non è un rinvio per prudenza**: `ERTHexDoorState` ha **quattro** valori e due (`Locked`, `Destroyed`) non hanno opposto, quindi «commuta» richiede una tabella completa che nessun caso di design chiede ancora; e `SetDoorState` opera su un **gruppo** di bordi il cui stato corrente può non essere unico — commutare *cosa*, se due facce divergono? ⚠️ E la risposta ha un vincolo tecnico che va letto prima di sceglierla: con la commutazione **ogni pressione produce sempre un cambio**, quindi ogni `Interact` incrementa la revisione e scrive nel TurnLog, mentre `Open` è idempotente (`CanTransition` restituisce `false` quando `Current == Wanted`). ⚠️ **Chi risponde decida anche DOVE**: se richiudere non è universale quanto aprire, appartiene a un profilo d'eroe e non al catalogo core — è il confine di [D-033](decisions/RT_PDR_00_Decision_Log.md) che [D-148](decisions/RT_PDR_00_Decision_Log.md) ha usato in senso opposto. ⚠️ Innesco: il primo scenario che abbia bisogno di **richiudere un varco**. Fino ad allora la lacuna è dichiarata — il giocatore non può chiudere una porta — e non è un difetto da playtest |
 | `INT-6` | La relazione `sorgente → bersaglio` è **pubblica**, o è conoscenza di squadra? | Aperta il 2026-08-14 con [D-138](decisions/RT_PDR_00_Decision_Log.md). Non è la stessa domanda di `INT-1`: lì si chiede *chi può agire*, qui *chi può sapere che agendo là succede qua*. Le due risposte producono giochi diversi — se la relazione è pubblica, il controllo remoto è un puzzle di posizionamento; se è conoscenza, diventa ricognizione, e `Controller: ???` è uno stato dell'interfaccia. Owner della conoscenza: `E27` (v0.3) e [`gameplay/brief-conoscenza-parziale.md`](gameplay/brief-conoscenza-parziale.md); la spec CP 10.1 §11 dichiara già che il controllo remoto *«richiede la privacy dei collegamenti»*, il che rende la domanda **prerequisito** del dominio, non un suo dettaglio. ⚠️ Va risposta **prima** che `#834` scelga dove filtrare: un solo punto di lettura si progetta, dieci si scoprono |
+| `INT-8` | Un'azione che opera su una **struttura** conta come un attacco su chi le sta accanto? | ✅ **NO, E SI DICHIARA — chiusa il 2026-08-27 da [D-221](decisions/RT_PDR_00_Decision_Log.md).** Il colpo e' un concetto solo: `bCountsAsAttack` su `FRTActionDef`, `false` di default, con il cancello nell'unico punto in cui `Plan.Hits` nasce. Chi non si dichiara non fa danno, non innesca reazioni, non carica energia e non marchia. ⚠️ **Non si deduce dal danno** -- `MarkTarget` fa 0 ed e' ostile -- e per la stessa ragione i cinque di controllo (`Push`, `Pull`, `Root`, `Slow`, `Interrupt`) si dichiarano `true`. ⚠️ **L'energia non era una seconda domanda**: si carica per un colpo, quindi e' ricompensa per l'aggressione, per costruzione. 🔴 **CORREZIONE a questa stessa riga prima della chiusura**: diceva che il campo *«TOGLIE un'eccezione invece di aggiungerne una»*, riferita all'intercettazione per nome di `Action.ModifyArc`. **E' falso, ed e' un errore mio**: quel blocco consuma l'abilita', valida la portata, scrive una voce di rifiuto nel TurnLog e accoda `PendingArcOps` -- esiste perche' l'azione risolve per una strada sua, non perche' non debba colpire. E' rimasto dov'era. Avevo scambiato una delle motivazioni scritte nel suo commento per la funzione del blocco. ⚠️ **E la stima del costo era sbagliata**: avevo scritto «17 azioni» contando la sola fase `Attack`; la superficie vera erano **113 test rossi**, perche' i colpi nascono da quattro fasi. Convergenza misurata in sei corse: 113 → 46 → 10 → 4 → 2 → **0** su 1233 |
 
 > **`INT-3` non esiste come voce separata.** La domanda «`Interact` **richiede** un facing verso l'elemento,
 > oppure lo **impone**?» era già registrata come **`FAC-6`** dal consolidamento del 2026-08-08, e resta lì:

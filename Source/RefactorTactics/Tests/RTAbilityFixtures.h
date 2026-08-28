@@ -1,0 +1,134 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h"
+#include "Unit/RTUnit.h"
+
+/**
+ * EQUIPAGGIARE UN'UNITA' DI PROVA con un'azione del catalogo generico, dichiarato una volta invece che due.
+ *
+ * ## Il duplicato che questo header chiude
+ *
+ * `AddCoreAbility` esisteva in `RTHexCombatIntegrationTests.cpp` e in `RTTurnLogCauseTests.cpp`, entrambe in
+ * un namespace ANONIMO. UE compila piu' `.cpp` in un'unica translation unit e i namespace anonimi di quei
+ * file diventano lo stesso namespace: due omonimi sono una ridefinizione (#1548, stessa famiglia di #1530).
+ *
+ * ## I due corpi DIVERGEVANO, e nessuno dei due era giusto
+ *
+ * | | `RTHexCombatIntegrationTests` | `RTTurnLogCauseTests` |
+ * |---|---|---|
+ * | `Power` | sempre `0` | dal primo effetto `Damage` |
+ * | `bSelfTarget` | sempre `true` | mai toccato (resta `false`) |
+ *
+ * Nessuna delle due chiedeva al catalogo. E il catalogo lo sa: **tre** azioni core escono da
+ * `URTCatalogLibrary` con `bSelfTarget = true` — `Action.Guard`, `Action.Brace` e `Action.Overwatch`, le tre
+ * righe `Catalog.Last().bSelfTarget = true` — e tutte le altre con `false`, incluse quelle di controllo
+ * (`Push`, `Pull`, `Root`, `Slow`). Nessuno dei test che usano questa fixture arma un Overwatch, ma
+ * l'elenco e' quello: la fixture copia il campo, non lo indovina.
+ *
+ * 🔴 **`RTTurnLogCauseTests` equipaggiava Guard e Brace come azioni NON auto-bersaglio.** E' esattamente il
+ * difetto contro cui la produzione mette in guardia nel proprio commento, in `RTCatalogLibrary.cpp`:
+ *
+ *     «il giorno che [l'equipaggiamento] ne concedesse una self-target — `Guard`, `Brace` — il gadget la
+ *      porterebbe come azione d'attacco da 30 danni, che e' esattamente il difetto appena chiuso per gli
+ *      eroi.»
+ *
+ * ⚠️ Il `bSelfTarget = true` fisso dell'altra versione era invece **morto**: i suoi tre siti di chiamata
+ * usano solo `Action.Guard` (che dal catalogo lo ha gia' vero), e nessuno di essi passa da `PlanBots` —
+ * `RunBlastTurn` chiama `LockInAndResolve` diretto — che e' l'unico lettore di quel campo in quei test.
+ *
+ * ## Percio' questa versione non inventa niente: e' l'idioma della produzione
+ *
+ * Le stesse righe di `URTCatalogLibrary::MakeGenericActions` e di `MakeEquipmentAction`. Un test che
+ * costruisce l'azione diversamente da come la costruisce il gioco misura un oggetto che in partita non
+ * esiste.
+ *
+ * ## ⛔ QUANDO NON USARLA, e non e' un dettaglio
+ *
+ * Copiare i campi specchio e' giusto quando il test misura un COMPORTAMENTO. Non lo e' quando il test
+ * misura **da dove il resolver legge**: riempire lo specchio rende quel test verde anche se il resolver
+ * leggesse il campo sbagliato, e la proprieta' sorvegliata sparisce senza che niente diventi rosso.
+ *
+ * Misurato durante #1588 — mutando `ResolveDash` per fargli leggere lo specchio invece del `Def`, cade
+ * `RefactorTactics.Actions.Sprint.AppliesExposed` con «lo Sprint copre 6 celle: il budget e' quello del
+ * catalogo (8 MP)». Quel test funziona **perche'** il suo helper lascia lo specchio vuoto.
+ *
+ * I siti che restano deliberatamente a mano, e la ragione di ciascuno:
+ *
+ * · `AddSprintAbility` (`RTHexMovementIntegrationTests`) e i suoi cinque usi — la portata del Dash deve
+ *   arrivare dal catalogo, e lo specchio vuoto e' cio' che lo prova.
+ * · `RTReactionTests` e `RTTurnLogCauseTests`, gli scatti — stessa ragione.
+ * · `RTHexCombatIntegrationTests`, il marcatore e il tiro di precisione — «senza toccare le portate: e'
+ *   esattamente il caso che prima non funzionava», dice il commento sul posto.
+ * · `RTControlActionTests` — costruisce un `Def` SINTETICO (`MakePush2Def`) quando il catalogo non ha
+ *   l'azione: nessuna fixture puo' derivare campi da una definizione che non esiste.
+ * · `RTHexBotIntegrationTests` — la variabile serve dopo, per interrogare `MovementStyle`.
+ *
+ * Una variante che serve davvero **chiama** questa fixture e poi altera; una che deve partire da uno
+ * specchio vuoto non la chiama affatto. Cio' che non deve succedere e' riscrivere la sequenza per inerzia.
+ */
+namespace RTAbilityFixtures
+{
+	/**
+	 * Da' all'unita' un'azione del catalogo generico e ne restituisce l'indice; `INDEX_NONE` se l'unita' e'
+	 * nulla.
+	 *
+	 * ⚠️ I campi SPECCHIO — `RangeCells`, `Power`, `bSelfTarget`, `CooldownTurns` — si copiano dal `Def`
+	 * perche' `URTActionData` li ha ai default legacy dell'MVP quadrato (portata 5, potenza 30, ricarica 0)
+	 * e `ARTTurnManager` legge ancora quelli e non il `Def`. Senza la copia, `Action.Wait` entrerebbe nel
+	 * kit come un colpo da 30 a distanza 5.
+	 *
+	 * 🔴 **La ricarica e' arrivata dopo, e per un difetto vero** (#1552): `MakeGenericActions` non la
+	 * copiava, quindi `Action.Brace` — `Cooldown 1` nel catalogo — era riarmabile ogni turno da ogni eroe.
+	 * Corretta in produzione, e qui di conseguenza: una fixture che dichiara di seguire l'idioma di
+	 * produzione e ne segue una versione vecchia costruisce un oggetto che in partita non esiste piu'.
+	 */
+	inline int32 AddCoreAbility(ARTUnit* Unit, const TCHAR* ActionId)
+	{
+		if (!Unit)
+		{
+			return INDEX_NONE;
+		}
+		URTActionData* Action = NewObject<URTActionData>(Unit);
+		Action->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
+		Action->RangeCells = Action->Def.RangeCells;
+		Action->bSelfTarget = Action->Def.bSelfTarget;
+		Action->CooldownTurns = Action->Def.CooldownTurns;
+		// `FirstDamage` e' della PRODUZIONE (`URTCatalogLibrary`) e fa esattamente questo: il ciclo scritto a
+		// mano era un quinto posto in cui la stessa regola viveva. La usano gia' `ARTTurnManager` e tre
+		// helper di test; non c'e' ragione perche' questo la riscriva.
+		Action->Power = URTCatalogLibrary::FirstDamage(Action->Def);
+		Unit->Abilities.Add(Action);
+		return Unit->Abilities.Num() - 1;
+	}
+
+	/**
+	 * Come sopra, ma SOSTITUISCE lo slot indicato invece di accodare, e ne restituisce l'indice.
+	 *
+	 * ⚠️ **Serve per poter misurare la ricarica**, e non e' una comodita': `ConsumeAbility` scrive in
+	 * `AbilityCooldowns` solo se l'indice e' valido, e `ConfigureFromHeroData` dimensiona quell'array sulle
+	 * abilita' dell'eroe. Un'abilita' APPESA in coda sta a un indice che l'array non copre, quindi il
+	 * cooldown non viene mai scritto e `CanUseAbility` risponde sempre `true` — un test che asserisse «non
+	 * ha pagato» su un'abilita' appesa sarebbe verde anche col difetto.
+	 *
+	 * Cinque helper di test riscrivevano questa variante, tutti con lo slot `3` (#1588). Torna `INDEX_NONE`
+	 * se lo slot non esiste: sostituire un indice fuori range creerebbe un buco nel kit.
+	 */
+	inline int32 AddCoreAbilityInSlot(ARTUnit* Unit, const TCHAR* ActionId, int32 SlotIndex)
+	{
+		if (!Unit || !Unit->Abilities.IsValidIndex(SlotIndex))
+		{
+			return INDEX_NONE;
+		}
+		const int32 Appesa = AddCoreAbility(Unit, ActionId);
+		if (Appesa == INDEX_NONE)
+		{
+			return INDEX_NONE;
+		}
+		URTActionData* Azione = Unit->Abilities[Appesa];
+		Unit->Abilities.RemoveAt(Appesa);
+		Unit->Abilities[SlotIndex] = Azione;
+		return SlotIndex;
+	}
+}

@@ -23,6 +23,7 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "Tests/RTAbilityFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -81,12 +82,7 @@ namespace
 
 	void PlanEnvAction(ARTUnit* Caster, const TCHAR* ActionId, ARTUnit* Target)
 	{
-		URTActionData* Action = NewObject<URTActionData>(Caster);
-		Action->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
-		Action->RangeCells = Action->Def.RangeCells;
-		Action->CooldownTurns = Action->Def.CooldownTurns;
-		Action->Power = URTCatalogLibrary::FirstDamage(Action->Def);
-		Caster->Abilities[3] = Action;
+		RTAbilityFixtures::AddCoreAbilityInSlot(Caster, ActionId, 3);
 		Caster->PlannedAbilityIndex = 3;
 		Caster->PlannedAttackTarget = Target;
 	}
@@ -98,11 +94,11 @@ namespace
 	void PlanCoverAction(ARTUnit* Caster, const TCHAR* ActionId, const FRTCellId& TargetCell,
 		ERTHexDirection Edge)
 	{
-		URTActionData* Action = NewObject<URTActionData>(Caster);
-		Action->Def = URTCatalogLibrary::FindCoreAction(FName(ActionId));
-		Action->RangeCells = Action->Def.RangeCells;
-		Action->CooldownTurns = Action->Def.CooldownTurns;
-		Caster->Abilities[3] = Action;
+		// ⚠️ Il `Power` lo azzera la fixture derivandolo dal catalogo. Prima questo helper non lo toccava
+		// affatto, quindi restava al default legacy **30**: `Action.CreateCover` non dichiara `Damage`, e
+		// il resolver ricade sullo specchio (`DeclaredDamage > 0 ? DeclaredDamage : Ability->Power`).
+		// Una struttura eretta portava con se' trenta danni che nessuna riga di catalogo autorizza (#1588).
+		RTAbilityFixtures::AddCoreAbilityInSlot(Caster, ActionId, 3);
 		Caster->PlannedAbilityIndex = 3;
 		Caster->PlannedAttackTarget = nullptr;
 		Caster->PlannedAttackCell = TargetCell;
@@ -1730,8 +1726,13 @@ bool FRTHazardBurningShieldedLogTest::RunTest(const FString&)
 	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
 
 	// Ferita **e** protetta: e' la combinazione che il confronto con `MaxHealth` sbagliava.
+	//
+	// ⚠️ Lo scudo dev'essere **TEMPORANEO**, e dal 2026-08-28 non e' un dettaglio ([D-224]): lo scudo BASE
+	// non assorbe piu' il danno ambientale, quindi un `Shield = 30` scritto a mano lascerebbe passare
+	// entrambi i colpi e questo test tornerebbe a misurare `Hit` — cioe' l'esatto ramo che NON vuole.
+	// Il temporaneo continua ad assorbire qualunque sorgente, ed e' quello che tiene vivo `ShieldAbsorbed`.
 	Target->Health = 40;
-	Target->Shield = 30; // 10 all'ingresso + 8 nel Cleanup, e ne avanza
+	Target->AddTemporaryShield(30); // 10 all'ingresso + 8 nel Cleanup, e ne avanza
 
 	const int32 HpPrima = Target->Health;
 	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);

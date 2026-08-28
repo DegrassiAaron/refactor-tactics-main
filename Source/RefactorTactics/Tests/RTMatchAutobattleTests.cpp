@@ -26,6 +26,7 @@
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
 #include "RTAttackPlaybackProbeForTest.h"
+#include "RTOrbitProbeForTest.h" // il ritorno di periodo due, condiviso con `NobodyOscillatesOnTheAuthoredMap`
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "HAL/IConsoleManager.h"
@@ -1785,6 +1786,7 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	TMap<int32, FRTCellId> LastCell;      // ultima cella vista, per unita'
 	TMap<int32, int32> StillStreak;       // turni consecutivi senza muoversi
 	int32 LongestStillStreak = 0;
+	FRTOrbitProbe Orbite;                 // il ritorno di periodo due, che `StillStreak` non puo' vedere
 	int32 FirstSampleIds = 0;             // chiavi DISTINTE al primo campionamento
 	int32 FirstSampleAlive = 0;           // unita' vive nello stesso istante: se divergono, gli id collidono
 
@@ -1795,6 +1797,23 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
 		{
 			TM->Tick(0.05f);
+		}
+		// 🔴 **Il tetto di 400 tick non e' una fine turno, e questo ciclo usciva in silenzio.** Esaurito il
+		// budget la risoluzione e' a meta': le celle lette sotto non sono mai state uno stato di fine turno, e
+		// il `LockInAndResolve` del giro dopo si impila sopra. E' il difetto che la code review di #1296 ha
+		// trovato sul gemello — dove la guardia esiste da allora — e qui mancava, insieme alla precondizione
+		// che `FRTOrbitProbe` dichiara: «si campiona a FINE TURNO».
+		//
+		// ⚠️ **Il danno e' su ENTRAMBI i contatori, e in due versi.** Un'unita' colta a meta' movimento su
+		// turni alterni produce un `A B A B` che non e' mai esistito — rosso falso sul nuovo oracolo — oppure
+		// spalma un'orbita vera in una sequenza che non si ripete, cioe' verde falso. `StillStreak` e
+		// `LastCell` si corrompono allo stesso modo. Che il budget si esaurisca non e' teorico: lo scenario
+		// `AutoBattle.ArenaV01` lo documenta da riga di comando.
+		if (!TestFalse(*FString::Printf(TEXT("il turno %d ha finito di risolvere entro 400 tick"), TurnsPlayed + 1),
+			TM->IsResolving()))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
 		}
 		++TurnsPlayed;
 
@@ -1823,6 +1842,16 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 			Streak = bStill ? Streak + 1 : 0;
 			LongestStillStreak = FMath::Max(LongestStillStreak, Streak);
 			LastCell.Add(Id, Unit->Cell);
+			// La seconda firma dello stesso stato assorbente, e l'unica che `StillStreak` non puo' produrre:
+			// l'alternanza azzera la sequenza a ogni turno.
+			//
+			// ⚠️ **La guardia sugli id qui sotto serve a entrambe, ma contro difetti OPPOSTI** — e la prima
+			// stesura di questa riga diceva che «con una chiave condivisa nessuno dei due contatori
+			// crescerebbe», che e' vero solo per meta'. Misurato in `Meta.OrbitProbeKeepsUnitsApart`:
+			// per `StillStreak` una chiave condivisa e' un falso NEGATIVO — le celle si sovrascrivono e la
+			// parcheggiata non fa crescere niente; per le orbite e' un falso POSITIVO — due unita' FERME su
+			// celle diverse producono `A B A B`, cioe' un'oscillazione perfetta in cui nessuno si e' mosso.
+			Orbite.Observe(Id, Unit->Cell);
 		}
 		if (FirstSampleAlive == 0)
 		{
@@ -1905,11 +1934,33 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// produrrebbe un rosso da leggere, non un difetto. Un limite scritto vale piu' di un test che non puo'
 	// piu' cadere.
 	//
-	// ⚠️ **E vede i punti fissi, non i cicli.** Un'unita' che oscillasse
-	// fra due celle si muoverebbe ogni turno, la sequenza resterebbe a zero, e la partita potrebbe
-	// pareggiare lo stesso — e' uno stato assorbente di periodo 2, altrettanto sterile e invisibile qui.
-	// Il ciclo misurato in #1088 aveva periodo 3 sui Blast ma le POSIZIONI erano ferme, quindi questo
-	// oracolo lo coglie; un difetto futuro con posizioni oscillanti no.
+	// 🔵 **E L'ALTRO ORACOLO DI PARCHEGGIO HA DECISO IL CONTRARIO, APPOSTA** (#1551).
+	// `Match.Autobattle.NobodyParksOnTheAuthoredMap` conta un turno solo se l'unita' e' INERTE — ferma *e*
+	// senza aver inflitto danno (`URTTurnLogLibrary::IsDamageInflictedByActor`) — cioe' concede esattamente
+	// l'esenzione che le tre righe qui sopra hanno misurato e tolto. **Non e' una deriva, ed e' importante
+	// non correggerla come se lo fosse**: anche quella scelta porta evidenza di mutazione. Senza l'esenzione
+	// quell'oracolo accuserebbe di stallo un kiter che presidia la propria distanza di tiro e spara — il
+	// comportamento che `ScorePlan` dichiara corretto — e con l'esenzione resta comunque capace di
+	// falsificare: rimettendo il difetto di #1287 torna rosso a dieci turni fermi.
+	//
+	// ⛔ **Le due risposte non sono una giusta e una sbagliata**: sono due definizioni di stallo —
+	// immobilita' contro immobilita' STERILE — e ciascuna e' quella che rende falsificabile il proprio
+	// oracolo sulla propria board. Allinearne uno all'altro «per coerenza» distrugge la prova che quell'altro
+	// porta, e il rosso che ne segue si legge come un difetto del bot invece che come una soglia spostata.
+	//
+	// ∴ chi vuole unificarli legga prima l'istruttoria: `BOT-STALL-1` in `docs/OPEN_DECISIONS.md`. DIR-C non
+	// l'ha presa, perche' e' una decisione sul significato di «stallo» e il suo owner e' PDR-00.
+	//
+	// ⚠️ **Questa sequenza vede i punti fissi, non i cicli** — un'unita' che oscilla fra due celle si muove
+	// ogni turno, quindi la sequenza resta a zero — e per tre giorni quella meta' e' rimasta scoperta QUI e
+	// coperta altrove: `Match.Autobattle.NobodyOscillatesOnTheAuthoredMap` pinna il ritorno di periodo due
+	// sulla mappa d'autore, e la configurazione SPEDITA — che e' questa — non aveva nessun oracolo.
+	// L'asimmetria non era teorica: e' precisamente la forma con cui #1287 e' passato, e il commento che
+	// stava qui la dichiarava senza chiuderla.
+	// ✅ Chiusa piu' sotto con `FRTOrbitProbe`, la stessa sonda dell'altro oracolo e non una seconda copia.
+	// 🔴 **Resta scoperto il periodo TRE e oltre**, ed e' dichiarato sulla sonda: il ciclo misurato in #1088
+	// aveva periodo 3 sui Blast ma POSIZIONI ferme, quindi lo coglie la sequenza qui sopra; un'orbita
+	// `A -> B -> C -> A` non la coglie nessuno dei due.
 	// ⚠️ **La soglia si deriva dal formato, come quella del primo colpo.** Era il letterale `5`, in un test
 	// che trenta righe sotto argomenta che i letterali invecchiano: con un `RoundLimit` corto — il ripiego ne
 	// ha portato 5 fino al 2026-08-10 — la sequenza piu' lunga possibile e' `TurnsPlayed - 1` e l'asserzione
@@ -1934,13 +1985,18 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// 2026-08-10 — e li' il rosso direbbe «la soglia non lascia spazio», cioe' nomina un problema di soglia
 	// mentre il test esiste per un difetto del bot. Si dichiara e si salta, invece di fallire per la ragione
 	// sbagliata.
-	if (MaxLegitimateStillTurns >= FormatRoundLimit - 1)
-	{
-		AddWarning(FString::Printf(
-			TEXT("formato troppo corto per esercitare l'anti-parcheggio: soglia %d su %d round — non misurato"),
-			MaxLegitimateStillTurns, FormatRoundLimit));
-	}
-	else
+	// 🔴 **L'`else` era SENZA GRAFFE, e si legava allo statement sbagliato.** Copriva il `TestEqual` sugli
+	// `StableUnitId` qui sotto — cioe' saltava la PREMESSA — mentre l'asserzione anti-parcheggio, l'unica
+	// che la soglia rende non esercitabile, restava fuori e girava lo stesso. Il commento sopra dichiara
+	// l'intento opposto: «si dichiara e si salta, invece di fallire per la ragione sbagliata».
+	// ⚠️ **Oggi e' latente e va detto**: la condizione e' vera solo per `RoundLimit <= 3`, e il formato
+	// spedito ne porta 12 — con 12 il ramo preso e' lo stesso di prima, quindi questa correzione non muove
+	// nessuna asserzione sulla configurazione reale. E' il legame a essere sbagliato, non l'esito di oggi.
+	//
+	// La premessa sugli id sta ORA fuori dal condizionale, dov'e' il suo posto: che due unita' non
+	// condividano una chiave e' vero indipendentemente da quanto e' lungo il formato, e serve a ENTRAMBI i
+	// contatori — contro difetti opposti, come dice il commento sul campionamento: falso negativo per la
+	// sequenza ferma, falso POSITIVO per le orbite.
 
 	// ⚠️ **Contro il roster INIZIALE, non contro i superstiti.** La guardia nominava «le quattro unita'
 	// collassate su una chiave sola» e ne catturava solo il collasso totale: con due unita' che condividono
@@ -1960,13 +2016,151 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 		FirstSampleIds, FirstSampleAlive);
 	TestTrue(FString::Printf(TEXT("e il campione non e' vuoto: %d"), FirstSampleAlive), FirstSampleAlive > 1);
 
-	TestTrue(FString::Printf(
-		TEXT("nessuna unita' si parcheggia: piu' lunga sequenza ferma %d turni (limite %d) — %s - %s al turno %d"),
-		LongestStillStreak, MaxLegitimateStillTurns,
-		*URTTurnRules::DescribeOutcome(Result.Outcome),
-		*URTTurnRules::DescribeEndReason(Result.Reason), TurnsPlayed),
-		LongestStillStreak <= MaxLegitimateStillTurns);
 	AddInfo(FString::Printf(TEXT("piu' lunga sequenza ferma: %d turni"), LongestStillStreak));
+	bool bStatoAssorbenteMisurato = false;
+	if (MaxLegitimateStillTurns >= FormatRoundLimit - 1)
+	{
+		AddWarning(FString::Printf(
+			TEXT("formato troppo corto per esercitare l'anti-parcheggio: soglia %d su %d round — non misurato"),
+			MaxLegitimateStillTurns, FormatRoundLimit));
+	}
+	else
+	{
+		TestTrue(FString::Printf(
+			TEXT("nessuna unita' si parcheggia: piu' lunga sequenza ferma %d turni (limite %d) — %s - %s al turno %d"),
+			LongestStillStreak, MaxLegitimateStillTurns,
+			*URTTurnRules::DescribeOutcome(Result.Outcome),
+			*URTTurnRules::DescribeEndReason(Result.Reason), TurnsPlayed),
+			LongestStillStreak <= MaxLegitimateStillTurns);
+		bStatoAssorbenteMisurato = true;
+
+		// 🔴 **IL MARGINE, non solo l'esito.** Misurato il 2026-08-28 sulla configurazione spedita: sequenza
+		// piu' lunga **4 su soglia 4**, cioe' margine ZERO. L'oracolo e' verde e sta sul filo: il prossimo
+		// ritocco ai pesi del bot lo fa passare rosso, e chi lo vedra' rosso non sapra' che era sul filo da
+		// prima. Un verde che non dice quanto manca al bordo e' un verde che sorprende.
+		//
+		// ⚠️ **Warning e non asserzione, deliberatamente.** Un margine sottile non e' un difetto — asserirlo
+		// renderebbe rosso un comportamento che [D-184] dichiara accettabile, e sarebbe una soglia nuova
+		// introdotta di lato invece che decisa. Il warning informa senza spostare il gate.
+		// ⚠️ L'oracolo gemello delle orbite oggi ha margine 2 e non e' incluso: qui si segnala cio' che e'
+		// stato **misurato** stretto, non si aggiunge simmetria per estetica.
+		// ⚠️ **E solo finche' e' ancora VERDE.** Con l'asserzione gia' caduta il margine e' negativo, e senza
+		// questa meta' il warning stampava «sta per passare rosso» accanto a un rosso — cioe' invertiva il
+		// proprio scopo, che e' avvisare PRIMA. Trovato in code review.
+		const int32 MargineParcheggio = MaxLegitimateStillTurns - LongestStillStreak;
+		if (MargineParcheggio >= 0 && MargineParcheggio <= 1)
+		{
+			AddWarning(FString::Printf(
+				TEXT("anti-parcheggio sul filo: sequenza %d su soglia %d, margine %d — il prossimo ritocco ai pesi del bot lo fa passare rosso"),
+				LongestStillStreak, MaxLegitimateStillTurns, MargineParcheggio));
+		}
+	}
+
+	// 🔴 **LA SECONDA FIRMA DELLO STESSO STATO ASSORBENTE, e fino a oggi era coperta solo altrove.**
+	// `NobodyOscillatesOnTheAuthoredMap` pinna il ritorno di periodo due sulla mappa d'autore; questo test
+	// e' l'unico che gira sulla configurazione SPEDITA, e la sua sequenza ferma non puo' vedere
+	// un'alternanza — che azzera il contatore a ogni turno. E' la forma con cui #1287 e' passato: otto
+	// alternanze in dodici turni in partita, trentasette in quaranta sullo scenario `AutoBattle.ArenaV01`.
+	//
+	// ⚠️ **Soglia e premessa sono SUE, non quelle del parcheggio**, e non e' un dettaglio: si derivano dai
+	// turni GIOCATI e non dal `RoundLimit`, perche' un ritorno e' osservabile solo dal terzo turno e una
+	// partita decisa presto ne puo' produrre troppo pochi perche' l'oracolo cada — cioe' passerebbe per
+	// aritmetica, esattamente il difetto che la code review di #1296 ha trovato sull'altro oracolo.
+	// Condividere la soglia del parcheggio avrebbe fatto muovere l'una ritarando l'altra, che e' la ragione
+	// per cui `MaxLegitimateStillTurns` e `FirstBloodDeadline` sono gia' due nomi distinti in questo file.
+	//
+	// 🔴 **VERIFICA DI MUTAZIONE — misurata il 2026-08-28, e dice MENO di quanto si sperava.**
+	// Ricostruito lo stato pre-#1296 in tre pezzi cumulativi, e rimisurato ogni volta l'intero
+	// `RefactorTactics.Match.Autobattle` (21 test):
+	//
+	//     mutazione                                        questa arena   mappa d'autore
+	//     nessuna (baseline)                               1 su lim. 3    1 su lim. 4
+	//     + filtro sul dominio di #1287                    2 su lim. 3    3 su lim. 4
+	//     + `WEngage = 0` (pre-D-185)                      2 su lim. 4    2 su lim. 4
+	//     + avvicinamento in linea d'aria (pre-#1296)      0 su lim. 4    7 su lim. 4  -> **Fail**
+	//
+	// ✅ Il rilevatore FALSIFICA: la terza riga fa cadere `NobodyOscillatesOnTheAuthoredMap` riproducendo
+	// la misura storica di #1287 («otto alternanze in dodici turni»), quindi l'estrazione in
+	// `FRTOrbitProbe` non ha tolto potere discriminante a quell'oracolo.
+	//
+	// ✅ **E QUESTA asserzione cade davvero — ma per una mutazione del RILEVATORE, non del bot.** Togliendo
+	// `*Prev != Cell` da `FRTOrbitProbe::Observe` (cioe' facendo contare anche lo stare fermo) cadono
+	// **tre** test insieme: `Meta.OrbitProbeIgnoresStandingStill`, `NobodyOscillatesOnTheAuthoredMap` e
+	// questo. Quindi qui la soglia e' **esercitata da dati reali con margine reale**: su questa board ci
+	// sono unita' che restano ferme abbastanza da superare il limite se le si contasse male. L'asserzione
+	// non e' vacua, e non e' un ornamento.
+	//
+	// 🔵 **UNA SPIEGAZIONE, non la chiusura della ricerca** (#1550, misurato il 2026-08-28). Il ciclo di
+	// #1287 puo' chiudersi solo se il filtro sul dominio, dalla cella CIECA, fa **arretrare**: manda su una
+	// cella che vede ma piu' LONTANA dal bersaglio. Se manda avanti, tornare indietro significa allontanarsi,
+	// e qualunque termine di avvicinamento lo penalizza. Su `MakeTestArena` il muro di `q=0` blocca la vista
+	// e **non il passo**, e `HasLineOfSight` esclude gli estremi dalla regola per-cella: la cella del muro e'
+	// insieme la piu' vicina al bersaglio **e** una cella che vede. Sulla mappa d'autore l'ostacolo centrale
+	// blocca vista **e** passo, e li' la cella che vede sta dietro.
+	//
+	// Passi indietro su coppie `(cella cieca, bersaglio)` esaminate, per budget di movimento:
+	//
+	//     budget MP                2      3      4     5 (Move)    6     7    8 (Sprint)
+	//     MakeTestArena           48     19      0        0        0     0        0
+	//     DA_HexMap_Arena        154    162    170      104       38     9        0
+	//
+	// ∴ le due board si distinguono per DOVE cade la soglia, e il profilo neutro (`MovementMode.Move`, 5 MP)
+	// cade sui due lati opposti. Le misure sono `Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack` e
+	// `Bot.StalemateProbeAuthoredMapFilterStepsBack`, e la seconda ritrova fra le proprie coppie
+	// **esattamente** l'orbita che #1287 ha misurato in partita: `(1,-1,L0) <-> (3,-3,L1)`.
+	//
+	// 🔴 **Cio' che questa spiegazione NON e': una dimostrazione di impossibilita'.** Una stesura precedente
+	// lo sosteneva — «`ScorePlan` non legge `Context.Origin`, quindi `A->B` e `B->A` chiedono disuguaglianze
+	// opposte» — ed **e' falso**: il punteggio dipende dalla provenienza attraverso il facing d'arrivo
+	// (`RTHexBotLibrary.cpp` sottrae `WDamage * max(0, CoperturaQui - CoperturaTenuta)`), e con
+	// `WDamage == WApproach == 10` un punto di copertura vale una cella di avvicinamento. Trovato in code
+	// review, e la tesi e' ritirata.
+	//
+	// ⚠️ **Quindi la riga resta aperta, e vale ancora: chi trovera' una mutazione del BOT che fa cadere
+	// questa asserzione la scriva in questa tabella** — e con lei cade la spiegazione qui sopra. Cio' che e'
+	// cambiato non e' che la ricerca sia finita: e' che ora si sa **dove** guardare, cioe' a un termine che
+	// paghi l'arretramento da solo, o a un budget di movimento sotto i 4 MP.
+	const int32 WorstOrbit = Orbite.WorstReturns();
+	const int32 OrbitLimit = FRTOrbitProbe::LimitForTurns(TurnsPlayed);
+	const int32 OrbitMinTurns = FRTOrbitProbe::MinTurnsToFalsify;
+	AddInfo(FString::Printf(TEXT("piu' ritorni di periodo due su una unita': %d (limite %d, su %d turni)"),
+		WorstOrbit, OrbitLimit, TurnsPlayed));
+	// ⚠️ **Avverte e prosegue, mentre il gemello asserisce e si ferma — ed e' voluto.** Per
+	// `NobodyOscillatesOnTheAuthoredMap` l'oscillazione e' l'UNICA asserzione: senza turni a sufficienza quel
+	// test non misura niente, e fermarsi e' l'unica risposta onesta. Qui l'oscillazione affianca il
+	// combattimento, il primo colpo e il parcheggio: fermarsi butterebbe via misure ancora valide. Le due
+	// politiche stanno scritte su `FRTOrbitProbe::MinTurnsToFalsify`, perche' un chiamante futuro le scelga
+	// invece di ereditarle per copia. Che non possano essere ENTRAMBE silenziose lo garantisce
+	// `bStatoAssorbenteMisurato`, piu' sotto.
+	if (TurnsPlayed < OrbitMinTurns)
+	{
+		AddWarning(FString::Printf(
+			TEXT("partita troppo breve per esercitare l'anti-oscillazione: %d turni, minimo %d — non misurato"),
+			TurnsPlayed, OrbitMinTurns));
+	}
+	else
+	{
+		TestTrue(FString::Printf(
+			TEXT("nessuna unita' oscilla fra due celle: %d ritorni di periodo due (limite %d) — %s - %s al turno %d"),
+			WorstOrbit, OrbitLimit,
+			*URTTurnRules::DescribeOutcome(Result.Outcome),
+			*URTTurnRules::DescribeEndReason(Result.Reason), TurnsPlayed),
+			WorstOrbit <= OrbitLimit);
+		bStatoAssorbenteMisurato = true;
+	}
+
+	// 🔴 **I DUE ORACOLI SONO SALTABILI, E NON DEVONO ESSERLO INSIEME IN SILENZIO.** Il parcheggio si salta
+	// su un formato corto, le orbite su una partita corta: entrambe le rinunce sono giuste una per una, ma
+	// insieme lasciano questo test verde **senza aver misurato lo stato assorbente in nessuna forma** — cioe'
+	// riaprono, dalla premessa invece che dalla soglia, esattamente l'asimmetria che questo lavoro e' andato
+	// a chiudere. E due `AddWarning` non fermano nessuno: qui i warning non sono elevati a errore.
+	// ⚠️ **Non e' un'asserzione sul FORMATO**, ed e' la differenza che la rende accettabile: non pretende che
+	// `RoundLimit` sia lungo ne' che la partita duri, chiede che almeno UNA delle due misure sia avvenuta.
+	// Una vittoria rapida con formato normale la soddisfa dal ramo del parcheggio. Trovato in code review.
+	TestTrue(FString::Printf(
+		TEXT("lo stato assorbente e' stato misurato in almeno una forma (%d turni giocati, RoundLimit %d)"),
+		TurnsPlayed, FormatRoundLimit),
+		bStatoAssorbenteMisurato);
 
 	// 🔴 IL NUMERO CHE CONTA: il primo colpo deve cadere PRESTO, non solo cadere.
 	//

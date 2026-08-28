@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "UI/RTHudViewModel.h"
+#include "UI/RTIconCatalogData.h" // FRTIconResolution e' un valore di ritorno: serve la definizione, non basta la forward
 #include "RTScreenHudWidgets.generated.h"
 
 class ARTTurnManager;
@@ -62,6 +63,20 @@ public:
 protected:
 	virtual void NativeConstruct() override;
 
+	/**
+	 * Riprova ad acquisire il contesto finche' non c'e'.
+	 *
+	 * 🔴 **Il widget puo' nascere PRIMA del `TurnManager`, e nel percorso normale succede.**
+	 * `ARTGameMode::BeginPlay` chiama `EnterMatch()` — che presenta il HUD — alla riga 295, e spawna il
+	 * `ARTTurnManager` alla riga 337. `NativeConstruct` cerca un actor che non esiste ancora, trova
+	 * `nullptr`, e senza questo tick resterebbe senza contesto **per sempre**: `HasMatchContext()` falso,
+	 * tutte le viste neutre, e a schermo «—» al posto di «Round 1/12».
+	 *
+	 * ⚠️ **Il costo e' limitato per costruzione**: la ricerca gira solo finche' `TurnManager` e' invalido,
+	 * cioe' i pochi frame iniziali. Appena il contesto c'e', questo tick non fa piu' nulla.
+	 */
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
+
 	/** Risolve il contesto dall'owning player. Chiamata da `NativeConstruct`; ripetibile. */
 	void AcquireMatchContext();
 
@@ -70,6 +85,33 @@ protected:
 
 	/** L'unita' selezionata dal giocatore, o `nullptr`. Protetta: i Blueprint vedono solo le VISTE. */
 	const ARTUnit* GetSelectedUnit() const;
+
+public:
+	/**
+	 * Il catalogo iconografico, o `nullptr`.
+	 *
+	 * 🔴 **Esiste perche' il catalogo vive sulla RADICE e non su questa base**, e nessuno dei widget che
+	 * devono mostrare un'icona lo raggiungeva: `IconCatalog` e' dichiarato su `URTTacticalHUDWidget`, che
+	 * e' una classe **sorella** nella gerarchia — discende da questa base, non la precede. Il dock quindi
+	 * non lo ereditava, e nel grafo di un Blueprint non c'era nodo che lo producesse.
+	 *
+	 * ⚠️ **Dichiararlo qui sulla base sarebbe stata l'altra strada, e costa di piu':** e' un
+	 * `EditDefaultsOnly`, quindi ogni `WBP_RT_*` avrebbe la propria copia da assegnare a mano — N
+	 * occasioni di dimenticarne una, contro l'unica assegnazione sulla radice che c'e' oggi.
+	 *
+	 * ⚠️ **Risale con `GetTypedOuter`, ed e' un idioma NUOVO per questo file.** Il resto della base non
+	 * cammina l'albero UMG: prende gli attori dal mondo (`GetActorOfClass`) o passa da
+	 * `GetOwningPlayer()`. Qui non e' possibile — il catalogo non e' un attore e non appartiene al
+	 * controller, e' un dato di configurazione di un widget. La risalita e' quindi l'unica via, e il suo
+	 * limite si dichiara: **se un widget viene innestato fuori dal `WBP_RT_TacticalHUD` questa funzione
+	 * restituisce `nullptr` in silenzio**.
+	 *
+	 * ✅ Il silenzio non e' pero' una perdita: `URTIconLibrary::ResolveIcon` con catalogo nullo da' il
+	 * missing-icon **con una warning che nomina la chiave e il consumer**. A schermo si vede che manca,
+	 * che e' il comportamento voluto dallo Step 6.4 del piano di `#613`.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	const URTIconCatalogData* GetIconCatalog() const;
 
 private:
 	UPROPERTY(Transient)
@@ -184,8 +226,53 @@ public:
 	bool bArmed = false;
 
 	/** Il dock chiama questa; lo slot non si aggiorna da solo. */
+	/**
+	 * Il catalogo da cui risolvere l'icona. Lo **riceve**, non va a prenderlo.
+	 *
+	 * ⚠️ E' la stessa disciplina per cui questa classe non estende `URTScreenHudWidgetBase`: uno slot che
+	 * andasse a cercarsi il catalogo sarebbe un secondo posto che decide da dove viene, e sei slot che lo
+	 * cercano ciascuno per conto proprio possono trovarne sei diversi. Chi crea lo slot lo passa.
+	 *
+	 * ✅ E' un `URTIconCatalogData*`, **non** una `UTexture2D*`: `ScreenHud.WidgetApiExposesNoTexture`
+	 * continua a valere, ed e' il punto — l'icona resta una CHIAVE risolta da un catalogo ([D-031]), non un
+	 * asset che il widget si tiene.
+	 *
+	 * ⚠️ **Si chiama `ReceivedCatalog` e non `IconCatalog`, e il nome e' una CORREZIONE.** Con `IconCatalog`
+	 * il getter automatico del Blueprint diventava `Get IconCatalog`, indistinguibile a occhio da
+	 * `Get Icon Catalog` — la funzione che la base espone — nel menu di ricerca dei nodi. Un autore che
+	 * trascinava dal pin `In Catalog` del dock prendeva la variabile dello SLOT invece della funzione della
+	 * base, e il compilatore rispondeva *«This blueprint (self) is not a RTActionSlotWidget»*: un errore che
+	 * nomina il sintomo e non la causa. E' successo davvero, due volte di fila.
+	 *
+	 * ∴ i due nomi ora divergono, e il verbo dice anche la disciplina: lo slot **riceve** il catalogo.
+	 */
+	UPROPERTY(BlueprintReadOnly, Transient, Category = "RefactorTactics|HUD")
+	TObjectPtr<const URTIconCatalogData> ReceivedCatalog;
+
+	/**
+	 * ⚠️ `InCatalog` ha un default `nullptr` per una ragione dichiarata: senza catalogo lo slot mostra il
+	 * missing-icon, che e' il comportamento voluto, e un chiamante che non lo passa non e' un errore da
+	 * bloccare. Chi lo passa e' il dock, che il catalogo lo raggiunge con `GetIconCatalog()`.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
-	void SetAction(const FRTAbilityCooldownView& InAction, bool bInArmed);
+	void SetAction(const FRTAbilityCooldownView& InAction, bool bInArmed,
+		const URTIconCatalogData* InCatalog = nullptr);
+
+	/**
+	 * L'icona di questa azione, risolta dal catalogo — o il missing-icon.
+	 *
+	 * 🔴 **Esiste perche' il Blueprint non deve comporre la chiamata da solo.** `ResolveIcon` vuole tre
+	 * ingressi (catalogo, chiave, consumer) e il terzo serve al log: *«senza, "icona mancante" in una
+	 * partita con dieci widget non dice dove guardare»*. Lasciarli comporre nel grafo significherebbe che
+	 * ogni slot puo' scriverci una stringa diversa, o vuota — e la warning perderebbe l'unica cosa per cui
+	 * esiste. Qui il consumer e' fisso e corretto per costruzione.
+	 *
+	 * ⚠️ **`BlueprintPure` nonostante `ResolveIcon` logghi**, e la differenza rispetto a li' e' il punto di
+	 * chiamata: questa si consuma dentro `OnActionChanged` — un evento, una volta per cambio azione — non
+	 * in un property binding valutato a ogni frame.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FRTIconResolution GetResolvedIcon() const;
 
 	/** Ridisegna. Il Blueprint la implementa: qui non c'e' layout. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|HUD")
