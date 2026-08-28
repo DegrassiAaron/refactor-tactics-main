@@ -270,4 +270,56 @@ bool FRTScreenHudIconCatalogReachTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Lo slot risolve la propria icona dal catalogo che ha RICEVUTO.
+ *
+ * 🔴 **La coppia e' il test, non la singola asserzione.** Senza catalogo `ResolveIcon` restituisce
+ * `bResolved = false`; con il catalogo giusto `true`. Asserire solo il secondo caso lascerebbe passare
+ * un'implementazione che risponde sempre «risolta» — e a schermo si vedrebbe il missing-icon con la
+ * barra verde, cioe' il difetto piu' difficile da attribuire.
+ *
+ * ⚠️ Il test NON verifica che l'icona si veda: `Asset` e' una soft reference, e questa suite non carica
+ * texture. La leggibilita' a schermo e' `PIE-ICON-01`, e nessun test la sostituisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionSlotResolvesFromCatalogTest,
+	"RefactorTactics.ScreenHud.ActionSlotResolvesFromCatalog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionSlotResolvesFromCatalogTest::RunTest(const FString&)
+{
+	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>();
+	if (!TestNotNull(TEXT("slot"), Slot)) { return false; }
+
+	FRTAbilityCooldownView Azione;
+	Azione.ActionId = TEXT("Action.Move");
+	const FName ChiaveAttesa = URTIconLibrary::MakeIconId(Azione.ActionId);
+
+	// (1) Senza catalogo: il missing-icon, e `bResolved` lo DICHIARA. E' lo stato in cui lo slot vive
+	// finche' qualcuno non gli passa il catalogo, ed e' voluto — non un errore da nascondere.
+	Slot->SetAction(Azione, /*bArmed=*/ false);
+	TestFalse(TEXT("senza catalogo l'icona non e' risolta"), Slot->GetResolvedIcon().bResolved);
+
+	// (2) Con un catalogo che contiene la chiave: risolta.
+	URTIconCatalogData* Catalogo = NewObject<URTIconCatalogData>();
+	if (!TestNotNull(TEXT("catalogo"), Catalogo)) { return false; }
+	Catalogo->Icons.Add(FRTIconDef(ChiaveAttesa, ERTIconCategory::Action,
+		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Prova/T_Prova.T_Prova")))));
+
+	Slot->SetAction(Azione, /*bArmed=*/ false, Catalogo);
+	const FRTIconResolution Risolta = Slot->GetResolvedIcon();
+	TestTrue(TEXT("col catalogo l'icona e' risolta"), Risolta.bResolved);
+	TestEqual(TEXT("ed e' l'asset dichiarato per quella chiave"),
+		Risolta.Asset.ToString(), FString(TEXT("/Game/Prova/T_Prova.T_Prova")));
+
+	// (3) La chiave che lo slot chiede e' quella dell'AZIONE, non una costante: cambiando azione cambia
+	// chiave, e una chiave che il catalogo non ha torna non risolta. Senza questo caso, un'implementazione
+	// che ignora `Action` e risolve sempre la stessa icona passerebbe i due sopra.
+	FRTAbilityCooldownView Altra;
+	Altra.ActionId = TEXT("Action.Guard");
+	Slot->SetAction(Altra, /*bArmed=*/ false, Catalogo);
+	TestFalse(TEXT("un'altra azione chiede un'altra chiave, che il catalogo non ha"),
+		Slot->GetResolvedIcon().bResolved);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

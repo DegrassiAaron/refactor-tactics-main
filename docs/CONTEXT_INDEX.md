@@ -152,6 +152,12 @@ Carica:
 
 Non usare un handoff come prova che una feature sia implementata.
 
+Due **viste** aiutano a orientarsi e non sostituiscono gli owner qui sopra: `docs/roadmap/roadmap-v0.1-v1.0.md`
+(la traiettoria v0.1 → v1.0 in una pagina, con le quattro soglie che separano le release) e
+`docs/roadmap/roadmap-main-v0.1.md` (il focus v0.1 come tre lane e sei wave, con le premesse del mandato
+verificate contro il repository). Nessuna delle due porta numeri propri: se una diverge da un owner, ha
+ragione l'owner.
+
 ⛔ **Non esiste più un grafo del progetto in forma macchina.** `project-graph.json`,
 `feature-registry.json` e il Project Control Center che li leggeva sono usciti il 2026-08-21
 (**D-181**), insieme al Feature Registry che li generava. Per orientarti restano **gli owner qui

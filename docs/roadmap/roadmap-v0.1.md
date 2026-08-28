@@ -2023,6 +2023,8 @@ Rilevati confrontando `roadmap-checkpoint.md` con il repository (2026-08-05):
 | [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release, KPI, checklist trasversale |
 | [`v0.1-issue-plan.md`](v0.1-issue-plan.md) | Titoli e body delle issue (e mappa issue ↔ checkpoint) |
 | [`roadmap-checkpoint.md`](roadmap-checkpoint.md) | **Esecuzione**: stato delle milestone M6–M11 |
+| [`roadmap-v0.1-v1.0.md`](roadmap-v0.1-v1.0.md) | **Vista**: la traiettoria v0.1 → v1.0 in una pagina, e le quattro soglie che separano le release. Non è un owner: lo scope della v0.1 resta §3 di questo file |
+| [`roadmap-main-v0.1.md`](roadmap-main-v0.1.md) | **Vista**: il focus v0.1 come tre lane e sei wave, con le premesse del mandato verificate. Non assegna lavoro: le sedi sono ancoraggi alle issue |
 | ~~`editormap.shortlist.md`~~ | ⛔ **Rimossa con D-181**; la sorgente resta senza vista. Dichiarava: sedute di authoring e verifica, generata da [`editor-sessions.yaml`](editor-sessions.yaml) |
 | [`test-manuali-pie.md`](../technical/test-manuali-pie.md) | Verifiche interattive, sessioni A–E |
 | `docs/balance/` | Cataloghi azioni/terreni/equipaggiamento/eroi/test (creati in CP 1.2) |
