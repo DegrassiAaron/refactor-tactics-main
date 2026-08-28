@@ -331,7 +331,26 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
         $engineState = Get-EngineState
         if ($engineState.Error) { break }
 
-        if ($engineState.Engines.Count -eq 0) { break }
+        if ($engineState.Engines.Count -eq 0) {
+            # 🔴 **Vedere zero processi non basta a smettere di aspettare.** Fra
+            # questo istante e il lancio c'e' lo snapshot completo — un paio di
+            # secondi — e in quella finestra un'altra sessione che esegue run **in
+            # serie** ne fa partire un'altra. Misurato il 2026-08-28: `wt-dir-c-v02`
+            # ha chiuso `rt-c3.log` e aperto `rt-c3-mut.log`, e la prima stesura di
+            # questo ciclo usciva proprio li' — arrendendosi dopo 437s di un'attesa
+            # da 40 minuti, con quasi tutto il tempo ancora disponibile.
+            #
+            # Quindi lo snapshot si fa QUI, dentro il ciclo, e se il motore e'
+            # tornato occupato si continua ad aspettare: la finestra persa costa un
+            # giro, non l'intera attesa.
+            $candidate = Get-Snapshot
+            if (-not $candidate.EngineError -and $candidate.EngineCount -eq 0) {
+                $before = $candidate
+                break
+            }
+            Write-Information ("[RT-MEASURE] ...finestra persa: il motore si e' rioccupato mentre rileggevo lo stato, continuo") -InformationAction Continue
+            continue
+        }
 
         # Heartbeat: senza, uno script lanciato a mano tace fino a quaranta
         # minuti ed e' indistinguibile da un blocco — che e' esattamente la
@@ -342,11 +361,12 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
             $waited.Elapsed.TotalSeconds, ($waitUntil - (Get-Date)).TotalSeconds, $engineState.Engines.Count) -InformationAction Continue
     }
 
-    # 🔴 Lo snapshot completo si rifa' UNA volta, qui: l'albero puo' essere stato
-    # mosso dalle altre sessioni durante l'attesa, e la run deve partire da cio'
-    # che c'e' adesso — con i controlli di fine run confrontati con questo, non
-    # con un inizio che non esiste piu'.
-    $before = Get-Snapshot
+    # Se il ciclo e' uscito per scadenza o per errore di query, `$before` e' ancora
+    # quello di partenza: va rinfrescato prima di deciderne l'esito. Quando invece
+    # e' uscito con il motore libero, lo snapshot buono l'ha gia' preso il `break`
+    # — rifarlo qui aprirebbe una seconda finestra di corsa, che e' il difetto che
+    # questo ciclo ha appena finito di chiudere.
+    if ($null -eq $before -or $before.EngineCount -gt 0) { $before = Get-Snapshot }
 
     if (-not $before.EngineError -and $before.EngineCount -eq 0) {
         Say ("motore libero dopo {0:N0}s: stato ridichiarato" -f $waited.Elapsed.TotalSeconds)
@@ -355,6 +375,7 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
     elseif ($before.EngineCount -gt 0) {
         Say ("attesa scaduta dopo {0:N0}s" -f $waited.Elapsed.TotalSeconds)
     }
+    $script:WaitElapsed = $waited.Elapsed.TotalSeconds
 }
 
 # ⚠️ **L'errore va PRIMA del conteggio**: `EngineCount` e' `0` anche quando la
@@ -373,7 +394,10 @@ if ($before.EngineError) {
 # l'«esegui e poi dichiara» — non c'e' ancora niente da preservare.
 if ($before.EngineCount -gt 0) {
     Say 'NON AVVIATA: un processo del motore e'' gia'' attivo.'
-    if ($WaitMinutes -gt 0) { Say ("  (dopo {0} minuti di attesa)" -f $WaitMinutes) }
+    # ⚠️ I secondi TRASCORSI, non il parametro: la prima stesura stampava «dopo 40
+    # minuti di attesa» per un'attesa di 437s, e quel numero e' l'unico che
+    # permette di attribuire il blocco a chi lo teneva.
+    if ($null -ne $script:WaitElapsed) { Say ("  (dopo {0:N0}s di attesa)" -f $script:WaitElapsed) }
     foreach ($e in $before.Engines) { Say "  $e" }
     Say 'Due run di automation si uccidono a vicenda: il mutex e'' globale sull''eseguibile del'
     Say 'motore, quindi vale anche fra checkout diversi. Se e'' di un ALTRO checkout non'
