@@ -516,6 +516,8 @@ void ARTTurnManager::RefreshTeamKnowledgeForPlanning(const TArray<ARTUnit*>& Liv
 			Observers, EnemiesNow, KnowledgeForTeam(TeamId)));
 	}
 	TeamKnowledgeState = MoveTemp(Refreshed);
+	// Chi disegna il velo rilegge QUI, non a `Tick` ([D-227]).
+	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
 }
 
 void ARTTurnManager::PlanBots()
