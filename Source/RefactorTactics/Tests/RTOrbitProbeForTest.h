@@ -22,6 +22,23 @@
  * una soglia propria, e nessun difetto misurato l'ha ancora prodotto. Chi ne misura uno estende qui, con la
  * propria verifica di mutazione.
  *
+ * ✅ **E il periodo tre e' stato CHIESTO ALLE BOARD, non piu' solo dichiarato scoperto** (`#1603`, misurato
+ * il 2026-08-28 da `Bot.StalemateProbe*ClosesNoCycleOfAnyPeriod` / `*ClosesCyclesOfSomePeriod`). Seguendo la
+ * traiettoria del difetto di #1287 da ogni cella cieca, per sei passi, coi budget del catalogo v0.1:
+ *
+ *     board                ritorni (budget 2..8)          periodi trovati
+ *     MakeTestArena        0 0 0 0 0 0 0                  **nessuno**
+ *     DA_HexMap_Arena      5 11 13 3 2 0 0                **2x34** — tutti di periodo DUE
+ *
+ * ∴ anche dove i cicli si chiudono davvero, **nessuno e' di periodo tre**. Il limite qui sopra non e' una
+ * lacuna di copertura su queste board: e' una proprieta' misurata, e l'estensione del rilevatore resta
+ * **senza soggetto** — che e' la ragione per cui non e' stata fatta.
+ *
+ * ⚠️ **Il modello e' dichiarato**: distanza in linea d'aria, nessun altro termine del punteggio. Vale per
+ * qualunque punteggio monotono nella distanza, e non porta elevazione, minaccia, copertura ne' attacco. Chi
+ * misurera' un periodo tre con un modello piu' ricco riapre la domanda, e allora l'estensione avra' il
+ * soggetto che oggi le manca.
+ *
  * ⚠️ **La chiave e' del chiamante, e deve essere DISTINTA.** `NobodyOscillatesOnTheAuthoredMap` usa
  * `GetUniqueID()`, `EngagesOnTheGeneratedTestArena` usa `StableUnitId` — che vale 0 finche'
  * `EnsureMatchRoster()` non lo assegna, e li' il test ha la propria guardia.
