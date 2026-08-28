@@ -498,6 +498,24 @@ public:
 	/** Rimuove la parte temporanea dello scudo (fine turno). Lo scudo BASE dell'unita' resta. */
 	void ExpireTemporaryShield();
 
+	/**
+	 * Riporta lo scudo BASE al suo valore pieno ([D-224]): 5 punti che ogni unita' porta, non crescono e
+	 * tornano interi a fine turno. Chiamata dal COSTRUTTORE — un'unita' esiste gia' protetta — e in coda al
+	 * Cleanup, dove il temporaneo e' appena scaduto.
+	 *
+	 * ⚠️ **Non da `BeginPlay`, ed e' una correzione misurata**: i mondi di test costruiti con
+	 * `UWorld::CreateWorld` non fanno partire `BeginPlay`, quindi lo scudo sarebbe esistito in partita e
+	 * NON dove lo si verifica. Il costruttore gira su `NewObject` come su ogni `SpawnActor`.
+	 *
+	 * Non e' nemmeno il default del campo `Shield`: il valore lo dichiara `URTCombatLibrary::BaseShield`
+	 * insieme alle altre costanti di combattimento, e un solo punto lo applica.
+	 *
+	 * La somma con `TemporaryShield` e' ridondante nella posizione attuale — li' vale sempre 0 — ma tiene
+	 * l'invariante `Shield = base + temporaneo` vera se un giorno l'ordine delle due chiamate cambiasse.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Unit")
+	void RechargeBaseShield();
+
 	/** Quota dello scudo corrente che scadra' a fine turno (diagnostica/HUD). */
 	int32 GetTemporaryShield() const { return TemporaryShield; }
 

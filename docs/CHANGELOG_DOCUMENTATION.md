@@ -2,6 +2,34 @@
 
 ---
 
+## 2026-08-28 — Lo scudo base entra nel canone, e dichiara cosa supera
+
+**Origine**: [D-224](decisions/RT_PDR_00_Decision_Log.md) — ogni unità porta 5 punti di scudo base che si
+ricaricano nel Cleanup, e quello scudo ferma solo il danno diretto.
+
+**Una regola di combattimento cambia**, e con lei un documento di ricerca che diceva il contrario.
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | riga **D-224** |
+| [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) | riga **82**: chi assorbe il danno ambientale |
+| [`research/prd/prd-damage-model-armor-shield.md`](research/prd/prd-damage-model-armor-shield.md) | la riga «nessuna rigenerazione automatica» è barrata, e una sezione dice cosa di quel PRD è stato consegnato e cosa no |
+
+### Il numero di decisione era già preso, e se ne è accorto il controllo prima del merge
+
+`D-223` sembrava libero sul `main` locale. Non lo era: `origin/fix/1497-lastmoveroutes-porta-identita` lo
+rivendicava già con una tesi su `LastMoveRoutes` e la conoscenza. La regola di riverificare `D-nnn` **prima
+del merge** — non all'inizio del lavoro — ha intercettato la collisione, e la rinumerazione ha toccato
+**venti file di codice** più spec e piano.
+
+⚠️ **Lo stesso è successo alla matrice**: la riga inserita come 81 collideva con il regime di sviluppo di
+[D-222], scritto poche ore prima. È diventata 82. Due collisioni di contatore nello stesso lavoro, entrambe
+per la stessa causa — altre sessioni che scrivono sugli stessi file mentre questa lavorava.
+
+---
+
 ## 2026-08-27 — `tools/decision-log/` era atterrato senza passare dall'indice
 
 **Origine**: la vista HTML del Decision Log ([#1482](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1482),

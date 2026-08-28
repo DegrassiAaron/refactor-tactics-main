@@ -79,6 +79,10 @@ namespace
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo: il test verifica il Blast, non il movimento
+		// [D-224] Lo scudo base sta a 0 in questo file: qui si misura una RIDUZIONE di danno, e sommarci
+		// una costante di bilanciamento renderebbe l'asserto illeggibile ("15" diventerebbe "15 piu' 5") e
+		// legherebbe questi test al valore del base. Chi vuole lo scudo se lo da' esplicitamente.
+		U->Shield = 0;
 		return U;
 	}
 
@@ -128,8 +132,13 @@ bool FRTHexBlastDealsDamageTest::RunTest(const FString&)
 	TestTrue(TEXT("il bersaglio ha incassato il colpo"), Foe->Shield < ShieldBefore || Foe->Health < HealthBefore);
 	// Il colpo pieno lo dichiara l'attacco base di chi spara: la proprieta' e' «lo scudo assorbe per primo».
 	const int32 FullHit = Shooter->AttackPower;
-	TestEqual(TEXT("scudo assorbito per primo, poi HP"), Foe->Shield, FMath::Max(0, ShieldBefore - FullHit));
-	TestEqual(TEXT("HP residui coerenti col danno"), Foe->Health, HealthBefore - FMath::Max(0, FullHit - ShieldBefore));
+	// ⚠️ [D-224] L'assorbimento NON si legge piu' dallo scudo a fine turno: `RechargeBaseShield` gira nel
+	// Cleanup, quindi ogni unita' viva chiude il turno con lo scudo base pieno qualunque cosa abbia incassato.
+	// Cio' che resta osservabile — ed e' la proprieta' in esame — sono gli HP.
+	TestEqual(TEXT("gli HP dicono quanto ha assorbito lo scudo"),
+		Foe->Health, HealthBefore - FMath::Max(0, FullHit - ShieldBefore));
+	TestEqual(TEXT("e a fine turno lo scudo base e' tornato pieno"),
+		Foe->Shield, URTCombatLibrary::BaseShield);
 	TestTrue(TEXT("il TurnLog registra il colpo"), CountCombatOutcome(TM, ERTCombatOutcome::Hit) >= 1);
 
 	DestroyHexBlastWorld(World);
@@ -163,7 +172,10 @@ bool FRTHexBlastBlockedBySightTest::RunTest(const FString&)
 	RunBlastTurn(TM);
 
 	TestEqual(TEXT("nessun danno attraverso la copertura"), Foe->Health, HealthBefore);
-	TestEqual(TEXT("scudo intatto"), Foe->Shield, ShieldBefore);
+	// [D-224] Non si confronta con `ShieldBefore`: la ricarica del Cleanup renderebbe verde questo asserto
+	// anche se lo scudo fosse stato consumato e poi ripristinato. Il colpo che non parte si dimostra con gli
+	// HP intatti qui sopra e con la voce `NoLineOfSight` qui sotto.
+	TestEqual(TEXT("a fine turno lo scudo base e' pieno"), Foe->Shield, URTCombatLibrary::BaseShield);
 	TestEqual(TEXT("il TurnLog spiega il perche' (nessuna linea di tiro)"),
 		CountCombatOutcome(TM, ERTCombatOutcome::NoLineOfSight), 1);
 

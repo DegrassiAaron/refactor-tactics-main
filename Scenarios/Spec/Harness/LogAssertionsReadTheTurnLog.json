@@ -32,7 +32,7 @@
       "category": "Combat", "outcome": "Hit",
       "thenCategory": "Move", "thenOutcome": "Moved" },
     { "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "value": 1 },
-    { "type": "LogEventAmount", "category": "Combat", "outcome": "Hit", "value": 22 },
+    { "type": "LogEventAmount", "category": "Combat", "outcome": "Hit", "value": 17 },
     { "type": "LogEventCount", "category": "Facing", "outcome": "DeclarationRejected", "value": 0 },
     { "type": "UnitAtCell", "unit": "B1", "cell": [1, 0, 0] },
     { "type": "TurnsCompleted", "value": 1 }

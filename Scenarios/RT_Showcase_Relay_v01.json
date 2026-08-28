@@ -357,7 +357,7 @@
     {
       "type": "UnitHpEquals",
       "unit": "Phase",
-      "value": 74
+      "value": 79
     },
     {
       "type": "UnitAtCell",

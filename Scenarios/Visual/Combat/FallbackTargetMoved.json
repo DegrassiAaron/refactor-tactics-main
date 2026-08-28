@@ -28,7 +28,7 @@
 
   "expect": [
     { "type": "UnitHpEquals",  "unit": "B1", "value": 120 },
-    { "type": "UnitHpEquals",  "unit": "R1", "value":  75 },
+    { "type": "UnitHpEquals",  "unit": "R1", "value":  80 },
     { "type": "TurnsCompleted", "value": 1 }
   ]
 }

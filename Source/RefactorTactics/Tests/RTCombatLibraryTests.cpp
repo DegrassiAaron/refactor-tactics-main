@@ -13,7 +13,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamagePartlyAbsorbedTest,
 bool FRTDamagePartlyAbsorbedTest::RunTest(const FString&)
 {
 	// 30 danni, scudo 20 -> scudo assorbe 20, 10 agli HP: 100 -> 90.
-	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(30, 20, 100);
+	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(30, ERTDamageSource::Direct, 20, 0, 100);
 	TestEqual(TEXT("scudo consumato"), R.Shield, 0);
 	TestEqual(TEXT("HP 90"), R.Health, 90);
 	return true;
@@ -25,7 +25,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageFullyAbsorbedTest,
 bool FRTDamageFullyAbsorbedTest::RunTest(const FString&)
 {
 	// 15 danni, scudo 20 -> scudo assorbe tutto (resta 5), HP intatti.
-	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(15, 20, 100);
+	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(15, ERTDamageSource::Direct, 20, 0, 100);
 	TestEqual(TEXT("scudo residuo 5"), R.Shield, 5);
 	TestEqual(TEXT("HP 100"), R.Health, 100);
 	return true;
@@ -37,7 +37,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageExceedsAllTest,
 bool FRTDamageExceedsAllTest::RunTest(const FString&)
 {
 	// Danno enorme -> scudo e HP a 0 (nessun valore negativo).
-	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(200, 20, 100);
+	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(200, ERTDamageSource::Direct, 20, 0, 100);
 	TestEqual(TEXT("scudo 0"), R.Shield, 0);
 	TestEqual(TEXT("HP 0"), R.Health, 0);
 	return true;
@@ -48,9 +48,92 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageNoShieldTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTDamageNoShieldTest::RunTest(const FString&)
 {
-	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(30, 0, 100);
+	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(30, ERTDamageSource::Direct, 0, 0, 100);
 	TestEqual(TEXT("scudo 0"), R.Shield, 0);
 	TestEqual(TEXT("HP 70"), R.Health, 70);
+	return true;
+}
+
+// ─── [D-224] Scudo base e sorgente del danno ────────────────────────────────────────────────────────
+//
+// Lo scudo di un'unita' e' UN numero con una quota: `Shield` e' il totale, `TemporaryShield` la parte che
+// scade nel Cleanup, e cio' che avanza e' la BASE. Il danno erode sempre il temporaneo per primo; la base
+// partecipa solo se il colpo e' diretto.
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageDirectErodesTemporaryFirstTest,
+	"RefactorTactics.Combat.DirectDamageErodesTemporaryShieldBeforeBase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDamageDirectErodesTemporaryFirstTest::RunTest(const FString&)
+{
+	// 5 base + 25 temporaneo = 30. Dieci danni diretti escono TUTTI dal temporaneo.
+	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(
+		10, ERTDamageSource::Direct, /*Shield*/ 30, /*TemporaryShield*/ 25, /*Health*/ 100);
+	TestEqual(TEXT("scudo totale 20"), R.Shield, 20);
+	TestEqual(TEXT("temporaneo 15"), R.TemporaryShield, 15);
+	TestEqual(TEXT("la base non e' stata toccata"), R.Shield - R.TemporaryShield, 5);
+	TestEqual(TEXT("HP intatti"), R.Health, 100);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageDirectConsumesBaseAfterTemporaryTest,
+	"RefactorTactics.Combat.DirectDamageConsumesBaseOnceTemporaryIsGone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDamageDirectConsumesBaseAfterTemporaryTest::RunTest(const FString&)
+{
+	// 5 base + 25 temporaneo, 28 danni diretti: 25 dal temporaneo, 3 dalla base, 0 agli HP.
+	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(
+		28, ERTDamageSource::Direct, /*Shield*/ 30, /*TemporaryShield*/ 25, /*Health*/ 100);
+	TestEqual(TEXT("temporaneo esaurito"), R.TemporaryShield, 0);
+	TestEqual(TEXT("base ridotta a 2"), R.Shield, 2);
+	TestEqual(TEXT("HP intatti"), R.Health, 100);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageEnvironmentalSkipsBaseTest,
+	"RefactorTactics.Combat.EnvironmentalDamageSkipsBaseShield",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDamageEnvironmentalSkipsBaseTest::RunTest(const FString&)
+{
+	// 5 di sola base, 8 di Burning: la base NON assorbe, tutti e 8 arrivano agli HP.
+	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(
+		URTCombatLibrary::BurningCleanupDamage, ERTDamageSource::Environmental,
+		/*Shield*/ URTCombatLibrary::BaseShield, /*TemporaryShield*/ 0, /*Health*/ 100);
+	TestEqual(TEXT("la base resta intera"), R.Shield, URTCombatLibrary::BaseShield);
+	TestEqual(TEXT("HP 92"), R.Health, 92);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageEnvironmentalErodesTemporaryTest,
+	"RefactorTactics.Combat.EnvironmentalDamageStillErodesTemporaryShield",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDamageEnvironmentalErodesTemporaryTest::RunTest(const FString&)
+{
+	// L'ambientale salta la BASE, non il temporaneo: lo scudo che qualcuno ha speso un'azione per
+	// costruire copre anche dagli hazard. Questo test PINNA quella scelta — se un giorno si decidesse che
+	// `Burning` ignora ogni scudo, il rosso dice quale decisione si sta superando.
+	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(
+		URTCombatLibrary::BurningCleanupDamage, ERTDamageSource::Environmental,
+		/*Shield*/ 30, /*TemporaryShield*/ 25, /*Health*/ 100);
+	TestEqual(TEXT("temporaneo 17"), R.TemporaryShield, 17);
+	TestEqual(TEXT("la base resta intera"), R.Shield - R.TemporaryShield, 5);
+	TestEqual(TEXT("HP intatti"), R.Health, 100);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDamageEnvironmentalCanKillThroughBaseTest,
+	"RefactorTactics.Combat.EnvironmentalDamageCanKillThroughBaseShield",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDamageEnvironmentalCanKillThroughBaseTest::RunTest(const FString&)
+{
+	// Il caso che la regola esiste per preservare: 5 di base non salvano da un Burning letale. Senza la
+	// distinzione di sorgente questo colpo farebbe 3 danni invece di 8, e il danno nel tempo smetterebbe
+	// di uccidere chiunque.
+	const FRTDamageResult R = URTCombatLibrary::ApplyDamage(
+		URTCombatLibrary::BurningCleanupDamage, ERTDamageSource::Environmental,
+		/*Shield*/ URTCombatLibrary::BaseShield, /*TemporaryShield*/ 0, /*Health*/ 6);
+	TestEqual(TEXT("HP a zero"), R.Health, 0);
+	TestEqual(TEXT("lo scudo base e' ancora li', e non ha salvato nessuno"),
+		R.Shield, URTCombatLibrary::BaseShield);
 	return true;
 }
 
