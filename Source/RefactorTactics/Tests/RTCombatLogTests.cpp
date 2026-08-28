@@ -27,6 +27,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Core/RTGameplayTags.h"      // TAG_Status_Burning
 #include "Perception/RTTeamKnowledge.h" // ClassifyTarget: la premessa «e' un ricordo» si asserisce, non si spera
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
@@ -684,6 +685,89 @@ bool FRTLogKeepsTheTurnOfTheFallenTest::RunTest(const FString&)
 	TestTrue(TEXT("l'annuncio della morte si legge"), bAnnuncioMorte);
 	TestTrue(*FString::Printf(TEXT("e si legge anche il colpo che ha messo a segno prima di cadere (%d righe)"),
 		Visibili.Num()), bColpoInflitto);
+
+	RTCombatLogFixture::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * Il gemello di `#1498`, e asserisce il MECCANISMO: **un nemico mai rilevato che muore lascia l'annuncio,
+ * non il racconto.**
+ *
+ * 🔴 **Ed e' il meccanismo che conta, non l'esito.** Prima di [D-223] una riga su un'unita' morta spariva
+ * perche' il soggetto non esisteva piu' — l'attore era distrutto e la vista non aveva una voce per lui.
+ * Adesso l'annuncio resta (e' `World()`) e il racconto no, perche' il verdetto congelato di quella voce
+ * dice `Rejected`. Stessa assenza, ragione opposta: un test che chiedesse solo «non si vede» passerebbe in
+ * entrambi i mondi, compreso quello rotto.
+ *
+ * ⚠️ **La causa della morte e' scelta, non casuale.** `Status.Burning` produce una voce `Lethal` il cui
+ * soggetto e' la VITTIMA (`RTTurnManager` accoda la voce all'unita' che brucia). Con un colpo del Blast il
+ * soggetto sarebbe stato l'ATTACCANTE — cioe' un'unita' propria — e la riga si sarebbe vista di diritto:
+ * il test avrebbe misurato la convenzione del soggetto invece del filtro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLogUnseenDeathLeavesOnlyTheAnnouncementTest,
+	"RefactorTactics.UI.UnseenDeathLeavesOnlyTheAnnouncement",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLogUnseenDeathLeavesOnlyTheAnnouncementTest::RunTest(const FString&)
+{
+	UWorld* World = RTCombatLogFixture::MakeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	RTCombatLogFixture::SpawnMap(World, /*Radius=*/ 12);
+
+	// Lontani e voltati: la squadra 0 non ha mai visto la vittima.
+	ARTUnit* Osservatore = RTCombatLogFixture::SpawnUnit(World, 0, FRTCellId(-10, 0));
+	ARTUnit* Vittima     = RTCombatLogFixture::SpawnUnit(World, 1, FRTCellId(10, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Osservatore || !Vittima) { RTCombatLogFixture::DestroyWorld(World); return false; }
+
+	// Brucia, e non ha abbastanza vita per arrivare al turno dopo.
+	Vittima->Shield = 0;
+	Vittima->Health = 1;
+	Vittima->ApplyStatus(TAG_Status_Burning, /*Turns=*/ 3);
+
+	Osservatore->PlannedCell = Osservatore->Cell;
+	Vittima->PlannedCell = Vittima->Cell;
+
+	RTCombatLogFixture::RunTurn(TM);
+
+	if (!TestFalse(TEXT("premessa: la vittima e' caduta"), Vittima->IsAlive()))
+	{
+		RTCombatLogFixture::DestroyWorld(World); return false;
+	}
+
+	const TArray<FString> Visibili = TM->GetRecentEventsForTeam(0);
+	const TArray<FString> Tutte    = TM->GetRecentEvents();
+
+	// Anti-vacuita' sul RACCONTO: la riga con le celle deve esistere nel log completo, o l'assenza sotto
+	// non significherebbe nulla. E' lo stesso errore che una prima stesura di `LogShowsOwnTeamTurn` ha
+	// fatto: rossa per lo scenario, non per il difetto.
+	bool bRaccontoEsiste = false;
+	for (const FString& L : Tutte)
+	{
+		if (L.Contains(TEXT("eliminata")) && L.Contains(TEXT("q="))) { bRaccontoEsiste = true; break; }
+	}
+	if (!TestTrue(TEXT("anti-vacuita': il racconto col le celle esiste nel log completo"), bRaccontoEsiste))
+	{
+		RTCombatLogFixture::DestroyWorld(World); return false;
+	}
+
+	bool bAnnuncio = false, bRacconto = false;
+	for (const FString& L : Visibili)
+	{
+		if (L.Contains(TEXT("eliminato dalle fiamme")))                { bAnnuncio = true; }
+		if (L.Contains(TEXT("eliminata")) && L.Contains(TEXT("q=")))   { bRacconto = true; }
+	}
+
+	TestTrue (TEXT("l'annuncio della morte arriva anche a chi non l'ha mai vista"), bAnnuncio);
+	TestFalse(TEXT("ma il racconto con le celle NON arriva"), bRacconto);
+
+	// 🔴 E la ragione dell'assenza si asserisce, invece di dedurla dall'assenza stessa: il verdetto di
+	// quella vittima, per la squadra 0, e' `Rejected` — non «il soggetto non esiste piu'».
+	const FRTTeamKnowledge K = TM->KnowledgeForTeamPublic(0);
+	const ERTTargetKnowledge Classe =
+		URTTeamKnowledgeLibrary::ClassifyTarget(K, Vittima->StableUnitId, Vittima->TeamId, Vittima->Cell);
+	TestTrue(TEXT("e l'assenza viene da Rejected, non dal soggetto sparito"),
+		Classe == ERTTargetKnowledge::Rejected);
 
 	RTCombatLogFixture::DestroyWorld(World);
 	return true;
