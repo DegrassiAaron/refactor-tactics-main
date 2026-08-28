@@ -241,11 +241,14 @@ impone che la fase sia leggibile senza tinta: il colore è **ridondanza delibera
 e deve vivere **interamente nella silhouette**. È la regola «pattern prima del colore» portata alle sue
 conseguenze. Costo misurato: 119 icone portano oggi un token di famiglia, e la ricolorazione è lavoro di E25.
 
-🔴 **Nessun gate verifica questa regola.** I cinque gate dell'alfabeto controllano geometria e derivazione
-(banda del binario, riquadro di superficie, fase derivata dal C++), **mai la tinta**: restano verdi qualunque
-colore venga scritto. Il gate che servirebbe ha la forma dei suoi fratelli — per ogni `Action.*`, il token di
-colore deve essere quello della macro-fase che `action_axes.py` deriva dal C++ — e finché non esiste, la
-regola è documentale.
+✅ **Il gate `T8` verifica questa regola** (`tools/hud-assets/generate_hud_assets.py`). I cinque gate
+preesistenti controllavano geometria e derivazione — banda del binario, riquadro di superficie, fase derivata
+dal C++ — **mai la tinta**. `T8` deriva la macro-fase dal C++ due volte: `action_axes()` legge la
+`ResolutionPhase`, `match_phase_map()` legge `URTCatalogLibrary::MapResolutionPhase`.
+
+⚠️ **Il debito è dichiarato e contato**: **19** icone già conformi, **33** in `COLOR_DEBT`, **5** su una fase
+senza colore. Il gate fallisce sia su una violazione nuova (regressione) sia su una voce di `COLOR_DEBT` già
+ricolorata (lista stantia). La ricolorazione resta lavoro di **E25**; il gate impedisce che peggiori.
 
 Restano aperti, dall'handoff §12:
 
