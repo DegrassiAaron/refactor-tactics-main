@@ -37,6 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from action_axes import action_axes, hero_ability_axes, surfaces_created
+from color_metrics import check_palette
 
 try:
     import cairosvg
@@ -2463,6 +2464,15 @@ def check_alphabet_gates(entries: list) -> list[str]:
         if semantic not in COLOR_DEBT:
             errors.append(f"T8: `{semantic}` {why}")
 
+    # T9 — i quattro colori delle fasi sono davvero distinguibili (D-233).
+    # T8 verifica che ogni icona porti il colore GIUSTO; questo verifica che quei colori SIANO una
+    # palette. Sono due domande diverse: un set in cui due fasi collassano in tritanopia supererebbe
+    # T8 senza un errore, perche' ogni icona porterebbe correttamente un colore indistinguibile.
+    hud_states = {k: CHROME[k] for k in ("Cyan", "Violet", "Amber", "Red")}
+    hud_states["Disabled"] = SEMANTIC["Disabled"]
+    errors += [f"T9: {e}" for e in check_palette(
+        PHASE_INK, hud_states, {k: CHROME[k] for k in ("BG_Panel", "BG_Raised")})]
+
     if cairosvg is None:
         errors.append("T1/T3: non misurabili senza cairosvg")
         return errors
@@ -2643,7 +2653,7 @@ def main() -> int:
             print(f"   {e}")
     else:
         print("✅ gate dell'alfabeto: T1 banda libera · T3 riquadro libero · T5 fasi note · "
-              "T6 aperiodico · T7 fase derivata · T8 colore = fase")
+              "T6 aperiodico · T7 fase derivata · T8 colore = fase · T9 palette distinguibile")
         for key, why in ALPHABET_EXEMPT.items():
             print(f"   ⏱️  deroga dichiarata: {key} — {why}")
     if missing:

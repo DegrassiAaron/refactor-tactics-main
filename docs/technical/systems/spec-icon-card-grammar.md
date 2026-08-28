@@ -79,6 +79,14 @@ combinazione intuitiva è quella che fallisce**: con `Move` rosa `#CC79A7`, `Bla
 **ΔE = 1.0** in tritanopia — diventano lo stesso colore. Il giallo `#F0E442` è escluso perché dista **18.3**
 dall'ambra di `Selected`, e un colore di fase non deve somigliare a uno **stato**.
 
+✅ **La misura non è più a mano**: `tools/hud-assets/color_metrics.py` la rifà, ed è il gate `T9`. Si esegue
+anche da sola per leggere i numeri invece del verdetto:
+
+```bash
+python3 tools/hud-assets/color_metrics.py           # il referto
+python3 tools/hud-assets/color_metrics.py --json    # lo stesso, per una macchina
+```
+
 ⚠️ **Tre limiti dichiarati:**
 
 - in **grayscale** `Blast` e `Dash` distano solo `ΔL = 0.035`. Non si corregge spostando i colori: è la
