@@ -65,6 +65,9 @@ public:
 	 * logica e non ricalcolato altrove: due celle adiacenti condividono esattamente due di questi
 	 * vertici, e una guida d'authoring che non tassella e' peggio di nessuna guida. Chi disegna il
 	 * prisma chiama questa, non riscrive la trigonometria in Blueprint.
+	 *
+	 * Non contiene geometria propria: compone `AxialToWorld` e `HexCorners`, che restano gli unici due
+	 * posti in cui la griglia e la convenzione pointy-top sono scritte.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static TArray<FVector> CellCorners(const FRTCellId& Cell, const FVector& Origin, float HexSize, float LayerHeight);
