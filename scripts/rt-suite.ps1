@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Esegue la suite di automation e dichiara se la misura VALE.
 
@@ -166,10 +166,25 @@ function Get-EngineState {
     try {
         $procs = @(Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" -ErrorAction Stop |
             ForEach-Object { $_.CommandLine })
-        return [pscustomobject]@{ Engines = $procs; Error = $null }
+        # ⚠️ **Gli stessi nomi di `Get-Snapshot`**, e non e' cosmesi: `Test-EngineFree`
+        # riceve indifferentemente l'uno o l'altro, e con due vocabolari — `Error`
+        # qui, `EngineError` la' — leggeva un campo inesistente. Sotto
+        # `Set-StrictMode` LANCIA; senza, la proprieta' assente vale `$null`, la
+        # guardia sull'errore risulta sempre passata e la funzione decide sul solo
+        # conteggio: sbagliata **in silenzio**, che e' il modo peggiore.
+        return [pscustomobject]@{ Engines = $procs; EngineError = $null }
     } catch {
-        return [pscustomobject]@{ Engines = @(); Error = $_.Exception.Message }
+        return [pscustomobject]@{ Engines = @(); EngineError = $_.Exception.Message }
     }
+}
+
+# «Il motore e' libero» secondo uno stato gia' letto — mai `EngineCount -eq 0` da
+# solo, che e' vero anche quando la QUERY e' fallita. La regola sta in un posto
+# perche' era scritta in due, e i due punti gia' non concordavano su cosa fare
+# quando l'errore c'e'.
+function Test-EngineFree {
+    param($State)
+    return (-not $State.EngineError) -and ($State.Engines.Count -eq 0)
 }
 
 function Get-Snapshot {
@@ -262,7 +277,7 @@ function Get-Snapshot {
     # che fallisce APERTA, indistinguibile dal caso sano.
     $state = Get-EngineState
     $engines = $state.Engines
-    $engineError = $state.Error
+    $engineError = $state.EngineError
 
     [pscustomobject]@{
         Head        = $head
@@ -295,6 +310,13 @@ function Say-Preamble {
 
 $before = Get-Snapshot
 Say-Preamble $before
+
+# 🔴 **Inizializzata, e non e' pedanteria.** Un `Set-StrictMode -Version Latest`
+# nel profilo di chi lancia si propaga nello scope dello script, e leggere una
+# variabile mai impostata LANCIA — con `ErrorActionPreference = 'Stop'` il
+# processo esce `1`, che in §OUTPUTS significa «la suite e' rossa, dei test
+# falliscono». Per una run che il motore occupato non ha nemmeno avviato.
+$script:WaitElapsed = $null
 
 if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
     $waitUntil = (Get-Date).AddMinutes($WaitMinutes)
@@ -329,9 +351,9 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
         # della macchina, ottanta volte, buttandone via settantanove. Quel lavoro
         # cade sulla stessa macchina dove gira l'automation che sto aspettando.
         $engineState = Get-EngineState
-        if ($engineState.Error) { break }
+        if ($engineState.EngineError) { break }
 
-        if ($engineState.Engines.Count -eq 0) {
+        if (Test-EngineFree $engineState) {
             # 🔴 **Vedere zero processi non basta a smettere di aspettare.** Fra
             # questo istante e il lancio c'e' lo snapshot completo — un paio di
             # secondi — e in quella finestra un'altra sessione che esegue run **in
@@ -340,15 +362,30 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
             # questo ciclo usciva proprio li' — arrendendosi dopo 437s di un'attesa
             # da 40 minuti, con quasi tutto il tempo ancora disponibile.
             #
-            # Quindi lo snapshot si fa QUI, dentro il ciclo, e se il motore e'
-            # tornato occupato si continua ad aspettare: la finestra persa costa un
-            # giro, non l'intera attesa.
-            $candidate = Get-Snapshot
-            if (-not $candidate.EngineError -and $candidate.EngineCount -eq 0) {
-                $before = $candidate
+            # ⚠️ La conferma e' un secondo `Get-EngineState`, **non** uno snapshot
+            # completo. La prima stesura di questa correzione ci metteva
+            # `Get-Snapshot`, e riportava dentro il ciclo esattamente il costo che
+            # il commento qui sopra spiega di voler evitare — quattro invocazioni
+            # git e una seconda query, a ogni giro che sembra libero, sulla
+            # macchina dove sta girando l'automation che aspetto. E `Get-Snapshot`
+            # **lancia** su un git che fallisce: dentro il ciclo, senza `try`, quel
+            # throw sarebbe uscito dallo script con un codice non dichiarato,
+            # proprio quando l'altra sessione sta committando.
+            Start-Sleep -Milliseconds 750
+            $confirm = Get-EngineState
+
+            if ($confirm.EngineError) {
+                # Un fallimento della query NON e' «nessun processo», e non e'
+                # nemmeno «si e' rioccupato»: e' l'assenza del dato. Si esce come
+                # fa il ciclo esterno, e il verdetto lo decide chi legge l'errore.
+                $engineState = $confirm
                 break
             }
-            Write-Information ("[RT-MEASURE] ...finestra persa: il motore si e' rioccupato mentre rileggevo lo stato, continuo") -InformationAction Continue
+
+            if ($confirm.Engines.Count -eq 0) { break }
+
+            Write-Information ("[RT-MEASURE] ...finestra persa: il motore si e' rioccupato ({0:N0}s trascorsi, {1:N0}s residui)" -f `
+                $waited.Elapsed.TotalSeconds, ($waitUntil - (Get-Date)).TotalSeconds) -InformationAction Continue
             continue
         }
 
@@ -361,21 +398,32 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
             $waited.Elapsed.TotalSeconds, ($waitUntil - (Get-Date)).TotalSeconds, $engineState.Engines.Count) -InformationAction Continue
     }
 
-    # Se il ciclo e' uscito per scadenza o per errore di query, `$before` e' ancora
-    # quello di partenza: va rinfrescato prima di deciderne l'esito. Quando invece
-    # e' uscito con il motore libero, lo snapshot buono l'ha gia' preso il `break`
-    # — rifarlo qui aprirebbe una seconda finestra di corsa, che e' il difetto che
-    # questo ciclo ha appena finito di chiudere.
-    if ($null -eq $before -or $before.EngineCount -gt 0) { $before = Get-Snapshot }
+    # 🔴 **Il tempo atteso si campiona UNA volta.** Il cronometro corre, e leggerlo
+    # due volte per due messaggi diversi puo' dare «attesa scaduta dopo 2400s»
+    # seguito da «(dopo 2401s di attesa)»: due numeri per la stessa cosa, in un
+    # referto il cui unico scopo e' attribuire il blocco a chi lo teneva.
+    $waited.Stop()
+    $script:WaitElapsed = $waited.Elapsed.TotalSeconds
 
-    if (-not $before.EngineError -and $before.EngineCount -eq 0) {
-        Say ("motore libero dopo {0:N0}s: stato ridichiarato" -f $waited.Elapsed.TotalSeconds)
+    # Lo snapshot si rifa' SEMPRE dopo l'attesa: l'albero e `HEAD` possono essere
+    # stati mossi dalle altre sessioni, e la run deve partire da cio' che c'e'
+    # adesso. Non e' piu' condizionato — la versione precedente lo saltava quando
+    # il ciclo aveva gia' prodotto un candidato, con una guardia che leggeva
+    # `EngineCount` come proxy di «l'ho gia' rinfrescato»: vera solo per come e'
+    # scritto il gate d'ingresso, e silenziosamente falsa il giorno in cui quel
+    # gate cambia.
+    $before = Get-Snapshot
+
+    if (Test-EngineFree $before) {
+        Say ("motore libero dopo {0:N0}s: stato ridichiarato" -f $script:WaitElapsed)
         Say-Preamble $before
     }
-    elseif ($before.EngineCount -gt 0) {
-        Say ("attesa scaduta dopo {0:N0}s" -f $waited.Elapsed.TotalSeconds)
+    elseif ($before.EngineError) {
+        Say ("attesa interrotta dopo {0:N0}s: la query sui processi e' fallita" -f $script:WaitElapsed)
     }
-    $script:WaitElapsed = $waited.Elapsed.TotalSeconds
+    else {
+        Say ("attesa scaduta dopo {0:N0}s" -f $script:WaitElapsed)
+    }
 }
 
 # ⚠️ **L'errore va PRIMA del conteggio**: `EngineCount` e' `0` anche quando la
@@ -384,6 +432,7 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
 # contraddicono, per chi le legge dopo mezz'ora di attesa.
 if ($before.EngineError) {
     Say "NON AVVIATA: la query sui processi e' fallita — $($before.EngineError)"
+    if ($null -ne $script:WaitElapsed) { Say ("  (dopo {0:N0}s di attesa)" -f $script:WaitElapsed) }
     Say 'Senza quel dato non si puo'' sapere se il motore e'' libero, e partire alla cieca'
     Say 'significa rischiare che le due run si uccidano a vicenda.'
     exit 2
@@ -396,7 +445,10 @@ if ($before.EngineCount -gt 0) {
     Say 'NON AVVIATA: un processo del motore e'' gia'' attivo.'
     # ⚠️ I secondi TRASCORSI, non il parametro: la prima stesura stampava «dopo 40
     # minuti di attesa» per un'attesa di 437s, e quel numero e' l'unico che
-    # permette di attribuire il blocco a chi lo teneva.
+    # permette di attribuire il blocco a chi lo teneva. `$null` quando non si e'
+    # atteso affatto — inizializzata in testa, perche' sotto `Set-StrictMode`
+    # leggere una variabile mai impostata fa uscire lo script con un codice che
+    # significa «test falliti».
     if ($null -ne $script:WaitElapsed) { Say ("  (dopo {0:N0}s di attesa)" -f $script:WaitElapsed) }
     foreach ($e in $before.Engines) { Say "  $e" }
     Say 'Due run di automation si uccidono a vicenda: il mutex e'' globale sull''eseguibile del'
