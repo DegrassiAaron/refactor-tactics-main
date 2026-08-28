@@ -89,7 +89,7 @@ Va sostituita da una **banda di fase**: quattro chip — `Prep`, `Dash`, `Blast`
 in evidenza. Sono esattamente le quattro fasi volontarie che `URTIconLibrary::RequiredIconIds()` pretende;
 `Planning` e `Cleanup` non sono fasi in cui il giocatore agisce, e la reazione non è una quinta fase.
 
-⚠️ `Phase.Dash` e `Action.Dash` sono due chiavi diverse e non possono avere la stessa silhouette: una dice
+⚠️ `Phase.Dash` e `Action.Dodge` sono due chiavi diverse e non possono avere la stessa silhouette: una dice
 «in che fase siamo», l'altra «cosa sto per fare». Il differenziatore è il **chip esagonale**, non il glifo
 interno. Un widget che mostra un glifo di fase senza chip sta dicendo un'altra cosa.
 
@@ -204,7 +204,7 @@ non esporta i PNG sotto soglia — un asset illeggibile in cartella è un invito
 
 ## 6. Conflitti aperti dall'handoff Action Phases del 2026-08-26
 
-[`RefactorTactics_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_2026-08-26.md`](../../handoff/RefactorTactics_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_2026-08-26.md)
+[`RefactorTactics_ActionPhases_Dodge_Guard_Brace_Overwatch_Epics_v1.0_2026-08-26.md`](../../../archive/src/handoff/2026-08-26-action-phases-dodge-guard-brace-overwatch.md) — *da `docs/research/handoff/`, archiviato col proprio verdetto e rimosso dall'inbox il 2026-08-27; il link è stato ripuntato il 2026-08-28* —
 è entrato nel repository come **input**, non come autorità: lo dice `CLAUDE.md` («un handoff non è
 autorità») e lo dice il documento stesso, che impone di auditare `main` prima e di aprire una Decision
 Issue sui conflitti invece di sovrascrivere.
@@ -213,7 +213,7 @@ Tre punti toccano il set di icone. Nessuno dei tre è stato applicato.
 
 | Punto | Handoff | Repository misurato | Conseguenza sul set |
 |---|---|---|---|
-| §4.1 `Dash` → `Dodge` (`LOCKED_CHAT`) | `Dash` è **solo** macro-fase; il movimento generico si chiama `Dodge` | `Action.Dash` è nel catalogo generico (`RTCatalogLibrary.cpp`), e `ERTMatchPhase::Dash` è la fase: **lo stesso nome per due cose** | Il glifo di `Action.Dash` esiste e resta richiesto **oggi**. Il giorno del rename, `RequiredIconIds()` chiederà `Dodge` da sola e il generatore segnalerà la chiave scoperta |
+| §4.1 `Dash` → `Dodge` (`LOCKED_CHAT`) | `Dash` è **solo** macro-fase; il movimento generico si chiama `Dodge` | `Action.Dodge` è nel catalogo generico (`RTCatalogLibrary.cpp`), e `ERTMatchPhase::Dash` è la fase: **lo stesso nome per due cose** | Il glifo di `Action.Dodge` esiste e resta richiesto **oggi**. Il giorno del rename, `RequiredIconIds()` chiederà `Dodge` da sola e il generatore segnalerà la chiave scoperta |
 | §4.1 vs catalogo | il nome proposto per lo scarto rapido è `Dodge` | esiste già **`Action.Evade`**, spedita, con lo stesso significato di scarto | Due nomi per la stessa cosa. Va deciso da una persona: `Dodge` sostituisce `Evade`, o convivono con significati diversi? Il set oggi disegna `Evade` |
 | §4.7 Reaction come risorsa | `Guard` e `Interact` **spengono** la reazione | `ERTActionSlot::Reaction` è indipendente da Movimento e Principale | Nessun impatto sul disegno; impatto forte sulla **skill bar**, che deve poter mostrare una corsia spenta da un'altra scelta — è lo stesso requisito che `Sprint` (`MovementAndMain`) ha già oggi e che il mock non rappresentava (§3.4) |
 

@@ -845,10 +845,10 @@ bool FRTKitDeclaredBothSlotsDeclaresTheDiscardTest::RunTest(const FString&)
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(DashTo + ShotRange, 0));
 	if (!TestNotNull(TEXT("Foe"), Foe)) { DestroyHexMoveWorld(World); return false; }
 
-	// Uno scatto identico ad `Action.Dash` TRANNE lo slot: e' il kit a dichiarare che costa tutto il turno.
+	// Uno scatto identico ad `Action.Dodge` TRANNE lo slot: e' il kit a dichiarare che costa tutto il turno.
 	URTActionData* Costly = NewObject<URTActionData>(Runner);
 	Costly->DisplayName = FText::FromString(TEXT("Scatto totale"));
-	Costly->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
+	Costly->Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
 	Costly->Def.ActionId = FName(TEXT("Hero.CostlyDash"));
 	Costly->Def.Slot = ERTActionSlot::MovementAndMain;
 	Runner->Abilities.Add(Costly);

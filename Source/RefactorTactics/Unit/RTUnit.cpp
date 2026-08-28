@@ -832,12 +832,12 @@ void ARTUnit::EnsureDefaultAbilities()
 	Abilities.Add(MakeAbility(TEXT("Attacco"), AttackRange, AttackPower, 0, 0, 0, FGameplayTag(), 0));
 	Abilities.Add(MakeAbility(TEXT("Colpo pesante"), FMath::Max(1, AttackRange - 1), AttackPower + 20, 0, 2, 0, FGameplayTag(), 0));
 	Abilities.Add(MakeAbility(TEXT("Ultimate"), AttackRange, AttackPower * UltimateMultiplier, UltimateRadius, 0, MaxEnergy, TAG_Status_Slow, 2));
-	// Scatto generico: portata, ricarica e identita' vengono da `Action.Dash`, non da numeri inventati qui.
+	// Scatto generico: portata, ricarica e identita' vengono da `Action.Dodge`, non da numeri inventati qui.
 	// E' anche cio' che lo rende riconoscibile come mobilita' rapida: il gate e' la FASE dichiarata dal
 	// catalogo (`URTCatalogLibrary::IsFastMovement`), non un flag booleano sull'asset.
-	const FRTActionDef DashDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
-	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), DashDef.RangeCells, 0, 0, DashDef.CooldownTurns, 0, FGameplayTag(), 0);
-	Scatto->Def = DashDef;
+	const FRTActionDef DodgeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
+	URTActionData* Scatto = MakeAbility(TEXT("Scatto"), DodgeDef.RangeCells, 0, 0, DodgeDef.CooldownTurns, 0, FGameplayTag(), 0);
+	Scatto->Def = DodgeDef;
 	Abilities.Add(Scatto);
 
 	SyncAbilityCooldowns();

@@ -1,6 +1,23 @@
 # ADR-0008 — La rotazione è una capacità del personaggio, e il facing si dichiara per azione
 
-> `CANONICAL` · **Stato**: Accettato — da implementare (E11/E16) · **Data**: 2026-08-10 · **Decisore**: utente (dev singolo)
+> `CANONICAL` · **Stato**: Accettato — **non implementato**, tracciato in
+> [#1605](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1605) · **Data**: 2026-08-10 ·
+> **Decisore**: utente (dev singolo)
+>
+> 🔴 **«Da implementare (E11/E16)» era orfano, ed è stato misurato il 2026-08-28 su `f8ea244b`.** `E16`
+> ([#175](https://github.com/DegrassiAaron/refactor-tactics-main/issues/175)) era **chiusa il 2026-08-09**,
+> cioè il giorno prima che questo ADR fosse accettato; `E11`
+> ([#25](https://github.com/DegrassiAaron/refactor-tactics-main/issues/25)) è *HUD, log e debug* e non
+> possiede una regola del resolver. Risultato: `MoveEndPivotMaxSteps` e `DashEndPivotMaxSteps` hanno **0**
+> occorrenze in `Source/`, **nessun** corpo di issue li nominava, e **nessuno** dei test della tabella
+> *Verifica* qui sotto esiste. Il runtime applica ancora la tabella per **stile** di ADR-0005 §1 — quella
+> che questo documento dichiara di superare.
+>
+> ⚠️ **E il trigger di revisione è già passato**: la §Revisione fissa la prima rilettura dei numeri «alla
+> chiusura di `CP 16.2`», e [#177](https://github.com/DegrassiAaron/refactor-tactics-main/issues/177) è
+> **CLOSED**. Nessun gate confronta un ADR accettato con i simboli del codice, quindi la divergenza non ha
+> mai fatto rosso niente. La **release** in cui l'implementazione atterra non è decisa, ed è dichiarata come
+> domanda aperta nel corpo di #1605.
 >
 > **Chiude**: `FAC-1`, `FAC-2`, `FAC-4` di [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) · issue [#341](https://github.com/DegrassiAaron/refactor-tactics-main/issues/341) e [#339](https://github.com/DegrassiAaron/refactor-tactics-main/issues/339) (parziale)
 > **Supera**: [ADR-0005](adr-0005-orientamento.md) §1 (tabella delle direzioni legali) e §3 (regola universale dello spostamento subìto)
