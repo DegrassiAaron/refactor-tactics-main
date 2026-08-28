@@ -1,11 +1,18 @@
 # Piani, referti e triage — come si legge questa cartella
 
-> `CURRENT` · **Ultimo aggiornamento**: 2026-08-14
+> `CURRENT` · **Ultimo aggiornamento**: 2026-08-28
 > **Cosa è**: l'indice del **criterio**, non dei contenuti. Dice come capire, aprendo un file di questa
 > cartella, se quello che afferma vale ancora.
 > **Cosa non è**: una fonte di stato. Nessun documento qui è owner di qualcosa — gli owner sono
-> [`../../decisions/`](../../decisions/RT_PDR_00_Decision_Log.md), `../feature-registry.yaml`,
+> [`../../decisions/`](../../decisions/RT_PDR_00_Decision_Log.md),
 > [`../roadmap-checkpoint.md`](../roadmap-checkpoint.md) e [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md).
+>
+> ⌫ **Fino al 2026-08-28 questa riga elencava anche `../feature-registry.yaml`**, che non esiste dal
+> 2026-08-21 ([D-181](../../decisions/RT_PDR_00_Decision_Log.md)). Non aveva la forma di un link — era
+> testo fra backtick — quindi nessun controllo sui percorsi poteva vederlo, ed è sopravvissuto **sette
+> giorni** alla propria rimozione dichiarando come owner corrente un file cancellato. 🔴 **Ciò che si perde
+> è dichiarato**: lo stato di una feature non ha più un owner unico. Si legge da codice, test e roadmap
+> scritta a mano — che è esattamente ciò che D-181 accetta di pagare.
 
 ## Il criterio è il banner, non la data
 
@@ -18,18 +25,21 @@ Ogni file qui porta un **banner di stato** nella prima riga dopo il titolo. È l
 
 ## Le due lingue, e cosa significano
 
-⚠️ **I banner parlano due vocabolari.** Non è un difetto da sanare riscrivendo 24 documenti — è un fatto da
-dichiarare, perché la mappa serve a chi legge e la riscrittura no.
+⚠️ **I banner parlano più di un vocabolario.** Non è un difetto da sanare riscrivendo i documenti — è un
+fatto da dichiarare, perché la mappa serve a chi legge e la riscrittura no. ⚠️ **E i vocabolari sono
+tre, non due**: oltre a quello canonico e a quello dei piani consegnati, `project-control-center-spec.md`
+apre in italiano con `⛔ STORICO`. Il conteggio lo classifica `?`, ed è il verso giusto — un oracolo che
+indovinasse i sinonimi nasconderebbe proprio la deriva che deve mostrare.
 
 <!-- RT_PIANI_BANNER:BEGIN -->
 
 | Banner | Significa | Quanti |
 |---|---|--:|
-| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 41 |
+| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 42 |
 | `SNAPSHOT` | Fotografia di una data. **Resta qui** finche' e' l'ultima misura del suo oggetto | 6 |
-| `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | 3 |
+| `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | 6 |
 | `PLAN` | Piano gia' **consumato**: resta per la provenienza di cio' che ha prodotto | 1 |
-| **totale** | | **51** |
+| **totale** | | **55** |
 
 In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **43**: quelli che il banner dichiarava gia' storici.
 
@@ -51,6 +61,28 @@ In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **4
 > cui questi numeri stanno — ma dentro **ora si scrive a mano**, e l'unico oracolo rimasto è il blocco
 > Python in fondo a questa pagina, che non dipende da niente di rimosso.
 >
+> 🔴 **Rimisurata il 2026-08-28, e lo scarto era di quattro — di cui uno solo era di questo giro.** La
+> cella diceva `CURRENT 41 · SNAPSHOT 6 · nessun banner 3 · PLAN 1 · totale 51`; la cartella ne contiene
+> **55**. Questa sessione ne aggiunge **uno**
+> ([`dir-a-v01-integration-spec-panel-2026-08-28.md`](dir-a-v01-integration-spec-panel-2026-08-28.md),
+> `CURRENT`): gli **altri tre** erano atterrati nei giorni precedenti senza che la cella si muovesse, ed è
+> la deriva che questa pagina dichiara sette volte e subisce all'ottava. Gli addendi sono stati **riletti
+> dai banner sul disco** col blocco Python qui sotto, non incrementati: `CURRENT` **42**, `nessun banner`
+> 3 → **6**, `SNAPSHOT` e `PLAN` invariati. L'archivio è stato ricontato a parte e sta fermo a **43**.
+>
+> ➕ **E i sei `?` non sono sei casi isolati: sono due pattern**, guardati invece che sommati come questa
+> sezione prescrive. **(1) Quattro piani aprono con un'istruzione all'esecutore** invece che con un banner
+> — `conoscenza-parziale-fase-a-2026-08-26`, `cp153b-decision-provider-plan-2026-08-16`,
+> `screen-hud-umg-2026-08-26`, `u23-sequenza-seduta-2026-08-23`: la prima riga di citazione dice *«Per chi
+> esegue»* o *«Per esecutori agentici»*, che è informazione utile e non uno stato. Il README ne discuteva
+> **uno** come eccezione; sono diventati una forma ricorrente, e il criterio *«il banner è l'unica cosa da
+> guardare»* su questi non ha niente da leggere. **(2) Due portano uno stato in un vocabolario che
+> l'oracolo non conosce**: `derivazioni-azioni-eroe-plan-2026-08-26` apre con `✅ Eseguito il 2026-08-26`, e
+> `project-control-center-spec.md` con `⛔ STORICO … Decaduta il 2026-08-21` — cioè un **terzo** vocabolario,
+> in italiano, dove la pagina ne dichiarava due. ⚠️ Quest'ultimo, per il criterio della §*Quando un piano si
+> archivia*, **appartiene già all'archivio**: lo dice da sé. Non è stato spostato in questo giro perché
+> archiviare è una riorganizzazione e va fatta come atto proprio, non di passaggio.
+
 > 🔴 **Rimisurata il 2026-08-25, e tre numeri su quattro erano fermi.** La cella diceva `CURRENT 42 ·
 > SNAPSHOT 12 · nessun banner 2 · totale 56`; la cartella ne conteneva **57**, con `CURRENT` **41**, senza
 > banner **3**, e una **quarta categoria che la tabella non aveva**: `PLAN`, 1. È esattamente il caso che
@@ -176,8 +208,12 @@ deriva che questa sezione lo aggiunge a misurare.
 > **dopo** il merge.
 > **La lezione non è che il numero sia sbagliato — oggi è giusto — ma che la sua garanzia lo era**: una
 > previsione si legge con **due** comandi, `gh pr list` *e* `git ls-remote`/`git diff` sui branch remoti.
-> È scritto nell'intestazione di `../parallel-batch.yaml`, ed è stato ignorato
-> nel documento che quel file esiste per proteggere. Trovato in code review.
+> ⌫ **La regola era scritta nell'intestazione di `../parallel-batch.yaml`, che non esiste più**: è uscito
+> col sistema di lavoro parallelo il 2026-08-20
+> ([D-178](../../decisions/RT_PDR_00_Decision_Log.md)). La **regola sopravvive al proprio owner** — due
+> comandi, non uno — e da allora vive solo qui. ⚠️ Ma il rischio che la motivava è cambiato di forma, non
+> sparito: con lo sviluppo sequenziale la finestra si chiude quasi tutta, e resta aperta **finché esistono
+> PR non mergiate**.
 
 ✅ **Nessun `HISTORICAL` canonico resta qui**: dal 2026-08-14 vivono tutti in
 [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/README.md).
@@ -188,11 +224,19 @@ La regola giusta è più stretta: `SNAPSHOT` significa *«sono una fotografia»*
 fotografia **fresca** è la misura più recente del suo oggetto e serve dov'è; si archivia quando **una misura
 più nuova la sostituisce**, o quando ciò che fotografava non esiste più.
 
-⚠️ **Ma 24 documenti restano storici nel secondo vocabolario**, ed è un arretrato **dichiarato**, non
-nascosto: `DELIVERED PLAN` e `AS-BUILT` significano *già consegnato*, quindi per contenuto appartengono
-all'archivio. Non sono stati spostati in questo giro perché l'archiviazione del 2026-08-14 ha applicato il
-criterio del **banner canonico**, e mescolarci una traduzione di vocabolario avrebbe reso una
-riorganizzazione meccanica una revisione di 24 documenti. Sono il lotto successivo, e sono contati.
+✅ **L'arretrato del secondo vocabolario è stato smaltito, e questa pagina ha continuato a dichiararlo
+aperto per nove giorni.** Diceva: *«24 documenti restano storici nel secondo vocabolario … sono il lotto
+successivo, e sono contati»* — `DELIVERED PLAN` e `AS-BUILT`, che significano *già consegnato*. Il lotto è
+partito il **2026-08-19** ed è raccontato **sei capoversi più su, in questa stessa pagina**: *«23 documenti
+hanno raggiunto l'archivio. Portavano `DELIVERED PLAN`, `AS-BUILT`, `DONE` o `BRIEF`»*. Rimisurato il
+2026-08-28 col blocco Python qui sotto: nella cartella restano **zero** `DELIVERED PLAN` e **zero**
+`AS-BUILT`.
+
+> 🔴 **Il difetto non è il numero: è che le due frasi erano adiacenti e si contraddicevano.** Una diceva
+> che il lotto era partito, l'altra che aspettava — e chi leggeva in ordine incontrava prima la buona
+> notizia e poi quella vecchia, quindi credeva alla seconda. È lo stesso difetto che
+> [D-181](../../decisions/RT_PDR_00_Decision_Log.md) registra su di sé, e vale la regola generale: **un
+> arretrato dichiarato va chiuso nel punto in cui era dichiarato**, non solo dove viene smaltito.
 
 **Un banner `CURRENT` non è una garanzia**: è una dichiarazione fatta il giorno in cui il file è stato
 scritto. Vale finché l'owner non lo smentisce, e l'owner ha sempre ragione.
@@ -211,9 +255,13 @@ dice già:
 > ([`../../decisions/`](../../decisions/RT_PDR_00_Decision_Log.md)). Archiviare è una riorganizzazione;
 > dichiarare superato è un'affermazione. Confonderle è il modo in cui un archivio comincia a mentire.
 
-I 23 piani `CURRENT` che hanno una data nel nome **restano qui apposta**: diversi sono l'istruttoria che
-`OPEN_DECISIONS.md` e il Decision Log citano per decisioni ancora aperte. Spostarli non li renderebbe più
-vecchi — allungherebbe solo il percorso per raggiungerli.
+I piani `CURRENT` che hanno una data nel nome — **41** al 2026-08-28, misurati e non ricordati — **restano
+qui apposta**: diversi sono l'istruttoria che `OPEN_DECISIONS.md` e il Decision Log citano per decisioni
+ancora aperte. Spostarli non li renderebbe più vecchi — allungherebbe solo il percorso per raggiungerli.
+
+> ⌫ Questa riga ha detto **23** fino al 2026-08-28, ed era la misura del 2026-08-14 rimasta indietro di
+> diciotto documenti. Un numero letterale in prosa non ha un oracolo accanto e invecchia **senza che una
+> riga cambi**: si conta con un `grep -E '\d{4}-\d{2}-\d{2}'` sui nomi, incrociato col banner.
 
 ## Un piano non è un owner
 
