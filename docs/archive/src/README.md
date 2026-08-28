@@ -2,6 +2,43 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
+> 🟡 **Senza ordinale, e il motivo è la prima misura di questo giro: la serie degli ordinali è rotta.**
+> Questo giro ha archiviato il kit *Combat + SkillGrammar Delta*. Il comando che questa pagina dichiara
+> canonico — `find docs/archive/src -name '*.md' ! -name README.md`, *«l'unico che non ha un punto cieco»* —
+> risponde **`99`** sull'albero di questo commit = `17` `design/` + **`53`** `handoff/` + `2` `audit/` +
+> `4` `graytoolkit/` + `23` in radice. Prima: **`98`**, con `52` `handoff/`. È l'unico addendo che cambia.
+>
+> 🔴 **Il primo errore era mio, e il comando canonico non me ne avrebbe salvato.** Lo stesso comando eseguito
+> sul **disco** risponde **`102`**, non `99`: nella working directory ci sono **tre** handoff `2026-08-28`
+> ancora `untracked`, archiviati da un'altra sessione e non presenti nell'albero che questo commit scrive.
+> Avevo scritto `102` prima di accorgermene. **Un numero misurato sul disco non è il numero dell'albero**, e
+> in una working directory condivisa (`D-222`) i due divergono di quanto lavora chiunque altro in quel
+> momento. Il comando giusto sull'oggetto sbagliato resta una misura falsa — e questa forma non era ancora
+> stata incontrata, perché tutti i giri precedenti hanno inseguito l'aritmetica.
+>
+> ⚠️ **Il secondo è che questa pagina non dichiarava il proprio criterio.** La misura parallela in corso in
+> questa stessa working directory riporta **`111`** contando **tutti i file**; questa conta i soli `.md`. Nel
+> solo `handoff/` la differenza sono un `.xlsx` e un `.json`, in `graytoolkit/` due `.png`, in radice due
+> `.zip`, due `.svg` e un `.json`. **Due criteri, due totali, nessuno dei due sbagliato** — e la pagina che
+> insegue l'aritmetica da quattordici giri non diceva quale fosse il suo.
+>
+> ➕ **E gli addendi non tornano col totale nemmeno a criterio fisso**: `17 + 53 + 2 + 5 + 23 = 100`, contro
+> `99`. La causa è `graytoolkit/README.md`, un **README annidato**: il totale lo esclude per basename, la
+> colonna della sua cartella no. L'addendo corretto di `graytoolkit/` è **`4`**, e con quello la somma torna.
+> È il rovescio della decima volta — lì mentiva l'indice e il totale reggeva, qui mente **l'addendo**.
+>
+> ⛔ **Perché questo blocco non ha un numero.** Misurato sulla pagina: gli ordinali di intestazione arrivano
+> già a **Diciottesima**, che compare **due volte**; `Quindicesima` e `Quattordicesima` sono state riusate
+> dai due giri in corso oggi, questo incluso prima della correzione; e `decima volta` ricorre **quattro**
+> volte perché le citazioni interne in minuscolo sono indistinguibili dalle intestazioni per chiunque conti
+> con `grep`. **Un contatore in prosa che nessuno interroga è la stessa classe di difetto del totale che
+> questa pagina insegue da quattordici giri** — e aggiungerne un'altra occorrenza sarebbe stato il modo più
+> ironico di sbagliare. La sostanza sta nel blocco, non nel suo numero.
+>
+> 🔮 **Previsione verificabile**: quando i tre handoff `untracked` atterreranno, il comando canonico
+> risponderà **`102`** con `56` `handoff/`. Se al merge dice altro, ha archiviato qualcun altro — e allora si
+> **riesegue**, non si aggiusta.
+>
 > 🔴 **Rimisurato il 2026-08-27, e la formula sbaglia su DUE assi invece che su uno.** Questo giro ha
 > archiviato l'handoff *Action Phases / Dodge / Guard / Brace / Overwatch* — non da fuori, ma **dall'inbox**:
 > era arrivato su `main` in [`../../research/handoff/`](../../research/) mentre un altro ramo lo archiviava
@@ -402,6 +439,7 @@ Decision Log erano esenti anche le voci **nuove**, quelle che descrivono il rost
 | [`2026-08-28-github-issues-roadmap-v01-v10.md`](handoff/2026-08-28-github-issues-roadmap-v01-v10.md) | Issue e roadmap GitHub v0.1 → v1.0: dieci fasi, `VisionRange`, privacy, epic `E40`–`E45` | ⚠️ **Riga aggiunta il 2026-08-28**: il file era archiviato senza comparire in questo indice. Consumato lo stesso giorno su base `2809a377`, con **tre premesse falsificate**: FASE 2 non eseguita (il boundary `VisionRange` era gia' chiuso, diventa `CP 27.4` / [#1569](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1569) sotto E27/v0.3), FASE 3 invertita (il difetto era una frase falsa in [#151](https://github.com/DegrassiAaron/refactor-tactics-main/issues/151)), FASI 5–7 eseguite. ➕ L'audit ha trovato **dieci epic v0.2–v0.4 senza checkpoint** e ha aperto **31 issue** ([#1557](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1557) → [#1587](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1587)), ognuna col vincolo «non si apre prima dei 15 gate della v0.1» scritto nel corpo |
 | [`2026-08-28-master-issue-reconciliation.md`](handoff/2026-08-28-master-issue-reconciliation.md) | Riconciliazione globale delle issue: diciassette domini, HUD, icone, facing, placement, overwatch, rumore, camera, frontend, bot, ladder v0.5 → v1.0, gap ranked | [referto](../../roadmap/plans/master-issue-reconciliation-spec-panel-2026-08-28.md). ✅ **Accurato su cio' che cita**: **77** numeri di issue su 77 esistono, ladder e tabella pivot di `ADR-0008` identiche al canone, i divieti su `PlacementSector`/`CoverAnchor`/`OverwatchDirection` descrivono lo stato reale (**0** in `Source/`). 🔴 **Stantio il giorno stesso**: tetto `#1430`, con **72** issue sopra e **31** aperte lo stesso 2026-08-28 dal kit gemello della riga precedente. ⛔ Il §20 (audit `E40`–`E45`) era **gia' eseguito**. 🔴 `CAMERA: []` e' un falso per assenza: **7** issue Camera esistono, tutte CLOSED. ⚠️ Otto epic vive nei suoi domini non sono citate (`E13` `E22` `E27` `E28` `E36` `E38` `E48`, piu' `#637`). ✅ **Tre tesi sopravvivono**: gap `ranked` reale, divergenza `ADR-0008`/runtime senza owner, End Placement correttamente `PROPOSED`. ⛔ **Nessuna issue creata o modificata**, nessun `D-nnn` assegnato |
 | [`2026-08-28-master-issue-reconciliation-manifest.json`](handoff/2026-08-28-master-issue-reconciliation-manifest.json) | Manifest dei diciassette domini del kit qui sopra: policy, ladder, `known_issues` per dominio | Archiviato **verbatim** accanto al proprio kit; il verdetto e' nella riga precedente. 🔴 E' il file che porta il tetto `#1430` e l'array vuoto `CAMERA: {"known_issues": []}` |
+| [`2026-08-28-combat-skillgrammar-delta.md`](handoff/2026-08-28-combat-skillgrammar-delta.md) | Combat Effect Model + Skill Card Grammar: semantica `Skill/Attack/Hit/Damage/Effect`, invarianti Armor/DamageResistance/Piercing/Shred, formula additiva, e sei gruppi semantici sui vertici della card | [referto](../../roadmap/plans/combat-skillgrammar-delta-spec-panel-2026-08-28.md). 🔴 **Il contributo che vale il consumo è un conflitto che il kit non nomina**: `Armor` e il `BaseShield = 5` di [D-224] hanno la **stessa** condizione di applicabilità (*«solo danno Direct»*) e nessuna delle due fonti vede l'altra — il PRD è verificato il 2026-08-27, `D-224` è del 2026-08-28. Misurato: con `Armor 3`, due colpi da 10 tolgono **9 HP invece di 15**, il **40%** di bilanciamento per omissione. ⛔ **Undici invarianti su undici del §3 erano già scritte** nella tabella delle decisioni congelate del PRD, e il divieto `Shape ⇒ Attack ⇒ Hit` era già chiuso da `D-221` con `bCountsAsAttack`. ⛔ **Tre dei sei gruppi visivi erano già decisi il giorno prima** da `D-231`: `♦`/`■`/`▲` sono il rombo, il quadrato e il triangolo, stesso significato e altro nome. ⛔ **Il settore `COUNTER` è rifiutato**: i sei termini che mostrerebbe (`Armor`, quattro `*Resistance`, `StatusResistance`) hanno **zero occorrenze in `Source/`**. ⛔ Gli esempi `Damage 30`/`24` sono fuori scala di un fattore sei rispetto al danno reale più piccolo (`Burning` 8): prevale l'owner. ✅ **Due tesi sopravvivono intere** — Vulnerability come famiglia e non stat, elementi come verbi sistemici — più la correzione di una collisione di posizione dell'owner (`alto-destra` assegnato a due categorie), che è il contributo migliore e non è nella lista dei suoi titoli. ➕ **`D-234` e `D-235` assegnati**; nessuna issue creata, `E49` resta una proposta |
 
 ### Il pacchetto `consolidazione-chat-openai` — dodici sorgenti, un solo triage
 
