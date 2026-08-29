@@ -374,9 +374,18 @@ namespace
 	 * quattro insieme» — era diventata una regola di diagnosi che non vale piu', cioe' esattamente il modo in
 	 * cui un commento fa cercare il difetto nel posto sbagliato. Trovato in code review.
 	 *
-	 * ⚠️ **UNA categoria resta scoperta, ed e' dichiarato**: `ReactionClash`. Non e' un lavoro rimandato, e' un
-	 * lavoro **BLOCCATO** — sta in `KnownUnavailableCapabilities()` con owner `#314`, e uno scenario che la
-	 * chiedesse non verrebbe eseguito affatto.
+	 * ⚠️ **DUE categorie restano scoperte, ed e' dichiarato**: `ReactionClash` e `Objective`, per ragioni
+	 * diverse che vale la pena tenere distinte.
+	 *
+	 * `ReactionClash` non e' un lavoro rimandato, e' un lavoro **BLOCCATO** — sta in
+	 * `KnownUnavailableCapabilities()` con owner `#314`, e uno scenario che la chiedesse non verrebbe
+	 * eseguito affatto.
+	 *
+	 * `Objective` (#75, CP 10.2, dal 2026-08-29) e' scoperta per **assenza di contenuto**, non di codice: la
+	 * regola gira e i suoi test la esercitano, ma nessuna mappa del corpus dichiara una cella obiettivo —
+	 * e su una mappa senza obiettivi il Cleanup TACE di proposito (`Objectives.SilentWithoutObjectiveCell`),
+	 * altrimenti ogni scenario gia' archiviato guadagnerebbe una voce per turno. Si copre il giorno in cui
+	 * uno scenario golden posa un obiettivo, e allora la soglia qui sotto sale a dieci.
 	 *
 	 * 🔴 **E la prova sta nei quattro scenari che gia' la chiedono.** `Scenarios/Spec/Clash/*.json` dichiarano
 	 * `requires: ["DecisionBoundary", "ReactionClash"]` ed escono **`Blocked`** — la loro stessa nota lo
@@ -552,9 +561,13 @@ bool FRTGoldenCorpusCoverageTest::RunTest(const FString&)
 
 	// 🔴 **Il patto**: questa soglia e' cio' che il corpus promette di coprire. Alzarla e' un miglioramento;
 	// abbassarla e' una decisione da dichiarare, non un effetto collaterale.
-	// 🔴 **Nove**, misurato il 2026-08-28 (`#1593`): resta scoperta la sola `ReactionClash`, e la ragione —
-	// BLOCCATA, owner `#314` — sta accanto a `GoldenScenarioIds`. Era **otto** finche' `Fallback` era
-	// dichiarata scoperta insieme a lei, pur avendo gia' il proprio scenario.
+	// 🔴 **Nove**, misurato il 2026-08-28 (`#1593`) e CONFERMATO il 2026-08-29 (`#75`): restano scoperte
+	// `ReactionClash` — BLOCCATA, owner `#314` — e `Objective`, che il corpus non copre perche' nessuna sua
+	// mappa dichiara un obiettivo. Le ragioni stanno accanto a `GoldenScenarioIds`. La soglia **non scende**:
+	// l'enum e' passato da dieci categorie a undici, ma cio' che il corpus copre e' rimasto lo stesso, e
+	// abbassarla per far spazio a una categoria nuova sarebbe il contrario di cio' che questo patto protegge.
+	// Era **otto** finche' `Fallback` era dichiarata scoperta insieme a `ReactionClash`, pur avendo gia' il
+	// proprio scenario.
 	//
 	// ⚠️ **Alzare questo numero e' cio' che rende la copertura nuova falsificabile.** Aggiungere lo scenario
 	// all'elenco senza toccare la soglia avrebbe lasciato il test verde **prima e dopo**: la categoria in
@@ -567,7 +580,7 @@ bool FRTGoldenCorpusCoverageTest::RunTest(const FString&)
 
 	// 🔴 **E l'IDENTITA' di cio' che resta scoperto, non solo il conteggio.** Un cambio che perdesse una
 	// categoria guadagnandone un'altra terrebbe il numero a nove e questo test verde, mentre la nota accanto
-	// a `GoldenScenarioIds` — «resta scoperta la sola `ReactionClash`» — diventerebbe falsa **senza segnale**.
+	// a `GoldenScenarioIds` — quali categorie restano scoperte — diventerebbe falsa **senza segnale**.
 	// E' lo stesso argomento della soglia applicato al NOME invece che alla cardinalita': una promessa che
 	// nessuno misura non e' falsificabile. Una categoria NUOVA dell'enum, senza copertura, fa cadere anche
 	// questa riga — ed e' voluto: va dichiarata, non ereditata. Trovato in code review.
@@ -584,8 +597,8 @@ bool FRTGoldenCorpusCoverageTest::RunTest(const FString&)
 		}
 	}
 	Scoperte.Sort();
-	TestEqual(TEXT("e a restare scoperta e' esattamente `ReactionClash` (owner #314)"),
-		FString::Join(Scoperte, TEXT(", ")), FString(TEXT("ReactionClash")));
+	TestEqual(TEXT("e a restare scoperte sono esattamente `Objective` (#75: nessuna mappa del corpus dichiara un obiettivo) e `ReactionClash` (owner #314)"),
+		FString::Join(Scoperte, TEXT(", ")), FString(TEXT("Objective, ReactionClash")));
 
 	return true;
 }
