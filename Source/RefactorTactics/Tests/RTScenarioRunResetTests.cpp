@@ -498,8 +498,11 @@ bool FRTScenarioRunIsExposedTest::RunTest(const FString&)
 		FRTScenarioAssertionView::StaticStruct(), FRTScenarioLogEntryView::StaticStruct() })
 	{
 		if (!TestNotNull(TEXT("il DTO esiste"), Struct)) { continue; }
+		// Stessa ragione di sopra: `GetBoolMetaData` e' sotto `WITH_METADATA`, spento in un target Game.
+#if WITH_METADATA
 		TestTrue(*FString::Printf(TEXT("'%s' e' BlueprintType"), *Struct->GetName()),
 			Struct->GetBoolMetaData(TEXT("BlueprintType")));
+#endif
 	}
 
 	// ⚠️ `ERTTestOutcome` e' l'UNICA eccezione ad ADR-0010, e va verificata: senza `BlueprintType` la UI non
@@ -509,7 +512,9 @@ bool FRTScenarioRunIsExposedTest::RunTest(const FString&)
 	const UEnum* OutcomeEnum = StaticEnum<ERTTestOutcome>();
 	if (TestNotNull(TEXT("ERTTestOutcome esiste"), OutcomeEnum))
 	{
+#if WITH_METADATA
 		TestTrue(TEXT("ed e' BlueprintType"), OutcomeEnum->GetBoolMetaData(TEXT("BlueprintType")));
+#endif
 		TestEqual(TEXT("con i suoi quattro esiti distinti"), OutcomeEnum->NumEnums() - 1, 4);
 	}
 

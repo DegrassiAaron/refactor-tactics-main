@@ -30,12 +30,14 @@ import argparse
 import io
 import json
 import math
+import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from action_axes import action_axes, hero_ability_axes, surfaces_created
+from color_metrics import check_palette
 
 try:
     import cairosvg
@@ -2387,6 +2389,41 @@ def _ink_rows(glyph_svg: str, resolution: int = 240):
     return Image.open(io.BytesIO(png)).convert("RGBA").split()[3]
 
 
+def color_phase_audit(entries: list) -> tuple[list, list, list]:
+    """Il token di ogni icona d'azione dice la sua macro-fase? (D-232, palette D-233).
+
+    La macro-fase NON si scrive qui: si deriva dal C++ due volte di seguito — `action_axes()` legge
+    la `ResolutionPhase` dichiarata dal catalogo, `match_phase_map()` legge come quella diventa una
+    `ERTMatchPhase`. E' la stessa ancora di T7, un gradino piu' in la'.
+
+    Ritorna `(conformi, non_conformi, senza_colore)`; `non_conformi` porta anche il perche'.
+    """
+    phase_map = match_phase_map()
+    all_axes = {**action_axes(), **hero_ability_axes()}
+    ok, bad, no_ink = [], [], []
+    for semantic, _glyph, token, _org in entries:
+        if icon_category(semantic) != "Action":
+            continue
+        key = semantic[len("Action."):] if semantic.startswith("Action.Hero.") else semantic
+        axes = all_axes.get(key)
+        if not axes or not axes.get("phase"):
+            continue
+        macro = phase_map.get(axes["phase"])
+        if macro is None:
+            bad.append((semantic, axes["phase"], None, None,
+                        f"`{axes['phase']}` non e' mappata da MapResolutionPhase"))
+            continue
+        if macro in MATCH_PHASES_WITHOUT_INK:
+            no_ink.append((semantic, macro))
+            continue
+        want, got = PHASE_INK[macro], SEMANTIC.get(token)
+        if got == want:
+            ok.append(semantic)
+        else:
+            bad.append((semantic, axes["phase"], macro, token,
+                        f"risolve in `{macro}` e vuole {want}, ma porta {got} (token `{token}`)"))
+    return ok, bad, no_ink
+
 def check_alphabet_gates(entries: list) -> list[str]:
     """T1, T3, T5, T6, T7 della specifica. Restituisce gli errori; vuoto = passa."""
     errors: list[str] = []
@@ -2413,6 +2450,28 @@ def check_alphabet_gates(entries: list) -> list[str]:
         key = semantic[len("Action."):] if semantic.startswith("Action.Hero.") else semantic
         if key not in known and semantic not in ALPHABET_EXEMPT:
             errors.append(f"T7: `{semantic}` non compare in nessuna tabella degli assi")
+
+    # T8 — il colore dice la FASE, non la famiglia (D-232), con la palette di D-233.
+    # Fallisce in DUE direzioni, ed e' cio' che gli impedisce di diventare una lista morta: una
+    # violazione NUOVA e' una regressione; una voce di `COLOR_DEBT` gia' ricolorata e' una lista
+    # stantia, che direbbe «debito» di qualcosa che e' stato pagato.
+    conformi, non_conformi, senza_colore = color_phase_audit(entries)
+    for semantic in conformi:
+        if semantic in COLOR_DEBT:
+            errors.append(f"T8: `{semantic}` porta gia' il colore della sua macro-fase — "
+                          "toglila da COLOR_DEBT, il debito e' stato pagato")
+    for semantic, _rp, _macro, _tok, why in non_conformi:
+        if semantic not in COLOR_DEBT:
+            errors.append(f"T8: `{semantic}` {why}")
+
+    # T9 — i quattro colori delle fasi sono davvero distinguibili (D-233).
+    # T8 verifica che ogni icona porti il colore GIUSTO; questo verifica che quei colori SIANO una
+    # palette. Sono due domande diverse: un set in cui due fasi collassano in tritanopia supererebbe
+    # T8 senza un errore, perche' ogni icona porterebbe correttamente un colore indistinguibile.
+    hud_states = {k: CHROME[k] for k in ("Cyan", "Violet", "Amber", "Red")}
+    hud_states["Disabled"] = SEMANTIC["Disabled"]
+    errors += [f"T9: {e}" for e in check_palette(
+        PHASE_INK, hud_states, {k: CHROME[k] for k in ("BG_Panel", "BG_Raised")})]
 
     if cairosvg is None:
         errors.append("T1/T3: non misurabili senza cairosvg")
@@ -2594,7 +2653,7 @@ def main() -> int:
             print(f"   {e}")
     else:
         print("✅ gate dell'alfabeto: T1 banda libera · T3 riquadro libero · T5 fasi note · "
-              "T6 aperiodico · T7 fase derivata")
+              "T6 aperiodico · T7 fase derivata · T8 colore = fase · T9 palette distinguibile")
         for key, why in ALPHABET_EXEMPT.items():
             print(f"   ⏱️  deroga dichiarata: {key} — {why}")
     if missing:
@@ -2748,6 +2807,75 @@ PHASE_STATIONS = {
 # `Snapshot` e `Cleanup` non hanno stazione: zero azioni su 57. Se una si popola il generatore
 # SOLLEVA — il silenzio sarebbe peggio dell'errore.
 PHASES_WITHOUT_STATION = ("Snapshot", "Cleanup")
+
+
+# La palette delle quattro macro-fasi (D-233). NON e' un colore nuovo: sono quattro valori gia' in
+# `SEMANTIC`, che per D-232 hanno smesso di dire la famiglia e ora dicono la fase. L'assegnamento
+# segue la continuita' con cio' che era gia' disegnato, ed e' il motivo per cui 15 azioni su 34
+# erano gia' conformi il giorno in cui la regola e' nata.
+PHASE_INK = {
+    "Prep": SEMANTIC["Defense"],     # #56B4E9 — era il token Defense
+    "Dash": SEMANTIC["Movement"],    # #009E73 — era Movement
+    "Blast": SEMANTIC["Attack"],     # #D55E00 — era Attack
+    "Move": SEMANTIC["Utility"],     # #0072B2 — era Utility
+}
+
+# Le macro-fasi senza colore: D-233 le lascia aperte di proposito.
+# ⚠️ `Cleanup` NON e' vuota: **cinque** icone ci mappano via `Environment` — `Electrify`, `Ignite`,
+# `CreateWater`, piu' `Hero.Gadget.ConductiveNode` e `Hero.Phase.MistVeil`. Sono il consumatore
+# reale che l'open point di D-233 aspettava, e il gate le CONTA invece di tacerle: quando `Cleanup`
+# prendera' un colore, si sa gia' su che cosa cade.
+MATCH_PHASES_WITHOUT_INK = ("Planning", "Cleanup")
+
+# Le azioni la cui icona non porta ANCORA il colore della propria macro-fase. La ricolorazione e'
+# lavoro di E25 (D-232), non di chi ha scritto la regola: finche' non avviene, la deroga resta qui
+# — esplicita e stampata a ogni run, come `ALPHABET_EXEMPT`. Il gate T8 fallisce in DUE direzioni:
+# se compare una violazione NUOVA (regressione) e se una voce qui dentro e' stata ricolorata senza
+# toglierla (lista stantia).
+#
+# Misurato il 2026-08-28 dal gate stesso, non a mano: **19 conformi · 33 in debito · 5 senza colore
+# di fase**. ⚠️ Le 14 abilita' d'eroe erano sfuggite alla prima stima, che aveva letto
+# `action_axes()` e non `hero_ability_axes()`: e' esattamente cio' per cui il gate esiste, e la
+# lista qui sotto porta i numeri del gate, non quelli della stima.
+COLOR_DEBT = {
+    # catalogo generico (19)
+    "Action.Move", "Action.Interact", "Action.Overwatch", "Action.SuppressiveLine",
+    "Action.MarkTarget", "Action.Counter", "Action.Deflect", "Action.Intercept",
+    "Action.Anchor", "Action.Purge", "Action.Evade", "Action.Cleanse", "Action.Push",
+    "Action.Pull", "Action.Root", "Action.Slow", "Action.Interrupt", "Action.ModifyArc",
+    "Action.Heal",
+    # abilita' d'eroe (14)
+    "Action.Hero.Gadget.ArcPulse", "Action.Hero.Gadget.LinearDischarge",
+    "Action.Hero.Gadget.Overload", "Action.Hero.Gadget.ReactiveCapacitor",
+    "Action.Hero.Phase.CircularTide", "Action.Hero.Phase.FlowReaction",
+    "Action.Hero.Phase.FluidTrail", "Action.Hero.Phase.PressureJet",
+    "Action.Hero.Riktor.Interposition", "Action.Hero.Riktor.Ram",
+    "Action.Hero.Wraith.Deflection", "Action.Hero.Wraith.Feint",
+    "Action.Hero.Wraith.InterceptShot", "Action.Hero.Wraith.PassingBlade",
+}
+
+
+def match_phase_map() -> dict[str, str]:
+    """`URTCatalogLibrary::MapResolutionPhase`, LETTA dal C++ invece che ricopiata.
+
+    Stessa regola di `action_axes.py`: la mappa `ERTResolutionPhase -> ERTMatchPhase` vive in
+    `RTCatalogLibrary.cpp`. Riscriverla qui significherebbe che il giorno in cui `Control` smette
+    di risolvere nel `Blast` l'icona continua a dire la cosa vecchia, e nessuno se ne accorge.
+    Fallisce forte se la forma della funzione cambia, invece di restituire una mappa a meta'.
+    """
+    text = SOURCES["actions"].read_text(encoding="utf-8")
+    body = re.search(r"ERTMatchPhase URTCatalogLibrary::MapResolutionPhase.*?\n\}", text, re.S)
+    if not body:
+        raise RuntimeError(
+            "`MapResolutionPhase` non trovata in RTCatalogLibrary.cpp: la firma e' cambiata. "
+            "La mappa fase->macro-fase NON si riscrive qui, si rilegge da la'.")
+    pairs = re.findall(r"case ERTResolutionPhase::(\w+):\s*return ERTMatchPhase::(\w+);",
+                       body.group(0))
+    if len(pairs) < 8:
+        raise RuntimeError(
+            f"`MapResolutionPhase` ha {len(pairs)} case: ne servono almeno 8, uno per valore di "
+            "`ERTResolutionPhase`. La forma e' cambiata e la lettura sarebbe parziale.")
+    return dict(pairs)
 
 
 def phase_rail(phase: str) -> str:

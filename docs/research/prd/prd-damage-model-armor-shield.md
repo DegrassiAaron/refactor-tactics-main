@@ -164,6 +164,90 @@ stesso giorno, e in due punti il repository lo ha già superato.
 ⚠️ **`#1491` chiusa non svuota la lezione**: il regression test resta dovuto, perché ciò che è stato corretto
 è il caso singolo, non l'accoppiamento `Shape → Hit` come classe di difetto.
 
+## Il delta del 2026-08-28 — [D-238](../../decisions/RT_PDR_00_Decision_Log.md)
+
+Consumato il kit *Combat Effect Model + Skill Card Grammar Delta*
+([archivio](../../archive/src/handoff/2026-08-28-combat-skillgrammar-delta.md) ·
+[referto](../../roadmap/plans/combat-skillgrammar-delta-spec-panel-2026-08-28.md)). **Undici** delle sue
+invarianti erano già nella tabella qui sopra e non si riscrivono; il divieto `Shape ⇒ Attack ⇒ Hit ⇒ Damage`
+è già chiuso da **D-221** con `bCountsAsAttack`. Quello che segue è ciò che restava.
+
+### 🔴 `Armor` e `BaseShield` occupano lo stesso asse
+
+È il conflitto che nessuna delle due fonti poteva vedere: questo documento è stato verificato il
+**2026-08-27**, **D-224** ha spedito `BaseShield = 5` il **2026-08-28**.
+
+| | `Armor` (proposta) | `BaseShield = 5` (spedito) |
+|---|---|---|
+| Condizione | solo `DamageSource = Direct` | solo `DamageSource = Direct` — testualmente la stessa |
+| Effetto | **riduce** il danno del colpo | **assorbe** dal pool |
+| Si consuma? | no, vale a ogni colpo | sì, e si ricarica nel Cleanup |
+| Aggirabile da | `Piercing` | niente, oggi |
+
+Misurato: su un'unità con `Armor 3`, due colpi `Direct` da 10 nello stesso turno tolgono **9 HP invece di
+15**. Introdurre `Armor` senza dichiarare il rapporto con `BaseShield` è una modifica di bilanciamento del
+**40%** presa per omissione — e `D-224` ha già misurato quanto costi sbagliare quest'asse: *«a 5 punti
+indistinti un contrattacco da 10 perderebbe metà del suo peso»*.
+
+⛔ **Questo blocca la fetta `49.2`**, non la rimanda: il rapporto fra i due va deciso **prima** che `Armor`
+esista, ed è una decisione di bilanciamento, non di modello.
+
+### La formula additiva — proposta, non congelata
+
+```text
+ApplicableArmor = Direct ? Armor : 0        con Piercing: min(Armor, 0)
+Defense         = ApplicableArmor + DamageResistance[DamageType]
+FinalDamage     = max(0, BaseDamage - Defense)
+```
+
+✅ **È internamente coerente**, verificata sui casi al confine: `Armor +3 → 7`, `Armor −4 → 14`,
+`Environmental` ignora Armor, `Piercing` su `Armor +5` dà `0` e su `Armor −4` lascia `−4` senza riportarla a
+zero — come la prosa richiede.
+
+⛔ **Non si congela**, e non per prudenza: `Armor`, `DamageType`, `DamageResistance`, `DamagePacket` e
+`Shred` hanno **zero occorrenze in `Source/`** (2026-08-28, `483e031a`). Una formula i cui termini non
+esistono non è eseguibile da nessun test, e nessun gate direbbe che è divergente. Resta qui come proposta
+finché `49.1` e `49.2` non atterrano — con il blocco qui sopra davanti.
+
+⚠️ **Due zeri, uno solo dichiarato terminale.** Il kit dichiara terminale lo zero prodotto dall'Active
+Defense. Ma `max(0, …)` ne produce **un secondo**, per saturazione della difesa, e di quello nessuno dice
+nulla. Il giorno in cui esisterà un *«minimo 1 danno»*, un `on damage dealt` o un DoT che rilegge il packet,
+i due si comporteranno diversamente. **Vanno distinti nel tipo di ritorno**, non in prosa.
+
+### Vulnerability è una famiglia, non una stat
+
+Non nasce una statistica universale `Vulnerability`. Le meccaniche restano distinte e non si sommano in un
+moltiplicatore generico:
+
+```text
+FireResistance < 0  → vulnerabilità a quel DamageType, già numerica
+Armor < 0           → vulnerabilità agli impatti Direct
+Exposed             → modifica la relazione con Cover
+Marked              → tag consumabile o interrogabile
+Wet                 → stato ambientale che abilita interazioni
+control weakness    → dominio ControlResistance / StatusResistance
+```
+
+⚠️ **Conseguenza pratica**: `FireResistance = -4` **è già** la vulnerabilità al fuoco. Non nasce accanto un
+secondo status `VulnerableToFire` che dica la stessa cosa in un altro posto.
+
+### Gli elementi sono verbi sistemici, non colori del danno
+
+Un elemento può `Generate · Apply · Propagate · Transform · Consume`. La baseline preferita per `Wet +
+Electric` è la **propagazione su rete conduttiva**, non un `+X%` universale al danno elettrico. Un
+`DamageTakenModifier` percentuale può esistere, ma **esplicito, scoped e raro**: pile di moltiplicatori
+generici (`Vulnerable +X%`, `Marked +Y%`, `Wet +Z%`) sono illeggibili al tavolo e insostituibili in un log.
+
+⚠️ Resta fermo ciò che questo documento già dice: `Affinity`/`Weakness` sono **identità semantica** e non
+generano `DamageResistance`. `Affinity.Electricity` può governare propagazione, consumo di stati e payoff di
+kit senza implicare `ElectricResistance += X`.
+
+### Due trigger in più
+
+Ai tre eventi già congelati — `Hit`, `ShieldDamage`, `HealthDamage` — si aggiungono `OnStatusApplied` e
+`OnDisplaced`. La ragione è la stessa dei primi tre: *«ha fatto danno»* non è sinonimo di *«ha colpito»*, e
+un `Push` che riesce senza togliere HP è un fatto che qualcuno vorrà osservare.
+
 ## E49 proposta
 
 ```text

@@ -34,6 +34,7 @@ namespace
 	const TCHAR* const ErrorModalPath = TEXT("/Game/RT/UI/Framework/WBP_RT_ErrorModal.WBP_RT_ErrorModal_C");
 	const TCHAR* const FallbackBannerPath = TEXT("/Game/RT/UI/Framework/WBP_RT_FallbackBanner.WBP_RT_FallbackBanner_C");
 	const TCHAR* const LoadingScreenPath = TEXT("/Game/RT/UI/Framework/WBP_RT_LoadingScreen.WBP_RT_LoadingScreen_C");
+	const TCHAR* const MainMenuPath = TEXT("/Game/RT/UI/Framework/WBP_RT_MainMenu.WBP_RT_MainMenu_C");
 
 	/**
 	 * Carica la generated class di un `WBP_*`. `nullptr` se l'asset non c'e': il chiamante lo dichiara
@@ -374,6 +375,177 @@ bool FRTLoadingScreenVisibilityGovernsWholeScreenTest::RunTest(const FString&)
 		bReadsPhaseText);
 
 	return true;
+}
+
+namespace
+{
+	/**
+	 * Le `UFunction` dichiarate DA questa classe, non quelle ereditate.
+	 *
+	 * Il grafo di un `WBP_*` vive qui: l'ubergraph, le funzioni utente, e le `BndEvt__…` che UMG genera
+	 * per ogni event dispatcher cablato. Le ereditate da `UUserWidget` sono centinaia e non dicono nulla
+	 * su cosa il menu faccia.
+	 */
+	TArray<UFunction*> OwnFunctions(UClass* Class)
+	{
+		TArray<UFunction*> Own;
+		for (TFieldIterator<UFunction> It(Class); It; ++It)
+		{
+			if (It->GetOuter() == Class)
+			{
+				Own.Add(*It);
+			}
+		}
+		return Own;
+	}
+
+	/**
+	 * I nomi delle `UFunction` che il bytecode di `Fn` chiama.
+	 *
+	 * ⚠️ **Legge `ScriptAndPropertyObjectReferences`, non il bytecode.** UE tiene li' gli oggetti
+	 * referenziati dallo script perche' il garbage collector li veda, ed e' l'unico accesso pubblico a
+	 * «cosa chiama questo grafo» senza disassemblare — che e' cio' che serve quando la logica sta in un
+	 * `.uasset` e nessun grep la raggiunge.
+	 *
+	 * ⛔ **Il limite, dichiarato invece che scoperto**: una chiamata *virtuale* si compila con il solo
+	 * nome e non lascia un puntatore, quindi non comparirebbe qui. Non e' il caso di `StartMatch`, che e'
+	 * una `UFUNCTION` non virtuale su un subsystem concreto e si compila come `EX_FinalFunction`.
+	 */
+	TArray<FString> FunctionsCalledBy(const UFunction* Fn)
+	{
+		TArray<FString> Called;
+		for (const TObjectPtr<UObject>& Ref : Fn->ScriptAndPropertyObjectReferences)
+		{
+			if (const UFunction* AsFunction = Cast<UFunction>(Ref.Get()))
+			{
+				Called.AddUnique(AsFunction->GetName());
+			}
+		}
+		return Called;
+	}
+}
+
+/**
+ * CP 46.3 (`#938`) — `PLAY` chiede una partita al navigatore.
+ *
+ * ⚠️ **Questo test e' l'oracolo di un lavoro che si fa in editor, e nasce rosso di proposito.** Il fix di
+ * `#938` non ha una riga di C++: `URTFrontendNavigator::StartMatch()` e' gia' `BlueprintCallable`, e cio'
+ * che manca e' il cablaggio di `EntryPlay.OnEntryClicked` dentro `WBP_RT_MainMenu.uasset`. Senza un test,
+ * la sola prova che quel cablaggio esista sarebbe una sessione PIE — e la diagnosi di `#938` e' costata
+ * tre evidenze indipendenti (comportamento, name table, log vuoto) proprio perche' nessuno guardava
+ * dentro il binario.
+ *
+ * Cosa verifica, dal fatto piu' generale al piu' specifico:
+ *
+ *  1. **L'entry esiste** e si chiama `EntryPlay`. Un rename in editor rompe il binding senza dirlo, ed e'
+ *     l'unica riga del test che nomina il widget: se fallisce lei, le altre due non significherebbero
+ *     niente.
+ *  2. **Esiste una funzione di binding** per il suo `OnEntryClicked` — cio' che UMG genera quando si
+ *     collega un event dispatcher. La sua assenza e' esattamente la misura registrata dalla diagnosi:
+ *     *«nessun `BndEvt` per `EntryPlay`»*.
+ *  3. **Il grafo chiama `StartMatch`**, e non l'altra via. `EnterMatch` compila, si arma e porta in
+ *     partita — ma salta la richiesta pendente, che e' il contratto di CP 46.4: il navigatore non ha un
+ *     mondo, quindi *chiede* invece di aprire. Un `PLAY` cablato su `EnterMatch` funzionerebbe in PIE e
+ *     lascerebbe `G13` dov'e'.
+ *
+ * ⛔ **Cio' che NON copre, e che resta di `PIE-V01-FRONTEND-MAIN`**: che il pulsante si veda, che il focus
+ * sia distinguibile senza il colore, che la tastiera lo raggiunga. Un binding corretto su un widget largo
+ * zero pixel passa di qui — e' il limite dichiarato in testa a questo file, e vale per gli eventi come
+ * vale per le proprieta'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMainMenuPlayAsksTheNavigatorToStartTest,
+	"RefactorTactics.Frontend.MainMenuPlayAsksTheNavigatorToStart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMainMenuPlayAsksTheNavigatorToStartTest::RunTest(const FString&)
+{
+	UWidgetBlueprintGeneratedClass* Class = LoadWidgetClass(MainMenuPath);
+	if (!TestNotNull(TEXT("WBP_RT_MainMenu si carica"), Class))
+	{
+		return false;
+	}
+
+	ReportAsset(*this, Class, TEXT("WBP_RT_MainMenu"));
+
+	// ── 1. l'entry PLAY esiste, e si chiama cosi' ────────────────────────────────────────────────────
+	const UWidgetTree* Tree = Class->GetWidgetTreeArchetype();
+	if (!TestNotNull(TEXT("l'albero del menu esiste"), Tree))
+	{
+		return false;
+	}
+
+	if (!Tree->FindWidget(TEXT("EntryPlay")))
+	{
+		TArray<FString> Names;
+		Tree->ForEachWidget([&Names](UWidget* Widget) { Names.Add(Widget->GetName()); });
+		AddError(FString::Printf(
+			TEXT("WBP_RT_MainMenu non ha un widget 'EntryPlay'. L'albero porta: %s. ")
+			TEXT("Un rename dell'entry rompe il binding di PLAY senza che nulla lo dica."),
+			*FString::Join(Names, TEXT(", "))));
+		return false;
+	}
+
+	// ── l'evidenza, prima delle asserzioni: cosa chiama ogni funzione del menu ───────────────────────
+	const TArray<UFunction*> Own = OwnFunctions(Class);
+	AddInfo(FString::Printf(TEXT("=== WBP_RT_MainMenu: %d funzioni proprie ==="), Own.Num()));
+	for (const UFunction* Fn : Own)
+	{
+		const TArray<FString> Called = FunctionsCalledBy(Fn);
+		AddInfo(FString::Printf(TEXT("  %s -> [%s]"),
+			*Fn->GetName(),
+			Called.Num() > 0 ? *FString::Join(Called, TEXT(", ")) : TEXT("nessuna chiamata tracciata")));
+	}
+
+	bool bOk = true;
+
+	// ── 2. il binding dell'evento esiste ─────────────────────────────────────────────────────────────
+	const bool bHasPlayBinding = Own.ContainsByPredicate([](const UFunction* Fn)
+	{
+		const FString Name = Fn->GetName();
+		return Name.Contains(TEXT("EntryPlay")) && Name.Contains(TEXT("OnEntryClicked"));
+	});
+
+	if (!bHasPlayBinding)
+	{
+		AddError(TEXT(
+			"WBP_RT_MainMenu non ha alcuna funzione di binding per EntryPlay.OnEntryClicked: PLAY non "
+			"chiama niente. E' la misura registrata dalla diagnosi di #938 — il pulsante e' disegnato e "
+			"inerte. Si cabla in editor, e non in C++: OnEntryClicked di EntryPlay -> Get Game Instance "
+			"Subsystem (RTFrontendNavigator) -> StartMatch."));
+		bOk = false;
+	}
+
+	// ── 3. e chiama StartMatch, non l'altra via d'avvio ──────────────────────────────────────────────
+	bool bCallsStartMatch = false;
+	bool bCallsEnterMatch = false;
+	for (const UFunction* Fn : Own)
+	{
+		for (const FString& Called : FunctionsCalledBy(Fn))
+		{
+			bCallsStartMatch = bCallsStartMatch || (Called == TEXT("StartMatch"));
+			bCallsEnterMatch = bCallsEnterMatch || (Called == TEXT("EnterMatch"));
+		}
+	}
+
+	if (!bCallsStartMatch)
+	{
+		AddError(TEXT(
+			"nessuna funzione di WBP_RT_MainMenu chiama StartMatch(): la catena "
+			"menu -> StartMatch -> ConsumePendingMatchLevel -> ARTGameMode non viene mai imboccata. Un "
+			"pacchetto che avvia sul menu e da li' non puo' iniziare una partita sposta il dead-end di "
+			"G13 invece di rimuoverlo."));
+		bOk = false;
+	}
+
+	if (bCallsEnterMatch && !bCallsStartMatch)
+	{
+		AddError(TEXT(
+			"il menu chiama EnterMatch() al posto di StartMatch(): porta in partita saltando la richiesta "
+			"pendente. EnterMatch serve al caso opposto — PIE lanciato direttamente su L_HexArena, dove il "
+			"frontend non e' mai partito."));
+		bOk = false;
+	}
+
+	return bOk;
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

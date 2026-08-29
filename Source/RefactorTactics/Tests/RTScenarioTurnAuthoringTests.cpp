@@ -459,7 +459,10 @@ bool FRTScenarioTurnAuthoringIsExposedTest::RunTest(const FString&)
 	const UEnum* LogCategory = StaticEnum<ERTLogCategory>();
 	if (TestNotNull(TEXT("ERTLogCategory esiste"), LogCategory))
 	{
+		// Stessa ragione di sopra: `GetBoolMetaData` e' sotto `WITH_METADATA`, spento in un target Game.
+#if WITH_METADATA
 		TestTrue(TEXT("ed e' BlueprintType"), LogCategory->GetBoolMetaData(TEXT("BlueprintType")));
+#endif
 	}
 
 	// Un giro completo attraverso la facade: e' il percorso che fara' l'Editor.

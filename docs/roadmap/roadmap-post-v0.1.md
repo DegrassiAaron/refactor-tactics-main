@@ -401,6 +401,15 @@ gameplay per poter mostrare un'icona.
 | **25.4** | Accessibility, Wiki e documentazione | `Confirmed/Predicted/Uncertain` distinguibili in **grayscale**: la differenza è nella forma. Le pagine Wiki distinguono SPECIFICATO, DATO PRESENTE e CONSUMATO A RUNTIME, e non chiamano «implementato» un dato |
 
 **Dipendenze**: E20 (fondazione), poi E11, E14, E13/E27, E35 per i consumer.
+
+> **Skill Card Grammar** ([D-231](../decisions/RT_PDR_00_Decision_Log.md), owner
+> [`../technical/systems/spec-icon-card-grammar.md`](../technical/systems/spec-icon-card-grammar.md)): è la
+> fondazione compositiva di questa epic. **CP 25.1** la possiede come governance — grammatica e catalogo
+> hanno owner separati ma collegati, e le primitive compositive (`Target`, `Shape`, `Delivery`, `HitRule`,
+> `Effect`) **non** diventano categorie runtime. **CP 25.2** vi aggancia l'authoring: uno schema o un
+> validator di caps nasce solo con un consumer reale. **CP 25.4** ne eredita i test percettivi (grayscale,
+> 24 px, card densa al cap). 🔴 Resta **aperto** a che cosa serva il colore: tre owner si contraddicono, e
+> uno dei tre è già implementato nel generatore. Non si chiude per simmetria.
 **Fuori scope**: rifacimento dell'HUD della v0.1; authoring workflow completo, localization audit, theme
 variants, high-contrast pack ed export generato del catalogo, che restano post-v0.2.
 
@@ -1042,7 +1051,7 @@ latenza zero verso sé stesso.
 
 **Percorso critico**: target di build dedicated · lifecycle di partita lato server · lobby privata custom ·
 **riconnessione e resync** — che non è una comodità: senza, una disconnessione è una partita persa e il
-formato non è competitivo · soak 3v3 su packaged dedicated.
+formato non è competitivo · soak 3v3 su packaged dedicated · **matchmaking non-ranked**, che [D-236](../decisions/RT_PDR_00_Decision_Log.md) colloca qui perché qui stanno le sue dipendenze (`CP 42.6`).
 
 **Gate**, ed è un percorso, non una lista:
 
@@ -1052,8 +1061,12 @@ launch client → lobby → join/create → play → disconnect → reconnect �
 
 su **dedicated server packaged**. Se un solo passo richiede l'Editor, il gate non è passato.
 
-**Fuori perimetro**: matchmaking pubblico e ranked. Assegnazione squadre e party sono qui perché la lobby
-esiste qui; il rating è **E44**.
+**Fuori perimetro**: **ranked e rating**, che sono **E44** — il perimetro è `RNK-1` in
+[`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), l'owner è [`#1604`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1604).
+Assegnazione squadre e party sono qui perché la lobby esiste qui — e
+[D-236](../decisions/RT_PDR_00_Decision_Log.md) estende lo stesso argomento al **matchmaking non-ranked**,
+che in questa epic ha già lifecycle server-side, lobby e riconnessione. Il **rollout** in produzione resta
+[`#810`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/810) in `v1.0`, e da qui in avanti il suo titolo dice il vero.
 
 ---
 

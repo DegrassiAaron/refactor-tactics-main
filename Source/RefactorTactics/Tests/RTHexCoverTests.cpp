@@ -144,7 +144,12 @@ bool FRTCoverLowCoverWrongSideTest::RunTest(const FString&)
 {
 	TArray<FRTHexCombatUnit> Units;
 	Units.Add(CoverUnit(0, 0, FRTCellId(0, 0)));
-	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0)));
+	// Facing `W` come nel gemello `DirectionalDamageReduction`, e per la stessa ragione: con il default
+	// (`E`) l'attaccante starebbe alle spalle e [CP 16.2] annullerebbe la copertura comunque, quindi il
+	// «danno pieno» qui sotto sarebbe vero per il FACING invece che per il bordo non attraversato — cioe'
+	// il test non misurerebbe la regola che dichiara. MISURATO (`#1529`): forzando ogni bordo a contare
+	// come attraversato, con il default questo test restava verde; col facing dichiarato cade.
+	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0), ERTHexDirection::W));
 
 	TArray<FRTHexAttackIntent> Intents;
 	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 30));
@@ -173,6 +178,21 @@ bool FRTCoverLowCoverWrongSideTest::RunTest(const FString&)
  * L'area non e' un proiettile: la copertura bassa non ne ripara, nemmeno quando il centro sta dal lato
  * protetto — il caso in cui la protezione sembrerebbe dovuta. E' il confine dichiarato della regola: se il
  * centro fosse dall'altro lato la copertura non sarebbe comunque interposta, quindi "AoE mai ridotto".
+ *
+ * La regola vive in tre posti che concordano: [`spec-copertura-cp91.md`] §4 la registra fra le decisioni
+ * («**Le aree non sono mai ridotte**»), il catalogo di bilanciamento la ripete per `Circular AoE`, e
+ * `HexCoverDamageReduction` la spiega — *«un'area investe la cella da ogni lato: nessun bordo da
+ * attraversare, nessuna copertura che tenga»*.
+ *
+ * 🔴 **Il bersaglio guarda a `W`, e non e' un dettaglio: senza, questo test era VACUO.** Con il facing di
+ * default (`E`) l'attaccante sta alle sue spalle, e [CP 16.2] annulla la copertura fuori dall'arco
+ * frontale — quindi il danno risultava pieno **per il facing**, non perche' l'area ignori la copertura.
+ * Il test passava, ma non per la ragione che dichiara.
+ *
+ * ✅ **Misurato** (`#1529`): togliendo `Shape == ERTAbilityShape::Area` dalla guardia di
+ * `HexCoverDamageReduction` — cioe' invertendo la regola — con il facing di default la suite `Cover`
+ * restava **21/21 verde**; con il bersaglio rivolto verso l'attaccante **questo test cade**. La riga del
+ * facing e' l'unica cosa che separa un guardiano da un test che si limita a non fallire.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverLowCoverAoESameSideTest,
 	"RefactorTactics.Cover.LowCover.AoESameSide",
@@ -185,7 +205,7 @@ bool FRTCoverLowCoverAoESameSideTest::RunTest(const FString&)
 	TArray<FRTHexCombatUnit> Units;
 	Units.Add(CoverUnit(0, 0, FRTCellId(0, 0)));
 	Units.Add(CoverUnit(1, 1, FRTCellId(1, 0)));  // centro dell'area, dal lato protetto
-	Units.Add(CoverUnit(2, 1, FRTCellId(2, 0)));  // riparato sul bordo W, preso dal raggio
+	Units.Add(CoverUnit(2, 1, FRTCellId(2, 0), ERTHexDirection::W));  // riparato sul bordo W, preso dal raggio
 
 	TArray<FRTHexAttackIntent> Intents;
 	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Area, 5, 30, /*AreaRadius*/ 1));
