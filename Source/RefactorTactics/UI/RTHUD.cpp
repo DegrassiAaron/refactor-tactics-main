@@ -832,14 +832,27 @@ void ARTHUD::DrawHUD()
 			// ⚠️ **La preview dello scatto NON e' graduata dalla certezza, e non e' una svista.** `bDashing`
 			// implica `Uncertain` per costruzione (`ClassifyPlan` guarda `bMoving || bDashing`), quindi
 			// applicarle lo stile la lascerebbe *sempre* allo stesso livello: un simbolo che non varia non
-			// informa, ed e' il difetto esatto per cui `ReactionCertainty` e' uscito dal DTO. Il magenta
-			// distingue gia' lo scatto dal movimento normale, che e' l'informazione che serve qui.
+			// informa, ed e' il difetto esatto per cui `ReactionCertainty` e' uscito dal DTO. Il colore
+			// di FASE distingue gia' lo scatto dal movimento normale, che e' l'informazione che serve qui.
 			if (View.bDashing && Map)
 			{
 				const TArray<FRTCellId> DPath = URTMovementActionLibrary::IsLinear(View.DashStyle)
 					? URTHexLibrary::HexLine(View.OwnerCell, View.DashCell)
 					: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.DashCell).Path;
-				const FLinearColor DashColor(1.f, 0.2f, 0.9f, 1.f);
+				// **D-234**: la fase `Dash` prende in PRESTITO `#009E73` da D-233. L'overlay tiene un
+				// vocabolario proprio — il colore ci dice l'IDENTITA' di squadra — ma questa riga era gia'
+				// un'eccezione: `DashColor` e' costruito FUORI da ogni ramo su `bOwn`, quindi la linea di
+				// scatto aveva gia' perso la squadra ed era gia' colorata per fase. Per caso, pero'.
+				//
+				// 🔴 Il magenta che stava qui non apparteneva a NESSUNA palette, e non era neutro: misurato,
+				// distava `dE 20.7` dal ciano di squadra in deuteranopia e `20.9` dal giallo in tritanopia —
+				// due dicromazie a meno di un punto dalla soglia `20`. Dopo il cambio i due peggiori casi
+				// sono `43.9` e `51.7`. Il gate `T9` ora misura questa coppia e la rilegge DA QUI.
+				//
+				// ⚠️ `FromSRGBColor` NON e' opzionale: il costruttore prende valori LINEARI, e passargli
+				// `0/158/115` diviso 255 darebbe una tinta slavata — lo stesso errore documentato in
+				// `Map/RTHexMapActor.cpp:909`, che e' anche il precedente della forma usata qui.
+				const FLinearColor DashColor = FLinearColor::FromSRGBColor(FColor(0, 158, 115));
 				for (int32 i = 1; i < DPath.Num(); ++i)
 				{
 					const FVector DA = Project(HexCellWorld(DPath[i - 1], Origin, HexSize, LayerH));

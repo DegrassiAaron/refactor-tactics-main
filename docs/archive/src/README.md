@@ -2,7 +2,111 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
-> 🔴 **Rimisurato il 2026-08-27, e la formula sbaglia su DUE assi invece che su uno.** Questo giro ha
+> 🟡 **Senza ordinale, e il motivo è la prima misura di questo giro: la serie degli ordinali è rotta.**
+> Questo giro ha archiviato il kit *Combat + SkillGrammar Delta*. Il comando che questa pagina dichiara
+> canonico — `find docs/archive/src -name '*.md' ! -name README.md`, *«l'unico che non ha un punto cieco»* —
+> risponde **`99`** sull'albero di questo commit = `17` `design/` + **`53`** `handoff/` + `2` `audit/` +
+> `4` `graytoolkit/` + `23` in radice. Prima: **`98`**, con `52` `handoff/`. È l'unico addendo che cambia.
+>
+> 🔴 **Il primo errore era mio, e il comando canonico non me ne avrebbe salvato.** Lo stesso comando eseguito
+> sul **disco** risponde **`102`**, non `99`: nella working directory ci sono **tre** handoff `2026-08-28`
+> ancora `untracked`, archiviati da un'altra sessione e non presenti nell'albero che questo commit scrive.
+> Avevo scritto `102` prima di accorgermene. **Un numero misurato sul disco non è il numero dell'albero**, e
+> in una working directory condivisa (`D-222`) i due divergono di quanto lavora chiunque altro in quel
+> momento. Il comando giusto sull'oggetto sbagliato resta una misura falsa — e questa forma non era ancora
+> stata incontrata, perché tutti i giri precedenti hanno inseguito l'aritmetica.
+>
+> ⚠️ **Il secondo è che questa pagina non dichiarava il proprio criterio.** La misura parallela in corso in
+> questa stessa working directory riporta **`111`** contando **tutti i file**; questa conta i soli `.md`. Nel
+> solo `handoff/` la differenza sono un `.xlsx` e un `.json`, in `graytoolkit/` due `.png`, in radice due
+> `.zip`, due `.svg` e un `.json`. **Due criteri, due totali, nessuno dei due sbagliato** — e la pagina che
+> insegue l'aritmetica da quattordici giri non diceva quale fosse il suo.
+>
+> ➕ **E gli addendi non tornano col totale nemmeno a criterio fisso**: `17 + 53 + 2 + 5 + 23 = 100`, contro
+> `99`. La causa è `graytoolkit/README.md`, un **README annidato**: il totale lo esclude per basename, la
+> colonna della sua cartella no. L'addendo corretto di `graytoolkit/` è **`4`**, e con quello la somma torna.
+> È il rovescio della decima volta — lì mentiva l'indice e il totale reggeva, qui mente **l'addendo**.
+>
+> ⛔ **Perché questo blocco non ha un numero.** Misurato sulla pagina: gli ordinali di intestazione arrivano
+> già a **Diciottesima**, che compare **due volte**; `Quindicesima` e `Quattordicesima` sono state riusate
+> dai due giri in corso oggi, questo incluso prima della correzione; e `decima volta` ricorre **quattro**
+> volte perché le citazioni interne in minuscolo sono indistinguibili dalle intestazioni per chiunque conti
+> con `grep`. **Un contatore in prosa che nessuno interroga è la stessa classe di difetto del totale che
+> questa pagina insegue da quattordici giri** — e aggiungerne un'altra occorrenza sarebbe stato il modo più
+> ironico di sbagliare. La sostanza sta nel blocco, non nel suo numero.
+>
+> 🔮 **Previsione verificabile**: quando i tre handoff `untracked` atterreranno, il comando canonico
+> risponderà **`102`** con `56` `handoff/`. Se al merge dice altro, ha archiviato qualcun altro — e allora si
+> **riesegue**, non si aggiusta.
+>
+> ✅ **Previsione VERIFICATA il 2026-08-29, e si avvera su un albero che non esiste ancora.** I tre handoff
+> sono atterrati con la PR [#1618](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1618)
+> (merge `a588f711`). Alla misura di quel momento il comando canonico rispondeva **`101`** con **`55`** `handoff/` su `origin/main`, e
+> **`102`** con **`56`** sul disco.
+>
+> La previsione diceva `102` con `56`, ed è **esatta — ma per l'albero che contiene ENTRAMBI i lavori**, che
+> oggi non esiste: `origin/main` ha i tre handoff e **non** ha ancora `2026-08-28-combat-skillgrammar-delta.md`,
+> che vive sul branch di questa stessa sessione. Si avvera al merge di quel branch, e non prima.
+>
+> 🔁 **E raffina la diagnosi del blocco qui sopra, dal lato opposto.** Quel blocco dice che *«un numero
+> misurato sul disco non è il numero dell'albero»*. Vale anche per una **previsione**: questa parlava
+> dell'albero, e il disco la conferma **per la ragione sbagliata** — somma tre file mergiati e uno che non lo
+> è. Una previsione verificata sul disco in regime `D-222` è vera per coincidenza, e la coincidenza si
+> scioglie appena qualcuno committa. **Si verifica sull'albero che si nomina**, dichiarandolo.
+>
+> 🔁 **E si è avverata DUE volte, con lo stesso numero e due cause diverse.** Mentre si univano le due
+> metà, `origin/main` è passato da `101` a **`102`** — ma **non** per il kit *Combat + SkillGrammar*: per
+> `2026-08-29-td-trial-scenario-sandbox.md`, mergiato nel frattempo da una **terza** sessione. Il `102`
+> previsto è arrivato **prima** e **per un altro file**. Una previsione su un totale non identifica ciò che
+> lo fa salire: in regime `D-222` un numero atteso può presentarsi puntuale e significare un'altra cosa.
+> **Si verifica l'insieme, non la cardinalità.**
+>
+> 📏 **Il numero di QUESTO commit, misurato sul suo albero**: **`103`** = `17` `design/` + **`57`**
+> `handoff/` + `2` `audit/` + `4` `graytoolkit/` + `23` in radice, criterio canonico — e **`114`** contando
+> tutti i file. Vale per l'albero che questo commit scrive, e nessun altro.
+>
+> ⛔ **Per questo l'indice qui sotto è riallineato ma NON committato, e il gate non basta a dirlo.**
+> Le quattro righe d'indice del 2026-08-28 ci sono tutte, ma una punta a
+> `2026-08-28-combat-skillgrammar-delta.md`, che su `origin/main` **non esiste ancora**. Committare l'indice
+> da solo pubblicherebbe un link rotto. E `node tools/radar/doc-links.ts --check --with-archive` risponde
+> **verde** lo stesso — perché cammina il **filesystem**, dove quel file c'è: è lo **stesso punto cieco**
+> disco-contro-albero che questa pagina ha appena diagnosticato sui totali, nel gate che dovrebbe
+> proteggerla. Un gate verde su una working directory condivisa non dice che l'albero regga.
+>
+> ✅ **Cosa fa chi unisce**: committa indice e file archiviato **insieme**, e rimisura — `101` diventa `102`
+> con `56` `handoff/` nel momento in cui entrambi sono nello stesso albero, che è la previsione qui sopra.
+>
+> 🔴 **Quattordicesima volta, e il numero era scaduto PRIMA che questo giro cominciasse.** Il giro ha
+> archiviato tre kit — *Reaction Outcome Preview / E14* più la coppia *GrayKit v0.1* (roadmap consolidata e
+> suo mandato di applicazione, che si leggono insieme) — e il comando rimisurato sull'albero risponde
+> 🔴 **Questa riga diceva `111`, ed era sbagliata: il numero è `112`.** Rimisurato sull'albero di
+> questo commit, criterio **tutti i file**: **`114`** = `17` `design/` + `59` `handoff/` + `2` `audit/` +
+> **`7`** `graytoolkit/` + `29` in radice — e la somma torna.
+>
+> ⚠️ **La causa è una forma nuova nella serie, e non è né aritmetica né criterio né albero: il comando
+> contava una DIRECTORY come un file.** L'addendo veniva da `ls docs/archive/src/graytoolkit | wc -l`, che
+> risponde `6` perché conta `images/` come **una** entry — mentre dentro ci sono **due** file. Errore netto
+> di `+1`: meno la directory, più i due file che non guardava. `ls | wc -l` non è un conteggio di file, ed è
+> il comando più naturale da scrivere per un addendo di cartella.
+>
+> ✅ **L'addendo `4` di `graytoolkit/` nel criterio `.md` è invece corretto**, riverificato in modo
+> indipendente: i `.md` sono cinque, meno `README.md` escluso per basename — il README annidato
+> diagnosticato nel blocco sopra. Due criteri, due addendi giusti, due cause diverse.
+>
+> ➕ **La coppia GrayKit è il primo caso in cui un kit ha chiesto da sé la propria archiviazione**: la sua
+> §0 dice *«questa roadmap non deve diventare un nuovo owner permanente […] dopo l'integrazione, questo file
+> va archiviato»*, e il PASSO 10 del mandato lo ripete. È l'unico dei loro passi che sia stato eseguito alla
+> lettera — gli altri poggiavano su `D-225` letta al contrario e su due nodi su sei già chiusi.
+>
+> ⚠️ **Il delta non è di uno: è di nove più uno.** La riga qui sotto diceva `50` `handoff/` e `20` in radice
+> il 2026-08-27; prima che questo giro toccasse qualcosa il disco portava già `54` e `29`. Tredici file sono
+> entrati per mano di altre sessioni nella stessa working directory — `D-222` è il regime, non l'eccezione —
+> e nessun gate se n'è accorto, perché un totale in prosa non è un dato che qualcuno interroga. Il rimedio
+> resta quello che questa pagina insegna da undici giri: **eseguire il comando dopo l'unione**, mai
+> incrementare a mano. La riga precedente è conservata sotto, con la sua data, invece di essere sovrascritta:
+> è ciò che permette di misurare quanto scade e in quanto tempo.
+>
+> 🔴 **Rimisurato il 2026-08-27, e la formula sbaglia su DUE assi invece che su uno.** Quel giro ha
 > archiviato l'handoff *Action Phases / Dodge / Guard / Brace / Overwatch* — non da fuori, ma **dall'inbox**:
 > era arrivato su `main` in [`../../research/handoff/`](../../research/) mentre un altro ramo lo archiviava
 > qui col verdetto, e le due copie erano identiche. La copia in `research/` è stata rimossa, che è il passo
@@ -402,6 +506,12 @@ Decision Log erano esenti anche le voci **nuove**, quelle che descrivono il rost
 | [`2026-08-28-github-issues-roadmap-v01-v10.md`](handoff/2026-08-28-github-issues-roadmap-v01-v10.md) | Issue e roadmap GitHub v0.1 → v1.0: dieci fasi, `VisionRange`, privacy, epic `E40`–`E45` | ⚠️ **Riga aggiunta il 2026-08-28**: il file era archiviato senza comparire in questo indice. Consumato lo stesso giorno su base `2809a377`, con **tre premesse falsificate**: FASE 2 non eseguita (il boundary `VisionRange` era gia' chiuso, diventa `CP 27.4` / [#1569](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1569) sotto E27/v0.3), FASE 3 invertita (il difetto era una frase falsa in [#151](https://github.com/DegrassiAaron/refactor-tactics-main/issues/151)), FASI 5–7 eseguite. ➕ L'audit ha trovato **dieci epic v0.2–v0.4 senza checkpoint** e ha aperto **31 issue** ([#1557](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1557) → [#1587](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1587)), ognuna col vincolo «non si apre prima dei 15 gate della v0.1» scritto nel corpo |
 | [`2026-08-28-master-issue-reconciliation.md`](handoff/2026-08-28-master-issue-reconciliation.md) | Riconciliazione globale delle issue: diciassette domini, HUD, icone, facing, placement, overwatch, rumore, camera, frontend, bot, ladder v0.5 → v1.0, gap ranked | [referto](../../roadmap/plans/master-issue-reconciliation-spec-panel-2026-08-28.md). ✅ **Accurato su cio' che cita**: **77** numeri di issue su 77 esistono, ladder e tabella pivot di `ADR-0008` identiche al canone, i divieti su `PlacementSector`/`CoverAnchor`/`OverwatchDirection` descrivono lo stato reale (**0** in `Source/`). 🔴 **Stantio il giorno stesso**: tetto `#1430`, con **72** issue sopra e **31** aperte lo stesso 2026-08-28 dal kit gemello della riga precedente. ⛔ Il §20 (audit `E40`–`E45`) era **gia' eseguito**. 🔴 `CAMERA: []` e' un falso per assenza: **7** issue Camera esistono, tutte CLOSED. ⚠️ Otto epic vive nei suoi domini non sono citate (`E13` `E22` `E27` `E28` `E36` `E38` `E48`, piu' `#637`). ✅ **Tre tesi sopravvivono**: gap `ranked` reale, divergenza `ADR-0008`/runtime senza owner, End Placement correttamente `PROPOSED`. ⛔ **Nessuna issue creata o modificata**, nessun `D-nnn` assegnato |
 | [`2026-08-28-master-issue-reconciliation-manifest.json`](handoff/2026-08-28-master-issue-reconciliation-manifest.json) | Manifest dei diciassette domini del kit qui sopra: policy, ladder, `known_issues` per dominio | Archiviato **verbatim** accanto al proprio kit; il verdetto e' nella riga precedente. 🔴 E' il file che porta il tetto `#1430` e l'array vuoto `CAMERA: {"known_issues": []}` |
+
+| [`2026-08-28-reaction-outcome-preview-e14.md`](handoff/2026-08-28-reaction-outcome-preview-e14.md) | Reaction Outcome Preview su E14: contratto `HitState`/`AppliedDamage`/`Certainty` durante la Decision Window, Time Bank, Reaction Clash, roadmap `R0`–`R9` | [referto](../../roadmap/plans/reaction-outcome-preview-handoff-spec-panel-2026-08-28.md). ✅ **Disciplinato sui divieti**: la §13 side-effect-free porta undici divieti falsificabili singolarmente, la §11 formula la privacy come oracolo eseguibile, e la correzione di ownership del Time Bank (`UnitsPerPlayer` è formato, il subject runtime è di [#319](https://github.com/DegrassiAaron/refactor-tactics-main/issues/319)) è esatta. Dedup della §1.6 **rifatto e confermato**. 🔴 **Quattro premesse scadute**: [#886](https://github.com/DegrassiAaron/refactor-tactics-main/issues/886) è **CLOSED** ed è il primo passo di lavoro (`R1`); l'invariante `Confirmed preview = Committed outcome` era già stata dichiarata **non falsificabile** lo stesso 2026-08-28; `AppliedDamage` ha **0** occorrenze in `Source/` ed è presentato come riuso; `R0`–`R9` è una terza numerazione accanto ai `CP` e alle wave `B0`–`B6`. 🟠 Il seam del decisore **è atterrato** ([#512](https://github.com/DegrassiAaron/refactor-tactics-main/issues/512) CLOSED) e il documento non nomina nessuno dei suoi tre termini. ⛔ **Nessuna issue creata o modificata**, nessun `D-nnn` assegnato |
+
+| [`2026-08-28-graykit-v01-roadmap-consolidated.md`](handoff/2026-08-28-graykit-v01-roadmap-consolidated.md) | GrayKit v0.1: scala e occupancy, geometria interna `Center → SideAnchor`, proxy Fog of War, roadmap a sei nodi | [referto](../../roadmap/plans/graykit-v01-consolidation-spec-panel-2026-08-28.md), comune al mandato della riga sotto. ✅ **Accurato sulla baseline**: le **6** issue dichiarate chiuse lo sono (`#1155` `#619` `#620` `#621` `#832` `#1096`), i 4 owner documentali esistono, le 8 decisioni citate sono nel Decision Log, e il rilievo su [#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324) (titolo `[EPIC v0.2]`, label `v0.1`) regge. 🔴 **Inverte `D-225`**: la decisione è **accettata** e sceglie il **nascondimento** — *«rende necessaria l'intera famiglia `GB_FOW_*`, `CellFull` incluso»* — mentre il kit vieta di modellare `CellFull`. 🔴 **Due dei sei nodi sono CLOSED**: [#956](https://github.com/DegrassiAaron/refactor-tactics-main/issues/956) (board) e [#1467](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1467) (FoW), come pure `#1094`. 🔴 Il lavoro vero del nodo 4 — mappa inversa cella→istanza, che `D-225` dichiara «non stimato» — non compare; **`0.88 H` è un numero nuovo e scelto** (zero occorrenze in `docs/`) mentre `D-225` chiude con «zero numeri nuovi». ⛔ **Nessuna issue creata o modificata** |
+| [`2026-08-28-graykit-v01-apply-mandate.md`](handoff/2026-08-28-graykit-v01-apply-mandate.md) | Mandato di applicazione del kit qui sopra: dodici decisioni da preservare, undici passi, audit HEAD e issue reconciliation | Archiviato **accanto** al proprio kit; il verdetto comune è nella riga precedente. ✅ **Le clausole condizionali sono la sua parte migliore** — *«se HEAD non la decide già»*, *«HEAD vince e devi riportare la divergenza»* — e in **tre** casi su tre la condizione era falsa: le clausole hanno funzionato, la prosa attorno no. 🟠 Il PASSO 3 pone la domanda obbligatoria su `FRTGeometrySegment` a **quattro** campi quando ne ha **sei** (manca `Layer`, in un gioco hex multilivello); il punto 7 manda a definire una granularità che `RT_GeometryQuanta = 12` decide già; il PASSO 5 chiede di creare `GEO-4`, che esiste completa e collega [#1392](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1392). ⚠️ PASSO 8 e §6 del kit sono **due elenchi divergenti** per lo stesso lavoro — la seconda source of truth che la §0 vieta, dentro il kit stesso. ✅ Del mandato è stato eseguito **solo il PASSO 10**: archiviare |
+| [`2026-08-28-combat-skillgrammar-delta.md`](handoff/2026-08-28-combat-skillgrammar-delta.md) | Combat Effect Model + Skill Card Grammar: semantica `Skill/Attack/Hit/Damage/Effect`, invarianti Armor/DamageResistance/Piercing/Shred, formula additiva, e sei gruppi semantici sui vertici della card | [referto](../../roadmap/plans/combat-skillgrammar-delta-spec-panel-2026-08-28.md). 🔴 **Il contributo che vale il consumo è un conflitto che il kit non nomina**: `Armor` e il `BaseShield = 5` di [D-224] hanno la **stessa** condizione di applicabilità (*«solo danno Direct»*) e nessuna delle due fonti vede l'altra — il PRD è verificato il 2026-08-27, `D-224` è del 2026-08-28. Misurato: con `Armor 3`, due colpi da 10 tolgono **9 HP invece di 15**, il **40%** di bilanciamento per omissione. ⛔ **Undici invarianti su undici del §3 erano già scritte** nella tabella delle decisioni congelate del PRD, e il divieto `Shape ⇒ Attack ⇒ Hit` era già chiuso da `D-221` con `bCountsAsAttack`. ⛔ **Tre dei sei gruppi visivi erano già decisi il giorno prima** da `D-231`: `♦`/`■`/`▲` sono il rombo, il quadrato e il triangolo, stesso significato e altro nome. ⛔ **Il settore `COUNTER` è rifiutato**: i sei termini che mostrerebbe (`Armor`, quattro `*Resistance`, `StatusResistance`) hanno **zero occorrenze in `Source/`**. ⛔ Gli esempi `Damage 30`/`24` sono fuori scala di un fattore sei rispetto al danno reale più piccolo (`Burning` 8): prevale l'owner. ✅ **Due tesi sopravvivono intere** — Vulnerability come famiglia e non stat, elementi come verbi sistemici — più la correzione di una collisione di posizione dell'owner (`alto-destra` assegnato a due categorie), che è il contributo migliore e non è nella lista dei suoi titoli. ➕ **`D-237` e `D-238` assegnati**; nessuna issue creata, `E49` resta una proposta |
 
 ### Il pacchetto `consolidazione-chat-openai` — dodici sorgenti, un solo triage
 

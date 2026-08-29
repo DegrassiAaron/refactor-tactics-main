@@ -163,6 +163,49 @@ maschere diverse dalla stessa geometria»*. I dodici raggi della card sono lo **
 `basso-centro`). Se un indice servisse davvero, si usa l'ancoraggio a **−30°** del codice — non un secondo
 sfasato di uno.
 
+### 5.1 La vista di lettura: sei gruppi — [D-237](../../decisions/RT_PDR_00_Decision_Log.md)
+
+La tabella qui sopra dice **di che tipo** è un'informazione. Questa dice **dove la si cerca**. Sono due
+strati dello stesso sistema, non due sistemi: chi autora usa le forme, chi legge usa i gruppi.
+
+> **Un gruppo, una posizione. Una posizione, un gruppo.** È la regola che questa sezione aggiunge, e chiude
+> una collisione reale: la tabella §5 assegnava `alto-destra` **sia** ai piccoli esagoni **sia** al triangolo.
+
+| Gruppo | Risponde a | Che cosa raccoglie | Forma |
+|---|---|---|---|
+| **APPLICATION** | *dove, chi, come?* | `Target · Shape · Delivery · Range · HitRule` | piccoli esagoni |
+| **EFFECT** | *che cosa produce, e di che natura?* | output + `Element / Nature` | piccoli esagoni |
+| **♦ SKILL MODIFIER** | *cosa modifica la skill dall'interno?* | `Pierce · Chain · Bounce · IgnoreCover · HitsAll` | rombo |
+| **■ CONTEXT MODIFIER** | *cosa la modifica dall'esterno?* | cella, status, talent, alleato, high ground, scenario | quadrato |
+| **▲ CONDITION** | *se / quando?* | requisito, trigger, clausola | triangolo |
+| **COUNTER** | *cosa la riduce?* | ⛔ **riservato e vuoto** — vedi sotto | — |
+
+⚠️ **Tre di questi gruppi non sono nuovi.** `♦`, `■` e `▲` sono il **rombo**, il **quadrato** e il
+**triangolo** della tabella §5, con lo stesso significato e un altro nome. Il delta è di **due** movimenti:
+scorporare `EFFECT` dall'insieme «proprietà intrinseche» e nominare `APPLICATION` ciò che resta.
+
+⛔ **`COUNTER` è riservato ma non si disegna, e la ragione è misurata.** Mostrerebbe `Armor`,
+`KineticResistance`, `FireResistance`, `ElectricResistance`, `ControlResistance`, `StatusResistance`: **sei
+termini con zero occorrenze in `Source/`** (2026-08-28, `483e031a`). L'unica resistenza che esiste è
+`PushResistance`, dormiente per **D-075** e senza produttore. Un settore permanente per dati che nessuno
+emette è icon-soup su dati fantasma — e sarebbe il §7 di questa spec a vietarlo per primo. Il vertice **non
+si riassegna** ad altro nel frattempo: la posizione deve restare imparabile.
+
+🔴 **Raggruppare in UI non fonde nulla nei dati.** `Target`, `Shape`, `Delivery`, `HitRule`, `Effect` e
+`DamageType` restano assi indipendenti nel resolver. Non nasce nessun enum `Application`, e `ERTIconCategory`
+non cambia di una voce. È lo stesso confine del §1, applicato ai gruppi invece che ai glifi.
+
+⚠️ **Il tetto del ring resta 9**, quello della tabella §5. Il kit che ha prodotto questa sezione ne proponeva
+**8** senza citare il primo: un numero solo, o due fonti divergono al primo caso denso.
+
+**I connettori sono parte della grammatica.** Una freccia fra due satelliti dichiara causa o dipendenza:
+
+```text
+▲ Wet  →  ■ Chain +2      si legge: SE Wet, ALLORA il contesto aggiunge Chain +2
+```
+
+---
+
 ---
 
 ## 6. Esempi
@@ -262,7 +305,10 @@ Restano aperti, dall'handoff §12:
 
 2. ✅ ~~palette HEX finale dei marker di fase~~ — **CHIUSA** da [D-233](../../decisions/RT_PDR_00_Decision_Log.md), vedi §3.1;
 3. marker geometrico finale di ciascuna fase;
-4. posizione esatta dei piccoli esagoni quando ne compaiono 1, 2 o 3;
+4. posizione esatta dei piccoli esagoni quando ne compaiono 1, 2 o 3 — **riformulato** da
+   [D-237](../../decisions/RT_PDR_00_Decision_Log.md): la domanda non è più «dove va il terzo esagono»
+   ma «dove finisce `APPLICATION` e dove comincia `EFFECT`», e la regola «un gruppo, una posizione» la
+   vincola senza risolverla;
 5. resa densa di `Range` / `Radius` / `Duration` / `Targets`;
 6. ingresso di `Object` nel Target set — oggi è una primitiva del research, non un valore congelato;
 7. mapping Hit Rule → triangolo/rombo/mini-glifo quando più regole coesistono;
@@ -277,6 +323,7 @@ Restano aperti, dall'handoff §12:
 | Cosa | Dove |
 |---|---|
 | Questa grammatica | **D-231** |
+| Vista di lettura a sei gruppi (§5.1) | **D-237** |
 | Catalogo runtime, 12 categorie | **D-031** · `RTIconCatalogData.h` |
 | `Dash` fase / `Action.Dodge` | **D-230** |
 | Procedura di catalogo | [`../runbooks/guida-catalogo-icone.md`](../runbooks/guida-catalogo-icone.md) |
@@ -284,3 +331,4 @@ Restano aperti, dall'handoff §12:
 | Minimo v0.1 | **E20** [#217](https://github.com/DegrassiAaron/refactor-tactics-main/issues/217) |
 | Governance e authoring estesi | **E25** [#265](https://github.com/DegrassiAaron/refactor-tactics-main/issues/265) · **CP 25.1** [#266](https://github.com/DegrassiAaron/refactor-tactics-main/issues/266) |
 | Revisione che ha prodotto questa spec | [`../../roadmap/plans/icon-card-grammar-spec-panel-2026-08-28.md`](../../roadmap/plans/icon-card-grammar-spec-panel-2026-08-28.md) |
+| Revisione che ha prodotto il §5.1 | [`../../roadmap/plans/combat-skillgrammar-delta-spec-panel-2026-08-28.md`](../../roadmap/plans/combat-skillgrammar-delta-spec-panel-2026-08-28.md) |

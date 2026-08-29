@@ -31,6 +31,7 @@ from __future__ import annotations
 import itertools
 import json
 import math
+import re
 
 # --------------------------------------------------------------------------------------------------
 # Le soglie. Nessuna e' inventata qui: ognuna viene da una decisione gia' presa, e la riga dice quale.
@@ -268,6 +269,131 @@ def palette_report(phase_ink: dict, states: dict, surfaces: dict) -> dict:
     }
 
 
+# --------------------------------------------------------------------------------------------------
+# Il world overlay, dove lo stesso canale porta DUE assi
+# --------------------------------------------------------------------------------------------------
+# `check_palette` guarda la palette delle ICONE: fase contro fase, fase contro stato, fase contro
+# fondo. Il world overlay e' un'altra superficie con un'altra grammatica — li' il colore dice
+# l'IDENTITA' di squadra, ciano le proprie e giallo il nemico rivelato — ma la linea di scatto porta
+# la FASE. Due assi sullo stesso canale, e nessuna delle misure sopra li ha mai confrontati.
+#
+# 🔴 **E' esattamente cosi' che il magenta e' entrato.** `FLinearColor(1, 0.2, 0.9)` non apparteneva a
+# nessuna palette e nessun gate poteva dirlo. Misurato dopo (D-234): distava `dE 20.7` dal ciano di
+# squadra in deuteranopia e `20.9` dal giallo in tritanopia — sopra la soglia per meno di un punto,
+# su due dicromazie diverse.
+#
+# 🔴 **Ed e' la ragione per cui i criteri sono DUE e non uno.** Il magenta passava la misura numerica
+# — `20.7` contro una soglia di `20.0`, per sette decimi — e a prenderlo e' la seconda regola: un
+# colore che non appartiene a nessuna palette non e' entrato per decisione, e' entrato per caso. La
+# distanza dice se due colori si confondono; la provenienza dice se qualcuno li ha scelti.
+#
+# ⚠️ La soglia e' `STATE_MIN_DELTA_E` e **non** `CVD_MIN_DELTA_E`, e la ragione e' gia' scritta: D-233
+# ha scartato il giallo `#F0E442` perche' *«un colore di fase indistinguibile da uno stato e' un
+# difetto peggiore di due fasi vicine, perche' mescola due assi invece di due valori dello stesso
+# asse»*. Identita' di squadra e fase sono due assi.
+
+
+def _linear_to_hex(triple: tuple[float, float, float]) -> str:
+    """`FLinearColor` porta valori LINEARI, la palette e' in sRGB.
+
+    Confrontarli senza codificare darebbe numeri sbagliati e **plausibili**: il ciano di squadra e'
+    `#7CF3FF`, non `#33E6FF`. E' lo stesso errore che `Map/RTHexMapActor.cpp:909` documenta al
+    contrario — *«dividere per 255 darebbe tinte slavate»*.
+    """
+    return "#" + "".join(f"{round(_to_srgb(c) * 255):02X}" for c in triple)
+
+
+def _parse_color_expr(expr: str, where: str) -> str:
+    """Un'espressione di colore del C++ -> HEX sRGB. Due forme, ed entrambe vivono nel modulo."""
+    srgb = re.search(r"FromSRGBColor\(\s*FColor\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)", expr)
+    if srgb:
+        return "#" + "".join(f"{int(c):02X}" for c in srgb.groups())
+    # Due forme dichiarano lo stesso colore lineare, ed entrambe sono C++ legittimo:
+    #   const FLinearColor C = FLinearColor(r, g, b, a);   -> assegnazione
+    #   const FLinearColor C(r, g, b, a);                  -> costruttore
+    # La seconda arriva qui SENZA il nome del tipo. Trattarne una sola faceva esplodere il gate
+    # invece di misurarlo, ed e' stato trovato dalla prova che lo esegue sul C++ vecchio.
+    lin = re.search(r"(?:FLinearColor)?\(\s*([\d.]+)f?\s*,\s*([\d.]+)f?\s*,\s*([\d.]+)f?", expr)
+    if lin:
+        return _linear_to_hex(tuple(float(c) for c in lin.groups()))
+    raise RuntimeError(
+        f"colore non riconosciuto in {where}: `{expr.strip()[:70]}`. Le forme attese sono "
+        "`FLinearColor(r, g, b, a)` (lineare) e `FLinearColor::FromSRGBColor(FColor(r, g, b))`.")
+
+
+def overlay_colors() -> tuple[dict, dict]:
+    """I colori del world overlay, **letti** da `RTHUD.cpp` invece che ricopiati qui.
+
+    Stessa regola di `match_phase_map()` nel generatore: una mappa scritta a mano direbbe la cosa
+    vecchia il giorno dopo il cambio, e nessuno se ne accorgerebbe. Fallisce **forte** se gli
+    ancoraggi spariscono, invece di restituire un insieme a meta' e passare in silenzio.
+    """
+    from generate_hud_assets import REPO_ROOT  # noqa: PLC0415
+
+    text = (REPO_ROOT / "Source/RefactorTactics/UI/RTHUD.cpp").read_text(encoding="utf-8")
+
+    ident = re.search(r"const FLinearColor Color\s*=\s*bOwn(.*?);", text, re.S)
+    if not ident:
+        raise RuntimeError(
+            "`const FLinearColor Color = bOwn ? ...` non trovato in RTHUD.cpp: l'asse dell'IDENTITA' "
+            "di squadra ha cambiato forma. I colori non si riscrivono qui, si rileggono da la'.")
+    found = re.findall(r"FLinearColor\([^)]*\)", ident.group(1))
+    if len(found) != 2:
+        raise RuntimeError(
+            f"l'asse dell'identita' porta {len(found)} colori invece di 2 (proprie / nemico rivelato): "
+            "la forma e' cambiata e la lettura sarebbe parziale.")
+    identity = {"proprie": _parse_color_expr(found[0], "RTHUD.cpp identita'"),
+                "nemico": _parse_color_expr(found[1], "RTHUD.cpp identita'")}
+
+    dash = re.search(r"const FLinearColor DashColor\s*=?\s*([^;]+);", text)
+    if not dash:
+        raise RuntimeError(
+            "`DashColor` non trovato in RTHUD.cpp: la preview dello scatto ha cambiato forma. E' il "
+            "solo elemento dell'overlay che porta un colore di FASE, e senza non c'e' niente da misurare.")
+    return identity, {"Dash": _parse_color_expr(dash.group(1), "RTHUD.cpp DashColor")}
+
+
+def known_inks() -> dict:
+    """Ogni HEX che il sistema conosce, con il nome di chi lo possiede."""
+    from generate_hud_assets import CHROME, PHASE_INK, SEMANTIC  # noqa: PLC0415
+
+    known: dict = {}
+    for owner, table in (("fase", PHASE_INK), ("chrome", CHROME), ("semantico", SEMANTIC)):
+        for name, value in table.items():
+            known.setdefault(value.upper(), f"{owner}/{name}")
+    return known
+
+
+def overlay_pairs(identity: dict, phase: dict) -> dict:
+    """dE fra ogni colore di fase dell'overlay e ogni colore di identita', per tipo di visione."""
+    out: dict = {}
+    for name, ink in sorted(phase.items()):
+        for who, other in sorted(identity.items()):
+            row = {"normale": round(delta_e(ink, other), 1)}
+            for kind in CVD_KINDS:
+                row[kind] = round(delta_e(simulate_cvd(ink, kind), simulate_cvd(other, kind)), 1)
+            out[f"{name}/{who}"] = row
+    return out
+
+
+def check_overlay(identity: dict, phase: dict) -> list[str]:
+    """Il colore di FASE dell'overlay contro l'IDENTITA' di squadra. Vuoto = passano."""
+    errors = []
+    known = known_inks()
+    for name, ink in sorted(phase.items()):
+        if ink.upper() not in known:
+            errors.append(
+                f"overlay: `{name}` ({ink}) non appartiene a NESSUNA palette — un colore nuovo si "
+                "dichiara nel documento owner, non si scopre in un widget (D-234)")
+    for pair, row in sorted(overlay_pairs(identity, phase).items()):
+        for kind, distance in row.items():
+            if distance < STATE_MIN_DELTA_E:
+                errors.append(
+                    f"overlay: `{pair}` dista dE={distance} in {kind}, sotto {STATE_MIN_DELTA_E} — "
+                    "il colore di fase e quello di squadra sono due ASSI, e non devono confondersi")
+    return errors
+
+
 def _palette_sources() -> tuple[dict, dict, dict]:
     """I colori vivono nel generatore, che ne e' l'owner. L'import e' QUI e non in testa al file
     perche' il generatore importa questo modulo: a livello di modulo sarebbe circolare."""
@@ -306,9 +432,25 @@ if __name__ == "__main__":
     print()
     for (phase, surface), why in sorted(CONTRAST_EXEMPT.items()):
         print(f"  deroga dichiarata: {phase} su {surface} — {why}")
+
+    # Il world overlay: stesso canale, due assi. Letto da RTHUD.cpp, mai ricopiato qui (D-234).
+    identity, overlay_phase = overlay_colors()
+    known = known_inks()
+    pairs = overlay_pairs(identity, overlay_phase)
+    print("\nWorld overlay — lo stesso canale porta due assi (D-234)\n")
+    for who, hex_value in sorted(identity.items()):
+        print(f"  identita' {who:8s} {hex_value}  {known.get(hex_value.upper(), 'vocabolario proprio')}")
+    for name, hex_value in sorted(overlay_phase.items()):
+        owner = known.get(hex_value.upper(), "NESSUNA PALETTE")
+        worst = min(min(r.values()) for k, r in pairs.items() if k.startswith(name + "/"))
+        print(f"  fase      {name:8s} {hex_value}  {owner}   dE min vs identita' = {worst}")
+    problems += check_overlay(identity, overlay_phase)
+
     if problems:
         print(f"\n{len(problems)} criteri non rispettati:")
         for problem in problems:
             print(f"   {problem}")
         raise SystemExit(1)
-    print(f"\nOK: peggior caso CVD dE={report['peggior_caso_cvd']} (soglia {CVD_MIN_DELTA_E})")
+    worst_overlay = min(min(r.values()) for r in pairs.values())
+    print(f"\nOK: peggior caso CVD dE={report['peggior_caso_cvd']} (soglia {CVD_MIN_DELTA_E})"
+          f" · overlay fase/identita' dE={worst_overlay} (soglia {STATE_MIN_DELTA_E})")

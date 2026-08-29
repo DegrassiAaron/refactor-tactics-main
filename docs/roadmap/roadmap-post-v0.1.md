@@ -1051,7 +1051,7 @@ latenza zero verso sé stesso.
 
 **Percorso critico**: target di build dedicated · lifecycle di partita lato server · lobby privata custom ·
 **riconnessione e resync** — che non è una comodità: senza, una disconnessione è una partita persa e il
-formato non è competitivo · soak 3v3 su packaged dedicated.
+formato non è competitivo · soak 3v3 su packaged dedicated · **matchmaking non-ranked**, che [D-236](../decisions/RT_PDR_00_Decision_Log.md) colloca qui perché qui stanno le sue dipendenze (`CP 42.6`).
 
 **Gate**, ed è un percorso, non una lista:
 
@@ -1061,8 +1061,12 @@ launch client → lobby → join/create → play → disconnect → reconnect �
 
 su **dedicated server packaged**. Se un solo passo richiede l'Editor, il gate non è passato.
 
-**Fuori perimetro**: matchmaking pubblico e ranked. Assegnazione squadre e party sono qui perché la lobby
-esiste qui; il rating è **E44**.
+**Fuori perimetro**: **ranked e rating**, che sono **E44** — il perimetro è `RNK-1` in
+[`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), l'owner è [`#1604`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1604).
+Assegnazione squadre e party sono qui perché la lobby esiste qui — e
+[D-236](../decisions/RT_PDR_00_Decision_Log.md) estende lo stesso argomento al **matchmaking non-ranked**,
+che in questa epic ha già lifecycle server-side, lobby e riconnessione. Il **rollout** in produzione resta
+[`#810`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/810) in `v1.0`, e da qui in avanti il suo titolo dice il vero.
 
 ---
 
