@@ -25,15 +25,22 @@
 
 🔴 **Il secondo ⏳ è il punto che sorprende, e va detto subito.** Misurato:
 
+🔴 **Questa sezione portava una ricetta `grep` con il suo output atteso già scritto — *«solo dichiarazioni e
+TEST. Nessun chiamante in gioco»* — e la conclusione era falsa.** Rimisurato il 2026-08-29:
+
 ```sh
-grep -rn "InitializeFrontend\|RegisterScreen\|GetStartupReport" Source/
-# → solo dichiarazioni e TEST. Nessun chiamante in gioco.
+grep -rn "InitializeFrontend\|StartFrontend" Source/ --include=*.cpp | grep -v Tests
+# → RTFrontendGameMode.cpp:29  StartFrontendForThisGame();
+# → RTFrontendGameMode.cpp:96  return Navigator->StartFrontend();
+# → RTFrontendNavigator.cpp:121 const ERTNavResult Opened = InitializeFrontend(RTScreenIds::Main);
 ```
 
-Il navigatore esiste e funziona, ma **nessuno lo avvia**. Non è una dimenticanza: CP 46.1 e 46.2 hanno
-consegnato il meccanismo, e l'aggancio appartiene a **CP 46.3** (`#938`, il Main Menu) — è lì che il gioco
-comincia ad avere una radice. Finché non c'è, i Blueprint che costruisci qui si possono provare **solo a
-mano** in PIE, chiamando le funzioni da un livello di prova.
+Il navigatore **viene avviato**: `ARTFrontendGameMode::BeginPlay` lo fa partire, `L_Frontend.umap`
+referenzia quel GameMode, e `RefactorTactics.Frontend.FrontendGameModeStartsTheFrontend` lo prova. Un
+output atteso scritto accanto al comando è la forma più efficace di premessa falsa: chi legge non riesegue.
+
+⚠️ **Resta vero il consiglio pratico**: per provare un singolo widget conviene ancora chiamarne le funzioni
+da un livello di prova, perché il percorso completo passa dal menu e ti fa attraversare tutto il flow.
 
 ∴ **l'ordine consigliato è quello del §2**, e la ragione è questa: i primi due widget si possono verificare
 subito, il terzo no.
@@ -189,8 +196,10 @@ Tre modi di sbagliarlo, tutti plausibili e nessuno segnalato da un errore di com
 `CloseModal` nel Blueprint — un doppio `CloseModal` risponde `NoModalOpen`, che è distinto da `Ok` proprio
 perché un doppio click non mangi una schermata.
 
-⚠️ **Non lo vedrai funzionare in PIE**, e non è un difetto: nessuno chiama ancora `InitializeFrontend`
-(è di CP 46.3, `#938`). La verifica di questa seduta è **nel grafo**, non a schermo.
+⚠️ **La verifica di questa seduta è nel grafo, non a schermo** — ma non perché il frontend non parta.
+🔴 *Questa riga diceva «non lo vedrai funzionare in PIE: nessuno chiama ancora `InitializeFrontend`», ed era
+falsa*: `ARTFrontendGameMode::BeginPlay` lo avvia (vedi §1). In PIE su `L_Frontend` il frontend parte; ciò
+che questa seduta non può giudicare è **l'aspetto**, che resta di `PIE-V01-FRONTEND-ERROR`.
 
 ---
 
