@@ -18,8 +18,15 @@
  * quattro uscite **per cui non esiste nessuna misura**, ed e' cio' che questa sonda produce.
  *
  * ⛔ **Questa sonda NON decide.** Non e' un oracolo, non porta soglie e non modifica i due esistenti: mette
- * dei numeri accanto a una voce che resta APERTA, e il cui owner e' `PDR-00`. Chi decide sceglie con la
- * misura in mano invece che senza.
+ * dei numeri accanto a una voce che allora era APERTA, e il cui owner era `PDR-00`. Chi decide sceglie con
+ * la misura in mano invece che senza.
+ *
+ * ✅ **E ha funzionato: `BOT-STALL-1` e' stata decisa il 2026-08-29 — `D-244`, uscita (d).** «Stallo» e'
+ * **relativo alla board** e i due oracoli restano divergenti per scelta. La (c) che questa sonda misura e'
+ * stata **scartata proprio grazie a questi numeri**: identica alla (a) su entrambe le board, e separabile
+ * da essa solo se un colpo venisse interamente assorbito — cosa che in v0.1 non accade. ⚠️ **La sonda
+ * resta, e non e' un residuo**: e' cio' che rende la decisione riapribile su dati invece che su opinioni
+ * il giorno in cui `#149` muove i numeri di bilanciamento, che e' l'innesco dichiarato da `D-244`.
  *
  * ## «Avanzamento» reso operativo — e la scelta e' dichiarata, perche' non se ne deduce una sola
  *

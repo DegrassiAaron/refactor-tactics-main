@@ -78,8 +78,12 @@ namespace RTAuthoredEngagement
  * legittimo); la', **lo distrugge**. Allineare i due «per coerenza» toglie a uno dei due la prova che porta,
  * e il rosso che ne segue si legge come un difetto del bot invece che come una soglia spostata.
  *
- * ∴ chi vuole unificarli legga prima l'istruttoria: `BOT-STALL-1` in `docs/OPEN_DECISIONS.md`. DIR-C non
- * l'ha presa, perche' e' una decisione sul significato di «stallo» e il suo owner e' PDR-00.
+ * ✅ **E LA DECISIONE E' STATA PRESA: `D-244`, il 2026-08-29, uscita (d).** «Stallo» e' **relativo alla
+ * board**, e questa divergenza non e' un difetto da riparare: e' la forma corretta. Le altre tre uscite
+ * sono state scartate col loro costo — (a) e (b) toglievano ciascuna il potere discriminante a un oracolo
+ * funzionante, la (c) pagava una soglia nuova per zero verdetti diversi. ⛔ **Unificarli non e' piu' una
+ * questione aperta su cui si possa avere un'opinione: e' contro una decisione consolidata.** L'istruttoria
+ * che la motiva resta leggibile in `BOT-STALL-1` (`docs/OPEN_DECISIONS.md`), chiusa e conservata.
  *
  * 🔴 **NON e' il rilevatore di OSCILLAZIONE, benche' lo dichiarasse.** Questa riga diceva che un bot che
  * alterna fra «cerca» e «avvicinati» «tornerebbe sulle stesse celle». Il suo oracolo conta i turni
