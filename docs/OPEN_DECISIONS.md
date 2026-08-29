@@ -35,6 +35,20 @@ Il silenzio è quindi **scelto**, e questa voce esiste perché non venga riscope
 
 ---
 
+## Aperte — come si apre il Composer, dal widget costruito il 2026-08-29
+
+`WBP_RT_ScenarioComposer` esiste da [PR #1701](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1701)
+e chiama le API di `URTScenarioAuthoring`: apre uno scenario per ID, lo esegue, lo azzera, lo salva. Ma
+**nessuno lo mostra**, e il [contratto](technical/tooling/contratto-wbp-scenario-composer.md) non lo dice: le
+sue sette sezioni descrivono *cosa* il widget legge e scrive, mai *da dove* un designer lo apre.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `TD-COMP-1` | Il Composer si apre come **`EditorUtilityWidget`** dal Content Browser, o resta un `UserWidget` **montato da un livello** d'authoring? | Non si deduce dal codice perché **non esiste il precedente**: una ricerca di `EditorUtility` fra i `Content/**` versionati dà **zero** — sarebbe il primo del progetto, e reparentarlo è introdurre un pattern, non configurare un asset. Non si deduce dal contratto, che sul punto tace. Due uscite: **(a) `EditorUtilityWidget`** — si lancia col tasto destro, vive solo in editor e non entra in una build, che è ciò che uno strumento d'authoring vuole; al prezzo di un pattern nuovo da mantenere e della dipendenza da `Blutility` · **(b) `UserWidget` montato**, coerente con gli otto `WBP_RT_*` esistenti, ma serve un livello o un GameMode che lo istanzi — cioè un secondo asset per aprire il primo. **Innesco**: la prima esecuzione di `PIE-SCEN-COMPOSER`, oggi ⏳ perché fino al 2026-08-29 il bloccante era che l'asset non esistesse |
+| `TD-COMP-2` | La collocazione `/Game/RT/UI/Scenario/` è **confermata**, o il Composer va in una cartella che separa gli strumenti dal gioco? | Il contratto §6 dichiara il punto un *«dubbio aperto e non una decisione presa»*, raccomanda `UI/Scenario/` e chiede che chi accetta la raccomandazione la registri **qui**. PR #1701 l'ha applicata **senza registrarla**, e questa riga chiude quel debito. ⚠️ **Il costo di sbagliare è basso e misurato**: `.gitignore:78` è un glob e copre l'intera sottocartella, quindi uno spostamento non rende l'asset invisibile — è il motivo per cui la PR ha proceduto invece di fermarsi. **Innesco**: il secondo strumento d'authoring che nasce, quando la domanda smette di riguardare un asset solo |
+
+---
+
 ## Aperta — come il bot sceglie fra due reazioni, dal 2026-08-27
 
 Origine: [D-220](decisions/RT_PDR_00_Decision_Log.md). Fino a [D-218](decisions/RT_PDR_00_Decision_Log.md)
