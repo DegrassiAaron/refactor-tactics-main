@@ -129,7 +129,7 @@ rispondere mentre è tutto collegato. Il Main Menu la chiama da `Event Construct
 
 | | In CP 46.3 |
 |---|---|
-| **PLAY** | esiste ed è navigabile, ma **non avvia niente**: l'avvio della partita è CP 46.4 ([#939](https://github.com/DegrassiAaron/refactor-tactics-main/issues/939)). Lascialo senza azione e non fingere che funzioni |
+| **PLAY** | `Get Game Instance → Get Subsystem (RTFrontendNavigator) → Start Match`. 🔴 **Questa riga diceva «lascialo senza azione e non fingere che funzioni», e l'istruzione è scaduta**: valeva quando CP 46.4 ([#939](https://github.com/DegrassiAaron/refactor-tactics-main/issues/939)) era aperta e il C++ dell'avvio non esisteva ancora. Oggi #939 è **CLOSED**, `StartMatch()` è `BlueprintCallable`, e il pulsante inerte era il difetto di [#938](https://github.com/DegrassiAaron/refactor-tactics-main/issues/938) — seguirla oggi lo riaprirebbe. ⛔ **`Start Match` e non `Enter Match`**: la prima *chiede* la partita e lascia l'apertura a chi ha il mondo; la seconda serve al caso opposto, PIE lanciato dritto su `L_HexArena`, e dal menu salterebbe la richiesta pendente. Difeso da `RefactorTactics.Frontend.MainMenuPlayAsksTheNavigatorToStart`, che legge il grafo dentro il `.uasset` |
 | **SETTINGS** | `Get Game Instance → Get Subsystem (RTFrontendNavigator) → Push Screen` con `ScreenId = Settings` |
 | **QUIT** | il nodo `Quit Game` |
 
@@ -260,7 +260,7 @@ quella issue, non di questa.
 - **Il contenuto vero di `SETTINGS`** — è v0.2. Qui il pannello dichiara sé stesso e basta.
 - **Uno stile condiviso in `UI/Styles/`** — nasce quando c'è qualcosa da condividere fra più schermate,
   non prima.
-- **L'avvio della partita da `PLAY`** — è CP 46.4 (#939).
+- ⛔ **L'avvio della partita da `PLAY` NON è più fuori scope**: lo era finché CP 46.4 (#939) era aperta. Il cablaggio del pulsante è di questa schermata, e sta nella tabella dei tre pulsanti qui sopra.
 
 ---
 
