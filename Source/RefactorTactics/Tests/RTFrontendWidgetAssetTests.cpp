@@ -603,4 +603,177 @@ bool FRTMainMenuGraphAsksTheNavigatorToStartTest::RunTest(const FString&)
 	return bOk;
 }
 
+namespace
+{
+	const TCHAR* const MenuEntryPath = TEXT("/Game/RT/UI/Framework/WBP_RT_MenuEntry.WBP_RT_MenuEntry_C");
+
+	/**
+	 * Due brush differiscono per qualcosa che **non** sia il colore?
+	 *
+	 * ⚠️ `FSlateBrush::operator==` non serve qui: confronta anche `TintColor`, quindi due stati che
+	 * cambiano **solo** tinta risulterebbero «diversi» — che e' esattamente il caso da bocciare. Questa
+	 * funzione guarda i canali che restano leggibili quando il colore sparisce: la risorsa disegnata, il
+	 * modo di disegnarla, il margine e lo spessore dell'outline.
+	 *
+	 * ⛔ `OutlineSettings.Color` e' deliberatamente escluso: un outline che cambia **colore** e non
+	 * spessore e' ancora un segnale cromatico, e passerebbe un test che lo contasse.
+	 */
+	/**
+	 * I campi di un brush che restano leggibili quando il colore sparisce, nella forma in cui servono in
+	 * un log di automation.
+	 *
+	 * ⚠️ Esiste perche' un `NO` senza numeri non e' diagnosticabile: chi ha appena dato un outline
+	 * all'asset e vede fallire il test non puo' sapere se il valore non e' arrivato, o se e' arrivato su
+	 * un canale che questo confronto non guarda.
+	 */
+	FString DescribeBrush(const FSlateBrush& Brush)
+	{
+		return FString::Printf(TEXT("res=%s draw=%d margin=(%.2f,%.2f,%.2f,%.2f) outlineW=%.3f size=(%.1f,%.1f)"),
+			Brush.GetResourceObject() ? *Brush.GetResourceObject()->GetName() : TEXT("<nessuna>"),
+			static_cast<int32>(Brush.DrawAs),
+			Brush.Margin.Left, Brush.Margin.Top, Brush.Margin.Right, Brush.Margin.Bottom,
+			Brush.OutlineSettings.Width,
+			Brush.ImageSize.X, Brush.ImageSize.Y);
+	}
+
+	bool DiffersBeyondTint(const FSlateBrush& A, const FSlateBrush& B)
+	{
+		return A.GetResourceObject() != B.GetResourceObject()
+			|| A.DrawAs != B.DrawAs
+			|| A.Margin != B.Margin
+			|| A.OutlineSettings.Width != B.OutlineSettings.Width;
+	}
+
+	/** I `UButton` dell'albero, in ordine di visita. */
+	TArray<UButton*> ButtonsOf(const UWidgetTree* Tree)
+	{
+		TArray<UButton*> Found;
+		if (Tree)
+		{
+			const_cast<UWidgetTree*>(Tree)->ForEachWidget([&Found](UWidget* Widget)
+			{
+				if (UButton* Button = Cast<UButton>(Widget))
+				{
+					Found.Add(Button);
+				}
+			});
+		}
+		return Found;
+	}
+}
+
+/**
+ * CP 46.3 (`#938`) — **lo stato di un pulsante non si distingue dal solo colore.**
+ *
+ * La regola non e' nuova e non e' locale a questo widget: il DoD di #938 la scrive come *«il focus non e'
+ * distinguibile dal solo colore: serve un secondo segnale (bordo, offset, icona)»*, e la stessa frase
+ * ricorre in **otto** voci di `test-manuali-pie.md`, dove oggi si verifica **a occhio, in scala di grigi**.
+ * Questo test ne prende la meta' meccanica.
+ *
+ * ⚠️ **Nasce rosso, ed e' il punto.** Misurato il 2026-08-29 sulla build packaged: la voce con il focus
+ * porta `RGB(167,167,167)` e le altre due `RGB(187,187,187)` — nessun bordo, nessun offset (949 px contro
+ * 946), nessuna icona. Il motivo e' che `WBP_RT_MenuEntry.uasset` **non contiene** `WidgetStyle`: il
+ * pulsante usa lo stile di default di UMG, che distingue gli stati per la sola tinta. Non e' una scelta
+ * sbagliata, e' una scelta mai fatta — e nessun gate la vedeva.
+ *
+ * ⛔ **Cosa questo test NON prova**: che il secondo segnale sia *leggibile*. Un outline da 0.01 px lo
+ * farebbe passare. La leggibilita' resta di `PIE-V01-FRONTEND-MAIN`, che rilegge tutto in scala di grigi;
+ * qui si accerta soltanto che un secondo canale **esista**, che e' la condizione senza la quale quella
+ * rilettura non puo' che fallire.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTButtonStatesAreNotColorOnlyTest,
+	"RefactorTactics.Frontend.ButtonStatesAreNotColorOnly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTButtonStatesAreNotColorOnlyTest::RunTest(const FString&)
+{
+	// ⚠️ La lista e' esplicita e non una scansione della cartella: un widget nuovo con un pulsante NON
+	// entra qui da solo, e va aggiunto a mano. E' un limite dichiarato — misurato il 2026-08-29, i soli
+	// due `WBP_RT_*` che contengono un `UButton` sono questi — e la scansione automatica costerebbe un
+	// caricamento di tutti gli asset UI a ogni run per coprire un caso che oggi non esiste.
+	struct FSubject { const TCHAR* Path; const TCHAR* Label; };
+	const FSubject Subjects[] =
+	{
+		{ MenuEntryPath,  TEXT("WBP_RT_MenuEntry")  },
+		{ ErrorModalPath, TEXT("WBP_RT_ErrorModal") },
+	};
+
+	bool bOk = true;
+	int32 ButtonsSeen = 0;
+
+	for (const FSubject& Subject : Subjects)
+	{
+		UWidgetBlueprintGeneratedClass* Class = LoadWidgetClass(Subject.Path);
+		if (!Class)
+		{
+			AddError(FString::Printf(TEXT("%s: asset non caricabile (%s)"), Subject.Label, Subject.Path));
+			bOk = false;
+			continue;
+		}
+
+		const TArray<UButton*> Buttons = ButtonsOf(Class->GetWidgetTreeArchetype());
+		if (Buttons.Num() == 0)
+		{
+			AddError(FString::Printf(TEXT(
+				"%s non contiene alcun UButton: il test non ha soggetto qui. Se il widget e' stato rifatto "
+				"con un altro componente, questa riga va ripuntata invece che tolta."), Subject.Label));
+			bOk = false;
+			continue;
+		}
+
+		for (const UButton* Button : Buttons)
+		{
+			++ButtonsSeen;
+			const FButtonStyle& Style = Button->GetStyle();
+
+			// Normal contro Hovered e Normal contro Pressed: sono i due stati con cui il giocatore sa
+			// «dove sono» e «cosa ho premuto».
+			const bool bHoveredDiffers = DiffersBeyondTint(Style.Normal, Style.Hovered);
+			const bool bPressedDiffers = DiffersBeyondTint(Style.Normal, Style.Pressed);
+
+			AddInfo(FString::Printf(
+				TEXT("%s / %s: hovered oltre-il-colore=%s  pressed oltre-il-colore=%s"),
+				Subject.Label, *Button->GetName(),
+				bHoveredDiffers ? TEXT("si") : TEXT("NO"),
+				bPressedDiffers ? TEXT("si") : TEXT("NO")));
+			AddInfo(FString::Printf(TEXT("    normal : %s"), *DescribeBrush(Style.Normal)));
+			AddInfo(FString::Printf(TEXT("    hovered: %s"), *DescribeBrush(Style.Hovered)));
+			AddInfo(FString::Printf(TEXT("    pressed: %s"), *DescribeBrush(Style.Pressed)));
+
+			if (!bHoveredDiffers)
+			{
+				AddError(FString::Printf(TEXT(
+					"%s / %s: lo stato HOVERED si distingue dal Normal per il solo colore. Il DoD di #938 "
+					"chiede un secondo segnale — bordo (OutlineSettings.Width), offset (Margin), o una "
+					"risorsa diversa. Con la sola tinta, in scala di grigi la voce sotto il puntatore non "
+					"si riconosce."),
+					Subject.Label, *Button->GetName()));
+				bOk = false;
+			}
+
+			if (!bPressedDiffers)
+			{
+				AddError(FString::Printf(TEXT(
+					"%s / %s: lo stato PRESSED si distingue dal Normal per il solo colore. Stessa regola e "
+					"stesso rimedio dello stato hovered."),
+					Subject.Label, *Button->GetName()));
+				bOk = false;
+			}
+		}
+	}
+
+	// 🔴 La guardia che rende il test non-vacuo: se nessun pulsante e' stato ispezionato, un `return true`
+	// sarebbe un verde per ASSENZA di soggetto — la forma di falso verde piu' difficile da notare, perche'
+	// non produce nessun messaggio.
+	if (ButtonsSeen == 0)
+	{
+		AddError(TEXT(
+			"nessun UButton ispezionato in alcun soggetto: il test non ha misurato niente. Un verde qui "
+			"non avrebbe significato «gli stati sono distinguibili», ma «non ho guardato»."));
+		bOk = false;
+	}
+
+	AddInfo(FString::Printf(TEXT("pulsanti ispezionati: %d in %d widget"), ButtonsSeen, UE_ARRAY_COUNT(Subjects)));
+	return bOk;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

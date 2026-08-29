@@ -47,7 +47,7 @@ Multiplayer in rete, 4v4, GAS, progressione e modding restano
 | Linguaggi | **C++** (regole, dati, resolver, test) + **Blueprint** (UI, VFX, camera, presentazione) |
 | Ability system | Data-driven (`UPrimaryDataAsset`) — **GAS rimandato** |
 | Griglia | Esagonale assiale/cubica multilivello (`FRTCellId`) |
-| Versionamento | Git + **Git LFS** |
+| Versionamento | Git, **senza LFS** — gli asset binari UE non sono versionati |
 | IDE | Visual Studio 2022 (workload *Game development with C++*) |
 | Piattaforma | Windows |
 

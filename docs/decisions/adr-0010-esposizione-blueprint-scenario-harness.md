@@ -1,6 +1,14 @@
 # ADR-0010 — Lo Scenario Harness si affaccia su Blueprint da una porta, non da tutte le finestre
 
-> `CANONICAL` · **Stato**: Accettato — contratto implementato, operazioni di editing da implementare (TD-CODE-02)
+> `CANONICAL` · **Stato**: Accettato, e il contratto è in vigore. La porta è `URTScenarioAuthoring`: **quali
+> operazioni esponga si legge da lì**, non da questa riga.
+> 🔴 *Diceva «operazioni di editing da implementare (`TD-CODE-02`)» fino al 2026-08-29
+> ([#1658](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1658)), quando `AddUnit`, `MoveUnit`,
+> `RemoveUnit` e `SetUnitFacing` erano già sulla facade e le tre issue che questo ADR dichiara di abilitare
+> erano chiuse. Un'intestazione `CANONICAL` è il primo posto in cui si cerca lo stato, ed è il peggiore in
+> cui tenerne uno datato. `TD-CODE-02` era l'etichetta di un mandato a due terminali uscito dal repository:
+> dove sia finita ogni sua slice sta in
+> [`plans/terminali-code-editor-e-dir-c-spec-panel-2026-08-29.md`](../roadmap/plans/terminali-code-editor-e-dir-c-spec-panel-2026-08-29.md) §12.*
 > **Data**: 2026-08-27 · **Decisore**: utente (dev singolo)
 >
 > **Abilita**: [#1115](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1115) ·
@@ -100,7 +108,7 @@ d'editor appartiene.
 ### 5. La logica sta nel draft, non nella facade
 
 `FRTScenarioDraft` è C++ puro e contiene tutto ciò che si può sbagliare: aprire, creare, validare, salvare, e —
-con TD-CODE-02 — aggiungere, spostare e togliere unità. La facade `UObject` traduce e basta. È la separazione che
+con [#1115](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1115) — aggiungere, spostare e togliere unità. La facade `UObject` traduce e basta. È la separazione che
 rende i test headless possibili senza costruire un `UObject`, ed è la stessa di `FRTReplayViewModel`.
 
 ## Conseguenze

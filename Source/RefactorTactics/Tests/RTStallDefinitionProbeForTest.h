@@ -23,26 +23,48 @@
  *
  * ## «Avanzamento» reso operativo — e la scelta e' dichiarata, perche' non se ne deduce una sola
  *
- * `OPEN_DECISIONS.md` scrive *«HP nemici calati, o qualcuno caduto»*. Sono **tre** scelte distinte
- * nascoste in una riga, e danno numeri diversi:
+ * `OPEN_DECISIONS.md` scrive *«HP nemici calati, o qualcuno caduto»*. Sembrano piu' letture; **al punto in
+ * cui si campiona ne restano DUE distinte**, ed e' un risultato, non una premessa.
  *
  *   `SaluteNetta`           gli `Health` nemici sono calati rispetto all'inizio della finestra
- *   `PoolNetto`             `Health + Shield` nemici sono calati rispetto all'inizio della finestra
  *   `Eliminazione`          un nemico e' caduto durante la finestra
- *   `SaluteOEliminazione`   `SaluteNetta` oppure `Eliminazione` — la lettura piu' generosa della riga
+ *   `SalutePerTurno`        gli `Health` nemici sono calati rispetto al TURNO PRECEDENTE — non latching
+ *   `PoolNetto`             ≡ `SaluteNetta` (identita', vedi sotto)
+ *   `SaluteOEliminazione`   ≡ `SaluteNetta` (identita', vedi sotto)
  *
- * 🔴 **Perche' `Health` e `Health + Shield` non sono la stessa domanda, ed e' misurabile e non teorico.**
- * Da `D-224` lo scudo BASE **si ricarica nel Cleanup**. Un'unita' che eroda solo scudo infligge danno a ogni
- * turno — `IsDamageInflictedByActor` risponde **vero** — mentre gli `Health` nemici non calano mai: e'
- * hold-and-shoot che non avanza, ed e' precisamente il caso che la (c) esiste per distinguere dalla (a).
- * Col `PoolNetto` invece la ricarica rientra nella misura e la finestra puo' risultare «avanzata» per un
- * danno che il Cleanup ha gia' restituito.
+ * 🔴 **DUE DELLE SEI SONO IDENTITA', non misure — trovato in code review, ed e' il rilievo che ha corretto
+ * il risultato centrale di questo lavoro.** Si campiona a fine turno, DOPO il Cleanup, dove
+ * `RTTurnManager.cpp` chiama `ExpireTemporaryShield()` (che azzera il temporaneo) e subito dopo
+ * `RechargeBaseShield()`, che rimette `Shield = BaseShield` su **ogni unita' viva**. Quindi:
  *
- * ⛔ **Una quarta lettura e' stata SCARTATA, e resta scritta col motivo**: *«HP calati in QUESTO turno»*,
- * cioe' l'avanzamento misurato turno per turno invece che sulla finestra. Con `Health + Shield` collassa
- * sulla **(a)** per costruzione — danno inflitto implica pool calato nello stesso turno — quindi non
- * sarebbe una terza uscita ma un secondo nome della prima. La (c) si separa dalla (a) **solo** se la
- * finestra e' piu' lunga di un turno: e' questo che la rende una decisione e non una riscrittura.
+ *     Pool == Salute + BaseShield * Vivi        (identicamente, al punto di campionamento)
+ *
+ * e siccome `Salute` e `Vivi` sono non crescenti dentro una finestra:
+ *
+ *     bPoolCalato  ⟺  bSaluteCalata ∨ bCaduto  ⟺  bSaluteCalata      (un caduto toglie salute > 0)
+ *
+ * ∴ `PoolNetto` e `SaluteOEliminazione` **non possono** dare un numero diverso da `SaluteNetta`.
+ * Pubblicarle come conferme indipendenti direbbe «tre letture concordano» dove ce n'e' **una**, e una
+ * decisione presa su quella riga sarebbe presa su un dato contato tre volte. L'identita' non e' lasciata
+ * all'algebra: `Bot.StallDefinitions*` la **asserisce a ogni osservazione**, e se un giorno cade — una
+ * meccanica che tocchi lo scudo fuori dal Cleanup — il collasso va rimisurato invece che riassunto.
+ *
+ * ⛔ **E la ragione che questa nota dava per tenere `PoolNetto` distinta era INVERTITA.** Diceva che «con
+ * il `PoolNetto` la ricarica rientra nella misura e la finestra puo' risultare avanzata per un danno che il
+ * Cleanup ha gia' restituito». E' il contrario: il pool si legge **dopo** la ricarica, quindi un'unita' che
+ * eroda solo scudo produce `Pool` identico e `bPoolCalato` **falso**. Lo stato che il test Meta costruisce
+ * — pool che cala a salute costante — e' sintetico e **non raggiungibile** al punto di campionamento.
+ *
+ * ✅ **La lettura per turno e' quella che era stata scartata, e lo era su una premessa falsa.** Il motivo
+ * scritto era «danno inflitto implica pool calato nello stesso turno»: falso, perche' un colpo assorbito
+ * dallo scudo lascia `Pool` invariato. `SalutePerTurno` e' l'unica delle cinque che **non latcha** — chiede
+ * l'avanzamento adesso, non una volta nella finestra — ed e' percio' l'unica che distingue un
+ * hold-and-shoot che avanza a ogni turno da uno che ha avanzato una volta e poi si e' fermato.
+ *
+ * ⚠️ **Le letture sulla finestra LATCHANO, e va detto.** Una volta che lo stato e' avanzato, ogni turno
+ * successivo della stessa finestra e' esente finche' l'unita' non si muove — e l'avanzamento e' di
+ * SQUADRA, quindi puo' averlo prodotto un alleato. Non e' un difetto della sonda: e' cio' che «nella
+ * finestra lo stato e' avanzato» significa. Ma chi decide deve saperlo, perche' e' generoso.
  *
  * ## La finestra
  *
@@ -82,6 +104,8 @@ struct FRTStallDefinitionProbe
 		Eliminazione,
 		/** (c) — esente se armata e (`SaluteNetta` oppure `Eliminazione`). */
 		SaluteOEliminazione,
+		/** (c) — esente se armata e gli `Health` nemici sono calati **rispetto al TURNO PRECEDENTE**. */
+		SalutePerTurno,
 
 		Count
 	};
@@ -98,6 +122,7 @@ struct FRTStallDefinitionProbe
 		case EDefinizione::PoolNetto:           return TEXT("(c) pool netto (salute+scudo)");
 		case EDefinizione::Eliminazione:        return TEXT("(c) eliminazione");
 		case EDefinizione::SaluteOEliminazione: return TEXT("(c) salute o eliminazione");
+		case EDefinizione::SalutePerTurno:      return TEXT("(c) salute per turno");
 		default:                                return TEXT("(sconosciuta)");
 		}
 	}
@@ -141,10 +166,14 @@ struct FRTStallDefinitionProbe
 			Avanza(U, EDefinizione::PoolNetto,           bArmato && bPoolCalato);
 			Avanza(U, EDefinizione::Eliminazione,        bArmato && bCaduto);
 			Avanza(U, EDefinizione::SaluteOEliminazione, bArmato && (bSaluteCalata || bCaduto));
+			// L'unica lettura NON latching: guarda il turno PRECEDENTE, non l'inizio della finestra.
+			Avanza(U, EDefinizione::SalutePerTurno,      bArmato && (Nemici.Salute < U.PrecedenteSalute));
 		}
 
 		U.Precedente = Cell;
 		U.bHaPrecedente = true;
+		// ⚠️ Aggiornato SEMPRE, anche sul turno che riapre la finestra: `SalutePerTurno` non ne ha una.
+		U.PrecedenteSalute = Nemici.Salute;
 
 		for (int32 I = 0; I < NumDefinizioni; ++I)
 		{
@@ -166,6 +195,7 @@ private:
 		int32 InizioSalute = 0;
 		int32 InizioPool = 0;
 		int32 InizioVivi = 0;
+		int32 PrecedenteSalute = 0;
 		int32 Sequenza[NumDefinizioni] = {};
 	};
 
