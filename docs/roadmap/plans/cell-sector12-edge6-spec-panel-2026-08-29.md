@@ -83,7 +83,7 @@ dell'implementazione»* è **esattamente** il *Why* del `CP 23.8` — nominare l
 Perfino l'avvertimento del kit — *«non inventare `FRTSector12`, `FRTDirection6`»* — è già scritto in #1615,
 con la misura accanto (zero occorrenze in `Source/`, riverificata qui).
 
-**🔴 F-02 · Le semantiche di «settore» sono quattro, non tre.** *(Newman)* — La tabella §2 del kit ne elenca
+**🔴 F-02 · Il censimento del kit è incompleto: le semantiche sono quattro, non tre.** *(Newman)* — La tabella §2 del kit ne elenca
 tre. Ne manca una **già a runtime**:
 
 | Nome | Card. | Semantica | Dove |
@@ -93,10 +93,16 @@ tre. Ne manca una **già a runtime**:
 | `RT_OccupancySectorCount` | 12 | quanto la cella è invasa da geometria | `Map/RTHexOccupancyLibrary.h:8` |
 | settore sotto il cursore | 12 | puntamento locale | #1615, **non implementato** |
 
-Il terzo significato ha già un test (`RefactorTactics.PlayerInput.FacingSectorProducesPlannedFacing`,
-`Tests/RTPointerInteractionTests.cpp:448`) ed è citato dall'harness (`ScenarioHarness/RTScenarioSession.cpp:129`).
-Il kit chiede di *«non introdurre una terza semantica ambigua»* mentre la terza è in produzione e la sua
-sarebbe la **quinta** — vedi F-03.
+La riga `HandleFacingSector` ha già un test (`RefactorTactics.PlayerInput.FacingSectorProducesPlannedFacing`,
+`Tests/RTPointerInteractionTests.cpp:448`) ed è citata dall'harness (`ScenarioHarness/RTScenarioSession.cpp:129`):
+è un «settore» a **sei** in produzione, che il kit non conta.
+
+⚠️ **Questa tabella non è una scoperta di questo referto, ed è giusto dirlo**: #1615 la porta già, con la
+stessa riga e lo stesso `file:line`. Il rilievo è che il **kit** ne elenca tre di quattro — non che nessuno
+l'avesse misurato. ⛔ **E il kit non introduce una quinta semantica**: il suo `LocalSector ∈ [0..11]` riusa i
+dodici dell'occupancy, che è precisamente il motivo per cui `F-01` lo dà coperto da #1615. La prima stesura di
+questo rilievo diceva *«la sua sarebbe la quinta»* e contraddiceva `F-01`: le due cose non possono valere
+insieme, e a valere è `F-01`.
 
 **🔴 F-03 · Il dominio è conteso da una decisione che il repository tiene aperta apposta.** *(Cockburn)* —
 [#1606](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1606) (`[DESIGN] End Placement e
@@ -112,15 +118,24 @@ chiede, **decide `PLC-5` per costruzione** e pregiudica `PLC-1`. #1606 esiste co
 
 ### 4.2 `CP 23.9` — relazione Sector12 ↔ Edge6
 
-**⛔ F-04 · La conversione è già in produzione, con il suo test.** *(Adzic)* —
+**⛔ F-04 · La RELAZIONE è già incisa nel codice e in uso; la FUNZIONE che il kit chiede non esiste, e la
+distinzione cambia la taglia del lavoro, non il verdetto.** *(Adzic)* —
 `URTGeometryBakeLibrary::EdgesTouchedBy` (`Map/RTGeometryBake.cpp:167-176`) percorre i sei bordi, prende
 `Boundary[(2*Edge) % RT_OccupancySectorCount]` e `Boundary[(2*Edge+2) % …]`, e chiude con
-`URTHexLibrary::DirectionForEdgeIndex(Edge)`. È la catena `Sector12 → EdgeIndex → ERTHexDirection` che il kit
-chiede di *«aggiungere/centralizzare»*, scritta con venti righe di commento che spiegano il perché — ed è
-coperta da `BakeCoverLandsTowardTheNeighbour`, nato apposta perché i test precedenti usavano solo `E` e `W`.
-Il delta reale è **una funzione pura** `SectorIndex → EdgeIndex` e i suoi test: un'ora di lavoro, non un
-checkpoint di epic. ⚠️ E oggi non ha un consumatore: nessuno chiede *«quale bordo tocca il settore `s`»* —
-`FRTOccupancyMask::Sectors` è letta come maschera, non come indice.
+`URTHexLibrary::DirectionForEdgeIndex(Edge)`: è la stessa corrispondenza `2k`/`2k+1` che il kit propone,
+**percorsa nel verso opposto** — da bordo a settori, non da settore a bordo — con venti righe di commento che
+ne spiegano il perché, e coperta da `BakeCoverLandsTowardTheNeighbour`, nato apposta perché i test precedenti
+usavano solo `E` e `W`.
+
+🔴 **La prima stesura di questo rilievo scriveva «la conversione è già in produzione», ed era imprecisa**: la
+funzione `SectorIndex → EdgeIndex` **non esiste**. Misurato: `SectorIndex` ha **zero** occorrenze in `Source/`,
+e nessun simbolo la nomina. Ciò che è in produzione è la relazione, non la sua direzione.
+
+✅ **Il verdetto regge, e anzi si rafforza**: il delta reale è **una funzione pura di una riga** più i suoi
+test — non un checkpoint d'epic — e la relazione da cui deriva è già scritta, testata e motivata in un punto
+solo. ⚠️ E oggi non ha un consumatore: nessuno chiede *«quale bordo tocca il settore `s`»* —
+`FRTOccupancyMask::Sectors` è letta come maschera, non come indice. Vedi §8: `D-243` cambia questo, ma solo
+come ragione, non come chiamante.
 
 **✅ F-05 · La tabella §4 è corretta, ed è la sesta riga a dirlo.** *(Fowler)* — `DirectionForEdgeIndex(k) =
 (6 − k) % 6` (`Map/RTHexLibrary.cpp:385-393`) sull'enum `E, NE, NW, W, SW, SE` (`Map/RTCellId.h:11-19`)
@@ -134,7 +149,7 @@ cui il difetto è nato»* (`Map/RTHexLibrary.h:181-183`).
 una convenzione scelta: è la **costruzione** di `SectorBoundaryPoints` (`Map/RTHexOccupancyLibrary.cpp:88-102`),
 che alterna vertice e punto medio del lato — indici **pari** a raggio `HexSize` e angolo `60k − 30`, indici
 **dispari** a raggio inscritto e angolo `60k`. Il bordo geometrico `k` va da `HexCorners[k]` a
-`HexCorners[k+1]`, cioè da `−30 + 60k` a `−30 + 60(k+1)` (`Map/RTHexLibrary.cpp:383-384`): i settori `2k` e
+`HexCorners[k+1]`, cioè da `−30 + 60k` a `−30 + 60(k+1)` (`Map/RTHexLibrary.cpp:373-381`): i settori `2k` e
 `2k+1` **sono** le sue due metà. La formula è un teorema sulla costruzione, non un accordo — e va testata
 derivandola, come `EdgeIndexMatchesNeighbourDirection` già fa per l'altro ponte.
 ⚠️ **Corollario che il kit non dice**: i dodici settori **non sono equidistanti dal centro**. «Dodici spicchi
@@ -166,14 +181,15 @@ interaction graph, cache e future transition possono divergere»*. Misurato, è 
    perché nel progetto **l'identità di un bordo È la coppia di celle**»*. Ripetuto sul dato:
    *«un arco è identificato dalla coppia `(From, To)` e nient'altro»* (`Map/RTHexCellData.h:440-441`).
 
-**🔴 F-09 · L'identità condivisa esiste già, ed è nominale — e una seconda sarebbe vietata in testa al file
+**🔴 F-09 · L'identità condivisa esiste già, ed è nominale — e una seconda sarebbe vietata dal doc comment del file
 che la porta.** *(Fowler)* — `CP 23.3` / [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832)
 ha già risolto *«due descrizioni della stessa struttura»* con `StableId`: `FRTStructureArcRef` documenta
 *«un ponte bidirezionale ne produce DUE, che portano lo stesso nome perché sono una struttura sola»*
 (`Map/RTStructureIdentityLibrary.h:36-39`), e `FRTHexEdge::StableId` aggiunge *«è l'unica condivisione di nome
-ammessa fra archi»* (`Map/RTHexCellData.h:438-446`). La libreria si apre con
-*«⚠️ **Nessuna seconda authority**»*. Una `SharedEdgeAddress` canonica sarebbe la seconda risposta alla stessa
-domanda, introdotta nel modulo che vieta le seconde risposte.
+ammessa fra archi»* (`Map/RTHexCellData.h:438-446`). Il doc comment della libreria dichiara, a `RTStructureIdentityLibrary.h:67`,
+*«⚠️ Nessuna seconda authority»* — la frase parla di chi **muta** una porta, e questo referto la estende a chi
+**identifica** un bordo: è un'analogia, non una citazione letterale. Una `SharedEdgeAddress` canonica sarebbe la
+seconda risposta alla stessa domanda, introdotta nel modulo che tiene quella disciplina.
 
 **🔴 F-10 · Il modello proposto copre metà del dominio che dichiara di preparare.** *(Newman)* —
 `SharedEdgeAddress = canonical(CellA, DirA)` è definita su `Neighbor(A, Dir)`, quindi vive sui **sei bordi
@@ -187,14 +203,20 @@ adiacenti»* (`Map/RTCellId.h:22-25`).
 
 ### 4.4 Rilievi trasversali
 
-**⚠️ F-11 · Due dipendenze su tre sono chiuse da due settimane.** — #619 (12/08), #620 (13/08), #621 (14/08)
-sono `CLOSED`, e #324 le registra come tali con le date. Il kit le presenta come *«stato già esistente da
-verificare»*: verificarle va fatto, ma il loro esito non è aperto.
+**⚠️ F-11 · Le dipendenze dichiarate non sono «da verificare»: sono chiuse tutte e tre.** — #619 (chiusa il
+2026-08-12), #620 (2026-08-13) e #621 (2026-08-13, `closedAt` — non il 14, che è la data di ultimo
+aggiornamento e non di chiusura) sono `CLOSED`, e #324 le registra come tali. Il kit le presenta come
+*«stato già esistente da verificare»*: verificarle va fatto, ma il loro esito non è aperto.
 
-**⚠️ F-12 · Aggiungere tre checkpoint tocca un owner documentale che il kit non nomina.** — Il corpo di #324
-si apre con *«Owner documentale: `docs/roadmap/roadmap-post-v0.1.md` § E23»* e la sua tabella arriva a `23.7`.
-`23.8`/`23.9`/`23.10` sono **liberi** — nessuna collisione — ma il kit §6 chiede di aggiornare la sola issue.
-Scrivere i checkpoint solo su GitHub creerebbe la divergenza che `DOC_CONFLICT_MATRIX` esiste per registrare.
+**⚠️ F-12 · Aggiungere tre checkpoint tocca un owner documentale — e il puntatore di #324 indica quello
+sbagliato.** — Il corpo di #324 si apre con *«Owner documentale: `docs/roadmap/roadmap-post-v0.1.md` § E23»*,
+ma quel documento, alla sua sezione `E23`, dichiara *«⛔ **E23 NON È PIÙ DI QUESTA RELEASE** — anticipata alla
+v0.1 il 2026-08-17»* (`D-160`). La tabella `E23.1`–`E23.7` viva è in
+[`roadmap-v0.1.md`](../roadmap-v0.1.md) § E23, con DoD e stato per checkpoint. `23.8`/`23.9`/`23.10` sono
+**liberi** — nessuna collisione — ma chi seguisse il puntatore di #324 scriverebbe il checkpoint nuovo nel
+documento che disclaima l'epic, lasciando stale l'owner di release: esattamente la divergenza che
+`DOC_CONFLICT_MATRIX` esiste per registrare. ➕ **Il puntatore stale di #324 è un difetto suo, non del kit**,
+e vale una riga di correzione indipendente da tutto il resto.
 
 **⚠️ F-13 · La tabella di output §12 presuppone la scrittura.** — Pretende `created/reused/updated` per tutti
 e tre i CP. `/sc:spec-panel` è task documentale (`CLAUDE.md` §6): la colonna corretta, oggi, è in §7.
@@ -243,11 +265,12 @@ Elenco, non lavoro fatto. La scrittura su GitHub è decisione dell'autore.
 
 | # | Azione | Perché |
 |---|---|---|
-| 1 | **Non creare `CP 23.8`.** Aggiungere a #1615 una riga sul quarto significato (`HandleFacingSector`) e il rimando a #1606 | F-01, F-02, F-03 |
+| 1 | **Non creare `CP 23.8`.** ⚠️ **E non aggiungere a #1615 il censimento dei significati: ce lo ha già**, con la stessa riga `HandleFacingSector` e lo stesso `file:line`. L'unica aggiunta che non duplica è il **rimando a #1606**, che #1615 non cita | F-01, F-02, F-03 |
 | 2 | **Non creare `CP 23.9` come checkpoint.** Se serve la funzione pura `SectorIndex → EdgeIndex`, è una issue piccola sotto #1615 o un commento in `RTHexOccupancyLibrary.h`, con test derivato e non inciso | F-04, F-05 |
 | 3 | **Non creare `CP 23.10`.** La domanda che porta è di `E23.7`; la risposta corrente (`StableId`) va **citata** nel corpo di #324 perché il prossimo kit non la riscopra | F-07, F-08, F-09, F-10 |
 | 4 | Se l'autore vuole comunque tracciare la lacuna di §6, **una** issue `DESIGN` sotto `E23.7`, in `OPEN_DECISIONS.md`, con prefisso proprio — non tre checkpoint | §6 |
-| 5 | Ogni aggiunta di checkpoint a #324 va scritta **anche** in `roadmap-post-v0.1.md § E23`, nello stesso giro | F-12 |
+| 5 | Ogni aggiunta di checkpoint a #324 va scritta **anche** in [`roadmap-v0.1.md`](../roadmap-v0.1.md) § E23 — **non** in `roadmap-post-v0.1.md`, che per `E23` dichiara *«NON È PIÙ DI QUESTA RELEASE»* | F-12 |
+| 6 | **Aggiornare #1606**: dopo `D-243` il suo titolo promette *«sette domande»* mentre cinque sono chiuse, e il suo owner (`OPEN_DECISIONS.md`) lo dice già. Non si chiude: restano `PLC-3` e `PLC-4` | §8 |
 
 ⛔ **Nessuna issue creata o modificata.** ➕ **Un `D-nnn` è stato assegnato, ma non a una tesi del kit**:
 nessuna delle sue tesi era una decisione nuova — coincidono con decisioni esistenti o cadono contro di esse.
@@ -267,11 +290,12 @@ deriva (`SectorIndex / 2` → `DirectionForEdgeIndex` → `FacingFinalAfterMove`
 `PLC-5`, `PLC-6` e `PLC-7`; restano aperte `PLC-3` e `PLC-4`, che riguardano la geometria della cella e non la
 posa. Owner: [`../../OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) § *Chiuse il 2026-08-29 da `D-243`*.
 
-➕ **E cambia un verdetto di questo referto**: `F-04` dava la conversione `Sector12 → Edge6` *«senza un
-consumatore»*. Con `D-243` il consumatore esiste — è il traduttore fra il settore sotto il cursore e il facing
-dichiarato. Il rilievo resta valido su ciò che diceva (la conversione è già in produzione in `EdgesTouchedBy`,
-e non serve un checkpoint d'epic), ma la funzione pura `SectorIndex → EdgeIndex` ha ora una ragione d'esistere
-che il giorno prima non aveva.
+➕ **E cambia un verdetto di questo referto, ma meno di quanto la prima stesura scrivesse.** `F-04` dava la
+conversione *«senza un consumatore»*, e questa riga diceva che con `D-243` *«il consumatore esiste»*. **Non
+esiste**: una decisione non produce un chiamante, e #1615 è tuttora `OPEN` e non implementata. Ciò che `D-243`
+consegna è la **ragione** per cui quel chiamante nascerà — il traduttore fra il settore sotto il cursore e il
+facing dichiarato — dove il giorno prima non ce n'era nessuna. Il rilievo `F-04` resta valido su ciò che
+diceva, e la funzione pura resta lavoro non ancora sbloccato.
 
 🔴 **Una correzione a §4.1**: `F-01` resta vero — `CP 23.8` è coperto da #1615 — ma la riga che ne faceva
 discendere *«#1615 va sbloccata prima»* era imprecisa. **#1615 non era bloccata** da `PLC-1` finché resta
