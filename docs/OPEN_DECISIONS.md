@@ -1382,7 +1382,7 @@ Owner: [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §9. Non
 | Composizione del team | assunzioni discordanti; il progetto assume **dev singolo** |
 | Direzione artistica | inesistente; si usano placeholder e asset Paragon |
 | Hardware target | mai definito → i budget KPI restano **da misurare**, non garanzie |
-| Identità originale (nomi, lore) | necessaria per una pubblicazione |
+| Identità originale (nomi, lore) | necessaria per una pubblicazione. 📌 **Dal 2026-08-30 il materiale su cui si deciderà ha un owner**: [`product/lore-e-worldbuilding.md`](product/lore-e-worldbuilding.md) ([D-246](decisions/RT_PDR_00_Decision_Log.md)) — la sorgente d'autore del worldbuilding, `PROPOSED` e non normativa, che tiene anche il livello con spoiler che la Wiki non pubblica. ⚠️ **Averla non avvicina la decisione**: `Harmonic Coupling`, `Refactor` e `ARC` restano fuori dal canone, e i quattro `FactionId` hanno zero occorrenze in `Source/`. Cambia solo che ora la domanda ha un documento da leggere invece di un file di radice che nessun gate guardava |
 | ~~Mapping visuale Paragon → roster~~ | **chiusa il 2026-08-08** da [`D-037`](decisions/RT_PDR_00_Decision_Log.md): Flux → `Paragon.Gadget`, Riva → `Paragon.Phase`, Bastion → `Paragon.Riktor`, Vektor → `Paragon.Wraith`. Tabella owner in [`characters/paragon.md`](characters/paragon.md). Resta aperto solo il **nome retail** dei quattro slot v0.2, che è la riga «Identità originale» qui sopra | <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 
 ## ✅ Chiuse il 2026-08-09 — sessione `/sc:brainstorm` su E13

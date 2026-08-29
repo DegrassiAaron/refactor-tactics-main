@@ -108,6 +108,7 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | Stati del personaggio e trasformazioni | [`gameplay/brief-stati-personaggio-e-trasformazioni.md`](gameplay/brief-stati-personaggio-e-trasformazioni.md) · candidature in [`characters/matrici-stati-personaggio.md`](characters/matrici-stati-personaggio.md) | 📅 [D-035](decisions/RT_PDR_00_Decision_Log.md) · **post-v0.1**, epic E34 · nessun eroe assegnato |
 | Formato principale di partita | [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) `D-001`/`D-011` | ⚠️ **assunzione**: 3v3 baseline, mai misurato |
 | Validazione di stress 4v4 | [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) §E17 | ⏳ E17, dopo E15 |
+| **Lore e worldbuilding** — Harmonic Coupling, The Refactor, ARC, le quattro fazioni | [`product/lore-e-worldbuilding.md`](product/lore-e-worldbuilding.md) | 🟡 `PROPOSED`, **non normativo e non ratificato** ([D-246](decisions/RT_PDR_00_Decision_Log.md)). Non compare nella gerarchia delle fonti qui sopra ed e' voluto: nessun termine di questa pagina e' nel canone, e i quattro `FactionId` hanno **zero** occorrenze in `Source/`. E' la sorgente interna della [`Lore`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Lore) player-facing, e tiene il livello con spoiler che la Wiki dichiara di non pubblicare. La ratifica passa da *«Identita' originale (nomi, lore)»* in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) |
 
 ---
 

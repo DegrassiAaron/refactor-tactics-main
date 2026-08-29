@@ -1,3 +1,54 @@
+> 🔎 **ESITO DELLA REVISIONE — 2026-08-30.** Sorgente **recepito per intero, e poi ritirato**. È il solo
+> documento di questo archivio il cui esito non è *«quanto ne è passato»* ma *«quanto ne è sopravvissuto
+> alla rimozione di ciò che aveva costruito»*.
+>
+> ✅ **Recepito**: il Feature Registry canonico è esistito. `docs/roadmap/feature-registry.yaml` (7.621
+> righe, 84 feature), `scripts/feature_registry.py` (5.017 righe), otto artefatti generati
+> (`feature-registry.json`, `project-graph.json`, `roadmap-map.svg`, cinque `*.shortlist.md`), il Project
+> Control Center in `docs/control-center/`, **102** dei 134 test del repository e i **21** blocchi
+> `RT_FEATURE_STATUS` che il §12 descrive, generati dentro documenti scritti a mano.
+>
+> 🔴 **Ritirato il 2026-08-21 da [D-181](../../decisions/RT_PDR_00_Decision_Log.md)**, con la misura che
+> l'ha innescata scritta nella decisione: una giornata intera in cui **ogni** commit ha riparato il sistema
+> di tracciamento e **nessuno** ha toccato `Source/`. Sono usciti tutti gli artefatti dell'elenco sopra.
+> Il §17 — *«validate-feature-registry»*, *«generate-feature-status»* — è caduto poche ore dopo con
+> [D-182](../../decisions/RT_PDR_00_Decision_Log.md), che ha portato via l'intera cartella `scripts/`.
+>
+> ⚠️ **Quindi le sezioni §2, §4, §12, §13, §14, §16, §17 e §21 descrivono cose che non esistono più**, e
+> §19–§20 sono il mandato di un lavoro già fatto e già disfatto. Non vanno rieseguite: chi le leggesse come
+> istruzioni ricostruirebbe esattamente il sistema che una decisione d'autore ha rimosso. È la stessa
+> classe di rischio che `AGENTS.md` chiama *issue che presuppongono tooling rimosso*.
+>
+> ✅ **Ciò che è sopravvissuto è il vocabolario, ed è la parte più citata del documento.** La tassonomia
+> `RT-FEAT-<AREA>-<NOME>` del §3 è ancora in uso: **482** occorrenze in **64** documenti vivi
+> (esclusi `docs/archive/` e `docs/research/`) e **10** in **7** file fra `Source/` e `Scenarios/`,
+> misurate il 2026-08-30 su `fff33020`. `RT-FEAT-CHAR-PRESENTATION` regge `GBX-5` in
+> [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), `RT-FEAT-UI-GRAYBOX-KIT` regge una famiglia di
+> [`asset-map.md`](../../technical/tooling/asset-map.md), `RT-FEAT-UI-SCENARIO-BROWSER` regge il verdetto
+> di scope del [`README`](README.md) di questa cartella. **Gli ID non hanno più un registro che li
+> definisca**: sono nomi condivisi che vivono in prosa, e nessuno verifica più che due documenti intendano
+> lo stesso.
+>
+> ✅ **Sopravvivono anche tre discipline**, che non dipendono dal tooling e valgono ancora:
+> §5 *«niente percentuali soggettive: gate contati, non stime»*; §7 *«una feature non è una epic — la
+> roadmap è la vista temporale, la feature è la vista di capability»*; §18 *«non aggiornare una roadmap
+> storica per farla sembrare corrente: mettici un banner»*, che è il meccanismo con cui questo archivio
+> funziona.
+>
+> ⚠️ **Il §9 portava una baseline che è invecchiata due volte.** Il roster è cambiato con
+> [D-120](../../decisions/RT_PDR_00_Decision_Log.md)/[D-130](../../decisions/RT_PDR_00_Decision_Log.md) e i
+> nomi sono stati sostituiti in questo file (riga di provenienza qui sotto); e *«Fast Reaction 3,0 s,
+> timeout HOLD»*, *«High Ground senza bonus alla vista»*, *«formato competitivo non bloccato»* vanno
+> riletti su `CLAUDE.md` §3, non da qui.
+
+<!-- rename-exempt: la riga dichiara la mappatura -->
+> **Nomi del roster sostituiti il 2026-08-30 per [D-130](../../decisions/RT_PDR_00_Decision_Log.md)**:
+> `Flux` → `Gadget`, `Riva` → `Phase`, `Bastion` → `Riktor`, `Vektor` → `Wraith`, secondo la mappatura di
+> [D-037](../../decisions/RT_PDR_00_Decision_Log.md). Il documento del 2026-08-08 usava i nomi di allora;
+> le issue e i commit dell'epoca li usano ancora, ed è ciò che va cercato per risalire alla provenienza.
+
+---
+
 # RefactorTactics — Feature Registry, Roadmap e Wiki Traceability
 ## Handoff operativo per Claude Code
 
@@ -279,10 +330,10 @@ v0.1:
 2v2 offline vs bot
 
 Roster v0.1:
-Flux
-Riva
-Bastion
-Vektor
+Gadget
+Phase
+Riktor
+Wraith
 
 Roster v0.2:
 Steel
@@ -305,7 +356,7 @@ Fast Reaction:
 3.0 s
 timeout HOLD
 
-Vektor:
+Wraith:
 InterceptShot = predictive thin slice v0.1
 
 High Ground v0.1:
@@ -482,7 +533,7 @@ Scenario selector/browser
 
 ```text
 RT-FEAT-CHAR-V01-ROSTER
-Flux / Riva / Bastion / Vektor
+Gadget / Phase / Riktor / Wraith
 
 RT-FEAT-CHAR-V02-ROSTER
 Steel / Aurora / Murdock / Kwang
@@ -639,7 +690,7 @@ Consolidare/chiudere:
 - Reaction Opportunity;
 - Fast Reaction;
 - Overwatch;
-- Vektor predictive thin slice;
+- Wraith predictive thin slice;
 - v0.1 roster.
 
 ## v0.1 — Showcase Integration
@@ -731,7 +782,7 @@ NON editarlo manualmente.
 
 Una pagina può avere più FeatureId.
 
-Esempio pagina personaggio Flux:
+Esempio pagina personaggio Gadget:
 
 ```text
 RT-FEAT-CHAR-V01-ROSTER
@@ -802,8 +853,8 @@ Esempio:
 
 | WikiEntityId | FeatureId | Relation |
 |---|---|---|
-| Hero.Flux | RT-FEAT-CHAR-V01-ROSTER | release |
-| Hero.Flux | RT-FEAT-ENV-ELECTRIC | demonstrates |
+| Hero.Gadget | RT-FEAT-CHAR-V01-ROSTER | release |
+| Hero.Gadget | RT-FEAT-ENV-ELECTRIC | demonstrates |
 | Faction.Conflux | RT-FEAT-FACTION-SYSTEM | belongs-to |
 | Scenario.Team.Conflux... | RT-FEAT-FACTION-SCENARIOS | validates |
 

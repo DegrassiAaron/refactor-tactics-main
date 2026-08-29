@@ -1,7 +1,11 @@
 # DIR-B · Core/Gameplay — spec panel sulla direttiva operativa v0.1
 
-> `CURRENT` · **Stato**: revisione chiusa, **non applicata** — la direttiva è untracked e non è stata
-> modificata · **Data**: 2026-08-28
+> `CURRENT` · **Stato**: revisione chiusa e **applicata nella v0.2**, che è versionata e vive accanto a
+> questo referto: [`dir-b-core-gameplay-directive-v0.2.md`](dir-b-core-gameplay-directive-v0.2.md).
+> *(Fino al 2026-08-28 questa riga diceva «non applicata — la direttiva è untracked e non è stata
+> modificata», ed era vera quel giorno: la v0.1 era untracked e questo referto l'aveva lasciata intatta di
+> proposito. La v0.2 è arrivata poche ore dopo, in radice; il 2026-08-30 è scesa qui.)* · **Data**:
+> 2026-08-28
 > **HEAD della revisione**: `707a8d95` (`main`)
 > **Oggetto**: `REFACTORTACTICS — DIR-B · CORE - GAMEPLAY v0.1.md` (untracked, 648 righe), letta contro
 > la DoD reale di [`#166`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) (CP 14.6),
@@ -404,7 +408,8 @@ committata (`git log --all` sul path: vuoto), ed è sparita durante questa sessi
 questa revisione, che l'aveva lasciata deliberatamente intatta scrivendo la correzione in un file separato.
 È la stessa lezione di `M5` pagata sul campo: **un documento di regime che nessuno traccia non ha nessuno che
 lo difenda.** Il testo originale sopravvive solo qui, sezione per sezione, e nelle parti che la
-**v0.2** — `REFACTORTACTICS — DIR-B · CORE - GAMEPLAY v0.2.md`, che le nove correzioni le applica — conserva.
+**v0.2** — [`dir-b-core-gameplay-directive-v0.2.md`](dir-b-core-gameplay-directive-v0.2.md), che le nove
+correzioni le applica — conserva.
 Quella, per la stessa ragione, è **versionata**.
 
 **Nessun `D-nnn` riservato.** La revisione non introduce una regola nuova né supera una decisione esistente:
