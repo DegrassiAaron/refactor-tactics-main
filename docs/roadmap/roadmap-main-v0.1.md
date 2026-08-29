@@ -14,6 +14,13 @@
 > **Base di misura**: HEAD `f20c94d9` su `feat/1499-soggetto-esplicito-verdetto-congelato`, **64 avanti /
 > 0 dietro** `origin/main` = `ad7f212b` dopo `git fetch --prune`. Stato delle issue letto il 2026-08-28.
 >
+> ⚠️ **Riverificata il 2026-08-29** su HEAD `e87ae2b4`, limitatamente alle sedi di `DIR-B`. Il corpo di
+> [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) portava un riquadro «non può
+> partire» del 2026-08-17 i cui **tre blocchi sono caduti tutti** — #886 chiusa il 2026-08-18, e `D-139`
+> superata da [D-178](../decisions/RT_PDR_00_Decision_Log.md) il 2026-08-20 con `parallel-batch.yaml` che
+> **non esiste più**. La issue è stata riallineata lo stesso giorno; il delta sta nelle note `B0`, `B1`,
+> **P3** e **P4**.
+>
 > **Vista d'insieme delle release**: [`roadmap-v0.1-v1.0.md`](roadmap-v0.1-v1.0.md).
 
 ---
@@ -213,10 +220,14 @@ Screen HUD in UMG) è aperta, e `L_DevSandbox.umap` è una delle quattro mappe v
 UI della finestra e misura del pacing»*: la preview è **una parte**, e la DoD chiede anche il pacing
 misurato. Una wave che consegna la sola preview lascia il checkpoint aperto.
 *Fonte*: `gh` · [`plans/dir-b-core-gameplay-directive-spec-panel-2026-08-28.md`](plans/dir-b-core-gameplay-directive-spec-panel-2026-08-28.md) §5.
+✅ **Aggiornamento del 2026-08-29**: la metà headless della misura è consegnata e il corpo di #166 è stato
+riallineato — il checkpoint resta aperto sulla UI `FIRE`/`HOLD`, sulla slow-motion col suo test, e sul
+`p50`/`p90`.
 
 **P4 · `AppliedDamage` non esiste.** `git grep -c AppliedDamage` dà **zero** in `Source/` e **cinque**
 occorrenze in un solo documento — il piano DIR-B che lo nomina. Non è un riuso: è un nome da introdurre,
-con il costo che ne segue. *Fonte*: `git grep`.
+con il costo che ne segue. **Riverificato il 2026-08-29 su `e87ae2b4`: ancora zero in `Source/`.**
+*Fonte*: `git grep`.
 
 **P5 · falsificata il 2026-08-22.** Sulla sorgente spedita il primo colpo cade al **turno 2** e le voci
 `Combat` sono **23**. Il difetto non era «non ingaggiano» ma **«ingaggiano e non concludono»**, ed è
@@ -287,9 +298,16 @@ un'assegnazione e non aggiungono scope: sono il modo per non ripartire da un tit
 | `B5` | Solo bugfix di core, a supporto del complete match | — |
 | `B6` | Feature freeze: solo blocker di determinismo o di esito | — |
 
-- `B0` — ⛔ il checkpoint chiede **anche** counterplay e pacing misurato, vedi **P3**.
+- `B0` — ⛔ il checkpoint chiede **anche** counterplay e pacing misurato, vedi **P3**. ✅ **Aggiornata il
+  2026-08-29**: il pacing è atterrato per la metà headless — [PR #1554](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1554)
+  (2026-08-28) registra **9,0 / 18,0 / 24,0 s** con 1, 2 e 3 unità armate dello **stesso** giocatore, col
+  cap dei prompt applicato. È un **tetto**, non il `p50`/`p90`: quello è playtest e non è chiudibile
+  headless, perché con un decisore che risponde subito il Decision Time è nullo per costruzione.
 - `B1` — ⛔ `AppliedDamage` non esiste (**P4**). [#1118](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1118) è **esattamente** il problema dei reason
-  code: *«la risposta e la sua ragione sono un enum solo»*.
+  code: *«la risposta e la sua ragione sono un enum solo»*. ✅ **La preview read-only ha la sua metà
+  core dal 2026-08-28**: `FRTReactionWindowView` + `URTReactionWindowLibrary::FilterWindowForTeam`
+  ([PR #1549](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1549)). Manca il widget, che è
+  lane `DIR-A`.
 - `B2` — ✅ il decisore che il mandato presuppone mancante **è atterrato**: `DecisionProvider` è in
   `RTTurnManager.h` e nel `ScenarioHarness`. Il «no live prompt» non è da costruire, è da **usare**.
 - `B3` — ⚠️ **match end esiste già**: `RTMatchEndTests.cpp` copre gli esiti, obiettivo incluso. Manca
