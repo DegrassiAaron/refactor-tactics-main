@@ -281,9 +281,38 @@ Il subsystem possiede tre cose, e nessuna riguarda il gioco:
 
 #### Chi apre l'editor per lavorare su altro
 
-`EditorStartupMap` punta a `L_DevSandbox`: **il launcher si presenta a ogni avvio dell'editor**, anche a chi ha
+`EditorStartupMap` punta a `L_DevSandbox`: **il launcher si presenta all'avvio dell'editor**, anche a chi ha
 aperto Unreal per il Frontend. «Non aprirsi sulle mappe di gameplay» non copre il caso, perché DevSandbox *è* la
 mappa d'avvio.
+
+⚠️ **Ma «a ogni avvio» sarebbe falso, e la differenza è una via d'uscita che non dobbiamo costruire.** Quale
+mappa si apra all'avvio lo decide `LoadLevelAtStartup`, una preferenza **per-utente**
+(*Editor Preferences → Loading & Saving → Startup*) che `FEditorFileUtils::LoadDefaultMapAtStartup` legge prima
+di `EditorStartupMap`:
+
+| Valore | Cosa carica | Il launcher |
+|---|---|---|
+| `None` | niente | **non compare**: nessuna mappa si apre |
+| `ProjectDefault` — **il default** | `EditorStartupMap`, cioè `L_DevSandbox` | compare |
+| `LastOpened` | l'ultimo livello aperto; `EditorStartupMap` solo se vuoto | compare **solo** se l'ultimo era DevSandbox |
+
+∴ chi apre Unreal per il Frontend ha **già oggi** un modo nativo di non vedere l'ingresso, e non è il launcher
+a doverglielo dare. Il contract lo registra come risposta esistente invece di scriverne una nuova.
+
+⚠️ **E quella preferenza è solo uno di quattro cancelli.** Prima che la mappa d'avvio si carichi,
+`UnrealEdMisc.cpp:417-429` ne attraversa quattro, e il launcher deve **conoscerli senza combatterli**:
+
+| | Cancello | Quando l'ingresso non compare |
+|---|---|---|
+| ① | `bDoAutomatedMapBuild` | build automatizzata: nessuno guarda, ed è corretto |
+| ② | `bMapLoaded` | una mappa passata da riga di comando ha già caricato, e la mappa di default non si carica |
+| ③ | `FEditorDelegates::OnEditorLoadDefaultStartupMap` | esiste apposta per **annullare** il caricamento: chiunque può cancellarlo |
+| ④ | `LoadLevelAtStartup` | vale `None` — la tabella qui sopra |
+
+⛔ **Nessuno dei quattro va aggirato.** Un ingresso che si apre quando l'engine ha deciso di non caricare la
+mappa è la seconda autorità in miniatura: piccola, e della stessa specie di quella che il §3 vieta. Vanno
+conosciuti perché il sintomo di ③ — *«il launcher non compare e il gancio sembra rotto»* — punta al posto
+sbagliato per giorni.
 
 Il contract è che l'ingresso **si presenta e non pretende**: è un pannello dockabile la cui visibilità la ricorda
 il layout dell'editor, non un modale; non ruba il focus; non esegue niente. Chi lo chiude non se lo ritrova
@@ -294,9 +323,29 @@ capability — la facade resta raggiungibile da chi sa dove sta — è che prese
 mappa di frontend affermerebbe un legame che non esiste: il bootstrap è di *questo* livello, e un ingresso che
 compare ovunque smette di dire dove si entra.
 
-⏸️ **Non ancora misurato**, ed è la prima riga di lavoro dell'implementazione: se
-`FEditorDelegates::OnMapOpened` scatti sul caricamento dell'`EditorStartupMap` all'avvio dell'editor. Se non
-scatta, l'ingresso ha bisogno di un secondo gancio, e va scoperto prima di scrivere il resto.
+✅ **Misurato il 2026-08-29, e l'esito è quello favorevole**: `FEditorDelegates::OnMapOpened` **scatta** sulla
+mappa d'avvio. Non esiste un percorso di startup separato — `LoadDefaultMapAtStartup` chiama la **stessa**
+`FEditorFileUtils::LoadMap` di un'apertura manuale, che fa il broadcast come ultima istruzione. E su un avvio
+reale l'engine risulta inizializzato **23 ms prima** che il caricamento cominci (`Engine is initialized` →
+`pre map load` → `MAP LOAD`), quindi un `UEditorSubsystem` registrato in `Initialize()` **riceve** quel
+broadcast: nessun secondo gancio. La misura sta in
+[#1680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1680).
+
+✅ **E porta il meccanismo che a questa sezione mancava.** `FEditorFileUtils::IsLoadingStartupMap()` è pubblico,
+e dentro l'handler distingue il caricamento della mappa d'avvio da un'apertura deliberata. La distinzione non
+va inventata: la dà l'engine.
+
+⚠️ **Ma il nome promette più di quanto mantenga, e la differenza si riproduce da riga di comando.**
+`IsLoadingStartupMap()` non significa *«l'editor sta partendo»* — significa *«sto caricando la mappa di
+**default**»*. Chi lancia l'editor con una mappa sull'argomento (`UnrealEditor.exe <progetto> <mappa>`) sta
+avviando l'editor a tutti gli effetti, e l'accessor vale `false`: quel percorso carica la mappa **prima**, e
+la mappa di default non si carica affatto. Usarlo per dire «siamo all'avvio» sbaglia in un caso reale.
+
+⚠️ **Con un avvertimento da tenere**: quell'accessor **non ha consumatori nell'engine** — cinque occorrenze in
+tutto `Engine/Source`, tutte nel file che lo definisce. Chi lo usa è il primo, e non eredita copertura da
+nessuno. Ne segue dove può stare: il predicato che decide **se** il launcher si apre non lo tocca ed è
+verificabile headless; l'accessor entra solo nel ramo che distingue avvio da apertura deliberata, cioè in
+presentazione. Se un giorno sparisse, si perderebbe una sfumatura, non la funzione.
 
 #### Cosa il launcher decide, e cosa deve chiedere
 
@@ -328,6 +377,11 @@ che si verifica davvero: `DA_HexMap_Sandbox` — l'asset che la convenzione di c
 **è vuoto**. Il runtime le distingue già, perché `DemoArenaRadius` è documentato come ripiego *«quando il livello
 non porta una mappa esagonale con celle (asset assente **oppure presente ma vuoto**)»*. Fonderle in un solo
 `No Map Asset` perderebbe l'unico caso reale.
+
+⚠️ **Un livello che non si carica non raggiunge l'ingresso**, e va detto perché somiglia a un caso che invece
+lo raggiunge: `LoadMap` ha sei uscite anticipate prima del broadcast, quindi `OnMapOpened` scatta **solo sul
+percorso di successo**. «Il livello non si è aperto» non è uno stato che il launcher possa riportare — non
+arriva mai — ed è diverso da «la mappa è aperta e vuota», che è il caso reale qui sotto.
 
 ⚠️ E l'asset a cui il livello punta è **volatile**: `GenerateFixtureIntoAsset` riscrive
 `_Scratch/DA_HexMap_Scratch_Basin` a ogni rigenerazione. Una selezione ricordata può quindi riaprirsi su una

@@ -1802,3 +1802,29 @@ sessions:
       ➕ Aperta ora, insieme a `U29`, perché i due widget mancanti di E46 erano dichiarati in tre punti
       diversi — `editor-sessions.yaml:1152`, la guida UMG e la roadmap — e in nessun piano. Un limite
       ripetuto in tre posti e pianificato in zero è il modo in cui resta fermo.
+
+  - id: U31
+    title: Il Tactical Designer si presenta da solo, e non sporca il livello su cui compare
+    block: 6
+    critical: false
+    produces: la conferma che l'ingresso del workflow compare all'avvio senza toccare L_DevSandbox
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: []
+    # ⚠️ Nessuna voce `PIE-*`: questa seduta NON entra in PIE. Tutto ciò che verifica sta nell'editor prima
+    # del Play — un tab che compare e un livello che non diventa dirty — e il registro `test-manuali-pie.md`
+    # è dei comportamenti in gioco. Metterla lì la renderebbe introvabile a chi cerca una verifica di PIE.
+    issues: [1680]
+    # ⛔ **Perché una seduta e non un automation test.** Dei cinque test della slice, quattro misurano il
+    # predicato `ShouldOpenFor` e uno che l'iscrizione sia in piedi. Nessuno vede ciò che questa seduta vede:
+    # che Slate disegni davvero il tab, e che aprire e chiudere il pannello non marchi la `.umap` come
+    # modificata. Un predicato puro non può osservare il dirty di un binario.
+    done_when: >-
+      Aperto l'editor sul progetto, `L_DevSandbox` si carica da sola (`EditorStartupMap`) e il tab
+      **Tactical Designer** compare senza che nessuno lo abbia invocato; l'`Output Log` porta la riga
+      `LogRTDevSandboxLauncher: [TacticalDesigner] livello di bootstrap aperto`. Aprendo poi `L_HexArena` dal Content Browser
+      il tab **non** ricompare da sé. Chiuso il tab e riaperta `L_DevSandbox`, il tab si ripresenta, e resta
+      raggiungibile da *Window → Tools → Tactical Designer*. ⚠️ **E il criterio che conta di più**: dopo
+      tutto questo `L_DevSandbox` **non** è marcata come modificata — nessun asterisco sul nome del livello,
+      e `git status` pulito su `Content/RT/Maps/Dev/L_DevSandbox/`.

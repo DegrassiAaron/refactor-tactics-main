@@ -101,13 +101,17 @@ possedeva**. Misurato il 2026-08-28: `0` issue con `ranked` nel titolo, `0` con 
 
 ---
 
-## Aperte — la posa nella cella finale, dallo spec panel del 2026-08-28
+## Aperte — geometria intra-cella e copertura, ciò che resta della posa nella cella finale
 
 Origine: [`#1606`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1606). Una proposta d'autore
 descrive la scelta di **come ci si sistema nella cella d'arrivo** dopo il movimento, tramite uno spicchio o un
 gruppo di spicchi, e la sua interazione con la copertura. È `PROPOSED`, non canone: `PlacementSector`,
 `CoverAnchor` e `ResolvedCoverState` hanno **0** occorrenze in `Source/`, misurato il 2026-08-28 su
-`f8ea244b`.
+`f8ea244b` e riverificato il 2026-08-29 su `24cfe99a`.
+
+✅ **Cinque delle sette sono chiuse il 2026-08-29 da [`D-243`](decisions/RT_PDR_00_Decision_Log.md)** — la
+sezione qui sotto. Le due che restano non riguardano la **posa**: riguardano la **geometria** della cella e
+quali dati producono copertura, e sopravvivono intatte alla decisione perché non dipendono da essa.
 
 ⚠️ **Non sono le `GBX-*`.** Il `Cell Placement Volume` di
 [`spec-graybox-placement-contract.md`](technical/systems/spec-graybox-placement-contract.md) è **authoring**:
@@ -117,13 +121,8 @@ da una domanda di presentazione.
 
 | ID | Domanda | Perché non si deduce |
 |---|---|---|
-| `PLC-1` | **`Placement` e `Facing` possono divergere**, o lo stesso spicchio determina entrambi? | Due modelli coerenti con costi di ordini di grandezza diversi. Se coincidono, il selettore a spicchi è **solo una UI nuova** per il facing di [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md). Se divergono, nasce un **secondo stato per unità** che deve entrare in snapshot, TurnLog, privacy e bot — e il budget di pivot per eroe si applica a uno dei due, non a entrambi. Va decisa **insieme** a `PLC-7` |
-| `PLC-2` | **Il `Placement` può cambiare senza movimento?** | Tocca l'economia delle azioni (`D-025`, `D-028`): gratis è sempre ottimale, quindi non è una scelta; a costo è un'**azione generica nuova**, e le sette di `D-025` non la prevedono. Perimetro di [`#609`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609) |
 | `PLC-3` | **Quali geometrie producono un `CoverAnchor`** — solo i bordi murati, anche gli oggetti interni, o le celle adiacenti? | Oggi la copertura è `FRTHexCover` sui **bordi**, e `D-129` ha stabilito che il bake cuoce solo quelli. Estenderla agli interni richiede un produttore che non esiste: la scelta decide se il sistema è una **rilettura** della geometria attuale o un **secondo strato** di dati |
 | `PLC-4` | **L'ingombro interno blocca LOS e movimento, o solo la copertura?** | Stessa forma di `MSE-2`/`MSE-4`, con posta più alta: il blocco sarebbe **intra-cella**, e il grafo tattico non lo rappresenta. La regola conservativa che lì rende `Blocked` una cella attraversabile, qui non ha nemmeno un posto dove essere scritta |
-| `PLC-5` | **Un gruppo di spicchi è UI o entità logica?** | Se è UI, il modello resta a uno spicchio. Se è logica, il numero di stati per cella esplode e `Placement` non è più un intero piccolo — con conseguenze dirette su serializzazione e hash |
-| `PLC-6` | **Cosa fa lo spostamento forzato al `Placement`**: lo conserva, lo azzera, o lo deriva dalla direzione della spinta? | ADR-0005 §3 e la primitiva di [`#541`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/541) decidono il **facing** dopo un `Forced`, non la posa. Le tre uscite danno letture opposte del contro-gioco: conservarlo rende lo spostamento meno punitivo, derivarlo lo rende una vera perdita di posizione |
-| `PLC-7` | **Il `Placement` entra nello snapshot e nell'hash, o è derivato?** | Se entra, è stato autorevole e ogni replay esistente cambia formato. Se è derivato, deve esserlo da una funzione pura del percorso — e allora `PLC-2` è già risposta **no**. Le due si vincolano, e vanno decise insieme a `PLC-1` |
 
 > ⛔ **Ciò che resta vietato mentre queste sono aperte**, perché è ciò che tiene il modello discreto: nessun
 > `FVector` intra-cella autorevole · nessun mini-navmesh dentro l'esagono · nessun `Actor` per settore ·
@@ -131,10 +130,31 @@ da una domanda di presentazione.
 > `PlacementSector` arriverà, la copertura **non** diventa una proprietà del settore: la forma da preservare è
 > `Placement + CoverGeometry + geometria dell'attaccante + Facing/policy → ResolvedCoverState`.
 
-> 🔎 **Perché non sono urgenti, e cosa le rende tali.** La sola fetta che il sorgente propone per la v0.1 è
-> **UX pura** — un selettore a spicchi per scegliere il facing, ghost orientato, settori legali — e non ha
-> bisogno di nessuna di queste risposte, **ma solo se `PLC-1` risponde «coincidono»**. Diventano urgenti nel
-> momento in cui qualcuno disegna quel selettore, non prima.
+> 🔎 **Perché non sono urgenti, e cosa le rende tali.** La riga precedente diceva che la fetta UX della v0.1
+> non ha bisogno di queste risposte *«ma solo se `PLC-1` risponde «coincidono»»*. `D-243` ha risposto
+> **«derivato»**, che ne è la forma stretta: lo spicchio non è uno stato, quindi il selettore può nascere
+> senza toccare la simulazione. Queste due diventano urgenti quando qualcuno chiede alla **geometria interna**
+> di produrre copertura — non quando qualcuno disegna il selettore.
+
+---
+
+## ✅ Chiuse il 2026-08-29 da `D-243` — la posa non è uno stato: lo spicchio dichiara il facing
+
+Nate come `PLC-1`, `PLC-2`, `PLC-5`, `PLC-6`, `PLC-7` nella sezione qui sopra, aperte il 2026-08-28 e chiuse
+il giorno dopo. Stanno qui e non fra le aperte perché una riga barrata in una tabella di domande si conta lo
+stesso quando qualcuno le enumera. È la stessa ragione con cui questa pagina tiene la sezione di `GBX-6`, chiusa il 2026-08-17 da [`D-163`](decisions/RT_PDR_00_Decision_Log.md): la disciplina è di questo documento, non di quella decisione, che riguarda la scala d'arte.
+
+**Quattro cadono per corollario, una sola è stata decisa**: `PLC-1`. Le altre non avevano più un oggetto —
+senza uno stato non c'è nulla da cambiare senza movimento, da raggruppare, da conservare dopo uno spostamento
+forzato, né da mettere nell'hash.
+
+| ID | Domanda | Esito, e l'istruttoria che ci è arrivata sotto |
+|---|---|---|
+| ~~`PLC-1`~~ | ~~**`Placement` e `Facing` possono divergere**, o lo stesso spicchio determina entrambi?~~ | ✅ **NÉ L'UNO NÉ L'ALTRO: il `Placement` è DERIVATO — chiusa da [`D-243`](decisions/RT_PDR_00_Decision_Log.md).** L'input a dodici spicchi è **presentazione**; ciò che entra nella regola è il facing a sei che ne deriva, con `EdgeIndex = SectorIndex / 2` e `URTHexLibrary::DirectionForEdgeIndex`. 🔴 **«Coincidono» è falso alla lettera, e a dirlo è la cadenza**: [`D-020`](decisions/RT_PDR_00_Decision_Log.md) dà al facing una timeline a **sei stadi per round** (`FacingStartOfRound → FacingAfterPrepActionTargeting → FacingAfterDash → FacingUsedByBlast → FacingUsedByOverwatch → FacingFinalAfterMove`), mentre la posa nella cella d'arrivo è per costruzione **un solo valore, a fine Move**. Due oggetti con frequenze diverse non sono lo stesso oggetto: l'identità regge come **derivazione a senso unico** — lo spicchio dichiara `FacingFinalAfterMove` — non come equivalenza. ⛔ **«Divergono» è stato scartato col suo conto**: un secondo stato per unità entra in snapshot, TurnLog, privacy e bot, cambia il formato di ogni replay archiviato, e pretende un produttore di `CoverAnchor` che `D-129` non ha. È un ADR e un'epic, non una risposta a una domanda aperta. ⚠️ **Il prerequisito ereditato**: `ADR-0008` è **accettato e non implementato** — `MoveEndPivotMaxSteps` e `DashEndPivotMaxSteps` hanno **0** occorrenze in `Source/`, tracciato in [`#1605`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1605) — quindi il selettore a spicchi dichiara un facing il cui modello di budget a runtime non c'è ancora |
+| ~~`PLC-2`~~ | ~~**Il `Placement` può cambiare senza movimento?**~~ | ✅ **NO — corollario di `PLC-1`, chiusa da [`D-243`](decisions/RT_PDR_00_Decision_Log.md).** `PLC-7` lo prevedeva per iscritto: *«se è derivato, deve esserlo da una funzione pura del percorso — e allora `PLC-2` è già risposta no»*. Nessuna azione generica nuova, quindi `D-025` resta a sette. ⚠️ **Ciò che questo NON chiude** è la rotazione da fermo, che è del facing e non della posa: resta dove sta, in `ADR-0005`/`ADR-0008` e nel perimetro di [`#609`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609) |
+| ~~`PLC-5`~~ | ~~**Un gruppo di spicchi è UI o entità logica?**~~ | ✅ **UI — chiusa da [`D-243`](decisions/RT_PDR_00_Decision_Log.md).** Senza uno stato non c'è nulla da raggruppare: il gruppo è aiuto alla selezione. ➕ **E il conto che la domanda nominava resta il motivo per non tornarci**: da entità logica lo spazio di stato per cella passa da **12** valori a **4096** sottoinsiemi, e `Placement` non sarebbe più *«un intero piccolo»* — con conseguenze dirette su serializzazione e hash che nessun consumatore chiede |
+| ~~`PLC-6`~~ | ~~**Cosa fa lo spostamento forzato al `Placement`**: lo conserva, lo azzera, o lo deriva dalla direzione della spinta?~~ | ✅ **NIENTE, perché non c'è posa da conservare — chiusa da [`D-243`](decisions/RT_PDR_00_Decision_Log.md).** Il facing dopo un `Forced` è già deciso da `ADR-0005` §3 e dalla primitiva di [`#541`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/541), e resta l'unica cosa che uno spostamento subìto tocca. ⚠️ **La lettura di contro-gioco che la domanda apriva non sparisce, cambia oggetto**: «conservare o perdere la posizione» è una scelta sul **facing**, e se qualcuno vorrà tararla è lì che si scrive, non su un secondo stato |
+| ~~`PLC-7`~~ | ~~**Il `Placement` entra nello snapshot e nell'hash, o è derivato?**~~ | ✅ **FUORI — chiusa da [`D-243`](decisions/RT_PDR_00_Decision_Log.md), col trattamento del facing.** `FRTUnitStateDigest` porta `UnitId`, `Cell`, `Health`, `Shield`, `Energy`, `bAlive`, `Statuses`: un valore derivato non ci entra, e il criterio scritto in quel file è *«un campo entra nell'hash se e solo se due oggetti possono differire **solo** per quello»*. 🔴 **Ma la misura ha trovato accanto una domanda che questa voce NON chiude**: nel digest il **`Facing` non c'è**, pur decidendo esiti in `Combat`, `Perception`, `Reaction` e privacy, e l'assenza non risulta registrata in nessuna decisione. Può essere difendibile — a fine partita il facing non cambia più nessun esito — o essere un difetto: due finali identici con orientamenti opposti danno oggi lo stesso checksum. **Va deciso a parte**, e `D-243` si limita a nominarlo |
 
 ---
 
