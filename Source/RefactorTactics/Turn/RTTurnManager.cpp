@@ -1495,7 +1495,20 @@ void ARTTurnManager::LockInAndResolve()
 			BeginPacingSample();
 		}
 
-		if (!bWasOpen)
+		// #971 — la SECONDA causa, e arriva allo stesso esito per la stessa ragione. In una sessione non
+		// presidiata il campione viene aperto regolarmente da `StartPlanningTimer`, quindi i tempi
+		// sarebbero tutti misurabili e tutti veri di un cronometro che nessuno guardava: `MsToLockIn` e'
+		// la durata del Planning, e il ramo `else` qui sotto scriverebbe `MsSinceLastInput = MsToLockIn`
+		// classificando il turno fra le **attese a vuoto**. E' la classificazione giusta per un umano che
+		// non ha toccato niente, e falsa per una partita in cui non c'era nessun umano: `SummarizeSamples`
+		// li sommerebbe agli stessi contatori. Terzo esito della domanda che #971 poneva come binaria
+		// (*«registra o tace?»*) — si registra il CONTESTO e si dichiara che i tempi non sono misurati,
+		// che e' cio' che `Unmeasured` esiste per fare da #1421.
+		//
+		// ⚠️ I CONTEGGI restano: `SelectionCount`/`OrderCount`/`UndoCount` valgono zero, ed e' un fatto
+		// vero — nessun input e' stato accettato, perche' `ARTPlayerController::IsPlanningInputInert()` li
+		// ha resi inerti a monte. Solo i tre TEMPI sarebbero plausibili e falsi.
+		if (!bWasOpen || bUnattendedSession)
 		{
 			PacingCurrent.MsToLockIn = FRTPacingSample::Unmeasured;
 			PacingCurrent.MsSinceLastInput = FRTPacingSample::Unmeasured;

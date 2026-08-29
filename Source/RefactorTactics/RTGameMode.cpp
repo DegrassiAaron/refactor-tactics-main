@@ -736,6 +736,12 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 		{
 			TurnManager->SetPlanningSeconds(PlanningSeconds);
 		}
+
+		// #971 — stessa natura e stesso posto: e' configurazione del turno, non allestimento, e sta prima
+		// del ritorno anticipato perche' vale anche su un livello che porta gia' le proprie unita'. Il
+		// TurnManager non interroga il GameMode (vedi `SetUnattendedSession`): viene informato qui, dove la
+		// modalita' e' appena stata latchata.
+		TurnManager->SetUnattendedSession(bAutobattleInEffect);
 	}
 
 	// L'ATTIVAZIONE NON E' SILENZIOSA. Chi guarda vede le proprie unita' muoversi da sole, e la spiegazione

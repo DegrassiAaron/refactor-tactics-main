@@ -587,6 +587,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Pacing")
 	bool bRecordPacing = false;
 
+	/**
+	 * **La sessione non e' presidiata**: nessuna mano umana pianifica, quindi non c'e' un ritmo umano da
+	 * cronometrare (#971).
+	 *
+	 * ⛔ **Si viene INFORMATI, non si chiede.** `ARTGameMode::SetupHexMatch` latcha la modalita' e la spinge
+	 * qui, nello stesso blocco in cui spinge `SetPlanningSeconds` e per la stessa ragione: e' configurazione
+	 * del turno, e quel blocco sta **prima** del ritorno anticipato, quindi vale anche su un livello che
+	 * porta gia' le proprie unita'. Interrogare il GameMode da qui romperebbe la riga che questo file
+	 * dichiara di sua mano — *«qui la simulazione non conosce il frontend, e non deve»* — e aggiungerebbe
+	 * una seconda autorita' sulla stessa domanda.
+	 *
+	 * ⚠️ **Non tocca il resolver**: e' telemetria. L'unico effetto e' che i tre TEMPI del campione di pacing
+	 * si dichiarano `Unmeasured` invece di riportare una pianificazione che nessuno ha fatto.
+	 */
+	void SetUnattendedSession(bool bUnattended) { bUnattendedSession = bUnattended; }
+
+	/** Vedi `SetUnattendedSession`. */
+	bool IsUnattendedSession() const { return bUnattendedSession; }
+
 	/** Squadra il cui spazio di decisione si misura in ActionsAvailable (il giocatore umano e' il team 0). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Pacing")
 	int32 PacingTeamId = 0;
@@ -1330,6 +1349,8 @@ protected:
 	void AppendPacingRow(const FRTPacingSample& Sample);
 
 	TArray<FRTPacingSample> PacingSamples;
+	/** Vedi `SetUnattendedSession`. Spinto dall'allestimento, mai dedotto qui. */
+	bool bUnattendedSession = false;
 	FRTPacingSample PacingCurrent;
 	/**
 	 * Vero fra `BeginPacingSample()` e `ClosePacingSample()`.
