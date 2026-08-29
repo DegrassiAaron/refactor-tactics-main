@@ -6,13 +6,15 @@
 > autodistrutto.** Criterio invariato: **solo `.md`**, `README.md` escluso per basename, comando canonico
 > `find docs/archive/src -name '*.md' ! -name README.md | wc -l`.
 >
-> - **Albero `origin/main`** (`fff33020`, `git ls-tree -r`): **`108`** = `17` `design/` + `62` `handoff/` +
->   `2` `audit/` + `4` `graytoolkit/` + `23` in radice, e la somma torna.
-> - **Albero di questo lavoro**, che aggiunge due sorgenti in radice: **`110`**, con `25` in radice.
->   Contando **tutti i file**, stessa esclusione per basename: **`119`**.
-> - **Disco e albero coincidono**: il giro è stato fatto in un `git worktree` creato da `origin/main`, dove
->   `git status --porcelain` elenca solo ciò che il giro produce. È la stessa precauzione del blocco del
->   2026-08-29, e vale la stessa riserva: protegge dalle scritture concorrenti, non dall'avanzamento del ramo.
+> - **Albero `origin/main` all'inizio del lavoro** (`fff33020`): **`108`** = `17` `design/` + `62`
+>   `handoff/` + `2` `audit/` + `4` `graytoolkit/` + `23` in radice.
+> - **Albero `origin/main` al rebase** (`26b1c80e`): **`109`**. La riserva del blocco del 2026-08-29 si è
+>   avverata di nuovo — il `worktree` protegge dalle scritture concorrenti, **non** dall'avanzamento del
+>   ramo: un'altra sessione ha archiviato `handoff/2026-08-30-claudecloud-debughud-graybox.md` mentre questo
+>   giro era in scrittura, e stava facendo la stessa cosa su un kit diverso. Il numero è stato **rifatto
+>   dopo il rebase, non aggiustato**.
+> - **Albero di questo lavoro**, che aggiunge due sorgenti in radice: **`111`** = `17` + `63` + `2` + `4` +
+>   **`25`**, e la somma torna. Contando **tutti i file**, stessa esclusione per basename: **`120`**.
 >
 > ➕ **Lo scarto indice-archivio è `10`, e i due file di questo giro non lo aumentano** perché hanno la loro
 > riga in §«Radice». Criterio dichiarato, perché non è quello del blocco precedente: *nessun link Markdown
