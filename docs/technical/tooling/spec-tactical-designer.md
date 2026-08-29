@@ -10,10 +10,19 @@
 Questo documento risponde a **una** domanda: *quali strumenti d'authoring esistono, che cosa hanno il
 diritto di decidere, e che cosa devono invece chiedere al gioco?*
 
-> ⚠️ **Non è un tracker.** Lo stato di implementazione vive nel
-> `feature-registry.yaml` e nelle issue. Le sedute vivono in
-> [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml). Se una riga di questo file dichiara uno stato,
-> è un difetto.
+> ⚠️ **Non è un tracker.** Lo stato di implementazione vive nelle **issue** — l'epic
+> [#1105](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1105) e le sue sub-issue — e nei
+> checkpoint di [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md) (**M9.4**). Le sedute vivono
+> in [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml). Se una riga di questo file dichiara uno
+> stato, è un difetto.
+>
+> 🔵 **Questa riga mandava al `feature-registry.yaml` fino al 2026-08-29, e quel file non esiste dal
+> 2026-08-21** ([D-181](../../decisions/RT_PDR_00_Decision_Log.md)). Era una delle **cinque** occorrenze
+> superstiti in questo documento — le altre quattro sono al §8, al §9 e nelle due righe del §10, corrette
+> nella stessa passata. ⚠️ **Ciò che si è perso va detto invece di essere rimpiazzato**: D-181 dichiara che
+> *«non esiste più un punto unico in cui lo stato di una feature si scrive»*. Le issue e i checkpoint sono
+> **due** fonti, non una vista: rispondono a *«che lavoro è aperto»* e *«quale checkpoint manca»*, non a
+> *«a che punto è la capability X»*.
 
 ---
 
@@ -291,7 +300,14 @@ di release e non compete con la consegna. Le release di gioco stanno in
    confronta l'esito della preview con quello del resolver.
 3. Una variante non può sovrascrivere il dato di produzione senza un atto esplicito — **misurabile** con un
    test.
-4. Scenari con ID stabile e copertura di feature tracciabile — **misurabile**: `feature_registry.py validate`.
+4. Scenari con **ID stabile** — **misurabile**: `ScenarioId`, tag e Stable Unit ID sopravvivono al
+   round-trip, verificato da `RefactorTactics.Scenario.Writer*` ([#1114](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1114)).
+   La **copertura di feature tracciabile** che questa riga chiedeva accanto **non ha più una misura**:
+   la produceva `feature_registry.py validate`, uscito con [D-181](../../decisions/RT_PDR_00_Decision_Log.md)
+   il 2026-08-21. 🔵 *Fino al 2026-08-29 questa riga prescriveva quel comando come metodo di verifica — non
+   un link rotto ma un criterio che fallisce all'esecuzione, e chi lo eseguiva non poteva sapere se il
+   difetto fosse suo. Il criterio resta legittimo e oggi si verifica **a mano**, oppure non si verifica: è
+   un costo dichiarato di D-181, non un buco di questo documento.*
 5. Regressioni distinguibili da cambi di bilanciamento intenzionali — **misurabile**: i tipi di assertion
    sono già distinti, la classificazione deve derivare da quelli e non da string matching.
 6. La documentazione descrive il workflow reale — **verificabile solo da una persona**, e per questo è una
@@ -357,8 +373,13 @@ numero lo segnala. Per questo TD 0.7 segue il competence gate, e non lo precede.
 Due regole che il repository ha già pagato per imparare:
 
 - **Una verifica PIE che non appartiene a una seduta tende a non essere mai eseguita.** Le sedute vivono in
-  [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml) e la vista è
-  `editormap.shortlist.md`, **generata**.
+  [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml), che oggi si **legge direttamente**: la vista
+  generata `editormap.shortlist.md` è uscita con [D-181](../../decisions/RT_PDR_00_Decision_Log.md).
+  🔵 *Questa riga la dava per esistente fino al 2026-08-29.* ⚠️ **Ed è la stessa riga a essere diventata più
+  vera**: D-181 dichiara fra i propri costi che `editor-sessions.yaml` è ora *«dato senza consumatore e senza
+  vista — chi aggiunge una seduta scrive in un file che nessuno rende»*. Una verifica PIE che non appartiene
+  a una seduta non viene eseguita; una seduta in un file che nessuno rende ha lo stesso problema un livello
+  più su.
 - **Un test importante deve essere dimostrato capace di diventare rosso.** Si rompe *una* mutazione per
   volta e deve cadere esattamente il test che protegge quella regola — se ne cadono zero, il test non
   verificava; se ne cadono cinque, non si sa quale.
@@ -369,9 +390,23 @@ Due regole che il repository ha già pagato per imparare:
 
 | Domanda | Fonte |
 |---|---|
-| A che punto è una capability | `feature-registry.yaml` e le viste generate |
-| Quale seduta d'editor fare, e in che ordine | `editormap.shortlist.md` |
+| A che punto è una capability | ⚠️ **non c'è più una vista che risponda**: si legge dalle issue e da [`roadmap-checkpoint.md`](../../roadmap/roadmap-checkpoint.md), che però rispondono a due domande più strette (vedi sotto) |
+| Quale seduta d'editor fare, e in che ordine | [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml), letto direttamente |
 | Chi verifica cosa fra macchina e persona | [`scenario-map.md`](scenario-map.md) |
 | Quali domande di modello sono aperte | [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
 | Che lavoro è aperto adesso | l'epic [#1105](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1105) e le sue sub-issue |
 | Perché questo documento esiste | [referto 2026-08-17](../../roadmap/plans/tactical-designer-consolidamento-2026-08-17.md) · [D-154](../../decisions/RT_PDR_00_Decision_Log.md) |
+
+> 🔵 **Le prime due righe di questa tabella mandavano a due file inesistenti fino al 2026-08-29** —
+> `feature-registry.yaml` ed `editormap.shortlist.md`, usciti entrambi con
+> [D-181](../../decisions/RT_PDR_00_Decision_Log.md) il 2026-08-21. Erano **code span, non link**: nessun
+> gate poteva vederle, perché `doc-links.ts` cammina i collegamenti e `doc-tables.ts` la larghezza delle
+> righe, non il significato delle celle. Trovate leggendo, in code review sulla PR
+> [#1620](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1620).
+>
+> ⚠️ **La prima riga resta la domanda a cui questo repository non sa più rispondere in un posto solo.** Le
+> issue dicono *«che lavoro è aperto»*, `roadmap-checkpoint.md` dice *«quale checkpoint manca»*: nessuna
+> delle due dice *«a che punto è la capability X»*, che è ciò che il registry derivava. D-181 lo elenca fra
+> i propri costi — *«le viste che rispondevano a "a che punto è la consegna" non hanno più dati»* — e questa
+> riga lo dichiara invece di indicare un sostituto che non c'è. Un puntatore a un file inesistente si nota;
+> un puntatore a una fonte che **non risponde a quella domanda** no.
