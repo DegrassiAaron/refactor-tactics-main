@@ -1807,9 +1807,9 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				// modo: l'esito da solo non lo dice. Trovato da una code review.
 				const bool bResimulating = RecordedDecisions.Num() > 0;
 				const bool bLacunaDelReplay = bResimulating
-					&& BraceDecision.Outcome == ERTReactionDecisionOutcome::HoldNoDecider;
+					&& BraceDecision.Outcome == ERTReactionDecisionOutcome::NoDecider;
 
-				if (BraceDecision.Outcome != ERTReactionDecisionOutcome::HoldImmediate && !bLacunaDelReplay)
+				if (BraceDecision.Outcome != ERTReactionDecisionOutcome::Immediate && !bLacunaDelReplay)
 				{
 					FRTTurnLogEntry BraceEntry;
 					BraceEntry.Phase = ERTMatchPhase::Blast; // dove la finestra si e' aperta, non dove le

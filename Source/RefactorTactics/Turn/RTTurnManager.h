@@ -1034,18 +1034,6 @@ protected:
 		bool bOwnerIsBot) const;
 
 	/**
-	 * Che cosa ha scelto chi ha risposto: `FireChosen`, `HoldChosen` (la scelta sicura) o `ResponseChosen`
-	 * (una risposta attiva che non e' `FIRE`) — E14.7, [D-047].
-	 *
-	 * `static` e in un posto solo perche' i **due** produttori di decisione — il bot e il decisore iniettato
-	 * — la classificavano ciascuno per conto proprio con un booleano. Finche' le classi erano due la
-	 * duplicazione era invisibile; con la terza sarebbero divergiute al primo che qualcuno dimentica di
-	 * aggiornare, e a divergere sarebbe stato l'esito che finisce nel TurnLog **autorevole**.
-	 */
-	static ERTReactionDecisionOutcome ClassifyChosenResponse(const FRTReactionOpportunity& Opportunity,
-		const FString& Response);
-
-	/**
 	 * Applica l'esito di una finestra: `FIRE` colpisce, spende la charge e TRONCA il movimento residuo del
 	 * bersaglio; `HOLD` non fa nulla e lascia la reaction armata (CP 14.5).
 	 *

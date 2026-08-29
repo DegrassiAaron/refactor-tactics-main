@@ -966,41 +966,49 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowCountFromLogTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTReactionWindowCountFromLogTest::RunTest(const FString&)
 {
-	auto MakeDecisionEntry = [](int32 UnitId, ERTReactionDecisionOutcome Outcome)
+	auto MakeDecisionEntry = [](int32 UnitId, ERTReactionDecisionOutcome Outcome,
+		const TCHAR* Response = nullptr)
 	{
 		FRTTurnLogEntry E;
 		E.Category = ERTLogCategory::ReactionDecision;
 		E.UnitId = UnitId;
 		E.Outcome = static_cast<uint8>(Outcome);
+		// Il token e' opzionale QUI e non nel formato: le ragioni di non-scelta portano `HOLD` in partita, e
+		// questo test misura il conteggio delle finestre, che non lo guarda.
+		E.ReactionResponse = Response ? FString(Response) : FString();
 		return E;
 	};
 
 	TArray<FRTTurnLogEntry> Entries;
-	// 🔴 **Tutti e OTTO gli esiti dell'enum, non un campione.** La prima stesura ne copriva quattro e la sua
+	// 🔴 **Tutte e SEI le ragioni dell'enum, non un campione.** La prima stesura ne copriva quattro e la sua
 	// docstring diceva «tutti e quattro»: `HoldRejected` e `ResponseChosen` non erano asseriti, e una
 	// regressione che li avesse esclusi sarebbe rimasta verde — `ResponseChosen` e' il `SIDESTEP` del `Brace`
 	// ([D-047]), cioe' proprio le finestre che il DTO di questo checkpoint esiste per rendere azionabili.
 	//
-	// Le CINQUE che contano: qualcuno ha ricevuto la domanda, e ha risposto o ha lasciato scadere.
-	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::FireChosen));
-	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::HoldChosen));
-	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldTimeout));
-	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldRejected));
-	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::ResponseChosen));
+	// Le CINQUE finestre che contano: qualcuno ha ricevuto la domanda, e ha risposto o ha lasciato scadere.
+	//
+	// ⚠️ **Tre voci `Chosen` e non tre esiti diversi** (`#1118`): `FireChosen`, `HoldChosen` e
+	// `ResponseChosen` erano la stessa ragione su tre risposte, e il tempo speso a decidere non dipende da
+	// cosa si sceglie. Restano tre VOCI — il conteggio non cambia — e a distinguerle e' il token.
+	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::Chosen, TEXT("FIRE:9")));
+	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::Chosen, TEXT("HOLD")));
+	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::Timeout));
+	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::Rejected));
+	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::Chosen, TEXT("SIDESTEP")));
 	// E le TRE che non contano.
-	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::HoldImmediate));
-	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldCollapsedByCondition));
+	Entries.Add(MakeDecisionEntry(1, ERTReactionDecisionOutcome::Immediate));
+	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::CollapsedByCondition));
 	// ⚠️ `HoldNoDecider` sta QUI, e non fra quelle che contano: e' «un'unita' umana senza UI», cioe' una
 	// finestra che esiste e che **nessuno ha aspettato**. Finche' la UI di CP 14.6 non c'e', in partita e'
 	// l'esito di OGNI finestra del giocatore: contarlo scriverebbe un'attesa sistematica mai avvenuta.
-	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::HoldNoDecider));
+	Entries.Add(MakeDecisionEntry(2, ERTReactionDecisionOutcome::NoDecider));
 	// Piu' una voce di un'altra categoria e una di un responder avversario: nessuna delle due e' del
 	// giocatore misurato.
 	FRTTurnLogEntry Move;
 	Move.Category = ERTLogCategory::Move;
 	Move.UnitId = 1;
 	Entries.Add(Move);
-	Entries.Add(MakeDecisionEntry(7, ERTReactionDecisionOutcome::FireChosen));
+	Entries.Add(MakeDecisionEntry(7, ERTReactionDecisionOutcome::Chosen, TEXT("FIRE:3")));
 
 	const TSet<int32> MyTeam = { 1, 2 };
 	TestEqual(TEXT("cinque finestre aperte: le tre non-attese non entrano"),

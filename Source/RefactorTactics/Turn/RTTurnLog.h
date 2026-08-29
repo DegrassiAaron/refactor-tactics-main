@@ -60,75 +60,50 @@ enum class ERTClashLogEvent : uint8
  * illeggibile senza sapere quale dei due chi ha scritto la voce intendeva. Aggiunta in CODA, come `Fallback` e
  * `Reaction` prima: i file gia' scritti non cambiano significato.
  *
- * ⚠️ **Un enum solo e non due campi**, ed e' una correzione fatta in corsa: la prima stesura teneva la
- * risposta in `Outcome` e il motivo in `Amount`, sul modello di `ERTDisplacementBlockReason`. Non regge, e la
- * ragione e' che li' le celle percorse sono **zero per definizione** — `Amount` e' libero — mentre qui un
- * `Fire` ha un danno da riportare. Due assi per un campo solo avrebbero costretto a scegliere quale dei due
- * perdere: il motivo (e `HOLD` scelto sarebbe indistinguibile da `HOLD` scaduto, cioe' proprio la distinzione
- * per cui il campo esiste) o il danno (e il colpo non lascerebbe traccia nel TurnLog canonico, che e' il
- * difetto di `#625`). Incrociandoli qui, `Amount` resta la quantita' che dichiara di essere.
+ * ⚠️ **DUE campi e non un enum solo, dal 2026-08-29** (`#1118`): questo enum dice **PERCHE'** si e' arrivati
+ * a una risposta, e `FRTTurnLogEntry::ReactionResponse` dice **QUALE** risposta e'. Prima erano incrociati, e
+ * la misura lo mostrava: degli otto valori, **sei nominavano una risposta** (`FireChosen`, `HoldTimeout`,
+ * `HoldImmediate`, ...). Con il solo Overwatch la conflazione non costava niente — `FIRE` e `HOLD`
+ * esauriscono le risposte possibili — ma [D-047] ha aperto finestre il cui vocabolario viene dal **catalogo**,
+ * e una risposta con parametro (`SIDESTEP:<Cella>`) un `uint8` non la trasporta.
  *
- * Sono **sette** valori dal 2026-08-19, e la ragione del settimo e' scritta accanto ad esso.
+ * ⚠️ **La prima stesura di questo campo teneva la risposta in `Outcome` e il motivo in `Amount`**, sul
+ * modello di `ERTDisplacementBlockReason`. Non reggeva perche' li' le celle percorse sono **zero per
+ * definizione** — `Amount` e' libero — mentre qui un `Fire` ha un danno da riportare. La separazione di oggi
+ * risolve lo stesso problema senza sacrificare `Amount`: la risposta ha un campo **proprio**, e `Amount`
+ * resta la quantita' che dichiara di essere.
  *
- * ⚠️ **Questa riga diceva «sono SEI valori e non sette»**, e l'argomento che portava — *un `FireImmediate`
- * non puo' esistere, perche' `HOLD` e' sempre fra le risposte legali e quindi cardinalita' <= 1 significa
- * «solo HOLD»* — **regge ancora ed e' su un'altra cosa**: parla di cio' che il caso degenere puo' produrre,
- * non del numero totale. Il conteggio invece era una misura, ed e' scaduto quando [D-047] ha aperto finestre
- * il cui vocabolario non e' `FIRE`/`HOLD`. Corretto il numero, conservato l'argomento: un `FireImmediate`
- * resta impossibile per costruzione.
+ * ✅ **L'argomento che sopravvive intatto a tre riscritture**: un `FireImmediate` non puo' esistere, perche'
+ * `HOLD` e' sempre fra le risposte legali e quindi cardinalita' <= 1 significa «solo HOLD». Oggi si esprime
+ * meglio di prima — `Immediate` non nomina nessuna risposta, quindi non c'e' piu' un valore da NON creare.
  */
 UENUM(BlueprintType)
 enum class ERTReactionDecisionOutcome : uint8
 {
-	/** Ha scelto di sparare entro la finestra. `SelectedTargetUnitId` dice su chi; `Amount` quanti danni. */
-	FireChosen,
-	/** Ha scelto di NON sparare. La reaction resta armata e la charge non si spende. */
-	HoldChosen,
-	/** La finestra e' scaduta: `Timeout -> HOLD` (ADR-0004 §3). Mai `FIRE`, mai la charge. */
-	HoldTimeout,
+	/**
+	 * Qualcuno ha SCELTO, entro la finestra e fra le risposte legali. **Cosa** abbia scelto lo dice
+	 * `FRTTurnLogEntry::ReactionResponse`, non questo valore.
+	 *
+	 * Copre i tre esiti che fino al 2026-08-29 erano `FireChosen`, `HoldChosen` e `ResponseChosen`: erano
+	 * la stessa ragione — *ha deciso* — declinata su tre risposte diverse.
+	 */
+	Chosen,
+	/** La finestra e' scaduta: `Timeout -> HOLD` (ADR-0004 Sez.3). Mai `FIRE`, mai la charge. */
+	Timeout,
 	/** Nessun decisore collegato per quel responder: stesso default, e si dichiara che e' un'altra cosa. */
-	HoldNoDecider,
+	NoDecider,
 	/** La risposta arrivata non era fra le `AllowedResponses`: rifiutata, e sostituita dal default. */
-	HoldRejected,
+	Rejected,
 	/** Cardinalita' <= 1: non c'era niente da scegliere e nessuna finestra si e' aperta. */
-	HoldImmediate,
+	Immediate,
 	/**
-	 * Ha scelto una risposta **attiva che non e' `FIRE`**: il token sta in `FRTTurnLogEntry::ReactionResponse`
-	 * (E14.7, [D-047]). E' `SIDESTEP` oggi, e cio' che i profili aggiungeranno domani.
+	 * La CONDIZIONE del piano ha ridotto le risposte a una sola prima che la finestra si aprisse.
 	 *
-	 * 🔴 **Perche' non si riusa `HoldChosen`.** Sarebbe stato possibile — il token disambigua comunque in
-	 * rilettura — e avrebbe reso `LogEventCount` incapace di distinguere «ha tenuto la cella» da «ha
-	 * scartato». Uno scenario che conta gli esiti verificherebbe due comportamenti opposti sotto lo stesso
-	 * numero, ed e' esattamente il difetto per cui `ERTReactionOutcome::NotTriggered` esiste dal CP 5.1:
-	 * un esito che non si puo' contare separatamente e' un esito che non si puo' asserire.
-	 *
-	 * ⚠️ **In CODA all'enum, mai in mezzo**: i valori viaggiano come `uint8` nel formato serializzato, e
-	 * inserirlo prima di `HoldImmediate` rinumererebbe le tracce gia' scritte — che e' la regola dichiarata in
-	 * testa a questo file e la ragione per cui `Fallback`, `Reaction` e `ReactionDecision` sono in fondo a
-	 * `ERTLogCategory`.
+	 * Separato da `Immediate` il 2026-08-23 (#583) perche' quell'esito copriva due meccanismi: «non c'era
+	 * scelta» e «la condizione ha tolto la scelta» sono cause diverse, e uno scenario che le conta insieme
+	 * verifica meno di quanto crede.
 	 */
-	ResponseChosen,
-	/**
-	 * L'opportunity e' collassata perche' la **condizione dichiarata in pianificazione** ([D-109]) ha tolto
-	 * risposte fino a lasciarne una: nessuna finestra si apre, e il commit e' immediato.
-	 *
-	 * 🔴 **Perche' non basta `HoldImmediate`.** Quello dice «non c'era scelta», che e' la constatazione e non
-	 * la causa: ci si arriva anche dal **profilo base**, dove `AskReactionDecision` risponde senza mai leggere
-	 * la condizione (`RTTurnManager_Blast.cpp`, il caso di Riktor in `Brace`). Uno scenario che contasse
-	 * `HoldImmediate` verificherebbe **due meccanismi diversi sotto lo stesso numero** — ed e' testualmente il
-	 * difetto che il commento di `ResponseChosen` qui sopra descrive: «un esito che non si puo' contare
-	 * separatamente e' un esito che non si puo' asserire».
-	 *
-	 * E' la seconda voce di DoD di `#583`, ridimensionata dopo che `#886` e' atterrata: la **riproducibilita'**
-	 * e' coperta — il Verifier rilegge l'esito registrato e il collasso si ricalcola come funzione pura dello
-	 * stato — quindi resta la sola **spiegabilita'**, che un esito distinguibile soddisfa senza toccare il
-	 * formato. La casella chiedeva un campo nel TurnLog: sarebbe costato una versione di formato, l'estensione
-	 * di `EntryLess` e il rifacimento dei golden, per dire meno di questo.
-	 *
-	 * ⚠️ **In CODA all'enum, mai in mezzo**, per la stessa ragione di `ResponseChosen`: i valori viaggiano come
-	 * `uint8` nel formato serializzato, e inserirlo prima rinumererebbe le tracce gia' scritte.
-	 */
-	HoldCollapsedByCondition
+	CollapsedByCondition
 };
 
 /**
@@ -1033,7 +1008,33 @@ enum class ERTTurnLogFormatVersion : uint16
 	 * ⚠️ Il numero **10 e' stato verificato su tutti i ref**, come [D-070] impone: 42 ref esaminati leggendo
 	 * `ERTTurnLogFormatVersion` in ciascuno — 9 e' il massimo dichiarato ovunque, e nessuno rivendica il 10.
 	 */
-	WithReactionResponse = 10
+	WithReactionResponse = 10,
+	/**
+	 * La RISPOSTA e la RAGIONE diventano due assi distinti (`#1118`): `ERTReactionDecisionOutcome` smette di
+	 * nominare le risposte — otto valori diventano **sei** ragioni pure — e `ReactionResponse` porta il token
+	 * di **ogni** decisione, non piu' solo di quelle non derivabili.
+	 *
+	 * 🔴 **I byte cambiano significato, ed e' la prima volta che succede a questo campo**: `Outcome` per le
+	 * voci `ReactionDecision` era `0=FireChosen … 7=HoldCollapsedByCondition` e ora e' `0=Chosen … 5=Collapsed
+	 * ByCondition`. Una traccia v2..v10 letta con la tabella nuova direbbe il falso — `HoldTimeout` (2)
+	 * diventerebbe `NoDecider` — quindi la migrazione **non e' dichiarativa**: rimappa, ed e' l'unico passo
+	 * di questo formato che lo fa. Vive in `MigrateReactionDecisionToV11`, un `switch` sui valori STORICI
+	 * scritti come numeri, perche' i nomi che li descrivevano non esistono piu' nel codice.
+	 *
+	 * ✅ **E ricostruisce il token invece di lasciarlo vuoto**, che e' l'opposto di cio' che la v10 faceva —
+	 * e il motivo e' cambiato con lei: finche' l'esito nominava la risposta, un campo vuoto diceva
+	 * «deducila», e dedurla era possibile. Ora l'esito non la nomina piu', quindi un campo vuoto sarebbe una
+	 * risposta **persa**. Fino alla v10 il vocabolario era chiuso (`FIRE:<id>` e `HOLD`), quindi la
+	 * ricostruzione e' esatta e non un'invenzione: e' la stessa deduzione di prima, fatta una volta in
+	 * lettura invece che a ogni consumo.
+	 *
+	 * ⚠️ **Gli hash cambiano per le tracce con decisioni**, perche' `reactionResponse` entra fra i campi
+	 * discriminanti (`VisitDiscriminatingFields`): senza, «ha sparato» e «ha tenuto» avrebbero lo stesso
+	 * hash, dato che l'esito non li separa piu'. Il corpus golden **non si rompe** — `CompareSerializedTraces`
+	 * ricalcola l'hash su entrambi i lati — ma un archivio di replay con `OrderedHashPerTurn` scritti prima
+	 * di questa versione non si confronta con uno scritto dopo, e va rigenerato.
+	 */
+	ResponseAndReasonSplit = 11
 };
 
 /**

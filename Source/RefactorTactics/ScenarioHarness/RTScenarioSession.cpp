@@ -1230,7 +1230,7 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 				if (!bHaRispostoQuestaSessione) { break; }
 				if (Entry.Category != ERTLogCategory::ReactionDecision) { continue; }
 				if (static_cast<ERTReactionDecisionOutcome>(Entry.Outcome)
-					!= ERTReactionDecisionOutcome::HoldRejected)
+					!= ERTReactionDecisionOutcome::Rejected)
 				{
 					continue;
 				}

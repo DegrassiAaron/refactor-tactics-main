@@ -452,7 +452,7 @@ FRTReactionDecision URTReactionOpportunityLibrary::DecisionOnTimeout(const FRTRe
 	// PURA: lo scadere applica la scelta sicura, che per ogni finestra dell'Overwatch e' `HOLD` — mai `FIRE`,
 	// perche' consuma una risorsa irreversibile e un input mancato non deve spenderla (ADR-0004 §3). La
 	// garanzia sta in `SafeResponse`, non in una costante scritta qui.
-	return FRTReactionDecision(SafeResponse(Opportunity), ERTReactionDecisionOutcome::HoldTimeout);
+	return FRTReactionDecision(SafeResponse(Opportunity), ERTReactionDecisionOutcome::Timeout);
 }
 
 bool URTReactionOpportunityLibrary::IsConditionSatisfied(const FRTDeclaredCondition& Condition,

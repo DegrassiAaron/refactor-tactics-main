@@ -501,7 +501,7 @@ struct FRTReactionDecision
 	FString Response;
 
 	UPROPERTY()
-	ERTReactionDecisionOutcome Outcome = ERTReactionDecisionOutcome::HoldTimeout;
+	ERTReactionDecisionOutcome Outcome = ERTReactionDecisionOutcome::Timeout;
 
 	FRTReactionDecision() = default;
 	FRTReactionDecision(const FString& InResponse, ERTReactionDecisionOutcome InOutcome)
