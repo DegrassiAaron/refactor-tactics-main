@@ -387,6 +387,35 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeShowcaseRelayBasinArena(UObject* Outer
 		}
 	}
 
+	// Copertura bassa sul bordo `(0,-1) <-> (1,-1)`, ed e' l'oracolo del **T6** (#1060): ripara **Wraith**, il
+	// bersaglio ORIGINALE, dal colpo che gli arriva da ovest.
+	//
+	// ⚠️ **Sta sulla VITTIMA e non sull'intercettore, ed e' la scelta che rende il turno discriminante.**
+	// D-017 chiede che la geometria si rivaluti sul bersaglio EFFETTIVO: quando Riktor si interpone, la
+	// copertura che conta e' la SUA — e lui non ne ha. Un resolver che conservasse quella del bersaglio
+	// originale gli farebbe 12 danni invece di 22, cioe' **113 punti vita invece di 103**. E' il caso
+	// `CoveredVictim` di `Cover.InterceptRecalculatesOnEffectiveTarget`, portato sulla pipeline reale.
+	//
+	// ⛔ **L'inverso non era praticabile, ed e' misurato**: una copertura sul bordo d'ingresso di RIKTOR
+	// varrebbe zero. CP 16.2 dichiara scoperto l'emisfero posteriore, e Riktor arriva su (2,0) orientato a
+	// **NE** mentre Gadget sta a ovest. Orientarlo con una rotazione dichiarata non e' possibile: il gioco la
+	// rifiuta — *«rotazione dichiarata RIFIUTATA (illegale per lo stile di movimento)»* — perche' nello stesso
+	// turno si muove. Wraith invece guarda gia' **W**, verso chi lo attacca.
+	//
+	// ⛔ `Low` e non `High`: una copertura alta toglierebbe la linea di tiro, e il colpo non partirebbe
+	// affatto — l'interposizione non avrebbe nulla da intercettare.
+	if (const FRTHexCellData* WraithCell = Draft.Find(FRTCellId(1, -1, 0)))
+	{
+		ERTHexDirection Edge;
+		if (URTHexCoverLibrary::EdgeDirection(FRTCellId(1, -1, 0), FRTCellId(0, -1, 0), Edge))
+		{
+			FRTHexCellData Updated = *WraithCell;
+			Updated.Covers.Add(FRTHexCover(Edge, ERTHexCoverType::Low,
+				FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+			Draft.Set(Updated);
+		}
+	}
+
 	// Il gate della lane sud: una PORTA chiusa (CP 9.3), non un meccanismo nuovo. Aperta, la revisione della
 	// mappa sale e un percorso che prima non esisteva diventa percorribile — ed e' cio' che
 	// `Spec.Map.InteractOpensDoor` misura, su questa fixture e su questo bordo.

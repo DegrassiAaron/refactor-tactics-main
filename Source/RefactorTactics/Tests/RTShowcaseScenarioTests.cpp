@@ -482,6 +482,22 @@ bool FRTShowcaseBasinLayoutTest::RunTest(const FString&)
 		static_cast<int32>(URTHexCoverLibrary::CoverBetween(Arena, FRTCellId(0, 0, 0), FRTCellId(0, -1, 0))),
 		static_cast<int32>(ERTHexCoverType::Low));
 
+	// --- Copertura del T6: quella che rende DISCRIMINANTE l'interposizione (#1060) -------------------
+	// La copertura sta sulla VITTIMA (Wraith) e non sull'intercettore (Riktor), ed e' cio' che rende il T6
+	// discriminante: quando Riktor si interpone, la geometria si rivaluta su di LUI, che non ha riparo.
+	// Un resolver che conservasse la copertura del bersaglio ORIGINALE gli farebbe 12 danni invece di 22 —
+	// 113 punti vita invece di 103 — ed e' l'errore che D-017 vieta.
+	TestEqual(TEXT("copertura bassa davanti a Wraith, sul bordo da cui il colpo lo raggiunge"),
+		static_cast<int32>(URTHexCoverLibrary::CoverBetween(Arena, FRTCellId(1, -1, 0), FRTCellId(0, -1, 0))),
+		static_cast<int32>(ERTHexCoverType::Low));
+
+	// ⚠️ **E l'altra meta' dell'oracolo**: il bersaglio ORIGINALE non deve averne una sul proprio bordo
+	// d'ingresso, altrimenti i due comportamenti — quello giusto e quello sbagliato — darebbero lo stesso
+	// danno e il T6 sarebbe verde in entrambi i casi.
+	TestEqual(TEXT("RIKTOR non ne ha una sul proprio bordo d'ingresso: e' l'altra meta' dell'oracolo"),
+		static_cast<int32>(URTHexCoverLibrary::CoverBetween(Arena, FRTCellId(2, 0, 0), FRTCellId(1, 0, 0))),
+		static_cast<int32>(ERTHexCoverType::None));
+
 	// --- Spawn canonici ------------------------------------------------------------------------------
 	const TArray<FRTShowcaseSpawn> Spawns = URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns();
 	TestEqual(TEXT("quattro unita' in campo (2v2)"), Spawns.Num(), 4);
@@ -716,10 +732,21 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 	// giusta — non e' il test ad essere stato aggiustato, e' il gioco ad essere arrivato piu' lontano.
 	TestEqual(TEXT("si ferma sul primo turno non supportato"),
 		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Blocked));
-	TestEqual(TEXT("arriva a cinque turni: il T4 lo apre #512 fase B, il T5 non chiede nulla"),
-		Result.TurnsPlayed, 5);
-	// Ora lo ferma il T6, che chiede la rivalidazione della geometria sul bersaglio effettivo (D-017).
-	TestTrue(TEXT("dichiara cosa lo blocca"), Result.BlockedReason.Contains(TEXT("InterceptRevalidation")));
+	// ⏱️ **2026-08-29, `#1060`: da cinque a SETTE.** Il T6 ha il proprio contenuto e
+	// `InterceptRevalidation` e' fra le disponibili; il T7 gioca **con lui**, perche' non dichiara `requires`
+	// e nessuno lo teneva fuori se non il turno prima. Il numero si e' mosso per la quarta volta e per la
+	// quarta ragione giusta — non e' il test ad essere stato aggiustato, e' il gioco ad essere arrivato
+	// piu' lontano.
+	TestEqual(TEXT("arriva a sette turni: il T6 lo apre #1060, e il T7 non chiede nulla"),
+		Result.TurnsPlayed, 7);
+	// Ora lo ferma il T8, che chiede l'obiettivo contendibile (#75).
+	TestTrue(TEXT("dichiara cosa lo blocca"), Result.BlockedReason.Contains(TEXT("Objective")));
+	// ⚠️ **E la meta' negativa che vale per QUESTA fetta**: il blocco non deve piu' nominare
+	// `InterceptRevalidation`. Senza, un T6 che tornasse `Blocked` per un difetto della sua fixture — invece
+	// che per la capability, ora presente — passerebbe il `Contains` sopra soltanto perche' il messaggio
+	// nomina un'altra capability, e il test direbbe «sette turni» sbagliando turno.
+	TestFalse(TEXT("il T6 non e' piu' cio' che lo ferma"),
+		Result.BlockedReason.Contains(TEXT("InterceptRevalidation")));
 	// ⚠️ **E la meta' negativa, senza la quale il verde qui sopra e' ambiguo**: il blocco NON deve piu'
 	// nominare `DecisionBoundary`. Senza questa riga, un T4 che tornasse `Blocked` per un difetto di
 	// traduzione della decisione — invece che per la capability — passerebbe il `Contains` sopra soltanto
@@ -743,8 +770,9 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 		{
 			TestTrue(TEXT("il report dichiara l'esito BLOCKED"), Json.Contains(TEXT("BLOCKED")));
 			// Il motivo sta accanto all'esito: «BLOCKED» da solo direbbe che non tutto e' pronto, che si
-			// sapeva gia'. Il valore e' nel nome della capability — che dal 2026-08-16 e' quella del T6.
-			TestTrue(TEXT("il report nomina la capability mancante"), Json.Contains(TEXT("InterceptRevalidation")));
+			// sapeva gia'. Il valore e' nel nome della capability — che dal 2026-08-29 e' quella del **T8**,
+			// `Objective` (#75): il T6 ha il proprio contenuto e non ferma piu' niente.
+			TestTrue(TEXT("il report nomina la capability mancante"), Json.Contains(TEXT("Objective")));
 			TestTrue(TEXT("il report distingue blockedReason da error"), Json.Contains(TEXT("blockedReason")));
 			// ➕ **Il T4 ha SPARATO, e il report lo dice in due numeri.** Senza questi, «cinque turni» sarebbe
 			// compatibile con un T4 che si sblocca e non apre nessuna finestra — cioe' esattamente il verde
