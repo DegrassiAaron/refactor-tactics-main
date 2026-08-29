@@ -38,9 +38,13 @@ const KNOWN_EXCEPTIONS = [
   {
     asset: 'Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap',
     ref: '/Game/Maps/L_Prototype',
+    // ⚠️ L'elenco fra parentesi e' una MISURA, non una memoria: si rifa' con l'estrattore di questo
+    //    stesso gate, `extractPackageRefs(readFileSync(asset))`. Nel 2026-08-29 era scaduto — nominava
+    //    `DA_Format_Scratch`, che #956 aveva sostituito con la fixture rigenerabile (#1657).
     why:
       `Metadato, non dipendenza — #1280. Il Reference Viewer non lo mostra fra le dipendenze del `
-      + `livello (materiale, DA_Format_Scratch, WBP_RT_ErrorModal e nient'altro); non ha mai prodotto `
+      + `livello (M_HexCell, DA_HexMap_Scratch_Basin, WBP_RT_ErrorModal e nient'altro); non ha mai `
+      + `prodotto `
       + `un LoadError, a differenza del difetto gemello di #1069; e sta a 61394 byte su 67154, nella `
       + `coda del package dove vivono thumbnail e asset registry data. E' il path da cui la sandbox `
       + `fu duplicata, quando L_Prototype stava ancora in /Game/Maps/. Un Save non lo toglie: il `

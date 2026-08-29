@@ -128,11 +128,20 @@ Content/RT/UI/_Generated/
 !Content/RT/Characters/Shared/Materials/M_TeamRing.uasset
 !Content/RT/Maps/Dev/L_DevSandbox/L_DevSandbox.umap
 !Content/RT/Maps/Dev/L_DevSandbox/Data/DA_HexMap_Sandbox.uasset
-# ➕ **Riammesso il 2026-08-18 per #623, e non e' un asset di questa seduta.** `L_DevSandbox` lo
-# referenzia dal commit `7db11313` (#937) ma non era mai entrato nel repository: chiunque apra la
-# sandbox riceve un `LoadErrors` e l'actor mappa resta senza dati. ⚠️ Il nome inganna: NON e' un
-# formato di partita, e' un `URTHexMapAsset` con le celle vere della sandbox (20583 byte) — mentre
-# `DA_HexMap_Sandbox.uasset` qui sopra e' versionato ma VUOTO (1416 byte, zero celle).
+# ➕ **Riammesso il 2026-08-18 per #623, e non e' un asset di questa seduta.** ⚠️ Il nome inganna:
+# NON e' un formato di partita, e' un `URTHexMapAsset` con le celle vere della sandbox (20583 byte) —
+# mentre `DA_HexMap_Sandbox.uasset` qui sopra e' versionato ma VUOTO (1416 byte, zero celle).
+#
+# 🔴 **La ragione per cui entro' e' scaduta, e questa riga la dichiarava ancora (#1657).** Diceva:
+# «`L_DevSandbox` lo referenzia dal commit `7db11313` (#937) [...] chiunque apra la sandbox riceve un
+# `LoadErrors`». Vero fino a `21f4042f` (#956), che ha ripuntato l'actor mappa del livello su
+# `_Scratch/DA_HexMap_Scratch_Basin`. Rimisurato con l'estrattore del gate degli asset:
+# `extractPackageRefs` su `L_DevSandbox.umap` da' M_HexCell, DA_HexMap_Scratch_Basin, WBP_RT_ErrorModal
+# e L_Prototype (metadato, #1280). `DA_Format_Scratch` non c'e'.
+# ⛔ **Oggi quindi non ha consumatori, e resta versionato apposta**: e' l'unica copia di quelle celle, e
+# la fixture su cui il livello e' finito la RIGENERA `GenerateFixtureIntoAsset` a ogni passata. Quale dei
+# due debba usare la sandbox e' una scelta d'autore ancora aperta (#1657): non cancellarlo per «pulizia»
+# finche' non e' presa.
 !Content/RT/Maps/Dev/L_DevSandbox/Data/DA_Format_Scratch.uasset
 # L'arena della seduta U1 — riammessa *prima* che l'asset esista, perche' altrimenti `git add`
 # non fa nulla e non segnala nulla, e la seduta si chiude senza che gli artefatti entrino.
