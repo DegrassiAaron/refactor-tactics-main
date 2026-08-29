@@ -87,6 +87,15 @@ struct FRTHexMapCustomVersion
 		 */
 		InteriorWalls = 10,
 
+		/**
+		 * #75 (CP 10.2): la cella guadagna il flag di OBIETTIVO contendibile (`FRTHexCellData::bIsObjective`).
+		 *
+		 * Passo DICHIARATIVO come tutti i precedenti: il flag nasce `false`, e una mappa scritta prima non
+		 * aveva obiettivi perche' non si potevano dichiarare — si vinceva per eliminazione o al limite di
+		 * round, che e' esattamente cio' che quelle mappe gia' facevano.
+		 */
+		ObjectiveCell = 11,
+
 		// -----<le versioni nuove si aggiungono SOPRA questa riga>------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -290,6 +290,23 @@ struct FRTHexCellData
 	bool bBlocksLineOfSight = false;
 
 	/**
+	 * La cella e' un OBIETTIVO contendibile (CP 10.2, formato v11): chi la occupa alla fine del Cleanup fa
+	 * punto, e due squadre presenti in pari numero non lo fanno.
+	 *
+	 * ⚠️ **Entra in `ComputeHash` insieme ai due booleani qui sopra**, e il criterio e' il loro stesso: ci
+	 * entra cio' che puo' cambiare un esito. Questo campo cambia **chi vince** — due mappe identiche in
+	 * tutto tranne dove sta l'obiettivo non si giocano allo stesso modo — quindi non possono condividere
+	 * l'hash. E' il verso opposto di `MapClass` e `bGenerated`, che ne restano fuori perche' non toccano
+	 * nessun esito di turno.
+	 *
+	 * ⚠️ **E' un `bool` e non un `TeamId`**, ed e' la regola di CP 10.2: l'obiettivo e' CONTENDIBILE, cioe'
+	 * non appartiene a nessuno finche' qualcuno non lo occupa. Un campo di proprieta' dichiarerebbe una
+	 * regola che questo checkpoint non ha; piu' obiettivi distinti e simultanei sono `CP 31.1`, post-v0.1.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	bool bIsObjective = false;
+
+	/**
 	 * Coperture per bordo (0..6 voci, al massimo una per bordo). Sparso: le celle scoperte — la quasi
 	 * totalita' di una mappa — non pagano nulla. Formato v3.
 	 */

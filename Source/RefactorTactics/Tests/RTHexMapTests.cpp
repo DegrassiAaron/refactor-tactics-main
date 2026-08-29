@@ -365,10 +365,14 @@ bool FRTHexMapFormatMigrationTest::RunTest(const FString&)
 
 	TestEqual(TEXT("versione portata alla corrente"), Legacy->FormatVersion, URTHexMapAsset::CurrentFormatVersion);
 	// Il numero e' pinnato di proposito: un bump di formato deve far cadere un test, non passare inosservato.
-	// v9 (#832) aggiunge l'identita' stabile delle strutture; nessun dato precedente cambia significato.
-	TestEqual(TEXT("la versione corrente e' la 10"), URTHexMapAsset::CurrentFormatVersion, 10);
+	// v11 (#75, CP 10.2) aggiunge l'obiettivo contendibile sulla cella; nessun dato precedente cambia
+	// significato, e il default `false` e' cio' che ogni mappa scritta prima gia' era.
+	TestEqual(TEXT("la versione corrente e' la 11"), URTHexMapAsset::CurrentFormatVersion, 11);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2); // bidirezionale
+	// v11: una mappa vecchia non guadagna OBIETTIVI ricaricandosi. E' la promessa del passo dichiarativo, e
+	// senza questa riga il default `false` sarebbe solo un'intenzione scritta in un commento.
+	TestFalse(TEXT("la migrazione non inventa obiettivi"), Legacy->HasObjectiveCell());
 
 	const FRTHexCellData* MigratedFloor = Legacy->FindCell(FRTCellId(0, 0, 0));
 	TestTrue(TEXT("la cella esiste ancora"), MigratedFloor != nullptr);
