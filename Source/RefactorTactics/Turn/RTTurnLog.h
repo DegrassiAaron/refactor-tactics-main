@@ -15,7 +15,7 @@
  * gia' su disco.
  */
 UENUM(BlueprintType)
-enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing, Predictive, ReactionDecision, ReactionClash, Status };
+enum class ERTLogCategory : uint8 { Move, Combat, Fallback, Reaction, Environment, Facing, Predictive, ReactionDecision, ReactionClash, Status, Objective };
 
 /**
  * Gli eventi di un boundary **contested** (E14.7 §10, [D-048]). Viaggiano in `FRTTurnLogEntry::Outcome`

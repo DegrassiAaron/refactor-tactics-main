@@ -300,6 +300,37 @@ namespace
 	}
 }
 
+bool URTHexMapAsset::HasObjectiveCell() const
+{
+	for (const FRTHexCellData& C : Cells)
+	{
+		if (C.bIsObjective)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+FRTCellId URTHexMapAsset::FirstObjectiveCell() const
+{
+	FRTCellId Best;
+	bool bFound = false;
+	for (const FRTHexCellData& C : Cells)
+	{
+		if (!C.bIsObjective)
+		{
+			continue;
+		}
+		if (!bFound || URTHexLibrary::StableLess(C.Id, Best))
+		{
+			Best = C.Id;
+			bFound = true;
+		}
+	}
+	return Best;
+}
+
 uint32 URTHexMapAsset::ComputeHash() const
 {
 	// Ordine stabile -> hash indipendente dall'ordine di inserimento (copia locale per non mutare l'asset).
@@ -318,6 +349,10 @@ uint32 URTHexMapAsset::ComputeHash() const
 		Hash = HashCombine(Hash, GetTypeHash(C.OccupancySurcharge));
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(C.bBlocksMovement ? 1 : 0)));
 		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(C.bBlocksLineOfSight ? 1 : 0)));
+		// L'obiettivo entra con lo stesso criterio dei due booleani sopra (formato v11, #75): cambia CHI
+		// VINCE, quindi due mappe che si giocano diversamente non possono avere lo stesso hash. E' anche
+		// cio' che permette a `IsSnapshotStale` di accorgersi di un obiettivo spostato.
+		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(C.bIsObjective ? 1 : 0)));
 
 		// Le coperture sono dato autorevole (cambiano il danno subito): entrano nell'hash, ordinate per bordo
 		// perche' l'ordine dell'array lo decide chi edita l'asset, non la mappa. Una cella scoperta non
@@ -807,6 +842,9 @@ void URTHexMapAsset::MigrateToCurrentFormat()
 	// v9 -> v10 (#712, seduta `U22`): la mappa guadagna i MURI INTERNI, la geometria che non giace su nessun
 	// bordo. L'elenco nasce vuoto, ed e' cio' che una mappa scritta prima gia' era: quei muri non si potevano
 	// disegnare, e il segmento che li avrebbe descritti veniva scartato dalla cottura senza dirlo.
+	// v10 -> v11 (#75, CP 10.2): la cella guadagna il flag di OBIETTIVO contendibile. Il default `false` e'
+	// cio' che una mappa scritta prima gia' era: nessuna sua cella faceva punto, e la partita si decideva per
+	// eliminazione o al limite di round. Un obiettivo NON viene inventato da una ricarica.
 	// In nessuno di questi c'e' qualcosa da convertire — il campo nuovo nasce vuoto e una mappa che non lo usa
 	// si comporta esattamente come prima — quindi la migrazione si limita a dichiarare la versione. Il giorno
 	// in cui una migrazione dovra' TRASFORMARE dati, il posto e' questo, un `if (FormatVersion < N)` per

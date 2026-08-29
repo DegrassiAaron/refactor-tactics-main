@@ -1590,6 +1590,9 @@ void ARTTurnManager::LockInAndResolve()
 	ResolveEnvironment(CleanupMap);
 
 	int32 Team0Alive = 0, Team1Alive = 0;
+	// Presenze sull'OBIETTIVO contendibile (CP 10.2, #75): si contano insieme ai vivi e si valutano dopo il
+	// loop, perche' la domanda e' la stessa — chi e' ancora in piedi, e su quale cella.
+	int32 Team0OnObjective = 0, Team1OnObjective = 0;
 	{
 		TArray<AActor*> Actors;
 		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
@@ -1770,8 +1773,57 @@ void ARTTurnManager::LockInAndResolve()
 			// E con lui il contatore delle attivazioni ([D-092]): «una per TURNO» ha bisogno di sapere quando
 			// il turno finisce, ed e' qui — lo stesso punto in cui il piano smette di valere.
 			Unit->ReactionActivationsThisTurn = 0;
+			// La presenza sull'obiettivo si legge QUI, nello stesso passaggio: un secondo giro sulle unita'
+			// sarebbe un secondo momento, e fra i due qualcosa potrebbe muoversi senza che nessuno lo veda.
+			if (CleanupMap)
+			{
+				const FRTHexCellData* StandingOn = CleanupMap->FindCell(Unit->Cell);
+				if (StandingOn && StandingOn->bIsObjective)
+				{
+					(Unit->TeamId == 0 ? Team0OnObjective : Team1OnObjective)++;
+				}
+			}
 			(Unit->TeamId == 0 ? Team0Alive : Team1Alive)++;
 		}
+	}
+
+	// L'OBIETTIVO contendibile (CP 10.2, #75), valutato QUI e non altrove: la DoD chiede il controllo «nel
+	// Cleanup, dopo gli effetti ambientali e i KO», e questo e' l'unico punto che li ha entrambi alle spalle.
+	// Le presenze contate sopra sono di unita' ancora VIVE: chi e' stato eliminato sull'obiettivo — dalle
+	// fiamme, dall'acqua o da un colpo — non lo tiene, ed e' precisamente cio' che «dopo i KO» significa.
+	//
+	// ⚠️ **Sta PRIMA di `EvaluateMatchEnd`, e l'ordine e' la regola**: un punto segnato in questo Cleanup deve
+	// poter chiudere la partita nello stesso Cleanup. Scritto dopo, il verdetto leggerebbe il punteggio del
+	// turno precedente e la vittoria per obiettivo arriverebbe sempre con un turno di ritardo.
+	if (CleanupMap && CleanupMap->HasObjectiveCell())
+	{
+		const ERTObjectiveOutcome Control = URTTurnRules::ResolveObjectiveControl(Team0OnObjective, Team1OnObjective);
+
+		// UN punto per Cleanup controllato. Non e' un numero di bilanciamento ma la GRANULARITA' della
+		// misura — «un turno di controllo vale un progresso» — ed e' intero come la DoD chiede: un float
+		// renderebbe il punteggio dipendente dall'ordine delle somme, che e' esattamente cio' che il
+		// determinismo del TurnLog non ammette. Quanti punti servano per vincere e' un'altra domanda, e vive
+		// in `FRTMatchRules::ScoreToWin` — oggi ZERO, cioe' via disattivata.
+		const int32 Points = 1;
+		if (Control == ERTObjectiveOutcome::Team0Scores) { AddTeamScore(0, Points); }
+		else if (Control == ERTObjectiveOutcome::Team1Scores) { AddTeamScore(1, Points); }
+
+		FRTTurnLogEntry Objective;
+		Objective.Phase = ERTMatchPhase::Cleanup;
+		Objective.Category = ERTLogCategory::Objective;
+		Objective.Outcome = static_cast<uint8>(Control);
+		Objective.ActionId = FName(TEXT("Objective.Control"));
+		// La cella e' quella dell'obiettivo quando ce n'e' UNO solo, che e' il caso della v0.1; con piu'
+		// obiettivi (CP 31.1, post-v0.1) questa voce diventera' una per obiettivo. Finche' ce n'e' uno, le
+		// due celle sono la stessa: la voce non descrive uno spostamento.
+		Objective.SrcCell = CleanupMap->FirstObjectiveCell();
+		Objective.TgtCell = Objective.SrcCell;
+		// `Amount` porta i punti EFFETTIVAMENTE assegnati: zero quando l'obiettivo e' conteso o di nessuno.
+		// Un lettore che somma questa colonna ottiene il punteggio, senza dover reinterpretare l'esito.
+		Objective.Amount = (Control == ERTObjectiveOutcome::Team0Scores || Control == ERTObjectiveOutcome::Team1Scores) ? Points : 0;
+		// `nullptr`: il punto lo fa la SQUADRA, non un'unita' ([D-063] — `UnitId = 0` e' «nessuna unita'»).
+		// Nominare chi ci stava sopra sarebbe inventare un soggetto che la regola non ha.
+		AppendLogEntry(Objective, nullptr);
 	}
 
 	// Fine partita a tre vie (CP 10.3), valutata QUI: nel Cleanup, dopo gli effetti ambientali e i KO, e
