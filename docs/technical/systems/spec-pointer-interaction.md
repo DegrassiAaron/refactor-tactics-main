@@ -489,8 +489,14 @@ tempo.)*
 - `ReactionWindowOwnsInputPriority`
 - `LogicalMapObjectResolvedFromStableId`
 
-✅ **Scritti il 2026-08-13 sera** — dieci, ognuno per una regola nuova, tutti verdi e tutti passati per la
-verifica di mutazione:
+⛔ **Nessuno degli otto qui sopra esiste**, ed e' scritto qui perche' il `✅` che segue riguarda **altri**
+test e la vicinanza inganna: misurato il 2026-08-29 su `c2f694dc`,
+`git grep -l 'RefactorTactics.PlayerInput.HoverNeverCommits' -- Source/` non trova niente, e cosi' per gli
+altri sette. Restano il perimetro DA SCRIVERE — lo dice gia' il `⏳` in fondo alla sezione, ma dodici righe
+piu' in basso, dopo una tabella intera. Chi legge in diagonale prende il `✅` per una spunta su questi.
+
+✅ **I dieci qui sotto sono un elenco DIVERSO, e questi esistono davvero** — scritti il 2026-08-13 sera,
+ognuno per una regola nuova, tutti verdi e tutti passati per la verifica di mutazione:
 
 | Test | Regola |
 |---|---|
