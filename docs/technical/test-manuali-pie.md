@@ -55,9 +55,27 @@
   Se la vista sembra bloccata e compaiono le **etichette degli actor** in viewport, hai fatto **Eject** (`F8`):
   stai guardando con la camera dell'editor, non con quella del gioco — `F8` di nuovo per rientrare nel pawn.
 
-## Stato in numeri — 2026-08-28
+## Stato in numeri — 2026-08-30
 
-**173 voci**: ✅ **63 verdi** · 🟡 **21 parziali** · ❌ **2 fallite** · ⏳ **87 aperte**.
+**177 voci**: ✅ **65 verdi** · 🟡 **24 parziali** · ❌ **2 fallite** · ⏳ **86 aperte**.
+
+*(Rimisurate col comando qui sotto il **2026-08-30**, in due tempi: `176 · 65/24/2/85` **prima** di toccare
+il file, `177 · 65/24/2/86` dopo. Entra **una** voce, `PIE-VSLICE-01`, il gate visivo end-to-end che veniva
+dal nodo 14 del kit *Visual Slice v0.1* — l'unico posto in cui quella catena era scritta per intero. ✅ Il
+delta è **esattamente uno e tutto su ⏳**: verdi, parziali e fallite non si muovono.*
+
+🔴 **E il numero di partenza era sbagliato di tre voci, due verdi e tre parziali — lo scarto più grande
+finora.** La riga qui sopra diceva `173 · 63/21/2/87`; il comando canonico, eseguito **prima** di qualsiasi
+modifica, ne contava `176 · 65/24/2/85`. È il terzo giro di fila in cui succede — le passate precedenti
+trovarono scarti di quattro e di uno — e la causa non cambia: il registro è cambiato sotto la riga che lo
+conta, perché fra una rimisura e la successiva altre sessioni aggiungono voci e ne portano di aperte a verdi.
+
+⚠️ **E c'è un modo in più di sbagliarlo, trovato in questa passata**: il primo conteggio di questo giro fu
+`174 · 63/22/2/87`, misurato su un **working tree 71 commit dietro `origin/main`**. Era una misura corretta
+di un albero sbagliato. **Il comando canonico va eseguito sulla base su cui il commit atterra**, non su
+quella che si ha per le mani — `git show origin/main:docs/technical/test-manuali-pie.md` prima di contare, se
+il branch non è aggiornato. Un numero misurato su un albero stantio ha esattamente l'aspetto di un numero
+giusto.*
 
 *(Rimisurate col comando qui sotto il **2026-08-28**, in due tempi: `172 · 63/21/2/86` **prima** di toccare
 il file, `173 · 63/21/2/87` dopo. Entra **una** voce, `PIE-V01-SCREENHUD`, la voce PIE dello Screen HUD §4.1
@@ -804,10 +822,22 @@ percorso — passi 1-9 e 13 — è eseguibile.
 > ferite**. Fino al 2026-08-20 non si potevano scrivere per un vincolo di assegnazione, rimosso da **D-178**;
 > restava solo il lavoro.
 >
-> ⏳ **Nascono tutte e sei aperte, e nessuna è eseguibile oggi**, per una causa sola e misurabile:
-> `git ls-files 'Content/RT/World/Graybox/*'` dà **0**. Il percorso è deciso (`D-173`, §8.1) e la riga
-> d'allowlist in `.gitignore` c'è già — *prima* del primo asset, che è la regola di
-> [`tooling/asset-map.md`](tooling/asset-map.md) §6 — ma nessuna delle sette mesh del kit è stata modellata.
+> ⏳ **Nascono tutte e sei aperte**, e la causa che le bloccava era una sola e misurabile:
+> `git ls-files 'Content/RT/World/Graybox/*'` dava **0** al 2026-08-25, cioè il kit non aveva un solo asset.
+>
+> ✅ **Quella causa è caduta.** Rimisurato il **2026-08-30**, lo stesso comando dà **7**: le sei mesh —
+> `SM_Graybox_Cover_Low` · `_Cover_High` · `_Door_Panel` · `_Door_Locked` · `_Surface_Water` · `_Surface_Ice`
+> — più `BP_Graybox_CellPlacementVolume`, sotto i path di `D-173`, generate dal commandlet come decide
+> [`D-229`](../decisions/RT_PDR_00_Decision_Log.md). ⚠️ **Questo non rende le sei voci eseguibili: ne toglie
+> UNO dei due impedimenti.** Resta la precondizione **1** qui sotto — la seduta **U21**, l'illuminazione di
+> `L_DevSandbox` — che `editor-sessions.yaml` dichiara in `unblocked_by` di **U25**, e che nessun asset
+> sostituisce. 🔴 Fino al 2026-08-30 questo blocco diceva *«nessuna delle sette mesh del kit è stata
+> modellata»*: era vero quando fu scritto e ha smesso di esserlo senza che una riga cambiasse — sei voci
+> restavano dichiarate impossibili per una ragione già caduta.
+>
+> ⚠️ **E una di esse ora ha meno da aspettare di quanto la sua riga dica**: `PIE-GBX-VOLUME` chiede il
+> `BP_Graybox_CellPlacementVolume` *posato* su una cella, e l'asset esiste — la sua parte mancante è la posa,
+> che è lavoro della seduta, non dell'authoring.
 >
 > **Precondizione comune**, e vale per tutte e sei:
 >
@@ -992,6 +1022,42 @@ docs → epic → scenario → PIE resti chiuso, non perché siano eseguibili og
 |----|-----------------|---------------|--------------|-------|
 | **PIE-VELO-VIEWER** | Il velo mostra la conoscenza del **proprio** team, e il viewer è `PlayerTeamId` ([D-227](../decisions/RT_PDR_00_Decision_Log.md) sciolta da **E13.8**) | partita hex avviata con due squadre; almeno un'unità avversaria **fuori** dalla vista del proprio team | Le celle e le unità che il **proprio** team non ha mai osservato restano velate, e ciò che vede è scoperto; il velo si **aggiorna a ogni refresh della conoscenza**, non solo all'avvio. Cambiando il team del viewer, la vista cambia con lui: ciò che era velato si scopre e viceversa. **Mai** la vista dell'avversario, e **mai** la vista onnisciente | ⏳ **eseguibile dal 2026-08-29** ([#1535](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1535), `a5283719`). Il consumatore esiste: `ARTGameMode::ApplyKnowledgeVeilForViewer()` sottoscrive `OnTeamKnowledgeRefreshed` e chiama `HexMap->ApplyKnowledgeVeil(TurnManager->KnowledgeForTeamPublic(ViewerTeamId()))`, con `ViewerTeamId()` = `ARTPlayerController::PlayerTeamId`. Coperto headless da `RTVeilTests.cpp` (+148 righe nello stesso merge); il PIE aggiunge ciò che il test non vede — **che i tre stati si distinguano guardandoli**, che è la domanda di `PIE-HEX-VIZ-VELO` |
 | **PIE-OBJ-PUNTI** | Stare **dentro** l'obiettivo assegna punti, e il log dice a chi ([D-241](../decisions/RT_PDR_00_Decision_Log.md)) | mappa con almeno una cella `bIsObjective = true` e un'unità che può raggiungerla | Un'unità che **termina il turno** sulla cella obiettivo fa salire il punteggio del suo team, e il combat log riporta `Obiettivo: team N +M (ora X-Y)` con il totale aggiornato di **entrambe** le squadre. Il punto va alla squadra dell'unità, non a chi ha mosso per ultimo. ⚠️ Un punto assegnato a una squadra che non esiste è un `Warning` nel log (`Punteggio %d assegnato alla squadra %d, che non esiste: ignorato`) e **non deve comparire** in una partita 2v2: se compare, è un difetto da aprire, non un esito da registrare | ⏳ **eseguibile dal 2026-08-29** ([#75](https://github.com/DegrassiAaron/refactor-tactics-main/issues/75), `d070a1a4`). L'obiettivo è **un dato della mappa** — `FRTHexCellData::bIsObjective` — non una regola che lo deriva né un campo dello scenario, ed è la sostanza di `D-241`. ⛔ **Il punteggio non è in HUD**: l'evidenza a schermo è il **solo** combat log, vedi la nota sopra |
+
+
+### Gate visivo end-to-end della slice (aggiunta il 2026-08-30)
+
+> Una voce sola, e non è una feature: è il **gate** che chiede se la catena visiva della v0.1 regge *insieme*
+> e in **packaged Development**. Viene dal nodo 14 del kit *Visual Slice v0.1*, consumato il 2026-08-29
+> ([referto](../roadmap/plans/visual-slice-v01-spec-panel-2026-08-29.md)), che è l'unico posto in cui quella
+> catena era scritta per intero — quindici passi da «apre la partita» a «riconferma dopo la resolution».
+>
+> 🔑 **Che cosa la separa dalle voci che verificano gli stessi oggetti**, e che non duplica: `PIE-V01-HUD`,
+> `PIE-HEX-VIZ-VELO`, `PIE-ICON-01` e le sei `PIE-GBX-*` giudicano **un meccanismo per volta**, ciascuna nel
+> suo contesto e la maggior parte in PIE. Questa non aggiunge un oracolo nuovo: verifica che i meccanismi già
+> verdi **coesistano** in un eseguibile impacchettato, dove le cause di rottura sono altre — asset non
+> cucinati, riferimenti a percorsi locali, debug lasciato acceso, widget che in PIE trovano ciò che in
+> packaged non esiste. Una catena di verdi non è il verde della catena.
+>
+> ⏳ **Nasce non eseguibile, e la causa non è una sola**: sette dei suoi quindici passi dipendono da lavoro
+> aperto. Alla data della voce — misurato il 2026-08-30 — mancano l'overlay LOS
+> ([#1712](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1712), appena aperta), l'aggancio
+> del velo alla presentazione ([#1535](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1535):
+> `ApplyKnowledgeVeil` non ha chiamanti fuori dai test), il troncamento della traccia di movimento
+> ([#1497](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1497)), il layer Screen HUD
+> ([#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613)) e il wiring del catalogo icone
+> ([#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220)).
+>
+> ⚠️ **Non si esegue a pezzi.** Metà dei passi, eseguiti quando metà della catena esiste, misurano ciò che è
+> già coperto altrove e non ciò per cui questa voce esiste. Finché le cinque issue sopra non sono chiuse, il
+> suo stato corretto è ⏳ — non 🟡.
+>
+> ⛔ **Nessun `RELEASE-V01`**, e va deciso e non dedotto: il subset è il criterio di `G9` e spostarcela
+> richiede la mossa gemella in [`tooling/scenario-map.md`](tooling/scenario-map.md) §8, *«qui e lì insieme»*.
+> Se questa voce diventa il gate visivo della release, quella è la sede della decisione.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-VSLICE-01** | La catena visiva della v0.1 regge **insieme**, e regge anche fuori dall'editor: board leggibile → unità selezionabile con i suoi anelli → LOS osservabile → conoscenza parziale che nasconde → velo dal **primo** fotogramma → HUD con round/fase/slot/cooldown → icone dal catalogo → e tutto ancora vero **dopo** una resolution | Le cinque issue del blockquote chiuse; una packaged **Development** costruita col runbook del progetto; `L_DevSandbox` con la partita 2v2 offline vs bot | Nella packaged: board non nera, materiali graybox presenti, `WBP_RT_*` caricati, icone risolte, velo applicato **prima** del primo refresh, **nessun** overlay di debug acceso di default, nessun asset mancante e nessun riferimento a percorsi fuori dal repository. Un nemico fuori conoscenza non è ricostruibile da overlay, log giocatore, modello 3D **né dalla traccia di movimento**. Dopo la resolution i sette punti si riconfermano senza rilanciare | ⏳ non ancora eseguita — vedi il blockquote: cinque dipendenze aperte, e la voce non si esegue a pezzi |
 
 ## La sequenza: quale voce affrontare, e quando
 
