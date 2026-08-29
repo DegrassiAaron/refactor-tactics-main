@@ -387,4 +387,62 @@ bool FRTObjectiveChangesMapHashTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * La MAPPA D'AUTORE dichiara il suo obiettivo, ed e' l'unica cosa che un `.uasset` non puo' dire da solo.
+ *
+ * ⚠️ **Senza questo test l'obiettivo vive dentro un binario che nessuno controlla.** Il diff di una PR non
+ * mostra cosa cambia dentro un `.uasset`: chi lo aprisse in Editor e togliesse la spunta senza accorgersene
+ * non farebbe cadere nulla — la regola resterebbe verde su una mappa che non ha piu' un obiettivo, e
+ * `Objectives.SilentWithoutObjectiveCell` continuerebbe a passare perche' quel caso e' legittimo altrove.
+ *
+ * Verifica anche che la cella sia PERCORRIBILE: un obiettivo su cui nessuno puo' salire resterebbe
+ * `Unclaimed` per sempre, e la partita non lo direbbe mai.
+ *
+ * 🔴 **La cella e' `(0,-3,0)`, la PORTA NORD, e il numero non e' arbitrario**: la barriera su `q=0` ha due
+ * sole aperture — `(0,-3,0)` e `(0,3,0)` — e sono le uniche celle percorribili equidistanti dai due spawn,
+ * che `PickStartCells` deriva su `(-4,0)` e `(4,0)`. Fra le due, la nord e' la via VELOCE e SCOPERTA
+ * (`D-241`): chi tiene l'obiettivo e' visibile, e la via sud coperta resta l'aggiramento per scacciarlo.
+ * Metterlo sulla sud premierebbe chi arriva primo e si pianta dietro lo schermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTObjectiveAuthoredArenaDeclaresItTest,
+	"RefactorTactics.Objectives.AuthoredArenaDeclaresItsObjective",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTObjectiveAuthoredArenaDeclaresItTest::RunTest(const FString&)
+{
+	const TCHAR* Path = TEXT("/Game/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena");
+	URTHexMapAsset* Arena = LoadObject<URTHexMapAsset>(nullptr, Path);
+	if (!TestNotNull(TEXT("DA_HexMap_Arena si carica"), Arena))
+	{
+		return false;
+	}
+
+	if (!TestTrue(TEXT("l'arena d'autore dichiara un obiettivo"), Arena->HasObjectiveCell()))
+	{
+		// Senza la premessa, le righe sotto sarebbero verdi per il motivo sbagliato.
+		return false;
+	}
+
+	const FRTCellId Objective = Arena->FirstObjectiveCell();
+	TestTrue(TEXT("ed e' la porta nord (0,-3,0)"), Objective == FRTCellId(0, -3, 0));
+
+	const FRTHexCellData* Cell = Arena->FindCell(Objective);
+	if (TestNotNull(TEXT("la cella esiste"), Cell))
+	{
+		TestFalse(TEXT("e si puo' salirci: un obiettivo bloccato non e' contendibile"), Cell->bBlocksMovement);
+	}
+
+	// Uno solo: piu' obiettivi simultanei sono CP 31.1 (post-v0.1), e il TurnLog oggi ne nomina uno.
+	int32 Quanti = 0;
+	for (const FRTHexCellData& C : Arena->Cells)
+	{
+		if (C.bIsObjective)
+		{
+			++Quanti;
+		}
+	}
+	TestEqual(TEXT("e ne dichiara esattamente uno"), Quanti, 1);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
