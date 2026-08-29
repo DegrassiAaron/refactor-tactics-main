@@ -2260,6 +2260,39 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// questa asserzione la scriva in questa tabella** — e con lei cade la spiegazione qui sopra. Cio' che e'
 	// cambiato non e' che la ricerca sia finita: e' che ora si sa **dove** guardare, cioe' a un termine che
 	// paghi l'arretramento da solo, o a un budget di movimento sotto i 4 MP.
+	//
+	// 🔵 **LA PISTA DEI 2 MP E' STATA PERCORSA, e non porta dove la nota diceva** (`#1550`, misurato il
+	// 2026-08-29 — `RTOrbitWithdrawBudgetTests.cpp`).
+	//
+	// L'ipotesi era: un `Overwatch` sostenuto tiene un'unita' a 2 MP (`D-070`: armare l'Overwatch riserva lo
+	// slot movimento a `Withdraw`, 2 MP), e a 2 MP `MakeTestArena` arretra in 48 coppie, quindi il ciclo di
+	// `#1287` puo' chiudersi. **Non regge, e il motivo e' piu' secco di quanto ci si aspettasse:**
+	//
+	//   · `Withdraw` compare in UN SOLO posto in `Source/`: un commento di `RTActionDef.h`. Nessuna azione,
+	//     nessuna voce di catalogo runtime, nessun codice che riservi lo slot movimento. `D-070` e' decisa e
+	//     **non implementata**.
+	//   · Nessun punto del runtime porta `MoveBudget` a 2: viene da `MovePoints` dell'eroe.
+	//   · Il roster spedito non scende sotto **4** (`Gadget` 5, `Phase` 5, `Riktor` 4, `Wraith` 6), e a 4 MP
+	//     quella board arretra in **zero** coppie.
+	//
+	// ∴ Un Overwatch sostenuto non tiene il budget a 2 MP **perche' non lo tocca affatto**.
+	//
+	// 🔴 **Ma il budget EFFICACE di 2 MP esiste, per un'altra via, e questo la nota non lo diceva.**
+	// `Status.Slow` non dimezza il budget: `RTTurnManager.cpp` fa `MoveCostModifier = 1`, cioe' **+1 al costo
+	// di ogni cella**. Misurato cella per cella: l'insieme raggiungibile di un'unita' a 4 MP RALLENTATA
+	// coincide con quello di un'unita' a 2 MP su **tutte** le 55 origini della mappa d'autore, e su 49 delle
+	// 62 di `MakeTestArena` — dove nelle altre 13 e' piu' LARGO, mai piu' stretto.
+	//
+	// ∴ **La pista non e' morta: ha cambiato meccanismo.** Chi la riprendera' cerchi un'orbita sotto `Slow`,
+	// non sotto `Overwatch` — `Slow` e' implementato, dura 1 turno per azione e 2 per l'ultimate, e il bot lo
+	// puo' subire. ⚠️ Cio' che resta NON misurato: il dominio raggiungibile non e' l'arretramento. Un dominio
+	// piu' largo da' al filtro piu' opzioni, quindi «contiene le 48 coppie» non significa «produce gli stessi
+	// 48 arretramenti»: chi vuole quel numero rifaccia la spazzata col modello dello `Slow` invece che col
+	// budget ridotto.
+	//
+	// ⚠️ **E il grilletto c'e'**: `Bot.ShippedRosterStaysAboveTheBackstepBudget` diventa rosso se un eroe
+	// scende sotto 4 MP (verificato per mutazione: `Riktor` a 3 lo fa cadere). Se `#149` ritara la mobilita',
+	// o se `D-070` atterra davvero, questa riga torna viva e qualcuno lo viene a sapere.
 	const int32 WorstOrbit = Orbite.WorstReturns();
 	const int32 OrbitLimit = FRTOrbitProbe::LimitForTurns(TurnsPlayed);
 	const int32 OrbitMinTurns = FRTOrbitProbe::MinTurnsToFalsify;
