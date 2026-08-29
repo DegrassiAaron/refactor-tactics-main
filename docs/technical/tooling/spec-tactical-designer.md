@@ -108,6 +108,63 @@ l'editor inventa una regola parallela
 **Se l'editor e il runtime possono divergere, lo strumento ha perso il suo valore** — non è più una lente
 sul gioco, è un secondo gioco che nessuno testa.
 
+### 3.1 Il playback è un consumer, non un percorso di simulazione
+
+Vedere una risoluzione accadere è il modo più diretto che un designer ha di capirla, ed è anche il punto in
+cui la catena qui sopra si romperebbe più facilmente: animare una partita *somiglia* a giocarla.
+
+La riga è netta e discende da [ADR-0009](../../decisions/adr-0009-replay-logico-canonico.md):
+
+> **Il playback legge una traccia già prodotta. Non la produce, non la ricalcola, non la corregge.**
+
+Ciò che la visualizzazione consuma è il **TurnLog / replay logico canonico** — la stessa traccia che
+l'headless produce. Da questo discendono tre conseguenze verificabili:
+
+1. **La posizione di un'unità durante il playback viene dalla traccia**, non da un calcolo. Un
+   `SetActorLocation` che *decide* dove qualcuno è arrivato è la forma più comune di secondo simulatore, e
+   non smette di esserlo perché il risultato coincide.
+2. **La velocità è presentazione.** `0.25x`, `4x` o `Instant` devono produrre lo stesso stato finale: se non
+   lo producono, il tempo reale sta entrando in una decisione, che è ciò che il §8 del
+   [piano canonico](../../product/piano-canonico-mvp.md) vieta.
+3. **Un evento che il playback non sa rendere resta invisibile, non inventato.** Meglio una lacuna
+   dichiarata di una ricostruzione plausibile: la seconda è indistinguibile da un dato, e nessuno la
+   verifica.
+
+Il trasporto per farlo esiste già e non va riscritto: `URTReplaySeekLibrary` (`SeekToPhase`, `SeekToTurn`,
+`SeekToTurnPhase`), l'esito tipizzato `ERTReplaySeekResult`, e `FRTReplayViewModel` — la logica in una
+`USTRUCT` non-`BlueprintType` con test propri, che è la stessa forma che il §5.2 descrive per l'authoring.
+
+### 3.2 Due playback, due attori, e cosa si rompe se si fondono
+
+Esistono **due** superfici che riproducono una risoluzione, e la differenza non è tecnica: è di **attore**.
+
+| | Replay Viewer | Scenario Playback |
+|---|---|---|
+| Attore | il **giocatore** | il **technical designer** |
+| Domanda | *«cosa è successo nella mia partita»* | *«perché lo scenario che ho scritto finisce così»* |
+| Sorgente | una partita registrata | l'esecuzione dello scenario in authoring |
+| Vede | **solo ciò che la sua squadra sa** | **tutto**, per costruzione |
+| Presentazione | interpolazione e durate di gioco | graybox, con velocità fino a `Instant` |
+| Lavoro | [#472](https://github.com/DegrassiAaron/refactor-tactics-main/issues/472) | [#1625](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1625) |
+
+**Ciò che condividono è il core**, ed è giusto che lo condividano: `FRTReplayViewModel` e il seek. Il
+secondo consumer non duplica il primo — è la stessa forma che [ADR-0010](../../decisions/adr-0010-esposizione-blueprint-scenario-harness.md)
+dichiara *«la forma»* e che estende allo Scenario Harness.
+
+🔴 **Ciò che non possono condividere è la politica di visibilità, e il costo di confonderle è misurato.**
+[#1525](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1525) è un leak vivo dal lato del
+giocatore: il playback di partita muove il modello di **ogni** unità lungo il percorso realmente eseguito,
+senza filtro di conoscenza, e il giocatore guarda camminare un nemico che non vede. Fondere le due superfici
+produce uno di due danni, mai zero:
+
+- se prevale la politica del giocatore, il **designer perde la vista completa** — cioè l'unica ragione per
+  cui il suo playback esiste;
+- se prevale quella del designer, il **giocatore eredita il leak** che #1525 sta chiudendo.
+
+⚠️ **Da qui la regola pratica**: una modifica utile a entrambi si fa **nel core**, con i test del core. Ciò
+che descrive *chi può vedere cosa* non scende mai nel core condiviso — resta nel consumer, dove l'attore è
+noto.
+
 Il repository applica già questo vincolo in una forma più forte di una raccomandazione:
 
 > **La logica pura vive nel modulo runtime, e l'editor la chiama.**
@@ -295,18 +352,62 @@ di release e non compete con la consegna. Le release di gioco stanno in
 > `IMPLEMENTING`**. Una scala di maturità di uno strumento collocata nella roadmap di release si mette in
 > concorrenza con il gioco, e perde.
 
-| Stadio | Il designer può | Owner reale |
+| Stadio | Il designer può | Chi possiede la capability |
 |---|---|---|
-| **TD 0.1** | aprire una mappa canonica, disegnarla, caricare ed eseguire uno scenario esistente, vedere perché un ordine è invalido | `RT-FEAT-TOOL-MAP-EDITOR` · `RT-FEAT-TOOL-MAP-GEOMETRY` · `RT-FEAT-TEST-SCENARIO-HARNESS` · **M9.1** |
-| **TD 0.2** | creare e modificare uno scenario **senza scrivere JSON**, e ottenere lo stesso TurnLog di una fixture scritta a mano | `RT-FEAT-TOOL-SCENARIO-COMPOSER` · **M9.4** |
-| **TD 0.3** | configurare una skill *variante* senza toccare il dato di produzione, e provarla sulla mappa con le regole runtime | `RT-FEAT-TOOL-SKILL-WORKBENCH` · **M9.4** |
+| **TD 0.1** | aprire una mappa canonica, disegnarla, caricare ed eseguire uno scenario esistente, vedere perché un ordine è invalido | `URTHexEditorMode` e i cinque tool · Scenario Harness · **M9.1** |
+| **TD 0.2** | creare e modificare uno scenario **senza scrivere JSON**, e ottenere lo stesso TurnLog di una fixture scritta a mano | Scenario Composer: `FRTTestScenario` + `URTScenarioAuthoring` · **M9.4** |
+| **TD 0.3** | configurare una skill *variante* senza toccare il dato di produzione, e provarla sulla mappa con le regole runtime | Skill Workbench — **nessun owner: non esiste** · **M9.4** |
 | **TD 0.4** | legare la variante a più scenari e leggere il diff baseline↔variante | TD 0.2 + TD 0.3 |
-| **TD 0.5** | spiegare con dati runtime perché un bersaglio è valido, un percorso passa, una copertura si applica | `RT-FEAT-TOOL-MAP-EDITOR` — `#711`, `#695` |
-| **TD 0.6** | trasformare una sessione registrata in scenario editabile e rieseguibile | `RT-FEAT-REPLAY-ARCHIVE` + conversione |
-| **TD 0.7** | confrontare due varianti su una suite e ottenere metriche riconducibili a eventi del TurnLog | `RT-FEAT-TOOL-BALANCE-GROUND` · **E43** |
-| **TD 0.8** | sapere quali scenari una modifica impatta, e classificarne l'esito | `RT-FEAT-UI-SCENARIO-BROWSER` · `RT-FEAT-TEST-GOLDEN` |
+| **TD 0.5** | spiegare con dati runtime perché un bersaglio è valido, un percorso passa, una copertura si applica | le sonde d'editor sopra `Pathfinding/` e `Perception/` |
+| **TD 0.6** | trasformare una sessione registrata in scenario editabile e rieseguibile | l'archivio replay + una conversione che non esiste |
+| **TD 0.7** | confrontare due varianti su una suite e ottenere metriche riconducibili a eventi del TurnLog | **E43** — non si duplica qui |
+| **TD 0.8** | sapere quali scenari una modifica impatta, e classificarne l'esito | l'indice degli scenari + il corpus golden |
 | **TD 0.9** | promuovere una variante a dato di produzione con un gate di validazione, e non per errore | dipende da TD 0.3 |
 | **TD 1.0** | fare tutto il giro senza leggere il codice sorgente | — |
+
+> 🔵 **La terza colonna si chiamava «Owner reale» e conteneva sette `RT-FEAT-*`, fino al 2026-08-29.** Sono
+> Feature ID del registry uscito con [D-181](../../decisions/RT_PDR_00_Decision_Log.md) il 2026-08-21:
+> **nessun file del repository li definisce più**, quindi la colonna che prometteva l'owner di ogni stadio
+> non ne risolveva sette su otto.
+>
+> ⚠️ **Ed erano sopravvissuti a una passata che credeva di averli tolti tutti**: la correzione del
+> 2026-08-29 cercava `feature-registry`, `feature_registry` e `Control Center`, e un `RT-FEAT-TOOL-MAP-EDITOR`
+> non contiene nessuna delle tre. Un grep trova ciò che nomina; il resto lo trova solo chi legge. È lo stesso
+> modo in cui erano sfuggite le due righe del §10 e la vista delle sedute al §9.
+>
+> Ora la colonna dice **chi possiede la capability** — un modulo, una classe, un'epic — che è una domanda a
+> cui questo documento può rispondere senza dipendere da un registro. Il *lavoro* aperto resta dell'epic
+> [#1105](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1105), come dice il §10.
+
+---
+
+### 6.1 La TD Trial è un taglio trasversale, non uno stadio
+
+La scala qui sopra misura **quanto è maturo** lo strumento. Non dice quando diventa **usabile**, e le due
+cose non coincidono: uno strumento può avere metà degli stadi aperti ed essere già sufficiente a fare un
+giro di lavoro completo, oppure averne otto chiusi e restare inservibile perché ne manca uno in mezzo.
+
+La **TD Trial / Scenario Sandbox** è il nome di quel giro completo:
+
+> Un designer crea o apre uno scenario, imposta lo stato iniziale, dichiara le azioni, **valida**, esegue con
+> il runtime reale, **vede** cosa è successo, legge il perché, azzera, modifica e riesegue — senza scrivere
+> JSON e senza toccare il C++.
+
+Tre proprietà la qualificano, e sono le stesse tre che la distinguono da un elenco di funzionalità:
+
+1. **È un ciclo, non una somma.** Il valore compare quando il giro si chiude: authoring senza esecuzione è
+   un editor di testo, esecuzione senza lettura è un verdetto muto, lettura senza modifica è un rapporto.
+2. **Attraversa la scala invece di seguirla.** Tocca `TD 0.1` (residui), `TD 0.2` (consegnato) e `TD 0.5`
+   (le sonde), e **non** tocca `TD 0.3`: il Skill Workbench sta fuori, e la Trial resta possibile senza.
+3. **Il suo criterio di riuscita è esterno allo strumento.** Non «quante funzioni ha», ma se lo stesso
+   scenario, eseguito dalla UI e headless, dà **lo stesso risultato logico** — che è l'invariante del §3
+   applicato a un giro intero invece che a una chiamata.
+
+⚠️ **Quello che qui NON si scrive, e non è una dimenticanza**: quali slice la compongono, quali issue le
+portano, quanto manca. Il banner in testa a questo documento dice che una riga che dichiara uno stato è un
+difetto, e un piano è uno stato con più righe. La Trial come **piano** vive nell'epic
+[#1105](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1105), sezione *TD Trial / Scenario
+Sandbox*, con i suoi gate d'ingresso e d'uscita. Qui sta solo **cosa la rende quella cosa lì**.
 
 ### Il DoD della v1.0, ridotto a ciò che è verificabile
 
