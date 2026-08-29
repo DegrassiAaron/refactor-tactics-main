@@ -291,6 +291,98 @@ function Get-Snapshot {
     }
 }
 
+function Wait-EngineWindow {
+    <#
+    .SYNOPSIS
+        Aspetta che il motore si liberi, e restituisce lo stato dei processi all'uscita.
+
+    .DESCRIPTION
+        Esce per una di tre ragioni, e il chiamante le distingue guardando il valore
+        restituito: motore libero (`Engines.Count -eq 0`, gia' confermato da una seconda
+        lettura), query fallita (`EngineError`), oppure deadline passato.
+
+        ⚠️ **Era il corpo del ciclo d'attesa, ed e' diventata una funzione per un motivo
+        preciso**: il chiamante deve poterla RICHIAMARE quando perde la finestra durante
+        lo snapshot. Inline, quel ritorno avrebbe richiesto un secondo ciclo attorno a
+        sessanta righe, e la reindentazione avrebbe reso illeggibile il diff di un file
+        il cui unico scopo e' dire se una misura vale.
+    #>
+    param(
+        [Parameter(Mandatory)] [datetime] $WaitUntil,
+        [Parameter(Mandatory)] [int] $PollSeconds,
+        [Parameter(Mandatory)] [System.Diagnostics.Stopwatch] $Waited,
+        [int] $Jitter = 0
+    )
+
+    $engineState = $null
+    while ($true) {
+        $remaining = ($WaitUntil - (Get-Date)).TotalSeconds
+        if ($remaining -le 0) { break }
+
+        # Il sonno si CLAMPA al residuo: senza, `-WaitMinutes 1 -PollSeconds 600`
+        # dorme dieci minuti dopo aver chiesto di aspettarne uno — il deadline
+        # sarebbe un suggerimento, non un limite.
+        $nap = [Math]::Min($PollSeconds + $Jitter, $remaining)
+        Start-Sleep -Seconds ([Math]::Max(1, [int]$nap))
+        $Jitter = 0
+
+        # ⚠️ Solo i PROCESSI, non lo snapshot intero. La domanda del ciclo e' una
+        # sola — «e' libero?» — e rifare albero e binario a ogni giro costava
+        # quattro invocazioni git piu' una query non filtrata su ogni processo
+        # della macchina, ottanta volte, buttandone via settantanove. Quel lavoro
+        # cade sulla stessa macchina dove gira l'automation che sto aspettando.
+        $engineState = Get-EngineState
+        if ($engineState.EngineError) { break }
+
+        if (Test-EngineFree $engineState) {
+            # 🔴 **Vedere zero processi non basta a smettere di aspettare.** Fra
+            # questo istante e il lancio c'e' lo snapshot completo — un paio di
+            # secondi — e in quella finestra un'altra sessione che esegue run **in
+            # serie** ne fa partire un'altra. Misurato il 2026-08-28: `wt-dir-c-v02`
+            # ha chiuso `rt-c3.log` e aperto `rt-c3-mut.log`, e la prima stesura di
+            # questo ciclo usciva proprio li' — arrendendosi dopo 437s di un'attesa
+            # da 40 minuti, con quasi tutto il tempo ancora disponibile.
+            #
+            # ⚠️ La conferma e' un secondo `Get-EngineState`, **non** uno snapshot
+            # completo. La prima stesura di questa correzione ci metteva
+            # `Get-Snapshot`, e riportava dentro il ciclo esattamente il costo che
+            # il commento qui sopra spiega di voler evitare — quattro invocazioni
+            # git e una seconda query, a ogni giro che sembra libero, sulla
+            # macchina dove sta girando l'automation che aspetto. E `Get-Snapshot`
+            # **lancia** su un git che fallisce: dentro il ciclo, senza `try`, quel
+            # throw sarebbe uscito dallo script con un codice non dichiarato,
+            # proprio quando l'altra sessione sta committando.
+            Start-Sleep -Milliseconds 750
+            $confirm = Get-EngineState
+
+            if ($confirm.EngineError) {
+                # Un fallimento della query NON e' «nessun processo», e non e'
+                # nemmeno «si e' rioccupato»: e' l'assenza del dato. Si esce come
+                # fa il ciclo esterno, e il verdetto lo decide chi legge l'errore.
+                $engineState = $confirm
+                break
+            }
+
+            $engineState = $confirm
+            if ($confirm.Engines.Count -eq 0) { break }
+
+            Write-Information ("[RT-MEASURE] ...finestra persa: il motore si e' rioccupato ({0:N0}s trascorsi, {1:N0}s residui)" -f `
+                $Waited.Elapsed.TotalSeconds, ($WaitUntil - (Get-Date)).TotalSeconds) -InformationAction Continue
+            continue
+        }
+
+        # Heartbeat: senza, uno script lanciato a mano tace fino a quaranta
+        # minuti ed e' indistinguibile da un blocco — che e' esattamente la
+        # ragione per cui il default di `-WaitMinutes` e' `0`. Va sullo stream
+        # INFORMATION e non su quello di successo: `> referto.txt` cattura il
+        # verdetto, e il battito non deve finirci dentro.
+        Write-Information ("[RT-MEASURE] ...attesa: {0:N0}s trascorsi, {1:N0}s residui, {2} processo/i" -f `
+            $Waited.Elapsed.TotalSeconds, ($WaitUntil - (Get-Date)).TotalSeconds, $engineState.Engines.Count) -InformationAction Continue
+    }
+
+    return $engineState
+}
+
 function Say { param([string] $Text) Write-Output "[RT-MEASURE] $Text" }
 
 # ---------------------------------------------------------------- PRIMA
@@ -333,69 +425,45 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
     # sfasa; l'acquire piu' sotto e' cio' che chiude davvero la corsa.
     $jitter = Get-Random -Minimum 0 -Maximum ([Math]::Max(1, [int]($PollSeconds / 3)))
 
-    $engineState = $null
+    # 🔴 **Perdere la finestra DURANTE lo snapshot non e' un'attesa scaduta, e per un giro
+    # intero questo script ha detto il contrario.** Misurato il 2026-08-29: uscita `2` con
+    # «attesa scaduta dopo 95s» mentre il log, trentadue secondi prima, dichiarava `2.337s
+    # residui` — trentanove minuti di budget mai usati. La causa e' che `Get-Snapshot` costa
+    # quattro invocazioni git piu' una query sui processi, e in quei secondi un altro
+    # checkout prende il motore: il codice cadeva nel ramo `else`, che dice «scaduta» perche'
+    # e' l'unico caso che il suo autore aveva previsto.
+    #
+    # ⚠️ **E' LA STESSA correzione gia' applicata dentro il ciclo** — il `continue` sulla
+    # «finestra persa» — mancante nel punto immediatamente successivo. Una difesa che copre
+    # un istante e non quello dopo e' una difesa che sembra esserci: e' la ragione per cui
+    # qui il ciclo e' esterno invece di essere un secondo `if`.
     while ($true) {
-        $remaining = ($waitUntil - (Get-Date)).TotalSeconds
-        if ($remaining -le 0) { break }
-
-        # Il sonno si CLAMPA al residuo: senza, `-WaitMinutes 1 -PollSeconds 600`
-        # dorme dieci minuti dopo aver chiesto di aspettarne uno — il deadline
-        # sarebbe un suggerimento, non un limite.
-        $nap = [Math]::Min($PollSeconds + $jitter, $remaining)
-        Start-Sleep -Seconds ([Math]::Max(1, [int]$nap))
+        $engineState = Wait-EngineWindow -WaitUntil $waitUntil -PollSeconds $PollSeconds -Waited $waited -Jitter $jitter
         $jitter = 0
 
-        # ⚠️ Solo i PROCESSI, non lo snapshot intero. La domanda del ciclo e' una
-        # sola — «e' libero?» — e rifare albero e binario a ogni giro costava
-        # quattro invocazioni git piu' una query non filtrata su ogni processo
-        # della macchina, ottanta volte, buttandone via settantanove. Quel lavoro
-        # cade sulla stessa macchina dove gira l'automation che sto aspettando.
-        $engineState = Get-EngineState
-        if ($engineState.EngineError) { break }
-
-        if (Test-EngineFree $engineState) {
-            # 🔴 **Vedere zero processi non basta a smettere di aspettare.** Fra
-            # questo istante e il lancio c'e' lo snapshot completo — un paio di
-            # secondi — e in quella finestra un'altra sessione che esegue run **in
-            # serie** ne fa partire un'altra. Misurato il 2026-08-28: `wt-dir-c-v02`
-            # ha chiuso `rt-c3.log` e aperto `rt-c3-mut.log`, e la prima stesura di
-            # questo ciclo usciva proprio li' — arrendendosi dopo 437s di un'attesa
-            # da 40 minuti, con quasi tutto il tempo ancora disponibile.
-            #
-            # ⚠️ La conferma e' un secondo `Get-EngineState`, **non** uno snapshot
-            # completo. La prima stesura di questa correzione ci metteva
-            # `Get-Snapshot`, e riportava dentro il ciclo esattamente il costo che
-            # il commento qui sopra spiega di voler evitare — quattro invocazioni
-            # git e una seconda query, a ogni giro che sembra libero, sulla
-            # macchina dove sta girando l'automation che aspetto. E `Get-Snapshot`
-            # **lancia** su un git che fallisce: dentro il ciclo, senza `try`, quel
-            # throw sarebbe uscito dallo script con un codice non dichiarato,
-            # proprio quando l'altra sessione sta committando.
-            Start-Sleep -Milliseconds 750
-            $confirm = Get-EngineState
-
-            if ($confirm.EngineError) {
-                # Un fallimento della query NON e' «nessun processo», e non e'
-                # nemmeno «si e' rioccupato»: e' l'assenza del dato. Si esce come
-                # fa il ciclo esterno, e il verdetto lo decide chi legge l'errore.
-                $engineState = $confirm
-                break
-            }
-
-            if ($confirm.Engines.Count -eq 0) { break }
-
-            Write-Information ("[RT-MEASURE] ...finestra persa: il motore si e' rioccupato ({0:N0}s trascorsi, {1:N0}s residui)" -f `
-                $waited.Elapsed.TotalSeconds, ($waitUntil - (Get-Date)).TotalSeconds) -InformationAction Continue
-            continue
+        if ($null -ne $engineState -and $engineState.EngineError) {
+            $before = Get-Snapshot
+            break
         }
 
-        # Heartbeat: senza, uno script lanciato a mano tace fino a quaranta
-        # minuti ed e' indistinguibile da un blocco — che e' esattamente la
-        # ragione per cui il default di `-WaitMinutes` e' `0`. Va sullo stream
-        # INFORMATION e non su quello di successo: `> referto.txt` cattura il
-        # verdetto, e il battito non deve finirci dentro.
-        Write-Information ("[RT-MEASURE] ...attesa: {0:N0}s trascorsi, {1:N0}s residui, {2} processo/i" -f `
-            $waited.Elapsed.TotalSeconds, ($waitUntil - (Get-Date)).TotalSeconds, $engineState.Engines.Count) -InformationAction Continue
+        # Lo snapshot si rifa' SEMPRE dopo l'attesa: l'albero e `HEAD` possono essere
+        # stati mossi dalle altre sessioni, e la run deve partire da cio' che c'e'
+        # adesso. Non e' piu' condizionato — la versione precedente lo saltava quando
+        # il ciclo aveva gia' prodotto un candidato, con una guardia che leggeva
+        # `EngineCount` come proxy di «l'ho gia' rinfrescato»: vera solo per come e'
+        # scritto il gate d'ingresso, e silenziosamente falsa il giorno in cui quel
+        # gate cambia.
+        $before = Get-Snapshot
+
+        if ((Test-EngineFree $before) -or $before.EngineError) { break }
+
+        # Il motore e' occupato di nuovo. Si torna ad aspettare **solo** se il budget
+        # regge: senza questa riga il ciclo girerebbe oltre il deadline, che e'
+        # esattamente l'abuso che `-WaitMinutes` deve impedire.
+        if ((($waitUntil - (Get-Date)).TotalSeconds) -le 0) { break }
+
+        Write-Information ("[RT-MEASURE] ...finestra persa durante lo snapshot: si torna in attesa ({0:N0}s trascorsi, {1:N0}s residui)" -f `
+            $waited.Elapsed.TotalSeconds, ($waitUntil - (Get-Date)).TotalSeconds) -InformationAction Continue
     }
 
     # 🔴 **Il tempo atteso si campiona UNA volta.** Il cronometro corre, e leggerlo
@@ -405,15 +473,6 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
     $waited.Stop()
     $script:WaitElapsed = $waited.Elapsed.TotalSeconds
 
-    # Lo snapshot si rifa' SEMPRE dopo l'attesa: l'albero e `HEAD` possono essere
-    # stati mossi dalle altre sessioni, e la run deve partire da cio' che c'e'
-    # adesso. Non e' piu' condizionato — la versione precedente lo saltava quando
-    # il ciclo aveva gia' prodotto un candidato, con una guardia che leggeva
-    # `EngineCount` come proxy di «l'ho gia' rinfrescato»: vera solo per come e'
-    # scritto il gate d'ingresso, e silenziosamente falsa il giorno in cui quel
-    # gate cambia.
-    $before = Get-Snapshot
-
     if (Test-EngineFree $before) {
         Say ("motore libero dopo {0:N0}s: stato ridichiarato" -f $script:WaitElapsed)
         Say-Preamble $before
@@ -422,7 +481,12 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
         Say ("attesa interrotta dopo {0:N0}s: la query sui processi e' fallita" -f $script:WaitElapsed)
     }
     else {
-        Say ("attesa scaduta dopo {0:N0}s" -f $script:WaitElapsed)
+        # ⚠️ **«Scaduta» si dice solo quando il deadline e' passato davvero.** L'altro
+        # caso — budget residuo, motore ripreso da un altro checkout — non arriva piu'
+        # qui, perche' il ciclo sopra ci torna sopra; se ci arrivasse, direbbe la stessa
+        # cosa che diceva prima ed e' il motivo per cui il messaggio ora porta il residuo.
+        Say ("attesa scaduta dopo {0:N0}s (residuo {1:N0}s)" -f `
+            $script:WaitElapsed, [Math]::Max(0, ($waitUntil - (Get-Date)).TotalSeconds))
     }
 }
 
