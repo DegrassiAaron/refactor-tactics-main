@@ -310,8 +310,16 @@ un'assegnazione e non aggiungono scope: sono il modo per non ripartire da un tit
   lane `DIR-A`.
 - `B2` — ✅ il decisore che il mandato presuppone mancante **è atterrato**: `DecisionProvider` è in
   `RTTurnManager.h` e nel `ScenarioHarness`. Il «no live prompt» non è da costruire, è da **usare**.
-- `B3` — ⚠️ **match end esiste già**: `RTMatchEndTests.cpp` copre gli esiti, obiettivo incluso. Manca
-  l'**obiettivo contestabile** ([#75](https://github.com/DegrassiAaron/refactor-tactics-main/issues/75), CP 10.2), che è anche la riserva che tiene `G13` a 🟡.
+- `B3` — ⚠️ **match end esiste già**: `RTMatchEndTests.cpp` copre gli esiti, obiettivo incluso.
+  ✅ **E l'obiettivo contestabile è atterrato il 2026-08-29** ([#75](https://github.com/DegrassiAaron/refactor-tactics-main/issues/75), CP 10.2): la regola con
+  [PR #1686](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1686) (formato mappa **v11**, `bIsObjective`, `URTTurnRules::ResolveObjectiveControl`
+  valutata nel Cleanup — **D-241**) e il contenuto con [PR #1693](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1693), che posa l'obiettivo
+  su `DA_HexMap_Arena` alla porta nord `(0,-3,0)`.
+  ⛔ **Ma `G13` resta 🟡, e la riserva ora è più stretta**: non manca più l'obiettivo, manca la **soglia** —
+  `ScoreToWin` è ancora `0`, quindi la via a punti non è esercitabile. È un numero di bilanciamento che
+  [D-102](../decisions/RT_PDR_00_Decision_Log.md) non lascia derivare da partite bot-contro-bot, e la
+  formulazione autorevole della riserva sta in [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §G13.
+  Resta fuori anche l'HUD del progresso, che è lane `DIR-A`.
 - `B4` — ✅ `G4` è **verde** dal 2026-08-24 (`Replay.Verifier.ResimulationIsDeterministic`): questa wave
   **difende** una proprietà acquisita, non la costruisce.
 - `B5`/`B6` — nessuna sede propria per costruzione: esistono per **non** aprirne.
@@ -378,7 +386,7 @@ chiude niente.
 | Complete Match | `G10` — partita 2v2 completa su mappa multilivello, registrata | ⏳ |
 | HUD / Ghost | *(nessun gate lo nomina)* — vive in `G9`, subset `RELEASE-V01` | 🟡 |
 | Reaction | *(nessun gate lo nomina)* — CP 14.6, e in `G9` per la parte PIE | 🟡 |
-| Objective | *(nessun gate lo nomina)* — è la riserva a punti di `G13` | 🟡 |
+| Objective | *(nessun gate lo nomina)* — è la riserva a punti di `G13` | 🟡 regola e contenuto atterrati il **2026-08-29** (#75); resta `ScoreToWin = 0` |
 | Bot / Autobattle | `G2` — suite automation completa verde | 🟡 metà **packaged** non eseguita |
 | Replay / Determinism | `G3` · `G4` — i dieci test nominati, 100 ripetizioni a checksum identico | ✅ ✅ |
 | PIE | `G9` — le **17** voci del subset `RELEASE-V01` | 🟡 10 verdi · 5 parziali · 2 aperte |
