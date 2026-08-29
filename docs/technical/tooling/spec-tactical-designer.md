@@ -299,6 +299,21 @@ di `EditorStartupMap`:
 ∴ chi apre Unreal per il Frontend ha **già oggi** un modo nativo di non vedere l'ingresso, e non è il launcher
 a doverglielo dare. Il contract lo registra come risposta esistente invece di scriverne una nuova.
 
+⚠️ **E quella preferenza è solo uno di quattro cancelli.** Prima che la mappa d'avvio si carichi,
+`UnrealEdMisc.cpp:417-429` ne attraversa quattro, e il launcher deve **conoscerli senza combatterli**:
+
+| | Cancello | Quando l'ingresso non compare |
+|---|---|---|
+| ① | `bDoAutomatedMapBuild` | build automatizzata: nessuno guarda, ed è corretto |
+| ② | `bMapLoaded` | una mappa passata da riga di comando ha già caricato, e la mappa di default non si carica |
+| ③ | `FEditorDelegates::OnEditorLoadDefaultStartupMap` | esiste apposta per **annullare** il caricamento: chiunque può cancellarlo |
+| ④ | `LoadLevelAtStartup` | vale `None` — la tabella qui sopra |
+
+⛔ **Nessuno dei quattro va aggirato.** Un ingresso che si apre quando l'engine ha deciso di non caricare la
+mappa è la seconda autorità in miniatura: piccola, e della stessa specie di quella che il §3 vieta. Vanno
+conosciuti perché il sintomo di ③ — *«il launcher non compare e il gancio sembra rotto»* — punta al posto
+sbagliato per giorni.
+
 Il contract è che l'ingresso **si presenta e non pretende**: è un pannello dockabile la cui visibilità la ricorda
 il layout dell'editor, non un modale; non ruba il focus; non esegue niente. Chi lo chiude non se lo ritrova
 aperto, e il meccanismo è quello nativo di Unreal — nessuno nuovo.
@@ -317,8 +332,14 @@ broadcast: nessun secondo gancio. La misura sta in
 [#1680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1680).
 
 ✅ **E porta il meccanismo che a questa sezione mancava.** `FEditorFileUtils::IsLoadingStartupMap()` è pubblico,
-e vale `true` dentro l'handler quando è l'avvio dell'editor, `false` quando il designer ha aperto la mappa
-deliberatamente. La distinzione fra le due non va inventata: la dà l'engine.
+e dentro l'handler distingue il caricamento della mappa d'avvio da un'apertura deliberata. La distinzione non
+va inventata: la dà l'engine.
+
+⚠️ **Ma il nome promette più di quanto mantenga, e la differenza si riproduce da riga di comando.**
+`IsLoadingStartupMap()` non significa *«l'editor sta partendo»* — significa *«sto caricando la mappa di
+**default**»*. Chi lancia l'editor con una mappa sull'argomento (`UnrealEditor.exe <progetto> <mappa>`) sta
+avviando l'editor a tutti gli effetti, e l'accessor vale `false`: quel percorso carica la mappa **prima**, e
+la mappa di default non si carica affatto. Usarlo per dire «siamo all'avvio» sbaglia in un caso reale.
 
 ⚠️ **Con un avvertimento da tenere**: quell'accessor **non ha consumatori nell'engine** — cinque occorrenze in
 tutto `Engine/Source`, tutte nel file che lo definisce. Chi lo usa è il primo, e non eredita copertura da
