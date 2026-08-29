@@ -181,8 +181,19 @@ struct FRTStallDefinitionProbe
 		}
 	}
 
-	/** La sequenza piu' lunga vista su una qualsiasi unita', sotto la definizione data. */
-	int32 Peggiore(EDefinizione D) const { return Record[static_cast<int32>(D)]; }
+	/**
+	 * La sequenza piu' lunga vista su una qualsiasi unita', sotto la definizione data.
+	 *
+	 * ⚠️ **`EDefinizione::Count` e' una sentinella, non una definizione**, e questa riga leggeva
+	 * `Record[NumDefinizioni]` — cioe' **fuori dall'array** — mentre `NomeDi` la stessa sentinella la
+	 * gestisce col proprio `default:`. Due funzioni che prendono lo stesso tipo devono tollerare lo stesso
+	 * insieme di valori: l'asimmetria e' il difetto, non il valore restituito (#1655).
+	 */
+	int32 Peggiore(EDefinizione D) const
+	{
+		const int32 I = static_cast<int32>(D);
+		return (I >= 0 && I < NumDefinizioni) ? Record[I] : 0;
+	}
 
 	/** Quante unita' sono state osservate: una guardia contro il verde su zero osservazioni. */
 	int32 UnitaOsservate() const { return Unita.Num(); }
