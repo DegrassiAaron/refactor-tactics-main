@@ -834,15 +834,21 @@ public:
 	 * Quota del CENTRO di un anello a terra sopra il piano della cella (unita' di mondo).
 	 *
 	 * 🔴 **Non e' un margine estetico: e' un vincolo geometrico, e sbagliarlo rende l'anello INVISIBILE.**
-	 * Il disco della cella e' un cilindro engine appiattito da `RTCellFlatScale = 0.05`, quindi la sua
-	 * faccia superiore sta a `RTCellTopZ = 50 * 0.05 = 2.5` sopra il centro cella
-	 * (`Map/RTHexMapActor.cpp`). L'anello e' lo stesso cilindro con scala Z `0.02`, cioe' semi-altezza
-	 * `50 * 0.02 = 1.0`: perche' la sua faccia superiore emerga dal disco serve
+	 * Il tile della cella e' il prisma di `GetCellPrismMesh` schiacciato da `RTCellFlatScale`, quindi la sua
+	 * faccia superiore sta a `RTCellTopZ` — meta' spessore — sopra il centro cella (`Map/RTMapVisuals.h`).
+	 * L'anello e' un cilindro engine con scala Z `0.02`, cioe' semi-altezza `50 * 0.02 = 1.0`: perche' la
+	 * sua faccia superiore emerga dal tile serve
 	 *
-	 *     Clearance + 1.0  >  2.5      ->      Clearance > 1.5
+	 *     Clearance + 1.0  >  7.5      ->      Clearance > 6.5
 	 *
-	 * `1.8` lascia **0.3** di margine, che e' il comportamento che il gioco ha sempre avuto — prima nasceva
-	 * per caso, come `1` moltiplicato per `BaseMeshScale.Z`, e questa costante lo rende una scelta.
+	 * `6.8` lascia **0.3** di margine, lo stesso che questa costante ha sempre tenuto.
+	 *
+	 * ⏱️ **Valeva `1.8` fino al 2026-08-28**, quando la faccia del tile stava a `2.5` e la soglia era
+	 * `1.5`. Lo spessore della cella e' passato da `5` a `15` uu (`0.06 H`, `Map/RTMapVisuals.h`) e questa
+	 * costante e' l'UNICA quota del progetto che ha dovuto seguirlo a mano: tutte le altre — i quattro lift
+	 * di `RTHexMapActor.cpp`, `RTLastContactGhostZ`, i pannelli di muro, il rilievo — sono scritte come
+	 * `RTCellTopZ + k` e sono salite da sole. ✅ **E non e' stato necessario accorgersene**: lo
+	 * `static_assert` qui sotto ha rotto la build, che e' il motivo per cui esiste.
 	 *
 	 * 🔴 **Una stesura di #593 aveva messo `1.0`**, deducendolo dal `+1` della vecchia formula senza
 	 * misurare il disco: l'anello sarebbe finito con la faccia a `2.0`, mezza unita' DENTRO il disco
@@ -856,7 +862,7 @@ public:
 	 * sopra si puo' asserire invece di raccontarla. Prima questa riga diceva che il legame *non* era
 	 * verificato e rimandava a #983, e il numero `2.5` viveva in un commento su entrambi i lati.
 	 */
-	static constexpr float RingGroundClearance = 1.8f;
+	static constexpr float RingGroundClearance = 6.8f;
 
 	/** Semi-altezza di un anello a terra: il prisma della cella (`RTCellPrismRadius`) per la sua scala Z. */
 	static constexpr float RingGroundFlatScale = 0.02f;

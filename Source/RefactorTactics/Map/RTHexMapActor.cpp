@@ -111,6 +111,27 @@ namespace
 	                                                    // sotto il contorno, sopra il disco
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
+
+	/**
+	 * 🔴 **Il tetto vero dello spessore del tile, e NON e' lo `static_assert` degli anelli.**
+	 *
+	 * Il tile e' CENTRATO sul centro cella, quindi ispessirlo lo fa scendere anche sotto di meta' spessore.
+	 * Due celle adiacenti che differiscono di UN gradino di rilievo distano `ReliefUnitHeight`: se il tile e'
+	 * piu' spesso di quel gradino, la faccia inferiore della cella alta entra dentro la cella bassa e le due
+	 * si compenetrano invece di gradinare. A schermo si legge come un errore di modellazione, non come una
+	 * quota sbagliata, ed e' il motivo per cui vale la pena asserirlo invece di ricordarlo.
+	 *
+	 * ⚠️ **Sta QUI e non in `RTMapVisuals.h`**: quell'header e' deliberatamente senza dipendenze — «il punto
+	 * in cui i numeri condivisi stanno scritti una volta sola», non un sistema di layering — e includerci
+	 * `RTHexLibrary.h` per una sola costante lo trasformerebbe in altro. Questo file include gia' entrambi ed
+	 * e' l'unico che posa sia il tile sia il rilievo, cioe' l'unico che puo' violare il vincolo.
+	 *
+	 * ⚠️ **`ReliefUnitHeight` e' il limite superiore, non un obiettivo**: l'uguaglianza e' ammessa perche' a
+	 * spessore == gradino le due facce si toccano senza compenetrare.
+	 */
+	static_assert(RTCellThickness <= URTHexLibrary::ReliefUnitHeight,
+		"Il tile della cella e' piu' spesso di un gradino di rilievo: due celle a quota adiacente si "
+		"compenetrerebbero invece di gradinare (Map/RTMapVisuals.h, RTCellThicknessInH).");
 }
 
 UStaticMesh* ARTHexMapActor::GetCellGlyphMesh(int32 RingCount)
@@ -305,6 +326,194 @@ UStaticMesh* ARTHexMapActor::GetCellPrismMesh()
 	return Mesh;
 }
 
+#if !UE_BUILD_SHIPPING
+UStaticMesh* ARTHexMapActor::GetKnowledgeVolumeMesh()
+{
+	// Stessa disciplina di `GetCellPrismMesh`: una sola per processo, tenuta fuori dal GC senza `AddToRoot`.
+	static TStrongObjectPtr<UStaticMesh> Cached;
+	if (Cached.IsValid())
+	{
+		return Cached.Get();
+	}
+
+	// ⚠️ I vertici vengono da `HexCorners`, come per il disco e per la stessa ragione: due esagoni nati da
+	// due trigonometrie divergono, e qui divergerebbero DALLA CELLA che stanno descrivendo.
+	const TArray<FVector> Corners = URTHexLibrary::HexCorners(FVector::ZeroVector, RTCellPrismRadius);
+	if (Corners.Num() != 6)
+	{
+		return nullptr;
+	}
+
+	FMeshDescription Description;
+	FStaticMeshAttributes Attributes(Description);
+	Attributes.Register();
+
+	TVertexAttributesRef<FVector3f> Positions = Attributes.GetVertexPositions();
+
+	// 🔴 **La differenza da `GetCellPrismMesh` e' tutta qui**: `Z` va da `0` a `2R` invece che da `-R` a
+	// `+R`. Il pivot sta alla BASE, quindi scalare la mesh la fa crescere verso l'alto restando appoggiata,
+	// mentre un pivot centrato la farebbe crescere anche verso il basso — e quattro volumi che affondano di
+	// quantita' diverse non si confrontano a vista.
+	TArray<FVertexID> Top;
+	TArray<FVertexID> Bottom;
+	Top.Reserve(6);
+	Bottom.Reserve(6);
+	for (int32 Corner = 0; Corner < 6; ++Corner)
+	{
+		const FVertexID TopId = Description.CreateVertex();
+		Positions[TopId] = FVector3f(
+			static_cast<float>(Corners[Corner].X), static_cast<float>(Corners[Corner].Y),
+			RTCellPrismRadius * 2.f);
+		Top.Add(TopId);
+
+		const FVertexID BottomId = Description.CreateVertex();
+		Positions[BottomId] = FVector3f(
+			static_cast<float>(Corners[Corner].X), static_cast<float>(Corners[Corner].Y), 0.f);
+		Bottom.Add(BottomId);
+	}
+
+	const FPolygonGroupID Group = Description.CreatePolygonGroup();
+	Attributes.GetPolygonGroupMaterialSlotNames()[Group] = TEXT("Default");
+
+	auto AddFace = [&Description, Group](const TArray<FVertexID>& Ring)
+	{
+		TArray<FVertexInstanceID> Instances;
+		Instances.Reserve(Ring.Num());
+		for (const FVertexID Vertex : Ring)
+		{
+			Instances.Add(Description.CreateVertexInstance(Vertex));
+		}
+		Description.CreatePolygon(Group, Instances);
+	};
+
+	AddFace(Top);
+
+	TArray<FVertexID> BottomReversed = Bottom;
+	Algo::Reverse(BottomReversed);
+	AddFace(BottomReversed);
+
+	for (int32 Edge = 0; Edge < 6; ++Edge)
+	{
+		const int32 Next = (Edge + 1) % 6;
+		AddFace(TArray<FVertexID>{ Bottom[Edge], Bottom[Next], Top[Next], Top[Edge] });
+	}
+
+	UStaticMesh* Mesh = NewObject<UStaticMesh>(GetTransientPackage(), TEXT("RT_KnowledgeVolume"), RF_Transient);
+	Mesh->GetStaticMaterials().Add(FStaticMaterial());
+
+	UStaticMesh::FBuildMeshDescriptionsParams Params;
+	Params.bFastBuild = true;
+	Params.bMarkPackageDirty = false;
+	Params.bCommitMeshDescription = false;
+	Mesh->BuildFromMeshDescriptions({ &Description }, Params);
+
+	// ⚠️ **Nessuna collisione, a differenza del disco.** Il prisma della cella ne ha una perche' e' il proxy
+	// di click della selezione; questo si guarda e basta, e una collisione qui intercetterebbe i colpi
+	// destinati alle celle sotto — cioe' romperebbe la selezione ogni volta che il debug e' acceso.
+
+	Cached.Reset(Mesh);
+	return Mesh;
+}
+
+void ARTHexMapActor::SetKnowledgeDebugEnabled(bool bEnabled, const FRTTeamKnowledge& Knowledge)
+{
+	bKnowledgeDebug = bEnabled;
+	if (!KnowledgeVolumes)
+	{
+		return;
+	}
+
+	// 🔴 **Si ricostruisce da ZERO, sempre.** Non c'e' un aggiornamento incrementale da sbagliare e non c'e'
+	// un array parallelo da tenere allineato: e' la ragione per cui questo componente non puo' finire nello
+	// stato di indici stantii che `ApplyKnowledgeVeil` deve invece sorvegliare con un `ensure`.
+	KnowledgeVolumes->ClearInstances();
+	KnowledgeVolumes->SetVisibility(bEnabled);
+	if (!bEnabled)
+	{
+		return;
+	}
+
+	const URTHexMapAsset* Map = MapAsset;
+	if (!Map || Map->NumCells() == 0)
+	{
+		return;
+	}
+
+	if (UStaticMesh* Volume = GetKnowledgeVolumeMesh())
+	{
+		KnowledgeVolumes->SetStaticMesh(Volume);
+	}
+
+	const TSet<FRTCellId> Visible(Knowledge.VisibleCells);
+	const TSet<FRTCellId> Explored(Knowledge.ExploredCells);
+
+	const float UseHexSize = Map->HexSize;
+	const float UseLayerH = Map->LayerHeight;
+
+	// La mesh nasce alta `2 · RTCellPrismRadius`: la scala Z che le da' `Fraction · H` e' quel rapporto.
+	// Scritta cosi' invece che con un letterale, resta vera se una mappa cambia `LayerHeight`.
+	const float PlanarScale = UseHexSize / RTCellPrismRadius * 0.95f;
+
+	for (const FRTHexCellData& Cell : Map->Cells)
+	{
+		const bool bVisible = Visible.Contains(Cell.Id);
+		const bool bKnown = bVisible || Explored.Contains(Cell.Id);
+		const int32 Which = bVisible
+			? RTKnowledgeVolumeLit
+			: (bKnown ? RTKnowledgeVolumeRemembered : RTKnowledgeVolumeHidden);
+
+		const float Fraction = RTKnowledgeVolumeFractions[Which];
+		const float FlatScale = Fraction * UseLayerH / (2.f * RTCellPrismRadius);
+
+		FVector World = URTHexLibrary::AxialToWorld(Cell.Id, GetActorLocation(), UseHexSize, UseLayerH);
+		World.Z += static_cast<double>(Cell.Height);
+		KnowledgeVolumes->AddInstance(
+			FTransform(FRotator::ZeroRotator, World, FVector(PlanarScale, PlanarScale, FlatScale)),
+			/*bWorldSpace=*/ true);
+	}
+}
+
+void ARTHexMapActor::GetKnowledgeDebugCounts(int32& OutHidden, int32& OutRemembered, int32& OutLit) const
+{
+	OutHidden = 0;
+	OutRemembered = 0;
+	OutLit = 0;
+	const URTHexMapAsset* Map = MapAsset;
+	if (!KnowledgeVolumes || !Map)
+	{
+		return;
+	}
+
+	// Si legge la scala REALE e si ricava la frazione, invece di fidarsi di un contatore: la stessa scelta
+	// che `GetVeilCounts` motiva — un contatore proverebbe che la funzione sa contare, non che ha disegnato.
+	const float UseLayerH = Map->LayerHeight;
+	if (UseLayerH <= 0.f)
+	{
+		return;
+	}
+
+	for (int32 I = 0; I < KnowledgeVolumes->GetInstanceCount(); ++I)
+	{
+		FTransform Xf;
+		if (!KnowledgeVolumes->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true))
+		{
+			continue;
+		}
+		const double Fraction = Xf.GetScale3D().Z * 2.0 * static_cast<double>(RTCellPrismRadius) / UseLayerH;
+
+		// L'indice della frazione piu' vicina. Tolleranza generosa perche' le quattro frazioni distano
+		// almeno 1/6 fra loro: qui non si distinguono valori vicini, si classifica in quattro cassetti.
+		auto Vicino = [Fraction](int32 Which)
+		{
+			return FMath::Abs(Fraction - static_cast<double>(RTKnowledgeVolumeFractions[Which])) < 0.05;
+		};
+		if (Vicino(RTKnowledgeVolumeLit))              { ++OutLit; }
+		else if (Vicino(RTKnowledgeVolumeRemembered))  { ++OutRemembered; }
+		else if (Vicino(RTKnowledgeVolumeHidden))      { ++OutHidden; }
+	}
+}
+#endif // !UE_BUILD_SHIPPING
+
 FTransform ARTHexMapActor::InteriorWallPanel(const FVector2D& LocalA, const FVector2D& LocalB,
 	const FVector& CellCentreWorld, float PanelHeight, float PanelThickness)
 {
@@ -420,6 +629,25 @@ ARTHexMapActor::ARTHexMapActor()
 		SurfaceGlyphs[Ring]->CastShadow = false;
 		SurfaceGlyphs[Ring]->NumCustomDataFloats = 3;
 	}
+
+	// I volumi di conoscenza (debug). Stessa disciplina degli altri — nessuna collisione, nessuna ombra — e
+	// nascosto per default: si accende da `rt.Debug.Knowledge`, e una board che lo mostrasse all'avvio
+	// rivelerebbe cio' che la squadra non sa a chiunque apra il livello.
+	//
+	// ⚠️ **Si crea anche in Shipping, dove nessuno lo puo' riempire.** Il `CreateDefaultSubobject` NON e'
+	// condizionale, di proposito: un CDO con un insieme di sottooggetti diverso fra due build e' una
+	// differenza di layout che si paga alla deserializzazione, e un ISM senza mesh e senza istanze non
+	// disegna nulla. Cio' che sparisce in Shipping e' `SetKnowledgeDebugEnabled`, cioe' il solo modo di
+	// popolarlo.
+	//
+	// ⚠️ La MESH non si assegna qui, per la stessa ragione dei glifi: `GetKnowledgeVolumeMesh` costruisce una
+	// `UObject` e il costruttore del CDO non e' il posto.
+	KnowledgeVolumes = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("KnowledgeVolumes"));
+	KnowledgeVolumes->SetupAttachment(Cells);
+	KnowledgeVolumes->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	KnowledgeVolumes->SetCollisionResponseToAllChannels(ECR_Ignore);
+	KnowledgeVolumes->CastShadow = false;
+	KnowledgeVolumes->SetVisibility(false);
 }
 
 void ARTHexMapActor::OnConstruction(const FTransform& Transform)

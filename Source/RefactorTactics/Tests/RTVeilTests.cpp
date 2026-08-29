@@ -5,6 +5,8 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTMapVisuals.h" // RTCellPrismRadius: la convenzione della mesh che il volume di debug scala
+#include "Engine/StaticMesh.h"
 #include "Perception/RTTeamKnowledge.h"
 #include "RTGameMode.h"
 #include "RTVeilProbeForTest.h"
@@ -497,5 +499,147 @@ bool FRTVeiledSurfaceColorsAreDistinguishableTest::RunTest(const FString&)
 	}
 	return true;
 }
+
+#if !UE_BUILD_SHIPPING
+
+/**
+ * 🔴 **I volumi di conoscenza dicono in ALTEZZA cio' che il velo dice in colore e presenza.**
+ *
+ * La partizione e' la stessa di `VeilCoversExactlyUnobservedCells` — osservata / ricordata / mai vista — ma
+ * misurata su un canale diverso, ed e' il punto: il velo rende «mai vista» **non disegnando** ([D-225]),
+ * quindi sul suo canale quello stato e' indistinguibile da una cella che non esiste. Qui ha un'altezza, e
+ * un'altezza si conta.
+ *
+ * ⚠️ **I conteggi si leggono dalle ISTANZE, non da un contatore**: `GetKnowledgeDebugCounts` ricava la
+ * frazione dalla scala Z reale, come `GetVeilCounts` legge la scala reale del disco. Un contatore
+ * proverebbe che la funzione sa contare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeVolumesPartitionTest,
+	"RefactorTactics.Veil.KnowledgeVolumesPartitionTheBoard",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeVolumesPartitionTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = MakeVeiledBoard(World, /*Radius=*/ 2);
+	if (!TestNotNull(TEXT("board"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	const int32 Totale = HexMap->MapAsset->NumCells();
+
+	// Una cella osservata, una ricordata, tutte le altre mai viste. `ExploredCells` e' un SOVRAINSIEME di
+	// `VisibleCells` ([D-227]), quindi la osservata compare in entrambe: e' il dato reale, non una scorciatoia.
+	const FRTCellId Osservata = HexMap->MapAsset->Cells[0].Id;
+	const FRTCellId Ricordata = HexMap->MapAsset->Cells[1].Id;
+	HexMap->SetKnowledgeDebugEnabled(true, KnowledgeOf({ Osservata }, { Osservata, Ricordata }));
+
+	int32 Hidden = 0;
+	int32 Remembered = 0;
+	int32 Lit = 0;
+	HexMap->GetKnowledgeDebugCounts(Hidden, Remembered, Lit);
+
+	TestEqual(TEXT("una sola cella osservata porta il volume 3/3"), Lit, 1);
+	TestEqual(TEXT("una sola cella ricordata porta il volume 2/3"), Remembered, 1);
+	TestEqual(TEXT("tutte le altre sono mai viste, e portano il volume 1/3"), Hidden, Totale - 2);
+
+	// La somma ricompone il totale: senza, due errori che si compensano passerebbero — la stessa ragione per
+	// cui il test del velo asserisce anche il totale invece dei soli tre conteggi.
+	TestEqual(TEXT("i tre stati partizionano la board, senza celle perse"), Hidden + Remembered + Lit, Totale);
+
+	// E spegnendolo non resta niente: il componente si svuota, non si limita a nascondersi.
+	HexMap->SetKnowledgeDebugEnabled(false, FRTTeamKnowledge());
+	HexMap->GetKnowledgeDebugCounts(Hidden, Remembered, Lit);
+	TestEqual(TEXT("spento, nessun volume resta posato"), Hidden + Remembered + Lit, 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Il pivot del volume sta alla BASE, e non e' una rifinitura.**
+ *
+ * Con il pivot centrato — la convenzione di `GetCellPrismMesh` — un volume a `1/3` affonderebbe di `1/6 H`
+ * sotto il pavimento della cella, uno a `3/3` di `1/2 H`: quattro volumi che affondano di quantita' diverse
+ * non si confrontano a vista, ed e' l'unica cosa che questo strumento deve permettere.
+ *
+ * Il test misura la MESH, non una scala: la sua bounding box deve partire da `Z = 0` e salire.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeVolumeMeshPivotTest,
+	"RefactorTactics.Veil.KnowledgeVolumeMeshHasBasePivot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeVolumeMeshPivotTest::RunTest(const FString&)
+{
+	UStaticMesh* Mesh = ARTHexMapActor::GetKnowledgeVolumeMesh();
+	if (!TestNotNull(TEXT("la mesh del volume di conoscenza"), Mesh)) { return false; }
+
+	const FBox Box = Mesh->GetBoundingBox();
+
+	TestTrue(*FString::Printf(TEXT("la base sta a Z=0 (misurato %.2f)"), Box.Min.Z),
+		FMath::IsNearlyEqual(Box.Min.Z, 0.0, 0.01));
+	TestTrue(*FString::Printf(TEXT("il tetto sta a 2R (misurato %.2f)"), Box.Max.Z),
+		FMath::IsNearlyEqual(Box.Max.Z, static_cast<double>(RTCellPrismRadius) * 2.0, 0.01));
+
+	// E la pianta e' quella del disco: i due esagoni nascono entrambi da `HexCorners`, quindi un volume di
+	// debug si sovrappone ESATTAMENTE alla cella che descrive invece di sbordare.
+	//
+	// 🔴 **Il circumraggio si misura su Y, non su X, e la prima stesura di questo test lo cercava su X.**
+	// L'esagono e' POINTY-TOP: `HexCorners` parte da -30 gradi, quindi due vertici stanno in alto e in basso
+	// — `Max.Y = R` — mentre lungo X il bordo piu' lontano e' il centro di un LATO, cioe' l'apotema
+	// `R·√3/2 = 43.30`. Il test chiedeva `50` su X e trovava `43.30`: era l'asserzione a sbagliarsi, non la
+	// mesh. Asserirli entrambi e' anche piu' forte del solo raggio — insieme dicono che l'esagono e'
+	// pointy-top, e un flat-top li scambierebbe facendo cadere il test.
+	TestTrue(*FString::Printf(TEXT("il circumraggio, su Y, e' RTCellPrismRadius (misurato %.2f)"), Box.Max.Y),
+		FMath::IsNearlyEqual(Box.Max.Y, static_cast<double>(RTCellPrismRadius), 0.01));
+	TestTrue(*FString::Printf(TEXT("l'apotema, su X, e' R*sqrt(3)/2 (misurato %.2f)"), Box.Max.X),
+		FMath::IsNearlyEqual(Box.Max.X, static_cast<double>(RTCellPrismRadius) * FMath::Sqrt(3.0) / 2.0, 0.01));
+
+	return true;
+}
+
+/**
+ * ⚠️ **Le quattro frazioni sono un vocabolario, e tre di loro hanno uno stato.**
+ *
+ * Questo test pinna il mapping — `1/3` mai vista, `2/3` ricordo, `3/3` osservata — e soprattutto pinna che
+ * `1/2` **non e' usata da nessuno dei tre**. Il giorno in cui qualcuno le assegnasse un significato, il
+ * modello di conoscenza dovrebbe avere un quarto stato che oggi non ha: `FRTTeamKnowledge` porta due insiemi
+ * e il terzo stato e' l'assenza da entrambi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeVolumeFractionsTest,
+	"RefactorTactics.Veil.KnowledgeVolumeFractionsAreThreeOfFour",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeVolumeFractionsTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("mai vista -> 1/3"),
+		ARTHexMapActor::RTKnowledgeVolumeFractions[ARTHexMapActor::RTKnowledgeVolumeHidden], 1.f / 3.f);
+	TestEqual(TEXT("ricordo -> 2/3"),
+		ARTHexMapActor::RTKnowledgeVolumeFractions[ARTHexMapActor::RTKnowledgeVolumeRemembered], 2.f / 3.f);
+	TestEqual(TEXT("osservata -> 3/3"),
+		ARTHexMapActor::RTKnowledgeVolumeFractions[ARTHexMapActor::RTKnowledgeVolumeLit], 1.f);
+
+	// L'indice 1 e' `1/2`, e nessuno dei tre stati lo nomina: e' il vocabolario disponibile, non un quarto
+	// significato. Se questa riga cade, e' perche' qualcuno ha assegnato uno stato che il modello non ha.
+	TestTrue(TEXT("la quarta frazione (1/2) non e' assegnata a nessuno stato"),
+		ARTHexMapActor::RTKnowledgeVolumeHidden != 1
+		&& ARTHexMapActor::RTKnowledgeVolumeRemembered != 1
+		&& ARTHexMapActor::RTKnowledgeVolumeLit != 1);
+	TestEqual(TEXT("e vale comunque 1/2, perche' e' stata chiesta"),
+		ARTHexMapActor::RTKnowledgeVolumeFractions[1], 1.f / 2.f);
+
+	// L'ordine e' crescente: piu' si sa, piu' il volume e' alto. Invertirlo passerebbe i tre `TestEqual` qui
+	// sopra e renderebbe lo strumento illeggibile — «basso» smetterebbe di voler dire «se ne sa poco».
+	TestTrue(TEXT("piu' si sa, piu' il volume e' alto"),
+		ARTHexMapActor::RTKnowledgeVolumeFractions[ARTHexMapActor::RTKnowledgeVolumeHidden]
+			< ARTHexMapActor::RTKnowledgeVolumeFractions[ARTHexMapActor::RTKnowledgeVolumeRemembered]
+		&& ARTHexMapActor::RTKnowledgeVolumeFractions[ARTHexMapActor::RTKnowledgeVolumeRemembered]
+			< ARTHexMapActor::RTKnowledgeVolumeFractions[ARTHexMapActor::RTKnowledgeVolumeLit]);
+
+	return true;
+}
+
+#endif // !UE_BUILD_SHIPPING
 
 #endif // WITH_DEV_AUTOMATION_TESTS
