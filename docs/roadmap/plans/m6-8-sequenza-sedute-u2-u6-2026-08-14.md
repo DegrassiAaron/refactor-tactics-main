@@ -45,8 +45,13 @@ una volta.
    vista**, fango a costo 3, piattaforma sul layer 1 e **una** transizione.
 3. **Play**.
 
-**Le unità sono cilindri** e non è un difetto: i `BP_Unit_*` non esistono in `Content/`, il fallback è
-previsto (li produce U7).
+**A schermo entrano le skeletal**, non i cilindri: dal **2026-08-25** (#287) il GameMode aggancia i quattro
+`BP_Unit_*` e in partita compaiono i `BP_Unit_*_C_0`.
+⚠️ *Diceva: «**Le unità sono cilindri** e non è un difetto: i `BP_Unit_*` non esistono in `Content/`, il
+fallback è previsto (li produce U7)». **Falsa due volte**, corretta il 2026-08-29: i quattro Blueprint erano
+già **versionati** quando la riga fu scritta — mancava l'aggancio al GameMode, non l'asset — e la precondizione
+visiva è arrivata con #287. La correzione **non è cosmetica**: è ciò che sblocca `PIE-FACING-1`, la voce di
+`U6` che chiede se la mesh guarda dove guarda la regola, e che su un cilindro non era nemmeno ponibile.*
 
 **Formato**: `Format.Skirmish2v2`, `RoundLimit` **12** — verificato in `RTMatchFormatLibrary.cpp`
 (`FindShippedFormat`), portato da 5 a 12 il 2026-08-10 per allinearsi a **D-010** (banda 10–14 in 2v2).
@@ -262,13 +267,23 @@ prima di trarne una conclusione.
 
 ## 7. La rilettura finale
 
-`U6.done_when` non chiede «ogni voce spuntata quando la si esegue»: chiede le **nove rilette tutte insieme**,
-alla fine. È la differenza fra una checklist e un verdetto — nove verifiche passate in momenti diversi non
-dimostrano che la partita *regga*, che è ciò che M6.8 esiste per stabilire.
+`U6.done_when` non chiede «ogni voce spuntata quando la si esegue»: chiede le **quattordici rilette tutte
+insieme**, alla fine. È la differenza fra una checklist e un verdetto — quattordici verifiche passate in
+momenti diversi non dimostrano che la partita *regga*, che è ciò che M6.8 esiste per stabilire.
 
-Le nove del verdetto: `-1 -2 -3 -4 -5 -6 -7 -8 -9`.
-Le altre cinque del registro — `-3b -4b -6b -6c -10` — restano voci vive: 🟡 è ammesso **con la ragione
-scritta accanto**.
+Il perimetro E2: `-1 -2 -3 -3b -4 -4b -5 -6 -6b -6c -7 -8 -9 -10`.
+Fuori: `-11`, che è presentazione e ha la propria epic (**E21**).
+
+⚠️ **Riscritto il 2026-08-29.** Diceva: *«chiede le **nove** rilette tutte insieme … Le nove del verdetto:
+`-1 -2 -3 -4 -5 -6 -7 -8 -9`. Le altre cinque del registro — `-3b -4b -6b -6c -10` — restano voci vive: 🟡 è
+ammesso **con la ragione scritta accanto**»*. Era la DoD di
+[#38](https://github.com/DegrassiAaron/refactor-tactics-main/issues/38) del 2026-08-14, **superata** dal gate
+di [#16](https://github.com/DegrassiAaron/refactor-tactics-main/issues/16) riscritto il 2026-08-25: quattordici
+voci, tutte ✅. Finché le due frasi sono coesistite, chi apriva #38 leggeva la più permissiva e avrebbe chiuso
+il checkpoint lasciando l'epic aperta. **L'unica esenzione sopravvive perché è un fatto del roster, non una
+concessione**: la parte **cono** di `-6b` non è osservabile in partita — nessuna abilità della v0.1 usa
+`ERTAbilityShape::Cone` — e resta coperta headless da `HexCone`. Va dichiarata nella voce, non usata per
+tenerla gialla.
 
 ---
 

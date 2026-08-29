@@ -614,7 +614,7 @@ comportamento quadrato di riferimento. **Sostituzione del substrato, nessuna fea
 | **2.5** ✅ | Dash e knockback su hex | Fase Dash con budget esagonale; knockback a 6 direzioni (spinte opposte si annullano, contesa resta ferma) | Test TDD, il caso quadrato è il riferimento di comportamento |
 | **2.6** ✅ | Bot su hex | `ARTTurnManager` pianifica i bot via `URTHexBotLibrary`; nessuna mossa illegale proponibile (candidate da `ReachableCells`); pesi utility `UPROPERTY` tunabili in PIE | Test d'integrazione (smoke/panic/support/tuning); `PIE-HEXPLAY-7` |
 | **2.7** ✅ | HUD e osservabilità su hex | Barre HP/scudo/energia, timer, fase, combat log e anteprima piani sui centri esagonali; reason code del TurnLog con coordinate assiali `(q,r,L)` | `PIE-HEXPLAY-9` |
-| **2.8** | Playtest della partita hex | Mappa di prova (esagono r=4, ostacoli, celle che bloccano la vista, superficie costosa, piattaforma su layer 1 con una transizione); partita completa fino alla vittoria | Sessione D: `PIE-HEXPLAY-1..9` tutte ✅ |
+| **2.8** | Playtest della partita hex | Mappa di prova **generata da codice** (`MapSource = GeneratedTestArena`: esagono r=4, ostacoli, celle che bloccano la vista, fango a costo 3, piattaforma su layer 1 con una transizione); partita completa fino a un **esito dichiarato** | Sessione D: le **14** voci del perimetro E2 tutte ✅ — `-1 -2 -3 -3b -4 -4b -5 -6 -6b -6c -7 -8 -9 -10`; `-11` è fuori (E21). *Diceva «mappa di prova» da costruire e «fino alla vittoria», con `PIE-HEXPLAY-1..9`: tre requisiti superati, corretti il 2026-08-29 — vedi il gate di [#16](https://github.com/DegrassiAaron/refactor-tactics-main/issues/16) del 2026-08-25 e [D-184](../decisions/RT_PDR_00_Decision_Log.md)* |
 
 **Rischi**: la sostituzione della coordinata su `ARTUnit` tocca **35 file** → va fatta a fette compilabili,
 non in un commit unico. Il knockback esagonale (6 direzioni invece di 8) è l'unico punto che richiede una
@@ -1675,7 +1675,11 @@ pazienza di chi tiene il mouse:
   registro il 2026-08-21, le righe della famiglia sono **15** — le nove numerate più `-3b`, `-4b`, `-6b`,
   `-6c`, `-10`, `-11` — e delle nove numerate **tre sono ✅** (`-1`, `-3`, `-5`). Il corpo di
   [#16](https://github.com/DegrassiAaron/refactor-tactics-main/issues/16) lo registrava già;*
-- il gate di chiusura di **E2** è *«`PIE-HEXPLAY-1..9` tutte ✅ e una partita 2v2 completa fino alla vittoria»*;
+- il gate di chiusura di **E2** è *«quattordici voci `PIE-HEXPLAY`, tutte ✅»*, con `-10` che chiede una partita
+  2v2 completa fino a un **esito dichiarato** — vittoria **o** pareggio allo scadere.
+  ⚠️ *Questa riga citava il gate precedente, «`PIE-HEXPLAY-1..9` tutte ✅ e una partita 2v2 completa fino alla
+  vittoria»: riscritto in [#16](https://github.com/DegrassiAaron/refactor-tactics-main/issues/16) il 2026-08-25
+  su [D-184](../decisions/RT_PDR_00_Decision_Log.md), aggiornato qui il 2026-08-29;*
 - **G10** chiede un *«playtest registrato (log o video)»* ed è ⏳;
 - **G13** è 🟡 con riserva scritta: la partita packaged è stata completata *«sull'arena di test»*.
 
