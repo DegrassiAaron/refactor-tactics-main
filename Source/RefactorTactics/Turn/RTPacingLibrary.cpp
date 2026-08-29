@@ -111,31 +111,34 @@ int32 URTPacingLibrary::CountOpenedReactionWindows(const TArray<FRTTurnLogEntry>
 		bool bOccupiedSomeone = false;
 		switch (Outcome)
 		{
-		case ERTReactionDecisionOutcome::FireChosen:
-		case ERTReactionDecisionOutcome::HoldChosen:
-		case ERTReactionDecisionOutcome::HoldTimeout:
-		case ERTReactionDecisionOutcome::HoldRejected:
-		case ERTReactionDecisionOutcome::ResponseChosen:
-			// Qualcuno ha ricevuto la domanda e ha risposto, o ha lasciato scadere: in tutti e cinque i casi
-			// la finestra ha occupato il suo tempo. `HoldRejected` incluso — la risposta e' arrivata, e il
-			// fatto che fosse illegale non restituisce i secondi spesi a deciderla.
+		case ERTReactionDecisionOutcome::Chosen:
+		case ERTReactionDecisionOutcome::Timeout:
+		case ERTReactionDecisionOutcome::Rejected:
+			// Qualcuno ha ricevuto la domanda e ha risposto, o ha lasciato scadere: in tutti i casi la
+			// finestra ha occupato il suo tempo. `Rejected` incluso — la risposta e' arrivata, e il fatto
+			// che fosse illegale non restituisce i secondi spesi a deciderla.
+			//
+			// ⚠️ **Erano CINQUE rami e ora sono tre** (`#1118`), e non e' una regola che cambia: `FireChosen`,
+			// `HoldChosen` e `ResponseChosen` erano la stessa ragione — *ha deciso* — su tre risposte
+			// diverse, e il tempo speso a decidere non dipende da cosa si e' scelto. Il conteggio e'
+			// identico, la ridondanza no.
 			bOccupiedSomeone = true;
 			break;
 
-		case ERTReactionDecisionOutcome::HoldNoDecider:
+		case ERTReactionDecisionOutcome::NoDecider:
 			// 🔴 **Esiste la finestra, non l'attesa.** `AskReactionDecision` restituisce questo esito per
 			// *«un'unita' umana senza UI: la finestra esiste e nessuno puo' rispondere»* — e la UI **e'**
 			// CP 14.6, cioe' oggi non c'e'. Contarlo scriverebbe `3,0 s` di attesa per ogni finestra di una
-			// persona che non e' mai stata interpellata: la stessa inflazione per cui `HoldImmediate` e'
+			// persona che non e' mai stata interpellata: la stessa inflazione per cui `Immediate` e'
 			// escluso, applicata all'esito che la rende sistematica invece che occasionale.
 			//
 			// ➕ **Rientrera' da solo** quando la UI di DIR-A atterrera': quelle finestre diventeranno
-			// `HoldChosen` o `HoldTimeout`, che stanno nel ramo sopra. Nessuno dovra' ricordarsi di
-			// aggiornare questa funzione.
+			// `Chosen` o `Timeout`, che stanno nel ramo sopra. Nessuno dovra' ricordarsi di aggiornare
+			// questa funzione.
 			break;
 
-		case ERTReactionDecisionOutcome::HoldImmediate:
-		case ERTReactionDecisionOutcome::HoldCollapsedByCondition:
+		case ERTReactionDecisionOutcome::Immediate:
+		case ERTReactionDecisionOutcome::CollapsedByCondition:
 			// Commit immediati: nessuna finestra si e' aperta, nessun secondo speso. I due esiti sono
 			// separati apposta — «non c'era scelta» e «la condizione dichiarata l'ha tolta» sono meccanismi
 			// diversi — e qui contano allo stesso modo: zero.

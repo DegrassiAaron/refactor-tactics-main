@@ -5204,8 +5204,8 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 			&& Opportunity.AllowedResponses[0] == URTReactionOpportunityLibrary::HoldResponse();
 		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
 			bCollassoDaCondizione
-				? ERTReactionDecisionOutcome::HoldCollapsedByCondition
-				: ERTReactionDecisionOutcome::HoldImmediate);
+				? ERTReactionDecisionOutcome::CollapsedByCondition
+				: ERTReactionDecisionOutcome::Immediate);
 	}
 
 	// --- La TRACCIA, se questa e' una ri-simulazione (`#886`) --------------------------------------------
@@ -5230,7 +5230,7 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 					TEXT("risposta registrata illegale nella ri-simulazione: '%s' non e' fra le AllowedResponses della finestra %s"),
 					*Recorded->Response, *Key));
 				return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
-					ERTReactionDecisionOutcome::HoldRejected);
+					ERTReactionDecisionOutcome::Rejected);
 			}
 
 			ConsumedDecisionKeys.Add(Key);
@@ -5245,7 +5245,7 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 		VerificationDivergences.Add(FString::Printf(
 			TEXT("finestra non coperta dalla traccia: nessuna risposta registrata per %s"), *Key));
 		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
-			ERTReactionDecisionOutcome::HoldNoDecider);
+			ERTReactionDecisionOutcome::NoDecider);
 	}
 
 	// Il decisore INIETTATO ha la precedenza su tutto, bot compreso: e' il punto di sostituzione, e un test
@@ -5264,18 +5264,20 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 			if (!URTReactionOpportunityLibrary::IsResponseAllowed(Opportunity, BotResponse))
 			{
 				return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
-					ERTReactionDecisionOutcome::HoldRejected);
+					ERTReactionDecisionOutcome::Rejected);
 			}
-			// Stessa classificazione del decisore iniettato, e da UNA sola funzione: due punti che decidono
-			// «che cosa ha scelto» sono due regole, e divergerebbero al primo esito nuovo.
-			return FRTReactionDecision(BotResponse, ClassifyChosenResponse(Opportunity, BotResponse));
+			// Stessa ragione del decisore iniettato — `Chosen` — e la risposta viaggia accanto (`#1118`).
+			// Qui viveva la seconda chiamata a `ClassifyChosenResponse`, e il suo commento diceva che una
+			// funzione sola evitava due regole divergenti: aveva ragione, e la separazione la rende
+			// superflua. Non c'e' piu' niente da classificare, quindi non c'e' piu' niente che diverga.
+			return FRTReactionDecision(BotResponse, ERTReactionDecisionOutcome::Chosen);
 		}
 
 		// Un'unita' umana senza UI: la finestra esiste e nessuno puo' rispondere. Fail-closed nel verso
 		// giusto — senza decisore la charge non si spende. Il contrario, sparare per default, spenderebbe una
 		// risorsa irreversibile per una configurazione mancante. La UI e' CP 14.6 (`#166`).
 		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
-			ERTReactionDecisionOutcome::HoldNoDecider);
+			ERTReactionDecisionOutcome::NoDecider);
 	}
 
 	// ⚠️ **Qui non si aspetta.** L'unica cosa che questa riga fa e' chiedere e ricevere: nessun `Sleep`,
@@ -5298,35 +5300,18 @@ FRTReactionDecision ARTTurnManager::AskReactionDecision(const FRTReactionOpportu
 	if (!URTReactionOpportunityLibrary::IsResponseAllowed(Opportunity, Response))
 	{
 		return FRTReactionDecision(URTReactionOpportunityLibrary::SafeResponse(Opportunity),
-			ERTReactionDecisionOutcome::HoldRejected);
+			ERTReactionDecisionOutcome::Rejected);
 	}
 
-	return FRTReactionDecision(Response, ClassifyChosenResponse(Opportunity, Response));
-}
-
-ERTReactionDecisionOutcome ARTTurnManager::ClassifyChosenResponse(
-	const FRTReactionOpportunity& Opportunity, const FString& Response)
-{
-	// Tre classi, e la terza e' nata con [D-047]: sparare, tenere la scelta sicura, oppure **scegliere
-	// qualcos'altro**. Fino al `Brace` la terza era vuota per costruzione — l'Overwatch offre `FIRE:<id>` e
-	// `HOLD`, e non c'e' un «altro» — quindi bastava un booleano.
-	if (URTReactionOpportunityLibrary::FireResponseTarget(Response) != INDEX_NONE)
-	{
-		return ERTReactionDecisionOutcome::FireChosen;
-	}
-
-	// ⚠️ **Il confronto e' con `SafeResponse`, non con la costante `HOLD`**, ed e' la stessa correzione che
-	// i sei ripieghi di questa funzione hanno gia' ricevuto: la scelta sicura di una finestra di `Brace` e'
-	// `Hold Ground`, e misurarla contro `HOLD` classificherebbe come «altro» proprio la risposta piu'
-	// conservativa che esista. Chi decide qual e' la scelta sicura e' l'opportunity, in un posto solo.
-	if (Response.Equals(URTReactionOpportunityLibrary::SafeResponse(Opportunity), ESearchCase::CaseSensitive))
-	{
-		return ERTReactionDecisionOutcome::HoldChosen;
-	}
-
-	// Una risposta attiva che non e' `FIRE`: il token la nomina in `FRTTurnLogEntry::ReactionResponse`, e
-	// l'esito esiste perche' `LogEventCount` possa contarla separatamente da chi ha tenuto la posizione.
-	return ERTReactionDecisionOutcome::ResponseChosen;
+	// La RAGIONE e' una sola — ha scelto — e **quale** risposta sia lo dice `Response`, che viaggia nella
+	// decisione e finisce in `FRTTurnLogEntry::ReactionResponse` (`#1118`).
+	//
+	// 🔴 **Qui viveva `ClassifyChosenResponse`, che restituiva tre esiti diversi** — `FireChosen`,
+	// `HoldChosen`, `ResponseChosen` — leggendo la risposta per **dedurne** un valore d'enum. Era la
+	// conflazione in forma di funzione: la risposta c'era gia', e veniva compressa in un `uint8` che poi
+	// tre consumatori decomprimevano ciascuno a modo suo. Chi vuole sapere se si e' sparato chiede
+	// `FireResponseTarget(Response)`, che e' la stessa domanda senza il giro.
+	return FRTReactionDecision(Response, ERTReactionDecisionOutcome::Chosen);
 }
 
 void ARTTurnManager::ArmRecordedReactionDecisions(const TArray<FRTTurnLogEntry>& TraceEntries)
@@ -5354,8 +5339,8 @@ void ARTTurnManager::ArmRecordedReactionDecisions(const TArray<FRTTurnLogEntry>&
 		// come funzione pura dello stato, quindi entrambi si scartano qui — e dimenticarne uno non produce un
 		// errore di compilazione ma una **risposta orfana**, che e' come il test `CollapsedWindowIgnoresTheTrace`
 		// l'ha trovato: «nessuna finestra ha reclamato T2|P4|M0|U1|action.overwatch|S0».
-		if (Outcome == ERTReactionDecisionOutcome::HoldImmediate
-			|| Outcome == ERTReactionDecisionOutcome::HoldCollapsedByCondition)
+		if (Outcome == ERTReactionDecisionOutcome::Immediate
+			|| Outcome == ERTReactionDecisionOutcome::CollapsedByCondition)
 		{
 			continue;
 		}
@@ -5374,11 +5359,13 @@ void ARTTurnManager::ArmRecordedReactionDecisions(const TArray<FRTTurnLogEntry>&
 		// ⚠️ **Il campo vuoto NON e' un dato mancante**: e' la dichiarazione che la risposta e' derivabile, ed
 		// e' cosi' che ogni traccia scritta prima della v10 continua a significare esattamente cio' che
 		// significava. L'Overwatch non scrive il token e non cambia di una riga.
+		// ⚠️ **Dalla v11 il campo e' SEMPRE pieno** (`#1118`): la risposta non si deduce piu' dall'esito,
+		// perche' l'esito ha smesso di nominarla. Il ripiego qui sotto serve alle tracce v2..v10 che
+		// `MigrateReactionDecisionToV11` non ha potuto riempire — e produce esattamente cio' che quei byte
+		// dicevano, perche' fino alla v10 il vocabolario era chiuso e la risposta ERA derivabile.
 		const FString Response = !Entry.ReactionResponse.IsEmpty()
 			? Entry.ReactionResponse
-			: ((Outcome == ERTReactionDecisionOutcome::FireChosen)
-				? URTReactionOpportunityLibrary::FireResponse(Entry.SelectedTargetUnitId)
-				: FString(URTReactionOpportunityLibrary::HoldResponse()));
+			: FString(URTReactionOpportunityLibrary::HoldResponse());
 
 		// ⚠️ Due voci con la STESSA chiave: `Add` sovrascriverebbe, e una risposta andrebbe persa senza che
 		// nessuno lo dica — cioe' il difetto che questa issue esiste per prevenire, spostato di un anello.
@@ -5444,6 +5431,12 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	Entry.Phase = ERTMatchPhase::Move;
 	Entry.Category = ERTLogCategory::ReactionDecision;
 	Entry.Outcome = static_cast<uint8>(Decision.Outcome);
+	// 🔴 **Il token si scrive SEMPRE, dalla v11** (`#1118`). Fino alla v10 lo scriveva solo il `Brace`, e
+	// per l'Overwatch la risposta si deduceva dall'esito: `FireChosen` -> `FIRE:<bersaglio>`, ogni altro
+	// -> `HOLD`. Con l'esito che non nomina piu' la risposta quella deduzione non e' piu' possibile — e non
+	// e' una perdita, e' la ragione del cambio: una risposta dedotta e' una risposta che il formato non
+	// porta, e `SIDESTEP:<Cella>` non si deduce da nessun `uint8`.
+	Entry.ReactionResponse = Decision.Response;
 	Entry.ActionId = Armed.ActionId;
 	Entry.BaseActionId = Armed.BaseActionId;
 	Entry.OpportunityId = URTReactionOpportunityLibrary::DeriveOpportunityId(Opportunity.Key);
@@ -5468,8 +5461,11 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	// commento la difendeva.
 	const bool bTargetStanding = Units.IsValidIndex(TargetIdx) && IsValid(Units[TargetIdx])
 		&& Units[TargetIdx]->IsAlive();
-	const bool bFire = Decision.Outcome == ERTReactionDecisionOutcome::FireChosen
-		&& bTargetStanding && State.Pos.IsValidIndex(TargetIdx);
+	// ⚠️ **Si legge dalla RISPOSTA e non dall'esito** (`#1118`): `Chosen` dice che qualcuno ha deciso, non
+	// che abbia sparato. `TargetIdx` viene gia' da `FireResponseTarget(Decision.Response)` dieci righe sopra,
+	// quindi la domanda «e' un FIRE?» e' la stessa che ha prodotto quell'indice — e la si fa una volta sola.
+	const bool bFireResponse = TargetIdx != INDEX_NONE;
+	const bool bFire = bFireResponse && bTargetStanding && State.Pos.IsValidIndex(TargetIdx);
 
 	if (!bFire)
 	{
@@ -5490,7 +5486,7 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 		// scope dalla issue e da decidere dall'owner di ADR-0004: le due letture — *ha sparato* contro *non
 		// c'era piu' niente da colpire* — sono entrambe difendibili. Conservarla qui sarebbe rispondere di
 		// iniziativa, e per giunta cambiando il comportamento osservabile insieme alla correzione del log.
-		if (Decision.Outcome == ERTReactionDecisionOutcome::FireChosen && !bTargetStanding)
+		if (bFireResponse && !bTargetStanding)
 		{
 			Armed.bCharged = false;
 

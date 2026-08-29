@@ -215,11 +215,15 @@ bool FRTInflictedDamagePredicateTest::RunTest(const FString&)
 		Overwatch.SrcCell = FRTCellId(0, 0, 0);
 		Overwatch.TgtCell = FRTCellId(2, 0, 0);
 		Overwatch.Amount = 12;
-		Overwatch.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen);
+		// ⚠️ **A discriminare e' il TOKEN e non piu' l'esito** (`#1118`): le due voci qui sotto hanno la
+		// STESSA ragione — `Chosen`, ha deciso — e portano risposte diverse. E' il caso che il vecchio
+		// `FireChosen`/`HoldChosen` rendeva impossibile scrivere, perche' la risposta non aveva un campo.
+		Overwatch.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::Chosen);
+		Overwatch.ReactionResponse = TEXT("FIRE:3");
 		TestTrue(TEXT("un overwatch che spara e' danno inflitto"),
 			URTTurnLogLibrary::IsDamageInflictedByActor(Overwatch));
-		Overwatch.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::HoldChosen);
-		TestFalse(TEXT("chi tiene il fuoco non infligge niente"),
+		Overwatch.ReactionResponse = TEXT("HOLD");
+		TestFalse(TEXT("chi tiene il fuoco non infligge niente, a parita' di ragione"),
 			URTTurnLogLibrary::IsDamageInflictedByActor(Overwatch));
 	}
 

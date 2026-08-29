@@ -332,14 +332,19 @@ seguiranno la via delle opportunity — non quella di `Amount`. Restano aperti e
 >
 > | Categoria | Enum di esito | `Amount` | Risponde a |
 > |---|---|---|---|
-> | `ReactionDecision` *(CP 14.5)* | `ERTReactionDecisionOutcome`, sei valori | **danni** | *cosa ha scelto, e perché* |
+> | `ReactionDecision` *(CP 14.5)* | `ERTReactionDecisionOutcome`, **sei ragioni** | **danni** | *perché ci si è arrivati* — **cosa** sia stato scelto lo dice `ReactionResponse` ([D-245](../../decisions/RT_PDR_00_Decision_Log.md), formato **v11**) |
 > | `Decision` *(questa §)* | `ERTDecisionOutcome`, tre valori | **millisecondi** | *quanto è costata, e cosa resta* |
 >
 > ⚠️ **La ragione che decide è `Amount`, ed è la stessa che questo paragrafo usa già due volte**: `Amount` è
 > il payload numerico **della categoria**. Sotto `ReactionDecision` vale danni — lo dice il commento di
-> `FireChosen` — e farci scrivere anche i millisecondi del bank significherebbe che lo stesso campo, sotto la
-> stessa categoria, cambia unità di misura secondo l'esito. È il difetto che il commento di
-> `ERTReactionDecisionOutcome` argomenta di aver evitato tenendo un enum solo, reintrodotto dall'altra parte.
+> `Chosen` — e farci scrivere anche i millisecondi del bank significherebbe che lo stesso campo, sotto la
+> stessa categoria, cambia unità di misura secondo l'esito.
+> ⚠️ **L'argomento regge, la sua premessa no**: diceva che `ERTReactionDecisionOutcome` aveva evitato quel
+> difetto *«tenendo un enum solo»*, e dal 2026-08-29 gli enum sono **due** — ragione e risposta
+> ([D-245](../../decisions/RT_PDR_00_Decision_Log.md), `#1118`). La separazione ha risolto lo stesso problema
+> **senza** sacrificare `Amount`: la risposta ha un campo proprio, quindi il payload numerico resta libero di
+> essere una quantità sola. Ciò che questa riga vieta — due unità di misura sotto la stessa categoria —
+> resta vietato, e per una ragione più forte di prima.
 > ➕ È il caso particolare della regola generale che [D-162](../../decisions/RT_PDR_00_Decision_Log.md) pone
 > lo stesso giorno su un ramo parallelo: **una categoria, un enum**.
 >

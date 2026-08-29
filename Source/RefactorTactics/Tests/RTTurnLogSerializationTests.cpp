@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTTurnLogLibrary.h"
+#include "Turn/RTReactionOpportunityTypes.h" // FireResponse: il token si CHIEDE alla libreria (#1118)
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTReactionLibrary.h" // `ERTReactionOutcome`: l'esito che una voce di redirect porta (v9, #1060)
 #include "Core/RTTypes.h"
@@ -934,7 +935,7 @@ bool FRTTurnLogCanonicalOrderCoversSerializedFieldsTest::RunTest(const FString&)
 	// mancare dall'ordine canonico e restare verde. Il `ReactionResponse` e' l'ultimo arrivato, e questa
 	// coppia lo pinna come le altre.
 	FRTTurnLogEntry Scarto = MakeSerEntry(ERTMatchPhase::Blast, ERTLogCategory::ReactionDecision,
-		static_cast<uint8>(ERTReactionDecisionOutcome::ResponseChosen), FRTCellId(3, 3), FRTCellId(3, 3), 0);
+		static_cast<uint8>(ERTReactionDecisionOutcome::Chosen), FRTCellId(3, 3), FRTCellId(3, 3), 0);
 	Scarto.OpportunityId = TEXT("T1|P3|M0|U0|action.brace|S0");
 	Scarto.ReactionResponse = TEXT("SIDESTEP");
 	FRTTurnLogEntry Tiene = Scarto;
@@ -1363,28 +1364,31 @@ bool FRTTurnLogLegacyWithoutRedirectOriginTest::RunTest(const FString&)
 }
 
 /**
- * **Il round-trip del token della risposta (v10), e l'hash che NON cambia.**
+ * **Il round-trip del token della risposta, e l'hash che ORA cambia con lui.**
  *
- * `ReactionResponse` sta fuori dall'hash per lo stesso argomento di `BaseActionId` e `OriginalTargetUnitId`:
- * la decisione e' gia' discriminata da `Outcome` e — dove c'e' — da `SelectedTargetUnitId`, che l'hash
- * mescola. Il token la rende *leggibile*, non piu' distinguibile.
+ * 🔴 **Questo test e' stato INVERTITO il 2026-08-29** (`#1118`), ed e' l'inversione che il suo stesso
+ * docstring prevedeva: *«Se un giorno il campo entra nell'hash, questo test cade — ed e' il punto: la scelta
+ * e' deliberata e va ridiscussa, non cambiata di passaggio»*. La ridiscussione e' avvenuta, e la conclusione
+ * si e' capovolta insieme alla premessa.
  *
- * ⚠️ **La conseguenza e' asserita, non taciuta**: due risposte di profilo diverse con lo stesso esito danno
- * lo **stesso** hash. Non e' un buco del determinismo — la risposta E' nella traccia e il replay la rilegge
- * da li' — ma un `StateHash` uguale non prova piu' che la stessa risposta sia stata scelta: prova che lo
- * stato finale coincide, che e' cio' che quell'hash ha sempre dichiarato di misurare. Se un giorno il campo
- * entra nell'hash, questo test cade — ed e' il punto: la scelta e' deliberata e va ridiscussa, non cambiata
- * di passaggio.
+ * La premessa era che `ReactionResponse` fosse *«gia' discriminata da `Outcome`»*. Reggeva finche' l'esito
+ * NOMINAVA la risposta — `FireChosen` contro `HoldChosen`. Separati i due assi, `Chosen` dice soltanto che
+ * qualcuno ha deciso: senza il token nell'hash, una partita in cui si e' sparato e una in cui si e' tenuta
+ * la cella avrebbero lo **stesso** hash. Il campo che porta la distinzione deve mescolarla.
+ *
+ * ⚠️ **Il costo e' dichiarato**: gli hash delle tracce con decisioni cambiano. Il corpus golden non si rompe
+ * — `CompareSerializedTraces` ricalcola su entrambi i lati — ma un archivio di replay con
+ * `OrderedHashPerTurn` scritti prima della v11 non si confronta con uno scritto dopo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogReactionResponseRoundTripTest,
-	"RefactorTactics.TurnLog.ReactionResponseSurvivesRoundTripAndStaysOutOfHash",
+	"RefactorTactics.TurnLog.ReactionResponseSurvivesRoundTripAndEntersHash",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTTurnLogReactionResponseRoundTripTest::RunTest(const FString&)
 {
 	FRTTurnLogEntry Entry;
 	Entry.Phase = ERTMatchPhase::Blast;
 	Entry.Category = ERTLogCategory::ReactionDecision;
-	Entry.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::ResponseChosen);
+	Entry.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::Chosen);
 	Entry.ActionId = FName(TEXT("Action.Brace"));
 	Entry.OpportunityId = TEXT("T1|P3|M0|U2|action.brace|S0");
 	Entry.ReactionResponse = TEXT("SIDESTEP");
@@ -1402,28 +1406,35 @@ bool FRTTurnLogReactionResponseRoundTripTest::RunTest(const FString&)
 	// L'hash ignora il token: stessa voce con una risposta diversa, stesso hash.
 	FRTTurnLogEntry Altra = Entry;
 	Altra.ReactionResponse = TEXT("Hold Ground");
-	TestEqual(TEXT("l'hash NON cambia al cambiare del token"),
+	TestNotEqual(TEXT("l'hash CAMBIA al cambiare del token: e' la distinzione che l'esito non porta piu'"),
 		URTTurnLogLibrary::HashTurnLog({ Altra }), URTTurnLogLibrary::HashTurnLog(Log));
 
-	// E il controllo dell'altro verso: l'ESITO invece lo cambia, altrimenti l'asserzione sopra sarebbe vera
-	// per un hash che ignora tutto.
-	FRTTurnLogEntry EsitoDiverso = Entry;
-	EsitoDiverso.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::HoldChosen);
-	TestNotEqual(TEXT("ma l'esito si', quindi l'hash non ignora la decisione"),
-		URTTurnLogLibrary::HashTurnLog({ EsitoDiverso }), URTTurnLogLibrary::HashTurnLog(Log));
+	// E il controllo dell'altro verso: anche la RAGIONE lo cambia, a parita' di risposta. I due assi sono
+	// entrambi discriminanti, ed e' esattamente cio' che «due campi» significa.
+	FRTTurnLogEntry RagioneDiversa = Entry;
+	RagioneDiversa.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::Timeout);
+	TestNotEqual(TEXT("e cambia anche al cambiare della sola ragione"),
+		URTTurnLogLibrary::HashTurnLog({ RagioneDiversa }), URTTurnLogLibrary::HashTurnLog(Log));
 
 	return true;
 }
 
 /**
- * **Una traccia in versione 9 resta leggibile, col token VUOTO** — il gemello di
+ * **Una traccia in versione 9 resta leggibile, e la v11 le RICOSTRUISCE il token** — il gemello di
  * `LegacyVersionWithoutBaseActionIdIsReadable`, e per la stessa ragione.
  *
- * 🔴 **E qui il vuoto significa qualcosa di preciso, non «dato mancante»**: dice *«la risposta e' derivabile
- * dall'esito»*, che e' esattamente cio' che quei byte contenevano — nella v9 l'unico produttore di finestre
- * era l'Overwatch, il cui vocabolario e' chiuso. `ArmRecordedReactionDecisions` legge il vuoto e ricostruisce
- * come ha sempre fatto. Inventare qui un token — deducendolo dall'`Outcome` — farebbe sembrare **esplicita**
- * una deduzione, e il lettore perderebbe la sola informazione che distingue le due epoche del formato.
+ * 🔴 **La seconda meta' di questo test si e' capovolta il 2026-08-29** (`#1118`). Diceva che il token deve
+ * restare **vuoto**, e l'argomento era buono: il vuoto significava *«la risposta e' derivabile dall'esito»*,
+ * e riempirlo avrebbe fatto sembrare esplicita una deduzione.
+ *
+ * Quell'argomento poggiava su una premessa che non vale piu': che l'esito nominasse la risposta. Oggi
+ * `Chosen` non dice se si e' sparato, quindi un token vuoto non e' piu' «deducibile» — e' **perso**. La
+ * deduzione si fa una volta in lettura (`MigrateReactionDecisionToV11`) invece che a ogni consumo, e
+ * produce lo stesso token che una traccia v11 avrebbe scritto: fino alla v10 il vocabolario era chiuso,
+ * quindi la ricostruzione e' esatta.
+ *
+ * ⚠️ **Cio' che resta vero**: i byte della v9 non contenevano il token, e nessuno lo inventa. Viene
+ * DERIVATO da cio' che quei byte dicevano — l'esito storico e il bersaglio — e non da un default.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogLegacyWithoutReactionResponseTest,
 	"RefactorTactics.TurnLog.LegacyVersionWithoutReactionResponseIsReadable",
@@ -1435,7 +1446,9 @@ bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
 	FRTTurnLogEntry Entry;
 	Entry.Phase = ERTMatchPhase::Move;
 	Entry.Category = ERTLogCategory::ReactionDecision;
-	Entry.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen);
+	// ⚠️ **Il valore STORICO, scritto come numero**: nella v9 `0` era `FireChosen`, e quel nome non esiste
+	// piu' nel codice. E' lo stesso motivo per cui la tabella di `MigrateReactionDecisionToV11` usa i numeri.
+	Entry.Outcome = 0; // FireChosen, nella tabella di allora
 	Entry.ActionId = FName(TEXT("Action.Overwatch"));
 	Entry.OpportunityId = TEXT("T2|P4|M1|U0|action.overwatch|S0");
 	Entry.SelectedTargetUnitId = 3;
@@ -1461,11 +1474,14 @@ bool FRTTurnLogLegacyWithoutReactionResponseTest::RunTest(const FString&)
 	TestTrue(TEXT("una traccia in versione 9 resta leggibile"),
 		URTTurnLogLibrary::DeserializeTurnLog(Bytes, Out));
 	if (!TestEqual(TEXT("una voce letta"), Out.Num(), 1)) { return false; }
-	TestEqual(TEXT("l'esito e' preservato"), Out[0].Outcome,
-		static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen));
+	// `FireChosen` (0) diventa `Chosen` (0): stesso numero, significato diverso — ed e' la ragione per cui
+	// questa migrazione e' l'unica non dichiarativa del formato. Il test asserisce la RAGIONE nuova, non il
+	// numero: se domani `Chosen` cambiasse posizione nell'enum, qui deve restare la ragione.
+	TestEqual(TEXT("la ragione e' quella nuova: ha scelto"), Out[0].Outcome,
+		static_cast<uint8>(ERTReactionDecisionOutcome::Chosen));
 	TestEqual(TEXT("e il bersaglio pure"), Out[0].SelectedTargetUnitId, 3);
-	TestTrue(TEXT("il token resta VUOTO: significa «deducila», non «manca»"),
-		Out[0].ReactionResponse.IsEmpty());
+	TestEqual(TEXT("e il token e' stato RICOSTRUITO dal bersaglio, non lasciato vuoto"),
+		Out[0].ReactionResponse, URTReactionOpportunityLibrary::FireResponse(3));
 	return true;
 }
 
