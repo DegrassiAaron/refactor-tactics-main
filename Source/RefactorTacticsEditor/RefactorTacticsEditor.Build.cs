@@ -30,6 +30,12 @@ public class RefactorTacticsEditor : ModuleRules
 			"MeshDescription",
 			"StaticMeshDescription",
 			"AssetRegistry",
+			// Il launcher (#1680, slice L1): la categoria del menu Window in cui il tab si registra,
+			// `UEditorSubsystem` come classe base, e `UGameMapsSettings` per leggere la EditorStartupMap nel test.
+			// ⚠️ Nessuno dei tre arriva per transitivita': misurato, senza dichiararli il link non risolve.
+			"WorkspaceMenuStructure",
+			"EditorSubsystem",
+			"EngineSettings",
 			"RefactorTactics" // modulo runtime: URTHexMapAsset / URTHexLibrary / ARTHexMapActor (usati da H5b)
 		});
 	}

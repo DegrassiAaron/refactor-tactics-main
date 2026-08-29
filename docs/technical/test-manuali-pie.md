@@ -40,9 +40,14 @@
     `git checkout -- RefactorTactics.uproject`.
 - **PIE**: pulsante Play (o `Alt+P`). Il `TurnManager` ha `PlanningSeconds≈30s`: premi **Spazio** per il lock-in manuale.
 - I `LogRT: [RT] ...` nell'**Output Log** narrano il round (fasi, esiti).
-- I livelli del demo (`L_Prototype`, `L_DevSandbox`) sono **vuoti nell'editor**: griglia, luce, unità e turn manager
-  li allestisce a runtime il `RTGameMode`. Viewport nera prima del Play = normale, non un livello rotto.
+- I livelli del demo allestiscono **griglia, unità e turn manager a runtime** dal `RTGameMode`: quel che si vede
+  prima del Play non è quel che si gioca, e una viewport spoglia non è un livello rotto.
   Lo **sfondo resta nero anche in gioco**: il GameMode aggiunge una luce direzionale, nessun cielo.
+  🔵 **Questa riga diceva «`L_Prototype` e `L_DevSandbox` sono vuoti nell'editor» fino al 2026-08-29, e per
+  `L_DevSandbox` era falso** (#1680). Misurato sui byte della `.umap`: contiene `RTHexMapActor`, uno
+  `StaticMeshActor`, tre attori di illuminazione (#623, chiusa) **e un Level Blueprint `L_DevSandbox_C` con
+  `EventGraph`, due `K2Node_Event` e un riferimento a `WBP_RT_ErrorModal`**. La differenza conta per chi lavora
+  su quel livello: «non lo sporco» non è «non interferisco con ciò che già fa».
 - Camera: **`Home`** ricentra sulla griglia (il pawn parte dall'origine, la board 10×10 si estende per 2000 uu);
   **`F`** centra sull'**unità selezionata** — lo zoom orbita attorno al pawn, quindi senza spostarlo la rotellina
   avvicina al centro della mappa e non al personaggio. Inclinazione e distanza si tarano dal Details del
