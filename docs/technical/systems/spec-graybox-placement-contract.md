@@ -363,8 +363,33 @@ Le guide verticali del volume sono **riferimenti di modellazione**, e non sono c
 0.85 H   strutturale        213 cm
 0.55 H   standard           138 cm
 0.28 H   bassa               70 cm
+0.06 H   tile della cella    15 cm   ← il pavimento È un volume, e da D-240 lo dice
 0.00 H   piano d'appoggio     0 cm
 ```
+
+🔑 **`0.06 H` è entrato il 2026-08-29 con [`D-240`](../../decisions/RT_PDR_00_Decision_Log.md), e non è una
+guida di modellazione come le altre quattro: è una misura del CODICE**, `RTCellThicknessInH` in
+[`Map/RTMapVisuals.h`](../../../Source/RefactorTactics/Map/RTMapVisuals.h). Sta in questa tabella perché è la
+quota su cui ogni altra si appoggia — la faccia del tile è il piano d'appoggio reale, non lo zero teorico —
+e perché il difetto che l'ha prodotta è esattamente quello che questa sezione descrive.
+
+🔴 **Il codice portava il denominatore che `D-168` aveva già corretto qui.** Lo spessore era
+`RTCellFlatScale = 0.05` moltiplicato per il **raggio** della mesh: un'altezza misurata contro una larghezza,
+cioè la stessa incoerenza che il 2026-08-17 ha spostato le guide verticali da `C` a `H`. Il documento aveva
+diagnosticato il difetto; il codice lo ha portato altri dodici giorni.
+
+⚠️ **E si è pagato in silenzio, che è il motivo per cui vale registrarlo.** `PlanarScale` deriva da
+`HexSize`, quella costante no: con [`#1155`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155)
+(`HexSize` `100 → 150`) la cella si è allargata di 1,5× e lo spessore è rimasto 5 uu, scendendo dal **2,63%**
+all'**1,75%** del diametro senza una riga di diff. È la firma di difetto che
+[`D-163`](../../decisions/RT_PDR_00_Decision_Log.md) registra per le altezze, verificatasi una seconda volta
+su una costante che nessuno aveva convertito.
+
+⛔ **`0.06 H` è un TETTO, non una preferenza**, e il vincolo non è quello che sembra. Il tile è centrato,
+quindi ispessirlo lo fa scendere anche sotto: più spesso di un gradino di rilievo — `ReliefUnitHeight`, 15 uu
+— due celle a quota adiacente si **compenetrano** invece di gradinare. `0.06 H` **è** quel gradino, e
+l'uguaglianza è ammessa perché a spessore uguale le facce si toccano senza compenetrare. Lo asserisce
+`RTHexMapActor.cpp`, il solo file che posa sia il tile sia il rilievo.
 
 > ⏱️ **Erano in `C` fino al 2026-08-17**, con gli stessi coefficienti. Il denominatore cambia, i
 > coefficienti no — quindi i **centimetri cambiano**: la guida massima da `260` a `250`, la bassa da `73` a
