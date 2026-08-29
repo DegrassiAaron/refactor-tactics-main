@@ -129,7 +129,7 @@ rispondere mentre è tutto collegato. Il Main Menu la chiama da `Event Construct
 
 | | In CP 46.3 |
 |---|---|
-| **PLAY** | `Get Game Instance → Get Subsystem (RTFrontendNavigator) → Start Match`. 🔴 **Questa riga diceva «lascialo senza azione e non fingere che funzioni», e l'istruzione è scaduta**: valeva quando CP 46.4 ([#939](https://github.com/DegrassiAaron/refactor-tactics-main/issues/939)) era aperta e il C++ dell'avvio non esisteva ancora. Oggi #939 è **CLOSED**, `StartMatch()` è `BlueprintCallable`, e il pulsante inerte era il difetto di [#938](https://github.com/DegrassiAaron/refactor-tactics-main/issues/938) — seguirla oggi lo riaprirebbe. ⛔ **`Start Match` e non `Enter Match`**: la prima *chiede* la partita e lascia l'apertura a chi ha il mondo; la seconda serve al caso opposto, PIE lanciato dritto su `L_HexArena`, e dal menu salterebbe la richiesta pendente. Difeso da `RefactorTactics.Frontend.MainMenuPlayAsksTheNavigatorToStart`, che legge il grafo dentro il `.uasset` |
+| **PLAY** | `Get Game Instance → Get Subsystem (RTFrontendNavigator) → Start Match`. 🔴 **Questa riga diceva «lascialo senza azione e non fingere che funzioni», e l'istruzione è scaduta**: valeva quando CP 46.4 ([#939](https://github.com/DegrassiAaron/refactor-tactics-main/issues/939)) era aperta e il C++ dell'avvio non esisteva ancora. Oggi #939 è **CLOSED**, `StartMatch()` è `BlueprintCallable`, e il pulsante inerte era il difetto di [#938](https://github.com/DegrassiAaron/refactor-tactics-main/issues/938) — seguirla oggi lo riaprirebbe. ⛔ **`Start Match` e non `Enter Match`**: la prima *chiede* la partita e lascia l'apertura a chi ha il mondo; la seconda serve al caso opposto, PIE lanciato dritto su `L_HexArena`, e dal menu salterebbe la richiesta pendente. Difeso da `RefactorTactics.Frontend.MainMenuGraphAsksTheNavigatorToStart`, che legge il grafo dentro il `.uasset` |
 | **SETTINGS** | `Get Game Instance → Get Subsystem (RTFrontendNavigator) → Push Screen` con `ScreenId = Settings` |
 | **QUIT** | il nodo `Quit Game` |
 
@@ -214,9 +214,14 @@ riga in `Config/DefaultEngine.ini`:
 GameDefaultMap=/Game/RT/Maps/Shared/L_Frontend/L_Frontend.L_Frontend
 ```
 
-**Non è stata committata, ed è deliberato**: oggi punterebbe a una mappa che non esiste, e un
-`GameDefaultMap` rotto è un progetto che non si apre. Scrivila **dopo** aver creato il `.umap`, e adatta il
-percorso se hai scelto un'altra categoria al §5.
+🔴 **Questa riga diceva «non è stata committata, ed è deliberato», e la premessa è caduta.** Valeva quando
+`L_Frontend` non esisteva — *«un `GameDefaultMap` rotto è un progetto che non si apre»*, che resta il
+motivo per cui l'ordine conta. Oggi la mappa è versionata (§1 di questo stesso runbook la dà «✅ versionata
+dal 2026-08-22») e la riga **è già in `Config/DefaultEngine.ini:25`**, col suo commento «Entra ora».
+
+⛔ **Non aggiungerla di nuovo**: una seconda `[/Script/EngineSettings.GameMapsSettings]` o una chiave
+duplicata è precisamente il danno che questa correzione previene. Verifica con
+`grep -n GameDefaultMap Config/DefaultEngine.ini` prima di scrivere.
 
 `EditorStartupMap` resta su `L_DevSandbox`: aprire l'editor sul menu non serve a nessuno.
 
@@ -247,9 +252,11 @@ d'autore di U1 e la via a punti mai esercitata — e nessuna si chiude con un me
 sosteneva il contrario ed è stato corretto in code review. Questo checkpoint toglie l'avvio su
 `GeneratedTestArena`, che è reale e vale la pena, ma non è il gate.
 
-⏳ **Le voci PIE.** `PIE-V01-FRONTEND-MAIN` non esiste ancora: è
-[#1242](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1242), che le scrive tutte e sei. Il
-vincolo che le bloccava è decaduto con **D-178**, quindi ora si possono scrivere — ma sono lavoro di
+⏳ **Le voci PIE.** 🔴 *Questa riga diceva che `PIE-V01-FRONTEND-MAIN` «non esiste ancora»*: esiste, in
+[`../test-manuali-pie.md`](../test-manuali-pie.md), scritta il 2026-08-24 da
+[#1242](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1242) insieme alle altre cinque. Resta **⏳ non
+eseguita**, ed è un'altra cosa: chiede il **packaged**, non il PIE. Il vincolo che ne bloccava la scrittura
+era decaduto con **D-178** — ma sono lavoro di
 quella issue, non di questa.
 
 ---
