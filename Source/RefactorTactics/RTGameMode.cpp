@@ -756,11 +756,16 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	{
 		// ...ma la MODALITA' si applica lo stesso, e questo ramo e' l'unico posto in cui puo' farlo.
 		//
-		// 🔴 `SpawnHero` e' l'unico sito che scrive `bIsBotControlled`, e sta sotto questo ritorno: su un
-		// livello con unita' proprie il log dichiarava «entrambe le squadre al bot» mentre la squadra 0
-		// teneva il valore cotto nel `.umap` e non pianificava nessuno — la partita macinava turni vuoti fino
-		// al `RoundLimit` con la banda che asseriva il contrario. Trovato in code review: il blocco del
-		// Planning era gia' stato spostato sopra questo ritorno *per questo scenario*, l'assegnazione no.
+		// 🔴 Su un livello con unita' proprie `SetupHexMatch` ritorna prima di arrivare a `SpawnHero`, quindi
+		// quelle unita' tengono il valore che si portano da sole — il default della loro dichiarazione: il
+		// log dichiarava «entrambe le squadre al bot» mentre la squadra 0 non pianificava nessuno, e la
+		// partita macinava turni vuoti fino al `RoundLimit` con la banda che asseriva il contrario. Trovato
+		// in code review: il blocco del Planning era gia' stato spostato sopra questo ritorno *per questo
+		// scenario*, l'assegnazione no.
+		//
+		// ⚠️ La riga che stava qui dichiarava `SpawnHero` **unico** sito di scrittura di `bIsBotControlled`,
+		// e non lo era. Chi lo scrive e' elencato alla dichiarazione del campo, `ARTUnit::bIsBotControlled`:
+		// qui non si duplica.
 		if (bAutobattleInEffect)
 		{
 			TArray<AActor*> Existing;
@@ -932,8 +937,9 @@ ARTUnit* ARTGameMode::SpawnHero(int32 TeamId, const URTHeroData* Hero, const FRT
 		// equipaggerebbe anche le decine di unita' che i test unitari costruiscono per avere «un'unita'
 		// qualunque», cambiando sotto i piedi misure che non parlano di equipaggiamento.
 		//
-		// ⚠️ **E nessun ramo per il bot**: questa funzione e' il punto unico d'ingresso in partita ed e'
-		// dove si decide `bIsBotControlled` due righe sopra, quindi entrambe le squadre passano di qui.
+		// ⚠️ **E nessun ramo per il bot**: questa funzione e' l'ingresso dello spawn di partita ed e'
+		// dove si decide `bIsBotControlled` due righe sopra, quindi le due squadre che passano di qui sono
+		// allestite dallo stesso codice. Chi altro scrive quel campo: `ARTUnit::bIsBotControlled`.
 		// Un `if (!bIsBotControlled)` sarebbe la forma in cui «il bot gioca un altro gioco» rientra.
 		//
 		// `DefaultLoadoutFor` risponde VUOTO per un eroe i cui pezzi non sono spediti — oggi Gadget e

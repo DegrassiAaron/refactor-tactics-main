@@ -168,7 +168,8 @@ public:
 	 * La modalita' in vigore per QUESTA sessione, **decisa una volta** in `SetupHexMatch`.
 	 *
 	 * ⚠️ Non e' un doppione di `ResolveAutobattle()`, ed e' la differenza fra cio' che si puo' *chiedere* e
-	 * cio' che la partita *e'*. `bIsBotControlled` viene scritto sulle unita' allo spawn e non cambia piu':
+	 * cio' che la partita *e'*. `bIsBotControlled` si scrive all'allestimento — i siti sono elencati in
+	 * `ARTUnit::bIsBotControlled` — e da li' in avanti nessuno lo riscrive:
 	 * una console variable digitata a meta' sessione cambierebbe la risposta del resolver ma non lo stato
 	 * delle unita' gia' in campo, e la banda finirebbe per dichiarare una partita diversa da quella che si
 	 * sta giocando — in **entrambi** i versi. Chi descrive la sessione (banda, log) legge di qui; chi

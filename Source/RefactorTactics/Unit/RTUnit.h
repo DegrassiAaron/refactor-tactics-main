@@ -53,7 +53,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 MoveRange = 4;
 
-	/** Se vero, l'unita' e' pianificata automaticamente dal bot. */
+	/**
+	 * Se vero, l'unita' e' pianificata automaticamente dal bot.
+	 *
+	 * ⚠️ **Chi lo scrive, misurato il 2026-08-29.** Tre siti in produzione: `ARTGameMode::SpawnHero`,
+	 * che legge la decisione latchata `bAutobattleInEffect`; il ramo di `ARTGameMode::SetupHexMatch` che
+	 * passa al bot le unita' gia' posate nel livello — e scrive **solo `true`**, e solo con l'autobattle
+	 * in vigore; e `FRTScenarioSession`. Gli altri commenti su questo campo rimandano qui invece di
+	 * ripetere il conteggio: ripetuto in piu' posti invecchia in tutti e diverge in qualcuno.
+	 *
+	 * ⛔ **Un'unita' posata a mano nel livello non passa da nessuno dei tre**: entra in campo con il
+	 * valore che porta dalla propria dichiarazione, ed e' la finestra che un conteggio dei writer non
+	 * copre. Oggi quel valore e' il default qui sotto: nessuna mappa versionata contiene un `ARTUnit`, e
+	 * `Content/RT/` non nomina questo campo, quindi nessun override lo sovrascrive.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Unit")
 	bool bIsBotControlled = false;
 
