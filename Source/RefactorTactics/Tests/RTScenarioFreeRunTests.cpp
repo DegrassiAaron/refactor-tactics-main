@@ -457,11 +457,24 @@ bool FRTFreeRunShippedOpenFieldTest::RunTest(const FString&)
  * la geometria del `DA_HexMap_Arena` d'autore: 61 celle di raggio 4 piu' la piattaforma a `L=1`.
  *
  * ⚠️ **Il caso discriminante e' proprio il pareggio.** `D-184` dichiara legittimo il pareggio allo scadere
- * del free-run spedito, e questo test lo esclude PER NOME: un'evidenza che filma un pareggio non e'
- * l'evidenza che `G10` e `G13` chiedono. Misurato il 2026-08-23: **vince il team 0 per eliminazione al
- * turno 19**.
+ * del free-run spedito, e questo test lo esclude PER NOME. E' una scelta di EVIDENZA, non una regola: il
+ * test e' deliberatamente **piu' stretto del gate**, perche' un playtest che filma un pareggio non mostra
+ * il gioco anche quando mostra una partita valida.
  *
- * ⚠️ **19 e' oltre il `RoundLimit` 12 di `Format.Skirmish2v2`, e non e' una contraddizione**: la sessione
+ * ⌫ **Fino al 2026-08-29 questa riga diceva che un pareggio «non e' l'evidenza che `G10` e `G13`
+ * chiedono», e da quella data non e' piu' esatto.** `G10` e' stato riformulato e accetta un esito
+ * terminale qualsiasi — `Team0Wins`, `Team1Wins` o `Draw` — purche' la partita **non sia degenere**:
+ * almeno un danno inflitto, almeno una reaction risolta, progresso obiettivo mosso. La decisione ratifica
+ * `D-184` e la estende al gate, che era rimasto indietro di formulazione.
+ *
+ * Cio' che resta vero, e che questo test presidia, e' che **`ArenaV01` deve decidersi**: un pareggio allo
+ * scadere QUI non sarebbe l'esito legittimo di `D-184`, sarebbe lo stallo che `RTBotStalemateProbeTests`
+ * misura — zero combattimento, il tetto che scade. Rimisurato il 2026-08-29 dal PACCHETTO: **vince
+ * il team 0 per eliminazione al turno 22** (`seed 0`, `stateHash ac877346`). Il 2026-08-23 erano 19: il
+ * numero e' DESCRITTIVO e deriva col bot — metodo e causa stanno nella nota di
+ * `Scenarios/AutoBattle/ArenaV01.json`.
+ *
+ * ⚠️ **22 e' oltre il `RoundLimit` 12 di `Format.Skirmish2v2`, e non e' una contraddizione**: la sessione
  * di scenario non assegna un `MatchFormat` — il log dice `formato None` — quindi a fermare la partita c'e'
  * il solo tetto del file. E' esattamente cio' che `D-184` prescrive: lo scenario si risolve, il formato
  * spedito non si ritara.
