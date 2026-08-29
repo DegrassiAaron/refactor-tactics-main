@@ -2226,6 +2226,7 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	//     + filtro sul dominio di #1287                    2 su lim. 3    3 su lim. 4
 	//     + `WEngage = 0` (pre-D-185)                      2 su lim. 4    2 su lim. 4
 	//     + avvicinamento in linea d'aria (pre-#1296)      0 su lim. 4    7 su lim. 4  -> **Fail**
+	//     mutazione del BOT che falsifichi QUI             nessuna trovata — vedi la riga sotto
 	//
 	// ✅ Il rilevatore FALSIFICA: la terza riga fa cadere `NobodyOscillatesOnTheAuthoredMap` riproducendo
 	// la misura storica di #1287 («otto alternanze in dodici turni»), quindi l'estrazione in
@@ -2264,10 +2265,30 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// `WDamage == WApproach == 10` un punto di copertura vale una cella di avvicinamento. Trovato in code
 	// review, e la tesi e' ritirata.
 	//
-	// ⚠️ **Quindi la riga resta aperta, e vale ancora: chi trovera' una mutazione del BOT che fa cadere
-	// questa asserzione la scriva in questa tabella** — e con lei cade la spiegazione qui sopra. Cio' che e'
-	// cambiato non e' che la ricerca sia finita: e' che ora si sa **dove** guardare, cioe' a un termine che
-	// paghi l'arretramento da solo, o a un budget di movimento sotto i 4 MP.
+	// ✅ **LA RIGA NON E' PIU' APERTA, e il modo in cui si chiude e' il punto** (#1550, 2026-08-29).
+	//
+	// 🔴 **«Il test che dimostra perche' la mutazione non esiste» non puo' esistere**, e chiederlo era un
+	// criterio malformato: e' un'ESISTENZIALE NEGATIVA su uno spazio non enumerabile — tutte le mutazioni
+	// possibili del bot. Nessun test la stabilisce, e il criterio non ha soltanto mancato di impedire
+	// l'errore: **lo ha richiesto**. La prima stesura di #1555 ha risposto alla lettera, con una tesi di
+	// impossibilita' (*«`ScorePlan` non legge `Context.Origin`»*) poi ritirata in code review perche'
+	// falsa.
+	//
+	// ✅ **Cio' che si puo' stabilire, ed e' stabilito, e' una CONDIZIONE NECESSARIA misurata su casi
+	// nominati.** Il 2-ciclo di #1287 richiede che il filtro sul dominio faccia **arretrare**; su
+	// `MakeTestArena` non arretra a nessuno dei budget che il gioco spedisce, e sulla mappa d'autore
+	// arretra gia' al profilo neutro. Le due misure, coi rispettivi denominatori asseriti:
+	//
+	//     `Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack`  — 0 arretramenti, e le coppie ci sono
+	//     `Bot.StalemateProbeAuthoredMapFilterStepsBack`          — arretra, e fra le coppie c'e'
+	//                                                               `(1,-1,L0) <-> (3,-3,L1)`, l'orbita
+	//                                                               che #1287 ha MISURATO in partita
+	//
+	// ⛔ **Il limite, che resta e non e' un lavoro aperto**: questa e' una condizione **necessaria** per la
+	// FORMA di #1287, non un teorema che dica «il bot non puo' orbitare». Un'orbita di forma diversa non e'
+	// esclusa da niente di scritto qui. Chi trovera' una mutazione del BOT che fa cadere questa asserzione
+	// la scriva in questa tabella — e con lei cadra' la spiegazione qui sopra. Ma la sua assenza **non e'
+	// piu' una riga da riempire**: e' cio' che si sa, con il suo confine dichiarato.
 	//
 	// 🔵 **LA PISTA DEI 2 MP E' STATA PERCORSA, e non porta dove la nota diceva** (`#1550`, misurato il
 	// 2026-08-29 — `RTOrbitWithdrawBudgetTests.cpp`).
