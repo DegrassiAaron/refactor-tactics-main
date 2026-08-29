@@ -4,7 +4,7 @@
 > **Data**: 2026-08-29
 > **HEAD della revisione**: `8aa73027` (`origin/main`), letto in un worktree pulito — nessuno dei due
 > checkout condivisi poteva ospitare la misura (§14).
-> **Oggetto**: `Claude_TD_Trial_Roadmap_Update_Prompt.md` (936 righe, 16 sezioni), un mandato di
+> **Oggetto**: `Claude_TD_Trial_Roadmap_Update_Prompt.md` (936 righe, **diciassette** sezioni `§0`–`§16`), un mandato di
 > riconciliazione documentale e di tracking che formalizza una **TD Trial / Scenario Sandbox** come primo
 > loop utilizzabile del Tactical Designer. Letto contro `Source/RefactorTactics/ScenarioHarness/`,
 > `Source/RefactorTacticsEditor/`, `Source/RefactorTactics/Replay/`, le dodici issue che nomina,
@@ -224,10 +224,16 @@ e il doc header della struct dice cosa sono:
 
 **Fowler**: il modello è **due slot che coesistono**, non una scelta fra otto. Una UI costruita sulla lista
 del §T2 — un selettore, poi le proprietà dell'azione scelta — rende *inesprimibile* «muovi e attacca», che
-la struct dichiara essere la norma. E le otto voci sono i sette `Action.*` generici di **D-025** più `Wait`:
-sono il vocabolario del **gioco**, non del **formato**, e nel formato passano attraverso `Ability` e
-`Reaction`. Modellarle come enum di scenario creerebbe il vocabolario parallelo che l'ultima riga dello
-stesso §T2 vieta.
+la struct dichiara essere la norma. E la lista mescola **due vocabolari**: `Wait · Move · Basic Attack ·
+Brace · Overwatch · Interact` sono **sei dei sette** `Action.*` generici di **D-025**, cioè il vocabolario
+del **gioco**; `Ability` e `Dash` sono **campi del formato**. Nel formato i primi passano attraverso
+`Ability` e `Reaction`: modellarli come enum di scenario creerebbe il vocabolario parallelo che l'ultima
+riga dello stesso §T2 vieta.
+
+⚠️ **E il settimo manca.** `Guard` non è nella lista del §T2, mentre `Brace` c'è — e sono la coppia che
+`Spec.Brace.GuardAndBraceOnMixedHit` misura *al confine*, quello scenario essendo citato dalla struct stessa
+per giustificare `bLoadoutDeclared`. Un authoring che espone l'una e non l'altra non può esprimere il
+confine che il repository ha uno scenario apposta per misurare.
 
 ### Correzione
 Riscrivere il §T2 come **due slot più i loro modificatori** (`Move[]` · slot principale `Ability`/`Dash` ·
