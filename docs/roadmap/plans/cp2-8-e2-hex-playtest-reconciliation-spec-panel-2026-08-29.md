@@ -346,25 +346,39 @@ occorrenze **datate** di `15` (§11) restano, perché sono vere del registro.
 
 ## 13. Stato E2 misurato
 
+Alla consegna del referto, identico a quanto **#16** dichiarava al 2026-08-25:
+
 ```text
 E2 HEX gate: 6/14 ✅
 Verdi:   PIE-HEXPLAY-1 · -2 · -3 · -5 · -9 · -10
+```
+
+🔄 **Rimisurato la sera stessa, dopo una seduta PIE: 8 su 14.** Le otto residue erano *tutte* lavoro umano, e
+sette delle otto chiedevano un **giudizio visivo** che nessun test headless può dare. Ne sono arrivati quattro
+in dieci minuti di gioco:
+
+```text
+E2 HEX gate: 8/14 ✅
+Verdi:   PIE-HEXPLAY-1 · -2 · -3 · -4 · -4b · -5 · -9 · -10
 Residui:
 - PIE-HEXPLAY-3b   🟡  metà «coperto/LOS» — serve una cella con bBlocksLineOfSight
-- PIE-HEXPLAY-4    ⏳  fluidità del playback (logica coperta headless)
-- PIE-HEXPLAY-4b   ⏳  playback visivo del Dash (la fase è già osservata nel log)
 - PIE-HEXPLAY-6    🟡  1 dei 3 esiti fatto; restano LineHitsThrough, elevazione e il giudizio UX
-- PIE-HEXPLAY-6b   ⏳  leggibilità della preview di forma (cono NON verificabile: nessuna abilità lo usa)
+- PIE-HEXPLAY-6b   🟡  ← era ⏳: la LINEA è verificata, resta l'area r1 su più bersagli
 - PIE-HEXPLAY-6c   ⏳  scivolamento della spinta (Push 1; Push 2 non esiste più)
 - PIE-HEXPLAY-7    🟡  resta il giudizio sul comportamento del bot, non solo le coordinate assiali
 - PIE-HEXPLAY-8    🟡  playback del cambio di quota (LayerHeight)
 
 Fuori perimetro: PIE-HEXPLAY-11 (presentazione, E21)
+Fuori gate ma di U6: PIE-FACING-1 🟡 — resta il solo salto playback con Spazio
 ```
 
-Identico a quanto **#16** dichiara al 2026-08-25. Le otto residue sono **tutte** lavoro umano in PIE, e sette
-delle otto chiedono un **giudizio visivo** che nessun test headless può dare — è il motivo per cui il gate non
-si muove da solo.
+⚠️ **E la seduta è stata misurata su un albero che non è quello che si spedisce**, dichiarato in ogni voce
+invece che taciuto: `D:\Repositories\refactor-tactics-main`, branch `diag/1665-istanze-board` @ `20d59973`,
+con `Content/` **non pulito** — tre modifiche non committate, fra cui `BP_GameMode.uasset`. Il criterio che ha
+deciso cosa registrare non è stato «l'albero è sporco, niente vale», ma **cosa quel diff può toccare**: il
+playback vive in `ARTTurnManager` e le forme in `RTHexCombatLibrary`, quindi `-4`, `-4b` e `-6b` reggono;
+`PIE-FACING-1` invece dipende dalle `HeroUnitClasses` del GameMode, ed è rimasta con riserva finché l'autore
+non ha dichiarato che quelle modifiche erano di frontend.
 
 ---
 
