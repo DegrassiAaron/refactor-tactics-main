@@ -232,11 +232,21 @@ dal quadrato: su hex vanno riguardati, non dati per buoni.
 **Sbloccata da**: CP 6.8 · **Percorso critico**: sì
 **Produce**: **chiusura di M6 / E2** — sessione D verde
 
-**Cosa fai**: percorso che usa la transizione fra layer 0 e 1 (l'unità deve cambiare quota, non teletrasportarsi);
-rimuovi l'arco e verifica che il path **fallisca**. Poi una partita intera, dall'avvio alla vittoria.
+**Cosa fai**: percorso che usa la transizione fra layer 0 e 1 (l'unità deve cambiare quota, non teletrasportarsi).
+Poi una partita intera fino a un **esito dichiarato** — vittoria **o** pareggio allo scadere dei round.
 
-**Verifichi**: `PIE-HEXPLAY-8` e la rilettura di `PIE-HEXPLAY-1..9` tutte insieme (sessione D)
-**Finita quando**: le nove voci `PIE-HEXPLAY` sono ✅ · **Sblocca**: U16 · chiusura di CP 6.8, milestone M6, epic E2
+**Verifichi**: `PIE-HEXPLAY-8` e la rilettura delle **quattordici** voci del perimetro E2 tutte insieme
+**Finita quando**: le quattordici voci sono ✅ · **Sblocca**: U16 · chiusura di CP 6.8, milestone M6, epic E2
+
+⚠️ **Corretto il 2026-08-29 — due requisiti ritirati e un numero sbagliato.** Diceva anche *«rimuovi l'arco e
+verifica che il path **fallisca**»*: su `MapSource = GeneratedTestArena` la transizione è creata da codice
+(`MakeTestArena`) e non c'è un asset da editare — quella metà vive su **U1**/**U13** ed è coperta headless da
+`Structures.Bridge.RemovalBreaksPath`, come [`editor-sessions.yaml`](editor-sessions.yaml) dichiara dal
+2026-08-10. Diceva *«dall'avvio alla vittoria»*, superato da
+[`D-184`](../decisions/RT_PDR_00_Decision_Log.md): sul formato spedito l'eliminazione cade al round 21 mentre
+`RoundLimit` è 12, e il pareggio allo scadere è un esito **legittimo**. E diceva *«le nove voci»*: il perimetro
+del gate E2 è **14**, fissato da [#16](https://github.com/DegrassiAaron/refactor-tactics-main/issues/16) il
+2026-08-25.
 
 ---
 

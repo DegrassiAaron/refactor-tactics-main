@@ -349,10 +349,19 @@ sessions:
       transizione. Questa e' la preparazione condivisa da U2…U6: una apertura, cinque sedute.
 
       1. `RTGameMode` come GameMode Override sul livello (`debug-vs-unreal.md` §2).
-      2. Play. Le unita' sono **cilindri**: i `BP_Unit_*` non esistono in `Content/` e il fallback e'
-         previsto — non e' un difetto.
+      2. Play. A schermo entrano i quattro `BP_Unit_*` **skeletal**, non piu' i cilindri.
+         *(Diceva: «le unita' sono **cilindri**: i `BP_Unit_*` non esistono in `Content/` e il fallback e'
+         previsto». Falsa due volte, corretta il 2026-08-29: i quattro Blueprint sono **versionati** — cio'
+         che mancava era l'aggancio al GameMode, non l'asset — e dal 2026-08-25 con #287 entrano in partita.
+         Non e' cosmetica: e' la precondizione visiva di `PIE-FACING-1`, che U6 verifica e che il registro
+         dichiara sbloccata da quel giorno.)*
       3. Due unita' verso la stessa cella, lock-in con **Spazio** → contesa.
-      4. Ripeti con lo **scambio diretto A↔B**: e' l'unico caso che i test headless non coprono.
+      4. Lo **scambio diretto A↔B** NON si prova qui: la pianificazione lo rifiuta prima del resolver
+         (`FindPathForUnit`, goal occupato → `NoPath`), quindi non c'e' nulla da osservare.
+         *(Diceva: «ripeti con lo scambio diretto A↔B: e' l'unico caso che i test headless non coprono».
+         Falso dal 2026-08-08 e corretto il 2026-08-29 — la clausola era gia' stata rimossa dall'esito
+         atteso di `PIE-HEXPLAY-5` il 2026-08-10, ed e' pinnata headless da
+         `Scenario.RunnerSwapRejectedByPlanning`: l'esatto contrario di «i test non lo coprono».)*
     notes: >-
       La verifica «se compare una griglia quadrata c'e' un `ARTGridActor` posato a mano» **non esiste
       piu'**: `ARTGridActor` e' stato rimosso dal codice al CP 7.2, quindi non puo' comparire in un
@@ -429,12 +438,22 @@ sessions:
     shares_setup_with: [U2, U3, U4, U5]
     verifies: [PIE-HEXPLAY-8, PIE-HEXPLAY-10, PIE-HEXPLAY-4b, PIE-FACING-1]
     issues: []
-    done_when: le voci `PIE-HEXPLAY` sono verdi, rilette tutte insieme — sono **15** righe, non nove, e tre lo sono gia'
+    done_when: le **14** voci del perimetro E2 sono verdi, rilette tutte insieme — il registro ne porta 15, `-11` e' fuori (E21)
     unblocks: [U16, U19, M6.8]
     steps: |
       Percorso che usa la transizione fra layer 0 e 1 — l'unita' deve **cambiare quota**, non
-      teletrasportarsi. Poi una partita intera, dall'avvio alla vittoria, rileggendo
-      `PIE-HEXPLAY-1..9` insieme.
+      teletrasportarsi. Poi una partita intera fino a un **esito dichiarato** — vittoria **o** pareggio
+      allo scadere dei round — rileggendo insieme le **quattordici** voci del gate: `-1 -2 -3 -3b -4 -4b
+      -5 -6 -6b -6c -7 -8 -9 -10`.
+
+      ⚠️ **Corretto il 2026-08-29, e la riga portava tre difetti.** Il `done_when` diceva *«sono **15**
+      righe, non nove, e **tre** lo sono gia'»*: il 15 e' il numero della **famiglia nel registro**, non del
+      **perimetro E2**, che il gate di #16 fissa a **14** dal 2026-08-25 — eseguire `-11` non avvicina la
+      chiusura di E2, e non eseguirlo non la blocca; e il «tre» era una misura del **2026-08-21** scritta al
+      presente, oggi **sei**. I passi dicevano *«dall'avvio alla vittoria»* e *«rileggendo `PIE-HEXPLAY-1..9`
+      insieme»*: la vittoria cade con [D-184] — sul formato spedito l'eliminazione arriva al round 21 e
+      `RoundLimit` e' 12 — e `1..9` e' un terzo insieme ancora diverso. **Lo stato non si copia da qui**: si
+      rilegge dal registro, che e' l'owner del verdetto.
 
       ⚠️ **«Rimuovi l'arco e verifica che il path fallisca» NON si fa in questa apertura** (corretto il
       2026-08-10): su `MapSource=GeneratedTestArena` la transizione e' creata da codice
