@@ -81,7 +81,8 @@ plausibilità. Se due fonti normative restano davvero incompatibili, fermati e r
 - **Pathfinding**: A* sul grafo, costi interi; LOS, targeting e traiettorie sono servizi distinti.
 - **Authority**: gameplay progettato server-authoritative anche quando la v0.1 gira offline.
 - **Privacy**: intenti completi solo dove autorizzati; mai replica globale di planning da “nascondere” in UI.
-- **VCS**: Git + Git LFS; asset UE binari gestiti dal Content Browser.
+- **VCS**: Git, **senza LFS** — gli asset UE binari non sono versionati, salvo le riammissioni per ruolo
+  dichiarate in `.gitignore`; si creano e si modificano dal Content Browser, mai dal filesystem.
 
 ## Modello azioni e turni
 
