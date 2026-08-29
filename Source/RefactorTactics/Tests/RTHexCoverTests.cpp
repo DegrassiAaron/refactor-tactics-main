@@ -144,7 +144,12 @@ bool FRTCoverLowCoverWrongSideTest::RunTest(const FString&)
 {
 	TArray<FRTHexCombatUnit> Units;
 	Units.Add(CoverUnit(0, 0, FRTCellId(0, 0)));
-	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0)));
+	// Facing `W` come nel gemello `DirectionalDamageReduction`, e per la stessa ragione: con il default
+	// (`E`) l'attaccante starebbe alle spalle e [CP 16.2] annullerebbe la copertura comunque, quindi il
+	// «danno pieno» qui sotto sarebbe vero per il FACING invece che per il bordo non attraversato — cioe'
+	// il test non misurerebbe la regola che dichiara. MISURATO (`#1529`): forzando ogni bordo a contare
+	// come attraversato, con il default questo test restava verde; col facing dichiarato cade.
+	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0), ERTHexDirection::W));
 
 	TArray<FRTHexAttackIntent> Intents;
 	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 30));
