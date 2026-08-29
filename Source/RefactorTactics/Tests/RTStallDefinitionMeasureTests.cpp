@@ -173,6 +173,12 @@ namespace RTStallMisura
 	 * «armata» — quindi la sua sequenza non puo' essere piu' corta di quella della (a), ne' piu' lunga di
 	 * quella della (b), che non esenta nulla. E' una proprieta' delle definizioni, non del bot: se cade, il
 	 * numero pubblicato non descrive la definizione che dice di descrivere.
+	 *
+	 * ⚠️ **Cosa NON puo' cogliere, e va detto perche' altrimenti si legge come una verifica dei numeri**:
+	 * l'annidamento dei predicati in `Avanza` rende questa disuguaglianza vera per **qualunque** input,
+	 * quindi nessuna board — nessun bot, nessuna mappa, nessun bilanciamento — puo' farla diventare rossa.
+	 * Cade in un caso solo: se qualcuno cambia un predicato di `Avanza` rompendo l'annidamento. E' una
+	 * guardia sulle DEFINIZIONI, non una misura sui dati (#1655).
 	 */
 	void VerificaOrdinamento(FAutomationTestBase& Test, const TCHAR* Board, const FRTStallDefinitionProbe& S)
 	{
@@ -447,6 +453,13 @@ bool FRTStallDefinitionsAuthoredMapTest::RunTest(const FString&)
 	// falsi, con ogni asserzione verde.
 	TestEqual(FString::Printf(TEXT("chiavi distinte quante le unita' vive (%d su %d)"),
 		Guardie.MinChiaviDistinte, Guardie.MinVive), Guardie.MinChiaviDistinte, Guardie.MinVive);
+
+	// 🔴 **L'allestimento e' quello previsto, asserito e non assunto** (#1655). `UmaneViste` era raccolto a
+	// ogni turno e non guardato da nessuno: un contatore che esiste e che nessuno controlla e' un difetto
+	// della stessa famiglia del numero riportato a mano. Se una sola unita' restasse al giocatore, il bot
+	// non pianificherebbe per lei e ogni sequenza ferma qui sotto descriverebbe una partita a meta'.
+	TestEqual(FString::Printf(TEXT("nessuna unita' umana in campo (%d viste in %d osservazioni)"),
+		Guardie.UmaneViste, Guardie.Osservazioni), Guardie.UmaneViste, 0);
 	RTStallMisura::VerificaOrdinamento(*this, TEXT("mappa d'autore"), Sonda);
 
 	RTWorldFixtures::DestroyWorld(World);
@@ -508,10 +521,31 @@ bool FRTStallDefinitionsGeneratedArenaTest::RunTest(const FString&)
 	if (Turni < 0) { RTWorldFixtures::DestroyWorld(World); return false; }
 
 	const int32 RoundLimit = TM->GetMatchRules().RoundLimit;
-	RTStallMisura::Riporta(*this, TEXT("arena generata"), Sonda, Turni, FMath::Max(2, RoundLimit / 3));
+	const int32 LimiteInUso = FMath::Max(2, RoundLimit / 3);
+	RTStallMisura::Riporta(*this, TEXT("arena generata"), Sonda, Turni, LimiteInUso);
 
 	TestTrue(FString::Printf(TEXT("premessa: la partita ha prodotto turni e unita' (%d turni, %d unita')"),
 		Turni, Sonda.UnitaOsservate()), Turni > 0 && Sonda.UnitaOsservate() > 0);
+
+	// 🔴 **IL CONTROLLO DEL BANCO, che l'intestazione dichiarava e nessuno asseriva** (#1655).
+	//
+	// La (b) su questa board e' il **margine zero** che `OPEN_DECISIONS` registra per `BOT-STALL-1`: la
+	// sequenza ferma piu' lunga tocca esattamente la soglia in uso. E' cio' che rende significativi tutti i
+	// numeri (c) stampati qui sopra — se la (b) misurata qui non fosse quella che l'oracolo di questa board
+	// vede, questo test starebbe descrivendo un'altra partita e il referto sarebbe plausibile e falso.
+	//
+	// ⚠️ **Un rosso qui NON e' un difetto del bot, ed e' il punto**: significa che il margine registrato in
+	// `OPEN_DECISIONS` e' scaduto. Si **rimisura** e si aggiorna la riga — non si ritara la soglia, che e'
+	// `D-184` e non materia di un test. Stessa disciplina del grilletto
+	// `Bot.ShippedRosterStaysAboveTheBackstepBudget`: una premessa che si muove deve farlo sapere a qualcuno.
+	// `EDef` e' un alias locale ai corpi che lo usano piu' volte (vedi i due Meta test): per due sole
+	// occorrenze si qualifica, invece di introdurne un terzo.
+	const int32 ImmobilitaMisurata =
+		Sonda.Peggiore(FRTStallDefinitionProbe::EDefinizione::Immobilita);
+	TestEqual(FString::Printf(
+		TEXT("controllo: la (b) tocca la soglia in uso (margine zero) — %d su %d"),
+		ImmobilitaMisurata, LimiteInUso),
+		ImmobilitaMisurata, LimiteInUso);
 	TestTrue(FString::Printf(
 		TEXT("il classificatore del danno risponde: %d turni-unita' armati in %d turni"),
 		TurniArmati, Turni), TurniArmati > 0);
@@ -528,6 +562,13 @@ bool FRTStallDefinitionsGeneratedArenaTest::RunTest(const FString&)
 	// falsi, con ogni asserzione verde.
 	TestEqual(FString::Printf(TEXT("chiavi distinte quante le unita' vive (%d su %d)"),
 		Guardie.MinChiaviDistinte, Guardie.MinVive), Guardie.MinChiaviDistinte, Guardie.MinVive);
+
+	// 🔴 **L'allestimento e' quello previsto, asserito e non assunto** (#1655). `UmaneViste` era raccolto a
+	// ogni turno e non guardato da nessuno: un contatore che esiste e che nessuno controlla e' un difetto
+	// della stessa famiglia del numero riportato a mano. Se una sola unita' restasse al giocatore, il bot
+	// non pianificherebbe per lei e ogni sequenza ferma qui sotto descriverebbe una partita a meta'.
+	TestEqual(FString::Printf(TEXT("nessuna unita' umana in campo (%d viste in %d osservazioni)"),
+		Guardie.UmaneViste, Guardie.Osservazioni), Guardie.UmaneViste, 0);
 	RTStallMisura::VerificaOrdinamento(*this, TEXT("arena generata"), Sonda);
 
 	RTWorldFixtures::DestroyWorld(World);
