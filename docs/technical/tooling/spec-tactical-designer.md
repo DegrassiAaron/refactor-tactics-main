@@ -1,6 +1,6 @@
 # Spec — Tactical Designer: un solo loop fra mappa, skill e scenario
 
-> `CURRENT` · **Stato**: owner del **concetto** e del suo confine, allineato al codice il **2026-08-17**
+> `CURRENT` · **Stato**: owner del **concetto** e del suo confine, allineato al codice il **2026-08-29**
 > **Autorità**: subordinata a [`piano-canonico-mvp.md`](../../product/piano-canonico-mvp.md) e al
 > [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md).
 > **Nato da**: [referto di consolidamento del 2026-08-17](../../roadmap/plans/tactical-designer-consolidamento-2026-08-17.md),
@@ -214,6 +214,128 @@ Non è teorico: lo snap del gesto d'autore vive in `Map/RTGeometryGrammar` e i s
 [`D-131`](../../decisions/RT_PDR_00_Decision_Log.md) dà a `FRTHexCover` il campo `bGenerated`: il rebake rimuove
 e riscrive **solo** le coperture generate e non tocca mai quelle dipinte a mano. Il campo **non entra
 nell'hash di stato** — è metadato d'authoring, e due mappe che si giocano identiche non devono divergere.
+
+### 4.1 L'ingresso al workflow: `L_DevSandbox`, e cosa il launcher ha il diritto di decidere
+
+Le quattro superfici del §2 dicono cosa il designer può fare **una volta dentro**. Nessuna riga diceva **come
+ci entra**, e l'ingresso è una superficie d'authoring come le altre: ha un owner, ha un confine, e ha una lista
+di cose che non gli spettano.
+
+**`L_DevSandbox` è il bootstrap environment del workflow.** Non è una scelta nuova, è una che il progetto ha
+già preso e non aveva scritto: [`Config/DefaultEngine.ini`](../../../Config/DefaultEngine.ini) dichiara
+`EditorStartupMap=/Game/RT/Maps/Dev/L_DevSandbox/L_DevSandbox` col commento *«aprire l'editor sul menu non
+serve a nessuno»*. Il livello su cui l'editor si apre **è già** quello del lavoro tecnico.
+
+> ⛔ **Aprire `L_DevSandbox` non avvia nessuno scenario.** L'ingresso presenta il lavoro possibile; non ne
+> sceglie uno. Un livello che al caricamento esegue qualcosa non è un ingresso, è un `Play` con più passi — e
+> toglie al designer la sola decisione che l'ingresso esiste per fargli prendere.
+
+#### `Start Session` non è `Run`, e la differenza è quale domanda si sta facendo
+
+| | Cosa fa | Cosa cambia | Chi risponde |
+|---|---|---|---|
+| **`Start Session`** | apre uno scenario nella facade — `OpenById`, oppure `NewScenario` per uno nuovo | *cosa hai aperto davanti* | `URTScenarioAuthoring` |
+| **`Run`** | esegue lo scenario aperto attraverso lo Scenario Harness | *cosa succede se lo giochi* | il resolver, per la via reale |
+
+Fra i due resta vero **lo scenario aperto**: `Run` non lo chiude e non lo modifica, e `Reset` lo riporta allo
+stato salvato **dicendo** se ha scartato modifiche (`bOutDiscardedEdits`). Sono due domande diverse sullo stesso
+oggetto, e confonderle è il modo in cui un ingresso diventa un secondo `Play`.
+
+⚠️ **`Run` non è materia di questa sezione se non per il confine**: passa da `URTScenarioAuthoring::Run` e da
+nessun'altra parte, ed è presidiato da `RefactorTactics.Scenario.RunFromTheEditorMatchesTheHeadlessRun`. Una
+seconda via d'esecuzione con semantica propria è la definizione del secondo simulatore che il §3 vieta.
+
+#### Qual è la Session — la risposta era già scritta
+
+⚠️ Nel runtime «sessione» è un nome **già occupato due volte**: `FRTScenarioSession` è l'esecuzione di uno
+scenario un passo per frame, e `URTScenarioAuthoring` è la facade che possiede il draft aperto. Un terzo
+oggetto chiamato allo stesso modo non chiarirebbe niente.
+
+**La Tactical Designer Session è `URTScenarioAuthoring`.** Ha già tutto ciò che una sessione d'authoring deve
+avere — `OpenById` · `IsOpen` · `Close` · `Validate` · `Run` · `Reset` · `GetSummary` — e il launcher **non ne
+crea una seconda**.
+
+Ciò che il launcher aggiunge è un punto d'accesso, e la sua forma è decisa da
+[ADR-0010 §4](../../decisions/adr-0010-esposizione-blueprint-scenario-harness.md), che l'aveva prevista senza
+sapere quando servisse:
+
+> *«Se un giorno servirà un punto d'accesso unico in Editor, sarà un `UEditorSubsystem` di poche righe **sopra
+> questa stessa facade**, nel modulo Editor, dove un punto d'accesso d'editor appartiene.»*
+
+Il launcher è quel giorno. ∴ **`URTDevSandboxLauncherSubsystem`**, un `UEditorSubsystem` nel modulo Editor, e
+il nome dice il livello a cui è legato e il mestiere che fa — non il nome del workflow.
+
+> ⛔ Resta vietato un `URTTacticalDesignerSubsystem` (§2). ⚠️ **E il divieto riguarda l'autorità, non il
+> modulo**: la deduzione *«quindi niente nel modulo Editor»* è già stata commessa più volte in questo
+> progetto, ed è falsa — il modulo Editor ha `URTHexEditorMode`, i cinque tool e i propri Automation Test.
+> Ciò che non può vivere lì è ciò che i test headless devono poter chiamare, ed è precisamente perché la
+> facade **non** è un subsystem (ADR-0010 §4).
+
+Il subsystem possiede tre cose, e nessuna riguarda il gioco:
+
+| Possiede | Perché non può stare nella facade |
+|---|---|
+| **quale** facade è la sessione corrente | la facade non è globale per costruzione — più draft possono essere aperti insieme, ed è una proprietà voluta |
+| il ciclo di vita legato all'apertura della mappa | è un fatto d'editor: la facade non sa che esistono i livelli |
+| lo stato per-utente dell'ultima selezione | è preferenza locale, non dato canonico — vive in `Saved/`, che [`.gitignore`](../../../.gitignore) ignora già, e non entra in source control per costruzione |
+
+#### Chi apre l'editor per lavorare su altro
+
+`EditorStartupMap` punta a `L_DevSandbox`: **il launcher si presenta a ogni avvio dell'editor**, anche a chi ha
+aperto Unreal per il Frontend. «Non aprirsi sulle mappe di gameplay» non copre il caso, perché DevSandbox *è* la
+mappa d'avvio.
+
+Il contract è che l'ingresso **si presenta e non pretende**: è un pannello dockabile la cui visibilità la ricorda
+il layout dell'editor, non un modale; non ruba il focus; non esegue niente. Chi lo chiude non se lo ritrova
+aperto, e il meccanismo è quello nativo di Unreal — nessuno nuovo.
+
+Su una mappa che non è `L_DevSandbox` l'ingresso **non si presenta da sé**. Non è una restrizione di
+capability — la facade resta raggiungibile da chi sa dove sta — è che presentarsi su `L_HexArena` o su una
+mappa di frontend affermerebbe un legame che non esiste: il bootstrap è di *questo* livello, e un ingresso che
+compare ovunque smette di dire dove si entra.
+
+⏸️ **Non ancora misurato**, ed è la prima riga di lavoro dell'implementazione: se
+`FEditorDelegates::OnMapOpened` scatti sul caricamento dell'`EditorStartupMap` all'avvio dell'editor. Se non
+scatta, l'ingresso ha bisogno di un secondo gancio, e va scoperto prima di scrivere il resto.
+
+#### Cosa il launcher decide, e cosa deve chiedere
+
+| Il launcher decide | Il launcher chiede, e a chi |
+|---|---|
+| cosa mostrare, cosa filtrare, quale pannello attivare | *quali scenari esistono* → `URTScenarioIndex` |
+| quale sessione aprire | *questo scenario è valido* → `URTScenarioAuthoring::Validate` |
+| se ricordare l'ultima selezione | *cosa contiene questo scenario* → `FRTScenarioSummary`, `FRTScenarioUnitView` |
+| — | *cosa succede se lo giochi* → Scenario Harness, e nient'altro |
+
+⚠️ **Gli assi su cui il launcher presenta la scelta non sono decisi qui.** Mappa e formato **non sono campi di
+uno scenario** — `FRTTestScenario` porta `Fixture` e `MapRadius`, e `Format.*` appartiene a `URTMatchFormatData`,
+che l'harness non nomina mai. La decisione ha la sua issue.
+
+#### Gli stati di fallimento che l'ingresso deve saper dire
+
+Mai `silent fallback`, `silent mutation`, `implicit conversion` — è la politica che il runtime applica già in
+tre punti indipendenti (`MakeFixtureArena` rifiuta un nome sconosciuto invece di dare un'arena vuota,
+`ResolvePath` rifiuta un id ambiguo invece di sceglierne uno, `ResolveRules` è fail-closed).
+
+Lo stesso vale a monte dello scenario: un id che l'indice non risolve, un file che non si legge e uno scenario
+che `Validate` respinge sono **tre** esiti, non un `errore`. La facade li distingue già con
+`ERTScenarioAuthoringResult` — `NotFound`, `Invalid`, `NoScenarioOpen` — e ADR-0010 §3 dice perché quell'enum
+non è un `bool`: *«un `bool` costringerebbe la UI a indovinare perché qualcosa non è andato»*. L'ingresso
+riporta il codice che ha ricevuto; non ne inventa uno proprio e non ne fonde due.
+
+⚠️ **`MapAsset assente` e `MapAsset presente ma vuoto` restano due condizioni distinte**, e la seconda è quella
+che si verifica davvero: `DA_HexMap_Sandbox` — l'asset che la convenzione di cartella associa a `L_DevSandbox` —
+**è vuoto**. Il runtime le distingue già, perché `DemoArenaRadius` è documentato come ripiego *«quando il livello
+non porta una mappa esagonale con celle (asset assente **oppure presente ma vuoto**)»*. Fonderle in un solo
+`No Map Asset` perderebbe l'unico caso reale.
+
+⚠️ E l'asset a cui il livello punta è **volatile**: `GenerateFixtureIntoAsset` riscrive
+`_Scratch/DA_HexMap_Scratch_Basin` a ogni rigenerazione. Una selezione ricordata può quindi riaprirsi su una
+mappa cambiata sotto di lei — è il comportamento normale dello strumento, non un caso limite, e va rilevato e
+detto invece che ripristinato in silenzio.
+
+> 🔵 Lo **stato** di questo ingresso vive in [#1678](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1678)
+> e nelle sue sub-issue, non qui. Questa sezione dichiara il confine, che è ciò che questo documento possiede.
 
 ---
 
