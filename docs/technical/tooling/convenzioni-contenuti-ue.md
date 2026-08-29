@@ -233,10 +233,14 @@ I sorgenti non importati in Unreal non stanno in `Content/`:
 (`.blend`, `.psd`, `.kra`, `.svg`, `.fbx`, `.wav` originali, file Substance, reference art.)
 
 > **Nel progetto**: `SourceAssets/` **non esiste ancora** — va creata alla prima necessità reale, non in
-> anticipo. ⚠️ **Git LFS è disattivato** su questo repo (budget esaurito, vedi `.gitattributes`): gli asset
-> binari UE **non sono versionati** salvo due eccezioni esplicite nel `.gitignore`. Prima di introdurre
-> binari grandi va deciso come versionarli — la regola generale «binari grandi via Git LFS» qui **non è
-> attiva**.
+> anticipo. ⚠️ **Git LFS non è attivo** su questo repo: gli asset binari UE **non sono versionati** salvo
+> le riammissioni per ruolo dichiarate nel `.gitignore`. Prima di introdurre binari grandi va deciso come
+> versionarli — la regola generale «binari grandi via Git LFS» qui **non è attiva**.
+> 🔴 *Diceva «disattivato (budget esaurito, vedi `.gitattributes`) [...] salvo **due** eccezioni
+> esplicite» fino al 2026-08-29 ([#1659](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1659)). Due difetti in una riga: `.gitattributes` **non esiste**, quindi il
+> rimando non porta a nulla; e le riammissioni non sono due — si contano con `grep -c "^!Content" .gitignore`,
+> che è lo stesso comando che [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) `FMT-2` prescrive di rieseguire
+> invece di copiare, dopo che quel numero era già scaduto una volta.*
 
 ## 10. Formato da usare quando si propone un asset
 

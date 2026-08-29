@@ -268,8 +268,15 @@ Un asset è **accettabile** solo se soddisfa criteri verificabili:
 
 ## 9. Robustezza & Git (Nygard)
 
-- **Git LFS**: mesh/anim/audio/texture sono binari → `.gitattributes` deve tracciarli (`.uasset`/`.umap` già in
-  LFS, roadmap CP 0.3). Verificare `git lfs ls-files` dopo l'import.
+- **Binari, e niente LFS**: mesh/anim/audio/texture sono binari e **non entrano nel repository**.
+  `.gitignore` li esclude per estensione e ne riammette per **ruolo** — *«niente Git LFS, evita costi/repo
+  pesante»* — e `.gitattributes` non esiste. La verifica dopo un import è **`git check-ignore -v <path>`**:
+  dice se l'asset entra o **sparisce in silenzio**, che è il rischio reale, perché `.gitignore` dichiara che
+  dimenticare una riammissione *«non produce nessun segnale»*.
+  🔴 *Questa riga diceva «`.gitattributes` deve tracciarli (`.uasset`/`.umap` **già in LFS**, roadmap
+  CP 0.3). Verificare `git lfs ls-files` dopo l'import» fino al 2026-08-29 ([#1659](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1659)). Il difetto peggiore non era
+  l'autorità sbagliata ma il **metodo**: `git lfs ls-files` risponde vuoto sempre, quindi chi verificava non
+  poteva distinguere un import fallito da una riga scaduta.*
 - **Bloat**: non versionare interi pack se ne serve una frazione; valutare cosa entra in `Content/`.
 - **Redirectors**: rinominare/spostare asset crea redirector → **Content Browser > Fix Up Redirectors** prima del commit.
 - **Fallback**: soft-ptr nulla ⇒ cilindro/silenzio (nessun crash).
