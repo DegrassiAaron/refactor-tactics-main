@@ -361,7 +361,7 @@ bool FRTSpawnedUnitLoadoutTest::RunTest(const FString&)
 	TestTrue(*FString::Printf(TEXT("almeno un'unita' entra equipaggiata (oggi: %d)"), Equipaggiati),
 		Equipaggiati > 0);
 
-	// **Il bot come chiunque altro.** Non c'è un ramo per lui: `SpawnUnitForHero` è il punto unico, e questa
+	// **Il bot come chiunque altro.** Non c'è un ramo per lui: `SpawnHero` è il punto unico, e questa
 	// asserzione è ciò che impedisce a un `if (!bIsBotControlled)` di rientrare domani senza far rosso.
 	for (const ARTUnit* Unit : Units)
 	{

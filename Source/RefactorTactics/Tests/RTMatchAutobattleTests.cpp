@@ -370,10 +370,10 @@ bool FRTAutobattlePlanningSecondsTest::RunTest(const FString&)
  * resta attiva per ogni Play successivo, e senza saperlo si cerca il difetto nella property sbagliata.
  *
  * 🔴 **E la banda descrive la partita CHE SI STA GIOCANDO, non l'ultima cosa digitata.** `DrawHUD` la
- * ridisegna a ogni fotogramma mentre `bIsBotControlled` e' scritto una volta sola allo spawn: leggendo il
- * resolver, una console variable cambiata a meta' sessione avrebbe fatto comparire «AUTOBATTLE» su una
- * partita con la squadra 0 ancora umana — e sparire la banda da una partita in cui i bot continuano a
- * giocare. Trovato in code review; l'ultimo blocco di questo test copre entrambi i versi.
+ * ridisegna a ogni fotogramma mentre `bIsBotControlled` si scrive all'allestimento, non per-frame:
+ * leggendo il resolver, una console variable cambiata a meta' sessione avrebbe fatto comparire
+ * «AUTOBATTLE» su una partita con la squadra 0 ancora umana — e sparire la banda da una partita in cui i
+ * bot continuano a giocare. Trovato in code review; l'ultimo blocco di questo test copre entrambi i versi.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleBannerTest,
 	"RefactorTactics.Match.Autobattle.BannerDeclaresUnattendedMatch",
@@ -565,11 +565,14 @@ bool FRTAutobattleFlagValueTest::RunTest(const FString&)
 /**
  * LA MODALITA' RAGGIUNGE ANCHE LE UNITA' GIA' POSATE NEL LIVELLO.
  *
- * 🔴 `SpawnHero` e' l'unico sito che scrive `bIsBotControlled`, e su un livello che porta le proprie unita'
+ * 🔴 `SpawnHero` scrive `bIsBotControlled`, e su un livello che porta le proprie unita'
  * `SetupHexMatch` ritorna **prima** di arrivarci: il log dichiarava «entrambe le squadre al bot» mentre la
  * squadra 0 restava con il valore cotto nel `.umap`, nessuno pianificava per lei e la partita macinava turni
  * vuoti fino al `RoundLimit`. Trovato in code review — il blocco del Planning era gia' stato spostato sopra
  * quel ritorno *per questo stesso scenario*, l'assegnazione no.
+ *
+ * ⚠️ Il ramo che questo test copre non e' l'unico che scrive `bIsBotControlled`: l'elenco sta alla
+ * dichiarazione del campo, `ARTUnit::bIsBotControlled`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleExistingUnitsTest,
 	"RefactorTactics.Match.Autobattle.AppliesToUnitsAlreadyInTheLevel",
