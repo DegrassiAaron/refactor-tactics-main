@@ -20,8 +20,8 @@
 Il prompt è **il più disciplinato dell'archivio sui divieti e il più esposto sulla collocazione**: i suoi
 guardrail — «no second simulator», «non trasformare #472», «non creare D-nnn automaticamente», «non infilare
 la Trial nella v0.1 dalla porta di servizio» — descrivono esattamente le trappole che questo repository ha
-già pagato; ma **la parola «Editor», che il prompt usa come collocazione del lavoro in tutte le sue slice, è
-misurabilmente falsa**, e la decisione che chiede di prendere al §2 è già scritta in un ADR di due giorni fa
+già pagato; ma **il prompt colloca il lavoro in ogni slice senza mai nominare la porta da cui deve passare**,
+e la decisione che chiede di prendere al §2 è già scritta in un ADR di due giorni fa
 che il prompt non elenca fra le fonti.
 
 | | Voci |
@@ -43,7 +43,7 @@ altre correzioni **riducono** il lavoro: quattro delle nove Trial Slice hanno un
 > 🔵 sul posto invece che applicate in silenzio: un referto che misura un sorgente e sbaglia le proprie
 > misure deve mostrare dove, o insegna a fidarsi del formato invece che del numero.
 
-⚠️ Nessuna suite eseguita, nessuna build, nessuna scrittura su GitHub, nessuna issue creata o modificata.
+⚠️ Nessuna suite eseguita, nessuna build. **Nessuna scrittura su GitHub al momento della revisione** — le §8 e §9 sono state eseguite dopo, il 2026-08-29, e il §15 elenca cosa: questa riga descrive la passata di misura, non lo stato di oggi.
 Issue lette lato server con `gh` il 2026-08-29; `Source/` e `docs/` a `8aa73027`.
 
 ---
@@ -91,7 +91,7 @@ di `C4`**, non una sua eccezione.
 
 ---
 
-## 3. 🔴 C1 — il Composer consegnato non vive nel modulo Editor, e il prompt lo colloca lì ovunque
+## 3. 🔴 C1 — il prompt non nomina mai la porta, e il Composer non è dove lo colloca
 
 Il prompt chiede issue «**Editor-only**» (§T1), «UI Editor» (§2), «Editor Scenario Playback» (§7.1),
 «quali elementi sono Editor/PIE» (§7.2), e vieta il codice runtime in §0.6. Misurato:
@@ -379,13 +379,13 @@ Con le correzioni di §3–§10 applicate. **Stato** è ciò che esiste a `8aa73
 | Slice | Capability | Owner misurato | Stato | Azione |
 |---|---|---|---|---|
 | **T0** | baseline loop | `FRTScenarioSession` · `URTScenarioAuthoring` · #1114–#1117 | ✅ consegnato **e coperto** | **nessuna issue**: il confronto Blueprint↔headless è già `RunFromTheEditorMatchesTheHeadlessRun` (`M4`) |
-| **T1** | visual playback | `FRTReplayViewModel` + `RTReplaySeekLibrary` (core) · UI da fare | 🟡 core c'è, resa graybox no | **issue nuova**, consumer Blueprint — non `#472`, non Editor module |
-| **T2** | intent authoring | `FRTScenarioIntent` (due slot) | 🟡 formato c'è, UI Move/Wait sola | **issue nuova**, modellata sui due slot (`A2`) |
-| **T3** | multi-turn | `FRTScenarioTurn` · `Turns[]` | 🟡 dato c'è, UI no | **issue nuova**, piccola |
-| **T4** | reaction/decision | `FRTScenarioDecision` (`FIRE`/`HOLD`, `Target` vietato con `HOLD`) | 🟡 dato c'è, UI no | **issue nuova** · dipende da `T1` per il feedback visivo |
-| **T5** | initial state / env | `FRTScenarioUnit` (+ `bLoadoutDeclared`) · gap in spec §5 | 🟡 parziale | **una issue per gap**, non una sola. `Seed` differito (`M5`) |
-| **T6** | probes | #711 (movement) · LOS/targeting assenti | 🟡 uno su molti | **aggiornare #711** solo per movimento · sorelle sottili per il resto |
-| **T7** | result inspector | `GetLastRunReport()` · `GetLastRunLog()` sulla facade · #1117 | 🟡 **result e TurnLog consegnati**, State Diff no | **issue nuova sul solo State Diff**. 🔵 *Questa riga diceva «nessun inspector equivalente trovato»: metà di `T7` è esposta e coperta da `RefactorTactics.Scenario.RunExposesAReadableTurnLog` — una issue indistinta avrebbe rispecificato una superficie consegnata* |
+| **T1** | visual playback | `FRTReplayViewModel` + `RTReplaySeekLibrary` (core) · UI da fare | 🟡 core c'è, resa graybox no | **#1625** ✅ aperta — consumer Blueprint del ViewModel replay, non `#472` |
+| **T2** | intent authoring | `FRTScenarioIntent` (due slot) | 🟡 formato c'è, UI Move/Wait sola | **#1626** ✅ aperta — modellata sui due slot (`A2`) |
+| **T3** | multi-turn | `FRTScenarioTurn` · `Turns[]` | 🟡 dato c'è, UI no | **#1627** ✅ aperta |
+| **T4** | reaction/decision | `FRTScenarioDecision` (`FIRE`/`HOLD`, `Target` vietato con `HOLD`) | 🟡 dato c'è, UI no | **#1628** ✅ aperta · dipende da `T1` per il feedback visivo |
+| **T5** | initial state / env | `FRTScenarioUnit` (+ `bLoadoutDeclared`) · gap in spec §5 | 🟡 parziale | **#1629** ✅ aperta — e i gap sono **uno**, non tre: ambiente ha innesco `M9.2`, override di abilità lo Skill Workbench. `Seed` non è un gap (`M5`) |
+| **T6** | probes | #711 (movement) · LOS/targeting assenti | 🟡 uno su molti | **#711** commentata e collocata come `T6`, **scope invariato** · sorelle LOS/targeting **non aperte**, dichiarate post-Trial nell'epic |
+| **T7** | result inspector | `GetLastRunReport()` · `GetLastRunLog()` sulla facade · #1117 | 🟡 **result e TurnLog consegnati**, State Diff no | **#1630** ✅ aperta, sul solo State Diff. 🔵 *Questa riga diceva «nessun inspector equivalente trovato»: metà di `T7` è esposta e coperta da `RefactorTactics.Scenario.RunExposesAReadableTurnLog` — una issue indistinta avrebbe rispecificato una superficie consegnata* |
 | **T8** | preset/template | — | ⬜ | **post-Trial**, come il prompt stesso suggerisce |
 | **—** | pannello del mode | **#1186**, `OPEN` | 🟡 aperta | **già ha un owner**: nona sub-issue di #1105, dentro la superficie della Trial e assente dalla prima stesura di questo referto |
 
@@ -395,7 +395,7 @@ dependency graph lo conferma invece di correggerlo.
 
 ---
 
-## 13-bis. ➕ Trovato misurando: il guardiano di ADR-0010 protegge otto struct su nove
+## 13-bis. ➕ Trovato misurando: il guardiano di ADR-0010 protegge otto struct su nove — #1631
 
 Non è un difetto del prompt, ed è la cosa più utile emersa dall'intera passata — trovata in code review
 verificando un'affermazione del §3 di questo referto.
@@ -421,7 +421,7 @@ la sua lista non nomina.
 *contenuto* della variante, cioè esattamente la superficie su cui `TD 0.3`/`TD 0.4` costruiranno. Il buco è
 davanti alla direzione in cui la Trial si muove, non dietro.
 
-**Azione**: una riga nell'array, e un'issue piccola che la porti. Non è lavoro della Trial e non va messo
+**Azione**: una riga nell'array. Aperta come **#1631** il 2026-08-29, `bug` · `P3`, deliberatamente **non** sub-issue di #1105. Non è lavoro della Trial e non va messo
 nel suo gate — ma va aperto prima che qualcuno estenda le varianti, perché da quel momento il guardiano
 starebbe mentendo su una struct che qualcuno sta toccando.
 
@@ -440,11 +440,25 @@ avrebbe mescolato due lavori. La revisione è stata fatta in un **worktree** cre
 
 ## 15. Cose non fatte
 
-- ⛔ **Nessuna scrittura su GitHub.** Nessuna issue creata, modificata o chiusa; #1105 non è stato toccato. Il
-  §8 e il §9 del prompt **non sono stati eseguiti**: sono la parte outward-facing del mandato e restano una
-  decisione dell'autore.
-- ⛔ **Nessun documento owner aggiornato.** `spec-tactical-designer.md` porta ancora le tre occorrenze di
-  `A1`; `roadmap-checkpoint.md` M9.4 e `roadmap-v0.1.md` sono invariati.
+- ✅ **Le §8 e §9 sono state eseguite il 2026-08-29**, dopo il merge di questo referto e su richiesta
+  esplicita. Sette issue aperte — **#1625** `T1` · **#1626** `T2` · **#1627** `T3` · **#1628** `T4` ·
+  **#1629** `T5` · **#1630** `T7` · **#1631** il guardiano di ADR-0010 — le prime sei collegate come
+  sub-issue di #1105, che passa da nove a quindici. #711 commentata e collocata come `T6` **senza cambiare
+  scope**. Il corpo di #1105 riscritto: `TD 0.2` marcato consegnato, `TD 1.0` aggiunto alla scala, la
+  sezione *TD Trial / Scenario Sandbox* introdotta con gate d'ingresso e d'uscita, i `Feature ID`
+  `RT-FEAT-TOOL-*` e `known_roadmap_refs()` rimossi come orfani di **D-181**, e la regola d'apertura che
+  `C4` ha smentito sostituita dalla lezione che la smentita insegna.
+  > ⚠️ **Le label di priorità del repository sono legate alla release** — `P0` è *«Blocca la release»*, `P1`
+  > *«Core della v0.1»* — e il Tactical Designer è `out_of_release_scope`. Le Trial Slice hanno quindi `P2`
+  > e `P3`, che è il trattamento delle sub-issue esistenti (#622, #695, #711, #1186 sono `P2`; #1114–#1117
+  > erano `P3`). Usare `P0`/`P1` per rendere l'ordine della Trial avrebbe messo lo strumento nella roadmap
+  > di release dalla porta di servizio, che è ciò che `D-154` e il §7.3 del prompt vietano.
+- ⏸️ **Tre issue non aperte, e non è una dimenticanza**: le sonde LOS/targeting (`T6`, owner diversi da
+  #711), i preset (`T8`, il prompt stesso li dà per post-Trial) e i due gap del formato il cui innesco non è
+  la Trial — stato d'ambiente (`M9.2`) e override di abilità (Skill Workbench). Tutte dichiarate post-Trial
+  nel corpo di #1105 invece che aperte.
+- ⛔ **Nessun documento owner aggiornato.** `spec-tactical-designer.md` porta ancora le **quattro** occorrenze di
+  `A1` — la §7.1 del prompt non è stata eseguita; `roadmap-checkpoint.md` M9.4 e `roadmap-v0.1.md` sono invariati.
 - ⛔ **Nessun `D-nnn` assegnato** (§12: verificato che non serve).
 - ⏸️ **Il documento chiesto dal §11 non è stato creato**: questo referto ne copre le sezioni 1–10 e 12–14 e ne
   differisce sul nome. Crearne un secondo con lo stesso contenuto sarebbe il difetto che il §7.4 vieta.
