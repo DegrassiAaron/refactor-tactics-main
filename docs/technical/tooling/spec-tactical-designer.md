@@ -55,11 +55,27 @@ Il workflow copre quattro superfici che oggi hanno owner diversi:
 
 ```text
 Tactical Designer
-├── Map / Level authoring      URTHexEditorMode + i cinque tool        ✅ esiste
-├── Character setup            FRTScenarioUnit                          ✅ esiste (dati, non UI)
-├── Skill Workbench            —                                        ⬜ non esiste
-└── Scenario Composer          FRTTestScenario (dati)                   🟡 dati sì, authoring no
+├── Map / Level authoring      URTHexEditorMode + i cinque tool
+├── Character setup            FRTScenarioUnit
+├── Skill Workbench            —
+└── Scenario Composer          FRTTestScenario + URTScenarioAuthoring
 ```
+
+> 🔵 **Questo blocco aveva una quarta colonna di stato fino al 2026-08-29, ed è stata rimossa — non
+> aggiornata.** Diceva `✅ esiste` · `✅ esiste (dati, non UI)` · `⬜ non esiste` · `🟡 dati sì, authoring no`,
+> e l'ultima era **falsa**: l'authoring visuale del Composer è consegnato da
+> [#1114](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1114)–[#1117](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1117),
+> con la porta su Blueprint decisa da [ADR-0010](../../decisions/adr-0010-esposizione-blueprint-scenario-harness.md).
+>
+> **Aggiornarla sarebbe stato il difetto, non la correzione.** Il banner in testa a questo documento dice
+> *«Se una riga di questo file dichiara uno stato, è un difetto»*: tutte e quattro le celle lo erano, non
+> solo quella falsa — le altre tre erano vere e sarebbero marcite allo stesso modo, con la stessa
+> impossibilità di accorgersene. Lo stato vive nell'epic
+> [#1105](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1105) e nelle sue sub-issue.
+>
+> ⚠️ **Resta ciò che è di questo documento**: *quali* superfici esistono e *chi possiede* ciascuna. Un `—`
+> nella colonna owner non è uno stato di avanzamento — è la constatazione che una superficie non ha ancora
+> un proprietario, che è esattamente la domanda a cui questo file risponde.
 
 ---
 
