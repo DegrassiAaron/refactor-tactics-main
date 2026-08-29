@@ -112,9 +112,21 @@ gesto. **Il momento di committare un asset è quando lo si salva la prima volta*
 `git` può restituire. È il perimetro della seduta **U8**, che dopo la cancellazione riparte da zero.
 
 ⚠️ **Nessun `.uasset` o `.umap` sta fuori dall'allowlist, e i file non binari che ci stanno sono
-145** — misurato il 2026-08-28: `Content/.gitkeep`, i due di `RT_UI_AssetPack_FromHUD/`, e i **137 SVG
-più il manifest** di `Content/Icons/`, arrivati dopo il 17 agosto. Non sono `.uasset`: le regole di
-`.gitignore` che li lasciano passare sono altre.
+140** — rimisurato il 2026-08-30 su `fff33020`: `Content/.gitkeep`, i **due** di
+`RT_UI_AssetPack_FromHUD/` e i **137** di `Content/Icons/`, arrivati dopo il 17 agosto. Quei 137 sono
+**134 SVG** più tre file che non lo sono — `LEGGIMI.md`, `manifest.json` e `rticonehud20260826.zip`.
+Non sono `.uasset`: le regole di `.gitignore` che li lasciano passare sono altre.
+
+🔴 **Questa riga diceva `145`, `137 SVG` e «più il manifest», e sbagliava tutti e tre.** Non è un numero
+invecchiato: sul commit che l'ha scritta — `505e5234`, 2026-08-28 — l'albero rispondeva già **140** e
+**134**, e `Content/Icons/` non è più stata toccata da allora (un solo commit la popola, `48e591ae`).
+L'errore è di metodo ed è riconoscibile: `137` è il **totale** di `Content/Icons/`, riusato come se
+fosse il conto dei soli SVG e poi sommato di nuovo al manifest — così il `.md` e lo `.zip` sono
+scomparsi e il totale ha guadagnato cinque unità che nessun addendo produce. Contare una colonna e
+descriverla come un'altra è lo stesso difetto che il paragrafo qui sotto registra a proposito di «Tre
+file tracciati». Rimisurato consumando il §8 di
+[`CLAUDE_FIX_PROJECT_CONTENT_STRUCTURE.md`](../../archive/src/CLAUDE_FIX_PROJECT_CONTENT_STRUCTURE.md),
+che chiedeva esattamente questo: *«rimisura, non conservare conteggi vecchi»*.
 
 🔴 **Questa riga diceva «Tre file tracciati», ed era vera il 2026-08-17.** Il numero è cresciuto di
 due ordini di grandezza senza che nessuna regola cambiasse, il che dice qualcosa sul controllo e non sul

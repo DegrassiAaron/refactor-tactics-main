@@ -4,7 +4,12 @@
 > con i riferimenti `path:riga` riverificati a `ad7f212b` — `HEAD` si è mosso **quattro volte** durante la
 > stesura, ed è la ragione per cui i numeri di riga vanno trattati come un'ancora, non come una verità
 > **Sostituisce** la v0.1 · **Referto che la corregge**:
-> [`docs/roadmap/plans/dir-b-core-gameplay-directive-spec-panel-2026-08-28.md`](docs/roadmap/plans/dir-b-core-gameplay-directive-spec-panel-2026-08-28.md)
+> [`dir-b-core-gameplay-directive-spec-panel-2026-08-28.md`](dir-b-core-gameplay-directive-spec-panel-2026-08-28.md)
+>
+> 📁 **Spostata qui dalla radice del repository il 2026-08-30.** Stava in radice perché la v0.1 ci stava —
+> untracked, e per questo persa. La radice ospita `AGENTS.md`, `CLAUDE.md` e `README.md`: una direttiva di
+> lane è un piano, e i piani stanno accanto al referto che li corregge. Il contenuto non è stato toccato,
+> tranne il link qui sopra, che era scritto per un file di radice.
 >
 > ⚠️ **Questo documento scade.** I fatti marcati *(misurato)* erano veri all'HEAD sopra. Se stai leggendo a
 > un HEAD diverso, riverificali: la §2 dice come, e la §3 lo mette nel pre-flight.

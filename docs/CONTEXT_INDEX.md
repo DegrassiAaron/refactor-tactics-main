@@ -29,7 +29,13 @@ Per default **NON fanno parte del contesto autorevole**:
 - `docs/research/` salvo richiesta esplicita di vision/north-star/provenienza — è la ex `docs/src/`,
   svuotata il 2026-08-19 ([#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165));
 - `docs/archive/` salvo richiesta storica;
-- handoff/prompt temporanei, inclusi file root del tipo `*_Claude_*.md`, salvo che il task chieda proprio di consolidarli;
+- handoff/prompt temporanei, inclusi file root del tipo `*_Claude_*.md`, salvo che il task chieda proprio di
+  consolidarli. ✅ **Dal 2026-08-30 la radice non ne ha nessuno**: i sei accumulati fra il 2026-08-08 e il
+  2026-08-28 sono stati consumati da [D-246](decisions/RT_PDR_00_Decision_Log.md), e la radice contiene i
+  soli `AGENTS.md`, `CLAUDE.md` e `README.md`. La riga resta perché il posto si riempie di nuovo: è la
+  casella di posta dell'autore, e nessun gate la guarda;
+- [`product/lore-e-worldbuilding.md`](product/lore-e-worldbuilding.md) — è `PROPOSED` e **non normativo**:
+  si carica per scrivere di narrativa, mai per decidere una regola. Nessun termine che contiene è nel canone;
 - workbook di ricerca non canonici quando esiste un catalogo Markdown owner.
 
 Se l'utente fornisce esplicitamente un nuovo file e chiede di usarlo, quel file entra nel task corrente ma **non sostituisce automaticamente il canone**.

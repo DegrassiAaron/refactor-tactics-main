@@ -1,3 +1,59 @@
+> 🔎 **ESITO DELLA REVISIONE — 2026-08-30.** Direttiva **assorbita dagli owner**, non eseguita come
+> scritta. Misurata su `fff33020`, delle diciassette sezioni numerate (§0–§16): **due** descrivono uno
+> stato **già vero**, **tre** sono **superate** — due dall'owner dei percorsi, una da `D-181` —, **una**
+> collide con l'owner e perde, **una** ha prodotto l'unico rilievo nuovo, e le restanti **dieci** sono
+> disciplina o procedura che non chiede un'azione oggi.
+>
+> ✅ **Già vero, misurato**: `Content/RT/` è il namespace proprietario e le sue sei cartelle sono
+> feature-first (`Art`, `Characters`, `Core`, `Maps`, `UI`, `World`) — nessuna `Blueprints/`, `Meshes/` o
+> `Textures/` globale, che è il divieto del §1. Le quattro cartelle personaggio del §4 esistono col nome
+> canonico: `Gadget`, `Phase`, `Riktor`, `Wraith`, più `Shared`.
+>
+> ⛔ **§2 e §9 sono superate dall'owner, e nel verso opposto.** Chiedono di creare *ora* lo scheletro
+> `SourceAssets/{Blender,FBX,Textures,Audio,UI,References}/`;
+> [`convenzioni-contenuti-ue.md`](../../technical/tooling/convenzioni-contenuti-ue.md) §230–235 dichiara
+> che `SourceAssets/` **non esiste ancora e va creata alla prima necessità reale, non in anticipo**. La
+> cartella infatti non c'è, e la sua assenza **non è un residuo**: è la decisione dell'owner. I due script
+> che il §2 allega — `create_content_directories.ps1` / `.py` — non sono mai entrati nel repository, e
+> dopo `D-182` non potrebbero nemmeno: `scripts/` contiene solo `rt-suite.ps1`.
+>
+> ⛔ **§12 è morta con [D-181](../../decisions/RT_PDR_00_Decision_Log.md)**: il Feature Registry,
+> le sue viste generate e i loro validator sono usciti dal repository il 2026-08-21. Il §7 elenca fra i
+> link minimi del README `docs/roadmap/feature-registry.yaml`, che non esiste più; il §0 lo mette al
+> punto 11 del preflight. Non vanno riaperti — il sorgente che li aveva costruiti è archiviato accanto a
+> questo, con l'esito scritto in testa.
+>
+> ⚠️ **§3 collide con l'owner, e vince l'owner.** Chiede di spostare
+> `Content/RT_UI_AssetPack_FromHUD/` fuori da `Content/`, verso `SourceAssets/UI/HUDPrototype/`.
+> [`asset-map.md`](../../technical/tooling/asset-map.md) tratta invece quel kit come *«la famiglia più
+> vicina a essere pronta»*, destinata all'import a `/Game/RT/UI/Icons/` con naming già deciso
+> (`T_UI_Icon_<Categoria>_<Nome>`), e ne registra il difetto vero: di tutto il kit il repository traccia
+> **due** file — `README.md` e `manifest.json` — e i PNG no, perché nessuna riga d'allowlist prevede quel
+> percorso. *(Sul disco della working directory condivisa il kit conta **57** file; è una misura del disco
+> e non dell'albero, e in un clone pulito quei PNG non ci sono.)*
+> Il problema non è *dove sta il kit*, è che `git add` tace su di esso — e quello ha già un owner e una
+> epic (**E20**).
+>
+> ✅ **§8 ha prodotto l'unico rilievo nuovo, ed è stato applicato.** Chiede di rimisurare l'asset map e di
+> *«non conservare conteggi vecchi»*. Rimisurato: i file tracciati sotto `Content/` che non sono
+> `.uasset`/`.umap` sono **140**, non i `145` che `asset-map.md` dichiarava, e il loro dettaglio era
+> sbagliato in due punti — gli SVG di `Content/Icons/` sono **134** e non 137, e i file non-SVG di quella
+> cartella sono **tre** (`LEGGIMI.md`, `manifest.json`, `rticonehud20260826.zip`) e non uno. 🔴 **Il numero
+> era sbagliato quando è stato scritto, non è invecchiato**: sul commit che lo ha introdotto (`505e5234`,
+> 2026-08-28) l'albero rispondeva già `140` e `134`. La correzione è nello stesso commit che archivia
+> questo file.
+>
+> ⚠️ **Il resto è disciplina, non lavoro**: §5–§6 (mantenere `AGENTS.md` e `CLAUDE.md` allineati agli
+> owner), §10 (non inventare una policy sui Data Asset), §11 (un workbook, una sola categoria — e il
+> workbook di balance è `RESEARCH` da [D-023](../../decisions/RT_PDR_00_Decision_Log.md)), §13 (un lavoro
+> solo per volta sui binari) e §14–§15. Nessuna richiede un'azione oggi.
+>
+> ℹ️ **Le note in linea del corpo restano**: erano state aggiunte al documento mentre era in radice, e
+> registrano da sole la caduta di `D-181`/`D-182` e la correzione «sette comandi / ne resta uno» → «cinque
+> / ne restano due». Non sono state riscritte: sono la storia di questa direttiva.
+
+---
+
 # CLAUDE — RefactorTactics: allineamento struttura Content e consolidamento progetto
 
 ## Missione

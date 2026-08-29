@@ -1,8 +1,57 @@
-# Lore di RefactorTactics
+# Lore e worldbuilding — la sorgente interna
 
-> **Stato:** worldbuilding consolidato / da riconciliare con il Decision Log corrente  
-> **Ambito:** Harmonic Coupling, The Refactor, ARC e le quattro fazioni  
-> **Spoiler:** la sezione **Archivio classificato** contiene informazioni che potrebbero essere riservate alla progressione narrativa.
+> `PROPOSED` · **Non normativo, e non ancora ratificato** · **Aggiornato**: 2026-08-30 ·
+> **Decisione che assegna questo owner**: [D-246](../decisions/RT_PDR_00_Decision_Log.md)
+>
+> **Ambito**: Harmonic Coupling, The Refactor, ARC, le quattro fazioni — e il livello di conoscenza con
+> **spoiler narrativi** che la Wiki non pubblica.
+
+## Che cos'è questa pagina, e che cosa non è
+
+È la **sorgente d'autore del worldbuilding**, portata dentro il repository il 2026-08-30 dalla radice, dove
+stava come `RefactorTactics_Wiki_Lore.md`. Da quel giorno ha un owner e un percorso; prima non ne aveva
+nessuno dei due, e la Wiki lo diceva apertamente: *«questa pagina non ha ancora un owner doc nel
+repository»*.
+
+🟡 **Non è canone.** `Harmonic Coupling`, `Refactor` e `ARC` **non compaiono** nel
+[Decision Log](../decisions/RT_PDR_00_Decision_Log.md) né in nessun owner doc di `gameplay/` o
+`technical/` — misurato il 2026-08-30 su `fff33020`: `git grep -l "Harmonic Coupling"` rispondeva **un
+solo file**, questo stesso, allora in radice. Il mondo qui descritto è una **proposta consolidata**, non una decisione presa. Fino
+alla ratifica non si cita come autorità e non decide niente: la gerarchia delle fonti è in
+[`../README.md`](../README.md), e questa pagina non ci compare.
+
+⚠️ **E i `FactionId` qui sotto non sono simboli**: `git grep -o 'Faction\.[A-Za-z]*'` su `Source/` e
+`Scenarios/` risponde **zero** — misurato il 2026-08-30. `Faction.Conflux`, `Faction.Constrine`,
+`Faction.Sentinel` e `Faction.Resonance` esistono in questa pagina e sulla Wiki, e in nessun file che il
+gioco esegua. Sono nomi proposti, non identificatori in uso: chi ne scrivesse uno in un `.json` di scenario
+non troverebbe niente dall'altra parte.
+
+🔒 **È il livello interno di una coppia.** La parte pubblica è **già pubblicata** sulla Wiki, riscritta
+player-first: [`Lore`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Lore),
+[`Harmonic e ARC`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/harmonic-e-arc) e le quattro
+pagine di [`Fazioni`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Fazioni). Quella pagina
+dichiara che *«una parte del materiale non è pubblicata qui … quel livello resta nella documentazione
+interna»*. **Questa è quella documentazione interna**, e fino a oggi la frase non aveva un referente: la
+sezione *Archivio classificato* — l'anomalia temporale, gli Attractor precedenti al Refactor, `The
+Revision` — esisteva **solo** nel file di radice.
+
+⚠️ **La Wiki non è una copia di questa pagina, ed è voluto.** La Wiki riscrive, taglia e collega alle
+meccaniche; qui il testo resta quello dell'autore. Se le due divergono su un fatto del mondo, **vince
+questa**, che è la sorgente. Se divergono su *come si racconta*, vince la Wiki, che è il prodotto
+player-facing ([D-076](../decisions/RT_PDR_00_Decision_Log.md): il clone pubblicato è la sua unica fonte).
+
+<!-- rename-exempt: la riga dichiara la mappatura -->
+📌 **Due cose sono state cambiate rispetto al file di radice, e nient'altro.** I nomi del roster v0.1 sono
+stati portati a quelli canonici — `Flux` → **Gadget**, `Riva` → **Phase**, `Bastion` → **Riktor**,
+`Vektor` → **Wraith**, per [D-130](../decisions/RT_PDR_00_Decision_Log.md) con la mappatura di
+[D-037](../decisions/RT_PDR_00_Decision_Log.md) — e i quattro `![…](images/factions/overview/…)` sono stati
+tolti: puntavano a file che **non esistono né qui né sul clone della Wiki**, che tiene invece
+`images/factions/<fazione>.png`. Un'immagine incorporata e assente non la segnala più nessuno dal 2026-08-21
+([D-182](../decisions/RT_PDR_00_Decision_Log.md)), quindi si toglie invece di lasciarla marcire.
+
+---
+
+## In breve
 
 Per secoli l'umanità ha trattato materia, energia, acqua, calore, strutture e informazione come sistemi separati, collegati da leggi note e sufficientemente prevedibili.
 
@@ -91,10 +140,8 @@ Una squadra può contenere liberamente membri di fazioni diverse e non esistono 
 
 ## Conflux
 
-![Conflux — Faction Overview](images/factions/overview/conflux-overview.png)
-
 **FactionId:** `Faction.Conflux`  
-**Membri iniziali:** [[Flux|Personaggio-flux]] · [[Riva|Personaggio-riva]]
+**Membri iniziali:** [Gadget](../characters/v0.1/gadget.md) · [Phase](../characters/v0.1/phase.md) — **v0.1**
 
 > **Tutto è collegato.**
 
@@ -142,10 +189,8 @@ Alcuni archivi Conflux contengono log di connessioni e percorsi emergenti che no
 
 ## Constrine
 
-![Constrine — Faction Overview](images/factions/overview/constrine-overview.png)
-
 **FactionId:** `Faction.Constrine`  
-**Membri iniziali:** [[Bastion|Personaggio-bastion]] · [[Vektor|Personaggio-vektor]]
+**Membri iniziali:** [Riktor](../characters/v0.1/riktor.md) · [Wraith](../characters/v0.1/wraith.md) — **v0.1**
 
 > **Ciò che è delimitato può essere controllato.**
 
@@ -189,10 +234,8 @@ In alcuni archivi queste configurazioni sono indicate come **Forbidden Configura
 
 ## Sentinel Directorate
 
-![Sentinel Directorate — Faction Overview](images/factions/overview/sentinel-directorate-overview.png)
-
 **FactionId:** `Faction.Sentinel`  
-**Membri iniziali:** [[Steel|Personaggio-steel]] · [[Murdock|Personaggio-murdock]]
+**Membri iniziali:** [Steel](../characters/v0.2/steel.md) · [Murdock](../characters/v0.2/murdock.md) — **v0.2**
 
 > **Una posizione controllata diventa una certezza.**
 
@@ -237,10 +280,8 @@ Il Directorate mantiene dossier su:
 
 ## Resonance
 
-![Resonance — Faction Overview](images/factions/overview/resonance-overview.png)
-
 **FactionId:** `Faction.Resonance`  
-**Membri iniziali:** [[Aurora|Personaggio-aurora]] · [[Kwang|Personaggio-kwang]]
+**Membri iniziali:** [Aurora](../characters/v0.2/aurora.md) · [Kwang](../characters/v0.2/kwang.md) — **v0.2**
 
 > **Potere e posizione hanno valore quando entrano in risonanza.**
 
@@ -458,20 +499,54 @@ Le quattro fazioni possono cooperare quando l'obiettivo lo richiede.
 
 # Collegamenti
 
-- [[Fazioni]]
-- [[Conflux|Fazione-Conflux]]
-- [[Constrine|Fazione-Constrine]]
-- [[Sentinel Directorate|Fazione-Sentinel-Directorate]]
-- [[Resonance|Fazione-Resonance]]
-- Harmonic Coupling
-- Refactor
-- ARC / Arcane
-- Harmonic Attractors
+**Dentro il repository** — le schede dei personaggi nominati qui:
+[`characters/v0.1/`](../characters/v0.1/gadget.md) (Gadget, Phase, Riktor, Wraith) ·
+[`characters/v0.2/`](../characters/v0.2/steel.md) (Steel, Murdock, Aurora, Kwang) ·
+[`characters/paragon.md`](../characters/paragon.md) per la mappatura visuale
+([D-037](../decisions/RT_PDR_00_Decision_Log.md)).
+
+**Sulla Wiki** — la riscrittura player-first di questa stessa materia:
+[`Lore`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Lore) ·
+[`Fazioni`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/Fazioni) ·
+[`Conflux`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/conflux) ·
+[`Constrine`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/constrine) ·
+[`Sentinel Directorate`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/sentinel-directorate) ·
+[`Resonance`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/resonance) ·
+[`Harmonic e ARC`](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/harmonic-e-arc).
+
+⚠️ `Harmonic Coupling`, `Refactor`, `ARC / Arcane` e `Harmonic Attractors` **non hanno una voce di
+glossario nel repository**: esistono in questa pagina e sulla Wiki, e da nessun'altra parte. Finché il
+worldbuilding non è ratificato è corretto così — ma è anche la ragione per cui non si possono citare come
+se fossero termini definiti.
 
 ---
 
 ## Nota editoriale
 
-Questa pagina deve restare sincronizzata con il Decision Log e con le pagine delle quattro fazioni.
+Questa pagina deve restare sincronizzata con il [Decision Log](../decisions/RT_PDR_00_Decision_Log.md) e
+con le quattro pagine di fazione della Wiki.
 
-La parte pubblica e la parte classificata devono essere mantenute come livelli distinti di conoscenza. Se la Wiki diventa player-facing senza spoiler, spostare l'**Archivio classificato** in documentazione interna o in una pagina spoiler separata.
+✅ **La separazione dei due livelli è avvenuta, e questa pagina ne è la metà interna.** La nota originale
+dell'autore chiedeva: *«se la Wiki diventa player-facing senza spoiler, spostare l'Archivio classificato in
+documentazione interna o in una pagina spoiler separata»*. La Wiki **è** diventata player-facing — è la
+ristrutturazione della [`#422`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/422) — e la
+sua pagina `Lore` pubblica il livello aperto e dichiara di lasciare fuori quello chiuso. L'Archivio
+classificato qui sopra è il livello chiuso, e questo file è la documentazione interna che quella frase
+nominava senza poterla puntare.
+
+⛔ **Quindi la regola operativa, d'ora in poi:** ciò che sta dentro `<details>` **non si porta sulla
+Wiki**. Se un giorno servirà pubblicarlo, avrà una pagina dichiarata come spoiler e la decisione sarà
+registrata; non ci si arriva copiando un paragrafo.
+
+## Stato, e la domanda aperta che lo governa
+
+Il worldbuilding non è ratificato, e la domanda che lo tiene aperto **esiste già** ed è di livello
+prodotto: *«Identità originale (nomi, lore) — necessaria per una pubblicazione»*, in
+[`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md) §*Aperte — livello prodotto*, owner
+[`piano-canonico-mvp.md`](piano-canonico-mvp.md) §9. Non se ne apre una seconda: questa pagina è il
+materiale su cui quella domanda si deciderà.
+
+Ciò che serve per chiuderla non è scritto qui perché non è stato deciso. Ciò che si può dire oggi è
+**quanto costa lasciarla aperta**: nessuna feature dipende da questa pagina, nessun test la legge, e il
+Feature Registry non la copriva nemmeno quando esisteva — *«il worldbuilding non è una meccanica»*, dice la
+Wiki. È l'unica area del progetto in cui restare non decisi non blocca niente.

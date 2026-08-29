@@ -11,9 +11,12 @@
 > riscritta come specifica al [§1](#1-la-spec-sotto-esame) perché una frase non si recensisce.
 > **Panel**: Wiegers (lead) · Cooper · Cockburn · Nygard · Adzic · Fowler
 > **Modo**: `critique` (1° giro) → `decide` (2° giro) · **Focus**: requisiti + architettura + interaction design
-> **Contesto documentale**: `../../../Claude_RefactorTactics_Menu_Features_Issues_Tracking_v0.1_to_v1.0.md`
-> (handoff, **non** autorità — `CLAUDE.md` §4), **E46** in [`../roadmap-v0.1.md`](../roadmap-v0.1.md),
-> CP 46.4 (`#939`) e CP 46.6 (`#941`).
+> **Contesto documentale**: l'handoff *Menu/Frontend* del 2026-08-16 — **non** autorità, `CLAUDE.md` §4 —
+> che vive in [`../../archive/src/handoff/2026-08-16-menu-frontend-tracking.md`](../../archive/src/handoff/2026-08-16-menu-frontend-tracking.md).
+> *(Fino al 2026-08-30 questa riga puntava a `../../../Claude_RefactorTactics_Menu_Features_Issues_Tracking_v0.1_to_v1.0.md`,
+> cioè alla **copia di radice**: era lo stesso testo dell'archiviato, rientrato per errore con un commit di
+> massa sette ore dopo l'archiviazione, ed è stato rimosso.)* **E46** in
+> [`../roadmap-v0.1.md`](../roadmap-v0.1.md), CP 46.4 (`#939`) e CP 46.6 (`#941`).
 
 ## 0. Cosa è questo documento
 
@@ -112,7 +115,7 @@ grep -n "ScenarioToRun\|CVarRTTestScenario\|FromCommandLine" Source/RefactorTact
 ```
 
 > 🔴 **Zero scenari su 83 dichiarano una mappa**, e la spec del Menu Browser
-> (`Claude_RefactorTactics_Menu_Features_Issues_Tracking_v0.1_to_v1.0.md` §5) chiede di mostrare **`Map`**
+> ([handoff Menu/Frontend](../../archive/src/handoff/2026-08-16-menu-frontend-tracking.md) §5) chiede di mostrare **`Map`**
 > in ogni riga dell'elenco. È una colonna che oggi non ha una fonte: o si deriva da `fixture`/`mapRadius`,
 > o si aggiunge al formato — e sono due lavori diversi con due costi diversi.
 

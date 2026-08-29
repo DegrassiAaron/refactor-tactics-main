@@ -2,6 +2,55 @@
 
 ---
 
+## 2026-08-30 — La radice torna a tre Markdown, e il worldbuilding esce dalla casella di posta
+
+**Origine**: [D-246](decisions/RT_PDR_00_Decision_Log.md) — i sei `.md` accumulati in radice fra il
+2026-08-08 e il 2026-08-28 sono stati consumati. Nessun gate li guardava: `tools/radar/doc-links.ts`
+elenca a mano i tre file di governance della radice, e lo dichiara nel proprio commento.
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| `Claude_RefactorTactics_Menu_Features_Issues_Tracking_v0.1_to_v1.0.md` | 🗑️ **rimosso** — copia esatta di [`archive/src/handoff/2026-08-16-menu-frontend-tracking.md`](archive/src/handoff/2026-08-16-menu-frontend-tracking.md) meno le 59 righe di banner |
+| `APPLY_TO_REPOSITORY.md` | 🗑️ **rimosso** — dichiarava da sé di essere superato da [D-076](decisions/RT_PDR_00_Decision_Log.md); la cartella che chiedeva di copiare non ha più pagine |
+| [`archive/src/RefactorTactics_FeatureRegistry_Roadmap_Wiki_Claude_2026-08-08.md`](archive/src/RefactorTactics_FeatureRegistry_Roadmap_Wiki_Claude_2026-08-08.md) | 📦 **archiviato** con banner d'esito: recepito per intero, poi ritirato da [D-181](decisions/RT_PDR_00_Decision_Log.md) |
+| [`archive/src/CLAUDE_FIX_PROJECT_CONTENT_STRUCTURE.md`](archive/src/CLAUDE_FIX_PROJECT_CONTENT_STRUCTURE.md) | 📦 **archiviato** con banner d'esito: assorbita dagli owner, non eseguita come scritta |
+| [`roadmap/plans/dir-b-core-gameplay-directive-v0.2.md`](roadmap/plans/dir-b-core-gameplay-directive-v0.2.md) | 📁 **spostata** accanto al referto che la corregge — è un piano vivo, non un sorgente consumato |
+| [`product/lore-e-worldbuilding.md`](product/lore-e-worldbuilding.md) | ⭐ **promosso a owner** `PROPOSED`, non normativo |
+| [`README.md`](README.md) | riga nuova in *Owner del concetto*: **Lore e worldbuilding** |
+| [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) | *«Identità originale (nomi, lore)»* ora punta all'owner |
+| [`technical/tooling/asset-map.md`](technical/tooling/asset-map.md) | conteggio rimisurato: **140**, non `145` — e `134` SVG, non `137` |
+| [`archive/src/README.md`](archive/src/README.md) | blocco di rimisura del 2026-08-30 + due righe d'indice |
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | riga **D-246**; nota di scadenza su **D-188** |
+| [`roadmap/plans/menu-frontend-spec-panel-2026-08-16.md`](roadmap/plans/menu-frontend-spec-panel-2026-08-16.md) · [`roadmap/plans/menu-play-mappa-scenario-spec-panel-2026-08-27.md`](roadmap/plans/menu-play-mappa-scenario-spec-panel-2026-08-27.md) | riferimenti alla copia di radice riportati sull'archiviato |
+| `tools/radar/doc-links.ts` | commento riscritto: la ragione della lista esplicita è cambiata, il punto cieco è dichiarato |
+
+### La copia che è vissuta due settimane
+
+`8a0fb3a1` archivia l'handoff *Menu/Frontend* alle **01:28** del 2026-08-16, aggiungendogli 59 righe di
+banner con l'esito della revisione. Alle **08:42** dello stesso giorno `29d27de8` — *«icons 01»*, 112 file —
+riversa in radice il contenuto della working directory dell'autore, e con esso **la copia senza banner**. Da
+quel momento il repository ha due volte lo stesso testo, e la versione priva del referto è quella che due
+spec panel successivi citano come contesto.
+
+Non è un difetto di chi ha archiviato né di chi ha committato: è che **nessuno dei due gesti poteva vedere
+l'altro**. Un commit di massa non sa cosa sia già entrato per un'altra via, e nessun controllo confronta la
+radice con l'archivio.
+
+### Ciò che non è stato fatto
+
+⛔ **Il clone della Wiki non è stato toccato.** La sua pagina `Lore` dice che il livello con spoiler *«resta
+nella documentazione interna»*: la frase diventa vera perché il referente ora esiste, non perché la pagina
+sia stata riscritta.
+
+⛔ **La direttiva `DIR-B v0.2` non è stata eseguita**, solo spostata: [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)
+è `OPEN` e `Overwatch.SlowMotionDoesNotChangeOutcome` ha zero occorrenze in `Source/`.
+
+⛔ **Nessuna suite Unreal eseguita**: task documentale, nessun file di `Source/` toccato.
+
+---
+
 ## 2026-08-28 — Le generiche hanno un nome, e `Action.Shield` un portatore
 
 **Origine**: [D-226](decisions/RT_PDR_00_Decision_Log.md) — le cinque azioni generiche escono dalla fila dei
