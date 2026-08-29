@@ -2,6 +2,32 @@
 
 > `HISTORICAL` · **Materiale NON autorevole** · **Primo lotto archiviato il 2026-08-08**
 >
+> ✅ **Rimisurato il 2026-08-29, sull'albero che nomina.** Questo giro ha archiviato il prompt *TD Trial /
+> Scenario Sandbox*. Sul branch `docs/td-trial-spec-panel`, creato da `origin/main` a `8aa73027` in un
+> worktree pulito, il comando canonico risponde **`102`** — i `101` di `origin/main` più questo archivio — con
+> **`56`** `handoff/`. Gli addendi sono **riletti dal disco**, non incrementati.
+>
+> ⚠️ **E il numero cambierà prima che qualcuno lo legga**, ma non si può dire di quanto. Su un altro checkout
+> esiste `2026-08-28-combat-skillgrammar-delta.md`, che su questo albero non c'è; se atterra, il totale sale.
+> **Quanto e quando non è prevedibile da qui**, ed è la ragione per cui questa pagina prescrive più in basso
+> di **rimisurare dopo il merge** invece di incrementare a mano: in regime **D-222** due lavori paralleli
+> producono ciascuno un totale vero, e nessuno dei due è il totale del repository.
+>
+> 🔴 **La prima stesura di questo blocco aveva scritto la previsione `103`/`57` e l'aveva ancorata al branch
+> `docs/consolidamento-combat-skillgrammar-delta`. Trovata in code review: quel branch non è sulla rete.**
+> `git ls-remote --heads origin` elenca nove ref e non lo contiene — è **locale a un altro checkout**, e i
+> kit gemelli sono atterrati con [#1618](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1618)
+> da un branch di nome diverso. È esattamente il difetto che **CLAUDE.md §7** nomina — *«la rete sono i ref
+> REMOTI, non `gh pr list`»* — commesso in un blocco che parla di misura protetta. Una previsione ancorata a
+> un ref invisibile non è verificabile **né falsificabile**: se quel lavoro atterra con un altro nome,
+> nessuno può dire se la previsione ha sbagliato o se il branch è sparito.
+>
+> ✅ **E riallinea la riga del conteggio vivo, che era stale da prima di questo giro.** Il §«dove sta il
+> numero vivo» di questa pagina rimanda alla frase *«I N documenti Markdown in questa cartella sono i
+> sorgenti»*, che diceva **`90`** mentre il comando ne contava `101`. Un lettore che seguiva l'istruzione
+> della pagina otteneva un numero, uno che leggeva il banner ne otteneva un altro: è la deriva che questa
+> pagina esiste per impedire, e passava attraverso il punto che la pagina indica come autorevole.
+>
 > 🔴 **Rimisurato il 2026-08-27, e la formula sbaglia su DUE assi invece che su uno.** Questo giro ha
 > archiviato l'handoff *Action Phases / Dodge / Guard / Brace / Overwatch* — non da fuori, ma **dall'inbox**:
 > era arrivato su `main` in [`../../research/handoff/`](../../research/) mentre un altro ramo lo archiviava
@@ -194,7 +220,7 @@
 > disco. I due di questo giro portano la propria riga; i tre di `docs_kit`/`reconcile_skill` no, per la
 > ragione che questa pagina dichiara tre volte.
 >
-> I **90** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
+> I **102** documenti Markdown in questa cartella sono i **sorgenti** da cui è nata parte della documentazione
 > normativa. ➕ **E un file che non è Markdown**: `handoff/2026-08-12-grid-data-consolidation-audit.xlsx`.
 > Il comando qui sotto filtra `-name '*.md'` e **non lo conta**: è dichiarato qui perché un allegato invisibile
 > alla formula è esattamente il modo in cui questo numero è già andato fuori sincrono sei volte.
@@ -402,6 +428,7 @@ Decision Log erano esenti anche le voci **nuove**, quelle che descrivono il rost
 | [`2026-08-28-github-issues-roadmap-v01-v10.md`](handoff/2026-08-28-github-issues-roadmap-v01-v10.md) | Issue e roadmap GitHub v0.1 → v1.0: dieci fasi, `VisionRange`, privacy, epic `E40`–`E45` | ⚠️ **Riga aggiunta il 2026-08-28**: il file era archiviato senza comparire in questo indice. Consumato lo stesso giorno su base `2809a377`, con **tre premesse falsificate**: FASE 2 non eseguita (il boundary `VisionRange` era gia' chiuso, diventa `CP 27.4` / [#1569](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1569) sotto E27/v0.3), FASE 3 invertita (il difetto era una frase falsa in [#151](https://github.com/DegrassiAaron/refactor-tactics-main/issues/151)), FASI 5–7 eseguite. ➕ L'audit ha trovato **dieci epic v0.2–v0.4 senza checkpoint** e ha aperto **31 issue** ([#1557](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1557) → [#1587](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1587)), ognuna col vincolo «non si apre prima dei 15 gate della v0.1» scritto nel corpo |
 | [`2026-08-28-master-issue-reconciliation.md`](handoff/2026-08-28-master-issue-reconciliation.md) | Riconciliazione globale delle issue: diciassette domini, HUD, icone, facing, placement, overwatch, rumore, camera, frontend, bot, ladder v0.5 → v1.0, gap ranked | [referto](../../roadmap/plans/master-issue-reconciliation-spec-panel-2026-08-28.md). ✅ **Accurato su cio' che cita**: **77** numeri di issue su 77 esistono, ladder e tabella pivot di `ADR-0008` identiche al canone, i divieti su `PlacementSector`/`CoverAnchor`/`OverwatchDirection` descrivono lo stato reale (**0** in `Source/`). 🔴 **Stantio il giorno stesso**: tetto `#1430`, con **72** issue sopra e **31** aperte lo stesso 2026-08-28 dal kit gemello della riga precedente. ⛔ Il §20 (audit `E40`–`E45`) era **gia' eseguito**. 🔴 `CAMERA: []` e' un falso per assenza: **7** issue Camera esistono, tutte CLOSED. ⚠️ Otto epic vive nei suoi domini non sono citate (`E13` `E22` `E27` `E28` `E36` `E38` `E48`, piu' `#637`). ✅ **Tre tesi sopravvivono**: gap `ranked` reale, divergenza `ADR-0008`/runtime senza owner, End Placement correttamente `PROPOSED`. ⛔ **Nessuna issue creata o modificata**, nessun `D-nnn` assegnato |
 | [`2026-08-28-master-issue-reconciliation-manifest.json`](handoff/2026-08-28-master-issue-reconciliation-manifest.json) | Manifest dei diciassette domini del kit qui sopra: policy, ladder, `known_issues` per dominio | Archiviato **verbatim** accanto al proprio kit; il verdetto e' nella riga precedente. 🔴 E' il file che porta il tetto `#1430` e l'array vuoto `CAMERA: {"known_issues": []}` |
+| [`2026-08-29-td-trial-scenario-sandbox.md`](handoff/2026-08-29-td-trial-scenario-sandbox.md) | TD Trial / Scenario Sandbox: riconciliazione di issue, epic #1105, documentazione e roadmap attorno al primo loop utilizzabile del Tactical Designer — nove Trial Slice `T0`–`T8`, 936 righe, diciassette sezioni | [referto](../../roadmap/plans/td-trial-scenario-sandbox-spec-panel-2026-08-29.md). ✅ **La sua baseline è esatta su undici affermazioni di undici**, il che è raro qui — le dieci issue che elenca, più il «5 sub-issue completate su 9» che `subIssues` conferma esatto: #1105 `OPEN`, #1114–#1117 e #623 `CLOSED`, #622/#695/#711/#472/#1515 `OPEN` — tutte riverificate lato server il 2026-08-29. ✅ **I divieti sono la sua parte migliore** e reggono interi: «no second simulator», la difesa di #472 come player-facing (che [#1525](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1525) conferma dal lato della privacy della conoscenza), il no a un `D-nnn` automatico, il no alla v0.1 «dalla porta di servizio» — quest'ultimo coincide con [D-154](../../decisions/RT_PDR_00_Decision_Log.md) e con `out_of_release_scope`. 🔴 **Ma non nomina mai la porta**: chiede issue «Editor-only» senza dire che il contratto da consumare è `URTScenarioAuthoring` e che il modello resta fuori portata — il Composer consegnato vive in `Source/RefactorTactics/ScenarioHarness/`, e [ADR-0010](../../decisions/adr-0010-esposizione-blueprint-scenario-harness.md) **non è fra le sue dodici fonti**. 🔴 **Fa deliberare una decisione già presa**: il suo §2 chiede di stabilire se il core replay sia riusabile, e ADR-0010 lo dichiara già *«la forma»* — `SeekToPhase`/`SeekToTurn`, `ERTReplaySeekResult`, `FRTReplayViewModel` coi propri test e **36** `UFUNCTION` sul viewer subsystem esistono. 🟡 **[#1540](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1540) è `CLOSED`** — ed è la ragione per cui il gate hash di `T0` è proponibile; ma il §10 la condiziona correttamente (*«se … sono ancora aperti»*), quindi la misura è utile e il sorgente non ha sbagliato. 🔴 **Il suo §T2 modella un selettore fra otto azioni** e `FRTScenarioIntent` non ha un enum azione — sono **due slot che coesistono**, e una UI a selettore renderebbe inesprimibile «muovi e attacca», che la struct dichiara essere la norma. ⚠️ Cita la scala come `TD 0.1…0.9`: è `TD 1.0`, e lo stadio amputato è *«fare tutto il giro senza leggere il codice sorgente»* — il traguardo che la Trial insegue. ✅ **Una sua previsione è confermata e amplificata**: `spec-tactical-designer.md` porta davvero la prescrizione `feature-registry`, e le occorrenze `CURRENT` sono **tre** — la peggiore (riga 294) prescrive `feature_registry.py validate` come *metodo di misura*, non come puntatore. ⛔ **Nessuna issue creata o modificata, nessun documento owner aggiornato, nessun `D-nnn`**: le sue §8 e §9 restano da eseguire. 🔵 **La code review della PR [#1620](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1620) ha trovato dieci difetti nel referto stesso**, corretti sul posto e segnati: il peggiore dichiarava assente `RefactorTactics.Scenario.RunFromTheEditorMatchesTheHeadlessRun`, che esiste dal #1117 e confronta anche lo `StateHash` — un referto che manda ad aprire lavoro già consegnato viola la §16 del sorgente che sta revisionando. ➕ **E il contributo migliore della passata non è del sorgente**: il guardiano di ADR-0010 protegge **otto** struct del formato su **nove**, e `FRTScenarioVariantUnit` resterebbe verde se qualcuno la marcasse `BlueprintType` |
 
 ### Il pacchetto `consolidazione-chat-openai` — dodici sorgenti, un solo triage
 
