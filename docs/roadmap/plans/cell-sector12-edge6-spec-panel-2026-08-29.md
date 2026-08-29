@@ -42,7 +42,7 @@ Misurato su albero e lato server, non ricordato.
 ```text
 Repo       : DegrassiAaron/refactor-tactics-main
 Base       : origin/main @ 24cfe99a  (git fetch --prune eseguito). La revisione e' stata condotta su 059c2eaa
-             e RIALLINEATA a 24cfe99a: tredici commit sono atterrati durante il lavoro, e toccano quattro dei
+             e RIALLINEATA a 24cfe99a: quattordici commit sono atterrati durante il lavoro, e toccano quattro dei
              file che questo referto cita. Le righe qui sotto sono state riverificate DOPO il riallineamento.
 Worktree   : D:/Repositories/rt-wt-sector12, branch docs/spec-panel-cell-sector12-edge6, albero pulito
 Sessione   : il checkout di lavoro è su feat/1535-velo-in-partita, che diverge da main: non ci si scrive

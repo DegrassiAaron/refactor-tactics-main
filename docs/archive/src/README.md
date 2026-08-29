@@ -13,7 +13,7 @@
 >
 > 🔴 **La prima stesura di questo blocco diceva `106` con `60` `handoff/`, ed è scaduta in quaranta minuti.**
 > Non l'ha invalidata un'altra sessione che scrive nella stessa working directory — il difetto che questa
-> pagina insegue da quindici giri — ma `origin/main` che **è avanzato di tredici commit** mentre il lavoro era
+> pagina insegue da quindici giri — ma `origin/main` che **è avanzato di quattordici commit** mentre il lavoro era
 > in corso, portando l'archiviazione del kit *CP 2.8 / E2 hex playtest* del blocco qui sotto. Il numero è stato
 > rifatto **dopo** l'unione, non aggiustato.
 >
