@@ -14,15 +14,16 @@
 // rendere leggibile il numero; nessuna asserzione le confronta. Una soglia introdotta di lato sarebbe la
 // decisione presa qui.
 //
-// ## LA MISURA — 2026-08-29, `HEAD c2f694dc`, worktree `wt-dir-c-v02`, run dichiarata VALIDA
+// ## LA MISURA — 2026-08-29, worktree `wt-dir-c-v02`, run dichiarata VALIDA
 //
 //     definizione                     mappa d'autore   arena generata
 //     (b) immobilita'                       4                4        <- CONTROLLO
 //     (a) immobilita' sterile               3                2
 //     (c) salute netta                      3                2
-//     (c) pool netto (salute+scudo)         3                2
-//     (c) eliminazione                      4                4
-//     (c) salute o eliminazione             3                2
+//     (c) pool netto (salute+scudo)         3                2        <- IDENTITA' di salute netta
+//     (c) salute o eliminazione             3                2        <- IDENTITA' di salute netta
+//     (c) salute per turno                  3                2        <- coincidenza MISURATA
+//     (c) eliminazione                      4                4        <- coincide con la (b)
 //     turni giocati                        12               11
 //     limite in uso                         4                4
 //
@@ -33,31 +34,36 @@
 // 🔴 **E la prima stesura ne descriveva davvero un'altra.** Con 12 turni e senza `PlanBotsForTest()` la (b)
 // sull'arena generata dava **10**. I due oracoli pilotano diversamente — `EngagesOnTheGeneratedTestArena`
 // chiama `PlanBotsForTest()` e tiene `MaxTurns = 40` come tetto di SICUREZZA (la partita finisce per
-// regola), `NobodyParksOnTheAuthoredMap` non lo chiama e si ferma a 12 — e specchiarli non e' un dettaglio
-// di allestimento: e' la condizione perche' il numero parli della board.
+// regola), `NobodyParksOnTheAuthoredMap` non lo chiama e si ferma a 12 — e specchiarli e' la condizione
+// perche' il numero parli della board.
 //
-// 🔴 **COSA DICE ALLA DECISIONE, e non e' cio' che la raccomandazione si aspetta.** Su queste due board la
-// **(c) coincide con la (a)** in tre operativizzazioni su quattro: `salute netta`, `pool netto` e
-// `salute o eliminazione` danno gli stessi numeri della (a), su ENTRAMBE le board. La quarta —
-// `eliminazione` — coincide invece con la **(b)**: l'esenzione non scatta quasi mai, perche' un nemico che
-// cade DENTRO una finestra ferma e' raro.
+// 🔴 **DUE RIGHE SU SETTE SONO IDENTITA', NON MISURE — e la prima stesura le contava come conferme.**
+// `pool netto` e `salute o eliminazione` non possono differire da `salute netta`: al punto di campionamento
+// il Cleanup ha appena rimesso `Shield = BaseShield` su ogni unita' viva, quindi
+// `Pool == Salute + BaseShield * Vivi` e `bPoolCalato ⟺ bSaluteCalata`. L'identita' e' **asserita a ogni
+// osservazione** dai due test di board, non lasciata all'algebra. `salute per turno` invece **non** e'
+// forzata a coincidere: coincide, e quello e' un dato. Trovato in code review su `#1645`.
 //
-// ∴ La (c) raccomandata costa **una finestra di HP per unita' e una soglia nuova** — che `OPEN_DECISIONS`
-// dichiara materia di `D-184` e non di un test — e su questi dati **non compra nessun verdetto diverso da
-// quello che la (a) gia' da'**. Non e' un argomento a favore della (a): e' il costo della (c) messo accanto
-// a cio' che rende, che e' precisamente il dato che mancava a chi deve decidere.
+// 🔴 **PERCHE' coincidono, ed e' cio' che vale piu' dei numeri.** La (c) puo' separarsi dalla (a) SOLO
+// quando un colpo e' interamente assorbito — armata, ma senza far calare la salute. In v0.1 non accade
+// mai: l'attacco base fa **20-28** (`BasicAttackDamageForRange`) contro uno scudo base di **5**. L'unico
+// assorbitore e' lo scudo temporaneo **25** di `Action.Shield`, che il difensore paga con l'azione
+// principale ogni due turni, e nessuna delle due partite lo produce.
 //
-// ⚠️ **LIMITE DICHIARATO, e va letto prima di usare questi numeri.** NON e' misurato se la (c) conservi il
-// potere discriminante che la (a) perde — cioe' se sul difetto di `#1088` (*«sta ferma e spara»*: Riktor
-// parcheggiata dieci turni mentre il campo produceva 19 voci `Combat`) la (c) resterebbe rossa la' dove la
-// (a) diventa cieca. Quel difetto oggi non si riproduce su nessuna delle due board, quindi la domanda **non
-// ha soggetto** qui. E' l'unico argomento che potrebbe rimettere la (c) davanti alla (a), e questo lavoro
-// non lo tocca.
+// ∴ questi numeri non sono una proprieta' delle due board: sono una proprieta' dei **numeri di
+// bilanciamento**, e si muovono con `#149`. La (c) costa una finestra di HP per unita' e **una soglia
+// nuova** — materia di `D-184`, non di un test — e su questi dati non compra nessun verdetto diverso da
+// quello che la (a) gia' da'.
+//
+// ⚠️ **LIMITE, e per scelta.** Non e' misurata la (c) in uno scenario COSTRUITO dove puo' separarsi
+// (bersaglio che si scuda, attaccante fermo che spara dentro lo scudo). Non e' una lacuna del mandato: il
+// condizionale di `BOT-STALL-1` chiedeva la misura la' dove il bot gioca, e questa e' quella.
 
 #include "Misc/AutomationTest.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Combat/RTCombatLibrary.h" // BaseShield: l'identita' del pool si asserisce, non si assume
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Misc/CommandLine.h"
@@ -293,8 +299,30 @@ bool FRTStallDefinitionWindowTest::RunTest(const FString&)
 namespace RTStallMisura
 {
 	/** Gioca la partita gia' allestita e riempie la sonda. Ritorna i turni giocati, o -1 se un turno pende. */
+	/**
+	 * Le guardie che la code review di `#1645` ha chiesto, e che senza di lei mancavano.
+	 *
+	 * 🔴 `ViolazioniPool` e' la piu' importante: al punto di campionamento vale `Pool == Salute +
+	 * BaseShield * Vivi` per costruzione (Cleanup: `ExpireTemporaryShield` poi `RechargeBaseShield`), ed e'
+	 * la ragione per cui `PoolNetto` e `SaluteOEliminazione` NON possono differire da `SaluteNetta`.
+	 * Asserirla rende quel collasso un fatto misurato invece che un'algebra riportata a mano — e se una
+	 * meccanica futura tocca lo scudo fuori dal Cleanup, questo diventa rosso e il collasso va rifatto.
+	 *
+	 * ⚠️ `ChiaviDistinte` sorveglia il collasso delle chiavi: `StableUnitId` vale 0 finche' il roster non lo
+	 * assegna, e quattro unita' con la stessa chiave darebbero numeri plausibili e falsi con tutto verde.
+	 */
+	struct FGuardie
+	{
+		int32 Osservazioni = 0;
+		int32 ViolazioniPool = 0;
+		int32 MinChiaviDistinte = TNumericLimits<int32>::Max();
+		int32 MinVive = TNumericLimits<int32>::Max();
+		int32 UmaneViste = 0;
+	};
+
 	int32 Gioca(FAutomationTestBase& Test, UWorld* World, ARTTurnManager* TM,
-		FRTStallDefinitionProbe& Sonda, int32 MaxTurni, bool bPianificaEsplicito, int32& OutTurniArmati)
+		FRTStallDefinitionProbe& Sonda, int32 MaxTurni, bool bPianificaEsplicito, int32& OutTurniArmati,
+		FGuardie& G)
 	{
 		OutTurniArmati = 0;
 		int32 Turni = 0;
@@ -324,12 +352,26 @@ namespace RTStallMisura
 			}
 
 			const TArray<ARTUnit*> Vive = UnitaVive(World);
+			TSet<int32> ChiaviViste;
+			for (const ARTUnit* U : Vive)
+			{
+				ChiaviViste.Add(U->StableUnitId);
+				if (!U->bIsBotControlled) { ++G.UmaneViste; }
+			}
+			G.MinChiaviDistinte = FMath::Min(G.MinChiaviDistinte, ChiaviViste.Num());
+			G.MinVive = FMath::Min(G.MinVive, Vive.Num());
 			const TMap<int32, FTotali> Per = TotaliPerSquadra(Vive);
 			for (const ARTUnit* U : Vive)
 			{
 				const bool bArmato = ChiHaColpito.Contains(U->StableUnitId);
 				if (bArmato) { ++OutTurniArmati; }
-				Sonda.Observe(U->StableUnitId, U->Cell, bArmato, NemiciDi(Per, U->TeamId));
+				const FRTStallDefinitionProbe::FStatoNemico Nemici = NemiciDi(Per, U->TeamId);
+				++G.Osservazioni;
+				if (Nemici.Pool != Nemici.Salute + URTCombatLibrary::BaseShield * Nemici.Vivi)
+				{
+					++G.ViolazioniPool;
+				}
+				Sonda.Observe(U->StableUnitId, U->Cell, bArmato, Nemici);
 			}
 		}
 		return Turni;
@@ -378,9 +420,10 @@ bool FRTStallDefinitionsAuthoredMapTest::RunTest(const FString&)
 
 	FRTStallDefinitionProbe Sonda;
 	int32 TurniArmati = 0;
+	RTStallMisura::FGuardie Guardie;
 	const int32 MaxTurni = 12;
 	const int32 Turni = RTStallMisura::Gioca(*this, World, TM, Sonda, MaxTurni,
-		/*bPianificaEsplicito=*/ false, TurniArmati);
+		/*bPianificaEsplicito=*/ false, TurniArmati, Guardie);
 	if (Turni < 0) { RTWorldFixtures::DestroyWorld(World); return false; }
 
 	// `RoundLimit / 3`: la soglia che l'oracolo di questa board usa. Stampata, non asserita.
@@ -391,6 +434,19 @@ bool FRTStallDefinitionsAuthoredMapTest::RunTest(const FString&)
 	TestTrue(FString::Printf(
 		TEXT("il classificatore del danno risponde: %d turni-unita' armati in %d turni"),
 		TurniArmati, Turni), TurniArmati > 0);
+
+	// 🔴 **L'identita' del pool, asserita e non assunta** (code review di `#1645`). Al punto di
+	// campionamento il Cleanup ha appena rimesso `Shield = BaseShield` su ogni unita' viva, quindi
+	// `Pool == Salute + BaseShield * Vivi`. E' cio' che rende `PoolNetto` e `SaluteOEliminazione`
+	// IDENTITA' di `SaluteNetta` invece che conferme indipendenti. Se cade, il collasso va rimisurato.
+	// ⚠️ Verificato per mutazione: sommando 1 al `Pool` in `TotaliPerSquadra` questa riga cade.
+	TestEqual(FString::Printf(TEXT("Pool == Salute + %d * Vivi su tutte le %d osservazioni"),
+		URTCombatLibrary::BaseShield, Guardie.Osservazioni), Guardie.ViolazioniPool, 0);
+
+	// Le chiavi non collassano: quattro unita' con lo stesso `StableUnitId` darebbero numeri plausibili e
+	// falsi, con ogni asserzione verde.
+	TestEqual(FString::Printf(TEXT("chiavi distinte quante le unita' vive (%d su %d)"),
+		Guardie.MinChiaviDistinte, Guardie.MinVive), Guardie.MinChiaviDistinte, Guardie.MinVive);
 	RTStallMisura::VerificaOrdinamento(*this, TEXT("mappa d'autore"), Sonda);
 
 	RTWorldFixtures::DestroyWorld(World);
@@ -443,11 +499,12 @@ bool FRTStallDefinitionsGeneratedArenaTest::RunTest(const FString&)
 
 	FRTStallDefinitionProbe Sonda;
 	int32 TurniArmati = 0;
+	RTStallMisura::FGuardie Guardie;
 	// **40 come l'oracolo**: e' un tetto di SICUREZZA, non una regola — la partita finisce per regola, e
 	// arrivarci sarebbe il difetto. Con 12 la partita veniva troncata a meta' e la misura era di un'altra.
 	const int32 MaxTurni = 40;
 	const int32 Turni = RTStallMisura::Gioca(*this, World, TM, Sonda, MaxTurni,
-		/*bPianificaEsplicito=*/ true, TurniArmati);
+		/*bPianificaEsplicito=*/ true, TurniArmati, Guardie);
 	if (Turni < 0) { RTWorldFixtures::DestroyWorld(World); return false; }
 
 	const int32 RoundLimit = TM->GetMatchRules().RoundLimit;
@@ -458,6 +515,19 @@ bool FRTStallDefinitionsGeneratedArenaTest::RunTest(const FString&)
 	TestTrue(FString::Printf(
 		TEXT("il classificatore del danno risponde: %d turni-unita' armati in %d turni"),
 		TurniArmati, Turni), TurniArmati > 0);
+
+	// 🔴 **L'identita' del pool, asserita e non assunta** (code review di `#1645`). Al punto di
+	// campionamento il Cleanup ha appena rimesso `Shield = BaseShield` su ogni unita' viva, quindi
+	// `Pool == Salute + BaseShield * Vivi`. E' cio' che rende `PoolNetto` e `SaluteOEliminazione`
+	// IDENTITA' di `SaluteNetta` invece che conferme indipendenti. Se cade, il collasso va rimisurato.
+	// ⚠️ Verificato per mutazione: sommando 1 al `Pool` in `TotaliPerSquadra` questa riga cade.
+	TestEqual(FString::Printf(TEXT("Pool == Salute + %d * Vivi su tutte le %d osservazioni"),
+		URTCombatLibrary::BaseShield, Guardie.Osservazioni), Guardie.ViolazioniPool, 0);
+
+	// Le chiavi non collassano: quattro unita' con lo stesso `StableUnitId` darebbero numeri plausibili e
+	// falsi, con ogni asserzione verde.
+	TestEqual(FString::Printf(TEXT("chiavi distinte quante le unita' vive (%d su %d)"),
+		Guardie.MinChiaviDistinte, Guardie.MinVive), Guardie.MinChiaviDistinte, Guardie.MinVive);
 	RTStallMisura::VerificaOrdinamento(*this, TEXT("arena generata"), Sonda);
 
 	RTWorldFixtures::DestroyWorld(World);
