@@ -356,9 +356,50 @@ presentazione. Se un giorno sparisse, si perderebbe una sfumatura, non la funzio
 | se ricordare l'ultima selezione | *cosa contiene questo scenario* → `FRTScenarioSummary`, `FRTScenarioUnitView` |
 | — | *cosa succede se lo giochi* → Scenario Harness, e nient'altro |
 
-⚠️ **Gli assi su cui il launcher presenta la scelta non sono decisi qui.** Mappa e formato **non sono campi di
-uno scenario** — `FRTTestScenario` porta `Fixture` e `MapRadius`, e `Format.*` appartiene a `URTMatchFormatData`,
-che l'harness non nomina mai. La decisione ha la sua issue.
+#### Gli assi della selezione, decisi
+
+Mappa e formato **non sono campi di uno scenario** — `FRTTestScenario` porta `Fixture` e `MapRadius`, e
+`Format.*` appartiene a `URTMatchFormatData`, che l'harness non nomina mai. Deciso il **2026-08-29** dal
+technical designer, su #1681:
+
+| Elemento | Asse o readout | Fonte canonica |
+|---|---|---|
+| **Tag** (due, in intersezione) | filtro della **lista** | `URTScenarioIndex::ListIds(FilterA, FilterB)` |
+| **Ricerca testuale** | filtro della lista | nessuna: è la sola aggiunta, e vive nel pannello Slate di `L1` |
+| Terreno (`Fixture` / `MapRadius`) | **readout** del selezionato | `FRTScenarioSummary` |
+| Composizione (`2v2`, `1v2`) | **readout** del selezionato | `FRTScenarioUnitView::TeamId`, a scenario aperto |
+| Formato `Format.*` | ⛔ **assente dalla UI del launcher** | resta di `URTMatchFormatData` |
+
+⚠️ **Il terreno non può essere un filtro, e la ragione si vede a occhio.** I cinque scenari che portano i tag
+`spec` e `map` usano `radius 4`, `TestArena`, `radius 3`, `RelayBasin`, `RelayBasin`: il terreno non raggruppa
+niente. È un attributo di uno scenario, non un modo di trovarlo.
+
+**Le due strade scartate, e perché** — scritte perché non vengano riproposte:
+
+- ⛔ **Estendere `FRTScenarioEntry` / `ReadHeader`** con fixture e composizione. È l'unica strada che
+  renderebbe *«mostrami i 2v2»* una lista invece di una scoperta a uno a uno, ed è rimasta sul tavolo per
+  quello. Scartata **adesso** perché tocca un componente runtime canonico per risolvere un bisogno che
+  nessuno ha ancora misurato, e perché `ReadHeader` esiste apposta per non caricare ogni scenario.
+- ⛔ **Convenzione sui tag** (`map:arena`, `2v2`). Il vocabolario dei tag **non si dichiara**, per decisione
+  (§3 di [`scenario-index-e-tag.md`](scenario-index-e-tag.md)): un namespace convenzionale lo dichiarerebbe
+  dalla porta di servizio.
+
+**Cosa il launcher fa che il Details Panel di `ARTGameMode` non fa** — perché un secondo browser non serve a
+nessuno: i due filtri per tag e la selezione dello scenario **esistono già** lì, e il launcher non li
+reinventa (`ListIds` è la stessa funzione). Aggiunge quattro cose che quel pannello non ha: una **ricerca
+testuale**, un **readout** di ciò che lo scenario contiene, un `Start Session` distinto da `Run`, e il non
+dover sapere **quale actor selezionare** per trovarlo.
+
+#### Cosa costa ripensarci
+
+Cambiare asse dopo costa **quanto il designer ha imparato**, non quanto codice si riscrive: gli assi sono la
+lingua con cui cerca il proprio lavoro, e una lingua ritirata lascia indietro chi l'aveva imparata. Il codice
+è poco — la lista è una vista sopra `ListIds`.
+
+🔁 **L'osservazione che riaprirebbe la decisione**, dichiarata adesso perché dopo sarebbe un'opinione: un
+designer che, per trovare un allestimento, apre scenari **uno a uno** per leggerne la composizione. È il
+sintomo che l'asse mancante è la composizione, e allora la strada scartata qui sopra diventa la strada giusta
+— come issue di [`scenario-index-e-tag.md`](scenario-index-e-tag.md), non come slice di launcher.
 
 #### Gli stati di fallimento che l'ingresso deve saper dire
 
