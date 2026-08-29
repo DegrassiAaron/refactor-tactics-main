@@ -1,7 +1,7 @@
 # Visual Slice v0.1 — spec panel sul pacchetto a quattordici nodi
 
 > `CURRENT` · **Stato**: revisione chiusa. Il kit è **consumato e archiviato**, non applicato ·
-> **Data**: revisione 2026-08-29 · §15–§17 il 2026-08-30
+> **Data**: revisione 2026-08-29 · §15–§17 il 2026-08-30 · §18 il 2026-08-30, sulla **seconda consegna** dello stesso kit
 > **HEAD della revisione**: `20d59973` (`diag/1665-istanze-board`) — ⚠️ un branch che al momento della
 > revisione era **71 commit dietro `origin/main`**: le misure su `Source/` e `Content/` reggono (quelle aree
 > non divergono), ma vedi §17 per la sola in cui questo ha prodotto un numero sbagliato
@@ -11,6 +11,9 @@
 > **Panel**: Wiegers (lead) · Cockburn · Fowler · Nygard · Crispin · Adzic
 > **Modo**: critique
 > **Archiviato in**: [`../../archive/src/handoff/2026-08-29-visual-slice-v01-master.md`](../../archive/src/handoff/2026-08-29-visual-slice-v01-master.md)
+> **Seconda consegna**, 2026-08-30: lo stesso kit rimpaginato in un file solo,
+> `RefactorTactics_Claude_v0.1_VisualSlice_ALL_IN_ONE.md` — **743 righe uniche su 768 sono verbatim** del
+> sorgente qui sopra. Misurata in §18; **non** archiviata a parte, per la ragione di §18.6
 
 ---
 
@@ -482,3 +485,151 @@ Il blockquote delle sei `PIE-GBX-*` dichiarava *«nessuna eseguibile oggi, per u
 impossibili per una ragione che non esiste più. Corretto, con la precisazione che **toglie uno dei due
 impedimenti e non entrambi**: resta la seduta **U21**, l'illuminazione di `L_DevSandbox`, che
 `editor-sessions.yaml` mette in `unblocked_by` di U25 e che nessun asset sostituisce.
+
+---
+
+## 18. La quarta fotografia — `ALL_IN_ONE`, scritta cinque minuti prima che questo referto entrasse in `main`
+
+> **Aggiunto**: 2026-08-30 · **Base**: `origin/main` @ `8693b635` · **Sorgente**:
+> `RefactorTactics_Claude_v0.1_VisualSlice_ALL_IN_ONE.md`, arrivato in
+> `D:/Repositories/refactor-tactics-technical-designer/` — **accanto** al checkout, non dentro.
+
+Il mandato era lo stesso del 29 — *consumare e rimuovere*. Il consumo si è ridotto a un confronto, perché il
+file **è lo stesso kit rimpaginato in un documento solo**.
+
+### 18.1 La misura
+
+| Voce | Valore |
+|---|---|
+| File | `RefactorTactics_Claude_v0.1_VisualSlice_ALL_IN_ONE.md` · **1284 righe** · 35 549 byte |
+| Scritto | `2026-08-30 00:16:40 +0200` = **`2026-08-29T22:16:40Z`** |
+| Righe uniche normalizzate | **768** |
+| Già presenti nel master archiviato il 29 | **743** → **96,7 % verbatim** |
+| Righe che il master ha e questo no | 71 — **tutte** banner d'archivio del 29 e separatori `<!-- NN_*.md -->` |
+| Contenuto tecnico aggiunto | **zero** |
+
+Riproducibile, e non è un giudizio a occhio:
+
+```bash
+norm(){ tr -d '\r' < "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -v '^$' \
+        | sed 's/^[-*0-9.]*[[:space:]]*//' | sort -u; }
+norm RefactorTactics_Claude_v0.1_VisualSlice_ALL_IN_ONE.md          > new.txt
+norm docs/archive/src/handoff/2026-08-29-visual-slice-v01-master.md > old.txt
+wc -l < new.txt                    # 768
+comm -12 new.txt old.txt | wc -l   # 743  — condivise
+comm -23 new.txt old.txt | wc -l   # 25   — sole del nuovo, riprodotte sotto
+```
+
+### 18.2 Le venticinque righe nuove, verbatim e per intero
+
+Sono tutto ciò che questa consegna aggiunge, ed è la ragione per cui il sorgente **non** è stato archiviato
+una seconda volta (§18.6). In ordine di documento: un cappello d'uso e un prompt di lancio.
+
+```text
+# RefactorTactics — Visual Slice v0.1 — Claude Code ALL-IN-ONE
+Questo è il **solo file da dare a Claude Code**.
+## Uso
+Dalla root di `refactor-tactics-main`, chiedi a Claude:
+Leggi AGENTS.md e CLAUDE.md.
+Poi leggi interamente RefactorTactics_Claude_v0.1_VisualSlice_ALL_IN_ONE.md.
+Esegui SOLO il primo task non completato.
+Prima misura sempre branch, HEAD, git status, issue, codice e test reali.
+Alla fine fai l'handoff e fermati. Non iniziare il task successivo senza mia conferma.
+# Prompt operativo finale
+Leggi AGENTS.md, CLAUDE.md e poi questo file ALL-IN-ONE.
+Regole:
+non lavorare dalla memoria;
+verifica lo stato corrente prima di ogni task;
+issue GitHub e owner canonici del repository prevalgono se questo file è invecchiato;
+non espandere lo scope;
+niente GAS nella v0.1;
+non creare una seconda LOS;
+non creare una seconda Fog of War;
+simulazione e presentazione restano separate;
+non manipolare .uasset/.umap a mano;
+completa un solo task per volta;
+usa il template Handoff;
+fermati e aspetta conferma.
+Inizia dal primo task della sequenza che non risulta già completato sul branch corrente.
+```
+
+### 18.3 🔴 Il contributo netto è **zero**, e stavolta si misura in minuti
+
+La terza fotografia aveva due contributi propri — `NEW-02` e `NEW-01`, §11. Erano **già issue** quando questo
+file è stato scritto:
+
+| Evento | Istante (UTC) | Distanza dal file |
+|---|---|---|
+| [`#1712`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1712) — LOS debug overlay | `2026-08-29T19:50:05Z` | **−2 h 26 m** |
+| [`#1714`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1714) — materiale del kit graybox | `2026-08-29T21:03:13Z` | **−1 h 13 m** |
+| **Il file `ALL_IN_ONE` viene scritto** | `2026-08-29T22:16:40Z` | — |
+| [PR #1717](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1717) — questo referto entra in `main` | `2026-08-29T22:21:56Z` | **+5 m 16 s** |
+
+∴ Il triage di §11 vale riga per riga, riverificato lato server il 2026-08-30, con **due sole righe che
+cambiano classe** — e cambiano perché il lavoro è stato fatto, non perché il kit sia migliorato:
+
+| Riga di §11 | Il 29 | Il 30 |
+|---|---|---|
+| `ISSUE_NEW02` | ✅ **aprire** | ✅ **aperta** — `#1712`, `OPEN` |
+| `ISSUE_NEW01` | 🟠 riscrivere come delta | ✅ **aperta ridotta** — `#1714`, `OPEN` |
+
+Le tre `SUPERSEDED` reggono, riverificate il 2026-08-30: `#1094` `CLOSED` dal 2026-08-19, `#956` `CLOSED` dal
+2026-08-23. Le otto issue dei nodi restanti sono tutte ancora `OPEN` — nessun verdetto si muove.
+
+### 18.4 🔴 Il difetto non si limita a ripetersi: qui è **argomentato**
+
+`C1` diceva che tre nodi su quattordici lavorano su una issue chiusa. In questa stesura la sequenza non è solo
+ripetuta, è **difesa in una sezione propria**:
+
+> *«## Sequenza vincolante»* … *«## Regola importante sulla sequenza — `#1094 → #1095 → #1094` è volutamente
+> un loop. Non cercare di chiudere tutte le decisioni graybox prima della scena di validazione»*
+
+Il ragionamento sul loop è **giusto in astratto** — alcune decisioni si misurano guardando, ed è esattamente
+ciò che [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) dice di `GBX-1` e `GBX-5`. È il supporto a essere
+sbagliato: il loop è appeso a una issue chiusa da undici giorni, e le decisioni che il nodo 01 manda a
+*«verificare»* — `GBX-2` e `GBX-4` — sono chiuse da `D-171` e `D-173`. Restano `GBX-1` e `GBX-5`, che hanno
+per innesco la seduta U25, cioè [`#1095`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1095),
+`OPEN`, che è il nodo 02.
+
+⛔ **E la nuova riga d'uso rende il difetto l'ingresso.** *«Esegui SOLO il primo task non completato»* più
+*«Inizia dal primo task della sequenza che non risulta già completato»*: il primo task della sequenza è il
+nodo 01, su `#1094`. Chi apre il file dalla prima riga e obbedisce alla lettera comincia da lì.
+
+### 18.5 ✅ Una riga nuova che vale, e perché non basta
+
+Fra le venticinque c'è la clausola migliore dell'intera famiglia:
+
+> *«issue GitHub e owner canonici del repository prevalgono se questo file è invecchiato»*
+
+È il kit che dichiara la propria subordinazione, ed è ciò che §14 chiedeva — ma **nel posto sbagliato**. §14
+diceva: *«la contromisura non è un referto migliore — è che il primo passo di ogni kit futuro sia
+`gh issue view` sulle issue che nomina, prima della sua §1»*. Quella è una regola di **generazione**; questa è
+una regola di **esecuzione**. La differenza si vede nel risultato: la clausola ammette che il documento possa
+essere vecchio, e il documento è vecchio lo stesso. Scaricare la rimisurazione sul lettore costa, ogni volta,
+le stesse ore di misura che questo referto ha già speso il 29.
+
+⚠️ **Nota operativa minore, ma reale**: *«Dalla root di `refactor-tactics-main`»*, mentre il file è stato
+consegnato in `refactor-tactics-technical-designer/`, dove quella root è una **sottodirectory**. Sono due
+copie distinte dello stesso repository, e chi obbedisce alla riga apre la root sbagliata.
+
+### 18.6 ⛔ Perché il sorgente non è archiviato una seconda volta
+
+§13 ha già nominato questo esatto fallimento, chiudendo lo zip byte-identico: *«il kit disponibile in due
+copie, una archiviata con un verdetto e una no»* è la condizione **due source of truth**. Archiviare
+`ALL_IN_ONE` verbatim la produrrebbe, con l'aggravante che le due copie **non** sarebbero byte-identiche —
+divergono per venticinque righe, e sarebbe quella la domanda del prossimo lettore.
+
+Nulla va perso: **743 righe su 768 sono già in git** dal 29, in
+[`../../archive/src/handoff/2026-08-29-visual-slice-v01-master.md`](../../archive/src/handoff/2026-08-29-visual-slice-v01-master.md),
+e le **25** che non c'erano stanno qui sopra in §18.2, verbatim e per intero. Il banner del master porta il
+rimando a questa sezione.
+
+### 18.7 Cosa è stato fatto, e cosa no
+
+- ⛔ **Nessuno dei quattordici nodi eseguito**, nessuna issue aperta, chiusa o commentata, nessun sorgente e
+  nessun asset toccato — `/sc:spec-panel` è task documentale (`CLAUDE.md` §6);
+- ⛔ **Nessun `D-nnn` assegnato**: non c'è posizione nuova da prendere. L'ultimo su `main` è `D-245`;
+- ⛔ **Suite non eseguita**: nessuna riga di codice toccata, quindi niente da misurare (`D-222`);
+- ✅ **Il file è stato rimosso** dalla directory in cui era arrivato, come da mandato;
+- ✅ Il lavoro è stato fatto in un **worktree** su `origin/main`: le due copie del repository restano dove
+  sono, e nessuna delle due ha cambiato branch.
