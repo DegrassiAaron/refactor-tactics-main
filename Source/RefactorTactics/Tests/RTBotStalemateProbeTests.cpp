@@ -1630,9 +1630,13 @@ namespace
  * dice «su questa board, coi budget spediti, il primo passo del ciclo di #1287 non arretra», che e' meno di
  * «il bot non puo' orbitare» e piu' di «non ho trovato la mutazione».
  *
- * ⚠️ **Quindi la ricerca di una mutazione del bot che falsifichi quell'oracolo NON e' chiusa**, ed e'
- * scritto anche li': chi ne trova una la scriva nella tabella di `RTMatchAutobattleTests.cpp`, e con lei
- * cade questa spiegazione.
+ * ⚠️ **La RICERCA di una mutazione del bot che falsifichi quell'oracolo non e' chiusa — ma la RIGA della
+ * tabella si'**, e la distinzione conta (#1550, 2026-08-29). Chiedere «il test che dimostra perche' la
+ * mutazione non esiste» era un criterio **malformato**: un'esistenziale negativa su uno spazio non
+ * enumerabile, che nessun test puo' stabilire e che infatti ha *richiesto* la tesi di impossibilita' poi
+ * ritirata. Cio' che si puo' stabilire e' questa condizione necessaria su casi nominati, ed e' stabilito.
+ * ∴ nella tabella di `RTMatchAutobattleTests.cpp` non c'e' piu' una riga da riempire: c'e' cio' che si sa,
+ * col suo confine. Chi trovera' quella mutazione la scriva li', e con lei cadra' questa spiegazione.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotGeneratedArenaFilterNeverStepsBackTest,
 	"RefactorTactics.Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack",
