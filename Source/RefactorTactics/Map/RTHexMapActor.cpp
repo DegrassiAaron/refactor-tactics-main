@@ -1312,6 +1312,24 @@ void ARTHexMapActor::RebuildInstances()
 			EdgeFeatureBaseScale.Add(WallXf.GetScale3D());
 		}
 	}
+
+	// 🔬 **STRUMENTAZIONE TEMPORANEA — #1665.** Nel pacchetto la board non si vede, e due ipotesi
+	// restano in campo senza che nulla le separi: le istanze non ci sono, oppure ci sono e non si
+	// vedono (materiale o luce). Nessun log di questa funzione lo diceva, quindi il difetto era
+	// osservabile solo a occhio su una build impacchettata.
+	//
+	// ⚠️ Da RIMUOVERE quando #1665 chiude: e' una sonda, non un log di esercizio. Sta su `Log` e non
+	// su `Verbose` di proposito — deve comparire in un pacchetto Development senza dover alzare la
+	// verbosita' da riga di comando, che e' esattamente cio' che qui non si puo' fare comodamente.
+	UE_LOG(LogRT, Log,
+		TEXT("[RT][1665] RebuildInstances: %d istanze in Cells, mesh '%s', materiale '%s', "
+			 "MapAsset '%s' con %d celle, custom data %d float"),
+		Cells ? Cells->GetInstanceCount() : -1,
+		(Cells && Cells->GetStaticMesh()) ? *Cells->GetStaticMesh()->GetName() : TEXT("<nulla>"),
+		(Cells && Cells->GetMaterial(0)) ? *Cells->GetMaterial(0)->GetName() : TEXT("<nullo>"),
+		MapAsset ? *MapAsset->GetName() : TEXT("<nullo>"),
+		MapAsset ? MapAsset->NumCells() : -1,
+		Cells ? Cells->NumCustomDataFloats : -1);
 }
 
 void ARTHexMapActor::GenerateIntoAsset()
