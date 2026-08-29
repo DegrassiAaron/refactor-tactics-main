@@ -409,7 +409,15 @@ struct REFACTORTACTICS_API FRTScenarioDraft
 	/** Ruota una unita' schierata. Il facing e' `ERTHexDirection`, mai un angolo libero. */
 	ERTScenarioAuthoringResult SetUnitFacing(const FString& UnitId, ERTHexDirection Facing, FString& OutError);
 
-	/** Indice in `Units` dello Stable Unit ID, o `INDEX_NONE`. Gli id sono identita', non posizioni. */
+	/**
+	 * Indice in `Units` dello Stable Unit ID, o `INDEX_NONE`. Gli id sono identita', non posizioni.
+	 *
+	 * ⚠️ **Assume che l'id sia UNICO, e l'assunzione non e' gratuita** (#1515): con due unita' che portano
+	 * lo stesso id questa funzione restituirebbe la prima, e le operazioni di editing agirebbero su quella
+	 * lasciando l'altra — un editor che obbedisce a meta'. L'unicita' e' garantita dalle due porte
+	 * (`OpenFromFile`, che valida, e `AddUnit`, che valida il candidato); un `ensure` nel corpo copre la
+	 * terza strada — uno scenario costruito da codice — trasformando il silenzio in segnale.
+	 */
 	int32 IndexOfUnit(const FString& UnitId) const;
 
 	// --- authoring dei turni (#1116) --------------------------------------------------------------------

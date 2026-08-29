@@ -524,4 +524,83 @@ bool FRTScenarioRemoveUnitReportsOrphansTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **L'UNICITA' DEGLI ID E' RETTA DA DUE PORTE, E TUTTE E DUE SI CHIUDONO** (#1515).
+ *
+ * 🔴 **Il difetto che questo test previene non e' un rifiuto mancato: e' un editor che OBBEDISCE A META'.**
+ * `FRTScenarioDraft::IndexOfUnit` restituisce il **primo** match. Con due unita' che portano lo stesso id
+ * `MoveUnit` sposterebbe la prima e lascerebbe la seconda, `RemoveUnit` ne toglierebbe una sola, e
+ * `AddUnit` rifiuterebbe ogni piazzamento per quell'id — senza che niente lo dica.
+ *
+ * Le due porte da cui uno scenario entra in un draft:
+ *   · **l'apertura** — `LoadFromString` termina con `Validate`, e il duplicato viene rifiutato NOMINANDOLO;
+ *   · **l'editing** — `AddUnit` chiama `ValidateUnitPlacement` sul candidato prima di inserirlo.
+ *
+ * ⚠️ **Un test per porta, e non e' ridondanza**: sono due percorsi di codice diversi verso la stessa
+ * regola, ed e' il caso in cui due copie divergono al primo campo aggiunto a una sola delle due — la
+ * ragione per cui questo file esiste (vedi l'intestazione).
+ *
+ * ⛔ **La terza strada resta aperta per costruzione**: `MutableScenario()` da' accesso diretto allo
+ * scenario, quindi un id duplicato puo' ancora entrare da codice. Non e' un buco da tappare con un terzo
+ * guardiano — sarebbe una difesa senza consumatore — ma non e' nemmeno silenzioso: `IndexOfUnit` porta un
+ * `ensure` che lo dichiara in sviluppo. Qui si asserisce cio' che le due porte garantiscono, non cio' che
+ * il tipo impedisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioDuplicateIdBothDoorsTest,
+	"RefactorTactics.Scenario.DuplicateUnitIdIsRejectedAtBothDoors",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioDuplicateIdBothDoorsTest::RunTest(const FString&)
+{
+	// PORTA 1 — l'apertura. Il file porta due unita' con lo stesso id.
+	{
+		FRTTestScenario Loaded;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(
+			TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[)")
+			TEXT(R"({"id":"Gemella","hero":"Hero.Gadget","team":0,"cell":[0,0,0]},)")
+			TEXT(R"({"id":"Gemella","hero":"Hero.Phase","team":1,"cell":[1,0,0]}],)")
+			TEXT(R"("expect":[{"type":"TurnsCompleted","value":1}]})"),
+			Loaded, Error);
+		TestFalse(TEXT("porta 1: lo scenario con id duplicato non si apre"), bOk);
+		TestTrue(FString::Printf(TEXT("porta 1: l'errore NOMINA l'id (era: '%s')"), *Error),
+			Error.Contains(TEXT("Gemella")));
+	}
+
+	// PORTA 2 — l'editing. Lo scenario di partenza e' valido; il duplicato lo introdurrebbe `AddUnit`.
+	{
+		FRTScenarioDraft Draft;
+		FString Error;
+		if (!TestTrue(TEXT("porta 2: scenario di partenza caricato"), OpenEditingDraft(Draft, Error)))
+		{
+			return false;
+		}
+
+		const int32 PrimaDiTutto = Draft.GetSummary().UnitCount;
+		const FString IdEsistente = Draft.GetScenario().Units[0].Id;
+
+		// Una cella LIBERA: il rifiuto deve venire dall'id, non dalla sovrapposizione — altrimenti il test
+		// passerebbe per il motivo sbagliato e resterebbe verde anche togliendo il controllo sui duplicati.
+		const ERTScenarioAuthoringResult Esito = Draft.AddUnit(
+			IdEsistente, FName(TEXT("Hero.Wraith")), 1, FRTCellId(2, -1, 0), ERTHexDirection::NE, Error);
+
+		TestEqual(TEXT("porta 2: AddUnit rifiuta un id gia' schierato"),
+			Esito, ERTScenarioAuthoringResult::Invalid);
+		TestTrue(FString::Printf(TEXT("porta 2: l'errore NOMINA l'id (era: '%s')"), *Error),
+			Error.Contains(IdEsistente));
+		TestEqual(TEXT("porta 2: e nessuna unita' e' stata aggiunta"),
+			Draft.GetSummary().UnitCount, PrimaDiTutto);
+
+		// Controprova: con un id nuovo, sulla STESSA cella, l'inserimento riesce. Senza, «rifiutato» non
+		// distinguerebbe la regola sull'id da una fixture che non sa aggiungere unita'.
+		const ERTScenarioAuthoringResult Controprova = Draft.AddUnit(
+			TEXT("IdNuovo"), FName(TEXT("Hero.Wraith")), 1, FRTCellId(2, -1, 0), ERTHexDirection::NE, Error);
+		TestEqual(TEXT("controprova: con un id nuovo la stessa aggiunta riesce"),
+			Controprova, ERTScenarioAuthoringResult::Success);
+		TestEqual(TEXT("controprova: ora le unita' sono una in piu'"),
+			Draft.GetSummary().UnitCount, PrimaDiTutto + 1);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

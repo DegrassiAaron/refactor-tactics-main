@@ -1731,6 +1731,27 @@ bool URTScenarioLoader::ValidateUnitPlacement(const FRTTestScenario& Scenario, c
 		return false;
 	}
 
+	// 🔴 **La squadra dev'essere una che la partita CONOSCE** (#1515). `FRTScenarioUnit::TeamId` e' un
+	// `int32` libero e nessuno lo guardava: uno scenario con `"team": 7` girava, produceva un risultato, e
+	// il punteggio di quella squadra restava **fuori dall'hash di determinismo** — `RTScenarioSession`
+	// costruisce l'hash da `GetTeamScore(0)` e `GetTeamScore(1)` soltanto, e `GetTeamScore` risponde `0` a
+	// ogni altro indice. Cioe' un esito che nessuno puo' riprodurre e nessun gate confronta.
+	//
+	// ⛔ **Il vincolo si CHIEDE a chi possiede le squadre**, non si riscrive qui come `0..1`: `URTTurnRules`
+	// e' la libreria che decide chi vince, e le sue firme conoscono due squadre. Una costante locale nel
+	// loader sarebbe una seconda verita' da tenere allineata a mano — la stessa classe di difetto che
+	// l'harness esiste per non introdurre.
+	//
+	// ⚠️ Non e' un vincolo di FORMATO: 3v3 e 4v4 muovono le unita' per squadra, non il numero di squadre.
+	if (!URTTurnRules::IsValidTeamId(Unit.TeamId))
+	{
+		OutError = FString::Printf(
+			TEXT("unita' '%s': squadra %d fuori dall'intervallo ammesso (0..%d) — il suo punteggio "
+				 "resterebbe fuori dall'hash di stato"),
+			*Unit.Id, Unit.TeamId, URTTurnRules::NumTeams - 1);
+		return false;
+	}
+
 	// `loadout` (`#602`): i pezzi devono esistere nel catalogo e l'insieme dev'essere LEGALE secondo la stessa
 	// regola del gioco (`ValidateLoadout`, 1+1+1 — CP 7.4). Uno scenario che monti due gadget va rifiutato con
 	// un motivo, esattamente come lo sarebbe una configurazione illegale in partita: altrimenti l'harness

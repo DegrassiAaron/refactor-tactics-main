@@ -133,6 +133,42 @@ class REFACTORTACTICS_API URTTurnRules : public UBlueprintFunctionLibrary
 
 public:
 	/**
+	 * **Quante squadre esistono in una partita: DUE, e non e' una costante di comodo.**
+	 *
+	 * E' il numero che questa stessa libreria ha gia' cablato nelle proprie firme — `EvaluateOutcome(int32
+	 * Team0Alive, int32 Team1Alive)`, `ResolveObjectiveControl(int32 Team0Present, int32 Team1Present)` — e
+	 * che `ERTMatchOutcome` enumera con `Team0Wins`/`Team1Wins`. Chi decide chi vince conosce due squadre:
+	 * questa riga lo DICHIARA invece di lasciarlo dedurre da un nome di parametro.
+	 *
+	 * 🔴 **Perche' esiste** (#1515): una terza squadra non produce un errore, produce un **esito che nessuno
+	 * puo' riprodurre**. `ARTTurnManager::GetTeamScore` risponde `0` a ogni `TeamId` diverso da 0 e 1, e
+	 * l'hash di stato si costruisce da `GetTeamScore(0)` e `GetTeamScore(1)` soltanto: uno scenario con
+	 * `"team": 7` gira, dichiara un vincitore, e il punteggio di quella squadra resta **fuori dall'hash di
+	 * determinismo** e fuori dal giudizio di fine partita.
+	 *
+	 * ⛔ **Non e' `FRTKnowledgeVerdict::MaxTeamId`**, che vale 31 ed e' la capacita' di una **bitmask di
+	 * percezione**: quanti indici quella maschera sa rappresentare, non quante squadre giocano. Derivare il
+	 * vincolo da li' ammetterebbe `"team": 7` — cioe' proprio il caso rotto.
+	 *
+	 * ⚠️ **Non e' `FRTMatchRules::UnitsPerTeam`**: quello dice quante unita' schiera una squadra, non quante
+	 * squadre ci sono. Il formato competitivo aperto (3v3 vs 4v4, `OPEN_DECISIONS`) muove le UNITA', non il
+	 * numero di squadre — che resta due in ogni formato oggi dichiarato.
+	 *
+	 * 🔔 Il giorno in cui una partita a tre squadre diventi reale, questa costante e' il punto da cui
+	 * partire, e i suoi consumatori si trovano cercando questo simbolo: `GetTeamScore`, `EvaluateOutcome`,
+	 * `CompareScores` e l'hash di stato vanno rifatti insieme, non uno per volta.
+	 */
+	static constexpr int32 NumTeams = 2;
+
+	/**
+	 * Se `TeamId` e' una squadra che questa partita conosce. Vedi `NumTeams` per il perche' del vincolo.
+	 *
+	 * Non e' `UFUNCTION`: e' una funzione pura su un intero, usata dal validator dello Scenario Harness e
+	 * dai test, e non ha bisogno di attraversare la reflection.
+	 */
+	static bool IsValidTeamId(int32 TeamId) { return TeamId >= 0 && TeamId < NumTeams; }
+
+	/**
 	 * Fase successiva nel ciclo Planning -> Prep -> Dash -> Blast -> Move -> Cleanup -> Planning.
 	 * MatchEnded e' assorbente (resta MatchEnded).
 	 */

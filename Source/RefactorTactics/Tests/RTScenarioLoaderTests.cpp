@@ -8,6 +8,8 @@
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioSession.h" // le due domande del vocabolario: noto e disponibile
+#include "Turn/RTTurnRules.h" // #1515: il vincolo sulle squadre si CHIEDE a chi decide il vincitore
+#include "Perception/RTTeamKnowledge.h" // la bitmask di percezione: il candidato SBAGLIATO, e il test lo dice
 #include "Turn/RTTurnLog.h" // gli esiti che le assertion sul log nominano per nome
 #include "Turn/RTReactionOpportunityTypes.h" // TargetHealthAtOrBelowPercent: l'id della condizione sta nel gioco
 #include "Misc/FileHelper.h"
@@ -124,6 +126,16 @@ bool FRTScenarioLoaderRejectsTest::RunTest(const FString&)
 
 	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]},{"id":"B","hero":"Hero.Phase","team":1,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("stessa cella"), TEXT("due unita' sovrapposte alla partenza"));
+
+	// #1515 — una squadra che la partita non conosce. Non e' pedanteria di formato: `GetTeamScore` risponde
+	// `0` a ogni indice diverso da 0 e 1, e l'hash di stato si costruisce da quei due soltanto, quindi uno
+	// scenario con `"team": 7` girerebbe producendo un esito che nessuno puo' riprodurre.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":7,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("squadra 7"), TEXT("squadra fuori dall'intervallo ammesso"));
+
+	// Anche il verso negativo: `TeamId` e' un `int32` libero, e `-1` non e' meno rotto di `7`.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":-1,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("squadra -1"), TEXT("squadra negativa"));
 
 	// Uno scenario senza assertion passerebbe sempre: e' un test che non testa.
 	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]}]})"),
@@ -1247,6 +1259,63 @@ bool FRTScenarioLoaderRedirectExpectTest::RunTest(const FString&)
 		URTScenarioLoader::LoadFromString(*NoUnit, Rejected, RejectError));
 	TestTrue(TEXT("e il messaggio nomina il campo mancante"),
 		RejectError.Contains(TEXT("unit")));
+	return true;
+}
+
+/**
+ * **IL VINCOLO SULLE SQUADRE E' DERIVATO, NON RISCRITTO** (#1515).
+ *
+ * L'AC chiedeva che l'intervallo venisse da *dove le squadre sono definite nel runtime*, e non da una
+ * costante `0..1` scritta nel loader. Questo test lo verifica **dal lato che conta**: non che il numero sia
+ * 2, ma che sia LO STESSO che decide chi vince.
+ *
+ * ⛔ **Perche' non `FRTKnowledgeVerdict::MaxTeamId`**, il candidato ovvio: vale **31** ed e' la capacita' di una
+ * bitmask di percezione — quanti indici quella maschera sa rappresentare, non quante squadre giocano.
+ * Derivare il vincolo da li' ammetterebbe `"team": 7`, cioe' esattamente il caso rotto che questa issue
+ * descrive. La riga qui sotto lo rende falsificabile invece di lasciarlo in un commento.
+ *
+ * ⚠️ **E non e' un vincolo di FORMATO**: 3v3 e 4v4 muovono le unita' per squadra (`UnitsPerTeam`), non il
+ * numero di squadre. Il formato competitivo resta aperto in `OPEN_DECISIONS` e questa riga non lo tocca.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioTeamConstraintIsDerivedTest,
+	"RefactorTactics.Scenario.TeamConstraintComesFromTheRuntime",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioTeamConstraintIsDerivedTest::RunTest(const FString&)
+{
+	// L'autorita': `URTTurnRules` e' la libreria che decide l'esito, e le sue firme conoscono due squadre.
+	TestEqual(TEXT("il runtime dichiara due squadre"), URTTurnRules::NumTeams, 2);
+	TestTrue(TEXT("la squadra 0 e' valida"), URTTurnRules::IsValidTeamId(0));
+	TestTrue(TEXT("la squadra 1 e' valida"), URTTurnRules::IsValidTeamId(1));
+	TestFalse(TEXT("la squadra 2 non lo e'"), URTTurnRules::IsValidTeamId(2));
+	TestFalse(TEXT("ne' la -1"), URTTurnRules::IsValidTeamId(-1));
+
+	// 🔴 **Il legame che rende la derivazione una derivazione**: la prima squadra che il vincolo rifiuta e'
+	// anche la prima per cui `EvaluateOutcome` non ha un caso. Se qualcuno introducesse una terza squadra
+	// nel runtime senza toccare questa costante, il loader continuerebbe a rifiutarla e questa riga direbbe
+	// dove guardare.
+	TestFalse(FString::Printf(
+		TEXT("la prima squadra fuori intervallo (%d) e' fuori anche per chi decide il vincitore"),
+		URTTurnRules::NumTeams), URTTurnRules::IsValidTeamId(URTTurnRules::NumTeams));
+
+	// ⛔ La bitmask di percezione dichiara un massimo MOLTO piu' largo: e' la prova che i due numeri
+	// rispondono a domande diverse, e che sceglierli l'uno per l'altro non e' un dettaglio.
+	TestTrue(FString::Printf(
+		TEXT("la bitmask di percezione ammette molto piu' delle squadre giocanti (%d contro %d)"),
+		FRTKnowledgeVerdict::MaxTeamId, URTTurnRules::NumTeams - 1),
+		FRTKnowledgeVerdict::MaxTeamId > URTTurnRules::NumTeams - 1);
+
+	// E il messaggio d'errore nomina l'unita' E il valore, come chiede il DoD.
+	FRTTestScenario Scenario;
+	FString Error;
+	const bool bOk = URTScenarioLoader::LoadFromString(
+		TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"Ribelle","hero":"Hero.Gadget","team":7,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		Scenario, Error);
+	TestFalse(TEXT("lo scenario con la squadra 7 e' rifiutato"), bOk);
+	TestTrue(FString::Printf(TEXT("l'errore nomina l'unita' (era: '%s')"), *Error),
+		Error.Contains(TEXT("Ribelle")));
+	TestTrue(FString::Printf(TEXT("e nomina il valore (era: '%s')"), *Error),
+		Error.Contains(TEXT("7")));
+
 	return true;
 }
 

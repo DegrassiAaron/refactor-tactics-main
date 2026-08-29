@@ -157,8 +157,29 @@ ERTScenarioAuthoringResult FRTScenarioDraft::SaveInPlace(FString& OutError)
 
 int32 FRTScenarioDraft::IndexOfUnit(const FString& UnitId) const
 {
-	return Scenario.Units.IndexOfByPredicate(
+	const int32 First = Scenario.Units.IndexOfByPredicate(
 		[&UnitId](const FRTScenarioUnit& U) { return U.Id == UnitId; });
+
+	// 🔴 **Se l'id fosse ambiguo, questa funzione non lo direbbe a nessuno** (#1515). Restituire il PRIMO
+	// match e' la scelta giusta solo perche' gli id sono unici; se non lo fossero, `MoveUnit` sposterebbe la
+	// prima e lascerebbe la seconda, `RemoveUnit` ne toglierebbe una sola e `AddUnit` rifiuterebbe ogni
+	// piazzamento per quell'id — un editor che **obbedisce a meta'** senza dire perche'.
+	//
+	// ⚠️ **Non e' una difesa strutturale, ed e' deliberato**: l'unicita' e' gia' garantita da DUE porte, e
+	// aggiungere un terzo guardiano sarebbe una difesa senza consumatore.
+	//   · `OpenFromFile` -> `LoadFromString`, che termina con `Validate` e rifiuta il duplicato nominandolo;
+	//   · `AddUnit`, che chiama `ValidateUnitPlacement` sul candidato prima di inserirlo.
+	// Le due porte sono asserite da `Scenario.DuplicateUnitIdIsRejectedAtBothDoors`, con verifica di
+	// mutazione. Questo `ensure` copre la terza strada — uno scenario **costruito da codice** o prodotto da
+	// uno strumento futuro — e la trasforma da silenzio in segnale in sviluppo, senza cambiare il
+	// comportamento di chi chiama ne' fallire in produzione.
+	ensureMsgf(First == INDEX_NONE
+		|| Scenario.Units.FindLastByPredicate(
+			[&UnitId](const FRTScenarioUnit& U) { return U.Id == UnitId; }) == First,
+		TEXT("FRTScenarioDraft: id unita' '%s' ambiguo — piu' di una unita' lo porta, e le operazioni di ")
+		TEXT("editing agirebbero sulla prima. Lo scenario non e' passato da Validate."), *UnitId);
+
+	return First;
 }
 
 ERTScenarioAuthoringResult FRTScenarioDraft::AddUnit(const FString& UnitId, FName HeroId, int32 TeamId,
