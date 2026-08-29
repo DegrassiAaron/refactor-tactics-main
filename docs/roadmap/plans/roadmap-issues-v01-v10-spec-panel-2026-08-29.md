@@ -243,11 +243,24 @@ più stretto del gate, ed è la stessa distinzione che la clausola di non-degene
 Rinominarlo distruggerebbe un'intenzione scritta, e romperebbe i riferimenti in **D-220**, in
 `Scenarios/AutoBattle/ArenaV01.json` e in due handoff `DIR-C`.
 
-⚠️ **Resta una divergenza aperta, che il cambio di `G10` ha creato oggi**: il docstring afferma che un
-pareggio *«non è l'evidenza che `G10` chiede»*, e da questo commit `G10` accetta un pareggio **non degenere**.
-La stessa frase compare in `ArenaV01.json`. Sono **due punti di prosa** da riallineare — non il nome, non il
-comportamento, non l'asserzione. **Non applicati**: toccano un file C++ e un corpus di scenario su un
-checkout che altre sessioni condividono, e valgono una conferma separata.
+✅ **I due punti di prosa sono stati riallineati il 2026-08-29**, su conferma, in due PR distinte. Il cambio
+di `G10` aveva reso falsa una frase in due posti, che affermavano entrambi che un pareggio *«non è l'evidenza
+che `G10` chiede»*:
+
+| File | Cosa è cambiato | Cosa **non** è cambiato |
+|---|---|---|
+| `Scenarios/AutoBattle/ArenaV01.json` (#1670) | la `_nota_terminazione` distingue regola ed evidenza, e cita `D-184` | ogni campo di dato: **una riga**, e il file resta JSON valido a 16 chiavi |
+| `Source/RefactorTactics/Tests/RTScenarioFreeRunTests.cpp` (questo commit) | il docstring dichiara che l'esclusione del pareggio è una **scelta di evidenza**, che il test è deliberatamente più stretto del gate, e porta il `⌫` sulla formulazione precedente | il **nome**, l'asserzione, il comportamento — il diff tocca **solo righe di commento** |
+
+⚠️ **Il riallineamento del JSON ha dovuto fondersi con `49881f11`**, che nel frattempo aveva rimisurato lo
+scenario dal pacchetto: **turno 22, non 19**. La nota conserva entrambe le cose — la rimisura con `seed 0` e
+`stateHash ac877346`, e la distinzione fra regola ed evidenza. In tutti e due i file è stato corretto lo
+stesso residuo, che diceva ancora *«19 è oltre il `RoundLimit` 12»* dopo che il numero era passato a 22.
+
+La regola che i due testi ora esprimono, e che prima confondevano: **`D-184` governa la regola** — il
+pareggio è un esito legittimo — **`G10` governa il gate**, e accetta il pareggio purché la partita non sia
+degenere; **il test governa la propria evidenza**, ed è più stretto di entrambi perché `ArenaV01` deve
+decidersi. Tre livelli, tre autorità, nessuna che contraddica l'altra.
 
 ### 🟠 F-06 · Regole del repository riscritte invece che citate — FOWLER
 
