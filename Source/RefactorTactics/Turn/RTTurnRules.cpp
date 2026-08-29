@@ -37,6 +37,26 @@ namespace
 	}
 }
 
+ERTObjectiveOutcome URTTurnRules::ResolveObjectiveControl(int32 Team0Present, int32 Team1Present)
+{
+	// Presenze negative non arrivano da nessun chiamante — sono conteggi — ma la regola resta TOTALE invece
+	// di avere un buco: un valore assurdo si comporta come «nessuno», non come un controllo.
+	const int32 Team0 = FMath::Max(0, Team0Present);
+	const int32 Team1 = FMath::Max(0, Team1Present);
+
+	if (Team0 == 0 && Team1 == 0)
+	{
+		return ERTObjectiveOutcome::Unclaimed;
+	}
+	// Il pareggio si dichiara PRIMA dei due controlli, come `CompareScores` sopra: scritto dopo, un `>` e un
+	// `>=` che divergono farebbero vincere la squadra 0 per posizione nell'array.
+	if (Team0 == Team1)
+	{
+		return ERTObjectiveOutcome::Contested;
+	}
+	return Team0 > Team1 ? ERTObjectiveOutcome::Team0Scores : ERTObjectiveOutcome::Team1Scores;
+}
+
 FRTMatchResult URTTurnRules::EvaluateMatchEnd(const FRTMatchState& State, const FRTMatchRules& Rules)
 {
 	// 1. Eliminazione: e' la via che il vertical slice ha da sempre, e resta la prima.

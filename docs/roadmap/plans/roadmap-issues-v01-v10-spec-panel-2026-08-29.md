@@ -64,8 +64,9 @@ Sorgente  : untracked in radice (`git status --porcelain` → `??`)
 | `G10` copre il pareggio | lettura del DoD | 🔴 **no**: dice *«dall'avvio alla vittoria»* — vedi F-05 |
 | I gate `G1…G14` esistono e sono riconciliati (§10, §20) | lettura del DoD | ✅ esistono, **con evidenza datata e rimisurata il 2026-08-29** |
 
-⛔ **Non misurato**: nessuna suite eseguita, nessun build lanciato, nessun `.uasset` aperto. Il referto non
-dichiara verde né rosso alcun gate — legge quelli che l'owner dichiara già.
+⛔ **Non misurato in questa tabella**: nessun `.uasset` aperto, e nessun gate dichiarato verde o rosso da
+questo referto — legge quelli che l'owner dichiara già. ✅ Build e suite **sono** state eseguite più tardi,
+per le sole modifiche di prosa: esito e cronaca in §4 F-05.
 
 ---
 
@@ -262,6 +263,30 @@ pareggio è un esito legittimo — **`G10` governa il gate**, e accetta il pareg
 degenere; **il test governa la propria evidenza**, ed è più stretto di entrambi perché `ArenaV01` deve
 decidersi. Tre livelli, tre autorità, nessuna che contraddica l'altra.
 
+#### La misura, in quattro tentativi — e F-08 vissuto invece che argomentato
+
+| # | Esito | Perché |
+|---|---|---|
+| 1 | **NON VALIDA** (exit `3`) | `7/7, 0 fail`, ma **l'albero è cambiato durante la run**: stavo editando questo referto mentre girava. Non registrabile |
+| 2 | **NOT RUN** (exit `2`) | motore tenuto da un'altra sessione. Non terminato: il mutex è globale, quel processo è lavoro di qualcun altro |
+| 3 | **NOT RUN** (exit `2`) | idem, subito dopo la build |
+| 4 | ✅ **VALIDA** (exit `0`) | `-WaitMinutes 25`: motore libero dopo **317 s**, stato **ridichiarato** al risveglio, `7/7 completati, 0 fallimenti` in 30 s |
+
+```text
+HEAD     0dc79eca   albero ae48caf4   (identici a inizio e fine run)
+binario  RefactorTactics 2026-08-29 14:58:46 — compilato per questa misura
+build    RefactorTacticsEditor Win64 Development → Result: Succeeded, 430s, ZERO warning
+```
+
+🔴 **La build non era prudenza: il binario era stantio di due ore.** Compilato alle `09:30`, mentre `Source/`
+aveva ricevuto commit fino alle `11:33` — merge su bot, test e feature. Misurare senza ricompilare avrebbe
+provato codice che nel binario non c'era, ed è il punto cieco che `rt-suite` **dichiara di non coprire**.
+
+⚠️ **Il tentativo 1 è la dimostrazione di F-08 sulla pelle di chi lo ha scritto.** Il finding contesta al work
+order di ammettere solo `PASS / FAIL / NOT RUN`; tre ore dopo, la prima misura di questo stesso referto è
+uscita **NON VALIDA** — con `7/7, 0 fail` sullo schermo. In un report a tre stati quel numero sarebbe finito
+sotto `PASS`, e sarebbe stata una bugia con l'aria di un dato.
+
 ### 🟠 F-06 · Regole del repository riscritte invece che citate — FOWLER
 
 Tre casi misurati:
@@ -436,8 +461,8 @@ NON VALIDA:   ← exit 3 di rt-suite.ps1; dichiarare HEAD e stato del binario
 
 ## 7. Limiti dichiarati
 
-- ⛔ **Nessuna suite eseguita, nessun build lanciato.** Il referto non dichiara verde né rosso alcun gate:
-  riporta ciò che il DoD dichiara di sé, con le sue date.
+- ⛔ **Il referto non dichiara verde né rosso alcun gate**: riporta ciò che il DoD dichiara di sé, con le sue
+  date. ✅ L'unica misura *sua* è quella del §4 F-05, e copre le sole modifiche di prosa — **non** i gate.
 - ⛔ **L'audit del §4 non è stato eseguito** — non era il compito. Le 22 issue puntatore sono state lette per
   `stato · milestone · titolo`; **non** è stato verificato «codice presente / test presenti» per nessuna epic.
 - ⚠️ Il conteggio **54 epic (42 aperte · 12 chiuse)** viene da `gh issue list --search "EPIC in:title"`:

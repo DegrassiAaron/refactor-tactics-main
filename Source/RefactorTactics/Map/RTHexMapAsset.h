@@ -138,17 +138,20 @@ public:
 	 *     nomina le proprie strutture, quindi ogni sua porta e ogni suo arco sono anonimi — che e' il
 	 *     default `NAME_None`, ed e' cio' che quelle strutture gia' erano. `DoorId` non cambia mestiere:
 	 *     resta l'indice di gruppo interno all'asset.
+	 * v11 (#75, CP 10.2): obiettivo contendibile sulla cella (`FRTHexCellData::bIsObjective`). Nessun dato
+	 *     esistente cambia significato: una mappa scritta prima non dichiarava obiettivi, quindi nessuna sua
+	 *     cella ne e' uno — che e' il default `false`, ed e' cio' che quelle mappe gia' erano.
 	 *
 	 * ⚠️ **Questo numero non viaggia da solo**: la sua storia e' qui, ma il valore che un asset porta nei
 	 * propri byte e' `FRTHexMapCustomVersion` (#687, D-137). Alzarlo senza aggiungere il valore
 	 * corrispondente all'enum non compila — e' voluto, vedi lo `static_assert` in `RTHexMapAsset.cpp`.
 	 *
-	 * Tutti i passi v1->v10 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
+	 * Tutti i passi v1->v11 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
 	 * significato. Il primo passo TRASFORMATIVO e' ora eseguibile — prima di #687 non lo era, perche' la
 	 * migrazione non partiva — ma resta il punto piu' delicato del formato: si scrive un
 	 * `if (FormatVersion < N)` per volta, in ordine, e lo si prova su un asset serializzato.
 	 */
-	static constexpr int32 CurrentFormatVersion = 10;
+	static constexpr int32 CurrentFormatVersion = 11;
 
 	/**
 	 * Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti.
@@ -369,6 +372,27 @@ public:
 
 	/** Hash deterministico del contenuto delle celle (indipendente dall'ordine di inserimento). */
 	uint32 ComputeHash() const;
+
+	/**
+	 * La mappa dichiara almeno una cella OBIETTIVO (formato v11, CP 10.2)?
+	 *
+	 * ⚠️ Esiste perche' il Cleanup deve poter TACERE: su una mappa senza obiettivi non si scrive nessuna voce
+	 * di categoria `Objective`, altrimenti ogni partita gia' archiviata guadagnerebbe una voce per turno che
+	 * dice «non e' successo niente» — e il corpus golden divergerebbe su mappe che non hanno obiettivi.
+	 */
+	bool HasObjectiveCell() const;
+
+	/**
+	 * La cella OBIETTIVO in ordine STABILE, o un id invalido se la mappa non ne dichiara nessuna.
+	 *
+	 * ⚠️ **Stabile e non «la prima dell'array»**: l'ordine di `Cells` lo decide chi edita l'asset, quindi
+	 * spostare due voci nel dettaglio cambierebbe quale cella il TurnLog nomina — a mappa identica. E' lo
+	 * stesso criterio con cui `ComputeHash` ordina prima di mescolare.
+	 *
+	 * Con piu' obiettivi (CP 31.1, post-v0.1) questo accessore non basta piu', ed e' voluto: chi li
+	 * introduce deve toccare i suoi chiamanti invece di ereditare in silenzio «il primo».
+	 */
+	FRTCellId FirstObjectiveCell() const;
 
 	/**
 	 * Cella "centrale" della mappa: mediana del bounding box assiale delle celle del layer piu' basso.
