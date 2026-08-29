@@ -668,4 +668,243 @@ bool FRTGoldenCorpusMatchesTest::RunTest(const FString&)
 	return true;
 }
 
+
+// ---------------------------------------------------------------------------------------------------------
+// L'archivio che resta indietro: cartelle e turni che nessuno legge piu'
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * **Il difetto simmetrico di quello che `GoldenCorpusCoversItsCategories` esiste per impedire** (`#1598`).
+ *
+ * Quel test e' nato perche' *«un corpus che si restringe non produce nessun segnale — si restringe e basta»*.
+ * Un corpus che si **sporca** ha lo stesso silenzio: una `Golden/<ScenarioId>/` che nessuno dei due test
+ * legge piu' resta sul disco somigliando a copertura, e non lo e'. La rete c'era per la copertura che si
+ * perde, non per l'archivio che resta indietro.
+ *
+ * Due vie note per produrne uno, entrambe misurate sul codice:
+ *
+ *   togliere un id da `GoldenScenarioIds`  ->  l'intera cartella esce dalla lettura di **entrambi** i test.
+ *                                              E' esattamente la mutazione che `#1595` prescrive nel proprio
+ *                                              commento come verifica: chi la esegue e non ripristina lascia
+ *                                              una cartella morta, e nulla glielo dice
+ *   uno scenario che si ACCORCIA           ->  il ramo di rigenerazione scrive `turn-%02d` per i **soli
+ *                                              turni prodotti** e non cancella: passando da tre turni a due,
+ *                                              `turn-03.rttl` resta li' per sempre e `GoldenCorpusMatches`
+ *                                              non lo guarda — il suo ciclo va su `Result.TurnTraces`
+ *
+ * ⛔ **Il rilevamento viene prima della rimozione automatica.** Far cancellare i file alla rigenerazione e'
+ * fuori scope e resta tale: il corpus e' protetto da una **convenzione** e non da un controllo (intestazione
+ * di questo file), e una rigenerazione che cancella puo' cancellare troppo.
+ *
+ * ⚠️ **Perche' due test e non uno.** Il verso delle cartelle e' pura lettura di directory e non esegue
+ * niente; quello dei turni deve **far girare** gli scenari per sapere quanti turni producono oggi. Tenerli
+ * insieme avrebbe legato un controllo immediato al costo del piu' lento, che e' la ragione per cui i corpus
+ * lenti non vengono eseguiti.
+ */
+
+namespace
+{
+	/** Le sottocartelle di `Golden/`, per nome. Non ricorsiva: il corpus e' piatto per costruzione. */
+	TArray<FString> GoldenFolderNames()
+	{
+		TArray<FString> Names;
+		IFileManager::Get().FindFiles(Names, *(GoldenRoot() / TEXT("*")),
+			/*Files=*/ false, /*Directories=*/ true);
+		Names.Sort();
+		return Names;
+	}
+
+	/**
+	 * `turn-07.rttl` -> 7. Falso se il nome non ha la forma che `GoldenTurnPath` scrive.
+	 *
+	 * ⚠️ Non si passa da `FString::IsNumeric()`: quella accetta segno e virgola decimale, quindi
+	 * `turn--1.rttl` le sembrerebbe un turno.
+	 */
+	bool ParseGoldenTurnNumber(const FString& FileName, int32& OutNumber)
+	{
+		static const FString Prefisso(TEXT("turn-"));
+		static const FString Suffisso(TEXT(".rttl"));
+		if (!FileName.StartsWith(Prefisso) || !FileName.EndsWith(Suffisso))
+		{
+			return false;
+		}
+
+		const int32 Lunghezza = FileName.Len() - Prefisso.Len() - Suffisso.Len();
+		if (Lunghezza <= 0)
+		{
+			return false;
+		}
+
+		const FString Cifre = FileName.Mid(Prefisso.Len(), Lunghezza);
+		for (const TCHAR C : Cifre)
+		{
+			if (!FChar::IsDigit(C))
+			{
+				return false;
+			}
+		}
+
+		OutNumber = FCString::Atoi(*Cifre);
+		return true;
+	}
+}
+
+/**
+ * **L'insieme delle cartelle e quello degli id coincidono, nei due versi** (`#1598`).
+ *
+ * ⚠️ **Verificato per mutazione, in entrambe le direzioni** — e i due rossi si leggono diversi:
+ *
+ *   mutazione                          cade                        resta verde
+ *   ---------------------------------  --------------------------  ------------------------------
+ *   creare `Golden/Fake.Orphan/`       questo: «ORFANA:            gli altri cinque, Matches e
+ *                                      'Fake.Orphan'»              Covers compresi
+ *   togliere `Movement.Basic` dagli    questo: «ORFANA:            **tutti** gli altri cinque
+ *   id                                 'Movement.Basic'»
+ *   rinominare `Movement.Basic`        questo, con **due**         Covers, Turns — ma `Matches` cade
+ *                                      errori: l'orfana E l'id     con lui, «manca la traccia»
+ *                                      senza cartella
+ *
+ * 🔴 **La seconda riga e' piu' forte di come `#1598` la prevedeva, ed e' il punto.** L'issue chiedeva che
+ * quel rosso fosse *«diverso dal rosso della copertura»*; misurato il 2026-08-29,
+ * `GoldenCorpusCoversItsCategories` non diventa rosso affatto — `Move` resta coperta da
+ * `Movement.Collision`, quindi nessuna categoria si perde e la soglia regge. **La mutazione che `#1595`
+ * prescrive come propria verifica era invisibile a OGNI test preesistente**: non la diceva peggio, non la
+ * diceva.
+ *
+ * ⚠️ Il messaggio **nomina** la cartella o l'id. «Gli insiemi differiscono» avrebbe lasciato a chi legge il
+ * lavoro di ricostruire *quale*, ed e' lo stesso motivo per cui la diagnosi di `GoldenCorpusMatches` dice
+ * turno, fase e `ActionId`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGoldenCorpusOrphanFoldersTest,
+	"RefactorTactics.Simulation.GoldenCorpusHasNoOrphanFolders",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGoldenCorpusOrphanFoldersTest::RunTest(const FString&)
+{
+	const TArray<FString> Cartelle = GoldenFolderNames();
+
+	TSet<FString> Dichiarati;
+	for (const TCHAR* ScenarioId : GoldenScenarioIds)
+	{
+		Dichiarati.Add(FString(ScenarioId));
+	}
+
+	// La premessa: su un elenco vuoto i due versi qui sotto sarebbero verdi per il motivo sbagliato — non
+	// perche' non ci sono orfani, ma perche' non c'e' niente.
+	//
+	// ⚠️ **Non e' un patto sul NUMERO.** Oggi le cartelle sono sette e gli id sette, misurato il 2026-08-29;
+	// ma fissare il sette qui renderebbe rosso l'ingresso legittimo di uno scenario, e il numero lo dichiara
+	// gia' `GoldenScenarioIds`. Cio' che serve e' la sola non-vacuita'.
+	if (!TestTrue(FString::Printf(TEXT("premessa: `Golden/` contiene cartelle (%d)"), Cartelle.Num()),
+		Cartelle.Num() > 0))
+	{
+		return false;
+	}
+	if (!TestTrue(FString::Printf(TEXT("premessa: `GoldenScenarioIds` non e' vuoto (%d)"), Dichiarati.Num()),
+		Dichiarati.Num() > 0))
+	{
+		return false;
+	}
+	AddInfo(FString::Printf(TEXT("%d cartelle su disco, %d id dichiarati: {%s}"),
+		Cartelle.Num(), Dichiarati.Num(), *FString::Join(Cartelle, TEXT(", "))));
+
+	// Primo verso: una cartella che nessun id nomina. E' l'orfana.
+	for (const FString& Cartella : Cartelle)
+	{
+		if (!Dichiarati.Contains(Cartella))
+		{
+			AddError(FString::Printf(
+				TEXT("cartella golden ORFANA: '%s' non e' in `GoldenScenarioIds`, quindi nessun test la ")
+				TEXT("legge — e' archivio che somiglia a copertura. Rimettila nell'elenco, oppure rimuovi ")
+				TEXT("la cartella dichiarando nella PR cosa si perde"), *Cartella));
+		}
+	}
+
+	// Secondo verso: un id senza cartella. `GoldenCorpusMatches` lo direbbe anche lui, ma turno per turno e
+	// solo dopo aver eseguito lo scenario; qui si legge in una riga e prima di eseguire.
+	for (const TCHAR* ScenarioId : GoldenScenarioIds)
+	{
+		if (!Cartelle.Contains(FString(ScenarioId)))
+		{
+			AddError(FString::Printf(
+				TEXT("id SENZA CARTELLA: '%s' e' in `GoldenScenarioIds` ma `Golden/%s/` non esiste — ")
+				TEXT("rigenera il corpus con `-dpcvars=\"rt.Test.RegenerateGolden=1\"` e dichiara nella PR ")
+				TEXT("perche' l'esito e' cambiato"), ScenarioId, ScenarioId));
+		}
+	}
+
+	return true;
+}
+
+/**
+ * **Nessuna cartella conserva turni oltre quelli che lo scenario produce oggi** (`#1598`).
+ *
+ * E' la seconda via per sporcare il corpus, e non passa da `GoldenScenarioIds`: uno scenario che si accorcia
+ * lascia dietro di se' i `.rttl` dei turni che non produce piu'. Il ramo di rigenerazione scrive
+ * `turn-%02d.rttl` per i soli turni prodotti e **non cancella**; il confronto cicla su `Result.TurnTraces`,
+ * quindi un `turn-03.rttl` di troppo non viene ne' riscritto ne' letto: resta.
+ *
+ * ⚠️ **Verificato per mutazione**: creando `Golden/Movement.Basic/turn-99.rttl` questo test cade nominando
+ * il file, e nessun altro test del corpus se ne accorge — `GoldenCorpusMatches` resta verde perche' non
+ * guarda oltre i turni prodotti, e `GoldenCorpusCoversItsCategories` legge le tracce vive e non il disco.
+ *
+ * ⚠️ **Il verso mancante e' gia' coperto**: un turno prodotto *senza* file sul disco lo dice
+ * `GoldenCorpusMatches` con «manca la traccia di riferimento». Qui si guarda solo l'eccesso, che e' l'unico
+ * dei due versi senza oracolo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGoldenCorpusOrphanTurnsTest,
+	"RefactorTactics.Simulation.GoldenCorpusHasNoOrphanTurns",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGoldenCorpusOrphanTurnsTest::RunTest(const FString&)
+{
+	int32 TurniProdotti = 0;
+
+	for (const TCHAR* ScenarioId : GoldenScenarioIds)
+	{
+		FRTTestResult Result;
+		if (!RTRunGoldenScenario(ScenarioId, *this, Result))
+		{
+			continue;
+		}
+
+		const int32 Prodotti = Result.TurnTraces.Num();
+		if (!TestTrue(FString::Printf(TEXT("'%s' ha prodotto almeno un turno"), ScenarioId), Prodotti > 0))
+		{
+			continue;
+		}
+		TurniProdotti += Prodotti;
+
+		TArray<FString> Files;
+		IFileManager::Get().FindFiles(Files, *(GoldenRoot() / ScenarioId / TEXT("*.rttl")),
+			/*Files=*/ true, /*Directories=*/ false);
+		Files.Sort();
+
+		for (const FString& File : Files)
+		{
+			int32 Numero = 0;
+			if (!ParseGoldenTurnNumber(File, Numero))
+			{
+				AddError(FString::Printf(
+					TEXT("file estraneo nel corpus: `Golden/%s/%s` non ha la forma `turn-NN.rttl` che il ")
+					TEXT("corpus scrive, quindi nessun test lo legge"), ScenarioId, *File));
+				continue;
+			}
+
+			if (Numero > Prodotti)
+			{
+				AddError(FString::Printf(
+					TEXT("turno ORFANO: `Golden/%s/%s` sta oltre il turno %d, l'ultimo che lo scenario ")
+					TEXT("produce oggi — si e' accorciato, e la rigenerazione non cancella. Rimuovi il file ")
+					TEXT("dichiarando nella PR perche' i turni sono cambiati"), ScenarioId, *File, Prodotti));
+			}
+		}
+
+		AddInfo(FString::Printf(TEXT("%s: %d turni prodotti, %d file su disco"),
+			ScenarioId, Prodotti, Files.Num()));
+	}
+
+	// La premessa, come sopra: senza turni prodotti «nessun orfano» sarebbe vero per il motivo sbagliato.
+	TestTrue(FString::Printf(TEXT("premessa: il corpus produce turni (%d)"), TurniProdotti), TurniProdotti > 0);
+
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS
