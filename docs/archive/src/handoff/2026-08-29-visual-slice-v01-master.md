@@ -32,6 +32,20 @@
 >
 > ✅ **Ciò che il kit ha di suo**: `NEW-02` (LOS debug overlay) non ha un equivalente nel repository né
 > fra le issue aperte, e il nodo 14 è l'unico gate visivo end-to-end scritto in qualche posto.
+>
+> ➕ **Una quarta fotografia è arrivata il 2026-08-30, e non è archiviata qui accanto: è questa.**
+> `RefactorTactics_Claude_v0.1_VisualSlice_ALL_IN_ONE.md` — 1284 righe, un file solo, consegnato in
+> `refactor-tactics-technical-designer/` alle `2026-08-29T22:16:40Z`, cioè **cinque minuti prima** che
+> [PR #1717](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1717) portasse in `main` il referto
+> che consuma questo sorgente. Normalizzando i due testi: **743 righe uniche su 768 sono verbatim qui**, e le
+> 71 che mancano sono questo banner e i separatori `<!-- NN_*.md -->`. Contenuto tecnico aggiunto: **zero** —
+> le 25 righe nuove sono un cappello d'uso e un prompt di lancio, riprodotte **verbatim e per intero** in
+> [§18.2 del referto](../../../roadmap/plans/visual-slice-v01-spec-panel-2026-08-29.md).
+>
+> ⛔ **Non è stata archiviata a parte per la ragione che il referto ha già scritto** chiudendo lo zip
+> byte-identico (§13): due copie dello stesso kit, una con un verdetto e una senza, sono **due source of
+> truth** — e queste due nemmeno coinciderebbero, divergendo per venticinque righe. Nulla è andato perso: il
+> 96,7 % era già qui dal 29, il resto è in §18.2.
 
 ---
 
