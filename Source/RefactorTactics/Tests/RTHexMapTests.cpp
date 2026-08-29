@@ -4,6 +4,7 @@
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTMapVisuals.h" // RTCellLayerHeightRef: la copia constexpr di LayerHeight, pinnata qui sotto
 #include "RTAuthoredArenaForTest.h" // il path della mappa d'autore in un posto solo
 #include "Map/RTHexMapCustomVersion.h"
 #include "Map/RTHexLibrary.h"
@@ -1346,6 +1347,22 @@ bool FRTHexMapPinnedDefaultsTest::RunTest(const FString&)
 		TEXT("il default di LayerHeight NON si cambia senza migrazione: stessa ragione di HexSize, "
 			 "e' la quota fra un layer e il successivo"),
 		Fresh->LayerHeight, 250.f);
+
+	// 🔴 **E `RTCellLayerHeightRef` deve valere lo stesso numero**, perche' e' la sua COPIA.
+	//
+	// Lo spessore del tile della cella e' budgetato in frazioni di `H` (`RTCellThicknessInH = 0.06`), ma
+	// `LayerHeight` e' un `UPROPERTY(EditAnywhere)` e non e' `constexpr`: nessuno `static_assert` lo puo'
+	// leggere, quindi `Map/RTMapVisuals.h` ne tiene una copia `constexpr`. Questa riga e' il solo motivo per
+	// cui quella copia e' lecita — senza, il giorno in cui `LayerHeight` cambiasse il tile resterebbe
+	// budgetato contro un'altezza che non esiste piu', ed e' esattamente il difetto che il passaggio a `H` ha
+	// appena chiuso per `HexSize` (#1155: la cella si allargo' di 1,5x e lo spessore non segui').
+	//
+	// ⚠️ **Se cade, non si riallinea il numero e basta**: si decide se il tile deve seguire la nuova `H` —
+	// cioe' se `0.06 H` resta la frazione giusta — e poi si aggiornano ENTRAMBI.
+	TestEqual(
+		TEXT("RTCellLayerHeightRef e' la copia constexpr del default di LayerHeight: se divergono, lo "
+			 "spessore del tile e' budgetato contro un'altezza che non esiste (Map/RTMapVisuals.h)"),
+		RTCellLayerHeightRef, Fresh->LayerHeight);
 
 	// --- 2. I valori dell'enum, che i byte gia' scritti portano come NUMERI --------------------------
 	// Aggiungere in coda e' sicuro; riordinare no. Qui non si pinna il simbolo ma la sua rappresentazione.

@@ -93,10 +93,24 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRingLocalZTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTRingLocalZTest::RunTest(const FString&)
 {
-	// Cilindro segnaposto: pivot al CENTRO (offset 90) -> l'anello scende di 90 e risale del clearance (1.8).
-	TestEqual(TEXT("cilindro (90) -> -88.2"), ARTUnit::RingLocalZ(90.f), -88.2f);
+	// 🔴 **I due valori si DERIVANO dal clearance invece di ricopiarlo**, e la riga qui sotto e' costata un
+	// rosso il 2026-08-28. Il test diceva `-88.2f` e `1.8f`: quando `RingGroundClearance` e' salito a `6.8`
+	// per seguire lo spessore del tile, i due letterali sono diventati falsi e il test e' caduto — non
+	// perche' la formula fosse sbagliata, ma perche' pinnava un NUMERO invece di una relazione. E' il
+	// difetto di #983 un piano piu' in basso, in un test che al difetto di #983 fa da guardia.
+	//
+	// ⚠️ **E non diventa tautologico**, che e' l'obiezione naturale: `RingLocalZ` restituisce
+	// `-VisualZOffset + RingGroundClearance`, quindi cio' che resta verificato e' la FORMA — che il pivot si
+	// SOTTRAGGA e il clearance si SOMMI. Scriverla `+VisualZOffset` farebbe cadere la prima riga, invertire i
+	// segni la seconda. Il valore assoluto del clearance ha gia' il suo oracolo altrove, ed e' migliore:
+	// `RingClearsCellDisc` lo misura contro `RTCellTopZ`, cioe' contro la cosa che deve superare.
+
+	// Cilindro segnaposto: pivot al CENTRO (offset 90) -> l'anello scende di 90 e risale del clearance.
+	TestEqual(TEXT("cilindro (90): scende del pivot, risale del clearance"),
+		ARTUnit::RingLocalZ(90.f), -90.f + ARTUnit::RingGroundClearance);
 	// Skeletal: pivot ai PIEDI (offset 0) -> resta al clearance sopra il piano.
-	TestEqual(TEXT("skeletal (0) -> 1.8"), ARTUnit::RingLocalZ(0.f), 1.8f);
+	TestEqual(TEXT("skeletal (0): resta al clearance"),
+		ARTUnit::RingLocalZ(0.f), ARTUnit::RingGroundClearance);
 
 	// L'invariante che conta, e che i due valori sopra da soli non esprimono: qualunque sia il pivot,
 	// l'anello finisce alla STESSA quota-mondo. Prima non era cosi' per costruzione — lo era solo perche'
@@ -112,10 +126,15 @@ bool FRTRingLocalZTest::RunTest(const FString&)
  * 🔴 **L'anello EMERGE dal disco della cella**, ed e' il test che #593 non aveva e che gli e' costato un
  * difetto vero.
  *
- * Il disco della cella e' un cilindro engine appiattito da `RTCellFlatScale = 0.05`: la sua faccia
- * superiore sta a `RTCellTopZ = 50 * 0.05 = 2.5` sopra il centro cella. Un anello il cui bordo superiore
- * resti sotto quella quota e' **dentro** un disco opaco, cioe' invisibile — e a schermo non si distingue
+ * Il tile della cella e' il prisma di `GetCellPrismMesh` schiacciato da `RTCellFlatScale`: la sua faccia
+ * superiore sta a `RTCellTopZ` — meta' spessore — sopra il centro cella. Un anello il cui bordo superiore
+ * resti sotto quella quota e' **dentro** un volume opaco, cioe' invisibile — e a schermo non si distingue
  * da un anello che non e' stato disegnato affatto.
+ *
+ * ⚠️ **I numeri non si scrivono piu' qui**, e non e' pedanteria: questo commento diceva «`50 * 0.05 = 2.5`»
+ * fino al 2026-08-28, quando lo spessore del tile e' passato a `0.06 H` e quella riga e' diventata falsa
+ * mentre il test accanto restava verde — perche' il test legge `RTCellTopZ`, il commento no. Un commento che
+ * ricopia una costante e' la stessa classe di difetto di #983, un piano piu' in basso.
  *
  * Una stesura di #593 aveva messo `RingGroundClearance = 1.0`, deducendolo dal `+1` della vecchia formula
  * invece che dal disco: faccia dell'anello a `2.0`, mezza unita' sotto. La suite era **verde**, perche'

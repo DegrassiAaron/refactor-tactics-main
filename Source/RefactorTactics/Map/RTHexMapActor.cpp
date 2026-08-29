@@ -111,6 +111,27 @@ namespace
 	                                                    // sotto il contorno, sopra il disco
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
+
+	/**
+	 * 🔴 **Il tetto vero dello spessore del tile, e NON e' lo `static_assert` degli anelli.**
+	 *
+	 * Il tile e' CENTRATO sul centro cella, quindi ispessirlo lo fa scendere anche sotto di meta' spessore.
+	 * Due celle adiacenti che differiscono di UN gradino di rilievo distano `ReliefUnitHeight`: se il tile e'
+	 * piu' spesso di quel gradino, la faccia inferiore della cella alta entra dentro la cella bassa e le due
+	 * si compenetrano invece di gradinare. A schermo si legge come un errore di modellazione, non come una
+	 * quota sbagliata, ed e' il motivo per cui vale la pena asserirlo invece di ricordarlo.
+	 *
+	 * ⚠️ **Sta QUI e non in `RTMapVisuals.h`**: quell'header e' deliberatamente senza dipendenze — «il punto
+	 * in cui i numeri condivisi stanno scritti una volta sola», non un sistema di layering — e includerci
+	 * `RTHexLibrary.h` per una sola costante lo trasformerebbe in altro. Questo file include gia' entrambi ed
+	 * e' l'unico che posa sia il tile sia il rilievo, cioe' l'unico che puo' violare il vincolo.
+	 *
+	 * ⚠️ **`ReliefUnitHeight` e' il limite superiore, non un obiettivo**: l'uguaglianza e' ammessa perche' a
+	 * spessore == gradino le due facce si toccano senza compenetrare.
+	 */
+	static_assert(RTCellThickness <= URTHexLibrary::ReliefUnitHeight,
+		"Il tile della cella e' piu' spesso di un gradino di rilievo: due celle a quota adiacente si "
+		"compenetrerebbero invece di gradinare (Map/RTMapVisuals.h, RTCellThicknessInH).");
 }
 
 UStaticMesh* ARTHexMapActor::GetCellGlyphMesh(int32 RingCount)
