@@ -253,16 +253,34 @@ bool FRTScenarioAuthoringContractIsExposedTest::RunTest(const FString&)
 	for (UScriptStruct* Struct : RequiredStructs)
 	{
 		if (!TestNotNull(TEXT("il DTO esiste come UScriptStruct"), Struct)) { continue; }
+		// 🔴 **`GetBoolMetaData` e' API solo-metadata, e senza questa guardia `main` NON COMPILA in
+		// Game Development.** Vive sotto `#if WITH_METADATA` (`UObject/Class.h:256`, `UObject/Field.h:916`),
+		// che vale **1** in Editor e **0** in un target Game. La Shipping non se ne accorge perche' li'
+		// `WITH_DEV_AUTOMATION_TESTS` e' 0 e questo file non esiste affatto: **Game Development e' l'unica
+		// configurazione che ha i test accesi e i metadata spenti**, quindi l'unica che rompe. Misurato il
+		// 2026-08-29 rieseguendo `G1`: rossa dal 2026-08-27, due giorni, sei asserzioni in tre file.
+		//
+		// ⚠️ E' la stessa CLASSE del difetto che `G1` aveva gia' trovato il 2026-08-24 — test scritti dopo
+		// l'`#endif` della guardia, invisibili fuori dalla Shipping — ma un meccanismo diverso, quindi
+		// `RefactorTactics.Meta.TestGuardClosesAtEndOfFile` non poteva vederlo: quell'oracolo controlla
+		// DOVE chiude la guardia, non QUALE API si usa dentro.
+		//
+		// ✅ L'asserzione non si perde: la suite gira in Editor, dove `WITH_METADATA` e' 1.
+#if WITH_METADATA
 		TestTrue(*FString::Printf(TEXT("'%s' e' BlueprintType"), *Struct->GetName()),
 			Struct->GetBoolMetaData(TEXT("BlueprintType")));
+#endif
 	}
 
 	// L'enum degli esiti idem: senza `BlueprintType` la UI non puo' ramificare sull'esito.
 	const UEnum* ResultEnum = StaticEnum<ERTScenarioAuthoringResult>();
 	if (TestNotNull(TEXT("l'enum degli esiti esiste"), ResultEnum))
 	{
+		// Stessa ragione di sopra: `GetBoolMetaData` e' sotto `WITH_METADATA`, spento in un target Game.
+#if WITH_METADATA
 		TestTrue(TEXT("ERTScenarioAuthoringResult e' BlueprintType"),
 			ResultEnum->GetBoolMetaData(TEXT("BlueprintType")));
+#endif
 		// Sei esiti distinti: un `bool` non basterebbe, ed e' il punto di ADR-0010 §3. Il sesto e'
 		// `RunFailed`, arrivato con `#1117` per non far passare un guasto dello STRUMENTO per uno scenario
 		// scritto male — la stessa separazione che `ERTTestOutcome` tiene fra `Error` e `Fail`.
@@ -286,11 +304,14 @@ bool FRTScenarioAuthoringContractIsExposedTest::RunTest(const FString&)
 	for (UScriptStruct* Struct : MustStayInternal)
 	{
 		if (!TestNotNull(TEXT("la struct del formato esiste"), Struct)) { continue; }
+		// Stessa ragione di sopra: `GetBoolMetaData` e' sotto `WITH_METADATA`, spento in un target Game.
+#if WITH_METADATA
 		TestFalse(
 			*FString::Printf(
 				TEXT("'%s' NON e' BlueprintType (ADR-0010: il modello non passa per Blueprint)"),
 				*Struct->GetName()),
 			Struct->GetBoolMetaData(TEXT("BlueprintType")));
+#endif
 	}
 
 	return true;
