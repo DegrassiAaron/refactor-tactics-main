@@ -83,6 +83,12 @@
     codice compilato da un commit di qualcun altro. E' la terza modalita' di
     fallimento documentata in D-222.
 
+    ⚠️ **L'attesa non finisce alla PRIMA finestra persa.** Se un altro checkout prende
+    il motore mentre lo snapshot gira, si torna ad aspettare finche' il budget regge:
+    `-WaitMinutes 40` significa «fino a quaranta minuti», non «un tentativo entro
+    quaranta minuti». E' cio' che rende il flag utile su una macchina con piu' checkout
+    attivi, ed e' anche cio' che tiene occupato il terminale piu' a lungo (#1650).
+
     ∴ **Dopo un'attesa lunga, ricompila prima di fidarti del verde.** Il flag
     toglie l'attrito dell'attesa, non il dovere di sapere da quale commit viene il
     binario che stai misurando.
@@ -291,59 +297,55 @@ function Get-Snapshot {
     }
 }
 
-function Say { param([string] $Text) Write-Output "[RT-MEASURE] $Text" }
+function Wait-EngineWindow {
+    <#
+    .SYNOPSIS
+        Aspetta che il motore si liberi, e restituisce lo stato dei processi all'uscita.
 
-# ---------------------------------------------------------------- PRIMA
-# Le quattro righe del preambolo stanno in una funzione perche' dopo un'attesa
-# vanno RIDICHIARATE tutte: la prima stesura ne ristampava due, e il referto
-# restava con l'impronta dei DLL di prima dell'attesa. Chi aspetta il rilascio
-# aspetta per definizione una sessione che stava compilando, quindi e' proprio il
-# caso in cui il binario cambia — e `binario` non compare da nessun'altra parte
-# nel referto. D-222 lo nomina fra le quattro invarianti protette.
-function Say-Preamble {
-    param($Snapshot)
-    Say ("filtro   {0}" -f $Filter)
-    Say ("HEAD     {0}" -f $Snapshot.Head.Substring(0, 8))
-    Say ("albero   {0}{1}" -f $Snapshot.TreeHash, $(if ($Snapshot.PathCount) { " ($($Snapshot.PathCount) file)" } else { '' }))
-    Say ("binario  {0}" -f $Snapshot.Dlls)
-}
+    .DESCRIPTION
+        Torna quando il motore sembra libero, quando la query sui processi fallisce, o
+        quando il budget e' finito.
 
-$before = Get-Snapshot
-Say-Preamble $before
+        ⚠️ **Il chiamante legge SOLO `EngineError`**, e poi ridichiara tutto da uno
+        snapshot fresco: il conteggio qui dentro e' vecchio di un istante, e su questa
+        macchina un istante basta. La docstring lo dice invece di promettere un contratto
+        a tre vie che nessuno usa — chi si fidasse di `Engines.Count` leggerebbe una
+        lettura scaduta, o `$null` se il budget era gia' finito all'ingresso.
 
-# 🔴 **Inizializzata, e non e' pedanteria.** Un `Set-StrictMode -Version Latest`
-# nel profilo di chi lancia si propaga nello scope dello script, e leggere una
-# variabile mai impostata LANCIA — con `ErrorActionPreference = 'Stop'` il
-# processo esce `1`, che in §OUTPUTS significa «la suite e' rossa, dei test
-# falliscono». Per una run che il motore occupato non ha nemmeno avviato.
-$script:WaitElapsed = $null
+        ⚠️ **Era il corpo del ciclo d'attesa, ed e' diventata una funzione per un motivo
+        preciso**: il chiamante deve poterla RICHIAMARE quando perde la finestra durante
+        lo snapshot. Inline, quel ritorno avrebbe richiesto un secondo ciclo attorno a
+        sessanta righe, e la reindentazione avrebbe reso illeggibile il diff di un file
+        il cui unico scopo e' dire se una misura vale.
+    #>
+    param(
+        [Parameter(Mandatory)] [double] $BudgetSeconds,
+        [Parameter(Mandatory)] [int] $PollSeconds,
+        [Parameter(Mandatory)] [System.Diagnostics.Stopwatch] $Waited
+    )
 
-if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
-    $waitUntil = (Get-Date).AddMinutes($WaitMinutes)
-    $waited = [System.Diagnostics.Stopwatch]::StartNew()
-    Say ("in attesa: il motore e' occupato, ricontrollo ogni {0}s per al massimo {1} min" -f $PollSeconds, $WaitMinutes)
-    foreach ($e in $before.Engines) { Say "  $e" }
-
-    # 🔴 **Il jitter non e' cosmetico.** Due sessioni bloccate dalla stessa terza
-    # run partono con fasi quasi identiche: quando il motore si libera si
-    # svegliano nella stessa finestra, vedono entrambe zero processi e lanciano —
-    # e il mutex Live Coding e' globale sull'eseguibile, quindi si uccidono a
-    # vicenda. Dopo quaranta minuti di attesa l'esito sarebbe NON VALIDA per
-    # entrambe: peggio del `2` immediato che il flag sostituisce. Il jitter le
-    # sfasa; l'acquire piu' sotto e' cio' che chiude davvero la corsa.
+    # 🔴 **Il jitter si RITIRA a ogni ingresso, e la prima stesura lo azzerava.** Serve a
+    # sfasare due sessioni rilasciate dalla stessa terza run; ma il ciclo esterno ricrea
+    # quell'evento di rilascio a ogni finestra persa, e con un jitter speso una volta sola
+    # le due sessioni tornerebbero in lockstep proprio nel percorso aggiunto per gestirle.
     $jitter = Get-Random -Minimum 0 -Maximum ([Math]::Max(1, [int]($PollSeconds / 3)))
 
     $engineState = $null
     while ($true) {
-        $remaining = ($waitUntil - (Get-Date)).TotalSeconds
+        # ⚠️ **Il residuo si misura sul CRONOMETRO, non sull'orologio.** `Get-Date` fa un
+        # salto di un'ora due volte l'anno, e `-WaitMinutes 1440` — il massimo che
+        # `ValidateRange` ammette — attraversa una transizione per costruzione: sul
+        # ritorno all'ora solare un'attesa da 60 minuti ne durava 90, tenendo occupato il
+        # terminale di chi l'ha lanciata. Un `Stopwatch` e' monotono e non lo sa nemmeno.
+        $remaining = $BudgetSeconds - $Waited.Elapsed.TotalSeconds
         if ($remaining -le 0) { break }
 
         # Il sonno si CLAMPA al residuo: senza, `-WaitMinutes 1 -PollSeconds 600`
         # dorme dieci minuti dopo aver chiesto di aspettarne uno — il deadline
         # sarebbe un suggerimento, non un limite.
-        $nap = [Math]::Min($PollSeconds + $jitter, $remaining)
+        $nap = [Math]::Min($PollSeconds + $Jitter, $remaining)
         Start-Sleep -Seconds ([Math]::Max(1, [int]$nap))
-        $jitter = 0
+        $Jitter = 0
 
         # ⚠️ Solo i PROCESSI, non lo snapshot intero. La domanda del ciclo e' una
         # sola — «e' libero?» — e rifare albero e binario a ogni giro costava
@@ -382,10 +384,17 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
                 break
             }
 
-            if ($confirm.Engines.Count -eq 0) { break }
+            $engineState = $confirm
+
+            # `Test-EngineFree` e non `Engines.Count -eq 0`: la regola sta in un posto solo
+            # perche' era scritta in due, e i due punti non concordavano su cosa fare
+            # quando l'errore c'e'. Qui il conteggio nudo sarebbe corretto **oggi** — il
+            # ramo `EngineError` esce tre righe sopra — e sbagliato il giorno in cui quella
+            # guardia cambia, trattando una query fallita come «libero».
+            if (Test-EngineFree $confirm) { break }
 
             Write-Information ("[RT-MEASURE] ...finestra persa: il motore si e' rioccupato ({0:N0}s trascorsi, {1:N0}s residui)" -f `
-                $waited.Elapsed.TotalSeconds, ($waitUntil - (Get-Date)).TotalSeconds) -InformationAction Continue
+                $Waited.Elapsed.TotalSeconds, [Math]::Max(0.0, $BudgetSeconds - $Waited.Elapsed.TotalSeconds)) -InformationAction Continue
             continue
         }
 
@@ -395,24 +404,128 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
         # INFORMATION e non su quello di successo: `> referto.txt` cattura il
         # verdetto, e il battito non deve finirci dentro.
         Write-Information ("[RT-MEASURE] ...attesa: {0:N0}s trascorsi, {1:N0}s residui, {2} processo/i" -f `
-            $waited.Elapsed.TotalSeconds, ($waitUntil - (Get-Date)).TotalSeconds, $engineState.Engines.Count) -InformationAction Continue
+            $Waited.Elapsed.TotalSeconds, [Math]::Max(0.0, $BudgetSeconds - $Waited.Elapsed.TotalSeconds), `
+            $engineState.Engines.Count) -InformationAction Continue
+    }
+
+    return $engineState
+}
+
+function Say { param([string] $Text) Write-Output "[RT-MEASURE] $Text" }
+
+# ---------------------------------------------------------------- PRIMA
+# Le quattro righe del preambolo stanno in una funzione perche' dopo un'attesa
+# vanno RIDICHIARATE tutte: la prima stesura ne ristampava due, e il referto
+# restava con l'impronta dei DLL di prima dell'attesa. Chi aspetta il rilascio
+# aspetta per definizione una sessione che stava compilando, quindi e' proprio il
+# caso in cui il binario cambia — e `binario` non compare da nessun'altra parte
+# nel referto. D-222 lo nomina fra le quattro invarianti protette.
+function Say-Preamble {
+    param($Snapshot)
+    Say ("filtro   {0}" -f $Filter)
+    Say ("HEAD     {0}" -f $Snapshot.Head.Substring(0, 8))
+    Say ("albero   {0}{1}" -f $Snapshot.TreeHash, $(if ($Snapshot.PathCount) { " ($($Snapshot.PathCount) file)" } else { '' }))
+    Say ("binario  {0}" -f $Snapshot.Dlls)
+}
+
+$before = Get-Snapshot
+Say-Preamble $before
+
+# 🔴 **Inizializzata, e non e' pedanteria.** Un `Set-StrictMode -Version Latest`
+# nel profilo di chi lancia si propaga nello scope dello script, e leggere una
+# variabile mai impostata LANCIA — con `ErrorActionPreference = 'Stop'` il
+# processo esce `1`, che in §OUTPUTS significa «la suite e' rossa, dei test
+# falliscono». Per una run che il motore occupato non ha nemmeno avviato.
+$script:WaitElapsed = $null
+
+if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
+    $waited = [System.Diagnostics.Stopwatch]::StartNew()
+    Say ("in attesa: il motore e' occupato, ricontrollo ogni {0}s per al massimo {1} min" -f $PollSeconds, $WaitMinutes)
+    foreach ($e in $before.Engines) { Say "  $e" }
+
+    # 🔴 **Il jitter non e' cosmetico**, e vive dentro `Wait-EngineWindow` perche' va
+    # ritirato a ogni ingresso: due sessioni bloccate dalla stessa terza run partono con
+    # fasi quasi identiche, si svegliano nella stessa finestra, vedono entrambe zero
+    # processi e lanciano — e il mutex Live Coding e' globale sull'eseguibile, quindi si
+    # uccidono a vicenda. Il jitter le sfasa; l'acquire piu' sotto e' cio' che chiude
+    # davvero la corsa.
+
+    # 🔴 **Perdere la finestra DURANTE lo snapshot non e' un'attesa scaduta, e per un giro
+    # intero questo script ha detto il contrario.** Misurato il 2026-08-29: uscita `2` con
+    # «attesa scaduta dopo 95s» mentre il log, trentadue secondi prima, dichiarava `2.337s
+    # residui` — trentanove minuti di budget mai usati. La causa e' che `Get-Snapshot` costa
+    # quattro invocazioni git piu' una query sui processi, e in quei secondi un altro
+    # checkout prende il motore: il codice cadeva nel ramo `else`, che dice «scaduta» perche'
+    # e' l'unico caso che il suo autore aveva previsto.
+    #
+    # ⚠️ **E' LA STESSA correzione gia' applicata dentro il ciclo** — il `continue` sulla
+    # «finestra persa» — mancante nel punto immediatamente successivo. Una difesa che copre
+    # un istante e non quello dopo e' una difesa che sembra esserci: e' la ragione per cui
+    # qui il ciclo e' esterno invece di essere un secondo `if`.
+    #
+    # 🔴 **E la prima stesura di QUESTO ciclo l'ha rifatto in un terzo posto.** Aveva un ramo
+    # dedicato che, su `EngineError`, faceva snapshot e usciva: un singhiozzo transitorio di
+    # `Get-CimInstance` — WMI che si riavvia — bruciava l'intera attesa e cadeva nel messaggio
+    # «scaduta» con il budget intatto. Trovato in code review. Oggi non c'e' nessun ramo
+    # dedicato: l'errore lo decide lo snapshot, che e' l'unica lettura su cui questo script
+    # dichiara qualcosa. Transitorio → lo snapshot risponde e si torna ad aspettare;
+    # persistente → anche lo snapshot porta `EngineError`, e si esce dicendo quello.
+    $budgetSeconds = [double]$WaitMinutes * 60.0
+
+    while ($true) {
+        $null = Wait-EngineWindow -BudgetSeconds $budgetSeconds -PollSeconds $PollSeconds -Waited $waited
+
+        # ⚠️ **`Get-Snapshot` LANCIA su un git che fallisce, e ora sta dentro un ciclo.**
+        # Prima girava una volta sola; oggi una per finestra persa, e le finestre perse sono
+        # causate dalla stessa attivita' vicina che produce `.git/index.lock`. Senza questo
+        # `try` il throw uscirebbe dallo script con un codice **non dichiarato** — `1` sotto
+        # `pwsh -File`, che in §OUTPUTS significa «la suite e' rossa, dei test falliscono»,
+        # per una run che il motore non ha nemmeno avviato. Si degrada invece di lanciare, e
+        # il ramo `EngineError` qui sotto lo riporta come cio' che e': assenza del dato.
+        try {
+            # Lo snapshot si rifa' SEMPRE dopo l'attesa: l'albero e `HEAD` possono essere
+            # stati mossi dalle altre sessioni, e la run deve partire da cio' che c'e' adesso.
+            $before = Get-Snapshot
+        } catch {
+            # ⚠️ **Gli stessi otto campi di `Get-Snapshot`, coi suoi nomi esatti.** La
+            # prima stesura ne inventava quattro (`Tree`, `TreeCount`, `Bin`): sotto
+            # `Set-StrictMode` leggere una proprieta' assente LANCIA, e il ramo scritto per
+            # non far uscire lo script con un codice non dichiarato ce lo avrebbe fatto
+            # uscire da solo. Trovato confrontando col `return` della funzione, non a mente.
+            $before = [pscustomobject]@{
+                Head        = $null
+                TreeHash    = $null
+                Paths       = @()
+                PathCount   = 0
+                Dlls        = $null
+                Engines     = @()
+                EngineCount = 0
+                EngineError = $_.Exception.Message
+            }
+            break
+        }
+
+        if ((Test-EngineFree $before) -or $before.EngineError) { break }
+
+        # Il motore e' occupato di nuovo. Si torna ad aspettare **solo** se il budget
+        # regge: senza questa riga il ciclo girerebbe oltre il deadline, che e'
+        # esattamente l'abuso che `-WaitMinutes` deve impedire.
+        if (($budgetSeconds - $waited.Elapsed.TotalSeconds) -le 0) { break }
+
+        Write-Information ("[RT-MEASURE] ...finestra persa durante lo snapshot: si torna in attesa ({0:N0}s trascorsi, {1:N0}s residui)" -f `
+            $waited.Elapsed.TotalSeconds, [Math]::Max(0.0, $budgetSeconds - $waited.Elapsed.TotalSeconds)) -InformationAction Continue
     }
 
     # 🔴 **Il tempo atteso si campiona UNA volta.** Il cronometro corre, e leggerlo
     # due volte per due messaggi diversi puo' dare «attesa scaduta dopo 2400s»
     # seguito da «(dopo 2401s di attesa)»: due numeri per la stessa cosa, in un
     # referto il cui unico scopo e' attribuire il blocco a chi lo teneva.
+    #
+    # ⚠️ **Gli snapshot consumano il budget, ed e' voluto**: sono lavoro fatto per conto
+    # dell'attesa, e contarli fuori lascerebbe il ciclo girare oltre `-WaitMinutes`. Il
+    # totale puo' quindi superare il budget di **un** ultimo snapshot, non di piu'.
     $waited.Stop()
     $script:WaitElapsed = $waited.Elapsed.TotalSeconds
-
-    # Lo snapshot si rifa' SEMPRE dopo l'attesa: l'albero e `HEAD` possono essere
-    # stati mossi dalle altre sessioni, e la run deve partire da cio' che c'e'
-    # adesso. Non e' piu' condizionato — la versione precedente lo saltava quando
-    # il ciclo aveva gia' prodotto un candidato, con una guardia che leggeva
-    # `EngineCount` come proxy di «l'ho gia' rinfrescato»: vera solo per come e'
-    # scritto il gate d'ingresso, e silenziosamente falsa il giorno in cui quel
-    # gate cambia.
-    $before = Get-Snapshot
 
     if (Test-EngineFree $before) {
         Say ("motore libero dopo {0:N0}s: stato ridichiarato" -f $script:WaitElapsed)
@@ -422,7 +535,11 @@ if ($before.EngineCount -gt 0 -and $WaitMinutes -gt 0) {
         Say ("attesa interrotta dopo {0:N0}s: la query sui processi e' fallita" -f $script:WaitElapsed)
     }
     else {
-        Say ("attesa scaduta dopo {0:N0}s" -f $script:WaitElapsed)
+        # ⚠️ **«Scaduta» si dice solo quando il budget e' finito davvero**, e questo ramo e'
+        # ora raggiungibile per quella sola via. Il budget accanto al tempo trascorso e' un
+        # auto-controllo: se i due numeri non tornano, la riga si smentisce da se' — che e'
+        # cio' che mancava quando lo script dichiarava scaduta un'attesa con mezz'ora avanti.
+        Say ("attesa scaduta dopo {0:N0}s (budget {1:N0}s)" -f $script:WaitElapsed, $budgetSeconds)
     }
 }
 
