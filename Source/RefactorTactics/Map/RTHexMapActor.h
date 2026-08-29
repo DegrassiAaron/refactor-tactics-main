@@ -338,6 +338,65 @@ public:
 	 */
 	static constexpr float RTVeilExploredFactor = 0.35f;
 
+#if !UE_BUILD_SHIPPING
+	/**
+	 * 🔑 **Le quattro frazioni del volume-cella, il vocabolario di forma del debug della conoscenza.**
+	 *
+	 * Sono frazioni di `H` — l'altezza del volume-cella — come ogni altezza di questo progetto da [D-168].
+	 * Con `LayerHeight` al suo default valgono `83 · 125 · 167 · 250` uu.
+	 *
+	 * ⚠️ **Sono quattro e gli stati sono TRE, e la quarta non ha oggi un significato da dire.** Il mapping
+	 * assegnato e' `3/3` osservata · `2/3` ricordata · `1/3` mai vista; `1/2` esiste nel vocabolario perche'
+	 * e' stata richiesta, non perche' qualcosa la usi. Inventarle uno stato — «ricordo scaduto», «parziale» —
+	 * significherebbe creare un quarto valore che il modello di conoscenza **non ha**: `FRTTeamKnowledge`
+	 * porta `VisibleCells` ed `ExploredCells`, e il terzo stato e' l'assenza da entrambe. E' il difetto che
+	 * [D-146] registra per le cinque voci che non corrispondevano al modello reale.
+	 *
+	 * 🔴 **Una sola mesh, quattro scale — non quattro mesh.** I quattro volumi differiscono per la sola
+	 * altezza, quindi quattro `FMeshDescription` sarebbero quattro copie della stessa geometria che si
+	 * possono desincronizzare. E' la disciplina che il disco della cella gia' segue: `GetCellPrismMesh` e'
+	 * una sola, e `RTCellFlatScale` la schiaccia.
+	 */
+	static constexpr float RTKnowledgeVolumeFractions[4] = { 1.f / 3.f, 1.f / 2.f, 2.f / 3.f, 1.f };
+
+	/** Indici in `RTKnowledgeVolumeFractions`, per non scrivere `0` e `2` dove si intende uno STATO. */
+	static constexpr int32 RTKnowledgeVolumeHidden = 0;      // 1/3 — mai vista
+	static constexpr int32 RTKnowledgeVolumeRemembered = 2;  // 2/3 — ricordo
+	static constexpr int32 RTKnowledgeVolumeLit = 3;         // 3/3 — osservata ORA
+
+	/**
+	 * Il prisma esagonale del debug: circumraggio `RTCellPrismRadius`, alto `2 · RTCellPrismRadius` e con il
+	 * **PIVOT ALLA BASE** — `Z` in `[0, 2R]`, non centrato come `GetCellPrismMesh`.
+	 *
+	 * 🔴 **Il pivot e' la meta' del valore dello strumento.** Con un pivot centrato un volume a `1/3`
+	 * sporgerebbe di `1/6 H` — 42 uu — SOTTO il pavimento della cella, dentro il layer inferiore: quattro
+	 * volumi che non appoggiano sullo stesso piano non sono confrontabili a vista, ed e' l'unica cosa che
+	 * questo strumento deve permettere. E' il «pivot contract» di §4 del contratto graybox, applicato qui.
+	 */
+	static UStaticMesh* GetKnowledgeVolumeMesh();
+
+	/**
+	 * Accende o spegne i volumi di conoscenza, ricostruendoli da zero secondo cio' che UNA squadra sa.
+	 *
+	 * ⚠️ **Non tocca il velo.** `ApplyKnowledgeVeil` continua a decidere la board; questo aggiunge un canale
+	 * sopra, e i due si leggono insieme. Spegnendolo la board resta come il velo l'ha lasciata.
+	 */
+	void SetKnowledgeDebugEnabled(bool bEnabled, const FRTTeamKnowledge& Knowledge);
+
+	/** Se il debug della conoscenza e' acceso. */
+	bool IsKnowledgeDebugEnabled() const { return bKnowledgeDebug; }
+
+	/**
+	 * Quanti volumi per stato il debug ha posato: mai viste, ricordate, osservate. Per i test.
+	 *
+	 * ⚠️ **Legge lo stato REALE delle istanze, non un contatore**, ed e' la stessa disciplina di
+	 * `GetVeilCounts`: *«un contatore proverebbe che la funzione sa contare, non che ha disegnato»*. La
+	 * frazione si ricava dalla scala Z dell'istanza contro `LayerHeight` corrente — non da un letterale,
+	 * cosi' il conteggio resta vero anche se la quota fra i piani cambia.
+	 */
+	void GetKnowledgeDebugCounts(int32& OutHidden, int32& OutRemembered, int32& OutLit) const;
+#endif
+
 	/** Quante istanze il velo ha lasciato accese, ricordate e nascoste. Diagnostica e test. */
 	void GetVeilCounts(int32& OutVisible, int32& OutExplored, int32& OutHidden) const;
 
@@ -464,6 +523,11 @@ protected:
 	/** Overlay di leggibilita' attivo (acceso da console, spento per default). */
 	bool bCellOverlay = false;
 
+#if !UE_BUILD_SHIPPING
+	/** Debug dei volumi di conoscenza attivo (acceso da `rt.Debug.Knowledge`, spento per default). */
+	bool bKnowledgeDebug = false;
+#endif
+
 	/** Disegna evidenziazione e traccia (debug-line): nessun effetto sulla logica. */
 	void DrawPlanningPreview() const;
 
@@ -579,6 +643,52 @@ protected:
 	// che e' cio' che serve — questi componenti si guardano nel dettaglio dell'attore, non si leggono da BP.
 	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> SurfaceGlyphs[4];
+
+	/**
+	 * 🔴 **I volumi di conoscenza: uno strumento di ISPEZIONE, e l'unico componente della board che disegna
+	 * cio' che la squadra NON sa.**
+	 *
+	 * Rende leggibili in ALTEZZA i tre stati che `ApplyKnowledgeVeil` rende in colore e presenza —
+	 * `3/3` osservata, `2/3` ricordata, `1/3` mai vista. E' il canale FORMA che [D-146] chiede accanto al
+	 * colore, applicato alla conoscenza invece che alla superficie.
+	 *
+	 * ⛔ **Perche' non contraddice [D-225], che dichiara «mai vista: non si disegna».** Quella decisione ha
+	 * per attore il GIOCATORE, e vieta la «mappa nera» a schermo in partita. Qui l'attore e' chi sviluppa, e
+	 * vedere cio' che il giocatore non vede e' il mestiere di un debug.
+	 *
+	 * ⚠️ **Il confine passa dall'API, non dal componente, e la ragione e' un vincolo di UHT**: una
+	 * `UPROPERTY` non puo' stare dentro `#if !UE_BUILD_SHIPPING` — *«must not be inside preprocessor blocks,
+	 * except for WITH_EDITORONLY_DATA»* — e `WITH_EDITORONLY_DATA` sarebbe sbagliato, perche' questo
+	 * strumento deve funzionare anche in una build Development cooked, dove vale `0`. Quindi il componente
+	 * esiste sempre, **vuoto e invisibile**, mentre `SetKnowledgeDebugEnabled` — l'unica cosa che lo popola —
+	 * non esiste in Shipping. Un ISM senza mesh e senza istanze non disegna niente e non costa niente: cio'
+	 * che va tolto e' il modo di riempirlo.
+	 *
+	 * ⚠️ **E il confinamento lo verifica la BUILD, non un test**, perche' nessun test puo' misurarlo: una
+	 * suite gira in Development, dove il simbolo c'e' per definizione, e un test che ne constatasse la
+	 * presenza non direbbe nulla su Shipping. L'oracolo e' il gate `G1` del DoD v0.1 — compilare il target
+	 * Shipping, dove anche `WITH_DEV_AUTOMATION_TESTS` vale `0`.
+	 *
+	 * ✅ **Fatto il 2026-08-29, e con l'oracolo giusto**: `Result: Succeeded`, e poi le stringhe cercate nei
+	 * due binari — `rt.Debug.Knowledge` e `RT_KnowledgeVolume` **assenti** dallo Shipping, presenti nel DLL
+	 * di Development. Una build che passa proverebbe solo che il codice compila; e' l'assenza del simbolo a
+	 * provare che non e' stato spedito. Il dettaglio, con il suo controllo di sanita', sta in
+	 * `Map/RTKnowledgeDebugConsole.cpp`.
+	 *
+	 * ⚠️ **NON partecipa a `RebuildInstances`, ed e' una scelta contro un difetto noto.** Le altre cinque
+	 * famiglie hanno array paralleli (`InstanceCells`, `…BaseScale`, `Last…VeilState`) che un
+	 * `RebuildInstances` di mezzo lascia stantii — l'header di `ApplyKnowledgeVeil` lo dichiara: *«celle
+	 * velate SBAGLIATE, un difetto che si legge come "problema grafico" per settimane»*. Questo componente si
+	 * **ricostruisce da zero** a ogni chiamata, quindi non ha indici da tenere allineati e non puo' entrare
+	 * in quello stato. Costa piu' CPU di un aggiornamento incrementale: e' debug, e la correttezza vale piu'
+	 * della frequenza.
+	 *
+	 * ⚠️ **Il buco che colma, e che oggi non ha altro rimedio.** Su `Relief`, `Blockers` ed `EdgeFeatures` il
+	 * velo *«NASCONDE e basta, non attenua»* perche' non portano custom data: ricordo e osservazione sono
+	 * **indistinguibili**. L'altezza non passa dal materiale, quindi li distingue dove il colore non arriva.
+	 */
+	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> KnowledgeVolumes;
 
 	/**
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:
