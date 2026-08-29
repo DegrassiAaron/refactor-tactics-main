@@ -277,7 +277,7 @@ Il subsystem possiede tre cose, e nessuna riguarda il gioco:
 |---|---|
 | **quale** facade è la sessione corrente | la facade non è globale per costruzione — più draft possono essere aperti insieme, ed è una proprietà voluta |
 | il ciclo di vita legato all'apertura della mappa | è un fatto d'editor: la facade non sa che esistono i livelli |
-| lo stato per-utente dell'ultima selezione | è preferenza locale, non dato canonico |
+| lo stato per-utente dell'ultima selezione | è preferenza locale, non dato canonico — vive in `Saved/`, che [`.gitignore`](../../../.gitignore) ignora già, e non entra in source control per costruzione |
 
 #### Chi apre l'editor per lavorare su altro
 
@@ -288,6 +288,11 @@ mappa d'avvio.
 Il contract è che l'ingresso **si presenta e non pretende**: è un pannello dockabile la cui visibilità la ricorda
 il layout dell'editor, non un modale; non ruba il focus; non esegue niente. Chi lo chiude non se lo ritrova
 aperto, e il meccanismo è quello nativo di Unreal — nessuno nuovo.
+
+Su una mappa che non è `L_DevSandbox` l'ingresso **non si presenta da sé**. Non è una restrizione di
+capability — la facade resta raggiungibile da chi sa dove sta — è che presentarsi su `L_HexArena` o su una
+mappa di frontend affermerebbe un legame che non esiste: il bootstrap è di *questo* livello, e un ingresso che
+compare ovunque smette di dire dove si entra.
 
 ⏸️ **Non ancora misurato**, ed è la prima riga di lavoro dell'implementazione: se
 `FEditorDelegates::OnMapOpened` scatti sul caricamento dell'`EditorStartupMap` all'avvio dell'editor. Se non
@@ -311,6 +316,12 @@ che l'harness non nomina mai. La decisione ha la sua issue.
 Mai `silent fallback`, `silent mutation`, `implicit conversion` — è la politica che il runtime applica già in
 tre punti indipendenti (`MakeFixtureArena` rifiuta un nome sconosciuto invece di dare un'arena vuota,
 `ResolvePath` rifiuta un id ambiguo invece di sceglierne uno, `ResolveRules` è fail-closed).
+
+Lo stesso vale a monte dello scenario: un id che l'indice non risolve, un file che non si legge e uno scenario
+che `Validate` respinge sono **tre** esiti, non un `errore`. La facade li distingue già con
+`ERTScenarioAuthoringResult` — `NotFound`, `Invalid`, `NoScenarioOpen` — e ADR-0010 §3 dice perché quell'enum
+non è un `bool`: *«un `bool` costringerebbe la UI a indovinare perché qualcosa non è andato»*. L'ingresso
+riporta il codice che ha ricevuto; non ne inventa uno proprio e non ne fonde due.
 
 ⚠️ **`MapAsset assente` e `MapAsset presente ma vuoto` restano due condizioni distinte**, e la seconda è quella
 che si verifica davvero: `DA_HexMap_Sandbox` — l'asset che la convenzione di cartella associa a `L_DevSandbox` —
