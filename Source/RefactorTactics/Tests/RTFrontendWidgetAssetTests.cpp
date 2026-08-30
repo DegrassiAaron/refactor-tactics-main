@@ -618,6 +618,24 @@ namespace
 	 * ⛔ `OutlineSettings.Color` e' deliberatamente escluso: un outline che cambia **colore** e non
 	 * spessore e' ancora un segnale cromatico, e passerebbe un test che lo contasse.
 	 */
+	/**
+	 * I campi di un brush che restano leggibili quando il colore sparisce, nella forma in cui servono in
+	 * un log di automation.
+	 *
+	 * ⚠️ Esiste perche' un `NO` senza numeri non e' diagnosticabile: chi ha appena dato un outline
+	 * all'asset e vede fallire il test non puo' sapere se il valore non e' arrivato, o se e' arrivato su
+	 * un canale che questo confronto non guarda.
+	 */
+	FString DescribeBrush(const FSlateBrush& Brush)
+	{
+		return FString::Printf(TEXT("res=%s draw=%d margin=(%.2f,%.2f,%.2f,%.2f) outlineW=%.3f size=(%.1f,%.1f)"),
+			Brush.GetResourceObject() ? *Brush.GetResourceObject()->GetName() : TEXT("<nessuna>"),
+			static_cast<int32>(Brush.DrawAs),
+			Brush.Margin.Left, Brush.Margin.Top, Brush.Margin.Right, Brush.Margin.Bottom,
+			Brush.OutlineSettings.Width,
+			Brush.ImageSize.X, Brush.ImageSize.Y);
+	}
+
 	bool DiffersBeyondTint(const FSlateBrush& A, const FSlateBrush& B)
 	{
 		return A.GetResourceObject() != B.GetResourceObject()
@@ -717,6 +735,9 @@ bool FRTButtonStatesAreNotColorOnlyTest::RunTest(const FString&)
 				Subject.Label, *Button->GetName(),
 				bHoveredDiffers ? TEXT("si") : TEXT("NO"),
 				bPressedDiffers ? TEXT("si") : TEXT("NO")));
+			AddInfo(FString::Printf(TEXT("    normal : %s"), *DescribeBrush(Style.Normal)));
+			AddInfo(FString::Printf(TEXT("    hovered: %s"), *DescribeBrush(Style.Hovered)));
+			AddInfo(FString::Printf(TEXT("    pressed: %s"), *DescribeBrush(Style.Pressed)));
 
 			if (!bHoveredDiffers)
 			{
