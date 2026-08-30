@@ -43,14 +43,6 @@
  */
 static const FName RTProceduralMeshSlotName(TEXT("Default"));
 
-// 🔬 **CONTROLLO TEMPORANEO — #1665, da RIMUOVERE.** Registrata a scope di file come le altre CVar del
-// progetto (`CVarRTMapSource` e sorelle in `RTGameMode.cpp`): una registrata dentro una funzione non
-// esisterebbe ancora quando `-dpcvars` le assegna il valore all'avvio.
-TAutoConsoleVariable<int32> CVarRTDebugEngineMesh(
-	TEXT("rt.Map.DebugEngineMesh"), 0,
-	TEXT("#1665: usa /Engine/BasicShapes/Cube al posto del prisma procedurale della cella."),
-	ECVF_Default);
-
 namespace
 {
 	/**
@@ -250,20 +242,6 @@ UStaticMesh* ARTHexMapActor::GetCellGlyphMesh(int32 RingCount)
 
 UStaticMesh* ARTHexMapActor::GetCellPrismMesh()
 {
-	// 🔬 **CONTROLLO TEMPORANEO — #1665, da RIMUOVERE.** Separa «la mesh procedurale non si disegna nel
-	// cotto» da «il componente non si disegna»: se col Cube d'engine le istanze compaiono, il sospetto e'
-	// la mesh costruita a runtime; se restano invisibili, la mesh e' innocente e il difetto sta a valle.
-	// Si accende da riga di comando senza ricompilare: `-dpcvars=rt.Map.DebugEngineMesh=1`.
-	if (CVarRTDebugEngineMesh.GetValueOnAnyThread() != 0)
-	{
-		if (UStaticMesh* Engine = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")))
-		{
-			UE_LOG(LogRT, Log, TEXT("[RT][1665] CONTROLLO: uso la mesh d'engine 'Cube' al posto del prisma"));
-			return Engine;
-		}
-		UE_LOG(LogRT, Warning, TEXT("[RT][1665] CONTROLLO: '/Engine/BasicShapes/Cube' non si carica"));
-	}
-
 	// Una sola mesh per l'intero processo: la costruzione tocca il disco zero volte e il risultato non dipende
 	// da chi chiama. `TStrongObjectPtr` la tiene fuori dalla portata del GC senza `AddToRoot` a mano, che
 	// nessuno ricorderebbe di bilanciare.
@@ -1381,127 +1359,6 @@ void ARTHexMapActor::RebuildInstances()
 			EdgeFeatureCells.Add(Wall.Cell);
 			EdgeFeatureBaseScale.Add(WallXf.GetScale3D());
 		}
-	}
-
-	// 🔬 **STRUMENTAZIONE TEMPORANEA — #1665.** Nel pacchetto la board non si vede, e a schermo un nero
-	// non distingue «niente da disegnare» da «disegnato nero». Questa sonda separa le due cose, e in piu'
-	// guarda TUTTI gli ISM: `Relief` usa la stessa mesh procedurale col materiale di DEFAULT, quindi se ha
-	// istanze e non si vede il problema e' la mesh, non il colore scritto nei custom data.
-	//
-	// ⚠️ Da RIMUOVERE quando #1665 chiude: e' una sonda, non un log di esercizio.
-	{
-		auto Sonda = [](const TCHAR* Nome, UInstancedStaticMeshComponent* C) -> FString
-		{
-			if (!C)
-			{
-				return FString::Printf(TEXT("%s=<nullo>"), Nome);
-			}
-
-			// I primi tre custom data, che sono il colore della PRIMA istanza. Se sono zero, l'Emissive e'
-			// nero e le celle esistono ma non si leggono; se non lo sono, il colore c'e' e il difetto e' a
-			// valle (mesh o illuminazione).
-			FString Primi = TEXT("-");
-			if (C->PerInstanceSMCustomData.Num() >= 3)
-			{
-				Primi = FString::Printf(TEXT("%.3f/%.3f/%.3f"),
-					C->PerInstanceSMCustomData[0], C->PerInstanceSMCustomData[1],
-					C->PerInstanceSMCustomData[2]);
-			}
-
-			// 🔑 I BOUNDS sono il candidato rimasto: `BuildFromMeshDescriptions` li prende da
-			// `MeshDescriptions[0]->GetBounds()`, e un raggio nullo fa scartare ogni istanza dal
-			// culling — cioe' esattamente «tutto corretto e niente a schermo».
-			UStaticMesh* M = C->GetStaticMesh();
-			const float RaggioMesh = M ? M->GetBounds().SphereRadius : -1.f;
-			const float RaggioComp = C->Bounds.SphereRadius;
-
-			// 🔑 **Il candidato rimasto dopo il controllo col Cube**: stesso materiale, stessi custom data,
-			// stesso componente — cambia solo la mesh, e il Cube si vede. Quindi la differenza sta DENTRO
-			// il render data del prisma. `ScreenSize[0]` e `NumLODs` sono i due campi che `bFastBuild`
-			// puo' lasciare non calcolati: una `ScreenSize` nulla fa si' che il proxy non selezioni mai
-			// il LOD 0, che e' «tutto corretto e niente a schermo» a ogni distanza. `NumVertices`
-			// distingue «render data vuoto» da «render data pieno e mai scelto».
-			int32 NumLOD = -1;
-			float ScreenSize0 = -1.f;
-			int32 NumVert0 = -1;
-			int32 NumSez0 = -1;
-			// La sezione e' l'ultimo livello dove «pieno» puo' diventare «niente a schermo»: zero
-			// triangoli, zero indici, o un `MaterialIndex` che non punta a nessuno slot. Misurato il
-			// 2026-08-30: `ScreenSize` NON e' il difetto (prisma 1.0, Cube 2.0, entrambi visibili al
-			// proxy), quindi il campo va cercato piu' in basso.
-			int32 Tri0 = -1, Idx0 = -1, MatIdx0 = -1, MinV = -1, MaxV = -1;
-			uint8 bColl = 255, bShadow = 255;
-			if (const FStaticMeshRenderData* RD = M ? M->GetRenderData() : nullptr)
-			{
-				NumLOD = RD->LODResources.Num();
-				if (NumLOD > 0)
-				{
-					const FStaticMeshLODResources& L0 = RD->LODResources[0];
-					ScreenSize0 = RD->ScreenSize[0].Default;
-					NumVert0 = L0.VertexBuffers.PositionVertexBuffer.GetNumVertices();
-					NumSez0 = L0.Sections.Num();
-					Idx0 = L0.IndexBuffer.GetNumIndices();
-					if (NumSez0 > 0)
-					{
-						const FStaticMeshSection& S = L0.Sections[0];
-						Tri0 = S.NumTriangles;
-						MatIdx0 = S.MaterialIndex;
-						MinV = S.MinVertexIndex;
-						MaxV = S.MaxVertexIndex;
-						bColl = S.bEnableCollision ? 1 : 0;
-						bShadow = S.bCastShadow ? 1 : 0;
-					}
-				}
-			}
-			const int32 NumSlot = M ? M->GetStaticMaterials().Num() : -1;
-
-			return FString::Printf(
-				TEXT("%s=[ist %d, mesh '%s' r=%.1f rd=%d, mat '%s', vis %d, boundsComp r=%.1f, cd %d(%d) %s, ")
-				TEXT("LOD %d ss0=%.4f vtx0=%d sez0=%d tri=%d idx=%d matIdx=%d/%d v[%d..%d] coll=%d shad=%d]"),
-				Nome,
-				C->GetInstanceCount(),
-				M ? *M->GetName() : TEXT("<nulla>"),
-				RaggioMesh,
-				(M && M->HasValidRenderData()) ? 1 : 0,
-				C->GetMaterial(0) ? *C->GetMaterial(0)->GetName() : TEXT("<nullo>"),
-				C->IsVisible() ? 1 : 0,
-				RaggioComp,
-				C->NumCustomDataFloats,
-				C->PerInstanceSMCustomData.Num(),
-				*Primi,
-				NumLOD, ScreenSize0, NumVert0, NumSez0,
-				Tri0, Idx0, MatIdx0, NumSlot, MinV, MaxV, (int32)bColl, (int32)bShadow);
-		};
-
-		UE_LOG(LogRT, Log, TEXT("[RT][1665] MapAsset '%s' con %d celle"),
-			MapAsset ? *MapAsset->GetName() : TEXT("<nullo>"), MapAsset ? MapAsset->NumCells() : -1);
-		UE_LOG(LogRT, Log, TEXT("[RT][1665]   %s"), *Sonda(TEXT("Cells"), Cells));
-		UE_LOG(LogRT, Log, TEXT("[RT][1665]   %s"), *Sonda(TEXT("Relief"), Relief));
-		UE_LOG(LogRT, Log, TEXT("[RT][1665]   %s"), *Sonda(TEXT("Blockers"), Blockers));
-		UE_LOG(LogRT, Log, TEXT("[RT][1665]   %s"), *Sonda(TEXT("EdgeFeatures"), EdgeFeatures));
-		UE_LOG(LogRT, Log, TEXT("[RT][1665]   %s"), *Sonda(TEXT("KnowledgeVolumes"), KnowledgeVolumes));
-		for (int32 R = 0; R < 4; ++R)
-		{
-			UE_LOG(LogRT, Log, TEXT("[RT][1665]   %s"),
-				*Sonda(*FString::Printf(TEXT("Glyph%d"), R + 1), SurfaceGlyphs[R]));
-		}
-
-		// L'attore stesso: se fosse nascosto, ogni ISM sopra risulterebbe popolato e nulla si vedrebbe.
-		UE_LOG(LogRT, Log, TEXT("[RT][1665]   Actor: hidden=%d, scale=%s"),
-			IsHidden() ? 1 : 0, *GetActorScale3D().ToString());
-
-		// 🔬 **ESPERIMENTO**: tutto cio' che si misura e' corretto — 65 istanze, colori giusti, mesh con
-		// render data valido, bounds reali, componente visibile, attore non nascosto — e a schermo non
-		// compare nulla. Resta il percorso che NON si misura da CPU: il caricamento del buffer di istanza
-		// sulla GPU. Se forzarlo fa comparire la board, la causa e' li' — ed e' anche il rimedio.
-		for (UInstancedStaticMeshComponent* C : { Cells.Get(), Relief.Get(), Blockers.Get() })
-		{
-			if (C && C->GetInstanceCount() > 0)
-			{
-				C->MarkRenderStateDirty();
-			}
-		}
-		UE_LOG(LogRT, Log, TEXT("[RT][1665]   MarkRenderStateDirty forzato sui tre ISM popolati"));
 	}
 }
 
