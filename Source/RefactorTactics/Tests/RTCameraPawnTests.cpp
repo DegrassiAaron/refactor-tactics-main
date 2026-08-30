@@ -15,6 +15,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerController.h"
+#include "Tests/RTWorldFixtures.h"
 #include "TimerManager.h"
 #include "Unit/RTUnit.h"
 
@@ -1087,9 +1088,10 @@ bool FRTCameraRecenterClampsArmTest::RunTest(const FString&)
 /**
  * «La propria squadra» e' quella del CONTROLLER, non la 0.
  *
- * `FrameOwnTeam` legge `PlayerTeamId` e ripiega sulla squadra 0 solo quando un controller non c'e' — una
- * comodita' da demo. Senza questo test la lettura del controller e' cancellabile senza far cadere niente, e
- * in una partita in cui il giocatore e' la squadra 1 la camera aprirebbe inquadrando **il nemico**.
+ * `FrameOwnTeam` legge `ARTPlayerState::TeamIdOf` e ripiega sulla squadra 0 solo quando un controller non
+ * c'e' — una comodita' da demo. Senza questo test la lettura del controller e' cancellabile senza far
+ * cadere niente, e in una partita in cui il giocatore e' la squadra 1 la camera aprirebbe inquadrando
+ * **il nemico**.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraFrameTeamFollowsControllerTest,
 	"RefactorTactics.Camera.FrameOwnTeamFramesTheControllersTeam",
@@ -1115,9 +1117,8 @@ bool FRTCameraFrameTeamFollowsControllerTest::RunTest(const FString&)
 	}
 	const FVector FramedTeamZero = Cam->GetActorLocation();
 
-	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 1);
 	if (!TestNotNull(TEXT("controller"), PC)) { DestroyCameraWorld(World); return false; }
-	PC->PlayerTeamId = 1;
 	PC->Possess(Cam);
 
 	if (!TestTrue(TEXT("con il controller inquadra"), Cam->FrameOwnTeam()))
@@ -1126,8 +1127,8 @@ bool FRTCameraFrameTeamFollowsControllerTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Se la lettura di `PlayerTeamId` sparisse, questa resterebbe l'inquadratura della squadra 0 e le due
-	// posizioni coinciderebbero.
+	// Se la lettura di `ARTPlayerState::TeamIdOf` sparisse, questa resterebbe l'inquadratura della squadra 0
+	// e le due posizioni coinciderebbero.
 	TestNotEqual(TEXT("la squadra 1 non si inquadra dove sta la squadra 0"),
 		Cam->GetActorLocation(), FramedTeamZero);
 

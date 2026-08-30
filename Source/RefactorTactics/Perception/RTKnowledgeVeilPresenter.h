@@ -75,7 +75,8 @@ public:
 	void Apply();
 
 	/**
-	 * 🔑 **DI CHI E' LA VISTA che il velo disegna: `ARTPlayerController::PlayerTeamId`.**
+	 * 🔑 **DI CHI E' LA VISTA che il velo disegna: la squadra dell'`ARTPlayerState` dell'`Outer`,** letta
+	 * tramite l'unica porta `ARTPlayerState::TeamIdOf`.
 	 *
 	 * Si RILEGGE dall'`Outer` a ogni applicazione e non si copia in un campo: copiarla farebbe di questo
 	 * oggetto una seconda sede del valore, che e' esattamente cio' che questa funzione esiste per evitare.

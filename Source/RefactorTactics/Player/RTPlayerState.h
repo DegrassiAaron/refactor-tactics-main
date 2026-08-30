@@ -36,6 +36,14 @@ public:
     /**
      * 🔑 **L'UNICA porta.** Risale dal controller al proprio `ARTPlayerState` e ripiega su `0`.
      *
+     * 🔴 **Perche' una porta e non un letterale ad ogni chiamata**: un `= 0` sparso non ha un modo di
+     * fallire chiuso, ed e' il debito che [D-242] punto (5) lasciava scritto — prima di questa porta, sia
+     * `ARTHUD::DrawHUD` che gli altri lettori di squadra avevano ciascuno la propria copia della stessa
+     * domanda («di chi e' la vista?»), e uno di questi era proprio un letterale `PlayerTeamId = 0` che
+     * alimentava sei consumatori a valle, quattro dei quali filtri di privacy. Centralizzare la domanda
+     * qui rende il ripiego una decisione sola, verificabile in un posto solo, invece di N copie che
+     * potrebbero divergere.
+     *
      * ⚠️ **Il ripiego ha TRE cause e una sola risposta**: controller nullo, nessun PlayerState, PlayerState
      * della classe sbagliata — quest'ultimo e' cio' che `InitializeActorsForPlay` produce nei mondi di
      * prova, misurato il 2026-08-30. Tutte e tre valgono `0`.

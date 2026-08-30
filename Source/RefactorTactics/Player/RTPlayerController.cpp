@@ -1,4 +1,5 @@
 #include "Player/RTPlayerController.h"
+#include "Player/RTPlayerState.h"
 #include "Camera/RTCameraPawn.h"
 #include "Selection/RTSelectable.h"
 #include "Map/RTHexLibrary.h"
@@ -402,8 +403,9 @@ URTKnowledgeVeilPresenter* ARTPlayerController::GetKnowledgeVeilPresenter()
 {
 	if (!KnowledgeVeilPresenter)
 	{
-		// L'`Outer` e' `this`, e non e' un dettaglio di allocazione: e' da li' che il presenter risale a
-		// `PlayerTeamId`. Costruirlo con un altro outer lo farebbe ripiegare sulla squadra 0 in silenzio.
+		// L'`Outer` e' `this`, e non e' un dettaglio di allocazione: e' da li' che il presenter risale al
+		// proprio `ARTPlayerState` (`ARTPlayerState::TeamIdOf`). Costruirlo con un altro outer lo farebbe
+		// ripiegare sulla squadra 0 in silenzio.
 		KnowledgeVeilPresenter = NewObject<URTKnowledgeVeilPresenter>(this);
 	}
 	return KnowledgeVeilPresenter;
@@ -1089,7 +1091,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 
 	// Guardia di autorita': si pianifica solo per le proprie unita'. Se per qualche via SelectedActor fosse
 	// un'unita' avversaria, la deselezioniamo invece di prenderne il comando.
-	if (SelectedUnit && !URTCombatLibrary::CanPlayerControlUnit(SelectedUnit->TeamId, PlayerTeamId))
+	if (SelectedUnit && !URTCombatLibrary::CanPlayerControlUnit(SelectedUnit->TeamId, ARTPlayerState::TeamIdOf(this)))
 	{
 		if (IRTSelectable* PreviousSel = Cast<IRTSelectable>(SelectedActor))
 		{
@@ -1109,7 +1111,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// Click su un'unita' AVVERSARIA senza nulla di selezionato: non e' nostra, non la si comanda. Senza questa
 	// guardia resterebbe "selezionata" e ogni click successivo su una nostra unita' finirebbe nel ramo di
 	// pianificazione dell'attacco qui sopra, rendendo le proprie unita' inselezionabili.
-	if (ClickedUnit && !URTCombatLibrary::CanPlayerControlUnit(ClickedUnit->TeamId, PlayerTeamId))
+	if (ClickedUnit && !URTCombatLibrary::CanPlayerControlUnit(ClickedUnit->TeamId, ARTPlayerState::TeamIdOf(this)))
 	{
 		UE_LOG(LogRT, Log, TEXT("[RT] %s e' avversaria: seleziona prima una tua unita' per bersagliarla"),
 			*ClickedUnit->GetName());
