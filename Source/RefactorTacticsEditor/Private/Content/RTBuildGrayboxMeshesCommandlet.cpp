@@ -3,12 +3,14 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/StaticMeshSourceData.h"
+#include "Materials/MaterialInterface.h"
 #include "MeshDescription.h"
 #include "Misc/PackageName.h"
 #include "StaticMeshAttributes.h"
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
 
+#include "Content/RTGrayboxMaterials.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 
@@ -396,7 +398,11 @@ namespace
 	}
 
 	/** Crea l'asset con la sua MeshDescription SORGENTE, cosi' resta ri-generabile e ri-apribile. */
-	UStaticMesh* CreateMeshAsset(const FString& PackageName, const FString& AssetName, FMeshDescription& Source)
+	UStaticMesh* CreateMeshAsset(
+		const FString& PackageName,
+		const FString& AssetName,
+		FMeshDescription& Source,
+		UMaterialInterface* Material)
 	{
 		UPackage* Package = CreatePackage(*PackageName);
 		if (!Package)
@@ -423,7 +429,12 @@ namespace
 			Mesh->CommitMeshDescription(0);
 		}
 
-		Mesh->GetStaticMaterials().Add(FStaticMaterial());
+		// 🔴 Lo slot NON resta vuoto (`#1714`): `BeginDescription` nomina `Default` il polygon group, e il
+		// nome dello slot deve coincidere o il binding non regge. Uno slot vuoto lasciava le sei mesh col
+		// grigio di default dell'engine — e il progetto aveva gia' pagato un test
+		// (`Graybox.MeshesHaveFaceNormals`) per garantire che fossero OMBREGGIABILI, senza dare loro nulla
+		// che le ombreggiasse in modo distinguibile.
+		Mesh->GetStaticMaterials().Add(FStaticMaterial(Material, TEXT("Default"), TEXT("Default")));
 		Mesh->Build(false);
 		Mesh->PostEditChange();
 		Mesh->MarkPackageDirty();
@@ -470,6 +481,13 @@ int32 URTBuildGrayboxMeshesCommandlet::Main(const FString& Params)
 	int32 Written = 0;
 	int32 Failed = 0;
 
+	// I materiali PRIMA delle mesh, e nello stesso commandlet: `#1714` chiede che l'assegnazione avvenga
+	// qui e non a mano in Editor, perche' un materiale assegnato fuori da questo percorso si perderebbe
+	// alla prima rigenerazione. Un fallimento qui non ferma le mesh — nascerebbero senza materiale, che e'
+	// lo stato precedente, e il log lo dice invece di tacerlo.
+	TMap<FString, UMaterialInterface*> KitMaterials;
+	Failed += RTGraybox::BuildKitMaterials(Root, bDryRun, KitMaterials);
+
 	for (const FRTGrayboxAsset& Asset : GGrayboxAssets)
 	{
 		const FString Name(Asset.Name);
@@ -501,7 +519,14 @@ int32 URTBuildGrayboxMeshesCommandlet::Main(const FString& Params)
 			continue;
 		}
 
-		UStaticMesh* Mesh = CreateMeshAsset(PackageName, Name, Description);
+		UMaterialInterface* const* Material = KitMaterials.Find(Name);
+		if (!Material)
+		{
+			UE_LOG(LogRTGrayboxMeshes, Warning,
+				TEXT("%s nasce SENZA materiale: nessuna istanza corrisponde a questo nome."), *Name);
+		}
+
+		UStaticMesh* Mesh = CreateMeshAsset(PackageName, Name, Description, Material ? *Material : nullptr);
 		if (Mesh && SaveAssetPackage(Mesh))
 		{
 			++Written;

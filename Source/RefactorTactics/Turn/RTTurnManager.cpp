@@ -520,6 +520,21 @@ void ARTTurnManager::RefreshTeamKnowledgeForPlanning(const TArray<ARTUnit*>& Liv
 	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
 }
 
+void ARTTurnManager::RefreshTeamKnowledgeNow()
+{
+	// Le unita' VIVE, con la stessa via che usa `PlanBots`: `MakeCurrentSnapshot` le raccoglie ordinate e
+	// scarta i morti. Riusarla — invece di un secondo `GetAllActorsOfClass` qui — tiene una sola definizione
+	// di «chi partecipa»: due raccolte diverse divergerebbero al primo cambio di regola sui cadaveri.
+	TArray<ARTUnit*> Units;
+	MakeCurrentSnapshot(Units);
+
+	// ⚠️ Con `Units` vuoto questa chiamata NON e' un no-op innocuo: `RefreshTeamKnowledgeForPlanning`
+	// costruisce l'elenco delle squadre DAI vivi, quindi zero unita' -> zero squadre -> `TeamKnowledgeState`
+	// vuoto, cioe' esattamente lo stato che questa funzione esiste per superare. Chi la chiama deve averle
+	// gia' spawnate; il difetto di `#1762` nasce proprio dal chiamarla (indirettamente) troppo presto.
+	RefreshTeamKnowledgeForPlanning(Units);
+}
+
 void ARTTurnManager::PlanBots()
 {
 

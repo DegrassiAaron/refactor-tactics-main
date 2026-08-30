@@ -536,6 +536,33 @@ public:
 	 */
 	void BeginReplayRecording();
 
+	/**
+	 * Ricalcola SUBITO la conoscenza di squadra, con le unita' che esistono adesso.
+	 *
+	 * 🔴 **Esiste per una finestra misurata, non per simmetria** ([#1762]). L'unico produttore di
+	 * conoscenza e' `RefreshTeamKnowledgeForPlanning`, che gira dentro `PlanBots`, che gira dentro
+	 * `StartPlanningTimer`, che gira nel **`BeginPlay` di questo attore** — e a quel punto le unita' NON
+	 * esistono ancora: le spawna `ARTGameMode::SetupHexMatch`, piu' tardi. Il primo refresh esce quindi con
+	 * `Live` vuoto e produce una conoscenza **vuota per ogni squadra**, che nessun altro rinfresca fino al
+	 * turno successivo.
+	 *
+	 * ⚠️ **Era gia' dichiarato e ritenuto innocuo**: il commento sopra lo spawn del TurnManager avverte che
+	 * li' non c'e' nessuna `ARTUnit` e che *«le due funzioni sono scritte per sopportarlo»*. «Sopportarlo»
+	 * significava non andare in crash — non produrre una conoscenza sensata. Quando il velo e' arrivato
+	 * ([D-242]) ha letto quella conoscenza vuota, ha marcato ogni cella come mai vista e, poiche' una cella
+	 * mai vista non si disegna ([D-225]), le ha tolto anche la **collisione**: al primo turno il click, che e'
+	 * un raycast, non colpiva piu' niente.
+	 *
+	 * ✅ Chiamarla dopo lo spawn del roster e' l'unica uscita che non muove l'architettura: non chiede alla
+	 * presentazione di ricalcolare lo stato (lo fa chi allestisce la partita, che e' il suo mestiere) e non
+	 * rinuncia alla stesura del velo alla prima inquadratura, che [D-242] chiede per non rivelare la mappa.
+	 *
+	 * ⚠️ **Non e' economica** — passa da `MakeCurrentSnapshot`, che fa `GetAllActorsOfClass` e due `Sort` —
+	 * ed e' accettabile perche' si paga **una volta per partita**, all'allestimento. Non va messa in un `Tick`
+	 * ne' chiamata a ogni fase: i due punti di refresh restano quelli, e `Veil.FollowsRefreshPoints` lo pinna.
+	 */
+	void RefreshTeamKnowledgeNow();
+
 	/** Identita' della registrazione in corso. Non valida finche' `BeginReplayRecording` non e' stata chiamata. */
 	FGuid GetReplayMatchId() const { return ReplayManifest.MatchId; }
 

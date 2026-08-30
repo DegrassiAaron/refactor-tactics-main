@@ -332,6 +332,23 @@ Carica:
 - `Source/RefactorTactics/UI/`
 - `Source/RefactorTactics/Player/`
 
+### Camera e presentazione della mappa
+
+Carica:
+
+- `docs/technical/systems/spec-tactical-camera.md` — stato, input, zoom, focus, multilayer, picking,
+  occlusione. ⚠️ Separa ovunque ✅ *misurato nel codice* da ⏳ *prescritto e non scritto*: leggere il
+  simbolo prima della riga
+- `docs/technical/systems/spec-domini-spaziali-mappa.md` — i quattro domini (`PlayableMapBounds`,
+  `ScenicBufferArea`, `CameraTravelBounds`, `VisualBackgroundBounds`), i limiti viewport-aware, il
+  linguaggio del bordo
+- `Source/RefactorTactics/Camera/RTCameraPawn.h` — l'unico posto in cui la camera è già decisa
+- `Source/RefactorTactics/Tests/RTCameraPawnTests.cpp`
+
+La camera è **presentation-only** (`D-143`): non decide LOS, targeting, cover, pathfinding né validità di
+cella. Il triage `docs/roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md` è **storia**, non owner
+(`D-254`).
+
 ### Content / asset / Blueprint
 
 Carica:
