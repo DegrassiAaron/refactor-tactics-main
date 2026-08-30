@@ -1,0 +1,771 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="4200" height="2294" viewBox="0 0 4200 2294">
+<title>RefactorTactics Skill Icon Tree v0.1</title>
+<desc>Vector hierarchy for Affinity Designer. Group IDs mirror the Excel icon catalog.</desc>
+<rect x="0" y="0" width="4200" height="2294" fill="#F6F8FA"/>
+
+<g id="RT_SKILL_ICON_TREE">
+<rect x="1780.0" y="60" width="640" height="90" rx="24" fill="#18202A"/>
+<text x="2100.0" y="99" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF" text-anchor="middle">REFACTORTACTICS</text>
+<text x="2100.0" y="130" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="400" fill="#BFD8E3" text-anchor="middle">Skill Icon Library · v0.1</text>
+<path d="M 2100.0 150 V 205 H 740.0 V 260" fill="none" stroke="#B7C2CC" stroke-width="4"/>
+<path d="M 2100.0 150 V 205 H 740.0 V 778" fill="none" stroke="#B7C2CC" stroke-width="4"/>
+<path d="M 2100.0 150 V 205 H 740.0 V 1138" fill="none" stroke="#B7C2CC" stroke-width="4"/>
+<path d="M 2100.0 150 V 205 H 740.0 V 1498" fill="none" stroke="#B7C2CC" stroke-width="4"/>
+<path d="M 2100.0 150 V 205 H 2120.0 V 260" fill="none" stroke="#B7C2CC" stroke-width="4"/>
+<path d="M 2100.0 150 V 205 H 2120.0 V 778" fill="none" stroke="#B7C2CC" stroke-width="4"/>
+<path d="M 2100.0 150 V 205 H 2120.0 V 1224" fill="none" stroke="#B7C2CC" stroke-width="4"/>
+<path d="M 2100.0 150 V 205 H 2120.0 V 1756" fill="none" stroke="#B7C2CC" stroke-width="4"/>
+<path d="M 2100.0 150 V 205 H 3500.0 V 260" fill="none" stroke="#B7C2CC" stroke-width="4"/>
+<path d="M 2100.0 150 V 205 H 3500.0 V 964" fill="none" stroke="#B7C2CC" stroke-width="4"/>
+<path d="M 2100.0 150 V 205 H 3500.0 V 1310" fill="none" stroke="#B7C2CC" stroke-width="4"/>
+<g id="Attack">
+<rect x="90" y="260" width="1300" height="458" rx="28" fill="#FFFFFF" stroke="#D9E1E8" stroke-width="3"/>
+<rect x="90" y="260" width="1300" height="76" rx="28" fill="#D95462"/>
+<rect x="90" y="308" width="1300" height="28" fill="#D95462"/>
+<text x="122" y="308" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF" text-anchor="start">ATTACK</text>
+<text x="1358" y="308" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" fill="#FFFFFF" text-anchor="end">11 icone</text>
+<g id="Attack__Base">
+<rect x="116" y="362" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="134" y="395" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Base</text>
+<line x1="336" y1="388.0" x2="354" y2="388.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_ATK_001">
+<rect x="370" y="362" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="384" y="385" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ATK_001</text>
+<text x="384" y="408" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Attacco base</text>
+<circle cx="658" cy="380" r="13" fill="#B63342"/>
+<text x="658" y="385" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_ATK_002">
+<rect x="698" y="362" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="712" y="385" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_ATK_002</text>
+<text x="712" y="408" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Melee</text>
+<circle cx="986" cy="380" r="13" fill="#9C6B12"/>
+<text x="986" y="385" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_ATK_003">
+<rect x="1026" y="362" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1040" y="385" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ATK_003</text>
+<text x="1040" y="408" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Ranged</text>
+<circle cx="1314" cy="380" r="13" fill="#B63342"/>
+<text x="1314" y="385" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+<g id="Attack__Targeting">
+<rect x="116" y="448" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="134" y="481" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Targeting</text>
+<line x1="336" y1="474.0" x2="354" y2="474.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_ATK_004">
+<rect x="370" y="448" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="384" y="471" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ATK_004</text>
+<text x="384" y="494" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Attacco lineare</text>
+<circle cx="658" cy="466" r="13" fill="#B63342"/>
+<text x="658" y="471" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_ATK_005">
+<rect x="698" y="448" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="712" y="471" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ATK_005</text>
+<text x="712" y="494" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Attacco a cono</text>
+<circle cx="986" cy="466" r="13" fill="#B63342"/>
+<text x="986" y="471" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_ATK_006">
+<rect x="1026" y="448" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1040" y="471" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ATK_006</text>
+<text x="1040" y="494" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">AoE circolare</text>
+<circle cx="1314" cy="466" r="13" fill="#B63342"/>
+<text x="1314" y="471" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_ATK_007">
+<rect x="370" y="520" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="384" y="543" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_ATK_007</text>
+<text x="384" y="566" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Area rettangolare</text>
+<circle cx="658" cy="538" r="13" fill="#9C6B12"/>
+<text x="658" y="543" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_ATK_008">
+<rect x="698" y="520" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="712" y="543" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ATK_008</text>
+<text x="712" y="566" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Bersaglio singolo</text>
+<circle cx="986" cy="538" r="13" fill="#B63342"/>
+<text x="986" y="543" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+<g id="Attack__Modifier">
+<rect x="116" y="606" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="134" y="639" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Modifier</text>
+<line x1="336" y1="632.0" x2="354" y2="632.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_ATK_009">
+<rect x="370" y="606" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="384" y="629" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ATK_009</text>
+<text x="384" y="652" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Perforante</text>
+<circle cx="658" cy="624" r="13" fill="#B63342"/>
+<text x="658" y="629" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_ATK_010">
+<rect x="698" y="606" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="712" y="629" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_ATK_010</text>
+<text x="712" y="652" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Ignora copertura</text>
+<circle cx="986" cy="624" r="13" fill="#9C6B12"/>
+<text x="986" y="629" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_ATK_011">
+<rect x="1026" y="606" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1040" y="629" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ATK_011</text>
+<text x="1040" y="652" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Attacco migliorato</text>
+<circle cx="1314" cy="624" r="13" fill="#B63342"/>
+<text x="1314" y="629" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+</g>
+<g id="Support">
+<rect x="90" y="778" width="1300" height="300" rx="28" fill="#FFFFFF" stroke="#D9E1E8" stroke-width="3"/>
+<rect x="90" y="778" width="1300" height="76" rx="28" fill="#4EBB7A"/>
+<rect x="90" y="826" width="1300" height="28" fill="#4EBB7A"/>
+<text x="122" y="826" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF" text-anchor="start">SUPPORT</text>
+<text x="1358" y="826" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" fill="#FFFFFF" text-anchor="end">4 icone</text>
+<g id="Support__Heal">
+<rect x="116" y="880" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="134" y="913" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Heal</text>
+<line x1="336" y1="906.0" x2="354" y2="906.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_SUP_001">
+<rect x="370" y="880" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="384" y="903" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_SUP_001</text>
+<text x="384" y="926" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Cura singola</text>
+<circle cx="658" cy="898" r="13" fill="#B63342"/>
+<text x="658" y="903" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_SUP_002">
+<rect x="698" y="880" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="712" y="903" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_SUP_002</text>
+<text x="712" y="926" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Cura area</text>
+<circle cx="986" cy="898" r="13" fill="#9C6B12"/>
+<text x="986" y="903" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_SUP_003">
+<rect x="1026" y="880" width="310" height="58" rx="13" fill="#E8F2FB" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1040" y="903" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#3D6B91" text-anchor="start">ICO_SUP_003</text>
+<text x="1040" y="926" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Rigenerazione</text>
+<circle cx="1314" cy="898" r="13" fill="#3D6B91"/>
+<text x="1314" y="903" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P2</text>
+</g>
+</g>
+<g id="Support__Cleanse">
+<rect x="116" y="966" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="134" y="999" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Cleanse</text>
+<line x1="336" y1="992.0" x2="354" y2="992.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_SUP_004">
+<rect x="370" y="966" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="384" y="989" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_SUP_004</text>
+<text x="384" y="1012" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Purifica</text>
+<circle cx="658" cy="984" r="13" fill="#9C6B12"/>
+<text x="658" y="989" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+</g>
+</g>
+<g id="Debuff">
+<rect x="90" y="1138" width="1300" height="300" rx="28" fill="#FFFFFF" stroke="#D9E1E8" stroke-width="3"/>
+<rect x="90" y="1138" width="1300" height="76" rx="28" fill="#E28945"/>
+<rect x="90" y="1186" width="1300" height="28" fill="#E28945"/>
+<text x="122" y="1186" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF" text-anchor="start">DEBUFF</text>
+<text x="1358" y="1186" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" fill="#FFFFFF" text-anchor="end">4 icone</text>
+<g id="Debuff__Stat">
+<rect x="116" y="1240" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="134" y="1273" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Stat</text>
+<line x1="336" y1="1266.0" x2="354" y2="1266.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_DEB_001">
+<rect x="370" y="1240" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="384" y="1263" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_DEB_001</text>
+<text x="384" y="1286" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Danno ridotto</text>
+<circle cx="658" cy="1258" r="13" fill="#9C6B12"/>
+<text x="658" y="1263" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_DEB_002">
+<rect x="698" y="1240" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="712" y="1263" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_DEB_002</text>
+<text x="712" y="1286" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Difesa ridotta</text>
+<circle cx="986" cy="1258" r="13" fill="#9C6B12"/>
+<text x="986" y="1263" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_DEB_003">
+<rect x="1026" y="1240" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1040" y="1263" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_DEB_003</text>
+<text x="1040" y="1286" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Vulnerabile</text>
+<circle cx="1314" cy="1258" r="13" fill="#9C6B12"/>
+<text x="1314" y="1263" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+</g>
+<g id="Debuff__Disable">
+<rect x="116" y="1326" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="134" y="1359" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Disable</text>
+<line x1="336" y1="1352.0" x2="354" y2="1352.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_DEB_004">
+<rect x="370" y="1326" width="310" height="58" rx="13" fill="#E8F2FB" stroke="#D6DEE5" stroke-width="2"/>
+<text x="384" y="1349" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#3D6B91" text-anchor="start">ICO_DEB_004</text>
+<text x="384" y="1372" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Silenzio abilità</text>
+<circle cx="658" cy="1344" r="13" fill="#3D6B91"/>
+<text x="658" y="1349" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P2</text>
+</g>
+</g>
+</g>
+<g id="Targeting">
+<rect x="90" y="1498" width="1300" height="430" rx="28" fill="#FFFFFF" stroke="#D9E1E8" stroke-width="3"/>
+<rect x="90" y="1498" width="1300" height="76" rx="28" fill="#788696"/>
+<rect x="90" y="1546" width="1300" height="28" fill="#788696"/>
+<text x="122" y="1546" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF" text-anchor="start">TARGETING</text>
+<text x="1358" y="1546" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" fill="#FFFFFF" text-anchor="end">11 icone</text>
+<g id="Targeting__Geometry">
+<rect x="116" y="1600" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="134" y="1633" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Geometry</text>
+<line x1="336" y1="1626.0" x2="354" y2="1626.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_TGT_001">
+<rect x="370" y="1600" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="384" y="1623" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_TGT_001</text>
+<text x="384" y="1646" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Self</text>
+<circle cx="658" cy="1618" r="13" fill="#B63342"/>
+<text x="658" y="1623" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_TGT_002">
+<rect x="698" y="1600" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="712" y="1623" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_TGT_002</text>
+<text x="712" y="1646" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Single Target</text>
+<circle cx="986" cy="1618" r="13" fill="#B63342"/>
+<text x="986" y="1623" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_TGT_003">
+<rect x="1026" y="1600" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1040" y="1623" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_TGT_003</text>
+<text x="1040" y="1646" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Line</text>
+<circle cx="1314" cy="1618" r="13" fill="#B63342"/>
+<text x="1314" y="1623" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_TGT_004">
+<rect x="370" y="1672" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="384" y="1695" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_TGT_004</text>
+<text x="384" y="1718" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Cone</text>
+<circle cx="658" cy="1690" r="13" fill="#B63342"/>
+<text x="658" y="1695" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_TGT_005">
+<rect x="698" y="1672" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="712" y="1695" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_TGT_005</text>
+<text x="712" y="1718" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Circle</text>
+<circle cx="986" cy="1690" r="13" fill="#B63342"/>
+<text x="986" y="1695" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_TGT_006">
+<rect x="1026" y="1672" width="310" height="58" rx="13" fill="#E8F2FB" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1040" y="1695" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#3D6B91" text-anchor="start">ICO_TGT_006</text>
+<text x="1040" y="1718" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Ring</text>
+<circle cx="1314" cy="1690" r="13" fill="#3D6B91"/>
+<text x="1314" y="1695" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P2</text>
+</g>
+<g id="ICO_TGT_007">
+<rect x="370" y="1744" width="310" height="58" rx="13" fill="#E8F2FB" stroke="#D6DEE5" stroke-width="2"/>
+<text x="384" y="1767" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#3D6B91" text-anchor="start">ICO_TGT_007</text>
+<text x="384" y="1790" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Cross</text>
+<circle cx="658" cy="1762" r="13" fill="#3D6B91"/>
+<text x="658" y="1767" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P2</text>
+</g>
+<g id="ICO_TGT_008">
+<rect x="698" y="1744" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="712" y="1767" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_TGT_008</text>
+<text x="712" y="1790" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Rectangle</text>
+<circle cx="986" cy="1762" r="13" fill="#9C6B12"/>
+<text x="986" y="1767" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_TGT_009">
+<rect x="1026" y="1744" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1040" y="1767" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_TGT_009</text>
+<text x="1040" y="1790" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Chain</text>
+<circle cx="1314" cy="1762" r="13" fill="#9C6B12"/>
+<text x="1314" y="1767" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_TGT_010">
+<rect x="370" y="1816" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="384" y="1839" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_TGT_010</text>
+<text x="384" y="1862" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Path</text>
+<circle cx="658" cy="1834" r="13" fill="#B63342"/>
+<text x="658" y="1839" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_TGT_011">
+<rect x="698" y="1816" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="712" y="1839" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_TGT_011</text>
+<text x="712" y="1862" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Direction</text>
+<circle cx="986" cy="1834" r="13" fill="#B63342"/>
+<text x="986" y="1839" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+</g>
+<g id="Movement">
+<rect x="1470" y="260" width="1300" height="458" rx="28" fill="#FFFFFF" stroke="#D9E1E8" stroke-width="3"/>
+<rect x="1470" y="260" width="1300" height="76" rx="28" fill="#4AA3DF"/>
+<rect x="1470" y="308" width="1300" height="28" fill="#4AA3DF"/>
+<text x="1502" y="308" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF" text-anchor="start">MOVEMENT</text>
+<text x="2738" y="308" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" fill="#FFFFFF" text-anchor="end">8 icone</text>
+<g id="Movement__Base">
+<rect x="1496" y="362" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="1514" y="395" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Base</text>
+<line x1="1716" y1="388.0" x2="1734" y2="388.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_MOV_001">
+<rect x="1750" y="362" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="385" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_MOV_001</text>
+<text x="1764" y="408" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Movimento base</text>
+<circle cx="2038" cy="380" r="13" fill="#B63342"/>
+<text x="2038" y="385" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+<g id="Movement__Targeting">
+<rect x="1496" y="448" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="1514" y="481" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Targeting</text>
+<line x1="1716" y1="474.0" x2="1734" y2="474.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_MOV_002">
+<rect x="1750" y="448" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="471" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_MOV_002</text>
+<text x="1764" y="494" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Percorso</text>
+<circle cx="2038" cy="466" r="13" fill="#B63342"/>
+<text x="2038" y="471" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+<g id="Movement__Special">
+<rect x="1496" y="534" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="1514" y="567" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Special</text>
+<line x1="1716" y1="560.0" x2="1734" y2="560.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_MOV_003">
+<rect x="1750" y="534" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="557" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_MOV_003</text>
+<text x="1764" y="580" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Dash</text>
+<circle cx="2038" cy="552" r="13" fill="#B63342"/>
+<text x="2038" y="557" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_MOV_004">
+<rect x="2078" y="534" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2092" y="557" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_MOV_004</text>
+<text x="2092" y="580" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Carica</text>
+<circle cx="2366" cy="552" r="13" fill="#B63342"/>
+<text x="2366" y="557" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_MOV_005">
+<rect x="2406" y="534" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2420" y="557" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_MOV_005</text>
+<text x="2420" y="580" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Salto</text>
+<circle cx="2694" cy="552" r="13" fill="#9C6B12"/>
+<text x="2694" y="557" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_MOV_006">
+<rect x="1750" y="606" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="629" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_MOV_006</text>
+<text x="1764" y="652" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Teletrasporto</text>
+<circle cx="2038" cy="624" r="13" fill="#9C6B12"/>
+<text x="2038" y="629" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_MOV_007">
+<rect x="2078" y="606" width="310" height="58" rx="13" fill="#E8F2FB" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2092" y="629" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#3D6B91" text-anchor="start">ICO_MOV_007</text>
+<text x="2092" y="652" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Attraversamento unità</text>
+<circle cx="2366" cy="624" r="13" fill="#3D6B91"/>
+<text x="2366" y="629" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P2</text>
+</g>
+<g id="ICO_MOV_008">
+<rect x="2406" y="606" width="310" height="58" rx="13" fill="#E8F2FB" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2420" y="629" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#3D6B91" text-anchor="start">ICO_MOV_008</text>
+<text x="2420" y="652" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Scambio posizione</text>
+<circle cx="2694" cy="624" r="13" fill="#3D6B91"/>
+<text x="2694" y="629" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P2</text>
+</g>
+</g>
+</g>
+<g id="Control">
+<rect x="1470" y="778" width="1300" height="386" rx="28" fill="#FFFFFF" stroke="#D9E1E8" stroke-width="3"/>
+<rect x="1470" y="778" width="1300" height="76" rx="28" fill="#9A69C7"/>
+<rect x="1470" y="826" width="1300" height="28" fill="#9A69C7"/>
+<text x="1502" y="826" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF" text-anchor="start">CONTROL</text>
+<text x="2738" y="826" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" fill="#FFFFFF" text-anchor="end">6 icone</text>
+<g id="Control__ForcedMove">
+<rect x="1496" y="880" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="1514" y="913" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">ForcedMove</text>
+<line x1="1716" y1="906.0" x2="1734" y2="906.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_CTL_001">
+<rect x="1750" y="880" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="903" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_CTL_001</text>
+<text x="1764" y="926" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Spinta</text>
+<circle cx="2038" cy="898" r="13" fill="#B63342"/>
+<text x="2038" y="903" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_CTL_002">
+<rect x="2078" y="880" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2092" y="903" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_CTL_002</text>
+<text x="2092" y="926" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Trazione</text>
+<circle cx="2366" cy="898" r="13" fill="#B63342"/>
+<text x="2366" y="903" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+<g id="Control__Disable">
+<rect x="1496" y="966" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="1514" y="999" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Disable</text>
+<line x1="1716" y1="992.0" x2="1734" y2="992.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_CTL_003">
+<rect x="1750" y="966" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="989" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_CTL_003</text>
+<text x="1764" y="1012" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Immobilizza</text>
+<circle cx="2038" cy="984" r="13" fill="#B63342"/>
+<text x="2038" y="989" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_CTL_004">
+<rect x="2078" y="966" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2092" y="989" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_CTL_004</text>
+<text x="2092" y="1012" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Rallenta</text>
+<circle cx="2366" cy="984" r="13" fill="#9C6B12"/>
+<text x="2366" y="989" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_CTL_006">
+<rect x="2406" y="966" width="310" height="58" rx="13" fill="#E8F2FB" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2420" y="989" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#3D6B91" text-anchor="start">ICO_CTL_006</text>
+<text x="2420" y="1012" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Stordisci</text>
+<circle cx="2694" cy="984" r="13" fill="#3D6B91"/>
+<text x="2694" y="989" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P2</text>
+</g>
+</g>
+<g id="Control__Reaction">
+<rect x="1496" y="1052" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="1514" y="1085" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Reaction</text>
+<line x1="1716" y1="1078.0" x2="1734" y2="1078.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_CTL_005">
+<rect x="1750" y="1052" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="1075" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_CTL_005</text>
+<text x="1764" y="1098" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Interrompi</text>
+<circle cx="2038" cy="1070" r="13" fill="#B63342"/>
+<text x="2038" y="1075" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+</g>
+<g id="Environment">
+<rect x="1470" y="1224" width="1300" height="472" rx="28" fill="#FFFFFF" stroke="#D9E1E8" stroke-width="3"/>
+<rect x="1470" y="1224" width="1300" height="76" rx="28" fill="#42A999"/>
+<rect x="1470" y="1272" width="1300" height="28" fill="#42A999"/>
+<text x="1502" y="1272" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF" text-anchor="start">ENVIRONMENT</text>
+<text x="2738" y="1272" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" fill="#FFFFFF" text-anchor="end">9 icone</text>
+<g id="Environment__Element">
+<rect x="1496" y="1326" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="1514" y="1359" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Element</text>
+<line x1="1716" y1="1352.0" x2="1734" y2="1352.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_ENV_001">
+<rect x="1750" y="1326" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="1349" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ENV_001</text>
+<text x="1764" y="1372" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Fuoco</text>
+<circle cx="2038" cy="1344" r="13" fill="#B63342"/>
+<text x="2038" y="1349" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_ENV_002">
+<rect x="2078" y="1326" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2092" y="1349" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ENV_002</text>
+<text x="2092" y="1372" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Acqua</text>
+<circle cx="2366" cy="1344" r="13" fill="#B63342"/>
+<text x="2366" y="1349" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_ENV_003">
+<rect x="2406" y="1326" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2420" y="1349" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ENV_003</text>
+<text x="2420" y="1372" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Elettricità</text>
+<circle cx="2694" cy="1344" r="13" fill="#B63342"/>
+<text x="2694" y="1349" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+<g id="Environment__Visibility">
+<rect x="1496" y="1412" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="1514" y="1445" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Visibility</text>
+<line x1="1716" y1="1438.0" x2="1734" y2="1438.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_ENV_004">
+<rect x="1750" y="1412" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="1435" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ENV_004</text>
+<text x="1764" y="1458" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Fumo / oscura LOS</text>
+<circle cx="2038" cy="1430" r="13" fill="#B63342"/>
+<text x="2038" y="1435" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+<g id="Environment__Cover">
+<rect x="1496" y="1498" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="1514" y="1531" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Cover</text>
+<line x1="1716" y1="1524.0" x2="1734" y2="1524.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_ENV_005">
+<rect x="1750" y="1498" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="1521" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ENV_005</text>
+<text x="1764" y="1544" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Crea copertura</text>
+<circle cx="2038" cy="1516" r="13" fill="#B63342"/>
+<text x="2038" y="1521" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_ENV_006">
+<rect x="2078" y="1498" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2092" y="1521" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ENV_006</text>
+<text x="2092" y="1544" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Distruggi copertura</text>
+<circle cx="2366" cy="1516" r="13" fill="#B63342"/>
+<text x="2366" y="1521" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+<g id="Environment__Graph">
+<rect x="1496" y="1584" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="1514" y="1617" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Graph</text>
+<line x1="1716" y1="1610.0" x2="1734" y2="1610.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_ENV_007">
+<rect x="1750" y="1584" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="1607" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_ENV_007</text>
+<text x="1764" y="1630" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Modifica transizione</text>
+<circle cx="2038" cy="1602" r="13" fill="#B63342"/>
+<text x="2038" y="1607" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_ENV_008">
+<rect x="2078" y="1584" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2092" y="1607" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_ENV_008</text>
+<text x="2092" y="1630" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Porta / passaggio</text>
+<circle cx="2366" cy="1602" r="13" fill="#9C6B12"/>
+<text x="2366" y="1607" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_ENV_009">
+<rect x="2406" y="1584" width="310" height="58" rx="13" fill="#E8F2FB" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2420" y="1607" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#3D6B91" text-anchor="start">ICO_ENV_009</text>
+<text x="2420" y="1630" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Ponte / elevatore</text>
+<circle cx="2694" cy="1602" r="13" fill="#3D6B91"/>
+<text x="2694" y="1607" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P2</text>
+</g>
+</g>
+</g>
+<g id="Modifier">
+<rect x="1470" y="1756" width="1300" height="358" rx="28" fill="#FFFFFF" stroke="#D9E1E8" stroke-width="3"/>
+<rect x="1470" y="1756" width="1300" height="76" rx="28" fill="#9A806A"/>
+<rect x="1470" y="1804" width="1300" height="28" fill="#9A806A"/>
+<text x="1502" y="1804" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF" text-anchor="start">MODIFIER</text>
+<text x="2738" y="1804" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" fill="#FFFFFF" text-anchor="end">7 icone</text>
+<g id="Modifier__Universal">
+<rect x="1496" y="1858" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="1514" y="1891" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Universal</text>
+<line x1="1716" y1="1884.0" x2="1734" y2="1884.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_MOD_001">
+<rect x="1750" y="1858" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="1881" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_MOD_001</text>
+<text x="1764" y="1904" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Migliorato</text>
+<circle cx="2038" cy="1876" r="13" fill="#B63342"/>
+<text x="2038" y="1881" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_MOD_002">
+<rect x="2078" y="1858" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2092" y="1881" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_MOD_002</text>
+<text x="2092" y="1904" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Reazione</text>
+<circle cx="2366" cy="1876" r="13" fill="#B63342"/>
+<text x="2366" y="1881" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_MOD_003">
+<rect x="2406" y="1858" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2420" y="1881" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_MOD_003</text>
+<text x="2420" y="1904" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Ripeti</text>
+<circle cx="2694" cy="1876" r="13" fill="#9C6B12"/>
+<text x="2694" y="1881" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_MOD_004">
+<rect x="1750" y="1930" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="1953" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_MOD_004</text>
+<text x="1764" y="1976" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Doppio</text>
+<circle cx="2038" cy="1948" r="13" fill="#9C6B12"/>
+<text x="2038" y="1953" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_MOD_005">
+<rect x="2078" y="1930" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2092" y="1953" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_MOD_005</text>
+<text x="2092" y="1976" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Perfora</text>
+<circle cx="2366" cy="1948" r="13" fill="#B63342"/>
+<text x="2366" y="1953" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_MOD_006">
+<rect x="2406" y="1930" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="2420" y="1953" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_MOD_006</text>
+<text x="2420" y="1976" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Ignora copertura</text>
+<circle cx="2694" cy="1948" r="13" fill="#9C6B12"/>
+<text x="2694" y="1953" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_MOD_007">
+<rect x="1750" y="2002" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="1764" y="2025" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_MOD_007</text>
+<text x="1764" y="2048" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Interruzione</text>
+<circle cx="2038" cy="2020" r="13" fill="#B63342"/>
+<text x="2038" y="2025" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+</g>
+<g id="Guard">
+<rect x="2850" y="260" width="1300" height="644" rx="28" fill="#FFFFFF" stroke="#D9E1E8" stroke-width="3"/>
+<rect x="2850" y="260" width="1300" height="76" rx="28" fill="#5B79C8"/>
+<rect x="2850" y="308" width="1300" height="28" fill="#5B79C8"/>
+<text x="2882" y="308" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF" text-anchor="start">GUARD</text>
+<text x="4118" y="308" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" fill="#FFFFFF" text-anchor="end">7 icone</text>
+<g id="Guard__Base">
+<rect x="2876" y="362" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="2894" y="395" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Base</text>
+<line x1="3096" y1="388.0" x2="3114" y2="388.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_GRD_001">
+<rect x="3130" y="362" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3144" y="385" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_GRD_001</text>
+<text x="3144" y="408" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Guardia</text>
+<circle cx="3418" cy="380" r="13" fill="#B63342"/>
+<text x="3418" y="385" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+<g id="Guard__Modifier">
+<rect x="2876" y="448" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="2894" y="481" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Modifier</text>
+<line x1="3096" y1="474.0" x2="3114" y2="474.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_GRD_002">
+<rect x="3130" y="448" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3144" y="471" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_GRD_002</text>
+<text x="3144" y="494" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Guardia migliorata</text>
+<circle cx="3418" cy="466" r="13" fill="#B63342"/>
+<text x="3418" y="471" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+<g id="Guard__Directional">
+<rect x="2876" y="534" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="2894" y="567" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Directional</text>
+<line x1="3096" y1="560.0" x2="3114" y2="560.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_GRD_003">
+<rect x="3130" y="534" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3144" y="557" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_GRD_003</text>
+<text x="3144" y="580" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Guardia direzionale</text>
+<circle cx="3418" cy="552" r="13" fill="#B63342"/>
+<text x="3418" y="557" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+<g id="Guard__Area">
+<rect x="2876" y="620" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="2894" y="653" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Area</text>
+<line x1="3096" y1="646.0" x2="3114" y2="646.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_GRD_004">
+<rect x="3130" y="620" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3144" y="643" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_GRD_004</text>
+<text x="3144" y="666" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Protezione area</text>
+<circle cx="3418" cy="638" r="13" fill="#9C6B12"/>
+<text x="3418" y="643" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+</g>
+<g id="Guard__Barrier">
+<rect x="2876" y="706" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="2894" y="739" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Barrier</text>
+<line x1="3096" y1="732.0" x2="3114" y2="732.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_GRD_005">
+<rect x="3130" y="706" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3144" y="729" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_GRD_005</text>
+<text x="3144" y="752" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Barriera</text>
+<circle cx="3418" cy="724" r="13" fill="#B63342"/>
+<text x="3418" y="729" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+<g id="Guard__Reaction">
+<rect x="2876" y="792" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="2894" y="825" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Reaction</text>
+<line x1="3096" y1="818.0" x2="3114" y2="818.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_GRD_006">
+<rect x="3130" y="792" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3144" y="815" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_GRD_006</text>
+<text x="3144" y="838" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Counter</text>
+<circle cx="3418" cy="810" r="13" fill="#B63342"/>
+<text x="3418" y="815" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_GRD_007">
+<rect x="3458" y="792" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3472" y="815" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_GRD_007</text>
+<text x="3472" y="838" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Parry</text>
+<circle cx="3746" cy="810" r="13" fill="#9C6B12"/>
+<text x="3746" y="815" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+</g>
+</g>
+<g id="Buff">
+<rect x="2850" y="964" width="1300" height="286" rx="28" fill="#FFFFFF" stroke="#D9E1E8" stroke-width="3"/>
+<rect x="2850" y="964" width="1300" height="76" rx="28" fill="#7DBB4D"/>
+<rect x="2850" y="1012" width="1300" height="28" fill="#7DBB4D"/>
+<text x="2882" y="1012" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF" text-anchor="start">BUFF</text>
+<text x="4118" y="1012" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" fill="#FFFFFF" text-anchor="end">4 icone</text>
+<g id="Buff__Stat">
+<rect x="2876" y="1066" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="2894" y="1099" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Stat</text>
+<line x1="3096" y1="1092.0" x2="3114" y2="1092.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_BUF_001">
+<rect x="3130" y="1066" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3144" y="1089" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_BUF_001</text>
+<text x="3144" y="1112" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Danno aumentato</text>
+<circle cx="3418" cy="1084" r="13" fill="#9C6B12"/>
+<text x="3418" y="1089" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_BUF_002">
+<rect x="3458" y="1066" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3472" y="1089" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_BUF_002</text>
+<text x="3472" y="1112" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Difesa aumentata</text>
+<circle cx="3746" cy="1084" r="13" fill="#9C6B12"/>
+<text x="3746" y="1089" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_BUF_003">
+<rect x="3786" y="1066" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3800" y="1089" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_BUF_003</text>
+<text x="3800" y="1112" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Velocità aumentata</text>
+<circle cx="4074" cy="1084" r="13" fill="#9C6B12"/>
+<text x="4074" y="1089" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+<g id="ICO_BUF_004">
+<rect x="3130" y="1138" width="310" height="58" rx="13" fill="#E8F2FB" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3144" y="1161" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#3D6B91" text-anchor="start">ICO_BUF_004</text>
+<text x="3144" y="1184" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Range aumentato</text>
+<circle cx="3418" cy="1156" r="13" fill="#3D6B91"/>
+<text x="3418" y="1161" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P2</text>
+</g>
+</g>
+</g>
+<g id="Interact">
+<rect x="2850" y="1310" width="1300" height="386" rx="28" fill="#FFFFFF" stroke="#D9E1E8" stroke-width="3"/>
+<rect x="2850" y="1310" width="1300" height="76" rx="28" fill="#D3A23E"/>
+<rect x="2850" y="1358" width="1300" height="28" fill="#D3A23E"/>
+<text x="2882" y="1358" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#FFFFFF" text-anchor="start">INTERACT</text>
+<text x="4118" y="1358" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" fill="#FFFFFF" text-anchor="end">4 icone</text>
+<g id="Interact__Base">
+<rect x="2876" y="1412" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="2894" y="1445" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Base</text>
+<line x1="3096" y1="1438.0" x2="3114" y2="1438.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_INT_001">
+<rect x="3130" y="1412" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3144" y="1435" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_INT_001</text>
+<text x="3144" y="1458" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Interagisci</text>
+<circle cx="3418" cy="1430" r="13" fill="#B63342"/>
+<text x="3418" y="1435" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+</g>
+<g id="Interact__Objective">
+<rect x="2876" y="1498" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="2894" y="1531" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Objective</text>
+<line x1="3096" y1="1524.0" x2="3114" y2="1524.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_INT_002">
+<rect x="3130" y="1498" width="310" height="58" rx="13" fill="#FFE5E7" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3144" y="1521" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#B63342" text-anchor="start">ICO_INT_002</text>
+<text x="3144" y="1544" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Cattura obiettivo</text>
+<circle cx="3418" cy="1516" r="13" fill="#B63342"/>
+<text x="3418" y="1521" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P0</text>
+</g>
+<g id="ICO_INT_003">
+<rect x="3458" y="1498" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3472" y="1521" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_INT_003</text>
+<text x="3472" y="1544" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Trasporta / consegna</text>
+<circle cx="3746" cy="1516" r="13" fill="#9C6B12"/>
+<text x="3746" y="1521" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+</g>
+<g id="Interact__Device">
+<rect x="2876" y="1584" width="220" height="52" rx="14" fill="#EDF2F6"/>
+<text x="2894" y="1617" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#33414F" text-anchor="start">Device</text>
+<line x1="3096" y1="1610.0" x2="3114" y2="1610.0" stroke="#C5CFD8" stroke-width="3"/>
+<g id="ICO_INT_004">
+<rect x="3130" y="1584" width="310" height="58" rx="13" fill="#FFF2D8" stroke="#D6DEE5" stroke-width="2"/>
+<text x="3144" y="1607" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" fill="#9C6B12" text-anchor="start">ICO_INT_004</text>
+<text x="3144" y="1630" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="400" fill="#273441" text-anchor="start">Attiva dispositivo</text>
+<circle cx="3418" cy="1602" r="13" fill="#9C6B12"/>
+<text x="3418" y="1607" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="middle">P1</text>
+</g>
+</g>
+</g>
+<g id="LEGEND"><rect x="90" y="2202" width="4020" height="56" rx="16" fill="#18202A"/>
+<text x="114" y="2238" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="400" fill="#FFFFFF" text-anchor="start">P0 = vertical slice · P1 = seconda wave · P2 = espansione | Struttura: Famiglia → Sottogruppo → Icon_ID</text>
+</g>
+</g></svg>
