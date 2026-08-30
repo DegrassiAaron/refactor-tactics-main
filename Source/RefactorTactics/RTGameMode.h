@@ -18,13 +18,9 @@
 
 class ARTUnit;
 class ARTHexMapActor;
-class ARTTurnManager;
 class URTFrontendNavigator;
-class URTHeroData;
-class URTHexMapAsset;
 class URTKnowledgeVeilPresenter;
 class URTMatchFormatData;
-struct FRTMatchRules;
 
 /**
  * GameMode: imposta camera e controller di default e, all'avvio, allestisce la partita sulla mappa

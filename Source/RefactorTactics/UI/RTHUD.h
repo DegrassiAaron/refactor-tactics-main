@@ -229,7 +229,7 @@ public:
 	 * La squadra di cui questo HUD disegna il mondo: quella del proprio `ARTPlayerController`.
 	 *
 	 * 🔴 **E' la stessa domanda che [D-242] ha deciso per il velo, e la fonte e' la stessa.**
-	 * `ARTGameMode::ViewerTeamId()` legge `ARTPlayerController::PlayerTeamId` per stendere il velo; qui
+	 * `URTKnowledgeVeilPresenter::ViewerTeamId()` legge `ARTPlayerController::PlayerTeamId` per stendere il velo; qui
 	 * l'HUD legge lo STESSO campo dal proprio controller invece del letterale `0` che stava in `DrawHUD` e
 	 * che alimentava SEI consumatori — quattro dei quali filtri di privacy (`FilterForTeam`,
 	 * `GetRecentEventsForTeam`, `VisibleTrailFor`, `ViewForTeam`). Due sedi per la stessa domanda erano il
@@ -244,7 +244,7 @@ public:
 	 * dove si puo' interrogare.
 	 *
 	 * Senza controller — o con uno che non e' un `ARTPlayerController` — risponde `0`, con la stessa regola
-	 * di `ARTGameMode::ViewerTeamId()` e di `ARTCameraPawn::FrameOwnTeam`.
+	 * di `URTKnowledgeVeilPresenter::ViewerTeamId()` e di `ARTCameraPawn::FrameOwnTeam`.
 	 */
 	static int32 ViewerTeamIdOf(const APlayerController* Controller);
 

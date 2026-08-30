@@ -1692,7 +1692,7 @@ bool FRTAutobattleSameSeedTest::RunTest(const FString&)
  *
  * La differenza con `Match.Autobattle.PlaysToCompletionWithoutInput` e' UNA riga, ed e' il criterio 3 di
  * #1088: quel test allestisce la board con `SpawnAutobattleMap`, un esagono **liscio** costruito nel test.
- * Qui la mappa arriva da `MapSource = GeneratedTestArena`, cioe' da `ARTGameMode::ApplyMapSource` — 65
+ * Qui la mappa arriva da `MapSource = GeneratedTestArena`, cioe' dalla sorgente mappa che `FRTMatchBootstrapper` applica — 65
  * celle con tre ostacoli, una fascia `Rough` e **il muro di cinque celle che blocca la vista su `q=0`**,
  * che e' l'unica differenza geometrica fra le due arene.
  *

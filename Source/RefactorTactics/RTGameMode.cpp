@@ -213,32 +213,12 @@ namespace RTAutobattleEntry
 	 */
 	static constexpr float FallbackPlanningSeconds = 2.f;
 
-	/**
-	 * Il minimo che tiene VIVO il turno in una partita non presidiata.
-	 *
-	 * 🔴 **`0` non significa «turni incatenati»: significa fermo per sempre.** `SetPlanningSeconds` e
-	 * `StartPlanningTimer` armano il timer solo `if (PlanningSeconds > 0.f)` — con zero non lo arma nessuno,
-	 * `OnPlanningTimeout` non scatta mai, `LockInAndResolve` non viene chiamato, e in una partita non
-	 * presidiata **non c'e' nessuno che possa premere il lock-in**. La partita resta al turno 1 mentre la
-	 * banda dichiara che si sta giocando da sola.
-	 *
-	 * ⚠️ Zero e' legittimo altrove, ed e' da li' che veniva la convinzione sbagliata: `RTScenarioSession`
-	 * chiama `SetPlanningSeconds(0.f)` per le run headless — ma li' il turno lo pompa l'harness. La
-	 * differenza non e' il valore, e' chi fa avanzare il turno.
-	 *
-	 * ∴ l'intento «il piu' veloce possibile» resta onorato e non viene riportato al ripiego di 2 s: viene
-	 * alzato al minimo che l'orologio del motore sa ancora far scattare, e la correzione e' dichiarata nel
-	 * log invece che applicata in silenzio. Trovato in code review, non da un playtest.
-	 */
-	static constexpr float MinUnattendedPlanningSeconds = 0.1f;
 }
 /** Definita in ScenarioHarness/RTTestConsole.cpp: scavalca `MapSource` da riga di comando. */
 extern TAutoConsoleVariable<FString> CVarRTMapSource;
 /** Definita nello stesso file: la fixture per nome, che vince su `rt.Map.Source` (`#1290`). */
 extern TAutoConsoleVariable<FString> CVarRTMapFixture;
 
-#include "Turn/RTMatchFormatData.h"
-#include "Turn/RTMatchFormatLibrary.h"
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/DirectionalLight.h"
