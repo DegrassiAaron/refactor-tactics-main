@@ -1,0 +1,25 @@
+{
+  "scenarioId": "Spec.Hud.MatchWithTwoAllies",
+  "tags": ["hud", "spec", "screen-hud", "roster", "gadget", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 3,
+
+  "_nota": "CP 11.7 (#613) — come `Spec.Hud.DockArmsTheSelectedAction`, questo scenario non verifica una regola di gioco: costruisce lo STATO da cui si guarda il HUD. Zero turni, quindi la partita resta al round 1 in pianificazione. Due unita' nel team 0 e una nel team 1: e' il minimo perche' «solo la propria squadra» significhi qualcosa — con una sola alleata, un roster che mostrasse tutti e un roster corretto avrebbero lo stesso numero di righe.",
+
+  "_oracolo": "Cio' che si osserva sta nei tre test C++ che lo consumano: `RosterShowsOnlyOwnTeamAndKeepsTheFallen` (il roster elenca le due alleate e nessuna avversaria, e tiene in lista quella a zero HP), `SlotsAreReadNotDeduced` (i tre slot del pannello si leggono uno per uno, non si deducono l'uno dall'altro) e `RoundLimitComesFromTheFormat` (il contatore di round segue il formato in vigore invece di una costante).",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "A2", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 1, -1] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
+  ],
+
+  "turns": [],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 0 },
+    { "type": "UnitAlive", "unit": "A1", "value": true },
+    { "type": "UnitAlive", "unit": "A2", "value": true }
+  ]
+}
