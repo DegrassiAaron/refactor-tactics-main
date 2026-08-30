@@ -29,6 +29,9 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h" // #1150: «inflitto» si chiede al predicato, non si deduce dalla categoria
 #include "Turn/RTTurnManager.h"
+#include "Turn/RTMatchFormatData.h"    // FRTMatchRules: le regole vengono dal formato SPEDITO
+#include "Turn/RTMatchFormatLibrary.h" // FindShippedFormat/ResolveRules: quelle che il pacchetto carica
+#include "Turn/RTTurnRules.h"          // DescribeOutcome/DescribeEndReason: l'esito si NOMINA, non si stampa a numero
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -423,6 +426,138 @@ bool FRTAuthoredMapNoOscillationTest::RunTest(const FString&)
 	TestTrue(*FString::Printf(
 		TEXT("nessuna unita' oscilla fra due celle: %d ritorni di periodo due (limite %d)"),
 		Peggiore, Limite), Peggiore <= Limite);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+
+/**
+ * **La partita d'autore col FORMATO SPEDITO: come finisce, e quanto pesa l'obiettivo.**
+ *
+ * E' la misura headless che la riserva di `G13` chiedeva e che nessuno aveva rifatto da quando l'obiettivo
+ * esiste. Il 2026-08-23 la stessa partita fu misurata in seduta — *«pareggio allo scadere 12/12, 25 voci
+ * `Combat`»* — ma allora `DA_HexMap_Arena` non dichiarava nessuna cella obiettivo e `ScoreToWin` era **0**:
+ * la via a punti non poteva ne' aprirsi ne' chiudersi. Oggi entrambe esistono ([D-241], [D-247]).
+ *
+ * 🔴 **Questo test NON asserisce CHI vince, e non e' timidezza.** L'esito di una partita bot-contro-bot non
+ * e' evidenza di bilanciamento finche' il bot non e' certificato ([D-102]), e pinnarlo qui scriverebbe in un
+ * test un numero che nessuno ha deciso. Cio' che difende sono due proprieta' strutturali che devono valere
+ * qualunque sia il vincitore:
+ *
+ *   1. la partita **finisce** entro il `RoundLimit` del formato, per una delle tre vie;
+ *   2. il punteggio e' **coerente con l'esito**: se la via e' `Objective`, qualcuno ha raggiunto la soglia;
+ *      se non lo e', nessuno l'ha raggiunta.
+ *
+ * ⚠️ **Il bot NON cerca l'obiettivo**, ed e' misurato: `grep Objective Source/RefactorTactics/Bot/` da'
+ * **zero**, e il suo scoring pesa danno, uccisioni e copertura. I goal veri — `SecureObjective` — sono E26.
+ * Quindi in autobattle il punteggio sale solo se un bot **capita** sull'obiettivo alla fine di un Cleanup, e
+ * una vittoria per obiettivo qui sarebbe una coincidenza, non una strategia. E' esattamente la ragione per
+ * cui la seduta di `G13` deve essere **giocata da una persona**: questo test prova che la catena regge, non
+ * che il gioco si giochi.
+ *
+ * I numeri veri stanno negli `AddInfo`, dove invecchiano senza rompere niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAuthoredMapShippedFormatTest,
+	"RefactorTactics.Match.Autobattle.ShippedFormatEndsTheAuthoredMatch",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAuthoredMapShippedFormatTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Authored = RTAuthoredArena::Load();
+	if (!TestNotNull(TEXT("la mappa d'autore si carica"), Authored)) { return false; }
+	if (!TestTrue(TEXT("premessa: dichiara un obiettivo, o la via a punti non e' in gioco"),
+		Authored->HasObjectiveCell()))
+	{
+		return false;
+	}
+
+	// Le regole vengono dal formato SPEDITO, non da valori scritti qui: e' il formato che il pacchetto
+	// carica, ed e' cio' che la seduta di `G13` giochera'.
+	URTMatchFormatData* Shipped = URTMatchFormatLibrary::FindShippedFormat(FName(TEXT("Format.Skirmish2v2")));
+	if (!TestNotNull(TEXT("il formato spedito esiste"), Shipped)) { return false; }
+	FRTMatchRules Rules;
+	FString Reason;
+	if (!TestTrue(TEXT("e si risolve in regole valide"),
+		URTMatchFormatLibrary::ResolveRules(Shipped, Rules, Reason)))
+	{
+		AddError(Reason);
+		return false;
+	}
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("GameMode"), GameMode) || !TestNotNull(TEXT("TurnManager"), TM)
+		|| !TestNotNull(TEXT("mappa"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	HexMap->MapAsset = Authored;
+	GameMode->MapSource = ERTMapSource::LevelAsset;
+	GameMode->bAutobattle = true;
+	GameMode->SetupHexMatch(HexMap);
+	TM->SetMatchRules(Rules);
+
+	int32 Turni = 0;
+	int32 VociObiettivo = 0;
+	int32 TurniControllati = 0;
+	const int32 MaxTurni = Rules.RoundLimit + 2; // due di margine: se sfora, la partita non finisce e si vede
+	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Turni < MaxTurni)
+	{
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+		++Turni;
+
+		// Il TurnLog porta UN turno: si legge adesso o non si legge piu'.
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Objective)
+			{
+				++VociObiettivo;
+				if (E.Amount > 0) { ++TurniControllati; }
+			}
+		}
+	}
+
+	const FRTMatchResult Result = TM->GetMatchResult();
+	const int32 S0 = TM->GetTeamScore(0);
+	const int32 S1 = TM->GetTeamScore(1);
+
+	AddInfo(FString::Printf(TEXT("formato %s: RoundLimit %d, ScoreToWin %d"),
+		*Rules.FormatId.ToString(), Rules.RoundLimit, Rules.ScoreToWin));
+	AddInfo(FString::Printf(TEXT("partita finita al turno %d — %s, %s"), Turni,
+		*URTTurnRules::DescribeOutcome(Result.Outcome), *URTTurnRules::DescribeEndReason(Result.Reason)));
+	AddInfo(FString::Printf(TEXT("punteggio %d-%d; %d voci di obiettivo, %d turni controllati da qualcuno"),
+		S0, S1, VociObiettivo, TurniControllati));
+
+	// (1) Finisce. Una partita che sfora il limite non e' un pareggio: e' un difetto.
+	TestTrue(FString::Printf(TEXT("la partita finisce entro il RoundLimit (%d turni giocati su %d)"),
+		Turni, Rules.RoundLimit), TM->GetPhase() == ERTMatchPhase::MatchEnded);
+
+	// (2) Il punteggio e' coerente con la via. E' l'invariante che lega le due meta' di CP 10.2: chi assegna
+	// i punti e chi li giudica devono raccontare la stessa partita.
+	const bool bQualcunoAllaSoglia = Rules.ScoreToWin > 0 && (S0 >= Rules.ScoreToWin || S1 >= Rules.ScoreToWin);
+	if (Result.Reason == ERTMatchEndReason::Objective)
+	{
+		TestTrue(TEXT("vittoria per obiettivo: qualcuno ha raggiunto la soglia"), bQualcunoAllaSoglia);
+	}
+	else
+	{
+		TestFalse(TEXT("nessuna vittoria per obiettivo: e infatti nessuno e' alla soglia"), bQualcunoAllaSoglia);
+	}
+
+	// (3) L'obiettivo esiste sulla mappa, quindi il Cleanup ne parla a ogni turno. Zero voci significherebbe
+	// che il tick dell'obiettivo non gira in partita vera — la regola verde e il gioco muto.
+	TestEqual(TEXT("una voce di obiettivo per turno giocato: il Cleanup ne parla sempre"),
+		VociObiettivo, Turni);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
