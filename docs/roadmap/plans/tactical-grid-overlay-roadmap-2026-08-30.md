@@ -25,7 +25,7 @@ nodo 1 e i test al nodo 5. Qui un test viene prima, perché lo chiede l'owner de
 | # | Nodo | Owner | Stato misurato | Dipende da | Exit gate |
 |---|---|---|---|---|---|
 | **0** | Audit del tracking e del codice | questo referto | ✅ **fatto** — 2026-08-30 | — | Nessun owner duplicato aperto: verificato su `hover`, `grid`, `overlay`, `bordo`, `griglia`, `pointer` |
-| **1** | `PlayerInput.HoverNeverCommits` esiste e prova la regola | [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705) | ⛔ **non scritto** — zero occorrenze in `Source/`; i `PlayerInput.*` reali sono **16** | — | Il test è verde e **fallisce** se lo si muta: `rt-suite.ps1 -Filter RefactorTactics.PlayerInput` |
+| **1** | `PlayerInput.HoverNeverCommits` esiste e prova la regola | [#1766](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1766), sotto [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705) | ⛔ **non scritto** — zero occorrenze in `Source/`; i `PlayerInput.*` reali sono **16**. ⏳ **owner aperto il 2026-08-30** | — | I due test sono verdi e **falliscono** se li si muta; `rt-suite.ps1 -Filter RefactorTactics.PlayerInput` passa da **16** a **18** |
 | **2** | L'hover si vede | [#1614](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1614) | ⏳ aperta, P1 — premessa corretta il 2026-08-30 | **1** | Le 12 caselle di #1614 + `PIE-V01-POINTER` eseguita |
 | **3** | La griglia si vede in partita: confine fra celle + toggle | [#1758](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1758) | ⏳ aperta il 2026-08-30, P1, sotto [#289](https://github.com/DegrassiAaron/refactor-tactics-main/issues/289) | — (indipendente da 1–2) | Le caselle di #1758 + voce `PIE-*` nuova, **collocata in una seduta** di [`editor-sessions.yaml`](../editor-sessions.yaml) |
 | **4** | `FRTCellId` si legge a schermo in Development | casella di [#1614](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1614) | ⛔ **nessun consumatore** — `grep HoveredCell` in `Debug/` e `UI/` dà zero | **2** | Hovered `(X,Y,Layer)` e centro world visibili in PIE Development |
@@ -38,6 +38,27 @@ nessuno sta misurando. Il test viene prima, o almeno insieme.
 
 🟢 **Il nodo 3 non dipende da 1–2 e può correre in parallelo**: disegna la board a riposo, non la cella sotto
 il cursore. È l'unico ramo di questa sequenza che si può iniziare oggi senza precondizioni.
+
+---
+
+### Il nodo 1 copre DUE test, non otto — misurato il 2026-08-30
+
+Il perimetro di §7 della spec ne elenca otto. Verificati uno per uno su `9434b950`, solo **due** si scrivono
+su comportamento che già regge; gli altri sei non sono lavoro rimandato per stanchezza, e ognuno porta chi lo
+blocca:
+
+| Test | Stato | Blocco |
+|---|---|---|
+| `HoverNeverCommits` · `RightClickCancelsPreviewOnly` | ✅ **in #1766** | — `SetHoveredCell` (`RTHexMapActor.cpp:806`) e `ApplyBack()` (`RTPlayerController.cpp:1466`) |
+| `PlaybackRejectsPlanningInput` | 🟡 **feature travestita da test** | `ResolutionPlayback` è *prodotto* e **nessuno lo consuma**: unica occorrenza `RTPlayerController.cpp:1415` |
+| `HiddenEnemyCannotBecomeHoverTarget` | 🟡 **feature travestita da test** | `PlayerTick` non filtra per percezione. È §6.1 — la **privacy** — e merita il proprio owner |
+| `HUDConsumesPointerBeforeWorld` | ⛔ | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) — `AddHitBox` **0** occorrenze |
+| `AllyGhostIsReadOnly` | ⛔ | CP 11.5/11.6 — `AllyIntentGhost` **0** occorrenze |
+| `ReactionWindowOwnsInputPriority` | ⛔ | E14 — il contesto non è mai prodotto |
+| `LogicalMapObjectResolvedFromStableId` | ⛔ | [#74](https://github.com/DegrassiAaron/refactor-tactics-main/issues/74) — `bMapElement` **zero produttori** |
+
+⚠️ **I due 🟡 sono il candidato naturale per il nodo successivo**, e non sono equivalenti:
+`HiddenEnemyCannotBecomeHoverTarget` è la privacy del contratto, quindi vale più di un test.
 
 ---
 
