@@ -1319,4 +1319,81 @@ bool FRTScenarioTeamConstraintIsDerivedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #1796 — una cella su un layer che l'arena NON ha viene rifiutata, e l'errore dice quale layer.
+ *
+ * 🔴 **Il difetto che chiude, e come e' stato trovato.** Il controllo di appartenenza era
+ * `HexDistance(Cella, FRTCellId(0, 0, Cella.Layer)) > MapRadius`: l'origine costruita **sul layer della
+ * cella stessa**, quindi il raggio misurato dentro quel piano e la domanda «quel piano esiste?» mai posta.
+ * Su un'arena piatta — che `MakeFlatArena` costruisce sul solo layer 0 — ogni layer diverso passava.
+ *
+ * Non e' teorico: `Spec.Hud.MatchWithTwoAllies` piazzava un'unita' su `L=-1` e girava, e i tre test HUD che
+ * lo consumano guardano il roster, non le posizioni. L'ha trovato un test sul corpus.
+ *
+ * ⛔ **La correzione OVVIA e sbagliata sarebbe «rifiuta i layer negativi»**, perche' il caso reale portava
+ * `-1`. Il penultimo blocco qui sotto la boccia: un `L=+7` sulla stessa arena piatta e' fuori mappa
+ * esattamente quanto un `-1`, e una regola sul segno lo lascerebbe entrare.
+ *
+ * ⛔ **La seconda correzione ovvia e sbagliata sarebbe «rifiuta ogni layer != 0»**, e l'ultimo blocco la
+ * boccia: con una FIXTURE l'arena puo' essere multilivello, ed e' la ragione per cui `FRTCellId` porta un
+ * layer. La regola distingue «layer che l'arena non ha» da «layer diverso da zero».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderRejectsLayerOutsideFlatArenaTest,
+	"RefactorTactics.Scenario.LoaderRejectsLayerOutsideFlatArena",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderRejectsLayerOutsideFlatArenaTest::RunTest(const FString&)
+{
+	auto Rejects = [this](const TCHAR* Json, const TCHAR* MustMention, const TCHAR* What)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(Json, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), What), bOk);
+		TestTrue(FString::Printf(TEXT("%s: il motivo cita '%s' (era: '%s')"), What, MustMention, *Error),
+			Error.Contains(MustMention));
+	};
+
+	auto Accepts = [this](const TCHAR* Json, const TCHAR* What)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		TestTrue(FString::Printf(TEXT("%s: accettato (errore: '%s')"), What, *Error),
+			URTScenarioLoader::LoadFromString(Json, Scenario, Error));
+	};
+
+	// --- 1. UNITA' su un layer che l'arena piatta non ha -------------------------------------------
+	// E' il caso reale, con lo stesso `L=-1` e la stessa coordinata planare VALIDA: `(-2,1)` sta dentro il
+	// raggio 3. Prima passava, ed e' il motivo per cui il messaggio deve nominare il layer invece di dire
+	// solo «fuori dall'arena» — su una planare giusta, quel messaggio manda a cercare il raggio.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[-2,1,-1]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("layer -1"), TEXT("unita' su un layer inesistente"));
+
+	// --- 2. CELLA MODIFICATA sullo stesso difetto --------------------------------------------------
+	// Un ostacolo posato fuori mappa non blocca niente, e lo scenario verificherebbe una condizione che non
+	// ha mai creato.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]}],"cells":[{"cell":[1,0,2],"blocksLineOfSight":true}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("layer 2"), TEXT("cella modificata su un layer inesistente"));
+
+	// --- 3. Il segno NON e' la regola --------------------------------------------------------------
+	// 🔴 Il blocco che boccia «rifiuta i layer negativi»: `+7` e' fuori mappa quanto `-1`.
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,7]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("layer 7"), TEXT("unita' su un layer POSITIVO inesistente"));
+
+	// --- 4. Il layer 0 continua a passare, e il raggio resta la sua regola --------------------------
+	Accepts(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[-2,1,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("unita' sul layer 0, dentro il raggio"));
+
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":2,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[9,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("distanza"), TEXT("layer giusto ma fuori raggio: il motivo cambia"));
+
+	// --- 5. ⛔ Con una FIXTURE il multilivello resta legale -----------------------------------------
+	// 🔴 Il blocco che boccia «rifiuta ogni layer != 0». Con una fixture la forma non e' un raggio, e
+	// l'arena PUO' avere piu' piani: e' la ragione per cui `FRTCellId` porta un layer. Qui il loader non
+	// decide — la cella la verifica `FRTScenarioSession` sulla mappa vera.
+	Accepts(TEXT(R"({"scenarioId":"X","fixture":"TestArena","units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,1]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT("fixture multilivello: il layer 1 non e' del loader"));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

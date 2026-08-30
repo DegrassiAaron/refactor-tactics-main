@@ -1,0 +1,33 @@
+{
+  "scenarioId": "Spec.Map.MatchArenaPlatformClimb",
+  "tags": ["map", "multilevel", "transition", "gadget", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "ArenaV01",
+
+  "_nota": "La salita di layer sulla topologia della MAPPA DI PARTITA, non su una fixture da laboratorio. `Visual.Map.MultiLevel` dimostra gia' che il pathfinding attraversa una transizione, ma lo fa su `TestArena` con un arco suo, (1,0,0) -> (2,0,1). Questo scenario usa `ArenaV01`, cioe' la stessa topologia di `L_HexArena` che `MatchLevel` nomina in `DefaultGame.ini`: se un giorno la piattaforma di quella mappa cambia forma o perde il suo unico arco, e' qui che diventa rosso.",
+
+  "_nota_topologia": "Misurata due volte, e le due misure coincidono. Via bridge MCP sul grafo reale: il layer 1 ha TRE celle sole — (2,-3), (3,-3), (3,-2) — e l'unico accesso e' l'arco (3,-3,L0) verso (3,-3,L1) di costo 2. Nel sorgente, `URTMatchSetupLibrary::MakeArenaV01` costruisce esattamente quelle tre celle e chiama `Draft.Link(PlatformAnchor, FRTCellId(3, -3, 1), 2)` con `PlatformAnchor = (3,-3,0)`. F1 parte dall'ancora e sale di un passo: se l'arco sparisce il movimento non ha alternative, perche' i layer non hanno adiacenza implicita.",
+
+  "_nota_verifica": "ESEGUITO il 2026-08-30 con `-RTScenario=Spec.Map.MatchArenaPlatformClimb`: PASS, 3/3 assertion, `stateHash d0705578`, al primo tentativo. `UnitAtCell(F1)` atteso e ottenuto (q=3,r=-3,L=1). ENTRAMBE le assunzioni dichiarate prima dell'esecuzione hanno retto: il budget di movimento di Gadget copre un passo da costo 2, e (3,-3,0) e' una cella libera su cui piazzare un'unita' benche' la fixture la usi come ancora della piattaforma.",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [ 3, -3, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [-4,  0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "F1 sale sulla piattaforma attraverso l'unico arco che collega i due layer.",
+      "intents": [
+        { "unit": "F1", "move": [[3, -3, 1]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",     "unit": "F1", "cell": [3, -3, 1] },
+    { "type": "UnitAlive",      "unit": "F1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

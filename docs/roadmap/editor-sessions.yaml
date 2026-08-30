@@ -1893,6 +1893,19 @@ sessions:
       riquadro vuoto sopra il messaggio.
       ⚠️ E come in `U31`: dopo tutto questo `L_DevSandbox` **non** e' marcata come modificata — nessun
       asterisco sul nome del livello, e `git status` pulito su `Content/RT/Maps/Dev/L_DevSandbox/`.
+    notes: >-
+      ✅ **Eseguita il 2026-08-30** su `main@9ac73eee`, con il modulo Editor ricompilato dopo il merge di
+      #1759 (DLL 18:04, editor avviato 18:05 — l'ordine e' stato verificato prima di guardare, perche' tre
+      avvii precedenti erano partiti PRIMA della build e mostravano ancora il segnaposto di #1680).
+      Dal log: `LogRTDevSandboxLauncher: [TacticalDesigner] livello di bootstrap aperto` e
+      `InternalLoadLibrary: 'RefactorTacticsEditor'` dal binario di questo checkout; nessun errore su
+      launcher, scenario, Slate o widget; `git status` pulito su `Content/RT/Maps/Dev/`.
+      A schermo il pannello e' comparso e **il criterio principale e' confermato**: con uno scenario
+      selezionato, cambiando un filtro la riga resta evidenziata e il readout continua a corrispondere.
+      ⚠️ **Granularita' di questa registrazione**: il criterio della selezione e' stato confermato
+      esplicitamente; gli altri (tendine popolate, ricerca incrementale, i tre vuoti distinti, il clic nel
+      vuoto, le due forme del terreno) sono coperti da una conferma complessiva di chi ha guardato, non
+      voce per voce. Chi rifara' la seduta li trova elencati nel `done_when` e puo' stringere la misura.
   - id: U33
     title: La LOS si vede, e l'ispettore non ne inventa una seconda
     block: 6

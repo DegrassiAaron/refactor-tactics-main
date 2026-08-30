@@ -99,7 +99,9 @@ senza mondo e senza Actor, ed è il motivo per cui la suite gira headless.
 - Reazioni: `Opportunity → Commit`; Fast Reaction **3,0 s**, timeout **HOLD**.
 - `Hero.Wraith.InterceptShot` = thin slice Predictive v0.1.
 - High Ground: nessun bonus numerico alla vista in v0.1.
-- Formato competitivo finale non deciso: 3v3 è baseline, 4v4 stress test.
+- Formato competitivo **Standard = 3v3**, deciso il 2026-08-30 (**D-256**). `2v2` resta **Skirmish / vertical
+  slice** ed è ciò che la v0.1 consegna; `4v4+` resta **Operations / stress**, non formato competitivo.
+  ⛔ La decisione **non sposta lo scope della v0.1**.
 
 Il dettaglio resta negli owner documentali; non duplicarlo qui.
 

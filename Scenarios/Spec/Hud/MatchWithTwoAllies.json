@@ -11,7 +11,7 @@
 
   "units": [
     { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
-    { "id": "A2", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 1, -1] },
+    { "id": "A2", "hero": "Hero.Riktor", "team": 0, "cell": [-2, 1, 0] },
     { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
   ],
 

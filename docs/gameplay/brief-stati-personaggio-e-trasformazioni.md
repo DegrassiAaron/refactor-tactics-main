@@ -8,6 +8,22 @@
 > ad [ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) per l'ownership dei kit.
 > **Nessuna implementazione**: questo brief fissa la forma e i vincoli, non apre lavoro.
 
+> ➕ **Due Feature ID distinti, e non è un duplicato** ([D-279](../decisions/RT_PDR_00_Decision_Log.md), che
+> sincronizza la decisione d'autore `AUTHOR-CHARSTATE-001`, 2026-08-30 — chiude `REL-2`).
+> `RT-FEAT-CHARACTER-STATE` e `RT-FEAT-CHAR-TRANSFORMATION` **restano due scope stabili e separati**:
+>
+> | Feature ID | Perimetro |
+> |---|---|
+> | `RT-FEAT-CHARACTER-STATE` | il **framework generale** — Stance, Environmental, Configuration e l'infrastruttura condivisa |
+> | `RT-FEAT-CHAR-TRANSFORMATION` | il **sottoinsieme specializzato** — Form e Overdrive |
+>
+> Condividono questo brief, ed è la ragione per cui `REL-2` li aveva sospettati duplicati. Non lo sono: la
+> sovrapposizione è di **dominio**, non di identità, e un Feature ID stabile si ritira a caro prezzo.
+> ⛔ **Nessuna migrazione, nessuna fusione dei due ID.**
+> 🔴 **Il vincolo che questa decisione impone**: lo **stesso** contratto di stato/dati a runtime deve avere
+> **un solo owner**, non entrambi. Il confine di dipendenza e sottoinsieme va **scritto qui prima di `E34`**,
+> ed è l'unico deliverable che `D-279` genera.
+
 ## 1. Perché un brief, se non entra nella v0.1
 
 Perché la domanda è già arrivata due volte da direzioni diverse — la trasformazione come meccanica identitaria,

@@ -32,6 +32,22 @@ qui non si duplica.
 | **Slot asset Paragon** | mesh, scheletro, animazioni del prototipo | non è un personaggio del roster |
 | **Release** | quando l'eroe entra nel roster operativo | non si assegna a un candidato |
 
+> 🔴 **`Steel`, `Aurora`, `Murdock` e `Kwang` sono CANDIDATI, non il secondo quartetto canonico**
+> ([D-258](../decisions/RT_PDR_00_Decision_Log.md), che sincronizza la decisione d'autore
+> `AUTHOR-ROSTER-001`, 2026-08-30). Il roster **può** espandersi a otto, ma le quattro identità aggiuntive
+> si decidono con **`E35`**, e fino ad allora ⛔ **non si coniano `HeroId` stabili** dai loro nomi — né in
+> `Source/`, né in un catalogo di [`../balance/`](../balance/README.md), né in `Content/` versionato.
+> Il motivo è misurato: uno Stable ID si ritira a caro prezzo, e
+> [D-130](../decisions/RT_PDR_00_Decision_Log.md) lo ha già pagato una volta per il primo quartetto.
+> ✅ Le pagine in `v0.2/` restano quindi ciò che questo documento già dichiara — schede di candidatura senza
+> release assegnata — e `D-258` ne rende la regola tracciabile invece che implicita.
+>
+> ✅ **`Gadget`, `Phase`, `Riktor` e `Wraith` sono invece identità di PRODOTTO definitive**
+> ([D-257](../decisions/RT_PDR_00_Decision_Log.md) ← `AUTHOR-ID-001`): la domanda *«sono identità di sviluppo
+> legate ai pack Paragon o identità di prodotto?»* è risposta, e la risposta non cambia nulla nel codice.
+> `Flux`, `Riva`, `Bastion` e `Vektor` restano **nomi storici e superati**, e le loro occorrenze si
+> conservano dove documentano una provenienza.
+
 🔄 **Riga aggiornata il 2026-08-13 da [D-120](../decisions/RT_PDR_00_Decision_Log.md).** Prima di quella
 decisione le colonne erano **tre** e il nome canonico coincideva con lo Stable ID; oggi sono quattro perché
 i due si sono separati.
