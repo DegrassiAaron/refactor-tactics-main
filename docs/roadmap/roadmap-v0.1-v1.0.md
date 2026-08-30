@@ -160,9 +160,12 @@ il numero non si riusa. Al **2026-08-24**, data della misura registrata nell'own
 
 - **Non apre lavoro.** La regola di [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) resta intera: nessuna
   epic oltre la v0.1 si implementa prima che i gate della v0.1 siano verdi. Averla disegnata non la anticipa.
-- **Non decide il formato competitivo.** 3v3 è baseline e 4v4 è stress test: la scelta finale è aperta
-  ([D-011](../decisions/RT_PDR_00_Decision_Log.md)), e la colonna «formato» della §2 riporta ciò che l'owner
-  dichiara per quella release, non una decisione presa qui.
+- **Non decide il formato competitivo**, e dal 2026-08-30 non deve più: lo ha deciso
+  [D-256](../decisions/RT_PDR_00_Decision_Log.md), che fissa **3v3 come formato Standard definitivo**,
+  `2v2` come Skirmish/vertical slice e `4v4+` come Operations/stress. La parte di
+  [D-011](../decisions/RT_PDR_00_Decision_Log.md) che teneva la scelta aperta è **superata**; il resto di
+  `D-011` resta valido. La colonna «formato» della §2 continua a riportare ciò che l'owner dichiara per
+  quella release, non una decisione presa qui.
 - **Non riassegna epic fra release.** Ogni spostamento — come quello di E23 — è una decisione con un
   `D-nnn`, e va nel [Decision Log](../decisions/RT_PDR_00_Decision_Log.md) prima che in una tabella.
 

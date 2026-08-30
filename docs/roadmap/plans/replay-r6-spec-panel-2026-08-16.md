@@ -215,6 +215,16 @@ Nasce `RT-FEAT-UI-REPLAY-VIEWER` con `release: v0.1`, e la label `post-v0.1` esc
 > Non è bloccante — il core è `INTEGRATED` e funziona, quindi la v0.1 non aspetta niente — ma la
 > soluzione pulita è promuovere anche `RT-FEAT-REPLAY-ARCHIVE`, e quella è una decisione di scope della
 > release che merita una `D-nnn`. Fino ad allora l'incoerenza vive qui e nella `note` della feature.
+>
+> ✅ **La `D-nnn` che questa riga chiedeva è arrivata il 2026-08-30: è
+> [D-277](../../decisions/RT_PDR_00_Decision_Log.md)**, che sincronizza la decisione d'autore
+> `AUTHOR-REPLAY-SCOPE-001`. `RT-FEAT-REPLAY-ARCHIVE` è **scope v0.1 sotto `E12`**, e i gate d'archivio
+> ancora aperti sono obblighi della v0.1. L'incoerenza smette di vivere qui: fra il metadato `release: v0.2`
+> e l'epic `E12` della v0.1 ha prevalso **l'epic**, e il metadato era la parte stantia.
+> ⚠️ Resta vero il rilievo sul validator — un controllo che verifica l'esistenza del `FeatureId` e non la
+> coerenza della release sarebbe stato verde su un'incoerenza vera — ma è un rilievo storico: il Feature
+> Registry formale è **ritirato** da [D-181](../../decisions/RT_PDR_00_Decision_Log.md) e
+> [D-246](../../decisions/RT_PDR_00_Decision_Log.md), e `scripts/feature_registry.py` non esiste più.
 
 ---
 

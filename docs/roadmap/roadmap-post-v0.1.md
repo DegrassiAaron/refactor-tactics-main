@@ -51,7 +51,7 @@ capo se una cosa fosse v0.1 o no. Questo file registra quella ripartizione una v
 | **v0.7** | Competitive Alpha | Si gioca su un server che non è il client di nessuno | **E42** | Standard 3v3 su dedicated |
 | **v0.8** | Beta / Balance | Le partite si misurano a lotti, e la misura dice cosa vale | **E43** | 3v3 + batch bot-vs-bot |
 | **v0.9** | Release Candidate | Niente di nuovo: quello che c'è deve reggere | **E44** | Feature freeze |
-| **v1.0** | Launch | Una partita competitiva completa su infrastruttura di produzione | **E45** | Standard 3v3 ranked |
+| **v1.0** | Launch | Una partita competitiva completa su infrastruttura di produzione | **E45** | Standard 3v3 **non classificato** ([D-259](../decisions/RT_PDR_00_Decision_Log.md)) |
 
 > ⚠️ **`E22 · E24–E26` e non `E22–E26`: il buco è E23, ed è voluto.** L'epic è stata **anticipata alla v0.1** il 2026-08-17 (`D-160`), lo dichiarano la propria sezione qui sotto (*«⛔ E23 NON È PIÙ DI QUESTA RELEASE»*) e la riga `E23` di [`roadmap-v0.1.md`](roadmap-v0.1.md) §2.1. Finché la cella diceva `E22–E26` l'**intervallo continuava a rivendicarla**, e la contraddizione era invisibile a `grep`: la stringa `E23` non compare in una riga che la contiene. Costo misurato — `feature_registry.py` leggeva `E23 → v0.2`, quindi le **cinque** feature che dichiarano `release: v0.1` ed `epic: E23` finivano nella tabella dei *disallineati* di `roadmap-v0.1.md` invece che sotto la propria epic, e `wiki --check` — che è una condizione del gate **G15** — restava rosso.
 > 
@@ -836,8 +836,14 @@ riscritture.
 **Tracciata su GitHub**: epic [#333](https://github.com/DegrassiAaron/refactor-tactics-main/issues/333).
 
 La v0.1 usa il 4v4 solo come **stress test** (E17). Qui diventerebbe un formato vero — ma solo se il playtest
-del 3v3 dice che il sistema regge la densità. Resta la nota del piano canonico: il formato competitivo finale
-**non è deciso**, 3v3 è baseline e 4v4 stress test.
+del 3v3 dice che il sistema regge la densità.
+
+> ✅ **Aggiornato il 2026-08-30**: questa riga diceva che *«il formato competitivo finale non è deciso»*, e
+> non è più vero. [D-256](../decisions/RT_PDR_00_Decision_Log.md) — che sincronizza la decisione d'autore
+> `AUTHOR-FMT-001` — fissa **3v3 come formato Standard definitivo**. ⚠️ **Il 4v4 non è promosso da questa
+> decisione**: resta **Operations / stress e scala**, ed è precisamente ciò che questa epic dovrebbe
+> valutare. La domanda che resta aperta qui non è *quale sia lo Standard*, ma se il 4v4 meriti di esistere
+> come formato secondario.
 
 ### E34 — Stati del personaggio e trasformazioni · P3
 
@@ -1007,6 +1013,15 @@ l'autorità del simulatore»* — è **Consolidata**, e la v0.1 la applica per a
 decisione: la mette alla prova nel solo modo che conta, cioè **introducendo GAS e verificando che il confine
 regga**.
 
+> ➕ **E dal 2026-08-30 GAS non è più un'opzione implementativa: è un impegno.**
+> [D-260](../decisions/RT_PDR_00_Decision_Log.md), che sincronizza la decisione d'autore `AUTHOR-GAS-001`,
+> dichiara GAS **obbligatorio post-v0.1** come layer di supporto per abilità, costi, cooldown, attributi ed
+> effetti. ⚠️ **Cosa cambia per questa epic**: niente nel confine, tutto nella sua opzionalità. Il perimetro
+> di [D-005](../decisions/RT_PDR_00_Decision_Log.md) resta **intatto** — validazione, costruzione dello
+> snapshot e risoluzione restano C++ deterministico del progetto, e GAS non decide esiti né ordine — ma
+> «introdurre GAS» smette di essere una via da valutare e diventa il bersaglio di `E41`.
+> ⛔ **Nessun GAS nella v0.1**, e questa riga non lo autorizza.
+
 ```text
 Resolver decide        →  cosa accade, quando, a chi, con che priorità
 GAS applica/presenta   →  lifecycle, cue, durata, cleanup
@@ -1149,6 +1164,17 @@ save/replay** · soak da release candidate.
 > ✅ L'owner ora è **`CP 44.5`** ([#1604](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1604)),
 > e il perimetro è `RNK-1` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
 >
+> 🔴 **E il 2026-08-30 il perimetro è stato deciso: è VUOTO per la v1.0.**
+> [D-259](../decisions/RT_PDR_00_Decision_Log.md) — che sincronizza la decisione d'autore
+> `AUTHOR-ONLINE-001` — chiude `RNK-1` togliendo **ranked, rating e MMR dalla promessa della v1.0**, invece
+> di aggiungere account, persistenza e politica di forfeit durante il feature freeze. Restano **fuori**: coda
+> classificata, rating persistente, politica di forfeit/disconnessione classificata, rank e rating mostrati
+> al giocatore. Resta **dentro** il 3v3 competitivo come formato ([D-256](../decisions/RT_PDR_00_Decision_Log.md))
+> e il matchmaking/gioco **non classificato**, coerente con [D-236](../decisions/RT_PDR_00_Decision_Log.md).
+> ⚠️ **La contraddizione che questa sezione dichiarava — «Niente di nuovo» contro una meccanica nuova — si
+> scioglie così**: non c'era modo di tenere entrambe, e a cedere è la promessa, non il freeze. La coda
+> classificata è **post-v1.0**, e questa riga non la cancella: la sposta.
+>
 > ⚠️ **Resta una contraddizione interna a questa sezione, e va sciolta lì**: apre con «*Niente di nuovo.
 > Questa epic non aggiunge meccaniche*» e poi rivendica ranked e rating, che sono meccaniche nuove. È
 > plausibilmente il motivo per cui il checkpoint non è mai stato scritto.
@@ -1255,5 +1281,7 @@ no — ed è la ragione per cui le feature di E46 usano il prefisso `RT-FEAT-UI-
 - **Numeri di bilanciamento**: nessun valore di danno, costo o durata è fissato qui. Stanno in
   [`../balance/`](../balance/README.md) quando esistono, altrimenti restano aperti.
 - **Dimensione delle mappe in celle**: esplicitamente non bloccata dal sorgente.
-- **Il formato competitivo finale**: 3v3 è baseline da playtestare, non una decisione chiusa.
+- ~~**Il formato competitivo finale**: 3v3 è baseline da playtestare, non una decisione chiusa.~~
+  ✅ **Deciso il 2026-08-30** da [D-256](../decisions/RT_PDR_00_Decision_Log.md): **3v3 è il formato Standard
+  definitivo**. Restano da playtestare i suoi *parametri* — timer, durata, scala mappa — non la sua scelta.
 - **Le date**: nessuna epic qui ha una scadenza. La v0.1 non ha ancora chiuso i suoi 15 gate.

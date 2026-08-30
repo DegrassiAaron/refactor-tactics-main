@@ -99,9 +99,13 @@ qui per la stessa ragione: senza, i criteri di R6 sarebbero verificabili solo a 
 [ADR-0009](../../decisions/adr-0009-replay-logico-canonico.md) §3 fissa il confine `Player`/`Verifier` e
 `#472` lo estende al percorso della UI. Si verifica sugli `#include`, come per il Player.
 
-⚠️ **Release**: entrambe sono **v0.1**, allineate a E46 con la decisione registrata nel panel §5(b). Il
-core che consumano (`RT-FEAT-REPLAY-ARCHIVE`) è però ancora `v0.2` nel registry: l'incoerenza è
-dichiarata lì e non si risolve in questo documento.
+⚠️ **Release**: entrambe sono **v0.1**, allineate a E46 con la decisione registrata nel panel §5(b).
+✅ **E dal 2026-08-30 l'incoerenza che questa riga dichiarava è CHIUSA**: il core che consumano
+(`RT-FEAT-REPLAY-ARCHIVE`) è **v0.1 sotto l'epic `E12`** per
+[D-277](../../decisions/RT_PDR_00_Decision_Log.md), che sincronizza la decisione d'autore
+`AUTHOR-REPLAY-SCOPE-001`. Non c'è più una feature v0.1 che dipende da una v0.2: il `release: v0.2` era il
+metadato **stantio**, e a prevalere è stata l'epic. ⛔ **Lo scope non è l'implementazione**: i gate d'archivio
+ancora aperti diventano obblighi della v0.1, non lavoro già fatto.
 
 ---
 

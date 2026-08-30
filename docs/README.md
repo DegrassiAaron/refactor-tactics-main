@@ -15,6 +15,27 @@ deterministico, su una griglia **esagonale multilivello**.
 
 ## Gerarchia delle fonti
 
+> 🔴 **Questa tabella ordina DOCUMENTI IN CONFLITTO, e dal 2026-08-30 non è l'unica lente**
+> ([D-282](decisions/RT_PDR_00_Decision_Log.md), che sincronizza la decisione d'autore `AUTHOR-GOV-001`).
+> Il progetto **non adotta una scala universale valida per ogni fonte**: la precedenza è **tipizzata** per
+> genere di affermazione e relativo owner. Prima si stabilisce *che tipo di affermazione* è quella in
+> discussione, poi si guarda chi la possiede:
+>
+> | Tipo di affermazione | Owner |
+> |---|---|
+> | Decisione esplicita | il [Decision Log](decisions/RT_PDR_00_Decision_Log.md) |
+> | Semantica di una regola | la specifica di [`gameplay/`](gameplay/) · [`technical/`](technical/) che la possiede |
+> | Valore numerico **entro** regole già definite da una spec | il catalogo di [`balance/`](balance/) |
+> | Perimetro dichiarato del prodotto | il documento canonico, **nel proprio perimetro** |
+>
+> ⚠️ **Cosa NON si deduce**: un numero di `balance/` non batte la semantica di una regola perché è più
+> recente o più specifico; e una spec di alto livello non sostituisce in silenzio un valore posseduto da un
+> catalogo, se non possiede esplicitamente quel numero.
+> 🔴 **E quando due autorità realmente applicabili restano incompatibili, non si sceglie**: il conflitto si
+> registra in [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) e si **escala** all'owner competente.
+> Le eccezioni e le deleghe esplicite — [D-210](decisions/RT_PDR_00_Decision_Log.md) — **restano esplicite**
+> e non vengono assorbite da questa regola.
+
 | # | Livello | Documento | Cosa decide |
 |---|---|---|---|
 | 1 | **Canone** | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) | Invarianti, decisioni operative, regole. **Prevale su tutto** |
