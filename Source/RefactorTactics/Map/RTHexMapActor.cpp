@@ -28,6 +28,21 @@
 
 #define LOCTEXT_NAMESPACE "RTHexMap"
 
+/**
+ * Il nome che lega la sezione della mesh al suo slot materiale, e va scritto UNA VOLTA SOLA.
+ *
+ * 🔴 **`BuildFromMeshDescriptions` accoppia sezione e slot PER NOME**, confrontando il
+ * `PolygonGroupMaterialSlotName` del `MeshDescription` col `MaterialSlotName` di `FStaticMaterial`. Se non
+ * combaciano, la sezione esce con `MaterialIndex = -1`: geometria completa, nessun materiale da usare, e
+ * **niente a schermo**. Misurato il 2026-08-30 nel pacchetto (#1665) — `tri=20 idx=60 matIdx=-1/1` sul
+ * prisma, contro `matIdx=0/1` del Cube d'engine nella stessa run, che si vedeva.
+ *
+ * ⚠️ Le due estremita' del legame stanno **200 righe lontane** l'una dall'altra in tre coppie diverse, ed e'
+ * il motivo per cui il disallineamento e' sopravvissuto: qui c'e' una costante, cosi' cambiarne una senza
+ * l'altra non e' piu' possibile. Presidiato da `RefactorTactics.HexMapActor.ProceduralMeshSectionsHaveAMaterialSlot`.
+ */
+static const FName RTProceduralMeshSlotName(TEXT("Default"));
+
 namespace
 {
 	/**
@@ -157,7 +172,7 @@ UStaticMesh* ARTHexMapActor::GetCellGlyphMesh(int32 RingCount)
 	TVertexAttributesRef<FVector3f> Positions = Attributes.GetVertexPositions();
 
 	const FPolygonGroupID Group = Description.CreatePolygonGroup();
-	Attributes.GetPolygonGroupMaterialSlotNames()[Group] = TEXT("Default");
+	Attributes.GetPolygonGroupMaterialSlotNames()[Group] = RTProceduralMeshSlotName;
 
 	// Gli anelli crescono VERSO L'INTERNO dal bordo del disco: l'anello `i` occupa
 	// `[Outer - i*(Thickness+Gap) - Thickness, Outer - i*(Thickness+Gap)]`. Con le costanti di `D-183` i
@@ -207,7 +222,14 @@ UStaticMesh* ARTHexMapActor::GetCellGlyphMesh(int32 RingCount)
 
 	UStaticMesh* Mesh = NewObject<UStaticMesh>(GetTransientPackage(),
 		*FString::Printf(TEXT("RT_CellGlyph_%d"), RingCount), RF_Transient);
-	Mesh->GetStaticMaterials().Add(FStaticMaterial());
+
+	// Slot inizializzato, per la ragione scritta per esteso in `GetCellPrismMesh` (#1665): un
+	// `FStaticMaterial()` nudo lascia `UVChannelData.bInitialized = false`, e fuori dall'Editor nessuno lo
+	// ripara.
+	FStaticMaterial GlyphSlot;
+	GlyphSlot.MaterialSlotName = RTProceduralMeshSlotName;   // deve combaciare col PolygonGroup (#1665)
+	GlyphSlot.UVChannelData = FMeshUVChannelInfo(1.f);
+	Mesh->GetStaticMaterials().Add(GlyphSlot);
 
 	UStaticMesh::FBuildMeshDescriptionsParams Params;
 	Params.bBuildSimpleCollision = false;
@@ -262,7 +284,7 @@ UStaticMesh* ARTHexMapActor::GetCellPrismMesh()
 	}
 
 	const FPolygonGroupID Group = Description.CreatePolygonGroup();
-	Attributes.GetPolygonGroupMaterialSlotNames()[Group] = TEXT("Default");
+	Attributes.GetPolygonGroupMaterialSlotNames()[Group] = RTProceduralMeshSlotName;
 
 	auto AddFace = [&Description, Group](const TArray<FVertexID>& Ring)
 	{
@@ -289,7 +311,28 @@ UStaticMesh* ARTHexMapActor::GetCellPrismMesh()
 	}
 
 	UStaticMesh* Mesh = NewObject<UStaticMesh>(GetTransientPackage(), TEXT("RT_CellHexPrism"), RF_Transient);
-	Mesh->GetStaticMaterials().Add(FStaticMaterial());
+
+	// 🔴 **Lo slot si INIZIALIZZA, e un `FStaticMaterial()` nudo non lo e'** (#1665). Il default lascia
+	// `MaterialSlotName = NAME_None` e `UVChannelData.bInitialized = false`; in Editor la pipeline di build
+	// lo sistema da se', ma quel codice e' `WITH_EDITOR` e nel cotto non gira nessuno. Misurato il
+	// 2026-08-30 su un pacchetto Development: un secondo dopo il caricamento parte
+	// `Ensure condition failed: GetStaticMaterials()[MaterialIndex].UVChannelData.bInitialized`, da
+	// `UInstancedStaticMeshComponent::GetMaterialStreamingData()`. Le celle avevano istanze, mesh,
+	// materiale, bounds e custom data tutti corretti — e non arrivavano a schermo.
+	//
+	// `FMeshUVChannelInfo(1.f)` e' l'unico costruttore che mette `bInitialized = true` (densita' 1 su tutti
+	// i canali): gli altri due azzerano o non inizializzano. Vale per tutte e tre le mesh procedurali di
+	// questo file, che passano per la stessa `BuildFromMeshDescriptions` con `bFastBuild`.
+	// 🔑 **E il nome DEVE essere quello del `PolygonGroup`** (riga 294: `"Default"`), perche' e' cosi' che
+	// `BuildFromMeshDescriptions` lega la sezione allo slot. Se non combaciano, la sezione esce con
+	// `MaterialIndex = -1` — misurato il 2026-08-30 nel pacchetto: `tri=20 idx=60 matIdx=-1/1`, cioe'
+	// geometria completa e nessun materiale da usare. Il Cube d'engine, nella stessa run, dava `matIdx=0/1`
+	// e si vedeva. E' l'unica differenza rimasta fra i due, dopo che bounds, custom data, materiale,
+	// `ScreenSize` e visibilita' erano risultati identici.
+	FStaticMaterial CellSlot;
+	CellSlot.MaterialSlotName = RTProceduralMeshSlotName;
+	CellSlot.UVChannelData = FMeshUVChannelInfo(1.f);
+	Mesh->GetStaticMaterials().Add(CellSlot);
 
 	UStaticMesh::FBuildMeshDescriptionsParams Params;
 	Params.bFastBuild = true;          // obbligatorio fuori dall'Editor: senza, la build a runtime non gira
@@ -373,7 +416,7 @@ UStaticMesh* ARTHexMapActor::GetKnowledgeVolumeMesh()
 	}
 
 	const FPolygonGroupID Group = Description.CreatePolygonGroup();
-	Attributes.GetPolygonGroupMaterialSlotNames()[Group] = TEXT("Default");
+	Attributes.GetPolygonGroupMaterialSlotNames()[Group] = RTProceduralMeshSlotName;
 
 	auto AddFace = [&Description, Group](const TArray<FVertexID>& Ring)
 	{
@@ -399,7 +442,12 @@ UStaticMesh* ARTHexMapActor::GetKnowledgeVolumeMesh()
 	}
 
 	UStaticMesh* Mesh = NewObject<UStaticMesh>(GetTransientPackage(), TEXT("RT_KnowledgeVolume"), RF_Transient);
-	Mesh->GetStaticMaterials().Add(FStaticMaterial());
+
+	// Slot inizializzato, come sopra (#1665).
+	FStaticMaterial VolumeSlot;
+	VolumeSlot.MaterialSlotName = RTProceduralMeshSlotName;  // deve combaciare col PolygonGroup (#1665)
+	VolumeSlot.UVChannelData = FMeshUVChannelInfo(1.f);
+	Mesh->GetStaticMaterials().Add(VolumeSlot);
 
 	UStaticMesh::FBuildMeshDescriptionsParams Params;
 	Params.bFastBuild = true;

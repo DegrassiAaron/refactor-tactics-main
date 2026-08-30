@@ -1,6 +1,6 @@
 # Piani, referti e triage — come si legge questa cartella
 
-> `CURRENT` · **Ultimo aggiornamento**: 2026-08-28
+> `CURRENT` · **Ultimo aggiornamento**: 2026-08-30
 > **Cosa è**: l'indice del **criterio**, non dei contenuti. Dice come capire, aprendo un file di questa
 > cartella, se quello che afferma vale ancora.
 > **Cosa non è**: una fonte di stato. Nessun documento qui è owner di qualcosa — gli owner sono
@@ -35,15 +35,29 @@ indovinasse i sinonimi nasconderebbe proprio la deriva che deve mostrare.
 
 | Banner | Significa | Quanti |
 |---|---|--:|
-| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 46 |
+| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 55 |
 | `SNAPSHOT` | Fotografia di una data. **Resta qui** finche' e' l'ultima misura del suo oggetto | 6 |
-| `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | 6 |
+| `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | 7 |
 | `PLAN` | Piano gia' **consumato**: resta per la provenienza di cio' che ha prodotto | 1 |
-| **totale** | | **59** |
+| **totale** | | **69** |
 
 In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **43**: quelli che il banner dichiarava gia' storici.
 
 <!-- RT_PIANI_BANNER:END -->
+
+> 🔴 **Riletta dal disco il 2026-08-30, e la deriva era di OTTO prima che questo giro aggiungesse un file.**
+> La cella diceva `CURRENT 46 · SNAPSHOT 6 · nessun banner 6 · PLAN 1 · totale 59`; la cartella ne conteneva
+> **67**, con `CURRENT` a **53** e `nessun banner` a **7**. Gli addendi sono stati **riletti dai banner sul
+> disco**, non incrementati — è la contromisura che questa pagina prescrive da undici voci — e col
+> [`crud-epic-issue-mcp-spec-panel-2026-08-30.md`](crud-epic-issue-mcp-spec-panel-2026-08-30.md) e
+> [`1663-1665-blocker-packaged-spec-panel-2026-08-30.md`](1663-1665-blocker-packaged-spec-panel-2026-08-30.md)
+> di oggi diventano `CURRENT` **55** · `SNAPSHOT` 6 · nessun banner **7** · `PLAN` 1 = **69**, e la somma
+> torna col totale contato a parte. L'archivio resta **43**: questo giro non ci ha spostato niente.
+>
+> ⚠️ **E la deriva di otto non è distribuita a caso**: **tre** dei file non contati portano una data
+> `2026-08-29`, cioè sono arrivati **il giorno dopo** l'`Ultimo aggiornamento` dichiarato in testa a questa
+> pagina. Un indice che dichiara la propria data di aggiornamento e poi non la usa come sospetto è lo stesso
+> difetto che descrive: **la data in testa non è un criterio, è un'ipotesi da falsificare**.
 
 > 🔴 **Rimisurata il 2026-08-26, e la deriva era di uno prima ancora che questo giro aggiungesse un file.**
 > La cella diceva `CURRENT 41 · SNAPSHOT 6 · nessun banner 3 · PLAN 1 · totale 51`; la cartella ne conteneva

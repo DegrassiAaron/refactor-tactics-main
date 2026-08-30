@@ -224,6 +224,34 @@ Origine: [D-211](decisions/RT_PDR_00_Decision_Log.md), che ha allineato tre docu
 
 ---
 
+## Aperta — quali clip Paragon entrano nel cook, dallo spec panel del 2026-08-30
+
+Origine: [`#1663`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1663), che dichiara il nodo
+nel proprio corpo — «*la scelta è d'autore*» — e lo lascia lì. Misurato il 2026-08-30: questo file non aveva
+**nessuna** voce su cook, clip o `FabAsset`, quindi una decisione che blocca un gate di release viveva solo
+nel corpo di una issue.
+
+Il fatto: in un pacchetto Development le mesh degli eroi ci sono (**16** fra mesh e skeleton nel `.utoc`) e
+le animazioni **no** (**0** su 756 asset `FabAsset/`), con otto `SkipPackage` a log — due clip per ciascuno
+dei quattro eroi. Le mesh entrano perché i `BP_Unit_*` le referenziano duro; le clip no, perché il loro
+percorso si **compone a runtime** (`Unit/RTUnitAnimInstance.cpp:19`) e
+`+DirectoriesToAlwaysCook=(Path="/Game/RT")` non copre `/Game/FabAsset`. Il degrado progettato per chi clona
+senza i pack — un soft pointer che non risolve lascia la posa di riferimento — diventa **lo stato normale del
+pacchetto**.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `COOK-1` | **Quali asset di `Content/FabAsset/` entrano nel cook, e con quale meccanismo?** | Le due vie hanno costi non confrontabili e nessuna è dominante. Elencarli per nome (`DirectoriesToAlwaysCook`, o una lista di asset) li lega a pack di terze parti che il repository **non versiona**: chi clona senza i pack passerebbe da un degrado silenzioso a un **cook che fallisce**. Cuocere l'albero intero è fuori discussione — `Content/FabAsset/` è gitignorato e pesa ~44 GB. ⚠️ **E il perimetro non è otto**: [`#288`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288) ha aperti i dodici montaggi `AM_<Pack>_{Attack,Hit,Death}`, quindi il meccanismo scelto deve reggere **venti** asset, non otto — una lista scritta a mano oggi va rifatta domani |
+| `COOK-2` | **Se le clip NON entrano, il DoD dichiara che il vertical slice consegna unità immobili?** | È la seconda metà della forcella, e tocca `G13`: una build che avvia e mostra quattro eroi in posa di riferimento soddisfa «partita giocabile senza editor» **alla lettera, non nella cosa** — la stessa distinzione che il DoD fa già per `MapSource=GeneratedTestArena`. Se la scelta è «non si cuociono», va scritta come **riserva dichiarata** del gate, non lasciata come difetto aperto |
+
+⛔ **Non è la stessa cosa del blocco dei cilindri** che la §4 del DoD già dichiara per `Client FPS` e
+`PIE-FACING-1`: là mancano le **mesh** e si aspetta `E21`; qui le mesh ci sono nel pacchetto e manca il
+**movimento**. Confonderle fa cercare la causa nell'epic sbagliata.
+
+Referto: [`roadmap/plans/1663-1665-blocker-packaged-spec-panel-2026-08-30.md`](roadmap/plans/1663-1665-blocker-packaged-spec-panel-2026-08-30.md).
+
+---
+
 ## ✅ Chiuse il 2026-08-24 da `D-187` — i prerequisiti della seduta `U19` e il suo `done_when`
 
 Origine: lo spec panel su [`#84`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) (PR [`#1313`](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1313)) e la sua riverifica del
