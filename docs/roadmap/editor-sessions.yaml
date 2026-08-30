@@ -1849,3 +1849,47 @@ sessions:
       raggiungibile da *Window → Tools → Tactical Designer*. ⚠️ **E il criterio che conta di più**: dopo
       tutto questo `L_DevSandbox` **non** è marcata come modificata — nessun asterisco sul nome del livello,
       e `git status` pulito su `Content/RT/Maps/Dev/L_DevSandbox/`.
+
+  - id: U32
+    title: Le tendine si popolano, la lista si ridisegna, e la selezione non cade sotto i filtri
+    block: 6
+    critical: false
+    produces: la conferma che il pannello del launcher e' usabile, e che i filtri non deselezionano
+    artifacts: []
+    unblocked_by: []
+    # ⚠️ **Stesso allestimento di `U31`, e va fatta nella STESSA apertura.** U31 guarda che il tab compaia;
+    # questa guarda cosa c'e' dentro. Sono la stessa mappa, lo stesso avvio e lo stesso binario: separarle in
+    # due sedute significherebbe aprire l'editor due volte per due meta' della stessa schermata.
+    shares_setup_with: [U31]
+    verifies: []
+    # ⚠️ Nessuna voce `PIE-*`: come `U31`, questa seduta NON entra in PIE. Tutto cio' che verifica sta
+    # nell'editor prima del Play.
+    issues: [1705]
+    # ⛔ **Perche' una seduta e non un automation test.** I cinque test di #1705 misurano la ricerca, la
+    # classificazione del vuoto e la formattazione del readout: funzioni pure, che non sanno di essere in una
+    # interfaccia. Nessuno di loro vede Slate disegnare — che le tendine si RIEMPIANO, che la lista si
+    # ridisegni mentre si digita, e soprattutto che una riga resti EVIDENZIATA quando cambia un filtro.
+    # ⚠️ Quest'ultimo non e' un dettaglio estetico: `SListView` tiene i selezionati in un `TSet` di
+    # `TSharedPtr` e li confronta per identita' di PUNTATORE, quindi rigenerare le voci a ogni refresh fa
+    # cadere la selezione da sola. Il difetto e' stato trovato in code review e corretto prima del merge
+    # (`f7055625`), ma nessun automation test lo puo' sorvegliare: se un giorno rientra, lo vede solo un occhio.
+    done_when: >-
+      Con il modulo Editor ricompilato da `main` dopo il merge di #1759, aperto l'editor su `L_DevSandbox` e
+      presentato il tab **Tactical Designer**: le due tendine offrono il vocabolario **reale** dei tag — non
+      vuote e non un elenco scritto a mano — piu' la voce `(tutti)`. Scelto un tag l'elenco si restringe;
+      scelto anche il secondo si restringe **ancora** (intersezione, non unione: il totale non puo' salire).
+      Digitando nella casella di ricerca la lista si ridisegna **mentre** si digita, e resta un sottoinsieme
+      di cio' che i filtri lasciavano passare. Selezionato uno scenario, il readout porta `terreno`, `squadre`,
+      `unita'`, `turni` e `attese`; su scenari diversi il terreno si legge `fixture <nome>` per alcuni e
+      `radius <n>` per altri, mai una traduzione dei due in un terzo termine.
+      ⚠️ **Il criterio che conta di piu'**: con uno scenario selezionato, cambiare un filtro **non** deve
+      togliere l'evidenziazione alla sua riga finche' quella riga resta in elenco — e il readout deve
+      continuare a corrispondere a cio' che e' evidenziato. Sono la stessa informazione in due punti dello
+      schermo, e una schermata che si contraddice e' peggio di una che tace.
+      Cliccando poi nello spazio vuoto sotto le righe, la selezione **e** il readout spariscono insieme.
+      Infine i tre vuoti, che devono dire cause diverse: due tag incompatibili -> «Nessuno scenario porta i
+      tag scelti»; una ricerca senza esito su filtri che lasciavano passare qualcosa -> un messaggio
+      **diverso**, che parla del testo cercato. In entrambi i casi la lista **sparisce** invece di lasciare un
+      riquadro vuoto sopra il messaggio.
+      ⚠️ E come in `U31`: dopo tutto questo `L_DevSandbox` **non** e' marcata come modificata — nessun
+      asterisco sul nome del livello, e `git status` pulito su `Content/RT/Maps/Dev/L_DevSandbox/`.
