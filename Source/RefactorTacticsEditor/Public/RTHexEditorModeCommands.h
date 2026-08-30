@@ -27,6 +27,9 @@ public:
 	/** #712: il gesto dell'autore — disegna un muro quantizzato che cuoce in coperture. */
 	TSharedPtr<FUICommandInfo> GeometryTool;
 
+	/** #1755: l'ispettore della LOS canonica — click sull'origine, hover sul bersaglio, e il PERCHE' del blocco. */
+	TSharedPtr<FUICommandInfo> LosTool;
+
 	/**
 	 * `#623` / seduta `U21`: `Home` inquadra l'intera mappa editabile, multilivello compreso.
 	 *
