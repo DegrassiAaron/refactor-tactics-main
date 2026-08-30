@@ -57,7 +57,9 @@
 
 ## Stato in numeri — 2026-08-30
 
-**177 voci**: ✅ **65 verdi** · 🟡 **24 parziali** · ❌ **2 fallite** · ⏳ **86 aperte**.
+**177 voci**: ✅ **68 verdi** · 🟡 **23 parziali** · ❌ **2 fallite** · ⏳ **84 aperte**.
+
+🔴 **Rimisurato il 2026-08-30 (secondo giro della giornata, sessione MCP): la riga diceva `177 · 65/24/2/86` e il comando canonico ne conta `177 · 68/23/2/84`.** Il totale non si muove — **177 prima e dopo** — quindi non è entrata nessuna voce: si sono mosse **tre ⏳→✅** e **una 🟡→✅** con una ✅→🟡, dentro la stessa giornata e sotto la riga che le contava. È il **quarto giro di fila** in cui l'intestazione è già falsa quando la si legge, e stavolta lo scarto si è aperto in **ore**, non in giorni: `PIE-HEXPLAY-3b`, `-6b` e `-6c` portano tutte la dicitura *«CHIUSA il 2026-08-30»*. La lezione della sezione regge senza modifiche — *il numero si ricalcola, non si aggiorna a mente*.
 
 *(Rimisurate col comando qui sotto il **2026-08-30**, in due tempi: `176 · 65/24/2/85` **prima** di toccare
 il file, `177 · 65/24/2/86` dopo. Entra **una** voce, `PIE-VSLICE-01`, il gate visivo end-to-end che veniva
@@ -431,6 +433,117 @@ di sembrare verificati senza esserlo (vedi la nota qui sopra). Chi le ha scritte
 | **Asset da preparare** | `V01-COVEREDIT` | **1** — editing delle coperture nel data asset mappa (CP 9.1). ⚠️ `DA_HexMap_Sandbox` è oggi **vuoto**: va ridisegnato |
 | **Animazioni** | `AS4a` `AS4b` | **2** — richiedono i montage Paragon |
 | **Scenari visivi** (corpus `Visual.*`) | `VIS-FIRE` `VIS-ICE` `VIS-WETFIRE` `VIS-KO` `VIS-CHARGE` `VIS-ROUGH` `VIS-COMBO` `VIS-COORD` `VIS-PUSH` `VIS-FALLBACK` `VIS-SMOKE` `VIS-PHASES` `VIS-LEVEL` `VIS-COVER` `VIS-DOOR` `VIS-HIGH` `VIS-INTERPOSE` `VIS-DEFLECT` `VIS-HIGHCOVER` `VIS-GUARD` `VIS-BRACE` | **21** — nessuna precondizione oltre a scegliere lo scenario e premere Play. Non sono gate: la regola è già coperta headless dalle assertion, qui si guarda la **leggibilità**. Catalogo: [`scenari-validazione-visiva.md`](runbooks/scenari-validazione-visiva.md) · classe **B** in [`scenario-map.md`](tooling/scenario-map.md) |
+
+### Sessione MCP del 2026-08-30 — cosa il bridge misura davvero, e cosa no
+
+> **Baseline**: branch `feat/td-integration-pass`, `HEAD f7055625`, **working tree pulito**.
+> Livello aperto `L_DevSandbox`, mappa `DA_HexMap_Scratch_Basin` (45 celle, `graphRevision` 2).
+> **Editor start: 1** (PID 73136). **Nessuna voce passa a ✅ da questa sessione** — e il perché è il
+> contenuto utile della nota.
+
+✅ **Il ponte MCP fa molto più dei cinque tool RT, e questo era ignoto al progetto.** `CLAUDE.md` §5
+descrive i cinque tool di `RTDeveloperTools` — veri, e tuttora di sola lettura — ma il `ToolsetRegistry`
+di UE 5.8 ne registra **56 toolset**. Misurati via `tools/list` + `list_toolsets`, quelli che cambiano il
+perimetro di una seduta PIE:
+
+| Toolset | Ciò che sblocca |
+|---|---|
+| `EditorToolset.EditorAppToolset` | `StartPIE` / `StopPIE` / `IsPIERunning`, `CaptureViewport`, `CaptureEditorImage`, `GetCameraTransform` / `SetCameraTransform`, `GetVisibleActors`, `SelectActors`, `FocusOnActors` |
+| `EditorToolset.LogsToolset` | `GetLogEntries(category, pattern, maxEntries)` — l'Output Log **letto come dato** |
+| `SlateInspectorToolset` | `Click(ref, button, modifiers)`, `PressKey(key)`, `Screenshot(ref)` — **input reale** |
+| `editor_toolset.toolsets.scene.SceneTools` | `load_level`, `get_current_level` — cambio livello |
+| `editor_toolset.toolsets.object.ObjectTools` | `set_properties` / `get_properties` — i Class Defaults, quindi `ScenarioToRun` (§7) |
+| `UMGToolSet` | `GetWidgetDescription`, `GetWidgets` — struttura dei `WBP_RT_*` senza aprire l'editor UMG |
+
+⛔ **Ma due capability che una seduta PIE dà per scontate NON esistono, ed è il limite da conoscere
+prima di pianificare**: non c'è **nessun tool che esegua una console command o imposti una CVar**
+(`SearchCVars` le *trova* soltanto), quindi `rt.Test.Scenario`, `rt.Test.Run` e `rt.Debug.*` **non sono
+raggiungibili dal bridge**; e `ProgrammaticToolset.execute_tool_script` non è una via traversa — è una
+sandbox Python che può chiamare solo altri tool registrati, coi moduli limitati a
+`{json, copy, re, datetime, time, math}`. 🔴 **E la prima stesura di questa nota indicava una via d'uscita che non esiste**: diceva
+*«lo scenario si imposta da `ObjectTools.set_properties` sulla property»*. **Falso**, e la ragione sta
+in `RTGameMode.cpp`: `ScenarioToRun` è letta dentro `ARTGameMode::BeginPlay()` (riga 356). Scriverla
+sull'**istanza** arriva tardi — l'istanza esiste solo a PIE avviato, quando `BeginPlay` ha già scelto;
+scriverla **prima** significa toccare i Class Defaults di `BP_GameMode`, cioè un `.uasset` versionato,
+che con più sessioni sulla stessa working directory è proprio ciò che non si fa.
+
+✅ **La sorgente utilizzabile è la terza, e va passata all'AVVIO dell'Editor.** `ResolveScenarioToRun`
+dichiara la precedenza *proprieta' del GameMode < `-RTScenario=<Id>` < `rt.Test.Scenario`*: il flag di
+riga di comando è letto da `RTScenarioEntry::FromCommandLine()`, scavalca la property **senza toccare
+nessun asset**, e logga il proprio scavalcamento invece di agire in silenzio.
+
+```
+UnrealEditor.exe RefactorTactics.uproject -RTScenario=<Id>
+```
+
+⛔ **Il costo va detto, perché rovescia l'economia della seduta**: il flag si fissa al lancio, quindi
+è **uno scenario per avvio dell'Editor**. Finché il bridge non espone un setter di console variable,
+«un solo Editor start per molti scenari» **non è ottenibile** — e una seduta che ne pianifichi diversi
+sta pianificando diversi avvii, non uno.
+
+🔴 **La sessione è finita per contesa del motore, e la causa è già scritta in D-222.** Alle 13:19:46
+un'altra sessione ha avviato `rt-suite.ps1` (`UnrealEditor-Cmd.exe`, `-nullrhi`,
+`-log=rt-suite-td-pass-3.log`): l'Editor interattivo è caduto, e la porta 8765 ha continuato a rispondere
+**dal processo di automation**. ⚠️ Un bridge che risponde **non è** un editor con una viewport: interrogarlo
+in quello stato avrebbe risposto sulla mappa del processo di test, con `-nullrhi` e senza nulla da guardare.
+La run altrui è stata **lasciata correre** — terminarla avrebbe reso NON VALIDA la loro misura.
+
+**Cosa è stato osservato davvero, prima della caduta:**
+
+- ✅ `StartPIE` è riuscito e `IsPIERunning` ha risposto `true`: la partita **si allestisce** su
+  `L_DevSandbox`. Il `LogRT` letto via `GetLogEntries` narra il round per intero — `Playback fase: Dash`
+  → `Blast` → `Move`, `Risoluzione completata (1.0s)`, colpi con **ActionId e priorità**
+  (`Hero.Wraith.PassingBlade, p30`, `Action.BasicAttack → Hero.Wraith.PulseShot, p50`), coordinate
+  `(q,r,L)`, danni ambientali (`Terrain.Fire`, `Status.Burning`, `Status.Wet`), reazioni armate senza
+  trigger e i pesi dell'utility del bot.
+- ✅ `ValidateTacticalMap` sulla mappa aperta: **`bValid: true`, zero issue, zero celle irraggiungibili**.
+- ⛔ **`PIE-HEXPLAY-8` non è verificabile su questa mappa**, e non per un difetto: `GetCurrentMap` riporta
+  `layers: [0]` e `numTransitions: 0`. La voce chiede un percorso che usa una transizione fra due layer;
+  qui non c'è topologia che possa produrlo. Serve una mappa multilivello — **setup mancante, non FAIL**.
+- 🟡 **Screen HUD (`PIE-V01-SCREENHUD`, [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613)): la metà strutturale è verificata, la metà visiva no.**
+  `UMGToolSet.GetWidgetDescription` su `WBP_RT_TacticalHUD` mostra le quattro zone reali e popolate —
+  `Zone_Top` → `WBP_RT_TurnHeader`, `ZoneLeft` → `WBP_RT_TeamRoster`, `ZoneRight` →
+  `WBP_RT_SelectedUnitPanel`, `ZoneBottom` → `WBP_RT_SelectedUnitPanel` + `WBP_RT_ActionDock` — tutte
+  ancorate ai bordi di un `CanvasPanel`, quindi **il centro della board resta libero per costruzione**.
+  ⚠️ Resta ⏳: la voce chiede la resa *in partita*, e nessuna cattura è riuscita prima della caduta.
+- ⚠️ **`CaptureViewport` non è chiamabile senza argomenti**: `captureTransform` è obbligatorio pur essendo
+  descritto come opzionale (*«needs a default value»*). Chi lo usa deve passargli prima un
+  `GetCameraTransform`. `CaptureEditorImage` non ha parametri ed è la via più breve per un'evidenza a schermo.
+
+**Secondo giro, dopo che il motore si è liberato — Editor start #2, e stavolta con evidenza a schermo.**
+Il primo è caduto per causa esterna, non per comodità: è il caso *«stato dell'Editor non recuperabile»*.
+
+- ✅ **La catena completa funziona, ed è la cosa che questa sessione lascia alle prossime**:
+  `SceneTools.load_level` → `StartPIE` → `SlateInspectorToolset.PressKey` → `CaptureEditorImage` →
+  immagine PNG giudicabile. Il livello si cambia **senza chiudere l'Editor**, e `PressKey` risponde `true`
+  con effetto reale osservato.
+- ⚠️ **`CaptureEditorImage` restituisce il PNG in `returnValue.data` (base64), NON come content di tipo
+  `image`.** Un client che cerca solo i content `image` conclude *«nessuna immagine»* su una chiamata
+  riuscita — è successo a questa sessione prima di leggere lo schema.
+- 🔴 **La prima inquadratura non mostra la board, e non è un difetto: la camera parte dall'origine.**
+  Su `L_HexArena` la cattura a PIE appena avviato mostra due unità su fondo nero e **nessuna griglia**;
+  dopo un `Home` la board esagonale, i due livelli e la rampa sono tutti visibili. ⚠️ Chi cattura
+  **prima** di ricentrare fotografa una viewport che sembra un livello rotto, ed è esattamente l'errore
+  contro cui §*Come eseguire* mette in guardia — vale **anche per una cattura automatica**, che non ha
+  l'istinto di premere `Home`.
+- ✅ **`L_HexArena` è il setup multilivello che mancava**: `GetCurrentMap` riporta `layers: [0, 1]` e
+  `numTransitions: 2` su 64 celle, `bValid: true`, zero irraggiungibili. È la mappa che `MatchLevel`
+  nomina in `DefaultGame.ini`. **`PIE-HEXPLAY-8` ha qui la topologia che su `L_DevSandbox` non esiste**:
+  resta 🟡 perché il movimento via arco non è stato *osservato*, non perché manchi il banco di prova.
+- ✅ **Il combat log a schermo porta i campi che il DoD di [#79](https://github.com/DegrassiAaron/refactor-tactics-main/issues/79) chiede**: letti nella cattura,
+  `resta (q=-4,r=0,L=0) (Action.Move, p50)` e `(q=0,r=-3,L=0) -> (q=0,r=-3,L=0): 0 danni (Objective.Control)`
+  — **ActionId, priorità, coordinate `(q,r,L)` e causa** sulla stessa riga.
+- ⛔ **Lo Screen HUD non si monta avviando PIE su una mappa di partita, e non è un FAIL.**
+  `DefaultGame.ini` dichiara `MatchHudWidgetClass`, ma il commento accanto alla riga dice che il layer è
+  *«presentato da `EnterMatch` e non dallo stack»*: il percorso che lo monta parte da `L_Frontend` e passa
+  per `PLAY`. Le due catture su `L_DevSandbox` e `L_HexArena` non mostrano né `TeamRoster` a sinistra né
+  `ActionDock` in basso perché **nessuno li ha montati**. `PIE-V01-SCREENHUD` va eseguita dal **frontend**,
+  e chi la eseguisse aprendo direttamente la mappa la dichiarerebbe rotta a torto.
+
+⚠️ **La lista di PIE aperte del perimetro E2 circolata a voce è scaduta.** Diceva sei voci residue
+— `-3b`, `-6`, `-6b`, `-6c`, `-7`, `-8`. Misurate oggi sul registro: `-3b`, `-6b` e `-6c` sono **✅ chiuse
+il 2026-08-30**, e restano non verdi **`-6`** 🟡, **`-7`** 🟡, **`-8`** 🟡 più **`-11`** ⏳, che in quella
+lista non compariva affatto.
 
 ## Subset di release — il marcatore `RELEASE-V01`
 

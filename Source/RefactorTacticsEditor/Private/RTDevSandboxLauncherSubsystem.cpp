@@ -4,8 +4,8 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/TabManager.h"
 #include "Misc/Paths.h"
+#include "SRTLauncherScenarioPanel.h"
 #include "Widgets/Docking/SDockTab.h"
-#include "Widgets/Text/STextBlock.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 
@@ -33,13 +33,13 @@ namespace
 
 	TSharedRef<SDockTab> SpawnLauncherTab(const FSpawnTabArgs&)
 	{
-		// Slice L1 (#1680): questa slice consegna un pannello che si apre al momento giusto e NON mostra
-		// ancora niente. Gli assi di selezione sono #1681, le superfici del workspace #1682.
+		// L1 (#1680) apriva il tab su un segnaposto; #1705 lo riempie con la selezione sull'asse deciso da
+		// #1681. Il tab resta di questa slice — quello che ci sta dentro no: `Start Session` e le superfici
+		// del workspace sono #1682, e il pannello non le anticipa.
 		return SNew(SDockTab)
 			.TabRole(ETabRole::NomadTab)
 			[
-				SNew(STextBlock)
-					.Text(LOCTEXT("Placeholder", "Tactical Designer — la selezione arriva con #1681."))
+				SNew(SRTLauncherScenarioPanel)
 			];
 	}
 }
