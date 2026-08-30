@@ -43,7 +43,7 @@ agente le può chiudere, come dice il preambolo.
 |---|---:|---:|---|
 | 1 — layer HUD nel navigator | 6 / 9 | 3 | atterrato per intero; le tre aperte sono passi di processo TDD |
 | 2 — `WBP_RT_TacticalHUD` | 4 / 6 | 2 | `Zone_Top`, `ZoneLeft`, `ZoneRight`, `ZoneBottom` in un `CanvasPanel` |
-| 3 — `WBP_RT_TurnHeader` | 5 / 7 | 2 | lo Step 3.4 è **parziale** |
+| 3 — `WBP_RT_TurnHeader` | 5 / 7 | 2 | lo Step 3.4 è **per metà**: guardia fatta, binding `Visibility` no |
 | 4 — `WBP_RT_TeamRoster` | 5 / 6 | 1 | `GetRoster` → `ForEach` → `WBP_RT_UnitCard` |
 | 5 — `WBP_RT_SelectedUnitPanel` | 5 / 6 | 1 | i tre slot leggono `bOccupied`/`DisplayName`, non li deducono |
 | 6 — `WBP_RT_ActionSlot` | 5 / 5 | 0 | **chiuso** |
@@ -57,12 +57,11 @@ chiamava `GetArmedActionIndex()`** — la funzione esiste in C++ (`RTScreenHudWi
 era assente dal `.uasset`. Vedi «Lo stato neutro del dock» qui sotto per cosa è stato trovato e cosa è
 cambiato.
 
-**⚠️ Lo Step 3.4 è per metà.** `GetPhaseText` e `GetTimerText` esistono e leggono `GetHeader()`; il
-troncamento c'è (`FTrunc`, da `16ba67a4`). Mancano **due** cose che lo step chiede: il `Select` su
-`PlanningSecondsRemaining < 0` — nessun `Select` e nessun `Less` nel `.uasset` — e il binding
-`Visibility → HasMatchContext` sul `TimerText`, anch'esso assente. Fuori dal Planning il campo vale `-1` e
-a schermo **compare un numero negativo**: il difetto è dichiarato nel corpo di `16ba67a4`, con la fix già
-progettata (mostrare `—`, **lo stesso glifo** del contatore di round).
+**⚠️ Lo Step 3.4 era per metà, e ora manca solo la sua seconda riga.** Il troncamento c'era (`FTrunc`, da
+`16ba67a4`), la guardia no: fuori dal Planning il campo vale `-1` e a schermo **compariva un numero
+negativo**. ✅ **La guardia è stata scritta il 2026-08-30** — vedi «La guardia sul timer» più sotto.
+⛔ **Resta il binding `Visibility → HasMatchContext` sul `TimerText`**, e la ragione per cui non è stato
+fatto è scritta lì: non è un rinvio per stanchezza, è un limite dello strumento più una domanda aperta.
 
 **🔺 Lo Step 2.3 è superato dai fatti.** Diceva *«lascia `IconCatalog` vuoto, il catalogo è di #220 e non
 esiste»*. Oggi `Content/RT/UI/DA_IconCatalog.uasset` **esiste** con 62 icone, e `WBP_RT_TacticalHUD` lo
@@ -129,9 +128,55 @@ Il Blueprint compila senza errori né warning, e il `.uasset` salvato contiene o
 `EqualEqual_IntInt`. ⛔ **Nessuna verifica a schermo**: lo Step 7.5 resta aperto, ed è lì che si vede se lo
 slot armato si accende davvero in partita.
 
+### La guardia sul timer — Step 3.4, prima metà, 2026-08-30
+
+Il binding era questo, e non aveva nessuna guardia:
+
+```lisp
+(fn Get_TimerText_Text ()
+  (return (Utilities|Text|ToText (Math|Float|Truncate (BreakRTMatchHeaderView (GetHeader))))))
+```
+
+`PlanningSecondsRemaining` vale **`-1` quando la domanda non si applica** — fuori dal Planning, o senza
+contesto — e quel `-1` finiva a schermo come numero. Ora:
+
+```lisp
+(fn Get_TimerText_Text ()
+  (bind (_round _limit _phase _secs _resolving) (BreakRTMatchHeaderView (GetHeader)))
+  (return (select (< _secs 0.0) "—" (Utilities|Text|ToText (Math|Float|Truncate _secs)))))
+```
+
+Il glifo è **`—` (U+2014), lo stesso che `GetRoundCounterText()` restituisce** per «nessun contesto»
+(`RTScreenHudWidgets.cpp:141`) — non `--:--`, che avrebbe messo due segni diversi per la stessa idea nello
+stesso widget. Verificato nel binario: la `FString` è `FE FF FF FF 14 20 00 00`, cioè lunghezza `-2`
+(UTF-16) e U+2014, **una** occorrenza ben formata.
+
+⚠️ **`read_graph_dsl` rende quel glifo come `â€”`** — i byte UTF-8 letti come CP1252. È un difetto della
+**lettura**, non del dato: il `.uasset` è corretto. Non inseguirlo riscrivendo il letterale.
+
+**Verifica**: `RefactorTactics.ScreenHud` + `.HUD` + `.Frontend` in headless →
+**105 test, 105 `Success`, zero fallimenti**.
+
+#### ⛔ Cosa NON è stato fatto: il binding `Visibility → HasMatchContext`
+
+La seconda riga dello step chiede di legare la `Visibility` del `TimerText` a `HasMatchContext`
+(`Visible`/`Collapsed`). **Non è creabile dal ponte MCP**, misurato: `UMGToolSet` non ha un tool per i
+property binding — il suo `BindToEventProperty` lega i **delegate multicast** (`OnClicked`), non le
+proprietà — e `ProgrammaticToolset` è sandboxed sui soli `re, copy, time, datetime, math, json`, senza il
+modulo `unreal`. Un property binding è una `FDelegateEditorBinding` in `WidgetBlueprint->Bindings`, e per
+scriverla serve un gesto nel pannello Details. ⚠️ Una terza via — eseguire Python nella console dell'Editor
+— **non è stata verificata**: l'Editor si è chiuso durante la ricognizione.
+
+🤔 **E prima di farlo, vale una domanda all'owner.** `RoundText` mostra `—` senza contesto **e resta
+visibile**. Se `TimerText` si collassasse nello stesso stato, l'header userebbe due comportamenti diversi
+per la stessa condizione, che è la classe di incoerenza contro cui è scritto il Task 7-bis. Con la guardia
+appena aggiunta, «nessun contesto» è già rappresentato — e in modo uguale al fratello accanto. Il binding
+resta da fare se si decide che il timer debba *sparire* invece che dire `—`; non è una scelta da prendere
+in silenzio mentre si chiude una casella.
+
 ### Cosa resta, in ordine
 
-1. **Step 3.4** — la guardia sul negativo e la `Visibility` del timer (lavoro d'Editor).
+1. **Step 3.4, seconda riga** — il binding `Visibility` del timer, se la domanda qui sopra ha risposta sì.
 3. **Le cinque «verifica a schermo»** — 2.5, 3.6, 4.5, 5.5, 7.5 — più il **Task 8** quasi intero: la suite
    non è stata rieseguita, `PIE-V01-HUD` non ha esito nel registro (la seduta **U15** ha `artifacts: []` e
    `done_when: le voci hanno esito reale nel registro`), e `#613` è ancora `OPEN`.
@@ -784,7 +829,7 @@ sono tre stati diversi e due si confondono.
 Un binding ingenuo stampa `Round 3/0`, che si legge come una partita già scaduta.
 `GetRoundCounterText()` li decide già tutti e tre.
 
-- [ ] **Step 3.4 — Fase e timer** — ⚠️ *parziale: vedi la riconciliazione in testa*
+- [ ] **Step 3.4 — Fase e timer** — ⚠️ *guardia sul negativo **fatta**; resta il binding `Visibility` — vedi la riconciliazione in testa*
 
 Su `PhaseText` → `Text` → **Bind** → funzione nuova `GetPhaseText`:
 `GetHeader()` → `break FRTMatchHeaderView` → `Phase` → nodo di conversione dell'enum → `ToText`.
