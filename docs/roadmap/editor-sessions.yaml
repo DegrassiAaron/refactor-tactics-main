@@ -592,9 +592,9 @@ sessions:
       - Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset
     unblocked_by: []
     shares_setup_with: [U8, U9]
-    verifies: [PIE-AS2, PIE-FACING]
-    issues: []
-    done_when: i quattro Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi
+    verifies: [PIE-AS2, PIE-FACING, PIE-AS4a]
+    issues: [1719]
+    done_when: i quattro Blueprint sono tracciati da git con la Skeletal Mesh agganciata, e le voci hanno esito reale su tutti e quattro gli eroi
     unblocks: [U8, U19]
     steps: |
       **Un Blueprint per eroe, ma intitolato al PACK.** La base visuale la fissa **D-037** (tabella
@@ -712,56 +712,67 @@ sessions:
       difetto**: senza anim BP la skeletal resta nella **posa di riferimento** dello scheletro, dove le
       ossa di catene e tentacoli stanno distese in fila. Riscontrato su `Riktor` il 2026-08-12.
       Il controllo che lo isola in dieci secondi: **apri la Skeletal Mesh nel Content Browser** — se
-      appare cosi' anche li', fuori dal gioco e fuori dal Blueprint, e' la bind pose e la sistema
-      **U8**. Se invece li' e' normale e in partita no, allora guarda il Blueprint.
+      appare cosi' anche li', fuori dal gioco e fuori dal Blueprint, e' la bind pose dello scheletro.
+      ⚠️ **Questa riga diceva «la sistema U8», e dal 2026-08-30 non e' piu' vero** (D-248): il grafo
+      e' in C++ e vale gia' per tutti e quattro. Se in partita l'unita' resta in posa di riferimento le
+      cause sono due — la **Skeletal Mesh non agganciata**, che e' il lavoro di QUESTA seduta, oppure
+      le clip che non risolvono perche' il pack Paragon non e' sul disco: quello e' il degrado previsto
+      dal soft reference, non un difetto. Se invece li' e' normale e in partita no, guarda il Blueprint.
 
   - id: U8
     title: Animazioni
     block: 3
     critical: true
     execution_lane: asset
-    produces: gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death
+    produces: i dodici montaggi Cast/Hit/Death dei quattro personaggi
     artifacts:
-      - Content/RT/Characters/Gadget/Animation/ABP_Gadget.uasset
-      - Content/RT/Characters/Phase/Animation/ABP_Phase.uasset
-      - Content/RT/Characters/Riktor/Animation/ABP_Riktor.uasset
-      - Content/RT/Characters/Wraith/Animation/ABP_Wraith.uasset
+      - Content/RT/Characters/Gadget/Animation/AM_Gadget_Attack.uasset
+      - Content/RT/Characters/Gadget/Animation/AM_Gadget_Hit.uasset
+      - Content/RT/Characters/Gadget/Animation/AM_Gadget_Death.uasset
+      - Content/RT/Characters/Phase/Animation/AM_Phase_Attack.uasset
+      - Content/RT/Characters/Phase/Animation/AM_Phase_Hit.uasset
+      - Content/RT/Characters/Phase/Animation/AM_Phase_Death.uasset
+      - Content/RT/Characters/Riktor/Animation/AM_Riktor_Attack.uasset
+      - Content/RT/Characters/Riktor/Animation/AM_Riktor_Hit.uasset
+      - Content/RT/Characters/Riktor/Animation/AM_Riktor_Death.uasset
+      - Content/RT/Characters/Wraith/Animation/AM_Wraith_Attack.uasset
+      - Content/RT/Characters/Wraith/Animation/AM_Wraith_Hit.uasset
+      - Content/RT/Characters/Wraith/Animation/AM_Wraith_Death.uasset
     unblocked_by: []
     shares_setup_with: [U7, U9]
-    verifies: [PIE-AS4a, PIE-AS4b]
-    issues: []
-    done_when: i quattro anim BP sono tracciati da git e le due voci hanno esito reale
+    verifies: [PIE-AS4b]
+    issues: [288]
+    done_when: i dodici montaggi sono tracciati da git e PIE-AS4b ha esito reale
     unblocks: [U9, U19]
     steps: |
-      Procedura completa in `guida-animazioni-paragon.md` §AS.4a (locomozione Idle↔Run pilotata dai
-      delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++), poi si ripete per gli
-      altri tre eroi.
+      🔴 **Questa seduta NON produce piu' anim BP: il grafo di locomozione vive in C++.**
+      `URTUnitAnimInstance` monta Idle/Run in un blend e lo slot `DefaultSlot` come radice, e
+      `ARTUnit::ApplyUnitAnimClass()` assegna la classe allo spawn — vedi **D-248**. Restano solo i
+      **montaggi**, che sono lavoro reale: lo slot che li ospita esiste gia'.
 
-      **Il nome segue il PACK** (deciso 2026-08-11, come U7): `ABP_Gadget`, `ABP_Phase`,
-      `ABP_Riktor`, `ABP_Wraith`. La collocazione e' `/Game/RT/Characters/<Pack>/Animation/` — non
-      `Blueprints/`, che ospita i `BP_Unit_*`.
+      Procedura in `guida-animazioni-paragon.md` §AS.4b. Per ogni pack, tre montaggi dalle clip
+      *Attacco*, *Colpito* e *Morte* di §AS.3b, poi i tre eventi `PlayAttackMontage`,
+      `PlayHitMontage` e `PlayDefeatMontage` sul `BP_Unit_<Pack>`, ciascuno collegato a un
+      `Play Anim Montage` col target sullo Skeletal Mesh Component. Niente bind, niente branch,
+      niente cast: li chiama il `TurnManager` da solo.
 
-      Ogni anim BP va costruito sullo scheletro **che la sua mesh referenzia** — letto dall'asset, non
-      dedotto dal nome del file (corretto il 2026-08-11, vedi sotto):
+      **Il nome segue il PACK** (deciso 2026-08-11, come U7): `AM_Gadget_Attack`, `AM_Gadget_Hit`,
+      `AM_Gadget_Death`, e cosi' per Phase, Riktor e Wraith. La collocazione e'
+      `/Game/RT/Characters/<Pack>/Animation/` — non `Blueprints/`, che ospita i `BP_Unit_*`.
 
-      | Pack | Mesh assegnata in U7 | Skeleton da usare |
-      |---|---|---|
-      | `Paragon.Gadget` | `Gadget` | `Gadget_Skeleton` |
-      | `Paragon.Phase` | `Phase_GDC` | `phase_Skeleton` |
-      | `Paragon.Riktor` | `Riktor` | `Riktor_Skeleton` |
-      | `Paragon.Wraith` | `Wraith` | `Wraith_Skeleton` |
+      ⚠️ **Le clip di partenza si MISURANO, non si deducono**: §AS.3b conta **sei caselle su venti**
+      che non si chiamano come ci si aspetta — `Hitreact_Fwd` con la `r` minuscola per Gadget,
+      `Death` nudo per Phase, `Death_Forward` per Wraith.
 
-      ⚠️ **Lo skeleton si LEGGE dalla mesh, non si cerca nella cartella.** Una prima stesura di questa
-      tabella dava `gadget_bot_Skeleton` e `belly_Riktor_Skeleton`, presi perche' erano il primo file
-      `*Skeleton*` di quella cartella: appartengono pero' a **mesh diverse e piu' piccole**
-      (`gadget_bot`, `belly_Riktor`), non a quelle che U7 assegna. Assegnarli avrebbe prodotto un anim
-      BP legato a uno scheletro incompatibile — un errore silenzioso, come quello del punto 6 di U7.
-      Il controllo, in editor: aprire la Skeletal Mesh e leggere il campo **Skeleton** nei Details.
+      ⚠️ **Un `.uasset` per volta**: due non si fondono. I quattro pack sono file distinti, quindi il
+      lavoro e' parallelizzabile — ma non sullo stesso.
 
-      > ⚠️ **Riscritta due volte.** Il 2026-08-10 chiedeva `ABP_Gideon` e `ABP_Sparrow` in
-      > `Blueprints/`: due anim BP intitolati a pack che non sono la base visuale di nessun eroe della
-      > v0.1, nella cartella sbagliata. Il 2026-08-11 i nomi sono passati dall'eroe al pack per scelta
-      > dell'autore — vedi le `notes` di U7 per il costo accettato.
+      > ⚠️ **Riscritta tre volte.** Il 2026-08-10 chiedeva `ABP_Gideon` e `ABP_Sparrow` in
+      > `Blueprints/`: due anim BP intitolati a pack fuori dal roster, nella cartella sbagliata. Il
+      > 2026-08-11 i nomi sono passati dall'eroe al pack. Il **2026-08-30** e' caduta la **via**: gli
+      > anim BP non si fanno affatto — costerebbero ~2,8 MB di binario contro gli 0,7 MB che pesa
+      > tutto `Content/` versionato, per una macchina a due stati che il C++ fa gia' ed e' sotto
+      > test. Vedi **D-248** e l'issue **#1720**.
 
   - id: U9
     title: Leggibilita' e riferimento visivo

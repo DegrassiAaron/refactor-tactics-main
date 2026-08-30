@@ -29,6 +29,10 @@ Vincoli: invariante #1 (le regole decidono, l'animazione riproduce), #4 (determi
 Introdurre lo skeletal **in modo additivo e reversibile**, non sostitutivo:
 
 1. **`BP_Unit : ARTUnit`** (Blueprint) aggiunge `USkeletalMeshComponent` + `ABP_Unit`. La logica resta in C++.
+   ⚠️ **Emendato il 2026-08-30**: l'`ABP_Unit` **non è un `.uasset`** e non va creato. Il punto regge nella
+   sostanza — il Blueprint porta la mesh, la logica resta in C++ — ma il grafo di animazione è
+   `URTUnitAnimInstance`, in codice, e la classe la assegna `ApplyUnitAnimClass()` allo spawn
+   ([D-248](RT_PDR_00_Decision_Log.md)). Quello che il Blueprint aggiunge, oggi, è la sola Skeletal Mesh.
 2. `ARTGameMode::SpawnUnit` (`RTGameMode.cpp:80`) spawna una **`TSubclassOf<ARTUnit>` configurabile per
    archetipo**, invece di `ARTUnit::StaticClass()` fisso.
 3. Riferimenti asset **soft** (`TSoftObjectPtr`/`TSoftClassPtr`); se assenti, l'unità **resta il cilindro**
