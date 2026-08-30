@@ -2005,6 +2005,10 @@ sessions:
       ⚠️ **Il colore delle squadre non c'è ancora, e non è una svista.** Il kit graybox esce con lo slot
       materiale vuoto (`#1714`): due squadre colorate sarebbero identiche a schermo. Si distinguono per
       **raggio** dell'anello. Quando `#1714` chiude, il colore si aggiunge — non sostituisce.
+      ➕ **Lo scenario del criterio multilivello non esisteva, ed è stato creato per questa seduta**:
+      `Scenarios/Visual/Map/TwoLayersSameColumn.json`. Nessuno degli 92 scenari spediti collocava unità
+      su più di un piano — misurato — quindi «due celle con stesso X/Y e Layer diverso non si fondono»
+      non era eseguibile a schermo. È su `TestArena`, l'unica fixture con una piattaforma sul layer 1.
       ⛔ **`Reset` non è di questa seduta.** L'acceptance criterion di `#1753` che lo nomina resta scoperto
       finché `#1682` non porta una sessione: oggi il pannello apre e richiude la facade a ogni selezione, e
       non c'è uno stato da azzerare. Verificarlo qui misurerebbe qualcosa che non esiste.

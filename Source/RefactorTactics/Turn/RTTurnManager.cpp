@@ -6285,33 +6285,18 @@ void ARTTurnManager::SkipPlayback()
 
 float ARTTurnManager::DurationForPlaybackPhase(ERTMatchPhase InPhase) const
 {
-	switch (InPhase)
+	// Le unita' si muovono in parallelo: alla durata serve il percorso PIU' LUNGO fra quelli riprodotti in
+	// questa fase, non la loro somma. E' l'unico dato che il TurnManager possiede e la library no.
+	int32 MaxSeg = 0;
+	for (const FRTMoveAnim& A : MoveAnims)
 	{
-	case ERTMatchPhase::Dash:
-	case ERTMatchPhase::Move:
-	{
-		int32 MaxSeg = 0;
-		for (const FRTMoveAnim& A : MoveAnims)
-		{
-			if (A.Phase == InPhase) { MaxSeg = FMath::Max(MaxSeg, A.World.Num() - 1); }
-		}
-		return (PlaybackCellsPerSecond > 0.f) ? (MaxSeg / PlaybackCellsPerSecond) : 0.f;
+		if (A.Phase == InPhase) { MaxSeg = FMath::Max(MaxSeg, A.World.Num() - 1); }
 	}
-	case ERTMatchPhase::Blast:
-	{
-		// Il Blast dura almeno quanto i colpi mostrati E quanto lo scivolamento del knockback.
-		const float AttackTime = FMath::Max(1, PlaybackAttacks.Num()) * AttackShowSeconds;
-		int32 MaxSeg = 0;
-		for (const FRTMoveAnim& A : MoveAnims)
-		{
-			if (A.Phase == ERTMatchPhase::Blast) { MaxSeg = FMath::Max(MaxSeg, A.World.Num() - 1); }
-		}
-		const float MoveTime = (PlaybackCellsPerSecond > 0.f) ? (MaxSeg / PlaybackCellsPerSecond) : 0.f;
-		return FMath::Max(AttackTime, MoveTime);
-	}
-	default:
-		return PhaseBeatSeconds; // Prep/Cleanup: un beat
-	}
+
+	// La formula sta in `URTPlaybackLibrary::PhaseDuration`, dove si esercita senza mondo e senza Actor
+	// (#1817). Qui resta la sola raccolta degli ingressi.
+	return URTPlaybackLibrary::PhaseDuration(InPhase, MaxSeg, PlaybackAttacks.Num(),
+		PlaybackCellsPerSecond, AttackShowSeconds, PhaseBeatSeconds);
 }
 
 FString ARTTurnManager::GetPlaybackPhaseName() const

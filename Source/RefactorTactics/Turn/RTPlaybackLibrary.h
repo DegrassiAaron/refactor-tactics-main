@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Turn/RTTurnRules.h"
 #include "RTPlaybackLibrary.generated.h"
 
 /**
@@ -63,6 +64,28 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static int32 AttacksToShow(int32 NumAttacks, float PhaseElapsed, float AttackShowSeconds);
+
+	/**
+	 * Durata (secondi) di UNA fase del playback, prima di qualunque accelerazione.
+	 *
+	 * `MaxMoveSegments` e' il percorso PIU' LUNGO fra quelli riprodotti in questa fase, non la loro somma:
+	 * le unita' si muovono in parallelo, quindi la fase finisce quando finisce l'ultima.
+	 *
+	 *  - `Dash` / `Move`  → `MaxMoveSegments / CellsPerSecond`. Gli attacchi non entrano.
+	 *  - `Blast`          → `Max(colpi, spinta)`, **non** la somma: i colpi e lo scivolamento del knockback
+	 *                       occupano la stessa finestra. Il tempo dei colpi ha un pavimento di uno anche
+	 *                       quando non ce ne sono, perche' un Blast di sola spinta si vede e deve durare.
+	 *  - ogni altra fase  → un beat (`PhaseBeatSeconds`).
+	 *
+	 * `CellsPerSecond <= 0` significa movimento istantaneo, non una divisione per zero.
+	 *
+	 * ⚠️ **Non e' `EstimatePlaybackSeconds`.** Quella e' una stima aggregata dell'intero round, questa e' la
+	 * durata di una singola fase e **e' la formula che il gioco usa davvero**: `ARTTurnManager::BeginPlayback`
+	 * somma questa su tutte le fasi attive per ottenere il totale grezzo. Le due non sono intercambiabili.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
+		float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds);
 
 	/**
 	 * Fattore di accelerazione per rientrare nel tetto di durata: 1 se gia' entro il cap

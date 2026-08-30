@@ -54,6 +54,34 @@ int32 URTPlaybackLibrary::AttacksToShow(int32 NumAttacks, float PhaseElapsed, fl
 	return FMath::Min(NumAttacks, 1 + FMath::FloorToInt(Elapsed / AttackShowSeconds));
 }
 
+float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
+	float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds)
+{
+	// Il tempo di movimento e' lo stesso calcolo per tutte le fasi che muovono, Blast compreso: si scrive
+	// una volta sola perche' due copie divergerebbero alla prima modifica di una delle due.
+	const float MoveTime = (CellsPerSecond > 0.f)
+		? (FMath::Max(0, MaxMoveSegments) / CellsPerSecond)
+		: 0.f;
+
+	switch (Phase)
+	{
+	case ERTMatchPhase::Dash:
+	case ERTMatchPhase::Move:
+		return MoveTime;
+
+	case ERTMatchPhase::Blast:
+	{
+		// `Max(1, ...)`: un Blast di sola spinta non ha colpi, e una fase che si vede non puo' durare zero.
+		const float AttackTime = FMath::Max(1, NumAttacks) * AttackShowSeconds;
+		// `Max` e non somma: i colpi si vedono MENTRE il bersaglio scivola, non dopo.
+		return FMath::Max(AttackTime, MoveTime);
+	}
+
+	default:
+		return PhaseBeatSeconds; // Prep, Cleanup, Planning: un beat, senza moto da attendere
+	}
+}
+
 float URTPlaybackLibrary::SpeedMultiplierForCap(float EstimatedSeconds, float MaxSeconds)
 {
 	if (MaxSeconds <= 0.f || EstimatedSeconds <= MaxSeconds)

@@ -43,7 +43,7 @@ capo se una cosa fosse v0.1 o no. Questo file registra quella ripartizione una v
 | Release | Nome | Tema | Epic | Formato di gioco |
 |---|---|---|---|---|
 | **v0.1** | Vertical slice | Il turno simultaneo funziona e si vede | E1–E21 | Skirmish 2v2 vs bot |
-| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22 · E24–E26 · **E35** · **E36** · **E38** · **E39** | Standard 3v3 |
+| **v0.2** | Struttura e finestre | Il campo diventa manipolabile; roster 8 | E22 · E24–E26 · **E35** · **E36** · **E38** · **E39** · **E51** | Standard 3v3 |
 | **v0.3** | Informazione | Quello che non sai vale quanto quello che fai | E27–E29 · **E33** | Standard 3v3 |
 | **v0.4** | Operations | Partite lunghe su mappe grandi | E30–E32 · **E34** · **E37** | Operations 4v4+ |
 | **v0.5** | Online Foundation | Il turno simultaneo regge la rete | **E40** | Standard 3v3 online, lobby privata |
@@ -93,21 +93,32 @@ Aggiunto il **2026-08-17** con [D-153](../decisions/RT_PDR_00_Decision_Log.md). 
 | 3D map / verticalità | v0.3 | **`future`** ➡️ | nessuno — `RT-FEAT-MAP-VERTICALITY` è `IDEA` | `DEFER` |
 | Interactive map | v0.4 | **v0.1** ⬅️⬅️ | **E23** ([#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)), anticipata il 2026-08-17 (`D-160`) | il kit è **indietro di due release**, non di una |
 | Tactical devices | v0.5 | **fuori scope dichiarato** | — | `DEFER` |
-| Destruction / debris | v0.6 | **`future`** ➡️ | nessuno — `RT-FEAT-MAP-STRUCTURAL` è `IDEA` | `DEFER` |
+| Destruction / debris | v0.6 | **v0.2** ⬅️⬅⬅️ | **E51** ([#1848](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1848)), creata il 2026-08-30 | il kit è **indietro di quattro release** |
 | Perception / information | v0.7 | **v0.1** ⬅️ e v0.3 | **E13** (base) · **E27** (completa) | il kit è **indietro** |
 | Objectives | v0.8 | **v0.1** ⬅️ e v0.4 | **E10** (base) · **E31** (multipli) | il kit è **indietro** |
 | Modularization | v0.9 | **nessuna** | authoring, non contenuto di release | `DEFER` |
 | Contract freeze | v1.0 | **v1.0** ✅ | **E45** | allineato |
 
-**Una riga su dieci coincide esattamente** — il contract freeze. Le altre nove divergono in **quattro**
+**Una riga su dieci coincide esattamente** — il contract freeze. Le altre nove divergono in **cinque**
 modi, e vale la pena non confonderli:
 
 | Modo | Quali | Quante |
 |---|---|--:|
 | il repository li ha già, o li sta costruendo, prima di dove il kit li mette | Environment · Interactive map · Perception · Objectives | **4** |
-| nessuna release li possiede | 3D map · Destruction (`future`, feature `IDEA`) · Tactical devices (**fuori scope dichiarato**) | **3** |
+| ha una release e un owner, ma il lavoro non è ancora aperto | Destruction / debris (**E51**, v0.2) | **1** |
+| nessuna release li possiede | 3D map · Tactical devices (**fuori scope dichiarato**) | **2** |
 | a cavallo di due release | Core map (con la coda di muri e porte in v0.2) | **1** |
 | non è contenuto di release, è authoring | Modularization | **1** |
+
+> ⚠️ **Il quinto modo è nato il 2026-08-30, e prima non serviva.** Fino a quel giorno `Destruction /
+> debris` stava sotto *«nessuna release li possiede»* insieme a 3D map e Tactical devices, e quel gruppo
+> contava **3**. La riga non è stata cancellata: è **cambiata di modo**, perché la distruzione ha acquisito
+> una release (**v0.2**) e un owner (**E51**, [#1848](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1848))
+> mentre le altre due no. Metterla nel primo modo sarebbe stato falso in senso opposto: il repository **non**
+> la sta costruendo, e l'epic non apre lavoro prima che i quindici gate della v0.1 siano verdi. Il totale
+> resta nove — ma, come questa stessa sezione avverte due paragrafi più in basso, **un totale che torna non
+> convalida la partizione**, ed è il modo a essere cambiato, non la somma.
+> Provenance: [`plans/structural-debris-canonicalization-spec-panel-2026-08-30.md`](plans/structural-debris-canonicalization-spec-panel-2026-08-30.md).
 
 > ⚠️ *Questa frase ha sbagliato il conto **due volte**. Diceva «due modi opposti» mentre i due paragrafi
 > che li spiegano coprivano `4 + 3 = 7` righe su nove — Core map e Modularization restavano fuori da
@@ -150,8 +161,8 @@ sapesse.
 > Interactive map era falso — contraddetto dalla tabella sopra e dalla riga «Core map» che questa stessa PR
 > aveva aggiunto per registrare che E23 è v0.2. Corretta la metà falsa, era rimasta l'altra.*
 
-➡️ **Tre cluster non hanno una release che li possieda, e non per la stessa ragione.** Verticalità e
-distruzione sono feature `IDEA` su `future`; i devices tattici **non sono `future` affatto** — sono **fuori
+➡️ **Due cluster non hanno una release che li possieda, e non per la stessa ragione.** La verticalità
+resta senza owner; i devices tattici **non sono `future` affatto** — sono **fuori
 scope v0.1 dichiarato** da [`../gameplay/spec-interazioni-mappa-cp101.md`](../gameplay/spec-interazioni-mappa-cp101.md)
 §11, che li rinvia a E13/E14 con motivazione registrata. Qui l'ordine del kit è giusto e la release non
 esiste: **si lasciano `future` invece di inventarne una**, ed è la parte di `D-136` che questa tabella
@@ -752,6 +763,83 @@ secondo handoff della giornata; il primo è
 [`plans/teleport-instant-movement-2026-08-12.md`](../archive/roadmap-plans/teleport-instant-movement-2026-08-12.md).
 Owner della regola: [`../gameplay/spec-tassonomia-movimento.md`](../gameplay/spec-tassonomia-movimento.md).
 Feature Registry: `RT-FEAT-ACTION-SPATIAL-TRANSFER`.
+
+---
+
+### E51 — Detriti strutturali, crolli e Rubble · P3
+
+**Tracciata su GitHub**: epic [#1848](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1848).
+
+**Obiettivo**: distruggere una struttura non significa farla **sparire** — significa produrre una nuova
+trasformazione tattica della mappa, persistente e leggibile.
+
+> **La struttura decide QUANTO materiale esiste. L'effetto decide COME viene distribuito.**
+
+**Perché non è v0.1**: nessuno dei quindici gate riguarda la distruzione strutturale, e questa epic non apre
+lavoro prima che siano verdi.
+
+> ⚠️ **Questa epic ESTENDE l'Environmental System esistente. NON introduce una seconda simulazione.**
+> `E8` [#22](https://github.com/DegrassiAaron/refactor-tactics-main/issues/22) è chiusa e possiede terreni,
+> stati temporanei, propagazione e interazioni sistemiche; `ERTHexSurface` ha nove valori e fuoco/acqua/ghiaccio
+> girano. I detriti sono **un elemento in più nella grammatica esistente**. Nessun `RubbleManager` accanto a
+> `MapState`, nessun Actor per detrito, nessun pathfinder o sistema di percezione Rubble-specific.
+
+**Perché non è un'epic vuota, e cosa la rende diversa da E39**: qui la semantica **non** esiste già. Misurato
+su `d446a051`, `Source/RefactorTactics/` contiene **zero** occorrenze di `StructuralDebrisYield`,
+`DebrisBudget`, `DebrisState`, `SpreadProfile` e `CollapseProfile`; le uniche «macerie» sono una metafora in
+un commento su archi `Destroyed`. Ciò che esiste è tutto **attorno**: lo stato ambientale di cella
+(`ERTHexSurface`), la classificazione graduata dell'occupancy (`ERTCellOccupancy`, cotta da dodici settori
+con un sovrapprezzo che la consuma), la primitiva di spostamento forzato
+(`ARTTurnManager::ApplyForcedDisplacement`, [#541](https://github.com/DegrassiAaron/refactor-tactics-main/issues/541)),
+la revisione del grafo (`CurrentGraphRevision()`) e il canale causale del TurnLog
+(`ERTLogCategory::Environment`).
+
+🔴 **Il rischio architetturale ha un nome: costruire un secondo modello di blocco.** `ERTCellOccupancy` già
+risponde a «quanto materiale c'è in questa cella e quanto costa attraversarla», con soglie d'autore che
+entrano nell'hash di stato partita. La scala dei detriti si innesta **lì**, o il gioco avrà due risposte
+diverse alla stessa domanda.
+
+| CP | Obiettivo | DoD misurabile |
+|---|---|---|
+| **51.1** | Stati discreti, cella occupata e policy `BlockedDebris` — **la decisione precede il codice** | La tassonomia è decisa e i nomi C++ verificati contro il codice reale. È misurato **come** la scala si innesta su `ERTCellOccupancy` invece di affiancarlo. Il comportamento sotto un'unità viva è esplicito per **ogni** stato. La occupied-cell policy è canonizzata o respinta con motivazione, con tie-break stabile su `FRTCellId`. [#1849](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1849) |
+| **51.2** 🥇 | Il primo slice: un producer strutturale reale e un consumer | **Non si gonfia.** Un evento che il gioco già produce genera detriti; almeno un'interazione li consuma o trasforma; TurnLog, ordine deterministico, scenario, mutation test, e `StateHash` invariato sugli scenari **senza** detriti. [#1132](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1132) |
+| **51.3** | `DebrisBudget`, `CollapseProfile` e distribuzione deterministica | `StructuralDebrisYield` è proprietà della **struttura**, non derivata dal danno. Il budget è temporaneo e verificabilmente distinto dallo stato. La distribuzione produce una **lista ordinata** di mutazioni; accumulo, capacità e overflow hanno una regola. Permutation invariance. [#1850](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1850) |
+| **51.4** | Detriti su celle e archi: traversal, topologia e `GraphRevision` | L'ownership cella vs arco è esplicita. ⚠️ La contraddizione su `ERTHexArcState::Destroyed` — dichiarato **TERMINALE**, mentre il consolidamento voleva che `Clear` riaprisse un arco — è **sciolta**, non aggirata; se l'enum si estende il valore va **in coda** con migrazione progettata. `GraphRevision` cambia e la cache di path si invalida. Nessun pathfinder Rubble-specific. [#1851](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1851) |
+| **51.5** | `Clear Rubble`: rimozione esplicita e deterministica | Task/interazione, **non** una singola ability: chi può eseguirla è un dato. Progressione inversa all'accumulo, un gradino per step. L'interruzione **preserva** il progresso, asserito da un test. Nessuna risorsa nuova senza decisione esplicita. [#1852](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1852) |
+| **51.6** | Determinismo, `StateHash`, TurnLog e scenari integrati | Scenario end-to-end `producer → distribuzione → occupancy → clear` verde. `StateHash` include i detriti; uno scenario **senza** detriti ha hash invariato. Repeat e permutation. Il TurnLog ricostruisce causa/prima/dopo. Mutation test mirato. [#1853](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1853) |
+
+**Ordine, e non è quello numerico**: `51.1 → 51.2` porta il primo detrito nel gioco con una tassonomia già
+decisa. Solo dopo si aprono `51.3` (quantità) e `51.4` (topologia), poi `51.5` (rimozione). `51.6` accompagna
+le altre invece di chiuderle.
+
+**Invarianti da preservare**: `Rubble` ≠ `Rough` · `Rubble` ≠ `blocked = true` · `DebrisBudget` ≠ `DebrisState`
+· nessun degrado naturale · `MovementBlocking`/`Cover`/`Opacity`/`ProjectileBlocking` restano proprietà
+distinte · nessun branch `HeroId` nel resolver · Chaos, mesh e VFX non sono autorità.
+⛔ **`damage dealt` non è un proxy di `StructuralDebrisYield`.**
+
+**Dipendenze**: `E8` [#22](https://github.com/DegrassiAaron/refactor-tactics-main/issues/22) (chiusa — si
+estende, non si riapre) · [#541](https://github.com/DegrassiAaron/refactor-tactics-main/issues/541) per lo
+spostamento forzato. **Cross-link, non dipendenze**: `E23`
+[#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324) possiede strutture, archi e
+interaction graph ed è **related, non parent**; `E12` [#26](https://github.com/DegrassiAaron/refactor-tactics-main/issues/26)
+il determinismo; [#1733](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1733) l'invariante di
+occupancy, che questa epic **non duplica** e a cui non crea eccezioni.
+
+**Rischi**: il secondo modello di blocco (mitigazione in `51.1`) · la migrazione di `ERTHexArcState`, che è
+serializzato negli asset (si progetta in `51.4`, non si improvvisa) · l'inflazione di `51.2`, che è stretta
+per costruzione e resta tale.
+
+**Non fa**: `MaterialProfile` · `Dust` · `Wind` e `Flying Debris` · Chaos come autorità · reazioni materiali
+avanzate · valutazione bot · hardening di rete · telemetria · VFX e asset finali. Restano differiti finché non
+hanno owner e release canonici.
+
+Referto d'origine:
+[`plans/structural-debris-canonicalization-spec-panel-2026-08-30.md`](plans/structural-debris-canonicalization-spec-panel-2026-08-30.md),
+che consolida il documento Drive *Structural Debris & Rubble — Canonical Consolidation*.
+Mirror di dominio: `05 — Roadmap — Environment Systems & Gameplay Effects`.
+
+⚠️ L'identificatore `RT-FEAT-MAP-STRUCTURAL`, che la tabella del Graybox Kit cita più sopra, è **provenance
+storica**: il Feature Registry è uscito dal repository con `D-181`. Non va ricreato.
 
 ---
 
