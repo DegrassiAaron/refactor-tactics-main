@@ -30,8 +30,9 @@ issue [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613).
 
 **Misurato su `285d2322`** (`origin/main`). **36 caselle su 61** risultavano fatte e sono state spuntate.
 
-> 🔧 **Aggiornamento del 2026-08-30, secondo giro**: lo **Step 7.4 è stato implementato e chiuso** — vedi
-> «Lo stato neutro del dock» più sotto. Il conteggio sale a **37 su 61**.
+> 🔧 **Aggiornamenti del 2026-08-30**: lo **Step 7.4 è stato implementato e chiuso** — vedi
+> «Lo stato neutro del dock» più sotto; la **guardia** dello Step 3.4 è scritta (resta la sua seconda riga);
+> e la **suite intera** è stata misurata per la prima volta, Step 8.1. Il conteggio sale a **38 su 61**.
 
 **Metodo, e il suo confine.** Il C++ e i `.ini` sono letti con `git grep` e citati per riga. I sette
 `.uasset` sono misurati **per estrazione di stringhe** — `perl -ne 'while(/([\x20-\x7E]{4,})/g){print
@@ -48,7 +49,7 @@ agente le può chiudere, come dice il preambolo.
 | 5 — `WBP_RT_SelectedUnitPanel` | 5 / 6 | 1 | i tre slot leggono `bOccupied`/`DisplayName`, non li deducono |
 | 6 — `WBP_RT_ActionSlot` | 5 / 5 | 0 | **chiuso** |
 | 7 — `WBP_RT_ActionDock` | 5 / 6 | 1 | lo Step 7.4 **chiuso il 2026-08-30** |
-| 8 — chiusura | 2 / 16 | 14 | fatta solo la correzione della guida |
+| 8 — chiusura | 3 / 16 | 13 | guida corretta, e la suite intera misurata il 2026-08-30 |
 
 ### Quattro cose che la misura ha trovato, e che cambiano il piano
 
@@ -173,6 +174,30 @@ per la stessa condizione, che è la classe di incoerenza contro cui è scritto i
 appena aggiunta, «nessun contesto» è già rappresentato — e in modo uguale al fratello accanto. Il binding
 resta da fare se si decide che il timer debba *sparire* invece che dire `—`; non è una scelta da prendere
 in silenzio mentre si chiude una casella.
+
+### La suite intera — Step 8.1, 2026-08-30
+
+Mai eseguita per intero fino a oggi. Misurata con `scripts/rt-suite.ps1` (default `-Filter RefactorTactics`),
+che è la via giusta proprio per l'avvertenza di questo step — *«una suite troncata da un crash sembra
+verde»*: lo script confronta il `Found N` dichiarato in testa al log con i `Test Completed`, e senza quel
+riscontro dichiara **NON VALIDA** invece di verde.
+
+```text
+[RT-MEASURE] VALIDA
+[RT-MEASURE]   HEAD      71261937  albero ae48caf4
+[RT-MEASURE]   esito     1397/1397 completati, 0 fallimenti
+[RT-MEASURE]   durata    04:48
+```
+
+`LogAutomationCommandLine: Found 1397 automation tests based on 'RefactorTactics'` — **1397 trovati, 1397
+completati, zero fallimenti**, exit `0`. I due gruppi che lo step chiede di guardare in particolare sono
+verdi: `RefactorTactics.HUD.*` **9/9** e `RefactorTactics.ScreenHud.*` **9/9**; `RefactorTactics.Frontend.*`
+**80/80**. Il §4.2 non ha regressioni: le due modifiche d'Editor di oggi non hanno avuto effetti fuori dal
+loro layer.
+
+⚠️ **`1397` è il numero misurato su `71261937`, non un numero da copiare.** Lo Step 8.6 lo pretende
+rimisurato al momento del consuntivo: fra qui e la chiusura di `#613` altre sessioni aggiungono test, e
+`1397` invecchia in giornata.
 
 ### Cosa resta, in ordine
 
@@ -1169,7 +1194,7 @@ Quando ci si arriva, i candidati da confrontare sono:
 - Modifica: `docs/technical/runbooks/guida-screen-hud-umg.md`
 - Modifica: `docs/roadmap/editor-sessions.yaml` *(esito di `PIE-V01-HUD`, seduta U15)*
 
-- [ ] **Step 8.1 — Suite completa, e nessuna regressione nel §4.2**
+- [x] **Step 8.1 — Suite completa, e nessuna regressione nel §4.2**
 
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
