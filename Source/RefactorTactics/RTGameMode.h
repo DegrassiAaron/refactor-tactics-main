@@ -7,6 +7,9 @@
 // CP 46.2: il rapporto d'avvio. E' un tipo di **dato** — enum e struct puri, nessuna dipendenza dal
 // frontend: il GameMode dichiara cosa e' successo, chi mostra la cosa sta dall'altra parte.
 #include "Frontend/RTStartupReport.h"
+// Il ciclo di vita a runtime degli scenari. E' un membro per VALORE, quindi serve la definizione: la
+// forward declaration basterebbe solo per un puntatore, e un'indirezione qui non comprerebbe niente.
+#include "ScenarioHarness/RTScenarioCoordinator.h"
 #include "RTGameMode.generated.h"
 
 class ARTUnit;
@@ -281,9 +284,6 @@ public:
 	 */
 	ERTMapSource ResolveMapSource() const;
 
-	/** Sessione dello scenario in corso, fatta avanzare un passo per frame da `Tick`. Nulla = nessuno scenario. */
-	TSharedPtr<class FRTScenarioSession> ScenarioSession;
-
 	/** Vero finché lo scenario sta girando: serve alla diagnostica e ai test. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Test")
 	bool IsScenarioRunning() const;
@@ -408,6 +408,24 @@ protected:
 	void HandleTeamKnowledgeRefreshed(int32 TurnNumber);
 
 private:
+	/**
+	 * Il ciclo di vita dello scenario, quando questa sessione ne esegue uno.
+	 *
+	 * ⛔ **Il GameMode decide SE si gioca uno scenario; il coordinatore sa COME si esegue.** Qui restano la
+	 * precedenza fra le tre sorgenti (`ResolveScenarioToRun`) e la scelta fra scenario e partita; caricamento,
+	 * sessione, avanzamento e referto stanno dall'altra parte, con i quattro collaboratori dell'harness che
+	 * questo file non deve piu' nominare.
+	 */
+	FRTScenarioCoordinator ScenarioCoordinator;
+
+	/**
+	 * Centra la camera sulla mappa dello scenario, al tick successivo.
+	 *
+	 * Resta qui e non nel coordinatore per una ragione di **ciclo di vita**, non di dominio: il timer si
+	 * aggancia a un Actor vivo, e il coordinatore e' una classe C++ pura che non ne ha uno da offrire.
+	 */
+	void RecenterCameraOnScenario();
+
 	/** Le condizioni rilevate durante l'allestimento (CP 46.2). Vedi `GetStartupReport()`. */
 	FRTStartupReport StartupReport;
 

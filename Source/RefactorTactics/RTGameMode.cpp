@@ -12,11 +12,6 @@
 #include "Frontend/RTFrontendNavigator.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
-#include "ScenarioHarness/RTScenarioRunner.h"
-#include "ScenarioHarness/RTTestResult.h"
-#include "ScenarioHarness/RTScenarioSession.h"
-#include "ScenarioHarness/RTScenarioLoader.h"
-#include "ScenarioHarness/RTTestReportWriter.h"
 #include "UObject/ConstructorHelpers.h" // FClassFinder: i BP_Unit_* dei quattro eroi (CP E21.1)
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
@@ -69,6 +64,24 @@ namespace RTScenarioEntry
 		if (!CVarRTTestScenario.GetValueOnGameThread().IsEmpty()) { return EWinner::ConsoleVariable; }
 		if (!FromCommandLine().IsEmpty())                        { return EWinner::CommandLine; }
 		return EWinner::Property;
+	}
+
+	/**
+	 * L'etichetta della fonte per il **log** dell'AUTO-RUN.
+	 *
+	 * ⚠️ Non e' quella della banda a schermo, e la differenza e' voluta: nel log la fonte si scrive per
+	 * esteso perche' chi legge un log non ha il contesto, sulla banda si scrive corta perche' lo spazio e'
+	 * quello di una riga. Le due tabelle restano due, ma leggono lo **stesso** `Winner()`.
+	 */
+	static const TCHAR* LogSourceLabel()
+	{
+		switch (Winner())
+		{
+		case EWinner::ConsoleVariable: return TEXT("console rt.Test.Scenario");
+		case EWinner::CommandLine:     return TEXT("riga di comando -RTScenario=");
+		case EWinner::Property:        break;
+		}
+		return TEXT("proprieta' del GameMode");
 	}
 }
 
@@ -341,67 +354,28 @@ void ARTGameMode::BeginPlay()
 	// allestita e al suo posto gira lo scenario. E' il workflow «premo Play e parte da solo» del documento
 	// di specifica, senza Actor da trascinare in un livello e quindi senza toccare nessun `.umap`.
 	//
-	// Il GameMode e' il posto giusto per questa decisione: sceglie COSA allestire, che e' il suo mestiere.
-	// Il resolver e il turn manager restano ignari dell'harness (nessun `if (IsTest)` nel gameplay).
-	const FString TestScenario = ResolveScenarioToRun();
-	if (!TestScenario.IsEmpty())
+	// Il GameMode e' il posto giusto per questa DECISIONE: sceglie COSA allestire, che e' il suo mestiere —
+	// e la precedenza fra le tre sorgenti resta sua, accanto a quelle di `MapSource` e dell'autobattle.
+	// COME si esegue uno scenario lo sa `FRTScenarioCoordinator`: caricamento, sessione, avanzamento e
+	// referto. Il resolver e il turn manager restano ignari dell'harness (nessun `if (IsTest)` nel gameplay).
+	switch (ScenarioCoordinator.Start(World, ResolveScenarioToRun(),
+		RTScenarioEntry::LogSourceLabel(), ScenarioTurnPauseSeconds))
 	{
-		// La sessione parte QUI ma avanza in Tick, un passo per frame: e' cio' che rende lo scenario
-		// osservabile. Risolvendo tutto dentro BeginPlay finiva prima del primo fotogramma, e quel che si
-		// vedeva muoversi erano turni fantasma — misurato in PIE, non supposto.
-		FString ScenarioError;
-		FRTTestScenario Scenario;
-		const FString ScenarioPath = URTScenarioIndex::ResolvePath(TestScenario, ScenarioError);
-		if (ScenarioPath.IsEmpty() || !URTScenarioLoader::LoadFromFile(ScenarioPath, Scenario, ScenarioError))
-		{
-			UE_LOG(LogRT, Error, TEXT("[RT-Test] scenario '%s' non caricabile: %s"), *TestScenario, *ScenarioError);
-			return;
-		}
+	case ERTScenarioStart::NotRequested:
+		// Partita normale: si prosegue qui sotto.
+		break;
 
-		// La FONTE va dichiarata sempre, non solo quando c'e' conflitto: chi legge il log deve poter dire
-		// «sta girando quello che ho scelto io» senza dedurlo dal comportamento a schermo.
-		const TCHAR* Source = TEXT("proprieta' del GameMode");
-		switch (RTScenarioEntry::Winner())
-		{
-		case RTScenarioEntry::EWinner::ConsoleVariable: Source = TEXT("console rt.Test.Scenario"); break;
-		case RTScenarioEntry::EWinner::CommandLine:     Source = TEXT("riga di comando -RTScenario="); break;
-		case RTScenarioEntry::EWinner::Property:        break;
-		}
-		// ⚠️ Un free-run non enumera turni: `Turns.Num()` li' vale **zero**, e questa riga annuncerebbe «0 turni»
-		// un istante prima di giocarne dieci. La riga esiste perche' chi guarda possa dire «sta girando quello
-		// che ho scelto io» senza dedurlo dallo schermo, quindi dire il falso la rende peggio che assente.
-		const int32 TurniAnnunciati = Scenario.bFreeRun ? Scenario.MaxTurns : Scenario.Turns.Num();
-		UE_LOG(LogRT, Warning, TEXT("[RT-Test] AUTO-RUN %s (da: %s): %s%d turni, pausa %.1fs — avanza un passo per frame"),
-			*TestScenario, Source, Scenario.bFreeRun ? TEXT("free-run, tetto ") : TEXT(""),
-			TurniAnnunciati, ScenarioTurnPauseSeconds);
+	case ERTScenarioStart::NotLoadable:
+		// 🔴 **Fail-closed, e la riga vale quanto il resto della funzione**: chi ha chiesto uno scenario che
+		// non si carica non deve ritrovarsi a giocare una partita normale che non ha chiesto. Il motivo e'
+		// gia' nel log del coordinatore.
+		return;
 
-		ScenarioSession = MakeShared<FRTScenarioSession>();
-		ScenarioSession->TurnPauseSeconds = ScenarioTurnPauseSeconds;
-		if (!ScenarioSession->Start(World, Scenario))
-		{
-			UE_LOG(LogRT, Error, TEXT("[RT-Test] %s -> ERROR: %s"),
-				*TestScenario, *ScenarioSession->GetResult().ErrorMessage);
-		}
+	case ERTScenarioStart::Started:
+		// Il Tick del GameMode esiste per questo e solo per questo: si accende quando c'e' qualcosa da far
+		// avanzare, e una partita normale non lo paga.
 		SetActorTickEnabled(true);
-
-		// INQUADRATURA. Il percorso dello scenario non passa da `SetupHexMatch`, dove la partita normale si
-		// preoccupa di cio' che si vede: senza questo, la camera restava dove l'aveva lasciata il proprio
-		// BeginPlay — troppo alta e fuori centro. E' presentazione, non simulazione: non tocca l'esito.
-		//
-		// Al tick successivo, non subito: la camera potrebbe non essere ancora nata (l'ordine di BeginPlay fra
-		// actor non e' garantito, ed e' la stessa ragione per cui `ARTCameraPawn` gia' riprova una volta).
-		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
-		{
-			if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(
-					UGameplayStatics::GetActorOfClass(this, ARTCameraPawn::StaticClass())))
-			{
-				// Lo scenario non ha una «propria squadra» da inquadrare: le unita' sono di entrambe, e quel che
-				// interessa e' vedere il campo INTERO, con tutti i movimenti dentro. `RecenterView` centra sulla
-				// mappa e riporta lo zoom d'insieme, che e' esattamente l'inquadratura giusta per guardare.
-				Cam->RecenterView();
-				UE_LOG(LogRT, Log, TEXT("[RT-Test] Camera centrata sulla mappa dello scenario."));
-			}
-		}));
+		RecenterCameraOnScenario();
 		return;
 	}
 
@@ -1180,41 +1154,44 @@ void ARTGameMode::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (!ScenarioSession.IsValid() || ScenarioSession->IsFinished())
+	ScenarioCoordinator.Tick(DeltaSeconds);
+}
+
+void ARTGameMode::RecenterCameraOnScenario()
+{
+	UWorld* World = GetWorld();
+	if (!World)
 	{
 		return;
 	}
 
-	// `bPumpTurnManager = false`: qui il mondo ticca gia' il turn manager. Pomparlo anche da qui lo farebbe
-	// correre al doppio della velocita', e il playback che si vuole GUARDARE passerebbe in meta' del tempo.
-	ScenarioSession->Step(DeltaSeconds, /*bPumpTurnManager=*/ false);
-
-	if (ScenarioSession->IsFinished())
+	// INQUADRATURA. Il percorso dello scenario non passa da `SetupHexMatch`, dove la partita normale si
+	// preoccupa di cio' che si vede: senza questo, la camera restava dove l'aveva lasciata il proprio
+	// BeginPlay — troppo alta e fuori centro. E' presentazione, non simulazione: non tocca l'esito.
+	//
+	// ⚠️ **Sta nel GameMode e non nel coordinatore**, ed e' una scelta di ciclo di vita e non di dominio:
+	// il timer va agganciato a un Actor vivo (`CreateWeakLambda` su `this`), e il coordinatore e' una classe
+	// C++ pura senza vita propria da offrire al timer.
+	//
+	// Al tick successivo, non subito: la camera potrebbe non essere ancora nata (l'ordine di BeginPlay fra
+	// actor non e' garantito, ed e' la stessa ragione per cui `ARTCameraPawn` gia' riprova una volta).
+	World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]()
 	{
-		const FRTTestResult& Result = ScenarioSession->GetResult();
-		FString ReportDir, WriteError;
-		if (!URTTestReportWriter::Write(Result, FString(), ReportDir, WriteError))
+		if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(
+				UGameplayStatics::GetActorOfClass(this, ARTCameraPawn::StaticClass())))
 		{
-			UE_LOG(LogRT, Error, TEXT("[RT-Test] report non scritto: %s"), *WriteError);
+			// Lo scenario non ha una «propria squadra» da inquadrare: le unita' sono di entrambe, e quel che
+			// interessa e' vedere il campo INTERO, con tutti i movimenti dentro. `RecenterView` centra sulla
+			// mappa e riporta lo zoom d'insieme, che e' esattamente l'inquadratura giusta per guardare.
+			Cam->RecenterView();
+			UE_LOG(LogRT, Log, TEXT("[RT-Test] Camera centrata sulla mappa dello scenario."));
 		}
-		UE_LOG(LogRT, Warning, TEXT("[RT-Test] FINITO %s -> %s (%d/%d assertion, %d turni) · report: %s"),
-			*Result.ScenarioId, *Result.OutcomeString(), Result.PassedCount(), Result.Assertions.Num(),
-			Result.TurnsPlayed, ReportDir.IsEmpty() ? TEXT("non scritto") : *ReportDir);
-
-		for (const FRTAssertionResult& A : Result.Assertions)
-		{
-			if (!A.bPassed)
-			{
-				UE_LOG(LogRT, Error, TEXT("[RT-Test]   FALLITA %s: atteso %s, ottenuto %s"),
-					*A.Description, *A.Expected, *A.Actual);
-			}
-		}
-	}
+	}));
 }
 
 bool ARTGameMode::IsScenarioRunning() const
 {
-	return ScenarioSession.IsValid() && !ScenarioSession->IsFinished();
+	return ScenarioCoordinator.IsRunning();
 }
 
 FString ARTGameMode::GetScenarioBannerText() const
@@ -1261,10 +1238,11 @@ FString ARTGameMode::GetScenarioBannerText() const
 	case RTScenarioEntry::EWinner::Property:        break;
 	}
 
-	FString Esito = TEXT("in corso");
-	if (ScenarioSession.IsValid() && ScenarioSession->IsFinished())
+	// Vuoto = nessun verdetto ancora: e' un terzo stato, non un esito mancante. Vedi `OutcomeString()`.
+	FString Esito = ScenarioCoordinator.OutcomeString();
+	if (Esito.IsEmpty())
 	{
-		Esito = ScenarioSession->GetResult().OutcomeString();
+		Esito = TEXT("in corso");
 	}
 
 	return FString::Printf(TEXT("SCENARIO %s [%s]  -  %s  -  la partita normale NON e' allestita"),
