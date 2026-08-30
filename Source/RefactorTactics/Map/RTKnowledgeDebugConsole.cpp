@@ -46,6 +46,21 @@
  * `ExploredCells`, e il terzo stato e' l'assenza da entrambe) — il difetto che [D-146] registra per una
  * tassonomia che non corrispondeva al modello reale.
  *
+ * 🔴 **E' una FOTOGRAFIA, e non si aggiorna da sola: va RIESEGUITO dopo ogni refresh.**
+ *
+ * `SetKnowledgeDebugEnabled` posa i volumi una volta, con la conoscenza che riceve in quel momento.
+ * Chi lo esegue **prima del primo `PlanBots`** — che e' l'unico produttore di conoscenza, e gira a
+ * inizio turno — legge `0 osservate · 0 ricordate · N mai viste`, e quello scatto resta a schermo per
+ * tutta la partita mentre la conoscenza vera cambia sotto.
+ *
+ * ⚠️ **I due sintomi che ne derivano sono indistinguibili da un velo rotto**, ed e' costato una
+ * diagnosi sbagliata il 2026-08-30: la board appare invisibile (i volumi a `1/3` non sono le celle, che
+ * il velo ha tolto) e i prismi fanno **z-fighting** sulle celle sottostanti, cioe' «flickering». Prima di
+ * concludere che il velo sia guasto, si guarda **dove sta il turno** nel log: uno `0` misurato prima del
+ * primo refresh non e' un difetto, e' uno scatto anticipato.
+ *
+ * Con l'argomento il comando **riaggiorna** la fotografia; senza argomento **spegne** i volumi.
+ *
  * Sola lettura: non tocca lo stato di gioco. Namespace `rt.Debug.*` di CP 11.4 (#80), come
  * `rt.Debug.DrawCells` accanto a cui vive.
  */
