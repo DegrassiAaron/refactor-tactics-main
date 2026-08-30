@@ -10,6 +10,7 @@
   "_nota_aritmetica": "T1: 90 - 10 (fuoco all'ingresso) - 8 (Burning nel Cleanup) = 72. T2: 72 - 16 (PressureJet) = 56, e Burning e' stato rimosso prima del Cleanup. **48 sarebbe il valore se il bagnato NON spegnesse**: e' la differenza fra i due numeri a dare valore a questo scenario.",
 
   "_nota_fuoco": "Wraith resta sulla cella di fuoco anche al turno 2, e va bene: l'effetto del terreno e' `on-enter`, non `on-stay`, quindi non si riapplica a chi e' gia' li'. La spinta di PressureJet lo sposta comunque fuori dalla fiamma.",
+  "_errata_scudo": "ERRATA (2026-08-30): i conti in prosa qui sopra NON sottraggono lo SCUDO BASE, e sono quindi piu' bassi del vero: 56 -> 61. Il valore giusto e' quello di `expect`, che il corpus verifica a ogni run; la prosa e' rimasta indietro. Causa: `URTCombatLibrary::BaseShield = 5` (D-224) esiste dal COSTRUTTORE di `ARTUnit`, quindi ogni unita' assorbe 5 danni prima degli HP, e ogni nota scritta prima di D-224 sbaglia di 5 per bersaglio colpito. Il conto originale NON e' stato riscritto di proposito: dice ancora cosa faceva il gioco quando fu scritto.",
 
   "units": [
     { "id": "R1", "hero": "Hero.Phase",   "team": 0, "cell": [-2,  0, 0] },
