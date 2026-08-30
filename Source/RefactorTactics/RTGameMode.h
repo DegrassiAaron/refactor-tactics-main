@@ -14,6 +14,9 @@
 // Il ciclo di vita a runtime degli scenari. E' un membro per VALORE, quindi serve la definizione: la
 // forward declaration basterebbe solo per un puntatore, e un'indirezione qui non comprerebbe niente.
 #include "ScenarioHarness/RTScenarioCoordinator.h"
+// `FRTMatchRules`, per il membro `AssignedRules`: e' un valore, non un puntatore, quindi la sola forward
+// declaration di `URTMatchFormatData` piu' sotto non basterebbe.
+#include "Turn/RTMatchFormatData.h"
 #include "RTGameMode.generated.h"
 
 class ARTUnit;
@@ -312,6 +315,22 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Match")
 	const FRTStartupReport& GetStartupReport() const { return StartupReport; }
+
+	/**
+	 * Assegna la squadra ai giocatori presenti, derivando i posti dal formato.
+	 *
+	 * ⚠️ **Idempotente e chiamata da DUE lati** — `OnPostLogin` e `SetupHexMatch` — perche' il motore non
+	 * garantisce il loro ordine e le regole esistono solo dopo l'allestimento. Senza regole non fa nulla.
+	 */
+	void AssignSeats();
+
+protected:
+	virtual void OnPostLogin(AController* NewPlayer) override;
+
+private:
+	/** Le regole dell'ultimo allestimento riuscito. Vuote finche' non c'e' stato. */
+	FRTMatchRules AssignedRules;
+	bool bHasRules = false;
 
 protected:
 	virtual void BeginPlay() override;

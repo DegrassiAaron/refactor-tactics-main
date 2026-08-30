@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Templates/SubclassOf.h"
 #include "Map/RTMapSource.h"
+#include "Turn/RTMatchFormatData.h"
 
 class ARTHexMapActor;
 class ARTTurnManager;
@@ -88,6 +89,13 @@ struct FRTMatchBootstrapOutcome
 
 	/** Le unita' sono entrate in campo. Falso anche quando il livello portava gia' le proprie. */
 	bool bUnitsSpawned = false;
+
+	/**
+	 * Le regole in vigore, valide **solo** se `bModeLatched`. Escono di qui perche' il composition root ne
+	 * ha bisogno per derivare i posti dei giocatori: e' un OUTPUT dell'allestimento, non una seconda
+	 * risoluzione del formato — quella resta una sola.
+	 */
+	FRTMatchRules Rules;
 };
 
 /**

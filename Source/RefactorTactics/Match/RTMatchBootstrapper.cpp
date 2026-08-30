@@ -362,6 +362,7 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 	// smette di poter cambiare, ed e' esattamente questa riga.
 	Outcome.bModeLatched = true;
 	Outcome.bAutobattleInEffect = Config.bAutobattle;
+	Outcome.Rules = Rules;
 
 	// RITMO DEL TURNO, prima del ritorno anticipato qui sotto: e' configurazione del turno, non
 	// dell'allestimento, e vale anche su un livello che porta gia' le proprie unita' — dove l'allestimento

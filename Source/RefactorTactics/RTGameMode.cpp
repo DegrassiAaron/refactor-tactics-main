@@ -1,6 +1,8 @@
 #include "RTGameMode.h"
 #include "Camera/RTCameraPawn.h"
 #include "Player/RTPlayerController.h"
+#include "Player/RTPlayerState.h"
+#include "Turn/RTMatchFormatData.h"
 #include "UI/RTHUD.h"
 #include "Map/RTHexMapActor.h"
 #include "Unit/RTUnit.h" // FClassFinder<ARTUnit> nel costruttore, e il tipo di `HeroUnitClasses`
@@ -229,6 +231,9 @@ ARTGameMode::ARTGameMode()
 	DefaultPawnClass = ARTCameraPawn::StaticClass();
 	PlayerControllerClass = ARTPlayerController::StaticClass();
 	HUDClass = ARTHUD::StaticClass();
+	// L'identita' di squadra e' del client, e vive sul PlayerState. E' un framework default come i tre
+	// qui sopra, quindi sta nello stesso posto.
+	PlayerStateClass = ARTPlayerState::StaticClass();
 
 	// Tick abilitabile ma SPENTO all'avvio: si accende solo se parte uno scenario. Una partita normale non ha
 	// niente da far avanzare qui, e un GameMode che ticca a vuoto e' costo senza contropartita.
@@ -560,6 +565,64 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	{
 		bAutobattleInEffect = Outcome.bAutobattleInEffect;
 		AutobattleSourceLabel = Config.AutobattleSourceLabel;
+
+		AssignedRules = Outcome.Rules;
+		bHasRules = true;
+		AssignSeats();
+	}
+}
+
+void ARTGameMode::OnPostLogin(AController* NewPlayer)
+{
+	Super::OnPostLogin(NewPlayer);
+	AssignSeats();
+}
+
+void ARTGameMode::AssignSeats()
+{
+	if (!bHasRules)
+	{
+		// Le regole non ci sono ancora: chi ci passa adesso verra' assegnato da `SetupHexMatch`.
+		return;
+	}
+
+	// ⛔ Fail-closed sulla divisione: il default di `UnitsPerPlayer` e' `0`, e dividere per zero sarebbe
+	// un crash, non un ripiego.
+	if (AssignedRules.UnitsPerPlayer <= 0 || AssignedRules.UnitsPerTeam <= 0)
+	{
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] Il formato '%s' non dichiara quante unita' comanda una persona "
+				 "(UnitsPerTeam=%d, UnitsPerPlayer=%d): nessun posto assegnato."),
+			*AssignedRules.FormatId.ToString(), AssignedRules.UnitsPerTeam, AssignedRules.UnitsPerPlayer);
+		return;
+	}
+
+	const int32 SeatsPerTeam = AssignedRules.UnitsPerTeam / AssignedRules.UnitsPerPlayer;
+	const int32 TotalSeats = SeatsPerTeam * 2;
+
+	int32 Arrival = 0;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		ARTPlayerState* PS = It->IsValid() ? (*It)->GetPlayerState<ARTPlayerState>() : nullptr;
+		if (!PS)
+		{
+			continue;
+		}
+
+		if (Arrival >= TotalSeats)
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] Piu' giocatori (%d) che posti (%d) nel formato '%s': l'eccedenza resta senza "
+					 "squadra assegnata."),
+				Arrival + 1, TotalSeats, *AssignedRules.FormatId.ToString());
+			break;
+		}
+
+		// ALTERNATO e non «prima una squadra e poi l'altra»: con un posto per squadra il secondo arrivato
+		// prende la `1`, che e' il caso utile. Riempire prima la `0` metterebbe due persone dalla stessa
+		// parte lasciando l'altra vuota.
+		PS->AssignTeam(Arrival % 2);
+		++Arrival;
 	}
 }
 

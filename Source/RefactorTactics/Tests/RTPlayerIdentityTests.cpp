@@ -13,6 +13,12 @@
 #include "Player/RTPlayerState.h"
 #include "Tests/RTWorldFixtures.h"
 #include "UObject/UnrealType.h"
+#include "Map/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h"
+#include "Turn/RTTurnManager.h"
+#include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTMatchFormatData.h"
+#include "RTGameMode.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -159,6 +165,124 @@ bool FRTPlayerControllerHasNoTeamFieldTest::RunTest(const FString&)
     TestEqual(*FString::Printf(TEXT("nessuna UPROPERTY di squadra sul controller (trovate: %s)"),
             Colpevoli.Num() > 0 ? *FString::Join(Colpevoli, TEXT(", ")) : TEXT("nessuna")),
         Colpevoli.Num(), 0);
+    return true;
+}
+
+/**
+ * I posti si derivano dal FORMATO, e l'assegnazione e' idempotente e indipendente dall'ordine.
+ *
+ * 🔴 `OnPostLogin` e `BeginPlay` non hanno un ordine garantito, e il formato e' risolto solo
+ * nell'allestimento: `AssignSeats` chiamata prima delle regole non deve fare nulla NE' sporcare niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSeatsComeFromTheFormatTest,
+    "RefactorTactics.Player.SeatsComeFromTheFormat",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSeatsComeFromTheFormatTest::RunTest(const FString&)
+{
+    UWorld* World = RTWorldFixtures::MakeWorld();
+    if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+    // ⚠️ La mappa si costruisce con `MakeFlatArena` e si assegna a mano, come fa
+    // `RTMatchFormatWorldTests`: cosi' l'allestimento non emette l'avviso dell'arena generata e il test non
+    // deve dichiarare un `AddExpectedError` il cui conteggio andrebbe misurato a parte.
+    ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+    if (HexMap)
+    {
+        HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4);
+    }
+    World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+    ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+    ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 1);
+    if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("game mode"), GameMode)
+        || !TestNotNull(TEXT("controller"), PC))
+    {
+        RTWorldFixtures::DestroyWorld(World);
+        return false;
+    }
+
+    // PRIMA delle regole: non fa nulla e non sporca. La squadra resta quella scritta dalla fixture.
+    GameMode->AssignSeats();
+    TestEqual(TEXT("senza regole non assegna"), ARTPlayerState::TeamIdOf(PC), 1);
+
+    // Allestire risolve il formato e assegna: `Format.Skirmish2v2` fa 2/2 = 1 posto per squadra, quindi
+    // l'unico giocatore prende la squadra 0.
+    GameMode->SetupHexMatch(HexMap);
+    TestEqual(TEXT("un posto per squadra: il primo arrivato e' la squadra 0"),
+        ARTPlayerState::TeamIdOf(PC), 0);
+
+    // Idempotente: richiamarla non sposta nessuno.
+    GameMode->AssignSeats();
+    TestEqual(TEXT("idempotente"), ARTPlayerState::TeamIdOf(PC), 0);
+
+    RTWorldFixtures::DestroyWorld(World);
+    return true;
+}
+
+/**
+ * 🔑 **Il conteggio dei posti CAMBIA col formato, ed e' l'unico test che lo dimostra.**
+ *
+ * ⚠️ Con due soli giocatori non si distingue: l'alternanza da' `0` e `1` sia con un posto per squadra sia
+ * con due. Cio' che discrimina e' il TERZO arrivo — rifiutato quando i posti sono due, accolto sulla
+ * squadra `0` quando sono quattro. Senza questa asimmetria il test passerebbe anche con un numero di posti
+ * scritto in una costante.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSeatCountFollowsUnitsPerPlayerTest,
+    "RefactorTactics.Player.SeatCountFollowsUnitsPerPlayer",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSeatCountFollowsUnitsPerPlayerTest::RunTest(const FString&)
+{
+    // `UnitsPerTeam = 2`, `UnitsPerPlayer = 1` -> due posti per squadra, quattro in tutto: il terzo
+    // giocatore ENTRA, sulla squadra 0. Con `Format.Skirmish2v2` (2/2 = un posto per squadra) sarebbe
+    // rimasto fuori.
+    UWorld* World = RTWorldFixtures::MakeWorld();
+    if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+    ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+    if (HexMap)
+    {
+        HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4);
+    }
+    World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+    ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+    if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("game mode"), GameMode))
+    {
+        RTWorldFixtures::DestroyWorld(World);
+        return false;
+    }
+
+    URTMatchFormatData* Format = NewObject<URTMatchFormatData>();
+    Format->FormatId = FName(TEXT("Format.SeatTest2v2"));
+    Format->RoundLimit = 12;
+    Format->ExpectedRounds = 12;
+    Format->ScoreToWin = 0;
+    Format->UnitsPerTeam = 2;
+    Format->UnitsPerPlayer = 1;   // <- due posti per squadra, non uno
+    GameMode->MatchFormat = Format;
+
+    // Il valore sentinella `9` NON e' decorativo: se `AssignSeats` non assegnasse nessuno, le squadre
+    // resterebbero `{9, 9, 9}` e il test lo direbbe. Partendo da `0` un `AssignSeats` inerte passerebbe
+    // per due terzi.
+    ARTPlayerController* P0 = RTWorldFixtures::MakePlayerOnTeam(World, 9);
+    ARTPlayerController* P1 = RTWorldFixtures::MakePlayerOnTeam(World, 9);
+    ARTPlayerController* P2 = RTWorldFixtures::MakePlayerOnTeam(World, 9);
+    if (!TestNotNull(TEXT("tre controller"), P2))
+    {
+        RTWorldFixtures::DestroyWorld(World);
+        return false;
+    }
+
+    GameMode->SetupHexMatch(HexMap);
+
+    // ⚠️ L'ordine dell'iteratore dei controller non e' quello di spawn per contratto: si asserisce
+    // sull'INSIEME delle squadre assegnate, non su quale controller ha preso quale.
+    TArray<int32> Squadre = { ARTPlayerState::TeamIdOf(P0), ARTPlayerState::TeamIdOf(P1),
+                              ARTPlayerState::TeamIdOf(P2) };
+    Squadre.Sort();
+
+    TestEqual(TEXT("tre giocatori entrano tutti: due posti per squadra, nessuno resta al sentinella"),
+        Squadre, TArray<int32>({ 0, 0, 1 }));
+
+    RTWorldFixtures::DestroyWorld(World);
     return true;
 }
 
