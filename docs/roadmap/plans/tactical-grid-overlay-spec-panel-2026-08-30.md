@@ -8,13 +8,19 @@
 > **Modo**: critique · **Focus**: requirements + architecture
 >
 > **Cosa è**: il verdetto su un **mandato esecutivo end-to-end** — audit GitHub, creazione/riuso di issue,
-> aggiornamento roadmap, implementazione C++/asset, PIE, packaged. `/sc:spec-panel` è task documentale
-> ([`CLAUDE.md`](../../../CLAUDE.md) §6): **nessuna issue creata, chiusa o riaperta**, **nessun `D-nnn`
-> assegnato**, **nessuna riga di codice o asset toccata**. Le azioni raccomandate stanno in §8 come elenco.
+> aggiornamento roadmap, implementazione C++/asset, PIE, packaged. La **revisione** è task documentale
+> ([`CLAUDE.md`](../../../CLAUDE.md) §6): §1–§9 non hanno scritto nulla, e le azioni raccomandate stanno in
+> §8 come elenco.
 >
-> 🔵 **Una sola scrittura, e dopo il referto**: su autorizzazione esplicita dell'autore alla consegna, `A-1` e
-> `A-2` sono state applicate al **corpo di [#1614](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1614)**
-> — la sola mutazione GitHub di questo giro. Dettaglio e verifica in §8.
+> 🔵 **Poi l'autore ha deciso di eseguirne una parte, e quello è un atto separato — §10.** In due passaggi,
+> entrambi su autorizzazione esplicita: `A-1`/`A-2` applicate al corpo di
+> [#1614](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1614); poi
+> [#1758](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1758) **creata**,
+> [#289](https://github.com/DegrassiAaron/refactor-tactics-main/issues/289) e
+> [#286](https://github.com/DegrassiAaron/refactor-tactics-main/issues/286) **aggiornate**, e la roadmap della
+> feature creata in [`tactical-grid-overlay-roadmap-2026-08-30.md`](tactical-grid-overlay-roadmap-2026-08-30.md).
+> ⛔ **Nessuna issue chiusa o riaperta, nessuna Epic creata, nessun `D-nnn` assegnato** (ultimo: `D-248`),
+> **nessuna riga di codice o asset toccata**, [`roadmap-v0.1.md`](../roadmap-v0.1.md) **non toccata**.
 >
 > **Cosa non è**: un'autorità. Se una riga qui diverge dall'owner
 > ([`spec-pointer-interaction.md`](../../technical/systems/spec-pointer-interaction.md),
@@ -63,6 +69,12 @@ documenti storici e `fix(1515)` su `ScenarioHarness`/`RTTurnRules`. Nessuno tocc
 `spec-pointer-interaction.md` o `roadmap-v0.1.md`. Per la regola di
 [`CLAUDE.md`](../../../CLAUDE.md) §7 il worktree qui sarebbe costo puro: si lavora sul checkout e **si
 dichiara la divergenza**, che è questa riga.
+
+🔁 **E la divergenza si è chiusa da sola mentre il lavoro era in corso.** Misurato: `HEAD` è passato a
+`201016a6` *(«tactical grid docs»)*, che ha unito i sette commit e committato i file di questo giro; la
+divergenza da `origin/main` è ora `0/0`. Le misure di §5 e §7 restano riferite a **`d9feb9b0`** — è l'albero
+su cui sono state prese, e nessuno dei sette commit tocca `Map/`, `Player/` o gli owner citati, quindi
+valgono ancora. Ciò che **non** vale più è lo stato dei gate: vedi §9.
 
 ---
 
@@ -178,7 +190,7 @@ Ordinati per gravità. Ogni riga porta il modo di rifarla.
 | # | Sev | Rilievo | Evidenza |
 |---|---|---|---|
 | **R-1** | 🔴 | **§14 chiede di mantenere verdi tre test che non esistono.** `HoverNeverCommits`, `HUDConsumesPointerBeforeWorld`, `HiddenEnemyCannotBecomeHoverTarget`: zero occorrenze. I `PlayerInput.*` reali sono **16** e nessuno contiene `Hover`, `HUD` o `HiddenEnemy`. Eseguito alla lettera, il kit produce un verde su una prova assente | `git grep -l 'HoverNeverCommits' -- Source/` → vuoto · già tracciato e **chiuso** da [#1616](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1616) |
-| **R-2** | 🔴 | **§9 `GridLiftCm = 2.0` disegna dentro il tile.** La faccia superiore è `RTCellTopZ = RTCellPrismRadius · RTCellFlatScale` = **7,5 uu** dal 2026-08-28 (era `2,5`). Un lift di `2,0` finisce `5,5` uu sotto. E i sei default in **cm assoluti** contraddicono `D-168`/`D-163`: le altezze si budgettano in frazioni di `H` | [`RTMapVisuals.h`](../../../Source/RefactorTactics/Map/RTMapVisuals.h) — *«chi disegna qualcosa SOTTO `RTCellTopZ` lo disegna dentro un volume opaco … È successo davvero, due volte»* |
+| **R-2** | 🔴 | **§9 `GridLiftCm = 2.0` disegna dentro il tile.** La faccia superiore è `RTCellTopZ = RTCellPrismRadius · RTCellFlatScale` = **7,5 uu** dal 2026-08-28 (era `2,5`). Un lift di `2,0` finisce `5,5` uu sotto. E i sei default in **cm assoluti** contraddicono `D-168`/`D-163`: le altezze si budgettano in frazioni di `H`. 🔴 **E non è una previsione: `2.0` è il numero esatto che ha già causato l'incidente.** `PIE-DEBUG-CELLS`, 2026-08-07: *«il contorno superficie era disegnato a `z=2.0` mentre la faccia del disco-cella sta a `2.5` … e restava **sepolto nella mesh**»* — il fango non si vedeva. Corretto in `069b616` facendo derivare le quote da `RTCellTopZ`; poi `RTCellTopZ` è **triplicato**, quindi oggi lo stesso numero sbaglia di più | [`RTMapVisuals.h`](../../../Source/RefactorTactics/Map/RTMapVisuals.h) — *«chi disegna qualcosa SOTTO `RTCellTopZ` lo disegna dentro un volume opaco … È successo davvero, due volte»* · [`test-manuali-pie.md`](../../technical/test-manuali-pie.md) riga `748` |
 | **R-3** | 🔴 | **Issue A e B esistono già, e la B ha una DoD migliore.** [#1614](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1614) copre hover visibile, separazione hover/selezione, no-Actor-per-cella, debug `HoveredCell`, `PIE-V01-POINTER`; [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705) possiede il contratto. Il kit ne propone la creazione senza vederle | `gh issue list --search "hover in:title" --state all` → esattamente #705 e #1614 |
 | **R-4** | 🔴 | **La §3 «Decisione Epic» ha come risposta il proprio Caso A.** [E11 #25](https://github.com/DegrassiAaron/refactor-tactics-main/issues/25) possiede #705/#1614/#613/#80; [E21 #286](https://github.com/DegrassiAaron/refactor-tactics-main/issues/286) possiede *Presentazione e leggibilità*. Milestone già esistente: **v0.1 · Leggibilità**, 20 issue aperte. **Nessuna Epic da creare** | `gh issue list --milestone "v0.1 · Leggibilità"` |
 | **R-5** | 🔴 | **Il modello «griglia sopra la mappa» non è quello del repository.** La board *è* le celle: ISM di prismi, `M_HexCell` legge tre `PerInstanceCustomData` per il colore di superficie, sopra ci sono il glifo ad anelli (`D-183`) e il velo di fog of war che moltiplica l'RGB per `0,35` (`D-225`/`D-227`). Un fill translucido su tutta la board attenua entrambi i canali, e il kit non li nomina | `ARTHexMapActor::RebuildInstances` monta **cinque** famiglie di istanze: `Cells`, `SurfaceGlyphs`, `Relief`, `Blockers`, `EdgeFeatures` |
@@ -277,8 +289,8 @@ parte, *eseguito in ciò che restava vero*. Le altre tre restano elenco.
 |---|---|---|
 | **A-1** | Correggere la premessa di #1614 — overlay `0,88×` e non `1,00×`, `RTHexMapActor.cpp:994` e non `:718` — e registrare che l'hover attraversa già le unità | 🔵 **applicata**. Vedi sotto |
 | **A-2** | Dichiarare il vincolo di quota: sopra `RTCellTopZ`, in frazioni di `H` e non in cm | 🔵 **applicata, e più precisa di come era raccomandata**. Vedi sotto |
-| **A-3** | Nessuna Epic, nessuna issue nuova per grid/hover/selezione/toggle/multilayer | ⛔ **non eseguita** — R-3, R-4, R-9: il dominio ha già quattro owner aperti nella milestone giusta |
-| **A-4** | Nessuna modifica alla roadmap | ⛔ **non eseguita** — CP 11.8 è in `roadmap-v0.1.md:887` con la colonna evidenza **già riconciliata** il 2026-08-29: elenca i **6** test che esistono e i **10** dichiarati e non scritti. Aggiungere una feature «Tactical Grid Overlay» accanto duplicherebbe CP 11.8 |
+| **A-3** | Nessuna Epic, nessuna issue nuova per grid/hover/selezione/toggle/multilayer | 🔵 **superata da una decisione dell'autore, e in parte confermata**: nessuna Epic — resta il Caso A — ma **una** issue è stata aperta, [#1758](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1758). Vedi §10 |
+| **A-4** | Nessuna modifica alla roadmap | 🔵 **superata, e nella forma che non duplica**: creata [`tactical-grid-overlay-roadmap-2026-08-30.md`](tactical-grid-overlay-roadmap-2026-08-30.md), che **punta** a CP 11.8 invece di riscriverlo. `roadmap-v0.1.md` **non è stata toccata**. Vedi §10 |
 | **A-5** | Portare `hover-cell-sector12-spec-panel-2026-08-28.md` su `main` | ⛔ **non eseguita** — §3, ed è di chi possiede quel branch |
 
 ### Cosa è cambiato in #1614, e cosa no
@@ -321,7 +333,7 @@ esattamente la collisione che `CLAUDE.md` §7 previene.
 
 | Gate | Esito |
 |---|---|
-| `node tools/radar/doc-links.ts --check --with-archive` | ✅ **verde** — `4861` link in `470` documenti, *«tutti i percorsi citati risolvono»* |
+| `node tools/radar/doc-links.ts --check --with-archive` | ✅ **verde su `d9feb9b0`** — `4861` link in `470` documenti, *«tutti i percorsi citati risolvono»*. 🔴 **Rosso su `201016a6`, per una causa esterna a questo lavoro**: vedi sotto |
 | `node tools/radar/doc-tables.ts --check` | ✅ **verde** — `1846` tabelle in `296` documenti |
 | `node tools/radar/doc-tables.ts --check --with-archive` | 🟡 **10 segnalazioni, tutte preesistenti e nessuna di questo giro** — nove in `archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md` (diagrammi ASCII dentro celle) e una in `archive/src/handoff/2026-08-08-master-reaction-system.md:569`. Verificato con `grep -E "archive/src/README\|tactical-grid-overlay"` sull'output: nessun riscontro. ⚠️ **Il gate senza `--with-archive` non avrebbe guardato la riga d'indice**, che vive in `docs/archive/` |
 | `./scripts/rt-suite.ps1` | ⛔ **NOT RUN** — lavoro puramente documentale, nessuna riga di `Source/` toccata. Eseguirla renderebbe la misura NON VALIDA per un altro checkout senza guadagno |
@@ -330,7 +342,107 @@ esattamente la collisione che `CLAUDE.md` §7 previene.
 
 ---
 
-## 10. Provenienza
+> 🔴 **Il gate dei link è diventato rosso mentre il lavoro era in corso — e la causa non è un file di questo
+giro: è una decisione accettata oggi che un commit di nove ore dopo ha disfatto.**
+
+Misurato su `201016a6`: **9 link rotti in 6 documenti**, e tutti puntano ai **tre** file che
+[**D-246**](../../decisions/RT_PDR_00_Decision_Log.md) dichiara di aver *spostato*, *promosso a owner* e
+*archiviato*. Il commit `c0cc0693` (*«docs»*, 2026-08-30 **10:18**) li ha **cancellati** — nove ore dopo
+`cc9d30ff` (**01:19**), il commit che introduce D-246 e la registra **Accettata**, con la riga
+*«Gate verdi, rimisurati dopo il rebase»*.
+
+| Il file, e cosa D-246 dice di lui | Oggi | Chi lo cita e resta rotto |
+|---|---|---|
+| `product/lore-e-worldbuilding.md` — *«**promosso a owner**»* | **assente** | `README.md` · **`RT_PDR_00_Decision_Log.md`** · `OPEN_DECISIONS.md` · `CONTEXT_INDEX.md` · `CHANGELOG_DOCUMENTATION.md` |
+| `roadmap/plans/dir-b-core-gameplay-directive-v0.2.md` — *«**spostata** accanto al referto che la corregge»* | **assente** | il suo referto (×2) · `CHANGELOG_DOCUMENTATION.md` |
+| `archive/src/RefactorTactics_FeatureRegistry_…_2026-08-08.md` — *«**archiviato** col banner d'esito»* | **assente** | `CHANGELOG_DOCUMENTATION.md` |
+
+🔴 **Il caso peggiore è il Decision Log**: D-246 cita `../product/lore-e-worldbuilding.md` per dire che il
+worldbuilding *«ora vive»* lì, e quel percorso non risolve. Una decisione accettata che descrive il proprio
+esito in un file cancellato non è una svista di link: è la decisione che non è più verificabile leggendola.
+
+⚠️ **E nessuno l'ha visto perché non c'è CI** (`D-182`): il gate si lancia a mano, e chi ha cancellato non
+l'ha lanciato. È il difetto che **D-246 stessa aveva appena finito di diagnosticare** — *«nessun gate
+guardava quei sei file»* — ricomparso dall'altro lato: ora i file sono nei posti che i gate guardano, e sono
+stati tolti.
+
+✅ **Riparato il 2026-08-30, su richiesta dell'autore** — terzo atto, ancora separato dalla revisione.
+
+La scelta fra le due riparazioni possibili è stata presa **misurando**, non per default: si ripristinano i
+file **se** D-246 è ancora vigente. Verificato — nessuna decisione la ritira (`D-247` è `ScoreToWin`, `D-248`
+il grafo di locomozione), e [`D-188`](../../decisions/RT_PDR_00_Decision_Log.md) la cita come vigente
+descrivendone l'esito come vero. `c0cc0693` è un commit diretto, messaggio *«docs»*, **nessun body**: la
+cancellazione non ha un rationale da opporre a una decisione che ne ha uno di quaranta righe.
+
+- **Ripristino esatto, non ricostruzione**: i tre blob di `c0cc0693^` sono **identici** a quelli di
+  `cc9d30ff` — confrontati con `git rev-parse` file per file, prima di toccare qualcosa.
+- **Gate**: `doc-links --check --with-archive` da **9** segnalazioni a **zero**; `4883` link in `472`
+  documenti.
+- **Registrato dove conta**: una nota datata dentro **D-246** stessa, che è la voce che l'episodio aveva reso
+  non verificabile.
+- ⛔ **Non toccate le 8 righe** che `c0cc0693` toglie a `RTScenarioLoader.cpp`: sono codice, altra materia, e
+  questa riparazione non le giudica.
+
+🔁 **Rilanciati dopo il secondo atto (§10)**, che ha aggiunto un documento e una riga d'indice:
+> `doc-links.ts --check --with-archive` ✅, `doc-tables.ts --check --with-archive` invariato a **10**
+> segnalazioni preesistenti, nessuna sui file di questo giro.
+
+---
+
+## 10. Il secondo atto — issue e roadmap, su richiesta dell'autore
+
+Questa sezione **non** è parte della revisione: registra un lavoro deciso dopo, che il referto aveva
+raccomandato di **non** fare (`A-3`, `A-4`). La riserva è stata sollevata, l'autore ha deciso diversamente, e
+il lavoro è stato eseguito per intero. È la forma che questo archivio incontra di rado: un kit *consumato* e
+poi, come atto separato, *eseguito in ciò che restava vero*.
+
+### Il reperto che ha cambiato il piano
+
+Cercando cosa creare, il perimetro «griglia semi-trasparente» si è rivelato **già di un owner**, e non di
+quelli che il referto aveva elencato in §3:
+
+> **[#289](https://github.com/DegrassiAaron/refactor-tactics-main/issues/289) — CP E21.3, Leggibilità
+> tattica**, seconda casella di DoD: *«I colori delle superfici si leggono **durante la partita**. Oggi
+> esistono solo dentro `rt.Debug.DrawCells` … un giocatore non deve digitare un comando console per sapere
+> dove c'è il fango.»*
+
+Quindi nemmeno la grid è un dominio scoperto: `OPEN`, `P1`, `checkpoint`, stessa milestone. **Il Caso A del
+kit valeva anche qui**, ed è la quinta volta che questo referto lo verifica.
+
+➕ **Ma #289 nomina un canale solo, e ne servono due.** Misurato: `RebuildInstances` monta `Cells`,
+`SurfaceGlyphs`, `Relief`, `Blockers`, `EdgeFeatures` — **nessuna disegna un bordo**. Due celle adiacenti
+della **stessa** superficie sono due prismi dello stesso colore appoggiati l'uno all'altro: il colore non
+dice dove finisce una e comincia l'altra, e in un gioco dove il movimento si conta in celle chi non vede il
+confine non può contare il costo. Il colore per superficie e il confine fra celle sono canali **diversi**, e
+la DoD di #289 ne chiedeva uno.
+
+### Cosa è stato fatto
+
+| Atto | Oggetto | Nota |
+|---|---|---|
+| **Creata** | [#1758](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1758) — *«La griglia si vede in partita: il confine fra celle, e un toggle che non è un comando di debug»* | `v0.1`, `P1`, milestone *v0.1 · Leggibilità*, **parent #289**, Epic #286. **Una sola**, non le 2–4 del kit |
+| **Aggiornata** | [#289](https://github.com/DegrassiAaron/refactor-tactics-main/issues/289) | Task residuale + la casella del **confine**, che mancava, con il vincolo di quota e il precedente `PIE-DEBUG-CELLS` |
+| **Aggiornata** | [#286](https://github.com/DegrassiAaron/refactor-tactics-main/issues/286) (Epic E21) | #1758 in «Lavoro collegato», con il perché non è un checkpoint e perché non è E11 |
+| **Creata** | [`tactical-grid-overlay-roadmap-2026-08-30.md`](tactical-grid-overlay-roadmap-2026-08-30.md) | Sequenza a **6 nodi** con owner, stato misurato, dipendenza ed exit gate |
+| ⛔ **NON toccata** | [`roadmap-v0.1.md`](../roadmap-v0.1.md) | `A-4` regge nella sostanza: CP 11.8 alla riga `887` ha la colonna evidenza riconciliata il 2026-08-29, e una voce accanto sarebbe la **seconda descrizione** dello stesso perimetro |
+| ⛔ **NON creata** | nessuna Epic | `A-3` regge: E21 #286 e E11 #25 possiedono già tutto |
+
+### La sequenza, e dove diverge dal kit
+
+Il kit §6 metteva il renderer al nodo 1 e i test al nodo 5. La roadmap li inverte, e non per gusto:
+
+> **Il nodo 1 è `PlayerInput.HoverNeverCommits`, e lo impone #1614**, che dichiara *«un overlay più grande
+> rende più visibile un comportamento che nessuno sta misurando. Il test viene prima, o almeno insieme»*.
+
+Gli altri due scarti: **multilayer non è un nodo** (consegnato da #567/#588), e **packaged non è un gate per
+nodo** (`G2`: suite `EditorContext` per costruzione — R-7).
+
+🟢 **Un ramo può partire oggi senza precondizioni**: #1758, che disegna la board a riposo e non dipende dal
+puntatore.
+
+---
+
+## 11. Provenienza
 
 Kit ricevuto come `CLAUDE_RT_TacticalGridOverlay_IssueDriven_Execution.md` nella radice del checkout di
 lavoro, 912 righe, 22 sezioni, senza data e senza riferimento a un `HEAD`. Archiviato **verbatim** in
