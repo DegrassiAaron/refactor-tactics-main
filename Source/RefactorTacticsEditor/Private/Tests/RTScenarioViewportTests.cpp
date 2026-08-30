@@ -6,6 +6,7 @@
 #include "Editor.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTMapVisuals.h"
+#include "Map/RTHexMapAsset.h"
 #include "ScenarioHarness/RTScenarioAuthoring.h"
 #include "ScenarioHarness/RTScenarioDraft.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
@@ -297,6 +298,106 @@ bool FRTScenarioViewportShowsEveryDeclaredUnitTest::RunTest(const FString&)
 
 	Preview->ClearPreview();
 	TestFalse(TEXT("e si tolgono tutti"), Preview->IsShowing());
+	return true;
+}
+
+/**
+ * Su **ogni** scenario spedito, i marcatori sono tanti quante le unita' — e stanno su celle che l'arena ha.
+ *
+ * 🔑 **Due difetti in una proprieta' sola, e nessuno dei due si vedrebbe a schermo.**
+ *
+ * 1. *Una cella che l'arena non contiene*: il marcatore galleggerebbe sopra il vuoto. A occhio si legge come
+ *    un'unita' «un po' fuori», che e' indistinguibile da una mappa disegnata male.
+ * 2. *Due marcatori nella stessa posizione*: succede se la mappatura **perde il layer**. Due unita' su
+ *    `(3,4,L0)` e `(3,4,L1)` sono due unita', e fuse in una il viewport ne mostra una sola — senza errori,
+ *    senza differenze visibili, e con la suite verde.
+ *
+ * Contare le posizioni DISTINTE prende entrambi con un'asserzione, ed e' il corpus a fornire i casi invece
+ * di me: 92 scenari scritti da chi non stava pensando a questo test.
+ *
+ * ⚠️ **Che una cella sia legale lo decide il RUNTIME** (`URTScenarioLoader::ValidateUnitPlacement`), non
+ * questo test: qui non si riafferma quella regola, si verifica che la PRESENTAZIONE non perda per strada
+ * cio' che il dato dichiara. Se un giorno fallisse, la domanda giusta e' «la mappatura ha perso qualcosa?»,
+ * non «la validazione e' rotta?».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioViewportEveryShippedScenarioMapsCleanlyTest,
+	"RefactorTactics.DevSandboxLauncher.EveryShippedScenarioMapsCleanly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioViewportEveryShippedScenarioMapsCleanlyTest::RunTest(const FString&)
+{
+	URTScenarioAuthoring* Authoring = URTScenarioAuthoring::CreateScenarioDraft(GetTransientPackage());
+	if (!TestNotNull(TEXT("la facade si costruisce"), Authoring))
+	{
+		return false;
+	}
+
+	const TArray<FString> Ids = URTScenarioAuthoring::ListScenarioIds(FString(), FString());
+	if (!TestTrue(TEXT("il corpus non e' vuoto"), Ids.Num() > 10))
+	{
+		return false;
+	}
+
+	int32 Examined = 0;
+	int32 Skipped = 0;
+	int32 TotalUnits = 0;
+	TArray<FString> OffMap;
+	TArray<FString> Fused;
+
+	for (const FString& Id : Ids)
+	{
+		FString OpenError;
+		if (Authoring->OpenById(Id, OpenError) != ERTScenarioAuthoringResult::Success)
+		{
+			// Uno scenario illeggibile e' un difetto SUO, e ha gia' i propri test: qui si conta e si va
+			// avanti, invece di far fallire questo per un motivo che non lo riguarda.
+			++Skipped;
+			continue;
+		}
+
+		const URTHexMapAsset* Arena = Authoring->BuildArena(GetTransientPackage());
+		const TArray<FRTScenarioUnitView> Units = Authoring->ListUnits();
+
+		if (Arena && Units.Num() > 0)
+		{
+			FVector Origin = FVector::ZeroVector;
+			const float HexSize = Arena->HexSize;
+			const float LayerHeight = Arena->LayerHeight;
+
+			TSet<FVector> Positions;
+			for (const FRTScenarioUnitView& Unit : Units)
+			{
+				if (Arena->FindCell(Unit.Cell) == nullptr)
+				{
+					OffMap.Add(FString::Printf(TEXT("%s: %s"), *Id, *Unit.Cell.ToString()));
+				}
+				Positions.Add(RTScenarioViewport::MarkerTransform(
+					Unit.Cell, Unit.Facing, Origin, HexSize, LayerHeight).GetLocation());
+			}
+
+			if (Positions.Num() != Units.Num())
+			{
+				Fused.Add(FString::Printf(TEXT("%s: %d unita' -> %d posizioni"),
+					*Id, Units.Num(), Positions.Num()));
+			}
+
+			TotalUnits += Units.Num();
+			++Examined;
+		}
+
+		Authoring->Close();
+	}
+
+	// ⛔ Nessun limite silenzioso: quanto si e' guardato, e quanto si e' saltato, si LEGGE.
+	AddInfo(FString::Printf(TEXT("%d scenari esaminati, %d saltati (non apribili), %d unita' in totale"),
+		Examined, Skipped, TotalUnits));
+
+	TestTrue(TEXT("il corpus ha davvero prodotto scenari con unita'"), Examined > 10 && TotalUnits > 20);
+
+	TestEqual(*FString::Printf(TEXT("nessuna unita' fuori dall'arena (%s)"),
+		OffMap.Num() ? *FString::Join(OffMap, TEXT(" · ")) : TEXT("")), OffMap.Num(), 0);
+
+	TestEqual(*FString::Printf(TEXT("nessun marcatore fuso (%s)"),
+		Fused.Num() ? *FString::Join(Fused, TEXT(" · ")) : TEXT("")), Fused.Num(), 0);
 	return true;
 }
 
