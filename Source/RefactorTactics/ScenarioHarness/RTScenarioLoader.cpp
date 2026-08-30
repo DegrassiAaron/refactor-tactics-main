@@ -1743,6 +1743,14 @@ bool URTScenarioLoader::ValidateUnitPlacement(const FRTTestScenario& Scenario, c
 	// l'harness esiste per non introdurre.
 	//
 	// ⚠️ Non e' un vincolo di FORMATO: 3v3 e 4v4 muovono le unita' per squadra, non il numero di squadre.
+	if (!URTTurnRules::IsValidTeamId(Unit.TeamId))
+	{
+		OutError = FString::Printf(
+			TEXT("unita' '%s': squadra %d fuori dall'intervallo ammesso (0..%d) — il suo punteggio "
+				 "resterebbe fuori dall'hash di stato"),
+			*Unit.Id, Unit.TeamId, URTTurnRules::NumTeams - 1);
+		return false;
+	}
 
 	// `loadout` (`#602`): i pezzi devono esistere nel catalogo e l'insieme dev'essere LEGALE secondo la stessa
 	// regola del gioco (`ValidateLoadout`, 1+1+1 — CP 7.4). Uno scenario che monti due gadget va rifiutato con
