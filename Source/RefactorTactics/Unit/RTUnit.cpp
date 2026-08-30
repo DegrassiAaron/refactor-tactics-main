@@ -138,6 +138,7 @@ void ARTUnit::BeginPlay()
 	SyncAbilityCooldowns();
 	ApplyTeamColor();
 	ApplyUnitAnimClass();
+	ApplyUnitMeshLOD();
 	ApplyMeshYawOffset();
 	ApplyFacingArrow();
 }
@@ -171,6 +172,29 @@ void ARTUnit::ApplyUnitAnimClass()
 		}
 
 		Skeletal->SetAnimInstanceClass(UnitAnimClass);
+	}
+}
+
+void ARTUnit::ApplyUnitMeshLOD()
+{
+	if (ForcedMeshLOD < 0)
+	{
+		return; // `-1` lascia decidere al motore: la via di prima, e resta raggiungibile
+	}
+
+	TArray<USkeletalMeshComponent*> Skeletals;
+	GetComponents<USkeletalMeshComponent>(Skeletals);
+
+	for (USkeletalMeshComponent* Skeletal : Skeletals)
+	{
+		if (Skeletal == nullptr || Skeletal->GetSkeletalMeshAsset() == nullptr)
+		{
+			continue;
+		}
+
+		// `SetForcedLOD` e' 1-BASED: `0` significa «scegli tu», `1` e' il LOD 0. Passare `0` qui
+		// riaprirebbe il difetto invece di chiuderlo, ed e' l'errore che questa riga esiste per non fare.
+		Skeletal->SetForcedLOD(ForcedMeshLOD + 1);
 	}
 }
 
