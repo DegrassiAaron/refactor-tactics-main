@@ -145,10 +145,34 @@ filtro    : RefactorTactics             -> vedi §5.1
 
 ### 5.1 Suite completa
 
+Rifatta con `./scripts/rt-suite.ps1 -WaitMinutes 40`, che ha atteso 312 s il motore di
+`wt-verifica-main` e poi ha **ridichiarato il preambolo**:
+
 ```text
-found     :
-fail      :
+VALIDA
+  HEAD      68b8409d   albero ae48caf4
+  esito     1423/1423 completati, 2 fallimenti
+  durata    01:22
 ```
+
+I due fallimenti sono `RefactorTactics.Scenario.LoaderRejectsWithClearReason` e
+`RefactorTactics.Scenario.TeamConstraintComesFromTheRuntime`, entrambi in
+`RTScenarioLoaderTests.cpp` e entrambi sulla validazione del `TeamId`:
+
+```text
+Expected 'squadra fuori dall'intervallo ammesso: rifiutato' to be false
+Expected 'lo scenario con la squadra 7 e' rifiutato'        to be false
+```
+
+✅ **Non sono di questa passata, e la prova non è un ragionamento**: gli **stessi due** falliscono
+nella run di `wt-verifica-main` @ `3a6ee2c6` (`Saved/Logs/verifica-main.log`, 128 test), che è un
+antenato di `origin/main` e precede questo branch. Sono il dominio di **#1515**, e quel checkout li
+sta già misurando — è letteralmente ciò che stava facendo mentre rt-suite aspettava.
+
+⚠️ Argomentare che «la LOS non c'entra con un loader di scenario» sarebbe stato plausibile e
+insufficiente: la misura su un albero che non contiene questo lavoro è ciò che lo chiude.
+
+∴ per questa slice: **1421/1423**, con i due preesistenti dichiarati e non nascosti.
 
 ---
 
@@ -158,10 +182,11 @@ fail      :
 - Audit dei worktree, delle 22 issue del perimetro e delle PR aperte.
 - #1753, #1754, #1755 create; #1105 aggiornata.
 - Ragione canonica della LOS + 5 test; 9/9 su `RefactorTactics.HexVision`.
+- Suite completa `VALIDA`: **1421/1423**, i due rossi sono preesistenti (§5.1) e di #1515.
+- Commenti di coordinamento su #1712 (consegna), #1625 (la sua DoD non cambia) e #1535 (body superato).
 
 **IN PROGRESS**
-- Referto della suite completa (§5.1).
-- Commento di consegna su #1712.
+- PR aperta, in attesa di review.
 
 **NOT STARTED**
 - #1753, #1754, #1755: nessuna riga di implementazione. Tutte e tre atterrano in
