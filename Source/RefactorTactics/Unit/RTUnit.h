@@ -753,6 +753,33 @@ public:
 	float MeshYawOffset = -90.f;
 
 	/**
+	 * 🔴 **LOD fisso delle skeletal dell'unita'. `-1` = sceglie il motore.**
+	 *
+	 * Esiste per un difetto misurato, non per qualita' visiva: **le LOD dei pack Paragon rimuovono ossa**,
+	 * e fra quelle rimosse ci sono le catene. Misurato sui quattro pack del roster, contando le ossa di
+	 * catena nella lista di rimozione LOD di ciascuna mesh:
+	 *
+	 * | Pack | ossa di catena rimosse | effetto a schermo |
+	 * |---|---|---|
+	 * | Gadget | **0** | nessuno |
+	 * | Wraith | **0** | nessuno |
+	 * | Phase | **6** (`hip_chain_l/r_01..03`) | catenine ai fianchi, poco visibile |
+	 * | Riktor | **13** (`l_hand_chain_01..04`, `chain_tip_r`, ...) | **le catene si stendono sullo schermo** |
+	 *
+	 * Quando il LOD cala quelle ossa spariscono dalle *required bones*, e i vertici che vi sono pesati si
+	 * stirano. ⚠️ **Si vede solo da lontano** — a zoom massimo indietro e nella panoramica di inizio
+	 * partita — ed e' la ragione per cui e' sopravvissuto: chi guarda l'unita' da vicino non lo incontra mai.
+	 *
+	 * ⛔ **Non e' un difetto dell'asset da correggere nell'asset**: i pack Paragon sono sorgente in sola
+	 * lettura, e una modifica alle loro LOD andrebbe rifatta a ogni riscaricamento. Il prezzo di tenerli a
+	 * LOD 0 e' trascurabile: in partita ci sono **quattro** personaggi.
+	 *
+	 * ⚠️ `-1` riapre il difetto ed e' deliberato: serve a misurare di nuovo, non a spedire.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	int32 ForcedMeshLOD = 0;
+
+	/**
 	 * Freccia a terra che mostra **dove l'unita' e' rivolta**, cioe' il forward dell'attore.
 	 *
 	 * Serve a separare due difetti che a schermo si assomigliano: una mesh ruotata rispetto all'attore
@@ -1076,6 +1103,9 @@ protected:
 	 * gia' una propria `Anim Class`. Un'unita' col solo cilindro segnaposto non ha niente da animare.
 	 */
 	void ApplyUnitAnimClass();
+
+	/** Inchioda le skeletal dell'unita' a `ForcedMeshLOD` (vedi il perche' su quella proprieta'). */
+	void ApplyUnitMeshLOD();
 
 	/** Compensa l'orientamento con cui la skeletal e' modellata (vedi MeshYawOffset). */
 	void ApplyMeshYawOffset();
