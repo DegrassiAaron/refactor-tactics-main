@@ -265,6 +265,34 @@ quattro numeri sbagliati. Oggi la seconda vista non c'è — non è che sia torn
 
 **Totale: 24 epic, 119 checkpoint**
 
+> 🔴 **Rimisurata contro GitHub il 2026-08-30, e un'epic `[EPIC v0.1]` aperta è fuori da questa tabella:
+> `E48`** ([#1408](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1408), *Il giocatore
+> raggiunge il modello*). Le epic `[EPIC v0.1]` aperte su GitHub sono **25** contando `E48`, **24** senza —
+> ed è questa tabella, non GitHub, a decidere cosa fa parte della release.
+>
+> ⚠️ **La prima stesura di questa nota diceva che `E48` «non compare in nessun documento di
+> `docs/roadmap/`», e non era vero: il grep che l'ha misurato era `docs/roadmap/*.md`, che non scende in
+> `plans/`.** Rimisurato con `grep -rn '\bE48\b' docs/roadmap --exclude-dir=plans`: **zero** occorrenze fuori
+> da questa nota, cioè `E48` è assente dai documenti **owner** — questo e
+> [`roadmap-checkpoint.md`](roadmap-checkpoint.md). Ma **quattro referti** di `plans/` la nominano, e uno è
+> [`master-issue-reconciliation-spec-panel-2026-08-28.md`](plans/master-issue-reconciliation-spec-panel-2026-08-28.md),
+> che due giorni fa l'aveva già elencata fra le epic vive che un kit non citava. **Non era una scoperta: era
+> una segnalazione non raccolta**, e il glob non ricorsivo l'avrebbe fatta sembrare nuova una seconda volta.
+>
+> ⛔ **Il totale NON è stato toccato, e la ragione è la colonna `CP`.** `E48` non ha una serie `CP 48.x`:
+> riusa owner esistenti e porta due figlie non numerate ([#1409](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1409)
+> chiusa, [#1410](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1410) aperta). Una riga
+> aggiunta qui avrebbe un `CP` inventato, e un totale che somma un numero inventato è peggio di un totale che
+> dichiara cosa esclude. **La divergenza è dichiarata, non sanata**: si chiude quando `E48` dichiara i propri
+> checkpoint o quando l'autore la sposta fuori dalla v0.1.
+>
+> ➕ Il corpo di [#14](https://github.com/DegrassiAaron/refactor-tactics-main/issues/14) è stato riconciliato
+> lo stesso giorno — non elencava `E23`, `E46`, `E47` né `E48` — e la sua copia di `21 epic, 100 checkpoint`
+> è stata **tolta**, come [#962](https://github.com/DegrassiAaron/refactor-tactics-main/issues/962) prescrive
+> per le altre quattro. 🔴 **Era la quinta copia, e lo sweep di #962 non poteva vederla**: cercava con
+> `grep -rn "21 epic" docs/`, e il corpo di una issue non è in `docs/`. Referto:
+> [`plans/crud-epic-issue-mcp-spec-panel-2026-08-30.md`](plans/crud-epic-issue-mcp-spec-panel-2026-08-30.md).
+
 > ➕ **Da 23/112 a 24/119 il 2026-08-17**, per l'anticipazione di **E23** (`D-160`) e i suoi **sette**
 > checkpoint. Il totale precedente era **giusto** — verificato sommando la colonna `CP`, non rileggendo la
 > cifra — quindi qui non si corregge un errore: si registra un cambio di scope.
