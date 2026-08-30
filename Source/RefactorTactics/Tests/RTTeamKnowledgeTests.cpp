@@ -353,4 +353,148 @@ bool FRTTeamKnowledgeRemembersExploredCells::RunTest(const FString& Parameters)
 	return true;
 }
 
+
+/**
+ * `#1525` — il troncamento al tratto osservato, sul predicato PURO che lo decide.
+ *
+ * 🔴 **Perche' i casi sono cinque e non uno.** `ObservedPrefixLength` ha due consumatori — la traccia
+ * post-lock (`VisibleTrailFor`, `#1497`) e il modello animato (`BeginPlayback`, `#1525`) — e ognuna delle
+ * cinque proprieta' e' una regola indipendente: verificarne quattro lascerebbe la quinta libera di essere
+ * sbagliata senza che nulla lo dica. In particolare `TroncaNonFiltra` e' l'unico che distingue un `return`
+ * da un `continue`: con un `continue` al suo posto tutti gli altri quattro resterebbero VERDI.
+ *
+ * ⚠️ **Verifica di mutazione eseguita** (DoD di `#1525`): sostituendo il `return i` con `continue` in
+ * `ObservedPrefixLength`, `RefactorTactics.Vision.PlaybackTroncaNonFiltra` diventa rosso e gli altri
+ * quattro restano verdi. Il risultato e' registrato nella issue.
+ */
+namespace
+{
+	/** Un verdetto che concede alle sole squadre elencate. */
+	FRTKnowledgeVerdict VerdictFor(const TArray<int32>& Teams)
+	{
+		FRTKnowledgeVerdict V;
+		for (const int32 T : Teams) { V.AllowTeam(T); }
+		return V;
+	}
+
+	/** Rotta di N celle in linea, con i verdetti dati cella per cella. */
+	void MakeRoute(int32 N, TArray<FRTCellId>& OutCells)
+	{
+		OutCells.Reset();
+		for (int32 i = 0; i < N; ++i) { OutCells.Add(FRTCellId(i, 0, 0)); }
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackObservedPrefixTest,
+	"RefactorTactics.Vision.PlaybackTroncaAlTrattoOsservato",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackObservedPrefixTest::RunTest(const FString&)
+{
+	TArray<FRTCellId> Cells;
+	MakeRoute(5, Cells);
+
+	// A B osservate, C D no, E di nuovo si': e' il caso del preview della decisione d'autore.
+	const TArray<FRTKnowledgeVerdict> Verdicts = {
+		VerdictFor({0, 1}), VerdictFor({0, 1}), VerdictFor({1}), VerdictFor({1}), VerdictFor({0, 1})
+	};
+
+	TestEqual(TEXT("la squadra 0 vede solo il prefisso osservato, non la coda dopo il buco"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, Verdicts, 0), 2);
+
+	TestEqual(TEXT("la squadra 1, che ha osservato tutto, vede la rotta intera"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, Verdicts, 1), 5);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTruncateNotFilterTest,
+	"RefactorTactics.Vision.PlaybackTroncaNonFiltra",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTruncateNotFilterTest::RunTest(const FString&)
+{
+	// 🔴 **Il test che distingue `return` da `continue`.** Con un `continue` al posto del `return`, la
+	// risposta sarebbe 3 — le tre celle concesse — e il modello salterebbe da B a E attraversando in linea
+	// retta proprio le due celle che il verdetto nega. La lunghezza corretta e' 2: ci si ferma al buco.
+	TArray<FRTCellId> Cells;
+	MakeRoute(5, Cells);
+	const TArray<FRTKnowledgeVerdict> Verdicts = {
+		VerdictFor({0}), VerdictFor({0}), VerdictFor({1}), VerdictFor({1}), VerdictFor({0})
+	};
+
+	TestEqual(TEXT("si TRONCA al primo buco: la cella concessa DOPO il buco non si conta"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, Verdicts, 0), 2);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackFailClosedTest,
+	"RefactorTactics.Vision.PlaybackFailClosedSuRottaMalformata",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackFailClosedTest::RunTest(const FString&)
+{
+	TArray<FRTCellId> Cells;
+	MakeRoute(4, Cells);
+
+	// Verdetti in numero diverso dalle celle: e' il caso che un `Cells.Add` futuro senza il verdetto
+	// corrispondente produrrebbe. Non si indovina e non si legge fuori: non si mostra niente.
+	const TArray<FRTKnowledgeVerdict> TroppoPochi = { VerdictFor({0}), VerdictFor({0}) };
+	TestEqual(TEXT("verdetti in difetto: zero, non due"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, TroppoPochi, 0), 0);
+
+	TestEqual(TEXT("nessun verdetto: zero, e vale anche per la squadra che avrebbe visto tutto"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, TArray<FRTKnowledgeVerdict>(), 0), 0);
+
+	// Una rotta vuota e' allineata con verdetti vuoti: zero senza che sia un fallimento.
+	TestEqual(TEXT("rotta vuota: zero"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(TArray<FRTCellId>(), TArray<FRTKnowledgeVerdict>(), 0), 0);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackFirstCellDeniedTest,
+	"RefactorTactics.Vision.PlaybackNonMostraLaPartenzaNonOsservata",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackFirstCellDeniedTest::RunTest(const FString&)
+{
+	// 🔴 **Il caso che il posizionamento sullo start renderebbe un leak.** Se la PARTENZA non e' osservata,
+	// il prefisso e' zero: `BeginPlayback` non crea l'anim e — soprattutto — non chiama `SetVisualLocation`
+	// sulla cella di partenza. Piazzare li' il modello rivelerebbe da dove il nemico e' uscito, e lo
+	// farebbe proprio quando la sua destinazione e' visibile e `bKnownToObserver` lo lascia acceso.
+	TArray<FRTCellId> Cells;
+	MakeRoute(3, Cells);
+	const TArray<FRTKnowledgeVerdict> Verdicts = {
+		VerdictFor({1}), VerdictFor({0, 1}), VerdictFor({0, 1})
+	};
+
+	TestEqual(TEXT("partenza negata: zero, anche se il resto della rotta e' concesso"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, Verdicts, 0), 0);
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackOutOfRangeTeamTest,
+	"RefactorTactics.Vision.PlaybackFailClosedSuTeamFuoriIntervallo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackOutOfRangeTeamTest::RunTest(const FString&)
+{
+	// Un `TeamId` che il verdetto non sa rappresentare non legge il bit di qualcun altro: `AllowsTeam` e'
+	// fail-closed, e questa e' la prova che il troncamento eredita quella proprieta' invece di aggirarla.
+	TArray<FRTCellId> Cells;
+	MakeRoute(3, Cells);
+	const TArray<FRTKnowledgeVerdict> TuttiVedono = {
+		FRTKnowledgeVerdict::Everyone(), FRTKnowledgeVerdict::Everyone(), FRTKnowledgeVerdict::Everyone()
+	};
+
+	TestEqual(TEXT("`Everyone()` concede a una squadra valida"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, TuttiVedono, 1), 3);
+
+	TestEqual(TEXT("TeamId negativo: zero, non una lettura fuori"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, TuttiVedono, -1), 0);
+
+	TestEqual(TEXT("TeamId oltre MaxTeamId: zero"),
+		URTTeamKnowledgeLibrary::ObservedPrefixLength(Cells, TuttiVedono, FRTKnowledgeVerdict::MaxTeamId + 1), 0);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

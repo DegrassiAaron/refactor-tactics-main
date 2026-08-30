@@ -172,3 +172,27 @@ FRTKnowledgeVerdict URTTeamKnowledgeLibrary::FreezeVerdict(const TArray<FRTTeamK
 
 	return Verdict;
 }
+
+int32 URTTeamKnowledgeLibrary::ObservedPrefixLength(const TArray<FRTCellId>& Cells,
+	const TArray<FRTKnowledgeVerdict>& CellVerdicts, int32 ObserverTeamId)
+{
+	// Fail-closed sul disallineamento: senza questo controllo un `Cells.Add` futuro senza il verdetto
+	// corrispondente leggerebbe fuori dall'array dei verdetti. Una rotta malformata non si mostra.
+	if (CellVerdicts.Num() != Cells.Num())
+	{
+		return 0;
+	}
+
+	for (int32 i = 0; i < Cells.Num(); ++i)
+	{
+		// 🔴 `return`, non `continue`. Riprendere dopo un buco unirebbe due celle NON adiacenti: per la
+		// traccia con un segmento dritto sopra il tratto da nascondere, per il modello con uno scatto
+		// attraverso di esso. Il salto disegnerebbe esattamente cio' che il verdetto nega.
+		if (!CellVerdicts[i].AllowsTeam(ObserverTeamId))
+		{
+			return i;
+		}
+	}
+
+	return Cells.Num();
+}
