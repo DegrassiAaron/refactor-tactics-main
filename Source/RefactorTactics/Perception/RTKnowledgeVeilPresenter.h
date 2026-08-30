@@ -81,6 +81,11 @@ public:
 	 * Si RILEGGE dall'`Outer` a ogni applicazione e non si copia in un campo: copiarla farebbe di questo
 	 * oggetto una seconda sede del valore, che e' esattamente cio' che questa funzione esiste per evitare.
 	 *
+	 * ⚠️ **Non e' l'unica sede in assoluto**: `UI/RTScreenHudWidgets` la cattura una volta in
+	 * `AcquireMatchContext` (membro `PlayerTeamId`) — l'unico dei sei lettori che copia invece di rileggere.
+	 * E' uno snapshot DICHIARATO, non un doppione silenzioso; il vincolo qui sopra riguarda solo questo
+	 * oggetto, che resta senza copia.
+	 *
 	 * Ripiega su `0` quando l'`Outer` non e' un controller — headless, harness, test di simulazione — con la
 	 * stessa regola di `ARTCameraPawn::FrameOwnTeam`, che il suo test pinna.
 	 */

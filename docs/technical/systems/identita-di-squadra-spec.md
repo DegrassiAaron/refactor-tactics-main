@@ -127,8 +127,11 @@ controllo vivo**: *«nessun percorso di risoluzione legge questo campo, quindi q
 il campo non esistesse (verificato per mutazione). Cade il giorno in cui qualcuno ci scrivesse sopra un
 ramo, ed è lì che sta il suo valore.»*
 
-Questa fetta è quel giorno. Dopo, `MatchFormat.ResolverIsInvariantToControlCount` smette di essere un
-tripwire e diventa un controllo su un campo che qualcuno legge davvero.
+Questa fetta è quel giorno: `ARTGameMode::AssignSeats` deriva `SeatsPerTeam = UnitsPerTeam / UnitsPerPlayer`
+e assegna i posti di conseguenza. Il controllo vivo che lo dimostra è `Player.SeatCountFollowsUnitsPerPlayer`,
+non `MatchFormat.ResolverIsInvariantToControlCount` — quel test non attraversa `ARTGameMode` (lo dichiara il
+suo stesso docstring in `Tests/RTMatchFormatWorldTests.cpp`) e resterebbe verde anche cancellando
+`AssignSeats`: resta un tripwire sulla risoluzione, non un controllo su questo consumo.
 
 ## 5. Il ripiego headless, e il verde vacuo
 

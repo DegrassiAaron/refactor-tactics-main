@@ -25,54 +25,54 @@
 /** Con un `ARTPlayerState` assegnato, la vista e' quella. Il valore di prova e' `1` e non `0`: con `0` il
  *  test resterebbe verde anche se `TeamIdOf` rispondesse sempre il ripiego. */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerTeamComesFromPlayerStateTest,
-    "RefactorTactics.Player.TeamComesFromThePlayerState",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	"RefactorTactics.Player.TeamComesFromThePlayerState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlayerTeamComesFromPlayerStateTest::RunTest(const FString&)
 {
-    UWorld* World = RTWorldFixtures::MakeWorld();
-    if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-    ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
-    ARTPlayerState* PS = World->SpawnActor<ARTPlayerState>();
-    if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("player state"), PS))
-    {
-        RTWorldFixtures::DestroyWorld(World);
-        return false;
-    }
-    PC->SetPlayerState(PS);
-    PS->AssignTeam(1);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTPlayerState* PS = World->SpawnActor<ARTPlayerState>();
+	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("player state"), PS))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	PC->SetPlayerState(PS);
+	PS->AssignTeam(1);
 
-    TestEqual(TEXT("la vista e' quella del PlayerState"), ARTPlayerState::TeamIdOf(PC), 1);
+	TestEqual(TEXT("la vista e' quella del PlayerState"), ARTPlayerState::TeamIdOf(PC), 1);
 
-    // E SEGUE lo stato, non lo copia: un lettore che memorizzasse alla prima chiamata passerebbe sopra
-    // e fallirebbe qui.
-    PS->AssignTeam(0);
-    TestEqual(TEXT("segue lo stato, non una copia"), ARTPlayerState::TeamIdOf(PC), 0);
+	// E SEGUE lo stato, non lo copia: un lettore che memorizzasse alla prima chiamata passerebbe sopra
+	// e fallirebbe qui.
+	PS->AssignTeam(0);
+	TestEqual(TEXT("segue lo stato, non una copia"), ARTPlayerState::TeamIdOf(PC), 0);
 
-    RTWorldFixtures::DestroyWorld(World);
-    return true;
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
 }
 
 /** Senza PlayerState si ripiega su `0`, DICHIARATAMENTE. E' il caso dei mondi nudi. */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerTeamFallsBackWithoutPlayerStateTest,
-    "RefactorTactics.Player.TeamFallsBackWithoutPlayerState",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	"RefactorTactics.Player.TeamFallsBackWithoutPlayerState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlayerTeamFallsBackWithoutPlayerStateTest::RunTest(const FString&)
 {
-    UWorld* World = RTWorldFixtures::MakeWorld();
-    if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-    ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
-    if (!TestNotNull(TEXT("controller"), PC)) { RTWorldFixtures::DestroyWorld(World); return false; }
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller"), PC)) { RTWorldFixtures::DestroyWorld(World); return false; }
 
-    TestNull(TEXT("il mondo nudo non crea un PlayerState"), PC->PlayerState.Get());
-    TestEqual(TEXT("senza PlayerState: squadra 0"), ARTPlayerState::TeamIdOf(PC), 0);
+	TestNull(TEXT("il mondo nudo non crea un PlayerState"), PC->PlayerState.Get());
+	TestEqual(TEXT("senza PlayerState: squadra 0"), ARTPlayerState::TeamIdOf(PC), 0);
 
-    // Puro, senza mondo: la funzione e' statica apposta.
-    TestEqual(TEXT("senza controller: squadra 0"), ARTPlayerState::TeamIdOf(nullptr), 0);
+	// Puro, senza mondo: la funzione e' statica apposta.
+	TestEqual(TEXT("senza controller: squadra 0"), ARTPlayerState::TeamIdOf(nullptr), 0);
 
-    RTWorldFixtures::DestroyWorld(World);
-    return true;
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
 }
 
 /**
@@ -81,27 +81,27 @@ bool FRTPlayerTeamFallsBackWithoutPlayerStateTest::RunTest(const FString&)
  * `InitPlayerState` pesca il game mode di DEFAULT. A colpo d'occhio il sistema sembra sano.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerTeamFallsBackOnWrongPlayerStateClassTest,
-    "RefactorTactics.Player.TeamFallsBackOnWrongPlayerStateClass",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	"RefactorTactics.Player.TeamFallsBackOnWrongPlayerStateClass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlayerTeamFallsBackOnWrongPlayerStateClassTest::RunTest(const FString&)
 {
-    UWorld* World = RTWorldFixtures::MakeWorld();
-    if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-    ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
-    APlayerState* Nudo = World->SpawnActor<APlayerState>();
-    if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("player state nudo"), Nudo))
-    {
-        RTWorldFixtures::DestroyWorld(World);
-        return false;
-    }
-    PC->SetPlayerState(Nudo);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	APlayerState* Nudo = World->SpawnActor<APlayerState>();
+	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("player state nudo"), Nudo))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	PC->SetPlayerState(Nudo);
 
-    TestNotNull(TEXT("un PlayerState c'e'"), PC->PlayerState.Get());
-    TestEqual(TEXT("ma della classe sbagliata: si ripiega su 0"), ARTPlayerState::TeamIdOf(PC), 0);
+	TestNotNull(TEXT("un PlayerState c'e'"), PC->PlayerState.Get());
+	TestEqual(TEXT("ma della classe sbagliata: si ripiega su 0"), ARTPlayerState::TeamIdOf(PC), 0);
 
-    RTWorldFixtures::DestroyWorld(World);
-    return true;
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
 }
 
 /**
@@ -110,29 +110,29 @@ bool FRTPlayerTeamFallsBackOnWrongPlayerStateClassTest::RunTest(const FString&)
  * `APlayerState` nudo e leggerebbe il ripiego credendo di leggere la squadra.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerFixtureReplacesDefaultPlayerStateTest,
-    "RefactorTactics.Player.FixtureReplacesTheDefaultPlayerState",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	"RefactorTactics.Player.FixtureReplacesTheDefaultPlayerState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlayerFixtureReplacesDefaultPlayerStateTest::RunTest(const FString&)
 {
-    UWorld* World = RTWorldFixtures::MakeWorld();
-    if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-    // È il mondo che produce il PlayerState di DEFAULT: il caso misurato in §5 dello spec.
-    World->InitializeActorsForPlay(FURL());
+	// È il mondo che produce il PlayerState di DEFAULT: il caso misurato in §5 dello spec.
+	World->InitializeActorsForPlay(FURL());
 
-    ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 1);
-    if (!TestNotNull(TEXT("la fixture produce un controller"), PC))
-    {
-        RTWorldFixtures::DestroyWorld(World);
-        return false;
-    }
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 1);
+	if (!TestNotNull(TEXT("la fixture produce un controller"), PC))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
 
-    TestNotNull(TEXT("ed e' un ARTPlayerState, non quello di default"),
-        Cast<ARTPlayerState>(PC->PlayerState));
-    TestEqual(TEXT("con la squadra chiesta"), ARTPlayerState::TeamIdOf(PC), 1);
+	TestNotNull(TEXT("ed e' un ARTPlayerState, non quello di default"),
+		Cast<ARTPlayerState>(PC->PlayerState));
+	TestEqual(TEXT("con la squadra chiesta"), ARTPlayerState::TeamIdOf(PC), 1);
 
-    RTWorldFixtures::DestroyWorld(World);
-    return true;
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
 }
 
 /**
@@ -145,27 +145,43 @@ bool FRTPlayerFixtureReplacesDefaultPlayerStateTest::RunTest(const FString&)
  * ⚠️ **Limite dichiarato**: coglie il campo riaperto, NON un lettore nuovo che inlinei
  * `Cast<ARTPlayerState>(PC->PlayerState)->GetTeamId()` duplicando il ripiego. Contro quello la difesa e' la
  * prosa su `TeamIdOf`, ed e' una difesa parziale.
+ *
+ * ✅ **Il canarino del presidio.** Zero colpevoli su un'iterazione VUOTA e' indistinguibile, nell'asserzione
+ * sopra, da zero colpevoli su un'iterazione che ha davvero scandito la classe: se `ExcludeSuper` fosse
+ * invertito, o la classe passata fosse sbagliata, l'iterazione sarebbe vuota e questo test passerebbe verde
+ * senza presidiare niente. Per questo si conta anche QUANTE proprieta' sono state visitate e si asserisce
+ * che siano piu' di zero — `ARTPlayerController` dichiara circa diciannove `UPROPERTY` proprie, quindi la
+ * soglia e' ampiamente sicura e rende il presidio strutturalmente incapace di essere vuoto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerControllerHasNoTeamFieldTest,
-    "RefactorTactics.Player.ControllerCarriesNoTeamField",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	"RefactorTactics.Player.ControllerCarriesNoTeamField",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlayerControllerHasNoTeamFieldTest::RunTest(const FString&)
 {
-    TArray<FString> Colpevoli;
-    for (TFieldIterator<FProperty> It(ARTPlayerController::StaticClass(),
-             EFieldIteratorFlags::ExcludeSuper); It; ++It)
-    {
-        const FString Nome = It->GetName();
-        if (Nome.Contains(TEXT("TeamId")))
-        {
-            Colpevoli.Add(Nome);
-        }
-    }
+	TArray<FString> Colpevoli;
+	int32 ProprietaVisitate = 0;
+	for (TFieldIterator<FProperty> It(ARTPlayerController::StaticClass(),
+			 EFieldIteratorFlags::ExcludeSuper); It; ++It)
+	{
+		++ProprietaVisitate;
+		const FString Nome = It->GetName();
+		if (Nome.Contains(TEXT("TeamId")))
+		{
+			Colpevoli.Add(Nome);
+		}
+	}
 
-    TestEqual(*FString::Printf(TEXT("nessuna UPROPERTY di squadra sul controller (trovate: %s)"),
-            Colpevoli.Num() > 0 ? *FString::Join(Colpevoli, TEXT(", ")) : TEXT("nessuna")),
-        Colpevoli.Num(), 0);
-    return true;
+	// Il canarino: senza questa riga un `ExcludeSuper` invertito (o la classe sbagliata) darebbe
+	// un'iterazione vuota, zero colpevoli, e il test sotto passerebbe verde senza aver guardato niente.
+	TestTrue(*FString::Printf(
+			TEXT("l'iterazione ha visitato proprieta' reali (%d): un'iterazione vuota non presidierebbe nulla"),
+			ProprietaVisitate),
+		ProprietaVisitate > 0);
+
+	TestEqual(*FString::Printf(TEXT("nessuna UPROPERTY di squadra sul controller (trovate: %s)"),
+			Colpevoli.Num() > 0 ? *FString::Join(Colpevoli, TEXT(", ")) : TEXT("nessuna")),
+		Colpevoli.Num(), 0);
+	return true;
 }
 
 /**
@@ -175,55 +191,55 @@ bool FRTPlayerControllerHasNoTeamFieldTest::RunTest(const FString&)
  * nell'allestimento: `AssignSeats` chiamata prima delle regole non deve fare nulla NE' sporcare niente.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSeatsComeFromTheFormatTest,
-    "RefactorTactics.Player.SeatsComeFromTheFormat",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	"RefactorTactics.Player.SeatsComeFromTheFormat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTSeatsComeFromTheFormatTest::RunTest(const FString&)
 {
-    UWorld* World = RTWorldFixtures::MakeWorld();
-    if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-    // 🔴 SENZA questa riga `GetWorld()->GetPlayerControllerIterator()` in `AssignSeats` e' VUOTO: senza
-    // `InitializeActorsForPlay` il mondo non e' `AreActorsInitialized()`, `AActor::PostActorConstruction`
-    // salta `PostInitializeComponents()` per ogni Actor spawnato dopo — e `AController::AddController`,
-    // che popola `PlayerControllerList`, vive proprio li'. Stessa premessa gia' documentata per
-    // `InitPlayerState` in `FRTPlayerFixtureReplacesDefaultPlayerStateTest` piu' sopra: e' la stessa
-    // chiamata mancante, e qui morde su un lettore diverso (l'iteratore, non lo stato).
-    World->InitializeActorsForPlay(FURL());
+	// 🔴 SENZA questa riga `GetWorld()->GetPlayerControllerIterator()` in `AssignSeats` e' VUOTO: senza
+	// `InitializeActorsForPlay` il mondo non e' `AreActorsInitialized()`, `AActor::PostActorConstruction`
+	// salta `PostInitializeComponents()` per ogni Actor spawnato dopo — e `AController::AddController`,
+	// che popola `PlayerControllerList`, vive proprio li'. Stessa premessa gia' documentata per
+	// `InitPlayerState` in `FRTPlayerFixtureReplacesDefaultPlayerStateTest` piu' sopra: e' la stessa
+	// chiamata mancante, e qui morde su un lettore diverso (l'iteratore, non lo stato).
+	World->InitializeActorsForPlay(FURL());
 
-    // ⚠️ La mappa si costruisce con `MakeFlatArena` e si assegna a mano, come fa
-    // `RTMatchFormatWorldTests`: cosi' l'allestimento non emette l'avviso dell'arena generata e il test non
-    // deve dichiarare un `AddExpectedError` il cui conteggio andrebbe misurato a parte.
-    ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
-    if (HexMap)
-    {
-        HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4);
-    }
-    World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-    ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
-    ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 1);
-    if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("game mode"), GameMode)
-        || !TestNotNull(TEXT("controller"), PC))
-    {
-        RTWorldFixtures::DestroyWorld(World);
-        return false;
-    }
+	// ⚠️ La mappa si costruisce con `MakeFlatArena` e si assegna a mano, come fa
+	// `RTMatchFormatWorldTests`: cosi' l'allestimento non emette l'avviso dell'arena generata e il test non
+	// deve dichiarare un `AddExpectedError` il cui conteggio andrebbe misurato a parte.
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	if (HexMap)
+	{
+		HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4);
+	}
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 1);
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("game mode"), GameMode)
+		|| !TestNotNull(TEXT("controller"), PC))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
 
-    // PRIMA delle regole: non fa nulla e non sporca. La squadra resta quella scritta dalla fixture.
-    GameMode->AssignSeats();
-    TestEqual(TEXT("senza regole non assegna"), ARTPlayerState::TeamIdOf(PC), 1);
+	// PRIMA delle regole: non fa nulla e non sporca. La squadra resta quella scritta dalla fixture.
+	GameMode->AssignSeats();
+	TestEqual(TEXT("senza regole non assegna"), ARTPlayerState::TeamIdOf(PC), 1);
 
-    // Allestire risolve il formato e assegna: `Format.Skirmish2v2` fa 2/2 = 1 posto per squadra, quindi
-    // l'unico giocatore prende la squadra 0.
-    GameMode->SetupHexMatch(HexMap);
-    TestEqual(TEXT("un posto per squadra: il primo arrivato e' la squadra 0"),
-        ARTPlayerState::TeamIdOf(PC), 0);
+	// Allestire risolve il formato e assegna: `Format.Skirmish2v2` fa 2/2 = 1 posto per squadra, quindi
+	// l'unico giocatore prende la squadra 0.
+	GameMode->SetupHexMatch(HexMap);
+	TestEqual(TEXT("un posto per squadra: il primo arrivato e' la squadra 0"),
+		ARTPlayerState::TeamIdOf(PC), 0);
 
-    // Idempotente: richiamarla non sposta nessuno.
-    GameMode->AssignSeats();
-    TestEqual(TEXT("idempotente"), ARTPlayerState::TeamIdOf(PC), 0);
+	// Idempotente: richiamarla non sposta nessuno.
+	GameMode->AssignSeats();
+	TestEqual(TEXT("idempotente"), ARTPlayerState::TeamIdOf(PC), 0);
 
-    RTWorldFixtures::DestroyWorld(World);
-    return true;
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
 }
 
 /**
@@ -235,68 +251,71 @@ bool FRTSeatsComeFromTheFormatTest::RunTest(const FString&)
  * scritto in una costante.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSeatCountFollowsUnitsPerPlayerTest,
-    "RefactorTactics.Player.SeatCountFollowsUnitsPerPlayer",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	"RefactorTactics.Player.SeatCountFollowsUnitsPerPlayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTSeatCountFollowsUnitsPerPlayerTest::RunTest(const FString&)
 {
-    // `UnitsPerTeam = 2`, `UnitsPerPlayer = 1` -> due posti per squadra, quattro in tutto: il terzo
-    // giocatore ENTRA, sulla squadra 0. Con `Format.Skirmish2v2` (2/2 = un posto per squadra) sarebbe
-    // rimasto fuori.
-    UWorld* World = RTWorldFixtures::MakeWorld();
-    if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	// `UnitsPerTeam = 2`, `UnitsPerPlayer = 1` -> due posti per squadra, quattro in tutto: il terzo
+	// giocatore ENTRA, sulla squadra 0. Con `Format.Skirmish2v2` (2/2 = un posto per squadra) sarebbe
+	// rimasto fuori.
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-    // Vedi `FRTSeatsComeFromTheFormatTest` per il perche': senza questa riga il mondo non e'
-    // `AreActorsInitialized()`, `AddController` non corre mai, e i tre controller sotto restano invisibili
-    // a `GetPlayerControllerIterator()`.
-    World->InitializeActorsForPlay(FURL());
+	// Vedi `FRTSeatsComeFromTheFormatTest` per il perche': senza questa riga il mondo non e'
+	// `AreActorsInitialized()`, `AddController` non corre mai, e i tre controller sotto restano invisibili
+	// a `GetPlayerControllerIterator()`.
+	World->InitializeActorsForPlay(FURL());
 
-    ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
-    if (HexMap)
-    {
-        HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4);
-    }
-    World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-    ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
-    if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("game mode"), GameMode))
-    {
-        RTWorldFixtures::DestroyWorld(World);
-        return false;
-    }
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	if (HexMap)
+	{
+		HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4);
+	}
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("game mode"), GameMode))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
 
-    URTMatchFormatData* Format = NewObject<URTMatchFormatData>();
-    Format->FormatId = FName(TEXT("Format.SeatTest2v2"));
-    Format->RoundLimit = 12;
-    Format->ExpectedRounds = 12;
-    Format->ScoreToWin = 0;
-    Format->UnitsPerTeam = 2;
-    Format->UnitsPerPlayer = 1;   // <- due posti per squadra, non uno
-    GameMode->MatchFormat = Format;
+	URTMatchFormatData* Format = NewObject<URTMatchFormatData>();
+	Format->FormatId = FName(TEXT("Format.SeatTest2v2"));
+	Format->RoundLimit = 12;
+	Format->ExpectedRounds = 12;
+	Format->ScoreToWin = 0;
+	Format->UnitsPerTeam = 2;
+	Format->UnitsPerPlayer = 1;   // <- due posti per squadra, non uno
+	GameMode->MatchFormat = Format;
 
-    // Il valore sentinella `9` NON e' decorativo: se `AssignSeats` non assegnasse nessuno, le squadre
-    // resterebbero `{9, 9, 9}` e il test lo direbbe. Partendo da `0` un `AssignSeats` inerte passerebbe
-    // per due terzi.
-    ARTPlayerController* P0 = RTWorldFixtures::MakePlayerOnTeam(World, 9);
-    ARTPlayerController* P1 = RTWorldFixtures::MakePlayerOnTeam(World, 9);
-    ARTPlayerController* P2 = RTWorldFixtures::MakePlayerOnTeam(World, 9);
-    if (!TestNotNull(TEXT("tre controller"), P2))
-    {
-        RTWorldFixtures::DestroyWorld(World);
-        return false;
-    }
+	// Il valore sentinella `9` NON e' decorativo: se `AssignSeats` non assegnasse nessuno, le squadre
+	// resterebbero `{9, 9, 9}` e il test lo direbbe. Partendo da `0` un `AssignSeats` inerte passerebbe
+	// per due terzi.
+	ARTPlayerController* P0 = RTWorldFixtures::MakePlayerOnTeam(World, 9);
+	ARTPlayerController* P1 = RTWorldFixtures::MakePlayerOnTeam(World, 9);
+	ARTPlayerController* P2 = RTWorldFixtures::MakePlayerOnTeam(World, 9);
+	if (!TestNotNull(TEXT("tre controller"), P2))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
 
-    GameMode->SetupHexMatch(HexMap);
+	GameMode->SetupHexMatch(HexMap);
 
-    // ⚠️ L'ordine dell'iteratore dei controller non e' quello di spawn per contratto: si asserisce
-    // sull'INSIEME delle squadre assegnate, non su quale controller ha preso quale.
-    TArray<int32> Squadre = { ARTPlayerState::TeamIdOf(P0), ARTPlayerState::TeamIdOf(P1),
-                              ARTPlayerState::TeamIdOf(P2) };
-    Squadre.Sort();
+	// ✅ L'ordine dell'iteratore E' l'ordine di arrivo, e non e' un'assunzione: `UWorld::AddController`
+	// (Engine/Private/World.cpp) fa `PlayerControllerList.Add(PlayerController)` — un append, guardato da
+	// `Contains` — e `GetPlayerControllerIterator()` e' un `TConstIterator` su quello stesso array.
+	// Si asserisce quindi la SEQUENZA per arrivo, non l'insieme: e' l'unica asserzione che distingue
+	// l'alternanza (`Arrival % 2`) dal riempimento a blocchi, che su tre arrivi produrrebbero insiemi
+	// diversi ma stessi conteggi per squadra — ordinati sarebbero indistinguibili.
+	TArray<int32> Squadre = { ARTPlayerState::TeamIdOf(P0), ARTPlayerState::TeamIdOf(P1),
+							  ARTPlayerState::TeamIdOf(P2) };
 
-    TestEqual(TEXT("tre giocatori entrano tutti: due posti per squadra, nessuno resta al sentinella"),
-        Squadre, TArray<int32>({ 0, 0, 1 }));
+	TestEqual(TEXT("alternanza per arrivo: squadra 0, poi 1, poi di nuovo 0 - non riempimento a blocchi"),
+		Squadre, TArray<int32>({ 0, 1, 0 }));
 
-    RTWorldFixtures::DestroyWorld(World);
-    return true;
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

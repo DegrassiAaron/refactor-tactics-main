@@ -43,9 +43,10 @@ public:
 	 * Pubblico e separato da BeginPlay per essere verificabile headless, senza il ciclo di vita del GameMode.
 	 *
 	 * 🔑 **Da `E-SOLID` fetta 3 e' una FACADE, e cio' che fa e' la linea del refactor**: risolve *cosa* e'
-	 * stato chiesto — le tre precedenze vivono qui — passa il risultato a `FRTMatchBootstrapper`, e latcha
-	 * la modalita' della sessione se l'allestimento e' arrivato a deciderla. Il *come* nasce una partita
-	 * (mappa, formato, celle, roster, unita', equipaggiamento) sta dall'altra parte.
+	 * stato chiesto — le tre precedenze vivono qui — passa il risultato a `FRTMatchBootstrapper`, latcha
+	 * la modalita' della sessione se l'allestimento e' arrivato a deciderla, e assegna le squadre ai
+	 * giocatori presenti (`AssignSeats`, **D-285**). Il *come* nasce una partita (mappa, formato, celle,
+	 * roster, unita', equipaggiamento) sta dall'altra parte.
 	 *
 	 * ⚠️ **Resta pubblica perche' e' la porta dei test, non per comodo**: una quarantina di siti in
 	 * `Tests/` la chiamano direttamente per allestire una partita vera senza far correre `BeginPlay`.
@@ -319,8 +320,16 @@ public:
 	/**
 	 * Assegna la squadra ai giocatori presenti, derivando i posti dal formato.
 	 *
-	 * ⚠️ **Idempotente e chiamata da DUE lati** — `OnPostLogin` e `SetupHexMatch` — perche' il motore non
-	 * garantisce il loro ordine e le regole esistono solo dopo l'allestimento. Senza regole non fa nulla.
+	 * ⚠️ **Idempotente A INSIEME DI GIOCATORI INVARIATO, e chiamata da DUE lati** — `OnPostLogin` e
+	 * `SetupHexMatch` — perche' il motore non garantisce il loro ordine e le regole esistono solo dopo
+	 * l'allestimento. Senza regole non fa nulla.
+	 *
+	 * ⛔ **La clausola ha una condizione, e non e' decorativa.** `Arrival` e' un indice posizionale
+	 * sull'iteratore dei controller, e il ciclo fa `continue` SENZA contare sui controller privi di
+	 * `ARTPlayerState`: se l'insieme dei controller "seduti" cambia fra due chiamate, tutti quelli
+	 * successivi si reindicizzano e un giocatore gia' assegnato PUO' spostarsi. Non raggiungibile offline —
+	 * un controller solo, l'insieme non cambia mai fra `OnPostLogin` e `SetupHexMatch` — ma il giorno in cui
+	 * ce ne fossero due la garanzia varrebbe solo finche' nessuno entra o esce fra le due chiamate.
 	 */
 	void AssignSeats();
 

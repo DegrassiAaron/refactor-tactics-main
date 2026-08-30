@@ -612,9 +612,9 @@ void ARTGameMode::AssignSeats()
 		if (Arrival >= TotalSeats)
 		{
 			UE_LOG(LogRT, Warning,
-				TEXT("[RT] Piu' giocatori (%d) che posti (%d) nel formato '%s': l'eccedenza resta senza "
-					 "squadra assegnata."),
-				Arrival + 1, TotalSeats, *AssignedRules.FormatId.ToString());
+				TEXT("[RT] Il giocatore #%d non ha trovato posto nel formato '%s' (%d posti): l'eccedenza "
+					 "resta senza squadra assegnata."),
+				Arrival + 1, *AssignedRules.FormatId.ToString(), TotalSeats);
 			break;
 		}
 

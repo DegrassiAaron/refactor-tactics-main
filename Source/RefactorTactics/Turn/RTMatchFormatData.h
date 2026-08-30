@@ -61,12 +61,13 @@ struct FRTMatchRules
 	 * `3/1 = 3` in un competitivo dove ognuno comanda un eroe.
 	 *
 	 * 🔵 **Il resolver non lo legge, e non deve.** Governa autorizzazione, input, planning, `Ready`, privacy
-	 * e ownership della decisione di reazione — non l'esito.
-	 * ⚠️ `MatchFormat.ResolverIsInvariantToControlCount` confronta l'hash del TurnLog di due partite che
-	 * differiscono per il solo conteggio, ed e' oggi un **tripwire**, non un controllo vivo: nessun percorso
-	 * di risoluzione legge questo campo, quindi quel test passerebbe anche se il campo non esistesse
-	 * (verificato per mutazione). Cade il giorno in cui qualcuno ci scrivesse sopra un ramo, ed e' li' che
-	 * sta il suo valore.
+	 * e ownership della decisione di reazione — non l'esito: questo resta vero anche dopo il punto seguente.
+	 * ✅ **Ha il suo primo consumatore vivo**: `ARTGameMode::AssignSeats` deriva `SeatsPerTeam` da
+	 * `UnitsPerTeam / UnitsPerPlayer` e assegna i posti di conseguenza. Il controllo vivo che lo dimostra e'
+	 * `Player.SeatCountFollowsUnitsPerPlayer`, non `MatchFormat.ResolverIsInvariantToControlCount`: quel
+	 * test confronta l'hash del TurnLog di due partite che differiscono per il solo conteggio e — per il suo
+	 * stesso docstring — non attraversa `ARTGameMode`, quindi resterebbe verde anche cancellando
+	 * `AssignSeats`. Resta un **tripwire** sulla risoluzione, non un controllo su questo consumo.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Match")
 	int32 UnitsPerPlayer = 0;

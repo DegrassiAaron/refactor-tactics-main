@@ -70,7 +70,7 @@ struct FRTMatchBootstrapConfig
  * Cosa e' successo all'allestimento, per chi lo ha ordinato.
  *
  * ⚠️ **Non e' il rapporto d'avvio**: quello e' `FRTStartupReport`, lo legge un widget, ed elenca le
- * condizioni. Questo dice al chiamante le due cose che deve scrivere nel proprio stato, e nient'altro.
+ * condizioni. Questo dice al chiamante le quattro cose che deve scrivere nel proprio stato, e nient'altro.
  */
 struct FRTMatchBootstrapOutcome
 {
