@@ -34,6 +34,10 @@ void FRTHexEditorModeCommands::RegisterCommands()
 		EUserInterfaceActionType::ToggleButton, FInputChord());
 	ToolCommands.Add(GeometryTool);
 
+	UI_COMMAND(LosTool, "LOS", "Ispettore della linea di vista: clicca l'origine, passa sopra un bersaglio, e leggi se la vista passa e perche' no. Consuma la LOS canonica, non ne calcola una seconda.",
+		EUserInterfaceActionType::ToggleButton, FInputChord());
+	ToolCommands.Add(LosTool);
+
 	// `#623`: azione, non tool — vedi il commento sul campo. Deliberatamente NON aggiunta a `ToolCommands`:
 	// quella lista e' la palette, e `URTHexEditorMode::Enter` la consuma con `RegisterTool`, che si aspetta
 	// un builder per ogni voce. Il binding vive in `URTHexEditorMode::BindCommands`.

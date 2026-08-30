@@ -1,6 +1,5 @@
 #include "SRTLauncherScenarioPanel.h"
 
-#include "ScenarioHarness/RTScenarioAuthoring.h"
 #include "ScenarioHarness/RTScenarioDraft.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "RTScenarioPreviewSubsystem.h"
@@ -37,18 +36,6 @@ namespace
 
 void SRTLauncherScenarioPanel::Construct(const FArguments&)
 {
-	// Il vocabolario arriva dai file. La prima voce e' il «nessun filtro», ed e' una stringa VUOTA perche'
-	// e' esattamente cio' che `ListIds` intende per «non restringere»: una parola speciale tipo "(tutti)"
-	// andrebbe tradotta prima di ogni chiamata, e la traduzione e' il posto dove ci si dimentica un ramo.
-	TagOptions.Add(MakeShared<FString>());
-
-	// ⚠️ `KnownTag` e non `Tag`: `SWidget::Tag` esiste (un `FName` di debug), e una variabile locale che lo
-	// nasconde e' un `C4458` — che qui e' un errore, non un avviso.
-	for (const FString& KnownTag : URTScenarioIndex::ListTags())
-	{
-		TagOptions.Add(MakeShared<FString>(KnownTag));
-	}
-
 	ChildSlot
 	[
 		SNew(SVerticalBox)
@@ -64,13 +51,13 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 			.FillWidth(1.0f)
 			.Padding(0.0f, 0.0f, RowPadding, 0.0f)
 			[
-				SAssignNew(FilterABox, SComboBox<TSharedPtr<FString>>)
+				SNew(SComboBox<TSharedPtr<FString>>)
 				.OptionsSource(&TagOptions)
 				.OnGenerateWidget(this, &SRTLauncherScenarioPanel::OnGenerateTagOption)
 				.OnSelectionChanged_Lambda([this](TSharedPtr<FString> NewValue, ESelectInfo::Type)
 				{
 					FilterA = NewValue.IsValid() ? *NewValue : FString();
-					RefreshList();
+					RefreshFilters();
 				})
 				[
 					SNew(STextBlock)
@@ -81,13 +68,13 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 			+ SHorizontalBox::Slot()
 			.FillWidth(1.0f)
 			[
-				SAssignNew(FilterBBox, SComboBox<TSharedPtr<FString>>)
+				SNew(SComboBox<TSharedPtr<FString>>)
 				.OptionsSource(&TagOptions)
 				.OnGenerateWidget(this, &SRTLauncherScenarioPanel::OnGenerateTagOption)
 				.OnSelectionChanged_Lambda([this](TSharedPtr<FString> NewValue, ESelectInfo::Type)
 				{
 					FilterB = NewValue.IsValid() ? *NewValue : FString();
-					RefreshList();
+					RefreshFilters();
 				})
 				[
 					SNew(STextBlock)
@@ -101,7 +88,7 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 		.AutoHeight()
 		.Padding(RowPadding, 0.0f, RowPadding, RowPadding)
 		[
-			SAssignNew(SearchBox, SSearchBox)
+			SNew(SSearchBox)
 			.HintText(LOCTEXT("SearchHint", "cerca fra gli scenari filtrati"))
 			.OnTextChanged(this, &SRTLauncherScenarioPanel::OnSearchTextChanged)
 		]
@@ -123,12 +110,19 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 					.SelectionMode(ESelectionMode::Single)
 					.OnGenerateRow(this, &SRTLauncherScenarioPanel::OnGenerateScenarioRow)
 					.OnSelectionChanged(this, &SRTLauncherScenarioPanel::OnScenarioSelected)
+					// ⚠️ Collassa, non si limita a restare vuota: un riquadro alto e bianco sopra la
+					// spiegazione la spinge in fondo al pannello, dove non la si legge. Il messaggio deve
+					// PRENDERE il posto della lista, non aggiungersi sotto di essa.
+					.Visibility_Lambda([this]()
+					{
+						return ListState == ERTLauncherListState::Populated ? EVisibility::Visible : EVisibility::Collapsed;
+					})
 				]
 
-				// Il messaggio del vuoto occupa il posto della lista solo quando la lista e' vuota, e dice
-				// QUALE causa (#1705 AC): allargare i filtri e svuotare la ricerca sono due gesti diversi.
+				// Il messaggio del vuoto dice QUALE causa (#1705 AC): allargare i filtri, svuotare la
+				// ricerca e riparare il corpus sono tre gesti diversi.
 				+ SVerticalBox::Slot()
-				.AutoHeight()
+				.FillHeight(1.0f)
 				.Padding(RowPadding)
 				[
 					SNew(STextBlock)
@@ -187,32 +181,76 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 		]
 	];
 
-	RefreshList();
+	RefreshFilters();
 }
 
-void SRTLauncherScenarioPanel::RefreshList()
+void SRTLauncherScenarioPanel::RefreshFilters()
 {
-	// L'elenco filtrato viene dall'indice, sempre. Ricalcolarlo a ogni cambio di filtro costa una lettura
-	// dell'indice, non l'apertura degli scenari: e' la ragione per cui `ReadHeader` esiste.
-	const TArray<FString> Filtered = URTScenarioIndex::ListIds(FilterA, FilterB);
-	FilteredCount = Filtered.Num();
+	// Il vocabolario arriva dai file. La prima voce e' il «nessun filtro», ed e' una stringa VUOTA perche'
+	// e' esattamente cio' che `ListIds` intende per «non restringere»: una parola speciale tipo "(tutti)"
+	// andrebbe tradotta prima di ogni chiamata, e la traduzione e' il posto dove ci si dimentica un ramo.
+	TagOptions.Reset();
+	TagOptions.Add(MakeShared<FString>());
 
-	const TArray<FString> Visible = FRTLauncherScenarioBrowser::ApplySearch(Filtered, SearchText);
-	ListState = FRTLauncherScenarioBrowser::Classify(FilteredCount, Visible.Num());
+	// ⚠️ `KnownTag` e non `Tag`: `SWidget::Tag` esiste (un `FName` di debug), e una variabile locale che lo
+	// nasconde e' un `C4458` — che qui e' un errore, non un avviso.
+	for (const FString& KnownTag : URTScenarioIndex::ListTags())
+	{
+		TagOptions.Add(MakeShared<FString>(KnownTag));
+	}
+
+	FilteredIds = URTScenarioIndex::ListIds(FilterA, FilterB);
+
+	RefreshVisible();
+}
+
+void SRTLauncherScenarioPanel::RefreshVisible()
+{
+	const TArray<FString> Visible = FRTLauncherScenarioBrowser::ApplySearch(FilteredIds, SearchText);
+
+	ListState = FRTLauncherScenarioBrowser::Classify(
+		FilteredIds.Num(), Visible.Num(), !FilterA.IsEmpty() || !FilterB.IsEmpty());
 
 	VisibleItems.Reset(Visible.Num());
 	for (const FString& Id : Visible)
 	{
-		VisibleItems.Add(MakeShared<FString>(Id));
+		// Puntatore STABILE per id: `SListView` confronta i selezionati per identita' di puntatore, e una
+		// voce rigenerata perde l'evidenziazione pur restando nell'elenco.
+		TSharedPtr<FString>& Item = ItemById.FindOrAdd(Id);
+		if (!Item.IsValid())
+		{
+			Item = MakeShared<FString>(Id);
+		}
+
+		VisibleItems.Add(Item);
 	}
 
 	if (ListView.IsValid())
 	{
 		ListView->RequestListRefresh();
-	}
 
-	// ⛔ `SelectedId` e `ReadoutLines` NON si toccano qui. I filtri sono una lente: chi restringe per
-	// cercare un secondo scenario da confrontare non deve perdere il primo.
+		// ⛔ `SelectedId` NON si tocca qui: i filtri sono una lente, e chi restringe per cercare un secondo
+		// scenario da confrontare non deve perdere il primo. Ma la selezione VISIVA va riaffermata, perche'
+		// cambiare la sorgente la fa cadere: senza questa riga la riga resta elencata e smette di essere
+		// evidenziata, mentre il readout continua a mostrarla — due parti della stessa schermata che si
+		// contraddicono.
+		if (const TSharedPtr<FString>* Selected = SelectedId.IsEmpty() ? nullptr : ItemById.Find(SelectedId))
+		{
+			if (VisibleItems.Contains(*Selected))
+			{
+				// `Direct`: e' una riaffermazione, non una scelta dell'utente. `OnScenarioSelected` la
+				// scarta, quindi non rilegge lo scenario da disco a ogni battuta di tasto.
+				ListView->SetSelection(*Selected, ESelectInfo::Direct);
+			}
+		}
+	}
+}
+
+void SRTLauncherScenarioPanel::ClearSelection()
+{
+	SelectedId.Reset();
+	ReadoutLines.Reset();
+	ReadoutError.Reset();
 }
 
 void SRTLauncherScenarioPanel::RefreshReadout()
@@ -246,6 +284,13 @@ void SRTLauncherScenarioPanel::RefreshReadout()
 		// sparire dalla lista renderebbe invisibile proprio il file da riparare.
 		ClearScenarioPreview();
 		ReadoutError = OpenError;
+
+		// ⚠️ Chiudere anche qui. Un'apertura fallita NON azzera cio' che la facade aveva gia' aperto, quindi
+		// senza questa riga l'invariante «il draft e' chiuso» dipenderebbe dalla `Close()` in fondo al ramo
+		// di successo. Il giorno che quella si sposta, un'apertura fallita lascerebbe il draft precedente
+		// aperto e il readout mostrerebbe terreno, squadre e conteggi dello scenario SBAGLIATO sotto il
+		// nome di quello nuovo — un referto errato, che e' peggio di un referto assente.
+		Authoring->Close();
 		return;
 	}
 
@@ -295,7 +340,8 @@ FText SRTLauncherScenarioPanel::TagOptionLabel(const TSharedPtr<FString>& Option
 void SRTLauncherScenarioPanel::OnScenarioSelected(TSharedPtr<FString> Item, ESelectInfo::Type SelectInfo)
 {
 	// ⚠️ `Direct` esce: e' la selezione che `SListView` rifa' da sola dopo un `RequestListRefresh`, e
-	// trattarla come una scelta dell'utente farebbe riaprire lo scenario a ogni digitazione nella ricerca.
+	// quella che questo pannello riafferma in `RefreshVisible`. Trattarla come una scelta dell'utente
+	// farebbe riaprire lo scenario da disco a ogni digitazione nella ricerca.
 	if (SelectInfo == ESelectInfo::Direct)
 	{
 		return;
@@ -303,6 +349,11 @@ void SRTLauncherScenarioPanel::OnScenarioSelected(TSharedPtr<FString> Item, ESel
 
 	if (!Item.IsValid())
 	{
+		// Click nel vuoto sotto le righe: `SListView` deseleziona (`bClearSelectionOnClick`) e ce lo
+		// comunica con un item nullo. E' un gesto esplicito, quindi la selezione se ne va DAVVERO — e il
+		// readout con lei. Ignorarlo lascerebbe una lista senza evidenziazione sopra il referto di uno
+		// scenario che l'interfaccia dichiara non selezionato.
+		ClearSelection();
 		return;
 	}
 
@@ -313,7 +364,9 @@ void SRTLauncherScenarioPanel::OnScenarioSelected(TSharedPtr<FString> Item, ESel
 void SRTLauncherScenarioPanel::OnSearchTextChanged(const FText& NewText)
 {
 	SearchText = NewText.ToString();
-	RefreshList();
+
+	// Solo la ricerca: nessuna rilettura dell'indice mentre si digita. Vedi `RefreshFilters`.
+	RefreshVisible();
 }
 
 #undef LOCTEXT_NAMESPACE

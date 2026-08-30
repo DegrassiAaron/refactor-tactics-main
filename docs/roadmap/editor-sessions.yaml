@@ -1900,3 +1900,55 @@ sessions:
       ⛔ **`Reset` non è di questa seduta.** L'acceptance criterion di `#1753` che lo nomina resta scoperto
       finché `#1682` non porta una sessione: oggi il pannello apre e richiude la facade a ogni selezione, e
       non c'è uno stato da azzerare. Verificarlo qui misurerebbe qualcosa che non esiste.
+
+  - id: U33
+    title: La LOS si vede, e l'ispettore non ne inventa una seconda
+    block: 6
+    critical: false
+    produces: la conferma che il verdetto e il motivo del blocco si leggono nel viewport, sulla LOS canonica
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U21, U22]
+    verifies: []
+    # ⚠️ Nessuna voce `PIE-*`: questa seduta NON entra in PIE. L'ispettore e' un tool dell'Hex Map mode e
+    # vive nell'editor prima del Play. La voce PIE che #1712 prevede — muro blocca, apertura lascia vedere,
+    # porta chiusa blocca — appartiene al COMANDO `rt.Debug.*`, che e' l'altro consumatore e un altro attore.
+    issues: [1755]
+    # ⛔ **Perché una seduta e non un automation test.** Dei quattro test della slice, tre misurano cosa il
+    # readout SCRIVE dato un verdetto e uno che la query si rifaccia solo al cambio di cella. Nessuno vede la
+    # linea nel viewport, ne' se il marcatore del blocco cade sulla cella giusta a schermo, ne' se rosso e
+    # verde si distinguono. La parita' fra ragione ed esito non e' di questa seduta: e' del produttore,
+    # `RefactorTactics.HexVision.ReasonAgreesWithHasLineOfSight`, su 1369 coppie.
+    done_when: >-
+      Aperta una mappa d'autore nell'Hex Map mode e scelto il tool **LOS**, un click posa l'origine e il
+      pannello mostra `Selected`; passando il cursore su un'altra cella compaiono `Hovered`, `LOS` e `Layer`,
+      e nel viewport una linea fra i due punti. Su una cella libera il verdetto è `CLEAR` e `Reason` resta
+      `—`. Dipingendo un muro sulla linea il verdetto diventa `BLOCKED`, `Reason` dice `CellBlocker` con le
+      coordinate della cella colpevole, e **un marcatore cade su quella cella** — non su una qualunque.
+      Con una copertura ALTA sul bordo attraversato la ragione dice invece `EdgeBlocker` e nomina **due**
+      celle, il lato. ⚠️ **E il caso che conta di più**: un muro addossato al BERSAGLIO lo copre — è la
+      proprietà che distingue il bordo dalla cella — mentre un `bBlocksLineOfSight` sul bersaglio **non**
+      blocca, perché gli estremi non si oscurano da soli.
+      Su mappa a due piani, sparando dal layer 1 verso il layer 1 sopra un ostacolo del layer 0, `Layer`
+      dice `1` e il verdetto cambia rispetto allo stesso tiro da terra.
+      ⛔ **Il criterio negativo**: uscendo con il cursore dalla mappa il pannello **smette** di mostrare
+      l'ultimo verdetto invece di lasciarlo lì come se valesse ancora; e usare l'ispettore non modifica
+      niente — nessuna cella cambia, la mappa non diventa dirty, e i cinque tool di disegno restano
+      utilizzabili dopo.
+    unblocks: []
+    notes: >-
+      🔴 **È il primo tool con HOVER del progetto.** I cinque esistenti sono tutti a click
+      (`USingleClickTool` / `UClickDragTool`); questo aggiunge `UMouseHoverBehavior`. Il rischio che
+      introduce è dichiarato dal DoD di `#1755` — ⛔ *«nessun Tick; una query LOS su hover può essere
+      event-driven dal cambio della cella hoverata, non per-frame se nulla cambia»* — e la difesa è
+      `RTHexLos::ShouldRequery`, pura e testata. A schermo il sintomo di un filtro che non tenesse
+      **non si vedrebbe**: il pannello mostrerebbe le stesse cose, solo pagandole molto di più. Chi apre la
+      seduta guardi il frame time con il cursore fermo dentro una cella, non il readout.
+      ⚠️ **La ragione arriva dal produttore, non da qui.** `URTHexVisionLibrary::DescribeLineOfSight` è
+      l'unico attraversamento della linea che esiste nel progetto, e `HasLineOfSight` è il suo guscio: se
+      l'ispettore mostrasse un verdetto diverso da quello che decide il gioco, il difetto sarebbe **là** e
+      non in questo tool. È il motivo per cui la seduta guarda *dove* cade il marcatore e non *se* il
+      verdetto è giusto.
+      ⛔ **`unavailable` è una risposta prevista, non un difetto.** Se un giorno `ERTLineOfSightBlock`
+      crescesse di un valore che il readout non conosce, il pannello lo dichiara invece di ripiegare su una
+      delle due cause note: una ragione plausibile e sbagliata è peggio di nessuna ragione.

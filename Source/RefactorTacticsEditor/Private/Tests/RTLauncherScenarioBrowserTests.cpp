@@ -16,62 +16,138 @@
  */
 
 /**
- * L'invariante che l'asse di #1681 sta in piedi o cade: due tag si INTERSECANO.
+ * L'invariante su cui l'asse di #1681 sta in piedi o cade: due tag si INTERSECANO.
  *
- * ⚠️ Misurato sul corpus vero e non su un indice inventato, perche' il difetto che prende e' proprio la
- * sostituzione dell'intersezione con l'unione: su dati finti sceglierei io le cardinalita' e il test
- * passerebbe anche con l'operatore sbagliato, purche' gli insiemi fossero disgiunti.
+ * ⚠️ **L'oracolo e' l'uguaglianza con l'intersezione calcolata qui, non una disuguaglianza.** Asserire
+ * solo che il risultato non superi nessuno dei due lati e' un limite SUPERIORE, e lo rispettano anche due
+ * implementazioni rotte: una che restituisce sempre l'insieme vuoto, e una che perde delle corrispondenze
+ * vere. Confrontare con `OnlyA ∩ OnlyB` prende entrambe, ed e' anche l'unico modo di escludere l'unione
+ * quando i due insiemi non sono disgiunti.
+ *
+ * Misurato sul corpus vero e non su un indice inventato: su dati finti sceglierei io le cardinalita', e
+ * il test passerebbe anche con l'operatore sbagliato purche' gli insiemi fossero disgiunti.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherTagFiltersIntersectTest,
 	"RefactorTactics.DevSandboxLauncher.TagFiltersIntersect",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTLauncherTagFiltersIntersectTest::RunTest(const FString&)
 {
-	const TArray<FString> Tags = URTScenarioIndex::ListTags();
+	// ⚠️ **Una sola scansione del corpus**, e le attese si costruiscono da qui in memoria. `ListIds` passa
+	// da `Scan` a ogni chiamata — novanta letture e novanta parse — quindi un test che la interrogasse per
+	// ogni tag pagherebbe il corpus decine di volte per rispondere a domande che una scansione sola copre.
+	TArray<FString> Problems;
+	const TArray<FRTScenarioEntry> Entries = URTScenarioIndex::Scan(Problems);
 
-	// Senza corpus non c'e' misura, e un `return true` silenzioso sarebbe verde su nulla: e' esattamente
-	// il caso che `rt-suite` esiste per non far registrare.
-	if (!TestTrue(TEXT("il corpus espone dei tag: senza, questo test non misura niente"), Tags.Num() >= 2))
+	if (!TestTrue(TEXT("il corpus si legge: senza, questo test non misura niente"), Entries.Num() > 0))
 	{
 		return false;
 	}
 
-	const TArray<FString> All = URTScenarioIndex::ListIds(FString(), FString());
-	TestTrue(TEXT("due filtri vuoti danno l'elenco completo"), All.Num() > 0);
-
-	int32 PairsChecked = 0;
-
-	// Tutte le coppie sarebbero 53*52/2 letture dell'indice: si fermano alle prime che bastano a
-	// distinguere intersezione da unione, cioe' quelle con entrambi i lati non vuoti.
-	for (int32 i = 0; i < Tags.Num() && PairsChecked < 8; ++i)
+	TMap<FString, TArray<FString>> IdsByTag;
+	for (const FRTScenarioEntry& Entry : Entries)
 	{
-		for (int32 j = i + 1; j < Tags.Num() && PairsChecked < 8; ++j)
+		for (const FString& EntryTag : Entry.Tags)
 		{
-			const TArray<FString> OnlyA = URTScenarioIndex::ListIds(Tags[i], FString());
-			const TArray<FString> OnlyB = URTScenarioIndex::ListIds(Tags[j], FString());
-			const TArray<FString> Both = URTScenarioIndex::ListIds(Tags[i], Tags[j]);
-
-			if (OnlyA.Num() == 0 || OnlyB.Num() == 0)
-			{
-				continue;
-			}
-
-			++PairsChecked;
-
-			TestTrue(FString::Printf(TEXT("'%s' E '%s': %d non supera i %d del solo primo"),
-				*Tags[i], *Tags[j], Both.Num(), OnlyA.Num()), Both.Num() <= OnlyA.Num());
-
-			TestTrue(FString::Printf(TEXT("'%s' E '%s': %d non supera i %d del solo secondo"),
-				*Tags[i], *Tags[j], Both.Num(), OnlyB.Num()), Both.Num() <= OnlyB.Num());
-
-			// L'unione sarebbe >= max(|A|,|B|): questa riga e' quella che la esclude quando i due
-			// insiemi non sono disgiunti.
-			TestTrue(FString::Printf(TEXT("'%s' E '%s': %d non supera l'elenco completo (%d)"),
-				*Tags[i], *Tags[j], Both.Num(), All.Num()), Both.Num() <= All.Num());
+			IdsByTag.FindOrAdd(EntryTag).AddUnique(Entry.ScenarioId);
 		}
 	}
 
-	TestTrue(TEXT("almeno una coppia di tag con entrambi i lati non vuoti e' stata misurata"), PairsChecked > 0);
+	TArray<FString> Tags;
+	IdsByTag.GetKeys(Tags);
+	Tags.Sort();
+
+	if (!TestTrue(TEXT("il corpus espone almeno due tag"), Tags.Num() >= 2))
+	{
+		return false;
+	}
+
+	/**
+	 * ⚠️ **Le coppie si CERCANO, non si prendono le prime.** Misurato: fra le prime otto coppie in ordine
+	 * alfabetico nessuna condivide uno scenario, e su coppie disgiunte intersezione e «restituisci sempre
+	 * vuoto» danno lo stesso risultato — il test sarebbe verde senza distinguere niente. Servono entrambe
+	 * le famiglie: quelle che si sovrappongono per prendere un'implementazione che perde corrispondenze, e
+	 * almeno una disgiunta per prendere l'unione.
+	 */
+	TArray<TPair<FString, FString>> Overlapping;
+	TPair<FString, FString> Disjoint;
+	bool bFoundDisjoint = false;
+
+	for (int32 i = 0; i < Tags.Num() && Overlapping.Num() < 3; ++i)
+	{
+		for (int32 j = i + 1; j < Tags.Num() && Overlapping.Num() < 3; ++j)
+		{
+			const TArray<FString>& A = IdsByTag[Tags[i]];
+			const TArray<FString>& B = IdsByTag[Tags[j]];
+
+			bool bShares = false;
+			for (const FString& Id : A)
+			{
+				if (B.Contains(Id)) { bShares = true; break; }
+			}
+
+			if (bShares)
+			{
+				Overlapping.Add({ Tags[i], Tags[j] });
+			}
+			else if (!bFoundDisjoint)
+			{
+				Disjoint = { Tags[i], Tags[j] };
+				bFoundDisjoint = true;
+			}
+		}
+	}
+
+	// Se questo fallisce non e' rotto `ListIds`: e' il corpus a non avere due tag sullo stesso scenario, e
+	// senza quello l'asse a due filtri di #1681 non ha nulla da esprimere.
+	if (!TestTrue(TEXT("il corpus ha almeno una coppia di tag che condivide degli scenari"), Overlapping.Num() > 0))
+	{
+		return false;
+	}
+
+	for (const TPair<FString, FString>& Pair : Overlapping)
+	{
+		// L'oracolo: l'intersezione calcolata qui dalle entry, non un limite superiore.
+		TArray<FString> Expected;
+		for (const FString& Id : IdsByTag[Pair.Key])
+		{
+			if (IdsByTag[Pair.Value].Contains(Id))
+			{
+				Expected.Add(Id);
+			}
+		}
+		Expected.Sort();
+
+		const TArray<FString> Both = URTScenarioIndex::ListIds(Pair.Key, Pair.Value);
+
+		TestEqual(FString::Printf(TEXT("'%s' E '%s': %d id contro i %d attesi"),
+			*Pair.Key, *Pair.Value, Both.Num(), Expected.Num()), Both, Expected);
+
+		// Non vuota per costruzione: e' cio' che distingue l'intersezione da un `return {}` che passerebbe
+		// ogni disuguaglianza.
+		TestTrue(FString::Printf(TEXT("'%s' E '%s': l'intersezione non e' vuota"), *Pair.Key, *Pair.Value),
+			Both.Num() > 0);
+
+		// E resta un sottoinsieme di ciascun lato: e' la meta' che esclude l'unione.
+		TestTrue(FString::Printf(TEXT("'%s' E '%s': %d non supera i %d del solo primo"),
+			*Pair.Key, *Pair.Value, Both.Num(), IdsByTag[Pair.Key].Num()),
+			Both.Num() <= IdsByTag[Pair.Key].Num());
+		TestTrue(FString::Printf(TEXT("'%s' E '%s': %d non supera i %d del solo secondo"),
+			*Pair.Key, *Pair.Value, Both.Num(), IdsByTag[Pair.Value].Num()),
+			Both.Num() <= IdsByTag[Pair.Value].Num());
+	}
+
+	if (bFoundDisjoint)
+	{
+		// Due tag che non stanno mai insieme: l'intersezione e' vuota, l'unione avrebbe entrambi i lati.
+		const TArray<FString> Both = URTScenarioIndex::ListIds(Disjoint.Key, Disjoint.Value);
+		TestEqual(FString::Printf(TEXT("'%s' E '%s' non stanno su nessuno scenario: l'elenco e' vuoto"),
+			*Disjoint.Key, *Disjoint.Value), Both.Num(), 0);
+	}
+
+	// Filtri vuoti = nessuna restrizione: il contratto di `ListIds`, e la ragione per cui «cercare a filtri
+	// vuoti cerca su tutti» non e' un caso speciale nel pannello.
+	const TArray<FString> All = URTScenarioIndex::ListIds(FString(), FString());
+	TestEqual(TEXT("due filtri vuoti danno tutti gli scenari indicizzati"), All.Num(), Entries.Num());
 
 	return true;
 }
@@ -126,11 +202,13 @@ bool FRTLauncherSearchIsSubsetTest::RunTest(const FString&)
 }
 
 /**
- * L'elenco vuoto dice QUALE delle due cause lo ha svuotato.
+ * L'elenco vuoto dice QUALE causa lo ha svuotato — e le cause sono tre, non due.
  *
- * ⚠️ Il caso che conta e' il terzo: filtri che non lasciano passare niente **mentre c'e' del testo nella
- * casella**. Attribuirlo alla ricerca — che e' l'errore naturale, perche' la casella e' piena — manda a
- * cancellare la parola sbagliata, e l'elenco resta vuoto lo stesso.
+ * ⚠️ I due casi che contano sono quelli in cui il conteggio non basta a distinguere:
+ * - filtri che non lasciano passare niente **mentre c'e' del testo nella casella**: attribuirlo alla
+ *   ricerca (l'errore naturale, perche' la casella e' piena) manda a cancellare la parola sbagliata;
+ * - indice vuoto **a filtri aperti**: dire «allarga i filtri» manda a cercare una via d'uscita che non
+ *   esiste, perche' non c'e' niente da allargare e la causa e' fuori dal pannello.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherEmptyStateNamesItsCauseTest,
 	"RefactorTactics.DevSandboxLauncher.EmptyListNamesItsCause",
@@ -140,22 +218,33 @@ bool FRTLauncherEmptyStateNamesItsCauseTest::RunTest(const FString&)
 	// `TestTrue` con un confronto esplicito e non `TestEqual`: l'enum non ha una conversione a stringa, e
 	// il messaggio di fallimento di `TestEqual` la vorrebbe.
 	TestTrue(TEXT("con delle voci visibili non c'e' stato vuoto"),
-		FRTLauncherScenarioBrowser::Classify(12, 3) == ERTLauncherListState::Populated);
+		FRTLauncherScenarioBrowser::Classify(12, 3, true) == ERTLauncherListState::Populated);
 
-	TestTrue(TEXT("i tag non lasciano passare niente"),
-		FRTLauncherScenarioBrowser::Classify(0, 0) == ERTLauncherListState::NoTagMatches);
+	TestTrue(TEXT("i tag scelti non lasciano passare niente"),
+		FRTLauncherScenarioBrowser::Classify(0, 0, true) == ERTLauncherListState::NoTagMatches);
 
 	TestTrue(TEXT("i tag lasciavano passare, la ricerca ha azzerato"),
-		FRTLauncherScenarioBrowser::Classify(12, 0) == ERTLauncherListState::NoSearchMatches);
+		FRTLauncherScenarioBrowser::Classify(12, 0, true) == ERTLauncherListState::NoSearchMatches);
 
-	// I due messaggi non possono essere lo stesso testo: se lo fossero, la distinzione esisterebbe
-	// nell'enum e non sullo schermo, che e' l'unico posto dove serve.
+	// Lo stesso conteggio del caso qui sopra, con l'unica differenza che nessun filtro sta restringendo:
+	// senza il terzo dato le due situazioni sarebbero indistinguibili, e il pannello darebbe la colpa a
+	// dei filtri che non ci sono.
+	TestTrue(TEXT("indice vuoto a filtri aperti non e' colpa dei filtri"),
+		FRTLauncherScenarioBrowser::Classify(0, 0, false) == ERTLauncherListState::EmptyCorpus);
+
+	// I messaggi non possono essere lo stesso testo: se lo fossero, la distinzione esisterebbe nell'enum e
+	// non sullo schermo, che e' l'unico posto dove serve.
 	const FText NoTags = FRTLauncherScenarioBrowser::DescribeEmptyState(ERTLauncherListState::NoTagMatches);
 	const FText NoSearch = FRTLauncherScenarioBrowser::DescribeEmptyState(ERTLauncherListState::NoSearchMatches);
+	const FText NoCorpus = FRTLauncherScenarioBrowser::DescribeEmptyState(ERTLauncherListState::EmptyCorpus);
 
 	TestFalse(TEXT("il messaggio dei tag non e' vuoto"), NoTags.IsEmpty());
 	TestFalse(TEXT("il messaggio della ricerca non e' vuoto"), NoSearch.IsEmpty());
-	TestFalse(TEXT("i due messaggi sono distinguibili"), NoTags.EqualTo(NoSearch));
+	TestFalse(TEXT("il messaggio del corpus vuoto non e' vuoto"), NoCorpus.IsEmpty());
+
+	TestFalse(TEXT("tag e ricerca sono distinguibili"), NoTags.EqualTo(NoSearch));
+	TestFalse(TEXT("tag e corpus vuoto sono distinguibili"), NoTags.EqualTo(NoCorpus));
+	TestFalse(TEXT("ricerca e corpus vuoto sono distinguibili"), NoSearch.EqualTo(NoCorpus));
 
 	TestTrue(TEXT("un elenco pieno non ha messaggio da mostrare"),
 		FRTLauncherScenarioBrowser::DescribeEmptyState(ERTLauncherListState::Populated).IsEmpty());
@@ -164,8 +253,11 @@ bool FRTLauncherEmptyStateNamesItsCauseTest::RunTest(const FString&)
 }
 
 /**
- * Il terreno come lo scenario lo dichiara, nei due modi in cui il corpus lo dichiara davvero:
- * **21** scenari con una fixture, **67** con un raggio (#1705).
+ * Il terreno come lo scenario lo dichiara, nei due modi in cui il corpus lo dichiara davvero.
+ *
+ * Misurato il 2026-08-30 su questo branch: **90** scenari, **21** con una fixture, **69** con un raggio,
+ * nessuno con entrambi e nessuno con nessuno dei due. I numeri sono contati qui e non ripresi dal corpo
+ * della issue, dove erano fermi a 88.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherTerrainReadoutTest,
 	"RefactorTactics.DevSandboxLauncher.TerrainReadoutKeepsTheDeclaredForm",
@@ -243,7 +335,7 @@ bool FRTLauncherCompositionReadoutTest::RunTest(const FString&)
 	TestTrue(TEXT("la prima riga e' il terreno dichiarato"), Lines[0].Contains(TEXT("fixture Arena.V01")));
 	TestTrue(TEXT("il readout porta la composizione"), Lines[1].Contains(TEXT("team 0: 2")));
 
-	// `varianti` non compare quando sono zero: una riga costante su quasi tutti gli 88 scenari allontana
+	// `varianti` non compare quando sono zero: una riga costante su quasi tutti gli scenari allontana
 	// dall'occhio le righe che cambiano.
 	for (const FString& Line : Lines)
 	{
