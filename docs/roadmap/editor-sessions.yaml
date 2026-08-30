@@ -347,7 +347,7 @@ sessions:
     produces: verdetto su allestimento e movimento
     artifacts: []
     unblocked_by: [M6.1, M6.2]
-    shares_setup_with: [U3, U4, U5, U6]
+    shares_setup_with: [U3, U4, U5, U6, U35]
     verifies: [PIE-HEXPLAY-1, PIE-HEXPLAY-4, PIE-HEXPLAY-5, PIE-CAM-START,
       PIE-CAM-ORBIT, PIE-CAM-ZOOM-ANCHOR, PIE-CAM-BOUNDS, PIE-CAM-FOCUS]
     issues: []
@@ -384,7 +384,7 @@ sessions:
     produces: verdetto su selezione, budget e anteprima del percorso
     artifacts: []
     unblocked_by: [M6.3]
-    shares_setup_with: [U2, U4, U5, U6]
+    shares_setup_with: [U2, U4, U5, U6, U35]
     verifies: [PIE-HEXPLAY-2, PIE-HEXPLAY-3, PIE-HEXPLAY-3b, PIE-PREVIEW-PERSIST]
     issues: [33]
     done_when: le voci hanno esito reale nel registro
@@ -401,7 +401,7 @@ sessions:
     produces: verdetto su forme d'attacco, LOS esagonale e knockback
     artifacts: []
     unblocked_by: [M6.4, M6.5]
-    shares_setup_with: [U2, U3, U5, U6]
+    shares_setup_with: [U2, U3, U5, U6, U35]
     verifies: [PIE-HEXPLAY-6, PIE-HEXPLAY-6b, PIE-HEXPLAY-6c]
     issues: []
     done_when: le voci hanno esito reale nel registro
@@ -427,7 +427,7 @@ sessions:
     produces: verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale
     artifacts: []
     unblocked_by: [M6.6, M6.7]
-    shares_setup_with: [U2, U3, U4, U6]
+    shares_setup_with: [U2, U3, U4, U6, U35]
     verifies: [PIE-HEXPLAY-7, PIE-HEXPLAY-9, PIE-AI-01, PIE-AI-02, PIE-AI-03, PIE-AI-04, PIE-AI-05]
     issues: []
     done_when: le voci hanno esito reale e i pesi eventualmente modificati sono committati
@@ -445,7 +445,7 @@ sessions:
     produces: chiusura di M6 / E2 — sessione D verde
     artifacts: []
     unblocked_by: [M6.8]
-    shares_setup_with: [U2, U3, U4, U5]
+    shares_setup_with: [U2, U3, U4, U5, U35]
     verifies: [PIE-HEXPLAY-8, PIE-HEXPLAY-10, PIE-HEXPLAY-4b, PIE-FACING-1]
     issues: []
     done_when: le **14** voci del perimetro E2 sono verdi, rilette tutte insieme — il registro ne porta 15, `-11` e' fuori (E21)
@@ -478,6 +478,53 @@ sessions:
       **10-14** del 2v2 fissati da D-010, e il formato spedito e' passato a **12** nello stesso
       giorno. ⚠️ La partita completa va quindi **rigiocata col limite nuovo**: il ritmo misurato su
       5 round («un lampo») non descrive piu' il gioco.
+
+  - id: U35
+    title: PC Gym — la palestra del PlayerController, in coda al blocco 2
+    block: 2
+    critical: false
+    produces: verdetto su leggibilita' e comfort dell'interazione di planning
+    artifacts: []
+    unblocked_by: [M6.3]
+    shares_setup_with: [U2, U3, U4, U5, U6]
+    verifies: [PIE-PC-GYM]
+    issues: [1859]
+    done_when: la voce ha esito reale nel registro
+    unblocks: []
+    steps: |
+      **Non e' una seduta in piu': e' la coda di quella che si sta gia' facendo.** Stesso allestimento di
+      U2..U6 — `MapSource = GeneratedTestArena`, che genera esagono r=4, ostacoli, muro che blocca la
+      vista, fango a costo 3 e piattaforma sul layer 1 — quindi si esegue **senza riavviare**, dopo U3.
+      Aprire l'Editor per questa sola voce sarebbe il costo che la voce esiste per evitare.
+
+      Il percorso a tappe sta nel registro, che ne e' l'owner: qui si dichiara **quando** farla, non cosa
+      deve succedere (R-6).
+
+      ⚠️ **Il soggetto e' la mano, non la regola.** Un Automation verde non dice che si vede bene: mapping
+      Enhanced Input, collisioni hotkey, Pointer Context, path legality, undo state e lock-in state sono
+      gia' coperti da `RTPointerInteractionTests`, `RTPlayerInteractionTests` e `RTCameraPawnTests`
+      (19 test `RefactorTactics.Camera.*`). Qui si giudica cio' che nessuno di quelli puo' affermare.
+    notes: >-
+      🔴 **Quattro gesture sono in `main` e nessuna voce PIE le guardava.** Misurato su
+      `test-manuali-pie.md` il 2026-08-30: `Set Pivot` **0** occorrenze, `dolly` **0**,
+      `destination marker` **0**, `#1772`/`#1775` **0**. Le gesture camera piu' vecchie hanno una riga e
+      sono verdi — `PIE-CAM-ORBIT`, `-ZOOM-ANCHOR`, `-BOUNDS`, `-FOCUS`, tutte ✅ dal 2026-08-16 — mentre
+      `Alt`+`LMB` (orbita e Set Pivot, con la soglia `ClickDragThreshold`), `Alt`+`RMB` (dolly, che
+      sopprime `UndoAction` per la durata del gesto) e `PageUp`/`PageDown` sono entrate senza. Sono il
+      contenuto nuovo di questa seduta.
+      ⚠️ **`Alt`+`MMB` come precision pan NON esiste**, e l'handoff che ha aperto #1859 lo dava per
+      corrente: `MMB` nudo e' l'orbita (`RTPlayerController.cpp:329-330`). Un passo su un binding
+      inesistente resterebbe atteso-rosso per sempre, e sembrerebbe un difetto del gioco invece che
+      della spec.
+      ⛔ **Perche' non in `L_CameraFeatureLab`, che l'handoff prescriveva.** Quella mappa **non esiste**
+      — zero file il 2026-08-30 — ed e' `post-v0.1` sotto CAM-11 (#1780), che dipende a sua volta da
+      CAM-01 (#1770) ed e' lavoro Editor umano. Agganciarla li' avrebbe reso questa voce non eseguibile
+      fino a dopo la release. La decisione dell'autore e' **entrambi**: i criteri si registrano qui, dove
+      sono eseguibili oggi, e #1780 dichiara che la zona `Planning / PC Gym` li **eredita** quando la Lab
+      nascera'. Nessuna priorita' e' stata cambiata, e la PC Gym non diventa lavoro camera per il fatto
+      che un domani usera' la stessa `.umap`.
+      ⚠️ **L'ownership non si muove**: il contratto Hover/LMB/RMB resta di **#705**, la camera di
+      **#1769/E49**, l'asset di **#1780/CAM-11**. Questa seduta appartiene funzionalmente a **E11/#25**.
 
   - id: U23
     title: Autobattle registrata — la partita che si guarda, in PIE e su packaged

@@ -57,7 +57,9 @@
 
 ## Stato in numeri — 2026-08-30
 
-**177 voci**: ✅ **69 verdi** · 🟡 **23 parziali** · ❌ **2 fallite** · ⏳ **83 aperte**.
+**178 voci**: ✅ **69 verdi** · 🟡 **23 parziali** · ❌ **2 fallite** · ⏳ **84 aperte**.
+
+✅ **Rimisurato il 2026-08-30 (quarto giro della giornata, registrazione di `PIE-PC-GYM`): il comando canonico contava `177 · 69/23/2/83` **prima** di toccare il file e `178 · 69/23/2/84` **dopo**.** Il delta è **esattamente uno e tutto su ⏳**: entra `PIE-PC-GYM` ([#1859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1859)), verdi, parziali e fallite non si muovono. ⚠️ **E per la prima volta in sei giri l'intestazione era già corretta quando l'ho letta** — `177 · 69/23/2/83` scritto e `177 · 69/23/2/83` contato. Non cambia la regola di una parola: la coincidenza si è **misurata**, non dedotta, ed è esattamente ciò che le passate precedenti hanno fallito. `senza-marcatore=0` prima e dopo, che è il controllo che dice se una cella si è fusa con l'altra — il modo in cui questa sezione è già stata rotta due volte.
 
 🔴 **Rimisurato il 2026-08-30 (terzo giro della giornata, esecuzione di `PIE-HEX-VIZ-VELO`): il comando canonico contava `177 · 68/24/2/83` **prima** di toccare il file e `177 · 69/23/2/83` **dopo**.** Il delta è **esattamente uno e tutto 🟡→✅**: entra `PIE-HEX-VIZ-VELO`, eseguita sui cinque criteri. ⚠️ **E la riga qui sopra era già falsa quando l'ho letta**, per il **quinto** giro di fila: diceva `177 · 68/23/2/84` mentre il comando ne contava `68/24/2/83` — una ⏳ diventata 🟡 sotto la riga che la contava, nel giro di ore. La lezione non cambia di una parola, e conviene leggerla come una previsione invece che come un avvertimento: *il numero si ricalcola, non si aggiorna a mente*, e chi legge l'intestazione sta quasi sempre leggendo il passato.
 
@@ -870,6 +872,71 @@ per i verbi e da [`#613`](https://github.com/DegrassiAaron/refactor-tactics-main
 contenitore: oggi `OpenContext` non ha nulla da aprire. E un click sull'HUD **raggiunge ancora la cella
 sotto**, perché il Canvas HUD non registra hitbox: è la voce di DoD che aspetta i widget UMG. Il resto del
 percorso — passi 1-9 e 13 — è eseguibile.
+
+### PC Gym — la palestra del PlayerController ([#1859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1859), aggiunta il 2026-08-30)
+
+> **Una voce sola, e la ragione è il costo dell'Editor.** Il setup è identico a quello del **blocco 2** di
+> [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml) — `MapSource = GeneratedTestArena`, che genera
+> esagono r=4, ostacoli, muro che blocca la vista, fango a costo 3 e piattaforma sul layer 1 — quindi
+> spezzare i criteri in una fila di righe produrrebbe molte aperture per un solo allestimento. Il modello è
+> quello di `PIE-V01-POINTER`: **una** riga di registro, un percorso a tappe sotto.
+>
+> ⛔ **Questa voce non ridice ciò che il blocco 2 già verifica.** Camera (`PIE-CAM-*`), selezione
+> (`PIE-HEXPLAY-2`), anteprima e rifiuti (`PIE-HEXPLAY-3`, `-3b`), risoluzione (`PIE-HEXPLAY-4`) e
+> multilivello (`PIE-HEX-LAYER-*`) hanno già il loro owner: qui si va **in coda** a quelli, nella stessa
+> apertura, e si guarda ciò che nessuna riga guarda ancora.
+>
+> 🔴 **Quattro gesture sono in `main` e nessuna voce le osserva** — misurato su questo file il 2026-08-30:
+> `Set Pivot` **0** occorrenze, `dolly` **0**, `destination marker` **0**, `#1772`/`#1775` **0**. Le gesture
+> camera più vecchie hanno una riga e sono verdi; quelle che [#1772](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1772)
+> e [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775) hanno portato sono entrate
+> senza. È il difetto che `PIE-V01-GHOSTS` documenta per i nomi mai registrati, sulla superficie dell'input.
+>
+> ⚠️ **`Alt`+`MMB` come *precision pan* NON esiste**, e l'handoff che ha aperto questa voce lo dava per
+> corrente: `MMB` nudo è l'orbita (`RTPlayerController.cpp:329-330`). Un sottocriterio su un binding
+> inesistente sarebbe atteso-rosso per sempre, e nessuno saprebbe che è la spec a sbagliare.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|---|---|---|---|---|
+| **PIE-PC-GYM** | La palestra del PlayerController: pianificare si **capisce**, e il gesto non combatte la mano | partita hex avviata sul setup del blocco 2 (`GeneratedTestArena`), un'unità propria e una nemica raggiungibili col puntatore. Da eseguire **in coda** a `U2`/`U3`, senza riavviare | Il percorso a tappe qui sotto, **in ordine**. Il gate è uno e non è tecnico: il giocatore deve percepire *«pianifico → vedo cosa è previsto → confermo → il turno risolve»*, e **non** *«clicco → il personaggio cammina»*. Ogni rifiuto porta un reason code a schermo, non silenzio; ogni annullamento non lascia ghost dietro di sé | ⏳ **NOT RUN** — registrata il 2026-08-30 con [#1859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1859), mai eseguita da nessuno |
+
+#### `PIE-PC-GYM` — il percorso a tappe
+
+Sedici passi in una sola sessione, senza riavviare. I **binding sono stati misurati** in
+`RTPlayerController.cpp` (`BuildInputMappings`), non ricordati: chi esegue verifichi lì se una tappa non
+risponde, prima di dichiararla fallita.
+
+| # | Gesto | Cosa deve essere vero |
+|---|---|---|
+| 1 | `W` `A` `S` `D`, rotella, `Q`/`E` | pan relativo alla vista, zoom verso il cursore, yaw a passi di 45° |
+| 2 | MMB trascinato | orbita **continua**, si ferma dove lasci — non a scatti |
+| 3 | `Alt`+`LMB` trascinato oltre ~6 px | la vista **orbita**; al rilascio il pivot **non** si sposta — un gesto, una operazione |
+| 4 | `Alt`+`LMB` cliccato fermo | **Set Pivot** sulla cella puntata, e la vista **non** ruota di un grado |
+| 5 | `Alt`+`RMB` in verticale | **dolly**; e durante tutto il gesto **nessun waypoint viene cancellato** — è la soppressione di `UndoAction` di #1772, e il difetto si vede solo qui |
+| 6 | `F` con un'unità selezionata, poi `Home` | `F` inquadra l'unità mantenendo lo zoom; `Home` ricentra sulla mappa. Sono due comandi distinti |
+| 7 | `PageUp` / `PageDown` | l'`ActiveLayer` cambia e il picking segue il piano attivo |
+| 8 | Hover su cella, poi su unità | entrambi **percepibili senza cercarli**; l'hover non committa mai nulla |
+| 9 | `LMB` sull'unità propria | seleziona; nessuna azione risulta armata |
+| 10 | `LMB` sul nemico | segue il contratto corrente di #705 — apre l'inspector e **non pianifica** |
+| 11 | Destinazione **SHORT**, 2–3 celle | waypoint dove diceva la preview; il ghost si legge a colpo d'occhio |
+| 12 | Destinazione **MEDIUM**, ~5–6 celle | idem, e il costo resta comprensibile |
+| 13 | Destinazione **LONG** | il ghost regge sulla distanza: si capisce *dove si arriva* senza contare le celle |
+| 14 | Destinazione oltre un ostacolo | la deviazione si **spiega da sé**: guardando il ghost si capisce *perché* passa di lì. Provane una ovvia e una che non lo è |
+| 15 | Destinazione **invalida** (oltre budget, bloccata, occupata) | rifiuto con **reason code a schermo**; il piano precedente resta intatto |
+| 16 | Cambia destinazione, poi `RMB`/`BackSpace`, poi `Spazio` | cambiando meta il ghost precedente **sparisce**; l'annullamento toglie il waypoint **senza perdere la selezione** e non lascia un piano fantasma; il lock-in risolve, il cleanup non lascia residui visuali né di input, e il Planning successivo riparte pulito |
+
+Due domande di giudizio, che non sono passi e valgono su tutto il percorso:
+
+- **Il destination marker dice dove si arriva?** Non «è disegnato»: si distingue dal path ghost e dal
+  terreno, e risponde alla domanda senza che il tester debba ragionarci.
+- **Il click e il drag restano due cose diverse?** Un trascinamento della camera non deve mai produrre una
+  selezione, e un click con un pixel di tremolio non deve ruotare la vista. La soglia è
+  `ClickDragThreshold = 6.f` (`RTPlayerController.h:269`) e il **test headless la misura**: qui si giudica
+  se il valore è *comodo*, che è l'unica cosa che il test non può dire.
+
+⚠️ **Cosa NON si decide qui.** Legalità, percorso, bersagli e outcome restano dei servizi autorevoli, e il
+contratto Hover/LMB/RMB resta di [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705).
+Se una tappa fallisce per **semantica** dell'input e non per leggibilità, il difetto si apre lì, non qui.
 
 ### Strumenti di leggibilità (aggiunti il 2026-08-07)
 
