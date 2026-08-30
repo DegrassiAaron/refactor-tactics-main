@@ -34,10 +34,10 @@ public:
 	 *
 	 * 🔑 **Il viewer appartiene al giocatore, non alla partita** (`E-SOLID` fetta 4). Fino a quel refactor la
 	 * domanda «di chi e' la vista?» la rispondeva `ARTGameMode`, cioe' l'oggetto che in multiplayer e' **uno
-	 * solo e sta sul server**: la risposta giusta e' qui, dove `PlayerTeamId` gia' vive — la stessa fonte che
-	 * `ARTCameraPawn::FrameOwnTeam` e `CanPlayerControlUnit` leggono.
+	 * solo e sta sul server**: la risposta giusta e' qui, dove `ARTPlayerState::TeamIdOf` risale — la stessa
+	 * fonte che `ARTCameraPawn::FrameOwnTeam` e `CanPlayerControlUnit` leggono.
 	 *
-	 * ⚠️ **Uno per controller, e l'`Outer` E' il viewer**: il presenter risale a `PlayerTeamId` da
+	 * ⚠️ **Uno per controller, e l'`Outer` E' il viewer**: il presenter risale al proprio `ARTPlayerState` da
 	 * `GetOuter()`, quindi non esiste una seconda sede del valore da tenere allineata.
 	 *
 	 * ⚠️ **Non lo aggancia il controller**, e non e' una svista: il `TurnManager` puo' non esistere ancora

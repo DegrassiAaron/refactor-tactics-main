@@ -14,9 +14,9 @@ class ARTTurnManager;
  * 🔑 **Il viewer e' del giocatore, non del match.** Fino a `E-SOLID` fetta 4 questa logica viveva in
  * `ARTGameMode`, cioe' nell'oggetto che in multiplayer e' **uno solo e sta sul server**: chiedere «di chi e'
  * la vista?» a un oggetto globale e' la domanda sbagliata non appena i client sono due. Il proprietario
- * naturale e' `ARTPlayerController`, che gia' porta `PlayerTeamId` — la stessa fonte che
- * `ARTCameraPawn::FrameOwnTeam` e `CanPlayerControlUnit` leggono. Il velo si aggiunge a quei lettori invece
- * di aprire una terza autorita'.
+ * naturale e' `ARTPlayerController`, il cui `ARTPlayerState` risponde a `ARTPlayerState::TeamIdOf` — la
+ * stessa fonte che `ARTCameraPawn::FrameOwnTeam` e `CanPlayerControlUnit` leggono. Il velo si aggiunge a
+ * quei lettori invece di aprire una terza autorita'.
  *
  * ## Presentation-only, e la riga e' netta
  *
