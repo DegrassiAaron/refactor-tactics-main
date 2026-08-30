@@ -28,7 +28,10 @@ issue [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613).
 > `WBP_RT_TurnHeader`**, che esiste dal 2026-08-26, e la sua premessa nasceva dal leggere queste caselle.
 > Il referto è [`debug-hud-graybox-spec-panel-2026-08-30.md`](debug-hud-graybox-spec-panel-2026-08-30.md).
 
-**Misurato su `285d2322`** (`origin/main`). **36 caselle su 61** risultano fatte e sono state spuntate.
+**Misurato su `285d2322`** (`origin/main`). **36 caselle su 61** risultavano fatte e sono state spuntate.
+
+> 🔧 **Aggiornamento del 2026-08-30, secondo giro**: lo **Step 7.4 è stato implementato e chiuso** — vedi
+> «Lo stato neutro del dock» più sotto. Il conteggio sale a **37 su 61**.
 
 **Metodo, e il suo confine.** Il C++ e i `.ini` sono letti con `git grep` e citati per riga. I sette
 `.uasset` sono misurati **per estrazione di stringhe** — `perl -ne 'while(/([\x20-\x7E]{4,})/g){print
@@ -44,16 +47,15 @@ agente le può chiudere, come dice il preambolo.
 | 4 — `WBP_RT_TeamRoster` | 5 / 6 | 1 | `GetRoster` → `ForEach` → `WBP_RT_UnitCard` |
 | 5 — `WBP_RT_SelectedUnitPanel` | 5 / 6 | 1 | i tre slot leggono `bOccupied`/`DisplayName`, non li deducono |
 | 6 — `WBP_RT_ActionSlot` | 5 / 5 | 0 | **chiuso** |
-| 7 — `WBP_RT_ActionDock` | 4 / 6 | 2 | lo Step 7.4 **non è implementato** |
+| 7 — `WBP_RT_ActionDock` | 5 / 6 | 1 | lo Step 7.4 **chiuso il 2026-08-30** |
 | 8 — chiusura | 2 / 16 | 14 | fatta solo la correzione della guida |
 
 ### Quattro cose che la misura ha trovato, e che cambiano il piano
 
-**🔴 Lo Step 7.4 non è implementato.** `WBP_RT_ActionDock` **non chiama `GetArmedActionIndex()`** — la
-funzione esiste in C++ (`RTScreenHudWidgets.cpp:222`) ma la stringa è assente dal `.uasset`. Il dock
-costruisce gli slot con `GetActions` → `ForEach` → `SetAction`, e il grafo confronta un indice con
-`NotEqual_IntInt`, non con l'indice armato. Lo stato neutro di **D-128** — `INDEX_NONE`, nessuno slot
-acceso — **non ha la fonte da cui dedursi**. È un 🔴 del piano, ed è aperto.
+**✅ Lo Step 7.4 non era implementato, ed è stato chiuso lo stesso giorno.** `WBP_RT_ActionDock` **non
+chiamava `GetArmedActionIndex()`** — la funzione esiste in C++ (`RTScreenHudWidgets.cpp:222`) ma la stringa
+era assente dal `.uasset`. Vedi «Lo stato neutro del dock» qui sotto per cosa è stato trovato e cosa è
+cambiato.
 
 **⚠️ Lo Step 3.4 è per metà.** `GetPhaseText` e `GetTimerText` esistono e leggono `GetHeader()`; il
 troncamento c'è (`FTrunc`, da `16ba67a4`). Mancano **due** cose che lo step chiede: il `Select` su
@@ -82,10 +84,54 @@ punta a `/Game/RT/UI/Icons/`. `WBP_RT_ActionSlot` risolve l'icona con `GetResolv
 non-widget dell'intero HUD è `DA_IconCatalog`, dal solo `WBP_RT_TacticalHUD` — che è esattamente il
 meccanismo previsto. Il piano avverte che *«questa metà è tua, e nessun gate la controlla»*: la metà tiene.
 
+### Lo stato neutro del dock — Step 7.4, chiuso il 2026-08-30
+
+Il grafo, letto come DSL dal ponte MCP dell'Editor, diceva questo:
+
+```lisp
+(RefactorTactics|HUD|SetAction _aswbp_rt_action_slot _array_element false (GetIconCatalog self))
+```
+
+**`bArmed` era una costante `false`.** Il difetto quindi non era quello che il piano temeva — «un dock che
+mostra sempre uno slot armato» — ma il suo opposto: **nessuno slot poteva accendersi mai**. Lo stato neutro
+appariva corretto per la ragione sbagliata, e l'armamento non arrivava a schermo in nessun caso.
+
+**Un secondo difetto era annodato al primo.** La guardia di ricostruzione confrontava la lunghezza di
+`GetActions()` con quella della variabile `SlotWidgets` — che veniva **svuotata e mai ripopolata**. Restava
+quindi sempre a zero, la condizione era sempre vera, e il dock **ricostruiva ogni slot a ogni tick**:
+`CreateWidget` + `Cast` + `AddChild` per ogni azione, ogni frame. Non si poteva riparare il primo difetto
+lasciando il secondo — con `SetAction` corretto, quel lavoro per frame sarebbe solo aumentato.
+
+Il grafo ora è:
+
+```lisp
+(bind _actions (RefactorTactics|HUD|GetActions))
+(if (!= (Length _actions) (Widget|Panel|GetChildrenCount (GetSlotBox)))   ; ← lo stato REALE del pannello
+  (ClearChildren (GetSlotBox))
+  (for _e _actions  … CreateWidget → Cast → AddChildToHorizontalBox …))
+(for _index (range (Length _actions))
+  (bind _slot (CastToWBP_RT_ActionSlot (Widget|Panel|GetChildAt (GetSlotBox) _index)))
+  (SetAction _slot (Array|Get _actions _index)
+             (== _index (RefactorTactics|HUD|GetArmedActionIndex))      ; ← Step 7.4
+             (GetIconCatalog self)))
+```
+
+- La guardia legge `GetChildrenCount` del pannello invece della variabile morta: è lo stato vero, e non
+  dipende da una variabile che qualcuno deve ricordarsi di tenere allineata. La ricostruzione avviene ora
+  **solo** quando il kit cambia numero di azioni.
+- `bArmed` è `(== _index (GetArmedActionIndex))`, **senza `Select`** — come lo step prescrive
+  esplicitamente: con `INDEX_NONE` il confronto è falso per ogni indice di lista, e nessuno slot si accende.
+- ⚠️ `SlotWidgets` resta nel Blueprint **come variabile non più usata**. Rimuoverla è fuori da questo passo.
+
+**Verifica**: `RefactorTactics.ScreenHud` **9/9**, `RefactorTactics.Frontend` **80/80**,
+`RefactorTactics.HUD` **16/16** — eseguiti dentro l'Editor via `AutomationTestToolset`, non da `rt-suite`.
+Il Blueprint compila senza errori né warning, e il `.uasset` salvato contiene ora `GetArmedActionIndex` ed
+`EqualEqual_IntInt`. ⛔ **Nessuna verifica a schermo**: lo Step 7.5 resta aperto, ed è lì che si vede se lo
+slot armato si accende davvero in partita.
+
 ### Cosa resta, in ordine
 
-1. **Step 7.4** — lo stato neutro del dock (🔴, lavoro d'Editor).
-2. **Step 3.4** — la guardia sul negativo e la `Visibility` del timer (lavoro d'Editor).
+1. **Step 3.4** — la guardia sul negativo e la `Visibility` del timer (lavoro d'Editor).
 3. **Le cinque «verifica a schermo»** — 2.5, 3.6, 4.5, 5.5, 7.5 — più il **Task 8** quasi intero: la suite
    non è stata rieseguita, `PIE-V01-HUD` non ha esito nel registro (la seduta **U15** ha `artifacts: []` e
    `done_when: le voci hanno esito reale nel registro`), e `#613` è ancora `OPEN`.
@@ -94,8 +140,16 @@ meccanismo previsto. Il piano avverte che *«questa metà è tua, e nessun gate 
    `.uasset` del pannello, ma i tre testi arrivano da `DisplayName` della vista — quindi il ripiego
    dipende da cosa restituisce il dato, non dal Blueprint.
 
-⛔ **Questa riconciliazione non ha eseguito nulla del piano**: nessuna suite, nessuna build, nessun Editor
-aperto, nessuna scrittura su GitHub. Ha solo misurato e registrato.
+⛔ **Il primo giro di questa riconciliazione non ha eseguito nulla del piano**: nessuna suite, nessuna build, nessun Editor
+aperto, nessuna scrittura su GitHub. Ha solo misurato e registrato. Il **secondo giro** — lo Step 7.4 — ha
+aperto l'Editor su un worktree isolato, modificato un `.uasset` e rieseguito tre suite; resta senza
+verifica a schermo e senza scrittura su GitHub.
+
+⚠️ **Il difetto dello Step 7.4 è vissuto in `main` senza che nulla lo segnalasse**, e la ragione è scritta
+nello step stesso: *«nessun gate lo controlla»*. `RTMatchWidgetAssetTests.cpp` prova i **property binding**
+dentro i `.uasset` — `Class->Bindings` — e una chiamata nell'Event Graph non è un binding: nessun test la
+vede. Un gate che chiudesse il buco andrebbe nel modulo **editor** (serve `BlueprintGraph` per leggere gli
+`UbergraphPages`), e non è stato scritto qui.
 
 ---
 
@@ -973,7 +1027,7 @@ Su **Event Construct** e a ogni cambio di selezione:
 ⚠️ **L'ordine è quello del kit**, e l'indice è quello che l'hotkey arma: non riordinare per cooldown o per
 disponibilità. Un dock che si riordina da solo cambia il significato dei tasti a metà partita.
 
-- [ ] **Step 7.4 — 🔴 Lo stato neutro deve essere mostrabile** — ⛔ *non implementato: vedi la riconciliazione in testa*
+- [x] **Step 7.4 — 🔴 Lo stato neutro deve essere mostrabile**
 
 `GetArmedActionIndex()` restituisce `INDEX_NONE` (`-1`) quando **niente è armato**. Non è un caso limite: è
 lo stato neutro di **D-128**, quello in cui un click su un nemico *ispeziona* invece di bersagliarlo.
