@@ -133,7 +133,15 @@ a caso.
 |---|---|
 | Build `RefactorTacticsEditor Win64 Development` | **`Result: Succeeded`**, 210,88 s |
 | `rt-suite.ps1 -Filter RefactorTactics.Playback` | **VALIDA** · 18/18 completati · 0 fallimenti · 04:35 |
-| `rt-suite.ps1` (suite intera) | vedi §8 |
+| `rt-suite.ps1` (suite intera) su `b945a7fc` | **VALIDA** · **1470/1470 completati** · 0 fallimenti · 01:46 |
+| `node tools/radar/doc-links.ts --check` | 4 504 link in 307 documenti, tutti risolvono |
+
+I due numeri che contano sono entrambi 1470: il `Found 1470 automation tests` dichiarato in testa al log e i
+`Test Completed` in fondo. Non c'è la differenza silenziosa che fa sembrare verde una run troncata.
+
+I cinque test nuovi sono presenti nel log per nome — `PhaseDurationScalesWithTheLongestPath`,
+`…BlastTakesTheLongerOfShotsAndKnockback`, `…BlastKeepsOneShotOfTime`, `…IsOneBeatWithoutMotion`,
+`…Degenerate` — quindi la run li ha davvero eseguiti e non solo compilati.
 
 ---
 
@@ -161,11 +169,13 @@ serializzazione, hash o replay — il playback non entra in alcun hash.
 
 ## 8. Ciò che questo referto NON prova
 
-- **la suite intera non è ancora registrata.** Al primo tentativo `rt-suite.ps1` è uscita **2**: motore
-  occupato da `D:\Repositories\rt-wt-vs`, un altro checkout. Non terminato — è lavoro di qualcun altro.
-  L'unica misura registrata è quella del filtro `RefactorTactics.Playback`;
-- **nessun passo PIE**: il playback si vede, e vederlo è una verifica manuale;
-- i P1 restanti di #1818 non sono toccati. Questa è **una** fetta.
+- **nessun passo PIE**: il playback si vede, e vederlo è una verifica manuale. La suite prova che la formula
+  è quella di prima, non che il round *appaia* come prima;
+- i P1 restanti di #1818 non sono toccati. Questa è **una** fetta, e sposta 17 righe su 10 412;
+- la suite intera è costata due tentativi. Il primo è uscito **2** — motore occupato da
+  `D:\Repositories\rt-wt-vs`, un altro checkout, **non terminato** perché è lavoro di qualcun altro. Il
+  secondo, con `-WaitMinutes 30`, è partito da solo dopo 131 s e ha **ridichiarato il preambolo** al
+  risveglio: `HEAD`, albero e binario sono quelli con cui la run è finita, non quelli di due minuti prima.
 
 ### Il branch è cambiato sotto la sessione
 
@@ -196,6 +206,12 @@ Va rimisurato a ogni fetta e riportato in #1818.
 
 ## Verdetto
 
-**SAFE WITH MINOR FIXES** — dove il *minor fix* è uno solo e dichiarato: **la suite intera va eseguita e
-registrata prima del merge**. Il filtro mirato è verde e valido, la build è verde, il diff è stato riletto in
-avversariale e non introduce né P0 né P1.
+**SAFE TO MERGE.**
+
+Build verde, suite intera **1470/1470 con esito VALIDO** — non solo verde: `HEAD`, albero, binario e processi
+del motore erano gli stessi all'inizio e alla fine. Diff riletto in avversariale: nessun P0 e nessun P1
+introdotto, e i due rilievi minori (un loop in più per le fasi ferme, un include in un header pubblico) sono
+quantificati sopra invece che taciuti.
+
+Resta una verifica manuale non sostituibile da un test: **guardare un round giocato**. La suite prova che la
+formula non è cambiata, non che la risoluzione appaia come prima.
