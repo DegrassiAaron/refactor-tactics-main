@@ -440,6 +440,7 @@ namespace
 		{ TEXT("TestArena"),  &URTMatchSetupLibrary::MakeTestArena               },
 		{ TEXT("ArenaV01"),   &URTMatchSetupLibrary::MakeArenaV01                },
 		{ TEXT("CoverYard"),  &URTMatchSetupLibrary::MakeCoverYardArena          },
+		{ TEXT("GrayKitYard"), &URTMatchSetupLibrary::MakeGrayKitYardArena        },
 	};
 }
 
@@ -518,6 +519,114 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeCoverYardArena(UObject* Outer)
 			Updated.Covers.Add(FRTHexCover(Edge, Cover.Type, FRTHexCover::DefaultIntegrity(Cover.Type)));
 			Draft.Set(Updated);
 		}
+	}
+
+	Draft.CommitTo(Arena);
+	return Arena;
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeGrayKitYardArena(UObject* Outer)
+{
+	if (Outer == nullptr)
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
+
+	// Stesso corpo di `CoverYard`: esagono pieno di raggio 3, 37 celle. 🔑 **La base identica non e' pigrizia,
+	// e' il requisito**: `PIE-GBX-FIT` dichiara che `GBX-1` si decide provando valori di inset, e due letture
+	// su scene diverse non sono confrontabili — la seconda misurerebbe la scena invece dell'inset.
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
+	{
+		Draft.Set(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
+	}
+
+	// ── Le due coperture ─────────────────────────────────────────────────────────────────────────────
+	//
+	// Le STESSE due di `CoverYard`, sulle stesse celle, per la ragione appena detta. Una riga di distanza:
+	// e' il confronto che `PIE-GBX-COVER` guarda, e il canale che regge in pianta e' lo SPESSORE (`0.10`
+	// contro `0.20` del lato, fattore 2), non l'altezza — che la vista a picco proietta a zero.
+	struct FKitCover
+	{
+		FRTCellId From;
+		FRTCellId To;
+		ERTHexCoverType Type;
+	};
+	static const FKitCover Covers[] = {
+		{ FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), ERTHexCoverType::High },
+		{ FRTCellId(0, 1, 0), FRTCellId(1, 1, 0), ERTHexCoverType::Low  },
+	};
+	for (const FKitCover& Cover : Covers)
+	{
+		const FRTHexCellData* Cell = Draft.Find(Cover.From);
+		ERTHexDirection Edge;
+		if (Cell && URTHexCoverLibrary::EdgeDirection(Cover.From, Cover.To, Edge))
+		{
+			FRTHexCellData Updated = *Cell;
+			Updated.Covers.Add(FRTHexCover(Edge, Cover.Type, FRTHexCover::DefaultIntegrity(Cover.Type)));
+			Draft.Set(Updated);
+		}
+	}
+
+	// ── I QUATTRO stati di porta, in fila ────────────────────────────────────────────────────────────
+	//
+	// 🔴 **E' la meta' che nessuna fixture aveva.** `CoverYard` non ha porte — lo dichiara il proprio corpo —
+	// e l'unica porta di questo file sta in `RelayBasin`, sola e chiusa. `PIE-GBX-DOOR` chiede i **quattro**
+	// stati insieme, e chi la eseguiva doveva scrivere `Cells[i].Doors` a mano nel Details **e poi forzare il
+	// ridisegno** toccando una property dell'actor: senza quel gesto si guarda la geometria vecchia, e la
+	// voce sembra fallita mentre e' solo non allestita. Nate dalla fixture, quella trappola non esiste.
+	//
+	// Sulla riga `r = -1`, su bordi consecutivi, cosi' si leggono di fila alla stessa distanza di camera.
+	struct FKitDoor
+	{
+		FRTCellId From;
+		FRTCellId To;
+		ERTHexDoorState State;
+	};
+	static const FKitDoor Doors[] = {
+		{ FRTCellId(-2, -1, 0), FRTCellId(-1, -1, 0), ERTHexDoorState::Destroyed },
+		{ FRTCellId(-1, -1, 0), FRTCellId( 0, -1, 0), ERTHexDoorState::Open      },
+		{ FRTCellId( 0, -1, 0), FRTCellId( 1, -1, 0), ERTHexDoorState::Closed    },
+		{ FRTCellId( 1, -1, 0), FRTCellId( 2, -1, 0), ERTHexDoorState::Locked    },
+	};
+	for (const FKitDoor& Door : Doors)
+	{
+		const FRTHexCellData* Cell = Draft.Find(Door.From);
+		ERTHexDirection Edge;
+		if (Cell && URTHexCoverLibrary::EdgeDirection(Door.From, Door.To, Edge))
+		{
+			FRTHexCellData Updated = *Cell;
+			Updated.Doors.Add(FRTHexDoor(Edge, Door.State));
+			Draft.Set(Updated);
+		}
+	}
+
+	// ── Acqua e ghiaccio, a coppie ADIACENTI ─────────────────────────────────────────────────────────
+	//
+	// 🔑 **Due celle per superficie, non una, e la seconda e' il punto.** `PIE-GBX-SURFACE` chiede di
+	// distinguere acqua da ghiaccio — due superfici DIVERSE — e le due celle centrali `(0,2)` e `(1,2)` sono
+	// adiacenti, quindi quel confronto c'e'. Ma `PIE-GRID-CONFINE` chiede l'opposto: due celle della **stessa**
+	// superficie, dove il colore non dice dove finisce una e comincia l'altra. Con una cella per superficie
+	// quel caso non sarebbe allestito, e il giudizio piu' difficile della griglia resterebbe non guardabile.
+	//
+	// Il pavimento offre gia' coppie uguali ovunque; queste due aggiungono il caso su una superficie TINTA,
+	// dove il velo e il glifo lavorano insieme al bordo.
+	struct FKitSurface
+	{
+		FRTCellId Cell;
+		ERTHexSurface Surface;
+	};
+	static const FKitSurface Surfaces[] = {
+		{ FRTCellId(-1, 2, 0), ERTHexSurface::ShallowWater },
+		{ FRTCellId( 0, 2, 0), ERTHexSurface::ShallowWater },
+		{ FRTCellId( 1, 2, 0), ERTHexSurface::Ice          },
+		{ FRTCellId( 2, 1, 0), ERTHexSurface::Ice          },
+	};
+	for (const FKitSurface& Patch : Surfaces)
+	{
+		Draft.Set(MakeShowcaseTerrainCell(Patch.Cell, Patch.Surface));
 	}
 
 	Draft.CommitTo(Arena);
