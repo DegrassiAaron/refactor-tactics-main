@@ -6330,34 +6330,44 @@ float ARTTurnManager::GetPlaybackProgress01() const
 // e' l'unica ragione per cui questo canale puo' permettersi di non essere deterministico.
 // Spec: docs/gameplay/spec-pacing-turno.md
 
+TArray<FRTPacingUnitFacts> ARTTurnManager::CollectPacingUnitFacts() const
+{
+	// L'unico punto in cui il pacing guarda il mondo. Cio' che esce di qui sono quattro interi per unita',
+	// e da li' in poi le regole sono funzioni pure.
+	TArray<FRTPacingUnitFacts> Facts;
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+	Facts.Reserve(Actors.Num());
+
+	for (AActor* Actor : Actors)
+	{
+		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		if (!Unit)
+		{
+			continue;
+		}
+
+		int32 Usable = 0;
+		for (int32 I = 0; I < Unit->NumAbilities(); ++I)
+		{
+			if (Unit->CanUseAbility(I))
+			{
+				++Usable;
+			}
+		}
+		Facts.Emplace(Unit->TeamId, Unit->StableUnitId, Unit->IsAlive(), Usable);
+	}
+	return Facts;
+}
+
 void ARTTurnManager::BeginPacingSample()
 {
 	PacingCurrent = FRTPacingSample();
 	PacingCurrent.TurnNumber = TurnNumber;
 
-	TArray<AActor*> Actors;
-	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
-	for (AActor* Actor : Actors)
-	{
-		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
-		if (!Unit || !Unit->IsAlive())
-		{
-			continue;
-		}
-		(Unit->TeamId == 0 ? PacingCurrent.UnitsAliveTeam0 : PacingCurrent.UnitsAliveTeam1)++;
-
-		if (Unit->TeamId != PacingTeamId)
-		{
-			continue; // ActionsAvailable misura lo spazio di decisione di CHI decide, non di tutti
-		}
-		for (int32 I = 0; I < Unit->NumAbilities(); ++I)
-		{
-			if (Unit->CanUseAbility(I))
-			{
-				++PacingCurrent.ActionsAvailable;
-			}
-		}
-	}
+	// Quali unita' contano e quali no e' una REGOLA, e vive in `URTPacingLibrary::ApplyOpeningCounts` dove
+	// si prova senza mondo (#1818). Qui resta la raccolta dei fatti dagli Actor.
+	URTPacingLibrary::ApplyOpeningCounts(CollectPacingUnitFacts(), PacingTeamId, PacingCurrent);
 
 	PacingPlanningStart = FPlatformTime::Seconds();
 	PacingLastInput = PacingPlanningStart;
@@ -6406,28 +6416,11 @@ void ARTTurnManager::ClosePacingSample()
 	// primo esito nuovo — con l'aggravante di essere uno stato mutabile su un percorso che deve restare
 	// deterministico. Qui la misura e' telemetria pura: legge, non decide.
 	{
-		TSet<int32> Responders;
-		TArray<AActor*> UnitActors;
-		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), UnitActors);
-		for (AActor* Actor : UnitActors)
-		{
-			// ⚠️ **Nessun filtro su `IsAlive()`**, a differenza di `BeginPacingSample`: un'unita' caduta
-			// DURANTE il turno ha comunque potuto aprire finestre prima di cadere, e scartarla farebbe
-			// sparire proprio le attese dei turni piu' concitati — cioe' quelle che tarano il bank.
-			if (const ARTUnit* Unit = Cast<ARTUnit>(Actor))
-			{
-				// 🔴 **Lo `0` non entra**: [D-063] lo riserva a «nessuna unita' dichiarata», e
-				// `EnsureMatchRoster` assegna gli id da 1 lasciandolo libero apposta. Un'unita' spawnata
-				// DOPO il congelamento del roster lo conserva — e con `0` nel set, una voce di log senza
-				// soggetto, o un'evocazione avversaria nella stessa condizione, finirebbe nel bank del
-				// giocatore misurato: esattamente la confusione fra squadre che il filtro per responder
-				// esiste per impedire ([D-167]).
-				if (Unit->TeamId == PacingTeamId && Unit->StableUnitId != 0)
-				{
-					Responders.Add(Unit->StableUnitId);
-				}
-			}
-		}
+		// Chi conta come responder — la squadra misurata, i caduti INCLUSI, l'id `0` escluso ([D-063],
+		// [D-167]) — e' una regola, e vive in `URTPacingLibrary::RespondersForPacing` con i suoi test
+		// headless (#1818). Le due esclusioni erano scritte qui solo come commento.
+		const TSet<int32> Responders(URTPacingLibrary::RespondersForPacing(
+			CollectPacingUnitFacts(), PacingTeamId));
 
 		// ⚠️ Nessun filtro per turno, e non e' una dimenticanza: `LockInAndResolve` fa `TurnLog.Reset()`
 		// prima di ogni risoluzione, quindi il log contiene **gia' e solo** il turno corrente. Il filtro che

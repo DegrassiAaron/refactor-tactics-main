@@ -22,6 +22,46 @@ enum class ERTPlanningInput : uint8
 };
 
 /**
+ * Cio' che il pacing osserva su un'unita', staccato dall'Actor che lo porta.
+ *
+ * Esiste per una ragione sola: le regole di conteggio del campione — quale squadra alimenta
+ * `ActionsAvailable`, chi entra fra i responder, chi ne resta fuori — sono **decisioni gia' costate un
+ * difetto ciascuna** ([D-063], [D-167], `#1421`), e finche' vivevano dentro un `GetAllActorsOfClass` nel
+ * `ARTTurnManager` si potevano esercitare **solo spawnando un mondo**. Con quattro interi al posto di un
+ * `ARTUnit*` la stessa regola si prova headless, ed e' il motivo per cui questo tipo non ha metodi: non e'
+ * un modello dell'unita', e' l'ingresso di una funzione pura.
+ */
+USTRUCT()
+struct FRTPacingUnitFacts
+{
+	GENERATED_BODY()
+
+	FRTPacingUnitFacts() = default;
+	FRTPacingUnitFacts(int32 InTeamId, int32 InStableUnitId, bool bInIsAlive, int32 InUsableAbilities)
+		: TeamId(InTeamId), StableUnitId(InStableUnitId), bIsAlive(bInIsAlive), UsableAbilities(InUsableAbilities) {}
+
+	/** Squadra di appartenenza. */
+	UPROPERTY()
+	int32 TeamId = INDEX_NONE;
+
+	/**
+	 * Id stabile dell'unita'. 🔴 **Lo `0` non e' un id**: [D-063] lo riserva a «nessuna unita' dichiarata» e
+	 * `EnsureMatchRoster` assegna a partire da 1 lasciandolo libero apposta. Chi filtra i responder deve
+	 * escluderlo — vedi `URTPacingLibrary::RespondersForPacing`.
+	 */
+	UPROPERTY()
+	int32 StableUnitId = 0;
+
+	/** Viva **adesso**, cioe' alla fine del turno. Il conteggio di apertura la usa, quello dei responder no. */
+	UPROPERTY()
+	bool bIsAlive = false;
+
+	/** Quante delle sue abilita' sono utilizzabili in questo istante (cooldown ed energia gia' considerati). */
+	UPROPERTY()
+	int32 UsableAbilities = 0;
+};
+
+/**
  * Un turno misurato. TELEMETRIA: non entra nel TurnLog, non entra nel suo hash, non influenza nessuna
  * decisione di gioco (docs/gameplay/spec-pacing-turno.md §4). E' l'unica ragione per cui puo' permettersi di
  * non essere deterministico.
