@@ -1486,6 +1486,41 @@ arriva; finché non arriva, nessun documento deve trattarle come vincolanti.
 esplicita. Era il caso opposto a `D-001`: non mancava la misura, mancava solo la formalizzazione di un vincolo
 che il repository applicava già.
 
+## ~~Aperte~~ Chiuse — la camera, dal consolidamento del 2026-08-30
+
+> ✅ **Entrambe risposte dall'autore il 2026-08-30, poche ore dopo essere state aperte.** Restano qui
+> barrate con l'esito, perche' una domanda risposta col suo perche' vale piu' di una domanda cancellata:
+> il prossimo kit camera riproporra' le stesse due, e trovarle gia' chiuse costa meno che ridiscuterle.
+>
+> - **`CAM-A` → uscita (b)**: si passa ad `ActiveLayer`. Diventa
+>   [`D-255`](decisions/RT_PDR_00_Decision_Log.md), perche' **tocca il gameplay** — cambia quale cella un
+>   click seleziona. Implementata in `ARTPlayerController::ResolveCellUnderCursor`.
+> - **`CAM-B` → «entrambi»**: `MMB` resta l'orbita e `Alt`+`LMB` diventa un secondo modo. ⛔ **Non**
+>   diventa una `D-0xx`: e' un'aggiunta di binding, non una decisione di canone. Il pan resta su `WASD`.
+>   ✅ **Il prezzo che la domanda temeva non si paga**: `PIE-CAM-ORBIT` descrive `MMB`, `MMB` non cambia,
+>   e la voce resta valida senza essere riscritta — che era l'unica ragione per cui `CAM-B` era una
+>   domanda e non un compito.
+>
+> 🔵 **La scelta su `CAM-B` ha un effetto collaterale che vale registrare**: `Alt`+`MMB` non poteva piu'
+> essere il *precision pan* «puro» previsto dal consolidamento, perche' `MMB` resta armato come orbita.
+> E' stato risolto dando la precedenza al modificatore — con `Alt` premuto, `MMB` **pana** invece di
+> orbitare — cioe' l'unico modo di avere entrambi senza un terzo tasto.
+
+## ~~Aperte~~ — le due domande come furono poste
+
+Il consolidamento della Tactical Camera (`D-250`–`D-254`, owner
+[`technical/systems/spec-tactical-camera.md`](technical/systems/spec-tactical-camera.md)) ha prodotto due
+domande che **non si chiudono scrivendo una spec**: la prima tocca il gameplay autorevole, la seconda
+invalida una verifica manuale già passata. Entrambe erano contenute nel prompt di consolidamento come se
+fossero prescrizioni; qui diventano domande perché applicarle di lato sarebbe stato introdurle di nascosto.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| ~~`CAM-A`~~ ✅ | Il click deve risolvere la cella su un **`ActiveLayer` del giocatore** invece che sulla **quota del punto colpito**? | ⚠️ **Tocca il gameplay**, non la presentazione: cambia quale cella un click seleziona, quindi quale cella si pianifica. Oggi il comportamento è dichiarato in chiaro — `RTPlayerController.cpp:502`: *«Il layer viene dalla QUOTA del punto colpito: cliccando il ponte si evidenzia la cella del ponte (in editor lo decide invece `ActiveLayer`, perché lì si dipinge su un piano scelto)»*. Le due uscite: **(a) resta la quota** — nessun costo, ma su X/Y con tunnel · terreno · ponte · tetto il giocatore non può scegliere il piano, e ciò che colpisce il raggio decide per lui · **(b) passa ad `ActiveLayer`**, e allora serve prima il piano attivo *di gioco*, che **non esiste**: `ARTHexMapActor::ActiveLayer` ed `ERTLayerViewMode` sono strumenti di authoring guidati dall'editor mode, e riusarli perché hanno il nome giusto sarebbe un errore di sede. 🔗 **Non si decide da sola**: la matrice `oggetto × contesto × click → esito` è del *Pointer Interaction Contract* ([#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705)), che dichiara il redesign della camera fuori dal proprio scope — due sedi per la stessa decisione sono peggio di nessuna. ℹ️ La metà **pura** esiste già: `URTHexLibrary::ResolveRayToCellOnLayer` usa la cella del colpo se il colpo è valido e ripiega sul piano attivo altrimenti, con due test. Manca **chi decide** che un colpo su un altro piano non è valido. **Innesco**: [#1776](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1776) (`CAM-07`), o la prima mappa di gioco con due piani calpestabili sulla stessa X/Y |
+| ~~`CAM-B`~~ ✅ | `MMB` diventa **pan** e l'orbita si sposta su `Alt`+`LMB`? | Non è un'aggiunta ma un **rebinding**, e ha un costo già pagato: `PIE-CAM-ORBIT` è **verde dal 2026-08-16** e descrive l'orbita tasto per tasto (*«tenendo il tasto centrale del mouse e trascinando…»*); quella stessa sessione ha chiuso una decisione aperta — il verso di `bInvertOrbitPitch`, provato con le mani. Spostare l'orbita **invalida quella voce**, e chi implementa senza riscriverla lascia un verde che descrive comandi inesistenti. ⚠️ Da valutare insieme: `BackSpace` è già `UndoAction`, quindi un `Back` che torni allo stato camera precedente non ha un tasto libero — e non ha nemmeno un consumatore, perché lo stack di stati camera non esiste. **Innesco**: [#1771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1771) (`CAM-02`), che non si chiude senza questa risposta |
+
+---
+
 ## Da playtestare — non decisioni, tarature
 
 Numeri già in vigore che nessuno ha ancora misurato sul campo. Vivono nei documenti che li possiedono; sono

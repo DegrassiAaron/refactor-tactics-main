@@ -68,7 +68,45 @@ void ARTCameraPawn::FocusOn(const FVector& WorldLocation)
 	// passava `Unit->GetActorLocation()`, che sta **mezzo corpo sopra** il piano (`VisualZOffset`): ora
 	// converte la cella. La prima stesura di #887 dava per buoni entrambi — sbagliato, e la divergenza
 	// sarebbe stata una costante fra l'inquadratura di `F` e quella di `Home`.
-	SetActorLocation(WorldLocation);
+	//
+	// ⚠️ **Da `#1770` scrive il PIVOT e non la posizione.** Chi inquadra sposta cio' che la camera guarda;
+	// un peek in corso resta un peek, e non viene inghiottito dalla nuova inquadratura.
+	SetCameraPivot(WorldLocation);
+}
+
+void ARTCameraPawn::SetCameraPivot(const FVector& NewPivot)
+{
+	// Il clamp e' QUI, in un punto solo. Prima viveva in tre chiamanti — `AddPlanarMovement`,
+	// `ZoomTowards` e nessun altro — e `FocusOn` non ce l'aveva affatto: inquadrare un'unita' oltre il
+	// bordo portava la camera dove il pan si rifiuta di andare. Un invariante che vale in tre punti su
+	// cinque non e' un invariante.
+	CameraPivot = ClampToSoftBounds(NewPivot);
+	ApplyPivot();
+}
+
+void ARTCameraPawn::SetPeekOffset(const FVector& Offset)
+{
+	// Limitato in LUNGHEZZA e non componente per componente: un clamp per asse produrrebbe un quadrato,
+	// cioe' un peek piu' lungo in diagonale che sui lati — e il giocatore lo sentirebbe come una camera
+	// che accelera quando guarda in un angolo.
+	PeekOffset = Offset.GetClampedToMaxSize(FMath::Max(MaxPeekDistance, 0.f));
+	ApplyPivot();
+}
+
+void ARTCameraPawn::ApplyPivot()
+{
+	// ⚠️ Il peek NON passa dai soft bounds: e' un offset di presentazione che rientra da se', e clamparlo
+	// lo renderebbe irregolare proprio al bordo, che e' dove serve. Il **pivot** resta dentro i limiti, ed
+	// e' quello che definisce dove ci si puo' fermare.
+	SetActorLocation(CameraPivot + PeekOffset);
+}
+
+void ARTCameraPawn::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	// Il pawn nasce dove lo mette il `PlayerStart` (o `SpawnActor` nei test): senza questa riga il pivot
+	// resterebbe a zero e la prima scrittura di trasformata porterebbe la camera all'origine del mondo.
+	CameraPivot = GetActorLocation();
 }
 
 void ARTCameraPawn::ApplyViewSettings()
@@ -89,6 +127,12 @@ void ARTCameraPawn::ApplyViewSettings()
 	// taratura deve prendere effetto. Trovato in code review.
 	CameraPitch = FMath::Clamp(DefaultPitch, MinPitch, MaxPitch);
 	SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
+
+	// La distanza e' appena cambiata: lo stato strategico e' una **lettura** di quella distanza, e va
+	// riletto qui invece di aspettare il prossimo scroll — altrimenti `Home` da vista strategica
+	// lascerebbe lo stato indietro di un comando.
+	RefreshViewportMetrics();
+	UpdateStrategicState();
 }
 
 bool ARTCameraPawn::FrameOwnTeam()
@@ -219,6 +263,7 @@ void ARTCameraPawn::ScheduleTopDownShot()
 void ARTCameraPawn::BeginPlay()
 {
 	Super::BeginPlay();
+	RefreshViewportMetrics();      // #1778: l'aspect ratio serve gia' alla prima inquadratura
 	ApplyViewSettings(); // applica i valori correnti (anche se modificati in editor)
 
 	// Si parte guardando le proprie unita', non il centro della mappa. Le unita' possono non esistere ancora:
@@ -266,7 +311,9 @@ void ARTCameraPawn::AddPlanarMovement(const FVector2D& Axis)
 		? SpringArm->TargetArmLength / DefaultArmLength
 		: 1.f;
 	const FVector Delta = (Forward * Axis.Y + Right * Axis.X) * PanSpeed * DistanceScale;
-	SetActorLocation(ClampToSoftBounds(GetActorLocation() + Delta));
+	// Dal **pivot**, non dalla posizione: con un peek attivo, sommare alla posizione farebbe entrare
+	// l'offset temporaneo nel movimento permanente — e lo scorrimento diventerebbe piu' veloce da un lato.
+	SetCameraPivot(CameraPivot + Delta);
 }
 
 void ARTCameraPawn::AddYaw(float AxisValue)
@@ -294,6 +341,127 @@ void ARTCameraPawn::ApplyArmRotation()
 	{
 		SpringArm->SetRelativeRotation(FRotator(CameraPitch, CameraYaw, 0.f));
 	}
+}
+
+// --- #1774 · lo stato strategico, con isteresi (D-252) -----------------------------------------------
+
+bool ARTCameraPawn::UpdateStrategicState()
+{
+	if (!SpringArm)
+	{
+		return false;
+	}
+
+	// 🔑 **`Exit < Enter` e' imposto QUI, non solo documentato.** I due campi sono `BlueprintReadWrite` e il
+	// loro `meta = (ClampMin)` vincola il Details e non un `Set` da Blueprint: con le soglie invertite una
+	// disuguaglianza scritta a mano avrebbe prodotto uno stato che entra e non esce, o che sfarfalla — lo
+	// stesso genere di difetto che l'isteresi esiste per evitare. Con `Max`/`Min` la coppia e' ordinata per
+	// costruzione, e chi le inverte ottiene comunque un'isteresi valida.
+	const float Enter = FMath::Max(StrategicEnterThreshold, StrategicExitThreshold);
+	const float Exit  = FMath::Min(StrategicEnterThreshold, StrategicExitThreshold);
+
+	const float Distance = SpringArm->TargetArmLength;
+	const bool bWas = bStrategicView;
+
+	if (!bStrategicView && Distance >= Enter)
+	{
+		bStrategicView = true;
+	}
+	else if (bStrategicView && Distance <= Exit)
+	{
+		bStrategicView = false;
+	}
+
+	if (bWas != bStrategicView)
+	{
+		// ⏳ **Non ha ancora un consumatore visivo**, e il log lo dice invece di lasciarlo dedurre: la
+		// presentazione strategica — separazione verticale dei piani, densita' dei marker — e' `#1775`.
+		// Questo e' lo stato, non la vista.
+		UE_LOG(LogRT, Log, TEXT("[RT] Vista %s (arm=%.0f, enter=%.0f, exit=%.0f)"),
+			bStrategicView ? TEXT("STRATEGICA") : TEXT("tattica"), Distance, Enter, Exit);
+		return true;
+	}
+	return false;
+}
+
+// --- #1778 · i limiti del pivot che conoscono il viewport (D-251) -----------------------------------
+
+FBox2D ARTCameraPawn::ComputeEffectivePivotBounds(const FBox2D& AllowedArea, float ArmLength,
+	float PitchDegrees, float YawDegrees, float HorizontalFovDegrees, float AspectRatio,
+	float AllowedOutsideFraction)
+{
+	// Aspect ratio ignoto (headless, o viewport non ancora creato): non c'e' una geometria di schermo su cui
+	// ragionare, e l'area passa intatta. E' il **caso degenere dichiarato** — il clamp per sole celle di
+	// `#864` resta il comportamento, e non e' un ripiego silenzioso.
+	if (!AllowedArea.bIsValid || AspectRatio <= 0.f || ArmLength <= 0.f || HorizontalFovDegrees <= 0.f)
+	{
+		return AllowedArea;
+	}
+
+	const float HalfFovH = FMath::DegreesToRadians(FMath::Clamp(HorizontalFovDegrees, 1.f, 179.f) * 0.5f);
+	const double HalfWidth = static_cast<double>(ArmLength) * FMath::Tan(HalfFovH);
+
+	// L'estensione **lungo la direzione di sguardo** cresce quando la camera si abbassa: a picco il quadro
+	// e' un rettangolo, all'orizzonte si allunga senza limite. E' il caso che rompe il clamp fisso, ed e'
+	// per questo che il pitch entra nella formula.
+	//
+	// `sin` del pitch al denominatore, con un pavimento: a `MaxPitch = 0` la camera guarda l'orizzonte e la
+	// proiezione a terra divergerebbe. Il pavimento non e' una tolleranza numerica — e' la dichiarazione
+	// che oltre una certa inclinazione la nozione di «quanto mondo entra» smette di essere finita.
+	const double VerticalHalf = HalfWidth / FMath::Max(static_cast<double>(AspectRatio), 0.01);
+	const double SinPitch = FMath::Max(FMath::Abs(FMath::Sin(FMath::DegreesToRadians(PitchDegrees))), 0.15);
+	const double HalfDepth = VerticalHalf / SinPitch;
+
+	// Il quadro e' orientato dallo yaw: l'ingombro su X/Y e' l'AABB del rettangolo ruotato. Senza questo
+	// passaggio i limiti sarebbero corretti solo con la vista dritta — cioe' proprio nel caso in cui la
+	// rotazione, che `D-142` esiste per rendere libera, non e' stata usata.
+	//
+	// 🔴 **I due assi erano SCAMBIATI, e il test lo rendeva verde** (code review, 2026-08-30). A yaw 0 la
+	// camera guarda lungo **+X** — non e' una deduzione, e' pinnato da
+	// `Camera.PanIsRelativeToTheView`: *«yaw 0: avanti e' +X»*. Quindi lungo X va la profondita'
+	// (`HalfDepth`, l'estensione nella direzione di sguardo) e lungo Y la larghezza di schermo
+	// (`HalfWidth`); il codice scriveva l'opposto.
+	//
+	// ⚠️ **L'errore non era piccolo e cresceva dove serve di piu'**: `HalfDepth` diverge avvicinandosi a
+	// `MaxPitch = 0`, quindi a vista radente il limite sull'asse di sguardo restava quello — stretto — di
+	// una vista a picco, ed e' esattamente il caso che `D-251` esiste per coprire. Con arm 2000, pitch -45,
+	// FOV 90 e 16:9: `HalfWidth = 2000`, `HalfDepth = 1591`, e i due finivano sull'asse sbagliato.
+	const double Yaw = FMath::DegreesToRadians(YawDegrees);
+	const double C = FMath::Abs(FMath::Cos(Yaw));
+	const double S = FMath::Abs(FMath::Sin(Yaw));
+	const double ExtentX = HalfDepth * C + HalfWidth * S;
+	const double ExtentY = HalfDepth * S + HalfWidth * C;
+
+	// Quanta parte del semiquadro puo' cadere fuori. `1` = nessun limite, `0` = quadro incollato dentro.
+	const double Keep = 1.0 - static_cast<double>(FMath::Clamp(AllowedOutsideFraction, 0.f, 1.f));
+	const FVector2D Inset(static_cast<float>(ExtentX * Keep), static_cast<float>(ExtentY * Keep));
+
+	FBox2D Result(AllowedArea.Min + Inset, AllowedArea.Max - Inset);
+
+	// ⚠️ **L'inquadratura puo' essere piu' grande dell'area** — mappa piccola, o zoom al massimo. Li'
+	// l'intervallo si rovescerebbe, e un `Clamp` su estremi invertiti inchioda il valore a un estremo
+	// **senza dirlo**: la camera resterebbe incollata a un angolo e nessuno saprebbe perche'. Il
+	// comportamento giusto e' il centro: e' l'unico punto che minimizza il fuori-zona.
+	const FVector2D Centre = AllowedArea.GetCenter();
+	if (Result.Min.X > Result.Max.X) { Result.Min.X = Result.Max.X = Centre.X; }
+	if (Result.Min.Y > Result.Max.Y) { Result.Min.Y = Result.Max.Y = Centre.Y; }
+	return Result;
+}
+
+void ARTCameraPawn::RefreshViewportMetrics()
+{
+	ViewportHorizontalFov = Camera ? Camera->FieldOfView : ViewportHorizontalFov;
+
+	// Nessun viewport (headless, o prima che ne esista uno): l'aspect ratio resta ignoto, e i limiti
+	// tornano a essere quelli per sole celle. Dichiarato, non dedotto.
+	const UWorld* World = GetWorld();
+	const UGameViewportClient* Client = World ? World->GetGameViewport() : nullptr;
+	if (!Client || !Client->Viewport)
+	{
+		return;
+	}
+	const FIntPoint Size = Client->Viewport->GetSizeXY();
+	ViewportAspectRatio = (Size.Y > 0) ? static_cast<float>(Size.X) / static_cast<float>(Size.Y) : 0.f;
 }
 
 FVector ARTCameraPawn::ClampToSoftBounds(const FVector& Desired) const
@@ -330,9 +498,21 @@ FVector ARTCameraPawn::ClampToSoftBounds(const FVector& Desired) const
 	const double Margin = static_cast<double>(FMath::Max(BoundsMarginCells, 0.f))
 		* UE_SQRT_3 * static_cast<double>(HexSize);
 
+	// La zona che si puo' mostrare: celle piu' il margine. ⏳ Quando `ScenicBufferArea` esistera' come dato
+	// (`D-250`, `#1777`) e' **questo** il punto che deve leggerlo — il buffer allarga l'area consentita, non
+	// il margine in celle.
+	const FBox2D Allowed(FVector2D(Min.X - Margin, Min.Y - Margin), FVector2D(Max.X + Margin, Max.Y + Margin));
+
+	// `#1778` / `D-251`: il limite vero dipende anche da quanto mondo entra nello schermo. Con l'aspect
+	// ratio ignoto — headless, o viewport non ancora creato — `ComputeEffectivePivotBounds` restituisce
+	// l'area intatta, e questo torna a essere il clamp per sole celle di `#864`.
+	const FBox2D Effective = ComputeEffectivePivotBounds(Allowed,
+		SpringArm ? SpringArm->TargetArmLength : 0.f, CameraPitch, CameraYaw,
+		ViewportHorizontalFov, ViewportAspectRatio, AllowedOutsideFraction);
+
 	return FVector(
-		FMath::Clamp(Desired.X, Min.X - Margin, Max.X + Margin),
-		FMath::Clamp(Desired.Y, Min.Y - Margin, Max.Y + Margin),
+		FMath::Clamp(Desired.X, static_cast<double>(Effective.Min.X), static_cast<double>(Effective.Max.X)),
+		FMath::Clamp(Desired.Y, static_cast<double>(Effective.Min.Y), static_cast<double>(Effective.Max.Y)),
 		Desired.Z);
 }
 
@@ -364,7 +544,7 @@ void ARTCameraPawn::ZoomTowards(float AxisValue, const FVector& WorldAnchor)
 
 	// Il pivot si avvicina all'ancora in proporzione a quanto il braccio si e' accorciato: cosi' l'ancora
 	// resta ferma sullo schermo. Solo X/Y — la quota del piano non cambia zoomando (`#887`).
-	const FVector Pivot = GetActorLocation();
+	const FVector Pivot = CameraPivot; // il riferimento, non la posizione: il peek non entra nello zoom
 	const float Ratio = After / Before;
 	const FVector Moved = WorldAnchor + (Pivot - WorldAnchor) * Ratio;
 
@@ -373,7 +553,13 @@ void ARTCameraPawn::ZoomTowards(float AxisValue, const FVector& WorldAnchor)
 	// volte l'offset iniziale, cioe' centinaia di celle fuori mappa. Riapriva esattamente il buco che
 	// questa issue chiude — «ci si puo' allontanare fino a perdere la mappa» — dal comando che avrebbe
 	// dovuto risolverlo. Trovato in code review.
-	SetActorLocation(ClampToSoftBounds(FVector(Moved.X, Moved.Y, Pivot.Z)));
+	// ⚠️ **Le metriche PRIMA di scrivere il pivot**: `SetCameraPivot` clampa leggendo aspect ratio e FOV, e
+	// aggiornarle dopo faceva usare al primo zoom della sessione — o al primo dopo un ridimensionamento
+	// della finestra — i valori precedenti. Con `ViewportAspectRatio` ancora a zero i limiti di `D-251`
+	// venivano saltati del tutto per quella scrittura. Trovato in code review.
+	RefreshViewportMetrics();
+	SetCameraPivot(FVector(Moved.X, Moved.Y, Pivot.Z));
+	UpdateStrategicState();
 }
 
 void ARTCameraPawn::AddYawContinuous(float AxisValue)
@@ -432,41 +618,61 @@ void ARTCameraPawn::AddZoom(float AxisValue)
 		return;
 	}
 	SpringArm->TargetArmLength = FMath::Clamp(SpringArm->TargetArmLength + AxisValue * ZoomStep, MinArmLength, MaxArmLength);
+	RefreshViewportMetrics();
+
+	// 🔴 **Il pivot va RI-CLAMPATO, perche' i suoi limiti dipendono dalla distanza** (code review,
+	// 2026-08-30). Da `D-251` l'area legale si stringe quando ci si allontana: allontanandosi stando al
+	// bordo, il pivot restava dov'era — fuori dai limiti nuovi — e nessuno lo riportava dentro fino al pan
+	// successivo. `ZoomTowards` non aveva il difetto perche' scrive il pivot per conto suo; questo ramo
+	// toccava solo il braccio.
+	SetCameraPivot(CameraPivot);
+	UpdateStrategicState();
 }
 
 void ARTCameraPawn::RecenterView()
 {
 	// Centra sulla mappa ESAGONALE del livello (se presente) e ripristina lo zoom di default. La mappa non e'
 	// per forza centrata sull'origine: il centro viene dal bounding box delle sue celle.
+	// 🔑 **Orientamento e distanza si azzerano PRIMA di scrivere il pivot** (code review, 2026-08-30).
+	// `SetCameraPivot` clampa usando yaw, pitch e braccio **correnti**: scrivendo il pivot per primo, il
+	// clamp descriveva la camera che stava per sparire invece di quella che sarebbe esistita un istante
+	// dopo. Premendo `Home` da zoom massimo su una mappa piccola l'inquadratura superava l'area, il pivot
+	// si inchiodava al centro calcolato con i valori vecchi, e nessuno lo ricalcolava dopo il reset.
+	CameraYaw = 0.f;
+	CameraPitch = FMath::Clamp(DefaultPitch, MinPitch, MaxPitch);
+	ApplyViewSettings();
+
 	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
 	{
 		FVector Origin; float HexSize; float LayerHeight;
 		if (const URTHexMapAsset* Map = HexMap->GetHexContext(Origin, HexSize, LayerHeight))
 		{
-			SetActorLocation(URTHexLibrary::AxialToWorld(Map->GetCenterCell(), Origin, HexSize, LayerHeight));
+			SetCameraPivot(URTHexLibrary::AxialToWorld(Map->GetCenterCell(), Origin, HexSize, LayerHeight));
 		}
 		else
 		{
-			SetActorLocation(Origin);
+			SetCameraPivot(Origin);
 		}
 	}
-	// Anche la ROTAZIONE torna a zero. `Home` e' il tasto del «riportami a un'inquadratura che conosco»: se
-	// riportasse la posizione ma lasciasse la vista girata, chi si e' perso ruotando resterebbe perso.
-	CameraYaw = 0.f;
 
-	// E l'INCLINAZIONE torna alla taratura, per la stessa ragione: da #863 il pitch e' regolabile a
-	// runtime, quindi «un'inquadratura che conosco» include anche quanto la vista e' inclinata. Prima
-	// bastava non toccarlo — era `CameraPitch` a fare da default *e* da stato, e nessun input lo muoveva.
-	CameraPitch = FMath::Clamp(DefaultPitch, MinPitch, MaxPitch);
+	// `Home` e' «riportami a un'inquadratura che conosco», quindi azzera anche il peek: tornare al centro
+	// con un offset residuo lascerebbe la vista storta senza che nulla lo dica.
+	PeekOffset = FVector::ZeroVector;
+	ApplyPivot();
+	// Anche la ROTAZIONE torna a zero — **applicata sopra**, prima della scrittura del pivot. `Home` e' il
+	// tasto del «riportami a un'inquadratura che conosco»: se riportasse la posizione ma lasciasse la vista
+	// girata, chi si e' perso ruotando resterebbe perso.
 
-	// Distanza e orientamento di default li applica `ApplyViewSettings`, che e' esattamente cio' che
-	// serve qui: `Home` e' «riportami all'inquadratura di partenza». Il difetto che #873 chiude era che
-	// questa funzione scriveva `DefaultArmLength` **nudo**, mentre gli altri punti lo clampavano — con
-	// `DefaultArmLength` fuori scala, `Home` portava il braccio dove lo zoom non lo lascia stare.
+	// ⚠️ **Inclinazione e distanza sono gia' state applicate in testa alla funzione**, e non e' una scelta
+	// di stile: `SetCameraPivot` clampa leggendo yaw, pitch e braccio, quindi devono descrivere la camera
+	// che esistera' dopo il reset e non quella che sta per sparire. Le righe stavano qui, e da qui il clamp
+	// vedeva i valori vecchi.
 	//
-	// ⚠️ La prima stesura della correzione **copiava** le due righe di `ApplyViewSettings` invece di
-	// chiamarla, clamp compreso. Il fix funzionava e il test era verde, ma lasciava la stessa espressione
-	// in due punti da tenere allineati a mano — cioe' ricreava la divergenza che #873 esiste per chiudere,
-	// un livello piu' in la'. Trovato in code review.
-	ApplyViewSettings();
+	// Restano le due ragioni per cui esistono, che valgono ancora:
+	// — l'inclinazione torna alla taratura perche' da #863 il pitch e' regolabile a runtime, e
+	//   «un'inquadratura che conosco» include quanto la vista e' inclinata;
+	// — la distanza la applica `ApplyViewSettings` e non una copia locale: il difetto che #873 chiude era
+	//   `DefaultArmLength` scritto **nudo** mentre gli altri punti lo clampavano, e la prima stesura della
+	//   correzione copiava le due righe invece di chiamarla — ricreando un livello piu' in la' la
+	//   divergenza che #873 esiste per chiudere.
 }

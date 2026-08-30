@@ -1,5 +1,23 @@
 # Camera Roadmap v1.0 — triage del consolidamento
 
+> 🔴 **SUPERATO IN PARTE il 2026-08-30 da [`D-254`](../../decisions/RT_PDR_00_Decision_Log.md).**
+> Questo file resta il referto di consumo dell'handoff del 2026-08-14 — cosa entrò, cosa era già in vigore,
+> cosa era falso — e **non è più la sede** a cui tornare per sapere cosa deve fare la camera. Gli owner sono
+> [`../../technical/systems/spec-tactical-camera.md`](../../technical/systems/spec-tactical-camera.md) e
+> [`../../technical/systems/spec-domini-spaziali-mappa.md`](../../technical/systems/spec-domini-spaziali-mappa.md).
+>
+> **Due affermazioni qui dentro sono invecchiate, ed erano vere quando furono scritte:**
+> §5 conta **quattro** automation test camera — al 2026-08-30 sono **19** (`RefactorTactics.Camera.*` in
+> [`RTCameraPawnTests.cpp`](../../../Source/RefactorTactics/Tests/RTCameraPawnTests.cpp)); e tutto il §3 e
+> il §6.1 ragionano su `docs/roadmap/feature-registry.yaml`, **file rimosso** da `26f6955a` con
+> [`D-181`](../../decisions/RT_PDR_00_Decision_Log.md). Il §6.1 — *«il registry dice la verità sulla
+> camera»* — descrive quindi una riparazione su un file che non esiste più: resta leggibile come storia,
+> non come istruzione. Il §8 cita `parallel-batch.yaml`, uscito con lo stesso taglio.
+>
+> ⚠️ **Ciò che invece regge, e non va rifatto**: le sei feature ID inesistenti (§3.1), le premesse false su
+> snap (§3.3) e SpringArm (§3.4), le tre proposte già in vigore (§4). Chi arriva con un nuovo kit camera
+> trova qui **perché** 46 candidate su 51 non furono aperte, e quella motivazione non è scaduta.
+
 > `CURRENT` · **Ultimo aggiornamento**: 2026-08-14
 > **Cosa è**: il referto di consumo di
 > [`../../archive/src/RefactorTactics_Camera_Roadmap_v1.0_Claude_Consolidation_2026-08-14.md`](../../archive/src/RefactorTactics_Camera_Roadmap_v1.0_Claude_Consolidation_2026-08-14.md)
