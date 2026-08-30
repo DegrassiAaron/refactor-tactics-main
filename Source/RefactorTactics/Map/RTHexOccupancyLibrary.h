@@ -14,6 +14,13 @@ static constexpr int32 RT_OccupancySectorCount = 12;
  * questo dice QUANTO la cella e' stretta, ed e' la ragione per cui esiste un valore intermedio.
  * `Constrained` nasce con il suo consumatore (il costo): senza, sarebbe indistinguibile da `Free` per
  * chiunque legga, cioe' un campo che nessuno legge.
+ *
+ * 🔑 **E la frase sopra e' l'unica vera: questo enum misura la STRETTEZZA, e dal 2026-08-30 (`D-285`) non
+ * decide piu' la calpestabilita'.** Il paragrafo lo diceva gia' — *«quelli dicono SE si passa, questo dice
+ * QUANTO la cella e' stretta»* — mentre il valore `Blocked` qui sotto lo contraddiceva. Chi risponde a
+ * *«un'unita' ci sta?»* e' `URTHexCoverPlacementLibrary::HasLegalPlacement`, che cerca una regione di
+ * settori liberi CONTIGUI compatibile con il footprint. Owner:
+ * `docs/technical/systems/spec-cover-placement-intra-hex.md`.
  */
 UENUM(BlueprintType)
 enum class ERTCellOccupancy : uint8
@@ -24,7 +31,19 @@ enum class ERTCellOccupancy : uint8
 	/** Si attraversa, ma la cella e' stretta: costa di piu' (vedi `URTHexOccupancyLibrary::Surcharge`). */
 	Constrained,
 
-	/** Non si attraversa. */
+	/**
+	 * La cella e' MOLTO stretta.
+	 *
+	 * 🔴 **Questo commento diceva «Non si attraversa», e dal 2026-08-30 e' superato** (`D-285`). Il valore
+	 * non ha mai avuto un consumatore che negasse il passaggio — `Classify` e' chiamata solo dai test, e
+	 * `Surcharge` restituisce zero qui perche' *«chi la rende impassabile e' il bordo, non il costo»* — ma
+	 * il nome e la riga di prosa insieme dichiaravano una regola che il repository ora non ha piu'.
+	 *
+	 * ⚠️ **Il nome resta `Blocked` di proposito**: e' un valore d'enum e rinominarlo non aggiunge una
+	 * verita', mentre romperebbe i test e i pannelli che lo nominano. A dire cosa significa e' questo
+	 * commento, ed e' la stessa scelta fatta per `bGenerated` — il nome descrive la misura, non la
+	 * conseguenza.
+	 */
 	Blocked
 };
 
