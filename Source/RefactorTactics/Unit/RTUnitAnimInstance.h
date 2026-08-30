@@ -98,6 +98,38 @@ struct FRTUnitAnimProxy : public FAnimInstanceProxy
 	virtual void UpdateAnimationNode(const FAnimationUpdateContext& InContext) override;
 	virtual bool Evaluate(FPoseContext& Output) override;
 
+	/**
+	 * 🔴 **I due agganci con cui un grafo montato a mano si DICHIARA al motore.**
+	 *
+	 * `FAnimInstanceProxy::InitializeRootNode` assegna la radice da qui e da nessun altro posto —
+	 * `RootNode = (FAnimNode_Base*) GetCustomRootNode();`. Senza questo override `RootNode` resta
+	 * `nullptr`, e allora **due delle quattro traversate non arrivano mai ai nodi**:
+	 *
+	 *  1. `Initialize_AnyThread`, che i nodi non ricevono mai;
+	 *  2. `CacheBones`, che e' il punto in cui i `FBoneReference` si riallineano all'array delle
+	 *     *required bones* — e quell'array **cambia a ogni cambio di LOD**
+	 *     (`FAnimInstanceProxy::OnPreUpdateLODChanged`).
+	 *
+	 * ⚠️ **Il difetto non si vede all'avvio**, ed e' la ragione per cui e' passato: le prime
+	 * animazioni sono corrette, e la posa degrada solo dopo che il LOD e' cambiato. Su un umanoide una
+	 * cache stantia si nota appena; su **Riktor**, che porta decine di ossa in fila
+	 * (`arm_chain_long_r_01`, `_sub_01`, `_sub_02`, ...), le catene si stendono sullo schermo.
+	 *
+	 * ⛔ **Non e' un dettaglio di stile**: `FRTUnitAnimClipsTest` verifica che le clip dei quattro
+	 * eroi siano nel default C++ e resta verde comunque, perche' un test sui DATI non vede un grafo
+	 * che non viene inizializzato. Vedi `#1763`.
+	 */
+	virtual FAnimNode_Base* GetCustomRootNode() override { return &Slot; }
+
+	/** I nodi del grafo, perche' il motore possa raggiungerli tutti e non solo la radice. */
+	virtual void GetCustomNodes(TArray<FAnimNode_Base*>& OutNodes) override
+	{
+		OutNodes.Add(&IdleNode);
+		OutNodes.Add(&RunNode);
+		OutNodes.Add(&Blend);
+		OutNodes.Add(&Slot);
+	}
+
 	/** Quanto l'unita' sta correndo, `0` fermo e `1` in corsa. Lo copia `PreUpdate` dal game thread. */
 	float GetRunAlpha() const { return Blend.Alpha; }
 
