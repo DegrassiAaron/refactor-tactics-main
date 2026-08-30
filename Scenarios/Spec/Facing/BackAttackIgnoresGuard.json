@@ -8,6 +8,7 @@
   "_nota": "CP 16.2: la guardia copre il davanti. B1 si mette in guardia (-15 sul primo danno diretto) ma guarda a EST — il facing di partenza — mentre A1 lo colpisce da OVEST. Il colpo arriva fuori dall'arco frontale, quindi la riduzione non vale: 120 - 22 = 98, non 113.",
 
   "_nota_coppia": "Il caso di controllo e' `Spec.Facing.FrontAttackKeepsGuard`, identico tranne il lato da cui arriva il colpo. Separati e non due turni dello stesso scenario perche' `Guard` vale sul PRIMO danno diretto: nel secondo turno sarebbe gia' consumato e la differenza non direbbe nulla sulla direzione.",
+  "_errata_scudo": "ERRATA (2026-08-30): i conti in prosa qui sopra NON sottraggono lo SCUDO BASE, e sono quindi piu' bassi del vero: 98 -> 103. Il valore giusto e' quello di `expect`, che il corpus verifica a ogni run; la prosa e' rimasta indietro. Causa: `URTCombatLibrary::BaseShield = 5` (D-224) esiste dal COSTRUTTORE di `ARTUnit`, quindi ogni unita' assorbe 5 danni prima degli HP, e ogni nota scritta prima di D-224 sbaglia di 5 per bersaglio colpito. Il conto originale NON e' stato riscritto di proposito: dice ancora cosa faceva il gioco quando fu scritto.",
 
   "units": [
     { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2, 0, 0] },

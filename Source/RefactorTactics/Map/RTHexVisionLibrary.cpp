@@ -4,15 +4,17 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 
-bool URTHexVisionLibrary::HasLineOfSight(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
+FRTLineOfSightResult URTHexVisionLibrary::DescribeLineOfSight(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
 {
+	FRTLineOfSightResult Result;
+
 	if (!Map)
 	{
-		return true; // nessun dato di mappa: nessun ostacolo noto
+		return Result; // nessun dato di mappa: nessun ostacolo noto
 	}
 	if (From.X == To.X && From.Y == To.Y)
 	{
-		return true; // stessa colonna: non c'e' nulla in mezzo
+		return Result; // stessa colonna: non c'e' nulla in mezzo
 	}
 
 	// La linea e' planare e resta sul layer del TIRATORE (HexLine usa il layer di A): e' la regola di elevazione
@@ -26,7 +28,11 @@ bool URTHexVisionLibrary::HasLineOfSight(const URTHexMapAsset* Map, const FRTCel
 		// e' la barriera davanti a lui.
 		if (URTHexCoverLibrary::BlocksTraversal(Map, Line[I - 1], Line[I]))
 		{
-			return false;
+			Result.Block = ERTLineOfSightBlock::EdgeBlocker;
+			Result.BlockedFrom = Line[I - 1];
+			Result.BlockedAt = Line[I];
+			Result.StepIndex = I;
+			return Result;
 		}
 
 		if (I == Line.Num() - 1)
@@ -37,10 +43,22 @@ bool URTHexVisionLibrary::HasLineOfSight(const URTHexMapAsset* Map, const FRTCel
 		{
 			if (Data->bBlocksLineOfSight)
 			{
-				return false;
+				Result.Block = ERTLineOfSightBlock::CellBlocker;
+				Result.BlockedFrom = Line[I - 1];
+				Result.BlockedAt = Line[I];
+				Result.StepIndex = I;
+				return Result;
 			}
 		}
 		// cella assente = buco nella mappa: non e' un muro, la vista passa
 	}
-	return true;
+
+	return Result;
+}
+
+bool URTHexVisionLibrary::HasLineOfSight(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To)
+{
+	// Un solo attraversamento della linea in tutto il progetto: il bool E' `Reason == None`, non una seconda
+	// lettura delle stesse due condizioni. Vedi il commento esteso su `DescribeLineOfSight`.
+	return DescribeLineOfSight(Map, From, To).IsClear();
 }
