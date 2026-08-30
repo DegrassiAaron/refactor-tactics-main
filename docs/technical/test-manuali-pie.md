@@ -542,6 +542,23 @@ Il primo è caduto per causa esterna, non per comodità: è il caso *«stato del
   `ActionDock` in basso perché **nessuno li ha montati**. `PIE-V01-SCREENHUD` va eseguita dal **frontend**,
   e chi la eseguisse aprendo direttamente la mappa la dichiarerebbe rotta a torto.
 
+⛔ **E dal frontend NON e' pilotabile via MCP: misurato il 2026-08-30, e il muro e' netto.** Caricato
+`L_Frontend` e avviato PIE, il main menu si vede — `Refactor Tactics`, `PLAY`, `SETTING`, `QUIT`, `v0.1.0` —
+ma nessuno dei tre bottoni si puo' premere dal bridge:
+
+- `SlateInspectorToolset.Snapshot` con `ref` vuoto (*«Empty = all windows»*) restituisce l'albero
+  dell'**Editor**, non quello del gioco: nel dump compaiono il pannello *Tactical Designer*, le sue combobox
+  e la sua listview di scenari, e **nessuna occorrenza di `PLAY`**. I widget UMG di una sessione PIE non sono
+  finestre Slate di primo livello, quindi non hanno un `ref` da dare a `Click`.
+- `SlateInspectorToolset.Windows` conferma dall'altro lato: **una sola finestra**,
+  `RefactorTactics - Unreal Editor`. Il *Tactical Designer* e' un pannello dentro quella, non una finestra a se'.
+- `PressKey` va al widget **focalizzato dell'Editor**, non al viewport: premuto `Enter` si e' aperto il
+  pannello degli scenari e il menu di gioco e' rimasto dov'era.
+
+Questa voce resta quindi **human-only** finche' il bridge non espone l'albero UMG del world di PIE. Non e' un
+difetto del gioco ne' un setup mancante: e' una capability che non c'e', e va saputo **prima** di spendere un
+avvio dell'Editor per riscoprirlo.
+
 ⚠️ **La lista di PIE aperte del perimetro E2 circolata a voce è scaduta.** Diceva sei voci residue
 — `-3b`, `-6`, `-6b`, `-6c`, `-7`, `-8`. Misurate oggi sul registro: `-3b`, `-6b` e `-6c` sono **✅ chiuse
 il 2026-08-30**, e restano non verdi **`-6`** 🟡, **`-7`** 🟡, **`-8`** 🟡 più **`-11`** ⏳, che in quella
