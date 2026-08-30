@@ -25,34 +25,53 @@ ritararla su un'altra non è una taratura, è due opinioni.
 | 3 | Il binario è di **questo** albero | Ricompila prima di aprire, se un'altra sessione ha toccato il motore. È la trappola del DLL stantio |
 | 4 | La griglia di #1758 è nel binario | O `feat/1758-confine-celle-in-partita` è checkout-ato, o [#1841](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1841) è mergiata. **Senza, il blocco B non ha oggetto** |
 | 5 | Nessun'altra sessione sul motore | `Get-Process -Name UnrealEditor-Cmd` vuoto. Un editor che apri tu **blocca le build delle altre sessioni** |
+| 6 | La fixture `GrayKitYard` è nel binario | Compare nella tendina `FixtureId`, o `rt.Map.Fixture` la nomina nell'help. Arriva con [#1857](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1857) |
 
 ---
 
 ## 1 · Allestimento — si fa una volta, serve a entrambi i blocchi
 
-### 1.1 La board
+### 1.1 La board — una riga, e c'è tutto
 
 Sull'`ARTHexMapActor` di `L_DevSandbox`, nel pannello Details:
 
 ```text
-FixtureId = CoverYard        →  premi GenerateFixtureIntoAsset
+FixtureId = GrayKitYard      →  premi GenerateFixtureIntoAsset
 ```
 
-Il risultato è un **esagono pieno di raggio 3, 37 celle, tutto pavimento**, con:
+Oppure, per guardarla in partita invece che nell'editor, su `ARTGameMode`:
 
-| Cosa | Dove |
-|---|---|
-| Copertura **alta** | bordo fra `(0,0,0)` e `(1,0,0)` |
-| Copertura **bassa** | bordo fra `(0,1,0)` e `(1,1,0)` |
+```text
+Scenario To Run = Visual.Map.GrayKitYard   →  Play
+```
 
-Una riga di distanza: **è il confronto**, ed è lo stesso allestimento di `PIE-HEX-VIZ-BORDI`.
+Il risultato è un **esagono pieno di raggio 3, 37 celle**, e porta **tutti e quattro** i soggetti della
+seduta:
 
+| Cosa | Dove | Serve a |
+|---|---|---|
+| Copertura **alta** | bordo `(0,0,0)`–`(1,0,0)` | `PIE-GBX-COVER` |
+| Copertura **bassa** | bordo `(0,1,0)`–`(1,1,0)` | idem — una riga di distanza, **è il confronto** |
+| **Quattro** stati di porta | riga `r = -1`: `Destroyed · Open · Closed · Locked` | `PIE-GBX-DOOR` |
+| Acqua e ghiaccio | `(-1,2)`+`(0,2)` e `(1,2)`+`(2,1)` | `PIE-GBX-SURFACE` |
+| Coppie della **stessa** superficie | acqua\|acqua e ghiaccio\|ghiaccio | `PIE-GRID-CONFINE` |
+
+> 🔑 **`GrayKitYard` è `CoverYard` con tre aggiunte, e la base identica è un requisito.** `PIE-GBX-FIT`
+> dichiara che `GBX-1` si decide provando valori di inset, e **due letture su scene diverse non sono
+> confrontabili** — la seconda misurerebbe la scena invece dell'inset. Le coperture stanno sulle **stesse
+> celle** di `CoverYard`, quindi questa lettura si confronta con `PIE-HEX-VIZ-BORDI`.
+>
+> 🔑 **Due celle per superficie e non una**, e la seconda è il punto: `PIE-GBX-SURFACE` vuole due superfici
+> **diverse** adiacenti, `PIE-GRID-CONFINE` vuole l'**opposto** — due celle della *stessa* superficie, dove
+> il colore non dice dove finisce una. Con una cella per tipo il giudizio più difficile della griglia
+> resterebbe non guardabile proprio nella scena costruita per guardarlo.
+>
 > ⛔ **`GenerateFixtureIntoAsset` SOSTITUISCE, non fonde.** Su un asset d'autore cancellerebbe la mappa e
 > la rimpiazzerebbe. Verifica di essere sull'asset di sandbox prima di premerlo.
 >
-> ⚠️ **`CoverYard` non ha porte né superfici**, e lo dichiara il corpo della fixture stessa (*«nessuna
-> superficie, di proposito»*). L'unica porta di tutto `RTMatchSetupLibrary.cpp` sta in `RelayBasin`. Per
-> `PIE-GBX-DOOR` e `PIE-GBX-SURFACE` servono le aggiunte del §1.3.
+> ⏱️ **Fino al 2026-08-30 questo paragrafo diceva `FixtureId = CoverYard` e mandava al §1.3 per porte e
+> superfici**, perché nessuna fixture le portava insieme: `CoverYard` non ha porte — lo dichiara il proprio
+> corpo — e `RelayBasin` ne ha una sola, chiusa. Le si scriveva a mano nel Details.
 
 ### 1.2 Le tre distanze — numeri veri, non impressioni
 
@@ -66,20 +85,30 @@ Sono i valori di `ARTCameraPawn`, così la seduta si ripete invece di essere ric
 
 `ZoomStep` vale `150`: da `450` a `4000` sono ~24 tacche.
 
-### 1.3 Le aggiunte a mano
+### 1.3 Le aggiunte a mano — solo ciò che la fixture non può dare
 
-**Superfici** (per `PIE-GBX-SURFACE`): dipingi col tool Paint due celle vicine, una `ShallowWater` e una
-`Ice`, e posa sopra `SM_Graybox_Surface_Water` e `SM_Graybox_Surface_Ice`.
+⚠️ **La fixture porta il DATO, non le mesh.** `SM_Graybox_*` sono asset da posare in scena e nessuna
+fixture li posa: `PIE-GBX-COVER`, `-DOOR` e `-SURFACE` guardano **il kit**, quindi resta questa metà. Il
+blocco B (la griglia) è invece interamente dato-derivato, e non richiede nulla di questo paragrafo.
 
-**Porte** (per `PIE-GBX-DOOR`): quattro celle con una porta ciascuna in `Open · Closed · Locked ·
-Destroyed`, con `SM_Graybox_Door_Panel` e — su `Locked` — `SM_Graybox_Door_Locked`.
+**Le mesh del kit**, sopra il dato che la fixture ha già messo:
 
-> 🔴 **La trappola che fa sembrare fallita una voce solo non allestita.** Non esiste un tool porte: si
-> scrive `Cells[i].Doors` a mano nel Details, e poi **va forzato il ridisegno** toccando una property
-> dell'actor — `ActiveLayer` `0 → 1 → 0`. L'asset non notifica l'actor: senza quel gesto si guarda la
-> geometria **vecchia**.
+| Sul dato | Posa |
+|---|---|
+| le due coperture | `SM_Graybox_Cover_High` · `SM_Graybox_Cover_Low` |
+| le quattro porte | `SM_Graybox_Door_Panel`, e su `Locked` **anche** `SM_Graybox_Door_Locked` |
+| acqua e ghiaccio | `SM_Graybox_Surface_Water` · `SM_Graybox_Surface_Ice` |
 
 **Volume** (per `PIE-GBX-VOLUME` e `-FIT`): posa `BP_Graybox_CellPlacementVolume` su almeno una cella.
+
+> ⏱️ **Qui stava la trappola peggiore di questa seduta, e dal 2026-08-30 non esiste più.** Non esiste un
+> tool porte: si scriveva `Cells[i].Doors` a mano nel Details, e poi **andava forzato il ridisegno**
+> toccando una property dell'actor — `ActiveLayer` `0 → 1 → 0` — perché l'asset non notifica l'actor. Senza
+> quel gesto si guardava la geometria **vecchia**, e la voce sembrava fallita mentre era solo non
+> allestita. Nate dalla fixture, quel modo di sbagliare non c'è.
+>
+> ⚠️ **Resta vero per qualunque porta aggiunta a mano** oltre alle quattro: se ne tocchi una nel Details,
+> il ridisegno va ancora forzato.
 
 ### 1.4 Come si guarda
 
