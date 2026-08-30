@@ -136,6 +136,15 @@ comportamento corretto è il centro, ed è l'unico punto che minimizza il fuori-
 i quattro angoli, un focus vicino al bordo, e il giudizio *«si vede il vuoto»* su un monitor ultrawide
 reale. `AllowedOutsideFraction` è **taratura aperta**: nessun numero è stato istruito.
 
+🔴 **Un effetto da verificare in PIE prima di tarare qualunque altra cosa.** I limiti nuovi stringono
+**più** dei vecchi a distanza alta, ed è il loro scopo — ma su una mappa piccola l'inset supera l'area già
+a zoom medio, e lì il pivot si inchioda al centro. Calcolato sui valori di oggi (`HexSize = 150`, raggio 4,
+`BoundsMarginCells = 3`, FOV 90°, 16:9): a `MatchStartArmLength = 450` l'inset vale ~290 unità contro una
+semi-area di ~1800, quindi nessun effetto; a `MaxArmLength = 4000` l'inset supera l'area e il pivot resta
+fermo al centro. **A zoom massimo è il comportamento voluto** — si vede già tutto, non c'è dove andare —
+ma il punto in cui la camera comincia a irrigidirsi non è stato misurato a schermo, e
+`AllowedOutsideFraction` è la manopola che lo sposta.
+
 ⛔ **L'area consentita è ancora `celle + margine`**: il buffer scenico non esiste come dato, quindi
 `ScenicBuffer` non entra ancora nella formula. Il punto dove dovrà entrare è marcato nel codice.
 
