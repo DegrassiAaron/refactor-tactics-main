@@ -27,8 +27,9 @@ public:
     int32 GetTeamId() const { return TeamId; }
 
     /**
-     * Assegna la squadra. **Il nome dichiara l'autorita'**: oggi chiama solo `ARTGameMode::AssignSeats`,
-     * e domani sara' il lato server a farlo.
+     * Assegna la squadra. **Il nome dichiara l'autorita'**: oggi non ha ancora nessun chiamante, perche'
+     * il cablaggio (chi decide le squadre e chiama questo metodo) arriva in una fetta successiva del
+     * piano; quando arrivera' sara' server-side.
      */
     void AssignTeam(int32 InTeamId) { TeamId = InTeamId; }
 
