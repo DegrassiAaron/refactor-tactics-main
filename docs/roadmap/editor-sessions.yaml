@@ -2013,3 +2013,55 @@ sessions:
       finché `#1682` non porta una sessione: oggi il pannello apre e richiude la facade a ogni selezione, e
       non c'è uno stato da azzerare. Verificarlo qui misurerebbe qualcosa che non esiste.
 
+  - id: U35
+    title: La prospettiva tecnica risponde a «cosa sapeva chi ha deciso»
+    block: 6
+    critical: false
+    produces: il verdetto se i tre stati della conoscenza si leggono nel viewport d'authoring
+    artifacts: []
+    unblocked_by: [U34]
+    shares_setup_with: [U31, U34]
+    verifies: [PIE-HEX-VIZ-VELO]
+    # ⚠️ `PIE-HEX-VIZ-VELO` è citata per **confronto**, non perché questa seduta la esegua: è l'oracolo già
+    # esistente. Il velo in partita è stato accertato il 2026-08-30 su `L_HexArena`, e ciò che qui si guarda
+    # è se la stessa conoscenza si legge **fuori** dal Play, dove non c'è un `ARTTurnManager`.
+    issues: [1754]
+    # ⛔ **Perché una seduta e non solo automation test.** Dei test della slice, quelli puri misurano
+    # l'unione, il confine e l'invarianza dello stato; quelli d'editor contano ciò che è posato. Nessuno vede
+    # la cosa che conta: che i tre stati si DISTINGUANO a schermo. «Il ricordo si separa dall'osservato» e
+    # «il mai visto non si disegna» sono giudizi su ciò che appare, e un'asserzione che li rivendicasse
+    # sarebbe un giudizio a occhio travestito da misura.
+    done_when: >-
+      Aperta `L_DevSandbox` e selezionato nel tab **Tactical Designer** uno scenario a due squadre in cui una
+      squadra NON vede tutta l'arena — `VisionSplit` è la fixture che lo produce, raggio 8 con un muro a tre
+      file — il selettore `View:` mostra `Omniscient · Team 0 · Team 1` e le squadre sono quelle del file.
+      In `Team 0` la board distingue **osservato**, **ricordato** e **mai visto**, e un'unità avversaria che
+      quella squadra non conosce **non è a schermo**: né il cilindro, né l'anello, né il cuneo.
+      Passando a `Team 1` la vista si ribalta, e in `Omniscient` torna tutto.
+      ⚠️ **Il criterio che decide se il confine serviva davvero.** #1715 ha misurato che in partita il salto
+      `1.0 / 0.35` del velo basta da solo. Qui il confine è stato aggiunto perché il TD ha camera libera e
+      arene arbitrarie: **si guarda se aggiunge qualcosa o se raddoppia** ciò che il velo già dice. Se non
+      aggiunge nulla, la risposta onesta è toglierlo — e la misura va scritta, come è stata scritta quella
+      che ha chiuso #1715.
+      🔑 **L'oracolo è `rt.Debug.Knowledge <team>`**: si apre lo stesso scenario in PIE e si confronta. Le
+      due letture devono **concordare** — se divergono, il difetto è che il TD sta calcolando qualcosa di
+      suo, che è precisamente ciò che questa slice esiste per non fare.
+      ⛔ E il criterio negativo: dopo il giro di prospettive, `git status` è pulito e `L_DevSandbox` non è
+      marcata come modificata. Cambiare vista non è modificare uno scenario.
+    unblocks: []
+    notes: >-
+      🔑 **Le due vie di lettura, e perché qui ne serve una sola.** In PIE la conoscenza si chiede
+      all'autorità (`ARTTurnManager::KnowledgeForTeamPublic`). Fuori da PIE **quel manager non esiste**: la
+      via è `URTTeamKnowledgeLibrary::Observe`, che è pura ed è *lo stesso produttore* che il TurnManager
+      chiama. Non è una seconda verità. La prima via tornerà con il playback del TD (#1625), che è il
+      secondo consumer di questo predicato.
+      ⚠️ **Il velo copre la mappa, non i marcatori.** `ApplyKnowledgeVeil` tocca le cinque famiglie di
+      istanze di `ARTHexMapActor`; le unità stanno su un altro actor. Velare la board e lasciare i marcatori
+      mostrerebbe ogni nemico mai visto **rispettando alla lettera** il resto della slice — ed è il difetto
+      che questa seduta deve provare a trovare, guardando proprio quello.
+      ⚠️ **Il confine è un canale in più sullo stesso stato, e va saputo mentre lo si guarda.** È la tensione
+      che #1715 aveva dichiarato e mai nascosto. Il giudizio di quella issue resta valido dove è stato dato:
+      chi tocca `RTVeilExploredFactor` tocca ancora quella decisione, non questa.
+      ⛔ **Il playback non è di questa seduta.** L'acceptance criterion di #1754 che diceva «durante il
+      playback, in `Team N`, un nemico mai visto non viene rivelato» è stato spostato in **#1625**: il
+      playback del TD non esiste ancora, e verificarlo qui misurerebbe qualcosa che non c'è.
