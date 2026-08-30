@@ -5,6 +5,7 @@
 // spostare nel runtime — questo file non e' un posto dove una regola puo' vivere.
 
 #include "ScenarioHarness/RTScenarioAuthoring.h"
+#include "ScenarioHarness/RTScenarioArena.h"
 
 #include "Ability/RTHeroCatalogLibrary.h" // il roster per la tendina: gli id, non gli eroi costruiti
 #include "ScenarioHarness/RTScenarioIndex.h"
@@ -239,6 +240,20 @@ FText URTScenarioAuthoring::DescribeResult(ERTScenarioAuthoringResult Result)
 	}
 
 	return LOCTEXT("Unknown", "Esito sconosciuto");
+}
+
+URTHexMapAsset* URTScenarioAuthoring::BuildArena(UObject* Outer) const
+{
+	if (!Draft.IsOpen())
+	{
+		// Nessuno scenario aperto: `nullptr` e non un'arena vuota. Un'arena vuota si disegnerebbe — come una
+		// mappa senza celle — e chi guarda concluderebbe che lo scenario e' vuoto invece che assente.
+		return nullptr;
+	}
+
+	// Il builder canonico, lo stesso di `FRTScenarioSession`: fixture o raggio, con gli override di cella
+	// applicati sopra. Qui non si sceglie niente, si traduce soltanto.
+	return URTScenarioArenaLibrary::BuildArena(Draft.GetScenario(), Outer);
 }
 
 #undef LOCTEXT_NAMESPACE

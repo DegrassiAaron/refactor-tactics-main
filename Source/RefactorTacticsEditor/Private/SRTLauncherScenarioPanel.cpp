@@ -3,6 +3,8 @@
 #include "ScenarioHarness/RTScenarioAuthoring.h"
 #include "ScenarioHarness/RTScenarioDraft.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
+#include "RTScenarioPreviewSubsystem.h"
+#include "Editor.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SBorder.h"
@@ -15,6 +17,20 @@
 
 namespace
 {
+	/**
+	 * Toglie l'anteprima di scenario dal viewport, se ce n'e' una.
+	 *
+	 * Funzione libera e non membro: il pannello non possiede l'anteprima — la chiede al sottosistema, che
+	 * la possiede per tutta la vita dell'editor. Un membro suggerirebbe una proprieta' che non c'e'.
+	 */
+	void ClearScenarioPreview()
+	{
+		if (URTScenarioPreviewSubsystem* Preview = GEditor ? GEditor->GetEditorSubsystem<URTScenarioPreviewSubsystem>() : nullptr)
+		{
+			Preview->ClearPreview();
+		}
+	}
+
 	/** Margine unico per le righe del pannello: cambiarlo in un posto solo evita una griglia che balla. */
 	constexpr float RowPadding = 4.0f;
 }
@@ -206,6 +222,9 @@ void SRTLauncherScenarioPanel::RefreshReadout()
 
 	if (SelectedId.IsEmpty())
 	{
+		// Nessuna selezione, nessuna anteprima: lasciare a schermo lo scenario di prima mostrerebbe qualcosa
+		// che il pannello non sta piu' dicendo.
+		ClearScenarioPreview();
 		return;
 	}
 
@@ -225,11 +244,25 @@ void SRTLauncherScenarioPanel::RefreshReadout()
 	{
 		// Uno scenario illeggibile resta ELENCATO e lo dichiara: l'indice lo trova per header, e farlo
 		// sparire dalla lista renderebbe invisibile proprio il file da riparare.
+		ClearScenarioPreview();
 		ReadoutError = OpenError;
 		return;
 	}
 
 	ReadoutLines = FRTLauncherScenarioBrowser::BuildReadout(Authoring->GetSummary(), Authoring->ListUnits());
+
+	// L'anteprima nel viewport (#1753): si posa mentre la facade e' ANCORA aperta, perche' e' da li' che
+	// arrivano l'arena canonica e le unita'. Il pannello non possiede una sessione — la chiude due righe
+	// sotto come prima — e l'anteprima tiene il risultato, non la facade.
+	if (URTScenarioPreviewSubsystem* Preview = GEditor ? GEditor->GetEditorSubsystem<URTScenarioPreviewSubsystem>() : nullptr)
+	{
+		if (Preview->ShowScenario(Authoring.Get()))
+		{
+			// Su quale piano si sta guardando: senza, due celle con lo stesso X/Y e Layer diverso si
+			// leggono come una sola.
+			ReadoutLines.Add(FString::Printf(TEXT("Viewport: %s"), *Preview->GetLayerReadout()));
+		}
+	}
 
 	// Chiusura esplicita: la facade non e' una sessione d'authoring aperta dal launcher — quella e' #1682.
 	// Tenerla aperta qui significherebbe che il pannello possiede uno stato che #1682 dovra' possedere.

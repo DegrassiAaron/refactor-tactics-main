@@ -5,6 +5,8 @@
 #include "ScenarioHarness/RTScenarioDraft.h"
 #include "RTScenarioAuthoring.generated.h"
 
+class URTHexMapAsset;
+
 /**
  * **La porta Blueprint dello Scenario Harness.** L'unica.
  *
@@ -229,6 +231,29 @@ public:
 	/** Le unita' schierate, nell'ordine del file. Fotografie: vedi `GetSummary`. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")
 	TArray<FRTScenarioUnitView> ListUnits() const { return Draft.ListUnits(); }
+
+	/**
+	 * L'ARENA dello scenario aperto: la **stessa** che il runner costruira' eseguendolo.
+	 *
+	 * 🔑 **Perche' passa da qui e non da `URTScenarioArenaLibrary` direttamente.** Quel builder prende un
+	 * `FRTTestScenario`, cioe' il modello — che [ADR-0010] tiene `non-BlueprintType` e fuori dalla portata
+	 * dell'editor apposta. Senza questa riga un consumatore d'editor avrebbe due sole strade: toccare il
+	 * modello, oppure ricostruirsi l'arena da `GetSummary()` leggendo `Fixture` e `MapRadius` — e la seconda
+	 * e' peggio della prima, perche' sembra innocua e **perde gli override di cella**, che il summary non
+	 * porta. Una preview costruita cosi' mostrerebbe una mappa che il runner poi non usa.
+	 *
+	 * ⚠️ **Non e' una sessione e non e' cache**: costruisce e restituisce, come `GetSummary` fotografa.
+	 * Chiamarla due volte da' due asset distinti, entrambi validi.
+	 *
+	 * @param Outer proprietario dell'asset. L'asset non deve sopravvivere a chi lo espone.
+	 * @return `nullptr` se nessuno scenario e' aperto, o se la fixture/il raggio non producono un'arena.
+	 *
+	 * ⚠️ **NON e' una `UFUNCTION`, deliberatamente** — come `ARTTurnManager::KnowledgeForTeamPublic`, e per
+	 * la stessa ragione. Esporla in Blueprint consegnerebbe l'`URTHexMapAsset` a un grafo, che potrebbe
+	 * scriverci dentro: l'arena tornerebbe modificabile proprio dal lato che ADR-0010 tiene fuori dal
+	 * modello. Il consumatore e' il modulo Editor, che e' C++ e non ne ha bisogno.
+	 */
+	URTHexMapAsset* BuildArena(UObject* Outer) const;
 
 	/** Gli ID che l'indice conosce, filtrabili per tag. Vuoti = elenco completo. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Scenario")

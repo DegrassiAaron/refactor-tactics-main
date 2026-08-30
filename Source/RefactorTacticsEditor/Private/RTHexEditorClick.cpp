@@ -11,6 +11,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "RTScenarioPreviewActor.h"  // ARTScenarioPreviewActor::PreviewTag: gli actor d'anteprima non sono "la mappa"
 
 namespace
 {
@@ -49,11 +50,19 @@ ARTHexMapActor* FindTargetMapActor(UWorld* World)
 		}
 	}
 	// Fallback: l'unico ARTHexMapActor nel mondo.
+	//
+	// ⚠️ **Gli actor dell'anteprima di scenario (#1753) non contano.** `URTScenarioPreviewSubsystem`
+	// posa un `ARTHexMapActor` TRANSIENTE per mostrare l'arena dello scenario selezionato: senza questo
+	// salto, aprire un'anteprima accanto a una mappa d'autore farebbe trovare DUE actor a questa
+	// ricerca, che risponde `nullptr` quando sono piu' d'uno — e i cinque tool di disegno si
+	// spegnerebbero senza un messaggio. L'anteprima si riconosce dal tag e non dalla classe, perche'
+	// `TActorIterator` trova anche le sottoclassi.
 	ARTHexMapActor* Found = nullptr;
 	if (World)
 	{
 		for (TActorIterator<ARTHexMapActor> It(World); It; ++It)
 		{
+			if (It->Tags.Contains(ARTScenarioPreviewActor::PreviewTag)) { continue; }
 			if (Found) { return nullptr; } // piu' di uno e nessuno selezionato: ambiguo -> nessuna azione
 			Found = *It;
 		}
