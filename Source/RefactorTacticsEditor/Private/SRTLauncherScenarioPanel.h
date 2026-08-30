@@ -12,7 +12,6 @@
 #include "Widgets/Views/SListView.h"
 
 class ITableRow;
-class SSearchBox;
 class STableViewBase;
 template <typename OptionType> class SComboBox;
 
@@ -22,8 +21,8 @@ template <typename OptionType> class SComboBox;
  *
  * ⚠️ **E' un guscio.** Cio' che puo' sbagliare — restringere, classificare il vuoto, formattare il
  * readout — sta in `FRTLauncherScenarioBrowser`, che un automation test esamina. Qui restano solo la
- * disposizione dei widget e le chiamate all'indice: se una regola compare in questo file invece che li',
- * e' una regola che nessun test vede.
+ * disposizione dei widget, la cache dell'indice e le chiamate all'indice: se una regola compare in questo
+ * file invece che li', e' una regola che nessun test vede.
  *
  * ⛔ Nessuna scansione di directory propria: l'elenco viene da `URTScenarioIndex::ListIds`, la stessa
  * funzione del Details Panel di `ARTGameMode`. Un secondo catalogo sarebbe la seconda autorita' che la
@@ -38,11 +37,28 @@ public:
 	void Construct(const FArguments& InArgs);
 
 private:
-	/** Ricalcola elenco filtrato, elenco visibile e stato vuoto. Non tocca la selezione: vedi `SelectedId`. */
-	void RefreshList();
+	/**
+	 * Rilegge l'INDICE: vocabolario dei tag e id che passano i due filtri. Poi ricalcola cio' che si vede.
+	 *
+	 * ⚠️ **Si chiama solo quando cambia un filtro, mai mentre si digita.** `URTScenarioIndex::ListIds`
+	 * passa da `Scan`, che percorre `Scenarios/` e fa il parse di ogni file: novanta letture e novanta
+	 * parse, sul game thread. Rifarle a ogni battuta di tasto e' precisamente il guardrail che #1705 vieta
+	 * — «nessun asse che richieda di aprire tutti gli scenari a ogni ridisegno» — e nemmeno il ritardo di
+	 * 0,25 s di `SSearchBox` lo rende accettabile: rallenta la frequenza, non elimina il costo.
+	 *
+	 * Il vocabolario si rilegge qui insieme agli id: erano gia' due letture separate, e tenerne una sola
+	 * ferma al `Construct` faceva offrire alle tendine dei tag che l'elenco non conosceva piu'.
+	 */
+	void RefreshFilters();
 
-	/** Apre lo scenario selezionato **da solo** e ne costruisce il readout. Un'apertura, non ottantotto. */
+	/** Applica la sola ricerca alla cache e riclassifica. Nessun accesso al disco: e' cio' che consente di chiamarla a ogni tasto. */
+	void RefreshVisible();
+
+	/** Apre lo scenario selezionato **da solo** e ne costruisce il readout. Un'apertura, non novanta. */
 	void RefreshReadout();
+
+	/** Dimentica la selezione e il readout insieme. Sempre insieme: vedi `SelectedId`. */
+	void ClearSelection();
 
 	TSharedRef<ITableRow> OnGenerateScenarioRow(TSharedPtr<FString> Item, const TSharedRef<STableViewBase>& OwnerTable);
 	TSharedRef<SWidget> OnGenerateTagOption(TSharedPtr<FString> Option) const;
@@ -61,8 +77,18 @@ private:
 
 	FString SearchText;
 
-	/** Quanti id passavano i soli tag: serve a `Classify` per distinguere le due cause del vuoto. */
-	int32 FilteredCount = 0;
+	/** Gli id che passano i due tag. **Cache**: costa una scansione del corpus, e si rifa' solo sui filtri. */
+	TArray<FString> FilteredIds;
+
+	/**
+	 * Un `TSharedPtr` **stabile** per ogni id gia' visto.
+	 *
+	 * ⚠️ Esiste per la selezione, non per risparmiare allocazioni. `SListView` tiene i selezionati in un
+	 * `TSet<TSharedPtr<...>>` e li confronta per **identita' di puntatore**: rigenerando le voci a ogni
+	 * refresh, nessun puntatore vecchio si ritrova nella sorgente nuova, e la lista svuota la selezione da
+	 * sola — la riga resta elencata ma smette di essere evidenziata, mentre il readout continua a mostrarla.
+	 */
+	TMap<FString, TSharedPtr<FString>> ItemById;
 
 	TArray<TSharedPtr<FString>> VisibleItems;
 
@@ -71,7 +97,9 @@ private:
 	/**
 	 * ⚠️ **Sopravvive ai filtri.** I filtri sono una lente: restringere l'elenco non deve deselezionare
 	 * cio' che si stava guardando, altrimenti cercare un secondo scenario per confronto farebbe perdere
-	 * il primo. Il readout resta finche' non si sceglie qualcos'altro.
+	 * il primo. Cede solo a un gesto esplicito — scegliere un'altra riga, o cliccare nel vuoto — e in quel
+	 * caso se ne va **insieme al readout**: una selezione vuota con un readout pieno e' una schermata che
+	 * si contraddice.
 	 */
 	FString SelectedId;
 
@@ -90,7 +118,4 @@ private:
 	TStrongObjectPtr<URTScenarioAuthoring> Authoring;
 
 	TSharedPtr<SListView<TSharedPtr<FString>>> ListView;
-	TSharedPtr<SComboBox<TSharedPtr<FString>>> FilterABox;
-	TSharedPtr<SComboBox<TSharedPtr<FString>>> FilterBBox;
-	TSharedPtr<SSearchBox> SearchBox;
 };

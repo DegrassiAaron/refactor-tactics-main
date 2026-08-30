@@ -30,36 +30,54 @@ TArray<FString> FRTLauncherScenarioBrowser::ApplySearch(const TArray<FString>& F
 	return Visible;
 }
 
-ERTLauncherListState FRTLauncherScenarioBrowser::Classify(int32 FilteredCount, int32 VisibleCount)
+ERTLauncherListState FRTLauncherScenarioBrowser::Classify(int32 FilteredCount, int32 VisibleCount, bool bAnyTagFilter)
 {
 	if (VisibleCount > 0)
 	{
 		return ERTLauncherListState::Populated;
 	}
 
-	// L'ordine dei due rami e' il contenuto della funzione. Se i tag non lasciano passare niente, la
-	// ricerca non ha avuto nulla su cui lavorare e non e' lei la causa — anche quando c'e' del testo
-	// nella casella. Attribuirla alla ricerca manderebbe a cancellare la parola sbagliata.
-	return FilteredCount == 0
-		? ERTLauncherListState::NoTagMatches
-		: ERTLauncherListState::NoSearchMatches;
+	if (FilteredCount == 0)
+	{
+		// L'ordine di questi due rami e' il contenuto della funzione. Un indice vuoto MENTRE nessun filtro
+		// restringe non e' colpa dei filtri: dire «allarga» manderebbe a cercare una via d'uscita che non
+		// esiste, e la causa (`Scenarios/` assente, header illeggibili) e' fuori dal pannello.
+		return bAnyTagFilter
+			? ERTLauncherListState::NoTagMatches
+			: ERTLauncherListState::EmptyCorpus;
+	}
+
+	// I tag lasciavano passare qualcosa: allora e' stata la ricerca. Attribuire ai tag un vuoto causato
+	// dalla ricerca — o viceversa — manda a cancellare la cosa sbagliata, e l'elenco resta vuoto lo stesso.
+	return ERTLauncherListState::NoSearchMatches;
 }
 
 FText FRTLauncherScenarioBrowser::DescribeEmptyState(ERTLauncherListState State)
 {
+	// ⚠️ Nessun `default:`, e non e' pedanteria: e' un enum cha ha per unico scopo tenere distinte delle
+	// cause. Con un `default` uno stato aggiunto domani si tradurrebbe in silenzio in «nessun messaggio»,
+	// cioe' in un elenco vuoto che non dice piu' perche' — il difetto che l'enum esiste per impedire. Senza,
+	// il compilatore indica l'unico punto che va aggiornato.
 	switch (State)
 	{
+	case ERTLauncherListState::Populated:
+		// Il posto e' occupato dalla lista. Restituire qui una stringa qualsiasi la farebbe comparire
+		// sotto un elenco pieno.
+		return FText::GetEmpty();
+
+	case ERTLauncherListState::EmptyCorpus:
+		return LOCTEXT("EmptyCorpus", "L'indice degli scenari e' vuoto: non c'e' niente da filtrare. Controlla che la cartella Scenarios/ del progetto sia raggiungibile.");
+
 	case ERTLauncherListState::NoTagMatches:
-		return LOCTEXT("NoTagMatches", "Nessuno scenario porta entrambi i tag. Allarga i filtri.");
+		// «i tag scelti» e non «entrambi i tag»: le tendine sono due ma se ne puo' usare una sola, e in quel
+		// caso una frase al plurale manda a cercare un secondo filtro che nessuno ha impostato.
+		return LOCTEXT("NoTagMatches", "Nessuno scenario porta i tag scelti. Allarga i filtri.");
 
 	case ERTLauncherListState::NoSearchMatches:
 		return LOCTEXT("NoSearchMatches", "I filtri lasciano passare degli scenari, ma nessuno contiene il testo cercato.");
-
-	default:
-		// `Populated` non ha messaggio: il posto e' occupato dalla lista. Restituire qui una stringa
-		// qualsiasi la farebbe comparire sotto un elenco pieno.
-		return FText::GetEmpty();
 	}
+
+	return FText::GetEmpty();
 }
 
 FString FRTLauncherScenarioBrowser::DescribeTerrain(const FRTScenarioSummary& Summary)
@@ -77,7 +95,8 @@ FString FRTLauncherScenarioBrowser::DescribeTerrain(const FRTScenarioSummary& Su
 		return FString::Printf(TEXT("radius %d"), Summary.MapRadius);
 	}
 
-	// ⚠️ Ne' l'uno ne' l'altro. Il corpus oggi non ha questo caso (21 + 67 = 88, tutti), ma un readout che
+	// ⚠️ Ne' l'uno ne' l'altro. Il corpus oggi non ha questo caso — misurato il 2026-08-30: 90 scenari,
+	// 21 con una fixture e 69 con un raggio, nessuno senza — ma un readout che
 	// qui stampasse `radius 0` renderebbe un dato assente indistinguibile da un raggio davvero nullo.
 	return TEXT("terreno non dichiarato");
 }
@@ -128,7 +147,7 @@ TArray<FString> FRTLauncherScenarioBrowser::BuildReadout(const FRTScenarioSummar
 
 	if (Summary.VariantCount > 0)
 	{
-		// Solo quando ce ne sono: una riga «varianti 0» su 88 scenari quasi tutti senza varianti e' rumore
+		// Solo quando ce ne sono: una riga «varianti 0» sui novanta scenari, quasi tutti senza varianti, e' rumore
 		// che allontana dall'occhio le righe che cambiano.
 		Lines.Add(FString::Printf(TEXT("varianti   %d"), Summary.VariantCount));
 	}
