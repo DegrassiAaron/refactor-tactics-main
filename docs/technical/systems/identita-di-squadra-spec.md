@@ -132,40 +132,61 @@ tripwire e diventa un controllo su un campo che qualcuno legge davvero.
 
 ## 5. Il ripiego headless, e il verde vacuo
 
-`APlayerController::PostInitializeComponents()` chiama `InitPlayerState()`, che **crea il PlayerState solo
-se `World->GetAuthGameMode()` esiste** (`Controller.cpp:652`, UE 5.8). Nei mondi di prova del progetto il
-GameMode viene spawnato con `SpawnActor<ARTGameMode>()`, che **non** lo registra come game mode autorevole.
+> ✅ **MISURATO il 2026-08-30** con uno spike usa-e-getta, poi cancellato. Le tre righe qui sotto sono
+> lette da un log, non dedotte — e la terza ha smentito la deduzione con cui questa sezione era nata.
 
-∴ in quei mondi — e nello Scenario Harness — il controller ha con ogni probabilità `PlayerState == nullptr`,
-e `TeamIdOf` ripiega a `0`.
+`APlayerController::PostInitializeComponents()` chiama `InitPlayerState()`, che cerca
+`World->GetAuthGameMode()` e, **se non lo trova, riprova con `GameState->GetDefaultGameMode()`**
+(`Controller.cpp:652`, UE 5.8). È quel ramo di ripiego a produrre il caso che conta.
 
-🔴 **È il punto in cui questa fetta può fallire in silenzio.** `0` è esattamente ciò che i test misurano
-oggi: la migrazione passerebbe tutta verde mentre il meccanismo che dichiara di coprire non viene mai
-attraversato. La board risponderebbe `0` perché non c'è nessuno a rispondere, non perché il giocatore sia
-della squadra `0`. È la famiglia di difetto che il repository ha già pagato con `#1467` — cinque test verdi
-su un velo che nessuno stendeva — e con `UnitsPerPlayer` qui sopra.
+| Mondo di prova | `AuthGameMode` | `PlayerState` |
+|---|---|---|
+| nudo (`RTWorldFixtures::MakeWorld`) | `NULL` | `NULL` |
+| \+ `ARTGameMode` spawnato a mano | `NULL` | `NULL` |
+| \+ `InitializeActorsForPlay` | `NULL` | **`APlayerState`** |
 
-⚠️ **Questa deduzione viene dal sorgente del motore e NON è stata misurata.** Il primo passo
-dell'implementazione è un test che la accerti; costruire il resto su una supposizione sarebbe fondare la
-fetta sullo stesso silenzio che vuole chiudere.
+Spawnare `ARTGameMode` **non** lo registra come autorevole: la riga 2 lo conferma. Ma
+`InitializeActorsForPlay` crea il **GameState**, e da lì il ramo di ripiego pesca il game mode di
+**default** — non il nostro — che spawna un `APlayerState` nudo.
+
+🔴 **È il caso peggiore, ed è quello che si presenta nei test che contano.** Dopo la fetta,
+`Cast<ARTPlayerState>(PC->PlayerState)` restituirebbe `nullptr` **pur con un PlayerState non nullo**:
+`TeamIdOf` ripiega a `0` per una **terza** ragione, che a colpo d'occhio non si distingue da un sistema
+sano — il PlayerState c'è, sembra tutto a posto, e la risposta è il ripiego.
+
+I file che passano di lì sono **quattro**, e non sono marginali: `RTVeilTests` — cioè proprio il test che
+copre il consumatore del velo — `RTMatchEndOpensResultTests`, `RTFrontendPauseTests`,
+`RTFrontendNavigationTests`.
+
+∴ il ripiego a `0` ha **tre** cause distinte, non due: nessun PlayerState, PlayerState della **classe
+sbagliata**, e squadra realmente `0`. Un presidio che ne copra due lascia scoperta proprio la più comune.
+È la famiglia di difetto che il repository ha già pagato con `#1467` — cinque test verdi su un velo che
+nessuno stendeva — e con `UnitsPerPlayer` qui sopra.
 
 ### 5.1 La fixture
 
 `RTWorldFixtures::MakePlayerOnTeam(UWorld*, int32 TeamId)` spawna controller e `ARTPlayerState` e li lega
-con `AController::SetPlayerState` — API pubblica `ENGINE_API`, verificata a `Controller.h:51`. Una sola
-sede, come gli altri fixture di quel file.
+con `AController::SetPlayerState` — API pubblica `ENGINE_API` verificata a `Controller.h:51`, e il caso 4
+dello spike conferma che `GetPlayerState<T>()` risponde dopo il legame. Una sola sede, come gli altri
+fixture di quel file.
+
+⚠️ **Non basta CREARE un PlayerState: la fixture deve garantirne la CLASSE**, sostituendo quello di
+default che `InitializeActorsForPlay` ha già messo lì. Registrare `PlayerStateClass` su `ARTGameMode` non
+aiuta in quei mondi, perché il nostro GameMode non è l'autorità che decide la classe.
 
 I due siti che oggi vogliono davvero la squadra `1` passano di lì: `RTCameraPawnTests` e
 `RTHudViewerTeamTests`.
 
 ## 6. Test richiesti
 
-**La coppia che discrimina**, e nessuno dei due basta da solo:
+**La terna che discrimina** — era una coppia finché lo spike non ha trovato il terzo caso — e nessuno dei
+tre basta da solo:
 
 | Test | Cosa impedisce |
 |---|---|
-| controller **con** PlayerState su squadra 1 → `TeamIdOf` risponde `1` | che l'intera migrazione restituisca `0` ovunque restando verde |
+| controller con `ARTPlayerState` su squadra 1 → `TeamIdOf` risponde `1` | che l'intera migrazione restituisca `0` ovunque restando verde |
 | controller **senza** PlayerState → risponde `0`, **dichiarato come ripiego** | che il ripiego sia ereditato dal silenzio invece che scelto |
+| controller con un PlayerState della **classe sbagliata** → risponde `0`, dichiarato | che il caso più comune nella suite reale (§5) non sia coperto da nessuno |
 
 Più:
 
