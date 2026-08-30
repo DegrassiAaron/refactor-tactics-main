@@ -8,6 +8,7 @@
 #include "Frontend/RTFrontendNavigator.h"
 #include "Frontend/RTMatchFrontendBridge.h" // la POLITICA del confine col frontend: qui resta il cablaggio
 #include "Match/RTMatchBootstrapper.h"      // COME nasce una partita: qui resta il COSA e' stato chiesto
+#include "Perception/RTKnowledgeVeilPresenter.h" // il velo e' del client: qui resta il solo aggancio
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "UObject/ConstructorHelpers.h" // FClassFinder: i BP_Unit_* dei quattro eroi (CP E21.1)
 #include "Misc/CommandLine.h"
@@ -426,6 +427,26 @@ void ARTGameMode::BeginPlay()
 	HookKnowledgeVeil();
 }
 
+URTKnowledgeVeilPresenter* ARTGameMode::GetKnowledgeVeilPresenter()
+{
+	// 🔑 **DOVE VIVE IL PRESENTER, in una riga.** Il proprietario naturale e' il client che guarda: se c'e'
+	// un `ARTPlayerController`, il presenter e' suo e il viewer e' il suo `PlayerTeamId`.
+	if (ARTPlayerController* PC = Cast<ARTPlayerController>(
+			UGameplayStatics::GetPlayerController(this, 0)))
+	{
+		return PC->GetKnowledgeVeilPresenter();
+	}
+
+	// Senza client — harness headless, test di simulazione — non c'e' un proprietario naturale, ma la board
+	// e' comunque nel mondo e il velo va steso lo stesso. Il presenter nasce qui e il viewer ripiega su `0`,
+	// che e' la stessa regola di `ARTCameraPawn::FrameOwnTeam`.
+	if (!OwnerlessVeilPresenter)
+	{
+		OwnerlessVeilPresenter = NewObject<URTKnowledgeVeilPresenter>(this);
+	}
+	return OwnerlessVeilPresenter;
+}
+
 void ARTGameMode::HookKnowledgeVeil()
 {
 	ARTTurnManager* TurnManager =
@@ -435,75 +456,17 @@ void ARTGameMode::HookKnowledgeVeil()
 		return;
 	}
 
-	// ⚠️ **`AddUniqueDynamic` e non `AddDynamic`**, per la ragione gia' registrata in
-	// `Frontend/RTFrontendGameMode.cpp`: `BeginPlay` puo' correre piu' di una volta sullo stesso GameMode in
-	// editor, e due iscrizioni stenderebbero il velo due volte per refresh — non un errore visivo, ma il
-	// doppio del costo su ogni cella.
+	// 🔑 **Il CABLAGGIO sta qui, il velo no.** Il GameMode aggancia perche' e' lui a spawnare il
+	// `TurnManager`, ed e' quindi l'unico punto in cui l'ordine e' garantito: un
+	// `ARTPlayerController::BeginPlay` non ha nessuna garanzia di correre dopo. Chi stende il velo, e per
+	// conto di chi, e' del presenter — che dal `E-SOLID` fetta 4 appartiene al client.
 	//
-	// 🔑 **Il sito di ISCRIZIONE sta nel GameMode, la fonte del TEAM no.** Qui perche' e' il GameMode a
-	// spawnare il `TurnManager`, ed e' quindi l'unico punto in cui l'ordine e' garantito: un
-	// `ARTPlayerController::BeginPlay` non ha nessuna garanzia di correre dopo. Il team invece lo risponde
-	// `ViewerTeamId()`, che lo rilegge dal controller a ogni applicazione.
-	TurnManager->OnTeamKnowledgeRefreshed.AddUniqueDynamic(
-		this, &ARTGameMode::HandleTeamKnowledgeRefreshed);
-
-	// 🔴 **E si stende SUBITO, non al primo refresh.** Senza questa riga la board nasce interamente visibile
-	// e si vela al primo `RefreshTeamKnowledgeForPlanning`: il primo fotogramma e' quello che rivela tutta la
-	// mappa, ed e' l'unico che nessun test potrebbe prendere dopo. E' una voce esplicita della DoD di `E13.8`.
-	ApplyKnowledgeVeilForViewer();
-}
-
-int32 ARTGameMode::ViewerTeamId() const
-{
-	// Ripiego su `0` senza controller — headless, harness, test — con la stessa regola di
-	// `ARTCameraPawn::FrameOwnTeam`, che il suo test pinna.
-	if (const ARTPlayerController* PC = Cast<ARTPlayerController>(
-			UGameplayStatics::GetPlayerController(this, 0)))
+	// ⚠️ Chiamarla due volte e' sicuro: `AddUniqueDynamic` non duplica l'iscrizione, ed e' cio' che la rende
+	// usabile da un test che non sa se `BeginPlay` sia gia' corso.
+	if (URTKnowledgeVeilPresenter* Presenter = GetKnowledgeVeilPresenter())
 	{
-		return PC->PlayerTeamId;
+		Presenter->Hook(TurnManager);
 	}
-	return 0;
-}
-
-void ARTGameMode::ApplyKnowledgeVeilForViewer()
-{
-	ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld());
-	if (!HexMap)
-	{
-		return;
-	}
-
-	ARTTurnManager* TurnManager =
-		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
-	if (!TurnManager)
-	{
-		return;
-	}
-
-	// 🔑 **La via scelta e' `KnowledgeForTeamPublic`, e le altre due sono state scartate per ragioni
-	// diverse** — `E13.8` chiede che la scelta sia dichiarata, non solo fatta:
-	//
-	//  - `MakeCurrentSnapshot` e' pubblica e consegnerebbe la conoscenza di ENTRAMBE le squadre, ma fa
-	//    `GetAllActorsOfClass` e due `Sort` ed e' la sua parte cara: qui serve una squadra sola, a ogni
-	//    refresh. Il suo stesso commento la dichiara «proibitiva a ogni frame».
-	//  - **portare la conoscenza nel payload del delegate** sceglierebbe il team per conto di tutti i
-	//    subscriber, cioe' farebbe alla firma esattamente cio' che [D-227] le vieta.
-	//
-	// ⚠️ `KnowledgeForTeamPublic` **non e' una `UFUNCTION`**, deliberatamente: esporla in Blueprint aprirebbe
-	// un canale verso la conoscenza NON filtrata di una squadra qualunque. Da C++ va bene; da Blueprint la
-	// porta resta `FRTKnowledgeView`.
-	HexMap->ApplyKnowledgeVeil(TurnManager->KnowledgeForTeamPublic(ViewerTeamId()));
-
-	// L'anello osservabile: `GetVeilCounts` dice com'e' la board, questo dice QUANTE VOLTE e' stata
-	// ridipinta. Senza, «steso una volta sola» e «ridipinto con conoscenza vuota» sono indistinguibili.
-	++KnowledgeVeilApplications;
-}
-
-void ARTGameMode::HandleTeamKnowledgeRefreshed(int32 /*TurnNumber*/)
-{
-	// Il numero di turno non serve: il velo non ha memoria e non interpola: ridipinge lo stato corrente.
-	// Riceverlo e ignorarlo e' comunque giusto — e' la firma del delegate, non una scelta di questo sito.
-	ApplyKnowledgeVeilForViewer();
 }
 
 ERTMapSource ARTGameMode::ResolveMapSource() const

@@ -15,6 +15,7 @@
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Turn/RTTurnManager.h"
+#include "Perception/RTKnowledgeVeilPresenter.h"
 #include "Unit/RTUnit.h" // ARTUnit: TActorIterator ne pretende la definizione, non basta la forward
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -377,7 +378,15 @@ bool FRTVeilHasAConsumerTest::RunTest(const FString&)
 	GameMode->HookKnowledgeVeil();
 
 	// 🔑 **L'ANELLO**: l'aggancio deve aver steso il velo ESATTAMENTE una volta.
-	TestEqual(TEXT("l'aggancio stende il velo una volta"), GameMode->GetKnowledgeVeilApplications(), 1);
+	// ⚠️ Il conteggio si legge dal PRESENTER e non piu' dal GameMode (`E-SOLID` fetta 4): il viewer e'
+	// del client, e in questo mondo senza `ARTPlayerController` il presenter e' quello senza proprietario.
+	URTKnowledgeVeilPresenter* Presenter = GameMode->GetKnowledgeVeilPresenter();
+	if (!TestNotNull(TEXT("il GameMode risolve un presenter"), Presenter))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	TestEqual(TEXT("l'aggancio stende il velo una volta"), Presenter->GetApplications(), 1);
 
 	int32 A1 = 0, R1 = 0, N1 = 0;
 	HexMap->GetVeilCounts(A1, R1, N1);
@@ -411,7 +420,7 @@ bool FRTVeilHasAConsumerTest::RunTest(const FString&)
 	{
 		if (It->IsAlive()) { ++Vive; }
 	}
-	const FRTTeamKnowledge Conoscenza = TM->KnowledgeForTeamPublic(GameMode->ViewerTeamId());
+	const FRTTeamKnowledge Conoscenza = TM->KnowledgeForTeamPublic(Presenter->ViewerTeamId());
 	AddInfo(FString::Printf(
 		TEXT("dopo il turno: fase=%d, vive=%d, refresh emessi=%d, VisibleCells=%d, ExploredCells=%d"),
 		static_cast<int32>(TM->GetPhase()), Vive, Probe->RefreshTurns.Num(),
@@ -426,8 +435,8 @@ bool FRTVeilHasAConsumerTest::RunTest(const FString&)
 	// e i due difetti hanno fix opposti. Questa riga separa i due casi prima che qualcuno debba indovinare.
 	TestEqual(*FString::Printf(
 			TEXT("il velo e' stato ridipinto a ogni refresh: %d applicazioni contro %d refresh emessi"),
-			GameMode->GetKnowledgeVeilApplications(), Probe->RefreshTurns.Num()),
-		GameMode->GetKnowledgeVeilApplications(), 1 + Probe->RefreshTurns.Num());
+			Presenter->GetApplications(), Probe->RefreshTurns.Num()),
+		Presenter->GetApplications(), 1 + Probe->RefreshTurns.Num());
 
 
 	int32 A2 = 0, R2 = 0, N2 = 0;
@@ -442,7 +451,7 @@ bool FRTVeilHasAConsumerTest::RunTest(const FString&)
 
 	// --- 5. `ViewerTeamId` senza controller ripiega su 0, dichiaratamente ---------------------------
 	TestEqual(TEXT("senza PlayerController il viewer e' la squadra 0, come FrameOwnTeam"),
-		GameMode->ViewerTeamId(), 0);
+		Presenter->ViewerTeamId(), 0);
 
 	AddInfo(FString::Printf(TEXT("velo dopo un turno: %d accese, %d ricordate, %d nascoste su %d"),
 		A2, R2, N2, Totale));

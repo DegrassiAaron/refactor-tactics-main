@@ -22,6 +22,7 @@ class ARTTurnManager;
 class URTFrontendNavigator;
 class URTHeroData;
 class URTHexMapAsset;
+class URTKnowledgeVeilPresenter;
 class URTMatchFormatData;
 struct FRTMatchRules;
 
@@ -324,42 +325,15 @@ protected:
 
 public:
 	/**
-	 * 🔑 **DI CHI E' LA VISTA che il velo disegna. E' la decisione di `E13.8`, e sta scritta qui perche'
-	 * [D-227] la dichiarava non presa** — *«decidere chi sia il viewer del velo: `ApplyKnowledgeVeil` riceve
-	 * una conoscenza gia' scelta dal chiamante, e la firma non deve decidere il team»*.
-	 *
-	 * **La risposta e' `ARTPlayerController::PlayerTeamId`**, e non e' una scelta nuova: e' gia' la fonte del
-	 * progetto per la stessa domanda. `ARTCameraPawn::FrameOwnTeam` la legge per inquadrare la propria
-	 * squadra (`Camera/RTCameraPawn.cpp`), e `CanPlayerControlUnit` la legge per decidere cosa si puo'
-	 * selezionare (`Player/RTPlayerController.cpp`, due siti). Il velo si aggiunge a quei lettori invece di
-	 * aprire una terza autorita'.
-	 *
-	 * ⚠️ **Si RILEGGE a ogni applicazione, non si copia in un campo.** Copiarla in `BeginPlay` farebbe del
-	 * GameMode una seconda sede del valore, che e' esattamente cio' che questa funzione esiste per evitare.
-	 *
-	 * 🔴 **Il precedente da non ripetere, misurato il 2026-08-29**: `ARTHUD::DrawHUD` scrive
-	 * `const int32 PlayerTeamId = 0;` e con quello alimenta **sia** `ComputePlannedHitMarks` **sia**
-	 * `KnowledgeForTeamPublic` — cioe' la stessa conoscenza di squadra che il velo usa, letta con un
-	 * letterale invece che dal controller. Vale `0` come questa funzione, quindi oggi non si vede: e' una
-	 * divergenza latente, non un difetto attivo. **Non e' corretto qui** per non allargare lo scope di
-	 * `E13.8` all'overlay delle unita' e agli hit marks, e resta un lavoro dichiarato.
-	 *
-	 * Ripiega su `0` quando un controller non c'e' — headless, harness — con la stessa regola di
-	 * `FrameOwnTeam`, che il suo test pinna.
-	 */
-	int32 ViewerTeamId() const;
-
-	/**
-	 * Stende il velo sulla board secondo la conoscenza di `ViewerTeamId()`.
-	 *
-	 * ⛔ **Non decide niente**: legge il team da `ViewerTeamId` e la conoscenza da
-	 * `ARTTurnManager::KnowledgeForTeamPublic`. Se un giorno il velo dovesse mostrare la vista di un altro,
-	 * la riga da cambiare e' una e non e' questa.
-	 */
-	void ApplyKnowledgeVeilForViewer();
-
-	/**
 	 * Aggancia il velo al `TurnManager` e lo stende subito. Chiamata da `BeginPlay`.
+	 *
+	 * 🔑 **Da `E-SOLID` fetta 4 questo e' CABLAGGIO e basta.** Chi stende il velo, e per conto di quale
+	 * squadra, e' `URTKnowledgeVeilPresenter`, che appartiene al client: il viewer e' del giocatore, non
+	 * della partita, e in multiplayer il GameMode e' uno solo e sta sul server.
+	 *
+	 * ⛔ **Ma l'aggancio resta qui, ed e' una scelta di ORDINE**: e' il GameMode a spawnare il `TurnManager`,
+	 * quindi e' l'unico punto in cui esiste per certo. `ARTPlayerController::BeginPlay` non ha nessuna
+	 * garanzia di correre dopo, e agganciare di la' avrebbe un difetto che si vede solo a volte.
 	 *
 	 * 🔴 **E' pubblica per una ragione di misurabilita', non di comodo.** I test allestiscono una partita
 	 * chiamando `SetupHexMatch` **direttamente** — `FollowsRefreshPoints` e gli altri — e non fanno correre
@@ -373,36 +347,24 @@ public:
 	void HookKnowledgeVeil();
 
 	/**
-	 * 🔑 **Quante volte il velo e' stato steso. Esiste per rendere osservabile l'ANELLO che non lo era.**
+	 * Il presenter del velo di questa sessione: quello del `ARTPlayerController` se un client c'e', altrimenti
+	 * uno senza proprietario creato qui.
 	 *
-	 * I tre conteggi di `GetVeilCounts` dicono **come** e' la board, non **quante volte** e' stata
-	 * ridipinta — e i due difetti che contano qui producono lo stesso quadro:
+	 * ⚠️ **Il GameMode risolve DOVE vive il presenter, non cosa fa.** E' l'unico che vede insieme il
+	 * controller e il turn manager, quindi e' l'unico che puo' rispondere alla domanda; il viewer, la
+	 * conoscenza e il conteggio delle applicazioni stanno tutti dall'altra parte.
 	 *
-	 *  - il velo steso una volta sola all'aggancio, con l'handler mai invocato;
-	 *  - il velo ridipinto a ogni refresh, ma con una conoscenza vuota.
-	 *
-	 * Entrambi lasciano la board tutta nascosta. Senza un contatore, distinguerli richiede un log — e un log
-	 * assente ha due letture, «non eseguito» e «non catturato», che portano a fix opposti. Questo numero e'
-	 * un fatto che un test legge, non un messaggio che un test spera di trovare.
-	 *
-	 * ⚠️ **NON e' un contatore di correttezza**: dice che `ApplyKnowledgeVeilForViewer` e' stata chiamata,
-	 * non che abbia disegnato bene. Quella la misura `GetVeilCounts`, che legge le istanze reali. Servono
-	 * entrambi, e nessuno dei due sostituisce l'altro.
+	 * ⛔ **Il ramo senza proprietario non e' un ripiego di comodo**: harness e test di simulazione girano
+	 * senza client, e la board sta nel mondo anche quando nessuno la guarda. Li' il viewer e' `0`, con la
+	 * stessa regola di `ARTCameraPawn::FrameOwnTeam`.
 	 */
-	int32 GetKnowledgeVeilApplications() const { return KnowledgeVeilApplications; }
-
-protected:
-	/**
-	 * Il subscriber di `OnTeamKnowledgeRefreshed`, cioe' il consumatore che a `#1467` mancava.
-	 *
-	 * ⚠️ **`UFUNCTION` perche' il delegate e' dinamico**, non per esposizione: nessuna categoria, nessun
-	 * `BlueprintCallable`. Un Blueprint che potesse invocarlo stenderebbe il velo fuori dai punti di
-	 * refresh, che e' precisamente cio' che `Veil.FollowsRefreshPoints` impedisce.
-	 */
-	UFUNCTION()
-	void HandleTeamKnowledgeRefreshed(int32 TurnNumber);
+	URTKnowledgeVeilPresenter* GetKnowledgeVeilPresenter();
 
 private:
+	/** Vedi `GetKnowledgeVeilPresenter()`: esiste solo nelle sessioni senza client. */
+	UPROPERTY(Transient)
+	TObjectPtr<URTKnowledgeVeilPresenter> OwnerlessVeilPresenter;
+
 	/**
 	 * Il ciclo di vita dello scenario, quando questa sessione ne esegue uno.
 	 *
@@ -423,9 +385,6 @@ private:
 
 	/** Le condizioni rilevate durante l'allestimento (CP 46.2). Vedi `GetStartupReport()`. */
 	FRTStartupReport StartupReport;
-
-	/** Quante volte `ApplyKnowledgeVeilForViewer` ha steso il velo. Vedi `GetKnowledgeVeilApplications()`. */
-	int32 KnowledgeVeilApplications = 0;
 
 	/** Vedi `IsAutobattleInEffect()`: deciso in `SetupHexMatch`, prima che le unita' entrino in campo. */
 	bool bAutobattleInEffect = false;

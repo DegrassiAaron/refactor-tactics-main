@@ -5,6 +5,8 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
+// `E-SOLID` fetta 4: il viewer del velo e' di questo controller, non della partita.
+#include "Perception/RTKnowledgeVeilPresenter.h"
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
@@ -373,6 +375,17 @@ void ARTPlayerController::BuildInputMappings()
 	// difetto del binding, ed e' scritto qui perche' altrimenti si scopre davanti a una sessione che si
 	// chiude e si conclude che il tasto non e' collegato.
 	MappingContext->MapKey(PauseAction, EKeys::Escape);
+}
+
+URTKnowledgeVeilPresenter* ARTPlayerController::GetKnowledgeVeilPresenter()
+{
+	if (!KnowledgeVeilPresenter)
+	{
+		// L'`Outer` e' `this`, e non e' un dettaglio di allocazione: e' da li' che il presenter risale a
+		// `PlayerTeamId`. Costruirlo con un altro outer lo farebbe ripiegare sulla squadra 0 in silenzio.
+		KnowledgeVeilPresenter = NewObject<URTKnowledgeVeilPresenter>(this);
+	}
+	return KnowledgeVeilPresenter;
 }
 
 void ARTPlayerController::BeginPlay()

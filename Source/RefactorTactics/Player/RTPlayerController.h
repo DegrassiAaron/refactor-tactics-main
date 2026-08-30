@@ -8,6 +8,7 @@
 
 class UInputMappingContext;
 class UInputAction;
+class URTKnowledgeVeilPresenter;
 struct FInputActionValue;
 
 /**
@@ -27,6 +28,24 @@ public:
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|Player")
 	int32 PlayerTeamId = 0;
+
+	/**
+	 * Il presenter del velo di QUESTO client, creato alla prima richiesta.
+	 *
+	 * 🔑 **Il viewer appartiene al giocatore, non alla partita** (`E-SOLID` fetta 4). Fino a quel refactor la
+	 * domanda «di chi e' la vista?» la rispondeva `ARTGameMode`, cioe' l'oggetto che in multiplayer e' **uno
+	 * solo e sta sul server**: la risposta giusta e' qui, dove `PlayerTeamId` gia' vive — la stessa fonte che
+	 * `ARTCameraPawn::FrameOwnTeam` e `CanPlayerControlUnit` leggono.
+	 *
+	 * ⚠️ **Uno per controller, e l'`Outer` E' il viewer**: il presenter risale a `PlayerTeamId` da
+	 * `GetOuter()`, quindi non esiste una seconda sede del valore da tenere allineata.
+	 *
+	 * ⚠️ **Non lo aggancia il controller**, e non e' una svista: il `TurnManager` puo' non esistere ancora
+	 * quando questo `BeginPlay` corre, e l'ordine di spawn fra Actor non e' garantito. L'aggancio lo fa
+	 * `ARTGameMode::HookKnowledgeVeil`, che e' l'unico punto in cui il `TurnManager` esiste per certo perche'
+	 * e' il GameMode a spawnarlo.
+	 */
+	URTKnowledgeVeilPresenter* GetKnowledgeVeilPresenter();
 
 protected:
 	virtual void BeginPlay() override;
@@ -506,4 +525,13 @@ protected:
 	bool bInspectorPinned = false;
 
 	bool bPhaseFocusPinned = false;
+
+private:
+	/**
+	 * Vedi `GetKnowledgeVeilPresenter()`. `Transient` come i fratelli creati con `NewObject`: non entra
+	 * nella serializzazione del controller, ma la `UPROPERTY` serve — senza, il GC se lo porterebbe via
+	 * fra un refresh e l'altro e la board resterebbe all'ultimo velo steso.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<URTKnowledgeVeilPresenter> KnowledgeVeilPresenter;
 };
