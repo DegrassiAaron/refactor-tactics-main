@@ -149,10 +149,10 @@ figura e il testo, e la figura è la parte che verrà guardata.
 
 ## 4. 🟠 Alto
 
-### 🟠-1 · Il piano di `#613` dichiara `0 / 62`, e il kit lo manda a leggere
+### 🟠-1 · Il piano di `#613` dichiara `0 / 61`, e il kit lo manda a leggere
 
 Il kit ordina (§4) di leggere [`screen-hud-umg-2026-08-26.md`](screen-hud-umg-2026-08-26.md) e (§8) di
-*«seguire il runbook»*. Quel piano ha **62 caselle e zero spuntate**.
+*«seguire il runbook»*. Quel piano ha **61 caselle e zero spuntate**.
 
 Il lavoro invece è chiaramente avanzato: sei asset in `Content/RT/UI/Match/`, il layer HUD nel Navigator, il
 binding in `DefaultGame.ini`, tre suite di test dedicate. Il commit `5682345a` lo dice esplicitamente —
@@ -163,10 +163,14 @@ altri quattro senza che il registro si muovesse.
 trappola: chi lo apre in buona fede conclude che non è stato fatto nulla, ed è **esattamente la conclusione
 che questo kit ha tratto**. La causa a monte del 🔴-1 non è il kit, è il registro.
 
-**L'azione che il kit avrebbe dovuto ordinare, e che non ordina:** riconciliare le 62 caselle con
+**L'azione che il kit avrebbe dovuto ordinare, e che non ordina:** riconciliare le 61 caselle con
 `origin/main` prima di qualunque lavoro d'Editor. Vale più dell'intero P0 del pacchetto.
-⚠️ Non l'ho eseguita in questa sessione: spuntare quelle caselle richiede di verificarne parecchie
-nell'Editor, e questa revisione non ne ha aperto uno. Resta come raccomandazione all'owner di `#613`.
+✅ **Eseguita il 2026-08-30**, subito dopo questo referto: la sezione «Riconciliazione del registro» in
+testa a [`screen-hud-umg-2026-08-26.md`](screen-hud-umg-2026-08-26.md) misura le 61 caselle su `285d2322` e
+ne spunta **36**. Ha anche trovato ciò che nessuno dei due documenti sapeva: lo **Step 7.4 non è
+implementato** — `WBP_RT_ActionDock` non chiama `GetArmedActionIndex()`, quindi lo stato neutro di D-128
+non ha la fonte da cui dedursi — e lo **Step 3.4 è per metà**, che è la stessa lacuna del 🔴-2 qui sopra
+vista dal lato del piano. Le cinque caselle «verifica a schermo» restano aperte per costruzione.
 
 ### 🟠-2 · Ready: sei gate per una funzione senza dato e senza comando
 
@@ -267,7 +271,9 @@ tutti superati dallo stato del repository.
 - ⛔ **Nessuna suite eseguita**, nessuna build, nessun packaging.
 - ⛔ **Nessun Editor aperto**: i due `.uasset` sono misurati per estrazione di stringhe. So *quali* nomi e
   *quali* binding contengono; **non** so come si vedono a 1920×1080, né se il centro è davvero libero.
-- ⛔ **Nessuna casella spuntata** nel piano di `#613`: la riconciliazione 🟠-1 è raccomandata, non eseguita.
+- 🔄 **Le caselle del piano di `#613`**: quando questo referto è stato scritto la riconciliazione era solo
+  raccomandata. È stata **eseguita lo stesso giorno** — vedi 🟠-1 — con lo stesso confine di misura: i
+  `.uasset` letti per estrazione di stringhe, nessun Editor aperto.
 - ⛔ **Nessuna scrittura su GitHub**: nessuna issue aperta, chiusa o commentata. `#613`, `#77` e `#705` sono
   state solo **lette**, e risultano tutte e tre `OPEN` — per una volta il kit non manda a lavorare su issue
   già chiuse, che è il difetto ricorrente di questa famiglia di pacchetti.
