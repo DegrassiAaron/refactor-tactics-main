@@ -188,6 +188,36 @@ public:
 	static URTHexMapAsset* MakeArenaV01(UObject* Outer);
 
 	/**
+	 * **Arena della vista divisa** — il banco su cui la percezione di squadra e' OSSERVABILE, che le altre
+	 * arene generate non sono.
+	 *
+	 * 🔴 **Esiste per due difetti misurati, non per completezza** ([#1738]). Le arene di raggio **4**
+	 * (`MakeTestArena`, `MakeArenaV01`) hanno un raggio piu' corto del `VisionRange` piu' corto del roster
+	 * (**5**, Phase e Riktor; Wraith 6, Gadget 7): una squadra vede quasi tutto al primo turno. E poiche'
+	 * `ExploredCells` **non scade** ([D-227]), cio' che resta si esaurisce comunque: misurato, le celle mai
+	 * viste vanno a **zero al turno 2**. ∴ su quelle arene i tre stati del velo non si distinguono a schermo,
+	 * e un confine della visibilita' coincide col bordo della mappa.
+	 *
+	 * Esagono pieno di **raggio 8** sul layer 0 — piu' largo del `VisionRange` massimo, quindi resta terreno
+	 * mai visto anche dopo diversi turni — con in aggiunta:
+	 * - un **muro che blocca vista e passo** lungo `r = 1`, da `q = -8` a `q = 0`: divide la meta' occidentale
+	 *   in due camere. Le celle di partenza del team 0 sono le prime due percorribili in ordine `(q, r)`
+	 *   (`PickStartCells`), cioe' `(-8, 0)` a nord del muro e `(-8, 2)` a sud — quindi i due compagni nascono
+	 *   in camere diverse e la loro vista di squadra e' **disgiunta dal turno 1**, senza dipendere da come
+	 *   si muovono;
+	 * - due **nicchie** che rendono il perimetro visibile **concavo** invece che a ventaglio;
+	 * - una **piattaforma sul layer 1**, che nel grafo tattico e' una regione a se': `Neighbors` non
+	 *   attraversa i layer, quindi le sue celle visibili non confinano con quelle del suolo.
+	 *
+	 * ⚠️ **Non sostituisce `MakeTestArena` ne' `MakeArenaV01`**, e non ne cambia una riga: quelle sono
+	 * tarate su criteri di movimento e copertura (`URTArenaCriteriaLibrary`, `done_when` di `U1`) e allargarle
+	 * cambierebbe il bilanciamento e il corpus golden. Questa e' additiva e serve a una domanda sola.
+	 *
+	 * `Outer` nullo -> `nullptr`.
+	 */
+	static URTHexMapAsset* MakeVisionSplitArena(UObject* Outer);
+
+	/**
 	 * **Fixture di mappa per nome.** I nomi validi li dice `KnownFixtureIds()`, che li deriva dalla stessa
 	 * tabella che li dispaccia: elencarli qui a mano e' cio' che ha prodotto `#1459`.
 	 *
