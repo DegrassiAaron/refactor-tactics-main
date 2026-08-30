@@ -88,7 +88,7 @@ bool FRTHudViewerTeamFollowsControllerTest::RunTest(const FString&)
  * Senza controller si ripiega su `0`, e non su `INDEX_NONE`.
  *
  * E' il caso dell'editor, dei test e di ogni HUD non ancora posseduto. La regola e' la stessa di
- * `ARTGameMode::ViewerTeamId()` e di `ARTCameraPawn::FrameOwnTeam`: una sentinella qui obbligherebbe i sei
+ * `URTKnowledgeVeilPresenter::ViewerTeamId()` e di `ARTCameraPawn::FrameOwnTeam`: una sentinella qui obbligherebbe i sei
  * consumatori a gestirla, e nessuno di loro ha una risposta per «nessuna squadra».
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudViewerTeamFallsBackWithoutControllerTest,

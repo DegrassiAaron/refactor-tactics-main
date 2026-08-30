@@ -4,36 +4,23 @@
 #include "GameFramework/GameModeBase.h"
 #include "Templates/SubclassOf.h"
 #include "Core/RTTypes.h"
+// `ERTMapSource`. Vive in `Map/` e non qui da `E-SOLID` fetta 3: l'allestimento e' uscito dal GameMode, e
+// un `Match/` che dovesse includere questo header per leggere un enum di mappa avrebbe la dipendenza al
+// contrario. Resta incluso di qui perche' `MapSource` e' ancora una proprieta' di questo Actor.
+#include "Map/RTMapSource.h"
 // CP 46.2: il rapporto d'avvio. E' un tipo di **dato** — enum e struct puri, nessuna dipendenza dal
 // frontend: il GameMode dichiara cosa e' successo, chi mostra la cosa sta dall'altra parte.
 #include "Frontend/RTStartupReport.h"
+// Il ciclo di vita a runtime degli scenari. E' un membro per VALORE, quindi serve la definizione: la
+// forward declaration basterebbe solo per un puntatore, e un'indirezione qui non comprerebbe niente.
+#include "ScenarioHarness/RTScenarioCoordinator.h"
 #include "RTGameMode.generated.h"
 
 class ARTUnit;
 class ARTHexMapActor;
-class ARTTurnManager;
 class URTFrontendNavigator;
-class URTHeroData;
-class URTHexMapAsset;
+class URTKnowledgeVeilPresenter;
 class URTMatchFormatData;
-struct FRTMatchRules;
-
-/**
- * Sorgente della mappa su cui allestire la partita. Le voci generate non richiedono asset: `Content/**` non e'
- * versionato, quindi una mappa generata da codice e' l'unica che sopravvive a un clone.
- */
-UENUM(BlueprintType)
-enum class ERTMapSource : uint8
-{
-	/** La mappa d'autore assegnata all'`ARTHexMapActor` del livello. Se manca o e' vuota si ripiega sull'arena demo. */
-	LevelAsset,
-
-	/** Arena di ripiego generata: esagono pieno di `DemoArenaRadius`, pavimento liscio. Un fondo di scena giocabile. */
-	GeneratedDemoArena,
-
-	/** Mappa di PROVA generata: ostacoli, muri che bloccano la vista, terreno costoso e piattaforma su un secondo layer. */
-	GeneratedTestArena
-};
 
 /**
  * GameMode: imposta camera e controller di default e, all'avvio, allestisce la partita sulla mappa
@@ -48,9 +35,17 @@ public:
 	ARTGameMode();
 
 	/**
-	 * Posa la board 2v2 sulle celle di partenza della mappa esagonale. Non fa nulla se ci sono gia' unita'
-	 * nel livello o se la mappa non ha abbastanza celle percorribili (non si allestisce una partita a meta').
+	 * Allestisce la partita sulla mappa esagonale. Non fa nulla se ci sono gia' unita' nel livello o se la
+	 * mappa non ha abbastanza celle percorribili (non si allestisce una partita a meta').
 	 * Pubblico e separato da BeginPlay per essere verificabile headless, senza il ciclo di vita del GameMode.
+	 *
+	 * 🔑 **Da `E-SOLID` fetta 3 e' una FACADE, e cio' che fa e' la linea del refactor**: risolve *cosa* e'
+	 * stato chiesto — le tre precedenze vivono qui — passa il risultato a `FRTMatchBootstrapper`, e latcha
+	 * la modalita' della sessione se l'allestimento e' arrivato a deciderla. Il *come* nasce una partita
+	 * (mappa, formato, celle, roster, unita', equipaggiamento) sta dall'altra parte.
+	 *
+	 * ⚠️ **Resta pubblica perche' e' la porta dei test, non per comodo**: una quarantina di siti in
+	 * `Tests/` la chiamano direttamente per allestire una partita vera senza far correre `BeginPlay`.
 	 */
 	void SetupHexMatch(ARTHexMapActor* HexMap);
 
@@ -281,9 +276,6 @@ public:
 	 */
 	ERTMapSource ResolveMapSource() const;
 
-	/** Sessione dello scenario in corso, fatta avanzare un passo per frame da `Tick`. Nulla = nessuno scenario. */
-	TSharedPtr<class FRTScenarioSession> ScenarioSession;
-
 	/** Vero finché lo scenario sta girando: serve alla diagnostica e ai test. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Test")
 	bool IsScenarioRunning() const;
@@ -329,42 +321,15 @@ protected:
 
 public:
 	/**
-	 * 🔑 **DI CHI E' LA VISTA che il velo disegna. E' la decisione di `E13.8`, e sta scritta qui perche'
-	 * [D-227] la dichiarava non presa** — *«decidere chi sia il viewer del velo: `ApplyKnowledgeVeil` riceve
-	 * una conoscenza gia' scelta dal chiamante, e la firma non deve decidere il team»*.
-	 *
-	 * **La risposta e' `ARTPlayerController::PlayerTeamId`**, e non e' una scelta nuova: e' gia' la fonte del
-	 * progetto per la stessa domanda. `ARTCameraPawn::FrameOwnTeam` la legge per inquadrare la propria
-	 * squadra (`Camera/RTCameraPawn.cpp`), e `CanPlayerControlUnit` la legge per decidere cosa si puo'
-	 * selezionare (`Player/RTPlayerController.cpp`, due siti). Il velo si aggiunge a quei lettori invece di
-	 * aprire una terza autorita'.
-	 *
-	 * ⚠️ **Si RILEGGE a ogni applicazione, non si copia in un campo.** Copiarla in `BeginPlay` farebbe del
-	 * GameMode una seconda sede del valore, che e' esattamente cio' che questa funzione esiste per evitare.
-	 *
-	 * 🔴 **Il precedente da non ripetere, misurato il 2026-08-29**: `ARTHUD::DrawHUD` scrive
-	 * `const int32 PlayerTeamId = 0;` e con quello alimenta **sia** `ComputePlannedHitMarks` **sia**
-	 * `KnowledgeForTeamPublic` — cioe' la stessa conoscenza di squadra che il velo usa, letta con un
-	 * letterale invece che dal controller. Vale `0` come questa funzione, quindi oggi non si vede: e' una
-	 * divergenza latente, non un difetto attivo. **Non e' corretto qui** per non allargare lo scope di
-	 * `E13.8` all'overlay delle unita' e agli hit marks, e resta un lavoro dichiarato.
-	 *
-	 * Ripiega su `0` quando un controller non c'e' — headless, harness — con la stessa regola di
-	 * `FrameOwnTeam`, che il suo test pinna.
-	 */
-	int32 ViewerTeamId() const;
-
-	/**
-	 * Stende il velo sulla board secondo la conoscenza di `ViewerTeamId()`.
-	 *
-	 * ⛔ **Non decide niente**: legge il team da `ViewerTeamId` e la conoscenza da
-	 * `ARTTurnManager::KnowledgeForTeamPublic`. Se un giorno il velo dovesse mostrare la vista di un altro,
-	 * la riga da cambiare e' una e non e' questa.
-	 */
-	void ApplyKnowledgeVeilForViewer();
-
-	/**
 	 * Aggancia il velo al `TurnManager` e lo stende subito. Chiamata da `BeginPlay`.
+	 *
+	 * 🔑 **Da `E-SOLID` fetta 4 questo e' CABLAGGIO e basta.** Chi stende il velo, e per conto di quale
+	 * squadra, e' `URTKnowledgeVeilPresenter`, che appartiene al client: il viewer e' del giocatore, non
+	 * della partita, e in multiplayer il GameMode e' uno solo e sta sul server.
+	 *
+	 * ⛔ **Ma l'aggancio resta qui, ed e' una scelta di ORDINE**: e' il GameMode a spawnare il `TurnManager`,
+	 * quindi e' l'unico punto in cui esiste per certo. `ARTPlayerController::BeginPlay` non ha nessuna
+	 * garanzia di correre dopo, e agganciare di la' avrebbe un difetto che si vede solo a volte.
 	 *
 	 * 🔴 **E' pubblica per una ragione di misurabilita', non di comodo.** I test allestiscono una partita
 	 * chiamando `SetupHexMatch` **direttamente** — `FollowsRefreshPoints` e gli altri — e non fanno correre
@@ -378,64 +343,50 @@ public:
 	void HookKnowledgeVeil();
 
 	/**
-	 * 🔑 **Quante volte il velo e' stato steso. Esiste per rendere osservabile l'ANELLO che non lo era.**
+	 * Il presenter del velo di questa sessione: quello del `ARTPlayerController` se un client c'e', altrimenti
+	 * uno senza proprietario creato qui.
 	 *
-	 * I tre conteggi di `GetVeilCounts` dicono **come** e' la board, non **quante volte** e' stata
-	 * ridipinta — e i due difetti che contano qui producono lo stesso quadro:
+	 * ⚠️ **Il GameMode risolve DOVE vive il presenter, non cosa fa.** E' l'unico che vede insieme il
+	 * controller e il turn manager, quindi e' l'unico che puo' rispondere alla domanda; il viewer, la
+	 * conoscenza e il conteggio delle applicazioni stanno tutti dall'altra parte.
 	 *
-	 *  - il velo steso una volta sola all'aggancio, con l'handler mai invocato;
-	 *  - il velo ridipinto a ogni refresh, ma con una conoscenza vuota.
-	 *
-	 * Entrambi lasciano la board tutta nascosta. Senza un contatore, distinguerli richiede un log — e un log
-	 * assente ha due letture, «non eseguito» e «non catturato», che portano a fix opposti. Questo numero e'
-	 * un fatto che un test legge, non un messaggio che un test spera di trovare.
-	 *
-	 * ⚠️ **NON e' un contatore di correttezza**: dice che `ApplyKnowledgeVeilForViewer` e' stata chiamata,
-	 * non che abbia disegnato bene. Quella la misura `GetVeilCounts`, che legge le istanze reali. Servono
-	 * entrambi, e nessuno dei due sostituisce l'altro.
+	 * ⛔ **Il ramo senza proprietario non e' un ripiego di comodo**: harness e test di simulazione girano
+	 * senza client, e la board sta nel mondo anche quando nessuno la guarda. Li' il viewer e' `0`, con la
+	 * stessa regola di `ARTCameraPawn::FrameOwnTeam`.
 	 */
-	int32 GetKnowledgeVeilApplications() const { return KnowledgeVeilApplications; }
-
-protected:
-	/**
-	 * Il subscriber di `OnTeamKnowledgeRefreshed`, cioe' il consumatore che a `#1467` mancava.
-	 *
-	 * ⚠️ **`UFUNCTION` perche' il delegate e' dinamico**, non per esposizione: nessuna categoria, nessun
-	 * `BlueprintCallable`. Un Blueprint che potesse invocarlo stenderebbe il velo fuori dai punti di
-	 * refresh, che e' precisamente cio' che `Veil.FollowsRefreshPoints` impedisce.
-	 */
-	UFUNCTION()
-	void HandleTeamKnowledgeRefreshed(int32 TurnNumber);
+	URTKnowledgeVeilPresenter* GetKnowledgeVeilPresenter();
 
 private:
+	/** Vedi `GetKnowledgeVeilPresenter()`: esiste solo nelle sessioni senza client. */
+	UPROPERTY(Transient)
+	TObjectPtr<URTKnowledgeVeilPresenter> OwnerlessVeilPresenter;
+
+	/**
+	 * Il ciclo di vita dello scenario, quando questa sessione ne esegue uno.
+	 *
+	 * ⛔ **Il GameMode decide SE si gioca uno scenario; il coordinatore sa COME si esegue.** Qui restano la
+	 * precedenza fra le tre sorgenti (`ResolveScenarioToRun`) e la scelta fra scenario e partita; caricamento,
+	 * sessione, avanzamento e referto stanno dall'altra parte, con i quattro collaboratori dell'harness che
+	 * questo file non deve piu' nominare.
+	 */
+	FRTScenarioCoordinator ScenarioCoordinator;
+
+	/**
+	 * Centra la camera sulla mappa dello scenario, al tick successivo.
+	 *
+	 * Resta qui e non nel coordinatore per una ragione di **ciclo di vita**, non di dominio: il timer si
+	 * aggancia a un Actor vivo, e il coordinatore e' una classe C++ pura che non ne ha uno da offrire.
+	 */
+	void RecenterCameraOnScenario();
+
 	/** Le condizioni rilevate durante l'allestimento (CP 46.2). Vedi `GetStartupReport()`. */
 	FRTStartupReport StartupReport;
-
-	/** Quante volte `ApplyKnowledgeVeilForViewer` ha steso il velo. Vedi `GetKnowledgeVeilApplications()`. */
-	int32 KnowledgeVeilApplications = 0;
 
 	/** Vedi `IsAutobattleInEffect()`: deciso in `SetupHexMatch`, prima che le unita' entrino in campo. */
 	bool bAutobattleInEffect = false;
 
 	/** Come sopra: la sorgente che ha deciso, latchata insieme alla decisione perche' la banda la nomina. */
 	FString AutobattleSourceLabel;
-
-	/** Applica `MapSource` all'actor mappa: sostituisce l'asset quando la scelta lo richiede, e lo dichiara nel log. */
-	void ApplyMapSource(ARTHexMapActor* HexMap);
-
-	/**
-	 * Risolve il formato di partita e lo consegna al `TurnManager`. Ritorna **false** se il formato e'
-	 * presente ma invalido, oppure se non e' compatibile con la classe della mappa (CP 19.1) — in quel caso
-	 * la partita non va allestita.
-	 *
-	 * E' qui che vive la politica di ripiego, come per l'arena generata: la libreria pura rifiuta e basta,
-	 * l'Actor decide che farne e lo dichiara in Warning. Un ripiego silenzioso non produce una partita rotta,
-	 * produce numeri di playtest attribuiti a un formato che non era in vigore.
-	 *
-	 * `OutRules` esce valorizzato solo quando il ritorno e' `true`: l'allestimento legge da li' la
-	 * composizione (`UnitsPerTeam`, CP 19.2) invece di dichiararla per conto proprio.
-	 */
-	bool ApplyMatchFormat(ARTTurnManager* TurnManager, const URTHexMapAsset* Map, FRTMatchRules& OutRules);
 
 	/**
 	 * Porta il verdetto di fine partita alla schermata di Result (CP 46.5, `#940` · `#939`).
@@ -491,12 +442,4 @@ public:
 	 */
 	virtual void OpenLevelByName(const FString& LevelName);
 
-private:
-
-	/**
-	 * Spawna l'eroe con l'`HeroId` dato. `Hero == nullptr` non spawna nulla (fail-closed): un'unita' con
-	 * statistiche di default al posto di un eroe sarebbe piu' difficile da diagnosticare di un'unita' assente.
-	 */
-	ARTUnit* SpawnHero(int32 TeamId, const URTHeroData* Hero, const FRTCellId& InCell, const FVector& Origin,
-		float HexSize, float LayerHeight);
 };

@@ -56,9 +56,9 @@ public:
 	/**
 	 * Se vero, l'unita' e' pianificata automaticamente dal bot.
 	 *
-	 * ⚠️ **Chi lo scrive, misurato il 2026-08-29.** Tre siti in produzione: `ARTGameMode::SpawnHero`,
-	 * che legge la decisione latchata `bAutobattleInEffect`; il ramo di `ARTGameMode::SetupHexMatch` che
-	 * passa al bot le unita' gia' posate nel livello — e scrive **solo `true`**, e solo con l'autobattle
+	 * ⚠️ **Chi lo scrive, misurato il 2026-08-29.** Tre siti in produzione: `FRTMatchBootstrapper`
+	 * quando spawna l'eroe, che legge la modalita' gia' risolta da chi ordina l'allestimento; il ramo dello
+	 * stesso bootstrapper che passa al bot le unita' gia' posate nel livello — e scrive **solo `true`**, e solo con l'autobattle
 	 * in vigore; e `FRTScenarioSession`. Gli altri commenti su questo campo rimandano qui invece di
 	 * ripetere il conteggio: ripetuto in piu' posti invecchia in tutti e diverge in qualcuno.
 	 *

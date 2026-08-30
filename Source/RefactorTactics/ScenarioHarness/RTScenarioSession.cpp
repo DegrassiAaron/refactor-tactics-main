@@ -584,7 +584,7 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		// EQUIPAGGIAMENTO. Che i pezzi esistano e che l'insieme sia legale l'ha gia' verificato il loader,
 		// che rifiuta lo scenario con un motivo invece di lasciarlo girare a meta'. Qui si sceglie QUALE
 		// loadout, e ad applicarlo e' `ARTUnit::EquipLoadout` — la stessa funzione che chiama
-		// `ARTGameMode::SpawnHero`. Una seconda copia qui le farebbe divergere, e uno scenario che
+		// `FRTMatchBootstrapper` allo spawn di partita. Una seconda copia qui le farebbe divergere, e uno scenario che
 		// verifica un equipaggiamento diverso da quello che il gioco monta non prova niente sul gioco.
 		//
 		// ⚠️ **Tre forme, e la condizione e' sul FLAG, non sul conteggio** (`#1054`, `#602`):

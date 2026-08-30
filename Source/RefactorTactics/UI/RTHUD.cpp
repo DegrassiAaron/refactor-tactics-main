@@ -431,7 +431,7 @@ int32 ARTHUD::ViewerTeamIdOf(const APlayerController* Controller)
 
 	// Fail-safe verso la squadra 0 e NON verso `INDEX_NONE`: un HUD senza controller e' il caso dell'editor e
 	// dei test, dove disegnare la vista della squadra 0 e' cio' che il progetto fa gia' altrove
-	// (`ARTGameMode::ViewerTeamId`, `ARTCameraPawn::FrameOwnTeam`). Un sentinella qui obbligherebbe i sei
+	// (`URTKnowledgeVeilPresenter::ViewerTeamId`, `ARTCameraPawn::FrameOwnTeam`). Un sentinella qui obbligherebbe i sei
 	// consumatori a gestirlo, e nessuno di loro ha una risposta per «nessuna squadra».
 	return 0;
 }
