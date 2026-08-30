@@ -22,6 +22,24 @@
 > non dall'avanzamento del ramo»* — vista dall'altro lato: qui non c'è nemmeno un worktree, e il ramo è
 > andato avanti da solo.
 >
+> 🔁 **Verificato a posteriori — e il numero è tornato per la ragione sbagliata, il che è la parte
+> interessante.** Mentre questo giro era in scrittura l'albero è avanzato da solo: `201016a6` ha unito i
+> sette commit di `origin/main` e committato i file di questo lavoro. Il conteggio sul nuovo albero ha
+> dato **`113`** — esattamente il numero previsto qui sopra, con la radice a `24` invece di `25`.
+>
+> 🔴 **Ma quella cancellazione non era «attesa»: era un difetto.** Il file mancante era
+> `RefactorTactics_FeatureRegistry_Roadmap_Wiki_Claude_2026-08-08.md`, che
+> [**D-246**](../../decisions/RT_PDR_00_Decision_Log.md) dichiara di aver **archiviato qui** e che il
+> commit `c0cc0693` ha cancellato nove ore dopo, insieme agli altri due file della stessa decisione —
+> **9 link rotti in 6 documenti**, fra cui il Decision Log stesso. **Ripristinato il 2026-08-30**, blob
+> identico all'originale.
+>
+> ✅ **Il totale sull'albero riparato è di nuovo `114`**, radice `25`, e coincide con il conteggio del
+> disco di questo lavoro. ⚠️ **La lezione non è che il numero torna**: una previsione che si avvera
+> perché due errori si compensano vale zero. È che **un totale senza il suo albero non si può
+> verificare** — e la discrepanza `113` contro `114`, che sembrava la cancellazione prevista, è ciò che
+> ha fatto guardare il diff e trovare la decisione disfatta.
+>
 > ➕ **Lo scarto indice-archivio sale da `10` a `11`, e il file di questo giro non c'entra** — ha la sua riga
 > in §«`handoff/`». L'undicesimo è **`handoff/2026-08-30-animation-issue-orchestrator.md`**, archiviato lo
 > stesso giorno da un'altra sessione e senza riga: la terza volta in tre giorni che il difetto si ripresenta
