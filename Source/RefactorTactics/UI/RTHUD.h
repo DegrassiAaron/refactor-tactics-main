@@ -226,29 +226,6 @@ public:
 	static bool ShouldDrawUnitOverlay(const FRTKnowledgeEntry* Entry, bool bIsOwnTeam);
 
 	/**
-	 * La squadra di cui questo HUD disegna il mondo: quella del proprio `ARTPlayerController`.
-	 *
-	 * 🔴 **E' la stessa domanda che [D-242] ha deciso per il velo, e la fonte e' la stessa.**
-	 * `URTKnowledgeVeilPresenter::ViewerTeamId()` legge `ARTPlayerController::PlayerTeamId` per stendere il velo; qui
-	 * l'HUD legge lo STESSO campo dal proprio controller invece del letterale `0` che stava in `DrawHUD` e
-	 * che alimentava SEI consumatori — quattro dei quali filtri di privacy (`FilterForTeam`,
-	 * `GetRecentEventsForTeam`, `VisibleTrailFor`, `ViewForTeam`). Due sedi per la stessa domanda erano il
-	 * debito che [D-242] punto (5) lascia scritto.
-	 *
-	 * ⚠️ **Un letterale non ha un modo di fallire chiuso**, ed e' la ragione per cui questa funzione esiste.
-	 * `URTIntentPrivacyLibrary::FilterForTeam` decide con `Intent.TeamId == ObserverTeamId`: un osservatore
-	 * sbagliato non nasconde di meno, **rovescia la simmetria** — gli intenti non rivelati dell'avversario
-	 * diventano «alleati» e si vedono tutti, mentre i propri diventano «nemici» e spariscono.
-	 *
-	 * Statica e PURA sul modello di `ShouldDrawUnitOverlay`: `DrawHUD` non ha test, quindi la decisione va
-	 * dove si puo' interrogare.
-	 *
-	 * Senza controller — o con uno che non e' un `ARTPlayerController` — risponde `0`, con la stessa regola
-	 * di `URTKnowledgeVeilPresenter::ViewerTeamId()` e di `ARTCameraPawn::FrameOwnTeam`.
-	 */
-	static int32 ViewerTeamIdOf(const APlayerController* Controller);
-
-	/**
 	 * Dove e quando disegnare la sagoma dell'ultimo contatto per un'unita' (Task 6b/CP 13.5), o nessun
 	 * valore se non c'e' nulla da mostrare — spegnere e' la risposta di default.
 	 *

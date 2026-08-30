@@ -9,9 +9,10 @@
 extern TAutoConsoleVariable<int32> CVarRTCameraTopDown;
 /** Definita nello stesso file: scatto automatico per il confronto fra catture (`#1290`). */
 extern TAutoConsoleVariable<int32> CVarRTCameraTopDownShot;
+#include "GameFramework/PlayerController.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
-#include "Player/RTPlayerController.h" // squadra del giocatore da inquadrare all'avvio
+#include "Player/RTPlayerState.h" // squadra del giocatore da inquadrare all'avvio
 #include "Unit/RTUnit.h"
 #include "EngineUtils.h"               // TActorIterator
 #include "TimerManager.h"
@@ -143,12 +144,8 @@ bool ARTCameraPawn::FrameOwnTeam()
 		return false;
 	}
 
-	// La squadra da inquadrare e' quella del giocatore; senza controller si assume la 0 (demo).
-	int32 TeamId = 0;
-	if (const ARTPlayerController* PC = Cast<ARTPlayerController>(GetController()))
-	{
-		TeamId = PC->PlayerTeamId;
-	}
+	// La squadra da inquadrare e' quella del giocatore; senza PlayerState si assume la 0 (demo).
+	const int32 TeamId = ARTPlayerState::TeamIdOf(Cast<APlayerController>(GetController()));
 
 	TArray<FRTCellId> Cells;
 	for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)

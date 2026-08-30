@@ -2,6 +2,7 @@
 
 #include "RefactorTactics.h"
 #include "Player/RTPlayerController.h"
+#include "Player/RTPlayerState.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "UI/RTIconLibrary.h"
@@ -78,7 +79,7 @@ void URTScreenHudWidgetBase::AcquireMatchContext()
 	// futura sessione a due controller, un `PlayerTeamId` costante mostrerebbe a entrambi lo stesso roster.
 	if (const ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayer()))
 	{
-		PlayerTeamId = PC->PlayerTeamId;
+		PlayerTeamId = ARTPlayerState::TeamIdOf(PC);
 	}
 }
 

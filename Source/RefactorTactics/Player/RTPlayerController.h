@@ -22,23 +22,17 @@ class REFACTORTACTICS_API ARTPlayerController : public APlayerController
 
 public:
 	/**
-	 * Squadra comandata da questo giocatore: si selezionano e si pianificano SOLO le unita' con questo TeamId
-	 * (regola in URTCombatLibrary::CanPlayerControlUnit). Nel demo il team 1 e' del bot. In multiplayer arrivera'
-	 * dal PlayerState, ma la regola di autorita' resta la stessa.
-	 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|Player")
-	int32 PlayerTeamId = 0;
-
-	/**
 	 * Il presenter del velo di QUESTO client, creato alla prima richiesta.
 	 *
 	 * 🔑 **Il viewer appartiene al giocatore, non alla partita** (`E-SOLID` fetta 4). Fino a quel refactor la
 	 * domanda «di chi e' la vista?» la rispondeva `ARTGameMode`, cioe' l'oggetto che in multiplayer e' **uno
-	 * solo e sta sul server**: la risposta giusta e' qui, dove `PlayerTeamId` gia' vive — la stessa fonte che
-	 * `ARTCameraPawn::FrameOwnTeam` e `CanPlayerControlUnit` leggono.
+	 * solo e sta sul server**: la risposta giusta e' qui, dove `ARTPlayerState::TeamIdOf` risale — la stessa
+	 * fonte che `ARTCameraPawn::FrameOwnTeam` e `CanPlayerControlUnit` leggono.
 	 *
-	 * ⚠️ **Uno per controller, e l'`Outer` E' il viewer**: il presenter risale a `PlayerTeamId` da
-	 * `GetOuter()`, quindi non esiste una seconda sede del valore da tenere allineata.
+	 * ⚠️ **Uno per controller, e l'`Outer` E' il viewer**: il presenter risale al proprio `ARTPlayerState` da
+	 * `GetOuter()`, quindi questo presenter non tiene una seconda sede del valore da tenere allineata.
+	 * Una seconda sede esiste altrove — `UI/RTScreenHudWidgets::PlayerTeamId`, catturata una volta in
+	 * `AcquireMatchContext` — ed e' uno snapshot dichiarato, non una svista di questa fetta.
 	 *
 	 * ⚠️ **Non lo aggancia il controller**, e non e' una svista: il `TurnManager` puo' non esistere ancora
 	 * quando questo `BeginPlay` corre, e l'ordine di spawn fra Actor non e' garantito. L'aggancio lo fa
@@ -607,10 +601,10 @@ public:
 	 * **La sessione non e' presidiata**: la pianificazione umana non deve agganciare niente (#971).
 	 *
 	 * Con l'autobattle in vigore entrambe le squadre sono del bot, ma il percorso di input non lo sapeva:
-	 * `URTCombatLibrary::CanPlayerControlUnit` decide su `UnitTeamId == PlayerTeamId` e per lui la squadra 0
-	 * resta del giocatore. Un click selezionava ancora, un ordine si scriveva ancora, e `PlanBots` lo
-	 * sovrascriveva il turno dopo senza dirlo. La modalita' esiste per essere **registrata in video**: il
-	 * difetto e' di coerenza, e il filmato e' l'artefatto.
+	 * `URTCombatLibrary::CanPlayerControlUnit` decide su `UnitTeamId == ARTPlayerState::TeamIdOf(this)` e
+	 * per lui la squadra 0 resta del giocatore. Un click selezionava ancora, un ordine si scriveva ancora,
+	 * e `PlanBots` lo sovrascriveva il turno dopo senza dirlo. La modalita' esiste per essere **registrata
+	 * in video**: il difetto e' di coerenza, e il filmato e' l'artefatto.
 	 *
 	 * 🔴 **Perche' non e' una seconda causa dentro `IsGameplayInputBlocked`**, che sarebbe stata una riga
 	 * sola e copriva sei punti d'ingresso per costruzione: quel funnel include `OnRestart`, che agisce
