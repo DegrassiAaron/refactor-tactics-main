@@ -349,10 +349,19 @@ sessions:
       transizione. Questa e' la preparazione condivisa da U2…U6: una apertura, cinque sedute.
 
       1. `RTGameMode` come GameMode Override sul livello (`debug-vs-unreal.md` §2).
-      2. Play. Le unita' sono **cilindri**: i `BP_Unit_*` non esistono in `Content/` e il fallback e'
-         previsto — non e' un difetto.
+      2. Play. A schermo entrano i quattro `BP_Unit_*` **skeletal**, non piu' i cilindri.
+         *(Diceva: «le unita' sono **cilindri**: i `BP_Unit_*` non esistono in `Content/` e il fallback e'
+         previsto». Falsa due volte, corretta il 2026-08-29: i quattro Blueprint sono **versionati** — cio'
+         che mancava era l'aggancio al GameMode, non l'asset — e dal 2026-08-25 con #287 entrano in partita.
+         Non e' cosmetica: e' la precondizione visiva di `PIE-FACING-1`, che U6 verifica e che il registro
+         dichiara sbloccata da quel giorno.)*
       3. Due unita' verso la stessa cella, lock-in con **Spazio** → contesa.
-      4. Ripeti con lo **scambio diretto A↔B**: e' l'unico caso che i test headless non coprono.
+      4. Lo **scambio diretto A↔B** NON si prova qui: la pianificazione lo rifiuta prima del resolver
+         (`FindPathForUnit`, goal occupato → `NoPath`), quindi non c'e' nulla da osservare.
+         *(Diceva: «ripeti con lo scambio diretto A↔B: e' l'unico caso che i test headless non coprono».
+         Falso dal 2026-08-08 e corretto il 2026-08-29 — la clausola era gia' stata rimossa dall'esito
+         atteso di `PIE-HEXPLAY-5` il 2026-08-10, ed e' pinnata headless da
+         `Scenario.RunnerSwapRejectedByPlanning`: l'esatto contrario di «i test non lo coprono».)*
     notes: >-
       La verifica «se compare una griglia quadrata c'e' un `ARTGridActor` posato a mano» **non esiste
       piu'**: `ARTGridActor` e' stato rimosso dal codice al CP 7.2, quindi non puo' comparire in un
@@ -429,12 +438,22 @@ sessions:
     shares_setup_with: [U2, U3, U4, U5]
     verifies: [PIE-HEXPLAY-8, PIE-HEXPLAY-10, PIE-HEXPLAY-4b, PIE-FACING-1]
     issues: []
-    done_when: le voci `PIE-HEXPLAY` sono verdi, rilette tutte insieme — sono **15** righe, non nove, e tre lo sono gia'
+    done_when: le **14** voci del perimetro E2 sono verdi, rilette tutte insieme — il registro ne porta 15, `-11` e' fuori (E21)
     unblocks: [U16, U19, M6.8]
     steps: |
       Percorso che usa la transizione fra layer 0 e 1 — l'unita' deve **cambiare quota**, non
-      teletrasportarsi. Poi una partita intera, dall'avvio alla vittoria, rileggendo
-      `PIE-HEXPLAY-1..9` insieme.
+      teletrasportarsi. Poi una partita intera fino a un **esito dichiarato** — vittoria **o** pareggio
+      allo scadere dei round — rileggendo insieme le **quattordici** voci del gate: `-1 -2 -3 -3b -4 -4b
+      -5 -6 -6b -6c -7 -8 -9 -10`.
+
+      ⚠️ **Corretto il 2026-08-29, e la riga portava tre difetti.** Il `done_when` diceva *«sono **15**
+      righe, non nove, e **tre** lo sono gia'»*: il 15 e' il numero della **famiglia nel registro**, non del
+      **perimetro E2**, che il gate di #16 fissa a **14** dal 2026-08-25 — eseguire `-11` non avvicina la
+      chiusura di E2, e non eseguirlo non la blocca; e il «tre» era una misura del **2026-08-21** scritta al
+      presente, oggi **sei**. I passi dicevano *«dall'avvio alla vittoria»* e *«rileggendo `PIE-HEXPLAY-1..9`
+      insieme»*: la vittoria cade con [D-184] — sul formato spedito l'eliminazione arriva al round 21 e
+      `RoundLimit` e' 12 — e `1..9` e' un terzo insieme ancora diverso. **Lo stato non si copia da qui**: si
+      rilegge dal registro, che e' l'owner del verdetto.
 
       ⚠️ **«Rimuovi l'arco e verifica che il path fallisca» NON si fa in questa apertura** (corretto il
       2026-08-10): su `MapSource=GeneratedTestArena` la transizione e' creata da codice
@@ -573,9 +592,9 @@ sessions:
       - Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset
     unblocked_by: []
     shares_setup_with: [U8, U9]
-    verifies: [PIE-AS2, PIE-FACING]
-    issues: []
-    done_when: i quattro Blueprint sono tracciati da git e le due voci hanno esito reale sui BP nuovi
+    verifies: [PIE-AS2, PIE-FACING, PIE-AS4a]
+    issues: [1719]
+    done_when: i quattro Blueprint sono tracciati da git con la Skeletal Mesh agganciata, e le voci hanno esito reale su tutti e quattro gli eroi
     unblocks: [U8, U19]
     steps: |
       **Un Blueprint per eroe, ma intitolato al PACK.** La base visuale la fissa **D-037** (tabella
@@ -693,56 +712,67 @@ sessions:
       difetto**: senza anim BP la skeletal resta nella **posa di riferimento** dello scheletro, dove le
       ossa di catene e tentacoli stanno distese in fila. Riscontrato su `Riktor` il 2026-08-12.
       Il controllo che lo isola in dieci secondi: **apri la Skeletal Mesh nel Content Browser** — se
-      appare cosi' anche li', fuori dal gioco e fuori dal Blueprint, e' la bind pose e la sistema
-      **U8**. Se invece li' e' normale e in partita no, allora guarda il Blueprint.
+      appare cosi' anche li', fuori dal gioco e fuori dal Blueprint, e' la bind pose dello scheletro.
+      ⚠️ **Questa riga diceva «la sistema U8», e dal 2026-08-30 non e' piu' vero** (D-248): il grafo
+      e' in C++ e vale gia' per tutti e quattro. Se in partita l'unita' resta in posa di riferimento le
+      cause sono due — la **Skeletal Mesh non agganciata**, che e' il lavoro di QUESTA seduta, oppure
+      le clip che non risolvono perche' il pack Paragon non e' sul disco: quello e' il degrado previsto
+      dal soft reference, non un difetto. Se invece li' e' normale e in partita no, guarda il Blueprint.
 
   - id: U8
     title: Animazioni
     block: 3
     critical: true
     execution_lane: asset
-    produces: gli anim BP dei quattro personaggi e i montaggi Cast/Hit/Death
+    produces: i dodici montaggi Cast/Hit/Death dei quattro personaggi
     artifacts:
-      - Content/RT/Characters/Gadget/Animation/ABP_Gadget.uasset
-      - Content/RT/Characters/Phase/Animation/ABP_Phase.uasset
-      - Content/RT/Characters/Riktor/Animation/ABP_Riktor.uasset
-      - Content/RT/Characters/Wraith/Animation/ABP_Wraith.uasset
+      - Content/RT/Characters/Gadget/Animation/AM_Gadget_Attack.uasset
+      - Content/RT/Characters/Gadget/Animation/AM_Gadget_Hit.uasset
+      - Content/RT/Characters/Gadget/Animation/AM_Gadget_Death.uasset
+      - Content/RT/Characters/Phase/Animation/AM_Phase_Attack.uasset
+      - Content/RT/Characters/Phase/Animation/AM_Phase_Hit.uasset
+      - Content/RT/Characters/Phase/Animation/AM_Phase_Death.uasset
+      - Content/RT/Characters/Riktor/Animation/AM_Riktor_Attack.uasset
+      - Content/RT/Characters/Riktor/Animation/AM_Riktor_Hit.uasset
+      - Content/RT/Characters/Riktor/Animation/AM_Riktor_Death.uasset
+      - Content/RT/Characters/Wraith/Animation/AM_Wraith_Attack.uasset
+      - Content/RT/Characters/Wraith/Animation/AM_Wraith_Hit.uasset
+      - Content/RT/Characters/Wraith/Animation/AM_Wraith_Death.uasset
     unblocked_by: []
     shares_setup_with: [U7, U9]
-    verifies: [PIE-AS4a, PIE-AS4b]
-    issues: []
-    done_when: i quattro anim BP sono tracciati da git e le due voci hanno esito reale
+    verifies: [PIE-AS4b]
+    issues: [288]
+    done_when: i dodici montaggi sono tracciati da git e PIE-AS4b ha esito reale
     unblocks: [U9, U19]
     steps: |
-      Procedura completa in `guida-animazioni-paragon.md` §AS.4a (locomozione Idle↔Run pilotata dai
-      delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++), poi si ripete per gli
-      altri tre eroi.
+      🔴 **Questa seduta NON produce piu' anim BP: il grafo di locomozione vive in C++.**
+      `URTUnitAnimInstance` monta Idle/Run in un blend e lo slot `DefaultSlot` come radice, e
+      `ARTUnit::ApplyUnitAnimClass()` assegna la classe allo spawn — vedi **D-248**. Restano solo i
+      **montaggi**, che sono lavoro reale: lo slot che li ospita esiste gia'.
 
-      **Il nome segue il PACK** (deciso 2026-08-11, come U7): `ABP_Gadget`, `ABP_Phase`,
-      `ABP_Riktor`, `ABP_Wraith`. La collocazione e' `/Game/RT/Characters/<Pack>/Animation/` — non
-      `Blueprints/`, che ospita i `BP_Unit_*`.
+      Procedura in `guida-animazioni-paragon.md` §AS.4b. Per ogni pack, tre montaggi dalle clip
+      *Attacco*, *Colpito* e *Morte* di §AS.3b, poi i tre eventi `PlayAttackMontage`,
+      `PlayHitMontage` e `PlayDefeatMontage` sul `BP_Unit_<Pack>`, ciascuno collegato a un
+      `Play Anim Montage` col target sullo Skeletal Mesh Component. Niente bind, niente branch,
+      niente cast: li chiama il `TurnManager` da solo.
 
-      Ogni anim BP va costruito sullo scheletro **che la sua mesh referenzia** — letto dall'asset, non
-      dedotto dal nome del file (corretto il 2026-08-11, vedi sotto):
+      **Il nome segue il PACK** (deciso 2026-08-11, come U7): `AM_Gadget_Attack`, `AM_Gadget_Hit`,
+      `AM_Gadget_Death`, e cosi' per Phase, Riktor e Wraith. La collocazione e'
+      `/Game/RT/Characters/<Pack>/Animation/` — non `Blueprints/`, che ospita i `BP_Unit_*`.
 
-      | Pack | Mesh assegnata in U7 | Skeleton da usare |
-      |---|---|---|
-      | `Paragon.Gadget` | `Gadget` | `Gadget_Skeleton` |
-      | `Paragon.Phase` | `Phase_GDC` | `phase_Skeleton` |
-      | `Paragon.Riktor` | `Riktor` | `Riktor_Skeleton` |
-      | `Paragon.Wraith` | `Wraith` | `Wraith_Skeleton` |
+      ⚠️ **Le clip di partenza si MISURANO, non si deducono**: §AS.3b conta **sei caselle su venti**
+      che non si chiamano come ci si aspetta — `Hitreact_Fwd` con la `r` minuscola per Gadget,
+      `Death` nudo per Phase, `Death_Forward` per Wraith.
 
-      ⚠️ **Lo skeleton si LEGGE dalla mesh, non si cerca nella cartella.** Una prima stesura di questa
-      tabella dava `gadget_bot_Skeleton` e `belly_Riktor_Skeleton`, presi perche' erano il primo file
-      `*Skeleton*` di quella cartella: appartengono pero' a **mesh diverse e piu' piccole**
-      (`gadget_bot`, `belly_Riktor`), non a quelle che U7 assegna. Assegnarli avrebbe prodotto un anim
-      BP legato a uno scheletro incompatibile — un errore silenzioso, come quello del punto 6 di U7.
-      Il controllo, in editor: aprire la Skeletal Mesh e leggere il campo **Skeleton** nei Details.
+      ⚠️ **Un `.uasset` per volta**: due non si fondono. I quattro pack sono file distinti, quindi il
+      lavoro e' parallelizzabile — ma non sullo stesso.
 
-      > ⚠️ **Riscritta due volte.** Il 2026-08-10 chiedeva `ABP_Gideon` e `ABP_Sparrow` in
-      > `Blueprints/`: due anim BP intitolati a pack che non sono la base visuale di nessun eroe della
-      > v0.1, nella cartella sbagliata. Il 2026-08-11 i nomi sono passati dall'eroe al pack per scelta
-      > dell'autore — vedi le `notes` di U7 per il costo accettato.
+      > ⚠️ **Riscritta tre volte.** Il 2026-08-10 chiedeva `ABP_Gideon` e `ABP_Sparrow` in
+      > `Blueprints/`: due anim BP intitolati a pack fuori dal roster, nella cartella sbagliata. Il
+      > 2026-08-11 i nomi sono passati dall'eroe al pack. Il **2026-08-30** e' caduta la **via**: gli
+      > anim BP non si fanno affatto — costerebbero ~2,8 MB di binario contro gli 0,7 MB che pesa
+      > tutto `Content/` versionato, per una macchina a due stati che il C++ fa gia' ed e' sotto
+      > test. Vedi **D-248** e l'issue **#1720**.
 
   - id: U9
     title: Leggibilita' e riferimento visivo
@@ -1783,3 +1813,29 @@ sessions:
       ➕ Aperta ora, insieme a `U29`, perché i due widget mancanti di E46 erano dichiarati in tre punti
       diversi — `editor-sessions.yaml:1152`, la guida UMG e la roadmap — e in nessun piano. Un limite
       ripetuto in tre posti e pianificato in zero è il modo in cui resta fermo.
+
+  - id: U31
+    title: Il Tactical Designer si presenta da solo, e non sporca il livello su cui compare
+    block: 6
+    critical: false
+    produces: la conferma che l'ingresso del workflow compare all'avvio senza toccare L_DevSandbox
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: []
+    # ⚠️ Nessuna voce `PIE-*`: questa seduta NON entra in PIE. Tutto ciò che verifica sta nell'editor prima
+    # del Play — un tab che compare e un livello che non diventa dirty — e il registro `test-manuali-pie.md`
+    # è dei comportamenti in gioco. Metterla lì la renderebbe introvabile a chi cerca una verifica di PIE.
+    issues: [1680]
+    # ⛔ **Perché una seduta e non un automation test.** Dei cinque test della slice, quattro misurano il
+    # predicato `ShouldOpenFor` e uno che l'iscrizione sia in piedi. Nessuno vede ciò che questa seduta vede:
+    # che Slate disegni davvero il tab, e che aprire e chiudere il pannello non marchi la `.umap` come
+    # modificata. Un predicato puro non può osservare il dirty di un binario.
+    done_when: >-
+      Aperto l'editor sul progetto, `L_DevSandbox` si carica da sola (`EditorStartupMap`) e il tab
+      **Tactical Designer** compare senza che nessuno lo abbia invocato; l'`Output Log` porta la riga
+      `LogRTDevSandboxLauncher: [TacticalDesigner] livello di bootstrap aperto`. Aprendo poi `L_HexArena` dal Content Browser
+      il tab **non** ricompare da sé. Chiuso il tab e riaperta `L_DevSandbox`, il tab si ripresenta, e resta
+      raggiungibile da *Window → Tools → Tactical Designer*. ⚠️ **E il criterio che conta di più**: dopo
+      tutto questo `L_DevSandbox` **non** è marcata come modificata — nessun asterisco sul nome del livello,
+      e `git status` pulito su `Content/RT/Maps/Dev/L_DevSandbox/`.

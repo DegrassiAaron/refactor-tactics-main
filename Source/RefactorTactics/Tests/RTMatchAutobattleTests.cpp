@@ -370,10 +370,10 @@ bool FRTAutobattlePlanningSecondsTest::RunTest(const FString&)
  * resta attiva per ogni Play successivo, e senza saperlo si cerca il difetto nella property sbagliata.
  *
  * 🔴 **E la banda descrive la partita CHE SI STA GIOCANDO, non l'ultima cosa digitata.** `DrawHUD` la
- * ridisegna a ogni fotogramma mentre `bIsBotControlled` e' scritto una volta sola allo spawn: leggendo il
- * resolver, una console variable cambiata a meta' sessione avrebbe fatto comparire «AUTOBATTLE» su una
- * partita con la squadra 0 ancora umana — e sparire la banda da una partita in cui i bot continuano a
- * giocare. Trovato in code review; l'ultimo blocco di questo test copre entrambi i versi.
+ * ridisegna a ogni fotogramma mentre `bIsBotControlled` si scrive all'allestimento, non per-frame:
+ * leggendo il resolver, una console variable cambiata a meta' sessione avrebbe fatto comparire
+ * «AUTOBATTLE» su una partita con la squadra 0 ancora umana — e sparire la banda da una partita in cui i
+ * bot continuano a giocare. Trovato in code review; l'ultimo blocco di questo test copre entrambi i versi.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleBannerTest,
 	"RefactorTactics.Match.Autobattle.BannerDeclaresUnattendedMatch",
@@ -565,11 +565,14 @@ bool FRTAutobattleFlagValueTest::RunTest(const FString&)
 /**
  * LA MODALITA' RAGGIUNGE ANCHE LE UNITA' GIA' POSATE NEL LIVELLO.
  *
- * 🔴 `SpawnHero` e' l'unico sito che scrive `bIsBotControlled`, e su un livello che porta le proprie unita'
+ * 🔴 `SpawnHero` scrive `bIsBotControlled`, e su un livello che porta le proprie unita'
  * `SetupHexMatch` ritorna **prima** di arrivarci: il log dichiarava «entrambe le squadre al bot» mentre la
  * squadra 0 restava con il valore cotto nel `.umap`, nessuno pianificava per lei e la partita macinava turni
  * vuoti fino al `RoundLimit`. Trovato in code review — il blocco del Planning era gia' stato spostato sopra
  * quel ritorno *per questo stesso scenario*, l'assegnazione no.
+ *
+ * ⚠️ Il ramo che questo test copre non e' l'unico che scrive `bIsBotControlled`: l'elenco sta alla
+ * dichiarazione del campo, `ARTUnit::bIsBotControlled`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleExistingUnitsTest,
 	"RefactorTactics.Match.Autobattle.AppliesToUnitsAlreadyInTheLevel",
@@ -2019,8 +2022,13 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// oracolo sulla propria board. Allinearne uno all'altro «per coerenza» distrugge la prova che quell'altro
 	// porta, e il rosso che ne segue si legge come un difetto del bot invece che come una soglia spostata.
 	//
-	// ∴ chi vuole unificarli legga prima l'istruttoria: `BOT-STALL-1` in `docs/OPEN_DECISIONS.md`. DIR-C non
-	// l'ha presa, perche' e' una decisione sul significato di «stallo» e il suo owner e' PDR-00.
+	// ✅ **E LA DECISIONE E' STATA PRESA: `D-244`, il 2026-08-29, uscita (d).** «Stallo» e' **relativo alla
+	// board**, e questa divergenza non e' un difetto da riparare: e' la forma corretta. Le altre tre uscite
+	// sono state scartate col loro costo — (a) e (b) toglievano ciascuna il potere discriminante a un
+	// oracolo funzionante, la (c) pagava una soglia nuova per zero verdetti diversi. ⛔ **Unificarli non e'
+	// piu' una questione aperta su cui si possa avere un'opinione: e' contro una decisione consolidata.**
+	// L'istruttoria che la motiva resta leggibile in `BOT-STALL-1` (`docs/OPEN_DECISIONS.md`), chiusa e
+	// conservata.
 	//
 	// ⚠️ **Questa sequenza vede i punti fissi, non i cicli** — un'unita' che oscilla fra due celle si muove
 	// ogni turno, quindi la sequenza resta a zero — e per tre giorni quella meta' e' rimasta scoperta QUI e
@@ -2218,6 +2226,7 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	//     + filtro sul dominio di #1287                    2 su lim. 3    3 su lim. 4
 	//     + `WEngage = 0` (pre-D-185)                      2 su lim. 4    2 su lim. 4
 	//     + avvicinamento in linea d'aria (pre-#1296)      0 su lim. 4    7 su lim. 4  -> **Fail**
+	//     mutazione del BOT che falsifichi QUI             nessuna trovata — vedi la riga sotto
 	//
 	// ✅ Il rilevatore FALSIFICA: la terza riga fa cadere `NobodyOscillatesOnTheAuthoredMap` riproducendo
 	// la misura storica di #1287 («otto alternanze in dodici turni»), quindi l'estrazione in
@@ -2256,10 +2265,30 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	// `WDamage == WApproach == 10` un punto di copertura vale una cella di avvicinamento. Trovato in code
 	// review, e la tesi e' ritirata.
 	//
-	// ⚠️ **Quindi la riga resta aperta, e vale ancora: chi trovera' una mutazione del BOT che fa cadere
-	// questa asserzione la scriva in questa tabella** — e con lei cade la spiegazione qui sopra. Cio' che e'
-	// cambiato non e' che la ricerca sia finita: e' che ora si sa **dove** guardare, cioe' a un termine che
-	// paghi l'arretramento da solo, o a un budget di movimento sotto i 4 MP.
+	// ✅ **LA RIGA NON E' PIU' APERTA, e il modo in cui si chiude e' il punto** (#1550, 2026-08-29).
+	//
+	// 🔴 **«Il test che dimostra perche' la mutazione non esiste» non puo' esistere**, e chiederlo era un
+	// criterio malformato: e' un'ESISTENZIALE NEGATIVA su uno spazio non enumerabile — tutte le mutazioni
+	// possibili del bot. Nessun test la stabilisce, e il criterio non ha soltanto mancato di impedire
+	// l'errore: **lo ha richiesto**. La prima stesura di #1555 ha risposto alla lettera, con una tesi di
+	// impossibilita' (*«`ScorePlan` non legge `Context.Origin`»*) poi ritirata in code review perche'
+	// falsa.
+	//
+	// ✅ **Cio' che si puo' stabilire, ed e' stabilito, e' una CONDIZIONE NECESSARIA misurata su casi
+	// nominati.** Il 2-ciclo di #1287 richiede che il filtro sul dominio faccia **arretrare**; su
+	// `MakeTestArena` non arretra a nessuno dei budget che il gioco spedisce, e sulla mappa d'autore
+	// arretra gia' al profilo neutro. Le due misure, coi rispettivi denominatori asseriti:
+	//
+	//     `Bot.StalemateProbeGeneratedArenaFilterNeverStepsBack`  — 0 arretramenti, e le coppie ci sono
+	//     `Bot.StalemateProbeAuthoredMapFilterStepsBack`          — arretra, e fra le coppie c'e'
+	//                                                               `(1,-1,L0) <-> (3,-3,L1)`, l'orbita
+	//                                                               che #1287 ha MISURATO in partita
+	//
+	// ⛔ **Il limite, che resta e non e' un lavoro aperto**: questa e' una condizione **necessaria** per la
+	// FORMA di #1287, non un teorema che dica «il bot non puo' orbitare». Un'orbita di forma diversa non e'
+	// esclusa da niente di scritto qui. Chi trovera' una mutazione del BOT che fa cadere questa asserzione
+	// la scriva in questa tabella — e con lei cadra' la spiegazione qui sopra. Ma la sua assenza **non e'
+	// piu' una riga da riempire**: e' cio' che si sa, con il suo confine dichiarato.
 	//
 	// 🔵 **LA PISTA DEI 2 MP E' STATA PERCORSA, e non porta dove la nota diceva** (`#1550`, misurato il
 	// 2026-08-29 — `RTOrbitWithdrawBudgetTests.cpp`).

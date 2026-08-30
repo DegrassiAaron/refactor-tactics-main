@@ -25,10 +25,15 @@ creata da `MakeTestArena` — `(1,0,0) -> (2,0,1)` — e non c'è un asset da ed
 `PIE-HEXPLAY-8` vive su un asset mappa vero (U1/U13) ed è già coperta headless da
 `Structures.Bridge.RemovalBreaksPath` e `…NoTeleportOnRemoval`.
 
-**Dove finiscono gli esiti va deciso prima.** `docs/technical/test-manuali-pie.md` è nel `writable` della
-track `content_editor` in `parallel-batch.yaml`. Chi esegue queste sedute e scrive i verdetti tocca un file
-non assegnato: per **D-139** è STOP e riallocazione. Sedersi all'editor senza aver sciolto questo nodo
-significa produrre un verdetto che non si può registrare.
+**Dove finiscono gli esiti**: [`../../technical/test-manuali-pie.md`](../../technical/test-manuali-pie.md), e
+non c'è più nulla da sciogliere prima.
+⚠️ *Diceva: «va deciso prima … quel file è nel `writable` della track `content_editor` in
+`parallel-batch.yaml`, per **D-139** è STOP e riallocazione». **Il file non esiste più** — rimosso da
+**D-178**, che ha fatto uscire dal repository il sistema di lavoro parallelo — quindi la precondizione non ha
+più un oggetto, e chi leggeva questa riga si fermava su un nodo inesistente. Corretta il 2026-08-29, insieme
+alla gemella nel corpo di [#38](https://github.com/DegrassiAaron/refactor-tactics-main/issues/38). Il regime
+corrente è **D-222**: ciò che va protetto è la **misura**, e un registro di esiti manuali non è una misura
+automatica.*
 
 ---
 
@@ -45,8 +50,13 @@ una volta.
    vista**, fango a costo 3, piattaforma sul layer 1 e **una** transizione.
 3. **Play**.
 
-**Le unità sono cilindri** e non è un difetto: i `BP_Unit_*` non esistono in `Content/`, il fallback è
-previsto (li produce U7).
+**A schermo entrano le skeletal**, non i cilindri: dal **2026-08-25** (#287) il GameMode aggancia i quattro
+`BP_Unit_*` e in partita compaiono i `BP_Unit_*_C_0`.
+⚠️ *Diceva: «**Le unità sono cilindri** e non è un difetto: i `BP_Unit_*` non esistono in `Content/`, il
+fallback è previsto (li produce U7)». **Falsa due volte**, corretta il 2026-08-29: i quattro Blueprint erano
+già **versionati** quando la riga fu scritta — mancava l'aggancio al GameMode, non l'asset — e la precondizione
+visiva è arrivata con #287. La correzione **non è cosmetica**: è ciò che sblocca `PIE-FACING-1`, la voce di
+`U6` che chiede se la mesh guarda dove guarda la regola, e che su un cilindro non era nemmeno ponibile.*
 
 **Formato**: `Format.Skirmish2v2`, `RoundLimit` **12** — verificato in `RTMatchFormatLibrary.cpp`
 (`FindShippedFormat`), portato da 5 a 12 il 2026-08-10 per allinearsi a **D-010** (banda 10–14 in 2v2).
@@ -67,11 +77,40 @@ previsto (li produce U7).
 | **Q** · **E** | rotazione |
 | **click sinistro** | seleziona un'unità · aggiunge un waypoint · sceglie il bersaglio |
 | **click destro** o **Backspace** | annulla l'ultimo waypoint |
-| **1** · **2** · **3** | abilità · **4** = **scatto** |
+| **1** … **10** | abilità dell'unità selezionata, **nell'ordine di `Actions`** — vedi la tabella sotto |
 | **Spazio** | lock-in **oppure** salta il playback — vedi sotto |
 | **Home** | ricentra sul centro della griglia e azzera lo zoom (`DefaultArmLength` 800) |
 | **F** | centra sull'unità **selezionata**, mantenendo zoom e quota (`FocusOn`) |
 | **R** | riavvia la partita — attivo **solo** a match concluso |
+
+#### Quale tasto lancia cosa — misurato sul catalogo il 2026-08-29
+
+⛔ **Questa tabella diceva «`1·2·3` abilità · `4` = scatto», ed era falsa per tre eroi su quattro.** Non
+esiste un tasto «scatto»: il tasto `N` seleziona la **N-esima azione di `URTHeroData::Actions`**
+(`OnAbilityN` → `SelectAbilityForCurrent(N-1)` → `ARTUnit::SelectAbility`), e ogni eroe ha il proprio ordine.
+Costato in seduta il 2026-08-29: quattro rifiuti consecutivi *«non raggiungibile in LINEA (max 3)»* mentre si
+cercava un'area, perché il tasto premuto lanciava un'altra abilità.
+
+| Tasto | **Gadget** | **Phase** | **Riktor** | **Wraith** |
+|---|---|---|---|---|
+| **1** | ArcPulse *(base)* | PressureJet *(base)* | ImpactShot *(base)* | PulseShot *(base)* |
+| **2** | LinearDischarge *(linea)* | CircularTide *(area, **cura**)* | KineticPanel | InterceptShot |
+| **3** | ConductiveNode | FluidTrail *(Dash 3)* | Reconfigure | PassingBlade *(Dash 3)* |
+| **4** | **Overload** *(area r1)* | MistVeil | **Ram** *(Push 1)* | Feint |
+| **5** | — | FlowReaction | — | PhaseGuard |
+| **6** | — | TideGuard | — | — |
+
+Per le voci che lo chiedono: **`PIE-HEXPLAY-6b`** vuole l'area, cioè **Gadget `4`** per il fuoco amico
+(`CircularTide` di Phase *cura*, quindi non serve a quella metà); **`PIE-HEXPLAY-6c`** vuole la spinta, cioè
+**Phase `1`** o **Riktor `4`**.
+
+🔴 **E c'è un secondo modo di sbagliare, che il codice stesso invita.** I commenti `// Indice N —` del
+catalogo numerano il **kit dell'eroe**, reazioni comprese; `Actions` contiene solo le azioni **selezionabili**,
+e le tre reazioni — `ReactiveCapacitor`, `Interposition`, `Deflection` — **non ci entrano** (zero
+`Actions.Add`). Finché la reazione è l'ultima del kit i due sistemi coincidono, ed è il caso di Gadget, Phase
+e Riktor. **Su Wraith no**: `Deflection` è l'indice 3 dei commenti, quindi `Feint` — commentata «Indice 4» —
+è il **tasto 4**, non il 5. Leggere il numero dal commento invece che dall'ordine di `Actions.Add` sbaglia
+esattamente su quell'eroe.
 
 ⚠️ **La camera non segue il click.** Selezionare un'unità **non** muove l'inquadratura: il focus è un gesto
 esplicito (**`F`**), e `Home` e `F` sono due inquadrature diverse per scelta — centro mappa contro unità.
@@ -262,13 +301,23 @@ prima di trarne una conclusione.
 
 ## 7. La rilettura finale
 
-`U6.done_when` non chiede «ogni voce spuntata quando la si esegue»: chiede le **nove rilette tutte insieme**,
-alla fine. È la differenza fra una checklist e un verdetto — nove verifiche passate in momenti diversi non
-dimostrano che la partita *regga*, che è ciò che M6.8 esiste per stabilire.
+`U6.done_when` non chiede «ogni voce spuntata quando la si esegue»: chiede le **quattordici rilette tutte
+insieme**, alla fine. È la differenza fra una checklist e un verdetto — quattordici verifiche passate in
+momenti diversi non dimostrano che la partita *regga*, che è ciò che M6.8 esiste per stabilire.
 
-Le nove del verdetto: `-1 -2 -3 -4 -5 -6 -7 -8 -9`.
-Le altre cinque del registro — `-3b -4b -6b -6c -10` — restano voci vive: 🟡 è ammesso **con la ragione
-scritta accanto**.
+Il perimetro E2: `-1 -2 -3 -3b -4 -4b -5 -6 -6b -6c -7 -8 -9 -10`.
+Fuori: `-11`, che è presentazione e ha la propria epic (**E21**).
+
+⚠️ **Riscritto il 2026-08-29.** Diceva: *«chiede le **nove** rilette tutte insieme … Le nove del verdetto:
+`-1 -2 -3 -4 -5 -6 -7 -8 -9`. Le altre cinque del registro — `-3b -4b -6b -6c -10` — restano voci vive: 🟡 è
+ammesso **con la ragione scritta accanto**»*. Era la DoD di
+[#38](https://github.com/DegrassiAaron/refactor-tactics-main/issues/38) del 2026-08-14, **superata** dal gate
+di [#16](https://github.com/DegrassiAaron/refactor-tactics-main/issues/16) riscritto il 2026-08-25: quattordici
+voci, tutte ✅. Finché le due frasi sono coesistite, chi apriva #38 leggeva la più permissiva e avrebbe chiuso
+il checkpoint lasciando l'epic aperta. **L'unica esenzione sopravvive perché è un fatto del roster, non una
+concessione**: la parte **cono** di `-6b` non è osservabile in partita — nessuna abilità della v0.1 usa
+`ERTAbilityShape::Cone` — e resta coperta headless da `HexCone`. Va dichiarata nella voce, non usata per
+tenerla gialla.
 
 ---
 

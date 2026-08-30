@@ -1129,9 +1129,12 @@ bool FRTBraceDecisionRoundTripsThroughTraceTest::RunTest(const FString&)
 			&& E.ActionId == FName(TEXT("Action.Brace"));
 	});
 	if (!TestNotNull(TEXT("la decisione del `Brace` e' nel TurnLog"), (void*)Voce)) { return false; }
-	TestEqual(TEXT("l'esito distingue lo scarto dal tenere la cella"), Voce->Outcome,
-		static_cast<uint8>(ERTReactionDecisionOutcome::ResponseChosen));
-	TestEqual(TEXT("e il token nomina la risposta"), Voce->ReactionResponse, FString(TEXT("SIDESTEP")));
+	// ⚠️ **Dal 2026-08-29 a distinguere lo scarto dal tenere la cella e' il TOKEN, non l'esito** (`#1118`):
+	// la ragione e' `Chosen` in entrambi i casi — si e' scelto — e l'asserzione che conta e' la riga sotto.
+	TestEqual(TEXT("la ragione dice che si e' scelto"), Voce->Outcome,
+		static_cast<uint8>(ERTReactionDecisionOutcome::Chosen));
+	TestEqual(TEXT("e il token distingue lo scarto dal tenere la cella"), Voce->ReactionResponse,
+		FString(TEXT("SIDESTEP")));
 
 	// --- 2. Il replay: stessa traccia, NESSUN decisore, stesso esito -------------------------------------
 	TArray<FRTTurnLogEntry> TracciaReplay;
@@ -1183,7 +1186,8 @@ bool FRTBraceDecisionRoundTripsThroughTraceTest::RunTest(const FString&)
 	// lavata da sola in un giro. Una lacuna che sparisce e' peggio di una lacuna. Trovato da una code review.
 	FRTTurnLogEntry AltraFinestra;
 	AltraFinestra.Category = ERTLogCategory::ReactionDecision;
-	AltraFinestra.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::HoldChosen);
+	AltraFinestra.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::Chosen);
+	AltraFinestra.ReactionResponse = URTReactionOpportunityLibrary::HoldResponse();
 	AltraFinestra.OpportunityId = TEXT("T9|P9|M9|U9|action.inesistente|S9");
 	const TArray<FRTTurnLogEntry> TracciaEstranea = { AltraFinestra };
 

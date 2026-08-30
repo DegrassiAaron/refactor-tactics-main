@@ -87,8 +87,14 @@ correzione che rende il controllo robusto ai glob futuri: è lo stesso oracolo c
 l'unico che sa leggere `.gitignore` come git lo legge. Il confronto per stringa non lo saprà mai.
 
 **Misurato il 2026-08-28** su `HEAD` `d0e35814`: **24 attesi · 20 committati · 0 su disco · 4 assenti**,
-più **4 righe glob** che aprono altrettante famiglie. I quattro assenti sono gli `ABP_*` dei personaggi,
-il perimetro della seduta **U8**.
+più **4 righe glob** che aprono altrettante famiglie. I quattro assenti erano gli `ABP_*` dei personaggi.
+
+🔴 **Il perimetro è cambiato il 2026-08-30, e il numero con lui** ([D-248](../../decisions/RT_PDR_00_Decision_Log.md),
+[#1720](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1720)): i quattro `ABP_*` **non sono più attesi**, perché il grafo di
+locomozione vive in C++ e non in un `.uasset`. ⚠️ **Non è una rimisurazione**: è la stessa misura del 28-08
+con quattro righe uscite dagli «attesi» — **20 attesi · 20 committati · 0 assenti**, ri-derivato dalla
+tabella e non riletto da un `HEAD` nuovo. Al loro posto U8 ne porta **dodici**, i montaggi `AM_*`, che
+nessuno aveva ancora contato: il totale atteso torna a salire alla prossima misura vera.
 
 *(Misura precedente, 2026-08-17 su `a4a393b6`: 21 attesi · 16 committati · 0 su disco · 5 assenti. Prima
 ancora, 2026-08-13 su `515c5c88`: 17 attesi · 13 committati · 4 mancanti.)*
@@ -112,9 +118,21 @@ gesto. **Il momento di committare un asset è quando lo si salva la prima volta*
 `git` può restituire. È il perimetro della seduta **U8**, che dopo la cancellazione riparte da zero.
 
 ⚠️ **Nessun `.uasset` o `.umap` sta fuori dall'allowlist, e i file non binari che ci stanno sono
-145** — misurato il 2026-08-28: `Content/.gitkeep`, i due di `RT_UI_AssetPack_FromHUD/`, e i **137 SVG
-più il manifest** di `Content/Icons/`, arrivati dopo il 17 agosto. Non sono `.uasset`: le regole di
-`.gitignore` che li lasciano passare sono altre.
+140** — rimisurato il 2026-08-30 su `fff33020`: `Content/.gitkeep`, i **due** di
+`RT_UI_AssetPack_FromHUD/` e i **137** di `Content/Icons/`, arrivati dopo il 17 agosto. Quei 137 sono
+**134 SVG** più tre file che non lo sono — `LEGGIMI.md`, `manifest.json` e `rticonehud20260826.zip`.
+Non sono `.uasset`: le regole di `.gitignore` che li lasciano passare sono altre.
+
+🔴 **Questa riga diceva `145`, `137 SVG` e «più il manifest», e sbagliava tutti e tre.** Non è un numero
+invecchiato: sul commit che l'ha scritta — `505e5234`, 2026-08-28 — l'albero rispondeva già **140** e
+**134**, e `Content/Icons/` non è più stata toccata da allora (un solo commit la popola, `48e591ae`).
+L'errore è di metodo ed è riconoscibile: `137` è il **totale** di `Content/Icons/`, riusato come se
+fosse il conto dei soli SVG e poi sommato di nuovo al manifest — così il `.md` e lo `.zip` sono
+scomparsi e il totale ha guadagnato cinque unità che nessun addendo produce. Contare una colonna e
+descriverla come un'altra è lo stesso difetto che il paragrafo qui sotto registra a proposito di «Tre
+file tracciati». Rimisurato consumando il §8 di
+[`CLAUDE_FIX_PROJECT_CONTENT_STRUCTURE.md`](../../archive/src/CLAUDE_FIX_PROJECT_CONTENT_STRUCTURE.md),
+che chiedeva esattamente questo: *«rimisura, non conservare conteggi vecchi»*.
 
 🔴 **Questa riga diceva «Tre file tracciati», ed era vera il 2026-08-17.** Il numero è cresciuto di
 due ordini di grandezza senza che nessuna regola cambiasse, il che dice qualcosa sul controllo e non sul
@@ -140,10 +158,8 @@ fossero un dato).
 | `Characters/Phase/Blueprints/BP_Unit_Phase.uasset` | Unità giocabile | **U7** | ✅ committato |
 | `Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset` | Unità giocabile | **U7** | ✅ committato |
 | `Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset` | Unità giocabile | **U7** | ✅ committato |
-| `Characters/Gadget/Animation/ABP_Gadget.uasset` | Animazione | **U8** | ⏳ assente — *era «su disco» il 13-08, cancellato senza essere mai committato (§1)* |
-| `Characters/Phase/Animation/ABP_Phase.uasset` | Animazione | **U8** | ⏳ assente |
-| `Characters/Riktor/Animation/ABP_Riktor.uasset` | Animazione | **U8** | ⏳ assente |
-| `Characters/Wraith/Animation/ABP_Wraith.uasset` | Animazione | **U8** | ⏳ assente |
+| ~~`Characters/<Pack>/Animation/ABP_<Pack>.uasset`~~ ×4 | Animazione | ~~**U8**~~ | ⛔ **non più attesi dal 2026-08-30** ([D-248](../../decisions/RT_PDR_00_Decision_Log.md)): il grafo di locomozione vive in C++ (`URTUnitAnimInstance`) e nessun `.uasset` di animazione va creato. *Erano «⏳ assente», e `ABP_Gadget` era «su disco» il 13-08, cancellato senza essere mai committato (§1)* |
+| `Characters/<Pack>/Animation/AM_<Pack>_{Attack,Hit,Death}.uasset` ×12 | Animazione | **U8** | ⏳ assenti — sono il perimetro reale di U8 ([#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288), `PIE-AS4b`) |
 | `Characters/Shared/Materials/M_SelectionRing.uasset` | Condiviso | — | ✅ committato |
 | `Characters/Shared/Materials/M_TeamRing.uasset` | Condiviso | — | ✅ committato |
 | `Maps/Dev/L_HexArena/L_HexArena.umap` | Mappa | **U1** | ✅ committato |
@@ -224,7 +240,7 @@ committare niente.
 | Famiglia | Epic | Quanti | Percorso previsto (§5 delle convenzioni) |
 |---|:--:|--:|---|
 | Unità giocabili dei 4 eroi nuovi | **E35** | 4 | `Characters/<Pack>/Blueprints/BP_Unit_<Pack>.uasset` |
-| Animazioni dei 4 eroi nuovi | **E35** | 4 | `Characters/<Pack>/Animation/ABP_<Pack>.uasset` |
+| Animazioni dei 4 eroi nuovi | **E35** | 12 | `Characters/<Pack>/Animation/AM_<Pack>_*.uasset` — ⚠️ *diceva «4 · `ABP_<Pack>.uasset`»: un eroe nuovo non porta un anim BP, porta una **riga di dati** in `ClipsPerHero` più i suoi tre montaggi ([D-248](../../decisions/RT_PDR_00_Decision_Log.md))* |
 | Mappa di classe Standard 3v3 | **E24** | 1 + dati | `Maps/<Categoria>/<Nome>/` con il suo `DA_HexMap_*` |
 | Icone: catalogo completo | **E25** | derivato | ancora senza path — vedi §2.1 |
 | Muri e porte come oggetti | **E23** | ignoto | l'epic definisce il **modello logico**; se servano mesh dedicate non è deciso |

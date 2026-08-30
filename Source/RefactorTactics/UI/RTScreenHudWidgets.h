@@ -60,6 +60,27 @@ public:
 	/** Inietta il contesto senza un `PlayerController`: e' il modo in cui i test guidano un widget. */
 	void SetMatchContextForTest(ARTTurnManager* InTurnManager, int32 InPlayerTeamId);
 
+	/**
+	 * Inietta la SELEZIONE senza un `PlayerController`, ed e' l'altra meta' di `SetMatchContextForTest`.
+	 *
+	 * 🔴 **Senza questo, tre widget su sette non erano verificabili affatto.** `GetSelectedUnit()` passa da
+	 * `GetOwningPlayer()`, e `UUserWidget::SetOwningPlayer` memorizza il **`ULocalPlayer`**, non il
+	 * controller: in una run headless non esiste un local player, quindi `GetOwningPlayer()` resta nullo
+	 * anche dopo aver spawnato un `ARTPlayerController` e avergli selezionato un'unita'. Pannello unita',
+	 * dock e slot leggono tutti da li', e i loro test potevano provare solo il ramo «nessuna selezione».
+	 *
+	 * ⚠️ **E il prezzo si e' visto**: lo Step 7.4 di `#613` chiedeva che il dock accendesse lo slot armato,
+	 * il Blueprint passava `false` fisso, e `ActionDockShowsTheNeutralState` era verde — perche' senza
+	 * selezione anche un dock rotto risponde `INDEX_NONE`.
+	 *
+	 * In gioco resta nulla e la verita' e' il `PlayerController`: l'iniezione **non** e' un secondo canale
+	 * di selezione, e non e' esposta ai Blueprint.
+	 *
+	 * ⚠️ Definita nel `.cpp` e non qui: `ARTUnit` e' solo forward-declared in questo header, e
+	 * `TWeakObjectPtr::operator=` vuole il tipo completo.
+	 */
+	void SetSelectedUnitForTest(ARTUnit* InUnit);
+
 protected:
 	virtual void NativeConstruct() override;
 
@@ -119,6 +140,15 @@ private:
 
 	UPROPERTY(Transient)
 	int32 PlayerTeamId = 0;
+
+	/**
+	 * Vedi `SetSelectedUnitForTest`. Nulla in gioco: la selezione vera resta del `PlayerController`.
+	 *
+	 * ⚠️ Non `TWeakObjectPtr<const ARTUnit>`: il template non accetta un tipo `const` e l'assegnazione non
+	 * compila. La const-ness sta dove serve — `GetSelectedUnit()` restituisce comunque un puntatore const.
+	 */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<ARTUnit> SelectedUnitForTest;
 };
 
 /** `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer. */

@@ -2,6 +2,7 @@
 
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/World.h"
+#include "EngineUtils.h" // TActorIterator: contare le unita' vive distingue «velo rotto» da «partita finita»
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -12,7 +13,9 @@
 #include "RTVeilProbeForTest.h"
 #include "RTWorldFixtures.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Kismet/GameplayStatics.h"
 #include "Turn/RTTurnManager.h"
+#include "Unit/RTUnit.h" // ARTUnit: TActorIterator ne pretende la definizione, non basta la forward
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -298,6 +301,151 @@ bool FRTVeilFollowsRefreshPointsTest::RunTest(const FString&)
 
 	AddInfo(FString::Printf(TEXT("refresh emessi: %d in %d turni (%d tick spesi)"),
 		Probe->RefreshTurns.Num(), Turni, TickSpesi));
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **`E13.8` — il velo ha un CONSUMATORE, e la board non nasce interamente visibile.**
+ *
+ * ⚠️ **Questo test misura il CABLAGGIO, non il meccanismo**, ed e' la distinzione che `#1467` ha pagato:
+ * quel checkpoint ha costruito `ApplyKnowledgeVeil` e l'ha coperta con cinque test — tutti verdi, tutti
+ * che la chiamavano **a mano** — mentre in partita non la chiamava nessuno. Un meccanismo coperto al 100%
+ * e mai invocato e' indistinguibile, dalla suite, da uno che funziona.
+ *
+ * Qui il velo si stende perche' `ARTGameMode::HookKnowledgeVeil` lo aggancia, che e' lo **stesso** codice
+ * che `BeginPlay` esegue in partita.
+ *
+ * ⚠️ **La prima inquadratura e' meta' del test.** Il velo deve valere PRIMA del primo refresh: senza,
+ * la board nasce tutta visibile e si vela dopo, e il primo fotogramma e' quello che rivela l'intera mappa —
+ * il difetto che nessuno vedrebbe, perche' dura un frame ed e' quello che nessun test tardivo prende.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilHasAConsumerTest,
+	"RefactorTactics.Veil.GameModeAppliesTheVeilForTheViewerTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilHasAConsumerTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// 🔴 **Senza questa riga il consumatore non riceve NIENTE, ed e' la lezione di `#939`**:
+	// `AActor::ProcessEvent` scarta ogni evento se `GetWorld()->AreActorsInitialized()` e' falso, e
+	// `OnTeamKnowledgeRefreshed` e' un delegate dinamico che invoca proprio da li'. `ARTGameMode` e' un
+	// ACTOR, quindi senza inizializzare il mondo il suo handler non gira — mentre `URTVeilProbeForTest`,
+	// che e' un `UObject` e non un attore, riceve regolarmente.
+	//
+	// ⚠️ **I sintomi sono quelli di un cablaggio rotto, e non lo e'**: iscrizione registrata (il GameMode
+	// compare in `GetAllObjects()` prima E dopo il turno), delegate che emette, handler mai invocato. Misurato
+	// il 2026-08-29 spendendoci undici cicli di diagnosi, prima di trovare che `#939` lo aveva gia' registrato
+	// in `RTMatchEndOpensResultTests.cpp`. La differenza fra le due famiglie — attore contro `UObject` — e'
+	// l'unica cosa che spiega perche' la sonda riceve e il consumatore no.
+	World->InitializeActorsForPlay(FURL());
+
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("TurnManager"), TM)
+		|| !TestNotNull(TEXT("GameMode"), GameMode))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// La sonda gia' usata da `FollowsRefreshPoints`: dice se i refresh sono stati EMESSI, cosa che i tre
+	// conteggi del velo non distinguono da «emessi e ignorati».
+	URTVeilProbeForTest* Probe = NewObject<URTVeilProbeForTest>();
+	TM->OnTeamKnowledgeRefreshed.AddDynamic(Probe, &URTVeilProbeForTest::OnKnowledgeRefreshed);
+
+	GameMode->bAutobattle = true;
+	GameMode->SetupHexMatch(HexMap);
+
+	const int32 Totale = HexMap->NumInstanceCells();
+	if (!TestTrue(TEXT("la board ha istanze"), Totale > 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- 1. Prima dell'aggancio la board e' interamente disegnata ------------------------------------
+	// Non e' il comportamento voluto: e' lo stato di partenza, ed e' cio' che rende non vacuo il punto 2.
+	int32 A0 = 0, R0 = 0, N0 = 0;
+	HexMap->GetVeilCounts(A0, R0, N0);
+	TestEqual(TEXT("prima dell'aggancio nessuna cella e' nascosta (stato di partenza)"), N0, 0);
+
+	// --- 2. LA PRIMA INQUADRATURA: l'aggancio vela SUBITO, non al primo refresh ----------------------
+	GameMode->HookKnowledgeVeil();
+
+	// 🔑 **L'ANELLO**: l'aggancio deve aver steso il velo ESATTAMENTE una volta.
+	TestEqual(TEXT("l'aggancio stende il velo una volta"), GameMode->GetKnowledgeVeilApplications(), 1);
+
+	int32 A1 = 0, R1 = 0, N1 = 0;
+	HexMap->GetVeilCounts(A1, R1, N1);
+	TestTrue(*FString::Printf(
+			TEXT("subito dopo l'aggancio la board NON e' interamente visibile (%d/%d nascoste)"), N1, Totale),
+		N1 > 0);
+	TestEqual(TEXT("e i tre stati restano una partizione del totale"), A1 + R1 + N1, Totale);
+	AddInfo(FString::Printf(TEXT("velo alla prima inquadratura: %d accese, %d ricordate, %d nascoste su %d"),
+		A1, R1, N1, Totale));
+
+	// --- 3. Il PERCORSO VERO: un turno giocato ridipinge il velo dal delegate ------------------------
+	// Non si chiama `ApplyKnowledgeVeil`: si gioca, e il velo si aggiorna perche' qualcuno lo ascolta.
+	int32 Turni = 0;
+	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Turni < 1)
+	{
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+		++Turni;
+	}
+	TestTrue(TEXT("un turno e' stato giocato"), Turni > 0);
+
+	// ⚠️ Diagnostica prima delle asserzioni: se la partita e' FINITA, non restano unita' vive, e
+	// `RefreshTeamKnowledgeForPlanning` produce una conoscenza vuota per ogni squadra — quindi il velo
+	// nasconde tutto ed e' il comportamento CORRETTO, non un difetto del cablaggio. Il conteggio delle vive
+	// distingue i due casi, che dai soli tre numeri del velo sono indistinguibili.
+	int32 Vive = 0;
+	for (TActorIterator<ARTUnit> It(World); It; ++It)
+	{
+		if (It->IsAlive()) { ++Vive; }
+	}
+	const FRTTeamKnowledge Conoscenza = TM->KnowledgeForTeamPublic(GameMode->ViewerTeamId());
+	AddInfo(FString::Printf(
+		TEXT("dopo il turno: fase=%d, vive=%d, refresh emessi=%d, VisibleCells=%d, ExploredCells=%d"),
+		static_cast<int32>(TM->GetPhase()), Vive, Probe->RefreshTurns.Num(),
+		Conoscenza.VisibleCells.Num(), Conoscenza.ExploredCells.Num()));
+
+	// 🔴 **L'ANELLO, ed e' il cuore di questo test.** I refresh sono stati EMESSI (`Probe`); se il velo non
+	// e' stato ridipinto altrettante volte, il consumatore non e' agganciato — ed e' precisamente la
+	// distanza fra «il meccanismo esiste» e «qualcuno lo chiama» che `#1467` ha pagato.
+	//
+	// ⚠️ **Si asserisce sul CONTEGGIO e non sui tre numeri del velo**, perche' quelli non discriminano: una
+	// board tutta nascosta e' compatibile sia con «mai ridipinta» sia con «ridipinta con conoscenza vuota»,
+	// e i due difetti hanno fix opposti. Questa riga separa i due casi prima che qualcuno debba indovinare.
+	TestEqual(*FString::Printf(
+			TEXT("il velo e' stato ridipinto a ogni refresh: %d applicazioni contro %d refresh emessi"),
+			GameMode->GetKnowledgeVeilApplications(), Probe->RefreshTurns.Num()),
+		GameMode->GetKnowledgeVeilApplications(), 1 + Probe->RefreshTurns.Num());
+
+
+	int32 A2 = 0, R2 = 0, N2 = 0;
+	HexMap->GetVeilCounts(A2, R2, N2);
+	TestEqual(TEXT("dopo il turno i tre stati sono ancora una partizione"), A2 + R2 + N2, Totale);
+	TestTrue(TEXT("e la board resta velata secondo cio' che la squadra vede"), N2 > 0);
+
+	// --- 4. La vista e' di UNA squadra, e non di tutte ------------------------------------------------
+	// ⚠️ Senza questa riga il test passerebbe anche con un velo che nasconde tutto o che mostra tutto: cio'
+	// che discrimina e' che esista almeno una cella ACCESA, cioe' che qualcuno stia guardando davvero.
+	TestTrue(*FString::Printf(TEXT("almeno una cella e' osservata dal viewer (%d accese)"), A2), A2 > 0);
+
+	// --- 5. `ViewerTeamId` senza controller ripiega su 0, dichiaratamente ---------------------------
+	TestEqual(TEXT("senza PlayerController il viewer e' la squadra 0, come FrameOwnTeam"),
+		GameMode->ViewerTeamId(), 0);
+
+	AddInfo(FString::Printf(TEXT("velo dopo un turno: %d accese, %d ricordate, %d nascoste su %d"),
+		A2, R2, N2, Totale));
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

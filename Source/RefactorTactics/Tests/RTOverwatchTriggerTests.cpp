@@ -769,7 +769,7 @@ bool FRTOverwatchTimeoutIsHoldTest::RunTest(const FString&)
 		const FRTReactionDecision D = URTReactionOpportunityLibrary::DecisionOnTimeout(*O);
 		TestEqual(TEXT("lo scadere risponde HOLD"), D.Response, Hold);
 		TestEqual(TEXT("e lo dichiara come scadenza, non come scelta"),
-			D.Outcome, ERTReactionDecisionOutcome::HoldTimeout);
+			D.Outcome, ERTReactionDecisionOutcome::Timeout);
 		// Il controllo che conta davvero: non e' un `FIRE` sotto mentite spoglie.
 		TestEqual(TEXT("nessun bersaglio: lo scadere non spende la charge"),
 			URTReactionOpportunityLibrary::FireResponseTarget(D.Response), (int32)INDEX_NONE);
@@ -996,7 +996,8 @@ bool FRTOverwatchDecisionIsReplayableTest::RunTest(const FString&)
 	FRTTurnLogEntry Fire;
 	Fire.Phase = ERTMatchPhase::Move;
 	Fire.Category = ERTLogCategory::ReactionDecision;
-	Fire.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen);
+	Fire.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::Chosen);
+	Fire.ReactionResponse = URTReactionOpportunityLibrary::FireResponse(3);
 	Fire.ActionId = TEXT("Action.Overwatch");
 	Fire.SrcCell = FRTCellId(0, 0, 0);
 	Fire.TgtCell = FRTCellId(2, 0, 0);
@@ -1034,7 +1035,8 @@ bool FRTOverwatchDecisionIsReplayableTest::RunTest(const FString&)
 		URTTurnLogLibrary::HashTurnLog({ OtherTarget }), URTTurnLogLibrary::HashTurnLog(Log));
 
 	FRTTurnLogEntry Held = Fire;
-	Held.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::HoldChosen);
+	// Stessa ragione, risposta diversa: `Chosen` per entrambe, e a separarle e' il token.
+	Held.ReactionResponse = URTReactionOpportunityLibrary::HoldResponse();
 	Held.SelectedTargetUnitId = INDEX_NONE;
 	Held.Amount = 0;
 	TestNotEqual(TEXT("tenere il colpo invece di sparare cambia l'hash"),
@@ -1381,7 +1383,7 @@ bool FRTOverwatchSecondFireOnDownedTargetTest::RunTest(const FString&)
 		for (const FRTTurnLogEntry& Entry : Manager->GetTurnLog())
 		{
 			if (Entry.Category != ERTLogCategory::ReactionDecision) { continue; }
-			if (Entry.Outcome != static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen)) { continue; }
+			if (URTReactionOpportunityLibrary::FireResponseTarget(Entry.ReactionResponse) == INDEX_NONE) { continue; }
 			++FireEntries;
 			if (Entry.Amount > 0) { ++FireEntriesWithDamage; }
 			if (Entry.SelectedTargetUnitId == INDEX_NONE) { ++FireEntriesWithoutTarget; }
@@ -1937,7 +1939,7 @@ bool FRTSafeResponsePrefersHoldTest::RunTest(const FString&)
 		TestEqual(TEXT("e la scadenza non spara"),
 			Lib::DecisionOnTimeout(Opp).Response, Lib::HoldResponse());
 		TestEqual(TEXT("l'esito dice da dove viene"),
-			Lib::DecisionOnTimeout(Opp).Outcome, ERTReactionDecisionOutcome::HoldTimeout);
+			Lib::DecisionOnTimeout(Opp).Outcome, ERTReactionDecisionOutcome::Timeout);
 	}
 
 	// (b) Vocabolario del `Brace`: nessun `HOLD`, e la scelta sicura e' la prima — che il catalogo tiene in

@@ -88,6 +88,11 @@ void URTScreenHudWidgetBase::SetMatchContextForTest(ARTTurnManager* InTurnManage
 	PlayerTeamId = InPlayerTeamId;
 }
 
+void URTScreenHudWidgetBase::SetSelectedUnitForTest(ARTUnit* InUnit)
+{
+	SelectedUnitForTest = InUnit;
+}
+
 bool URTScreenHudWidgetBase::HasMatchContext() const
 {
 	return TurnManager.IsValid();
@@ -95,6 +100,14 @@ bool URTScreenHudWidgetBase::HasMatchContext() const
 
 const ARTUnit* URTScreenHudWidgetBase::GetSelectedUnit() const
 {
+	// L'iniezione dei test viene PRIMA, e solo perche' in gioco e' sempre nulla: senza un `ULocalPlayer`
+	// — che una run headless non ha — `GetOwningPlayer()` resta nullo e i widget che dipendono dalla
+	// selezione non sarebbero verificabili. Vedi `SetSelectedUnitForTest`.
+	if (const ARTUnit* Injected = SelectedUnitForTest.Get())
+	{
+		return Injected;
+	}
+
 	const ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayer());
 	return PC ? PC->GetSelectedUnit() : nullptr;
 }

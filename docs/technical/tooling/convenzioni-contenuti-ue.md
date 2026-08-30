@@ -150,7 +150,11 @@ esso l'errore di aprire la cartella sbagliata.
 | Wraith | `Hero.Wraith` | **`Wraith`** |
 
 Vale per la cartella e per gli asset di **presentazione**: `Characters/Gadget/Blueprints/BP_Unit_Gadget`,
-`Characters/Gadget/Animation/ABP_Gadget`.
+`Characters/Gadget/Animation/AM_Gadget_Attack`.
+
+⚠️ *Questo esempio citava `ABP_Gadget` fino al 2026-08-30. La **regola di naming non cambia** — il nome
+segue il pack — ma quell'asset non è più previsto: il grafo di animazione vive in C++
+([D-248](../../decisions/RT_PDR_00_Decision_Log.md)), e in `Animation/` ci vanno i montaggi.*
 
 **Eccezione: i dati restano intitolati all'eroe.** `DA_Hero_Gadget` sta in `Characters/Gadget/Data/` ma non
 diventa `DA_Hero_Gadget`. Un data asset eroe descrive *statistiche e abilità*, che non dipendono dalla mesh:

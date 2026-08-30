@@ -143,10 +143,26 @@ bool FRTMatchFormatShippedIsValidTest::RunTest(const FString&)
 	TestEqual(TEXT("due unita' per squadra: e' il 2v2 del vertical slice"), Shipped->UnitsPerTeam, 2);
 	TestEqual(TEXT("classe di mappa Skirmish"), Shipped->MapClass, ERTMapClass::Skirmish);
 
-	// La soglia e' ZERO perche' nessuno assegna punti: `AddTeamScore` non ha chiamanti runtime. Se un giorno
-	// un obiettivo la alimentera', questo assert cade — ed e' il momento in cui la soglia va scelta davvero,
-	// non prima. Fissarla a un numero adesso dichiarerebbe una via di vittoria irraggiungibile.
-	TestEqual(TEXT("soglia obiettivo 0 finche' nessuno assegna punti"), Shipped->ScoreToWin, 0);
+	// ✅ **Quel giorno e' arrivato.** Questo assert diceva *«soglia 0 finche' nessuno assegna punti […] se un
+	// giorno un obiettivo la alimentera', questo assert cade — ed e' il momento in cui la soglia va scelta
+	// davvero, non prima»*. CP 10.2 (`#75`) ha consegnato il produttore, e la soglia e' stata scelta:
+	// **cinque** ([D-247]).
+	TestEqual(TEXT("soglia obiettivo 5: il produttore esiste, e la via a punti si esercita"),
+		Shipped->ScoreToWin, 5);
+
+	// 🔴 **Le due proprieta' da cui il cinque deriva, asserite invece che scritte solo a commento.** Un
+	// numero di bilanciamento senza derivazione e' un numero inventato, e [D-102] vieta di ricavarlo da
+	// partite bot-contro-bot: quello che resta e' la geometria, e sono queste due disuguaglianze.
+	//
+	// (a) La soglia deve chiudere PRIMA del limite di round, o non e' una via distinta: al `RoundLimit` il
+	//     confronto dei punteggi decide gia', e una soglia che si tocca solo allo scadere sarebbe lo stesso
+	//     esito con un nome diverso.
+	TestTrue(TEXT("la soglia si raggiunge prima del limite di round, o non e' una via distinta"),
+		Shipped->ScoreToWin < Shipped->RoundLimit);
+	// (b) E deve restare sotto la META' della partita, altrimenti serve un dominio quasi ininterrotto e la
+	//     via non si esercita — il difetto OPPOSTO a quello che lo zero evitava, non la sua correzione.
+	TestTrue(TEXT("e sotto la meta' della partita, o non si esercita mai"),
+		Shipped->ScoreToWin * 2 <= Shipped->RoundLimit);
 
 	// Deve superare lo STESSO validator degli asset dei designer: un formato spedito che non passa la propria
 	// validazione e' un difetto di codice, e il gioco lo rifiuterebbe all'avvio.

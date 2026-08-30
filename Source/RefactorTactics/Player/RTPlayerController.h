@@ -285,6 +285,29 @@ public:
 	void HandleClickOnUnitForTest(class ARTUnit* ClickedUnit) { HandleClickOnUnit(ClickedUnit); }
 
 	/**
+	 * Arma l'azione in posizione `Index` come farebbe il tasto corrispondente (per i test).
+	 *
+	 * `SelectAbilityForCurrent` e' il punto comune dei dieci tasti abilita' ed e' privata: senza questo, il
+	 * secondo dei cinque siti che registrano un `ERTPlanningInput::Order` non sarebbe raggiungibile da un
+	 * test, e la sua guardia sarebbe l'unica delle cinque affermata invece che misurata (#971).
+	 */
+	void SelectAbilityForCurrentForTest(int32 Index) { SelectAbilityForCurrent(Index); }
+
+	/**
+	 * Il tasto di lock-in (Spazio) senza passare da un `FInputActionValue`, per i test.
+	 *
+	 * Stessa disciplina di `HandleClickOnUnitForTest`: `OnLockIn` e' privata e legata alla bindatura, e
+	 * cio' che va verificato e' la **decisione** — chiude il turno, o non lo chiude — non il trasporto
+	 * dell'input. Esiste per #971: durante una sessione non presidiata questo tasto non deve saltare il
+	 * playback ne' chiudere la pianificazione, ed e' l'unico percorso di input che **non** produce un piano
+	 * e quindi non sarebbe entrato da nessun criterio scritto sui siti `Order`.
+	 *
+	 * ⚠️ Definita nel `.cpp` e non qui: `FInputActionValue` in questo header e' solo dichiarato in avanti,
+	 * e costruirne uno inline non compilerebbe.
+	 */
+	void OnLockInForTest();
+
+	/**
 	 * Inquadra un'unita' con la camera: quello che fa il tasto `F` una volta stabilito CHI inquadrare.
 	 *
 	 * Estratto da `OnFocusSelected` perche' la scelta della quota — la **cella**, non la posizione
@@ -358,6 +381,43 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	bool IsGameplayInputBlocked() const;
+
+	/**
+	 * **La sessione non e' presidiata**: la pianificazione umana non deve agganciare niente (#971).
+	 *
+	 * Con l'autobattle in vigore entrambe le squadre sono del bot, ma il percorso di input non lo sapeva:
+	 * `URTCombatLibrary::CanPlayerControlUnit` decide su `UnitTeamId == PlayerTeamId` e per lui la squadra 0
+	 * resta del giocatore. Un click selezionava ancora, un ordine si scriveva ancora, e `PlanBots` lo
+	 * sovrascriveva il turno dopo senza dirlo. La modalita' esiste per essere **registrata in video**: il
+	 * difetto e' di coerenza, e il filmato e' l'artefatto.
+	 *
+	 * 🔴 **Perche' non e' una seconda causa dentro `IsGameplayInputBlocked`**, che sarebbe stata una riga
+	 * sola e copriva sei punti d'ingresso per costruzione: quel funnel include `OnRestart`, che agisce
+	 * **solo a `MatchEnded`**. Bloccarlo toglierebbe allo spettatore l'unico modo di rilanciare la demo
+	 * finita — un input che non produce nessun piano e non tocca nessuna simulazione in corso. Le due
+	 * cause hanno insiemi diversi, quindi restano due predicati.
+	 *
+	 * ⚠️ **Non blocca la CAMERA**, per la stessa ragione dichiarata dal fratello qui sopra e con un motivo
+	 * in piu': qui l'attore **e' lo spettatore**. Pan, zoom, orbita, recenter e focus non toccano il piano
+	 * ne' la simulazione, e una telecamera che smette di rispondere e' il terzo modo di rovinare la
+	 * registrazione — dopo il piano che evapora e il turno che si chiude da solo.
+	 *
+	 * ⚠️ **Blocca invece `OnLockIn` (Spazio)**, che non produce un piano e quindi non sarebbe entrato da
+	 * nessun criterio scritto sui cinque siti `Order`: durante una partita non presidiata quel tasto
+	 * **salta il playback** o **chiude il turno in anticipo**. Non rende il filmato confuso, lo taglia.
+	 *
+	 * ⛔ **Legge il GameMode, non `bIsBotControlled`.** L'autorita' e' la sessione — un valore latchato in
+	 * `SetupHexMatch` prima che le unita' entrino in campo — non l'attributo della singola unita', che ha
+	 * piu' siti di scrittura e che un'unita' gia' posata nel livello non attraversa affatto (vedi l'elenco
+	 * alla dichiarazione di `ARTUnit::bIsBotControlled`). E' anche cio' che tiene la guardia fuori dai test
+	 * di pacing, che pilotano `ARTTurnManager` direttamente su fixture senza GameMode.
+	 *
+	 * ⚠️ **Limite**: in multiplayer `GetAuthGameMode` non esiste sul client, e questo predicato risponde
+	 * `false` — cioe' l'input resta vivo. E' il verso sicuro (nessun input sparisce per un'autorita' che
+	 * non si e' potuta interrogare), ma la modalita' non presidiata e' offline per costruzione in v0.1.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
+	bool IsPlanningInputInert() const;
 
 	/**
 	 * §5.5 — applica il Back e dichiara **quale livello** ha smontato.

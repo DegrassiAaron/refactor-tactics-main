@@ -549,7 +549,7 @@ sono due fatti diversi sulla stessa finestra:
 commento argomenta contro *«due assi per un campo solo»* e conclude che `Amount` deve restare *«la quantita'
 che dichiara di essere»*. `Amount` ha significato **per categoria**: danni per `Combat` e `ReactionDecision`,
 celle per `Move`, direzione per `Facing`. Far scrivere al bank i propri millisecondi sotto `ReactionDecision`
-significherebbe che lo stesso campo, sotto la stessa categoria, vale danni per `FireChosen` e tempo per
+significherebbe che lo stesso campo, sotto la stessa categoria, vale danni per un `Chosen` che ha sparato ([D-245](../decisions/RT_PDR_00_Decision_Log.md): la risposta sta in `ReactionResponse`) e tempo per
 `BankAfter` — cioè il difetto che quel commento dichiara di aver evitato, reintrodotto dall'altra parte.
 
 Due argomenti secondari, coerenti con il primo:

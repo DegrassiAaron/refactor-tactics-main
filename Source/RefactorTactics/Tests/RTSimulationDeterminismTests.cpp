@@ -84,7 +84,8 @@ namespace
 		{
 			if (E.Category != ERTLogCategory::ReactionDecision) { continue; }
 			++OutDecisions;
-			if (static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::FireChosen)
+			// ⚠️ **«E' un FIRE?» si chiede alla RISPOSTA** (`#1118`): `Chosen` dice che si e' deciso, non cosa.
+			if (URTReactionOpportunityLibrary::FireResponseTarget(E.ReactionResponse) != INDEX_NONE)
 			{
 				++OutFires;
 			}
@@ -92,6 +93,27 @@ namespace
 	}
 
 	/** Quante voci di decisione portano questo esito. */
+	/**
+	 * Quante decisioni hanno risposto `FIRE`.
+	 *
+	 * ⚠️ **Non e' `CountOutcome(..., Chosen)`** (`#1118`): quella conta anche chi ha tenuto la cella e chi ha
+	 * scartato, perche' la ragione e' la stessa per tutti e tre. La domanda «quante volte si e' sparato» si
+	 * fa alla risposta, ed e' lo stesso predicato che il resolver usa per applicare il colpo.
+	 */
+	int32 CountFireResponses(const TArray<FRTTurnLogEntry>& Entries)
+	{
+		int32 N = 0;
+		for (const FRTTurnLogEntry& E : Entries)
+		{
+			if (E.Category == ERTLogCategory::ReactionDecision
+				&& URTReactionOpportunityLibrary::FireResponseTarget(E.ReactionResponse) != INDEX_NONE)
+			{
+				++N;
+			}
+		}
+		return N;
+	}
+
 	int32 CountOutcome(const TArray<FRTTurnLogEntry>& Entries, ERTReactionDecisionOutcome Wanted)
 	{
 		int32 N = 0;
@@ -376,7 +398,7 @@ bool FRTReplayVerifierOrphanRecordedResponseTest::RunTest(const FString&)
 	for (FRTTurnLogEntry& E : Perturbata)
 	{
 		if (E.Category == ERTLogCategory::ReactionDecision
-			&& static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::FireChosen)
+			&& URTReactionOpportunityLibrary::FireResponseTarget(E.ReactionResponse) != INDEX_NONE)
 		{
 			ChiaveOriginale = E.OpportunityId;
 			E.OpportunityId = ChiaveInventata;
@@ -395,7 +417,7 @@ bool FRTReplayVerifierOrphanRecordedResponseTest::RunTest(const FString&)
 	// un solo `FIRE`. E' l'asserzione che cade con l'indicizzazione per ordine.
 	const TArray<FRTTurnLogEntry> TracciaB = AllEntries(B);
 	TestEqual(TEXT("nessun FIRE nella ri-simulazione: la risposta orfana non e' scivolata su un'altra finestra"),
-		CountOutcome(TracciaB, ERTReactionDecisionOutcome::FireChosen), 0);
+		CountFireResponses(TracciaB), 0);
 	TestNotEqual(TEXT("e lo stato finale differisce da quello reale"), B.StateHash, A.StateHash);
 
 	// (b) il disaccordo e' SEGNALATO, e in entrambe le sue facce: la finestra vera senza risposta, e la
@@ -458,11 +480,13 @@ bool FRTReplayVerifierAmbiguousTraceTest::RunTest(const FString&)
 	{
 		const FRTTurnLogEntry& E = Ambigua[I];
 		if (E.Category == ERTLogCategory::ReactionDecision
-			&& static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::FireChosen)
+			&& URTReactionOpportunityLibrary::FireResponseTarget(E.ReactionResponse) != INDEX_NONE)
 		{
 			ChiaveDoppia = E.OpportunityId;
 			FRTTurnLogEntry Gemella = E;
-			Gemella.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::HoldChosen);
+			// La gemella tiene la STESSA ragione e cambia la RISPOSTA: e' cio' che rende ambigua la chiave,
+			// e con l'esito conflazionato non si poteva nemmeno esprimere.
+			Gemella.ReactionResponse = URTReactionOpportunityLibrary::HoldResponse();
 			Gemella.SelectedTargetUnitId = 0;
 			Ambigua.Insert(Gemella, I + 1);
 			break;
@@ -538,7 +562,7 @@ bool FRTReplayVerifierCollapsedWindowTest::RunTest(const FString&)
 	// valore, e sono stati separati perche' `HoldImmediate` copriva due meccanismi — il collasso da condizione
 	// e la finestra che nasce con una risposta sola per costruzione. Questo test vuole il PRIMO: e' quello che
 	// si ricalcola come funzione pura dello stato, e la ragione per cui la traccia non va riletta.
-	const int32 Collassi = CountOutcome(Traccia, ERTReactionDecisionOutcome::HoldCollapsedByCondition);
+	const int32 Collassi = CountOutcome(Traccia, ERTReactionDecisionOutcome::CollapsedByCondition);
 	if (!TestTrue(TEXT("la traccia porta almeno un collasso da condizione, o il test non verifica niente"), Collassi > 0))
 	{
 		return false;
@@ -550,7 +574,7 @@ bool FRTReplayVerifierCollapsedWindowTest::RunTest(const FString&)
 	TestEqual(FString::Printf(TEXT("il collasso ricalcolato da' lo stesso stato (%08x vs %08x)"),
 		B.StateHash, A.StateHash), B.StateHash, A.StateHash);
 	TestEqual(TEXT("e sempre lo stesso numero di collassi"),
-		CountOutcome(AllEntries(B), ERTReactionDecisionOutcome::HoldCollapsedByCondition), Collassi);
+		CountOutcome(AllEntries(B), ERTReactionDecisionOutcome::CollapsedByCondition), Collassi);
 	TestEqual(TEXT("nessuna divergenza: le voci del collasso non entrano nella mappa e non restano orfane"),
 		Divergenze.Num(), 0);
 	if (Divergenze.Num() > 0)
@@ -567,10 +591,14 @@ bool FRTReplayVerifierCollapsedWindowTest::RunTest(const FString&)
 	for (FRTTurnLogEntry& E : Tentatrice)
 	{
 		if (E.Category == ERTLogCategory::ReactionDecision
-			&& static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::HoldCollapsedByCondition)
+			&& static_cast<ERTReactionDecisionOutcome>(E.Outcome) == ERTReactionDecisionOutcome::CollapsedByCondition)
 		{
 			ChiaveCollasso = E.OpportunityId;
-			E.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen);
+			// ⚠️ Si falsificano ENTRAMBI gli assi (`#1118`): la ragione diventa «ha scelto» e la risposta
+			// diventa un `FIRE`. Cambiare la sola ragione non basterebbe piu' a tentare il Verifier — e'
+			// precisamente cio' che la separazione rende visibile.
+			E.Outcome = static_cast<uint8>(ERTReactionDecisionOutcome::Chosen);
+			E.ReactionResponse = URTReactionOpportunityLibrary::FireResponse(0);
 			E.SelectedTargetUnitId = 0; // un bersaglio qualunque: il punto e' che la risposta NON venga letta
 			break;
 		}
@@ -584,10 +612,9 @@ bool FRTReplayVerifierCollapsedWindowTest::RunTest(const FString&)
 
 	TestEqual(FString::Printf(TEXT("il FIRE registrato NON viene applicato: stesso stato (%08x vs %08x)"),
 		C.StateHash, A.StateHash), C.StateHash, A.StateHash);
-	TestEqual(TEXT("e la finestra collassata produce ancora HoldCollapsedByCondition"),
-		CountOutcome(AllEntries(C), ERTReactionDecisionOutcome::HoldCollapsedByCondition), Collassi);
-	TestEqual(TEXT("nessun FIRE nella ri-simulazione"),
-		CountOutcome(AllEntries(C), ERTReactionDecisionOutcome::FireChosen), 0);
+	TestEqual(TEXT("e la finestra collassata produce ancora CollapsedByCondition"),
+		CountOutcome(AllEntries(C), ERTReactionDecisionOutcome::CollapsedByCondition), Collassi);
+	TestEqual(TEXT("nessun FIRE nella ri-simulazione"), CountFireResponses(AllEntries(C)), 0);
 
 	bool bCollassoOrfano = false;
 	for (const FString& D : Divergenze)

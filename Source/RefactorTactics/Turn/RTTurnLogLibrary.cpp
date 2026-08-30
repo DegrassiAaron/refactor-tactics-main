@@ -1,6 +1,7 @@
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo del fallback, leggibile nel log
 #include "Turn/RTReactionLibrary.h" // ERTReactionOutcome: l'esito di una reazione, leggibile nel log
+#include "Turn/RTReactionOpportunityTypes.h" // FireResponseTarget/HoldResponse: la risposta si INTERROGA, non si riscrive (#1118)
 #include "Core/RTGameplayTags.h" // TAG_Status_Burning: la causa ambientale si CHIEDE al tag, non si riscrive
 #include "Misc/FileHelper.h"
 #include "Containers/ArrayView.h" // i campi discriminanti viaggiano come una vista, non come copie
@@ -179,7 +180,11 @@ bool URTTurnLogLibrary::IsDamageInflictedByActor(const FRTTurnLogEntry& Entry)
 
 	case ERTLogCategory::ReactionDecision:
 		// L'Overwatch che SPARA. Le altre decisioni della finestra — `HOLD`, il timeout — non portano danno.
-		return static_cast<ERTReactionDecisionOutcome>(Entry.Outcome) == ERTReactionDecisionOutcome::FireChosen;
+		//
+		// ⚠️ **Si chiede alla RISPOSTA e non all'esito** (`#1118`): `Chosen` dice che qualcuno ha deciso, non
+		// che abbia sparato. `FireResponseTarget` e' lo stesso predicato che il resolver usa per applicare il
+		// colpo, quindi le due letture non possono divergere — prima erano due criteri per la stessa domanda.
+		return URTReactionOpportunityLibrary::FireResponseTarget(Entry.ReactionResponse) != INDEX_NONE;
 
 	default:
 		return false;
@@ -515,40 +520,52 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 
 		switch (static_cast<ERTReactionDecisionOutcome>(Entry.Outcome))
 		{
-		case ERTReactionDecisionOutcome::FireChosen:
-			return FString::Printf(TEXT("%s -> %s: %s spara sull'unita' %d, %d danni (%s)"),
-				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Soggetto, Entry.SelectedTargetUnitId,
-				Entry.Amount, *Who);
-		// La risposta di un profilo (E14.7): il TOKEN e' l'informazione, e senza di lui due decisioni diverse
-		// — tenere la cella o scartare — si leggerebbero identiche. E' lo stesso argomento con cui i cinque
-		// `Hold` qui sotto NON condividono un testo.
-		case ERTReactionDecisionOutcome::ResponseChosen:
+		// ⚠️ **Un ramo solo per i tre esiti che erano `FireChosen`, `HoldChosen` e `ResponseChosen`, e la
+		// distinzione si legge dal TOKEN** (`#1118`). Il testo che ne esce e' lo stesso di prima, parola per
+		// parola: cambia da dove viene la discriminante — la risposta invece di un `uint8` che la nominava.
+		case ERTReactionDecisionOutcome::Chosen:
+		{
+			const int32 FireTarget = URTReactionOpportunityLibrary::FireResponseTarget(Entry.ReactionResponse);
+			if (FireTarget != INDEX_NONE)
+			{
+				return FString::Printf(TEXT("%s -> %s: %s spara sull'unita' %d, %d danni (%s)"),
+					*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Soggetto, Entry.SelectedTargetUnitId,
+					Entry.Amount, *Who);
+			}
+			// ⚠️ **Il vuoto vale `HOLD`**, e non e' un ripiego: le tracce v2..v10 non portano il token, e per
+			// loro «ha scelto e non ha sparato» significava esattamente la scelta sicura. Una traccia v11 il
+			// token ce l'ha sempre, quindi qui non passa mai col campo vuoto.
+			if (Entry.ReactionResponse.IsEmpty()
+				|| Entry.ReactionResponse.Equals(URTReactionOpportunityLibrary::HoldResponse(), ESearchCase::CaseSensitive))
+			{
+				return FString::Printf(TEXT("%s: %s tiene il colpo, resta armata (%s)"),
+					*CellText(Entry.SrcCell), Soggetto, *Who);
+			}
+			// La risposta di un profilo (E14.7): il TOKEN e' l'informazione, e senza di lui due decisioni
+			// diverse — tenere la cella o scartare — si leggerebbero identiche.
 			return FString::Printf(TEXT("%s: %s risponde «%s» (%s)"),
-				*CellText(Entry.SrcCell), Soggetto,
-				Entry.ReactionResponse.IsEmpty() ? TEXT("?") : *Entry.ReactionResponse, *Who);
-		// I cinque `Hold` NON condividono un testo, ed e' il punto della voce: applicano tutti lo stesso
-		// effetto — nessuno — e rispondono in modo diverso all'unica domanda che il giocatore pone davvero,
-		// *perche' non ha sparato?*. Un «tiene il colpo» per tutti cancellerebbe proprio quella differenza.
-		case ERTReactionDecisionOutcome::HoldChosen:
-			return FString::Printf(TEXT("%s: %s tiene il colpo, resta armata (%s)"),
-				*CellText(Entry.SrcCell), Soggetto, *Who);
-		case ERTReactionDecisionOutcome::HoldTimeout:
+				*CellText(Entry.SrcCell), Soggetto, *Entry.ReactionResponse, *Who);
+		}
+		// Le ragioni di NON scelta non condividono un testo, ed e' il punto della voce: applicano tutte lo
+		// stesso effetto — nessuno — e rispondono in modo diverso all'unica domanda che il giocatore pone
+		// davvero, *perche' non ha sparato?*. Un «tiene il colpo» per tutte cancellerebbe quella differenza.
+		case ERTReactionDecisionOutcome::Timeout:
 			return FString::Printf(TEXT("%s: %s non risponde in tempo, resta armata (%s)"),
 				*CellText(Entry.SrcCell), Soggetto, *Who);
-		case ERTReactionDecisionOutcome::HoldNoDecider:
+		case ERTReactionDecisionOutcome::NoDecider:
 			return FString::Printf(TEXT("%s: %s senza decisore, resta armata (%s)"),
 				*CellText(Entry.SrcCell), Soggetto, *Who);
-		case ERTReactionDecisionOutcome::HoldRejected:
+		case ERTReactionDecisionOutcome::Rejected:
 			return FString::Printf(TEXT("%s: risposta non ammessa, %s resta armata (%s)"),
 				*CellText(Entry.SrcCell), Soggetto, *Who);
-		case ERTReactionDecisionOutcome::HoldImmediate:
+		case ERTReactionDecisionOutcome::Immediate:
 			return FString::Printf(TEXT("%s: nessuna scelta possibile, %s resta armata (%s)"),
 				*CellText(Entry.SrcCell), Soggetto, *Who);
-		// ⚠️ Distinto da `HoldImmediate` perche' dice la CAUSA e non solo la constatazione (#583, [D-109]):
+		// ⚠️ Distinto da `Immediate` perche' dice la CAUSA e non solo la constatazione (#583, [D-109]):
 		// la' non c'era scelta, qui non c'e' perche' la condizione dichiarata ha escluso i bersagli.
-		// Il testo vecchio di `HoldImmediate` — «nessun bersaglio ammesso» — descriveva in realta' QUESTO caso,
+		// Il testo vecchio di `Immediate` — «nessun bersaglio ammesso» — descriveva in realta' QUESTO caso,
 		// ed e' passato a «nessuna scelta possibile», che e' cio' che quell'esito significa davvero.
-		case ERTReactionDecisionOutcome::HoldCollapsedByCondition:
+		case ERTReactionDecisionOutcome::CollapsedByCondition:
 			return FString::Printf(TEXT("%s: nessun bersaglio soddisfa la condizione, %s resta armata (%s)"),
 				*CellText(Entry.SrcCell), Soggetto, *Who);
 		}
@@ -670,9 +687,14 @@ namespace
 	 * autoritativo, non questo commento: `UnitId` e `TurnNumber` (D-063: rendono la traccia spiegabile, non
 	 * la discriminano), `Priority`, `ReactionInstanceId` (numero d'ordine dell'armamento: due tracce che
 	 * differissero solo per lui differirebbero gia' per l'`OpportunityId`), `OriginalTargetUnitId` (gia'
-	 * discriminato da `SrcCell`) e `ReactionResponse` (gia' discriminata da `Outcome` e
-	 * `SelectedTargetUnitId`). Un campo che non entra qui non fa divergere due tracce, quindi non ha niente
-	 * da nominare in una diagnosi: sono lo stesso elenco letto da due lati.
+	 * discriminato da `SrcCell`). Un campo che non entra qui non fa divergere due tracce, quindi non ha
+	 * niente da nominare in una diagnosi: sono lo stesso elenco letto da due lati.
+	 *
+	 * 🔴 **`ReactionResponse` stava in quell'elenco fino al 2026-08-29**, con la motivazione *«gia'
+	 * discriminata da `Outcome` e `SelectedTargetUnitId`»*. Era vera finche' l'esito nominava la risposta;
+	 * `#1118` ha separato i due assi, e la stessa frase e' diventata falsa nello stesso commit. E' il caso
+	 * che la nota su `BaseActionId` qui sotto descrive in astratto — «la condizione da ricontrollare, non
+	 * una proprieta' per sempre» — capitato per davvero.
 	 *
 	 * ⚠️ `BaseActionId` sta fuori per una proprieta' che puo' SMETTERE di valere: e' una FUNZIONE di
 	 * `ActionId`, che qui c'e' gia', quindi due tracce non possono differire solo per quel campo e
@@ -747,6 +769,17 @@ namespace
 			// giocatore ha sparato e l'altro ha tenuto sono due partite diverse. Solo DENTRO il ramo: mescolare
 			// `INDEX_NONE` incondizionatamente cambierebbe l'hash di **ogni** voce del progetto.
 			Number(TEXT("selectedTarget"), E.SelectedTargetUnitId);
+			// 🔴 **`reactionResponse` ENTRA dalla v11** (`#1118`), e la ragione e' scritta accanto a
+			// `BaseActionId` qui sopra: quel campo sta fuori *«per una proprieta' che puo' SMETTERE di
+			// valere»*. La proprieta' di `ReactionResponse` era «gia' discriminata da `Outcome`», e ha
+			// smesso di valere nel momento in cui `FireChosen` e `HoldChosen` sono diventati lo stesso
+			// `Chosen`: senza questa riga, una partita in cui si e' sparato e una in cui si e' tenuto
+			// avrebbero lo **stesso hash**. E' il campo che porta la distinzione, quindi e' il campo che
+			// deve mescolarla.
+			//
+			// ⚠️ **In coda e dentro il ramo**, come `selectedTarget`: fuori, mescolare una stringa vuota
+			// per ogni voce cambierebbe l'hash di tutto il progetto invece che delle sole decisioni.
+			Text(TEXT("reactionResponse"), E.ReactionResponse);
 		}
 	}
 
@@ -1014,7 +1047,7 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	// Il FormatId sta DOPO i flags e prima del conteggio: le posizioni dei campi precedenti non si spostano,
 	// cosi' un lettore che ispeziona magic/versione/flags continua a trovarli dove sono sempre stati.
 	AppendU32LE(Out, RT_TURNLOG_MAGIC);
-	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionResponse));
+	AppendU16LE(Out, static_cast<uint16>(ERTTurnLogFormatVersion::ResponseAndReasonSplit));
 	AppendU16LE(Out, static_cast<uint16>(Topology));
 	AppendStringUtf8(Out, FormatId.IsNone() ? FString() : FormatId.ToString());
 	AppendU32LE(Out, static_cast<uint32>(Canonical.Num()));
@@ -1062,6 +1095,73 @@ TArray<uint8> URTTurnLogLibrary::SerializeTurnLog(const TArray<FRTTurnLogEntry>&
 	return Out;
 }
 
+namespace
+{
+	/**
+	 * Porta una voce `ReactionDecision` scritta PRIMA della v11 alla forma nuova: ragione pura in `Outcome`,
+	 * token in `ReactionResponse`.
+	 *
+	 * 🔴 **I numeri sono scritti a mano, e devono restarci.** Sono i valori STORICI di
+	 * `ERTReactionDecisionOutcome`, e i nomi che li descrivevano — `FireChosen`, `HoldTimeout`, ... — non
+	 * esistono piu' nel codice: scriverli come simboli e' impossibile, e reintrodurre l'enum vecchio solo
+	 * per questa tabella significherebbe tenere in vita la conflazione che `#1118` toglie. Un numero nudo
+	 * con accanto il nome che aveva e' l'unica forma onesta: dice cosa c'era nei byte, non cosa c'e' oggi.
+	 *
+	 * ⚠️ **La ricostruzione del token e' esatta, non un'indovinello**: fino alla v10 il vocabolario delle
+	 * finestre era chiuso — `FIRE:<bersaglio>` per il fuoco, `HOLD` per tutto il resto — ed e' la stessa
+	 * deduzione che `ArmRecordedReactionDecisions` faceva a ogni lettura. Qui si fa **una volta sola**, e il
+	 * campo che ne esce e' indistinguibile da quello che una traccia v11 avrebbe scritto.
+	 *
+	 * ⚠️ **Tranne quando il token c'e' gia'**: una v10 con `ResponseChosen` (6) porta il proprio
+	 * `SIDESTEP`/`Hold Ground` nel campo, e sovrascriverlo con `HOLD` cancellerebbe la sola informazione che
+	 * quella versione aveva aggiunto.
+	 */
+	void MigrateReactionDecisionToV11(FRTTurnLogEntry& E)
+	{
+		if (E.Category != ERTLogCategory::ReactionDecision)
+		{
+			return;
+		}
+
+		const TCHAR* const Hold = URTReactionOpportunityLibrary::HoldResponse();
+		ERTReactionDecisionOutcome Reason = ERTReactionDecisionOutcome::Chosen;
+		bool bFireToken = false;
+		bool bHoldToken = true;
+
+		switch (E.Outcome)
+		{
+		case 0: // FireChosen
+			Reason = ERTReactionDecisionOutcome::Chosen;   bFireToken = true; bHoldToken = false; break;
+		case 1: // HoldChosen
+			Reason = ERTReactionDecisionOutcome::Chosen;   break;
+		case 2: // HoldTimeout
+			Reason = ERTReactionDecisionOutcome::Timeout;  break;
+		case 3: // HoldNoDecider
+			Reason = ERTReactionDecisionOutcome::NoDecider; break;
+		case 4: // HoldRejected
+			Reason = ERTReactionDecisionOutcome::Rejected; break;
+		case 5: // HoldImmediate
+			Reason = ERTReactionDecisionOutcome::Immediate; break;
+		case 6: // ResponseChosen — il token e' gia' nel campo, dalla v10
+			Reason = ERTReactionDecisionOutcome::Chosen;   bHoldToken = false; break;
+		case 7: // HoldCollapsedByCondition
+			Reason = ERTReactionDecisionOutcome::CollapsedByCondition; break;
+		default:
+			// Un valore che nessuna versione ha mai scritto. Non si indovina: la voce resta com'e', e il
+			// checksum in coda dira' che quei byte non erano quello che dichiaravano di essere.
+			return;
+		}
+
+		E.Outcome = static_cast<uint8>(Reason);
+		if (E.ReactionResponse.IsEmpty())
+		{
+			E.ReactionResponse = bFireToken
+				? URTReactionOpportunityLibrary::FireResponse(E.SelectedTargetUnitId)
+				: (bHoldToken ? FString(Hold) : FString());
+		}
+	}
+}
+
 bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FRTTurnLogEntry>& OutEntries,
 	ERTLogTopology* OutTopology, FName* OutFormatId)
 {
@@ -1081,10 +1181,14 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 	// altro valore e' rifiutato: interpretare byte di un formato ignoto produce un replay sbagliato in silenzio.
 	uint16 Version = 0;
 	if (!ReadU16LE(Bytes, Pos, Version)) { return false; }
+	// v11 (`#1118`): risposta e ragione separate. Non aggiunge byte — il campo c'era gia' dalla v10 — ma
+	// cambia il SIGNIFICATO dei valori di `Outcome` sulle voci `ReactionDecision`, quindi va distinta.
+	const bool bIsResponseAndReasonSplit =
+		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::ResponseAndReasonSplit));
 	// v10 (E14.7, [D-047]): il token della risposta. Come per ogni estensione precedente, la versione nuova
 	// implica tutte quelle sotto — le versioni sono cumulative, non alternative.
-	const bool bHasReactionResponse =
-		(Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionResponse));
+	const bool bHasReactionResponse = bIsResponseAndReasonSplit
+		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithReactionResponse));
 	const bool bHasRedirectOrigin = bHasReactionResponse
 		|| (Version == static_cast<uint16>(ERTTurnLogFormatVersion::WithRedirectOrigin));
 	const bool bHasReactionDecision = bHasRedirectOrigin
@@ -1249,12 +1353,15 @@ bool URTTurnLogLibrary::DeserializeTurnLog(const TArray<uint8>& Bytes, TArray<FR
 				return false;
 			}
 		}
-		// Sotto la v10 resta **vuoto**, ed e' la lettura giusta e non una perdita: in quelle versioni l'unico
-		// produttore di finestre era l'Overwatch, la cui risposta si **deduce** dall'esito. Un campo vuoto
-		// dice a `ArmRecordedReactionDecisions` «deducila come sempre», che e' esattamente cio' che quei byte
-		// significavano. ⚠️ Inventare qui un token — ricostruendolo dall'`Outcome` — sarebbe peggio che
-		// lasciarlo vuoto: farebbe sembrare esplicita una deduzione, e il lettore perderebbe la sola
-		// informazione che distingue le due epoche del formato.
+		// 🔴 **Sotto la v11 la voce si MIGRA, e fino a ieri si lasciava com'era.** La riga che stava qui
+		// diceva che ricostruire il token *«sarebbe peggio che lasciarlo vuoto»*, e aveva ragione: finche'
+		// l'esito nominava la risposta, un campo vuoto significava «deducila», e la deduzione era possibile
+		// a ogni consumo. `#1118` ha tolto il nome dall'esito, quindi lo stesso campo vuoto oggi sarebbe una
+		// risposta **persa** — e la deduzione si fa qui, una volta, invece che in ogni lettore.
+		if (!bIsResponseAndReasonSplit)
+		{
+			MigrateReactionDecisionToV11(E);
+		}
 		OutEntries.Add(E);
 	}
 

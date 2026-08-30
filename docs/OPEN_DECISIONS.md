@@ -35,6 +35,30 @@ Il silenzio è quindi **scelto**, e questa voce esiste perché non venga riscope
 
 ---
 
+## Aperte — come si apre il Composer, dal widget costruito il 2026-08-29
+
+> ✅ **`TD-COMP-1` chiusa il 2026-08-29: uscita (a), `EditorUtilityWidget`.** Il Composer si lancia col
+> tasto destro dal Content Browser. ⚠️ **Il prezzo che questa voce gli attribuiva era sopravvalutato**:
+> diceva *«la dipendenza da `Blutility`»*, ma in UE 5.8 `Blutility` **non è un plugin da abilitare** — è un
+> modulo dell'Engine, `Engine/Source/Editor/Blutility/Classes/EditorUtilityWidget.h`, e il `.uproject` non
+> lo nomina perché non deve. Resta vero l'altro mezzo prezzo: è il **primo** `EditorUtilityWidget` del
+> progetto, quindi il pattern nasce qui e il secondo strumento lo erediterà.
+>
+> ⛔ **Non diventa una `D-0xx`**: è una scelta d'implementazione su un asset, non una decisione di canone.
+> Se il pattern si ripete, allora varrà la pena scriverla nel Decision Log.
+
+`WBP_RT_ScenarioComposer` esiste da [PR #1701](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1701)
+e chiama le API di `URTScenarioAuthoring`: apre uno scenario per ID, lo esegue, lo azzera, lo salva. Ma
+**nessuno lo mostra**, e il [contratto](technical/tooling/contratto-wbp-scenario-composer.md) non lo dice: le
+sue sette sezioni descrivono *cosa* il widget legge e scrive, mai *da dove* un designer lo apre.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| ~~`TD-COMP-1`~~ | ~~Il Composer si apre come **`EditorUtilityWidget`** dal Content Browser, o resta un `UserWidget` **montato da un livello** d'authoring?~~ | ✅ **Chiusa: `EditorUtilityWidget`.** Non si deduce dal codice perché **non esiste il precedente**: una ricerca di `EditorUtility` fra i `Content/**` versionati dà **zero** — sarebbe il primo del progetto, e reparentarlo è introdurre un pattern, non configurare un asset. Non si deduce dal contratto, che sul punto tace. Due uscite: **(a) `EditorUtilityWidget`** — si lancia col tasto destro, vive solo in editor e non entra in una build, che è ciò che uno strumento d'authoring vuole; al prezzo di un pattern nuovo da mantenere e della dipendenza da `Blutility` · **(b) `UserWidget` montato**, coerente con gli otto `WBP_RT_*` esistenti, ma serve un livello o un GameMode che lo istanzi — cioè un secondo asset per aprire il primo. **Innesco**: la prima esecuzione di `PIE-SCEN-COMPOSER`, oggi ⏳ perché fino al 2026-08-29 il bloccante era che l'asset non esistesse |
+| `TD-COMP-2` | La collocazione `/Game/RT/UI/Scenario/` è **confermata**, o il Composer va in una cartella che separa gli strumenti dal gioco? | Il contratto §6 dichiara il punto un *«dubbio aperto e non una decisione presa»*, raccomanda `UI/Scenario/` e chiede che chi accetta la raccomandazione la registri **qui**. PR #1701 l'ha applicata **senza registrarla**, e questa riga chiude quel debito. ⚠️ **Il costo di sbagliare è basso e misurato**: `.gitignore:78` è un glob e copre l'intera sottocartella, quindi uno spostamento non rende l'asset invisibile — è il motivo per cui la PR ha proceduto invece di fermarsi. **Innesco**: il secondo strumento d'authoring che nasce, quando la domanda smette di riguardare un asset solo |
+
+---
+
 ## Aperta — come il bot sceglie fra due reazioni, dal 2026-08-27
 
 Origine: [D-220](decisions/RT_PDR_00_Decision_Log.md). Fino a [D-218](decisions/RT_PDR_00_Decision_Log.md)
@@ -49,7 +73,12 @@ reazione di kit**.
 
 ---
 
-## Aperta — che cosa conta come «stallo», dal 2026-08-28
+## ✅ Chiusa il 2026-08-29 da `D-244` — «stallo» è relativo alla board, e la divergenza è una decisione
+
+> **Uscita adottata: (d).** Non «non si decide»: si decide che **il significato di «stallo» appartiene alla
+> board**, e che i due oracoli divergenti sono la forma corretta e non un difetto da riparare. L'istruttoria
+> che segue resta perché è la **ragione** della scelta, e perché il primo terzo oracolo dovrà rileggerla.
+> Owner della decisione: [`D-244`](decisions/RT_PDR_00_Decision_Log.md).
 
 Origine: [#1551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1551), osservata mentre si
 chiudeva [#1547](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1547) e **deliberatamente non
@@ -75,13 +104,18 @@ presa due volte in due file senza che nessuno la dichiarasse tale.
 
 | ID | Domanda | Perché non si deduce, e le uscite col loro costo |
 |---|---|---|
-| `BOT-STALL-1` | **Lo stallo di un'unità è l'immobilità, o l'immobilità STERILE?** Cioè: un turno in cui l'unità non si muove ma infligge danno conta come turno di stallo? | Non si deduce dal codice perché **entrambe le risposte sono già implementate**, ciascuna con la propria verifica di mutazione, e nessuna delle due è la deriva dell'altra. Non si deduce da [`D-184`](decisions/RT_PDR_00_Decision_Log.md), che dichiara legittimo il pareggio allo scadere e distingue *«un pareggio in cui il campo si è consumato»* da *«un pareggio in cui nessuno cade»* — ma **non** dice se «ferma che spara» stia di qua o di là. Quattro uscite: **(a) stallo = immobilità sterile** (esenzione ovunque) → l'oracolo di `#1088` diventa **cieco sull'unica board su cui gira**, e quella è la configurazione che la partita non presidiata carica · **(b) stallo = immobilità** (esenzione in nessuno dei due) → sulla mappa d'autore un duello a distanza tenuto oltre la soglia dà un rosso da **leggere**, non un difetto, e la soglia diventa di fatto un numero di bilanciamento · **(c) esenzione condizionata all'AVANZAMENTO** — un turno fermo non conta se l'unità ha inflitto danno **e** nella finestra lo stato è avanzato (HP nemici calati, o qualcuno caduto). È la distinzione che `D-184` fa già a parole, resa eseguibile; ✅ **misurata il 2026-08-29** ([#1551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1551), `RTStallDefinitionMeasureTests.cpp`, run dichiarata VALIDA): sulle due board su cui girano i due oracoli la (c) **non produce un verdetto diverso dalla (a)**. ⚠️ **E le letture non sono quattro indipendenti** — è il rilievo che ha corretto la prima stesura di questa riga, che ne contava tre dove ce n'è una: `pool netto` e `salute o eliminazione` sono **identità** algebriche di `salute netta`, perché al punto di campionamento il Cleanup ha appena rimesso `Shield = BaseShield` su ogni unità viva, quindi `Pool == Salute + BaseShield · Vivi` e `bPoolCalato ⟺ bSaluteCalata` — identità **asserita a ogni osservazione** dal test, non riportata a mano; `salute per turno` è una **coincidenza misurata**, non forzata; `eliminazione` è l'unica differenza, e coincide con la **(b)**. Numeri: **3** sulla mappa d'autore e **2** sull'arena generata per ogni lettura basata sulla salute — gli stessi della (a) — contro **4 e 4** per `eliminazione`. 🔴 **Il perché vale più dei numeri**: la (c) può separarsi dalla (a) **solo** quando un colpo è interamente assorbito, e in v0.1 non accade mai — l'attacco base fa **20–28** (`BasicAttackDamageForRange`: 28 in mischia, 20 a lunga gittata) contro uno scudo base di **5**. L'unico assorbitore è lo scudo temporaneo **25** di `Action.Shield`, che il difensore paga con l'azione principale ogni due turni. ∴ questi numeri non sono una proprietà delle due board ma dei **numeri di bilanciamento**, e si muovono con [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149). ∴ la (c) costa una finestra di HP per unità e **una soglia nuova** — materia di `D-184` e non di un test — e su questi dati non compra nessun verdetto diverso da quello che la (a) già dà. ⚠️ **Limite, e per scelta**: non è misurata la (c) in uno scenario COSTRUITO dove può separarsi (bersaglio che si scuda, attaccante fermo che spara dentro lo scudo). Non è una lacuna del mandato: il condizionale chiedeva la misura là dove il bot gioca. ⛔ La voce resta **APERTA**: l'owner è `PDR-00` · **(d) restare divergenti, ma dichiarato** — lo stato di oggi dopo #1551: ciascun oracolo tiene la definizione che lo rende falsificabile sulla propria board, e i due file si nominano a vicenda con il costo dell'allineamento scritto. Costo: «stallo» non ha un significato unico nel repository, e il terzo oracolo dovrà scegliere da capo. **Raccomandata: (c) se qualcuno la misura, altrimenti (d)** — (a) e (b) tolgono ciascuna il potere discriminante a un oracolo esistente, e quello è l'unico costo che nessuna delle due compensa. 🔔 **L'ANTECEDENTE DI QUESTA RACCOMANDAZIONE È SCATTATO** (2026-08-29): qualcuno l'ha misurata, quindi letta alla lettera la riga ora istruisce ad adottare la **(c)** — subito dopo che la misura, in questa stessa cella, mostra che (c) non compra un verdetto diverso dalla (a). Il conseguente **non è stato riscritto**: riscriverlo sarebbe prendere la decisione. Va **riletto dal suo owner** con la misura in mano. **Innesco**: il primo terzo oracolo di stato assorbente, oppure [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149), che ritarando i pesi del bot consuma il margine — oggi **4 su soglia 4**, margine zero, già segnalato da un `AddWarning` |
+| ~~`BOT-STALL-1`~~ | ~~**Lo stallo di un'unità è l'immobilità, o l'immobilità STERILE?** Cioè: un turno in cui l'unità non si muove ma infligge danno conta come turno di stallo?~~ | ✅ **NÉ L'UNA NÉ L'ALTRA IN ASSOLUTO — «STALLO» È RELATIVO ALLA BOARD. Chiusa il 2026-08-29 da [`D-244`](decisions/RT_PDR_00_Decision_Log.md), uscita (d).** L'istruttoria che segue è la ragione della scelta e resta leggibile per intero. Non si deduce dal codice perché **entrambe le risposte sono già implementate**, ciascuna con la propria verifica di mutazione, e nessuna delle due è la deriva dell'altra. Non si deduce da [`D-184`](decisions/RT_PDR_00_Decision_Log.md), che dichiara legittimo il pareggio allo scadere e distingue *«un pareggio in cui il campo si è consumato»* da *«un pareggio in cui nessuno cade»* — ma **non** dice se «ferma che spara» stia di qua o di là. Quattro uscite: **(a) stallo = immobilità sterile** (esenzione ovunque) → l'oracolo di `#1088` diventa **cieco sull'unica board su cui gira**, e quella è la configurazione che la partita non presidiata carica · **(b) stallo = immobilità** (esenzione in nessuno dei due) → sulla mappa d'autore un duello a distanza tenuto oltre la soglia dà un rosso da **leggere**, non un difetto, e la soglia diventa di fatto un numero di bilanciamento · **(c) esenzione condizionata all'AVANZAMENTO** — un turno fermo non conta se l'unità ha inflitto danno **e** nella finestra lo stato è avanzato (HP nemici calati, o qualcuno caduto). È la distinzione che `D-184` fa già a parole, resa eseguibile; ✅ **misurata il 2026-08-29** ([#1551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1551), `RTStallDefinitionMeasureTests.cpp`, run dichiarata VALIDA): sulle due board su cui girano i due oracoli la (c) **non produce un verdetto diverso dalla (a)**. ⚠️ **E le letture non sono quattro indipendenti** — è il rilievo che ha corretto la prima stesura di questa riga, che ne contava tre dove ce n'è una: `pool netto` e `salute o eliminazione` sono **identità** algebriche di `salute netta`, perché al punto di campionamento il Cleanup ha appena rimesso `Shield = BaseShield` su ogni unità viva, quindi `Pool == Salute + BaseShield · Vivi` e `bPoolCalato ⟺ bSaluteCalata` — identità **asserita a ogni osservazione** dal test, non riportata a mano; `salute per turno` è una **coincidenza misurata**, non forzata; `eliminazione` è l'unica differenza, e coincide con la **(b)**. Numeri: **3** sulla mappa d'autore e **2** sull'arena generata per ogni lettura basata sulla salute — gli stessi della (a) — contro **4 e 4** per `eliminazione`. 🔴 **Il perché vale più dei numeri**: la (c) può separarsi dalla (a) **solo** quando un colpo è interamente assorbito, e in v0.1 non accade mai — l'attacco base fa **20–28** (`BasicAttackDamageForRange`: 28 in mischia, 20 a lunga gittata) contro uno scudo base di **5**. L'unico assorbitore è lo scudo temporaneo **25** di `Action.Shield`, che il difensore paga con l'azione principale ogni due turni. ∴ questi numeri non sono una proprietà delle due board ma dei **numeri di bilanciamento**, e si muovono con [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149). ∴ la (c) costa una finestra di HP per unità e **una soglia nuova** — materia di `D-184` e non di un test — e su questi dati non compra nessun verdetto diverso da quello che la (a) già dà. ⚠️ **Limite, e per scelta**: non è misurata la (c) in uno scenario COSTRUITO dove può separarsi (bersaglio che si scuda, attaccante fermo che spara dentro lo scudo). Non è una lacuna del mandato: il condizionale chiedeva la misura là dove il bot gioca. ⛔ Questa era la voce che restava aperta, e il suo owner era `PDR-00`: **la scelta è arrivata il 2026-08-29 ed è la (d)** · **(d) ADOTTATA — restare divergenti, ma dichiarato** — lo stato di oggi dopo #1551: ciascun oracolo tiene la definizione che lo rende falsificabile sulla propria board, e i due file si nominano a vicenda con il costo dell'allineamento scritto. Costo: «stallo» non ha un significato unico nel repository, e il terzo oracolo dovrà scegliere da capo. ✅ **DECISA il 2026-08-29 dall'autore, uscita (d)** — [`D-244`](decisions/RT_PDR_00_Decision_Log.md). La raccomandazione condizionale *«(c) se qualcuno la misura, altrimenti (d)»* era stata **sospesa** poche ore prima ([#1655](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1655)) perché il suo antecedente era scattato e un condizionale consumato non è più un condizionale: è un'istruzione, e quell'istruzione puntava all'uscita che la misura in questa stessa cella sconsiglia. La sospensione ha fatto il proprio lavoro — ha tolto l'istruzione sbagliata senza scegliere — e la scelta è arrivata subito dopo. **Il criterio che l'ha determinata**: (a) e (b) tolgono ciascuna il potere discriminante a un oracolo che oggi funziona, ed è l'unico costo che nessuna delle due compensa; la (c) paga una soglia nuova e una finestra di HP per unità per comprare **zero** verdetti diversi dalla (a). **Innesco**: il primo terzo oracolo di stato assorbente, oppure [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149), che ritarando i pesi del bot consuma il margine — oggi **4 su soglia 4**, margine zero, già segnalato da un `AddWarning` |
 
-> 🔎 **Perché non è urgente, e perché non va nemmeno rimandata all'infinito.** Oggi entrambi gli oracoli sono
-> verdi e ciascuno falsifica il difetto che sorveglia: nessuna partita è misurata male. Diventa urgente
-> quando qualcuno tocca uno dei due — «per coerenza» è il modo tipico — perché allinearli senza leggere
-> l'altro toglie a uno dei due la prova che porta, e il rosso che ne segue si legge come un difetto del bot.
-> Le due note incrociate nei file esistono per rendere quel passo impossibile per distrazione.
+> 🔎 **Perché la divergenza si tiene, ora che è decisa.** Entrambi gli oracoli sono verdi e ciascuno
+> falsifica il difetto che sorveglia: nessuna partita è misurata male. Il rischio non era l'attesa — era
+> che qualcuno toccasse uno dei due «per coerenza», perché allinearli senza leggere l'altro toglie a uno
+> dei due la prova che porta, e il rosso che ne segue si legge come un difetto del bot. `D-244` rende quel
+> passo un cambio di decisione invece di un refactor, e le due note incrociate nei file — che ora nominano
+> la decisione, non più una domanda aperta — lo rendono impossibile per distrazione.
+>
+> ⚠️ **Ciò che la decisione NON compra**: «stallo» continua a non avere un significato unico nel
+> repository. Il primo terzo oracolo di stato assorbente dovrà scegliere da capo invece di ereditare, ed è
+> il costo accettato per non accecare nessuno dei due esistenti.
 
 ---
 
@@ -101,13 +135,17 @@ possedeva**. Misurato il 2026-08-28: `0` issue con `ranked` nel titolo, `0` con 
 
 ---
 
-## Aperte — la posa nella cella finale, dallo spec panel del 2026-08-28
+## Aperte — geometria intra-cella e copertura, ciò che resta della posa nella cella finale
 
 Origine: [`#1606`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1606). Una proposta d'autore
 descrive la scelta di **come ci si sistema nella cella d'arrivo** dopo il movimento, tramite uno spicchio o un
 gruppo di spicchi, e la sua interazione con la copertura. È `PROPOSED`, non canone: `PlacementSector`,
 `CoverAnchor` e `ResolvedCoverState` hanno **0** occorrenze in `Source/`, misurato il 2026-08-28 su
-`f8ea244b`.
+`f8ea244b` e riverificato il 2026-08-29 su `24cfe99a`.
+
+✅ **Cinque delle sette sono chiuse il 2026-08-29 da [`D-243`](decisions/RT_PDR_00_Decision_Log.md)** — la
+sezione qui sotto. Le due che restano non riguardano la **posa**: riguardano la **geometria** della cella e
+quali dati producono copertura, e sopravvivono intatte alla decisione perché non dipendono da essa.
 
 ⚠️ **Non sono le `GBX-*`.** Il `Cell Placement Volume` di
 [`spec-graybox-placement-contract.md`](technical/systems/spec-graybox-placement-contract.md) è **authoring**:
@@ -117,13 +155,8 @@ da una domanda di presentazione.
 
 | ID | Domanda | Perché non si deduce |
 |---|---|---|
-| `PLC-1` | **`Placement` e `Facing` possono divergere**, o lo stesso spicchio determina entrambi? | Due modelli coerenti con costi di ordini di grandezza diversi. Se coincidono, il selettore a spicchi è **solo una UI nuova** per il facing di [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md). Se divergono, nasce un **secondo stato per unità** che deve entrare in snapshot, TurnLog, privacy e bot — e il budget di pivot per eroe si applica a uno dei due, non a entrambi. Va decisa **insieme** a `PLC-7` |
-| `PLC-2` | **Il `Placement` può cambiare senza movimento?** | Tocca l'economia delle azioni (`D-025`, `D-028`): gratis è sempre ottimale, quindi non è una scelta; a costo è un'**azione generica nuova**, e le sette di `D-025` non la prevedono. Perimetro di [`#609`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609) |
 | `PLC-3` | **Quali geometrie producono un `CoverAnchor`** — solo i bordi murati, anche gli oggetti interni, o le celle adiacenti? | Oggi la copertura è `FRTHexCover` sui **bordi**, e `D-129` ha stabilito che il bake cuoce solo quelli. Estenderla agli interni richiede un produttore che non esiste: la scelta decide se il sistema è una **rilettura** della geometria attuale o un **secondo strato** di dati |
 | `PLC-4` | **L'ingombro interno blocca LOS e movimento, o solo la copertura?** | Stessa forma di `MSE-2`/`MSE-4`, con posta più alta: il blocco sarebbe **intra-cella**, e il grafo tattico non lo rappresenta. La regola conservativa che lì rende `Blocked` una cella attraversabile, qui non ha nemmeno un posto dove essere scritta |
-| `PLC-5` | **Un gruppo di spicchi è UI o entità logica?** | Se è UI, il modello resta a uno spicchio. Se è logica, il numero di stati per cella esplode e `Placement` non è più un intero piccolo — con conseguenze dirette su serializzazione e hash |
-| `PLC-6` | **Cosa fa lo spostamento forzato al `Placement`**: lo conserva, lo azzera, o lo deriva dalla direzione della spinta? | ADR-0005 §3 e la primitiva di [`#541`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/541) decidono il **facing** dopo un `Forced`, non la posa. Le tre uscite danno letture opposte del contro-gioco: conservarlo rende lo spostamento meno punitivo, derivarlo lo rende una vera perdita di posizione |
-| `PLC-7` | **Il `Placement` entra nello snapshot e nell'hash, o è derivato?** | Se entra, è stato autorevole e ogni replay esistente cambia formato. Se è derivato, deve esserlo da una funzione pura del percorso — e allora `PLC-2` è già risposta **no**. Le due si vincolano, e vanno decise insieme a `PLC-1` |
 
 > ⛔ **Ciò che resta vietato mentre queste sono aperte**, perché è ciò che tiene il modello discreto: nessun
 > `FVector` intra-cella autorevole · nessun mini-navmesh dentro l'esagono · nessun `Actor` per settore ·
@@ -131,10 +164,31 @@ da una domanda di presentazione.
 > `PlacementSector` arriverà, la copertura **non** diventa una proprietà del settore: la forma da preservare è
 > `Placement + CoverGeometry + geometria dell'attaccante + Facing/policy → ResolvedCoverState`.
 
-> 🔎 **Perché non sono urgenti, e cosa le rende tali.** La sola fetta che il sorgente propone per la v0.1 è
-> **UX pura** — un selettore a spicchi per scegliere il facing, ghost orientato, settori legali — e non ha
-> bisogno di nessuna di queste risposte, **ma solo se `PLC-1` risponde «coincidono»**. Diventano urgenti nel
-> momento in cui qualcuno disegna quel selettore, non prima.
+> 🔎 **Perché non sono urgenti, e cosa le rende tali.** La riga precedente diceva che la fetta UX della v0.1
+> non ha bisogno di queste risposte *«ma solo se `PLC-1` risponde «coincidono»»*. `D-243` ha risposto
+> **«derivato»**, che ne è la forma stretta: lo spicchio non è uno stato, quindi il selettore può nascere
+> senza toccare la simulazione. Queste due diventano urgenti quando qualcuno chiede alla **geometria interna**
+> di produrre copertura — non quando qualcuno disegna il selettore.
+
+---
+
+## ✅ Chiuse il 2026-08-29 da `D-243` — la posa non è uno stato: lo spicchio dichiara il facing
+
+Nate come `PLC-1`, `PLC-2`, `PLC-5`, `PLC-6`, `PLC-7` nella sezione qui sopra, aperte il 2026-08-28 e chiuse
+il giorno dopo. Stanno qui e non fra le aperte perché una riga barrata in una tabella di domande si conta lo
+stesso quando qualcuno le enumera. È la stessa ragione con cui questa pagina tiene la sezione di `GBX-6`, chiusa il 2026-08-17 da [`D-163`](decisions/RT_PDR_00_Decision_Log.md): la disciplina è di questo documento, non di quella decisione, che riguarda la scala d'arte.
+
+**Quattro cadono per corollario, una sola è stata decisa**: `PLC-1`. Le altre non avevano più un oggetto —
+senza uno stato non c'è nulla da cambiare senza movimento, da raggruppare, da conservare dopo uno spostamento
+forzato, né da mettere nell'hash.
+
+| ID | Domanda | Esito, e l'istruttoria che ci è arrivata sotto |
+|---|---|---|
+| ~~`PLC-1`~~ | ~~**`Placement` e `Facing` possono divergere**, o lo stesso spicchio determina entrambi?~~ | ✅ **NÉ L'UNO NÉ L'ALTRO: il `Placement` è DERIVATO — chiusa da [`D-243`](decisions/RT_PDR_00_Decision_Log.md).** L'input a dodici spicchi è **presentazione**; ciò che entra nella regola è il facing a sei che ne deriva, con `EdgeIndex = SectorIndex / 2` e `URTHexLibrary::DirectionForEdgeIndex`. 🔴 **«Coincidono» è falso alla lettera, e a dirlo è la cadenza**: [`D-020`](decisions/RT_PDR_00_Decision_Log.md) dà al facing una timeline a **sei stadi per round** (`FacingStartOfRound → FacingAfterPrepActionTargeting → FacingAfterDash → FacingUsedByBlast → FacingUsedByOverwatch → FacingFinalAfterMove`), mentre la posa nella cella d'arrivo è per costruzione **un solo valore, a fine Move**. Due oggetti con frequenze diverse non sono lo stesso oggetto: l'identità regge come **derivazione a senso unico** — lo spicchio dichiara `FacingFinalAfterMove` — non come equivalenza. ⛔ **«Divergono» è stato scartato col suo conto**: un secondo stato per unità entra in snapshot, TurnLog, privacy e bot, cambia il formato di ogni replay archiviato, e pretende un produttore di `CoverAnchor` che `D-129` non ha. È un ADR e un'epic, non una risposta a una domanda aperta. ⚠️ **Il prerequisito ereditato**: `ADR-0008` è **accettato e non implementato** — `MoveEndPivotMaxSteps` e `DashEndPivotMaxSteps` hanno **0** occorrenze in `Source/`, tracciato in [`#1605`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1605) — quindi il selettore a spicchi dichiara un facing il cui modello di budget a runtime non c'è ancora |
+| ~~`PLC-2`~~ | ~~**Il `Placement` può cambiare senza movimento?**~~ | ✅ **NO — corollario di `PLC-1`, chiusa da [`D-243`](decisions/RT_PDR_00_Decision_Log.md).** `PLC-7` lo prevedeva per iscritto: *«se è derivato, deve esserlo da una funzione pura del percorso — e allora `PLC-2` è già risposta no»*. Nessuna azione generica nuova, quindi `D-025` resta a sette. ⚠️ **Ciò che questo NON chiude** è la rotazione da fermo, che è del facing e non della posa: resta dove sta, in `ADR-0005`/`ADR-0008` e nel perimetro di [`#609`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609) |
+| ~~`PLC-5`~~ | ~~**Un gruppo di spicchi è UI o entità logica?**~~ | ✅ **UI — chiusa da [`D-243`](decisions/RT_PDR_00_Decision_Log.md).** Senza uno stato non c'è nulla da raggruppare: il gruppo è aiuto alla selezione. ➕ **E il conto che la domanda nominava resta il motivo per non tornarci**: da entità logica lo spazio di stato per cella passa da **12** valori a **4096** sottoinsiemi, e `Placement` non sarebbe più *«un intero piccolo»* — con conseguenze dirette su serializzazione e hash che nessun consumatore chiede |
+| ~~`PLC-6`~~ | ~~**Cosa fa lo spostamento forzato al `Placement`**: lo conserva, lo azzera, o lo deriva dalla direzione della spinta?~~ | ✅ **NIENTE, perché non c'è posa da conservare — chiusa da [`D-243`](decisions/RT_PDR_00_Decision_Log.md).** Il facing dopo un `Forced` è già deciso da `ADR-0005` §3 e dalla primitiva di [`#541`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/541), e resta l'unica cosa che uno spostamento subìto tocca. ⚠️ **La lettura di contro-gioco che la domanda apriva non sparisce, cambia oggetto**: «conservare o perdere la posizione» è una scelta sul **facing**, e se qualcuno vorrà tararla è lì che si scrive, non su un secondo stato |
+| ~~`PLC-7`~~ | ~~**Il `Placement` entra nello snapshot e nell'hash, o è derivato?**~~ | ✅ **FUORI — chiusa da [`D-243`](decisions/RT_PDR_00_Decision_Log.md), col trattamento del facing.** `FRTUnitStateDigest` porta `UnitId`, `Cell`, `Health`, `Shield`, `Energy`, `bAlive`, `Statuses`: un valore derivato non ci entra, e il criterio scritto in quel file è *«un campo entra nell'hash se e solo se due oggetti possono differire **solo** per quello»*. 🔴 **Ma la misura ha trovato accanto una domanda che questa voce NON chiude**: nel digest il **`Facing` non c'è**, pur decidendo esiti in `Combat`, `Perception`, `Reaction` e privacy, e l'assenza non risulta registrata in nessuna decisione. Può essere difendibile — a fine partita il facing non cambia più nessun esito — o essere un difetto: due finali identici con orientamenti opposti danno oggi lo stesso checksum. **Va deciso a parte**, e `D-243` si limita a nominarlo |
 
 ---
 
@@ -1356,7 +1410,7 @@ Owner: [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) §9. Non
 | Composizione del team | assunzioni discordanti; il progetto assume **dev singolo** |
 | Direzione artistica | inesistente; si usano placeholder e asset Paragon |
 | Hardware target | mai definito → i budget KPI restano **da misurare**, non garanzie |
-| Identità originale (nomi, lore) | necessaria per una pubblicazione |
+| Identità originale (nomi, lore) | necessaria per una pubblicazione. 📌 **Dal 2026-08-30 il materiale su cui si deciderà ha un owner**: [`product/lore-e-worldbuilding.md`](product/lore-e-worldbuilding.md) ([D-246](decisions/RT_PDR_00_Decision_Log.md)) — la sorgente d'autore del worldbuilding, `PROPOSED` e non normativa, che tiene anche il livello con spoiler che la Wiki non pubblica. ⚠️ **Averla non avvicina la decisione**: `Harmonic Coupling`, `Refactor` e `ARC` restano fuori dal canone, e i quattro `FactionId` hanno zero occorrenze in `Source/`. Cambia solo che ora la domanda ha un documento da leggere invece di un file di radice che nessun gate guardava |
 | ~~Mapping visuale Paragon → roster~~ | **chiusa il 2026-08-08** da [`D-037`](decisions/RT_PDR_00_Decision_Log.md): Flux → `Paragon.Gadget`, Riva → `Paragon.Phase`, Bastion → `Paragon.Riktor`, Vektor → `Paragon.Wraith`. Tabella owner in [`characters/paragon.md`](characters/paragon.md). Resta aperto solo il **nome retail** dei quattro slot v0.2, che è la riga «Identità originale» qui sopra | <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 
 ## ✅ Chiuse il 2026-08-09 — sessione `/sc:brainstorm` su E13

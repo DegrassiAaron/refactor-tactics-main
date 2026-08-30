@@ -16,6 +16,9 @@
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
+// #971: la sessione non presidiata e' un fatto del GameMode (`IsAutobattleInEffect()`), non dell'unita'.
+// Vedi `IsPlanningInputInert()`.
+#include "RTGameMode.h"
 // CP 46.6 (#941): `ESC` apre il menu di pausa, e il contesto `Modal` del puntatore LEGGE lo stato del
 // navigatore invece di tenerne una copia.
 #include "Frontend/RTFrontendNavigator.h"
@@ -651,6 +654,13 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		return;
 	}
 
+	// #971 — sessione non presidiata: il click non seleziona e non registra. La guardia sta PRIMA del
+	// campione apposta: un click che non aggancia niente non e' «il giocatore che sta lavorando».
+	if (IsPlanningInputInert())
+	{
+		return;
+	}
+
 	// Attivita' generica: aggiorna i tempi anche quando il click non produce nulla. Un click a vuoto
 	// e' comunque il giocatore che sta lavorando, e serve a non scambiarlo per un giocatore assente.
 	if (ARTTurnManager* TM = PacingTurnManager(this))
@@ -769,6 +779,14 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 
 void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 {
+	// #971 — primo dei cinque siti `Order`. La guardia sta QUI e non solo su `OnSelect`: questa funzione e'
+	// pubblica (`HandleClickOnUnitForTest` la espone), quindi «non si arriva a selezionare» non e' una
+	// prova che non si arriva a pianificare.
+	if (IsPlanningInputInert())
+	{
+		return;
+	}
+
 	ARTUnit* SelectedUnit = Cast<ARTUnit>(SelectedActor);
 	if (!ClickedUnit || !SelectedUnit) { return; }
 
@@ -1025,6 +1043,15 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 		return;
 	}
 
+	// #971 — sessione non presidiata. Questo tasto non produce un piano, quindi nessun criterio scritto sui
+	// cinque siti `Order` lo avrebbe raggiunto: salta il playback o chiude il turno in anticipo. In una
+	// partita che esiste per essere registrata e' il difetto peggiore dei due, perche' taglia il filmato
+	// invece di confonderlo.
+	if (IsPlanningInputInert())
+	{
+		return;
+	}
+
 	if (ARTTurnManager* TurnManager = Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
 	{
 		// Durante il playback lo stesso tasto (Spazio) salta la risoluzione; altrimenti chiude la pianificazione.
@@ -1090,6 +1117,13 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 	// Le `OnAbility*` sono one-liner che passano tutte di qui: la guardia sta nel punto comune invece che
 	// ripetuta dieci volte, cosi' un tasto abilita' in piu' la eredita per costruzione.
 	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
+	// #971 — secondo dei cinque siti `Order`, e vale per tutti e dieci i tasti abilita' per la stessa
+	// ragione del commento qui sopra.
+	if (IsPlanningInputInert())
 	{
 		return;
 	}
@@ -1218,6 +1252,12 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 		return;
 	}
 
+	// #971 — sessione non presidiata: non c'e' un piano umano da disfare, e `UndoCount` non deve crescere.
+	if (IsPlanningInputInert())
+	{
+		return;
+	}
+
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit || Unit->PlannedWaypoints.Num() == 0)
 	{
@@ -1306,6 +1346,21 @@ bool ARTPlayerController::IsGameplayInputBlocked() const
 	// Si legge il contesto invece di ri-chiedere al navigatore: il contratto del puntatore e' l'autorita'
 	// su *chi consuma un input*, e un secondo interrogante produrrebbe due risposte da tenere allineate.
 	return GetPointerContext() == ERTPointerContext::Modal;
+}
+
+void ARTPlayerController::OnLockInForTest()
+{
+	OnLockIn(FInputActionValue());
+}
+
+bool ARTPlayerController::IsPlanningInputInert() const
+{
+	// `GetActorOfClass` e non `GetAuthGameMode`, per la stessa ragione di `PacingTurnManager` qui sopra: i
+	// mondi di prova spawnano il GameMode come un attore qualunque, e `AuthorityGameMode` li' e' nullo. Un
+	// predicato che rispondesse solo in PIE non sarebbe verificabile headless, e questo DEVE esserlo.
+	const ARTGameMode* GameMode =
+		Cast<ARTGameMode>(UGameplayStatics::GetActorOfClass(this, ARTGameMode::StaticClass()));
+	return GameMode && GameMode->IsAutobattleInEffect();
 }
 
 ERTPointerContext ARTPlayerController::GetPointerContext() const
@@ -1481,6 +1536,12 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 
 bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 {
+	// #971 — terzo dei cinque siti `Order`.
+	if (IsPlanningInputInert())
+	{
+		return false;
+	}
+
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit)
 	{
@@ -1541,6 +1602,12 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 
 bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirection Edge)
 {
+	// #971 — quarto dei cinque siti `Order`.
+	if (IsPlanningInputInert())
+	{
+		return false;
+	}
+
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit)
 	{
@@ -1717,6 +1784,13 @@ void ARTPlayerController::CycleDeclaredFacing()
 
 bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
 {
+	// #971 — quinto dei cinque siti `Order`. `CycleDeclaredFacing` ci arriva da un tasto e sarebbe gia'
+	// coperta a monte; questa funzione e' pubblica e raggiungibile da sola, quindi la guardia sta qui.
+	if (IsPlanningInputInert())
+	{
+		return false;
+	}
+
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit)
 	{

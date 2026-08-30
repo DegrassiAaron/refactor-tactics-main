@@ -21,6 +21,303 @@ issue [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613).
 
 ---
 
+## 🔄 Riconciliazione del registro — 2026-08-30
+
+> Il piano ha portato **61 caselle e zero spuntate** per quattro giorni, mentre il lavoro arrivava fino al
+> Task 7. Non era una svista cosmetica: un kit d'autore consumato il 2026-08-30 ordinava di **costruire
+> `WBP_RT_TurnHeader`**, che esiste dal 2026-08-26, e la sua premessa nasceva dal leggere queste caselle.
+> Il referto è [`debug-hud-graybox-spec-panel-2026-08-30.md`](debug-hud-graybox-spec-panel-2026-08-30.md).
+
+**Misurato su `285d2322`** (`origin/main`). **36 caselle su 61** risultavano fatte e sono state spuntate.
+
+> 🔧 **Aggiornamenti del 2026-08-30**: lo **Step 7.4 è stato implementato e chiuso** — vedi
+> «Lo stato neutro del dock» più sotto; la **guardia** dello Step 3.4 è scritta (resta la sua seconda riga);
+> e la **suite intera** è stata misurata per la prima volta, Step 8.1. Il conteggio sale a **38 su 61**.
+
+**Metodo, e il suo confine.** Il C++ e i `.ini` sono letti con `git grep` e citati per riga. I sette
+`.uasset` sono misurati **per estrazione di stringhe** — `perl -ne 'while(/([\x20-\x7E]{4,})/g){print
+"$1\n"}'` — che dice *quali elementi, quali binding e quali funzioni* un Blueprint contiene, e **non** come
+si vede a schermo. Le cinque caselle «verifica a schermo» restano quindi aperte per costruzione: nessun
+agente le può chiudere, come dice il preambolo.
+
+| Task | Fatte | Aperte | Nota |
+|---|---:|---:|---|
+| 1 — layer HUD nel navigator | 6 / 9 | 3 | atterrato per intero; le tre aperte sono passi di processo TDD |
+| 2 — `WBP_RT_TacticalHUD` | 4 / 6 | 2 | `Zone_Top`, `ZoneLeft`, `ZoneRight`, `ZoneBottom` in un `CanvasPanel` |
+| 3 — `WBP_RT_TurnHeader` | 5 / 7 | 2 | lo Step 3.4 è **per metà**: guardia fatta, binding `Visibility` no |
+| 4 — `WBP_RT_TeamRoster` | 5 / 6 | 1 | `GetRoster` → `ForEach` → `WBP_RT_UnitCard` |
+| 5 — `WBP_RT_SelectedUnitPanel` | 5 / 6 | 1 | i tre slot leggono `bOccupied`/`DisplayName`, non li deducono |
+| 6 — `WBP_RT_ActionSlot` | 5 / 5 | 0 | **chiuso** |
+| 7 — `WBP_RT_ActionDock` | 5 / 6 | 1 | lo Step 7.4 **chiuso il 2026-08-30** |
+| 8 — chiusura | 3 / 16 | 13 | guida corretta, e la suite intera misurata il 2026-08-30 |
+
+### Quattro cose che la misura ha trovato, e che cambiano il piano
+
+**✅ Lo Step 7.4 non era implementato, ed è stato chiuso lo stesso giorno.** `WBP_RT_ActionDock` **non
+chiamava `GetArmedActionIndex()`** — la funzione esiste in C++ (`RTScreenHudWidgets.cpp:222`) ma la stringa
+era assente dal `.uasset`. Vedi «Lo stato neutro del dock» qui sotto per cosa è stato trovato e cosa è
+cambiato.
+
+**⚠️ Lo Step 3.4 era per metà, e ora manca solo la sua seconda riga.** Il troncamento c'era (`FTrunc`, da
+`16ba67a4`), la guardia no: fuori dal Planning il campo vale `-1` e a schermo **compariva un numero
+negativo**. ✅ **La guardia è stata scritta il 2026-08-30** — vedi «La guardia sul timer» più sotto.
+⛔ **Resta il binding `Visibility → HasMatchContext` sul `TimerText`**, e la ragione per cui non è stato
+fatto è scritta lì: non è un rinvio per stanchezza, è un limite dello strumento più una domanda aperta.
+
+**🔺 Lo Step 2.3 è superato dai fatti.** Diceva *«lascia `IconCatalog` vuoto, il catalogo è di #220 e non
+esiste»*. Oggi `Content/RT/UI/DA_IconCatalog.uasset` **esiste** con 62 icone, e `WBP_RT_TacticalHUD` lo
+assegna. La casella resta vuota perché l'istruzione non è stata eseguita — è stata **sorpassata**, e
+`#220` risulta ancora `OPEN`: chi la chiude dovrebbe misurare che i widget già consumano il catalogo.
+
+**➕ `WBP_RT_UnitCard` non era nel piano, ed è meglio di ciò che il piano chiedeva.** Gli Step 4.2 e 5.3
+prescrivevano di disegnare barre HP/energia/scudo **dentro** roster e pannello — due volte le stesse barre.
+L'implementazione ha estratto una card riusabile: `ProgressBar`, `Percent`, `Health`, `Energy`, `Shield`,
+`Opacity`, `bAlive` stanno **solo** lì, e i due consumatori la istanziano. Le due caselle sono spuntate su
+quell'evidenza. La card deriva da `UUserWidget` e non da una base RT, ed è deliberato:
+`RTMatchWidgetAssetTests.cpp` la esclude dal test di parentela **dicendolo**.
+
+### Il vincolo 🔴 più importante regge
+
+*«Nessun widget referenzia una texture»* (**D-031**) è **verificato su tutti e sette** i `.uasset`: nessuno
+punta a `/Game/RT/UI/Icons/`. `WBP_RT_ActionSlot` risolve l'icona con `GetResolvedIcon()`
+(`RTScreenHudWidgets.cpp:248`) e converte la soft reference in `Texture2D` a runtime. L'unico riferimento
+non-widget dell'intero HUD è `DA_IconCatalog`, dal solo `WBP_RT_TacticalHUD` — che è esattamente il
+meccanismo previsto. Il piano avverte che *«questa metà è tua, e nessun gate la controlla»*: la metà tiene.
+
+### Lo stato neutro del dock — Step 7.4, chiuso il 2026-08-30
+
+Il grafo, letto come DSL dal ponte MCP dell'Editor, diceva questo:
+
+```lisp
+(RefactorTactics|HUD|SetAction _aswbp_rt_action_slot _array_element false (GetIconCatalog self))
+```
+
+**`bArmed` era una costante `false`.** Il difetto quindi non era quello che il piano temeva — «un dock che
+mostra sempre uno slot armato» — ma il suo opposto: **nessuno slot poteva accendersi mai**. Lo stato neutro
+appariva corretto per la ragione sbagliata, e l'armamento non arrivava a schermo in nessun caso.
+
+**Un secondo difetto era annodato al primo.** La guardia di ricostruzione confrontava la lunghezza di
+`GetActions()` con quella della variabile `SlotWidgets` — che veniva **svuotata e mai ripopolata**. Restava
+quindi sempre a zero, la condizione era sempre vera, e il dock **ricostruiva ogni slot a ogni tick**:
+`CreateWidget` + `Cast` + `AddChild` per ogni azione, ogni frame. Non si poteva riparare il primo difetto
+lasciando il secondo — con `SetAction` corretto, quel lavoro per frame sarebbe solo aumentato.
+
+Il grafo ora è:
+
+```lisp
+(bind _actions (RefactorTactics|HUD|GetActions))
+(if (!= (Length _actions) (Widget|Panel|GetChildrenCount (GetSlotBox)))   ; ← lo stato REALE del pannello
+  (ClearChildren (GetSlotBox))
+  (for _e _actions  … CreateWidget → Cast → AddChildToHorizontalBox …))
+(for _index (range (Length _actions))
+  (bind _slot (CastToWBP_RT_ActionSlot (Widget|Panel|GetChildAt (GetSlotBox) _index)))
+  (SetAction _slot (Array|Get _actions _index)
+             (== _index (RefactorTactics|HUD|GetArmedActionIndex))      ; ← Step 7.4
+             (GetIconCatalog self)))
+```
+
+- La guardia legge `GetChildrenCount` del pannello invece della variabile morta: è lo stato vero, e non
+  dipende da una variabile che qualcuno deve ricordarsi di tenere allineata. La ricostruzione avviene ora
+  **solo** quando il kit cambia numero di azioni.
+- `bArmed` è `(== _index (GetArmedActionIndex))`, **senza `Select`** — come lo step prescrive
+  esplicitamente: con `INDEX_NONE` il confronto è falso per ogni indice di lista, e nessuno slot si accende.
+- ⚠️ `SlotWidgets` resta nel Blueprint **come variabile non più usata**. Rimuoverla è fuori da questo passo.
+
+**Verifica**: `RefactorTactics.ScreenHud` **9/9**, `RefactorTactics.Frontend` **80/80**,
+`RefactorTactics.HUD` **16/16** — eseguiti dentro l'Editor via `AutomationTestToolset`, non da `rt-suite`.
+Il Blueprint compila senza errori né warning, e il `.uasset` salvato contiene ora `GetArmedActionIndex` ed
+`EqualEqual_IntInt`. ⛔ **Nessuna verifica a schermo**: lo Step 7.5 resta aperto, ed è lì che si vede se lo
+slot armato si accende davvero in partita.
+
+### La guardia sul timer — Step 3.4, prima metà, 2026-08-30
+
+Il binding era questo, e non aveva nessuna guardia:
+
+```lisp
+(fn Get_TimerText_Text ()
+  (return (Utilities|Text|ToText (Math|Float|Truncate (BreakRTMatchHeaderView (GetHeader))))))
+```
+
+`PlanningSecondsRemaining` vale **`-1` quando la domanda non si applica** — fuori dal Planning, o senza
+contesto — e quel `-1` finiva a schermo come numero. Ora:
+
+```lisp
+(fn Get_TimerText_Text ()
+  (bind (_round _limit _phase _secs _resolving) (BreakRTMatchHeaderView (GetHeader)))
+  (return (select (< _secs 0.0) "—" (Utilities|Text|ToText (Math|Float|Truncate _secs)))))
+```
+
+Il glifo è **`—` (U+2014), lo stesso che `GetRoundCounterText()` restituisce** per «nessun contesto»
+(`RTScreenHudWidgets.cpp:141`) — non `--:--`, che avrebbe messo due segni diversi per la stessa idea nello
+stesso widget. Verificato nel binario: la `FString` è `FE FF FF FF 14 20 00 00`, cioè lunghezza `-2`
+(UTF-16) e U+2014, **una** occorrenza ben formata.
+
+⚠️ **`read_graph_dsl` rende quel glifo come `â€”`** — i byte UTF-8 letti come CP1252. È un difetto della
+**lettura**, non del dato: il `.uasset` è corretto. Non inseguirlo riscrivendo il letterale.
+
+**Verifica**: `RefactorTactics.ScreenHud` + `.HUD` + `.Frontend` in headless →
+**105 test, 105 `Success`, zero fallimenti**.
+
+#### ⛔ Cosa NON è stato fatto: il binding `Visibility → HasMatchContext`
+
+La seconda riga dello step chiede di legare la `Visibility` del `TimerText` a `HasMatchContext`
+(`Visible`/`Collapsed`). **Non è creabile dal ponte MCP**, misurato: `UMGToolSet` non ha un tool per i
+property binding — il suo `BindToEventProperty` lega i **delegate multicast** (`OnClicked`), non le
+proprietà — e `ProgrammaticToolset` è sandboxed sui soli `re, copy, time, datetime, math, json`, senza il
+modulo `unreal`. Un property binding è una `FDelegateEditorBinding` in `WidgetBlueprint->Bindings`, e per
+scriverla serve un gesto nel pannello Details. ⚠️ Una terza via — eseguire Python nella console dell'Editor
+— **non è stata verificata**: l'Editor si è chiuso durante la ricognizione.
+
+🤔 **E prima di farlo, vale una domanda all'owner.** `RoundText` mostra `—` senza contesto **e resta
+visibile**. Se `TimerText` si collassasse nello stesso stato, l'header userebbe due comportamenti diversi
+per la stessa condizione, che è la classe di incoerenza contro cui è scritto il Task 7-bis. Con la guardia
+appena aggiunta, «nessun contesto» è già rappresentato — e in modo uguale al fratello accanto. Il binding
+resta da fare se si decide che il timer debba *sparire* invece che dire `—`; non è una scelta da prendere
+in silenzio mentre si chiude una casella.
+
+### La suite intera — Step 8.1, 2026-08-30
+
+Mai eseguita per intero fino a oggi. Misurata con `scripts/rt-suite.ps1` (default `-Filter RefactorTactics`),
+che è la via giusta proprio per l'avvertenza di questo step — *«una suite troncata da un crash sembra
+verde»*: lo script confronta il `Found N` dichiarato in testa al log con i `Test Completed`, e senza quel
+riscontro dichiara **NON VALIDA** invece di verde.
+
+```text
+[RT-MEASURE] VALIDA
+[RT-MEASURE]   HEAD      71261937  albero ae48caf4
+[RT-MEASURE]   esito     1397/1397 completati, 0 fallimenti
+[RT-MEASURE]   durata    04:48
+```
+
+`LogAutomationCommandLine: Found 1397 automation tests based on 'RefactorTactics'` — **1397 trovati, 1397
+completati, zero fallimenti**, exit `0`. I due gruppi che lo step chiede di guardare in particolare sono
+verdi: `RefactorTactics.HUD.*` **9/9** e `RefactorTactics.ScreenHud.*` **9/9**; `RefactorTactics.Frontend.*`
+**80/80**. Il §4.2 non ha regressioni: le due modifiche d'Editor di oggi non hanno avuto effetti fuori dal
+loro layer.
+
+⚠️ **`1397` è il numero misurato su `71261937`, non un numero da copiare.** Lo Step 8.6 lo pretende
+rimisurato al momento del consuntivo: fra qui e la chiusura di `#613` altre sessioni aggiungono test, e
+`1397` invecchia in giornata.
+
+### Cosa resta, in ordine
+
+1. **Step 3.4, seconda riga** — il binding `Visibility` del timer, se la domanda qui sopra ha risposta sì.
+3. **Le cinque «verifica a schermo»** — 2.5, 3.6, 4.5, 5.5, 7.5 — più il **Task 8** quasi intero: la suite
+   non è stata rieseguita, `PIE-V01-HUD` non ha esito nel registro (la seduta **U15** ha `artifacts: []` e
+   `done_when: le voci hanno esito reale nel registro`), e `#613` è ancora `OPEN`.
+4. **Il Task 7-bis** resta una decisione aperta, come l'ha lasciata il 2026-08-26. ⚠️ Il suo vincolo di
+   lessico non è verificabile da fuori: `percorso` / `occupata` / `armata` **non compaiono** nel
+   `.uasset` del pannello, ma i tre testi arrivano da `DisplayName` della vista — quindi il ripiego
+   dipende da cosa restituisce il dato, non dal Blueprint.
+
+⛔ **Il primo giro di questa riconciliazione non ha eseguito nulla del piano**: nessuna suite, nessuna build, nessun Editor
+aperto, nessuna scrittura su GitHub. Ha solo misurato e registrato. Il **secondo giro** — lo Step 7.4 — ha
+aperto l'Editor su un worktree isolato, modificato un `.uasset` e rieseguito tre suite; resta senza
+verifica a schermo e senza scrittura su GitHub.
+
+⚠️ **Il difetto dello Step 7.4 è vissuto in `main` senza che nulla lo segnalasse**, e la ragione è scritta
+nello step stesso: *«nessun gate lo controlla»*. `RTMatchWidgetAssetTests.cpp` prova i **property binding**
+dentro i `.uasset` — `Class->Bindings` — e una chiamata nell'Event Graph non è un binding: nessun test la
+vedeva.
+
+✅ **Ora un gate c'è, ed è migliore di quello che avevo previsto.** L'idea iniziale era ispezionare gli
+`UbergraphPages` dal modulo editor — cioè provare la **struttura** del grafo. Il gate scritto invece prova
+il **comportamento**: `RefactorTactics.ScreenHud.DockArmsOnlyTheSelectedAction` arma un'azione e verifica
+che si accenda uno slot, quello giusto. Un grafo riscritto in un altro modo ma corretto passa; un grafo che
+somiglia a quello giusto ma non accende niente cade. Vedi «Il HUD guardato da uno scenario» qui sotto.
+
+---
+
+## 🔬 Il HUD guardato da uno scenario — 2026-08-30
+
+La domanda che l'ha aperta: *«riusciamo a testare con scenari, anche creati ad hoc?»*. Sì, e la catena è
+riusabile per le altre verifiche funzionali.
+
+```text
+Scenarios/Spec/Hud/*.json          costruisce lo STATO dal percorso di gioco reale
+        ↓                          (eroi veri dal catalogo ⇒ kit di azioni vero)
+URTScenarioRunner::Run             NON smonta il mondo: `RunSingle(..., bTearDownAfter=false)`
+        ↓
+il test aggancia il BLUEPRINT      e legge cosa mostra — non la classe base
+```
+
+Tre cose l'hanno resa possibile, e nessuna è stata inventata per l'occasione:
+
+1. **Il runner lascia gli actor in piedi apposta.** Il suo commento lo dichiara: *«il mondo lo possiede il
+   chiamante, e ripulirlo qui gli toglierebbe da sotto i piedi gli actor su cui potrebbe voler guardare»*.
+2. **Uno scenario può fermarsi in Planning**: `turns: []` è valido, e la partita resta al round 1 — l'unico
+   momento in cui il dock ha senso. Non serve simulare turni per guardare il HUD.
+3. ➕ **`SetSelectedUnitForTest`, aggiunto qui.** È l'unico pezzo nuovo, ed è l'altra metà di
+   `SetMatchContextForTest` che già esisteva. Senza, **tre widget su sette non erano verificabili affatto**:
+   `GetSelectedUnit()` passa da `GetOwningPlayer()`, e `UUserWidget::SetOwningPlayer` memorizza il
+   `ULocalPlayer` — che in headless non esiste. Spawnare un `ARTPlayerController` e chiamargli `SelectUnit`
+   **non basta**, ed è la ragione per cui pannello unità, dock e slot potevano provare solo il ramo
+   «nessuna selezione».
+
+### La prova che il gate non è vacuo
+
+Un test verde non prova di poter fallire, e qui la verifica di mutazione non è stata inventata: il
+`.uasset` è stato **riportato alla versione di `53958620`** — quella con `bArmed` costante `false`, viva in
+`main` fino a stamattina — e il test è caduto sull'asserzione giusta:
+
+```text
+Expected 'e a schermo si accende UNO slot solo' to be 1, but it was 0
+```
+
+Poi ripristinato e riverificato. **10/10 `Success`** su `RefactorTactics.ScreenHud` con l'asset corretto.
+
+### Cosa questo NON copre, e resta di `PIE-V01-HUD`
+
+Colori, font, ingombro, leggibilità e «centro libero». Il test prova che il widget **legge il dato giusto**,
+non che si veda bene — la stessa distinzione che `RTMatchWidgetAssetTests.cpp` dichiara nel suo docstring.
+Lo Step 7.5 resta aperto: la sua metà funzionale ora ha un gate, la sua metà visiva no.
+
+### Le altre tre, scritte lo stesso giorno
+
+Su un secondo scenario, `Spec.Hud.MatchWithTwoAllies` — due alleate e un'avversaria, perché con una sola
+alleata «solo la propria squadra» non significherebbe niente.
+
+| Test | Cosa fissa |
+|---|---|
+| `RosterShowsOnlyOwnTeamAndKeepsTheFallen` | il roster elenca le due alleate e **nessuna** avversaria, e tiene in lista chi è a zero HP |
+| `SlotsAreReadNotDeduced` | i tre slot si leggono uno per uno: un percorso occupa MOVEMENT e **lascia MAIN libero** |
+| `RoundLimitComesFromTheFormat` | il contatore segue il formato — 12, poi 7, poi nessun limite — **e** `RoundText.Text` è legato a `GetRoundCounterText` |
+
+**`RefactorTactics.ScreenHud` passa da 9 a 13 test**, tutti `Success`, run `VALIDA`.
+
+#### 🔺 Lo Step 5.5 chiedeva una prova che non è più eseguibile
+
+Dice: *«pianificando uno `Sprint` si accendono MOVEMENT e MAIN insieme — è la prova che il widget legge i
+tre campi invece di dedurli»*. Ma **nessuna azione dei cataloghi dichiara oggi `MovementAndMain`**:
+`Action.Sprint` lo faceva fino a **D-028**, e lo scrivono sia `RTCatalogLibrary.h` sia `BuildUnitSlots` —
+quella riga di codice è *«inerte, non superflua: torna a contare il giorno che un kit usa quella forma»*.
+
+La prova equivalente eseguibile oggi è l'**indipendenza** dei tre campi, ed è quella che il test fissa: un
+percorso occupa MOVEMENT e lascia MAIN libero; un'azione principale occupa MAIN e lascia REACTION libera.
+Un pannello che deducesse uno slot dall'altro — *«se ho pianificato qualcosa, allora ho speso il turno»* —
+cadrebbe. È la stessa domanda dello step, posta a un catalogo che nel frattempo è cambiato.
+
+#### La prova che nemmeno questi sono vacui
+
+Il filtro di squadra di `BuildTeamRoster` è stato rimosso, ricompilato, ed eseguito:
+
+```text
+Expected 'il roster ha una riga per alleata, e nessuna per l'avversaria' to be 2, but it was 3
+```
+
+Poi ripristinato **e ricompilato** — `rt-suite` non rileva un binario stantio, quindi senza il secondo
+rebuild avrebbe dichiarato `VALIDA` misurando codice che non esiste più. Verde riconfermato a **13/13**,
+con l'albero tornato al digest di prima della mutazione.
+
+### Cosa resta delle sei «verifiche a schermo»
+
+Le caselle **restano vuote**, e non per pignoleria: la loro metà funzionale ora ha un gate, la metà visiva
+no. Quello che nessun test copre è ciò per cui `PIE-V01-HUD` esiste — leggibilità a risoluzione di gioco,
+ingombro delle quattro zone, **centro libero**, coerenza durante il playback della risoluzione, e il debug
+spento nella vista giocatore.
+
+---
+
 ## Global constraints
 
 - **UE 5.8.1.** Non inventare API: verifica le firme realmente presenti.
@@ -120,7 +417,7 @@ con un `grep`. Una seconda classe che istanzia widget la romperebbe per guadagna
 
 ---
 
-- [ ] **Step 1.1 — Scrivi i quattro test falliti**
+- [x] **Step 1.1 — Scrivi i quattro test falliti**
 
 Crea `Source/RefactorTactics/Tests/RTFrontendMatchHudTests.cpp`. Il fixture ricalca
 `RTFrontendPauseTests.cpp`, che è il precedente più vicino.
@@ -299,7 +596,7 @@ bool FRTMatchHudLeavesWithTheMatchTest::RunTest(const FString&)
 #endif // WITH_DEV_AUTOMATION_TESTS
 ```
 
-- [ ] **Step 1.2 — Esegui i test e verifica che NON compilino**
+- [ ] **Step 1.2 — Esegui i test e verifica che NON compilino** — ⏭️ *passo TDD storico: il rosso atteso non è verificabile a posteriori*
 
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
@@ -312,7 +609,7 @@ Atteso: **errore di compilazione** — `GetMatchHudWidget`, `PresentMatchHud` e
 `SetMatchHudWidgetClassForTest` non esistono. È il rosso giusto: un test che compilasse proverebbe che il
 layer c'è già.
 
-- [ ] **Step 1.3 — Dichiara il layer nell'header**
+- [x] **Step 1.3 — Dichiara il layer nell'header**
 
 In `RTFrontendNavigator.h`, nella sezione pubblica, dopo `ResumeMatch()`:
 
@@ -357,7 +654,7 @@ E nella sezione privata, accanto a `LiveWidgets`:
 	TObjectPtr<UUserWidget> MatchHudWidget;
 ```
 
-- [ ] **Step 1.4 — Implementa il layer**
+- [x] **Step 1.4 — Implementa il layer**
 
 In `RTFrontendNavigator.cpp`, accanto alle costanti di riga 22-23:
 
@@ -427,7 +724,7 @@ void URTFrontendNavigator::DismissMatchHud()
 }
 ```
 
-- [ ] **Step 1.5 — Aggancia il layer al ciclo di vita della partita**
+- [x] **Step 1.5 — Aggancia il layer al ciclo di vita della partita**
 
 Tre punti, e nessuno è opzionale.
 
@@ -472,7 +769,7 @@ In `SyncPresentation`, in fondo, dopo il ciclo che disabilita i `LiveWidgets`:
 	}
 ```
 
-- [ ] **Step 1.6 — Esegui i test e verifica che passino**
+- [ ] **Step 1.6 — Esegui i test e verifica che passino** — ⚠️ *i quattro test esistono e sono in `main`; l'esito non è stato rimisurato*
 
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
@@ -484,7 +781,7 @@ grep -E "Test Completed|Success|Fail" Saved/Logs/RefactorTactics.log | tail -20
 
 Atteso: i quattro `MatchHud*` **Success**, e nessuna regressione negli altri `Frontend.*`.
 
-- [ ] **Step 1.7 — Verifica di mutazione, una alla volta**
+- [ ] **Step 1.7 — Verifica di mutazione, una alla volta** — ⏭️ *passo TDD storico: la mutazione non lascia traccia nel repository*
 
 Un test verde non prova di poter fallire. Rompi **una** cosa, ricompila, e verifica che il rosso arrivi:
 
@@ -497,7 +794,7 @@ Un test verde non prova di poter fallire. Rompi **una** cosa, ricompila, e verif
 ⚠️ Ripristina il sorgente **e ricompila** fra una mutazione e l'altra: senza rebuild la seconda misura
 il binario della prima.
 
-- [ ] **Step 1.8 — Documenta il binding in `DefaultGame.ini`, ma NON scriverlo**
+- [x] **Step 1.8 — Documenta il binding in `DefaultGame.ini`, ma NON scriverlo**
 
 > 🔁 **Corretto in corso d'opera.** La prima stesura di questo step scriveva la riga subito. Il `.ini`
 > stesso dichiara la disciplina contraria, tre righe sopra: la voce `Pause` di CP 46.6 **non** c'è, e la sua
@@ -517,7 +814,7 @@ Nella sezione `[/Script/RefactorTactics.RTFrontendNavigator]`, dopo il blocco su
 
 ⚠️ **La riga si scommenta nel Task 2**, quando `WBP_RT_TacticalHUD.uasset` esiste.
 
-- [ ] **Step 1.9 — Commit**
+- [x] **Step 1.9 — Commit**
 
 ```bash
 git add Source/RefactorTactics/Frontend/RTFrontendNavigator.h \
@@ -542,7 +839,7 @@ git commit -m "feat(hud): il HUD di partita e' un layer, non una schermata"
 > Task 1 è agganciato bene, un contenitore anche vuoto compare in PIE. Sbagliare il binding e accorgersene
 > dopo sei Blueprint costa molto di più.
 
-- [ ] **Step 2.1 — Crea la cartella e il Blueprint**
+- [x] **Step 2.1 — Crea la cartella e il Blueprint**
 
 Nel Content Browser: `Content/RT/UI/` → click destro → **New Folder** → `Match`.
 
@@ -551,7 +848,7 @@ Dentro: click destro → **User Interface → Widget Blueprint** → **scegli la
 
 ⚠️ Se lo crei col padre di default: `Class Settings → Parent Class → RTTacticalHUDWidget`.
 
-- [ ] **Step 2.2 — Costruisci le quattro zone, col centro libero**
+- [x] **Step 2.2 — Costruisci le quattro zone, col centro libero**
 
 Nel Designer, radice `Canvas Panel` (**non** una `Vertical Box`: quella non lascia un centro davvero
 libero). Dentro, quattro `Named Slot` o quattro `Size Box` ancorati ai bordi:
@@ -573,7 +870,7 @@ libero). Dentro, quattro `Named Slot` o quattro `Size Box` ancorati ai bordi:
 amico e le barre ancorate alle unità: un pannello al centro glieli coprirebbe, ed è il primo difetto che
 un playtest segnalerebbe.
 
-- [ ] **Step 2.3 — Lascia `IconCatalog` vuoto, di proposito**
+- [ ] **Step 2.3 — Lascia `IconCatalog` vuoto, di proposito** — 🔺 *superata dai fatti: vedi la riconciliazione in testa*
 
 In `Class Defaults` la proprietà `Icon Catalog` esiste ed è vuota. **Lasciala così**: il `.uasset` del
 catalogo è di #220 e non esiste ancora. `ResolveIcon` restituirà il missing-icon con una warning che nomina
@@ -582,7 +879,7 @@ la chiave — a schermo si vede cosa manca, invece di un buco silenzioso.
 ⛔ **Non aggirare aggiungendo una variabile `Texture2D`.** È esattamente la scorciatoia che il catalogo
 esiste per impedire (D-031), e il gate che la vieta non guarda dentro i Blueprint.
 
-- [ ] **Step 2.4 — Scommenta il binding in `DefaultGame.ini`**
+- [x] **Step 2.4 — Scommenta il binding in `DefaultGame.ini`**
 
 Ora l'asset esiste, quindi la riga può essere dichiarata. Nella sezione
 `[/Script/RefactorTactics.RTFrontendNavigator]`, togli il `;` davanti a:
@@ -595,7 +892,7 @@ MatchHudWidgetClass="/Game/RT/UI/Match/WBP_RT_TacticalHUD.WBP_RT_TacticalHUD_C"
 Nessun test lo verifica — `EveryConfiguredScreenLoads` itera solo le voci `+Screens=`, e questa non lo è.
 L'unico segnale di un refuso è la warning di `PresentMatchHud` nel log, che nomina il percorso.
 
-- [ ] **Step 2.5 — Verifica a schermo**
+- [ ] **Step 2.5 — Verifica a schermo** — ⛔ *verifica a schermo: richiede l'Editor*
 
 Metti un `Border` colorato temporaneo in ciascuna delle quattro zone, poi apri `L_HexArena` e premi
 **PLAY**.
@@ -605,7 +902,7 @@ niente, guarda `Saved/Logs/RefactorTactics.log`: la warning del Task 1 nomina il
 
 Poi **togli i bordi temporanei**.
 
-- [ ] **Step 2.6 — Commit**
+- [x] **Step 2.6 — Commit**
 
 ```bash
 git add Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset
@@ -628,15 +925,15 @@ git commit -m "feat(hud): il contenitore dello Screen HUD, con il centro libero"
 > È il più semplice dei cinque, e per questo viene per primo: valida il pattern di binding di proprietà su
 > un widget con tre campi, prima di applicarlo a una lista.
 
-- [ ] **Step 3.1 — Crea il Blueprint**
+- [x] **Step 3.1 — Crea il Blueprint**
 
 **Widget Blueprint** con parent `RTTurnHeaderWidget`. Nome: `WBP_RT_TurnHeader`.
 
-- [ ] **Step 3.2 — Layout**
+- [x] **Step 3.2 — Layout**
 
 `Horizontal Box` con tre `Text Block`: `RoundText`, `PhaseText`, `TimerText`.
 
-- [ ] **Step 3.3 — Il contatore di round: usa la funzione, non comporre il testo**
+- [x] **Step 3.3 — Il contatore di round: usa la funzione, non comporre il testo**
 
 Su `RoundText` → pannello **Details** → `Content → Text` → **Bind → GetRoundCounterText**.
 
@@ -652,7 +949,7 @@ sono tre stati diversi e due si confondono.
 Un binding ingenuo stampa `Round 3/0`, che si legge come una partita già scaduta.
 `GetRoundCounterText()` li decide già tutti e tre.
 
-- [ ] **Step 3.4 — Fase e timer**
+- [ ] **Step 3.4 — Fase e timer** — ⚠️ *guardia sul negativo **fatta**; resta il binding `Visibility` — vedi la riconciliazione in testa*
 
 Su `PhaseText` → `Text` → **Bind** → funzione nuova `GetPhaseText`:
 `GetHeader()` → `break FRTMatchHeaderView` → `Phase` → nodo di conversione dell'enum → `ToText`.
@@ -663,11 +960,11 @@ Su `TimerText` → `Text` → **Bind** → funzione nuova `GetTimerText`:
 
 Su `TimerText` → `Visibility` → **Bind** → `HasMatchContext` (`Visible` / `Collapsed`).
 
-- [ ] **Step 3.5 — Innesta nel contenitore**
+- [x] **Step 3.5 — Innesta nel contenitore**
 
 Apri `WBP_RT_TacticalHUD` e trascina `WBP_RT_TurnHeader` nella zona **Top**.
 
-- [ ] **Step 3.6 — Verifica in PIE**
+- [ ] **Step 3.6 — Verifica in PIE** — ⛔ *verifica a schermo* · ✅ *il limite dal formato è coperto da `RoundLimitComesFromTheFormat`*
 
 **PLAY** su `L_HexArena`. Atteso: `Round 1/12` (o il limite del formato caricato), la fase corrente che
 cambia avanzando il turno, e il timer che scorre in Planning.
@@ -676,7 +973,7 @@ cambia avanzando il turno, e il timer che scorre in Planning.
 un altro valore, e rientra in PIE. Il numero a schermo **deve** cambiare. Se resta `12`, qualcuno ha scritto
 la costante nel widget — è esattamente il difetto che il DoD di #77 esiste per impedire.
 
-- [ ] **Step 3.7 — Commit**
+- [x] **Step 3.7 — Commit**
 
 ```bash
 git add Content/RT/UI/Match/WBP_RT_TurnHeader.uasset Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset
@@ -696,16 +993,16 @@ git commit -m "feat(hud): l'intestazione di turno legge il limite dal formato"
 - `FRTUnitCardView`: `HeroId (FName)` · `Health/MaxHealth (int32)` · `Shield (int32)` ·
   `Energy/MaxEnergy (int32)` · `bIsAlly (bool)` · `bAlive (bool)`
 
-- [ ] **Step 4.1 — Crea il Blueprint**
+- [x] **Step 4.1 — Crea il Blueprint**
 
 **Widget Blueprint** con parent `RTTeamRosterWidget`. Nome: `WBP_RT_TeamRoster`.
 
-- [ ] **Step 4.2 — Layout**
+- [x] **Step 4.2 — Layout**
 
 `Vertical Box` chiamata `RosterBox`. Ogni riga: nome dell'eroe, `Progress Bar` per gli HP, una seconda per
 l'energia, e uno `Shield` mostrato solo quando `> 0`.
 
-- [ ] **Step 4.3 — Popola dal roster**
+- [x] **Step 4.3 — Popola dal roster**
 
 In `Event Graph`, su **Event Construct**: `GetRoster()` → `ForEachLoop` → costruisci una riga per elemento
 e aggiungila a `RosterBox`.
@@ -716,21 +1013,21 @@ neutra darebbe `NaN`, che in UMG si vede come una barra piena.
 Per i morti (`bAlive == false`): opacità ridotta. Il roster li **mostra** — è la vista aggregata della
 squadra, e un'unità che sparisce dalla lista si legge come un bug.
 
-- [ ] **Step 4.4 — Non aggiungere gli avversari**
+- [x] **Step 4.4 — Non aggiungere gli avversari**
 
 ⛔ `GetRoster()` non ha un parametro «mostra anche i nemici», ed è voluto: la regola di §4.1 è una proprietà
 della firma, non una disciplina. Se serve una vista avversaria, **non** si aggira con
 `Get All Actors Of Class` — la privacy è verificata in `FilterForTeam`, e un secondo filtro nel widget
 sarebbe una seconda verità da tenere allineata.
 
-- [ ] **Step 4.5 — Innesta e verifica**
+- [ ] **Step 4.5 — Innesta e verifica** — ⛔ *verifica a schermo* · ✅ *la parte funzionale è coperta da `RosterShowsOnlyOwnTeamAndKeepsTheFallen`*
 
 Trascina nella zona **Left** di `WBP_RT_TacticalHUD`. **PLAY**.
 
 Atteso: due unità della propria squadra con barre coerenti con quelle ancorate che `ARTHUD` disegna sopra
 di loro; **nessuna** unità avversaria; un'unità abbattuta resta in lista, attenuata.
 
-- [ ] **Step 4.6 — Commit**
+- [x] **Step 4.6 — Commit**
 
 ```bash
 git add Content/RT/UI/Match/WBP_RT_TeamRoster.uasset Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset
@@ -755,17 +1052,17 @@ git commit -m "feat(hud): il roster di squadra, senza una riga sugli avversari"
 > settimane; `RTScreenHudWidgets` lo trasporta. Nessuno lo **disegna** — ed è la sola ragione per cui il
 > DoD di #77 non è 6 su 6.
 
-- [ ] **Step 5.1 — Crea il Blueprint**
+- [x] **Step 5.1 — Crea il Blueprint**
 
 **Widget Blueprint** con parent `RTSelectedUnitPanelWidget`. Nome: `WBP_RT_SelectedUnitPanel`.
 
-- [ ] **Step 5.2 — Il pannello si nasconde quando non c'è selezione**
+- [x] **Step 5.2 — Il pannello si nasconde quando non c'è selezione**
 
 Sulla radice → `Visibility` → **Bind** → `HasSelection` (`Visible` / `Collapsed`).
 
 Un pannello vuoto a schermo si legge come un'unità senza dati, che è peggio di nessun pannello.
 
-- [ ] **Step 5.3 — La carta**
+- [x] **Step 5.3 — La carta**
 
 Nome dell'eroe da `GetCard() → HeroId`. Due `Progress Bar`:
 
@@ -779,7 +1076,7 @@ Un `Select` su `Max > 0` che altrimenti restituisce `0.0` basta.
 Lo scudo (`Shield`) si mostra solo quando è `> 0`: uno scudo a zero disegnato come barra vuota si legge
 come uno scudo rotto invece che come uno scudo assente.
 
-- [ ] **Step 5.4 — I tre slot**
+- [x] **Step 5.4 — I tre slot**
 
 `Horizontal Box` con tre celle: **MOVEMENT**, **MAIN**, **REACTION**. Per ciascuna,
 `GetSlots()` → `break FRTUnitSlotsView` → il campo corrispondente → `break FRTPlannedSlotView`:
@@ -790,7 +1087,7 @@ come uno scudo rotto invece che come uno scudo assente.
 ⚠️ **Non sono tre booleani indipendenti.** `Action.Sprint` dichiara `MovementAndMain` e ne occupa **due**.
 Chi lo decide è il catalogo, non il widget: leggi i tre campi e disegnali, non dedurne uno dagli altri.
 
-- [ ] **Step 5.5 — Innesta e verifica**
+- [ ] **Step 5.5 — Innesta e verifica** — ⛔ *verifica a schermo* · 🔺 *la prova con `Sprint` non è più eseguibile (D-028); l'indipendenza dei tre slot è coperta da `SlotsAreReadNotDeduced`*
 
 Zona **Bottom**, a sinistra. **PLAY**, seleziona un'unità e pianifica.
 
@@ -798,7 +1095,7 @@ Atteso: senza selezione il pannello è invisibile; selezionando compare la carta
 si accende **MOVEMENT**; pianificando uno `Sprint` si accendono **MOVEMENT e MAIN insieme** — è la prova
 che il widget legge i tre campi invece di dedurli.
 
-- [ ] **Step 5.6 — Commit**
+- [x] **Step 5.6 — Commit**
 
 ```bash
 git add Content/RT/UI/Match/WBP_RT_SelectedUnitPanel.uasset Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset
@@ -823,16 +1120,16 @@ git commit -m "feat(hud): gli slot occupati arrivano a schermo — l'anello lett
 dock con sei slot che leggono ciascuno il proprio stato farebbe sei letture per frame e potrebbe mostrarne
 una disallineata dalle altre.
 
-- [ ] **Step 6.1 — Crea il Blueprint**
+- [x] **Step 6.1 — Crea il Blueprint**
 
 **Widget Blueprint** con parent `RTActionSlotWidget`. Nome: `WBP_RT_ActionSlot`.
 
-- [ ] **Step 6.2 — Layout**
+- [x] **Step 6.2 — Layout**
 
 `Overlay` con: un `Image` (`IconImage`), un `Text Block` per il cooldown (`CooldownText`), e un `Border`
 per lo stato armato (`ArmedBorder`).
 
-- [ ] **Step 6.3 — Implementa `OnActionChanged`**
+- [x] **Step 6.3 — Implementa `OnActionChanged`**
 
 In `Event Graph`, click destro → **Event On Action Changed** (è
 `BlueprintImplementableEvent`, il dock la chiama). Dentro:
@@ -841,7 +1138,7 @@ In `Event Graph`, click destro → **Event On Action Changed** (è
 - opacità piena se `bUsableNow`, ridotta altrimenti
 - `ArmedBorder` visibile solo se `bArmed`
 
-- [ ] **Step 6.4 — 🔴 L'icona passa dal catalogo, e da nessun'altra parte**
+- [x] **Step 6.4 — 🔴 L'icona passa dal catalogo, e da nessun'altra parte**
 
 `GetIconId()` restituisce un `FName` — `UI.Icon.Action.Move` — non un asset. Risolvilo con la libreria del
 catalogo (`URTIconLibrary`), usando `IconCatalog` del `WBP_RT_TacticalHUD` padre.
@@ -856,7 +1153,7 @@ ogni widget invece di una riga di dato.
 Finché il catalogo di #220 non esiste, `ResolveIcon` restituisce il missing-icon con `bResolved = false` e
 una warning che nomina la chiave. **A schermo si vede che manca** — è il comportamento voluto.
 
-- [ ] **Step 6.5 — Commit**
+- [x] **Step 6.5 — Commit**
 
 ```bash
 git add Content/RT/UI/Match/WBP_RT_ActionSlot.uasset
@@ -875,15 +1172,15 @@ git commit -m "feat(hud): lo slot azione risolve l'icona per chiave, non per ass
 - Consuma: `URTActionDockWidget::GetActions() → TArray<FRTAbilityCooldownView>`,
   `GetArmedActionIndex() → int32`; `URTActionSlotWidget::SetAction(view, bArmed)` dal Task 6
 
-- [ ] **Step 7.1 — Crea il Blueprint**
+- [x] **Step 7.1 — Crea il Blueprint**
 
 **Widget Blueprint** con parent `RTActionDockWidget`. Nome: `WBP_RT_ActionDock`.
 
-- [ ] **Step 7.2 — Layout**
+- [x] **Step 7.2 — Layout**
 
 `Horizontal Box` chiamata `SlotBox`.
 
-- [ ] **Step 7.3 — Popola gli slot, e chiama `SetAction` tu**
+- [x] **Step 7.3 — Popola gli slot, e chiama `SetAction` tu**
 
 Su **Event Construct** e a ogni cambio di selezione:
 
@@ -895,7 +1192,7 @@ Su **Event Construct** e a ogni cambio di selezione:
 ⚠️ **L'ordine è quello del kit**, e l'indice è quello che l'hotkey arma: non riordinare per cooldown o per
 disponibilità. Un dock che si riordina da solo cambia il significato dei tasti a metà partita.
 
-- [ ] **Step 7.4 — 🔴 Lo stato neutro deve essere mostrabile**
+- [x] **Step 7.4 — 🔴 Lo stato neutro deve essere mostrabile**
 
 `GetArmedActionIndex()` restituisce `INDEX_NONE` (`-1`) quando **niente è armato**. Non è un caso limite: è
 lo stato neutro di **D-128**, quello in cui un click su un nemico *ispeziona* invece di bersagliarlo.
@@ -907,7 +1204,7 @@ escludere.
 ⚠️ Attenzione al confronto: `Index == -1` non è mai vero per un indice di lista, quindi la formula
 `Index == GetArmedActionIndex()` gestisce già il caso — **non** aggiungere un `Select` che forza `0`.
 
-- [ ] **Step 7.5 — Innesta e verifica**
+- [ ] **Step 7.5 — Innesta e verifica** — ⛔ *verifica a schermo: richiede l'Editor*
 
 Zona **Bottom**, a destra. **PLAY**, seleziona un'unità.
 
@@ -915,7 +1212,7 @@ Atteso: uno slot per azione del kit, nell'ordine del kit; **nessuno acceso** all
 di un'azione quello slot si accende e gli altri no; un'azione in ricarica mostra i turni residui in interi
 e non è utilizzabile.
 
-- [ ] **Step 7.6 — Commit**
+- [x] **Step 7.6 — Commit**
 
 ```bash
 git add Content/RT/UI/Match/WBP_RT_ActionDock.uasset Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset
@@ -992,7 +1289,7 @@ Quando ci si arriva, i candidati da confrontare sono:
 - Modifica: `docs/technical/runbooks/guida-screen-hud-umg.md`
 - Modifica: `docs/roadmap/editor-sessions.yaml` *(esito di `PIE-V01-HUD`, seduta U15)*
 
-- [ ] **Step 8.1 — Suite completa, e nessuna regressione nel §4.2**
+- [x] **Step 8.1 — Suite completa, e nessuna regressione nel §4.2**
 
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
@@ -1021,7 +1318,7 @@ Non copiare il totale da questo piano: **misuralo sul branch**.
 Registra l'esito in `docs/roadmap/editor-sessions.yaml`, seduta **U15**. ⚠️ L'header di quel file è
 normativo: leggilo prima di scrivere.
 
-- [ ] **Step 8.3 — Correggi le tre premesse false nella guida**
+- [x] **Step 8.3 — Correggi le tre premesse false nella guida**
 
 `docs/technical/runbooks/guida-screen-hud-umg.md` dichiara cose che oggi sono false, e chi la legge dopo di
 te ci lavorerebbe sopra:
@@ -1034,7 +1331,7 @@ te ci lavorerebbe sopra:
 | §7 | «sono 594 righe» | `RTHUD.cpp` ne ha **910** — rimisura, non copiare |
 | §8 | «i gate in `feature-registry.yaml`» | ⛔ quel file **non esiste più** (D-181/D-182) |
 
-- [ ] **Step 8.4 — Commit della documentazione**
+- [x] **Step 8.4 — Commit della documentazione**
 
 ```bash
 git add docs/technical/runbooks/guida-screen-hud-umg.md docs/roadmap/editor-sessions.yaml

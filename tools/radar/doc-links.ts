@@ -159,10 +159,21 @@ function main() {
   // I tre documenti di governance della radice sono i piu' letti del repository: restarne fuori
   // vorrebbe dire non vedere un percorso morto proprio dove costa di piu'.
   //
-  // ⚠️ Elencati, non presi con un glob su `*.md`. Gli altri Markdown della radice sono materiale
-  // **importato** — handoff datati e `RefactorTactics_Wiki_Lore.md`, che e' scritto per la **Wiki** e
-  // linka `images/…` relativo a quel clone, non a qui. Un glob li segnalerebbe come rotti: quattro
-  // falsi positivi al primo giro, che e' il modo noto di far disattivare un gate.
+  // ⚠️ Elencati, non presi con un glob su `*.md`, e la ragione è cambiata il 2026-08-30.
+  //
+  // Prima: la radice conteneva anche materiale **importato** — handoff datati e
+  // `RefactorTactics_Wiki_Lore.md`, che linkava `images/…` relativo al clone della Wiki e non a qui —
+  // e un glob li avrebbe segnalati come rotti: quattro falsi positivi al primo giro, che è il modo
+  // noto di far disattivare un gate. Quei file sono stati consumati e la radice ora contiene
+  // esattamente i tre qui sotto, quindi oggi lista e glob darebbero lo stesso insieme.
+  //
+  // La lista resta perché la radice è la casella di posta dell'autore: un kit ci viene lasciato,
+  // consumato e rimosso, e nell'intervallo linka percorsi di un altro repository. Un glob renderebbe
+  // il gate rosso proprio durante quel lavoro — cioè nella condizione in cui serve di più che sia
+  // verde per il resto. 🔴 **Il punto cieco che questo si sceglie**: un Markdown nuovo lasciato in
+  // radice non lo controlla nessuno, e ci può restare settimane. È successo: **sei** documenti,
+  // entrati fra il 2026-08-08 e il 2026-08-28 e usciti tutti il 2026-08-30 — e questo gate, che esiste
+  // dal 2026-08-25, non ne avrebbe visto nessuno.
   const ROOT_DOCS = ['AGENTS.md', 'CLAUDE.md', 'README.md'];
   const rootDocs = ROOT_DOCS.map((e) => join(REPO_ROOT, e)).filter((p) => existsSync(p));
 

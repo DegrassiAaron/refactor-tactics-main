@@ -176,6 +176,40 @@ una lente — e il terzo diventerebbe rumore prima di diventare utile.
 **Intersezione e non unione**: il caso è «reactions E gadget». Se il filtro restituisse l'unione sembrerebbe
 funzionare (l'elenco cambia) mentre mostrerebbe *più* scenari invece di meno.
 
+### Un secondo consumer, dal 2026-08-29: il launcher del Tactical Designer
+
+`ListIds` ha ora **due** chiamanti. #1681 ha deciso che il launcher di `L_DevSandbox` filtra la propria lista
+sugli **stessi due tag** invece di procurarsi un asse proprio — mappa e formato non sono campi di uno
+scenario, e la decisione sta in [`spec-tactical-designer.md`](spec-tactical-designer.md) §4.1.
+
+⚠️ **Ne segue una cosa per questo documento**: le due regole qui sopra — *due filtri e non tre*,
+*intersezione e non unione* — non descrivono più solo il Details Panel. Sono il contratto dell'asse, e chi
+volesse cambiarle ora rompe due superfici.
+
+➕ **Il launcher aggiunge la ricerca testuale**, che è l'unica cosa che l'indice non sapeva fare. Il §2 di
+questo documento registra il perché — *«la combo di UE non filtra da testo»*, verificato in Editor — e fino a
+[#1680](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1680) non esisteva una superficie su
+cui metterla. Ora c'è: è un pannello Slate, non una property con `GetOptions`.
+
+🔴 **E la ricerca non è un ornamento: è ciò che rende l'asse ancora usabile.** Misurato il 2026-08-29 sugli
+88 scenari versionati:
+
+| | |
+|---|---:|
+| tag distinti | **53** |
+| usati **una sola volta** | 17 — **32%** |
+| usati al massimo due volte | 24 — **45%** |
+| tag che coprono ≥10 scenari | **12** |
+
+Quasi metà del vocabolario è quasi-unica: una tendina di 53 voci è una coda lunga, non un filtro. È lo stesso
+difetto che [#1261](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1261) registra — la soglia
+dei 40 è stata superata, e oggi siamo a 53 — e il launcher lo **eredita**, non lo risolve.
+
+⚠️ **E i tag più usati sono nomi di eroe**: `riktor` 66, `gadget` 61, `wraith` 38, `phase` 30. Filtrare per
+tag significa in pratica, oggi, **filtrare per eroe**. È un asse legittimo e va detto, perché le parole con
+cui questo documento illustra i filtri — `movement`, `core`, `reactions` — lasciano immaginare un vocabolario
+di tipologie che il corpus non ha.
+
 ### I filtri non toccano la selezione
 
 Restringere l'elenco non modifica mai `ScenarioToRun`. Uno scenario già scelto resta scelto e viene eseguito

@@ -12,12 +12,19 @@
 > ogni esempio qui sotto — **verificata sul disco l'11-08**, perché tre nomi su otto non sono quelli che ci
 > si aspetta:
 >
-> | Eroe | Pack | Blueprint / AnimBP | Skeletal Mesh | Skeleton |
+> | Eroe | Pack | Blueprint | Skeletal Mesh | Skeleton |
 > |---|---|---|---|---|
-> | Gadget | `Paragon.Gadget` | `BP_Unit_Gadget` · `ABP_Gadget` | `Gadget` | `Gadget_Skeleton` |
-> | Phase | `Paragon.Phase` | `BP_Unit_Phase` · `ABP_Phase` | ⚠️ `Phase_GDC` | `phase_Skeleton` |
-> | Riktor | `Paragon.Riktor` | `BP_Unit_Riktor` · `ABP_Riktor` | `Riktor` | `Riktor_Skeleton` |
-> | Wraith | `Paragon.Wraith` | `BP_Unit_Wraith` · `ABP_Wraith` | `Wraith` | `Wraith_Skeleton` |
+> | Gadget | `Paragon.Gadget` | `BP_Unit_Gadget` | `Gadget` | `Gadget_Skeleton` |
+> | Phase | `Paragon.Phase` | `BP_Unit_Phase` | ⚠️ `Phase_GDC` | `phase_Skeleton` |
+> | Riktor | `Paragon.Riktor` | `BP_Unit_Riktor` | `Riktor` | `Riktor_Skeleton` |
+> | Wraith | `Paragon.Wraith` | `BP_Unit_Wraith` | `Wraith` | `Wraith_Skeleton` |
+>
+> 🔴 **La colonna «AnimBP» è stata tolta il 2026-08-30, e non è un dettaglio di formato**: gli `ABP_<Pack>`
+> **non esistono e non vanno creati**. Il grafo di locomozione vive in C++ (`URTUnitAnimInstance`) dal
+> 2026-08-25, e la classe la assegna `ARTUnit::ApplyUnitAnimClass()` allo spawn —
+> [D-248](../../decisions/RT_PDR_00_Decision_Log.md), [#1720](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1720).
+> La cartella `Animation/` resta nel percorso qui sotto perché è dove andranno i **montaggi** `AM_*`, che
+> sono lavoro reale e ancora aperto (§AS.4b).
 >
 > Cartelle: `/Game/RT/Characters/<Pack>/{Blueprints,Animation}/`. Pack in
 > `/Game/FabAsset/Paragon/Paragon<Pack>/Characters/Heroes/<Pack>/…`.
@@ -129,65 +136,66 @@ procedura sugli altri tre.
 
 ## AS.4a — Locomozione Idle ↔ Run (obiettivo: i quattro eroi corrono nel Move)
 
-🔴 **Questa sezione è stata riscritta il 2026-08-25 ([#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288)), e la versione precedente mandava a sbattere in tre punti.**
-Diceva `ABP_Gideon` e `BP_Unit_Guardian`: il primo è un pack **fuori roster** (D-120 dice Gadget · Phase ·
-Riktor · Wraith), il secondo è un Blueprint che **non esiste più** — in `Content/RT/Characters/` ci sono i
-quattro `BP_Unit_<Eroe>` e nient'altro. E soprattutto pilotava una variabile `bIsMoving` **agganciando i
-delegate del TurnManager dentro ogni BP_Unit**, con bind, branch `Unit == self` e cast: quel wiring va
-rifatto per ogni personaggio ed è superato da `bIsMovingVisually`, che il TurnManager scrive già
-sull'unità. La via vecchia resta leggibile nella storia di questo file, non qui.
+🔴 **Il grafo di locomozione NON si costruisce in editor: vive in C++, e questa sezione è stata riscritta il 2026-08-30 ([#1720](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1720)) per dirlo.**
+Fino a quel giorno mandava a creare quattro `ABP_<Eroe>`, ed era già la **seconda** stesura: la prima
+(2026-08-03) diceva `ABP_Gideon` e `BP_Unit_Guardian`, e la riscrittura del **2026-08-25** ne corresse i
+**nomi** senza sapere che poche ore dopo, dentro lo stesso [#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288),
+sarebbe cambiata la **via**. Un documento che si dichiara appena riverificato è più credibile di uno silente,
+e per questo sbagliava più a fondo — è la deriva che
+[D-248](../../decisions/RT_PDR_00_Decision_Log.md) esiste per chiudere.
 
-### 1. Crea l'Animation Blueprint — uno per eroe
-- Content Browser ▸ `Content/RT/Characters/<Eroe>/Blueprints` ▸ tasto destro ▸ **Animation ▸ Animation Blueprint**.
-- Skeleton: quello **del pack**, e si prende **dalla mesh, non dal nome del file** (è l'errore già costato una
-  correzione in [AS.3](#as3--animazioni-con-paragon-niente-retargeting)). Nome: **`ABP_<Eroe>`** — `ABP_Gadget`, `ABP_Phase`,
-  `ABP_Riktor`, `ABP_Wraith`.
+⚠️ **Non è una correzione di nomi: è lavoro che non va fatto.** Creare oggi i quattro `ABP_*` costerebbe
+~2,8 MB di binario versionato contro gli 0,7 MB che pesa **tutto** `Content/` — e i `.uasset` non si
+comprimono per delta, quindi il prezzo si ripaga a ogni salvataggio.
 
-### 2. Lo stato arriva dall'unità, non da un wiring per personaggio
-`ARTUnit::bIsMovingVisually` è `BlueprintReadOnly` e lo **scrive il TurnManager**: lo accende quando l'unità
-parte nel Move o nel Dash, lo spegne a fine risoluzione e su ogni unità rimossa. L'AnimBP lo legge, e questo è
-tutto il collegamento che serve — **uguale per ogni personaggio, nessun bind, nessun branch**.
+### Cosa fa il codice, e che quindi non devi fare tu
 
-- `ABP_<Eroe>` ▸ **My Blueprint** ▸ **+ Variable** ▸ bool **`bIsMoving`** (è la copia locale che le transizioni
-  leggono: le condizioni di transizione non possono seguire un cast).
-- **Event Graph** ▸ **Event Blueprint Update Animation**:
-  - 🔴 **`Get Owning Actor`, NON `Try Get Pawn Owner`.** `ARTUnit` deriva da **`AActor`**, non da `APawn`:
-    `Try Get Pawn Owner` è il nodo che ogni tutorial usa, qui restituisce **null**, il cast fallisce e la
-    macchina a stati resta in `Idle` **senza un errore, senza un warning e senza un log**. Se le mesh non
-    corrono, è questo.
-  - `Get Owning Actor` ▸ **Cast To `RTUnit`** ▸ `Get bIsMovingVisually` ▸ **Set `bIsMoving`**.
-  - Lascia il cast **non puro** e non gestire il ramo di fallimento: un'unità che non è un `RTUnit` non
-    esiste in partita, e un default `false` è già la risposta giusta.
+Il grafo è `URTUnitAnimInstance` (`Source/RefactorTactics/Unit/RTUnitAnimInstance.h` +
+`Source/RefactorTactics/Unit/RTUnitAnimInstance.cpp`), sotto test con `FRTUnitAnimClipsTest`:
 
-### 3. AnimGraph: macchina a stati Idle/Run
-- Apri **AnimGraph** ▸ tasto destro ▸ **Add New State Machine** (nome `Locomotion`) ▸ collega la sua uscita a **Output Pose**.
-- Doppio clic sulla state machine:
-  - **Entry** → nuovo stato **Idle**: dentro trascina la clip *Idle* ▸ collega a **Output Animation Pose**.
-  - Nuovo stato **Run**: dentro la clip *Corsa* ▸ Output Animation Pose.
-  - ⚠️ **Le clip si prendono dalla riga *Idle* e *Corsa* di
-    [AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster), pack per pack.** Non si deducono: su Gadget la corsa
-    è `Run_Fwd` e non `Jog_Fwd`, su Wraith l'idle è `Idle_NonCombat`.
-  - Transizione **Idle → Run**: doppio clic sulla freccia ▸ condizione **`bIsMoving` == true** (trascina
-    `bIsMoving` → `Return Value` del Can Enter Transition).
-  - Transizione **Run → Idle**: condizione **`bIsMoving` == false** (usa un nodo **NOT**).
-- **Compile ▸ Save**.
+| Il passo che stava qui | Chi lo fa oggi |
+|---|---|
+| «crea l'Animation Blueprint, uno per eroe» | **nessuno**: non esistono `.uasset` di animazione e non vanno creati (`find Content -iname "ABP_*"` → zero) |
+| «+ Variable `bIsMoving`, Event Blueprint Update Animation, Cast To `RTUnit`» | il proxy legge `ARTUnit::bIsMovingVisually` da sé, senza bind e senza cast in Blueprint |
+| «Add New State Machine `Locomotion`, stati Idle e Run, transizioni» | `FRTUnitAnimProxy::Initialize` monta `Idle` e `Run` in un `FAnimNode_TwoWayBlend` e ne pilota l'`Alpha` |
+| «Anim Class = `ABP_<Eroe>`» | `ARTUnit::ApplyUnitAnimClass()` allo spawn; il default è `URTUnitAnimInstance`, assegnato nel costruttore |
+| «le clip si prendono pack per pack da [AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster)» | `ClipsPerHero`, `TSoftObjectPtr` composti a runtime — restano **dati diffabili**, non un binario |
 
-### 4. Collega l'AnimBP alla mesh
-- Apri `BP_Unit_<Eroe>` ▸ seleziona lo **Skeletal Mesh Component** ▸ Details ▸ **Animation**:
-  - **Animation Mode = Use Animation Blueprint**
-  - **Anim Class = `ABP_<Eroe>`**
-- (Rimuovi l'eventuale "Use Animation Asset ▸ Idle" messo prima: ora comanda l'AnimBP.)
-- ⚠️ **Un Blueprint per volta.** Due `.uasset` non si fondono: se una seconda sessione ha lo stesso file
-  aperto, uno dei due lavori si perde senza conflitto e senza avviso.
+⚠️ **Il `Try Get Pawn Owner` resta lo scoglio, ma non è più tuo.** `ARTUnit` deriva da **`AActor`** e non da
+`APawn`, quindi quel nodo restituisce `null` e la macchina resterebbe in `Idle` senza un errore, senza un
+warning e senza un log; il C++ usa `GetOwningActor` proprio per questo. La nota resta qui perché è la prima
+cosa che si sbaglia il giorno in cui qualcuno prova comunque un AnimBP a mano — cosa che
+`ApplyUnitAnimClass` **permette** ancora: una `Anim Class` già scelta in Blueprint vince, e il default C++
+non la scavalca.
+
+### Quello che resta davvero da fare in editor
+
+1. **La Skeletal Mesh sul `BP_Unit_<Eroe>`** — è l'unico lavoro aperto di questa sezione, ed è
+   [#1719](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1719). Su **Gadget** è agganciata;
+   su **Phase**, **Riktor** e **Wraith** no: le clip ci sono, la mesh sta ancora sotto il cilindro e le tre
+   unità **si vedono deformate**. Lo skeleton si legge **dalla mesh**, non dal nome del file
+   ([AS.3](#as3--animazioni-con-paragon-niente-retargeting)).
+2. **Il flag `loop` delle clip**, che nessun documento può dichiarare al posto tuo: sta dentro l'asset e si
+   legge aprendolo. `Idle` e la corsa devono esserlo. I due nodi C++ sono già in loop
+   (`SetLoopAnimation(true)`), ma una clip non-loop resta non-loop.
+3. **`MeshYawOffset`**, se il personaggio corre di traverso: le skeletal si modellano lungo **+Y**, il
+   forward di un attore è **+X**. `ACharacter` compensa i 90° nel proprio costruttore, `AActor` **no** — il
+   default è `-90`, ma è un parametro perché dipende dal pack. Si corregge guardando `FacingArrow`, che
+   punta sempre lungo il forward dell'attore.
+4. ⚠️ **Un Blueprint per volta.** Due `.uasset` non si fondono: se una seconda sessione ha lo stesso file
+   aperto, uno dei due lavori si perde senza conflitto e senza avviso. I quattro eroi sono quattro file
+   distinti, quindi il lavoro è parallelizzabile — ma non sullo stesso.
 
 **Verifica (PIE)**: al lock-in del turno, durante la fase **Move** l'unità passa a `Jog_Fwd` (`Run_Fwd` per
 Gadget) mentre scorre lungo il percorso, e torna a `Idle` a fine risoluzione. Voce `PIE-AS4a`.
 
 ⚠️ **Che il flag si accenda e si spenga nei momenti giusti è già coperto headless** da
 `RTPlaybackPhaseTests` — «nel Dash l'unità che scatta è in corsa», «nel Blast non è più in corsa», «a fine
-risoluzione nessuna corsa residua». Quei test misurano il **contratto** che l'AnimBP consuma, non
-l'animazione: se al PIE la mesh non corre mentre quei test sono verdi, il difetto è nell'AnimBP — quasi
-sempre il `Try Get Pawn Owner` del passo 2 — e non nel C++.
+risoluzione nessuna corsa residua». Quei test misurano il **contratto** che il grafo consuma, non
+l'animazione: se al PIE la mesh non corre mentre quei test sono verdi, il difetto **non è nel C++ del
+playback**. Da quando il grafo è in `URTUnitAnimInstance` i sospetti sono due, in quest'ordine: la
+**Skeletal Mesh non agganciata** ([#1719](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1719))
+e una **clip non in loop**.
 
 ---
 
@@ -199,8 +207,9 @@ sull'attaccante e sul bersaglio (colpi risolti) e sull'unità che muore. **Nient
 solo i 3 eventi nel BP (uniforme per ogni personaggio; se un evento non è implementato, nessun effetto — invariante #1).
 
 1. **Montaggi** (tasto destro sull'anim ▸ **Create ▸ Create AnimMontage**):
-   - Gideon: `Cast`→`AM_Gideon_Attack`, `HitReact_Front`→`AM_Gideon_Hit`, `Death_Fwd`→`AM_Gideon_Death`.
-   - Sparrow: attacco (tiro), `HitReact`, `Death` → `AM_Sparrow_*`.
+   - *Esempio del prototipo 2026-08-03, **fuori roster**, tenuto per il procedimento e non per i nomi*:
+     Gideon `Cast`→`AM_Gideon_Attack`, `HitReact_Front`→`AM_Gideon_Hit`, `Death_Fwd`→`AM_Gideon_Death`;
+     Sparrow attacco (tiro), `HitReact`, `Death` → `AM_Sparrow_*`. Il roster della v0.1 è la riga qui sotto.
    - **Per il roster della v0.1**, clip di partenza dalle righe *Attacco*, *Colpito* e *Morte* di
      [AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster). Il nome del montaggio segue il **pack** come tutto il
      resto (`AM_Gadget_Attack`, `AM_Gadget_Hit`, `AM_Gadget_Death`, e così per Phase, Riktor, Wraith), e le
@@ -208,15 +217,18 @@ solo i 3 eventi nel BP (uniforme per ogni personaggio; se un evento non è imple
      fino al 2026-08-25, e la tabella di [AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster) ne conta
      **sei**, coerente con il suo «14 su 20»; qui ne sono elencate tre* — `Hitreact_Fwd` con la `r` minuscola per
      Gadget, `Death` nudo per Phase, `Death_Forward` per Wraith.
-2. **Slot** in `ABP_Gideon`/`ABP_Sparrow` ▸ AnimGraph: inserisci un nodo **Slot 'DefaultSlot'** tra la State
-   Machine `Locomotion` e l'Output Pose (i montaggi vanno in override su idle/run).
+2. ✅ **Lo slot NON va inserito: c'è già.** Questo punto diceva *«Slot in `ABP_Gideon`/`ABP_Sparrow`
+   ▸ AnimGraph: inserisci un nodo Slot 'DefaultSlot'»*, ed è caduto il 2026-08-25 insieme agli AnimBP:
+   `FRTUnitAnimProxy::Initialize` monta già `Slot.SlotName = FAnimSlotGroup::DefaultSlotName` come radice
+   del grafo, a valle del blend Idle/Run. È esattamente lo slot che `Play Anim Montage` usa quando non
+   gliene si passa un altro, quindi i montaggi entrano **in override** su idle e corsa senza altro lavoro.
 3. **`BP_Unit_<Eroe>`** (Gadget · Phase · Riktor · Wraith — ⚠️ *diceva "Guardian/Ranger": quei due Blueprint non esistono*) ▸ Event Graph: aggiungi gli eventi (tasto destro ▸ cerca il nome) e collega
    ciascuno a un **Play Anim Montage** (target: lo Skeletal Mesh Component):
    - **Event Play Attack Montage** → `AM_…_Attack`
    - **Event Play Hit Montage** → `AM_…_Hit`
    - **Event Play Defeat Montage** → `AM_…_Death`
    - **Compile ▸ Save**.
-4. **PIE**: colpo → attacco + reazione del bersaglio; morte → caduta, sincronizzati col playback.
+4. **PIE**: colpo → attacco + reazione del bersaglio; morte → caduta, sincronizzati col playback. Voce `PIE-AS4b`.
 
 > Sincronia col resolver: gli eventi arrivano già al momento giusto (Blast per i colpi, fine fase per la morte).
 > L'animazione **riproduce**, non decide (invariante #1).
@@ -225,13 +237,23 @@ solo i 3 eventi nel BP (uniforme per ogni personaggio; se un evento non è imple
 
 ## Facing (fatto in C++)
 
-`bFaceMovementDirection` (default off) è pronto su `RTUnit` (70 test verdi). Su `BP_Unit_Guardian` ▸ Class Defaults
-spunta **`Face Movement Direction`**: Gideon si orienterà verso la direzione di corsa, così `Jog_Fwd` (che va in
-avanti) è credibile in ogni direzione. Solo presentazione: non tocca la logica.
+`bFaceMovementDirection` (default off) è pronto su `RTUnit`. Su **`BP_Unit_<Eroe>`** ▸ Class Defaults
+spunta **`Face Movement Direction`**: l'unità si orienterà verso la direzione di corsa, così `Jog_Fwd`
+(`Run_Fwd` per Gadget), che va in avanti, è credibile in ogni direzione. Solo presentazione: non tocca la
+logica.
+
+⚠️ *Questa riga diceva `BP_Unit_Guardian`: quel Blueprint non esiste ed è fuori roster
+([D-120](../../decisions/RT_PDR_00_Decision_Log.md)). Corretta il 2026-08-30,
+[#1720](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1720).*
+
+🔴 **Se il personaggio corre di traverso il colpevole NON è questo flag, ma `MeshYawOffset`**: le due
+cose si somigliano a schermo e si separano con `FacingArrow`, che segue l'**attore**. Se la freccia punta
+dove ti aspetti ma la mesh guarda altrove, il difetto è nell'offset — vedi il punto 3 di
+[AS.4a](#as4a--locomozione-idle--run-obiettivo-i-quattro-eroi-corrono-nel-move).
 
 ---
 
-## Ripetere per il Ranger (Sparrow) — via duplicato
+## Ripetere per un eroe in più — ⚠️ sezione storica: non è più un duplicato
 
 🔴 **Sezione storica dal 2026-08-25: il *metodo* del duplicato regge, i suoi cinque passi no.** Sparrow è
 fuori dal roster ([D-120](../../decisions/RT_PDR_00_Decision_Log.md)); `BP_Unit_Guardian` e `BP_Unit_Ranger` **non
@@ -242,17 +264,27 @@ GameMode non ha — oggi è `HeroUnitClasses`, e dal 2026-08-25 la popola il cos
 ([#287](https://github.com/DegrassiAaron/refactor-tactics-main/issues/287)). **Per il quinto eroe segui AS.4a**, che
 è già scritta per ripetersi.
 
-Sparrow ha uno **skeleton diverso** (`Sparrow_Skeleton`) → serve un nuovo AnimBP, ma si riusa il BP unità:
+🔴 **Aggiornamento 2026-08-30 ([#1720](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1720)):
+adesso non regge più nemmeno il metodo, e i sei passi sono stati tolti perché si leggevano come istruzioni.**
+Duplicare un BP unità per cambiargli l'AnimBP era la via di quando il grafo stava in un `.uasset`. Da quando
+sta in `URTUnitAnimInstance` **non c'è nessun AnimBP da duplicare**: un eroe nuovo non aggiunge un binario,
+aggiunge **una riga di dati** — la sua coppia `Idle`/corsa in `ClipsPerHero` — e il grafo, la classe e lo
+slot dei montaggi valgono già per lui.
 
-1. **Duplica** `BP_Unit_Guardian` → **`BP_Unit_Ranger`** (eredita cilindro nascosto, `VisualZOffset=0`, `Face Movement Direction` e il wiring dei delegati).
-   - Skeletal Mesh Component ▸ **Skeletal Mesh Asset = `Sparrow`** (`/Game/FabAsset/Paragon/ParagonSparrow/Characters/Heroes/Sparrow/Meshes/Sparrow`).
-2. **`ABP_Sparrow`** (Animation Blueprint, skeleton `Sparrow_Skeleton`): State Machine Idle/Run come ABP_Gideon —
-   Idle = `Travel_Mode_Idle_BowDown` (o `Idle_FrontEnd`), Run = `Jog_Fwd`, transizioni su `bIsMoving`.
-3. `BP_Unit_Ranger` ▸ Skeletal Mesh Component ▸ **Anim Class = `ABP_Sparrow`**.
-4. ⚠️ Nell'**Event Graph** del `BP_Unit_Ranger` (ereditato) i due nodi **Cast To ABP_Gideon** vanno cambiati in
-   **Cast To ABP_Sparrow** (altrimenti il set `bIsMoving` non scatta su Sparrow). Ricollega exec + Set `bIsMoving`.
-5. `BP_GameMode` ▸ **Ranger Unit Class = `BP_Unit_Ranger`** ▸ Compile ▸ Save.
-6. PIE: i Ranger diventano Sparrow e corrono nel Move.
+*Cosa dicevano, per la provenienza*: duplicare `BP_Unit_Guardian` in `BP_Unit_Ranger`, creare `ABP_Sparrow`
+sullo skeleton `Sparrow_Skeleton`, assegnarlo come `Anim Class`, correggere i due `Cast To ABP_Gideon`
+ereditati nell'Event Graph e impostare una `Ranger Unit Class` sul GameMode. **Quattro di questi cinque
+passi non hanno più un oggetto su cui operare**: quei due Blueprint non esistono, gli `ABP_*` non vanno
+creati, il cast in Blueprint non c'è più (il proxy C++ legge `bIsMovingVisually` da sé) e la
+`Ranger Unit Class` è oggi `HeroUnitClasses`, popolata dal costruttore C++
+([#287](https://github.com/DegrassiAaron/refactor-tactics-main/issues/287)). Il testo integrale resta nella
+storia di questo file.
+
+**Per un eroe in più, oggi**: aggiungi la sua riga a `ClipsPerHero` in
+`Source/RefactorTactics/Unit/RTUnitAnimInstance.cpp` — i nomi delle clip si **misurano sul disco**, non si
+deducono ([AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster) conta sei caselle su venti che divergono). Poi
+aggancia la Skeletal Mesh al suo `BP_Unit_<Eroe>`, che è l'unico passo rimasto in editor
+([AS.4a](#as4a--locomozione-idle--run-obiettivo-i-quattro-eroi-corrono-nel-move)).
 
 ## Nota — fix ordine-spawn (applicato)
 `ARTGameMode::BeginPlay` ora spawna il `TurnManager` **prima** delle unità: in `BP_Unit` puoi agganciarti ai

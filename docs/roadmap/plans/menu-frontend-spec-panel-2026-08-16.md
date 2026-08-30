@@ -3,8 +3,12 @@
 > `CURRENT` · **Stato**: revisione chiusa, consolidamento applicato · **Data**: 2026-08-16
 > **HEAD della revisione**: `4ab36b48` · branch `docs/menu-frontend-consolidamento`
 > **Sorgente revisionata**: `Claude_RefactorTactics_Menu_Features_Issues_Tracking_v0.1_to_v1.0.md`
-> (1004 righe, untracked in root), archiviata a fine sessione in
+> (1003 righe, untracked in root), archiviata a fine sessione in
 > [`../../archive/src/handoff/2026-08-16-menu-frontend-tracking.md`](../../archive/src/handoff/2026-08-16-menu-frontend-tracking.md)
+> ⏱️ **Poi rientrata, e per due settimane il repository ne ha avute due copie.** Il commit di massa
+> `29d27de8` (*«icons 01»*, 112 file, 2026-08-16 08:42) ha versionato anche la copia di radice, **sette ore
+> dopo** che `8a0fb3a1` l'aveva archiviata alle 01:28. Le due erano identiche a meno delle 59 righe di
+> banner che l'archiviazione aveva aggiunto in testa. La copia di radice è stata rimossa il 2026-08-30.
 > **Scopo**: classificare ogni affermazione del documento contro il repository **prima** di applicarla a
 > roadmap, registry, epic o issue — che è l'ordine che il documento stesso prescrive al §0 e al §30.
 > **Regola applicata**: un handoff AI è l'ultima fonte della gerarchia. Dove contraddice un ADR, una

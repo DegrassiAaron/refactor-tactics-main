@@ -207,14 +207,30 @@ URTMatchFormatData* URTMatchFormatLibrary::FindShippedFormat(FName FormatId)
 	// un numero su un dato inammissibile. Il `10` resta il target di design; il `21` resta qui accanto
 	// perche' chi arriva dopo non debba ri-misurarlo — ed e' anche la ragione per cui il gate di
 	// `ValidateFormat` oggi tace: e' cieco su una misura scaduta, non su una regola sbagliata.
-	// Soglia obiettivo ZERO, e non e' pigrizia: **nessuno assegna punti**. `ARTTurnManager::AddTeamScore`
-	// esiste e funziona, ma il suo unico chiamante in tutto il repository e' un test — nel runtime non ci sono
-	// obiettivi che producano punteggio. Una soglia > 0 dichiarerebbe una via di vittoria IRRAGGIUNGIBILE, cioe'
-	// il difetto ricorrente del progetto nella sua forma opposta: non un dato che nessuno legge, ma una soglia
-	// che nessuno alimenta. Lo zero dice il vero — in v0.1 si vince per eliminazione o al limite di round — e
-	// diventa un numero il giorno in cui un obiettivo chiama `AddTeamScore`.
+	// ✅ **La soglia obiettivo e' CINQUE dal 2026-08-30** ([D-247]), e per mesi e' stata zero: *«nessuno
+	// assegna punti […] diventa un numero il giorno in cui un obiettivo chiama `AddTeamScore`»*. Quel giorno
+	// e' arrivato con CP 10.2 (`#75`, [D-241]): il Cleanup assegna **un punto per turno controllato**, e
+	// `DA_HexMap_Arena` dichiara la propria cella obiettivo.
+	//
+	// **Da dove viene il cinque**, perche' un numero di bilanciamento senza derivazione e' un numero
+	// inventato — e [D-102] vieta di derivarlo da partite bot-contro-bot:
+	//
+	//   (a) l'obiettivo dell'arena e' la porta NORD `(0,-3,0)`, che dista **4 celle dallo spawn ovest e 7
+	//       da quello est**: non e' equidistante, e non poteva esserlo — l'unica cella equidistante della
+	//       barriera e' il centro `(0,0)`, che e' muro. Chi parte a ovest arriva **un turno prima**, cioe'
+	//       comincia con **un punto di vantaggio strutturale**;
+	//   (b) la soglia deve rendere quel punto **minoritario**: a cinque vale il 20%, conta senza decidere.
+	//       A tre varrebbe un terzo e la mappa deciderebbe piu' del gioco;
+	//   (c) deve chiudere **prima** di `RoundLimit` (12), altrimenti non e' una via distinta dal confronto
+	//       dei punteggi allo scadere, che esiste gia'. A cinque chiude al turno 5-6 nel caso di controllo
+	//       ininterrotto, e restano ~7 turni perche' la contesa possa ribaltarla;
+	//   (d) resta sotto la meta' della partita, quindi la via si esercita davvero — una soglia che non si
+	//       raggiunge mai e' il difetto opposto a quello che lo zero evitava, non la sua correzione.
+	//
+	// ⚠️ **Non e' tarato su una partita misurata**, e va detto: e' derivato dalla GEOMETRIA della mappa e dai
+	// due limiti del formato. Il playtest puo' falsificarlo, ed e' il suo mestiere.
 	Format->ExpectedRounds = 10;
-	Format->ScoreToWin = 0;
+	Format->ScoreToWin = 5;
 	Format->UnitsPerTeam = 2;
 	// Un umano solo, che comanda la squadra intera: il 2v2 offline contro bot **e' gia'** il caso
 	// multi-unita', e i due numeri coincidono. E' precisamente cio' che rende invisibile un percorso che
