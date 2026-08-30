@@ -167,10 +167,11 @@ che questo kit ha tratto**. La causa a monte del 🔴-1 non è il kit, è il reg
 `origin/main` prima di qualunque lavoro d'Editor. Vale più dell'intero P0 del pacchetto.
 ✅ **Eseguita il 2026-08-30**, subito dopo questo referto: la sezione «Riconciliazione del registro» in
 testa a [`screen-hud-umg-2026-08-26.md`](screen-hud-umg-2026-08-26.md) misura le 61 caselle su `285d2322` e
-ne spunta **36**. Ha anche trovato ciò che nessuno dei due documenti sapeva: lo **Step 7.4 non è
-implementato** — `WBP_RT_ActionDock` non chiama `GetArmedActionIndex()`, quindi lo stato neutro di D-128
-non ha la fonte da cui dedursi — e lo **Step 3.4 è per metà**, che è la stessa lacuna del 🔴-2 qui sopra
-vista dal lato del piano. Le cinque caselle «verifica a schermo» restano aperte per costruzione.
+ne spunta **36**. Ha anche trovato ciò che nessuno dei due documenti sapeva: lo **Step 7.4 non era
+implementato** — `WBP_RT_ActionDock` non chiamava `GetArmedActionIndex()`, e `bArmed` era una **costante
+`false`**, quindi nessuno slot poteva accendersi mai — e lo **Step 3.4 è per metà**, che è la stessa lacuna
+del 🔴-2 qui sopra vista dal lato del piano. ✅ **Lo Step 7.4 è stato chiuso lo stesso giorno** (37/61); lo
+Step 3.4 resta. Le cinque caselle «verifica a schermo» restano aperte per costruzione.
 
 ### 🟠-2 · Ready: sei gate per una funzione senza dato e senza comando
 
