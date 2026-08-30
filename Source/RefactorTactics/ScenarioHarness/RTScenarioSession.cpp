@@ -540,6 +540,24 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 			return Fail(FString::Printf(TEXT("eroe '%s' non nel catalogo"), *Spec.HeroId.ToString()));
 		}
 
+		// 🔴 **La cella esiste sulla mappa?** `ValidateUnitPlacement` non puo' rispondere quando lo scenario
+		// usa una FIXTURE: la forma non e' un raggio, e li' il controllo delega qui — con un commento che
+		// diceva *«lo verifica il RUNNER sulla mappa vera»*.
+		//
+		// ⚠️ **Quella delega non aveva un'implementazione, ed e' stato misurato**: `PlaceOnCell` scrive la
+		// cella e ne calcola la posizione nel mondo senza chiedere niente alla mappa, e in tutto il percorso
+		// dello scenario non esisteva un solo messaggio d'errore per un'unita' fuori mappa. Un'unita' su una
+		// cella inesistente veniva posata, la partita girava, e cio' che lo scenario verificava non era cio'
+		// che descriveva.
+		//
+		// Questo e' l'unico posto dove la geometria vera c'e' gia': l'arena e' costruita, e la domanda costa
+		// una `FindCell`. Il commento del loader ora e' vero.
+		if (Map->FindCell(Spec.Cell) == nullptr)
+		{
+			return Fail(FString::Printf(TEXT("unita' '%s': la cella %s non esiste sulla mappa"),
+				*Spec.Id, *Spec.Cell.ToString()));
+		}
+
 		ARTUnit* Unit = InWorld->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!Unit)
 		{
