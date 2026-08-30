@@ -799,7 +799,6 @@ bool FRTKnowledgeVolumeFractionsTest::RunTest(const FString&)
 
 #endif // !UE_BUILD_SHIPPING
 
-#endif // WITH_DEV_AUTOMATION_TESTS
 
 
 /**
@@ -907,3 +906,5 @@ bool FRTVeilFirstApplyHasNonEmptyKnowledgeTest::RunTest(const FString&)
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS
