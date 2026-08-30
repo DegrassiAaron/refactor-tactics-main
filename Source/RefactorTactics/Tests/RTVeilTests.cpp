@@ -800,3 +800,110 @@ bool FRTKnowledgeVolumeFractionsTest::RunTest(const FString&)
 #endif // !UE_BUILD_SHIPPING
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+
+/**
+ * 🔴 **Il difetto di `#1762`, preso alla RADICE invece che al sintomo.**
+ *
+ * Il sintomo era: al primo turno i click non muovono. La radice e' che all'allestimento la conoscenza di
+ * squadra e' **vuota**, perche' l'unico produttore — `RefreshTeamKnowledgeForPlanning` dentro `PlanBots`
+ * dentro `StartPlanningTimer` — gira nel `BeginPlay` del TurnManager, cioe' PRIMA che
+ * `SetupHexMatch` spawni le unita'.
+ *
+ * 🔑 **L'asserzione e' sulle celle ACCESE, e la scelta e' il punto.** `FirstFrameVeilsImmediately`
+ * asserisce gia' che dopo l'aggancio qualcosa sia nascosto (`N > 0`), e quel test restava **verde** col
+ * difetto attivo: una board interamente nascosta soddisfa `N > 0` benissimo. Il complemento — che almeno
+ * una cella resti accesa — e' cio' che nessuno verificava, ed e' esattamente cio' che il giocatore puo'
+ * cliccare: una cella non disegnata non ha collisione, e il click e' un raycast.
+ *
+ * ⚠️ Non asserisce un NUMERO di celle accese: dipende da mappa, roster e `VisionRange`, e pinnarlo
+ * renderebbe il test fragile a un cambio di bilanciamento che non c'entra. La soglia che conta e' **zero**.
+ *
+ * 🔴 **E il CABLAGGIO si asserisce, non si suppone.** Una prima stesura chiamava
+ * `RefreshTeamKnowledgeNow()` a mano e si fermava li': **verifica di mutazione FALLITA** il 2026-08-30 —
+ * rimuovendo la chiamata da `ARTGameMode::BeginPlay` il test restava **verde**, perche' non passava dal
+ * sito che il difetto riguarda. Provava che il metodo funziona, non che qualcuno lo chiama: la stessa
+ * distanza fra «il meccanismo esiste» e «qualcuno lo invoca» che `#1467` ha pagato col velo mai chiamato.
+ * ✅ Ora il test misura **prima e dopo**: la finestra vuota esiste davvero, e il refresh la chiude.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilFirstApplyHasNonEmptyKnowledgeTest,
+	"RefactorTactics.Veil.FirstApplyHasNonEmptyKnowledge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilFirstApplyHasNonEmptyKnowledgeTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// Come `FirstFrameVeilsImmediately`: senza, il delegate dinamico del GameMode non viene mai invocato
+	// (`AActor::ProcessEvent` scarta gli eventi con gli attori non inizializzati — la lezione di `#939`).
+	World->InitializeActorsForPlay(FURL());
+
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("TurnManager"), TM)
+		|| !TestNotNull(TEXT("GameMode"), GameMode))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	GameMode->bAutobattle = true;
+	GameMode->SetupHexMatch(HexMap);
+
+	const int32 Totale = HexMap->NumInstanceCells();
+	if (!TestTrue(TEXT("la board ha istanze"), Totale > 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- 1a. LA FINESTRA: dopo lo spawn del roster, e PRIMA del cablaggio, la conoscenza e' VUOTA ----
+	// 🔴 E' il difetto di `#1762` colto sul fatto: l'unico refresh finora avvenuto e' quello dentro il
+	// `BeginPlay` del TurnManager, uscito con zero unita' perche' `SetupHexMatch` non le aveva ancora
+	// spawnate. Senza questa asserzione il punto 1b sarebbe vacuo: proverebbe che la conoscenza e'
+	// popolata, non che qualcosa l'ha popolata.
+	const FRTTeamKnowledge Prima = TM->KnowledgeForTeamPublic(/*TeamId=*/ 0);
+	TestEqual(TEXT("prima del cablaggio la conoscenza della squadra 0 e' vuota (la finestra di #1762)"),
+		Prima.VisibleCells.Num(), 0);
+
+	// --- 1b. IL CABLAGGIO, e si attraversa il percorso VERO ------------------------------------------
+	//
+	// 🔴 **`DispatchBeginPlay()` e non `RefreshTeamKnowledgeNow()` a mano, ed e' il punto di tutto il
+	// test.** Due stesure precedenti chiamavano il metodo direttamente e la **verifica di mutazione le ha
+	// bocciate entrambe** (2026-08-30): togliendo la chiamata da `ARTGameMode::BeginPlay` il test restava
+	// **verde**, perche' non passava dal sito che il difetto riguarda. Provava che il metodo funziona, non
+	// che qualcuno lo chiama — la stessa distanza fra «il meccanismo esiste» e «qualcuno lo invoca» che
+	// `#1467` ha pagato col velo mai chiamato.
+	//
+	// ⚠️ `SetupHexMatch` e' gia' stata chiamata sopra, e `BeginPlay` la richiama: e' idempotente sul
+	// roster (`EnsureMatchRoster` non ricostruisce cio' che c'e'), e cio' che conta qui e' che la riga
+	// `TurnManager->RefreshTeamKnowledgeNow()` venga eseguita DAL codice di produzione.
+	GameMode->DispatchBeginPlay();
+
+	const FRTTeamKnowledge Conoscenza = TM->KnowledgeForTeamPublic(/*TeamId=*/ 0);
+	TestTrue(*FString::Printf(TEXT("la squadra 0 vede almeno una cella (VisibleCells=%d)"),
+			Conoscenza.VisibleCells.Num()),
+		Conoscenza.VisibleCells.Num() > 0);
+
+	// --- 2. Il sintomo: dopo l'aggancio la board NON e' interamente nascosta ------------------------
+	// ⚠️ L'aggancio l'ha gia' fatto `BeginPlay` sopra: qui non si richiama nulla, si MISURA.
+
+	int32 Accese = 0, Ricordate = 0, Nascoste = 0;
+	HexMap->GetVeilCounts(Accese, Ricordate, Nascoste);
+
+	// 🔑 L'asserzione che il difetto rompe. Col bug: `Accese == 0`, board intera senza collisione.
+	TestTrue(*FString::Printf(
+			TEXT("dopo l'aggancio almeno una cella resta ACCESA e quindi cliccabile (%d accese, %d ricordate, "
+				"%d nascoste, su %d)"), Accese, Ricordate, Nascoste, Totale),
+		Accese > 0);
+
+	// ⚠️ E il velo continua a fare il suo mestiere: curare il click non deve scoprire la mappa. Senza
+	// questa riga la correzione piu' semplice — non velare affatto — passerebbe il test qui sopra.
+	TestTrue(*FString::Printf(TEXT("il velo nasconde ancora cio' che nessuno ha visto (%d nascoste)"),
+			Nascoste),
+		Nascoste > 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}

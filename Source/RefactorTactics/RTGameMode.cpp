@@ -399,6 +399,20 @@ void ARTGameMode::BeginPlay()
 			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
 	{
 		TurnManager->BeginReplayRecording();
+
+		// 🔴 **La conoscenza va ricalcolata QUI, e non e' una precauzione** ([#1762]).
+		//
+		// L'unico refresh finora avvenuto e' quello dentro il `BeginPlay` del TurnManager, che gira
+		// PRIMA di `SetupHexMatch`: e' uscito con zero unita', quindi con una conoscenza vuota per
+		// ogni squadra. Adesso le unita' esistono, e senza questa riga la prossima occasione sarebbe
+		// il turno successivo — con il velo qui sotto che nel frattempo marca l'intera board come mai
+		// vista, le toglie il disegno ([D-225]) e con esso la collisione: al primo turno il click, che
+		// e' un raycast, non colpisce niente e il giocatore non puo' muoversi.
+		//
+		// ⚠️ **Prima di `HookKnowledgeVeil` e non dopo**: l'aggancio stende il velo subito, ed e' una
+		// voce esplicita della DoD di `E13.8` (senza, il primo fotogramma rivela la mappa). Invertire
+		// le due righe lascerebbe la prima inquadratura con la conoscenza vuota, cioe' il difetto.
+		TurnManager->RefreshTeamKnowledgeNow();
 	}
 
 	// 🔴 **Il consumatore del velo (`E13.8`), che a `#1467` mancava**: il meccanismo esisteva, era coperto
