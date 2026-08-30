@@ -729,6 +729,13 @@ bool ARTPlayerController::RouteCameraGesture(const FVector2D& Delta)
 		return false;
 	}
 
+	// ⚠️ **Nessuna guardia su `IsGameplayInputBlocked` qui, ed e' deliberato lasciarlo com'e'.** Il
+	// movimento del mouse arriva da `OnOrbit`, che non l'ha mai avuta: con una modale aperta l'orbita di
+	// `#863` si e' sempre mossa. Aggiungerla ai soli gesti nuovi darebbe due comportamenti diversi per lo
+	// stesso gesto a seconda del tasto premuto, e cambiarla per tutti e' una modifica al comportamento
+	// pre-esistente che questa issue non ha misurato. Il ramo bloccato e' quello che **inizia** un gesto
+	// (`OnSelect`), che e' dove il blocco serve davvero.
+
 	// `Alt`+`LMB`: si accumula la strada percorsa **prima** di decidere. Sotto la soglia non si orbita
 	// ancora — altrimenti un click con un pixel di tremolio ruoterebbe la vista di un grado, e il set
 	// pivot arriverebbe su un'inquadratura gia' cambiata.
@@ -955,18 +962,23 @@ namespace
 
 void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 {
+	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
+	//
+	// ⚠️ **Sta PRIMA del ramo `Alt`, e l'ordine e' la correzione di un difetto mio**: la prima stesura di
+	// #1772 armava il gesto camera e usciva *prima* di questa guardia, quindi con una modale aperta —
+	// pausa, fine partita — `Alt`+trascinamento avrebbe continuato a orbitare dietro la schermata. Un
+	// comando di vista e' comunque un comando: se l'input di gioco e' bloccato, lo e' anche lui.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	// #1772 — con `Alt` premuto il sinistro **non seleziona**: arma un gesto camera, che al rilascio sara'
 	// un Set Pivot (sotto soglia) o sara' stato un'orbita (sopra). La selezione di gioco resta dov'e'.
 	if (bCameraModifier)
 	{
 		bAltPrimaryDown = true;
 		AltPrimaryDragDistance = 0.f;
-		return;
-	}
-
-	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
-	if (IsGameplayInputBlocked())
-	{
 		return;
 	}
 
