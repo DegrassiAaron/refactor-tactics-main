@@ -96,7 +96,7 @@ la tua consegna è il §12 e nient'altro»*.
 
 Questo è il punto in cui il kit vale qualcosa, e il modo in cui lo dice ne dimezza il valore.
 
-Il §12 chiede: *«no context / invalid timer displays a neutral placeholder, e.g. `--:--`»*. È esattamente
+Il §12 chiede: *«no context / invalid timer displays a neutral placeholder, e.g. `--:--`»*. Era esattamente
 il difetto aperto del repository, scritto nel corpo del commit `16ba67a4`:
 
 > ⚠️ Manca ancora la guardia sul negativo: fuori dalla fase di planning il campo vale -1, e a schermo
@@ -118,6 +118,11 @@ scrivendolo da zero introduce due divergenze:
 **Nygard.** Il valore di un handoff sui modi di fallimento sta nel dire *quale* stato produce *quale*
 schermata. Qui lo stato di fallimento è già tipizzato nel view model, con un commento che spiega perché:
 il kit avrebbe dovuto citarlo e vincolarlo, non riderivarlo.
+
+> ✅ **Chiuso il 2026-08-30.** La guardia è stata scritta in `Get_TimerText_Text`, e la scelta è caduta sul
+> **`—` del repository, non sul `--:--` del kit** — proprio per la ragione di questo rilievo: due segni per
+> la stessa idea nello stesso widget. Dettaglio e verifica in
+> [`screen-hud-umg-2026-08-26.md`](screen-hud-umg-2026-08-26.md), «La guardia sul timer».
 
 ### 🔴-3 · `MM:SS` è un cambio di formato mascherato da requisito
 
@@ -169,9 +174,11 @@ che questo kit ha tratto**. La causa a monte del 🔴-1 non è il kit, è il reg
 testa a [`screen-hud-umg-2026-08-26.md`](screen-hud-umg-2026-08-26.md) misura le 61 caselle su `285d2322` e
 ne spunta **36**. Ha anche trovato ciò che nessuno dei due documenti sapeva: lo **Step 7.4 non era
 implementato** — `WBP_RT_ActionDock` non chiamava `GetArmedActionIndex()`, e `bArmed` era una **costante
-`false`**, quindi nessuno slot poteva accendersi mai — e lo **Step 3.4 è per metà**, che è la stessa lacuna
-del 🔴-2 qui sopra vista dal lato del piano. ✅ **Lo Step 7.4 è stato chiuso lo stesso giorno** (37/61); lo
-Step 3.4 resta. Le cinque caselle «verifica a schermo» restano aperte per costruzione.
+`false`**, quindi nessuno slot poteva accendersi mai — e lo **Step 3.4 era per metà**, che è la stessa
+lacuna del 🔴-2 qui sopra vista dal lato del piano. ✅ **Entrambi affrontati lo stesso giorno**: lo Step 7.4
+è chiuso (37/61) e la **guardia** dello Step 3.4 è scritta; di quello step resta la sola seconda riga, il
+binding `Visibility → HasMatchContext`, che il ponte MCP non sa creare e che porta con sé una domanda di
+coerenza col `RoundText`. Le cinque caselle «verifica a schermo» restano aperte per costruzione.
 
 ### 🟠-2 · Ready: sei gate per una funzione senza dato e senza comando
 
