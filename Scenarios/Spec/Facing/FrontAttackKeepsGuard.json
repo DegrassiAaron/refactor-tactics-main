@@ -6,6 +6,7 @@
   "mapRadius": 4,
 
   "_nota": "Caso di controllo di `Spec.Facing.BackAttackIgnoresGuard`: stessa scena, colpo dall'ALTRO lato. B1 guarda a est (facing di partenza) e A1 attacca da est, dentro l'arco frontale: la guardia vale, 120 - (22 - 15) = 113. Senza questa coppia, un'implementazione che annulla SEMPRE la guardia passerebbe l'altro scenario.",
+  "_errata_scudo": "ERRATA (2026-08-30): i conti in prosa qui sopra NON sottraggono lo SCUDO BASE, e sono quindi piu' bassi del vero: 113 -> 118. Il valore giusto e' quello di `expect`, che il corpus verifica a ogni run; la prosa e' rimasta indietro. Causa: `URTCombatLibrary::BaseShield = 5` (D-224) esiste dal COSTRUTTORE di `ARTUnit`, quindi ogni unita' assorbe 5 danni prima degli HP, e ogni nota scritta prima di D-224 sbaglia di 5 per bersaglio colpito. Il conto originale NON e' stato riscritto di proposito: dice ancora cosa faceva il gioco quando fu scritto.",
 
   "units": [
     { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [2, 0, 0] },

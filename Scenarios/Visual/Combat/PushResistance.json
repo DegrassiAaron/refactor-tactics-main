@@ -40,6 +40,7 @@
   ],
 
   "_nota_numeri": "Riktor: 16-15=1 danno (la guardia vale sul primo colpo diretto), 120-1=119, fermo su (0,0,0). Wraith: 16 pieni, 90-16=74, arretrato di una cella.",
+  "_errata_scudo": "ERRATA (2026-08-30): i conti in prosa qui sopra NON sottraggono lo SCUDO BASE, e sono quindi piu' bassi del vero: 74 -> 79. Il valore giusto e' quello di `expect`, che il corpus verifica a ogni run; la prosa e' rimasta indietro. Causa: `URTCombatLibrary::BaseShield = 5` (D-224) esiste dal COSTRUTTORE di `ARTUnit`, quindi ogni unita' assorbe 5 danni prima degli HP, e ogni nota scritta prima di D-224 sbaglia di 5 per bersaglio colpito. Il conto originale NON e' stato riscritto di proposito: dice ancora cosa faceva il gioco quando fu scritto.",
 
   "expect": [
     { "type": "UnitAtCell",    "unit": "B1", "cell": [ 0,  0, 0] },
