@@ -1,0 +1,408 @@
+{
+  "project": "RefactorTactics",
+  "artifact": "Icon Semantic Library",
+  "format": "SVG importable in Affinity Designer",
+  "composition_rule": {
+    "base": "core function",
+    "badge": "timing or certainty",
+    "frame": "team ownership or warning severity",
+    "modifier": "target, effect, element or resource"
+  },
+  "variants": {
+    "A": "Outline / literal",
+    "B": "Tactical / framed + marker",
+    "C": "Badge / compact abstract"
+  },
+  "sections": [
+    {
+      "id": "01_CORE_FUNCTION",
+      "items": [
+        {
+          "id": "Attack",
+          "meaning": "Danno / pressione offensiva"
+        },
+        {
+          "id": "Defense",
+          "meaning": "Protezione / mitigazione"
+        },
+        {
+          "id": "Control",
+          "meaning": "Limitazione / displacement"
+        },
+        {
+          "id": "Support",
+          "meaning": "Aiuto / buff / cura"
+        },
+        {
+          "id": "Mobility",
+          "meaning": "Movimento speciale"
+        },
+        {
+          "id": "Utility",
+          "meaning": "Funzione tattica non offensiva"
+        },
+        {
+          "id": "Interaction",
+          "meaning": "Interagire / attivare"
+        },
+        {
+          "id": "Objective",
+          "meaning": "Obiettivo / progresso"
+        }
+      ]
+    },
+    {
+      "id": "02_TARGET",
+      "items": [
+        {
+          "id": "Self",
+          "meaning": "Sé stessi"
+        },
+        {
+          "id": "Ally",
+          "meaning": "Alleato"
+        },
+        {
+          "id": "Enemy",
+          "meaning": "Nemico"
+        },
+        {
+          "id": "Unit",
+          "meaning": "Unità singola"
+        },
+        {
+          "id": "Cell",
+          "meaning": "Cella singola"
+        },
+        {
+          "id": "Area",
+          "meaning": "Area"
+        },
+        {
+          "id": "Direction",
+          "meaning": "Direzione"
+        }
+      ]
+    },
+    {
+      "id": "03_SHAPE",
+      "items": [
+        {
+          "id": "Point",
+          "meaning": "Punto / singolo"
+        },
+        {
+          "id": "Line",
+          "meaning": "Linea"
+        },
+        {
+          "id": "Cone",
+          "meaning": "Cono"
+        },
+        {
+          "id": "Circle",
+          "meaning": "Cerchio"
+        },
+        {
+          "id": "Burst",
+          "meaning": "Esplosione centrata"
+        },
+        {
+          "id": "Zone",
+          "meaning": "Zona persistente"
+        }
+      ]
+    },
+    {
+      "id": "04_EFFECT",
+      "items": [
+        {
+          "id": "Damage",
+          "meaning": "Danno"
+        },
+        {
+          "id": "Heal",
+          "meaning": "Cura"
+        },
+        {
+          "id": "Shield",
+          "meaning": "Scudo"
+        },
+        {
+          "id": "Push",
+          "meaning": "Spinta"
+        },
+        {
+          "id": "Pull",
+          "meaning": "Trazione"
+        },
+        {
+          "id": "Stun",
+          "meaning": "Stordimento"
+        },
+        {
+          "id": "Root",
+          "meaning": "Immobilizzazione"
+        },
+        {
+          "id": "Reveal",
+          "meaning": "Rivelazione"
+        },
+        {
+          "id": "Interrupt",
+          "meaning": "Interruzione"
+        }
+      ]
+    },
+    {
+      "id": "05_MOVEMENT",
+      "items": [
+        {
+          "id": "Move",
+          "meaning": "Movimento"
+        },
+        {
+          "id": "Dash",
+          "meaning": "Scatto"
+        },
+        {
+          "id": "Leap",
+          "meaning": "Salto"
+        },
+        {
+          "id": "Teleport",
+          "meaning": "Teletrasporto"
+        },
+        {
+          "id": "Swap",
+          "meaning": "Scambio posizione"
+        },
+        {
+          "id": "Charge",
+          "meaning": "Carica"
+        }
+      ]
+    },
+    {
+      "id": "06_ENVIRONMENT",
+      "items": [
+        {
+          "id": "Water",
+          "meaning": "Acqua"
+        },
+        {
+          "id": "Fire",
+          "meaning": "Fuoco"
+        },
+        {
+          "id": "Electricity",
+          "meaning": "Elettricità"
+        },
+        {
+          "id": "Cover",
+          "meaning": "Copertura"
+        },
+        {
+          "id": "Door",
+          "meaning": "Porta"
+        },
+        {
+          "id": "Elevation",
+          "meaning": "Quota / livello"
+        },
+        {
+          "id": "Hazard",
+          "meaning": "Pericolo ambientale"
+        }
+      ]
+    },
+    {
+      "id": "07_TIMING",
+      "items": [
+        {
+          "id": "Immediate",
+          "meaning": "Immediata"
+        },
+        {
+          "id": "Reaction",
+          "meaning": "Reazione"
+        },
+        {
+          "id": "Fast",
+          "meaning": "Rapida"
+        },
+        {
+          "id": "Standard",
+          "meaning": "Standard"
+        },
+        {
+          "id": "Slow",
+          "meaning": "Lenta"
+        },
+        {
+          "id": "Persistent",
+          "meaning": "Persistente"
+        }
+      ]
+    },
+    {
+      "id": "08_CERTAINTY",
+      "items": [
+        {
+          "id": "Confirmed",
+          "meaning": "Confermato"
+        },
+        {
+          "id": "Predicted",
+          "meaning": "Previsto"
+        },
+        {
+          "id": "Uncertain",
+          "meaning": "Incerto"
+        }
+      ]
+    },
+    {
+      "id": "09_PLAN_STATE",
+      "items": [
+        {
+          "id": "Editing",
+          "meaning": "In modifica"
+        },
+        {
+          "id": "StableDraft",
+          "meaning": "Bozza stabile"
+        },
+        {
+          "id": "Ready",
+          "meaning": "Ready"
+        },
+        {
+          "id": "Committed",
+          "meaning": "Committato"
+        }
+      ]
+    },
+    {
+      "id": "10_KNOWLEDGE",
+      "items": [
+        {
+          "id": "Visible",
+          "meaning": "Visibile"
+        },
+        {
+          "id": "LastKnown",
+          "meaning": "Ultima posizione nota"
+        },
+        {
+          "id": "Unknown",
+          "meaning": "Sconosciuto"
+        },
+        {
+          "id": "Sound",
+          "meaning": "Informazione sonora"
+        }
+      ]
+    },
+    {
+      "id": "11_TEAM_OWNERSHIP",
+      "items": [
+        {
+          "id": "Self",
+          "meaning": "Giocatore / propria unità"
+        },
+        {
+          "id": "Ally",
+          "meaning": "Alleato"
+        },
+        {
+          "id": "Enemy",
+          "meaning": "Avversario"
+        },
+        {
+          "id": "Neutral",
+          "meaning": "Neutrale / mondo"
+        }
+      ]
+    },
+    {
+      "id": "12_WARNING_SEVERITY",
+      "items": [
+        {
+          "id": "Info",
+          "meaning": "Informazione"
+        },
+        {
+          "id": "Warning",
+          "meaning": "Warning"
+        },
+        {
+          "id": "Error",
+          "meaning": "Errore"
+        },
+        {
+          "id": "Block",
+          "meaning": "Blocco commit"
+        }
+      ]
+    },
+    {
+      "id": "13_RESOURCE",
+      "items": [
+        {
+          "id": "AP",
+          "meaning": "Action Points"
+        },
+        {
+          "id": "Energy",
+          "meaning": "Energia"
+        },
+        {
+          "id": "Health",
+          "meaning": "Salute"
+        },
+        {
+          "id": "Ammo",
+          "meaning": "Munizioni"
+        },
+        {
+          "id": "Charges",
+          "meaning": "Cariche"
+        },
+        {
+          "id": "Cooldown",
+          "meaning": "Cooldown"
+        }
+      ]
+    },
+    {
+      "id": "14_COORDINATION",
+      "items": [
+        {
+          "id": "Ping",
+          "meaning": "Ping"
+        },
+        {
+          "id": "Label",
+          "meaning": "Etichetta intento"
+        },
+        {
+          "id": "AllyIntent",
+          "meaning": "Intento alleato"
+        },
+        {
+          "id": "TeamReady",
+          "meaning": "Ready di squadra"
+        },
+        {
+          "id": "Collision",
+          "meaning": "Collisione pianificata"
+        },
+        {
+          "id": "FriendlyFire",
+          "meaning": "Fuoco amico"
+        }
+      ]
+    }
+  ]
+}
