@@ -29,9 +29,16 @@
  * esagono sono stati ALTERNATIVI dello stesso occupante, non posti in piu'. Il test
  * `CoverOptionsDoNotIncreaseCellCapacity` lo pinna sul resolver vero.
  *
- * Interamente PURA, headless e intera. Vive nel modulo runtime per la ragione gia' scritta accanto a
- * `URTHexOccupancyLibrary` e `URTGeometryGrammarLibrary`: in `Source/RefactorTacticsEditor/` non esiste
- * alcun test, e una regola che nessun test puo' far cadere non e' una regola. L'editor la CHIAMA.
+ * Interamente PURA, headless e intera. Vive nel modulo runtime, dove stanno gia' `URTHexOccupancyLibrary`
+ * e `URTGeometryGrammarLibrary`: cio' che e' una REGOLA — cosa e' legale, cosa e' calpestabile, cosa si
+ * attraversa — sta qui e l'editor la CHIAMA. Li' resta cio' che e' davvero d'interfaccia: il ghost, lo
+ * snap, la transaction.
+ *
+ * ⚠️ **La ragione storica di quella collocazione era «in `Source/RefactorTacticsEditor/` non esiste alcun
+ * test», e dal 2026-08-16 e' falsa** (`#993`, `Private/Tests/`, sei file). La collocazione resta, e regge
+ * su un argomento diverso e migliore: una funzione pura si prova headless e senza mondo, mentre un tool
+ * d'editor si prova con un viewport. La ragione vecchia sopravvive scritta in piu' punti, e
+ * `docs/CONTEXT_INDEX.md` la dichiara superata.
  */
 
 /**

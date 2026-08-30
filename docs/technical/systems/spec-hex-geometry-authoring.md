@@ -196,6 +196,12 @@ dimostra invece di dedurlo (`MaskIsIndependentOfInputOrder`).
 `bCoreBlocked` non è deducibile dal conteggio: un footprint più grande dell'intera cella non tocca un solo
 triangolo di settore, e senza quel booleano risulterebbe `Free`.
 
+> 🔑 **La maschera è una MISURA, e da sola non è un verdetto** — `D-285`, 2026-08-30. Che un'unità ci stia lo
+> decide la **forma** dello spazio libero, non il conteggio dei bit: i gruppi di settori liberi *contigui*
+> sono le **regioni di posa**, e vivono in
+> [`spec-cover-placement-intra-hex.md`](spec-cover-placement-intra-hex.md) §3. Questa sezione resta l'owner
+> di **come si misura**; non lo è più di **cosa se ne deduce**.
+
 I dodici triangoli **pavimentano l'esagono esattamente**: i punti di confine alternano vertice
 (raggio pieno) e punto medio di lato (raggio inscritto), e fra un vertice e il punto medio adiacente il bordo
 dell'esagono è un segmento dritto.
@@ -241,14 +247,35 @@ fra quattro triangoli di settore: è `MSE-4` in §12.
 
 ---
 
-## 6. Free, Constrained, Blocked
+## 6. Free, Constrained, Blocked — 🔴 **non decidono più la calpestabilità**
 
-| Settori occupati | Classificazione |
-|---|---|
-| `0 – 3` | `Free` |
-| `≥ ConstrainedFrom` (4) | `Constrained` |
-| `≥ BlockedFrom` (6) | `Blocked` |
-| `bCoreBlocked` | `Blocked`, comunque siano i settori |
+> ### ⚠️ Questa sezione è stata delimitata il 2026-08-30 da [`D-285`](../../decisions/RT_PDR_00_Decision_Log.md)
+>
+> La tabella qui sotto **resta vera come classificazione di strettezza**, ed è quello che il suo unico
+> consumatore ha sempre letto: `OccupancySurcharge`, cioè *«quanto costa passare di qui»*.
+>
+> 🔴 **Ciò che non è più vero è la parola `Blocked` letta come «non ci si sta».** Due righe di questa tabella
+> rispondevano a una domanda che non è la loro:
+>
+> | Riga | Perché è caduta |
+> |---|---|
+> | `≥ BlockedFrom` (6) | lo **stesso numero** di settori liberi descrive spazi utilizzabili diversi: rocce su `1,2,3` più albero su `7,8,9` lasciano sei liberi **in due gruppi da tre**, e un'unità ci sta |
+> | `bCoreBlocked` ⇒ `Blocked` | è `D-179` punto (3), superata: un muro che attraversa il centro **divide** lo spazio di posa, e dividere non è vietare |
+>
+> **Chi risponde adesso**: `URTHexCoverPlacementLibrary::HasLegalPlacement`, che cerca una **regione di
+> settori liberi contigui** compatibile con il footprint dell'unità. Owner documentale:
+> [`spec-cover-placement-intra-hex.md`](spec-cover-placement-intra-hex.md).
+>
+> ✅ **Nessun comportamento di partita è cambiato**, e va detto: `Classify` non ha mai avuto un chiamante di
+> produzione — solo test — e `D-179` punto (3) non era mai stata implementata (`git grep "Offset == 0" --
+> Source/` è vuoto). È una correzione di **contratto**.
+
+| Settori occupati | Classificazione | Cosa significa **oggi** |
+|---|---|---|
+| `0 – 3` | `Free` | si passa senza sovrapprezzo |
+| `≥ ConstrainedFrom` (4) | `Constrained` | si passa, e costa `ConstrainedSurcharge` in più |
+| `≥ BlockedFrom` (6) | `Blocked` | ⚠️ **cella molto stretta**, non «cella impassabile» |
+| `bCoreBlocked` | `Blocked` | ⚠️ idem — il centro è un requisito di *profilo*, non un divieto |
 
 Le soglie vivono in `FRTOccupancyThresholds`, nel modulo **runtime** e non in un property set d'editor, per
 due ragioni: in `Source/RefactorTacticsEditor/` non esiste alcun test — e una soglia che nessun test può
@@ -432,7 +459,7 @@ Nessuna di queste si decide in un commit di implementazione. Vivono in
 | ID | Domanda | Innesco |
 |---|---|---|
 | ~~`MSE-1`~~ | ✅ **Chiusa da `D-131`**: `FRTHexCover` acquista `bGenerated`, il rebake tocca solo le proprie — vedi §8.2 | — |
-| `MSE-4` | Un settore toccato in un **solo punto** dal bordo di un footprint va contato come occupato, o serve un'intersezione di lunghezza non nulla? — ⚠️ **non più innescata da `#621`** (`D-129`): il bake non cuoce footprint, quindi nessun produttore la pone ancora | il **primo footprint di produzione** |
+| `MSE-4` | Un settore toccato in un **solo punto** va contato come occupato, o serve un'intersezione di lunghezza non nulla? | 🔴 **INNESCATA il 2026-08-30, e non dal footprint** — [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826). L'innesco è arrivato dal primo **consumatore di posa**: il **centro** della cella è il vertice comune di *tutti e dodici* i triangoli, quindi ogni segmento con `Offset == 0` accende dodici bit su dodici e lascia la cella senza alcuna regione di posa. È l'istanza più severa della stessa classe — 12 triangoli invece di 4, 8 settori di sovrastima invece di 2, e la conseguenza è **cella inagibile** invece di «cella più stretta». Misurata da `RefactorTactics.CoverPlacement.CentreContactRuleStillCollapsesTheWholeCell` |
 | ~~`MSE-2`~~ | ✅ **Sciolta da `D-125`**: misurava i **muri**, che non alimentano l'occupancy — vedi §5.1 | — |
 | ~~`MSE-3`~~ | ✅ **Chiusa da `D-125`**: i due modelli misurano la stessa cosa a due granularità | — |
 
