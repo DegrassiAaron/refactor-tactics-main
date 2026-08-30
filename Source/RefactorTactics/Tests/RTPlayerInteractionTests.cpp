@@ -21,6 +21,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "InputMappingContext.h" // #1771: il test delle collisioni interroga i MapKey reali
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1100,6 +1101,88 @@ bool FRTPlayerInputGenericResolvesByNameTest::RunTest(const FString&)
 	}
 
 	return true;
+}
+
+// --- #1771 · nessun tasto serve due azioni diverse ---------------------------------------------------
+
+/**
+ * 🔴 **Questo test era CITATO e non esisteva.** Il commento di `GenericHotkeys()` diceva *«e' un controllo
+ * che `PlayerInput.HotkeysDoNotCollide` rifa'»*, e `grep -rn "DoNotCollide" Source/` rispondeva **una sola
+ * riga**: quel commento. L'unica difesa contro due azioni sullo stesso tasto era un elenco scritto a mano
+ * in un altro commento — *«mappati altrove sono A D E F Q R S T V W, Home, Escape…»* — cioe' una promessa
+ * che invecchia al primo `MapKey` aggiunto, ed e' esattamente cio' che e' successo: `#1771` ne aggiunge
+ * quattro.
+ *
+ * Interroga il `UInputMappingContext` **reale**, non una lista: aggiungere un tasto e' una riga in
+ * `BuildInputMappings`, e da qui in poi il controllo la vede da se'.
+ *
+ * ⚠️ Uno stesso tasto su **piu' chiavi della stessa azione** e' legittimo e non e' una collisione:
+ * `PanAction` sta su `W A S D` con modificatori diversi, `UndoAction` su `RMB` e `BackSpace`,
+ * `CameraModifierAction` su entrambi gli `Alt`. Cio' che si vieta e' un tasto che serva **due azioni
+ * distinte**, perche' li' il giocatore non puo' sapere quale otterra'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputHotkeysDoNotCollideTest,
+	"RefactorTactics.PlayerInput.HotkeysDoNotCollide",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputHotkeysDoNotCollideTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	bool bOk = TestNotNull(TEXT("controller"), PC);
+	if (bOk)
+	{
+		const UInputMappingContext* Imc = PC->BuildAndGetMappingContextForTest();
+		bOk = TestNotNull(TEXT("mapping context costruito"), Imc);
+		if (bOk)
+		{
+			TMap<FKey, const UInputAction*> Owner;
+			int32 Collisioni = 0;
+			for (const FEnhancedActionKeyMapping& M : Imc->GetMappings())
+			{
+				const UInputAction* Action = M.Action;
+				if (!Action) { continue; }
+				if (const UInputAction** Existing = Owner.Find(M.Key))
+				{
+					if (*Existing != Action)
+					{
+						++Collisioni;
+						AddError(FString::Printf(TEXT("il tasto %s serve due azioni: %s e %s"),
+							*M.Key.ToString(), *(*Existing)->GetName(), *Action->GetName()));
+					}
+				}
+				else
+				{
+					Owner.Add(M.Key, Action);
+				}
+			}
+
+			// Anti-vacuita': con zero mapping il ciclo non asserirebbe nulla e il verde direbbe che va
+			// tutto bene proprio quando l'input non esiste.
+			TestTrue(TEXT("il contesto contiene mapping"), Imc->GetMappings().Num() > 10);
+			TestEqual(TEXT("nessun tasto serve due azioni diverse"), Collisioni, 0);
+
+			// I quattro tasti di #1771 sono davvero mappati: senza questa riga il test resterebbe verde
+			// anche se qualcuno li togliesse, perche' «zero collisioni» e' vero anche di zero tasti nuovi.
+			bool bAlt = false, bPageUp = false, bPageDown = false;
+			for (const FEnhancedActionKeyMapping& M : Imc->GetMappings())
+			{
+				bAlt      |= (M.Key == EKeys::LeftAlt);
+				bPageUp   |= (M.Key == EKeys::PageUp);
+				bPageDown |= (M.Key == EKeys::PageDown);
+			}
+			TestTrue(TEXT("Alt e' mappato (modificatore camera)"), bAlt);
+			TestTrue(TEXT("PageUp e' mappato (piano attivo)"), bPageUp);
+			TestTrue(TEXT("PageDown e' mappato (piano attivo)"), bPageDown);
+		}
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return bOk;
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS

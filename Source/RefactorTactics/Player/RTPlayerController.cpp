@@ -233,6 +233,17 @@ void ARTPlayerController::BuildInputMappings()
 	FacingAction = NewObject<UInputAction>(this, TEXT("IA_Facing"));
 	FacingAction->ValueType = EInputActionValueType::Boolean;
 
+	// #1771 — `Alt` arma i gesti camera. Boolean come `OrbitModifierAction`: e' uno stato tenuto, non un
+	// evento.
+	CameraModifierAction = NewObject<UInputAction>(this, TEXT("IA_CameraModifier"));
+	CameraModifierAction->ValueType = EInputActionValueType::Boolean;
+
+	// #1775 — piano attivo sopra/sotto.
+	LayerUpAction = NewObject<UInputAction>(this, TEXT("IA_LayerUp"));
+	LayerUpAction->ValueType = EInputActionValueType::Boolean;
+	LayerDownAction = NewObject<UInputAction>(this, TEXT("IA_LayerDown"));
+	LayerDownAction->ValueType = EInputActionValueType::Boolean;
+
 	SelectAction = NewObject<UInputAction>(this, TEXT("IA_Select"));
 	SelectAction->ValueType = EInputActionValueType::Boolean;
 
@@ -352,6 +363,16 @@ void ARTPlayerController::BuildInputMappings()
 	// Ricentra la camera sul centro griglia + reset zoom (tasto Home).
 	MappingContext->MapKey(RecenterAction, EKeys::Home);
 	MappingContext->MapKey(FocusAction, EKeys::F);
+
+	// #1771 — **entrambi** gli `Alt`: chi tiene il destro con la mano sul mouse deve poter orbitare come
+	// chi tiene il sinistro. Enhanced Input consegna la stessa azione da due tasti senza doppioni.
+	MappingContext->MapKey(CameraModifierAction, EKeys::LeftAlt);
+	MappingContext->MapKey(CameraModifierAction, EKeys::RightAlt);
+
+	// #1775 — `PageUp`/`PageDown`: verificati liberi sull'elenco completo dei `MapKey` di questa funzione e
+	// contro `AbilityHotkeys()` (le dieci cifre) e `GenericHotkeys()` (`G B C X Z`).
+	MappingContext->MapKey(LayerUpAction, EKeys::PageUp);
+	MappingContext->MapKey(LayerDownAction, EKeys::PageDown);
 
 	// Rotazione dichiarata: `T` come *turn*. Misurati i tasti gia' presi — A D E F Q R S V W, Home, Escape,
 	// BackSpace, Spazio, 1-4 e i pulsanti del mouse — `T` e' libero e sta accanto a chi guida la camera.
@@ -473,7 +494,31 @@ void ARTPlayerController::SetupInputComponent()
 				GenericActions.Num(), NumGenericHandlers, NumGenericHandlers);
 		}
 		EIC->BindAction(UndoAction, ETriggerEvent::Started, this, &ARTPlayerController::OnUndoWaypoint);
+		// #1772 — il rilascio del destro chiude il dolly. Serve un `Completed` perche' senza, `Alt`+`RMB`
+		// resterebbe armato e ogni movimento del mouse continuerebbe a zoomare.
+		EIC->BindAction(UndoAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnUndoReleased);
+		EIC->BindAction(UndoAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnUndoReleased);
 		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
+
+		// #1771 — il modificatore. `Canceled` insieme a `Completed` per la stessa ragione di
+		// `OrbitModifierAction`: se la finestra perde il fuoco con `Alt` premuto, il rilascio non arriva
+		// mai e il modificatore resterebbe armato per sempre.
+		EIC->BindAction(CameraModifierAction, ETriggerEvent::Started, this,
+			&ARTPlayerController::OnCameraModifierPressed);
+		EIC->BindAction(CameraModifierAction, ETriggerEvent::Completed, this,
+			&ARTPlayerController::OnCameraModifierReleased);
+		EIC->BindAction(CameraModifierAction, ETriggerEvent::Canceled, this,
+			&ARTPlayerController::OnCameraModifierReleased);
+
+		EIC->BindAction(LayerUpAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLayerUp);
+		EIC->BindAction(LayerDownAction, ETriggerEvent::Started, this, &ARTPlayerController::OnLayerDown);
+
+		// #1772 — il rilascio del sinistro chiude il gesto `Alt`+`LMB`: sotto soglia e' un Set Pivot,
+		// sopra e' stata un'orbita e non deve produrre altro.
+		EIC->BindAction(SelectAction, ETriggerEvent::Completed, this,
+			&ARTPlayerController::OnSelectReleased);
+		EIC->BindAction(SelectAction, ETriggerEvent::Canceled, this,
+			&ARTPlayerController::OnSelectReleased);
 		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
 		EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
 		EIC->BindAction(FacingAction, ETriggerEvent::Started, this, &ARTPlayerController::CycleDeclaredFacing);
@@ -489,6 +534,11 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
 
+	// #1772 — il peek residuo rientra da se'. E' oggi l'**unico** movimento automatico della camera, ed e'
+	// per questo che la regola d'interruzione di #1773 ha qui il proprio primo consumatore: `UpdatePeekReturn`
+	// non fa nulla mentre `Alt` e' premuto, cioe' mentre il giocatore sta guidando.
+	UpdatePeekReturn(DeltaTime);
+
 	// Evidenzia la cella sotto il cursore (solo presentazione: non tocca la logica).
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
 	ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
@@ -496,18 +546,253 @@ void ARTPlayerController::PlayerTick(float DeltaTime)
 	{
 		return;
 	}
-	FHitResult Hit;
-	if (GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit) && Hit.GetActor())
+	// 🔑 **Il layer viene dal PIANO ATTIVO, non dalla quota del colpo** (`D-255`, 2026-08-30).
+	//
+	// Questa riga diceva l'opposto, e lo diceva in chiaro: *«Il layer viene dalla QUOTA del punto colpito:
+	// cliccando il ponte si evidenzia la cella del ponte (in editor lo decide invece ActiveLayer, perche'
+	// li' si dipinge su un piano scelto)»*. Il gioco e l'editor risolvevano la stessa domanda in due modi
+	// diversi, e in partita a scegliere il piano era **cio' che il raggio incontrava per primo** — che
+	// dipende dall'angolo della camera, non da una volonta' del giocatore.
+	//
+	// ⚠️ Hover e click passano dalla **stessa** funzione, e non e' un dettaglio: erano due call site che
+	// chiamavano `WorldToCellId` per conto proprio, e nulla garantiva che evidenziassero e selezionassero
+	// la stessa cella.
+	FRTCellId Cell;
+	bool bOnAnotherLayer = false;
+	if (ResolveCellUnderCursor(Cell, bOnAnotherLayer))
 	{
-		// Il layer viene dalla QUOTA del punto colpito: cliccando il ponte si evidenzia la cella del ponte
-		// (in editor lo decide invece ActiveLayer, perche' li' si dipinge su un piano scelto).
-		const FRTCellId Cell = URTHexLibrary::WorldToCellId(Hit.Location, Origin, HexSize, LayerH);
 		HexMap->SetHoveredCell(Cell, Map && Map->ContainsCell(Cell));
 	}
 	else
 	{
 		HexMap->SetHoveredCell(FRTCellId(), false);
 	}
+}
+
+// --- #1775 / #1776 · il piano attivo del giocatore, e il picking che lo rispetta (D-255) --------------
+
+bool ARTPlayerController::SetActiveLayer(int32 NewLayer)
+{
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	if (!Map || Map->Cells.Num() == 0)
+	{
+		return false; // senza mappa non esiste un piano su cui stare
+	}
+
+	// I limiti si MISURANO sulle celle. Assumere `[0, N]` darebbe piani vuoti su una mappa che comincia a
+	// quota 1 o che ha buchi, e l'hover non troverebbe mai niente senza dire perche'.
+	int32 MinLayer = TNumericLimits<int32>::Max();
+	int32 MaxLayer = TNumericLimits<int32>::Lowest();
+	for (const FRTHexCellData& Cell : Map->Cells)
+	{
+		MinLayer = FMath::Min(MinLayer, Cell.Id.Layer);
+		MaxLayer = FMath::Max(MaxLayer, Cell.Id.Layer);
+	}
+
+	const int32 Clamped = FMath::Clamp(NewLayer, MinLayer, MaxLayer);
+	if (Clamped == ActiveLayer)
+	{
+		return false;
+	}
+	ActiveLayer = Clamped;
+	UE_LOG(LogRT, Log, TEXT("[RT] Piano attivo: %d (mappa %d..%d)"), ActiveLayer, MinLayer, MaxLayer);
+	return true;
+}
+
+bool ARTPlayerController::StepActiveLayer(int32 Delta)
+{
+	return Delta != 0 && SetActiveLayer(ActiveLayer + Delta);
+}
+
+bool ARTPlayerController::ResolveCellUnderCursor(FRTCellId& OutCell, bool& bOutHitWasOnAnotherLayer) const
+{
+	bOutHitWasOnAnotherLayer = false;
+
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	if (!HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map) || !Map)
+	{
+		return false;
+	}
+
+	// Il raggio serve al RIPIEGO: quando il colpo non vale, la cella si prende dall'intersezione col piano
+	// del layer attivo. Senza il raggio non ci sarebbe nulla da intersecare, e il ripiego non esisterebbe.
+	FVector RayOrigin, RayDir;
+	if (!DeprojectMousePositionToWorld(RayOrigin, RayDir))
+	{
+		return false; // nessun viewport (headless): non c'e' un cursore da risolvere
+	}
+
+	FHitResult Hit;
+	const bool bHit = GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit)
+		&& Hit.GetActor() != nullptr;
+
+	// 🔑 **Il colpo vale SOLO se e' sul piano attivo** (`D-255`). E' la meta' che mancava: la funzione pura
+	// `ResolveRayToCellOnLayer` esisteva dal 2026-08-17 con i suoi due test, ma in partita nessuno
+	// calcolava `bHasValidHit` — il gioco leggeva la quota del colpo e la trasformava in layer, cioe'
+	// lasciava decidere alla geometria quale cella si stesse indicando.
+	const bool bHitOnActiveLayer = bHit
+		&& URTHexLibrary::WorldToLayer(Hit.Location.Z, Origin.Z, LayerH) == ActiveLayer;
+	bOutHitWasOnAnotherLayer = bHit && !bHitOnActiveLayer;
+
+	OutCell = URTHexLibrary::ResolveRayToCellOnLayer(RayOrigin, RayDir, Origin, HexSize, LayerH,
+		ActiveLayer, bHitOnActiveLayer, Hit.Location);
+	return true;
+}
+
+// --- #1771 / #1772 · il modificatore camera, i suoi cinque gesti e il rientro del peek ---------------
+
+void ARTPlayerController::OnCameraModifierPressed(const FInputActionValue& Value)
+{
+	bCameraModifier = true;
+}
+
+void ARTPlayerController::OnCameraModifierReleased(const FInputActionValue& Value)
+{
+	bCameraModifier = false;
+
+	// I gesti armati cadono con il modificatore: senza, rilasciare `Alt` tenendo il tasto del mouse
+	// lascerebbe il gesto attivo e il movimento successivo orbiterebbe senza modificatore.
+	bAltPrimaryDown = false;
+	bAltSecondaryDown = false;
+	AltPrimaryDragDistance = 0.f;
+
+	// ⚠️ Il peek **non** si azzera qui: rientra progressivamente in `UpdatePeekReturn`. Azzerarlo di colpo
+	// farebbe saltare la vista, ed e' esattamente cio' che il rientro esiste per evitare.
+}
+
+void ARTPlayerController::OnLayerUp(const FInputActionValue& Value)
+{
+	StepActiveLayer(+1);
+}
+
+void ARTPlayerController::OnLayerDown(const FInputActionValue& Value)
+{
+	StepActiveLayer(-1);
+}
+
+void ARTPlayerController::OnSelectReleased(const FInputActionValue& Value)
+{
+	if (!bAltPrimaryDown)
+	{
+		return; // rilascio di un click di selezione normale: non e' un gesto camera
+	}
+
+	const bool bWasDrag = AltPrimaryDragDistance > FMath::Max(ClickDragThreshold, 0.f);
+	bAltPrimaryDown = false;
+	AltPrimaryDragDistance = 0.f;
+
+	// 🔑 **Un gesto, una operazione.** Se ha superato la soglia era un'orbita, e il Set Pivot non si emette:
+	// altrimenti un trascinamento lungo produrrebbe *anche* uno spostamento del pivot al rilascio, cioe'
+	// due comandi da un movimento solo.
+	if (bWasDrag)
+	{
+		return;
+	}
+
+	// Set Pivot: sulla **cella** sotto il cursore, non sul punto d'impatto. E' la stessa scelta che
+	// `OnZoom` documenta per l'ancora dello zoom — l'impatto su un'unita' sta ~180 unita' sopra il piano,
+	// e a pitch -40 sono oltre una cella di scarto orizzontale.
+	FRTCellId Cell;
+	bool bOnAnotherLayer = false;
+	if (!ResolveCellUnderCursor(Cell, bOnAnotherLayer))
+	{
+		return;
+	}
+
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	if (!HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map) || !Map || !Map->ContainsCell(Cell))
+	{
+		return; // fuori mappa: non c'e' una cella valida su cui posare il pivot
+	}
+
+	if (ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn()))
+	{
+		// ⚠️ **Non tocca la selezione.** E' un comando di vista: chi stava pianificando con un'unita'
+		// selezionata la ritrova selezionata, ed e' la meta' del contratto che rende `Alt` utile.
+		Cam->FocusOn(URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerH));
+		UE_LOG(LogRT, Log, TEXT("[RT] Pivot camera su (q=%d,r=%d,L=%d) — la selezione non cambia"),
+			Cell.X, Cell.Y, Cell.Layer);
+	}
+}
+
+void ARTPlayerController::OnUndoReleased(const FInputActionValue& Value)
+{
+	bAltSecondaryDown = false;
+}
+
+bool ARTPlayerController::RouteCameraGesture(const FVector2D& Delta)
+{
+	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
+	if (!Cam)
+	{
+		return false;
+	}
+
+	// `Alt`+`LMB`: si accumula la strada percorsa **prima** di decidere. Sotto la soglia non si orbita
+	// ancora — altrimenti un click con un pixel di tremolio ruoterebbe la vista di un grado, e il set
+	// pivot arriverebbe su un'inquadratura gia' cambiata.
+	if (bAltPrimaryDown)
+	{
+		AltPrimaryDragDistance += Delta.Size();
+		if (AltPrimaryDragDistance > FMath::Max(ClickDragThreshold, 0.f))
+		{
+			Cam->AddOrbit(Delta.X, Delta.Y);
+		}
+		return true;
+	}
+
+	// `Alt`+`RMB`: dolly. Il verticale, perche' e' il gesto che tutti gli editor 3D usano per avvicinare.
+	if (bAltSecondaryDown)
+	{
+		Cam->AddZoom(Delta.Y);
+		return true;
+	}
+
+	if (!bCameraModifier)
+	{
+		return false; // nessun gesto `Alt` armato: se ne occupa l'orbita di #863
+	}
+
+	// `Alt`+`MMB`: precision pan. Stessa direzione del pan normale, sensibilita' ridotta.
+	if (bOrbiting)
+	{
+		Cam->AddPlanarMovement(FVector2D(Delta.X, -Delta.Y) * FMath::Clamp(PrecisionPanScale, 0.01f, 1.f));
+		return true;
+	}
+
+	// `Alt` da solo: peek. Un offset **temporaneo** verso la direzione del cursore, in coordinate della
+	// vista — come il pan, e per la stessa ragione: chi guida pensa in «su, giu', destra, sinistra»
+	// rispetto a cio' che vede, non in assi della mappa.
+	const float Yaw = Cam->GetCameraYaw();
+	const FVector Forward = FRotator(0.f, Yaw, 0.f).RotateVector(FVector::ForwardVector);
+	const FVector Right   = FRotator(0.f, Yaw, 0.f).RotateVector(FVector::RightVector);
+	const FVector Wanted  = Cam->GetPeekOffset()
+		+ (Right * Delta.X - Forward * Delta.Y) * FMath::Max(PeekSensitivity, 0.f);
+	Cam->SetPeekOffset(FVector(Wanted.X, Wanted.Y, 0.f)); // il peek scorre sul piano, non solleva la vista
+	return true;
+}
+
+void ARTPlayerController::UpdatePeekReturn(float DeltaTime)
+{
+	ARTCameraPawn* Cam = Cast<ARTCameraPawn>(GetPawn());
+	if (!Cam || bCameraModifier)
+	{
+		return; // con `Alt` premuto il peek e' guidato dal giocatore: non gli si tira contro
+	}
+
+	const FVector Current = Cam->GetPeekOffset();
+	if (Current.IsNearlyZero())
+	{
+		return;
+	}
+
+	// Rientro esponenziale, con una soglia di arresto: senza, l'offset si avvicina a zero senza mai
+	// arrivarci e la camera resterebbe per sempre a frazioni di unita' dal proprio pivot — vero per il
+	// motore, invisibile a schermo, e sufficiente a far fallire un confronto esatto.
+	const float Alpha = FMath::Clamp(FMath::Max(PeekReturnSpeed, 0.f) * DeltaTime, 0.f, 1.f);
+	const FVector Next = FMath::Lerp(Current, FVector::ZeroVector, Alpha);
+	Cam->SetPeekOffset(Next.SizeSquared() < 1.0 ? FVector::ZeroVector : Next);
 }
 
 void ARTPlayerController::OnRecenter(const FInputActionValue& Value)
@@ -623,7 +908,16 @@ void ARTPlayerController::OnOrbitReleased(const FInputActionValue& Value)
 
 void ARTPlayerController::OnOrbit(const FInputActionValue& Value)
 {
-	OrbitCameraForTest(Value.Get<FVector2D>());
+	const FVector2D Delta = Value.Get<FVector2D>();
+
+	// #1772 — i gesti `Alt` hanno la precedenza e **consumano** il movimento. Cosi' l'orbita di #863 resta
+	// il ramo di default e non deve sapere che i gesti nuovi esistono: e' la stessa disciplina per cui
+	// `OrbitCameraForTest` porta con se' la propria guardia invece di lasciarla al chiamante.
+	if (RouteCameraGesture(Delta))
+	{
+		return;
+	}
+	OrbitCameraForTest(Delta);
 }
 
 void ARTPlayerController::OrbitCameraForTest(const FVector2D& Delta)
@@ -661,6 +955,15 @@ namespace
 
 void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 {
+	// #1772 — con `Alt` premuto il sinistro **non seleziona**: arma un gesto camera, che al rilascio sara'
+	// un Set Pivot (sotto soglia) o sara' stato un'orbita (sopra). La selezione di gioco resta dov'e'.
+	if (bCameraModifier)
+	{
+		bAltPrimaryDown = true;
+		AltPrimaryDragDistance = 0.f;
+		return;
+	}
+
 	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
 	if (IsGameplayInputBlocked())
 	{
@@ -720,20 +1023,59 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		return;
 	}
 
-	// Click su un'unita' (o altro selezionabile) -> selezione.
+	// Click su un'unita' (o altro selezionabile) -> selezione. E se e' il **secondo** click ravvicinato
+	// sullo stesso attore, anche inquadratura (`#1773`).
 	if (IRTSelectable* Selectable = Cast<IRTSelectable>(HitActor))
 	{
+		// ⚠️ Tempo **e** attore, insieme: due click rapidi su due unita' diverse sono due selezioni, non un
+		// doppio click. Con il solo tempo, cliccare in fretta A e poi B avrebbe inquadrato B senza che
+		// nessuno lo chiedesse.
+		const double Now = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+		const bool bDoubleClick = LastSelectActor == HitActor
+			&& LastSelectTime >= 0.0
+			&& (Now - LastSelectTime) <= static_cast<double>(FMath::Max(DoubleClickInterval, 0.f));
+
 		SelectUnit(HitActor);
+
+		if (bDoubleClick)
+		{
+			// Solo le proprie: i nemici non sono selezionabili per scelta (`OnSelect` li rifiuta sopra),
+			// quindi qui ci arrivano solo attori che il giocatore comanda. Separare *inquadrare* da
+			// *comandare* e' lavoro del contratto del puntatore ([#705]), non di questa riga.
+			if (const ARTUnit* Unit = Cast<ARTUnit>(HitActor))
+			{
+				FocusCameraOnUnit(Unit);
+				UE_LOG(LogRT, Log, TEXT("[RT] Doppio click: selezione + focus su %s"), *Unit->GetName());
+			}
+			LastSelectTime = -1.0; // un terzo click non e' un secondo doppio click
+			LastSelectActor = nullptr;
+		}
+		else
+		{
+			LastSelectTime = Now;
+			LastSelectActor = HitActor;
+		}
 		return;
 	}
 
-	// Click sulla mappa: la CELLA si ricava dalla quota del punto colpito (ponte vs terra), poi decide
-	// HandleClickOnCell — che e' guidabile dai test senza viewport.
+	// Click sulla mappa: la CELLA si risolve sul **piano attivo** (`D-255`), poi decide HandleClickOnCell —
+	// che e' guidabile dai test senza viewport.
 	{
-		FVector HitOrigin; float HitHexSize; float HitLayerH; const URTHexMapAsset* HitMap = nullptr;
-		if (HexMapWithContext(GetWorld(), HitOrigin, HitHexSize, HitLayerH, HitMap))
+		FRTCellId Cell;
+		bool bOnAnotherLayer = false;
+		if (ResolveCellUnderCursor(Cell, bOnAnotherLayer))
 		{
-			HandleClickOnCell(URTHexLibrary::WorldToCellId(Hit.Location, HitOrigin, HitHexSize, HitLayerH));
+			// ⚠️ **Il feedback e' parte della decisione, non una rifinitura.** Cliccando la mesh di un piano
+			// diverso il giocatore vede selezionarsi una cella che non e' quella che ha puntato: senza una
+			// riga che dica perche', il comportamento e' indistinguibile da un difetto. Finche' non c'e' un
+			// canale a schermo il posto e' il log — ed e' un debito dichiarato, non una scelta.
+			if (bOnAnotherLayer)
+			{
+				UE_LOG(LogRT, Log, TEXT("[RT] Il click ha colpito geometria di un altro piano: risolto su "
+					"ActiveLayer %d -> (q=%d,r=%d,L=%d). PageUp/PageDown cambiano piano."),
+					ActiveLayer, Cell.X, Cell.Y, Cell.Layer);
+			}
+			HandleClickOnCell(Cell);
 		}
 		else
 		{
@@ -1259,6 +1601,15 @@ void ARTPlayerController::SelectAbilityByIdForCurrent(const FName& ActionId)
 
 void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 {
+	// #1772 — con `Alt` premuto il destro e' un **dolly**, e la funzione di gioco viene soppressa per
+	// tutta la durata del gesto. Un dolly che cancella un waypoint mentre si avvicina la vista sarebbe
+	// peggio di non avere il dolly.
+	if (bCameraModifier)
+	{
+		bAltSecondaryDown = true;
+		return;
+	}
+
 	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
 	if (IsGameplayInputBlocked())
 	{

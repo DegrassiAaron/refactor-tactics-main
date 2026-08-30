@@ -56,15 +56,15 @@ Lo stato canonico è questo:
 
 | Campo | Oggi | Dove |
 |---|---|---|
-| **Pivot** | ⏳ implicito: è la posizione dell'attore pawn | [#1770](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1770) |
+| **Pivot** | ✅ `CameraPivot`; la posizione dell'attore è `Pivot + PeekOffset` | `SetCameraPivot` |
 | **Yaw** | ✅ `CameraYaw`, normalizzato in `[0,360)` | `RTCameraPawn.h` |
 | **Pitch** | ✅ `CameraPitch`, clampato `[-89, 0]` **in codice** | `AddPitch` |
 | **Zoom / Distance** | ✅ `SpringArm->TargetArmLength`, clampato `[MinArmLength, MaxArmLength]` | `ApplyViewSettings` |
-| **ActiveLayer** | ⏳ **non esiste lato gioco** — `ARTHexMapActor::ActiveLayer` è authoring | §6 · [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775) |
-| **Peek offset** | ⏳ non esiste | §3.2 · [#1772](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1772) |
-| **Strategic state** | ⏳ non esiste | §5 · [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774) |
+| **ActiveLayer** | ✅ **sul controller**, non sulla camera (`D-255`) | `ARTPlayerController::ActiveLayer` |
+| **Peek offset** | ✅ `PeekOffset`, limitato in lunghezza, rientra da sé | `SetPeekOffset` |
+| **Strategic state** | ✅ derivato dalla distanza, con isteresi (`D-252`) | `UpdateStrategicState` |
 
-⏳ **Il pivot deve diventare esplicito**, e non è cosmesi. Oggi «dove guarda la camera» e «dove sta il
+✅ **Il pivot è esplicito dal 2026-08-30** ([#1770](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1770)), e non era cosmesi. Oggi «dove guarda la camera» e «dove sta il
 pawn» sono la stessa variabile, quindi qualunque offset temporaneo — un peek, una transizione, uno shake —
 si scriverebbe *sopra* il riferimento invece che *accanto*, e al rilascio non ci sarebbe niente a cui
 tornare. È lo stesso difetto che `#863` ha già pagato una volta sul pitch: `CameraPitch` faceva da default
@@ -91,36 +91,40 @@ input da versionare, e un cambio di binding è un diff leggibile in una PR — n
 | Home | `Home` | `RecenterView` |
 | Focus | `F` | `FocusOn` sulla cella dell'unità selezionata |
 
-### 3.2 Binding prescritti — ⏳ non implementati
+### 3.2 Binding del modificatore `Alt` — ✅ consegnati
 
-Owner: [#1771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1771) (`CAM-02`, i binding) e [#1772](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1772) (`CAM-03`, i gesti).
+Owner: [#1771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1771) (`CAM-02`) e [#1772](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1772) (`CAM-03`), chiusi il 2026-08-30.
 
-`Alt` diventa il **modificatore camera**, e separa i gesti di vista da quelli di gioco:
-
-| Gesto | Effetto | Nota |
+| Gesto | Effetto | Stato |
 |---|---|---|
-| `Alt` + `LMB` **click** | imposta il pivot sulla cella valida sotto il cursore | non tocca la selezione gameplay |
-| `Alt` + `LMB` **drag** | orbita (X → yaw, Y → pitch) | yaw libero, pitch clampato |
-| `Alt` + `RMB` drag | dolly / zoom continuo | ⚠️ deve **sopprimere** il `RMB` di gioco per tutto il gesto |
-| `Alt` + movimento senza tasti | *temporary peek* | offset visuale, limite ridotto e configurabile, rientro progressivo al rilascio |
-| `Alt` + `MMB` drag | precision pan | sensibilità inferiore al pan normale |
-| `MMB` drag | pan | **collide con l'orbita attuale** — vedi sotto |
-| `PageUp` / `PageDown` | `ActiveLayer` sopra / sotto | richiede §6 |
-| `M` | Strategic Overview | tasto **libero**, verificato sull'elenco dei `MapKey` |
-| doppio `LMB` | Select + Focus | **zero** occorrenze di `DoubleClick` in `Source/` |
+| `Alt` + `LMB` **click** | pivot sulla cella valida sotto il cursore | ✅ non tocca la selezione |
+| `Alt` + `LMB` **drag** | orbita | ✅ oltre la soglia click/drag |
+| `Alt` + `RMB` drag | dolly | ✅ sopprime l'`UndoAction` per tutto il gesto |
+| `Alt` + movimento senza tasti | peek | ✅ limitato, rientra da sé al rilascio |
+| `Alt` + `MMB` drag | precision pan | ✅ `PrecisionPanScale` |
+| `PageUp` / `PageDown` | `ActiveLayer` sopra / sotto | ✅ limitato ai layer che la mappa ha |
+| doppio `LMB` | Select + Focus | ✅ [#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773) |
+| `MMB` drag | **orbita**, invariata | ✅ `PIE-CAM-ORBIT` resta valida |
+| `M` → Strategic Overview | — | ⏳ non cablato: lo stato esiste, la vista no (§5) |
 
-> 🔴 **Il rebinding di `MMB` non è un'aggiunta, è un cambio — e ha un costo già pagato.**
-> `PIE-CAM-ORBIT` in [`test-manuali-pie.md`](../test-manuali-pie.md) è **verde dal 2026-08-16** e descrive
-> l'orbita tasto per tasto: *«tenendo il tasto centrale del mouse e trascinando…»*. Quella verifica ha
-> anche chiuso una decisione aperta (il verso di `bInvertOrbitPitch`, provato con le mani). Spostare
-> l'orbita su `Alt`+`LMB` **invalida quella voce**, e il lavoro non è finito finché la voce non è
-> riscritta. Chi implementa il rebinding senza toccarla lascia un verde che descrive comandi che non
-> esistono più.
+> ✅ **`CAM-B` risposta il 2026-08-30: «entrambi».** `MMB` **resta** l'orbita e `Alt`+`LMB` è un secondo
+> modo; il pan resta su `WASD`. La domanda era aperta perché il rebinding avrebbe invalidato
+> `PIE-CAM-ORBIT`, verde dal 2026-08-16 e tasto per tasto — con questa scelta **quel prezzo non si paga**,
+> e la voce resta valida senza essere riscritta.
+>
+> 🔵 **Un effetto collaterale c'è, ed è registrato**: `Alt`+`MMB` non poteva restare il precision pan
+> «puro», perché `MMB` è già armato come orbita. Risolto dando la precedenza al modificatore — con `Alt`
+> premuto, `MMB` **pana** invece di orbitare. È l'unico modo di avere entrambi senza un terzo tasto.
 
-> ⚠️ **`BackSpace` è già occupato.** Il prompt di consolidamento chiedeva un `Back` che riporti allo stato
-> camera precedente; `BackSpace` è oggi `UndoAction` insieme a `RMB`. Uno stack di stati camera è
-> comunque **fuori dal vertical slice** e resta senza consumatore: non si assegna un tasto a una funzione
-> che non esiste.
+> ⚠️ **`BackSpace` è già occupato.** Il consolidamento chiedeva un `Back` che riporti allo stato camera
+> precedente; `BackSpace` è oggi `UndoAction` insieme a `RMB`. Uno stack di stati camera resta **fuori dal
+> vertical slice** e senza consumatore: non si assegna un tasto a una funzione che non esiste.
+
+> 🔴 **Il test che difende i tasti non esisteva, ed era citato.** `GenericHotkeys()` dichiarava in un
+> commento *«è un controllo che `PlayerInput.HotkeysDoNotCollide` rifà»*, e `grep -rn "DoNotCollide"
+> Source/` rispondeva **una sola riga**: quel commento. L'unica difesa era un elenco scritto a mano in un
+> altro commento. Ora il test esiste e interroga il `UInputMappingContext` **reale** — aggiungere un tasto
+> è una riga in `BuildInputMappings`, e il controllo la vede da sé.
 
 ### 3.3 Click contro drag
 
@@ -142,18 +146,22 @@ un'inquadratura, e portargliela via è peggio che non aiutarlo.
 |---|---|
 | `LMB` singolo | Select — ✅ non muove la camera |
 | `F` | Focus — ✅ `FocusOn`, **conserva lo zoom** |
-| doppio `LMB` | Select + Focus — ⏳ non esiste |
+| doppio `LMB` | Select + Focus — ✅ [#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773), su unità propria, entro `DoubleClickInterval` |
 
 `FocusOn` sposta il **pivot** e conserva yaw, pitch e distanza. Conserva anche la **quota del piano** e non
 quella dell'attore: `ARTUnit` sta mezzo corpo sopra la cella (`VisualZOffset`), quindi chi inquadra
 un'unità converte la sua cella invece di leggerne la posizione — è la correzione di
 [#887](https://github.com/DegrassiAaron/refactor-tactics-main/issues/887), dove `F` mostrava il vuoto.
 
-⏳ **Due regole prescritte che il codice non ha:**
+**Due regole, e vanno lette con il loro stato reale:**
 
-1. **Un input manuale interrompe immediatamente** qualunque movimento automatico della camera. Chi tocca
-   il mouse ha ripreso il comando, e finire l'interpolazione «perché era iniziata» è la forma più comune
-   di camera che combatte contro il giocatore.
+1. ✅/⏳ **Un input manuale interrompe immediatamente** qualunque movimento automatico della camera. Chi
+   tocca il mouse ha ripreso il comando, e finire l'interpolazione «perché era iniziata» è la forma più
+   comune di camera che combatte contro il giocatore.
+   ⚠️ **Ha oggi un solo consumatore**, ed è onesto dirlo: il rientro del peek, che è l'**unico** movimento
+   automatico che esista — `UpdatePeekReturn` non fa nulla mentre `Alt` è premuto, cioè mentre il giocatore
+   sta guidando. `FocusOn` è istantaneo, quindi non c'è ancora niente da interrompere. La regola è scritta
+   **prima** della prima transizione interpolata, non dopo: è l'unico momento in cui costa poco.
 2. **Ping, notifiche e UI ordinaria non rubano la camera.** Nessuna eccezione per «è importante»: se
    qualcosa merita davvero l'inquadratura, è un evento di Resolution e il suo owner è un Camera Director
    dedicato (§10), non una chiamata sparsa.
@@ -165,7 +173,8 @@ un'unità converte la sua cella invece di leggerne la posizione — è la correz
 Lo zoom è **continuo** ✅ e resta tale. **Non** esistono tre modalità rigide `Close / Tactical / Strategic`:
 una modalità è uno stato in più da mantenere, e la distanza la sta già tenendo `TargetArmLength`.
 
-⏳ **La Strategic View è una conseguenza semantica dello zoom**, non un'altra camera:
+✅ **Lo stato** esiste dal 2026-08-30 ([#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774)); ⏳ **la vista** no. La Strategic View è una
+conseguenza semantica dello zoom, non un'altra camera:
 
 ```text
 Distance ≥ StrategicEnterThreshold  →  entra in Strategic
@@ -177,8 +186,17 @@ L'isteresi non è una raffinatezza: senza, una singola soglia fa oscillare la vi
 diverse a ogni tacca di rotella nell'intorno del valore, ed è un difetto che si vede subito e si diagnostica
 tardi.
 
-I due valori sono **data-driven** e si tarano in `L_CameraFeatureLab`. Nessun numero è proposto qui: un
-default scritto in una spec prima di essere provato diventa canone per inerzia.
+I due valori sono **data-driven** (`StrategicEnterThreshold` / `StrategicExitThreshold`) e si tarano in
+`L_CameraFeatureLab`. Nessun numero è proposto qui: un default scritto in una spec prima di essere provato
+diventa canone per inerzia.
+
+⚠️ **`Exit < Enter` è imposto in codice, non solo documentato.** I due campi sono `BlueprintReadWrite` e il
+loro `meta = (ClampMin)` vincola il Details, non un `Set` da Blueprint: `UpdateStrategicState` li ordina
+con `Max`/`Min`, così chi li inverte ottiene comunque un'isteresi valida invece di uno stato che entra e
+non esce. Coperto da `Camera.StrategicThresholdsAreOrderedInCodeNotOnlyInDocs`.
+
+⏳ **Nessun consumatore visivo.** Lo stato è leggibile (`IsStrategicView`) e si annuncia nel log; cosa si
+*mostri* in Strategic — separazione verticale dei piani, densità dei marker — è §6 e resta da fare.
 
 🔗 La Strategic View ha già una premessa documentale in
 [`progettazione-hud.md`](progettazione-hud.md) §3.2 — *«Strategic Overview / Tactical Overview … non è la
@@ -201,11 +219,23 @@ cosa si vede.
 visuale**: la quota a schermo cresce per leggibilità, le celle restano dove sono nel modello. `ActiveLayer`
 continua a esistere anche lì — non è la vista a definirlo.
 
-> ⚠️ **`ActiveLayer` esiste, ma non è questo.** `ARTHexMapActor::ActiveLayer` e `ERTLayerViewMode`
-> (`AllLayers` · `ActiveOnly` · contorno) sono strumenti di **authoring**, guidati dall'editor mode:
-> `RTHexEditorClick.cpp` li usa perché lì si dipinge su un piano scelto. In partita nessuno li guida.
-> Il piano attivo *del giocatore* è una cosa nuova, e chi lo implementa deve decidere dove vive — camera,
-> controller o presenter — invece di riusare il campo dell'attore mappa perché ha il nome giusto.
+> ✅ **Il piano attivo del giocatore esiste dal 2026-08-30**: `ARTPlayerController::ActiveLayer`,
+> `StepActiveLayer` su `PageUp`/`PageDown`, limitato ai layer che la mappa **contiene davvero** —
+> misurati sulle celle, non assunti `[0, N]`, perché una mappa dipinta a mano può avere buchi e salire a
+> un piano vuoto darebbe un hover che non trova mai niente senza dire perché.
+>
+> 🔑 **Vive nel controller e non nella camera**, e la sede è parte di `D-255`: da quella decisione
+> l'`ActiveLayer` determina *quale cella un click seleziona*, quindi entra nel gameplay. Metterlo su
+> `ARTCameraPawn` avrebbe reso la camera un'autorità sull'esito — cioè avrebbe violato `D-143` nel commit
+> che dichiara di rispettarlo.
+>
+> ⚠️ **Non è `ARTHexMapActor::ActiveLayer`**, che ha lo stesso nome e un altro mestiere: quello e
+> `ERTLayerViewMode` (`AllLayers` · `ActiveOnly` · contorno) sono strumenti di **authoring**, guidati
+> dall'editor mode. Due scrittori su un campo solo sarebbero un difetto che si manifesta in editor e si
+> diagnostica in partita.
+>
+> ⏳ **Resta da fare la presentazione**: indicatori sopra/sotto e separazione verticale in Strategic. Il
+> filtro del velo va attraversato **prima** di decidere cosa disegnare, non dopo.
 
 ---
 
@@ -221,17 +251,22 @@ World Mouse Ray → World Hit / candidate position → X/Y candidate
 Sulle stesse coordinate X/Y possono coesistere tunnel, terreno, ponte e tetto. La camera **non deve**
 selezionare un layer diverso da `ActiveLayer` solo perché il raggio ha colpito una mesh di quel layer.
 
-> 🔴 **Questa regola contraddice il comportamento attuale, e la contraddizione è deliberata e non ancora
-> risolta.** `RTPlayerController.cpp:502` dichiara l'opposto in un commento esplicito: *«Il layer viene
-> dalla QUOTA del punto colpito: cliccando il ponte si evidenzia la cella del ponte (in editor lo decide
-> invece `ActiveLayer`, perché lì si dipinge su un piano scelto)»*.
+> ✅ **Deciso e implementato il 2026-08-30** — `D-255`, uscita (b) di `CAM-A`. La regola qui sopra **è**
+> il comportamento: `ARTPlayerController::ResolveCellUnderCursor` calcola `bHasValidHit` come *«il colpo è
+> sul piano attivo»* e passa la palla alla funzione pura.
 >
-> **Cambiarlo tocca il gameplay**: cambia quale cella un click seleziona, quindi quale cella si pianifica.
-> Non è una modifica di presentazione e non entra da questa spec. Serve prima l'`ActiveLayer` di gioco
-> (§6), e la decisione va presa insieme al **Pointer Interaction Contract**
-> ([#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705)), che possiede la matrice
-> `oggetto × contesto × click → esito` e che dichiara il redesign della camera fuori dal proprio scope.
-> Due sedi per la stessa decisione sono peggio di nessuna.
+> ⚠️ **La decisione tocca il gameplay ed è registrata come tale**, non è entrata dalla porta della
+> presentazione: cambia quale cella un click seleziona, quindi quale cella si pianifica. Il comportamento
+> superato era dichiarato in chiaro nel codice — *«Il layer viene dalla QUOTA del punto colpito»* — e non
+> era una svista: era una scelta, che su X/Y con tunnel · terreno · ponte · tetto lasciava decidere il
+> piano a ciò che il raggio incontrava per primo.
+>
+> ➕ **Hover e click passano ora dalla stessa funzione.** Erano due call site che chiamavano
+> `WorldToCellId` per conto proprio (`RTPlayerController.cpp:504` e `:736`), e nulla garantiva che
+> evidenziassero e selezionassero la stessa cella.
+>
+> ⏳ **Il feedback a schermo manca**, ed è un debito dichiarato: cliccando la mesh di un piano diverso il
+> giocatore vede selezionarsi una cella che non ha puntato, e oggi ha solo un `UE_LOG` per capire perché.
 
 ℹ️ La metà **pura** della risoluzione esiste già e ha due test:
 `URTHexLibrary::ResolveRayToCellOnLayer` usa la cella del colpo quando il colpo è valido e ripiega sul
@@ -294,9 +329,10 @@ prima è il modo più diretto per rendere la camera imprevedibile. Resta backlog
 
 | Livello | Stato |
 |---|---|
-| Automation | ✅ **19** test `RefactorTactics.Camera.*` in [`RTCameraPawnTests.cpp`](../../../Source/RefactorTactics/Tests/RTCameraPawnTests.cpp) |
+| Automation | ✅ **28** test `RefactorTactics.Camera.*` (19 prima di E49) in [`RTCameraPawnTests.cpp`](../../../Source/RefactorTactics/Tests/RTCameraPawnTests.cpp) |
 | PIE | ✅ `PIE-CAM-START` · `PIE-CAM-ORBIT` · `PIE-CAM-ZOOM-ANCHOR` · `PIE-CAM-BOUNDS` · `PIE-CAM-FOCUS` |
 | Scenari | ❌ **zero** — [`scenario-map.md`](../tooling/scenario-map.md) lo dichiara, con la motivazione |
+| Input | ✅ `PlayerInput.HotkeysDoNotCollide`, che **era citato e non esisteva** |
 
 Una feature camera è **Done** solo se: funziona in Editor **e** in packaged build; non modifica autorità
 gameplay; non altera LOS, targeting o pathfinding; regge un input rimappabile; gestisce l'interruzione

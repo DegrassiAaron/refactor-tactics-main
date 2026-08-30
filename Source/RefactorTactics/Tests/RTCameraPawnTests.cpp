@@ -160,7 +160,7 @@ bool FRTCameraZoomAnchorTest::RunTest(const FString&)
 
 	// Ancora **lontana dal pivot**: se fosse sotto la camera, tenerla ferma sarebbe vero per costruzione.
 	const FVector Anchor(900.f, 400.f, 0.f);
-	Cam->SetActorLocation(FVector::ZeroVector);
+	Cam->SetCameraPivotForTest(FVector::ZeroVector);
 
 	// `√3 × 100` — una spaziatura di RIFERIMENTO per costruire una tolleranza, non la scala del mondo.
 	// ⚠️ Diceva «con `HexSize` di default», e dal 2026-08-25 il default e' `150` (`#1155`): qui il numero
@@ -245,7 +245,7 @@ bool FRTCameraSoftBoundsTest::RunTest(const FString&)
 
 	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
 	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
-	Cam->SetActorLocation(FVector::ZeroVector);
+	Cam->SetCameraPivotForTest(FVector::ZeroVector);
 
 	// 🔴 **La prima stesura non pinnava il margine, e passava anche con `BoundsMarginCells = 0`.**
 	// Verificava solo un limite superiore lasco — «il centro resta entro 5 celle» — che il bordo mappa
@@ -261,7 +261,7 @@ bool FRTCameraSoftBoundsTest::RunTest(const FString&)
 
 	for (int32 Dir = 0; Dir < 4; ++Dir)
 	{
-		Cam->SetActorLocation(FVector::ZeroVector);
+		Cam->SetCameraPivotForTest(FVector::ZeroVector);
 		const FVector2D Axis = (Dir == 0) ? FVector2D(1, 0) : (Dir == 1) ? FVector2D(-1, 0)
 			: (Dir == 2) ? FVector2D(0, 1) : FVector2D(0, -1);
 		for (int32 I = 0; I < 400; ++I) { Cam->AddPlanarMovement(Axis); }
@@ -282,12 +282,12 @@ bool FRTCameraSoftBoundsTest::RunTest(const FString&)
 
 	// ⚠️ E il margine **si muove col campo**: se fosse ignorato, questa riga non cambierebbe nulla. E' la
 	// prova che il `3` viene dal parametro e non da un caso.
-	Cam->SetActorLocation(FVector::ZeroVector);
+	Cam->SetCameraPivotForTest(FVector::ZeroVector);
 	for (int32 I = 0; I < 400; ++I) { Cam->AddPlanarMovement(FVector2D(1.f, 0.f)); }
 	const double ReachedAtThree = FMath::Abs(Cam->GetActorLocation().Y);
 
 	Cam->SetBoundsMarginForTest(1.f);
-	Cam->SetActorLocation(FVector::ZeroVector);
+	Cam->SetCameraPivotForTest(FVector::ZeroVector);
 	for (int32 I = 0; I < 400; ++I) { Cam->AddPlanarMovement(FVector2D(1.f, 0.f)); }
 	const double ReachedAtOne = FMath::Abs(Cam->GetActorLocation().Y);
 
@@ -558,7 +558,7 @@ bool FRTCameraPanFollowsYawTest::RunTest(const FString&)
 
 	// Yaw 0: il comportamento STORICO non cambia — «avanti» e' +X nel mondo. Se questa riga cadesse, la
 	// modifica avrebbe cambiato la guida di ogni inquadratura esistente, non solo di quelle ruotate.
-	Cam->SetActorLocation(FVector::ZeroVector);
+	Cam->SetCameraPivotForTest(FVector::ZeroVector);
 	Cam->AddPlanarMovement(FVector2D(0.f, 1.f));
 	const FVector Straight = Cam->GetActorLocation();
 	TestTrue(TEXT("yaw 0: avanti e' +X"), Straight.X > 1.f && FMath::Abs(Straight.Y) < 0.01f);
@@ -569,7 +569,7 @@ bool FRTCameraPanFollowsYawTest::RunTest(const FString&)
 	Cam->AddYaw(+1.f);
 	Cam->AddYaw(+1.f);
 	TestEqual(TEXT("ruotata di 90"), Cam->GetCameraYaw(), 90.f);
-	Cam->SetActorLocation(FVector::ZeroVector);
+	Cam->SetCameraPivotForTest(FVector::ZeroVector);
 	Cam->AddPlanarMovement(FVector2D(0.f, 1.f));
 	const FVector Turned = Cam->GetActorLocation();
 	TestTrue(TEXT("yaw 90: lo stesso 'avanti' va su +Y"), Turned.Y > 1.f && FMath::Abs(Turned.X) < 0.01f);
@@ -606,7 +606,7 @@ bool FRTCameraRecenterResetsYawTest::RunTest(const FString&)
 
 	// Il pan torna a comportarsi come all'inizio: e' la prova che il reset e' arrivato fino alla guida, non
 	// solo al numero.
-	Cam->SetActorLocation(FVector::ZeroVector);
+	Cam->SetCameraPivotForTest(FVector::ZeroVector);
 	Cam->AddPlanarMovement(FVector2D(0.f, 1.f));
 	TestTrue(TEXT("dopo Home 'avanti' e' di nuovo +X"), Cam->GetActorLocation().X > 1.f);
 
@@ -645,7 +645,7 @@ bool FRTCameraFocusKeepsFramingTest::RunTest(const FString&)
 	const float ZoomAtRest = Arm->TargetArmLength;
 	Cam->AddYaw(+1.f);
 	Cam->AddZoom(+1.f);
-	Cam->SetActorLocation(FVector(0.f, 0.f, 1234.f));
+	Cam->SetCameraPivotForTest(FVector(0.f, 0.f, 1234.f));
 	const float ZoomBefore = Arm->TargetArmLength;
 	const float YawBefore = Cam->GetCameraYaw();
 	const float PitchBefore = static_cast<float>(Arm->GetRelativeRotation().Pitch);
@@ -726,7 +726,7 @@ bool FRTCameraFrameTeamIgnoresSpawnHeightTest::RunTest(const FString&)
 
 	// Il PlayerStart, simulato: una quota che non ha niente a che vedere con il piano della mappa.
 	const double SpawnHeight = 5555.0;
-	Cam->SetActorLocation(FVector(0.f, 0.f, SpawnHeight));
+	Cam->SetCameraPivotForTest(FVector(0.f, 0.f, SpawnHeight));
 
 	if (!TestTrue(TEXT("inquadra la squadra"), Cam->FrameOwnTeam()))
 	{
@@ -787,7 +787,7 @@ bool FRTCameraFocusUnitUsesCellPlaneTest::RunTest(const FString&)
 	// L'unita' sta **sopra** il proprio piano: e' la differenza che il test esiste per cogliere.
 	Unit->SetActorLocation(FVector(1000.f, 2000.f, PlaneZ + 90.f));
 
-	Cam->SetActorLocation(FVector(0.f, 0.f, 5555.f)); // quota di nascita, come il PlayerStart
+	Cam->SetCameraPivotForTest(FVector(0.f, 0.f, 5555.f)); // quota di nascita, come il PlayerStart
 	PC->FocusCameraOnUnit(Unit);
 
 	const FVector Framed = Cam->GetActorLocation();
@@ -819,7 +819,7 @@ bool FRTCameraFrameTeamFalseBranchesTest::RunTest(const FString&)
 		ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
 		if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
 
-		Cam->SetActorLocation(FVector(77.f, 88.f, 99.f));
+		Cam->SetCameraPivotForTest(FVector(77.f, 88.f, 99.f));
 		TestFalse(TEXT("senza mappa non c'e' niente da inquadrare"), Cam->FrameOwnTeam());
 		// Un `false` che avesse gia' mosso la camera sarebbe peggio di un crash: il chiamante ripiega su
 		// `RecenterView` credendo di partire da fermo.
@@ -847,7 +847,7 @@ bool FRTCameraFrameTeamFalseBranchesTest::RunTest(const FString&)
 		// Uccisa con l'API di gioco, non azzerando il campo: e' `IsAlive()` che il filtro interroga.
 		Fallen->ApplyCombatState(/*NewHealth=*/ 0, /*NewShield=*/ 0);
 
-		Cam->SetActorLocation(FVector(11.f, 22.f, 33.f));
+		Cam->SetCameraPivotForTest(FVector(11.f, 22.f, 33.f));
 		TestFalse(TEXT("un nemico vivo e un compagno morto non fanno un'inquadratura"), Cam->FrameOwnTeam());
 		TestEqual(TEXT("e la camera non si e' mossa"), Cam->GetActorLocation(), FVector(11.f, 22.f, 33.f));
 
@@ -944,7 +944,7 @@ bool FRTCameraBeginPlayRetriesTest::RunTest(const FString&)
 
 	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
 	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
-	Cam->SetActorLocation(FVector::ZeroVector);
+	Cam->SetCameraPivotForTest(FVector::ZeroVector);
 
 	// `BeginPlay` con il mondo ancora vuoto: `FrameOwnTeam` fallisce e registra il ritentativo.
 	Cam->DispatchBeginPlay();
@@ -1001,7 +1001,7 @@ bool FRTCameraBeginPlayFallsBackTest::RunTest(const FString&)
 
 	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
 	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
-	Cam->SetActorLocation(FVector::ZeroVector);
+	Cam->SetCameraPivotForTest(FVector::ZeroVector);
 
 	Cam->DispatchBeginPlay();
 	World->GetTimerManager().Tick(0.05f);
@@ -1016,7 +1016,7 @@ bool FRTCameraBeginPlayFallsBackTest::RunTest(const FString&)
 	// renderebbe il confronto cieco sull'asse verticale, cioe' su un terzo delle componenti che deve
 	// verificare. (La prima stesura motivava la stessa riga con «`FocusOn` conserva la quota corrente»:
 	// dopo `#887` non e' piu' vero — entrambe scrivono il vettore intero — ma la precauzione resta buona.)
-	Cam->SetActorLocation(FVector(-9999.f, -9999.f, 4321.f));
+	Cam->SetCameraPivotForTest(FVector(-9999.f, -9999.f, 4321.f));
 	Cam->RecenterView();
 	TestEqual(TEXT("ed e' esattamente dove porta Home"), Cam->GetActorLocation(), Fallback);
 
@@ -1132,6 +1132,348 @@ bool FRTCameraFrameTeamFollowsControllerTest::RunTest(const FString&)
 		Cam->GetActorLocation(), FramedTeamZero);
 
 	DestroyCameraWorld(World);
+	return true;
+}
+
+// --- #1770 · il pivot e' uno stato, e il peek non lo tocca -------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPeekDoesNotMoveThePivotTest,
+	"RefactorTactics.Camera.PeekOffsetsTheViewWithoutMovingThePivot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraPeekDoesNotMoveThePivotTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	const FVector Pivot(120.f, -80.f, 40.f);
+	Cam->SetCameraPivotForTest(Pivot);
+
+	// Un offset **dentro** il limite, cosi' il test misura la separazione fra pivot e posizione e non il
+	// clamp: quello ha il proprio test qui sotto.
+	const FVector Peek(60.f, 0.f, 0.f);
+	Cam->SetPeekOffset(Peek);
+
+	TestEqual(TEXT("il pivot NON si e' mosso"), Cam->GetCameraPivot(), Pivot);
+	TestEqual(TEXT("la posizione e' pivot + peek"), Cam->GetActorLocation(), Pivot + Peek);
+
+	// Il rientro deve riportare **esattamente** al punto di partenza: e' la proprieta' per cui il pivot
+	// esiste come campo separato invece di essere la posizione.
+	Cam->SetPeekOffset(FVector::ZeroVector);
+	TestEqual(TEXT("al rientro la posizione torna esattamente sul pivot"), Cam->GetActorLocation(), Pivot);
+	TestEqual(TEXT("e il pivot e' ancora quello"), Cam->GetCameraPivot(), Pivot);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPeekIsLimitedInLengthTest,
+	"RefactorTactics.Camera.PeekIsLimitedInLengthNotPerAxis",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraPeekIsLimitedInLengthTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetCameraPivotForTest(FVector::ZeroVector);
+	Cam->SetMaxPeekDistanceForTest(100.f);
+
+	// In DIAGONALE, che e' il caso che distingue un limite sulla lunghezza da un clamp per asse: con il
+	// secondo questo vettore passerebbe intatto (ogni componente vale 90, sotto il limite) e il peek
+	// diagonale sarebbe piu' lungo di quello sui lati.
+	Cam->SetPeekOffset(FVector(90.f, 90.f, 0.f));
+
+	TestTrue(TEXT("il peek diagonale e' limitato in lunghezza"),
+		FMath::IsNearlyEqual(Cam->GetPeekOffset().Size(), 100.f, 0.1f));
+	TestEqual(TEXT("il pivot resta fermo"), Cam->GetCameraPivot(), FVector::ZeroVector);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraFocusPassesThroughBoundsTest,
+	"RefactorTactics.Camera.FocusIsClampedLikeEveryOtherPivotWrite",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraFocusPassesThroughBoundsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+	Cam->SetBoundsMarginForTest(1.f);
+
+	// 🔴 Prima di `#1770` `FocusOn` scriveva la posizione **nuda**: era l'unica delle cinque scritture di
+	// pivot senza clamp, quindi inquadrare un punto lontanissimo portava la camera dove il pan si rifiuta
+	// di andare. Un invariante che vale in quattro punti su cinque non e' un invariante.
+	const FVector FarAway(500000.f, 500000.f, 0.f);
+	Cam->FocusOn(FarAway);
+
+	TestTrue(TEXT("il focus lontano viene limitato come il pan"),
+		Cam->GetCameraPivot().X < FarAway.X * 0.5);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+// --- #1771 / #1772 · i gesti del modificatore camera -------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraAltDragOrbitsOnlyPastThresholdTest,
+	"RefactorTactics.Camera.AltDragOrbitsOnlyPastTheClickThreshold",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraAltDragOrbitsOnlyPastThresholdTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("camera"), Cam) || !TestNotNull(TEXT("controller"), PC))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	PC->Possess(Cam);
+	Cam->SetSensitivitiesForTest(1.f, 1.f);
+	PC->SetClickDragThresholdForTest(10.f);
+
+	const float YawBefore = Cam->GetCameraYaw();
+
+	// Sotto soglia: il gesto e' ancora un click potenziale, e la vista NON deve muoversi. Senza questa
+	// guardia un click con un pixel di tremolio ruoterebbe la vista di un grado, e il set-pivot
+	// arriverebbe su un'inquadratura gia' cambiata.
+	PC->SetCameraModifierForTest(true);
+	PC->SetAltPrimaryDownForTest(true, 0.f);
+	TestTrue(TEXT("il gesto Alt consuma il movimento"), PC->RouteCameraGestureForTest(FVector2D(3.f, 0.f)));
+	TestEqual(TEXT("sotto soglia lo yaw non cambia"), Cam->GetCameraYaw(), YawBefore);
+
+	// Oltre soglia: da qui in poi e' un'orbita.
+	PC->RouteCameraGestureForTest(FVector2D(20.f, 0.f));
+	TestNotEqual(TEXT("oltre soglia la vista orbita"), Cam->GetCameraYaw(), YawBefore);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPeekReturnsToZeroTest,
+	"RefactorTactics.Camera.PeekReturnsToZeroOnlyWhenTheModifierIsReleased",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraPeekReturnsToZeroTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("camera"), Cam) || !TestNotNull(TEXT("controller"), PC))
+	{
+		DestroyCameraWorld(World);
+		return false;
+	}
+	PC->Possess(Cam);
+
+	const FVector Pivot(100.f, 200.f, 0.f);
+	Cam->SetCameraPivotForTest(Pivot);
+
+	// `Alt` da solo + movimento = peek.
+	PC->SetCameraModifierForTest(true);
+	TestTrue(TEXT("Alt da solo consuma il movimento come peek"),
+		PC->RouteCameraGestureForTest(FVector2D(20.f, 0.f)));
+	TestFalse(TEXT("il peek si e' aperto"), Cam->GetPeekOffset().IsNearlyZero());
+	TestEqual(TEXT("e il pivot non si e' mosso"), Cam->GetCameraPivot(), Pivot);
+
+	// Con `Alt` ancora premuto il rientro NON deve partire: tirare contro il giocatore mentre sta
+	// guidando e' la forma piu' fastidiosa di camera automatica.
+	const FVector Held = Cam->GetPeekOffset();
+	PC->UpdatePeekReturnForTest(0.1f);
+	TestEqual(TEXT("con Alt premuto il peek resta dov'e'"), Cam->GetPeekOffset(), Held);
+
+	// Rilasciato `Alt`, rientra fino a zero — e il pivot e' sempre quello.
+	PC->SetCameraModifierForTest(false);
+	for (int32 i = 0; i < 200 && !Cam->GetPeekOffset().IsNearlyZero(); ++i)
+	{
+		PC->UpdatePeekReturnForTest(1.f / 60.f);
+	}
+	TestTrue(TEXT("il peek rientra a zero"), Cam->GetPeekOffset().IsNearlyZero());
+	TestEqual(TEXT("e la camera torna esattamente sul pivot"), Cam->GetActorLocation(), Pivot);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraActiveLayerStaysWithinMapTest,
+	"RefactorTactics.Camera.ActiveLayerStaysWithinTheLayersTheMapHas",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraActiveLayerStaysWithinMapTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+
+	// Mappa a DUE piani: senza il secondo, «il piano attivo si ferma» sarebbe vero anche di
+	// un'implementazione che non cambia mai piano.
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), /*Radius=*/ 1))
+	{
+		Asset->AddOrUpdateCell(FRTHexCellData(Id));
+		Asset->AddOrUpdateCell(FRTHexCellData(FRTCellId(Id.X, Id.Y, 1)));
+	}
+	Asset->SortCells();
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("mappa"), MapActor)) { DestroyCameraWorld(World); return false; }
+	MapActor->MapAsset = Asset;
+
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller"), PC)) { DestroyCameraWorld(World); return false; }
+
+	TestEqual(TEXT("si parte dal piano 0"), PC->GetActiveLayer(), 0);
+	TestTrue(TEXT("si sale al piano 1"), PC->StepActiveLayer(+1));
+	TestEqual(TEXT("il piano attivo e' 1"), PC->GetActiveLayer(), 1);
+
+	// Il piano 2 non esiste: salirci darebbe un hover che non trova mai niente senza dire perche'.
+	TestFalse(TEXT("non si sale a un piano che la mappa non ha"), PC->StepActiveLayer(+1));
+	TestEqual(TEXT("il piano attivo resta 1"), PC->GetActiveLayer(), 1);
+
+	TestTrue(TEXT("si scende"), PC->StepActiveLayer(-1));
+	TestFalse(TEXT("e non si scende sotto il piano piu' basso"), PC->StepActiveLayer(-1));
+	TestEqual(TEXT("il piano attivo resta 0"), PC->GetActiveLayer(), 0);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+// --- #1774 · lo stato strategico e la sua isteresi ---------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicHysteresisTest,
+	"RefactorTactics.Camera.StrategicViewHasHysteresisAndDoesNotOscillate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraStrategicHysteresisTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+	Cam->RecenterView(); // riporta il braccio a 800 e rilegge lo stato
+
+	TestFalse(TEXT("a distanza di default la vista e' tattica"), Cam->IsStrategicView());
+
+	// Allontanandosi si entra in strategica...
+	for (int32 i = 0; i < 40 && !Cam->IsStrategicView(); ++i) { Cam->AddZoom(+1.f); }
+	TestTrue(TEXT("allontanandosi si entra in vista strategica"), Cam->IsStrategicView());
+
+	// ...e avvicinandosi di poco NON si esce: e' l'isteresi. Con una soglia sola, un solo scatto di
+	// rotella sotto il valore farebbe uscire, e nell'intorno la vista sfarfallerebbe.
+	Cam->AddZoom(-1.f);
+	TestTrue(TEXT("un solo scatto indietro non fa uscire: c'e' isteresi"), Cam->IsStrategicView());
+
+	// Solo scendendo sotto la soglia di uscita si torna tattici.
+	for (int32 i = 0; i < 40 && Cam->IsStrategicView(); ++i) { Cam->AddZoom(-1.f); }
+	TestFalse(TEXT("sotto la soglia di uscita si torna tattici"), Cam->IsStrategicView());
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraStrategicThresholdsAreOrderedTest,
+	"RefactorTactics.Camera.StrategicThresholdsAreOrderedInCodeNotOnlyInDocs",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraStrategicThresholdsAreOrderedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(800.f, 100.f, 4000.f);
+
+	// Soglie ROVESCIATE: i due campi sono `BlueprintReadWrite` e il loro `meta = (ClampMin)` vincola il
+	// Details, non un `Set` da Blueprint. Se l'ordine vivesse solo nella documentazione, qui lo stato
+	// entrerebbe e non uscirebbe piu'.
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 1900.f, /*Exit=*/ 2400.f);
+	Cam->RecenterView();
+
+	for (int32 i = 0; i < 40 && !Cam->IsStrategicView(); ++i) { Cam->AddZoom(+1.f); }
+	TestTrue(TEXT("con le soglie rovesciate si entra comunque"), Cam->IsStrategicView());
+
+	for (int32 i = 0; i < 40 && Cam->IsStrategicView(); ++i) { Cam->AddZoom(-1.f); }
+	TestFalse(TEXT("e si esce comunque: l'ordine e' imposto in codice"), Cam->IsStrategicView());
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+// --- #1778 · i limiti che conoscono il viewport ------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraEffectiveBoundsTest,
+	"RefactorTactics.Camera.EffectivePivotBoundsShrinkWithZoomPitchAndAspect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraEffectiveBoundsTest::RunTest(const FString&)
+{
+	// Pura: nessun mondo, nessun attore, nessun viewport. E' la ragione per cui prende le metriche come
+	// parametri invece di leggerle — in headless un viewport non esiste, ed e' un limite gia' dichiarato
+	// da `ZoomTowards`.
+	const FBox2D Area(FVector2D(-5000.f, -5000.f), FVector2D(5000.f, 5000.f));
+	const float Fov = 90.f;
+	const float Fraction = 0.35f;
+
+	const FBox2D Near = ARTCameraPawn::ComputeEffectivePivotBounds(Area, /*Arm=*/ 500.f, -45.f, 0.f, Fov, 16.f/9.f, Fraction);
+	const FBox2D Far  = ARTCameraPawn::ComputeEffectivePivotBounds(Area, /*Arm=*/ 2000.f, -45.f, 0.f, Fov, 16.f/9.f, Fraction);
+	TestTrue(TEXT("piu' si e' lontani, meno il pivot puo' avvicinarsi al bordo"),
+		Far.Max.X < Near.Max.X);
+
+	// Pitch verso l'orizzonte: il quadro si allunga lungo lo sguardo, quindi il limite si stringe. E' il
+	// caso che rompe il clamp fisso, ed e' la ragione per cui il pitch entra nella formula.
+	const FBox2D Steep = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -80.f, 0.f, Fov, 16.f/9.f, Fraction);
+	const FBox2D Shallow = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -20.f, 0.f, Fov, 16.f/9.f, Fraction);
+	TestTrue(TEXT("a pitch basso il limite e' piu' stretto che a picco"), Shallow.Max.Y < Steep.Max.Y);
+
+	// Ultrawide: piu' schermo in orizzontale, quindi meno margine in X. Su 32:9 il vuoto si vedrebbe ai
+	// due lati insieme.
+	const FBox2D Wide = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -45.f, 0.f, Fov, 32.f/9.f, Fraction);
+	TestTrue(TEXT("32:9 stringe il limite verticale rispetto a 16:9"), Wide.Max.Y > Far.Max.Y);
+
+	// Yaw 90°: il quadro e' ruotato, e gli assi dell'ingombro si scambiano. Senza questo passaggio i
+	// limiti sarebbero corretti solo con la vista dritta — cioe' proprio dove la rotazione non serve.
+	const FBox2D Turned = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -45.f, 90.f, Fov, 16.f/9.f, Fraction);
+	TestTrue(TEXT("ruotando di 90 gradi gli assi del limite si scambiano"),
+		FMath::IsNearlyEqual(Turned.Max.X, Far.Max.Y, 1.f) && FMath::IsNearlyEqual(Turned.Max.Y, Far.Max.X, 1.f));
+
+	// Aspect ratio ignoto (headless): l'area passa intatta. Caso degenere **dichiarato**.
+	const FBox2D Unknown = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -45.f, 0.f, Fov, 0.f, Fraction);
+	TestEqual(TEXT("senza aspect ratio i limiti restano quelli per sole celle"), Unknown.Max, Area.Max);
+
+	// Area piu' piccola dell'inquadratura: il pivot si inchioda al CENTRO invece di produrre un intervallo
+	// rovesciato, che un `Clamp` bloccherebbe a un angolo senza dirlo.
+	const FBox2D Tiny(FVector2D(-100.f, -100.f), FVector2D(100.f, 100.f));
+	const FBox2D Pinned = ARTCameraPawn::ComputeEffectivePivotBounds(Tiny, 4000.f, -45.f, 0.f, Fov, 16.f/9.f, Fraction);
+	TestEqual(TEXT("su un'area minuscola il pivot si inchioda al centro"), Pinned.Min, Pinned.Max);
+	TestEqual(TEXT("e il centro e' quello dell'area"), Pinned.Min, Tiny.GetCenter());
+
 	return true;
 }
 

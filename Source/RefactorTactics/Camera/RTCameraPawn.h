@@ -94,6 +94,99 @@ public:
 	 */
 	void AddOrbit(float DeltaYaw, float DeltaPitch);
 
+	/**
+	 * Il **pivot**: il punto del mondo che la camera sta guardando, e il riferimento di tutto il resto.
+	 * La posizione dell'attore ne e' **derivata** — `Pivot + PeekOffset` — e non il contrario.
+	 *
+	 * 🔴 **Esiste da `#1770` perche' prima non c'era**, e la ragione e' la stessa che ha prodotto
+	 * `DefaultPitch` in `#863`: «dove guarda la camera» e «dove sta il pawn» erano la stessa variabile.
+	 * Finche' nessuno applicava offset temporanei la cosa non si vedeva; ma un peek, una transizione o
+	 * uno shake si sarebbero scritti *sopra* il riferimento invece che *accanto*, e al rilascio non ci
+	 * sarebbe stato niente a cui tornare.
+	 *
+	 * ⚠️ **Da qui in poi `SetActorLocation` non e' piu' il canale per spostare la camera**: chi la muove
+	 * chiama `SetCameraPivot`, e chi la legge chiama questo. Scrivere la posizione direttamente lascia il
+	 * pivot indietro, e il prossimo `ApplyPivot` riporta la camera dov'era.
+	 */
+	const FVector& GetCameraPivot() const { return CameraPivot; }
+
+	/**
+	 * Sposta il pivot, **clampato ai soft bounds**, e riapplica la trasformata conservando il peek.
+	 *
+	 * E' il punto unico di scrittura: `FocusOn`, `AddPlanarMovement`, `ZoomTowards`, `RecenterView` e il
+	 * set-pivot di `#1772` passano tutti da qui, cosi' il clamp non puo' essere dimenticato in uno dei
+	 * cinque — che e' il difetto gia' pagato da `#873` sulla distanza e da `#864` sullo zoom.
+	 */
+	void SetCameraPivot(const FVector& NewPivot);
+
+	/**
+	 * Offset visuale **temporaneo** verso cui la camera sbircia: non entra nel pivot, e viene azzerato dal
+	 * rientro senza lasciare traccia.
+	 *
+	 * Limitato in lunghezza a `MaxPeekDistance`: un peek che arriva lontano quanto un pan sarebbe un pan,
+	 * e nessuno saprebbe piu' dove si trova davvero la camera.
+	 */
+	void SetPeekOffset(const FVector& Offset);
+	const FVector& GetPeekOffset() const { return PeekOffset; }
+
+	/**
+	 * `#1774` — la vista e' **strategica**: conseguenza dello zoom, non una modalita' (`D-252`).
+	 *
+	 * Non c'e' un comando che la accenda e non c'e' uno stato in piu' da mantenere: la distanza la sta gia'
+	 * tenendo `TargetArmLength`, e questa e' la sua lettura semantica.
+	 */
+	bool IsStrategicView() const { return bStrategicView; }
+
+	/**
+	 * Rilegge lo stato strategico dalla distanza corrente, **con isteresi**.
+	 *
+	 * ⚠️ Due soglie e non una. Con una sola, la vista oscillerebbe fra due presentazioni a ogni tacca di
+	 * rotella nell'intorno del valore: si vede subito e si diagnostica tardi, perche' il sintomo sembra uno
+	 * sfarfallio di rendering mentre la causa e' una disuguaglianza.
+	 *
+	 * Ritorna `true` se lo stato e' cambiato.
+	 */
+	bool UpdateStrategicState();
+
+	/** Fissa le due soglie strategiche (per i test). Taratura aperta: si tarano in `L_CameraFeatureLab`. */
+	void SetStrategicThresholdsForTest(float InEnter, float InExit)
+	{
+		StrategicEnterThreshold = InEnter;
+		StrategicExitThreshold = InExit;
+	}
+
+	/**
+	 * `#1778` — i limiti del pivot che tengono conto del VIEWPORT (`D-251`).
+	 *
+	 * Pura e senza mondo: prende come **parametri** cio' che a runtime verrebbe dal viewport, ed e' la
+	 * ragione per cui e' verificabile headless — dove un viewport non esiste, e dove `ZoomTowards` ha gia'
+	 * dovuto dichiarare di non poter misurare l'errore di prospettiva.
+	 *
+	 * `AllowedArea` e' la zona che si puo' mostrare (mappa + buffer scenico, `D-250`).
+	 * `AllowedOutsideFraction` e' quanta parte del semiquadro puo' cadere fuori da quella zona: `0` incolla
+	 * il quadro dentro l'area, `1` non limita nulla. ⚠️ Non e' «zero pixel fuori», che sarebbe una gabbia e
+	 * renderebbe il bordo inavvicinabile.
+	 *
+	 * Se l'area e' piu' piccola dell'inquadratura — mappa piccola, o zoom al massimo — l'intervallo si
+	 * ridurrebbe a un rovescio: in quel caso il pivot si **inchioda al centro** invece di produrre un
+	 * `Clamp` su estremi invertiti, che lo bloccherebbe a un angolo senza che nulla lo dica.
+	 */
+	static FBox2D ComputeEffectivePivotBounds(const FBox2D& AllowedArea, float ArmLength,
+		float PitchDegrees, float YawDegrees, float HorizontalFovDegrees, float AspectRatio,
+		float AllowedOutsideFraction);
+
+	/**
+	 * Metriche del viewport per il calcolo dei limiti (per i test, e per chi non ha un viewport).
+	 *
+	 * `AspectRatio <= 0` disattiva i limiti viewport-aware e riporta al clamp per sole celle: e' il **caso
+	 * degenere dichiarato**, non un ripiego silenzioso.
+	 */
+	void SetViewportMetricsForTest(float InAspectRatio, float InHorizontalFovDegrees)
+	{
+		ViewportAspectRatio = InAspectRatio;
+		ViewportHorizontalFov = InHorizontalFovDegrees;
+	}
+
 	/** Direzione di sguardo corrente sul piano, in gradi. Serve al pan relativo e ai test. */
 	float GetCameraYaw() const { return CameraYaw; }
 
@@ -178,6 +271,32 @@ public:
 	 */
 	void SetBoundsMarginForTest(float InCells) { BoundsMarginCells = InCells; }
 
+	/**
+	 * Fissa il limite del peek (per i test).
+	 *
+	 * Stessa disciplina delle sensibilita': senza, un test che verifica il limite pinnerebbe
+	 * implicitamente il default — cioe' un valore che questa stessa issue dichiara **taratura aperta**, e
+	 * il test cadrebbe il giorno in cui il playtest lo cambia.
+	 */
+	void SetMaxPeekDistanceForTest(float InMax) { MaxPeekDistance = InMax; }
+
+	/**
+	 * Porta il pivot dove si vuole **scavalcando i soft bounds** (per i test).
+	 *
+	 * Serve per la stessa ragione degli altri `*ForTest`: cio' che un test deve poter stabilire e' uno
+	 * **stato di partenza**, e `SetCameraPivot` lo clampa — su una fixture centrata lontano dall'origine,
+	 * chiedere `(0,0,0)` darebbe un punto diverso da quello scritto, e le misure di spostamento
+	 * partirebbero da una base che il test non ha scelto.
+	 *
+	 * Il nome dichiara che si sta scavalcando un invariante: in partita il pivot passa **sempre** dal
+	 * clamp.
+	 */
+	void SetCameraPivotForTest(const FVector& InPivot)
+	{
+		CameraPivot = InPivot;
+		ApplyPivot();
+	}
+
 	void SetArmLengthRangeForTest(float InDefault, float InMin, float InMax)
 	{
 		// Un intervallo rovesciato non e' uno scenario da coprire, e' un test scritto male: senza questa
@@ -193,6 +312,85 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+
+	/**
+	 * Allinea il pivot alla posizione con cui il pawn nasce.
+	 *
+	 * Serve perche' il pawn viene spawnato dal `PlayerStart` (o da `SpawnActor` nei test) **prima** che
+	 * qualcuno chiami `SetCameraPivot`: senza questa riga il pivot resterebbe a zero, e la prima scrittura
+	 * di trasformata teletrasporterebbe la camera all'origine del mondo.
+	 */
+	virtual void PostInitializeComponents() override;
+
+	/**
+	 * Il pivot: cio' che la camera guarda. `VisibleAnywhere` e non `EditAnywhere` — si tara dal gioco, non
+	 * dal Details, e mostrarlo aiuta a diagnosticare un peek che non e' rientrato.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Camera")
+	FVector CameraPivot = FVector::ZeroVector;
+
+	/** Offset temporaneo del peek (`#1772`). Zero a riposo: se non lo e', qualcosa non e' rientrato. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Camera")
+	FVector PeekOffset = FVector::ZeroVector;
+
+	/**
+	 * Quanto lontano puo' arrivare il peek, in unita' mondo. **Deliberatamente piccolo**: il peek serve a
+	 * sbirciare oltre un bordo senza perdere il punto di riferimento, e un valore grande lo trasformerebbe
+	 * in un pan che si annulla da solo — cioe' in un comando che sposta la vista e poi la ributta
+	 * indietro, che e' peggio di non averlo.
+	 *
+	 * ⏳ **Taratura aperta**: nessun numero e' stato istruito, e si tara in `L_CameraFeatureLab` (`#1780`).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.0"))
+	float MaxPeekDistance = 400.f;
+
+	/** Scrive `Pivot + PeekOffset` sulla trasformata. Unico punto: la posizione e' un **derivato**. */
+	void ApplyPivot();
+
+	// --- #1774 · lo stato strategico ---------------------------------------------------------------
+
+	/**
+	 * Distanza oltre la quale la vista diventa strategica. ⏳ **Taratura aperta**: nessun numero e' stato
+	 * istruito, e si tara guardando (`#1780`). Il default sta fra `DefaultArmLength` e `MaxArmLength`
+	 * perche' altrimenti la soglia sarebbe irraggiungibile o sempre superata — che non e' una taratura,
+	 * e' un difetto.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.0"))
+	float StrategicEnterThreshold = 2400.f;
+
+	/** Distanza sotto la quale si torna tattici. **Minore** di `StrategicEnterThreshold`: e' l'isteresi. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.0"))
+	float StrategicExitThreshold = 1900.f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Camera")
+	bool bStrategicView = false;
+
+	// --- #1778 · i limiti che conoscono il viewport ------------------------------------------------
+
+	/**
+	 * Aspect ratio del viewport. `<= 0` = ignoto: i limiti tornano a essere quelli per sole celle.
+	 * Aggiornato in `BeginPlay` e a ogni scrittura di pivot quando un viewport esiste.
+	 */
+	float ViewportAspectRatio = 0.f;
+
+	/** Campo visivo orizzontale in gradi, letto dal `UCameraComponent`. */
+	float ViewportHorizontalFov = 90.f;
+
+	/**
+	 * Quanta parte del semiquadro puo' cadere fuori dalla zona prevista. ⏳ Taratura aperta.
+	 *
+	 * ⚠️ Non e' zero, e non deve esserlo: incollare il quadro dentro l'area renderebbe il bordo
+	 * inavvicinabile, cioe' sostituirebbe un difetto con uno peggiore.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float AllowedOutsideFraction = 0.35f;
+
+	/** Aggiorna `ViewportAspectRatio`/`ViewportHorizontalFov` dal viewport, se ce n'e' uno. */
+	void RefreshViewportMetrics();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Camera")
 	TObjectPtr<USpringArmComponent> SpringArm;

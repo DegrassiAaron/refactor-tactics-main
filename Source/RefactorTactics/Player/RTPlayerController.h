@@ -47,6 +47,61 @@ public:
 	 */
 	URTKnowledgeVeilPresenter* GetKnowledgeVeilPresenter();
 
+	/**
+	 * Il **piano attivo del giocatore**: il layer su cui hover e click risolvono la cella (`D-255`).
+	 *
+	 * 🔑 **Vive QUI e non sulla camera, e la ragione e' un invariante e non un gusto.** Da `D-255`
+	 * l'`ActiveLayer` decide *quale cella un click seleziona*, cioe' entra nel gameplay: metterlo su
+	 * `ARTCameraPawn` avrebbe reso la camera un'autorita' sull'esito, che e' esattamente cio' che
+	 * [D-143] vieta. Il piano attivo appartiene a chi pianifica, e chi pianifica e' questo controller —
+	 * la stessa sede di `PlayerTeamId`.
+	 *
+	 * ⚠️ **Non e' `ARTHexMapActor::ActiveLayer`**, che ha lo stesso nome e un altro mestiere: quello e'
+	 * stato di **authoring**, guidato dall'editor mode (`RTHexEditorClick.cpp`) perche' li' si dipinge su
+	 * un piano scelto. Due scrittori su un campo solo sarebbero un difetto che si manifesta in editor e
+	 * si diagnostica in partita.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Player")
+	int32 ActiveLayer = 0;
+
+	int32 GetActiveLayer() const { return ActiveLayer; }
+
+	/**
+	 * Cambia il piano attivo di `Delta` livelli, **restando fra i layer che la mappa contiene davvero**.
+	 *
+	 * Ritorna `true` se il piano e' cambiato. I limiti si misurano sulle celle e non si assumono: una
+	 * mappa dipinta a mano puo' avere buchi, e permettere di salire a un piano vuoto darebbe un hover che
+	 * non trova mai niente senza dire perche'.
+	 */
+	bool StepActiveLayer(int32 Delta);
+
+	/** Imposta il piano attivo (clampato ai layer della mappa). Ritorna `true` se e' cambiato. */
+	bool SetActiveLayer(int32 NewLayer);
+
+	/**
+	 * La cella indicata dal cursore, risolta **sul piano attivo**.
+	 *
+	 * `bOutHitWasOnAnotherLayer` dice che il raggio ha colpito geometria di un piano diverso: non e' un
+	 * errore, ed e' l'unica informazione con cui il chiamante puo' spiegare al giocatore perche' il click
+	 * su una mesh visibile non ha selezionato quella cella.
+	 */
+	bool ResolveCellUnderCursor(FRTCellId& OutCell, bool& bOutHitWasOnAnotherLayer) const;
+
+	/**
+	 * Costruisce (se serve) e restituisce il mapping context, **per i test**.
+	 *
+	 * 🔴 Esiste perche' `PlayerInput.HotkeysDoNotCollide` non esisteva: un commento di
+	 * `GenericHotkeys()` dichiarava *«e' un controllo che `PlayerInput.HotkeysDoNotCollide` rifa'»*, e
+	 * `grep -rn "DoNotCollide" Source/` rispondeva **una sola riga** — quel commento. L'unica verifica
+	 * dell'assenza di collisioni era la lista scritta a mano in un altro commento, cioe' una promessa che
+	 * invecchia al primo tasto aggiunto. E i tasti aggiunti da `#1771` sono quattro.
+	 */
+	const UInputMappingContext* BuildAndGetMappingContextForTest()
+	{
+		BuildInputMappings();
+		return MappingContext;
+	}
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
@@ -119,6 +174,22 @@ protected:
 	TObjectPtr<UInputAction> FocusAction;
 
 	/**
+	 * `#1771` — **il modificatore camera** (`Alt`). Arma i gesti di vista senza toccare quelli di gioco.
+	 *
+	 * ⚠️ Non collide con `Alt`+`Enter`: quello e' `bAltEnterTogglesFullscreen` in `DefaultInput.ini`, cioe'
+	 * una scorciatoia del motore su una combinazione che qui non e' mappata.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> CameraModifierAction;
+
+	/** `#1775` — piano attivo sopra / sotto (`PageUp` / `PageDown`). */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> LayerUpAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> LayerDownAction;
+
+	/**
 	 * 🔴 **Il tasto che mancava a `#291`.** Le regole della rotazione dichiarata erano complete e testate
 	 * dal 2026-08-09 — `TryApplyDeclaredFacing`, `LegalFacings`, il consumo nel TurnManager, il rifiuto
 	 * invece della correzione silenziosa — ma **nessuno le raggiungeva**: `BeginFacingDeclaration` e
@@ -157,6 +228,108 @@ protected:
 	void OnOrbitReleased(const FInputActionValue& Value);
 
 	bool bOrbiting = false;
+
+	// --- #1771 / #1772 · il modificatore camera e i suoi gesti -------------------------------------
+
+	void OnCameraModifierPressed(const FInputActionValue& Value);
+	void OnCameraModifierReleased(const FInputActionValue& Value);
+	void OnSelectReleased(const FInputActionValue& Value);
+	void OnUndoReleased(const FInputActionValue& Value);
+	void OnLayerUp(const FInputActionValue& Value);
+	void OnLayerDown(const FInputActionValue& Value);
+
+	/** `Alt` tenuto: arma i gesti camera. */
+	bool bCameraModifier = false;
+
+	/** `Alt`+`LMB` in corso. Diventa Set Pivot al rilascio se non ha superato la soglia, orbita se l'ha superata. */
+	bool bAltPrimaryDown = false;
+
+	/** `Alt`+`RMB` in corso: dolly. Sopprime l'`UndoAction` per tutta la durata del gesto. */
+	bool bAltSecondaryDown = false;
+
+	/**
+	 * Quanta strada ha percorso il puntatore da quando `Alt`+`LMB` e' stato premuto.
+	 *
+	 * 🔑 **E' cio' che separa un click da un drag**, e la separazione dev'essere netta: superata la soglia
+	 * il gesto e' un'orbita e il click **non si emette piu'**, altrimenti un trascinamento lungo
+	 * produrrebbe anche un set-pivot al rilascio — due operazioni da un gesto solo.
+	 */
+	float AltPrimaryDragDistance = 0.f;
+
+	/**
+	 * Soglia in pixel oltre la quale `Alt`+`LMB` e' un trascinamento e non un click.
+	 *
+	 * ⏳ **Taratura aperta**: la distanza che una mano percorre senza volerlo non e' una costante
+	 * universale, e il numero si tara in `L_CameraFeatureLab` ([#1780]).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.0"))
+	float ClickDragThreshold = 6.f;
+
+	/** Sensibilita' del precision pan (`Alt`+`MMB`) rispetto al pan normale. Taratura aperta. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.01", ClampMax = "1.0"))
+	float PrecisionPanScale = 0.25f;
+
+	/** Unita' mondo di peek per pixel di movimento del cursore. Taratura aperta. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.0"))
+	float PeekSensitivity = 3.f;
+
+	/** Frazione di peek residuo riassorbita per secondo quando `Alt` e' rilasciato. Taratura aperta. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.0"))
+	float PeekReturnSpeed = 8.f;
+
+	/** Riassorbe il peek residuo. Chiamata da `PlayerTick`: e' l'unico movimento automatico che esista oggi. */
+	void UpdatePeekReturn(float DeltaTime);
+
+	// --- #1773 · doppio click = Select + Focus ------------------------------------------------------
+
+	/**
+	 * Istante dell'ultimo click di selezione andato a buon fine, e su cosa.
+	 *
+	 * Servono **insieme**: due click rapidi su due unita' diverse sono due selezioni, non un doppio click.
+	 * Con il solo tempo, cliccare in fretta A e poi B avrebbe inquadrato B senza che nessuno lo chiedesse.
+	 */
+	double LastSelectTime = -1.0;
+
+	UPROPERTY(Transient)
+	TObjectPtr<AActor> LastSelectActor;
+
+	/**
+	 * Finestra del doppio click, in secondi. Taratura aperta.
+	 *
+	 * ⚠️ Non si legge da `GetDoubleClickTime()` del sistema: quello vale per i widget Slate e qui il
+	 * gesto e' sul mondo, non sulla UI. Un campo tarabile e' anche cio' che permette di provarlo headless.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.05"))
+	float DoubleClickInterval = 0.3f;
+
+	/**
+	 * Instrada un movimento del puntatore al gesto camera armato, se ce n'e' uno.
+	 *
+	 * Ritorna `true` se il movimento e' stato consumato: cosi' l'orbita di `#863` resta il ramo di
+	 * default e non deve conoscere i gesti nuovi.
+	 */
+	bool RouteCameraGesture(const FVector2D& Delta);
+
+public:
+	/** Stato dei gesti camera, per i test: nessuno di questi ha un viewport da interrogare. */
+	void SetCameraModifierForTest(bool bDown) { bCameraModifier = bDown; }
+	bool IsCameraModifierForTest() const { return bCameraModifier; }
+	void SetAltPrimaryDownForTest(bool bDown, float Distance = 0.f)
+	{
+		bAltPrimaryDown = bDown;
+		AltPrimaryDragDistance = Distance;
+	}
+	float GetAltPrimaryDragDistanceForTest() const { return AltPrimaryDragDistance; }
+	void SetClickDragThresholdForTest(float InThreshold) { ClickDragThreshold = InThreshold; }
+	bool RouteCameraGestureForTest(const FVector2D& Delta) { return RouteCameraGesture(Delta); }
+	void UpdatePeekReturnForTest(float DeltaTime) { UpdatePeekReturn(DeltaTime); }
+
+protected:
 
 public:
 	/**

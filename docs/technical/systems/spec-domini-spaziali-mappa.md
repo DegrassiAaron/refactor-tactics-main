@@ -92,7 +92,12 @@ guarda mai.
 
 ## 2. Effective Camera Bounds — [#1778](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1778)
 
-⏳ **Non implementato.** Oggi il limite è:
+✅ **Implementato il 2026-08-30** ([#1778](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1778)) come funzione **pura**:
+`ARTCameraPawn::ComputeEffectivePivotBounds(AllowedArea, ArmLength, Pitch, Yaw, FOV, AspectRatio,
+AllowedOutsideFraction)`. Prende le metriche come **parametri** invece di leggerle, ed è la ragione per cui
+è verificabile headless — dove un viewport non esiste.
+
+Prima c'era solo questo:
 
 ```cpp
 FVector(FMath::Clamp(Desired.X, Min.X - Margin, Max.X + Margin),
@@ -116,10 +121,23 @@ lati contemporaneamente, dove nessuno ha costruito nulla.
 ⚠️ **L'obiettivo non è «zero pixel fuori»**: è che una porzione consistente dello schermo non finisca fuori
 dalla zona prevista, soprattutto ai bordi. La soglia è una taratura, e si tara guardando.
 
-### Casi che vanno provati
+### Casi provati, e quelli che restano
 
-`16:9` · `21:9` · `32:9` ultrawide · zoom minimo · zoom massimo · pitch minimo e massimo · yaw multipli ·
-i quattro angoli della mappa · un focus vicino al bordo.
+✅ **Headless** (`Camera.EffectivePivotBoundsShrinkWithZoomPitchAndAspect`): distanza, pitch a picco contro
+pitch radente, `16:9` contro `32:9`, yaw a 90° che scambia gli assi dell'ingombro, aspect ratio ignoto che
+riporta al clamp per sole celle, e area più piccola dell'inquadratura.
+
+⚠️ **Quest'ultimo caso è quello che un `Clamp` ingenuo sbaglia in silenzio**: su una mappa piccola, o a
+zoom massimo, l'inset supera l'area e l'intervallo si rovescia — `FMath::Clamp` su estremi invertiti
+inchioda il valore a un estremo **senza dirlo**, e la camera resterebbe incollata a un angolo. Il
+comportamento corretto è il centro, ed è l'unico punto che minimizza il fuori-zona.
+
+⏳ **Restano le verifiche percettive**, che headless non si fanno: zoom minimo e massimo su una mappa vera,
+i quattro angoli, un focus vicino al bordo, e il giudizio *«si vede il vuoto»* su un monitor ultrawide
+reale. `AllowedOutsideFraction` è **taratura aperta**: nessun numero è stato istruito.
+
+⛔ **L'area consentita è ancora `celle + margine`**: il buffer scenico non esiste come dato, quindi
+`ScenicBuffer` non entra ancora nella formula. Il punto dove dovrà entrare è marcato nel codice.
 
 ---
 
