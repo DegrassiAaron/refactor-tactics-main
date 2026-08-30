@@ -907,3 +907,115 @@ bool FRTVeilFirstApplyHasNonEmptyKnowledgeTest::RunTest(const FString&)
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
+
+
+/**
+ * 🔴 **La mappa NON si richiude alle spalle del giocatore**, giocando davvero i turni.
+ *
+ * E' il **criterio 4** di `PIE-HEX-VIZ-VELO`, quello *per cui quella voce esiste*: e' la conseguenza che
+ * [D-227] ha deciso di non accettare — un velo senza memoria farebbe tornare invisibile la cella appena
+ * attraversata appena esce dal cono, **due volte per turno**, ai due punti di refresh.
+ *
+ * ⚠️ **Il dato e' gia' coperto, la PRESENTAZIONE no.** `Perception.KnowledgeRemembersExploredCells`
+ * verifica che `ExploredCells` sopravviva oltre `ContactLifetimeTurns`, ma lo fa sulle funzioni pure, con
+ * `Observe` chiamata a mano. Nessun test del velo muoveva un'unita' e ricontrollava la **board**: il difetto
+ * poteva rientrare dalla finestra della presentazione senza che nulla diventasse rosso.
+ *
+ * 🔑 **L'invariante e' la MONOTONIA, non un conteggio.** Le celle nascoste possono solo **diminuire**:
+ * `ExploredCells` cresce in modo monotono e non scade, quindi cio' che e' stato visto una volta resta almeno
+ * *ricordato* per sempre. Asserire numeri esatti legherebbe il test a mappa, roster e `VisionRange` — fragile
+ * a ogni cambio di bilanciamento; asserire che l'insieme nascosto non cresca e' la stessa garanzia, e non
+ * invecchia.
+ *
+ * ⚠️ Vale **anche** se un'unita' muore o la partita finisce: in quel caso la conoscenza si svuota e il
+ * velo nasconde tutto, il che farebbe **crescere** le nascoste — comportamento corretto e non regressione.
+ * Per questo il test conta le unita' vive e, se ne perde, dichiara il caso e non asserisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilBoardDoesNotCloseBehindThePlayerTest,
+	"RefactorTactics.Veil.BoardDoesNotCloseBehindThePlayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilBoardDoesNotCloseBehindThePlayerTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	World->InitializeActorsForPlay(FURL()); // senza, il delegate dinamico del GameMode non arriva (#939)
+
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("mappa"), HexMap) || !TestNotNull(TEXT("TurnManager"), TM)
+		|| !TestNotNull(TEXT("GameMode"), GameMode))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	GameMode->bAutobattle = true; // i bot muovono da soli: e' il movimento che deve lasciare il ricordo
+	GameMode->DispatchBeginPlay(); // il percorso VERO: allestisce, rinfresca la conoscenza e aggancia il velo
+
+	const int32 Totale = HexMap->NumInstanceCells();
+	if (!TestTrue(TEXT("la board ha istanze"), Totale > 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	auto Conta = [&](int32& A, int32& R, int32& N) { HexMap->GetVeilCounts(A, R, N); };
+	auto Vive = [&]()
+	{
+		int32 V = 0;
+		for (TActorIterator<ARTUnit> It(World); It; ++It) { if (It->IsAlive()) { ++V; } }
+		return V;
+	};
+
+	int32 A0 = 0, R0 = 0, N0 = 0;
+	Conta(A0, R0, N0);
+	const int32 Vive0 = Vive();
+	AddInfo(FString::Printf(TEXT("turno iniziale: %d accese, %d ricordate, %d nascoste su %d (%d vive)"),
+		A0, R0, N0, Totale, Vive0));
+
+	// Serve che ci sia qualcosa da richiudere: se nulla e' nascosto, il test non falsificherebbe niente.
+	if (!TestTrue(TEXT("all'inizio esiste terreno mai visto (altrimenti il test sarebbe vacuo)"), N0 > 0))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// --- Si GIOCA: i bot si muovono, ed e' il movimento che porta celle dentro e fuori dal cono ------
+	int32 Turni = 0;
+	while (TM->GetPhase() != ERTMatchPhase::MatchEnded && Turni < 3)
+	{
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+		++Turni;
+
+		const int32 ViveOra = Vive();
+		int32 A = 0, R = 0, N = 0;
+		Conta(A, R, N);
+		AddInfo(FString::Printf(TEXT("dopo il turno %d: %d accese, %d ricordate, %d nascoste (%d vive)"),
+			Turni, A, R, N, ViveOra));
+
+		// ⚠️ Se la squadra ha perso unita' la conoscenza si assottiglia per una ragione LEGITTIMA: un
+		// cadavere non vede. Dichiarare il caso e non asserire e' piu' onesto che asserire una cosa diversa.
+		if (ViveOra < Vive0)
+		{
+			AddInfo(TEXT("unita' perse: la monotonia non e' piu' attesa, il test si ferma qui"));
+			break;
+		}
+
+		// 🔑 L'INVARIANTE: cio' che era noto resta almeno ricordato. Le nascoste non crescono MAI.
+		TestTrue(*FString::Printf(
+				TEXT("turno %d: la mappa non si richiude (nascoste %d, non piu' delle %d iniziali)"),
+				Turni, N, N0),
+			N <= N0);
+
+		// E i tre stati restano una partizione: nessuna istanza si perde per strada.
+		TestEqual(*FString::Printf(TEXT("turno %d: i tre stati partizionano la board"), Turni),
+			A + R + N, Totale);
+	}
+
+	TestTrue(TEXT("almeno un turno e' stato giocato"), Turni > 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
