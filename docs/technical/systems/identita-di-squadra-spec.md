@@ -78,7 +78,8 @@ Statica e pura, sul modello di `ARTHUD::ViewerTeamIdOf` — che **assorbe**.
 🔴 **`ViewerTeamIdOf` non resta come inoltro.** È già la funzione giusta nel posto sbagliato: vive
 sull'HUD per ragioni storiche mentre la domanda ora la fanno in cinque. Tenerla come forwarder lascerebbe
 **due porte** per la stessa domanda, che è precisamente ciò che [#1730](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1730)
-ha appena pagato per chiudere. I suoi **tre test** in `RTHudViewerTeamTests` si spostano con lei, e la prosa
+ha appena pagato per chiudere. I suoi **due test** in `RTHudViewerTeamTests` — `Hud.ViewerTeamFollowsController` e
+`Hud.ViewerTeamFallsBackWithoutController` — si spostano con lei, e la prosa
 che porta la ragione di `D-242` punto (5) va **trasferita**, non lasciata evaporare: è la spiegazione del
 perché un letterale non ha un modo di fallire chiuso.
 
@@ -172,7 +173,8 @@ Più:
   diverso;
 - l'assegnazione è **idempotente**: chiamarla due volte non sposta nessuno;
 - l'assegnazione non dipende dall'ordine: `AssignSeats` prima delle regole non fa nulla e non sporca niente;
-- i tre test di `RTHudViewerTeamTests` migrati alla nuova sede, invariati nelle attese.
+- i **due** test di `RTHudViewerTeamTests` migrati alla nuova sede, invariati nelle attese. Sono gia' la
+  coppia che discrimina, applicata all'HUD: uno segue il campo, l'altro pinna il ripiego.
 
 ## 7. Il presidio, e il suo limite dichiarato
 
