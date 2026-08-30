@@ -127,6 +127,19 @@ namespace RTMatchBootstrapDetail
 		if (HexMap->MapAsset && HexMap->MapAsset->NumCells() > 0)
 		{
 			HexMap->MapAsset = DuplicateObject<URTHexMapAsset>(HexMap->MapAsset, HexMap);
+
+			// 🔴 **La vista SEGUE l'asset, e questo era l'unico ramo che non lo faceva** (#1665). Gli altri
+			// quattro chiamano `RebuildInstances()` subito dopo aver assegnato `MapAsset`; qui la funzione
+			// finiva senza, e l'attore continuava a puntare la propria vista al VECCHIO asset mentre
+			// `MapAsset` era ormai un altro oggetto. Nel pacchetto la sonda misurava silenzio totale: zero
+			// istanze di cella, cioe' board assente.
+			//
+			// ⚠️ **Le due reti che coprirebbero il buco valgono solo in Editor**, ed entrambe lo dichiarano nel
+			// proprio codice: `ARTHexMapActor::BindToMapAsset()` — che iscrive `RebuildInstances` a
+			// `OnMapChanged` — vive dentro `#if WITH_EDITOR`; e `OnConstruction` dichiara di coprire «anche il
+			// caso del gioco: **SpawnActor** chiama OnConstruction», che e' l'attore SPAWNATO. In `L_HexArena`
+			// l'attore e' **piazzato**, e per un piazzato in un livello cotto quel percorso non e' lo stesso.
+			HexMap->RebuildInstances();
 		}
 
 		if ((!HexMap->MapAsset || HexMap->MapAsset->NumCells() == 0) && Config.DemoArenaRadius > 0)
