@@ -1,0 +1,42 @@
+{
+  "scenarioId": "Spec.Combat.BaseShieldStopsDirectNotHazard",
+  "tags": ["combat", "environment", "shield", "wraith", "gadget"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "RelayLite",
+
+  "_nota": "L'asimmetria di D-224 messa in UN turno solo: lo scudo base ferma il danno DIRETTO e NON il danno da terreno. Due Wraith identici, 90 HP ciascuno, incassano nello stesso turno due colpi di entita' simile e finiscono a HP diversi — e la differenza e' precisamente lo scudo. V1 entra nel fuoco e paga 18 su 18; T1 incassa un `PulseShot` da 21 e ne paga 16. Chi legge deve poter concludere che l'armatura non protegge da cio' che brucia, che e' la ragione per cui vale la pena uscire da una cella in fiamme invece di ripararsi.",
+
+  "_nota_aritmetica": "SCUDO BASE = 5 (`URTCombatLibrary::BaseShield`), e `ApplyDamage` lo sottrae SOLO quando `Source == Direct`. V1: 10 all'ingresso + 8 di `Status.Burning` nel Cleanup, entrambi `HazardDamage`, quindi 90 - 18 = 72. T1: `PulseShot` 21 e' diretto, la base ne assorbe 5, quindi 90 - 16 = 74. La coppia 72/74 e' il punto: il bersaglio che ha incassato il numero PIU' ALTO (21 contro 18) finisce col numero di HP piu' alto.",
+
+  "_nota_provenienza": "I numeri NON sono calcolati a tavolino, che e' la trappola in cui sono cadute quindici note di questo corpus. Il ramo del fuoco e' copiato da `Visual.Environment.FireOnEnter`, che asserisce 72 sullo stesso eroe con lo stesso ingresso ed e' verde nel corpus. Il danno di `PulseShot` e' 21 perche' cosi' l'ha stampato il log di una run reale di `Visual.Core.PhaseOrder` il 2026-08-30 (`Colpo: RTUnit_3 -> RTUnit_0 (21)`), non perche' un catalogo lo dica.",
+
+  "_nota_verifica": "ESEGUITO il 2026-08-30 con `-RTScenario=Spec.Combat.BaseShieldStopsDirectNotHazard`: PASS, 6/6 assertion, `stateHash 1c898784`. I due numeri calcolati a mano — 72 e 74 — sono quelli osservati, e il referto li riporta come `72 (scudo 5)` e `74 (scudo 5)`: entrambe le unita' chiudono il turno con lo scudo INTERO, perche' il Cleanup lo ricarica. Su V1 non era nemmeno stato intaccato, ed e' la meta' della regola che questo scenario esiste per rendere visibile. DELLE TRE ASSUNZIONI DICHIARATE PRIMA DELL'ESECUZIONE, UNA E' CADUTA: la prima stesura non dichiarava `fixture` e il caricamento e' stato rifiutato con «cella (q=-4,r=0,L=0) fuori dall'arena di raggio 3». Il fuoco a (0,-2,0) NON viene da una generazione con `seed` 0: appartiene alla fixture `RelayLite`, che `FireOnEnter` dichiara e da cui questo scenario copiava le posizioni senza copiarne la mappa. Con una fixture il loader salta anche il controllo del raggio (`!bUsesFixture`), ed e' il motivo per cui `FireOnEnter` puo' tenere un'unita' a (-4,0,0) senza dichiarare `mapRadius`. Le altre due — la portata di `PulseShot` a distanza 2 e l'assenza di `Burning` iniziale — hanno retto.",
+
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [-4,  0, 0] },
+    { "id": "A1", "hero": "Hero.Wraith", "team": 0, "cell": [ 4,  0, 0] },
+    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 0, -3, 0] },
+    { "id": "T1", "hero": "Hero.Wraith", "team": 1, "cell": [ 2,  0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "V1 entra nel fuoco (danno da terreno, lo scudo non c'entra); A1 spara a T1 (danno diretto, lo scudo assorbe 5).",
+      "intents": [
+        { "unit": "V1", "move": [[0, -2, 0]] },
+        { "unit": "A1", "ability": "Hero.Wraith.PulseShot", "target": "T1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",   "unit": "V1", "cell": [0, -2, 0] },
+    { "type": "UnitHpEquals", "unit": "V1", "value": 72 },
+    { "type": "UnitHpEquals", "unit": "T1", "value": 74 },
+    { "type": "UnitAlive",    "unit": "V1", "value": true },
+    { "type": "UnitAlive",    "unit": "T1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

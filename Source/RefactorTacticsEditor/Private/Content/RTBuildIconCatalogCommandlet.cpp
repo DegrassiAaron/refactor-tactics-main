@@ -72,7 +72,18 @@ namespace
 		Texture->MarkPackageDirty();
 	}
 
-	bool SaveAssetPackage(UObject* Asset)
+	/**
+	 * ⚠️ **Il nome e' diverso da quello del commandlet graybox apposta, e non e' una preferenza di stile.**
+	 * Le due funzioni sono identiche e vivono entrambe in un namespace ANONIMO, in due `.cpp` diversi: fuori
+	 * dalla unity build non si vedono, dentro finiscono nella stessa unita' di traduzione e la seconda
+	 * definizione e' un `C2084`. Il difetto era latente e si e' manifestato aggiungendo file al modulo
+	 * (#1705), perche' cambiare il numero di sorgenti cambia come UBT li raggruppa — cioe' compariva a
+	 * chiunque, prima o poi, e senza aver toccato nessuno dei due commandlet.
+	 *
+	 * ⛔ Rinominare e' il cerotto, non la cura: la cura e' un solo `SaveAssetPackage` condiviso. Non e'
+	 * fatta qui perche' toccherebbe due commandlet per una slice che parla del launcher.
+	 */
+	bool SaveIconAssetPackage(UObject* Asset)
 	{
 		UPackage* Package = Asset ? Asset->GetOutermost() : nullptr;
 		if (!Package)
@@ -212,7 +223,7 @@ int32 URTBuildIconCatalogCommandlet::Main(const FString& Params)
 			if (UTexture2D* Texture = Cast<UTexture2D>(Object))
 			{
 				ApplyUiTextureSettings(Texture);
-				SaveAssetPackage(Texture);
+				SaveIconAssetPackage(Texture);
 				++Imported;
 			}
 		}
@@ -270,7 +281,7 @@ int32 URTBuildIconCatalogCommandlet::Main(const FString& Params)
 	}
 
 	Catalog->MarkPackageDirty();
-	if (!SaveAssetPackage(Catalog))
+	if (!SaveIconAssetPackage(Catalog))
 	{
 		UE_LOG(LogRTIconCatalog, Error, TEXT("Salvataggio di %s fallito"), *CatalogPath);
 		return 1;
