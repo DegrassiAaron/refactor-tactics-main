@@ -2,6 +2,7 @@
 
 #include "ScenarioHarness/RTScenarioDraft.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
+#include "ScenarioHarness/RTScenarioKnowledge.h"
 #include "RTScenarioPreviewSubsystem.h"
 #include "Editor.h"
 #include "Widgets/Input/SComboBox.h"
@@ -136,6 +137,62 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 			]
 		]
 
+		// --- prospettiva tecnica (#1754) ----------------------------------------------------------
+		//
+		// Sta accanto al readout e non fra i filtri: i filtri restringono l'ELENCO, questo cambia cosa il
+		// viewport mostra dello scenario gia' scelto. Metterlo lassu' lo farebbe leggere come un terzo
+		// criterio di ricerca.
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(RowPadding, 0.0f, RowPadding, RowPadding)
+		[
+			SNew(SHorizontalBox)
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(0.0f, 0.0f, RowPadding, 0.0f)
+			[
+				SNew(STextBlock).Text(LOCTEXT("PerspectiveLabel", "View:"))
+			]
+
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.0f)
+			[
+				SAssignNew(PerspectiveCombo, SComboBox<TSharedPtr<int32>>)
+				.OptionsSource(&PerspectiveOptions)
+				.OnGenerateWidget_Lambda([](TSharedPtr<int32> Option)
+				{
+					return SNew(STextBlock).Text(FRTLauncherScenarioBrowser::DescribePerspective(
+						Option.IsValid() ? *Option : RTScenarioKnowledge::OmniscientTeamId));
+				})
+				.OnSelectionChanged_Lambda([this](TSharedPtr<int32> NewValue, ESelectInfo::Type)
+				{
+					if (!NewValue.IsValid())
+					{
+						return;
+					}
+					// ⛔ Cambia solo cosa si MOSTRA. Il sottosistema ridisegna velo, marcatori e confine; il
+					// draft, lo snapshot, il replay e `PlayerTeamId` non li tocca nessuno.
+					if (URTScenarioPreviewSubsystem* Preview = GEditor ? GEditor->GetEditorSubsystem<URTScenarioPreviewSubsystem>() : nullptr)
+					{
+						Preview->SetPerspective(*NewValue);
+					}
+				})
+				[
+					SNew(STextBlock)
+					.Text_Lambda([this]()
+					{
+						// La verita' e' del sottosistema, non di una copia locale: e' lui a possedere la
+						// prospettiva, e un valore tenuto anche qui divergerebbe al primo scenario riaperto.
+						const URTScenarioPreviewSubsystem* Preview = GEditor ? GEditor->GetEditorSubsystem<URTScenarioPreviewSubsystem>() : nullptr;
+						return FRTLauncherScenarioBrowser::DescribePerspective(
+							Preview ? Preview->GetPerspective() : RTScenarioKnowledge::OmniscientTeamId);
+					})
+				]
+			]
+		]
+
 		// --- readout ------------------------------------------------------------------------------
 		+ SVerticalBox::Slot()
 		.AutoHeight()
@@ -181,7 +238,32 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 		]
 	];
 
+	RefreshPerspectiveOptions();
 	RefreshFilters();
+}
+
+void SRTLauncherScenarioPanel::RefreshPerspectiveOptions()
+{
+	PerspectiveOptions.Reset();
+
+	// `Omniscient` c'e' sempre, anche senza anteprima: e' la prospettiva del designer, ed e' quella che il
+	// viewport mostra per costruzione.
+	PerspectiveOptions.Add(MakeShared<int32>(RTScenarioKnowledge::OmniscientTeamId));
+
+	if (const URTScenarioPreviewSubsystem* Preview = GEditor ? GEditor->GetEditorSubsystem<URTScenarioPreviewSubsystem>() : nullptr)
+	{
+		// ⚠️ Le squadre vengono dal DATO dello scenario mostrato — vedi `RTScenarioKnowledge::TeamIds`. Un
+		// `{0, 1}` cablato mentirebbe sul 4v4 e su ogni scenario a squadra sola.
+		for (const int32 TeamId : Preview->GetSelectableTeams())
+		{
+			PerspectiveOptions.Add(MakeShared<int32>(TeamId));
+		}
+	}
+
+	if (PerspectiveCombo.IsValid())
+	{
+		PerspectiveCombo->RefreshOptions();
+	}
 }
 
 void SRTLauncherScenarioPanel::RefreshFilters()
@@ -261,8 +343,10 @@ void SRTLauncherScenarioPanel::RefreshReadout()
 	if (SelectedId.IsEmpty())
 	{
 		// Nessuna selezione, nessuna anteprima: lasciare a schermo lo scenario di prima mostrerebbe qualcosa
-		// che il pannello non sta piu' dicendo.
+		// che il pannello non sta piu' dicendo. E con l'anteprima se ne vanno le sue squadre: un selettore
+		// che offrisse `Team 1` senza niente a schermo prometterebbe una vista che non c'e'.
 		ClearScenarioPreview();
+		RefreshPerspectiveOptions();
 		return;
 	}
 
@@ -283,6 +367,7 @@ void SRTLauncherScenarioPanel::RefreshReadout()
 		// Uno scenario illeggibile resta ELENCATO e lo dichiara: l'indice lo trova per header, e farlo
 		// sparire dalla lista renderebbe invisibile proprio il file da riparare.
 		ClearScenarioPreview();
+		RefreshPerspectiveOptions();
 		ReadoutError = OpenError;
 
 		// ⚠️ Chiudere anche qui. Un'apertura fallita NON azzera cio' che la facade aveva gia' aperto, quindi
@@ -307,6 +392,11 @@ void SRTLauncherScenarioPanel::RefreshReadout()
 			// leggono come una sola.
 			ReadoutLines.Add(FString::Printf(TEXT("Viewport: %s"), *Preview->GetLayerReadout()));
 		}
+
+		// Le squadre sono quelle dello scenario appena posato, e cambiano con esso: il selettore si
+		// ricostruisce QUI, non una volta sola al `Construct`. Vale anche quando l'anteprima fallisce —
+		// l'elenco torna alla sola `Omniscient` invece di offrire le squadre di quello precedente.
+		RefreshPerspectiveOptions();
 	}
 
 	// Chiusura esplicita: la facade non e' una sessione d'authoring aperta dal launcher — quella e' #1682.
