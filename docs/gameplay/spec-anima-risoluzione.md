@@ -333,6 +333,26 @@ non riproducibile.
 ✅ **Che il ritmo non tocchi l'esito è già dimostrato, non solo dichiarato**: il gate è
 `RefactorTactics.Match.Autobattle.DeterminismIsIndependentOfPlayback`, e precede questa sezione.
 
+> 🔴 **E su questa composizione esiste una decisione d'autore in volo, presa lo stesso giorno.** Il
+> consolidamento *Resolution Pacing + Micro-step Synchronization* (Drive, `06 — Development`, 2026-08-30)
+> osserva che dopo il Planning i personaggi **sembrano accelerati**, e ne trae una regola: *«la durata
+> target della Resolution non deve determinare la velocità visuale base della locomozione;
+> `MaxPlaybackSeconds` è un budget di presentazione soft»*. Il recupero di tempo dovrebbe venire prima da
+> idle gap, beat non informativi, hold e transizioni di camera, code di VFX non critiche ed eventi
+> logicamente simultanei mostrati in parallelo — **non** da un moltiplicatore nascosto sulla locomozione.
+>
+> ⚠️ **Quella regola NON è ancora canonica, e questa riga non la anticipa**: misurato il 2026-08-30,
+> nessuna issue aperta la possiede (`gh issue list --state open --search "playback budget locomozione
+> MaxPlaybackSeconds"` → **zero**), e `#955` — che scelse `Max(ViewerSpeed, SpeedMultiplierForCap(...))` —
+> è chiusa e non si riapre. Ciò che questa sezione dichiara è **il presente**: la composizione avviene in
+> un punto solo. Se la policy cambierà, cambierà **dentro quel punto**, e il vincolo del ritmo cinematico
+> resta lo stesso — un beat non guadagna un secondo produttore di velocità.
+>
+> ➕ **Ma per il ritmo cinematico la direzione conta**: due delle sei voci che quel consolidamento vuole
+> comprimere per prime — `camera hold` e `camera transitions` — sono **materia di `CAM-12`**. Chi prende
+> quella issue e chi prende questa devono leggersi, altrimenti una comprime ciò che l'altra ha appena
+> deciso di tenere.
+
 ### 14.4 Simultaneità — il segmento non si rompe per far posto all'inquadratura
 
 Ciò che il resolver ha risolto **insieme** non può sembrare sequenziale solo perché una camera guarda un
