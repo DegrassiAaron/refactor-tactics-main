@@ -1455,23 +1455,34 @@ bool FRTCameraEffectiveBoundsTest::RunTest(const FString&)
 	TestTrue(TEXT("piu' si e' lontani, meno il pivot puo' avvicinarsi al bordo"),
 		Far.Max.X < Near.Max.X);
 
-	// Pitch verso l'orizzonte: il quadro si allunga lungo lo sguardo, quindi il limite si stringe. E' il
-	// caso che rompe il clamp fisso, ed e' la ragione per cui il pitch entra nella formula.
+	// Pitch verso l'orizzonte: il quadro si allunga **lungo lo sguardo**, quindi il limite si stringe su
+	// quell'asse. E' il caso che rompe il clamp fisso, ed e' la ragione per cui il pitch entra nella formula.
+	//
+	// 🔴 **Questa asserzione guardava l'asse SBAGLIATO, ed era verde per il difetto che avrebbe dovuto
+	// prendere** (code review, 2026-08-30). A yaw 0 la direzione di sguardo e' **+X** —
+	// `Camera.PanIsRelativeToTheView` la pinna: *«yaw 0: avanti e' +X»* — quindi il termine del pitch vive
+	// su **X**, e verificarlo su `Max.Y` confermava lo scambio di assi invece di falsificarlo. Un test che
+	// misura l'asse sbagliato non e' debole: e' d'accordo con il bug.
 	const FBox2D Steep = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -80.f, 0.f, Fov, 16.f/9.f, Fraction);
 	const FBox2D Shallow = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -20.f, 0.f, Fov, 16.f/9.f, Fraction);
-	TestTrue(TEXT("a pitch basso il limite e' piu' stretto che a picco"), Shallow.Max.Y < Steep.Max.Y);
+	TestTrue(TEXT("a yaw 0 il pitch stringe l'asse di SGUARDO (X): radente piu' stretto che a picco"),
+		Shallow.Max.X < Steep.Max.X);
 
-	// Ultrawide. ⚠️ **Il messaggio di questa riga diceva il contrario di cio' che l'asserzione misura**, ed
-	// era verde: diceva «32:9 stringe il limite verticale» mentre verifica che sia piu' LARGO. Corretto il
-	// 2026-08-30 rileggendo il diff, non da un test rosso — un messaggio falso in un test verde e' la cosa
-	// piu' difficile da vedere in review, perche' il verde scoraggia dal leggerlo.
+	// E il gemello sull'altro asse: la profondita' non deve entrare in Y a yaw 0, quindi il pitch non lo
+	// tocca. Senza questa riga lo scambio potrebbe tornare e meta' delle assertion resterebbero verdi.
+	TestTrue(TEXT("a yaw 0 il pitch NON tocca l'asse laterale (Y)"),
+		FMath::IsNearlyEqual(Shallow.Max.Y, Steep.Max.Y, 0.5f));
+
+	// Ultrawide. ⚠️ Il messaggio di questa riga ha gia' mentito una volta (diceva «stringe» mentre
+	// l'asserzione verifica il contrario) ed e' stato corretto il 2026-08-30 rileggendo il diff. Ora dice
+	// anche l'asse giusto: a yaw 0 la profondita' vive su **X**.
 	//
 	// Cio' che l'asserzione dice, ed e' geometricamente corretto a FOV **orizzontale** fisso: un ultrawide
-	// ha un FOV verticale minore, quindi vede meno in profondita' e puo' avvicinarsi di piu' al bordo in
-	// quella direzione.
+	// ha un FOV verticale minore, quindi vede meno in profondita' e il limite sull'asse di sguardo si
+	// allarga.
 	const FBox2D Wide = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -45.f, 0.f, Fov, 32.f/9.f, Fraction);
-	TestTrue(TEXT("a FOV orizzontale fisso, 32:9 ALLARGA il limite verticale rispetto a 16:9"),
-		Wide.Max.Y > Far.Max.Y);
+	TestTrue(TEXT("a FOV orizzontale fisso, 32:9 ALLARGA il limite sull'asse di sguardo (X)"),
+		Wide.Max.X > Far.Max.X);
 
 	// 🔴 **Questa riga PINNA UN DIFETTO NOTO, non un comportamento voluto — e va letta prima di
 	// «correggerla».**
@@ -1491,12 +1502,14 @@ bool FRTCameraEffectiveBoundsTest::RunTest(const FString&)
 	//
 	// ⚠️ Il giorno in cui la formula terra' conto dell'aspect sull'asse X, **questo test diventera' rosso —
 	// ed e' il segnale che la correzione e' arrivata**, non un fallimento da aggirare.
-	TestEqual(TEXT("DIFETTO PINNATO: a yaw 0 il limite orizzontale NON dipende dall'aspect ratio"),
-		Wide.Max.X, Far.Max.X);
+	TestEqual(TEXT("DIFETTO PINNATO: a yaw 0 il limite LATERALE non dipende dall'aspect ratio"),
+		Wide.Max.Y, Far.Max.Y);
 
 	// Yaw 90°: il quadro e' ruotato, e gli assi dell'ingombro si scambiano. Senza questo passaggio i
 	// limiti sarebbero corretti solo con la vista dritta — cioe' proprio dove la rotazione non serve.
 	const FBox2D Turned = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -45.f, 90.f, Fov, 16.f/9.f, Fraction);
+	// ⚠️ Regge in entrambe le convenzioni — con gli assi scambiati sarebbe passata comunque — quindi da
+	// sola **non** avrebbe preso il difetto: e' il gemello del test sul pitch a distinguere le due.
 	TestTrue(TEXT("ruotando di 90 gradi gli assi del limite si scambiano"),
 		FMath::IsNearlyEqual(Turned.Max.X, Far.Max.Y, 1.f) && FMath::IsNearlyEqual(Turned.Max.Y, Far.Max.X, 1.f));
 
@@ -1511,6 +1524,82 @@ bool FRTCameraEffectiveBoundsTest::RunTest(const FString&)
 	TestEqual(TEXT("su un'area minuscola il pivot si inchioda al centro"), Pinned.Min, Pinned.Max);
 	TestEqual(TEXT("e il centro e' quello dell'area"), Pinned.Min, Tiny.GetCenter());
 
+	return true;
+}
+
+// --- code review 2026-08-30 · i difetti riparati prendono un test ------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraZoomOutReclampsThePivotTest,
+	"RefactorTactics.Camera.ZoomingOutPullsThePivotBackInsideTheNewBounds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraZoomOutReclampsThePivotTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	SpawnCameraTestMap(World);
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	// Serve un viewport dichiarato, altrimenti i limiti di `D-251` non si applicano e il test misurerebbe
+	// il caso degenere invece della regola.
+	Cam->SetViewportMetricsForTest(16.f/9.f, 90.f);
+	Cam->SetArmLengthRangeForTest(400.f, 100.f, 4000.f);
+	Cam->SetBoundsMarginForTest(1.f);
+	Cam->RecenterView();
+
+	// Si porta il pivot al limite corrente scorrendo a lungo in una direzione.
+	for (int32 i = 0; i < 60; ++i) { Cam->AddPlanarMovement(FVector2D(1.f, 0.f)); }
+	const FVector AtEdge = Cam->GetCameraPivot();
+
+	// Allontanandosi, l'area legale si stringe: il pivot **deve** rientrare da solo.
+	for (int32 i = 0; i < 20; ++i) { Cam->AddZoom(+1.f); }
+
+	TestTrue(TEXT("allontanandosi il pivot rientra nei limiti nuovi"),
+		Cam->GetCameraPivot().Y < AtEdge.Y - 1.0);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraRecenterClampsWithTheResetViewTest,
+	"RefactorTactics.Camera.RecenterClampsWithTheViewItIsAboutToHaveNotTheOldOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTCameraRecenterClampsWithTheResetViewTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	ARTHexMapActor* Map = SpawnCameraTestMap(World);
+	if (!TestNotNull(TEXT("mappa"), Map)) { DestroyCameraWorld(World); return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetViewportMetricsForTest(16.f/9.f, 90.f);
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+
+	// Stato di partenza «peggiore»: zoom al massimo e vista radente, cioe' l'inquadratura piu' grande —
+	// quella in cui il clamp con i valori vecchi divergeva di piu' da quello con i valori nuovi.
+	for (int32 i = 0; i < 40; ++i) { Cam->AddZoom(+1.f); }
+	Cam->SetPitchForTest(/*Default=*/ -40.f, /*Current=*/ -5.f);
+	Cam->AddYaw(+1.f);
+
+	Cam->RecenterView();
+
+	// `Home` promette **una** cosa: l'inquadratura di partenza. Se il clamp avesse usato i valori vecchi,
+	// il pivot sarebbe rimasto dove l'area piu' grande lo aveva inchiodato.
+	FVector Origin; float HexSize; float LayerHeight;
+	const URTHexMapAsset* Asset = Map->GetHexContext(Origin, HexSize, LayerHeight);
+	if (!TestNotNull(TEXT("asset"), Asset)) { DestroyCameraWorld(World); return false; }
+	const FVector Centre = URTHexLibrary::AxialToWorld(Asset->GetCenterCell(), Origin, HexSize, LayerHeight);
+
+	TestTrue(TEXT("Home riporta il pivot sul centro della mappa"),
+		FVector::Dist2D(Cam->GetCameraPivot(), Centre) < 1.0);
+	TestEqual(TEXT("e l'orientamento e' quello di partenza"), Cam->GetCameraYaw(), 0.f);
+
+	DestroyCameraWorld(World);
 	return true;
 }
 

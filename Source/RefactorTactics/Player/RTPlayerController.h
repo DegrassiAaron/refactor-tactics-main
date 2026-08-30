@@ -79,6 +79,14 @@ public:
 	bool SetActiveLayer(int32 NewLayer);
 
 	/**
+	 * Porta `ActiveLayer` dentro l'intervallo dei layer che la mappa contiene davvero.
+	 *
+	 * Chiamata in `BeginPlay`: il campo nasce a `0`, e su una mappa che comincia a quota 1 quello sarebbe
+	 * un piano vuoto su cui hover e click non troverebbero mai nulla.
+	 */
+	void AlignActiveLayerToMap();
+
+	/**
 	 * La cella indicata dal cursore, risolta **sul piano attivo**.
 	 *
 	 * `bOutHitWasOnAnotherLayer` dice che il raggio ha colpito geometria di un piano diverso: non e' un
@@ -270,6 +278,27 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
 		meta = (ClampMin = "0.01", ClampMax = "1.0"))
 	float PrecisionPanScale = 0.25f;
+
+	/**
+	 * Conversione **pixel → valore d'asse** per i gesti che riusano `AddPlanarMovement`, che si aspetta un
+	 * asse (`WASD` consegna 1) e non un delta di puntatore. Taratura aperta.
+	 *
+	 * 🔴 Esiste perche' il precision pan era piu' veloce del pan normale: mancava l'unita' di misura, e
+	 * nessuna scala poteva ripararlo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "1.0"))
+	float PixelsPerPanUnit = 10.f;
+
+	/**
+	 * Conversione **pixel → passi di zoom** per il dolly, che riusa `AddZoom` — tarato sulla rotella, che
+	 * consegna ±1. Taratura aperta.
+	 *
+	 * 🔴 Senza, un movimento ordinario di 10 px/frame consumava quasi mezzo intervallo di zoom in un frame.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "0.0"))
+	float DollySensitivity = 0.02f;
 
 	/** Unita' mondo di peek per pixel di movimento del cursore. Taratura aperta. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",

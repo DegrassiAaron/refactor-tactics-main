@@ -415,11 +415,22 @@ FBox2D ARTCameraPawn::ComputeEffectivePivotBounds(const FBox2D& AllowedArea, flo
 	// Il quadro e' orientato dallo yaw: l'ingombro su X/Y e' l'AABB del rettangolo ruotato. Senza questo
 	// passaggio i limiti sarebbero corretti solo con la vista dritta — cioe' proprio nel caso in cui la
 	// rotazione, che `D-142` esiste per rendere libera, non e' stata usata.
+	//
+	// 🔴 **I due assi erano SCAMBIATI, e il test lo rendeva verde** (code review, 2026-08-30). A yaw 0 la
+	// camera guarda lungo **+X** — non e' una deduzione, e' pinnato da
+	// `Camera.PanIsRelativeToTheView`: *«yaw 0: avanti e' +X»*. Quindi lungo X va la profondita'
+	// (`HalfDepth`, l'estensione nella direzione di sguardo) e lungo Y la larghezza di schermo
+	// (`HalfWidth`); il codice scriveva l'opposto.
+	//
+	// ⚠️ **L'errore non era piccolo e cresceva dove serve di piu'**: `HalfDepth` diverge avvicinandosi a
+	// `MaxPitch = 0`, quindi a vista radente il limite sull'asse di sguardo restava quello — stretto — di
+	// una vista a picco, ed e' esattamente il caso che `D-251` esiste per coprire. Con arm 2000, pitch -45,
+	// FOV 90 e 16:9: `HalfWidth = 2000`, `HalfDepth = 1591`, e i due finivano sull'asse sbagliato.
 	const double Yaw = FMath::DegreesToRadians(YawDegrees);
 	const double C = FMath::Abs(FMath::Cos(Yaw));
 	const double S = FMath::Abs(FMath::Sin(Yaw));
-	const double ExtentX = HalfWidth * C + HalfDepth * S;
-	const double ExtentY = HalfWidth * S + HalfDepth * C;
+	const double ExtentX = HalfDepth * C + HalfWidth * S;
+	const double ExtentY = HalfDepth * S + HalfWidth * C;
 
 	// Quanta parte del semiquadro puo' cadere fuori. `1` = nessun limite, `0` = quadro incollato dentro.
 	const double Keep = 1.0 - static_cast<double>(FMath::Clamp(AllowedOutsideFraction, 0.f, 1.f));
@@ -542,8 +553,12 @@ void ARTCameraPawn::ZoomTowards(float AxisValue, const FVector& WorldAnchor)
 	// volte l'offset iniziale, cioe' centinaia di celle fuori mappa. Riapriva esattamente il buco che
 	// questa issue chiude — «ci si puo' allontanare fino a perdere la mappa» — dal comando che avrebbe
 	// dovuto risolverlo. Trovato in code review.
-	SetCameraPivot(FVector(Moved.X, Moved.Y, Pivot.Z));
+	// ⚠️ **Le metriche PRIMA di scrivere il pivot**: `SetCameraPivot` clampa leggendo aspect ratio e FOV, e
+	// aggiornarle dopo faceva usare al primo zoom della sessione — o al primo dopo un ridimensionamento
+	// della finestra — i valori precedenti. Con `ViewportAspectRatio` ancora a zero i limiti di `D-251`
+	// venivano saltati del tutto per quella scrittura. Trovato in code review.
 	RefreshViewportMetrics();
+	SetCameraPivot(FVector(Moved.X, Moved.Y, Pivot.Z));
 	UpdateStrategicState();
 }
 
@@ -604,6 +619,13 @@ void ARTCameraPawn::AddZoom(float AxisValue)
 	}
 	SpringArm->TargetArmLength = FMath::Clamp(SpringArm->TargetArmLength + AxisValue * ZoomStep, MinArmLength, MaxArmLength);
 	RefreshViewportMetrics();
+
+	// 🔴 **Il pivot va RI-CLAMPATO, perche' i suoi limiti dipendono dalla distanza** (code review,
+	// 2026-08-30). Da `D-251` l'area legale si stringe quando ci si allontana: allontanandosi stando al
+	// bordo, il pivot restava dov'era — fuori dai limiti nuovi — e nessuno lo riportava dentro fino al pan
+	// successivo. `ZoomTowards` non aveva il difetto perche' scrive il pivot per conto suo; questo ramo
+	// toccava solo il braccio.
+	SetCameraPivot(CameraPivot);
 	UpdateStrategicState();
 }
 
@@ -611,6 +633,15 @@ void ARTCameraPawn::RecenterView()
 {
 	// Centra sulla mappa ESAGONALE del livello (se presente) e ripristina lo zoom di default. La mappa non e'
 	// per forza centrata sull'origine: il centro viene dal bounding box delle sue celle.
+	// 🔑 **Orientamento e distanza si azzerano PRIMA di scrivere il pivot** (code review, 2026-08-30).
+	// `SetCameraPivot` clampa usando yaw, pitch e braccio **correnti**: scrivendo il pivot per primo, il
+	// clamp descriveva la camera che stava per sparire invece di quella che sarebbe esistita un istante
+	// dopo. Premendo `Home` da zoom massimo su una mappa piccola l'inquadratura superava l'area, il pivot
+	// si inchiodava al centro calcolato con i valori vecchi, e nessuno lo ricalcolava dopo il reset.
+	CameraYaw = 0.f;
+	CameraPitch = FMath::Clamp(DefaultPitch, MinPitch, MaxPitch);
+	ApplyViewSettings();
+
 	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
 	{
 		FVector Origin; float HexSize; float LayerHeight;
@@ -628,23 +659,20 @@ void ARTCameraPawn::RecenterView()
 	// con un offset residuo lascerebbe la vista storta senza che nulla lo dica.
 	PeekOffset = FVector::ZeroVector;
 	ApplyPivot();
-	// Anche la ROTAZIONE torna a zero. `Home` e' il tasto del «riportami a un'inquadratura che conosco»: se
-	// riportasse la posizione ma lasciasse la vista girata, chi si e' perso ruotando resterebbe perso.
-	CameraYaw = 0.f;
+	// Anche la ROTAZIONE torna a zero — **applicata sopra**, prima della scrittura del pivot. `Home` e' il
+	// tasto del «riportami a un'inquadratura che conosco»: se riportasse la posizione ma lasciasse la vista
+	// girata, chi si e' perso ruotando resterebbe perso.
 
-	// E l'INCLINAZIONE torna alla taratura, per la stessa ragione: da #863 il pitch e' regolabile a
-	// runtime, quindi «un'inquadratura che conosco» include anche quanto la vista e' inclinata. Prima
-	// bastava non toccarlo — era `CameraPitch` a fare da default *e* da stato, e nessun input lo muoveva.
-	CameraPitch = FMath::Clamp(DefaultPitch, MinPitch, MaxPitch);
-
-	// Distanza e orientamento di default li applica `ApplyViewSettings`, che e' esattamente cio' che
-	// serve qui: `Home` e' «riportami all'inquadratura di partenza». Il difetto che #873 chiude era che
-	// questa funzione scriveva `DefaultArmLength` **nudo**, mentre gli altri punti lo clampavano — con
-	// `DefaultArmLength` fuori scala, `Home` portava il braccio dove lo zoom non lo lascia stare.
+	// ⚠️ **Inclinazione e distanza sono gia' state applicate in testa alla funzione**, e non e' una scelta
+	// di stile: `SetCameraPivot` clampa leggendo yaw, pitch e braccio, quindi devono descrivere la camera
+	// che esistera' dopo il reset e non quella che sta per sparire. Le righe stavano qui, e da qui il clamp
+	// vedeva i valori vecchi.
 	//
-	// ⚠️ La prima stesura della correzione **copiava** le due righe di `ApplyViewSettings` invece di
-	// chiamarla, clamp compreso. Il fix funzionava e il test era verde, ma lasciava la stessa espressione
-	// in due punti da tenere allineati a mano — cioe' ricreava la divergenza che #873 esiste per chiudere,
-	// un livello piu' in la'. Trovato in code review.
-	ApplyViewSettings();
+	// Restano le due ragioni per cui esistono, che valgono ancora:
+	// — l'inclinazione torna alla taratura perche' da #863 il pitch e' regolabile a runtime, e
+	//   «un'inquadratura che conosco» include quanto la vista e' inclinata;
+	// — la distanza la applica `ApplyViewSettings` e non una copia locale: il difetto che #873 chiude era
+	//   `DefaultArmLength` scritto **nudo** mentre gli altri punti lo clampavano, e la prima stesura della
+	//   correzione copiava le due righe invece di chiamarla — ricreando un livello piu' in la' la
+	//   divergenza che #873 esiste per chiudere.
 }

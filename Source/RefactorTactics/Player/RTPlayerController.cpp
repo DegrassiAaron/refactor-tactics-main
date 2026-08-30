@@ -412,6 +412,9 @@ URTKnowledgeVeilPresenter* ARTPlayerController::GetKnowledgeVeilPresenter()
 void ARTPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// #1775 — il piano attivo parte da quello che la mappa ha davvero, non da `0`.
+	AlignActiveLayerToMap();
 	bShowMouseCursor = true;
 
 	BuildInputMappings();
@@ -605,6 +608,21 @@ bool ARTPlayerController::StepActiveLayer(int32 Delta)
 	return Delta != 0 && SetActiveLayer(ActiveLayer + Delta);
 }
 
+void ARTPlayerController::AlignActiveLayerToMap()
+{
+	// 🔴 **`ActiveLayer` nasceva a `0` e nessuno lo allineava alla mappa** (code review, 2026-08-30), il che
+	// contraddiceva il ragionamento scritto dentro `SetActiveLayer`: li' i limiti si **misurano** sulle celle
+	// *«perche' assumere `[0, N]` darebbe piani vuoti su una mappa che comincia a quota 1»* — e il valore
+	// iniziale assumeva esattamente quello.
+	//
+	// Su una mappa il cui piano piu' basso e' `1`, ogni hover e ogni click si risolvevano sul piano `0`
+	// vuoto: `ContainsCell` falso ovunque, nessuna evidenziazione, e `HandleClickOnCell` che riceveva una
+	// cella fuori mappa — finche' il giocatore non premeva `PageUp` senza sapere perche'.
+	//
+	// ⚠️ `SetActiveLayer` clampa gia': ripassargli il valore corrente lo porta dentro l'intervallo reale.
+	SetActiveLayer(ActiveLayer);
+}
+
 bool ARTPlayerController::ResolveCellUnderCursor(FRTCellId& OutCell, bool& bOutHitWasOnAnotherLayer) const
 {
 	bOutHitWasOnAnotherLayer = false;
@@ -631,9 +649,46 @@ bool ARTPlayerController::ResolveCellUnderCursor(FRTCellId& OutCell, bool& bOutH
 	// `ResolveRayToCellOnLayer` esisteva dal 2026-08-17 con i suoi due test, ma in partita nessuno
 	// calcolava `bHasValidHit` — il gioco leggeva la quota del colpo e la trasformava in layer, cioe'
 	// lasciava decidere alla geometria quale cella si stesse indicando.
-	const bool bHitOnActiveLayer = bHit
-		&& URTHexLibrary::WorldToLayer(Hit.Location.Z, Origin.Z, LayerH) == ActiveLayer;
+	//
+	// 🔴 **Il layer NON si deduce dalla quota del colpo quando si colpisce un'UNITA'** (code review,
+	// 2026-08-30). `WorldToLayer` **arrotonda**: con `LayerHeight = 250`, ogni quota sopra `125` diventa
+	// layer 1. Un'unita' e' un cilindro che si estende fino a `UnitHalfHeight * 2 = 180` sopra la propria
+	// cella, quindi colpirne la parte alta rispondeva «layer 1» per un'unita' ferma sul layer 0 — e
+	// l'hover finiva sulla cella *dietro* di lei (a pitch -40, 180 uu di quota si proiettano in ~215 uu
+	// orizzontali, oltre una cella da 150). Peggio: la evidenziava come **valida**, quindi era
+	// indistinguibile da un hover corretto.
+	//
+	// La riparazione e' chiedere all'attore invece di misurarne i pixel: un'unita' **sa** su quale cella
+	// sta, ed e' un dato di gameplay, non una deduzione geometrica.
+	int32 HitLayer = ActiveLayer;
+	bool bLayerKnown = false;
+	if (bHit)
+	{
+		if (const ARTUnit* HitUnit = Cast<ARTUnit>(Hit.GetActor()))
+		{
+			HitLayer = HitUnit->Cell.Layer;
+			bLayerKnown = true;
+		}
+		else
+		{
+			HitLayer = URTHexLibrary::WorldToLayer(Hit.Location.Z, Origin.Z, LayerH);
+			bLayerKnown = true;
+		}
+	}
+
+	const bool bHitOnActiveLayer = bHit && bLayerKnown && HitLayer == ActiveLayer;
 	bOutHitWasOnAnotherLayer = bHit && !bHitOnActiveLayer;
+
+	// ⚠️ Colpendo un'unita' del piano attivo si usa la **sua cella**, non il punto d'impatto sul cilindro:
+	// quel punto sta mezzo corpo sopra il piano, e proiettarlo darebbe di nuovo la cella sbagliata.
+	if (bHitOnActiveLayer)
+	{
+		if (const ARTUnit* HitUnit = Cast<ARTUnit>(Hit.GetActor()))
+		{
+			OutCell = HitUnit->Cell;
+			return true;
+		}
+	}
 
 	OutCell = URTHexLibrary::ResolveRayToCellOnLayer(RayOrigin, RayDir, Origin, HexSize, LayerH,
 		ActiveLayer, bHitOnActiveLayer, Hit.Location);
@@ -676,6 +731,17 @@ void ARTPlayerController::OnSelectReleased(const FInputActionValue& Value)
 	if (!bAltPrimaryDown)
 	{
 		return; // rilascio di un click di selezione normale: non e' un gesto camera
+	}
+
+	// 🔴 **Il gesto puo' finire dentro una modale aperta a meta'** (code review, 2026-08-30): si preme
+	// `Alt`+`LMB` mentre si pianifica, il turno finisce o si apre la pausa, si rilascia — e senza questa
+	// guardia il Set Pivot spostava la camera dietro la schermata. Lo stato del gesto si disarma comunque,
+	// altrimenti resterebbe armato per sempre.
+	if (IsGameplayInputBlocked())
+	{
+		bAltPrimaryDown = false;
+		AltPrimaryDragDistance = 0.f;
+		return;
 	}
 
 	const bool bWasDrag = AltPrimaryDragDistance > FMath::Max(ClickDragThreshold, 0.f);
@@ -750,9 +816,15 @@ bool ARTPlayerController::RouteCameraGesture(const FVector2D& Delta)
 	}
 
 	// `Alt`+`RMB`: dolly. Il verticale, perche' e' il gesto che tutti gli editor 3D usano per avvicinare.
+	//
+	// 🔴 **`Delta` e' in PIXEL, `AddZoom` moltiplica per `ZoomStep` (150), e il gesto era inusabile**
+	// (code review, 2026-08-30): un movimento ordinario di 10 px/frame cambiava il braccio di 1500 unita',
+	// cioe' quasi mezzo intervallo `[100, 4000]` in un frame. La rotella consegna ±1 e per quella
+	// `ZoomStep` e' tarato; un delta di puntatore no. `DollySensitivity` fa la conversione, come
+	// `PeekSensitivity` la fa per il peek e `PrecisionPanScale` per il pan.
 	if (bAltSecondaryDown)
 	{
-		Cam->AddZoom(Delta.Y);
+		Cam->AddZoom(Delta.Y * FMath::Max(DollySensitivity, 0.f));
 		return true;
 	}
 
@@ -762,9 +834,18 @@ bool ARTPlayerController::RouteCameraGesture(const FVector2D& Delta)
 	}
 
 	// `Alt`+`MMB`: precision pan. Stessa direzione del pan normale, sensibilita' ridotta.
+	//
+	// 🔴 **Era piu' VELOCE del pan che doveva raffinare** (code review, 2026-08-30). `AddPlanarMovement`
+	// si aspetta un valore d'ASSE — `WASD` consegna 1, cioe' `PanSpeed = 25` unita' per frame — mentre qui
+	// arrivava un delta in **pixel**: 10 px/frame davano `10 * 0.25 * 25 = 62,5` unita', due volte e mezzo
+	// la tastiera. Un gesto chiamato «precision» che si muove piu' in fretta di quello grezzo non e' una
+	// taratura sbagliata: e' un'unita' di misura sbagliata, e `PrecisionPanScale` clampato a `1.0` non
+	// poteva ripararlo. `PixelsPerPanUnit` fa la conversione **prima** che la scala si applichi.
 	if (bOrbiting)
 	{
-		Cam->AddPlanarMovement(FVector2D(Delta.X, -Delta.Y) * FMath::Clamp(PrecisionPanScale, 0.01f, 1.f));
+		const float ToAxis = 1.f / FMath::Max(PixelsPerPanUnit, 1.f);
+		Cam->AddPlanarMovement(FVector2D(Delta.X, -Delta.Y) * ToAxis
+			* FMath::Clamp(PrecisionPanScale, 0.01f, 1.f));
 		return true;
 	}
 
@@ -1613,18 +1694,28 @@ void ARTPlayerController::SelectAbilityByIdForCurrent(const FName& ActionId)
 
 void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 {
-	// #1772 — con `Alt` premuto il destro e' un **dolly**, e la funzione di gioco viene soppressa per
-	// tutta la durata del gesto. Un dolly che cancella un waypoint mentre si avvicina la vista sarebbe
-	// peggio di non avere il dolly.
-	if (bCameraModifier)
+	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
+	//
+	// 🔴 **Stava DOPO il ramo `Alt`, ed e' lo stesso difetto che avevo corretto in `OnSelect` lasciandolo
+	// qui** (code review, 2026-08-30). Correggere un ordering su un pulsante e non sul suo gemello e' peggio
+	// che non correggerlo: il comportamento diventa asimmetrico fra destro e sinistro senza che niente lo
+	// dichiari.
+	if (IsGameplayInputBlocked())
 	{
-		bAltSecondaryDown = true;
 		return;
 	}
 
-	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
-	if (IsGameplayInputBlocked())
+	// #1772 — con `Alt` premuto il destro e' un **dolly**, e la funzione di gioco viene soppressa per
+	// tutta la durata del gesto. Un dolly che cancella un waypoint mentre si avvicina la vista sarebbe
+	// peggio di non avere il dolly.
+	//
+	// ⚠️ **Si verifica il TASTO, non solo il modificatore.** `UndoAction` e' mappata su `RightMouseButton`
+	// **e** su `BackSpace` (due `MapKey`, riga 360-361), e `FInputActionValue` non porta con se' quale dei
+	// due l'ha prodotta: senza questo controllo `Alt`+`BackSpace` armava il dolly, e da li' in poi ogni
+	// movimento del mouse zoomava **senza nessun pulsante premuto**. Trovato in code review.
+	if (bCameraModifier && IsInputKeyDown(EKeys::RightMouseButton))
 	{
+		bAltSecondaryDown = true;
 		return;
 	}
 

@@ -15,6 +15,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h" // #1776: WorldToLayer e ResolveRayToCellOnLayer, che i due test della review interrogano
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
@@ -1183,6 +1184,97 @@ bool FRTPlayerInputHotkeysDoNotCollideTest::RunTest(const FString&)
 	GEngine->DestroyWorldContext(World);
 	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
 	return bOk;
+}
+
+// --- code review 2026-08-30 · il picking del layer, e i due modi in cui sbagliava -------------------
+
+/**
+ * 🔴 **`WorldToLayer` ARROTONDA, e un'unita' e' alta piu' di mezzo layer.**
+ *
+ * Con `LayerHeight = 250` ogni quota sopra `125` diventa layer 1; il cilindro di un'unita' arriva a
+ * `UnitHalfHeight * 2 = 180` sopra la propria cella. Colpirne la parte alta rispondeva quindi «layer 1»
+ * per un'unita' ferma sul layer 0 — e l'hover finiva sulla cella *dietro* di lei, marcata **valida**,
+ * cioe' indistinguibile da un hover corretto.
+ *
+ * Questo test non passa dal cursore, che headless non esiste: verifica la **regola** che la riparazione
+ * introduce — il layer di un'unita' si chiede all'unita', non ai suoi pixel.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputUnitLayerIsNotDeducedFromHitHeightTest,
+	"RefactorTactics.PlayerInput.AUnitsLayerComesFromItsCellNotFromTheHitHeight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputUnitLayerIsNotDeducedFromHitHeightTest::RunTest(const FString&)
+{
+	// La quota del colpo su un'unita' del layer 0, come la produce il mondo.
+	const float LayerHeight = 250.f;
+	const float TopOfUnit = ARTUnit::UnitHalfHeight * 2.f; // 180: la sommita' del cilindro
+
+	// Anti-vacuita': se il cilindro fosse piu' basso di mezzo layer il difetto non esisterebbe, e il test
+	// sarebbe verde senza dire niente.
+	TestTrue(TEXT("il cilindro supera mezzo layer: il difetto e' possibile"),
+		TopOfUnit > LayerHeight * 0.5f);
+
+	// La deduzione geometrica sbaglia — ed e' cio' che il codice faceva.
+	TestEqual(TEXT("dedurre il layer dalla quota del colpo da' 1 per un'unita' del layer 0"),
+		URTHexLibrary::WorldToLayer(TopOfUnit, /*OriginZ=*/ 0.0, LayerHeight), 1);
+
+	// La cella dell'unita' invece lo sa: e' un dato di gameplay.
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTUnit* Unit = World->SpawnActor<ARTUnit>();
+	bool bOk = TestNotNull(TEXT("unita'"), Unit);
+	if (bOk)
+	{
+		Unit->Cell = FRTCellId(2, -1, 0);
+		TestEqual(TEXT("la cella dell'unita' dichiara il layer 0"), Unit->Cell.Layer, 0);
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return bOk;
+}
+
+/**
+ * 🔴 **Il ripiego sul piano non verificava che il raggio andasse VERSO il piano.**
+ *
+ * `FMath::RayPlaneIntersection` e' `Origin + Dir * t` senza guardia: col cursore **sopra l'orizzonte** —
+ * raggiungibile a ogni pitch piu' radente della meta' del FOV verticale, e `MaxPitch` e' `0` — `t` diventa
+ * negativo e la cella risolta sta *dietro* la camera. Non era raggiungibile prima di `D-255`, perche' il
+ * vecchio percorso richiedeva un colpo del raycast.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputRayAwayFromPlaneDoesNotResolveBehindTest,
+	"RefactorTactics.PlayerInput.ARayPointingAwayFromThePlaneDoesNotResolveBehindTheCamera",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputRayAwayFromPlaneDoesNotResolveBehindTest::RunTest(const FString&)
+{
+	const FVector Origin = FVector::ZeroVector;
+	const float HexSize = 150.f;
+	const float LayerHeight = 250.f;
+
+	// Camera in alto che guarda **verso l'alto**: il piano e' dietro di lei.
+	const FVector RayOrigin(0.f, 0.f, 1000.f);
+	const FVector Up(1.f, 0.f, 1.f);
+
+	const FRTCellId Cell = URTHexLibrary::ResolveRayToCellOnLayer(RayOrigin, Up.GetSafeNormal(),
+		Origin, HexSize, LayerHeight, /*ActiveLayer=*/ 0, /*bHasValidHit=*/ false, FVector::ZeroVector);
+
+	// Il ripiego del ripiego e' la cella **sotto la camera**, che a `RayOrigin` X=Y=0 e' l'origine.
+	// Senza la guardia, `t` negativo avrebbe prodotto una cella a centinaia di metri nella direzione
+	// opposta — e la formula la avrebbe restituita senza segnalare nulla.
+	TestEqual(TEXT("col raggio che punta lontano dal piano si ripiega sotto la camera (q)"), Cell.X, 0);
+	TestEqual(TEXT("...e (r)"), Cell.Y, 0);
+	TestEqual(TEXT("...sul layer attivo"), Cell.Layer, 0);
+
+	// Controprova: col raggio che punta **verso** il piano la funzione lavora come sempre, e la cella non
+	// e' quella sotto la camera — o il test sopra passerebbe anche con la guardia sempre attiva.
+	const FVector Down(1.f, 0.f, -1.f);
+	const FRTCellId Ahead = URTHexLibrary::ResolveRayToCellOnLayer(RayOrigin, Down.GetSafeNormal(),
+		Origin, HexSize, LayerHeight, /*ActiveLayer=*/ 0, /*bHasValidHit=*/ false, FVector::ZeroVector);
+	TestNotEqual(TEXT("verso il piano la cella e' avanti, non sotto la camera"), Ahead.X, 0);
+
+	return true;
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
