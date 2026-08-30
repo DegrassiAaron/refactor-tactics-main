@@ -1,160 +1,284 @@
 # RefactorTactics
 
-Gioco tattico PvP a **turni simultanei** ispirato ad *Atlas Reactor*, su **Unreal Engine 5.8.1**, sviluppato
-da un dev singolo.
+**RefactorTactics** è un tattico competitivo PC-first a **turni simultanei**, sviluppato in **Unreal Engine 5.8.1**.
 
-Ogni turno: **pianificazione simultanea** delle mosse → risoluzione a macro-fasi
-**Prep → Dash → Blast → Move**, calcolate simultaneamente e applicate in ordine deterministico.
-Griglia **esagonale** multilivello (`FRTCellId`, coordinate assiali/cubiche) con editor mappa data-driven.
+Ogni giocatore pianifica la propria azione, il gioco costruisce uno snapshot condiviso dello stato e il resolver applica le decisioni secondo regole deterministiche.
 
-> **Stato attuale (2026-08-05)**
+> [!IMPORTANT]
+> **Release v0.1:** vertical slice **2v2 offline contro bot**.  
+> **Formato competitivo Standard:** **3v3**.  
+> Il 2v2 resta il formato Skirmish/vertical slice; il 4v4+ è riservato a stress test e scenari di scala.
 >
-> - **Fondamenta esagonali complete e testate**: coordinate, asset mappa, A\* multilivello, snapshot,
->   budget di movimento, collisioni simultanee, TurnLog con hash e replay, LOS e forme di targeting, bot
->   utility, editor mode della mappa.
-> - **Nessuna partita gira ancora sull'esagonale**: il turn loop giocabile è quello **quadrato** dell'MVP
->   (2v2 offline contro bot, movimento con conflitti, combat, HUD, vittoria). Colmare questo divario è la
->   milestone **M6** ≡ epic **E2** della v0.1.
-> - **419 test automatici** unici (`Source/RefactorTactics/Tests/`, 64 file), misurati il 2026-08-08.
-> - Packaging Windows verificato sull'MVP quadrato (Development e Shipping).
->
-> Dettaglio: [roadmap di release v0.1](docs/roadmap/roadmap-v0.1.md) ·
-> [stato per checkpoint](docs/roadmap/roadmap-checkpoint.md).
+> Questo README non duplica conteggi di test, SHA, issue o checkpoint. Per lo stato corrente usa la [roadmap v0.1](docs/roadmap/roadmap-v0.1.md) e il [checkpoint di esecuzione](docs/roadmap/roadmap-checkpoint.md).
 
----
+## Il gioco in breve
 
-## Obiettivo: la release v0.1
+- **Planning simultaneo** — i giocatori pianificano senza conoscere il piano avversario.
+- **Risoluzione deterministica** — stesso snapshot, regole/versione, seed e decisioni registrate producono lo stesso risultato.
+- **Mappa esagonale multilivello** — quota, coperture, LOS, terreni e topologia fanno parte della strategia.
+- **Informazione parziale** — vista, rumore e Team Knowledge determinano ciò che una squadra conosce.
+- **Reazioni e finestre live** — il resolver può fermarsi a un decision boundary e registrare una scelta senza delegare l'esito ad animazioni o frame rate.
+- **Contenuti data-driven** — eroi, azioni ed equipaggiamenti sono configurati tramite `UPrimaryDataAsset`.
 
-Un *vertical slice* giocabile **2v2 offline contro bot** su griglia esagonale multilivello, con:
+Roster v0.1:
 
-- **4 eroi** distinti (Gadget, Phase, Riktor, Wraith), 4 abilità ciascuno + una variante;
-- **catalogo azioni** completo (~35 azioni con ID stabile, fase, priorità intera, fallback, cooldown);
-- **reazioni** preparate in pianificazione (una attivazione per turno);
-- **terreni attivi** (acqua, fuoco, elettricità, fumo, ghiaccio) con stati e propagazione deterministica;
-- **coperture direzionali e strutture** (porte, ponti, pannelli) che cambiano la topologia;
-- **obiettivi dinamici** e partita a 12 turni massimi;
-- **HUD** con intenti alleati e livello di certezza, combat log e comandi `rt.Debug.*`;
-- **determinismo verificato** (100 ripetizioni a seed fisso, checksum identico) e build packaged giocabile.
+**Gadget · Phase · Riktor · Wraith**
 
-Multiplayer in rete, 4v4, GAS, progressione e modding restano
-[visione post-v0.1](docs/product/piano-canonico-mvp.md#8-north-star-post-mvp-dai-prd).
+## Come funziona un turno
+
+```mermaid
+flowchart LR
+    P[Planning] --> PREP[Prep]
+    PREP --> DASH[Dash]
+    DASH --> BLAST[Blast]
+    BLAST --> MOVE[Move]
+    MOVE --> CLEAN[Cleanup]
+    CLEAN --> P
+```
+
+Il **Move normale** resta l'ultima fase volontaria. Dash e altri spostamenti speciali possono risolvere prima soltanto quando appartengono alla propria fase o regola.
+
+Azioni universali correnti:
+
+`Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`
+
+## Architettura
+
+RefactorTactics separa nettamente **simulazione** e **presentazione**.
+
+```mermaid
+flowchart TD
+    INPUT[Player / Bot Intent]
+    INPUT --> VALIDATE[Validation]
+    VALIDATE --> SNAPSHOT[Immutable Snapshot]
+    SNAPSHOT --> RESOLVER[Deterministic Resolver]
+    RESOLVER --> LOG[TurnLog / Replay Facts]
+    LOG --> STATE[Authoritative Game State]
+    STATE --> UI[UI · VFX · Animation]
+```
+
+### Principi
+
+1. **La simulazione decide, la presentazione mostra.**  
+   Animazioni, montage, VFX e timing non stabiliscono gli esiti.
+
+2. **Un solo modello spaziale autorevole.**  
+   `FRTCellId{X=q, Y=r, Layer}` identifica le celle del grafo esagonale multilivello.
+
+3. **C++ per le regole competitive.**  
+   Blueprint, UMG, animazioni e VFX gestiscono soprattutto configurazione e presentazione.
+
+4. **Server-authority-ready.**  
+   Anche il vertical slice offline mantiene una separazione compatibile con un futuro server autorevole.
+
+5. **Privacy by design.**  
+   Il planning avversario non viene replicato ai client per poi essere semplicemente nascosto in UI.
+
+6. **La mappa è dati, non migliaia di Actor.**  
+   Celle e archi appartengono al grafo; rendering e interazioni visuali usano layer dedicati.
 
 ## Stack tecnico
 
-| | |
+| Area | Scelta corrente |
 |---|---|
-| Motore | Unreal Engine **5.8.1** (bloccata) |
-| Linguaggi | **C++** (regole, dati, resolver, test) + **Blueprint** (UI, VFX, camera, presentazione) |
-| Ability system | Data-driven (`UPrimaryDataAsset`) — **GAS rimandato** |
-| Griglia | Esagonale assiale/cubica multilivello (`FRTCellId`) |
-| Versionamento | Git, **senza LFS** — gli asset binari UE non sono versionati |
-| IDE | Visual Studio 2022 (workload *Game development with C++*) |
-| Piattaforma | Windows |
+| Engine | Unreal Engine **5.8.1** |
+| Runtime | **C++** |
+| Presentazione | Blueprint · UMG · VFX · Animation |
+| Ability system v0.1 | `UPrimaryDataAsset` |
+| Hero data | `URTHeroData` |
+| Action data | `URTActionData` |
+| Equipment data | `URTEquipmentData` |
+| Mappa | Grafo esagonale multilivello |
+| Coordinate | `FRTCellId` |
+| Pathfinding | A* con costi interi |
+| Test | Unreal Automation Framework + Scenario Harness |
+| Versionamento | Git, senza Git LFS |
+| Target | Windows · PC-first |
+
+**GAS non fa parte della v0.1.**
 
 ## Struttura del repository
 
-```
-RefactorTactics.uproject       # descrittore progetto Unreal (radice del repo)
-Source/
-  RefactorTactics/             # modulo runtime C++
-    Ability/ Bot/ Camera/ Combat/ Core/ Map/
-    Pathfinding/ Player/ Selection/ Turn/ UI/ Unit/ Tests/
-  RefactorTacticsEditor/       # modulo editor-only (Hex Map Editor Mode)
-Config/                        # DefaultEngine.ini, DefaultGame.ini, input
-Content/
-  RT/                          # asset proprietari, organizzati feature-first
-  FabAsset/Paragon/            # pack di terze parti da Fab (non versionati - vedi Setup)
-docs/                          # >>> README.md e' il punto d'ingresso <<<
-  product/                     # visione, canone, vertical slice
-  gameplay/                    # regole: turno, azioni, reazioni, percezione, ambiente
-  technical/                   # architettura, mappa, TurnLog, UI, test, guide
-  balance/                     # numeri vigenti (cataloghi) + workbook
-  roadmap/                     # milestone, release v0.1, DoD, requisiti F0-F6
-  decisions/                   # ADR e Decision Log
-  research/                    # non normativo: PRD di visione, design, handoff (era src/)
-  archive/                     # materiale superato
-CLAUDE.md · AGENTS.md          # guide operative per assistenti di codice
+```text
+RefactorTactics.uproject
+│
+├─ Source/
+│  ├─ RefactorTactics/
+│  │  ├─ Core/
+│  │  ├─ Map/
+│  │  ├─ Pathfinding/
+│  │  ├─ Turn/
+│  │  ├─ Combat/
+│  │  ├─ Ability/
+│  │  ├─ Unit/
+│  │  ├─ Terrain/
+│  │  ├─ Perception/
+│  │  ├─ Bot/
+│  │  ├─ Replay/
+│  │  ├─ UI/
+│  │  └─ Tests/
+│  │
+│  └─ RefactorTacticsEditor/
+│
+├─ Plugins/
+│  └─ RTDeveloperTools/
+│
+├─ Content/
+│  └─ RT/
+│
+├─ Scenarios/
+├─ Config/
+├─ docs/
+├─ tools/
+│
+├─ scripts/
+│  └─ rt-suite.ps1
+│
+├─ AGENTS.md
+└─ CLAUDE.md
 ```
 
-## Documentazione — da dove partire
+La mappa dettagliata delle classi è in:
 
-| Documento | Cosa contiene |
+[`docs/technical/architecture/architettura-codice.md`](docs/technical/architecture/architettura-codice.md)
+
+## Eseguire il progetto
+
+### Requisiti
+
+- Windows
+- Unreal Engine **5.8.1**
+- Visual Studio 2022
+- workload **Game development with C++**
+
+### Setup
+
+1. Clona il repository.
+2. Apri `RefactorTactics.uproject`.
+3. Se necessario genera i file Visual Studio dal `.uproject`.
+4. Compila il target **Development Editor**.
+5. Apri il progetto in Unreal Editor.
+6. Avvia una delle mappe di sviluppo con **Play**.
+
+### Mappe utili
+
+`Content/RT/Maps/Dev/L_Prototype`
+
+Vertical slice 2v2.
+
+`Content/RT/Maps/Dev/L_DevSandbox`
+
+Sandbox tecnica per griglia, mappa e sistemi di sviluppo.
+
+Parte del livello viene costruita a runtime dal GameMode; una viewport molto semplice prima del Play può quindi essere normale.
+
+### Input di sviluppo
+
+| Input | Azione |
 |---|---|
-| [`docs/README.md`](docs/README.md) | 🧭 **Da qui**: gerarchia delle fonti, chi possiede quale concetto, le risposte brevi |
-| [`docs/product/piano-canonico-mvp.md`](docs/product/piano-canonico-mvp.md) | ⭐ **Canone**: decisioni vincolanti, invarianti, regole numeriche |
-| [`docs/roadmap/roadmap-main-v0.1.md`](docs/roadmap/roadmap-main-v0.1.md) | 🗺️ **Il lavoro aperto in un diagramma**: tre lane, sei wave, handoff e gate finale |
-| [`docs/roadmap/roadmap-v0.1-v1.0.md`](docs/roadmap/roadmap-v0.1-v1.0.md) | La traiettoria **v0.1 → v1.0** in una pagina, e le quattro soglie fra le release |
-| [`docs/roadmap/roadmap-v0.1.md`](docs/roadmap/roadmap-v0.1.md) | Release **v0.1**: epic, checkpoint, stato feature → file. Il **totale** si legge di lì (§3), non da qui |
-| [`docs/roadmap/v0.1-definition-of-done.md`](docs/roadmap/v0.1-definition-of-done.md) | Gate di release, KPI, checklist di contenuto |
-| [`docs/roadmap/roadmap-checkpoint.md`](docs/roadmap/roadmap-checkpoint.md) | Milestone M6–M11 con DoD misurabile e stato |
-| [`docs/technical/architecture/architettura-codice.md`](docs/technical/architecture/architettura-codice.md) | Mappa delle classi C++ |
-| [`docs/technical/tooling/convenzioni-contenuti-ue.md`](docs/technical/tooling/convenzioni-contenuti-ue.md) | Struttura di `Content/`, naming, dipendenze |
-| [`docs/technical/test-manuali-pie.md`](docs/technical/test-manuali-pie.md) | Verifiche interattive in editor, per sessioni |
-| ADR [0002](docs/decisions/adr-0002-griglia-esagonale.md) · [0003](docs/decisions/adr-0003-modello-azioni-v01.md) · [0004](docs/decisions/adr-0004-finestre-di-reazione.md) | Pivot esagonale · modello azioni · finestre di reazione |
-| [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md) | Cosa aspetta una decisione, e perché non è deducibile |
+| WASD | Pan camera |
+| Rotellina | Zoom |
+| Home | Ricentra |
+| F | Centra sull'unità selezionata |
+| Click | Selezione / interazione contestuale |
+| Spazio | Risolvi il turno nella demo |
+| R | Riavvia la partita |
 
-> ⚠️ I PRD in [`docs/research/prd/`](docs/research/prd/) e il [corpus PDR](docs/archive/pdr-v0.1/RT_PDR_v0.1_consolidato.md)
-> descrivono un prodotto più ambizioso dello scope corrente
-> e in parte si contraddicono. Le decisioni effettive sono riconciliate nel **piano canonico**, che ha la
-> precedenza; i conflitti noti sono registrati in
-> [`docs/DOC_CONFLICT_MATRIX.md`](docs/DOC_CONFLICT_MATRIX.md).
+Per build, suite e validatori correnti usa [`AGENTS.md`](AGENTS.md). I comandi operativi non vengono duplicati nel README per evitare che le due versioni divergano.
 
-## Come compilare ed eseguire
+## Documentazione
 
-1. Installare **Unreal Engine 5.8.1** e **Visual Studio 2022** (workload *Game development with C++*),
-   poi clonare il repository. Git LFS **non** serve: gli asset binari non sono versionati (vedi
-   *Asset di terze parti* qui sotto).
-2. Aprire **`RefactorTactics.uproject`** — o generare i file di soluzione (tasto destro sul `.uproject` →
-   *Generate Visual Studio project files*) — e compilare il target **Development Editor**.
-3. Aprire un livello e premere **Play**:
-   - `Content/RT/Maps/Dev/L_Prototype` — demo della partita 2v2;
-   - `Content/RT/Maps/Dev/L_DevSandbox` — sandbox con mappa esagonale.
+### Voglio capire il progetto
 
-   I livelli sono **vuoti nell'editor**: griglia, luce, unità e turn manager li allestisce a runtime il
-   `RTGameMode`. Viewport nera prima del Play è normale.
-4. Comandi: **WASD** pan camera · **rotellina** zoom · **Home** ricentra · **F** centra sull'unità selezionata ·
-   **click** su unità propria = selezione · **click** su cella = movimento · **click** su nemico = attacco ·
-   **Spazio** = risolvi il turno (o attendi il timer di 30 s) · **R** = riavvia la partita.
-5. Test: **Tools → Session Frontend → Automation** → `RefactorTactics` → *Start Tests* (419 test).
-   Guida al debug in [`docs/technical/runbooks/debug-vs-unreal.md`](docs/technical/runbooks/debug-vs-unreal.md).
+→ [`docs/README.md`](docs/README.md)
 
-### Asset di terze parti
+Indice e gerarchia documentale.
 
-I pack scaricati da **Fab** stanno in **`Content/FabAsset/<Fornitore>/<Pack>/`** ma **non sono nel
-repository**: pesano ~48 GB e non si versionano. Il progetto **si compila e si avvia senza**; mancando le
-mesh dei personaggi, le unità usano il **cilindro segnaposto** (fallback previsto in `ARTGameMode`).
+### Voglio capire le decisioni
 
-Per averli:
+→ [`docs/product/piano-canonico-mvp.md`](docs/product/piano-canonico-mvp.md)
 
-1. scaricare i pack da Fab (per i personaggi attuali servono i **Paragon** di Epic, gratuiti);
-2. metterli in `Content/FabAsset/Paragon/<NomePack>/` — la cartella è ignorata da git;
-3. i path virtuali diventano `/Game/FabAsset/Paragon/<NomePack>/...`, non `/Game/<NomePack>/...`: se un
-   pack è stato installato altrove e va spostato, il rename si fa **dal Content Browser** (o via script),
-   mai da Esplora File, altrimenti i riferimenti interni al pack si rompono.
+Canone e invarianti.
 
-> ⚠️ Essendo dentro il repo, `git clean -fdx` **cancella** questi 48 GB (`-x` include i file ignorati).
-> Usare `git clean -fd`, oppure `git clean -fdx -e Content/FabAsset`.
+→ [`docs/decisions/RT_PDR_00_Decision_Log.md`](docs/decisions/RT_PDR_00_Decision_Log.md)
 
-Regole complete: [`docs/technical/tooling/convenzioni-contenuti-ue.md`](docs/technical/tooling/convenzioni-contenuti-ue.md),
-appendice B.
+Decision Log.
 
-## Principi di sviluppo
+→ [`docs/OPEN_DECISIONS.md`](docs/OPEN_DECISIONS.md)
 
-- **Le regole decidono l'esito** (C++ autoritativo); animazioni e VFX non decidono nulla.
-- **Determinismo**: stessa snapshot e stesso seed ⇒ stesso risultato. Coordinate e costi **interi**, nessuna
-  dipendenza dall'ordine di container non ordinati, ogni formato serializzato versionato.
-- **Privacy dell'intento**: le intenzioni di pianificazione non raggiungono gli avversari — mai occultamento
-  solo grafico.
-- **Server-authority-ready** già in offline: l'autorità è isolata nel turn manager.
+Decisioni ancora aperte.
 
-## Note
+### Voglio sapere a che punto siamo
 
-- L'ispirazione ad *Atlas Reactor* è solo a livello di **meccaniche**. Per una pubblicazione servono nomi,
-  personaggi e asset **originali**.
-- Documentazione e commenti sono in **italiano**; il codice in inglese.
-- Il progetto è nato (fino al 2026-08-05) anche come percorso di apprendimento di UE partendo da C#: quella
-  fase è **chiusa** e il relativo materiale è storico.
+→ [`docs/roadmap/roadmap-v0.1.md`](docs/roadmap/roadmap-v0.1.md)
+
+Scope e gate della release.
+
+→ [`docs/roadmap/roadmap-checkpoint.md`](docs/roadmap/roadmap-checkpoint.md)
+
+Stato corrente misurato.
+
+→ [`docs/roadmap/v0.1-definition-of-done.md`](docs/roadmap/v0.1-definition-of-done.md)
+
+Definition of Done della v0.1.
+
+### Voglio lavorare sul codice
+
+→ [`docs/CONTEXT_INDEX.md`](docs/CONTEXT_INDEX.md)
+
+Mappa del contesto.
+
+→ [`docs/technical/architecture/architettura-codice.md`](docs/technical/architecture/architettura-codice.md)
+
+Architettura C++.
+
+→ [`docs/technical/tooling/convenzioni-contenuti-ue.md`](docs/technical/tooling/convenzioni-contenuti-ue.md)
+
+Naming, asset e organizzazione Unreal.
+
+## Fonti e materiale storico
+
+`docs/research/` contiene input e materiale non ancora recepito.
+
+`docs/archive/` conserva documentazione storica e provenance.
+
+PDF, export, handoff e materiale di ricerca **non diventano automaticamente fonti normative**. Le regole implementative devono essere verificate sugli owner correnti.
+
+## Roadmap
+
+Il progetto procede per slice incrementali:
+
+```text
+v0.1
+2v2 offline vs bot
+        │
+        ▼
+networking / tooling / hardening
+        │
+        ▼
+formato competitivo Standard
+3v3
+```
+
+Il README non replica milestone, conteggi di test o percentuali di avanzamento: queste informazioni cambiano frequentemente e appartengono alla roadmap.
+
+## Coding agent
+
+Per lavorare sul repository:
+
+1. [`AGENTS.md`](AGENTS.md) — contratto operativo condiviso.
+2. [`CLAUDE.md`](CLAUDE.md) — overlay per Claude Code / SuperClaude.
+3. Spec owner della feature.
+4. Codice e test esistenti.
+
+Il README è una **porta d'ingresso al progetto**, non la source of truth delle regole competitive.
 
 ## Licenza
 
-Non ancora definita.
+La licenza del progetto non è ancora definita.
+
+---
+
+**RefactorTactics è in sviluppo attivo.**
+
+L'obiettivo non è soltanto far funzionare il gioco, ma mantenere **regole, codice, test, replay e documentazione verificabili e coerenti** mentre il progetto cresce.
