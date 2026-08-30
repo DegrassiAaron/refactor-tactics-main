@@ -218,8 +218,67 @@ verifica a schermo e senza scrittura su GitHub.
 ⚠️ **Il difetto dello Step 7.4 è vissuto in `main` senza che nulla lo segnalasse**, e la ragione è scritta
 nello step stesso: *«nessun gate lo controlla»*. `RTMatchWidgetAssetTests.cpp` prova i **property binding**
 dentro i `.uasset` — `Class->Bindings` — e una chiamata nell'Event Graph non è un binding: nessun test la
-vede. Un gate che chiudesse il buco andrebbe nel modulo **editor** (serve `BlueprintGraph` per leggere gli
-`UbergraphPages`), e non è stato scritto qui.
+vedeva.
+
+✅ **Ora un gate c'è, ed è migliore di quello che avevo previsto.** L'idea iniziale era ispezionare gli
+`UbergraphPages` dal modulo editor — cioè provare la **struttura** del grafo. Il gate scritto invece prova
+il **comportamento**: `RefactorTactics.ScreenHud.DockArmsOnlyTheSelectedAction` arma un'azione e verifica
+che si accenda uno slot, quello giusto. Un grafo riscritto in un altro modo ma corretto passa; un grafo che
+somiglia a quello giusto ma non accende niente cade. Vedi «Il HUD guardato da uno scenario» qui sotto.
+
+---
+
+## 🔬 Il HUD guardato da uno scenario — 2026-08-30
+
+La domanda che l'ha aperta: *«riusciamo a testare con scenari, anche creati ad hoc?»*. Sì, e la catena è
+riusabile per le altre verifiche funzionali.
+
+```text
+Scenarios/Spec/Hud/*.json          costruisce lo STATO dal percorso di gioco reale
+        ↓                          (eroi veri dal catalogo ⇒ kit di azioni vero)
+URTScenarioRunner::Run             NON smonta il mondo: `RunSingle(..., bTearDownAfter=false)`
+        ↓
+il test aggancia il BLUEPRINT      e legge cosa mostra — non la classe base
+```
+
+Tre cose l'hanno resa possibile, e nessuna è stata inventata per l'occasione:
+
+1. **Il runner lascia gli actor in piedi apposta.** Il suo commento lo dichiara: *«il mondo lo possiede il
+   chiamante, e ripulirlo qui gli toglierebbe da sotto i piedi gli actor su cui potrebbe voler guardare»*.
+2. **Uno scenario può fermarsi in Planning**: `turns: []` è valido, e la partita resta al round 1 — l'unico
+   momento in cui il dock ha senso. Non serve simulare turni per guardare il HUD.
+3. ➕ **`SetSelectedUnitForTest`, aggiunto qui.** È l'unico pezzo nuovo, ed è l'altra metà di
+   `SetMatchContextForTest` che già esisteva. Senza, **tre widget su sette non erano verificabili affatto**:
+   `GetSelectedUnit()` passa da `GetOwningPlayer()`, e `UUserWidget::SetOwningPlayer` memorizza il
+   `ULocalPlayer` — che in headless non esiste. Spawnare un `ARTPlayerController` e chiamargli `SelectUnit`
+   **non basta**, ed è la ragione per cui pannello unità, dock e slot potevano provare solo il ramo
+   «nessuna selezione».
+
+### La prova che il gate non è vacuo
+
+Un test verde non prova di poter fallire, e qui la verifica di mutazione non è stata inventata: il
+`.uasset` è stato **riportato alla versione di `53958620`** — quella con `bArmed` costante `false`, viva in
+`main` fino a stamattina — e il test è caduto sull'asserzione giusta:
+
+```text
+Expected 'e a schermo si accende UNO slot solo' to be 1, but it was 0
+```
+
+Poi ripristinato e riverificato. **10/10 `Success`** su `RefactorTactics.ScreenHud` con l'asset corretto.
+
+### Cosa questo NON copre, e resta di `PIE-V01-HUD`
+
+Colori, font, ingombro, leggibilità e «centro libero». Il test prova che il widget **legge il dato giusto**,
+non che si veda bene — la stessa distinzione che `RTMatchWidgetAssetTests.cpp` dichiara nel suo docstring.
+Lo Step 7.5 resta aperto: la sua metà funzionale ora ha un gate, la sua metà visiva no.
+
+### Le altre tre che diventerebbero misurabili con la stessa catena
+
+Non scritte qui — il pilota serviva a sapere se la catena regge, e regge:
+
+- **5.5** — `Sprint` occupa `MovementAndMain`: due celle accese insieme, lette da `GetSlots()`.
+- **3.6** — il `RoundLimit` viene dal formato e non da una costante: due scenari con formati diversi.
+- **4.5** — il roster mostra le sole unità proprie e tiene in lista quella abbattuta (l'opacità no).
 
 ---
 

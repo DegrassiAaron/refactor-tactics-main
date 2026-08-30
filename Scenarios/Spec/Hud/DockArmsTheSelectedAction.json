@@ -1,0 +1,23 @@
+{
+  "scenarioId": "Spec.Hud.DockArmsTheSelectedAction",
+  "tags": ["hud", "spec", "screen-hud", "gadget", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 3,
+
+  "_nota": "CP 11.7 (#613), Step 7.4 — questo scenario NON verifica una regola di gioco: costruisce lo STATO da cui si guarda il HUD. Zero turni di proposito, cosi' la partita resta ferma al round 1 in pianificazione, che e' l'unico momento in cui il dock delle azioni ha senso. Il runner non smonta il mondo (`RunSingle(..., bTearDownAfter=false)`), e il test che lo consuma aggancia `WBP_RT_ActionDock` al TurnManager rimasto vivo.",
+
+  "_oracolo": "L'assertion qui sotto e' volutamente minima: e' il gancio che rende lo scenario valido — uno scenario senza `expect` viene rifiutato in validazione, giustamente, perche' passerebbe sempre. Cio' che davvero si osserva sta nel test C++ che lo esegue, `RefactorTactics.ScreenHud.DockArmsOnlyTheSelectedAction`: il dock e' spento finche' nessuna azione e' armata, e accende UNO slot — quello giusto — quando il giocatore ne arma una. Il kit di Hero.Gadget da' al dock piu' di un'azione, che e' la condizione perche' «uno solo» significhi qualcosa.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
+  ],
+
+  "turns": [],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 0 },
+    { "type": "UnitAlive", "unit": "A1", "value": true }
+  ]
+}
