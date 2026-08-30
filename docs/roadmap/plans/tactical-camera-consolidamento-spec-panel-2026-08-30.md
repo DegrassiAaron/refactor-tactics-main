@@ -27,10 +27,11 @@ sede documentale**, e che due delle prescrizioni non erano prescrizioni ma doman
 | Issue camera **aperte** prima di oggi | **0** | — |
 | Epic camera esistenti | **0** | creata **E49** ([#1769](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1769)) |
 | Issue create | 12 | [#1770](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1770)–[#1781](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1781) |
-| Decisioni nuove | 5 | `D-250`–`D-254` |
-| Domande aperte registrate | 2 | `CAM-A`, `CAM-B` |
+| Decisioni nuove | 6 | `D-250`–`D-254`, più **`D-255`** dalla risposta a `CAM-A` (§9) |
+| Domande aperte registrate | 2 | `CAM-A`, `CAM-B` — ✅ **entrambe chiuse lo stesso giorno** (§9) |
 | Spec create | 2 | camera · domini spaziali |
-| Prescrizioni **rifiutate** come tali | 2 | vedi §5 |
+| Prescrizioni **rifiutate** come tali | 2 | vedi §5 — poi *decise*, non applicate di lato |
+| Issue diventate codice | 7 su 12 | §9 |
 
 ## 3. `CURRENT` — cosa il prompt chiedeva e il codice aveva già
 
@@ -124,7 +125,65 @@ Non è un'aggiunta: è un cambio con un costo. → domanda in `OPEN_DECISIONS.md
   finché non eseguita.
 - **Non riapre** #863 #864 #865 #873 #874 #887.
 
-## 8. Ciò che resta davvero da decidere
+## 8. Ciò che restava da decidere — ✅ risolto lo stesso giorno
 
-Solo due cose, ed entrambe hanno un innesco scritto: `CAM-A` (picking layer-aware, insieme a #705) e
-`CAM-B` (rebinding `MMB`). Tutto il resto è lavoro, non decisione.
+> 🔄 **Questa sezione è stata scritta prima del §9 e superata poche ore dopo.** Resta com'era perché il
+> punto del referto è *cosa l'audit aveva trovato*, e trovare due domande dove il prompt vedeva due
+> prescrizioni è il risultato — non un passaggio da cancellare una volta che le domande hanno risposta.
+
+Erano due, entrambe con un innesco scritto: `CAM-A` (picking layer-aware, insieme a #705) e `CAM-B`
+(rebinding `MMB`). Tutto il resto era lavoro, non decisione.
+
+✅ **Risposte dall'autore il 2026-08-30**: `CAM-A` → uscita (b), che diventa **`D-255`**; `CAM-B` →
+«entrambi», che **elimina il costo** per cui era una domanda. Dettaglio al §9.
+
+**Nessuna decisione camera resta aperta.** Ciò che resta è lavoro in Editor e tarature — §9.4.
+
+---
+
+## 9. L'implementazione, lo stesso giorno
+
+Dopo l'audit l'autore ha risposto alle due domande del §5 e chiesto di lavorare l'epic. Sette issue su
+dodici sono diventate codice: [#1770](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1770), [#1771](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1771), [#1772](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1772), [#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773) (in
+parte), [#1774](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774) (lo stato), [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775) (lo stato), [#1776](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1776), [#1778](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1778).
+
+### 9.1 Le due domande, e cosa hanno cambiato
+
+| Domanda | Risposta | Conseguenza |
+|---|---|---|
+| `CAM-A` | **(b)** `ActiveLayer` | Diventa **`D-255`**, perché tocca il gameplay |
+| `CAM-B` | **«entrambi»** | `MMB` resta l'orbita ⇒ `PIE-CAM-ORBIT` **non** va riscritta |
+
+⚠️ **La risposta a `CAM-B` ha eliminato il costo che rendeva `CAM-B` una domanda.** Era aperta perché il
+rebinding avrebbe invalidato una verifica PIE verde; scegliendo «entrambi» quella verifica resta valida e
+non c'è niente da riscrivere. È l'esito migliore possibile, ed è arrivato per aver posto la domanda invece
+di applicare la prescrizione.
+
+### 9.2 La decisione che ha cambiato sede
+
+`D-255` doveva decidere anche **dove vive** `ActiveLayer`, e la risposta non era libera: da quella
+decisione il piano attivo determina *quale cella un click seleziona*. Metterlo su `ARTCameraPawn` avrebbe
+reso la camera un'autorità sull'esito — cioè avrebbe violato `D-143` **nel commit che dichiara di
+rispettarlo**. Vive quindi in `ARTPlayerController`, accanto a `PlayerTeamId`.
+
+### 9.3 Il ritrovamento
+
+`PlayerInput.HotkeysDoNotCollide` **era citato in un commento e non esisteva**: `grep -rn "DoNotCollide"
+Source/` rispondeva una sola riga — quel commento. L'unica difesa contro due azioni sullo stesso tasto era
+un elenco scritto a mano in un secondo commento, cioè una promessa che invecchia al primo `MapKey`
+aggiunto — e `#1771` ne aggiunge quattro. Il test ora esiste e interroga il `UInputMappingContext` reale.
+
+⚠️ È la stessa classe di difetto che il §4 di questo referto descrive per il triage del 2026-08-14: **un
+documento che descrive uno stato invece di misurarlo**. Qui il documento era un commento C++.
+
+### 9.4 Cosa resta, e perché non è codice
+
+Le cinque issue non iniziate — [#1777](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1777), [#1779](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1779), [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780), [#1781](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1781), più le
+metà mancanti di #1773/#1774/#1775 — hanno in comune di **richiedere l'Editor**: buffer scenico, cutaway e
+Feature Lab sono mappe, volumi e materiali.
+
+🔴 **#1780 è la più bloccante, e non per la ragione ovvia.** Sette issue hanno lasciato **tarature aperte**
+— soglia click/drag, limite e velocità del peek, sensibilità del precision pan, le due soglie strategiche,
+`AllowedOutsideFraction` — e ognuna ha un default scelto perché plausibile. Finché non esiste un posto
+dove guardarli, quei numeri diventano canone per inerzia: è esattamente il difetto che il principio 4
+dell'epic vieta, e che rimandare la Feature Lab produce da sé.
