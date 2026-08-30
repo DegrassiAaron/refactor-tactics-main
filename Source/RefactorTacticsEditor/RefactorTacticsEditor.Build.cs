@@ -36,6 +36,9 @@ public class RefactorTacticsEditor : ModuleRules
 			"WorkspaceMenuStructure",
 			"EditorSubsystem",
 			"EngineSettings",
+			// La casella di ricerca del launcher (#1705): `SSearchBox` vive in `ToolWidgets`, non in
+			// `Slate`. Vale la stessa nota dei tre qui sopra — non arriva per transitivita'.
+			"ToolWidgets",
 			"RefactorTactics" // modulo runtime: URTHexMapAsset / URTHexLibrary / ARTHexMapActor (usati da H5b)
 		});
 	}
