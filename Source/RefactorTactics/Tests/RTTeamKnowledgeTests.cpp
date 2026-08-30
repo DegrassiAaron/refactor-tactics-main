@@ -360,12 +360,24 @@ bool FRTTeamKnowledgeRemembersExploredCells::RunTest(const FString& Parameters)
  * 🔴 **Perche' i casi sono cinque e non uno.** `ObservedPrefixLength` ha due consumatori — la traccia
  * post-lock (`VisibleTrailFor`, `#1497`) e il modello animato (`BeginPlayback`, `#1525`) — e ognuna delle
  * cinque proprieta' e' una regola indipendente: verificarne quattro lascerebbe la quinta libera di essere
- * sbagliata senza che nulla lo dica. In particolare `TroncaNonFiltra` e' l'unico che distingue un `return`
- * da un `continue`: con un `continue` al suo posto tutti gli altri quattro resterebbero VERDI.
+ * sbagliata senza che nulla lo dica.
  *
- * ⚠️ **Verifica di mutazione eseguita** (DoD di `#1525`): sostituendo il `return i` con `continue` in
- * `ObservedPrefixLength`, `RefactorTactics.Vision.PlaybackTroncaNonFiltra` diventa rosso e gli altri
- * quattro restano verdi. Il risultato e' registrato nella issue.
+ * ✅ **Verifica di mutazione ESEGUITA** (DoD di `#1525`), e ha corretto questa stessa riga. Sostituendo
+ * il `return i` con un `continue` in `ObservedPrefixLength` e ricompilando, cadono **QUATTRO** test su
+ * cinque — `TroncaAlTrattoOsservato`, `TroncaNonFiltra`, `NonMostraLaPartenzaNonOsservata` e
+ * `FailClosedSuTeamFuoriIntervallo` — mentre `FailClosedSuRottaMalformata` resta verde, perche' il suo
+ * fail-closed scatta **prima** del ciclo.
+ *
+ * 🔴 **La prima stesura di questo commento diceva che ne sarebbe caduto UNO SOLO, ed era una
+ * previsione scritta per plausibilita' invece che misurata.** E' esattamente il motivo per cui il DoD
+ * chiede la mutazione: la copertura reale era piu' larga di quella che l'autore credeva di avere, e
+ * saperlo cambia quali test si possono togliere in futuro. Misurato il 2026-08-30: `16/16 completati,
+ * 4 fallimenti`, `HEAD 42f33ba2`.
+ *
+ * ⚠️ **La seconda mutazione, invece, ha confermato la previsione**: togliendo
+ * `Ev.CellVerdicts = Tracked.CellVerdicts;` dal sito del Move cade **solo**
+ * `RefactorTactics.HexMatch.PlaybackEventCarriesKnowledgeVerdicts` e questi cinque restano **verdi** — che
+ * e' la ragione per cui quel test esiste separatamente da loro.
  */
 namespace
 {
@@ -412,7 +424,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTruncateNotFilterTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackTruncateNotFilterTest::RunTest(const FString&)
 {
-	// 🔴 **Il test che distingue `return` da `continue`.** Con un `continue` al posto del `return`, la
+	// 🔴 **Il caso piu' diretto della distinzione `return`/`continue`** — non l'unico che la prende:
+	// la mutazione ne fa cadere quattro (vedi il blocco in testa). Con un `continue` al posto del `return`, la
 	// risposta sarebbe 3 — le tre celle concesse — e il modello salterebbe da B a E attraversando in linea
 	// retta proprio le due celle che il verdetto nega. La lunghezza corretta e' 2: ci si ferma al buco.
 	TArray<FRTCellId> Cells;

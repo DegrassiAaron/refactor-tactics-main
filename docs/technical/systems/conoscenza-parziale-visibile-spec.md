@@ -72,7 +72,7 @@ canale deve aggiungere una riga, e chi ne chiude uno deve cambiarne lo stato.
 | Traccia post-lock | il percorso realmente eseguito da ogni unità, entrambe le squadre | ✅ **chiuso** (`#1497`) | `FRTMoveRoute::CellVerdicts` porta un verdetto **per cella**; `ARTTurnManager::VisibleTrailFor` tronca, e `DrawHUD` disegna solo il tratto che rende |
 | Sagoma dell'ultimo contatto | dove un nemico era l'ultima volta | ✅ **per costruzione** | `ContactGhostTargetForUnit` è complementare a `ShouldDrawUnitOverlay`: o l'uno o l'altra |
 | `rt.Debug.DrawPaths` | le rotte di entrambe le squadre, cella per cella, **in console** | ⚠️ **aperto e DICHIARATO** | **zero** `#if` nel file (`Debug/RTDebugConsole.cpp`), quindi non è un attrezzo da editor. Resta non filtrato per scelta: chi apre la console possiede già lo stato del client, e il comando stampa accanto il tratto che `VisibleTrailFor` concede — è così che il filtro si verifica |
-| **Playback** (`TickPlayback`) | il modello di ogni unità che cammina lungo il percorso eseguito | 🔴 **aperto**, vive in **#1525** | non censito da nessun documento fino al 2026-08-28. La rotta gli arriva da `ResolvedTimeline`, che `ResolveMovement` **non** azzera |
+| **Playback** (`TickPlayback`) | il modello di ogni unità che cammina lungo il percorso eseguito | ✅ **chiuso** (`#1525`) | `BeginPlayback` tronca la rotta al tratto osservato con `URTTeamKnowledgeLibrary::ObservedPrefixLength` — **la stessa funzione** che `VisibleTrailFor` usa per la traccia, non una seconda copia della regola. 🔴 **E con meno di due celle osservate non posiziona nemmeno il modello sulla partenza**: quel `SetVisualLocation` era esso stesso un canale, e rivelava da dove il nemico era uscito proprio quando la destinazione era visibile. ⚠️ **Il campione è quello di [D-223]** — verdetto congelato alla raccolta, osservatori alle celle di inizio fase: risponde bene quando a nascondere è il movimento del NEMICO, sbaglia quando è quello dell'OSSERVATORE |
 
 ⚠️ **E le due colonne cambiano fra Development e Shipping**, che è la seconda ragione per cui una cifra in
 prosa non regge: la riga `rt.Debug.DrawPaths` dipende da come il target tratta i comandi console, non da
@@ -232,7 +232,7 @@ mostrata**: due canali, lo stesso soggetto, due regole opposte.
 | Sagoma dell'ultimo contatto | **alla lettura** | risponde a *«adesso non lo conosco»*: è il canale del ricordo, e in lettura è dove deve stare |
 | Overlay e modello | **alla lettura** | descrivono il presente |
 | Fog of war ([D-225]) | **alla lettura** | è visibilità di **celle**, non di soggetti |
-| **Playback** (`TickPlayback`) | ⛔ **nessuno** | canale non censito da questa tabella fino al 2026-08-28: muove il modello lungo il percorso eseguito, per entrambe le squadre. Vive in **#1525** |
+| **Playback** (`TickPlayback`) | **alla scrittura, per cella** | come la traccia, e per la stessa ragione: un movimento non è un fatto puntuale. Il modello percorre il tratto **osservato** e si ferma dove l'osservatore ha perso il soggetto (`#1525`). 🔴 **Il verdetto è lo STESSO oggetto della traccia**, copiato in `FRTResolvedEvent::CellVerdicts` dal punto in cui `FreezeRouteVerdicts` lo congela — se i due divergessero, traccia e modello tornerebbero a raccontare frasi diverse sullo stesso movimento, che è la **contraddizione** che [D-223] nomina |
 
 #### 🔴 Per la traccia «quando il fatto è accaduto» non è definito, e la rotta si tronca
 

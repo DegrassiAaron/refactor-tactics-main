@@ -6011,6 +6011,20 @@ void ARTTurnManager::ResolveMovement()
 
 // ===================== Playback della risoluzione (presentazione) =============================
 
+
+int32 ARTTurnManager::ResolvedMoveVerdictCountForTest(int32 StableUnitId) const
+{
+	for (const FRTResolvedEvent& Ev : ResolvedTimeline)
+	{
+		if (Ev.Type == ERTResolvedEventType::Move && Ev.Source.IsValid()
+			&& Ev.Source->StableUnitId == StableUnitId)
+		{
+			return Ev.CellVerdicts.Num();
+		}
+	}
+	return INDEX_NONE;
+}
+
 void ARTTurnManager::BeginPlayback()
 {
 	// Cache della trasformazione della mappa per convertire celle -> mondo durante il playback.
