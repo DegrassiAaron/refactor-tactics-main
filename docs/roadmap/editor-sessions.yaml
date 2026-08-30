@@ -1849,3 +1849,54 @@ sessions:
       raggiungibile da *Window → Tools → Tactical Designer*. ⚠️ **E il criterio che conta di più**: dopo
       tutto questo `L_DevSandbox` **non** è marcata come modificata — nessun asterisco sul nome del livello,
       e `git status` pulito su `Content/RT/Maps/Dev/L_DevSandbox/`.
+
+  - id: U32
+    title: Lo scenario selezionato si vede, e guardarlo non lascia niente nel livello
+    block: 6
+    critical: false
+    produces: la conferma che lo stato iniziale di uno scenario si legge nel viewport, in graybox
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: [U31]
+    verifies: []
+    # ⚠️ Nessuna voce `PIE-*`, per la stessa ragione di `U31`: questa seduta NON entra in PIE. Tutto ciò che
+    # verifica sta nell'editor **prima** del Play — un'anteprima che compare accanto alla selezione e un
+    # livello che non diventa dirty — e `test-manuali-pie.md` è dei comportamenti in gioco.
+    issues: [1753]
+    # ⛔ **Perché una seduta e non un automation test.** Dei sette test della slice, cinque misurano decisioni
+    # pure — dove finisce un marcatore, verso dove punta, quali layer occupa, come si distinguono le squadre —
+    # e due contano i marcatori posati. Nessuno vede ciò che questa seduta vede: che il graybox si LEGGA.
+    # «Una copertura alta si distingue da una bassa» e «la porta chiusa si distingue dall'aperta» sono giudizi
+    # su ciò che appare, e un'asserzione che li rivendicasse li trasformerebbe in un giudizio a occhio
+    # travestito da misura.
+    done_when: >-
+      Aperta `L_DevSandbox` e selezionato nel tab **Tactical Designer** uno scenario del corpus con più di
+      due unità, il viewport mostra la sua arena e un marcatore per ogni unità: il cilindro sulla cella che
+      il JSON dichiara, l'anello di squadra a terra e il cuneo che punta verso il vicino nominato dal
+      `facing`. Confrontando con il file, **celle e orientamenti coincidono**. Copertura bassa, copertura
+      alta, muri, porte e superfici sono distinguibili fra loro — o si dichiara quale non lo è, e perché.
+      Il readout porta la riga `Viewport: L0` (o `L0, L1` su uno scenario multilivello), e su una mappa a
+      due piani due unità con lo stesso `X/Y` compaiono **separate in quota**, non fuse.
+      ⚠️ **E i due criteri che contano di più, entrambi negativi**: dopo aver guardato tre scenari diversi
+      `L_DevSandbox` **non** è marcata come modificata — nessun asterisco, `git status` pulito su
+      `Content/RT/Maps/Dev/L_DevSandbox/` — e gli actor dell'anteprima **non compaiono nel World Outliner**.
+      Con una mappa d'autore aperta accanto, l'Hex Map mode continua a trovare *la sua* mappa: i cinque tool
+      di disegno restano attivi mentre l'anteprima è a schermo.
+    unblocks: []
+    notes: >-
+      🔴 **L'anteprima è transiente per una ragione che questa seduta deve verificare.** La via corta sarebbe
+      assegnare l'arena dello scenario all'`ARTHexMapActor` già posato nel livello: funziona, e sporca
+      `L_DevSandbox` a ogni selezione. Un designer che accettasse per distrazione la richiesta di salvataggio
+      si troverebbe la mappa d'autore sostituita dalla fixture di uno scenario, senza un messaggio che lo
+      dica. Gli actor dell'anteprima nascono quindi `RF_Transient` e fuori dall'outliner — ed è
+      esattamente il criterio forte di `U31`, applicato a una superficie nuova.
+      ⚠️ **Il tag, e cosa succede se non tenesse.** `FindTargetMapActor` (`RTHexEditorClick.cpp`) risponde
+      `nullptr` quando trova più di un `ARTHexMapActor` nel mondo: senza il tag `RTScenarioPreview` che
+      questa slice gli fa saltare, aprire un'anteprima **spegnerebbe i cinque tool di disegno in silenzio**.
+      È un fallimento senza messaggio, quindi va guardato invece che dedotto.
+      ⚠️ **Il colore delle squadre non c'è ancora, e non è una svista.** Il kit graybox esce con lo slot
+      materiale vuoto (`#1714`): due squadre colorate sarebbero identiche a schermo. Si distinguono per
+      **raggio** dell'anello. Quando `#1714` chiude, il colore si aggiunge — non sostituisce.
+      ⛔ **`Reset` non è di questa seduta.** L'acceptance criterion di `#1753` che lo nomina resta scoperto
+      finché `#1682` non porta una sessione: oggi il pannello apre e richiude la facade a ogni selezione, e
+      non c'è uno stato da azzerare. Verificarlo qui misurerebbe qualcosa che non esiste.
