@@ -198,12 +198,20 @@ questo file: sono buchi delle fonti, e vanno chiusi lì.
   qui hanno retto un giorno più del contenuto.
 - **Il kit graybox degli oggetti** ha percorso e riga: [`D-173`](../../decisions/RT_PDR_00_Decision_Log.md)
   ha chiuso `GBX-4` il **2026-08-18** fissando `/Game/RT/World/Graybox/` con
-  `Cover/ · Doors/ · Surfaces/ · Volumes/`, e la riga è a `.gitignore:192`
-  (`!Content/RT/World/Graybox/**/*.uasset`, pattern di cartella). Oracolo verificato il 2026-08-28:
+  `Cover/ · Doors/ · Surfaces/ · Volumes/`, e la riga è a `.gitignore:201`
+  (`!Content/RT/World/Graybox/**/*.uasset`, pattern di cartella — *e il numero era `192` fino al
+  2026-08-30: i numeri di riga di un file che cresce non sono un ancoraggio, come questa stessa
+  sezione dichiara tre righe più su*). Oracolo verificato il 2026-08-30:
   `git check-ignore -q Content/RT/World/Graybox/Volumes/BP_Graybox_CellPlacementVolume.uasset` esce
   **`1`**. ✅ **E il kit ora esiste**: `git ls-files 'Content/RT/World/Graybox/*'` dà **7** dal
   **2026-08-28** — le sei `SM_Graybox_*` di §8.1 più `BP_Graybox_CellPlacementVolume`. È la prima
   famiglia delle quattro a passare dalla riga d'allowlist a un file versionato.
+  ➕ **Dal 2026-08-30 si aggiunge `Materials/`** ([#1714](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1714)):
+  `M_Graybox_Master` più sei `MI_Graybox_*`, una per mesh. Il pattern d'allowlist è di **cartella** e li
+  copre già senza una riga nuova — ed è il caso in cui quella scelta paga, perché una famiglia che cresce
+  non richiede un secondo intervento su `.gitignore`.
+  ⚠️ **Sono generati e assegnati dallo stesso commandlet delle mesh**, non autorati: un materiale
+  assegnato a mano in Editor si perderebbe alla prima rigenerazione.
   🔑 **Le sei mesh sono GENERATE, non autorate** ([`D-229`](../../decisions/RT_PDR_00_Decision_Log.md)):
   le produce `UnrealEditor-Cmd … -run=RTBuildGrayboxMeshes`, che ha un `-DryRun`. Conta per questo
   documento perché cambia cosa si fa davanti a un conflitto su uno di quei binari: **si rigenera**,

@@ -1,10 +1,15 @@
 #include "Misc/AutomationTest.h"
 
+#include "Algo/Find.h"
 #include "Engine/StaticMesh.h"
+#include "MaterialEditingLibrary.h"
+#include "Materials/MaterialInstanceConstant.h"
+#include "Materials/MaterialInterface.h"
 #include "MeshDescription.h"
 #include "StaticMeshAttributes.h"
 #include "UObject/SoftObjectPath.h"
 
+#include "Content/RTGrayboxMaterials.h"
 #include "Map/RTHexMapAsset.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -277,6 +282,171 @@ bool FRTGrayboxMeshesHaveFaceNormalsTest::RunTest(const FString&)
 		// si guardano ILLUMINATE, e una faccia senza normale non fa ombra.
 		TestEqual(*FString::Printf(TEXT("%s: nessuna normale degenere"), Path), Degenerate, 0);
 	}
+
+	return true;
+}
+
+// ======================================================================================================
+// I materiali del kit (#1714)
+//
+// La garanzia che mancava: fino al 2026-08-30 nulla distingueva «slot vuoto» da «slot pieno», e le sei
+// mesh uscivano col grigio di default dell'engine mentre `MeshesHaveFaceNormals` garantiva che fossero
+// ombreggiabili. La garanzia c'era, il consumatore no.
+//
+// ⚠️ I valori attesi si leggono da `RTGraybox::KitMaterials`, non si riscrivono qui: e' la stessa
+// disciplina per cui i budget di forma si derivano dal CDO invece di essere fissati in uu.
+// ======================================================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FRTGrayboxMeshesCarryTheirMaterialTest,
+	"RefactorTactics.Graybox.MeshesCarryTheirMaterial",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTGrayboxMeshesCarryTheirMaterialTest::RunTest(const FString&)
+{
+	// La copertura e' esaustiva per costruzione: se una mesh entrasse nel kit senza entrare nella tabella
+	// dei materiali, questo confronto lo direbbe invece di lasciarla scoperta.
+	TestEqual(TEXT("una istanza per ogni mesh del kit"),
+		static_cast<int32>(UE_ARRAY_COUNT(RTGraybox::KitMaterials)),
+		static_cast<int32>(UE_ARRAY_COUNT(AllKitMeshes)));
+
+	for (const RTGraybox::FRTGrayboxMaterialSpec& Spec : RTGraybox::KitMaterials)
+	{
+		// Il path si CERCA fra quelli gia' dichiarati invece di ricostruirlo: la sottocartella
+		// (`Cover` · `Doors` · `Surfaces`) non sta nella spec dei materiali, e ricopiarla qui creerebbe una
+		// seconda verita' sui percorsi di §8.1.
+		const TCHAR* const* Found = Algo::FindByPredicate(AllKitMeshes,
+			[&Spec](const TCHAR* Path) { return FCString::Strifind(Path, Spec.MeshName) != nullptr; });
+		if (!TestNotNull(*FString::Printf(TEXT("%s ha un path nel kit"), Spec.MeshName), Found))
+		{
+			continue;
+		}
+
+		UStaticMesh* Mesh = LoadKitMesh(*Found);
+		if (!TestNotNull(*FString::Printf(TEXT("%s esiste"), Spec.MeshName), Mesh))
+		{
+			continue;
+		}
+
+		const TArray<FStaticMaterial>& Slots = Mesh->GetStaticMaterials();
+		if (!TestEqual(*FString::Printf(TEXT("%s ha un solo slot materiale"), Spec.MeshName), Slots.Num(), 1))
+		{
+			continue;
+		}
+
+		// ⛔ Il cuore di #1714: uno slot che esiste ma non porta nulla e' esattamente lo stato che questa
+		// issue chiude, e senza questa riga potrebbe tornare senza che nessuno se ne accorga.
+		UMaterialInterface* Assigned = Slots[0].MaterialInterface;
+		if (!TestNotNull(*FString::Printf(TEXT("%s ha un materiale assegnato"), Spec.MeshName), Assigned))
+		{
+			continue;
+		}
+
+		TestEqual(*FString::Printf(TEXT("%s porta la propria istanza"), Spec.MeshName),
+			Assigned->GetName(), FString(Spec.InstanceName));
+
+		// Il nome dello slot deve coincidere col polygon group che il commandlet chiama `Default`: se
+		// divergessero, il materiale sarebbe assegnato e non ombreggerebbe niente.
+		TestEqual(*FString::Printf(TEXT("%s: lo slot si chiama Default"), Spec.MeshName),
+			Slots[0].MaterialSlotName, FName(TEXT("Default")));
+
+		UMaterialInstanceConstant* Instance = Cast<UMaterialInstanceConstant>(Assigned);
+		if (!TestNotNull(*FString::Printf(TEXT("%s: e' una MaterialInstanceConstant"), Spec.MeshName), Instance))
+		{
+			continue;
+		}
+
+		if (TestNotNull(TEXT("l'istanza ha un parent"), Instance->Parent.Get()))
+		{
+			TestEqual(*FString::Printf(TEXT("%s deriva dal master"), Spec.InstanceName),
+				Instance->Parent->GetName(), FString(RTGraybox::MasterAssetName));
+		}
+
+		const FLinearColor Color =
+			UMaterialEditingLibrary::GetMaterialInstanceVectorParameterValue(Instance, RTGraybox::ParamBaseColor);
+		const float Roughness =
+			UMaterialEditingLibrary::GetMaterialInstanceScalarParameterValue(Instance, RTGraybox::ParamRoughness);
+
+		// 🔴 NEUTRO, e non e' una preferenza estetica: e' cio' che rende la lettura in scala di grigi vera
+		// per costruzione. Un kit senza canale cromatico non puo' violare `D-146` affidando una categoria
+		// al solo colore, perche' non c'e' un colore a cui affidarla.
+		TestEqual(*FString::Printf(TEXT("%s: R == G"), Spec.InstanceName), Color.R, Color.G, 0.001f);
+		TestEqual(*FString::Printf(TEXT("%s: G == B"), Spec.InstanceName), Color.G, Color.B, 0.001f);
+
+		TestEqual(*FString::Printf(TEXT("%s: il valore e' quello della tabella"), Spec.InstanceName),
+			RTGraybox::Luminance(Color), Spec.Value, 0.001f);
+		TestEqual(*FString::Printf(TEXT("%s: la ruvidita' e' quella della tabella"), Spec.InstanceName),
+			Roughness, Spec.Roughness, 0.001f);
+	}
+
+	return true;
+}
+
+/**
+ * Le coppie che la geometria da sola non separa.
+ *
+ * 🔴 `Door_Panel` e `Cover_High` sono alte uguali (`0.85 H`) e lunghe uguali (`0.92` del lato): la sola
+ * differenza geometrica e' lo spessore, che la vista a picco proietta quasi a zero — la stessa forma del
+ * difetto che ha reso ❌ `PIE-HEX-VIZ-BLOCCHI` (#1246). Qui si verifica che il materiale porti i due canali
+ * che mancano, e che li porti ENTRAMBI: un valore diverso da solo non basterebbe sotto una luce radente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FRTGrayboxMaterialsSeparateAmbiguousPairsTest,
+	"RefactorTactics.Graybox.MaterialsSeparateAmbiguousPairs",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTGrayboxMaterialsSeparateAmbiguousPairsTest::RunTest(const FString&)
+{
+	auto Spec = [](const TCHAR* MeshName) -> const RTGraybox::FRTGrayboxMaterialSpec*
+	{
+		for (const RTGraybox::FRTGrayboxMaterialSpec& Candidate : RTGraybox::KitMaterials)
+		{
+			if (FCString::Strcmp(Candidate.MeshName, MeshName) == 0)
+			{
+				return &Candidate;
+			}
+		}
+		return nullptr;
+	};
+
+	const RTGraybox::FRTGrayboxMaterialSpec* CoverLow  = Spec(TEXT("SM_Graybox_Cover_Low"));
+	const RTGraybox::FRTGrayboxMaterialSpec* CoverHigh = Spec(TEXT("SM_Graybox_Cover_High"));
+	const RTGraybox::FRTGrayboxMaterialSpec* Door      = Spec(TEXT("SM_Graybox_Door_Panel"));
+	const RTGraybox::FRTGrayboxMaterialSpec* Locked    = Spec(TEXT("SM_Graybox_Door_Locked"));
+	const RTGraybox::FRTGrayboxMaterialSpec* Water     = Spec(TEXT("SM_Graybox_Surface_Water"));
+	const RTGraybox::FRTGrayboxMaterialSpec* Ice       = Spec(TEXT("SM_Graybox_Surface_Ice"));
+
+	if (!TestTrue(TEXT("le sei spec si risolvono per nome"),
+		CoverLow && CoverHigh && Door && Locked && Water && Ice))
+	{
+		return false;
+	}
+
+	/** Sotto questa soglia due grigi si confondono a camera tattica, dove la cella occupa pochi pixel. */
+	constexpr float MinValueSeparation = 0.10f;
+	/** Una ruvidita' che differisce di meno non produce un highlight riconoscibile. */
+	constexpr float MinRoughnessSeparation = 0.30f;
+
+	TestTrue(TEXT("copertura bassa e alta si separano nel valore"),
+		FMath::Abs(CoverLow->Value - CoverHigh->Value) >= MinValueSeparation);
+
+	TestTrue(TEXT("acqua e ghiaccio si separano nel valore"),
+		FMath::Abs(Water->Value - Ice->Value) >= MinValueSeparation);
+
+	// La coppia critica: due canali, non uno.
+	TestTrue(TEXT("porta e copertura alta si separano nel valore"),
+		FMath::Abs(Door->Value - CoverHigh->Value) >= MinValueSeparation);
+	TestTrue(TEXT("porta e copertura alta si separano nella ruvidita'"),
+		FMath::Abs(Door->Roughness - CoverHigh->Roughness) >= MinRoughnessSeparation);
+
+	// ⛔ `Closed` vs `Locked` va nell'altro verso, ed e' `D-171`: il canale e' la TRAVERSA, e il materiale
+	// «puo' rinforzare, mai rimpiazzare» (#1714). Se questa distanza superasse quella delle coppie vere, il
+	// colore diventerebbe il canale primario e la geometria un ornamento — cioe' esattamente la decisione
+	// al contrario. `Graybox.LockedDoorCarriesTraverse` garantisce l'altra meta'.
+	TestTrue(TEXT("Locked resta un rinforzo, non il canale primario"),
+		FMath::Abs(Door->Value - Locked->Value) < MinValueSeparation);
+	TestEqual(TEXT("Locked resta nella famiglia visiva della porta"),
+		Door->Roughness, Locked->Roughness, 0.001f);
 
 	return true;
 }
