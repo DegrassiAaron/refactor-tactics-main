@@ -98,6 +98,21 @@ public:
 	static UStaticMesh* GetCellGlyphMesh(int32 RingCount);
 
 	/**
+	 * L'anello di BORDO della cella (#1758): una corona esagonale piatta sul perimetro, che dice dove una
+	 * cella finisce e comincia la vicina.
+	 *
+	 * 🔴 **Non e' il contorno di `rt.Debug.DrawCells`, ed e' la ragione per cui questa mesh esiste.** Quello
+	 * e' una debug-line disegnata nel Tick dietro un comando console, e un giocatore non digita un comando
+	 * per sapere dove finisce una cella: questa e' geometria istanziata, accesa per default, che vive nella
+	 * board come i glifi.
+	 *
+	 * Stessa disciplina di `GetCellGlyphMesh`: una sola per processo, `TStrongObjectPtr` invece di
+	 * `AddToRoot`, e i vertici chiesti a `URTHexLibrary::HexCorners` — mai un secondo `cos(60k-30)` scritto
+	 * qui, che e' il difetto che `#712` ha pagato a schermo con un bordo esagonale su un pieno circolare.
+	 */
+	static UStaticMesh* GetCellBorderMesh();
+
+	/**
 	 * La trasformazione del pannello di un muro interno, dai due estremi del segmento in coordinate LOCALI
 	 * alla cella.
 	 *
@@ -514,6 +529,28 @@ public:
 	void SetCellOverlayEnabled(bool bEnabled);
 	bool IsCellOverlayEnabled() const { return bCellOverlay; }
 
+	/**
+	 * 🔑 **Il toggle della griglia: presentazione, non debug** (#1758).
+	 *
+	 * ⚠️ **Non e' `SetCellOverlayEnabled` e non gli somiglia**, ed e' l'unica cosa che questa coppia di
+	 * funzioni deve dire chiaramente: quello accende un overlay di **debug-line** dietro
+	 * `rt.Debug.DrawCells`, disegnato nel `Tick`, spento per default e dichiarato «non la presentazione
+	 * definitiva»; questo accende o spegne la **geometria istanziata** che il giocatore vede sempre.
+	 * `rt.Debug.DrawCells` resta, e resta uno strumento di sviluppo.
+	 *
+	 * 🔴 **Non ricostruisce niente, e il DoD lo pretende con un test invece che con un'ispezione**: commuta la
+	 * VISIBILITA' del componente, che e' `O(1)`. Un `RebuildInstances` qui rifarebbe l'intera board a ogni
+	 * pressione — su arena piena sono 7 651 celle — e soprattutto **azzererebbe lo stato del velo**
+	 * (`LastVeilState` e sorelle si resettano con gli indici), quindi il primo velo successivo ridipingerebbe
+	 * tutto. Un toggle di presentazione che invalida il velo non e' sola presentazione.
+	 *
+	 * ⛔ **Non muta `FRTMapState`, graph revision, path cache, snapshot, TurnLog o stato di rete.** Il
+	 * componente e' una vista DERIVATA: spegnerlo non toglie una cella dal grafo, esattamente come nasconderla
+	 * col velo non la rende intraversabile.
+	 */
+	void SetCellBordersVisible(bool bVisible);
+	bool AreCellBordersVisible() const { return bCellBordersVisible; }
+
 protected:
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -522,6 +559,13 @@ protected:
 
 	/** Overlay di leggibilita' attivo (acceso da console, spento per default). */
 	bool bCellOverlay = false;
+
+	/**
+	 * Griglia attiva. 🔑 **`true`, e il default e' un requisito del DoD di #1758, non una preferenza**: il
+	 * confine fra celle e' cio' con cui si conta il movimento, quindi la board lo mostra senza che nessuno
+	 * lo chieda. E' il contrario esatto di `bCellOverlay`, che nasce spento perche' e' un debug.
+	 */
+	bool bCellBordersVisible = true;
 
 #if !UE_BUILD_SHIPPING
 	/** Debug dei volumi di conoscenza attivo (acceso da `rt.Debug.Knowledge`, spento per default). */
@@ -645,6 +689,30 @@ protected:
 	TObjectPtr<UInstancedStaticMeshComponent> SurfaceGlyphs[4];
 
 	/**
+	 * 🔑 **La GRIGLIA: il confine fra due celle, in partita e senza comando console** (#1758).
+	 *
+	 * 🔴 **Il difetto che chiude non e' «manca un colore».** Il colore di superficie in partita esisteva gia'
+	 * — `Cells` lo porta per istanza dal 2026-08-23 — ma due celle adiacenti della STESSA superficie restano
+	 * due prismi dello stesso colore appoggiati l'uno all'altro: il colore non dice **dove finisce una**. Su
+	 * un gioco in cui il costo si conta in celle, chi non vede il confine non puo' contare il movimento.
+	 * Superficie e confine sono due canali diversi, e la board ne aveva uno solo.
+	 *
+	 * ⚠️ **Porta custom data come `Cells` e `SurfaceGlyphs`, e per la stessa ragione**: senza, il velo
+	 * potrebbe solo NASCONDERE il bordo, e ricordo e osservazione diventerebbero indistinguibili sulla
+	 * griglia — lo stesso buco che `Relief`, `Blockers` ed `EdgeFeatures` hanno per costruzione.
+	 *
+	 * ⚠️ **Il colore e' la costante scura del glifo, non la tavolozza delle superfici** ([D-183]): il bordo
+	 * appartiene al registro «segno inciso», e tingerlo come il terreno raddoppierebbe il canale che esiste
+	 * gia' invece di aggiungerne uno.
+	 *
+	 * `NoCollision` e `CastShadow = false` come le altre famiglie di lettura: il raycast di selezione valida
+	 * il COMPONENTE (`IsPickOnSelectableCell`), quindi un colpo qui verrebbe scartato — e un bordo che
+	 * proiettasse ombra disegnerebbe una seconda griglia sfalsata sulla board.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> CellBorders;
+
+	/**
 	 * 🔴 **I volumi di conoscenza: uno strumento di ISPEZIONE, e l'unico componente della board che disegna
 	 * cio' che la squadra NON sa.**
 	 *
@@ -716,6 +784,19 @@ protected:
 	 */
 	TArray<FRTCellId> GlyphCells[4];
 	TArray<FVector> GlyphBaseScale[4];
+
+	/**
+	 * Gli stessi array per la griglia. **Un'istanza per cella, uno-a-uno con `InstanceCells`** — a differenza
+	 * di `Relief`/`Blockers`/`EdgeFeatures`, che saltano celle o ne aggiungono due.
+	 *
+	 * ⚠️ **Restano array propri e non si riusa `InstanceCells`**, nonostante l'uno-a-uno: il giorno in cui il
+	 * bordo saltasse una cella — un layer filtrato, una superficie senza griglia — gli indici divergerebbero
+	 * e il velo colpirebbe la cella sbagliata **senza che nessun conteggio se ne accorga**. E' precisamente
+	 * il difetto che l'header di `GlyphCells` documenta per i glifi.
+	 */
+	TArray<FRTCellId> BorderCells;
+	TArray<FVector> BorderBaseScale;
+	TArray<uint8> LastBorderVeilState;
 
 	/**
 	 * Gli stessi due array per le TRE famiglie di geometria che non sono ne' il disco ne' il glifo: il rilievo

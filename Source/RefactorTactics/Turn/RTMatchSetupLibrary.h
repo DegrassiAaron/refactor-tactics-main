@@ -168,6 +168,31 @@ public:
 	static URTHexMapAsset* MakeCoverYardArena(UObject* Outer);
 
 	/**
+	 * 🔑 **La scena della seduta `U25`+`U35`: tutto cio' che le dieci verifiche guardano, in una fixture sola.**
+	 *
+	 * E' `CoverYard` con tre aggiunte, e la base identica e' un REQUISITO e non pigrizia: `PIE-GBX-FIT`
+	 * dichiara che `GBX-1` si decide provando valori di inset, e **due letture su scene diverse non sono
+	 * confrontabili** — la seconda misurerebbe la scena invece dell'inset.
+	 *
+	 *     le due coperture      alta e bassa, sulle stesse celle di `CoverYard`     -> PIE-GBX-COVER
+	 *     quattro porte         Destroyed | Open | Closed | Locked, in fila         -> PIE-GBX-DOOR
+	 *     acqua e ghiaccio      due celle CIASCUNA, adiacenti                       -> PIE-GBX-SURFACE
+	 *     coppie stessa superficie  acqua|acqua e ghiaccio|ghiaccio                 -> PIE-GRID-CONFINE
+	 *
+	 * 🔴 **Perche' due celle per superficie e non una.** `PIE-GBX-SURFACE` vuole due superfici DIVERSE
+	 * adiacenti, e le ha. `PIE-GRID-CONFINE` vuole l'opposto — due celle della **stessa** superficie, dove il
+	 * colore non dice dove finisce una — e con una cella per tipo quel caso non sarebbe allestito: il giudizio
+	 * piu' difficile della griglia resterebbe non guardabile proprio nella scena costruita per guardarlo.
+	 *
+	 * ⚠️ **Porta il DATO, non le mesh del kit.** `SM_Graybox_*` sono asset da posare in scena, e nessuna
+	 * fixture li posa: `PIE-GBX-COVER`, `-DOOR` e `-SURFACE` guardano **il kit**, quindi restano manuali per
+	 * quella meta'. Cio' che questa fixture toglie e' l'allestimento del dato — incluso lo `Cells[i].Doors`
+	 * scritto a mano nel Details e il ridisegno da forzare, che e' la trappola che faceva sembrare fallita
+	 * una voce solo non allestita.
+	 */
+	static URTHexMapAsset* MakeGrayKitYardArena(UObject* Outer);
+
+	/**
 	 * **Arena della v0.1** — il layout che soddisfa i tre criteri del `done_when` di U1
 	 * (`docs/roadmap/editor-sessions.yaml`, passi 3, 4 e 7), verificati da
 	 * `URTArenaCriteriaLibrary` e non a occhio.
@@ -186,6 +211,36 @@ public:
 	 * `Outer` nullo -> nullptr.
 	 */
 	static URTHexMapAsset* MakeArenaV01(UObject* Outer);
+
+	/**
+	 * **Arena della vista divisa** — il banco su cui la percezione di squadra e' OSSERVABILE, che le altre
+	 * arene generate non sono.
+	 *
+	 * 🔴 **Esiste per due difetti misurati, non per completezza** ([#1738]). Le arene di raggio **4**
+	 * (`MakeTestArena`, `MakeArenaV01`) hanno un raggio piu' corto del `VisionRange` piu' corto del roster
+	 * (**5**, Phase e Riktor; Wraith 6, Gadget 7): una squadra vede quasi tutto al primo turno. E poiche'
+	 * `ExploredCells` **non scade** ([D-227]), cio' che resta si esaurisce comunque: misurato, le celle mai
+	 * viste vanno a **zero al turno 2**. ∴ su quelle arene i tre stati del velo non si distinguono a schermo,
+	 * e un confine della visibilita' coincide col bordo della mappa.
+	 *
+	 * Esagono pieno di **raggio 8** sul layer 0 — piu' largo del `VisionRange` massimo, quindi resta terreno
+	 * mai visto anche dopo diversi turni — con in aggiunta:
+	 * - un **muro che blocca vista e passo** lungo `r = 1`, da `q = -8` a `q = 0`: divide la meta' occidentale
+	 *   in due camere. Le celle di partenza del team 0 sono le prime due percorribili in ordine `(q, r)`
+	 *   (`PickStartCells`), cioe' `(-8, 0)` a nord del muro e `(-8, 2)` a sud — quindi i due compagni nascono
+	 *   in camere diverse e la loro vista di squadra e' **disgiunta dal turno 1**, senza dipendere da come
+	 *   si muovono;
+	 * - due **nicchie** che rendono il perimetro visibile **concavo** invece che a ventaglio;
+	 * - una **piattaforma sul layer 1**, che nel grafo tattico e' una regione a se': `Neighbors` non
+	 *   attraversa i layer, quindi le sue celle visibili non confinano con quelle del suolo.
+	 *
+	 * ⚠️ **Non sostituisce `MakeTestArena` ne' `MakeArenaV01`**, e non ne cambia una riga: quelle sono
+	 * tarate su criteri di movimento e copertura (`URTArenaCriteriaLibrary`, `done_when` di `U1`) e allargarle
+	 * cambierebbe il bilanciamento e il corpus golden. Questa e' additiva e serve a una domanda sola.
+	 *
+	 * `Outer` nullo -> `nullptr`.
+	 */
+	static URTHexMapAsset* MakeVisionSplitArena(UObject* Outer);
 
 	/**
 	 * **Fixture di mappa per nome.** I nomi validi li dice `KnownFixtureIds()`, che li deriva dalla stessa

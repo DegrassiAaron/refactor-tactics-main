@@ -71,7 +71,7 @@ inventare date sarebbe una metrica falsa»*. Nessuna riga di questa pagina porta
 | Release | Tema | Epic | Formato di gioco | Owner dello scope |
 |---|---|---|---|---|
 | **v0.1** | Il turno simultaneo funziona e si vede | **E1–E21 · E23 · E46 · E47** | Skirmish 2v2 offline vs bot | [`roadmap-v0.1.md`](roadmap-v0.1.md) §3 |
-| **v0.2** | Struttura e finestre; roster 8 | E22 · E24–E26 · E35 · E36 · E38 · E39 | Standard 3v3 | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) |
+| **v0.2** | Struttura e finestre; roster 8 | E22 · E24–E26 · E35 · E36 · E38 · E39 · E51 | Standard 3v3 | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) |
 | **v0.3** | Informazione e conoscenza parziale estesa | E27–E29 · E33 | Standard 3v3 | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) |
 | **v0.4** | Operations: partite lunghe, mappe grandi | E30–E32 · E34 · E37 | Operations 4v4+ | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) |
 | **v0.5** | Online Foundation | E40 | 3v3 online, lobby privata | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) |

@@ -1564,6 +1564,41 @@ sessions:
       la PR **#1099** aperta. Preso `U26` e non `U25` proprio per questo. Chi arriva secondo rinumera,
       non contende.
 
+  - id: U35
+    title: La griglia si vede in partita, e il confine fra due celle si conta
+    block: 6
+    critical: false
+    produces: verdetto su leggibilita' del confine di cella in partita, e taratura di RTCellBorderThickness
+    artifacts: []
+    unblocked_by: [U21]
+    shares_setup_with: [U21, U25]
+    verifies: [PIE-GRID-CONFINE]
+    issues: [1758]
+    done_when: '`PIE-GRID-CONFINE` ha un esito reale sui suoi quattro giudizi'
+    unblocks: []
+    notes: >-
+      ➕ **Seduta aperta il 2026-08-30 dalla PR che implementa `#1758`.** Nasce dallo stesso buco che ha
+      generato `U26`: il DoD della issue chiede una voce `PIE-*` «collocata in una **seduta** — una voce
+      che non sta in una seduta non viene eseguita mai», e nessuna seduta esistente la riceveva.
+      ⚠️ **Non e' `U26`, e la distinzione e' quella che `#1758` dichiara come non-goal.** `U26` guarda la
+      griglia di **lavoro dell'editor** (`#622`), che riguarda **dove le celle non esistono**. Qui le celle
+      ci sono e il problema e' vederne il **confine**, in partita e senza console.
+      ⚠️ **`verifies` e' popolato, al contrario di `U26`**, e il motivo e' che qui il codice esiste gia':
+      la voce nomina qualcosa che si puo' davvero guardare, non qualcosa che si desidera. La regola di
+      `U26` — «una voce che chiede di verificare cio' che nessun codice disegna direbbe qualcosa di falso»
+      — e' rispettata dal verso opposto.
+      🔴 **La seduta ha un prodotto NUMERICO, e non solo un verdetto**: `RTCellBorderThickness` vale
+      `0.02` per scelta motivata e non per misura. Il bordo copre il `36%` dell'anello esterno del glifo
+      di [D-183]; se il conteggio degli anelli non sopravvive, o se il confine non si legge a distanza
+      tattica, il numero si ritara **qui** — guardando — ed e' l'unico posto che puo' farlo.
+      ⚠️ `unblocked_by: [U21]` per la ragione pratica di `U22` e `U26`: su una scena non illuminata il
+      verdetto direbbe piu' sulle luci che sulla griglia.
+      ⚠️ `shares_setup_with: [U25]` non e' una dipendenza: entrambe usano `FixtureId = CoverYard`, e
+      chi le esegue di fila non riallestisce. Ma i due verdetti sono distinti e chi ne esegue una sola
+      lo dichiara.
+      ⚠️ ID assegnato dopo aver misurato il massimo su `main` **e su tutti i branch remoti** — `U34`
+      in entrambi i casi, il 2026-08-30. Chi arriva secondo rinumera, non contende.
+
   - id: U27
     title: Il pulsante BACK del modale d'errore, collegato al navigatore
     block: 6
@@ -2005,6 +2040,10 @@ sessions:
       ⚠️ **Il colore delle squadre non c'è ancora, e non è una svista.** Il kit graybox esce con lo slot
       materiale vuoto (`#1714`): due squadre colorate sarebbero identiche a schermo. Si distinguono per
       **raggio** dell'anello. Quando `#1714` chiude, il colore si aggiunge — non sostituisce.
+      ➕ **Lo scenario del criterio multilivello non esisteva, ed è stato creato per questa seduta**:
+      `Scenarios/Visual/Map/TwoLayersSameColumn.json`. Nessuno degli 92 scenari spediti collocava unità
+      su più di un piano — misurato — quindi «due celle con stesso X/Y e Layer diverso non si fondono»
+      non era eseguibile a schermo. È su `TestArena`, l'unica fixture con una piattaforma sul layer 1.
       ⛔ **`Reset` non è di questa seduta.** L'acceptance criterion di `#1753` che lo nomina resta scoperto
       finché `#1682` non porta una sessione: oggi il pannello apre e richiude la facade a ogni selezione, e
       non c'è uno stato da azzerare. Verificarlo qui misurerebbe qualcosa che non esiste.

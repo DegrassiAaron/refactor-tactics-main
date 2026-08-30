@@ -1,0 +1,26 @@
+{
+  "scenarioId": "Visual.Map.TwoLayersSameColumn",
+  "tags": ["map", "layer", "viewport", "gadget", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "TestArena",
+
+  "_nota": "Due unita' sulla STESSA colonna (X=2, Y=0) e su piani diversi: F1 sul pavimento, B1 sulla piattaforma del layer 1. Non verifica una regola di gioco — costruisce l'unica configurazione in cui un viewport che PERDE il layer si smaschera a occhio, mostrando un marcatore dove ce ne sono due.",
+
+  "_nota_perche_esiste": "La seduta U34 chiede di guardare che due celle con lo stesso X/Y e Layer diverso non si fondano nel viewport, e nessuno degli 92 scenari spediti collocava unita' su piu' di un piano: il criterio non era eseguibile. Il test `DevSandboxLauncher.MarkerKeepsTheLayer` pinna gia' la logica, ma «due marcatori distinti a schermo» e' un giudizio su cio' che appare, e i test non lo vedono.",
+
+  "_nota_fixture": "`TestArena` e' la sola fixture con una piattaforma sul layer 1 — celle (2,-1,1), (2,0,1), (3,-1,1), (3,0,1). Le due celle usate qui esistono entrambe nell'arena, quindi il controllo d'appartenenza introdotto da #1796 le accetta: e' la prova che quella regola distingue «layer che l'arena non ha» da «layer diverso da zero».",
+
+  "units": [
+    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 1] }
+  ],
+
+  "turns": [],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 0 },
+    { "type": "UnitAtCell", "unit": "F1", "cell": [2, 0, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [2, 0, 1] }
+  ]
+}

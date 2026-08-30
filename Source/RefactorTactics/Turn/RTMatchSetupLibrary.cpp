@@ -440,7 +440,84 @@ namespace
 		{ TEXT("TestArena"),  &URTMatchSetupLibrary::MakeTestArena               },
 		{ TEXT("ArenaV01"),   &URTMatchSetupLibrary::MakeArenaV01                },
 		{ TEXT("CoverYard"),  &URTMatchSetupLibrary::MakeCoverYardArena          },
+		{ TEXT("GrayKitYard"), &URTMatchSetupLibrary::MakeGrayKitYardArena        },
+		{ TEXT("VisionSplit"), &URTMatchSetupLibrary::MakeVisionSplitArena       },
 	};
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeVisionSplitArena(UObject* Outer)
+{
+	if (Outer == nullptr)
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
+
+	// Base: esagono pieno di raggio 8. Il numero non e' estetico — e' **maggiore del `VisionRange` piu'
+	// lungo del roster** (Gadget, 7), che e' la condizione perche' esista terreno mai visto da guardare.
+	constexpr int32 Radius = 8;
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+	{
+		Draft.Set(FRTHexCellData(Id));
+	}
+
+	// 🔑 **Il muro che divide, e la ragione per cui sta a `r = 1`.**
+	//
+	// `PickStartCells` ordina le celle percorribili per `(q, r)` e da' al team 0 le **prime due**. A
+	// `q = -8` le celle vanno da `r = 0` a `r = 8`: con `r = 1` reso NON percorribile, le prime due
+	// diventano `(-8, 0)` e `(-8, 4)` — una per camera. I due compagni nascono quindi separati, e la vista
+	// di squadra e' disgiunta **al turno 1**, senza dipendere da come i bot decidono di muoversi.
+	//
+	// 🔴 **TRE file e non una, ed e' una correzione pagata da una verifica di mutazione.**
+	//
+	// Con un muro di UNA fila le due camere restavano **connesse**: gli estremi di una linea di tiro non
+	// bloccano mai (`HasLineOfSight`), quindi la cella-muro e' visibile da ENTRAMBI i lati e ricuce i due
+	// insiemi. Misurato: con e senza `bBlocksLineOfSight` sul muro il conteggio delle componenti non
+	// cambiava — la seconda componente era la piattaforma del layer 1, non la camera sud, e il test
+	// passava per la ragione sbagliata.
+	//
+	// Con tre file la fila centrale (`r = 2`) non e' vista da nessuno dei due: il nord arriva a `r = 1`,
+	// il sud a `r = 3`, e quelle due file non sono adiacenti. Le regioni restano separate.
+	//
+	// ⚠️ Blocca **passo E vista**: solo la vista lascerebbe passare le unita' e le camere si
+	// riunirebbero al primo movimento; solo il passo non fermerebbe la LOS, e un muro trasparente non
+	// divide niente. E si ferma a `q = 0` perche' oltre non serve: da `q = -8` il bordo orientale e' a
+	// sedici celle, fuori da qualunque `VisionRange`.
+	for (int32 R = 1; R <= 3; ++R)
+	{
+		for (int32 Q = -Radius; Q <= 0; ++Q)
+		{
+			FRTHexCellData Cell(FRTCellId(Q, R, 0));
+			Cell.bBlocksMovement = true;
+			Cell.bBlocksLineOfSight = true;
+			Draft.Set(Cell);
+		}
+	}
+
+	// Due nicchie: rendono il perimetro visibile **concavo**. Senza, la regione vista da un osservatore e'
+	// un ventaglio, e un bordo concavo — il caso che distingue un contorno vero da un guscio convesso —
+	// non si presenterebbe mai.
+	for (const FRTCellId& Id : { FRTCellId(-5, -2, 0), FRTCellId(-4, -2, 0), FRTCellId(-4, -3, 0),
+			FRTCellId(-5, 4, 0), FRTCellId(-4, 4, 0), FRTCellId(-4, 5, 0) })
+	{
+		FRTHexCellData Cell(Id);
+		Cell.bBlocksLineOfSight = true;
+		Draft.Set(Cell);
+	}
+
+	// Piattaforma sul layer 1: nel grafo tattico e' una regione separata, perche' `Neighbors` non
+	// attraversa i layer. Serve al caso multilivello, che il suolo da solo non produce.
+	for (const FRTCellId& Id : { FRTCellId(-6, 3, 1), FRTCellId(-6, 4, 1), FRTCellId(-5, 3, 1) })
+	{
+		// Nessuna superficie esplicita: il costruttore ne da' gia' una, e la piattaforma serve alla
+		// TOPOLOGIA (una regione su un layer diverso), non a un terreno particolare.
+		Draft.Set(FRTHexCellData(Id));
+	}
+
+	Draft.CommitTo(Arena);
+	return Arena;
 }
 
 TArray<FString> URTMatchSetupLibrary::KnownFixtureIds()
@@ -518,6 +595,114 @@ URTHexMapAsset* URTMatchSetupLibrary::MakeCoverYardArena(UObject* Outer)
 			Updated.Covers.Add(FRTHexCover(Edge, Cover.Type, FRTHexCover::DefaultIntegrity(Cover.Type)));
 			Draft.Set(Updated);
 		}
+	}
+
+	Draft.CommitTo(Arena);
+	return Arena;
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeGrayKitYardArena(UObject* Outer)
+{
+	if (Outer == nullptr)
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
+
+	// Stesso corpo di `CoverYard`: esagono pieno di raggio 3, 37 celle. 🔑 **La base identica non e' pigrizia,
+	// e' il requisito**: `PIE-GBX-FIT` dichiara che `GBX-1` si decide provando valori di inset, e due letture
+	// su scene diverse non sono confrontabili — la seconda misurerebbe la scena invece dell'inset.
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 3))
+	{
+		Draft.Set(MakeShowcaseTerrainCell(Id, ERTHexSurface::Floor));
+	}
+
+	// ── Le due coperture ─────────────────────────────────────────────────────────────────────────────
+	//
+	// Le STESSE due di `CoverYard`, sulle stesse celle, per la ragione appena detta. Una riga di distanza:
+	// e' il confronto che `PIE-GBX-COVER` guarda, e il canale che regge in pianta e' lo SPESSORE (`0.10`
+	// contro `0.20` del lato, fattore 2), non l'altezza — che la vista a picco proietta a zero.
+	struct FKitCover
+	{
+		FRTCellId From;
+		FRTCellId To;
+		ERTHexCoverType Type;
+	};
+	static const FKitCover Covers[] = {
+		{ FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), ERTHexCoverType::High },
+		{ FRTCellId(0, 1, 0), FRTCellId(1, 1, 0), ERTHexCoverType::Low  },
+	};
+	for (const FKitCover& Cover : Covers)
+	{
+		const FRTHexCellData* Cell = Draft.Find(Cover.From);
+		ERTHexDirection Edge;
+		if (Cell && URTHexCoverLibrary::EdgeDirection(Cover.From, Cover.To, Edge))
+		{
+			FRTHexCellData Updated = *Cell;
+			Updated.Covers.Add(FRTHexCover(Edge, Cover.Type, FRTHexCover::DefaultIntegrity(Cover.Type)));
+			Draft.Set(Updated);
+		}
+	}
+
+	// ── I QUATTRO stati di porta, in fila ────────────────────────────────────────────────────────────
+	//
+	// 🔴 **E' la meta' che nessuna fixture aveva.** `CoverYard` non ha porte — lo dichiara il proprio corpo —
+	// e l'unica porta di questo file sta in `RelayBasin`, sola e chiusa. `PIE-GBX-DOOR` chiede i **quattro**
+	// stati insieme, e chi la eseguiva doveva scrivere `Cells[i].Doors` a mano nel Details **e poi forzare il
+	// ridisegno** toccando una property dell'actor: senza quel gesto si guarda la geometria vecchia, e la
+	// voce sembra fallita mentre e' solo non allestita. Nate dalla fixture, quella trappola non esiste.
+	//
+	// Sulla riga `r = -1`, su bordi consecutivi, cosi' si leggono di fila alla stessa distanza di camera.
+	struct FKitDoor
+	{
+		FRTCellId From;
+		FRTCellId To;
+		ERTHexDoorState State;
+	};
+	static const FKitDoor Doors[] = {
+		{ FRTCellId(-2, -1, 0), FRTCellId(-1, -1, 0), ERTHexDoorState::Destroyed },
+		{ FRTCellId(-1, -1, 0), FRTCellId( 0, -1, 0), ERTHexDoorState::Open      },
+		{ FRTCellId( 0, -1, 0), FRTCellId( 1, -1, 0), ERTHexDoorState::Closed    },
+		{ FRTCellId( 1, -1, 0), FRTCellId( 2, -1, 0), ERTHexDoorState::Locked    },
+	};
+	for (const FKitDoor& Door : Doors)
+	{
+		const FRTHexCellData* Cell = Draft.Find(Door.From);
+		ERTHexDirection Edge;
+		if (Cell && URTHexCoverLibrary::EdgeDirection(Door.From, Door.To, Edge))
+		{
+			FRTHexCellData Updated = *Cell;
+			Updated.Doors.Add(FRTHexDoor(Edge, Door.State));
+			Draft.Set(Updated);
+		}
+	}
+
+	// ── Acqua e ghiaccio, a coppie ADIACENTI ─────────────────────────────────────────────────────────
+	//
+	// 🔑 **Due celle per superficie, non una, e la seconda e' il punto.** `PIE-GBX-SURFACE` chiede di
+	// distinguere acqua da ghiaccio — due superfici DIVERSE — e le due celle centrali `(0,2)` e `(1,2)` sono
+	// adiacenti, quindi quel confronto c'e'. Ma `PIE-GRID-CONFINE` chiede l'opposto: due celle della **stessa**
+	// superficie, dove il colore non dice dove finisce una e comincia l'altra. Con una cella per superficie
+	// quel caso non sarebbe allestito, e il giudizio piu' difficile della griglia resterebbe non guardabile.
+	//
+	// Il pavimento offre gia' coppie uguali ovunque; queste due aggiungono il caso su una superficie TINTA,
+	// dove il velo e il glifo lavorano insieme al bordo.
+	struct FKitSurface
+	{
+		FRTCellId Cell;
+		ERTHexSurface Surface;
+	};
+	static const FKitSurface Surfaces[] = {
+		{ FRTCellId(-1, 2, 0), ERTHexSurface::ShallowWater },
+		{ FRTCellId( 0, 2, 0), ERTHexSurface::ShallowWater },
+		{ FRTCellId( 1, 2, 0), ERTHexSurface::Ice          },
+		{ FRTCellId( 2, 1, 0), ERTHexSurface::Ice          },
+	};
+	for (const FKitSurface& Patch : Surfaces)
+	{
+		Draft.Set(MakeShowcaseTerrainCell(Patch.Cell, Patch.Surface));
 	}
 
 	Draft.CommitTo(Arena);

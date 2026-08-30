@@ -12,6 +12,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h"          // HexDistance: l'adiacenza si chiede, non si deduce dalle coordinate
 #include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexDoorLibrary.h"
 #include "Map/RTCellId.h"
@@ -1625,4 +1626,153 @@ bool FRTShowcaseDeciderLifetimeTest::RunTest(const FString&)
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+
+/**
+ * ── `GrayKitYard`: la scena della seduta `U25`+`U35` ────────────────────────────────────────────────
+ *
+ * 🔴 **Questi test non dicono che la scena si LEGGE — dicono che c'e'.** L'oracolo di «e' leggibile» non
+ * esiste nell'harness e non va simulato: sta in `PIE-GBX-*` e `PIE-GRID-CONFINE`, e lo da' una persona.
+ * Cio' che si puo' asserire headless e' che chi apre quella fixture trovi davvero le quattro cose che le
+ * dieci verifiche devono guardare — e questo si', perche' e' un fatto sui DATI.
+ *
+ * Serve perche' l'allestimento a mano ha un modo noto di fallire in silenzio: le porte si scrivevano in
+ * `Cells[i].Doors` dal Details, e senza forzare il ridisegno si guardava la geometria vecchia. Una voce
+ * sembrava fallita mentre era solo non allestita. Una fixture testata non ha quel modo di sbagliare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGrayKitYardCarriesEverySubjectTest,
+	"RefactorTactics.Scenario.GrayKitYardCarriesEverySubject",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGrayKitYardCarriesEverySubjectTest::RunTest(const FString&)
+{
+	const URTHexMapAsset* Yard = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), TEXT("GrayKitYard"));
+	if (!TestNotNull(TEXT("la fixture GrayKitYard si risolve per nome"), Yard))
+	{
+		return false;
+	}
+
+	// Stesso corpo di CoverYard: e' il requisito di confrontabilita' di `PIE-GBX-FIT`, non un dettaglio.
+	TestEqual(TEXT("e' l'esagono di raggio 3, come CoverYard"), Yard->NumCells(), 37);
+
+	int32 CoverHigh = 0, CoverLow = 0;
+	int32 DoorOpen = 0, DoorClosed = 0, DoorLocked = 0, DoorDestroyed = 0;
+	int32 Water = 0, Ice = 0;
+	for (const FRTHexCellData& Cell : Yard->Cells)
+	{
+		for (const FRTHexCover& Cover : Cell.Covers)
+		{
+			if (Cover.Type == ERTHexCoverType::High) { ++CoverHigh; }
+			else if (Cover.Type == ERTHexCoverType::Low) { ++CoverLow; }
+		}
+		for (const FRTHexDoor& Door : Cell.Doors)
+		{
+			switch (Door.State)
+			{
+			case ERTHexDoorState::Open:      ++DoorOpen;      break;
+			case ERTHexDoorState::Closed:    ++DoorClosed;    break;
+			case ERTHexDoorState::Locked:    ++DoorLocked;    break;
+			case ERTHexDoorState::Destroyed: ++DoorDestroyed; break;
+			default: break;
+			}
+		}
+		if (Cell.Surface == ERTHexSurface::ShallowWater) { ++Water; }
+		else if (Cell.Surface == ERTHexSurface::Ice)     { ++Ice; }
+	}
+
+	// `PIE-GBX-COVER`: le due coperture che si confrontano a una riga di distanza.
+	TestEqual(TEXT("una copertura alta"), CoverHigh, 1);
+	TestEqual(TEXT("una copertura bassa"), CoverLow, 1);
+
+	// 🔑 `PIE-GBX-DOOR`: i QUATTRO stati insieme. Nessun'altra fixture li porta — `CoverYard` non ha porte
+	// e `RelayBasin` ne ha una sola, chiusa. Escluderne uno coprirebbe tre stati su quattro.
+	TestEqual(TEXT("porta Open"), DoorOpen, 1);
+	TestEqual(TEXT("porta Closed"), DoorClosed, 1);
+	TestEqual(TEXT("porta Locked, che D-171 vuole distinta da Closed"), DoorLocked, 1);
+	TestEqual(TEXT("porta Destroyed, stato terminale"), DoorDestroyed, 1);
+
+	// `PIE-GBX-SURFACE`: due superfici diverse. DUE celle ciascuna, non una — vedi il test accanto.
+	TestEqual(TEXT("due celle d'acqua"), Water, 2);
+	TestEqual(TEXT("due celle di ghiaccio"), Ice, 2);
+
+	return true;
+}
+
+/**
+ * 🔑 **Il test che protegge il caso piu' difficile della griglia, ed e' quello che si perde per primo.**
+ *
+ * `PIE-GBX-SURFACE` vuole due superfici **diverse** adiacenti; `PIE-GRID-CONFINE` vuole l'opposto — due celle
+ * della **stessa** superficie, dove il colore non dice dove finisce una e comincia l'altra. Con una cella per
+ * tipo la fixture soddisferebbe la prima e non la seconda, e il giudizio piu' difficile della griglia
+ * resterebbe non guardabile **proprio nella scena costruita per guardarlo**.
+ *
+ * L'adiacenza si CHIEDE a `URTHexLibrary::Distance` invece di fidarsi delle coordinate scritte nel builder:
+ * un refuso in una delle quattro celle darebbe una scena plausibile e sbagliata, e nessun conteggio se ne
+ * accorgerebbe — i totali del test sopra tornerebbero comunque.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGrayKitYardHasSameSurfaceNeighboursTest,
+	"RefactorTactics.Scenario.GrayKitYardHasSameSurfaceNeighbours",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGrayKitYardHasSameSurfaceNeighboursTest::RunTest(const FString&)
+{
+	const URTHexMapAsset* Yard = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), TEXT("GrayKitYard"));
+	if (!TestNotNull(TEXT("la fixture GrayKitYard si risolve"), Yard))
+	{
+		return false;
+	}
+
+	// Le celle per superficie, raccolte dai DATI e non riscritte qui.
+	TArray<FRTCellId> WaterCells;
+	TArray<FRTCellId> IceCells;
+	for (const FRTHexCellData& Cell : Yard->Cells)
+	{
+		if (Cell.Surface == ERTHexSurface::ShallowWater) { WaterCells.Add(Cell.Id); }
+		else if (Cell.Surface == ERTHexSurface::Ice)     { IceCells.Add(Cell.Id); }
+	}
+
+	auto HasAdjacentPair = [](const TArray<FRTCellId>& Cells)
+	{
+		for (int32 I = 0; I < Cells.Num(); ++I)
+		{
+			for (int32 J = I + 1; J < Cells.Num(); ++J)
+			{
+				if (URTHexLibrary::HexDistance(Cells[I], Cells[J]) == 1) { return true; }
+			}
+		}
+		return false;
+	};
+
+	TestTrue(TEXT("due celle d'ACQUA sono adiacenti: il confine su superficie uguale si puo' guardare"),
+		HasAdjacentPair(WaterCells));
+	TestTrue(TEXT("due celle di GHIACCIO sono adiacenti, idem"),
+		HasAdjacentPair(IceCells));
+
+	// E il caso opposto, che `PIE-GBX-SURFACE` guarda: acqua e ghiaccio si toccano da qualche parte.
+	bool bWaterTouchesIce = false;
+	for (const FRTCellId& W : WaterCells)
+	{
+		for (const FRTCellId& I : IceCells)
+		{
+			if (URTHexLibrary::HexDistance(W, I) == 1) { bWaterTouchesIce = true; }
+		}
+	}
+	TestTrue(TEXT("acqua e ghiaccio si toccano: il confronto fra superfici DIVERSE c'e'"), bWaterTouchesIce);
+
+	return true;
+}
+
+/**
+ * La fixture e' raggiungibile **per nome**, che e' il modo in cui la seduta la userà: `FixtureId` nel
+ * Details dell'actor, o `"fixture"` in uno scenario JSON. Una fixture che esiste in codice e non e' in
+ * `KnownFixtureIds()` non la trova nessuno — e `MakeFixtureArena` risponde `nullptr`, cioe' una partita che
+ * fallisce parlando di unita' fuori mappa invece che del nome mancante.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGrayKitYardIsAdvertisedTest,
+	"RefactorTactics.Scenario.GrayKitYardIsAdvertisedByName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGrayKitYardIsAdvertisedTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("GrayKitYard e' fra le fixture note, quindi la tendina e gli scenari la vedono"),
+		URTMatchSetupLibrary::KnownFixtureIds().Contains(TEXT("GrayKitYard")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
