@@ -240,6 +240,88 @@ UStaticMesh* ARTHexMapActor::GetCellGlyphMesh(int32 RingCount)
 	return Mesh;
 }
 
+UStaticMesh* ARTHexMapActor::GetCellBorderMesh()
+{
+	// Il legame fra le due larghezze lo fa il COMPILATORE e non chi legge: `RTCellBorderThickness` vive in
+	// `RTMapVisuals.h`, dove `RTGlyphThickness` non arriva, quindi lo `static_assert` di la' confronta un
+	// letterale. Qui sono entrambe visibili, ed e' l'unico posto in cui l'asserzione dice la verita'.
+	static_assert(RTCellBorderThickness < RTGlyphThickness,
+		"Il bordo deve restare piu' sottile dell'anello del glifo: sopra di esso, un bordo piu' largo ne cancella il conteggio (D-183).");
+
+	// Una sola per processo, con la disciplina di `GetCellPrismMesh`: `TStrongObjectPtr` tiene la mesh fuori
+	// dalla portata del GC senza `AddToRoot` a mano.
+	static TStrongObjectPtr<UStaticMesh> Cached;
+	if (Cached.IsValid())
+	{
+		return Cached.Get();
+	}
+
+	FMeshDescription Description;
+	FStaticMeshAttributes Attributes(Description);
+	Attributes.Register();
+	TVertexAttributesRef<FVector3f> Positions = Attributes.GetVertexPositions();
+
+	const FPolygonGroupID Group = Description.CreatePolygonGroup();
+	Attributes.GetPolygonGroupMaterialSlotNames()[Group] = RTProceduralMeshSlotName;
+
+	// ⚠️ I vertici vengono da `HexCorners`, NON da un secondo `cos(60k-30)` scritto qui: e' il vincolo che
+	// `#712` ha pagato a schermo, dove il bordo era un esagono e il pieno un cerchio. Un confine che non
+	// segue la stessa convenzione della cella che delimita e' peggio di nessun confine.
+	const TArray<FVector> OuterCorners = URTHexLibrary::HexCorners(
+		FVector::ZeroVector, RTCellPrismRadius * RTCellBorderOuterScale);
+	const TArray<FVector> InnerCorners = URTHexLibrary::HexCorners(
+		FVector::ZeroVector, RTCellPrismRadius * (RTCellBorderOuterScale - RTCellBorderThickness));
+	if (OuterCorners.Num() != 6 || InnerCorners.Num() != 6)
+	{
+		return nullptr;
+	}
+
+	TArray<FVertexID> OuterIds;
+	TArray<FVertexID> InnerIds;
+	for (int32 Corner = 0; Corner < 6; ++Corner)
+	{
+		const FVertexID O = Description.CreateVertex();
+		Positions[O] = FVector3f(static_cast<float>(OuterCorners[Corner].X),
+			static_cast<float>(OuterCorners[Corner].Y), 0.f);
+		OuterIds.Add(O);
+
+		const FVertexID I = Description.CreateVertex();
+		Positions[I] = FVector3f(static_cast<float>(InnerCorners[Corner].X),
+			static_cast<float>(InnerCorners[Corner].Y), 0.f);
+		InnerIds.Add(I);
+	}
+
+	// Sei quad fra i due esagoni. Piatta come il glifo: la griglia si legge a picco come contorno d'area, e
+	// un bordo VOLUMETRICO proietterebbe un fianco che a camera tattica diventa una seconda linea sfalsata.
+	for (int32 Edge = 0; Edge < 6; ++Edge)
+	{
+		const int32 Next = (Edge + 1) % 6;
+		TArray<FVertexInstanceID> Instances;
+		for (const FVertexID V : { InnerIds[Edge], InnerIds[Next], OuterIds[Next], OuterIds[Edge] })
+		{
+			Instances.Add(Description.CreateVertexInstance(V));
+		}
+		Description.CreatePolygon(Group, Instances);
+	}
+
+	UStaticMesh* Mesh = NewObject<UStaticMesh>(GetTransientPackage(), TEXT("RT_CellBorder"), RF_Transient);
+
+	// Slot inizializzato, per la ragione scritta per esteso in `GetCellPrismMesh` (#1665): un
+	// `FStaticMaterial()` nudo lascia `UVChannelData.bInitialized = false`, e fuori dall'Editor nessuno lo ripara.
+	FStaticMaterial BorderSlot;
+	BorderSlot.MaterialSlotName = RTProceduralMeshSlotName;   // deve combaciare col PolygonGroup (#1665)
+	BorderSlot.UVChannelData = FMeshUVChannelInfo(1.f);
+	Mesh->GetStaticMaterials().Add(BorderSlot);
+
+	UStaticMesh::FBuildMeshDescriptionsParams Params;
+	Params.bBuildSimpleCollision = false;
+	Params.bFastBuild = true;
+	Mesh->BuildFromMeshDescriptions({ &Description }, Params);
+
+	Cached.Reset(Mesh);
+	return Mesh;
+}
+
 UStaticMesh* ARTHexMapActor::GetCellPrismMesh()
 {
 	// Una sola mesh per l'intero processo: la costruzione tocca il disco zero volte e il risultato non dipende
@@ -690,6 +772,22 @@ ARTHexMapActor::ARTHexMapActor()
 	//
 	// ⚠️ La MESH non si assegna qui, per la stessa ragione dei glifi: `GetKnowledgeVolumeMesh` costruisce una
 	// `UObject` e il costruttore del CDO non e' il posto.
+	// 🔑 La griglia (#1758). Stessa disciplina delle altre famiglie di lettura — nessuna collisione, nessuna
+	// ombra — piu' i custom data, che qui servono: il velo deve poterla ATTENUARE e non solo nasconderla, o
+	// ricordo e osservazione diventerebbero indistinguibili sul confine ([D-227]).
+	//
+	// ⚠️ Visibile per DEFAULT, al contrario di `KnowledgeVolumes`: il confine fra celle e' cio' con cui si
+	// conta il movimento, e il DoD di #1758 lo pretende acceso senza che nessuno lo chieda.
+	//
+	// ⚠️ La MESH non si assegna qui, per la stessa ragione dei glifi: `GetCellBorderMesh` costruisce una
+	// `UObject` e il costruttore del CDO non e' il posto.
+	CellBorders = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("CellBorders"));
+	CellBorders->SetupAttachment(Cells);
+	CellBorders->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	CellBorders->SetCollisionResponseToAllChannels(ECR_Ignore);
+	CellBorders->CastShadow = false;
+	CellBorders->NumCustomDataFloats = 3;
+
 	KnowledgeVolumes = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("KnowledgeVolumes"));
 	KnowledgeVolumes->SetupAttachment(Cells);
 	KnowledgeVolumes->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -855,6 +953,23 @@ void ARTHexMapActor::SetCellOverlayEnabled(bool bEnabled)
 {
 	bCellOverlay = bEnabled;
 	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetCellBordersVisible(bool bVisible)
+{
+	bCellBordersVisible = bVisible;
+	if (CellBorders)
+	{
+		// 🔴 **Visibilita', non ricostruzione**, ed e' il requisito del DoD invece di un'ottimizzazione: un
+		// `RebuildInstances` qui rifarebbe l'intera board (7 651 celle su arena piena) e — peggio —
+		// azzererebbe `LastVeilState` e sorelle insieme agli indici a cui si riferiscono, costringendo il
+		// velo successivo a ridipingere tutto. Un toggle di presentazione che invalida il velo non e' sola
+		// presentazione.
+		//
+		// ⛔ Nessuna mutazione di `FRTMapState`, graph revision, path cache, snapshot, TurnLog o stato di
+		// rete: il componente e' una vista DERIVATA dall'asset, e spegnerlo non toglie una cella dal grafo.
+		CellBorders->SetVisibility(bVisible);
+	}
 }
 
 void ARTHexMapActor::DrawCellOverlay() const
@@ -1062,6 +1177,9 @@ void ARTHexMapActor::RebuildInstances()
 	EdgeFeatureCells.Reset();
 	EdgeFeatureBaseScale.Reset();
 	LastEdgeFeatureVeilState.Reset();
+	BorderCells.Reset();
+	BorderBaseScale.Reset();
+	LastBorderVeilState.Reset();
 
 	// I glifi si ricostruiscono con le celle: `RebuildInstances` gira a ogni pennellata, e istanze vecchie
 	// resterebbero appese a superfici che nel frattempo sono cambiate.
@@ -1101,6 +1219,26 @@ void ARTHexMapActor::RebuildInstances()
 	{
 		// La mesh dei bordi NON segue `CellMesh`: quella e' la mesh della cella, e un pannello non e' una cella.
 		EdgeFeatures->ClearInstances();
+	}
+
+	// La griglia: mesh propria e generata, come i glifi. NON segue `CellMesh` — quella e' il pieno della
+	// cella, e un contorno non e' un pieno.
+	if (CellBorders)
+	{
+		CellBorders->ClearInstances();
+		if (UStaticMesh* BorderMesh = GetCellBorderMesh())
+		{
+			CellBorders->SetStaticMesh(BorderMesh);
+		}
+		// Dopo `SetStaticMesh`, che riporta gli slot ai materiali della mesh — stesso ordine di `Cells` e dei
+		// glifi. Invertirlo perderebbe l'override senza dirlo.
+		if (UMaterialInterface* BorderMat = CellMaterial.LoadSynchronous())
+		{
+			CellBorders->SetMaterial(0, BorderMat);
+		}
+		// ⚠️ La visibilita' si RIAFFERMA a ogni ricostruzione: `RebuildInstances` gira a ogni pennellata e a
+		// ogni `OnConstruction`, e un componente ricreato tornerebbe al default ignorando un toggle spento.
+		CellBorders->SetVisibility(bCellBordersVisible);
 	}
 
 	// Sorgente celle: l'asset se popolato, altrimenti un graybox demo (esagono pieno di raggio DemoRadius).
@@ -1191,6 +1329,37 @@ void ARTHexMapActor::RebuildInstances()
 		// buffer 3N volte, e `RebuildInstances` gira a ogni OnClickDrag del pennello.
 		Cells->SetCustomDataValue(InstanceIndex, 2, CellColor.B,
 			/*bMarkRenderStateDirty=*/ I == CellIds.Num() - 1);
+
+		// ── La GRIGLIA (#1758): il canale che dice DOVE FINISCE la cella ───────────────────────────────
+		//
+		// Una per cella, sempre: a differenza del glifo — che cinque superfici su nove non ricevono — il
+		// confine non dipende dal terreno. Una griglia che saltasse le celle senza segno lascerebbe buchi
+		// proprio sul pavimento, che e' la superficie piu' diffusa della board.
+		if (CellBorders)
+		{
+			// ⚠️ La scala e' `PlanarScale` e NON `UseHexSize / 50.f`, ed e' l'opposto della scelta fatta per
+			// il glifo tre righe piu' sotto: quello porta il `0.95` DENTRO la propria mesh, questo lo vuole
+			// FUORI perche' il suo anello esterno sta a `1.0`. Solo cosi' il bordo cade esattamente sul
+			// perimetro del prisma invece che il 5% oltre — dove sconfinerebbe nella cella vicina.
+			FVector BorderCenter = World;
+			BorderCenter.Z += RTLiftCellBorder;
+			const FTransform BorderXf(FRotator::ZeroRotator, BorderCenter,
+				FVector(PlanarScale, PlanarScale, 1.f));
+			const int32 BorderIndex = CellBorders->AddInstance(BorderXf, /*bWorldSpace=*/ true);
+			// Indicizzazione propria, come per i glifi: oggi e' uno-a-uno con `InstanceCells`, e il giorno in
+			// cui non lo fosse piu' il velo colpirebbe la cella sbagliata senza che nessun conteggio se ne accorga.
+			BorderCells.Add(CellIds[I]);
+			BorderBaseScale.Add(BorderXf.GetScale3D());
+
+			// La stessa costante scura del glifo ([D-183]): il bordo appartiene al registro «segno inciso»,
+			// non alla tavolozza delle superfici. Tingerlo col colore del terreno raddoppierebbe il canale
+			// che esiste gia' invece di aggiungerne uno — ed e' esattamente il difetto che #1758 chiude.
+			const FLinearColor BorderColor = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
+			CellBorders->SetCustomDataValue(BorderIndex, 0, BorderColor.R);
+			CellBorders->SetCustomDataValue(BorderIndex, 1, BorderColor.G);
+			CellBorders->SetCustomDataValue(BorderIndex, 2, BorderColor.B,
+				/*bMarkRenderStateDirty=*/ I == CellIds.Num() - 1);
+		}
 
 		// ── Il GLIFO di superficie (#956): il secondo canale ────────────────────────────────────────
 		//
@@ -1725,6 +1894,13 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	// si vede — `MakeFlatArena` non ne produce nessuno — quindi nemmeno `GetVeilCounts` se ne accorgerebbe.
 	//
 	// Su queste il velo NASCONDE e basta: non portano custom data per istanza, quindi `false` e nessun colore.
+	// La griglia segue il disco con lo STESSO fattore, e porta custom data apposta per poterlo fare: se il
+	// bordo restasse a piena luminosita' sul ricordo, una cella NON osservata avrebbe il confine piu' marcato
+	// di una osservata — lo stesso rovesciamento che la corona dei glifi aveva nella prima stesura della spec.
+	const FLinearColor BorderBase = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
+	VeilInstances(CellBorders, BorderCells, BorderBaseScale, LastBorderVeilState, Visible, Explored,
+		[&BorderBase](const FRTCellId&, FLinearColor& Out) { Out = BorderBase; return true; });
+
 	auto SenzaColore = [](const FRTCellId&, FLinearColor&) { return false; };
 	VeilInstances(Relief, ReliefCells, ReliefBaseScale, LastReliefVeilState, Visible, Explored, SenzaColore);
 	VeilInstances(Blockers, BlockerCells, BlockerBaseScale, LastBlockerVeilState, Visible, Explored, SenzaColore);
