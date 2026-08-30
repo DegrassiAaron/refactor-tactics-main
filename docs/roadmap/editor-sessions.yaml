@@ -500,6 +500,14 @@ sessions:
       Il percorso a tappe sta nel registro, che ne e' l'owner: qui si dichiara **quando** farla, non cosa
       deve succedere (R-6).
 
+      **Allestimento**: `Visual.Input.PcGym` (`Scenarios/Visual/Input/PcGym.json`). Ha `turns` VUOTO, quindi
+      NON gioca: la partita resta al round 1 in pianificazione e il controllo e' del giocatore, che e' la
+      condizione del test. La sua fixture `TestArena` risolve alla stessa `MakeTestArena` di
+      `MapSource = GeneratedTestArena`, percio' non cambia l'allestimento del blocco 2 e la seduta si fa
+      **senza riavviare**. Le sei destinazioni sono calcolate con Dijkstra sui costi reali e dichiarate
+      nello scenario: sceglierle a occhio renderebbe due sedute non confrontabili, perche' col fango a
+      costo 3 il costo di un percorso non e' il suo numero di passi.
+
       ⚠️ **Il soggetto e' la mano, non la regola.** Un Automation verde non dice che si vede bene: mapping
       Enhanced Input, collisioni hotkey, Pointer Context, path legality, undo state e lock-in state sono
       gia' coperti da `RTPointerInteractionTests`, `RTPlayerInteractionTests` e `RTCameraPawnTests`

@@ -898,13 +898,25 @@ percorso — passi 1-9 e 13 — è eseguibile.
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |---|---|---|---|---|
-| **PIE-PC-GYM** | La palestra del PlayerController: pianificare si **capisce**, e il gesto non combatte la mano | partita hex avviata sul setup del blocco 2 (`GeneratedTestArena`), un'unità propria e una nemica raggiungibili col puntatore. Da eseguire **in coda** a `U2`/`U3`, senza riavviare | Il percorso a tappe qui sotto, **in ordine**. Il gate è uno e non è tecnico: il giocatore deve percepire *«pianifico → vedo cosa è previsto → confermo → il turno risolve»*, e **non** *«clicco → il personaggio cammina»*. Ogni rifiuto porta un reason code a schermo, non silenzio; ogni annullamento non lascia ghost dietro di sé | ⏳ **NOT RUN** — registrata il 2026-08-30 con [#1859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1859), mai eseguita da nessuno |
+| **PIE-PC-GYM** | La palestra del PlayerController: pianificare si **capisce**, e il gesto non combatte la mano | scenario **`Visual.Input.PcGym`** (`Scenarios/Visual/Input/PcGym.json`), che allestisce `Hero.Gadget` in `(-4,2,0)`, `Hero.Phase` in `(-4,4,0)` e `Hero.Riktor` in `(1,3,0)` e **non gioca** — `turns` vuoto, quindi la partita resta al round 1 in pianificazione. La sua fixture `TestArena` è la **stessa** di `MapSource = GeneratedTestArena`, quindi si esegue **in coda** a `U2`/`U3` senza riavviare | Il percorso a tappe qui sotto, **in ordine**. Il gate è uno e non è tecnico: il giocatore deve percepire *«pianifico → vedo cosa è previsto → confermo → il turno risolve»*, e **non** *«clicco → il personaggio cammina»*. Ogni rifiuto porta un reason code a schermo, non silenzio; ogni annullamento non lascia ghost dietro di sé | ⏳ **NOT RUN** — registrata il 2026-08-30 con [#1859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1859), mai eseguita da nessuno |
 
 #### `PIE-PC-GYM` — il percorso a tappe
 
 Sedici passi in una sola sessione, senza riavviare. I **binding sono stati misurati** in
 `RTPlayerController.cpp` (`BuildInputMappings`), non ricordati: chi esegue verifichi lì se una tappa non
 risponde, prima di dichiararla fallita.
+
+> **Le celle non sono scelte a occhio.** Sono calcolate con Dijkstra sui costi reali dell'arena — costo di
+> uno step = `TotalMoveCost()` della cella di destinazione (`RTHexPathLibrary.cpp:25`) — e vivono nello
+> scenario, che ne è l'owner. Serve perché col **fango a costo 3** (`q = -2`, `r = -1..1`) il costo di un
+> percorso **non è** il suo numero di passi: `(-1,-1,0)` dista tre celle e ne costa cinque. Due tester che
+> scegliessero destinazioni diverse produrrebbero sedute non confrontabili.
+>
+> 🔴 **La fascia LONG chiesta dal mandato NON è pianificabile, e non è un difetto.** `Hero.Gadget` ha
+> `MovePoints = 5` (`RTHeroCatalogLibrary.cpp:292`): sopra costo 5 ogni destinazione è **rifiutata**. LONG
+> e *destinazione oltre budget* sono quindi lo **stesso** checkpoint — la tappa 15 — e chi rieseguisse
+> cercando un terzo percorso pianificabile più lungo cercherebbe qualcosa che il budget non consente. Il
+> percorso più lungo osservabile è la MEDIUM, che sta **esattamente** sul limite.
 
 | # | Gesto | Cosa deve essere vero |
 |---|---|---|
@@ -918,11 +930,11 @@ risponde, prima di dichiararla fallita.
 | 8 | Hover su cella, poi su unità | entrambi **percepibili senza cercarli**; l'hover non committa mai nulla |
 | 9 | `LMB` sull'unità propria | seleziona; nessuna azione risulta armata |
 | 10 | `LMB` sul nemico | segue il contratto corrente di #705 — apre l'inspector e **non pianifica** |
-| 11 | Destinazione **SHORT**, 2–3 celle | waypoint dove diceva la preview; il ghost si legge a colpo d'occhio |
-| 12 | Destinazione **MEDIUM**, ~5–6 celle | idem, e il costo resta comprensibile |
-| 13 | Destinazione **LONG** | il ghost regge sulla distanza: si capisce *dove si arriva* senza contare le celle |
-| 14 | Destinazione oltre un ostacolo | la deviazione si **spiega da sé**: guardando il ghost si capisce *perché* passa di lì. Provane una ovvia e una che non lo è |
-| 15 | Destinazione **invalida** (oltre budget, bloccata, occupata) | rifiuto con **reason code a schermo**; il piano precedente resta intatto |
+| 11 | **SHORT** → `(-2, 2, 0)` — costo 2, 2 passi, dritto | waypoint dove diceva la preview; il ghost si legge a colpo d'occhio |
+| 12 | **MEDIUM** → `(0, 3, 0)` — costo 5, 5 passi, dritto | è il **limite esatto** del budget di Gadget: il costo resta comprensibile e la cella successiva non è più raggiungibile |
+| 13 | **Deviazione OVVIA** → `(0, 2, 0)` — costo 5, **5 passi contro 4** di retta | aggira l'ostacolo `(-1,2,0)`, che si **vede** bloccato: il ghost conferma quel che l'occhio già sapeva |
+| 14 | **Deviazione NON OVVIA** → `(-1, 0, 0)` — costo 4, **4 passi contro 3** di retta | aggira il **fango** `(-2,1,0)`, che è **attraversabile** e non sembra un ostacolo. Qui il ghost deve spiegare da sé *perché* allunga: se non lo spiega, la voce è fallita anche se il percorso è corretto |
+| 15 | **Oltre budget** → `(0, -2, 0)` — costo 6; poi la cella occupata da `A2` e una bloccata | rifiuto con **reason code a schermo**; il piano precedente resta intatto. I tre rifiuti devono **distinguersi**: budget, occupazione e blocco non sono lo stesso messaggio |
 | 16 | Cambia destinazione, poi `RMB`/`BackSpace`, poi `Spazio` | cambiando meta il ghost precedente **sparisce**; l'annullamento toglie il waypoint **senza perdere la selezione** e non lascia un piano fantasma; il lock-in risolve, il cleanup non lascia residui visuali né di input, e il Planning successivo riparte pulito |
 
 Due domande di giudizio, che non sono passi e valgono su tutto il percorso:
