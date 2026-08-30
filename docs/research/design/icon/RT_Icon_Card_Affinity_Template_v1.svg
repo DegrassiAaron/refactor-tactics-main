@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+    width="1400" height="900" viewBox="0 0 1400 900">
+  <title>RefactorTactics — Skill Card Radial Grammar — Affinity Template v1</title>
+  <desc>
+    Vector authoring template based on the consolidated RefactorTactics Skill Card Grammar (2026-08-28).
+    Central flat-top hex = core/effect. Satellites are separate named layers/groups.
+    30-degree radial lattice. Exact phase marker geometry and exact 1/2/3-small-hex placement remain open points.
+  </desc>
+
+  <defs>
+    <style><![CDATA[
+      .bg { fill:#080F14; }
+      .panel { fill:#151A23; stroke:#4A5568; stroke-width:2; }
+      .core { fill:#212733; stroke:#F2F4F7; stroke-width:5; stroke-linejoin:round; }
+      .sat { fill:#151A23; stroke:#F2F4F7; stroke-width:4; stroke-linejoin:round; }
+      .sat-soft { fill:#151A23; stroke:#A7ADB5; stroke-width:3.5; stroke-linejoin:round; }
+      .connector { stroke:#4A5568; stroke-width:3; fill:none; stroke-linecap:round; }
+      .guide { stroke:#00E0FF; stroke-width:1.5; fill:none; stroke-dasharray:8 8; opacity:.34; }
+      .guide-strong { stroke:#00E0FF; stroke-width:2; fill:none; opacity:.55; }
+      .placeholder { stroke:#A7ADB5; stroke-width:2; fill:none; stroke-dasharray:4 5; opacity:.70; }
+      .phase-open { stroke:#CC79A7; stroke-width:3; fill:none; stroke-dasharray:7 6; }
+      .annotation { fill:#F2F4F7; font-family:Arial, sans-serif; font-size:19px; }
+      .annotation-small { fill:#A7ADB5; font-family:Arial, sans-serif; font-size:15px; }
+      .annotation-accent { fill:#00E0FF; font-family:Arial, sans-serif; font-size:16px; font-weight:bold; }
+      .swatch { fill:#151A23; stroke:#4A5568; stroke-width:2; }
+    ]]></style>
+  </defs>
+
+  <!-- 00 BACKGROUND -->
+  <g id="LAYER_00_BACKGROUND" inkscape:groupmode="layer" inkscape:label="00 · Background">
+    <rect width="1400" height="900" class="bg"/>
+    <rect x="35" y="35" width="870" height="830" rx="24" class="panel"/>
+    <rect x="935" y="35" width="430" height="830" rx="24" class="panel"/>
+  </g>
+
+  <!-- 01 AUTHORING GUIDES: safe to hide in Affinity -->
+  <g id="LAYER_01_GUIDES_30DEG" inkscape:groupmode="layer" inkscape:label="01 · GUIDE · 30° radial lattice · HIDE FOR EXPORT">
+    <circle cx="470" cy="450" r="225" class="guide"/>
+    <circle cx="470" cy="450" r="130" class="guide"/>
+    <line x1="125.00" y1="450.00" x2="815.00" y2="450.00" class="guide"/>
+    <line x1="171.22" y1="277.50" x2="768.78" y2="622.50" class="guide"/>
+    <line x1="297.50" y1="151.22" x2="642.50" y2="748.78" class="guide"/>
+    <line x1="470.00" y1="105.00" x2="470.00" y2="795.00" class="guide"/>
+    <line x1="642.50" y1="151.22" x2="297.50" y2="748.78" class="guide"/>
+    <line x1="768.78" y1="277.50" x2="171.22" y2="622.50" class="guide"/>
+    <line x1="120" y1="450" x2="820" y2="450" class="guide-strong"/>
+    <circle cx="470" cy="450" r="5" fill="#00E0FF" opacity=".7"/>
+  </g>
+
+  <!-- 10 CORE: always present -->
+  <g id="LAYER_10_CORE" inkscape:groupmode="layer" inkscape:label="10 · CORE · Large Hex · REQUIRED max1">
+    <polygon points="582.00,450.00 526.00,546.99 414.00,546.99 358.00,450.00 414.00,353.01 526.00,353.01" class="core"/>
+    <!-- neutral content placeholder; replace with actual effect/value glyph -->
+    <circle cx="470" cy="450" r="42" class="placeholder"/>
+  </g>
+
+  <!-- 20 PHASE SLOT: shape intentionally unresolved -->
+  <g id="LAYER_20_PHASE_SLOT" inkscape:groupmode="layer" inkscape:label="20 · PHASE · OPEN POINT marker · OPTIONAL max1">
+    <line x1="470.00" y1="326.00" x2="470.00" y2="271.00" class="connector"/>
+    <rect x="415.00" y="198.00" width="110" height="54" rx="10" class="phase-open"/>
+  </g>
+
+  <!-- 30 COST/COLDOWN -->
+  <g id="LAYER_30_COST_CIRCLE" inkscape:groupmode="layer" inkscape:label="30 · COST / COOLDOWN / CHARGES · Circle · OPTIONAL max1">
+    <line x1="408.00" y1="342.61" x2="380.00" y2="294.12" class="connector"/>
+    <circle cx="357.50" cy="255.14" r="37" class="sat"/>
+    <circle cx="357.50" cy="255.14" r="14" class="placeholder"/>
+  </g>
+
+  <!-- 40 NATIVE PROPERTY SMALL HEXES -->
+  <g id="LAYER_40_NATIVE_HEX_01" inkscape:groupmode="layer" inkscape:label="40a · NATIVE PROPERTY · Small Hex 01 · OPTIONAL">
+    <line x1="346.00" y1="450.00" x2="289.00" y2="450.00" class="connector"/>
+    <polygon points="281.00,450.00 263.00,481.18 227.00,481.18 209.00,450.00 227.00,418.82 263.00,418.82" class="sat"/>
+    <circle cx="245.00" cy="450.00" r="12" class="placeholder"/>
+  </g>
+
+  <g id="LAYER_41_NATIVE_HEX_02" inkscape:groupmode="layer" inkscape:label="40b · NATIVE PROPERTY · Small Hex 02 · OPTIONAL">
+    <line x1="594.00" y1="450.00" x2="651.00" y2="450.00" class="connector"/>
+    <polygon points="731.00,450.00 713.00,481.18 677.00,481.18 659.00,450.00 677.00,418.82 713.00,418.82" class="sat"/>
+    <circle cx="695.00" cy="450.00" r="12" class="placeholder"/>
+  </g>
+
+  <g id="LAYER_42_NATIVE_HEX_03" inkscape:groupmode="layer" inkscape:label="40c · NATIVE PROPERTY · Small Hex 03 · OPTIONAL · cap total 3">
+    <line x1="577.39" y1="388.00" x2="626.75" y2="359.50" class="connector"/>
+    <polygon points="700.86,337.50 682.86,368.68 646.86,368.68 628.86,337.50 646.86,306.32 682.86,306.32" class="sat"/>
+    <circle cx="664.86" cy="337.50" r="12" class="placeholder"/>
+  </g>
+
+  <!-- 50 CONDITION / TRIGGER / REQUIREMENT -->
+  <g id="LAYER_50_CONDITION_TRIANGLE" inkscape:groupmode="layer" inkscape:label="50 · CONDITION / TRIGGER / REQUIREMENT / WARNING · Triangle · OPTIONAL max1">
+    <line x1="532.00" y1="342.61" x2="559.00" y2="295.85" class="connector"/>
+    <polygon points="582.50,216.14 616.27,274.64 548.73,274.64" class="sat"/>
+    <circle cx="582.50" cy="260.14" r="10" class="placeholder"/>
+  </g>
+
+  <!-- 60 EXTERNAL MODIFIERS -->
+  <g id="LAYER_60_EXTERNAL_MOD_SQUARE_01" inkscape:groupmode="layer" inkscape:label="60a · EXTERNAL MODIFIER · Square 01 · OPTIONAL">
+    <line x1="577.39" y1="512.00" x2="628.48" y2="541.50" class="connector"/>
+    <rect x="633.86" y="531.50" width="62" height="62" rx="7" class="sat-soft"/>
+    <circle cx="664.86" cy="562.50" r="11" class="placeholder"/>
+  </g>
+
+  <g id="LAYER_61_EXTERNAL_MOD_SQUARE_02" inkscape:groupmode="layer" inkscape:label="60b · EXTERNAL MODIFIER · Square 02 · OPTIONAL · cap total 2">
+    <line x1="532.00" y1="557.39" x2="561.50" y2="608.48" class="connector"/>
+    <rect x="551.50" y="613.86" width="62" height="62" rx="7" class="sat-soft"/>
+    <circle cx="582.50" cy="644.86" r="11" class="placeholder"/>
+  </g>
+
+  <!-- 70 SKILL MODIFIER -->
+  <g id="LAYER_70_SKILL_MOD_DIAMOND" inkscape:groupmode="layer" inkscape:label="70 · SKILL MODIFIER · Diamond · OPTIONAL max1">
+    <line x1="470.00" y1="574.00" x2="470.00" y2="631.00" class="connector"/>
+    <polygon points="496.87,701.87 443.13,701.87 443.13,648.13 496.87,648.13" class="sat"/>
+    <circle cx="470.00" cy="675.00" r="11" class="placeholder"/>
+  </g>
+
+  <!-- 80 ANNOTATIONS: template-only, hide before export -->
+  <g id="LAYER_80_ANNOTATIONS" inkscape:groupmode="layer" inkscape:label="80 · NOTES / LEGEND · HIDE FOR EXPORT">
+    <text x="965" y="82" class="annotation" style="font-size:26px;font-weight:bold">RT Skill Card Grammar</text>
+    <text x="965" y="112" class="annotation-small">Affinity vector master · satellite visibility via Layers</text>
+
+    <text x="965" y="158" class="annotation-accent">LOCKED</text>
+    <text x="965" y="188" class="annotation-small">Core: large flat-top hex · max 1</text>
+    <text x="965" y="214" class="annotation-small">Circle: cost/cooldown/charges · max 1</text>
+    <text x="965" y="240" class="annotation-small">Small hex: native property · max 3</text>
+    <text x="965" y="266" class="annotation-small">Square: external modifier · max 2</text>
+    <text x="965" y="292" class="annotation-small">Diamond: skill modifier · max 1</text>
+    <text x="965" y="318" class="annotation-small">Triangle: condition/trigger/req/warning · max 1</text>
+    <text x="965" y="344" class="annotation-small">Authoring lattice: flat-top / 30° / 12 rays</text>
+
+    <text x="965" y="395" class="annotation-accent">READING ORDER</text>
+    <text x="965" y="426" class="annotation-small">CORE &gt; PHASE &gt; native properties</text>
+    <text x="965" y="452" class="annotation-small">&gt; condition &gt; modifiers</text>
+
+    <text x="965" y="504" class="annotation-accent">OPEN POINTS — NOT LOCKED</text>
+    <text x="965" y="535" class="annotation-small">• final Phase marker geometry</text>
+    <text x="965" y="561" class="annotation-small">• exact placement when 1/2/3 small hexes</text>
+    <text x="965" y="587" class="annotation-small">• dense Range/Radius/Duration/Targets rendering</text>
+    <text x="965" y="613" class="annotation-small">• final phase HEX palette</text>
+
+    <text x="965" y="665" class="annotation-accent">AFFINITY WORKFLOW</text>
+    <text x="965" y="696" class="annotation-small">1. Open SVG in Affinity Designer</text>
+    <text x="965" y="722" class="annotation-small">2. Toggle 20–70 layers with the eye icon</text>
+    <text x="965" y="748" class="annotation-small">3. Replace dashed placeholders with glyphs</text>
+    <text x="965" y="774" class="annotation-small">4. Hide GUIDE + NOTES before export</text>
+    <text x="965" y="800" class="annotation-small">5. Save as .afdesign if desired</text>
+
+    <text x="70" y="805" class="annotation-small">MAX-DENSITY authoring view · all optional satellites currently visible</text>
+    <text x="70" y="832" class="annotation-small">Template shapes are neutral; color should not invent semantic categories.</text>
+  </g>
+</svg>
