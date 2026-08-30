@@ -1729,7 +1729,10 @@ bool FRTCameraPanScaleUnchangedTest::RunTest(const FString&)
 	// era `TargetArmLength / DefaultArmLength`, cioe' 1 al default.
 	Arm->TargetArmLength = 800.f;
 	Cam->SetCameraPivot(FVector::ZeroVector);
-	Cam->AddPlanarMovement(FVector2D(1.f, 0.f));
+	// `Axis.Y` e' «avanti sullo schermo»: con yaw a zero coincide con `ForwardVector`, quindi con
+	// l'asse X del mondo. `Axis.X` sarebbe «a destra», cioe' Y — leggere l'asse sbagliato darebbe zero,
+	// e il test fallirebbe per la propria convenzione invece che per un difetto.
+	Cam->AddPlanarMovement(FVector2D(0.f, 1.f));
 	const double AtDefault = FMath::Abs(Cam->GetCameraPivot().X);
 	TestTrue(TEXT("al default lo scorrimento e' non nullo"), AtDefault > KINDA_SMALL_NUMBER);
 
@@ -1737,7 +1740,7 @@ bool FRTCameraPanScaleUnchangedTest::RunTest(const FString&)
 	// sorgente deve conservare.
 	Arm->TargetArmLength = 1600.f;
 	Cam->SetCameraPivot(FVector::ZeroVector);
-	Cam->AddPlanarMovement(FVector2D(1.f, 0.f));
+	Cam->AddPlanarMovement(FVector2D(0.f, 1.f));
 	const double AtDouble = FMath::Abs(Cam->GetCameraPivot().X);
 	TestEqual(TEXT("al doppio della distanza si copre il doppio"), AtDouble, AtDefault * 2.0, AtDefault * 0.01);
 
