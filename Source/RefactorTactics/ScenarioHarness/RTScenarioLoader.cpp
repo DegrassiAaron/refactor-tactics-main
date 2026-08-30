@@ -1180,6 +1180,50 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 
 namespace
 {
+	/**
+	 * L'arena PIATTA di uno scenario contiene questa cella?
+	 *
+	 * 🔴 **Il layer non e' un dettaglio, ed e' cio' che questo predicato aggiunge.** La forma precedente
+	 * era `HexDistance(Cella, FRTCellId(0, 0, Cella.Layer)) > MapRadius`: l'origine costruita **sul layer
+	 * della cella stessa**, quindi il raggio misurato DENTRO quel piano e la domanda «quel piano esiste?»
+	 * mai posta. Ogni layer passava.
+	 *
+	 * `MakeFlatArena` genera `URTHexLibrary::HexArea(Centro, Raggio)`, e `HexArea` tiene il layer del
+	 * CENTRO — che e' lo `0`. ∴ un'arena piatta esiste su **un solo piano**, e un layer diverso e' fuori
+	 * mappa per costruzione, non per convenzione.
+	 *
+	 * ⛔ **Non e' «rifiuta i layer negativi».** Il difetto trovato portava `L=-1`, ma una regola sul segno
+	 * lascerebbe entrare un `L=+7` sulla stessa arena piatta. La domanda e' l'appartenenza, non il segno.
+	 *
+	 * ⚠️ **Vale solo per il raggio piatto.** Con una fixture la forma non e' un raggio e questo predicato
+	 * non si applica: quel caso lo chiude `FRTScenarioSession`, dove l'arena vera e' gia' costruita.
+	 */
+	bool FlatArenaContains(const FRTCellId& Cell, int32 MapRadius)
+	{
+		return Cell.Layer == 0
+			&& URTHexLibrary::HexDistance(Cell, FRTCellId(0, 0, 0)) <= MapRadius;
+	}
+
+	/**
+	 * PERCHE' la cella non ci sta. Da chiamare solo quando `FlatArenaContains` ha gia' detto di no.
+	 *
+	 * ⚠️ **«Fuori dall'arena» da solo manda a cercare nel posto sbagliato**, ed e' esattamente il difetto
+	 * che ha lasciato passare `L=-1` per mesi: su una coordinata planare perfettamente valida — `(-2, 1)`
+	 * dentro un raggio 3 — chi legge quel messaggio controlla il raggio, lo trova giusto, e conclude che
+	 * il messaggio sbaglia. La riga deve dire QUALE delle due condizioni e' caduta.
+	 */
+	FString DescribeFlatArenaMiss(const FRTCellId& Cell, int32 MapRadius)
+	{
+		if (Cell.Layer != 0)
+		{
+			return FString::Printf(
+				TEXT("il layer %d non esiste: senza una fixture l'arena e' PIATTA e ha il solo layer 0"),
+				Cell.Layer);
+		}
+		return FString::Printf(TEXT("distanza %d dal centro, oltre il raggio %d"),
+			URTHexLibrary::HexDistance(Cell, FRTCellId(0, 0, 0)), MapRadius);
+	}
+
 	// --- Validazione, sezione per sezione --------------------------------------------------------
 	//
 	// Stessa disciplina del parser: una funzione per sezione, `false` col motivo in `OutError`. Cio' che
@@ -1194,10 +1238,10 @@ namespace
 		// verificherebbe una condizione che non ha mai creato.
 		for (const FRTScenarioCell& Cell : Scenario.Cells)
 		{
-			if (!bUsesFixture && URTHexLibrary::HexDistance(Cell.Cell, FRTCellId(0, 0, Cell.Cell.Layer)) > Scenario.MapRadius)
+			if (!bUsesFixture && !FlatArenaContains(Cell.Cell, Scenario.MapRadius))
 			{
-				OutError = FString::Printf(TEXT("cella modificata %s fuori dall'arena di raggio %d"),
-					*Cell.Cell.ToString(), Scenario.MapRadius);
+				OutError = FString::Printf(TEXT("cella modificata %s fuori dall'arena: %s"),
+					*Cell.Cell.ToString(), *DescribeFlatArenaMiss(Cell.Cell, Scenario.MapRadius));
 				return false;
 			}
 			if (Cell.MoveCost < 0)
@@ -1551,10 +1595,10 @@ namespace
 					return false;
 				}
 				if (!bUsesFixture
-					&& URTHexLibrary::HexDistance(Moved.Cell, FRTCellId(0, 0, Moved.Cell.Layer)) > Scenario.MapRadius)
+					&& !FlatArenaContains(Moved.Cell, Scenario.MapRadius))
 				{
-					OutError = FString::Printf(TEXT("la variante '%s': cella %s di '%s' fuori dall'arena di raggio %d"),
-						*Variant.Name, *Moved.Cell.ToString(), *Moved.Id, Scenario.MapRadius);
+					OutError = FString::Printf(TEXT("la variante '%s': cella %s di '%s' fuori dall'arena: %s"),
+						*Variant.Name, *Moved.Cell.ToString(), *Moved.Id, *DescribeFlatArenaMiss(Moved.Cell, Scenario.MapRadius));
 					return false;
 				}
 
@@ -1797,14 +1841,19 @@ bool URTScenarioLoader::ValidateUnitPlacement(const FRTTestScenario& Scenario, c
 		return false;
 	}
 
-	// Con una fixture la forma non e' un raggio: che la cella esista lo verifica il RUNNER sulla mappa vera
-	// (vedi `Run`), che e' l'unico posto dove la geometria reale e' disponibile.
+	// Con una fixture la forma non e' un raggio: che la cella esista lo verifica `FRTScenarioSession`
+	// sulla mappa vera, che e' l'unico posto dove la geometria reale e' gia' costruita.
+	//
+	// ⏱️ **Questa riga descriveva una delega che non aveva un'implementazione**, ed e' rimasta cosi'
+	// fino al 2026-08-30: misurato, `PlaceOnCell` posava l'unita' senza chiedere niente alla mappa, e nel
+	// percorso dello scenario non esisteva un solo errore per un'unita' fuori mappa. Il controllo ora c'e'
+	// davvero. Un commento che affida qualcosa a qualcun altro va verificato, non riletto.
 	const bool bUsesFixture = !Scenario.Fixture.IsEmpty();
 	if (!bUsesFixture
-		&& URTHexLibrary::HexDistance(Unit.Cell, FRTCellId(0, 0, Unit.Cell.Layer)) > Scenario.MapRadius)
+		&& !FlatArenaContains(Unit.Cell, Scenario.MapRadius))
 	{
-		OutError = FString::Printf(TEXT("unita' '%s': cella %s fuori dall'arena di raggio %d"),
-			*Unit.Id, *Unit.Cell.ToString(), Scenario.MapRadius);
+		OutError = FString::Printf(TEXT("unita' '%s': cella %s fuori dall'arena: %s"),
+			*Unit.Id, *Unit.Cell.ToString(), *DescribeFlatArenaMiss(Unit.Cell, Scenario.MapRadius));
 		return false;
 	}
 
