@@ -291,6 +291,16 @@ sessions:
          *Perche' non estendere `DA_HexMap_Sandbox`*: il sandbox resta il banco per prove distruttive,
          l'arena e' la mappa **stabile** su cui girano le verifiche — se la stessa mappa fa entrambe
          le cose, un esperimento invalida una verifica e non te ne accorgi.
+         🔴 **AGGIORNAMENTO 2026-08-30: l'intenzione qui sopra NON ha retto, e la frase che la
+         chiude ha descritto in anticipo cio' che e' accaduto.** `DA_HexMap_Arena` e' **un banco di
+         esperimenti** (dichiarato dall'autore), cioe' il ruolo che questo stesso passo assegna al
+         sandbox. Una verifica ancorata a quell'asset non e' riproducibile: `PIE-HEX-VIZ-VELO`,
+         eseguita su `L_HexArena` il 2026-08-30, ha mostrato una board che non si velava e la
+         diagnosi e' passata per due ipotesi sbagliate prima di arrivare all'allestimento.
+         ✅ **Le verifiche si ancorano alle arene GENERATE** — `rt.Map.Source GeneratedTestArena`,
+         `rt.Map.Fixture ArenaV01` — versionate col codice e riproducibili fra macchine, come
+         `MakeTestArena` dichiara. Questo asset resta il prodotto di U1 e il banco d'autore; non e'
+         piu' il riferimento di nessuna verifica automatica o manuale. Vedi #1738.
       2. Editor Mode **Hex Map** → tool **Paint**, `BrushRadius=4`, un click sull'origine: esagono
          pieno di raggio 4 sul layer 0.
       3. 2–3 celle con `bBlocksMovement` e 2–3 celle con `bBlocksLineOfSight` **allineate** fra le due
