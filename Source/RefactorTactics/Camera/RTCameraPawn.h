@@ -281,6 +281,18 @@ public:
 	void SetMaxPeekDistanceForTest(float InMax) { MaxPeekDistance = InMax; }
 
 	/**
+	 * Fissa il passo dello zoom (per i test).
+	 *
+	 * ⚠️ Serve per la stessa ragione di `SetSensitivitiesForTest`: un test sull'isteresi che chiama
+	 * `AddZoom(-1)` una volta **pinna implicitamente** `ZoomStep = 150`, cioe' un valore di taratura. Quel
+	 * test distingue l'isteresi da una soglia sola soltanto finche' un passo di zoom resta piu' piccolo
+	 * del divario fra le due soglie — e anche quel divario e' taratura aperta. Con due numeri liberi in
+	 * gioco il test cadrebbe per una decisione di tuning invece che per un difetto, ed e' esattamente il
+	 * modo in cui una suite comincia a mentire.
+	 */
+	void SetZoomStepForTest(float InStep) { ZoomStep = InStep; }
+
+	/**
 	 * Porta il pivot dove si vuole **scavalcando i soft bounds** (per i test).
 	 *
 	 * Serve per la stessa ragione degli altri `*ForTest`: cio' che un test deve poter stabilire e' uno

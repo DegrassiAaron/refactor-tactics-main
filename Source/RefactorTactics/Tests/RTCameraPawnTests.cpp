@@ -1374,6 +1374,14 @@ bool FRTCameraStrategicHysteresisTest::RunTest(const FString&)
 
 	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
 	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+
+	// ⚠️ **Il passo di zoom e' fissato QUI, e senza questa riga il test mentirebbe per omissione.**
+	// «Un solo scatto indietro non fa uscire» distingue l'isteresi da una soglia sola soltanto se un passo
+	// resta piu' piccolo del divario fra le due soglie (500). Con `ZoomStep` lasciato al default il test
+	// pinnerebbe implicitamente un valore di **taratura aperta**, e cadrebbe il giorno in cui il playtest
+	// lo cambiasse — per una decisione di tuning, non per un difetto.
+	Cam->SetZoomStepForTest(150.f);
+
 	Cam->RecenterView(); // riporta il braccio a 800 e rilegge lo stato
 
 	TestFalse(TEXT("a distanza di default la vista e' tattica"), Cam->IsStrategicView());
@@ -1409,6 +1417,7 @@ bool FRTCameraStrategicThresholdsAreOrderedTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
 
 	Cam->SetArmLengthRangeForTest(800.f, 100.f, 4000.f);
+	Cam->SetZoomStepForTest(150.f);
 
 	// Soglie ROVESCIATE: i due campi sono `BlueprintReadWrite` e il loro `meta = (ClampMin)` vincola il
 	// Details, non un `Set` da Blueprint. Se l'ordine vivesse solo nella documentazione, qui lo stato
@@ -1452,10 +1461,38 @@ bool FRTCameraEffectiveBoundsTest::RunTest(const FString&)
 	const FBox2D Shallow = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -20.f, 0.f, Fov, 16.f/9.f, Fraction);
 	TestTrue(TEXT("a pitch basso il limite e' piu' stretto che a picco"), Shallow.Max.Y < Steep.Max.Y);
 
-	// Ultrawide: piu' schermo in orizzontale, quindi meno margine in X. Su 32:9 il vuoto si vedrebbe ai
-	// due lati insieme.
+	// Ultrawide. ⚠️ **Il messaggio di questa riga diceva il contrario di cio' che l'asserzione misura**, ed
+	// era verde: diceva «32:9 stringe il limite verticale» mentre verifica che sia piu' LARGO. Corretto il
+	// 2026-08-30 rileggendo il diff, non da un test rosso — un messaggio falso in un test verde e' la cosa
+	// piu' difficile da vedere in review, perche' il verde scoraggia dal leggerlo.
+	//
+	// Cio' che l'asserzione dice, ed e' geometricamente corretto a FOV **orizzontale** fisso: un ultrawide
+	// ha un FOV verticale minore, quindi vede meno in profondita' e puo' avvicinarsi di piu' al bordo in
+	// quella direzione.
 	const FBox2D Wide = ARTCameraPawn::ComputeEffectivePivotBounds(Area, 2000.f, -45.f, 0.f, Fov, 32.f/9.f, Fraction);
-	TestTrue(TEXT("32:9 stringe il limite verticale rispetto a 16:9"), Wide.Max.Y > Far.Max.Y);
+	TestTrue(TEXT("a FOV orizzontale fisso, 32:9 ALLARGA il limite verticale rispetto a 16:9"),
+		Wide.Max.Y > Far.Max.Y);
+
+	// 🔴 **Questa riga PINNA UN DIFETTO NOTO, non un comportamento voluto — e va letta prima di
+	// «correggerla».**
+	//
+	// A yaw 0 `ExtentX` vale `HalfWidth`, che non dipende dall'aspect ratio: allargando lo schermo il
+	// limite orizzontale non si muove di un'unita'. E' corretto solo se il FOV **orizzontale** e' davvero
+	// fisso — ma il progetto non imposta `AspectRatioAxisConstraint` (`grep -rn` su `Source/` e `Config/`
+	// non trova nulla), quindi vale il default di UE `AspectRatio_MaintainYFOV`: su schermi larghi resta
+	// fisso il FOV **verticale** e cresce quello orizzontale effettivo, mentre `Camera->FieldOfView` —
+	// che e' cio' che questa funzione riceve — non cambia.
+	//
+	// ∴ su 32:9 l'inset X e' probabilmente **piu' piccolo del dovuto**, cioe' il limite e' piu' permissivo
+	// proprio sul caso che `D-251` esiste per coprire. Non e' stato corretto qui perche' la formula giusta
+	// dipende da quale asse UE consideri «il FOV» sotto quel constraint, e quello si verifica **guardando**
+	// (verifica PIE ultrawide di `#1778`), non deducendo: riscrivere la matematica su una supposizione
+	// produrrebbe numeri diversi con la stessa fiducia.
+	//
+	// ⚠️ Il giorno in cui la formula terra' conto dell'aspect sull'asse X, **questo test diventera' rosso —
+	// ed e' il segnale che la correzione e' arrivata**, non un fallimento da aggirare.
+	TestEqual(TEXT("DIFETTO PINNATO: a yaw 0 il limite orizzontale NON dipende dall'aspect ratio"),
+		Wide.Max.X, Far.Max.X);
 
 	// Yaw 90°: il quadro e' ruotato, e gli assi dell'ingombro si scambiano. Senza questo passaggio i
 	// limiti sarebbero corretti solo con la vista dritta — cioe' proprio dove la rotazione non serve.
