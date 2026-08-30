@@ -272,13 +272,49 @@ Colori, font, ingombro, leggibilità e «centro libero». Il test prova che il w
 non che si veda bene — la stessa distinzione che `RTMatchWidgetAssetTests.cpp` dichiara nel suo docstring.
 Lo Step 7.5 resta aperto: la sua metà funzionale ora ha un gate, la sua metà visiva no.
 
-### Le altre tre che diventerebbero misurabili con la stessa catena
+### Le altre tre, scritte lo stesso giorno
 
-Non scritte qui — il pilota serviva a sapere se la catena regge, e regge:
+Su un secondo scenario, `Spec.Hud.MatchWithTwoAllies` — due alleate e un'avversaria, perché con una sola
+alleata «solo la propria squadra» non significherebbe niente.
 
-- **5.5** — `Sprint` occupa `MovementAndMain`: due celle accese insieme, lette da `GetSlots()`.
-- **3.6** — il `RoundLimit` viene dal formato e non da una costante: due scenari con formati diversi.
-- **4.5** — il roster mostra le sole unità proprie e tiene in lista quella abbattuta (l'opacità no).
+| Test | Cosa fissa |
+|---|---|
+| `RosterShowsOnlyOwnTeamAndKeepsTheFallen` | il roster elenca le due alleate e **nessuna** avversaria, e tiene in lista chi è a zero HP |
+| `SlotsAreReadNotDeduced` | i tre slot si leggono uno per uno: un percorso occupa MOVEMENT e **lascia MAIN libero** |
+| `RoundLimitComesFromTheFormat` | il contatore segue il formato — 12, poi 7, poi nessun limite — **e** `RoundText.Text` è legato a `GetRoundCounterText` |
+
+**`RefactorTactics.ScreenHud` passa da 9 a 13 test**, tutti `Success`, run `VALIDA`.
+
+#### 🔺 Lo Step 5.5 chiedeva una prova che non è più eseguibile
+
+Dice: *«pianificando uno `Sprint` si accendono MOVEMENT e MAIN insieme — è la prova che il widget legge i
+tre campi invece di dedurli»*. Ma **nessuna azione dei cataloghi dichiara oggi `MovementAndMain`**:
+`Action.Sprint` lo faceva fino a **D-028**, e lo scrivono sia `RTCatalogLibrary.h` sia `BuildUnitSlots` —
+quella riga di codice è *«inerte, non superflua: torna a contare il giorno che un kit usa quella forma»*.
+
+La prova equivalente eseguibile oggi è l'**indipendenza** dei tre campi, ed è quella che il test fissa: un
+percorso occupa MOVEMENT e lascia MAIN libero; un'azione principale occupa MAIN e lascia REACTION libera.
+Un pannello che deducesse uno slot dall'altro — *«se ho pianificato qualcosa, allora ho speso il turno»* —
+cadrebbe. È la stessa domanda dello step, posta a un catalogo che nel frattempo è cambiato.
+
+#### La prova che nemmeno questi sono vacui
+
+Il filtro di squadra di `BuildTeamRoster` è stato rimosso, ricompilato, ed eseguito:
+
+```text
+Expected 'il roster ha una riga per alleata, e nessuna per l'avversaria' to be 2, but it was 3
+```
+
+Poi ripristinato **e ricompilato** — `rt-suite` non rileva un binario stantio, quindi senza il secondo
+rebuild avrebbe dichiarato `VALIDA` misurando codice che non esiste più. Verde riconfermato a **13/13**,
+con l'albero tornato al digest di prima della mutazione.
+
+### Cosa resta delle sei «verifiche a schermo»
+
+Le caselle **restano vuote**, e non per pignoleria: la loro metà funzionale ora ha un gate, la metà visiva
+no. Quello che nessun test copre è ciò per cui `PIE-V01-HUD` esiste — leggibilità a risoluzione di gioco,
+ingombro delle quattro zone, **centro libero**, coerenza durante il playback della risoluzione, e il debug
+spento nella vista giocatore.
 
 ---
 
@@ -928,7 +964,7 @@ Su `TimerText` → `Visibility` → **Bind** → `HasMatchContext` (`Visible` / 
 
 Apri `WBP_RT_TacticalHUD` e trascina `WBP_RT_TurnHeader` nella zona **Top**.
 
-- [ ] **Step 3.6 — Verifica in PIE** — ⛔ *verifica a schermo: richiede l'Editor*
+- [ ] **Step 3.6 — Verifica in PIE** — ⛔ *verifica a schermo* · ✅ *il limite dal formato è coperto da `RoundLimitComesFromTheFormat`*
 
 **PLAY** su `L_HexArena`. Atteso: `Round 1/12` (o il limite del formato caricato), la fase corrente che
 cambia avanzando il turno, e il timer che scorre in Planning.
@@ -984,7 +1020,7 @@ della firma, non una disciplina. Se serve una vista avversaria, **non** si aggir
 `Get All Actors Of Class` — la privacy è verificata in `FilterForTeam`, e un secondo filtro nel widget
 sarebbe una seconda verità da tenere allineata.
 
-- [ ] **Step 4.5 — Innesta e verifica** — ⛔ *verifica a schermo: richiede l'Editor*
+- [ ] **Step 4.5 — Innesta e verifica** — ⛔ *verifica a schermo* · ✅ *la parte funzionale è coperta da `RosterShowsOnlyOwnTeamAndKeepsTheFallen`*
 
 Trascina nella zona **Left** di `WBP_RT_TacticalHUD`. **PLAY**.
 
@@ -1051,7 +1087,7 @@ come uno scudo rotto invece che come uno scudo assente.
 ⚠️ **Non sono tre booleani indipendenti.** `Action.Sprint` dichiara `MovementAndMain` e ne occupa **due**.
 Chi lo decide è il catalogo, non il widget: leggi i tre campi e disegnali, non dedurne uno dagli altri.
 
-- [ ] **Step 5.5 — Innesta e verifica** — ⛔ *verifica a schermo: richiede l'Editor*
+- [ ] **Step 5.5 — Innesta e verifica** — ⛔ *verifica a schermo* · 🔺 *la prova con `Sprint` non è più eseguibile (D-028); l'indipendenza dei tre slot è coperta da `SlotsAreReadNotDeduced`*
 
 Zona **Bottom**, a sinistra. **PLAY**, seleziona un'unità e pianifica.
 
