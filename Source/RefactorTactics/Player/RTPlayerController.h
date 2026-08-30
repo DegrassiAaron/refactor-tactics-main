@@ -22,14 +22,6 @@ class REFACTORTACTICS_API ARTPlayerController : public APlayerController
 
 public:
 	/**
-	 * Squadra comandata da questo giocatore: si selezionano e si pianificano SOLO le unita' con questo TeamId
-	 * (regola in URTCombatLibrary::CanPlayerControlUnit). Nel demo il team 1 e' del bot. In multiplayer arrivera'
-	 * dal PlayerState, ma la regola di autorita' resta la stessa.
-	 */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|Player")
-	int32 PlayerTeamId = 0;
-
-	/**
 	 * Il presenter del velo di QUESTO client, creato alla prima richiesta.
 	 *
 	 * 🔑 **Il viewer appartiene al giocatore, non alla partita** (`E-SOLID` fetta 4). Fino a quel refactor la
@@ -607,10 +599,10 @@ public:
 	 * **La sessione non e' presidiata**: la pianificazione umana non deve agganciare niente (#971).
 	 *
 	 * Con l'autobattle in vigore entrambe le squadre sono del bot, ma il percorso di input non lo sapeva:
-	 * `URTCombatLibrary::CanPlayerControlUnit` decide su `UnitTeamId == PlayerTeamId` e per lui la squadra 0
-	 * resta del giocatore. Un click selezionava ancora, un ordine si scriveva ancora, e `PlanBots` lo
-	 * sovrascriveva il turno dopo senza dirlo. La modalita' esiste per essere **registrata in video**: il
-	 * difetto e' di coerenza, e il filmato e' l'artefatto.
+	 * `URTCombatLibrary::CanPlayerControlUnit` decide su `UnitTeamId == ARTPlayerState::TeamIdOf(this)` e
+	 * per lui la squadra 0 resta del giocatore. Un click selezionava ancora, un ordine si scriveva ancora,
+	 * e `PlanBots` lo sovrascriveva il turno dopo senza dirlo. La modalita' esiste per essere **registrata
+	 * in video**: il difetto e' di coerenza, e il filmato e' l'artefatto.
 	 *
 	 * 🔴 **Perche' non e' una seconda causa dentro `IsGameplayInputBlocked`**, che sarebbe stata una riga
 	 * sola e copriva sei punti d'ingresso per costruzione: quel funnel include `OnRestart`, che agisce

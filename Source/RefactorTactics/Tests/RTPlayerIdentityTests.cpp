@@ -12,6 +12,7 @@
 #include "Player/RTPlayerController.h"
 #include "Player/RTPlayerState.h"
 #include "Tests/RTWorldFixtures.h"
+#include "UObject/UnrealType.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -125,6 +126,39 @@ bool FRTPlayerFixtureReplacesDefaultPlayerStateTest::RunTest(const FString&)
     TestEqual(TEXT("con la squadra chiesta"), ARTPlayerState::TeamIdOf(PC), 1);
 
     RTWorldFixtures::DestroyWorld(World);
+    return true;
+}
+
+/**
+ * 🔴 **Il campo editabile non deve tornare.** E' cosi' che il letterale e' tornato la prima volta.
+ *
+ * Interroga la classe REALE con la reflection, non un elenco scritto qui: chi riaprisse la proprieta'
+ * trova rosso senza che nessuno aggiorni il test. E' lo stesso modello di
+ * `Heroes.AbilityIdsAreNamespacedUnderTheirHero` e `Unit.CanonicalHeroIdHasNoLegacyName`.
+ *
+ * ⚠️ **Limite dichiarato**: coglie il campo riaperto, NON un lettore nuovo che inlinei
+ * `Cast<ARTPlayerState>(PC->PlayerState)->GetTeamId()` duplicando il ripiego. Contro quello la difesa e' la
+ * prosa su `TeamIdOf`, ed e' una difesa parziale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerControllerHasNoTeamFieldTest,
+    "RefactorTactics.Player.ControllerCarriesNoTeamField",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerControllerHasNoTeamFieldTest::RunTest(const FString&)
+{
+    TArray<FString> Colpevoli;
+    for (TFieldIterator<FProperty> It(ARTPlayerController::StaticClass(),
+             EFieldIteratorFlags::ExcludeSuper); It; ++It)
+    {
+        const FString Nome = It->GetName();
+        if (Nome.Contains(TEXT("TeamId")))
+        {
+            Colpevoli.Add(Nome);
+        }
+    }
+
+    TestEqual(*FString::Printf(TEXT("nessuna UPROPERTY di squadra sul controller (trovate: %s)"),
+            Colpevoli.Num() > 0 ? *FString::Join(Colpevoli, TEXT(", ")) : TEXT("nessuna")),
+        Colpevoli.Num(), 0);
     return true;
 }
 

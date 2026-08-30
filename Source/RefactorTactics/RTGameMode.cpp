@@ -424,7 +424,7 @@ void ARTGameMode::BeginPlay()
 URTKnowledgeVeilPresenter* ARTGameMode::GetKnowledgeVeilPresenter()
 {
 	// 🔑 **DOVE VIVE IL PRESENTER, in una riga.** Il proprietario naturale e' il client che guarda: se c'e'
-	// un `ARTPlayerController`, il presenter e' suo e il viewer e' il suo `PlayerTeamId`.
+	// un `ARTPlayerController`, il presenter e' suo e il viewer e' la sua squadra (`ARTPlayerState::TeamIdOf`).
 	if (ARTPlayerController* PC = Cast<ARTPlayerController>(
 			UGameplayStatics::GetPlayerController(this, 0)))
 	{
