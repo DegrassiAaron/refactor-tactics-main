@@ -411,4 +411,90 @@ bool FRTHexVisionReasonAgreesWithHasLineOfSightTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * La ragione tiene su TUTTE le fixture spedite — cioe' su geometria vera, non su un'arena piatta.
+ *
+ * 🔴 **E' il buco che questo test chiude, e vale nominarlo.** I quattro test di comportamento qui sopra e la
+ * parita' su 1369 coppie girano tutti su `MakeFlatArena`: un esagono pieno in cui gli unici ostacoli sono
+ * quelli che il test stesso ha piantato. Le fixture del corpus hanno invece copertura, muri interni e porte
+ * messi da chi le ha disegnate — ed e' li' che una regola sbagliata si nasconde, perche' nessuno l'ha
+ * costruita apposta per il test.
+ *
+ * Due proprieta', e la seconda e' quella nuova:
+ *
+ * 1. `DescribeLineOfSight(...).IsClear()` coincide con `HasLineOfSight` su **ogni** coppia ordinata;
+ * 2. ⛔ **un verdetto `BLOCKED` nomina SEMPRE una causa.** Se `Block` restasse `None` su una linea che non
+ *    passa, l'ispettore di #1755 scriverebbe `BLOCKED` con `Reason: unavailable` — plausibile, e falso:
+ *    la causa c'era, e si e' persa fra il ciclo e la struct.
+ *
+ * ⚠️ **Le arene si enumerano da `KnownFixtureIds()`**, che e' derivata dalla stessa tabella che le
+ * dispaccia. Un elenco scritto a mano qui invecchierebbe alla prima fixture nuova — ed e' il difetto che
+ * `#1459` ha gia' pagato in tre punti diversi.
+ *
+ * ⚠️ **Il corpus non si itera per SCENARIO.** I 92 file di `Scenarios/` collassano su poche arene distinte:
+ * misurarli tutti proverebbe dieci volte la stessa geometria e lo chiamerebbe copertura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexVisionReasonHoldsOnEveryFixtureTest,
+	"RefactorTactics.HexVision.ReasonHoldsOnEveryShippedFixture",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexVisionReasonHoldsOnEveryFixtureTest::RunTest(const FString&)
+{
+	const TArray<FString> Fixtures = URTMatchSetupLibrary::KnownFixtureIds();
+	if (!TestTrue(TEXT("il progetto dichiara almeno una fixture"), Fixtures.Num() > 0))
+	{
+		return false;
+	}
+
+	int64 TotalPairs = 0;
+	int64 TotalBlocked = 0;
+	bool bAgrees = true;
+	bool bEveryBlockNamesItsCause = true;
+
+	for (const FString& FixtureId : Fixtures)
+	{
+		URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), FixtureId);
+		if (!TestNotNull(*FString::Printf(TEXT("la fixture '%s' si costruisce"), *FixtureId), Map))
+		{
+			continue;
+		}
+
+		int64 Pairs = 0;
+		int64 Blocked = 0;
+		for (const FRTHexCellData& From : Map->Cells)
+		{
+			for (const FRTHexCellData& To : Map->Cells)
+			{
+				const FRTLineOfSightResult R = URTHexVisionLibrary::DescribeLineOfSight(Map, From.Id, To.Id);
+				bAgrees &= (R.IsClear() == URTHexVisionLibrary::HasLineOfSight(Map, From.Id, To.Id));
+				if (!R.IsClear())
+				{
+					++Blocked;
+					// La proprieta' nuova: nessun blocco senza una causa nominata.
+					bEveryBlockNamesItsCause &= (R.Block != ERTLineOfSightBlock::None);
+				}
+				++Pairs;
+			}
+		}
+
+		// ⛔ Nessun limite silenzioso: quante coppie sono state guardate su ciascuna arena si LEGGE, invece
+		// di dedurlo dal fatto che il test e' verde.
+		AddInfo(FString::Printf(TEXT("%s: %d celle, %lld coppie, %lld bloccate"),
+			*FixtureId, Map->Cells.Num(), Pairs, Blocked));
+
+		TotalPairs += Pairs;
+		TotalBlocked += Blocked;
+	}
+
+	TestTrue(TEXT("il corpus di coppie non e' vuoto"), TotalPairs > 1000);
+
+	// 🔴 La guardia che impedisce a questo test di essere verde su NIENTE: se nessuna fixture avesse un
+	// ostacolo, le due asserzioni qui sotto passerebbero su un corpus di sole linee libere, e il test
+	// misurerebbe la propria inutilita' senza dirlo.
+	TestTrue(TEXT("e contiene coppie davvero bloccate, altrimenti non misura la ragione"), TotalBlocked > 0);
+
+	TestTrue(TEXT("su ogni coppia il bool e' `ragione == None`"), bAgrees);
+	TestTrue(TEXT("e ogni BLOCKED nomina la propria causa"), bEveryBlockNamesItsCause);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
