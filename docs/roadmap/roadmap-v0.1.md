@@ -1516,7 +1516,7 @@ vera per **E21.2** ed **E21.3**, che l'editor lo richiedono davvero: prima di er
 | CP | Obiettivo | DoD misurabile | Test / verifica |
 |---|---|---|---|
 | **E21.1** | Personaggi sui centri esagonali | I `BP_Unit_*` (Paragon) sono posati sui centri, a terra, senza compenetrazione; se l'asset manca si vede il cilindro, non un buco | `PIE-AS2`, `PIE-FACING` |
-| **E21.2** | Animazioni di locomozione e impatto | `ABP_*` con Idle↔Run nella fase Move; montaggi Cast/Hit/Death nel Blast. **La morte visiva resta differita**: la presentazione non decide (invariante #1) | `PIE-AS4a`, `PIE-AS4b` |
+| **E21.2** | Animazioni di locomozione e impatto | Idle↔Run nella fase Move, dal grafo C++ `URTUnitAnimInstance` (⚠️ *questa cella diceva «`ABP_*`» fino al 2026-08-30: è la via che il CP stesso ha scartato il 2026-08-25 — [D-248](../decisions/RT_PDR_00_Decision_Log.md)*); montaggi Cast/Hit/Death nel Blast. **La morte visiva resta differita**: la presentazione non decide (invariante #1) | `PIE-AS4a`, `PIE-AS4b` |
 | **E21.3** | Leggibilità tattica | `M_TeamRing` e `M_SelectionRing` assegnati; colori delle superfici leggibili **in partita**, non solo nell'overlay dell'editor; camera tarata su scala esagonale | `PIE-AS5`, `PIE-SEL` + giudizio a schermo |
 
 > ✅ **Il ceiling della v0.1 è fissato da [D-124](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-12).**

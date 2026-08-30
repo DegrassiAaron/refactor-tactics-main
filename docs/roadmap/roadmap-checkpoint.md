@@ -283,7 +283,7 @@ fallback, facing, eventi di montaggio, anello di team); manca il lavoro **in edi
 | CP | Obiettivo | Definition of Done | Verifica |
 |---|---|---|---|
 | **M8.1** | Personaggi su hex | `BP_Unit_*` (Paragon) posati sui centri esagonali, a terra, senza compenetrazione; fallback al cilindro se l'asset manca | `PIE-AS2`, `PIE-FACING` |
-| **M8.2** | Animazioni | `ABP_*` con locomozione Idle↔Run in fase Move; montaggi Cast/Hit/Death nel Blast; la morte visiva resta differita (la presentazione non decide, invariante #1) | `PIE-AS4a`, `PIE-AS4b` |
+| **M8.2** | Animazioni | Locomozione Idle↔Run in fase Move dal grafo C++ `URTUnitAnimInstance` (⚠️ *diceva «`ABP_*`» fino al 2026-08-30 — [D-248](../decisions/RT_PDR_00_Decision_Log.md)*); montaggi Cast/Hit/Death nel Blast; la morte visiva resta differita (la presentazione non decide, invariante #1) | `PIE-AS4a`, `PIE-AS4b` |
 | **M8.3** | Leggibilità tattica | `M_TeamRing` + `M_SelectionRing` assegnati; colori delle superfici leggibili in partita (non solo nell'overlay dell'editor); camera tarata (pitch/distanza) sulla scala esagonale | `PIE-AS5`, `PIE-SEL` + giudizio a schermo |
 
 **DoD di milestone**: sessione C di `test-manuali-pie.md` completamente verde · nessun cilindro nel gioco a

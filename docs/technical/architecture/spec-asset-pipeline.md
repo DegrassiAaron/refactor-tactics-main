@@ -242,8 +242,11 @@ Un asset è **accettabile** solo se soddisfa criteri verificabili:
 ### 7.5 Collegare Skeletal Mesh + AnimBlueprint sull'Actor
 
 1. UE5 mannequin: **SKM_Manny** / **SKM_Quinn** con IK Rig condiviso **IK_Mannequin** (target di retarget).
-2. Sul **Skeletal Mesh Component** → **Details > Animation** → **Animation Mode = Use Animation Blueprint** →
-   **Anim Class = ABP_Unit**.
+2. ⚠️ **Superato dal 2026-08-25**: la `Anim Class` **non si assegna a mano**. `ARTUnit::ApplyUnitAnimClass()`
+   applica `URTUnitAnimInstance` — il grafo di locomozione, che vive in C++ — allo spawn, e una `Anim Class`
+   già scelta in Blueprint vince comunque, quindi la via manuale resta aperta per un esperimento.
+   [D-248](../../decisions/RT_PDR_00_Decision_Log.md). *Diceva: «Animation Mode = Use Animation Blueprint →
+   Anim Class = `ABP_Unit`».*
 3. **[da verificare in editor]** nome esatto dell'asset **Skeleton** condiviso da SKM_Manny/Quinn (confermati mesh
    e IK Rig, non il nome dello Skeleton).
 - Fonti: `.../third-person-template-in-unreal-engine` · `.../skeletal-mesh-animation-system-in-unreal-engine` ·
@@ -306,7 +309,7 @@ Esempi (Given/When/Then) per lo **slice 1 — aspetto unità**:
 | ID | Cosa | Verifica |
 |----|------|----------|
 | **AS.1** | Refactor `ARTUnit`: `SkeletalMeshComponent` opzionale + `VisualZOffset` + spawn via `TSubclassOf` per archetipo, **fallback cilindro** | Test C++ (fallback: senza skeletal l'unità resta valida) + 60 test verdi |
-| **AS.2** | `BP_Unit` + `ABP_Unit` minimale (Idle+Run) su un archetipo (Ranger), da Fab/Paragon o Mixamo | PIE: **si vede il personaggio muoversi** in Move |
+| **AS.2** | ~~`BP_Unit` + `ABP_Unit` minimale (Idle+Run) su un archetipo (Ranger)~~ → oggi: `BP_Unit_<Pack>` con la Skeletal Mesh; l'`ABP_Unit` **non esiste**, il grafo Idle/Run è in C++ ([D-248](../../decisions/RT_PDR_00_Decision_Log.md)) | PIE: **si vede il personaggio muoversi** in Move |
 | **AS.3** | Set anim retargetato (Idle/Run/Attack/Hit/Death) su Manny (§7.3) | PIE: le clip girano correttamente |
 | **AS.4** | Anim pilotate dai delegate (Attack/Hit/Death) sincronizzate col playback (§4.2) | PIE: colpo/morte coerenti con `spec-anima` |
 | **AS.5** | Identità di team (anello/decal a terra o outline) | PIE: team leggibili a colpo d'occhio |
@@ -439,6 +442,14 @@ Branch `feat/skeletal-units`. **Parte C++ di AS.1 completata in TDD** (editor ch
 → **70/70 verdi, 0 falliti** (4 test nuovi: 3 CellToWorldElevated + 1 DirectionYaw). Nessuna regressione (default
 `VisualZOffset=90` e `bFaceMovementDirection=false` preservano il comportamento del cilindro).
 
-**Aperto — AS.2 (editor, con guida)**: creare `BP_Unit` Ranger/Guardian con `SkeletalMeshComponent` + `ABP_Unit`,
-`VisualZOffset=0`, e assegnarli a `RangerUnitClass`/`GuardianUnitClass`; importare il primo personaggio
-(Fab/Mixamo); ridefinire l'identità di team con un personaggio texturizzato (§4.1).
+🔴 **~~Aperto — AS.2~~ — chiuso e riscritto il 2026-08-30** ([#1720](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1720)).
+*Diceva: «creare `BP_Unit` Ranger/Guardian con `SkeletalMeshComponent` + `ABP_Unit`, `VisualZOffset=0`, e
+assegnarli a `RangerUnitClass`/`GuardianUnitClass`».* **Nessuna delle tre cose regge più**: i Blueprint del
+roster ([D-120](../../decisions/RT_PDR_00_Decision_Log.md): Gadget · Phase · Riktor · Wraith) sono **già
+committati**; l'`ABP_Unit` non va creato perché il grafo è in C++
+([D-248](../../decisions/RT_PDR_00_Decision_Log.md)); e `RangerUnitClass`/`GuardianUnitClass` sono oggi
+`HeroUnitClasses`, popolata dal costruttore ([#287](https://github.com/DegrassiAaron/refactor-tactics-main/issues/287)).
+
+**Aperto davvero, oggi**: la **Skeletal Mesh** su Phase, Riktor e Wraith ([#1719](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1719)) e i
+dodici montaggi `AM_*` ([#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288)). L'identità di team con personaggio texturizzato (§4.1)
+resta da ridefinire.

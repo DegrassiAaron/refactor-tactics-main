@@ -104,8 +104,8 @@ Lo stato di una seduta è **derivato**, mai dichiarato a mano: se non si ricava 
 | **U4** | Combat e linea di tiro | verdetto su forme, LOS, knockback | CP 6.4, CP 6.5 | sì | ⏳ |
 | **U5** | Bot e HUD | verdetto + pesi utility tarati su hex | CP 6.6, CP 6.7 | sì | ⏳ |
 | **U6** | Multilivello e partita completa | **chiude M6 / E2** | CP 6.8 | sì | ⏳ |
-| **U7** | Personaggi Paragon | `BP_Unit_Guardian`, `BP_Unit_Ranger` | già in `main` | no | ⏳ |
-| **U8** | Animazioni | `ABP_*` + montaggi | U7 | no | ⏳ |
+| **U7** | Personaggi Paragon | Skeletal Mesh sui `BP_Unit_<Eroe>` del roster | già in `main` | no | 🟡 |
+| **U8** | Animazioni | i dodici montaggi `AM_*` (il grafo è in C++) | U7 | no | ⏳ |
 | **U9** | Leggibilità e riferimento visivo | video di riferimento (DoD di M8) | U7, U8 | no | ⏳ |
 | **U10** | Data asset delle azioni | catalogo azioni come dati | CP 1.3, CP 1.4 | sì | ⏳ |
 | **U11** | I 4 eroi | `DA_Hero_*` + spawn 2v2 | E6 | sì | ⏳ |
@@ -258,30 +258,56 @@ anello di team). **Fuori percorso critico**: nessuna di queste sedute blocca la 
 ### U7 · Personaggi Paragon ⏳
 
 **Sbloccata da**: già in `main` · **Preparazione condivisa con**: U8, U9 · **Percorso critico**: no
-**Produce**: `BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow), committati
+**Produce**: la **Skeletal Mesh agganciata** sui quattro `BP_Unit_<Eroe>` del roster, committati
+**Issue**: [#1719](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1719) — è la seduta che
+finora non aveva un owner su GitHub
+
+🔴 *Questa seduta diceva di **produrre** `BP_Unit_Guardian` (Gideon) e `BP_Unit_Ranger` (Sparrow).
+Corretta il 2026-08-30 ([#1720](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1720)): quei
+due Blueprint non esistono e sono fuori roster ([D-120](../decisions/RT_PDR_00_Decision_Log.md) dice
+**Gadget · Phase · Riktor · Wraith**), i quattro `BP_Unit_<Eroe>` reali sono **già committati**, e
+`GuardianUnitClass`/`RangerUnitClass` sono oggi `HeroUnitClasses`, popolata dal costruttore C++
+([#287](https://github.com/DegrassiAaron/refactor-tactics-main/issues/287)). Il lavoro che resta non è
+creare i Blueprint: è agganciarci la mesh.*
 
 **Cosa fai**: i 26 pack Paragon sono in `Content/FabAsset/Paragon/` — path `/Game/FabAsset/Paragon/<Pack>/…`,
-non più `/Game/<Pack>/…` (`convenzioni-contenuti-ue.md` appendice B). ⚠️ Gideon, Sparrow e altri 3 pack sono
-stati danneggiati dalla migrazione del 2026-08-06 e **vanno riscaricati da Fab** prima di usarli.
-Procedura: [`guida-animazioni-paragon.md`](../technical/runbooks/guida-animazioni-paragon.md) §AS.3 e §AS.4 punto 4.
+non più `/Game/<Pack>/…` (`convenzioni-contenuti-ue.md` appendice B). Su **Gadget** la Skeletal Mesh è già
+agganciata; su **Phase**, **Riktor** e **Wraith** no, e le tre unità si vedono deformate perché il grafo
+anima una mesh che non c'è. Lo skeleton si legge **dalla mesh**, non dal nome del file, e la mesh di Phase
+si chiama `Phase_GDC`. Procedura:
+[`guida-animazioni-paragon.md`](../technical/runbooks/guida-animazioni-paragon.md) §AS.3 e §AS.4a.
 Collocazione: `/Game/RT/Characters/<CharacterId>/Blueprints/` (§5); i pack di terze parti restano **fuori** da
-`/Game/RT`. Assegna le classi a `GuardianUnitClass` / `RangerUnitClass` e tieni `VisualZOffset=0`.
+`/Game/RT`. Tieni `VisualZOffset=0` e verifica `MeshYawOffset` con `FacingArrow`.
 
-**Verifichi**: `PIE-AS2`, `PIE-FACING`
-**Finita quando**: i Blueprint sono committati e le due voci hanno esito reale sui BP nuovi
+⚠️ **Un Blueprint per volta**: due `.uasset` non si fondono. I tre eroi sono tre file distinti, quindi il
+lavoro è parallelizzabile — ma non sullo stesso.
+
+**Verifichi**: `PIE-AS2`, `PIE-FACING`, `PIE-AS4a` (✅ su Gadget, ⏳ sugli altri tre)
+**Finita quando**: i Blueprint sono committati e le voci hanno esito reale su **tutti e quattro** gli eroi
 **Sblocca**: U8
 
 ### U8 · Animazioni ⏳
 
 **Sbloccata da**: U7 · **Preparazione condivisa con**: U7, U9 · **Percorso critico**: no
-**Produce**: `ABP_Gideon`, `ABP_Sparrow` e i montaggi Cast/Hit/Death
+**Produce**: i **dodici montaggi** `AM_<Pack>_{Attack,Hit,Death}` per Gadget · Phase · Riktor · Wraith
+**Issue**: [#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288), di cui questa seduta
+è la verifica residua `PIE-AS4b`
 
-**Cosa fai**: procedura completa in [`guida-animazioni-paragon.md`](../technical/runbooks/guida-animazioni-paragon.md) §AS.4a
-(locomozione Idle↔Run pilotata dai delegate, **non** da `GetVelocity`) e §AS.4b (montaggi via eventi C++),
-più §«Ripetere per il Ranger» per il duplicato.
+🔴 *Questa seduta diceva di produrre `ABP_Gideon` e `ABP_Sparrow`. Corretta il 2026-08-30
+([#1720](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1720)): **nessun AnimBlueprint va
+creato**. Il grafo di locomozione vive in C++ (`URTUnitAnimInstance`) dal 2026-08-25, lo slot dei montaggi
+è già la radice di quel grafo, e la classe la assegna `ARTUnit::ApplyUnitAnimClass()` allo spawn —
+[D-248](../decisions/RT_PDR_00_Decision_Log.md). Quattro `.uasset` di animazione costerebbero ~2,8 MB
+contro gli 0,7 MB che pesa tutto `Content/` versionato.*
 
-**Verifichi**: `PIE-AS4a`, `PIE-AS4b`
-**Finita quando**: gli asset sono committati e le due voci hanno esito reale · **Sblocca**: U9
+**Cosa fai**: solo i montaggi. Procedura in
+[`guida-animazioni-paragon.md`](../technical/runbooks/guida-animazioni-paragon.md) §AS.4b: crea gli `AM_*`
+dalle clip di §AS.3b — ⚠️ **sei caselle su venti non si chiamano come ci si aspetta**, si misurano — e
+implementa i tre eventi `PlayAttackMontage`/`PlayHitMontage`/`PlayDefeatMontage` sui `BP_Unit_<Eroe>`.
+Niente bind, niente branch, niente cast: li chiama il `TurnManager` da solo.
+
+**Verifichi**: `PIE-AS4b` (la locomozione `PIE-AS4a` è di U7, insieme alla mesh)
+**Finita quando**: i dodici montaggi sono committati e la voce ha esito reale · **Sblocca**: U9
 
 ### U9 · Leggibilità e riferimento visivo ⏳
 
