@@ -182,6 +182,14 @@ bool FRTSeatsComeFromTheFormatTest::RunTest(const FString&)
     UWorld* World = RTWorldFixtures::MakeWorld();
     if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
+    // 🔴 SENZA questa riga `GetWorld()->GetPlayerControllerIterator()` in `AssignSeats` e' VUOTO: senza
+    // `InitializeActorsForPlay` il mondo non e' `AreActorsInitialized()`, `AActor::PostActorConstruction`
+    // salta `PostInitializeComponents()` per ogni Actor spawnato dopo — e `AController::AddController`,
+    // che popola `PlayerControllerList`, vive proprio li'. Stessa premessa gia' documentata per
+    // `InitPlayerState` in `FRTPlayerFixtureReplacesDefaultPlayerStateTest` piu' sopra: e' la stessa
+    // chiamata mancante, e qui morde su un lettore diverso (l'iteratore, non lo stato).
+    World->InitializeActorsForPlay(FURL());
+
     // ⚠️ La mappa si costruisce con `MakeFlatArena` e si assegna a mano, come fa
     // `RTMatchFormatWorldTests`: cosi' l'allestimento non emette l'avviso dell'arena generata e il test non
     // deve dichiarare un `AddExpectedError` il cui conteggio andrebbe misurato a parte.
@@ -236,6 +244,11 @@ bool FRTSeatCountFollowsUnitsPerPlayerTest::RunTest(const FString&)
     // rimasto fuori.
     UWorld* World = RTWorldFixtures::MakeWorld();
     if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+    // Vedi `FRTSeatsComeFromTheFormatTest` per il perche': senza questa riga il mondo non e'
+    // `AreActorsInitialized()`, `AddController` non corre mai, e i tre controller sotto restano invisibili
+    // a `GetPlayerControllerIterator()`.
+    World->InitializeActorsForPlay(FURL());
 
     ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
     if (HexMap)
