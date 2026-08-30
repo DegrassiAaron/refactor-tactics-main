@@ -334,6 +334,19 @@ prima è il modo più diretto per rendere la camera imprevedibile. Resta backlog
 | Scenari | ❌ **zero** — [`scenario-map.md`](../tooling/scenario-map.md) lo dichiara, con la motivazione |
 | Input | ✅ `PlayerInput.HotkeysDoNotCollide`, che **era citato e non esisteva** |
 
+> ✅ **Misura registrata il 2026-08-30**: suite intera **`VALIDA · 1442/1442 completati, 0 fallimenti`**
+> su `aedc4656` (il merge di `origin/main` nel branch di E49). Letta nel log e non dedotta dall'exit code —
+> `Found 1442` in testa, `EXIT CODE: 0` in fondo, **zero** `Result={Fail}`, e i due numeri che coincidono,
+> quindi la run non si è troncata.
+>
+> ⚠️ **La misura è sul merge, non sul branch isolato**, e la differenza non è formale: `origin/main` era
+> avanti di 31 commit e aveva toccato `RTUnit.cpp`, che i test camera esercitano istanziando `ARTUnit`.
+> Una misura sul branch isolato non avrebbe detto nulla su quell'interazione.
+>
+> 🔵 **Una run precedente — `1428/1428, 0 fail` — non è registrabile** e non è stata riclassificata dopo:
+> `HEAD` era cambiato a run iniziata perché un'altra sessione aveva fatto checkout nella working directory
+> condivisa (`D-222`). Una misura vale o non vale **prima** di sapere come è andata.
+
 Una feature camera è **Done** solo se: funziona in Editor **e** in packaged build; non modifica autorità
 gameplay; non altera LOS, targeting o pathfinding; regge un input rimappabile; gestisce l'interruzione
 manuale; espone debug visuale o log dove serve; ha almeno un automation test o una voce PIE; non produce

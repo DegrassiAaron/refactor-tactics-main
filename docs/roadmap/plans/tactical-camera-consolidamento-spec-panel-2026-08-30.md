@@ -187,3 +187,25 @@ Feature Lab sono mappe, volumi e materiali.
 `AllowedOutsideFraction` — e ognuna ha un default scelto perché plausibile. Finché non esiste un posto
 dove guardarli, quei numeri diventano canone per inerzia: è esattamente il difetto che il principio 4
 dell'epic vieta, e che rimandare la Feature Lab produce da sé.
+
+### 9.5 La misura, e i due tentativi che non contano
+
+| # | Filtro | Su | Esito | Registrabile |
+|---|---|---|---|---|
+| 1 | `RefactorTactics.Camera` | `56849dac` | 28/28, 0 fail · `VALIDA` | ✅ sì — ma non copriva l'ultimo commit |
+| 2 | `RefactorTactics` | `51e6635d` | 1428/1428, 0 fail | ❌ **no** — `HEAD` cambiato a run iniziata |
+| 3 | `RefactorTactics` | **`aedc4656`** | **1442/1442, 0 fail · `VALIDA`** | ✅ **sì** |
+
+🔴 **La 2 è l'episodio che vale registrare**, e non perché sia andata male: il risultato era identico alla
+3. A run iniziata un'altra sessione ha fatto checkout nella working directory condivisa, e `HEAD` è passato
+sotto i piedi della misura. `scripts/rt-suite.ps1` l'ha rilevato da solo ed è uscito `3` — è esattamente il
+caso per cui `D-222` esiste, ed è la prima volta in questa sessione che quel meccanismo ha *dovuto*
+funzionare.
+
+⚠️ **Non è stata riclassificata dopo.** Sapere che la 3 conferma la 2 non rende la 2 valida: una misura
+vale o non vale **prima** di sapere come è andata, altrimenti il criterio diventa «era giusta, quindi
+contava» — che non è un criterio.
+
+⚠️ **E la 1 non bastava**, benché valida: era su `56849dac`, e il commit successivo aveva modificato i
+test. Fra le due c'è la differenza fra *«la suite è verde»* e *«la suite è verde su ciò che sto per
+mergiare»*.
