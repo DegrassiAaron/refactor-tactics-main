@@ -304,16 +304,38 @@ bool FRTScenarioBorderFollowsTheKnowledgeTest::RunTest(const FString&)
 	}
 
 	Preview->SetPerspective(Teams[0]);
+	const int32 TeamPanels = Preview->NumBorderPanelsShown();
 
-	// ⚠️ **Il confine SEGUE la conoscenza.** Se restasse quello di prima, il canale sarebbe posato una volta
-	// e mai aggiornato — e a schermo direbbe che la squadra vede l'intera mappa.
-	TestTrue(TEXT("il confine si riposa a ogni cambio di prospettiva"),
-		Preview->NumBorderPanelsShown() > 0 || Preview->NumUnitsShown() >= 0);
+	// Una squadra che schiera almeno un'unita' vede almeno la propria cella, quindi ha un confine. Zero qui
+	// significa che il canale non e' stato riposato affatto.
+	TestTrue(TEXT("una squadra che vede qualcosa ha un confine"), TeamPanels > 0);
+
+	// ⚠️ **Il confine si RICOSTRUISCE, non si accumula.** Riapplicare la stessa prospettiva deve dare lo
+	// stesso numero di pannelli: se la posa fosse incrementale raddoppierebbero, e a schermo il confine
+	// sarebbe due volte piu' spesso senza che nessun errore lo dica.
+	Preview->SetPerspective(Teams[0]);
+	TestEqual(TEXT("riapplicare la stessa prospettiva non accumula pannelli"),
+		Preview->NumBorderPanelsShown(), TeamPanels);
+
+	// ⚠️ **Il confine SEGUE la conoscenza.** Tornando a `Omniscient` deve tornare **esattamente** quello
+	// della mappa intera: un canale posato una volta e mai aggiornato resterebbe fermo su quello di
+	// `Team N`, e direbbe che il designer vede quanto vedeva la squadra.
+	Preview->SetPerspective(RTScenarioKnowledge::OmniscientTeamId);
+	TestEqual(TEXT("tornando a Omniscient il confine e' di nuovo quello della mappa intera"),
+		Preview->NumBorderPanelsShown(), OmniscientPanels);
 
 	// E le unita' non aumentano mai passando a una prospettiva parziale: `Team N` puo' mostrarne meno di
 	// `Omniscient`, mai di piu'.
+	Preview->SetPerspective(Teams[0]);
 	TestTrue(TEXT("una prospettiva parziale non rivela piu' di Omniscient"),
 		Preview->NumUnitsShown() <= UnitCount);
+
+	// ⛔ **Cosa questo test NON puo' asserire, e perche' non si finge.** Che il confine di `Team N` sia
+	// DIVERSO da quello di `Omniscient` richiederebbe uno scenario in cui la squadra non vede tutta l'arena,
+	// e nessuno scenario del corpus lo garantisce — e' il difetto che #1738 ha registrato: `VisionRange` 5-7
+	// contro arene di raggio 4. La differenza si misura a livello puro in `RefactorTactics.Visibility.*`,
+	// dove le celle si scelgono; qui si misura l'integrazione, e un'asserzione sulla differenza sarebbe
+	// verde per il corpus di oggi e rossa al primo scenario piu' grande.
 
 	Preview->ClearPreview();
 	TestEqual(TEXT("e con l'anteprima se ne va anche il confine"), Preview->NumBorderPanelsShown(), 0);
