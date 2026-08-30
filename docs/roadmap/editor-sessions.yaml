@@ -2013,7 +2013,7 @@ sessions:
       finché `#1682` non porta una sessione: oggi il pannello apre e richiude la facade a ogni selezione, e
       non c'è uno stato da azzerare. Verificarlo qui misurerebbe qualcosa che non esiste.
 
-  - id: U35
+  - id: U36
     title: La prospettiva tecnica risponde a «cosa sapeva chi ha deciso»
     block: 6
     critical: false
@@ -2062,6 +2062,14 @@ sessions:
       ⚠️ **Il confine è un canale in più sullo stesso stato, e va saputo mentre lo si guarda.** È la tensione
       che #1715 aveva dichiarato e mai nascosto. Il giudizio di quella issue resta valido dove è stato dato:
       chi tocca `RTVeilExploredFactor` tocca ancora quella decisione, non questa.
+      🔴 **E ora sono TRE canali, non due: #1758 è arrivato su `main` mentre questa slice era in
+      lavorazione.** `ARTHexMapActor::SetCellBordersVisible` disegna la griglia — il confine fra *ogni*
+      coppia di celle — con default `true`, e l'anteprima del TD usa quello stesso actor: la board porta
+      quindi già un bordo su ogni lato. Il perimetro della vista di squadra si **sovrappone** a quella
+      griglia, e la domanda di questa seduta diventa più dura di com'era: non «il confine si legge», ma
+      «si distingue dalla griglia che c'è sotto». Se non si distingue, la risposta onesta è toglierlo —
+      il velo e la griglia bastavano — e questa è l'informazione che #1715 non poteva avere quando ha
+      chiuso, perché #1758 non era ancora mergiata.
       ⛔ **Il playback non è di questa seduta.** L'acceptance criterion di #1754 che diceva «durante il
       playback, in `Team N`, un nemico mai visto non viene rivelato» è stato spostato in **#1625**: il
       playback del TD non esiste ancora, e verificarlo qui misurerebbe qualcosa che non c'è.
