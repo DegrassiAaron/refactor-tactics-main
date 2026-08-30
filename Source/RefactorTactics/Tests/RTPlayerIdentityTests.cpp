@@ -97,4 +97,35 @@ bool FRTPlayerTeamFallsBackOnWrongPlayerStateClassTest::RunTest(const FString&)
     return true;
 }
 
+/**
+ * La fixture non CREA soltanto un PlayerState: ne garantisce la CLASSE, sostituendo quello di default che
+ * `InitializeActorsForPlay` ha gia' messo li'. Senza questa sostituzione il test riceverebbe un
+ * `APlayerState` nudo e leggerebbe il ripiego credendo di leggere la squadra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerFixtureReplacesDefaultPlayerStateTest,
+    "RefactorTactics.Player.FixtureReplacesTheDefaultPlayerState",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerFixtureReplacesDefaultPlayerStateTest::RunTest(const FString&)
+{
+    UWorld* World = RTWorldFixtures::MakeWorld();
+    if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+    // È il mondo che produce il PlayerState di DEFAULT: il caso misurato in §5 dello spec.
+    World->InitializeActorsForPlay(FURL());
+
+    ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 1);
+    if (!TestNotNull(TEXT("la fixture produce un controller"), PC))
+    {
+        RTWorldFixtures::DestroyWorld(World);
+        return false;
+    }
+
+    TestNotNull(TEXT("ed e' un ARTPlayerState, non quello di default"),
+        Cast<ARTPlayerState>(PC->PlayerState));
+    TestEqual(TEXT("con la squadra chiesta"), ARTPlayerState::TeamIdOf(PC), 1);
+
+    RTWorldFixtures::DestroyWorld(World);
+    return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
