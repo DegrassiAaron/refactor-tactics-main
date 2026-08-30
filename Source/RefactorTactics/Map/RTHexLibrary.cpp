@@ -182,6 +182,26 @@ FRTCellId URTHexLibrary::ResolveRayToCellOnLayer(const FVector& RayOrigin, const
 	// Nessun colpo utile: si punta il PIANO del layer attivo. La quota e' quella del layer, non quella del
 	// raggio, perche' la domanda e' «quale cella di questo piano sto indicando» e non «cosa ho colpito».
 	const double PlaneZ = Origin.Z + static_cast<double>(ActiveLayer) * static_cast<double>(LayerHeight);
+
+	// 🔴 **Il raggio deve andare VERSO il piano, e prima non lo si verificava** (code review, 2026-08-30).
+	// `FMath::RayPlaneIntersection` e' `Origin + Dir * t` senza guardia su `t >= 0` ne' sul denominatore:
+	// con il cursore **sopra l'orizzonte** — raggiungibile a ogni pitch piu' radente della meta' del FOV
+	// verticale, e `MaxPitch` e' `0` — `t` diventa negativo e la cella risolta sta *dietro* la camera;
+	// con il raggio parallelo al piano il quoziente e' infinito e `RoundToInt` produce una cella spazzatura.
+	//
+	// ⚠️ **Non era raggiungibile prima di `D-255`**: il vecchio percorso richiedeva un colpo del raycast,
+	// quindi «nessun colpo» significava «nessuna cella». Da quando il ripiego sul piano e' la via normale,
+	// questo caso e' in partita.
+	//
+	// Il ripiego del ripiego e' la **cella sotto la camera**: e' il punto piu' vicino a cio' che si sta
+	// guardando fra quelli che esistono, e non e' una posizione arbitraria.
+	const double Denom = RayDirection.Z;
+	const double Numer = PlaneZ - RayOrigin.Z;
+	if (FMath::Abs(Denom) < UE_DOUBLE_SMALL_NUMBER || (Numer / Denom) < 0.0)
+	{
+		return WorldToAxial(FVector(RayOrigin.X, RayOrigin.Y, PlaneZ), Origin, HexSize, ActiveLayer);
+	}
+
 	const FPlane LayerPlane(FVector(0, 0, PlaneZ), FVector(0, 0, 1));
 	const FVector Point = FMath::RayPlaneIntersection(RayOrigin, RayDirection, LayerPlane);
 	return WorldToAxial(Point, Origin, HexSize, ActiveLayer);

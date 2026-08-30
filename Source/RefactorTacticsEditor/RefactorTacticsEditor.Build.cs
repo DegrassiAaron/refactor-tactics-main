@@ -29,6 +29,10 @@ public class RefactorTacticsEditor : ModuleRules
 			// la FMeshDescription si costruisce qui e diventa la SORGENTE dell'asset salvato.
 			"MeshDescription",
 			"StaticMeshDescription",
+			// Il master e le sei istanze del kit graybox (#1714, commandlet RTBuildGrayboxMeshes):
+			// `UMaterialEditingLibrary` vive qui, ed e' l'unico modo di costruire un material graph in C++
+			// invece di autorarlo a mano — cioe' di farlo sopravvivere alla rigenerazione delle mesh.
+			"MaterialEditor",
 			"AssetRegistry",
 			// Il launcher (#1680, slice L1): la categoria del menu Window in cui il tab si registra,
 			// `UEditorSubsystem` come classe base, e `UGameMapsSettings` per leggere la EditorStartupMap nel test.

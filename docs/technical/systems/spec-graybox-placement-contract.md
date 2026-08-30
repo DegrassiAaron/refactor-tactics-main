@@ -817,7 +817,12 @@ classificazione. I sette `DEFER` si dividono per **ragione**, e le ragioni sono 
   Doors/       SM_Graybox_Door_Panel · SM_Graybox_Door_Locked
   Surfaces/    SM_Graybox_Surface_Water · SM_Graybox_Surface_Ice
   Volumes/     BP_Graybox_CellPlacementVolume
+  Materials/   M_Graybox_Master · MI_Graybox_* (sei, una per mesh)
 ```
+
+🔑 **`Materials/` è entrato il 2026-08-30 con [#1714](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1714)**, e non aggiunge un elemento al catalogo di §8: aggiunge ciò che *veste* i sei che già ci sono. Fino a quel giorno le mesh uscivano dal commandlet con lo **slot materiale vuoto** — il progetto aveva pagato un test (`Graybox.MeshesHaveFaceNormals`) per garantire che fossero ombreggiabili e poi non dava loro nulla che le ombreggiasse in modo distinguibile.
+
+Il master ha **due** parametri — `BaseColor` e `Roughness` — e le sei istanze usano **grigi neutri** (`R == G == B`). Non è una rinuncia al colore: è ciò che rende vera *per costruzione* la verifica in scala di grigi che §10 impone, perché un kit senza canale cromatico non può affidare una categoria al solo colore. Il secondo canale resta dove §7 lo vuole: la geometria per gli oggetti, e la **ruvidità** dove la geometria non basta — è il caso di `SM_Graybox_Door_Panel` contro `SM_Graybox_Cover_High`, che il commandlet costruisce alte uguali (`0.85 H`) e lunghe uguali (`0.92` del lato), separate dal solo spessore che la vista a picco proietta quasi a zero.
 
 🔑 **In che forma esistono — deciso il 2026-08-28, [`D-229`](../../decisions/RT_PDR_00_Decision_Log.md).** Le sei
 `SM_Graybox_*` sono **generate in C++ e salvate** come `.uasset` da un commandlet del modulo editor: la
