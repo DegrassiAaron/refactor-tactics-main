@@ -317,11 +317,95 @@ Planning · Resolution · Perception/Sound · casi limite ultrawide.
 
 ---
 
-## 10. Camera Director — fuori scope v0.1, [#1781](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1781)
+## 10. Camera Director — [#1781](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1781): design **risposto**, implementazione **ancora backlog**
 
-Eventi eccezionali della Resolution potrebbero meritare un'inquadratura dedicata. Non ora: il core camera
-non è chiuso, e un director che sposta la vista sopra uno stato che non sa ancora dire dove guardava
-prima è il modo più diretto per rendere la camera imprevedibile. Resta backlog post-v0.1.
+Eventi eccezionali della Resolution possono meritare un'inquadratura dedicata. **Non ora**: il core camera
+non è chiuso, e un director che sposta la vista sopra uno stato che non sa ancora dire dove guardava prima
+è il modo più diretto per rendere la camera imprevedibile. Resta backlog post-v0.1.
+
+> 🔄 **Aggiornato il 2026-08-30 da [`D-287`](../../decisions/RT_PDR_00_Decision_Log.md).** La riga qui sopra
+> resta vera e non è stata riscritta. Ciò che è cambiato è **un'altra cosa**: le quattro domande di design
+> che `#1781` teneva in testa a sé — e che questa sezione dava per aperte — **hanno una risposta d'autore**.
+> Il gate che cambia stato è quello di **design**, non quello di **implementazione**: `CAM-12` non si
+> promuove a v0.1 e non si comincia.
+
+### 10.1 La grammatica ha tre decisioni, e `KEEP` è il default
+
+| Decisione | Quando | Costo |
+|---|---|---|
+| **`KEEP`** | **default** — l'evento è già leggibile | la camera **non si muove** |
+| **`REFRAME`** | l'evento non è leggibile e non è critico | piccolo pan tattico, se serve un piccolo aggiustamento di zoom |
+| **`HARD FOCUS`** | **raro** — evento esplicitamente classificato critico | inquadratura dedicata |
+
+🔴 **L'ordine delle domande non è invertibile.** Prima *«è già leggibile?»*; solo se la risposta è no
+entrano in gioco priorità e criticità. Un director che consultasse prima la priorità produrrebbe un taglio
+per ogni azione importante — cioè il difetto che questa issue esiste per evitare, non la feature.
+
+Candidati a `HARD FOCUS`, e nient'altro senza una decisione: finestra di **Fast Reaction** con scelta viva ·
+**KO** decisivo · reaction/counter importante · swing di obiettivo importante.
+
+⚠️ **Niente cambi automatici di yaw/pitch nella baseline.** L'orbita resta un gesto del giocatore
+(`CAM-B`, §3.2); una regia che ruotasse da sola invaliderebbe `PIE-CAM-ORBIT` e riaprirebbe una domanda già
+chiusa.
+
+⛔ **`CAM-04` ha la precedenza, e vale già adesso** ([#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773)):
+un input manuale di pan/zoom/orbit/peek **interrompe subito** l'automazione. Ping, notifiche e UI ordinaria
+**non rubano mai la camera**; l'inquadratura degli eventi di Resolution è di questa issue, non di una
+chiamata a `FocusOn` sparsa in un widget.
+
+### 10.2 Le quattro domande — risposte il 2026-08-30, e da dove viene ciascuna risposta
+
+| # | Domanda | Risposta | Dove vive |
+|---|---|---|---|
+| 1 | quali eventi meritano un'inquadratura, e chi lo decide | li classifica **`CAM-12`** per interesse/criticità di presentazione, su eventi risolti **già sanificati**; `KEEP` se già leggibile. La priorità di presentazione **non è** priorità di gameplay | questa sezione, §10.1 |
+| 2 | cosa succede se due eventi la meritano nello stesso segmento | il **segmento di risoluzione** non si rompe: vicini condividono un'inquadratura, lontani possono essere gruppi consecutivi **purché la UI dica che sono dello stesso segmento**; tie-break deterministico | [`../../gameplay/spec-anima-risoluzione.md`](../../gameplay/spec-anima-risoluzione.md) §14.4 |
+| 3 | cosa vede chi **non** ha diritto a quell'informazione | **nulla di derivato da quell'evento**: l'evento non entra nella projection passata al Director, quindi non può causare pan né focus | [`conoscenza-parziale-visibile-spec.md`](conoscenza-parziale-visibile-spec.md) §1.3 |
+| 4 | il risultato logico può dipendere dal tempo reale | **no** — e non è solo una regola: il gate esiste già, `RefactorTactics.Match.Autobattle.DeterminismIsIndependentOfPlayback` | [`../../gameplay/spec-anima-risoluzione.md`](../../gameplay/spec-anima-risoluzione.md) §14.3, §14.5 |
+
+⚠️ **La risposta 3 non si implementa nascondendo.** Filtrare in camera **non è** un confine di sicurezza: il
+dato non autorizzato non deve arrivare al client. Nascondere a valle ciò che si è già replicato lascia il
+leak e lo rende invisibile.
+
+### 10.3 🔴 Cosa blocca ancora `CAM-12`, e non è prudenza generica
+
+Tre dipendenze, misurate il 2026-08-30 e ciascuna con la propria ragione:
+
+1. **`CAM-04` — [#1773](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1773), aperta.** Senza
+   la regola d'interruzione manuale il giocatore combatte contro la camera nel momento in cui gli serve di
+   più. Il doppio click è consegnato; l'interruzione ha **un solo** consumatore e non esiste ancora una
+   transizione interpolata da interrompere.
+2. **`CAM-01` — [#1770](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1770), ✅ chiusa.** Il
+   pivot esplicito esiste: c'è un posto dove tornare dopo l'inquadratura. **Questa dipendenza è soddisfatta.**
+3. 🔴 **La projection sanificata non esiste — [#1525](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1525), aperta.**
+   È la dipendenza che nessuno aveva scritto. `FRTResolvedEvent` porta `TWeakObjectPtr<ARTUnit>`
+   `Source`/`Target` **senza filtro di conoscenza**, e `ResolvedTimeline` non è filtrata per squadra: un
+   Director costruito sopra quella timeline **erediterebbe** il leak del playback invece di evitarlo, e la
+   risposta 3 di §10.2 resterebbe una frase. È la ragione per cui il gate di design aperto non basta a
+   sbloccare l'implementazione.
+
+⚠️ **E la taratura non ha ancora un posto**: i ritmi cinematici sono `PROPOSED FOR PLAYTEST`
+([`../../gameplay/spec-anima-risoluzione.md`](../../gameplay/spec-anima-risoluzione.md) §14.2) e si tarano
+in [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780), che non è iniziata.
+
+### 10.4 Il primo slice, quando sarà autorizzato
+
+Cinque beat — `PlanningEnter · ReadyTension · ResolutionLaunch · ResolutionNormal / CriticalImpact ·
+ResolutionSettle` — e **solo** le tre decisioni di §10.1.
+
+⛔ Fuori dal primo slice: kill cam · camera in terza persona sopra la spalla · un taglio a ogni `MoveStep` ·
+coreografie che riducono la leggibilità tattica.
+
+ℹ️ **E i tipi si cercano prima di crearli.** Misurato il 2026-08-30: `BoundaryId`, `StableEventId` e
+`PresentationPriority` danno **0** occorrenze in `Source/`, mentre `ResolvedTimeline`, `FRTResolvedEvent`,
+`ViewerPlaybackSpeed`, `URTPlaybackLibrary::EffectivePlaybackSpeed` e `ARTCameraPawn::FocusOn` esistono. Chi
+implementa parte da quelli: i nomi proposti da un handoff esterno non sono simboli del repository.
+
+### 10.5 Modalità utente — previste, non decise
+
+`Cinematic Camera: Full / Reduced / Off` cambia **solo la presentazione**: mai il gameplay, mai la quantità
+di informazione disponibile. ⚠️ **Non ha ancora un owner**: le opzioni di sensibilità e riduzione del
+movimento sono la lacuna che l'epic **E49** dichiara aperta e non colma di lato — nessun Epic di gamefeel o
+accessibilità esiste nel repository.
 
 ---
 
