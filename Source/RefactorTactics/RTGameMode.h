@@ -4,6 +4,10 @@
 #include "GameFramework/GameModeBase.h"
 #include "Templates/SubclassOf.h"
 #include "Core/RTTypes.h"
+// `ERTMapSource`. Vive in `Map/` e non qui da `E-SOLID` fetta 3: l'allestimento e' uscito dal GameMode, e
+// un `Match/` che dovesse includere questo header per leggere un enum di mappa avrebbe la dipendenza al
+// contrario. Resta incluso di qui perche' `MapSource` e' ancora una proprieta' di questo Actor.
+#include "Map/RTMapSource.h"
 // CP 46.2: il rapporto d'avvio. E' un tipo di **dato** — enum e struct puri, nessuna dipendenza dal
 // frontend: il GameMode dichiara cosa e' successo, chi mostra la cosa sta dall'altra parte.
 #include "Frontend/RTStartupReport.h"
@@ -22,23 +26,6 @@ class URTMatchFormatData;
 struct FRTMatchRules;
 
 /**
- * Sorgente della mappa su cui allestire la partita. Le voci generate non richiedono asset: `Content/**` non e'
- * versionato, quindi una mappa generata da codice e' l'unica che sopravvive a un clone.
- */
-UENUM(BlueprintType)
-enum class ERTMapSource : uint8
-{
-	/** La mappa d'autore assegnata all'`ARTHexMapActor` del livello. Se manca o e' vuota si ripiega sull'arena demo. */
-	LevelAsset,
-
-	/** Arena di ripiego generata: esagono pieno di `DemoArenaRadius`, pavimento liscio. Un fondo di scena giocabile. */
-	GeneratedDemoArena,
-
-	/** Mappa di PROVA generata: ostacoli, muri che bloccano la vista, terreno costoso e piattaforma su un secondo layer. */
-	GeneratedTestArena
-};
-
-/**
  * GameMode: imposta camera e controller di default e, all'avvio, allestisce la partita sulla mappa
  * ESAGONALE presente nel livello (mappa + luce + board 2v2) se il livello non ha gia' delle unita'.
  */
@@ -51,9 +38,17 @@ public:
 	ARTGameMode();
 
 	/**
-	 * Posa la board 2v2 sulle celle di partenza della mappa esagonale. Non fa nulla se ci sono gia' unita'
-	 * nel livello o se la mappa non ha abbastanza celle percorribili (non si allestisce una partita a meta').
+	 * Allestisce la partita sulla mappa esagonale. Non fa nulla se ci sono gia' unita' nel livello o se la
+	 * mappa non ha abbastanza celle percorribili (non si allestisce una partita a meta').
 	 * Pubblico e separato da BeginPlay per essere verificabile headless, senza il ciclo di vita del GameMode.
+	 *
+	 * 🔑 **Da `E-SOLID` fetta 3 e' una FACADE, e cio' che fa e' la linea del refactor**: risolve *cosa* e'
+	 * stato chiesto — le tre precedenze vivono qui — passa il risultato a `FRTMatchBootstrapper`, e latcha
+	 * la modalita' della sessione se l'allestimento e' arrivato a deciderla. Il *come* nasce una partita
+	 * (mappa, formato, celle, roster, unita', equipaggiamento) sta dall'altra parte.
+	 *
+	 * ⚠️ **Resta pubblica perche' e' la porta dei test, non per comodo**: una quarantina di siti in
+	 * `Tests/` la chiamano direttamente per allestire una partita vera senza far correre `BeginPlay`.
 	 */
 	void SetupHexMatch(ARTHexMapActor* HexMap);
 
@@ -438,23 +433,6 @@ private:
 	/** Come sopra: la sorgente che ha deciso, latchata insieme alla decisione perche' la banda la nomina. */
 	FString AutobattleSourceLabel;
 
-	/** Applica `MapSource` all'actor mappa: sostituisce l'asset quando la scelta lo richiede, e lo dichiara nel log. */
-	void ApplyMapSource(ARTHexMapActor* HexMap);
-
-	/**
-	 * Risolve il formato di partita e lo consegna al `TurnManager`. Ritorna **false** se il formato e'
-	 * presente ma invalido, oppure se non e' compatibile con la classe della mappa (CP 19.1) — in quel caso
-	 * la partita non va allestita.
-	 *
-	 * E' qui che vive la politica di ripiego, come per l'arena generata: la libreria pura rifiuta e basta,
-	 * l'Actor decide che farne e lo dichiara in Warning. Un ripiego silenzioso non produce una partita rotta,
-	 * produce numeri di playtest attribuiti a un formato che non era in vigore.
-	 *
-	 * `OutRules` esce valorizzato solo quando il ritorno e' `true`: l'allestimento legge da li' la
-	 * composizione (`UnitsPerTeam`, CP 19.2) invece di dichiararla per conto proprio.
-	 */
-	bool ApplyMatchFormat(ARTTurnManager* TurnManager, const URTHexMapAsset* Map, FRTMatchRules& OutRules);
-
 	/**
 	 * Porta il verdetto di fine partita alla schermata di Result (CP 46.5, `#940` · `#939`).
 	 *
@@ -509,12 +487,4 @@ public:
 	 */
 	virtual void OpenLevelByName(const FString& LevelName);
 
-private:
-
-	/**
-	 * Spawna l'eroe con l'`HeroId` dato. `Hero == nullptr` non spawna nulla (fail-closed): un'unita' con
-	 * statistiche di default al posto di un eroe sarebbe piu' difficile da diagnosticare di un'unita' assente.
-	 */
-	ARTUnit* SpawnHero(int32 TeamId, const URTHeroData* Hero, const FRTCellId& InCell, const FVector& Origin,
-		float HexSize, float LayerHeight);
 };
