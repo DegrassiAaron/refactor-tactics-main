@@ -1689,6 +1689,22 @@ protected:
 
 public:
 	/**
+	 * `StableUnitId` -> nome leggibile, per le righe del combat log derivate dal TurnLog (`#1932`).
+	 *
+	 * 🔴 **Esiste per non avere due produttori del testo.** Le righe che il giocatore legge nascono da
+	 * `URTTurnLogLibrary::DescribeTurnLogWithSubjects`, a cui questa mappa viene passata: chi vuole
+	 * RIDERIVARE le stesse righe — un test che confronta cio' che e' stato emesso con cio' che il TurnLog
+	 * dice — deve poter usare la stessa risoluzione, altrimenti confronta `Gadget: resta` con `u3: resta` e
+	 * fallisce su una differenza che non e' un difetto. E' `public` per questo: e' il modo di verificare che
+	 * di produttori ce ne sia uno solo.
+	 *
+	 * Legge `MatchRoster`, non le sole unita' vive: una voce puo' riguardare chi e' stato eliminato nel turno
+	 * appena chiuso, e `DestroyDefeatedUnits` passa dopo. Una entry scaduta non contribuisce, e la riga esce
+	 * con `u<id>`.
+	 */
+	TMap<int32, FString> SubjectNamesForLog() const;
+
+	/**
 	 * L'indice nel roster congelato per un `StableUnitId`, o `INDEX_NONE`.
 	 *
 	 * E' la **meta' inversa** di `EnsureMatchRoster`, che assegna `Roster[i]->StableUnitId = i + 1`. Le due

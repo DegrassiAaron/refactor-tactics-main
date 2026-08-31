@@ -2427,6 +2427,27 @@ ARTUnit* ARTTurnManager::UnitByStableId(int32 StableUnitId) const
 	return MatchRoster[Index].Get();
 }
 
+TMap<int32, FString> ARTTurnManager::SubjectNamesForLog() const
+{
+	TMap<int32, FString> Names;
+	Names.Reserve(MatchRoster.Num());
+	for (const TWeakObjectPtr<ARTUnit>& Weak : MatchRoster)
+	{
+		const ARTUnit* Unit = Weak.Get();
+		// Una entry scaduta non contribuisce: la riga esce con `u<id>`, che e' peggio da leggere ma vero.
+		// Inventare un nome per un Actor che non c'e' piu' sarebbe l'unico esito peggiore.
+		if (Unit == nullptr || Unit->StableUnitId == 0)
+		{
+			continue;
+		}
+		// `DisplayLabel` sceglie fra nome canonico, ultimo segmento dell'`HeroId` e nome dell'Actor, e non
+		// restituisce mai vuoto (D-120). Qui non si duplica quella cascata: si chiama.
+		Names.Add(Unit->StableUnitId,
+			ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName()));
+	}
+	return Names;
+}
+
 int32 ARTTurnManager::CurrentGraphRevision() const
 {
 	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
@@ -2858,7 +2879,15 @@ void ARTTurnManager::ConcludeTurn()
 	// sempre — comprese le voci `Move`, che `DescribeEntry` stampa con `SrcCell` **e** `TgtCell` di un
 	// nemico che la squadra puo' non vedere. Convertire i siti sparsi senza convertire questo lasciava il
 	// canale piu' grosso scoperto.
-	for (const FRTDescribedLine& Line : URTTurnLogLibrary::DescribeTurnLogWithSubjects(TurnLog))
+	// 🔴 E con il NOME, non solo con l'id (#1932). Il soggetto viaggiava gia' qui, ma solo come dato per il
+	// filtro di conoscenza: chi LEGGE la riga non l'aveva, e due voci della stessa unita' — «si muove» nel
+	// Dash, «resta» nel Move — si leggevano come due unita' sulla stessa cella. E' cosi' che #1733 e' nata
+	// come bug di gameplay su un comportamento corretto.
+	//
+	// La risoluzione dei nomi sta in `SubjectNamesForLog` e non qui: un test che riderivi queste righe deve
+	// poter usare la STESSA mappa, altrimenti confronta `Gadget: resta` con `u3: resta` e fallisce su una
+	// differenza che non e' un difetto.
+	for (const FRTDescribedLine& Line : URTTurnLogLibrary::DescribeTurnLogWithSubjects(TurnLog, SubjectNamesForLog()))
 	{
 		// Il verdetto viene dalla voce, che lo ha congelato nella fase in cui il fatto e' accaduto.
 		// Ricalcolarlo qui userebbe la conoscenza del Blast e le celle post-Move: due istanti diversi.
