@@ -118,6 +118,12 @@ ripetere la storia di `ABP_Gadget`, dove la riga c'era e mancava il gesto. I pat
 mano — sono **verificati uguali** per insiemi agli `artifacts` di U8 in `editor-sessions.yaml`, perché una
 lista attesa che esiste già in un'altra fonte si confronta, non si ricopia.
 
+✅ **E che la riga funzioni è stato provato con l'oracolo, non con la lettura**: `git check-ignore` su tutti
+e dodici i path esce **1** — ammessi, `git add` li vedrà. La presenza di una riga nell'allowlist non basta a
+dirlo, perché una regola successiva può ri-ignorarla e l'ordine conta. **Con la controprova**: un fratello
+fuori elenco (`AM_Gadget_Taunt.uasset`) resta **ignorato**, che è il modo di accorgersi se la regola fosse
+troppo larga — un permesso che ammette anche ciò che non deve non è un permesso, è un buco.
+
 *(Misura precedente, 2026-08-17 su `a4a393b6`: 21 attesi · 16 committati · 0 su disco · 5 assenti. Prima
 ancora, 2026-08-13 su `515c5c88`: 17 attesi · 13 committati · 4 mancanti.)*
 
