@@ -71,6 +71,47 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pacing")
 	static float ReactionDecisionSecondsUpperBound(int32 OpenedWindows, float WindowSeconds);
 
+	/**
+	 * Riempie i conteggi di APERTURA del campione: unita' vive per squadra e spazio di decisione.
+	 *
+	 * Due regole, entrambe gia' scritte nel codice che questa funzione sostituisce e nessuna delle due
+	 * ovvia:
+	 *
+	 *  - **le vive si contano di entrambe le squadre**, perche' `UnitsAliveTeam0/1` descrive lo stato del
+	 *    campo e non della squadra misurata;
+	 *  - **`ActionsAvailable` conta solo `PacingTeamId`**, perche' misura lo spazio di decisione di **chi
+	 *    decide**. Sommare anche l'avversario darebbe un numero che cresce quando il nemico ha piu' opzioni,
+	 *    cioe' esattamente il contrario di cio' che la metrica dichiara.
+	 *
+	 * Un'unita' morta non porta azioni: e' esclusa da entrambi i conteggi. I campi non toccati del campione
+	 * restano come sono — la funzione riempie, non azzera.
+	 */
+	// Non `UFUNCTION`: `FRTPacingUnitFacts` non e' un tipo Blueprint e non deve diventarlo. E' l'ingresso
+	// interno di una regola, non un dato che qualcuno consulta — e renderlo `BlueprintType` solo per
+	// soddisfare UHT allargherebbe la superficie esposta per una ragione che non e' del dominio.
+	static void ApplyOpeningCounts(const TArray<FRTPacingUnitFacts>& Units, int32 PacingTeamId,
+		FRTPacingSample& Sample);
+
+	/**
+	 * Gli id da passare a `CountOpenedReactionWindows` come responder: le unita' di `PacingTeamId`, **id
+	 * `0` escluso**, in ordine crescente.
+	 *
+	 * ⚠️ **Nessun filtro su `bIsAlive`, e non e' una dimenticanza** — e' la differenza che la separa da
+	 * `ApplyOpeningCounts`. Un'unita' caduta **durante** il turno ha comunque potuto aprire finestre prima
+	 * di cadere, e scartarla farebbe sparire proprio le attese dei turni piu' concitati, cioe' quelle che
+	 * tarano il bank.
+	 *
+	 * 🔴 **Lo `0` non entra** ([D-063]): e' riservato a «nessuna unita' dichiarata», e un'unita' spawnata
+	 * dopo il congelamento del roster lo conserva. Con `0` nel set, una voce di log senza soggetto — o
+	 * un'evocazione avversaria nella stessa condizione — finirebbe nel bank del giocatore misurato: la
+	 * confusione fra squadre che il filtro per responder esiste per impedire ([D-167]).
+	 *
+	 * Ordinato perche' il risultato di una telemetria non deve dipendere dall'ordine in cui gli Actor sono
+	 * stati raccolti, nemmeno quando non decide nulla.
+	 */
+	// Non `UFUNCTION`, per la stessa ragione di `ApplyOpeningCounts`.
+	static TArray<int32> RespondersForPacing(const TArray<FRTPacingUnitFacts>& Units, int32 PacingTeamId);
+
 	/** Intestazione del CSV: quattordici colonne, nello stesso ordine di CsvRow. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pacing")
 	static FString CsvHeader();

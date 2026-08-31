@@ -1359,6 +1359,16 @@ protected:
 	float DurationForPlaybackPhase(ERTMatchPhase InPhase) const;
 
 	// --- Sonda di pacing ------------------------------------------------------------------------
+	/**
+	 * Fotografa le unita' del mondo nei quattro interi che il pacing osserva.
+	 *
+	 * E' l'UNICO punto in cui la sonda guarda gli Actor: da qui in poi le regole di conteggio sono funzioni
+	 * pure di `URTPacingLibrary`, provate headless (#1818). Prima esistevano due `GetAllActorsOfClass` in
+	 * punti diversi, con due filtri **volutamente diversi** fra loro e la differenza spiegata solo da un
+	 * commento accanto a ciascuno.
+	 */
+	TArray<FRTPacingUnitFacts> CollectPacingUnitFacts() const;
+
 	void BeginPacingSample();
 	void ClosePacingSample();
 	void AppendPacingRow(const FRTPacingSample& Sample);
@@ -1648,6 +1658,50 @@ protected:
 
 	/** Il roster di partita e' stato costruito: l'identita' delle unita' non si riassegna piu'. */
 	bool bMatchRosterBuilt = false;
+
+	/**
+	 * Il roster congelato, in ordine di `StableUnitId`: l'indice `i` porta l'unita' di id `i + 1`.
+	 *
+	 * 🔑 **Non e' una seconda sorgente di identita'**: l'identita' resta `ARTUnit::StableUnitId`, e questo
+	 * array e' solo l'indice inverso — l'unico modo di tornare all'Actor partendo da un fatto che ne porta
+	 * il solo id. Lo riempie `EnsureMatchRoster` con la lista che gia' ordinava e poi buttava via, quindi
+	 * **non costa un secondo `GetAllActorsOfClass`**: era gia' li'.
+	 *
+	 * ⚠️ **Weak, e deve restarlo**: `DestroyDefeatedUnits` distrugge gli Actor delle unita' eliminate mentre
+	 * il roster resta congelato per tutta la partita. Una entry scaduta e' la risposta giusta — «quell'unita'
+	 * non c'e' piu'» — non un buco da riparare.
+	 */
+	TArray<TWeakObjectPtr<ARTUnit>> MatchRoster;
+
+	/**
+	 * Da `StableUnitId` all'Actor, o `nullptr`.
+	 *
+	 * 🔴 **E' la porta del confine simulazione -> presentazione** (#1800): i fatti risolti
+	 * (`FRTResolvedEvent`) portano id, e solo chi deve davvero animare passa di qui. Chiamarla per
+	 * *decidere* qualcosa rimetterebbe la lifetime di un Actor dentro un esito, che e' esattamente il
+	 * difetto che gli id tolgono.
+	 *
+	 * Risponde `nullptr` per tre cause, e tutte e tre significano «nessun Actor da animare»: id `0`
+	 * ([D-063], nessuna unita' dichiarata), id fuori dal roster congelato (unita' spawnata dopo), unita'
+	 * gia' distrutta. E' lo stesso `nullptr` che rispondeva `TWeakObjectPtr::Get()` prima di questa fetta.
+	 */
+	ARTUnit* UnitByStableId(int32 StableUnitId) const;
+
+public:
+	/**
+	 * L'indice nel roster congelato per un `StableUnitId`, o `INDEX_NONE`.
+	 *
+	 * E' la **meta' inversa** di `EnsureMatchRoster`, che assegna `Roster[i]->StableUnitId = i + 1`. Le due
+	 * stanno vicine apposta: sono una convenzione sola, e separarle e' il modo in cui un `+ 1` diventa un
+	 * `off-by-one` che nessuno rilegge.
+	 *
+	 * `static` e senza stato **per poterla provare senza un mondo** (#1818): le due regole che porta — lo
+	 * `0` non e' un id ([D-063]) e un id oltre il roster e' di un'unita' arrivata dopo il congelamento —
+	 * erano verificabili solo spawnando degli Actor.
+	 */
+	static int32 RosterIndexForStableId(int32 StableUnitId, int32 RosterNum);
+
+protected:
 
 	FTimerHandle PlanningTimerHandle;
 

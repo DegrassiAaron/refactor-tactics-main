@@ -2497,4 +2497,74 @@ bool FRTBlastStagesAttacksTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il playback RISOLVE davvero l'Actor a partire dallo `StableUnitId` (#1800).
+ *
+ * 🔴 **E' l'oracolo che `AttackShowSecondsStagesTheBlast` non ha.** Quel test conta i tick in cui i colpi
+ * arrivano, e continuerebbe a passare identico se `UnitByStableId` rispondesse `nullptr` a tutto: il
+ * delegate scatterebbe lo stesso, con gli stessi tempi, e la presentazione non animerebbe piu' niente.
+ * Prima di #1800 la domanda non esisteva — l'evento portava direttamente il puntatore.
+ *
+ * L'atteso e' **zero non risolti**, e la ragione e' di ordine e non di fortuna: `DestroyDefeatedUnits` vive
+ * in `ConcludeTurn`, che gira DOPO `FinishPlayback`. Mentre i colpi si mostrano, attaccante e vittima
+ * esistono entrambi ancora. Un solo `nullptr` qui significa che l'inversa del roster ha sbagliato indice,
+ * non che un'unita' e' morta.
+ *
+ * ⚠️ **Premessa esplicita**: senza colpi il test sarebbe verde per assenza di materiale. La prima
+ * asserzione e' che i colpi ci siano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackResolvesSubjectsTest,
+	"RefactorTactics.Match.Autobattle.PlaybackResolvesEveryAttackSubjectFromItsStableId",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackResolvesSubjectsTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	SpawnAutobattleMap(World);
+
+	const TArray<ARTUnit*> Units = DeployAutobattleRoster(World, { 0, 1, 2, 3 });
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || Units.Contains(nullptr))
+	{
+		AddError(TEXT("allestimento fallito: turn manager o unita' mancanti"));
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	TM->bEnablePlayback = true;
+	TM->MaxPlaybackSeconds = 120.f; // il tetto comprime la presentazione: alzato, cosi' i colpi si mostrano tutti
+
+	URTAttackPlaybackProbeForTest* Probe = NewObject<URTAttackPlaybackProbeForTest>();
+	Probe->AddToRoot();
+	TM->OnAttackResolved.AddDynamic(Probe, &URTAttackPlaybackProbeForTest::OnAttackResolved);
+
+	const FRTAutobattleTrace Trace = PlayAutobattleMatch(TM, /*MaxTurns=*/ 40);
+	TestFalse(TEXT("nessuna risoluzione appesa"), Trace.bResolveStalled);
+
+	const int32 Revealed = Probe->AttackTicks.Num();
+	const int32 SrcOk = Probe->SourcesResolved, SrcKo = Probe->SourcesUnresolved;
+	const int32 TgtOk = Probe->TargetsResolved, TgtKo = Probe->TargetsUnresolved;
+
+	Probe->RemoveFromRoot();
+	RTWorldFixtures::DestroyWorld(World);
+
+	AddInfo(FString::Printf(TEXT("colpi rivelati: %d · sorgenti risolte %d/%d · bersagli risolti %d/%d"),
+		Revealed, SrcOk, SrcOk + SrcKo, TgtOk, TgtOk + TgtKo));
+
+	// PREMESSA: senza colpi non c'e' niente da risolvere, e il verde non significherebbe nulla.
+	if (!TestTrue(FString::Printf(TEXT("premessa: la partita rivela almeno un colpo (rivelati %d)"), Revealed),
+		Revealed > 0))
+	{
+		return false;
+	}
+
+	// LA PROPRIETA': ogni soggetto e' tornato a essere un Actor.
+	TestEqual(TEXT("nessuna sorgente rimasta senza Actor"), SrcKo, 0);
+	TestEqual(TEXT("nessun bersaglio rimasto senza Actor"), TgtKo, 0);
+	TestEqual(TEXT("ogni colpo rivelato ha risolto la propria sorgente"), SrcOk, Revealed);
+	TestEqual(TEXT("ogni colpo rivelato ha risolto il proprio bersaglio"), TgtOk, Revealed);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

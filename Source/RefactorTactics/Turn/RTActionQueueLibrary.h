@@ -29,8 +29,12 @@ public:
 	 * priorita' 80, perche' il Move e' una fase successiva (ADR-0003 §1 — il catalogo v0.1 metteva invece il
 	 * movimento prima dell'attacco). La priorita' ordina DENTRO la fase, non fra le fasi.
 	 *
-	 * Estende la regola APNAP di `piano-canonico-mvp.md §5.1` («velocita' -> priorita' intera -> tie-break
-	 * assoluto») senza contraddirla. Nessuna chiave e' un float; nessuna dipende dall'ordine di una `TMap`.
+	 * E' l'UNICO ordine di risoluzione del gioco. Questo commento diceva di «estendere la regola APNAP di
+	 * `piano-canonico-mvp.md §5.1`»: quella regola e' stata **ritirata** da D-293 (2026-08-31) perche'
+	 * presupponeva un'unita' attiva che un gioco a turni simultanei non ha. Non esiste un secondo ordine da
+	 * estendere, e non va costruito.
+	 *
+	 * Nessuna chiave e' un float; nessuna dipende dall'ordine di una `TMap`.
 	 */
 	static bool InstanceLess(const FRTActionInstance& A, const FRTActionInstance& B);
 
