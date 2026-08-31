@@ -4508,9 +4508,13 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	}
 
 	// Gli stati che valgono sul PRIMO danno diretto entrano qui come un delta per bersaglio: `Status.Exposed`
-	// (chi ha scattato allo scoperto) somma +5, `Status.Guarded` (chi si e' messo in guardia) sottrae 15.
-	// Valgono una volta sola, quindi il totale non dipende da quale colpo se li prenda; chi e' esposto E in
-	// guardia li cumula, che e' l'esito prevedibile di aver fatto entrambe le cose.
+	// (chi ha scattato allo scoperto) somma +5. Vale una volta sola, quindi il totale non dipende da quale
+	// colpo se lo prenda: e' un delta POSITIVO, e il clamp a zero di `ApplyFirstHitDelta` non lo tocca mai.
+	//
+	// ⚠️ `Status.Guarded` NON sta piu' qui ([D-292]). Con un delta NEGATIVO piu' grande del colpo che lo
+	// riceve, la riduzione che avanza si perdeva nel clamp, e quanta se ne perdesse dipendeva da quale colpo
+	// era primo: un bersaglio in Guardia colpito da 10 e da 30 incassava 30 o 25 a seconda dell'ordine
+	// dell'array. La Guardia e' ora un POOL, piu' sotto.
 	TArray<int32> FirstHitDelta;
 	FirstHitDelta.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
@@ -4520,30 +4524,43 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		{
 			FirstHitDelta[i] += URTCombatLibrary::ExposedFirstHitBonus;
 		}
-		if (Units[i]->HasStatus(TAG_Status_Guarded))
+		// Il ramo `Status.Guarded` non e' piu' qui: la Guardia e' un pool, costruito dopo questo ciclo.
+	}
+
+	// `Status.Guarded` ([D-292]): la Guardia e' un POOL di 15 danni assorbibili, e solo i colpi dell'arco
+	// FRONTALE lo consumano — l'emisfero posteriore resta scoperto ([D-206]). Cio' che un colpo non consuma
+	// resta per i successivi, quindi il totale non dipende piu' da quale colpo arriva per primo.
+	//
+	// La maschera e' PER-COLPO, che e' il controllo direzionale che [D-206] ha deciso e che nessuno poteva
+	// implementare prima di [D-212]: `FRTAttack` non portava l'attaccante, e «questo colpo e' frontale» non
+	// era esprimibile dentro il resolver.
+	// ⚠️ `bFrontalHit` e' indicizzato come `Plan.Hits`, ed e' lecito perche' `ToAttacks` mappa **1:1** e le
+	// due funzioni che stanno in mezzo (`ApplyFirstHitDelta`, `ApplyDamageDelta`) copiano l'array e toccano
+	// solo `Power`: nessuna aggiunge, toglie o riordina. Se un giorno una di loro cambiasse la cardinalita',
+	// questa maschera punterebbe ai colpi sbagliati **in silenzio** — e' l'assunzione da rompere per prima
+	// se il pool assorbisse dal lato sbagliato.
+	TArray<int32> GuardPool;
+	GuardPool.Init(0, Units.Num());
+	TArray<bool> bFrontalHit;
+	bFrontalHit.Init(false, Plan.Hits.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (!Units[i] || !Units[i]->HasStatus(TAG_Status_Guarded)) { continue; }
+		GuardPool[i] = URTCombatLibrary::GuardFirstHitReduction;
+
+		for (int32 h = 0; h < Plan.Hits.Num(); ++h)
 		{
-			// CP 16.2: la guardia copre il davanti. Se il colpo che la consuma arriva fuori dall'arco frontale
-			// non vale — si TOGLIE una protezione, non si aggiunge danno.
-			//
-			// Quale colpo la consuma lo decide `ApplyFirstHitDelta`: il PRIMO dell'array, che e' l'ordine
-			// canonico gia' fissato da `Plan.Hits`. Si guarda quello, non «un colpo qualsiasi da dietro»:
-			// altrimenti un attacco frontale perderebbe la guardia per colpa di un secondo colpo alle spalle
-			// che il delta non tocca nemmeno.
-			const FRTHexAttackHit* FirstHit = Plan.Hits.FindByPredicate(
-				[i](const FRTHexAttackHit& Hit) { return Hit.TargetId == i; });
+			const FRTHexAttackHit& Hit = Plan.Hits[h];
+			if (Hit.TargetId != i) { continue; }
 
-			bool bGuardHolds = true;
-			if (FirstHit && HexUnits.IsValidIndex(FirstHit->AttackerId))
-			{
-				bGuardHolds = URTHexCombatLibrary::IsInFrontalArc(
-					HexUnits[i].Cell, HexUnits[i].Facing, HexUnits[FirstHit->AttackerId].Cell);
-			}
+			// Attaccante non risolvibile: il colpo NON e' eleggibile. Un dato mancante non deve concedere una
+			// protezione che nessuno ha dichiarato — fail-closed, come il resto del combattimento.
+			const bool bFrontal = HexUnits.IsValidIndex(Hit.AttackerId)
+				&& URTHexCombatLibrary::IsInFrontalArc(
+					HexUnits[i].Cell, HexUnits[i].Facing, HexUnits[Hit.AttackerId].Cell);
+			bFrontalHit[h] = bFrontal;
 
-			if (bGuardHolds)
-			{
-				FirstHitDelta[i] -= URTCombatLibrary::GuardFirstHitReduction;
-			}
-			else
+			if (!bFrontal && HexUnits.IsValidIndex(Hit.AttackerId))
 			{
 				FRTTurnLogEntry Bypassed;
 				Bypassed.Phase = ERTMatchPhase::Blast;
@@ -4552,7 +4569,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 				// scavalcata e mette in `Amount` la DIREZIONE del difensore, mentre il ramo della copertura ci
 				// mette i punti di riduzione. Erano lo stesso esito con due payload incompatibili.
 				Bypassed.Outcome = static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard);
-				Bypassed.SrcCell = HexUnits[FirstHit->AttackerId].Cell;
+				Bypassed.SrcCell = HexUnits[Hit.AttackerId].Cell;
 				Bypassed.TgtCell = HexUnits[i].Cell;
 				Bypassed.Amount = static_cast<int32>(HexUnits[i].Facing);
 				// 🔴 `UnitId` porta CHI SUBISCE, non chi ha colpito, e non e' una scelta arbitraria: e' cio'
@@ -4581,10 +4598,18 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 					*URTTurnLogLibrary::DescribeEntry(Bypassed)), FRTLogSubject::Unit(Units[i]));
 			}
 		}
-		// Riduzione dichiarata dalle reazioni attivate (`Action.Deflect` e le reazioni d'eroe che ne riusano
-		// la semantica): una reazione si attiva UNA volta, quindi vale sul colpo che l'ha innescata — stessa
-		// meccanica di Guard, non una riduzione permanente del turno.
-		FirstHitDelta[i] += Reactions.DeflectDelta[i];
+	}
+
+	// Riduzione dichiarata dalle reazioni attivate (`Action.Deflect` e le reazioni d'eroe che ne riusano la
+	// semantica): una reazione si attiva UNA volta, quindi vale sul colpo che l'ha innescata.
+	//
+	// ⚠️ RESTA un delta di primo colpo, e quindi porta ancora il difetto che [D-292] ha tolto alla Guardia:
+	// `Deflect` e' -20, e su un colpo piu' piccolo l'avanzo si perde. Non e' stato spostato qui perche' e'
+	// una REAZIONE — si attiva una volta, sul colpo che l'ha innescata — e trasformarla in un pool e' una
+	// decisione sul suo significato, non una correzione. Dichiarato in `#1909`, da scorporare.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (Units[i]) { FirstHitDelta[i] += Reactions.DeflectDelta[i]; }
 	}
 
 	// `Action.Brace` (CP 5.2): -10 su OGNI danno diretto, non solo sul primo. E' un secondo passaggio con una
@@ -4600,9 +4625,14 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		}
 	}
 
-	TArray<FRTAttack> Attacks = URTCombatResolver::ApplyDamageDelta(
-		URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
-		EveryHitDelta);
+	// L'assorbimento della Guardia viene per ULTIMO, dopo i modificatori del danno ([D-292]): il pool copre
+	// cio' che resta, non il danno nominale. E' la lettura coerente con «quanto danno la guardia regge»: se
+	// assorbisse per primo, `Status.Exposed` ne mangerebbe una parte prima che il difensore la usi.
+	TArray<FRTAttack> Attacks = URTCombatResolver::ApplyAbsorptionPool(
+		URTCombatResolver::ApplyDamageDelta(
+			URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
+			EveryHitDelta),
+		GuardPool, bFrontalHit);
 
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
 	// Parallelo ad `AttackSrc`, e non ridondante con lui: la cella dice DA DOVE, non CHI — e dopo un Dash le
