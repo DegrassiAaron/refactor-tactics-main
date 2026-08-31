@@ -162,10 +162,31 @@ Content/RT/UI/_Generated/
 !Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset
 !Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset
 !Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset
-!Content/RT/Characters/Gadget/Animation/ABP_Gadget.uasset
-!Content/RT/Characters/Phase/Animation/ABP_Phase.uasset
-!Content/RT/Characters/Riktor/Animation/ABP_Riktor.uasset
-!Content/RT/Characters/Wraith/Animation/ABP_Wraith.uasset
+# Gli ABP_* dei quattro eroi NON hanno una riga, e non e' una dimenticanza: D-248 (2026-08-30) ha
+# stabilito che il grafo di locomozione vive in C++ (URTUnitAnimInstance) e che quei quattro .uasset
+# non vanno creati. Le righe c'erano, e sono uscite il 2026-08-31: finche' restavano, il comando di
+# misura di docs/technical/tooling/asset-map.md le contava fra gli "attesi" e dichiarava 4 assenti —
+# quattro asset mancanti che nessuno deve produrre. L'oracolo di D-248 era `grep -rn "ABP_" docs/`,
+# e questo file non sta in docs/: e' il motivo per cui erano sopravvissute alla decisione.
+# I montaggi AM_<Pack>_{Attack,Hit,Death} sono un'altra cosa: sono lavoro aperto di #288 (U8), e le
+# loro righe sono qui sotto — scritte il 2026-08-31, PRIMA che il primo esista. E' l'ordine che il
+# §6 di asset-map.md prescrive e che ABP_Gadget aveva rispettato: la riga c'era, mancava il git add.
+# Per esteso e non con un glob perche' l'elenco e' CHIUSO e noto (3 montaggi x 4 pack, gli stessi
+# dodici path che editor-sessions.yaml elenca negli artifacts di U8): cosi' il comando di misura li
+# conta fra gli attesi e dice quanti ne mancano, che e' il mestiere dell'asset map. Un glob li
+# renderebbe una famiglia aperta e invisibile al conteggio.
+!Content/RT/Characters/Gadget/Animation/AM_Gadget_Attack.uasset
+!Content/RT/Characters/Gadget/Animation/AM_Gadget_Hit.uasset
+!Content/RT/Characters/Gadget/Animation/AM_Gadget_Death.uasset
+!Content/RT/Characters/Phase/Animation/AM_Phase_Attack.uasset
+!Content/RT/Characters/Phase/Animation/AM_Phase_Hit.uasset
+!Content/RT/Characters/Phase/Animation/AM_Phase_Death.uasset
+!Content/RT/Characters/Riktor/Animation/AM_Riktor_Attack.uasset
+!Content/RT/Characters/Riktor/Animation/AM_Riktor_Hit.uasset
+!Content/RT/Characters/Riktor/Animation/AM_Riktor_Death.uasset
+!Content/RT/Characters/Wraith/Animation/AM_Wraith_Attack.uasset
+!Content/RT/Characters/Wraith/Animation/AM_Wraith_Hit.uasset
+!Content/RT/Characters/Wraith/Animation/AM_Wraith_Death.uasset
 # I widget del frontend (E46). Stesso criterio degli altri: non sono arte, sono **logica di
 # presentazione da cui dipende una verifica** — `PIE-V01-FRONTEND-ERROR` e `-NAV` si eseguono su questi.
 # Le classi base vivono in C++ (`Source/RefactorTactics/Frontend/RTFrontendWidgets.h`) e questi `.uasset`

@@ -44,6 +44,15 @@ Reaction     NON è una famiglia: è una causa, e usa la policy di una delle sop
 > era una regola preventiva per una famiglia che si credeva assente; era invece la descrizione di
 > `LinearLeap`, che il repository possiede da sempre.
 
+✅ **`Swap` è qui, e questo risponde a una domanda che il resolver del Move non deve porsi.**
+`AUTHOR-MOVE-001` ([D-295](../decisions/RT_PDR_00_Decision_Log.md)) decide che lo **scambio diretto e i cicli
+chiusi bloccano** nel Move *«salvo permesso esplicito»*. Quel permesso è **questa riga**: lo scambio lecito è
+un `Transfer`, `v0.2`/`E39`, e un Transfer non percorre celle intermedie — non passa dalle regole di
+traversal. ⛔ Ne segue che in **v0.1 non esiste alcuno scambio lecito** e la regola del Move è
+**incondizionata**: un flag di permesso dentro `StepHexMovement` sarebbe un secondo owner per una famiglia che
+ne ha già uno. L'implementazione della regola è
+[#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922).
+
 `Reaction Movement` **non è una famiglia**: è una delle altre con una causa diversa. Ciò che deve restare
 distinguibile è la *causa*, non il modo di muoversi — chi legge il TurnLog deve poter dire se quell'unità si è
 mossa perché l'ha deciso, perché è stata spinta o perché una reazione l'ha fatta scattare.
@@ -259,7 +268,7 @@ succederà al prossimo kit.
 | §7 «Sprint non è Dash» | **già deciso** ([D-015](../decisions/RT_PDR_00_Decision_Log.md)); migrazione aperta nella issue `#199` | catalogo azioni |
 | §18 facing: derivazione **e** limite di pivot | **da distinguere**, e la prima stesura di questa riga sbagliava dandolo per «superato dai fatti». La *derivazione dal movimento* è canone (E16 chiusa, 13 test `Facing.*`, 5 scenari `Spec.Facing.*`). Il *limite di rotazione* **non lo era**: ADR-0005 lo dichiarava fuori perimetro e viveva come `FAC-1`, in attesa dell'autore. È stato **recepito** il 2026-08-10: la rotazione è una capacità del personaggio, misurata in step, con due valori per eroe — [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) §1, [D-060](../decisions/RT_PDR_00_Decision_Log.md) | [ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md), che **supera** ADR-0005 §1 |
 | §2 e §11 «`Dash → Attack → Move` può essere legale» | ⚠️ **contraddice** [D-028](../decisions/RT_PDR_00_Decision_Log.md): lo scatto **occupa lo slot movimento**, quindi la sequenza non è legale come regola generale — si sceglie *schivo e sparo* **oppure** *sparo e muovo*. Un eroe può dichiararla come eccezione **nel proprio kit**; il ruleset no | [`spec-dash.md`](spec-dash.md) |
-| §19 collisioni (contesa e swap bloccano entrambi) | **già implementato** | `ERTMoveOutcome::BlockedContested` |
+| §19 collisioni (contesa e swap bloccano entrambi) | ⚠️ **metà**: la **contesa** è implementata, lo **swap no — riesce**. Questa riga diceva «già implementato» per entrambi, e la seconda metà è stata misurata falsa il 2026-08-31 ([D-295](../decisions/RT_PDR_00_Decision_Log.md)): `HexSim.ResolveSwapAllowed` è verde e asserisce che lo scambio diretto riesce, e il ciclo chiuso `A→B→C→A` ruota senza che nessun test lo copra. `AUTHOR-MOVE-001` decide che entrambi devono bloccare — l'implementazione è [#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922) | `ERTMoveOutcome::BlockedContested` (contesa) · `HexSim.ResolveSwapAllowed` (scambio) |
 | §23 mai auto-reroute | **già implementato** | `TruncatePathToTopology` |
 | §6 micro-step | **già implementato** | `ResolveHexPaths` |
 | §36 dieci reason code nuovi | **duplicati**: sette esistono con altri nomi, in un enum **serializzato nei replay** | `ERTMoveOutcome` |

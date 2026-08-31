@@ -606,6 +606,40 @@ un ordine di risoluzione mai avvenuto. Per la stessa ragione il combat log non s
 > hash e nessun test di serializzazione: romperebbe il seek, ed è per questo che il vincolo è scritto qui
 > e non solo là.
 
+### 6.1 La riga leggibile porta il proprio soggetto ([#1932](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1932))
+
+La forma *«Guardian: fermo (cella contesa)»* dell'esempio qui sopra è **la forma prodotta**, e fino al
+2026-08-31 non lo era: `URTTurnLogLibrary::DescribeTurnLogWithSubjects` portava il soggetto solo come
+**dato** (`SubjectStableUnitId`, che serve al filtro di conoscenza) e il testo usciva senza. Chi leggeva il
+log non poteva attribuire una riga.
+
+🔴 **Il costo è misurato.** [#1733](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1733) è
+stata aperta come bug di gameplay perché due righe della **stessa** unità — *«si muove (-1,-1) → (1,-1)»*
+nel Dash e *«resta (1,-1)»* nel Move — si leggevano come due unità sulla stessa cella. La sovrapposizione
+non era mai avvenuta: quelle celle erano libere, e a produrre la diagnosi è stata l'assenza del soggetto.
+
+| Dove | Cosa porta |
+|---|---|
+| `DescribeEntry` | il **predicato** soltanto — `si muove (q..) → (q..) (N celle) (azione, pN)` |
+| `DescribeTurnLogWithSubjects` | la **riga**: `<soggetto>: <predicato>` per le voci `Move` con `UnitId != 0` |
+| `ARTTurnManager::SubjectNamesForLog` | `StableUnitId` → nome leggibile (`ARTUnit::DisplayLabel`), dal roster |
+| `DescribeReportLine` (debug) | invariata: stampava già `unita=%d` accanto al predicato |
+
+⚠️ **Solo la categoria `Move`.** Il prefisso regge dove `UnitId` è anche il soggetto **grammaticale** del
+predicato. Per il danno porta chi **subisce** ([#1150](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1150))
+— *«Gadget: colpisce»* direbbe il falso — e le voci `Status` cominciano già con la cella. Estendere ad altre
+categorie vuole prima un predicato che regga il soggetto davanti.
+
+⚠️ **Il nome non è nel TurnLog e non ci entra.** La libreria resta pura: risolve i nomi il chiamante, che ha
+gli Actor. Senza mappa la riga esce con `u<StableUnitId>` — brutto da leggere e vero, che è l'ordine giusto
+delle due proprietà. **Nessun campo nuovo, nessun cambio di formato, nessun effetto sull'hash.**
+
+⏳ **Cosa resta.** Il «resta» di chi è appena arrivato con lo scatto non si distingue ancora, nel predicato,
+dal «resta» di chi non si è mosso affatto: `ERTMoveOutcome::SupersededByDash` copre solo chi *aveva* un
+movimento pianificato da scartare. Un esito dedicato sarebbe un valore nuovo in un enum **serializzato in
+v7** e riprodotto dal replay — modifica di formato, con la propria issue e il proprio costo. Con il soggetto
+in testa alle due righe il lettore le attribuisce comunque alla stessa unità, che era il difetto costoso.
+
 ---
 
 ## 7. Determinismo & invarianti

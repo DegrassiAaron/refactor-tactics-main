@@ -238,6 +238,99 @@ bool FRTScenarioReportContentTest::RunTest(const FString&)
 }
 
 /**
+ * Le due durate arrivano nel referto **separate** (#1671).
+ *
+ * Il valore non e' in nessuna delle due da sola: e' nella loro differenza. Un `simulationSeconds` fermo con
+ * un `wallClockSeconds` che raddoppia dice «la macchina e' carica»; il contrario dice «il gioco ha cambiato
+ * comportamento», ed e' l'unico dei due casi che riguardi il codice. Con un numero solo — o con un rapporto
+ * gia' calcolato — nessuna delle due letture sarebbe possibile.
+ *
+ * ⚠️ **Si asserisce che siano DUE campi, non che valgano qualcosa in particolare**: il tempo di parete non ha
+ * un valore atteso, e pretenderlo renderebbe questo test rosso a giorni alterni per una ragione che non e' il
+ * gioco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioReportDurationsTest,
+	"RefactorTactics.Scenario.DurationsAreReportedSeparately",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioReportDurationsTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.Basic"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	// La premessa: se la simulazione non ha fatto un passo, l'uguaglianza sotto sarebbe vera per assenza e
+	// questo test non direbbe niente su nessun campo.
+	TestTrue(FString::Printf(TEXT("la simulazione ha girato (%.2f s simulati)"), Result.SimulationSeconds),
+		Result.SimulationSeconds > 0.f);
+
+	TSharedPtr<FJsonObject> Root;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(
+		URTTestReportWriter::ToJson(Result, TEXT("test-run")));
+	if (!TestTrue(TEXT("il report e' JSON valido"), FJsonSerializer::Deserialize(Reader, Root) && Root.IsValid()))
+	{
+		return false;
+	}
+
+	double Simulated = -1.0;
+	double WallClock = -1.0;
+	TestTrue(TEXT("il referto riporta il tempo simulato"),
+		Root->TryGetNumberField(TEXT("simulationSeconds"), Simulated));
+	TestTrue(TEXT("il referto riporta il tempo di parete"),
+		Root->TryGetNumberField(TEXT("wallClockSeconds"), WallClock));
+
+	// Due CAMPI, non uno: e' esattamente cio' che la issue chiede e che il referto non sapeva dire.
+	TestTrue(TEXT("il tempo simulato e' quello del risultato"),
+		FMath::IsNearlyEqual(static_cast<float>(Simulated), Result.SimulationSeconds, 0.001f));
+	TestTrue(TEXT("il tempo di parete e' quello del risultato"),
+		FMath::IsNearlyEqual(static_cast<float>(WallClock), Result.WallClockSeconds, 0.001f));
+	return true;
+}
+
+/**
+ * 🔴 Il tempo **simulato** e' deterministico; quello di parete non lo e', e questo test asserisce solo il primo.
+ *
+ * E' la ragione per cui i due campi esistono separati invece che come una durata sola. `simulationSeconds`
+ * conta gli step di un ciclo a passo fisso: stesso scenario ⇒ stesso numero di step ⇒ stesso valore, su
+ * qualunque macchina. `wallClockSeconds` dipende dal carico — e su questo repository piu' sessioni
+ * condividono la working directory (**D-222**), quindi puo' variare del doppio fra due run consecutive.
+ *
+ * ⚠️ **Su `wallClockSeconds` non c'e' e non ci sara' un `TestEqual`.** Un test che pretendesse due tempi di
+ * parete uguali sarebbe rosso per il carico della macchina — un rosso che accusa il gioco di un difetto
+ * dell'ambiente, che e' la peggiore delle diagnosi sbagliate.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSimulationTimeDeterministicTest,
+	"RefactorTactics.Scenario.SimulationTimeIsDeterministic",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioSimulationTimeDeterministicTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.Basic"), Scenario)) { return false; }
+
+	float First = -1.f;
+	float Second = -2.f;
+	for (int32 Run = 0; Run < 2; ++Run)
+	{
+		UWorld* World = MakeRunnerWorld();
+		if (!TestNotNull(TEXT("world"), World)) { return false; }
+		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+		DestroyRunnerWorld(World);
+		(Run == 0 ? First : Second) = Result.SimulationSeconds;
+	}
+
+	// La premessa, di nuovo esplicita: due zeri sarebbero identici senza che nulla sia stato simulato.
+	if (!TestTrue(FString::Printf(TEXT("la prima run ha simulato qualcosa (%.2f s)"), First), First > 0.f))
+	{
+		return false;
+	}
+	TestEqual(TEXT("due run dello stesso scenario simulano lo stesso tempo"), Second, First);
+	return true;
+}
+
+/**
  * `RunById` e' il punto d'ingresso di console e auto-run: carica per ID, esegue e **scrive il report**.
  * Va coperto qui perche' i comandi console non sono verificabili headless senza caricare una mappa, e la
  * parte che conta — «eseguire lascia sempre una traccia leggibile» — e' in questa funzione, non nel comando.

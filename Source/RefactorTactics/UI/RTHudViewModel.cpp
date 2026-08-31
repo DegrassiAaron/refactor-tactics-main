@@ -157,6 +157,23 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		// scriva mai un valore negativo altrove non e' un contratto.
 		View.TurnsRemaining = FMath::Max(0, Unit->GetAbilityCooldown(Index));
 
+		// IL DENOMINATORE, e la divisione fatta qui una volta sola (`#1896`).
+		//
+		// `CooldownTurns` vale **0** per la maggior parte del kit — attacco base, `Move`, `Guard`, `Brace` —
+		// e un widget che lo usasse come divisore produrrebbe un `Divide by zero` per ogni selezione. In
+		// Blueprint quella divisione non si ferma: restituisce 0, e la barra dichiara «scarica»
+		// un'abilita' pronta. Misurato in PIE, un warning per selezione su tutti e quattro gli eroi.
+		//
+		// ⚠️ **Senza ricarica -> `1`, non `0`.** L'azione e' pronta per definizione: zero sarebbe il
+		// difetto scritto in un altro posto. Chi deve distinguere i due casi legge `TotalTurns == 0`.
+		View.TotalTurns = FMath::Max(0, Action->Def.CooldownTurns);
+		View.ChargeFraction = (View.TotalTurns > 0)
+			// `Clamp` e non aritmetica nuda: `TurnsRemaining` viene dal simulatore e questa vista dichiara
+			// `[0,1]` nel proprio contratto. Un contratto che regge solo finche' nessuno scrive una ricarica
+			// piu' lunga del totale non e' un contratto — e' la stessa cura gia' presa da `TurnsRemaining`.
+			? FMath::Clamp(1.f - static_cast<float>(View.TurnsRemaining) / static_cast<float>(View.TotalTurns), 0.f, 1.f)
+			: 1.f;
+
 		// Usabile ADESSO e' un'altra domanda: `CanUseAbility` guarda ricarica **ed** energia.
 		View.bUsableNow = Unit->CanUseAbility(Index);
 

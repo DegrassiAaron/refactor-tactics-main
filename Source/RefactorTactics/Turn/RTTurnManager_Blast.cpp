@@ -785,7 +785,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// - primo interrompibile e secondo no: si cancellavano **entrambi**, incluso quello che dichiara di non
 	//   poter essere interrotto, e la traccia ne nominava uno solo.
 	//
-	// Con gli indici degli intenti la domanda si fa per azione, che e' l'unita' su cui `bCanBeInterrupted`
+	// Con gli indici degli intenti la domanda si fa per azione, che e' l'unita' su cui `InterruptPolicy`
 	// e' dichiarato — e la deduplicazione viene gratis: due Interrupt sulla stessa vittima aggiungono lo
 	// stesso indice al `TSet` e producono una voce sola.
 	// 🔴 **PASSATA 1 di 3 — si costruisce il GRAFO, non si cancella ancora niente** (`#1451`, [D-202]).
@@ -836,7 +836,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 			if (Intents[k].AttackerId != Hit.TargetId) { continue; }
 
 			// 🔴 **L'impatto di una carica NON si interrompe qui**, e il flag del catalogo non basta a dirlo:
-			// `Action.Charge` dichiara `bInterruptible = true`, ma quel «si'» riguarda la carica come azione
+			// `Action.Charge` e' interrompibile, ma quel «si'» riguarda la carica come azione
 			// PIANIFICATA — il movimento, che risolve nella fase Dash. Quando l'impatto arriva nel Blast lo
 			// scatto e' gia' avvenuto: cancellarlo qui annullerebbe a posteriori la coda di un'azione
 			// risolta a meta', lasciando l'unita' dove la carica l'ha portata e togliendole il colpo.
@@ -855,8 +855,8 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 			}
 
 			// Solo cio' che DICHIARA di poter essere interrotto: un Interrupt su chi ha pianificato Guard
-			// (`bCanBeInterrupted = false`) non ha niente da cancellare.
-			if (!IntentDefs.IsValidIndex(k) || !IntentDefs[k].bCanBeInterrupted) { continue; }
+			// (`ERTInterruptPolicy::None`) non ha niente da cancellare.
+			if (!IntentDefs.IsValidIndex(k) || !IntentDefs[k].CanBeInterrupted()) { continue; }
 
 			// L'arco: questo Interrupt cancellerebbe questa azione. **Se** sara' efficace lo decide la
 			// passata 2 — qui non si cancella niente, e i colpi restano tutti al loro posto.
@@ -1086,7 +1086,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// che dovrebbe riceverlo. Si toglie insieme ai colpi degli intenti interrotti, nello stesso filtro.
 	//
 	// ⚠️ Il filtro guarda l'INTENTO, non l'attaccante: cosi' un'azione non interrompibile della stessa unita'
-	// sopravvive, che e' cio' che `bCanBeInterrupted` dichiara (`#1437`).
+	// sopravvive, che e' cio' che `InterruptPolicy` dichiara (`#1437`).
 	Plan.Hits.RemoveAll([&InterruptedIntents, &IntentDefs](const FRTHexAttackHit& Hit)
 	{
 		if (InterruptedIntents.Contains(Hit.IntentIndex)) { return true; }

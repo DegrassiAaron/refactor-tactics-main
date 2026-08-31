@@ -947,7 +947,8 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| bHoveredValid
 		|| PreviewPath.Num() > 0
 		|| PreviewHitCells.Num() > 0
-		|| PreviewReachable.Num() > 0;
+		|| PreviewReachable.Num() > 0
+		|| bPreviewAttackValid;
 }
 
 void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const TArray<FRTCellId>& AllyCells)
@@ -962,6 +963,18 @@ void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const
 void ARTHexMapActor::SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells)
 {
 	PreviewReachable = ReachableCells;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetPreviewAttack(const FRTCellId& OriginCell, const FRTCellId& AimCell, bool bValid,
+	bool bOriginPredicted)
+{
+	// Si copia e basta, come le celle colpite: l'origine la deriva `URTHexCombatLibrary::BlastOriginCell`,
+	// che e' la stessa risposta che usera' il Blast. Ricalcolarla qui sarebbe la seconda origine.
+	PreviewAttackOrigin = OriginCell;
+	PreviewAttackAim = AimCell;
+	bPreviewAttackValid = bValid;
+	bPreviewOriginPredicted = bOriginPredicted;
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
@@ -1114,6 +1127,44 @@ void ARTHexMapActor::DrawPlanningPreview() const
 			const FVector B = URTHexLibrary::AxialToWorld(PreviewPath[I], Origin, Size, LayerH)
 				+ FVector(0, 0, CellLift(PreviewPath[I]) + RTLiftPreview + 1.5f);
 			DrawDebugLine(World, A, B, FColor(40, 220, 220), false, -1.f, 0, 4.f);
+		}
+	}
+
+	// ORIGINE e MIRA dell'attacco pianificato, disegnate PRIMA dell'area: rispondono a una domanda diversa —
+	// «da dove parte» e «verso cosa» — e senza di loro una singola zona rossa deve significare tutto.
+	//
+	// 🔴 **L'origine non e' sempre la cella dove sta l'unita' adesso.** La fase Dash precede il Blast, quindi
+	// chi ha pianificato una carica sparera' da dov'e' arrivato: la cella la deriva
+	// `URTHexCombatLibrary::BlastOriginCell`, che e' la stessa risposta che usera' il resolver.
+	//
+	// ⚠️ **Il tratteggio non e' decorazione**: distingue un'origine CONFERMATA (cella corrente) da una
+	// PREVISTA (cella dello scatto, che la collisione simultanea di CP 4.8 puo' accorciare). E' un canale
+	// non cromatico, come chiede la grammatica della certezza: chi non distingue i colori legge comunque
+	// la differenza fra continuo e spezzato.
+	if (bPreviewAttackValid)
+	{
+		DrawCellOutline(PreviewAttackOrigin, FColor(220, 220, 255), 0.58f, /*bThroughUnits=*/ true);
+
+		const FVector A = URTHexLibrary::AxialToWorld(PreviewAttackOrigin, Origin, Size, LayerH)
+			+ FVector(0, 0, CellLift(PreviewAttackOrigin) + RTLiftPreview + 3.f);
+		const FVector B = URTHexLibrary::AxialToWorld(PreviewAttackAim, Origin, Size, LayerH)
+			+ FVector(0, 0, CellLift(PreviewAttackAim) + RTLiftPreview + 3.f);
+		const FColor AimColor(220, 220, 255);
+		if (bPreviewOriginPredicted)
+		{
+			// Spezzata: otto tratti, quattro disegnati. Il numero e' fisso e non dipende dalla distanza —
+			// un passo costante allungherebbe il ciclo su una linea lunga senza aggiungere informazione.
+			constexpr int32 Segments = 8;
+			for (int32 S = 0; S < Segments; S += 2)
+			{
+				const FVector P0 = FMath::Lerp(A, B, S / static_cast<float>(Segments));
+				const FVector P1 = FMath::Lerp(A, B, (S + 1) / static_cast<float>(Segments));
+				DrawDebugLine(World, P0, P1, AimColor, false, -1.f, SDPG_Foreground, /*Thickness=*/ 3.f);
+			}
+		}
+		else
+		{
+			DrawDebugLine(World, A, B, AimColor, false, -1.f, SDPG_Foreground, /*Thickness=*/ 3.f);
 		}
 	}
 

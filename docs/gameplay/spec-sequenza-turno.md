@@ -78,6 +78,38 @@ diventerà pericolosa una fase dopo ([D-092](../decisions/RT_PDR_00_Decision_Log
 > stesso Blast non guadagna la linea perché il muro è caduto. È la ragione per cui l'ordine dei colpi non
 > cambia l'esito, ed è una policy — non un effetto collaterale dell'implementazione.
 
+### 1.3 Il KO libera la cella al proprio commit, non nel Cleanup
+
+Una domanda che questo documento non poneva e a cui un altro rispondeva al contrario. La riga **60** della
+tabella di [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) §3 mappa *«KO, verifica obiettivi,
+decremento cooldown, TurnLog»* sulla macro-fase `Cleanup`, e chi la legge deduce che fino al Cleanup
+un'unità abbattuta **occupi** ancora il proprio `FRTCellId`. Quella riga è vera di *cosa* il Cleanup
+elabora — la rimozione dell'attore e la scrittura del log — e **falsa di quando la cella si libera**
+([D-294](../decisions/RT_PDR_00_Decision_Log.md)).
+
+**La cella si libera al commit del segmento che ha inflitto il danno letale.** Non c'è un momento in cui
+un'unità è morta *e* bloccante:
+
+- `ARTUnit::IsAlive()` è `Health > 0` — **calcolata**, non un flag alzato da una fase;
+- `ARTTurnManager::CollectLivingUnits` filtra sui vivi, e lo dichiara: *«i morti (es. nel Blast) non si
+  muovono e non bloccano»*;
+- `URTHexSimLibrary::MakeSnapshot` popola `Occupancy` **solo** con `Unit.bAlive`, e
+  `URTMatchSetupLibrary::BuildOccupancy` ripete la stessa regola.
+
+Il §1.1 fa il resto: **ogni segmento ha il proprio snapshot**, quindi l'occupancy si rilegge a ogni
+boundary. Un'unità caduta nel `Blast` non compare nell'occupancy del `Move` che segue, e chi si muove dopo
+trova la cella libera. Il corpo può restare visibile — la presentazione non è autorità (invariante #3).
+
+> ⚠️ **Vale per costruzione, non per regola, e la differenza conta.** `Occupancy` è **congelata** dentro un
+> segmento: nessun punto del codice la muta durante la risoluzione. Oggi non si nota, perché il danno da
+> terreno del `Move` si applica **dopo** che l'intera fase è risolta e nessun micro-step può osservare un
+> occupante stantio. Il giorno in cui un effetto uccidesse **dentro** la risoluzione di un segmento, il
+> comportamento diventerebbe l'opposto senza che nessuno lo decida. È la regressione che
+> `Match.KODoesNotBlockItsCellNextPhase` deve intercettare, e quel test **non esiste ancora**.
+
+Una meccanica di cadavere bloccante resta possibile, ma richiede un **oggetto o una regola di gioco
+espliciti**: non si ottiene lasciando indietro l'unità abbattuta.
+
 ---
 
 ## 2. Tassonomia — cosa può accadere, e quando si decide
@@ -157,21 +189,30 @@ MacroPhase → Priority (intera) → ActionId (lessicale) → SourceUnitId → E
 l'ordine di arrivo nel container non decide mai. Verificato da `Actions.OrderByPriority` e
 `Actions.PermutationInvariant`.
 
-### 3.2 Ordine degli EFFETTI simultanei (APNAP) — deciso, **non implementato**
+### 3.2 Ordine degli EFFETTI simultanei — la domanda è chiusa, e la risposta non è un ordine
 
-[`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) §5.1 adotta come `FR-RESOLVE-01..03` un ordine a
-sei gruppi — sistema → unità attiva → alleati → avversari → terreno → globali — per il caso in cui più
-**effetti** risolvono nello stesso istante **e l'ordine conta** (scudo o reazione prima del danno).
+**Non esiste un secondo ordine.** Vale §3.1, e basta.
 
-> ⚠️ **Verificato il 2026-08-08: i sei gruppi non esistono nel codice.** `grep -rn "APNAP\|FR-RESOLVE" Source/`
-> trova **un solo commento**, in `RTActionQueueLibrary.h`, che dichiara di *estendere* la regola. Ciò che è
-> stato costruito è l'ordine di §3.1, che assorbe la parte intra-gruppo di APNAP («priorità intera →
-> tie-break assoluto») ma **non** la partizione per appartenenza.
+Qui stava dal 2026-08-08 una domanda aperta: `piano-canonico-mvp.md` §5.1 adottava come `FR-RESOLVE-01` una
+partizione a sei gruppi sugli effetti — *sistema → unità attiva → alleati → avversari → terreno → globali* —
+mai costruita, e questa sezione chiedeva se costruirla o ritirarla.
+
+**Ritirata il 2026-08-31 da [D-293](../decisions/RT_PDR_00_Decision_Log.md)**, per due ragioni misurate.
+
+> 🔴 **La premessa non regge.** APNAP mette per primi gli effetti di **chi ha il turno**. Qui i turni sono
+> **simultanei**: nessuno ha il turno, e «unità attiva» non è una cosa che il gioco possieda.
 >
-> Non è un difetto da correggere di corsa: il canone dichiara l'implementazione **gated**, «si esercita quando
-> esistono effetti ordine-dipendenti». Ma è la solita forma — **una regola normativa che nessun consumer
-> legge** — e va detta, non lasciata dedurre. Quando E14 porterà reazioni che modificano il danno *prima* che
-> venga applicato, o si costruiscono i gruppi o si dichiara che §3.1 basta e §5.1 del canone va riscritto.
+> 🔴 **E non avrebbe governato il caso reale.** L'unico caso misurato in cui l'ordine cambia l'esito è *«due
+> nemici colpiscono lo stesso bersaglio in Guardia»*: i due attaccanti sono **entrambi avversari**, stesso
+> gruppo in ogni permutazione. La partizione non li separa.
+
+✅ **Come si è chiuso invece.** Rendendo **commutativa la mitigazione**, non ordinando gli effetti: la Guardia
+diventa un **pool** di danni assorbibili ([D-292](../decisions/RT_PDR_00_Decision_Log.md)), e una somma che non
+perde pezzi non ha bisogno di sapere chi viene prima. Il difetto che ha portato qui è provato da
+`RefactorTactics.Combat.GuardPoolIsPermutationInvariant`.
+
+⚠️ La domanda si riapre solo se comparisse un effetto ordine-dipendente **non riducibile a un pool** — e allora
+con una premessa che il gioco possa avere, non con l'unità attiva.
 
 ### 3.3 State-Based Actions
 

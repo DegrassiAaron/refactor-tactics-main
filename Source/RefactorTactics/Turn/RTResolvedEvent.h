@@ -2,10 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "Core/RTTypes.h"
+#include "Perception/RTTeamKnowledge.h" // FRTKnowledgeVerdict: il verdetto congelato di [D-223], come in `RTTurnLog.h`
 #include "Turn/RTTurnRules.h"
 #include "RTResolvedEvent.generated.h"
-
-class ARTUnit;
 
 /** Tipo di evento risolto, per la riproduzione temporizzata (playback) del turno. */
 UENUM(BlueprintType)
@@ -19,8 +18,24 @@ enum class ERTResolvedEventType : uint8
 
 /**
  * Evento gia' risolto dalla logica, emesso a lock-in per essere RIPRODOTTO nel tempo.
- * L'animazione legge questi eventi: non decide nulla (invariante #1). I riferimenti alle unita'
- * sono weak perche' un'unita' puo' essere logicamente morta mentre il playback la mostra ancora.
+ * L'animazione legge questi eventi: non decide nulla (invariante #1).
+ *
+ * 🔑 **E' un VALUE TYPE, e i soggetti sono id e non puntatori.** Fino a #1800 i due campi erano
+ * `TWeakObjectPtr<ARTUnit>`: il significato del fatto dipendeva dalla vita di un Actor, proprio nel punto
+ * in cui la presentazione deve leggere qualcosa di **gia' accaduto**. Un evento che porta due id si
+ * confronta, si serializza e si asserisce **senza mondo** — ed e' la stessa scelta gia' fatta da
+ * `FRTMoveRoute` nel TurnLog, che porta `StableUnitId` e nessun puntatore.
+ *
+ * ⚠️ **`0` non e' un'unita'** ([D-063]): `EnsureMatchRoster` assegna gli id **a partire da 1** e lascia lo
+ * `0` libero apposta per dire «nessuna unita' dichiarata». Un `Defeated` ha quindi `TargetUnitId == 0`, e
+ * un evento nato prima che il roster fosse congelato porta `0` anche in `SourceUnitId`: chi lo consuma
+ * deve trattarlo come «nessuno», non come «l'unita' numero zero».
+ *
+ * 🔴 **Chi anima risolve, chi risolve non anima.** `ARTTurnManager::UnitByStableId` e' la porta che
+ * ritrasforma l'id in `ARTUnit*`, e va usata **solo** quando c'e' davvero da muovere un cilindro o da
+ * far partire un montage. Se l'unita' e' stata distrutta nel frattempo la porta risponde `nullptr`, che
+ * e' esattamente cio' che rispondeva `TWeakObjectPtr::Get()` — il comportamento del playback non cambia,
+ * cambia dove sta il puntatore.
  */
 USTRUCT(BlueprintType)
 struct FRTResolvedEvent
@@ -33,15 +48,51 @@ struct FRTResolvedEvent
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	ERTResolvedEventType Type = ERTResolvedEventType::Move;
 
+	/**
+	 * Chi ha agito, come `ARTUnit::StableUnitId`. `0` = nessun soggetto dichiarato.
+	 *
+	 * ⛔ **`StableUnitId` nel nome, e non `SourceUnitId` soltanto**: nel progetto esiste gia' una famiglia
+	 * di campi chiamati `SourceUnitId` — `FRTActionInstance`, `FRTActionEvent`, `FRTNoiseEvent` — e
+	 * `RTActionQueue.h` dichiara che li' l'intero e' l'**indice nello snapshot**, con sentinella
+	 * `INDEX_NONE`. Sono due identita' diverse con due sentinelle diverse: chiamarle allo stesso modo
+	 * significherebbe che un giorno qualcuno assegna l'una all'altra e il compilatore non ha nulla da dire.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
-	TWeakObjectPtr<ARTUnit> Source;
+	int32 SourceStableUnitId = 0;
 
+	/** Chi ha subito, come `ARTUnit::StableUnitId`. `0` = nessuno. Solo `Attack` lo valorizza. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
-	TWeakObjectPtr<ARTUnit> Target;
+	int32 TargetStableUnitId = 0;
 
 	/** Per Move: la rotta in celle (start incluso + celle attraversate, in ordine). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	TArray<FRTCellId> Path;
+
+	/**
+	 * Chi puo' vedere il modello percorrere CIASCUNA cella di `Path` ([D-223], `#1525`). Parallelo a
+	 * `Path`, stesso indice.
+	 *
+	 * 🔴 **Esiste perche' il playback e' la seconda meta' di un difetto di cui la prima e' gia' chiusa.**
+	 * `FRTMoveRoute::CellVerdicts` nomina i due errori speculari che [D-223] esiste per chiudere: il
+	 * **leak** (la polilinea entra nella nebbia) e la **contraddizione** (la traccia nascosta mentre il
+	 * modello e' disegnato). `#1497` ha chiuso il primo troncando la traccia; il secondo restava vivo
+	 * perche' questo evento portava la rotta **senza** il verdetto, e il modello la percorreva intera.
+	 *
+	 * ⚠️ **Non e' un secondo calcolo.** Il verdetto e' lo STESSO che `FreezeRouteVerdicts` congela per la
+	 * traccia, due righe sopra il punto in cui questo evento viene costruito, sulla stessa `Route`: la
+	 * riparazione e' stata copiarlo, non ricalcolarlo. Se un giorno divergessero, traccia e modello
+	 * tornerebbero a raccontare frasi diverse sullo stesso movimento.
+	 *
+	 * ⚠️ **Vuoto significa «nessun verdetto», e si legge fail-closed.** Chi consuma passa da
+	 * `URTTeamKnowledgeLibrary::ObservedPrefixLength`, che su lunghezze disallineate risponde `0` invece
+	 * di indovinare — mai indicizzando questo array direttamente.
+	 *
+	 * ⚠️ **`UPROPERTY()` nudo, non `BlueprintReadOnly`**: `FRTKnowledgeVerdict` non e' un tipo Blueprint, ed
+	 * e' la stessa forma che `FRTMoveRoute::CellVerdicts` usa per lo stesso dato. Un verdetto leggibile da
+	 * Blueprint sarebbe anche un verdetto **aggirabile** da Blueprint.
+	 */
+	UPROPERTY()
+	TArray<FRTKnowledgeVerdict> CellVerdicts;
 
 	/** Danno/scudo/durata secondo Type. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")

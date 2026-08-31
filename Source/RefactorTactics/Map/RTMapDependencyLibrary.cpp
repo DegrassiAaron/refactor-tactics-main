@@ -72,9 +72,32 @@ FRTMapDependencySet URTMapDependencyLibrary::CollectDependents(const URTHexMapAs
 			}
 		}
 
+		Set.OrphanedStructureNames = DyingNames.Array();
+		Set.OrphanedStructureNames.Sort(FNameLexicalLess());
+
+		// 🔴 **Un binding muore se perde la SORGENTE oppure l'ULTIMO bersaglio** — la regola che il contratto
+		// di `FRTMapDependencySet` dichiarava e che questo ciclo non applicava: guardava la sola `SourceId`,
+		// quindi un bersaglio morto restava citato e `ValidateReferences` lo segnalava. Trovato da una code
+		// review, non da un test.
+		//
+		// ⚠️ Chi perde SOLO ALCUNI bersagli non entra qui: sopravvive, e l'applicatore gli toglie i nomi
+		// morti usando `OrphanedStructureNames`. Metterlo fra gli indici lo cancellerebbe intero — perdita
+		// di dato silenziosa, che e' il difetto opposto e peggiore.
 		for (int32 Index = 0; Index < Map->InteractionBindings.Num(); ++Index)
 		{
-			if (DyingNames.Contains(Map->InteractionBindings[Index].SourceId))
+			const FRTInteractionBinding& Binding = Map->InteractionBindings[Index];
+
+			if (DyingNames.Contains(Binding.SourceId))
+			{
+				Set.InteractionBindingIndices.Add(Index);
+				continue;
+			}
+
+			const bool bEveryTargetDies = Binding.TargetIds.Num() > 0
+				&& !Binding.TargetIds.ContainsByPredicate(
+					[&DyingNames](const FName& Target) { return !DyingNames.Contains(Target); });
+
+			if (bEveryTargetDies)
 			{
 				Set.InteractionBindingIndices.Add(Index);
 			}

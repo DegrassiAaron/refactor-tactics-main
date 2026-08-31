@@ -286,4 +286,31 @@ public:
 	 */
 	static FRTKnowledgeVerdict FreezeVerdict(const TArray<FRTTeamKnowledge>& AllKnowledge,
 		const FRTKnowledgeSubject& Subject);
+
+	/**
+	 * Quante celle iniziali di una rotta l'osservatore ha il diritto di vedere: la regola di troncamento
+	 * di [D-223], in **una** funzione pura.
+	 *
+	 * 🔴 **Tronca, non filtra: si ferma alla prima cella negata e non riprende.** Riprendere dopo un buco
+	 * unirebbe due celle NON adiacenti — per la traccia con un segmento dritto sopra il tratto da
+	 * nascondere, per il modello con uno scatto attraverso di esso. In entrambi i casi e' **peggio che non
+	 * filtrare affatto**, perche' il salto disegna proprio cio' che il verdetto negava.
+	 *
+	 * 🔴 **Esiste per essere chiamata da DUE consumatori, ed e' questo il punto.**
+	 * `ARTTurnManager::VisibleTrailFor` la usa per la traccia post-lock (`#1497`) e `BeginPlayback` per il
+	 * modello animato (`#1525`): sono le due meta' degli errori speculari che [D-223] nomina, e finche' la
+	 * regola stava in un solo posto la seconda meta' e' rimasta aperta. Due copie della stessa condizione
+	 * divergerebbero, e la contraddizione — traccia troncata mentre il modello prosegue — tornerebbe.
+	 *
+	 * ⚠️ **Fail-closed sul disallineamento**: se i verdetti non sono tanti quante le celle risponde `0`.
+	 * Una rotta malformata non si mostra, invece di leggere fuori dall'array o di indovinare.
+	 *
+	 * ⚠️ **Non e' una `UFUNCTION`**, come `FreezeVerdict` e per la stessa ragione: `FRTKnowledgeVerdict`
+	 * non e' un tipo Blueprint. Una regola di privacy raggiungibile da Blueprint sarebbe una regola di
+	 * privacy **aggirabile** da Blueprint.
+	 *
+	 * @return il numero di celle iniziali consentite: `0` = niente, `Cells.Num()` = tutta la rotta.
+	 */
+	static int32 ObservedPrefixLength(const TArray<FRTCellId>& Cells,
+		const TArray<FRTKnowledgeVerdict>& CellVerdicts, int32 ObserverTeamId);
 };

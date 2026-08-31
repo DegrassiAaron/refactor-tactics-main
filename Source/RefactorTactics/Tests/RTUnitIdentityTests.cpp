@@ -2,6 +2,7 @@
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTResolvedEvent.h"
 #include "Unit/RTUnit.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
@@ -485,6 +486,103 @@ bool FRTTurnLogGraphRevisionRisesWithinTurnTest::RunTest(const FString&)
 	TestTrue(TEXT("la revisione cresce, non oscilla"), Revisions[1] > Revisions[0]);
 
 	DestroyIdentityWorld(World);
+	return true;
+}
+
+// --- Il confine di valore fra risoluzione e presentazione (#1800) ---------------------------------
+//
+// Questi due girano SENZA MONDO, ed e' il punto: prima di questa fetta le stesse due regole si potevano
+// esercitare solo spawnando degli Actor, perche' vivevano dentro `TWeakObjectPtr` e dentro un `+ 1` scritto
+// una volta sola in `EnsureMatchRoster`.
+
+/**
+ * `RosterIndexForStableId` e' l'INVERSA ESATTA dell'assegnazione, e le due sentinelle non collidono.
+ *
+ * L'oracolo discriminante e' lo scarto di uno: `EnsureMatchRoster` scrive `Roster[i]->StableUnitId = i + 1`,
+ * quindi l'id `1` deve dare l'indice `0`. Un'inversa scritta senza il `-1` risponderebbe comunque un indice
+ * valido per quasi tutti gli id — sbagliando unita' di uno, in silenzio, proprio nel punto in cui la
+ * presentazione decide quale cilindro muovere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRosterIndexInverseTest,
+	"RefactorTactics.UnitIdentity.RosterIndexIsTheExactInverseOfTheIdAssignment",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRosterIndexInverseTest::RunTest(const FString&)
+{
+	const int32 RosterNum = 4;
+
+	// L'inversa, su tutto il dominio valido: id `i + 1` -> indice `i`, per ogni i.
+	for (int32 i = 0; i < RosterNum; ++i)
+	{
+		TestEqual(FString::Printf(TEXT("id %d -> indice %d"), i + 1, i),
+			ARTTurnManager::RosterIndexForStableId(i + 1, RosterNum), i);
+	}
+
+	// 🔴 Lo `0` non e' un id ([D-063]): e' «nessuna unita' dichiarata», e non ha un indice. Se rispondesse
+	// `0` — cioe' l'indice della PRIMA unita' — un `Defeated` senza soggetto animerebbe l'unita' numero uno.
+	TestEqual(TEXT("lo 0 non e' un id"),
+		ARTTurnManager::RosterIndexForStableId(0, RosterNum), (int32)INDEX_NONE);
+
+	// Oltre il roster congelato: un'unita' spawnata DOPO non ne aveva uno, e non ne acquista uno adesso.
+	TestEqual(TEXT("un id oltre il roster non ha indice"),
+		ARTTurnManager::RosterIndexForStableId(RosterNum + 1, RosterNum), (int32)INDEX_NONE);
+
+	// Negativi e roster vuoto: nessun indice, nessun accesso fuori dai limiti.
+	TestEqual(TEXT("un id negativo non ha indice"),
+		ARTTurnManager::RosterIndexForStableId(-1, RosterNum), (int32)INDEX_NONE);
+	TestEqual(TEXT("su un roster vuoto nemmeno l'id 1 ha indice"),
+		ARTTurnManager::RosterIndexForStableId(1, /*RosterNum=*/ 0), (int32)INDEX_NONE);
+
+	return true;
+}
+
+/**
+ * Il FATTO resta leggibile quando l'ATTORE non e' piu' raggiungibile.
+ *
+ * E' la proprieta' per cui `FRTResolvedEvent` porta due id invece di due `TWeakObjectPtr`: un puntatore
+ * scaduto non dice piu' *chi* — dice soltanto «nessuno», e i due casi sono diversi. Qui l'unita' `7` non e'
+ * nel roster (la porta risponde «nessun Actor»), eppure l'evento continua a dichiarare che il soggetto era
+ * il `7`: la presentazione non ha nessuno da animare, la traccia sa ancora di chi parlava.
+ *
+ * ⚠️ Il test non e' vacuo per costruzione: se qualcuno rimettesse un `TWeakObjectPtr` al posto degli id,
+ * queste righe **non compilerebbero**.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolvedEventOutlivesItsActorTest,
+	"RefactorTactics.UnitIdentity.AResolvedFactOutlivesTheActorItCameFrom",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolvedEventOutlivesItsActorTest::RunTest(const FString&)
+{
+	FRTResolvedEvent Attack;
+	Attack.Phase = ERTMatchPhase::Blast;
+	Attack.Type = ERTResolvedEventType::Attack;
+	Attack.SourceStableUnitId = 3;
+	Attack.TargetStableUnitId = 7;
+	Attack.Amount = 5;
+
+	// Il roster ne conosce 4: il `3` e' raggiungibile, il `7` no.
+	const int32 RosterNum = 4;
+	TestNotEqual(TEXT("il soggetto 3 e' ancora raggiungibile"),
+		ARTTurnManager::RosterIndexForStableId(Attack.SourceStableUnitId, RosterNum), (int32)INDEX_NONE);
+	TestEqual(TEXT("il bersaglio 7 non ha piu' un Actor"),
+		ARTTurnManager::RosterIndexForStableId(Attack.TargetStableUnitId, RosterNum), (int32)INDEX_NONE);
+
+	// ...e il fatto continua a dichiarare ENTRAMBI i soggetti, incluso quello irraggiungibile.
+	TestEqual(TEXT("il fatto sa ancora chi ha colpito"), Attack.SourceStableUnitId, 3);
+	TestEqual(TEXT("e sa ancora chi e' stato colpito"), Attack.TargetStableUnitId, 7);
+	TestEqual(TEXT("e quanto"), Attack.Amount, 5);
+
+	// Copiato altrove resta lo stesso fatto: e' un valore, non un riferimento a qualcosa che vive fuori.
+	TArray<FRTResolvedEvent> Timeline;
+	Timeline.Add(Attack);
+	Attack = FRTResolvedEvent();
+	TestEqual(TEXT("la copia non e' cambiata quando l'originale e' stato azzerato"),
+		Timeline[0].TargetStableUnitId, 7);
+
+	// Un fatto appena costruito non dichiara nessun soggetto, e lo dice con lo `0` di [D-063] — non con un
+	// indice plausibile.
+	const FRTResolvedEvent Fresh;
+	TestEqual(TEXT("un fatto vuoto non ha soggetto"), Fresh.SourceStableUnitId, 0);
+	TestEqual(TEXT("ne' bersaglio"), Fresh.TargetStableUnitId, 0);
+
 	return true;
 }
 

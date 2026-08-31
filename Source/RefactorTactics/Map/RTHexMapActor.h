@@ -506,6 +506,22 @@ public:
 	 */
 	void SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells);
 
+	/**
+	 * Origine e mira dell'attacco pianificato: da DOVE parte il colpo e verso cosa. `bValid = false` spegne
+	 * entrambe.
+	 *
+	 * 🔴 **L'origine non e' sempre la cella in cui l'unita' si trova ora.** Il ciclo risolve
+	 * `Prep -> Dash -> Blast -> Move`: uno scatto pianificato si applica PRIMA degli attacchi, quindi sposta
+	 * l'origine di questo turno. La cella la deriva `URTHexCombatLibrary::BlastOriginCell` — qui non si
+	 * calcola, si riceve.
+	 *
+	 * `bOriginPredicted` distingue un'origine confermata (cella corrente) da una prevista (cella dello
+	 * scatto, che la collisione simultanea puo' accorciare): il disegno la rende con un tratteggio, cioe' un
+	 * canale non cromatico.
+	 */
+	void SetPreviewAttack(const FRTCellId& OriginCell, const FRTCellId& AimCell, bool bValid,
+		bool bOriginPredicted);
+
 	/** Conteggi dell'anteprima (diagnostica e test headless: il disegno non e' verificabile senza schermo). */
 	int32 NumPreviewHitCells() const { return PreviewHitCells.Num(); }
 	int32 NumPreviewAllyHitCells() const { return PreviewAllyHitCells.Num(); }
@@ -598,6 +614,15 @@ protected:
 	TArray<FRTCellId> PreviewAllyHitCells;
 	/** Celle raggiungibili dall'unita' selezionata, impostate dal controller (sola presentazione). */
 	TArray<FRTCellId> PreviewReachable;
+
+	/** Cella da cui parte l'attacco pianificato — post-scatto quando lo scatto si applica. */
+	FRTCellId PreviewAttackOrigin;
+	/** Cella verso cui punta la mira (bersaglio dichiarato o cella mirata). */
+	FRTCellId PreviewAttackAim;
+	/** Falso = nessun attacco pianificato: origine e linea di mira restano spente. */
+	bool bPreviewAttackValid = false;
+	/** Vero = l'origine viene dallo scatto pianificato: prevista, non confermata (linea tratteggiata). */
+	bool bPreviewOriginPredicted = false;
 
 	/** Vero se qualcosa va disegnato: evita di tenere il Tick acceso su un actor che non mostra nulla. */
 	bool HasAnythingToDraw() const;

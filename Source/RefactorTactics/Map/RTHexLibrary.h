@@ -155,6 +155,27 @@ public:
 	/** La direzione opposta (E<->W, NE<->SW, NW<->SE): il bordo condiviso, visto dall'altra cella. */
 	static ERTHexDirection OppositeDirection(ERTHexDirection Dir);
 
+	/**
+	 * Quale dei sei bordi e' piu' vicino a un punto-mondo, visto DA quella cella (#1864).
+	 *
+	 * Serve a un click: il viewport da' un punto, e la selezione ragiona per `(Cella, Bordo)`.
+	 *
+	 * ⚠️ **Confronta le distanze dai sei `EdgeMidpointWorld`, e non ricava un angolo.** La convenzione dei
+	 * sei lati vive gia' li' dentro; riscriverla come `Atan2` diviso in spicchi significherebbe averne due,
+	 * e il giorno in cui una cambiasse mentirebbero in silenzio. E' lo stesso criterio per cui
+	 * l'orientamento di un pannello viene da `EdgeRotation` invece che da un angolo inciso a mano.
+	 *
+	 * ⚠️ **La quota non conta**: il confronto e' in pianta. Un click arriva da una camera che guarda dall'alto
+	 * e il punto sul terreno puo' stare a un'altezza qualsiasi rispetto al centro del bordo — includere `Z`
+	 * farebbe dipendere il lato scelto dall'inclinazione della camera.
+	 *
+	 * Il centro esatto della cella non appartiene a nessun bordo piu' che a un altro: la risposta e'
+	 * arbitraria ma **deterministica**, perche' un click al centro non deve far saltare la selezione fra
+	 * lati diversi a ogni tentativo.
+	 */
+	static ERTHexDirection NearestEdgeDirection(const FRTCellId& Cell, const FVector& WorldPoint,
+		const FVector& Origin, float HexSize, float LayerHeight);
+
 	/** Distanza minima tra la semi-retta (RayOrigin + t*RayDir, t>=0) e il segmento A..B. Pura, per hit-test archi. */
 	static float DistanceRayToSegment(const FVector& RayOrigin, const FVector& RayDir, const FVector& A, const FVector& B);
 

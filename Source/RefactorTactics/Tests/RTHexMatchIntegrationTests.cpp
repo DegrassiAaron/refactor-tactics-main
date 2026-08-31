@@ -630,6 +630,59 @@ bool FRTHexDashBlockedTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * `#1525` — l'evento di playback porta il VERDETTO, non solo la rotta.
+ *
+ * 🔴 **Copre la meta' del difetto che i test puri non vedono.** `ObservedPrefixLength` ha cinque test, e
+ * resterebbero tutti verdi anche se nessuno gli passasse i verdetti: il difetto non era la regola — era
+ * che `FRTResolvedEvent` portava le celle **senza** il verdetto che `FreezeRouteVerdicts` aveva gia'
+ * congelato due righe sopra, sulla stessa `Route`. La traccia lo aveva, il modello no, e da quello scarto
+ * nasceva la contraddizione che [D-223] nomina.
+ *
+ * ⚠️ **Verifica di mutazione**: togliendo `Ev.CellVerdicts = Tracked.CellVerdicts;` dal sito del Move
+ * questo test diventa rosso (il conteggio scende a zero) e i cinque test puri restano **verdi**. E' la
+ * ragione per cui esiste separatamente da loro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackEventCarriesVerdictsTest,
+	"RefactorTactics.HexMatch.PlaybackEventCarriesKnowledgeVerdicts",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackEventCarriesVerdictsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMatchMap(World, /*Radius=*/ 5);
+
+	ARTUnit* A = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-3, 1));
+	ARTUnit* B = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(3, -1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A || !B) { DestroyHexMatchWorld(World); return false; }
+
+	// I bot si avvicinano: a distanza sei celle il primo turno produce movimento per entrambi.
+	RTWorldFixtures::PlayOneTurn(TM);
+
+	// Almeno una delle due si e' mossa, altrimenti la prova sarebbe vuota e passerebbe per assenza.
+	const int32 VerdettiA = TM->ResolvedMoveVerdictCountForTest(A->StableUnitId);
+	const int32 VerdettiB = TM->ResolvedMoveVerdictCountForTest(B->StableUnitId);
+	const bool bQualcunoSiEMosso = (VerdettiA != INDEX_NONE) || (VerdettiB != INDEX_NONE);
+	TestTrue(TEXT("almeno un'unita' ha un evento di movimento: senza, il test sarebbe vacuo"),
+		bQualcunoSiEMosso);
+
+	// 🔴 Il cuore: ogni evento di movimento porta ALMENO un verdetto. Zero significa che la rotta viaggia
+	// senza la risposta a «chi puo' vederla», ed e' esattamente lo stato da cui `#1525` e' nata.
+	if (VerdettiA != INDEX_NONE)
+	{
+		TestTrue(TEXT("l'evento di movimento di A porta i verdetti per cella, non zero"), VerdettiA > 0);
+	}
+	if (VerdettiB != INDEX_NONE)
+	{
+		TestTrue(TEXT("l'evento di movimento di B porta i verdetti per cella, non zero"), VerdettiB > 0);
+	}
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.

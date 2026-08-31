@@ -238,4 +238,243 @@ bool FRTSelectionStoreAccumulatesTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il readout dichiara TIPO e IDENTITA', non «un elemento».
+ *
+ * ⚠️ E' anche l'unico modo in cui chi clicca capisce a che punto del ciclo si trova: un pannello che dicesse
+ * «1 elemento selezionato» lascerebbe indovinare se il prossimo Erase toglie la porta o la cella sotto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSelectionStoreDescribeTest,
+	"RefactorTactics.Editor.Selection.ReadoutNamesTypeAndIdentity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSelectionStoreDescribeTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(1, 2, 0);
+
+	TestEqual(TEXT("selezione vuota"), URTHexSelectionStore::Describe({}), FString(TEXT("niente")));
+
+	// La cella nomina le proprie coordinate.
+	const FString CellText = URTHexSelectionStore::Describe({ FRTMapElementHandle::ForCell(Cell) });
+	TestTrue(*FString::Printf(TEXT("la cella dichiara il tipo (era: %s)"), *CellText),
+		CellText.Contains(TEXT("cella")));
+	TestTrue(*FString::Printf(TEXT("e le coordinate (era: %s)"), *CellText),
+		CellText.Contains(TEXT("1")) && CellText.Contains(TEXT("2")));
+
+	// La porta nomina il proprio StableId: e' la sua identita' pubblica.
+	const FString DoorText = URTHexSelectionStore::Describe(
+		{ FRTMapElementHandle::ForDoor(Cell, ERTHexDirection::E, TEXT("D1")) });
+	TestTrue(*FString::Printf(TEXT("la porta dichiara il tipo (era: %s)"), *DoorText),
+		DoorText.Contains(TEXT("porta")));
+	TestTrue(*FString::Printf(TEXT("e il suo nome (era: %s)"), *DoorText),
+		DoorText.Contains(TEXT("D1")));
+
+	// Un muro ANONIMO non ha un nome da mostrare, e il readout non deve inventarne uno.
+	FRTGeometrySegment Chord;
+	const double Angle = PI / 6.0;
+	const FVector2D A(SelStoreHexSize * FMath::Cos(Angle), SelStoreHexSize * FMath::Sin(Angle));
+	if (URTGeometryGrammarLibrary::SnapToGrammar(A, FVector2D(-A.X, -A.Y), SelStoreHexSize, Chord))
+	{
+		const FString WallText =
+			URTHexSelectionStore::Describe({ FRTMapElementHandle::ForInteriorWallAt(Cell, Chord) });
+		TestTrue(*FString::Printf(TEXT("il muro dichiara il tipo (era: %s)"), *WallText),
+			WallText.Contains(TEXT("muro")));
+		TestFalse(*FString::Printf(TEXT("e non si inventa un nome (era: %s)"), *WallText),
+			WallText.Contains(TEXT("None")));
+	}
+
+	// Piu' elementi: il readout dice quanti sono invece di elencarli tutti.
+	const FString ManyText = URTHexSelectionStore::Describe({
+		FRTMapElementHandle::ForCell(Cell),
+		FRTMapElementHandle::ForCell(FRTCellId(0, 0, 0)) });
+	TestTrue(*FString::Printf(TEXT("la multi-selezione dichiara il conteggio (era: %s)"), *ManyText),
+		ManyText.Contains(TEXT("2")));
+
+	return true;
+}
+
+/**
+ * 🔴 Ctrl+click ripetuto sullo STESSO punto cicla l'ULTIMO aggiunto, e non resta inchiodato al bordo.
+ *
+ * **Trovato in seduta**: con l'aggiunta che prendeva sempre il candidato piu' specifico, una cella con una
+ * copertura sul bordo mirato era **impossibile da aggiungere** — Ctrl+click dava la copertura, sempre, e non
+ * c'era nessun gesto per scendere alla cella. Un elemento raggiungibile col click semplice e irraggiungibile
+ * con quello multiplo e' la stessa forma del rilievo `A1`, spostata di un tasto.
+ *
+ * ⚠️ **Ciclare l'ultimo e non tutta la selezione** e' la parte da non sbagliare: gli elementi presi prima
+ * restano dove sono, altrimenti costruire una selezione di tre elementi sarebbe impossibile — l'ultimo
+ * gesto disferebbe i precedenti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSelectionStoreAddCyclesLastTest,
+	"RefactorTactics.Editor.Selection.RepeatedAddCyclesTheLastElement",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSelectionStoreAddCyclesLastTest::RunTest(const FString&)
+{
+	const FRTCellId First(0, 0, 0);
+	const FRTCellId Crowded(1, 0, 0);
+	const ERTHexDirection Edge = ERTHexDirection::E;
+
+	// Il punto affollato e' il SECONDO: cosi' il test prova che il ciclo dell'aggiunta non tocca cio' che
+	// era gia' selezionato.
+	URTHexMapAsset* Map = SelStoreMakeCrowdedMap(Crowded, Edge);
+	URTHexSelectionStore* Store = NewObject<URTHexSelectionStore>();
+
+	if (!TestTrue(TEXT("il primo click riesce"), Store->SelectAt(Map, First, Edge)))
+	{
+		return false;
+	}
+	const ERTMapElementKind FirstKind = SelStoreFirstKind(Store);
+
+	// Prima aggiunta: il piu' specifico del punto affollato.
+	if (!TestTrue(TEXT("l'aggiunta riesce"), Store->AddAt(Map, Crowded, Edge)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("due elementi"), Store->GetSelection().Num(), 2))
+	{
+		return false;
+	}
+	TestEqual(TEXT("e il secondo e' il piu' specifico"),
+		Store->GetSelection()[1].Kind, ERTMapElementKind::Door);
+
+	// 🔑 Ri-aggiungere sullo STESSO punto scende al candidato successivo, senza crescere.
+	Store->AddAt(Map, Crowded, Edge);
+	if (!TestEqual(TEXT("la selezione non cresce: cicla"), Store->GetSelection().Num(), 2))
+	{
+		return false;
+	}
+	TestEqual(TEXT("l'ultimo e' sceso alla copertura"),
+		Store->GetSelection()[1].Kind, ERTMapElementKind::Cover);
+
+	// E il primo non si e' mosso: e' cio' che rende costruibile una selezione di piu' elementi.
+	TestEqual(TEXT("il primo elemento e' rimasto quello"), SelStoreFirstKind(Store), FirstKind);
+
+	// Si arriva fino alla cella, che e' il candidato che prima era irraggiungibile con Ctrl.
+	Store->AddAt(Map, Crowded, Edge);
+	Store->AddAt(Map, Crowded, Edge);
+	TestEqual(TEXT("e si raggiunge la cella"),
+		Store->GetSelection()[1].Kind, ERTMapElementKind::Cell);
+	TestEqual(TEXT("sempre due elementi"), Store->GetSelection().Num(), 2);
+
+	return true;
+}
+
+/**
+ * 🔴 Il ciclo dell'aggiunta non deve poter mettere DUE VOLTE lo stesso elemento.
+ *
+ * Trovato da una code review. Il ramo che cicla scriveva `Selection.Last()` senza passare dal controllo dei
+ * duplicati che l'aggiunta normale fa: bastava selezionare una cella e poi ciclare su un punto della STESSA
+ * cella fino a tornare su di essa.
+ *
+ * ⚠️ **Non e' pignoleria e l'header lo dichiarava gia'**: `EraseSelection` itera la selezione e chiama
+ * `DeleteElement` per ogni voce — la seconda copia opera su una mappa da cui l'elemento e' gia' sparito,
+ * ottiene un rifiuto e logga un avviso che descrive un difetto inesistente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSelectionStoreCycleNoDupTest,
+	"RefactorTactics.Editor.Selection.CyclingNeverSelectsTheSameElementTwice",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSelectionStoreCycleNoDupTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(0, 0, 0);
+	const ERTHexDirection Crowded = ERTHexDirection::E;
+	const ERTHexDirection Bare = ERTHexDirection::NE;
+
+	URTHexMapAsset* Map = SelStoreMakeCrowdedMap(Cell, Crowded);
+	URTHexSelectionStore* Store = NewObject<URTHexSelectionStore>();
+
+	// Si seleziona la CELLA passando da un bordo spoglio: li' i candidati sono muro e cella.
+	Store->SelectAt(Map, Cell, Bare);
+	Store->SelectAt(Map, Cell, Bare);
+	if (!TestEqual(TEXT("la cella e' selezionata"), SelStoreFirstKind(Store), ERTMapElementKind::Cell))
+	{
+		return false;
+	}
+
+	// Poi si cicla sul bordo affollato della STESSA cella, fino a passare per la cella.
+	for (int32 Click = 0; Click < 6; ++Click)
+	{
+		Store->AddAt(Map, Cell, Crowded);
+
+		// 🔴 Nessun elemento due volte, mai — a nessun giro del ciclo.
+		for (int32 I = 0; I < Store->GetSelection().Num(); ++I)
+		{
+			for (int32 J = I + 1; J < Store->GetSelection().Num(); ++J)
+			{
+				const FRTMapElementHandle& A = Store->GetSelection()[I];
+				const FRTMapElementHandle& B = Store->GetSelection()[J];
+				const bool bSame = (A.Kind == B.Kind) && (A.Cell == B.Cell)
+					&& (A.Kind != ERTMapElementKind::Cover || A.Edge == B.Edge);
+				TestFalse(*FString::Printf(TEXT("click %d: nessun duplicato in selezione"), Click + 1), bSame);
+			}
+		}
+	}
+
+	return true;
+}
+
+/**
+ * 🔴 Ctrl+click su un punto GIA' selezionato non lascia il ciclo indietro.
+ *
+ * Trovato da una code review, ed e' la stessa forma del difetto che questa PR e' venuta a correggere. Il
+ * ramo «gia' dentro» usciva senza spostare la memoria del ciclo: tornando su un punto gia' preso, ogni
+ * Ctrl+click successivo ricalcolava il candidato piu' specifico, lo trovava duplicato e usciva di nuovo.
+ *
+ * ∴ gli altri candidati di quel punto restavano **irraggiungibili per sempre** con l'aggiunta — cioe' `A1`
+ * un'altra volta, per una porta diversa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSelectionStoreCycleMovesTest,
+	"RefactorTactics.Editor.Selection.AddingAnAlreadySelectedPointStillMovesTheCycle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSelectionStoreCycleMovesTest::RunTest(const FString&)
+{
+	const FRTCellId P(0, 0, 0);
+	const FRTCellId Q(1, 0, 0);
+	const ERTHexDirection Edge = ERTHexDirection::E;
+
+	URTHexMapAsset* Map = SelStoreMakeCrowdedMap(P, Edge);
+	URTHexSelectionStore* Store = NewObject<URTHexSelectionStore>();
+
+	// Selezionato il piu' specifico di P; poi si aggiunge Q, e il ciclo si sposta la'.
+	Store->SelectAt(Map, P, Edge);
+	const ERTMapElementKind AtP = SelStoreFirstKind(Store);
+	Store->AddAt(Map, Q, Edge);
+
+	// Si torna su P: il candidato piu' specifico e' gia' dentro, quindi il gesto non aggiunge — ma DEVE
+	// spostare il ciclo su P, altrimenti il click seguente ripete lo stesso nulla.
+	// ⚠️ **Questa asserzione era mal costruita e passava per la ragione sbagliata**: guardava `Last()`, che
+	// dopo l'aggiunta di Q appartiene a Q — quindi era diverso da quello di P qualunque cosa facesse lo
+	// store. Ora si conta quanti elementi vengono DA P, che e' la domanda vera.
+	auto CountFromP = [&Store, &P]()
+	{
+		int32 N = 0;
+		for (const FRTMapElementHandle& H : Store->GetSelection())
+		{
+			if (H.Cell == P) { ++N; }
+		}
+		return N;
+	};
+
+	const int32 BeforeReturn = CountFromP();
+
+	// Si torna su P, il cui candidato piu' specifico e' gia' dentro: il gesto deve comunque produrre
+	// qualcosa — un altro candidato di P — invece di uscire a vuoto e lasciare il ciclo indietro.
+	Store->AddAt(Map, P, Edge);
+
+	if (!TestTrue(TEXT("tornare su P contribuisce un altro suo candidato"),
+		CountFromP() > BeforeReturn))
+	{
+		return false;
+	}
+
+	// E il gesto successivo su P scorre ancora, invece di ripetere lo stesso nulla.
+	const ERTMapElementKind AfterFirst = Store->GetSelection().Last().Kind;
+	Store->AddAt(Map, P, Edge);
+	TestNotEqual(TEXT("e il click seguente scorre ancora"),
+		Store->GetSelection().Last().Kind, AfterFirst);
+
+	// L'elemento iniziale di P non e' stato buttato via.
+	TestEqual(TEXT("il primo elemento di P e' rimasto"), SelStoreFirstKind(Store), AtP);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

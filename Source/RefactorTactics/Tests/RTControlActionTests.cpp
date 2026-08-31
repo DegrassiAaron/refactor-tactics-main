@@ -51,7 +51,7 @@ namespace
 		Def.CostMP = 0;
 		Def.CooldownTurns = 0;
 		Def.Fallback = ERTActionFallback::AttackCell;
-		Def.bCanBeInterrupted = true;
+		Def.InterruptPolicy = ERTInterruptPolicy::InterruptBeforeEffect;
 		Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 30));
 		Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 2));
 		// `Test.Push2` e' un'aggressione -- 30 di danno e una spinta -- e da [`INT-8`] deve dichiararlo:
@@ -772,7 +772,7 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 	// Nome vincolante della DoD. Interrupt cancella un attacco interrompibile per intero (non solo i suoi
 	// effetti collaterali: anche il danno, che oggi si calcola PRIMA di sapere se l'azione sara' interrotta —
 	// per questo si filtra sui colpi raccolti, non sul singolo evento). Su un'azione che dichiara
-	// `bCanBeInterrupted = false` (Guard), Interrupt non ha nulla da cancellare.
+	// `ERTInterruptPolicy::None` (Guard), Interrupt non ha nulla da cancellare.
 	UWorld* World = MakeControlWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnControlMap(World, 6);
@@ -803,7 +803,7 @@ bool FRTInterruptOnlyInterruptibleTest::RunTest(const FString&)
 	Interrupter->PlannedCell = Interrupter->Cell;
 
 	const int32 HealthBefore = Victim->Health;
-	Attacker->PlannedAbilityIndex = 0; // attacco base (Ranger.Shot): bCanBeInterrupted = true
+	Attacker->PlannedAbilityIndex = 0; // attacco base (Ranger.Shot): InterruptPolicy = InterruptBeforeEffect
 	Attacker->PlannedAttackTarget = Victim;
 	Attacker->PlannedCell = Attacker->Cell;
 
@@ -1433,7 +1433,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptSkipsNonInterruptibleTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTInterruptSkipsNonInterruptibleTest::RunTest(const FString&)
 {
-	// Meta' mancante del test precedente: Guard dichiara `bCanBeInterrupted = false` (CP 4.4). Un Interrupt
+	// Meta' mancante del test precedente: Guard dichiara `ERTInterruptPolicy::None` (CP 4.4). Un Interrupt
 	// contro chi si sta mettendo in guardia non ha nulla da cancellare — la guardia vale comunque.
 	//
 	// Non si verifica con `HasStatus` DOPO il turno (scadrebbe comunque, come nei test di Root sopra): si

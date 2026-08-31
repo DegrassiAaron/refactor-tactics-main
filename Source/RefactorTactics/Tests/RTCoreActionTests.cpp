@@ -92,7 +92,8 @@ bool FRTWaitAllowsFacingTest::RunTest(const FString&)
 	TestTrue(TEXT("non occupa alcuno slot del turno"), Wait.Slot == ERTActionSlot::None);
 	TestEqual(TEXT("non produce effetti"), Wait.Effects.Num(), 0);
 	TestEqual(TEXT("risolve per ultima, cosi' non anticipa nulla"), Wait.Priority, 100);
-	TestFalse(TEXT("non e' interrompibile: non c'e' nulla da interrompere"), Wait.bCanBeInterrupted);
+	TestEqual(TEXT("non e' interrompibile: non c'e' nulla da interrompere"), Wait.InterruptPolicy,
+		ERTInterruptPolicy::None);
 
 	// Confronto che rende esplicita la differenza: l'azione principale e il movimento SI spendono.
 	TestTrue(TEXT("l'attacco base occupa l'azione principale"),
@@ -179,7 +180,7 @@ bool FRTGuardFirstHitOnlyTest::RunTest(const FString&)
 	TestTrue(TEXT("ed e' Status.Guarded per un turno (scade nel Cleanup)"),
 		Guard.Effects.Num() == 1 && Guard.Effects[0].Effect == ERTActionEffect::Status
 		&& Guard.Effects[0].StatusTag == TAG_Status_Guarded && Guard.Effects[0].StatusDuration == 1);
-	TestFalse(TEXT("la guardia non e' interrompibile"), Guard.bCanBeInterrupted);
+	TestEqual(TEXT("la guardia non e' interrompibile"), Guard.InterruptPolicy, ERTInterruptPolicy::None);
 	return true;
 }
 

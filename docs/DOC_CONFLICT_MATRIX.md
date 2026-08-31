@@ -47,6 +47,32 @@ riferimento, comprese le sue deleghe esplicite. Ciò che `D-282` nega è che que
 registra in questa matrice come `CONFLICT` e si **escala** all'owner competente. Chiuderlo scegliendo la fonte
 più recente, più specifica o più comoda è precisamente il difetto che `D-282` vieta.
 
+
+## `SUPERSEDED` — la calpestabilità non si conta e non dipende dal centro (2026-08-30)
+
+Registrato dallo spec panel del 2026-08-30 sul Decision Record d'autore *«Cover Placement & Intra-Hex
+Geometry»*. Fonte che prevale: [`D-289`](decisions/RT_PDR_00_Decision_Log.md) — decisione esplicita, quindi
+in cima alla scala. Owner del modello nuovo:
+[`spec-cover-placement-intra-hex.md`](technical/systems/spec-cover-placement-intra-hex.md).
+
+| Dove | Diceva | Vale oggi |
+|---|---|---|
+| `spec-hex-geometry-authoring.md` §6 e `FRTOccupancyThresholds::BlockedFrom` | «≥ 6 settori occupati ⇒ `Blocked`», letto come «non ci si passa» | `SUPERSEDED`. La tabella resta come **classificazione di strettezza** — il suo unico consumatore è sempre stato `OccupancySurcharge` — e non decide più la calpestabilità |
+| [`D-179`](decisions/RT_PDR_00_Decision_Log.md) punto (3), e il DoD di [#1239](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1239) §3 | «un muro che passa per il centro rende la cella non entrabile» | `SUPERSEDED`. Il muro **divide** lo spazio di posa in due lati; dividere non è vietare. Gli altri tre punti di `D-179` restano validi, e il primo — *«si conserva OGNI segmento disegnato»* — diventa **più** necessario |
+| `spec-hex-geometry-authoring.md` §5, `FRTOccupancyMask::bCoreBlocked` in `Classify` | «`bCoreBlocked` ⇒ `Blocked`, comunque siano i settori» | `SUPERSEDED`. Il centro è un **requisito di profilo** (`FRTFootprintProfile::bRequiresFreeCore`, default `false`), non un divieto universale |
+| `RTHexOccupancyLibrary.h`, `RTGeometryGrammar.h`, `RTGeometryBake.h`, e due punti di `spec-hex-geometry-authoring.md` | «in `Source/RefactorTacticsEditor/` non esiste alcun test» — usata come argomento per collocare le regole nel runtime | `SUPERSEDED` **dal 2026-08-16** (`#993`): `Private/Tests/` esiste e porta sei file. `CONTEXT_INDEX.md` lo dichiarava già. ⚠️ **La collocazione resta giusta**, e regge su un argomento diverso: una funzione pura si prova headless, un tool d'editor con un viewport. Corretta in `RTHexCoverPlacementLibrary.h`; le altre occorrenze restano da correggere |
+
+✅ **Costo di migrazione zero, misurato il 2026-08-30**: `Classify`, `ComputeMask` e `Surcharge` non hanno
+**alcun** chiamante di produzione — solo test — e `git grep "Offset == 0" -- Source/` è vuoto: `D-179`
+punto (3) non era mai stata implementata. È una correzione di **contratto**, non di comportamento.
+
+🔴 **Un conflitto residuo, e non si risolve in silenzio**: `URTHexOccupancyLibrary::ComputeMask` conta il
+contatto **puntuale nel centro** come invasione di tutti e dodici i settori, perché il centro è il vertice
+comune dei dodici triangoli. La regola superata sopravvive lì. È `MSE-4` in
+[`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) — voce **aperta**, ora innescata, con owner
+[#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826) — quindi non è una scelta implicita: è una decisione registrata e non ancora presa.
+
+---
 ## Stati
 
 | Stato | Significato |
@@ -105,7 +131,7 @@ più recente, più specifica o più comoda è precisamente il difetto che `D-282
 | 31 | **`HighGround` e vista** | «bonus visuale» non quantificato · poi `Sight_Mod = +1/+2/−1` (workbook) | **nessun bonus numerico** in v0.1 | [D-018](decisions/RT_PDR_00_Decision_Log.md) | `SUPERSEDED` | ✅ chiusa nel verso opposto: il numero veniva dal workbook, non da un playtest |
 | 32 | **«Fast Action»** | usato per l'azione dichiarata in Planning che risolve dopo | quello è **Delayed/Predictive**; `Fast Action` è una scelta **live** | [D-019](decisions/RT_PDR_00_Decision_Log.md) | `DUPLICATE` | ✅ glossario corretto in `spec-durata-partita-e-scala-mappe.md` |
 | 33 | **Finestre live nell'MVP** | `spec-sequenza-turno.md` §4/§5: «non implementare, serve il multiplayer» | **in scope** (E14); il gate a due condizioni è caduto | [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) | `SUPERSEDED` | ✅ il divieto **rimosso**: il documento diceva sì in §2 e no in §4 |
-| 34 | **APNAP a sei gruppi** | canone §5.1: ordine totale per effetti simultanei, `FR-RESOLVE-01` | l'ordine in vigore è a 5 chiavi sulle *azioni*; la partizione a sei gruppi sugli *effetti* è **gated**, trigger `CP 14.3` | §5.1 riscritta (2026-08-10) · [#201](https://github.com/DegrassiAaron/refactor-tactics-main/issues/201) | `SUPERSEDED` | ✅ chiusa riscrivendo il canone: `FR-RESOLVE-01` **declassato**, non cancellato — la domanda resta tracciata con un trigger nominato |
+| 34 | **APNAP a sei gruppi** | canone §5.1: ordine totale per effetti simultanei, `FR-RESOLVE-01` | l'ordine in vigore è a 5 chiavi sulle *azioni*; la partizione a sei gruppi sugli *effetti* non è mai stata costruita | [D-293](decisions/RT_PDR_00_Decision_Log.md) (2026-08-31) · §5.1.B riscritta · [#1897](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1897) | `SUPERSEDED` | ✅ **chiusa il 2026-08-31, e stavolta cancellata invece che declassata.** Il 2026-08-10 `FR-RESOLVE-01` era stato **declassato a gated** con trigger `CP 14.3`, e la domanda era rimasta aperta qui — l'ultimo `OPEN` della matrice. 🔴 Riaperta e misurata il 2026-08-31: la premessa è **falsa in questo gioco** — APNAP ordina per *unità attiva*, e i turni sono **simultanei** — e la partizione **non separa** il solo caso in cui l'ordine cambia davvero l'esito (*due nemici sullo stesso bersaglio in Guardia*: stesso gruppo in ogni permutazione). Il caso si chiude rendendo commutativa la **mitigazione** ([D-292](decisions/RT_PDR_00_Decision_Log.md)), non ordinando gli effetti |
 | 35 | **Gerarchia Canone/ADR** | «il canone prevale su tutto», ma ADR-0004/0005 *correggevano* il canone | un ADR accettato è **recepito nel canone nello stesso commit**: nessuno stato «canone + emendamenti» | [`README.md`](README.md) §gerarchia | `CONFIRMED` | ✅ chiuso 2026-08-08 — era un paradosso di governance, non un conflitto di contenuto |
 | 36 | **Quando cambia il facing** | facing = presentazione; oppure «cambia solo dopo il Move» | l'unità **si orienta verso il target/direzione prima che l'azione risolva**; il `Move`, ultimo, fissa il facing finale, che persiste nel round dopo | [D-020](decisions/RT_PDR_00_Decision_Log.md) · [ADR-0005](decisions/adr-0005-orientamento.md) | `SUPERSEDED` | ⏳ E16 · servono i test di sequenza `Dash → Blast`, cambio bersaglio, cono Overwatch, `Move` finale |
 | 37 | **Privacy della finestra di reazione** | privacy = «payload visibile solo alla propria squadra» | anche il **tempo** è un canale: l'avversario non deve poter dedurre che una finestra è stata aperta | [D-021](decisions/RT_PDR_00_Decision_Log.md) · [ADR-0004](decisions/adr-0004-finestre-di-reazione.md) | `CONFIRMED` | ⏳ E14/M10 · requisito di privacy, **non** rifinitura UI: niente pausa osservabile correlata alla scelta altrui |
@@ -170,7 +196,8 @@ più recente, più specifica o più comoda è precisamente il difetto che `D-282
 
 **Quarto passaggio, 2026-08-08 — Signature, profili e trasformazioni**: **+3 righe risolte** (45, 46, 47).
 La 45 è la prima chiusa **in prevenzione**: il duplicato non è mai entrato nella documentazione, perché
-l'audit per sinonimi è stato fatto prima di scrivere. Resta **1 `OPEN`** (riga 34, APNAP) e **0 `CONFLICT`**.
+l'audit per sinonimi è stato fatto prima di scrivere. Restava **1 `OPEN`** (riga 34, APNAP) e **0 `CONFLICT`**.
+**Dal 2026-08-31 gli `OPEN` sono ZERO**: la riga 34 è chiusa da [D-293](decisions/RT_PDR_00_Decision_Log.md).
 
 **Riepilogo al 2026-08-08** (secondo passaggio, documenti non-Gameplay): **40 risolti**
 (`CONFIRMED`/`SUPERSEDED`) · 2 `DUPLICATE` chiusi · **1 `OPEN`** (riga 34, APNAP)

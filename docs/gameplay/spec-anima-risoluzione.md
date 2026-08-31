@@ -232,6 +232,12 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 - **AN.1** ✅ — `FRTResolvedEvent` (`Turn/RTResolvedEvent.h`) + timeline popolata in `LockInAndResolve`
   (eventi Move/Attack). Matematica pura in `URTPlaybackLibrary` (`InterpolateAlongPath`,
   `EstimatePlaybackSeconds`, `SpeedMultiplierForCap`) con **5 test** (`RTPlaybackLibraryTests.cpp`), RED→GREEN.
+  > ⚠️ **Aggiornamento del 2026-08-31**: `EstimatePlaybackSeconds` **non esiste più**. Era la stima
+  > *aggregata* del round, e nessun codice di produzione la chiamava: il totale grezzo lo calcola già
+  > `ARTTurnManager::BeginPlayback` sommando `URTPlaybackLibrary::PhaseDuration` su ogni fase attiva — che è
+  > quanto la riga di **AN.3** qui sotto dichiara. Due formule per la stessa domanda, con risultati diversi
+  > (`PhaseDuration` per il `Blast` prende `Max(colpi, spinta)`, non la somma): quella morta è stata tolta.
+  > La riga sopra resta com'era perché registra cosa era vero il 2026-08-03.
 - **AN.2** ✅ — stato `Resolving` (Tick di sola presentazione) + interpolazione dei cilindri lungo `Entered`.
   Log PIE: `Playback fase: Move` → `Risoluzione completata (0.8s)` con 4 unità in parallelo.
 - **AN.3** ✅ — staging per fase (Prep→Blast→Move) + tuning `UPROPERTY` (`PlaybackCellsPerSecond`,
@@ -267,3 +273,150 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 - Ispirazione (north-star, non canone): [`sequenza-turno-exploratory.md`](../archive/gameplay/sequenza-turno-exploratory.md)
   (timeline stile Phantom Brigade, batching, pacing ~60s, speed-up; **stack/reazioni fuori MVP**).
   *Trascrizione del PDF `sequenza-risoluzione-turno.pdf`, rimosso il 2026-08-12.*
+
+---
+
+## 14. Il ritmo cinematografico del turno — [`D-287`](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-30
+
+> ➕ **Aggiunta il 2026-08-30** dal consolidamento della decisione d'autore `AUTHOR-PRES-002`. Non supera
+> nulla di ciò che precede: §3 resta il principio, §3.1 resta il modello a segmenti, §6 resta il pacing.
+> Questa sezione dice **che forma ha** il tempo che §6 misura, e da dove la camera lo legge.
+
+Il turno non diventa una successione di cutscene. **È il turno stesso a diventare una micro-scena**, e la
+scena è generata dai risultati che il resolver ha già prodotto — mai da una regia che li anticipa.
+
+### 14.1 I beat, e cosa NON sono
+
+```text
+PlanningEnter  →  ReadyTension  →  ResolutionLaunch  →  ResolutionNormal
+                                                      ↘ CriticalImpact
+                                    ResolutionSettle  ←
+                                          ↓
+                                    PlanningEnter (turno successivo)
+```
+
+🔴 **I beat nominano stati di PRESENTAZIONE, non fasi del loop.** Le fasi restano
+`Planning → Prep → Dash → Blast → Move → Cleanup` e nessun beat ne aggiunge una: `ResolutionLaunch` non è
+un momento in cui qualcosa si risolve, è il momento in cui si comincia a **mostrare** ciò che è già
+risolto. Confonderli produrrebbe esattamente la fase fantasma che l'invariante #1 esiste per impedire.
+
+Il rallentamento selettivo non è nuovo: §3.1 punto 3 lo dichiara già — *«la presentazione può continuare
+in slow motion mentre la logica è ferma. Il rallentamento è solo visuale — se decidesse qualcosa, l'esito
+dipenderebbe dal frame rate.»* Questa sezione gli dà un vocabolario, non un permesso.
+
+### 14.2 Il ritmo è taratura, non canone — e i numeri sono candidati
+
+| Beat | Ritmo candidato | Stato |
+|---|---|---|
+| `PlanningEnter` | ~`0,60`–`0,75x` percepito | ⏳ `PROPOSED FOR PLAYTEST` |
+| `ReadyTension` | ~`0,80x` | ⏳ `PROPOSED FOR PLAYTEST` |
+| `ResolutionLaunch` | ~`1,15`–`1,30x`, impulso breve | ⏳ `PROPOSED FOR PLAYTEST` |
+| `ResolutionNormal` | `1,0x` | ✅ è già il default di `ViewerPlaybackSpeed` |
+| `CriticalImpact` | ~`0,50`–`0,70x` per ~`0,15`–`0,30 s` | ⏳ `PROPOSED FOR PLAYTEST` |
+| KO / counter / combo decisiva | ~`0,40`–`0,60x`, tetto ~`0,35 s` | ⏳ `PROPOSED FOR PLAYTEST` |
+| `ResolutionSettle` | ~`0,70x` che rientra a `1,0x` | ⏳ `PROPOSED FOR PLAYTEST` |
+| Finestra di Fast Reaction | **`1,0x`, sempre** | ✅ regola, non taratura — §14.5 |
+
+⚠️ **Nessuno di questi numeri è canonico, ed è deliberato.** Sono ipotesi di partenza da provare guardando
+un round vero, non costanti: è il principio 4 di **E49** — un default scritto in una spec prima di essere
+provato diventa canone per inerzia. Il posto dove si tarano è il Camera Feature Lab,
+[`#1780`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780), che già possiede le altre
+tarature camera aperte. **Chi promuove uno di questi valori lo fa con una misura in mano o non lo fa.**
+
+### 14.3 Da dove passa il ritmo — un produttore solo
+
+Il ritmo di presentazione **non guadagna un secondo produttore**. `ViewerPlaybackSpeed`
+([`RTTurnManager.h`](../../Source/RefactorTactics/Turn/RTTurnManager.h)) è la preferenza di chi guarda e si
+compone con l'accelerazione automatica in **un punto solo**, `URTPlaybackLibrary::EffectivePlaybackSpeed`,
+che prende il massimo dei due. Un beat cinematico che volesse un proprio moltiplicatore passa di lì.
+
+⛔ **E non passa da `SetGlobalTimeDilation`.** Misurato il 2026-08-30:
+`git grep -n "SetGlobalTimeDilation" -- Source/` dà **tre** occorrenze e **zero** chiamate — sono un
+commento e due oracoli che ne verificano l'assenza. Una dilatazione globale del tempo sarebbe autorità di
+simulazione travestita da presentazione, ed è il modo più diretto per rendere un turno simultaneo in rete
+non riproducibile.
+
+✅ **Che il ritmo non tocchi l'esito è già dimostrato, non solo dichiarato**: il gate è
+`RefactorTactics.Match.Autobattle.DeterminismIsIndependentOfPlayback`, e precede questa sezione.
+
+> 🔴 **E su questa composizione esiste una decisione d'autore in volo, presa lo stesso giorno.** Il
+> consolidamento *Resolution Pacing + Micro-step Synchronization* (Drive, `06 — Development`, 2026-08-30)
+> osserva che dopo il Planning i personaggi **sembrano accelerati**, e ne trae una regola: *«la durata
+> target della Resolution non deve determinare la velocità visuale base della locomozione;
+> `MaxPlaybackSeconds` è un budget di presentazione soft»*. Il recupero di tempo dovrebbe venire prima da
+> idle gap, beat non informativi, hold e transizioni di camera, code di VFX non critiche ed eventi
+> logicamente simultanei mostrati in parallelo — **non** da un moltiplicatore nascosto sulla locomozione.
+>
+> ⚠️ **Quella regola NON è ancora canonica, e questa riga non la anticipa**: misurato il 2026-08-30,
+> nessuna issue aperta la possiede (`gh issue list --state open --search "playback budget locomozione
+> MaxPlaybackSeconds"` → **zero**), e `#955` — che scelse `Max(ViewerSpeed, SpeedMultiplierForCap(...))` —
+> è chiusa e non si riapre. Ciò che questa sezione dichiara è **il presente**: la composizione avviene in
+> un punto solo. Se la policy cambierà, cambierà **dentro quel punto**, e il vincolo del ritmo cinematico
+> resta lo stesso — un beat non guadagna un secondo produttore di velocità.
+>
+> ➕ **Ma per il ritmo cinematico la direzione conta**: due delle sei voci che quel consolidamento vuole
+> comprimere per prime — `camera hold` e `camera transitions` — sono **materia di `CAM-12`**. Chi prende
+> quella issue e chi prende questa devono leggersi, altrimenti una comprime ciò che l'altra ha appena
+> deciso di tenere.
+
+### 14.4 Simultaneità — il segmento non si rompe per far posto all'inquadratura
+
+Ciò che il resolver ha risolto **insieme** non può sembrare sequenziale solo perché una camera guarda un
+posto per volta.
+
+L'identità da preservare **esiste già e ha un nome**: è il **segmento di risoluzione** di §3.1, delimitato
+dall'inizio di una macro-fase oppure da un decision boundary
+([ADR-0004](../decisions/adr-0004-finestre-di-reazione.md) §1).
+
+⚠️ **Non si introduce un `BoundaryId` parallelo.** Misurato il 2026-08-30: `BoundaryId`, `StableEventId` e
+`PresentationPriority` danno **0** occorrenze in `Source/`. Sono nomi di un kit esterno, non simboli del
+repository; il concetto che descrivono è il segmento, e duplicarlo creerebbe due spazi di identità per lo
+stesso fatto.
+
+Regole:
+
+- eventi dello stesso segmento **vicini** nello spazio possono condividere un'inquadratura;
+- eventi dello stesso segmento **lontani** possono essere mostrati come gruppi consecutivi, **ma la UI deve
+  continuare a dire che appartengono allo stesso segmento** — altrimenti la presentazione insegna al
+  giocatore un ordine che nella logica non esiste, che è il difetto che §7 evita già per il Move;
+- l'ordine di visita è **deterministico** e non dipende da `Tick`, ordine degli Actor, iterazione di
+  `TMap`/`TSet`, ordine di spawn, arrivo dei pacchetti o fine di un'animazione (invarianti #4, #5, #6).
+
+### 14.5 Fast Reaction — la decisione si guarda a `1,0x`
+
+§3.1 punto 4 dice già che skip e accelerazione sono leciti **fino** al boundary e mai **attraverso**.
+Questa sezione ne aggiunge il lato visivo:
+
+- all'apertura di una finestra, il fast-forward si **sospende**;
+- la finestra di decisione si presenta a **`1,0x`**;
+- un `HARD FOCUS` è consentito e atteso se serve a rendere leggibile la scelta;
+- alla chiusura autorevole, il ritmo cinematico riprende.
+
+🔴 **E il tempo della decisione non è il tempo del playback.** I due sono già separati e nominati
+dall'owner del pacing — [`spec-pacing-turno.md`](spec-pacing-turno.md): `Decision Time` e
+`Presentation Time` si campionano **separatamente**, e mediarli nasconde il dato che serve. Nessuna
+variazione di presentazione può spostare il Decision Boundary logico: allungare l'inquadratura non allunga
+la finestra, e il `Timeout → HOLD` resta una funzione pura.
+
+### 14.6 Planned-vs-Actual — una timeline sola
+
+Il ritmo cinematico si aggancia alla presentazione Ghost già prevista; **non apre una seconda timeline**.
+L'obiettivo è una frase in quattro tempi: *questo era il piano · questo è successo · qui è iniziata la
+deviazione · questa ne è la causa autorevole*. Ghost e camera **consumano** il risultato del resolver; non
+lo producono, e la causa che mostrano è quella che il TurnLog registra.
+
+### 14.7 Cosa questa sezione NON autorizza
+
+- ⛔ **Non autorizza a implementare `CAM-12`**: la grammatica della camera è in
+  [`../technical/systems/spec-tactical-camera.md`](../technical/systems/spec-tactical-camera.md) §10, e le
+  sue dipendenze sono lì.
+- ⛔ **Non promuove i valori di §14.2.**
+- ⛔ **Non tocca `ERTResolvedEventType`.** Se un beat richiedesse un tipo di evento nuovo, quello passa da
+  [`D-278`](../decisions/RT_PDR_00_Decision_Log.md): ogni valore risolve in una voce di mapping o dichiara
+  `NoPresentation`, e la copertura è imposta da un gate.
+- 🔴 **Non sanifica `ResolvedTimeline`, che oggi non lo è.** `FRTResolvedEvent` porta
+  `TWeakObjectPtr<ARTUnit> Source`/`Target` senza filtro di conoscenza: è il canale aperto
+  [`#1525`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1525). Finché resta aperto,
+  qualunque consumatore di presentazione costruito sopra quella timeline **eredita il leak** invece di
+  evitarlo — vedi
+  [`../technical/systems/conoscenza-parziale-visibile-spec.md`](../technical/systems/conoscenza-parziale-visibile-spec.md) §1.3.

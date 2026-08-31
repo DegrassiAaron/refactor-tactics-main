@@ -20,6 +20,7 @@
 #include "Misc/ScopeExit.h"
 #include "HAL/FileManager.h"
 #include "UObject/UnrealType.h"
+#include "UObject/UObjectIterator.h" // TObjectIterator: le struct del formato si interrogano, non si elencano
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -291,28 +292,53 @@ bool FRTScenarioAuthoringContractIsExposedTest::RunTest(const FString&)
 	// giorno qualcuno marcasse `FRTTestScenario` come `BlueprintType`, Blueprint potrebbe costruirne uno
 	// membro per membro — cioe' uno scenario incoerente — e ADR-0010 cadrebbe senza che nulla diventi rosso.
 	// Questo lo rende rosso.
-	const TArray<UScriptStruct*> MustStayInternal = {
-		FRTTestScenario::StaticStruct(),
-		FRTScenarioUnit::StaticStruct(),
-		FRTScenarioIntent::StaticStruct(),
-		FRTScenarioTurn::StaticStruct(),
-		FRTTestExpectation::StaticStruct(),
-		FRTScenarioVariant::StaticStruct(),
-		FRTScenarioCell::StaticStruct(),
-		FRTScenarioDecision::StaticStruct()
-	};
-	for (UScriptStruct* Struct : MustStayInternal)
-	{
-		if (!TestNotNull(TEXT("la struct del formato esiste"), Struct)) { continue; }
-		// Stessa ragione di sopra: `GetBoolMetaData` e' sotto `WITH_METADATA`, spento in un target Game.
+	//
+	// 🔴 **Questo blocco era un ELENCO SCRITTO A MANO, e ne mancava una** (`#1631`): `RTTestScenario.h`
+	// dichiara **nove** struct e la lista ne conteneva **otto** — `FRTScenarioVariantUnit` restava fuori,
+	// quindi marcarla `BlueprintType` non avrebbe reso rosso niente. Aggiungere la nona riga avrebbe chiuso
+	// l'istanza e lasciato in piedi il meccanismo: la decima si sarebbe dimenticata allo stesso modo, e la
+	// prossima struct del formato e' gia' prevista (l'override d'abilita' in una variante, `#1950`).
+	//
+	// Ora la lista **non esiste**: le struct del formato si interrogano per riflessione, come
+	// `RTScreenHudWidgetTests.cpp` gia' fa con le classi widget. Una struct nuova in `RTTestScenario.h`
+	// entra nel gate **da sola**, il giorno in cui viene dichiarata.
+	//
+	// ⚠️ Il criterio e' l'header di provenienza, non il prefisso del nome: `FRTScenarioSummary` e
+	// `FRTScenarioUnitView` si chiamano quasi come il modello ma sono DTO, vivono altrove, e devono restare
+	// `BlueprintType` — sono verificati venti righe piu' su, nel verso opposto. Un filtro sul nome li
+	// avrebbe presi e il test si sarebbe contraddetto da solo.
 #if WITH_METADATA
+	// Stessa ragione di sopra per la guardia: `GetMetaData`/`GetBoolMetaData` sono API solo-metadata, e in
+	// un target Game Development `WITH_METADATA` vale 0 mentre i test sono accesi.
+	int32 StructDelFormato = 0;
+	for (TObjectIterator<UScriptStruct> It; It; ++It)
+	{
+		UScriptStruct* Struct = *It;
+		if (Struct == nullptr) { continue; }
+
+		// `ModuleRelativePath` e' il percorso dell'header che dichiara la struct, scritto da UHT.
+		if (!Struct->GetMetaData(TEXT("ModuleRelativePath")).EndsWith(TEXT("RTTestScenario.h")))
+		{
+			continue;
+		}
+
+		++StructDelFormato;
 		TestFalse(
 			*FString::Printf(
 				TEXT("'%s' NON e' BlueprintType (ADR-0010: il modello non passa per Blueprint)"),
 				*Struct->GetName()),
 			Struct->GetBoolMetaData(TEXT("BlueprintType")));
-#endif
 	}
+
+	// Anti-vacuita', e non e' un censimento: `>=` e non `==` perche' una struct nuova deve poter entrare nel
+	// gate senza toccare questo file — che e' l'intero motivo per cui l'elenco a mano e' stato tolto. Se
+	// invece il conteggio scendesse, vorrebbe dire che la riflessione non trova piu' l'header (metadata
+	// spenti, header rinominato, struct spostate) e che il ciclo qui sopra sta girando a vuoto **restando
+	// verde** — cioe' esattamente il modo in cui questo gate puo' smettere di misurare in silenzio.
+	TestTrue(*FString::Printf(
+		TEXT("la riflessione ha trovato le nove struct del formato dichiarate in RTTestScenario.h (trovate %d)"),
+		StructDelFormato), StructDelFormato >= 9);
+#endif
 
 	return true;
 }

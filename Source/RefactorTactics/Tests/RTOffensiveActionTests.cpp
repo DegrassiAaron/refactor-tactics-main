@@ -124,7 +124,8 @@ bool FRTOffensiveActionsMatchCatalogTest::RunTest(const FString&)
 
 	// La soppressione si PREPARA: e' l'unica offensiva fuori dal Blast, e non e' interrompibile.
 	const FRTActionDef Suppressive = OffensiveDef(TEXT("Action.SuppressiveLine"));
-	TestFalse(TEXT("una linea preparata non si interrompe"), Suppressive.bCanBeInterrupted);
+	TestEqual(TEXT("una linea preparata non si interrompe"), Suppressive.InterruptPolicy,
+		ERTInterruptPolicy::None);
 	TestEqual(TEXT("la portata della linea e' 5"), Suppressive.RangeCells, 5);
 	TestEqual(TEXT("il centro dell'area si sceglie entro 4 celle"),
 		OffensiveDef(TEXT("Action.CircularAoE")).RangeCells, 4);
@@ -210,7 +211,8 @@ bool FRTHeavyAttackInterruptedTest::RunTest(const FString&)
 	{
 		return false;
 	}
-	TestTrue(TEXT("e' interrompibile: e' cio' che si paga per 35 danni"), Heavy.Def.bCanBeInterrupted);
+	TestEqual(TEXT("e' interrompibile del tutto: e' cio' che si paga per 35 danni"),
+		Heavy.Def.InterruptPolicy, ERTInterruptPolicy::InterruptBeforeEffect);
 
 	const TArray<FRTActionEvent> Normal = URTActionEffectLibrary::ProduceEvents(Heavy);
 	if (!TestEqual(TEXT("non interrotta: un evento di danno"), Normal.Num(), 1)) { return false; }
@@ -228,7 +230,7 @@ bool FRTHeavyAttackInterruptedTest::RunTest(const FString&)
 	Precision.bInterrupted = true;
 	TestEqual(TEXT("vale anche per la precisione"), URTActionEffectLibrary::ProduceEvents(Precision).Num(), 0);
 
-	// Chi dichiara di non essere interrompibile non lo e' nemmeno col flag alzato: `bCanBeInterrupted` resta
+	// Chi dichiara di non essere interrompibile non lo e' nemmeno col flag alzato: `InterruptPolicy` resta
 	// l'ultima parola, e la linea preparata continua a esistere (catalogo §3).
 	FRTActionInstance Suppressive;
 	Suppressive.Def = OffensiveDef(TEXT("Action.SuppressiveLine"));
@@ -587,6 +589,192 @@ bool FRTOffensiveSmokeCapTest::RunTest(const FString&)
 		}
 	}
 
+	return true;
+}
+
+/**
+ * [D-298] `SuppressSecondary` lascia in piedi il PRIMO effetto e toglie gli altri.
+ *
+ * Il soggetto e' `Action.Charge` (`Damage` + `Push`) e **non** `Action.HeavyAttack`, che pure ha due
+ * effetti: il secondo di HeavyAttack e' `DamageStructure`, che `ProduceEvents` non traduce nemmeno da
+ * intero (lo raccoglie il Blast sul bordo). Su HeavyAttack le due policy sarebbero indistinguibili da qui,
+ * e il test avrebbe misurato un `continue` invece del ramo che dichiara di provare.
+ *
+ * Il test varia UNA cosa — la policy — su una def altrimenti identica, e confronta i tre esiti fra loro:
+ * intera, monca, vuota. Asserire solo la monca non proverebbe che la differenza viene dalla policy.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptSuppressSecondaryTest,
+	"RefactorTactics.Actions.InterruptPolicy.SuppressSecondaryKeepsTheFirstEffect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptSuppressSecondaryTest::RunTest(const FString&)
+{
+	const TArray<FRTActionDef> Catalog = URTCatalogLibrary::GetCoreActionCatalog();
+	const FRTActionDef* Charge = Catalog.FindByPredicate([](const FRTActionDef& D)
+		{ return D.ActionId == FName(TEXT("Action.Charge")); });
+	if (!TestNotNull(TEXT("Action.Charge e' nel catalogo"), Charge)) { return false; }
+
+	// La premessa del test, misurata invece che assunta: servono DUE effetti, ed entrambi devono essere
+	// traducibili in eventi. Senza questo controllo il test resterebbe verde su un catalogo che ha smesso
+	// di avere il caso che dice di coprire.
+	if (!TestEqual(TEXT("Charge dichiara due effetti"), Charge->Effects.Num(), 2)) { return false; }
+	TestEqual(TEXT("il primo e' il danno"), Charge->Effects[0].Effect, ERTActionEffect::Damage);
+	TestEqual(TEXT("il secondo e' la spinta"), Charge->Effects[1].Effect, ERTActionEffect::Push);
+
+	FRTActionInstance Instance;
+	Instance.Def = *Charge;
+	Instance.SourceUnitId = 0;
+	Instance.TargetUnitId = 1;
+
+	// (a) non interrotta: entrambi gli effetti passano, qualunque sia la policy.
+	Instance.bInterrupted = false;
+	Instance.Def.InterruptPolicy = ERTInterruptPolicy::SuppressSecondary;
+	const TArray<FRTActionEvent> Intera = URTActionEffectLibrary::ProduceEvents(Instance);
+	if (!TestEqual(TEXT("non interrotta: due eventi"), Intera.Num(), 2)) { return false; }
+
+	// (b) interrotta con `SuppressSecondary`: resta il colpo, cade la spinta.
+	Instance.bInterrupted = true;
+	const TArray<FRTActionEvent> Monca = URTActionEffectLibrary::ProduceEvents(Instance);
+	if (!TestEqual(TEXT("SuppressSecondary: un evento solo"), Monca.Num(), 1)) { return false; }
+	TestEqual(TEXT("ed e' il PRIMO dichiarato, il danno"), Monca[0].Kind, ERTActionEffect::Damage);
+	TestEqual(TEXT("col suo valore intero: non e' mezzo danno"), Monca[0].Amount, Charge->Effects[0].Amount);
+
+	// (c) stessa azione, stesso interrupt, policy diversa: non resta niente. E' il confronto che prova che
+	// la differenza viene dalla policy e non da qualcos'altro dell'istanza.
+	Instance.Def.InterruptPolicy = ERTInterruptPolicy::InterruptBeforeEffect;
+	TestEqual(TEXT("InterruptBeforeEffect: nessun evento"),
+		URTActionEffectLibrary::ProduceEvents(Instance).Num(), 0);
+
+	// (d) e chi non e' interrompibile non perde nulla nemmeno da interrotto.
+	Instance.Def.InterruptPolicy = ERTInterruptPolicy::None;
+	TestEqual(TEXT("None: l'interrupt non la tocca, due eventi"),
+		URTActionEffectLibrary::ProduceEvents(Instance).Num(), 2);
+	return true;
+}
+
+/**
+ * [D-298] `SuppressSecondary` su un'azione a UN effetto solo non lo trasforma in zero, e non inventa un
+ * secondo effetto da togliere: sopravvive il primo, che qui e' anche l'unico.
+ *
+ * Copre il `FMath::Min` di `ProduceEvents`. Un'implementazione che avesse scritto `Effects.Num() - 1`
+ * sarebbe passata sul caso a due effetti e avrebbe azzerato questo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptSuppressSecondarySingleEffectTest,
+	"RefactorTactics.Actions.InterruptPolicy.SuppressSecondaryOnASingleEffectKeepsIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptSuppressSecondarySingleEffectTest::RunTest(const FString&)
+{
+	// `Action.LineAttack` e non l'attacco base: `MakeWeaponAttack("Action.BasicAttack")` restituisce una def
+	// con ZERO effetti — il danno dell'attacco base viene dall'arma, non da `Effects` — e su una lista vuota
+	// questo test non misurerebbe il `Min` che dice di coprire. Trovato dal test stesso, rosso alla prima
+	// esecuzione: la premessa era assunta invece che misurata.
+	const TArray<FRTActionDef> Catalog = URTCatalogLibrary::GetCoreActionCatalog();
+	const FRTActionDef* Line = Catalog.FindByPredicate([](const FRTActionDef& D)
+		{ return D.ActionId == FName(TEXT("Action.LineAttack")); });
+	if (!TestNotNull(TEXT("Action.LineAttack e' nel catalogo"), Line)) { return false; }
+
+	FRTActionInstance Instance;
+	Instance.Def = *Line;
+	Instance.SourceUnitId = 0;
+	Instance.TargetUnitId = 1;
+	if (!TestEqual(TEXT("la linea dichiara un effetto solo"), Instance.Def.Effects.Num(), 1))
+	{
+		return false;
+	}
+
+	Instance.bInterrupted = true;
+	Instance.Def.InterruptPolicy = ERTInterruptPolicy::SuppressSecondary;
+	TestEqual(TEXT("resta l'unico effetto dichiarato"),
+		URTActionEffectLibrary::ProduceEvents(Instance).Num(), 1);
+
+	// Un'azione SENZA effetti non deve guadagnarne uno: il `Min` va misurato anche dal basso.
+	Instance.Def.Effects.Empty();
+	TestEqual(TEXT("nessun effetto dichiarato, nessun evento"),
+		URTActionEffectLibrary::ProduceEvents(Instance).Num(), 0);
+	return true;
+}
+
+/**
+ * [D-298] Il validator RIFIUTA `CancelChannel`, che e' riservata finche' nessuna azione dura piu' di un
+ * boundary.
+ *
+ * Il test verifica anche il verso opposto — le altre tre policy passano — perche' un validator che
+ * rifiutasse tutto darebbe lo stesso rosso e sarebbe altrettanto «verde» su questa meta'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptCancelChannelRejectedTest,
+	"RefactorTactics.Actions.InterruptPolicy.ValidatorRejectsCancelChannel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptCancelChannelRejectedTest::RunTest(const FString&)
+{
+	// Il catalogo spedito non porta la policy riservata: se la portasse, il gioco non partirebbe.
+	const TArray<FRTActionDef> Catalog = URTCatalogLibrary::GetCoreActionCatalog();
+	TestEqual(TEXT("il catalogo core e' valido"), URTCatalogLibrary::ValidateActions(Catalog).Num(), 0);
+	const bool bNessunaRiservata = !Catalog.ContainsByPredicate([](const FRTActionDef& D)
+		{ return D.InterruptPolicy == ERTInterruptPolicy::CancelChannel; });
+	TestTrue(TEXT("nessuna azione spedita dichiara CancelChannel"), bNessunaRiservata);
+
+	FRTActionDef Def;
+	Def.ActionId = TEXT("Action.Test.Channel");
+	Def.ResolutionPhase = ERTResolutionPhase::Attack;
+
+	for (const ERTInterruptPolicy Ammessa : { ERTInterruptPolicy::None,
+		ERTInterruptPolicy::InterruptBeforeEffect, ERTInterruptPolicy::SuppressSecondary })
+	{
+		Def.InterruptPolicy = Ammessa;
+		TestEqual(TEXT("le tre policy con un soggetto passano"),
+			URTCatalogLibrary::ValidateActions({ Def }).Num(), 0);
+	}
+
+	Def.InterruptPolicy = ERTInterruptPolicy::CancelChannel;
+	const TArray<FString> Errori = URTCatalogLibrary::ValidateActions({ Def });
+	if (!TestEqual(TEXT("CancelChannel: un errore"), Errori.Num(), 1)) { return false; }
+	// L'errore deve DIRE quale azione e quale campo: un messaggio che non lo dice non aiuta chi lo legge.
+	TestTrue(TEXT("l'errore nomina l'azione"), Errori[0].Contains(TEXT("Action.Test.Channel")));
+	TestTrue(TEXT("l'errore nomina la policy"), Errori[0].Contains(TEXT("CancelChannel")));
+	return true;
+}
+
+
+/**
+ * [D-298] `SuppressSecondary` taglia per POSIZIONE nella lista, e questo test lo pinna sul caso che il
+ * commento dell'enum dichiara come limite: un `Damage` in SECONDA posizione viene tagliato dagli eventi.
+ *
+ * Serve perche' quel limite era scritto e non misurato. Cio' che il test **non** puo' mostrare da qui e' la
+ * seconda meta' del limite — che quel danno arriverebbe **lo stesso**, perche' nella pipeline del Blast
+ * viaggia su `Intent.Power`/`Hit.Power` e non sugli eventi. Quella meta' vive nel Blast, e la copre
+ * l'integrazione di [#1955](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1955): qui si
+ * pinna il taglio, li' si pinnerà il canale.
+ *
+ * ⚠️ Il test costruisce una def a mano invece di prenderla dal catalogo: **nessuna azione spedita
+ * dichiara `Damage` in seconda posizione**, e inventarne una nel catalogo per farci passare un test sarebbe
+ * peggio del test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptSuppressSecondaryCutsByPositionTest,
+	"RefactorTactics.Actions.InterruptPolicy.SuppressSecondaryCutsByPositionNotByKind",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptSuppressSecondaryCutsByPositionTest::RunTest(const FString&)
+{
+	FRTActionInstance Instance;
+	Instance.Def.ActionId = TEXT("Action.Test.PushThenDamage");
+	Instance.Def.ResolutionPhase = ERTResolutionPhase::Attack;
+	Instance.Def.Effects = {
+		FRTActionEffectSpec(ERTActionEffect::Push, 1),
+		FRTActionEffectSpec(ERTActionEffect::Damage, 30) };
+	Instance.Def.InterruptPolicy = ERTInterruptPolicy::SuppressSecondary;
+	Instance.SourceUnitId = 0;
+	Instance.TargetUnitId = 1;
+
+	const TArray<FRTActionEvent> Intera = URTActionEffectLibrary::ProduceEvents(Instance);
+	if (!TestEqual(TEXT("non interrotta: entrambi gli effetti"), Intera.Num(), 2)) { return false; }
+
+	Instance.bInterrupted = true;
+	const TArray<FRTActionEvent> Monca = URTActionEffectLibrary::ProduceEvents(Instance);
+	if (!TestEqual(TEXT("interrotta: un evento solo"), Monca.Num(), 1)) { return false; }
+
+	// 🔴 Il punto del test: sopravvive la SPINTA, non il danno. La policy non conosce i tipi di effetto,
+	// conosce l'ordine — e su `Action.Charge` il danno sopravvive perche' e' PRIMO, non perche' sia danno.
+	TestEqual(TEXT("sopravvive il primo dichiarato, che qui e' la spinta"), Monca[0].Kind,
+		ERTActionEffect::Push);
+	TestEqual(TEXT("e il danno, dichiarato secondo, e' stato tagliato dagli EVENTI"), Monca[0].Amount, 1);
 	return true;
 }
 

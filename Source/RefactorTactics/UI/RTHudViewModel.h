@@ -163,6 +163,34 @@ struct FRTAbilityCooldownView
 	int32 TurnsRemaining = 0;
 
 	/**
+	 * La ricarica DICHIARATA dall'azione. `0` = l'azione non ne ha una.
+	 *
+	 * 🔴 **Esiste perche' `TurnsRemaining` da solo e' un numeratore senza denominatore** (`#1896`). Un
+	 * widget che voglia disegnare una barra proporzionale deve pur prendere il totale da qualche parte, e
+	 * l'unica fonte a portata di Blueprint era `URTActionData::CooldownTurns` — il cui default e' **`0`**
+	 * per la maggioranza del kit (attacco base, `Move`, `Guard`, `Brace`). Il risultato misurato in PIE e'
+	 * un `Divide by zero: Divide_DoubleDouble` a ogni selezione: in Blueprint non interrompe nulla,
+	 * restituisce **0**, e la barra dice «scarica» di un'abilita' pronta.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 TotalTurns = 0;
+
+	/**
+	 * Quanto la ricarica e' completa, in `[0,1]`. `1` = pronta.
+	 *
+	 * 🔑 **La divisione la fa il C++, ed e' il punto di `#1896`.** Un widget che divide `TurnsRemaining`
+	 * per `TotalTurns` deve ricordarsi della guardia sullo zero; uno che legge questo campo non puo'
+	 * sbagliare, perche' non c'e' niente da dividere. La guardia vive in un posto solo, testato.
+	 *
+	 * ⚠️ **Un'azione SENZA ricarica vale `1`, non `0`**: e' pronta per definizione, e zero si leggerebbe
+	 * come «scarica» — cioe' esattamente il difetto che questo campo esiste per togliere. Chi vuole
+	 * distinguere «non ha ricarica» da «ricarica completa» guarda `TotalTurns`, che per la prima e' `0`:
+	 * sono due domande diverse e restano due campi.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	float ChargeFraction = 1.f;
+
+	/**
 	 * Usabile **adesso**, che non e' `TurnsRemaining == 0`: serve anche l'energia.
 	 *
 	 * I due dati restano separati perche' rispondono a domande diverse e il giocatore le pone entrambe —

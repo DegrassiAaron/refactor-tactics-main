@@ -51,6 +51,36 @@ Il documento Drive «RefactorTactics — Tactical Segment & Anchor Reticle v0.1 
 
 ---
 
+## Aperte — due decisioni d'autore che il repository ha misurato al contrario, dalla sincronizzazione Drive del 2026-08-31
+
+Il tab `Open Questions` del Google Sheet *RT — Knowledge Index & Consolidation Log* porta `DQA-026` e
+`DQA-028` come `RESOLVED — AUTHOR DECISION`. **Non sono state sincronizzate**, e la ragione non è che
+manchino di autorità: è che il repository ha già *misurato* il loro contenuto e ha registrato l'opposto.
+Sono i due casi in cui [`D-282`](decisions/RT_PDR_00_Decision_Log.md) vieta di inventare una gerarchia —
+una decisione d'autore e una misura sul codice non stanno sulla stessa scala — e
+[`D-294`](decisions/RT_PDR_00_Decision_Log.md) le ha lasciate qui invece di sintetizzarle.
+
+🔑 **Nessuna delle due chiede all'autore di ritirare la propria risposta.** Chiedono di scegliere fra la
+risposta e una misura che la risposta non nomina.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `AUTHOR-RESOLUTION-001` | Il vocabolario `ResolutionLayer` a dieci valori si introduce, dato che sei dei dieci duplicano vocabolari già implementati e uno è vietato per nome? | La riga Drive di `DQA-026` **congela** i dieci nomi (`PreInterrupt`, `Structural`, `Movement`, `PostEntryEnvironment`, `TriggerDetection`, `Reaction`, `ActionEffects`, `PostEffectEnvironment`, `EnvironmentPropagation`, `Finalize`). [`D-291`](decisions/RT_PDR_00_Decision_Log.md) ha misurato che **sei su dieci** esistono già sotto altro nome in `ERTMatchPhase`, `ERTResolutionPhase`, `ERTReactionPassPoint` e `ERTPredictionBoundary`, e conclude ⛔ *«L'enum non si introduce»*. 🔴 In più `PreInterrupt` è la forma degli **interrupt annidati**, che [`gameplay/spec-sequenza-turno.md`](gameplay/spec-sequenza-turno.md) §4 elenca fra le voci **north-star — non costruire** e §2.3 vieta esplicitamente in v0.1. ✅ **Il resto di `DQA-026` non è in conflitto**: *«same-layer contributions read one State N»* e *«derived-state refresh is a checkpoint»*, applicate allo scenario che `D-291` lasciava aperto (due attaccanti nello stesso Blast, il primo abbatte il muro), danno la policy **già spedita** in `RTTurnManager_Blast.cpp:1366` (CP 9.2). ⚠️ Ma il testo Drive quello scenario **non lo nomina**: è una conseguenza, non una ratifica |
+| `AUTHOR-DAMAGE-001` | Qual è il rapporto fra `Armor` e `BaseShield`, che occupano lo stesso asse, e la catena di assorbimento dipende dalla sorgente o no? | La riga Drive di `DQA-028` **congela** `Defense = ApplicableArmor + DamageResistance[Type]`, `FinalDamage = max(0, Base − Defense)`, poi `TemporaryShield → Shield → Health`. È **la stessa formula** che [`D-238`](decisions/RT_PDR_00_Decision_Log.md) ha rifiutato di congelare il 2026-08-28, e per una ragione che il testo Drive **non affronta**: [`D-224`](decisions/RT_PDR_00_Decision_Log.md) ha spedito `BaseShield = 5` con **la stessa condizione** che il kit assegna ad `Armor > 0` (ferma solo il danno `Direct`), e con `Armor 3` due colpi diretti da 10 toglierebbero **9 HP invece di 15** — 40% di bilanciamento preso per omissione. 🔴 **Secondo conflitto, misurato il 2026-08-31 e non registrato prima**: `URTCombatLibrary::ApplyDamage` fa assorbire lo scudo **base** al solo `Direct` (l'ambientale lo attraversa intero, punto (2) di `D-224`, pagato con **35 test rossi**), mentre la riga Drive scrive la catena **uniforme** perché mette tutta la dipendenza dalla sorgente nello step di mitigazione. Adottarla alla lettera renderebbe il danno ambientale assorbibile dallo scudo base |
+
+> ⛔ **Nessuna delle due si chiude misurando ancora.** `Armor`, `DamageResistance`, `DamagePacket` e `Shred`
+> hanno **zero** occorrenze in `Source/` — invariato dal 2026-08-28 — e `ResolutionLayer` pure. Una formula
+> i cui termini non esistono non è verificabile da nessun test, ed è esattamente il motivo per cui `D-238`
+> non l'ha congelata. Ciò che manca non è una misura: è la scelta fra due fonti.
+>
+> 🔎 Istruttoria completa nel referto
+> [`roadmap/plans/sync-governance-dqa-026-030-2026-08-31.md`](roadmap/plans/sync-governance-dqa-026-030-2026-08-31.md)
+> §4.1 e §4.2. `DQA-027` e `DQA-029` **non** sono qui: la prima è compatibile con
+> `spec-sequenza-turno.md` §2.3/§3.1, la seconda è già canonica al §3.3. `DQA-030` è stata sincronizzata da
+> `D-294`.
+
+---
+
 ## Aperta — la vista attraverso una frontiera interna, da `D-179`
 
 [`D-179`](decisions/RT_PDR_00_Decision_Log.md) ha reso la geometria dentro la cella **dato di gioco**: si
@@ -205,6 +235,45 @@ da una domanda di presentazione.
 > **«derivato»**, che ne è la forma stretta: lo spicchio non è uno stato, quindi il selettore può nascere
 > senza toccare la simulazione. Queste due diventano urgenti quando qualcuno chiede alla **geometria interna**
 > di produrre copertura — non quando qualcuno disegna il selettore.
+
+---
+
+## Aperte — copertura selezionabile e posa nella cella, dal Decision Record del 2026-08-30
+
+Origine: il Decision Record d'autore *«RefactorTactics — Cover Placement & Intra-Hex Geometry»*, recepito da
+[`D-289`](decisions/RT_PDR_00_Decision_Log.md). Owner:
+[#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833). Modello:
+[`spec-cover-placement-intra-hex.md`](technical/systems/spec-cover-placement-intra-hex.md).
+
+`D-289` **congela il modello spaziale** — regioni di posa, sorgenti/opzioni/facce, uno slot di occupancy,
+traversata esplicita — e dichiara esplicitamente ciò che **non** congela. Queste sono quelle voci.
+
+⚠️ **Non riaprono ciò che è già deciso.** Il vocabolario dei livelli di copertura è
+[`D-271`](decisions/RT_PDR_00_Decision_Log.md) (`None`/`Low`/`High`, chiuso); che la geometria interna
+produca copertura e occluda è [`D-269`](decisions/RT_PDR_00_Decision_Log.md) e
+[`D-270`](decisions/RT_PDR_00_Decision_Log.md), chiuse e ora con owner d'implementazione
+([#1830](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1830)).
+
+| ID | Domanda | Perché non si deduce | Innesco |
+|---|---|---|---|
+| `COV-1` | **Quali categorie di footprint esistono, e con quale clearance?** | Nessun produttore esiste: nessuna unità dichiara un footprint, e il repository non ha mai misurato una posa. `FRTFootprintProfile::MinContiguousWedges` vale `1` — l'**identità**, che non decide niente. È un numero di bilanciamento, e `FRTOccupancyThresholds::BlockedFrom = 6` è il precedente da non ripetere: nessuno lo scelse per una regola, e per mesi ha significato «cella non calpestabile» | [#1827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1827), quando la posa arriva nel percorso di partita |
+| `COV-2` | **I `CoverAnchor` sono autorati, generati o ibridi?** | Decide chi possiede il dato e quanto costa una mappa. `FRTHexCover::bGenerated` / [`D-131`](decisions/RT_PDR_00_Decision_Log.md) è il candidato naturale per la precedenza, ma **non è ovvio** che si applichi: là la provenienza distingue due produttori dello stesso **campo**, qui distinguerebbe due produttori di un'**entità** | [#1829](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1829) |
+| `COV-3` | **Come si serializza e si replica la scelta di `CoverOption`/`CoverSide`?** | ⚠️ **Si vincola con `COV-4`**, come `PLC-1` e `PLC-7` si vincolavano. `FRTCoverSourceId` è già interamente discreto e stabile — un enum e quattro interi — quindi il bit-packing è *possibile*; quale sia non è deciso, e sceglierlo dentro una PR d'implementazione sarebbe sceglierlo per inerzia | [#1829](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1829) |
+| `COV-4` | **La scelta di copertura entra in `FRTUnitStateDigest` e nell'hash di stato?** | Il criterio scritto in quel file è *«un campo entra nell'hash se e solo se due oggetti possono differire solo per quello»*. `D-289` dice che la copertura selezionata è **stato tattico autorevole** e cambia la mitigazione subita — il che suggerisce sì — ma [`D-243`](decisions/RT_PDR_00_Decision_Log.md) ha appena tenuto **fuori** il `Placement` con lo stesso criterio, e il `Facing` è ancora fuori mentre decide esiti ([#1800](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1800)). Tre precedenti, due direzioni | **si decide con `COV-3`** |
+| `COV-5` | **Come interagisce il `Facing` con la copertura scelta, per ciascuna categoria di abilità?** | `CP 16.2` dice già che un colpo fuori dall'arco frontale **annulla** la riduzione, e `FRTHexCover` documenta che le due direzionalità sono **ortogonali**. Con una copertura *scelta* la domanda cambia: la faccia vincola il facing, lo suggerisce, o è indipendente? Adiacente alle `FAC-*` di [#339](https://github.com/DegrassiAaron/refactor-tactics-main/issues/339), che **non** sostituisce | il primo consumatore di mitigazione direzionale su copertura scelta |
+| `COV-6` | **Muoversi da copertura a copertura ha un costo o un bonus?** | Tocca l'economia del turno (`E38`, [#609](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609)) e non il modello spaziale: se è gratis è sempre ottimale, se costa è una voce di catalogo che oggi non esiste | `E38` |
+| `COV-7` | **Quali sono le regole finali di vault e reposition?** | È la traversata autorata che `E23.7` consuma. Senza, `ERTIntraCellTraversal` resta a **due** valori — ed è corretto che ci resti: un terzo valore senza produttore è un campo che nessuno legge, il difetto che questo repository ha già pagato quattro volte | [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828) |
+| `COV-8` | **Una copertura distrutta rigenera le `CoverOption` della cella, e quando?** | `CP 22.3` ([#1563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1563)) dice già che *«una copertura distrutta non si richiude»*. Con sorgenti multiple per cella la domanda si allarga: distrutta una sorgente, le altre opzioni restano? e chi stava usando quella distrutta dove si trova? | `E22` / [#1563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1563) |
+
+> ⛔ **Cosa resta vietato mentre queste sono aperte**, e sono i vincoli che `D-289` recepisce: nessuna
+> sottocella navigabile, nessun mini-navmesh intra-hex, nessun secondo pathfinder, nessuna coordinata float
+> **autorevole** dentro l'esagono, nessun secondo slot di occupancy per `FRTCellId`, nessun secondo Cover
+> Resolver, nessun secondo sistema di Facing, e nessuna scelta di copertura replicata al client avversario.
+
+> ⚠️ **Non sono le `GBX-*` e non sono le `PLC-*`.** Le `GBX-*` sono il **contratto graybox** — dimensioni,
+> authoring, cosa ci sta dentro una cella. Le `PLC-*` erano lo **spicchio di posa**, chiuse da `D-243`:
+> quella decisione resta valida per ciò che decideva. Queste riguardano la **copertura come stato tattico**,
+> che è un terzo oggetto.
 
 ---
 
@@ -879,6 +948,32 @@ ci passa esattamente sopra accende quindi due settori che non invade per area �
 > cambiare `Free` in `Blocked` da solo. La versione precedente di questa domanda sembrava urgente perché era
 > misurata sui **muri**, che arrivano al vertice *sempre*: vedi il blocco qui sotto.
 
+> ## 🔴 **INNESCATA il 2026-08-30, e la riga sopra sottostimava il caso** — [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826)
+>
+> L'innesco non è arrivato dal primo footprint di produzione, che ancora non esiste: è arrivato dal primo
+> **consumatore di posa**, `URTHexCoverPlacementLibrary` (`D-289`).
+>
+> Il caso che conta non è il **vertice**, è il **centro**. E i numeri sono di un altro ordine:
+>
+> | | vertice dell'esagono | **centro della cella** |
+> |---|---|---|
+> | triangoli in comune | 4 | **12** |
+> | sovrastima su un muro | 2 settori | **8 settori** |
+> | chi lo produce | un footprint tangente, che non esiste | **ogni segmento con `Offset == 0`**, che la grammatica esprime e [#712](https://github.com/DegrassiAaron/refactor-tactics-main/issues/712) disegna |
+> | conseguenza | «cella più stretta» | 🔴 **cella senza alcuna posa legale** |
+>
+> Misurato: `ComputeMask` su un diametro (`Deg0`, `Offset 0`, `Along ±12`) restituisce `Sectors == 0xFFF`,
+> dodici bit su dodici da un muro che ne attraversa **quattro**. Con zero settori liberi non esiste regione
+> di posa, e **la regola che `D-289` dichiara superata sopravvive lì** — non più come regola scritta, ma
+> come effetto collaterale del produttore della maschera.
+>
+> ⚠️ La frase *«mai abbastanza da cambiare `Free` in `Blocked` da solo»* è vera per il vertice e **falsa per
+> il centro**. Resta ferma la parte giusta: la regola conservativa per il contatto lungo un **segmento** —
+> un footprint appoggiato al confine fra due settori li invade entrambi — non è in discussione.
+>
+> Pinnata da `RefactorTactics.CoverPlacement.CentreContactRuleStillCollapsesTheWholeCell`, che diventa rosso
+> il giorno in cui questa voce si chiude.
+
 ---
 
 ## ✅ Sciolta il 2026-08-13 da `D-125` — misurava un ingresso che la pipeline non produce
@@ -1076,11 +1171,13 @@ indice**, per chi cerca la sigla vecchia: il contenuto vive nel Decision Log.
 
 | Era | Decisione presa | Dove vive ora |
 |---|---|---|
-| `OD-1` | Formato principale **non deciso**: D-001 declassata da *Consolidata* ad *Assunzione da bloccare*. Il 3v3 resta baseline di lavoro, il 4v4 solo scenario di stress | [`D-011`](decisions/RT_PDR_00_Decision_Log.md) |
+| `OD-1` | ~~Formato principale **non deciso**: D-001 declassata da *Consolidata* ad *Assunzione da bloccare*. Il 3v3 resta baseline di lavoro, il 4v4 solo scenario di stress~~ · 🟣 **Superata il 2026-08-30**: il formato Standard **è 3v3**; il 2v2 resta Skirmish/vertical slice ed è il formato della v0.1; il 4v4 e oltre restano Operations, stress e scala | [`D-011`](decisions/RT_PDR_00_Decision_Log.md) → **[`D-256`](decisions/RT_PDR_00_Decision_Log.md)** |
 | `OD-2` | Unità ausiliarie: **concetto unico**, solo vincoli architetturali, gameplay fuori dalla v0.1 | [`gameplay/brief-unita-ausiliarie.md`](gameplay/brief-unita-ausiliarie.md) |
 | `OD-3` | L'Overwatch **compete** con l'azione offensiva; le tre policy entrano nel DoD di **CP 14.3** | [`D-012`](decisions/RT_PDR_00_Decision_Log.md) · [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) |
 | `OD-4` | Il trigger su transizione è **possesso della trap**, non della mappa: `FRTHexEdge` resta per i soli salti di layer | [`D-013`](decisions/RT_PDR_00_Decision_Log.md) |
 | `OD-5` | Scenario **4v4 di stress** in roadmap dopo E15, come validazione e non come produzione | epic **E17**, [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) |
+
+⚠️ **`OD-1` è l'unica delle cinque a essere stata superata.** L'indice la conserva perché la sigla vecchia circola ancora, ma chi la cerca deve arrivare a [`D-256`](decisions/RT_PDR_00_Decision_Log.md), non fermarsi a `D-011`: quella voce resta valida per il resto del suo contenuto, e `D-256` ne declassa **solo** la metà «formato non deciso». `OD-5` non cambia — `D-256` conferma il 4v4 come scenario di stress e scala, mai come formato competitivo standard.
 
 **Nota di metodo, che vale più delle singole risposte.** Due delle cinque domande erano **mal poste**, e lo si è
 scoperto guardando il codice invece dei documenti:
@@ -1187,7 +1284,7 @@ del 2026-08-10 sbaglia documento.
 
 | ID | Domanda | Cosa cambierebbe |
 |---|---|---|
-| ~~`FAC-11`~~ | ~~I **sei lati** devono diventare la primitiva, con gli archi **derivati** per abilità?~~ | **✅ Decisa il 2026-08-13 da [D-126](decisions/RT_PDR_00_Decision_Log.md)**: **sì**, la primitiva semantica sono le sei direzioni relative, e l'insieme di lati appartiene al **consumatore** che lo dichiara. ⚠️ **Ma la parte difficile della domanda ha ricevuto una risposta diversa da quella che sembrava implicarla**: `HexCone` **non** viene sostituito nei consumatori d'area, e nessun esito di `Guard`, copertura, vista o Overwatch cambia. Il dubbio registrato qui — *«per un attaccante lontano un cono e un insieme di tre lati non coincidono»* — è stato **misurato** invece che stimato: replicando `HexCone`/`HexLine` con le costanti reali su raggio `1..10` ci sono **45** celle di divergenza, **tutte** nel verso «tre-lati **dentro** / cono **fuori**», **zero** nel verso opposto, la prima a distanza **2**. Il cono è cioè **strettamente contenuto** nell'insieme dei tre lati, e sostituirlo sarebbe un **buff difensivo netto** — un cambio di bilanciamento travestito da rinomina. `FAC-3` resta aperta e non è toccata. Il lavoro runtime che ne nasce è [#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726). ⚠️ **Il numero diceva «50» fino al 2026-08-16.** `50` è la misura della regola a **linea**, che lo spec panel del 2026-08-13 ha scartato lasciando in piedi le cifre; a settore le divergenze sono **45** e a distanza `2` ce n'è **una sola**, `(1, -2)`. ✅ **Lo sweep è stato eseguito con [D-147](decisions/RT_PDR_00_Decision_Log.md)**: tutte e sette le sedi vive sono allineate — `D-126`, [ADR-0005](decisions/adr-0005-orientamento.md), [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md), [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) riga 67, [`roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) epic E16, `feature-registry.yaml` con la sua vista `.json`, e il [referto del triage](roadmap/plans/facing-visualdocs-triage-2026-08-13.md). `docs/archive/` porta ancora `50` **per costruzione**: è storico. La **conclusione** non cambia |
+| ~~`FAC-11`~~ | ~~I **sei lati** devono diventare la primitiva, con gli archi **derivati** per abilità?~~ | **✅ Decisa il 2026-08-13 da [D-126](decisions/RT_PDR_00_Decision_Log.md)**: **sì**, la primitiva semantica sono le sei direzioni relative, e l'insieme di lati appartiene al **consumatore** che lo dichiara. ⚠️ **Ma la parte difficile della domanda ha ricevuto una risposta diversa da quella che sembrava implicarla**: `HexCone` **non** viene sostituito nei consumatori d'area, e nessun esito di `Guard`, copertura, vista o Overwatch cambia. Il dubbio registrato qui — *«per un attaccante lontano un cono e un insieme di tre lati non coincidono»* — è stato **misurato** invece che stimato: replicando `HexCone`/`HexLine` con le costanti reali su raggio `1..10` ci sono **45** celle di divergenza, **tutte** nel verso «tre-lati **dentro** / cono **fuori**», **zero** nel verso opposto, la prima a distanza **2**. Il cono è cioè **strettamente contenuto** nell'insieme dei tre lati, e sostituirlo sarebbe un **buff difensivo netto** — un cambio di bilanciamento travestito da rinomina. `FAC-3` resta aperta e non è toccata. Il lavoro runtime che ne nasce è [#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726). ⚠️ **Il numero diceva «50» fino al 2026-08-16.** `50` è la misura della regola a **linea**, che lo spec panel del 2026-08-13 ha scartato lasciando in piedi le cifre; a settore le divergenze sono **45** e a distanza `2` ce n'è **una sola**, `(1, -2)`. ✅ **Lo sweep è stato eseguito con [D-147](decisions/RT_PDR_00_Decision_Log.md)**: tutte e sette le sedi vive sono allineate — `D-126`, [ADR-0005](decisions/adr-0005-orientamento.md), [ADR-0008](decisions/adr-0008-rotazione-e-policy-di-facing.md), [`DOC_CONFLICT_MATRIX.md`](DOC_CONFLICT_MATRIX.md) riga 67, [`roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) epic E16, ~~`feature-registry.yaml` con la sua vista `.json`~~ (⛔ **uscito dal repository** con [D-181](decisions/RT_PDR_00_Decision_Log.md) il 2026-08-21: allo sweep del 2026-08-16 era una sede viva, oggi le sedi da tenere allineate sono **sei**), e il [referto del triage](roadmap/plans/facing-visualdocs-triage-2026-08-13.md). `docs/archive/` porta ancora `50` **per costruzione**: è storico. La **conclusione** non cambia |
 | `FAC-12` | Il pivot **si paga** in punti movimento, o resta solo un **tetto**? | ADR-0008 §1 misura la rotazione in step e la tratta come un tetto (`MoveEndPivotMaxSteps`): ruotare fin dove è consentito è **gratis**. La fonte §10 propone un prezzo — `Move 2 celle + Pivot 60° = 3 MP` — che mette *quanto mi muovo* contro *quanto ruoto*, e farebbe pagare 3 MP anche a chi ruota da fermo (oggi libero e universale). Sono due assi di scelta diversi, non due formulazioni. Da guardare alla **prima revisione dei numeri di ADR-0008**, cioè alla chiusura di CP 16.2. 🔄 **Riproposta il 2026-08-12** dal kit dell'action economy (§15), che la presenta come «*latest explicit direction*» senza sapere di ADR-0008. Non cambia la risposta e **non cambia la data della revisione**: cambia il peso della domanda, perché due sorgenti indipendenti hanno chiesto la stessa cosa a due giorni di distanza. Il secondo aggiunge un argomento che il primo non aveva — *«viaggio più lontano o arrivo orientato bene?»* è la scelta che il **tetto** non produce, perché un tetto non si spende |
 | `FAC-13` | Da dove «arriva» un colpo che **non ha una sorgente puntuale**? | Oggi la direzione d'impatto è implicitamente la cella dell'attaccante (`IsInFrontalArc(…, OriginCell)`), e non c'è risposta per proiettile con traiettoria, esplosione con centro d'area o terreno che brucia — `grep` di `ImpactDirection`/`FromTrajectory` in `Source/` dà **zero**. La fonte propone una policy esplicita (`FromSource`, `FromTrajectory`, `FromImpactCenter`, `NonDirectional`). **Non è un difetto attivo**: il danno ambientale non passa da `Plan.Hits` e un'area azzera già la copertura per costruzione. Diventa un caso da correggere quando **E8/E9** daranno una direzione agli effetti d'area |
 | `FAC-14` | La **rotazione forzata** è un effetto di controllo a catalogo? | `ERTActionEffect` ha `Damage · Heal · Shield · Push · Pull · Status · DamageReduction · DamageStructure`: **nessuna rotazione**. Girare un avversario è geometricamente equivalente a spostarlo — apre un lato — e `Push`/`Pull` esistono già. ⚠️ Si tiene con `FAC-3` e `FAC-11`: se una difesa diventasse direzionale, la rotazione forzata sarebbe **l'unico modo di aggirarla senza spostare nessuno**, quindi decidere l'una senza l'altra lascia il modello sbilanciato in un verso o nell'altro |

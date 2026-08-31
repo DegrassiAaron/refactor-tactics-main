@@ -232,8 +232,26 @@ public:
 	 *
 	 * `DescribeTurnLog` e' un adattatore su questa: un solo produttore, quindi testo e ordine non possono
 	 * divergere fra le due forme.
+	 *
+	 * 🔴 **Le righe di MOVIMENTO nominano il soggetto anche nel TESTO** (`#1932`). Fino ad allora il soggetto
+	 * viaggiava solo in `SubjectStableUnitId` — serviva al filtro di conoscenza, e chi LEGGEVA la riga non
+	 * l'aveva. Costo misurato: [#1733](../../../docs/roadmap/plans/unita-sovrapposte-1733-spec-panel-2026-08-30.md)
+	 * e' stata aperta come bug di gameplay perche' due righe della **stessa** unita' — *«si muove (-1,-1) ->
+	 * (1,-1)»* nel Dash e *«resta (1,-1)»* nel Move — si leggevano come due unita' sulla stessa cella. Una
+	 * sovrapposizione che non e' mai avvenuta, e una revisione con panel per smontarla.
+	 *
+	 * ⚠️ **Solo `ERTLogCategory::Move`, e non e' timidezza**: il prefisso funziona dove il soggetto e' anche
+	 * il soggetto GRAMMATICALE del predicato. Per il danno `UnitId` porta chi **subisce** (`#1150`), e
+	 * *«Gadget: colpisce»* direbbe il falso; le voci `Status` cominciano gia' con la cella. Estendere ad
+	 * altre categorie vuole prima un predicato che regga il soggetto davanti.
+	 *
+	 * @param SubjectNames  `StableUnitId` -> nome leggibile (`ARTUnit::DisplayLabel`). Chi manca ricade su
+	 *                      `u<id>`, che e' verificabile e non mente; una mappa vuota e' legittima e da' righe
+	 *                      con i soli id. La libreria resta **pura**: i nomi li risolve il chiamante, che ha
+	 *                      gli Actor.
 	 */
-	static TArray<FRTDescribedLine> DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries);
+	static TArray<FRTDescribedLine> DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries,
+		const TMap<int32, FString>& SubjectNames = TMap<int32, FString>());
 
 	/**
 	 * L'identita' dell'azione di una voce, come **azione base + profilo** quando la voce sa dirlo:
