@@ -493,6 +493,42 @@ fuori dalla cella cancellata.
 Verifica: `RefactorTactics.Map.Dependency.*` — un test per array, uno per il gruppo che sopravvive, e uno
 che applica la cascata e chiede a `ValidateMap` se è rimasto qualcosa.
 
+### 13.2 Identità di un elemento, e il move
+
+Owner: `URTMapEditLibrary` (`Source/RefactorTactics/Map/`), [#1864](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1864).
+
+Un elemento autorato si nomina con un **handle**, che è **dato** e non oggetto: nessun puntatore, nessun
+Actor. Come lo si identifica dipende da cosa può succedergli.
+
+| Elemento | Identità | Perché |
+|---|---|---|
+| cella | `FRTCellId` | già stabile per costruzione |
+| copertura | `(Cell, Edge)` | **una sola copertura per bordo** — regola già applicata da `ValidateMap` |
+| porta · transizione | `StableId` | CP 23.3, #832 |
+| **muro interno** | `StableId` (**v12**) | 🔑 **si sposta**, e il move cambia `(Cell, Segment)` |
+
+🔑 **La chiave naturale del muro interno è ciò che il move modifica.** Un handle derivato si romperebbe
+esattamente durante l'operazione a cui deve sopravvivere: è per questo, e non per simmetria con le porte,
+che `FRTHexInteriorWall` prende un campo e `FRTHexCover` no.
+
+⛔ **`FRTHexInteriorWall::StableId` non entra in `ComputeHash`** — l'intero array ne resta fuori, perché
+vista e passo non consultano un muro interno. Qui il criterio **diverge** da `FRTHexDoor::StableId`, che
+nell'hash ci entra (#986): un nome di porta lo si risolve a runtime, un nome di muro solo nell'editor.
+
+**Il move valida prima di scrivere**, e un rifiuto è un valore di ritorno con la sua ragione
+(`ERTMapEditOutcome`) — mai una correzione silenziosa, mai uno stato scritto e poi segnalato dal validator:
+
+```text
+RefusedUnresolved      l'handle non nomina niente
+RefusedNoSuchCell      la destinazione non esiste
+RefusedOutOfGrammar    ValidateSegment decide, il move la chiama
+RefusedWouldCloseEdge  chiuderebbe un bordo: allora e' una COPERTURA
+RefusedDuplicate       muro identico gia' presente
+```
+
+Verifica: `RefactorTactics.Map.Edit.*` — l'handle sopravvive al move, il round-trip di serializzazione, e i
+quattro rifiuti, ciascuno con la controprova che la mappa resta valida.
+
 ---
 
 ## 14. Come si verifica

@@ -43,6 +43,13 @@ struct FRTMapElementHandle
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	FRTCellId Cell;
 
+	/**
+	 * Nome stabile dell'elemento. Significativo per `InteriorWall`, `Door` e `Transition`; per `Cell` e
+	 * `Cover` l'identita' e' la chiave naturale, che per quei due e' gia' stabile.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	FName StableId;
+
 	FRTMapElementHandle() = default;
 
 	/** La superficie esagonale. La sua identita' e' `FRTCellId`, che e' gia' stabile per costruzione. */
@@ -51,6 +58,20 @@ struct FRTMapElementHandle
 		FRTMapElementHandle Handle;
 		Handle.Kind = ERTMapElementKind::Cell;
 		Handle.Cell = InCell;
+		return Handle;
+	}
+
+	/**
+	 * Un muro interno, per NOME.
+	 *
+	 * ⚠️ Non per `(Cell, Segment)`: quella chiave cambia nel move, che e' l'operazione a cui questo handle
+	 * deve sopravvivere. Vedi `FRTHexInteriorWall::StableId` (formato v12).
+	 */
+	static FRTMapElementHandle ForInteriorWall(FName InStableId)
+	{
+		FRTMapElementHandle Handle;
+		Handle.Kind = ERTMapElementKind::InteriorWall;
+		Handle.StableId = InStableId;
 		return Handle;
 	}
 };
