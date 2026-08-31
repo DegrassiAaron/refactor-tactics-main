@@ -1911,7 +1911,7 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 		FRTResolvedEvent Ev;
 		Ev.Phase = ERTMatchPhase::Blast;
 		Ev.Type = ERTResolvedEventType::Move;
-		Ev.Source = Unit;
+		Ev.SourceStableUnitId = Unit->StableUnitId;
 		Ev.Path = Path;
 		ResolvedTimeline.Add(Ev);
 	}
@@ -2389,13 +2389,42 @@ void ARTTurnManager::EnsureMatchRoster()
 
 	Roster.Sort([](const ARTUnit& A, const ARTUnit& B) { return MatchRosterLess(A, B); });
 
+	MatchRoster.Reset(Roster.Num());
 	for (int32 i = 0; i < Roster.Num(); ++i)
 	{
 		// `+ 1`: lo `0` resta libero e significa «nessuna unita' dichiarata» ([D-063]), che e' cio' che dice
 		// una voce ambientale del TurnLog.
 		Roster[i]->StableUnitId = i + 1;
+
+		// L'indice inverso, riempito **con la stessa lista gia' ordinata**: e' il motivo per cui la porta
+		// `UnitByStableId` non costa un secondo `GetAllActorsOfClass`. Cio' che prima si buttava via qui
+		// e' cio' che alla presentazione serve per tornare all'Actor da un fatto che porta il solo id.
+		MatchRoster.Add(Roster[i]);
 	}
 	bMatchRosterBuilt = true;
+}
+
+int32 ARTTurnManager::RosterIndexForStableId(int32 StableUnitId, int32 RosterNum)
+{
+	// Lo `0` non e' un id ([D-063]) e non ha un indice. Un id oltre il roster e' di un'unita' arrivata
+	// DOPO il congelamento: non ne aveva uno allora e non ne acquista uno adesso.
+	if (StableUnitId <= 0 || StableUnitId > RosterNum)
+	{
+		return INDEX_NONE;
+	}
+	return StableUnitId - 1;
+}
+
+ARTUnit* ARTTurnManager::UnitByStableId(int32 StableUnitId) const
+{
+	const int32 Index = RosterIndexForStableId(StableUnitId, MatchRoster.Num());
+	if (Index == INDEX_NONE)
+	{
+		return nullptr;
+	}
+	// `.Get()` e non `.IsValid()` + deref: una entry scaduta risponde `nullptr`, che per chi anima significa
+	// «quell'unita' non c'e' piu'» — lo stesso `nullptr` del `TWeakObjectPtr` che stava dentro l'evento.
+	return MatchRoster[Index].Get();
 }
 
 int32 ARTTurnManager::CurrentGraphRevision() const
@@ -3775,7 +3804,7 @@ void ARTTurnManager::ResolveDash()
 			Route.Add(Units[i]->Cell);
 			Route.Append(Resolved[i].Entered);
 
-			// L'identita' si prende da `Units[i]`, lo stesso indice da cui la prende `Ev.Source` due righe
+			// L'identita' si prende da `Units[i]`, lo stesso indice da cui la prende `Ev.SourceStableUnitId` due righe
 			// sotto. L'indice di `LastMoveRoutes` non la porta: l'`Add` e' condizionale (`#1497`).
 			FRTMoveRoute& Tracked = LastMoveRoutes.AddDefaulted_GetRef();
 			Tracked.StableUnitId = Units[i]->StableUnitId;
@@ -3793,7 +3822,7 @@ void ARTTurnManager::ResolveDash()
 			FRTResolvedEvent Ev;
 			Ev.Phase = ERTMatchPhase::Dash;
 			Ev.Type = ERTResolvedEventType::Move;
-			Ev.Source = Units[i];
+			Ev.SourceStableUnitId = Units[i]->StableUnitId;
 			Ev.Path = Route;
 			ResolvedTimeline.Add(Ev);
 		}
@@ -4779,8 +4808,8 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		FRTResolvedEvent Ev;
 		Ev.Phase = ERTMatchPhase::Blast;
 		Ev.Type = ERTResolvedEventType::Attack;
-		Ev.Source = Attacker;
-		Ev.Target = Victim;
+		Ev.SourceStableUnitId = Attacker ? Attacker->StableUnitId : 0;
+		Ev.TargetStableUnitId = Victim ? Victim->StableUnitId : 0;
 		Ev.Amount = Hit.Power;
 		ResolvedTimeline.Add(Ev);
 
@@ -4879,7 +4908,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		FRTResolvedEvent Ev;
 		Ev.Phase = ERTMatchPhase::Blast;
 		Ev.Type = ERTResolvedEventType::Defeated;
-		Ev.Source = Units[Idx];
+		Ev.SourceStableUnitId = Units[Idx]->StableUnitId;
 		ResolvedTimeline.Add(Ev);
 	}
 
@@ -5917,7 +5946,7 @@ void ARTTurnManager::ResolveMovement()
 			FRTResolvedEvent Ev;
 			Ev.Phase = ERTMatchPhase::Move;
 			Ev.Type = ERTResolvedEventType::Move;
-			Ev.Source = Units[i];
+			Ev.SourceStableUnitId = Units[i]->StableUnitId;
 			Ev.Path = Route;
 			ResolvedTimeline.Add(Ev);
 		}
@@ -6020,22 +6049,27 @@ void ARTTurnManager::BeginPlayback()
 	TSet<ARTUnit*> StartPositioned; // per posizionare il cilindro all'inizio della sua PRIMA fase (Dash prima di Move)
 	for (const FRTResolvedEvent& Ev : ResolvedTimeline)
 	{
-		if (Ev.Type == ERTResolvedEventType::Move && Ev.Source.IsValid() && Ev.Path.Num() >= 2)
+		// L'UNICO punto in cui l'id torna a essere un Actor, ed e' qui perche' qui si comincia ad animare
+		// (#1800). `nullptr` significa «non c'e' piu' nessuno da muovere» e cade nei rami che gia'
+		// esistevano per `TWeakObjectPtr` scaduto.
+		ARTUnit* const Src = UnitByStableId(Ev.SourceStableUnitId);
+
+		if (Ev.Type == ERTResolvedEventType::Move && Src && Ev.Path.Num() >= 2)
 		{
 			FRTMoveAnim Anim;
-			Anim.Unit = Ev.Source;
+			Anim.Unit = Src;
 			Anim.Phase = Ev.Phase; // Dash o Move
 			Anim.World.Reserve(Ev.Path.Num());
 			for (const FRTCellId& C : Ev.Path)
 			{
-				Anim.World.Add(Ev.Source->WorldForCell(C, PBOrigin, PBCellSize, PBLayerHeight));
+				Anim.World.Add(Src->WorldForCell(C, PBOrigin, PBCellSize, PBLayerHeight));
 			}
 			// Metti il cilindro all'inizio della sua PRIMA anim (Dash precede Move nella timeline):
 			// niente flash sulla cella finale. Un'anim successiva della stessa unita' non ne sposta lo start.
-			if (!StartPositioned.Contains(Ev.Source.Get()))
+			if (!StartPositioned.Contains(Src))
 			{
-				Ev.Source->SetVisualLocation(Anim.World[0]);
-				StartPositioned.Add(Ev.Source.Get());
+				Src->SetVisualLocation(Anim.World[0]);
+				StartPositioned.Add(Src);
 			}
 			MoveAnims.Add(MoveTemp(Anim));
 		}
@@ -6153,11 +6187,17 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		while (AttacksShown < ShouldShow)
 		{
 			const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
+			ARTUnit* const AtkSrc = UnitByStableId(Atk.SourceStableUnitId);
+			ARTUnit* const AtkTgt = UnitByStableId(Atk.TargetStableUnitId);
 			AddLogEvent(FString::Printf(TEXT("Colpo: %s -> %s (%d)"),
-				Atk.Source.IsValid() ? *Atk.Source->GetName() : TEXT("?"),
-				Atk.Target.IsValid() ? *Atk.Target->GetName() : TEXT("(eliminato)"),
-				Atk.Amount), FRTLogSubject::Unit(Atk.Source.Get()));
-			if (ARTUnit* AtkSrc = Atk.Source.Get()) { AtkSrc->PlayAttackMontage(); } if (ARTUnit* AtkTgt = Atk.Target.Get()) { AtkTgt->PlayHitMontage(); } OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
+				AtkSrc ? *AtkSrc->GetName() : TEXT("?"),
+				AtkTgt ? *AtkTgt->GetName() : TEXT("(eliminato)"),
+				// `FRTLogSubject::Unit` vuole l'Actor e non l'id, e lo dichiara: da un id soltanto il
+				// verdetto di [D-223] non si calcola — servono anche squadra e cella.
+				Atk.Amount), FRTLogSubject::Unit(AtkSrc));
+			if (AtkSrc) { AtkSrc->PlayAttackMontage(); }
+			if (AtkTgt) { AtkTgt->PlayHitMontage(); }
+			OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
 			++AttacksShown;
 		}
 	}
@@ -6180,7 +6220,11 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			while (AttacksShown < PlaybackAttacks.Num())
 			{
 				const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
-				if (ARTUnit* AtkSrc = Atk.Source.Get()) { AtkSrc->PlayAttackMontage(); } if (ARTUnit* AtkTgt = Atk.Target.Get()) { AtkTgt->PlayHitMontage(); } OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
+				ARTUnit* const AtkSrc = UnitByStableId(Atk.SourceStableUnitId);
+				ARTUnit* const AtkTgt = UnitByStableId(Atk.TargetStableUnitId);
+				if (AtkSrc) { AtkSrc->PlayAttackMontage(); }
+				if (AtkTgt) { AtkTgt->PlayHitMontage(); }
+				OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
 				++AttacksShown;
 			}
 		}
@@ -6189,11 +6233,13 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		// (Blast) o l'attraversamento (Move) e' stato mostrato. Idempotente (guardia IsHidden).
 		for (const FRTResolvedEvent& D : PlaybackDefeated)
 		{
-			if (D.Phase == Ph && D.Source.IsValid() && !D.Source->IsHidden())
+			ARTUnit* const DefU = UnitByStableId(D.SourceStableUnitId);
+			if (D.Phase == Ph && DefU && !DefU->IsHidden())
 			{
-				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()), FRTLogSubject::World());
-				D.Source->HideForDefeat();
-				if (ARTUnit* DefU = D.Source.Get()) { DefU->PlayDefeatMontage(); } OnUnitDefeated.Broadcast(D.Source.Get());
+				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *DefU->GetName()), FRTLogSubject::World());
+				DefU->HideForDefeat();
+				DefU->PlayDefeatMontage();
+				OnUnitDefeated.Broadcast(DefU);
 			}
 		}
 
@@ -6245,11 +6291,13 @@ void ARTTurnManager::FinishPlayback()
 	// Catch-all: nasconde eventuali eliminati non ancora mostrati (hazard di Cleanup, oppure skip del playback).
 	for (const FRTResolvedEvent& D : PlaybackDefeated)
 	{
-		if (D.Source.IsValid() && !D.Source->IsHidden())
+		ARTUnit* const DefU = UnitByStableId(D.SourceStableUnitId);
+		if (DefU && !DefU->IsHidden())
 		{
-			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()), FRTLogSubject::World());
-			D.Source->HideForDefeat();
-			if (ARTUnit* DefU = D.Source.Get()) { DefU->PlayDefeatMontage(); } OnUnitDefeated.Broadcast(D.Source.Get());
+			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *DefU->GetName()), FRTLogSubject::World());
+			DefU->HideForDefeat();
+			DefU->PlayDefeatMontage();
+			OnUnitDefeated.Broadcast(DefU);
 		}
 	}
 
