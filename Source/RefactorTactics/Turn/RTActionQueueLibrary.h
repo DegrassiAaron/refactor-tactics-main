@@ -30,7 +30,7 @@ public:
 	 * movimento prima dell'attacco). La priorita' ordina DENTRO la fase, non fra le fasi.
 	 *
 	 * E' l'UNICO ordine di risoluzione del gioco. Questo commento diceva di «estendere la regola APNAP di
-	 * `piano-canonico-mvp.md §5.1`»: quella regola e' stata **ritirata** da D-290 (2026-08-31) perche'
+	 * `piano-canonico-mvp.md §5.1`»: quella regola e' stata **ritirata** da D-293 (2026-08-31) perche'
 	 * presupponeva un'unita' attiva che un gioco a turni simultanei non ha. Non esiste un secondo ordine da
 	 * estendere, e non va costruito.
 	 *

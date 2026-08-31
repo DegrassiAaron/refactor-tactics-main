@@ -297,7 +297,7 @@ Sessioni parallele 5 worktree attivi
 | Documento | Stato | Perché |
 |---|---|---|
 | `docs/roadmap/plans/resolution-ordering-consolidamento-spec-panel-2026-08-31.md` | **UPDATED** (nuovo) | Questo referto |
-| `docs/decisions/RT_PDR_00_Decision_Log.md` | **UPDATED** | `D-288` — riconciliazione delle quattro DQA |
+| `docs/decisions/RT_PDR_00_Decision_Log.md` | **UPDATED** | `D-291` — riconciliazione delle quattro DQA |
 | `docs/gameplay/spec-sequenza-turno.md` | **UPDATED** | §11.5 ratificato: la distinzione reattivo/propagazione è OBSERVED RUNTIME BEHAVIOR e non era scritta |
 | `docs/OPEN_DECISIONS.md` | **NOT UPDATED** | La domanda viva (APNAP) ha un owner che la dichiara già (§3.2) e diventa una issue: duplicarla qui creerebbe la terza copia |
 | `docs/roadmap/roadmap-v0.1.md` · `roadmap-checkpoint.md` | **NOT UPDATED** | Nessuno scope di release cambia. Modificarli sarebbe simmetria |

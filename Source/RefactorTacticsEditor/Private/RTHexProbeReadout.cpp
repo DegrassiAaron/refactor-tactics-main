@@ -1,6 +1,8 @@
 #include "RTHexProbeReadout.h"
 
 #include "RTHexHoverGate.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Turn/RTHexSimLibrary.h"
 
 namespace RTHexProbe
@@ -11,7 +13,22 @@ namespace RTHexProbe
 		const FString Dash = TEXT("—");
 	}
 
-	FReadout Describe(bool bHasUnit, ERTHexProbeExclusion Exclusion, int32 Cost, int32 Budget, int32 PathCells)
+	FBudget ResolveBudget(FName HeroId)
+	{
+		// 🔑 La stessa fonte da cui `ARTUnit` prende `MoveRange` e da cui il Composer prende il budget della
+		// sua anteprima: `URTHeroData::MovePoints`. Non e' una stima, e' il valore.
+		for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+		{
+			if (Hero && Hero->HeroId == HeroId)
+			{
+				return FBudget{ /*bKnown=*/ true, Hero->MovePoints };
+			}
+		}
+		return FBudget();
+	}
+
+	FReadout Describe(bool bHasUnit, ERTHexProbeExclusion Exclusion, int32 Cost, int32 Budget, int32 PathCells,
+		bool bKnownHero)
 	{
 		FReadout Out;
 		Out.Cost = Dash;
@@ -47,10 +64,12 @@ namespace RTHexProbe
 			break;
 
 		case ERTHexProbeExclusion::OutOfBudget:
-			// ⚠️ Questa frase e la successiva mandano il designer in due posti DIVERSI: qui il difetto e' nel
-			// profilo o nel costo del terreno, li' e' nella mappa. Accorparle sarebbe il difetto che #711
-			// esiste per togliere.
-			Out.Reason = FString::Printf(TEXT("fuori budget: %d MP non bastano"), Budget);
+			// 🔴 **Tre destinazioni, non due.** Senza eroe noto il budget e' `0` per assenza di dato, e
+			// chiamarlo «fuori budget» manderebbe a cambiare il NUMERO invece del NOME — il motivo giusto
+			// detto della cosa sbagliata, che e' il difetto per cui #711 esiste.
+			Out.Reason = bKnownHero
+				? FString::Printf(TEXT("fuori budget: %d MP non bastano"), Budget)
+				: TEXT("nessun eroe con questo id nel catalogo: correggi HeroId");
 			break;
 
 		case ERTHexProbeExclusion::NoRoute:

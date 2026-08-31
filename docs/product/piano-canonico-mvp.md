@@ -305,7 +305,7 @@ priorità (ADR-0003 §1). *Verifica: permutare l'array di ingresso non cambia la
 #### B. Ritirato — la partizione a sei gruppi sugli **effetti**
 
 - **`FR-RESOLVE-01`** — ordine totale per effetti simultanei (gruppi APNAP + tie-break assoluto).
-  **Stato: RITIRATO il 2026-08-31 da [D-290](../decisions/RT_PDR_00_Decision_Log.md).** Non è stato costruito,
+  **Stato: RITIRATO il 2026-08-31 da [D-293](../decisions/RT_PDR_00_Decision_Log.md).** Non è stato costruito,
   e non va costruito.
 
 > 🔴 **La premessa non regge in questo gioco.** APNAP è *Active Player, Non-Active Player*: mette per primi gli
@@ -320,7 +320,7 @@ priorità (ADR-0003 §1). *Verifica: permutare l'array di ingresso non cambia la
 > avversari**, cioè lo stesso gruppo in ogni permutazione. La partizione non li separa.
 >
 > ✅ **Come si chiude invece.** Rendendo **commutativa la mitigazione** — il pool di
-> [D-289](../decisions/RT_PDR_00_Decision_Log.md) — non ordinando gli effetti: una somma che non perde pezzi
+> [D-292](../decisions/RT_PDR_00_Decision_Log.md) — non ordinando gli effetti: una somma che non perde pezzi
 > non ha bisogno di sapere chi viene prima. Resta in vigore il solo blocco A.
 >
 > ⚠️ Se un giorno comparisse un effetto ordine-dipendente non riducibile a un pool, la domanda si riapre — ma
@@ -463,7 +463,7 @@ velocità e budget di reazione. Consolidamento e conflitti con gli invarianti #3
 [`spec-sequenza-turno.md`](../gameplay/spec-sequenza-turno.md).
 
 > ⚠️ **L'ordinamento APNAP degli effetti simultanei era dato qui come «la parte adottata per prima». Non lo è
-> più**: [D-290](../decisions/RT_PDR_00_Decision_Log.md) l'ha **ritirato** il 2026-08-31, perché presuppone
+> più**: [D-293](../decisions/RT_PDR_00_Decision_Log.md) l'ha **ritirato** il 2026-08-31, perché presuppone
 > un'unità attiva che un gioco a turni simultanei non ha (§5.1.B). Di questo modello esplorativo la v0.1 ha
 > adottato lo **slot Reazione** di ADR-0003, non l'ordinamento.
 

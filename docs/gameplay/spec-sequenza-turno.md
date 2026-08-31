@@ -58,7 +58,7 @@ timeout è una funzione pura costante. Per questo il *quando* del click non camb
 
 Il diagramma del §1 mette `CLEANUP` in fondo, e da lì si deduce facilmente la cosa sbagliata: che l'ambiente
 sia **solo** una fase finale. Non lo è, e il runtime lo dimostra da prima che questo paragrafo esistesse
-([D-288](../decisions/RT_PDR_00_Decision_Log.md)).
+([D-291](../decisions/RT_PDR_00_Decision_Log.md)).
 
 | | Quando agisce | Chi lo esegue |
 |---|---|---|
@@ -165,7 +165,7 @@ Qui stava dal 2026-08-08 una domanda aperta: `piano-canonico-mvp.md` §5.1 adott
 partizione a sei gruppi sugli effetti — *sistema → unità attiva → alleati → avversari → terreno → globali* —
 mai costruita, e questa sezione chiedeva se costruirla o ritirarla.
 
-**Ritirata il 2026-08-31 da [D-290](../decisions/RT_PDR_00_Decision_Log.md)**, per due ragioni misurate.
+**Ritirata il 2026-08-31 da [D-293](../decisions/RT_PDR_00_Decision_Log.md)**, per due ragioni misurate.
 
 > 🔴 **La premessa non regge.** APNAP mette per primi gli effetti di **chi ha il turno**. Qui i turni sono
 > **simultanei**: nessuno ha il turno, e «unità attiva» non è una cosa che il gioco possieda.
@@ -175,7 +175,7 @@ mai costruita, e questa sezione chiedeva se costruirla o ritirarla.
 > gruppo in ogni permutazione. La partizione non li separa.
 
 ✅ **Come si è chiuso invece.** Rendendo **commutativa la mitigazione**, non ordinando gli effetti: la Guardia
-diventa un **pool** di danni assorbibili ([D-289](../decisions/RT_PDR_00_Decision_Log.md)), e una somma che non
+diventa un **pool** di danni assorbibili ([D-292](../decisions/RT_PDR_00_Decision_Log.md)), e una somma che non
 perde pezzi non ha bisogno di sapere chi viene prima. Il difetto che ha portato qui è provato da
 `RefactorTactics.Combat.NegativeFirstHitDeltaIsPermutationInvariant`.
 
