@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Map/RTCellId.h"
+// `FRTGeometrySegment` come chiave di riserva del muro interno anonimo (vedi `Segment` sotto).
+#include "Map/RTGeometryGrammar.h"
 #include "RTMapDependencyLibrary.generated.h"
 
 class URTHexMapAsset;
@@ -44,11 +46,35 @@ struct FRTMapElementHandle
 	FRTCellId Cell;
 
 	/**
+	 * Il bordo occupato. Significativo per `Cover` e `Door`, che vivono su un lato e non nella cella.
+	 *
+	 * 🔑 Per la copertura questa **e'** l'identita', insieme a `Cell`: `(Cell, Edge)` e' unica per una regola
+	 * che `ValidateMap` gia' applica — un bordo porta al massimo una copertura — ed e' la ragione per cui
+	 * `FRTHexCover` non ha preso un campo nome quando il muro interno l'ha preso.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	ERTHexDirection Edge = ERTHexDirection::E;
+
+	/**
 	 * Nome stabile dell'elemento. Significativo per `InteriorWall`, `Door` e `Transition`; per `Cell` e
 	 * `Cover` l'identita' e' la chiave naturale, che per quei due e' gia' stabile.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	FName StableId;
+
+	/**
+	 * Chiave di RISERVA del muro interno, usata quando `StableId` e' vuoto.
+	 *
+	 * 🔑 **Non e' un ripensamento su v12: e' cio' che rende selezionabili i muri che un nome non ce l'hanno.**
+	 * `StableId` nasce `NAME_None`, quindi ogni muro disegnato prima di v12 e' anonimo — e un handle che
+	 * sapesse identificare solo i muri nominati emetterebbe candidati che non risolvono.
+	 *
+	 * L'unicita' non e' un'assunzione: `ValidateMap` vieta due muri identici sulla stessa cella. Ma questa
+	 * chiave **cambia col move**, ed e' esattamente la ragione per cui il nome esiste e ha la precedenza:
+	 * un handle per chiave regge la selezione, non l'operazione che sposta il suo bersaglio.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	FRTGeometrySegment Segment;
 
 	FRTMapElementHandle() = default;
 
@@ -71,6 +97,54 @@ struct FRTMapElementHandle
 	{
 		FRTMapElementHandle Handle;
 		Handle.Kind = ERTMapElementKind::InteriorWall;
+		Handle.StableId = InStableId;
+		return Handle;
+	}
+
+	/**
+	 * Un muro interno per **chiave naturale**, quando non ha un nome.
+	 *
+	 * ⚠️ Regge la selezione, non il move: spostarlo cambia il `Segment`, cioe' la chiave. Chi vuole
+	 * un'identita' che sopravviva all'operazione gli da' un nome.
+	 */
+	static FRTMapElementHandle ForInteriorWallAt(const FRTCellId& InCell, const FRTGeometrySegment& InSegment)
+	{
+		FRTMapElementHandle Handle;
+		Handle.Kind = ERTMapElementKind::InteriorWall;
+		Handle.Cell = InCell;
+		Handle.Segment = InSegment;
+		return Handle;
+	}
+
+	/**
+	 * Una copertura, per chiave naturale `(Cell, Edge)`.
+	 *
+	 * Non prende un nome perche' non le serve: un bordo porta al massimo una copertura, e la regola non e'
+	 * un'assunzione di questo handle — `ValidateMap` la applica (`RTHexMapAsset.cpp`).
+	 */
+	static FRTMapElementHandle ForCover(const FRTCellId& InCell, ERTHexDirection InEdge)
+	{
+		FRTMapElementHandle Handle;
+		Handle.Kind = ERTMapElementKind::Cover;
+		Handle.Cell = InCell;
+		Handle.Edge = InEdge;
+		return Handle;
+	}
+
+	/**
+	 * Una porta.
+	 *
+	 * ⚠️ Porta **entrambi**: il nome pubblico (CP 23.3) e il bordo da cui la si e' raggiunta. Il nome
+	 * identifica la STRUTTURA, che puo' essere un gruppo di bordi su celle diverse; `(Cell, Edge)` dice
+	 * quale bordo di quel gruppo e' stato cliccato. Un tool che evidenzia la selezione ha bisogno del
+	 * secondo, e un'operazione che agisce sulla porta ha bisogno del primo.
+	 */
+	static FRTMapElementHandle ForDoor(const FRTCellId& InCell, ERTHexDirection InEdge, FName InStableId)
+	{
+		FRTMapElementHandle Handle;
+		Handle.Kind = ERTMapElementKind::Door;
+		Handle.Cell = InCell;
+		Handle.Edge = InEdge;
 		Handle.StableId = InStableId;
 		return Handle;
 	}

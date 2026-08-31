@@ -57,6 +57,19 @@ namespace
 		Out.WallType = ERTHexCoverType::High;
 		return true;
 	}
+
+	/** Porta con nome pubblico sul bordo indicato. */
+	void MapEditPutDoor(URTHexMapAsset* Map, const FRTCellId& Id, ERTHexDirection Edge,
+		int32 DoorId, FName StableId)
+	{
+		const FRTHexCellData* Existing = Map->FindCell(Id);
+		FRTHexCellData Data = Existing ? *Existing : FRTHexCellData(Id);
+		FRTHexDoor Door(Edge, ERTHexDoorState::Closed, DoorId);
+		Door.StableId = StableId;
+		Data.Doors.Add(Door);
+		Map->AddOrUpdateCell(Data);
+		Map->SortCells();
+	}
 }
 
 /**
@@ -390,6 +403,253 @@ bool FRTMapEditWallIdentityRoundTripTest::RunTest(const FString&)
 	TestEqual(TEXT("un handle anonimo non risolve niente"),
 		URTMapEditLibrary::ResolveInteriorWall(Reloaded, FRTMapElementHandle::ForInteriorWall(NAME_None)),
 		INDEX_NONE);
+
+	return true;
+}
+
+/**
+ * 🔑 `DeleteElement` APPLICA la cascata, e la mappa resta valida.
+ *
+ * `URTMapDependencyLibrary::CollectDependents` dice *che cosa* muore; questa dice *fallo*. Finora quel
+ * passaggio esisteva solo dentro un test, che rimuoveva gli indici a mano — e un tool non puo' rifare a
+ * mano cio' che un test ha gia' dovuto scrivere: e' il modo in cui due implementazioni della stessa regola
+ * finiscono per divergere.
+ *
+ * ⚠️ **La controprova e' che rimuovere la sola cella NON basta.** Senza, questo test passerebbe anche con
+ * una `DeleteElement` che ignora i dipendenti su una mappa troppo povera per averne.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditDeleteCellCascadeTest,
+	"RefactorTactics.Map.Edit.DeleteElementAppliesTheWholeCascade",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditDeleteCellCascadeTest::RunTest(const FString&)
+{
+	const FRTCellId Doomed(0, 0, 0);
+	const FRTCellId Far(2, 0, 0);
+
+	FRTGeometrySegment Chord;
+	if (!TestTrue(TEXT("la corda si aggancia"), MapEditMakeChord(0, Chord)))
+	{
+		return false;
+	}
+
+	auto MakeLoadedMap = [&Chord, &Doomed, &Far]()
+	{
+		URTHexMapAsset* M = MapEditMakeMap(2);
+		M->InteriorWalls.Add(FRTHexInteriorWall(Doomed, Chord));
+		M->Transitions.Add(FRTHexEdge(Doomed, Far, /*Cost*/ 1));
+		MapEditPutDoor(M, Doomed, ERTHexDirection::E, /*DoorId*/ 1, TEXT("S1"));
+		MapEditPutDoor(M, Far, ERTHexDirection::W, /*DoorId*/ 2, TEXT("D1"));
+		M->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1") }));
+		return M;
+	};
+
+	// --- Controprova: la sola cella non basta, e la mappa si sporca ---------------------------------
+	{
+		URTHexMapAsset* Naive = MakeLoadedMap();
+		if (!TestEqual(TEXT("l'allestimento parte valido"), Naive->ValidateMap().Num(), 0))
+		{
+			return false;
+		}
+		Naive->RemoveCell(Doomed);
+		if (!TestTrue(TEXT("rimuovere la SOLA cella lascia errori"), Naive->ValidateMap().Num() > 0))
+		{
+			return false;
+		}
+	}
+
+	// --- La misura -----------------------------------------------------------------------------------
+	URTHexMapAsset* Map = MakeLoadedMap();
+
+	const ERTMapEditOutcome Outcome =
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForCell(Doomed));
+
+	if (!TestEqual(TEXT("la cancellazione e' applicata"), Outcome, ERTMapEditOutcome::Applied))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("la cella non c'e' piu'"), Map->FindCell(Doomed) == nullptr);
+	TestEqual(TEXT("il muro interno e' andato con lei"), Map->InteriorWalls.Num(), 0);
+	TestEqual(TEXT("e cosi' la transizione"), Map->Transitions.Num(), 0);
+	TestEqual(TEXT("e il binding che la nominava"), Map->InteractionBindings.Num(), 0);
+
+	const TArray<FString> Errors = Map->ValidateMap();
+	TestEqual(*FString::Printf(TEXT("la mappa resta valida (residui: %s)"),
+		Errors.Num() > 0 ? *FString::Join(Errors, TEXT(" | ")) : TEXT("nessuno")),
+		Errors.Num(), 0);
+
+	// Un handle che non risolve non e' un'operazione riuscita a vuoto: e' un rifiuto dichiarato.
+	TestEqual(TEXT("cancellare una cella inesistente e' un rifiuto"),
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForCell(FRTCellId(9, 9, 0))),
+		ERTMapEditOutcome::RefusedUnresolved);
+
+	return true;
+}
+
+/**
+ * 🔑 I candidati sotto un punto, in ordine **deterministico**, dal piu' specifico al piu' generale.
+ *
+ * E' il dominio su cui poggia il ciclo di selezione: `ValidateMap` **permette** una porta e una copertura
+ * `Low` sullo stesso bordo (vieta solo la coppia con `High`), quindi due elementi selezionabili nello stesso
+ * punto sono uno stato che l'autoraggio produce e il validatore approva — non un caso limite da scoprire in
+ * seduta.
+ *
+ * ⚠️ **L'ordine e' parte del contratto, non un dettaglio d'implementazione.** Chi clicca due volte si aspetta
+ * la stessa sequenza, e una funzione che restituisse i candidati nell'ordine di un array interno cambierebbe
+ * risposta dopo un'edit che non c'entra nulla.
+ *
+ * ⛔ **Le transizioni non sono qui, ed e' dichiarato invece che dimenticato**: un arco collega due celle su
+ * layer diversi e non giace su un bordo, quindi «che cosa c'e' sotto questo bordo» non lo raggiunge. Il suo
+ * hit-test e' un problema di viewport e appartiene al tool.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditEnumerateAtTest,
+	"RefactorTactics.Map.Edit.ElementsAtAPointComeInAStableOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditEnumerateAtTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+	const FRTCellId Home(0, 0, 0);
+	const ERTHexDirection Edge = ERTHexDirection::E;
+
+	// Una porta e una copertura LOW sullo stesso bordo: `ValidateMap` lo permette.
+	MapEditPutDoor(Map, Home, Edge, /*DoorId*/ 1, TEXT("D1"));
+	{
+		FRTHexCellData Data = *Map->FindCell(Home);
+		FRTHexCover Cover;
+		Cover.Edge = Edge;
+		Cover.Type = ERTHexCoverType::Low;
+		Data.Covers.Add(Cover);
+		Map->AddOrUpdateCell(Data);
+	}
+
+	FRTGeometrySegment Chord;
+	if (!TestTrue(TEXT("la corda si aggancia"), MapEditMakeChord(0, Chord)))
+	{
+		return false;
+	}
+	FRTHexInteriorWall Wall(Home, Chord);
+	Wall.StableId = TEXT("W1");
+	Map->InteriorWalls.Add(Wall);
+
+	// 🔴 Controprova: l'allestimento e' uno stato LEGALE. Se `ValidateMap` lo rifiutasse, questo test
+	// starebbe difendendo un caso che l'autoraggio non puo' produrre.
+	if (!TestEqual(TEXT("porta e copertura Low sullo stesso bordo sono uno stato valido"),
+		Map->ValidateMap().Num(), 0))
+	{
+		return false;
+	}
+
+	const TArray<FRTMapElementHandle> At =
+		URTMapEditLibrary::ElementsAt(Map, Home, Edge);
+
+	if (!TestEqual(TEXT("quattro candidati sotto quel punto"), At.Num(), 4))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("1. la porta, che e' la piu' specifica"), At[0].Kind, ERTMapElementKind::Door);
+	TestEqual(TEXT("   e la nomina"), At[0].StableId, FName(TEXT("D1")));
+	TestEqual(TEXT("2. la copertura sullo stesso bordo"), At[1].Kind, ERTMapElementKind::Cover);
+	TestEqual(TEXT("3. il muro interno della cella"), At[2].Kind, ERTMapElementKind::InteriorWall);
+	TestEqual(TEXT("   e lo nomina"), At[2].StableId, FName(TEXT("W1")));
+	TestEqual(TEXT("4. la cella, che e' la piu' generale"), At[3].Kind, ERTMapElementKind::Cell);
+
+	// La stessa domanda due volte da' la stessa risposta: e' cio' che rende ripetibile il ciclo di click.
+	const TArray<FRTMapElementHandle> Again = URTMapEditLibrary::ElementsAt(Map, Home, Edge);
+	if (TestEqual(TEXT("la seconda chiamata da' lo stesso numero"), Again.Num(), At.Num()))
+	{
+		for (int32 I = 0; I < At.Num(); ++I)
+		{
+			TestEqual(TEXT("e lo stesso ordine"), Again[I].Kind, At[I].Kind);
+		}
+	}
+
+	// Un bordo spoglio della stessa cella: resta la sola cella. Senza questo caso passerebbe anche una
+	// funzione che ignora il bordo e restituisce sempre tutto.
+	const TArray<FRTMapElementHandle> Bare = URTMapEditLibrary::ElementsAt(Map, Home, ERTHexDirection::W);
+	if (TestEqual(TEXT("su un bordo spoglio restano muro e cella"), Bare.Num(), 2))
+	{
+		TestEqual(TEXT("il muro interno c'e' comunque: vive nella cella, non sul bordo"),
+			Bare[0].Kind, ERTMapElementKind::InteriorWall);
+		TestEqual(TEXT("e poi la cella"), Bare[1].Kind, ERTMapElementKind::Cell);
+	}
+
+	// Una cella che non esiste non ha candidati.
+	TestEqual(TEXT("una cella inesistente non produce candidati"),
+		URTMapEditLibrary::ElementsAt(Map, FRTCellId(9, 9, 0), Edge).Num(), 0);
+
+	return true;
+}
+
+/**
+ * 🔴 Un muro interno SENZA nome deve restare selezionabile — ed e' il caso normale, non il caso limite.
+ *
+ * `StableId` nasce `NAME_None` (v12): **ogni muro disegnato prima di oggi e' anonimo**, e lo sara' ogni muro
+ * che un tool crea senza battezzarlo. Se l'handle sapesse identificare solo i muri nominati, il ciclo di
+ * selezione emetterebbe candidati che non risolvono — cioe' il tool mostrerebbe «muro interno» e poi non
+ * riuscirebbe a farci nulla.
+ *
+ * 🔑 La chiave di riserva non e' inventata qui: `(Cell, Segment)` e' **unica per una regola che `ValidateMap`
+ * gia' applica** — due muri identici sulla stessa cella sono un errore dichiarato. Il nome, quando c'e',
+ * vince comunque, perche' e' l'unico che sopravvive al move.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditAnonymousWallTest,
+	"RefactorTactics.Map.Edit.AnAnonymousInteriorWallIsStillSelectable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditAnonymousWallTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+	const FRTCellId Home(0, 0, 0);
+
+	FRTGeometrySegment First;
+	FRTGeometrySegment Second;
+	if (!TestTrue(TEXT("le corde si agganciano"),
+		MapEditMakeChord(0, First) && MapEditMakeChord(1, Second)))
+	{
+		return false;
+	}
+
+	// DUE muri anonimi sulla stessa cella: il nome non li distingue, e nemmeno la cella. Con un solo muro
+	// il test passerebbe anche con una risoluzione che tira a indovinare.
+	Map->InteriorWalls.Add(FRTHexInteriorWall(Home, First));
+	Map->InteriorWalls.Add(FRTHexInteriorWall(Home, Second));
+
+	if (!TestEqual(TEXT("due muri anonimi sono uno stato valido"), Map->ValidateMap().Num(), 0))
+	{
+		return false;
+	}
+
+	const TArray<FRTMapElementHandle> At = URTMapEditLibrary::ElementsAt(Map, Home, ERTHexDirection::E);
+
+	// I due muri piu' la cella.
+	if (!TestEqual(TEXT("i due muri anonimi sono candidati"), At.Num(), 3))
+	{
+		return false;
+	}
+
+	// 🔴 Il cuore: ogni candidato emesso deve RISOLVERE. Un handle che non risolve e' un candidato finto.
+	int32 ResolvedCount = 0;
+	for (const FRTMapElementHandle& Handle : At)
+	{
+		if (Handle.Kind != ERTMapElementKind::InteriorWall)
+		{
+			continue;
+		}
+		const int32 Index = URTMapEditLibrary::ResolveInteriorWall(Map, Handle);
+		if (TestTrue(TEXT("un candidato muro risolve"), Index != INDEX_NONE))
+		{
+			++ResolvedCount;
+		}
+	}
+	if (!TestEqual(TEXT("entrambi i muri anonimi risolvono"), ResolvedCount, 2))
+	{
+		return false;
+	}
+
+	// E risolvono a DUE muri diversi: se collassassero sullo stesso, il ciclo di click girerebbe a vuoto.
+	const int32 A = URTMapEditLibrary::ResolveInteriorWall(Map, At[0]);
+	const int32 B = URTMapEditLibrary::ResolveInteriorWall(Map, At[1]);
+	TestTrue(TEXT("i due candidati sono due muri distinti"), A != B);
 
 	return true;
 }

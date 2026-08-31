@@ -77,4 +77,39 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
 	static ERTMapEditOutcome MoveInteriorWall(URTHexMapAsset* Map, const FRTMapElementHandle& Handle,
 		const FRTCellId& NewCell, const FRTGeometrySegment& NewSegment);
+
+	/**
+	 * Cancella l'elemento nominato **insieme a tutto cio' che non puo' sopravvivergli**.
+	 *
+	 * Chiede l'elenco a `URTMapDependencyLibrary::CollectDependents` e lo applica: e' l'altra meta' di quella
+	 * funzione, che dice *che cosa* muore e non lo esegue.
+	 *
+	 * ⚠️ **Esiste perche' quel passaggio non lo rifaccia ogni chiamante.** Rimuovere per indice richiede di
+	 * andare dal piu' alto al piu' basso, e chi lo scrive a mano lo scrive giusto la prima volta: due
+	 * implementazioni della stessa regola sono il modo in cui la regola diverge.
+	 *
+	 * ⛔ Non apre transazioni. Chi la chiama da un tool la avvolge nel proprio `FScopedTransaction`, cosi'
+	 * l'intera cascata resta **un solo** Undo.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
+	static ERTMapEditOutcome DeleteElement(URTHexMapAsset* Map, const FRTMapElementHandle& Handle);
+
+	/**
+	 * Gli elementi autorati che vivono sotto un punto, **dal piu' specifico al piu' generale**.
+	 *
+	 * E' il dominio su cui poggia il ciclo di selezione: un click ripetuto scorre questa lista, quindi
+	 * l'ordine e' parte del contratto e non un dettaglio. `ValidateMap` permette una porta e una copertura
+	 * `Low` sullo stesso bordo, quindi due candidati nello stesso punto sono uno stato normale.
+	 *
+	 * ```text
+	 * Door  ->  Cover  ->  InteriorWall(i della cella)  ->  Cell
+	 * ```
+	 *
+	 * ⛔ **Le transizioni non compaiono, ed e' dichiarato**: un arco collega celle su layer diversi e non
+	 * giace su un bordo, quindi la domanda «che cosa c'e' sotto questo bordo» non lo raggiunge. Il suo
+	 * hit-test e' un problema di viewport, e appartiene al tool.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexMap")
+	static TArray<FRTMapElementHandle> ElementsAt(const URTHexMapAsset* Map, const FRTCellId& Cell,
+		ERTHexDirection Edge);
 };

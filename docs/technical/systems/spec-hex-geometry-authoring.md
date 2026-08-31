@@ -529,6 +529,43 @@ RefusedDuplicate       muro identico gia' presente
 Verifica: `RefactorTactics.Map.Edit.*` — l'handle sopravvive al move, il round-trip di serializzazione, e i
 quattro rifiuti, ciascuno con la controprova che la mappa resta valida.
 
+⚠️ **Un muro senza nome resta identificabile**, e non è un ripensamento su v12: `StableId` nasce `NAME_None`,
+quindi ogni muro disegnato prima di v12 è anonimo. L'handle porta allora la chiave `(Cell, Segment)` — unica
+per una regola che `ValidateMap` già applica. Il nome, quando c'è, **vince**: è l'unico che sopravvive al
+move. ⛔ Un nome che non risolve **non** ricade sulla chiave: chi ha chiesto quella struttura vuole quella, e
+restituirne un'altra perché sta nello stesso posto sarebbe un errore silenzioso.
+
+### 13.3 Che cosa c'è sotto un punto, e il ciclo di selezione
+
+`URTMapEditLibrary::ElementsAt` (runtime) · `URTHexSelectionStore` (editor) · [#1864](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1864).
+
+`ValidateMap` **permette** una porta e una copertura `Low` sullo stesso bordo — vieta solo la coppia con
+`High`. Due elementi selezionabili nello stesso punto sono quindi uno stato che l'autoraggio produce e il
+validatore approva, non un caso limite.
+
+L'ordine dei candidati è **contratto, non dettaglio**, perché un click ripetuto ci scorre sopra:
+
+```text
+Door  ->  Cover  ->  InteriorWall(i della cella)  ->  Cell
+```
+
+Il ciclo vive nello store: stesso punto → si avanza; punto nuovo → si riparte dal più specifico. ⚠️ Senza il
+confronto col punto precedente l'indice sarebbe un contatore globale, e il primo click su una cella nuova
+prenderebbe un elemento a caso a seconda dei click fatti altrove.
+
+⛔ **Le transizioni non compaiono fra i candidati, ed è dichiarato**: un arco collega celle su layer diversi
+e non giace su un bordo, quindi «cosa c'è sotto questo bordo» non lo raggiunge. Il suo hit-test è di
+viewport, e appartiene al tool.
+
+🔴 **La selezione vive fuori dai `UInteractiveToolPropertySet`**, ed è il punto: [#921](https://github.com/DegrassiAaron/refactor-tactics-main/issues/921)
+ha misurato il difetto opposto — `bShowOverlay` vive in due property set distinti, quindi accenderlo in
+Select non lo accende in Paint e cambiando strumento si perde. **Uno stato che deve sopravvivere al cambio di
+tool non può stare dentro il tool.** Un `UEditorSubsystem` sopravvive ai tool e al mode, non è un Actor, e
+non tocca l'asset: la selezione è stato d'editor puro e non si serializza.
+
+Verifica: `RefactorTactics.Editor.Selection.*` — il ciclo che ricomincia, il reset cliccando altrove, e
+l'aggiunta che accumula senza duplicati.
+
 ---
 
 ## 14. Come si verifica
