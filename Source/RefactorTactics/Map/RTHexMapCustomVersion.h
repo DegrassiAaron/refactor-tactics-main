@@ -96,6 +96,18 @@ struct FRTHexMapCustomVersion
 		 */
 		ObjectiveCell = 11,
 
+		/**
+		 * #1864: il muro interno guadagna un nome stabile (`FRTHexInteriorWall::StableId`).
+		 *
+		 * ⚠️ Nasce da un'operazione, non dalla simmetria con le porte: un muro interno **si sposta**, e la
+		 * sua chiave naturale `(Cell, Segment)` cambia proprio nel move. Senza un nome, l'handle con cui un
+		 * tool lo tiene selezionato si romperebbe durante il gesto a cui deve sopravvivere.
+		 *
+		 * Passo DICHIARATIVO come tutti i precedenti: il campo nasce `NAME_None`, e un muro scritto prima
+		 * non aveva un nome perche' non c'era niente che lo spostasse.
+		 */
+		InteriorWallIdentity = 12,
+
 		// -----<le versioni nuove si aggiungono SOPRA questa riga>------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
