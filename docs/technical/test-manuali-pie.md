@@ -57,7 +57,11 @@
 
 ## Stato in numeri — 2026-08-30
 
-**178 voci**: ✅ **69 verdi** · 🟡 **23 parziali** · ❌ **2 fallite** · ⏳ **84 aperte**.
+**180 voci**: ✅ **69 verdi** · 🟡 **23 parziali** · ❌ **2 fallite** · ⏳ **86 aperte**.
+
+🔴 **Rimisurato il 2026-08-31, risolvendo il merge fra `feat/pc-gym-planning-input-usability-lab` e `origin/main`: il comando canonico contava `179 · 69/23/2/85`, e l'intestazione diceva `178 · 69/23/2/84` — la stessa cifra su **entrambi** i rami.** Le due note qui sotto sono **entrambe vere e entrambe parziali**: ognuna misura `177 → 178` sul proprio ramo perché ognuna vedeva **una** voce nuova — `PIE-PC-GYM` da [#1859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1859) e `PIE-GRID-CONFINE` da [#1758](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1758). Sommate fanno **due**, e il merge le porta tutte e due: `+2`, tutto su ⏳, verdi/parziali/fallite ferme. ⚠️ **Due rami che dichiarano lo stesso totale non lo confermano: se lo dividono, la coincidenza è ciò che rende l'errore invisibile** — `178` sembrava corretto da qualunque lato lo si leggesse, e nessuno dei due lati poteva accorgersene da solo. È il gemello del caso #192 registrato più in basso, con una differenza: lì il merge lasciò i marcatori nel documento, qui il conflitto è stato risolto tenendo **entrambe** le note e **rimisurando dopo il merge** invece di fidarsi della cifra su cui i due rami concordavano. ➕ **Poi la stessa passata ha aggiunto una voce, e il totale è `180 · 69/23/2/86`**: entra `PIE-PACING-1`, che **esisteva come descrizione e non come voce**. Il blockquote c'era; la riga di tabella no — quindi il comando canonico non la contava, nessuno stato la tracciava, e il piano operativo la assegnava comunque a una sessione. ✅ Anche qui il delta è **esattamente uno e tutto su ⏳**. ⚠️ **È una classe di buco che nessun conteggio poteva mostrare**: il comando misura le righe di tabella, e una voce fuori tabella è invisibile proprio allo strumento che dovrebbe accorgersene. Si trova solo incrociando i due insiemi — i `PIE-` in apertura di blockquote contro quelli in apertura di riga — ed è oggi l'unico caso. `senza-marcatore=0` a ogni passo.
+
+✅ **Rimisurato il 2026-08-30 (quarto giro della giornata, registrazione di `PIE-PC-GYM`): il comando canonico contava `177 · 69/23/2/83` **prima** di toccare il file e `178 · 69/23/2/84` **dopo**.** Il delta è **esattamente uno e tutto su ⏳**: entra `PIE-PC-GYM` ([#1859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1859)), verdi, parziali e fallite non si muovono. ⚠️ **E per la prima volta in sei giri l'intestazione era già corretta quando l'ho letta** — `177 · 69/23/2/83` scritto e `177 · 69/23/2/83` contato. Non cambia la regola di una parola: la coincidenza si è **misurata**, non dedotta, ed è esattamente ciò che le passate precedenti hanno fallito. `senza-marcatore=0` prima e dopo, che è il controllo che dice se una cella si è fusa con l'altra — il modo in cui questa sezione è già stata rotta due volte.
 
 *(Ricontato il 2026-08-30 dalla PR di [#1758](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1758), col comando canonico in due tempi: `177 · 69/23/2/83` **prima** di toccare il file, `178 · 69/23/2/84` dopo. Entra **una** voce, `PIE-GRID-CONFINE`, collocata nella seduta **U35**. ✅ Il delta è **esattamente uno e tutto su ⏳**: verdi, parziali e fallite non si muovono. ➕ **E per una volta la riga di partenza era giusta** — `177 · 69/23/2/83` scritto e `177 · 69/23/2/83` misurato, il primo giro su sei in cui l'intestazione non era già falsa quando la si è letta.)*
 
@@ -321,11 +325,40 @@ scritta qui sotto: si misura **dopo il merge**, col comando. `senza-marcatore` r
 >
 > ```bash
 > echo "scenari: $(find Scenarios/Visual -name '*.json' | wc -l)  \
-> voci: $(grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md)"   # devono coincidere: 21 e 21
+> voci: $(grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md)"   # 2026-08-31: 25 e 21 — NON coincidono
 > ```
 >
 > Va eseguito **quando si aggiunge uno scenario `Visual.*`**, non quando si sospetta un buco: la convenzione
 > che si ricorda a mano è la convenzione che si dimentica quando si ha fretta.
+>
+> 🔴 **Aggiornamento 2026-08-31: il comando qui sopra è stantio, e nel modo che questo file documenta
+> altrove — misura il FORMATO dell'ID, non il fatto.** Oggi dà `25` e `21`. Ma lo scarto di quattro non si
+> legge né come «quattro buchi» né come «uno solo»: due sono coperti e **due no**.
+>
+> | Scenario | Chi lo guarda | Buco? |
+> |---|---|---|
+> | `Visual.Input.PcGym` | `PIE-PC-GYM` — voce a tutti gli effetti, **senza** il prefisso `PIE-VIS-` | no |
+> | `Visual.Map.GrayKitYard` | è una **fixture**, non uno scenario-verifica: ha guida propria ([`guida-seduta-u25-u35-graykit-e-griglia.md`](runbooks/guida-seduta-u25-u35-graykit-e-griglia.md)) e l'automation test `FRTGrayKitYardCarriesEverySubjectTest` | no |
+> | `Visual.Map.TwoLayersSameColumn` | **nessuno** | **sì** |
+> | `Visual.Map.SightWallIsWalkable` | **nessuno** | **sì** |
+>
+> 🔴 **La prima stesura di questa nota, poche ore fa, diceva «resta un buco vero, e uno solo», e
+> sbagliava su `TwoLayersSameColumn`.** L'avevo dato per coperto perché [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml)
+> lo nomina in `U34` — la seduta per cui **è stato creato**, e che lo dichiara per iscritto. Ma `U34` ha
+> `verifies: []`: **non consuma nessuna voce PIE**. Essere *citato* da una seduta non è essere *guardato* da
+> una voce, ed è esattamente la distinzione che questo riquadro esiste per fare. ⚠️ La lezione è la stessa che
+> il comando sbagliava: avevo misurato la **presenza del nome**, non la presenza di un oracolo — cioè di nuovo
+> il formato invece del fatto, un paragrafo dopo averlo denunciato.
+>
+> ⚠️ Entrambi i buchi sono **PASS nel corpus**: `SightWallIsWalkable` ha tre run registrate sotto `Saved/RTTests/`,
+> l'ultima del 2026-08-30, tutte verdi. È precisamente il difetto del riquadro qui sopra — *uno scenario
+> eseguito, verde, e mai guardato da nessuno* — e il verde è ciò che lo rende invisibile.
+>
+> ⚠️ Il letterale `21 e 21` era corretto quando fu scritto, ed è invecchiato da solo a ogni scenario aggiunto —
+> che è ciò che un numero scritto nel commento di un comando fa sempre. La domanda giusta non è *«quante voci
+> `PIE-VIS-` ci sono»* ma *«ogni scenario `Visual.*` ha **una qualche** voce che lo guarda»*, e si misura
+> incrociando gli `ScenarioId` del corpus con gli scenari citati da **tutte** le righe `PIE-`, non solo dalle
+> `PIE-VIS-`.
 
 *(Prima di questa passata erano 111 con 65 aperte; e prima ancora 100 con 54, dopo le **10 voci**
 `PIE-STATE-*` dell'epic E34 — che nascono ⏳ per un motivo più forte del solito: **verificano un sistema che
@@ -873,6 +906,83 @@ contenitore: oggi `OpenContext` non ha nulla da aprire. E un click sull'HUD **ra
 sotto**, perché il Canvas HUD non registra hitbox: è la voce di DoD che aspetta i widget UMG. Il resto del
 percorso — passi 1-9 e 13 — è eseguibile.
 
+### PC Gym — la palestra del PlayerController ([#1859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1859), aggiunta il 2026-08-30)
+
+> **Una voce sola, e la ragione è il costo dell'Editor.** Il setup è identico a quello del **blocco 2** di
+> [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml) — `MapSource = GeneratedTestArena`, che genera
+> esagono r=4, ostacoli, muro che blocca la vista, fango a costo 3 e piattaforma sul layer 1 — quindi
+> spezzare i criteri in una fila di righe produrrebbe molte aperture per un solo allestimento. Il modello è
+> quello di `PIE-V01-POINTER`: **una** riga di registro, un percorso a tappe sotto.
+>
+> ⛔ **Questa voce non ridice ciò che il blocco 2 già verifica.** Camera (`PIE-CAM-*`), selezione
+> (`PIE-HEXPLAY-2`), anteprima e rifiuti (`PIE-HEXPLAY-3`, `-3b`), risoluzione (`PIE-HEXPLAY-4`) e
+> multilivello (`PIE-HEX-LAYER-*`) hanno già il loro owner: qui si va **in coda** a quelli, nella stessa
+> apertura, e si guarda ciò che nessuna riga guarda ancora.
+>
+> 🔴 **Quattro gesture sono in `main` e nessuna voce le osserva** — misurato su questo file il 2026-08-30:
+> `Set Pivot` **0** occorrenze, `dolly` **0**, `destination marker` **0**, `#1772`/`#1775` **0**. Le gesture
+> camera più vecchie hanno una riga e sono verdi; quelle che [#1772](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1772)
+> e [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775) hanno portato sono entrate
+> senza. È il difetto che `PIE-V01-GHOSTS` documenta per i nomi mai registrati, sulla superficie dell'input.
+>
+> ⚠️ **`Alt`+`MMB` come *precision pan* NON esiste**, e l'handoff che ha aperto questa voce lo dava per
+> corrente: `MMB` nudo è l'orbita (`RTPlayerController.cpp:329-330`). Un sottocriterio su un binding
+> inesistente sarebbe atteso-rosso per sempre, e nessuno saprebbe che è la spec a sbagliare.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|---|---|---|---|---|
+| **PIE-PC-GYM** | La palestra del PlayerController: pianificare si **capisce**, e il gesto non combatte la mano | scenario **`Visual.Input.PcGym`** (`Scenarios/Visual/Input/PcGym.json`), che allestisce `Hero.Gadget` in `(-4,2,0)`, `Hero.Phase` in `(-4,4,0)` e `Hero.Riktor` in `(1,3,0)` e **non gioca** — `turns` vuoto, quindi la partita resta al round 1 in pianificazione. La sua fixture `TestArena` è la **stessa** di `MapSource = GeneratedTestArena`, quindi si esegue **in coda** a `U2`/`U3` senza riavviare | Il percorso a tappe qui sotto, **in ordine**. Il gate è uno e non è tecnico: il giocatore deve percepire *«pianifico → vedo cosa è previsto → confermo → il turno risolve»*, e **non** *«clicco → il personaggio cammina»*. Ogni rifiuto porta un reason code a schermo, non silenzio; ogni annullamento non lascia ghost dietro di sé | ⏳ **NOT RUN** — registrata il 2026-08-30 con [#1859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1859), mai eseguita da nessuno |
+
+#### `PIE-PC-GYM` — il percorso a tappe
+
+Sedici passi in una sola sessione, senza riavviare. I **binding sono stati misurati** in
+`RTPlayerController.cpp` (`BuildInputMappings`), non ricordati: chi esegue verifichi lì se una tappa non
+risponde, prima di dichiararla fallita.
+
+> **Le celle non sono scelte a occhio.** Sono calcolate con Dijkstra sui costi reali dell'arena — costo di
+> uno step = `TotalMoveCost()` della cella di destinazione (`RTHexPathLibrary.cpp:25`) — e vivono nello
+> scenario, che ne è l'owner. Serve perché col **fango a costo 3** (`q = -2`, `r = -1..1`) il costo di un
+> percorso **non è** il suo numero di passi: `(-1,-1,0)` dista tre celle e ne costa cinque. Due tester che
+> scegliessero destinazioni diverse produrrebbero sedute non confrontabili.
+>
+> 🔴 **La fascia LONG chiesta dal mandato NON è pianificabile, e non è un difetto.** `Hero.Gadget` ha
+> `MovePoints = 5` (`RTHeroCatalogLibrary.cpp:292`): sopra costo 5 ogni destinazione è **rifiutata**. LONG
+> e *destinazione oltre budget* sono quindi lo **stesso** checkpoint — la tappa 15 — e chi rieseguisse
+> cercando un terzo percorso pianificabile più lungo cercherebbe qualcosa che il budget non consente. Il
+> percorso più lungo osservabile è la MEDIUM, che sta **esattamente** sul limite.
+
+| # | Gesto | Cosa deve essere vero |
+|---|---|---|
+| 1 | `W` `A` `S` `D`, rotella, `Q`/`E` | pan relativo alla vista, zoom verso il cursore, yaw a passi di 45° |
+| 2 | MMB trascinato | orbita **continua**, si ferma dove lasci — non a scatti |
+| 3 | `Alt`+`LMB` trascinato oltre ~6 px | la vista **orbita**; al rilascio il pivot **non** si sposta — un gesto, una operazione |
+| 4 | `Alt`+`LMB` cliccato fermo | **Set Pivot** sulla cella puntata, e la vista **non** ruota di un grado |
+| 5 | `Alt`+`RMB` in verticale | **dolly**; e durante tutto il gesto **nessun waypoint viene cancellato** — è la soppressione di `UndoAction` di #1772, e il difetto si vede solo qui |
+| 6 | `F` con un'unità selezionata, poi `Home` | `F` inquadra l'unità mantenendo lo zoom; `Home` ricentra sulla mappa. Sono due comandi distinti |
+| 7 | `PageUp` / `PageDown` | l'`ActiveLayer` cambia e il picking segue il piano attivo |
+| 8 | Hover su cella, poi su unità | entrambi **percepibili senza cercarli**; l'hover non committa mai nulla |
+| 9 | `LMB` sull'unità propria | seleziona; nessuna azione risulta armata |
+| 10 | `LMB` sul nemico | segue il contratto corrente di #705 — apre l'inspector e **non pianifica** |
+| 11 | **SHORT** → `(-2, 2, 0)` — costo 2, 2 passi, dritto | waypoint dove diceva la preview; il ghost si legge a colpo d'occhio |
+| 12 | **MEDIUM** → `(0, 3, 0)` — costo 5, 5 passi, dritto | è il **limite esatto** del budget di Gadget: il costo resta comprensibile e la cella successiva non è più raggiungibile |
+| 13 | **Deviazione OVVIA** → `(0, 2, 0)` — costo 5, **5 passi contro 4** di retta | aggira l'ostacolo `(-1,2,0)`, che si **vede** bloccato: il ghost conferma quel che l'occhio già sapeva |
+| 14 | **Deviazione NON OVVIA** → `(-1, 0, 0)` — costo 4, **4 passi contro 3** di retta | aggira il **fango** `(-2,1,0)`, che è **attraversabile** e non sembra un ostacolo. Qui il ghost deve spiegare da sé *perché* allunga: se non lo spiega, la voce è fallita anche se il percorso è corretto |
+| 15 | **Oltre budget** → `(0, -2, 0)` — costo 6; poi la cella occupata da `A2` e una bloccata | rifiuto con **reason code a schermo**; il piano precedente resta intatto. I tre rifiuti devono **distinguersi**: budget, occupazione e blocco non sono lo stesso messaggio |
+| 16 | Cambia destinazione, poi `RMB`/`BackSpace`, poi `Spazio` | cambiando meta il ghost precedente **sparisce**; l'annullamento toglie il waypoint **senza perdere la selezione** e non lascia un piano fantasma; il lock-in risolve, il cleanup non lascia residui visuali né di input, e il Planning successivo riparte pulito |
+
+Due domande di giudizio, che non sono passi e valgono su tutto il percorso:
+
+- **Il destination marker dice dove si arriva?** Non «è disegnato»: si distingue dal path ghost e dal
+  terreno, e risponde alla domanda senza che il tester debba ragionarci.
+- **Il click e il drag restano due cose diverse?** Un trascinamento della camera non deve mai produrre una
+  selezione, e un click con un pixel di tremolio non deve ruotare la vista. La soglia è
+  `ClickDragThreshold = 6.f` (`RTPlayerController.h:269`) e il **test headless la misura**: qui si giudica
+  se il valore è *comodo*, che è l'unica cosa che il test non può dire.
+
+⚠️ **Cosa NON si decide qui.** Legalità, percorso, bersagli e outcome restano dei servizi autorevoli, e il
+contratto Hover/LMB/RMB resta di [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705).
+Se una tappa fallisce per **semantica** dell'input e non per leggibilità, il difetto si apre lì, non qui.
+
 ### Strumenti di leggibilità (aggiunti il 2026-08-07)
 
 > Due strumenti che **non esistevano** quando le voci sopra sono state scritte, e che ne rendono verificabili
@@ -1116,6 +1226,7 @@ percorso — passi 1-9 e 13 — è eseguibile.
 | **PIE-V01-READY** | Ready anticipato e countdown annullabile | partita avviata | Chiudendo la pianificazione prima dello scadere del timer parte un **countdown di 3 s** prima del commit; premendo **Unready** durante il countdown si torna alla pianificazione **senza aver perso il piano**; il countdown **non** sostituisce il timer massimo. Si annota a che secondo si è dichiarato Ready nei round tipici | ⏳ **il countdown non esiste ancora**: oggi Spazio fa lock-in immediato e irreversibile. La voce documenta il comportamento atteso, non uno da verificare adesso |
 | **PIE-V01-OVERWATCH** | Finestra Fast Reaction da 3 s | E14 (CP 14.5/14.6) atterrata; un'unità con Overwatch armato | La finestra `FIRE`/`HOLD` compare **solo** al proprietario (l'alleato la vede in sola lettura, l'avversario **nulla**), dura **3 s** con countdown visibile, e allo scadere applica **HOLD** senza consumare la charge. **Tre secondi bastano** a decidere senza rileggere tutta la situazione? Se serve rileggere, il problema è la finestra, non la durata. La slow-motion è solo presentazione: ripetendo lo stesso turno l'esito non cambia | ⏳ **E14** (CP 14.6) |
 | **PIE-V01-MAPSCALE** | Scala della mappa in Move, non in celle | mappa di prova con almeno **due rotte** distinte fra gli spawn | Dallo spawn, **attraversare tutta la mappa** costa un numero di Move coerente con la classe dichiarata (**Skirmish** ~3–4, **Standard** ~5–7); **entro 1–2 round** è possibile contestare una zona rilevante o entrare in contatto; le due rotte offrono un **trade-off reale** (più rapida vs più coperta), non due strade equivalenti | ⏳ dipende dalla mappa di prova (vedi sotto) |
+| **PIE-PACING-1** | Il cablaggio degli input di pacing: i contatori si alimentano davvero dal controller | partita in PIE con `bRecordPacing = true` sul `RT Turn Manager` | Giocare **un** turno selezionando due volte un'unità, impartendo un ordine, annullando un waypoint e chiudendo con **Spazio**. Poi `rt.Debug.Pacing`: il sommario riporta **1 turno**, `SelectionCount` ≥ 2, `OrderCount` ≥ 1, `UndoCount` = 1 e **nessun taglio** — il lock-in è stato manuale. `Saved/RT/pacing_*.csv` esiste, ha l'intestazione e **una riga per turno giocato**. ⚠️ `Saved/` è gitignorata: l'evidenza va allegata alla voce, non cercata nel repo dopo | ⏳ **NOT RUN — registrata il 2026-08-31.** 🔴 **La voce era descritta e non registrata**, e per questo invisibile a ogni misura: il blockquote «PIE-PACING-1 — il cablaggio degli input» esisteva in questo file, ma **nessuna riga di tabella** la portava, quindi il comando canonico non la contava e nessuno stato la tracciava. Il piano operativo la assegna a **E2**, cioè pianificava lavoro su una voce che il registro non conosceva. I contatori in sé sono già coperti headless da `RefactorTactics.Pacing.RecordsDecisionComposition`: qui si verifica **solo** che il controller li alimenti |
 
 ### Bot — leggibilità delle decisioni
 
