@@ -1,6 +1,7 @@
 #include "RTLauncherScenarioBrowser.h"
 
 #include "ScenarioHarness/RTScenarioDraft.h"
+#include "ScenarioHarness/RTScenarioKnowledge.h"
 
 #define LOCTEXT_NAMESPACE "RTLauncherScenarioBrowser"
 
@@ -160,6 +161,21 @@ TArray<FString> FRTLauncherScenarioBrowser::BuildReadout(const FRTScenarioSummar
 	}
 
 	return Lines;
+}
+
+FText FRTLauncherScenarioBrowser::DescribePerspective(int32 TeamId)
+{
+	if (TeamId == RTScenarioKnowledge::OmniscientTeamId)
+	{
+		// Non tradotta: e' il nome della posizione, ed e' lo stesso che la issue, la documentazione e il
+		// codice usano. Chiamarla «tutti» in italiano la farebbe leggere come l'assenza di una scelta.
+		return NSLOCTEXT("RTLauncherScenarioBrowser", "PerspectiveOmniscient", "Omniscient");
+	}
+
+	// L'id della squadra, non la posizione nel selettore: e' cosi' che si confronta con
+	// `rt.Debug.Knowledge <team>`, che e' l'oracolo gia' esistente.
+	return FText::Format(NSLOCTEXT("RTLauncherScenarioBrowser", "PerspectiveTeam", "Team {0}"),
+		FText::AsNumber(TeamId));
 }
 
 #undef LOCTEXT_NAMESPACE

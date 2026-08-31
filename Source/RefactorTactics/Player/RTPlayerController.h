@@ -9,7 +9,9 @@
 class UInputMappingContext;
 class UInputAction;
 class URTKnowledgeVeilPresenter;
+class ARTUnit;
 struct FInputActionValue;
+struct FRTHexSnapshot;
 
 /**
  * Controller tattico. Costruisce Enhanced Input interamente in C++ (nessun .uasset richiesto):
@@ -363,6 +365,30 @@ public:
 	 * scambiare `Delta.X` con `Delta.Y` non farebbe cadere niente.
 	 */
 	void OrbitCameraForTest(const FVector2D& Delta);
+
+	/**
+	 * La riga di diagnosi di un waypoint rifiutato: **quale** motivo, e chi sono i soggetti in gioco
+	 * (`#1939`).
+	 *
+	 * 🔴 **Il ramo `Occupied` nominava chi PIANIFICA.** La frase *«cella occupata da un'altra unita' (%s)»*
+	 * riceveva `SelectedUnit`, quindi prometteva un occupante e consegnava il pianificante: chi legge
+	 * conclude che la propria unita' sia l'ostacolo. Negli altri tre rami quel soggetto e' corretto — dicono
+	 * *di chi e' il piano* e non nominano nessun secondo attore — ed e' per questo che il difetto era
+	 * invisibile: tre righe su quattro erano giuste.
+	 *
+	 * Statica e testabile per la stessa disciplina di `OrbitCameraForTest`: finche' il testo nasceva dentro
+	 * `HandleClickOnCell`, verificarlo voleva un click, e nessun test lo esercitava.
+	 *
+	 * @param Snapshot     lo snapshot di pianificazione; `Occupancy` porta l'id dell'occupante.
+	 * @param Units        gli Actor **agli stessi indici** dello snapshot (`PlanningSnapshotFor`).
+	 *                     ⚠️ Quegli id sono INDICI nell'array delle unita' vive, non `StableUnitId`.
+	 * @param PlannerIndex l'indice di chi sta pianificando: la sua cella non e' «occupata» per lui.
+	 * @param Cell         la cella cliccata.
+	 * @param SpentCost    quanto costa il percorso ancora valido (solo per il ramo del budget).
+	 * @param Budget       i punti movimento disponibili (solo per il ramo del budget).
+	 */
+	static FString DescribeWaypointRejection(const FRTHexSnapshot& Snapshot, const TArray<ARTUnit*>& Units,
+		int32 PlannerIndex, const FRTCellId& Cell, int32 SpentCost, int32 Budget);
 
 	/** Arma o disarma il gesto, come farebbe il tasto centrale (per i test). */
 	void SetOrbitingForTest(bool bInOrbiting) { bOrbiting = bInOrbiting; }

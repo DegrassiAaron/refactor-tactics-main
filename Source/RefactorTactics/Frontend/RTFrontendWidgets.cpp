@@ -1,4 +1,8 @@
 #include "Frontend/RTFrontendWidgets.h"
+
+// `LogRT` si usa qui sotto. Fino a oggi arrivava per caso dal raggruppamento della unity build, e la
+// dipendenza implicita e' rimasta invisibile finche' un file nuovo nel modulo non ha cambiato il gruppo.
+#include "RefactorTactics.h"
 // Per `GConfig`/`GGameIni`: la label di versione legge `ProjectVersion` da `DefaultGame.ini` invece di
 // portarsi dietro una costante che il bump non aggiorna.
 #include "Misc/ConfigCacheIni.h"

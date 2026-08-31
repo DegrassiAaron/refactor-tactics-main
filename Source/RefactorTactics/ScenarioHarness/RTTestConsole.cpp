@@ -121,7 +121,7 @@ TAutoConsoleVariable<FString> CVarRTMapFixture(
 	// non ha un ramo nel dispatcher (`#1459`). Lo tiene allineato
 	// `RefactorTactics.HexMap.EveryListedFixtureNameBuilds`, che legge QUESTO help e lo confronta con
 	// l'autorita'.
-	TEXT("Fixture di mappa per nome (ArenaV01, RelayBasin, RelayLite, TestArena, CoverYard). "
+	TEXT("Fixture di mappa per nome (ArenaV01, RelayBasin, RelayLite, TestArena, CoverYard, GrayKitYard, VisionSplit, ProbeYard). "
 		 "Vince su rt.Map.Source. Vuoto = nessun effetto."),
 	ECVF_Default);
 

@@ -30,6 +30,18 @@ public:
 	/** #1755: l'ispettore della LOS canonica — click sull'origine, hover sul bersaglio, e il PERCHE' del blocco. */
 	TSharedPtr<FUICommandInfo> LosTool;
 
+	/** #711: la sonda di movimento — dove arriva questo eroe con questo budget, e perche' quella cella no. */
+	TSharedPtr<FUICommandInfo> ProbeTool;
+
+	/**
+	 * `#1864`: `Delete` cancella cio' che e' selezionato, qualunque sia il tipo.
+	 *
+	 * ⚠️ **Azione, non tool**, per la stessa ragione di `FrameMap`: la palette del mode e' fatta di
+	 * strumenti, e `Enter` si aspetta un builder per ogni voce. L'Erase non ha un builder — agisce sulla
+	 * selezione condivisa e torna subito.
+	 */
+	TSharedPtr<FUICommandInfo> EraseSelection;
+
 	/**
 	 * `#623` / seduta `U21`: `Home` inquadra l'intera mappa editabile, multilivello compreso.
 	 *

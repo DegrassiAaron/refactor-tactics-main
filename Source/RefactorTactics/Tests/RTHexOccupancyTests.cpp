@@ -535,10 +535,10 @@ bool FRTOccupancyMigrationTest::RunTest(const FString&)
 	Legacy->MigrateToCurrentFormat();
 
 	// Pinnato di proposito: un bump di formato deve far cadere un test, non passare inosservato.
-	// Il pin e' su 11 dal 2026-08-29 (#75, obiettivo contendibile). Il test resta di v7: quello che
+	// Il pin e' su 12 dal 2026-08-31 (#1864, nome stabile del muro interno). Il test resta di v7: quello che
 	// verifica e' che il sovrapprezzo nasca a zero, e continua a valere — il pin serve a far rileggere questo
 	// test a chi bumpa, non a legarlo a un numero.
-	TestEqual(TEXT("la versione corrente e' la 11"), URTHexMapAsset::CurrentFormatVersion, 11);
+	TestEqual(TEXT("la versione corrente e' la 12"), URTHexMapAsset::CurrentFormatVersion, 12);
 	TestEqual(TEXT("versione portata alla corrente"), Legacy->FormatVersion,
 		URTHexMapAsset::CurrentFormatVersion);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 2);

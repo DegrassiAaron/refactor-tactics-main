@@ -1,0 +1,67 @@
+{
+  "scenarioId": "Visual.Perception.Acceptance",
+  "tags": ["perception", "vision", "knowledge", "veil", "acceptance", "visual", "gadget", "riktor", "wraith"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "VisionSplit",
+
+  "_nota": "COMPOSITO DI ACCEPTANCE della conoscenza parziale. Non misura una regola nuova: allestisce in UNA scena i tre stati del velo — Observed, Remembered, Never Seen — perche' una persona li guardi nello stesso Play. La regola sta gia' negli scenari `Spec/Perception/`; qui si chiede se si VEDONO, che e' la domanda di classe B.",
+
+  "_oracolo": "Le voci `PIE-KNOW1`, `PIE-KNOW2`, `PIE-KNOW3`, `PIE-KNOW4` e `PIE-VELO-VIEWER` di `docs/technical/test-manuali-pie.md`, piu' la voce ombrello `PIE-ACC-PERCEPTION` che dichiara che la scena e' allestita e leggibile. Cinque voci, un solo Play: e' il ROI che ha giustificato il composito.",
+
+  "_nota_perche_VisionSplit": "La fixture NON e' scelta per comodita'. `VisionSplit` e' un esagono di raggio 8, piu' largo del `VisionRange` piu' lungo del roster (Gadget, 7): esiste quindi terreno che NESSUNO ha mai osservato, che e' la precondizione di `PIE-VELO-VIEWER` — su un'arena piccola tutte le celle sono viste entro il turno 2 e i tre stati non si distinguono a schermo. Porta inoltre un muro di tre file che divide la meta' occidentale in due camere, e nicchie che rendono concavo il perimetro visibile. Era gia' nel codice (`URTMatchSetupLibrary::MakeVisionSplitArena`, #1738) e nessuno scenario la consumava.",
+
+  "_nota_meccanismo": "La perdita di contatto viene dal FACING, non dalla distanza, ed e' il meccanismo gia' dimostrato da `Spec.Perception.MovingBreaksContact`. La geometria di quel file e' riusata per TRASLAZIONE PURA (-4 sull'asse q): una traslazione in coordinate assiali conserva tutte le distanze, quindi conserva anche gli esiti. A1 parte a (-4,0,0) guardando a EST, il passo a (-5,0,0) e' direzione `W` e l'orientamento segue l'ultimo passo compiuto: B1 cade fuori dal cono di 120 gradi e oltre le 2 celle di consapevolezza ravvicinata. Nessuna cella usata tocca il muro (`r` fra 1 e 3) ne' le nicchie (`r` -2, -3, 4, 5): le unita' vivono su `r = 0` e `r = -1`.",
+
+  "_nota_tre_turni": "Serve un turno SOLO per muoversi, per l'ordine delle macro-fasi `Prep -> Dash -> Blast -> Move`: il Move normale risolve DOPO il Blast, quindi passo e colpo nello stesso turno farebbero sparare l'unita' prima di essersi mossa, col facing di partenza. La ragione e' scritta per esteso in `Spec.Perception.MovingBreaksContact`.",
+
+  "_nota_never_seen": "B2 sta a (6,0,0) e non e' un riempitivo: e' l'unita' `Never Seen`, e le due distanze che lo rendono tale sono state contate. Da A1 (-4,0,0) dista 10, oltre il `VisionRange` 7 di Gadget; da A2 (-3,5,0) dista 9, oltre il 5 di Riktor. La conoscenza e' di SQUADRA, quindi non basta che uno dei due non lo veda: devono non vederlo entrambi. B2 non si muove mai, ed e' cio' che rende falsificabile la sua assertion di posizione.",
+
+  "_nota_camere_disgiunte": "A2 sta nella camera SUD, oltre il muro. Serve a `PIE-VELO-VIEWER`: la vista di squadra e' l'unione di due regioni non contigue, quindi il velo non puo' essere reso come un ventaglio attorno a un solo osservatore. Non partecipa ai turni.",
+
+  "_nota_assertion": "L'anti-vacuita' e' `UnitHpEquals B1 103`, e dice una cosa sola: dei DUE colpi dichiarati ne e' andato a segno UNO. Il primo trova B1 osservato; il terzo parte a memoria e va sulla cella RICORDATA (-1,0,0), che B1 ha lasciato. Se la conoscenza smettesse di essere consultata — onniscienza, o un rinfresco che non avviene — il terzo colpo andrebbe a segno e il valore sarebbe 86. Se invece non risolvesse NESSUN colpo, sarebbe 120. Il numero distingue i tre casi, ed e' la ragione per cui non basta asserire che B1 sia vivo.",
+
+  "_nota_numeri": "22 di `Hero.Gadget.ArcPulse` meno i 5 punti di scudo BASE di [D-224] fanno 17; Riktor parte da 120 e finisce a 103. Sono gli stessi numeri di `Spec.Perception.MovingBreaksContact`, che li ha gia' misurati sulla stessa meccanica.",
+
+  "_nota_udito_escluso": "Nessun turno dichiara `requires`, ed e' deliberato. La capability `Perception` copre l'UDITO — la chiede solo `Spec.Perception.HeardNotSeen` — e non e' disponibile (owner #151, aperta): dichiararla renderebbe questo scenario `BLOCKED`, cioe' inerte. Vista, contatto e ricordo non la richiedono, come mostrano i quattro scenari fratelli che girano senza.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-4, 0, 0], "facing": "E" },
+    { "id": "A2", "hero": "Hero.Riktor", "team": 0, "cell": [-3, 5, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [-1, 0, 0] },
+    { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [6, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — OBSERVED. A1 guarda a est e vede B1 a tre celle: dentro l'arco, dentro la portata 4. Il colpo va a segno, 120 - 17 = 103. E' lo stato da cui parte `PIE-KNOW1`: nome e barra di B1 sono a schermo.",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+      ]
+    },
+    {
+      "_turno": "T2 — LA PERDITA. Nessuno spara. A1 fa un passo a ovest e il facing lo segue; B1 si sposta di una cella. Al rinfresco di questo turno A1 era ancora a (-4,0,0) guardando a est, perche' il suo Move risolve dopo: il contatto viene registrato su (-1,0,0), e sara' quello il ricordo. E' il momento di `PIE-KNOW1` (nome e barra spariscono), `PIE-KNOW2` (il modello sparisce e non si clicca) e `PIE-KNOW3` (la sagoma dell'ultimo contatto compare, ferma e monocroma).",
+      "intents": [
+        { "unit": "A1", "move": [[-5, 0, 0]] },
+        { "unit": "B1", "move": [[-1, -1, 0]] }
+      ]
+    },
+    {
+      "_turno": "T3 — IL RICORDO COSTA. Il passo e' gia' avvenuto: A1 guarda a ovest e B1 e' fuori dall'arco. Il colpo parte lo stesso — il ricordo del T2 ha un turno di eta' ed e' ancora vivo — ma va su (-1,0,0), e B1 non e' piu' li'. E' `PIE-KNOW4`: la sagoma sta sulla cella del contatto, e alla cella VERA non deve esserci nulla.",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 3 },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [-5, 0, 0] },
+    { "type": "UnitAtCell", "unit": "A2", "cell": [-3, 5, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [-1, -1, 0] },
+    { "type": "UnitAtCell", "unit": "B2", "cell": [6, 0, 0] },
+    { "type": "UnitHpEquals", "unit": "B1", "value": 103 },
+    { "type": "UnitAlive", "unit": "B1", "value": true },
+    { "type": "UnitAlive", "unit": "B2", "value": true }
+  ]
+}

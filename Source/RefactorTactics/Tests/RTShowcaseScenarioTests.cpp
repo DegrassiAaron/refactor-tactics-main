@@ -12,6 +12,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexLibrary.h"          // HexDistance: l'adiacenza si chiede, non si deduce dalle coordinate
 #include "Map/RTHexCoverLibrary.h"
 #include "Map/RTHexDoorLibrary.h"
 #include "Map/RTCellId.h"
@@ -482,6 +483,22 @@ bool FRTShowcaseBasinLayoutTest::RunTest(const FString&)
 		static_cast<int32>(URTHexCoverLibrary::CoverBetween(Arena, FRTCellId(0, 0, 0), FRTCellId(0, -1, 0))),
 		static_cast<int32>(ERTHexCoverType::Low));
 
+	// --- Copertura del T6: quella che rende DISCRIMINANTE l'interposizione (#1060) -------------------
+	// La copertura sta sulla VITTIMA (Wraith) e non sull'intercettore (Riktor), ed e' cio' che rende il T6
+	// discriminante: quando Riktor si interpone, la geometria si rivaluta su di LUI, che non ha riparo.
+	// Un resolver che conservasse la copertura del bersaglio ORIGINALE gli farebbe 12 danni invece di 22 —
+	// 113 punti vita invece di 103 — ed e' l'errore che D-017 vieta.
+	TestEqual(TEXT("copertura bassa davanti a Wraith, sul bordo da cui il colpo lo raggiunge"),
+		static_cast<int32>(URTHexCoverLibrary::CoverBetween(Arena, FRTCellId(1, -1, 0), FRTCellId(0, -1, 0))),
+		static_cast<int32>(ERTHexCoverType::Low));
+
+	// ⚠️ **E l'altra meta' dell'oracolo**: il bersaglio ORIGINALE non deve averne una sul proprio bordo
+	// d'ingresso, altrimenti i due comportamenti — quello giusto e quello sbagliato — darebbero lo stesso
+	// danno e il T6 sarebbe verde in entrambi i casi.
+	TestEqual(TEXT("RIKTOR non ne ha una sul proprio bordo d'ingresso: e' l'altra meta' dell'oracolo"),
+		static_cast<int32>(URTHexCoverLibrary::CoverBetween(Arena, FRTCellId(2, 0, 0), FRTCellId(1, 0, 0))),
+		static_cast<int32>(ERTHexCoverType::None));
+
 	// --- Spawn canonici ------------------------------------------------------------------------------
 	const TArray<FRTShowcaseSpawn> Spawns = URTMatchSetupLibrary::GetShowcaseRelayBasinSpawns();
 	TestEqual(TEXT("quattro unita' in campo (2v2)"), Spawns.Num(), 4);
@@ -716,10 +733,21 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 	// giusta — non e' il test ad essere stato aggiustato, e' il gioco ad essere arrivato piu' lontano.
 	TestEqual(TEXT("si ferma sul primo turno non supportato"),
 		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Blocked));
-	TestEqual(TEXT("arriva a cinque turni: il T4 lo apre #512 fase B, il T5 non chiede nulla"),
-		Result.TurnsPlayed, 5);
-	// Ora lo ferma il T6, che chiede la rivalidazione della geometria sul bersaglio effettivo (D-017).
-	TestTrue(TEXT("dichiara cosa lo blocca"), Result.BlockedReason.Contains(TEXT("InterceptRevalidation")));
+	// ⏱️ **2026-08-29, `#1060`: da cinque a SETTE.** Il T6 ha il proprio contenuto e
+	// `InterceptRevalidation` e' fra le disponibili; il T7 gioca **con lui**, perche' non dichiara `requires`
+	// e nessuno lo teneva fuori se non il turno prima. Il numero si e' mosso per la quarta volta e per la
+	// quarta ragione giusta — non e' il test ad essere stato aggiustato, e' il gioco ad essere arrivato
+	// piu' lontano.
+	TestEqual(TEXT("arriva a sette turni: il T6 lo apre #1060, e il T7 non chiede nulla"),
+		Result.TurnsPlayed, 7);
+	// Ora lo ferma il T8, che chiede l'obiettivo contendibile (#75).
+	TestTrue(TEXT("dichiara cosa lo blocca"), Result.BlockedReason.Contains(TEXT("Objective")));
+	// ⚠️ **E la meta' negativa che vale per QUESTA fetta**: il blocco non deve piu' nominare
+	// `InterceptRevalidation`. Senza, un T6 che tornasse `Blocked` per un difetto della sua fixture — invece
+	// che per la capability, ora presente — passerebbe il `Contains` sopra soltanto perche' il messaggio
+	// nomina un'altra capability, e il test direbbe «sette turni» sbagliando turno.
+	TestFalse(TEXT("il T6 non e' piu' cio' che lo ferma"),
+		Result.BlockedReason.Contains(TEXT("InterceptRevalidation")));
 	// ⚠️ **E la meta' negativa, senza la quale il verde qui sopra e' ambiguo**: il blocco NON deve piu'
 	// nominare `DecisionBoundary`. Senza questa riga, un T4 che tornasse `Blocked` per un difetto di
 	// traduzione della decisione — invece che per la capability — passerebbe il `Contains` sopra soltanto
@@ -743,8 +771,9 @@ bool FRTScenarioShowcaseRelayV01Test::RunTest(const FString&)
 		{
 			TestTrue(TEXT("il report dichiara l'esito BLOCKED"), Json.Contains(TEXT("BLOCKED")));
 			// Il motivo sta accanto all'esito: «BLOCKED» da solo direbbe che non tutto e' pronto, che si
-			// sapeva gia'. Il valore e' nel nome della capability — che dal 2026-08-16 e' quella del T6.
-			TestTrue(TEXT("il report nomina la capability mancante"), Json.Contains(TEXT("InterceptRevalidation")));
+			// sapeva gia'. Il valore e' nel nome della capability — che dal 2026-08-29 e' quella del **T8**,
+			// `Objective` (#75): il T6 ha il proprio contenuto e non ferma piu' niente.
+			TestTrue(TEXT("il report nomina la capability mancante"), Json.Contains(TEXT("Objective")));
 			TestTrue(TEXT("il report distingue blockedReason da error"), Json.Contains(TEXT("blockedReason")));
 			// ➕ **Il T4 ha SPARATO, e il report lo dice in due numeri.** Senza questi, «cinque turni» sarebbe
 			// compatibile con un T4 che si sblocca e non apre nessuna finestra — cioe' esattamente il verde
@@ -1625,4 +1654,153 @@ bool FRTShowcaseDeciderLifetimeTest::RunTest(const FString&)
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+
+/**
+ * ── `GrayKitYard`: la scena della seduta `U25`+`U35` ────────────────────────────────────────────────
+ *
+ * 🔴 **Questi test non dicono che la scena si LEGGE — dicono che c'e'.** L'oracolo di «e' leggibile» non
+ * esiste nell'harness e non va simulato: sta in `PIE-GBX-*` e `PIE-GRID-CONFINE`, e lo da' una persona.
+ * Cio' che si puo' asserire headless e' che chi apre quella fixture trovi davvero le quattro cose che le
+ * dieci verifiche devono guardare — e questo si', perche' e' un fatto sui DATI.
+ *
+ * Serve perche' l'allestimento a mano ha un modo noto di fallire in silenzio: le porte si scrivevano in
+ * `Cells[i].Doors` dal Details, e senza forzare il ridisegno si guardava la geometria vecchia. Una voce
+ * sembrava fallita mentre era solo non allestita. Una fixture testata non ha quel modo di sbagliare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGrayKitYardCarriesEverySubjectTest,
+	"RefactorTactics.Scenario.GrayKitYardCarriesEverySubject",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGrayKitYardCarriesEverySubjectTest::RunTest(const FString&)
+{
+	const URTHexMapAsset* Yard = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), TEXT("GrayKitYard"));
+	if (!TestNotNull(TEXT("la fixture GrayKitYard si risolve per nome"), Yard))
+	{
+		return false;
+	}
+
+	// Stesso corpo di CoverYard: e' il requisito di confrontabilita' di `PIE-GBX-FIT`, non un dettaglio.
+	TestEqual(TEXT("e' l'esagono di raggio 3, come CoverYard"), Yard->NumCells(), 37);
+
+	int32 CoverHigh = 0, CoverLow = 0;
+	int32 DoorOpen = 0, DoorClosed = 0, DoorLocked = 0, DoorDestroyed = 0;
+	int32 Water = 0, Ice = 0;
+	for (const FRTHexCellData& Cell : Yard->Cells)
+	{
+		for (const FRTHexCover& Cover : Cell.Covers)
+		{
+			if (Cover.Type == ERTHexCoverType::High) { ++CoverHigh; }
+			else if (Cover.Type == ERTHexCoverType::Low) { ++CoverLow; }
+		}
+		for (const FRTHexDoor& Door : Cell.Doors)
+		{
+			switch (Door.State)
+			{
+			case ERTHexDoorState::Open:      ++DoorOpen;      break;
+			case ERTHexDoorState::Closed:    ++DoorClosed;    break;
+			case ERTHexDoorState::Locked:    ++DoorLocked;    break;
+			case ERTHexDoorState::Destroyed: ++DoorDestroyed; break;
+			default: break;
+			}
+		}
+		if (Cell.Surface == ERTHexSurface::ShallowWater) { ++Water; }
+		else if (Cell.Surface == ERTHexSurface::Ice)     { ++Ice; }
+	}
+
+	// `PIE-GBX-COVER`: le due coperture che si confrontano a una riga di distanza.
+	TestEqual(TEXT("una copertura alta"), CoverHigh, 1);
+	TestEqual(TEXT("una copertura bassa"), CoverLow, 1);
+
+	// 🔑 `PIE-GBX-DOOR`: i QUATTRO stati insieme. Nessun'altra fixture li porta — `CoverYard` non ha porte
+	// e `RelayBasin` ne ha una sola, chiusa. Escluderne uno coprirebbe tre stati su quattro.
+	TestEqual(TEXT("porta Open"), DoorOpen, 1);
+	TestEqual(TEXT("porta Closed"), DoorClosed, 1);
+	TestEqual(TEXT("porta Locked, che D-171 vuole distinta da Closed"), DoorLocked, 1);
+	TestEqual(TEXT("porta Destroyed, stato terminale"), DoorDestroyed, 1);
+
+	// `PIE-GBX-SURFACE`: due superfici diverse. DUE celle ciascuna, non una — vedi il test accanto.
+	TestEqual(TEXT("due celle d'acqua"), Water, 2);
+	TestEqual(TEXT("due celle di ghiaccio"), Ice, 2);
+
+	return true;
+}
+
+/**
+ * 🔑 **Il test che protegge il caso piu' difficile della griglia, ed e' quello che si perde per primo.**
+ *
+ * `PIE-GBX-SURFACE` vuole due superfici **diverse** adiacenti; `PIE-GRID-CONFINE` vuole l'opposto — due celle
+ * della **stessa** superficie, dove il colore non dice dove finisce una e comincia l'altra. Con una cella per
+ * tipo la fixture soddisferebbe la prima e non la seconda, e il giudizio piu' difficile della griglia
+ * resterebbe non guardabile **proprio nella scena costruita per guardarlo**.
+ *
+ * L'adiacenza si CHIEDE a `URTHexLibrary::Distance` invece di fidarsi delle coordinate scritte nel builder:
+ * un refuso in una delle quattro celle darebbe una scena plausibile e sbagliata, e nessun conteggio se ne
+ * accorgerebbe — i totali del test sopra tornerebbero comunque.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGrayKitYardHasSameSurfaceNeighboursTest,
+	"RefactorTactics.Scenario.GrayKitYardHasSameSurfaceNeighbours",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGrayKitYardHasSameSurfaceNeighboursTest::RunTest(const FString&)
+{
+	const URTHexMapAsset* Yard = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), TEXT("GrayKitYard"));
+	if (!TestNotNull(TEXT("la fixture GrayKitYard si risolve"), Yard))
+	{
+		return false;
+	}
+
+	// Le celle per superficie, raccolte dai DATI e non riscritte qui.
+	TArray<FRTCellId> WaterCells;
+	TArray<FRTCellId> IceCells;
+	for (const FRTHexCellData& Cell : Yard->Cells)
+	{
+		if (Cell.Surface == ERTHexSurface::ShallowWater) { WaterCells.Add(Cell.Id); }
+		else if (Cell.Surface == ERTHexSurface::Ice)     { IceCells.Add(Cell.Id); }
+	}
+
+	auto HasAdjacentPair = [](const TArray<FRTCellId>& Cells)
+	{
+		for (int32 I = 0; I < Cells.Num(); ++I)
+		{
+			for (int32 J = I + 1; J < Cells.Num(); ++J)
+			{
+				if (URTHexLibrary::HexDistance(Cells[I], Cells[J]) == 1) { return true; }
+			}
+		}
+		return false;
+	};
+
+	TestTrue(TEXT("due celle d'ACQUA sono adiacenti: il confine su superficie uguale si puo' guardare"),
+		HasAdjacentPair(WaterCells));
+	TestTrue(TEXT("due celle di GHIACCIO sono adiacenti, idem"),
+		HasAdjacentPair(IceCells));
+
+	// E il caso opposto, che `PIE-GBX-SURFACE` guarda: acqua e ghiaccio si toccano da qualche parte.
+	bool bWaterTouchesIce = false;
+	for (const FRTCellId& W : WaterCells)
+	{
+		for (const FRTCellId& I : IceCells)
+		{
+			if (URTHexLibrary::HexDistance(W, I) == 1) { bWaterTouchesIce = true; }
+		}
+	}
+	TestTrue(TEXT("acqua e ghiaccio si toccano: il confronto fra superfici DIVERSE c'e'"), bWaterTouchesIce);
+
+	return true;
+}
+
+/**
+ * La fixture e' raggiungibile **per nome**, che e' il modo in cui la seduta la userà: `FixtureId` nel
+ * Details dell'actor, o `"fixture"` in uno scenario JSON. Una fixture che esiste in codice e non e' in
+ * `KnownFixtureIds()` non la trova nessuno — e `MakeFixtureArena` risponde `nullptr`, cioe' una partita che
+ * fallisce parlando di unita' fuori mappa invece che del nome mancante.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGrayKitYardIsAdvertisedTest,
+	"RefactorTactics.Scenario.GrayKitYardIsAdvertisedByName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGrayKitYardIsAdvertisedTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("GrayKitYard e' fra le fixture note, quindi la tendina e gli scenari la vedono"),
+		URTMatchSetupLibrary::KnownFixtureIds().Contains(TEXT("GrayKitYard")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
