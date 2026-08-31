@@ -34,7 +34,8 @@ cella: non possono stare nella mesh.
 | Attivazione | **sempre**, su tutta la mappa aperta | autore |
 | Contenuto | `(x, y, layer)` — la `z` **è il layer** | autore |
 | Direzioni | tre, a `0° / 120° / 240°` | autore |
-| Disposizione | **radiale, dal vertice verso il centro** | autore |
+| Disposizione | **radiale, dal bordo verso il centro** | autore |
+| Verso dove | i **punti medi di tre lati alternati** — `0/120/240` esatti | autore, dopo la contraddizione di §4.1 |
 | Scala del layer | **metà** di `x` e `y` | autore |
 | Meccanismo | segmenti (B), con la strada del font atlas (C) lasciata aperta | proposta, approvata |
 
@@ -57,9 +58,26 @@ Source/RefactorTacticsEditor/...  (WITH_EDITOR)     ← GUSCIO: consuma le pose 
 disegnano dentro un quadrato unitario. Il set è chiuso: `0`–`9`, `,`, `-`.
 
 **`BuildCellLabel`** conosce la cella e nient'altro: prende i sei vertici da
-`URTHexLibrary::CellCorners` — che è già l'autorità della geometria esagonale e non va duplicata — sceglie i
-**tre vertici alternati**, e dispone la terna lungo ciascun raggio, dal bordo verso il centro. Restituisce,
-per ogni carattere, la sua posa nel mondo e la sua scala.
+`URTHexLibrary::CellCorners` — che è già l'autorità della geometria esagonale e non va duplicata — ne ricava
+i **punti medi di tre lati alternati**, e dispone la terna lungo ciascuna di quelle tre direzioni, dal bordo
+verso il centro. Restituisce, per ogni carattere, la sua posa nel mondo e la sua scala.
+
+### 4.1 🔴 La contraddizione trovata in review, e come si è sciolta
+
+La richiesta diceva due cose che questa convenzione rende **incompatibili**: *«tre direzioni a 0/120/240»* e
+*«verso uno spigolo dell'esagono»*.
+
+```text
+HexCorners  -> pointy-top, primo vertice a -30°
+vertici          a  -30 · 30 · 90 · 150 · 210 · 270
+punti medi lati  a    0 · 60 · 120 · 180 · 240 · 300      <- DirectionForEdgeIndex: «il bordo k ha il punto medio a 60k gradi»
+```
+
+`0/120/240` **non cade su nessun vertice**. Sciolta con l'autore: «spigolo» è il **lato**, e le tre direzioni
+restano quelle dichiarate. ⚠️ Non è un dettaglio di nomenclatura — cambia lo spazio disponibile: verso il
+lato il raggio utile è l'**apotema** (`R·cos30° ≈ 0.87 R`), più corto, ma la cella è più larga lì attorno e
+le cifre respirano; verso il vertice sarebbe stato il contrario. La dimensione dei caratteri si deriva da
+questo, non dall'altro.
 
 🔑 **Il confine è dove sta il valore.** `BuildCellLabel` dice *dove va cosa*, mai *come si disegna*. Il
 guscio d'oggi traccia linee; un guscio futuro potrebbe posare quad con un font atlas (approccio C) e
@@ -72,10 +90,9 @@ Il criterio *«senza uscire dall'esagono»* diventa un test:
 
 > ogni estremo di ogni segmento, di tutte e tre le run, cade dentro il poligono dei sei vertici.
 
-⚠️ **E fissa la dimensione massima delle cifre.** Non la scegliamo a occhio: la si deriva dal vincolo. Un
-esagono ha larghezza variabile lungo il raggio — larga al centro, nulla al vertice — quindi una terna
-disposta radialmente **si assottiglia verso lo spigolo**, e il test è ciò che impedisce di accorgersene
-solo a schermo.
+⚠️ **E fissa la dimensione massima delle cifre.** Non la scegliamo a occhio: la si deriva dal vincolo. Lungo
+la direzione di un lato lo spazio radiale è l'**apotema**, non il raggio; e la larghezza utile si stringe
+avvicinandosi al bordo. Il test è ciò che impedisce di accorgersene solo a schermo.
 
 ⚠️ La terna più lunga possibile va prevista: coordinate negative a due cifre, cioè `-10,-10,1` — dieci
 caratteri. Se la dimensione è tarata su `0,0,0` la mappa grande sborda, e nessuno se ne accorge finché non
@@ -86,7 +103,7 @@ apre una mappa grande.
 **Misurato** (automation, senza world):
 
 - le tre run sono a `120°` esatti l'una dall'altra, verificato sulle **pose** e non a occhio;
-- la terna corre dal vertice al centro: la prima cifra è più lontana dal centro dell'ultima;
+- la terna corre dal bordo al centro: la prima cifra è più lontana dal centro dell'ultima;
 - il layer ha **metà** della scala di `x` e `y`;
 - ogni segmento è **dentro** l'esagono, sul caso peggiore (`-10,-10,1`);
 - il segno meno compare per le coordinate negative;
@@ -105,7 +122,9 @@ riferimento fuori dal modulo editor — non con un test che gira nell'editor.
 
 - ⛔ Nessun asset nuovo nel gray kit (§3).
 - ⛔ Nessun ottavo ISM sull'`ARTHexMapActor`: quelle sette famiglie sono canali di lettura **della partita**.
-- ⛔ Nessuna seconda fonte per i vertici dell'esagono: `CellCorners` è l'autorità.
+- ⛔ Nessuna seconda fonte per la geometria dell'esagono: i vertici li dà `CellCorners`, e i punti medi si
+  **derivano** da quelli invece di essere ricalcolati con una seconda formula — è il difetto visto in `U22`,
+  celle piene tonde e contorno esagonale, che nasceva da due disegni della stessa forma.
 - ⛔ Nessun interruttore. La richiesta è «sempre visibili»; una checkbox non richiesta è una decisione presa
   di passaggio.
 - ⛔ Nessun font, nessuna texture, nessun atlas in questa passata: sono l'approccio C, che questa
