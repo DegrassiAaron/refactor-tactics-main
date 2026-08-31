@@ -104,7 +104,30 @@ enum class ERTGeometryViolation : uint8
 	InvalidLayer,
 
 	/** Una coordinata supera `RT_GeometryMaxQuanta` dal centro della cella. */
-	OutsideEditableBounds
+	OutsideEditableBounds,
+
+	/**
+	 * DUE SEGMENTI SI INCONTRANO FUORI DA UN ANCHOR — `#1894`, `GEO-6` di `D-288`.
+	 *
+	 * ⚠️ **Assorbe anche la T**: una che termina a meta' di un altro segmento tocca in un punto che non e'
+	 * un anchor, ed e' questo. `GEO-6` ha escluso le junction dalla grammatica, quindi non esiste un caso
+	 * «T» distinto da segnalare — un reason code in piu' distinguerebbe due nomi della stessa
+	 * configurazione, e la verifica di mutazione non saprebbe piu' quale regola ha allentato.
+	 *
+	 * E' una proprieta' della COLLEZIONE, come `DuplicateSegment`: `ValidateSegment` non puo' rilevarla.
+	 */
+	CrossingOffAnchor,
+
+	/**
+	 * DUE SEGMENTI COLLINEARI SI SOVRAPPONGONO su piu' di un punto.
+	 *
+	 * Stessa giacitura — asse, offset e layer — e intervalli che si intersecano. **Toccarsi in un estremo
+	 * non e' sovrapporsi**: due muri che condividono un anchor sono la continuita' che questa grammatica
+	 * esprime, ed e' il caso normale di un muro lungo spezzato dal disegno.
+	 *
+	 * ⚠️ Diverso da `DuplicateSegment`, che chiede l'identita': qui gli estremi sono diversi.
+	 */
+	OverlappingSegments
 };
 
 /**
@@ -182,6 +205,16 @@ struct FRTGeometryIssue
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
 	ERTGeometryViolation Violation = ERTGeometryViolation::None;
+
+	/**
+	 * L'ALTRO segmento coinvolto, per le violazioni che sono una RELAZIONE fra due — `CrossingOffAnchor`,
+	 * `OverlappingSegments` e `DuplicateSegment`. `INDEX_NONE` per quelle che riguardano un segmento solo.
+	 *
+	 * 🔑 Senza, una segnalazione d'incidenza direbbe *«il segmento 4 incrocia qualcosa»*, e chi disegna
+	 * dovrebbe cercare il qualcosa a mano.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	int32 OtherIndex = INDEX_NONE;
 };
 
 /**

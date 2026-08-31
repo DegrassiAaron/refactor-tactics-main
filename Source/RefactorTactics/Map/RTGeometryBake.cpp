@@ -266,19 +266,30 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 			// segmento anche percorso al contrario»*. Tracciando `V1→V2` e poi `V2→V1` il duplicato
 			// passava. Riscrivere a mano un confronto che esiste gia' e' esattamente il difetto che questa
 			// seduta ha inseguito otto volte.
-			// ⚠️ `WallType` si confronta a parte perche' `operator==` NON lo include: due muri sulla stessa
-			// giacitura ma di tipo diverso sono due muri, e la regola `High` su `Low` vale sui bordi, dove
-			// il bordo e' unico — qui la giacitura non lo e'.
-			const bool bAlready = Map->InteriorWalls.ContainsByPredicate(
+			// 🔴 **`WallType` NON si confronta**, e la riga che lo faceva e' caduta con `GEO-9` di `D-288`.
+			// Diceva *«due muri sulla stessa giacitura ma di tipo diverso sono due muri»*, e produceva un
+			// asset che i due validator dichiaravano invalido: `operator==` il tipo non lo include, quindi
+			// `ValidateMap` e `DuplicateSegment` segnalavano entrambi i muri che questo ramo aveva appena
+			// scritto. Il bake si contraddiceva con la validazione nello stesso commit.
+			//
+			// **Uscita: un segmento per giacitura e intervallo, e vince `High` su `Low`** — la stessa regola
+			// deterministica gia' applicata sui bordi sedici righe piu' in basso, invece di «vince l'ultimo
+			// arrivato». Cosi' l'ordine dei segmenti non decide il tipo del muro.
+			//
+			// ⚠️ La regola e' l'IDENTITA' GEOMETRICA, non la giacitura: due muri sullo stesso asse e offset
+			// ma su tratti diversi restano due muri legittimi, ed e' gia' cio' che `operator==` significa.
+			const int32 ExistingWall = Map->InteriorWalls.IndexOfByPredicate(
 				[&CellId, &Segment](const FRTHexInteriorWall& Wall)
 				{
-					return Wall.Cell == CellId
-						&& Wall.Segment == Segment
-						&& Wall.Segment.WallType == Segment.WallType;
+					return Wall.Cell == CellId && Wall.Segment == Segment;
 				});
-			if (!bAlready)
+			if (ExistingWall == INDEX_NONE)
 			{
 				Map->InteriorWalls.Add(FRTHexInteriorWall(CellId, Segment));
+			}
+			else if (Segment.WallType == ERTHexCoverType::High)
+			{
+				Map->InteriorWalls[ExistingWall].Segment.WallType = ERTHexCoverType::High;
 			}
 			continue;
 		}

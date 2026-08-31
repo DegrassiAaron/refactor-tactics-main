@@ -775,6 +775,84 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		}
 	}
 
+	// 5. L'INCIDENZA FRA DUE MURI DELLA STESSA CELLA — `#1894`, `GEO-6` di `D-288`.
+	//
+	// 🔴 **Il rilievo che ha deciso dove va questo blocco.** `URTGeometryGrammarLibrary::Validate` non aveva
+	// un solo chiamante di produzione: `git grep` lo trovava tre volte, tutte e tre in un file di test. Le
+	// regole d'incidenza scritte solo li' sarebbero nate morte insieme allo strato che le ospita — nessun
+	// asset le avrebbe mai attivate.
+	//
+	// ⚠️ **Il raggruppamento per CELLA non e' un'ottimizzazione, e' la correttezza.** I segmenti sono in
+	// coordinate LOCALI di cella: due muri di celle diverse con gli stessi numeri non si incrociano affatto,
+	// e validare l'array intero in un colpo solo li segnalerebbe tutti — il difetto piu' facile da
+	// introdurre qui, e quello che `ReachesValidateMap` pinna con la sua controprova.
+	//
+	// L'ordine delle celle e' quello di PRIMA APPARIZIONE nell'array, non quello di una `TMap`: l'iterazione
+	// di una `TMap` non e' deterministica (invariante n. 4), e due validazioni della stessa mappa darebbero
+	// gli stessi errori in ordine diverso.
+	//
+	// Si filtrano le sole violazioni di RELAZIONE: `ValidateSegment` e il duplicato hanno gia' le loro regole
+	// qui sopra, e riemetterli da qui sarebbe la stessa segnalazione due volte con due formati.
+	{
+		TArray<FRTCellId> Order;
+		TMap<FRTCellId, TArray<int32>> ByCell;
+		for (int32 Index = 0; Index < InteriorWalls.Num(); ++Index)
+		{
+			TArray<int32>& Group = ByCell.FindOrAdd(InteriorWalls[Index].Cell);
+			if (Group.Num() == 0)
+			{
+				Order.Add(InteriorWalls[Index].Cell);
+			}
+			Group.Add(Index);
+		}
+
+		for (const FRTCellId& Cell : Order)
+		{
+			const TArray<int32>& Group = ByCell[Cell];
+			if (Group.Num() < 2)
+			{
+				continue; // un muro solo non ha con chi incidere
+			}
+
+			TArray<FRTGeometrySegment> Segments;
+			Segments.Reserve(Group.Num());
+			for (const int32 Index : Group)
+			{
+				Segments.Add(InteriorWalls[Index].Segment);
+			}
+
+			TArray<FRTGeometryIssue> Issues;
+			URTGeometryGrammarLibrary::Validate(Segments, Issues);
+
+			for (const FRTGeometryIssue& Issue : Issues)
+			{
+				if (Issue.Violation != ERTGeometryViolation::CrossingOffAnchor
+					&& Issue.Violation != ERTGeometryViolation::OverlappingSegments)
+				{
+					continue;
+				}
+
+				// Gli indici tornano a essere quelli dell'ARRAY, non del gruppo: chi legge l'errore apre
+				// `InteriorWalls` a quella posizione, e un indice locale lo manderebbe sul muro sbagliato.
+				const int32 Mine = Group[Issue.SegmentIndex];
+				const int32 Other = Issue.OtherIndex != INDEX_NONE ? Group[Issue.OtherIndex] : INDEX_NONE;
+
+				if (Issue.Violation == ERTGeometryViolation::CrossingOffAnchor)
+				{
+					Errors.Add(FString::Printf(
+						TEXT("Error: muri interni %d e %d su %s: incrocio fuori da un anchor"),
+						Mine, Other, *Cell.ToString()));
+				}
+				else
+				{
+					Errors.Add(FString::Printf(
+						TEXT("Error: muri interni %d e %d su %s si sovrappongono"),
+						Mine, Other, *Cell.ToString()));
+				}
+			}
+		}
+	}
+
 	return Errors;
 }
 
