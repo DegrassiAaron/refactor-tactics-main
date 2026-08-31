@@ -12,33 +12,33 @@ namespace
 	 *    E   C          |          |
 	 *      D          (0,0) ---- (1,0)
 	 */
-	const FRTLabelStroke SegA{ FVector2D(0.f, 1.f),  FVector2D(1.f, 1.f)  };
-	const FRTLabelStroke SegB{ FVector2D(1.f, 1.f),  FVector2D(1.f, 0.5f) };
-	const FRTLabelStroke SegC{ FVector2D(1.f, 0.5f), FVector2D(1.f, 0.f)  };
-	const FRTLabelStroke SegD{ FVector2D(0.f, 0.f),  FVector2D(1.f, 0.f)  };
-	const FRTLabelStroke SegE{ FVector2D(0.f, 0.5f), FVector2D(0.f, 0.f)  };
-	const FRTLabelStroke SegF{ FVector2D(0.f, 1.f),  FVector2D(0.f, 0.5f) };
-	const FRTLabelStroke SegG{ FVector2D(0.f, 0.5f), FVector2D(1.f, 0.5f) };
+	const FRTLabelStroke RTHexLabelSegA{ FVector2D(0.f, 1.f),  FVector2D(1.f, 1.f)  };
+	const FRTLabelStroke RTHexLabelSegB{ FVector2D(1.f, 1.f),  FVector2D(1.f, 0.5f) };
+	const FRTLabelStroke RTHexLabelSegC{ FVector2D(1.f, 0.5f), FVector2D(1.f, 0.f)  };
+	const FRTLabelStroke RTHexLabelSegD{ FVector2D(0.f, 0.f),  FVector2D(1.f, 0.f)  };
+	const FRTLabelStroke RTHexLabelSegE{ FVector2D(0.f, 0.5f), FVector2D(0.f, 0.f)  };
+	const FRTLabelStroke RTHexLabelSegF{ FVector2D(0.f, 1.f),  FVector2D(0.f, 0.5f) };
+	const FRTLabelStroke RTHexLabelSegG{ FVector2D(0.f, 0.5f), FVector2D(1.f, 0.5f) };
 }
 
 TArray<FRTLabelStroke> URTHexLabelLibrary::GlyphStrokes(TCHAR Character)
 {
 	switch (Character)
 	{
-	case TEXT('0'): return { SegA, SegB, SegC, SegD, SegE, SegF };
-	case TEXT('1'): return { SegB, SegC };
-	case TEXT('2'): return { SegA, SegB, SegG, SegE, SegD };
-	case TEXT('3'): return { SegA, SegB, SegG, SegC, SegD };
-	case TEXT('4'): return { SegF, SegG, SegB, SegC };
-	case TEXT('5'): return { SegA, SegF, SegG, SegC, SegD };
-	case TEXT('6'): return { SegA, SegF, SegG, SegE, SegD, SegC };
-	case TEXT('7'): return { SegA, SegB, SegC };
-	case TEXT('8'): return { SegA, SegB, SegC, SegD, SegE, SegF, SegG };
-	case TEXT('9'): return { SegA, SegB, SegC, SegD, SegF, SegG };
+	case TEXT('0'): return { RTHexLabelSegA, RTHexLabelSegB, RTHexLabelSegC, RTHexLabelSegD, RTHexLabelSegE, RTHexLabelSegF };
+	case TEXT('1'): return { RTHexLabelSegB, RTHexLabelSegC };
+	case TEXT('2'): return { RTHexLabelSegA, RTHexLabelSegB, RTHexLabelSegG, RTHexLabelSegE, RTHexLabelSegD };
+	case TEXT('3'): return { RTHexLabelSegA, RTHexLabelSegB, RTHexLabelSegG, RTHexLabelSegC, RTHexLabelSegD };
+	case TEXT('4'): return { RTHexLabelSegF, RTHexLabelSegG, RTHexLabelSegB, RTHexLabelSegC };
+	case TEXT('5'): return { RTHexLabelSegA, RTHexLabelSegF, RTHexLabelSegG, RTHexLabelSegC, RTHexLabelSegD };
+	case TEXT('6'): return { RTHexLabelSegA, RTHexLabelSegF, RTHexLabelSegG, RTHexLabelSegE, RTHexLabelSegD, RTHexLabelSegC };
+	case TEXT('7'): return { RTHexLabelSegA, RTHexLabelSegB, RTHexLabelSegC };
+	case TEXT('8'): return { RTHexLabelSegA, RTHexLabelSegB, RTHexLabelSegC, RTHexLabelSegD, RTHexLabelSegE, RTHexLabelSegF, RTHexLabelSegG };
+	case TEXT('9'): return { RTHexLabelSegA, RTHexLabelSegB, RTHexLabelSegC, RTHexLabelSegD, RTHexLabelSegF, RTHexLabelSegG };
 
 	// Il meno e' il segmento di mezzo: stessa altezza della barra del `4`, quindi non si confonde con
 	// una cifra e si legge alla stessa quota.
-	case TEXT('-'): return { SegG };
+	case TEXT('-'): return { RTHexLabelSegG };
 
 	// La virgola vive nella meta' bassa e sporge a sinistra: senza la coda si leggerebbe come un punto,
 	// e la terna `0.0.0` non e' la terna `0,0,0`.
