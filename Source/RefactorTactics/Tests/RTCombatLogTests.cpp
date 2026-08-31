@@ -124,6 +124,25 @@ namespace RTCombatLogFixture
 			&& Test.TestNotNull(TEXT("unita' A"), Out.A)
 			&& Test.TestNotNull(TEXT("unita' B"), Out.B);
 	}
+
+	/**
+	 * Le righe che il TurnLog produce, con la STESSA risoluzione dei nomi che usa `ConcludeTurn` (`#1932`).
+	 *
+	 * ⚠️ Non `DescribeTurnLog`: da quando le voci `Move` portano il soggetto nel testo, quella forma le rende
+	 * con `u<id>` — non avendo la mappa — e il confronto con cio' che e' stato emesso cadrebbe su
+	 * `Gadget: resta` contro `u3: resta`, che e' la stessa riga scritta da due risoluzioni diverse. Il
+	 * produttore resta uno solo: qui si passa la mappa, non si riscrive il testo.
+	 */
+	TArray<FString> RigheAttese(const ARTTurnManager* TM)
+	{
+		TArray<FString> Righe;
+		for (const FRTDescribedLine& Line
+			: URTTurnLogLibrary::DescribeTurnLogWithSubjects(TM->GetTurnLog(), TM->SubjectNamesForLog()))
+		{
+			Righe.Add(Line.Text);
+		}
+		return Righe;
+	}
 }
 
 /**
@@ -198,7 +217,7 @@ bool FRTLogMatchesTurnLogOrderTest::RunTest(const FString&)
 		return false;
 	}
 
-	const TArray<FString> Attese = URTTurnLogLibrary::DescribeTurnLog(Log);
+	const TArray<FString> Attese = RTCombatLogFixture::RigheAttese(TM);
 	const TArray<FString>& Emesse = TM->GetRecentEvents();
 
 	// ⚠️ **Non la coda: una sottosequenza CONSECUTIVA.** Dopo le righe del turno il log annuncia il turno
@@ -557,7 +576,7 @@ bool FRTLogDoesNotRepeatDerivedLinesTest::RunTest(const FString&)
 		return false;
 	}
 
-	const TArray<FString> Attese = URTTurnLogLibrary::DescribeTurnLog(Log);
+	const TArray<FString> Attese = RTCombatLogFixture::RigheAttese(Fixture.TM);
 	const TArray<FString>& Emesse = Fixture.TM->GetRecentEvents();
 
 	// Quante volte ogni riga e' ATTESA. Due voci che rendono la stessa stringa vanno emesse due volte.
@@ -1163,6 +1182,164 @@ bool FRTLogUnseenDeathLeavesOnlyTheAnnouncementTest::RunTest(const FString&)
 		Classe == ERTTargetKnowledge::Rejected);
 
 	RTCombatLogFixture::DestroyWorld(World);
+	return true;
+}
+
+namespace RT1932
+{
+	/** Una voce `Move` minima, con il soggetto che si vuole provare. */
+	FRTTurnLogEntry Movimento(int32 UnitId, ERTMoveOutcome Esito, ERTMatchPhase Fase)
+	{
+		FRTTurnLogEntry E;
+		E.TurnNumber = 1;
+		E.UnitId = UnitId;
+		E.Phase = Fase;
+		E.Category = ERTLogCategory::Move;
+		E.Outcome = static_cast<uint8>(Esito);
+		E.SrcCell = FRTCellId(-1, -1, 0);
+		E.TgtCell = FRTCellId(1, -1, 0);
+		E.Amount = 2;
+		return E;
+	}
+
+	/** Il soggetto in testa alla riga, o stringa vuota se la riga non ne dichiara uno. */
+	FString Soggetto(const FString& Riga)
+	{
+		int32 Colon = INDEX_NONE;
+		return Riga.FindChar(TEXT(':'), Colon) ? Riga.Left(Colon) : FString();
+	}
+}
+
+/**
+ * 🔴 **Una riga di movimento dice CHI si e' mosso.**
+ *
+ * Il soggetto viaggiava gia' in `SubjectStableUnitId` — serviva al filtro di conoscenza — ma nel TESTO non
+ * entrava mai. Chi leggeva il log non aveva modo di attribuire una riga, ed e' cosi' che
+ * [#1733](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1733) e' stata aperta come bug di
+ * gameplay su un comportamento corretto.
+ *
+ * ⚠️ Il prefisso vale solo dove `UnitId` e' anche il soggetto GRAMMATICALE: nelle voci di danno porta chi
+ * **subisce** (#1150), e «Gadget: colpisce» direbbe il falso. Il test lo pinna, altrimenti la prossima
+ * estensione lo scopre a schermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLineNamesItsSubjectTest,
+	"RefactorTactics.UI.MoveLineNamesItsSubject",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMoveLineNamesItsSubjectTest::RunTest(const FString&)
+{
+	using namespace RT1932;
+
+	const FRTTurnLogEntry Mossa = Movimento(3, ERTMoveOutcome::Moved, ERTMatchPhase::Move);
+
+	// --- 1. Col nome risolto dal chiamante -----------------------------------------------------------
+	{
+		TMap<int32, FString> Nomi;
+		Nomi.Add(3, TEXT("Gadget"));
+		const TArray<FRTDescribedLine> Righe = URTTurnLogLibrary::DescribeTurnLogWithSubjects({ Mossa }, Nomi);
+		if (!TestEqual(TEXT("una riga per voce"), Righe.Num(), 1)) { return false; }
+		TestEqual(TEXT("la riga nomina il soggetto"), Soggetto(Righe[0].Text), FString(TEXT("Gadget")));
+		TestTrue(*FString::Printf(TEXT("e conserva il predicato: %s"), *Righe[0].Text),
+			Righe[0].Text.Contains(TEXT("si muove")));
+		// Il dato per il filtro di conoscenza non cambia: il testo si aggiunge, non sostituisce.
+		TestEqual(TEXT("il soggetto resta anche come dato"), Righe[0].SubjectStableUnitId, 3);
+	}
+
+	// --- 2. Senza mappa: l'id stabile, che e' brutto ma vero -----------------------------------------
+	{
+		const TArray<FRTDescribedLine> Righe = URTTurnLogLibrary::DescribeTurnLogWithSubjects({ Mossa });
+		if (!TestEqual(TEXT("una riga per voce"), Righe.Num(), 1)) { return false; }
+		TestEqual(TEXT("ripiega sull'id stabile"), Soggetto(Righe[0].Text), FString(TEXT("u3")));
+	}
+
+	// --- 3. `UnitId == 0`: nessun soggetto finto ----------------------------------------------------
+	{
+		const FRTTurnLogEntry Senza = Movimento(0, ERTMoveOutcome::Moved, ERTMatchPhase::Move);
+		const TArray<FRTDescribedLine> Righe = URTTurnLogLibrary::DescribeTurnLogWithSubjects({ Senza });
+		if (!TestEqual(TEXT("una riga per voce"), Righe.Num(), 1)) { return false; }
+		TestFalse(*FString::Printf(TEXT("nessun «u0» inventato: %s"), *Righe[0].Text),
+			Righe[0].Text.StartsWith(TEXT("u0"), ESearchCase::CaseSensitive));
+		TestEqual(TEXT("la riga e' il solo predicato"),
+			Righe[0].Text, URTTurnLogLibrary::DescribeEntry(Senza));
+	}
+
+	// --- 4. 🔴 Una voce di DANNO non prende il prefisso: li' `UnitId` e' chi SUBISCE ------------------
+	{
+		FRTTurnLogEntry Colpo;
+		Colpo.TurnNumber = 1;
+		Colpo.UnitId = 7;
+		Colpo.Phase = ERTMatchPhase::Blast;
+		Colpo.Category = ERTLogCategory::Combat;
+		Colpo.Outcome = static_cast<uint8>(ERTCombatOutcome::Hit);
+		Colpo.SrcCell = FRTCellId(0, 0, 0);
+		Colpo.TgtCell = FRTCellId(1, 0, 0);
+		Colpo.Amount = 12;
+
+		TMap<int32, FString> Nomi;
+		Nomi.Add(7, TEXT("Gadget"));
+		const TArray<FRTDescribedLine> Righe = URTTurnLogLibrary::DescribeTurnLogWithSubjects({ Colpo }, Nomi);
+		if (!TestEqual(TEXT("una riga per voce"), Righe.Num(), 1)) { return false; }
+		TestFalse(*FString::Printf(TEXT("il difensore non diventa il soggetto della frase: %s"), *Righe[0].Text),
+			Righe[0].Text.StartsWith(TEXT("Gadget:"), ESearchCase::CaseSensitive));
+		// Ma il soggetto come DATO resta: e' quello che il filtro di conoscenza usa.
+		TestEqual(TEXT("e resta il soggetto per la conoscenza"), Righe[0].SubjectStableUnitId, 7);
+	}
+
+	// --- 5. `DescribeEntry` invariata: `DescribeReportLine` stampa gia' `unita=` ---------------------
+	TestFalse(TEXT("il predicato non porta il soggetto"),
+		URTTurnLogLibrary::DescribeEntry(Mossa).StartsWith(TEXT("u3"), ESearchCase::CaseSensitive));
+
+	return true;
+}
+
+/**
+ * 🔴 **Il caso che ha prodotto #1733: due righe, una unita' sola.**
+ *
+ * ```text
+ * Turno 5:  si muove (-1,-1) -> (1,-1)  (Hero.Wraith.PassingBlade, p30)
+ *           resta    (1,-1)             (Action.Move, p50)
+ * ```
+ *
+ * Senza soggetto si leggono come *«uno arriva, un altro ci sta gia'»*, cioe' una sovrapposizione — che non
+ * era avvenuta. Il referto dello spec panel l'ha misurato: quelle celle erano libere.
+ *
+ * ⚠️ Il test NON asserisce che il «resta» spieghi di essere il seguito di uno scatto: quello vorrebbe un
+ * valore nuovo in `ERTMoveOutcome`, che e' **serializzato in v7** e riprodotto dal replay. Resta dichiarato
+ * come lavoro separato: qui si prova solo che le due righe si attribuiscano alla stessa unita'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTwoLinesSameUnitSameSubjectTest,
+	"RefactorTactics.UI.TwoLinesOfTheSameUnitCarryTheSameSubject",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTwoLinesSameUnitSameSubjectTest::RunTest(const FString&)
+{
+	using namespace RT1932;
+
+	TMap<int32, FString> Nomi;
+	Nomi.Add(3, TEXT("Wraith"));
+	Nomi.Add(5, TEXT("Riktor"));
+
+	const TArray<FRTTurnLogEntry> Log = {
+		Movimento(3, ERTMoveOutcome::Moved,  ERTMatchPhase::Dash),
+		Movimento(3, ERTMoveOutcome::Stayed, ERTMatchPhase::Move),
+		Movimento(5, ERTMoveOutcome::Stayed, ERTMatchPhase::Move),
+	};
+
+	const TArray<FRTDescribedLine> Righe = URTTurnLogLibrary::DescribeTurnLogWithSubjects(Log, Nomi);
+	if (!TestEqual(TEXT("tre voci, tre righe"), Righe.Num(), 3)) { return false; }
+
+	TArray<FString> DiWraith;
+	TArray<FString> DiAltri;
+	for (const FRTDescribedLine& Riga : Righe)
+	{
+		(Riga.SubjectStableUnitId == 3 ? DiWraith : DiAltri).Add(Soggetto(Riga.Text));
+	}
+
+	if (!TestEqual(TEXT("due righe sono della stessa unita'"), DiWraith.Num(), 2)) { return false; }
+	TestEqual(TEXT("e portano lo stesso soggetto"), DiWraith[0], DiWraith[1]);
+	TestEqual(TEXT("che e' il nome dell'unita'"), DiWraith[0], FString(TEXT("Wraith")));
+
+	if (!TestEqual(TEXT("la terza e' di un'altra"), DiAltri.Num(), 1)) { return false; }
+	TestNotEqual(TEXT("e si distingue dalle prime due"), DiAltri[0], DiWraith[0]);
+
 	return true;
 }
 
