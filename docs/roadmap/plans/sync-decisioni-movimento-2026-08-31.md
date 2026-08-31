@@ -149,3 +149,10 @@ codice.
 Tab **Open Questions**: `DQA-031` (`COV-1`) e `DQA-032` (`COV-2`) sono `RESOLVED` sul Drive ma
 [#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833) porta ancora tutte e otto le
 `COV-*` come aperte — recepite in un commento alla issue il 2026-08-31.
+
+> 🔁 **Rimisurato lo stesso giorno, e il Drive aveva ragione su entrambe.** `COV-2` è chiusa da
+> [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) (ibrido: generato di default, autorato per i casi speciali) e `COV-1` da
+> [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) (il footprint è un conteggio di settori contigui, non un raggio) — con `COV-3`…`COV-6`
+> nella stessa tornata. `#1833` porta ora **sei** voci chiuse e **due** aperte (`COV-7`, `COV-8`), più la
+> nuova `MAP-4`. ⚠️ **Il divario che questa riga misurava era reale**, e la sua lezione resta: il Drive
+> portava `RESOLVED` ciò che il repository non aveva ancora recepito.
