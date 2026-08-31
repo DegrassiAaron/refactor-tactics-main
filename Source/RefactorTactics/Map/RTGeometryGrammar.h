@@ -185,6 +185,71 @@ struct FRTGeometryIssue
 };
 
 /**
+ * QUALE dei tredici punti notevoli di una cella — la palette d'authoring v0.1 (`GEO-5`, `D-288`).
+ *
+ * ⚠️ **Non e' un alfabeto nuovo**: sono il centro piu' i dodici confini di settore che
+ * `URTHexOccupancyLibrary::SectorBoundaryPoints` gia' restituisce, che alternano vertice e punto medio di
+ * lato ogni `30` gradi. Questo enum da' loro un NOME; non aggiunge punti, e non ne toglie.
+ */
+UENUM(BlueprintType)
+enum class ERTAnchorKind : uint8
+{
+	/** Uno solo per cella: il centro. */
+	Center,
+	/** Sei: `Index` da `0` a `5`, il vertice a `-30 + 60 * Index` gradi — il confine di settore `2 * Index`. */
+	Vertex,
+	/** Sei: `Index` da `0` a `5`, il punto medio del lato di indice `Index` — il confine `2 * Index + 1`. */
+	EdgeMid
+};
+
+/**
+ * UN ANCHOR, NOMINATO DALLA CELLA CHE LO GUARDA — e il punto in cui due celle possono dire lo stesso punto
+ * con due nomi diversi.
+ *
+ * 🔑 **Il riferimento e' LOCALE, e la sua coincidenza con un altro e' una RELAZIONE, non un campo.**
+ * `D-288` chiude `GEO-5` cosi', e il criterio non e' stato inventato per l'occasione: `ValidateMap` lo
+ * applica gia' due volte in versi opposti — le porte portano un gruppo esplicito (`FRTHexDoor::DoorId`)
+ * perche' l'appartenenza di una porta doppia non e' deducibile dalla geometria, mentre gli archi non lo
+ * portano perche' *«qui il gruppo non e' un campo, e' una RELAZIONE. Due archi condividono legittimamente
+ * il nome solo se sono reciproci»*. Per un anchor la coincidenza E' deducibile — dall'adiacenza che
+ * `URTHexLibrary` gia' enumera — quindi e' il caso degli archi.
+ *
+ * ⛔ **Non e' serializzato e non entra in `ComputeHash`**: e' un derivato di calcolo, come
+ * `FRTOccupancyPolyline`. Il formato dell'asset non cambia per averlo.
+ */
+USTRUCT(BlueprintType)
+struct FRTAnchorRef
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	FRTCellId Cell;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	ERTAnchorKind Kind = ERTAnchorKind::Center;
+
+	/** `0..5` per `Vertex` e `EdgeMid`. Per `Center` vale sempre `0`: il centro e' uno solo. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Hex")
+	int32 Index = 0;
+
+	FRTAnchorRef() = default;
+	FRTAnchorRef(const FRTCellId& InCell, ERTAnchorKind InKind, int32 InIndex = 0)
+		: Cell(InCell), Kind(InKind), Index(InKind == ERTAnchorKind::Center ? 0 : InIndex) {}
+
+	bool operator==(const FRTAnchorRef& O) const
+	{
+		return Cell == O.Cell && Kind == O.Kind && Index == O.Index;
+	}
+	bool operator!=(const FRTAnchorRef& O) const { return !(*this == O); }
+
+	FString ToString() const;
+};
+
+/** Quanti anchor espone una cella: uno al centro, sei vertici, sei punti medi. */
+static constexpr int32 RT_AnchorsPerCell = 13;
+
+
+/**
  * La grammatica quantizzata delle direttrici, e il validator che la rende una regola — `#620`.
  *
  * Vive nel modulo RUNTIME e non nell'editor: in `Source/RefactorTacticsEditor/` non esiste alcun test, e
@@ -271,5 +336,43 @@ public:
 	 * chiamante. Qui vale sempre zero.
 	 */
 	static bool SnapToGrammar(const FVector2D& LocalA, const FVector2D& LocalB, float HexSize,
+		FRTGeometrySegment& OutSegment);
+
+	/**
+	 * LA PALETTE: i tredici anchor di una cella, in ordine deterministico — il centro, poi i sei vertici,
+	 * poi i sei punti medi.
+	 */
+	static void AnchorsOfCell(const FRTCellId& Cell, TArray<FRTAnchorRef>& OutAnchors);
+
+	/**
+	 * DOVE CADE un anchor, in coordinate locali della cella che lo nomina.
+	 *
+	 * Deriva da `URTHexOccupancyLibrary::SectorBoundaryPoints`, che resta l'unica definizione dei dodici
+	 * punti: qui non si ricalcola nessun coseno.
+	 */
+	static FVector2D AnchorLocal(const FRTAnchorRef& Ref, float HexSize);
+
+	/**
+	 * IL RAPPRESENTANTE CANONICO di un anchor: lo stesso punto fisico, nominato dalla cella che
+	 * `URTHexLibrary::StableLess` mette per prima fra quelle che lo condividono.
+	 *
+	 * Un centro appartiene a una cella sola, un punto medio a due, un vertice a tre. La scelta e'
+	 * combinatoria e non misura distanze: risolverla per vicinanza fra punti reintrodurrebbe l'epsilon che
+	 * tutta questa grammatica esiste per evitare.
+	 *
+	 * ⚠️ **Idempotente per contratto**: `CanonicalAnchor(CanonicalAnchor(x))` e' `CanonicalAnchor(x)`. Non
+	 * essendo persistita, la chiave dev'essere totale e stabile — e' la proprieta' che sostituisce la
+	 * persistenza (`GEO-5`, `D-288`).
+	 */
+	static FRTAnchorRef CanonicalAnchor(const FRTAnchorRef& Ref);
+
+	/**
+	 * IL SEGMENTO FRA DUE ANCHOR della stessa cella, quando la grammatica lo esprime.
+	 *
+	 * E' la via dichiarata accanto a `SnapToGrammar` per chi non parte da un gesto del mouse — un test, un
+	 * importatore, un generatore. Falso quando la coppia non sta su nessun asse tattico: sono le
+	 * ventiquattro coppie che `GEO-8` ha deciso di rifiutare invece di far crescere la grammatica.
+	 */
+	static bool SegmentBetweenAnchors(const FRTAnchorRef& A, const FRTAnchorRef& B, float HexSize,
 		FRTGeometrySegment& OutSegment);
 };
