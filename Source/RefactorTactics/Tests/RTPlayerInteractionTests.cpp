@@ -12,6 +12,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
 #include "Turn/RTMovementActionLibrary.h"
+#include "Turn/RTHexSimLibrary.h" // #1939: lo snapshot e la sua Occupancy, che il test del rifiuto costruisce
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
@@ -1274,6 +1275,99 @@ bool FRTPlayerInputRayAwayFromPlaneDoesNotResolveBehindTest::RunTest(const FStri
 		Origin, HexSize, LayerHeight, /*ActiveLayer=*/ 0, /*bHasValidHit=*/ false, FVector::ZeroVector);
 	TestNotEqual(TEXT("verso il piano la cella e' avanti, non sotto la camera"), Ahead.X, 0);
 
+	return true;
+}
+
+/**
+ * 🔴 **Un rifiuto per cella occupata nomina CHI occupa, non chi pianifica** (`#1939`).
+ *
+ * Il messaggio riceveva `SelectedUnit`, quindi prometteva un occupante e consegnava il pianificante:
+ *
+ * ```text
+ * [RT] Waypoint (3,0,L0) rifiutato: cella occupata da un'altra unita' (RTUnit_0)   <- RTUnit_0 e' CHI CLICCA
+ * ```
+ *
+ * ⚠️ **Tre righe su quattro erano giuste**, ed e' per questo che il difetto e' rimasto: `NotOnMap`,
+ * `BlocksMovement` e il ramo del budget nominano *di chi e' il piano* e non promettono nessun secondo
+ * attore. Il test li pinna tutti e quattro, cosi' correggere il quarto non puo' spostare gli altri tre.
+ *
+ * ⚠️ L'id in `Occupancy` e' l'**indice** nell'array delle unita' vive, non uno `StableUnitId`: qui gli
+ * indici dello snapshot e quelli di `Units` combaciano per costruzione, che e' esattamente il contratto che
+ * `PlanningSnapshotFor` garantisce in partita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWaypointRejectionNamesOccupantTest,
+	"RefactorTactics.PlayerInput.WaypointRejectionNamesTheOccupant",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTWaypointRejectionNamesOccupantTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 3);
+	if (!TestNotNull(TEXT("mappa pulita"), MapActor))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	const FRTCellId Mia(0, 0, 0);
+	const FRTCellId Loro(2, 0, 0);
+	ARTUnit* Chi  = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Mia);
+	ARTUnit* Alt  = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), Loro);
+	if (!TestNotNull(TEXT("chi pianifica"), Chi) || !TestNotNull(TEXT("chi occupa"), Alt))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	// Gli id dello snapshot sono gli INDICI di `Units`: 0 = chi pianifica, 1 = chi occupa.
+	const TArray<ARTUnit*> Units = { Chi, Alt };
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(MapActor->MapAsset, {
+		FRTHexSimUnit(0, Mia,  /*MoveBudget=*/ 4),
+		FRTHexSimUnit(1, Loro, /*MoveBudget=*/ 4)
+	});
+
+	// --- 1. 🔴 Il ramo che era sbagliato -------------------------------------------------------------
+	{
+		const FString Riga = ARTPlayerController::DescribeWaypointRejection(
+			Snap, Units, /*PlannerIndex=*/ 0, Loro, /*SpentCost=*/ 0, /*Budget=*/ 4);
+
+		TestTrue(*FString::Printf(TEXT("nomina CHI OCCUPA: %s"), *Riga), Riga.Contains(Alt->GetName()));
+		// La riga resta utile anche su chi ha pianificato: sono due identita' diverse, e servono entrambe.
+		TestTrue(*FString::Printf(TEXT("e dice di chi era il piano: %s"), *Riga), Riga.Contains(Chi->GetName()));
+		// L'ordine e' cio' che rende la frase vera: l'occupante viene DOPO «occupata da».
+		TestTrue(*FString::Printf(TEXT("l'occupante segue «occupata da»: %s"), *Riga),
+			Riga.Contains(FString(TEXT("occupata da ")) + Alt->GetName()));
+	}
+
+	// --- 2. La propria cella non e' «occupata»: e' un waypoint legittimo, quindi il motivo e' il budget --
+	{
+		const FString Riga = ARTPlayerController::DescribeWaypointRejection(
+			Snap, Units, /*PlannerIndex=*/ 0, Mia, /*SpentCost=*/ 3, /*Budget=*/ 4);
+		TestTrue(*FString::Printf(TEXT("la propria cella non e' un'occupazione: %s"), *Riga),
+			Riga.Contains(TEXT("oltre il budget")));
+		TestTrue(*FString::Printf(TEXT("e il budget si legge: %s"), *Riga), Riga.Contains(TEXT("3 di 4")));
+	}
+
+	// --- 3. Fuori mappa: soggetto = chi pianifica, ed e' corretto -------------------------------------
+	{
+		const FString Riga = ARTPlayerController::DescribeWaypointRejection(
+			Snap, Units, /*PlannerIndex=*/ 0, FRTCellId(99, 99, 0), 0, 4);
+		TestTrue(*FString::Printf(TEXT("dice fuori dalla mappa: %s"), *Riga),
+			Riga.Contains(TEXT("fuori dalla mappa")));
+		TestTrue(*FString::Printf(TEXT("e nomina chi pianifica: %s"), *Riga), Riga.Contains(Chi->GetName()));
+	}
+
+	// --- 4. Un indice fuori range non inventa un nome -------------------------------------------------
+	{
+		const TArray<ARTUnit*> Monca = { Chi }; // l'occupante non ha un Actor a cui corrispondere
+		const FString Riga = ARTPlayerController::DescribeWaypointRejection(
+			Snap, Monca, /*PlannerIndex=*/ 0, Loro, 0, 4);
+		TestTrue(*FString::Printf(TEXT("resta un rifiuto per occupazione: %s"), *Riga),
+			Riga.Contains(TEXT("occupata da")));
+		TestFalse(*FString::Printf(TEXT("e NON attribuisce l'occupazione a chi pianifica: %s"), *Riga),
+			Riga.Contains(FString(TEXT("occupata da ")) + Chi->GetName()));
+	}
+
+	DestroyInteractionWorld(World);
 	return true;
 }
 
