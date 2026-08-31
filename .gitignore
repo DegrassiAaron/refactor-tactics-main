@@ -162,10 +162,14 @@ Content/RT/UI/_Generated/
 !Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset
 !Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset
 !Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset
-!Content/RT/Characters/Gadget/Animation/ABP_Gadget.uasset
-!Content/RT/Characters/Phase/Animation/ABP_Phase.uasset
-!Content/RT/Characters/Riktor/Animation/ABP_Riktor.uasset
-!Content/RT/Characters/Wraith/Animation/ABP_Wraith.uasset
+# Gli ABP_* dei quattro eroi NON hanno una riga, e non e' una dimenticanza: D-248 (2026-08-30) ha
+# stabilito che il grafo di locomozione vive in C++ (URTUnitAnimInstance) e che quei quattro .uasset
+# non vanno creati. Le righe c'erano, e sono uscite il 2026-08-31: finche' restavano, il comando di
+# misura di docs/technical/tooling/asset-map.md le contava fra gli "attesi" e dichiarava 4 assenti —
+# quattro asset mancanti che nessuno deve produrre. L'oracolo di D-248 era `grep -rn "ABP_" docs/`,
+# e questo file non sta in docs/: e' il motivo per cui erano sopravvissute alla decisione.
+# I montaggi AM_<Pack>_{Attack,Hit,Death} sono un'altra cosa, sono lavoro aperto di #288, e quando
+# arriveranno serviranno le loro righe qui.
 # I widget del frontend (E46). Stesso criterio degli altri: non sono arte, sono **logica di
 # presentazione da cui dipende una verifica** — `PIE-V01-FRONTEND-ERROR` e `-NAV` si eseguono su questi.
 # Le classi base vivono in C++ (`Source/RefactorTactics/Frontend/RTFrontendWidgets.h`) e questi `.uasset`
