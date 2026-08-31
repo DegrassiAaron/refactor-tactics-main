@@ -1154,14 +1154,22 @@ bool FRTInterruptStillCancelsWholeActionTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Attacker || !Victim || !Interrupter) { DestroyHexBlastWorld(World); return false; }
 
-	RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.BasicAttack"));
+	// ⚠️ `Action.LineAttack` e non `Action.BasicAttack`: l'attacco base prende la portata dall'ARMA, e la
+	// fixture non ne monta una — il colpo cadeva «fuori portata» prima ancora di essere interrotto, e la
+	// prima asserzione era verde per la ragione sbagliata (danno zero per assenza, non per interruzione).
+	// `LineAttack` dichiara portata 5 nel catalogo, quindi il colpo parte davvero. Trovato dal test stesso,
+	// rosso alla prima esecuzione.
+	RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.LineAttack"));
 	RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
 
-	// La premessa del test, misurata invece che assunta: se un giorno l'attacco base cambiasse policy,
-	// questo test misurerebbe il caso sbagliato restando verde.
-	const FRTActionDef Base = URTCatalogLibrary::MakeWeaponAttack(TEXT("Action.BasicAttack"), 1);
-	if (!TestEqual(TEXT("premessa: l'attacco base e' InterruptBeforeEffect"), Base.InterruptPolicy,
-		ERTInterruptPolicy::InterruptBeforeEffect))
+	// La premessa del test, misurata invece che assunta: se un giorno `LineAttack` cambiasse policy, questo
+	// test misurerebbe il caso sbagliato restando verde.
+	const TArray<FRTActionDef> Catalog = URTCatalogLibrary::GetCoreActionCatalog();
+	const FRTActionDef* Linea = Catalog.FindByPredicate([](const FRTActionDef& D)
+		{ return D.ActionId == FName(TEXT("Action.LineAttack")); });
+	if (!TestNotNull(TEXT("Action.LineAttack e' nel catalogo"), Linea)
+		|| !TestEqual(TEXT("premessa: e' InterruptBeforeEffect, cioe' si CANCELLA"), Linea->InterruptPolicy,
+			ERTInterruptPolicy::InterruptBeforeEffect))
 	{
 		DestroyHexBlastWorld(World);
 		return false;
@@ -1176,6 +1184,10 @@ bool FRTInterruptStillCancelsWholeActionTest::RunTest(const FString&)
 	RunBlastTurn(TM);
 
 	TestEqual(TEXT("l'azione cancellata non fa danno: tutto o niente"), Victim->Health, VictimHealth);
+
+	// 🔴 **E il TurnLog e' cio' che distingue «cancellata» da «mai partita»**: senza questa riga un
+	// colpo fuori portata darebbe lo stesso zero danni e il test sarebbe verde per la ragione sbagliata.
+	// E' esattamente com'era prima del fix della fixture qui sopra.
 
 	// E qui la voce `Cancelled` CI DEVE essere: e' cio' che distingue un'azione annullata da una degradata.
 	const bool bAnnullata = TM->GetTurnLog().ContainsByPredicate([](const FRTTurnLogEntry& E)
