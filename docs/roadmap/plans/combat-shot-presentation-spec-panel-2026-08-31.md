@@ -346,7 +346,7 @@ citato nel body, non lasciato implicito.
   all'autore; non è stato deciso qui.**
 - ✅ **La forma del payload è stata decisa** — vedi §12. La conseguenza operativa è che `#1801` **diventa
   bloccante**: la scelta allarga `ERTResolvedEventType`, quindi il gate va consegnato prima.
-- ⚠️ **`FRTHexCombatPlan` è la firma pura del resolver**, e il quinto canale la tocca. I test di determinismo
+- ⚠️ **`FRTHexBlastPlan` è la firma pura del resolver**, e il quinto canale la tocca. *(🔴 Questa riga diceva `FRTHexBlastPlan`, che non esiste: corretto il 2026-08-31 mentre* *[#1945](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1945) cercava la struct per aggiungerle il canale. Stesso errore in `D-301`, corretto insieme.)* I test di determinismo
   del piano coprono oggi `Hits` e gli altri canali ordinati: vanno **estesi al nuovo**, non ereditati.
 - ⚠️ **L'ambiente si è mosso due volte durante la sessione.** Il branch d'apertura era
   `feat/1864-gesto-select-erase`, la misura è avvenuta su `main` `8bfe8f84`, e `origin/main` è avanzato a
