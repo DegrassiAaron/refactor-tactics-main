@@ -1329,6 +1329,54 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 	}
 }
 
+FString ARTPlayerController::DescribeWaypointRejection(const FRTHexSnapshot& Snapshot,
+	const TArray<ARTUnit*>& Units, int32 PlannerIndex, const FRTCellId& Cell, int32 SpentCost, int32 Budget)
+{
+	// Il nome di chi pianifica: e' il soggetto corretto di TRE rami su quattro — dicono di chi e' il piano
+	// rifiutato — e resta utile anche nel quarto, dove pero' non e' l'occupante.
+	const ARTUnit* Planner = Units.IsValidIndex(PlannerIndex) ? Units[PlannerIndex] : nullptr;
+	const FString PlannerName = Planner != nullptr ? Planner->GetName() : FString(TEXT("unita' ignota"));
+
+	const FString Dove = FString::Printf(TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: "),
+		Cell.X, Cell.Y, Cell.Layer);
+
+	switch (URTHexSimLibrary::ClassifyWaypointCell(Snapshot, PlannerIndex, Cell))
+	{
+	case ERTHexWaypointReason::NotOnMap:
+		return Dove + FString::Printf(TEXT("cella fuori dalla mappa (%s)"), *PlannerName);
+
+	case ERTHexWaypointReason::BlocksMovement:
+		return Dove + FString::Printf(TEXT("cella bloccata (%s)"), *PlannerName);
+
+	case ERTHexWaypointReason::Occupied:
+	{
+		// 🔴 **Qui stava il difetto (#1939)**: la frase prometteva un occupante e riceveva `SelectedUnit`,
+		// cioe' chi pianifica. Chi legge concludeva che la propria unita' fosse l'ostacolo.
+		//
+		// ⚠️ L'id in `Occupancy` e' l'INDICE nell'array delle unita' vive, non uno `StableUnitId`:
+		// `PlanningSnapshotFor` lo dichiara, e `Units` viene da li' con gli stessi indici. Trattarlo come
+		// `StableUnitId` prenderebbe l'unita' sbagliata — silenziosamente, perche' entrambi sono `int32`.
+		const int32* Occupant = Snapshot.Occupancy.Find(Cell);
+		const ARTUnit* Blocker = (Occupant != nullptr && Units.IsValidIndex(*Occupant))
+			? Units[*Occupant] : nullptr;
+
+		// Senza un Actor da nominare si dice l'assenza, non un nome inventato: una riga che nomina l'unita'
+		// sbagliata e' peggio di una che ammette di non saperlo — ed e' precisamente il difetto che questa
+		// funzione chiude.
+		const FString BlockerName = Blocker != nullptr
+			? Blocker->GetName() : FString(TEXT("un'altra unita'"));
+
+		return Dove + FString::Printf(TEXT("cella occupata da %s (piano di %s)"), *BlockerName, *PlannerName);
+	}
+
+	case ERTHexWaypointReason::Ok:
+	default:
+		// La cella e' percorribile e libera: quel che manca sono punti movimento.
+		return Dove + FString::Printf(TEXT("oltre il budget (gia' spesi %d di %d) per %s"),
+			SpentCost, Budget, *PlannerName);
+	}
+}
+
 void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 {
 	ARTUnit* SelectedUnit = GetSelectedUnit();
@@ -1456,37 +1504,15 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		SelectedUnit->PlannedWaypoints.Pop(); // rifiutato: si torna al piano precedente, non a uno a meta'
 
 		// Il motivo GIUSTO, non un elenco di tre: se la cella in se' va bene, il rifiuto e' questione di budget,
-		// e allora si dice quanto era gia' speso. Test: HexSim.WaypointRejectionSaysWhich.
-		const ERTHexWaypointReason CellReason =
-			URTHexSimLibrary::ClassifyWaypointCell(Snapshot, UnitId, Cell);
-		const int32 Budget = SelectedUnit->GetEffectiveMoveRange();
-		switch (CellReason)
-		{
-		case ERTHexWaypointReason::NotOnMap:
-			UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: cella fuori dalla mappa (%s)"),
-				Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName());
-			break;
-		case ERTHexWaypointReason::BlocksMovement:
-			UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: cella bloccata (%s)"),
-				Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName());
-			break;
-		case ERTHexWaypointReason::Occupied:
-			UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: cella occupata da un'altra unita' (%s)"),
-				Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName());
-			break;
-		case ERTHexWaypointReason::Ok:
-		default:
-			// La cella e' percorribile e libera: quel che manca sono punti movimento. Il percorso precedente
-			// (quello ancora valido) dice quanto e' gia' impegnato.
-			{
-				const FRTHexPathResult Kept =
-					URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, SelectedUnit->PlannedWaypoints);
-				UE_LOG(LogRT, Log,
-					TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: oltre il budget (gia' spesi %d di %d) per %s"),
-					Cell.X, Cell.Y, Cell.Layer, Kept.TotalCost, Budget, *SelectedUnit->GetName());
-			}
-			break;
-		}
+		// e allora si dice quanto era gia' speso. Test: HexSim.WaypointRejectionSaysWhich per la
+		// classificazione, `PlayerInput.WaypointRejectionNamesTheOccupant` per il TESTO (#1939).
+		//
+		// Il percorso ancora valido serve al solo ramo del budget, e si calcola qui perche' e' l'unico punto
+		// che ha i waypoint gia' ripristinati dal `Pop`.
+		const FRTHexPathResult Kept =
+			URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, SelectedUnit->PlannedWaypoints);
+		UE_LOG(LogRT, Log, TEXT("%s"), *DescribeWaypointRejection(Snapshot, SnapshotUnits, UnitId, Cell,
+			Kept.TotalCost, SelectedUnit->GetEffectiveMoveRange()));
 		return;
 	}
 
