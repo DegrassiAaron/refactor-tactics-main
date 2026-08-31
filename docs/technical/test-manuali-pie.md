@@ -57,7 +57,9 @@
 
 ## Stato in numeri — 2026-08-30
 
-**182 voci**: ✅ **69 verdi** · 🟡 **23 parziali** · ❌ **2 fallite** · ⏳ **88 aperte**.
+**185 voci**: ✅ **69 verdi** · 🟡 **23 parziali** · ❌ **2 fallite** · ⏳ **91 aperte**.
+
+🔴 **Rimisurato il 2026-08-31 (quarto giro), mergiando `origin/main` nel branch dei due compositi: `185 · 69/23/2/91`, e l'intestazione diceva `182 · 69/23/2/88`.** ⚠️ **È la SECONDA volta oggi che lo stesso meccanismo colpisce questo file**, e la prima è registrata qui sotto. Il mio ramo aveva aggiunto due voci (`PIE-ACC-PERCEPTION`, `PIE-ACC-HUD`) e misurato `182`; nel frattempo `origin/main` ne aveva aggiunte **tre** — `PIE-HEX-MOVEMENT-PROBE`, `-FLUIDITA`, `-SURFACE`, dalla sonda di [#711](https://github.com/DegrassiAaron/refactor-tactics-main/issues/711) — e misurato `183`. Nessuno dei due numeri era falso quando fu scritto, e nessuno dei due lati poteva vedere l'altro. `+5` sul totale, tutto su ⏳. ⚠️ **Stavolta il merge è stato PULITO**: nessun conflitto, nessun marcatore, niente che chiedesse attenzione — le due aggiunte stanno in sezioni diverse del file. Il conflitto della prima volta era un **regalo**, perché fermava; qui l'unica cosa che ha segnalato lo scarto è stato rieseguire il comando dopo il merge. `senza-marcatore=0` prima e dopo.
 
 ➕ **Rimisurato il 2026-08-31 (terzo giro), scrivendo i due scenari compositi: il comando canonico contava `180 · 69/23/2/86` **prima** di toccare il file e `182 · 69/23/2/88` **dopo**.** Il delta è **esattamente due e tutto su ⏳**: entrano `PIE-ACC-PERCEPTION` e `PIE-ACC-HUD`, le voci ombrello dei due compositi. Verdi, parziali e fallite non si muovono, `senza-marcatore=0` prima e dopo. ⚠️ **Nascono NOT RUN e resteranno tali finché qualcuno non le esegue**: gli scenari sono stati scritti oggi e non sono mai girati, né headless né in PIE. La geometria di `Visual.Perception.Acceptance` è una traslazione pura di `Spec.Perception.MovingBreaksContact` — quindi i numeri sono **ereditati da una misura**, non dedotti — ma un file che non è mai stato eseguito non è un file verde, e questa riga non lo dice.
 
