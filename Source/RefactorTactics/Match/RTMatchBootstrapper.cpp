@@ -142,16 +142,37 @@ namespace RTMatchBootstrapDetail
 			HexMap->RebuildInstances();
 		}
 
-		if ((!HexMap->MapAsset || HexMap->MapAsset->NumCells() == 0) && Config.DemoArenaRadius > 0)
+		// 🔑 **Le due condizioni si leggono PRIMA di ripiegare, perche' il ripiego le cancella entrambe**
+		// (#1921): la riga sotto assegna un `MapAsset` popolato, e dopo quella nessuno puo' piu' sapere
+		// quale dei due casi fosse. Fino a #1921 non lo sapeva nessuno nemmeno prima: un solo esito
+		// copriva «nessun asset» e «asset a zero celle», che mandano a correggere cose opposte.
+		const bool bNoMapAsset = (HexMap->MapAsset == nullptr);
+		const bool bEmptyMapAsset = (HexMap->MapAsset && HexMap->MapAsset->NumCells() == 0);
+
+		if ((bNoMapAsset || bEmptyMapAsset) && Config.DemoArenaRadius > 0)
 		{
 			HexMap->MapAsset = URTMatchSetupLibrary::MakeDemoArena(HexMap, Config.DemoArenaRadius);
 			HexMap->RebuildInstances();
-			UE_LOG(LogRT, Warning,
-				TEXT("[RT] Mappa esagonale del livello assente o senza celle: uso un'arena di ripiego "
-					 "(esagono r=%d, %d celle). Posa un ARTHexMapActor con un MapAsset popolato per giocare su una "
-					 "mappa d'autore."),
-				Config.DemoArenaRadius, HexMap->MapAsset ? HexMap->MapAsset->NumCells() : 0);
-			Report.Add(ERTStartupOutcome::LevelMapMissing,
+
+			// Il ripiego e' lo stesso; cambia la frase, perche' cambia cosa deve fare chi la legge.
+			if (bNoMapAsset)
+			{
+				UE_LOG(LogRT, Warning,
+					TEXT("[RT] Il livello non porta nessuna mappa esagonale: uso un'arena di ripiego "
+						 "(esagono r=%d, %d celle). Posa un ARTHexMapActor con un MapAsset popolato per giocare su "
+						 "una mappa d'autore."),
+					Config.DemoArenaRadius, HexMap->MapAsset ? HexMap->MapAsset->NumCells() : 0);
+			}
+			else
+			{
+				UE_LOG(LogRT, Warning,
+					TEXT("[RT] La mappa esagonale del livello e' VUOTA (zero celle): uso un'arena di ripiego "
+						 "(esagono r=%d, %d celle). L'ARTHexMapActor c'e' gia': rigenera la fixture del suo "
+						 "MapAsset, oppure assegnagliene uno popolato."),
+					Config.DemoArenaRadius, HexMap->MapAsset ? HexMap->MapAsset->NumCells() : 0);
+			}
+
+			Report.Add(bNoMapAsset ? ERTStartupOutcome::LevelMapMissing : ERTStartupOutcome::LevelMapEmpty,
 				FString::Printf(TEXT("arena di ripiego r=%d"), Config.DemoArenaRadius));
 		}
 	}

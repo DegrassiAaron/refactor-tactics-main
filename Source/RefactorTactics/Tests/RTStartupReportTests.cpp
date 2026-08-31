@@ -11,6 +11,7 @@
 #include "RTWorldFixtures.h"
 #include "RTGameMode.h"
 #include "Map/RTHexMapActor.h"
+#include "Map/RTHexMapAsset.h" // #1921: il caso «asset presente e VUOTO» va costruito, non evocato
 #include "Engine/World.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -37,6 +38,9 @@ namespace
 		ERTStartupOutcome::UsingTestArena,
 		ERTStartupOutcome::UsingDemoArena,
 		ERTStartupOutcome::LevelMapMissing,
+		// #1921: il gemello. `LevelMapMissing` diceva «assente o senza celle» e copriva due condizioni che
+		// mandano a correggere cose opposte — ed e' la SECONDA quella che si verifica davvero.
+		ERTStartupOutcome::LevelMapEmpty,
 		ERTStartupOutcome::UsingFallbackFormat,
 		ERTStartupOutcome::NoTurnManager,
 		// I due di CP 46.6 (#941), gemelli dei precedenti dall'altro capo del ciclo: senza livello del
@@ -119,6 +123,7 @@ bool FRTStartupFatalSetTest::RunTest(const FString&)
 	TestFalse(TEXT("arena di prova"), URTStartupReportLibrary::IsFatal(ERTStartupOutcome::UsingTestArena));
 	TestFalse(TEXT("arena demo"), URTStartupReportLibrary::IsFatal(ERTStartupOutcome::UsingDemoArena));
 	TestFalse(TEXT("mappa assente"), URTStartupReportLibrary::IsFatal(ERTStartupOutcome::LevelMapMissing));
+	TestFalse(TEXT("mappa vuota"), URTStartupReportLibrary::IsFatal(ERTStartupOutcome::LevelMapEmpty));
 	TestFalse(TEXT("formato di ripiego"), URTStartupReportLibrary::IsFatal(ERTStartupOutcome::UsingFallbackFormat));
 	TestFalse(TEXT("nessun turn manager"), URTStartupReportLibrary::IsFatal(ERTStartupOutcome::NoTurnManager));
 
@@ -202,7 +207,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupFatalFoundAfterDegradationTest,
 bool FRTStartupFatalFoundAfterDegradationTest::RunTest(const FString&)
 {
 	FRTStartupReport Report;
-	Report.Add(ERTStartupOutcome::LevelMapMissing, TEXT("0 celle"));
+	Report.Add(ERTStartupOutcome::LevelMapEmpty, TEXT("0 celle")); // #1921: «0 celle» e' LevelMapEmpty
 	Report.Add(ERTStartupOutcome::FormatMapMismatch, TEXT("Standard su mappa 2v2"));
 
 	TestEqual(TEXT("il fatale si trova"),
@@ -357,7 +362,11 @@ bool FRTStartupReportsBothG13ReservesTest::RunTest(const FString&)
 	bool bNoTurnManager = false;
 	for (const FRTStartupNote& Note : Report.Notes)
 	{
+		// #1921: `LevelMapEmpty` e' un ripiego di MAPPA quanto il fratello. Qui il caso costruito e'
+		// «nessun asset», quindi oggi passa da `LevelMapMissing`; ometterlo renderebbe questo test cieco
+		// al giorno in cui il setup cambiasse, che e' il modo in cui un oracolo smette di guardare.
 		bMapFallback |= (Note.Outcome == ERTStartupOutcome::LevelMapMissing
+			|| Note.Outcome == ERTStartupOutcome::LevelMapEmpty
 			|| Note.Outcome == ERTStartupOutcome::UsingTestArena
 			|| Note.Outcome == ERTStartupOutcome::UsingDemoArena);
 		bNoTurnManager |= (Note.Outcome == ERTStartupOutcome::NoTurnManager);
@@ -710,7 +719,7 @@ bool FRTModalArmsFromReportTest::RunTest(const FString&)
 
 	// Un fatale **in mezzo** a due degradazioni: va trovato lui, non la prima nota.
 	FRTStartupReport WithFatal;
-	WithFatal.Add(ERTStartupOutcome::LevelMapMissing, TEXT("0 celle"));
+	WithFatal.Add(ERTStartupOutcome::LevelMapEmpty, TEXT("0 celle")); // #1921: il nome combacia col dettaglio
 	WithFatal.Add(ERTStartupOutcome::FormatMapMismatch, TEXT("Standard su mappa 2v2"));
 	WithFatal.Add(ERTStartupOutcome::NoTurnManager, TEXT("dopo"));
 
@@ -753,6 +762,92 @@ bool FRTModalShowForOutcomeKeepsTheFilterTest::RunTest(const FString&)
 	TestEqual(TEXT("e il dettaglio"), Modal->GetDetail(), FString(TEXT("prova")));
 
 	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **`MapAsset` assente e `MapAsset` vuoto sono due esiti diversi** (#1921).
+ *
+ * 🔴 **E' l'oracolo che non esisteva, ed e' il motivo per cui il difetto e' sopravvissuto.** Fino a qui
+ * `LevelMapMissing` si documentava *«assente o senza celle»*: un valore solo per due condizioni che
+ * mandano a correggere cose opposte — la' manca l'actor, qui c'e' e la sua mappa e' vuota. Nessun test
+ * chiedeva quale dei due fosse, quindi fonderli non rompeva niente.
+ *
+ * ⚠️ **Il caso vuoto e' l'unico che si verifica davvero**, ed e' documentato come osservato in PIE su
+ * `L_DevSandbox`. Il caso assente e' quello che il vocabolario nominava.
+ *
+ * ⛔ Non prova il ripiego, che **non cambia**: entrambi ripiegano sull'arena demo e restano degradati.
+ * Prova cio' che viene DETTO, che e' l'unica cosa che #1921 tocca.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStartupMissingAndEmptyMapAreDistinctTest,
+	"RefactorTactics.Startup.MissingMapAssetIsNotAnEmptyMapAsset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStartupMissingAndEmptyMapAreDistinctTest::RunTest(const FString&)
+{
+	// Un piccolo aiuto locale invece di due blocchi copiati: la differenza fra i due casi deve restare
+	// leggibile in due righe, altrimenti il test prova la propria impalcatura.
+	auto OutcomesFor = [this](bool bAssignEmptyAsset, TArray<ERTStartupOutcome>& OutOutcomes) -> bool
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+		ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+		ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+		if (!TestNotNull(TEXT("game mode"), GameMode) || !TestNotNull(TEXT("mappa"), HexMap))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return false;
+		}
+
+		// L'UNICA differenza fra i due casi. `NewObject` senza celle e' esattamente la condizione osservata:
+		// l'actor c'e', il suo asset c'e', e non contiene niente.
+		HexMap->MapAsset = bAssignEmptyAsset ? NewObject<URTHexMapAsset>(HexMap) : nullptr;
+
+		GameMode->SetupHexMatch(HexMap);
+
+		for (const FRTStartupNote& Note : GameMode->GetStartupReport().Notes)
+		{
+			OutOutcomes.Add(Note.Outcome);
+		}
+
+		RTWorldFixtures::DestroyWorld(World);
+		return true;
+	};
+
+	TArray<ERTStartupOutcome> SenzaAsset;
+	TArray<ERTStartupOutcome> AssetVuoto;
+	if (!OutcomesFor(false, SenzaAsset) || !OutcomesFor(true, AssetVuoto))
+	{
+		return false;
+	}
+
+	// 🔑 Il cuore: ciascuno porta il PROPRIO esito, e non quello del fratello. Asserire solo la presenza
+	// lascerebbe passare un'implementazione che li aggiunge entrambi ogni volta.
+	TestTrue(TEXT("senza MapAsset -> LevelMapMissing"),
+		SenzaAsset.Contains(ERTStartupOutcome::LevelMapMissing));
+	TestFalse(TEXT("senza MapAsset -> e NON LevelMapEmpty"),
+		SenzaAsset.Contains(ERTStartupOutcome::LevelMapEmpty));
+
+	TestTrue(TEXT("MapAsset vuoto -> LevelMapEmpty"),
+		AssetVuoto.Contains(ERTStartupOutcome::LevelMapEmpty));
+	TestFalse(TEXT("MapAsset vuoto -> e NON LevelMapMissing"),
+		AssetVuoto.Contains(ERTStartupOutcome::LevelMapMissing));
+
+	// Il ripiego non cambia: nessuno dei due e' fatale, entrambi sono degradati.
+	TestFalse(TEXT("assente non e' fatale"),
+		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::LevelMapMissing));
+	TestFalse(TEXT("vuoto non e' fatale"),
+		URTStartupReportLibrary::IsFatal(ERTStartupOutcome::LevelMapEmpty));
+	TestTrue(TEXT("assente e' degradato"),
+		URTStartupReportLibrary::IsDegraded(ERTStartupOutcome::LevelMapMissing));
+	TestTrue(TEXT("vuoto e' degradato"),
+		URTStartupReportLibrary::IsDegraded(ERTStartupOutcome::LevelMapEmpty));
+
+	// E i due testi non sono lo stesso testo: se lo fossero, l'enum sarebbe sdoppiato e il banner no.
+	TestNotEqual(TEXT("e i due dicono cose diverse"),
+		URTStartupReportLibrary::DescribeOutcome(ERTStartupOutcome::LevelMapMissing).ToString(),
+		URTStartupReportLibrary::DescribeOutcome(ERTStartupOutcome::LevelMapEmpty).ToString());
+
 	return true;
 }
 

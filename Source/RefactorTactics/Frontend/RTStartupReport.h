@@ -91,8 +91,26 @@ enum class ERTStartupOutcome : uint8
 	UsingTestArena,
 	/** `MapSource=GeneratedDemoArena`: arena di ripiego per scelta esplicita. */
 	UsingDemoArena,
-	/** La mappa del livello e' assente o **senza celle**: si ripiega sull'arena demo. */
+	/**
+	 * Il livello non porta **nessun** `MapAsset`: si ripiega sull'arena demo.
+	 *
+	 * ⚠️ **Non copre l'asset presente e vuoto**, che e' `LevelMapEmpty`. Fino a #1921 questo valore diceva
+	 * «assente **o** senza celle», e i due casi mandavano a correggere cose diverse con la stessa frase.
+	 */
 	LevelMapMissing,
+	/**
+	 * Il livello porta un `MapAsset` che ha **zero celle**: si ripiega sull'arena demo (#1921).
+	 *
+	 * 🔑 **E' l'unico dei due che si verifica davvero oggi**, ed e' documentato come osservato in
+	 * `RTMatchBootstrapper`: *«un asset assegnato ma VUOTO non allestisce nulla e premere Play mostra una
+	 * schermata nera senza spiegazione (osservato in PIE su `L_DevSandbox`, il cui asset si e' ritrovato a
+	 * 0 celle)»*. Ha un esito proprio per la stessa ragione di `MatchRequestNotConsumed`: la causa e la
+	 * correzione sono diverse da quelle del fratello, e dire «il livello non porta una mappa» a chi
+	 * l'actor **l'ha posato** lo manda a cercare un difetto che non ha.
+	 *
+	 * Degradato come `LevelMapMissing`: il ripiego e' lo stesso, cambia solo cio' che viene detto.
+	 */
+	LevelMapEmpty,
 	/**
 	 * `MatchLevel` non e' configurato: `PLAY` non sa quale livello aprire (CP 46.4, #939).
 	 *
