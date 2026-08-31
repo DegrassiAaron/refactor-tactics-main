@@ -73,7 +73,7 @@ pressione a portare le unità a dodici direzioni, e nessuna sede viva che lo sug
 | Relazione a 6 lati relativi | [D-126](../../decisions/RT_PDR_00_Decision_Log.md) | **zero** occorrenze in `Source/` | — | **MISSING** → [#726](https://github.com/DegrassiAaron/refactor-tactics-main/issues/726) |
 | Environmental Cover | [`spec-copertura-cp91.md`](../../gameplay/spec-copertura-cp91.md) · [`spec-copertura-alta-cp92.md`](../../gameplay/spec-copertura-alta-cp92.md) | `URTHexCoverLibrary` | 21 `Cover.*` | **IMPLEMENTED** |
 | Cover ⊕ Facing (combat) | CP 16.2 | `EffectiveCoverReduction` | `Combat.BackAttackIgnoresCover`, `Combat.FlankAttackKeepsCover` | **IMPLEMENTED** |
-| Guard direzionale | [D-206](../../decisions/RT_PDR_00_Decision_Log.md) → [D-289](../../decisions/RT_PDR_00_Decision_Log.md) | `RTTurnManager` (pool frontale) | `Combat.BackAttackIgnoresGuard` | **IMPLEMENTED**, corpus in corso → [#1919](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1919) |
+| Guard direzionale | [D-206](../../decisions/RT_PDR_00_Decision_Log.md) → [D-292](../../decisions/RT_PDR_00_Decision_Log.md) | `RTTurnManager` (pool frontale) | `Combat.BackAttackIgnoresGuard` | **IMPLEMENTED**, corpus in corso → [#1919](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1919) |
 | Brace | `FAC-3` **aperta** | non direzionale per decisione | `Combat.ShieldWorksFromAnyDirection` | **CURRENT by decision** |
 | Overwatch ← Facing | [D-020](../../decisions/RT_PDR_00_Decision_Log.md), E14 | `ReadFacingForConsumer` senza produttori in gioco | 2 test, **0** chiamanti | **PARTIAL** → [#1933](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1933) |
 | LOS / Trajectory | `URTHexVisionLibrary`, `URTHexPathLibrary` | servizi **separati**, consumano `BlocksTraversal` | — | **IMPLEMENTED** |
@@ -83,6 +83,8 @@ pressione a portare le unità a dodici direzioni, e nessuna sede viva che lo sug
 | TurnLog | [`spec-turnlog.md`](../../technical/architecture/spec-turnlog.md) | `ERTFacingOutcome` (11 valori) | `RTTurnLogCauseTests` | **IMPLEMENTED** |
 | Debug | — | `rt.Debug.DrawCover`, `RTDebugReportLibrary` (`facing=`, `cover[…]`) | `RTDebugConsoleTests` | **IMPLEMENTED** |
 | Privacy | [`AGENTS.md`](../../../AGENTS.md) §4 | il facing è stato **pubblico**: nessun intento privato coinvolto | `RTTeamKnowledgeTests` | **IMPLEMENTED** |
+
+> 🔁 **Corretto il 2026-08-31 (secondo passaggio), riga `Guard direzionale`**: l'owner citato era `D-289`, che è la posa e la copertura intra-hex. Il pool frontale è [`D-292`](../../decisions/RT_PDR_00_Decision_Log.md) — *«la `Guard` … diventa un POOL di 15 danni assorbibili, che solo i colpi dell'arco FRONTALE consumano»* —, consegnata da [#1909](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1909) (chiusa). ⚠️ La misura della riga non cambia: cambia il numero che la possiede.
 
 ## 5. Conflitti trovati — due, entrambi documentali
 

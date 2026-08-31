@@ -27,7 +27,7 @@
 
 ## ✅ Chiuse il 2026-08-31 da `D-288` — il segmento tattico e la reticola degli anchor, cinque voci di cui quattro erano già decise
 
-Il documento Drive «RefactorTactics — Tactical Segment & Anchor Reticle v0.1 — Decision Consolidation» (2026-08-31) specializza [`D-285`](decisions/RT_PDR_00_Decision_Log.md) per il **segmento singolo** e per una palette di authoring di tredici anchor per esagono. La sua sezione `OPEN DECISIONS` elenca ciò che dichiara non deciso; l'audit di [`#1892`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1892) ha estratto le cinque voci che toccano la geometria e le ha istruite contro `origin/main = b498afec`.
+Il documento Drive «RefactorTactics — Tactical Segment & Anchor Reticle v0.1 — Decision Consolidation» (2026-08-31) specializza [`D-289`](decisions/RT_PDR_00_Decision_Log.md) per il **segmento singolo** e per una palette di authoring di tredici anchor per esagono. La sua sezione `OPEN DECISIONS` elenca ciò che dichiara non deciso; l'audit di [`#1892`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1892) ha estratto le cinque voci che toccano la geometria e le ha istruite contro `origin/main = b498afec`.
 
 🔑 **L'esito dell'istruttoria è che quattro voci su cinque non erano scelte aperte**: erano decisioni che il repository aveva già preso — una nell'intestazione di un test, una in `ValidateMap`, una in una nota di [`#712`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/712) — e che nessun documento aveva raccolto. La quinta ha trovato una **contraddizione interna** fra il bake e i due validator. Le voci restano qui con la loro istruttoria, per la disciplina che questo file dichiara in testa: la domanda barrata col suo perché vale quanto la risposta.
 
@@ -44,10 +44,12 @@ Il documento Drive «RefactorTactics — Tactical Segment & Anchor Reticle v0.1 
 > restano label di UI: non autorizzano una rinomina di `ERTHexCoverType`, e `Wall` non diventa un
 > `CoverLevel`. Che il muro interno blocchi vista e proiettili resta chiuso da
 > [`D-269`](decisions/RT_PDR_00_Decision_Log.md)/[`D-270`](decisions/RT_PDR_00_Decision_Log.md) — `GEO-4`,
-> `PLC-3`, `PLC-4`. Le mitigazioni Low/High restano materia `BAL-*`. Le otto `COV-*` restano aperte in
+> `PLC-3`, `PLC-4`. Le mitigazioni Low/High restano materia `BAL-*`. Le `COV-*` restano di
 > [`#1833`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833): `COV-2` in particolare —
-> *«i `CoverAnchor` sono autorati, generati o ibridi?»* — chiede **chi produce** un'ancora di copertura,
+> *«i `CoverAnchor` sono autorati, generati o ibridi?»* — chiedeva **chi produce** un'ancora di copertura,
 > non **come si nomina** un punto della reticola, ed è la domanda a cui `GEO-5` non risponde.
+> 🔁 **Aggiornato il 2026-08-31**: erano otto e aperte alla scrittura; `COV-2`…`COV-6` sono state chiuse da
+> [`D-302`](decisions/RT_PDR_00_Decision_Log.md) lo stesso giorno, e restano aperte `COV-1`, `COV-7`, `COV-8`.
 
 ---
 
@@ -238,6 +240,33 @@ da una domanda di presentazione.
 
 ---
 
+
+---
+
+## ✅ Chiuse il 2026-08-31 da `D-302` — copertura selezionabile: cinque risposte d'autore, e meta' di quel che dicono era gia' vero
+
+Le risposte d'autore sulle `COV-*` (seduta 2026-08-31), ratificate da
+[`D-302`](decisions/RT_PDR_00_Decision_Log.md) sotto [`D-289`](decisions/RT_PDR_00_Decision_Log.md). Owner del modello:
+[`spec-cover-placement-intra-hex.md`](technical/systems/spec-cover-placement-intra-hex.md).
+
+⚠️ **Ratificato non significa implementato, ed è misurato**: `FRTUnitStateDigest` ha **sette campi** e nessuno
+è la copertura scelta, un costo di copertura in `Source/` dà **zero**, e nessun `CoverSelection` esiste come tipo.
+Le sette sub-issue di `E23.6`/`E23.7` ([#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826)…[#1832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1832)) **restano
+aperte**: una decisione non chiude un'implementazione.
+
+| ID | Domanda | Esito, e come si è chiusa |
+|---|---|---|
+| ~~`COV-2`~~ | ~~I `CoverAnchor` sono autorati, generati o ibridi?~~ | ✅ **IBRIDO.** Default **generato** e deterministico dalla geometria tattica compatta, con **aggiunte e sovrascritture autorate** per i casi speciali; la precedenza autorata e' **locale alla sorgente/opzione mirata** e le opzioni generate non correlate **restano**. 🔑 La forma non e' nuova: e' quella di [`D-131`](decisions/RT_PDR_00_Decision_Log.md) / `FRTHexCover::bGenerated`, il cui contratto dice gia' *«una copertura dipinta a mano vince sempre»*. Il salto — dalla provenienza di un **campo** a quella di un'**entita'** — e' dichiarato. ⛔ Non riapre `GEO-5` ne' `GEO-7`. 🔎 **Istruttoria conservata**: Decide chi possiede il dato e quanto costa una mappa. `FRTHexCover::bGenerated` / [`D-131`](decisions/RT_PDR_00_Decision_Log.md) è il candidato naturale per la precedenza, ma **non è ovvio** che si applichi: là la provenienza distingue due produttori dello stesso **campo**, qui distinguerebbe due produttori di un'**entità** |
+| ~~`COV-3`~~ | ~~Come si serializza e si replica la scelta di `CoverOption`/`CoverSide`?~~ | ✅ **Stato discreto autorevole, canonico sul server.** Identificatori stabili e canonici, **nessun float autorevole**, **nessun riferimento ad Actor** in serializzazione o hash. ✅ **Meta' era gia' vera, misurata**: `FRTCoverSourceId` e' gia' interamente intero con `operator==` e `GetTypeHash` a ordine fisso. 🔐 **Privacy**: proiezione di planning **solo alla propria squadra**, avversario e canale pubblico **sanitizzati**, replay pubblico sanitizzato, audit privato completo solo nel canale autorizzato. ⚠️ *Autorevole non significa replicabile.* 🔎 **Istruttoria conservata**: ⚠️ **Si vincola con `COV-4`**, come `PLC-1` e `PLC-7` si vincolavano. `FRTCoverSourceId` è già interamente discreto e stabile — un enum e quattro interi — quindi il bit-packing è *possibile*; quale sia non è deciso, e sceglierlo dentro una PR d'implementazione sarebbe sceglierlo per inerzia |
+| ~~`COV-4`~~ | ~~La scelta di copertura entra in `FRTUnitStateDigest` e nell'hash di stato?~~ | ✅ **Sì: entra in `FRTUnitStateDigest` e nell'hash di stato**, perche' due stati che differiscono **solo** per la copertura scelta possono risolvere in modo diverso — letteralmente il criterio scritto in `RTMatchStateHash.h`. ⚠️ **Delimita [`D-243`](decisions/RT_PDR_00_Decision_Log.md) senza ribaltarla**, dove [`D-289`](decisions/RT_PDR_00_Decision_Log.md) l'aveva gia' delimitata: lo *spicchio di posa* resta fuori, la **scelta** entra. Decisa **insieme a `COV-3`**, come `PLC-1` e `PLC-7`. 🔎 **Istruttoria conservata**: Il criterio scritto in quel file è *«un campo entra nell'hash se e solo se due oggetti possono differire solo per quello»*. `D-289` dice che la copertura selezionata è **stato tattico autorevole** e cambia la mitigazione subita — il che suggerisce sì — ma [`D-243`](decisions/RT_PDR_00_Decision_Log.md) ha appena tenuto **fuori** il `Placement` con lo stesso criterio, e il `Facing` è ancora fuori mentre decide esiti ([#1800](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1800)). Tre precedenti, due direzioni |
+| ~~`COV-5`~~ | ~~Come interagisce il `Facing` con la copertura scelta, per ciascuna categoria di abilità?~~ | ✅ **Indipendenti, e servono ENTRAMBI i test.** La copertura non auto-ruota l'unita' e non vincola il `Facing`; la mitigazione si applica solo se passano entrambi i test direzionali applicabili, il che **conferma** `CP 16.2` invece di emendarlo. Direzione d'impatto: diretto/mischia = sorgente→bersaglio, linea/traiettoria = direzione d'impatto, area = centro d'impatto→bersaglio. `IgnoreCover` **scavalca** il cover resolver. 🔑 **Chiude tre dei quattro valori che `FAC-13` proponeva** (`FromSource`/`FromTrajectory`/`FromImpactCenter`); ⚠️ **`FAC-13` resta aperta per `NonDirectional`** — il colpo senza sorgente puntuale non e' deciso qui. 🔎 **Istruttoria conservata**: `CP 16.2` dice già che un colpo fuori dall'arco frontale **annulla** la riduzione, e `FRTHexCover` documenta che le due direzionalità sono **ortogonali**. Con una copertura *scelta* la domanda cambia: la faccia vincola il facing, lo suggerisce, o è indipendente? Adiacente alle `FAC-*` di [#339](https://github.com/DegrassiAaron/refactor-tactics-main/issues/339), che **non** sostituisce |
+| ~~`COV-6`~~ | ~~Muoversi da copertura a copertura ha un costo o un bonus?~~ | ✅ **+1 MP per ENTRARE, nessun bonus.** Raggiungere una cella in copertura costa **un punto movimento oltre** il costo normale; **nessun bonus generico cover-to-cover**, perche' se fosse gratis restare in copertura smetterebbe di essere una scelta. 🔑 E' una voce **esplicita di economia dell'azione**: il numero vive nel catalogo, non si deduce dalla geometria. Il riposizionamento **dentro** la cella non e' questo costo ed e' `COV-7`. 🔎 **Istruttoria conservata**: Tocca l'economia del turno (`E38`, [#609](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609)) e non il modello spaziale: se è gratis è sempre ottimale, se costa è una voce di catalogo che oggi non esiste |
+
+> 🔎 **Cosa queste cinque voci NON decidono.** `COV-1` non è fra loro: le tre categorie di footprint sono
+> decise, la **clearance** no, e la riconciliazione con [`D-071`](decisions/RT_PDR_00_Decision_Log.md) resta aperta qui sotto. `COV-7` e
+> `COV-8` non hanno owner più recente e restano aperte. `MSE-4` è un'altra domanda, con owner
+> [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826).
+
 ## Aperte — copertura selezionabile e posa nella cella, dal Decision Record del 2026-08-30
 
 Origine: il Decision Record d'autore *«RefactorTactics — Cover Placement & Intra-Hex Geometry»*, recepito da
@@ -248,6 +277,10 @@ Origine: il Decision Record d'autore *«RefactorTactics — Cover Placement & In
 `D-289` **congela il modello spaziale** — regioni di posa, sorgenti/opzioni/facce, uno slot di occupancy,
 traversata esplicita — e dichiara esplicitamente ciò che **non** congela. Queste sono quelle voci.
 
+🔁 **Rimasugli di otto: tre.** `COV-2`…`COV-6` sono chiuse da [`D-302`](decisions/RT_PDR_00_Decision_Log.md) — la sezione qui
+sopra ne conserva l'istruttoria — e `COV-1` è **cambiata**: le tre categorie di footprint sono decise, e
+aperta resta soltanto la loro riconciliazione con [`D-071`](decisions/RT_PDR_00_Decision_Log.md).
+
 ⚠️ **Non riaprono ciò che è già deciso.** Il vocabolario dei livelli di copertura è
 [`D-271`](decisions/RT_PDR_00_Decision_Log.md) (`None`/`Low`/`High`, chiuso); che la geometria interna
 produca copertura e occluda è [`D-269`](decisions/RT_PDR_00_Decision_Log.md) e
@@ -256,12 +289,7 @@ produca copertura e occluda è [`D-269`](decisions/RT_PDR_00_Decision_Log.md) e
 
 | ID | Domanda | Perché non si deduce | Innesco |
 |---|---|---|---|
-| `COV-1` | **Quali categorie di footprint esistono, e con quale clearance?** | Nessun produttore esiste: nessuna unità dichiara un footprint, e il repository non ha mai misurato una posa. `FRTFootprintProfile::MinContiguousWedges` vale `1` — l'**identità**, che non decide niente. È un numero di bilanciamento, e `FRTOccupancyThresholds::BlockedFrom = 6` è il precedente da non ripetere: nessuno lo scelse per una regola, e per mesi ha significato «cella non calpestabile» | [#1827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1827), quando la posa arriva nel percorso di partita |
-| `COV-2` | **I `CoverAnchor` sono autorati, generati o ibridi?** | Decide chi possiede il dato e quanto costa una mappa. `FRTHexCover::bGenerated` / [`D-131`](decisions/RT_PDR_00_Decision_Log.md) è il candidato naturale per la precedenza, ma **non è ovvio** che si applichi: là la provenienza distingue due produttori dello stesso **campo**, qui distinguerebbe due produttori di un'**entità** | [#1829](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1829) |
-| `COV-3` | **Come si serializza e si replica la scelta di `CoverOption`/`CoverSide`?** | ⚠️ **Si vincola con `COV-4`**, come `PLC-1` e `PLC-7` si vincolavano. `FRTCoverSourceId` è già interamente discreto e stabile — un enum e quattro interi — quindi il bit-packing è *possibile*; quale sia non è deciso, e sceglierlo dentro una PR d'implementazione sarebbe sceglierlo per inerzia | [#1829](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1829) |
-| `COV-4` | **La scelta di copertura entra in `FRTUnitStateDigest` e nell'hash di stato?** | Il criterio scritto in quel file è *«un campo entra nell'hash se e solo se due oggetti possono differire solo per quello»*. `D-289` dice che la copertura selezionata è **stato tattico autorevole** e cambia la mitigazione subita — il che suggerisce sì — ma [`D-243`](decisions/RT_PDR_00_Decision_Log.md) ha appena tenuto **fuori** il `Placement` con lo stesso criterio, e il `Facing` è ancora fuori mentre decide esiti ([#1800](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1800)). Tre precedenti, due direzioni | **si decide con `COV-3`** |
-| `COV-5` | **Come interagisce il `Facing` con la copertura scelta, per ciascuna categoria di abilità?** | `CP 16.2` dice già che un colpo fuori dall'arco frontale **annulla** la riduzione, e `FRTHexCover` documenta che le due direzionalità sono **ortogonali**. Con una copertura *scelta* la domanda cambia: la faccia vincola il facing, lo suggerisce, o è indipendente? Adiacente alle `FAC-*` di [#339](https://github.com/DegrassiAaron/refactor-tactics-main/issues/339), che **non** sostituisce | il primo consumatore di mitigazione direzionale su copertura scelta |
-| `COV-6` | **Muoversi da copertura a copertura ha un costo o un bonus?** | Tocca l'economia del turno (`E38`, [#609](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609)) e non il modello spaziale: se è gratis è sempre ottimale, se costa è una voce di catalogo che oggi non esiste | `E38` |
+| `COV-1` | **Come si riconcilia il modello `Small`/`Medium`/`Large` gia' approvato con [`D-071`](decisions/RT_PDR_00_Decision_Log.md)?** ⛔ **Non riapre le tre categorie**: sono decise dall'autore e ratificate da [`D-302`](decisions/RT_PDR_00_Decision_Log.md) — con clearance esplicita e data-driven, e il *Safe Placement Volume* come guida visiva d'authoring, **non** come clearance di gameplay. Aperta e' la **clearance**, non la tassonomia | `D-071` ha scelto **un solo raggio** — `StandardUnitClearance` = apotema — e ha dichiarato scartato il secondo: *«con un solo raggio non esiste il varco “ci passo ma non ci sto” … servirebbe il secondo numero, scartato qui»*. Tre categorie **sono** quel secondo numero, quindi la riconciliazione o supera `D-071` punto (1) o mappa le tre categorie su un raggio solo: è una scelta umana, e dedurla qui sarebbe deciderla per inerzia. 🔎 **Istruttoria conservata**: Nessun produttore esiste: nessuna unità dichiara un footprint, e il repository non ha mai misurato una posa. `FRTFootprintProfile::MinContiguousWedges` vale `1` — l'**identità**, che non decide niente. È un numero di bilanciamento, e `FRTOccupancyThresholds::BlockedFrom = 6` è il precedente da non ripetere: nessuno lo scelse per una regola, e per mesi ha significato «cella non calpestabile» | [#1827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1827), quando la posa arriva nel percorso di partita |
 | `COV-7` | **Quali sono le regole finali di vault e reposition?** | È la traversata autorata che `E23.7` consuma. Senza, `ERTIntraCellTraversal` resta a **due** valori — ed è corretto che ci resti: un terzo valore senza produttore è un campo che nessuno legge, il difetto che questo repository ha già pagato quattro volte | [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828) |
 | `COV-8` | **Una copertura distrutta rigenera le `CoverOption` della cella, e quando?** | `CP 22.3` ([#1563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1563)) dice già che *«una copertura distrutta non si richiude»*. Con sorgenti multiple per cella la domanda si allarga: distrutta una sorgente, le altre opzioni restano? e chi stava usando quella distrutta dove si trova? | `E22` / [#1563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1563) |
 

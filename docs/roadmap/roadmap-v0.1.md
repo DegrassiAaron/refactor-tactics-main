@@ -1903,7 +1903,11 @@ dichiarava v0.2, e **cinque owner** si contraddicevano — GitHub, Feature Regis
 >
 > Owner documentale del modello:
 > [`spec-cover-placement-intra-hex.md`](../technical/systems/spec-cover-placement-intra-hex.md). Decisioni
-> aperte `COV-1`…`COV-8`: [#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833).
+> `COV-1`…`COV-8`: [#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833).
+> 🔁 **Aggiornato il 2026-08-31**: `COV-2`…`COV-6` sono **chiuse** da [`D-302`](../decisions/RT_PDR_00_Decision_Log.md) — anchor
+> ibridi, `CoverSelection` autorevole nel digest, `Facing` indipendente, **+1 MP** per entrare in copertura.
+> Restano **aperte** `COV-1` (solo la clearance: la riconciliazione con [`D-071`](../decisions/RT_PDR_00_Decision_Log.md)), `COV-7` e
+> `COV-8`. ⚠️ **Nessuna delle regole ratificate è implementata**, e le sette sub-issue restano aperte.
 >
 > ✅ **Già in `main`**: `URTHexCoverPlacementLibrary`, 13 test `RefactorTactics.CoverPlacement.*`, suite
 > completa **1472/1472, 0 fallimenti**, run dichiarata **VALIDA** da `scripts/rt-suite.ps1`.

@@ -10,8 +10,10 @@
 > **Non possiede** la grammatica dei segmenti né la misura dell'occupancy: quelle restano di
 > [`spec-hex-geometry-authoring.md`](spec-hex-geometry-authoring.md), che questo documento **corregge** in
 > due punti (§5, §6) e per il resto consuma.
-> **Non possiede** i numeri: percentuali di mitigazione, categorie di footprint e raggi di clearance sono
-> decisioni aperte in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) § `COV-*`
+> **Non possiede** i numeri: percentuali di mitigazione e raggi di clearance restano decisioni aperte in
+> [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) § `COV-*`
+> 🔁 **Aggiornato il 2026-08-31**: [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) ha ratificato `COV-2`…`COV-6` — §13 — e le
+> **categorie** di footprint (`Small`/`Medium`/`Large`) non sono più aperte; la loro **clearance** sì.
 > ([#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833)).
 
 ---
@@ -249,6 +251,20 @@ La scelta di copertura di un piano è **informazione di piano**, e segue il mode
 (invariante #6). Un client avversario **non** riceve la `CoverOption`/`CoverSide` di un piano che non ha
 diritto di vedere, e il canary di privacy deve coprire anche questi campi.
 
+🔐 **Precisato da [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) / `COV-3`**, e sono quattro canali distinti:
+
+| Canale | Cosa vede |
+|---|---|
+| Server | tutto: la `CoverSelection` è canonica qui |
+| Client della **propria** squadra | la proiezione di planning della propria squadra |
+| Client **avversario** | **sanitizzato**: nessuna `CoverOption`/`CoverSide` nascosta |
+| Replay **pubblico** | **sanitizzato** |
+| Audit **privato** | completo, **solo** nel canale autorizzato |
+
+⚠️ **Autorevole non significa replicabile, e non lo significa nemmeno dopo §13.3.** Che la
+`CoverSelection` entri nell'hash di stato la rende **identità di stato**, non un permesso di trasmissione:
+l'hash è un valore derivato, e un avversario che lo riceve non riceve i campi da cui è derivato.
+
 ---
 
 ## 11. Determinismo
@@ -260,6 +276,11 @@ diritto di vedere, e il canary di privacy deve coprire anche questi campi.
   prima di `B`. Nessun `TMap` attraversa queste funzioni.
 - Stabile: l'identità di una sorgente sopravvive a un riordino della collezione e all'inversione degli
   estremi.
+- 🔁 **Aggiunto da [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md)**: l'**ordine di generazione non cambia l'identità** di un anchor
+  (`COV-2`), e la **precedenza dell'override autorato è deterministica e locale** alla sorgente/opzione
+  mirata — non dipende da quale override è stato scritto per ultimo.
+- 🔁 **Nessun riferimento ad Actor** attraversa serializzazione autorevole o hash (`COV-3`): è la stessa
+  ragione per cui `FRTUnitStateDigest` è una struttura di dati e non un `ARTUnit`.
 
 ---
 
@@ -286,7 +307,94 @@ il giorno in cui si chiude — ed è il suo scopo.
 
 ---
 
-## 13. Decisioni aperte
+## 13. Ciò che `D-302` ratifica
+
+[`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) consuma le risposte d'autore su `COV-2`…`COV-6`. Le regole qui sotto sono **normative**;
+⚠️ **nessuna di esse è implementata**, ed è misurato — vedi §13.5.
+
+### 13.1 Chi produce un `CoverAnchor`: **ibrido** (`COV-2`)
+
+Il default è **generato** e deterministico dalla geometria tattica compatta. L'autore **aggiunge** anchor e
+**sovrascrive** quelli generati per i casi speciali.
+
+🔑 **La precedenza autorata è locale.** Vale per la **sorgente/opzione mirata**, non per la cella: le
+opzioni generate non correlate **restano**. Sovrascrivere una faccia non azzera le altre.
+
+✅ **La forma non è nuova.** È quella di [`D-131`](../../decisions/RT_PDR_00_Decision_Log.md) / `FRTHexCover::bGenerated`, il cui contratto in
+`RTGeometryBake.h` dice già che il rebake *«rimuove le coperture con `bGenerated = true`»* e che *«una
+copertura dipinta a mano vince sempre»*. Il salto è dichiarato: là la provenienza distingue due produttori
+di un **campo**, qui di un'**entità**.
+
+⛔ Non riapre `GEO-5` (identità dell'anchor derivata) né `GEO-7` (bordo condiviso = due facce),
+chiuse da [`D-288`](../../decisions/RT_PDR_00_Decision_Log.md).
+
+### 13.2 `CoverSelection` è stato autorevole discreto (`COV-3`)
+
+- **Identificatori stabili e canonici.** Nessun float autorevole, **nessun riferimento ad Actor** in
+  serializzazione o hash.
+- **Canonica sul server.** Il client propone, l'autorità valida e applica — [`D-003`](../../decisions/RT_PDR_00_Decision_Log.md).
+- ✅ **Metà di questa regola è già vera, e non è un'aspirazione**: `FRTCoverSourceId` è già interamente
+  intero (`Kind`, `AxisOrEdge`, `Offset`, `AlongMin`, `AlongMax`), con `operator==` e `GetTypeHash` a ordine
+  fisso — *«nessun float attraversa un identificatore che prima o poi finirà in un hash»*.
+
+Il **formato** di bit-packing resta non congelato: sceglierlo dentro una PR d'implementazione sarebbe
+sceglierlo per inerzia, ed è la ragione per cui `COV-3` esisteva. Ciò che è deciso è il **contratto**.
+
+### 13.3 `CoverSelection` entra nel digest e nell'hash (`COV-4`)
+
+Due stati che differiscono **solo** per la copertura scelta possono risolvere in modo diverso, quindi sono
+**stati logici distinti**. È letteralmente il criterio scritto in `RTMatchStateHash.h`: *«un campo entra
+nell'hash se e solo se due oggetti possono differire solo per quello»*.
+
+⚠️ **Delimita [`D-243`](../../decisions/RT_PDR_00_Decision_Log.md) senza ribaltarla**, dove [`D-289`](../../decisions/RT_PDR_00_Decision_Log.md) l'aveva già delimitata: lo
+*spicchio di posa* resta fuori da snapshot e hash — non è uno stato —, la **scelta** di copertura entra.
+Sono due oggetti diversi.
+
+🔑 **`COV-3` e `COV-4` sono una decisione sola**, come `PLC-1` e `PLC-7`: l'identità di stato senza una
+serializzazione stabile non è verificabile, e una serializzazione stabile che non entra nell'hash non
+protegge nulla.
+
+### 13.4 `Facing` e copertura sono indipendenti (`COV-5`)
+
+- La copertura **non** auto-ruota l'unità e **non** vincola il `Facing`.
+- La mitigazione si applica **solo se passano entrambi** i test direzionali applicabili: quello della faccia
+  di copertura **e** quello dell'arco di `Facing`. ✅ Questo **conferma** `CP 16.2` — *un colpo fuori
+  dall'arco frontale annulla la riduzione* — invece di emendarlo.
+- **Direzione d'impatto**, per categoria: diretto/mischia = **sorgente → bersaglio**; linea/traiettoria =
+  **direzione d'impatto**; area = **centro d'impatto → bersaglio**.
+- `IgnoreCover` **scavalca il cover resolver**: non è una mitigazione portata a zero, è un ramo che non si
+  percorre.
+
+🔑 **Tre dei quattro valori che `FAC-13` proponeva sono decisi qui** (`FromSource`, `FromTrajectory`,
+`FromImpactCenter`). ⚠️ **`FAC-13` resta aperta per il quarto**: il colpo **senza sorgente puntuale**
+— terreno che brucia, effetto non direzionale — non è deciso, ed è ciò che l'autore ha rinviato.
+
+### 13.5 Entrare in copertura costa **+1 MP** (`COV-6`)
+
+Raggiungere una cella in copertura costa **un punto movimento oltre** il costo normale del terreno.
+**Nessun bonus generico cover-to-cover**: se muoversi fra coperture fosse gratis o premiato, restare in
+copertura smetterebbe di essere una scelta.
+
+🔑 **È una voce esplicita di economia dell'azione**, non un costo dedotto dalla geometria: il numero
+vive nel catalogo, non in `ComputeMask`. Il **riposizionamento dentro la cella** non è questo costo ed è
+`COV-7`, aperta.
+
+### 13.6 ⏳ Stato d'implementazione — misurato, non dichiarato
+
+| Regola | Implementata? | Misura |
+|---|---|---|
+| `COV-2` provenienza ibrida | ❌ **no** | nessun tipo `CoverAnchor` esiste in `Source/` |
+| `COV-3` `CoverSelection` serializzata | ❌ **no** | nessun tipo `CoverSelection` esiste; `FRTCoverSourceId` è già discreto e stabile, ed è l'unica metà vera |
+| `COV-4` nel digest | ❌ **no** | `FRTUnitStateDigest` ha **sette** campi: `UnitId`, `Cell`, `Health`, `Shield`, `Energy`, `bAlive`, tag. Nessuno è la copertura |
+| `COV-5` doppio test direzionale | ❌ **no** | `EffectiveCoverReduction` legge il `Facing`, non una copertura **scelta** |
+| `COV-6` +1 MP | ❌ **no** | un costo di copertura in `Source/` dà **zero** |
+
+⛔ **Una decisione non chiude un'implementazione.** Le sette sub-issue di `E23.6`/`E23.7`
+([#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826)…[#1832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1832)) **restano aperte**.
+
+---
+
+## 14. Decisioni aperte
 
 Tutte in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) §
 *Aperte — copertura selezionabile e posa nella cella*, con owner
@@ -294,19 +402,19 @@ Tutte in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) §
 
 | ID | Domanda |
 |---|---|
-| `COV-1` | categorie di footprint e raggi di clearance |
-| `COV-2` | `CoverAnchor` autorati, generati o ibridi |
-| `COV-3` | serializzazione e rappresentazione di rete della scelta |
-| `COV-4` | la scelta entra nel digest di stato e nell'hash? — **si decide con `COV-3`** |
-| `COV-5` | interazione finale fra `Facing` e copertura scelta, per categoria di abilità |
-| `COV-6` | costi/bonus del movimento da copertura a copertura |
+| `COV-1` | **solo la clearance**: le categorie `Small`/`Medium`/`Large` sono decise — §13 — e aperta è la riconciliazione con [`D-071`](../../decisions/RT_PDR_00_Decision_Log.md) |
+| ~~`COV-2`~~ | ~~`CoverAnchor` autorati, generati o ibridi~~ — ✅ **ibrido**, [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) §13.1 |
+| ~~`COV-3`~~ | ~~serializzazione e rappresentazione di rete della scelta~~ — ✅ **contratto deciso**, §13.2 |
+| ~~`COV-4`~~ | ~~la scelta entra nel digest di stato e nell'hash?~~ — ✅ **sì**, §13.3 |
+| ~~`COV-5`~~ | ~~interazione finale fra `Facing` e copertura scelta~~ — ✅ **indipendenti, doppio test**, §13.4 |
+| ~~`COV-6`~~ | ~~costi/bonus del movimento da copertura a copertura~~ — ✅ **+1 MP, nessun bonus**, §13.5 |
 | `COV-7` | regole finali di vault e reposition |
 | `COV-8` | rigenerazione delle `CoverOption` dopo la distruzione di una sorgente |
 | `MSE-4` | il contatto puntuale è invasione? — **innesco arrivato**, vedi §12 |
 
 ---
 
-## 14. Come si verifica
+## 15. Come si verifica
 
 | Domanda | Chi risponde |
 |---|---|
@@ -333,7 +441,7 @@ Done della v0.1 chiede evidenza, e qui l'evidenza è la suite — non un'immagin
 
 ---
 
-## 15. Errori che questo modello previene
+## 16. Errori che questo modello previene
 
 1. **Contare i settori invece di guardarne la forma.** Sei liberi in fila e sei in due gruppi da tre sono lo
    stesso numero e due spazi diversi.
