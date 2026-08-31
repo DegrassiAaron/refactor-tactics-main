@@ -58,7 +58,7 @@ timeout è una funzione pura costante. Per questo il *quando* del click non camb
 
 Il diagramma del §1 mette `CLEANUP` in fondo, e da lì si deduce facilmente la cosa sbagliata: che l'ambiente
 sia **solo** una fase finale. Non lo è, e il runtime lo dimostra da prima che questo paragrafo esistesse
-([D-288](../decisions/RT_PDR_00_Decision_Log.md)).
+([D-291](../decisions/RT_PDR_00_Decision_Log.md)).
 
 | | Quando agisce | Chi lo esegue |
 |---|---|---|
