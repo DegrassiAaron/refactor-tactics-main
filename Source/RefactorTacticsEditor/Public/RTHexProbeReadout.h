@@ -51,7 +51,30 @@ namespace RTHexProbe
 	 * sonda appena aperta direbbe «nessuna strada» — un verdetto sulla mappa dove non c'e' ancora nessuno a
 	 * cui applicarlo.
 	 */
-	FReadout Describe(bool bHasUnit, ERTHexProbeExclusion Exclusion, int32 Cost, int32 Budget, int32 PathCells);
+	/**
+	 * Il budget di un eroe, e **se quell'eroe esiste**.
+	 *
+	 * 🔴 Le due cose stanno insieme perche' separarle e' cio' che ha prodotto il difetto: un `HeroId`
+	 * sconosciuto dava `0`, e `0` e' indistinguibile da «un eroe che non puo' muoversi». Il pannello ne
+	 * ricavava «fuori budget», mandando a correggere il numero invece del nome.
+	 *
+	 * ⚠️ **Chiede il catalogo, quindi NON si chiama a ogni hover.** Il roster si costruisce da zero a ogni
+	 * invocazione — quattro `URTHeroData` e una `NewObject` per ciascuna delle loro azioni — e pagarlo per
+	 * cella sorvolata satura il game thread. Si risolve quando l'eroe **cambia**, e il valore si tiene.
+	 */
+	struct FBudget
+	{
+		/** `false` = nessun eroe con quell'id nel catalogo. Non e' «zero movimento». */
+		bool bKnown = false;
+
+		/** I punti movimento dell'eroe. `0` quando `bKnown` e' `false`. */
+		int32 Points = 0;
+	};
+
+	FBudget ResolveBudget(FName HeroId);
+
+	FReadout Describe(bool bHasUnit, ERTHexProbeExclusion Exclusion, int32 Cost, int32 Budget, int32 PathCells,
+		bool bKnownHero = true);
 
 	/**
 	 * Va rifatta la domanda? Vero solo se la cella puntata e' **cambiata**.

@@ -269,7 +269,7 @@ namespace RTMatchBootstrapDetail
 	 */
 	static ARTUnit* SpawnHero(UWorld* World, int32 TeamId, const URTHeroData* Hero,
 		const FRTMatchBootstrapConfig& Config, const FRTCellId& InCell, const FVector& Origin,
-		float HexSize, float LayerHeight)
+		float HexSize, float LayerHeight, bool bBotAlly = false)
 	{
 		if (!World || Hero == nullptr)
 		{
@@ -293,7 +293,12 @@ namespace RTMatchBootstrapDetail
 			// Legge la decisione LATCHATA e non il resolver: le quattro unita' di una partita devono ricevere la
 			// stessa risposta, e una console variable digitata fra uno spawn e l'altro produrrebbe una squadra
 			// mista. Vale anche per il costo — questa riga gira una volta per unita'.
-			Unit->bIsBotControlled = (TeamId == 1) || Config.bAutobattle;
+			//
+			// ⚠️ **Il terzo addendo e' per SLOT, non per squadra**, ed e' la prima volta che questo campo
+			// distingue due unita' della stessa squadra: `bBotAlly` arriva gia' deciso dal ciclo di
+			// allestimento, che e' l'unico posto dove la posizione in formazione e' nota. Chi lo calcola
+			// cappa anche il conteggio — vedi `FRTMatchBootstrapConfig::BotAllyCount`.
+			Unit->bIsBotControlled = (TeamId == 1) || Config.bAutobattle || bBotAlly;
 			Unit->ConfigureFromHeroData(Hero);
 
 			// EQUIPAGGIAMENTO (`#1054`, CP 7.4). Fino al 2026-08-16 nessuno equipaggiava: `DefaultLoadoutFor`
@@ -524,11 +529,44 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 		}
 	}
 
+	// ALLEATI AL BOT (`rt.Match.BotAllies`): quante unita' della squadra del giocatore pianifica il bot.
+	//
+	// ⛔ **Il cap lascia sempre un'unita' al giocatore**, e non e' prudenza: senza, una squadra 0 interamente
+	// al bot con l'autobattle SPENTO produce una partita che nessuno puo' chiudere — l'input non e' inerte
+	// (`IsPlanningInputInert()` legge la modalita' non presidiata, che qui non e' in vigore), ma non c'e'
+	// nessuna unita' selezionabile su cui premere Ready, e il turno si chiude solo a timer scaduto. E'
+	// l'autobattle senza la banda che lo dichiara: la forma peggiore, perche' sembra un difetto.
+	//
+	// ⚠️ Con l'autobattle in vigore il cap si toglie: li' zero unita' umane e' esattamente cio' che si e'
+	// chiesto, e la modalita' lo annuncia da sola due schermate piu' su.
+	const int32 Team0Size = Lineups.IsValidIndex(0) ? Lineups[0].Num() : 0;
+	const int32 MaxBotAllies = Config.bAutobattle ? Team0Size : FMath::Max(0, Team0Size - 1);
+	const int32 BotAllies = FMath::Clamp(Config.BotAllyCount, 0, MaxBotAllies);
+	if (BotAllies < Config.BotAllyCount)
+	{
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] BotAllies=%d chiesti su una formazione di %d: ridotti a %d perche' almeno un'unita' "
+				 "deve restare al giocatore. Per una partita senza input serve l'autobattle."),
+			Config.BotAllyCount, Team0Size, BotAllies);
+	}
+	if (BotAllies > 0)
+	{
+		// Stessa ragione dell'annuncio dell'autobattle: chi vede un compagno muoversi da solo non deve
+		// dedurre la modalita' dal comportamento, e una console variable resta accesa a ogni Play successivo.
+		UE_LOG(LogRT, Warning,
+			TEXT("[RT] ALLEATI AL BOT (da: %s): %d unita' della squadra 0 su %d sono pianificate dal bot e "
+				 "non sono comandabili."),
+			*Config.BotAllySourceLabel, BotAllies, Team0Size);
+	}
+
 	for (int32 TeamId = 0; TeamId < Formations.Num(); ++TeamId)
 	{
 		for (int32 Slot = 0; Slot < Lineups[TeamId].Num(); ++Slot)
 		{
 			const FName& HeroId = (*Formations[TeamId])[Slot];
+			// Dal FONDO della formazione: `[Gadget, Phase]` con `BotAllies == 1` da' Phase al bot e lascia
+			// Gadget al giocatore. Con `BotAllies == 0` il confronto e' `Slot >= Team0Size`, sempre falso.
+			const bool bBotAlly = (TeamId == 0) && (Slot >= Team0Size - BotAllies);
 			if (CellIndex >= Start.Num())
 			{
 				UE_LOG(LogRT, Warning, TEXT("[RT] Celle di partenza insufficienti: %s non entra in campo"),
@@ -542,7 +580,8 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 				continue;
 			}
 
-			SpawnHero(World, TeamId, Lineups[TeamId][Slot], Config, Start[CellIndex], Origin, HexSize, LayerHeight);
+			SpawnHero(World, TeamId, Lineups[TeamId][Slot], Config, Start[CellIndex], Origin, HexSize,
+				LayerHeight, bBotAlly);
 			Spawned.Add(HeroId);
 			++CellIndex;
 		}
