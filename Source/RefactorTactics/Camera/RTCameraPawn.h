@@ -34,6 +34,29 @@ public:
 
 	/** Zoom variando la lunghezza del braccio (valore positivo = allontana). */
 	void AddZoom(float AxisValue);
+	/**
+	 * Posizione normalizzata dentro l'intervallo di zoom: `0` al braccio minimo, `1` al massimo.
+	 *
+	 * E' la **sorgente unica** da cui i consumatori dello zoom derivano il proprio valore, invece di
+	 * rileggere `TargetArmLength` e normalizzarlo ciascuno a modo suo. Prima di #1834 esisteva una sola
+	 * derivazione — la scala del pan — scritta accanto al proprio consumatore come rapporto grezzo
+	 * `TargetArmLength / DefaultArmLength`: corretta, ma non normalizzata e senza tetto (`0.125` a zoom
+	 * minimo, `5.0` al massimo). Il difetto non era quella riga: era che la seconda curva sarebbe stata
+	 * scritta allo stesso modo, e due formule accanto ai rispettivi consumatori non si possono confrontare
+	 * ne' tarare insieme.
+	 *
+	 * Monotona crescente con la distanza. Senza `SpringArm` restituisce `0`.
+	 */
+	float GetZoomAlpha() const;
+
+	/**
+	 * Porta di scrittura equivalente a `GetZoomAlpha`: `alpha` fuori da `[0..1]` viene clampato.
+	 *
+	 * Esiste perche' zoom e alpha non possano divergere. Scrive `TargetArmLength` e riallinea tutto cio'
+	 * che dipende dalla distanza — stato strategico, limiti del pivot, inclinazione — passando dagli
+	 * stessi path di `AddZoom`, non da una seconda strada.
+	 */
+	void SetZoomAlpha(float InAlpha);
 
 	/**
 	 * Zoom **ancorato a un punto del mondo**: quel punto resta dov'e' sullo schermo mentre la distanza
@@ -248,6 +271,11 @@ public:
 	{
 		DefaultPitch = InDefault;
 		CameraPitch = InCurrent;
+		// ⚠️ **L'offset va riallineato**, altrimenti il primo ricalcolo dopo uno zoom riporterebbe il
+		// pitch al derivato e lo stato di partenza che il test ha appena stabilito sparirebbe. Vale
+		// finche' `PitchZoomDelta` e' `0` — il default — dove il derivato coincide con `DefaultPitch`;
+		// un test che tara la curva imposta il delta **dopo** questa chiamata.
+		ManualPitchOffset = InCurrent - InDefault;
 	}
 
 	/**
@@ -257,6 +285,17 @@ public:
 	 * cioe' un valore che questa stessa issue dichiara **taratura aperta da playtest**: il giorno in cui
 	 * il playtest lo cambiasse, il test cadrebbe per una decisione di tuning invece che per un difetto.
 	 */
+	/**
+	 * Fissa l'inclinazione aggiuntiva a zoom massimo (per i test).
+	 *
+	 * ⚠️ Serve a rendere **discriminante** il test della derivazione: il default e' `0`, cioe' una curva
+	 * neutra, e un test che verificasse la derivazione senza impostare un delta passerebbe anche se la
+	 * funzione ignorasse del tutto lo zoom.
+	 */
+	void SetPitchZoomDeltaForTest(float InDelta) { PitchZoomDelta = InDelta; }
+
+	/** Inclinazione accumulata dall'input manuale, separata dalla parte derivata dallo zoom. */
+	float GetManualPitchOffset() const { return ManualPitchOffset; }
 	void SetSensitivitiesForTest(float InYaw, float InPitch)
 	{
 		YawSensitivity = InYaw;
@@ -463,6 +502,34 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
 		meta = (ClampMin = "0.01"))
 	float PitchSensitivity = 0.5f;
+	/**
+	 * Gradi di inclinazione **aggiuntiva** a zoom massimo, rispetto a `DefaultPitch`.
+	 *
+	 * Il pitch derivato vale `DefaultPitch + PitchZoomDelta * GetZoomAlpha()`, e l'input manuale resta un
+	 * offset sopra quel valore invece di sostituirlo: allontanandosi si guadagna la vista dall'alto senza
+	 * che l'orbita fatta a mano venga silenziosamente disfatta.
+	 *
+	 * ⛔ **Default `0`, cioe' nessuna derivazione**, ed e' deliberato: la curva esiste e si tara in
+	 * `L_CameraFeatureLab` (#1780). Un valore scelto qui prima di essere provato diventerebbe canone per
+	 * inerzia — e finche' resta `0` l'inclinazione in partita e' identica a quella di prima di #1834.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Camera",
+		meta = (ClampMin = "-89.0", ClampMax = "89.0"))
+	float PitchZoomDelta = 0.f;
+
+	/**
+	 * Quanto l'input manuale ha inclinato la vista **oltre** il valore derivato dallo zoom.
+	 *
+	 * 🔴 Separarlo da `CameraPitch` e' cio' che rende la derivazione non distruttiva. Sommando
+	 * direttamente su `CameraPitch`, il primo ricalcolo dopo uno scroll avrebbe cancellato l'orbita
+	 * dell'utente — e il sintomo («la camera raddrizza da sola») non assomiglia alla causa.
+	 *
+	 * Clampato in modo che il risultato resti dentro `[MinPitch, MaxPitch]`: senza, trascinare a fondo
+	 * corsa accumulerebbe un offset che il clamp nasconde, e il primo trascinamento nel verso opposto non
+	 * risponderebbe.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Camera")
+	float ManualPitchOffset = 0.f;
 
 	/**
 	 * Quanto il centro camera puo' andare **oltre il bordo della mappa**, in celle.
@@ -539,6 +606,11 @@ protected:
 	 * mano si disallineano alla prima aggiunta (un roll, un clamp, un `bUsePawnControlRotation`).
 	 */
 	void ApplyArmRotation();
+	/** Scala del pan derivata dalla sorgente unica: quanto terreno copre una unita' di input. */
+	float GetPanDistanceScale() const;
+
+	/** Riallinea `CameraPitch` a `derivato(alpha) + ManualPitchOffset`, clampando entrambi. */
+	void RecomputePitchFromZoom();
 
 	/**
 	 * Riporta una posizione dentro i limiti di scorrimento: estensione reale delle celle della mappa piu'
