@@ -40,6 +40,61 @@ originale»).
 Il mapping **non rinomina niente nel gameplay**: `Hero.Flux` resta `Hero.Flux`, e uno slot Paragon usato come
 base visuale non diventa un personaggio RefactorTactics.
 
+## Mapping FX del kit — abilità RT → asset Paragon
+
+[D-297](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-31) estende [D-037](../decisions/RT_PDR_00_Decision_Log.md)
+dall'eroe alla **singola azione**: uno slot FX Paragon può essere la sorgente visiva di un'abilità
+RefactorTactics, e **non ne vincola il comportamento**. Vale qui la stessa separazione della tabella sopra —
+questa colonna è presentazione, non gameplay.
+
+> ⚠️ **Questa tabella non è un criterio d'accettazione.** D-297 toglie il campo `Fidelity` — «alta / molto
+> alta» non ha scala e non è falsificabile. Una riga vuota qui non è un difetto da riempire.
+
+### Cosa il pacchetto permette di scrivere oggi
+
+Misurato su `Content/FabAsset/Paragon/` (2026-08-31): **un eroe su quattro** ha gli FX segmentati per abilità.
+
+| Eroe | `FX/` del pacchetto | Tabella costruibile |
+|---|---|---|
+| Gadget | `Abilities/` → `ElectroGate · Primary · RollingBot · StickyBomb · Ultimate · VisionBot` | sì |
+| Phase | `Materials · Meshes · Particles · Textures` | **no** — nessuna partizione per abilità |
+| Riktor | `Cut_Outs · Materials · Meshes · Particles · Textures · VectorFields` | **no** |
+| Wraith | `Materials · Meshes · Particles · Textures · VectorFields` | **no** |
+
+🔴 **Per tre eroi su quattro la colonna nasce vuota, e va lasciata vuota.** Riempirla con i nomi di skill
+Paragon presi da un kit di consolidamento reintrodurrebbe proprio gli identificatori che D-297 ha misurato
+come inaffidabili: il kit che quella decisione consuma si dichiarava *«verificato nelle fonti»* e attribuiva a
+Gadget un `Plasma Blast` che appartiene a **un altro eroe del pack**.
+
+### Gadget
+
+| AbilityId | Abilità | FX Paragon | Base |
+|---|---|---|---|
+| `Hero.Gadget.ArcPulse` | Impulso ad arco *(attacco base)* | `Primary` | **misurata** — corrispondenza di **ruolo**: `ArcPulse` è l'indice 0 del kit RT, e `Primary` è l'attacco base lato Paragon — lo nomina il soundcue `Gadget_Effort_Ability_Primary_Fire`, che è audio e non FX, ma fissa il **vocabolario** del pack |
+| `Hero.Gadget.LinearDischarge` | Scarica lineare | — | aperta |
+| `Hero.Gadget.ConductiveNode` | Nodo conduttore | — | aperta |
+| `Hero.Gadget.Overload` | Sovraccarico | — | aperta |
+| `Hero.Gadget.ReactiveCapacitor` | Capacitore reattivo | — | aperta |
+
+Restano **non assegnate** tre cartelle: `RollingBot`, `StickyBomb`, `VisionBot`.
+
+⚠️ **Quelle tre orfane non sono un buco da tappare: sono la prova materiale di D-297.** Il Gadget Paragon
+*dispiega* — droni, mine, bot da ricognizione; il Gadget RefactorTactics **conduce** — `Affinity.Electricity`,
+il grafo conduttivo di `Action.Electrify`, la sinergia con `Status.Wet`. Sono due kit diversi che condividono
+una mesh, ed è esattamente ciò che significa *«lo slot non è l'identità»*. Assegnare `StickyBomb` a
+un'abilità elettrica per riempire una cella sarebbe far derivare il comportamento dalla presentazione, cioè
+il legame che D-297 esclude.
+
+Le quattro righe `aperta` si chiudono **una alla volta**, quando qualcuno guarda l'effetto e decide che serve
+a quell'abilità. Nessuna scadenza: una cella vuota qui non blocca niente.
+
+### Prerequisito dichiarato
+
+[#1663](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1663) è **OPEN** — *«nel pacchetto gli
+eroi non hanno animazioni: 756 asset Paragon cotti, zero clip»*. Finché quella issue non chiude, questa
+tabella è un **mapping di intenzione** e non una consegna di presentazione: nomina l'effetto che si vorrebbe
+usare, non un effetto che la partita sa già mostrare.
+
 ## Immagini
 
 Ogni pagina contiene una card grafica locale in `images/paragon/`. È un placeholder informativo generato dai dati. Può essere sostituito con uno screenshot in-engine dell'asset corrispondente senza modificare il Markdown.

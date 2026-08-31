@@ -121,7 +121,9 @@ FRTLinearMoveResult URTMovementActionLibrary::ResolveLinearMove(const URTHexMapA
 				continue;
 			}
 
-			// La carica si ferma ADDOSSO al nemico (impatto); per tutti gli altri e' solo un ostacolo.
+			// La carica si ferma ADIACENTE al nemico e lo colpisce (impatto); per tutti gli altri e' solo un
+			// ostacolo. Il `break` qui sotto lascia `Current` dov'e', quindi `Final` e' la cella PRECEDENTE
+			// all'occupante: e' la regola, non un dettaglio del ciclo — [D-296].
 			Result.Stop = (Style == ERTMovementStyle::LinearCharge && Hostiles.Contains(*Occupant))
 				? ERTLinearStop::Impact
 				: ERTLinearStop::BlockedByUnit;

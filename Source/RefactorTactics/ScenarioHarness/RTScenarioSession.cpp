@@ -153,6 +153,21 @@ namespace
 			// disponibile la scelta.
 			TEXT("DecisionBoundary"),
 
+			// ➕ **`InterceptRevalidation` SCENDE qui con `#1060`**, e le tre condizioni che la sua vecchia
+			// riga prescriveva sono soddisfatte tutte e tre — verificate, non assunte:
+			//   · il **runtime** esiste da `#200`: `URTHexCombatLibrary` rivalida la geometria sul bersaglio
+			//     effettivo (D-017), con tre test che la pinnano (`Cover.InterceptRecalculatesOnEffectiveTarget`,
+			//     `...RevalidatesFacingOnEffectiveTarget`, `...DoesNotOpenSecondOpportunity`);
+			//   · il **VOCABOLARIO** esiste da `#1196`: `OriginalTargetEquals` ed `EffectiveTargetEquals` sono
+			//     tipi di assertion, con parsing e messaggio d'errore — era il collo di bottiglia dichiarato;
+			//   · il **contenuto** del T6 atterra nello STESSO commit di questa riga, che e' la condizione che
+			//     la vecchia nota poneva: scoprirla da sola farebbe passare un turno con `intents: []`.
+			// ⚠️ E la fixture e' **discriminante**, che e' la quarta condizione e non era scritta: la copertura
+			// sul bordo `(1,0)->(2,0)` ripara Riktor e non Wraith, quindi un resolver che conservasse la
+			// copertura del bersaglio ORIGINALE darebbe 98 invece di 108 — e il turno cadrebbe. Senza quella
+			// copertura, i due comportamenti sarebbero indistinguibili e il verde non direbbe niente.
+			TEXT("InterceptRevalidation"),
+
 			// ➕ **`ReactionProfile` SCENDE qui il 2026-08-19 con la fetta 4 di `#314`**, e le tre condizioni
 			// che la riga di sopra prescriveva sono soddisfatte tutte e tre — verificate, non assunte:
 			//   · il **runtime** esiste: `RTTurnManager_Blast.cpp`, ramo `Status.Braced`, costruisce
@@ -255,7 +270,6 @@ namespace
 			// 🔴 **Quel gate e' uscito con D-182 il 2026-08-21**: un `owner:` che punta a una issue chiusa
 			// mentre la capability resta non disponibile oggi non lo segnala piu' nessuno. Chi tocca questi
 			// commenti controlli lo stato della issue a mano.
-			TEXT("InterceptRevalidation"),    // owner: #1060
 			TEXT("Objective"),                // owner: #75
 			TEXT("Perception"),               // owner: #151
 			// Le tre che la prosa non nominava, chieste da `Spec/Movement/`: `SpatialTrigger` (tripwire che
@@ -324,9 +338,11 @@ namespace
 		//   esito non cambia di una riga: resta bloccato su `DecisionBoundary`, che e' il punto — la
 		//   correzione di un refuso non deve spostare un verdetto.
 		//
-		//   `InterceptRevalidation`, `Objective`, `Perception` — chieste da scenari gia' in repo. Restano fuori
-		//   finche' qualcuno non misura, come si e' fatto qui per `Reaction`, che il gioco le sappia fare in
-		//   partita e non solo in una libreria pura.
+		//   `Objective` e `Perception` — chieste da scenari gia' in repo. Restano fuori finche' qualcuno non
+		//   misura, come si e' fatto qui per `Reaction`, che il gioco le sappia fare in partita e non solo in
+		//   una libreria pura.
+		//   ➕ **`InterceptRevalidation` e' uscita da questo elenco con `#1060`** ed e' fra le disponibili:
+		//   la misura che mancava e' stata fatta, e il T6 dello showcase la esercita in partita.
 		//
 		//   ⚠️ La CONDIZIONE dichiarata di [D-109] (`TargetHealthAtOrBelowPercent`) non e' ancora implementata,
 		//   e quando lo sara' vale per lei la stessa regola: **nessuna chiave di scenario** finche' non esiste

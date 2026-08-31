@@ -254,7 +254,8 @@ namespace
 	}
 }
 
-TArray<FRTDescribedLine> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries)
+TArray<FRTDescribedLine> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries,
+	const TMap<int32, FString>& SubjectNames)
 {
 	// Per VALORE e ordinato qui dentro: la sequenza leggibile non deve dipendere dall'ordine in cui le voci
 	// sono arrivate, e ordinare la copia evita di riordinare il TurnLog del chiamante come effetto collaterale.
@@ -271,6 +272,26 @@ TArray<FRTDescribedLine> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<F
 		FRTDescribedLine& Line = Lines.AddDefaulted_GetRef();
 		Line.Text = DescribeEntry(Entry);
 		Line.SubjectStableUnitId = Entry.UnitId == 0 ? INDEX_NONE : Entry.UnitId;
+
+		// 🔴 **CHI si e' mosso, nel testo** (#1932). `DescribeEntry` rende il PREDICATO e non ha soggetto per
+		// costruzione — e' giusto che resti cosi': `DescribeReportLine` stampa gia' `unita=%d` accanto, e
+		// prefissare la' produrrebbe la stessa identita' due volte. Il soggetto entra QUI, dove nasce la riga
+		// che un giocatore legge.
+		//
+		// ⚠️ Solo `Move`: e' la categoria in cui `UnitId` e' anche il soggetto grammaticale. Per il danno
+		// porta chi SUBISCE (#1150) — *«Gadget: colpisce»* direbbe il falso — e le voci `Status` cominciano
+		// gia' con la cella.
+		if (Entry.Category == ERTLogCategory::Move && Entry.UnitId != 0)
+		{
+			// Il nome quando il chiamante l'ha risolto, l'id stabile quando no: `u12` non e' bello ma e'
+			// verificabile, e non c'e' un terzo caso in cui la riga esca senza soggetto.
+			const FString* Known = SubjectNames.Find(Entry.UnitId);
+			const FString Subject = (Known != nullptr && !Known->IsEmpty())
+				? *Known
+				: FString::Printf(TEXT("u%d"), Entry.UnitId);
+			Line.Text = FString::Printf(TEXT("%s: %s"), *Subject, *Line.Text);
+		}
+
 		// 🔴 Il verdetto si TRASPORTA. Ricalcolarlo qui sarebbe calcolarlo a fine turno, cioe' sulla
 		// conoscenza sbagliata: e' il difetto che [D-223] esiste per chiudere.
 		Line.Verdict = Entry.Verdict;

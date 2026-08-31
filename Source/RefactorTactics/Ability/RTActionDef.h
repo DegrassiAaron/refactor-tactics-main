@@ -98,6 +98,65 @@ enum class ERTActionSlot : uint8
  * momento spetta a ciascuno e' `URTReactionLibrary::PassPointFor`, funzione pura: un trigger che non
  * dichiarasse il proprio punto non verrebbe valutato da nessuno e sarebbe un dato senza consumatore.
  */
+/**
+ * Quanto di un'azione sopravvive a un `Action.Interrupt` che la coglie ([D-298]).
+ *
+ * Nasce come apertura del `bool bCanBeInterrupted`, non come secondo meccanismo: il controllo resta dove
+ * era — `ARTTurnManager::ApplyInterrupts` per il piano, `URTActionEffectLibrary::ProduceEvents` per gli
+ * effetti — e questo enum dice soltanto *quanto* viene tolto. Un `Action.Interrupt` non porta con se' alcun
+ * flag: e' la VITTIMA a dichiarare cosa perde.
+ *
+ * ⚠️ **Descrive un PERMESSO**, come `bAllowsReaction` e `bFriendlyFire`: il default e' il valore piu'
+ * permissivo verso l'interruttore (`InterruptBeforeEffect`), non `None`. Un'azione che si dimenticasse il
+ * campo resta interrompibile, che e' il comportamento storico del `true` di default.
+ */
+UENUM(BlueprintType)
+enum class ERTInterruptPolicy : uint8
+{
+	/**
+	 * L'`Action.Interrupt` non ha effetto su questa azione (`Action.Guard`, `Action.Wait`,
+	 * `Action.SuppressiveLine`). E' l'ex `bCanBeInterrupted = false`.
+	 */
+	None,
+
+	/**
+	 * L'azione interrotta non produce NULLA: tutto o niente, non mezzo danno. E' l'ex `bCanBeInterrupted =
+	 * true` e il **default**, quindi la migrazione non sposta nessun comportamento — il catalogo §3 lo
+	 * dichiara gia' per `Action.HeavyAttack`: *«se un `Action.Interrupt` la coglie prima del Blast non
+	 * produce NULLA»*.
+	 */
+	InterruptBeforeEffect,
+
+	/**
+	 * Sopravvive il PRIMO effetto dichiarato, cadono gli altri: l'azione arriva monca invece di svanire.
+	 *
+	 * ⚠️ **Il criterio e' la lista `Effects`, non gli eventi prodotti**, e la differenza morde: un effetto
+	 * che `ProduceEvents` non traduce — `DamageStructure`, `SetDoorState`, raccolti dal Blast sul bordo —
+	 * non e' «il secondario» che questa policy toglie. Su `Action.HeavyAttack` (`Damage` +
+	 * `DamageStructure`) questa policy e `InterruptBeforeEffect` sarebbero **indistinguibili** da
+	 * `ProduceEvents`, perche' il secondo effetto non passa di li' comunque. Il soggetto osservabile e'
+	 * `Action.Charge` (`Damage` + `Push`): resta il colpo, cade la spinta.
+	 *
+	 * 🔵 Nessuna azione del catalogo la dichiara oggi: [D-298] apre il valore senza riprezzare niente
+	 * (*«zero numeri di bilanciamento»*). Il ramo pero' e' vivo e coperto da test — un valore dichiarato e
+	 * mai applicato sarebbe peggio di non averlo messo.
+	 */
+	SuppressSecondary,
+
+	/**
+	 * 🔴 **RISERVATO, e oggi non raggiungibile**: `URTCatalogLibrary::ValidateActions` lo RIFIUTA.
+	 *
+	 * Cancellare un canale presuppone un'azione che duri piu' di un boundary, e in v0.1 non ne esiste
+	 * nessuna — [D-298] lo misura: `Channel`/`Channeled`/`Sustain`/`MultiTurn` danno zero in
+	 * `Source/RefactorTactics`. Il valore sta qui per **nominare** il buco invece di lasciarlo aperto, e il
+	 * validator impedisce che passi in silenzio: un quarto ramo accettato senza soggetto sarebbe codice che
+	 * nessun test puo' falsificare.
+	 *
+	 * Si sblocca insieme alla prima azione channel, con la sua issue.
+	 */
+	CancelChannel
+};
+
 UENUM(BlueprintType)
 enum class ERTReactionTrigger : uint8
 {
@@ -209,7 +268,13 @@ enum class ERTMovementStyle : uint8
 	Budget,
 	/** Linea retta su una delle sei direzioni: si ferma davanti a muri e unita' (`Dash`, `Reposition`). */
 	LinearDash,
-	/** Come `LinearDash`, ma si ferma SUL primo nemico incontrato e lo colpisce (`Charge`). */
+	/**
+	 * Come `LinearDash`, ma si ferma ADIACENTE al primo nemico incontrato e lo colpisce (`Charge`).
+	 *
+	 * ⚠️ **Adiacente, non «sul»**: la cella d'arrivo e' quella PRECEDENTE al bersaglio — `Result.Final`
+	 * resta a `Current`, che il ciclo non fa avanzare sull'occupante. Questa riga diceva «SUL» fino a
+	 * [D-296]. La regola e' pinnata da `HexMatch.ChargeStopsOnEnemyAndHits`.
+	 */
 	LinearCharge,
 	/** Salto: ignora unita' e celle intermedie, conta solo dove si atterra (`Leap`). */
 	LinearLeap,
@@ -218,7 +283,7 @@ enum class ERTMovementStyle : uint8
 	 *
 	 * La differenza con `LinearLeap` non e' il danno ma cosa si tocca: il salto **scavalca** e non incontra
 	 * nessuno, la lama passa **in mezzo** e applica a ognuno gli effetti dell'azione. Con `LinearCharge`
-	 * condivide il colpire, ma la carica si ferma sul primo bersaglio mentre questa tira dritto.
+	 * condivide il colpire, ma la carica si ferma AL primo bersaglio mentre questa tira dritto.
 	 *
 	 * Aggiunto IN CODA: i valori precedenti non cambiano numero, e gli asset che li hanno serializzati
 	 * continuano a rileggersi.
@@ -445,9 +510,19 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTReactionTrigger ReactionTrigger = ERTReactionTrigger::None;
 
-	/** Se falso, `Action.Interrupt` non ha effetto su questa azione. */
+	/**
+	 * Quanto di questa azione sopravvive a un `Action.Interrupt` ([D-298]). Default: interrompibile del
+	 * tutto, che e' il comportamento storico del `bool bCanBeInterrupted = true` che questo campo sostituisce.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
-	bool bCanBeInterrupted = true;
+	ERTInterruptPolicy InterruptPolicy = ERTInterruptPolicy::InterruptBeforeEffect;
+
+	/**
+	 * L'`Action.Interrupt` tocca questa azione? E' la domanda binaria che i consumatori facevano al vecchio
+	 * `bCanBeInterrupted`, e resta una funzione sola: chi deve sapere QUANTO viene tolto legge
+	 * `InterruptPolicy`, chi deve sapere SE legge questo.
+	 */
+	bool CanBeInterrupted() const { return InterruptPolicy != ERTInterruptPolicy::None; }
 
 	/**
 	 * L'azione si applica a CHI LA USA: nessun bersaglio da scegliere, nessuna portata da validare.
@@ -490,7 +565,7 @@ struct FRTActionDef
 	 * dove il colpo nasce (`URTHexCombatLibrary::CollectHexAttacks`).
 	 *
 	 * ⚠️ **`false` di default, ed e' il verso opposto ai flag qui sopra.** `bAllowsReaction`,
-	 * `bFriendlyFire` e `bCanBeInterrupted` sono `true` perche' descrivono PERMESSI; questo descrive
+	 * `bFriendlyFire` e `InterruptPolicy` partono dal valore permissivo perche' descrivono PERMESSI; questo descrive
 	 * un'IDENTITA'. Fail-closed: un attacco che si dimentica il campo non fa niente e lo prende il primo
 	 * test, mentre una non-aggressione che si dimentica non puo' diventare un attacco -- ed e' il modo in
 	 * cui `Action.Interact` e' arrivata a incassare un contrattacco per aver aperto una porta.

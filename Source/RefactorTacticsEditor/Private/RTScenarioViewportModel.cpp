@@ -31,6 +31,25 @@ namespace RTScenarioViewport
 		 */
 		constexpr float TeamRingStep = 0.28f;
 		constexpr int32 MaxDistinctTeams = 4;
+
+		/**
+		 * Il pannello che segna un lato del confine visibile: le stesse proporzioni dei pannelli di copertura
+		 * e porta di `ARTHexMapActor` (`RTEdgePanelThickness` 0,10 e `RTEdgePanelWidth` 0,92), perche' il
+		 * confine e' un'altra cosa disegnata sullo stesso vocabolario di lati e non un secondo linguaggio.
+		 *
+		 * ⚠️ **`0.92` e non `1.0`**: un pannello largo quanto il lato intero si incastrerebbe negli angoli
+		 * con quello adiacente, e su un confine concavo — dove due lati esposti della stessa cella si
+		 * incontrano — l'incastro si vede.
+		 */
+		constexpr float BorderPanelThickness = 0.10f;
+		constexpr float BorderPanelWidth = 0.92f;
+
+		/**
+		 * Altezza del pannello, in unita' mondo. Basso apposta: il confine deve **accompagnare** la lettura
+		 * del velo, non sostituirla — e soprattutto non coprire percorso, AoE o marker di bersaglio, che
+		 * stanno sopra la faccia della cella.
+		 */
+		constexpr float BorderPanelHeight = 18.f;
 	}
 
 	FTransform MarkerTransform(const FRTCellId& Cell, ERTHexDirection Facing,
@@ -95,5 +114,22 @@ namespace RTScenarioViewport
 	float MaxTeamRingScale()
 	{
 		return TeamRingScale(MaxDistinctTeams - 1);
+	}
+
+	FTransform BorderEdgeTransform(const FRTCellId& Cell, ERTHexDirection Dir,
+		const FVector& Origin, float HexSize, float LayerHeight)
+	{
+		// Il punto e' quello che la libreria deriva dai due centri di cella: lo stesso che `EdgeMidpointWorld`
+		// da' guardando dall'altra cella, e per questo un lato posato una volta sola non lascia buchi.
+		FVector Center = URTHexLibrary::EdgeMidpointWorld(Cell, Dir, Origin, HexSize, LayerHeight);
+		Center.Z += RTCellTopZ + BorderPanelHeight * 0.5f;
+
+		// Il cubo engine e' 100 uu per lato: X sottile (spessore), Y lungo il bordo, Z l'altezza. La
+		// larghezza segue `HexSize` perche' il lato di un esagono cresce con esso: una larghezza fissa
+		// lascerebbe fessure fra un pannello e il successivo su mappe a passo largo.
+		return FTransform(URTHexLibrary::EdgeRotation(Cell, Dir), Center,
+			FVector(BorderPanelThickness,
+				HexSize / 100.f * BorderPanelWidth,
+				BorderPanelHeight / 100.f));
 	}
 }

@@ -163,6 +163,42 @@ float URTPacingLibrary::ReactionDecisionSecondsUpperBound(int32 OpenedWindows, f
 	return static_cast<float>(OpenedWindows) * WindowSeconds;
 }
 
+void URTPacingLibrary::ApplyOpeningCounts(const TArray<FRTPacingUnitFacts>& Units, int32 PacingTeamId,
+	FRTPacingSample& Sample)
+{
+	for (const FRTPacingUnitFacts& Unit : Units)
+	{
+		if (!Unit.bIsAlive)
+		{
+			continue;
+		}
+
+		(Unit.TeamId == 0 ? Sample.UnitsAliveTeam0 : Sample.UnitsAliveTeam1)++;
+
+		if (Unit.TeamId != PacingTeamId)
+		{
+			continue; // ActionsAvailable misura lo spazio di decisione di CHI decide, non di tutti
+		}
+		Sample.ActionsAvailable += FMath::Max(0, Unit.UsableAbilities);
+	}
+}
+
+TArray<int32> URTPacingLibrary::RespondersForPacing(const TArray<FRTPacingUnitFacts>& Units, int32 PacingTeamId)
+{
+	TArray<int32> Responders;
+	for (const FRTPacingUnitFacts& Unit : Units)
+	{
+		// Nessun filtro su bIsAlive: chi e' caduto durante il turno ha comunque potuto aprire finestre.
+		// Lo 0 non e' un id ([D-063]) e resta fuori.
+		if (Unit.TeamId == PacingTeamId && Unit.StableUnitId != 0)
+		{
+			Responders.AddUnique(Unit.StableUnitId);
+		}
+	}
+	Responders.Sort();
+	return Responders;
+}
+
 FString URTPacingLibrary::CsvHeader()
 {
 	// ⚠️ `ReactionWindows` in CODA e non in mezzo: le colonne si leggono per posizione da fogli e script gia'

@@ -123,4 +123,156 @@ bool FRTExposedFirstHitTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * L'invariante che ha motivato [D-292], misurata sul percorso che la Guardia usa DAVVERO.
+ *
+ * Storia, perche' conta: questo test e' nato **rosso** contro `ApplyFirstHitDelta`, dove la Guardia passava
+ * prima di [D-292]. Un bersaglio in Guardia colpito da 10 e da 30 incassava **30** o **25** a seconda di
+ * quale colpo fosse primo nell'array — la riduzione che avanzava si perdeva nel clamp `Max(0, ...)`, e a
+ * scegliere era l'indice dell'attaccante. Il difetto era coperto da `Status.Exposed.FirstDirectHitOnly`, che
+ * afferma la stessa invariante ma la prova con un delta **positivo** (`+5`), dove il clamp non morde mai.
+ *
+ * Col pool la proprieta' vale **per costruzione**: cio' che un colpo non consuma resta, quindi il totale
+ * assorbito e' lo stesso in ogni ordine. Il test resta perche' e' l'invariante, non la cronaca: se qualcuno
+ * riportasse la Guardia su un delta di primo colpo, tornerebbe rosso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardPoolPermutationTest,
+	"RefactorTactics.Combat.GuardPoolIsPermutationInvariant",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGuardPoolPermutationTest::RunTest(const FString&)
+{
+	TArray<int32> Pool;
+	Pool.Init(0, 2);
+	Pool[1] = URTCombatLibrary::GuardFirstHitReduction;   // 15
+
+	// Due colpi frontali di taglia diversa: il caso ordinario di due attaccanti sullo stesso bersaglio.
+	const TArray<FRTAttack> Small = { FRTAttack(1, 10, 0), FRTAttack(1, 30, 2) };
+	TArray<FRTAttack> Large = Small;
+	Algo::Reverse(Large);
+	const TArray<bool> Eligible = { true, true };
+
+	auto SumOn = [](const TArray<FRTAttack>& In, int32 Target)
+	{
+		int32 Sum = 0;
+		for (const FRTAttack& A : In) { if (A.TargetIndex == Target) { Sum += A.Power; } }
+		return Sum;
+	};
+
+	const int32 SmallFirst = SumOn(URTCombatResolver::ApplyAbsorptionPool(Small, Pool, Eligible), 1);
+	const int32 LargeFirst = SumOn(URTCombatResolver::ApplyAbsorptionPool(Large, Pool, Eligible), 1);
+
+	// ANTI-VACUITA': un pool che non assorbisse niente sarebbe invariante e inutile. 40 e' il danno nominale.
+	TestNotEqual(TEXT("la Guardia toglie qualcosa: il totale non e' quello nominale"), SmallFirst, 40);
+
+	TestEqual(TEXT("il totale sul bersaglio in Guardia non dipende da quale colpo arriva per primo"),
+		SmallFirst, LargeFirst);
+	TestEqual(TEXT("e vale 40 - 15, senza avanzi persi"), SmallFirst, 25);
+
+	// 🔴 CIO' CHE IL POOL NON HA SISTEMATO, pinnato qui invece che lasciato dedurre.
+	//
+	// `ApplyFirstHitDelta` esiste ancora e conserva il difetto: con un delta negativo piu' grande del colpo
+	// che lo riceve, l'avanzo si perde e il totale dipende dall'ordine. Non e' piu' un problema della
+	// Guardia, ma `Action.Deflect` (-20) passa ancora di li'. Non e' stato spostato perche' e' una REAZIONE
+	// — si attiva una volta, sul colpo che l'ha innescata — e farne un pool e' una decisione sul suo
+	// significato, non una correzione. Tracciato in `#1909`.
+	TArray<int32> Deflect;
+	Deflect.Init(0, 2);
+	Deflect[1] = -URTCombatLibrary::DeflectDamageReduction;   // -20
+	const int32 DeflectSmallFirst = SumOn(URTCombatResolver::ApplyFirstHitDelta(Small, Deflect), 1);
+	const int32 DeflectLargeFirst = SumOn(URTCombatResolver::ApplyFirstHitDelta(Large, Deflect), 1);
+	TestNotEqual(TEXT("Deflect e' ancora sensibile all'ordine: e' debito, non una proprieta'"),
+		DeflectSmallFirst, DeflectLargeFirst);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardPoolNotConsumedFromBehindTest,
+	"RefactorTactics.Combat.GuardPoolIsNotConsumedFromBehind",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGuardPoolNotConsumedFromBehindTest::RunTest(const FString&)
+{
+	TArray<int32> Pool;
+	Pool.Init(0, 2);
+	Pool[1] = URTCombatLibrary::GuardFirstHitReduction;   // 15
+
+	// Colpo 0 dalle SPALLE (30), colpo 1 dal DAVANTI (10).
+	const TArray<FRTAttack> Attacks = { FRTAttack(1, 30, 0), FRTAttack(1, 10, 2) };
+	const TArray<bool> Eligible = { false, true };
+
+	const TArray<FRTAttack> Out = URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, Eligible);
+
+	TestEqual(TEXT("il colpo alle spalle passa intero"), Out[0].Power, 30);
+	TestEqual(TEXT("il colpo frontale e' assorbito, e il budget bastava"), Out[1].Power, 0);
+
+	// ANTI-VACUITA': se la maschera fosse ignorata, il colpo da 30 avrebbe consumato tutto il pool e il
+	// frontale sarebbe passato intero. I due asserti sopra separano i due casi solo se questo vale.
+	const TArray<bool> AllEligible = { true, true };
+	const TArray<FRTAttack> Ignored = URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, AllEligible);
+	TestEqual(TEXT("senza maschera sarebbe il colpo alle spalle a mangiare il budget"), Ignored[0].Power, 15);
+	TestEqual(TEXT("...e il frontale passerebbe intero"), Ignored[1].Power, 10);
+	return true;
+}
+
+/**
+ * Cio' che un colpo non consuma RESTA. E' la proprieta' che distingue il pool da `ApplyFirstHitDelta`, dove
+ * l'avanzo spariva nel clamp — ed e' la ragione per cui la somma torna commutativa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardPoolRemainderTest,
+	"RefactorTactics.Combat.GuardPoolRemainderIsNotWasted",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGuardPoolRemainderTest::RunTest(const FString&)
+{
+	TArray<int32> Pool;
+	Pool.Init(0, 2);
+	Pool[1] = URTCombatLibrary::GuardFirstHitReduction;   // 15
+
+	// Tre colpi frontali da 5: il vecchio meccanismo ne azzerava UNO e lasciava passare 10.
+	const TArray<FRTAttack> Small = { FRTAttack(1, 5, 0), FRTAttack(1, 5, 2), FRTAttack(1, 5, 3) };
+	const TArray<bool> Eligible = { true, true, true };
+	const TArray<FRTAttack> Out = URTCombatResolver::ApplyAbsorptionPool(Small, Pool, Eligible);
+
+	int32 Sum = 0;
+	for (const FRTAttack& A : Out) { Sum += A.Power; }
+	TestEqual(TEXT("il budget copre tutti e tre i colpi: nessun avanzo sprecato"), Sum, 0);
+
+	// E un budget piu' grande del danno non cura: il colpo si ferma a zero, non diventa negativo.
+	TArray<int32> Huge;
+	Huge.Init(0, 2);
+	Huge[1] = 100;
+	const TArray<FRTAttack> Clamped = URTCombatResolver::ApplyAbsorptionPool(Small, Huge, Eligible);
+	for (const FRTAttack& A : Clamped)
+	{
+		TestEqual(TEXT("un pool piu' grande del colpo lo azzera, non lo inverte"), A.Power, 0);
+	}
+	return true;
+}
+
+/**
+ * NON-REGRESSIONE del caso comune. Contro UN colpo solo il pool dev'essere indistinguibile dal vecchio
+ * «-15 al primo colpo»: se cambiasse anche li', [D-292] sarebbe un cambio di bilanciamento molto piu' largo
+ * di quello dichiarato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardSingleHitUnchangedTest,
+	"RefactorTactics.Combat.SingleHitAgainstGuardIsUnchanged",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGuardSingleHitUnchangedTest::RunTest(const FString&)
+{
+	const int32 Guard = URTCombatLibrary::GuardFirstHitReduction;
+	const TArray<bool> Eligible = { true };
+
+	// Tre taglie: sopra il budget, uguale, sotto.
+	for (const int32 Power : { 30, Guard, 10 })
+	{
+		TArray<int32> Pool;      Pool.Init(0, 2);      Pool[1] = Guard;
+		TArray<int32> Delta;     Delta.Init(0, 2);     Delta[1] = -Guard;
+
+		const TArray<FRTAttack> One = { FRTAttack(1, Power, 0) };
+		const int32 WithPool  = URTCombatResolver::ApplyAbsorptionPool(One, Pool, Eligible)[0].Power;
+		const int32 WithDelta = URTCombatResolver::ApplyFirstHitDelta(One, Delta)[0].Power;
+
+		TestEqual(*FString::Printf(TEXT("un colpo solo da %d: pool e delta danno lo stesso esito"), Power),
+			WithPool, WithDelta);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

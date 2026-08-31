@@ -24,6 +24,31 @@ enum class ERTHexWaypointReason : uint8
 };
 
 /**
+ * Perche' una cella NON e' nel reachable set di un'unita' — la risposta che la sonda di movimento (#711) da'
+ * al designer che chiede *«perche' quella cella no»*.
+ *
+ * 🔑 **Non e' un secondo vocabolario, e' quello di sopra piu' le due voci che gli mancavano.** I primi tre
+ * motivi sono `ERTHexWaypointReason` e vengono DELEGATI: nessuna regola nuova su cosa renda una cella
+ * inutilizzabile. Le ultime due esistono perche' `ClassifyWaypointCell` risponde `Ok` sia a una cella troppo
+ * lontana sia a un'isola — corretto per il suo chiamante, che a quel punto sa che il rifiuto e' «di budget»,
+ * e insufficiente per una sonda, dove `Ok` di fronte a una cella esclusa non e' una risposta.
+ *
+ * ⚠️ **La differenza fra le due ultime non e' cosmetica**: `OutOfBudget` manda il designer ad alzare il
+ * movimento e la cella si apre, `NoRoute` gliela lascerebbe chiusa a qualunque budget — lì il difetto e'
+ * nella mappa, non nel profilo.
+ */
+UENUM(BlueprintType)
+enum class ERTHexProbeExclusion : uint8
+{
+	Reachable,       // la cella E' nel set: non c'e' niente da spiegare
+	NotOnMap,        // delegato a ClassifyWaypointCell
+	BlocksMovement,  // delegato a ClassifyWaypointCell
+	Occupied,        // delegato a ClassifyWaypointCell
+	OutOfBudget,     // un percorso esiste, ma costa piu' del MoveBudget dell'unita'
+	NoRoute          // nessun percorso, a qualunque costo: il grafo non collega le due celle
+};
+
+/**
  * Ingredienti PURI della risoluzione di un turno su griglia esagonale: snapshot di inizio fase, occupazione,
  * movement budget e collisioni simultanee. Nessun Actor, nessun DeltaTime, nessuna dipendenza dall'ordine di
  * iterazione di TMap/TSet (i risultati sono ordinati con URTHexLibrary::StableLess).
@@ -152,6 +177,35 @@ public:
 	 */
 	static ERTHexWaypointReason ClassifyWaypointCell(const FRTHexSnapshot& Snapshot, int32 UnitId,
 		const FRTCellId& Cell);
+
+	/**
+	 * Il percorso fino a `Goal` RISALENDO i predecessori del reachable set — non una seconda ricerca.
+	 *
+	 * 🔴 **E' il criterio portante di #711.** Una sonda che chiamasse `FindPathForUnit` per ogni cella
+	 * sorvolata farebbe un A* per movimento del mouse, e il giorno in cui le due divergessero mostrerebbe un
+	 * percorso che l'unita' non fara'. `FRTHexReachableCell::FromCell` esiste gia' — e' arrivato col facing
+	 * (CP 13.5) — e contiene la risposta che il Dijkstra ha gia' calcolato.
+	 *
+	 * Uscita ordinata dalla cella di partenza a `Goal`, incluse: la stessa forma di `FRTHexPathResult::Path`,
+	 * e il test lo pinna contro quell'oracolo. `Goal` fuori dal set -> vuoto: meglio niente che un percorso
+	 * inventato per una cella dove l'unita' non arriva.
+	 */
+	static TArray<FRTCellId> ProbePathTo(const TArray<FRTHexReachableCell>& Reachable, const FRTCellId& Goal);
+
+	/**
+	 * Perche' quella cella non e' raggiungibile — la meta' «e perche' no» della sonda di #711.
+	 *
+	 * Prende il set gia' calcolato invece di ricalcolarlo: la sonda lo tiene per l'unita' selezionata e lo
+	 * rifa' quando la mappa cambia, non a ogni cella sorvolata.
+	 *
+	 * ⛔ **Nessuna regola nuova qui dentro.** I tre motivi di cella vanno a `ClassifyWaypointCell`; la
+	 * distinzione fra «fuori budget» e «nessuna strada» si ottiene richiedendo lo stesso percorso al
+	 * pathfinder canonico **senza limite di costo** (`MaxCost == 0`), con gli stessi ostacoli dinamici che
+	 * `FindPathForUnit` usa. Se un giorno questa funzione contenesse una visita del grafo sua, sarebbe la
+	 * seconda ricerca che il divieto di #711 esiste per impedire.
+	 */
+	static ERTHexProbeExclusion ClassifyProbeCell(const FRTHexSnapshot& Snapshot, int32 UnitId,
+		const TArray<FRTHexReachableCell>& Reachable, const FRTCellId& Cell);
 
 	/**
 	 * Se Path termina su una cella Ice e il budget residuo dell'unita' (MoveBudget - costo del percorso) e'

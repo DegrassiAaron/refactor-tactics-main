@@ -385,6 +385,98 @@ bool FRTHudVmCooldownTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `#1896` — LA BARRA DI RICARICA NON RICHIEDE UNA DIVISIONE AL WIDGET.
+ *
+ * Il difetto misurato in PIE: `WBP_RT_UnitCard` divideva per il totale di ricarica, che per la maggior
+ * parte del kit vale **0**, e ne usciva un `Divide by zero: Divide_DoubleDouble` a ogni selezione. In
+ * Blueprint quella divisione non si ferma — restituisce 0 — quindi il difetto **non** e' il messaggio: e'
+ * una barra che dichiara «scarica» un'abilita' pronta.
+ *
+ * ⛔ Questo test **non riproduce il warning**, che nasce in un nodo dentro il `.uasset` e headless non
+ * viene nemmeno costruito. Prova la cosa che rende il warning impossibile: che la vista porti gia' il
+ * risultato, con la guardia sullo zero applicata in un posto solo e misurabile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmChargeFractionTest,
+	"RefactorTactics.HudViewModel.ChargeFractionNeedsNoDivisionInTheWidget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmChargeFractionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+	if (!TestTrue(TEXT("premessa: il kit non e' vuoto"), Cds.Num() > 0))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// PREMESSA DEL DIFETTO: esiste almeno un'azione a ricarica zero. Senza, questo test proverebbe la
+	// guardia su un caso che non si presenta mai — e resterebbe verde anche togliendola.
+	int32 SenzaRicarica = 0;
+	for (const FRTAbilityCooldownView& V : Cds)
+	{
+		if (V.TotalTurns == 0) { ++SenzaRicarica; }
+	}
+	if (!TestTrue(TEXT("premessa: il kit ha almeno un'azione senza ricarica (il caso che divideva per zero)"),
+			SenzaRicarica > 0))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	for (const FRTAbilityCooldownView& V : Cds)
+	{
+		const FString Chi = V.ActionId.ToString();
+
+		// Il contratto della vista, su OGNI riga: la frazione e' sempre disegnabile.
+		TestTrue(FString::Printf(TEXT("%s: la frazione sta in [0,1]"), *Chi),
+			V.ChargeFraction >= 0.f && V.ChargeFraction <= 1.f);
+		TestTrue(FString::Printf(TEXT("%s: il totale non e' negativo"), *Chi), V.TotalTurns >= 0);
+
+		if (V.TotalTurns == 0)
+		{
+			// 🔴 IL CASO DEL DIFETTO: senza ricarica la barra e' PIENA, non vuota.
+			TestEqual(FString::Printf(TEXT("%s: senza ricarica la barra e' piena, non a zero"), *Chi),
+				V.ChargeFraction, 1.f);
+		}
+	}
+
+	// La frazione SEGUE il simulatore: si consuma un'azione con ricarica e la barra deve scendere.
+	int32 Idx = INDEX_NONE;
+	for (int32 i = 0; i < Cds.Num(); ++i)
+	{
+		if (Cds[i].TotalTurns > 0) { Idx = i; break; }
+	}
+	if (TestTrue(TEXT("premessa: il kit ha anche un'azione CON ricarica"), Idx != INDEX_NONE))
+	{
+		TestEqual(TEXT("prima dell'uso la barra e' piena"), Cds[Idx].ChargeFraction, 1.f);
+
+		Unit->ConsumeAbility(Idx);
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+
+		TestTrue(TEXT("dopo l'uso la barra e' scesa"), Dopo[Idx].ChargeFraction < 1.f);
+		TestTrue(TEXT("e resta disegnabile"),
+			Dopo[Idx].ChargeFraction >= 0.f && Dopo[Idx].ChargeFraction <= 1.f);
+
+		// Il valore si DERIVA, non si scrive a mano: un letterale qui resterebbe vero solo per la ricarica
+		// che quell'azione ha oggi, e diventerebbe falso in silenzio a un ribilanciamento.
+		const float Atteso = 1.f - static_cast<float>(Dopo[Idx].TurnsRemaining)
+			/ static_cast<float>(Dopo[Idx].TotalTurns);
+		TestEqual(TEXT("e vale quanto la ricarica residua dichiara"), Dopo[Idx].ChargeFraction, Atteso);
+
+		// Il totale non si muove con l'uso: e' la ricarica DICHIARATA dall'azione, non quella residua.
+		TestEqual(TEXT("il totale non cambia usando l'azione"), Dopo[Idx].TotalTurns, Cds[Idx].TotalTurns);
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
 // ---------------------------------------------------------------------------------------------------------
 // CP 11.1 — il limite di round viene dal FORMATO, non da una costante
 // ---------------------------------------------------------------------------------------------------------
