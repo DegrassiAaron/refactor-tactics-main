@@ -3,21 +3,36 @@
 #include "Map/RTGeometryBake.h"
 #include "Map/RTGeometryGrammar.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTMapDependencyLibrary.h"
 
 int32 URTMapEditLibrary::ResolveInteriorWall(const URTHexMapAsset* Map, const FRTMapElementHandle& Handle)
 {
-	// `NAME_None` non risolve: significa «muro senza nome», e ce ne possono essere molti. Restituirne uno a
-	// caso sarebbe peggio che non restituirne nessuno — un tool crederebbe di avere un bersaglio.
-	if (Map == nullptr
-		|| Handle.Kind != ERTMapElementKind::InteriorWall
-		|| Handle.StableId.IsNone())
+	if (Map == nullptr || Handle.Kind != ERTMapElementKind::InteriorWall)
 	{
 		return INDEX_NONE;
 	}
 
+	// Il NOME ha la precedenza: e' l'unica identita' che sopravvive al move.
+	if (!Handle.StableId.IsNone())
+	{
+		for (int32 Index = 0; Index < Map->InteriorWalls.Num(); ++Index)
+		{
+			if (Map->InteriorWalls[Index].StableId == Handle.StableId)
+			{
+				return Index;
+			}
+		}
+		// Un nome che non risolve NON ricade sulla chiave: chi ha chiesto quella struttura vuole quella, e
+		// restituirne un'altra perche' sta nello stesso posto sarebbe un errore silenzioso.
+		return INDEX_NONE;
+	}
+
+	// Senza nome, la chiave naturale — unica per una regola che `ValidateMap` gia' applica. `operator==`
+	// tratta gli estremi come coppia non ordinata, quindi lo stesso muro percorso al contrario risolve.
 	for (int32 Index = 0; Index < Map->InteriorWalls.Num(); ++Index)
 	{
-		if (Map->InteriorWalls[Index].StableId == Handle.StableId)
+		if (Map->InteriorWalls[Index].Cell == Handle.Cell
+			&& Map->InteriorWalls[Index].Segment == Handle.Segment)
 		{
 			return Index;
 		}
@@ -81,4 +96,114 @@ ERTMapEditOutcome URTMapEditLibrary::MoveInteriorWall(URTHexMapAsset* Map,
 	Map->InteriorWalls[Index].Segment = NewSegment;
 
 	return ERTMapEditOutcome::Applied;
+}
+
+ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FRTMapElementHandle& Handle)
+{
+	if (Map == nullptr)
+	{
+		return ERTMapEditOutcome::RefusedUnresolved;
+	}
+
+	if (Handle.Kind != ERTMapElementKind::Cell)
+	{
+		// Gli altri tipi arrivano col tool che li seleziona. Un `Applied` a vuoto sarebbe peggio di un
+		// rifiuto: chi chiama crederebbe di aver cancellato qualcosa.
+		return ERTMapEditOutcome::RefusedUnresolved;
+	}
+
+	if (Map->FindCell(Handle.Cell) == nullptr)
+	{
+		return ERTMapEditOutcome::RefusedUnresolved;
+	}
+
+	const FRTMapDependencySet Set = URTMapDependencyLibrary::CollectDependents(Map, Handle);
+
+	// **Dal piu' alto al piu' basso.** Rimuovere dal basso sposta gli elementi successivi e invalida gli
+	// indici gia' raccolti: e' il contratto che `FRTMapDependencySet` dichiara, e sta qui una volta sola
+	// perche' nessun chiamante debba ricordarselo.
+	TArray<int32> Walls = Set.InteriorWallIndices;
+	TArray<int32> Edges = Set.TransitionIndices;
+	TArray<int32> Bindings = Set.InteractionBindingIndices;
+
+	auto Descending = [](int32 A, int32 B) { return A > B; };
+	Walls.Sort(Descending);
+	Edges.Sort(Descending);
+	Bindings.Sort(Descending);
+
+	for (const int32 Index : Walls)
+	{
+		Map->InteriorWalls.RemoveAt(Index);
+	}
+	for (const int32 Index : Edges)
+	{
+		Map->Transitions.RemoveAt(Index);
+	}
+	for (const int32 Index : Bindings)
+	{
+		Map->InteractionBindings.RemoveAt(Index);
+	}
+
+	// La cella per ultima: `CollectDependents` la legge per sapere quali nomi se ne vanno con lei, e
+	// toglierla prima renderebbe vuoto l'insieme dei nomi morenti.
+	Map->RemoveCell(Handle.Cell);
+
+	return ERTMapEditOutcome::Applied;
+}
+
+TArray<FRTMapElementHandle> URTMapEditLibrary::ElementsAt(const URTHexMapAsset* Map,
+	const FRTCellId& Cell, ERTHexDirection Edge)
+{
+	TArray<FRTMapElementHandle> Found;
+
+	if (Map == nullptr)
+	{
+		return Found;
+	}
+
+	const FRTHexCellData* Data = Map->FindCell(Cell);
+	if (Data == nullptr)
+	{
+		return Found;
+	}
+
+	// L'ordine e' il contratto: dal piu' specifico al piu' generale, cosi' il primo click prende cio' che
+	// l'autore ha piu' probabilmente mirato e i successivi scendono verso la cella.
+	//
+	// `break` dopo il primo: `ValidateMap` garantisce al massimo UNA porta e UNA copertura per bordo. Su un
+	// dato gia' invalido si prende la prima, che e' deterministico — non si inventa una risoluzione qui.
+	for (const FRTHexDoor& Door : Data->Doors)
+	{
+		if (Door.Edge == Edge)
+		{
+			Found.Add(FRTMapElementHandle::ForDoor(Cell, Edge, Door.StableId));
+			break;
+		}
+	}
+
+	for (const FRTHexCover& Cover : Data->Covers)
+	{
+		if (Cover.Edge == Edge)
+		{
+			Found.Add(FRTMapElementHandle::ForCover(Cell, Edge));
+			break;
+		}
+	}
+
+	// I muri interni vivono NELLA cella, non su un bordo: ci sono qualunque bordo si sia cliccato.
+	for (const FRTHexInteriorWall& Wall : Map->InteriorWalls)
+	{
+		if (Wall.Cell == Cell)
+		{
+			// Nominato quando ha un nome, per chiave quando non ce l'ha: ogni candidato emesso deve
+			// RISOLVERE, altrimenti il ciclo di click mostrerebbe un bersaglio che non si puo' prendere.
+			Found.Add(Wall.StableId.IsNone()
+				? FRTMapElementHandle::ForInteriorWallAt(Wall.Cell, Wall.Segment)
+				: FRTMapElementHandle::ForInteriorWall(Wall.StableId));
+		}
+	}
+
+	Found.Add(FRTMapElementHandle::ForCell(Cell));
+
+	return Found;
 }
