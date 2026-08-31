@@ -3,7 +3,7 @@
 > **Referto di revisione**, non owner. Consuma il *Session Handoff 2026-08-31 — Damage, Skills, Action Lab &
 > TD Roadmap* (Google Drive) e le voci `DQA-026`…`DQA-029` del *Knowledge Index & Consolidation Log*.
 >
-> **Data**: 2026-08-31 · **Base**: `origin/main` @ `0c0ee87c` · **Modo**: critique · **Focus**: requirements +
+> **Data**: 2026-08-31 · **Base**: `origin/main` @ `0c0ee87c`, **rimisurato su `6f4e5edc`** prima del push · **Modo**: critique · **Focus**: requirements +
 > architecture
 >
 > Il work order chiede al §25 otto output (A…H). Questo referto li produce. Non implementa nulla.
@@ -41,7 +41,8 @@ Ogni riga è un comando eseguito su `origin/main` @ `0c0ee87c`, non una lettura.
 | Il refresh derivato dopo mutazione strutturale esiste? | `RTTurnManager_Blast.cpp:1366` | ✅ **Esiste ed è l'opposto di quello proposto** (§4.1) |
 | `GraphRevision` è tracciata? | `TurnLog.GraphRevisionEntersTheHash` | ✅ Entra nell'hash ([D-067]) |
 | `Armor` esiste? | `git grep -c Armor -- Source` | ⛔ **0 file** — invariato dal 2026-08-28 |
-| `DamageType` · `DamageResistance` · `DamagePacket` · `Shred` | idem, quattro termini | ⛔ **0 file** ciascuno — invariato |
+| `DamageResistance` · `DamagePacket` · `Shred` | idem, tre termini | ⛔ **0 file** ciascuno — invariato |
+| `DamageType` | idem | ⚠️ **1 file**, e non è codice: è il commento di `RTCombatLibrary.h:29` che *dichiara* la sua assenza (*«non è `DamageType` […] e arriva con E49»*), introdotto da [D-224] il 2026-08-28. Il referto precedente lo misurò a **0** su `483e031a`, prima di quel commit: la differenza è la nota, non un produttore |
 | `E49` è libera per il Damage Model? | `gh issue view 1769` | 🔴 **No.** `E49` è **Tactical Camera & Map Presentation**, creata il **2026-08-30** |
 | Il commento che punta a `E49` | `git log -S "arriva con E49"` | `6a1c0cb6`, **2026-08-28** — due giorni **prima** che `E49` significasse altro |
 
@@ -397,5 +398,8 @@ umana. La issue la porta come domanda con due opzioni misurate, non come lavoro 
 - **Nessuna suite eseguita.** Questo pass non tocca `Source/`: `./scripts/rt-suite.ps1` non è stato lanciato,
   e nessun numero di test è dichiarato verde da questo referto.
 - **Nessuna verifica PIE o packaged.**
-- Le misure `git grep` a zero (`Armor`, `DamageType`, `DamagePacket`, `DamageResistance`, `Shred`,
-  `EvaluationBoundary`) valgono su `origin/main` @ `0c0ee87c` e **scadono** al primo merge che le introduca.
+- Le misure `git grep` a zero (`Armor`, `DamagePacket`, `DamageResistance`, `Shred`, `EvaluationBoundary`)
+  **scadono** al primo merge che le introduca. Sono state **rimisurate su `6f4e5edc`** — `origin/main` si è
+  mosso di due commit durante il pass, e uno di essi tocca `RTCombatLibrary.h` — e reggono tutte.
+  ⚠️ Quella rimisura ha **corretto una riga di questo referto**: `DamageType` non è a zero, ha una
+  occorrenza che è il commento con cui [D-224] ne dichiara l'assenza (§2).
