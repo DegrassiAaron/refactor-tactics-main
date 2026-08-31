@@ -1091,7 +1091,8 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 
 	// Guardia di autorita': si pianifica solo per le proprie unita'. Se per qualche via SelectedActor fosse
 	// un'unita' avversaria, la deselezioniamo invece di prenderne il comando.
-	if (SelectedUnit && !URTCombatLibrary::CanPlayerControlUnit(SelectedUnit->TeamId, ARTPlayerState::TeamIdOf(this)))
+	if (SelectedUnit && !URTCombatLibrary::CanPlayerControlUnit(SelectedUnit->TeamId,
+		ARTPlayerState::TeamIdOf(this), SelectedUnit->bIsBotControlled))
 	{
 		if (IRTSelectable* PreviousSel = Cast<IRTSelectable>(SelectedActor))
 		{
@@ -1111,10 +1112,27 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// Click su un'unita' AVVERSARIA senza nulla di selezionato: non e' nostra, non la si comanda. Senza questa
 	// guardia resterebbe "selezionata" e ogni click successivo su una nostra unita' finirebbe nel ramo di
 	// pianificazione dell'attacco qui sopra, rendendo le proprie unita' inselezionabili.
-	if (ClickedUnit && !URTCombatLibrary::CanPlayerControlUnit(ClickedUnit->TeamId, ARTPlayerState::TeamIdOf(this)))
+	if (ClickedUnit && !URTCombatLibrary::CanPlayerControlUnit(ClickedUnit->TeamId,
+		ARTPlayerState::TeamIdOf(this), ClickedUnit->bIsBotControlled))
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] %s e' avversaria: seleziona prima una tua unita' per bersagliarla"),
-			*ClickedUnit->GetName());
+		// ⚠️ **Due rifiuti diversi meritano due messaggi diversi.** Un compagno pianificato dal bot supera la
+		// prova di squadra e cade su questa stessa guardia: dirgli «e' avversaria» manderebbe a cercare un
+		// difetto nell'assegnazione delle squadre, che e' corretta. E' la stessa cura che
+		// `RTAutobattleEntry::FromCommandLine` prende sul valore non riconosciuto — un rifiuto che non spiega
+		// il proprio motivo costa piu' di quello che fa risparmiare.
+		//
+		// ⚠️ Due `UE_LOG` e non un formato scelto con un ternario: la macro monta uno `static_assert` che
+		// pretende un array di TCHAR, e un `const TCHAR*` non lo e' — non compilerebbe.
+		if (ClickedUnit->TeamId == ARTPlayerState::TeamIdOf(this) && ClickedUnit->bIsBotControlled)
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s la pianifica il bot: non e' comandabile (vedi rt.Match.BotAllies)"),
+				*ClickedUnit->GetName());
+		}
+		else
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s e' avversaria: seleziona prima una tua unita' per bersagliarla"),
+				*ClickedUnit->GetName());
+		}
 		return;
 	}
 
