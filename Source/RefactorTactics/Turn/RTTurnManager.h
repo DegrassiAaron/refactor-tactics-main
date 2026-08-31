@@ -1359,6 +1359,16 @@ protected:
 	float DurationForPlaybackPhase(ERTMatchPhase InPhase) const;
 
 	// --- Sonda di pacing ------------------------------------------------------------------------
+	/**
+	 * Fotografa le unita' del mondo nei quattro interi che il pacing osserva.
+	 *
+	 * E' l'UNICO punto in cui la sonda guarda gli Actor: da qui in poi le regole di conteggio sono funzioni
+	 * pure di `URTPacingLibrary`, provate headless (#1818). Prima esistevano due `GetAllActorsOfClass` in
+	 * punti diversi, con due filtri **volutamente diversi** fra loro e la differenza spiegata solo da un
+	 * commento accanto a ciascuno.
+	 */
+	TArray<FRTPacingUnitFacts> CollectPacingUnitFacts() const;
+
 	void BeginPacingSample();
 	void ClosePacingSample();
 	void AppendPacingRow(const FRTPacingSample& Sample);

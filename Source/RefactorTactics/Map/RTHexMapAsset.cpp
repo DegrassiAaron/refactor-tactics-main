@@ -503,6 +503,45 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 			}
 		}
 
+		// LA FACCIA RIDONDANTE DI UN BORDO CONDIVISO — `GEO-7` di `D-288`, `#1893`.
+		//
+		// ⚠️ **La regola qui sopra guarda DENTRO una cella; questa guarda FRA due.** Un bordo appartiene a
+		// due celle, e ciascuna puo' dichiararvi la propria faccia: `URTHexCoverLibrary::CoverBetween` le
+		// legge entrambe e tiene la piu' alta — *«la barriera e' fisica, non un attributo di chi la
+		// possiede»* — quindi la seconda non cambia nulla nel gioco.
+		//
+		// 🔴 **Ma cambia l'hash.** Le coperture entrano in `ComputeHash`, ordinate per bordo: due mappe che
+		// si giocano in modo identico ne hanno uno diverso solo perche' una dichiara il muro da tutti e due
+		// i lati. E' il falso positivo contro `replay divergence = 0` che l'intestazione di
+		// `RebakeTouchesOnlyTheInvestedRegion` (#883) gia' nomina: il bake non scrive mai la seconda faccia
+		// **proprio per questo**, ma la mano che autora puo' scriverla, e finora nessuno se ne accorgeva.
+		//
+		// 🔵 **Warning e non Error**, con il precedente di forma sedici righe piu' in basso — *«transizione
+		// ridondante tra celle gia' adiacenti»*: lo stato e' legale e risolto, ed e' ridondante, non illegale.
+		// Correggerlo da soli sarebbe l'auto-fix silenzioso che il Decision Record vieta.
+		//
+		// La segnalazione esce UNA volta per coppia: la produce solo il lato che `StableLess` mette per
+		// primo — lo stesso ordinamento con cui `SortCells` e `ComputeHash` rendono deterministico il resto.
+		for (const FRTHexCover& Cover : C.Covers)
+		{
+			const FRTCellId Far = URTHexLibrary::Neighbor(C.Id, Cover.Edge);
+			if (!URTHexLibrary::StableLess(C.Id, Far))
+			{
+				continue;
+			}
+			const FRTHexCellData* Opposite = FindCell(Far);
+			if (Opposite == nullptr)
+			{
+				continue; // il vicino non esiste: nessuna seconda faccia da dichiarare
+			}
+			if (Opposite->CoverOn(URTHexLibrary::OppositeDirection(Cover.Edge)) != ERTHexCoverType::None)
+			{
+				Errors.Add(FString::Printf(
+					TEXT("Warning: copertura ridondante sulla faccia opposta del bordo condiviso %s / %s"),
+					*C.Id.ToString(), *Far.ToString()));
+			}
+		}
+
 		// Porte (CP 9.3): stessi due difetti che le coperture non sanno risolvere, piu' quello nuovo — una
 		// porta dentro un muro pieno. A runtime il muro vince comunque (`BlocksTraversal` e' un OR
 		// restrittivo), quindi la porta non si aprirebbe mai: meglio dirlo a chi disegna il livello che

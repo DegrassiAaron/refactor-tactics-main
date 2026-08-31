@@ -78,6 +78,38 @@ diventerà pericolosa una fase dopo ([D-092](../decisions/RT_PDR_00_Decision_Log
 > stesso Blast non guadagna la linea perché il muro è caduto. È la ragione per cui l'ordine dei colpi non
 > cambia l'esito, ed è una policy — non un effetto collaterale dell'implementazione.
 
+### 1.3 Il KO libera la cella al proprio commit, non nel Cleanup
+
+Una domanda che questo documento non poneva e a cui un altro rispondeva al contrario. La riga **60** della
+tabella di [ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) §3 mappa *«KO, verifica obiettivi,
+decremento cooldown, TurnLog»* sulla macro-fase `Cleanup`, e chi la legge deduce che fino al Cleanup
+un'unità abbattuta **occupi** ancora il proprio `FRTCellId`. Quella riga è vera di *cosa* il Cleanup
+elabora — la rimozione dell'attore e la scrittura del log — e **falsa di quando la cella si libera**
+([D-294](../decisions/RT_PDR_00_Decision_Log.md)).
+
+**La cella si libera al commit del segmento che ha inflitto il danno letale.** Non c'è un momento in cui
+un'unità è morta *e* bloccante:
+
+- `ARTUnit::IsAlive()` è `Health > 0` — **calcolata**, non un flag alzato da una fase;
+- `ARTTurnManager::CollectLivingUnits` filtra sui vivi, e lo dichiara: *«i morti (es. nel Blast) non si
+  muovono e non bloccano»*;
+- `URTHexSimLibrary::MakeSnapshot` popola `Occupancy` **solo** con `Unit.bAlive`, e
+  `URTMatchSetupLibrary::BuildOccupancy` ripete la stessa regola.
+
+Il §1.1 fa il resto: **ogni segmento ha il proprio snapshot**, quindi l'occupancy si rilegge a ogni
+boundary. Un'unità caduta nel `Blast` non compare nell'occupancy del `Move` che segue, e chi si muove dopo
+trova la cella libera. Il corpo può restare visibile — la presentazione non è autorità (invariante #3).
+
+> ⚠️ **Vale per costruzione, non per regola, e la differenza conta.** `Occupancy` è **congelata** dentro un
+> segmento: nessun punto del codice la muta durante la risoluzione. Oggi non si nota, perché il danno da
+> terreno del `Move` si applica **dopo** che l'intera fase è risolta e nessun micro-step può osservare un
+> occupante stantio. Il giorno in cui un effetto uccidesse **dentro** la risoluzione di un segmento, il
+> comportamento diventerebbe l'opposto senza che nessuno lo decida. È la regressione che
+> `Match.KODoesNotBlockItsCellNextPhase` deve intercettare, e quel test **non esiste ancora**.
+
+Una meccanica di cadavere bloccante resta possibile, ma richiede un **oggetto o una regola di gioco
+espliciti**: non si ottiene lasciando indietro l'unità abbattuta.
+
 ---
 
 ## 2. Tassonomia — cosa può accadere, e quando si decide
