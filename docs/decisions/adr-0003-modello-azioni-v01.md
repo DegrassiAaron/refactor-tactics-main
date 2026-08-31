@@ -65,6 +65,13 @@ Il modello a 7 fasi del catalogo **non sostituisce** le macro-fasi: i suoi codic
 
 - **Modello dati azione**: `ActionId` (FName, ID stabile tipo `Action.Move`), codice di fase, `Priority`
   intera, `Range`, `Cost` (MP), `Cooldown` in turni, `Fallback`, `bCanBeInterrupted`.
+  <!-- rename-exempt: la riga elenca i campi COME ERANO quando l'ADR e' stato accettato -->
+  > ⚠️ **Emendamento 2026-08-31** — [D-298](RT_PDR_00_Decision_Log.md): `bCanBeInterrupted` non e'
+  > piu' un `bool`. E' `ERTInterruptPolicy`, quattro valori, di cui `CancelChannel` **riservata**. La
+  > riga sopra resta al nome storico perche' registra la decisione presa allora; il campo vivo si
+  > legge in `FRTActionDef`. Nessuna altra parte di questo ADR cambia: il modello «azione = dato del
+  > catalogo» e' esattamente cio' che ha reso possibile aprire quel `bool` senza toccare il resolver.
+
 - **Ordinamento intra-fase per priorità intera**: priorità minore risolve prima. Estende — non contraddice —
   la regola APNAP di `piano-canonico-mvp.md §5.1`, che già prescriveva
   «velocità → priorità (intera) → tie-break assoluto». Ordine totale:
