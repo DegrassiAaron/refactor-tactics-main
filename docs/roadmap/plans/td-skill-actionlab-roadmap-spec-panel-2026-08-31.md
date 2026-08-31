@@ -298,9 +298,24 @@ unità porta 5 punti di scudo BASE […] e quello scudo ferma solo il danno DIRE
 `120 − 17 = 103`. Il dato eseguibile si è mosso con la decisione; **quattro righe di prosa in tre documenti
 owner più la nota interna dello scenario stesso** sono rimaste al valore precedente.
 
-⚠️ **`NOT RUN`**: lo scenario **non è stato eseguito** in questa sessione. Che il `103` sia il valore vivo è
-un'inferenza da `D-224`, non una misura. Prima di correggere la prosa va eseguito `Combat.BasicAttack` — se
-fallisse, il difetto starebbe dall'altra parte e sarebbe più grave.
+> 🔵 **Eseguito il 2026-08-31, e l'inferenza ha retto — ma il difetto era più grande di così.** Questo blocco
+> diceva `NOT RUN`, e la riserva era giusta: senza run il `103` restava una deduzione da `D-224`.
+> `./scripts/rt-suite.ps1 -Filter RefactorTactics.Scenario.EveryShippedScenarioRuns` → **VALIDA**, `1/1`,
+> `0 fallimenti`, *«corpus eseguito: 84 PASS, 11 BLOCKED, 1 expected-fail»*, e `Combat.BasicAttack` **non è
+> fra i BLOCKED**. Il log mette i due numeri in righe consecutive:
+>
+> ```text
+> LogRT: [RT] Colpo: RTUnit_0 -> RTUnit_1 (22)
+> LogRT: [RT] (q=-1,r=0,L=0) -> (q=1,r=0,L=0): 17 danni (Action.BasicAttack · Hero.Gadget.ArcPulse, p50)
+> ```
+>
+> Il `22` che i documenti citano è reale — è il danno **dichiarato** del colpo, non la differenza di HP.
+>
+> ➕ **E cercando le gemelle ne sono uscite altre due**, che questo referto non aveva viste perché guardava
+> un solo scenario: `Visual.Movement.Charge` (prosa `70`, asserisce **`75`** — stessa causa) e
+> `Visual.Environment.FireOnEnter` (prosa `82`, asserisce **`72`** — causa diversa: la sua stessa cella
+> vicina scrive *«10 danni all'ingresso, 8 nel Cleanup»*, cioè `90 − 18 = 72`). Tre righe, **tre** ragioni.
+> Aperta [#1904](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1904), che le tiene tutte.
 
 ➕ **Difetto minore, stessa famiglia**: il corpo di `#1105` elenca `#1753`, `#1754`, `#1755` come `[ ]`
 aperte; tutte e tre risultano **CLOSED**.
@@ -371,10 +386,15 @@ J. SCENARIOS
    Nessuno scenario creato.
 
 K. TESTS
-   PASS:    nessuno eseguito in questa sessione.
+   PASS:    RefactorTactics.Scenario.EveryShippedScenarioRuns — VALIDA, 1/1, 0 fallimenti,
+            durata 02:05, HEAD b498afec / albero 400d185b invariati fra prima e dopo.
+            Corpus: 84 PASS, 11 BLOCKED, 1 expected-fail. Combat.BasicAttack fra i PASS
+            (non compare nell'elenco dei BLOCKED). Log: Saved/Logs/rt-basicattack.log.
+            ⚠️ Base dichiarata: binario costruito alle 10:38 da 5426209f, albero b498afec.
+            Il punto cieco dello script e' chiuso a misura per QUESTA domanda —
+            `git diff 5426209f b498afec -- Turn/ Combat/ ScenarioHarness/` e' vuoto.
    FAIL:    nessuno.
-   NOT RUN: ./scripts/rt-suite.ps1 — non eseguita.
-            Combat.BasicAttack — non eseguito (rilevante per §8).
+   NOT RUN: la suite intera (`-Filter RefactorTactics`) — eseguito il solo filtro sopra.
             Nessuna build, nessuna sessione Editor aperta da questo lavoro.
 
 L. FIRST EXECUTABLE ISSUE
@@ -418,16 +438,20 @@ candidate come issue.
 
 ## 11. Stato di questo lavoro, e cosa NON è stato fatto
 
-⚠️ **Niente è stato committato.** Durante la revisione `HEAD` si è mosso da `16b295ae` a `0c0ee87c` per mano
-di un'altra sessione, e un `UnrealEditor.exe` è vivo. Creare un branch qui sposterebbe `HEAD` sotto quella
-sessione, che è il difetto che il repository ha già registrato più volte. I tre file di questo consumo sono
-sul disco e **non tracciati**; il branch `docs/…`, il commit e la PR verso `main` restano da fare come atto
-esplicito.
+⚠️ **Il checkout è condiviso, e si è mosso tre volte durante il lavoro**: `16b295ae` → `0c0ee87c` →
+`5426209f` (`fix/711-sonda-roster-per-hover`) → `b498afec` (`main` locale), per mano di altre sessioni, con
+un `UnrealEditor.exe` vivo e un `.uasset` altrui modificato. Creare un branch con `switch` avrebbe spostato
+`HEAD` sotto quelle sessioni. I due commit di questo lavoro sono stati costruiti con **plumbing** su
+`origin/main` — indice temporaneo, `commit-tree`, `git branch` — quindi `HEAD` e il working tree non si sono
+mai mossi, e il `.uasset` altrui non è mai stato indicizzato.
 
-⚠️ **`NOT RUN`**: nessuna build, nessuna suite, nessuno scenario eseguito, nessun `.uasset` aperto, nessuna
-scrittura su GitHub.
+⚠️ **`NOT RUN`**: la suite intera, la build, le sessioni Editor. Eseguito il solo filtro dichiarato al §9 K.
 
 ### Prossimo passo
 
-Eseguire `Combat.BasicAttack` e, se passa a `103`, aprire una issue per le **quattro righe di prosa** del §8
-— è un difetto misurato, piccolo, con owner evidente, e oggi nessuna issue lo tiene.
+⛔ **Fatto.** `Combat.BasicAttack` è stato eseguito e passa a `103` (§8), e il difetto — cresciuto da una a
+**tre** righe con tre cause diverse — è tenuto da
+[#1904](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1904).
+
+Il prossimo passo torna quindi a essere quello del §9 L: **#1678**, il launcher come ingresso unico — l'unica
+candidata `P0` del kit con una issue aperta e nessuna dipendenza non soddisfatta.
