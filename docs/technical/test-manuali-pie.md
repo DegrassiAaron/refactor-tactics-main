@@ -1159,10 +1159,19 @@ Se una tappa fallisce per **semantica** dell'input e non per leggibilità, il di
 > **Precondizione comune**: Editor aperto su `L_DevSandbox` illuminato da `U21`, Hex Map mode attivo, tool
 > **Probe** selezionato, un `ARTHexMapActor` con asset.
 >
-> 🔑 **La mappa si carica, non si dipinge**: `rt.Map.Fixture ProbeYard`. Quella fixture porta le tre
-> condizioni che separano i motivi — una fascia costosa a `q = -2`, sei celle che bloccano attorno a `(3,0)`,
-> e `(3,0)` stessa murata e quindi irraggiungibile — e le porta **uguali a ogni seduta**, che è ciò che
-> permette di confrontare due esecuzioni.
+> 🔑 **La mappa si genera, non si dipinge.** Sull'`ARTHexMapActor`: `FixtureId = ProbeYard`, poi il pulsante
+> **Generate Fixture Into Asset**. Quella fixture porta le tre condizioni che separano i motivi — una fascia
+> costosa a `q = -2`, sei celle che bloccano attorno a `(3,0)`, e `(3,0)` stessa murata e quindi
+> irraggiungibile — e le porta **uguali a ogni seduta**, che è ciò che permette di confrontare due esecuzioni.
+>
+> 🔴 **Su un asset TUO, e la ragione è nel verbo.** `GenerateFixtureIntoAsset` **sostituisce** il contenuto
+> dell'asset puntato: eseguirla su una mappa che qualcun altro sta lavorando la cancella. Si crea un
+> `DA_HexMap_*` nuovo, o si punta uno `_Scratch` proprio.
+>
+> ⚠️ **`rt.Map.Fixture` NON serve a questo, e la prima stesura di questa voce lo diceva sbagliato.** Quella
+> cvar la legge `FRTMatchBootstrapper` all'avvio della **partita**: sceglie la mappa di PIE o del packaged, e
+> nell'editor non genera niente. Chi l'avesse digitata avrebbe visto la mappa non cambiare e concluso che la
+> sonda era rotta.
 >
 > 🔴 **Perché una fixture e non «allestisci a mano», misurato il 2026-08-31.** La mappa su cui `L_DevSandbox`
 > era aperto (`DA_HexMap_Scratch_Basin`) è stata interrogata cella per cella attraverso il ponte MCP, con lo
