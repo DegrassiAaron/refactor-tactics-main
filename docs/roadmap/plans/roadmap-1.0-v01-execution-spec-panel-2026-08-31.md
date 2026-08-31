@@ -37,10 +37,13 @@ testato e mergiato (§2.3). Eseguirla alla lettera produrrebbe, nell'ordine: una
 identificatori, una `Build.cs` che non linka, e un `§16 Out of scope` che è una **lista di rimozione** di
 feature consegnate.
 
-⚠️ **Ma una candidata su 29 individua una lacuna reale**, ed è l'unica ragione per cui questo referto non
-è una liquidazione: **`F0-26`** — non esiste **un solo marker di profiling** in tutto `Source/` (zero
-occorrenze di `TRACE_CPUPROFILER`, `SCOPE_CYCLE_COUNTER`, `DECLARE_CYCLE_STAT`, `CSV_`), e le metriche
-`queries/frame` ed `ExpandedNodes` non esistono. Vedi §5.1.
+⚠️ **La candidata che sembrava salvarlo non lo salva.** `F0-26` parte da un fatto vero — in tutto `Source/`
+non esiste **un solo marker di profiling** (zero occorrenze di `TRACE_CPUPROFILER`, `SCOPE_CYCLE_COUNTER`,
+`DECLARE_CYCLE_STAT`, `CSV_`) — ma la materia ha già un owner **aperto e `P0` nella milestone giusta**,
+[#84](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84), il cui DoD prescrive il `p99` con
+un argomento migliore di quello del §14. Il residuo non coperto da nessuno si riduce a **due metriche**:
+`queries/frame` ed `ExpandedNodes`. Vedi §5.1 — dove è annotato anche **come questo referto ha sbagliato
+due volte** prima di misurarlo.
 
 ---
 
@@ -107,7 +110,7 @@ Ogni riga poggia su una misura, non su una lettura del titolo.
 | **`REUSE`** (gate già coperto) | 2 | `F0-27` packaged · `F0-28` golden gate | coperti da `G1…G15` in [`../v0.1-definition-of-done.md`](../v0.1-definition-of-done.md) |
 | **processo, non prodotto** | 2 | `F0-00` audit · `F0-01` lock UE/toolchain | non producono codice; l'engine è pinnato a **5.8** in `.uproject` |
 | **N/A — modello diverso** | 1 | `F0-18` Ready/Unready + countdown | il loop reale è `ERTMatchPhase{Planning, Prep, Dash, Blast, Move, Cleanup}` (`Turn/RTTurnRules.h:10`): non c'è un Ready di turno da annullare |
-| 🔴 **`PARTIAL` — lacuna reale** | **1** | `F0-26` performance + marker | KPI misurati nei test, ma **zero marker di profiling** in `Source/` e nessuna metrica `queries/frame` — §5.1 |
+| 🟠 **`PARTIAL` — owner esistente** | 1 | `F0-26` performance + marker | **zero marker di profiling** in `Source/`, ma la materia è di [#84](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) (OPEN, `P0`, `v0.1 · Gate di release`), che prescrive già il `p99`. Scoperto da nessuno: solo `queries/frame` ed `ExpandedNodes` — §5.1 |
 
 ⚠️ **Un negativo di questa tabella è stato ottenuto due volte.** Il primo `grep` dava `F0-17` (ghost path)
 come assente: era cieco ai nomi reali — `Preview` compare in **44 file**. Un secondo passaggio con pattern
@@ -129,7 +132,7 @@ documenti citati: i conteggi di test e sorgenti sono quindi un **limite inferior
 | **Completezza** | **8.0** / 10 | copre audit, epic, issue, DoD, performance, template e report finale; manca la **condizione di terminazione anticipata** (cosa fare se F0 risulta finito) |
 | **Testabilità** (Wiegers · Adzic) | **6.5** / 10 | i DoD sono spesso misurabili (`path median < 2 ms`, `p50/p95/p99`), ma **nessun criterio è un comando eseguibile** e non c'è un solo esempio Given/When/Then |
 | **Consistenza** | **4.0** / 10 | tre assi di identificatori incompatibili col repository; il `§16` vieta nella v0.1 ciò che il `§4` colloca in v0.4 |
-| **Fedeltà misurata** | **2.0** / 10 | la release di riferimento è sbagliata; **15 fonti su 17 assenti**; **23 candidate su 29** sono `ALREADY_DONE` — ma **una individua una lacuna vera** (`F0-26`), e questo vale il mezzo punto |
+| **Fedeltà misurata** | **1.5** / 10 | la release di riferimento è sbagliata; **15 fonti su 17 assenti**; **23 candidate su 29** sono `ALREADY_DONE`, e la sola `PARTIAL` (`F0-26`) ha già un owner aperto in [#84](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) — il residuo non coperto è **due metriche** |
 | **Complessivo** | **5.5** / 10 | ingegneria buona, anagrafica scaduta — **da consumare per §14/§15, non da eseguire** |
 
 ---
@@ -308,13 +311,31 @@ Il residuo, misurato, è più stretto e più preciso:
 | `query count` · `expanded nodes` | `grep` su tutto `Source` | 🔴 **0 file** — non esistono |
 | Marker Insights (`RT.Path.Query`, `RT.Resolver.Total`, …) | `TRACE_CPUPROFILER` · `SCOPE_CYCLE_COUNTER` · `DECLARE_CYCLE_STAT` · `CSV_` | 🔴 **0 occorrenze in tutto `Source/`** |
 
-L'ultima riga è il contributo reale del documento. La performance oggi è misurata **solo dentro i test**:
-non esiste strumentazione che dica dove va il tempo durante una partita vera, e `queries/frame` — la
-grandezza che spiega *perché* la coda si allunga durante l'hover — non è osservabile.
+⚠️ **E anche il residuo ha già un owner, cercato dopo la prima stesura di questa sezione.**
+[#84](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) *«CP 12.4 — KPI misurati e
+registrati»* è **OPEN**, `P0`, epic [#26](https://github.com/DegrassiAaron/refactor-tactics-main/issues/26),
+milestone **`v0.1 · Gate di release`** — e il suo DoD dice già, testualmente:
 
-📝 **Proposta all'owner** (`v0.1-definition-of-done.md`, gate di performance): asserire `p95`/`p99` con la
-`PercentileMs()` che già esiste, e valutare i marker runtime del §F0-26. ⚠️ **Non verificato da questo
-referto**: se il DoD prescriva già qualcosa su questo. Va letto prima di aprire una voce.
+> «Il numero è un **percentile del frame time — p99** e non la media mobile di `stat fps`: un `60` medio
+> con p99 a 22 ms passa il gate e fallisce col giocatore.»
+
+È l'argomento del §14, scritto meglio del §14, con un esempio numerico che il kit non ha. La stessa issue
+chiede *«Profiling allegato nella sede dichiarata dal DoD»*.
+
+**Il residuo effettivo si riduce a due metriche**, che non compaiono né in `Source/` né in `#84` né
+nella sua epic: **`queries/frame`** ed **`ExpandedNodes`**. Sono la grandezza che spiega *perché* la coda
+si allunga durante l'hover — utile, ma è un dettaglio dentro una voce già aperta, non una lacuna.
+
+📝 **Nessuna issue da aprire.** L'azione proporzionata è al massimo una riga in
+[#84](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) quando quel checkpoint verrà
+lavorato. `SEARCH → REUSE / UPDATE → CREATE solo per gap reale` ([`CLAUDE.md`](../../../CLAUDE.md) §7):
+qui il gap reale è di due metriche, e l'owner esiste.
+
+⚠️ **Questa sezione ha sbagliato due volte prima di arrivare qui**, ed è la stessa specie di errore che il
+`F-02` rimprovera al kit: alla prima stesura dichiarava i percentili «il contributo più solido del
+documento» senza aver letto `RTHexPerfTests.cpp`; alla seconda dichiarava `F0-26` «lacuna reale senza
+issue» senza aver cercato su GitHub. Entrambe le volte la correzione è venuta da una misura, non da un
+ripensamento — ed entrambe le volte ha ridotto il credito del kit.
 
 ### 5.2 Il contratto Snapshot / TurnLog — §15
 
@@ -335,12 +356,16 @@ convergono sulla stessa lacuna sono un argomento per renderla formato stabile de
 
 Applicata a sé stessa — è ciò che fa la §2.3 — questa classificazione dà il verdetto del §1: **23 candidate
 su 29 sono `ALREADY_DONE`**, 2 sono gate già coperti, 2 sono processo, 1 è N/A per modello di turno, e
-**1 è la lacuna che salva il documento**.
+**1 è `PARTIAL` con owner già aperto**.
 
-⚠️ **La classificazione ha valore proprio perché non è a senso unico.** Applicata con onestà non produce
-solo `ALREADY_DONE`: qui ha isolato `F0-26`, che nessuna lettura sommaria del kit avrebbe trovato — il
-documento sbaglia release, tassonomia e fonti, e ha comunque ragione su un punto che il repository non
-copre.
+⚠️ **La classificazione vale se la si applica fino in fondo, e fino in fondo fa male al kit.** Applicata a
+metà, `F0-26` sembrava «la lacuna che salva il documento»: zero marker di profiling è un fatto vero e
+verificato. Cercato l'owner — che è il passo che la classificazione impone e che questo referto aveva
+saltato — [#84](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) copre la materia con un
+DoD migliore del §14. Resta un residuo di **due metriche**.
+
+È la lezione del `F-02` applicata a chi scrive il referto: *«il goal è raggiunto e la specifica non ha modo
+di saperlo»* vale anche per chi giudica la specifica, se non cerca prima di concludere.
 
 ---
 
