@@ -85,6 +85,62 @@ cosa vorremmo: una matrice che descrive un sistema immaginario è peggio di ness
 | consuma l'azione della vittima | n/a | n/a | n/a | **mai** |
 | **stato nel codice** | implementato | implementato | **`LinearLeap`**, dentro il Dash · irraggiungibile dal roster ([#645](https://github.com/DegrassiAaron/refactor-tactics-main/issues/645)) | implementato |
 
+### 2.0 Un micro-step, un arco — la regola che il codice applica e che nessun documento diceva
+
+> ✅ **Aggiunta il 2026-08-31 da [`D-305`](../decisions/RT_PDR_00_Decision_Log.md).** Non cambia niente:
+> **registra** un invariante già implementato che nessuna sede dichiarava.
+
+La riga *micro-step* della matrice dice **se** una famiglia genera micro-step. Non diceva **quanti passi**
+ne attraversa uno, e la risposta è:
+
+```text
+MaxGraphTransitionsPerUnitPerMicroStep = 1
+```
+
+**Una unità avanza al massimo di un arco del grafo tattico per micro-step.** Vale per tutti i profili di
+`Move` — `Sneak`, `Move`, `Sprint` ([D-015](../decisions/RT_PDR_00_Decision_Log.md)) — e per il `Forced`.
+Lo `Sprint` **va più lontano** perché ha più budget (`8 MP` contro `5`, [`RT_ActionCatalog_v0.1.md`](../balance/RT_ActionCatalog_v0.1.md) §2.1),
+**non** perché percorra due celle nello stesso micro-step.
+
+🔑 **«Arco del grafo», non «esagono adiacente»**, ed è la formulazione che conta. Il passo si legge da
+`Paths`, che il pathfinder produce sulle `URTHexMapAsset::Transitions` (`HexSim.ReachableUsesTransitions`) e
+non dall'adiacenza esagonale — quindi la regola vale senza riscritture per **rampe, scale, ponti, tunnel,
+porte e transizioni multilivello**, e `FRTCellId::operator==` confronta anche il `Layer`.
+
+È vero per costruzione, in una riga:
+
+```cpp
+// RTHexSimLibrary.cpp:654 — StepHexMovement
+Target[i] = Done[i] ? Pos[i] : Paths[i][Prog[i] + 1];
+```
+
+⛔ **Perché scriverlo se il codice lo fa già.** Un `Transfer` non genera micro-step intermedi **per
+decisione** ([D-118](../decisions/RT_PDR_00_Decision_Log.md)); questo invece lo faceva **per abitudine
+d'implementazione**. Un invariante non dichiarato è ciò che la prossima ottimizzazione rimuove senza che
+nulla protesti — e sotto c'è tutto quanto assume una sola transizione per volta: risoluzione delle
+collisioni, hazard attraversati, finestra di Overwatch, cambi di LOS, leggibilità del replay.
+
+⚠️ **Sotto il micro-step non esistono ulteriori istanti simulativi.** Possono esistere sotto-fasi
+deterministiche di elaborazione dello **stesso** micro-step, ma non devono creare un ordine temporale fra
+le unità: l'ordinamento stabile serve a processing, TurnLog, replay e hash, **mai** come precedenza di
+gioco — ed è pinnato da `HexSim.ResolveOrderIndependent`, `Actions.Collisions.NoPlayerIdBias` e
+`Movement.StepperIsDeterministicUnderPermutation`.
+
+⏳ **Cosa questa riga NON decide.** Se alcuni profili possano diventare eleggibili a micro-step *alternati*
+più rapidi è `MOV-3` in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), **aperta** e da playtestare; anche
+in quel modello il tetto di **un arco per unità per micro-step** resterebbe. La precedenza fra due unità
+che contendono la stessa cella è `MOV-4`, e oggi è `FRTActionDef::Priority`.
+
+⛔ **Due test che pinnerebbero questa riga non esistono**, ed è dichiarato invece che sottinteso:
+`OneTransitionMax_PerMicroStep` e `BlockedPath_DoesNotAutoReroute` (la riga *auto-reroute: mai* qui sopra)
+hanno **zero** occorrenze in `Source/`. Oggi la regola è esercitata di fatto da
+`Movement.StepperMatchesBatchResolver`, che non la nomina. Owner:
+[#2000](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2000).
+
+🔑 **Questa tabella dichiara test ATTESI, non presenti** — ed è la distinzione che
+[ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) §Verifica non fa, con undici nomi di cui
+zero esistono, cosa che ha già indotto in errore [D-295](../decisions/RT_PDR_00_Decision_Log.md).
+
 ### 2.1 Il `Transfer` esiste già, e vive dentro il Dash
 
 `ERTMovementStyle::LinearLeap` — *«ignora unità e celle intermedie, conta solo dove si atterra»* — produce
