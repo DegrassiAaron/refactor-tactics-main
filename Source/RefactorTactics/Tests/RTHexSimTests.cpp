@@ -644,8 +644,16 @@ bool FRTHexSimContestedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Lo scambio diretto BLOCCA (#1922, `D-295` ← `AUTHOR-MOVE-001`).
+ *
+ * 🔄 Questo test si chiamava `ResolveSwapAllowed` e asseriva l'opposto: era una caratterizzazione fedele
+ * del resolver, non una regola voluta. `StepHexMovement` bloccava per due sole condizioni — destinazione
+ * contesa e unita' ferma — e in uno scambio non si verifica nessuna delle due: le celle sono distinte e
+ * nessuna delle due unita' e' ferma.
+ */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimSwapTest,
-	"RefactorTactics.HexSim.ResolveSwapAllowed",
+	"RefactorTactics.HexSim.ResolveSwapBlocked",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexSimSwapTest::RunTest(const FString&)
 {
@@ -654,11 +662,94 @@ bool FRTHexSimSwapTest::RunTest(const FString&)
 	Paths.Add({ FRTCellId(1, 0), FRTCellId(0, 0) });
 
 	const TArray<FRTHexMoveResult> R = URTHexSimLibrary::ResolveHexPaths(Paths);
-	TestTrue(TEXT("scambio diretto consentito"),
-		R.Num() == 2 && R[0].Final == FRTCellId(1, 0) && R[1].Final == FRTCellId(0, 0));
-	TestTrue(TEXT("entrambe risultano mosse"),
-		R.Num() == 2 && R[0].Outcome == ERTMoveOutcome::Moved && R[1].Outcome == ERTMoveOutcome::Moved);
-	TestTrue(TEXT("celle attraversate registrate"), R.Num() == 2 && R[0].Entered.Num() == 1);
+	if (!TestEqual(TEXT("due risultati"), R.Num(), 2)) { return false; }
+	TestTrue(TEXT("nessuna delle due si muove"),
+		R[0].Final == FRTCellId(0, 0) && R[1].Final == FRTCellId(1, 0));
+	TestTrue(TEXT("reason = ciclo, per entrambe"),
+		R[0].Outcome == ERTMoveOutcome::BlockedByCycle && R[1].Outcome == ERTMoveOutcome::BlockedByCycle);
+	TestEqual(TEXT("nessuna cella attraversata"), R[0].Entered.Num(), 0);
+	return true;
+}
+
+/**
+ * Il ciclo chiuso a tre BLOCCA. E' la forma generale di cui lo scambio e' il caso `n = 2`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimClosedCycleTest,
+	"RefactorTactics.HexSim.ResolveClosedCycleBlocked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimClosedCycleTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });
+	Paths.Add({ FRTCellId(1, 0), FRTCellId(2, 0) });
+	Paths.Add({ FRTCellId(2, 0), FRTCellId(0, 0) });
+
+	const TArray<FRTHexMoveResult> R = URTHexSimLibrary::ResolveHexPaths(Paths);
+	if (!TestEqual(TEXT("tre risultati"), R.Num(), 3)) { return false; }
+	TestTrue(TEXT("nessuna delle tre si muove"),
+		R[0].Final == FRTCellId(0, 0) && R[1].Final == FRTCellId(1, 0) && R[2].Final == FRTCellId(2, 0));
+	TestTrue(TEXT("reason = ciclo, per tutte e tre"),
+		R[0].Outcome == ERTMoveOutcome::BlockedByCycle
+		&& R[1].Outcome == ERTMoveOutcome::BlockedByCycle
+		&& R[2].Outcome == ERTMoveOutcome::BlockedByCycle);
+	return true;
+}
+
+/**
+ * 🔴 Il convoy a coda libera AVANZA, e questo e' il test che distingue una regola corretta da una che
+ * rompe il gioco.
+ *
+ * Convoy e ciclo hanno la STESSA forma — ogni unita' punta alla cella occupata da un'altra in movimento,
+ * nessuna e' ferma — e differiscono SOLO per l'ultima cella della catena. La regola ovvia
+ * (*«se il mio target e' la posizione di un altro mover, blocca»*) supera il test del ciclo e uccide questo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimFreeTailConvoyTest,
+	"RefactorTactics.HexSim.ResolveFreeTailConvoyStillAdvances",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimFreeTailConvoyTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });
+	Paths.Add({ FRTCellId(1, 0), FRTCellId(2, 0) });
+	Paths.Add({ FRTCellId(2, 0), FRTCellId(3, 0) }); // (3,0) e' LIBERA: la catena non si chiude
+
+	const TArray<FRTHexMoveResult> R = URTHexSimLibrary::ResolveHexPaths(Paths);
+	if (!TestEqual(TEXT("tre risultati"), R.Num(), 3)) { return false; }
+	TestTrue(TEXT("tutte e tre avanzano di una cella"),
+		R[0].Final == FRTCellId(1, 0) && R[1].Final == FRTCellId(2, 0) && R[2].Final == FRTCellId(3, 0));
+	TestTrue(TEXT("esito = mosse, per tutte e tre"),
+		R[0].Outcome == ERTMoveOutcome::Moved
+		&& R[1].Outcome == ERTMoveOutcome::Moved
+		&& R[2].Outcome == ERTMoveOutcome::Moved);
+	return true;
+}
+
+/**
+ * Uno scambio in cui una delle due sta soltanto TRANSITANDO blocca comunque.
+ *
+ * ⚠️ E' il test che prova che la regola guarda i mover e non `bPassThrough`. Il resolver avanza a
+ * micro-step — `Target[i] = Paths[i][Prog[i] + 1]` — quindi uno scambio puo' formarsi anche quando per
+ * una delle due quella cella non e' la destinazione finale: qui A transita per `(1,0)` e vorrebbe finire in
+ * `(2,0)`. Il flag `bPassThrough` governa il ramo dell'unita' FERMA e qui non c'entra: B e' in movimento.
+ * Un'implementazione che lo consultasse passerebbe tutti gli altri test di questo file e sbaglierebbe qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimSwapWhilePassingThroughTest,
+	"RefactorTactics.HexSim.ResolveSwapBlockedEvenWhenPassingThrough",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimSwapWhilePassingThroughTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // A transita per (1,0)
+	Paths.Add({ FRTCellId(1, 0), FRTCellId(0, 0) });                  // B va dove A si trova
+
+	const TArray<bool> PassThrough = { true, false };
+	const TArray<FRTHexMoveResult> R =
+		URTHexSimLibrary::ResolveHexPaths(Paths, TArray<int32>(), TArray<bool>(), PassThrough);
+	if (!TestEqual(TEXT("due risultati"), R.Num(), 2)) { return false; }
+	TestTrue(TEXT("nessuna delle due si muove"),
+		R[0].Final == FRTCellId(0, 0) && R[1].Final == FRTCellId(1, 0));
+	TestTrue(TEXT("reason = ciclo, non bloccata da unita'"),
+		R[0].Outcome == ERTMoveOutcome::BlockedByCycle && R[1].Outcome == ERTMoveOutcome::BlockedByCycle);
 	return true;
 }
 
@@ -735,7 +826,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimHeadOnBlocksLinearSwapTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexSimHeadOnBlocksLinearSwapTest::RunTest(const FString&)
 {
-	// Contrasto diretto con ResolveSwapAllowed: la' lo scambio (nessuna mobilita' lineare) e' consentito, qui
+	// Contrasto diretto con ResolveSwapBlocked: la' lo scambio blocca come CICLO (`BlockedByCycle`), qui
 	// due mobilita' LINEARI (`Action.Charge` e affini) che si scambierebbero la cella si fermano l'una davanti
 	// all'altra invece di attraversarsi — e' lo scontro frontale di due cariche opposte (CP 4.8).
 	TArray<TArray<FRTCellId>> Paths;
