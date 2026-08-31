@@ -111,7 +111,8 @@ bool FRTWraithInterceptShotStopsMovementTest::RunTest(const FString&)
 	// gia' armato su una cella non si annulla.
 	TestTrue(TEXT("si arma nel Prep"),
 		URTCatalogLibrary::MapResolutionPhase(Intercept->Def.ResolutionPhase) == ERTMatchPhase::Prep);
-	TestFalse(TEXT("una previsione armata non si interrompe"), Intercept->Def.bCanBeInterrupted);
+	TestEqual(TEXT("una previsione armata non si interrompe"), Intercept->Def.InterruptPolicy,
+		ERTInterruptPolicy::None);
 
 	// Lo STOP e' rappresentabile: c'e' un esito di movimento che lo dice, e non riusa `BlockedByUnit` —
 	// la cella e' libera, e mandare il giocatore a cercare un'unita' che non c'e' sarebbe una bugia.

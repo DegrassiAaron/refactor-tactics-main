@@ -4,18 +4,43 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 {
 	TArray<FRTActionEvent> Events;
 
-	// Un'azione interrotta non produce NULLA: e' tutto o niente, non mezzo danno (catalogo §3, `HeavyAttack`).
-	// Il controllo sta qui, prima della traduzione, cosi' vale per ogni azione senza che nessuna se ne occupi;
-	// `bCanBeInterrupted == false` (Guard, Barrier, SuppressiveLine) rende il flag ininfluente per costruzione.
-	if (Instance.bInterrupted && Instance.Def.bCanBeInterrupted)
+	// Un'azione interrotta perde quello che la sua `InterruptPolicy` dichiara ([D-298]). Il controllo sta
+	// qui, prima della traduzione, cosi' vale per ogni azione senza che nessuna se ne occupi;
+	// `ERTInterruptPolicy::None` (Guard, Barrier, SuppressiveLine) lo rende ininfluente per costruzione.
+	//
+	// `SuppressSecondary` non esce di qui: taglia la LISTA degli effetti, e il ciclo sotto la percorre come
+	// sempre. Tagliarla qui invece di filtrare piu' in basso tiene una regola sola in un punto solo — e il
+	// criterio e' la lista dichiarata, non gli eventi prodotti: `DamageStructure` e `SetDoorState` non
+	// passano di qui nemmeno da interi, quindi su un'azione che li elenca per secondi questa policy e
+	// `InterruptBeforeEffect` coincidono. E' dichiarato sull'enum, dove si sceglie il valore.
+	int32 EffectiCount = Instance.Def.Effects.Num();
+	if (Instance.bInterrupted)
 	{
-		return Events;
+		switch (Instance.Def.InterruptPolicy)
+		{
+		case ERTInterruptPolicy::None:
+			break; // l'interrupt non la tocca: passa intera
+
+		case ERTInterruptPolicy::SuppressSecondary:
+			// Sopravvive il primo effetto dichiarato. `Min` e non `1`: un'azione senza effetti non deve
+			// diventarne una con uno.
+			EffectiCount = FMath::Min(EffectiCount, 1);
+			break;
+
+		case ERTInterruptPolicy::CancelChannel:
+			// RISERVATO: `ValidateActions` lo rifiuta, quindi il catalogo non lo porta mai fin qui. Il `case`
+			// esiste perche' lo switch resti esaustivo — e se un giorno arrivasse comunque, sopprimere tutto
+			// e' la lettura fail-closed, non un comportamento inventato.
+		case ERTInterruptPolicy::InterruptBeforeEffect:
+			return Events; // tutto o niente, non mezzo danno (catalogo §3, `HeavyAttack`)
+		}
 	}
 
 	// Un'azione puo' dichiarare piu' effetti: si traducono nell'ordine dichiarato, che e' anche l'ordine in
 	// cui il chiamante li applichera' (il danno prima della spinta, se l'azione li elenca cosi').
-	for (const FRTActionEffectSpec& Spec : Instance.Def.Effects)
+	for (int32 SpecIdx = 0; SpecIdx < EffectiCount; ++SpecIdx)
 	{
+		const FRTActionEffectSpec& Spec = Instance.Def.Effects[SpecIdx];
 		FRTActionEvent Event;
 		Event.Kind = Spec.Effect;
 		Event.SourceUnitId = Instance.SourceUnitId;
