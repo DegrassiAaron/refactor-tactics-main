@@ -478,29 +478,25 @@ bool FRTCoverPlacementIndependenceTest::RunTest(const FString&)
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * 🔴 **IL BLOCCO MISURATO, non un test che gira a vuoto.**
+ * 🔴 **IL BLOCCO CHE E' CADUTO, e il test che lo misurava e' rimasto a misurarne l'assenza.**
  *
- * Gli altri test di questo file lavorano su maschere scritte a mano, che sono l'ingresso legittimo di una
- * libreria pura. Questo le confronta con la pipeline vera — grammatica -> polilinea -> `ComputeMask` — e la
- * risposta e' che **oggi non combaciano**, per una ragione precisa e gia' registrata.
+ * Fino al 2026-08-31 questo test si chiamava `CentreContactRuleStillCollapsesTheWholeCell` e asseriva
+ * `Mask.Sectors == 0xFFF`: un muro passante per il centro accendeva **dodici** settori su dodici e la cella
+ * diventava inagibile. La sua intestazione dichiarava anche perche' non si correggeva li' — *«"il contatto in
+ * un solo punto e' invasione?" e' `MSE-4`, una decisione aperta con due uscite scritte: sceglierne una qui
+ * significherebbe deciderla per inerzia dentro una PR che parla d'altro»* — e prometteva: *«il giorno in cui
+ * `MSE-4` si chiude a favore dell'intersezione di lunghezza non nulla, questo test diventa rosso, e chi lo
+ * legge trova qui l'altra meta' del lavoro gia' scritta»*.
  *
- * Un segmento passante per il centro tocca il centro. Il centro e' il vertice comune di **tutti e dodici**
- * i triangoli di settore, e la regola d'intersezione di `ComputeMask` e' dichiaratamente conservativa —
- * *«un settore e' occupato se la geometria lo INTERSECA»*, contatto puntuale compreso. Ne segue che ogni
- * muro centrale accende dodici bit su dodici, e con zero settori liberi non esiste posa: **la regola che il
- * Decision Record dichiara superata sopravvive qui, dentro il produttore della maschera.**
+ * ✅ **Quel giorno e' arrivato con `#1826`**, e il test e' stato **riscritto invece che cancellato**: il caso
+ * resta misurato, con l'esito nuovo. Cancellarlo avrebbe tolto l'unica misura della pipeline vera —
+ * grammatica → polilinea → `ComputeMask` — lasciando gli altri test di questo file su maschere scritte a mano.
  *
- * ⚠️ **Non si corregge in questo commit, e non e' prudenza.** «Il contatto in un solo punto e' invasione?»
- * e' `MSE-4` in `docs/OPEN_DECISIONS.md` e [#717](https://github.com/DegrassiAaron/refactor-tactics-main/issues/717),
- * una decisione aperta con due uscite scritte. Sceglierne una qui significherebbe deciderla per inerzia
- * dentro una PR che parla d'altro — che e' esattamente cio' che il Decision Record vieta.
- *
- * ✅ **Cio' che questo test compra**: il giorno in cui `MSE-4` si chiude a favore dell'intersezione di
- * lunghezza non nulla, questo test diventa **rosso**, e chi lo legge trova qui l'altra meta' del lavoro
- * gia' scritta. Un blocco che nessun test misura si riscopre da capo sei mesi dopo.
+ * 🔑 **La riga che segue e' la piu' importante del file**: dice che il numero e' cambiato **e perche'**. Un
+ * `0xC3` senza storia, fra sei mesi, sembrerebbe una costante arbitraria.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverPlacementRealGeometryTest,
-	"RefactorTactics.CoverPlacement.CentreContactRuleStillCollapsesTheWholeCell",
+	"RefactorTactics.CoverPlacement.CentreContactNoLongerCollapsesTheWholeCell",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTCoverPlacementRealGeometryTest::RunTest(const FString&)
 {
@@ -514,23 +510,97 @@ bool FRTCoverPlacementRealGeometryTest::RunTest(const FString&)
 	Geometry.Add(URTGeometryGrammarLibrary::ToPolyline(Segment, HexSize));
 	const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask(Geometry, HexSize);
 
-	// La misura, esatta: dodici bit su dodici da un muro che ne attraversa quattro.
-	TestEqual(TEXT("MSE-4: il contatto nel centro accende tutti i settori"), Mask.Sectors, 0xFFF);
+	// LA MISURA, esatta: quattro bit, non dodici. `0xC3` e' `{0, 1, 6, 7}` — i due settori a destra e i due
+	// a sinistra del diametro `Deg0`, che va dal punto medio del lato `W` a quello del lato `E` e giace sul
+	// confine fra `0` e `1` da una parte e fra `6` e `7` dall'altra.
+	TestEqual(TEXT("MSE-4: il muro occupa i settori che attraversa, non tutti"),
+		Mask.Sectors, 0xC3);
+	TestFalse(TEXT("e il centro non e' bloccato: nessun footprint chiuso lo contiene"), Mask.bCoreBlocked);
+
+	// ⚠️ **Il contatto lungo un segmento resta occupato**, ed e' il motivo per cui i settori sono quattro e
+	// non due: il diametro giace sul confine fra due settori per ciascun semipiano, e li invade entrambi.
+	// La regola nuova toglie il contatto PUNTUALE, non quello lungo un tratto.
 
 	TArray<FRTPlacementRegion> Regions;
 	URTHexCoverPlacementLibrary::ComputeFreeRegions(Mask, Regions);
-	TestEqual(TEXT("quindi nessuna regione di posa"), Regions.Num(), 0);
-	TestFalse(TEXT("e la cella resta non calpestabile, come nella regola superata"),
+	TestEqual(TEXT("due regioni di posa, una per semipiano"), Regions.Num(), 2);
+	TestTrue(TEXT("e la cella torna calpestabile"),
 		URTHexCoverPlacementLibrary::HasLegalPlacement(Mask, FRTFootprintProfile()));
 
-	// ⚠️ La libreria di posa NON e' complice: data la maschera che `MSE-4` produrrebbe con l'altra uscita,
-	// risponde gia' come il Decision Record chiede. Il difetto e' a monte, e questa riga lo dimostra invece
-	// di lasciarlo dedurre.
-	const FRTOccupancyMask WithoutPointContact = MaskOf({ 0, 1, 6, 7 }, /*bCore*/ true);
-	TArray<FRTPlacementRegion> Would;
-	URTHexCoverPlacementLibrary::ComputeFreeRegions(WithoutPointContact, Would);
-	TestEqual(TEXT("con l'altra uscita di MSE-4 sarebbero due regioni"), Would.Num(), 2);
+	// 🔑 **La controprova che il difetto era a monte**, e la riga viene dal test precedente: la libreria di
+	// posa rispondeva GIA' bene alla maschera giusta. Ora la pipeline vera produce quella maschera, quindi
+	// le due devono coincidere — se divergessero, il difetto si sarebbe solo spostato.
+	const FRTOccupancyMask Expected = MaskOf({ 0, 1, 6, 7 }, /*bCore*/ false);
+	TestEqual(TEXT("la pipeline vera produce ora la maschera che la posa gia' sapeva leggere"),
+		Mask.Sectors, Expected.Sectors);
+
 	return true;
 }
 
+/**
+ * IL DIAMETRO SU TUTTI E SEI GLI ASSI — perche' `Deg0` da solo non e' una regola.
+ *
+ * ⚠️ **Un solo asse non distingue una regola da una coincidenza.** `Deg0` punta al punto medio di un lato;
+ * tre dei sei assi puntano invece a un VERTICE, dove la geometria dei triangoli attorno e' diversa. Se la
+ * regola valesse solo per gli assi «comodi», il difetto sopravvivrebbe sulla meta' dei muri che un designer
+ * puo' disegnare.
+ *
+ * 🔑 **E i quattro settori non si scrivono a mano**: si derivano da `AxisBoundaryIndex`, l'unico posto in
+ * cui la corrispondenza fra un asse e i dodici confini e' definita — la stessa da cui `AxisHalfPlanes`
+ * ricava i propri semipiani. Una tabella di costanti qui sarebbe la copia che diverge, e questo test non
+ * misurerebbe piu' la regola ma la propria costante.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverPlacementDiameterOnEveryAxisTest,
+	"RefactorTactics.CoverPlacement.DiameterOccupiesFourSectorsOnEveryAxis",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverPlacementDiameterOnEveryAxisTest::RunTest(const FString&)
+{
+	constexpr float HexSize = 100.0f;
+
+	for (int32 AxisIndex = 0; AxisIndex < RT_TacticalAxisCount; ++AxisIndex)
+	{
+		const ERTTacticalAxis Axis = static_cast<ERTTacticalAxis>(AxisIndex);
+
+		TArray<FRTOccupancyPolyline> Geometry;
+		Geometry.Add(URTGeometryGrammarLibrary::ToPolyline(Diameter(Axis), HexSize));
+		const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask(Geometry, HexSize);
+
+		int32 Occupied = 0;
+		for (int32 Sector = 0; Sector < RT_OccupancySectorCount; ++Sector)
+		{
+			if ((Mask.Sectors & (1 << Sector)) != 0) { ++Occupied; }
+		}
+		TestEqual(*FString::Printf(TEXT("asse %d: quattro settori occupati"), AxisIndex), Occupied, 4);
+
+		TArray<FRTPlacementRegion> Regions;
+		URTHexCoverPlacementLibrary::ComputeFreeRegions(Mask, Regions);
+		TestEqual(*FString::Printf(TEXT("asse %d: due regioni libere"), AxisIndex), Regions.Num(), 2);
+
+		// 🔑 **QUALI quattro, e non solo quanti.** Un conteggio da solo passerebbe anche se i settori fossero
+		// quelli sbagliati. Il diametro buca il perimetro nei due confini opposti `b` e `b + 6`, e un
+		// confine separa due settori: gli occupati sono percio' i due a cavallo di ciascuno.
+		//
+		// ⛔ La corrispondenza asse -> confine non si riscrive qui: `AxisBoundaryIndex` e' l'unico posto in
+		// cui e' definita, ed e' la stessa da cui `AxisHalfPlanes` deriva i propri semipiani.
+		const int32 Boundary = URTGeometryGrammarLibrary::AxisBoundaryIndex(Axis);
+		int32 Straddling = 0;
+		for (const int32 Step : { -1, 0, 5, 6 })
+		{
+			const int32 Wedge = ((Boundary + Step) % RT_OccupancySectorCount + RT_OccupancySectorCount)
+				% RT_OccupancySectorCount;
+			Straddling |= (1 << Wedge);
+		}
+		TestEqual(*FString::Printf(TEXT("asse %d: sono i quattro settori a cavallo dei due confini"),
+			AxisIndex), Mask.Sectors, Straddling);
+
+		// E i due semipiani di `AxisHalfPlanes` restano complementari: e' la proprieta' su cui
+		// `ComputeFreeRegions` conta per dare una regione per parte.
+		int32 MaskA = 0, MaskB = 0;
+		URTHexCoverPlacementLibrary::AxisHalfPlanes(Axis, MaskA, MaskB);
+		TestEqual(*FString::Printf(TEXT("asse %d: i due semipiani non si sovrappongono"), AxisIndex),
+			MaskA & MaskB, 0);
+	}
+
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS
