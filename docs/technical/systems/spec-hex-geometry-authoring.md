@@ -461,6 +461,38 @@ Ognuno ha la sua issue; qui c'è solo il **contratto** che devono rispettare.
 | **Geometry Authoring Tool** | ghost valido/invalido prima del commit, snap alla grammatica, **una gesture = una transazione** (un solo `Ctrl+Z`), validator e bake chiamati al runtime | [#712](https://github.com/DegrassiAaron/refactor-tactics-main/issues/712) |
 | **Movement Probe** | usa `URTHexSimLibrary::ReachableCells` e ricostruisce il path risalendo `FRTHexReachableCell::FromCell`. **Nessun secondo Dijkstra, nessun A\* per cella.** I `reason` usano il vocabolario runtime esistente | [#711](https://github.com/DegrassiAaron/refactor-tactics-main/issues/711) |
 
+### 13.1 Che cosa muore con che cosa — le regole di dipendenza
+
+Owner: `URTMapDependencyLibrary` (`Source/RefactorTactics/Map/`), [#1864](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1864).
+
+La regola sta nel **runtime** ed è **pura**, per la stessa ragione per cui la grammatica non sta nell'editor:
+è del dominio, non dello strumento, e deve poter essere provata headless. Un tool chiede l'elenco dei
+dipendenti *prima* di aprire la transazione, e cancella dentro la propria.
+
+⛔ **`CollectDependents` non modifica l'asset.** Raccogliere e cancellare sono due gesti distinti: tenerli
+separati è ciò che permette a un tool di mostrare l'elenco prima di eseguirlo, e alla regola di essere
+testabile senza un mondo.
+
+Cancellando una **cella**, tre array le sopravvivono e vanno raccolti — `Covers` e `Doors` no, perché vivono
+*dentro* `FRTHexCellData` e se ne vanno con lei:
+
+| Array | Perché non può restare | Regola di `ValidateMap` |
+|---|---|---|
+| `InteriorWalls` | un muro su una cella che non esiste | *«muro interno %d su cella inesistente»* |
+| `Transitions` | **entrambi i versi**: `FRTHexEdge` è direzionale | *«transizione verso cella inesistente»* |
+| `InteractionBindings` | un binding la cui sorgente sparisce | *«riferimento a una struttura inesistente»* |
+
+🔑 **Portare un bordo di una struttura non significa esserne l'unica sede.** Un portone è un *gruppo* di
+bordi che condividono lo `StableId` (CP 23.3): cancellare una delle sue celle ne toglie metà, e il nome
+continua a risolvere. Un binding che lo comanda **sopravvive**, e rimuoverlo sarebbe una correzione
+silenziosa di uno stato ancora valido — con perdita di dato. Il nome muore solo se *nessun* bordo resta
+fuori dalla cella cancellata.
+
+⚠️ Gli indici restituiti valgono finché l'asset non cambia, e si consumano **dal più alto al più basso**.
+
+Verifica: `RefactorTactics.Map.Dependency.*` — un test per array, uno per il gruppo che sopravvive, e uno
+che applica la cascata e chiede a `ValidateMap` se è rimasto qualcosa.
+
 ---
 
 ## 14. Come si verifica
