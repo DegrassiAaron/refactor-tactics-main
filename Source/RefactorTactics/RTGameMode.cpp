@@ -108,6 +108,13 @@ TAutoConsoleVariable<int32> CVarRTAutobattle(
 	TEXT("Partita non presidiata: entrambe le squadre al bot. -1 = non impostata (vale il resto), 0 = partita normale, 1 = autobattle."),
 	ECVF_Default);
 
+TAutoConsoleVariable<int32> CVarRTBotAllies(
+	TEXT("rt.Match.BotAllies"),
+	-1,
+	TEXT("Quanti compagni della squadra 0 pianifica il bot, dal fondo della formazione. -1 = non impostata "
+		 "(vale il resto), 0 = nessuno, N = gli ultimi N. Almeno un'unita' resta sempre al giocatore."),
+	ECVF_Default);
+
 TAutoConsoleVariable<float> CVarRTPlanningSeconds(
 	TEXT("rt.Match.PlanningSeconds"),
 	-1.f,
@@ -216,6 +223,73 @@ namespace RTAutobattleEntry
 	static constexpr float FallbackPlanningSeconds = 2.f;
 
 }
+
+/**
+ * LE TRE SORGENTI degli alleati al bot, con la stessa forma e lo stesso ordine di `RTAutobattleEntry`:
+ *
+ *     proprieta' del GameMode  <  -RTBotAllies=N  <  rt.Match.BotAllies
+ *
+ * ⚠️ **Un intero e non un booleano**, quindi la forma nuda (`-RTBotAllies`) non basterebbe a dire *quanti*.
+ * La si accetta lo stesso e vale **1**: e' la richiesta che si scrive per prima a 2v2, dove «un compagno al
+ * bot» e' l'unica lettura possibile. Le altre cardinalita' si chiedono con `=N`.
+ */
+namespace RTBotAlliesEntry
+{
+	/** Cosa chiede la riga di comando, se chiede qualcosa. */
+	static TOptional<int32> FromCommandLine()
+	{
+		// Letto come STRINGA per lo stesso motivo di `RTAutobattleEntry::FromCommandLine`: `FCString::Atoi`
+		// risponde **0** a tutto cio' che non e' un numero, e `0` qui e' una richiesta legittima — «nessun
+		// compagno al bot». Un refuso diventerebbe una configurazione valida e silenziosa.
+		FString Raw;
+		if (FParse::Value(FCommandLine::Get(), TEXT("RTBotAllies="), Raw))
+		{
+			const FString Value = Raw.TrimStartAndEnd();
+			if (Value.IsNumeric())
+			{
+				const int32 Parsed = FCString::Atoi(*Value);
+				if (Parsed >= 0)
+				{
+					return Parsed;
+				}
+			}
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] -RTBotAllies='%s' non e' un intero non negativo. Ignorato: decide la proprieta' "
+					 "del GameMode."),
+				*Raw);
+			return TOptional<int32>();
+		}
+
+		if (FParse::Param(FCommandLine::Get(), TEXT("RTBotAllies")))
+		{
+			return 1;
+		}
+		return TOptional<int32>();
+	}
+
+	enum class EWinner : uint8 { Property, CommandLine, ConsoleVariable };
+
+	/** Chi vince, in un posto solo — stessa ragione di `RTAutobattleEntry::Winner`. */
+	static EWinner Winner()
+	{
+		if (CVarRTBotAllies.GetValueOnGameThread() >= 0) { return EWinner::ConsoleVariable; }
+		if (FromCommandLine().IsSet())                   { return EWinner::CommandLine; }
+		return EWinner::Property;
+	}
+
+	/** L'etichetta della fonte, per il log dell'attivazione. */
+	static const TCHAR* SourceLabel()
+	{
+		switch (Winner())
+		{
+		case EWinner::ConsoleVariable: return TEXT("rt.Match.BotAllies");
+		case EWinner::CommandLine:     return TEXT("-RTBotAllies");
+		case EWinner::Property:        break;
+		}
+		return TEXT("BP_GameMode");
+	}
+}
+
 /** Definita in ScenarioHarness/RTTestConsole.cpp: scavalca `MapSource` da riga di comando. */
 extern TAutoConsoleVariable<FString> CVarRTMapSource;
 /** Definita nello stesso file: la fixture per nome, che vince su `rt.Map.Source` (`#1290`). */
@@ -548,6 +622,8 @@ void ARTGameMode::SetupHexMatch(ARTHexMapActor* HexMap)
 	Config.HeroUnitClasses       = HeroUnitClasses;
 	Config.bAutobattle           = ResolveAutobattle();
 	Config.AutobattleSourceLabel = RTAutobattleEntry::SourceLabel();
+	Config.BotAllyCount          = ResolveBotAllies();
+	Config.BotAllySourceLabel    = RTBotAlliesEntry::SourceLabel();
 	// ⚠️ **Dopo `ResolveAutobattle()`, e l'ordine non e' estetico**: il quarto gradino di questa scala e' *il
 	// ripiego dell'autobattle*, quindi questa funzione chiama quella. Invertirle cambierebbe quante volte la
 	// precedenza viene annunciata nel log, che e' un numero su cui i test asseriscono.
@@ -711,6 +787,42 @@ bool ARTGameMode::ResolveAutobattle() const
 	}
 
 	return bAutobattle;
+}
+
+int32 ARTGameMode::ResolveBotAllies() const
+{
+	// Stessa scala di `ResolveAutobattle`, stessa sentinella negativa, stessi annunci di scavalcamento: una
+	// console variable resta accesa per tutto il processo dell'editor, e un compagno che si muove da solo a
+	// ogni Play successivo e' esattamente il genere di sorpresa che si finisce a cercare nella proprieta'
+	// sbagliata.
+	const int32 FromConsole = CVarRTBotAllies.GetValueOnGameThread();
+	if (FromConsole >= 0)
+	{
+		if (BotAllyCount != FromConsole)
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] La console variable rt.Match.BotAllies=%d SCAVALCA la proprieta' BotAllyCount=%d "
+					 "del GameMode. Per tornare a usare la proprieta': `rt.Match.BotAllies -1`."),
+				FromConsole, BotAllyCount);
+		}
+		return FromConsole;
+	}
+
+	// Sorgente di mezzo: l'unica che arriva anche in Shipping (vedi `RTAutobattleEntry`).
+	const TOptional<int32> FromCmdLine = RTBotAlliesEntry::FromCommandLine();
+	if (FromCmdLine.IsSet())
+	{
+		if (BotAllyCount != FromCmdLine.GetValue())
+		{
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] La riga di comando -RTBotAllies SCAVALCA la proprieta' BotAllyCount=%d del "
+					 "GameMode: al bot vanno %d compagni. Per tornare a usare la proprieta': togli il flag."),
+				BotAllyCount, FromCmdLine.GetValue());
+		}
+		return FromCmdLine.GetValue();
+	}
+
+	return BotAllyCount;
 }
 
 float ARTGameMode::ResolveMatchPlanningSeconds() const
