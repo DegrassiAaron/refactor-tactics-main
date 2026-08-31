@@ -311,6 +311,27 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
 
 ## Note
 
+- **D-300** (2026-08-31): 🔴 **«resta il primo effetto» è la lettura sbagliata, e la voce la usa in un
+  punto.** Trovato da uno spec panel su [#1955](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1955)
+  poche ore dopo il merge, misurando il canale invece di fidarsi della prosa: nella pipeline del Blast **il
+  danno non viaggia sugli eventi**. Nasce come `Intent.Power`, diventa `Hit.Power` e finisce in `FRTAttack`
+  (`URTHexCombatLibrary::CollectHexAttacks`); il ciclo che consuma `URTActionEffectLibrary::ProduceEvents` in
+  `ARTTurnManager` ha **tre** `case` — `Status`, `Push`, `Pull` — e un `default` che ignora il resto.
+  ∴ **`SuppressSecondary` non può sopprimere il danno di un colpo in nessuna posizione della lista**: un
+  `Damage` dichiarato *secondo* verrebbe tagliato dalla policy e arriverebbe **lo stesso**, per l'altro canale.
+  ✅ **La decisione non cambia, cambia il perché**: su `Action.Charge` l'esito resta *«colpisce ma non
+  spinge»* — solo che il colpo sopravvive perché **non è mai stato nel canale che la policy taglia**, non
+  perché sia il primo elemento della lista. Il criterio per assegnare la policy a un'azione futura non è che
+  *posto* ha l'effetto, ma se `ProduceEvents` lo traduce **e** se il ciclo consumatore lo raccoglie.
+  ➕ Corretto sull'enum in [#1959](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1959), dove
+  si sceglie il valore, e **pinnato** da `Actions.InterruptPolicy.SuppressSecondaryCutsByPositionNotByKind`:
+  il limite era scritto e non misurato, che è la classe di difetto che questo log ha già chiuso più volte.
+  ⚠️ **Il commento dell'enum era vero e incompleto**, ed è la forma più insidiosa: citava `DamageStructure` e
+  `SetDoorState` come effetti che `ProduceEvents` non traduce — corretto — lasciando credere che l'elenco
+  fosse chiuso. `Damage` è tradotto **e** ignorato a valle, quindi non compariva in nessuno dei due elenchi
+  che uno andrebbe a controllare.
+  ⛔ **Cosa questa nota NON cambia**: nessun numero, nessuna riassegnazione della policy, e il debito di
+  `#1955` resta intero — `bInterrupted` continua a non essere mai vero nel runtime.
 - **D-295** (2026-08-31): ✅ **la clausola *«unless explicitly allowed»* di `AUTHOR-MOVE-001` non è una
   domanda aperta, e non si risponde nel resolver del Move.** Trovato da uno spec panel su
   [#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922) poche ore dopo il merge:
