@@ -407,11 +407,11 @@ C5), **una di perimetro** (C6). Il resto del work order — la pipeline, i divie
 
 ## 5. Cosa fare adesso
 
-L'esecuzione del work order **non è stata fatta**: creare due issue su GitHub è un'azione esterna, e il
-mandato di questa sessione era consumare il kit, non eseguirlo. Le due issue, corrette dei sei rilievi,
-sono pronte qui sotto e attendono un via.
+> ✅ **Eseguito il 2026-08-31 su richiesta esplicita**, dopo la consegna del referto. Le due issue sono
+> aperte — **#1936** (v0.1) e **#1937** (epic) — e il §7 registra cosa è stato scritto davvero, incluse le
+> due voci di Decision Log. Ciò che segue è la specifica con cui sono state aperte.
 
-### 5.1 Issue v0.1 — pronta
+### 5.1 Issue v0.1 — aperta come #1936
 
 - **Titolo**: `Il log a schermo racconta le celle, non la partita: i pannelli Canvas legacy escono e il feed del giocatore entra`
 - **Label**: `v0.1`, `P1` · **Milestone**: `v0.1 · Leggibilità`
@@ -424,7 +424,7 @@ sono pronte qui sotto e attendono un via.
   6. le due voci DoD duplicate da #613 escono, sostituite dal rimando — da C8.
 - **Related**: `#613 #79 #1466 #1496 #1499`, e `#295` come precedente che decide la forma della pipeline.
 
-### 5.2 Epic cross-release — pronto
+### 5.2 Epic cross-release — aperto come #1937
 
 - **Titolo**: `[EPIC] Player Event Log & Explainability — dal TurnLog alla UI fino alla v1.0` ✅ (in convenzione)
 - **Corpo**: quello del kit §4, più:
@@ -452,5 +452,50 @@ condiviso invece di una «vista autorizzata» generica che oggi non esiste come 
 | Decisioni citate | D-223 (verdetto congelato, morti pubbliche), D-276 (replay in due prodotti), D-120 (roster noto) |
 | Issue citate | #25 #79 #265 #268 #295 #472 #613 #1466 #1496 #1499 #1881 |
 
-⚠️ **Nessuna scrittura su GitHub è stata eseguita da questa sessione**: nessuna issue creata, aggiornata o
-commentata. Le due issue del §5 esistono solo come proposte in questo file.
+Le scritture su GitHub sono elencate al §7.
+
+---
+
+## 7. Esecuzione — cosa è stato scritto davvero
+
+Il referto è stato consegnato senza scrivere su GitHub; l'esecuzione è arrivata subito dopo, su richiesta
+esplicita, con i sei rilievi già applicati.
+
+### 7.1 Issue
+
+| | Titolo | Esito |
+|---|---|---|
+| **#1936** | *Il log a schermo racconta le celle, non la partita: i pannelli Canvas legacy escono e il feed del giocatore entra* | **creata** — label `v0.1`, `P1`; milestone `v0.1 · Leggibilità` |
+| **#1937** | `[EPIC] Player Event Log & Explainability — dal TurnLog alla UI fino alla v1.0` | **creato** — label `v0.1`, `epic`, `P1`; nessuna milestone, come #1881 |
+
+Entrambe scritte **in italiano**, come i corpi di tutte le issue del repository: il work order li dettava in
+inglese, ed è un settimo scostamento dalla convenzione che il §3 non aveva censito perché riguarda la lingua,
+non la struttura.
+
+### 7.2 Legame e backlink
+
+- **Sub-issue nativa** #1937 → #1936 (`addSubIssue` via GraphQL, che vuole l'`id` del nodo e non il numero):
+  è il rilievo **C4** applicato — l'epic ha ora 1 figlio nativo, come #1881 ne ha 3.
+- Backlink reciproci nelle due testate.
+- Commenti **additivi** su #25, #613 e #79 — nessun corpo storico riscritto. Quello su #79 dichiara ciò che
+  conta per lui: il contratto resta intero, e la separazione del predicato non cambia le righe che produce.
+
+### 7.3 Decision Log
+
+| Voce | Cosa registra |
+|---|---|
+| **D-299** *(nuova)* | Il log rivolto al giocatore è un canale **derivato** con vocabolario proprio: `Minor · Important · Critical` è tassonomia di **presentazione**, non di gameplay; il log dettagliato non si semplifica; la **dominanza** non si ottiene abbassando la verbosità; il canale non entra nell'hash, e il layout resta di §14 |
+| **D-223** *(emendata)* | Il **quarto consumatore** del verdetto congelato, e la condizione di riapertura che **non** scatta. Con il reperto **C1**: la regola non è chiamabile come sta scritta, perché la porta autorizzata compone il testo dentro la stessa funzione che filtra |
+
+⚠️ **Il numero è stato rimisurato due volte**: all'apertura della sessione il massimo era `D-296`, alla
+scrittura `D-298`. Due voci sono entrate da altre sessioni nel frattempo.
+
+**Non registrata**, e la ragione va detta: la separazione di `ComposeVisibleLogLines` non è una decisione ma
+una **conseguenza forzata** — le altre due strade sono già vietate da decisioni esistenti, e dove non c'è
+scelta non c'è nulla da decidere. Vive come lavoro nella voce `C-bis` di #1936.
+
+### 7.4 Cosa resta al lavoro, non al tracking
+
+`docs/technical/systems/spec-player-event-log.md` non è stato creato: è l'owner della semantica, e nasce
+**con** l'implementazione in #1936, non prima. La struttura in 12 punti proposta dal kit resta valida con le
+due correzioni del §5.3.
