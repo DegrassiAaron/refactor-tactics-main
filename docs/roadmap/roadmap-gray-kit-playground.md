@@ -61,14 +61,21 @@ il repository li tiene separati da prima di questa roadmap.
 La guida metrica del Playground è **presentation-only**. Non corrisponde a `FRTCellId`, hex grid, nodo A\*,
 topologia, distanza di gameplay, occupancy o pathfinding.
 
-🔑 **E c'è una misura che rende la confusione difficile invece che solo vietata.** La cella tattica ha
-`HexSize = 150.f` (`Source/RefactorTactics/Map/RTHexMapAsset.h:220`), cioè **1,5 m** di lato — la scala
-d'arte fissata da [`D-163`](../decisions/RT_PDR_00_Decision_Log.md) e atterrata con
-[#1155](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1155). Una guida da **1 m** è quindi
-**incommensurabile** con la cella: nessun multiplo intero della guida cade sul passo esagonale, e chi la
-scambiasse per una griglia tattica vedrebbe subito che non si allinea a niente.
+🔴 **Una misura che sembrava rinforzare la regola la indebolisce, ed è meglio saperlo.** La prima
+stesura di questa sezione diceva che la cella da `1,5 m` (`HexSize = 150.f`, [`D-163`](../decisions/RT_PDR_00_Decision_Log.md))
+rende la guida da 1 m **incommensurabile** con la griglia. Il test scritto per pinnarlo
+([#1991](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1991)) ha misurato i due passi
+chiamando `URTHexLibrary::AxialToWorld`, e dice il contrario:
 
-⚠️ È un rinforzo, non la regola. La regola è `D-304`.
+| Asse | Passo | Rapporto con una guida da 1 m |
+|---|---:|---|
+| **X** | `HexSize · √3` = `2,598076 m` | non coincide **mai** — `√3` è irrazionale — ma a `13 m` dista **0,96 cm**: a occhio è allineato |
+| **Y** | `HexSize · 1,5` = `2,250000 m` | coincide **esattamente** a `9 · 18 · 27 · 36 m` — quattro volte su un floor lungo 40 |
+
+∴ **L'aritmetica non protegge dalla confusione.** Ciò che la impedisce è `D-304`, più l'obbligo che la
+**scena dichiari** la guida presentation-only — che è un acceptance criterion di #1991, non il corollario
+di un calcolo. Il guardiano è `RefactorTactics.Playground.MetreGuideIsNotTheHexPitch`, che misura
+entrambi gli assi e **dichiara** la coincidenza verticale invece di negarla.
 
 ---
 
