@@ -1350,7 +1350,8 @@ sessions:
     artifacts: []
     unblocked_by: [U21]
     shares_setup_with: [U21, U25, U26]
-    verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI, PIE-GEO-ANCHOR]
+    verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI, PIE-GEO-ANCHOR,
+               PIE-GEO-INCIDENZA]
     issues: [712, 1895]
     done_when: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
     unblocks: []
@@ -1377,6 +1378,15 @@ sessions:
       chiamate al runtime e zero logica duplicata»* — **regge ancora**: le chiamate restano tre, e la
       frase del rifiuto la compone `RTHexAnchor::Describe`, che traduce un reason code invece di
       deciderlo.
+      ➕ **`PIE-GEO-INCIDENZA` aggiunta con la parte 4 di #1895**: il gesto ora segnala anche quando il
+      muro **si fa** ma insieme a uno esistente forma una configurazione che `#1894` dichiara invalida —
+      incrocio fuori-anchor, sovrapposizione, duplicato. ⚠️ **Segnala e non blocca**, perche' l'incidenza
+      e' una proprieta' della COLLEZIONE e `Validate` e' lo strato che segnala; bloccarla impedirebbe di
+      disegnare `A`, poi `B` che lo incrocia, poi correggere `A`.
+      🔴 **Con la parte 4 e' caduto anche un difetto introdotto dalla parte 3**: il ciclo di `Render`
+      era rimasto su `SnapToGrammar` mentre il commit era passato all'aggancio-anchor, quindi su una
+      coppia inesprimibile il ghost disegnava un muro che il rilascio non produceva. Ora il tool non
+      chiama piu' `SnapToGrammar` in nessun punto: **zero occorrenze**, misurato.
 
   - id: U24
     title: I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root

@@ -72,6 +72,16 @@ public:
 	 */
 	UPROPERTY(VisibleAnywhere, Category = "Hex|Geometria")
 	FString Refusal;
+
+	/**
+	 * L'INCIDENZA con un muro GIA' presente nella cella, vuota quando non ce n'e' — `#1895` parte 4.
+	 *
+	 * ⚠️ Diversa da `Refusal`: quello dice che il muro **non si fa**, questa che si fa **insieme a un
+	 * difetto**. La riga nomina l'altro muro per indice, perche' il criterio e' che l'incidenza si veda
+	 * sui **due** segmenti coinvolti.
+	 */
+	UPROPERTY(VisibleAnywhere, Category = "Hex|Geometria")
+	FString Incidence;
 };
 
 /**
@@ -144,6 +154,16 @@ private:
 	 */
 	FRTAnchorRef AnchorFrom;
 	FRTAnchorRef AnchorTo;
+
+	/**
+	 * L'incidenza fra il segmento in corso e uno gia' presente — `#1895` parte 4.
+	 *
+	 * Due campi e non la struct interna: quella vive nel namespace anonimo del `.cpp`, dove sta la
+	 * chiamata al validator, e non deve affacciarsi sull'header per essere ricordata fra un fotogramma e
+	 * l'altro. `IncidentWallIndex` indicizza `InteriorWalls` dell'asset, non il gruppo della cella.
+	 */
+	ERTGeometryViolation IncidentViolation = ERTGeometryViolation::None;
+	int32 IncidentWallIndex = INDEX_NONE;
 
 	/** Il segmento che lo snap ha prodotto, e se ne ha prodotto uno. */
 	FRTGeometrySegment Preview;

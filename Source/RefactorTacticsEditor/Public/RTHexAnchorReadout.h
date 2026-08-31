@@ -67,4 +67,26 @@ namespace RTHexAnchor
 	 * lo stesso difetto che in `#711` produceva «nessuna strada» su una sonda senza unita'.
 	 */
 	FReadout DescribePending(const FRTAnchorRef& From);
+
+	/**
+	 * L'INCIDENZA fra il segmento in corso e uno GIA' PRESENTE nella cella — `#1895` parte 4, che consuma i
+	 * reason code di `#1894`.
+	 *
+	 * 🔑 **Perche' e' una funzione separata e non un quinto caso di `Describe`.** I due rifiuti rispondono a
+	 * domande diverse e hanno esiti diversi: `ERTAnchorPairRefusal` dice *«questo gesto non produce un
+	 * muro»* e il ghost si spegne; `ERTGeometryViolation` dice *«il muro si fa, ma insieme a un altro forma
+	 * una configurazione che la grammatica dichiara invalida»* — e il muro si fa lo stesso.
+	 *
+	 * ⚠️ **SEGNALA, NON BLOCCA, ed e' una scelta dichiarata.** L'incidenza e' una proprieta' della
+	 * COLLEZIONE, e `URTGeometryGrammarLibrary::Validate` e' per costruzione lo strato che *segnala* — la
+	 * divisione a due strati di `#620`, dove a rifiutare e' `ValidateSegment`. Il criterio di `#1895` chiede
+	 * che l'incidenza *«si veda sui due segmenti coinvolti»*, non che sia impedita: bloccarla renderebbe
+	 * impossibile un flusso legittimo — disegnare `A`, poi `B` che lo incrocia, poi correggere `A` — e
+	 * l'autore si troverebbe il tool che rifiuta senza sapere quale dei due sia «quello sbagliato».
+	 *
+	 * ⛔ Nessuna regola qui: la violazione arriva gia' decisa da `Validate`, e questa funzione la traduce.
+	 * Restituisce una stringa **vuota** per cio' che non e' un'incidenza fra due — `None` e le violazioni
+	 * del singolo segmento, che hanno gia' i loro canali.
+	 */
+	FString DescribeIncidence(ERTGeometryViolation Violation, int32 OtherWallIndex);
 }
