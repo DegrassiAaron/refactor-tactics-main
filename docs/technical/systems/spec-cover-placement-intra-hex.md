@@ -10,8 +10,10 @@
 > **Non possiede** la grammatica dei segmenti né la misura dell'occupancy: quelle restano di
 > [`spec-hex-geometry-authoring.md`](spec-hex-geometry-authoring.md), che questo documento **corregge** in
 > due punti (§5, §6) e per il resto consuma.
-> **Non possiede** i numeri: percentuali di mitigazione e raggi di clearance restano decisioni aperte in
-> [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) § `COV-*`
+> **Non possiede** i numeri: le percentuali di mitigazione sono materia `BAL-*`, e i **valori** delle tre
+> taglie di footprint sono taratura — §13.0. ⛔ Il *raggio* di clearance non è più una decisione aperta:
+> è **inesprimibile** nel linguaggio adottato. Le `COV-*` ancora aperte sono in
+> [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md)
 > 🔁 **Aggiornato il 2026-08-31**: [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) ha ratificato `COV-2`…`COV-6` e
 > [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) ha chiuso `COV-1` — §13. Il footprint è un **conteggio di settori**, non un raggio,
 > e i **valori** delle tre taglie restano taratura. Aperte: `MAP-4`, `COV-7`, `COV-8`.
@@ -252,7 +254,7 @@ La scelta di copertura di un piano è **informazione di piano**, e segue il mode
 (invariante #6). Un client avversario **non** riceve la `CoverOption`/`CoverSide` di un piano che non ha
 diritto di vedere, e il canary di privacy deve coprire anche questi campi.
 
-🔐 **Precisato da [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) / `COV-3`**, e sono quattro canali distinti:
+🔐 **Precisato da [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) / `COV-3`**, e sono **cinque** canali distinti:
 
 | Canale | Cosa vede |
 |---|---|
@@ -277,11 +279,16 @@ l'hash è un valore derivato, e un avversario che lo riceve non riceve i campi d
   prima di `B`. Nessun `TMap` attraversa queste funzioni.
 - Stabile: l'identità di una sorgente sopravvive a un riordino della collezione e all'inversione degli
   estremi.
-- 🔁 **Aggiunto da [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md)**: l'**ordine di generazione non cambia l'identità** di un anchor
-  (`COV-2`), e la **precedenza dell'override autorato è deterministica e locale** alla sorgente/opzione
-  mirata — non dipende da quale override è stato scritto per ultimo.
-- 🔁 **Nessun riferimento ad Actor** attraversa serializzazione autorevole o hash (`COV-3`): è la stessa
-  ragione per cui `FRTUnitStateDigest` è una struttura di dati e non un `ARTUnit`.
+
+⏳ **Le due voci che seguono sono CONTRATTO, non misura**: `D-302` le impone a chi implementerà, e oggi
+non hanno codice da verificare (§13.6). Le tre sopra sono invece proprietà **misurate** del codice esistente.
+
+- ⏳ **Imposto da [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md), non ancora verificabile**: l'**ordine di generazione non cambia
+  l'identità** di un anchor (`COV-2`), e la **precedenza dell'override autorato è deterministica e locale**
+  alla sorgente/opzione mirata — non dipende da quale override è stato scritto per ultimo.
+- ⏳ **Imposto da `D-302`, non ancora verificabile**: **nessun riferimento ad Actor** attraversa
+  serializzazione autorevole o hash (`COV-3`). ✅ Il **precedente** esiste ed è misurato:
+  `FRTUnitStateDigest` è una struttura di dati e non un `ARTUnit`, per questa identica ragione.
 
 ---
 
@@ -312,7 +319,7 @@ il giorno in cui si chiude — ed è il suo scopo.
 
 [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) consuma le risposte d'autore su `COV-2`…`COV-6`, e [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) chiude `COV-1`.
 Le regole qui sotto sono **normative**;
-⚠️ **nessuna di esse è implementata**, ed è misurato — vedi §13.5.
+⚠️ **nessuna di esse è implementata**, ed è misurato — vedi §13.6.
 
 ### 13.0 Il footprint è un conteggio di settori, non un raggio (`COV-1`)
 
@@ -328,8 +335,10 @@ esprime come **conteggio discreto** su un anello di dodici settori. Uno solo dei
 |---|---|---|
 | Grandezza | raggio continuo (apotema) | conteggio di settori contigui |
 | Posizione dell'unità | **centrata sul `CellAnchor`** | in una **regione libera**, anche fuori centro |
-| In `Source/` | ❌ `StandardUnitClearance` dà **zero** | ✅ `MinContiguousWedges`, con consumatore e 13 test |
+| In `Source/` | ❌ `StandardUnitClearance` dà **zero**: nessun tipo, nessuna funzione, nessun test | ⚠️ `MinContiguousWedges` + `HasLegalPlacement` + 13 test che li pinnano, ma **zero chiamanti di produzione** |
 | Nell'hash | un float | ✅ intero — §11 |
+
+⚠️ **Nessuno dei due modelli è in partita**, e la riga sopra lo dice: `HasLegalPlacement` è pinnata dai test e non chiamata da nessuno — lo stesso profilo che `D-289` misurò per `Classify`/`ComputeMask`. L'asimmetria che decide non è *«implementato contro non implementato»* ma **«contratto scritto contro nulla»**: scegliere il raggio significherebbe costruire da zero, in float, dentro l'esagono.
 
 🔴 **E metà di `D-071` era già caduta prima di questa voce.** Il punto (1) — *«un muro che entra nel
 nucleo la invalida»* — vale solo se l'unità sta al centro, ed è la premessa che §3 rimuove. È lo stesso
@@ -432,9 +441,10 @@ vive nel catalogo, non in `ComputeMask`. Il **riposizionamento dentro la cella**
 
 ## 14. Decisioni aperte
 
-Tutte in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) §
-*Aperte — copertura selezionabile e posa nella cella*, con owner
-[#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833).
+In [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), con owner
+[#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833). ⚠️ **Le sei barrate non
+sono più nella sezione *Aperte***: vivono in § *✅ Chiuse il 2026-08-31 da `D-302` e `D-303`*, che ne
+conserva l'istruttoria. Ancora aperte lì: `MAP-4`, `COV-7`, `COV-8` (`MSE-4` ha sempre avuto sezione propria).
 
 | ID | Domanda |
 |---|---|

@@ -518,7 +518,17 @@ Nessuna di queste si decide in un commit di implementazione. Vivono in
 > La domanda «quale dei due scrive `bBlocksMovement`» aveva una premessa falsa: nessuno dei due lo scrive per
 > i **muri**, che sono bordi; entrambi lo fanno per il **volume**, e concordano perché misurano la stessa cosa.
 >
-> 🔧 **`D-071` acquista una parola, e non è superseded**: *«non tocca»* si legge *«non vi entra»*. Un muro
+> 🔁 **Aggiornato il 2026-08-31: `D-071` punto (1) È ora superseded**, da
+> [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) — il cerchio inscritto **centrato sull'anchor**
+> presuppone che l'unità stia al centro, e il modello a regioni di posa rimuove quella premessa. ∴ la
+> riga qui sotto descrive lo stato **fino al 2026-08-30**: il cerchio non è più il gate binario della
+> calpestabilità, che è *«esiste una regione compatibile col profilo»*
+> ([`spec-cover-placement-intra-hex.md`](spec-cover-placement-intra-hex.md) §13.0). ⚠️ **`MSE-3` non si
+> riapre**: la relazione *«il secondo raffina il primo»* valeva, e ciò che è cambiato è che il
+> raffinamento ha **sostituito** il misurando invece di affiancarlo. Il punto (2) di `D-071` — la *swept
+> clearance* — resta in piedi.
+>
+> 🔧 **La precisazione storica di `D-125`, che resta vera per ciò che diceva**: *«non tocca»* si legge *«non vi entra»*. Un muro
 > appoggiato al lato dell'esagono è **esattamente tangente** al cerchio inscritto (misurato: `86.602540`
 > contro un'apotema di `86.602540`, differenza **zero**), e alla lettera avrebbe reso non calpestabile ogni
 > cella addossata a una parete.

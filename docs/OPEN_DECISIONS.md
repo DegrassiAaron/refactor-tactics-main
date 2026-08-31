@@ -49,7 +49,8 @@ Il documento Drive «RefactorTactics — Tactical Segment & Anchor Reticle v0.1 
 > *«i `CoverAnchor` sono autorati, generati o ibridi?»* — chiedeva **chi produce** un'ancora di copertura,
 > non **come si nomina** un punto della reticola, ed è la domanda a cui `GEO-5` non risponde.
 > 🔁 **Aggiornato il 2026-08-31**: erano otto e aperte alla scrittura; `COV-2`…`COV-6` sono state chiuse da
-> [`D-302`](decisions/RT_PDR_00_Decision_Log.md) lo stesso giorno, e restano aperte `COV-1`, `COV-7`, `COV-8`.
+> [`D-302`](decisions/RT_PDR_00_Decision_Log.md) lo stesso giorno — e `COV-1` da [`D-303`](decisions/RT_PDR_00_Decision_Log.md) —, e restano aperte
+> `COV-7`, `COV-8` e la nuova `MAP-4`.
 
 ---
 
@@ -240,13 +241,12 @@ da una domanda di presentazione.
 
 ---
 
-
----
-
 ## ✅ Chiuse il 2026-08-31 da `D-302` e `D-303` — copertura selezionabile e footprint: sei risposte d'autore, e metà di quel che dicono era già vero
 
 Le risposte d'autore sulle `COV-*` (seduta 2026-08-31), ratificate da
-[`D-302`](decisions/RT_PDR_00_Decision_Log.md) sotto [`D-289`](decisions/RT_PDR_00_Decision_Log.md). Owner del modello:
+[`D-302`](decisions/RT_PDR_00_Decision_Log.md) — e `COV-1` da [`D-303`](decisions/RT_PDR_00_Decision_Log.md), che l'ha chiusa lo stesso giorno dopo aver
+misurato che il conflitto con [`D-071`](decisions/RT_PDR_00_Decision_Log.md) era fra due **linguaggi** e non fra due numeri — sotto
+[`D-289`](decisions/RT_PDR_00_Decision_Log.md). Owner del modello:
 [`spec-cover-placement-intra-hex.md`](technical/systems/spec-cover-placement-intra-hex.md).
 
 ⚠️ **Ratificato non significa implementato, ed è misurato**: `FRTUnitStateDigest` ha **sette campi** e nessuno

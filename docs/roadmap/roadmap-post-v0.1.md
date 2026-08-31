@@ -314,6 +314,13 @@ scenari, golden replay e mappe salvate.
 > [conflict report 2026-08-10](plans/handoff-geometry-reazioni-conflict-report-2026-08-10.md) §4).
 > Feature: `RT-FEAT-MAP-STANDABILITY`, `RT-FEAT-MAP-TRANSITION-CLEARANCE`, entrambe **DESIGNED**.
 >
+> 🔁 **Rimisurato il 2026-08-31: metà di questa riga è superata.** Il footprint standard **non è più**
+> il cerchio inscritto: [`D-303`](../decisions/RT_PDR_00_Decision_Log.md) ha superato `D-071` punto (1) e ha
+> reso il footprint un **conteggio di settori contigui** (`Small`/`Medium`/`Large` = tre valori di
+> `MinContiguousWedges`). ⚠️ La *swept clearance* di `23.7` — punto (2) — **resta**, ma senza un raggio
+> da traslare: è `MAP-4` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md). La riga sotto conserva ciò che
+> `MAP-1` chiuse allora.
+>
 > ✅ **`MAP-1` è chiusa — [D-071](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-10.** Il footprint
 > standard è il **cerchio inscritto** nell'esagono (raggio = **apotema**), e la *swept clearance* di 23.7 usa
 > **lo stesso raggio**. **Zero numeri nuovi**: l'apotema si deriva dal lato, già fissato, e la misura resta in
