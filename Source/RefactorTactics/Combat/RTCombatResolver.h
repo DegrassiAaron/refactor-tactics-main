@@ -40,8 +40,22 @@ struct FRTAttack
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Combat")
 	int32 Power = 0;
 
+	/**
+	 * CHI ha tirato ([D-212]). In coda, e con un default che vale «non lo so»: i costruttori esistenti
+	 * continuano a compilare e chi non riempie il campo non finge di saperlo.
+	 *
+	 * Serve perche' una mitigazione DIREZIONALE non e' esprimibile senza: `ApplyDamageDelta` e la vecchia
+	 * `ApplyFirstHitDelta` prendono un delta **per bersaglio**, e «questo colpo arriva dall'arco frontale» e'
+	 * una proprieta' del COLPO. Senza questo campo il resolver puo' solo guardare il primo colpo dell'array e
+	 * decidere per tutti — che e' il ripiego che [D-292] rimuove.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Combat")
+	int32 AttackerIndex = INDEX_NONE;
+
 	FRTAttack() = default;
 	FRTAttack(int32 InTarget, int32 InPower) : TargetIndex(InTarget), Power(InPower) {}
+	FRTAttack(int32 InTarget, int32 InPower, int32 InAttacker)
+		: TargetIndex(InTarget), Power(InPower), AttackerIndex(InAttacker) {}
 };
 
 /**
@@ -85,4 +99,29 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static TArray<FRTAttack> ApplyDamageDelta(const TArray<FRTAttack>& Attacks, const TArray<int32>& DeltaByTarget);
+
+	/**
+	 * Assorbimento a POOL ([D-292]): ogni bersaglio ha un budget di danno che i colpi consumano finche' dura,
+	 * e cio' che avanza NON si perde.
+	 *
+	 * E' la differenza che conta rispetto a `ApplyFirstHitDelta`, e non e' di sfumatura: quella sceglie **un**
+	 * colpo e clampa a zero, quindi con un delta negativo piu' grande del colpo che lo riceve la riduzione che
+	 * avanza sparisce — e quanta ne sparisca dipende da QUALE colpo era primo. Misurato: un bersaglio in
+	 * Guardia colpito da 10 e da 30 incassava **30** o **25** a seconda dell'ordine dell'array
+	 * (`Combat.NegativeFirstHitDeltaIsPermutationInvariant`). Il pool consuma sempre lo stesso totale, quindi
+	 * la somma torna **commutativa per costruzione**: non serve nessuna regola su chi viene prima.
+	 *
+	 * `bEligible` e' PARALLELO a `Attacks` e dice quali colpi possono attingere al pool. E' il canale della
+	 * direzionalita' di [D-206] — la Guardia copre il davanti, l'emisfero posteriore resta scoperto — e sta
+	 * qui invece che dentro questa funzione perche' la geometria ha un owner solo
+	 * (`URTHexCombatLibrary::IsInFrontalArc`) e il resolver resta puro: nessun Actor, nessuna mappa.
+	 *
+	 * Un colpo non eleggibile passa INTERO e non consuma nulla: il budget resta per chi arriva dal davanti.
+	 *
+	 * @param PoolByTarget  budget per bersaglio, indicizzato come `TargetIndex`. Valori <= 0 non assorbono.
+	 * @param bEligible     parallelo ad `Attacks`. Se piu' corto, i colpi oltre la fine NON sono eleggibili.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static TArray<FRTAttack> ApplyAbsorptionPool(const TArray<FRTAttack>& Attacks,
+		const TArray<int32>& PoolByTarget, const TArray<bool>& bEligible);
 };

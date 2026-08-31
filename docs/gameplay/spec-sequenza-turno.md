@@ -177,7 +177,7 @@ mai costruita, e questa sezione chiedeva se costruirla o ritirarla.
 ✅ **Come si è chiuso invece.** Rendendo **commutativa la mitigazione**, non ordinando gli effetti: la Guardia
 diventa un **pool** di danni assorbibili ([D-292](../decisions/RT_PDR_00_Decision_Log.md)), e una somma che non
 perde pezzi non ha bisogno di sapere chi viene prima. Il difetto che ha portato qui è provato da
-`RefactorTactics.Combat.NegativeFirstHitDeltaIsPermutationInvariant`.
+`RefactorTactics.Combat.GuardPoolIsPermutationInvariant`.
 
 ⚠️ La domanda si riapre solo se comparisse un effetto ordine-dipendente **non riducibile a un pool** — e allora
 con una premessa che il gioco possa avere, non con l'unità attiva.
