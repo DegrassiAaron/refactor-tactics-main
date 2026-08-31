@@ -221,6 +221,32 @@ Content/RT/UI/_Generated/
 # Oracolo: "git check-ignore -q <file>" -> exit 1 (NON ignorato). Con -v esce 0 in entrambi i casi.
 !Content/RT/World/Graybox/**/*.uasset
 
+# ---- Strumenti di authoring solo-Editor: /Game/RT/Editor/ (2026-08-31, D-304) ----
+# D-280 (2026-08-30) ha scelto `/Game/RT/Editor/...` come namespace degli strumenti di authoring
+# solo-Editor, e nessuna riga lo riammetteva: misurato con l'oracolo di §6 di
+# docs/technical/tooling/asset-map.md, `git check-ignore -q Content/RT/Editor/<qualunque>.uasset` usciva
+# 0 — cioe' ignorato, cioe' `git add` muto.
+#
+# 🔴 Due consumatori, e per uno dei due l'assenza era gia' un difetto latente:
+#   - #1804 deve SPOSTARE WBP_RT_ScenarioComposer da /Game/RT/UI/Scenario/ a /Game/RT/Editor/Scenario/.
+#     L'istruttoria di TD-COMP-2 in docs/OPEN_DECISIONS.md dichiara che «il costo di sbagliare e' basso»
+#     perche' «.gitignore:78 e' un glob e copre l'intera sottocartella, quindi uno spostamento non rende
+#     l'asset invisibile». Quel glob e' `!Content/RT/UI/**/*.uasset`: sotto RT/Editor/ non arriva, e senza
+#     questa riga lo spostamento avrebbe fatto sparire l'asset dal repository.
+#   - GKP-03 (Epic #1990) crea WBP_RT_GrayKitPlayground sotto /Game/RT/Editor/GrayKit/UI/.
+#
+# Scritta PRIMA che il primo asset esista, che e' l'ordine di §6: il precedente e' ABP_Gadget, dove la
+# riga c'era e mancava il gesto — qui manca il gesto e non deve mancare la riga.
+# Pattern di CARTELLA e non elenco di file, per la stessa ragione della riga qui sopra: e' una famiglia
+# aperta, gli strumenti di authoring futuri ci ricadono per costruzione. ⚠️ Essendo un glob NON conta fra
+# gli «attesi» del comando di misura di asset-map.md §6, e questo e' voluto: un elenco chiuso qui
+# dichiarerebbe assenti asset che nessuno ha ancora deciso di creare.
+# ⚠️ Il percorso NON garantisce l'esclusione dal cook — D-280 punto (2). `Config/DefaultGame.ini:95`
+# dichiara `+DirectoriesToAlwaysCook=(Path="/Game/RT")` e nel repository `DirectoriesToNeverCook` ha zero
+# occorrenze. La configurazione e la validazione dell'esclusione sono lavoro di #1804.
+# Oracolo: "git check-ignore -q Content/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground.uasset" -> exit 1.
+!Content/RT/Editor/**/*.uasset
+
 # Scratch dello sviluppo assistito (subagent-driven-development): mai versionato
 .superpowers/
 

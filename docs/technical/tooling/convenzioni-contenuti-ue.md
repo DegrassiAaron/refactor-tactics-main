@@ -117,6 +117,8 @@ milestone corrente (coerente con la regola di scope in `CLAUDE.md`).
 | Abilità realmente condivise | `/Game/RT/Abilities/{Shared,Targeting,Effects,Cues}/` | |
 | Mappe | `/Game/RT/Maps/<Category>/<MapName>/` | una cartella per mappa |
 | UI | `/Game/RT/UI/<funzione>/` | divisa per funzione, non per tipo tecnico |
+| **Strumenti di authoring solo-Editor** | `/Game/RT/Editor/<Strumento>/` | **D-280**. Widget e asset che servono a *costruire* il gioco e non ne fanno parte: `Editor/Scenario/` per il Composer (#1804), `Editor/GrayKit/UI/` per il Playground Panel (**D-304**). ⚠️ **La cartella e' organizzazione: `/Editor/` NON garantisce l'esclusione dal cook** — `Config/DefaultGame.ini` dichiara `+DirectoriesToAlwaysCook=(Path="/Game/RT")` e `DirectoriesToNeverCook` non compare nel repository. Configurazione e validazione dell'esclusione sono di [#1804](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1804). ⚠️ La riga d'allowlist esiste da 2026-08-31: `!Content/RT/Editor/**/*.uasset` |
+| **Scene di sviluppo e laboratorio** | `/Game/RT/Maps/Dev/<MapName>/` | Non sono strumenti, sono mappe: restano sotto `Maps/` con le altre. `L_DevSandbox`, `L_HexArena`, `L_Prototype` e — da **D-304** — `L_GrayKitPlayground`. ⛔ **Non vanno sotto `/Game/RT/Editor/`**: D-280 sceglie il namespace degli *strumenti*, e una scena non lo e'. Per una mappa l'esclusione dal pacchetto e' l'assenza da `MapsToCook` piu' l'assenza di riferimenti, come `DefaultGame.ini` dichiara misurandolo su un pacchetto vero |
 | Dati di feature | vicino alla feature | `Characters/Gadget/Data/DA_Hero_Gadget` — cartella del pack, nome dell'**eroe** (§5b) |
 | Dati globali e cataloghi | `/Game/RT/Data/` | `Data/Catalogs/DA_HeroCatalog`, `Data/Rulesets/DA_Ruleset_Dev` |
 
