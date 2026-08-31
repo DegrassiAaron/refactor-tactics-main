@@ -292,4 +292,70 @@ bool FRTSelectionStoreDescribeTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 Ctrl+click ripetuto sullo STESSO punto cicla l'ULTIMO aggiunto, e non resta inchiodato al bordo.
+ *
+ * **Trovato in seduta**: con l'aggiunta che prendeva sempre il candidato piu' specifico, una cella con una
+ * copertura sul bordo mirato era **impossibile da aggiungere** — Ctrl+click dava la copertura, sempre, e non
+ * c'era nessun gesto per scendere alla cella. Un elemento raggiungibile col click semplice e irraggiungibile
+ * con quello multiplo e' la stessa forma del rilievo `A1`, spostata di un tasto.
+ *
+ * ⚠️ **Ciclare l'ultimo e non tutta la selezione** e' la parte da non sbagliare: gli elementi presi prima
+ * restano dove sono, altrimenti costruire una selezione di tre elementi sarebbe impossibile — l'ultimo
+ * gesto disferebbe i precedenti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSelectionStoreAddCyclesLastTest,
+	"RefactorTactics.Editor.Selection.RepeatedAddCyclesTheLastElement",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSelectionStoreAddCyclesLastTest::RunTest(const FString&)
+{
+	const FRTCellId First(0, 0, 0);
+	const FRTCellId Crowded(1, 0, 0);
+	const ERTHexDirection Edge = ERTHexDirection::E;
+
+	// Il punto affollato e' il SECONDO: cosi' il test prova che il ciclo dell'aggiunta non tocca cio' che
+	// era gia' selezionato.
+	URTHexMapAsset* Map = SelStoreMakeCrowdedMap(Crowded, Edge);
+	URTHexSelectionStore* Store = NewObject<URTHexSelectionStore>();
+
+	if (!TestTrue(TEXT("il primo click riesce"), Store->SelectAt(Map, First, Edge)))
+	{
+		return false;
+	}
+	const ERTMapElementKind FirstKind = SelStoreFirstKind(Store);
+
+	// Prima aggiunta: il piu' specifico del punto affollato.
+	if (!TestTrue(TEXT("l'aggiunta riesce"), Store->AddAt(Map, Crowded, Edge)))
+	{
+		return false;
+	}
+	if (!TestEqual(TEXT("due elementi"), Store->GetSelection().Num(), 2))
+	{
+		return false;
+	}
+	TestEqual(TEXT("e il secondo e' il piu' specifico"),
+		Store->GetSelection()[1].Kind, ERTMapElementKind::Door);
+
+	// 🔑 Ri-aggiungere sullo STESSO punto scende al candidato successivo, senza crescere.
+	Store->AddAt(Map, Crowded, Edge);
+	if (!TestEqual(TEXT("la selezione non cresce: cicla"), Store->GetSelection().Num(), 2))
+	{
+		return false;
+	}
+	TestEqual(TEXT("l'ultimo e' sceso alla copertura"),
+		Store->GetSelection()[1].Kind, ERTMapElementKind::Cover);
+
+	// E il primo non si e' mosso: e' cio' che rende costruibile una selezione di piu' elementi.
+	TestEqual(TEXT("il primo elemento e' rimasto quello"), SelStoreFirstKind(Store), FirstKind);
+
+	// Si arriva fino alla cella, che e' il candidato che prima era irraggiungibile con Ctrl.
+	Store->AddAt(Map, Crowded, Edge);
+	Store->AddAt(Map, Crowded, Edge);
+	TestEqual(TEXT("e si raggiunge la cella"),
+		Store->GetSelection()[1].Kind, ERTMapElementKind::Cell);
+	TestEqual(TEXT("sempre due elementi"), Store->GetSelection().Num(), 2);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

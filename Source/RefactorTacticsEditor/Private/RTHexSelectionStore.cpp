@@ -75,8 +75,27 @@ bool URTHexSelectionStore::AddAt(const URTHexMapAsset* Map, const FRTCellId& Cel
 		return false;
 	}
 
-	// L'aggiunta non cicla: prende il piu' specifico. Un ciclo qui chiederebbe di ricordare a che punto del
-	// giro si sta per ciascun punto gia' selezionato.
+	// 🔴 **Anche l'aggiunta CICLA, e la prima stesura non lo faceva** — trovato in seduta: prendendo sempre
+	// il candidato piu' specifico, una cella con una copertura sul bordo mirato era **impossibile da
+	// aggiungere**. Ctrl+click dava la copertura, sempre, e nessun gesto scendeva alla cella: un elemento
+	// raggiungibile col click semplice e irraggiungibile con quello multiplo, cioe' il rilievo `A1` spostato
+	// di un tasto.
+	//
+	// ⚠️ **Cicla l'ULTIMO aggiunto, non tutta la selezione.** Gli elementi presi prima restano dove sono,
+	// altrimenti costruire una selezione di tre elementi sarebbe impossibile: l'ultimo gesto disferebbe i
+	// precedenti.
+	const bool bSamePoint = bHasCycle && CycleCell == Cell && CycleEdge == Edge;
+
+	if (bSamePoint && Selection.Num() > 0)
+	{
+		CycleIndex = (CycleIndex + 1) % Candidates.Num();
+		Selection.Last() = Candidates[CycleIndex];
+
+		CycleCell = Cell;
+		CycleEdge = Edge;
+		return true;
+	}
+
 	const FRTMapElementHandle& Taken = Candidates[0];
 
 	for (const FRTMapElementHandle& Already : Selection)
@@ -90,10 +109,13 @@ bool URTHexSelectionStore::AddAt(const URTHexMapAsset* Map, const FRTCellId& Cel
 
 	Selection.Add(Taken);
 
-	// Un'aggiunta interrompe il ciclo: il prossimo `SelectAt` su quel punto riparte dal piu' specifico
-	// invece di continuare un giro che l'utente ha lasciato a meta' due gesti fa.
-	bHasCycle = false;
-	CycleIndex = INDEX_NONE;
+	// Il ciclo si sposta su QUESTO punto: il prossimo Ctrl+click qui scende al candidato successivo, e un
+	// `SelectAt` altrove riparte da capo perche' il punto e' cambiato. Una sola memoria di ciclo per
+	// entrambi i gesti — averne due significherebbe che l'una diverge dall'altra.
+	CycleCell = Cell;
+	CycleEdge = Edge;
+	bHasCycle = true;
+	CycleIndex = 0;
 
 	return true;
 }
