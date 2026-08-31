@@ -123,4 +123,63 @@ bool FRTExposedFirstHitTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `FR-RESOLVE-01` (canone §5.1.B) e' dichiarato *gated* perche' *«oggi non e' osservabile: il combat somma i
+ * danni per bersaglio e la somma e' commutativa»*. Questo test misura quell'affermazione invece di ereditarla.
+ *
+ * La somma di `ResolveAttacks` E' commutativa. Ma `ApplyFirstHitDelta` gira PRIMA, sceglie il primo colpo
+ * dell'array e clampa con `Max(0, ...)`: quel clamp **non conserva la somma** quando il delta e' negativo e
+ * piu' grande del colpo che lo riceve. La riduzione che avanza si perde, e quanta se ne perda dipende da
+ * QUALE colpo e' arrivato per primo.
+ *
+ * `Status.Exposed.FirstDirectHitOnly` afferma gia' l'invariante — *«invertendo l'ordine dei colpi il totale e'
+ * identico»* — ma la verifica con un delta **positivo** (`+5`), dove il clamp non morde mai e l'invariante e'
+ * vera per costruzione. I delta negativi del catalogo sono quattro: `Guard` -15, `Deflect` -20, `Brace` -10 e
+ * la copertura bassa -10.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNegativeFirstHitDeltaPermutationTest,
+	"RefactorTactics.Combat.NegativeFirstHitDeltaIsPermutationInvariant",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNegativeFirstHitDeltaPermutationTest::RunTest(const FString&)
+{
+	// U1 e' in Guardia: -15 al PRIMO danno diretto. Due colpi la raggiungono nello stesso Blast, di taglia
+	// diversa — 10 e 30 — che e' il caso ordinario di due attaccanti sullo stesso bersaglio.
+	TArray<int32> Guard;
+	Guard.Init(0, 2);
+	Guard[1] = -URTCombatLibrary::GuardFirstHitReduction;
+
+	const TArray<FRTAttack> Small = { FRTAttack(1, 10), FRTAttack(1, 30) };
+	TArray<FRTAttack> Large = Small;
+	Algo::Reverse(Large);
+
+	auto SumOn = [](const TArray<FRTAttack>& In, int32 Target)
+	{
+		int32 Sum = 0;
+		for (const FRTAttack& A : In) { if (A.TargetIndex == Target) { Sum += A.Power; } }
+		return Sum;
+	};
+
+	const int32 SmallFirst = SumOn(URTCombatResolver::ApplyFirstHitDelta(Small, Guard), 1);
+	const int32 LargeFirst = SumOn(URTCombatResolver::ApplyFirstHitDelta(Large, Guard), 1);
+
+	// ANTI-VACUITA': senza questo controllo il test passerebbe anche se il delta non fosse mai applicato.
+	// 40 e' il danno nominale; una Guardia che non toglie niente lo lascerebbe intero in entrambi i versi.
+	TestNotEqual(TEXT("la Guardia toglie qualcosa: il totale non e' quello nominale"), SmallFirst, 40);
+
+	// L'invariante che `Status.Exposed.FirstDirectHitOnly` dichiara, misurata dove il clamp morde.
+	TestEqual(TEXT("il totale sul bersaglio in Guardia non dipende da quale colpo arriva per primo"),
+		SmallFirst, LargeFirst);
+
+	// E il caso positivo, per mostrare che il test SEPARA i due regimi invece di essere sempre rosso:
+	// con +5 il clamp non morde e il totale e' commutativo davvero.
+	TArray<int32> Exposed;
+	Exposed.Init(0, 2);
+	Exposed[1] = URTCombatLibrary::ExposedFirstHitBonus;
+	TestEqual(TEXT("con un delta positivo l'invariante regge in entrambi i versi"),
+		SumOn(URTCombatResolver::ApplyFirstHitDelta(Small, Exposed), 1),
+		SumOn(URTCombatResolver::ApplyFirstHitDelta(Large, Exposed), 1));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
