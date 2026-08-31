@@ -13,7 +13,7 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 	// criterio e' la lista dichiarata, non gli eventi prodotti: `DamageStructure` e `SetDoorState` non
 	// passano di qui nemmeno da interi, quindi su un'azione che li elenca per secondi questa policy e
 	// `InterruptBeforeEffect` coincidono. E' dichiarato sull'enum, dove si sceglie il valore.
-	int32 EffectiCount = Instance.Def.Effects.Num();
+	int32 EffettiDaTradurre = Instance.Def.Effects.Num();
 	if (Instance.bInterrupted)
 	{
 		switch (Instance.Def.InterruptPolicy)
@@ -24,7 +24,7 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 		case ERTInterruptPolicy::SuppressSecondary:
 			// Sopravvive il primo effetto dichiarato. `Min` e non `1`: un'azione senza effetti non deve
 			// diventarne una con uno.
-			EffectiCount = FMath::Min(EffectiCount, 1);
+			EffettiDaTradurre = FMath::Min(EffettiDaTradurre, 1);
 			break;
 
 		case ERTInterruptPolicy::CancelChannel:
@@ -38,7 +38,7 @@ TArray<FRTActionEvent> URTActionEffectLibrary::ProduceEvents(const FRTActionInst
 
 	// Un'azione puo' dichiarare piu' effetti: si traducono nell'ordine dichiarato, che e' anche l'ordine in
 	// cui il chiamante li applichera' (il danno prima della spinta, se l'azione li elenca cosi').
-	for (int32 SpecIdx = 0; SpecIdx < EffectiCount; ++SpecIdx)
+	for (int32 SpecIdx = 0; SpecIdx < EffettiDaTradurre; ++SpecIdx)
 	{
 		const FRTActionEffectSpec& Spec = Instance.Def.Effects[SpecIdx];
 		FRTActionEvent Event;
