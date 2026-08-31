@@ -94,9 +94,10 @@ Il criterio *«senza uscire dall'esagono»* diventa un test:
 la direzione di un lato lo spazio radiale è l'**apotema**, non il raggio; e la larghezza utile si stringe
 avvicinandosi al bordo. Il test è ciò che impedisce di accorgersene solo a schermo.
 
-⚠️ La terna più lunga possibile va prevista: coordinate negative a due cifre, cioè `-10,-10,1` — dieci
-caratteri. Se la dimensione è tarata su `0,0,0` la mappa grande sborda, e nessuno se ne accorge finché non
-apre una mappa grande.
+⚠️ La terna più lunga possibile va prevista: coordinate negative a due cifre, cioè `-10,-10,1` — nove
+caratteri, ma non il caso peggiore in assoluto: quello è `-10,-10,-1`, dieci caratteri, dove anche il
+layer è negativo a due cifre. Se la dimensione è tarata su `0,0,0` la mappa grande sborda, e nessuno se ne
+accorge finché non apre una mappa grande.
 
 ## 6. Testabilità — cosa è misurato e cosa no
 
@@ -105,7 +106,7 @@ apre una mappa grande.
 - le tre run sono a `120°` esatti l'una dall'altra, verificato sulle **pose** e non a occhio;
 - la terna corre dal bordo al centro: la prima cifra è più lontana dal centro dell'ultima;
 - il layer ha **metà** della scala di `x` e `y`;
-- ogni segmento è **dentro** l'esagono, sul caso peggiore (`-10,-10,1`);
+- ogni segmento è **dentro** l'esagono, sul caso peggiore (`-10,-10,1`, nove caratteri) e sul caso davvero a dieci caratteri (`-10,-10,-1`);
 - il segno meno compare per le coordinate negative;
 - il set di caratteri è chiuso: un carattere fuori set non produce segmenti inventati.
 

@@ -19,7 +19,7 @@
 - **Convenzione pointy-top**: `HexCorners` mette il primo vertice a `-30°`; i vertici cadono a `-30/30/90/150/210/270`, i punti medi dei lati a `0/60/120/180/240/300`.
 - **Le tre direzioni sono `0° / 120° / 240°`** — punti medi di lati alternati, **non vertici**.
 - **La terna è `(x, y, layer)`**, disposta **dal bordo verso il centro**; il `layer` a **metà** della scala di `x` e `y`.
-- **Nessun segmento esce dall'esagono.** Caso peggiore da prevedere: `-10,-10,1`, dieci caratteri.
+- **Nessun segmento esce dall'esagono.** Caso peggiore da prevedere: `-10,-10,1`, nove caratteri — il caso davvero a dieci è `-10,-10,-1`.
 - **Nessun asset nuovo nel gray kit**, nessun ottavo `InstancedStaticMeshComponent`, nessun interruttore.
 - **Commenti implementativi in italiano**, come il resto del repository. I nomi dei test in inglese, nel namespace `RefactorTactics.<Area>.<Nome>`.
 - **Build**: `Build.bat RefactorTacticsEditor Win64 Development -Project=<uproject> -WaitMutex -NoHotReloadFromIDE`.
@@ -329,8 +329,9 @@ namespace
 
 /**
  * 🔴 **Il test che DIMENSIONA le cifre.** Nessun segmento esce dall'esagono — e il caso e' il peggiore
- * possibile, non `(0,0,0)`: `-10,-10,1` sono dieci caratteri, e una taratura fatta sulla terna corta
- * sborda alla prima mappa grande senza che nessuno se ne accorga prima.
+ * possibile, non `(0,0,0)`: `-10,-10,1` sono nove caratteri (il caso davvero a dieci è `-10,-10,-1`,
+ * layer compreso), e una taratura fatta sulla terna corta sborda alla prima mappa grande senza che
+ * nessuno se ne accorga prima.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexLabelStaysInsideTest,
 	"RefactorTactics.HexLabel.NothingLeavesTheHexagon",
@@ -341,7 +342,7 @@ bool FRTHexLabelStaysInsideTest::RunTest(const FString&)
 	constexpr float LayerHeight = 250.f;
 	const FVector MapOrigin = FVector::ZeroVector;
 
-	// La terna piu' lunga che una mappa possa produrre: dieci caratteri, due segni meno.
+	// Nove caratteri, due segni meno: lunga ma non la piu' lunga possibile (il caso davvero a dieci e' `-10,-10,-1`).
 	const FRTCellId Worst(-10, -10, 1);
 	const FRTCellLabel Label = URTHexLabelLibrary::BuildCellLabel(Worst, MapOrigin, HexSize, LayerHeight);
 	const TArray<FVector> Corners = URTHexLibrary::CellCorners(Worst, MapOrigin, HexSize, LayerHeight);
@@ -554,8 +555,8 @@ FRTCellLabel URTHexLabelLibrary::BuildCellLabel(const FRTCellId& Cell, const FVe
 	const int32 LayerDigits = FString::FromInt(Cell.Layer).Len();
 
 	// L'altezza piena e la larghezza di un carattere, tarate sull'APOTEMA e sul caso peggiore. Non sono
-	// numeri scelti a occhio: sono il piu' grande valore per cui `NothingLeavesTheHexagon` resta verde
-	// su `-10,-10,1`, cioe' dieci caratteri lungo una direzione.
+	// numeri scelti a occhio: sono il piu' grande valore per cui il test resta verde sul caso davvero a
+	// dieci caratteri, `-10,-10,-1` (`-10,-10,1` ne ha nove: non e' il caso peggiore in assoluto).
 	constexpr int32 WorstCaseChars = 10;
 	const double Apothem   = HexSize * 0.8660254; // cos(30°)
 	const double Margin    = HexSize * 0.06;      // il bordo non si tocca: la cella ha gia' un contorno

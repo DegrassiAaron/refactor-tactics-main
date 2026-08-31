@@ -55,9 +55,9 @@
   Se la vista sembra bloccata e compaiono le **etichette degli actor** in viewport, hai fatto **Eject** (`F8`):
   stai guardando con la camera dell'editor, non con quella del gioco — `F8` di nuovo per rientrare nel pawn.
 
-## Stato in numeri — 2026-08-30
+## Stato in numeri — 2026-08-31
 
-**185 voci**: ✅ **69 verdi** · 🟡 **23 parziali** · ❌ **2 fallite** · ⏳ **91 aperte**.
+**187 voci**: ✅ **69 verdi** · 🟡 **25 parziali** · ❌ **2 fallite** · ⏳ **91 aperte**.
 
 🔴 **Rimisurato il 2026-08-31 (quarto giro), mergiando `origin/main` nel branch dei due compositi: `185 · 69/23/2/91`, e l'intestazione diceva `182 · 69/23/2/88`.** ⚠️ **È la SECONDA volta oggi che lo stesso meccanismo colpisce questo file**, e la prima è registrata qui sotto. Il mio ramo aveva aggiunto due voci (`PIE-ACC-PERCEPTION`, `PIE-ACC-HUD`) e misurato `182`; nel frattempo `origin/main` ne aveva aggiunte **tre** — `PIE-HEX-MOVEMENT-PROBE`, `-FLUIDITA`, `-SURFACE`, dalla sonda di [#711](https://github.com/DegrassiAaron/refactor-tactics-main/issues/711) — e misurato `183`. Nessuno dei due numeri era falso quando fu scritto, e nessuno dei due lati poteva vedere l'altro. `+5` sul totale, tutto su ⏳. ⚠️ **Stavolta il merge è stato PULITO**: nessun conflitto, nessun marcatore, niente che chiedesse attenzione — le due aggiunte stanno in sezioni diverse del file. Il conflitto della prima volta era un **regalo**, perché fermava; qui l'unica cosa che ha segnalato lo scarto è stato rieseguire il comando dopo il merge. `senza-marcatore=0` prima e dopo.
 
@@ -1209,8 +1209,8 @@ Se una tappa fallisce per **semantica** dell'input e non per leggibilità, il di
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
-| **PIE-HEX-COORD-LEGGIBILITA** | La terna si legge sulla cella, da tre lati | una mappa con celle su due layer | Girando attorno alla cella, **almeno una** delle tre terne è dritta e leggibile da dove si guarda. Le cifre non si confondono fra loro — `6` e `8`, `1` e `7` — e il `layer` si distingue da `x` e `y` per la metà scala invece di sembrare una cifra staccata. ⚠️ La riserva: che la terna non competa con il glifo di superficie e col bordo della cella, che occupano lo stesso pavimento | ⏳ |
-| **PIE-HEX-COORD-COSTO** | Il viewport non rallenta su una mappa grande | una mappa da almeno 200 celle | Navigando la mappa il viewport resta fluido. ⚠️ È la voce che guarda il rischio §8 della spec: le linee si posano una volta e non per frame, ma **quante siano** non lo dice nessun test — 200 celle sono ~6000 segmenti | ⏳ |
+| **PIE-HEX-COORD-LEGGIBILITA** | La terna si legge sulla cella, da tre lati | una mappa con celle su due layer, e fra queste **una cella a due cifre negative e layer negativo** — `(-10,-10,-1)` —, il caso a dieci caratteri su cui è tarato `WorstCaseChars` | Girando attorno alla cella, **almeno una** delle tre terne è dritta e leggibile da dove si guarda. Le cifre non si confondono fra loro — `6` e `8`, `1` e `7` — e il `layer` si distingue da `x` e `y` per la metà scala invece di sembrare una cifra staccata. Su `(-10,-10,-1)` ciò che l'occhio deve giudicare è **il punto d'incontro delle tre run al centro della cella**: a dieci caratteri la run misura 133,23 uu contro un apotema di 129,90 uu — **+3,3 uu oltre il centro** — quindi le tre run si sfiorano nel mezzo. ⚠️ La riserva: che la terna non competa con il glifo di superficie e col bordo della cella, che occupano lo stesso pavimento | ⏳ |
+| **PIE-HEX-COORD-COSTO** | Il viewport non rallenta su una mappa grande | **l'arena piena — raggio 50, 7 651 celle**, il regime che questo repository documenta come caso pieno (`RTHexMapActor.cpp:990`, `RTHexMapActor.h:551` e `:867`, `RTVeilTests.cpp:501`) | Navigando la mappa il viewport resta fluido, **e resta fluido anche trascinando il pennello**: `RebuildInstances` gira a ogni cella toccata, non solo alla navigazione — lo dice il commento dello stesso codice. ⚠️ È la voce che guarda il rischio §8 della spec: le linee si posano una volta e non per frame, ma il costo reale è stato misurato, non stimato — **567 090 linee** (~45 MB di `FBatchedLine`) sull'arena piena, contro le ~6000 stimate su un ottavo del regime (raggio 8, 217 celle → 11 796 linee davvero emesse; raggio 20, 1 261 celle → 78 276) | ⏳ |
 
 ### Scenario Test Harness (aggiunte il 2026-08-07)
 
