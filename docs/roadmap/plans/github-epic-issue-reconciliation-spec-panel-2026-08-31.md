@@ -1,8 +1,13 @@
 # GitHub Epic / Issue live reconciliation — spec panel
 
-> `CURRENT` · **Stato**: revisione chiusa · **15 mutazioni GitHub eseguite su autorizzazione** (`A1` ×12 ·
-> `A3` ×1 · `A4` ×1 · `A2` ×1) · **Data**: 2026-08-31
+> `CURRENT` · **Stato**: revisione chiusa · **16 mutazioni GitHub eseguite su autorizzazione** (`A1` ×12 ·
+> `A3` ×1 · `A4` ×1 · `A2` ×2) · **Data**: 2026-08-31
 > **HEAD della revisione**: `4396d2b2` (detached, **20 commit dietro** `origin/main` `ef0414bc`, 0 avanti).
+> ⚠️ **E l’HEAD si è mosso durante la sessione**: un’altra sessione ha creato
+> `docs/referti-spec-panel-2026-08-31` e committato questi file in `58e76cd7`, catturando lo stato a
+> **15** mutazioni — una prima della seconda correzione a `#14`. Il working tree è avanti di quel passo,
+> e non è stato committato: `CLAUDE.md` §9. Chi apre la PR da quel branch **rilegga il diff non
+> committato**, o il referto in cronologia dichiarerà una mutazione in meno di quelle applicate.
 > I documenti citati sono letti con `git show origin/main:<path>`, **non** dal working tree: l'albero è
 > condiviso e indietro. GitHub è misurato live via `gh`, quindi non risente della divergenza.
 > **Panel**: Wiegers (falsificabilità dei requisiti) · Cockburn (attore e obiettivo) · Nygard (che succede
@@ -16,7 +21,7 @@
 > in testa.
 >
 > **Cosa possiede**: il verdetto misurato sul kit, prescrizione per prescrizione, col comando che l'ha
-> trovato. **Cosa non possiede**: autorità. **Zero** issue create, chiuse o riaperte; le **15** modifiche di
+> trovato. **Cosa non possiede**: autorità. **Zero** issue create, chiuse o riaperte; le **16** modifiche di
 > corpo/label sono state applicate solo dopo autorizzazione esplicita, voce per voce (§7).
 
 ## 1. Il verdetto in una riga
@@ -38,7 +43,7 @@ milestone `#6`, è **falsa e distruttiva**. Il valore vero del kit è un difetto
 | Seed del kit **già superati** dal live | 4 | kit §5 · §7 · §8 · §9 → *questo referto* §4 |
 | Prescrizioni **falsificate** | **1** | kit §12, milestone `#6` → *questo referto* §5 |
 | Difetti veri trovati | **5** | *questo referto* §6 |
-| Mutazioni GitHub eseguite | **15** | `A1` su 12 epic · `A3` su `#775` · `A4` su `#1816` · `A2` su `#14` |
+| Mutazioni GitHub eseguite | **16** | `A1` su 12 epic · `A3` su `#775` · `A4` su `#1816` · `A2` su `#14` (×2) |
 | Issue create / chiuse / riaperte | **0** | nessuna, in nessun momento |
 | Azioni **non** eseguite | 3 | `A5` `A6` `A7` — `AMBIGUOUS` o di merito, §7 |
 
@@ -282,11 +287,20 @@ non come descrizione dello stato corrente»*. È la parte che si dimentica: **co
 falsa la nota che lo denunciava**, e una nota che descrive uno stato superato è lo stesso difetto in un'altra
 riga.
 
-🔵 **Restano due righe della stessa classe, non toccate perché fuori dalla richiesta**: la riga 28
-(*«Stato autorevole delle feature: `docs/roadmap/feature-registry.yaml`»*, nel blocco delle fonti) e la 255
-(*«lo stato vive in `feature-registry.yaml` ed è derivato dai gate»*). Entrambe puntano a un meccanismo
-uscito con `D-181`, ed entrambe sono già dichiarate superate dalla nota del 2026-08-25 — **con lo stesso
-schema additivo** che per i gate è stato appena giudicato insufficiente.
+✅ **E le due righe della stessa classe sono state chiuse subito dopo, con lo stesso criterio.** La riga
+28 (*«Stato autorevole delle feature: `feature-registry.yaml`»*, nel **blocco delle fonti**) e la 255
+(*«lo stato vive in `feature-registry.yaml` ed è derivato dai gate, che il validator verifica»*) erano le
+**uniche due** menzioni fuori da una nota datata: stavano dove si leggono come indirizzo valido e come
+regola da applicare. Ora sono barrate col loro sostituto — `roadmap-v0.1.md` + `roadmap-checkpoint.md` —
+e la riga 255 dichiara in più ciò che il barrato da solo non direbbe: **nessun meccanismo automatico
+deriva più lo stato**, perché registro, validator e viste generate sono usciti insieme.
+
+⚠️ **Anche qui una nota è diventata falsa, e per la terza volta.** Quella del 2026-08-25 dichiarava
+*«Il corpo non è stato riscritto»*. Non è stata riscritta né cancellata: le è stato premesso un
+**addendum datato** che riduce l’ambito della frase — resta vera per tutto il resto del corpo — e dice
+quali due menzioni sono uscite dal suo perimetro e perché. È lo stesso movimento fatto per la nota del
+2026-08-30 al §7.2: **una correzione produce sempre una seconda correzione a monte**, e saltarla lascia
+in piedi una descrizione dello stato che non è più vera.
 
 ### 7.3 🔴 Un incidente, e come è finito
 
@@ -339,8 +353,8 @@ Execution timestamp:  2026-08-31
 Issues inspected:             63
 Epics inspected:              47   (tutte le label:epic aperte, corpo integrale)
 Milestones inspected:         17   (16 aperte + 1 chiusa)
-Issues modified:              15   (14 corpi + 1 label)
-Epics modified:               15
+Issues modified:              16   (15 corpi + 1 label)
+Epics modified:               16
 Issues created:                0
 Issues closed:                 0
 Issues reopened:               0
@@ -370,6 +384,7 @@ Remaining blockers:            0   (A2 sciolta dall'autore: correzione nel corpo
 | [#775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/775) | «il rating è E44» | + nota: rating **post-v1.0**, perimetro `#1604` | rinvio senza destinazione | `#777` barrata | `D-259` |
 | [#1816](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1816) | label `epic` | label `epic,P1` | epic senza priorità | `#1817`/`#1818` sono `P1` | — |
 | [#14](https://github.com/DegrassiAaron/refactor-tactics-main/issues/14) | *Criterio di chiusura*: «i **15** gate `G1`–`G15`» | «~~15~~ → **14** gate ~~`G1`–`G15`~~ → **`G1`–`G14`**» + nota del 30/08 portata al passato | due criteri di chiusura in contraddizione nella stessa issue | DoD §3, `G15` barrato | `D-181` · **decisione d'autore** |
+| [#14](https://github.com/DegrassiAaron/refactor-tactics-main/issues/14) | *Fonti* r.28 e regola `DONE` r.255: `feature-registry.yaml` | barrate → `roadmap-v0.1.md` + `roadmap-checkpoint.md`, e «nessun meccanismo automatico deriva più lo stato»; addendum alla nota del 25/08 | erano le **uniche due** menzioni fuori da una nota datata | `D-181`: registro, validator e viste generate usciti insieme | `D-181` · **decisione d'autore** |
 
 > ✅ **Nessun corpo è stato riscritto, nemmeno quello di `#14`.** Tredici modifiche sono **note additive
 > datate** in coda; la quattordicesima — `#14` — è una correzione **in loco** col pattern `~~barrato~~` +
@@ -383,7 +398,7 @@ DRIVE_SYNC_PAYLOAD:
   verified_at: 2026-08-31
   repository: DegrassiAaron/refactor-tactics-main
   head_sha: ef0414bc2b6a8dac9e1ea31c041f6a7bfb137bec   # origin/main; revisione su 4396d2b2 (detached, -20)
-  execution_status: APPLIED — 15 mutazioni (13 note additive + 1 correzione nel corpo + 1 label).
+  execution_status: APPLIED — 16 mutazioni (13 note additive + 2 correzioni nel corpo di #14 + 1 label).
                     Zero issue create, chiuse o riaperte.
 
   release:
@@ -530,7 +545,9 @@ DRIVE_SYNC_PAYLOAD:
       where: [14]
       fix: "corretta NEL CORPO con ~~barrato~~ + G1-G14 (decisione d'autore, 2026-08-31);
             la nota del 2026-08-30 portata al passato perche' altrimenti direbbe il falso"
-      residuo: "restano righe 28 e 255, stessa classe, su feature-registry.yaml: fuori richiesta"
+      residuo: "NESSUNO. Le righe 28 e 255 (feature-registry.yaml) sono state corrette con lo
+                stesso criterio subito dopo. In #14 zero istruzioni correnti nominano G15 o il
+                Feature Registry: ogni menzione e' barrata, in una nota datata, o al passato."
 
   open_defects_not_fixed:
     - id: F-03
@@ -584,21 +601,38 @@ DRIVE_SYNC_PAYLOAD:
 
 ## 11. Prossimo passo
 
-**Una** azione: decidere se le **due righe residue** di [`#14`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/14)
-che citano il Feature Registry ricevono lo stesso trattamento appena deciso per i gate.
+✅ **La DoD del kit su `#14` è soddisfatta**: *«nessuna istruzione corrente usa Feature Registry/G15 come
+tracking corrente»*. Verificato una riga per volta con
+`grep -niE "feature.registry|G15"` — **10 righe**, non una in meno:
 
-| Riga | Testo | Perché è la stessa classe |
+| Quante | Come si presentano | Righe |
 |--:|---|---|
-| 28 | *«**Stato autorevole delle feature**: `docs/roadmap/feature-registry.yaml`»* | è nel blocco delle **fonti**: chi apre la issue lo legge come indirizzo valido |
-| 255 | *«lo stato vive in `feature-registry.yaml` ed è **derivato dai gate**, che il validator verifica»* | è una **regola**, non una cronaca, e il validator non esiste più |
+| **4** | **barrate**, col sostituto accanto | 28 · 229 · 232 · 255 |
+| **1** | al **passato**, come spiegazione del ritiro | 235 |
+| **5** | dentro una **nota datata** | 303 · 315 · 379 · 382 · 383 |
+| **0** | istruzioni correnti | — |
 
-Entrambe sono già dichiarate superate dalla nota additiva del 2026-08-25 — **lo stesso schema** che per i
-gate è stato appena giudicato insufficiente, e per la stessa ragione: la smentita è a 60 e 40 righe di
-distanza dall'istruzione. Il sostituto è scritto nella nota stessa: lo stato delle feature vive in
-`roadmap-v0.1.md` e `roadmap-checkpoint.md`.
+Restano tre voci, tutte da decidere e nessuna urgente:
 
-⚠️ E resta un difetto **senza owner**, che nessuna delle quindici mutazioni di oggi tocca: nessun gate
-confronta un conteggio o un percorso scritto **in prosa dentro una issue** con il documento che lo possiede.
-È la ragione per cui «15 gate» è sopravvissuto a `D-181`, alle due sweep del 2026-08-28 e a quella del
-2026-08-30 — e per cui `feature-registry.yaml` è ancora citato come fonte autorevole dieci giorni dopo la
-sua rimozione. **Le correzioni di oggi tolgono le istanze, non il meccanismo che le rigenera.**
+| # | Cosa | Perché non l'ho fatta |
+|---|---|---|
+| `A5` | come `#1881`/`#1937` compaiono in `#14`, o se non devono | `AMBIGUOUS` — dichiarano scope *«fino alla v1.0»* |
+| `A6` | `#324` deve aspettare i gate della **propria** release? | merito, non forma — registrata nella nota applicata |
+| `A7` | milestone di `#1604` (`CP 44.5 Ranked`) in `v0.9`, pre-v1.0 | `AMBIGUOUS` — perimetro o residuo |
+
+**Ma la cosa che vale davvero è un'altra, e nessuna delle sedici mutazioni la tocca.**
+
+🔴 **Nessun gate confronta un numero o un percorso scritto in prosa dentro una issue con il documento che lo
+possiede.** È il meccanismo, e la sua impronta è misurabile: «15 gate» è sopravvissuto a `D-181`, alle due
+sweep del 2026-08-28 e a quella del 2026-08-30 — e si è **riprodotto** il 2026-08-31 dentro una nota scritta
+lo stesso giorno; `feature-registry.yaml` era citato come **fonte autorevole** dieci giorni dopo la propria
+rimozione. `doc-links.ts` non guarda i corpi delle issue, e `#962` lo aveva già scoperto sul totale delle
+epic: *«il corpo di una issue GitHub non è in `docs/`, questa copia è sopravvissuta allo sweep che la
+cercava»*.
+
+Le correzioni di oggi tolgono **sedici istanze**. La diciassettesima la scriverà qualcuno la settimana
+prossima, e nessuno se ne accorgerà — esattamente come le sedici precedenti.
+
+> **WIEGERS**: «Un requisito che nessun controllo può falsificare non è un requisito: è una convenzione
+> sperata. Finché il conteggio dei gate vive in prosa in dodici posti e in tabella in uno solo, la domanda
+> non è *se* divergerà.»
