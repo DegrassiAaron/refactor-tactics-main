@@ -7,8 +7,9 @@
 > **Data**: 2026-08-31 · **Modo**: critique · **Focus**: testing + requirements
 > **Base**: `origin/main` `9727316f` *(la misura è iniziata su `6094f309`: il repo è avanzato durante il pass)*
 >
-> ⛔ **Nessuna issue modificata, nessun owner doc toccato, nessuna suite eseguita, nessuna riga di `Source/`
-> cambiata.** Le mutazioni proposte in §7 attendono conferma.
+> ⛔ **Nessun owner doc toccato, nessuna suite eseguita, nessuna riga di `Source/` cambiata.**
+> ✅ **Eseguito dopo conferma**: i sette aggiornamenti di §7 su `#1801`, in [un commento](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1801#issuecomment-5479136442),
+> e la **milestone assegnata**. Due scelte lasciate aperte dal pass sono state prese dall'autore — §7.1.
 
 ---
 
@@ -188,7 +189,7 @@ blocca una issue con data è una consegna che nessuno sorveglia.
 
 ## 7. Matrice e mutazioni proposte
 
-⛔ **Nessuna eseguita.** Attendono conferma.
+✅ **Eseguite dopo conferma esplicita.**
 
 | Oggetto | Verdetto | Motivo |
 |---|---|---|
@@ -202,7 +203,23 @@ blocca una issue con data è una consegna che nessuno sorveglia.
 | Milestone assente | **UPDATE** — `U6` | 🔴 bloccante per `#1945` che è v0.1 |
 | `HazardDamage` senza presentazione **oggi** | **UPDATE** — `U7` | il difetto è già presente: è il primo caso di prova, e la issue non lo nomina |
 
-Tutte e sette sono **additive** sul body o commenti di `#1801`: nessuna riscrive lo scope, che è corretto.
+Tutte e sette sono **additive**: nessuna riscrive lo scope, che è corretto. Applicate in
+[un commento](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1801#issuecomment-5479136442) più la milestone.
+
+### 7.1 Le due scelte che il pass non poteva fare, e che l'autore ha preso
+
+| Scelta | Esito | Conseguenza misurata |
+|---|---|---|
+| **Milestone** (`U6`) | **v0.1 · Leggibilità** | la stessa del consumatore `#1945`: `D-301` rende questa issue bloccante, e un prerequisito senza data non lo sorveglia nessuno |
+| **Supporto del mapping** (`U4`) | **tabella C++**, non Data Asset | `D-124` tiene *«Niagara dedicato a ogni abilità»* fuori dalla v0.1 e `Content/` non ha un solo asset Niagara: in v0.1 le cue le tocca chi scrive codice, e un `.uasset` aggiungerebbe versionamento e lease per un dato che nessun artista modifica |
+
+🔑 **E le due scelte interagiscono, il che non era ovvio prima di farle.** Senza Data Asset **non c'è nulla da
+validare al salvataggio**: il validatore editor/commandlet del precedente (§5.1) **non ha oggetto**, e resta la
+coppia *funzione pura + Automation Test*. È la ragione per cui `U3` mette l'owner del giudizio nella funzione
+pura e non nel test: se un giorno le cue diventano asset, il validatore torna utile **senza che il gate cambi**.
+
+⚠️ **`«dato dichiarativo»` di `D-278` resta rispettato**: dichiarativo si oppone a **branching**, non a
+*compilato*. Una tabella letta da una funzione pura è dato; un `switch` che esegue presentazione è codice.
 
 ---
 
@@ -219,19 +236,20 @@ Tutte e sette sono **additive** sul body o commenti di `#1801`: nessuna riscrive
 ### ⛔ NOT RUN
 - **`./scripts/rt-suite.ps1`** — non eseguita; nessuna riga di `Source/` toccata.
 - **PIE / packaged** — non pertinenti: questa issue non ha oracolo visivo.
-- **Le mutazioni di §7** — non eseguite.
+- **La consegna di `#1801`** — questo pass **non** implementa il gate: rivede la sua specifica. Nessuna
+  `FindMissing…`, nessun test, nessuna tabella scritti.
 
 ---
 
 ## 9. Rischi e aperti
 
-- 🔴 **`#1801` resta senza milestone** mentre blocca una issue v0.1. È la decisione che pesa di più e non è
-  tecnica: va presa da chi possiede la release.
+- ✅ **Milestone risolta**: `v0.1 · Leggibilità`, allineata al consumatore.
 - ⚠️ **`D-301` non è ancora su `main`**: vive nella PR [#1948](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1948). Finché non è mergiata, chi legge `#1801` da `main`
   non trova la voce che lo rende bloccante.
-- ⚠️ **Il supporto del mapping (§5.2) è la scelta con più conseguenze**, e questo referto **non la fa**:
-  richiede di sapere se un artista dovrà toccare le cue in v0.1 — informazione che sta in `D-124` per il
-  ceiling, ma non per il flusso di authoring.
+- ✅ **Supporto del mapping scelto**: tabella C++ — §7.1. ⚠️ **Resta da rivedere se le cue diventano asset**:
+  la scelta è corretta finché nessun artista le tocca, e quel giorno cambia il supporto, non il gate.
+- ⚠️ **`U4` è una scelta di supporto che `D-278` non aveva fatto.** Se va registrata come decisione, serve un
+  `D-nnn` **verificato al momento** — non è stato prenotato qui.
 - ⚠️ **`HazardDamage` non è solo senza presentazione: è senza produttore.** Va deciso se è un `NoPresentation`
   legittimo, un evento mai implementato, o un valore da rimuovere. Il gate lo renderà rosso comunque — meglio
   saperlo prima di scriverlo, perché le tre risposte portano a tre lavori diversi.
@@ -240,5 +258,6 @@ Tutte e sette sono **additive** sul body o commenti di `#1801`: nessuna riscrive
 
 ## 10. Prossimo passo
 
-**Sciogliere la milestone di `#1801`** — è l'unico nodo che non si risolve leggendo il codice, e blocca la
-catena `D-301` → `#1945`.
+**Decidere cosa è `HazardDamage`** — `NoPresentation` legittimo, evento mai implementato, o valore da
+rimuovere. È l'unica domanda rimasta che il gate non può rispondere da sé, e diventerà rossa su di lui il
+giorno in cui viene scritto.
