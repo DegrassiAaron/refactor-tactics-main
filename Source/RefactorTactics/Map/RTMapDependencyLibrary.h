@@ -179,6 +179,19 @@ struct FRTMapDependencySet
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TArray<int32> InteractionBindingIndices;
+
+	/**
+	 * I NOMI di struttura che spariscono insieme all'elemento (CP 23.3).
+	 *
+	 * 🔴 **Serve perche' un bersaglio morto non uccide il binding che lo cita**: `S1 -> [D1, D2]` che perde
+	 * `D1` deve restare, comandando `D2`. Chi applica toglie il nome dalla lista e rimuove il binding solo
+	 * se resta senza bersagli — che e' la regola dichiarata sopra, e che nessuna delle due strade applicava.
+	 *
+	 * ⚠️ Un nome entra qui solo se **nessun bordo gli sopravvive**: un portone e' un gruppo, e togliergli
+	 * una cella non lo cancella.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TArray<FName> OrphanedStructureNames;
 };
 
 /**

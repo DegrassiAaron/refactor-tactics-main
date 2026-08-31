@@ -75,48 +75,75 @@ bool URTHexSelectionStore::AddAt(const URTHexMapAsset* Map, const FRTCellId& Cel
 		return false;
 	}
 
-	// 🔴 **Anche l'aggiunta CICLA, e la prima stesura non lo faceva** — trovato in seduta: prendendo sempre
-	// il candidato piu' specifico, una cella con una copertura sul bordo mirato era **impossibile da
-	// aggiungere**. Ctrl+click dava la copertura, sempre, e nessun gesto scendeva alla cella: un elemento
-	// raggiungibile col click semplice e irraggiungibile con quello multiplo, cioe' il rilievo `A1` spostato
-	// di un tasto.
-	//
-	// ⚠️ **Cicla l'ULTIMO aggiunto, non tutta la selezione.** Gli elementi presi prima restano dove sono,
-	// altrimenti costruire una selezione di tre elementi sarebbe impossibile: l'ultimo gesto disferebbe i
-	// precedenti.
+	// Un candidato e' PRENDIBILE se non e' gia' in selezione. `Skip` esclude una posizione — serve al ciclo,
+	// dove l'elemento che si sta sostituendo non deve contare come duplicato di se stesso.
+	auto IsFree = [this](const FRTMapElementHandle& Candidate, int32 Skip) -> bool
+	{
+		for (int32 I = 0; I < Selection.Num(); ++I)
+		{
+			if (I != Skip && SameElement(Selection[I], Candidate))
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+
 	const bool bSamePoint = bHasCycle && CycleCell == Cell && CycleEdge == Edge;
 
-	if (bSamePoint && Selection.Num() > 0)
-	{
-		CycleIndex = (CycleIndex + 1) % Candidates.Num();
-		Selection.Last() = Candidates[CycleIndex];
+	// 🔴 **Il ciclo agisce sull'ultimo SOLO se l'ultimo appartiene a questo punto.** Altrimenti sostituirebbe
+	// un elemento preso altrove con un candidato di qui — trovato da una code review insieme al difetto
+	// gemello: il vecchio ramo «gia' dentro» usciva senza spostare il ciclo, e tornando su un punto gia'
+	// preso ogni Ctrl+click ripeteva lo stesso nulla, rendendo gli altri candidati irraggiungibili.
+	const int32 Last = Selection.Num() - 1;
+	const bool bLastBelongsHere = bSamePoint && Last >= 0
+		&& Candidates.ContainsByPredicate([this, Last](const FRTMapElementHandle& C)
+		{
+			return SameElement(Selection[Last], C);
+		});
 
-		CycleCell = Cell;
-		CycleEdge = Edge;
+	if (bLastBelongsHere)
+	{
+		// Avanza al prossimo candidato LIBERO, saltando quelli gia' selezionati: senza questo salto il ciclo
+		// poteva mettere due volte lo stesso elemento, e `EraseSelection` avrebbe provato a cancellarlo due
+		// volte — la seconda su una mappa da cui era gia' sparito.
+		for (int32 Step = 1; Step <= Candidates.Num(); ++Step)
+		{
+			const int32 Next = (CycleIndex + Step) % Candidates.Num();
+			if (IsFree(Candidates[Next], Last))
+			{
+				CycleIndex = Next;
+				Selection[Last] = Candidates[Next];
+				return true;
+			}
+		}
+
+		// Tutti gia' presi: il gesto non ha effetto, ma non e' un fallimento.
 		return true;
 	}
 
-	const FRTMapElementHandle& Taken = Candidates[0];
-
-	for (const FRTMapElementHandle& Already : Selection)
+	// Punto nuovo, o l'ultimo viene da altrove: si aggiunge il primo candidato libero. Cosi' un punto i cui
+	// candidati specifici sono gia' in selezione contribuisce comunque quelli che restano, invece di
+	// diventare un gesto morto.
+	for (int32 Index = 0; Index < Candidates.Num(); ++Index)
 	{
-		if (SameElement(Already, Taken))
+		if (IsFree(Candidates[Index], INDEX_NONE))
 		{
-			// Gia' dentro: non e' un fallimento del gesto, e' un gesto senza effetto.
+			Selection.Add(Candidates[Index]);
+			CycleCell = Cell;
+			CycleEdge = Edge;
+			bHasCycle = true;
+			CycleIndex = Index;
 			return true;
 		}
 	}
 
-	Selection.Add(Taken);
-
-	// Il ciclo si sposta su QUESTO punto: il prossimo Ctrl+click qui scende al candidato successivo, e un
-	// `SelectAt` altrove riparte da capo perche' il punto e' cambiato. Una sola memoria di ciclo per
-	// entrambi i gesti — averne due significherebbe che l'una diverge dall'altra.
+	// Niente da aggiungere, ma il ciclo si sposta comunque QUI: il prossimo gesto su questo punto deve
+	// poter scorrere, non ripetere il nulla che ha appena fatto.
 	CycleCell = Cell;
 	CycleEdge = Edge;
 	bHasCycle = true;
 	CycleIndex = 0;
-
 	return true;
 }
 

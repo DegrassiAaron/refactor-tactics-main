@@ -826,4 +826,113 @@ bool FRTMapEditDeleteEveryKindTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 Un binding perde il BERSAGLIO morto, non se stesso — e muore solo se resta senza.
+ *
+ * La regola era gia' scritta nel contratto di `FRTMapDependencySet`: *«un binding entra qui quando perde la
+ * **sorgente** oppure l'**ultimo** bersaglio»*. Nessuna delle due strade la applicava, e sbagliavano in
+ * direzioni OPPOSTE — trovato da una code review, non da un test:
+ *
+ * ```text
+ * DeleteElement(porta)   rimuoveva il binding se il nome era sorgente O bersaglio
+ *                        -> `S1 -> [D1, D2]`, cancelli D1, e S1 smette di comandare anche D2
+ * CollectDependents      guardava solo SourceId
+ *                        -> un bersaglio morto restava citato, e `ValidateReferences` lo segnala
+ * ```
+ *
+ * ⚠️ **Il primo e' perdita di dato SILENZIOSA**: nessun errore, nessun log, e un comando che l'autore
+ * aveva scritto sparisce. Il secondo lascia la mappa invalida, che almeno il validator dice.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditBindingTargetTest,
+	"RefactorTactics.Map.Edit.ABindingLosesOnlyTheDeadTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditBindingTargetTest::RunTest(const FString&)
+{
+	const FRTCellId Source(0, 0, 0);
+	const FRTCellId First(2, 0, 0);
+	const FRTCellId Second(0, 2, 0);
+
+	// `S1` comanda DUE porte. Con una sola il test non distinguerebbe «toglie il bersaglio» da «toglie il
+	// binding»: entrambi lascerebbero zero binding.
+	auto MakeMap = [&]()
+	{
+		URTHexMapAsset* M = MapEditMakeMap(2);
+		MapEditPutDoor(M, Source, ERTHexDirection::E, 1, TEXT("S1"));
+		MapEditPutDoor(M, First,  ERTHexDirection::W, 2, TEXT("D1"));
+		MapEditPutDoor(M, Second, ERTHexDirection::W, 3, TEXT("D2"));
+		M->InteractionBindings.Add(FRTInteractionBinding(TEXT("S1"), { TEXT("D1"), TEXT("D2") }));
+		return M;
+	};
+
+	// --- 1. Cancellata UNA delle due porte comandate: il binding SOPRAVVIVE, con l'altro bersaglio ---
+	{
+		URTHexMapAsset* Map = MakeMap();
+		if (!TestEqual(TEXT("l'allestimento parte valido"), Map->ValidateMap().Num(), 0))
+		{
+			return false;
+		}
+
+		TestEqual(TEXT("la porta si cancella"),
+			URTMapEditLibrary::DeleteElement(Map,
+				FRTMapElementHandle::ForDoor(First, ERTHexDirection::W, TEXT("D1"))),
+			ERTMapEditOutcome::Applied);
+
+		if (!TestEqual(TEXT("il binding e' ancora li'"), Map->InteractionBindings.Num(), 1))
+		{
+			return false;
+		}
+		TestEqual(TEXT("ma comanda un bersaglio solo"),
+			Map->InteractionBindings[0].TargetIds.Num(), 1);
+		TestEqual(TEXT("e resta quello vivo"),
+			Map->InteractionBindings[0].TargetIds[0], FName(TEXT("D2")));
+
+		const TArray<FString> Errors = Map->ValidateMap();
+		TestEqual(*FString::Printf(TEXT("la mappa resta valida (residui: %s)"),
+			Errors.Num() > 0 ? *FString::Join(Errors, TEXT(" | ")) : TEXT("nessuno")),
+			Errors.Num(), 0);
+	}
+
+	// --- 2. Cancellato l'ULTIMO bersaglio: il binding muore, perche' senza bersagli e' gia' invalido ---
+	{
+		URTHexMapAsset* Map = MakeMap();
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForDoor(First, ERTHexDirection::W, TEXT("D1")));
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForDoor(Second, ERTHexDirection::W, TEXT("D2")));
+
+		TestEqual(TEXT("senza bersagli il binding se ne va"), Map->InteractionBindings.Num(), 0);
+		TestEqual(TEXT("e la mappa resta valida"), Map->ValidateMap().Num(), 0);
+	}
+
+	// --- 3. Cancellata la SORGENTE: il binding muore ---------------------------------------------------
+	{
+		URTHexMapAsset* Map = MakeMap();
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForDoor(Source, ERTHexDirection::E, TEXT("S1")));
+
+		TestEqual(TEXT("senza sorgente il binding se ne va"), Map->InteractionBindings.Num(), 0);
+		TestEqual(TEXT("e la mappa resta valida"), Map->ValidateMap().Num(), 0);
+	}
+
+	// --- 4. 🔴 La stessa regola dalla CASCATA DELLA CELLA, che sbagliava all'opposto ------------------
+	{
+		URTHexMapAsset* Map = MakeMap();
+
+		// La cella di `D1` se ne va: `D1` era un BERSAGLIO, e la cascata guardava solo la sorgente.
+		TestEqual(TEXT("la cella si cancella"),
+			URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForCell(First)),
+			ERTMapEditOutcome::Applied);
+
+		const TArray<FString> Errors = Map->ValidateMap();
+		TestEqual(*FString::Printf(TEXT("nessun bersaglio fantasma resta citato (residui: %s)"),
+			Errors.Num() > 0 ? *FString::Join(Errors, TEXT(" | ")) : TEXT("nessuno")),
+			Errors.Num(), 0);
+
+		if (TestEqual(TEXT("e il binding sopravvive con l'altro bersaglio"),
+			Map->InteractionBindings.Num(), 1))
+		{
+			TestEqual(TEXT("che e' D2"), Map->InteractionBindings[0].TargetIds.Num(), 1);
+		}
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

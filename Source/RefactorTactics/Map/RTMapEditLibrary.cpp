@@ -6,6 +6,52 @@
 #include "Map/RTMapDependencyLibrary.h"
 #include "Map/RTStructureIdentityLibrary.h"
 
+namespace
+{
+	/**
+	 * Applica la morte di un insieme di NOMI ai binding di interazione (#1864).
+	 *
+	 * 🔴 **Una implementazione sola, e non e' pignoleria**: prima ce n'erano due che sbagliavano in direzioni
+	 * opposte — la cancellazione della porta rimuoveva il binding intero anche quando il nome era **uno** dei
+	 * bersagli (perdita di dato silenziosa), e la cascata della cella guardava la sola sorgente lasciando
+	 * bersagli fantasma che `ValidateReferences` segnala. Trovate da una code review, non da un test.
+	 *
+	 * La regola e' quella che il contratto di `FRTMapDependencySet` gia' dichiarava: **si perde la sorgente,
+	 * oppure l'ultimo bersaglio**. Un bersaglio su tre esce dalla lista e il binding resta.
+	 */
+	void RTApplyOrphanedNames(URTHexMapAsset* Map, const TArray<FName>& DeadNames)
+	{
+		if (Map == nullptr || DeadNames.Num() == 0)
+		{
+			return;
+		}
+
+		// All'indietro: rimuovere in avanti sposta gli elementi successivi sotto l'indice corrente.
+		for (int32 Index = Map->InteractionBindings.Num() - 1; Index >= 0; --Index)
+		{
+			FRTInteractionBinding& Binding = Map->InteractionBindings[Index];
+
+			if (DeadNames.Contains(Binding.SourceId))
+			{
+				Map->InteractionBindings.RemoveAt(Index);
+				continue;
+			}
+
+			for (const FName& Dead : DeadNames)
+			{
+				Binding.TargetIds.Remove(Dead);
+			}
+
+			// Senza bersagli e' gia' un invalido dichiarato — «binding dichiarato senza bersagli» — quindi
+			// tenerlo non conserva un dato, produce un errore.
+			if (Binding.TargetIds.Num() == 0)
+			{
+				Map->InteractionBindings.RemoveAt(Index);
+			}
+		}
+	}
+}
+
 int32 URTMapEditLibrary::ResolveInteriorWall(const URTHexMapAsset* Map, const FRTMapElementHandle& Handle)
 {
 	if (Map == nullptr || Handle.Kind != ERTMapElementKind::InteriorWall)
@@ -163,17 +209,17 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 		//
 		// ⚠️ Il nome muore solo se NESSUN bordo sopravvive: un portone e' un gruppo, e togliergli un lato non
 		// lo cancella. `FindDoorEdges` interroga la mappa GIA' aggiornata, quindi risponde su cio' che resta.
+		TArray<FName> ActuallyDead;
 		for (const FName& Name : OrphanedNames)
 		{
-			if (URTStructureIdentityLibrary::FindDoorEdges(Map, Name).Num() > 0)
+			// Il nome muore solo se NESSUN bordo gli sopravvive: un portone e' un gruppo. `FindDoorEdges`
+			// interroga la mappa gia' aggiornata, quindi risponde su cio' che resta.
+			if (URTStructureIdentityLibrary::FindDoorEdges(Map, Name).Num() == 0)
 			{
-				continue;
+				ActuallyDead.Add(Name);
 			}
-			Map->InteractionBindings.RemoveAll([&Name](const FRTInteractionBinding& B)
-			{
-				return B.SourceId == Name || B.TargetIds.Contains(Name);
-			});
 		}
+		RTApplyOrphanedNames(Map, ActuallyDead);
 
 		return ERTMapEditOutcome::Applied;
 	}
@@ -216,6 +262,10 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 	{
 		Map->InteractionBindings.RemoveAt(Index);
 	}
+
+	// I superstiti perdono i bersagli morti, e muoiono se restano senza: stessa regola del ramo porta,
+	// stessa funzione. Averne due significherebbe che divergono, ed e' gia' successo.
+	RTApplyOrphanedNames(Map, Set.OrphanedStructureNames);
 
 	// La cella per ultima: `CollectDependents` la legge per sapere quali nomi se ne vanno con lei, e
 	// toglierla prima renderebbe vuoto l'insieme dei nomi morenti.

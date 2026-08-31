@@ -358,4 +358,123 @@ bool FRTSelectionStoreAddCyclesLastTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 Il ciclo dell'aggiunta non deve poter mettere DUE VOLTE lo stesso elemento.
+ *
+ * Trovato da una code review. Il ramo che cicla scriveva `Selection.Last()` senza passare dal controllo dei
+ * duplicati che l'aggiunta normale fa: bastava selezionare una cella e poi ciclare su un punto della STESSA
+ * cella fino a tornare su di essa.
+ *
+ * ⚠️ **Non e' pignoleria e l'header lo dichiarava gia'**: `EraseSelection` itera la selezione e chiama
+ * `DeleteElement` per ogni voce — la seconda copia opera su una mappa da cui l'elemento e' gia' sparito,
+ * ottiene un rifiuto e logga un avviso che descrive un difetto inesistente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSelectionStoreCycleNoDupTest,
+	"RefactorTactics.Editor.Selection.CyclingNeverSelectsTheSameElementTwice",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSelectionStoreCycleNoDupTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(0, 0, 0);
+	const ERTHexDirection Crowded = ERTHexDirection::E;
+	const ERTHexDirection Bare = ERTHexDirection::NE;
+
+	URTHexMapAsset* Map = SelStoreMakeCrowdedMap(Cell, Crowded);
+	URTHexSelectionStore* Store = NewObject<URTHexSelectionStore>();
+
+	// Si seleziona la CELLA passando da un bordo spoglio: li' i candidati sono muro e cella.
+	Store->SelectAt(Map, Cell, Bare);
+	Store->SelectAt(Map, Cell, Bare);
+	if (!TestEqual(TEXT("la cella e' selezionata"), SelStoreFirstKind(Store), ERTMapElementKind::Cell))
+	{
+		return false;
+	}
+
+	// Poi si cicla sul bordo affollato della STESSA cella, fino a passare per la cella.
+	for (int32 Click = 0; Click < 6; ++Click)
+	{
+		Store->AddAt(Map, Cell, Crowded);
+
+		// 🔴 Nessun elemento due volte, mai — a nessun giro del ciclo.
+		for (int32 I = 0; I < Store->GetSelection().Num(); ++I)
+		{
+			for (int32 J = I + 1; J < Store->GetSelection().Num(); ++J)
+			{
+				const FRTMapElementHandle& A = Store->GetSelection()[I];
+				const FRTMapElementHandle& B = Store->GetSelection()[J];
+				const bool bSame = (A.Kind == B.Kind) && (A.Cell == B.Cell)
+					&& (A.Kind != ERTMapElementKind::Cover || A.Edge == B.Edge);
+				TestFalse(*FString::Printf(TEXT("click %d: nessun duplicato in selezione"), Click + 1), bSame);
+			}
+		}
+	}
+
+	return true;
+}
+
+/**
+ * 🔴 Ctrl+click su un punto GIA' selezionato non lascia il ciclo indietro.
+ *
+ * Trovato da una code review, ed e' la stessa forma del difetto che questa PR e' venuta a correggere. Il
+ * ramo «gia' dentro» usciva senza spostare la memoria del ciclo: tornando su un punto gia' preso, ogni
+ * Ctrl+click successivo ricalcolava il candidato piu' specifico, lo trovava duplicato e usciva di nuovo.
+ *
+ * ∴ gli altri candidati di quel punto restavano **irraggiungibili per sempre** con l'aggiunta — cioe' `A1`
+ * un'altra volta, per una porta diversa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSelectionStoreCycleMovesTest,
+	"RefactorTactics.Editor.Selection.AddingAnAlreadySelectedPointStillMovesTheCycle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSelectionStoreCycleMovesTest::RunTest(const FString&)
+{
+	const FRTCellId P(0, 0, 0);
+	const FRTCellId Q(1, 0, 0);
+	const ERTHexDirection Edge = ERTHexDirection::E;
+
+	URTHexMapAsset* Map = SelStoreMakeCrowdedMap(P, Edge);
+	URTHexSelectionStore* Store = NewObject<URTHexSelectionStore>();
+
+	// Selezionato il piu' specifico di P; poi si aggiunge Q, e il ciclo si sposta la'.
+	Store->SelectAt(Map, P, Edge);
+	const ERTMapElementKind AtP = SelStoreFirstKind(Store);
+	Store->AddAt(Map, Q, Edge);
+
+	// Si torna su P: il candidato piu' specifico e' gia' dentro, quindi il gesto non aggiunge — ma DEVE
+	// spostare il ciclo su P, altrimenti il click seguente ripete lo stesso nulla.
+	// ⚠️ **Questa asserzione era mal costruita e passava per la ragione sbagliata**: guardava `Last()`, che
+	// dopo l'aggiunta di Q appartiene a Q — quindi era diverso da quello di P qualunque cosa facesse lo
+	// store. Ora si conta quanti elementi vengono DA P, che e' la domanda vera.
+	auto CountFromP = [&Store, &P]()
+	{
+		int32 N = 0;
+		for (const FRTMapElementHandle& H : Store->GetSelection())
+		{
+			if (H.Cell == P) { ++N; }
+		}
+		return N;
+	};
+
+	const int32 BeforeReturn = CountFromP();
+
+	// Si torna su P, il cui candidato piu' specifico e' gia' dentro: il gesto deve comunque produrre
+	// qualcosa — un altro candidato di P — invece di uscire a vuoto e lasciare il ciclo indietro.
+	Store->AddAt(Map, P, Edge);
+
+	if (!TestTrue(TEXT("tornare su P contribuisce un altro suo candidato"),
+		CountFromP() > BeforeReturn))
+	{
+		return false;
+	}
+
+	// E il gesto successivo su P scorre ancora, invece di ripetere lo stesso nulla.
+	const ERTMapElementKind AfterFirst = Store->GetSelection().Last().Kind;
+	Store->AddAt(Map, P, Edge);
+	TestNotEqual(TEXT("e il click seguente scorre ancora"),
+		Store->GetSelection().Last().Kind, AfterFirst);
+
+	// L'elemento iniziale di P non e' stato buttato via.
+	TestEqual(TEXT("il primo elemento di P e' rimasto"), SelStoreFirstKind(Store), AtP);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
