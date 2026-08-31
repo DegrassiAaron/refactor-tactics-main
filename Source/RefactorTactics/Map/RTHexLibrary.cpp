@@ -702,3 +702,35 @@ TArray<FRTCellId> URTHexLibrary::HexCone(const FRTCellId& From, const FRTCellId&
 	Out.Sort([](const FRTCellId& L, const FRTCellId& R) { return StableLess(L, R); });
 	return Out;
 }
+
+ERTHexDirection URTHexLibrary::NearestEdgeDirection(const FRTCellId& Cell, const FVector& WorldPoint,
+	const FVector& Origin, float HexSize, float LayerHeight)
+{
+	// I sei lati nell'ordine canonico di `DirectionForEdgeIndex`: iterare l'enum a mano qui significherebbe
+	// scrivere una seconda volta un elenco che esiste gia'.
+	ERTHexDirection Best = DirectionForEdgeIndex(0);
+	double BestDistanceSquared = TNumericLimits<double>::Max();
+
+	for (int32 EdgeIndex = 0; EdgeIndex < 6; ++EdgeIndex)
+	{
+		const ERTHexDirection Dir = DirectionForEdgeIndex(EdgeIndex);
+		const FVector Mid = EdgeMidpointWorld(Cell, Dir, Origin, HexSize, LayerHeight);
+
+		// IN PIANTA: la quota del punto cliccato dipende dalla camera e dal terreno, non da quale lato
+		// l'autore stia mirando.
+		const double DX = WorldPoint.X - Mid.X;
+		const double DY = WorldPoint.Y - Mid.Y;
+		const double DistanceSquared = DX * DX + DY * DY;
+
+		// Confronto STRETTO: a parita' di distanza vince l'indice piu' basso, quindi il centro della cella —
+		// dove tutti e sei i lati sono equidistanti — da' sempre la stessa risposta invece di dipendere
+		// dall'ordine di visita o da un epsilon.
+		if (DistanceSquared < BestDistanceSquared)
+		{
+			BestDistanceSquared = DistanceSquared;
+			Best = Dir;
+		}
+	}
+
+	return Best;
+}

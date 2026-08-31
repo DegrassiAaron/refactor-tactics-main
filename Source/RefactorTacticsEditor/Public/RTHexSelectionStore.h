@@ -59,6 +59,18 @@ public:
 	/** Svuota la selezione e azzera il ciclo. */
 	void Clear();
 
+	/**
+	 * Che cosa e' selezionato, in chiaro — il readout che il pannello del mode mostra.
+	 *
+	 * ⚠️ **Dichiara il TIPO e l'IDENTITA', non solo che «qualcosa» e' selezionato**: e' cio' che #1864 chiede
+	 * al readout, ed e' anche l'unico modo in cui chi clicca capisce a che punto del ciclo si trova. Un
+	 * pannello che dicesse «1 elemento» lascerebbe indovinare se il prossimo Erase toglie la porta o la
+	 * cella sotto.
+	 *
+	 * Statica e pura: si prova headless senza toccare lo stato dello store.
+	 */
+	static FString Describe(const TArray<FRTMapElementHandle>& Handles);
+
 private:
 	UPROPERTY()
 	TArray<FRTMapElementHandle> Selection;

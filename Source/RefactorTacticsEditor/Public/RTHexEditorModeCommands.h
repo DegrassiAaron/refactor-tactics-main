@@ -34,6 +34,15 @@ public:
 	TSharedPtr<FUICommandInfo> ProbeTool;
 
 	/**
+	 * `#1864`: `Delete` cancella cio' che e' selezionato, qualunque sia il tipo.
+	 *
+	 * ⚠️ **Azione, non tool**, per la stessa ragione di `FrameMap`: la palette del mode e' fatta di
+	 * strumenti, e `Enter` si aspetta un builder per ogni voce. L'Erase non ha un builder — agisce sulla
+	 * selezione condivisa e torna subito.
+	 */
+	TSharedPtr<FUICommandInfo> EraseSelection;
+
+	/**
 	 * `#623` / seduta `U21`: `Home` inquadra l'intera mappa editabile, multilivello compreso.
 	 *
 	 * ⚠️ **Non e' un tool e non entra in `Commands`**, che e' la palette del mode: e' un'AZIONE, e la issue
