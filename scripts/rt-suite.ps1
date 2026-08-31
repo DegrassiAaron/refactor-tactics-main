@@ -38,7 +38,13 @@
 
       freschezza  il log e' stato scritto DOPO l'avvio? Un log stantio di una run
                   precedente, letto come se fosse di questa, e' verde su nulla
-      copertura   `Test Completed` contro il `Found N` dichiarato in testa
+      copertura   `Test Started` contro il `Found N` dichiarato in testa — quanti
+                  test sono PARTITI, non quanti sono arrivati in fondo. ⚠️ La
+                  differenza e' deliberata e misurata: l'ULTIMO test di una suite
+                  intera perde regolarmente la riga di conclusione nel flush di
+                  shutdown (`clean-baseline.log`: 1232 avviati, 1231 conclusi, run
+                  sana), quindi invalidare sui conclusi renderebbe NON VALIDA ogni
+                  suite completa. La ragione per esteso sta sul controllo stesso
 
     Se una qualsiasi cade, l'esito NON e' registrabile: non e' rosso e non e'
     verde, e' NON VALIDA. Lo script non impedisce niente e non uccide nessuno —

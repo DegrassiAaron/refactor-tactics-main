@@ -502,10 +502,11 @@ bool FRTScenarioCellOverridesApplyTest::RunTest(const FString&)
  * pianificazione rifiuta un percorso verso una cella occupata (`FindPathForUnit`: goal occupato -> NoPath),
  * quindi lo scambio non arriva mai al resolver.
  *
- * ⚠️ Il resolver invece lo CONSENTE — `HexSim.ResolveSwapAllowed` lo verifica, ma passando percorsi costruiti
- * a mano e quindi bypassando il planner. Le due regole insieme rendono lo scambio **irraggiungibile dal
- * gioco**, ed e' il tipo di difetto che solo un test d'integrazione puo' mostrare: entrambe le regole,
- * guardate da sole, sono verdi e sensate.
+ * 🔄 **Aggiornato il 2026-08-31 (#1922).** Fino ad allora il resolver lo CONSENTIVA, e le due regole
+ * insieme rendevano lo scambio **irraggiungibile dal gioco**: era il tipo di difetto che solo un test
+ * d'integrazione puo' mostrare, perche' entrambe le regole guardate da sole erano verdi e sensate. Ora il
+ * resolver blocca anche lui (`HexSim.ResolveSwapBlocked`, `BlockedByCycle`), quindi le due regole
+ * **concordano** e questo test non fissa piu' uno scarto fra loro.
  *
  * Se un giorno lo scambio dovra' essere possibile, sara' il planner a cambiare e questo test diventera'
  * rosso: e' il segnale che si vuole, non un fastidio da mettere a tacere.

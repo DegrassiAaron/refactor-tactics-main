@@ -418,6 +418,26 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 		const TArray<FRTCellId> HitCells =
 			HexHitCells(Intent.Shape, Attacker.Cell, AimCell, Intent.RangeCells, Intent.AreaRadius);
 
+		// L'impronta si registra QUI, prima del filtro sulle unita' ([D-301]).
+		//
+		// 🔴 **Prima, e non dopo, perche' il "dopo" perde il caso che conta.** Sotto, `HitCells` serve a
+		// scegliere chi colpire: un'area che investe solo celle vuote esce da quel ciclo con zero `Hits`, e
+		// fino a oggi non lasciava traccia di essere avvenuta. La presentazione non poteva mostrarla e il
+		// TurnLog non la nominava: l'unico modo di disegnarla sarebbe stato ricalcolare `HexHitCells` fuori
+		// dal resolver, cioe' una seconda implementazione della primitiva dentro la presentazione ([D-278]).
+		//
+		// ⚠️ Si COPIA cio' che e' gia' stato calcolato: nessuna seconda chiamata, nessun secondo criterio.
+		{
+			FRTAttackFootprint Footprint;
+			Footprint.IntentIndex = IntentIdx;
+			Footprint.AttackerId  = Intent.AttackerId;
+			Footprint.Origin      = Attacker.Cell;
+			Footprint.AimCell     = AimCell;
+			Footprint.Shape       = Intent.Shape;
+			Footprint.HitCells    = HitCells;
+			Plan.Footprints.Add(MoveTemp(Footprint));
+		}
+
 		// Colpisce ogni unita' VIVA su una cella dell'area: i nemici sempre, gli alleati solo se l'azione
 		// dichiara il fuoco amico. Chi lancia l'area non si colpisce mai da solo.
 		for (int32 u = 0; u < Units.Num(); ++u)
@@ -462,6 +482,12 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 	// ciclo chiamante e non per una garanzia. Un secondo produttore che raccogliesse fuori ordine renderebbe
 	// non deterministica la sequenza delle voci nella traccia archiviata.
 	Plan.DoorlessIntents.Sort();
+	// Stessa rete degli altri canali: oggi l'ordine verrebbe da `IntentIdx` che cresce, cioe' da un dettaglio
+	// del ciclo chiamante e non da una garanzia. `IntentIndex` e' gia' un ordine TOTALE (uno per intento).
+	Plan.Footprints.Sort([](const FRTAttackFootprint& A, const FRTAttackFootprint& B)
+	{
+		return A.IntentIndex < B.IntentIndex;
+	});
 	Plan.StructureHits.Sort([](const FRTStructureHit& A, const FRTStructureHit& B)
 	{
 		if (!(A.From == B.From)) { return URTHexLibrary::StableLess(A.From, B.From); }

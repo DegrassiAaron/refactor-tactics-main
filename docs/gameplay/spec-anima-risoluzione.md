@@ -104,23 +104,52 @@ Il playback resta **presentation-only** in ogni caso: non decide, non ordina, no
 ⚠️ Con ADR-0004 la timeline copre **il segmento corrente**, non l'intero round (§3.1):
 
 ```cpp
-UENUM()
-enum class ERTResolvedEventType : uint8 { Move, Attack, StatusApplied, HazardDamage, Defeated };
+UENUM(BlueprintType)
+enum class ERTResolvedEventType : uint8
+{
+    Move, Attack, HazardDamage, Defeated,
+    AttackFootprint                          // l'impronta a terra di un attacco — D-301
+};
 
-USTRUCT()
+USTRUCT(BlueprintType)
 struct FRTResolvedEvent
 {
-    ERTMatchPhase        Phase;      // fase in cui l'evento è stato risolto
+    ERTMatchPhase        Phase;              // fase in cui l'evento è stato risolto
     ERTResolvedEventType Type;
-    TWeakObjectPtr<ARTUnit> Source;  // attore già risolto (weak: può essere logicamente morto)
-    TWeakObjectPtr<ARTUnit> Target;  // per Attack/StatusApplied
-    TArray<FRTGridCoord> Path;       // per Move = Entered (celle attraversate, in ordine)
-    int32 Amount = 0;                // danno / scudo / turni-status, secondo Type
+    int32                SourceStableUnitId; // ID, non puntatore (#1800). 0 = nessuno (D-063)
+    int32                TargetStableUnitId; // solo Attack
+    TArray<FRTCellId>    Path;               // per Move: start + celle attraversate, in ordine
+    TArray<FRTKnowledgeVerdict> CellVerdicts;// parallelo a Path per indice — D-223 / #1525
+    int32                Amount;             // danno / scudo / durata, secondo Type
+
+    // Solo AttackFootprint (D-301):
+    TArray<FRTCellId>    HitCells;           // celle investite, ordine di HexHitCells
+    ERTAbilityShape      Shape;              // dichiarata, non dedotta dal numero di celle
+    FRTCellId            Origin;             // da dove il colpo è partito, al calcolo
+    FRTCellId            AimCell;            // cella mirata: sopravvive anche senza vittime
 };
 ```
 
+> 🔴 **Il blocco qui sopra è stato riallineato il 2026-08-31 (#1945), e non descriveva più il codice da
+> tempo.** Quattro derive, tre delle quali precedenti a questo lavoro:
+>
+> | Diceva | Dice il codice | Da quando |
+> |---|---|---|
+> | `StatusApplied` fra i valori | **non è mai esistito**: l'enum ne ha avuti quattro fino a oggi | dall'origine |
+> | `TWeakObjectPtr<ARTUnit> Source/Target` | `int32 …StableUnitId` — un evento si confronta e si serializza **senza mondo** | [#1800](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1800) |
+> | `FRTGridCoord` | `FRTCellId` — la griglia quadrata non è più nella partita | — |
+> | *(assente)* | `CellVerdicts`, parallelo a `Path` | `D-223` / [#1525](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1525) |
+>
+> ⚠️ **La quarta riga è il motivo per cui `HitCells` non riusa `Path`**: quel campo ha ormai un compagno
+> indicizzato, e un *insieme* di celle colpite non ha indici da mettere in parallelo.
+
 - **Riuso**: `Path` = `FRTPathResult.Entered` (già prodotto); `Amount`/`Target` = dati già calcolati in
   `ResolveCombat`/Cleanup, oggi solo loggati in `RecentEvents`.
+- **`AttackFootprint` non è un dato nuovo**: `HexHitCells` era già calcolato dal resolver una volta per
+  intento e poi scartato (`URTHexCombatLibrary::CollectHexAttacks`). L'evento lo fa **sopravvivere** al
+  confine, così la presentazione dell'area non deve ricalcolare una primitiva canonica — che `D-278`
+  vieta. Ne esce **uno per intento aggressivo**, non uno per vittima: un'area su celle vuote produce zero
+  colpi e un'impronta.
 - La timeline è un **sottoprodotto della logica esistente**: non introduce nuove decisioni di gioco, quindi
   **non altera** determinismo o test (§8).
 

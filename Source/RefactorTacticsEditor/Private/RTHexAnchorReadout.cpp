@@ -53,4 +53,37 @@ namespace RTHexAnchor
 		Out.Reason = TEXT("trascina fino a un secondo punto");
 		return Out;
 	}
+
+	FString DescribeIncidence(ERTGeometryViolation Violation, int32 OtherWallIndex)
+	{
+		// Il nome dell'altro muro sta in TUTTE le righe, ed e' il criterio: «si vede sui DUE segmenti
+		// coinvolti». Senza, la riga direbbe «incrocia qualcosa» e chi disegna dovrebbe cercarlo a mano.
+		const FString Other = OtherWallIndex == INDEX_NONE
+			? TEXT("un altro muro")
+			: FString::Printf(TEXT("il muro %d"), OtherWallIndex);
+
+		switch (Violation)
+		{
+		case ERTGeometryViolation::CrossingOffAnchor:
+			return FString::Printf(
+				TEXT("incrocia %s fuori da un anchor: due segmenti si incontrano solo su un punto notevole"),
+				*Other);
+
+		case ERTGeometryViolation::OverlappingSegments:
+			return FString::Printf(
+				TEXT("si sovrappone a %s: due muri sulla stessa retta non possono condividere un tratto"),
+				*Other);
+
+		case ERTGeometryViolation::DuplicateSegment:
+			// ⚠️ Distinta dalla sovrapposizione, e non e' pedanteria: qui il muro c'e' gia' identico, quindi
+			// il rimedio e' «non disegnarlo», non «spostane un estremo». Due reason code, due rimedi.
+			return FString::Printf(TEXT("e' gia' presente: %s ha la stessa geometria"), *Other);
+
+		default:
+			// `None` e le violazioni del SINGOLO segmento non sono incidenze: hanno gia' i loro canali —
+			// lo snap le ferma prima, e `Refusal` le racconta. Una riga qui sarebbe una seconda voce sullo
+			// stesso difetto.
+			return FString();
+		}
+	}
 }

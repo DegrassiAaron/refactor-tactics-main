@@ -719,6 +719,50 @@ namespace
 						}
 					}
 
+					// Ciclo chiuso fra unita' in MOVIMENTO: uno scambio `A↔B` o una catena `A→B→C→A` in cui
+					// ognuna punta alla cella occupata dalla successiva e l'ultima punta alla prima (#1922, D-295).
+					//
+					// 🔑 Si segue la CATENA, non si confrontano le coppie. Un convoy a coda libera
+					// (`A→B→C→libera`) ha la stessa forma — ognuno punta a un altro in movimento, nessuno e' fermo —
+					// e differisce SOLO per l'ultima cella: la regola «se il mio target e' la posizione di un altro
+					// mover, blocca» supererebbe il test del ciclo e ucciderebbe il convoy, che deve avanzare.
+					//
+					// ⚠️ DOPO lo scontro frontale, mai prima: due mobilita' LINEARI che si scambiano hanno gia' il
+					// loro reason (`BlockedByImpact`, CP 4.8), che `ResolveHeadOnBlocksLinearSwap` asserisce per nome.
+					//
+					// `bPassThrough` non entra: governa il ramo dell'unita' FERMA qui sotto, e un'unita' che sta solo
+					// transitando chiude comunque il ciclo — non si passa attraverso qualcuno che nello stesso
+					// istante sta venendo verso di noi.
+					if (!bBlocked)
+					{
+						int32 Cursor = i;
+						for (int32 Hops = 0; Hops < N; ++Hops)
+						{
+							int32 Occupant = INDEX_NONE;
+							for (int32 j = 0; j < N; ++j)
+							{
+								if (j != Cursor && Pos[j] == Target[Cursor])
+								{
+									Occupant = j;
+									break;
+								}
+							}
+							// Cella libera, o occupata da chi non si muove: la catena e' APERTA. Il primo caso e' il
+							// convoy, il secondo lo gestisce il blocco da unita' ferma qui sotto, col suo reason.
+							if (Occupant == INDEX_NONE || !Moving[Occupant])
+							{
+								break;
+							}
+							if (Occupant == i)
+							{
+								bBlocked = true;
+								Reason = ERTMoveOutcome::BlockedByCycle;
+								break;
+							}
+							Cursor = Occupant;
+						}
+					}
+
 					// Bloccata da un'unita' che RESTA (esaurita o congelata) sulla cella di destinazione.
 					//
 					// Chi ATTRAVERSA ci passa in mezzo, ma solo se quella cella non e' la sua ULTIMA: si

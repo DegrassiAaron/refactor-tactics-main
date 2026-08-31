@@ -550,4 +550,183 @@ bool FRTHexAttackOnCellTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// L'IMPRONTA A TERRA DEL COLPO ([D-301], #1945)
+//
+// Il piano portava gia' `Hits`, che sono per VITTIMA. Queste prove riguardano cio' che gli `Hits` non
+// possono dire: dove il colpo e' arrivato quando non ha preso nessuno, e quante volte un'area e' avvenuta.
+// ---------------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFootprintCarriesResolvedCellsTest,
+	"RefactorTactics.HexCombat.FootprintCarriesResolvedCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFootprintCarriesResolvedCellsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(4);
+
+	TArray<FRTHexCombatUnit> Units;
+	Units.Add(CombatUnit(0, 0, FRTCellId(0, 0)));
+	Units.Add(CombatUnit(1, 1, FRTCellId(2, 0)));
+
+	TArray<FRTHexAttackIntent> Intents;
+	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Area, 5, 20, /*AreaRadius*/ 1));
+
+	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
+
+	TestEqual(TEXT("un intento aggressivo produce un'impronta"), Plan.Footprints.Num(), 1);
+	if (Plan.Footprints.Num() != 1)
+	{
+		AddError(TEXT("senza l'impronta le assertion seguenti non direbbero nulla"));
+		return true;
+	}
+
+	// Il confronto e' fra DUE PRODUZIONI, non contro una costante scritta a mano: se `HexHitCells`
+	// cambiasse forma, un elenco copiato qui resterebbe verde mentre il footprint mente. Cosi' invece le
+	// due cadono insieme, che e' l'unico modo in cui questa assertion vale qualcosa.
+	const TArray<FRTCellId> Attese = URTHexCombatLibrary::HexHitCells(
+		ERTAbilityShape::Area, FRTCellId(0, 0), FRTCellId(2, 0), /*RangeCells*/ 5, /*AreaRadius*/ 1);
+
+	TestEqual(TEXT("l'impronta porta le stesse celle che il resolver ha usato"),
+		Plan.Footprints[0].HitCells, Attese);
+	TestTrue(TEXT("la forma e' quella dichiarata dall'intento"),
+		Plan.Footprints[0].Shape == ERTAbilityShape::Area);
+	TestTrue(TEXT("l'origine e' la cella dell'attaccante al momento del calcolo"),
+		Plan.Footprints[0].Origin == FRTCellId(0, 0));
+	TestTrue(TEXT("la cella mirata sopravvive nell'impronta"),
+		Plan.Footprints[0].AimCell == FRTCellId(2, 0));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFootprintOnEmptyCellsTest,
+	"RefactorTactics.HexCombat.FootprintSurvivesOnEmptyCells",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFootprintOnEmptyCellsTest::RunTest(const FString&)
+{
+	// E' il caso per cui #1945 esiste. Un'area su celle vuote non produce nessun `Hit`, quindi fino a
+	// [D-301] non lasciava traccia di essere avvenuta: la presentazione non aveva nulla da disegnare, e
+	// l'unico modo di mostrarla sarebbe stato ricalcolare `HexHitCells` fuori dal resolver.
+	URTHexMapAsset* Map = MakeCombatMap(4);
+
+	TArray<FRTHexCombatUnit> Units;
+	Units.Add(CombatUnit(0, 0, FRTCellId(0, 0)));
+
+	FRTHexAttackIntent SullaCellaVuota = CombatIntent(0, INDEX_NONE, ERTAbilityShape::Area, 5, 20, 1);
+	SullaCellaVuota.TargetCell = FRTCellId(2, 0); // nessuna unita' ci sta sopra
+
+	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, { SullaCellaVuota }, Map);
+
+	TestEqual(TEXT("nessuna unita' colpita"), Plan.Hits.Num(), 0);
+	TestEqual(TEXT("ma l'area e' avvenuta, e l'impronta lo dice"), Plan.Footprints.Num(), 1);
+	if (Plan.Footprints.Num() == 1)
+	{
+		TestTrue(TEXT("l'impronta non e' vuota: le celle investite ci sono"),
+			Plan.Footprints[0].HitCells.Num() > 0);
+		TestTrue(TEXT("la cella mirata e' fra quelle investite"),
+			Plan.Footprints[0].HitCells.Contains(FRTCellId(2, 0)));
+	}
+	else
+	{
+		AddError(TEXT("nessuna impronta: il caso che questa issue chiude e' ancora aperto"));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFootprintOnePerIntentTest,
+	"RefactorTactics.HexCombat.FootprintIsOnePerIntentNotPerVictim",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFootprintOnePerIntentTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(4);
+
+	// Due nemici dentro la stessa area: due colpi, UNA azione.
+	TArray<FRTHexCombatUnit> Units;
+	Units.Add(CombatUnit(0, 0, FRTCellId(0, 0)));
+	Units.Add(CombatUnit(1, 1, FRTCellId(2, 0)));
+	Units.Add(CombatUnit(2, 1, URTHexLibrary::Neighbor(FRTCellId(2, 0), ERTHexDirection::NE)));
+
+	TArray<FRTHexAttackIntent> Intents;
+	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Area, 5, 20, /*AreaRadius*/ 1));
+
+	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
+
+	TestEqual(TEXT("due bersagli dentro l'area, due colpi"), Plan.Hits.Num(), 2);
+	// La distinzione che l'evento `AttackFootprint` esiste per tenere: se l'impronta fosse un campo del
+	// colpo, qui ne uscirebbero due identiche e chi disegna dovrebbe deduplicare - logica nella
+	// presentazione, che [D-278] vieta.
+	TestEqual(TEXT("ma UNA sola impronta: e' un fatto dell'azione, non del bersaglio"),
+		Plan.Footprints.Num(), 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFootprintShapeIsDeclaredTest,
+	"RefactorTactics.HexCombat.FootprintShapeIsDeclaredNotDeduced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFootprintShapeIsDeclaredTest::RunTest(const FString&)
+{
+	// Un `Single` e un'`Area` di raggio 0 investono la STESSA cella: a valle sono due disegni diversi, e
+	// solo la forma dichiarata li distingue. Contare le celle non basterebbe.
+	URTHexMapAsset* Map = MakeCombatMap(4);
+
+	TArray<FRTHexCombatUnit> Units;
+	Units.Add(CombatUnit(0, 0, FRTCellId(0, 0)));
+	Units.Add(CombatUnit(1, 1, FRTCellId(2, 0)));
+
+	const FRTHexBlastPlan Singolo = URTHexCombatLibrary::CollectHexAttacks(
+		Units, { CombatIntent(0, 1, ERTAbilityShape::Single, 5, 20) }, Map);
+	const FRTHexBlastPlan AreaZero = URTHexCombatLibrary::CollectHexAttacks(
+		Units, { CombatIntent(0, 1, ERTAbilityShape::Area, 5, 20, /*AreaRadius*/ 0) }, Map);
+
+	if (Singolo.Footprints.Num() == 1 && AreaZero.Footprints.Num() == 1)
+	{
+		TestEqual(TEXT("stesse celle investite"),
+			Singolo.Footprints[0].HitCells.Num(), AreaZero.Footprints[0].HitCells.Num());
+		TestTrue(TEXT("ma il Single si dichiara Single"),
+			Singolo.Footprints[0].Shape == ERTAbilityShape::Single);
+		TestTrue(TEXT("e l'Area si dichiara Area"),
+			AreaZero.Footprints[0].Shape == ERTAbilityShape::Area);
+	}
+	else
+	{
+		AddError(TEXT("impronte mancanti: il confronto fra le due forme non e' stato eseguito"));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFootprintChannelIsOrderedTest,
+	"RefactorTactics.HexCombat.FootprintChannelIsOrdered",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFootprintChannelIsOrderedTest::RunTest(const FString&)
+{
+	// Stessa rete degli altri canali del piano: l'ordine in uscita segue `IntentIndex`, non l'ordine di
+	// arrivo, o la sequenza a valle non sarebbe deterministica.
+	URTHexMapAsset* Map = MakeCombatMap(4);
+
+	TArray<FRTHexCombatUnit> Units;
+	Units.Add(CombatUnit(0, 0, FRTCellId(0, 0)));
+	Units.Add(CombatUnit(1, 0, FRTCellId(1, 0)));
+	Units.Add(CombatUnit(2, 1, FRTCellId(2, 0)));
+	Units.Add(CombatUnit(3, 1, FRTCellId(3, 0)));
+
+	TArray<FRTHexAttackIntent> Ordinati;
+	Ordinati.Add(CombatIntent(0, 2, ERTAbilityShape::Single, 5, 10));
+	Ordinati.Add(CombatIntent(1, 3, ERTAbilityShape::Single, 5, 10));
+
+	const FRTHexBlastPlan Piano = URTHexCombatLibrary::CollectHexAttacks(Units, Ordinati, Map);
+
+	TestEqual(TEXT("due intenti, due impronte"), Piano.Footprints.Num(), 2);
+	if (Piano.Footprints.Num() == 2)
+	{
+		TestTrue(TEXT("ordinate per IntentIndex crescente"),
+			Piano.Footprints[0].IntentIndex < Piano.Footprints[1].IntentIndex);
+		TestEqual(TEXT("ogni impronta nomina il proprio attaccante"),
+			Piano.Footprints[0].AttackerId, 0);
+		TestEqual(TEXT("e la seconda il suo"), Piano.Footprints[1].AttackerId, 1);
+	}
+	else
+	{
+		AddError(TEXT("impronte inattese: l'ordine non e' stato verificato"));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
