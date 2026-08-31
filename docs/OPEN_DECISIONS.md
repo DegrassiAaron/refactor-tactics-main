@@ -185,11 +185,11 @@ da una domanda di presentazione.
 ## Aperte — copertura selezionabile e posa nella cella, dal Decision Record del 2026-08-30
 
 Origine: il Decision Record d'autore *«RefactorTactics — Cover Placement & Intra-Hex Geometry»*, recepito da
-[`D-285`](decisions/RT_PDR_00_Decision_Log.md). Owner:
+[`D-289`](decisions/RT_PDR_00_Decision_Log.md). Owner:
 [#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833). Modello:
 [`spec-cover-placement-intra-hex.md`](technical/systems/spec-cover-placement-intra-hex.md).
 
-`D-285` **congela il modello spaziale** — regioni di posa, sorgenti/opzioni/facce, uno slot di occupancy,
+`D-289` **congela il modello spaziale** — regioni di posa, sorgenti/opzioni/facce, uno slot di occupancy,
 traversata esplicita — e dichiara esplicitamente ciò che **non** congela. Queste sono quelle voci.
 
 ⚠️ **Non riaprono ciò che è già deciso.** Il vocabolario dei livelli di copertura è
@@ -203,13 +203,13 @@ produca copertura e occluda è [`D-269`](decisions/RT_PDR_00_Decision_Log.md) e
 | `COV-1` | **Quali categorie di footprint esistono, e con quale clearance?** | Nessun produttore esiste: nessuna unità dichiara un footprint, e il repository non ha mai misurato una posa. `FRTFootprintProfile::MinContiguousWedges` vale `1` — l'**identità**, che non decide niente. È un numero di bilanciamento, e `FRTOccupancyThresholds::BlockedFrom = 6` è il precedente da non ripetere: nessuno lo scelse per una regola, e per mesi ha significato «cella non calpestabile» | [#1827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1827), quando la posa arriva nel percorso di partita |
 | `COV-2` | **I `CoverAnchor` sono autorati, generati o ibridi?** | Decide chi possiede il dato e quanto costa una mappa. `FRTHexCover::bGenerated` / [`D-131`](decisions/RT_PDR_00_Decision_Log.md) è il candidato naturale per la precedenza, ma **non è ovvio** che si applichi: là la provenienza distingue due produttori dello stesso **campo**, qui distinguerebbe due produttori di un'**entità** | [#1829](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1829) |
 | `COV-3` | **Come si serializza e si replica la scelta di `CoverOption`/`CoverSide`?** | ⚠️ **Si vincola con `COV-4`**, come `PLC-1` e `PLC-7` si vincolavano. `FRTCoverSourceId` è già interamente discreto e stabile — un enum e quattro interi — quindi il bit-packing è *possibile*; quale sia non è deciso, e sceglierlo dentro una PR d'implementazione sarebbe sceglierlo per inerzia | [#1829](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1829) |
-| `COV-4` | **La scelta di copertura entra in `FRTUnitStateDigest` e nell'hash di stato?** | Il criterio scritto in quel file è *«un campo entra nell'hash se e solo se due oggetti possono differire solo per quello»*. `D-285` dice che la copertura selezionata è **stato tattico autorevole** e cambia la mitigazione subita — il che suggerisce sì — ma [`D-243`](decisions/RT_PDR_00_Decision_Log.md) ha appena tenuto **fuori** il `Placement` con lo stesso criterio, e il `Facing` è ancora fuori mentre decide esiti ([#1800](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1800)). Tre precedenti, due direzioni | **si decide con `COV-3`** |
+| `COV-4` | **La scelta di copertura entra in `FRTUnitStateDigest` e nell'hash di stato?** | Il criterio scritto in quel file è *«un campo entra nell'hash se e solo se due oggetti possono differire solo per quello»*. `D-289` dice che la copertura selezionata è **stato tattico autorevole** e cambia la mitigazione subita — il che suggerisce sì — ma [`D-243`](decisions/RT_PDR_00_Decision_Log.md) ha appena tenuto **fuori** il `Placement` con lo stesso criterio, e il `Facing` è ancora fuori mentre decide esiti ([#1800](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1800)). Tre precedenti, due direzioni | **si decide con `COV-3`** |
 | `COV-5` | **Come interagisce il `Facing` con la copertura scelta, per ciascuna categoria di abilità?** | `CP 16.2` dice già che un colpo fuori dall'arco frontale **annulla** la riduzione, e `FRTHexCover` documenta che le due direzionalità sono **ortogonali**. Con una copertura *scelta* la domanda cambia: la faccia vincola il facing, lo suggerisce, o è indipendente? Adiacente alle `FAC-*` di [#339](https://github.com/DegrassiAaron/refactor-tactics-main/issues/339), che **non** sostituisce | il primo consumatore di mitigazione direzionale su copertura scelta |
 | `COV-6` | **Muoversi da copertura a copertura ha un costo o un bonus?** | Tocca l'economia del turno (`E38`, [#609](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609)) e non il modello spaziale: se è gratis è sempre ottimale, se costa è una voce di catalogo che oggi non esiste | `E38` |
 | `COV-7` | **Quali sono le regole finali di vault e reposition?** | È la traversata autorata che `E23.7` consuma. Senza, `ERTIntraCellTraversal` resta a **due** valori — ed è corretto che ci resti: un terzo valore senza produttore è un campo che nessuno legge, il difetto che questo repository ha già pagato quattro volte | [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828) |
 | `COV-8` | **Una copertura distrutta rigenera le `CoverOption` della cella, e quando?** | `CP 22.3` ([#1563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1563)) dice già che *«una copertura distrutta non si richiude»*. Con sorgenti multiple per cella la domanda si allarga: distrutta una sorgente, le altre opzioni restano? e chi stava usando quella distrutta dove si trova? | `E22` / [#1563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1563) |
 
-> ⛔ **Cosa resta vietato mentre queste sono aperte**, e sono i vincoli che `D-285` recepisce: nessuna
+> ⛔ **Cosa resta vietato mentre queste sono aperte**, e sono i vincoli che `D-289` recepisce: nessuna
 > sottocella navigabile, nessun mini-navmesh intra-hex, nessun secondo pathfinder, nessuna coordinata float
 > **autorevole** dentro l'esagono, nessun secondo slot di occupancy per `FRTCellId`, nessun secondo Cover
 > Resolver, nessun secondo sistema di Facing, e nessuna scelta di copertura replicata al client avversario.
@@ -895,7 +895,7 @@ ci passa esattamente sopra accende quindi due settori che non invade per area �
 > ## 🔴 **INNESCATA il 2026-08-30, e la riga sopra sottostimava il caso** — [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826)
 >
 > L'innesco non è arrivato dal primo footprint di produzione, che ancora non esiste: è arrivato dal primo
-> **consumatore di posa**, `URTHexCoverPlacementLibrary` (`D-285`).
+> **consumatore di posa**, `URTHexCoverPlacementLibrary` (`D-289`).
 >
 > Il caso che conta non è il **vertice**, è il **centro**. E i numeri sono di un altro ordine:
 >
@@ -908,7 +908,7 @@ ci passa esattamente sopra accende quindi due settori che non invade per area �
 >
 > Misurato: `ComputeMask` su un diametro (`Deg0`, `Offset 0`, `Along ±12`) restituisce `Sectors == 0xFFF`,
 > dodici bit su dodici da un muro che ne attraversa **quattro**. Con zero settori liberi non esiste regione
-> di posa, e **la regola che `D-285` dichiara superata sopravvive lì** — non più come regola scritta, ma
+> di posa, e **la regola che `D-289` dichiara superata sopravvive lì** — non più come regola scritta, ma
 > come effetto collaterale del produttore della maschera.
 >
 > ⚠️ La frase *«mai abbastanza da cambiare `Free` in `Blocked` da solo»* è vera per il vertice e **falsa per

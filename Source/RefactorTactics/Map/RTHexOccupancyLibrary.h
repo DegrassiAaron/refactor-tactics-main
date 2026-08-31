@@ -15,7 +15,7 @@ static constexpr int32 RT_OccupancySectorCount = 12;
  * `Constrained` nasce con il suo consumatore (il costo): senza, sarebbe indistinguibile da `Free` per
  * chiunque legga, cioe' un campo che nessuno legge.
  *
- * 🔑 **E la frase sopra e' l'unica vera: questo enum misura la STRETTEZZA, e dal 2026-08-30 (`D-285`) non
+ * 🔑 **E la frase sopra e' l'unica vera: questo enum misura la STRETTEZZA, e dal 2026-08-30 (`D-289`) non
  * decide piu' la calpestabilita'.** Il paragrafo lo diceva gia' — *«quelli dicono SE si passa, questo dice
  * QUANTO la cella e' stretta»* — mentre il valore `Blocked` qui sotto lo contraddiceva. Chi risponde a
  * *«un'unita' ci sta?»* e' `URTHexCoverPlacementLibrary::HasLegalPlacement`, che cerca una regione di
@@ -34,7 +34,7 @@ enum class ERTCellOccupancy : uint8
 	/**
 	 * La cella e' MOLTO stretta.
 	 *
-	 * 🔴 **Questo commento diceva «Non si attraversa», e dal 2026-08-30 e' superato** (`D-285`). Il valore
+	 * 🔴 **Questo commento diceva «Non si attraversa», e dal 2026-08-30 e' superato** (`D-289`). Il valore
 	 * non ha mai avuto un consumatore che negasse il passaggio — `Classify` e' chiamata solo dai test, e
 	 * `Surcharge` restituisce zero qui perche' *«chi la rende impassabile e' il bordo, non il costo»* — ma
 	 * il nome e la riga di prosa insieme dichiaravano una regola che il repository ora non ha piu'.

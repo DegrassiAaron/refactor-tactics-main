@@ -2,7 +2,7 @@
 
 > **Owner documentale** del modello di posa (*placement*), delle sorgenti/opzioni/facce di copertura e della
 > traversata dentro una cella. `CURRENT` · normativo.
-> Decisione abilitante: **`D-285`** in [`RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md).
+> Decisione abilitante: **`D-289`** in [`RT_PDR_00_Decision_Log.md`](../../decisions/RT_PDR_00_Decision_Log.md).
 > Epic **E23** ([#324](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324)), checkpoint
 > `E23.6` ([#1827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1827)) e
 > `E23.7` ([#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828)).

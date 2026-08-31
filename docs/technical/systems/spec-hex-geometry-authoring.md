@@ -196,7 +196,7 @@ dimostra invece di dedurlo (`MaskIsIndependentOfInputOrder`).
 `bCoreBlocked` non è deducibile dal conteggio: un footprint più grande dell'intera cella non tocca un solo
 triangolo di settore, e senza quel booleano risulterebbe `Free`.
 
-> 🔑 **La maschera è una MISURA, e da sola non è un verdetto** — `D-285`, 2026-08-30. Che un'unità ci stia lo
+> 🔑 **La maschera è una MISURA, e da sola non è un verdetto** — `D-289`, 2026-08-30. Che un'unità ci stia lo
 > decide la **forma** dello spazio libero, non il conteggio dei bit: i gruppi di settori liberi *contigui*
 > sono le **regioni di posa**, e vivono in
 > [`spec-cover-placement-intra-hex.md`](spec-cover-placement-intra-hex.md) §3. Questa sezione resta l'owner
@@ -249,7 +249,7 @@ fra quattro triangoli di settore: è `MSE-4` in §12.
 
 ## 6. Free, Constrained, Blocked — 🔴 **non decidono più la calpestabilità**
 
-> ### ⚠️ Questa sezione è stata delimitata il 2026-08-30 da [`D-285`](../../decisions/RT_PDR_00_Decision_Log.md)
+> ### ⚠️ Questa sezione è stata delimitata il 2026-08-30 da [`D-289`](../../decisions/RT_PDR_00_Decision_Log.md)
 >
 > La tabella qui sotto **resta vera come classificazione di strettezza**, ed è quello che il suo unico
 > consumatore ha sempre letto: `OccupancySurcharge`, cioè *«quanto costa passare di qui»*.

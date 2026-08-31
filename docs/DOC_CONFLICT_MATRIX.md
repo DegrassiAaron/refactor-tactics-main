@@ -51,7 +51,7 @@ più recente, più specifica o più comoda è precisamente il difetto che `D-282
 ## `SUPERSEDED` — la calpestabilità non si conta e non dipende dal centro (2026-08-30)
 
 Registrato dallo spec panel del 2026-08-30 sul Decision Record d'autore *«Cover Placement & Intra-Hex
-Geometry»*. Fonte che prevale: [`D-285`](decisions/RT_PDR_00_Decision_Log.md) — decisione esplicita, quindi
+Geometry»*. Fonte che prevale: [`D-289`](decisions/RT_PDR_00_Decision_Log.md) — decisione esplicita, quindi
 in cima alla scala. Owner del modello nuovo:
 [`spec-cover-placement-intra-hex.md`](technical/systems/spec-cover-placement-intra-hex.md).
 
