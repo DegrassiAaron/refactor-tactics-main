@@ -51,6 +51,36 @@ Il documento Drive «RefactorTactics — Tactical Segment & Anchor Reticle v0.1 
 
 ---
 
+## Aperte — due decisioni d'autore che il repository ha misurato al contrario, dalla sincronizzazione Drive del 2026-08-31
+
+Il tab `Open Questions` del Google Sheet *RT — Knowledge Index & Consolidation Log* porta `DQA-026` e
+`DQA-028` come `RESOLVED — AUTHOR DECISION`. **Non sono state sincronizzate**, e la ragione non è che
+manchino di autorità: è che il repository ha già *misurato* il loro contenuto e ha registrato l'opposto.
+Sono i due casi in cui [`D-282`](decisions/RT_PDR_00_Decision_Log.md) vieta di inventare una gerarchia —
+una decisione d'autore e una misura sul codice non stanno sulla stessa scala — e
+[`D-294`](decisions/RT_PDR_00_Decision_Log.md) le ha lasciate qui invece di sintetizzarle.
+
+🔑 **Nessuna delle due chiede all'autore di ritirare la propria risposta.** Chiedono di scegliere fra la
+risposta e una misura che la risposta non nomina.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `AUTHOR-RESOLUTION-001` | Il vocabolario `ResolutionLayer` a dieci valori si introduce, dato che sei dei dieci duplicano vocabolari già implementati e uno è vietato per nome? | La riga Drive di `DQA-026` **congela** i dieci nomi (`PreInterrupt`, `Structural`, `Movement`, `PostEntryEnvironment`, `TriggerDetection`, `Reaction`, `ActionEffects`, `PostEffectEnvironment`, `EnvironmentPropagation`, `Finalize`). [`D-291`](decisions/RT_PDR_00_Decision_Log.md) ha misurato che **sei su dieci** esistono già sotto altro nome in `ERTMatchPhase`, `ERTResolutionPhase`, `ERTReactionPassPoint` e `ERTPredictionBoundary`, e conclude ⛔ *«L'enum non si introduce»*. 🔴 In più `PreInterrupt` è la forma degli **interrupt annidati**, che [`gameplay/spec-sequenza-turno.md`](gameplay/spec-sequenza-turno.md) §4 elenca fra le voci **north-star — non costruire** e §2.3 vieta esplicitamente in v0.1. ✅ **Il resto di `DQA-026` non è in conflitto**: *«same-layer contributions read one State N»* e *«derived-state refresh is a checkpoint»*, applicate allo scenario che `D-291` lasciava aperto (due attaccanti nello stesso Blast, il primo abbatte il muro), danno la policy **già spedita** in `RTTurnManager_Blast.cpp:1366` (CP 9.2). ⚠️ Ma il testo Drive quello scenario **non lo nomina**: è una conseguenza, non una ratifica |
+| `AUTHOR-DAMAGE-001` | Qual è il rapporto fra `Armor` e `BaseShield`, che occupano lo stesso asse, e la catena di assorbimento dipende dalla sorgente o no? | La riga Drive di `DQA-028` **congela** `Defense = ApplicableArmor + DamageResistance[Type]`, `FinalDamage = max(0, Base − Defense)`, poi `TemporaryShield → Shield → Health`. È **la stessa formula** che [`D-238`](decisions/RT_PDR_00_Decision_Log.md) ha rifiutato di congelare il 2026-08-28, e per una ragione che il testo Drive **non affronta**: [`D-224`](decisions/RT_PDR_00_Decision_Log.md) ha spedito `BaseShield = 5` con **la stessa condizione** che il kit assegna ad `Armor > 0` (ferma solo il danno `Direct`), e con `Armor 3` due colpi diretti da 10 toglierebbero **9 HP invece di 15** — 40% di bilanciamento preso per omissione. 🔴 **Secondo conflitto, misurato il 2026-08-31 e non registrato prima**: `URTCombatLibrary::ApplyDamage` fa assorbire lo scudo **base** al solo `Direct` (l'ambientale lo attraversa intero, punto (2) di `D-224`, pagato con **35 test rossi**), mentre la riga Drive scrive la catena **uniforme** perché mette tutta la dipendenza dalla sorgente nello step di mitigazione. Adottarla alla lettera renderebbe il danno ambientale assorbibile dallo scudo base |
+
+> ⛔ **Nessuna delle due si chiude misurando ancora.** `Armor`, `DamageResistance`, `DamagePacket` e `Shred`
+> hanno **zero** occorrenze in `Source/` — invariato dal 2026-08-28 — e `ResolutionLayer` pure. Una formula
+> i cui termini non esistono non è verificabile da nessun test, ed è esattamente il motivo per cui `D-238`
+> non l'ha congelata. Ciò che manca non è una misura: è la scelta fra due fonti.
+>
+> 🔎 Istruttoria completa nel referto
+> [`roadmap/plans/sync-governance-dqa-026-030-2026-08-31.md`](roadmap/plans/sync-governance-dqa-026-030-2026-08-31.md)
+> §4.1 e §4.2. `DQA-027` e `DQA-029` **non** sono qui: la prima è compatibile con
+> `spec-sequenza-turno.md` §2.3/§3.1, la seconda è già canonica al §3.3. `DQA-030` è stata sincronizzata da
+> `D-294`.
+
+---
+
 ## Aperta — la vista attraverso una frontiera interna, da `D-179`
 
 [`D-179`](decisions/RT_PDR_00_Decision_Log.md) ha reso la geometria dentro la cella **dato di gioco**: si

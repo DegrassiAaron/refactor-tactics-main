@@ -14,7 +14,7 @@
 >
 > 🔎 **Esito della sincronizzazione**: referto in
 > [`../../../roadmap/plans/sync-governance-dqa-026-030-2026-08-31.md`](../../../roadmap/plans/sync-governance-dqa-026-030-2026-08-31.md),
-> decisione [`D-292`](../../../decisions/RT_PDR_00_Decision_Log.md).
+> decisione [`D-294`](../../../decisions/RT_PDR_00_Decision_Log.md).
 
 ---
 
