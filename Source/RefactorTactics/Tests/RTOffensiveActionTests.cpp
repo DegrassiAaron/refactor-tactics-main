@@ -733,4 +733,49 @@ bool FRTInterruptCancelChannelRejectedTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * [D-298] `SuppressSecondary` taglia per POSIZIONE nella lista, e questo test lo pinna sul caso che il
+ * commento dell'enum dichiara come limite: un `Damage` in SECONDA posizione viene tagliato dagli eventi.
+ *
+ * Serve perche' quel limite era scritto e non misurato. Cio' che il test **non** puo' mostrare da qui e' la
+ * seconda meta' del limite — che quel danno arriverebbe **lo stesso**, perche' nella pipeline del Blast
+ * viaggia su `Intent.Power`/`Hit.Power` e non sugli eventi. Quella meta' vive nel Blast, e la copre
+ * l'integrazione di [#1955](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1955): qui si
+ * pinna il taglio, li' si pinnerà il canale.
+ *
+ * ⚠️ Il test costruisce una def a mano invece di prenderla dal catalogo: **nessuna azione spedita
+ * dichiara `Damage` in seconda posizione**, e inventarne una nel catalogo per farci passare un test sarebbe
+ * peggio del test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptSuppressSecondaryCutsByPositionTest,
+	"RefactorTactics.Actions.InterruptPolicy.SuppressSecondaryCutsByPositionNotByKind",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptSuppressSecondaryCutsByPositionTest::RunTest(const FString&)
+{
+	FRTActionInstance Instance;
+	Instance.Def.ActionId = TEXT("Action.Test.PushThenDamage");
+	Instance.Def.ResolutionPhase = ERTResolutionPhase::Attack;
+	Instance.Def.Effects = {
+		FRTActionEffectSpec(ERTActionEffect::Push, 1),
+		FRTActionEffectSpec(ERTActionEffect::Damage, 30) };
+	Instance.Def.InterruptPolicy = ERTInterruptPolicy::SuppressSecondary;
+	Instance.SourceUnitId = 0;
+	Instance.TargetUnitId = 1;
+
+	const TArray<FRTActionEvent> Intera = URTActionEffectLibrary::ProduceEvents(Instance);
+	if (!TestEqual(TEXT("non interrotta: entrambi gli effetti"), Intera.Num(), 2)) { return false; }
+
+	Instance.bInterrupted = true;
+	const TArray<FRTActionEvent> Monca = URTActionEffectLibrary::ProduceEvents(Instance);
+	if (!TestEqual(TEXT("interrotta: un evento solo"), Monca.Num(), 1)) { return false; }
+
+	// 🔴 Il punto del test: sopravvive la SPINTA, non il danno. La policy non conosce i tipi di effetto,
+	// conosce l'ordine — e su `Action.Charge` il danno sopravvive perche' e' PRIMO, non perche' sia danno.
+	TestEqual(TEXT("sopravvive il primo dichiarato, che qui e' la spinta"), Monca[0].Kind,
+		ERTActionEffect::Push);
+	TestEqual(TEXT("e il danno, dichiarato secondo, e' stato tagliato dagli EVENTI"), Monca[0].Amount, 1);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

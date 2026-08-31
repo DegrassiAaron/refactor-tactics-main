@@ -134,8 +134,20 @@ enum class ERTInterruptPolicy : uint8
 	 * che `ProduceEvents` non traduce — `DamageStructure`, `SetDoorState`, raccolti dal Blast sul bordo —
 	 * non e' «il secondario» che questa policy toglie. Su `Action.HeavyAttack` (`Damage` +
 	 * `DamageStructure`) questa policy e `InterruptBeforeEffect` sarebbero **indistinguibili** da
-	 * `ProduceEvents`, perche' il secondo effetto non passa di li' comunque. Il soggetto osservabile e'
-	 * `Action.Charge` (`Damage` + `Push`): resta il colpo, cade la spinta.
+	 * `ProduceEvents`, perche' il secondo effetto non passa di li' comunque.
+	 *
+	 * 🔴 **E c'e' un limite piu' grande, che vale anche quando l'effetto E' tradotto: questa policy non
+	 * puo' sopprimere il DANNO di un colpo, in nessuna posizione della lista.** Nella pipeline del Blast il
+	 * danno non viaggia sugli eventi: nasce come `Intent.Power` (`AppendChargeImpactIntents` e la raccolta
+	 * dei piani), diventa `Hit.Power` e finisce in `FRTAttack` (`URTHexCombatLibrary::CollectHexAttacks`).
+	 * Il ciclo che consuma `ProduceEvents` in `ARTTurnManager` ha **tre** `case` — `Status`, `Push`, `Pull`
+	 * — e un `default` che ignora il resto. Un `Damage` dichiarato **secondo** verrebbe tagliato da questa
+	 * policy e arriverebbe **lo stesso**, per l'altro canale.
+	 *
+	 * ∴ il soggetto osservabile e' `Action.Charge` (`Damage` + `Push`) e la lettura giusta e' **«cade la
+	 * spinta»**, non «resta il primo effetto»: il colpo resta perche' non e' mai stato in questo canale.
+	 * Chi assegnera' la policy a un'azione nuova deve chiedersi non che POSTO ha l'effetto nella lista, ma
+	 * se `ProduceEvents` lo traduce e se il ciclo consumatore lo raccoglie.
 	 *
 	 * 🔵 Nessuna azione del catalogo la dichiara oggi: [D-298] apre il valore senza riprezzare niente
 	 * (*«zero numeri di bilanciamento»*). Il ramo pero' e' vivo e coperto da test — un valore dichiarato e
