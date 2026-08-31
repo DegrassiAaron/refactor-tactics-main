@@ -344,8 +344,10 @@ finora **solo** il lato `Spec/`, e i due compositi sono esattamente il lato manc
 sì/no unico, e le voci reali restano quelle già registrate. La voce del composito dichiara che **la scena è
 leggibile e allestita**; i criteri restano dove sono.
 
-⛔ **Niente di tutto questo esiste ancora.** I due file non sono nel corpus, e le due voci non sono nel
-registro: questa sezione dichiara **dove andranno**, non ciò che c'è. Chi li scrive li crea qui.
+➕ **Scritti il 2026-08-31**, nello stesso giorno di questa sezione: i due file sono nel corpus e le due voci
+— `PIE-ACC-PERCEPTION` e `PIE-ACC-HUD` — sono nel registro. ⚠️ **Ma nessuno dei due e' mai stato eseguito**,
+ne' headless ne' in PIE: nascono `NOT RUN`, e il loro stato lo dice. La convenzione `scenarioId` ↔ percorso
+regge con loro dentro — **98 su 98** — e il comando di §7 non li segnala piu' come scoperti.
 
 ---
 
