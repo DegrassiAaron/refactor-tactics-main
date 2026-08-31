@@ -345,9 +345,36 @@ nucleo la invalida»* — vale solo se l'unità sta al centro, ed è la premessa
 argomento con cui `D-289` ha superato `D-179` punto (3), applicato a una voce che non aveva nominato:
 [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) lo **registra**, non lo decide.
 
-⚠️ **I tre valori non sono fissati qui**, e non per dimenticanza: sono **taratura**, e sceglierli in un
-documento di contratto sarebbe il *«bilanciamento travestito da costante»* che `D-289` ha rifiutato. Il
-default resta `1`, l'identità.
+✅ **I tre valori sono fissati da [`D-307`](../../decisions/RT_PDR_00_Decision_Log.md)**, e vivono in
+[`RT_FootprintCatalog_v0.1.md`](../../balance/RT_FootprintCatalog_v0.1.md) — la sede in cui questo repository tiene i numeri d'autore.
+
+| Profilo | `MinContiguousWedges` | Arco | `bRequiresFreeCore` |
+|---|---|---|---|
+| `Small` | **2** | 60° | `false` |
+| `Medium` | **3** | 90° | `false` |
+| `Large` | **4** | 120° | `false` |
+
+🔑 **Non sono tarati: sono gli unici tre interi che i vincoli lasciano**, e i vincoli erano già tutti
+nel repository.
+
+| # | Vincolo | Da dove |
+|---|---|---|
+| ① | **≥ 2** | `MinContiguousWedges = 1` è *«l'identità, che non decide niente»* (`D-289`): con `1` basta **un** settore libero |
+| ② | **= 3** per lo standard | letterale in `D-289`: *«due gruppi da tre, e **uno ci sta benissimo**»* |
+| ③ | **≤ 4** | un muro diametrale occupa `0xC3` = `{0,1,6,7}` e lascia **due regioni da 4**: oltre `4` quella cella tornerebbe non calpestabile, cioè la regola che `D-289` ha superato |
+
+⚠️ **`Large = 4` sta al limite esatto**: in una cella tagliata da un diametro entra **senza margine**, e
+sarebbe il primo profilo a perdere celle se la regola d'intersezione di `ComputeMask` diventasse più
+conservativa. È il motivo per cui `MSE-4` è adiacente a questi numeri, non lontana da essi.
+
+⛔ **Nessuna unità dichiara ancora un profilo**, quindi oggi userebbero tutte `Medium`: `Small` e `Large`
+sono capacità per contenuto futuro — §13.6.
+
+🔁 **Questo paragrafo diceva il contrario, ed è conservato perché la correzione è istruttiva**:
+*«i tre valori non sono fissati qui … sono taratura, e sceglierli in un documento di contratto sarebbe il
+“bilanciamento travestito da costante” che `D-289` ha rifiutato»*. La cautela era giusta come metodo e
+sbagliata come diagnosi: la geometria non lasciava la libertà che il paragrafo presumeva. Il default resta
+`1`, l'identità — il valore di chi non ha dichiarato un profilo, non una quarta taglia.
 
 ⛔ **Una taglia non cambia l'occupancy.** Un'unità `Large` occupa **uno** slot, come tutte: §7 non ha
 eccezioni per grandezza. `Large` significa *«più difficile da piazzare»*, non *«più posto occupato»*.
@@ -427,7 +454,7 @@ vive nel catalogo, non in `ComputeMask`. Il **riposizionamento dentro la cella**
 
 | Regola | Implementata? | Misura |
 |---|---|---|
-| `COV-1` tre taglie di footprint | ❌ **no** | i **campi** ci sono (`MinContiguousWedges`, `bRequiresFreeCore`); mancano i valori e un produttore — **nessuna unità dichiara un footprint** |
+| `COV-1` tre taglie di footprint | ❌ **no** | i **campi** ci sono e i **valori** pure ([`D-307`](../../decisions/RT_PDR_00_Decision_Log.md), catalogo in [`RT_FootprintCatalog_v0.1.md`](../../balance/RT_FootprintCatalog_v0.1.md)); manca il **produttore** — **nessuna unità dichiara un footprint** |
 | `COV-2` provenienza ibrida | ❌ **no** | nessun tipo `CoverAnchor` esiste in `Source/` |
 | `COV-3` `CoverSelection` serializzata | ❌ **no** | nessun tipo `CoverSelection` esiste; `FRTCoverSourceId` è già discreto e stabile, ed è l'unica metà vera |
 | `COV-4` nel digest | ❌ **no** | `FRTUnitStateDigest` ha **sette** campi: `UnitId`, `Cell`, `Health`, `Shield`, `Energy`, `bAlive`, tag. Nessuno è la copertura |
