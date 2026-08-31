@@ -20,9 +20,9 @@
   "_oracolo": "Le voci di `docs/technical/test-manuali-pie.md` che chiedono uno stato ricco per essere giudicate — fra cui `PIE-V01-SCREENHUD`, `PIE-ICON-01`, `PIE-V01-POINTER`, `PIE-V01-KIT-HOTKEYS`, `PIE-V01-LOG`, `PIE-V01-FALLBACK` — piu' la voce ombrello `PIE-ACC-HUD`, che dichiara soltanto che la scena e' allestita e leggibile. I criteri restano dove sono: un composito che prepara dieci verifiche non si giudica con un si'/no unico.",
   "_nota_roster": "Quattro eroi, uno per personaggio del roster v0.1, ed e' un requisito e non una decorazione: il pannello del roster e il catalogo icone non si giudicano su due unita' uguali. Gadget 90, Phase 95, Riktor 120, Wraith 90 — quattro valori distinti, quindi quattro barre di lunghezza diversa.",
   "_nota_geometria": "Le quattro unita' stanno su `r = 3` e su `(-2,4)` di `TestArena`, e la scelta e' misurata. La colonna che BLOCCA LA VISTA in quella fixture e' `(0, r)` per `r` da -2 a 2: la riga `r = 3` le passa sotto, quindi le due squadre si vedono. Le tre celle che bloccano il passo — (-1,2), (1,-2), (2,1) — e il fango a `(-2, r)` per `r` da -1 a 1 restano fuori da ogni percorso usato.",
-  "_nota_cooldown": "Il secondo colpo di A1 e' `Hero.Gadget.LinearDischarge`, che ha **cooldown 2**: al termine lo slot e' ancora spento, ed e' l'unico modo per far trovare all'osservatore un Action Dock con uno slot occupato invece di quattro slot pronti. Il bersaglio e' **B2** e non B1: l'abilita' colpisce IN LINEA, e B2 sta in direzione `SE` mentre B1 sta a `E`. Cosi' il colpo non attraversa B1, e l'unico numero asserito resta quello misurato.",
+  "_nota_cooldown": "Il secondo colpo di A1 e' `Hero.Gadget.LinearDischarge`, che ha **cooldown 2**: al termine lo slot e' ancora spento, ed e' l'unico modo per far trovare all'osservatore un Action Dock con uno slot occupato invece di quattro slot pronti. B1 riceve entrambi i colpi, ed e' voluto: due bersagli con danni diversi — 84 e 90 — danno due barre di lunghezza diversa nel pannello, che e' cio' che l'HUD deve saper raccontare.",
   "_nota_assertion": "L'ancora anti-vacuita' e' `UnitHpEquals B1 103`, ed e' **misurata, non dedotta**: il log della run del 2026-08-31 riporta *«(q=-3,r=3) -> (q=0,r=3): 17 danni (Hero.Gadget.ArcPulse)»*, e Riktor parte da 120. Dice che il primo colpo e' stato RISOLTO dal runtime, non disegnato: se nessun turno girasse, B1 sarebbe a 120 e la scena sarebbe quattro unita' intatte — lo stato povero che questo file esiste per evitare. B1 riceve un colpo SOLO, ed e' per questo che il numero regge: `LinearDischarge` va su B2.",
-  "_nota_numeri": "⚠️ **Gli HP di A1 e B2 NON sono asseriti, e la ragione e' che non sono stati misurati.** La run che li avrebbe fissati e' stata troncata da un crash GPU dell'Editor (`DXGI_ERROR_DEVICE_REMOVED`) prima di produrre un esito. Dedurli dalla regola dello scudo base sarebbe ripetere l'errore che `_nota_portata` racconta: una deduzione dal catalogo che il gioco ha gia' smentito una volta, in questo stesso file. Si fissano alla prima esecuzione riuscita.",
+  "_nota_numeri": "✅ **Tutti e tre i valori sono MISURATI**, dal log della run del 2026-08-31 — nessuno e' dedotto dal catalogo:\n  `(-2,3) -> (0,3): 17 danni`  `Hero.Gadget.ArcPulse`      -> B1 120 - 17 = 103\n  `(-2,3) -> (0,3): 19 danni`  `Hero.Gadget.LinearDischarge` -> B1 103 - 19 = 84\n  `(0,3) -> (-2,3):  3 danni`  `Hero.Riktor.ImpactShot`    -> A1  90 -  3 = 87\n⚠️ **B2 resta a 90 benche' sia IN LINEA dietro B1**, ed e' misurato anche questo: nel log non compare alcun danno verso `(1,3)`. `LinearDischarge` si e' fermata al primo bersaglio. Il valore 90 non e' quindi «non colpito per costruzione» ma **un fatto osservato**, ed e' un'assertion che cade se un giorno la linea attraversasse.",
   "_nota_limite": "⛔ **Questo scenario non puo' lasciare un intento PENDENTE**, quindi non prepara i ghost dell'intento alleato: i turni dichiarati vengono risolti, e lo stato finale e' il Planning del turno successivo con nessun intento ancora dichiarato. I ghost si guardano dichiarando un intento a mano, ed e' giusto che sia cosi' — sono il feedback di un gesto umano. Il file prepara tutto cio' che PRECEDE quel gesto.",
   "units": [
     {
@@ -63,11 +63,11 @@
       "hero": "Hero.Wraith",
       "team": 1,
       "cell": [
-        -2,
-        4,
+        1,
+        3,
         0
       ],
-      "facing": "NW"
+      "facing": "W"
     }
   ],
   "turns": [
@@ -92,7 +92,7 @@
         {
           "unit": "A1",
           "ability": "Hero.Gadget.LinearDischarge",
-          "target": "B2"
+          "target": "B1"
         },
         {
           "unit": "A2",
@@ -143,31 +143,31 @@
       "type": "UnitAtCell",
       "unit": "B2",
       "cell": [
-        -2,
-        4,
+        1,
+        3,
         0
       ]
     },
     {
       "type": "UnitHpEquals",
-      "unit": "B1",
-      "value": 103
+      "unit": "A1",
+      "value": 87
     },
     {
-      "type": "UnitAlive",
-      "unit": "A1",
-      "value": true
+      "type": "UnitHpEquals",
+      "unit": "B1",
+      "value": 84
+    },
+    {
+      "type": "UnitHpEquals",
+      "unit": "B2",
+      "value": 90
     },
     {
       "type": "UnitAlive",
       "unit": "A2",
       "value": true
-    },
-    {
-      "type": "UnitAlive",
-      "unit": "B2",
-      "value": true
     }
   ],
-  "_nota_portata": "🔴 **A1 e B1 distano DUE celle, ed e' una scelta PRUDENTE su una causa NON capita.** La prima stesura li metteva a tre. Eseguito: *«(q=0,r=3) -> (q=-3,r=3): azione annullata (fuori portata) — Hero.Riktor.ImpactShot»*, e A1 restava a 90 mentre l'assertion ne chiedeva 87. ⚠️ **La spiegazione ovvia e' sbagliata, ed e' registrata qui invece di essere riscritta in silenzio.** Avevo concluso che `ImpactShot`, dichiarata `/*Range*/ 3`, arrivasse solo a 2 — nello stesso log colpisce a 2 e fallisce a 3. Ma `Combat.RiktorImpactShotSlows` usa la STESSA abilita' a distanza **3**, con facing allineato, ed e' nel corpus verde: il controesempio esiste, quindi la portata da sola non spiega niente. ⛔ **La causa vera resta ignota.** Le differenze fra i due casi sono almeno due — qui il bersaglio spara nello stesso turno in cui viene colpito, e qui la conoscenza di B1 su A1 dipende dal facing iniziale — e nessuna delle due e' stata isolata, perche' la run che l'avrebbe fatto e' morta con l'Editor. La distanza 2 e' quindi un aggiramento che funziona, non una diagnosi: chi riprende questo file lo sappia."
+  "_nota_portata": "🔴 **A1 e B1 distano DUE celle, e il numero e' stato pagato da due run.** La prima stesura li metteva a tre: *«(q=0,r=3) -> (q=-3,r=3): azione annullata (fuori portata) — Hero.Riktor.ImpactShot»*, e A1 restava intatto. A distanza 2 il colpo parte e fa **3 danni**, misurato. ⚠️ **La spiegazione ovvia resta sbagliata, ed e' registrata invece di essere riscritta in silenzio.** Avevo concluso che l'abilita', dichiarata `/*Range*/ 3`, arrivasse solo a 2. Ma `Combat.RiktorImpactShotSlows` la usa a distanza **3**, con facing allineato, ed e' nel corpus verde. Il controesempio esiste, quindi la portata da sola non spiega il rifiuto. Le differenze fra i due casi sono almeno due — qui il bersaglio spara nello stesso turno in cui viene colpito, e la conoscenza di B1 dipende dal facing iniziale — e nessuna e' stata isolata. ⛔ La distanza 2 e' quindi un aggiramento MISURATO, non una diagnosi: chi riprende questo file lo sappia."
 }
