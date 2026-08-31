@@ -59,14 +59,37 @@ FRTHexSnapshot URTHexSimLibrary::MakeSnapshot(const URTHexMapAsset* Map, const T
 		return A.UnitId != B.UnitId ? A.UnitId < B.UnitId : URTHexLibrary::StableLess(A.Cell, B.Cell);
 	});
 
-	// Occupazione delle sole unita' vive; a parita' di cella vince l'UnitId minore (le sovrapposizioni sono un
-	// errore strutturale, segnalato da ValidateSnapshot: qui serve solo un esito deterministico).
+	// Occupazione delle sole unita' vive; a parita' di cella vince l'UnitId minore.
+	//
+	// 🔴 **E la sovrapposizione si REGISTRA, invece di sparire** (#1970). Il commento qui diceva che era «un
+	// errore strutturale, segnalato da `ValidateSnapshot`» — e in partita `ValidateSnapshot` non lo chiamava
+	// nessuno: cinque test e un report di debug su richiesta esplicita. L'invariante era dichiarata e non la
+	// guardava nessuno, quindi la condizione poteva accadere senza che niente lo dicesse.
+	//
+	// ⚠️ **Costo zero: il ramo che scarta e' gia' il rilevatore.** Non c'e' una seconda passata e non si
+	// chiama `ValidateSnapshot` — che rivaliderebbe TUTTO lo snapshot su un percorso che
+	// `ARTPlayerController` attraversa a ogni interazione di pianificazione.
+	//
+	// ⛔ Qui non si LOGGA, e non e' timidezza: questa funzione e' pura e non sa se sta servendo una
+	// risoluzione autoritativa o un'anteprima del cursore. Un log qui dentro sparerebbe centinaia di righe
+	// identiche al secondo. Il fatto entra nel dato; a dirlo e' chi ha l'autorita' per sapere che conta.
 	for (const FRTHexSimUnit& Unit : Snapshot.Units)
 	{
-		if (Unit.bAlive && !Snapshot.Occupancy.Contains(Unit.Cell))
+		if (!Unit.bAlive)
 		{
-			Snapshot.Occupancy.Add(Unit.Cell, Unit.UnitId);
+			continue; // un cadavere non occupa, e non e' una sovrapposizione: `ApplyCombatState` lo dichiara
 		}
+
+		if (const int32* Occupante = Snapshot.Occupancy.Find(Unit.Cell))
+		{
+			FRTHexOverlap& Overlap = Snapshot.Overlaps.AddDefaulted_GetRef();
+			Overlap.Cell = Unit.Cell;
+			Overlap.DiscardedUnitId = Unit.UnitId;
+			Overlap.KeptUnitId = *Occupante;
+			continue;
+		}
+
+		Snapshot.Occupancy.Add(Unit.Cell, Unit.UnitId);
 	}
 	return Snapshot;
 }

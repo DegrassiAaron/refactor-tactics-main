@@ -152,11 +152,28 @@ bool FRTObjectiveContestedNoProgressTest::RunTest(const FString&)
 	}
 
 	const FRTCellId Objective(0, 0);
-	SpawnObjectiveMap(World, Objective, /*bWithObjective=*/ true);
+	ARTHexMapActor* MapActor = SpawnObjectiveMap(World, Objective, /*bWithObjective=*/ true);
 
-	// Le due unita' stanno sulla STESSA cella obiettivo: e' la presenza che conta, e nessuna delle due agisce.
+	// 🔴 **DUE celle obiettivo, una per unita' — e non e' un dettaglio di comodo** (#1970). Questa fixture
+	// metteva entrambe le unita' sulla STESSA cella, che e' uno stato che il gioco vieta: `MakeSnapshot`
+	// tiene una sola unita' viva per cella e da oggi lo **dice**, quindi il test cadeva su un `Error` del
+	// resolver. La contesa non ha bisogno della stessa cella: `ResolveObjectiveControl` conta le presenze
+	// su TUTTE le celle marcate, quindi 1v1 su due celle obiettivo e' la stessa identica regola con uno
+	// stato legale.
+	const FRTCellId SecondObjective(1, 0);
+	if (MapActor && MapActor->MapAsset)
+	{
+		if (const FRTHexCellData* Existing = MapActor->MapAsset->FindCell(SecondObjective))
+		{
+			FRTHexCellData Marked = *Existing;
+			Marked.bIsObjective = true;
+			MapActor->MapAsset->AddOrUpdateCell(Marked);
+		}
+	}
+
+	// Una per squadra, su celle obiettivo diverse: e' la presenza che conta, e nessuna delle due agisce.
 	SpawnObjectiveUnit(World, 0, Objective);
-	SpawnObjectiveUnit(World, 1, Objective);
+	SpawnObjectiveUnit(World, 1, SecondObjective);
 
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM)

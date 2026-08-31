@@ -2423,6 +2423,58 @@ ARTUnit* ARTTurnManager::UnitByStableId(int32 StableUnitId) const
 	return MatchRoster[Index].Get();
 }
 
+void ARTTurnManager::ReportSnapshotOverlaps(const FRTHexSnapshot& Snapshot)
+{
+	// Il caso normale e' questo, e costa un confronto: `Overlaps` e' vuoto su ogni snapshot sano.
+	if (Snapshot.Overlaps.Num() == 0)
+	{
+		return;
+	}
+
+	for (const FRTHexOverlap& Overlap : Snapshot.Overlaps)
+	{
+		const bool bGiaDetta = ReportedOverlapsThisTurn.ContainsByPredicate(
+			[&Overlap](const FRTHexOverlap& Vista)
+			{
+				return Vista.Cell == Overlap.Cell
+					&& Vista.DiscardedUnitId == Overlap.DiscardedUnitId
+					&& Vista.KeptUnitId == Overlap.KeptUnitId;
+			});
+		if (bGiaDetta)
+		{
+			// Dash e Move ricostruiscono lo snapshot nello stesso turno: senza questo, la stessa
+			// sovrapposizione comparirebbe due volte e sembrerebbero due difetti.
+			continue;
+		}
+		ReportedOverlapsThisTurn.Add(Overlap);
+
+		// I due soggetti per NOME, non solo gli indici: e' la lezione di #1932 — una riga che non permette
+		// di attribuire manda a cercare il difetto sull'unita' sbagliata. `SubjectNamesForLog` chiave per
+		// `StableUnitId`, mentre qui gli id sono INDICI dello snapshot: si passa dalle unita' vive, che sono
+		// l'array da cui quegli indici vengono.
+		TArray<ARTUnit*> Vive;
+		CollectLivingUnits(Vive);
+		auto Nome = [&Vive](int32 Indice) -> FString
+		{
+			const ARTUnit* U = Vive.IsValidIndex(Indice) ? Vive[Indice] : nullptr;
+			// ⚠️ Il nome NON basta da solo: due unita' dello stesso eroe danno la stessa etichetta, e la riga
+			// direbbe «Riktor la occupa, Riktor e' stata scartata» — misurato la prima volta che questo log
+			// e' scattato. L'id stabile la rende discriminante, che e' il punto di #1932.
+			return U != nullptr
+				? FString::Printf(TEXT("%s (id %d)"),
+					*ARTUnit::DisplayLabel(U->HeroDisplayName, U->HeroId, U->GetName()), U->StableUnitId)
+				: FString::Printf(TEXT("indice %d"), Indice);
+		};
+
+		UE_LOG(LogRT, Error,
+			TEXT("[RT] Turno %d: la cella (%d,%d,L%d) regge DUE unita' vive — %s la occupa, %s e' stata ")
+			TEXT("scartata dall'occupancy. E' un errore STRUTTURALE: l'esito resta deterministico (vince ")
+			TEXT("l'id minore), ma lo stato non e' quello che le regole assumono."),
+			TurnNumber, Overlap.Cell.X, Overlap.Cell.Y, Overlap.Cell.Layer,
+			*Nome(Overlap.KeptUnitId), *Nome(Overlap.DiscardedUnitId));
+	}
+}
+
 TMap<int32, FString> ARTTurnManager::SubjectNamesForLog() const
 {
 	TMap<int32, FString> Names;
@@ -2944,6 +2996,10 @@ void ARTTurnManager::ConcludeTurn()
 
 		return; // niente nuovo turno
 	}
+
+	// Il turno nuovo riparte senza memoria delle sovrapposizioni gia' dette (#1970): una condizione che
+	// sopravvive a due turni e' un fatto nuovo il secondo, e va detta di nuovo.
+	ReportedOverlapsThisTurn.Reset();
 
 	++TurnNumber;
 
@@ -3674,6 +3730,10 @@ void ARTTurnManager::ResolveDash()
 	// budget, non un secondo sistema di pathfinding. Lo snapshot congela mappa e occupazione a inizio fase.
 	TArray<ARTUnit*> Units;
 	FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units);
+
+	// Se due unita' vive condividono una cella, adesso lo si SA (#1970): la costruzione dello snapshot lo
+	// registra, e qui — che e' risoluzione autoritativa, non anteprima — lo si dice.
+	ReportSnapshotOverlaps(Snapshot);
 
 	// Fresco per il turno: chi corre a perdifiato (Action.Sprint) non para (CP 5.1), e questo e' l'unico
 	// posto dove si sa CON CERTEZZA cosa ha davvero usato lo slot di scatto.
@@ -5828,6 +5888,10 @@ void ARTTurnManager::ResolveMovement()
 
 	TArray<ARTUnit*> Units;
 	const FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units);
+
+	// Come nel Dash: la fase autoritativa dice cio' che lo snapshot ha registrato (#1970). Una condizione
+	// gia' segnalata in questo turno non si ripete — la deduplica sta in `ReportSnapshotOverlaps`.
+	ReportSnapshotOverlaps(Snapshot);
 
 	TArray<TArray<FRTCellId>> Paths;
 	Paths.Reserve(Units.Num());

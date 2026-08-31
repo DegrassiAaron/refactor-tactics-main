@@ -186,6 +186,89 @@ bool FRTHexSimValidateTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **La sovrapposizione si REGISTRA nello snapshot, invece di sparire** (`#1970`).
+ *
+ * `MakeSnapshot` dichiarava che le sovrapposizioni erano *«un errore strutturale, segnalato da
+ * `ValidateSnapshot`»* — e in partita `ValidateSnapshot` non lo chiamava nessuno: cinque test e un report
+ * di debug su richiesta esplicita. L'invariante era dichiarata e non la guardava nessuno.
+ *
+ * ⚠️ **Si asserisce il DATO e non il log.** Il log lo emette il resolver autoritativo, e testarlo vorrebbe
+ * `AddExpectedError`, che in questo repository conta le occorrenze **esatte**: un test cosi' si romperebbe
+ * ogni volta che un'altra feature attraversa lo stesso percorso. Il campo si asserisce senza accoppiare
+ * test indipendenti.
+ *
+ * ⛔ E si asserisce anche cio' che NON cambia: `Occupancy` resta identica, perche' questa fetta rende la
+ * condizione visibile e non la risolve diversamente. Senza questa meta', un domani «migliorare» la
+ * risoluzione del conflitto cambierebbe l'esito di partite esistenti senza far cadere niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSnapshotRecordsOverlapsTest,
+	"RefactorTactics.HexSim.SnapshotRecordsOverlaps",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSnapshotRecordsOverlapsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeSimMap(2);
+	const FRTCellId Contesa(0, 0);
+
+	// --- 1. Due unita' VIVE sulla stessa cella: una voce, con i tre campi giusti -----------------------
+	{
+		TArray<FRTHexSimUnit> Due;
+		Due.Add(FRTHexSimUnit(1, Contesa, 2));
+		Due.Add(FRTHexSimUnit(2, Contesa, 2));
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Due);
+
+		if (!TestEqual(TEXT("una sovrapposizione registrata"), Snap.Overlaps.Num(), 1)) { return false; }
+		TestEqual(TEXT("sulla cella contesa"), Snap.Overlaps[0].Cell, Contesa);
+		TestEqual(TEXT("scartata l'unita' con id maggiore"), Snap.Overlaps[0].DiscardedUnitId, 2);
+		TestEqual(TEXT("la occupa quella con id minore"), Snap.Overlaps[0].KeptUnitId, 1);
+
+		// ⛔ L'esito NON cambia: e' il punto in cui questa fetta si distingue da una che "corregge".
+		const int32* Occupante = Snap.Occupancy.Find(Contesa);
+		if (!TestNotNull(TEXT("la cella resta occupata"), Occupante)) { return false; }
+		TestEqual(TEXT("e vince ancora l'UnitId minore"), *Occupante, 1);
+		TestEqual(TEXT("una sola cella occupata"), Snap.Occupancy.Num(), 1);
+	}
+
+	// --- 2. Una viva e una MORTA: nessuna sovrapposizione, perche' un cadavere non occupa --------------
+	{
+		TArray<FRTHexSimUnit> VivaEMorta;
+		VivaEMorta.Add(FRTHexSimUnit(1, Contesa, 2));
+		VivaEMorta.Add(FRTHexSimUnit(2, Contesa, 2, /*bInAlive=*/ false));
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, VivaEMorta);
+
+		TestEqual(TEXT("nessun falso positivo su un'unita' morta"), Snap.Overlaps.Num(), 0);
+		TestEqual(TEXT("e la viva occupa"), Snap.Occupancy.FindRef(Contesa), 1);
+	}
+
+	// --- 3. TRE vive sulla stessa cella: due sovrapposizioni, entrambe verso il vincitore --------------
+	{
+		TArray<FRTHexSimUnit> Tre;
+		Tre.Add(FRTHexSimUnit(1, Contesa, 2));
+		Tre.Add(FRTHexSimUnit(2, Contesa, 2));
+		Tre.Add(FRTHexSimUnit(3, Contesa, 2));
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Tre);
+
+		if (!TestEqual(TEXT("due sovrapposizioni"), Snap.Overlaps.Num(), 2)) { return false; }
+		for (const FRTHexOverlap& O : Snap.Overlaps)
+		{
+			TestEqual(TEXT("ognuna punta al medesimo vincitore"), O.KeptUnitId, 1);
+		}
+	}
+
+	// --- 4. Uno snapshot sano non registra niente ------------------------------------------------------
+	{
+		TArray<FRTHexSimUnit> Sano;
+		Sano.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
+		Sano.Add(FRTHexSimUnit(2, FRTCellId(1, 0), 2));
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Sano);
+
+		TestEqual(TEXT("nessuna sovrapposizione su uno snapshot sano"), Snap.Overlaps.Num(), 0);
+		TestEqual(TEXT("ed entrambe occupano"), Snap.Occupancy.Num(), 2);
+	}
+
+	return true;
+}
+
 // ---------------------------------------------------------------------------------------------------------
 // Movement budget
 // ---------------------------------------------------------------------------------------------------------

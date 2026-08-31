@@ -1700,6 +1700,26 @@ protected:
 	 */
 	ARTUnit* UnitByStableId(int32 StableUnitId) const;
 
+	/**
+	 * Dice le sovrapposizioni che lo snapshot ha registrato, **una volta per turno ciascuna** (`#1970`).
+	 *
+	 * 🔴 **La segnalazione sta QUI e non in `MakeSnapshot`**, che e' una funzione pura e non sa se sta
+	 * servendo una risoluzione autoritativa o l'anteprima sotto il cursore: `ARTPlayerController` la chiama
+	 * a ogni interazione di pianificazione, e un log la' dentro produrrebbe centinaia di righe identiche al
+	 * secondo per un difetto solo. Rilevare e segnalare sono due mestieri; questo e' il secondo.
+	 *
+	 * ⚠️ La deduplica e' una LISTA e non un set con hash: nel caso normale e' vuota, quindi il confronto
+	 * lineare non costa niente, e non c'e' una collisione che possa far sparire in silenzio proprio il log
+	 * che questa funzione esiste per emettere.
+	 */
+	void ReportSnapshotOverlaps(const FRTHexSnapshot& Snapshot);
+
+	/**
+	 * Le sovrapposizioni gia' segnalate nel turno corrente. Azzerata quando il turno avanza: la stessa
+	 * condizione che sopravvive a due turni va detta due volte — e' un fatto nuovo ogni turno.
+	 */
+	TArray<FRTHexOverlap> ReportedOverlapsThisTurn;
+
 public:
 	/**
 	 * `StableUnitId` -> nome leggibile, per le righe del combat log derivate dal TurnLog (`#1932`).
