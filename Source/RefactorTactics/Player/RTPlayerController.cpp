@@ -83,12 +83,12 @@ namespace
 
 	/**
 	 * Aggiorna l'anteprima di pianificazione (SOLA PRESENTAZIONE) dallo stato dell'unita' selezionata:
-	 * dove puo' arrivare e, se ha un attacco pianificato, quali celle colpirebbe — segnalando gli ALLEATI
-	 * che finirebbero nell'area.
+	 * dove puo' arrivare, da DOVE agira' e quali celle colpirebbe — segnalando gli ALLEATI che finirebbero
+	 * nell'area.
 	 *
-	 * Entrambi gli insiemi vengono dalle stesse funzioni che decidono l'esito (`ReachableCells`,
-	 * `HexHitCells`): nessun calcolo parallelo, altrimenti il giocatore vedrebbe una zona e ne subirebbe
-	 * un'altra. `Unit == nullptr` (deselezione, fine pianificazione) spegne l'anteprima.
+	 * Ogni insieme viene dalle stesse funzioni che decidono l'esito (`ReachableCells`, `BlastOriginCell`,
+	 * `HexHitCells` via `MakeBlastPreview`): nessun calcolo parallelo, altrimenti il giocatore vedrebbe una
+	 * zona e ne subirebbe un'altra. `Unit == nullptr` (deselezione, fine pianificazione) spegne l'anteprima.
 	 */
 	void RefreshPlanningPreview(const UWorld* World, const ARTUnit* Unit)
 	{
@@ -102,6 +102,7 @@ namespace
 		{
 			HexMap->SetPreviewReachableCells(TArray<FRTCellId>());
 			HexMap->SetPreviewHitCells(TArray<FRTCellId>(), TArray<FRTCellId>());
+			HexMap->SetPreviewAttack(FRTCellId(), FRTCellId(), /*bValid=*/ false, /*bOriginPredicted=*/ false);
 			return;
 		}
 
@@ -122,35 +123,69 @@ namespace
 		}
 		HexMap->SetPreviewReachableCells(Reachable);
 
-		// Chi colpirebbe: solo se c'e' davvero un attacco pianificato su un bersaglio vivo.
-		TArray<FRTCellId> Hit;
-		TArray<FRTCellId> Allies;
-		const URTActionData* Ability = Unit->GetAbility(Unit->PlannedAbilityIndex);
-		const ARTUnit* Target = Unit->PlannedAttackTarget;
-		if (Ability && Target && Target->IsAlive())
-		{
-			Hit = URTHexCombatLibrary::HexHitCells(Ability->Shape, Unit->Cell, Target->Cell,
-				Ability->RangeCells, Ability->AreaRadius);
+		// Da dove agira' e su cosa. La derivazione sta in `URTHexCombatLibrary::MakeBlastPreview`, che e'
+		// pura e testabile headless: qui si TRADUCE il piano, non si decide.
+		//
+		// 🔴 **Il ramo del bersaglio a CELLA e' la meta' che prima mancava.** Il codice leggeva il solo
+		// `PlannedAttackTarget`, che `HandleTargetCell` azzera per costruzione (il bersaglio e' la cella):
+		// dichiarare un'area su un varco vuoto SPEGNEVA l'anteprima invece di mostrarla — il caso che `#737`
+		// aveva dichiarato coperto («l'area colpita in preview prima del click»).
+		//
+		// 🔴 **E l'origine non e' piu' `Unit->Cell` in ogni caso.** La fase Dash precede il Blast, quindi chi
+		// ha pianificato una carica sparera' da dove sara' arrivato. `PlannedDashApplies()` e' la stessa
+		// domanda che `ResolveDash` si pone.
+		FRTBlastPreviewPlan PreviewPlan;
+		PreviewPlan.AttackerId = UnitId;
+		PreviewPlan.bDashResolves = Unit->PlannedDashApplies();
+		PreviewPlan.PlannedDashCell = Unit->PlannedDashCell;
 
-			// Fuoco amico: un alleato dentro l'area va visto PRIMA del lock-in, non dedotto dai danni dopo.
-			//
-			// Ma solo se l'azione puo' DAVVERO colpirlo. L'avviso nasceva dalla sola geometria, e quindi
-			// compariva anche per abilita' con `bFriendlyFire` a false, dove l'alleato non subisce nulla: un
-			// allarme su un evento impossibile insegna a ignorare gli allarmi. Oggi riguarda `CircularTide`,
-			// che per limite dichiarato non tocca i propri (curerebbe con l'effetto sbagliato).
-			if (Ability->Def.bFriendlyFire)
+		const URTActionData* Ability = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		if (Ability)
+		{
+			PreviewPlan.bHasAction = true;
+			PreviewPlan.Shape = Ability->Shape;
+			PreviewPlan.RangeCells = Ability->RangeCells;
+			PreviewPlan.AreaRadius = Ability->AreaRadius;
+			// L'avviso di fuoco amico solo se l'azione puo' DAVVERO colpire i propri: un allarme su un evento
+			// impossibile insegna a ignorare gli allarmi.
+			PreviewPlan.bFriendlyFire = Ability->Def.bFriendlyFire;
+			if (Unit->bAttackTargetsCell)
 			{
-				for (const ARTUnit* Other : Units)
-				{
-					if (Other && Other != Unit && Other->IsAlive() && Other->TeamId == Unit->TeamId
-						&& Hit.Contains(Other->Cell))
-					{
-						Allies.AddUnique(Other->Cell);
-					}
-				}
+				PreviewPlan.bTargetsCell = true;
+				PreviewPlan.TargetCell = Unit->PlannedAttackCell;
+			}
+			else
+			{
+				// `Units` contiene le unita' VIVE dello snapshot: un bersaglio caduto semplicemente non c'e',
+				// e `INDEX_NONE` diventa «nessuna area», che e' l'esito giusto.
+				PreviewPlan.TargetId = Units.IndexOfByKey(Unit->PlannedAttackTarget.Get());
 			}
 		}
-		HexMap->SetPreviewHitCells(Hit, Allies);
+
+		// Le unita' nella forma che il Blast riceve, con gli STESSI indici dello snapshot: cosi' l'identita'
+		// dell'attaccante e quella dei bersagli sono le stesse da entrambi i lati.
+		TArray<FRTHexCombatUnit> HexUnits;
+		HexUnits.Reserve(Units.Num());
+		for (int32 i = 0; i < Units.Num(); ++i)
+		{
+			FRTHexCombatUnit HU;
+			HU.UnitId = i;
+			HU.TeamId = Units[i] ? Units[i]->TeamId : INDEX_NONE;
+			HU.Cell = Units[i] ? Units[i]->Cell : FRTCellId();
+			HU.bAlive = Units[i] && Units[i]->IsAlive();
+			HexUnits.Add(HU);
+		}
+
+		const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(PreviewPlan, HexUnits);
+		HexMap->SetPreviewHitCells(Blast.HitCells, Blast.AllyCells);
+
+		// Origine e mira si accendono solo con un bersaglio davvero previsualizzabile: una linea che parte e
+		// non arriva da nessuna parte direbbe che c'e' un attacco dove non c'e'.
+		const bool bHasAim = Blast.HitCells.Num() > 0;
+		const FRTCellId AimCell = PreviewPlan.bTargetsCell
+			? PreviewPlan.TargetCell
+			: (HexUnits.IsValidIndex(PreviewPlan.TargetId) ? HexUnits[PreviewPlan.TargetId].Cell : FRTCellId());
+		HexMap->SetPreviewAttack(Blast.Origin, AimCell, bHasAim, Blast.bOriginFromPlannedDash);
 	}
 
 	/** Testo del motivo di rifiuto di un waypoint, dallo stato del pathfinding (per il log). */

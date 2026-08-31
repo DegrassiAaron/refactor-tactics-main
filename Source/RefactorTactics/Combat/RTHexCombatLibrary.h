@@ -268,6 +268,108 @@ struct FRTHexBlastPlan
 };
 
 /**
+ * Il piano di un'unita' come lo legge l'ANTEPRIMA del Blast: da dove agira', su cosa, con quale forma.
+ *
+ * E' un ingresso di sola PRESENTAZIONE e non entra in nessuna risoluzione: chi lo compone traduce il piano
+ * autorevole (`ARTUnit`, oppure uno scenario) in una domanda che si puo' porre senza Actor e senza UWorld.
+ *
+ * ⚠️ **`bDashResolves` e' un ESITO gia' deciso dal chiamante, non una condizione da rivalutare qui.** Le
+ * regole che dicono se uno scatto parte davvero — mobilita' rapida dichiarata dal catalogo
+ * (`URTCatalogLibrary::IsFastMovement`), ricarica/energia (`ARTUnit::CanUseAbility`), destinazione diversa
+ * dalla cella corrente — vivono in `ARTTurnManager::ResolveDash`, e riscriverle qui sarebbe la seconda
+ * autorita' che l'invariante #1 vieta. Questa libreria ne consuma la risposta.
+ */
+USTRUCT(BlueprintType)
+struct FRTBlastPreviewPlan
+{
+	GENERATED_BODY()
+
+	/** Indice dell'attaccante in `Units`: da li' vengono cella corrente e squadra. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 AttackerId = INDEX_NONE;
+
+	/** Vero se lo scatto pianificato viene DAVVERO applicato prima del Blast (vedi nota della struct). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bDashResolves = false;
+
+	/** Cella d'arrivo dello scatto dichiarato; letta solo con `bDashResolves`. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	FRTCellId PlannedDashCell;
+
+	/**
+	 * Vero se il piano dichiara un'azione principale. Distinto da «bersaglio assente»: un'unita' che ha
+	 * pianificato solo uno scatto ha un'ORIGINE da mostrare e nessuna area, e le due cose non si deducono
+	 * l'una dall'altra.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bHasAction = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	ERTAbilityShape Shape = ERTAbilityShape::Single;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 RangeCells = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 AreaRadius = 0;
+
+	/**
+	 * L'azione mira a `TargetCell` invece che a un'unita'. Stessa distinzione di
+	 * `ARTUnit::bAttackTargetsCell`, e per la stessa ragione: `TargetId == INDEX_NONE` significa gia'
+	 * BERSAGLIO PERSO, che non e' «bersaglio a terra».
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bTargetsCell = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	FRTCellId TargetCell;
+
+	/** Indice del bersaglio in `Units`; letto solo senza `bTargetsCell`. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	int32 TargetId = INDEX_NONE;
+
+	/** Copiato da `FRTActionDef::bFriendlyFire`: decide se l'avviso ha senso, non se l'area esiste. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexCombat")
+	bool bFriendlyFire = false;
+
+	FRTBlastPreviewPlan() = default;
+};
+
+/** Cio' che l'anteprima del Blast deve mostrare: da dove, dove cade, e chi dei propri ci finisce dentro. */
+USTRUCT(BlueprintType)
+struct FRTBlastPreview
+{
+	GENERATED_BODY()
+
+	/**
+	 * Cella da cui l'azione parte nella fase Blast — la stessa che il resolver usera'. Vale anche senza
+	 * azione principale: e' un fatto del piano, non del bersaglio.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	FRTCellId Origin;
+
+	/**
+	 * Vero quando `Origin` viene dallo scatto pianificato invece che dalla cella corrente.
+	 *
+	 * E' l'informazione che separa un'origine CONFERMATA da una PREVISTA: `ResolveDash` puo' fermare lo
+	 * scatto prima della destinazione (collisione simultanea, CP 4.8), quindi la cella dichiarata e' un
+	 * intento e non un fatto. Chi disegna decide come dirlo; qui si dichiara solo che la distinzione esiste.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	bool bOriginFromPlannedDash = false;
+
+	/** Celle colpite secondo la forma canonica (`HexHitCells`). Vuoto se non c'e' un bersaglio valido. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTCellId> HitCells;
+
+	/** Sottoinsieme di `HitCells` occupato da alleati VIVI: fuoco amico. Vuoto senza `bFriendlyFire`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTCellId> AllyCells;
+
+	FRTBlastPreview() = default;
+};
+
+/**
  * Raccolta degli attacchi della fase Blast su griglia ESAGONALE: pura, deterministica, senza Actor.
  * Le forme si risolvono sulle primitive di URTHexLibrary (HexLine/HexCone/HexArea) e la linea di tiro
  * su URTHexVisionLibrary; il danno resta a URTCombatLibrary/URTCombatResolver (combat math invariata).
@@ -383,6 +485,39 @@ public:
 	/** Converte il piano nella forma attesa da URTCombatResolver::ResolveAttacks (indice bersaglio + danno). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
 	static TArray<FRTAttack> ToAttacks(const FRTHexBlastPlan& Plan);
+
+	/**
+	 * Cella da cui l'unita' agisce nella fase **Blast**: quella dello scatto se lo scatto si applica,
+	 * altrimenti quella corrente.
+	 *
+	 * 🔴 **Non e' la posizione di fine turno, e la differenza e' l'ordine delle fasi.** Il ciclo risolve
+	 * `Prep -> Dash -> Blast -> Move` (`ARTTurnManager::ResolveTurn`): il movimento normale arriva DOPO gli
+	 * attacchi, quindi non sposta l'origine di questo turno — lo scatto si'. Un'anteprima che parte dalla
+	 * cella corrente mente esattamente a chi ha pianificato una carica prima di sparare, che e' il piano che
+	 * il gioco incoraggia.
+	 *
+	 * `Units[AttackerId]` porta la cella corrente: e' la stessa struct che il Blast riceve, cosi' l'origine
+	 * dell'anteprima e quella della risoluzione leggono lo stesso campo. `AttackerId` non valido -> cella di
+	 * riposo, e nessun chiamante deve dedurne una posizione.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static FRTCellId BlastOriginCell(const FRTBlastPreviewPlan& Plan, const TArray<FRTHexCombatUnit>& Units);
+
+	/**
+	 * L'anteprima del Blast per un piano: origine, celle colpite e fuoco amico.
+	 *
+	 * Non decide niente e non applica niente. Le celle vengono da `HexHitCells` — la STESSA funzione che il
+	 * combat usa — perche' due insiemi diversi significherebbero che il giocatore vede una zona e ne subisce
+	 * un'altra (invariante #1: la presentazione riceve, non decide).
+	 *
+	 * ⚠️ **La legalita' NON e' qui.** Portata e linea di tiro le classifica
+	 * `URTCombatLibrary::ClassifyHexTargeting`, che ha bisogno della mappa: chi mostra l'anteprima la chiama
+	 * a parte e ne usa il reason code. Questa funzione risponde a «dove cadrebbe», non a «si puo'» — tenerle
+	 * insieme farebbe di una domanda di presentazione un secondo validatore.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	static FRTBlastPreview MakeBlastPreview(const FRTBlastPreviewPlan& Plan,
+		const TArray<FRTHexCombatUnit>& Units);
 
 	/**
 	 * Cella finale del bersaglio RESPINTO di `Distance` celle, su griglia esagonale.
