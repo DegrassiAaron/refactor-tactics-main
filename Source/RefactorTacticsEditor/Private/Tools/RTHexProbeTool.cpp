@@ -54,7 +54,7 @@ void URTHexProbeTool::Setup()
 	{
 		Properties->HeroId = Roster[0]->HeroId;
 	}
-	Properties->Budget = BudgetFromCatalog();
+	RefreshBudgetFromCatalog();
 
 	AddToolPropertySource(Properties);
 
@@ -68,50 +68,44 @@ ARTHexMapActor* URTHexProbeTool::FindTargetMapActor() const
 	return RTHexEditor::FindTargetMapActor(TargetWorld);
 }
 
-int32 URTHexProbeTool::BudgetFromCatalog() const
+void URTHexProbeTool::RefreshBudgetFromCatalog()
 {
 	if (!Properties)
-	{
-		return 0;
-	}
-
-	// 🔑 La stessa fonte da cui `ARTUnit` prende `MoveRange` e da cui il Composer prende il budget della sua
-	// anteprima. Un id che il catalogo non conosce vale 0: la sonda lo dichiara invece di inventare un
-	// movimento che nessun eroe ha.
-	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
-	{
-		if (Hero && Hero->HeroId == Properties->HeroId)
-		{
-			return Hero->MovePoints;
-		}
-	}
-	return 0;
-}
-
-FRTHexSnapshot URTHexProbeTool::MakeProbeSnapshot(const URTHexMapAsset* Map) const
-{
-	FRTHexSimUnit Unit(ProbeUnitId, StartCell, BudgetFromCatalog());
-	return URTHexSimLibrary::MakeSnapshot(Map, { Unit });
-}
-
-void URTHexProbeTool::RebuildReachableSet()
-{
-	ReachableSet.Reset();
-	if (!bHasStart)
 	{
 		return;
 	}
 
-	const ARTHexMapActor* Actor = FindTargetMapActor();
-	const URTHexMapAsset* Map = Actor ? Actor->MapAsset : nullptr;
-	if (!Map)
+	// 🔴 **L'UNICO punto che interroga il catalogo, e si chiama solo quando l'eroe cambia.** La prima
+	// stesura chiedeva il roster da dentro `MakeProbeSnapshot`, cioe' DUE volte per ogni cella sorvolata:
+	// `GetHeroRoster()` costruisce quattro `URTHeroData` e una `NewObject<URTActionData>` per ciascuna delle
+	// loro azioni, quindi erano decine di UObject per movimento del mouse. Misurato dall'esterno: mentre la
+	// sonda era in uso il game thread non rispondeva piu' — le chiamate al ponte MCP, che di norma tornano
+	// in meno di un secondo, scadevano a sessanta.
+	const RTHexProbe::FBudget Resolved = RTHexProbe::ResolveBudget(Properties->HeroId);
+	bKnownHero = Resolved.bKnown;
+	Properties->Budget = Resolved.Points;
+}
+
+FRTHexSnapshot URTHexProbeTool::MakeProbeSnapshot(const URTHexMapAsset* Map) const
+{
+	// Il budget e' gia' derivato e vive nel pannello: richiederlo al catalogo qui significherebbe
+	// ricostruire il roster a ogni chiamata, e questa funzione viene chiamata per ogni cella sorvolata.
+	const int32 Budget = Properties ? Properties->Budget : 0;
+	FRTHexSimUnit Unit(ProbeUnitId, StartCell, Budget);
+	return URTHexSimLibrary::MakeSnapshot(Map, { Unit });
+}
+
+void URTHexProbeTool::RebuildReachableSet(const FRTHexSnapshot& Snapshot)
+{
+	ReachableSet.Reset();
+	if (!bHasStart || !Snapshot.Map)
 	{
 		return;
 	}
 
 	// ⚠️ Qui non c'e' un algoritmo, c'e' una **domanda**. Budget, blocchi, occupanti e archi li ha gia'
 	// applicati il servizio runtime.
-	ReachableSet = URTHexSimLibrary::ReachableCells(MakeProbeSnapshot(Map), ProbeUnitId);
+	ReachableSet = URTHexSimLibrary::ReachableCells(Snapshot, ProbeUnitId);
 }
 
 void URTHexProbeTool::OnClicked(const FInputDeviceRay& ClickPos)
@@ -135,7 +129,6 @@ void URTHexProbeTool::OnClicked(const FInputDeviceRay& ClickPos)
 	bHasStart = true;
 
 	// La partenza e' cambiata: il ventaglio precedente descriveva un'altra domanda.
-	RebuildReachableSet();
 	RefreshReadout();
 }
 
@@ -143,11 +136,8 @@ void URTHexProbeTool::OnPropertyModified(UObject* PropertySet, FProperty* Proper
 {
 	// Cambiare eroe cambia il budget, e con esso l'intero ventaglio. Il campo `Budget` si riallinea da solo:
 	// e' derivato, e mostrarlo stantio sarebbe peggio che non mostrarlo.
-	if (Properties)
-	{
-		Properties->Budget = BudgetFromCatalog();
-	}
-	RebuildReachableSet();
+	// L'eroe puo' essere cambiato: e' l'UNICO evento che giustifica una lettura del catalogo.
+	RefreshBudgetFromCatalog();
 	RefreshReadout();
 }
 
@@ -211,9 +201,11 @@ void URTHexProbeTool::RefreshReadout()
 	const ARTHexMapActor* Actor = FindTargetMapActor();
 	const URTHexMapAsset* Map = Actor ? Actor->MapAsset : nullptr;
 
-	// Il ventaglio si rifa' a ogni domanda: la mappa puo' essere cambiata sotto, e non c'e' una cache da
-	// invalidare (vedi il perche' esteso sulla classe).
-	RebuildReachableSet();
+	// 🔴 **UNO snapshot per evento, e serve a entrambe le domande.** Il ventaglio si rifa' a ogni domanda —
+	// la mappa puo' essere cambiata sotto, e non c'e' una cache da invalidare — ma `MakeSnapshot` ricalcola
+	// l'hash dell'intera mappa: costruirlo due volte era lo spreco gemello di quello sul catalogo.
+	const FRTHexSnapshot Snapshot = Map ? MakeProbeSnapshot(Map) : FRTHexSnapshot();
+	RebuildReachableSet(Snapshot);
 
 	ERTHexProbeExclusion Exclusion = ERTHexProbeExclusion::NoRoute;
 	int32 Cost = 0;
@@ -221,10 +213,8 @@ void URTHexProbeTool::RefreshReadout()
 
 	if (bHasStart && bHasHovered && Map)
 	{
-		const FRTHexSnapshot Fresh = MakeProbeSnapshot(Map);
-
 		// 🔑 Le UNICHE due righe che decidono, ed entrambe stanno nel runtime.
-		Exclusion = URTHexSimLibrary::ClassifyProbeCell(Fresh, ProbeUnitId, ReachableSet, HoveredCell);
+		Exclusion = URTHexSimLibrary::ClassifyProbeCell(Snapshot, ProbeUnitId, ReachableSet, HoveredCell);
 		const TArray<FRTCellId> Path = URTHexSimLibrary::ProbePathTo(ReachableSet, HoveredCell);
 		++QueryCount;
 
@@ -252,7 +242,7 @@ void URTHexProbeTool::RefreshReadout()
 	}
 
 	const RTHexProbe::FReadout Readout = RTHexProbe::Describe(
-		bHasStart && bHasHovered, Exclusion, Cost, Properties->Budget, PathCells);
+		bHasStart && bHasHovered, Exclusion, Cost, Properties->Budget, PathCells, bKnownHero);
 
 	Properties->Start = bHasStart ? StartCell.ToString() : TEXT("—");
 	Properties->Hovered = bHasHovered ? HoveredCell.ToString() : TEXT("—");

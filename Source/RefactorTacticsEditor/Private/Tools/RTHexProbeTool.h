@@ -131,8 +131,15 @@ public:
 private:
 	ARTHexMapActor* FindTargetMapActor() const;
 
-	/** Il budget dell'eroe scelto, dal catalogo. `0` se l'id non e' nel roster — e il pannello lo dice. */
-	int32 BudgetFromCatalog() const;
+	/**
+	 * Rilegge il budget dal catalogo e lo MEMORIZZA in `Properties->Budget`.
+	 *
+	 * 🔴 **Si chiama quando l'eroe CAMBIA, mai a ogni hover.** `GetHeroRoster()` costruisce il roster da
+	 * zero — quattro `URTHeroData` piu' una `NewObject` per ciascuna delle loro azioni — e la prima stesura
+	 * di questo tool lo pagava **due volte per cella sorvolata**, dentro `MakeProbeSnapshot`. Il game thread
+	 * si saturava e l'Editor smetteva di seguire il mouse.
+	 */
+	void RefreshBudgetFromCatalog();
 
 	/**
 	 * Lo snapshot della mappa con la sola unita' sondata. Costruito e consumato nella stessa chiamata: non
@@ -140,8 +147,13 @@ private:
 	 */
 	FRTHexSnapshot MakeProbeSnapshot(const URTHexMapAsset* Map) const;
 
-	/** Rifa' il ventaglio dalla partenza corrente. Nessuna decisione: una chiamata al runtime. */
-	void RebuildReachableSet();
+	/**
+	 * Rifa' il ventaglio da uno snapshot GIA' COSTRUITO. Nessuna decisione: una chiamata al runtime.
+	 *
+	 * ⚠️ Prende lo snapshot invece di costruirselo perche' `MakeSnapshot` ricalcola l'hash dell'intera
+	 * mappa: farlo due volte per evento era la meta' dell'altro spreco.
+	 */
+	void RebuildReachableSet(const FRTHexSnapshot& Snapshot);
 
 	/** Risolve la cella sotto il raggio e, se e' cambiata, riclassifica. */
 	void UpdateHoveredCell(const FInputDeviceRay& DevicePos);
@@ -172,4 +184,10 @@ private:
 	TArray<FVector> HoverPathWorld;
 
 	int32 QueryCount = 0;
+
+	/**
+	 * L'eroe corrisponde a uno del catalogo? Deriva da `RefreshBudgetFromCatalog` e viaggia fino al readout:
+	 * un `HeroId` sbagliato non e' «budget zero», ed e' il pannello che deve dirlo.
+	 */
+	bool bKnownHero = false;
 };
