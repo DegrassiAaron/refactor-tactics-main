@@ -613,4 +613,226 @@ bool FRTAnchorRefusesWhatItCannotSayTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 IL PIN DEL DIFETTO — `#1895`, e serve a FISSARE O SMENTIRE una deduzione.
+ *
+ * Il corpo dell'issue dichiara, e lo dichiara onestamente come non provato: *«`SnapToGrammar` prova tutti e
+ * sei gli assi e tiene l'asse che sbaglia meno; per una delle ventiquattro coppie non ha un ramo di rifiuto
+ * — proietta sull'asse meno sbagliato e produce un muro legale e DIVERSO da quello chiesto. Chi disegna vede
+ * una linea comparire e non ha modo di sapere che non e' la sua.»*
+ *
+ * ⚠️ **Nessun test esistente lo guardava.** `InexpressiblePairsAreRefused` misura le 78 coppie su
+ * `SegmentBetweenAnchors`, che le ventiquattro le **rifiuta** per costruzione — la verifica di fedelta' di
+ * `GEO-8`. Ma il tool d'authoring chiama `SnapToGrammar` (`RTHexGeometryTool.cpp:119, 247, 326`), e su
+ * quella funzione non c'era alcuna asserzione per le coppie inesprimibili.
+ *
+ * 🔑 **L'asserzione e' la sola che vale in entrambi i casi**: qualunque cosa `SnapToGrammar` faccia, non deve
+ * MAI restituire il muro chiesto — perche' quel muro non esiste nella grammatica. Se rifiuta, bene; se
+ * produce, deve produrre altro. Il test conta i due esiti e li **scrive nel log**, cosi' che il giorno in cui
+ * la proporzione cambiasse si veda, invece di scoprirlo da un ghost che disegna la cosa sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnchorSnapNeverInventsTheInexpressibleTest,
+	"RefactorTactics.Anchor.SnapNeverInventsTheInexpressible",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnchorSnapNeverInventsTheInexpressibleTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(0, 0, 0);
+
+	TArray<FRTAnchorRef> Anchors;
+	URTGeometryGrammarLibrary::AnchorsOfCell(Cell, Anchors);
+
+	int32 Inexpressible = 0, Refused = 0, ProducedSomethingElse = 0, ProducedWhatWasAsked = 0;
+
+	for (int32 I = 0; I < Anchors.Num(); ++I)
+	{
+		for (int32 J = I + 1; J < Anchors.Num(); ++J)
+		{
+			// Solo le coppie che la grammatica NON porta: sulle altre `SnapToGrammar` deve riuscire, ed e'
+			// gia' coperto da `SnapAlwaysProducesAWallFromTheAlphabet`.
+			FRTGeometrySegment Faithful;
+			if (URTGeometryGrammarLibrary::SegmentBetweenAnchors(Anchors[I], Anchors[J], AnchorTestHexSize,
+				Faithful))
+			{
+				continue;
+			}
+			++Inexpressible;
+
+			const FVector2D PA = URTGeometryGrammarLibrary::AnchorLocal(Anchors[I], AnchorTestHexSize);
+			const FVector2D PB = URTGeometryGrammarLibrary::AnchorLocal(Anchors[J], AnchorTestHexSize);
+
+			FRTGeometrySegment Snapped;
+			if (!URTGeometryGrammarLibrary::SnapToGrammar(PA, PB, AnchorTestHexSize, Snapped))
+			{
+				++Refused;
+				continue;
+			}
+
+			// Ha prodotto qualcosa: gli estremi coincidono con i due anchor chiesti? Stessa tolleranza
+			// relativa di `SegmentBetweenAnchors` — la grammatica e' esatta sui punti notevoli, quindi lo
+			// scarto ammesso e' quello di macchina e non un margine di comodo.
+			const FRTOccupancyPolyline Line =
+				URTGeometryGrammarLibrary::ToPolyline(Snapped, AnchorTestHexSize);
+			const double Tolerance = static_cast<double>(AnchorTestHexSize) * 1e-4;
+			const bool bAsAsked = Line.Points.Num() == 2
+				&& ((Line.Points[0].Equals(PA, Tolerance) && Line.Points[1].Equals(PB, Tolerance))
+					|| (Line.Points[0].Equals(PB, Tolerance) && Line.Points[1].Equals(PA, Tolerance)));
+
+			if (bAsAsked)
+			{
+				++ProducedWhatWasAsked;
+				AddError(FString::Printf(
+					TEXT("%s -> %s: la grammatica non porta questa coppia, ma lo snap l'ha prodotta"),
+					*Anchors[I].ToString(), *Anchors[J].ToString()));
+			}
+			else
+			{
+				++ProducedSomethingElse;
+			}
+		}
+	}
+
+	TestEqual(TEXT("le coppie inesprimibili sono ventiquattro"), Inexpressible, 24);
+
+	// L'INVARIANTE, e vale qualunque sia la ripartizione fra i due esiti leciti.
+	TestEqual(TEXT("nessuna coppia inesprimibile viene prodotta come chiesta"), ProducedWhatWasAsked, 0);
+	TestEqual(TEXT("e i due esiti leciti coprono tutte e ventiquattro"),
+		Refused + ProducedSomethingElse, Inexpressible);
+
+	// LA MISURA che l'issue chiedeva: quale dei due comportamenti ha davvero `SnapToGrammar`.
+	AddInfo(FString::Printf(
+		TEXT("su %d coppie inesprimibili: %d rifiutate, %d producono un muro DIVERSO da quello chiesto"),
+		Inexpressible, Refused, ProducedSomethingElse));
+
+	if (ProducedSomethingElse > 0)
+	{
+		AddInfo(TEXT("∴ la deduzione di #1895 e' CONFERMATA: lo snap non fallisce, riesce con altro — ed e' ")
+			TEXT("la ragione per cui il gesto d'authoring deve passare da SegmentBetweenAnchors"));
+	}
+
+	return true;
+}
+
+/**
+ * `NearestAnchor` E' TOTALE, E SUI TREDICI PUNTI E' L'IDENTITA' — `#1895`.
+ *
+ * 🔑 **L'identita' e' la proprieta' che rende la funzione utilizzabile dal gesto.** Se chiesto l'anchor piu'
+ * vicino al punto di un anchor si ottenesse un altro anchor, l'aggancio dichiarato dal ghost sarebbe una
+ * bugia proprio nel caso in cui l'autore ha mirato bene.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnchorNearestIsTotalAndIdempotentTest,
+	"RefactorTactics.Anchor.NearestIsTotalAndIdempotent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnchorNearestIsTotalAndIdempotentTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(2, -1, 0);
+
+	TArray<FRTAnchorRef> Anchors;
+	URTGeometryGrammarLibrary::AnchorsOfCell(Cell, Anchors);
+
+	for (const FRTAnchorRef& Ref : Anchors)
+	{
+		const FVector2D Local = URTGeometryGrammarLibrary::AnchorLocal(Ref, AnchorTestHexSize);
+		const FRTAnchorRef Found = URTGeometryGrammarLibrary::NearestAnchor(Cell, Local, AnchorTestHexSize);
+		TestTrue(*FString::Printf(TEXT("%s si aggancia a se stesso"), *Ref.ToString()), Found == Ref);
+	}
+
+	// Un punto QUALUNQUE ottiene comunque un anchor: la palette e' chiusa, quindi non esiste il caso
+	// «nessuno». Il centro della cella e' l'unico punto la cui risposta e' ovvia, e serve da controllo.
+	TestTrue(TEXT("il centro geometrico da' il centro"),
+		URTGeometryGrammarLibrary::NearestAnchor(Cell, FVector2D::ZeroVector, AnchorTestHexSize)
+			== FRTAnchorRef(Cell, ERTAnchorKind::Center));
+
+	// ⚠️ E un punto LONTANISSIMO non fa fallire la funzione: non c'e' soglia, per scelta dichiarata
+	// nell'header — una soglia sarebbe un numero da tarare, non una proprieta' della geometria.
+	const FRTAnchorRef Far = URTGeometryGrammarLibrary::NearestAnchor(
+		Cell, FVector2D(10000.0, -10000.0), AnchorTestHexSize);
+	TestTrue(TEXT("anche un punto lontano ottiene un anchor della cella chiesta"), Far.Cell == Cell);
+
+	// Un punto vicino a un vertice, ma non esattamente su di esso, aggancia QUEL vertice: e' il caso reale
+	// del gesto, dove il mouse non cade mai esatto.
+	const FRTAnchorRef V2(Cell, ERTAnchorKind::Vertex, 2);
+	const FVector2D Nudged =
+		URTGeometryGrammarLibrary::AnchorLocal(V2, AnchorTestHexSize) + FVector2D(3.0, -2.0);
+	TestTrue(TEXT("un punto vicino a un vertice aggancia quel vertice"),
+		URTGeometryGrammarLibrary::NearestAnchor(Cell, Nudged, AnchorTestHexSize) == V2);
+
+	return true;
+}
+
+/**
+ * `ExplainPair` DICE PERCHE', E NON PUO' DIVERGERE DA CHI PRODUCE — `#1895`.
+ *
+ * 🔴 **Il quarto controllo e' l'intera ragione per cui questa funzione puo' esistere senza essere una
+ * seconda verita'.** `ExplainPair` e `SegmentBetweenAnchors` rispondono a due domande diverse sulla stessa
+ * proprieta'; il giorno in cui una cambiasse senza l'altra, il ghost direbbe «si puo'» su una coppia che
+ * non produce muro, o il contrario. L'equivalenza su tutte e 78 le coppie e' cio' che lo impedisce, e va
+ * asserita invece che ricordata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnchorExplainPairAgreesWithProductionTest,
+	"RefactorTactics.Anchor.ExplainPairAgreesWithProduction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnchorExplainPairAgreesWithProductionTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(0, 0, 0);
+
+	TArray<FRTAnchorRef> Anchors;
+	URTGeometryGrammarLibrary::AnchorsOfCell(Cell, Anchors);
+
+	int32 Expressible = 0, NoAxis = 0;
+	for (int32 I = 0; I < Anchors.Num(); ++I)
+	{
+		for (int32 J = I + 1; J < Anchors.Num(); ++J)
+		{
+			const ERTAnchorPairRefusal Why =
+				URTGeometryGrammarLibrary::ExplainPair(Anchors[I], Anchors[J], AnchorTestHexSize);
+
+			FRTGeometrySegment S;
+			const bool bProduced = URTGeometryGrammarLibrary::SegmentBetweenAnchors(
+				Anchors[I], Anchors[J], AnchorTestHexSize, S);
+
+			// L'EQUIVALENZA, coppia per coppia.
+			TestEqual(*FString::Printf(TEXT("%s -> %s: spiegazione e produzione concordano"),
+				*Anchors[I].ToString(), *Anchors[J].ToString()),
+				Why == ERTAnchorPairRefusal::None, bProduced);
+
+			if (Why == ERTAnchorPairRefusal::None) { ++Expressible; }
+			else if (Why == ERTAnchorPairRefusal::NoTacticalAxis) { ++NoAxis; }
+		}
+	}
+
+	TestEqual(TEXT("cinquantaquattro si esprimono"), Expressible, 54);
+	TestEqual(TEXT("e ventiquattro non stanno su nessun asse"), NoAxis, 24);
+
+	// I TRE RIFIUTI STRUTTURALI, ciascuno con il proprio codice: senza, il ghost direbbe «non sta su un
+	// asse» a chi ha semplicemente trascinato su un'altra cella, mandandolo a correggere la cosa sbagliata.
+	{
+		const FRTAnchorRef Here(FRTCellId(0, 0, 0), ERTAnchorKind::Center);
+		const FRTAnchorRef Elsewhere(FRTCellId(1, 0, 0), ERTAnchorKind::Center);
+		TestEqual(TEXT("due celle diverse"),
+			URTGeometryGrammarLibrary::ExplainPair(Here, Elsewhere, AnchorTestHexSize),
+			ERTAnchorPairRefusal::DifferentCell);
+
+		const FRTAnchorRef Above(FRTCellId(0, 0, 1), ERTAnchorKind::Vertex, 0);
+		TestEqual(TEXT("due layer diversi"),
+			URTGeometryGrammarLibrary::ExplainPair(Here, Above, AnchorTestHexSize),
+			ERTAnchorPairRefusal::DifferentLayer);
+
+		TestEqual(TEXT("lo stesso anchor due volte"),
+			URTGeometryGrammarLibrary::ExplainPair(Here, Here, AnchorTestHexSize),
+			ERTAnchorPairRefusal::SameAnchor);
+
+		// ⚠️ E un centro con indice SPORCO resta lo stesso centro: il confronto passa dalla forma canonica,
+		// non dai campi grezzi. Senza, un `FRTAnchorRef` costruito a mano darebbe due punti dove ce n'e' uno.
+		FRTAnchorRef Dirty;
+		Dirty.Cell = FRTCellId(0, 0, 0);
+		Dirty.Kind = ERTAnchorKind::Center;
+		Dirty.Index = 5;
+		TestEqual(TEXT("un centro con indice sporco e' sempre lo stesso centro"),
+			URTGeometryGrammarLibrary::ExplainPair(Here, Dirty, AnchorTestHexSize),
+			ERTAnchorPairRefusal::SameAnchor);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
