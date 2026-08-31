@@ -2,11 +2,14 @@
 #include "Engine/Engine.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"                  // TActorIterator: nessun Actor per cella si conta guardando il mondo
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Perception/RTTeamKnowledge.h" // il velo: la griglia deve seguirlo, non ignorarlo
+#include "Map/RTMapVisuals.h"          // le quote condivise: qui si LEGGONO, non si ricopiano
 #include "Terrain/RTTerrainLibrary.h" // il costo di Rough arriva dal catalogo, non da un numero scritto qui
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -837,6 +840,285 @@ bool FRTHexMapActorRebuildIsIdempotentTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("la cella nuova e' fra quelle mappate, non solo un'unita' in piu' nel totale"),
 		bNuovaMappata);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+
+// -- #1758 - La griglia: il confine fra celle, in partita e senza comando console --------------------
+//
+// 🔴 **Perche' questi test esistono e cosa NON possono dire.** Il DoD di #1758 chiede che il toggle
+// «spenga e riaccenda senza ricostruire istanze o asset, e senza mutare `FRTMapState`, graph revision,
+// path cache, snapshot o TurnLog - **e lo prova un test**, non un'ispezione». Quello e' verificabile
+// headless ed e' verificato qui. Che il confine **si legga** a distanza tattica non lo e': non esiste un
+// oracolo automatico per «si vede», e inventarne uno direbbe il falso. Quel giudizio appartiene alla voce
+// `PIE-*` della issue, e resta li'.
+
+// La griglia copre OGNI cella, non solo quelle con un glifo: il confine non dipende dal terreno, e cinque
+// superfici su nove non ricevono alcun segno di superficie.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapGridOnByDefaultTest,
+	"RefactorTactics.HexMapActor.GridIsOnByDefaultAndCoversEveryCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapGridOnByDefaultTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	ARTHexMapActor* Actor = SpawnMapActor(World, MakeActorTestAsset(/*Radius=*/ 1)); // 7 celle
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// ON di default: e' un requisito del DoD, non una preferenza. Il confine e' cio' con cui si conta il
+	// movimento, e chiederlo con un comando sarebbe la soluzione che la issue esclude per nome.
+	TestTrue(TEXT("la griglia e' accesa senza che nessuno la chieda"), Actor->AreCellBordersVisible());
+
+	const UInstancedStaticMeshComponent* Grid = FindMapActorIsm(Actor, TEXT("CellBorders"));
+	if (!TestNotNull(TEXT("il componente della griglia esiste"), Grid))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+	TestTrue(TEXT("ed e' visibile"), Grid->IsVisible());
+	TestEqual(TEXT("un'istanza per cella, tutte e sette"), Grid->GetInstanceCount(), 7);
+	TestEqual(TEXT("una per cella come il disco, non una per superficie"),
+		Grid->GetInstanceCount(), Actor->NumInstanceCells());
+
+	// Il canale colore per istanza: senza, il velo potrebbe solo NASCONDERE il bordo, e ricordo e
+	// osservazione diventerebbero indistinguibili sul confine ([D-227]).
+	TestEqual(TEXT("porta i tre float del colore, come Cells e i glifi"), Grid->NumCustomDataFloats, 3);
+
+	// Il raycast di selezione valida il COMPONENTE: un bordo che rubasse i click darebbe una cella valida e
+	// sbagliata, che e' il difetto di #588.
+	TestFalse(TEXT("un colpo sulla griglia non seleziona una cella"),
+		Actor->IsPickOnSelectableCell(Grid, 0));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+// 🔑 Il test che il DoD nomina: spegnere e riaccendere NON ricostruisce e NON muta lo stato di gioco.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapGridToggleIsInertTest,
+	"RefactorTactics.HexMapActor.GridToggleChangesNothingButVisibility",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapGridToggleIsInertTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 2); // 19 celle
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// Lo stato PRIMA, su quattro canali indipendenti.
+	const uint32 HashPrima = Asset->ComputeHash();
+	const int32 CellePrima = Actor->NumInstanceCells();
+	const TArray<FTransform> GrigliaPrima = InstancesOf(Actor, TEXT("CellBorders"));
+	const TArray<FTransform> DischiPrima = InstancesOf(Actor, TEXT("Cells"));
+	const bool OverlayPrima = Actor->IsCellOverlayEnabled();
+
+	// OFF -> ON -> OFF: il ciclo completo che la issue chiede, non un solo verso.
+	Actor->SetCellBordersVisible(false);
+	const UInstancedStaticMeshComponent* Grid = FindMapActorIsm(Actor, TEXT("CellBorders"));
+	if (!TestNotNull(TEXT("il componente della griglia esiste"), Grid))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+	TestFalse(TEXT("spenta, il componente non e' visibile"), Grid->IsVisible());
+	TestFalse(TEXT("e il flag lo dice"), Actor->AreCellBordersVisible());
+	// 🔴 Le istanze restano: spegnere e' un cambio di VISIBILITA'. Ricostruire azzererebbe `LastVeilState`
+	// insieme agli indici a cui si riferisce, e il velo successivo dovrebbe ridipingere tutto.
+	TestEqual(TEXT("spegnere NON distrugge le istanze"), Grid->GetInstanceCount(), GrigliaPrima.Num());
+
+	Actor->SetCellBordersVisible(true);
+	TestTrue(TEXT("riaccesa, torna visibile"), Grid->IsVisible());
+	Actor->SetCellBordersVisible(false);
+
+	// Lo stato DOPO: niente si e' mosso tranne la visibilita'.
+	TestEqual(TEXT("l'hash dell'asset non cambia: nessuna mutazione di FRTMapState ne' di graph revision"),
+		Asset->ComputeHash(), HashPrima);
+	TestEqual(TEXT("la mappa istanza->cella e' intatta"), Actor->NumInstanceCells(), CellePrima);
+
+	const TArray<FTransform> GrigliaDopo = InstancesOf(Actor, TEXT("CellBorders"));
+	const TArray<FTransform> DischiDopo = InstancesOf(Actor, TEXT("Cells"));
+	TestEqual(TEXT("nessuna istanza di griglia aggiunta o persa"), GrigliaDopo.Num(), GrigliaPrima.Num());
+	TestEqual(TEXT("nessuna istanza di cella toccata"), DischiDopo.Num(), DischiPrima.Num());
+
+	// Le trasformate, non solo i conteggi: un rebuild che ricostruisse lo stesso NUMERO di istanze in ordine
+	// diverso passerebbe un test che conta e basta.
+	bool bTrasformateIntatte = GrigliaDopo.Num() == GrigliaPrima.Num();
+	for (int32 I = 0; bTrasformateIntatte && I < GrigliaDopo.Num(); ++I)
+	{
+		bTrasformateIntatte = GrigliaDopo[I].Equals(GrigliaPrima[I], 0.01f);
+	}
+	TestTrue(TEXT("le trasformate della griglia sono le stesse, non solo lo stesso numero"), bTrasformateIntatte);
+
+	// ⚠️ `rt.Debug.DrawCells` e' un sistema SEPARATO e resta tale: la issue vieta esplicitamente di usarlo
+	// come soluzione player-facing, e questo verifica che il toggle di presentazione non lo tocchi.
+	TestEqual(TEXT("l'overlay di debug non e' stato toccato dal toggle di presentazione"),
+		Actor->IsCellOverlayEnabled(), OverlayPrima);
+	Actor->SetCellOverlayEnabled(true);
+	TestTrue(TEXT("e continua a funzionare da solo, a griglia spenta"), Actor->IsCellOverlayEnabled());
+	TestFalse(TEXT("senza riaccendere la griglia"), Actor->AreCellBordersVisible());
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+// Le quote: sopra la faccia del prisma, e sopra il glifo che altrimenti la coprirebbe.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapGridSitsAboveTheFaceTest,
+	"RefactorTactics.HexMapActor.GridSitsAboveTheCellFace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapGridSitsAboveTheFaceTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	ARTHexMapActor* Actor = SpawnMapActor(World, MakeActorTestAsset(/*Radius=*/ 1));
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	const TArray<FTransform> Griglia = InstancesOf(Actor, TEXT("CellBorders"));
+	const TArray<FTransform> Dischi = InstancesOf(Actor, TEXT("Cells"));
+	if (Griglia.Num() == 0 || Dischi.Num() != Griglia.Num())
+	{
+		AddError(TEXT("griglia e dischi non si corrispondono"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// 🔴 Sotto `RTCellTopZ` sarebbe DENTRO il prisma, e a schermo non si distinguerebbe da «non disegnato».
+	// E' successo due volte, e `PIE-DEBUG-CELLS` registra la prima. Il confronto e' contro la faccia REALE
+	// del disco misurata dalla sua istanza, non contro un numero riscritto qui.
+	bool bTutteSopraLaFaccia = true;
+	for (int32 I = 0; I < Griglia.Num(); ++I)
+	{
+		const double FacciaZ = Dischi[I].GetLocation().Z + RTCellTopZ;
+		bTutteSopraLaFaccia &= Griglia[I].GetLocation().Z > FacciaZ;
+	}
+	TestTrue(TEXT("ogni istanza di griglia sta SOPRA la faccia del proprio prisma"), bTutteSopraLaFaccia);
+
+	// E la costante e' derivata, non scritta: se un giorno lo spessore del tile cambiasse, la griglia
+	// salirebbe con lui senza che nessuno tocchi questa riga.
+	TestTrue(TEXT("la quota della griglia deriva da RTCellTopZ"), RTLiftCellBorder > RTCellTopZ);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+// Nessun Actor e nessun component per cella: e' l'invariante d'apertura di `ARTHexMapActor`, e la issue la
+// ripete perche' una griglia e' precisamente il posto in cui verrebbe voglia di violarla.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapGridAddsNoActorPerCellTest,
+	"RefactorTactics.HexMapActor.GridAddsNoActorPerCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapGridAddsNoActorPerCellTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+
+	// Gli attori di servizio del mondo, PRIMA che la board esista: sono la linea di base da cui si misura.
+	int32 AttoriPrima = 0;
+	for (TActorIterator<AActor> It(World); It; ++It) { ++AttoriPrima; }
+
+	// 37 celle: abbastanza perche' un Actor-per-cella si veda come un salto, non come rumore.
+	ARTHexMapActor* Actor = SpawnMapActor(World, MakeActorTestAsset(/*Radius=*/ 3));
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// 🔴 **Si misura il DELTA, non il totale, ed e' la correzione di un oracolo sbagliato**: la prima
+	// stesura confrontava il conteggio assoluto con `1` ed e' uscita rossa con **7** — un mondo di test
+	// nasce gia' con i propri attori di servizio (`WorldSettings`, `GameMode`, `GameState`…), che non
+	// c'entrano nulla con questa invariante. Un test che li contasse misurerebbe Unreal, non la griglia.
+	//
+	// Il delta e' anche l'oracolo piu' FORTE: se esistesse un Actor per cella varrebbe 38 invece di 1, e la
+	// differenza scalerebbe col raggio — che e' precisamente la violazione da intercettare.
+	int32 AttoriDopo = 0;
+	for (TActorIterator<AActor> It(World); It; ++It) { ++AttoriDopo; }
+	TestEqual(TEXT("37 celle hanno aggiunto UN solo actor al mondo"), AttoriDopo - AttoriPrima, 1);
+
+	// E nemmeno un component per cella: la griglia e' istanziata dentro un solo ISM.
+	TArray<UInstancedStaticMeshComponent*> Isms;
+	Actor->GetComponents(Isms);
+	int32 Griglie = 0;
+	for (const UInstancedStaticMeshComponent* Ism : Isms)
+	{
+		if (Ism && Ism->GetName() == TEXT("CellBorders")) { ++Griglie; }
+	}
+	TestEqual(TEXT("un solo componente di griglia per 37 celle"), Griglie, 1);
+	TestEqual(TEXT("e porta 37 istanze"), InstancesOf(Actor, TEXT("CellBorders")).Num(), 37);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+// Il velo deve ATTENUARE la griglia, non ignorarla: un bordo a piena luminosita' sul ricordo renderebbe una
+// cella non osservata piu' marcata di una osservata - il rovesciamento che la corona dei glifi aveva nella
+// prima stesura della spec.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapGridFollowsTheVeilTest,
+	"RefactorTactics.HexMapActor.GridFollowsTheKnowledgeVeil",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapGridFollowsTheVeilTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	ARTHexMapActor* Actor = SpawnMapActor(World, MakeActorTestAsset(/*Radius=*/ 1)); // 7 celle
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// Una cella osservata, una ricordata, cinque mai viste.
+	FRTTeamKnowledge Knowledge;
+	Knowledge.VisibleCells.Add(FRTCellId(0, 0, 0));
+	Knowledge.ExploredCells.Add(FRTCellId(0, 0, 0));
+	Knowledge.ExploredCells.Add(FRTCellId(1, 0, 0));
+	Actor->ApplyKnowledgeVeil(Knowledge);
+
+	// 🔴 Si legge la SCALA REALE delle istanze, non un contatore: un contatore proverebbe che il velo sa
+	// contare, non che ha disegnato. E' la disciplina di `GetVeilCounts`.
+	const TArray<FTransform> Griglia = InstancesOf(Actor, TEXT("CellBorders"));
+	int32 Nascoste = 0;
+	int32 Disegnate = 0;
+	for (const FTransform& Xf : Griglia)
+	{
+		if (Xf.GetScale3D().IsNearlyZero()) { ++Nascoste; } else { ++Disegnate; }
+	}
+
+	// Due celle conosciute (una osservata, una ricordata) restano disegnate; le altre cinque spariscono.
+	TestEqual(TEXT("la griglia non si disegna dove la squadra non e' mai stata"), Nascoste, 5);
+	TestEqual(TEXT("e resta sulle due celle conosciute"), Disegnate, 2);
+
+	// Il ritorno: una cella tornata visibile riprende il proprio bordo. Senza `BorderBaseScale` il velo
+	// sarebbe irreversibile, perche' da una scala gia' a zero non si risale a quella piena ([D-227]).
+	FRTTeamKnowledge Tutto;
+	for (int32 Q = -1; Q <= 1; ++Q)
+	{
+		for (int32 R = -1; R <= 1; ++R)
+		{
+			Tutto.VisibleCells.Add(FRTCellId(Q, R, 0));
+			Tutto.ExploredCells.Add(FRTCellId(Q, R, 0));
+		}
+	}
+	Actor->ApplyKnowledgeVeil(Tutto);
+
+	int32 NascosteDopo = 0;
+	for (const FTransform& Xf : InstancesOf(Actor, TEXT("CellBorders")))
+	{
+		if (Xf.GetScale3D().IsNearlyZero()) { ++NascosteDopo; }
+	}
+	TestEqual(TEXT("il velo e' reversibile: la griglia torna su tutte e sette"), NascosteDopo, 0);
 
 	DestroyMapActorWorld(World);
 	return true;

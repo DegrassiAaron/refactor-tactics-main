@@ -488,6 +488,111 @@ Ognuno ha la sua issue; qui c'è solo il **contratto** che devono rispettare.
 | **Geometry Authoring Tool** | ghost valido/invalido prima del commit, snap alla grammatica, **una gesture = una transazione** (un solo `Ctrl+Z`), validator e bake chiamati al runtime | [#712](https://github.com/DegrassiAaron/refactor-tactics-main/issues/712) |
 | **Movement Probe** | usa `URTHexSimLibrary::ReachableCells` e ricostruisce il path risalendo `FRTHexReachableCell::FromCell`. **Nessun secondo Dijkstra, nessun A\* per cella.** I `reason` usano il vocabolario runtime esistente | [#711](https://github.com/DegrassiAaron/refactor-tactics-main/issues/711) |
 
+### 13.1 Che cosa muore con che cosa — le regole di dipendenza
+
+Owner: `URTMapDependencyLibrary` (`Source/RefactorTactics/Map/`), [#1864](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1864).
+
+La regola sta nel **runtime** ed è **pura**, per la stessa ragione per cui la grammatica non sta nell'editor:
+è del dominio, non dello strumento, e deve poter essere provata headless. Un tool chiede l'elenco dei
+dipendenti *prima* di aprire la transazione, e cancella dentro la propria.
+
+⛔ **`CollectDependents` non modifica l'asset.** Raccogliere e cancellare sono due gesti distinti: tenerli
+separati è ciò che permette a un tool di mostrare l'elenco prima di eseguirlo, e alla regola di essere
+testabile senza un mondo.
+
+Cancellando una **cella**, tre array le sopravvivono e vanno raccolti — `Covers` e `Doors` no, perché vivono
+*dentro* `FRTHexCellData` e se ne vanno con lei:
+
+| Array | Perché non può restare | Regola di `ValidateMap` |
+|---|---|---|
+| `InteriorWalls` | un muro su una cella che non esiste | *«muro interno %d su cella inesistente»* |
+| `Transitions` | **entrambi i versi**: `FRTHexEdge` è direzionale | *«transizione verso cella inesistente»* |
+| `InteractionBindings` | un binding la cui sorgente sparisce | *«riferimento a una struttura inesistente»* |
+
+🔑 **Portare un bordo di una struttura non significa esserne l'unica sede.** Un portone è un *gruppo* di
+bordi che condividono lo `StableId` (CP 23.3): cancellare una delle sue celle ne toglie metà, e il nome
+continua a risolvere. Un binding che lo comanda **sopravvive**, e rimuoverlo sarebbe una correzione
+silenziosa di uno stato ancora valido — con perdita di dato. Il nome muore solo se *nessun* bordo resta
+fuori dalla cella cancellata.
+
+⚠️ Gli indici restituiti valgono finché l'asset non cambia, e si consumano **dal più alto al più basso**.
+
+Verifica: `RefactorTactics.Map.Dependency.*` — un test per array, uno per il gruppo che sopravvive, e uno
+che applica la cascata e chiede a `ValidateMap` se è rimasto qualcosa.
+
+### 13.2 Identità di un elemento, e il move
+
+Owner: `URTMapEditLibrary` (`Source/RefactorTactics/Map/`), [#1864](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1864).
+
+Un elemento autorato si nomina con un **handle**, che è **dato** e non oggetto: nessun puntatore, nessun
+Actor. Come lo si identifica dipende da cosa può succedergli.
+
+| Elemento | Identità | Perché |
+|---|---|---|
+| cella | `FRTCellId` | già stabile per costruzione |
+| copertura | `(Cell, Edge)` | **una sola copertura per bordo** — regola già applicata da `ValidateMap` |
+| porta · transizione | `StableId` | CP 23.3, #832 |
+| **muro interno** | `StableId` (**v12**) | 🔑 **si sposta**, e il move cambia `(Cell, Segment)` |
+
+🔑 **La chiave naturale del muro interno è ciò che il move modifica.** Un handle derivato si romperebbe
+esattamente durante l'operazione a cui deve sopravvivere: è per questo, e non per simmetria con le porte,
+che `FRTHexInteriorWall` prende un campo e `FRTHexCover` no.
+
+⛔ **`FRTHexInteriorWall::StableId` non entra in `ComputeHash`** — l'intero array ne resta fuori, perché
+vista e passo non consultano un muro interno. Qui il criterio **diverge** da `FRTHexDoor::StableId`, che
+nell'hash ci entra (#986): un nome di porta lo si risolve a runtime, un nome di muro solo nell'editor.
+
+**Il move valida prima di scrivere**, e un rifiuto è un valore di ritorno con la sua ragione
+(`ERTMapEditOutcome`) — mai una correzione silenziosa, mai uno stato scritto e poi segnalato dal validator:
+
+```text
+RefusedUnresolved      l'handle non nomina niente
+RefusedNoSuchCell      la destinazione non esiste
+RefusedOutOfGrammar    ValidateSegment decide, il move la chiama
+RefusedWouldCloseEdge  chiuderebbe un bordo: allora e' una COPERTURA
+RefusedDuplicate       muro identico gia' presente
+```
+
+Verifica: `RefactorTactics.Map.Edit.*` — l'handle sopravvive al move, il round-trip di serializzazione, e i
+quattro rifiuti, ciascuno con la controprova che la mappa resta valida.
+
+⚠️ **Un muro senza nome resta identificabile**, e non è un ripensamento su v12: `StableId` nasce `NAME_None`,
+quindi ogni muro disegnato prima di v12 è anonimo. L'handle porta allora la chiave `(Cell, Segment)` — unica
+per una regola che `ValidateMap` già applica. Il nome, quando c'è, **vince**: è l'unico che sopravvive al
+move. ⛔ Un nome che non risolve **non** ricade sulla chiave: chi ha chiesto quella struttura vuole quella, e
+restituirne un'altra perché sta nello stesso posto sarebbe un errore silenzioso.
+
+### 13.3 Che cosa c'è sotto un punto, e il ciclo di selezione
+
+`URTMapEditLibrary::ElementsAt` (runtime) · `URTHexSelectionStore` (editor) · [#1864](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1864).
+
+`ValidateMap` **permette** una porta e una copertura `Low` sullo stesso bordo — vieta solo la coppia con
+`High`. Due elementi selezionabili nello stesso punto sono quindi uno stato che l'autoraggio produce e il
+validatore approva, non un caso limite.
+
+L'ordine dei candidati è **contratto, non dettaglio**, perché un click ripetuto ci scorre sopra:
+
+```text
+Door  ->  Cover  ->  InteriorWall(i della cella)  ->  Cell
+```
+
+Il ciclo vive nello store: stesso punto → si avanza; punto nuovo → si riparte dal più specifico. ⚠️ Senza il
+confronto col punto precedente l'indice sarebbe un contatore globale, e il primo click su una cella nuova
+prenderebbe un elemento a caso a seconda dei click fatti altrove.
+
+⛔ **Le transizioni non compaiono fra i candidati, ed è dichiarato**: un arco collega celle su layer diversi
+e non giace su un bordo, quindi «cosa c'è sotto questo bordo» non lo raggiunge. Il suo hit-test è di
+viewport, e appartiene al tool.
+
+🔴 **La selezione vive fuori dai `UInteractiveToolPropertySet`**, ed è il punto: [#921](https://github.com/DegrassiAaron/refactor-tactics-main/issues/921)
+ha misurato il difetto opposto — `bShowOverlay` vive in due property set distinti, quindi accenderlo in
+Select non lo accende in Paint e cambiando strumento si perde. **Uno stato che deve sopravvivere al cambio di
+tool non può stare dentro il tool.** Un `UEditorSubsystem` sopravvive ai tool e al mode, non è un Actor, e
+non tocca l'asset: la selezione è stato d'editor puro e non si serializza.
+
+Verifica: `RefactorTactics.Editor.Selection.*` — il ciclo che ricomincia, il reset cliccando altrove, e
+l'aggiunta che accumula senza duplicati.
+
 ---
 
 ## 14. Come si verifica

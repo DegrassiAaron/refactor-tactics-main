@@ -372,4 +372,109 @@ bool FRTPerceptionSeesAcrossLayersTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **La fixture `VisionSplit` produce davvero due regioni visibili DISGIUNTE**, e questo test esiste
+ * perche' altrimenti sarebbe una promessa scritta in un commento.
+ *
+ * E' il caso che [#1715](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1715) deve giudicare
+ * e che nessuna arena esistente produce: sulle arene di raggio **4** una squadra vede quasi tutto, quindi la
+ * sua vista e' una macchia sola e un contorno coinciderebbe col bordo della mappa.
+ *
+ * 🔑 **L'oracolo e' il numero di COMPONENTI CONNESSE**, non un conteggio di celle: e' la proprieta'
+ * che rende il caso interessante, ed e' invariante a mappa, roster e `VisionRange` finche' la geometria
+ * regge. La connessione si calcola su `URTHexLibrary::Neighbors`, che **non attraversa i layer** — quindi
+ * la piattaforma del layer 1, se vista, e' una componente sua per costruzione del grafo.
+ *
+ * ⚠️ Gli osservatori non sono inventati: si chiedono a `PickStartCells`, la **stessa** funzione che
+ * allestisce la partita vera. Se un giorno cambiasse l'ordine delle celle di partenza, i due compagni
+ * potrebbero nascere nella stessa camera e questo test diventerebbe rosso — il che e' esattamente cio' che
+ * si vuole, perche' la fixture avrebbe smesso di servire al proprio scopo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPerceptionVisionSplitYieldsDisconnectedRegionsTest,
+	"RefactorTactics.Perception.VisionSplitYieldsDisconnectedRegions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPerceptionVisionSplitYieldsDisconnectedRegionsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeVisionSplitArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena"), Arena)) { return false; }
+
+	// Le celle di partenza VERE: team 0 prende le prime due percorribili in ordine `(q, r)`.
+	const TArray<FRTCellId> Start = URTMatchSetupLibrary::PickStartCells(Arena, /*NumPerTeam=*/ 2, /*Layer=*/ 0);
+	if (!TestEqual(TEXT("quattro celle di partenza (2 per squadra)"), Start.Num(), 4)) { return false; }
+
+	AddInfo(FString::Printf(TEXT("team 0 parte da (%d,%d,L%d) e (%d,%d,L%d)"),
+		Start[0].X, Start[0].Y, Start[0].Layer, Start[1].X, Start[1].Y, Start[1].Layer));
+
+	// ⚠️ `VisionRange` 5: il PIU' CORTO del roster (Phase, Riktor). Se le regioni restano disgiunte col
+	// piu' corto non e' una prova per gli altri; e' il contrario — con una vista piu' lunga si toccherebbero
+	// piu' facilmente, quindi il caso difficile per questo test e' il **7** di Gadget, provato sotto.
+	auto Osservatori = [&](int32 Range)
+	{
+		TArray<FRTPerceiver> Team;
+		for (int32 I = 0; I < 2; ++I)
+		{
+			FRTPerceiver P;
+			P.Cell = Start[I];
+			P.VisionRange = Range;
+			Team.Add(P);
+		}
+		return Team;
+	};
+
+	// Componenti connesse dell'insieme visibile, per BFS sui vicini dello STESSO layer.
+	auto Componenti = [](const TArray<FRTCellId>& Celle)
+	{
+		TSet<FRTCellId> Rimaste(Celle);
+		int32 N = 0;
+		while (Rimaste.Num() > 0)
+		{
+			++N;
+			TArray<FRTCellId> Coda;
+			Coda.Add(*Rimaste.CreateConstIterator());
+			Rimaste.Remove(Coda[0]);
+			while (Coda.Num() > 0)
+			{
+				const FRTCellId Corrente = Coda.Pop();
+				for (const FRTCellId& Vicino : URTHexLibrary::Neighbors(Corrente))
+				{
+					if (Rimaste.Remove(Vicino) > 0) { Coda.Add(Vicino); }
+				}
+			}
+		}
+		return N;
+	};
+
+	for (const int32 Range : { 5, 7 })
+	{
+		const TArray<FRTCellId> Viste = URTPerceptionLibrary::TeamVisibleCells(Arena, Osservatori(Range));
+		// 🔴 **Si contano le componenti del SOLO layer 0, e la ragione e' una mutazione fallita.**
+		// Contandole su tutti i layer il test passava anche con il muro reso trasparente: la seconda
+		// componente era la **piattaforma del layer 1** — separata per costruzione del grafo, visto che
+		// `Neighbors` non attraversa i layer — e non la camera sud. Il test misurava un artefatto della
+		// topologia invece della divisione che la fixture esiste per produrre.
+		TArray<FRTCellId> Suolo;
+		for (const FRTCellId& C : Viste) { if (C.Layer == 0) { Suolo.Add(C); } }
+		const int32 NumComponenti = Componenti(Suolo);
+		AddInfo(FString::Printf(
+			TEXT("VisionRange %d: %d celle viste (%d sul suolo) in %d componenti di suolo"),
+			Range, Viste.Num(), Suolo.Num(), NumComponenti));
+
+		TestTrue(*FString::Printf(TEXT("VisionRange %d: la squadra vede qualcosa"), Range), Viste.Num() > 0);
+
+		// 🔑 L'asserzione che la fixture esiste per soddisfare.
+		TestTrue(*FString::Printf(
+				TEXT("VisionRange %d: la vista di squadra e' in almeno DUE regioni di SUOLO disgiunte (ne ha %d)"),
+				Range, NumComponenti),
+			NumComponenti >= 2);
+
+		// E resta terreno mai visto: se la squadra vedesse tutto, non ci sarebbe un confine da giudicare.
+		TestTrue(*FString::Printf(
+				TEXT("VisionRange %d: resta terreno non visto (%d viste su %d celle)"),
+				Range, Viste.Num(), Arena->NumCells()),
+			Viste.Num() < Arena->NumCells());
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

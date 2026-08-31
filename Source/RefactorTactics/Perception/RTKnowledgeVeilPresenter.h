@@ -14,9 +14,9 @@ class ARTTurnManager;
  * 🔑 **Il viewer e' del giocatore, non del match.** Fino a `E-SOLID` fetta 4 questa logica viveva in
  * `ARTGameMode`, cioe' nell'oggetto che in multiplayer e' **uno solo e sta sul server**: chiedere «di chi e'
  * la vista?» a un oggetto globale e' la domanda sbagliata non appena i client sono due. Il proprietario
- * naturale e' `ARTPlayerController`, che gia' porta `PlayerTeamId` — la stessa fonte che
- * `ARTCameraPawn::FrameOwnTeam` e `CanPlayerControlUnit` leggono. Il velo si aggiunge a quei lettori invece
- * di aprire una terza autorita'.
+ * naturale e' `ARTPlayerController`, il cui `ARTPlayerState` risponde a `ARTPlayerState::TeamIdOf` — la
+ * stessa fonte che `ARTCameraPawn::FrameOwnTeam` e `CanPlayerControlUnit` leggono. Il velo si aggiunge a
+ * quei lettori invece di aprire una terza autorita'.
  *
  * ## Presentation-only, e la riga e' netta
  *
@@ -75,10 +75,16 @@ public:
 	void Apply();
 
 	/**
-	 * 🔑 **DI CHI E' LA VISTA che il velo disegna: `ARTPlayerController::PlayerTeamId`.**
+	 * 🔑 **DI CHI E' LA VISTA che il velo disegna: la squadra dell'`ARTPlayerState` dell'`Outer`,** letta
+	 * tramite l'unica porta `ARTPlayerState::TeamIdOf`.
 	 *
 	 * Si RILEGGE dall'`Outer` a ogni applicazione e non si copia in un campo: copiarla farebbe di questo
 	 * oggetto una seconda sede del valore, che e' esattamente cio' che questa funzione esiste per evitare.
+	 *
+	 * ⚠️ **Non e' l'unica sede in assoluto**: `UI/RTScreenHudWidgets` la cattura una volta in
+	 * `AcquireMatchContext` (membro `PlayerTeamId`) — l'unico dei sei lettori che copia invece di rileggere.
+	 * E' uno snapshot DICHIARATO, non un doppione silenzioso; il vincolo qui sopra riguarda solo questo
+	 * oggetto, che resta senza copia.
 	 *
 	 * Ripiega su `0` quando l'`Outer` non e' un controller — headless, harness, test di simulazione — con la
 	 * stessa regola di `ARTCameraPawn::FrameOwnTeam`, che il suo test pinna.

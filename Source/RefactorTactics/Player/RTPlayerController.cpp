@@ -1,4 +1,5 @@
 #include "Player/RTPlayerController.h"
+#include "Player/RTPlayerState.h"
 #include "Camera/RTCameraPawn.h"
 #include "Selection/RTSelectable.h"
 #include "Map/RTHexLibrary.h"
@@ -402,8 +403,9 @@ URTKnowledgeVeilPresenter* ARTPlayerController::GetKnowledgeVeilPresenter()
 {
 	if (!KnowledgeVeilPresenter)
 	{
-		// L'`Outer` e' `this`, e non e' un dettaglio di allocazione: e' da li' che il presenter risale a
-		// `PlayerTeamId`. Costruirlo con un altro outer lo farebbe ripiegare sulla squadra 0 in silenzio.
+		// L'`Outer` e' `this`, e non e' un dettaglio di allocazione: e' da li' che il presenter risale al
+		// proprio `ARTPlayerState` (`ARTPlayerState::TeamIdOf`). Costruirlo con un altro outer lo farebbe
+		// ripiegare sulla squadra 0 in silenzio.
 		KnowledgeVeilPresenter = NewObject<URTKnowledgeVeilPresenter>(this);
 	}
 	return KnowledgeVeilPresenter;
@@ -1089,7 +1091,8 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 
 	// Guardia di autorita': si pianifica solo per le proprie unita'. Se per qualche via SelectedActor fosse
 	// un'unita' avversaria, la deselezioniamo invece di prenderne il comando.
-	if (SelectedUnit && !URTCombatLibrary::CanPlayerControlUnit(SelectedUnit->TeamId, PlayerTeamId))
+	if (SelectedUnit && !URTCombatLibrary::CanPlayerControlUnit(SelectedUnit->TeamId,
+		ARTPlayerState::TeamIdOf(this), SelectedUnit->bIsBotControlled))
 	{
 		if (IRTSelectable* PreviousSel = Cast<IRTSelectable>(SelectedActor))
 		{
@@ -1109,10 +1112,27 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// Click su un'unita' AVVERSARIA senza nulla di selezionato: non e' nostra, non la si comanda. Senza questa
 	// guardia resterebbe "selezionata" e ogni click successivo su una nostra unita' finirebbe nel ramo di
 	// pianificazione dell'attacco qui sopra, rendendo le proprie unita' inselezionabili.
-	if (ClickedUnit && !URTCombatLibrary::CanPlayerControlUnit(ClickedUnit->TeamId, PlayerTeamId))
+	if (ClickedUnit && !URTCombatLibrary::CanPlayerControlUnit(ClickedUnit->TeamId,
+		ARTPlayerState::TeamIdOf(this), ClickedUnit->bIsBotControlled))
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] %s e' avversaria: seleziona prima una tua unita' per bersagliarla"),
-			*ClickedUnit->GetName());
+		// ⚠️ **Due rifiuti diversi meritano due messaggi diversi.** Un compagno pianificato dal bot supera la
+		// prova di squadra e cade su questa stessa guardia: dirgli «e' avversaria» manderebbe a cercare un
+		// difetto nell'assegnazione delle squadre, che e' corretta. E' la stessa cura che
+		// `RTAutobattleEntry::FromCommandLine` prende sul valore non riconosciuto — un rifiuto che non spiega
+		// il proprio motivo costa piu' di quello che fa risparmiare.
+		//
+		// ⚠️ Due `UE_LOG` e non un formato scelto con un ternario: la macro monta uno `static_assert` che
+		// pretende un array di TCHAR, e un `const TCHAR*` non lo e' — non compilerebbe.
+		if (ClickedUnit->TeamId == ARTPlayerState::TeamIdOf(this) && ClickedUnit->bIsBotControlled)
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s la pianifica il bot: non e' comandabile (vedi rt.Match.BotAllies)"),
+				*ClickedUnit->GetName());
+		}
+		else
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s e' avversaria: seleziona prima una tua unita' per bersagliarla"),
+				*ClickedUnit->GetName());
+		}
 		return;
 	}
 
@@ -1309,6 +1329,54 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 	}
 }
 
+FString ARTPlayerController::DescribeWaypointRejection(const FRTHexSnapshot& Snapshot,
+	const TArray<ARTUnit*>& Units, int32 PlannerIndex, const FRTCellId& Cell, int32 SpentCost, int32 Budget)
+{
+	// Il nome di chi pianifica: e' il soggetto corretto di TRE rami su quattro — dicono di chi e' il piano
+	// rifiutato — e resta utile anche nel quarto, dove pero' non e' l'occupante.
+	const ARTUnit* Planner = Units.IsValidIndex(PlannerIndex) ? Units[PlannerIndex] : nullptr;
+	const FString PlannerName = Planner != nullptr ? Planner->GetName() : FString(TEXT("unita' ignota"));
+
+	const FString Dove = FString::Printf(TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: "),
+		Cell.X, Cell.Y, Cell.Layer);
+
+	switch (URTHexSimLibrary::ClassifyWaypointCell(Snapshot, PlannerIndex, Cell))
+	{
+	case ERTHexWaypointReason::NotOnMap:
+		return Dove + FString::Printf(TEXT("cella fuori dalla mappa (%s)"), *PlannerName);
+
+	case ERTHexWaypointReason::BlocksMovement:
+		return Dove + FString::Printf(TEXT("cella bloccata (%s)"), *PlannerName);
+
+	case ERTHexWaypointReason::Occupied:
+	{
+		// 🔴 **Qui stava il difetto (#1939)**: la frase prometteva un occupante e riceveva `SelectedUnit`,
+		// cioe' chi pianifica. Chi legge concludeva che la propria unita' fosse l'ostacolo.
+		//
+		// ⚠️ L'id in `Occupancy` e' l'INDICE nell'array delle unita' vive, non uno `StableUnitId`:
+		// `PlanningSnapshotFor` lo dichiara, e `Units` viene da li' con gli stessi indici. Trattarlo come
+		// `StableUnitId` prenderebbe l'unita' sbagliata — silenziosamente, perche' entrambi sono `int32`.
+		const int32* Occupant = Snapshot.Occupancy.Find(Cell);
+		const ARTUnit* Blocker = (Occupant != nullptr && Units.IsValidIndex(*Occupant))
+			? Units[*Occupant] : nullptr;
+
+		// Senza un Actor da nominare si dice l'assenza, non un nome inventato: una riga che nomina l'unita'
+		// sbagliata e' peggio di una che ammette di non saperlo — ed e' precisamente il difetto che questa
+		// funzione chiude.
+		const FString BlockerName = Blocker != nullptr
+			? Blocker->GetName() : FString(TEXT("un'altra unita'"));
+
+		return Dove + FString::Printf(TEXT("cella occupata da %s (piano di %s)"), *BlockerName, *PlannerName);
+	}
+
+	case ERTHexWaypointReason::Ok:
+	default:
+		// La cella e' percorribile e libera: quel che manca sono punti movimento.
+		return Dove + FString::Printf(TEXT("oltre il budget (gia' spesi %d di %d) per %s"),
+			SpentCost, Budget, *PlannerName);
+	}
+}
+
 void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 {
 	ARTUnit* SelectedUnit = GetSelectedUnit();
@@ -1436,37 +1504,15 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		SelectedUnit->PlannedWaypoints.Pop(); // rifiutato: si torna al piano precedente, non a uno a meta'
 
 		// Il motivo GIUSTO, non un elenco di tre: se la cella in se' va bene, il rifiuto e' questione di budget,
-		// e allora si dice quanto era gia' speso. Test: HexSim.WaypointRejectionSaysWhich.
-		const ERTHexWaypointReason CellReason =
-			URTHexSimLibrary::ClassifyWaypointCell(Snapshot, UnitId, Cell);
-		const int32 Budget = SelectedUnit->GetEffectiveMoveRange();
-		switch (CellReason)
-		{
-		case ERTHexWaypointReason::NotOnMap:
-			UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: cella fuori dalla mappa (%s)"),
-				Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName());
-			break;
-		case ERTHexWaypointReason::BlocksMovement:
-			UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: cella bloccata (%s)"),
-				Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName());
-			break;
-		case ERTHexWaypointReason::Occupied:
-			UE_LOG(LogRT, Log, TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: cella occupata da un'altra unita' (%s)"),
-				Cell.X, Cell.Y, Cell.Layer, *SelectedUnit->GetName());
-			break;
-		case ERTHexWaypointReason::Ok:
-		default:
-			// La cella e' percorribile e libera: quel che manca sono punti movimento. Il percorso precedente
-			// (quello ancora valido) dice quanto e' gia' impegnato.
-			{
-				const FRTHexPathResult Kept =
-					URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, SelectedUnit->PlannedWaypoints);
-				UE_LOG(LogRT, Log,
-					TEXT("[RT] Waypoint (%d,%d,L%d) rifiutato: oltre il budget (gia' spesi %d di %d) per %s"),
-					Cell.X, Cell.Y, Cell.Layer, Kept.TotalCost, Budget, *SelectedUnit->GetName());
-			}
-			break;
-		}
+		// e allora si dice quanto era gia' speso. Test: HexSim.WaypointRejectionSaysWhich per la
+		// classificazione, `PlayerInput.WaypointRejectionNamesTheOccupant` per il TESTO (#1939).
+		//
+		// Il percorso ancora valido serve al solo ramo del budget, e si calcola qui perche' e' l'unico punto
+		// che ha i waypoint gia' ripristinati dal `Pop`.
+		const FRTHexPathResult Kept =
+			URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, SelectedUnit->PlannedWaypoints);
+		UE_LOG(LogRT, Log, TEXT("%s"), *DescribeWaypointRejection(Snapshot, SnapshotUnits, UnitId, Cell,
+			Kept.TotalCost, SelectedUnit->GetEffectiveMoveRange()));
 		return;
 	}
 

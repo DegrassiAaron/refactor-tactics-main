@@ -1,7 +1,8 @@
 #include "Perception/RTKnowledgeVeilPresenter.h"
 
+#include "GameFramework/PlayerController.h"
 #include "Map/RTHexMapActor.h"
-#include "Player/RTPlayerController.h"
+#include "Player/RTPlayerState.h"
 #include "Turn/RTTurnManager.h"
 
 void URTKnowledgeVeilPresenter::Hook(ARTTurnManager* InTurnManager)
@@ -28,13 +29,9 @@ void URTKnowledgeVeilPresenter::Hook(ARTTurnManager* InTurnManager)
 
 int32 URTKnowledgeVeilPresenter::ViewerTeamId() const
 {
-	// L'`Outer` E' il viewer: il presenter appartiene al client che guarda. Senza controller — headless,
-	// harness — si ripiega su `0`, con la stessa regola di `ARTCameraPawn::FrameOwnTeam`.
-	if (const ARTPlayerController* PC = Cast<ARTPlayerController>(GetOuter()))
-	{
-		return PC->PlayerTeamId;
-	}
-	return 0;
+	// L'`Outer` E' il viewer: il presenter appartiene al client che guarda. La squadra la risponde il
+	// PlayerState, con il ripiego a `0` che vale per tutti e tre i modi di non averla.
+	return ARTPlayerState::TeamIdOf(Cast<APlayerController>(GetOuter()));
 }
 
 void URTKnowledgeVeilPresenter::Apply()

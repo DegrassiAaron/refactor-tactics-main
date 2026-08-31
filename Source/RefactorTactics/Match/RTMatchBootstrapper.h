@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Templates/SubclassOf.h"
 #include "Map/RTMapSource.h"
+#include "Turn/RTMatchFormatData.h"
 
 class ARTHexMapActor;
 class ARTTurnManager;
@@ -61,6 +62,26 @@ struct FRTMatchBootstrapConfig
 	/** Chi l'ha decisa, per il log e per la banda: `BP_GameMode`, `rt.Match.Autobattle`, `-RTAutobattle`. */
 	FString AutobattleSourceLabel;
 
+	/**
+	 * Quante unita' della squadra del GIOCATORE sono pianificate dal bot, contate dal FONDO di `Team0Heroes`.
+	 *
+	 * `0` — nessuna: e' il comportamento storico, e resta il default. `1` su una formazione `[Gadget, Phase]`
+	 * mette Phase al bot e lascia Gadget al giocatore.
+	 *
+	 * ⚠️ **Dal fondo, e non «tutti tranne il primo»**: la regola deve valere anche a 3v3 (D-256), dove il
+	 * giocatore puo' volerne comandare due su tre. Un intero risponde a quella domanda, un booleano no.
+	 *
+	 * ⛔ **Non e' l'autobattle a meta'.** Quella modalita' toglie il giocatore dalla partita e lo dice alla
+	 * banda; questa gli lascia il comando di almeno un'unita' — `FRTMatchBootstrapper` cappa il valore
+	 * perche' una squadra 0 interamente al bot senza autobattle non avrebbe nessuno che possa chiudere il
+	 * turno. Le due si sommano senza contraddirsi: con l'autobattle in vigore il cap non serve, perche' li'
+	 * l'assenza di input e' il punto.
+	 */
+	int32 BotAllyCount = 0;
+
+	/** Chi l'ha deciso, per il log: `BP_GameMode`, `rt.Match.BotAllies`, `-RTBotAllies`. */
+	FString BotAllySourceLabel;
+
 	/** Secondi di Planning gia' risolti. **Negativo = non intervenire**: vale il valore del `TurnManager`. */
 	float PlanningSeconds = -1.f;
 };
@@ -69,7 +90,7 @@ struct FRTMatchBootstrapConfig
  * Cosa e' successo all'allestimento, per chi lo ha ordinato.
  *
  * ⚠️ **Non e' il rapporto d'avvio**: quello e' `FRTStartupReport`, lo legge un widget, ed elenca le
- * condizioni. Questo dice al chiamante le due cose che deve scrivere nel proprio stato, e nient'altro.
+ * condizioni. Questo dice al chiamante le quattro cose che deve scrivere nel proprio stato, e nient'altro.
  */
 struct FRTMatchBootstrapOutcome
 {
@@ -88,6 +109,13 @@ struct FRTMatchBootstrapOutcome
 
 	/** Le unita' sono entrate in campo. Falso anche quando il livello portava gia' le proprie. */
 	bool bUnitsSpawned = false;
+
+	/**
+	 * Le regole in vigore, valide **solo** se `bModeLatched`. Escono di qui perche' il composition root ne
+	 * ha bisogno per derivare i posti dei giocatori: e' un OUTPUT dell'allestimento, non una seconda
+	 * risoluzione del formato — quella resta una sola.
+	 */
+	FRTMatchRules Rules;
 };
 
 /**

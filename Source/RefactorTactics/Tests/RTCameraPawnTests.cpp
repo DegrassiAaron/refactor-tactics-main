@@ -15,6 +15,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Player/RTPlayerController.h"
+#include "Tests/RTWorldFixtures.h"
 #include "TimerManager.h"
 #include "Unit/RTUnit.h"
 
@@ -1087,9 +1088,10 @@ bool FRTCameraRecenterClampsArmTest::RunTest(const FString&)
 /**
  * «La propria squadra» e' quella del CONTROLLER, non la 0.
  *
- * `FrameOwnTeam` legge `PlayerTeamId` e ripiega sulla squadra 0 solo quando un controller non c'e' — una
- * comodita' da demo. Senza questo test la lettura del controller e' cancellabile senza far cadere niente, e
- * in una partita in cui il giocatore e' la squadra 1 la camera aprirebbe inquadrando **il nemico**.
+ * `FrameOwnTeam` legge `ARTPlayerState::TeamIdOf` e ripiega sulla squadra 0 solo quando un controller non
+ * c'e' — una comodita' da demo. Senza questo test la lettura del controller e' cancellabile senza far
+ * cadere niente, e in una partita in cui il giocatore e' la squadra 1 la camera aprirebbe inquadrando
+ * **il nemico**.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraFrameTeamFollowsControllerTest,
 	"RefactorTactics.Camera.FrameOwnTeamFramesTheControllersTeam",
@@ -1115,9 +1117,8 @@ bool FRTCameraFrameTeamFollowsControllerTest::RunTest(const FString&)
 	}
 	const FVector FramedTeamZero = Cam->GetActorLocation();
 
-	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 1);
 	if (!TestNotNull(TEXT("controller"), PC)) { DestroyCameraWorld(World); return false; }
-	PC->PlayerTeamId = 1;
 	PC->Possess(Cam);
 
 	if (!TestTrue(TEXT("con il controller inquadra"), Cam->FrameOwnTeam()))
@@ -1126,8 +1127,8 @@ bool FRTCameraFrameTeamFollowsControllerTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Se la lettura di `PlayerTeamId` sparisse, questa resterebbe l'inquadratura della squadra 0 e le due
-	// posizioni coinciderebbero.
+	// Se la lettura di `ARTPlayerState::TeamIdOf` sparisse, questa resterebbe l'inquadratura della squadra 0
+	// e le due posizioni coinciderebbero.
 	TestNotEqual(TEXT("la squadra 1 non si inquadra dove sta la squadra 0"),
 		Cam->GetActorLocation(), FramedTeamZero);
 
@@ -1598,6 +1599,205 @@ bool FRTCameraRecenterClampsWithTheResetViewTest::RunTest(const FString&)
 	TestTrue(TEXT("Home riporta il pivot sul centro della mappa"),
 		FVector::Dist2D(Cam->GetCameraPivot(), Centre) < 1.0);
 	TestEqual(TEXT("e l'orientamento e' quello di partenza"), Cam->GetCameraYaw(), 0.f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// #1834 - `ZoomAlpha`: la sorgente unica del profilo di zoom.
+// ---------------------------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraZoomAlphaRangeTest,
+	"RefactorTactics.Camera.ZoomAlphaSpansTheRealLimitsAndIsMonotonic",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraZoomAlphaRangeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	// Intervallo ASIMMETRICO rispetto al default: e' cio' che rende il test discriminante. Con
+	// `Default` a meta' corsa, un'implementazione che normalizzasse su `DefaultArmLength` invece che sui
+	// limiti darebbe gli stessi numeri a meta' e passerebbe.
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+
+	Arm->TargetArmLength = 100.f;
+	TestEqual(TEXT("al braccio minimo alpha vale 0"), Cam->GetZoomAlpha(), 0.f);
+
+	Arm->TargetArmLength = 4000.f;
+	TestEqual(TEXT("al braccio massimo alpha vale 1"), Cam->GetZoomAlpha(), 1.f);
+
+	// A meta' dell'INTERVALLO, non a `DefaultArmLength`: qui le due normalizzazioni divergono.
+	Arm->TargetArmLength = 2050.f;
+	TestEqual(TEXT("a meta' corsa alpha vale 0.5"), Cam->GetZoomAlpha(), 0.5f, 1e-3f);
+
+	// Al default, alpha NON e' 0.5: se lo fosse, la sorgente starebbe normalizzando sul default.
+	Arm->TargetArmLength = 800.f;
+	TestTrue(TEXT("al default alpha non e' meta' corsa"), Cam->GetZoomAlpha() < 0.3f);
+
+	// Monotonia: alpha cresce con la distanza, senza eccezioni lungo la corsa.
+	float Previous = -1.f;
+	for (int32 Step = 0; Step <= 10; ++Step)
+	{
+		Arm->TargetArmLength = FMath::Lerp(100.f, 4000.f, Step / 10.f);
+		const float Alpha = Cam->GetZoomAlpha();
+		TestTrue(TEXT("alpha cresce con la distanza"), Alpha > Previous);
+		Previous = Alpha;
+	}
+
+	// Fuori dominio: il clamp e' della sorgente, non del chiamante.
+	Arm->TargetArmLength = -500.f;
+	TestEqual(TEXT("sotto il minimo resta 0"), Cam->GetZoomAlpha(), 0.f);
+	Arm->TargetArmLength = 99999.f;
+	TestEqual(TEXT("oltre il massimo resta 1"), Cam->GetZoomAlpha(), 1.f);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraZoomAlphaRoundTripTest,
+	"RefactorTactics.Camera.ZoomAlphaWriteAndReadCannotDiverge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraZoomAlphaRoundTripTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+
+	const float Probes[] = { 0.f, 0.25f, 0.5f, 0.75f, 1.f };
+	for (const float Wanted : Probes)
+	{
+		Cam->SetZoomAlpha(Wanted);
+		TestEqual(TEXT("cio' che si scrive si rilegge"), Cam->GetZoomAlpha(), Wanted, 1e-3f);
+
+		// E il braccio e' davvero la a cui l'alpha corrisponde: se le due porte divergessero, questa
+		// riga sarebbe l'unica ad accorgersene.
+		TestEqual(TEXT("il braccio corrisponde all'alpha"), Arm->TargetArmLength,
+			FMath::Lerp(100.f, 4000.f, Wanted), 1e-2f);
+	}
+
+	// Fuori dominio: clampa invece di estrapolare.
+	Cam->SetZoomAlpha(-1.f);
+	TestEqual(TEXT("alpha negativo clampa a 0"), Cam->GetZoomAlpha(), 0.f);
+	Cam->SetZoomAlpha(2.f);
+	TestEqual(TEXT("alpha oltre 1 clampa a 1"), Cam->GetZoomAlpha(), 1.f);
+
+	// La porta di scrittura riallinea anche lo stato strategico: senza, `SetZoomAlpha(1)` porterebbe la
+	// camera a vista larga lasciando lo stato indietro di un comando.
+	Cam->SetStrategicThresholdsForTest(/*Enter=*/ 2400.f, /*Exit=*/ 1900.f);
+	Cam->SetZoomAlpha(1.f);
+	TestTrue(TEXT("a fondo corsa lo stato e' strategico"), Cam->IsStrategicView());
+	Cam->SetZoomAlpha(0.f);
+	TestFalse(TEXT("a zoom minimo lo stato esce"), Cam->IsStrategicView());
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPanScaleUnchangedTest,
+	"RefactorTactics.Camera.PanScaleGoesThroughTheSourceWithoutChangingFeel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraPanScaleUnchangedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	USpringArmComponent* Arm = Cam->FindComponentByClass<USpringArmComponent>();
+	if (!TestNotNull(TEXT("braccio"), Arm)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetBoundsMarginForTest(100000.f); // i limiti non sono il soggetto: qui si misura la scala
+
+	// \U0001f534 Il criterio che rende questa issue un refactoring e non un cambio di feel: alla distanza
+	// di default una unita' di input deve coprire ESATTAMENTE il terreno di prima. Il rapporto storico
+	// era `TargetArmLength / DefaultArmLength`, cioe' 1 al default.
+	Arm->TargetArmLength = 800.f;
+	Cam->SetCameraPivot(FVector::ZeroVector);
+	// `Axis.Y` e' «avanti sullo schermo»: con yaw a zero coincide con `ForwardVector`, quindi con
+	// l'asse X del mondo. `Axis.X` sarebbe «a destra», cioe' Y — leggere l'asse sbagliato darebbe zero,
+	// e il test fallirebbe per la propria convenzione invece che per un difetto.
+	Cam->AddPlanarMovement(FVector2D(0.f, 1.f));
+	const double AtDefault = FMath::Abs(Cam->GetCameraPivot().X);
+	TestTrue(TEXT("al default lo scorrimento e' non nullo"), AtDefault > KINDA_SMALL_NUMBER);
+
+	// Al doppio della distanza, il doppio del terreno: la proporzionalita' e' la proprieta' che la
+	// sorgente deve conservare.
+	Arm->TargetArmLength = 1600.f;
+	Cam->SetCameraPivot(FVector::ZeroVector);
+	Cam->AddPlanarMovement(FVector2D(0.f, 1.f));
+	const double AtDouble = FMath::Abs(Cam->GetCameraPivot().X);
+	TestEqual(TEXT("al doppio della distanza si copre il doppio"), AtDouble, AtDefault * 2.0, AtDefault * 0.01);
+
+	DestroyCameraWorld(World);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCameraPitchOffsetSurvivesZoomTest,
+	"RefactorTactics.Camera.ZoomDrivenPitchDoesNotEraseTheManualOrbit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCameraPitchOffsetSurvivesZoomTest::RunTest(const FString&)
+{
+	UWorld* World = MakeCameraWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	ARTCameraPawn* Cam = World->SpawnActor<ARTCameraPawn>();
+	if (!TestNotNull(TEXT("camera"), Cam)) { DestroyCameraWorld(World); return false; }
+
+	Cam->SetArmLengthRangeForTest(/*Default=*/ 800.f, /*Min=*/ 100.f, /*Max=*/ 4000.f);
+	Cam->SetSensitivitiesForTest(/*Yaw=*/ 0.5f, /*Pitch=*/ 1.f);
+	Cam->SetPitchForTest(/*Default=*/ -40.f, /*Current=*/ -40.f);
+
+	// \U0001f534 La curva si TARA nel test, e non e' un dettaglio: il default e' `0`, quindi senza questa
+	// riga la derivazione sarebbe una costante e ogni asserzione qui sotto passerebbe anche su
+	// un'implementazione che ignora del tutto lo zoom.
+	Cam->SetPitchZoomDeltaForTest(-20.f);
+
+	Cam->SetZoomAlpha(0.f);
+	TestEqual(TEXT("a zoom minimo il pitch e' quello di default"), Cam->GetCameraPitch(), -40.f, 1e-3f);
+
+	Cam->SetZoomAlpha(1.f);
+	TestEqual(TEXT("a fondo corsa il pitch ha guadagnato il delta"), Cam->GetCameraPitch(), -60.f, 1e-3f);
+
+	// L'orbita manuale e' un OFFSET sopra il derivato, e sopravvive al cambio di zoom.
+	Cam->SetZoomAlpha(0.f);
+	Cam->AddPitch(+10.f);
+	TestEqual(TEXT("l'input inclina di dieci gradi"), Cam->GetCameraPitch(), -30.f, 1e-3f);
+	TestEqual(TEXT("e l'offset lo registra"), Cam->GetManualPitchOffset(), 10.f, 1e-3f);
+
+	Cam->SetZoomAlpha(1.f);
+	TestEqual(TEXT("allontanandosi l'orbita manuale resta"), Cam->GetCameraPitch(), -50.f, 1e-3f);
+
+	Cam->SetZoomAlpha(0.f);
+	TestEqual(TEXT("e tornando indietro non si e' persa"), Cam->GetCameraPitch(), -30.f, 1e-3f);
+
+	// Windup: un input enorme non deve accumulare un offset che il clamp nasconde. Dopo essere andati a
+	// fondo corsa, UN passo nel verso opposto deve gia' rispondere.
+	Cam->AddPitch(+1000.f);
+	const float AtCeiling = Cam->GetCameraPitch();
+	Cam->AddPitch(-5.f);
+	TestTrue(TEXT("dopo il fondo corsa il verso opposto risponde subito"), Cam->GetCameraPitch() < AtCeiling);
+
+	// La taratura riazzera l'orbita: `ApplyViewSettings` e' il ritorno allo stato tarato.
+	Cam->SetZoomAlpha(0.f);
+	Cam->AddPitch(+7.f);
+	Cam->RecenterView();
+	TestEqual(TEXT("Home riazzera l'orbita manuale"), Cam->GetManualPitchOffset(), 0.f, 1e-3f);
 
 	DestroyCameraWorld(World);
 	return true;

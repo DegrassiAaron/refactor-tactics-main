@@ -5,6 +5,7 @@
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Player/RTPlayerController.h"
+#include "Player/RTPlayerState.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTPlaybackLibrary.h"
 #include "Turn/RTTurnRules.h"
@@ -419,23 +420,6 @@ FString ARTHUD::ComposePlaybackSpeedLabel(float ViewerSpeed, float CapSpeed)
 	return FString::Printf(TEXT("%s -> %s (tetto)"), *FormatSpeed(Chosen), *FormatSpeed(Effective));
 }
 
-int32 ARTHUD::ViewerTeamIdOf(const APlayerController* Controller)
-{
-	// `Cast` e' const-correct: da un `const APlayerController*` restituisce un `const ARTPlayerController*`.
-	// E' lo stesso `Cast<ARTPlayerController>(GetOwningPlayerController())` che questo file usa gia' per la
-	// barra abilita', non un secondo modo di raggiungere il controller.
-	if (const ARTPlayerController* RTPC = Cast<ARTPlayerController>(Controller))
-	{
-		return RTPC->PlayerTeamId;
-	}
-
-	// Fail-safe verso la squadra 0 e NON verso `INDEX_NONE`: un HUD senza controller e' il caso dell'editor e
-	// dei test, dove disegnare la vista della squadra 0 e' cio' che il progetto fa gia' altrove
-	// (`URTKnowledgeVeilPresenter::ViewerTeamId`, `ARTCameraPawn::FrameOwnTeam`). Un sentinella qui obbligherebbe i sei
-	// consumatori a gestirlo, e nessuno di loro ha una risposta per «nessuna squadra».
-	return 0;
-}
-
 void ARTHUD::DrawHUD()
 {
 	Super::DrawHUD();
@@ -450,9 +434,9 @@ void ARTHUD::DrawHUD()
 	// conoscenza di squadra introdotta con la porta ne avrebbe fatto un terzo.
 	//
 	// 🔴 Da un letterale a una LETTURA: era `= 0`, e con quello alimentava sei consumatori di cui quattro
-	// sono filtri di privacy. Ora la fonte e' la stessa che [D-242] ha scelto per il velo. Vedi
-	// `ViewerTeamIdOf`, che porta la ragione per esteso.
-	const int32 PlayerTeamId = ViewerTeamIdOf(GetOwningPlayerController());
+	// sono filtri di privacy. Ora la fonte e' la stessa unica porta che [D-242] ha scelto per il velo e per
+	// tutti gli altri lettori di squadra. Vedi `ARTPlayerState::TeamIdOf`, che porta la ragione per esteso.
+	const int32 PlayerTeamId = ARTPlayerState::TeamIdOf(GetOwningPlayerController());
 
 	// Barre HP/scudo sopra ogni unita' viva.
 	TArray<AActor*> Actors;

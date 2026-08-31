@@ -8,6 +8,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Perception/RTKnowledgeVeilPresenter.h"
 #include "Player/RTPlayerController.h"
+#include "Player/RTPlayerState.h"
 #include "Tests/RTWorldFixtures.h"
 #include "Turn/RTTurnManager.h"
 
@@ -16,10 +17,16 @@
 /**
  * 🔑 **La vista e' quella del controller che possiede il presenter, e si RILEGGE.**
  *
- * ⚠️ La seconda meta' del test — cambiare `PlayerTeamId` e richiedere la risposta — e' quella che discrimina:
- * un presenter che copiasse il valore alla costruzione passerebbe la prima asserzione e fallirebbe questa,
- * ed e' esattamente il difetto che «si rilegge, non si copia» esiste per evitare. Un secondo posto dove il
- * team e' scritto e' un posto che puo' divergere.
+ * ⚠️ La seconda meta' del test — cambiare la squadra sul `ARTPlayerState` e richiedere la risposta — e'
+ * quella che discrimina: un presenter che copiasse il valore alla costruzione passerebbe la prima asserzione
+ * e fallirebbe questa, ed e' esattamente il difetto che «si rilegge, non si copia» esiste per evitare. Un
+ * secondo posto dove il team e' scritto e' un posto che puo' divergere.
+ *
+ * ⚠️ **Usa `MakePlayerOnTeam`, non uno `SpawnActor<ARTPlayerController>` nudo.** Misurato in
+ * `Player.TeamFallsBackWithoutPlayerState`: un controller spawnato da solo in un mondo senza
+ * `InitializeActorsForPlay` non ha un `PlayerState`, quindi `ARTPlayerState::TeamIdOf` — la fonte di
+ * `ViewerTeamId()` dopo la migrazione a una porta sola — ripiegherebbe sempre su `0` e questo test non
+ * discriminerebbe piu' nulla.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilPresenterReadsItsOwnerTest,
 	"RefactorTactics.Veil.PresenterViewerIsItsOwningController",
@@ -29,7 +36,7 @@ bool FRTVeilPresenterReadsItsOwnerTest::RunTest(const FString&)
 	UWorld* World = RTWorldFixtures::MakeWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	ARTPlayerController* PC = RTWorldFixtures::MakePlayerOnTeam(World, 1);
 	if (!TestNotNull(TEXT("controller"), PC)) { RTWorldFixtures::DestroyWorld(World); return false; }
 
 	URTKnowledgeVeilPresenter* Presenter = PC->GetKnowledgeVeilPresenter();
@@ -39,10 +46,10 @@ bool FRTVeilPresenterReadsItsOwnerTest::RunTest(const FString&)
 		return false;
 	}
 
-	TestEqual(TEXT("la vista e' quella del controller"), Presenter->ViewerTeamId(), PC->PlayerTeamId);
+	TestEqual(TEXT("la vista e' quella del PlayerState"), Presenter->ViewerTeamId(), 1);
 
-	PC->PlayerTeamId = 1;
-	TestEqual(TEXT("e SEGUE il campo invece di copiarlo"), Presenter->ViewerTeamId(), 1);
+	Cast<ARTPlayerState>(PC->PlayerState)->AssignTeam(0);
+	TestEqual(TEXT("e SEGUE lo stato, non una copia"), Presenter->ViewerTeamId(), 0);
 
 	// Il presenter e' UNO per controller: chiederlo due volte non ne apre un secondo, altrimenti due velo
 	// diversi conterebbero ciascuno le proprie applicazioni e nessuno dei due direbbe la verita'.
@@ -57,7 +64,8 @@ bool FRTVeilPresenterReadsItsOwnerTest::RunTest(const FString&)
  *
  * E' il caso delle run headless e dell'harness: la board sta nel mondo anche quando nessun client la guarda,
  * e il velo deve poter essere steso lo stesso. E' la stessa regola di ripiego di `ARTCameraPawn::FrameOwnTeam`
- * e di `ARTHUD::ViewerTeamIdOf`, che i loro test pinnano: tre lettori, un solo comportamento.
+ * e di `ARTHUD::DrawHUD`, entrambi lettori della stessa `ARTPlayerState::TeamIdOf` che il loro test pinna:
+ * tre lettori, un solo comportamento.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilPresenterFallsBackToTeamZeroTest,
 	"RefactorTactics.Veil.PresenterWithoutControllerFallsBackToTeamZero",

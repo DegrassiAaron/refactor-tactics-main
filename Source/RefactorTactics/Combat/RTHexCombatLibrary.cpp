@@ -562,7 +562,9 @@ TArray<FRTAttack> URTHexCombatLibrary::ToAttacks(const FRTHexBlastPlan& Plan)
 	Attacks.Reserve(Plan.Hits.Num());
 	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
-		Attacks.Add(FRTAttack(Hit.TargetId, Hit.Power));
+		// `AttackerId` non si scarta piu' ([D-212]): senza, una mitigazione direzionale per-colpo non e'
+		// esprimibile dentro il resolver, che vede solo bersaglio e potenza.
+		Attacks.Add(FRTAttack(Hit.TargetId, Hit.Power, Hit.AttackerId));
 	}
 	return Attacks;
 }

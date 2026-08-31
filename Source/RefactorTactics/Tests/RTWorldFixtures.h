@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Player/RTPlayerController.h"
+#include "Player/RTPlayerState.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "Turn/RTTurnManager.h"
 
@@ -97,6 +99,35 @@ namespace RTWorldFixtures
 			GEngine->DestroyWorldContext(World);
 		}
 		World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	}
+
+	/**
+	 * Un giocatore su una squadra dichiarata: controller + `ARTPlayerState`, legati.
+	 *
+	 * ⚠️ **Sostituisce il PlayerState esistente invece di crearne uno solo se manca.** Misurato il
+	 * 2026-08-30: dopo `InitializeActorsForPlay` il controller ha gia' un `APlayerState` **nudo**, perche'
+	 * il ripiego di `InitPlayerState` pesca il game mode di DEFAULT quando `GetAuthGameMode()` e' nullo.
+	 * Una fixture che si limitasse a riempire il vuoto lascerebbe la classe sbagliata, e il test leggerebbe
+	 * il ripiego credendo di leggere la squadra — verde, e muto.
+	 *
+	 * ⛔ Non registra `PlayerStateClass` sul GameMode: in questi mondi il nostro GameMode non e' l'autorita'
+	 * che decide la classe, quindi non servirebbe a niente.
+	 */
+	inline ARTPlayerController* MakePlayerOnTeam(UWorld* World, int32 TeamId)
+	{
+		if (!World)
+		{
+			return nullptr;
+		}
+		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+		ARTPlayerState* PS = World->SpawnActor<ARTPlayerState>();
+		if (!PC || !PS)
+		{
+			return nullptr;
+		}
+		PC->SetPlayerState(PS);
+		PS->AssignTeam(TeamId);
+		return PC;
 	}
 
 	/**

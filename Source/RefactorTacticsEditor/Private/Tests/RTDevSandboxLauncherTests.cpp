@@ -3,6 +3,8 @@
 #include "Editor.h"
 #include "GameMapsSettings.h"
 #include "RTDevSandboxLauncherSubsystem.h"
+#include "RTLauncherWorkspace.h"
+#include "ScenarioHarness/RTScenarioAuthoring.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -151,6 +153,100 @@ bool FRTDevSandboxLauncherSubscribesTest::RunTest(const FString&)
 	}
 
 	TestTrue(TEXT("il launcher e' iscritto a OnMapOpened"), Launcher->IsSubscribed());
+
+	return true;
+}
+
+/**
+ * La sessione passa dalla facade, e un rifiuto non ne lascia una a meta' (#1682, slice `L6`).
+ *
+ * ⚠️ **L'asserzione che vale piu' delle altre e' l'ultima**: dopo un tentativo fallito il launcher NON deve
+ * avere una sessione. Una facade aperta su uno scenario che la validazione ha respinto sembrerebbe
+ * funzionare — e il primo `Run` misurerebbe qualcosa che nessuno ha dichiarato valido.
+ *
+ * ⛔ Non copre i pulsanti: `Start Session` e' Slate, ed e' voce di seduta. Copre chi possiede la sessione,
+ * che e' la domanda `A3` del referto del 2026-08-29 §8, e cosa resta quando l'apertura non riesce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDevSandboxLauncherSessionComesFromTheFacadeTest,
+	"RefactorTactics.DevSandboxLauncher.SessionComesFromTheFacade",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDevSandboxLauncherSessionComesFromTheFacadeTest::RunTest(const FString&)
+{
+	if (!TestNotNull(TEXT("GEditor esiste nel contesto editor"), GEditor))
+	{
+		return false;
+	}
+
+	URTDevSandboxLauncherSubsystem* Launcher = GEditor->GetEditorSubsystem<URTDevSandboxLauncherSubsystem>();
+	if (!TestNotNull(TEXT("il subsystem del launcher e' istanziato"), Launcher))
+	{
+		return false;
+	}
+
+	// ⚠️ Lo stato d'ingresso si dichiara invece di assumerlo: questo subsystem vive per tutta la sessione
+	// d'editor, e un test precedente potrebbe averci lasciato una sessione aperta.
+	Launcher->EndSession();
+	TestFalse(TEXT("si parte senza sessione"), Launcher->HasSession());
+
+	// Uno scenario del corpus: se il corpus non si legge, il test lo dice invece di fallire sull'asserto
+	// sbagliato.
+	const FRTLauncherStartDecision Opened = Launcher->StartSession(TEXT("Combat.BasicAttack"));
+	if (TestTrue(TEXT("uno scenario canonico apre la sessione"), Opened.bAllowed))
+	{
+		TestTrue(TEXT("e la sessione risulta aperta"), Launcher->HasSession());
+		TestNotNull(TEXT("la sessione E' la facade d'authoring, non un terzo oggetto"), Launcher->GetSession());
+	}
+
+	// Un id che l'indice non conosce: rifiuto, con la causa giusta e nessun residuo.
+	const FRTLauncherStartDecision Refused = Launcher->StartSession(TEXT("Scenario.CheNonEsiste"));
+	TestFalse(TEXT("un id assente non apre la sessione"), Refused.bAllowed);
+	TestTrue(TEXT("la causa e' `NotFound`"), Refused.Refusal == ERTLauncherStartRefusal::NotFound);
+	TestFalse(TEXT("il motivo e' visibile"), Refused.Reason.IsEmpty());
+	TestFalse(TEXT("e NON resta una sessione mezza aperta: ne' quella nuova, ne' quella di prima"), Launcher->HasSession());
+
+	// Senza selezione il launcher non interroga nemmeno la facade.
+	const FRTLauncherStartDecision NoSelection = Launcher->StartSession(FString());
+	TestFalse(TEXT("senza id non si apre"), NoSelection.bAllowed);
+	TestTrue(TEXT("e la causa e' la selezione"), NoSelection.Refusal == ERTLauncherStartRefusal::NoSelection);
+
+	Launcher->EndSession();
+	TestFalse(TEXT("chiudere lascia il launcher senza sessione"), Launcher->HasSession());
+
+	// Idempotente: chiudere due volte non e' un errore.
+	Launcher->EndSession();
+
+	return true;
+}
+
+/**
+ * Una superficie non dichiarata **rifiuta** invece di non fare niente.
+ *
+ * ⚠️ Il caso positivo — attivare Map o Scenario — non si asserisce qui: attiva un editor mode e invoca un
+ * tab globale in mezzo alla suite, cioe' modifica l'editor di chi sta misurando. Cio' che si puo' misurare
+ * senza effetti collaterali e' il rifiuto, ed e' anche il ramo dove il `silent fallback` si nasconderebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDevSandboxLauncherPendingSurfaceIsRefusedTest,
+	"RefactorTactics.DevSandboxLauncher.PendingSurfaceIsRefused",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDevSandboxLauncherPendingSurfaceIsRefusedTest::RunTest(const FString&)
+{
+	URTDevSandboxLauncherSubsystem* Launcher = GEditor ? GEditor->GetEditorSubsystem<URTDevSandboxLauncherSubsystem>() : nullptr;
+	if (!TestNotNull(TEXT("il subsystem del launcher e' istanziato"), Launcher))
+	{
+		return false;
+	}
+
+	// Dal registro, non da un nome scritto qui: quando #1625 consegnera' il playback questa voce diventera'
+	// dichiarata, e il test seguira' il registro invece di restare a pinnare un'assenza superata.
+	const FRTLauncherSurface* Pending = FRTLauncherWorkspace::Surfaces().FindByPredicate(
+		[](const FRTLauncherSurface& Surface) { return !Surface.bDeclared; });
+
+	if (Pending)
+	{
+		TestFalse(TEXT("una superficie non dichiarata non si attiva"), Launcher->ActivateSurface(Pending->Key));
+	}
+
+	TestFalse(TEXT("una chiave che non esiste non si attiva"), Launcher->ActivateSurface(TEXT("SuperficieCheNonEsiste")));
 
 	return true;
 }
