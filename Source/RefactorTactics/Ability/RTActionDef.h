@@ -209,7 +209,13 @@ enum class ERTMovementStyle : uint8
 	Budget,
 	/** Linea retta su una delle sei direzioni: si ferma davanti a muri e unita' (`Dash`, `Reposition`). */
 	LinearDash,
-	/** Come `LinearDash`, ma si ferma SUL primo nemico incontrato e lo colpisce (`Charge`). */
+	/**
+	 * Come `LinearDash`, ma si ferma ADIACENTE al primo nemico incontrato e lo colpisce (`Charge`).
+	 *
+	 * ⚠️ **Adiacente, non «sul»**: la cella d'arrivo e' quella PRECEDENTE al bersaglio — `Result.Final`
+	 * resta a `Current`, che il ciclo non fa avanzare sull'occupante. Questa riga diceva «SUL» fino a
+	 * [D-296]. La regola e' pinnata da `HexMatch.ChargeStopsOnEnemyAndHits`.
+	 */
 	LinearCharge,
 	/** Salto: ignora unita' e celle intermedie, conta solo dove si atterra (`Leap`). */
 	LinearLeap,
@@ -218,7 +224,7 @@ enum class ERTMovementStyle : uint8
 	 *
 	 * La differenza con `LinearLeap` non e' il danno ma cosa si tocca: il salto **scavalca** e non incontra
 	 * nessuno, la lama passa **in mezzo** e applica a ognuno gli effetti dell'azione. Con `LinearCharge`
-	 * condivide il colpire, ma la carica si ferma sul primo bersaglio mentre questa tira dritto.
+	 * condivide il colpire, ma la carica si ferma AL primo bersaglio mentre questa tira dritto.
 	 *
 	 * Aggiunto IN CODA: i valori precedenti non cambiano numero, e gli asset che li hanno serializzati
 	 * continuano a rileggersi.
