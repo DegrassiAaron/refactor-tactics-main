@@ -132,4 +132,50 @@ bool FRTHexProbeReadoutRequeryTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **Un eroe che il catalogo non conosce non e' «fuori budget».**
+ *
+ * Il difetto che questo test toglie: `BudgetFromCatalog` restituisce `0` per un `HeroId` sconosciuto, e con
+ * budget zero ogni cella diventa `OutOfBudget` — cioe' il pannello scriveva *«fuori budget: 0 MP non
+ * bastano»*, mandando a cambiare il **budget** invece dell'**eroe**. E' esattamente il difetto che #711
+ * esiste per togliere, ricomparso nel guscio: il motivo giusto detto della cosa sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexProbeReadoutUnknownHeroTest,
+	"RefactorTactics.MovementProbe.UnknownHeroIsNotAZeroBudget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexProbeReadoutUnknownHeroTest::RunTest(const FString&)
+{
+	// L'eroe del catalogo: il budget viene da li', e la riga non ha niente da segnalare.
+	const RTHexProbe::FBudget Known = RTHexProbe::ResolveBudget(TEXT("Hero.Gadget"));
+	TestTrue(TEXT("un eroe del catalogo e' riconosciuto"), Known.bKnown);
+	TestTrue(TEXT("e porta il suo movimento"), Known.Points > 0);
+
+	// Un nome che non esiste: NON e' un budget zero, e' un eroe sbagliato.
+	const RTHexProbe::FBudget Unknown = RTHexProbe::ResolveBudget(TEXT("Hero.CheNonEsiste"));
+	TestFalse(TEXT("un id sconosciuto non e' riconosciuto"), Unknown.bKnown);
+	TestEqual(TEXT("e non inventa movimento"), Unknown.Points, 0);
+
+	// E il pannello lo DICE, invece di parlare di budget.
+	const RTHexProbe::FReadout R = RTHexProbe::Describe(/*bHasUnit=*/ true, ERTHexProbeExclusion::OutOfBudget,
+		/*Cost=*/ 0, /*Budget=*/ 0, /*PathCells=*/ 0, /*bKnownHero=*/ false);
+	TestTrue(TEXT("la ragione nomina l'eroe"), R.Reason.Contains(TEXT("eroe")));
+	TestFalse(TEXT("e NON manda a cambiare il budget"), R.Reason.Contains(TEXT("budget")));
+	return true;
+}
+
+/**
+ * Con un eroe noto il messaggio resta quello di prima: la correzione non cambia il caso normale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexProbeReadoutKnownHeroTest,
+	"RefactorTactics.MovementProbe.KnownHeroStillSaysOutOfBudget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexProbeReadoutKnownHeroTest::RunTest(const FString&)
+{
+	const RTHexProbe::FReadout R = RTHexProbe::Describe(/*bHasUnit=*/ true, ERTHexProbeExclusion::OutOfBudget,
+		/*Cost=*/ 0, /*Budget=*/ 5, /*PathCells=*/ 0, /*bKnownHero=*/ true);
+	TestTrue(TEXT("resta un problema di budget"), R.Reason.Contains(TEXT("budget")));
+	TestTrue(TEXT("e dice quanto ne ha"), R.Reason.Contains(TEXT("5")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

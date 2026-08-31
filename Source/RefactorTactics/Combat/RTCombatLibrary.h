@@ -222,9 +222,26 @@ public:
 	 * su un'unita' avversaria la rende "selezionata" e da li' si finisce a pianificare i turni del nemico
 	 * (oltre a bloccare la selezione delle proprie, vedi OnSelect). Parente dell'invariante #6: quel che non e'
 	 * tuo non lo vedi e non lo comandi.
+	 *
+	 * ⚠️ **Due condizioni, non una, e la seconda e' arrivata con l'alleato bot.** La squadra dice di CHI e'
+	 * l'unita'; `bUnitIsBotControlled` dice se qualcun altro la sta gia' pianificando. Finche' il bot ha
+	 * posseduto solo la squadra 1 le due domande avevano la stessa risposta e bastava la prima — ma con un
+	 * compagno pianificato dal bot (`rt.Match.BotAllies`) la squadra 0 contiene entrambi i casi, e un
+	 * predicato scritto sul solo `TeamId` lascerebbe il giocatore selezionare Phase e scriverle un piano
+	 * che `PlanBots()` sovrascrive a inizio turno senza dirlo. E' lo stesso difetto di coerenza gia'
+	 * misurato per l'autobattle (#971), un livello piu' in basso: li' l'input era inerte per la sessione,
+	 * qui lo e' per la singola unita'.
+	 *
+	 * ⛔ **Non e' il gate della modalita' non presidiata.** Quella la decide `IsPlanningInputInert()` sul
+	 * GameMode, per le ragioni scritte alla sua dichiarazione. Questo predicato risponde a una domanda piu'
+	 * stretta — «questa unita' e' comandabile?» — e i due insiemi non coincidono.
+	 *
+	 * @param bUnitIsBotControlled `ARTUnit::bIsBotControlled` dell'unita' in esame. Il default `false`
+	 *        conserva il comportamento storico per i chiamanti che non conoscono l'unita' (i test di
+	 *        `RTCombatLibraryTests` interrogano la sola regola di squadra).
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
-	static bool CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId);
+	static bool CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId, bool bUnitIsBotControlled = false);
 
 	/**
 	 * Vero se il bersaglio e' ingaggiabile su griglia esagonale: entro `RangeCells` (distanza esagonale) e con

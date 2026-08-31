@@ -66,10 +66,12 @@ bool URTCombatLibrary::IsIntentVisibleTo(int32 ObserverTeamId, int32 OwnerTeamId
 	return ObserverTeamId == OwnerTeamId || bOwnerRevealed;
 }
 
-bool URTCombatLibrary::CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId)
+bool URTCombatLibrary::CanPlayerControlUnit(int32 UnitTeamId, int32 PlayerTeamId, bool bUnitIsBotControlled)
 {
 	// Nessuna eccezione: si comanda solo la propria squadra (niente "possessione" di unita' avversarie).
-	return UnitTeamId == PlayerTeamId;
+	// E nemmeno un compagno che il bot sta gia' pianificando: sarebbe un piano scritto a due mani, e la mano
+	// che vince e' sempre quella di `PlanBots()`, che gira a inizio turno e azzera i campi del piano.
+	return UnitTeamId == PlayerTeamId && !bUnitIsBotControlled;
 }
 
 ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,

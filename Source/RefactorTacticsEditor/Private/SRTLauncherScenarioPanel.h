@@ -70,6 +70,30 @@ private:
 	 */
 	void RefreshPerspectiveOptions();
 
+	/**
+	 * `Start Session` sullo scenario selezionato (#1682).
+	 *
+	 * ⚠️ **Non apre niente da solo**: chiede al subsystem, che possiede la sessione, e si limita a mostrare
+	 * la frase che torna indietro. La decisione sta in `FRTLauncherWorkspace::DecideStart`, dove un test la
+	 * vede; qui resta la disposizione dei widget.
+	 */
+	FReply OnStartSessionClicked();
+
+	/** Crea uno scenario NUOVO dalla facade e ci apre la sessione. L'id arriva da `NewScenarioId`. */
+	FReply OnNewScenarioClicked();
+
+	/** Attiva una superficie del registro. Se non ci riesce, lo scrive invece di non fare niente. */
+	FReply OnSurfaceClicked(FName SurfaceKey);
+
+	/**
+	 * La riga delle superfici, costruita **iterando il registro**.
+	 *
+	 * ⛔ Nessun elenco di pulsanti scritto a mano: e' cio' che rende vero l'AC di #1682 — *«aggiungere una
+	 * superficie non richiede di modificare nessun criterio»*. Una voce nuova compare qui da sola, e una
+	 * pendente compare come etichetta che nomina la issue invece che come pulsante inerte.
+	 */
+	TSharedRef<SWidget> BuildSurfaceRow();
+
 	TSharedRef<ITableRow> OnGenerateScenarioRow(TSharedPtr<FString> Item, const TSharedRef<STableViewBase>& OwnerTable);
 	TSharedRef<SWidget> OnGenerateTagOption(TSharedPtr<FString> Option) const;
 	void OnScenarioSelected(TSharedPtr<FString> Item, ESelectInfo::Type SelectInfo);
@@ -114,6 +138,18 @@ private:
 	FString SelectedId;
 
 	TArray<FString> ReadoutLines;
+
+	/**
+	 * L'esito dell'ultimo `Start Session`: vuoto finche' nessuno l'ha premuto.
+	 *
+	 * ⚠️ Tiene sia il rifiuto sia la conferma, e non solo l'errore: dopo un rifiuto corretto e una seconda
+	 * pressione riuscita, una casella che mostra solo gli errori resterebbe ferma sull'ultimo e direbbe che
+	 * la sessione non e' partita mentre e' aperta.
+	 */
+	FString SessionMessage;
+
+	/** L'id proposto per uno scenario nuovo. Vuoto = `New Scenario` rifiuta, dicendolo. */
+	FString NewScenarioId;
 
 	/** L'errore dell'ultima apertura, quando c'e'. Uno scenario illeggibile resta elencato e lo dice. */
 	FString ReadoutError;
