@@ -332,16 +332,27 @@ scritta qui sotto: si misura **dopo il merge**, col comando. `senza-marcatore` r
 > che si ricorda a mano è la convenzione che si dimentica quando si ha fretta.
 >
 > 🔴 **Aggiornamento 2026-08-31: il comando qui sopra è stantio, e nel modo che questo file documenta
-> altrove — misura il FORMATO dell'ID, non il fatto.** Oggi dà `25` e `21`, e i quattro di scarto **non sono
-> quattro buchi**: `Visual.Input.PcGym` è coperta da `PIE-PC-GYM`, che è una voce a tutti gli effetti ma **non
-> porta il prefisso `PIE-VIS-`**; `Visual.Map.GrayKitYard` è una **fixture** con guida e automation test propri
-> ([`guida-seduta-u25-u35-graykit-e-griglia.md`](runbooks/guida-seduta-u25-u35-graykit-e-griglia.md),
-> `FRTGrayKitYardCarriesEverySubjectTest`), non uno scenario-verifica; `Visual.Map.TwoLayersSameColumn` è agganciata
-> a `U34` in [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml).
+> altrove — misura il FORMATO dell'ID, non il fatto.** Oggi dà `25` e `21`. Ma lo scarto di quattro non si
+> legge né come «quattro buchi» né come «uno solo»: due sono coperti e **due no**.
 >
-> ⚠️ **Resta un buco vero, e uno solo: `Visual.Map.SightWallIsWalkable`** — nessuna voce PIE, nessuna citazione
-> in `docs/`, nessun riferimento in `Source/`. È esattamente il caso che il riquadro qui sopra descrive: uno
-> scenario eseguito, verde, e **mai guardato da nessuno**.
+> | Scenario | Chi lo guarda | Buco? |
+> |---|---|---|
+> | `Visual.Input.PcGym` | `PIE-PC-GYM` — voce a tutti gli effetti, **senza** il prefisso `PIE-VIS-` | no |
+> | `Visual.Map.GrayKitYard` | è una **fixture**, non uno scenario-verifica: ha guida propria ([`guida-seduta-u25-u35-graykit-e-griglia.md`](runbooks/guida-seduta-u25-u35-graykit-e-griglia.md)) e l'automation test `FRTGrayKitYardCarriesEverySubjectTest` | no |
+> | `Visual.Map.TwoLayersSameColumn` | **nessuno** | **sì** |
+> | `Visual.Map.SightWallIsWalkable` | **nessuno** | **sì** |
+>
+> 🔴 **La prima stesura di questa nota, poche ore fa, diceva «resta un buco vero, e uno solo», e
+> sbagliava su `TwoLayersSameColumn`.** L'avevo dato per coperto perché [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml)
+> lo nomina in `U34` — la seduta per cui **è stato creato**, e che lo dichiara per iscritto. Ma `U34` ha
+> `verifies: []`: **non consuma nessuna voce PIE**. Essere *citato* da una seduta non è essere *guardato* da
+> una voce, ed è esattamente la distinzione che questo riquadro esiste per fare. ⚠️ La lezione è la stessa che
+> il comando sbagliava: avevo misurato la **presenza del nome**, non la presenza di un oracolo — cioè di nuovo
+> il formato invece del fatto, un paragrafo dopo averlo denunciato.
+>
+> ⚠️ Entrambi i buchi sono **PASS nel corpus**: `SightWallIsWalkable` ha tre run registrate sotto `Saved/RTTests/`,
+> l'ultima del 2026-08-30, tutte verdi. È precisamente il difetto del riquadro qui sopra — *uno scenario
+> eseguito, verde, e mai guardato da nessuno* — e il verde è ciò che lo rende invisibile.
 >
 > ⚠️ Il letterale `21 e 21` era corretto quando fu scritto, ed è invecchiato da solo a ogni scenario aggiunto —
 > che è ciò che un numero scritto nel commento di un comando fa sempre. La domanda giusta non è *«quante voci
