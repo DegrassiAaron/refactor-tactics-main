@@ -1030,6 +1030,27 @@ percorso — passi 1-9 e 13 — è eseguibile.
 | **PIE-GEO-UNDO** | **Una gesture = un `Ctrl+Z`** | almeno due segmenti disegnati | Un `Ctrl+Z` annulla **l'ultimo gesto intero** — non metà, e non due insieme, **anche quando il gesto ha riempito più celle**. Un secondo `Ctrl+Z` annulla quello prima. `Ctrl+Y` li rifà nello stesso ordine. La copertura appare e sparisce dalla vista a ogni passo | ✅ |
 | **PIE-GEO-RESIDUI** | Uscire e rientrare non lascia niente dietro | almeno un segmento disegnato | Cambiando tool e tornando su Geometry, il ghost del gesto precedente **non c'è più**. Uscendo dall'Hex Map mode e rientrando, le coperture cotte e i muri interni **restano** (sono dato dell'asset) ma nessuna linea di preview sopravvive. `git status` sul `.umap` deve restare **pulito**: la geometria non si salva nel livello | ✅ |
 
+### La sonda di movimento — tool Probe (#711, aggiunte il 2026-08-31)
+
+> **Tre voci, e nessuna delle tre e' osservabile headless**: che il ventaglio si veda sulla mappa, che il
+> percorso segua il cursore e che il pannello si legga esistono solo nell'occhio di chi disegna. La parte
+> verificabile sta nel runtime e nel readout, con i suoi undici test (`RefactorTactics.MovementProbe.*`).
+>
+> ⚠️ **Cio' che queste voci NON devono riverificare**: che il ventaglio sia *giusto*. Quello e' del Dijkstra
+> canonico e dei suoi test; qui si guarda se e' **leggibile** e se il pannello dice **la cosa giusta sulla
+> cella giusta**. Un verdetto d'autore su un insieme di celle sarebbe un'opinione su un calcolo.
+>
+> **Precondizione comune**: Editor aperto su `L_DevSandbox` illuminato da `U21`, Hex Map mode attivo, tool
+> **Probe** selezionato, un `ARTHexMapActor` con asset. La mappa deve avere **almeno una superficie costosa**
+> (`MoveCost = 2`), **una cella che blocca il movimento** e **una zona irraggiungibile** — le tre condizioni
+> che separano i motivi di esclusione l'uno dall'altro.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-HEX-MOVEMENT-PROBE** | Il ventaglio si vede, il percorso segue il cursore, e il pannello dice **perche' quella cella no** | tool Probe attivo, un eroe scelto nel pannello, una cella di partenza cliccata | Cliccata la partenza, le celle raggiungibili si distinguono da quelle escluse **senza contarle**. Passando sopra una cella del ventaglio compare il **percorso** e il pannello mostra `costo / budget` e i passi; passando su una esclusa il percorso sparisce e la riga **Reason** dice quale dei cinque motivi — e cambiando `HeroId` il campo `Budget` si riallinea da solo e il ventaglio cambia con lui. ⚠️ La riserva da guardare: che si capisca **da dove parte** il percorso quando la partenza e' anche sotto il cursore | ⏳ |
+| **PIE-HEX-MOVEMENT-PROBE-SURFACE** | Dipinta una superficie piu' cara, il ventaglio si **restringe subito** | tool Paint per dipingere, poi Probe | Con la sonda gia' attiva su una partenza, si dipinge `MoveCost = 2` su una cella di passaggio e **al primo movimento del mouse** il ventaglio e' gia' quello nuovo: nessun click sulla partenza per farlo aggiornare. E' il criterio *«sulla revisione dell'asset, non su un refresh a tempo»* guardato da fuori | ⏳ |
+| **PIE-HEX-MOVEMENT-PROBE-FLUIDITA** | L'hover non fa scattare la sonda | tool Probe attivo su una mappa **grande** con una zona irraggiungibile | Muovendo il cursore avanti e indietro dentro **la stessa cella** non succede niente di visibile e il viewport non perde fluidita'; attraversando molte celle escluse — dove ogni risposta costa un percorso a budget illimitato — il movimento resta continuo. ⚠️ E' la voce che guarda il guardrail: la difesa e' `RTHexProbe::ShouldRequery`, ed e' testata, ma **quanto costa una risposta** non lo dice nessun test | ⏳ |
+
 ### Scenario Test Harness (aggiunte il 2026-08-07)
 
 > L'harness esegue scenari `.json` attraverso il **percorso di gioco reale** ed è **interamente coperto
