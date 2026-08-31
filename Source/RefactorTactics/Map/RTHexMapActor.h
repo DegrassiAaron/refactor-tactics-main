@@ -758,6 +758,33 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> KnowledgeVolumes;
 
+#if WITH_EDITORONLY_DATA
+	/**
+	 * Le coordinate incise sul pavimento (#1920). **Solo editor**, e non e' un ottavo ISM.
+	 *
+	 * 🔑 **Perche' un `ULineBatchComponent` e non un disegno per frame.** Le linee si posano una volta e
+	 * restano finche' non si svuota il batch: si ripopola quando la mappa cambia, come `RebuildInstances`.
+	 * Un `DrawDebugLine` per frame su tutte le celle sarebbe il difetto che #711 ha gia' pagato — un costo
+	 * per evento che nessun test misura e che si scopre solo quando il viewport smette di seguire il mouse.
+	 *
+	 * ⚠️ Le sette famiglie di ISM sono canali di lettura DELLA PARTITA. Questo no: in una build di gioco
+	 * il componente non esiste, e si verifica per assenza.
+	 *
+	 * ⚠️ **`WITH_EDITORONLY_DATA` e non `WITH_EDITOR`, per la `UPROPERTY`**: UHT rifiuta una `UPROPERTY`
+	 * dentro `WITH_EDITOR` — *«UProperties should not be wrapped by WITH_EDITOR, use WITH_EDITORONLY_DATA
+	 * instead»* — mentre la funzione sotto, che non e' una `UPROPERTY`, resta sotto `WITH_EDITOR` come nel
+	 * resto del file. Le due macro coincidono per i target di questo progetto (Editor vs Game), quindi il
+	 * confine «solo editor» e' lo stesso.
+	 */
+	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|HexMap")
+	TObjectPtr<class ULineBatchComponent> CoordinateLabels;
+#endif
+
+#if WITH_EDITOR
+	/** Ridisegna le terne di tutte le celle. Nessuna decisione: consuma `BuildCellLabel`. */
+	void RebuildCoordinateLabels();
+#endif
+
 	/**
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:
 	 * viene rigenerato da RebuildInstances a ogni costruzione dell'actor.

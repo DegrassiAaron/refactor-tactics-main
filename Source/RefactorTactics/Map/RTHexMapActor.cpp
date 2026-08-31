@@ -24,6 +24,9 @@
 #include "Map/RTMapVisuals.h" // #983: le misure del disco stanno scritte una volta sola
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
+#include "Components/LineBatchComponent.h"
+#include "Map/RTHexLabel.h"
+#include "Map/RTHexLabelLibrary.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "RTHexMap"
@@ -794,6 +797,15 @@ ARTHexMapActor::ARTHexMapActor()
 	KnowledgeVolumes->SetCollisionResponseToAllChannels(ECR_Ignore);
 	KnowledgeVolumes->CastShadow = false;
 	KnowledgeVolumes->SetVisibility(false);
+
+#if WITH_EDITOR
+	CoordinateLabels = CreateDefaultSubobject<ULineBatchComponent>(TEXT("CoordinateLabels"));
+	CoordinateLabels->SetupAttachment(RootComponent);
+	// Come le altre famiglie di lettura: non e' scenografia e non deve intercettare il raycast di
+	// selezione, che valida il componente colpito.
+	CoordinateLabels->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	CoordinateLabels->SetCastShadow(false);
+#endif
 }
 
 void ARTHexMapActor::OnConstruction(const FTransform& Transform)
@@ -1529,7 +1541,72 @@ void ARTHexMapActor::RebuildInstances()
 			EdgeFeatureBaseScale.Add(WallXf.GetScale3D());
 		}
 	}
+
+#if WITH_EDITOR
+	// Le coordinate seguono la mappa: stesso innesco delle istanze, quindi nessuna regola di
+	// invalidazione nuova da tenere allineata.
+	RebuildCoordinateLabels();
+#endif
 }
+
+#if WITH_EDITOR
+void ARTHexMapActor::RebuildCoordinateLabels()
+{
+	if (!CoordinateLabels)
+	{
+		return;
+	}
+	CoordinateLabels->Flush();
+
+	if (!MapAsset)
+	{
+		return; // nessuna mappa, nessuna coordinata: non si inventa una griglia
+	}
+
+	FVector MapOrigin = FVector::ZeroVector;
+	// `MapHexSize`/`MapLayerHeight` e non `HexSize`/`LayerHeight`: quei nomi nascondono i membri
+	// `ARTHexMapActor::HexSize`/`LayerHeight` (C4458), lo stesso motivo per cui `DrawCellOverlay` qui
+	// sopra chiama i suoi locali `Size`/`LayerH` invece del nome del parametro `GetHexContext`.
+	float MapHexSize = 0.f;
+	float MapLayerHeight = 0.f;
+	GetHexContext(MapOrigin, MapHexSize, MapLayerHeight);
+
+	// Il colore del segno inciso, lo stesso registro dei glifi e dei bordi ([D-183]): le coordinate sono
+	// un segno d'autore, non un canale di colore in piu'.
+	// ⚠️ `FLinearColor`, non `FColor`: e' il tipo che `FBatchedLine` prende. Un `FColor` compilerebbe per
+	// conversione implicita e passerebbe per lo spazio sbagliato.
+	const FLinearColor Ink(0.08f, 0.08f, 0.08f, 1.f);
+
+	// 🔴 **`Lift` e' ancorato a `RTCellTopZ`, non un letterale nudo.** `BuildCellLabel` posa i glifi sui
+	// vertici di `CellCorners`, e quei vertici stanno alla quota del CENTRO cella (`AxialToWorld`), non
+	// della faccia superiore del disco — lo stesso riferimento che usano `DrawCellOverlay`/`DrawRing` qui
+	// sopra, che infatti sommano sempre `RTLiftSurface`/`RTLiftMarker` (= `RTCellTopZ + un incremento`),
+	// mai un numero nudo. Un `Lift` non ancorato a `RTCellTopZ` (`50 * RTCellFlatScale` = 7,5 uu)
+	// lascerebbe le terne sepolte dentro il volume opaco del disco — esattamente il difetto che il
+	// commento sopra `RTLiftCellBorder`, in `RTMapVisuals.h`, documenta come "già successo davvero".
+	constexpr float Lift = RTCellTopZ + 2.0f; // sopra il disco, con lo stesso margine di RTLiftMarker
+	constexpr float Thickness = 1.0f;
+
+	TArray<FBatchedLine> Lines;
+	for (const FRTHexCellData& Cell : MapAsset->Cells)
+	{
+		const FRTCellLabel Label = URTHexLabelLibrary::BuildCellLabel(Cell.Id, MapOrigin, MapHexSize, MapLayerHeight);
+		for (const FRTLabelGlyph& Glyph : Label.Glyphs)
+		{
+			for (const FRTLabelStroke& S : URTHexLabelLibrary::GlyphStrokes(Glyph.Character))
+			{
+				const FVector A = Glyph.Origin + Glyph.Right * S.From.X + Glyph.Up * S.From.Y + FVector(0, 0, Lift);
+				const FVector B = Glyph.Origin + Glyph.Right * S.To.X   + Glyph.Up * S.To.Y   + FVector(0, 0, Lift);
+				// Firma: (Start, End, FLinearColor, LifeTime, Thickness, DepthPriority).
+				// `LifeTime` negativo = la linea resta finche' non si chiama `Flush()`, che e' il punto:
+				// si posa quando la mappa cambia, non a ogni frame.
+				Lines.Emplace(A, B, Ink, /*LifeTime*/ -1.f, Thickness, /*DepthPriority*/ uint8(SDPG_World));
+			}
+		}
+	}
+	CoordinateLabels->DrawLines(Lines);
+}
+#endif
 
 void ARTHexMapActor::GenerateIntoAsset()
 {
