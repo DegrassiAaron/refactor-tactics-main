@@ -4780,6 +4780,15 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			Instance.TargetUnitId = Hit.TargetId;
 			Instance.TargetCell = HexUnits[Hit.TargetId].Cell;
 			Instance.EventSequence = Plan.Hits.Num();
+			// 🔴 **Il colpo e' qui perche' NON e' stato cancellato: se e' fra i degradati, l'Interrupt gli ha
+			// tolto qualcosa lo stesso** ([D-300]). E' l'unico punto in cui `bInterrupted` diventa vero in
+			// partita — prima del 2026-08-31 lo scrivevano solo i test, e il ramo di `ProduceEvents` che lo
+			// legge era codice mai eseguito in gioco.
+			//
+			// ⚠️ Un cancellato non arriva mai fin qui: `Plan.Hits.RemoveAll` l'ha gia' tolto. Quindi questo
+			// flag significa **degradato**, non «interrotto in generale», e il taglio effettivo lo decide
+			// `ERTInterruptPolicy` dentro `ProduceEvents`, non questa riga.
+			Instance.bInterrupted = Ctx.DegradedIntents.Contains(Hit.IntentIndex);
 
 			for (const FRTActionEvent& Event : URTActionEffectLibrary::ProduceEvents(Instance))
 			{

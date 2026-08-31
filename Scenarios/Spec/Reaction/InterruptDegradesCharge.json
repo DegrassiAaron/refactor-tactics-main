@@ -1,0 +1,38 @@
+{
+  "scenarioId": "Spec.Reaction.InterruptDegradesCharge",
+  "tags": ["spec", "reactions", "interrupt", "charge", "d300"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 6,
+
+  "_nota": "[D-300] Un `Action.Interrupt` non ANNULLA l'impatto di una carica: lo DEGRADA. `Action.Charge` dichiara `ERTInterruptPolicy::SuppressSecondary`, quindi il colpo arriva e la spinta no. La prova e' la CELLA della vittima a fine turno — dove sta l'unita' e' l'unica cosa che il giocatore vede — piu' i suoi HP, che dicono che il danno c'e' stato.",
+
+  "_nota_perche_esiste": "L'automation copre il caso a livello di Blast (`Actions.Charge.ImpactSurvivesInterrupt`), ma quel test costruisce il mondo a mano. Questo file esercita la stessa regola dal caricatore di scenari, cioe' dalla stessa strada che percorre una partita: se un giorno il trasporto di `DegradedIntents` si rompesse fra `ApplyInterrupts` e la costruzione di `FRTActionInstance`, l'automation potrebbe restare verde e questo no.",
+
+  "_nota_geometria": "A1 carica da (0,0,0) verso (3,0,0) e incontra B1 a (2,0,0): si ferma ADDOSSO, cioe' a (1,0,0). B2 parte da (1,-1,0) perche' `Action.Interrupt` ha portata 1 e il colpo si valida sulle posizioni del Blast, DOPO il Dash: da li' e' adiacente al punto in cui la carica ferma A1. Con B2 altrove l'Interrupt non arriverebbe e lo scenario sarebbe verde per la ragione sbagliata.",
+
+  "_nota_cosa_falsifica": "Senza l'interruzione B1 finirebbe a (3,0,0), spinta di una cella. L'asserzione `UnitAtCell B1 = [2,0,0]` e' quindi FALSIFICABILE in entrambi i versi: diventa rossa se la spinta sopravvive (il degrado non ha agito) e rossa anche se il danno sparisce (l'Interrupt ha cancellato invece di degradare, e l'HP non torna).",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Riktor", "team": 0, "cell": [0, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Wraith", "team": 1, "cell": [2, 0, 0], "facing": "W" },
+    { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [1, -1, 0], "facing": "W" }
+  ],
+
+  "turns": [
+    {
+      "_turno": "A1 carica dritto e incontra B1 per strada. B2 interrompe A1: l'impatto arriva monco — 20 danni, nessuna spinta.",
+      "intents": [
+        { "unit": "A1", "dash": "Action.Charge", "dashTo": [3, 0, 0] },
+        { "unit": "B2", "ability": "Action.Interrupt", "target": "A1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "A1", "cell": [1, 0, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [2, 0, 0] },
+    { "type": "UnitAlive", "unit": "B1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

@@ -835,24 +835,21 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		{
 			if (Intents[k].AttackerId != Hit.TargetId) { continue; }
 
-			// 🔴 **L'impatto di una carica NON si interrompe qui**, e il flag del catalogo non basta a dirlo:
-			// `Action.Charge` e' interrompibile, ma quel «si'» riguarda la carica come azione
-			// PIANIFICATA — il movimento, che risolve nella fase Dash. Quando l'impatto arriva nel Blast lo
-			// scatto e' gia' avvenuto: cancellarlo qui annullerebbe a posteriori la coda di un'azione
-			// risolta a meta', lasciando l'unita' dove la carica l'ha portata e togliendole il colpo.
+			// 🔴 **L'impatto di una carica E' raggiungibile dall'Interrupt, e quel giorno e' arrivato**
+			// ([D-300], `#1955`). Fino a qui era immune, con una ragione scritta e buona: *«cancellarlo
+			// annullerebbe a posteriori la coda di un'azione risolta a meta', lasciando l'unita' dove la
+			// carica l'ha portata e togliendole il colpo»*, e il commento chiudeva con *«se un giorno si
+			// vorra' [...] e' una scelta di bilanciamento da dichiarare, non l'effetto di un ciclo»*.
 			//
-			// Si riconoscono da `IntentAbilityIndex == INDEX_NONE`, che `AppendChargeImpactIntents` scrive
-			// proprio perche' non c'e' un'abilita' da consumare: lo scatto l'ha gia' fatto.
+			// D-300 e' quella scelta, e **scioglie l'obiezione invece di ignorarla**: `Action.Charge`
+			// dichiara `ERTInterruptPolicy::SuppressSecondary`, quindi l'impatto non viene **cancellato** ma
+			// **degradato** — il colpo resta, cade la spinta. La coda di un'azione risolta a meta' non
+			// sparisce piu' a posteriori: perde la sua parte accessoria.
 			//
-			// ⚠️ Prima di `#1437` questo caso non si presentava per una ragione ACCIDENTALE: il ciclo si
-			// fermava al primo intento della vittima, quindi l'impatto veniva raggiunto solo se era il primo.
-			// Togliendo quel `break` sarebbe diventato interrompibile sempre — un cambio di gioco che nessuno
-			// ha deciso. Se un giorno si vorra' che l'Interrupt annulli anche l'impatto, e' una scelta di
-			// bilanciamento da dichiarare, non l'effetto di un ciclo.
-			if (!Ctx.IntentAbilityIndex.IsValidIndex(k) || Ctx.IntentAbilityIndex[k] == INDEX_NONE)
-			{
-				continue;
-			}
+			// Gli impatti si riconoscono ancora da `IntentAbilityIndex == INDEX_NONE`, che
+			// `AppendChargeImpactIntents` scrive perche' non c'e' un'abilita' da consumare. Il valore serve
+			// ancora, ma **piu' avanti** (il pagamento del cooldown, che un impatto non deve): qui non filtra
+			// piu' niente.
 
 			// Solo cio' che DICHIARA di poter essere interrotto: un Interrupt su chi ha pianificato Guard
 			// (`ERTInterruptPolicy::None`) non ha niente da cancellare.
@@ -925,16 +922,37 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 		}
 	}
 
-	// Cio' che gli Interrupt EFFICACI cancellano. Gli indecisi — i cicli — non contribuiscono.
-	TSet<int32> InterruptedIntents;
+	// Cio' che gli Interrupt EFFICACI tolgono. Gli indecisi — i cicli — non contribuiscono.
+	//
+	// 🔴 **Due insiemi e non uno, da [D-300]**: `SuppressSecondary` non cancella l'azione, ne toglie gli
+	// effetti oltre il primo. Tenerli separati non e' pulizia — e' cio' che rende corretto tutto il resto
+	// del pass, perche' `InterruptedIntents` alimenta `RemoveAll` (il colpo sparisce) e la voce `Cancelled`
+	// del TurnLog (l'azione e' annullata). Un intento degradato non deve entrare in nessuna delle due:
+	// il suo colpo resta nel piano e la sua azione e' avvenuta.
+	//
+	// ⚠️ **E la propagazione a punto fisso non cambia, perche' degradare non e' cancellare**: [D-202]
+	// definisce efficace come *«nessun Interrupt efficace lo cancella»*, quindi un Interrupt che viene
+	// soltanto degradato resta efficace e continua a togliere ai propri bersagli. Per questo la lettura di
+	// `Stato[]` qui sopra e' invariata: la distinzione nasce **dopo** che l'efficacia e' decisa.
+	TSet<int32> InterruptedIntents;   // cancellati: il colpo sparisce, l'azione e' annullata
+	TSet<int32> DegradedIntents;      // degradati: il colpo resta, cadono gli effetti oltre il primo
 	for (int32 i = 0; i < Interruttori.Num(); ++i)
 	{
 		if (Stato[i] != EStato::Efficace) { continue; }
 		for (int32 Bersaglio : Cancellerebbe[i])
 		{
-			InterruptedIntents.Add(Bersaglio);
+			// La policy la dichiara la VITTIMA, come ogni altra proprieta' di interrompibilita': un
+			// `Action.Interrupt` non porta con se' alcun flag.
+			const bool bDegrada = IntentDefs.IsValidIndex(Bersaglio)
+				&& IntentDefs[Bersaglio].InterruptPolicy == ERTInterruptPolicy::SuppressSecondary;
+			if (bDegrada) { DegradedIntents.Add(Bersaglio); }
+			else { InterruptedIntents.Add(Bersaglio); }
 		}
 	}
+	// Il contesto lo porta fino a dove `FRTActionInstance` si costruisce: e' li' che `bInterrupted` diventa
+	// vero e `ProduceEvents` taglia la lista. Senza questo trasporto la policy sarebbe dichiarata e mai
+	// applicata ([D-207]).
+	Ctx.DegradedIntents = DegradedIntents;
 
 	// 🔴 **Chi si e' neutralizzato lascia traccia** (`#1460`, [D-203]).
 	//

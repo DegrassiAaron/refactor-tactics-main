@@ -139,6 +139,19 @@ struct FRTBlastContext
 	 */
 	TArray<FRTActionDef> IntentDefs;
 
+	/**
+	 * Intenti che l'Interrupt ha DEGRADATO invece di cancellare ([D-300], `#1955`): il colpo resta nel
+	 * piano, cadono gli effetti oltre il primo.
+	 *
+	 * ⚠️ **E' l'insieme complementare ai cancellati, non un loro sottoinsieme.** Chi sta qui NON sta in
+	 * `InterruptedIntents`, quindi non finisce in `RemoveAll` e non produce la voce `Cancelled` del
+	 * TurnLog: la sua azione e' avvenuta, monca.
+	 *
+	 * Lo riempie `ApplyInterrupts`, lo legge il pass che costruisce `FRTActionInstance` — dove diventa
+	 * `bInterrupted` e `ProduceEvents` taglia la lista secondo `ERTInterruptPolicy`.
+	 */
+	TSet<int32> DegradedIntents;
+
 	/** Operazioni sugli archi raccolte nella fase, applicate a fase CONCLUSA come i colpi e il danno alle strutture. */
 	TArray<FRTPendingArcOp> PendingArcOps;
 

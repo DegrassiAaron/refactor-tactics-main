@@ -494,16 +494,20 @@ bool FRTChargeImpactInBlastTest::RunTest(const FString&)
 }
 
 /**
- * **Un `Action.Interrupt` NON annulla l'impatto di una carica gia' risolta.**
+ * **Un `Action.Interrupt` non ANNULLA l'impatto di una carica: da [D-300] lo DEGRADA.**
  *
  * Il movimento della carica avviene nella fase Dash; l'impatto entra nel Blast come intento a portata 1.
- * Cancellarlo li' annullerebbe **a posteriori** la coda di un'azione risolta a meta': l'unita' resta dove
- * la carica l'ha portata e perde il colpo.
+ * Cancellarlo li' annullerebbe **a posteriori** la coda di un'azione risolta a meta': l'unita' resterebbe
+ * dove la carica l'ha portata e perderebbe il colpo. Quell'obiezione regge ancora, ed e' la ragione per cui
+ * l'impatto e' rimasto immune fino al 2026-08-31.
  *
- * ⚠️ `Action.Charge` dichiara `bInterruptible = true`, e quel «si'» non basta a decidere: riguarda la
- * carica come azione PIANIFICATA, non la sua coda. Prima di `#1437` l'impatto sopravviveva per una ragione
- * **accidentale** — il ciclo si fermava al primo intento della vittima — e togliendo quel `break` sarebbe
- * diventato interrompibile sempre, un cambio di gioco che nessuno ha deciso. Trovato in code review.
+ * 🔴 **Cosa e' cambiato, e perche' il nome del test resta vero.** `Action.Charge` dichiara
+ * `ERTInterruptPolicy::SuppressSecondary` (`#1955`): l'Interrupt adesso RAGGIUNGE l'impatto, ma invece di
+ * cancellarlo gli toglie gli effetti oltre il primo. L'impatto **sopravvive** — il danno arriva — e cade
+ * la **spinta**. Il test asseriva entrambe; ora asserisce il danno e il contrario della spinta.
+ *
+ * ⚠️ Prima di `#1437` l'impatto sopravviveva per una ragione **accidentale**: il ciclo si fermava al primo
+ * intento della vittima. E' la storia che spiega perche' questo caso va asserito e non dato per scontato.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeImpactSurvivesInterruptTest,
 	"RefactorTactics.Actions.Charge.ImpactSurvivesInterrupt",
@@ -545,13 +549,21 @@ bool FRTChargeImpactSurvivesInterruptTest::RunTest(const FString&)
 	TestEqual(TEXT("l'impatto fa danno lo stesso: l'Interrupt non annulla una carica gia' risolta"),
 		VictimHealth - Victim->Health, 20);
 
-	// E nessuna voce dice che l'abbia annullata.
+	// 🔴 **La meta' che [D-300] rovescia**: la vittima NON viene spinta. Senza interruzione finirebbe a
+	// (3,0), e a dirlo e' il test gemello `Charge.ImpactResolvesInBlast` — che asserisce la spinta con la
+	// stessa fixture e resta la controprova di questa riga.
+	TestTrue(TEXT("ma non viene spinta: SuppressSecondary toglie il secondo effetto"),
+		Victim->Cell == FRTCellId(2, 0));
+
+	// E nessuna voce dice che l'abbia annullata: degradare non e' cancellare, e il TurnLog deve saperlo
+	// distinguere. Una voce `Cancelled` qui direbbe che l'azione non e' avvenuta, ed e' falso.
 	const bool bAnnullata = TM->GetTurnLog().ContainsByPredicate([](const FRTTurnLogEntry& E)
 	{
 		return E.Category == ERTLogCategory::Fallback
 			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
 	});
-	TestFalse(TEXT("e il TurnLog non registra nessuna interruzione"), bAnnullata);
+	TestFalse(TEXT("e il TurnLog non registra un'interruzione: e' degradata, non annullata"),
+		bAnnullata);
 
 	DestroyHexBlastWorld(World);
 	return true;
@@ -1114,4 +1126,67 @@ bool FRTHexInteractUsesDeclaredEdgeTest::RunTest(const FString&)
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+
+/**
+ * [D-300] **La separazione fra cancellato e degradato non degrada chi va cancellato.**
+ *
+ * Controprova indispensabile di `ImpactSurvivesInterrupt`: se il passo (b) di `#1955` mettesse fra i
+ * degradati ogni intento interrotto invece dei soli `SuppressSecondary`, questo caso diventerebbe rosso e
+ * quello verde — e nessun'altra asserzione se ne accorgerebbe. Un'azione con `InterruptBeforeEffect`
+ * interrotta continua a non produrre **NULLA**.
+ *
+ * Il soggetto e' un attacco pianificato normale (`Action.BasicAttack`, policy di default), interrotto da
+ * un avversario adiacente: la vittima designata non deve perdere salute, e il TurnLog **deve** registrare
+ * l'interruzione — al contrario del caso degradato, dove quella voce non c'e'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptStillCancelsWholeActionTest,
+	"RefactorTactics.Actions.Interrupt.StillCancelsAnInterruptBeforeEffectAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptStillCancelsWholeActionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(0, 0));
+	ARTUnit* Victim = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0));
+	ARTUnit* Interrupter = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attacker || !Victim || !Interrupter) { DestroyHexBlastWorld(World); return false; }
+
+	RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.BasicAttack"));
+	RTAbilityFixtures::AddCoreAbility(Interrupter, TEXT("Action.Interrupt"));
+
+	// La premessa del test, misurata invece che assunta: se un giorno l'attacco base cambiasse policy,
+	// questo test misurerebbe il caso sbagliato restando verde.
+	const FRTActionDef Base = URTCatalogLibrary::MakeWeaponAttack(TEXT("Action.BasicAttack"), 1);
+	if (!TestEqual(TEXT("premessa: l'attacco base e' InterruptBeforeEffect"), Base.InterruptPolicy,
+		ERTInterruptPolicy::InterruptBeforeEffect))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	const int32 VictimHealth = Victim->Health;
+	Attacker->PlannedAbilityIndex = Attacker->Abilities.Num() - 1;
+	Attacker->PlannedAttackTarget = Victim;
+	Interrupter->PlannedAbilityIndex = Interrupter->Abilities.Num() - 1;
+	Interrupter->PlannedAttackTarget = Attacker;
+
+	RunBlastTurn(TM);
+
+	TestEqual(TEXT("l'azione cancellata non fa danno: tutto o niente"), Victim->Health, VictimHealth);
+
+	// E qui la voce `Cancelled` CI DEVE essere: e' cio' che distingue un'azione annullata da una degradata.
+	const bool bAnnullata = TM->GetTurnLog().ContainsByPredicate([](const FRTTurnLogEntry& E)
+	{
+		return E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Interrupted);
+	});
+	TestTrue(TEXT("e il TurnLog registra l'interruzione, al contrario del caso degradato"), bAnnullata);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
