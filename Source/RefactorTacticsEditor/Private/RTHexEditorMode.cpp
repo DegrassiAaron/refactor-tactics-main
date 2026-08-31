@@ -9,6 +9,7 @@
 #include "Tools/RTHexGeometryTool.h"
 #include "Tools/RTHexFillTool.h"
 #include "Tools/RTHexLosTool.h"
+#include "Tools/RTHexProbeTool.h"
 
 #include "Editor.h"                 // GEditor->MoveViewportCamerasToBox
 #include "Toolkits/BaseToolkit.h"   // FModeToolkit::GetToolkitCommands
@@ -44,6 +45,8 @@ void URTHexEditorMode::Enter()
 	RegisterTool(Commands.GeometryTool, TEXT("RTHexGeometryTool"), NewObject<URTHexGeometryToolBuilder>(this));
 	// #1755: sesto tool. Sola lettura — non tocca la mappa, la interroga.
 	RegisterTool(Commands.LosTool, TEXT("RTHexLosTool"), NewObject<URTHexLosToolBuilder>(this));
+	// #711: settimo tool. Sola lettura come il sesto — interroga il movimento, non lo cambia.
+	RegisterTool(Commands.ProbeTool, TEXT("RTHexProbeTool"), NewObject<URTHexProbeToolBuilder>(this));
 
 	GetToolManager()->SelectActiveToolType(EToolSide::Left, TEXT("RTHexSelectTool"));
 }

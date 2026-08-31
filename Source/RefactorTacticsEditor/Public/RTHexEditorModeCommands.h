@@ -30,6 +30,9 @@ public:
 	/** #1755: l'ispettore della LOS canonica — click sull'origine, hover sul bersaglio, e il PERCHE' del blocco. */
 	TSharedPtr<FUICommandInfo> LosTool;
 
+	/** #711: la sonda di movimento — dove arriva questo eroe con questo budget, e perche' quella cella no. */
+	TSharedPtr<FUICommandInfo> ProbeTool;
+
 	/**
 	 * `#623` / seduta `U21`: `Home` inquadra l'intera mappa editabile, multilivello compreso.
 	 *

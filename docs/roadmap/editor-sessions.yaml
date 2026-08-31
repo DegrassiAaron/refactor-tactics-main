@@ -56,9 +56,15 @@
 #                      «Stesso blocco» e' la parte che conta: condividere l'allestimento NON esclude
 #                      la dipendenza dura. `U13` estende l'asset che `U1` committa **e** ne condivide
 #                      il setup; scusare ogni coppia col setto condiviso avrebbe reso invisibile
-#                      proprio quella dipendenza. Blocchi diversi = aperture diverse.
+#                      proprio quella dipendenza. Blocchi diversi = **ordini di lavoro** diversi.
+#                      ⚠️ Questa riga diceva «Blocchi diversi = aperture diverse» fino al 2026-08-31,
+#                      e con 6 blocchi implicava **6 aperture** — in diretta contraddizione col piano
+#                      operativo, che ne prevede 2. Nessuna delle due era falsa quando fu scritta: la
+#                      regola nasce quando l'apertura coincideva col blocco. Il criterio corretto non
+#                      e' il blocco ma la PRECONDIZIONE — vedi «Regola di batching» qui sotto.
 #   execution_lane     `pie` | `asset` — che TIPO di lavoro e', non che evidenza produce.
-#                      Facoltativo: assente significa `pie`, che era il caso di tutte le sedute
+#                      Facoltativo, ma il default e' insidioso: assente significa `pie`, che era il
+#                      caso di tutte le sedute
 #                      prima che il campo esistesse. Il criterio e' l'OUTPUT PRIMARIO:
 #                        pie    il risultato e' un verdetto umano, un playtest, una verifica a
 #                               schermo — la persona guarda e giudica
@@ -69,6 +75,49 @@
 #                      cose diverse, e confonderle rimetterebbe tutto in `pie` — cioe' toglierebbe
 #                      al campo la sola domanda a cui serve rispondere: **cosa mi serve per farla,
 #                      il gioco che gira o gli asset che non ho ancora?**
+# ── Regola di batching delle aperture Editor ────────────────────────────────────────────────────
+#
+# Scritta il 2026-08-31. Il piano operativo CURRENT vive nel documento Drive
+# `RefactorTactics_v0.1_Editor_Sessions_Roadmap`, sezione `CURRENT v2 — Mega-session roadmap`;
+# qui sta solo la REGOLA, perche' e' questo il file che dichiara come le sedute si raggruppano.
+#
+# Le fasi del piano, e quante aperture Editor consuma ciascuna:
+#
+#   PRE-0  headless preflight                      0 Editor
+#   E1     authoring / asset / graybox             1 Editor   <- sedute `execution_lane: asset`
+#   G1     clean gate: build + suite + validator    0 Editor
+#   E2     mega acceptance, processo pulito        1 Editor   <- sedute `execution_lane: pie`
+#   P1     packaged Development gate               0 Editor
+#
+# ⚠️ **Il tetto di 2 aperture e' un KPI atteso, non un divieto.** La versione precedente di questa
+# decisione lo scriveva come vincolo duro, e la critica M-02 del panel del 2026-08-30 lo ha
+# falsificato con un argomento che regge: l'obiettivo reale non e' contare le aperture, e' evitare
+# che una sessione giri su una DLL incoerente con `HEAD`. Un rebuild nativo IMPONE di chiudere e
+# riaprire; un vincolo che si sa gia' che verra' violato smette di guidare e comincia a essere
+# aggirato. Quindi non si conta: si decide con le precondizioni.
+#
+# Una nuova apertura e' autorizzata SOLO se cambia almeno una di queste tre precondizioni:
+#
+#   1. serve modificare o salvare asset binari;
+#   2. serve un riavvio pulito per verificare persistenza, reload, cook o montaggio;
+#   3. il test richiede un processo o una configurazione incompatibile con quello gia' aperto.
+#
+# NON sono di per se' motivo di chiusura: cambio mappa, Stop/Start PIE, `rt.Test.Scenario <Id>`,
+# cambio fixture, ritorno a `L_Frontend`. Sono tutte cose che si fanno nello STESSO processo.
+#
+# Ogni apertura oltre la seconda va registrata con la ragione tecnica che l'ha imposta. Una
+# regressione reale e' una ragione valida; «era piu' comodo» non lo e'.
+#
+# ⛔ **Perche' E1 ed E2 non si comprimono in una sola apertura.** E1 modifica `.uasset`/`.umap`.
+# Giudicare quegli stessi asset nel processo che li ha appena scritti prova asset ancora caldi in
+# memoria: non verifica il reload, la persistenza, ne' l'inizializzazione da zero. La seconda
+# apertura fa parte dell'oracolo, non e' overhead.
+#
+# ⚠️ `execution_lane` NON e' popolata su cinque sedute (U10..U13, U17), e il default `pie` sarebbe
+# sbagliato per quattro di esse: producono data asset senza dichiararli in `artifacts`. U17 non e'
+# lavoro Editor affatto — e' il gate packaged P1. Ognuna porta il proprio commento sul perche'.
+# Finche' restano cosi', il raggruppamento E1/E2 va deciso a mano per quelle cinque.
+#
 #   steps              prosa umana; solo dove NESSUNA guida copre ancora la procedura
 #   notes              avvertenze e debiti noti
 #
@@ -121,6 +170,7 @@ sessions:
     title: Verifiche senza prerequisiti
     block: 1
     critical: false
+    execution_lane: pie
     produces: verdetto su quindici voci che non attendono nulla
     artifacts: []
     unblocked_by: []
@@ -344,10 +394,11 @@ sessions:
     title: Partita hex, primo giro
     block: 2
     critical: true
+    execution_lane: pie
     produces: verdetto su allestimento e movimento
     artifacts: []
     unblocked_by: [M6.1, M6.2]
-    shares_setup_with: [U3, U4, U5, U6]
+    shares_setup_with: [U3, U4, U5, U6, U37]
     verifies: [PIE-HEXPLAY-1, PIE-HEXPLAY-4, PIE-HEXPLAY-5, PIE-CAM-START,
       PIE-CAM-ORBIT, PIE-CAM-ZOOM-ANCHOR, PIE-CAM-BOUNDS, PIE-CAM-FOCUS]
     issues: []
@@ -381,10 +432,11 @@ sessions:
     title: Input e pianificazione
     block: 2
     critical: true
+    execution_lane: pie
     produces: verdetto su selezione, budget e anteprima del percorso
     artifacts: []
     unblocked_by: [M6.3]
-    shares_setup_with: [U2, U4, U5, U6]
+    shares_setup_with: [U2, U4, U5, U6, U37]
     verifies: [PIE-HEXPLAY-2, PIE-HEXPLAY-3, PIE-HEXPLAY-3b, PIE-PREVIEW-PERSIST]
     issues: [33]
     done_when: le voci hanno esito reale nel registro
@@ -398,10 +450,11 @@ sessions:
     title: Combat e linea di tiro
     block: 2
     critical: true
+    execution_lane: pie
     produces: verdetto su forme d'attacco, LOS esagonale e knockback
     artifacts: []
     unblocked_by: [M6.4, M6.5]
-    shares_setup_with: [U2, U3, U5, U6]
+    shares_setup_with: [U2, U3, U5, U6, U37]
     verifies: [PIE-HEXPLAY-6, PIE-HEXPLAY-6b, PIE-HEXPLAY-6c]
     issues: []
     done_when: le voci hanno esito reale nel registro
@@ -424,10 +477,11 @@ sessions:
     title: Bot e HUD
     block: 2
     critical: true
+    execution_lane: pie
     produces: verdetto sul bot su hex e i pesi utility ritarati sulla scala esagonale
     artifacts: []
     unblocked_by: [M6.6, M6.7]
-    shares_setup_with: [U2, U3, U4, U6]
+    shares_setup_with: [U2, U3, U4, U6, U37]
     verifies: [PIE-HEXPLAY-7, PIE-HEXPLAY-9, PIE-AI-01, PIE-AI-02, PIE-AI-03, PIE-AI-04, PIE-AI-05]
     issues: []
     done_when: le voci hanno esito reale e i pesi eventualmente modificati sono committati
@@ -442,10 +496,11 @@ sessions:
     title: Multilivello e partita completa
     block: 2
     critical: true
+    execution_lane: pie
     produces: chiusura di M6 / E2 — sessione D verde
     artifacts: []
     unblocked_by: [M6.8]
-    shares_setup_with: [U2, U3, U4, U5]
+    shares_setup_with: [U2, U3, U4, U5, U37]
     verifies: [PIE-HEXPLAY-8, PIE-HEXPLAY-10, PIE-HEXPLAY-4b, PIE-FACING-1]
     issues: []
     done_when: le **14** voci del perimetro E2 sono verdi, rilette tutte insieme — il registro ne porta 15, `-11` e' fuori (E21)
@@ -479,10 +534,67 @@ sessions:
       giorno. ⚠️ La partita completa va quindi **rigiocata col limite nuovo**: il ritmo misurato su
       5 round («un lampo») non descrive piu' il gioco.
 
+  - id: U37
+    title: PC Gym — la palestra del PlayerController, in coda al blocco 2
+    block: 2
+    critical: false
+    execution_lane: pie
+    produces: verdetto su leggibilita' e comfort dell'interazione di planning
+    artifacts: []
+    unblocked_by: [M6.3]
+    shares_setup_with: [U2, U3, U4, U5, U6]
+    verifies: [PIE-PC-GYM]
+    issues: [1859]
+    done_when: la voce ha esito reale nel registro
+    unblocks: []
+    steps: |
+      **Non e' una seduta in piu': e' la coda di quella che si sta gia' facendo.** Stesso allestimento di
+      U2..U6 — `MapSource = GeneratedTestArena`, che genera esagono r=4, ostacoli, muro che blocca la
+      vista, fango a costo 3 e piattaforma sul layer 1 — quindi si esegue **senza riavviare**, dopo U3.
+      Aprire l'Editor per questa sola voce sarebbe il costo che la voce esiste per evitare.
+
+      Il percorso a tappe sta nel registro, che ne e' l'owner: qui si dichiara **quando** farla, non cosa
+      deve succedere (R-6).
+
+      **Allestimento**: `Visual.Input.PcGym` (`Scenarios/Visual/Input/PcGym.json`). Ha `turns` VUOTO, quindi
+      NON gioca: la partita resta al round 1 in pianificazione e il controllo e' del giocatore, che e' la
+      condizione del test. La sua fixture `TestArena` risolve alla stessa `MakeTestArena` di
+      `MapSource = GeneratedTestArena`, percio' non cambia l'allestimento del blocco 2 e la seduta si fa
+      **senza riavviare**. Le sei destinazioni sono calcolate con Dijkstra sui costi reali e dichiarate
+      nello scenario: sceglierle a occhio renderebbe due sedute non confrontabili, perche' col fango a
+      costo 3 il costo di un percorso non e' il suo numero di passi.
+
+      ⚠️ **Il soggetto e' la mano, non la regola.** Un Automation verde non dice che si vede bene: mapping
+      Enhanced Input, collisioni hotkey, Pointer Context, path legality, undo state e lock-in state sono
+      gia' coperti da `RTPointerInteractionTests`, `RTPlayerInteractionTests` e `RTCameraPawnTests`
+      (19 test `RefactorTactics.Camera.*`). Qui si giudica cio' che nessuno di quelli puo' affermare.
+    notes: >-
+      🔴 **Quattro gesture sono in `main` e nessuna voce PIE le guardava.** Misurato su
+      `test-manuali-pie.md` il 2026-08-30: `Set Pivot` **0** occorrenze, `dolly` **0**,
+      `destination marker` **0**, `#1772`/`#1775` **0**. Le gesture camera piu' vecchie hanno una riga e
+      sono verdi — `PIE-CAM-ORBIT`, `-ZOOM-ANCHOR`, `-BOUNDS`, `-FOCUS`, tutte ✅ dal 2026-08-16 — mentre
+      `Alt`+`LMB` (orbita e Set Pivot, con la soglia `ClickDragThreshold`), `Alt`+`RMB` (dolly, che
+      sopprime `UndoAction` per la durata del gesto) e `PageUp`/`PageDown` sono entrate senza. Sono il
+      contenuto nuovo di questa seduta.
+      ⚠️ **`Alt`+`MMB` come precision pan NON esiste**, e l'handoff che ha aperto #1859 lo dava per
+      corrente: `MMB` nudo e' l'orbita (`RTPlayerController.cpp:329-330`). Un passo su un binding
+      inesistente resterebbe atteso-rosso per sempre, e sembrerebbe un difetto del gioco invece che
+      della spec.
+      ⛔ **Perche' non in `L_CameraFeatureLab`, che l'handoff prescriveva.** Quella mappa **non esiste**
+      — zero file il 2026-08-30 — ed e' `post-v0.1` sotto CAM-11 (#1780), che dipende a sua volta da
+      CAM-01 (#1770) ed e' lavoro Editor umano. Agganciarla li' avrebbe reso questa voce non eseguibile
+      fino a dopo la release. La decisione dell'autore e' **entrambi**: i criteri si registrano qui, dove
+      sono eseguibili oggi, e #1780 dichiara che la zona `Planning / PC Gym` li **eredita** quando la Lab
+      nascera'. Nessuna priorita' e' stata cambiata, e la PC Gym non diventa lavoro camera per il fatto
+      che un domani usera' la stessa `.umap`.
+      ⚠️ **L'ownership non si muove**: il contratto Hover/LMB/RMB resta di **#705**, la camera di
+      **#1769/E49**, l'asset di **#1780/CAM-11**. Questa seduta appartiene funzionalmente a **E11/#25**.
+
   - id: U23
     title: Autobattle registrata — la partita che si guarda, in PIE e su packaged
     block: 2
     critical: true
+    execution_lane: pie
     produces: il video/log della partita non presidiata — l'evidenza che G10 chiede e la riserva che G13 dichiara
     artifacts: []
     unblocked_by: [E47.1, E47.3]
@@ -815,6 +927,7 @@ sessions:
     title: Data asset delle azioni
     block: 4
     critical: true
+    # execution_lane: NON DICHIARATA — produce data asset ma non li dichiara in `artifacts`
     produces: il catalogo azioni della v0.1 come dati, non come codice
     artifacts: []
     unblocked_by: [E1.3, E1.4]
@@ -836,6 +949,7 @@ sessions:
     title: I 4 eroi
     block: 4
     critical: true
+    # execution_lane: NON DICHIARATA — produce data asset ma non li dichiara in `artifacts`
     produces: i data asset di Gadget, Phase, Riktor e Wraith, e lo spawn 2v2 che li usa
     artifacts: []
     unblocked_by: [E6, U10]
@@ -858,6 +972,7 @@ sessions:
     title: Loadout
     block: 4
     critical: false
+    # execution_lane: NON DICHIARATA — produce data asset ma non li dichiara in `artifacts`
     produces: varianti arma, gadget e moduli reazione come dati — 1 + 1 + 1 per eroe
     artifacts: []
     unblocked_by: [E7, U11]
@@ -878,6 +993,7 @@ sessions:
     title: Arena v0.1
     block: 5
     critical: true
+    # execution_lane: NON DICHIARATA — estende un asset esistente senza dichiararlo in `artifacts`
     produces: l'arena estesa con quanto serve alle verifiche di contenuto
     artifacts: []
     unblocked_by: [E8, E9, U1]
@@ -899,6 +1015,7 @@ sessions:
     title: Ambiente in partita
     block: 5
     critical: true
+    execution_lane: pie
     produces: verdetto sulle regole ambientali e strutturali
     artifacts: []
     unblocked_by: [U13]
@@ -927,6 +1044,7 @@ sessions:
     title: HUD, intenti, log e comandi debug
     block: 6
     critical: true
+    execution_lane: pie
     produces: verdetto su leggibilita' e osservabilita'
     artifacts: []
     unblocked_by: [E11]
@@ -944,6 +1062,7 @@ sessions:
     title: Durata, ritmo e scala
     block: 6
     critical: true
+    execution_lane: pie
     produces: numeri di playtest — non difetti
     artifacts: []
     unblocked_by: [U6, U1, U5, U7, U8]
@@ -1007,6 +1126,7 @@ sessions:
     title: Misura dei KPI
     block: 6
     critical: true
+    execution_lane: pie
     produces: numeri reali nella tabella KPI
     artifacts: []
     unblocked_by: [U6]
@@ -1036,6 +1156,7 @@ sessions:
     title: Release v0.1
     block: 6
     critical: true
+    # execution_lane: NON DICHIARATA — non e' lavoro Editor: e' il gate packaged (P1), che apre zero Editor
     produces: build Windows Development e Shipping, e una partita giocata senza editor
     artifacts: []
     unblocked_by: [E12]
@@ -1052,6 +1173,7 @@ sessions:
     title: Confine fra Guard e Brace
     block: 6
     critical: false
+    execution_lane: pie
     produces: verdetto di leggibilita' — un dato per `BAL-1`, non un difetto da correggere
     artifacts: []
     unblocked_by: [E5.2]
@@ -1146,6 +1268,7 @@ sessions:
     title: Luci del graybox e inquadratura della mappa
     block: 6
     critical: false
+    execution_lane: pie
     produces: verdetto su leggibilita' della scena e inquadratura, piu' il livello illuminato committato
     artifacts: []
     unblocked_by: []
@@ -1222,6 +1345,7 @@ sessions:
     title: Il gesto dell'autore — ghost, snap e Undo del tool Geometry
     block: 6
     critical: false
+    execution_lane: pie
     produces: verdetto su leggibilita' del ghost, percepibilita' dello snap e granularita' dell'Undo
     artifacts: []
     unblocked_by: [U21]
@@ -1248,6 +1372,7 @@ sessions:
     title: I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root
     block: 6
     critical: false
+    execution_lane: asset
     produces: i primi cinque widget del frontend, sotto `/Game/RT/UI/Framework/`
     artifacts:
       - Content/RT/UI/Framework/WBP_RT_FallbackBanner.uasset
@@ -1337,6 +1462,7 @@ sessions:
     title: Il volume di posa della cella, e la scena che dice se il graybox si legge
     block: 6
     critical: false
+    execution_lane: pie
     produces: verdetto di leggibilita' del kit graybox e il volume di posa come guida d'editor
     artifacts: []
     unblocked_by: [U21]
@@ -1531,13 +1657,18 @@ sessions:
     title: La griglia di lavoro e la sonda di movimento nell'editor
     block: 6
     critical: false
+    execution_lane: pie
     produces: verdetto su leggibilita' della griglia di lavoro e della sonda di movimento
     artifacts: []
     unblocked_by: [U21]
     shares_setup_with: [U21, U22, U25]
-    verifies: []
+    verifies: [PIE-HEX-MOVEMENT-PROBE, PIE-HEX-MOVEMENT-PROBE-SURFACE, PIE-HEX-MOVEMENT-PROBE-FLUIDITA]
     issues: [622, 711]
-    done_when: le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale
+    done_when: >-
+      le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale. ⚠️ **Il 2026-08-31 ne esiste
+      meta'**: le tre della sonda sono entrate con l'implementazione di `#711`, quelle della griglia di
+      lavoro (`#622`) no. Chi esegue questa seduta oggi puo' chiudere il verdetto sulla sonda e **non** la
+      seduta
     unblocks: []
     notes: >-
       ➕ **Seduta aperta il 2026-08-17 dal consolidamento Tactical Designer** ([D-154], referto
@@ -1568,6 +1699,7 @@ sessions:
     title: La griglia si vede in partita, e il confine fra due celle si conta
     block: 6
     critical: false
+    execution_lane: pie
     produces: verdetto su leggibilita' del confine di cella in partita, e taratura di RTCellBorderThickness
     artifacts: []
     unblocked_by: [U21]
@@ -1603,6 +1735,7 @@ sessions:
     title: Il pulsante BACK del modale d'errore, collegato al navigatore
     block: 6
     critical: false
+    execution_lane: asset
     produces: il `BACK` di `WBP_RT_ErrorModal` che chiama `BackFromError` invece di essere disegnato e inerte
     artifacts:
       - Content/RT/UI/Framework/WBP_RT_ErrorModal.uasset
@@ -1657,6 +1790,7 @@ sessions:
     title: Il Main Menu, il pannello *coming soon* e la mappa da cui il pacchetto avvia
     block: 6
     critical: false
+    execution_lane: asset
     # ⚠️ `false` **come U24 e U27**, ed e' una decisione presa e non un default lasciato cadere. Il
     # checkpoint e' P1 v0.1, quindi la tentazione e' `true`; ma in questo file `critical` marca le sedute
     # che bloccano il **gameplay** — arena, partita, input, combat, bot — e le tre sedute del frontend
@@ -1753,6 +1887,7 @@ sessions:
     title: La schermata di fine partita, che legge il verdetto invece di ridarlo
     block: 6
     critical: false
+    execution_lane: asset
     # `false` come le tre sedute del frontend (U24, U27, U28): in questo file `critical` marca ciò che
     # blocca il **gameplay** — arena, partita, input, combat, bot. Il frontend sta dall'altra parte, e
     # cambiare regola per una seduta sola renderebbe la colonna illeggibile.
@@ -1807,6 +1942,7 @@ sessions:
     title: Il menu di pausa, e lo smontaggio che non lascia stato vivo
     block: 6
     critical: false
+    execution_lane: asset
     produces: il menu di pausa, con ripresa e uscita al menu principale
     artifacts:
       - Content/RT/UI/Framework/WBP_RT_PauseMenu.uasset
@@ -1863,6 +1999,7 @@ sessions:
     title: Il Tactical Designer si presenta da solo, e non sporca il livello su cui compare
     block: 6
     critical: false
+    execution_lane: pie
     produces: la conferma che l'ingresso del workflow compare all'avvio senza toccare L_DevSandbox
     artifacts: []
     unblocked_by: []
@@ -1889,6 +2026,7 @@ sessions:
     title: Le tendine si popolano, la lista si ridisegna, e la selezione non cade sotto i filtri
     block: 6
     critical: false
+    execution_lane: pie
     produces: la conferma che il pannello del launcher e' usabile, e che i filtri non deselezionano
     artifacts: []
     unblocked_by: []
@@ -1945,6 +2083,7 @@ sessions:
     title: La LOS si vede, e l'ispettore non ne inventa una seconda
     block: 6
     critical: false
+    execution_lane: pie
     produces: la conferma che il verdetto e il motivo del blocco si leggono nel viewport, sulla LOS canonica
     artifacts: []
     unblocked_by: []
@@ -1997,6 +2136,7 @@ sessions:
     title: Lo scenario selezionato si vede, e guardarlo non lascia niente nel livello
     block: 6
     critical: false
+    execution_lane: pie
     produces: la conferma che lo stato iniziale di uno scenario si legge nel viewport, in graybox
     artifacts: []
     unblocked_by: []
@@ -2052,6 +2192,7 @@ sessions:
     title: La prospettiva tecnica risponde a «cosa sapeva chi ha deciso»
     block: 6
     critical: false
+    execution_lane: pie
     produces: il verdetto se i tre stati della conoscenza si leggono nel viewport d'authoring
     artifacts: []
     unblocked_by: [U34]
