@@ -31,6 +31,12 @@
  *  - **Il difetto maggioritario**: la larghezza attesa è quella della maggioranza, quindi tre righe
  *    rotte su cinque fanno segnalare le due sane e tacere sulle tre.
  *  - **L'allineamento** delle colonne e le **tabelle HTML**. Guarda solo le righe che cominciano con `|`.
+ *  - **Le tabelle dentro un blockquote**, cioè le righe che cominciano con `> |`. Segue dal bullet qui
+ *    sopra — si guardano solo le righe che aprono con `|` — ma va detto per esteso perché sono **68**
+ *    separatori `> |---|` in `docs/` (contati il 2026-08-31 con
+ *    `grep -rh --include='*.md' '^> |[- :|]*|$' docs/ | wc -l`), non un caso di scuola. ⚠️ **Verificato
+ *    per mutazione, non dedotto**: tolta una cella a una riga di una tabella in blockquote di
+ *    `test-manuali-pie.md`, `--check` è rimasto **verde** e il totale confrontato non si è mosso.
  *
  *  ⚠️ **Falso positivo noto**: la pipe finale, che GFM rende **facoltativa**. `| q | r | s` conta due
  *  celle invece di tre. Oggi non capita nel corpus — le righe che cominciano con `|` senza finirci
