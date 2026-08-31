@@ -636,3 +636,82 @@ prossima, e nessuno se ne accorgerà — esattamente come le sedici precedenti.
 > **WIEGERS**: «Un requisito che nessun controllo può falsificare non è un requisito: è una convenzione
 > sperata. Finché il conteggio dei gate vive in prosa in dodici posti e in tabella in uno solo, la domanda
 > non è *se* divergerà.»
+
+---
+
+## 12. `DOWNSTREAM` — la correzione a monte ne ha richiesta una a valle, ed erano trentuno
+
+> **Aggiunta del 2026-08-31, sessione successiva** (branch `docs/referti-spec-panel-2026-08-31`, PR #1987).
+> Il §11 chiude dicendo che il conteggio dei gate *«vive in prosa in dodici posti»*. **Erano
+> quarantaquattro.** Questa sezione misura i trentadue che il §11 non contava, e registra le trentuno
+> mutazioni che li hanno chiusi.
+
+### 12.1 La misura
+
+`gh search issues --state open '"15 gate"'` restituisce **44** issue aperte:
+
+| Insieme | Quante | Stato prima di questa sessione |
+|---|--:|---|
+| Epic `#322`–`#333` | 12 | ✅ corrette da `A1` |
+| Root epic `#14` | 1 | ✅ corretta da `A2` ×2 |
+| **Checkpoint `#1557`–`#1587`** | **31** | 🔴 **mai toccate — nessuna nota, nessuna rettifica** |
+
+Le trentuno sono un blocco contiguo, aperto il **2026-08-28**, e portano tutte la stessa nota di testa:
+
+> ⚠️ *«Apertura anticipata rispetto ai **15 gate** della v0.1 — dichiarata, non aggirata. […] L'epic
+> `#NNN` porta il vincolo «non si apre prima dei 15 gate della v0.1», e quel vincolo **non è stato
+> revocato**»*
+
+### 12.2 Perché `A1` le ha peggiorate invece di lasciarle uguali
+
+Ogni figlia **cita l'epic padre per numero**, e tutte e dieci le epic citate — `#322` `#323` `#325` `#327`
+`#328` `#329` `#330` `#331` `#332` `#333` — sono fra le dodici che `A1` ha corretto poche ore prima.
+
+∴ Prima di `A1` le trentuno erano **stantie**: dicevano quindici come il padre.
+∴ Dopo `A1` sono diventate **false sul padre**: attribuiscono a `#322` un vincolo che `#322` non porta più.
+
+È lo stesso movimento del §7.2 — *«una correzione produce sempre una seconda correzione»* — ma nella
+direzione che il §7.2 non guardava. Il §7.2 correggeva **a monte**, sulla nota che denunciava il difetto.
+Qui il debito è **a valle**, su chi cita, e nessuna delle sedici mutazioni lo vedeva.
+
+### 12.3 Le trentuno mutazioni
+
+`A8` — nota additiva datata in coda al corpo, che rimanda al padre corretto. **Nessuna riscrittura**: la
+nota di apertura originale resta parola per parola in tutte e trentuno, verificata dopo la scrittura.
+
+| Epic padre | Figlie | Esito |
+|---|---|---|
+| `#322` | `#1557`–`#1560` | ✅ ×4 |
+| `#323` | `#1561`–`#1564` | ✅ ×4 |
+| `#325` | `#1565`–`#1567` | ✅ ×3 |
+| `#327` | `#1568` `#1569` | ✅ ×2 |
+| `#328` | `#1570`–`#1573` | ✅ ×4 |
+| `#329` | `#1574`–`#1576` | ✅ ×3 |
+| `#330` | `#1577`–`#1579` | ✅ ×3 |
+| `#331` | `#1580`–`#1582` | ✅ ×3 |
+| `#332` | `#1583`–`#1585` | ✅ ×3 |
+| `#333` | `#1586` `#1587` | ✅ ×2 |
+| | **31** | **31 applicate · 0 saltate · 0 fallite** |
+
+✅ **Il §7.3 è stato letto prima di scrivere, non dopo.** La pipeline porta le due guardie che quell'incidente
+ha prodotto — `fetch < 500 byte → ABORT` e verifica post-scrittura — più una terza: la prima issue è stata
+applicata **da sola** e verificata prima di lanciare le altre trenta. Nessun corpo è rimpicciolito: il delta
+è `+1206` byte su tutte, e le trentuno sono state rilette una per una a scrittura finita.
+
+### 12.4 Il conto dopo
+
+**44 su 44.** Ogni issue aperta che contiene *«15 gate»* porta ora la sua rettifica. Zero istruzioni correnti
+che chiedano quindici gate.
+
+### 12.5 Cosa resta, e non è stato toccato
+
+🔴 **`feature-registry` satura il limite di ricerca**: `gh search issues --state open 'feature-registry'`
+restituisce **100** risultati, che è il tetto della query — il numero vero non è noto. Solo `#14` è stata
+bonificata. Le altre non sono state misurate una per una, quindi **non si sa** quante siano istruzioni vive
+e quante menzioni dentro note già datate. ⚠️ Non è la stessa classe di *«15 gate»*: lì la frase era
+uniforme e la si poteva contare: qui no.
+
+⛔ **Il meccanismo resta senza owner**, ed è il punto del §11 confermato da una seconda istanza: nessun gate
+confronta un numero o un percorso scritto **in prosa dentro una issue** col documento che lo possiede.
+Trentuno issue hanno portato per tre giorni un vincolo di apertura sbagliato, e a trovarle è stata una
+ricerca fatta a mano perché qualcuno ha pensato di guardare **fuori** dall'insieme che il referto elencava.
