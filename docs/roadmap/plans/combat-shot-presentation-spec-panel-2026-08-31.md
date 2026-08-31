@@ -344,10 +344,10 @@ citato nel body, non lasciato implicito.
 - 🔴 **`#1801` è senza milestone**, mentre `#1945` è in *v0.1 · Leggibilità*. Un prerequisito fuori dalla
   release che il suo consumatore ha dentro è una data di consegna che nessuno sorveglia. **M2 lo chiede
   all'autore; non è stato deciso qui.**
-- 🔴 **La scelta di forma del payload resta aperta** — `TArray<FRTCellId>` dedicato, riuso di `Path`, o nuovi
-  `ERTResolvedEventType` — e **non è un dettaglio implementativo**: solo la terza opzione innesca il gate di
-  `#1801`, quindi la scelta decide anche l'ordine di lavoro. Va fatta con `#789` (GAS) sul tavolo, che è il
-  secondo consumatore.
+- ✅ **La forma del payload è stata decisa** — vedi §12. La conseguenza operativa è che `#1801` **diventa
+  bloccante**: la scelta allarga `ERTResolvedEventType`, quindi il gate va consegnato prima.
+- ⚠️ **`FRTHexCombatPlan` è la firma pura del resolver**, e il quinto canale la tocca. I test di determinismo
+  del piano coprono oggi `Hits` e gli altri canali ordinati: vanno **estesi al nuovo**, non ereditati.
 - ⚠️ **L'ambiente si è mosso due volte durante la sessione.** Il branch d'apertura era
   `feat/1864-gesto-select-erase`, la misura è avvenuta su `main` `8bfe8f84`, e `origin/main` è avanzato a
   `0b179ff6` prima delle mutazioni (§8.0). Il repository è lavorato in parallelo (`CLAUDE.md` §7): **chi
@@ -364,8 +364,56 @@ citato nel body, non lasciato implicito.
 
 ---
 
-## 12. Prossimo passo
+## 12. La forma del payload — decisa
 
-**Decidere la forma del payload di `#1945`** — campo dedicato, riuso di `Path`, o nuovi
-`ERTResolvedEventType` — perché è la scelta che determina se `#1801` debba essere consegnata **prima**.
-Tutto il resto della catena aspetta quella risposta.
+> Registrata su [`#1945`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1945#issuecomment-5478832022) il 2026-08-31, misurata su `origin/main` `0b179ff6`.
+
+**Un valore nuovo in coda a `ERTResolvedEventType` — `AttackFootprint` — emesso una volta per INTENTO, con
+tre campi additivi.** Non il riuso di `Path`, non un campo su `Attack`, non un tipo per forma.
+
+### 🔑 Il fatto che decide: il dato è già calcolato, e viene buttato
+
+`RTHexCombatLibrary.cpp:418-419` — dentro `BuildHexCombatPlan`, `HitCells` si calcola **una volta per
+intento**, filtra le unità (riga 431), e **esce di scope**. Sopravvivono solo i `Plan.Hits`, **per vittima**.
+
+∴ La issue non chiede di calcolare nulla di nuovo: chiede di **non buttare** ciò che il resolver produce già.
+È la ragione per cui ogni alternativa che ricalcola è esclusa a monte.
+
+### Le tre alternative, e cosa le esclude
+
+| Alternativa | Cosa la esclude |
+|---|---|
+| **Riuso di `Path`** | Il progetto ha già rifiutato questa economia **nella stessa struct**: il doc-comment di `SourceStableUnitId` — *«due identità diverse con due sentinelle diverse… il compilatore non ha nulla da dire»*. E le semantiche divergono: `Path` ha un **verso** (`Path.Num() >= 2` nel dispatch, riga 6117), `HitCells` è un **insieme** ordinato per `StableLess` |
+| **Campo `Cells` su `Attack`** | 🔴 L'evento nasce **per vittima**: un'AoE su tre bersagli duplicherebbe l'area tre volte, e deduplicare sarebbe logica nella presentazione. **E non risolve il caso misurato**: un'AoE su celle vuote produce zero `Plan.Hits`, quindi zero eventi — un campo su un evento mai emesso non serve a niente |
+| **Un tipo per forma** (`Area`/`Line`/`Cone`) | Confonde due assi: `ERTResolvedEventType` dice *cosa è successo*, la geometria è `ERTAbilityShape` — che **esiste già**, `UENUM(BlueprintType)`, ed è la stessa che il resolver passa a `HexHitCells`. Esplode al primo hazard d'area |
+
+### La forma
+
+`AttackFootprint` va **in coda** all'enum — è un `uint8` esposto a Blueprint: inserirlo in mezzo rinumera
+`HazardDamage` e `Defeated`, e ogni default già serializzato cambierebbe significato in silenzio.
+
+| Campo | Tipo | Semantica |
+|---|---|---|
+| `Cells` | `TArray<FRTCellId>` | le celle investite, nell'ordine che `HexHitCells` produce. Vuoto per ogni altro `Type` |
+| `Shape` | `ERTAbilityShape` | la forma che le ha prodotte — `Single` resta distinguibile da un'`Area` di una cella sola |
+| `AimCell` | `FRTCellId` | la cella mirata: **l'unico dato non derivabile** quando `TargetStableUnitId == 0` |
+
+**`Origin` non entra**: l'attaccante è già `SourceStableUnitId`, e il playback lo risolve con `UnitByStableId`,
+*«l'UNICO punto in cui l'id torna a essere un Actor»*. Un secondo canale per la stessa origine è una
+divergenza in attesa.
+
+### La conseguenza che chiude la domanda aperta
+
+🔴 **La scelta allarga l'enum, quindi `#1801` diventa bloccante** — non più condizionale. Il gate va
+consegnato prima, o il quinto valore entra mentre il suo guardiano non esiste.
+
+➕ E `AttackFootprint` è anche **il primo banco di prova reale** del gate: `#1801` chiede un test che non possa
+passare per omissione, verificato con un valore fittizio. Questo è quel valore, ma vero.
+
+---
+
+## 13. Prossimo passo
+
+**Consegnare `#1801`** — il gate di esaustività — perché la forma decisa in §12 lo rende bloccante per
+`#1945`, e con esso va sciolta la milestone assente.
+
