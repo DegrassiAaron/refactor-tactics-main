@@ -241,4 +241,143 @@ bool FRTPacingCsvTest::RunTest(const FString&)
 	return true;
 }
 
+// --- ApplyOpeningCounts / RespondersForPacing ------------------------------------------------
+//
+// Le regole di conteggio del campione vivevano dentro due `GetAllActorsOfClass` in `ARTTurnManager`, e per
+// esercitarle serviva spawnare un mondo (#1818). Qui girano headless, e i sei casi sotto sono le decisioni
+// che erano scritte solo come commento: quale squadra alimenta `ActionsAvailable`, chi entra fra i
+// responder, e chi ne resta fuori.
+
+namespace
+{
+	/** Unita' vista dal pacing: squadra, id stabile, viva, abilita' utilizzabili. */
+	FRTPacingUnitFacts Facts(int32 TeamId, int32 StableUnitId, bool bAlive, int32 Usable)
+	{
+		return FRTPacingUnitFacts(TeamId, StableUnitId, bAlive, Usable);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingOpeningCountsBothTeamsTest,
+	"RefactorTactics.Pacing.AliveCountsBothTeamsButActionsOnlyTheMeasuredOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingOpeningCountsBothTeamsTest::RunTest(const FString&)
+{
+	// Due vive per parte. La squadra misurata e' la 0, e solo le sue abilita' contano.
+	const TArray<FRTPacingUnitFacts> Units = {
+		Facts(0, 1, true, 3), Facts(0, 2, true, 2),
+		Facts(1, 3, true, 5), Facts(1, 4, true, 4),
+	};
+
+	FRTPacingSample Sample;
+	URTPacingLibrary::ApplyOpeningCounts(Units, /*PacingTeamId*/ 0, Sample);
+
+	TestEqual(TEXT("vive squadra 0"), Sample.UnitsAliveTeam0, 2);
+	TestEqual(TEXT("vive squadra 1 — il campo descrive il CAMPO, non la squadra misurata"),
+		Sample.UnitsAliveTeam1, 2);
+	// 3+2 e non 3+2+5+4: le nove dell'avversario non sono spazio di decisione di chi decide.
+	TestEqual(TEXT("azioni solo della squadra misurata"), Sample.ActionsAvailable, 5);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingOpeningCountsFollowsTeamTest,
+	"RefactorTactics.Pacing.ActionsFollowTheMeasuredTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingOpeningCountsFollowsTeamTest::RunTest(const FString&)
+{
+	// Stessi dati, squadra misurata diversa: e' il caso che distingue «conta la mia» da «conta la prima».
+	const TArray<FRTPacingUnitFacts> Units = {
+		Facts(0, 1, true, 3),
+		Facts(1, 2, true, 7),
+	};
+
+	FRTPacingSample AsTeam1;
+	URTPacingLibrary::ApplyOpeningCounts(Units, /*PacingTeamId*/ 1, AsTeam1);
+	TestEqual(TEXT("misurando la squadra 1 si contano le SUE azioni"), AsTeam1.ActionsAvailable, 7);
+
+	FRTPacingSample AsTeam0;
+	URTPacingLibrary::ApplyOpeningCounts(Units, /*PacingTeamId*/ 0, AsTeam0);
+	TestEqual(TEXT("misurando la squadra 0 si contano le sue"), AsTeam0.ActionsAvailable, 3);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingOpeningCountsDeadTest,
+	"RefactorTactics.Pacing.DeadUnitsBringNeitherPresenceNorActions",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingOpeningCountsDeadTest::RunTest(const FString&)
+{
+	// Una caduta non e' sul campo e non ha azioni: esce da entrambi i conteggi di apertura.
+	// (Nei RESPONDER invece resta — vedi il test dedicato: e' la differenza fra le due funzioni.)
+	const TArray<FRTPacingUnitFacts> Units = {
+		Facts(0, 1, true,  2),
+		Facts(0, 2, false, 9),   // caduta, con abilita' che non deve portare
+		Facts(1, 3, false, 4),
+	};
+
+	FRTPacingSample Sample;
+	URTPacingLibrary::ApplyOpeningCounts(Units, /*PacingTeamId*/ 0, Sample);
+
+	TestEqual(TEXT("solo la viva della squadra 0"), Sample.UnitsAliveTeam0, 1);
+	TestEqual(TEXT("nessuna viva nella squadra 1"), Sample.UnitsAliveTeam1, 0);
+	TestEqual(TEXT("le nove della caduta non entrano"), Sample.ActionsAvailable, 2);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingRespondersKeepTheFallenTest,
+	"RefactorTactics.Pacing.RespondersKeepTheUnitsThatFellDuringTheTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingRespondersKeepTheFallenTest::RunTest(const FString&)
+{
+	// 🔴 Il caso che giustifica l'assenza del filtro su `bIsAlive`: chi e' caduto DURANTE il turno ha
+	// comunque potuto aprire finestre prima di cadere. Scartarlo farebbe sparire le attese dei turni piu'
+	// concitati — quelle che tarano il bank.
+	const TArray<FRTPacingUnitFacts> Units = {
+		Facts(0, 1, true,  0),
+		Facts(0, 2, false, 0),   // caduta nel turno: resta un responder
+	};
+
+	const TArray<int32> Responders = URTPacingLibrary::RespondersForPacing(Units, /*PacingTeamId*/ 0);
+	TestEqual(TEXT("due responder, non uno"), Responders.Num(), 2);
+	TestTrue(TEXT("la caduta e' fra i responder"), Responders.Contains(2));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingRespondersExcludeZeroTest,
+	"RefactorTactics.Pacing.RespondersExcludeTheReservedZeroId",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingRespondersExcludeZeroTest::RunTest(const FString&)
+{
+	// [D-063]: lo 0 e' «nessuna unita' dichiarata», e un'unita' spawnata dopo il congelamento del roster lo
+	// conserva. Con 0 nel set, una voce di log senza soggetto finirebbe nel bank del giocatore misurato.
+	const TArray<FRTPacingUnitFacts> Units = {
+		Facts(0, 0, true, 0),   // id non assegnato: NON e' un responder
+		Facts(0, 5, true, 0),
+	};
+
+	const TArray<int32> Responders = URTPacingLibrary::RespondersForPacing(Units, /*PacingTeamId*/ 0);
+	TestEqual(TEXT("un solo responder"), Responders.Num(), 1);
+	TestFalse(TEXT("lo 0 non e' un id"), Responders.Contains(0));
+	TestTrue(TEXT("il 5 c'e'"), Responders.Contains(5));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingRespondersFilterAndOrderTest,
+	"RefactorTactics.Pacing.RespondersAreTheMeasuredTeamInStableOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingRespondersFilterAndOrderTest::RunTest(const FString&)
+{
+	// [D-167]: due unita' armate dello STESSO giocatore sono due finestre in fila su una persona; due di
+	// squadre diverse sono due attese parallele. Senza il filtro il conteggio non sa quale sta misurando.
+	// L'ordine e' crescente e non quello di raccolta: una telemetria non deve dipendere dall'ordine in cui
+	// gli Actor sono stati trovati, nemmeno quando non decide nulla.
+	const TArray<FRTPacingUnitFacts> Units = {
+		Facts(0, 9, true, 0), Facts(1, 4, true, 0), Facts(0, 2, true, 0), Facts(1, 7, false, 0),
+	};
+
+	const TArray<int32> Responders = URTPacingLibrary::RespondersForPacing(Units, /*PacingTeamId*/ 0);
+	TestEqual(TEXT("solo la squadra misurata"), Responders.Num(), 2);
+	TestEqual(TEXT("ordinati: il 2 prima del 9, non nell'ordine di raccolta"), Responders[0], 2);
+	TestEqual(TEXT("poi il 9"), Responders[1], 9);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
