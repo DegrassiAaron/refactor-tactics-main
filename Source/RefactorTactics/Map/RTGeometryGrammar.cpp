@@ -427,3 +427,65 @@ bool URTGeometryGrammarLibrary::SegmentBetweenAnchors(const FRTAnchorRef& A, con
 	OutSegment = Snapped;
 	return true;
 }
+
+FRTAnchorRef URTGeometryGrammarLibrary::NearestAnchor(const FRTCellId& Cell, const FVector2D& Local,
+	float HexSize)
+{
+	TArray<FRTAnchorRef> Anchors;
+	AnchorsOfCell(Cell, Anchors);
+
+	// La palette e' chiusa e non vuota per costruzione; se `AnchorsOfCell` cambiasse, il centro resta la
+	// risposta totale invece di un riferimento non inizializzato.
+	FRTAnchorRef Best(Cell, ERTAnchorKind::Center);
+	double BestDistSq = TNumericLimits<double>::Max();
+
+	for (const FRTAnchorRef& Candidate : Anchors)
+	{
+		const double DistSq = FVector2D::DistSquared(AnchorLocal(Candidate, HexSize), Local);
+
+		// ⚠️ Strettamente minore: a parita' vince il PRIMO nell'ordine dichiarato da `AnchorsOfCell`. La
+		// parita' non e' teorica — un gesto esattamente a meta' fra due vertici la produce — e senza un
+		// criterio esplicito l'esito dipenderebbe dall'ordine di iterazione, che e' l'invariante n. 4.
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			Best = Candidate;
+		}
+	}
+
+	return Best;
+}
+
+ERTAnchorPairRefusal URTGeometryGrammarLibrary::ExplainPair(const FRTAnchorRef& A, const FRTAnchorRef& B,
+	float HexSize)
+{
+	// L'ordine e' quello di `SegmentBetweenAnchors`, e conta: su due anchor di celle diverse la domanda
+	// «sta su un asse?» non ha significato, perche' le loro coordinate sono misurate in due sistemi diversi.
+	if (A.Cell.X != B.Cell.X || A.Cell.Y != B.Cell.Y)
+	{
+		return ERTAnchorPairRefusal::DifferentCell;
+	}
+	if (A.Cell.Layer != B.Cell.Layer)
+	{
+		return ERTAnchorPairRefusal::DifferentLayer;
+	}
+
+	// Lo STESSO anchor: confronto sulla forma canonica, cosi' che un centro con indice sporco — che un
+	// `FRTAnchorRef` riempito campo per campo puo' portarsi dietro — non sembri un secondo punto.
+	if (CanonicalAnchor(A) == CanonicalAnchor(B))
+	{
+		return ERTAnchorPairRefusal::SameAnchor;
+	}
+
+	// 🔑 **Qui si CHIEDE, non si ricalcola.** L'esprimibilita' e' esattamente cio' che `SegmentBetweenAnchors`
+	// decide con la verifica di fedelta' di `GEO-8`; riderivarla con un'aritmetica sugli indici — «vertice
+	// contro punto medio non adiacente» — sarebbe una seconda definizione delle ventiquattro, che il giorno
+	// in cui la grammatica guadagnasse un asse mentirebbe in silenzio.
+	FRTGeometrySegment Unused;
+	if (!SegmentBetweenAnchors(A, B, HexSize, Unused))
+	{
+		return ERTAnchorPairRefusal::NoTacticalAxis;
+	}
+
+	return ERTAnchorPairRefusal::None;
+}

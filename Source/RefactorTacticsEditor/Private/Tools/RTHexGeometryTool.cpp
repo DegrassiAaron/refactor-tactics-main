@@ -7,6 +7,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTGeometryBake.h"
+#include "RTHexAnchorReadout.h"
 #include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "URTHexGeometryTool"
@@ -72,6 +73,49 @@ namespace
 	 * `writable` di un'altra track, e aggiungere una firma la' significherebbe prendersi un file per una
 	 * riga. Tutto cio' che serve arriva come parametro.
 	 */
+	/**
+	 * L'AGGANCIO: due punti di un gesto diventano due anchor della palette, e il runtime dice se la coppia
+	 * si esprime — `#1895`.
+	 *
+	 * 🔴 **QUESTO SOSTITUISCE `SnapToGrammar` NEL GESTO, ed e' un cambio di comportamento dichiarato.**
+	 * `SnapToGrammar` e' deliberatamente tollerante: enumera le coppie di punti notevoli e *«tiene l'asse che
+	 * sbaglia meno»*, quindi su una delle ventiquattro coppie che nessun asse porta **non fallisce** —
+	 * produce un muro legale e DIVERSO da quello chiesto, e chi disegna non ha modo di saperlo.
+	 * `RefactorTactics.Anchor.SnapNeverInventsTheInexpressible` lo misura.
+	 *
+	 * Qui si aggancia ciascun estremo al **suo** anchor piu' vicino e si chiede al runtime se quella coppia
+	 * si dice. Cosi' il gesto e' PREVEDIBILE — l'autore sa a cosa si e' attaccato, perche' il ghost glielo
+	 * scrive — e quando la risposta e' no, e' no con la ragione, invece di un muro inventato.
+	 *
+	 * ⚠️ **Nessuna regola qui dentro.** Quale anchor: `NearestAnchor`. Se la coppia si dice: `ExplainPair`.
+	 * Quale segmento: `SegmentBetweenAnchors`. Tre chiamate al runtime, dove stanno i test; questa funzione
+	 * le mette in fila e basta.
+	 */
+	struct FGestureSnap
+	{
+		FRTAnchorRef From;
+		FRTAnchorRef To;
+		ERTAnchorPairRefusal Refusal = ERTAnchorPairRefusal::SameAnchor;
+		FRTGeometrySegment Segment;
+		bool bValid = false;
+	};
+
+	FGestureSnap SnapGestureToAnchors(const FRTCellId& Cell, const FVector2D& LocalStart,
+		const FVector2D& LocalEnd, float HexSize)
+	{
+		FGestureSnap Out;
+		Out.From = URTGeometryGrammarLibrary::NearestAnchor(Cell, LocalStart, HexSize);
+		Out.To = URTGeometryGrammarLibrary::NearestAnchor(Cell, LocalEnd, HexSize);
+		Out.Refusal = URTGeometryGrammarLibrary::ExplainPair(Out.From, Out.To, HexSize);
+
+		if (Out.Refusal == ERTAnchorPairRefusal::None)
+		{
+			Out.bValid = URTGeometryGrammarLibrary::SegmentBetweenAnchors(Out.From, Out.To, HexSize,
+				Out.Segment);
+		}
+		return Out;
+	}
+
 	void GestureAcrossCells(const FRTCellId& ActiveCell, const FVector2D& LocalStart, const FVector2D& LocalEnd,
 		const FVector& Origin, float HexSize, float LayerHeight,
 		TArray<URTHexLibrary::FRTCellSegment>& Out)
@@ -115,9 +159,22 @@ void URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
 	const FVector Centre = URTHexLibrary::AxialToWorld(ActiveCell, Origin, HexSize, LayerHeight);
 	LocalEnd = FVector2D(World.X - Centre.X, World.Y - Centre.Y);
 
-	// LA REGOLA NON E' QUI: lo snap e la validazione vivono nel runtime, dove esistono i test.
-	if (URTGeometryGrammarLibrary::SnapToGrammar(LocalStart, LocalEnd, HexSize, Preview))
+	// LA REGOLA NON E' QUI: aggancio, esprimibilita' e segmento vivono nel runtime, dove esistono i test.
+	const FGestureSnap Snap = SnapGestureToAnchors(ActiveCell, LocalStart, LocalEnd, HexSize);
+
+	// ⚠️ **Si azzera SEMPRE per primo.** Prima questa riga non c'era e `bPreviewValid` restava a `true`
+	// dal fotogramma precedente: trascinando da una posa valida a una che non lo e', il ghost continuava
+	// a mostrarsi verde. Un difetto che si vede solo in movimento, cioe' proprio durante il gesto.
+	bPreviewValid = false;
+
+	// Il gesto appena premuto non e' un rifiuto: e' l'assenza della domanda, e ha una frase sua.
+	const RTHexAnchor::FReadout Readout = Snap.From == Snap.To
+		? RTHexAnchor::DescribePending(Snap.From)
+		: RTHexAnchor::Describe(Snap.From, Snap.To, Snap.Refusal);
+
+	if (Snap.bValid)
 	{
+		Preview = Snap.Segment;
 		Preview.Layer = ActiveCell.Layer; // il layer e' contesto d'editor, non geometria
 		Preview.WallType = Properties->WallType;
 		bPreviewValid = true;
@@ -128,6 +185,10 @@ void URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
 		Properties->SnappedTo = Preview.AlongEnd;
 	}
 
+	AnchorFrom = Snap.From;
+	AnchorTo = Snap.To;
+	Properties->SnappedAnchors = Readout.Anchor;
+	Properties->Refusal = Readout.Reason;
 	Properties->Cell = ActiveCell;
 }
 
@@ -243,11 +304,17 @@ void URTHexGeometryTool::OnClickRelease(const FInputDeviceRay& ReleasePos)
 	int32 Baked = 0;
 	for (const URTHexLibrary::FRTCellSegment& Piece : Pieces)
 	{
-		FRTGeometrySegment Segment;
-		if (!URTGeometryGrammarLibrary::SnapToGrammar(Piece.LocalStart, Piece.LocalEnd, HexSize, Segment))
+		// 🔴 **La stessa via del ghost, e non e' un dettaglio.** Se qui restasse `SnapToGrammar` mentre il
+		// ghost aggancia agli anchor, il rilascio produrrebbe un muro che il ghost aveva appena dichiarato
+		// impossibile — il difetto peggiore dei due, perche' l'autore ha visto il rosso e ottiene comunque
+		// una linea. Cio' che si vede e cio' che si commette devono uscire dalla stessa funzione.
+		const FGestureSnap PieceSnap =
+			SnapGestureToAnchors(Piece.Cell, Piece.LocalStart, Piece.LocalEnd, HexSize);
+		if (!PieceSnap.bValid)
 		{
 			continue; // in questa cella il gesto non produce niente di legale: le altre non ne soffrono
 		}
+		FRTGeometrySegment Segment = PieceSnap.Segment;
 		Segment.Layer = Piece.Cell.Layer;
 		Segment.WallType = Properties->WallType;
 		Baked += URTGeometryBakeLibrary::AddSegmentsToCell(Map, Piece.Cell, { Segment }, HexSize);
@@ -290,6 +357,49 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 	}
 
 	const double Z = URTHexLibrary::AxialToWorld(ActiveCell, Origin, HexSize, LayerHeight).Z + 2.0;
+
+	// L'OVERLAY DEI TREDICI ANCHOR — `#1895`, parte 1 e 2 dello scope.
+	//
+	// I punti su cui il gesto puo' agganciarsi, con quello AGGANCIATO piu' grande: e' cio' che rende
+	// l'aggancio dichiarato invece che indovinato dalla posizione del ghost.
+	//
+	// ⚠️ **Si vedono durante il GESTO, non in hover libero**, ed e' una restrizione dichiarata: mostrarli al
+	// solo passaggio del mouse chiederebbe un `IHoverBehavior` su un `UClickDragTool`, cioe' riscrivere il
+	// gesto di `#712` che questa issue dichiara di non toccare. Durante il gesto la cella attiva e' quella
+	// sotto il cursore, che e' il momento in cui i punti servono davvero.
+	//
+	// ⛔ La palette non si ricalcola qui: `AnchorsOfCell` e `AnchorLocal` sono di `#1893`. Un secondo elenco
+	// di tredici punti sarebbe la terza tassonomia che i Non-goals vietano — sono i confini di settore di
+	// `FRTOccupancyMask` piu' il centro, non un altro alfabeto.
+	{
+		TArray<FRTAnchorRef> Anchors;
+		URTGeometryGrammarLibrary::AnchorsOfCell(ActiveCell, Anchors);
+
+		const FVector CellCentre = URTHexLibrary::AxialToWorld(ActiveCell, Origin, HexSize, LayerHeight);
+
+		for (const FRTAnchorRef& Ref : Anchors)
+		{
+			const FVector2D Local = URTGeometryGrammarLibrary::AnchorLocal(Ref, HexSize);
+			const FVector At(CellCentre.X + Local.X, CellCentre.Y + Local.Y, Z);
+
+			// I tre generi si distinguono, che e' il criterio: il centro, i sei vertici, i sei punti medi.
+			const bool bAnchored = (Ref == AnchorFrom) || (bDragging && Ref == AnchorTo);
+			FLinearColor Tint = FLinearColor(0.55f, 0.55f, 0.62f);
+			switch (Ref.Kind)
+			{
+			case ERTAnchorKind::Center:  Tint = FLinearColor(0.95f, 0.85f, 0.35f); break;
+			case ERTAnchorKind::Vertex:  Tint = FLinearColor(0.45f, 0.75f, 0.95f); break;
+			case ERTAnchorKind::EdgeMid: Tint = FLinearColor(0.65f, 0.65f, 0.70f); break;
+			default: break;
+			}
+
+			// L'agganciato e' piu' grande e piu' acceso: la differenza deve leggersi senza confrontare due
+			// punti fra loro, perche' l'occhio guarda il ghost e non la palette.
+			PDI->DrawPoint(At, bAnchored ? Tint * 1.6f : Tint,
+				bAnchored ? 14.0f : 6.0f, SDPG_Foreground);
+		}
+	}
+
 
 	// ➕ **IL GHOST SEGUE IL GESTO SU TUTTE LE CELLE**, come la cottura. Prima disegnava solo `ActiveCell`,
 	// quindi trascinando oltre il primo esagono l'anteprima si fermava mentre il gesto continuava — e da

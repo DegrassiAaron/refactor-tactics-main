@@ -1350,8 +1350,8 @@ sessions:
     artifacts: []
     unblocked_by: [U21]
     shares_setup_with: [U21, U25, U26]
-    verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI]
-    issues: [712]
+    verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI, PIE-GEO-ANCHOR]
+    issues: [712, 1895]
     done_when: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
     unblocks: []
     notes: >-
@@ -1367,6 +1367,16 @@ sessions:
       nel livello, ed e' l'unico modo di accorgersene: nessun test headless apre un `.umap`.
       ⚠️ ID assegnato prima del merge: `U22`, con `U21` come ultimo su `main` e su tutti i branch
       remoti. Chi arriva secondo rinumera, non contende.
+      ➕ **`PIE-GEO-ANCHOR` aggiunta il 2026-08-31 con #1895**, e non e' una quinta voce a caso:
+      l'aggancio del gesto e' passato da `SnapToGrammar` — tollerante, *«tiene l'asse che sbaglia
+      meno»* — a `NearestAnchor` + `ExplainPair` + `SegmentBetweenAnchors`, che sulle ventiquattro
+      coppie inesprimibili **rifiutano con la ragione** invece di produrre un muro diverso in
+      silenzio. ⚠️ **Quindi `PIE-GEO-SNAP` va rieseguita**: il suo ✅ misurava il comportamento
+      precedente, ed e' annotata di conseguenza in `test-manuali-pie.md`.
+      ✅ La proprieta' che questa nota dichiarava — *«il tool NON contiene una sola regola: tre
+      chiamate al runtime e zero logica duplicata»* — **regge ancora**: le chiamate restano tre, e la
+      frase del rifiuto la compone `RTHexAnchor::Describe`, che traduce un reason code invece di
+      deciderlo.
 
   - id: U24
     title: I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root
