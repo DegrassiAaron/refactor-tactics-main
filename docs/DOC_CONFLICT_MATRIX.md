@@ -47,6 +47,32 @@ riferimento, comprese le sue deleghe esplicite. Ciò che `D-282` nega è che que
 registra in questa matrice come `CONFLICT` e si **escala** all'owner competente. Chiuderlo scegliendo la fonte
 più recente, più specifica o più comoda è precisamente il difetto che `D-282` vieta.
 
+
+## `SUPERSEDED` — la calpestabilità non si conta e non dipende dal centro (2026-08-30)
+
+Registrato dallo spec panel del 2026-08-30 sul Decision Record d'autore *«Cover Placement & Intra-Hex
+Geometry»*. Fonte che prevale: [`D-289`](decisions/RT_PDR_00_Decision_Log.md) — decisione esplicita, quindi
+in cima alla scala. Owner del modello nuovo:
+[`spec-cover-placement-intra-hex.md`](technical/systems/spec-cover-placement-intra-hex.md).
+
+| Dove | Diceva | Vale oggi |
+|---|---|---|
+| `spec-hex-geometry-authoring.md` §6 e `FRTOccupancyThresholds::BlockedFrom` | «≥ 6 settori occupati ⇒ `Blocked`», letto come «non ci si passa» | `SUPERSEDED`. La tabella resta come **classificazione di strettezza** — il suo unico consumatore è sempre stato `OccupancySurcharge` — e non decide più la calpestabilità |
+| [`D-179`](decisions/RT_PDR_00_Decision_Log.md) punto (3), e il DoD di [#1239](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1239) §3 | «un muro che passa per il centro rende la cella non entrabile» | `SUPERSEDED`. Il muro **divide** lo spazio di posa in due lati; dividere non è vietare. Gli altri tre punti di `D-179` restano validi, e il primo — *«si conserva OGNI segmento disegnato»* — diventa **più** necessario |
+| `spec-hex-geometry-authoring.md` §5, `FRTOccupancyMask::bCoreBlocked` in `Classify` | «`bCoreBlocked` ⇒ `Blocked`, comunque siano i settori» | `SUPERSEDED`. Il centro è un **requisito di profilo** (`FRTFootprintProfile::bRequiresFreeCore`, default `false`), non un divieto universale |
+| `RTHexOccupancyLibrary.h`, `RTGeometryGrammar.h`, `RTGeometryBake.h`, e due punti di `spec-hex-geometry-authoring.md` | «in `Source/RefactorTacticsEditor/` non esiste alcun test» — usata come argomento per collocare le regole nel runtime | `SUPERSEDED` **dal 2026-08-16** (`#993`): `Private/Tests/` esiste e porta sei file. `CONTEXT_INDEX.md` lo dichiarava già. ⚠️ **La collocazione resta giusta**, e regge su un argomento diverso: una funzione pura si prova headless, un tool d'editor con un viewport. Corretta in `RTHexCoverPlacementLibrary.h`; le altre occorrenze restano da correggere |
+
+✅ **Costo di migrazione zero, misurato il 2026-08-30**: `Classify`, `ComputeMask` e `Surcharge` non hanno
+**alcun** chiamante di produzione — solo test — e `git grep "Offset == 0" -- Source/` è vuoto: `D-179`
+punto (3) non era mai stata implementata. È una correzione di **contratto**, non di comportamento.
+
+🔴 **Un conflitto residuo, e non si risolve in silenzio**: `URTHexOccupancyLibrary::ComputeMask` conta il
+contatto **puntuale nel centro** come invasione di tutti e dodici i settori, perché il centro è il vertice
+comune dei dodici triangoli. La regola superata sopravvive lì. È `MSE-4` in
+[`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) — voce **aperta**, ora innescata, con owner
+[#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826) — quindi non è una scelta implicita: è una decisione registrata e non ancora presa.
+
+---
 ## Stati
 
 | Stato | Significato |
