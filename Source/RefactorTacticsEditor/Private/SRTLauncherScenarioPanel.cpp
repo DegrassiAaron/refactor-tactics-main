@@ -3,9 +3,13 @@
 #include "ScenarioHarness/RTScenarioDraft.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioKnowledge.h"
+#include "RTDevSandboxLauncherSubsystem.h"
+#include "RTLauncherWorkspace.h"
 #include "RTScenarioPreviewSubsystem.h"
 #include "Editor.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboBox.h"
+#include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -236,10 +240,151 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 				]
 			]
 		]
+
+		// --- sessione (#1682) ------------------------------------------------------------------------
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(RowPadding)
+		[
+			SNew(SHorizontalBox)
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(0.0f, 0.0f, RowPadding, 0.0f)
+			[
+				SNew(SButton)
+				.Text(LOCTEXT("StartSession", "Start Session"))
+				.ToolTipText(LOCTEXT("StartSessionTip", "Apre lo scenario selezionato attraverso la facade canonica. Non lo esegue: Run e' un altro gesto."))
+				.OnClicked(this, &SRTLauncherScenarioPanel::OnStartSessionClicked)
+			]
+
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.0f)
+			.Padding(0.0f, 0.0f, RowPadding, 0.0f)
+			[
+				SNew(SEditableTextBox)
+				.HintText(LOCTEXT("NewScenarioHint", "id dello scenario nuovo"))
+				.OnTextChanged_Lambda([this](const FText& NewText) { NewScenarioId = NewText.ToString(); })
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(SButton)
+				.Text(LOCTEXT("NewScenario", "New Scenario"))
+				.ToolTipText(LOCTEXT("NewScenarioTip", "Crea uno scenario nuovo dalla facade — CreateScenarioDraft + NewScenario — e ci apre la sessione."))
+				.OnClicked(this, &SRTLauncherScenarioPanel::OnNewScenarioClicked)
+			]
+		]
+
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(RowPadding)
+		[
+			SNew(STextBlock)
+			.AutoWrapText(true)
+			.Text_Lambda([this]()
+			{
+				return SessionMessage.IsEmpty()
+					? LOCTEXT("NoSession", "Nessuna sessione avviata.")
+					: FText::FromString(SessionMessage);
+			})
+		]
+
+		// --- superfici del workspace, dal registro ----------------------------------------------------
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(RowPadding)
+		[
+			BuildSurfaceRow()
+		]
 	];
 
 	RefreshPerspectiveOptions();
 	RefreshFilters();
+}
+
+TSharedRef<SWidget> SRTLauncherScenarioPanel::BuildSurfaceRow()
+{
+	TSharedRef<SHorizontalBox> Row = SNew(SHorizontalBox);
+
+	// ⛔ Si ITERA il registro. Elencare qui le superfici a mano le farebbe divergere da cio' che
+	// `ActivateSurface` sa attivare, e sarebbe la divergenza piu' facile da non notare: il pulsante c'e'.
+	for (const FRTLauncherSurface& Surface : FRTLauncherWorkspace::Surfaces())
+	{
+		if (!Surface.bDeclared)
+		{
+			// Una superficie che non esiste NON diventa un pulsante spento: diventa una frase che dice
+			// quale issue la porta. Un pulsante inerte si legge come strumento rotto.
+			Row->AddSlot()
+				.AutoWidth()
+				.Padding(0.0f, 0.0f, RowPadding, 0.0f)
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(FRTLauncherWorkspace::PendingLabel(Surface)))
+				];
+			continue;
+		}
+
+		const FName Key = Surface.Key;
+		Row->AddSlot()
+			.AutoWidth()
+			.Padding(0.0f, 0.0f, RowPadding, 0.0f)
+			[
+				SNew(SButton)
+				.Text(FText::FromName(Key))
+				.OnClicked(this, &SRTLauncherScenarioPanel::OnSurfaceClicked, Key)
+			];
+	}
+
+	return Row;
+}
+
+FReply SRTLauncherScenarioPanel::OnStartSessionClicked()
+{
+	URTDevSandboxLauncherSubsystem* Launcher = GEditor ? GEditor->GetEditorSubsystem<URTDevSandboxLauncherSubsystem>() : nullptr;
+	if (!Launcher)
+	{
+		SessionMessage = TEXT("il launcher non e' disponibile: il difetto non e' nello scenario.");
+		return FReply::Handled();
+	}
+
+	const FRTLauncherStartDecision Decision = Launcher->StartSession(SelectedId);
+
+	SessionMessage = Decision.bAllowed
+		? FString::Printf(TEXT("Sessione aperta su '%s'."), *SelectedId)
+		: Decision.Reason;
+
+	return FReply::Handled();
+}
+
+FReply SRTLauncherScenarioPanel::OnNewScenarioClicked()
+{
+	URTDevSandboxLauncherSubsystem* Launcher = GEditor ? GEditor->GetEditorSubsystem<URTDevSandboxLauncherSubsystem>() : nullptr;
+	if (!Launcher)
+	{
+		SessionMessage = TEXT("il launcher non e' disponibile: il difetto non e' nello scenario.");
+		return FReply::Handled();
+	}
+
+	const FRTLauncherStartDecision Decision = Launcher->StartNewSession(NewScenarioId);
+
+	SessionMessage = Decision.bAllowed
+		? FString::Printf(TEXT("Sessione nuova su '%s'."), *NewScenarioId)
+		: Decision.Reason;
+
+	return FReply::Handled();
+}
+
+FReply SRTLauncherScenarioPanel::OnSurfaceClicked(FName SurfaceKey)
+{
+	URTDevSandboxLauncherSubsystem* Launcher = GEditor ? GEditor->GetEditorSubsystem<URTDevSandboxLauncherSubsystem>() : nullptr;
+	if (!Launcher || !Launcher->ActivateSurface(SurfaceKey))
+	{
+		SessionMessage = FString::Printf(TEXT("La superficie '%s' non si e' aperta."), *SurfaceKey.ToString());
+	}
+
+	return FReply::Handled();
 }
 
 void SRTLauncherScenarioPanel::RefreshPerspectiveOptions()

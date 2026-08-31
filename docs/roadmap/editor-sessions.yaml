@@ -2249,3 +2249,59 @@ sessions:
       ⛔ **Il playback non è di questa seduta.** L'acceptance criterion di #1754 che diceva «durante il
       playback, in `Team N`, un nemico mai visto non viene rivelato» è stato spostato in **#1625**: il
       playback del TD non esiste ancora, e verificarlo qui misurerebbe qualcosa che non c'è.
+
+  - id: U38
+    title: La sessione parte, il rifiuto si legge, e le superfici si raggiungono da un posto solo
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: il verdetto se `Start Session` chiude il giro d'ingresso senza che serva sapere quale actor selezionare
+    artifacts: []
+    unblocked_by: []
+    # ⚠️ **Stesso allestimento di `U31`, `U32` e `U35`, e va fatta nella STESSA apertura.** U31 guarda che
+    # il tab compaia, U32 cosa c'e' dentro, U35 l'anteprima; questa guarda cosa succede quando si preme.
+    # Sono la stessa mappa, lo stesso avvio e lo stesso binario.
+    shares_setup_with: [U31, U32, U35]
+    verifies: []
+    # ⚠️ Nessuna voce `PIE-*`: come `U31` e `U32`, questa seduta NON entra in PIE. Tutto cio' che verifica
+    # sta nell'editor prima del Play.
+    issues: [1682]
+    # ⛔ **Perche' una seduta e non un automation test.** I sette test di #1682 misurano la decisione di
+    # avvio, la mappatura degli esiti della facade e gli invarianti del registro: funzioni pure piu' il
+    # ciclo di vita della sessione sul subsystem. Nessuno di loro vede Slate. Che il messaggio di rifiuto
+    # si LEGGA accanto all'elenco, che i pulsanti delle superfici portino davvero dove dicono, e che la
+    # frase di una superficie pendente non venga scambiata per un errore, li giudica solo un occhio.
+    done_when: >-
+      Con il modulo Editor ricompilato dopo il merge di #1682, aperto l'editor su `L_DevSandbox`, sono
+      state giudicate quattro cose e ognuna ha un esito scritto: (1) selezionato uno scenario del corpus e
+      premuto `Start Session`, la riga di stato dice che la sessione e' aperta e lo dice **su quale**
+      scenario; (2) premuto `Start Session` senza selezione, il messaggio manda a scegliere una riga e non
+      parla dello scenario; (3) i pulsanti `Map`, `Scenario` e `Validation` portano dove dicono, e le due
+      voci pendenti si leggono come *«non ancora costruita — la porta #1625/#1630»* e non come un errore;
+      (4) `L_DevSandbox` non risulta dirty dopo il giro — `git status` pulito su `Content/RT/Maps/Dev/`.
+    unblocks: []
+    steps: |
+      **Allestimento**: nessuno. Il livello di bootstrap si apre da solo (`EditorStartupMap`) e il tab
+      compare con esso: e' precisamente cio' che le tre sedute precedenti hanno gia' verificato, e questa
+      non lo rifa'.
+
+      ⚠️ **Il binario dev'essere quello giusto, e va guardato invece che supposto.** Il difetto che ha gia'
+      colpito `U32` — *«gli avvii precedenti erano partiti PRIMA della build e mostravano ancora il
+      segnaposto»* — qui e' piu' insidioso, perche' un pannello senza i pulsanti nuovi somiglia a un
+      pannello dove i pulsanti non funzionano. Prima di giudicare: chiudere l'editor, ricompilare, riaprire.
+
+      **Il giro**: scegliere uno scenario → `Start Session` → leggere la riga di stato → premere i pulsanti
+      delle superfici → tornare al pannello → deselezionare → `Start Session` di nuovo e leggere il rifiuto.
+
+      ⛔ **`Run` non e' di questa seduta.** `Start Session` apre, non esegue — e' la separazione che `L0`
+      (#1679) ha deciso. Premere Play qui misurerebbe l'harness, che ha gia' i suoi test.
+    notes: >-
+      ➕ **Raccoglie il criterio che `U35` ha dichiarato scoperto.** La sua nota diceva: *«`Reset` non e' di
+      questa seduta. L'acceptance criterion di #1753 che lo nomina resta scoperto finche' #1682 non porta
+      una sessione: oggi il pannello apre e richiude la facade a ogni selezione, e non c'e' uno stato da
+      azzerare.»* Ora lo stato c'e' — il subsystem tiene la facade aperta fra un gesto e l'altro — quindi
+      `Reset` diventa osservabile, ed e' la prima cosa da guardare nella seduta successiva.
+      ⚠️ **Cio' che questa seduta NON puo' vedere**: che una sessione rifiutata non lasci una facade mezza
+      aperta. E' invisibile a schermo — un pannello che dice «rifiutato» ha lo stesso aspetto in entrambi i
+      casi — ed e' coperto dal test `DevSandboxLauncher.SessionComesFromTheFacade`, che asserisce
+      `HasSession() == false` dopo un rifiuto. Detto invece di simulato.
