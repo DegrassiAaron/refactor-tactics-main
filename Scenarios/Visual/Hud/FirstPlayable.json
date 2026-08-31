@@ -1,59 +1,173 @@
 {
   "scenarioId": "Visual.Hud.FirstPlayable",
-  "tags": ["hud", "screen-hud", "action-dock", "icons", "pointer", "acceptance", "visual", "gadget", "phase", "riktor", "wraith"],
+  "tags": [
+    "hud",
+    "screen-hud",
+    "action-dock",
+    "icons",
+    "pointer",
+    "acceptance",
+    "visual",
+    "gadget",
+    "phase",
+    "riktor",
+    "wraith"
+  ],
   "version": 1,
   "seed": 0,
   "fixture": "TestArena",
-
   "_nota": "COMPOSITO DI ACCEPTANCE dell'HUD di prima giocabilita'. Non verifica una regola: porta la partita in uno stato RICCO — roster pieno, salute non piena su due squadre, uno slot in cooldown, un combat log popolato — e la lascia li' perche' una persona guardi se l'interfaccia lo racconta. Lo stato nasce da turni giocati dal runtime reale: nessun widget viene scritto a mano, che e' il modo in cui un'acceptance dell'HUD si falsifica da sola.",
-
   "_oracolo": "Le voci di `docs/technical/test-manuali-pie.md` che chiedono uno stato ricco per essere giudicate — fra cui `PIE-V01-SCREENHUD`, `PIE-ICON-01`, `PIE-V01-POINTER`, `PIE-V01-KIT-HOTKEYS`, `PIE-V01-LOG`, `PIE-V01-FALLBACK` — piu' la voce ombrello `PIE-ACC-HUD`, che dichiara soltanto che la scena e' allestita e leggibile. I criteri restano dove sono: un composito che prepara dieci verifiche non si giudica con un si'/no unico.",
-
   "_nota_roster": "Quattro eroi, uno per personaggio del roster v0.1, ed e' un requisito e non una decorazione: il pannello del roster e il catalogo icone non si giudicano su due unita' uguali. Gadget 90, Phase 95, Riktor 120, Wraith 90 — quattro valori distinti, quindi quattro barre di lunghezza diversa.",
-
-  "_nota_geometria": "Tutte e quattro le unita' stanno su `r = 3` o sulla colonna `q = -3` di `TestArena`, e la scelta e' misurata. La colonna che BLOCCA LA VISTA in quella fixture e' `(0, r)` per `r` da -2 a 2: la riga `r = 3` le passa sotto, quindi le due squadre si vedono e possono colpirsi. Le tre celle che bloccano il passo — (-1,2), (1,-2), (2,1) — e il fango a `(-2, r)` per `r` da -1 a 1 restano fuori da ogni percorso usato.",
-
-  "_nota_cooldown": "Il secondo colpo di A1 e' `Hero.Gadget.LinearDischarge`, che ha **cooldown 2**: al termine dello scenario lo slot e' ancora spento, ed e' l'unico modo per far trovare all'osservatore un Action Dock con uno slot occupato invece di quattro slot pronti. Il bersaglio e' B2 e non B1 apposta: l'abilita' colpisce IN LINEA, e la linea da (-3,3) verso (-3,0) corre lungo `q = -3`, dove B1 non sta. Cosi' il colpo resta a bersaglio singolo e i numeri restano derivabili.",
-
-  "_nota_assertion": "L'ancora anti-vacuita' e' `UnitHpEquals B1 103`: dice che il primo colpo e' stato RISOLTO dal runtime, non disegnato. Se nessun turno girasse, B1 sarebbe a 120 e la scena sarebbe quattro unita' intatte — cioe' esattamente lo stato povero che questo file esiste per evitare. `UnitHpEquals A1 87` copre la stessa cosa sul lato opposto: il danno arriva a ENTRAMBE le squadre, che e' cio' che rende leggibile un HUD a due colonne.",
-
-  "_nota_numeri": "22 di `ArcPulse` meno i 5 di scudo base ([D-224]) fanno 17, e Riktor scende da 120 a 103 — gli stessi numeri gia' misurati da `Spec.Perception.MovingBreaksContact`. 8 di `ImpactShot` (ADR-0007) meno 5 fanno 3, e Gadget scende da 90 a 87. ⚠️ **L'HP di B2 NON e' asserito**, ed e' deliberato: `LinearDischarge` e' l'unica delle tre a non avere un precedente misurato nel corpus su bersaglio singolo, e asserire 71 significherebbe dedurre invece di misurare. La prima esecuzione fissa quel numero; fino ad allora B2 porta le sole assertion strutturali.",
-
+  "_nota_geometria": "Le quattro unita' stanno su `r = 3` e su `(-2,4)` di `TestArena`, e la scelta e' misurata. La colonna che BLOCCA LA VISTA in quella fixture e' `(0, r)` per `r` da -2 a 2: la riga `r = 3` le passa sotto, quindi le due squadre si vedono. Le tre celle che bloccano il passo — (-1,2), (1,-2), (2,1) — e il fango a `(-2, r)` per `r` da -1 a 1 restano fuori da ogni percorso usato.",
+  "_nota_cooldown": "Il secondo colpo di A1 e' `Hero.Gadget.LinearDischarge`, che ha **cooldown 2**: al termine lo slot e' ancora spento, ed e' l'unico modo per far trovare all'osservatore un Action Dock con uno slot occupato invece di quattro slot pronti. Il bersaglio e' **B2** e non B1: l'abilita' colpisce IN LINEA, e B2 sta in direzione `SE` mentre B1 sta a `E`. Cosi' il colpo non attraversa B1, e l'unico numero asserito resta quello misurato.",
+  "_nota_assertion": "L'ancora anti-vacuita' e' `UnitHpEquals B1 103`, ed e' **misurata, non dedotta**: il log della run del 2026-08-31 riporta *«(q=-3,r=3) -> (q=0,r=3): 17 danni (Hero.Gadget.ArcPulse)»*, e Riktor parte da 120. Dice che il primo colpo e' stato RISOLTO dal runtime, non disegnato: se nessun turno girasse, B1 sarebbe a 120 e la scena sarebbe quattro unita' intatte — lo stato povero che questo file esiste per evitare. B1 riceve un colpo SOLO, ed e' per questo che il numero regge: `LinearDischarge` va su B2.",
+  "_nota_numeri": "⚠️ **Gli HP di A1 e B2 NON sono asseriti, e la ragione e' che non sono stati misurati.** La run che li avrebbe fissati e' stata troncata da un crash GPU dell'Editor (`DXGI_ERROR_DEVICE_REMOVED`) prima di produrre un esito. Dedurli dalla regola dello scudo base — 8 di `ImpactShot` meno 5 fa 3, 24 di `LinearDischarge` meno 5 fa 19 — sarebbe esattamente l'errore che `_nota_portata` racconta: una deduzione dal catalogo che il gioco ha gia' smentito una volta. Si fissano alla prima esecuzione riuscita.",
   "_nota_limite": "⛔ **Questo scenario non puo' lasciare un intento PENDENTE**, quindi non prepara i ghost dell'intento alleato: i turni dichiarati vengono risolti, e lo stato finale e' il Planning del turno successivo con nessun intento ancora dichiarato. I ghost si guardano dichiarando un intento a mano, ed e' giusto che sia cosi' — sono il feedback di un gesto umano. Il file prepara tutto cio' che PRECEDE quel gesto.",
-
   "units": [
-    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-3, 3, 0], "facing": "E" },
-    { "id": "A2", "hero": "Hero.Phase",  "team": 0, "cell": [-4, 3, 0], "facing": "E" },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, 3, 0] },
-    { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [-3, 0, 0] }
+    {
+      "id": "A1",
+      "hero": "Hero.Gadget",
+      "team": 0,
+      "cell": [
+        -2,
+        3,
+        0
+      ],
+      "facing": "E"
+    },
+    {
+      "id": "A2",
+      "hero": "Hero.Phase",
+      "team": 0,
+      "cell": [
+        -3,
+        3,
+        0
+      ],
+      "facing": "E"
+    },
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        0,
+        3,
+        0
+      ],
+      "facing": "W"
+    },
+    {
+      "id": "B2",
+      "hero": "Hero.Wraith",
+      "team": 1,
+      "cell": [
+        -2,
+        4,
+        0
+      ],
+      "facing": "NW"
+    }
   ],
-
   "turns": [
     {
       "_turno": "T1 — lo scambio. A1 colpisce B1 a tre celle lungo `r = 3` (120 - 17 = 103) e B1 risponde sulla stessa linea (90 - 3 = 87). Da qui il combat log ha due righe, due barre non sono piene, e le due squadre hanno entrambe qualcosa da mostrare.",
       "intents": [
-        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" },
-        { "unit": "B1", "ability": "Hero.Riktor.ImpactShot", "target": "A1" }
+        {
+          "unit": "A1",
+          "ability": "Hero.Gadget.ArcPulse",
+          "target": "B1"
+        },
+        {
+          "unit": "B1",
+          "ability": "Hero.Riktor.ImpactShot",
+          "target": "A1"
+        }
       ]
     },
     {
       "_turno": "T2 — il cooldown e il movimento. A1 usa `LinearDischarge` su B2, che sta a nord lungo `q = -3`: lo slot resta spento per due turni. A2 fa un passo a (-4,2,0), cosi' il log porta anche una riga di movimento e non solo di danno. ⚠️ Il passo evita `q = -3` DI PROPOSITO: e' la linea del colpo, e anche se l'ordine delle fasi (`Blast` prima di `Move`) farebbe partire il tiro con A2 ancora a (-4,3,0), un alleato che attraversa la propria linea di fuoco rende l'esito dipendente da un ordine invece che dalla geometria.",
       "intents": [
-        { "unit": "A1", "ability": "Hero.Gadget.LinearDischarge", "target": "B2" },
-        { "unit": "A2", "move": [[-4, 2, 0]] }
+        {
+          "unit": "A1",
+          "ability": "Hero.Gadget.LinearDischarge",
+          "target": "B2"
+        },
+        {
+          "unit": "A2",
+          "move": [
+            [
+              -3,
+              2,
+              0
+            ]
+          ]
+        }
       ]
     }
   ],
-
   "expect": [
-    { "type": "TurnsCompleted", "value": 2 },
-    { "type": "UnitAtCell", "unit": "A1", "cell": [-3, 3, 0] },
-    { "type": "UnitAtCell", "unit": "A2", "cell": [-4, 2, 0] },
-    { "type": "UnitAtCell", "unit": "B1", "cell": [0, 3, 0] },
-    { "type": "UnitAtCell", "unit": "B2", "cell": [-3, 0, 0] },
-    { "type": "UnitHpEquals", "unit": "B1", "value": 103 },
-    { "type": "UnitHpEquals", "unit": "A1", "value": 87 },
-    { "type": "UnitAlive", "unit": "A2", "value": true },
-    { "type": "UnitAlive", "unit": "B2", "value": true }
-  ]
+    {
+      "type": "TurnsCompleted",
+      "value": 2
+    },
+    {
+      "type": "UnitAtCell",
+      "unit": "A1",
+      "cell": [
+        -2,
+        3,
+        0
+      ]
+    },
+    {
+      "type": "UnitAtCell",
+      "unit": "A2",
+      "cell": [
+        -3,
+        2,
+        0
+      ]
+    },
+    {
+      "type": "UnitAtCell",
+      "unit": "B1",
+      "cell": [
+        0,
+        3,
+        0
+      ]
+    },
+    {
+      "type": "UnitAtCell",
+      "unit": "B2",
+      "cell": [
+        -2,
+        4,
+        0
+      ]
+    },
+    {
+      "type": "UnitHpEquals",
+      "unit": "B1",
+      "value": 103
+    },
+    {
+      "type": "UnitAlive",
+      "unit": "A1",
+      "value": true
+    },
+    {
+      "type": "UnitAlive",
+      "unit": "A2",
+      "value": true
+    },
+    {
+      "type": "UnitAlive",
+      "unit": "B2",
+      "value": true
+    }
+  ],
+  "_nota_portata": "🔴 **A1 e B1 distano DUE celle, e il numero e' stato pagato da una run.** La prima stesura li metteva a tre, perche' `Hero.Riktor.ImpactShot` dichiara `/*Range*/ 3` nel catalogo. Eseguito: *«(q=0,r=3) -> (q=-3,r=3): azione annullata (fuori portata)»*, e nello stesso log la stessa abilita' colpisce a distanza **2**. Il campo `Range` non e' quindi la distanza massima in celle — o c'e' uno scarto di uno — e con `ERTActionFallback::Cancel` il colpo non partiva affatto: A1 restava a 90 mentre l'assertion ne chiedeva 87. ⚠️ Il difetto era INVISIBILE alla lettura del catalogo, e visibile solo al log: e' la ragione per cui i numeri di questo file non si deducono."
 }
