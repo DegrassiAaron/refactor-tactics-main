@@ -398,15 +398,24 @@ K. TESTS
             Nessuna build, nessuna sessione Editor aperta da questo lavoro.
 
 L. FIRST EXECUTABLE ISSUE
-   #1678 — Tactical Designer — DevSandbox Launcher: entrare nel workflow da L_DevSandbox
-   Perche' questa: e' l'unica candidata P0 del kit (TD01-A) che ha una issue APERTA e nessuna
-   dipendenza non soddisfatta. Tutto cio' che il launcher deve aprire — scenario, harness,
-   run, reset, TurnLog, viewport, LOS inspector — e' consegnato.
+   🔵 CORRETTA il 2026-08-31: questa voce diceva «#1678 — l'unica candidata P0 del kit (TD01-A)
+   che ha una issue APERTA e nessuna dipendenza non soddisfatta», ed era falsa su DUE punti che
+   il criterio usato non poteva vedere. #1678 e' una PARENT con sei figli — #1679, #1680, #1681
+   e #1705 gia' CHIUSI — quindi «aperta» non distingue «c'e' lavoro qui» da «c'e' lavoro sotto».
+   Ed e' etichettata P2, non P0: le sub-issue del Tactical Designer stanno a P2/P3 perche' lo
+   strumento e' out_of_release_scope (D-154), mentre P0/P1 sono legate alla release.
+
+   #1682 — Launcher L6: dalla sessione al workspace
+   Perche' questa: era l'unico figlio di #1678 con le dipendenze soddisfatte (#1680 e #1681
+   chiuse) e senza codice consegnato — misurato: `Start Session` aveva UNA occorrenza in
+   `Source/`, un commento che la assegnava esplicitamente a questa slice.
+   ✅ CHIUSA il 2026-08-31, PR #1911. Resta #1683 (L8), che dipendeva da questa.
 
 M. RECOMMENDED NEXT 3 ISSUES
-   1. #1678 — launcher come ingresso unico
+   1. #1683 — L8, la sessione ricordata per utente (sbloccata da #1682)
    2. #1626 — T2 authoring degli intent (meta' di TD01-D)
-   3. #1625 — T1 playback visuale (sblocca #1628)
+   3. #1625 — T1 playback visuale (sblocca #1628, e toglie una delle due superfici
+      «pendenti» dal registro del launcher)
 
 N. COMMITS
    Nessun commit eseguito da questa revisione: vedi §11.
@@ -453,5 +462,17 @@ mai mossi, e il `.uasset` altrui non è mai stato indicizzato.
 **tre** righe con tre cause diverse — è tenuto da
 [#1904](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1904).
 
-Il prossimo passo torna quindi a essere quello del §9 L: **#1678**, il launcher come ingresso unico — l'unica
-candidata `P0` del kit con una issue aperta e nessuna dipendenza non soddisfatta.
+> 🔵 **E il passo che questa riga indicava non esisteva: corretto il 2026-08-31.** Diceva *«**#1678**, il
+> launcher come ingresso unico — l'unica candidata `P0` del kit con una issue aperta e nessuna dipendenza non
+> soddisfatta»*. #1678 è una **parent** `P2` con quattro figli su sei già chiusi: *«aperta»* non distingue
+> *«c'è lavoro qui»* da *«c'è lavoro sotto»*, e la label di una parent descrive il tema, non la priorità del
+> lavoro rimasto. Il criterio che questo referto ha applicato — `OPEN` più dipendenze soddisfatte — è vero e
+> **insufficiente**, ed è la stessa forma di difetto che il §5 aveva rimproverato al kit: un criterio che
+> misura ciò che si può leggere in fretta invece di ciò che si sta chiedendo.
+>
+> ✅ **Il figlio eseguibile era #1682**, chiuso il 2026-08-31 con la PR
+> [#1911](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1911) — e la misura che l'ha
+> identificato costa una riga: `rg "Start Session" Source` dava **una** occorrenza, un commento che
+> assegnava la slice a quella issue.
+
+Il prossimo passo è **#1683** (`L8`), che dipendeva da #1682 ed è ora sbloccata.
