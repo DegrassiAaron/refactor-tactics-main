@@ -800,9 +800,24 @@ che ha rimosso il file:
 | varie | `qa-prompt-terminal-d…` · `editormap.shortlist` | #1013 |
 | varie | `issue-tracking-completeness.md` | #1165 |
 | varie | `elemental-proficiency.md` · `asset-licenze.md` | #995 #1767 |
-| **spostato, non rimosso** | `docs/roadmap/test-manuali-pie.md` → **`docs/technical/`** | #1895 |
+| **mai esistito a quel percorso** | `docs/roadmap/test-manuali-pie.md` → **`docs/technical/`** | #1895 |
 
-✅ **`#1895` è l'unica correggibile meccanicamente**, e va fatta: il file esiste, ha solo cambiato cartella.
+✅ **`#1895` è l'unica correggibile meccanicamente**, ed è stata **corretta il 2026-08-31**:
+`docs/roadmap/test-manuali-pie.md` → `docs/technical/test-manuali-pie.md`, nota additiva datata, corpo
+preservato. Gli altri due percorsi della stessa riga — `editor-sessions.yaml` e `roadmap-editor.md` —
+**esistono** e non sono stati toccati: sul secondo la riga dichiara lo *stato* (`HISTORICAL`), non l'assenza.
+
+🔴 **E la riga qui sopra diceva «spostato». Era falso, e l'ha scoperto la correzione, non la misura.**
+`git log --all -- docs/roadmap/test-manuali-pie.md` è **vuoto**: quel percorso non è mai esistito, e il
+registro sta in `docs/technical/` fin dal proprio primo commit (`a2e675f1`). Non c'era nessun trasloco da
+inseguire — la cartella è stata sbagliata **in scrittura**, in una issue aperta la mattina stessa.
+
+⚠️ **È il terzo difetto del misuratore, e il più istruttivo** (gli altri due sono al §13.5). L'euristica
+`MOVED` conclude «spostato» da un solo fatto — *il basename esiste altrove* — e quel fatto non distingue
+**un file che si è spostato** da **un percorso scritto male al primo colpo**. Le due cose hanno la stessa
+impronta e conseguenze diverse: la prima lascia dietro di sé altri puntatori da aggiornare, la seconda no.
+∴ `MOVED` non è una classificazione: è un'ipotesi, e va verificata con `git log --all` sul percorso vecchio
+**prima** di riscrivere qualcosa.
 
 ⛔ **Tre non sono difetti e non vanno toccate.** [#266](https://github.com/DegrassiAaron/refactor-tactics-main/issues/266) propone `docs/ui/icon-language.md`
 *«se non esiste già un dominio migliore»* — è condizionale. [#1936](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1936) e
@@ -837,18 +852,59 @@ e va detto:
 - 🔴 **Il resto non è automatizzabile.** Delle 29 coppie, **una** si corregge da sola (#1895). Le altre
   chiedono di decidere *cosa* sostituisce il file, e la decisione non sta nella issue.
 
-∴ La forma giusta non è un gate ma **questo elenco**, rifatto quando serve. Il comando che lo produce è due
-righe, e il valore sta nella classificazione — `HISTORICAL` contro `CURRENT` contro provenienza — non nella
-ricerca.
 
-> **WIEGERS**: «Il controllo che cercavate esiste già e si chiama *non copiare il numero*. #962 lo aveva
-> applicato togliendo cinque copie invece di allinearle. Ogni volta che una misura trova quaranta istanze
-> della stessa frase, la domanda non è come sorvegliarle: è perché sono quaranta.»
+---
 
-### 13.7 Prossimo passo, aggiornato
+## 14. `EXECUTED` — il worklist del §13, eseguito: sedici mutazioni
 
-**Una** azione, e la più piccola dell'elenco: [#1895](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1895), il percorso spostato. Evidenza
-univoca, zero decisioni, `docs/roadmap/test-manuali-pie.md` → `docs/technical/test-manuali-pie.md`.
+> **Aggiunta del 2026-08-31, quarta sessione.** Il §13 ha prodotto un worklist e **non l'ha eseguito**:
+> misura senza mutazioni. Questa sezione lo esegue. ⚠️ Le due sessioni hanno misurato lo stesso terreno in
+> parallelo e senza vedersi — il §13 è comparso su `main` mentre queste sedici scritture erano già
+> applicate. **Nessuna nota è stata duplicata**: verificato dopo, contando le occorrenze su tutte e sedici.
 
-Poi, e solo se qualcuno lo vuole: le **9 issue** del §13.3 con comandi verso `scripts/feature_registry.py`.
-Quattro di esse hanno quel comando dentro una casella di accettazione **non spuntabile**.
+### 14.1 Cosa è stato applicato
+
+`A9` — nota additiva datata, due testi distinti per le due classi che il §13.3 separa.
+
+| Classe | Issue | Nota |
+|---|---|---|
+| comando morto (§13.3) | `#269` `#703` `#704` `#705` `#827` `#950` `#995` `#1013` `#1165` | il gate non è eseguibile, e **il lavoro non è revocato** |
+| sede dello stato (§13.3) | `#214` `#244` `#265` `#314` `#435` `#609` `#1206` | l'indirizzo cade, **il nome `RT-FEAT-*` resta valido** |
+
+**16 applicate · 0 saltate · 0 fallite**, guardie del §7.3 attive (`fetch < 300 byte → ABORT`, verifica
+post-scrittura), tutte rilette a scrittura finita.
+
+### 14.2 Dove questa lista diverge dal §13, e perché
+
+| Issue | §13 | Qui | Ragione |
+|---|---|---|---|
+| `#950` | assente | **corretta** | elenca `feature_registry --check` fra i *«cinque gate per i documenti»* di `scripts/`: descrive come **vivo** un insieme che `D-182` ha svuotato |
+| `#704` | assente | **corretta** | porta `- [ ] Feature Registry allineato` come **casella di chiusura**: è classe `B` in tutto tranne il nome del comando |
+| `#244` | assente | **corretta** | *«La Feature Traceability vive nel registro dedicato `feature-registry.*`»* — stessa forma di `#265` |
+| `#214` | assente | **corretta** | ⚠️ il caso più costoso: *«non viene chiusa d'ufficio: lo stato autorevole vive in `feature-registry.yaml`»*. Una **decisione di chiusura epic** sospesa a un file che non esiste — l'epic resta aperta in attesa di una fonte morta |
+| `#319` | classe `C` | **non corretta** | le sue due righe sono al **passato** (*«elenco allineato il 2026-08-13»*, *«ha dichiarato bloccante… fino al 2026-08-13»*): raccontano un difetto già chiuso, non indirizzano a una fonte. 🔵 Giudizio, non misura: chi legga diversamente ha un caso |
+
+### 14.3 Il limite, dichiarato
+
+⚠️ **La riga originale resta nuda.** La nota è additiva — schema `A1`/`A8` — quindi la smentita sta in fondo
+al corpo, a decine di righe dall'istruzione. **È lo schema che il §7.2 ha giudicato insufficiente** per
+`#14`, dove si è scelto di barrare nel corpo con `~~vecchio~~ → nuovo`.
+
+∴ Le sedici sono corrette **come le epic**, non **come `#14`**. Portarle a quel livello significa
+riscrivere sedici corpi in sedici modi diversi: decisione d'autore, non presa qui. Il precedente e il
+pattern esistono già.
+
+### 14.4 Il conto della giornata
+
+| | Mutazioni |
+|---|--:|
+| §7 — `A1` `A2` `A3` `A4` | 16 |
+| §12 — `A8`, le figlie a valle | 31 |
+| §14 — `A9`, il worklist del §13 | **16** |
+| | **63** |
+
+⛔ E il difetto senza owner del §11 resta, confermato per la quarta volta in un giorno: nessun gate
+confronta un percorso o un comando scritto **in prosa dentro una issue** con l'albero che dovrebbe
+contenerlo. `D-182` ha portato via `scripts/` il 2026-08-21; un `git ls-tree` in CI avrebbe trovato queste
+sedici lo stesso pomeriggio. Le hanno trovate **due sessioni in parallelo**, dieci giorni dopo, cercando a
+mano — e per poco non hanno scritto la stessa nota due volte sulla stessa issue.
