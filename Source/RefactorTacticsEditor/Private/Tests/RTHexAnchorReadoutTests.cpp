@@ -179,4 +179,112 @@ bool FRTHexAnchorReadoutObeysTheVerdictTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **OGNI INCIDENZA HA LA SUA RIGA, E NOMINA L'ALTRO MURO** — `#1895` parte 4.
+ *
+ * Il criterio dell'issue e' che l'incidenza *«si veda sui DUE segmenti coinvolti»*. Uno e' il ghost che
+ * l'autore sta guardando; l'altro esiste solo se qualcosa lo nomina — ed e' la ragione per cui `#1894` ha
+ * aggiunto `FRTGeometryIssue::OtherIndex` invece di lasciare *«il segmento 4 incrocia qualcosa»*.
+ *
+ * Le tre configurazioni hanno **rimedi diversi**, e per questo non possono condividere una frase: un
+ * incrocio si sposta, una sovrapposizione si accorcia, un duplicato non si disegna affatto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexAnchorIncidenceDistinctTest,
+	"RefactorTactics.AnchorReadout.EveryIncidenceNamesTheOtherWall",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexAnchorIncidenceDistinctTest::RunTest(const FString&)
+{
+	const ERTGeometryViolation Incidences[] = {
+		ERTGeometryViolation::CrossingOffAnchor,
+		ERTGeometryViolation::OverlappingSegments,
+		ERTGeometryViolation::DuplicateSegment
+	};
+
+	TSet<FString> Seen;
+	for (const ERTGeometryViolation Violation : Incidences)
+	{
+		const FString Line = RTHexAnchor::DescribeIncidence(Violation, /*OtherWallIndex=*/ 7);
+
+		TestFalse(*FString::Printf(TEXT("l'incidenza %d dice qualcosa"), static_cast<int32>(Violation)),
+			Line.IsEmpty());
+
+		// IL CRITERIO: l'altro muro e' NOMINATO, non sottinteso.
+		TestTrue(*FString::Printf(TEXT("l'incidenza %d nomina l'altro muro"), static_cast<int32>(Violation)),
+			Line.Contains(TEXT("7")));
+
+		bool bAlready = false;
+		Seen.Add(Line, &bAlready);
+		TestFalse(*FString::Printf(TEXT("la riga dell'incidenza %d non e' gia' di un'altra"),
+			static_cast<int32>(Violation)), bAlready);
+	}
+
+	TestEqual(TEXT("tre incidenze, tre righe diverse"), Seen.Num(),
+		static_cast<int32>(UE_ARRAY_COUNT(Incidences)));
+
+	// ⚠️ Senza un indice la riga esiste comunque: il gesto non deve restare muto perche' l'altro segmento
+	// non ha un numero da mostrare. Dice «un altro muro», che e' meno utile ma non e' silenzio.
+	const FString Anonymous =
+		RTHexAnchor::DescribeIncidence(ERTGeometryViolation::CrossingOffAnchor, INDEX_NONE);
+	TestFalse(TEXT("senza indice la riga non e' vuota"), Anonymous.IsEmpty());
+	TestFalse(TEXT("e non stampa il sentinella"), Anonymous.Contains(TEXT("-1")));
+
+	return true;
+}
+
+/**
+ * CIO' CHE NON E' UN'INCIDENZA NON PRODUCE UNA RIGA — e il silenzio qui e' la cosa giusta.
+ *
+ * 🔑 Le violazioni del SINGOLO segmento hanno gia' i loro canali: lo snap le ferma prima che il gesto arrivi
+ * qui, e `Refusal` le racconta. Una riga anche in questo campo sarebbe la **seconda voce sullo stesso
+ * difetto**, e chi disegna leggerebbe due frasi per un problema solo — che e' il difetto di forma che
+ * `#711` ha gia' pagato in senso opposto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexAnchorIncidenceSilentTest,
+	"RefactorTactics.AnchorReadout.NonIncidencesStaySilent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexAnchorIncidenceSilentTest::RunTest(const FString&)
+{
+	const ERTGeometryViolation NotIncidences[] = {
+		ERTGeometryViolation::None,
+		ERTGeometryViolation::OffAxis,
+		ERTGeometryViolation::ZeroLength,
+		ERTGeometryViolation::InvalidLayer,
+		ERTGeometryViolation::OutsideEditableBounds
+	};
+
+	for (const ERTGeometryViolation Violation : NotIncidences)
+	{
+		TestTrue(*FString::Printf(TEXT("la violazione %d non e' un'incidenza e tace"),
+			static_cast<int32>(Violation)),
+			RTHexAnchor::DescribeIncidence(Violation, 3).IsEmpty());
+	}
+
+	return true;
+}
+
+/**
+ * IL TRADUTTORE OBBEDISCE AL VERDETTO ANCHE QUI — non guarda la geometria.
+ *
+ * 🔴 Il primo Non-goal di `#1895` vieta regole nuove nel modulo editor, e il modo di violarlo senza
+ * accorgersene sarebbe far dedurre a questa funzione **quale** incidenza sia, dai segmenti. Qui si passa una
+ * violazione che il runtime non produrrebbe mai per quella coppia: se la funzione ricalcolasse, il caso
+ * cadrebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexAnchorIncidenceObeysTest,
+	"RefactorTactics.AnchorReadout.IncidenceObeysTheVerdict",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexAnchorIncidenceObeysTest::RunTest(const FString&)
+{
+	// Due segmenti IDENTICI: il runtime li chiamerebbe `DuplicateSegment`, mai `OverlappingSegments` —
+	// `RefactorTactics.Incidence.OverlapIsReported` lo pinna. Dichiarata sovrapposizione, il readout dice
+	// sovrapposizione.
+	const FString Line =
+		RTHexAnchor::DescribeIncidence(ERTGeometryViolation::OverlappingSegments, 2);
+	TestFalse(TEXT("obbedisce al verdetto ricevuto"), Line.IsEmpty());
+	TestNotEqual(TEXT("e non lo traduce come un duplicato"),
+		Line, RTHexAnchor::DescribeIncidence(ERTGeometryViolation::DuplicateSegment, 2));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

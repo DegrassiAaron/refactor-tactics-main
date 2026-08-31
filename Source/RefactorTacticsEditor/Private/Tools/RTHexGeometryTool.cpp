@@ -116,6 +116,73 @@ namespace
 		return Out;
 	}
 
+	/**
+	 * L'INCIDENZA fra il segmento che sta per nascere e quelli GIA' nella cella — `#1895` parte 4.
+	 *
+	 * ⛔ **Nessuna regola qui, e si vede da cosa manca**: non c'e' aritmetica di assi, ne' confronto di
+	 * intervalli, ne' l'idea di cosa sia un anchor. Si costruisce la collezione e si chiama
+	 * `URTGeometryGrammarLibrary::Validate`, che e' lo stesso strato che `URTHexMapAsset::ValidateMap`
+	 * consuma. Le regole vivono li' con i loro test (`#1894`).
+	 *
+	 * 🔑 **Il candidato va in CODA, e non e' un dettaglio.** `Validate` segnala una relazione sulla
+	 * **seconda** occorrenza — cosi' che rimuovendola la collezione torni valida — quindi mettendo per
+	 * ultimo il segmento in corso ogni incidenza che lo riguarda esce con `SegmentIndex` uguale al suo, e
+	 * `OtherIndex` che nomina il muro gia' presente. Fosse in testa, le segnalazioni parlerebbero degli
+	 * altri muri fra loro.
+	 *
+	 * ⚠️ **Gli indici tornano quelli di `InteriorWalls`.** Dentro `Validate` sono indici del gruppo di
+	 * questa cella; chi legge la riga apre l'array dell'asset, e un indice locale lo manderebbe sul muro
+	 * sbagliato — lo stesso rimappaggio che `ValidateMap` fa per le sue segnalazioni.
+	 */
+	struct FIncidenceHit
+	{
+		ERTGeometryViolation Violation = ERTGeometryViolation::None;
+		/** Indice in `Map->InteriorWalls`, non nel gruppo della cella. */
+		int32 WallIndex = INDEX_NONE;
+	};
+
+	FIncidenceHit FindIncidence(const URTHexMapAsset* Map, const FRTCellId& Cell,
+		const FRTGeometrySegment& Candidate)
+	{
+		FIncidenceHit Hit;
+		if (Map == nullptr)
+		{
+			return Hit;
+		}
+
+		TArray<int32> Global;
+		TArray<FRTGeometrySegment> Segments;
+		for (int32 I = 0; I < Map->InteriorWalls.Num(); ++I)
+		{
+			// ⚠️ Solo QUESTA cella: i segmenti sono in coordinate locali, e due muri di celle diverse con gli
+			// stessi numeri non si incrociano affatto. E' la stessa ragione per cui `ValidateMap` raggruppa.
+			if (Map->InteriorWalls[I].Cell == Cell)
+			{
+				Global.Add(I);
+				Segments.Add(Map->InteriorWalls[I].Segment);
+			}
+		}
+		const int32 CandidateIndex = Segments.Add(Candidate);
+
+		TArray<FRTGeometryIssue> Issues;
+		URTGeometryGrammarLibrary::Validate(Segments, Issues);
+
+		for (const FRTGeometryIssue& Issue : Issues)
+		{
+			// Interessano solo le relazioni che coinvolgono il segmento in corso. Le violazioni degli altri
+			// muri fra loro esistono gia' nell'asset e le racconta `ValidateMap`: ripeterle qui, mentre
+			// l'autore sta disegnando altro, sarebbe rumore su un difetto che non ha appena creato.
+			if (Issue.SegmentIndex != CandidateIndex || Issue.OtherIndex == INDEX_NONE)
+			{
+				continue;
+			}
+			Hit.Violation = Issue.Violation;
+			Hit.WallIndex = Global.IsValidIndex(Issue.OtherIndex) ? Global[Issue.OtherIndex] : INDEX_NONE;
+			return Hit; // la prima basta: e' quella che l'autore deve risolvere per prima
+		}
+		return Hit;
+	}
+
 	void GestureAcrossCells(const FRTCellId& ActiveCell, const FVector2D& LocalStart, const FVector2D& LocalEnd,
 		const FVector& Origin, float HexSize, float LayerHeight,
 		TArray<URTHexLibrary::FRTCellSegment>& Out)
@@ -166,6 +233,8 @@ void URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
 	// dal fotogramma precedente: trascinando da una posa valida a una che non lo e', il ghost continuava
 	// a mostrarsi verde. Un difetto che si vede solo in movimento, cioe' proprio durante il gesto.
 	bPreviewValid = false;
+	IncidentViolation = ERTGeometryViolation::None;
+	IncidentWallIndex = INDEX_NONE;
 
 	// Il gesto appena premuto non e' un rifiuto: e' l'assenza della domanda, e ha una frase sua.
 	const RTHexAnchor::FReadout Readout = Snap.From == Snap.To
@@ -183,12 +252,19 @@ void URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
 		Properties->SnappedOffset = Preview.Offset;
 		Properties->SnappedFrom = Preview.AlongStart;
 		Properties->SnappedTo = Preview.AlongEnd;
+
+		// L'INCIDENZA con cio' che c'e' gia' — `#1895` parte 4. Il muro si fa comunque: questo SEGNALA,
+		// perche' l'incidenza e' una proprieta' della collezione e `Validate` e' lo strato che segnala.
+		const FIncidenceHit Hit = FindIncidence(Actor->MapAsset, ActiveCell, Preview);
+		IncidentViolation = Hit.Violation;
+		IncidentWallIndex = Hit.WallIndex;
 	}
 
 	AnchorFrom = Snap.From;
 	AnchorTo = Snap.To;
 	Properties->SnappedAnchors = Readout.Anchor;
 	Properties->Refusal = Readout.Reason;
+	Properties->Incidence = RTHexAnchor::DescribeIncidence(IncidentViolation, IncidentWallIndex);
 	Properties->Cell = ActiveCell;
 }
 
@@ -358,6 +434,36 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 	const double Z = URTHexLibrary::AxialToWorld(ActiveCell, Origin, HexSize, LayerHeight).Z + 2.0;
 
+	// IL MURO CON CUI IL GESTO INCIDE, acceso perche' si veda QUALE — `#1895` parte 4.
+	//
+	// 🔑 Il criterio e' che l'incidenza *«si veda sui DUE segmenti coinvolti»*. Uno e' il ghost, che l'autore
+	// sta gia' guardando; l'altro e' questo, e senza disegnarlo la riga del pannello direbbe «il muro 3» e
+	// toccherebbe a chi disegna cercare quale sia il numero tre.
+	if (IncidentWallIndex != INDEX_NONE)
+	{
+		if (const URTHexMapAsset* IncidentMap = Actor->MapAsset)
+		{
+			if (IncidentMap->InteriorWalls.IsValidIndex(IncidentWallIndex))
+			{
+				const FRTHexInteriorWall& Wall = IncidentMap->InteriorWalls[IncidentWallIndex];
+				const FVector WallCentre =
+					URTHexLibrary::AxialToWorld(Wall.Cell, Origin, HexSize, LayerHeight);
+
+				// ⛔ La geometria del muro non si ricalcola: `ToPolyline` e' la stessa conversione che il
+				// bake e l'occupancy consumano. Una seconda formula qui disegnerebbe un muro diverso da
+				// quello che la regola ha giudicato.
+				const FRTOccupancyPolyline Line =
+					URTGeometryGrammarLibrary::ToPolyline(Wall.Segment, HexSize);
+				if (Line.Points.Num() == 2)
+				{
+					const FVector A(WallCentre.X + Line.Points[0].X, WallCentre.Y + Line.Points[0].Y, Z);
+					const FVector B(WallCentre.X + Line.Points[1].X, WallCentre.Y + Line.Points[1].Y, Z);
+					PDI->DrawLine(A, B, FLinearColor(1.0f, 0.35f, 0.2f), SDPG_Foreground, 6.0f);
+				}
+			}
+		}
+	}
+
 	// L'OVERLAY DEI TREDICI ANCHOR — `#1895`, parte 1 e 2 dello scope.
 	//
 	// I punti su cui il gesto puo' agganciarsi, con quello AGGANCIATO piu' grande: e' cio' che rende
@@ -424,19 +530,28 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 	// ```
 	//
 	// ⚠️ Il ciclo e' lo STESSO di `OnClickRelease`, con la stessa chiamata a `GestureAcrossCells` e allo
-	// snap. Non e' ripetizione da togliere: e' l'unica forma in cui anteprima e risultato non possono
-	// divergere, che e' il difetto che questa seduta ha inseguito sei volte.
+	// stesso aggancio. Non e' ripetizione da togliere: e' l'unica forma in cui anteprima e risultato non
+	// possono divergere, che e' il difetto che questa seduta ha inseguito sei volte.
+	//
+	// 🔴 **E per un giro NON e' stato vero, per colpa di una sostituzione fatta a meta'.** `#1895` ha
+	// portato il commit da `SnapToGrammar` a `SnapGestureToAnchors`, e questo ciclo era rimasto sullo
+	// snap tollerante: su una cella dove il gesto forma una delle ventiquattro coppie inesprimibili, il
+	// ghost disegnava un muro — perche' `SnapToGrammar` riesce sempre — che il rilascio poi non produceva.
+	// Il commento qui sopra dichiarava un'invariante che il codice sotto aveva smesso di rispettare, ed e'
+	// il modo in cui un commento vero diventa una bugia senza che nessuno lo tocchi.
 	if (bPreviewValid)
 	{
 		const float Thickness = (Properties->WallType == ERTHexCoverType::High) ? 6.0f : 3.0f;
 
 		for (const URTHexLibrary::FRTCellSegment& Piece : Pieces)
 		{
-			FRTGeometrySegment Segment;
-			if (!URTGeometryGrammarLibrary::SnapToGrammar(Piece.LocalStart, Piece.LocalEnd, HexSize, Segment))
+			const FGestureSnap PieceSnap =
+				SnapGestureToAnchors(Piece.Cell, Piece.LocalStart, Piece.LocalEnd, HexSize);
+			if (!PieceSnap.bValid)
 			{
 				continue; // in questa cella non produce niente: le altre si disegnano lo stesso
 			}
+			FRTGeometrySegment Segment = PieceSnap.Segment;
 			Segment.WallType = Properties->WallType;
 
 			const FVector CellCentre = URTHexLibrary::AxialToWorld(Piece.Cell, Origin, HexSize, LayerHeight);
