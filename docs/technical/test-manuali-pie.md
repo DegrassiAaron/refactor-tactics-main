@@ -1198,6 +1198,20 @@ Se una tappa fallisce per **semantica** dell'input e non per leggibilità, il di
 | **PIE-HEX-MOVEMENT-PROBE-SURFACE** | Dipinta una superficie piu' cara, il ventaglio si **restringe subito** | tool Paint per dipingere, poi Probe | Con la sonda gia' attiva su una partenza, si dipinge `MoveCost = 2` su una cella di passaggio e **al primo movimento del mouse** il ventaglio e' gia' quello nuovo: nessun click sulla partenza per farlo aggiornare. E' il criterio *«sulla revisione dell'asset, non su un refresh a tempo»* guardato da fuori | ⏳ |
 | **PIE-HEX-MOVEMENT-PROBE-FLUIDITA** | L'hover non fa scattare la sonda | tool Probe attivo su una mappa **grande** con una zona irraggiungibile | Muovendo il cursore avanti e indietro dentro **la stessa cella** non succede niente di visibile e il viewport non perde fluidita'; attraversando molte celle escluse — dove ogni risposta costa un percorso a budget illimitato — il movimento resta continuo. ⚠️ E' la voce che guarda il guardrail: la difesa e' `RTHexProbe::ShouldRequery`, ed e' testata, ma **quanto costa una risposta** non lo dice nessun test | 🟡 **2026-08-31** (PR #1900). ⚠️ **La voce è nata già rossa, e questo è il verdetto dopo il rimedio.** Alla prima esecuzione l'Editor smetteva di seguire il mouse: `BudgetFromCatalog` ricostruiva l'intero roster eroi — quattro `URTHeroData` più una `NewObject` per ciascuna delle loro azioni — **due volte per ogni cella sorvolata**. 🔴 La misura non è un'impressione: durante l'uso della sonda le chiamate al ponte MCP dell'Editor, che tornano di norma in meno di un secondo, sono **scadute a 60 s, cinque su cinque**; chiusa la sonda, la stessa chiamata ha risposto in **841 ms**. Corretto in #1900 — il catalogo si interroga solo al cambio d'eroe, e lo snapshot si costruisce una volta per evento invece di due. Verdetto dell'autore sul build corretto: **«si scorre»**. 🟡 e non ✅ perché resta non guardata la seconda metà della voce: l'attraversamento di **molte celle escluse**, dove ogni risposta costa un percorso a budget illimitato |
 
+### Le coordinate sul pavimento (#1920, aggiunte il 2026-08-31)
+
+> **Una voce, e nessun test può darla**: che una cifra a sette segmenti si legga su una cella è un
+> giudizio d'autore. Il contenimento nell'esagono, le tre direzioni e la scala del layer sono misurati da
+> `RefactorTactics.HexLabel.*`; **quanto siano leggibili** no.
+>
+> **Precondizione**: Editor aperto su `L_DevSandbox` illuminato da `U21`, un `ARTHexMapActor` con asset.
+> Nessun tool da attivare: le coordinate ci sono appena la mappa è aperta.
+
+| ID | Cosa verificare | Precondizione | Esito atteso | Stato |
+|----|-----------------|---------------|--------------|-------|
+| **PIE-HEX-COORD-LEGGIBILITA** | La terna si legge sulla cella, da tre lati | una mappa con celle su due layer | Girando attorno alla cella, **almeno una** delle tre terne è dritta e leggibile da dove si guarda. Le cifre non si confondono fra loro — `6` e `8`, `1` e `7` — e il `layer` si distingue da `x` e `y` per la metà scala invece di sembrare una cifra staccata. ⚠️ La riserva: che la terna non competa con il glifo di superficie e col bordo della cella, che occupano lo stesso pavimento | ⏳ |
+| **PIE-HEX-COORD-COSTO** | Il viewport non rallenta su una mappa grande | una mappa da almeno 200 celle | Navigando la mappa il viewport resta fluido. ⚠️ È la voce che guarda il rischio §8 della spec: le linee si posano una volta e non per frame, ma **quante siano** non lo dice nessun test — 200 celle sono ~6000 segmenti | ⏳ |
+
 ### Scenario Test Harness (aggiunte il 2026-08-07)
 
 > L'harness esegue scenari `.json` attraverso il **percorso di gioco reale** ed è **interamente coperto
