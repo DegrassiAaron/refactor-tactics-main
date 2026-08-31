@@ -44,6 +44,15 @@ Reaction     NON è una famiglia: è una causa, e usa la policy di una delle sop
 > era una regola preventiva per una famiglia che si credeva assente; era invece la descrizione di
 > `LinearLeap`, che il repository possiede da sempre.
 
+✅ **`Swap` è qui, e questo risponde a una domanda che il resolver del Move non deve porsi.**
+`AUTHOR-MOVE-001` ([D-295](../decisions/RT_PDR_00_Decision_Log.md)) decide che lo **scambio diretto e i cicli
+chiusi bloccano** nel Move *«salvo permesso esplicito»*. Quel permesso è **questa riga**: lo scambio lecito è
+un `Transfer`, `v0.2`/`E39`, e un Transfer non percorre celle intermedie — non passa dalle regole di
+traversal. ⛔ Ne segue che in **v0.1 non esiste alcuno scambio lecito** e la regola del Move è
+**incondizionata**: un flag di permesso dentro `StepHexMovement` sarebbe un secondo owner per una famiglia che
+ne ha già uno. L'implementazione della regola è
+[#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922).
+
 `Reaction Movement` **non è una famiglia**: è una delle altre con una causa diversa. Ciò che deve restare
 distinguibile è la *causa*, non il modo di muoversi — chi legge il TurnLog deve poter dire se quell'unità si è
 mossa perché l'ha deciso, perché è stata spinta o perché una reazione l'ha fatta scattare.

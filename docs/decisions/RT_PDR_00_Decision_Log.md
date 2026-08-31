@@ -304,6 +304,22 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
 
 ## Note
 
+- **D-295** (2026-08-31): ✅ **la clausola *«unless explicitly allowed»* di `AUTHOR-MOVE-001` non è una
+  domanda aperta, e non si risponde nel resolver del Move.** Trovato da uno spec panel su
+  [#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922) poche ore dopo il merge:
+  [`../gameplay/spec-tassonomia-movimento.md`](../gameplay/spec-tassonomia-movimento.md) §«famiglie» nomina
+  già `Swap` — *«scambio atomico di due posizioni»* — sotto **TRANSFER**, `v0.2`/`E39`, e
+  [D-118](RT_PDR_00_Decision_Log.md) dichiara il trasferimento spaziale **famiglia semantica propria, non
+  un'eccezione del Dash**. Un Transfer non percorre celle intermedie e non passa dalle regole di traversal.
+  ∴ **In v0.1 non esiste alcuno scambio lecito e la regola del Move è incondizionata**, e un flag di permesso
+  dentro `StepHexMovement` sarebbe un secondo owner per una famiglia che ne ha già uno (`CLAUDE.md` §3).
+  ⛔ La nota sta qui e non in `#1922` per la stessa ragione che `D-295` registra al proprio interno: un fatto
+  di governance che vive solo in una issue è trovabile solo da chi rilegge quella issue.
+  🔴 **E lo stesso panel ha corretto la forma della regola**, che `D-295` non poteva vedere perché non è una
+  decisione ma un'implementazione: il **ciclo chiuso** e il **convoy a coda libera** sono la *stessa*
+  struttura — ogni unità ha come target la posizione di un'altra in movimento, e differiscono solo per
+  l'ultima cella. Bloccare lo scambio con un confronto a coppie **uccide il convoy**, che oggi funziona.
+  Serve un rilevamento di ciclo, e il DoD di `#1922` lo dichiara.
 - **D-294** (2026-08-31): **rinumerata da `D-292`**, contenuto invariato. È la **diciannovesima** collisione
   di contatore — se si conta anche quella che nessuno ha registrato, poche ore prima, lo **stesso giorno**:
   la PR [#1899](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1899) ha rinominato la propria
