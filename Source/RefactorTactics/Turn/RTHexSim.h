@@ -171,6 +171,32 @@ struct FRTMovementResolutionState
 };
 
 /**
+ * Due unita' VIVE trovate sulla stessa cella costruendo l'occupancy (`#1970`).
+ *
+ * 🔴 **E' un errore strutturale, e fino al 2026-08-31 accadeva in silenzio.** `MakeSnapshot` dichiarava
+ * *«le sovrapposizioni sono un errore strutturale, segnalato da `ValidateSnapshot`»* — e `ValidateSnapshot`
+ * in partita non lo chiama nessuno: cinque test e un report di debug su richiesta esplicita. L'invariante
+ * era dichiarata e non la guardava nessuno.
+ *
+ * ⚠️ **Il fatto sta nel DATO e non in un log, e la ragione e' misurata**: `MakeSnapshot` sta anche sotto
+ * `ARTPlayerController`, che ricostruisce lo snapshot a ogni interazione di pianificazione. Un `UE_LOG` qui
+ * dentro produrrebbe centinaia di righe identiche al secondo per un singolo difetto — rendendo piu'
+ * difficile la diagnosi che questo campo esiste per abilitare. Rilevare e segnalare sono due mestieri: qui
+ * si rileva, e chi e' autoritativo decide se dirlo.
+ */
+struct FRTHexOverlap
+{
+	/** La cella contesa. */
+	FRTCellId Cell;
+
+	/** L'unita' che NON entra in `Occupancy`: a parita' di cella vince l'`UnitId` minore. */
+	int32 DiscardedUnitId = INDEX_NONE;
+
+	/** L'unita' che la occupa, cioe' quella arrivata prima nell'ordine stabile. */
+	int32 KeptUnitId = INDEX_NONE;
+};
+
+/**
  * Stato CONGELATO a inizio fase per la risoluzione su griglia esagonale ("raccogli poi applica", invariante #3).
  *
  * NON e' una USTRUCT e NON va conservata oltre la fase che la produce: contiene un puntatore non-UPROPERTY
@@ -194,6 +220,20 @@ struct FRTHexSnapshot
 
 	/** Cella -> UnitId dell'occupante (solo unita' vive). */
 	TMap<FRTCellId, int32> Occupancy;
+
+	/**
+	 * Le sovrapposizioni fra unita' VIVE trovate costruendo `Occupancy`. Vuoto = snapshot sano (`#1970`).
+	 *
+	 * ⚠️ **Non entra in nessun hash e in nessuna serializzazione**, e non e' un'omissione: e' diagnostica
+	 * della COSTRUZIONE, non stato di gioco. Se entrasse, due partite identiche con e senza il difetto
+	 * darebbero hash diversi — e la sovrapposizione diventerebbe un fatto *di gioco*, che e' l'opposto
+	 * dell'intento. `FRTHexSnapshot` non e' serializzato (nessun `operator<<`), quindi il campo e' inerte
+	 * per replay e determinismo.
+	 *
+	 * ⛔ **L'esito NON cambia**: a parita' di cella vince l'`UnitId` minore, esattamente come prima. Questo
+	 * campo rende la condizione visibile, non la risolve diversamente.
+	 */
+	TArray<FRTHexOverlap> Overlaps;
 
 	/**
 	 * Cosa sa ogni squadra (CP 13.2), ordinata per `TeamId` — un array e non una `TMap` perche' i consumatori
