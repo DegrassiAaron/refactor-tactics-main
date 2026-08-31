@@ -3,10 +3,12 @@
 > `CURRENT` · **Piano di sequenza**, non owner di regole. Ordina il lavoro fra owner che esistono già;
 > non ne crea di nuovi e non ridecide nulla.
 >
-> **Data**: 2026-08-30 · **Base della misura**: `main` @ `d9feb9b0` (7 commit dietro `origin/main` @ `aec66789`)
+> **Data**: 2026-08-30 · **Rimisurato**: 2026-08-31 su `origin/main` @ `2f45974f` · **Base della prima
+> stesura**: `main` @ `d9feb9b0` (7 commit dietro `origin/main` @ `aec66789`)
 >
 > **Cosa è**: la sequenza reale delle dipendenze del perimetro *«la griglia tattica si vede, la cella sotto il
-> cursore si vede, e si può spegnere»*, con owner, stato **misurato** ed exit gate per nodo.
+> cursore si vede, e si può spegnere»*, con owner, stato **misurato** ed exit gate per nodo. ➕ **Dal
+> 2026-08-31 copre anche la v0.2** — semantic area overlay, boundary volumetrico, Primary/Secondary — in §8.
 >
 > **Cosa non è**: una roadmap parallela. La roadmap canonica della v0.1 resta
 > [`roadmap-v0.1.md`](../roadmap-v0.1.md) e **non è stata toccata** — vedi §5.
@@ -27,7 +29,7 @@ nodo 1 e i test al nodo 5. Qui un test viene prima, perché lo chiede l'owner de
 | **0** | Audit del tracking e del codice | questo referto | ✅ **fatto** — 2026-08-30 | — | Nessun owner duplicato aperto: verificato su `hover`, `grid`, `overlay`, `bordo`, `griglia`, `pointer` |
 | **1** | `PlayerInput.HoverNeverCommits` esiste e prova la regola | [#1766](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1766), sotto [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705) | ⛔ **non scritto** — zero occorrenze in `Source/`; i `PlayerInput.*` reali sono **16**. ⏳ **owner aperto il 2026-08-30** | — | I due test sono verdi e **falliscono** se li si muta; `rt-suite.ps1 -Filter RefactorTactics.PlayerInput` passa da **16** a **18** |
 | **2** | L'hover si vede | [#1614](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1614) | ⏳ aperta, P1 — premessa corretta il 2026-08-30 | **1** | Le 12 caselle di #1614 + `PIE-V01-POINTER` eseguita |
-| **3** | La griglia si vede in partita: confine fra celle + toggle | [#1758](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1758) | ⏳ aperta il 2026-08-30, P1, sotto [#289](https://github.com/DegrassiAaron/refactor-tactics-main/issues/289) | — (indipendente da 1–2) | Le caselle di #1758 + voce `PIE-*` nuova, **collocata in una seduta** di [`editor-sessions.yaml`](../editor-sessions.yaml) |
+| **3** | La griglia si vede in partita: confine fra celle + toggle | [#1758](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1758) | 🟡 **codice a terra** — `85b9935f` su `main` (PR #1841, #1857): `CellBorders` è la settima famiglia ISM, ON di default. ⏳ **Resta il giudizio a schermo** | — (indipendente da 1–2) | `PIE-GRID-CONFINE`, seduta **U35** — quattro giudizi che nessun test può dare |
 | **4** | `FRTCellId` si legge a schermo in Development | casella di [#1614](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1614) | ⛔ **nessun consumatore** — `grep HoveredCell` in `Debug/` e `UI/` dà zero | **2** | Hovered `(X,Y,Layer)` e centro world visibili in PIE Development |
 | **5** | Selezione coerente col contratto | [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705) | 🟡 **parziale** — nella DoD dell'owner documentale: **7** caselle spuntate, **10** aperte | **1** | DoD §7 di [`spec-pointer-interaction.md`](../../technical/systems/spec-pointer-interaction.md); ⛔ cinque delle dieci aperte sono bloccate da [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) e [#74](https://github.com/DegrassiAaron/refactor-tactics-main/issues/74) e **non** sono di questa feature |
 
@@ -150,5 +152,70 @@ e un crash GPU allo shutdown che impedisce di leggere il verdetto dall'exit code
 cinque, vive sul percorso headless che `HandleClickOnCell`/`HandleClickOnUnit` già espongono, e non aspetta
 nessun altro owner.
 
-In parallelo, **nodo 3** ([#1758](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1758)) può
-iniziare oggi: non ha precondizioni.
+🔁 **Aggiornato il 2026-08-31.** Il nodo 3 non è più «può iniziare oggi»: il suo codice è su `main` da
+`85b9935f`. Ciò che resta è **`PIE-GRID-CONFINE` nella seduta U35** — quattro giudizi a schermo — e non è
+lavoro di programmazione. Il nodo 1 resta il prossimo passo di codice della v0.1.
+
+---
+
+## 8. La v0.2 — semantic area overlay
+
+> Aggiunta il **2026-08-31** dalla revisione di *RT — Tactical Grid Overlay v0.2 — Implementation Spec*.
+> La v0.2 **supera** la v0.1 su semantic overlay, palette, boundary volumetrico, Primary/Secondary,
+> priorità dinamica, certainty, source, multilayer, persistenza e transition timing. Non la sostituisce sui
+> nodi 1–5: quelli restano v0.1 e restano dove sono.
+
+### 8.1 L'ownership — e perché non nasce un'Epic
+
+**Nessuna Epic nuova**, come già §3. Il dominio è *presentazione della mappa*, e l'owner vivo si chiama
+letteralmente così: **[E49 #1769](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1769) ·
+Tactical Camera & Map Presentation**. Possiede già le due precondizioni che il perimetro v0.2 dichiara
+obbligatorie — il **multilayer** ([#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775))
+e il **picking layer-aware** ([#1776](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1776),
+`D-255`) — e ha già il precedente dichiarato di assorbire ownership senza creare Epic.
+
+⚠️ **E la grid base NON si sposta lì.** #1758, #1614 e #705 restano sotto E21/#289 e CP 11.8: sono `v0.1`,
+sono in corso, e riassegnarle sposterebbe lavoro vivo per simmetria.
+
+### 8.2 La sequenza v0.2
+
+| # | Nodo | Owner | Dipende da | Exit gate |
+|---|---|---|---|---|
+| **6** | Modello dell'area semantica + palette centralizzata | [#1941](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1941) **OVL-01** | — | Gate di distinguibilità sulle 7 tinte **e** contro le 9 superfici; `D-nnn` che chiude le tre collisioni |
+| **7** | Perimetro di regione + ribbon volumetrica | [#1942](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1942) **OVL-02** | **6** | Concava · buco · disconnessa headless; nessun edge interno; `PIE-*` in seduta |
+| **8** | Priorità dinamica + Primary/Secondary | [#1943](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1943) **OVL-03** | **6** | 1 Primary / max 2 Secondary contati da un test; `D-nnn` sul tratteggio con #172/#173 |
+| **9** | I sette significati, privacy e costo | [#1944](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1944) **OVL-04** | **7**, **8** | 60 FPS misurato; zero Actor per cella/edge; nessun overlay da intenti avversari |
+
+🟢 **I nodi 7 e 8 sono paralleli**: entrambi dipendono solo dal 6, e non l'uno dall'altro. È l'unico
+parallelismo reale di questa metà.
+
+⛔ **Le Slice «Base Tactical Hex Grid» e «Pointer/Cell Interaction» del kit v0.2 non compaiono qui, ed è
+misurato perché**: la prima è il nodo 3 e il suo codice è su `main`; la seconda è il nodo 2 (#1614) e il
+nodo 5 (#705), già in questa sequenza. Riproporle come nodi nuovi sarebbe una seconda descrizione dello
+stesso lavoro.
+
+### 8.3 I tre conflitti che l'audit ha trovato — e che nessun nodo può ignorare
+
+Non sono rischi ipotetici: sono cose già scritte nel repository che la spec v0.2 contraddice.
+
+1. 🔴 **Tre colori sono già occupati.** `DrawPlanningPreview` (`RTHexMapActor.cpp:1023-1110`) assegna
+   **arancione** `FColor(255,150,30)` al fuoco amico, **ciano** `FColor(40,220,220)` alla traccia del
+   percorso e **giallo** all'hover. La v0.2 li vuole per Hazard, Vision/LOS e Objective. Il fuoco amico ha
+   una voce PIE **verde** con un giudizio umano registrato — *«sì, si capisce»* — e riassegnarne il colore
+   invalida quella verifica. Owner della decisione: **#1941**.
+2. 🔴 **Il tratteggio ha già un proprietario.**
+   [`brief-planning-visuale.md`](../../technical/systems/brief-planning-visuale.md) §2 A3 lo assegna alla
+   **certezza** (*previsto = tratteggiata*); la v0.2 lo assegna ai **Secondary** e vieta di usarlo per
+   `Uncertain`. I due canali sono diversi — traiettorie contro edge di esagono — ma la grammatica che il
+   giocatore impara è una sola. Owner della decisione: **#1943**, insieme a #172/#173, entrambe aperte.
+3. ⚠️ **«Depth Test ON» contraddice un incidente già pagato.** `DrawPlanningPreview` usa `SDPG_Foreground`
+   *deliberatamente*: l'arancione del fuoco amico *«finiva SEMPRE sotto un cilindro, e l'avviso che deve
+   arrivare prima del lock-in non arrivava mai»* (PIE, 2026-08-08). Una ribbon con depth test ON dietro
+   un'unità è invisibile esattamente dove serve. Owner della decisione: **#1942**, e l'oracolo è una voce
+   PIE, non un test.
+
+### 8.4 Rapporto con la roadmap canonica — invariato
+
+[`roadmap-v0.1.md`](../roadmap-v0.1.md) **non è stata toccata**, e per la stessa ragione di §5: la famiglia
+OVL è `post-v0.1`, come E49. Quando i nodi 6–9 si chiuderanno, ciò che cambia lì è la riga di **E49** — non
+una voce nuova, e nessuna seconda roadmap.
