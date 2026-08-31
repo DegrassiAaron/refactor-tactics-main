@@ -39,25 +39,14 @@ public:
 	static FVector InterpolateAlongPath(const TArray<FVector>& Waypoints, float Alpha);
 
 	/**
-	 * Durata stimata del playback (secondi): movimento in PARALLELO (il segmento piu' lungo domina),
-	 * attacchi in serie, piu' un beat per fase attiva.
-	 * = MaxMoveSegments/CellsPerSecond + NumAttacks*AttackShowSeconds + NumActivePhases*PhaseBeatSeconds.
-	 * CellsPerSecond <= 0 e' trattato come "istantaneo" per la parte movimento.
-	 */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	static float EstimatePlaybackSeconds(int32 MaxMoveSegments, int32 NumAttacks, int32 NumActivePhases,
-		float CellsPerSecond, float PhaseBeatSeconds, float AttackShowSeconds);
-
-	/**
 	 * Quanti colpi devono essere GIA' MOSTRATI dopo PhaseElapsed secondi di fase Blast: il primo esce
 	 * subito, e ogni AttackShowSeconds successivi ne compare un altro, fino a NumAttacks.
 	 * = Min(NumAttacks, 1 + Floor(PhaseElapsed/AttackShowSeconds)).
 	 * AttackShowSeconds <= 0 significa "nessuno scaglionamento": escono tutti insieme.
 	 *
-	 * E' il contro-termine di EstimatePlaybackSeconds, che nella durata riserva gia'
-	 * NumAttacks*AttackShowSeconds: la stima mostrata a chi guarda e il ritmo con cui i colpi
-	 * compaiono devono venire dalla stessa formula, o la barra promette un tempo che la
-	 * riproduzione non usa (#911).
+	 * E' il contro-termine di `PhaseDuration`, che per il `Blast` riserva gia' il tempo dei colpi: la
+	 * durata mostrata a chi guarda e il ritmo con cui i colpi compaiono devono venire dalla stessa
+	 * formula, o la barra promette un tempo che la riproduzione non usa (#911).
 	 * ⚠️ Poiche' il primo colpo esce a t=0, N colpi occupano N-1 intervalli: l'ultimo compare a
 	 * (N-1)*AttackShowSeconds, un beat prima che la durata riservata alla fase finisca. Quel beat
 	 * e' il tempo di lettura dell'ultimo colpo, non un residuo da recuperare.
@@ -79,9 +68,14 @@ public:
 	 *
 	 * `CellsPerSecond <= 0` significa movimento istantaneo, non una divisione per zero.
 	 *
-	 * ⚠️ **Non e' `EstimatePlaybackSeconds`.** Quella e' una stima aggregata dell'intero round, questa e' la
-	 * durata di una singola fase e **e' la formula che il gioco usa davvero**: `ARTTurnManager::BeginPlayback`
-	 * somma questa su tutte le fasi attive per ottenere il totale grezzo. Le due non sono intercambiabili.
+	 * 🔑 **E' l'UNICA formula di durata del playback**, e il totale del round non ne ha una propria:
+	 * `ARTTurnManager::BeginPlayback` somma questa su tutte le fasi attive (`RawTotal`).
+	 *
+	 * ⛔ **Non aggiungerne una aggregata.** Ne e' esistita una — `EstimatePlaybackSeconds`, rimossa il
+	 * 2026-08-31 — che sommava movimento, colpi e beat sull'intero round: dava un numero **diverso** da
+	 * questo, perche' qui il `Blast` prende `Max(colpi, spinta)` e non la somma. Era coperta da quattro
+	 * asserzioni e chiamata da nessuno, cioe' una verita' verde e morta accanto a quella viva. Se serve il
+	 * totale, si somma questa.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static float PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
