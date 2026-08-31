@@ -481,6 +481,23 @@ public:
 	/** Vero se l'abilita' e' pronta (non in ricarica) e c'e' energia sufficiente. */
 	bool CanUseAbility(int32 Index) const;
 
+	/**
+	 * Lo scatto pianificato si applichera' davvero all'inizio della risoluzione?
+	 *
+	 * Tre condizioni, ed e' la stessa congiunzione che `ARTTurnManager::ResolveDash` valuta per decidere se
+	 * muovere l'unita': mobilita' rapida dichiarata dal catalogo, azione utilizzabile (ricarica ed energia),
+	 * destinazione diversa dalla cella corrente.
+	 *
+	 * 🔴 **Sta qui perche' ha due consumatori, e la seconda copia sarebbe divergibile.** Oltre al resolver la
+	 * chiede l'ANTEPRIMA, che deve partire dalla cella post-scatto: la fase Dash precede il Blast, quindi chi
+	 * carica e poi spara agisce da dove e' arrivato. Finche' la condizione stava solo dentro `ResolveDash`,
+	 * l'anteprima non aveva modo di porre la domanda senza riscriverla.
+	 *
+	 * ⚠️ **Non promette la cella d'arrivo.** `ResolveDash` risolve la collisione simultanea (CP 4.8) e puo'
+	 * fermare lo scatto prima della destinazione: questa risponde «lo scatto parte», non «lo scatto arriva».
+	 */
+	bool PlannedDashApplies() const;
+
 	/** Cooldown residuo (turni) di un'abilita'. */
 	int32 GetAbilityCooldown(int32 Index) const;
 

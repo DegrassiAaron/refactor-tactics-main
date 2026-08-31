@@ -3703,14 +3703,16 @@ void ARTTurnManager::ResolveDash()
 		Paths.Add({ Unit->Cell }); // default: fermo
 
 		const int32 DashIdx = Unit->PlannedDashAbility;
+		// ⚠️ Valutato PRIMA del consumo: `PlannedDashApplies` legge `PlannedDashAbility`, che la riga sotto
+		// azzera. Le tre condizioni (mobilita' rapida dichiarata dal catalogo, azione utilizzabile,
+		// destinazione diversa dalla cella corrente) stanno ora su `ARTUnit` perche' le chiede anche
+		// l'ANTEPRIMA, che deve partire dalla cella post-scatto: la fase Dash precede il Blast. Il flag
+		// legacy `bDash` non esiste piu' (#142).
+		const bool bDashApplies = Unit->PlannedDashApplies();
 		Unit->PlannedDashAbility = INDEX_NONE; // consumato per questo turno (valido o no)
 		const URTActionData* Dash = Unit->GetAbility(DashIdx);
 
-		// Mobilita' rapida: lo dichiara il CATALOGO (fase FastMovement -> macro-fase Dash) e nient'altro. Il
-		// flag legacy `bDash` non esiste piu' (#142): era la seconda risposta alla stessa domanda, e chi
-		// leggeva l'una non vedeva le azioni dichiarate solo con l'altra.
-		const bool bFastMovement = Dash != nullptr && URTCatalogLibrary::IsFastMovement(Dash->Def);
-		if (!bFastMovement || !Unit->CanUseAbility(DashIdx) || Unit->PlannedDashCell == Unit->Cell)
+		if (!bDashApplies)
 		{
 			continue;
 		}

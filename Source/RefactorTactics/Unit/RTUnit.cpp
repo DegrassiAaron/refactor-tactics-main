@@ -1031,6 +1031,14 @@ bool ARTUnit::CanUseAbility(int32 Index) const
 	return Ability && URTCombatLibrary::IsAbilityUsable(GetAbilityCooldown(Index), Energy, Ability->EnergyCost);
 }
 
+bool ARTUnit::PlannedDashApplies() const
+{
+	const URTActionData* Dash = GetAbility(PlannedDashAbility);
+	// Mobilita' rapida: lo dichiara il CATALOGO (fase FastMovement -> macro-fase Dash) e nient'altro (#142).
+	const bool bFastMovement = Dash != nullptr && URTCatalogLibrary::IsFastMovement(Dash->Def);
+	return bFastMovement && CanUseAbility(PlannedDashAbility) && !(PlannedDashCell == Cell);
+}
+
 void ARTUnit::SelectAbility(int32 Index)
 {
 	// `INDEX_NONE` DISARMA, ed e' un ingresso legittimo e non un errore da scartare: senza di esso non

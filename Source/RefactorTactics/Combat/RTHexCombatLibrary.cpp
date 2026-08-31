@@ -568,3 +568,78 @@ TArray<FRTAttack> URTHexCombatLibrary::ToAttacks(const FRTHexBlastPlan& Plan)
 	}
 	return Attacks;
 }
+
+FRTCellId URTHexCombatLibrary::BlastOriginCell(const FRTBlastPreviewPlan& Plan,
+	const TArray<FRTHexCombatUnit>& Units)
+{
+	if (!Units.IsValidIndex(Plan.AttackerId))
+	{
+		return FRTCellId();
+	}
+	const FRTCellId& Current = Units[Plan.AttackerId].Cell;
+	// `PlannedDashCell == Current` e' lo stesso scarto che fa `ResolveDash`: uno scatto che non sposta non e'
+	// uno scatto, e trattarlo come tale farebbe dichiarare «origine dallo scatto» a chi non si e' mosso.
+	if (Plan.bDashResolves && !(Plan.PlannedDashCell == Current))
+	{
+		return Plan.PlannedDashCell;
+	}
+	return Current;
+}
+
+FRTBlastPreview URTHexCombatLibrary::MakeBlastPreview(const FRTBlastPreviewPlan& Plan,
+	const TArray<FRTHexCombatUnit>& Units)
+{
+	FRTBlastPreview Preview;
+	if (!Units.IsValidIndex(Plan.AttackerId))
+	{
+		return Preview;
+	}
+
+	const FRTHexCombatUnit& Attacker = Units[Plan.AttackerId];
+	Preview.Origin = BlastOriginCell(Plan, Units);
+	Preview.bOriginFromPlannedDash = !(Preview.Origin == Attacker.Cell);
+
+	if (!Plan.bHasAction)
+	{
+		return Preview; // solo scatto pianificato: c'e' un'origine da mostrare e nessuna area
+	}
+
+	// La cella mirata: dichiarata dal piano, oppure quella del bersaglio se e' ancora in piedi. Un bersaglio
+	// caduto non degrada alla propria ultima cella — quello sarebbe il FALLBACK del resolver, che e' una
+	// regola di risoluzione e non una domanda di presentazione.
+	FRTCellId TargetCell;
+	if (Plan.bTargetsCell)
+	{
+		TargetCell = Plan.TargetCell;
+	}
+	else if (Units.IsValidIndex(Plan.TargetId) && Units[Plan.TargetId].bAlive)
+	{
+		TargetCell = Units[Plan.TargetId].Cell;
+	}
+	else
+	{
+		return Preview; // nessun bersaglio valido: nessuna area, ma l'origine resta
+	}
+
+	Preview.HitCells = HexHitCells(Plan.Shape, Preview.Origin, TargetCell, Plan.RangeCells, Plan.AreaRadius);
+
+	if (!Plan.bFriendlyFire)
+	{
+		return Preview;
+	}
+
+	// Fuoco amico: un alleato dentro l'area va visto PRIMA del lock-in, non dedotto dai danni dopo.
+	// Si scorre `Units` nell'ordine dello snapshot, che e' gia' canonico: l'elenco non dipende dall'input.
+	for (const FRTHexCombatUnit& Other : Units)
+	{
+		if (Other.UnitId == Attacker.UnitId || !Other.bAlive || Other.TeamId != Attacker.TeamId)
+		{
+			continue;
+		}
+		if (Preview.HitCells.Contains(Other.Cell))
+		{
+			Preview.AllyCells.AddUnique(Other.Cell);
+		}
+	}
+	return Preview;
+}
