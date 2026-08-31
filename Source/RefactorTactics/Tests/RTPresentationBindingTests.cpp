@@ -49,8 +49,11 @@ bool FRTPresentationEnumSizeIsPinnedTest::RunTest(const FString&)
 	// `ERTResolvedEventType` vede fallire una riga che lo nomina, invece di scoprire mesi dopo che l'evento
 	// non si vedeva. Il gate vero copre il valore nuovo per costruzione; questa riga fa in modo che
 	// qualcuno se ne ACCORGA e vada a dichiararne la presentazione.
-	TestEqual(TEXT("ERTResolvedEventType dichiara quattro valori (Move, Attack, HazardDamage, Defeated)"),
-		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 4);
+	// ➕ **Era 4, ed e' diventato 5 il 2026-08-31 con `AttackFootprint` ([D-301], #1945).** Il numero non e'
+	// il punto: il punto e' che quella issue ha visto fallire QUESTA riga, ed e' andata a dichiarare la
+	// presentazione del valore nuovo invece di scoprire fra sei mesi che l'evento non si vedeva.
+	TestEqual(TEXT("ERTResolvedEventType dichiara cinque valori (Move, Attack, HazardDamage, Defeated, AttackFootprint)"),
+		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 5);
 
 	// La reflection c'e' davvero: senza, `DeclaredEventTypeCount()` restituirebbe 0 e l'assertion sopra
 	// fallirebbe per il motivo sbagliato.
@@ -265,13 +268,18 @@ bool FRTPresentationResultIsDeterministicTest::RunTest(const FString&)
 	TArray<FRTPresentationBinding> SoloUltimo;
 	SoloUltimo.Add(PresBindingWithCue(ERTResolvedEventType::Defeated));
 	const TArray<FString> Mancanti = URTPresentationBindingLibrary::FindMissingBindings(SoloUltimo);
-	TestEqual(TEXT("tre tipi restano scoperti"), Mancanti.Num(), 3);
-	if (Mancanti.Num() == 3)
+	TestEqual(TEXT("gli altri tipi restano scoperti"),
+		Mancanti.Num(), URTPresentationBindingLibrary::DeclaredEventTypeCount() - 1);
+	if (Mancanti.Num() >= 3)
 	{
+		// L'ordine e' quello dei VALORI, e `Defeated` - l'unico dichiarato - non compare: le tre mancanze
+		// che lo precedono restano nella loro sequenza anche se l'enum cresce in coda.
 		TestTrue(TEXT("l'ordine segue l'enum: Move, Attack, HazardDamage"),
 			Mancanti[0].StartsWith(TEXT("Move"))
 			&& Mancanti[1].StartsWith(TEXT("Attack"))
 			&& Mancanti[2].StartsWith(TEXT("HazardDamage")));
+		TestFalse(TEXT("il tipo dichiarato non e' fra le mancanze"),
+			Mancanti.ContainsByPredicate([](const FString& M) { return M.StartsWith(TEXT("Defeated")); }));
 	}
 	else
 	{
