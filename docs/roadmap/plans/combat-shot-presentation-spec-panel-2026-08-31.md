@@ -5,11 +5,12 @@
 > v0.1*) e ne misura ogni claim contro il repository.
 >
 > **Data**: 2026-08-31 · **Modo**: critique · **Focus**: requirements + architecture
-> **Base della revisione**: `origin/main` `8bfe8f84`, albero pulito salvo il referto gemello di oggi
-> (`movement-microsteps-facing-pivot-spec-panel-2026-08-31.md`, untracked).
+> **Base della revisione** (§1–§7): `origin/main` `8bfe8f84` · **base delle mutazioni** (§8):
+> `origin/main` `0b179ff6`, dopo il merge di #1940 (`D-299`) — rimisurato, vedi §8.0.
 >
-> ⛔ **Nessuna issue creata o modificata, nessun owner doc toccato, nessuna suite eseguita, nessuna riga di
-> `Source/` cambiata.** Le mutazioni GitHub proposte in §8 attendono conferma.
+> ⛔ **Nessun owner doc toccato, nessuna suite eseguita, nessuna riga di `Source/` cambiata.**
+> ✅ **Tracking eseguito dopo conferma**: una issue creata — [#1945](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1945) — e tre commenti di legame su
+> #1801, #286, #289. Il dettaglio è in §8.
 
 ---
 
@@ -231,9 +232,25 @@ esplicita»*. Una spec che autorizza mutazioni non revisionate su un tracker con
 
 ---
 
-## 8. Matrice, e mutazioni proposte
+## 8. Matrice, e mutazioni
 
-⛔ **Nessuna eseguita.** Attendono conferma.
+✅ **Eseguite dopo conferma esplicita**, su `origin/main` `0b179ff6`.
+
+### 8.0 La rimisura prima di mutare, e cosa ha trovato
+
+`origin/main` è avanzato **durante la sessione**, da `8bfe8f84` a `0b179ff6` — il rischio che §11 registrava.
+Rimisurato prima di eseguire:
+
+- I due commit nuovi (#1940) toccano **solo** `docs/decisions/RT_PDR_00_Decision_Log.md`. **Nessun file su cui
+  poggia questo referto** — `RTResolvedEvent.h`, `RTTurnManager.{h,cpp}`, `RTPlaybackLibrary.*` — è cambiato:
+  i verdetti di §3 reggono.
+- 🔑 **`D-299` è nuova, ed è pertinente**: *«il log rivolto al giocatore è un canale **derivato** con un
+  vocabolario proprio»*, e apre #1936 / #1937. **Non contraddice questo referto — lo rafforza.** La sua
+  dominanza dichiarata è `KO > Danno > **Colpo**`: la leggibilità del colpo ha quindi una componente **feed**
+  che ora ha owner, accanto alla componente **scena** che non ce l'ha. È la ragione per cui §9 mette `#1936`
+  accanto a `#613`, e la conferma che le due metà sono separate per decisione, non per omissione.
+- ➕ **L'ultimo `D-nnn` osservato passa da `D-298` a `D-299`.** Vale come promemoria del §11: un ID letto a
+  inizio sessione è già vecchio a metà.
 
 | Proposta del checkpoint | Verdetto | Motivo |
 |---|---|---|
@@ -243,12 +260,18 @@ esplicita»*. Una spec che autorizza mutazioni non revisionate su un tracker con
 | **Una** issue residuale E21 «il colpo si vede durante Blast», con lo scope candidato | ⛔ **DEFER** | lo scope Area/Line/Cone non è realizzabile: §3. Aprirla oggi significa consegnare una DoD che si può chiudere solo violandola |
 | Owner del contratto evento → presentazione | **REUSE** — `#1801` | esiste, OPEN, P1, discende da `D-278` |
 
-### Mutazione **M1** — `CREATE`, una sola issue: il payload
+> ✅ **La riga `DEFER` è stata confermata dall'autore**: la issue E21 del checkpoint **non è stata aperta**.
+> Il suo rinvio è registrato su `#286` da **M3**, con il motivo — senza quella nota il prossimo audit
+> riscopre lo stesso gap da capo, ed è l'unico costo del differimento.
 
-**Titolo proposto**: *«L'evento `Attack` non dice dove ha colpito: `FRTResolvedEvent` porta le celle risolte
-e la forma, o la presentazione dell'area è impossibile senza ricalcolarla»*
+### Mutazione **M1** — ✅ `CREATE` [#1945](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1945)
 
-- **Epic**: `#25` (E11) o vicino a `#1801` — **non** E21: è C++ di confine, non lavoro in editor
+*«L'evento `Attack` non dice dove ha colpito: `FRTResolvedEvent` porta le celle risolte e la forma, o la
+presentazione dell'area è impossibile senza ricalcolarla»* — `v0.1` · `P1` · `enhancement` ·
+milestone **v0.1 · Leggibilità**
+
+- **Epic**: `#25` (E11) — **proposta nel body, non imposta**: `#1801` è la sorella di contratto e non ha
+  epic. ⚠️ **non** E21: è C++ di confine, non lavoro in editor
 - **Why misurato**: `RTResolvedEvent.h:65-70` — `Path` è *«per Move»*; `RTTurnManager.cpp:4867` emette per
   vittima, e un'AoE su celle vuote non emette nulla
 - **Dipendenza dichiarata**: `D-278` (il confine non si sposta) · **interagisce con** `#1801` (se la forma
@@ -258,22 +281,22 @@ e la forma, o la presentazione dell'area è impossibile senza ricalcolarla»*
 - **Test**: un evento `Attack` di forma `Area` porta le stesse celle che `HexHitCells` produrrebbe, **senza
   che il consumatore la chiami**
 
-### Mutazione **M2** — `UPDATE` `#1801`
+### Mutazione **M2** — ✅ `UPDATE` `#1801` ([commento](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1801#issuecomment-5478558502))
 
-Aggiungere: *(a)* il legame verso M1 come **primo consumatore reale** del contratto; *(b)* la nota che il
-payload dell'evento `Attack` è oggi insufficiente per la presentazione dell'area; *(c)* valutare la
-**milestone v0.1**, oggi assente, se M1 è lavoro di release.
+Registra *(a)* `#1945` come **primo consumatore reale** del contratto; *(b)* che il difetto del payload è
+**già presente sui quattro valori esistenti**, non solo su quelli futuri — la copertura non è «ogni tipo ha
+una voce» ma «la voce riceve abbastanza per essere resa»; *(c)* la **sequenza obbligata** — `#1801` prima di
+`#1945` se il payload allarga l'enum; *(d)* la **milestone assente**, lasciata come domanda all'autore.
 
-### Mutazione **M3** — `UPDATE` `#286` (E21)
+### Mutazione **M3** — ✅ `UPDATE` `#286` ([commento](https://github.com/DegrassiAaron/refactor-tactics-main/issues/286#issuecomment-5478561325))
 
-Aggiungere sotto *«Lavoro collegato — non un checkpoint»* la nota che la **resa del colpo** (tracer, impatto,
-area) è **riconosciuta come gap e deliberatamente differita**, con il motivo — il confine non porta il dato —
-e il rinvio a M1. Serve perché senza di essa il prossimo audit ricomincia da capo e riscopre lo stesso gap.
+Registra in E21 che la resa del colpo è un **gap riconosciuto e deliberatamente differito**, col motivo
+misurato, il rinvio a `#1945`, e il ceiling di `D-124` come metro per quando la cue tornerà proponibile.
 
-### Mutazione **M4** — `UPDATE` `#289`
+### Mutazione **M4** — ✅ `UPDATE` `#289` ([commento](https://github.com/DegrassiAaron/refactor-tactics-main/issues/289#issuecomment-5478563602))
 
-Back-reference verso `#1392` parte 3, oggi a senso unico: `#1392` dichiara di atterrare in E21 «vicino a
-`PIE-PREVIEW-AREA`», e nessuna issue E21 lo sa.
+Chiude il legame a senso unico verso `#1392` parte 3, e vi allega il **vincolo di quota** — sopra `RTCellTopZ`,
+salito da `2,5` a `7,5` uu il 2026-08-28 — perché è la trappola che `PIE-DEBUG-CELLS` ha già pagato una volta.
 
 ---
 
@@ -301,7 +324,10 @@ citato nel body, non lasciato implicito.
 - Lettura di `RTResolvedEvent.h`, `RTTurnManager.{h,cpp}` (punti di emissione), `RTPlaybackLibrary.{h,cpp}`,
   `RTHexCombatLibrary.h`, `RTUnit.h`
 - `grep` su `AttackShowSeconds`, `HexHitCells`/`AffectedCells`/`TargetCells`, Niagara/VFX in `Content/`
-- Decision Log: `D-124`, `D-269`, `D-270`, `D-278`, `D-297` · `OPEN_DECISIONS.md`: `FX-1`, `FX-2`
+- Decision Log: `D-124`, `D-269`, `D-270`, `D-278`, `D-297`, **`D-299`** · `OPEN_DECISIONS.md`: `FX-1`, `FX-2`
+- **Rimisura prima di mutare** (§8.0): `git fetch`, diff `8bfe8f84..0b179ff6`, lettura di `D-299`
+- **Mutazioni**: `#1945` creata; tre commenti su `#1801`, `#286`, `#289` — **riletti dopo la scrittura**,
+  nessun duplicato e nessun legame residuo a senso unico
 
 ### ⛔ NOT RUN
 - **`./scripts/rt-suite.ps1`** — non eseguita. Questo referto non tocca `Source/`, ma **scrivere in `docs/`
@@ -309,19 +335,29 @@ citato nel body, non lasciato implicito.
 - **PIE / Editor** — nessuna seduta. Ogni claim di leggibilità qui è **citato** da voci già registrate
   (`PIE-PREVIEW-AREA`, `PIE-AS4a/b`), mai osservato in questa sessione.
 - **Packaged build** — non pertinente a un referto documentale.
-- **Mutazioni GitHub** — §8 **non eseguito**.
+- **Nessun `D-nnn` prenotato**, e nessun owner doc di sistema aggiornato: vedi §11.
 
 ---
 
 ## 11. Rischi e aperti
 
-- 🔴 **`#1801` è senza milestone.** Se M1 è v0.1, il suo gate non può restare fuori dalla release.
-- ⚠️ **Il branch è cambiato sotto la sessione**: l'ambiente si è aperto su `feat/1864-gesto-select-erase` e la
-  misura è avvenuta su `main` `8bfe8f84`. Il repository è lavorato in parallelo (`CLAUDE.md` §7): **rifetchare
-  prima di eseguire §8**.
-- ⚠️ **Nessun `D-nnn` è stato prenotato** da questo referto. Se la scelta *«il payload dell'evento `Attack`
-  porta le celle»* va registrata come decisione, l'ID va **cercato e verificato al momento**, non assunto:
-  l'ultimo osservato è `D-298`, e prenotarlo non lo protegge da una sessione parallela.
+- 🔴 **`#1801` è senza milestone**, mentre `#1945` è in *v0.1 · Leggibilità*. Un prerequisito fuori dalla
+  release che il suo consumatore ha dentro è una data di consegna che nessuno sorveglia. **M2 lo chiede
+  all'autore; non è stato deciso qui.**
+- 🔴 **La scelta di forma del payload resta aperta** — `TArray<FRTCellId>` dedicato, riuso di `Path`, o nuovi
+  `ERTResolvedEventType` — e **non è un dettaglio implementativo**: solo la terza opzione innesca il gate di
+  `#1801`, quindi la scelta decide anche l'ordine di lavoro. Va fatta con `#789` (GAS) sul tavolo, che è il
+  secondo consumatore.
+- ⚠️ **L'ambiente si è mosso due volte durante la sessione.** Il branch d'apertura era
+  `feat/1864-gesto-select-erase`, la misura è avvenuta su `main` `8bfe8f84`, e `origin/main` è avanzato a
+  `0b179ff6` prima delle mutazioni (§8.0). Il repository è lavorato in parallelo (`CLAUDE.md` §7): **chi
+  riprende questo referto rifetchi prima di fidarsi di §3**.
+- ⚠️ **Nessun `D-nnn` è stato prenotato** da questo referto. Se la scelta di forma del payload va registrata
+  come decisione, l'ID va **cercato e verificato al momento**, non assunto: l'ultimo osservato è **`D-299`**
+  — ed era `D-298` a inizio sessione, il che è la dimostrazione del punto. Prenotarlo non lo protegge.
+- ⚠️ **Nessun owner doc di sistema è stato aggiornato.** `roadmap-v0.1.md` §E21 continua a descrivere E21 con
+  tre checkpoint e nessuna menzione del gap differito: la nota vive solo su `#286` (M3). Se il differimento
+  deve essere leggibile **dalla roadmap** e non solo dalla issue, è un pass separato.
 - ⚠️ La forma del payload — campo `TArray<FRTCellId>` riusato, campo nuovo, o nuovi `ERTResolvedEventType` —
   **non è decisa qui**. Tocca `#789` (GAS) come secondo consumatore: è una scelta di contratto, e va fatta
   con i due consumatori sul tavolo.
@@ -330,5 +366,6 @@ citato nel body, non lasciato implicito.
 
 ## 12. Prossimo passo
 
-**Confermare o correggere le quattro mutazioni di §8**, a partire da **M1** — è l'unica che sblocca le altre,
-ed è la sola `CREATE` che questo audit giustifica.
+**Decidere la forma del payload di `#1945`** — campo dedicato, riuso di `Path`, o nuovi
+`ERTResolvedEventType` — perché è la scelta che determina se `#1801` debba essere consegnata **prima**.
+Tutto il resto della catena aspetta quella risposta.
