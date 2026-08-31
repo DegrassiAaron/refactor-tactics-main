@@ -826,7 +826,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimHeadOnBlocksLinearSwapTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexSimHeadOnBlocksLinearSwapTest::RunTest(const FString&)
 {
-	// Contrasto diretto con ResolveSwapAllowed: la' lo scambio (nessuna mobilita' lineare) e' consentito, qui
+	// Contrasto diretto con ResolveSwapBlocked: la' lo scambio blocca come CICLO (`BlockedByCycle`), qui
 	// due mobilita' LINEARI (`Action.Charge` e affini) che si scambierebbero la cella si fermano l'una davanti
 	// all'altra invece di attraversarsi — e' lo scontro frontale di due cariche opposte (CP 4.8).
 	TArray<TArray<FRTCellId>> Paths;

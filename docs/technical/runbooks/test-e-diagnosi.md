@@ -825,7 +825,7 @@ che nessuno dei test esistenti poteva mostrare. Vale come esempio di quando conv
 
 | Livello | Regola | Test | Esito |
 |---|---|---|---|
-| Resolver | lo scambio **è consentito** | `HexSim.ResolveSwapAllowed` | ✅ verde |
+| Resolver | lo scambio **blocca** — come ciclo, `BlockedByCycle` | `HexSim.ResolveSwapBlocked` | ✅ verde |
 | Planner | goal occupato → **`NoPath`** | `HexSim.PathAvoidsOccupiedCell` | ✅ verde |
 
 Entrambe corrette, entrambe verdi, **ognuna guardata da sola**. Insieme rendono la regola del resolver
