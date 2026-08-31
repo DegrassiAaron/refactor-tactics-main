@@ -57,9 +57,9 @@
 
 ## Stato in numeri — 2026-08-30
 
-**179 voci**: ✅ **69 verdi** · 🟡 **23 parziali** · ❌ **2 fallite** · ⏳ **85 aperte**.
+**180 voci**: ✅ **69 verdi** · 🟡 **23 parziali** · ❌ **2 fallite** · ⏳ **86 aperte**.
 
-🔴 **Rimisurato il 2026-08-31, risolvendo il merge fra `feat/pc-gym-planning-input-usability-lab` e `origin/main`: il comando canonico conta `179 · 69/23/2/85`, e l'intestazione qui sopra diceva `178 · 69/23/2/84` — la stessa cifra su **entrambi** i rami.** Le due note qui sotto sono **entrambe vere e entrambe parziali**: ognuna misura `177 → 178` sul proprio ramo perché ognuna vedeva **una** voce nuova — `PIE-PC-GYM` da [#1859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1859) e `PIE-GRID-CONFINE` da [#1758](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1758). Sommate fanno **due**, e il merge le porta tutte e due: `+2` e tutto su ⏳, verdi/parziali/fallite ferme. ⚠️ **Due rami che dichiarano lo stesso totale non lo confermano: se lo dividono, la coincidenza è esattamente ciò che rende l'errore invisibile** — `178` sembrava corretto da qualunque lato lo si leggesse, e nessuno dei due lati era in grado di accorgersene da solo. È il gemello del caso #192 registrato più in basso, con una differenza: lì il merge aveva lasciato i marcatori nel documento, qui il conflitto è stato risolto tenendo **entrambe** le note e **rimisurando dopo il merge** invece di fidarsi della cifra su cui i due rami concordavano. `senza-marcatore=0`.
+🔴 **Rimisurato il 2026-08-31, risolvendo il merge fra `feat/pc-gym-planning-input-usability-lab` e `origin/main`: il comando canonico contava `179 · 69/23/2/85`, e l'intestazione diceva `178 · 69/23/2/84` — la stessa cifra su **entrambi** i rami.** Le due note qui sotto sono **entrambe vere e entrambe parziali**: ognuna misura `177 → 178` sul proprio ramo perché ognuna vedeva **una** voce nuova — `PIE-PC-GYM` da [#1859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1859) e `PIE-GRID-CONFINE` da [#1758](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1758). Sommate fanno **due**, e il merge le porta tutte e due: `+2`, tutto su ⏳, verdi/parziali/fallite ferme. ⚠️ **Due rami che dichiarano lo stesso totale non lo confermano: se lo dividono, la coincidenza è ciò che rende l'errore invisibile** — `178` sembrava corretto da qualunque lato lo si leggesse, e nessuno dei due lati poteva accorgersene da solo. È il gemello del caso #192 registrato più in basso, con una differenza: lì il merge lasciò i marcatori nel documento, qui il conflitto è stato risolto tenendo **entrambe** le note e **rimisurando dopo il merge** invece di fidarsi della cifra su cui i due rami concordavano. ➕ **Poi la stessa passata ha aggiunto una voce, e il totale è `180 · 69/23/2/86`**: entra `PIE-PACING-1`, che **esisteva come descrizione e non come voce**. Il blockquote c'era; la riga di tabella no — quindi il comando canonico non la contava, nessuno stato la tracciava, e il piano operativo la assegnava comunque a una sessione. ✅ Anche qui il delta è **esattamente uno e tutto su ⏳**. ⚠️ **È una classe di buco che nessun conteggio poteva mostrare**: il comando misura le righe di tabella, e una voce fuori tabella è invisibile proprio allo strumento che dovrebbe accorgersene. Si trova solo incrociando i due insiemi — i `PIE-` in apertura di blockquote contro quelli in apertura di riga — ed è oggi l'unico caso. `senza-marcatore=0` a ogni passo.
 
 ✅ **Rimisurato il 2026-08-30 (quarto giro della giornata, registrazione di `PIE-PC-GYM`): il comando canonico contava `177 · 69/23/2/83` **prima** di toccare il file e `178 · 69/23/2/84` **dopo**.** Il delta è **esattamente uno e tutto su ⏳**: entra `PIE-PC-GYM` ([#1859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1859)), verdi, parziali e fallite non si muovono. ⚠️ **E per la prima volta in sei giri l'intestazione era già corretta quando l'ho letta** — `177 · 69/23/2/83` scritto e `177 · 69/23/2/83` contato. Non cambia la regola di una parola: la coincidenza si è **misurata**, non dedotta, ed è esattamente ciò che le passate precedenti hanno fallito. `senza-marcatore=0` prima e dopo, che è il controllo che dice se una cella si è fusa con l'altra — il modo in cui questa sezione è già stata rotta due volte.
 
@@ -325,11 +325,29 @@ scritta qui sotto: si misura **dopo il merge**, col comando. `senza-marcatore` r
 >
 > ```bash
 > echo "scenari: $(find Scenarios/Visual -name '*.json' | wc -l)  \
-> voci: $(grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md)"   # devono coincidere: 21 e 21
+> voci: $(grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md)"   # 2026-08-31: 25 e 21 — NON coincidono
 > ```
 >
 > Va eseguito **quando si aggiunge uno scenario `Visual.*`**, non quando si sospetta un buco: la convenzione
 > che si ricorda a mano è la convenzione che si dimentica quando si ha fretta.
+>
+> 🔴 **Aggiornamento 2026-08-31: il comando qui sopra è stantio, e nel modo che questo file documenta
+> altrove — misura il FORMATO dell'ID, non il fatto.** Oggi dà `25` e `21`, e i quattro di scarto **non sono
+> quattro buchi**: `Visual.Input.PcGym` è coperta da `PIE-PC-GYM`, che è una voce a tutti gli effetti ma **non
+> porta il prefisso `PIE-VIS-`**; `Visual.Map.GrayKitYard` è una **fixture** con guida e automation test propri
+> ([`guida-seduta-u25-u35-graykit-e-griglia.md`](runbooks/guida-seduta-u25-u35-graykit-e-griglia.md),
+> `FRTGrayKitYardCarriesEverySubjectTest`), non uno scenario-verifica; `Visual.Map.TwoLayersSameColumn` è agganciata
+> a `U34` in [`editor-sessions.yaml`](../roadmap/editor-sessions.yaml).
+>
+> ⚠️ **Resta un buco vero, e uno solo: `Visual.Map.SightWallIsWalkable`** — nessuna voce PIE, nessuna citazione
+> in `docs/`, nessun riferimento in `Source/`. È esattamente il caso che il riquadro qui sopra descrive: uno
+> scenario eseguito, verde, e **mai guardato da nessuno**.
+>
+> ⚠️ Il letterale `21 e 21` era corretto quando fu scritto, ed è invecchiato da solo a ogni scenario aggiunto —
+> che è ciò che un numero scritto nel commento di un comando fa sempre. La domanda giusta non è *«quante voci
+> `PIE-VIS-` ci sono»* ma *«ogni scenario `Visual.*` ha **una qualche** voce che lo guarda»*, e si misura
+> incrociando gli `ScenarioId` del corpus con gli scenari citati da **tutte** le righe `PIE-`, non solo dalle
+> `PIE-VIS-`.
 
 *(Prima di questa passata erano 111 con 65 aperte; e prima ancora 100 con 54, dopo le **10 voci**
 `PIE-STATE-*` dell'epic E34 — che nascono ⏳ per un motivo più forte del solito: **verificano un sistema che
@@ -1176,6 +1194,7 @@ Se una tappa fallisce per **semantica** dell'input e non per leggibilità, il di
 | **PIE-V01-READY** | Ready anticipato e countdown annullabile | partita avviata | Chiudendo la pianificazione prima dello scadere del timer parte un **countdown di 3 s** prima del commit; premendo **Unready** durante il countdown si torna alla pianificazione **senza aver perso il piano**; il countdown **non** sostituisce il timer massimo. Si annota a che secondo si è dichiarato Ready nei round tipici | ⏳ **il countdown non esiste ancora**: oggi Spazio fa lock-in immediato e irreversibile. La voce documenta il comportamento atteso, non uno da verificare adesso |
 | **PIE-V01-OVERWATCH** | Finestra Fast Reaction da 3 s | E14 (CP 14.5/14.6) atterrata; un'unità con Overwatch armato | La finestra `FIRE`/`HOLD` compare **solo** al proprietario (l'alleato la vede in sola lettura, l'avversario **nulla**), dura **3 s** con countdown visibile, e allo scadere applica **HOLD** senza consumare la charge. **Tre secondi bastano** a decidere senza rileggere tutta la situazione? Se serve rileggere, il problema è la finestra, non la durata. La slow-motion è solo presentazione: ripetendo lo stesso turno l'esito non cambia | ⏳ **E14** (CP 14.6) |
 | **PIE-V01-MAPSCALE** | Scala della mappa in Move, non in celle | mappa di prova con almeno **due rotte** distinte fra gli spawn | Dallo spawn, **attraversare tutta la mappa** costa un numero di Move coerente con la classe dichiarata (**Skirmish** ~3–4, **Standard** ~5–7); **entro 1–2 round** è possibile contestare una zona rilevante o entrare in contatto; le due rotte offrono un **trade-off reale** (più rapida vs più coperta), non due strade equivalenti | ⏳ dipende dalla mappa di prova (vedi sotto) |
+| **PIE-PACING-1** | Il cablaggio degli input di pacing: i contatori si alimentano davvero dal controller | partita in PIE con `bRecordPacing = true` sul `RT Turn Manager` | Giocare **un** turno selezionando due volte un'unità, impartendo un ordine, annullando un waypoint e chiudendo con **Spazio**. Poi `rt.Debug.Pacing`: il sommario riporta **1 turno**, `SelectionCount` ≥ 2, `OrderCount` ≥ 1, `UndoCount` = 1 e **nessun taglio** — il lock-in è stato manuale. `Saved/RT/pacing_*.csv` esiste, ha l'intestazione e **una riga per turno giocato**. ⚠️ `Saved/` è gitignorata: l'evidenza va allegata alla voce, non cercata nel repo dopo | ⏳ **NOT RUN — registrata il 2026-08-31.** 🔴 **La voce era descritta e non registrata**, e per questo invisibile a ogni misura: il blockquote «PIE-PACING-1 — il cablaggio degli input» esisteva in questo file, ma **nessuna riga di tabella** la portava, quindi il comando canonico non la contava e nessuno stato la tracciava. Il piano operativo la assegna a **E2**, cioè pianificava lavoro su una voce che il registro non conosceva. I contatori in sé sono già coperti headless da `RefactorTactics.Pacing.RecordsDecisionComposition`: qui si verifica **solo** che il controller li alimenti |
 
 ### Bot — leggibilità delle decisioni
 
