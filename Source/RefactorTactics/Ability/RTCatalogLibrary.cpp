@@ -1196,10 +1196,19 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Charge` — 3 celle, si ferma ADDOSSO al primo nemico e lo colpisce: 20 danni piu' una spinta di 1.
 	// Gli effetti sono dichiarati qui, ma si applicano nel Blast (codice 20/30 del catalogo): il movimento e'
 	// fase 20, l'impatto e' controllo, e il controllo risolve per priorita' dentro il Blast.
+	//
+	// 🔴 **L'unica azione del catalogo che dichiara `SuppressSecondary`** ([D-300], `#1955`): interrotta,
+	// **colpisce ma non spinge**. E' la policy che ha reso attaccabile l'impatto della carica senza
+	// cancellarlo a posteriori — l'obiezione che lo teneva immune in `ApplyInterrupts`.
+	//
+	// ⚠️ **L'ORDINE degli effetti qui sotto e' significativo, non estetico**: `SuppressSecondary` taglia
+	// per POSIZIONE, e tiene il primo. Invertire `Damage` e `Push` cambierebbe cosa sopravvive agli EVENTI —
+	// e il danno arriverebbe comunque, perche' nella pipeline del Blast viaggia su `Intent.Power` e non su
+	// `ProduceEvents`. Il limite e' scritto sull'enum, dove si sceglie il valore.
 	Catalog.Add(ShippedAction(TEXT("Action.Charge"), ERTResolutionPhase::FastMovement, /*Priority*/ 35,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20), FRTActionEffectSpec(ERTActionEffect::Push, 1) },
-		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::LinearCharge));
+		ERTInterruptPolicy::SuppressSecondary, ERTActionSlot::Movement, ERTMovementStyle::LinearCharge));
 	Catalog.Last().bCountsAsAttack = true; // consegna danno a un'unita' [`INT-8`]
 	// Occupa il MOVIMENTO come ogni altra mobilita' rapida [D-191]: che una carica faccia danno a chi raggiunge
 	// non cambia CHE COSA ha speso. Fino al 2026-08-26 questo capoverso diceva l'opposto - «l'unica mobilita'

@@ -205,28 +205,40 @@ più leggibile. Le due righe si sostengono a vicenda; questo file possiede il **
 
 ---
 
-### 5.1 `ZoomAlpha` — la sorgente unica — ⏳ [#1834](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1834)
+### 5.1 `ZoomAlpha` — la sorgente unica — ✅ [#1856](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1856)
 
-Lo zoom ha **cinque consumatori** e, al 2026-08-30, **una sola derivazione** — scritta a mano accanto al
-suo consumatore. `grep -c ZoomAlpha` sull'intero repository risponde **zero**.
+La sorgente **esiste** dal 2026-08-31: `ARTCameraPawn::GetZoomAlpha()` / `SetZoomAlpha()`, con 4 test
+`RefactorTactics.Camera.*` e verifica di mutazione superata. Questa sezione diceva *«al 2026-08-30 una
+sola derivazione»* e *«`grep -c ZoomAlpha` risponde zero»*: era vero **a quella data**, e non lo è più —
+il grep risponde `3` nel solo `RTCameraPawn.cpp`.
 
 | Consumatore | Deriva dallo zoom? | Come, oggi |
 |---|---|---|
-| velocità di pan | 🟡 sì, ad-hoc | `DistanceScale = TargetArmLength / DefaultArmLength` |
-| pitch | ❌ no | `DefaultPitch` fisso, cambia solo per input manuale |
+| velocità di pan | ✅ **dalla sorgente** | `Lerp(MinArmLength, MaxArmLength, GetZoomAlpha()) / DefaultArmLength` |
+| pitch | 🟡 **canale aperto, curva piatta** | `DefaultPitch + PitchZoomDelta * GetZoomAlpha()`, con `PitchZoomDelta = 0` di **default**: in partita l'inclinazione è identica a prima, e la curva si tara in [#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780) |
 | FOV | ❌ no | `ViewportHorizontalFov` viene **letto** dalla camera, mai scritto |
 | span dei layer | ❌ non esiste | §6 |
 | alpha della UI tattica | ❌ non esiste | [#1835](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1835) |
 
-⚠️ **L'unica derivazione esistente non è normalizzata e non ha tetto**: il rapporto vale `0.125` a zoom
-minimo e `5.0` a zoom massimo. Il commento che l'accompagna è corretto sul *perché* serve — *«a vista larga
-la stessa quantità di input copre più terreno»* — e il difetto non è quella riga: è che **la prossima curva
-verrà scritta allo stesso modo**, accanto al proprio consumatore, e a quel punto saranno due formule che
-nessuno può confrontare né tarare insieme.
+⚠️ **Il difetto che la sorgente ha chiuso**, tenuto qui perché è la ragione per cui esiste: la vecchia
+derivazione ad-hoc non era normalizzata e non aveva tetto — il rapporto valeva `0.125` a zoom minimo e
+`5.0` a zoom massimo. Non era quella riga a essere sbagliata: era che **la prossima curva sarebbe stata
+scritta allo stesso modo**, accanto al proprio consumatore, e sarebbero state due formule che nessuno
+poteva confrontare né tarare insieme.
 
-⏳ **Prescritto**: `GetZoomAlpha()` / `SetZoomAlpha()` come porta unica,
-`(TargetArmLength - MinArmLength) / (MaxArmLength - MinArmLength)` clampato `[0..1]` e monotòno; i
-consumatori derivano da lì invece di rileggere il braccio.
+✅ **Misurato**: `GetZoomAlpha()` normalizza sui **limiti reali** —
+`(TargetArmLength - MinArmLength) / (MaxArmLength - MinArmLength)`, clampato `[0..1]` e monotòno — e
+`SetZoomAlpha()` è la porta di scrittura equivalente, che riallinea anche `bStrategicView`. I consumatori
+derivano da lì invece di rileggere il braccio.
+
+🔑 **Normalizzare sul `DefaultArmLength` è l'errore che i test presidiano**, e non è teorico: darebbe un
+valore che vale `1` a metà corsa e supera `1` oltre — un rapporto, non una posizione. La verifica di
+mutazione del 2026-08-31 l'ha applicata e **tutti e quattro** i test sono caduti, con `alpha` che a braccio
+minimo valeva `0.125` = `Min/Default`.
+
+⏳ **Resta prescritto** il canale di debug che [#1834](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1834)
+dichiarava: nessun `UE_LOG` sul cambio di alpha e nessun consumatore fuori dal pawn, quindi la taratura di
+#1780 si farebbe **a occhio**.
 
 ⛔ **Cosa la sorgente NON autorizza.** Un `alpha` normalizzato rende comodo scrivere il FOV dallo zoom, e
 non va fatto per inerzia: `ViewportHorizontalFov` alimenta `ComputeEffectivePivotBounds` (`D-251`), quindi

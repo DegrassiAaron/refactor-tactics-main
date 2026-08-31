@@ -162,6 +162,56 @@ vive nel `feature-registry.yaml` e nelle issue, non qui — §1.
 
 ---
 
+### 3.4 Le regole che riguardano **due** segmenti — `D-288`
+
+Le regole di §3.3 guardano un segmento **preso da solo**: asse, lunghezza, layer, bordi editabili. Sono
+quelle che `ValidateSegment` può rifiutare prima che il gesto venga committato.
+
+Ce n'è una seconda famiglia, che un segmento solo non può violare: riguarda la **collezione**, e vive
+perciò nello strato che *segnala* — `URTGeometryGrammarLibrary::Validate`, e da lì `ValidateMap`.
+
+| Reason code | Configurazione | Perché non è la regola accanto |
+|---|---|---|
+| `DuplicateSegment` | lo **stesso** segmento due volte, anche percorso al contrario | identità geometrica: `operator==` usa `Min`/`Max` sugli estremi |
+| `OverlappingSegments` | due **collineari** — stesso asse, offset e layer — i cui tratti si intersecano in **più di un punto** | gli estremi sono diversi: non è un duplicato |
+| `CrossingOffAnchor` | due segmenti di **assi diversi** che si incontrano in un punto che **non** è uno dei tredici anchor | non è una sovrapposizione: si toccano in un punto solo |
+
+Tre configurazioni, tre codici. Non è ridondanza: è ciò che rende asseribile la verifica di mutazione di
+§3.3 — allentata una regola, deve cadere **esattamente** il test che la protegge, e due configurazioni che
+condividessero un codice non lo permetterebbero.
+
+**Che cosa NON è una violazione**, e va detto perché sono i casi che una regola scritta male sacrifica:
+
+- due muri che si **incrociano al centro** della cella, o su qualunque altro anchor — è la configurazione
+  più comune che esista, e resta legale;
+- due muri collineari **consecutivi** che condividono un estremo — è un muro lungo disegnato in due gesti,
+  cioè il modo normale di disegnarlo;
+- una **T** che termina su un anchor di un altro segmento: legale, e **non** impone di spezzare il segmento
+  attraversato. Le junction non appartengono a questa grammatica in v0.1 (`GEO-6` di `D-288`), e una regola
+  d'incidenza che segnalasse *«passa per un anchor dove un altro finisce»* le reintrodurrebbe dalla porta di
+  servizio;
+- due segmenti su **layer diversi**: la geometria di un piano non tocca quella di un altro.
+
+> 🔑 **L'incidenza si decide sugli interi, ed è §11 applicata a una domanda fra due segmenti.** *«Quel punto
+> è un anchor?»* chiesta in `FVector2D` sarebbe un confronto con tolleranza, e una tolleranza qui non è
+> precisione ma **regola di gioco**: decide quali muri un livello può contenere.
+>
+> La misura che lo rende possibile: i tredici punti notevoli cadono su coordinate **intere** nella base
+> `(HexSize · √3/4, HexSize/4)` — il vertice a `-30°` è `(2, -2)`, il punto medio del lato `E` è `(2, 0)`,
+> quello del lato `NE` è `(1, 3)`. L'apotema irrazionale che `RT_GeometryQuanta` esiste per aggirare
+> sparisce, perché `√3` finisce nell'**unità** dell'asse `X` invece che nelle coordinate. Il punto
+> d'intersezione si confronta moltiplicato per il denominatore, così la divisione non viene mai eseguita.
+
+⚠️ **Il costo è quadratico nel numero di segmenti di una cella**, e va tenuto onesto: la validazione della
+collezione gira in authoring e su `ValidateMap`, mai nel ciclo di gioco. Se la scala lo richiedesse, il
+raggruppamento naturale è per **asse e offset**.
+
+⚠️ **Il raggruppamento per cella non è un'ottimizzazione, è la correttezza.** I segmenti sono in coordinate
+**locali** di cella: due muri di celle diverse con gli stessi numeri non si incrociano affatto, e validare
+`InteriorWalls` in un colpo solo li segnalerebbe tutti.
+
+---
+
 ## 4. Il bordo condiviso è una primitiva sola
 
 Coperture e porte sono proprietà di **bordo**, e il bordo `E` di `A` è **lo stesso bordo fisico** del bordo

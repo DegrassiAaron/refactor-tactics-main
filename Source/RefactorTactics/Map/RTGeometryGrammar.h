@@ -104,7 +104,30 @@ enum class ERTGeometryViolation : uint8
 	InvalidLayer,
 
 	/** Una coordinata supera `RT_GeometryMaxQuanta` dal centro della cella. */
-	OutsideEditableBounds
+	OutsideEditableBounds,
+
+	/**
+	 * DUE SEGMENTI SI INCONTRANO FUORI DA UN ANCHOR — `#1894`, `GEO-6` di `D-288`.
+	 *
+	 * ⚠️ **Assorbe anche la T**: una che termina a meta' di un altro segmento tocca in un punto che non e'
+	 * un anchor, ed e' questo. `GEO-6` ha escluso le junction dalla grammatica, quindi non esiste un caso
+	 * «T» distinto da segnalare — un reason code in piu' distinguerebbe due nomi della stessa
+	 * configurazione, e la verifica di mutazione non saprebbe piu' quale regola ha allentato.
+	 *
+	 * E' una proprieta' della COLLEZIONE, come `DuplicateSegment`: `ValidateSegment` non puo' rilevarla.
+	 */
+	CrossingOffAnchor,
+
+	/**
+	 * DUE SEGMENTI COLLINEARI SI SOVRAPPONGONO su piu' di un punto.
+	 *
+	 * Stessa giacitura — asse, offset e layer — e intervalli che si intersecano. **Toccarsi in un estremo
+	 * non e' sovrapporsi**: due muri che condividono un anchor sono la continuita' che questa grammatica
+	 * esprime, ed e' il caso normale di un muro lungo spezzato dal disegno.
+	 *
+	 * ⚠️ Diverso da `DuplicateSegment`, che chiede l'identita': qui gli estremi sono diversi.
+	 */
+	OverlappingSegments
 };
 
 /**
@@ -182,6 +205,16 @@ struct FRTGeometryIssue
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
 	ERTGeometryViolation Violation = ERTGeometryViolation::None;
+
+	/**
+	 * L'ALTRO segmento coinvolto, per le violazioni che sono una RELAZIONE fra due — `CrossingOffAnchor`,
+	 * `OverlappingSegments` e `DuplicateSegment`. `INDEX_NONE` per quelle che riguardano un segmento solo.
+	 *
+	 * 🔑 Senza, una segnalazione d'incidenza direbbe *«il segmento 4 incrocia qualcosa»*, e chi disegna
+	 * dovrebbe cercare il qualcosa a mano.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	int32 OtherIndex = INDEX_NONE;
 };
 
 /**
@@ -218,7 +251,7 @@ enum class ERTAnchorKind : uint8
  * `FRTOccupancyPolyline`. Il formato dell'asset non cambia per averlo.
  */
 USTRUCT(BlueprintType)
-struct FRTAnchorRef
+struct REFACTORTACTICS_API FRTAnchorRef
 {
 	GENERATED_BODY()
 
@@ -248,12 +281,55 @@ struct FRTAnchorRef
 /** Quanti anchor espone una cella: uno al centro, sei vertici, sei punti medi. */
 static constexpr int32 RT_AnchorsPerCell = 13;
 
+/**
+ * PERCHE' una coppia di anchor non si puo' dire — `#1895`, `GEO-8` di `D-288`.
+ *
+ * 🔑 **Esiste perche' `SegmentBetweenAnchors` restituisce `false` e basta.** Un booleano dice *che* non si
+ * puo', non *perche'*, e il gesto d'authoring ha bisogno del perche': il criterio di `#1895` chiede che il
+ * ghost rifiuti **con la ragione**, e una ragione composta dall'editor sarebbe una regola scritta due volte
+ * — quella vera qui e la sua parafrasi la'.
+ *
+ * E' un REASON CODE per la stessa disciplina di `ERTGeometryViolation`: quattro rifiuti distinti si
+ * verificano uno per uno, mentre quattro frasi simili no.
+ */
+UENUM(BlueprintType)
+enum class ERTAnchorPairRefusal : uint8
+{
+	/** La coppia si esprime: esiste un segmento della grammatica che congiunge esattamente questi due. */
+	None,
+
+	/**
+	 * Due celle diverse non hanno un sistema di coordinate comune in cui dire un segmento. Un muro lungo e'
+	 * PIU' segmenti, uno per cella — chi lo vuole passa da `URTHexLibrary::SplitSegmentAcrossCells`.
+	 */
+	DifferentCell,
+
+	/** Stessa cella nel piano, layer diversi: la geometria di un piano non descrive l'altro. */
+	DifferentLayer,
+
+	/** I due estremi sono lo STESSO anchor: un gesto senza lunghezza non e' un muro. */
+	SameAnchor,
+
+	/**
+	 * LE VENTIQUATTRO — nessuno dei sei assi tattici porta questa coppia.
+	 *
+	 * Sono tutte e sole le **vertice ↔ punto-medio non adiacente**: un vertice appartiene a due lati, quindi
+	 * dei sei punti medi ne ha due adiacenti e quattro no, e `6 x 4 = 24`. Delle 78 coppie fra i tredici
+	 * anchor, **54** si esprimono e **24** no — `RefactorTactics.Anchor.InexpressiblePairsAreRefused` lo
+	 * misura, e `GEO-8` ha deciso che si rifiutano invece di far crescere la grammatica.
+	 */
+	NoTacticalAxis
+};
+
+
 
 /**
  * La grammatica quantizzata delle direttrici, e il validator che la rende una regola — `#620`.
  *
- * Vive nel modulo RUNTIME e non nell'editor: in `Source/RefactorTacticsEditor/` non esiste alcun test, e
- * una regola che nessun test puo' far cadere non e' una regola. L'editor la CHIAMA. Stessa ragione per cui
+ * Vive nel modulo RUNTIME e non nell'editor. La ragione storica — *«in `Source/RefactorTacticsEditor/`
+ * non esiste alcun test»* — **non e' piu' vera**: misurato il 2026-08-31, quel modulo ha nove file di
+ * test. La ragione che resta e' piu' forte e non dipende da un conteggio: una regola sta dove sta il
+ * DATO che governa, e i tool sono tre (`Paint`, `Arch`, `Geometry`) mentre la grammatica e' una. L'editor la CHIAMA. Stessa ragione per cui
  * `URTHexOccupancyLibrary` sta qui pur servendo soprattutto l'authoring.
  *
  * Il rifiuto e' a DUE STRATI, come il precedente del repository: `ValidateSegment` RIFIUTA — e' quello che
@@ -375,4 +451,37 @@ public:
 	 */
 	static bool SegmentBetweenAnchors(const FRTAnchorRef& A, const FRTAnchorRef& B, float HexSize,
 		FRTGeometrySegment& OutSegment);
+
+	/**
+	 * L'ANCHOR SU CUI UN PUNTO SI AGGANCIA — `#1895`.
+	 *
+	 * 🔴 **Esiste perche' mancava l'anello fra il gesto e la grammatica fedele.** `SnapToGrammar` prende due
+	 * punti LIBERI del mouse ed e' deliberatamente tollerante — *«tiene l'asse che sbaglia meno»*;
+	 * `SegmentBetweenAnchors` e' fedele ma prende due ANCHOR. Nessuna delle due converte un punto in un
+	 * anchor, e senza questa funzione quella ricerca sarebbe finita nel modulo editor: cioe' una regola
+	 * dove non ci sono i test, che e' il difetto che tutta questa libreria esiste per non avere.
+	 *
+	 * ⚠️ **Nessuna soglia, e non e' una svista.** La palette e' CHIUSA — tredici punti — quindi il piu'
+	 * vicino esiste sempre e la funzione e' TOTALE. Una soglia introdurrebbe un «nessun anchor» che il
+	 * chiamante dovrebbe gestire, e soprattutto un numero da tarare: il raggio oltre cui un gesto smette di
+	 * agganciare non e' una proprieta' della geometria, sarebbe una preferenza.
+	 *
+	 * Il confronto e' sulla distanza al quadrato, e a parita' vince l'anchor di indice minore nell'ordine
+	 * dichiarato da `AnchorsOfCell` — centro, vertici, punti medi. La parita' capita davvero (il centro di un
+	 * gesto perfettamente a meta' fra due vertici), e senza un criterio esplicito l'esito dipenderebbe
+	 * dall'ordine di iterazione.
+	 */
+	static FRTAnchorRef NearestAnchor(const FRTCellId& Cell, const FVector2D& Local, float HexSize);
+
+	/**
+	 * PERCHE' questa coppia non si puo' dire, o `None` se si puo'.
+	 *
+	 * ⚠️ **Non duplica `SegmentBetweenAnchors`**: quella resta l'unica che PRODUCE il segmento, questa
+	 * risponde al perche' del suo `false`. Le due non possono divergere perche' un test le confronta su
+	 * tutte e 78 le coppie — `ExplainPair == None` se e solo se `SegmentBetweenAnchors` riesce.
+	 *
+	 * L'ordine dei controlli e' quello di `SegmentBetweenAnchors`: prima cio' che rende la domanda priva di
+	 * senso (celle, layer, degenere), poi l'esprimibilita' vera e propria.
+	 */
+	static ERTAnchorPairRefusal ExplainPair(const FRTAnchorRef& A, const FRTAnchorRef& B, float HexSize);
 };

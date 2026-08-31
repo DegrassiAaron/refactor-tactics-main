@@ -1350,8 +1350,8 @@ sessions:
     artifacts: []
     unblocked_by: [U21]
     shares_setup_with: [U21, U25, U26]
-    verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI]
-    issues: [712]
+    verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI, PIE-GEO-ANCHOR]
+    issues: [712, 1895]
     done_when: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
     unblocks: []
     notes: >-
@@ -1367,6 +1367,16 @@ sessions:
       nel livello, ed e' l'unico modo di accorgersene: nessun test headless apre un `.umap`.
       ⚠️ ID assegnato prima del merge: `U22`, con `U21` come ultimo su `main` e su tutti i branch
       remoti. Chi arriva secondo rinumera, non contende.
+      ➕ **`PIE-GEO-ANCHOR` aggiunta il 2026-08-31 con #1895**, e non e' una quinta voce a caso:
+      l'aggancio del gesto e' passato da `SnapToGrammar` — tollerante, *«tiene l'asse che sbaglia
+      meno»* — a `NearestAnchor` + `ExplainPair` + `SegmentBetweenAnchors`, che sulle ventiquattro
+      coppie inesprimibili **rifiutano con la ragione** invece di produrre un muro diverso in
+      silenzio. ⚠️ **Quindi `PIE-GEO-SNAP` va rieseguita**: il suo ✅ misurava il comportamento
+      precedente, ed e' annotata di conseguenza in `test-manuali-pie.md`.
+      ✅ La proprieta' che questa nota dichiarava — *«il tool NON contiene una sola regola: tre
+      chiamate al runtime e zero logica duplicata»* — **regge ancora**: le chiamate restano tre, e la
+      frase del rifiuto la compone `RTHexAnchor::Describe`, che traduce un reason code invece di
+      deciderlo.
 
   - id: U24
     title: I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root
@@ -2305,3 +2315,33 @@ sessions:
       aperta. E' invisibile a schermo — un pannello che dice «rifiutato» ha lo stesso aspetto in entrambi i
       casi — ed e' coperto dal test `DevSandboxLauncher.SessionComesFromTheFacade`, che asserisce
       `HasSession() == false` dopo un rifiuto. Detto invece di simulato.
+
+  - id: U39
+    title: Le coordinate incise sul pavimento, e il loro costo su una mappa grande
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto su leggibilità delle coordinate incise sul pavimento, e sul costo di disegno su una mappa grande
+    artifacts: []
+    unblocked_by: [U21]
+    shares_setup_with: [U21, U22, U25, U26]
+    verifies: [PIE-HEX-COORD-LEGGIBILITA, PIE-HEX-COORD-COSTO]
+    issues: [1920]
+    done_when: le due voci hanno un esito reale nel registro
+    unblocks: []
+    notes: >-
+      ➕ **Seduta aperta il 2026-08-31 dal Task 4 del piano che implementa #1920.** Le due voci PIE
+      nascono dal DoD della issue — una voce collocata in una seduta, non un test — e nessuna seduta
+      esistente copriva il tema: `grep -c "HexLabel\|PIE-HEX-COORD" docs/roadmap/editor-sessions.yaml`
+      dava **0** prima di questo commit. Stessa ragione per cui `U26` e `U35` esistono.
+      ⚠️ `unblocked_by: [U21]` per la stessa ragione pratica di `U22`, `U25` e `U26`: su una scena non
+      illuminata il verdetto direbbe più sulle luci che sulle coordinate.
+      ⚠️ `shares_setup_with: [U21, U22, U25, U26]`, l'intero clique: il criterio non e' lo
+      strumento attivo ma lo **stesso allestimento** (`L_DevSandbox` illuminato da `U21`), ed e' per
+      questo che `U22`/`U25`/`U26` si citano gia' a vicenda pur richiedendo tool diversi fra loro
+      (Geometry, Graybox, Probe) — la definizione del campo parla di *stessa apertura*, non di stesso
+      strumento, e la Regola di batching in testa al file tratta un cambio di tool come una ragione che
+      NON giustifica una nuova apertura. `U39` chiede MENO delle altre tre — nessun tool — quindi e' un
+      sottoinsieme del loro allestimento, non un caso a parte: si esegue nella stessa apertura.
+      ⚠️ ID assegnato prima del merge: `U39`, con `U38` come massimo misurato su `main` **e su tutti i
+      branch remoti** il 2026-08-31. Chi arriva secondo rinumera, non contende.
