@@ -175,13 +175,20 @@ questa è una di quelle. Se il criterio fossero le righe, la fetta andrebbe scar
 
 ## 6. Verifiche
 
-| Prova | Esito |
-|---|---|
-| Build `RefactorTacticsEditor Win64 Development` | **`Result: Succeeded`** — 110 s |
-| `scripts/rt-suite.ps1` (suite intera) | **VALIDA** · **1 529 / 1 529 completati** · **0 fallimenti** · 04:55 |
-| `RefactorTactics.UnitIdentity.RosterIndexIsTheExactInverseOfTheIdAssignment` | `Result={Success}` |
-| `RefactorTactics.UnitIdentity.AResolvedFactOutlivesTheActorItCameFrom` | `Result={Success}` |
-| `RefactorTactics.Match.Autobattle.PlaybackResolvesEveryAttackSubjectFromItsStableId` | `Result={Success}` |
+Due misure, perché la prima era su un albero che non si sarebbe mergiato: CLAUDE.md §6 chiede il gate sul
+commit che si mergia davvero.
+
+| Prova | Pre-merge (`0c0ee87c` + diff) | **Post-merge (`c2786864`)** |
+|---|---|---|
+| Build `RefactorTacticsEditor Win64 Development` | `Result: Succeeded` — 110 s | **`Result: Succeeded`** — 49 s |
+| `scripts/rt-suite.ps1` (suite intera) | VALIDA · 1 529 / 1 529 · 0 fallimenti | **VALIDA · 1 531 / 1 531 · 0 fallimenti** |
+| copertura (`Found N` contro `Test Completed`) | 1 529 = 1 529 | **1 531 = 1 531** |
+| `UnitIdentity.RosterIndexIsTheExactInverseOfTheIdAssignment` | `Result={Success}` | **`Result={Success}`** |
+| `UnitIdentity.AResolvedFactOutlivesTheActorItCameFrom` | `Result={Success}` | **`Result={Success}`** |
+| `Match.Autobattle.PlaybackResolvesEveryAttackSubjectFromItsStableId` | `Result={Success}` | **`Result={Success}`** |
+
+I due test in più (1 529 → 1 531) vengono dal merge, non da questo diff: `RTBotAllyTests` (#1887) e
+`RTHexProbeReadoutTests` (#1900).
 
 Il test end-to-end **ha misurato materiale reale**, e lo dichiara nel log invece di lasciarlo dedurre:
 
@@ -198,7 +205,10 @@ Quaranta colpi rivelati, quaranta sorgenti e quaranta bersagli ritornati a esser
   giudicano — cilindri che scivolano, montage, morte differita — non è coperta da automation.
 - **Build `Shipping`**: non eseguita; `WITH_DEV_AUTOMATION_TESTS = 0` compila cose che Editor e Development
   non compilano.
-- La suite è girata su `0c0ee87c` + questo diff. `origin/main` è nel frattempo a `6f4e5edc`.
+
+`origin/main` è avanzato ancora dopo il gate post-merge — `28b88522` → `e30361e9` — ma i due commit (#1905)
+toccano **un solo file markdown**: zero codice, zero sovrapposizione con `Source/RefactorTactics/Turn/`. La
+misura su `c2786864` resta rappresentativa dell'albero mergiabile.
 
 ---
 
@@ -272,8 +282,9 @@ sostengono, che è esattamente ciò che `#1818` mette fuori scope.
 
 ## 10. Rischi residui
 
-1. la base del worktree è **dietro** `origin/main`: il gate va rieseguito sull'albero che si mergia davvero
-   (CLAUDE.md §6);
+1. ~~la base del worktree è dietro `origin/main`~~ — **chiuso**: `origin/main` mergiato, gate rieseguito su
+   `c2786864`, VALIDA 1 531/1 531. Resta vero che `origin/main` si muove ogni poche ore in questo
+   repository, e un gate invecchia;
 2. la fetta **aumenta** le righe del TurnManager — tensione reale e dichiarata con la metrica di `#1818`;
 3. `MatchRoster` è un secondo posto dove vive un riferimento all'unità. **Non** è una seconda identità
    (quella resta `StableUnitId`, e il roster è solo il suo indice inverso), ma è stato nuovo dentro una
