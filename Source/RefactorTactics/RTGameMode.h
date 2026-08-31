@@ -140,6 +140,23 @@ public:
 	bool bAutobattle = false;
 
 	/**
+	 * Quanti COMPAGNI del giocatore pianifica il bot, contati dal fondo di `Team0Heroes`.
+	 *
+	 * `0` (default) = nessuno: la squadra 0 resta tutta di chi gioca, che e' il contratto pinnato da
+	 * `RTHeroSpawnTests`. `1` su `[Gadget, Phase]` lascia Gadget al giocatore e da' Phase al bot.
+	 *
+	 * ⚠️ **E' il fratello minore di `bAutobattle`, non un suo caso particolare**: quella toglie il giocatore
+	 * dalla partita, questa gli riduce le unita' da comandare. Si sommano — `FRTMatchBootstrapper` cappa il
+	 * conteggio perche' senza autobattle almeno un'unita' deve restare comandabile.
+	 *
+	 * ⛔ Come per l'autobattle, il delta e' **configurazione e non motore**: il compagno passa da `PlanBots`
+	 * -> `ChooseBestPlan` come ogni altra unita' del bot, con lo stesso planner e lo stesso Intent. Cambia
+	 * **chi** e' segnato come bot, non **come** decide (invariante #10).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Match", meta = (ClampMin = "0"))
+	int32 BotAllyCount = 0;
+
+	/**
 	 * Secondi della fase di Planning, **negativo = non intervenire** e vale il valore del `TurnManager`.
 	 *
 	 * Esiste perche' il default e' **30 s per turno**: giusto per una partita umana, illeggibile per una demo
@@ -162,6 +179,18 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Match")
 	bool ResolveAutobattle() const;
+
+	/**
+	 * Quanti compagni al bot: `rt.Match.BotAllies` se impostata, altrimenti `-RTBotAllies=N`, altrimenti la
+	 * proprieta'. Stessa scala e stessa regola di `ResolveAutobattle()`.
+	 *
+	 * ⚠️ La sentinella di «non impostata» e' **negativa** e non zero, per la ragione gia' scritta accanto a
+	 * `CVarRTAutobattle`: `0` e' una richiesta legittima — «nessun compagno al bot» — e non puo' voler dire
+	 * anche «non ho chiesto nulla», altrimenti la console non saprebbe SPEGNERE quello che la proprieta'
+	 * accende.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Match")
+	int32 ResolveBotAllies() const;
 
 	/**
 	 * La modalita' in vigore per QUESTA sessione, **decisa una volta** in `SetupHexMatch`.

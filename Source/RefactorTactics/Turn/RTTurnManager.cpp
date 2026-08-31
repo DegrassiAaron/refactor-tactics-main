@@ -1911,7 +1911,7 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 		FRTResolvedEvent Ev;
 		Ev.Phase = ERTMatchPhase::Blast;
 		Ev.Type = ERTResolvedEventType::Move;
-		Ev.Source = Unit;
+		Ev.SourceStableUnitId = Unit->StableUnitId;
 		Ev.Path = Path;
 		ResolvedTimeline.Add(Ev);
 	}
@@ -2389,13 +2389,63 @@ void ARTTurnManager::EnsureMatchRoster()
 
 	Roster.Sort([](const ARTUnit& A, const ARTUnit& B) { return MatchRosterLess(A, B); });
 
+	MatchRoster.Reset(Roster.Num());
 	for (int32 i = 0; i < Roster.Num(); ++i)
 	{
 		// `+ 1`: lo `0` resta libero e significa «nessuna unita' dichiarata» ([D-063]), che e' cio' che dice
 		// una voce ambientale del TurnLog.
 		Roster[i]->StableUnitId = i + 1;
+
+		// L'indice inverso, riempito **con la stessa lista gia' ordinata**: e' il motivo per cui la porta
+		// `UnitByStableId` non costa un secondo `GetAllActorsOfClass`. Cio' che prima si buttava via qui
+		// e' cio' che alla presentazione serve per tornare all'Actor da un fatto che porta il solo id.
+		MatchRoster.Add(Roster[i]);
 	}
 	bMatchRosterBuilt = true;
+}
+
+int32 ARTTurnManager::RosterIndexForStableId(int32 StableUnitId, int32 RosterNum)
+{
+	// Lo `0` non e' un id ([D-063]) e non ha un indice. Un id oltre il roster e' di un'unita' arrivata
+	// DOPO il congelamento: non ne aveva uno allora e non ne acquista uno adesso.
+	if (StableUnitId <= 0 || StableUnitId > RosterNum)
+	{
+		return INDEX_NONE;
+	}
+	return StableUnitId - 1;
+}
+
+ARTUnit* ARTTurnManager::UnitByStableId(int32 StableUnitId) const
+{
+	const int32 Index = RosterIndexForStableId(StableUnitId, MatchRoster.Num());
+	if (Index == INDEX_NONE)
+	{
+		return nullptr;
+	}
+	// `.Get()` e non `.IsValid()` + deref: una entry scaduta risponde `nullptr`, che per chi anima significa
+	// «quell'unita' non c'e' piu'» — lo stesso `nullptr` del `TWeakObjectPtr` che stava dentro l'evento.
+	return MatchRoster[Index].Get();
+}
+
+TMap<int32, FString> ARTTurnManager::SubjectNamesForLog() const
+{
+	TMap<int32, FString> Names;
+	Names.Reserve(MatchRoster.Num());
+	for (const TWeakObjectPtr<ARTUnit>& Weak : MatchRoster)
+	{
+		const ARTUnit* Unit = Weak.Get();
+		// Una entry scaduta non contribuisce: la riga esce con `u<id>`, che e' peggio da leggere ma vero.
+		// Inventare un nome per un Actor che non c'e' piu' sarebbe l'unico esito peggiore.
+		if (Unit == nullptr || Unit->StableUnitId == 0)
+		{
+			continue;
+		}
+		// `DisplayLabel` sceglie fra nome canonico, ultimo segmento dell'`HeroId` e nome dell'Actor, e non
+		// restituisce mai vuoto (D-120). Qui non si duplica quella cascata: si chiama.
+		Names.Add(Unit->StableUnitId,
+			ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName()));
+	}
+	return Names;
 }
 
 int32 ARTTurnManager::CurrentGraphRevision() const
@@ -2829,7 +2879,15 @@ void ARTTurnManager::ConcludeTurn()
 	// sempre — comprese le voci `Move`, che `DescribeEntry` stampa con `SrcCell` **e** `TgtCell` di un
 	// nemico che la squadra puo' non vedere. Convertire i siti sparsi senza convertire questo lasciava il
 	// canale piu' grosso scoperto.
-	for (const FRTDescribedLine& Line : URTTurnLogLibrary::DescribeTurnLogWithSubjects(TurnLog))
+	// 🔴 E con il NOME, non solo con l'id (#1932). Il soggetto viaggiava gia' qui, ma solo come dato per il
+	// filtro di conoscenza: chi LEGGE la riga non l'aveva, e due voci della stessa unita' — «si muove» nel
+	// Dash, «resta» nel Move — si leggevano come due unita' sulla stessa cella. E' cosi' che #1733 e' nata
+	// come bug di gameplay su un comportamento corretto.
+	//
+	// La risoluzione dei nomi sta in `SubjectNamesForLog` e non qui: un test che riderivi queste righe deve
+	// poter usare la STESSA mappa, altrimenti confronta `Gadget: resta` con `u3: resta` e fallisce su una
+	// differenza che non e' un difetto.
+	for (const FRTDescribedLine& Line : URTTurnLogLibrary::DescribeTurnLogWithSubjects(TurnLog, SubjectNamesForLog()))
 	{
 		// Il verdetto viene dalla voce, che lo ha congelato nella fase in cui il fatto e' accaduto.
 		// Ricalcolarlo qui userebbe la conoscenza del Blast e le celle post-Move: due istanti diversi.
@@ -3775,7 +3833,7 @@ void ARTTurnManager::ResolveDash()
 			Route.Add(Units[i]->Cell);
 			Route.Append(Resolved[i].Entered);
 
-			// L'identita' si prende da `Units[i]`, lo stesso indice da cui la prende `Ev.Source` due righe
+			// L'identita' si prende da `Units[i]`, lo stesso indice da cui la prende `Ev.SourceStableUnitId` due righe
 			// sotto. L'indice di `LastMoveRoutes` non la porta: l'`Add` e' condizionale (`#1497`).
 			FRTMoveRoute& Tracked = LastMoveRoutes.AddDefaulted_GetRef();
 			Tracked.StableUnitId = Units[i]->StableUnitId;
@@ -3793,7 +3851,7 @@ void ARTTurnManager::ResolveDash()
 			FRTResolvedEvent Ev;
 			Ev.Phase = ERTMatchPhase::Dash;
 			Ev.Type = ERTResolvedEventType::Move;
-			Ev.Source = Units[i];
+			Ev.SourceStableUnitId = Units[i]->StableUnitId;
 			Ev.Path = Route;
 			ResolvedTimeline.Add(Ev);
 		}
@@ -4479,9 +4537,13 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	}
 
 	// Gli stati che valgono sul PRIMO danno diretto entrano qui come un delta per bersaglio: `Status.Exposed`
-	// (chi ha scattato allo scoperto) somma +5, `Status.Guarded` (chi si e' messo in guardia) sottrae 15.
-	// Valgono una volta sola, quindi il totale non dipende da quale colpo se li prenda; chi e' esposto E in
-	// guardia li cumula, che e' l'esito prevedibile di aver fatto entrambe le cose.
+	// (chi ha scattato allo scoperto) somma +5. Vale una volta sola, quindi il totale non dipende da quale
+	// colpo se lo prenda: e' un delta POSITIVO, e il clamp a zero di `ApplyFirstHitDelta` non lo tocca mai.
+	//
+	// ⚠️ `Status.Guarded` NON sta piu' qui ([D-292]). Con un delta NEGATIVO piu' grande del colpo che lo
+	// riceve, la riduzione che avanza si perdeva nel clamp, e quanta se ne perdesse dipendeva da quale colpo
+	// era primo: un bersaglio in Guardia colpito da 10 e da 30 incassava 30 o 25 a seconda dell'ordine
+	// dell'array. La Guardia e' ora un POOL, piu' sotto.
 	TArray<int32> FirstHitDelta;
 	FirstHitDelta.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
@@ -4491,30 +4553,43 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		{
 			FirstHitDelta[i] += URTCombatLibrary::ExposedFirstHitBonus;
 		}
-		if (Units[i]->HasStatus(TAG_Status_Guarded))
+		// Il ramo `Status.Guarded` non e' piu' qui: la Guardia e' un pool, costruito dopo questo ciclo.
+	}
+
+	// `Status.Guarded` ([D-292]): la Guardia e' un POOL di 15 danni assorbibili, e solo i colpi dell'arco
+	// FRONTALE lo consumano — l'emisfero posteriore resta scoperto ([D-206]). Cio' che un colpo non consuma
+	// resta per i successivi, quindi il totale non dipende piu' da quale colpo arriva per primo.
+	//
+	// La maschera e' PER-COLPO, che e' il controllo direzionale che [D-206] ha deciso e che nessuno poteva
+	// implementare prima di [D-212]: `FRTAttack` non portava l'attaccante, e «questo colpo e' frontale» non
+	// era esprimibile dentro il resolver.
+	// ⚠️ `bFrontalHit` e' indicizzato come `Plan.Hits`, ed e' lecito perche' `ToAttacks` mappa **1:1** e le
+	// due funzioni che stanno in mezzo (`ApplyFirstHitDelta`, `ApplyDamageDelta`) copiano l'array e toccano
+	// solo `Power`: nessuna aggiunge, toglie o riordina. Se un giorno una di loro cambiasse la cardinalita',
+	// questa maschera punterebbe ai colpi sbagliati **in silenzio** — e' l'assunzione da rompere per prima
+	// se il pool assorbisse dal lato sbagliato.
+	TArray<int32> GuardPool;
+	GuardPool.Init(0, Units.Num());
+	TArray<bool> bFrontalHit;
+	bFrontalHit.Init(false, Plan.Hits.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (!Units[i] || !Units[i]->HasStatus(TAG_Status_Guarded)) { continue; }
+		GuardPool[i] = URTCombatLibrary::GuardFirstHitReduction;
+
+		for (int32 h = 0; h < Plan.Hits.Num(); ++h)
 		{
-			// CP 16.2: la guardia copre il davanti. Se il colpo che la consuma arriva fuori dall'arco frontale
-			// non vale — si TOGLIE una protezione, non si aggiunge danno.
-			//
-			// Quale colpo la consuma lo decide `ApplyFirstHitDelta`: il PRIMO dell'array, che e' l'ordine
-			// canonico gia' fissato da `Plan.Hits`. Si guarda quello, non «un colpo qualsiasi da dietro»:
-			// altrimenti un attacco frontale perderebbe la guardia per colpa di un secondo colpo alle spalle
-			// che il delta non tocca nemmeno.
-			const FRTHexAttackHit* FirstHit = Plan.Hits.FindByPredicate(
-				[i](const FRTHexAttackHit& Hit) { return Hit.TargetId == i; });
+			const FRTHexAttackHit& Hit = Plan.Hits[h];
+			if (Hit.TargetId != i) { continue; }
 
-			bool bGuardHolds = true;
-			if (FirstHit && HexUnits.IsValidIndex(FirstHit->AttackerId))
-			{
-				bGuardHolds = URTHexCombatLibrary::IsInFrontalArc(
-					HexUnits[i].Cell, HexUnits[i].Facing, HexUnits[FirstHit->AttackerId].Cell);
-			}
+			// Attaccante non risolvibile: il colpo NON e' eleggibile. Un dato mancante non deve concedere una
+			// protezione che nessuno ha dichiarato — fail-closed, come il resto del combattimento.
+			const bool bFrontal = HexUnits.IsValidIndex(Hit.AttackerId)
+				&& URTHexCombatLibrary::IsInFrontalArc(
+					HexUnits[i].Cell, HexUnits[i].Facing, HexUnits[Hit.AttackerId].Cell);
+			bFrontalHit[h] = bFrontal;
 
-			if (bGuardHolds)
-			{
-				FirstHitDelta[i] -= URTCombatLibrary::GuardFirstHitReduction;
-			}
-			else
+			if (!bFrontal && HexUnits.IsValidIndex(Hit.AttackerId))
 			{
 				FRTTurnLogEntry Bypassed;
 				Bypassed.Phase = ERTMatchPhase::Blast;
@@ -4523,7 +4598,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 				// scavalcata e mette in `Amount` la DIREZIONE del difensore, mentre il ramo della copertura ci
 				// mette i punti di riduzione. Erano lo stesso esito con due payload incompatibili.
 				Bypassed.Outcome = static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard);
-				Bypassed.SrcCell = HexUnits[FirstHit->AttackerId].Cell;
+				Bypassed.SrcCell = HexUnits[Hit.AttackerId].Cell;
 				Bypassed.TgtCell = HexUnits[i].Cell;
 				Bypassed.Amount = static_cast<int32>(HexUnits[i].Facing);
 				// 🔴 `UnitId` porta CHI SUBISCE, non chi ha colpito, e non e' una scelta arbitraria: e' cio'
@@ -4552,10 +4627,18 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 					*URTTurnLogLibrary::DescribeEntry(Bypassed)), FRTLogSubject::Unit(Units[i]));
 			}
 		}
-		// Riduzione dichiarata dalle reazioni attivate (`Action.Deflect` e le reazioni d'eroe che ne riusano
-		// la semantica): una reazione si attiva UNA volta, quindi vale sul colpo che l'ha innescata — stessa
-		// meccanica di Guard, non una riduzione permanente del turno.
-		FirstHitDelta[i] += Reactions.DeflectDelta[i];
+	}
+
+	// Riduzione dichiarata dalle reazioni attivate (`Action.Deflect` e le reazioni d'eroe che ne riusano la
+	// semantica): una reazione si attiva UNA volta, quindi vale sul colpo che l'ha innescata.
+	//
+	// ⚠️ RESTA un delta di primo colpo, e quindi porta ancora il difetto che [D-292] ha tolto alla Guardia:
+	// `Deflect` e' -20, e su un colpo piu' piccolo l'avanzo si perde. Non e' stato spostato qui perche' e'
+	// una REAZIONE — si attiva una volta, sul colpo che l'ha innescata — e trasformarla in un pool e' una
+	// decisione sul suo significato, non una correzione. Dichiarato in `#1909`, da scorporare.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (Units[i]) { FirstHitDelta[i] += Reactions.DeflectDelta[i]; }
 	}
 
 	// `Action.Brace` (CP 5.2): -10 su OGNI danno diretto, non solo sul primo. E' un secondo passaggio con una
@@ -4571,9 +4654,14 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		}
 	}
 
-	TArray<FRTAttack> Attacks = URTCombatResolver::ApplyDamageDelta(
-		URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
-		EveryHitDelta);
+	// L'assorbimento della Guardia viene per ULTIMO, dopo i modificatori del danno ([D-292]): il pool copre
+	// cio' che resta, non il danno nominale. E' la lettura coerente con «quanto danno la guardia regge»: se
+	// assorbisse per primo, `Status.Exposed` ne mangerebbe una parte prima che il difensore la usi.
+	TArray<FRTAttack> Attacks = URTCombatResolver::ApplyAbsorptionPool(
+		URTCombatResolver::ApplyDamageDelta(
+			URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
+			EveryHitDelta),
+		GuardPool, bFrontalHit);
 
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
 	// Parallelo ad `AttackSrc`, e non ridondante con lui: la cella dice DA DOVE, non CHI — e dopo un Dash le
@@ -4779,8 +4867,8 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		FRTResolvedEvent Ev;
 		Ev.Phase = ERTMatchPhase::Blast;
 		Ev.Type = ERTResolvedEventType::Attack;
-		Ev.Source = Attacker;
-		Ev.Target = Victim;
+		Ev.SourceStableUnitId = Attacker ? Attacker->StableUnitId : 0;
+		Ev.TargetStableUnitId = Victim ? Victim->StableUnitId : 0;
 		Ev.Amount = Hit.Power;
 		ResolvedTimeline.Add(Ev);
 
@@ -4879,7 +4967,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		FRTResolvedEvent Ev;
 		Ev.Phase = ERTMatchPhase::Blast;
 		Ev.Type = ERTResolvedEventType::Defeated;
-		Ev.Source = Units[Idx];
+		Ev.SourceStableUnitId = Units[Idx]->StableUnitId;
 		ResolvedTimeline.Add(Ev);
 	}
 
@@ -5917,7 +6005,7 @@ void ARTTurnManager::ResolveMovement()
 			FRTResolvedEvent Ev;
 			Ev.Phase = ERTMatchPhase::Move;
 			Ev.Type = ERTResolvedEventType::Move;
-			Ev.Source = Units[i];
+			Ev.SourceStableUnitId = Units[i]->StableUnitId;
 			Ev.Path = Route;
 			ResolvedTimeline.Add(Ev);
 		}
@@ -6020,22 +6108,27 @@ void ARTTurnManager::BeginPlayback()
 	TSet<ARTUnit*> StartPositioned; // per posizionare il cilindro all'inizio della sua PRIMA fase (Dash prima di Move)
 	for (const FRTResolvedEvent& Ev : ResolvedTimeline)
 	{
-		if (Ev.Type == ERTResolvedEventType::Move && Ev.Source.IsValid() && Ev.Path.Num() >= 2)
+		// L'UNICO punto in cui l'id torna a essere un Actor, ed e' qui perche' qui si comincia ad animare
+		// (#1800). `nullptr` significa «non c'e' piu' nessuno da muovere» e cade nei rami che gia'
+		// esistevano per `TWeakObjectPtr` scaduto.
+		ARTUnit* const Src = UnitByStableId(Ev.SourceStableUnitId);
+
+		if (Ev.Type == ERTResolvedEventType::Move && Src && Ev.Path.Num() >= 2)
 		{
 			FRTMoveAnim Anim;
-			Anim.Unit = Ev.Source;
+			Anim.Unit = Src;
 			Anim.Phase = Ev.Phase; // Dash o Move
 			Anim.World.Reserve(Ev.Path.Num());
 			for (const FRTCellId& C : Ev.Path)
 			{
-				Anim.World.Add(Ev.Source->WorldForCell(C, PBOrigin, PBCellSize, PBLayerHeight));
+				Anim.World.Add(Src->WorldForCell(C, PBOrigin, PBCellSize, PBLayerHeight));
 			}
 			// Metti il cilindro all'inizio della sua PRIMA anim (Dash precede Move nella timeline):
 			// niente flash sulla cella finale. Un'anim successiva della stessa unita' non ne sposta lo start.
-			if (!StartPositioned.Contains(Ev.Source.Get()))
+			if (!StartPositioned.Contains(Src))
 			{
-				Ev.Source->SetVisualLocation(Anim.World[0]);
-				StartPositioned.Add(Ev.Source.Get());
+				Src->SetVisualLocation(Anim.World[0]);
+				StartPositioned.Add(Src);
 			}
 			MoveAnims.Add(MoveTemp(Anim));
 		}
@@ -6153,11 +6246,17 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		while (AttacksShown < ShouldShow)
 		{
 			const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
+			ARTUnit* const AtkSrc = UnitByStableId(Atk.SourceStableUnitId);
+			ARTUnit* const AtkTgt = UnitByStableId(Atk.TargetStableUnitId);
 			AddLogEvent(FString::Printf(TEXT("Colpo: %s -> %s (%d)"),
-				Atk.Source.IsValid() ? *Atk.Source->GetName() : TEXT("?"),
-				Atk.Target.IsValid() ? *Atk.Target->GetName() : TEXT("(eliminato)"),
-				Atk.Amount), FRTLogSubject::Unit(Atk.Source.Get()));
-			if (ARTUnit* AtkSrc = Atk.Source.Get()) { AtkSrc->PlayAttackMontage(); } if (ARTUnit* AtkTgt = Atk.Target.Get()) { AtkTgt->PlayHitMontage(); } OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
+				AtkSrc ? *AtkSrc->GetName() : TEXT("?"),
+				AtkTgt ? *AtkTgt->GetName() : TEXT("(eliminato)"),
+				// `FRTLogSubject::Unit` vuole l'Actor e non l'id, e lo dichiara: da un id soltanto il
+				// verdetto di [D-223] non si calcola — servono anche squadra e cella.
+				Atk.Amount), FRTLogSubject::Unit(AtkSrc));
+			if (AtkSrc) { AtkSrc->PlayAttackMontage(); }
+			if (AtkTgt) { AtkTgt->PlayHitMontage(); }
+			OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
 			++AttacksShown;
 		}
 	}
@@ -6180,7 +6279,11 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			while (AttacksShown < PlaybackAttacks.Num())
 			{
 				const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
-				if (ARTUnit* AtkSrc = Atk.Source.Get()) { AtkSrc->PlayAttackMontage(); } if (ARTUnit* AtkTgt = Atk.Target.Get()) { AtkTgt->PlayHitMontage(); } OnAttackResolved.Broadcast(Atk.Source.Get(), Atk.Target.Get(), Atk.Amount);
+				ARTUnit* const AtkSrc = UnitByStableId(Atk.SourceStableUnitId);
+				ARTUnit* const AtkTgt = UnitByStableId(Atk.TargetStableUnitId);
+				if (AtkSrc) { AtkSrc->PlayAttackMontage(); }
+				if (AtkTgt) { AtkTgt->PlayHitMontage(); }
+				OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
 				++AttacksShown;
 			}
 		}
@@ -6189,11 +6292,13 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		// (Blast) o l'attraversamento (Move) e' stato mostrato. Idempotente (guardia IsHidden).
 		for (const FRTResolvedEvent& D : PlaybackDefeated)
 		{
-			if (D.Phase == Ph && D.Source.IsValid() && !D.Source->IsHidden())
+			ARTUnit* const DefU = UnitByStableId(D.SourceStableUnitId);
+			if (D.Phase == Ph && DefU && !DefU->IsHidden())
 			{
-				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()), FRTLogSubject::World());
-				D.Source->HideForDefeat();
-				if (ARTUnit* DefU = D.Source.Get()) { DefU->PlayDefeatMontage(); } OnUnitDefeated.Broadcast(D.Source.Get());
+				AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *DefU->GetName()), FRTLogSubject::World());
+				DefU->HideForDefeat();
+				DefU->PlayDefeatMontage();
+				OnUnitDefeated.Broadcast(DefU);
 			}
 		}
 
@@ -6245,11 +6350,13 @@ void ARTTurnManager::FinishPlayback()
 	// Catch-all: nasconde eventuali eliminati non ancora mostrati (hazard di Cleanup, oppure skip del playback).
 	for (const FRTResolvedEvent& D : PlaybackDefeated)
 	{
-		if (D.Source.IsValid() && !D.Source->IsHidden())
+		ARTUnit* const DefU = UnitByStableId(D.SourceStableUnitId);
+		if (DefU && !DefU->IsHidden())
 		{
-			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *D.Source->GetName()), FRTLogSubject::World());
-			D.Source->HideForDefeat();
-			if (ARTUnit* DefU = D.Source.Get()) { DefU->PlayDefeatMontage(); } OnUnitDefeated.Broadcast(D.Source.Get());
+			AddLogEvent(FString::Printf(TEXT("Morte mostrata: %s"), *DefU->GetName()), FRTLogSubject::World());
+			DefU->HideForDefeat();
+			DefU->PlayDefeatMontage();
+			OnUnitDefeated.Broadcast(DefU);
 		}
 	}
 
@@ -6330,34 +6437,44 @@ float ARTTurnManager::GetPlaybackProgress01() const
 // e' l'unica ragione per cui questo canale puo' permettersi di non essere deterministico.
 // Spec: docs/gameplay/spec-pacing-turno.md
 
+TArray<FRTPacingUnitFacts> ARTTurnManager::CollectPacingUnitFacts() const
+{
+	// L'unico punto in cui il pacing guarda il mondo. Cio' che esce di qui sono quattro interi per unita',
+	// e da li' in poi le regole sono funzioni pure.
+	TArray<FRTPacingUnitFacts> Facts;
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
+	Facts.Reserve(Actors.Num());
+
+	for (AActor* Actor : Actors)
+	{
+		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		if (!Unit)
+		{
+			continue;
+		}
+
+		int32 Usable = 0;
+		for (int32 I = 0; I < Unit->NumAbilities(); ++I)
+		{
+			if (Unit->CanUseAbility(I))
+			{
+				++Usable;
+			}
+		}
+		Facts.Emplace(Unit->TeamId, Unit->StableUnitId, Unit->IsAlive(), Usable);
+	}
+	return Facts;
+}
+
 void ARTTurnManager::BeginPacingSample()
 {
 	PacingCurrent = FRTPacingSample();
 	PacingCurrent.TurnNumber = TurnNumber;
 
-	TArray<AActor*> Actors;
-	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
-	for (AActor* Actor : Actors)
-	{
-		const ARTUnit* Unit = Cast<ARTUnit>(Actor);
-		if (!Unit || !Unit->IsAlive())
-		{
-			continue;
-		}
-		(Unit->TeamId == 0 ? PacingCurrent.UnitsAliveTeam0 : PacingCurrent.UnitsAliveTeam1)++;
-
-		if (Unit->TeamId != PacingTeamId)
-		{
-			continue; // ActionsAvailable misura lo spazio di decisione di CHI decide, non di tutti
-		}
-		for (int32 I = 0; I < Unit->NumAbilities(); ++I)
-		{
-			if (Unit->CanUseAbility(I))
-			{
-				++PacingCurrent.ActionsAvailable;
-			}
-		}
-	}
+	// Quali unita' contano e quali no e' una REGOLA, e vive in `URTPacingLibrary::ApplyOpeningCounts` dove
+	// si prova senza mondo (#1818). Qui resta la raccolta dei fatti dagli Actor.
+	URTPacingLibrary::ApplyOpeningCounts(CollectPacingUnitFacts(), PacingTeamId, PacingCurrent);
 
 	PacingPlanningStart = FPlatformTime::Seconds();
 	PacingLastInput = PacingPlanningStart;
@@ -6406,28 +6523,11 @@ void ARTTurnManager::ClosePacingSample()
 	// primo esito nuovo — con l'aggravante di essere uno stato mutabile su un percorso che deve restare
 	// deterministico. Qui la misura e' telemetria pura: legge, non decide.
 	{
-		TSet<int32> Responders;
-		TArray<AActor*> UnitActors;
-		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), UnitActors);
-		for (AActor* Actor : UnitActors)
-		{
-			// ⚠️ **Nessun filtro su `IsAlive()`**, a differenza di `BeginPacingSample`: un'unita' caduta
-			// DURANTE il turno ha comunque potuto aprire finestre prima di cadere, e scartarla farebbe
-			// sparire proprio le attese dei turni piu' concitati — cioe' quelle che tarano il bank.
-			if (const ARTUnit* Unit = Cast<ARTUnit>(Actor))
-			{
-				// 🔴 **Lo `0` non entra**: [D-063] lo riserva a «nessuna unita' dichiarata», e
-				// `EnsureMatchRoster` assegna gli id da 1 lasciandolo libero apposta. Un'unita' spawnata
-				// DOPO il congelamento del roster lo conserva — e con `0` nel set, una voce di log senza
-				// soggetto, o un'evocazione avversaria nella stessa condizione, finirebbe nel bank del
-				// giocatore misurato: esattamente la confusione fra squadre che il filtro per responder
-				// esiste per impedire ([D-167]).
-				if (Unit->TeamId == PacingTeamId && Unit->StableUnitId != 0)
-				{
-					Responders.Add(Unit->StableUnitId);
-				}
-			}
-		}
+		// Chi conta come responder — la squadra misurata, i caduti INCLUSI, l'id `0` escluso ([D-063],
+		// [D-167]) — e' una regola, e vive in `URTPacingLibrary::RespondersForPacing` con i suoi test
+		// headless (#1818). Le due esclusioni erano scritte qui solo come commento.
+		const TSet<int32> Responders(URTPacingLibrary::RespondersForPacing(
+			CollectPacingUnitFacts(), PacingTeamId));
 
 		// ⚠️ Nessun filtro per turno, e non e' una dimenticanza: `LockInAndResolve` fa `TurnLog.Reset()`
 		// prima di ogni risoluzione, quindi il log contiene **gia' e solo** il turno corrente. Il filtro che

@@ -365,9 +365,10 @@ bool FRTHexMapFormatMigrationTest::RunTest(const FString&)
 
 	TestEqual(TEXT("versione portata alla corrente"), Legacy->FormatVersion, URTHexMapAsset::CurrentFormatVersion);
 	// Il numero e' pinnato di proposito: un bump di formato deve far cadere un test, non passare inosservato.
-	// v11 (#75, CP 10.2) aggiunge l'obiettivo contendibile sulla cella; nessun dato precedente cambia
-	// significato, e il default `false` e' cio' che ogni mappa scritta prima gia' era.
-	TestEqual(TEXT("la versione corrente e' la 11"), URTHexMapAsset::CurrentFormatVersion, 11);
+	// v12 (#1864) da' un nome stabile al muro interno, perche' il muro SI SPOSTA e il move cambia la sua
+	// chiave naturale `(Cell, Segment)`; nessun dato precedente cambia significato, e il default
+	// `NAME_None` e' cio' che ogni muro scritto prima gia' era.
+	TestEqual(TEXT("la versione corrente e' la 12"), URTHexMapAsset::CurrentFormatVersion, 12);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2); // bidirezionale
 	// v11: una mappa vecchia non guadagna OBIETTIVI ricaricandosi. E' la promessa del passo dichiarativo, e

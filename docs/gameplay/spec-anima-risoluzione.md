@@ -232,6 +232,12 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 - **AN.1** ✅ — `FRTResolvedEvent` (`Turn/RTResolvedEvent.h`) + timeline popolata in `LockInAndResolve`
   (eventi Move/Attack). Matematica pura in `URTPlaybackLibrary` (`InterpolateAlongPath`,
   `EstimatePlaybackSeconds`, `SpeedMultiplierForCap`) con **5 test** (`RTPlaybackLibraryTests.cpp`), RED→GREEN.
+  > ⚠️ **Aggiornamento del 2026-08-31**: `EstimatePlaybackSeconds` **non esiste più**. Era la stima
+  > *aggregata* del round, e nessun codice di produzione la chiamava: il totale grezzo lo calcola già
+  > `ARTTurnManager::BeginPlayback` sommando `URTPlaybackLibrary::PhaseDuration` su ogni fase attiva — che è
+  > quanto la riga di **AN.3** qui sotto dichiara. Due formule per la stessa domanda, con risultati diversi
+  > (`PhaseDuration` per il `Blast` prende `Max(colpi, spinta)`, non la somma): quella morta è stata tolta.
+  > La riga sopra resta com'era perché registra cosa era vero il 2026-08-03.
 - **AN.2** ✅ — stato `Resolving` (Tick di sola presentazione) + interpolazione dei cilindri lungo `Entered`.
   Log PIE: `Playback fase: Move` → `Risoluzione completata (0.8s)` con 4 unità in parallelo.
 - **AN.3** ✅ — staging per fase (Prep→Blast→Move) + tuning `UPROPERTY` (`PlaybackCellsPerSecond`,

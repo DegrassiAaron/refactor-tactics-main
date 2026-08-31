@@ -40,6 +40,28 @@ struct FRTHexInteriorWall
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")
 	FRTGeometrySegment Segment;
 
+	/**
+	 * Nome stabile del muro (formato v12, #1864), con la disciplina di `FRTHexDoor::StableId` (CP 23.3).
+	 *
+	 * 🔑 **Esiste perche' un muro interno SI SPOSTA.** La sua chiave naturale sarebbe `(Cell, Segment)`, e
+	 * il move cambia il `Segment`: un handle derivato si romperebbe esattamente durante l'operazione a cui
+	 * deve sopravvivere. La copertura non ha questo problema — la sua chiave e' `(Cell, Edge)`, unica per
+	 * bordo per una regola che `ValidateMap` gia' applica — e infatti non prende un campo.
+	 *
+	 * ⛔ **NON entra in `ComputeHash`, e la ragione e' gia' scritta sopra per l'intera struttura**: vista e
+	 * passo non consultano un muro interno, quindi non c'e' esito che possa cambiare. Un nome ancora meno.
+	 *
+	 * ⚠️ Qui il criterio DIVERGE da `FRTHexDoor::StableId`, che nell'hash invece ci entra (#986): un nome di
+	 * porta ci entra perche' `FindDoorEdges` risolve **per nome**, e rinominarla cambia quale bordo si apre
+	 * per chiunque la citi. Nessuno risolve un muro interno per nome a runtime — lo fa solo l'editor. Il
+	 * giorno in cui un muro interno toccasse le regole, entrerebbero prima i suoi campi e poi il suo nome.
+	 *
+	 * `NAME_None` = muro senza nome, che e' cio' che ogni muro scritto prima di questo campo diventa
+	 * rileggendosi — ed e' esattamente cio' che quei muri gia' erano.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexMap")
+	FName StableId;
+
 	FRTHexInteriorWall() = default;
 	FRTHexInteriorWall(const FRTCellId& InCell, const FRTGeometrySegment& InSegment)
 		: Cell(InCell), Segment(InSegment) {}
@@ -141,17 +163,22 @@ public:
 	 * v11 (#75, CP 10.2): obiettivo contendibile sulla cella (`FRTHexCellData::bIsObjective`). Nessun dato
 	 *     esistente cambia significato: una mappa scritta prima non dichiarava obiettivi, quindi nessuna sua
 	 *     cella ne e' uno — che e' il default `false`, ed e' cio' che quelle mappe gia' erano.
+	 * v12 (#1864): nome stabile del muro interno (`FRTHexInteriorWall::StableId`). Nessun dato esistente
+	 *     cambia significato: un muro scritto prima non ha un nome — default `NAME_None` — ed e' cio' che
+	 *     quei muri gia' erano. ⚠️ Nasce da un'OPERAZIONE e non dalla simmetria con le porte: il muro
+	 *     interno si sposta, e il move cambia la sua chiave naturale `(Cell, Segment)`. La copertura non
+	 *     prende un campo perche' la sua chiave `(Cell, Edge)` e' unica per una regola gia' validata.
 	 *
 	 * ⚠️ **Questo numero non viaggia da solo**: la sua storia e' qui, ma il valore che un asset porta nei
 	 * propri byte e' `FRTHexMapCustomVersion` (#687, D-137). Alzarlo senza aggiungere il valore
 	 * corrispondente all'enum non compila — e' voluto, vedi lo `static_assert` in `RTHexMapAsset.cpp`.
 	 *
-	 * Tutti i passi v1->v11 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
+	 * Tutti i passi v1->v12 sono DICHIARATIVI: il campo nuovo nasce vuoto, nessun dato esistente cambia
 	 * significato. Il primo passo TRASFORMATIVO e' ora eseguibile — prima di #687 non lo era, perche' la
 	 * migrazione non partiva — ma resta il punto piu' delicato del formato: si scrive un
 	 * `if (FormatVersion < N)` per volta, in ordine, e lo si prova su un asset serializzato.
 	 */
-	static constexpr int32 CurrentFormatVersion = 11;
+	static constexpr int32 CurrentFormatVersion = 12;
 
 	/**
 	 * Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti.

@@ -2,6 +2,11 @@
 #include "RTHexEditorModeToolkit.h"
 #include "RTHexEditorModeCommands.h"
 #include "RTHexEditorClick.h"
+#include "RTHexSelectionStore.h"
+#include "Map/RTMapEditLibrary.h"
+#include "Map/RTHexMapAsset.h"
+#include "Editor.h"
+#include "ScopedTransaction.h"
 #include "InteractiveToolManager.h"
 #include "Tools/RTHexSelectTool.h"
 #include "Tools/RTHexPaintTool.h"
@@ -9,6 +14,7 @@
 #include "Tools/RTHexGeometryTool.h"
 #include "Tools/RTHexFillTool.h"
 #include "Tools/RTHexLosTool.h"
+#include "Tools/RTHexProbeTool.h"
 
 #include "Editor.h"                 // GEditor->MoveViewportCamerasToBox
 #include "Toolkits/BaseToolkit.h"   // FModeToolkit::GetToolkitCommands
@@ -44,6 +50,8 @@ void URTHexEditorMode::Enter()
 	RegisterTool(Commands.GeometryTool, TEXT("RTHexGeometryTool"), NewObject<URTHexGeometryToolBuilder>(this));
 	// #1755: sesto tool. Sola lettura — non tocca la mappa, la interroga.
 	RegisterTool(Commands.LosTool, TEXT("RTHexLosTool"), NewObject<URTHexLosToolBuilder>(this));
+	// #711: settimo tool. Sola lettura come il sesto — interroga il movimento, non lo cambia.
+	RegisterTool(Commands.ProbeTool, TEXT("RTHexProbeTool"), NewObject<URTHexProbeToolBuilder>(this));
 
 	GetToolManager()->SelectActiveToolType(EToolSide::Left, TEXT("RTHexSelectTool"));
 }
@@ -73,6 +81,59 @@ void URTHexEditorMode::BindCommands()
 	Toolkit->GetToolkitCommands()->MapAction(
 		FRTHexEditorModeCommands::Get().FrameMap,
 		FExecuteAction::CreateUObject(this, &URTHexEditorMode::FrameEditableMap));
+
+	Toolkit->GetToolkitCommands()->MapAction(
+		FRTHexEditorModeCommands::Get().EraseSelection,
+		FExecuteAction::CreateUObject(this, &URTHexEditorMode::EraseSelection));
+}
+
+void URTHexEditorMode::EraseSelection()
+{
+	ARTHexMapActor* Actor = RTHexEditor::FindTargetMapActor(GetWorld());
+	URTHexMapAsset* Map = Actor ? Actor->MapAsset : nullptr;
+	URTHexSelectionStore* Store = GEditor ? GEditor->GetEditorSubsystem<URTHexSelectionStore>() : nullptr;
+
+	if (!Map || !Store || Store->GetSelection().Num() == 0)
+	{
+		UE_LOG(LogRTHexEditorMode, Warning,
+			TEXT("Erase: niente da cancellare (mappa assente o selezione vuota)."));
+		return;
+	}
+
+	// UNA sola transazione per l'intera operazione, cascata compresa: e' il criterio di #1864 — «una
+	// operazione composta e' un solo Undo». Aprirne una per elemento farebbe premere Ctrl+Z tante volte
+	// quanti erano gli elementi, e l'autore non sa quanti ne ha portati via la cascata.
+	const FScopedTransaction Transaction(
+		NSLOCTEXT("RTHexEditorMode", "EraseSelection", "Cancella la selezione"));
+	Map->Modify();
+
+	int32 Applied = 0;
+	for (const FRTMapElementHandle& Handle : Store->GetSelection())
+	{
+		const ERTMapEditOutcome Outcome = URTMapEditLibrary::DeleteElement(Map, Handle);
+		if (Outcome == ERTMapEditOutcome::Applied)
+		{
+			++Applied;
+		}
+		else
+		{
+			// ⚠️ Il rifiuto si LOGGA con la sua ragione, non si ingoia: e' la disciplina di
+			// `ERTHexArchPendingCloseReason` (#996). Un elemento che sparisce dalla selezione senza essere
+			// stato cancellato, e senza che nessuno lo dica, e' il difetto silenzioso peggiore.
+			UE_LOG(LogRTHexEditorMode, Warning,
+				TEXT("Erase: rifiutato '%s' (esito %d)."),
+				*URTHexSelectionStore::Describe({ Handle }), static_cast<int32>(Outcome));
+		}
+	}
+
+	Store->Clear();
+
+	// La vista non si aggiorna da sola: l'asset non notifica l'actor (stessa trappola delle porte in
+	// `PIE-HEX-VIZ-PORTE`, dove senza un ridisegno forzato si guarda la geometria vecchia). Stesso gesto di
+	// `SetActiveLayer`, che per la stessa ragione chiama `RebuildInstances` dopo aver scritto.
+	Actor->RebuildInstances();
+
+	UE_LOG(LogRTHexEditorMode, Log, TEXT("Erase: %d elementi cancellati."), Applied);
 }
 
 void URTHexEditorMode::FrameEditableMap()

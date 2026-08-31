@@ -77,4 +77,21 @@ namespace RTScenarioViewport
 
 	/** Scala del raggio piu' grande che `TeamRingScale` puo' restituire. Il test la confronta col passo della griglia. */
 	float MaxTeamRingScale();
+
+	/**
+	 * Dove sta e come e' ruotato il pannello che segna un lato ESPOSTO del confine visibile (#1754).
+	 *
+	 * 🔑 **Il punto e l'orientamento si CHIEDONO alla libreria** — `URTHexLibrary::EdgeMidpointWorld` e
+	 * `EdgeRotation`, che li derivano dai due centri di cella — esattamente come fanno i pannelli di
+	 * copertura e porta in `ARTHexMapActor`: se la convenzione dei sei lati cambiasse, la geometria
+	 * seguirebbe invece di mentire. E' la stessa disciplina di `MarkerTransform` per il facing.
+	 *
+	 * La quota e' `RTCellTopZ` sopra il bordo: sotto, il pannello finirebbe **dentro** il prisma della cella
+	 * e a schermo sarebbe indistinguibile da un pannello mai disegnato — il difetto che `RTMapVisuals.h`
+	 * documenta essere gia' costato due volte.
+	 *
+	 * La scala e' quella del cubo engine da 100 uu: sottile lungo X (spessore), lungo il bordo su Y.
+	 */
+	FTransform BorderEdgeTransform(const FRTCellId& Cell, ERTHexDirection Dir,
+		const FVector& Origin, float HexSize, float LayerHeight);
 }

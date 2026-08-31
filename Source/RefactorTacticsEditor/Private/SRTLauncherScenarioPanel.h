@@ -60,6 +60,40 @@ private:
 	/** Dimentica la selezione e il readout insieme. Sempre insieme: vedi `SelectedId`. */
 	void ClearSelection();
 
+	/**
+	 * Ricostruisce le posizioni del selettore di prospettiva dalle squadre che l'anteprima sta mostrando
+	 * (#1754).
+	 *
+	 * ⚠️ **Dal DATO, e a ogni scenario.** Le squadre non sono `{0, 1}`: cambiano col file, e un elenco
+	 * costruito una volta al `Construct` offrirebbe la squadra di uno scenario precedente. Senza anteprima
+	 * resta la sola posizione `Omniscient`, che e' anche cio' che il viewport sta mostrando.
+	 */
+	void RefreshPerspectiveOptions();
+
+	/**
+	 * `Start Session` sullo scenario selezionato (#1682).
+	 *
+	 * ⚠️ **Non apre niente da solo**: chiede al subsystem, che possiede la sessione, e si limita a mostrare
+	 * la frase che torna indietro. La decisione sta in `FRTLauncherWorkspace::DecideStart`, dove un test la
+	 * vede; qui resta la disposizione dei widget.
+	 */
+	FReply OnStartSessionClicked();
+
+	/** Crea uno scenario NUOVO dalla facade e ci apre la sessione. L'id arriva da `NewScenarioId`. */
+	FReply OnNewScenarioClicked();
+
+	/** Attiva una superficie del registro. Se non ci riesce, lo scrive invece di non fare niente. */
+	FReply OnSurfaceClicked(FName SurfaceKey);
+
+	/**
+	 * La riga delle superfici, costruita **iterando il registro**.
+	 *
+	 * ⛔ Nessun elenco di pulsanti scritto a mano: e' cio' che rende vero l'AC di #1682 — *«aggiungere una
+	 * superficie non richiede di modificare nessun criterio»*. Una voce nuova compare qui da sola, e una
+	 * pendente compare come etichetta che nomina la issue invece che come pulsante inerte.
+	 */
+	TSharedRef<SWidget> BuildSurfaceRow();
+
 	TSharedRef<ITableRow> OnGenerateScenarioRow(TSharedPtr<FString> Item, const TSharedRef<STableViewBase>& OwnerTable);
 	TSharedRef<SWidget> OnGenerateTagOption(TSharedPtr<FString> Option) const;
 	void OnScenarioSelected(TSharedPtr<FString> Item, ESelectInfo::Type SelectInfo);
@@ -105,6 +139,18 @@ private:
 
 	TArray<FString> ReadoutLines;
 
+	/**
+	 * L'esito dell'ultimo `Start Session`: vuoto finche' nessuno l'ha premuto.
+	 *
+	 * ⚠️ Tiene sia il rifiuto sia la conferma, e non solo l'errore: dopo un rifiuto corretto e una seconda
+	 * pressione riuscita, una casella che mostra solo gli errori resterebbe ferma sull'ultimo e direbbe che
+	 * la sessione non e' partita mentre e' aperta.
+	 */
+	FString SessionMessage;
+
+	/** L'id proposto per uno scenario nuovo. Vuoto = `New Scenario` rifiuta, dicendolo. */
+	FString NewScenarioId;
+
 	/** L'errore dell'ultima apertura, quando c'e'. Uno scenario illeggibile resta elencato e lo dice. */
 	FString ReadoutError;
 
@@ -116,6 +162,17 @@ private:
 	 * dopo una pausa, cioe' il piu' difficile da attribuire.
 	 */
 	TStrongObjectPtr<URTScenarioAuthoring> Authoring;
+
+	/**
+	 * Le posizioni del selettore di prospettiva: `Omniscient` piu' una per squadra schierata.
+	 *
+	 * `TSharedPtr<int32>` e non `int32`: `SComboBox` tiene la selezione per **identita' di puntatore**, ed
+	 * e' la stessa ragione per cui gli id degli scenari passano da `ItemById`. Il valore e' il `TeamId`,
+	 * oppure `RTScenarioKnowledge::OmniscientTeamId`.
+	 */
+	TArray<TSharedPtr<int32>> PerspectiveOptions;
+
+	TSharedPtr<SComboBox<TSharedPtr<int32>>> PerspectiveCombo;
 
 	TSharedPtr<SListView<TSharedPtr<FString>>> ListView;
 };

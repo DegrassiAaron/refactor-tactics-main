@@ -26,7 +26,7 @@ namespace
 		Def.RangeCells = 1;
 		Def.CostMP = 0;
 		Def.CooldownTurns = 0;
-		Def.bCanBeInterrupted = true;
+		Def.InterruptPolicy = ERTInterruptPolicy::InterruptBeforeEffect;
 		return Def;
 	}
 }

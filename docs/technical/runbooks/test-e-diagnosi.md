@@ -843,3 +843,18 @@ scenario fa.
 
 **Cosa NON fare**: correggere la regola di iniziativa. Se lo scambio debba essere possibile è una decisione di
 design. Il difetto si fissa con una caratterizzazione e si segnala; chi decide, decide.
+
+> ✅ **Deciso il 2026-08-31, ed è la conferma che questa consegna funziona.** `AUTHOR-MOVE-001` — seduta
+> d'autore, sincronizzata da [D-295](../../decisions/RT_PDR_00_Decision_Log.md) — dichiara che **lo scambio
+> diretto e i cicli chiusi bloccano**, salvo permesso esplicito. Vince quindi la regola del *planner*, e il
+> test del resolver è quello che deve cambiare: l'implementazione è
+> [#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922), che porta anche i due test
+> mancanti — il **ciclo chiuso** (nessuno ruota) e il **convoy a coda libera** (tutte avanzano), oggi coperto
+> solo per costruzione.
+>
+> 🔎 **La parte che vale come metodo**: questo paragrafo è del **2026-08-19** (`a3e789d8`), e la domanda è
+> rimasta senza risposta **dodici giorni** — **non** perché nessuno la vedesse, è scritta qui sopra, ma
+> perché **non aveva un owner cercabile**: nessuna voce in
+> `OPEN_DECISIONS.md`, nessuna issue. Un difetto segnalato in un paragrafo di runbook è un difetto che solo
+> chi rilegge il runbook ritrova. Segnalare e **dare un owner** sono due gesti diversi, e questo caso ha
+> pagato il secondo.

@@ -4,6 +4,7 @@
 
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Perception/RTVisibilityBorder.h" // FRTExposedEdge
 #include "ScenarioHarness/RTScenarioDraft.h" // FRTScenarioUnitView
 #include "UObject/ConstructorHelpers.h"
 
@@ -61,10 +62,14 @@ ARTScenarioPreviewActor::ARTScenarioPreviewActor()
 	Bodies = MakeLayer(TEXT("Bodies"), CylinderMesh.Succeeded() ? CylinderMesh.Object : nullptr);
 	TeamRings = MakeLayer(TEXT("TeamRings"), CylinderMesh.Succeeded() ? CylinderMesh.Object : nullptr);
 	FacingWedges = MakeLayer(TEXT("FacingWedges"), CubeMesh.Succeeded() ? CubeMesh.Object : nullptr);
+	BorderPanels = MakeLayer(TEXT("BorderPanels"), CubeMesh.Succeeded() ? CubeMesh.Object : nullptr);
 }
 
 void ARTScenarioPreviewActor::ClearUnits()
 {
+	// ⚠️ **Il confine NON si tocca qui.** Sono due canali distinti: le unita' che una prospettiva concede e
+	// il perimetro di cio' che quella squadra vede. Azzerarli insieme legherebbe la vita dell'uno all'altro,
+	// e il primo `ShowUnits` filtrato cancellerebbe un confine appena posato.
 	if (Bodies) { Bodies->ClearInstances(); }
 	if (TeamRings) { TeamRings->ClearInstances(); }
 	if (FacingWedges) { FacingWedges->ClearInstances(); }
@@ -73,6 +78,37 @@ void ARTScenarioPreviewActor::ClearUnits()
 int32 ARTScenarioPreviewActor::NumMarkers() const
 {
 	return Bodies ? Bodies->GetInstanceCount() : 0;
+}
+
+void ARTScenarioPreviewActor::ClearBorder()
+{
+	if (BorderPanels) { BorderPanels->ClearInstances(); }
+}
+
+int32 ARTScenarioPreviewActor::NumBorderPanels() const
+{
+	return BorderPanels ? BorderPanels->GetInstanceCount() : 0;
+}
+
+void ARTScenarioPreviewActor::ShowBorder(const TArray<FRTExposedEdge>& Edges,
+	const FVector& Origin, float HexSize, float LayerHeight)
+{
+	// Come per i marcatori: si riparte da zero. Un confine aggiornato per differenza lascerebbe in piedi i
+	// pannelli della prospettiva precedente, e due confini sovrapposti si leggono come uno solo piu' largo.
+	ClearBorder();
+
+	if (!BorderPanels)
+	{
+		return;
+	}
+
+	for (const FRTExposedEdge& Edge : Edges)
+	{
+		// L'unico punto in cui si decide DOVE e COME e' ruotato. Puro e testato, come `MarkerTransform`.
+		BorderPanels->AddInstance(
+			RTScenarioViewport::BorderEdgeTransform(Edge.Cell, Edge.Direction, Origin, HexSize, LayerHeight),
+			/*bWorldSpace=*/ true);
+	}
 }
 
 void ARTScenarioPreviewActor::ShowUnits(const TArray<FRTScenarioUnitView>& Units,

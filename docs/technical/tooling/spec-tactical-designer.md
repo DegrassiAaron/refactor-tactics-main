@@ -209,6 +209,7 @@ Non è teorico: lo snap del gesto d'autore vive in `Map/RTGeometryGrammar` e i s
 | Scenario | `FRTTestScenario` (JSON in `Scenarios/`) | scrivere il file **tramite `URTScenarioLoader::SaveToFile`**, mai interpretarlo per conto suo (§5.1) |
 | Esito di un turno | resolver | **niente** |
 | TurnLog | `ARTTurnManager` | **solo leggere** |
+| Conoscenza di squadra | `URTTeamKnowledgeLibrary` | **solo leggere**, e sceglierne la prospettiva (§4.2) |
 
 ⚠️ **La riga con due produttori è l'unica delicata, ed è già risolta.**
 [`D-131`](../../decisions/RT_PDR_00_Decision_Log.md) dà a `FRTHexCover` il campo `bGenerated`: il rebake rimuove
@@ -433,6 +434,44 @@ detto invece che ripristinato in silenzio.
 > e nelle sue sub-issue, non qui. Questa sezione dichiara il confine, che è ciò che questo documento possiede.
 
 ---
+
+### 4.2 La prospettiva tecnica: il designer sceglie da CHI guardare, non cosa è vero
+
+Il Tactical Designer è omnisciente per costruzione, e resta il suo default. Ma metà delle domande su questo
+gioco non sono *«cosa è successo»* — sono ***«cosa sapeva chi ha deciso»***: perché il bot non ha sparato a
+un bersaglio in LOS, perché il velo copre quella zona, se lo scenario è leggibile o chiede di indovinare.
+
+Un selettore nella sessione porta `Omniscient` più una posizione per ogni squadra che lo scenario schiera
+(#1754). In `Team N` il viewport mostra ciò che quella squadra **conosce**.
+
+🔑 **La conoscenza è quella canonica, e la via è dichiarata invece che dedotta.** In PIE si chiede
+all'autorità — `ARTTurnManager::KnowledgeForTeamPublic`. **Fuori da PIE quel manager non esiste**, e la via è
+`URTTeamKnowledgeLibrary::Observe`: pura, e *lo stesso produttore* che il TurnManager chiama. Non è una
+seconda verità. Gli ingressi li costruisce `RTScenarioKnowledge`, che sta nel **runtime** — decidere
+`VisionRange` e `Facing` significa decidere *chi vede cosa*, e quella non è una risposta dell'editor.
+
+⛔ **Il modulo Editor decide quale squadra osservare e come disegnarla. Non decide chi vede cosa.** Nessuna
+LOS, percezione o fog-of-war logic in `Source/RefactorTacticsEditor/`.
+
+⚠️ **`Omniscient` è una posizione NOMINATA, non «il filtro spento».** Si esprime come un `FRTTeamKnowledge`
+che vede tutto e passa dallo stesso `ApplyKnowledgeVeil` di `Team N`: un ramo che saltasse il velo sarebbe
+una seconda strada che nessun test attraversa, e divergerebbe dalla prima al primo cambiamento.
+
+🔴 **Le squadre vengono dal dato.** `1 + N` posizioni, con `N` dai `TeamId` che le unità dichiarano — mai
+`{0, 1}` cablato, che è il difetto già registrato su `ARTHUD`. Uno scenario a squadra sola ne ha due, il 4v4
+cinque: è *un cambio di dato*, non un caso limite.
+
+⚠️ **Il velo copre la mappa, non i marcatori.** `ApplyKnowledgeVeil` tocca le cinque famiglie di istanze di
+`ARTHexMapActor`; le unità stanno su un altro attore. Velare la board e lasciare i marcatori mostrerebbe ogni
+nemico mai visto **rispettando alla lettera** il resto — ed è per questo che
+`RTScenarioKnowledge::VisibleUnits` esiste, e che la regola che applica è `ClassifyTarget` e non una nuova.
+
+**Cambiare prospettiva non altera nulla**: non il draft, non il simulator state, non lo snapshot, non il
+replay, non `ARTPlayerController::PlayerTeamId`. È una lente, e le lenti non scrivono.
+
+⏳ **Durante il playback (#1625) la stessa scelta si applica**, e la decisione di presentazione su *cosa fa
+un modello a metà corsa* resta di #1525 — finché non è presa, la scelta conservativa è non animare ciò che
+non si conosce.
 
 ## 5. Il formato scenario è già la lingua comune
 

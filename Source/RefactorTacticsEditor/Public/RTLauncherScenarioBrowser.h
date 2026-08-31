@@ -113,4 +113,17 @@ public:
 	 * ricavato altrove. Se un numero e' sbagliato, e' sbagliato a monte — e questo e' voluto.
 	 */
 	static TArray<FString> BuildReadout(const FRTScenarioSummary& Summary, const TArray<FRTScenarioUnitView>& Units);
+
+	/**
+	 * L'etichetta di una posizione del selettore di prospettiva (#1754): `Omniscient` oppure `Team N`.
+	 *
+	 * ⚠️ **`N` e' l'id della squadra, non la sua posizione nel selettore.** Uno scenario che schiera le
+	 * squadre `0` e `3` mostra `Team 0` e `Team 3`: numerarle `1` e `2` perche' sono la prima e la seconda
+	 * voce le renderebbe irriconoscibili accanto a `rt.Debug.Knowledge <team>`, che e' l'oracolo con cui il
+	 * designer le confronta.
+	 *
+	 * `Omniscient` e' una posizione **nominata**, e la sua etichetta lo dice: non «nessun filtro», non
+	 * «tutti», che leggerebbero come l'assenza di una scelta invece che come una scelta.
+	 */
+	static FText DescribePerspective(int32 TeamId);
 };

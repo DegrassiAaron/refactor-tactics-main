@@ -104,3 +104,55 @@ constexpr float RTCellTopZ = RTCellPrismRadius * RTCellFlatScale;
  * gia' successo due volte.
  */
 constexpr float RTLastContactGhostZ = RTCellTopZ + 1.0f;
+
+/**
+ * 🔑 **Il CONFINE fra due celle** (#1758): la frazione del raggio occupata dall'anello di bordo.
+ *
+ * 🔴 **Il difetto che chiude non è «manca un colore», è «manca un canale».** Due celle adiacenti della
+ * STESSA superficie sono due prismi dello stesso colore appoggiati l'uno all'altro: il colore non dice dove
+ * finisce una e comincia l'altra, e su un gioco in cui il costo si conta in celle un giocatore che non vede
+ * il confine non può contare il movimento. Colore di superficie e confine sono **due canali diversi**.
+ *
+ * 🔴 **L'anello è SOTTILE perché il perimetro è già occupato, e la misura va fatta in coordinate MONDO —
+ * confrontare le due scale di mesh direbbe il falso.** Il glifo di [D-183] si scala con `HexSize/50` e porta
+ * `RTGlyphOuterScale = 0.95` dentro la propria mesh; il prisma si scala con `PlanarScale`, che quel `0.95`
+ * lo porta fuori. Il risultato è che **entrambi arrivano esattamente a `0,95 H`**: il glifo non si ferma
+ * prima del bordo della cella, ci finisce sopra. Un anello spesso quanto quello del glifo (`0.0526`) lo
+ * cancellerebbe quasi per intero.
+ *
+ * ⚠️ **Con `0.02` l'anello occupa `[0,931 H, 0,950 H]` e copre il `36%` dell'anello esterno del glifo.** È
+ * una perdita accettata e non ignorata: il canale informativo di [D-183] è il **conteggio** degli anelli —
+ * uno per superficie, da uno a quattro — non la larghezza del primo, e il conteggio non cambia.
+ *
+ * ⛔ **Questo numero è una taratura di leggibilità, e non ha un oracolo automatico.** Nessun test può dire
+ * se un bordo si legge a distanza tattica: lo dice la voce `PIE-*` di #1758, guardando. Finché quella non è
+ * eseguita, `0.02` è una scelta motivata — non una misura.
+ *
+ * ⚠️ È una frazione del RAGGIO, come `RTGlyphThickness`, e non una larghezza in uu: uno spessore assoluto si
+ * è già desincronizzato in silenzio quando `HexSize` è passato da `100` a `150` ([D-163]).
+ */
+constexpr float RTCellBorderOuterScale = 1.0f;
+constexpr float RTCellBorderThickness = 0.02f;
+
+/**
+ * Quota della griglia sopra la faccia della cella.
+ *
+ * ⚠️ **Sta SOPRA il glifo (`+0,3`) e non sotto**, ed è la conseguenza diretta della sovrapposizione qui
+ * sopra: sotto, il glifo lo coprirebbe proprio sulle quattro superfici che ne hanno uno, e il confine
+ * sparirebbe esattamente dove la board è più affollata. Sopra, il bordo si legge sempre e il glifo perde una
+ * frazione del suo anello esterno — che è il verso giusto in cui pagare, perché il conteggio sopravvive.
+ *
+ * 🔴 **Sotto `RTCellTopZ` sarebbe dentro il prisma, e a schermo non si distinguerebbe da «non disegnato»** —
+ * è successo davvero due volte, e `PIE-DEBUG-CELLS` registra la prima: il contorno di superficie stava a
+ * `2.0` con la faccia a `2.5`. Dal 2026-08-28 `RTCellTopZ` è salito da `2,5` a `7,5`, quindi un numero
+ * riscritto a mano oggi sbaglierebbe **di più** di allora. Deriva, non si copia.
+ *
+ * ⚠️ Resta **sotto** il marker di blocco (`+1,5`) e l'anteprima di pianificazione (`+2,5`): la griglia è il
+ * fondo della pila di lettura, e nulla di ciò che il giocatore deve decidere le sta sotto.
+ */
+constexpr float RTLiftCellBorder = RTCellTopZ + 0.4f;
+
+static_assert(RTLiftCellBorder > RTCellTopZ,
+	"La griglia deve stare SOPRA la faccia del prisma, o sparisce dentro il volume opaco.");
+static_assert(RTCellBorderThickness > 0.f && RTCellBorderThickness < 0.0526f,
+	"L'anello di bordo deve restare piu' sottile di quello del glifo (RTGlyphThickness), o ne cancella il conteggio.");

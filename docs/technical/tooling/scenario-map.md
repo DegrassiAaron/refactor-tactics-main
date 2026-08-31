@@ -299,6 +299,56 @@ Oppure `rt.Test.Scenario <Id>`. Nessun'altra preparazione: gli scenari portano a
 > visivo porta una voce PIE» (§9 di `scenari-validazione-visiva.md`) non ha un controllo che la faccia
 > rispettare. Il comando di §7 lo verifica ora, e va eseguito quando si aggiunge uno scenario `Visual.*`.
 
+> 🔴 **Rimisurata il 2026-08-31, e la corrispondenza 1:1 non regge più — ma il rosso è metà di quello che il
+> comando segnalava.** Il corpus ha **25** scenari `Visual.*` contro **21** voci `PIE-VIS-*`. Dei quattro di
+> scarto, due sono coperti e due no: `Visual.Input.PcGym` ha `PIE-PC-GYM` (una voce vera, con un prefisso
+> proprio), `Visual.Map.GrayKitYard` è una **fixture** e non uno scenario-verifica; restano scoperti
+> `Visual.Map.SightWallIsWalkable` e `Visual.Map.TwoLayersSameColumn`, entrambi **PASS e mai guardati**.
+>
+> ⚠️ **La convenzione da far rispettare non è quella che il comando misurava.** «1:1 fra `Scenarios/Visual/`
+> e `PIE-VIS-*`» lega la copertura al **prefisso dell'ID**; ciò che serve è che ogni scenario visivo abbia
+> **una qualche** voce che lo guardi. `PIE-PC-GYM` lo dimostra: copre il suo scenario senza chiamarsi
+> `PIE-VIS-`. Il comando corretto è in §7 e incrocia gli `ScenarioId` con **tutte** le righe `PIE-`.
+
+### 4.1 Scenari compositi di acceptance — dove vivono, e perché lì
+
+Un composito prepara **una** scena da cui si giudicano più criteri: è `1↔N` per costruzione, quindi non
+potrebbe soddisfare un invariante `1:1` sul prefisso. Deciso il 2026-08-31, misurando:
+
+**Stanno in `Scenarios/Visual/`, come ogni altro scenario di classe B.** Non è una comodità: §2 dichiara che
+la classe si legge dal percorso — *«**B** se sta in `Scenarios/Visual/`, altrimenti **A**»* — e la **A** è
+*«la macchina esegue e giudica, nessun umano»*. Collocare fuori un composito di acceptance lo dichiarerebbe
+auto-giudicante, cioè l'esatto contrario di ciò che è. Il percorso qui **non è organizzazione: è tipizzazione**.
+
+**Il nome determina la cartella.** Misurato sul corpus: `scenarioId` ↔ percorso coincidono **96 volte su 96**,
+senza una sola eccezione — eredità del disegno in cui *l'ID era il percorso*, come ricorda
+[`RTScenarioIndex.cpp`](../../../Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.cpp) là dove introduce
+il presidio sui duplicati (*«finché l'ID era il percorso il filesystem la rendeva impossibile»*). Il secondo
+segmento è **sempre un dominio** — `Combat`, `Map`, `Environment`, `Movement`, `Reaction`, `Core`, `Input` —
+mai una milestone. Quindi:
+
+| Composito | File | Gemello già esistente |
+|---|---|---|
+| `Visual.Perception.Acceptance` | `Scenarios/Visual/Perception/Acceptance.json` | `Scenarios/Spec/Perception/` — 5 file |
+| `Visual.Hud.FirstPlayable` | `Scenarios/Visual/Hud/FirstPlayable.json` | `Scenarios/Spec/Hud/` — 2 file |
+
+⚠️ **I nomi proposti dal piano operativo erano `Visual.V01.PerceptionAcceptance` e `Visual.UI.FirstPlayableHUD`,
+e violano entrambi il vocabolario vivo**: `V01` sarebbe il primo segmento-milestone del corpus — e invecchierebbe
+con la v0.1 — mentre `UI` non compare in nessuno dei 96 ID, dove il dominio si chiama `Hud`. Cinque domini
+esistono già su entrambi i lati (`Combat`, `Environment`, `Map`, `Movement`, `Reaction`): `Spec/<Dominio>` è
+l'oracolo automatico, `Visual/<Dominio>` lo stesso dominio guardato da una persona. `Perception` e `Hud` hanno
+finora **solo** il lato `Spec/`, e i due compositi sono esattamente il lato mancante.
+
+**Ciascuno porta la propria voce PIE con prefisso proprio**, come `PIE-PC-GYM`: `PIE-ACC-PERCEPTION` e
+`PIE-ACC-HUD`. Non voci `PIE-VIS-*` ombrello — un composito che prepara dieci verifiche non si giudica con un
+sì/no unico, e le voci reali restano quelle già registrate. La voce del composito dichiara che **la scena è
+leggibile e allestita**; i criteri restano dove sono.
+
+➕ **Scritti il 2026-08-31**, nello stesso giorno di questa sezione: i due file sono nel corpus e le due voci
+— `PIE-ACC-PERCEPTION` e `PIE-ACC-HUD` — sono nel registro. ⚠️ **Ma nessuno dei due e' mai stato eseguito**,
+ne' headless ne' in PIE: nascono `NOT RUN`, e il loro stato lo dice. La convenzione `scenarioId` ↔ percorso
+regge con loro dentro — **98 su 98** — e il comando di §7 non li segnala piu' come scoperti.
+
 ---
 
 ## 5. Classe C — solo input umano
@@ -785,9 +835,16 @@ awk -F'|' '/^\| \*\*PIE-/ {s=$(NF-1);
   END {printf "verde=%d parziale=%d aperta=%d senza-marcatore=%d\n",
        c["✅"], c["🟡"], c["⏳"], c["nessuno"]}' docs/technical/test-manuali-pie.md
 
-# Classe B — la corrispondenza scenario Visual ↔ voce PIE deve restare 1:1
-echo "scenari: $(find Scenarios/Visual -name '*.json' | wc -l)  \
-voci: $(grep -c '^| \*\*PIE-VIS-' docs/technical/test-manuali-pie.md)"
+# Classe B — ogni scenario Visual deve avere UNA QUALCHE voce PIE che lo guarda.
+# ⚠️ Il comando precedente contava le voci `PIE-VIS-*` e le confrontava col numero di file: misurava il
+#    FORMATO dell'ID, non il fatto. `PIE-PC-GYM` copre `Visual.Input.PcGym` senza chiamarsi `PIE-VIS-`,
+#    e veniva contata come un buco. Questo incrocia gli ScenarioId con TUTTE le righe `PIE-`:
+comm -23 \
+  <(grep -rhoE '"scenarioId": "[^"]+"' Scenarios/Visual | grep -oE 'Visual\.[A-Za-z0-9.]+' | sort -u) \
+  <(grep -hoE 'Visual\.[A-Za-z0-9.]+' <(grep '^| \*\*PIE-' docs/technical/test-manuali-pie.md) | sort -u)
+# Deve stampare NULLA. 2026-08-31: stampa `Visual.Map.SightWallIsWalkable` e
+# `Visual.Map.TwoLayersSameColumn` — due scenari PASS che nessuna voce guarda. `Visual.Map.GrayKitYard`
+# compare anch'esso ed e' l'unica assenza legittima: e' una FIXTURE, non uno scenario-verifica.
 
 # Subset di release: deve valere quanto la tabella §8
 grep -c '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manuali-pie.md    # 17

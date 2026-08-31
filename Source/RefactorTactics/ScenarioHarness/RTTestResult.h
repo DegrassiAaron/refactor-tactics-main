@@ -71,6 +71,31 @@ struct FRTTestResult
 
 	int32 TurnsPlayed = 0;
 
+	/**
+	 * Tempo **simulato**: gli step di risoluzione eseguiti, moltiplicati per il passo fisso del runner.
+	 *
+	 * E' **deterministico** — stesso scenario, stesso numero di step, stesso valore — e questa e' l'unica
+	 * ragione per cui vale la pena scriverlo accanto a `WallClockSeconds`: da solo direbbe poco, in coppia
+	 * distingue due cause che oggi il referto confonde. Un `SimulationSeconds` fermo con un
+	 * `WallClockSeconds` che raddoppia dice «la macchina e' carica»; il contrario dice «il gioco ha cambiato
+	 * comportamento», ed e' l'unico dei due casi che riguardi il codice.
+	 *
+	 * 🔴 **Non entra in `StateHash`, nel TurnLog, ne' in alcuna decisione della simulazione.** E' misura, non
+	 * ingresso: il giorno in cui una durata decidesse un esito, la suite smetterebbe di essere riproducibile.
+	 */
+	float SimulationSeconds = 0.f;
+
+	/**
+	 * Tempo di **parete**, quello dell'orologio da muro. **Non e' deterministico e non lo diventera'**:
+	 * dipende dalla macchina, dal carico e da quante altre sessioni stanno compilando — su questo repository
+	 * piu' sessioni condividono la working directory ([D-222](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
+	 *
+	 * ⚠️ Percio' si **registra** ma non si asserisce per uguaglianza: un test che pretendesse due wall-clock
+	 * identici sarebbe rosso a giorni alterni per una ragione che non e' il gioco. L'unica delle due durate
+	 * su cui si possa scrivere un `TestEqual` e' `SimulationSeconds`.
+	 */
+	float WallClockSeconds = 0.f;
+
 	/** Seed dichiarato dallo scenario. Registrato nel report anche se oggi nessun RNG lo consuma. */
 	int32 Seed = 0;
 

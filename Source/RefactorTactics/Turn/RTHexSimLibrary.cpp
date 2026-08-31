@@ -1,4 +1,5 @@
 #include "Turn/RTHexSimLibrary.h"
+#include "Algo/Reverse.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
@@ -10,6 +11,20 @@ namespace
 	const FRTHexSimUnit* FindUnit(const FRTHexSnapshot& Snapshot, int32 UnitId)
 	{
 		return Snapshot.Units.FindByPredicate([UnitId](const FRTHexSimUnit& U) { return U.UnitId == UnitId; });
+	}
+
+	/**
+	 * La voce del reachable set per quella cella, o `nullptr`.
+	 *
+	 * Ricerca LINEARE di proposito: il set esce da `ReachableCells` ordinato per `StableLess`, e una binary
+	 * search sarebbe piu' veloce — ma tacerebbe su un set non ordinato, restituendo `nullptr` per una cella
+	 * che c'e'. La sonda ne chiama una per cella sorvolata, su un insieme grande quanto un budget di
+	 * movimento: la differenza non si misura, l'errore silenzioso si', e sarebbe un «quella cella no» detto
+	 * di una cella raggiungibile.
+	 */
+	const FRTHexReachableCell* FindReachable(const TArray<FRTHexReachableCell>& Reachable, const FRTCellId& Cell)
+	{
+		return Reachable.FindByPredicate([&Cell](const FRTHexReachableCell& R) { return R.Cell == Cell; });
 	}
 
 	/** Celle occupate da unita' vive DIVERSE da ForUnitId: ostacoli dinamici (non appartengono all'asset mappa). */
@@ -395,6 +410,71 @@ ERTHexWaypointReason URTHexSimLibrary::ClassifyWaypointCell(const FRTHexSnapshot
 		}
 	}
 	return ERTHexWaypointReason::Ok;
+}
+
+TArray<FRTCellId> URTHexSimLibrary::ProbePathTo(const TArray<FRTHexReachableCell>& Reachable, const FRTCellId& Goal)
+{
+	TArray<FRTCellId> Out;
+	if (!FindReachable(Reachable, Goal))
+	{
+		return Out; // fuori dal set: non c'e' un percorso da mostrare
+	}
+
+	// Risalita dei predecessori. La partenza e' predecessore di se stessa (`ReachableCells`), ed e' la
+	// condizione d'arresto: non serve conoscere quale sia la cella dell'unita'.
+	FRTCellId Current = Goal;
+	for (int32 Steps = 0; Steps <= Reachable.Num(); ++Steps)
+	{
+		Out.Add(Current);
+
+		const FRTHexReachableCell* Node = FindReachable(Reachable, Current);
+		if (!Node || Node->FromCell == Current)
+		{
+			Algo::Reverse(Out);
+			return Out; // arrivati alla partenza
+		}
+		Current = Node->FromCell;
+	}
+
+	// Piu' passi che celle nel set: la catena dei predecessori non e' un albero radicato nella partenza.
+	// Un Dijkstra non lo produce, quindi qui il dato in ingresso non viene da `ReachableCells` — e mezzo
+	// percorso disegnato sarebbe una risposta inventata. Meglio nessuna.
+	return {};
+}
+
+ERTHexProbeExclusion URTHexSimLibrary::ClassifyProbeCell(const FRTHexSnapshot& Snapshot, int32 UnitId,
+	const TArray<FRTHexReachableCell>& Reachable, const FRTCellId& Cell)
+{
+	if (FindReachable(Reachable, Cell))
+	{
+		return ERTHexProbeExclusion::Reachable;
+	}
+
+	// I tre motivi che riguardano la CELLA sono gia' di qualcun altro.
+	switch (ClassifyWaypointCell(Snapshot, UnitId, Cell))
+	{
+	case ERTHexWaypointReason::NotOnMap:       return ERTHexProbeExclusion::NotOnMap;
+	case ERTHexWaypointReason::BlocksMovement: return ERTHexProbeExclusion::BlocksMovement;
+	case ERTHexWaypointReason::Occupied:       return ERTHexProbeExclusion::Occupied;
+	case ERTHexWaypointReason::Ok:             break;
+	}
+
+	// La cella in se' va bene ed e' fuori dal set: o manca il movimento, o manca la strada. La domanda si
+	// gira al pathfinder canonico SENZA limite di costo (`MaxCost == 0`) e con gli stessi ostacoli dinamici
+	// di `FindPathForUnit`: se a budget illimitato un percorso esiste, allora mancava solo il budget.
+	const FRTHexSimUnit* Unit = FindUnit(Snapshot, UnitId);
+	if (!Snapshot.Map || !Unit)
+	{
+		return ERTHexProbeExclusion::NoRoute;
+	}
+
+	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId);
+	const FRTHexPathResult Unlimited = URTHexPathLibrary::FindPathAvoiding(Snapshot.Map, Unit->Cell, Cell,
+		&Blocked, /*MaxCost=*/ 0, /*MaxNodes=*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
+
+	return Unlimited.Status == ERTHexPathStatus::Success
+		? ERTHexProbeExclusion::OutOfBudget
+		: ERTHexProbeExclusion::NoRoute;
 }
 
 FRTHexPathResult URTHexSimLibrary::BuildCompositeHexPath(const FRTHexSnapshot& Snapshot, int32 UnitId,

@@ -168,6 +168,31 @@ public:
 	static URTHexMapAsset* MakeCoverYardArena(UObject* Outer);
 
 	/**
+	 * 🔑 **La scena della seduta `U25`+`U35`: tutto cio' che le dieci verifiche guardano, in una fixture sola.**
+	 *
+	 * E' `CoverYard` con tre aggiunte, e la base identica e' un REQUISITO e non pigrizia: `PIE-GBX-FIT`
+	 * dichiara che `GBX-1` si decide provando valori di inset, e **due letture su scene diverse non sono
+	 * confrontabili** — la seconda misurerebbe la scena invece dell'inset.
+	 *
+	 *     le due coperture      alta e bassa, sulle stesse celle di `CoverYard`     -> PIE-GBX-COVER
+	 *     quattro porte         Destroyed | Open | Closed | Locked, in fila         -> PIE-GBX-DOOR
+	 *     acqua e ghiaccio      due celle CIASCUNA, adiacenti                       -> PIE-GBX-SURFACE
+	 *     coppie stessa superficie  acqua|acqua e ghiaccio|ghiaccio                 -> PIE-GRID-CONFINE
+	 *
+	 * 🔴 **Perche' due celle per superficie e non una.** `PIE-GBX-SURFACE` vuole due superfici DIVERSE
+	 * adiacenti, e le ha. `PIE-GRID-CONFINE` vuole l'opposto — due celle della **stessa** superficie, dove il
+	 * colore non dice dove finisce una — e con una cella per tipo quel caso non sarebbe allestito: il giudizio
+	 * piu' difficile della griglia resterebbe non guardabile proprio nella scena costruita per guardarlo.
+	 *
+	 * ⚠️ **Porta il DATO, non le mesh del kit.** `SM_Graybox_*` sono asset da posare in scena, e nessuna
+	 * fixture li posa: `PIE-GBX-COVER`, `-DOOR` e `-SURFACE` guardano **il kit**, quindi restano manuali per
+	 * quella meta'. Cio' che questa fixture toglie e' l'allestimento del dato — incluso lo `Cells[i].Doors`
+	 * scritto a mano nel Details e il ridisegno da forzare, che e' la trappola che faceva sembrare fallita
+	 * una voce solo non allestita.
+	 */
+	static URTHexMapAsset* MakeGrayKitYardArena(UObject* Outer);
+
+	/**
 	 * **Arena della v0.1** — il layout che soddisfa i tre criteri del `done_when` di U1
 	 * (`docs/roadmap/editor-sessions.yaml`, passi 3, 4 e 7), verificati da
 	 * `URTArenaCriteriaLibrary` e non a occhio.
@@ -216,6 +241,34 @@ public:
 	 * `Outer` nullo -> `nullptr`.
 	 */
 	static URTHexMapAsset* MakeVisionSplitArena(UObject* Outer);
+
+	/**
+	 * **`ProbeYard` — la mappa su cui la sonda di movimento (#711) si guarda in seduta.**
+	 *
+	 * Porta, in un esagono piccolo, le **tre condizioni che separano i motivi** che la sonda puo' dare:
+	 *
+	 * | Condizione | Dove | Quale motivo rende osservabile |
+	 * |---|---|---|
+	 * | superficie costosa | fascia a `q = -2` | `OutOfBudget` **vicino**, non al bordo |
+	 * | cella che blocca | i sei vicini di `(3,0)` | `BlocksMovement` |
+	 * | zona isolata | `(3,0)`, murata dai suoi sei | `NoRoute` |
+	 *
+	 * 🔴 **Perche' esiste, misurato invece che supposto.** Il 2026-08-31 la mappa aperta in `L_DevSandbox`
+	 * (`DA_HexMap_Scratch_Basin`) e' stata interrogata cella per cella attraverso il ponte MCP con lo stesso
+	 * A* che la sonda usa: `Reachable 57 · BlocksMovement 3 · OutOfBudget 1 · **NoRoute 0**`. Su una mappa
+	 * senza zone isolate la seduta non puo' distinguere «ti manca movimento» da «non c'e' strada» — cioe'
+	 * proprio la distinzione per cui #711 e' stata fatta.
+	 *
+	 * ⚠️ **La camera e' murata da CELLE, non da bordi chiusi.** Un varco negato da un arco sarebbe una
+	 * topologia diversa e la sonda direbbe lo stesso `NoRoute`, ma il designer in seduta non vedrebbe
+	 * **perche'**: sei celle nere attorno a una libera si leggono a colpo d'occhio.
+	 *
+	 * ⚠️ **Quattro motivi, non cinque.** `Occupied` non e' ottenibile dal tool d'editor, che mette una sola
+	 * unita' nel suo snapshot. La fixture non prova a produrlo, e un test lo pinna.
+	 *
+	 * `Outer` nullo -> `nullptr`.
+	 */
+	static URTHexMapAsset* MakeProbeYardArena(UObject* Outer);
 
 	/**
 	 * **Fixture di mappa per nome.** I nomi validi li dice `KnownFixtureIds()`, che li deriva dalla stessa
