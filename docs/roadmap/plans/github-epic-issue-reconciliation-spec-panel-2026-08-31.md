@@ -715,3 +715,140 @@ uniforme e la si poteva contare: qui no.
 confronta un numero o un percorso scritto **in prosa dentro una issue** col documento che lo possiede.
 Trentuno issue hanno portato per tre giorni un vincolo di apertura sbagliato, e a trovarle è stata una
 ricerca fatta a mano perché qualcuno ha pensato di guardare **fuori** dall'insieme che il referto elencava.
+
+## 13. `WORKLIST` — la domanda che il §12.5 dichiara ignota, e la sua risposta
+
+> **Aggiunta del 2026-08-31, terza sessione.** Il §12.5 chiude dicendo che `feature-registry` *«satura il
+> limite di ricerca»* a **100** risultati e che *«il numero vero non è noto»*. È noto. Questa sezione lo
+> misura, e porta il worklist che ne esce.
+
+### 13.1 Il metodo, e perché non ha un tetto
+
+`gh search issues` tronca a 100. `gh issue list --state open --limit 400 --json number,title,body` **no**:
+scarica i corpi. Le **363** issue aperte pesano **1,8 MB**, stanno in un file, e si classificano in locale
+senza toccare l'API una seconda volta.
+
+⚠️ **La query non era sbagliata: era la fonte.** Cercare *dentro* GitHub costringe al suo paginatore;
+scaricare e cercare *fuori* toglie il tetto. È lo stesso movimento che il §12.5 chiedeva senza avere lo
+strumento.
+
+### 13.2 `feature-registry` — 72 issue, e **non** sono un worklist
+
+| Classe | Menzioni | Issue |
+|---|--:|--:|
+| Totale su 363 issue aperte | **440** | 190 |
+| `HISTORICAL` — dentro una nota citata | 299 (68%) | 118 |
+| `CURRENT` — fuori da una nota | **138** (31%) | **72** |
+| `CORRECTED` — barrata | 3 | 1 |
+
+🔴 **Ma 72 è la risposta alla domanda sbagliata.** Delle 138 `CURRENT`, **108 in 62 issue** sono
+identificatori `RT-FEAT-*` usati come **provenienza** — `**Feature Registry**: RT-FEAT-BOT-TACTICAL`,
+`Feature Map | LINK — RT-FEAT-MAP-COVER` — e **non sono difetti**. Il repository lo ha già deciso, e lo
+scrive in [#1848](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1848):
+
+> ⚠️ *Gli identificatori `RT-FEAT-*` citati da #1132 sono **provenance storica**: il Feature Registry è
+> uscito dal repository con `D-181`. **Non vanno ricreati.***
+
+Un ID stabile che testimonia dove una feature è nata sopravvive al registro che lo emetteva. Correggerlo
+cancellerebbe la tracciabilità invece di ripararla.
+
+### 13.3 Ciò che resta è **eseguibile e morto**: 14 comandi in 9 issue
+
+Queste sì. Sono righe che dicono di **lanciare** uno script che `D-182` ha portato fuori dal repository col
+commit `d671df47` — *«la cartella `scripts/` esce dal repository, e con lei ogni gate automatico»*:
+
+| Issue | La riga chiede di eseguire |
+|---|---|
+| [#269](https://github.com/DegrassiAaron/refactor-tactics-main/issues/269) | `python scripts/feature_registry.py wiki --check` |
+| [#703](https://github.com/DegrassiAaron/refactor-tactics-main/issues/703) | `validate` · `suite --run-log Saved/Logs/RefactorTactics.log` |
+| [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705) | cita `scripts/feature_registry.py:372` come comportamento vivo |
+| [#827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/827) | `feature_registry.py deploy --wiki-root` |
+| [#995](https://github.com/DegrassiAaron/refactor-tactics-main/issues/995) | `deploy --wiki-root <clone> --write` · `validate` · `wiki` |
+| [#1013](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1013) | `shortlist --check` e `generate --check` **verdi** |
+| [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165) | `python scripts/feature_registry.py suite` |
+| [#1206](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1206) | `feature_registry` fra i gate da avere verdi |
+
+⚠️ **#1013, #995, #703 e #1206 le portano dentro una casella `- [ ]` non spuntata**: sono criteri di
+accettazione che nessuno potrà mai soddisfare. È la forma peggiore — una issue che non può chiudersi per un
+motivo che non è scritto da nessuna parte.
+
+Altre **7** issue — [#265](https://github.com/DegrassiAaron/refactor-tactics-main/issues/265) [#314](https://github.com/DegrassiAaron/refactor-tactics-main/issues/314) [#435](https://github.com/DegrassiAaron/refactor-tactics-main/issues/435)
+[#609](https://github.com/DegrassiAaron/refactor-tactics-main/issues/609) [#319](https://github.com/DegrassiAaron/refactor-tactics-main/issues/319) [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705)
+[#1206](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1206) — citano `feature-registry.yaml` come **sede corrente dello stato**
+(*«lo stato vive lì, non duplicato qui»*). ✅ [#1950](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1950) cita lo stesso file ed è **corretta**:
+dice che `D-181` l'ha eliminato.
+
+### 13.4 I percorsi rimossi — 24 issue, 29 coppie
+
+Stessa misura, applicata a **ogni** percorso citato e non solo a `feature-registry`:
+
+| Classe | Menzioni | Quota |
+|---|--:|--:|
+| `HISTORICAL` — dentro una nota citata | **172** | 82% |
+| `CURRENT` | **36** | 17% |
+| `CORRECTED` | 1 | 1% |
+
+Le 36 `CURRENT` sono **29 coppie distinte (issue, percorso)** in **24 issue**, raggruppate per la decisione
+che ha rimosso il file:
+
+| Rimosso da | Percorso | Issue |
+|---|---|---|
+| Decision Log (*«non esiste più»*) | `docs/roadmap/parallel-batch.yaml` | #25 #38 #921 #924 #952 #959 #1165 |
+| `D-181` | `docs/roadmap/feature-registry.yaml` | #265 #314 #435 #609 #1206 |
+| `D-182` (`d671df47`) | `scripts/check-docs-links.py` · `scripts/docs_inventory.py` | #266 #269 #1165 |
+| `docs/src/` svuotata (#1165, 19/08) | quattro sorgenti di ricerca | #151 #153 #172 #637 |
+| varie | `qa-prompt-terminal-d…` · `editormap.shortlist` | #1013 |
+| varie | `issue-tracking-completeness.md` | #1165 |
+| varie | `elemental-proficiency.md` · `asset-licenze.md` | #995 #1767 |
+| **spostato, non rimosso** | `docs/roadmap/test-manuali-pie.md` → **`docs/technical/`** | #1895 |
+
+✅ **`#1895` è l'unica correggibile meccanicamente**, e va fatta: il file esiste, ha solo cambiato cartella.
+
+⛔ **Tre non sono difetti e non vanno toccate.** [#266](https://github.com/DegrassiAaron/refactor-tactics-main/issues/266) propone `docs/ui/icon-language.md`
+*«se non esiste già un dominio migliore»* — è condizionale. [#1936](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1936) e
+[#1937](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1937) citano `spec-player-event-log.md`, dichiarata *«(nuovo, owner della semantica)»*:
+è un **rinvio in avanti**. Lo stesso vale per `WBP_RT_EventLog.uasset`, elencato accanto a
+`WBP_RT_TacticalHUD.uasset` che **esiste**: è un write-set di cose da creare.
+
+### 13.5 Due correzioni alla misura, trovate campionandola
+
+🔴 **Il primo passaggio dava 41 `CURRENT`. Erano 36.** Due difetti miei, trovati aprendo tre casi a caso
+invece di fidarmi del totale:
+
+1. il normalizzatore spezzava i nomi di **branch con slash** — `../blob/feat/conoscenza-parziale-fase-a/docs/…`
+   diventava un percorso inesistente. Ora l'ancora è la prima radice reale del repository, non il terzo
+   segmento;
+2. i link in **stile documento** incollati in una issue (`../decisions/RT_PDR_00_Decision_Log.md`, #214 #217
+   #221) sono rotti, ma per una ragione diversa da *«file rimosso»*: da `/issues/N` quel `../` non risolve.
+   Sono **3**, e vogliono `../blob/main/docs/…`.
+
+⚠️ Chi rilegge non copi il **41**.
+
+### 13.6 Perché questo non diventa un gate
+
+Il §11 proponeva *«un controllo che legga i corpi delle issue»*. La misura **falsifica la propria proposta**,
+e va detto:
+
+- 🔴 **Non avrebbe fermato il difetto per cui era proposto.** «15 gate» è un **numero in prosa**: un checker
+  di percorsi eseguito su quella riga restituisce **zero** match. E un checker di *numeri* richiede un
+  registro che dica quale numero è autorevole — cioè il meccanismo che `D-181` ha ritirato.
+- 🔴 **L'82% delle menzioni è deliberato.** Un gate bloccante urlerebbe su **172** righe che il repository
+  vuole tenere, più **108** identificatori di provenienza che #1848 protegge esplicitamente.
+- 🔴 **Il resto non è automatizzabile.** Delle 29 coppie, **una** si corregge da sola (#1895). Le altre
+  chiedono di decidere *cosa* sostituisce il file, e la decisione non sta nella issue.
+
+∴ La forma giusta non è un gate ma **questo elenco**, rifatto quando serve. Il comando che lo produce è due
+righe, e il valore sta nella classificazione — `HISTORICAL` contro `CURRENT` contro provenienza — non nella
+ricerca.
+
+> **WIEGERS**: «Il controllo che cercavate esiste già e si chiama *non copiare il numero*. #962 lo aveva
+> applicato togliendo cinque copie invece di allinearle. Ogni volta che una misura trova quaranta istanze
+> della stessa frase, la domanda non è come sorvegliarle: è perché sono quaranta.»
+
+### 13.7 Prossimo passo, aggiornato
+
+**Una** azione, e la più piccola dell'elenco: [#1895](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1895), il percorso spostato. Evidenza
+univoca, zero decisioni, `docs/roadmap/test-manuali-pie.md` → `docs/technical/test-manuali-pie.md`.
+
+Poi, e solo se qualcuno lo vuole: le **9 issue** del §13.3 con comandi verso `scripts/feature_registry.py`.
+Quattro di esse hanno quel comando dentro una casella di accettazione **non spuntabile**.
