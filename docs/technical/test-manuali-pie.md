@@ -57,7 +57,9 @@
 
 ## Stato in numeri — 2026-08-31
 
-**187 voci**: ✅ **69 verdi** · 🟡 **25 parziali** · ❌ **2 fallite** · ⏳ **91 aperte**.
+**190 voci**: ✅ **69 verdi** · 🟡 **25 parziali** · ❌ **2 fallite** · ⏳ **94 aperte**.
+
+🔴 **Rimisurato il 2026-08-31 (quinto giro), mergiando `origin/main` nel branch di [#1920](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1920): `190 · 69/25/2/94`, e l'intestazione diceva `187 · 69/25/2/91`.** ⚠️ **È la TERZA volta oggi.** Il mio ramo aveva aggiunto due voci (`PIE-HEX-COORD-LEGGIBILITA`, `-COSTO`) e misurato `187`; `origin/main` ne aveva aggiunte **tre** nel frattempo. Il merge è stato di nuovo **pulito** — 123 commit, 125 file, nessun conflitto e nessun marcatore su questo file — e ancora una volta l'unica cosa che ha segnalato lo scarto è stato rieseguire il comando dopo il merge. 🔑 **La nota qui sotto è servita**: l'ho letta prima di mergiare, e per questo il comando è stato rieseguito invece che dimenticato. `senza-marcatore=0` prima e dopo.
 
 🔴 **Rimisurato il 2026-08-31 (quarto giro), mergiando `origin/main` nel branch dei due compositi: `185 · 69/23/2/91`, e l'intestazione diceva `182 · 69/23/2/88`.** ⚠️ **È la SECONDA volta oggi che lo stesso meccanismo colpisce questo file**, e la prima è registrata qui sotto. Il mio ramo aveva aggiunto due voci (`PIE-ACC-PERCEPTION`, `PIE-ACC-HUD`) e misurato `182`; nel frattempo `origin/main` ne aveva aggiunte **tre** — `PIE-HEX-MOVEMENT-PROBE`, `-FLUIDITA`, `-SURFACE`, dalla sonda di [#711](https://github.com/DegrassiAaron/refactor-tactics-main/issues/711) — e misurato `183`. Nessuno dei due numeri era falso quando fu scritto, e nessuno dei due lati poteva vedere l'altro. `+5` sul totale, tutto su ⏳. ⚠️ **Stavolta il merge è stato PULITO**: nessun conflitto, nessun marcatore, niente che chiedesse attenzione — le due aggiunte stanno in sezioni diverse del file. Il conflitto della prima volta era un **regalo**, perché fermava; qui l'unica cosa che ha segnalato lo scarto è stato rieseguire il comando dopo il merge. `senza-marcatore=0` prima e dopo.
 
