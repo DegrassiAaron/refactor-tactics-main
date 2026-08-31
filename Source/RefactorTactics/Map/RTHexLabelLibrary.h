@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Map/RTCellId.h"
 #include "Map/RTHexLabel.h"
 
 #include "RTHexLabelLibrary.generated.h"
@@ -25,4 +26,18 @@ public:
 	 * che un glifo inventato, che a schermo sembrerebbe una cifra sbagliata invece che un dato mancante.
 	 */
 	static TArray<FRTLabelStroke> GlyphStrokes(TCHAR Character);
+
+	/**
+	 * Dove cade ogni carattere della terna `(x, y, layer)` di questa cella.
+	 *
+	 * Tre run a `0/120/240` gradi — i punti medi di tre lati alternati, **non i vertici**: con la
+	 * convenzione pointy-top di `HexCorners` i vertici stanno a `-30/30/90/150/210/270`, e `0/120/240`
+	 * cade sui punti medi. Ogni run corre **dal bordo verso il centro**, e il `layer` e' a meta' scala.
+	 *
+	 * ⚠️ I sei vertici li da' `URTHexLibrary::CellCorners`, e i punti medi si DERIVANO da quelli: una
+	 * seconda formula per la stessa forma e' il difetto visto in `U22` — celle piene tonde e contorno
+	 * esagonale.
+	 */
+	static FRTCellLabel BuildCellLabel(const FRTCellId& Cell, const FVector& Origin,
+		float HexSize, float LayerHeight);
 };
