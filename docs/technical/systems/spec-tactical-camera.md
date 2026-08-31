@@ -236,9 +236,14 @@ valore che vale `1` a metà corsa e supera `1` oltre — un rapporto, non una po
 mutazione del 2026-08-31 l'ha applicata e **tutti e quattro** i test sono caduti, con `alpha` che a braccio
 minimo valeva `0.125` = `Min/Default`.
 
-⏳ **Resta prescritto** il canale di debug che [#1834](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1834)
-dichiarava: nessun `UE_LOG` sul cambio di alpha e nessun consumatore fuori dal pawn, quindi la taratura di
-#1780 si farebbe **a occhio**.
+⏳ **Resta prescritto** il canale di debug, ora [#1979](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1979)
+(`CAM-13a`): nessun `UE_LOG` sul cambio di alpha e nessun consumatore fuori dal pawn, quindi la taratura di
+[#1780](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1780) si farebbe **a occhio**.
+
+🔴 **E l'occhio qui sbaglia, con evidenza**: in `PIE-CAM-ZOOM-ALPHA` del 2026-08-31 l'inclinazione
+*sembrava* muoversi con la rotella mentre `PitchZoomDelta` valeva `0` — era **parallasse**, e si è
+sciolta solo leggendo il numero `Camera Pitch` nel Details. Chi tara la curva guardando la scena non la
+distingue dal cambio di prospettiva.
 
 ⛔ **Cosa la sorgente NON autorizza.** Un `alpha` normalizzato rende comodo scrivere il FOV dallo zoom, e
 non va fatto per inerzia: `ViewportHorizontalFov` alimenta `ComputeEffectivePivotBounds` (`D-251`), quindi
