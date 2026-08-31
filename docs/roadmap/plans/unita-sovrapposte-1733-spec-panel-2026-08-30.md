@@ -1,6 +1,8 @@
 # Due unità vive sulla stessa cella (`#1733`) — spec panel sull'issue come specifica di fix
 
-> `CURRENT` · **Stato**: revisione chiusa. Nessun fix applicato, nessuna misura eseguita ·
+> `CURRENT` · **Stato**: revisione chiusa, **e le cinque voci del DoD riscritto sono state consumate il
+> 2026-08-31** — vedi §0 qui sotto. La riga precedente diceva *«nessun fix applicato, nessuna misura
+> eseguita»*: vero per la revisione, non più per ciò che ne è seguito ·
 > **Data**: 2026-08-30
 > **HEAD della revisione**: scritta su `685c8780`, **riverificata su `71261937`** (= `origin/main` al
 > 2026-08-30, sei commit più avanti). Dopo il fast-forward le **21 citazioni `file:riga`** di questo referto
@@ -11,6 +13,29 @@
 > **come specifica di fix**, non il difetto che denuncia. Il difetto non è stato riprodotto qui.
 > **Panel**: Wiegers (lead) · Cockburn · Adzic · Crispin · Fowler · Nygard
 > **Modo**: critique · **Focus**: requirements, testing, architecture
+
+---
+
+## 0. Com'è finita *(aggiunto il 2026-08-31)*
+
+Le cinque voci del DoD riscritto in §6 sono state consumate, e **`#1733` è chiusa**.
+
+| | Voce | Esito | Dove |
+|---|---|---|---|
+| **A** | la sovrapposizione non è dimostrata: riclassificare | ✅ chiusa | `#1733` chiusa con il verdetto, senza test di riproduzione |
+| **B** | il rifiuto nomina l'occupante, non chi pianifica | ✅ chiusa | [#1939](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1939) · PR #1947 |
+| **C** | `MakeSnapshot` scarta la sovrapposizione in silenzio | ⏳ aperta | [#1970](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1970) — scorporata, sopravvive ad A |
+| **D** | la prosa divergente sulla carica | ✅ chiusa | `D-296` · PR #1929 |
+| **E** | il TurnLog non dice CHI | ✅ chiusa | [#1932](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1932) · PR #1935 |
+
+🔎 **La raccomandazione più contro-intuitiva di questo referto ha retto.** §6 chiedeva di **non** scrivere il
+test del DoD #5: una terza copia di quell'asserzione era stata davvero abbozzata in un worktree, ed è stata
+**scartata** riconoscendola come duplicato di `HexMatch.TestArenaKeepsUnitsOnLegalCells` — stessa arena,
+stessi 12 turni, stesso filtro `IsAlive()`, stessa asserzione.
+
+⚠️ **E la voce E si è rivelata la CAUSA di A.** Le tre righe che `#1733` citava come prova sembravano parlare
+di due unità perché il TurnLog non nominava il soggetto: chiusa quella, la prova si scioglie da sé. Il
+referto lo aveva intuito trattandole come voci separate; erano la stessa storia vista da due lati.
 
 ---
 
