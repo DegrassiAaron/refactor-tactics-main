@@ -35,6 +35,25 @@ class URTActionData;
  * DIVERSO e appartiene al contract della variante.
  */
 
+/**
+ * Le chiavi stabili dei parametri, in **una casa sola**.
+ *
+ * ⚠️ Erano letterali ripetuti nel solo `RTActionReadout.cpp` finche' un solo lettore le usava. Con il
+ * secondo — la variante sperimentale, che sovrascrive i parametri che questo readout espone — due elenchi
+ * della stessa cosa sarebbero divergenti al primo parametro aggiunto a uno solo dei due. E' esattamente il
+ * difetto che questa famiglia di issue esiste per chiudere: `#1953` ha misurato **tre** case per lo stesso
+ * valore, e la risposta non puo' essere aggiungerne una quarta per le sue etichette.
+ *
+ * Funzioni e non variabili di header: una `const FName` in un header ne crea una per unita' di
+ * traduzione, e l'inizializzazione statica di `FName` non e' ordinata rispetto al motore.
+ */
+namespace RTActionParameterKeys
+{
+	REFACTORTACTICS_API const FName& RangeCells();
+	REFACTORTACTICS_API const FName& CooldownTurns();
+	REFACTORTACTICS_API const FName& Damage();
+}
+
 /** Dove il parametro e' MEMORIZZATO. Risponde a «da dove viene», non a «chi decide». */
 UENUM(BlueprintType)
 enum class ERTParameterStorageHome : uint8

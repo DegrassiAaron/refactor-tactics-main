@@ -3,6 +3,13 @@
 #include "Ability/RTActionData.h"
 #include "Ability/RTActionDef.h"
 
+namespace RTActionParameterKeys
+{
+	const FName& RangeCells()    { static const FName K(TEXT("Action.RangeCells"));    return K; }
+	const FName& CooldownTurns() { static const FName K(TEXT("Action.CooldownTurns")); return K; }
+	const FName& Damage()        { static const FName K(TEXT("Action.Damage"));        return K; }
+}
+
 namespace
 {
 	FRTActionParameterView MakeView(const FName& Key, const FString& Label, int32 Declared, int32 Consumed,
@@ -45,7 +52,7 @@ ERTActionReadoutResult URTActionReadoutLibrary::DescribeActionParameters(const U
 	// PORTATA. Due case, e l'autorita' dipende da chi legge: chi applica il ternario prende il `Def`, il bot
 	// prende lo specchio (`RTTurnManager.cpp:1271`, `:1329`). Non si sceglie qui: si dichiara.
 	OutParameters.Add(MakeView(
-		TEXT("Action.RangeCells"), TEXT("Portata (celle)"),
+		RTActionParameterKeys::RangeCells(), TEXT("Portata (celle)"),
 		Action->Def.RangeCells, Action->RangeCells,
 		ERTParameterStorageHome::CatalogDef, AutoritaPortata));
 
@@ -53,7 +60,7 @@ ERTActionReadoutResult URTActionReadoutLibrary::DescribeActionParameters(const U
 	// legge `URTActionData::CooldownTurns` e nessun consumatore di ricarica applica il ternario. Dichiararla
 	// `DependsOnConsumer` per simmetria con la portata sarebbe una comodita' che dice il falso.
 	OutParameters.Add(MakeView(
-		TEXT("Action.CooldownTurns"), TEXT("Ricarica (turni)"),
+		RTActionParameterKeys::CooldownTurns(), TEXT("Ricarica (turni)"),
 		Action->Def.CooldownTurns, Action->CooldownTurns,
 		ERTParameterStorageHome::CatalogDef, ERTParameterAuthority::MirrorWins));
 
@@ -77,7 +84,7 @@ ERTActionReadoutResult URTActionReadoutLibrary::DescribeActionParameters(const U
 		const int32 Specchio = bPrimo ? Action->Power : 0;
 
 		OutParameters.Add(MakeView(
-			TEXT("Action.Damage"),
+			RTActionParameterKeys::Damage(),
 			bPrimo ? TEXT("Danno") : FString::Printf(TEXT("Danno (colpo %d)"), IndiceDannoVisto + 1),
 			Spec.Amount, Specchio,
 			ERTParameterStorageHome::EffectSpec, ERTParameterAuthority::CatalogWins, i));
