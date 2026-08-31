@@ -2305,3 +2305,33 @@ sessions:
       aperta. E' invisibile a schermo — un pannello che dice «rifiutato» ha lo stesso aspetto in entrambi i
       casi — ed e' coperto dal test `DevSandboxLauncher.SessionComesFromTheFacade`, che asserisce
       `HasSession() == false` dopo un rifiuto. Detto invece di simulato.
+
+  - id: U39
+    title: Le coordinate incise sul pavimento, e il loro costo su una mappa grande
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto su leggibilità delle coordinate incise sul pavimento, e sul costo di disegno su una mappa grande
+    artifacts: []
+    unblocked_by: [U21]
+    shares_setup_with: [U21, U22, U25, U26]
+    verifies: [PIE-HEX-COORD-LEGGIBILITA, PIE-HEX-COORD-COSTO]
+    issues: [1920]
+    done_when: le due voci hanno un esito reale nel registro
+    unblocks: []
+    notes: >-
+      ➕ **Seduta aperta il 2026-08-31 dal Task 4 del piano che implementa #1920.** Le due voci PIE
+      nascono dal DoD della issue — una voce collocata in una seduta, non un test — e nessuna seduta
+      esistente copriva il tema: `grep -c "HexLabel\|PIE-HEX-COORD" docs/roadmap/editor-sessions.yaml`
+      dava **0** prima di questo commit. Stessa ragione per cui `U26` e `U35` esistono.
+      ⚠️ `unblocked_by: [U21]` per la stessa ragione pratica di `U22`, `U25` e `U26`: su una scena non
+      illuminata il verdetto direbbe più sulle luci che sulle coordinate.
+      ⚠️ `shares_setup_with: [U21, U22, U25, U26]`, l'intero clique: il criterio non e' lo
+      strumento attivo ma lo **stesso allestimento** (`L_DevSandbox` illuminato da `U21`), ed e' per
+      questo che `U22`/`U25`/`U26` si citano gia' a vicenda pur richiedendo tool diversi fra loro
+      (Geometry, Graybox, Probe) — la definizione del campo parla di *stessa apertura*, non di stesso
+      strumento, e la Regola di batching in testa al file tratta un cambio di tool come una ragione che
+      NON giustifica una nuova apertura. `U39` chiede MENO delle altre tre — nessun tool — quindi e' un
+      sottoinsieme del loro allestimento, non un caso a parte: si esegue nella stessa apertura.
+      ⚠️ ID assegnato prima del merge: `U39`, con `U38` come massimo misurato su `main` **e su tutti i
+      branch remoti** il 2026-08-31. Chi arriva secondo rinumera, non contende.

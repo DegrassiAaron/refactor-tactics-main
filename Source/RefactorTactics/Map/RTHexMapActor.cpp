@@ -24,6 +24,9 @@
 #include "Map/RTMapVisuals.h" // #983: le misure del disco stanno scritte una volta sola
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
+#include "Components/LineBatchComponent.h"
+#include "Map/RTHexLabel.h"
+#include "Map/RTHexLabelLibrary.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "RTHexMap"
@@ -124,6 +127,12 @@ namespace
 	constexpr float RTLiftSurface = RTCellTopZ + 0.5f;  // contorno della superficie (contesto)
 	constexpr float RTLiftGlyph = RTCellTopZ + 0.3f;    // glifo di superficie (#956): inciso nella faccia,
 	                                                    // sotto il contorno, sopra il disco
+	// Le coordinate incise (#1920): sopra superficie/griglia/glifo (leggibili), sotto marker e anteprima —
+	// un ausilio d'autoraggio non deve coprire un canale di lettura della partita. Vive qui e non come
+	// `constexpr` locale in `RebuildCoordinateLabels`, oltre mille righe piu' in basso, per lo stesso motivo per
+	// cui le altre quattro quote vivono qui: un numero ricopiato lontano dagli altri e' quello che nessun
+	// compilatore rilega quando la gerarchia cambia (vedi `RTMapVisuals.h`).
+	constexpr float RTLiftCoordinateLabel = RTCellTopZ + 1.0f;
 	constexpr float RTLiftMarker  = RTCellTopZ + 1.5f;  // blocca-movimento / blocca-vista
 	constexpr float RTLiftPreview = RTCellTopZ + 2.5f;  // anteprima di pianificazione (sopra a tutto)
 
@@ -794,6 +803,23 @@ ARTHexMapActor::ARTHexMapActor()
 	KnowledgeVolumes->SetCollisionResponseToAllChannels(ECR_Ignore);
 	KnowledgeVolumes->CastShadow = false;
 	KnowledgeVolumes->SetVisibility(false);
+
+#if WITH_EDITOR
+	// `CreateEditorOnlyDefaultSubobject`, non `CreateDefaultSubobject`: quest'ultimo non imposta
+	// `bIsEditorOnly` e il componente verrebbe serializzato nel `.umap` e COTTO nel pacchetto — dove la
+	// classe non dichiara piu' ne' la proprieta' ne' il subobject (vedi `WITH_EDITORONLY_DATA` sopra). La
+	// guardia `if (!CoordinateLabels) return;` in `RebuildCoordinateLabels` copre gia' il `nullptr` fuori
+	// editor, quindi il costruttore non deve fare altro.
+	CoordinateLabels = CreateEditorOnlyDefaultSubobject<ULineBatchComponent>(TEXT("CoordinateLabels"));
+	if (CoordinateLabels)
+	{
+		CoordinateLabels->SetupAttachment(RootComponent);
+		// Come le altre famiglie di lettura: non e' scenografia e non deve intercettare il raycast di
+		// selezione, che valida il componente colpito.
+		CoordinateLabels->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		CoordinateLabels->SetCastShadow(false);
+	}
+#endif
 }
 
 void ARTHexMapActor::OnConstruction(const FTransform& Transform)
@@ -1171,6 +1197,16 @@ const URTHexMapAsset* ARTHexMapActor::GetHexContext(FVector& OutOrigin, float& O
 	return Map;
 }
 
+bool ARTHexMapActor::PassesLayerFilter(int32 Layer) const
+{
+	// Filtro layer (H4): solo AllLayers impila i piani; ActiveOnly e Focus tengono le ISTANZE (e le terne
+	// incise) sul solo layer attivo. La differenza fra ActiveOnly e Focus e' di sola presentazione — Focus
+	// disegna gli altri piani a contorno (`RTHexEditor::DrawSurfaceOverlay`) — e sta fuori di qui apposta: i
+	// piani di contesto non devono diventare istanze, o tornerebbero ad avere collisione e a intercettare il
+	// click del pennello.
+	return LayerView == ERTLayerViewMode::AllLayers || Layer == ActiveLayer;
+}
+
 void ARTHexMapActor::RebuildInstances()
 {
 	if (!Cells)
@@ -1296,15 +1332,8 @@ void ARTHexMapActor::RebuildInstances()
 	const float UseHexSize = MapAsset ? MapAsset->HexSize : HexSize;
 	const float UseLayerH = MapAsset ? MapAsset->LayerHeight : LayerHeight;
 
-	// Filtro layer (H4): solo AllLayers impila i piani; ActiveOnly e Focus tengono le ISTANZE sul solo layer
-	// attivo. La differenza fra i due e' di sola presentazione — Focus disegna gli altri piani a contorno
-	// (`RTHexEditor::DrawSurfaceOverlay`) — e sta fuori di qui apposta: i piani di contesto non devono
-	// diventare istanze, o tornerebbero ad avere collisione e a intercettare il click del pennello.
-	auto PassesLayerFilter = [this](int32 Layer)
-	{
-		return LayerView == ERTLayerViewMode::AllLayers || Layer == ActiveLayer;
-	};
-
+	// Filtro layer (H4): `PassesLayerFilter` (sopra) e' l'unica regola, condivisa con
+	// `RebuildCoordinateLabels` — non piu' una lambda locale, per non avere due formule dello stesso filtro.
 	TArray<FRTCellId> CellIds;
 	TArray<int32> Heights;
 	TArray<int32> MoveCosts;
@@ -1580,7 +1609,100 @@ void ARTHexMapActor::RebuildInstances()
 			EdgeFeatureBaseScale.Add(WallXf.GetScale3D());
 		}
 	}
+
+#if WITH_EDITOR
+	// Le coordinate seguono la mappa: stesso innesco delle istanze, quindi nessuna regola di
+	// invalidazione nuova da tenere allineata.
+	RebuildCoordinateLabels();
+#endif
 }
+
+#if WITH_EDITOR
+void ARTHexMapActor::RebuildCoordinateLabels()
+{
+	if (!CoordinateLabels)
+	{
+		return;
+	}
+	CoordinateLabels->Flush();
+
+	// La spec vuole «solo editor, mai in partita», ma `WITH_EDITOR` non lo garantisce da solo: in un
+	// binario d'editor la macro vale 1 ANCHE dentro il mondo PIE, e questa funzione e' raggiunta dal
+	// percorso di gioco (RebuildInstances e' chiamata da RTMatchBootstrapper e da RTScenarioSession
+	// durante una partita). Il motore non le nasconde da solo — `FPrimitiveSceneProxy::IsShown` salta
+	// il primitive in game mode solo se l'ACTOR e' editor-only, e `ARTHexMapActor` non lo e' — quindi la
+	// guardia va messa qui a mano, con lo stesso principio gia' in uso per `bCellOverlay` (spento salvo
+	// accensione esplicita dell'editor mode) e per `KnowledgeVolumes` (nato con `SetVisibility(false)`).
+	// La guardia sta DOPO il `Flush()` sopra apposta: entrando in PIE le linee gia' posate in editor
+	// vanno comunque cancellate, non lasciate appese.
+	const UWorld* World = GetWorld();
+	if (World && World->IsGameWorld())
+	{
+		return;
+	}
+
+	if (!MapAsset)
+	{
+		return; // nessuna mappa, nessuna coordinata: non si inventa una griglia
+	}
+
+	FVector MapOrigin = FVector::ZeroVector;
+	// `MapHexSize`/`MapLayerHeight` e non `HexSize`/`LayerHeight`: quei nomi nascondono i membri
+	// `ARTHexMapActor::HexSize`/`LayerHeight` (C4458), lo stesso motivo per cui `DrawCellOverlay` qui
+	// sopra chiama i suoi locali `Size`/`LayerH` invece del nome del parametro `GetHexContext`.
+	float MapHexSize = 0.f;
+	float MapLayerHeight = 0.f;
+	GetHexContext(MapOrigin, MapHexSize, MapLayerHeight);
+
+	// Tinta scura provvisoria per il segno inciso — NON e' lo stesso valore lineare del registro dei
+	// glifi/bordi ([D-183], che usa `FLinearColor::FromSRGBColor(FColor(25,25,25))`, ≈0,0097 lineare):
+	// qui e' un letterale lineare diretto, circa otto volte piu' chiaro. Il mezzo e' diverso (linee di
+	// debug contro custom data di un materiale) e il numero puo' legittimamente differire, ma resta una
+	// scelta non tarata a schermo — vedi NOT RUN nel report del Task 3.
+	// ⚠️ `FLinearColor`, non `FColor`: e' il tipo che `FBatchedLine` prende. Un `FColor` compilerebbe per
+	// conversione implicita e passerebbe per lo spazio sbagliato.
+	const FLinearColor Ink(0.08f, 0.08f, 0.08f, 1.f);
+	constexpr float Thickness = 1.0f;
+
+	TArray<FBatchedLine> Lines;
+	// Stima per il reserve, non un limite: tre run, poche cifre ciascuna nel caso comune (non il caso
+	// peggiore da dieci cifre che `NothingLeavesTheHexagonAtTheTrueWorstCase` misura), e ogni carattere del
+	// set chiuso costa da 1 segmento (virgola) a 7 ('8'). Serve solo a risparmiare le prime riallocazioni
+	// quando si trascina il pennello (RebuildInstances gira a ogni cella toccata) — se la stima e' bassa
+	// `TArray` continua comunque a crescere.
+	Lines.Reserve(MapAsset->Cells.Num() * 90);
+	for (const FRTHexCellData& Cell : MapAsset->Cells)
+	{
+		// Stesso filtro layer di RebuildInstances: senza, in ActiveOnly/Focus le terne dei piani nascosti
+		// cadrebbero sopra il disco del piano isolato — l'opposto di cio' per cui quelle modalita' esistono.
+		if (!PassesLayerFilter(Cell.Id.Layer))
+		{
+			continue;
+		}
+
+		// `Height` alza l'ISTANZA (RebuildInstances, `Heights[I]`) e le altre due famiglie di linee di
+		// questo file (`DrawCellOverlay::CellLift`, `DrawPlanningPreview::CellLift` sopra) la seguono: senza
+		// qui, su una cella rialzata le terne restano sepolte di `Height` unita' dentro il disco.
+		// `BuildCellLabel` non la conosce — prende `FRTCellId`, non `FRTHexCellData` — quindi va sommata qui.
+		const float CellLift = static_cast<float>(Cell.Height) + RTLiftCoordinateLabel;
+
+		const FRTCellLabel Label = URTHexLabelLibrary::BuildCellLabel(Cell.Id, MapOrigin, MapHexSize, MapLayerHeight);
+		for (const FRTLabelGlyph& Glyph : Label.Glyphs)
+		{
+			for (const FRTLabelStroke& S : URTHexLabelLibrary::GlyphStrokes(Glyph.Character))
+			{
+				const FVector A = Glyph.Origin + Glyph.Right * S.From.X + Glyph.Up * S.From.Y + FVector(0, 0, CellLift);
+				const FVector B = Glyph.Origin + Glyph.Right * S.To.X   + Glyph.Up * S.To.Y   + FVector(0, 0, CellLift);
+				// Firma: (Start, End, FLinearColor, LifeTime, Thickness, DepthPriority).
+				// `LifeTime` negativo = la linea resta finche' non si chiama `Flush()`, che e' il punto:
+				// si posa quando la mappa cambia, non a ogni frame.
+				Lines.Emplace(A, B, Ink, /*LifeTime*/ -1.f, Thickness, /*DepthPriority*/ uint8(SDPG_World));
+			}
+		}
+	}
+	CoordinateLabels->DrawLines(Lines);
+}
+#endif
 
 void ARTHexMapActor::GenerateIntoAsset()
 {

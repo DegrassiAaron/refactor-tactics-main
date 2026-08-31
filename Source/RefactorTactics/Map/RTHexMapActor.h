@@ -448,6 +448,14 @@ public:
 	ERTHexSurface SurfaceForCell(const FRTCellId& Cell) const;
 
 	/**
+	 * Filtro layer (H4): solo `AllLayers` impila i piani; `ActiveOnly` e `Focus` tengono solo il layer
+	 * attivo. Un'UNICA regola, condivisa da `RebuildInstances` (le istanze) e `RebuildCoordinateLabels`
+	 * (le terne incise): due formule per lo stesso filtro sono il difetto che questo file evita gia' per la
+	 * geometria dell'esagono (`URTHexLibrary::CellCorners`) — qui vale lo stesso principio.
+	 */
+	bool PassesLayerFilter(int32 Layer) const;
+
+	/**
 	 * Il colpo di un raycast di selezione cade su una cella selezionabile di QUESTO actor?
 	 *
 	 * Vero solo se e' stato colpito **proprio** il componente delle celle — non un altro componente dello
@@ -782,6 +790,39 @@ protected:
 	 */
 	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> KnowledgeVolumes;
+
+#if WITH_EDITORONLY_DATA
+	/**
+	 * Le coordinate incise sul pavimento (#1920). **Solo editor**, e non e' un ottavo ISM.
+	 *
+	 * 🔑 **Perche' un `ULineBatchComponent` e non un disegno per frame.** La GEOMETRIA (i punti di ogni
+	 * stroke) si calcola una volta, quando la mappa cambia, invece che a ogni frame come farebbe un
+	 * `DrawDebugLine` posato da `Tick` — il ricalcolo per evento che #711 ha gia' pagato, un costo che
+	 * nessun test misura e che si scopre solo quando il viewport smette di seguire il mouse.
+	 *
+	 * ⚠️ **Non e' pero' un vantaggio assoluto sul costo PER FRAME.** `ULineBatchComponent::TickComponent`
+	 * scorre comunque tutte le linee registrate a ogni frame, e la sua scene proxy le riemette al PDI per
+	 * ogni vista: disegnare `N` linee resta `O(N)` a ogni frame, qui come con `DrawDebugLine`. Cio' che si
+	 * evita e' il costo di RICOSTRUIRE quell'`N` — l'iterazione su celle/glifi/stroke di
+	 * `RebuildCoordinateLabels` — a ogni frame invece che a ogni cambiamento della mappa.
+	 *
+	 * ⚠️ Le sette famiglie di ISM sono canali di lettura DELLA PARTITA. Questo no: in una build di gioco
+	 * il componente non esiste, e si verifica per assenza.
+	 *
+	 * ⚠️ **`WITH_EDITORONLY_DATA` e non `WITH_EDITOR`, per la `UPROPERTY`**: UHT rifiuta una `UPROPERTY`
+	 * dentro `WITH_EDITOR` — *«UProperties should not be wrapped by WITH_EDITOR, use WITH_EDITORONLY_DATA
+	 * instead»* — mentre la funzione sotto, che non e' una `UPROPERTY`, resta sotto `WITH_EDITOR` come nel
+	 * resto del file. Le due macro coincidono per i target di questo progetto (Editor vs Game), quindi il
+	 * confine «solo editor» e' lo stesso.
+	 */
+	UPROPERTY(VisibleAnywhere, Category = "RefactorTactics|HexMap")
+	TObjectPtr<class ULineBatchComponent> CoordinateLabels;
+#endif
+
+#if WITH_EDITOR
+	/** Ridisegna le terne di tutte le celle. Nessuna decisione: consuma `BuildCellLabel`. */
+	void RebuildCoordinateLabels();
+#endif
 
 	/**
 	 * Mapping instance index -> FRTCellId (per selezione/debug). Stato DERIVATO, non serializzato:
