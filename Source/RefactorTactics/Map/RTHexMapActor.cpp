@@ -1575,6 +1575,21 @@ void ARTHexMapActor::RebuildCoordinateLabels()
 	}
 	CoordinateLabels->Flush();
 
+	// La spec vuole «solo editor, mai in partita», ma `WITH_EDITOR` non lo garantisce da solo: in un
+	// binario d'editor la macro vale 1 ANCHE dentro il mondo PIE, e questa funzione e' raggiunta dal
+	// percorso di gioco (RebuildInstances e' chiamata da RTMatchBootstrapper e da RTScenarioSession
+	// durante una partita). Il motore non le nasconde da solo — `FPrimitiveSceneProxy::IsShown` salta
+	// il primitive in game mode solo se l'ACTOR e' editor-only, e `ARTHexMapActor` non lo e' — quindi la
+	// guardia va messa qui a mano, con lo stesso principio gia' in uso per `bCellOverlay` (spento salvo
+	// accensione esplicita dell'editor mode) e per `KnowledgeVolumes` (nato con `SetVisibility(false)`).
+	// La guardia sta DOPO il `Flush()` sopra apposta: entrando in PIE le linee gia' posate in editor
+	// vanno comunque cancellate, non lasciate appese.
+	const UWorld* World = GetWorld();
+	if (World && World->IsGameWorld())
+	{
+		return;
+	}
+
 	if (!MapAsset)
 	{
 		return; // nessuna mappa, nessuna coordinata: non si inventa una griglia
