@@ -1,0 +1,37 @@
+{
+  "scenarioId": "Visual.Map.GrayKitYard",
+  "tags": ["animation", "map", "environment", "movement"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "GrayKitYard",
+
+  "_nota": "La scena della seduta U25+U35: e' CoverYard con tre aggiunte, e la base identica e' un requisito invece che pigrizia. PIE-GBX-FIT dichiara che GBX-1 si decide provando valori di inset, e due letture su scene diverse non sono confrontabili — la seconda misurerebbe la scena invece dell'inset. Le aggiunte sono i quattro stati di porta in fila sulla riga r=-1, e acqua e ghiaccio a coppie ADIACENTI in basso.",
+
+  "_nota_leggibilita": "Si apre per GUARDARE, ed e' classe B in scenario-map.md: nessuna assertion qui verifica la grafica. Quattro soggetti nella stessa inquadratura — le due coperture a una riga di distanza, i quattro stati di porta consecutivi, acqua contro ghiaccio, e due celle della STESSA superficie l'una accanto all'altra. L'ultimo e' il caso piu' difficile della griglia (#1758) e sarebbe mancato con una cella per superficie: il colore non dice dove finisce una cella e comincia l'altra, ed e' precisamente cio' che il bordo deve dire.",
+
+  "_nota_limite": "La fixture porta il DATO, non le mesh del kit. SM_Graybox_* sono asset da posare in scena e nessuna fixture li posa: PIE-GBX-COVER, -DOOR e -SURFACE guardano il kit, quindi restano manuali per quella meta'. Cio' che sparisce e' l'allestimento del dato — incluso lo Cells[i].Doors scritto a mano nel Details e il ridisegno da forzare con ActiveLayer 0->1->0, che e' la trappola che faceva sembrare fallita una voce solo non allestita.",
+
+  "units": [
+    { "id": "R1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0] },
+    { "id": "R2", "hero": "Hero.Phase",  "team": 0, "cell": [-1, 1, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] },
+    { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [3, 0, 0] }
+  ],
+
+  "_nota_unita": "Quattro unita' e non due: GBX-5 chiede il rapporto unita'/cella, e si guarda meglio con piu' silhouette nella stessa inquadratura. Stanno tutte su pavimento e ai lati delle coperture, cosi' nessuna copre i soggetti da giudicare. R1 e' adiacente alla copertura ALTA, R2 alla BASSA: il confronto fra le due si legge con un'unita' accanto a ciascuna, che e' anche la scala con cui si giudicano.",
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "R1", "move": [[-1, -1, 0]] }
+      ]
+    }
+  ],
+
+  "_nota_intento": "Un solo passo, e serve alle assertion: R1 sale sulla riga delle porte. E' il minimo che il patto del corpus chiede — un'assertion per ogni cosa che si guarda — senza inventare una battaglia che distrarrebbe da cio' che la seduta deve giudicare.",
+
+  "expect": [
+    { "type": "UnitAtCell",     "unit": "R1", "cell": [-1, -1, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

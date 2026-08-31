@@ -3,11 +3,15 @@
 #include "RTScenarioPreviewActor.h"
 #include "RTScenarioViewportModel.h"
 
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
 #include "Editor.h"
 #include "Engine/World.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Perception/RTVisibilityBorder.h"
 #include "ScenarioHarness/RTScenarioAuthoring.h"
+#include "ScenarioHarness/RTScenarioKnowledge.h"
 
 namespace
 {
@@ -67,6 +71,7 @@ void URTScenarioPreviewSubsystem::ClearPreview()
 	if (PreviewUnits)
 	{
 		PreviewUnits->ClearUnits();
+		PreviewUnits->ClearBorder();
 		PreviewUnits->Destroy();
 		PreviewUnits = nullptr;
 	}
@@ -75,7 +80,73 @@ void URTScenarioPreviewSubsystem::ClearPreview()
 		PreviewMap->Destroy();
 		PreviewMap = nullptr;
 	}
+	PreviewArena = nullptr;
+	AllUnits.Reset();
+	// La prospettiva torna al default del designer: aprire uno scenario nuovo con il filtro di quello
+	// precedente ancora attivo mostrerebbe una vista parziale che nessuno ha chiesto per questo file.
+	Perspective = RTScenarioKnowledge::OmniscientTeamId;
 	LayerReadout.Reset();
+}
+
+TArray<int32> URTScenarioPreviewSubsystem::GetSelectableTeams() const
+{
+	return RTScenarioKnowledge::TeamIds(AllUnits);
+}
+
+int32 URTScenarioPreviewSubsystem::NumBorderPanelsShown() const
+{
+	return PreviewUnits ? PreviewUnits->NumBorderPanels() : 0;
+}
+
+bool URTScenarioPreviewSubsystem::SetPerspective(int32 TeamId)
+{
+	if (!IsShowing())
+	{
+		return false; // niente a schermo: non c'e' una prospettiva da cambiare, e ricordarla sarebbe stato
+	}
+
+	Perspective = TeamId;
+	ApplyPerspective();
+	return true;
+}
+
+void URTScenarioPreviewSubsystem::ApplyPerspective()
+{
+	if (!PreviewMap || !PreviewUnits)
+	{
+		return;
+	}
+
+	// Il roster si chiede UNA volta per applicazione e si passa: `GetHeroRoster()` costruisce quattro
+	// `URTHeroData` con tutte le loro abilita' a ogni chiamata, e farlo per unita' le pagherebbe tutte per
+	// leggere un intero.
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+
+	// La conoscenza CANONICA: `Observe`, la stessa funzione che il TurnManager chiama in partita. In
+	// `Omniscient` non e' il filtro spento — e' la conoscenza che vede tutto, e il percorso qui sotto non ha
+	// rami.
+	const FRTTeamKnowledge Knowledge = RTScenarioKnowledge::ForTeam(
+		PreviewArena, AllUnits, Perspective, Roster);
+
+	// ⚠️ La precondizione di `ApplyKnowledgeVeil`: `InstanceCells` dev'essere derivato e nessun
+	// `RebuildInstances` deve stare fra il calcolo e l'applicazione. Qui la mappa e' gia' costruita e nessuno
+	// la ricostruisce in mezzo — se un giorno un tool lo facesse, e' questa funzione che va richiamata dopo.
+	PreviewMap->ApplyKnowledgeVeil(Knowledge);
+
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerHeight = 0.f;
+	PreviewMap->GetHexContext(Origin, HexSize, LayerHeight);
+
+	// 🔴 Il velo copre le cinque famiglie di istanze della MAPPA; i marcatori stanno su un altro actor e non
+	// li tocca. Senza questa riga un nemico mai visto resterebbe a schermo con la board velata intorno —
+	// l'hidden-state leak piu' facile da introdurre qui.
+	PreviewUnits->ShowUnits(RTScenarioKnowledge::VisibleUnits(AllUnits, Knowledge),
+		Origin, HexSize, LayerHeight);
+
+	// Il confine di cio' che la squadra vede: dalla conoscenza canonica, non da una query propria.
+	PreviewUnits->ShowBorder(URTVisibilityBorderLibrary::ExposedEdges(Knowledge.VisibleCells),
+		Origin, HexSize, LayerHeight);
 }
 
 bool URTScenarioPreviewSubsystem::ShowScenario(const URTScenarioAuthoring* Authoring)
@@ -115,8 +186,11 @@ bool URTScenarioPreviewSubsystem::ShowScenario(const URTScenarioAuthoring* Autho
 	// `ARTHexMapActor` con il kit che gia' usa: questa slice non ne aggiunge uno secondo.
 	PreviewMap->RebuildInstances();
 
-	const TArray<FRTScenarioUnitView> Units = Authoring->ListUnits();
-	LayerReadout = RTScenarioViewport::DescribeLayers(RTScenarioViewport::LayersInUse(Units));
+	// Le due fotografie che la prospettiva (#1754) dovra' rileggere: la facade viene chiusa da chi l'ha
+	// aperta appena questa funzione ritorna, e chiederle di nuovo a lei significherebbe tenerla aperta.
+	PreviewArena = Arena;
+	AllUnits = Authoring->ListUnits();
+	LayerReadout = RTScenarioViewport::DescribeLayers(RTScenarioViewport::LayersInUse(AllUnits));
 
 	PreviewUnits = SpawnPreviewActor<ARTScenarioPreviewActor>(World);
 	if (!PreviewUnits)
@@ -127,14 +201,13 @@ bool URTScenarioPreviewSubsystem::ShowScenario(const URTScenarioAuthoring* Autho
 		return false;
 	}
 
-	// L'origine e la scala vengono dall'actor che disegna la mappa, non ricalcolate: `GetHexContext` e'
-	// l'unico punto da cui passano le conversioni cella<->mondo, e due sorgenti diverse metterebbero i
-	// marcatori accanto alle celle invece che sopra.
-	FVector Origin = FVector::ZeroVector;
-	float HexSize = 0.f;
-	float LayerHeight = 0.f;
-	PreviewMap->GetHexContext(Origin, HexSize, LayerHeight);
-
-	PreviewUnits->ShowUnits(Units, Origin, HexSize, LayerHeight);
+	// Uno scenario si apre in `Omniscient`: il Tactical Designer e' omnisciente per costruzione, ed e' giusto
+	// che lo resti finche' qualcuno non chiede un'altra prospettiva. `ClearPreview` l'ha gia' rimesso li'.
+	//
+	// ⚠️ Anche questa prima posa passa da `ApplyPerspective`, e non da uno `ShowUnits` diretto: un percorso
+	// separato per il caso onnisciente sarebbe la seconda strada che nessun test attraversa, e divergerebbe
+	// dalla prima al primo cambiamento. L'origine e la scala le legge di li' da `GetHexContext`, che resta
+	// l'unico punto da cui passano le conversioni cella<->mondo.
+	ApplyPerspective();
 	return true;
 }

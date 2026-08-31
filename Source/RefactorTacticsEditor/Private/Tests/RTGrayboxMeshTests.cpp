@@ -54,8 +54,25 @@ namespace
 	constexpr float DoorHeightFraction         = 0.85f;
 	constexpr float TraverseReliefFraction     = 0.06f;
 
-	/** Un decimo di uu: la geometria e' esatta, la tolleranza copre il solo arrotondamento in float. */
-	constexpr float Tolerance = 0.1f;
+	/**
+	 * Un decimo di uu: la geometria e' esatta, la tolleranza copre il solo arrotondamento in float.
+	 *
+	 * 🔴 **Si chiamava `Tolerance`, e in unity build quel nome rompeva la compilazione del modulo.** Questa
+	 * costante vive in un namespace ANONIMO, quindi in compilazione separata non si vede da nessun'altra
+	 * parte; nella unity build finisce nella stessa unita' di traduzione dei test vicini, e li'
+	 * `TRotator<T>::Equals(const TRotator<T>&, T Tolerance)` dell'engine — istanziato da
+	 * `RTScenarioPerspectiveTests.cpp` — ha un PARAMETRO con lo stesso nome. Il parametro nasconde la
+	 * dichiarazione di namespace: `C4459`, che in questo progetto e' un errore.
+	 *
+	 * ⚠️ **Il difetto era latente e non e' stato causato da chi lo ha incontrato**: nessuno dei due file
+	 * andava toccato perche' emergesse — bastava che UBT li raggruppasse insieme, cosa che cambia quando si
+	 * aggiungono sorgenti al modulo. E' la stessa forma della `SaveAssetPackage` duplicata fra i due
+	 * commandlet, registrata il 2026-08-30.
+	 *
+	 * ∴ il nome e' specifico del kit invece che generico: un identificatore di namespace anonimo condivide
+	 * lo spazio dei nomi con OGNI parametro dell'engine che finisca nella stessa unita' di traduzione.
+	 */
+	constexpr float KitTolerance = 0.1f;
 
 	UStaticMesh* LoadKitMesh(const TCHAR* Path)
 	{
@@ -84,16 +101,16 @@ bool FRTGrayboxCoverLowMatchesContractTest::RunTest(const FString&)
 
 	// X = spessore verso il vicino, Y = lunghezza lungo il bordo, Z = altezza: la convenzione di
 	// `EdgeRotation`, la stessa dei pannelli di #712.
-	TestEqual(TEXT("spessore = 0.10 del lato"), static_cast<float>(Size.X), CoverLowThicknessFraction * Side(), Tolerance);
-	TestEqual(TEXT("larghezza = 0.92 del lato"), static_cast<float>(Size.Y), PanelLengthFraction * Side(), Tolerance);
-	TestEqual(TEXT("altezza = 0.28 H"), static_cast<float>(Size.Z), CoverLowHeightFraction * LayerH(), Tolerance);
+	TestEqual(TEXT("spessore = 0.10 del lato"), static_cast<float>(Size.X), CoverLowThicknessFraction * Side(), KitTolerance);
+	TestEqual(TEXT("larghezza = 0.92 del lato"), static_cast<float>(Size.Y), PanelLengthFraction * Side(), KitTolerance);
+	TestEqual(TEXT("altezza = 0.28 H"), static_cast<float>(Size.Z), CoverLowHeightFraction * LayerH(), KitTolerance);
 
 	// Pivot contract §4 per un `EdgeBound`: centro del segmento, ALLA BASE. Un pivot centrato in Z
 	// interrerebbe meta' della copertura, e a schermo si vedrebbe come una copertura piu' bassa del budget
 	// invece che come un pivot sbagliato.
-	TestEqual(TEXT("la base sta a Z = 0"), static_cast<float>(Bounds.Min.Z), 0.f, Tolerance);
-	TestEqual(TEXT("il pivot e' centrato in X"), static_cast<float>(Bounds.GetCenter().X), 0.f, Tolerance);
-	TestEqual(TEXT("il pivot e' centrato in Y"), static_cast<float>(Bounds.GetCenter().Y), 0.f, Tolerance);
+	TestEqual(TEXT("la base sta a Z = 0"), static_cast<float>(Bounds.Min.Z), 0.f, KitTolerance);
+	TestEqual(TEXT("il pivot e' centrato in X"), static_cast<float>(Bounds.GetCenter().X), 0.f, KitTolerance);
+	TestEqual(TEXT("il pivot e' centrato in Y"), static_cast<float>(Bounds.GetCenter().Y), 0.f, KitTolerance);
 
 	return true;
 }
@@ -124,9 +141,9 @@ bool FRTGrayboxCoverPairSeparatesInPlanTest::RunTest(const FString&)
 	const FVector LowSize = Low->GetBoundingBox().GetSize();
 	const FVector HighSize = High->GetBoundingBox().GetSize();
 
-	TestEqual(TEXT("la bassa e' spessa 0.10 del lato"), static_cast<float>(LowSize.X), CoverLowThicknessFraction * Side(), Tolerance);
-	TestEqual(TEXT("l'alta e' spessa 0.20 del lato"), static_cast<float>(HighSize.X), CoverHighThicknessFraction * Side(), Tolerance);
-	TestEqual(TEXT("l'alta e' alta 0.85 H"), static_cast<float>(HighSize.Z), CoverHighHeightFraction * LayerH(), Tolerance);
+	TestEqual(TEXT("la bassa e' spessa 0.10 del lato"), static_cast<float>(LowSize.X), CoverLowThicknessFraction * Side(), KitTolerance);
+	TestEqual(TEXT("l'alta e' spessa 0.20 del lato"), static_cast<float>(HighSize.X), CoverHighThicknessFraction * Side(), KitTolerance);
+	TestEqual(TEXT("l'alta e' alta 0.85 H"), static_cast<float>(HighSize.Z), CoverHighHeightFraction * LayerH(), KitTolerance);
 
 	// L'invariante vera: in PIANTA il rapporto e' 2. Se qualcuno pareggiasse gli spessori lasciando le
 	// altezze diverse, ogni asserzione sopra resterebbe verde tranne questa.
@@ -136,7 +153,7 @@ bool FRTGrayboxCoverPairSeparatesInPlanTest::RunTest(const FString&)
 	// E la stessa larghezza: la differenza sta nello spessore, non nell'estensione lungo il bordo — un
 	// pannello piu' corto lascerebbe passare lo sguardo dove la regola dice che non si passa.
 	TestEqual(TEXT("le due coperture sono lunghe uguale"),
-		static_cast<float>(HighSize.Y), static_cast<float>(LowSize.Y), Tolerance);
+		static_cast<float>(HighSize.Y), static_cast<float>(LowSize.Y), KitTolerance);
 
 	return true;
 }
@@ -165,17 +182,17 @@ bool FRTGrayboxLockedDoorCarriesTraverseTest::RunTest(const FString&)
 	const FVector PanelSize = Panel->GetBoundingBox().GetSize();
 	const FVector LockedSize = Locked->GetBoundingBox().GetSize();
 
-	TestEqual(TEXT("il pannello e' spesso 0.10 del lato"), static_cast<float>(PanelSize.X), DoorThicknessFraction * Side(), Tolerance);
-	TestEqual(TEXT("il pannello e' alto 0.85 H"), static_cast<float>(PanelSize.Z), DoorHeightFraction * LayerH(), Tolerance);
+	TestEqual(TEXT("il pannello e' spesso 0.10 del lato"), static_cast<float>(PanelSize.X), DoorThicknessFraction * Side(), KitTolerance);
+	TestEqual(TEXT("il pannello e' alto 0.85 H"), static_cast<float>(PanelSize.Z), DoorHeightFraction * LayerH(), KitTolerance);
 
 	// Il rilievo si somma DUE volte: una per faccia.
 	TestEqual(TEXT("la traversa sporge su entrambe le facce"),
 		static_cast<float>(LockedSize.X),
-		static_cast<float>(PanelSize.X) + 2.f * TraverseReliefFraction * Side(), Tolerance);
+		static_cast<float>(PanelSize.X) + 2.f * TraverseReliefFraction * Side(), KitTolerance);
 
 	// E non altera la sagoma del pannello: una porta bloccata resta una porta.
-	TestEqual(TEXT("stessa altezza del pannello"), static_cast<float>(LockedSize.Z), static_cast<float>(PanelSize.Z), Tolerance);
-	TestEqual(TEXT("stessa larghezza del pannello"), static_cast<float>(LockedSize.Y), static_cast<float>(PanelSize.Y), Tolerance);
+	TestEqual(TEXT("stessa altezza del pannello"), static_cast<float>(LockedSize.Z), static_cast<float>(PanelSize.Z), KitTolerance);
+	TestEqual(TEXT("stessa larghezza del pannello"), static_cast<float>(LockedSize.Y), static_cast<float>(PanelSize.Y), KitTolerance);
 
 	return true;
 }
@@ -233,7 +250,7 @@ bool FRTGrayboxSurfacesSeparateByFractureTest::RunTest(const FString&)
 	// Entrambe stanno dentro lo stesso spessore: la frattura e' un canale, non un ingombro diverso.
 	TestEqual(TEXT("stesso spessore"),
 		static_cast<float>(Ice->GetBoundingBox().GetSize().Z),
-		static_cast<float>(Water->GetBoundingBox().GetSize().Z), Tolerance);
+		static_cast<float>(Water->GetBoundingBox().GetSize().Z), KitTolerance);
 
 	return true;
 }

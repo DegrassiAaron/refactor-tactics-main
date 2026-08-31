@@ -1,0 +1,37 @@
+{
+  "scenarioId": "Visual.Input.PcGym",
+  "tags": ["planning", "movement", "pathfinding", "map", "gadget", "phase"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "TestArena",
+
+  "_nota": "Allestisce la PC Gym della seduta U35 e NON gioca. `turns` e' vuoto, quindi la partita resta al round 1 in pianificazione e il controllo e' del giocatore: e' la condizione del test, non un'omissione. Il soggetto di U35 e' il gesto della mano - camera, hover, selezione, click-vs-drag, path ghost, undo, lock-in - e uno scenario che autogiocasse il turno toglierebbe proprio cio' che si vuole giudicare.",
+
+  "_nota_fixture": "`TestArena` e' la stessa arena di `MapSource = GeneratedTestArena` - la fixture risolve a `URTMatchSetupLibrary::MakeTestArena` (`RTMatchSetupLibrary.cpp:440`), che il bootstrapper usa per quel MapSource (`RTMatchBootstrapper.cpp:87`). Lo scenario quindi NON cambia l'allestimento del blocco 2: U35 si esegue in coda a U2/U3 senza riavviare, ed e' la ragione per cui esiste come scenario invece che come mappa nuova.",
+
+  "_nota_perche_esiste": "Le destinazioni SHORT/MEDIUM/LONG e le due deviazioni chieste dalla palestra vanno CALCOLATE sull'arena, non stimate a occhio: con `Hero.Gadget` a `MovePoints = 5` (`RTHeroCatalogLibrary.cpp:292`) il costo di un percorso non e' il suo numero di passi, perche' il fango a q=-2 costa 3 per cella. Senza questo scenario ogni tester sceglierebbe celle diverse, e due sedute non sarebbero confrontabili. Le sei celle qui sotto sono misurate con Dijkstra sui costi reali - costo di uno step = `TotalMoveCost()` della cella di destinazione (`RTHexPathLibrary.cpp:25`).",
+
+  "_destinazioni": "Da A1 in (-4,2,0), budget 5. SHORT (-2,2,0) costo 2, 2 passi, dritto. MEDIUM (0,3,0) costo 5, 5 passi, dritto: e' il LIMITE ESATTO del budget. DEVIAZIONE OVVIA (0,2,0) costo 5, 5 passi contro 4 di retta: aggira l'ostacolo (-1,2,0), che si VEDE bloccato. DEVIAZIONE NON OVVIA (-1,0,0) costo 4, 4 passi contro 3 di retta: aggira il fango (-2,1,0), che e' ATTRAVERSABILE e non sembra un ostacolo - e' il caso in cui il ghost deve spiegare da se' perche' allunga. OLTRE BUDGET (0,-2,0) costo 6: rifiuto con reason code. MULTILAYER (2,0,1) costo 7 via l'unica transizione (1,0,0)->(2,0,1).",
+
+  "_nota_oltre_budget": "Il mandato della palestra chiedeva una fascia LONG oltre la MEDIUM, e con `MovePoints = 5` quella fascia NON e' pianificabile in un turno: sopra costo 5 ogni destinazione e' rifiutata. Non e' un difetto - e' il motivo per cui LONG e `destinazione invalida` sono lo STESSO checkpoint qui, e chi rieseguisse cercando un terzo percorso pianificabile piu' lungo cercherebbe qualcosa che il budget non consente.",
+
+  "_nota_unita": "A2 e' su (-4,4,0), a costo 2 da A1 e fuori da tutti e sei i percorsi: serve al cambio di selezione fra alleate e - proprio perche' e' dentro il budget - offre il rifiuto per `cella occupata` senza confonderlo con quello per budget. B1 e' su (1,3,0), che vede A1: la linea passa a q=0 sopra il muro, che copre solo r=-2..2. Un nemico dietro il muro renderebbe non eseguibile il click sull'avversario, che e' un checkpoint della seduta.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-4, 2, 0] },
+    { "id": "A2", "hero": "Hero.Phase",  "team": 0, "cell": [-4, 4, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1, 3, 0] }
+  ],
+
+  "turns": [],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 0 },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [-4, 2, 0] },
+    { "type": "UnitAtCell", "unit": "A2", "cell": [-4, 4, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [1, 3, 0] },
+    { "type": "UnitAlive", "unit": "A1", "value": true },
+    { "type": "UnitAlive", "unit": "A2", "value": true },
+    { "type": "UnitAlive", "unit": "B1", "value": true }
+  ]
+}
