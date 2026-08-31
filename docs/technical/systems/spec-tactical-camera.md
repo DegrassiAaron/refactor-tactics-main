@@ -205,6 +205,36 @@ più leggibile. Le due righe si sostengono a vicenda; questo file possiede il **
 
 ---
 
+### 5.1 `ZoomAlpha` — la sorgente unica — ⏳ [#1834](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1834)
+
+Lo zoom ha **cinque consumatori** e, al 2026-08-30, **una sola derivazione** — scritta a mano accanto al
+suo consumatore. `grep -c ZoomAlpha` sull'intero repository risponde **zero**.
+
+| Consumatore | Deriva dallo zoom? | Come, oggi |
+|---|---|---|
+| velocità di pan | 🟡 sì, ad-hoc | `DistanceScale = TargetArmLength / DefaultArmLength` |
+| pitch | ❌ no | `DefaultPitch` fisso, cambia solo per input manuale |
+| FOV | ❌ no | `ViewportHorizontalFov` viene **letto** dalla camera, mai scritto |
+| span dei layer | ❌ non esiste | §6 |
+| alpha della UI tattica | ❌ non esiste | [#1835](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1835) |
+
+⚠️ **L'unica derivazione esistente non è normalizzata e non ha tetto**: il rapporto vale `0.125` a zoom
+minimo e `5.0` a zoom massimo. Il commento che l'accompagna è corretto sul *perché* serve — *«a vista larga
+la stessa quantità di input copre più terreno»* — e il difetto non è quella riga: è che **la prossima curva
+verrà scritta allo stesso modo**, accanto al proprio consumatore, e a quel punto saranno due formule che
+nessuno può confrontare né tarare insieme.
+
+⏳ **Prescritto**: `GetZoomAlpha()` / `SetZoomAlpha()` come porta unica,
+`(TargetArmLength - MinArmLength) / (MaxArmLength - MinArmLength)` clampato `[0..1]` e monotòno; i
+consumatori derivano da lì invece di rileggere il braccio.
+
+⛔ **Cosa la sorgente NON autorizza.** Un `alpha` normalizzato rende comodo scrivere il FOV dallo zoom, e
+non va fatto per inerzia: `ViewportHorizontalFov` alimenta `ComputeEffectivePivotBounds` (`D-251`), quindi
+scriverlo **sposta i limiti del pivot**. È un cambio ai bounds travestito da rifinitura visiva, e va fatto
+con i test di [#1778](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1778) davanti.
+
+🔗 Milestone **v0.1** per `D-286` — la sorgente è promossa, i suoi consumatori visivi no.
+
 ## 6. Multilayer — [#1775](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1775)
 
 La mappa è multilivello e l'identità di cella è `FRTCellId(X, Y, Layer)`.
