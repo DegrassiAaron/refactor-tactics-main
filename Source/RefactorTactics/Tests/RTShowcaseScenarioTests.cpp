@@ -1803,4 +1803,83 @@ bool FRTGrayKitYardIsAdvertisedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * ── `BlockYard`: i tre casi di blocco, affiancati ───────────────────────────────────────────────────
+ *
+ * 🔴 **Come i test di `GrayKitYard`, questo NON dice che la scena si legge.** Quell'oracolo non esiste
+ * nell'harness e non va simulato: sta in `PIE-HEX-VIZ-BLOCCHI` e lo da' una persona guardando dall'alto.
+ * Qui si asserisce il fatto sui DATI che rende quel giudizio possibile — che i tre casi ci siano tutti e
+ * tre, e che siano vicini abbastanza da confrontarsi.
+ *
+ * Serve perche' il caso **solo-movimento** non esisteva in nessuna delle otto fixture precedenti, ed era
+ * sempre lui a mancare. Chi eseguiva la voce partiva da una fixture, ne trovava due su tre e dipingeva il
+ * terzo a mano: fermarsi prima lasciava il confronto a due, ed e' il modo in cui la voce e' caduta il
+ * 2026-08-20.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlockYardCarriesAllThreeBlockCasesTest,
+	"RefactorTactics.Scenario.BlockYardCarriesAllThreeBlockCases",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlockYardCarriesAllThreeBlockCasesTest::RunTest(const FString&)
+{
+	const URTHexMapAsset* Yard = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), TEXT("BlockYard"));
+	if (!TestNotNull(TEXT("la fixture BlockYard si risolve per nome"), Yard))
+	{
+		return false;
+	}
+
+	// Stesso corpo di `CoverYard`: le due fixture di leggibilita' si guardano alla stessa distanza di camera.
+	TestEqual(TEXT("e' l'esagono di raggio 3, come CoverYard"), Yard->NumCells(), 37);
+
+	TArray<FRTCellId> SoloMovimento, SoloVista, Entrambi;
+	int32 SuperficiDiverse = 0;
+	for (const FRTHexCellData& Cell : Yard->Cells)
+	{
+		if (Cell.bBlocksMovement && !Cell.bBlocksLineOfSight)      { SoloMovimento.Add(Cell.Id); }
+		else if (!Cell.bBlocksMovement && Cell.bBlocksLineOfSight) { SoloVista.Add(Cell.Id); }
+		else if (Cell.bBlocksMovement && Cell.bBlocksLineOfSight)  { Entrambi.Add(Cell.Id); }
+
+		if (Cell.Surface != ERTHexSurface::Floor) { ++SuperficiDiverse; }
+	}
+
+	// I tre casi. Sono l'unica ragione per cui questa fixture esiste, e si contano per ESATTEZZA: una in piu'
+	// renderebbe ambiguo quale cella la voce sta giudicando.
+	TestEqual(TEXT("una cella blocca SOLO il movimento — il caso che nessun'altra fixture porta"),
+		SoloMovimento.Num(), 1);
+	TestEqual(TEXT("una cella blocca SOLO la vista"), SoloVista.Num(), 1);
+	TestEqual(TEXT("una cella blocca ENTRAMBI"), Entrambi.Num(), 1);
+
+	// 🔑 **L'adiacenza e' parte del criterio, non estetica.** La voce chiede che la cella con entrambi mostri
+	// «due volumi concentrici, non una terza forma ambigua»: e' un confronto, e un confronto si fa con il
+	// vicino. Se un giorno qualcuno spostasse una delle tre dall'altra parte della mappa i conti tornerebbero
+	// e il giudizio diventerebbe impossibile — questo test cadrebbe, ed e' il suo mestiere.
+	if (SoloMovimento.Num() == 1 && SoloVista.Num() == 1 && Entrambi.Num() == 1)
+	{
+		const TArray<FRTCellId> ViciniDiEntrambi = URTHexLibrary::Neighbors(Entrambi[0]);
+		TestTrue(TEXT("la cella ENTRAMBI e' adiacente a quella solo-movimento"),
+			ViciniDiEntrambi.Contains(SoloMovimento[0]));
+		TestTrue(TEXT("la cella ENTRAMBI e' adiacente a quella solo-vista"),
+			ViciniDiEntrambi.Contains(SoloVista[0]));
+	}
+
+	// Stessa disciplina di `CoverYard`, e qui e' un'asserzione invece che un commento: una superficie diversa
+	// darebbe una seconda spiegazione a «quella cella si legge diversa», e la voce chiede della FORMA.
+	TestEqual(TEXT("nessuna superficie diversa dal pavimento: l'unica variabile sono i due flag"),
+		SuperficiDiverse, 0);
+	return true;
+}
+
+/**
+ * Raggiungibile **per nome**, come la sorella: e' cosi' che la seduta la usera' — `FixtureId` nel Details
+ * dell'actor, poi `GenerateFixtureIntoAsset`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlockYardIsAdvertisedTest,
+	"RefactorTactics.Scenario.BlockYardIsAdvertisedByName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlockYardIsAdvertisedTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("BlockYard e' fra le fixture note, quindi la tendina e gli scenari la vedono"),
+		URTMatchSetupLibrary::KnownFixtureIds().Contains(TEXT("BlockYard")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
