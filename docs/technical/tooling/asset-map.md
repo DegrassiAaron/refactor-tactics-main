@@ -1,6 +1,6 @@
 # Asset map — quali asset servono, chi li produce, quali esistono
 
-> `CURRENT` · **Creato**: 2026-08-13 · **Ultima misura**: 2026-08-31 (`bf9bdb4d`) · **Owner**: questo file —
+> `CURRENT` · **Creato**: 2026-08-13 · **Ultima misura**: 2026-08-31 (sopra `771eb9aa`) · **Owner**: questo file —
 > è il **registro degli asset di contenuto** attesi dal progetto, release per release.
 >
 > **Cosa non è.** Non è l'owner di percorsi e naming: quello è
@@ -109,6 +109,15 @@ Una decisione che rimuove un asset atteso tocca *quattro* posti, non tre: le tre
 l'allowlist che le riammetteva. Finché la riga resta, la misura non può dare il numero giusto, e la
 distanza fra il totale dichiarato e quello riproducibile è esattamente la riga dimenticata.
 
+➕ **Poche ore dopo il totale è risalito a 32, ed è una buona notizia.** I **dodici montaggi `AM_*`** hanno
+preso la loro riga d'allowlist il **2026-08-31**, sopra `771eb9aa`: **32 attesi · 20 committati · 0 su
+disco · 12 assenti**. Il numero peggiora e il repository sta meglio — è la differenza fra un lavoro **non
+tracciato** e un lavoro **tracciato e non fatto**, e solo il secondo si può contare. ⚠️ **Le righe sono
+state scritte prima che il primo montaggio esista**, che è l'ordine di §6: questi dodici non possono
+ripetere la storia di `ABP_Gadget`, dove la riga c'era e mancava il gesto. I path non sono trascritti a
+mano — sono **verificati uguali** per insiemi agli `artifacts` di U8 in `editor-sessions.yaml`, perché una
+lista attesa che esiste già in un'altra fonte si confronta, non si ricopia.
+
 *(Misura precedente, 2026-08-17 su `a4a393b6`: 21 attesi · 16 committati · 0 su disco · 5 assenti. Prima
 ancora, 2026-08-13 su `515c5c88`: 17 attesi · 13 committati · 4 mancanti.)*
 
@@ -163,7 +172,7 @@ esattamente i casi che lo smentivano.
 
 ## 2. v0.1 — misurata
 
-I 20 path che il repository dichiara di volere. La colonna **Seduta** dice chi lo produce, secondo
+I 32 path che il repository dichiara di volere. La colonna **Seduta** dice chi lo produce, secondo
 `editor-sessions.yaml`; `—` significa che nessuna seduta lo rivendica (esisteva prima che le sedute
 fossero un dato).
 
@@ -174,6 +183,18 @@ fossero un dato).
 | `Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset` | Unità giocabile | **U7** | ✅ committato |
 | `Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset` | Unità giocabile | **U7** | ✅ committato |
 | ~~`Characters/<Pack>/Animation/ABP_<Pack>.uasset`~~ ×4 | Animazione | ~~**U8**~~ | ⛔ **non più attesi dal 2026-08-30** ([D-248](../../decisions/RT_PDR_00_Decision_Log.md)): il grafo di locomozione vive in C++ (`URTUnitAnimInstance`) e nessun `.uasset` di animazione va creato. *Erano «⏳ assente», e `ABP_Gadget` era «su disco» il 13-08, cancellato senza essere mai committato (§1)* |
+| `Characters/Gadget/Animation/AM_Gadget_Attack.uasset` | Animazione | **U8** | ⏳ assente |
+| `Characters/Gadget/Animation/AM_Gadget_Hit.uasset` | Animazione | **U8** | ⏳ assente |
+| `Characters/Gadget/Animation/AM_Gadget_Death.uasset` | Animazione | **U8** | ⏳ assente |
+| `Characters/Phase/Animation/AM_Phase_Attack.uasset` | Animazione | **U8** | ⏳ assente |
+| `Characters/Phase/Animation/AM_Phase_Hit.uasset` | Animazione | **U8** | ⏳ assente |
+| `Characters/Phase/Animation/AM_Phase_Death.uasset` | Animazione | **U8** | ⏳ assente |
+| `Characters/Riktor/Animation/AM_Riktor_Attack.uasset` | Animazione | **U8** | ⏳ assente |
+| `Characters/Riktor/Animation/AM_Riktor_Hit.uasset` | Animazione | **U8** | ⏳ assente |
+| `Characters/Riktor/Animation/AM_Riktor_Death.uasset` | Animazione | **U8** | ⏳ assente |
+| `Characters/Wraith/Animation/AM_Wraith_Attack.uasset` | Animazione | **U8** | ⏳ assente |
+| `Characters/Wraith/Animation/AM_Wraith_Hit.uasset` | Animazione | **U8** | ⏳ assente |
+| `Characters/Wraith/Animation/AM_Wraith_Death.uasset` | Animazione | **U8** | ⏳ assente |
 | `Characters/Shared/Materials/M_SelectionRing.uasset` | Condiviso | — | ✅ committato |
 | `Characters/Shared/Materials/M_TeamRing.uasset` | Condiviso | — | ✅ committato |
 | `Maps/Dev/L_HexArena/L_HexArena.umap` | Mappa | **U1** | ✅ committato |
@@ -191,14 +212,14 @@ fossero un dato).
 | `UI/Framework/WBP_RT_ModalLayer.uasset` | Frontend | **U24** | ✅ committato |
 | `Maps/Dev/L_DevSandbox/Data/DA_Format_Scratch.uasset` | Mappa | — | ✅ committato |
 
-**Quel che resta della v0.1 è una famiglia sola, e non è in questa tabella: i dodici montaggi `AM_*`.**
-Ogni path dell'allowlist è committato. Il **frontend** di U24 si è chiuso — tutti e cinque i `WBP_RT_*`
+**Quel che resta della v0.1 è una famiglia sola, e dal 2026-08-31 è in questa tabella: i dodici montaggi
+`AM_*`.** Tutto il resto è committato. Il **frontend** di U24 si è chiuso — tutti e cinque i `WBP_RT_*`
 sono nel repository, `LoadingScreen`, `FrontendRoot` e `ModalLayer` compresi — e i quattro `ABP_*` sono
 usciti dagli attesi con [D-248](../../decisions/RT_PDR_00_Decision_Log.md). Restano `Cast`, `Hit` e
-`Death` per quattro eroi, che **nessuna riga d'allowlist riammette ancora**: sono lavoro reale di
-[#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288) (`PIE-AS4b`), e la loro riga si
-scrive **prima** che il primo esista — è la riga 1 di §6, e la ragione per cui `ABP_Gadget` non è stato
-perso per una regola mancante ma per un `git add` mai eseguito.
+`Death` per quattro eroi: lavoro reale di
+[#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288) (`PIE-AS4b`), che ora ha una riga
+d'allowlist **scritta prima del primo asset** — la riga 1 di §6 nell'ordine giusto, per una volta senza che
+sia costato prima un file perso.
 
 ⚠️ **`M_HexCell.uasset` non è rivendicato da nessuna seduta.** È in allowlist e committato, ma
 `editor-sessions.yaml` non lo nomina: come i cinque path storici marcati `—`, esiste senza che una
@@ -206,15 +227,16 @@ seduta ne risponda. Non è un difetto da correggere qui — è un buco della fon
 
 ### 2.1 Famiglie attese che non hanno una riga d'allowlist
 
-**Quattro** cose che la v0.1 richiede e per cui **`git add` tace**, perché nessuna riga di `.gitignore` le
-riammette. È l'unico predicato vero di tutte e quattro: il *percorso* ce l'hanno in tre (le icone lo hanno
-deciso, i sorgenti icona esistono già sul disco, i montaggi lo derivano dalle convenzioni), la *seduta* in
-due (U21, U8). Non sono dimenticanze di questo file: sono buchi delle fonti, e vanno chiusi lì.
+**Tre** cose che la v0.1 richiede e per cui **`git add` tace**, perché nessuna riga di `.gitignore` le
+riammette. È l'unico predicato vero di tutte e tre: il *percorso* ce l'hanno in due (le icone lo hanno
+deciso, i sorgenti icona esistono già sul disco), la *seduta* in una (U21). Non sono dimenticanze di
+questo file: sono buchi delle fonti, e vanno chiusi lì.
 
-⚠️ **La quarta riga è entrata il 2026-08-31**, e non perché sia nata allora: i dodici montaggi `AM_*`
-erano in §2 fra gli attesi, dove non potevano stare — §2 elenca l'allowlist, e loro non ci sono. Sono
-l'unica famiglia con **percorso e seduta**, come lo erano i due `WBP_RT_*` prima che la riga arrivasse:
-la stessa posizione, e l'esito dipende da chi scrive la riga prima del primo `git add`.
+✅ **Erano quattro per mezza giornata, il 2026-08-31.** I dodici montaggi `AM_*` sono entrati qui la
+mattina — venivano da §2, dove non potevano stare perché §2 elenca l'allowlist e loro non c'erano — e ne
+sono usciti il pomeriggio con la loro riga. Erano l'unica famiglia ad avere **percorso e seduta** insieme,
+la stessa posizione dei due `WBP_RT_*` poco prima: è la posizione da cui si esce scrivendo la riga, e
+l'unica in cui la lacuna si chiude in un minuto invece che in una seduta.
 
 🔴 **Erano cinque fino al 2026-08-28, e due si sono chiuse — verificato, non deciso qui.**
 
@@ -263,7 +285,6 @@ prima, e perché — percorso e produttore, non una sola delle due.*
 | **Icone dell'HUD** | E20 · E11 | L'**insieme** richiesto è derivato e cresce da solo — `URTIconLibrary::RequiredIconIds()` lo compone dalle fasi volontarie e dal catalogo azioni *realmente in codice*, gate `RTIconCatalogTests` — ma **path e naming sono già decisi**: `/Game/RT/UI/Icons/`, `T_UI_Icon_<Categoria>_<Nome>` ([`brief-icone-v01.md`](brief-icone-v01.md) §33–34). Manca solo la riga d'allowlist, ed è un problema concreto: chi importa le texture al path già deciso fa `git add`, git tace, e le icone restano locali |
 | **Sorgenti icona già sul disco** | E20 | `Content/RT_UI_AssetPack_FromHUD/` contiene **30 PNG** (`icons/I_Guard.png`, `I_Overwatch.png`, …) più `buttons/`, `panels/`, `tiles/`, `warnings/` e un `manifest.json` con box e margini 9-slice. Di tutto il kit **il repository traccia due file**: `README.md` e `manifest.json`. I trenta PNG no. È la famiglia più vicina a essere pronta, e la sola che nessuna riga d'allowlist prevede |
 | **Livello illuminato del graybox** | seduta **U21** | U21 dichiara di produrre «il livello illuminato **committato**», ma ha `artifacts: []`: nessuno sa quale file sarà, quindi non può entrare nell'allowlist prima della seduta |
-| **I dodici montaggi `AM_<Pack>_{Attack,Hit,Death}`** | seduta **U8** ([#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288), `PIE-AS4b`) | Sono **il perimetro rimasto di U8** dopo che [D-248](../../decisions/RT_PDR_00_Decision_Log.md) ha tolto gli `ABP_*`: tre montaggi per quattro eroi, e la decisione dichiara esplicitamente di non riguardarli. Il percorso si deriva dalle convenzioni (`Characters/<Pack>/Animation/`) e la seduta li rivendica, ma **nessuna riga d'allowlist li riammette** — né una concreta né uno dei quattro glob, che coprono `Maps`, `UI` e `World/Graybox`, non `Characters`. ⚠️ Sono quindi nella posizione esatta in cui stavano i due `WBP_RT_*` prima che la loro riga arrivasse, e in cui stava `ABP_Gadget` con una differenza sola: **là la riga c'era**. La riga si scrive prima del primo `git add`, non dopo — §6, punto 1 |
 
 ---
 
@@ -373,13 +394,17 @@ lo stesso comando.)*
 Tre righe, in quest'ordine. Saltarne una produce un difetto silenzioso, e per ognuna è già successo:
 
 1. **`.gitignore`** — la riga `!Content/RT/…` con il path esatto. Senza, `git add` tace e l'asset resta
-   locale: è lo stato dei dodici montaggi `AM_*` oggi (§2.1).
-   *(Fino al 2026-08-17 questa riga citava `ABP_Gadget`, ed era l'esempio sbagliato: la sua riga
-   d'allowlist esisteva dall'11 agosto. Non era rimasto locale per una regola mancante, ma per un `git add`
-   mai eseguito — due cause diverse che producono lo stesso sintomo, e solo la seconda si è portata via
-   il file. Dal 17 al 31 agosto ha citato `WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer`, che nel frattempo
-   la riga l'hanno avuta: un esempio scelto fra i casi aperti **invecchia quando il caso si chiude**, ed è
-   la terza volta che questa riga va aggiornata per quel motivo.)*
+   locale. **I casi aperti stanno in §2.1**, e questa riga non ne nomina più nessuno: è la regola, non
+   l'elenco.
+   *(⚠️ Questa riga ha citato un caso vivo tre volte e tre volte è invecchiata — `ABP_Gadget` fino al
+   17-08, `WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer` fino al 31-08, i dodici `AM_*` per mezza giornata.
+   Ogni volta l'esempio è caduto **perché il caso si era chiuso**, cioè per la ragione più desiderabile
+   possibile: un documento che si aggiorna solo quando le cose peggiorano non lo si aggiorna mai. Il
+   rimedio non è scegliere un esempio più stabile — è **non metterne**, e puntare alla sezione che i casi
+   li elenca già e li tiene aggiornati per mestiere. ⛔ `ABP_Gadget` era anche l'esempio **sbagliato**: la
+   sua riga d'allowlist esisteva dall'11 agosto, quindi non era rimasto locale per una regola mancante ma
+   per un `git add` mai eseguito. Due cause diverse, lo stesso sintomo, e solo la seconda si è portata via
+   il file.)*
 2. **`editor-sessions.yaml`** — l'asset va fra gli `artifacts` della seduta che lo produce, **come
    stringa di path e nient'altro**. Senza, nessuna vista sa che quell'asset è atteso: è il caso di
    **U21**.
