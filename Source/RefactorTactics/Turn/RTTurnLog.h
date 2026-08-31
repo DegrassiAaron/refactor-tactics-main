@@ -467,7 +467,31 @@ enum class ERTMoveOutcome : uint8
 	 * `Amount` porta le celle del percorso RISOLTO scartato — `0` per un piano che dichiarava solo una
 	 * destinazione senza posare waypoint (il bot), dove la destinazione resta leggibile in `TgtCell`.
 	 */
-	SupersededByDash
+	SupersededByDash,
+	/**
+	 * Fermata perche' il proprio movimento chiude un **ciclo** con altre unita' in movimento: uno scambio
+	 * diretto `A↔B` o una catena `A→B→C→A` in cui ognuna punta alla cella occupata dalla successiva e
+	 * l'ultima punta alla prima (#1922, `D-295` ← `AUTHOR-MOVE-001`). Aggiunto in CODA, come i cinque valori
+	 * sopra: l'esito viaggia come `uint8` nel formato serializzato, quindi le tracce gia' scritte non
+	 * cambiano significato.
+	 *
+	 * **Perche' un valore proprio, e uno solo per scambio e ciclo.** Sono la STESSA struttura: lo scambio e'
+	 * il ciclo con `n = 2`. Cio' che li distingue da un **convoy** (`A→B→C→libera`), che deve continuare ad
+	 * avanzare, non e' una differenza di forma ma l'ultima cella della catena — per questo la regola e' un
+	 * rilevamento di ciclo sul grafo `target → occupante`, non un confronto a coppie.
+	 *
+	 * **Perche' non riusa i valori vicini.** `BlockedContested` dice «due unita' verso la STESSA cella», e in
+	 * un ciclo le celle sono distinte: nessuno contende nulla. `BlockedByUnit` dice «c'era un'unita' FERMA»,
+	 * e in un ciclo sono tutte in movimento. `BlockedByImpact` e' lo scontro frontale fra due mobilita'
+	 * LINEARI: resta una regola sua, viene PRIMA nell'ordine dei controlli, e il suo reason e' asserito per
+	 * nome da `HexSim.ResolveHeadOnBlocksLinearSwap`.
+	 *
+	 * ⚠️ **`bPassThrough` non partecipa.** Quel flag governa il ramo dell'unita' FERMA
+	 * (`RTHexSimLibrary.cpp`, filtro `!Moving[j]`); ciclo e scambio vivono fra unita' in MOVIMENTO. I due
+	 * rami sono disgiunti, e un'unita' che sta solo TRANSITANDO per la cella dell'altra chiude comunque il
+	 * ciclo: non si passa attraverso qualcuno che nello stesso istante sta venendo verso di noi.
+	 */
+	BlockedByCycle
 };
 
 /**

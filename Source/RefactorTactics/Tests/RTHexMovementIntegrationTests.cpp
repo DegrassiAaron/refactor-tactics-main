@@ -356,6 +356,68 @@ bool FRTHexMoveContestedCellTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * T5 di #1922 — la sola via per cui lo scambio e' raggiungibile IN PARTITA: la staleness del piano.
+ *
+ * 🔑 **Perche' serve un test d'integrazione e non basta il resolver.** `HexSim.ResolveSwapBlocked` prova la
+ * regola passando percorsi costruiti a mano; questo prova che la regola si INNESCA nel gioco. Il §3 della
+ * issue misura che nessuna via ordinaria puo' produrre uno scambio — il click esclude le celle occupate
+ * (`FindPathAvoiding`), il bot pianifica destinazioni e non waypoint, l'harness valida sullo snapshot — e
+ * ne resta **una sola**: un `PlannedPath` scritto quando la cella era libera e risolto quando non lo e' piu'.
+ *
+ * `RTTurnManager` lo prende **verbatim**, e il commento del file lo dichiara: *«ResolveMovement accetta un
+ * PlannedPath gia' pronto SENZA riapplicare l'occupazione fresca»*. Scrivere qui i due percorsi non e' un
+ * trucco del test: e' la riproduzione fedele di quella via.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveStalePlanSwapTest,
+	"RefactorTactics.HexMove.StalePlanSwapBlocks",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMoveStalePlanSwapTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 4);
+
+	// Due unita' adiacenti, ognuna con un piano che punta alla cella dell'altra: e' cio' che resta sul tavolo
+	// quando i due piani sono stati scritti prima che l'altra ci si spostasse.
+	const FRTCellId CellA(0, 0);
+	const FRTCellId CellB(1, 0);
+	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), CellA);
+	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), CellB);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !A || !B) { DestroyHexMoveWorld(World); return false; }
+
+	// ⚠️ Il percorso deve essere ANCORATO (`PlannedPath[0] == Cell`), o il TurnManager ripiega su
+	// `PlannedCell` e il caso non si riproduce.
+	A->PlannedPath = { CellA, CellB };
+	A->PlannedCell = CellB;
+	B->PlannedPath = { CellB, CellA };
+	B->PlannedCell = CellA;
+
+	RunTurn(TM);
+
+	TestTrue(TEXT("A non entra nella cella di B"), A->Cell == CellA);
+	TestTrue(TEXT("B non entra nella cella di A"), B->Cell == CellB);
+
+	// L'esito deve essere SPIEGATO, non solo subito: un arresto senza causa nel replay e' il difetto che la
+	// disciplina di `ERTMoveOutcome` esiste per evitare.
+	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
+	int32 Cycles = 0;
+	for (const FRTTurnLogEntry& E : Log)
+	{
+		if (E.Category == ERTLogCategory::Move
+			&& E.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedByCycle))
+		{
+			++Cycles;
+		}
+	}
+	TestEqual(TEXT("il TurnLog spiega entrambi gli arresti col reason del ciclo"), Cycles, 2);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSprintAppliesExposedTest,
 	"RefactorTactics.Actions.Sprint.AppliesExposed",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
