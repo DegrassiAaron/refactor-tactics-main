@@ -213,6 +213,49 @@ struct FRTHexAttackHit
  * CANONICO (attaccante, bersaglio) e gli intenti scartati per linea di tiro. Non applica nulla:
  * l'applicazione e' di URTCombatResolver::ResolveAttacks, che somma per bersaglio sullo stato iniziale.
  */
+/**
+ * L'impronta a terra di un intento aggressivo: le celle che il colpo ha investito, e con quale forma.
+ *
+ * 🔑 **Una per INTENTO, non per vittima** — ed e' la differenza che questa struct esiste per tenere in piedi.
+ * `FRTHexAttackHit` racconta cosa e' successo a un BERSAGLIO; questa racconta cosa ha fatto l'AZIONE. Il
+ * resolver le distingue gia' internamente (`HitCells` e' calcolato una volta, `Plan.Hits` una per vittima):
+ * qui quella distinzione smette di morire dentro la funzione.
+ *
+ * ⚠️ **Nasce anche quando non colpisce nessuno.** Un'area su celle vuote produce zero `Hits` e un footprint:
+ * e' precisamente il caso che [D-301] esiste per rendere rappresentabile.
+ */
+USTRUCT(BlueprintType)
+struct FRTAttackFootprint
+{
+	GENERATED_BODY()
+
+	/** Indice dell'intento che l'ha prodotta: la chiave con cui si risale ad abilita', priorita' e attaccante. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	int32 IntentIndex = INDEX_NONE;
+
+	/** Chi ha colpito, come indice nello snapshot (stessa identita' di `FRTHexAttackHit::AttackerId`). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	int32 AttackerId = INDEX_NONE;
+
+	/** Cella da cui il colpo e' partito, al momento del calcolo. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	FRTCellId Origin;
+
+	/** Cella mirata: sopravvive anche quando nessuna unita' e' stata colpita. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	FRTCellId AimCell;
+
+	/** La forma dichiarata dal catalogo, non dedotta dal numero di celle. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	ERTAbilityShape Shape = ERTAbilityShape::Single;
+
+	/** Le celle investite, nell'ordine di `HexHitCells` (`StableLess`): copiate, mai ricalcolate a valle. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTCellId> HitCells;
+
+	FRTAttackFootprint() = default;
+};
+
 USTRUCT(BlueprintType)
 struct FRTHexBlastPlan
 {
@@ -265,6 +308,21 @@ struct FRTHexBlastPlan
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
 	TArray<FRTDoorOp> DoorOps;
+
+	/**
+	 * Un'impronta per intento aggressivo: dove il colpo e' arrivato, indipendentemente da chi ha preso.
+	 *
+	 * 🔴 **Esiste perche' il dato veniva BUTTATO.** `HexHitCells` era gia' calcolato una volta per intento,
+	 * usato per filtrare le unita' e poi lasciato uscire di scope: sopravvivevano solo gli `Hits`, che sono
+	 * per vittima. La presentazione dell'area non era quindi costruibile senza ricalcolare la primitiva —
+	 * cioe' senza violare [D-278]. Vedi [D-301].
+	 *
+	 * ⚠️ Ordinato per `IntentIndex` come gli altri canali, e per la stessa ragione scritta su
+	 * `DoorlessIntents`: un secondo produttore che raccogliesse fuori ordine renderebbe non deterministica
+	 * la sequenza a valle.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTAttackFootprint> Footprints;
 };
 
 /**

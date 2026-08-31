@@ -36,6 +36,26 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 		TEXT("sistema VFX degli status fuori dal perimetro. ATTENZIONE: oggi il valore non ha un produttore ")
 		TEXT("(nessuno emette l'evento) - questa voce vale «quando accadra'» e va rivista appena ne acquista uno.")));
 
+	// AttackFootprint — NoPresentation, e per una ragione OPPOSTA a quella di HazardDamage.
+	//
+	// 🔴 **Qui l'assenza e' temporanea e attesa, non una scelta di design.** `HazardDamage` non si mostra
+	// perche' si e' deciso che non deve; questo evento esiste **precisamente perche' un giorno si mostri** —
+	// #1945 lo introduce per portare a valle le celle risolte, e la cue che le disegna (tracer, impatto,
+	// resa dell'area) e' lavoro di E21 che non e' ancora stato fatto.
+	//
+	// ⚠️ **Dichiarare cue inventate sarebbe peggio che dichiarare l'assenza.** Le altre voci di questa
+	// tabella nominano funzioni che il C++ chiama davvero; scrivere qui il nome di un effetto che nessuno
+	// ha ancora scritto renderebbe la tabella una lista di intenzioni, e il gate smetterebbe di misurare
+	// qualcosa. L'unica frase vera oggi e' che questo evento non si mostra.
+	//
+	// ⚠️ **Questa voce va RIVISTA, non ereditata**, appena la cue nasce: e' il segnaposto che il gate
+	// sorveglia, ed e' il motivo per cui il dato viene emesso prima del disegno e non insieme a lui.
+	Out.Add(FRTPresentationBinding::MakeNoPresentation(ERTResolvedEventType::AttackFootprint,
+		TEXT("Il dato esiste perche' la cue POSSA essere costruita: #1945 porta a valle le celle risolte, e ")
+		TEXT("la resa dell'area e' fuori dal suo scope (E21). Nessuna cue oggi lo consuma. ATTENZIONE: a ")
+		TEXT("differenza di HazardDamage questa assenza e' TEMPORANEA e attesa - la voce va rivista appena ")
+		TEXT("la cue nasce, non ereditata.")));
+
 	// Defeated — la morte visiva e' DIFFERITA: l'unita' sparisce dopo che il colpo o l'attraversamento e'
 	// stato mostrato (`RTTurnManager.cpp:6293-6300`). La presentazione non decide quando si muore: lo decide
 	// il resolver, e questa cue lo mostra dopo.

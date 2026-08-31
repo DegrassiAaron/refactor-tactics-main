@@ -4430,6 +4430,33 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	ApplyEnvironmentChanges(Ctx);
 
 
+	// Impronte a terra dei colpi, nella timeline di playback ([D-301]).
+	//
+	// 🔑 **Qui e non dentro il ciclo dei colpi**, ed e' la ragione per cui questo tipo di evento esiste: il
+	// ciclo piu' sotto emette un `Attack` per VITTIMA, quindi un'area su tre bersagli lo emette tre volte e
+	// una su celle vuote nessuna. L'impronta e' un fatto dell'AZIONE, e ne esce una per intento.
+	//
+	// ⚠️ **Dopo `ApplyInterrupts`/`ResolveInterceptions`**, che riscrivono il piano: i footprint degli
+	// intenti cancellati sono gia' stati tolti insieme ai loro colpi, quindi qui si emette cio' che e'
+	// davvero avvenuto.
+	//
+	// ⚠️ L'attaccante si traduce in `StableUnitId` **adesso**, mentre lo snapshot e' ancora quello del
+	// Blast: `FRTResolvedEvent` porta id e non puntatori (`#1800`), e l'indice di snapshot non sopravvive
+	// al turno.
+	for (const FRTAttackFootprint& Footprint : Plan.Footprints)
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.Type = ERTResolvedEventType::AttackFootprint;
+		Ev.SourceStableUnitId = Units.IsValidIndex(Footprint.AttackerId) && Units[Footprint.AttackerId]
+			? Units[Footprint.AttackerId]->StableUnitId : 0;
+		Ev.Origin = Footprint.Origin;
+		Ev.AimCell = Footprint.AimCell;
+		Ev.Shape = Footprint.Shape;
+		Ev.HitCells = Footprint.HitCells;
+		ResolvedTimeline.Add(MoveTemp(Ev));
+	}
+
 	// Intenti NON VALUTABILI (nessuna mappa autorevole): non finiscono nel TurnLog come «nessuna linea di
 	// tiro» — sarebbe un esito di gioco al posto di un difetto di configurazione del livello. Restano un
 	// warning, perche' e' il livello a dover essere corretto, non la posizione dell'unita'.

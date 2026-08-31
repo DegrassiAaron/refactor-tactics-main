@@ -1122,6 +1122,21 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	{
 		return InterruptedIntents.Contains(IntentIdx);
 	});
+
+	// 🔴 **E l'impronta dell'area sparisce con l'azione che l'avrebbe prodotta** ([D-301]). Un colpo
+	// interrotto non ha investito nessuna cella: lasciarne il footprint mostrerebbe a schermo un'area che
+	// il resolver ha annullato — cioe' una presentazione che contraddice l'esito, che e' il difetto
+	// opposto e simmetrico a quello per cui il footprint esiste.
+	//
+	// ⚠️ Si filtra QUI e non altrove per la stessa ragione degli altri due canali: la coerenza fra colpi
+	// cancellati e impronta e' una proprieta' del punto in cui si cancella, non una disciplina da ricordare
+	// in un secondo posto. Stesso criterio — l'INTENTO, non l'attaccante.
+	Plan.Footprints.RemoveAll([&InterruptedIntents, &IntentDefs](const FRTAttackFootprint& Footprint)
+	{
+		if (InterruptedIntents.Contains(Footprint.IntentIndex)) { return true; }
+		return IntentDefs.IsValidIndex(Footprint.IntentIndex)
+			&& IsCoreAction(IntentDefs[Footprint.IntentIndex], ActionInterrupt);
+	});
 }
 
 void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
