@@ -73,8 +73,9 @@ FRTCellLabel URTHexLabelLibrary::BuildCellLabel(const FRTCellId& Cell, const FVe
 	const int32 LayerDigits = FString::FromInt(Cell.Layer).Len();
 
 	// L'altezza piena e la larghezza di un carattere, tarate sull'APOTEMA e sul caso peggiore. Non sono
-	// numeri scelti a occhio: sono il piu' grande valore per cui `NothingLeavesTheHexagon` resta verde
-	// su `-10,-10,1`, cioe' dieci caratteri lungo una direzione.
+	// numeri scelti a occhio: sono il piu' grande valore per cui `NothingLeavesTheHexagonAtTheTrueWorstCase`
+	// resta verde su `-10,-10,-1` — dieci caratteri lungo una direzione (`Layer` e' un int32 senza limiti
+	// dichiarati, quindi un layer a due cifre negative e' una cella legittima).
 	constexpr int32 WorstCaseChars = 10;
 	const double Apothem   = HexSize * 0.8660254; // cos(30°)
 	const double Margin    = HexSize * 0.06;      // il bordo non si tocca: la cella ha gia' un contorno

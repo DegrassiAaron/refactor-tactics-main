@@ -151,7 +151,7 @@ bool FRTHexLabelStructureTest::RunTest(const FString&)
 
 namespace
 {
-	/** Il punto mondo di un estremo di segmento. Un'unica formula, usata da ogni test di questo file. */
+	/** Il punto mondo di un estremo di segmento, usato dai due test di contenimento di questo file. */
 	FVector HexLabelStrokePoint(const FRTLabelGlyph& G, const FVector2D& Local)
 	{
 		return G.Origin + G.Right * Local.X + G.Up * Local.Y;
@@ -175,9 +175,9 @@ namespace
 }
 
 /**
- * 🔴 **Il test che DIMENSIONA le cifre.** Nessun segmento esce dall'esagono — e il caso e' il peggiore
- * possibile, non `(0,0,0)`: `-10,-10,1` sono dieci caratteri, e una taratura fatta sulla terna corta
- * sborda alla prima mappa grande senza che nessuno se ne accorga prima.
+ * 🔴 **Il test che DIMENSIONA le cifre.** Nessun segmento esce dall'esagono. `-10,-10,1` ha nove
+ * caratteri (due segni meno) — lungo, ma non il caso peggiore in assoluto: quello e'
+ * `NothingLeavesTheHexagonAtTheTrueWorstCase` qui sotto, dove il layer stesso e' negativo a due cifre.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexLabelStaysInsideTest,
 	"RefactorTactics.HexLabel.NothingLeavesTheHexagon",
@@ -188,8 +188,45 @@ bool FRTHexLabelStaysInsideTest::RunTest(const FString&)
 	constexpr float LayerHeight = 250.f;
 	const FVector MapOrigin = FVector::ZeroVector;
 
-	// La terna piu' lunga che una mappa possa produrre: dieci caratteri, due segni meno.
+	// Nove caratteri, due segni meno: una terna lunga ma non la piu' lunga possibile (vedi il test
+	// gemello sotto per quella).
 	const FRTCellId Worst(-10, -10, 1);
+	const FRTCellLabel Label = URTHexLabelLibrary::BuildCellLabel(Worst, MapOrigin, HexSize, LayerHeight);
+	const TArray<FVector> Corners = URTHexLibrary::CellCorners(Worst, MapOrigin, HexSize, LayerHeight);
+
+	TestTrue(TEXT("l'etichetta non e' vuota"), Label.Glyphs.Num() > 0);
+
+	int32 Checked = 0;
+	for (const FRTLabelGlyph& G : Label.Glyphs)
+	{
+		for (const FRTLabelStroke& S : URTHexLabelLibrary::GlyphStrokes(G.Character))
+		{
+			TestTrue(TEXT("l'inizio del segmento e' dentro l'esagono"), HexLabelInsideHex(Corners, HexLabelStrokePoint(G, S.From)));
+			TestTrue(TEXT("la fine del segmento e' dentro l'esagono"),  HexLabelInsideHex(Corners, HexLabelStrokePoint(G, S.To)));
+			++Checked;
+		}
+	}
+	TestTrue(TEXT("qualche segmento e' stato davvero controllato"), Checked > 0);
+	return true;
+}
+
+/**
+ * Il VERO caso peggiore, non quello che sembra tale: `FRTCellId::Layer` e' un `int32` senza limiti
+ * dichiarati (`RTCellId.h`), quindi `-10,-10,-1` — dieci caratteri, tre segni meno, il layer negativo a
+ * due cifre a meta' scala — e' una cella legittima. `BuildCellLabel` dichiara `WorstCaseChars = 10`:
+ * questo test e' cio' che verifica che la dichiarazione sia vera, non solo plausibile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexLabelStaysInsideAtTrueWorstCaseTest,
+	"RefactorTactics.HexLabel.NothingLeavesTheHexagonAtTheTrueWorstCase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexLabelStaysInsideAtTrueWorstCaseTest::RunTest(const FString&)
+{
+	constexpr float HexSize = 150.f;    // il default di `URTHexMapAsset`
+	constexpr float LayerHeight = 250.f;
+	const FVector MapOrigin = FVector::ZeroVector;
+
+	// Dieci caratteri: il layer negativo aggiunge un terzo segno meno e una seconda cifra.
+	const FRTCellId Worst(-10, -10, -1);
 	const FRTCellLabel Label = URTHexLabelLibrary::BuildCellLabel(Worst, MapOrigin, HexSize, LayerHeight);
 	const TArray<FVector> Corners = URTHexLibrary::CellCorners(Worst, MapOrigin, HexSize, LayerHeight);
 
@@ -235,7 +272,12 @@ bool FRTHexLabelThreeDirectionsTest::RunTest(const FString&)
 		Angles.Add(((Round % 360) + 360) % 360);
 	}
 
-	TestEqual(TEXT("tre direzioni, non una ne' sei"), Angles.Num(), 3);
+	// Ritorno anticipato: senza tre angoli distinti, indicizzare `Sorted[0..2]` sarebbe fuori limite —
+	// idioma gia' in uso in RTHexMapTests.cpp, RTHexDoorTests.cpp, RTObjectiveTests.cpp fra gli altri.
+	if (!TestEqual(TEXT("tre direzioni, non una ne' sei"), Angles.Num(), 3))
+	{
+		return false;
+	}
 
 	TArray<int32> Sorted = Angles.Array();
 	Sorted.Sort();
@@ -268,7 +310,11 @@ bool FRTHexLabelOrderAndScaleTest::RunTest(const FString&)
 			Run.Add(G);
 		}
 	}
-	TestTrue(TEXT("la run a 0 gradi ha almeno tre caratteri"), Run.Num() >= 3);
+	// Ritorno anticipato: senza almeno tre caratteri, `Run[0]`/`Run.Last()` sarebbero fuori limite.
+	if (!TestTrue(TEXT("la run a 0 gradi ha almeno tre caratteri"), Run.Num() >= 3))
+	{
+		return false;
+	}
 
 	const double FirstDist = FVector::Dist2D(Run[0].Origin, Centre);
 	const double LastDist  = FVector::Dist2D(Run.Last().Origin, Centre);
