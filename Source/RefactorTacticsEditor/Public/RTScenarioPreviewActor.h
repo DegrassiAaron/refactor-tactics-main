@@ -6,6 +6,7 @@
 #include "RTScenarioPreviewActor.generated.h"
 
 class UInstancedStaticMeshComponent;
+struct FRTExposedEdge;
 struct FRTScenarioUnitView;
 
 /**
@@ -66,6 +67,32 @@ public:
 	/** Quanti marcatori sono posati. E' cio' che un automation test puo' contare senza guardare a schermo. */
 	int32 NumMarkers() const;
 
+	/**
+	 * Posa il CONFINE della vista di squadra: un pannello per lato esposto, al posto dei precedenti (#1754).
+	 *
+	 * ⛔ **Non decide cosa sia visibile.** Riceve i lati gia' estratti da
+	 * `URTVisibilityBorderLibrary::ExposedEdges` a partire dalla conoscenza canonica: qui non si consulta la
+	 * LOS, non si guarda la mappa e non si sa chi sia il viewer.
+	 *
+	 * ⚠️ **E' un canale in piu' sullo stesso stato, e va saputo.** Il velo distingue gia' i tre stati per
+	 * cella, e #1715 ha misurato che in partita quel salto di luminosita' basta. Qui il confine si aggiunge
+	 * perche' il Tactical Designer e' l'altro caso: camera libera, arene arbitrarie, e una prospettiva che
+	 * si cambia apposta per confrontare due squadre.
+	 */
+	void ShowBorder(const TArray<FRTExposedEdge>& Edges,
+		const FVector& Origin, float HexSize, float LayerHeight);
+
+	/** Toglie il confine. Idempotente. */
+	void ClearBorder();
+
+	/**
+	 * Quanti pannelli di confine sono posati.
+	 *
+	 * ⚠️ Si legge dallo **stato reale delle istanze**, come `ARTHexMapActor::GetVeilCounts`: un contatore a
+	 * parte proverebbe che la funzione sa contare, non che ha disegnato.
+	 */
+	int32 NumBorderPanels() const;
+
 private:
 	/** Corpo del marcatore: il cilindro di `ARTUnit`, non una forma nuova. */
 	UPROPERTY()
@@ -78,4 +105,15 @@ private:
 	/** Cuneo di orientamento: una FORMA davanti al corpo, non un colore — il facing si deve vedere. */
 	UPROPERTY()
 	TObjectPtr<UInstancedStaticMeshComponent> FacingWedges;
+
+	/**
+	 * Il confine della vista di squadra: un pannello per lato esposto.
+	 *
+	 * ⚠️ **Componente separato e non dentro uno degli altri.** Un `UInstancedStaticMeshComponent` porta una
+	 * sola `StaticMesh`, ed e' la stessa ragione per cui in `ARTHexMapActor` i pannelli di bordo e i glifi
+	 * di superficie sono componenti distinti. E' anche cio' che permette di togliere il confine senza
+	 * toccare i marcatori.
+	 */
+	UPROPERTY()
+	TObjectPtr<UInstancedStaticMeshComponent> BorderPanels;
 };

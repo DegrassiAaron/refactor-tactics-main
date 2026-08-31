@@ -60,6 +60,16 @@ private:
 	/** Dimentica la selezione e il readout insieme. Sempre insieme: vedi `SelectedId`. */
 	void ClearSelection();
 
+	/**
+	 * Ricostruisce le posizioni del selettore di prospettiva dalle squadre che l'anteprima sta mostrando
+	 * (#1754).
+	 *
+	 * ⚠️ **Dal DATO, e a ogni scenario.** Le squadre non sono `{0, 1}`: cambiano col file, e un elenco
+	 * costruito una volta al `Construct` offrirebbe la squadra di uno scenario precedente. Senza anteprima
+	 * resta la sola posizione `Omniscient`, che e' anche cio' che il viewport sta mostrando.
+	 */
+	void RefreshPerspectiveOptions();
+
 	TSharedRef<ITableRow> OnGenerateScenarioRow(TSharedPtr<FString> Item, const TSharedRef<STableViewBase>& OwnerTable);
 	TSharedRef<SWidget> OnGenerateTagOption(TSharedPtr<FString> Option) const;
 	void OnScenarioSelected(TSharedPtr<FString> Item, ESelectInfo::Type SelectInfo);
@@ -116,6 +126,17 @@ private:
 	 * dopo una pausa, cioe' il piu' difficile da attribuire.
 	 */
 	TStrongObjectPtr<URTScenarioAuthoring> Authoring;
+
+	/**
+	 * Le posizioni del selettore di prospettiva: `Omniscient` piu' una per squadra schierata.
+	 *
+	 * `TSharedPtr<int32>` e non `int32`: `SComboBox` tiene la selezione per **identita' di puntatore**, ed
+	 * e' la stessa ragione per cui gli id degli scenari passano da `ItemById`. Il valore e' il `TeamId`,
+	 * oppure `RTScenarioKnowledge::OmniscientTeamId`.
+	 */
+	TArray<TSharedPtr<int32>> PerspectiveOptions;
+
+	TSharedPtr<SComboBox<TSharedPtr<int32>>> PerspectiveCombo;
 
 	TSharedPtr<SListView<TSharedPtr<FString>>> ListView;
 };
