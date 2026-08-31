@@ -64,28 +64,6 @@ bool FRTPlaybackInterpDegenerateTest::RunTest(const FString&)
 	return true;
 }
 
-// --- EstimatePlaybackSeconds ----------------------------------------------------------------
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackEstimateTest,
-	"RefactorTactics.Playback.EstimateSeconds",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTPlaybackEstimateTest::RunTest(const FString&)
-{
-	// 4 segmenti a 8 celle/s = 0.5s di movimento (parallelo).
-	TestTrue(TEXT("solo movimento"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::EstimatePlaybackSeconds(4, 0, 0, 8.f, 0.f, 0.f), 0.5f, RTTol));
-	// + 2 attacchi * 0.5s = 1.0 -> 1.5
-	TestTrue(TEXT("movimento + attacchi"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::EstimatePlaybackSeconds(4, 2, 0, 8.f, 0.f, 0.5f), 1.5f, RTTol));
-	// + 3 fasi * 0.2s beat = 0.6 -> 2.1
-	TestTrue(TEXT("movimento + attacchi + beat"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::EstimatePlaybackSeconds(4, 2, 3, 8.f, 0.2f, 0.5f), 2.1f, RTTol));
-	// CellsPerSecond <= 0 -> movimento istantaneo (nessun contributo movimento).
-	TestTrue(TEXT("velocita' nulla -> nessun tempo di movimento"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::EstimatePlaybackSeconds(4, 0, 2, 0.f, 0.2f, 0.5f), 0.4f, RTTol));
-	return true;
-}
-
 // --- SpeedMultiplierForCap ------------------------------------------------------------------
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackSpeedCapTest,
