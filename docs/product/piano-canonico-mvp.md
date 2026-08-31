@@ -302,18 +302,29 @@ macro-fase (Prep → Dash → Blast → Move → Cleanup) → Priority → Actio
 Nessuna chiave è un float, nessuna dipende dall'ordine di una `TMap`. La macro-fase viene **prima** della
 priorità (ADR-0003 §1). *Verifica: permutare l'array di ingresso non cambia la sequenza risolta.*
 
-#### B. Gated — partizione a sei gruppi sugli **effetti**
-
-L'ordine di gruppo APNAP-adattato — 1) sistema/State (morti, scadenze) → 2) unità attiva → 3) alleati
-dell'attivo → 4) avversari → 5) terreno/oggetti → 6) globali di scenario, con intra-gruppo
-**velocità → priorità intera → tie-break assoluto** — **non è implementato**, e non è una versione parziale
-del blocco A: A ordina *quale azione risolve prima*, questo ordinerebbe *quale effetto si applica prima*.
+#### B. Ritirato — la partizione a sei gruppi sugli **effetti**
 
 - **`FR-RESOLVE-01`** — ordine totale per effetti simultanei (gruppi APNAP + tie-break assoluto).
-  **Stato: gated, non vincolante.** Oggi non è osservabile perché il combat somma i danni per bersaglio e la
-  somma è commutativa. **Trigger di costruzione dichiarato: `CP 14.3`**, quando una reazione che *modifica* il
-  danno prima dell'applicazione romperà la commutatività — un bersaglio a 10 HP che subisce 12 danni e riceve
-  +5 di scudo vive o muore a seconda dell'ordine. Sede prevista: una libreria di effetti che **oggi non esiste**.
+  **Stato: RITIRATO il 2026-08-31 da [D-290](../decisions/RT_PDR_00_Decision_Log.md).** Non è stato costruito,
+  e non va costruito.
+
+> 🔴 **La premessa non regge in questo gioco.** APNAP è *Active Player, Non-Active Player*: mette per primi gli
+> effetti di **chi ha il turno**. Qui i turni sono **simultanei** (§«Natura»), nessuno ha il turno, e i sei
+> gruppi — *sistema → **unità attiva** → **alleati dell'attivo** → avversari → terreno → globali* — poggiano su
+> un'unità attiva che non esiste. La regola veniva da
+> [`../archive/gameplay/sequenza-turno-exploratory.md`](../archive/gameplay/sequenza-turno-exploratory.md),
+> esplorativo e poi archiviato; l'adattamento non aveva mai affrontato quel punto.
+>
+> 🔴 **E non avrebbe governato il caso per cui la si voleva.** Il solo caso misurato in cui l'ordine cambia
+> l'esito è *«due nemici colpiscono lo stesso bersaglio in Guardia»*: i due attaccanti sono **entrambi
+> avversari**, cioè lo stesso gruppo in ogni permutazione. La partizione non li separa.
+>
+> ✅ **Come si chiude invece.** Rendendo **commutativa la mitigazione** — il pool di
+> [D-289](../decisions/RT_PDR_00_Decision_Log.md) — non ordinando gli effetti: una somma che non perde pezzi
+> non ha bisogno di sapere chi viene prima. Resta in vigore il solo blocco A.
+>
+> ⚠️ Se un giorno comparisse un effetto ordine-dipendente non riducibile a un pool, la domanda si riapre — ma
+> con una premessa che il gioco possa avere.
 
 #### C. Vincolanti
 
@@ -448,9 +459,13 @@ questa riga citava `FRTGridCoord{X,Y}`, il tipo quadrato ormai rimosso.)*
 Il design esplorativo [`sequenza-turno.md`](../archive/gameplay/sequenza-turno-exploratory.md) (trascrizione del PDF omonimo) propone un
 modello di risoluzione molto più ricco: pianificazione segreta → **reveal progressivo** → **finestre di
 reazione** (stack LIFO stile *Magic*) → risoluzione con ordinamento **APNAP** → cleanup, con 5 categorie di
-velocità e budget di reazione. Consolidamento, conflitti con gli invarianti #3/#4 e la parte adottata per prima
-— **ordinamento deterministico degli effetti simultanei** (APNAP + tie-break totale) — in
+velocità e budget di reazione. Consolidamento e conflitti con gli invarianti #3/#4 in
 [`spec-sequenza-turno.md`](../gameplay/spec-sequenza-turno.md).
+
+> ⚠️ **L'ordinamento APNAP degli effetti simultanei era dato qui come «la parte adottata per prima». Non lo è
+> più**: [D-290](../decisions/RT_PDR_00_Decision_Log.md) l'ha **ritirato** il 2026-08-31, perché presuppone
+> un'unità attiva che un gioco a turni simultanei non ha (§5.1.B). Di questo modello esplorativo la v0.1 ha
+> adottato lo **slot Reazione** di ADR-0003, non l'ordinamento.
 
 > **Aggiornamento 2026-08-06 ([ADR-0003](../decisions/adr-0003-modello-azioni-v01.md), CP 1.1)**: le **reazioni non sono più
 > fuori scope**. La v0.1 adotta uno **slot Reazione** con trigger dichiarato e **1 attivazione per turno**
