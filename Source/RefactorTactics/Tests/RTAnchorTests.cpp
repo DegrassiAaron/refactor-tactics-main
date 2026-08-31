@@ -544,4 +544,73 @@ bool FRTAnchorRedundantSharedFaceIsWarnedTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * I DUE RAMI CHE LA PRIMA STESURA AVEVA SCRITTO SENZA PROVARLI — trovati rileggendo il diff.
+ *
+ * ⚠️ Non sono casi esotici: sono le due porte da cui entra un dato costruito a mano, ed erano l'unico
+ * codice di questa issue che nessun test faceva cadere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnchorRefusesWhatItCannotSayTest,
+	"RefactorTactics.Anchor.RefusesWhatItCannotSay",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnchorRefusesWhatItCannotSayTest::RunTest(const FString&)
+{
+	// 1. DUE CELLE DIVERSE non hanno un sistema di coordinate comune in cui dire un segmento: la grammatica
+	//    e' definita per cella, e un muro lungo e' piu' segmenti — uno per cella, via
+	//    `URTHexLibrary::SplitSegmentAcrossCells`. Chiederlo qui deve fallire, non produrre un segmento
+	//    misurato in due sistemi diversi.
+	{
+		const FRTAnchorRef Here(FRTCellId(0, 0, 0), ERTAnchorKind::Center);
+		const FRTAnchorRef There(FRTCellId(1, 0, 0), ERTAnchorKind::EdgeMid, 3);
+		FRTGeometrySegment S;
+		TestFalse(TEXT("due anchor di celle diverse non fanno un segmento"),
+			URTGeometryGrammarLibrary::SegmentBetweenAnchors(Here, There, AnchorTestHexSize, S));
+	}
+
+	// 2. Anche due celle sullo stesso posto ma su LAYER diversi: non sono adiacenti per definizione, e la
+	//    geometria di un piano non descrive l'altro.
+	{
+		const FRTAnchorRef Ground(FRTCellId(0, 0, 0), ERTAnchorKind::Center);
+		const FRTAnchorRef Above(FRTCellId(0, 0, 1), ERTAnchorKind::Vertex, 0);
+		FRTGeometrySegment S;
+		TestFalse(TEXT("due anchor su layer diversi non fanno un segmento"),
+			URTGeometryGrammarLibrary::SegmentBetweenAnchors(Ground, Above, AnchorTestHexSize, S));
+	}
+
+	// 3. UN CENTRO CON UN INDICE SPORCO: il centro e' uno solo, quindi il suo indice non significa niente.
+	//    Il costruttore lo azzera, ma un `FRTAnchorRef` riempito campo per campo — da una deserializzazione,
+	//    o da chi lo costruisce a mano — puo' portarselo dietro. La chiave canonica DEVE normalizzarlo,
+	//    altrimenti due nomi dello stesso centro non si riconoscerebbero.
+	{
+		FRTAnchorRef Dirty;
+		Dirty.Cell = FRTCellId(2, -2, 0);
+		Dirty.Kind = ERTAnchorKind::Center;
+		Dirty.Index = 4; // non passa dal costruttore: e' proprio il caso da coprire
+
+		const FRTAnchorRef Clean(FRTCellId(2, -2, 0), ERTAnchorKind::Center);
+		TestTrue(TEXT("il centro sporco e quello pulito hanno la stessa chiave"),
+			URTGeometryGrammarLibrary::CanonicalAnchor(Dirty)
+				== URTGeometryGrammarLibrary::CanonicalAnchor(Clean));
+		TestEqual(TEXT("e la chiave porta indice zero"),
+			URTGeometryGrammarLibrary::CanonicalAnchor(Dirty).Index, 0);
+	}
+
+	// 4. E un indice fuori intervallo su un vertice non fa uscire dall'array dei confini: si riduce, come
+	//    fa gia' `DirectionForEdgeIndex` con il suo modulo positivo.
+	{
+		FRTAnchorRef OutOfRange;
+		OutOfRange.Cell = FRTCellId(0, 0, 0);
+		OutOfRange.Kind = ERTAnchorKind::Vertex;
+		OutOfRange.Index = 7; // = 1
+
+		const FRTAnchorRef Wrapped(FRTCellId(0, 0, 0), ERTAnchorKind::Vertex, 1);
+		TestTrue(TEXT("un indice fuori intervallo si riduce invece di sfondare"),
+			URTGeometryGrammarLibrary::AnchorLocal(OutOfRange, AnchorTestHexSize)
+				.Equals(URTGeometryGrammarLibrary::AnchorLocal(Wrapped, AnchorTestHexSize), AnchorWorldEpsilon));
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
