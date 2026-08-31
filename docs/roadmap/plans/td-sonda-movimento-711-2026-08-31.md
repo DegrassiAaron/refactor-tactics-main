@@ -167,14 +167,48 @@ esito     : Result: Succeeded
 dell'engine e vale fra checkout diversi; qui `Binaries/` e `Intermediate/` sono disgiunti da quelli delle
 altre copie, quindi non c'e' nulla da proteggere.
 
-### Test — `RefactorTactics.MovementProbe`
+### Test — `rt-suite`, con le sue invarianti
 
 ```text
-comando   : UnrealEditor-Cmd RefactorTactics.uproject
-            -ExecCmds="Automation RunTests RefactorTactics.MovementProbe;Quit"
-            -unattended -nopause -nosplash -nullrhi -NoLiveCoding
-esito     : 11/11 Success, exit 0
+comando   : ./scripts/rt-suite.ps1 -Filter "RefactorTactics.MovementProbe"
+            -LogName rt-suite-711.log -WaitMinutes 40
+verdetto  : VALIDA
+HEAD      : 61834e09   albero ae48caf4
+esito     : 11/11 completati, 0 fallimenti
+durata    : 00:20        exit code 0
 ```
+
+```text
+comando   : ./scripts/rt-suite.ps1 -LogName rt-suite-711-full.log -WaitMinutes 40
+verdetto  : VALIDA
+HEAD      : 61834e09   albero ae48caf4
+esito     : 1508/1508 completati, 1 fallimento
+durata    : 01:27        exit code 1
+```
+
+⚠️ **L'unico rosso non e' di questa passata, e la prova non e' un ragionamento.** E'
+`RefactorTactics.Startup.ShippedGameModeSetsUpTheAdvertisedMatch` (`RTShippedGameModeTests.cpp:114`), e
+argomentare che «una sonda di movimento non c'entra con il GameMode spedito» sarebbe stato plausibile e
+insufficiente. Rimisurato sulla **baseline** — `fix/graybox-tolerance-unity-shadow` @ `668592e5`, cioe' `main`
+piu' il solo fix di build, **senza** una riga di #711 — ricompilata e rilanciata:
+
+```text
+comando   : ./scripts/rt-suite.ps1 -Filter "RefactorTactics.Startup" ...
+verdetto  : VALIDA
+HEAD      : 668592e5
+esito     : 12/12 completati, 1 fallimento   <- lo STESSO test, lo stesso messaggio
+```
+
+✅ **Ed e' gia' posseduto e gia' corretto**: la PR **#1862** (aperta) lo attribuisce al commit `fb190a94`,
+che entrando in `main` col merge di `wip/938` ha sovrascritto `BP_GameMode.uasset` e **disfatto** il fix di
+#1069 — quello che questo test pinnava. 🔵 E' lo stesso `fb190a94` che l'audit del 2026-08-30 aveva segnalato
+come *«binario senza owner accertato»*: l'owner ora c'e'.
+
+∴ per questa slice: **1507/1508**, con il rosso preesistente dichiarato, misurato sulla baseline e attribuito.
+
+⚠️ **Il binario e' stato ricostruito dopo il ritorno dalla baseline** (`07:43:09`): un checkout di branch
+lascia un DLL che appartiene all'altro albero, e una misura fatta li' sopra sarebbe verde su codice che non e'
+quello che si sta guardando.
 
 | test | cosa difende |
 |---|---|
@@ -218,11 +252,10 @@ disco farebbe dichiarare verde codice che non esiste. Dopo il ripristino: **11/1
 
 ### ⛔ NOT RUN
 
-- **La suite completa `./scripts/rt-suite.ps1`**, con le sue invarianti (HEAD, digest dell'albero, freschezza
-  del log). Non e' stata lanciata da questa sessione **per decisione dell'autore**: il motore e' conteso con
-  altri terminali — durante questa passata `refactor-tactict-dev` ha tenuto il mutex per una run
-  `RefactorTactics.Map.Dependency` — e le run automation concorrenti si bloccano a vicenda. Il comando esatto
-  e' in §7.
+- 🔵 **La suite completa ERA in questa sezione, e non ci sta piu'**: e' stata eseguita con `rt-suite` appena
+  l'autore ha liberato il motore — vedi il referto qui sopra, **VALIDA** in entrambe le forme. Durante la
+  costruzione il motore era conteso (`refactor-tactict-dev` teneva il mutex per `RefactorTactics.Map.Dependency`),
+  ed e' la ragione per cui i cicli TDD sono stati misurati con automation dirette.
 - **Le tre voci PIE**, che sono `⏳` e stanno in `U26`. La leggibilita' del ventaglio, il percorso che segue il
   cursore e la fluidita' dell'hover **non sono osservabili headless**, ed e' la ragione per cui la seduta
   esiste.
@@ -240,7 +273,6 @@ disco farebbe dichiarare verde codice che non esiste. Dopo il ripristino: **11/1
 - PR #1877: il modulo Editor torna a compilare.
 
 **NOT STARTED**
-- La misura con `rt-suite` (§7).
 - La seduta `U26`.
 
 **RISCHI E APERTI**
@@ -256,11 +288,8 @@ disco farebbe dichiarare verde codice che non esiste. Dopo il ripristino: **11/1
 
 ## 7. Prossimo passo esatto
 
-1. Con il motore libero, la misura che questa sessione non ha fatto:
-   ```powershell
-   ./scripts/rt-suite.ps1 -Filter "RefactorTactics.MovementProbe" -LogName rt-suite-711.log -WaitMinutes 40
-   ./scripts/rt-suite.ps1 -WaitMinutes 40   # e la completa, per i due rossi noti di #1515
-   ```
+1. **#1862 prima di questa PR, se possibile**: e' l'unico rosso della suite, e mergiarla toglie l'unica
+   ragione per cui `rt-suite` esce `1` su questo branch.
 2. `U26` in seduta, sulle tre voci — e su una mappa che abbia **davvero** una superficie costosa, un blocco e
    una zona irraggiungibile: senza quelle tre condizioni la sonda non ha modo di mostrare motivi diversi.
 3. Per chi prende **#1625**: la decisione di §1 prima del codice, e il criterio di #1754 recepito nella DoD.
