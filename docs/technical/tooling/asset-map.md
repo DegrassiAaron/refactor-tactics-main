@@ -112,10 +112,11 @@ distanza fra il totale dichiarato e quello riproducibile è esattamente la riga 
 *(Misura precedente, 2026-08-17 su `a4a393b6`: 21 attesi · 16 committati · 0 su disco · 5 assenti. Prima
 ancora, 2026-08-13 su `515c5c88`: 17 attesi · 13 committati · 4 mancanti.)*
 
-⚠️ **I quattro committati in più dal 17 agosto sono i cinque `WBP_RT_*` di U24 meno uno**: l'allowlist
-nel frattempo ha riammesso anche `WBP_RT_FrontendRoot` e `WBP_RT_ModalLayer` (righe d'allowlist proprie in
-`.gitignore`, da cercare **per nome**), che
-§2.1 dava ancora come famiglia senza riga — vedi la correzione lì.
+⚠️ **I quattro committati in più dal 17 agosto sono tre `WBP_RT_*` e una mappa**, non «i cinque di U24 meno
+uno» come diceva questa riga fino al 31-08: `FallbackBanner` ed `ErrorModal` erano già committati il 17, e
+i nuovi sono `LoadingScreen`, `FrontendRoot`, `ModalLayer` più `DA_Format_Scratch`. L'allowlist nel
+frattempo ha riammesso anche gli ultimi due — righe proprie in `.gitignore`, da cercare **per nome** — che
+§2.1 dava ancora come famiglia senza riga, ed è la correzione fatta lì.
 
 🔴 **Il 🟡 non è durato quattro giorni, e non è stato committato: è stato cancellato.** Il 13 agosto
 `ABP_Gadget.uasset` esisteva sul disco di chi sviluppa e non era nel repository. Oggi non esiste più
