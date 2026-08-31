@@ -12,6 +12,8 @@
 #include "Turn/RTReactionOpportunityTypes.h" // Decision Boundary dell'Overwatch (CP 14.5): opportunity e decisione
 #include "Combat/RTOffensiveActionLibrary.h" // MakeSuppressiveZone: la zona dell'Overwatch E' quella della soppressione
 #include "Perception/RTPerceptionLibrary.h" // TeamAwarenessOfCell: il trigger richiede `Rilevato` (ADR-0004 §6)
+#include "Perception/RTTeamKnowledge.h" // ObservedPrefixLength: la regola di troncamento di [D-223], una sola volta
+#include "Player/RTPlayerState.h" // TeamIdOf: l'unica porta per «di che squadra e' chi guarda» ([D-285])
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTEquipmentData.h" // `EquipmentId`: distingue una reazione di loadout da una di kit
 #include "Combat/RTCombatResolver.h"
@@ -178,24 +180,18 @@ TArray<FString> ARTTurnManager::ComposeVisibleLogLines(const TArray<FRTCombatLog
 
 TArray<FRTCellId> ARTTurnManager::VisibleTrailFor(const FRTMoveRoute& Route, int32 ObserverTeamId)
 {
+	// 🔴 **La regola vive in `ObservedPrefixLength`, non qui** (`#1525`). Il troncamento e il suo
+	// fail-closed erano scritti in questa funzione, e finche' ci sono stati il playback — l'altro
+	// consumatore della stessa rotta — non poteva applicarli senza copiarli. Due copie sarebbero
+	// divergute, e la contraddizione che [D-223] nomina (traccia troncata mentre il modello prosegue)
+	// sarebbe tornata dalla porta di servizio.
+	const int32 Visible = URTTeamKnowledgeLibrary::ObservedPrefixLength(
+		Route.Cells, Route.CellVerdicts, ObserverTeamId);
+
 	TArray<FRTCellId> Trail;
-
-	// Fail-closed sul disallineamento: senza questo controllo un `Cells.Add` futuro senza il verdetto
-	// corrispondente leggerebbe fuori dall'array dei verdetti. Una rotta malformata non si disegna.
-	if (Route.CellVerdicts.Num() != Route.Cells.Num())
+	Trail.Reserve(Visible);
+	for (int32 i = 0; i < Visible; ++i)
 	{
-		return Trail;
-	}
-
-	Trail.Reserve(Route.Cells.Num());
-	for (int32 i = 0; i < Route.Cells.Num(); ++i)
-	{
-		// 🔴 `break`, non `continue`. Riprendere dopo un buco unirebbe due celle NON adiacenti con un
-		// segmento dritto, che passa esattamente sopra il tratto da nascondere: peggio che non filtrare.
-		if (!Route.CellVerdicts[i].AllowsTeam(ObserverTeamId))
-		{
-			break;
-		}
 		Trail.Add(Route.Cells[i]);
 	}
 	return Trail;
@@ -3855,6 +3851,11 @@ void ARTTurnManager::ResolveDash()
 			Ev.Type = ERTResolvedEventType::Move;
 			Ev.SourceStableUnitId = Units[i]->StableUnitId;
 			Ev.Path = Route;
+			// 🔴 **Lo STESSO verdetto della traccia, copiato e non ricalcolato** (`#1525`). Questa era la
+			// «seconda strada» che la stessa rotta prendeva due righe piu' sotto: `LastMoveRoutes` moriva
+			// nel `Reset()` del Move e non arrivava a schermo, mentre questo evento ci arrivava — senza
+			// verdetto. Il Dash era quindi la meta' viva del difetto, non quella morta.
+			Ev.CellVerdicts = Tracked.CellVerdicts;
 			ResolvedTimeline.Add(Ev);
 		}
 	}
@@ -6009,6 +6010,9 @@ void ARTTurnManager::ResolveMovement()
 			Ev.Type = ERTResolvedEventType::Move;
 			Ev.SourceStableUnitId = Units[i]->StableUnitId;
 			Ev.Path = Route;
+			// 🔴 Lo STESSO verdetto congelato una riga sopra per la traccia (`#1525`): il modello e la
+			// polilinea che lo racconta si troncano allo stesso punto, perche' leggono lo stesso dato.
+			Ev.CellVerdicts = Tracked.CellVerdicts;
 			ResolvedTimeline.Add(Ev);
 		}
 	}
@@ -6097,6 +6101,21 @@ void ARTTurnManager::ResolveMovement()
 
 // ===================== Playback della risoluzione (presentazione) =============================
 
+
+int32 ARTTurnManager::ResolvedMoveVerdictCountForTest(int32 StableUnitId) const
+{
+	for (const FRTResolvedEvent& Ev : ResolvedTimeline)
+	{
+		// #1907 ha tolto il `TWeakObjectPtr` dall'evento: l'id ci sta gia' dentro, quindi non si passa piu'
+		// dall'Actor per sapere di chi e' il movimento — e la risposta non dipende piu' dal fatto che sia vivo.
+		if (Ev.Type == ERTResolvedEventType::Move && Ev.SourceStableUnitId == StableUnitId)
+		{
+			return Ev.CellVerdicts.Num();
+		}
+	}
+	return INDEX_NONE;
+}
+
 void ARTTurnManager::BeginPlayback()
 {
 	// Cache della trasformazione della mappa per convertire celle -> mondo durante il playback.
@@ -6107,6 +6126,15 @@ void ARTTurnManager::BeginPlayback()
 	MoveAnims.Reset();
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
+	// 🔴 **La squadra di chi GUARDA, e il playback si tronca su di essa** (`#1525`, [D-223]). Stessa porta
+	// di `ARTHUD::DrawHUD` e del velo: una sola risposta a «di che squadra e' questo giocatore» ([D-285]).
+	//
+	// ⚠️ **Limite dichiarato, ed e' lo stesso del velo**: qui il viewer e' il giocatore LOCALE, perche' in
+	// v0.1 il TurnManager e il client sono lo stesso processo. Questo troncamento e' presentazione, non un
+	// confine di sicurezza: quando la partita sara' in rete, il dato non autorizzato non dovra' essere
+	// replicato — non filtrato all'arrivo. Vedi `conoscenza-parziale-visibile-spec.md` §1.3.
+	const int32 ViewerTeamId = ARTPlayerState::TeamIdOf(UGameplayStatics::GetPlayerController(this, 0));
+
 	TSet<ARTUnit*> StartPositioned; // per posizionare il cilindro all'inizio della sua PRIMA fase (Dash prima di Move)
 	for (const FRTResolvedEvent& Ev : ResolvedTimeline)
 	{
@@ -6117,13 +6145,29 @@ void ARTTurnManager::BeginPlayback()
 
 		if (Ev.Type == ERTResolvedEventType::Move && Src && Ev.Path.Num() >= 2)
 		{
+			// Quante celle iniziali l'osservatore ha il diritto di vedere percorrere. La regola e' quella
+			// della traccia, e la funzione e' LA STESSA: `VisibleTrailFor` chiama questa.
+			const int32 Visible = URTTeamKnowledgeLibrary::ObservedPrefixLength(
+				Ev.Path, Ev.CellVerdicts, ViewerTeamId);
+
+			// 🔴 **Meno di due celle osservate: nessuna animazione, e soprattutto NESSUN posizionamento
+			// sullo start.** Il `SetVisualLocation` qui sotto e' esso stesso un canale: piazzare il modello
+			// sulla cella di PARTENZA di un movimento che l'osservatore non ha visto cominciare rivelerebbe
+			// da dove il nemico e' uscito — e lo farebbe proprio nel caso in cui la sua destinazione e'
+			// visibile, cioe' quando `bKnownToObserver` lo lascia acceso. Saltando, il modello resta dove
+			// il frame precedente lo aveva lasciato e `FinishPlayback` lo porta alla sua cella logica.
+			if (Visible < 2)
+			{
+				continue;
+			}
+
 			FRTMoveAnim Anim;
 			Anim.Unit = Src;
 			Anim.Phase = Ev.Phase; // Dash o Move
-			Anim.World.Reserve(Ev.Path.Num());
-			for (const FRTCellId& C : Ev.Path)
+			Anim.World.Reserve(Visible);
+			for (int32 i = 0; i < Visible; ++i)
 			{
-				Anim.World.Add(Src->WorldForCell(C, PBOrigin, PBCellSize, PBLayerHeight));
+				Anim.World.Add(Src->WorldForCell(Ev.Path[i], PBOrigin, PBCellSize, PBLayerHeight));
 			}
 			// Metti il cilindro all'inizio della sua PRIMA anim (Dash precede Move nella timeline):
 			// niente flash sulla cella finale. Un'anim successiva della stessa unita' non ne sposta lo start.

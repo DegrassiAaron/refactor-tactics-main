@@ -330,6 +330,19 @@ public:
 	void PlanBotsForTest() { PlanBots(); }
 
 	/**
+	 * Hook per i test: quanti verdetti porta l'evento di movimento di questa unita' nella timeline risolta.
+	 *
+	 * 🔴 **Esiste perche' il predicato puro non basta a dimostrare il fix di `#1525`.**
+	 * `ObservedPrefixLength` e' coperto da cinque test, ma resterebbe verde anche se nessuno gli passasse
+	 * i verdetti: il difetto non era la regola — era che `FRTResolvedEvent` portava la rotta **senza** il
+	 * verdetto che la traccia aveva gia' congelato due righe sopra. Questo accessore rende osservabile
+	 * proprio quel collegamento, che e' la meta' del difetto che un test puro non puo' vedere.
+	 *
+	 * @return il numero di verdetti, o `INDEX_NONE` se l'unita' non ha un evento di movimento.
+	 */
+	int32 ResolvedMoveVerdictCountForTest(int32 StableUnitId) const;
+
+	/**
 	 * Hook per i test: applica una modifica temporanea di superficie dichiarandone l'autore.
 	 *
 	 * Serve perche' la scadenza ambientale — la voce che deve restare senza attore (#405) — nessuno scenario
