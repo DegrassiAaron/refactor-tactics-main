@@ -1050,11 +1050,13 @@ indice**, per chi cerca la sigla vecchia: il contenuto vive nel Decision Log.
 
 | Era | Decisione presa | Dove vive ora |
 |---|---|---|
-| `OD-1` | Formato principale **non deciso**: D-001 declassata da *Consolidata* ad *Assunzione da bloccare*. Il 3v3 resta baseline di lavoro, il 4v4 solo scenario di stress | [`D-011`](decisions/RT_PDR_00_Decision_Log.md) |
+| `OD-1` | ~~Formato principale **non deciso**: D-001 declassata da *Consolidata* ad *Assunzione da bloccare*. Il 3v3 resta baseline di lavoro, il 4v4 solo scenario di stress~~ · 🟣 **Superata il 2026-08-30**: il formato Standard **è 3v3**; il 2v2 resta Skirmish/vertical slice ed è il formato della v0.1; il 4v4 e oltre restano Operations, stress e scala | [`D-011`](decisions/RT_PDR_00_Decision_Log.md) → **[`D-256`](decisions/RT_PDR_00_Decision_Log.md)** |
 | `OD-2` | Unità ausiliarie: **concetto unico**, solo vincoli architetturali, gameplay fuori dalla v0.1 | [`gameplay/brief-unita-ausiliarie.md`](gameplay/brief-unita-ausiliarie.md) |
 | `OD-3` | L'Overwatch **compete** con l'azione offensiva; le tre policy entrano nel DoD di **CP 14.3** | [`D-012`](decisions/RT_PDR_00_Decision_Log.md) · [`gameplay/brief-azioni-generiche-overwatch.md`](gameplay/brief-azioni-generiche-overwatch.md) |
 | `OD-4` | Il trigger su transizione è **possesso della trap**, non della mappa: `FRTHexEdge` resta per i soli salti di layer | [`D-013`](decisions/RT_PDR_00_Decision_Log.md) |
 | `OD-5` | Scenario **4v4 di stress** in roadmap dopo E15, come validazione e non come produzione | epic **E17**, [`roadmap/roadmap-v0.1.md`](roadmap/roadmap-v0.1.md) |
+
+⚠️ **`OD-1` è l'unica delle cinque a essere stata superata.** L'indice la conserva perché la sigla vecchia circola ancora, ma chi la cerca deve arrivare a [`D-256`](decisions/RT_PDR_00_Decision_Log.md), non fermarsi a `D-011`: quella voce resta valida per il resto del suo contenuto, e `D-256` ne declassa **solo** la metà «formato non deciso». `OD-5` non cambia — `D-256` conferma il 4v4 come scenario di stress e scala, mai come formato competitivo standard.
 
 **Nota di metodo, che vale più delle singole risposte.** Due delle cinque domande erano **mal poste**, e lo si è
 scoperto guardando il codice invece dei documenti:
