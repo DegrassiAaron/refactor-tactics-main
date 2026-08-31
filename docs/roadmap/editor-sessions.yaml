@@ -2314,7 +2314,7 @@ sessions:
     produces: verdetto su leggibilità delle coordinate incise sul pavimento, e sul costo di disegno su una mappa grande
     artifacts: []
     unblocked_by: [U21]
-    shares_setup_with: [U21]
+    shares_setup_with: [U21, U22, U25, U26]
     verifies: [PIE-HEX-COORD-LEGGIBILITA, PIE-HEX-COORD-COSTO]
     issues: [1920]
     done_when: le due voci hanno un esito reale nel registro
@@ -2326,8 +2326,12 @@ sessions:
       dava **0** prima di questo commit. Stessa ragione per cui `U26` e `U35` esistono.
       ⚠️ `unblocked_by: [U21]` per la stessa ragione pratica di `U22`, `U25` e `U26`: su una scena non
       illuminata il verdetto direbbe più sulle luci che sulle coordinate.
-      ⚠️ `shares_setup_with: [U21]` e non l'intero gruppo `[U22, U25, U26]`: quelle tre sedute
-      richiedono un tool attivo (Geometry, Graybox, Probe) oltre alla scena illuminata; questa no — la
-      precondizione dichiarata in `test-manuali-pie.md` è «nessun tool da attivare».
+      ⚠️ `shares_setup_with: [U21, U22, U25, U26]`, l'intero clique: il criterio non e' lo
+      strumento attivo ma lo **stesso allestimento** (`L_DevSandbox` illuminato da `U21`), ed e' per
+      questo che `U22`/`U25`/`U26` si citano gia' a vicenda pur richiedendo tool diversi fra loro
+      (Geometry, Graybox, Probe) — la definizione del campo parla di *stessa apertura*, non di stesso
+      strumento, e la Regola di batching in testa al file tratta un cambio di tool come una ragione che
+      NON giustifica una nuova apertura. `U39` chiede MENO delle altre tre — nessun tool — quindi e' un
+      sottoinsieme del loro allestimento, non un caso a parte: si esegue nella stessa apertura.
       ⚠️ ID assegnato prima del merge: `U39`, con `U38` come massimo misurato su `main` **e su tutti i
       branch remoti** il 2026-08-31. Chi arriva secondo rinumera, non contende.
