@@ -352,21 +352,25 @@ citato nel body, non lasciato implicito.
   `feat/1864-gesto-select-erase`, la misura è avvenuta su `main` `8bfe8f84`, e `origin/main` è avanzato a
   `0b179ff6` prima delle mutazioni (§8.0). Il repository è lavorato in parallelo (`CLAUDE.md` §7): **chi
   riprende questo referto rifetchi prima di fidarsi di §3**.
-- ⚠️ **Nessun `D-nnn` è stato prenotato** da questo referto. Se la scelta di forma del payload va registrata
-  come decisione, l'ID va **cercato e verificato al momento**, non assunto: l'ultimo osservato è **`D-299`**
-  — ed era `D-298` a inizio sessione, il che è la dimostrazione del punto. Prenotarlo non lo protegge.
+- ✅ **`D-301` prenotata e registrata**, e non in un commento: la voce è nel **Decision Log**, dentro la PR
+  aperta di questo referto — l'unico posto dove il protocollo (`git fetch` · `gh pr list` · `grep` sul
+  Decision Log) la vede. Una riserva annunciata altrove è invisibile, e due sessioni la rivendicherebbero
+  senza vedersi. ⚠️ **L'ID è stato scelto dopo un `git fetch`, e serviva**: `origin/main` era passato a
+  `bf9bdb4d` e portava già `D-300`, mentre questa stessa sezione aveva osservato `D-299` poche ore prima.
 - ⚠️ **Nessun owner doc di sistema è stato aggiornato.** `roadmap-v0.1.md` §E21 continua a descrivere E21 con
   tre checkpoint e nessuna menzione del gap differito: la nota vive solo su `#286` (M3). Se il differimento
   deve essere leggibile **dalla roadmap** e non solo dalla issue, è un pass separato.
-- ⚠️ La forma del payload — campo `TArray<FRTCellId>` riusato, campo nuovo, o nuovi `ERTResolvedEventType` —
-  **non è decisa qui**. Tocca `#789` (GAS) come secondo consumatore: è una scelta di contratto, e va fatta
-  con i due consumatori sul tavolo.
+- ⚠️ **`#789` (GAS) non è stato consultato sulla forma.** È il secondo consumatore dichiarato di
+  `FRTResolvedEvent` (`D-260`), e `D-301` lo tocca: la voce sceglie un evento separato invece di allargare
+  `Attack`, il che *riduce* l'impatto su quel consumatore ma non lo azzera. Da verificare quando `#789` si apre.
 
 ---
 
 ## 12. La forma del payload — decisa
 
-> Registrata su [`#1945`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1945#issuecomment-5478832022) il 2026-08-31, misurata su `origin/main` `0b179ff6`.
+> Registrata come **[`D-301`](../../decisions/RT_PDR_00_Decision_Log.md)** nel Decision Log e su
+> [`#1945`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1945#issuecomment-5478832022) il 2026-08-31.
+> Misurata su `origin/main` `0b179ff6`; ID scelto su `bf9bdb4d`.
 
 **Un valore nuovo in coda a `ERTResolvedEventType` — `AttackFootprint` — emesso una volta per INTENTO, con
 tre campi additivi.** Non il riuso di `Path`, non un campo su `Attack`, non un tipo per forma.
