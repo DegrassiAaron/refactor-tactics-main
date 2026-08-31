@@ -1,6 +1,6 @@
 # Spec — Sequenza canonica del round
 
-> **Stato**: **normativa** · **Ultimo aggiornamento**: 2026-08-08
+> **Stato**: **normativa** · **Ultimo aggiornamento**: 2026-08-31
 > **Ruolo**: è *il* documento che dice **cosa succede in un round e in quale ordine**. Chi deve sapere come si
 > risolve un turno legge questo; tutto il resto è dettaglio di una singola area.
 > **Autorità**: subordinata a [`piano-canonico-mvp.md`](../product/piano-canonico-mvp.md) (invarianti) e agli
@@ -53,6 +53,30 @@ segmento: lo termina e restituisce il controllo.
 
 L'invariante #3 **si compone, non si deroga**: la scelta del giocatore entra nel TurnLog **come dato**, e il
 timeout è una funzione pura costante. Per questo il *quando* del click non cambia l'esito.
+
+### 1.2 L'Environment ha due ruoli, non uno
+
+Il diagramma del §1 mette `CLEANUP` in fondo, e da lì si deduce facilmente la cosa sbagliata: che l'ambiente
+sia **solo** una fase finale. Non lo è, e il runtime lo dimostra da prima che questo paragrafo esistesse
+([D-288](../decisions/RT_PDR_00_Decision_Log.md)).
+
+| | Quando agisce | Chi lo esegue |
+|---|---|---|
+| **Environment reattivo** | **durante** la Resolution, come conseguenza di una mutazione appena applicata | `ApplyTerrainOnEnterEffects` (ingresso in una cella) · `ApplyEnvironmentChanges` (strutture, in coda al Blast) · `ResolveEnvironment` (nascita delle superfici) |
+| **Environment di propagazione** | nel `Cleanup`, sul tempo del turno | `TickDynamicSurfaces` · `TickDynamicArcs` · `TickDynamicCovers` · durate e danno di `Burning` |
+
+I due ruoli **non sono due sistemi**: sono lo stesso ambiente letto in due momenti, e il secondo non è una
+generalizzazione del primo. La prova che la distinzione è reale sta in
+[`ERTReactionPassPoint`](../../Source/RefactorTactics/Turn/RTReactionLibrary.h): il valore
+`CleanupSurfaceBirth` esiste **apposta** per la finestra fra una superficie che nasce e il danno che infligge
+— *«l'unico punto fuori dal Blast»* — e senza di essa `Reaction.HazardEscape` reagirebbe a una cella che
+diventerà pericolosa una fase dopo ([D-092](../decisions/RT_PDR_00_Decision_Log.md),
+[D-093](../decisions/RT_PDR_00_Decision_Log.md)).
+
+> ⚠️ **La mutazione strutturale è reattiva, ma il suo derived state no.** Una struttura abbattuta si applica
+> **a colpi risolti**, e vista e grafo si riaprono **dalla fase successiva** (CP 9.2): chi ha sparato nello
+> stesso Blast non guadagna la linea perché il muro è caduto. È la ragione per cui l'ordine dei colpi non
+> cambia l'esito, ed è una policy — non un effetto collaterale dell'implementazione.
 
 ---
 
