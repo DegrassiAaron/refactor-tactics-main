@@ -1,5 +1,9 @@
 #include "Tools/RTHexSelectTool.h"
 #include "RTHexEditorClick.h"
+#include "RTHexSelectionStore.h"
+#include "Map/RTHexLibrary.h"
+#include "Editor.h"
+#include "Framework/Application/SlateApplication.h"
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
 #include "Map/RTHexMapActor.h"
@@ -69,7 +73,8 @@ void URTHexSelectTool::OnClicked(const FInputDeviceRay& ClickPos)
 
 	FRTCellId Cell;
 	FVector Center;
-	if (!RTHexEditor::ResolveClickedCell(TargetWorld, Actor, ClickPos, Cell, Center)) { return; }
+	FVector ClickedPoint;
+	if (!RTHexEditor::ResolveClickedCell(TargetWorld, Actor, ClickPos, Cell, Center, &ClickedPoint)) { return; }
 
 	Properties->ActiveLayer = Actor->ActiveLayer;
 	Properties->SelectedCell = Cell;
@@ -89,8 +94,38 @@ void URTHexSelectTool::OnClicked(const FInputDeviceRay& ClickPos)
 	MarkerRadius = (Map ? Map->HexSize : Actor->HexSize) * 0.9f;
 	bHasSelection = true;
 
-	UE_LOG(LogTemp, Log, TEXT("[HexMode] Selezione %s (esiste=%d) su layer %d."),
-		*Cell.ToString(), Properties->bSelectedCellExists ? 1 : 0, Actor->ActiveLayer);
+	// L'elemento sotto il click, e il CICLO: ri-cliccare lo stesso punto scende al candidato successivo.
+	// Il bordo mirato lo decide `NearestEdgeDirection`, che sta nel runtime ed e' provata headless — qui non
+	// si ricava nessun angolo.
+	if (URTHexSelectionStore* Store = GEditor ? GEditor->GetEditorSubsystem<URTHexSelectionStore>() : nullptr)
+	{
+		FVector Origin = FVector::ZeroVector;
+		float HexSize = 0.f;
+		float LayerH = 0.f;
+		Actor->GetHexContext(Origin, HexSize, LayerH);
+
+		const ERTHexDirection Edge =
+			URTHexLibrary::NearestEdgeDirection(Cell, ClickedPoint, Origin, HexSize, LayerH);
+
+		// Ctrl aggiunge invece di sostituire: e' la multi-selezione condivisa che #1864 chiede.
+		const bool bAdditive = FSlateApplication::IsInitialized()
+			&& FSlateApplication::Get().GetModifierKeys().IsControlDown();
+
+		if (bAdditive)
+		{
+			Store->AddAt(Map, Cell, Edge);
+		}
+		else
+		{
+			Store->SelectAt(Map, Cell, Edge);
+		}
+
+		Properties->SelectedCount = Store->GetSelection().Num();
+		Properties->SelectedElement = URTHexSelectionStore::Describe(Store->GetSelection());
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[HexMode] Selezione %s -> %s (%d elementi)."),
+		*Cell.ToString(), *Properties->SelectedElement, Properties->SelectedCount);
 }
 
 void URTHexSelectTool::Render(IToolsContextRenderAPI* RenderAPI)

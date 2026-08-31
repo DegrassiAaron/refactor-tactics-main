@@ -50,6 +50,19 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Hex|Selezione")
 	bool bBlocksMovement = false;
 
+	/**
+	 * Che cosa e' selezionato ADESSO, in chiaro (#1864).
+	 *
+	 * ⚠️ Legge dallo `URTHexSelectionStore`, che e' condiviso: non e' uno stato di questo tool. E' il rimedio
+	 * al difetto di #921 — cio' che vive in un property set sparisce cambiando strumento.
+	 */
+	UPROPERTY(VisibleAnywhere, Category = "Hex|Selezione")
+	FString SelectedElement;
+
+	/** Quanti elementi sono selezionati (la multi-selezione si costruisce con Ctrl+click). */
+	UPROPERTY(VisibleAnywhere, Category = "Hex|Selezione")
+	int32 SelectedCount = 0;
+
 	/** [Overlay] Colora le celle per superficie (debug read-only); le bloccate con esagono rosso. */
 	UPROPERTY(EditAnywhere, Category = "Hex|Overlay")
 	bool bShowOverlay = false;

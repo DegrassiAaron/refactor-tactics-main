@@ -104,3 +104,51 @@ void URTHexSelectionStore::Clear()
 	bHasCycle = false;
 	CycleIndex = INDEX_NONE;
 }
+
+FString URTHexSelectionStore::Describe(const TArray<FRTMapElementHandle>& Handles)
+{
+	if (Handles.Num() == 0)
+	{
+		return TEXT("niente");
+	}
+
+	auto DescribeOne = [](const FRTMapElementHandle& H) -> FString
+	{
+		switch (H.Kind)
+		{
+		case ERTMapElementKind::Cell:
+			return FString::Printf(TEXT("cella %s"), *H.Cell.ToString());
+
+		case ERTMapElementKind::Cover:
+			return FString::Printf(TEXT("copertura su %s bordo %d"),
+				*H.Cell.ToString(), static_cast<int32>(H.Edge));
+
+		case ERTMapElementKind::Door:
+			// Il nome quando c'e'; altrimenti il bordo. ⚠️ Mai `NAME_None` a schermo: «None» si legge come
+			// un nome, e chi lo vedesse lo cercherebbe.
+			return H.StableId.IsNone()
+				? FString::Printf(TEXT("porta su %s bordo %d"), *H.Cell.ToString(), static_cast<int32>(H.Edge))
+				: FString::Printf(TEXT("porta '%s'"), *H.StableId.ToString());
+
+		case ERTMapElementKind::InteriorWall:
+			return H.StableId.IsNone()
+				? FString::Printf(TEXT("muro interno (senza nome) su %s"), *H.Cell.ToString())
+				: FString::Printf(TEXT("muro interno '%s'"), *H.StableId.ToString());
+
+		case ERTMapElementKind::Transition:
+			return TEXT("transizione");
+
+		default:
+			return TEXT("elemento sconosciuto");
+		}
+	};
+
+	if (Handles.Num() == 1)
+	{
+		return DescribeOne(Handles[0]);
+	}
+
+	// Con piu' elementi si dichiara il conteggio e il primo: elencarli tutti riempirebbe il pannello, e il
+	// numero e' l'informazione che dice quanto porterebbe via un Erase.
+	return FString::Printf(TEXT("%d elementi (%s, ...)"), Handles.Num(), *DescribeOne(Handles[0]));
+}

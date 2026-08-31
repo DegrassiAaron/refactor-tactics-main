@@ -238,4 +238,58 @@ bool FRTSelectionStoreAccumulatesTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il readout dichiara TIPO e IDENTITA', non «un elemento».
+ *
+ * ⚠️ E' anche l'unico modo in cui chi clicca capisce a che punto del ciclo si trova: un pannello che dicesse
+ * «1 elemento selezionato» lascerebbe indovinare se il prossimo Erase toglie la porta o la cella sotto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSelectionStoreDescribeTest,
+	"RefactorTactics.Editor.Selection.ReadoutNamesTypeAndIdentity",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSelectionStoreDescribeTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(1, 2, 0);
+
+	TestEqual(TEXT("selezione vuota"), URTHexSelectionStore::Describe({}), FString(TEXT("niente")));
+
+	// La cella nomina le proprie coordinate.
+	const FString CellText = URTHexSelectionStore::Describe({ FRTMapElementHandle::ForCell(Cell) });
+	TestTrue(*FString::Printf(TEXT("la cella dichiara il tipo (era: %s)"), *CellText),
+		CellText.Contains(TEXT("cella")));
+	TestTrue(*FString::Printf(TEXT("e le coordinate (era: %s)"), *CellText),
+		CellText.Contains(TEXT("1")) && CellText.Contains(TEXT("2")));
+
+	// La porta nomina il proprio StableId: e' la sua identita' pubblica.
+	const FString DoorText = URTHexSelectionStore::Describe(
+		{ FRTMapElementHandle::ForDoor(Cell, ERTHexDirection::E, TEXT("D1")) });
+	TestTrue(*FString::Printf(TEXT("la porta dichiara il tipo (era: %s)"), *DoorText),
+		DoorText.Contains(TEXT("porta")));
+	TestTrue(*FString::Printf(TEXT("e il suo nome (era: %s)"), *DoorText),
+		DoorText.Contains(TEXT("D1")));
+
+	// Un muro ANONIMO non ha un nome da mostrare, e il readout non deve inventarne uno.
+	FRTGeometrySegment Chord;
+	const double Angle = PI / 6.0;
+	const FVector2D A(SelStoreHexSize * FMath::Cos(Angle), SelStoreHexSize * FMath::Sin(Angle));
+	if (URTGeometryGrammarLibrary::SnapToGrammar(A, FVector2D(-A.X, -A.Y), SelStoreHexSize, Chord))
+	{
+		const FString WallText =
+			URTHexSelectionStore::Describe({ FRTMapElementHandle::ForInteriorWallAt(Cell, Chord) });
+		TestTrue(*FString::Printf(TEXT("il muro dichiara il tipo (era: %s)"), *WallText),
+			WallText.Contains(TEXT("muro")));
+		TestFalse(*FString::Printf(TEXT("e non si inventa un nome (era: %s)"), *WallText),
+			WallText.Contains(TEXT("None")));
+	}
+
+	// Piu' elementi: il readout dice quanti sono invece di elencarli tutti.
+	const FString ManyText = URTHexSelectionStore::Describe({
+		FRTMapElementHandle::ForCell(Cell),
+		FRTMapElementHandle::ForCell(FRTCellId(0, 0, 0)) });
+	TestTrue(*FString::Printf(TEXT("la multi-selezione dichiara il conteggio (era: %s)"), *ManyText),
+		ManyText.Contains(TEXT("2")));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

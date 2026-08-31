@@ -4,6 +4,7 @@
 #include "Map/RTGeometryGrammar.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTMapDependencyLibrary.h"
+#include "Map/RTStructureIdentityLibrary.h"
 
 int32 URTMapEditLibrary::ResolveInteriorWall(const URTHexMapAsset* Map, const FRTMapElementHandle& Handle)
 {
@@ -105,9 +106,81 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 		return ERTMapEditOutcome::RefusedUnresolved;
 	}
 
+	// --- Muro interno: risolve per nome, o per chiave se anonimo ------------------------------------
+	if (Handle.Kind == ERTMapElementKind::InteriorWall)
+	{
+		const int32 Index = ResolveInteriorWall(Map, Handle);
+		if (Index == INDEX_NONE)
+		{
+			return ERTMapEditOutcome::RefusedUnresolved;
+		}
+		Map->InteriorWalls.RemoveAt(Index);
+		return ERTMapEditOutcome::Applied;
+	}
+
+	// --- Copertura e porta: vivono DENTRO la cella, quindi si riscrive la cella ---------------------
+	if (Handle.Kind == ERTMapElementKind::Cover || Handle.Kind == ERTMapElementKind::Door)
+	{
+		const FRTHexCellData* Existing = Map->FindCell(Handle.Cell);
+		if (Existing == nullptr)
+		{
+			return ERTMapEditOutcome::RefusedUnresolved;
+		}
+
+		FRTHexCellData Data = *Existing;
+		int32 Removed = 0;
+		TArray<FName> OrphanedNames;
+
+		if (Handle.Kind == ERTMapElementKind::Cover)
+		{
+			Removed = Data.Covers.RemoveAll([&Handle](const FRTHexCover& C) { return C.Edge == Handle.Edge; });
+		}
+		else
+		{
+			Removed = Data.Doors.RemoveAll([&Handle, &OrphanedNames](const FRTHexDoor& D)
+			{
+				if (D.Edge != Handle.Edge)
+				{
+					return false;
+				}
+				if (!D.StableId.IsNone())
+				{
+					OrphanedNames.AddUnique(D.StableId);
+				}
+				return true;
+			});
+		}
+
+		if (Removed == 0)
+		{
+			return ERTMapEditOutcome::RefusedUnresolved;
+		}
+
+		Map->AddOrUpdateCell(Data);
+
+		// 🔴 Lo stesso `C2` della cascata della cella: un binding che nomina una struttura sparita diventa
+		// «riferimento a una struttura inesistente». La regola non cambia perche' cambia il gesto.
+		//
+		// ⚠️ Il nome muore solo se NESSUN bordo sopravvive: un portone e' un gruppo, e togliergli un lato non
+		// lo cancella. `FindDoorEdges` interroga la mappa GIA' aggiornata, quindi risponde su cio' che resta.
+		for (const FName& Name : OrphanedNames)
+		{
+			if (URTStructureIdentityLibrary::FindDoorEdges(Map, Name).Num() > 0)
+			{
+				continue;
+			}
+			Map->InteractionBindings.RemoveAll([&Name](const FRTInteractionBinding& B)
+			{
+				return B.SourceId == Name || B.TargetIds.Contains(Name);
+			});
+		}
+
+		return ERTMapEditOutcome::Applied;
+	}
+
 	if (Handle.Kind != ERTMapElementKind::Cell)
 	{
-		// Gli altri tipi arrivano col tool che li seleziona. Un `Applied` a vuoto sarebbe peggio di un
+		// `Transition` non ha ancora un gesto che la selezioni. Un `Applied` a vuoto sarebbe peggio di un
 		// rifiuto: chi chiama crederebbe di aver cancellato qualcosa.
 		return ERTMapEditOutcome::RefusedUnresolved;
 	}
