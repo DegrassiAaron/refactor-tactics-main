@@ -1905,9 +1905,15 @@ dichiarava v0.2, e **cinque owner** si contraddicevano — GitHub, Feature Regis
 > [`spec-cover-placement-intra-hex.md`](../technical/systems/spec-cover-placement-intra-hex.md). Decisioni
 > `COV-1`…`COV-8`: [#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833).
 > 🔁 **Aggiornato il 2026-08-31**: `COV-2`…`COV-6` sono **chiuse** da [`D-302`](../decisions/RT_PDR_00_Decision_Log.md) — anchor
-> ibridi, `CoverSelection` autorevole nel digest, `Facing` indipendente, **+1 MP** per entrare in copertura.
-> Restano **aperte** `COV-1` (solo la clearance: la riconciliazione con [`D-071`](../decisions/RT_PDR_00_Decision_Log.md)), `COV-7` e
-> `COV-8`. ⚠️ **Nessuna delle regole ratificate è implementata**, e le sette sub-issue restano aperte.
+> ibridi, `CoverSelection` autorevole nel digest, `Facing` indipendente, **+1 MP** per entrare in copertura —
+> e `COV-1` da [`D-303`](../decisions/RT_PDR_00_Decision_Log.md): il footprint è un **conteggio di settori contigui**, non un raggio, e
+> `Small`/`Medium`/`Large` sono tre valori di `MinContiguousWedges`. I **valori** restano taratura.
+> 🔴 **`D-071` perde il punto (1)** — il cerchio inscritto centrato sull'anchor, già caduto quando
+> `D-289` ha rimosso la premessa *«l'unità sta al centro»* — e **conserva il punto (2)**, la *swept
+> clearance* della transizione, mai implementata.
+> Restano **aperte** `COV-7`, `COV-8` e la nuova `MAP-4` (che cosa spazza il corridoio, con un footprint
+> discreto), con innesco `E23.7` ([#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828)).
+> ⚠️ **Nessuna delle regole ratificate è implementata**, e le sette sub-issue restano aperte.
 >
 > ✅ **Già in `main`**: `URTHexCoverPlacementLibrary`, 13 test `RefactorTactics.CoverPlacement.*`, suite
 > completa **1472/1472, 0 fallimenti**, run dichiarata **VALIDA** da `scripts/rt-suite.ps1`.

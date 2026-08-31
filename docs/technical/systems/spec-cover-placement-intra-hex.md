@@ -12,8 +12,9 @@
 > due punti (§5, §6) e per il resto consuma.
 > **Non possiede** i numeri: percentuali di mitigazione e raggi di clearance restano decisioni aperte in
 > [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) § `COV-*`
-> 🔁 **Aggiornato il 2026-08-31**: [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) ha ratificato `COV-2`…`COV-6` — §13 — e le
-> **categorie** di footprint (`Small`/`Medium`/`Large`) non sono più aperte; la loro **clearance** sì.
+> 🔁 **Aggiornato il 2026-08-31**: [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) ha ratificato `COV-2`…`COV-6` e
+> [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) ha chiuso `COV-1` — §13. Il footprint è un **conteggio di settori**, non un raggio,
+> e i **valori** delle tre taglie restano taratura. Aperte: `MAP-4`, `COV-7`, `COV-8`.
 > ([#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833)).
 
 ---
@@ -307,10 +308,44 @@ il giorno in cui si chiude — ed è il suo scopo.
 
 ---
 
-## 13. Ciò che `D-302` ratifica
+## 13. Ciò che `D-302` e `D-303` ratificano
 
-[`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) consuma le risposte d'autore su `COV-2`…`COV-6`. Le regole qui sotto sono **normative**;
+[`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) consuma le risposte d'autore su `COV-2`…`COV-6`, e [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) chiude `COV-1`.
+Le regole qui sotto sono **normative**;
 ⚠️ **nessuna di esse è implementata**, ed è misurato — vedi §13.5.
+
+### 13.0 Il footprint è un conteggio di settori, non un raggio (`COV-1`)
+
+`Small`, `Medium` e `Large` sono **tre valori di `FRTFootprintProfile::MinContiguousWedges`**. Il profilo che
+deve stare a cavallo del centro dichiara in più `bRequiresFreeCore`. La *gameplay clearance* è esplicita e
+**data-driven**; il *Safe Placement Volume* resta **guida visiva d'authoring** e non è clearance di gameplay.
+
+🔑 **La domanda non era fra due numeri: era fra due linguaggi.** [`D-071`](../../decisions/RT_PDR_00_Decision_Log.md) esprime il
+footprint come **raggio continuo** — il cerchio inscritto, apotema della cella —; questo documento lo
+esprime come **conteggio discreto** su un anello di dodici settori. Uno solo dei due esiste:
+
+| | `D-071` | Questo modello |
+|---|---|---|
+| Grandezza | raggio continuo (apotema) | conteggio di settori contigui |
+| Posizione dell'unità | **centrata sul `CellAnchor`** | in una **regione libera**, anche fuori centro |
+| In `Source/` | ❌ `StandardUnitClearance` dà **zero** | ✅ `MinContiguousWedges`, con consumatore e 13 test |
+| Nell'hash | un float | ✅ intero — §11 |
+
+🔴 **E metà di `D-071` era già caduta prima di questa voce.** Il punto (1) — *«un muro che entra nel
+nucleo la invalida»* — vale solo se l'unità sta al centro, ed è la premessa che §3 rimuove. È lo stesso
+argomento con cui `D-289` ha superato `D-179` punto (3), applicato a una voce che non aveva nominato:
+[`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) lo **registra**, non lo decide.
+
+⚠️ **I tre valori non sono fissati qui**, e non per dimenticanza: sono **taratura**, e sceglierli in un
+documento di contratto sarebbe il *«bilanciamento travestito da costante»* che `D-289` ha rifiutato. Il
+default resta `1`, l'identità.
+
+⛔ **Una taglia non cambia l'occupancy.** Un'unità `Large` occupa **uno** slot, come tutte: §7 non ha
+eccezioni per grandezza. `Large` significa *«più difficile da piazzare»*, non *«più posto occupato»*.
+
+⚠️ **Ciò che questa scelta lascia scoperto** è la **transizione**: `D-071` punto (2) resta in piedi ma un
+conteggio non si trasla lungo `A→B`. È `MAP-4` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), con
+innesco `E23.7` ([#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828)).
 
 ### 13.1 Chi produce un `CoverAnchor`: **ibrido** (`COV-2`)
 
@@ -383,6 +418,7 @@ vive nel catalogo, non in `ComputeMask`. Il **riposizionamento dentro la cella**
 
 | Regola | Implementata? | Misura |
 |---|---|---|
+| `COV-1` tre taglie di footprint | ❌ **no** | i **campi** ci sono (`MinContiguousWedges`, `bRequiresFreeCore`); mancano i valori e un produttore — **nessuna unità dichiara un footprint** |
 | `COV-2` provenienza ibrida | ❌ **no** | nessun tipo `CoverAnchor` esiste in `Source/` |
 | `COV-3` `CoverSelection` serializzata | ❌ **no** | nessun tipo `CoverSelection` esiste; `FRTCoverSourceId` è già discreto e stabile, ed è l'unica metà vera |
 | `COV-4` nel digest | ❌ **no** | `FRTUnitStateDigest` ha **sette** campi: `UnitId`, `Cell`, `Health`, `Shield`, `Energy`, `bAlive`, tag. Nessuno è la copertura |
@@ -402,12 +438,13 @@ Tutte in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) §
 
 | ID | Domanda |
 |---|---|
-| `COV-1` | **solo la clearance**: le categorie `Small`/`Medium`/`Large` sono decise — §13 — e aperta è la riconciliazione con [`D-071`](../../decisions/RT_PDR_00_Decision_Log.md) |
+| ~~`COV-1`~~ | ~~categorie di footprint e raggi di clearance~~ — ✅ **tre valori di `MinContiguousWedges`**, [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) §13.0 |
 | ~~`COV-2`~~ | ~~`CoverAnchor` autorati, generati o ibridi~~ — ✅ **ibrido**, [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) §13.1 |
 | ~~`COV-3`~~ | ~~serializzazione e rappresentazione di rete della scelta~~ — ✅ **contratto deciso**, §13.2 |
 | ~~`COV-4`~~ | ~~la scelta entra nel digest di stato e nell'hash?~~ — ✅ **sì**, §13.3 |
 | ~~`COV-5`~~ | ~~interazione finale fra `Facing` e copertura scelta~~ — ✅ **indipendenti, doppio test**, §13.4 |
 | ~~`COV-6`~~ | ~~costi/bonus del movimento da copertura a copertura~~ — ✅ **+1 MP, nessun bonus**, §13.5 |
+| `MAP-4` | con un footprint discreto, che cosa spazza il **corridoio di transizione**? — §13.0 |
 | `COV-7` | regole finali di vault e reposition |
 | `COV-8` | rigenerazione delle `CoverOption` dopo la distruzione di una sorgente |
 | `MSE-4` | il contatto puntuale è invasione? — **innesco arrivato**, vedi §12 |
