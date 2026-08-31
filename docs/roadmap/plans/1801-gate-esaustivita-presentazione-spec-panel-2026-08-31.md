@@ -213,7 +213,32 @@ Tutte e sette sono **additive**: nessuna riscrive lo scope, che è corretto. App
 | **Milestone** (`U6`) | **v0.1 · Leggibilità** | la stessa del consumatore `#1945`: `D-301` rende questa issue bloccante, e un prerequisito senza data non lo sorveglia nessuno |
 | **Supporto del mapping** (`U4`) | **tabella C++**, non Data Asset | `D-124` tiene *«Niagara dedicato a ogni abilità»* fuori dalla v0.1 e `Content/` non ha un solo asset Niagara: in v0.1 le cue le tocca chi scrive codice, e un `.uasset` aggiungerebbe versionamento e lease per un dato che nessun artista modifica |
 
-🔑 **E le due scelte interagiscono, il che non era ovvio prima di farle.** Senza Data Asset **non c'è nulla da
+### 7.2 `HazardDamage` — `NoPresentation` legittimo, con clausola
+
+Il **prossimo passo** che questo referto indicava è stato deciso lo stesso giorno. La scelta è fondata su una
+misura, e la misura ne ha aggiunta una seconda che la scelta da sola non copriva.
+
+**Perché è legittimo** — `RTTurnManager.cpp:400-448`: il danno da terreno accade e non è marginale — `Fire`
+fa **10 danni all'ingresso** contro gli 8 del Cleanup, passa da `ApplyDamage(…, Environmental, …)`, **può
+uccidere**, e ha la voce canonica nel TurnLog dal 2026-08-16 (`#1067`). ∴ Il fatto **ha già due canali
+visibili** — la barra vita, e il combat log che `D-299` dota di un vocabolario del giocatore — e quando uccide
+emette `Defeated`, che una presentazione ce l'ha. *Si vede morire, non si vede bruciare*: è precisamente ciò
+che `NoPresentation` dichiara, e `D-124` tiene il resto fuori dal perimetro v0.1.
+
+🔴 **La clausola, e perché non è pedanteria.** Oggi `HazardDamage` **non ha un produttore**: il TurnLog
+registra il danno, la `ResolvedTimeline` non riceve mai l'evento. Dichiarare `NoPresentation` su un valore che
+nessuno emette **soddisfa il gate senza che nulla accada**; e il giorno in cui qualcuno lo emette, il gate
+resta verde e l'evento resta muto — il difetto che `#1801` previene, riprodotto attraverso la sua soluzione.
+
+⚠️ **E a questo stesso fatto è già successo**: `#1067` registra che *«fino al 2026-08-16 questo danno esisteva
+solo in `AddLogEvent` … e chi entrava nel fuoco con pochi HP moriva senza lasciare niente»*. È già stato
+invisibile una volta, sul canale della traccia. La dichiarazione lo rende **legittimamente** invisibile su
+quello della presentazione — il che è una scelta difendibile solo se resta dichiarato che è una scelta.
+
+📝 Portato nella DoD ([commento](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1801#issuecomment-5479386333)): la voce dichiara per iscritto che il valore non
+ha produttore, e va **rivista** quando ne acquista uno.
+
+🔑 **E le due scelte di §7.1 interagiscono, il che non era ovvio prima di farle.** Senza Data Asset **non c'è nulla da
 validare al salvataggio**: il validatore editor/commandlet del precedente (§5.1) **non ha oggetto**, e resta la
 coppia *funzione pura + Automation Test*. È la ragione per cui `U3` mette l'owner del giudizio nella funzione
 pura e non nel test: se un giorno le cue diventano asset, il validatore torna utile **senza che il gate cambi**.
@@ -250,14 +275,15 @@ pura e non nel test: se un giorno le cue diventano asset, il validatore torna ut
   la scelta è corretta finché nessun artista le tocca, e quel giorno cambia il supporto, non il gate.
 - ⚠️ **`U4` è una scelta di supporto che `D-278` non aveva fatto.** Se va registrata come decisione, serve un
   `D-nnn` **verificato al momento** — non è stato prenotato qui.
-- ⚠️ **`HazardDamage` non è solo senza presentazione: è senza produttore.** Va deciso se è un `NoPresentation`
-  legittimo, un evento mai implementato, o un valore da rimuovere. Il gate lo renderà rosso comunque — meglio
-  saperlo prima di scriverlo, perché le tre risposte portano a tre lavori diversi.
+- ✅ **`HazardDamage`: `NoPresentation` legittimo** — decisione d'autore del 2026-08-31, §7.2. ⚠️ **Con una
+  clausola che va scritta nella voce**: oggi il valore non ha produttore, quindi la dichiarazione copre un
+  evento che nessuno emette. Vale *«quando accadrà»*, non *«perché non accade»* — e va **rivista**, non
+  ereditata, il giorno in cui qualcuno lo emette.
 
 ---
 
 ## 10. Prossimo passo
 
-**Decidere cosa è `HazardDamage`** — `NoPresentation` legittimo, evento mai implementato, o valore da
-rimuovere. È l'unica domanda rimasta che il gate non può rispondere da sé, e diventerà rossa su di lui il
-giorno in cui viene scritto.
+**Scrivere il gate** — `#1801` non ha più domande aperte: milestone, supporto del mapping, forma del criterio e
+copertura di `HazardDamage` sono decisi, e i suoi due casi di prova esistono già (`HazardDamage` oggi,
+`AttackFootprint` con `D-301`).
