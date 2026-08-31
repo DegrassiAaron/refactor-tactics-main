@@ -442,7 +442,63 @@ namespace
 		{ TEXT("CoverYard"),  &URTMatchSetupLibrary::MakeCoverYardArena          },
 		{ TEXT("GrayKitYard"), &URTMatchSetupLibrary::MakeGrayKitYardArena        },
 		{ TEXT("VisionSplit"), &URTMatchSetupLibrary::MakeVisionSplitArena       },
+		{ TEXT("ProbeYard"),   &URTMatchSetupLibrary::MakeProbeYardArena         },
 	};
+}
+
+URTHexMapAsset* URTMatchSetupLibrary::MakeProbeYardArena(UObject* Outer)
+{
+	if (Outer == nullptr)
+	{
+		return nullptr;
+	}
+
+	URTHexMapAsset* Arena = NewObject<URTHexMapAsset>(Outer);
+	FRTArenaDraft Draft;
+
+	// Base: esagono pieno di raggio 4. Piccolo di proposito — la sonda si guarda a colpo d'occhio, e su
+	// un'arena grande le tre condizioni finirebbero fuori dall'inquadratura invece che una accanto all'altra.
+	constexpr int32 Radius = 4;
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius))
+	{
+		Draft.Set(FRTHexCellData(Id));
+	}
+
+	// 🔑 **La fascia costosa, e perche' sta a DUE passi dalla partenza.** Con `MoveCost = 3` un budget di
+	// catalogo (5) attraversa la fascia e si ferma subito dopo: `OutOfBudget` compare a ridosso del ventaglio,
+	// dove il designer lo vede accanto alle celle che invece raggiunge. Messa al bordo avrebbe risposto alla
+	// domanda «cosa c'e' lontano», che il conteggio delle celle gia' dice.
+	for (int32 R = -1; R <= 1; ++R)
+	{
+		const FRTCellId Id(-2, R, 0);
+		FRTHexCellData Costly = Draft.Find(Id) ? *Draft.Find(Id) : FRTHexCellData(Id);
+		Costly.Id = Id;
+		Costly.MoveCost = 3;
+		Draft.Set(Costly);
+	}
+
+	// 🔴 **La camera murata: sei celle attorno a una libera.** E' il difetto che un designer si fa da solo —
+	// una zona chiusa senza accorgersene — ed e' l'unica condizione che rende `NoRoute` distinguibile da
+	// `OutOfBudget`. `(3,0)` sta a distanza 3 dal centro: dentro il raggio, e con tutti e sei i vicini
+	// presenti, che e' la condizione perche' la camera sia davvero chiusa.
+	//
+	// ⚠️ Murata da CELLE, non da bordi negati. Un arco chiuso darebbe lo stesso `NoRoute` al codice e
+	// **niente da vedere** all'autore: sei celle nere attorno a una libera si leggono senza spiegazione.
+	const FRTCellId Sealed(3, 0, 0);
+	for (const FRTCellId& Wall : URTHexLibrary::Neighbors(Sealed))
+	{
+		if (!Draft.Find(Wall))
+		{
+			continue; // fuori dal raggio: la camera sarebbe aperta di la', e il test lo scoprirebbe
+		}
+		FRTHexCellData Blocked = *Draft.Find(Wall);
+		Blocked.Id = Wall;
+		Blocked.bBlocksMovement = true;
+		Draft.Set(Blocked);
+	}
+
+	Draft.CommitTo(Arena);
+	return Arena;
 }
 
 URTHexMapAsset* URTMatchSetupLibrary::MakeVisionSplitArena(UObject* Outer)

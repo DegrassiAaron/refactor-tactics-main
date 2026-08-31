@@ -1150,14 +1150,38 @@ Se una tappa fallisce per **semantica** dell'input e non per leggibilità, il di
 > canonico e dei suoi test; qui si guarda se e' **leggibile** e se il pannello dice **la cosa giusta sulla
 > cella giusta**. Un verdetto d'autore su un insieme di celle sarebbe un'opinione su un calcolo.
 >
+> ⚠️ **Quattro motivi, non cinque.** `ERTHexProbeExclusion` ne dichiara cinque, ma `Occupied` **non è
+> ottenibile da questo tool**: il suo snapshot contiene una sola unità, quindi nessuna cella potrà mai
+> risultare occupata da un'altra. Chiedere di osservarlo sarebbe chiedere di vedere qualcosa che il codice non
+> produce. I quattro osservabili sono `Reachable`, `BlocksMovement`, `OutOfBudget`, `NoRoute` — più il fuori
+> mappa, che si ottiene uscendo dal bordo.
+>
 > **Precondizione comune**: Editor aperto su `L_DevSandbox` illuminato da `U21`, Hex Map mode attivo, tool
-> **Probe** selezionato, un `ARTHexMapActor` con asset. La mappa deve avere **almeno una superficie costosa**
-> (`MoveCost = 2`), **una cella che blocca il movimento** e **una zona irraggiungibile** — le tre condizioni
-> che separano i motivi di esclusione l'uno dall'altro.
+> **Probe** selezionato, un `ARTHexMapActor` con asset.
+>
+> 🔑 **La mappa si genera, non si dipinge.** Sull'`ARTHexMapActor`: `FixtureId = ProbeYard`, poi il pulsante
+> **Generate Fixture Into Asset**. Quella fixture porta le tre condizioni che separano i motivi — una fascia
+> costosa a `q = -2`, sei celle che bloccano attorno a `(3,0)`, e `(3,0)` stessa murata e quindi
+> irraggiungibile — e le porta **uguali a ogni seduta**, che è ciò che permette di confrontare due esecuzioni.
+>
+> 🔴 **Su un asset TUO, e la ragione è nel verbo.** `GenerateFixtureIntoAsset` **sostituisce** il contenuto
+> dell'asset puntato: eseguirla su una mappa che qualcun altro sta lavorando la cancella. Si crea un
+> `DA_HexMap_*` nuovo, o si punta uno `_Scratch` proprio.
+>
+> ⚠️ **`rt.Map.Fixture` NON serve a questo, e la prima stesura di questa voce lo diceva sbagliato.** Quella
+> cvar la legge `FRTMatchBootstrapper` all'avvio della **partita**: sceglie la mappa di PIE o del packaged, e
+> nell'editor non genera niente. Chi l'avesse digitata avrebbe visto la mappa non cambiare e concluso che la
+> sonda era rotta.
+>
+> 🔴 **Perché una fixture e non «allestisci a mano», misurato il 2026-08-31.** La mappa su cui `L_DevSandbox`
+> era aperto (`DA_HexMap_Scratch_Basin`) è stata interrogata cella per cella attraverso il ponte MCP, con lo
+> stesso A* che la sonda usa: `Reachable 57 · BlocksMovement 3 · OutOfBudget 1 · **NoRoute 0**`. Su quella
+> mappa la seduta avrebbe visto tre motivi su quattro e avrebbe dichiarato «funziona» senza aver mai
+> distinto «ti manca movimento» da «non c'è strada» — cioè la distinzione per cui #711 esiste.
 
 | ID | Cosa verificare | Precondizione | Esito atteso | Stato |
 |----|-----------------|---------------|--------------|-------|
-| **PIE-HEX-MOVEMENT-PROBE** | Il ventaglio si vede, il percorso segue il cursore, e il pannello dice **perche' quella cella no** | tool Probe attivo, un eroe scelto nel pannello, una cella di partenza cliccata | Cliccata la partenza, le celle raggiungibili si distinguono da quelle escluse **senza contarle**. Passando sopra una cella del ventaglio compare il **percorso** e il pannello mostra `costo / budget` e i passi; passando su una esclusa il percorso sparisce e la riga **Reason** dice quale dei cinque motivi — e cambiando `HeroId` il campo `Budget` si riallinea da solo e il ventaglio cambia con lui. ⚠️ La riserva da guardare: che si capisca **da dove parte** il percorso quando la partenza e' anche sotto il cursore | ⏳ |
+| **PIE-HEX-MOVEMENT-PROBE** | Il ventaglio si vede, il percorso segue il cursore, e il pannello dice **perche' quella cella no** | `ProbeYard` caricata, tool Probe attivo, un eroe scelto nel pannello, `(0,0)` cliccata come partenza | Cliccata la partenza, le celle raggiungibili si distinguono da quelle escluse **senza contarle**. Passando sopra una cella del ventaglio compare il **percorso** e il pannello mostra `costo / budget` e i passi; passando su una esclusa il percorso sparisce e la riga **Reason** dice quale dei quattro motivi osservabili — e cambiando `HeroId` il campo `Budget` si riallinea da solo e il ventaglio cambia con lui. ⚠️ La riserva da guardare: che si capisca **da dove parte** il percorso quando la partenza e' anche sotto il cursore | ⏳ |
 | **PIE-HEX-MOVEMENT-PROBE-SURFACE** | Dipinta una superficie piu' cara, il ventaglio si **restringe subito** | tool Paint per dipingere, poi Probe | Con la sonda gia' attiva su una partenza, si dipinge `MoveCost = 2` su una cella di passaggio e **al primo movimento del mouse** il ventaglio e' gia' quello nuovo: nessun click sulla partenza per farlo aggiornare. E' il criterio *«sulla revisione dell'asset, non su un refresh a tempo»* guardato da fuori | ⏳ |
 | **PIE-HEX-MOVEMENT-PROBE-FLUIDITA** | L'hover non fa scattare la sonda | tool Probe attivo su una mappa **grande** con una zona irraggiungibile | Muovendo il cursore avanti e indietro dentro **la stessa cella** non succede niente di visibile e il viewport non perde fluidita'; attraversando molte celle escluse — dove ogni risposta costa un percorso a budget illimitato — il movimento resta continuo. ⚠️ E' la voce che guarda il guardrail: la difesa e' `RTHexProbe::ShouldRequery`, ed e' testata, ma **quanto costa una risposta** non lo dice nessun test | ⏳ |
 
