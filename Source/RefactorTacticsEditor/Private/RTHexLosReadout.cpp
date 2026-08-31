@@ -1,5 +1,6 @@
 #include "RTHexLosReadout.h"
 
+#include "RTHexHoverGate.h"
 #include "Map/RTHexVisionLibrary.h"
 
 namespace RTHexLos
@@ -65,17 +66,10 @@ namespace RTHexLos
 
 	bool ShouldRequery(bool bLastValid, const FRTCellId& Last, bool bNowValid, const FRTCellId& Now)
 	{
-		if (bLastValid != bNowValid)
-		{
-			// Entrare o uscire dalla mappa e' un cambio: il pannello deve smettere di mostrare l'ultimo
-			// verdetto quando il cursore esce, invece di lasciarlo li' come se valesse ancora.
-			return true;
-		}
-		if (!bNowValid)
-		{
-			return false; // fuori mappa prima e adesso: non c'e' niente di nuovo da chiedere
-		}
-		// `operator==` di `FRTCellId` confronta anche il `Layer`, ed e' il comportamento che serve.
-		return !(Last == Now);
+		// 🔵 Il corpo si e' spostato in `RTHexHover` il 2026-08-31, quando la sonda di movimento (#711) ne ha
+		// avuto bisogno IDENTICO. Ricopiarlo avrebbe dato due cancelli con la stessa regola; la firma qui non
+		// cambia, e i quattro casi che questa funzione ha sempre coperto restano i suoi test — che ora
+		// misurano anche l'estrazione.
+		return RTHexHover::ShouldRequery(bLastValid, Last, bNowValid, Now);
 	}
 }

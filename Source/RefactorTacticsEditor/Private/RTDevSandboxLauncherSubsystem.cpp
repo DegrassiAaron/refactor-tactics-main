@@ -1,9 +1,13 @@
 #include "RTDevSandboxLauncherSubsystem.h"
 
+#include "EditorModeManager.h"
 #include "Editor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/TabManager.h"
 #include "Misc/Paths.h"
+#include "RTLauncherWorkspace.h"
+#include "ScenarioHarness/RTScenarioAuthoring.h"
+#include "ScenarioHarness/RTScenarioDraft.h"
 #include "SRTLauncherScenarioPanel.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "WorkspaceMenuStructure.h"
@@ -86,8 +90,132 @@ void URTDevSandboxLauncherSubsystem::Initialize(FSubsystemCollectionBase& Collec
 	MapOpenedHandle = FEditorDelegates::OnMapOpened.AddUObject(this, &URTDevSandboxLauncherSubsystem::HandleMapOpened);
 }
 
+FRTLauncherStartDecision URTDevSandboxLauncherSubsystem::StartSession(const FString& ScenarioId)
+{
+	// ⛔ La sessione precedente si chiude PRIMA di provarne una nuova. Senza, un tentativo fallito
+	// lascerebbe aperta quella di prima mentre il pannello annuncia un rifiuto: due verita' sullo schermo.
+	EndSession();
+
+	if (ScenarioId.IsEmpty())
+	{
+		// La decisione conosce gia' questo caso, e passargli un esito inventato sarebbe peggio che
+		// lasciarglielo classificare: `Success` qui vorrebbe dire «la facade ha aperto», e non e' successo.
+		return FRTLauncherWorkspace::DecideStart(ScenarioId, ERTScenarioAuthoringResult::Success, FString());
+	}
+
+	URTScenarioAuthoring* Candidate = URTScenarioAuthoring::CreateScenarioDraft(GetTransientPackage());
+	if (!Candidate)
+	{
+		return FRTLauncherWorkspace::DecideStart(ScenarioId, ERTScenarioAuthoringResult::RunFailed,
+			TEXT("la facade d'authoring non e' disponibile: il difetto non e' nello scenario."));
+	}
+
+	FString OpenError;
+	const ERTScenarioAuthoringResult Result = Candidate->OpenById(ScenarioId, OpenError);
+
+	const FRTLauncherStartDecision Decision = FRTLauncherWorkspace::DecideStart(ScenarioId, Result, OpenError);
+	if (!Decision.bAllowed)
+	{
+		// Niente sessione mezza aperta: la facade candidata viene chiusa e lasciata al GC.
+		Candidate->Close();
+		return Decision;
+	}
+
+	Session = Candidate;
+
+	UE_LOG(LogRTDevSandboxLauncher, Log, TEXT("[TacticalDesigner] sessione aperta su '%s'."), *ScenarioId);
+	return Decision;
+}
+
+FRTLauncherStartDecision URTDevSandboxLauncherSubsystem::StartNewSession(const FString& ScenarioId, int32 MapRadius)
+{
+	EndSession();
+
+	if (ScenarioId.IsEmpty())
+	{
+		return FRTLauncherWorkspace::DecideStart(ScenarioId, ERTScenarioAuthoringResult::Success, FString());
+	}
+
+	URTScenarioAuthoring* Candidate = URTScenarioAuthoring::CreateScenarioDraft(GetTransientPackage());
+	if (!Candidate)
+	{
+		return FRTLauncherWorkspace::DecideStart(ScenarioId, ERTScenarioAuthoringResult::RunFailed,
+			TEXT("la facade d'authoring non e' disponibile: il difetto non e' nello scenario."));
+	}
+
+	// ⚠️ Dalla facade, non da una costruzione locale: e' l'AC che impedisce al launcher di diventare una
+	// seconda porta verso il modello. `NewScenario` non ritorna un esito perche' non puo' fallire — poi si
+	// chiede a `Validate` se cio' che e' nato regge, ed e' quella la risposta che il designer legge.
+	Candidate->NewScenario(ScenarioId, MapRadius);
+
+	FString ValidateError;
+	const ERTScenarioAuthoringResult Result = Candidate->Validate(ValidateError);
+
+	const FRTLauncherStartDecision Decision = FRTLauncherWorkspace::DecideStart(ScenarioId, Result, ValidateError);
+	if (!Decision.bAllowed)
+	{
+		Candidate->Close();
+		return Decision;
+	}
+
+	Session = Candidate;
+
+	UE_LOG(LogRTDevSandboxLauncher, Log, TEXT("[TacticalDesigner] sessione nuova su '%s' (raggio %d)."), *ScenarioId, MapRadius);
+	return Decision;
+}
+
+void URTDevSandboxLauncherSubsystem::EndSession()
+{
+	if (Session)
+	{
+		Session->Close();
+		Session = nullptr;
+	}
+}
+
+bool URTDevSandboxLauncherSubsystem::HasSession() const
+{
+	// ⚠️ Due condizioni, non una: la facade puo' esistere e non avere niente di aperto — `Close()` la
+	// lascia viva. Chiedere solo il puntatore direbbe «sessione aperta» su un draft vuoto.
+	return Session != nullptr && Session->IsOpen();
+}
+
+bool URTDevSandboxLauncherSubsystem::ActivateSurface(FName SurfaceKey)
+{
+	const FRTLauncherSurface* Surface = FRTLauncherWorkspace::Find(SurfaceKey);
+	if (!Surface || !Surface->bDeclared)
+	{
+		// ⛔ Rifiuta e lo dice. Un `return` muto qui sarebbe un pulsante inerte, cioe' il modo piu' rapido
+		// di far concludere che lo strumento e' rotto quando la superficie semplicemente non esiste ancora.
+		UE_LOG(LogRTDevSandboxLauncher, Warning,
+			TEXT("[TacticalDesigner] superficie '%s' non dichiarata: non e' raggiungibile."), *SurfaceKey.ToString());
+		return false;
+	}
+
+	switch (Surface->ActivationKind)
+	{
+	case ERTLauncherActivationKind::EditorMode:
+		if (GLevelEditorModeTools().IsModeActive(Surface->ActivationTarget))
+		{
+			return true;
+		}
+		GLevelEditorModeTools().ActivateMode(Surface->ActivationTarget);
+		return GLevelEditorModeTools().IsModeActive(Surface->ActivationTarget);
+
+	case ERTLauncherActivationKind::Tab:
+		return FGlobalTabmanager::Get()->TryInvokeTab(Surface->ActivationTarget).IsValid();
+
+	default:
+		return false;
+	}
+}
+
 void URTDevSandboxLauncherSubsystem::Deinitialize()
 {
+	// La sessione non sopravvive allo scarico del modulo: un draft aperto su un editor che sta chiudendo
+	// non ha nessuno che lo legga, e lasciarlo aperto e' l'unico modo di far comparire un `Close()` a GC.
+	EndSession();
+
 	// Togliere l'iscrizione PRIMA di sparire: un handle che sopravvive allo scarico del modulo fa
 	// chiamare un metodo su un oggetto che non c'e' piu'.
 	if (MapOpenedHandle.IsValid())

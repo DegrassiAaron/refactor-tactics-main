@@ -30,10 +30,28 @@ public:
 	/** Un elemento per colpo rivelato: il tick in cui e' arrivato. */
 	TArray<int32> AttackTicks;
 
+	/**
+	 * Quanti colpi sono arrivati con il soggetto RISOLTO a un Actor, e quanti no.
+	 *
+	 * 🔴 Serve perche' il conteggio dei tick non discrimina: da #1800 l'evento porta uno `StableUnitId` e la
+	 * presentazione lo ritrasforma in `ARTUnit*` con `UnitByStableId`. Se quella porta rispondesse sempre
+	 * `nullptr` il delegate scatterebbe **lo stesso**, con gli stessi tick, e il test dello scaglionamento
+	 * resterebbe verde su una risoluzione completamente rotta.
+	 *
+	 * L'atteso e' **zero non risolti**: `DestroyDefeatedUnits` gira in `ConcludeTurn`, cioe' DOPO il
+	 * playback, quindi mentre i colpi si mostrano ogni Actor coinvolto esiste ancora.
+	 */
+	int32 SourcesResolved = 0;
+	int32 SourcesUnresolved = 0;
+	int32 TargetsResolved = 0;
+	int32 TargetsUnresolved = 0;
+
 	UFUNCTION()
 	void OnAttackResolved(ARTUnit* Source, ARTUnit* Target, int32 Amount)
 	{
 		AttackTicks.Add(CurrentTick);
+		(Source ? SourcesResolved : SourcesUnresolved)++;
+		(Target ? TargetsResolved : TargetsUnresolved)++;
 	}
 
 	/**

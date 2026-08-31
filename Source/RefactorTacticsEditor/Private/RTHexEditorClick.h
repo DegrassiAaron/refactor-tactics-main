@@ -18,8 +18,16 @@ namespace RTHexEditor
 
 	/** Risolve la cella cliccata sul layer attivo dell'actor (raycast ISM del target, fallback piano del layer).
 	 *  Ritorna false se Actor è nullptr. OutCenter = centro-mondo della cella (per il marker). */
+	/**
+	 * ⚠️ `OutClickedPoint` (opzionale) e' il punto su cui si e' cliccato, non il centro della cella: serve a
+	 * `URTHexLibrary::NearestEdgeDirection` per sapere QUALE BORDO l'autore stava mirando (#1864).
+	 *
+	 * Quando il raycast non ha un colpo utile e si ripiega sul piano del layer, riceve il **centro cella** —
+	 * il che rende il bordo scelto arbitrario ma deterministico. E' dichiarato invece che nascosto: senza un
+	 * colpo, «quale lato» e' una domanda a cui la geometria non puo' rispondere.
+	 */
 	bool ResolveClickedCell(UWorld* World, ARTHexMapActor* Actor, const FInputDeviceRay& ClickPos,
-		FRTCellId& OutCell, FVector& OutCenter);
+		FRTCellId& OutCell, FVector& OutCenter, FVector* OutClickedPoint = nullptr);
 
 	/**
 	 * Scrive il layer attivo sull'actor e ne ricostruisce la vista. Transazionale (annullabile) e idempotente:

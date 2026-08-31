@@ -278,11 +278,23 @@
       "_nota_piano_invalido": "⛔ **La battuta di Gadget del §T5 — «dichiara di proposito un piano non valido, riceve un reason, poi committa un'azione valida» — resta fuori, ma la ragione scritta prima era sbagliata.** Diceva «non e' esprimibile: un intent per unita' per turno». **Falso, misurato**: `ValidateScenarioTurns` non contiene nessun controllo di `UnitId` duplicato, e `RTScenarioSession` applica gli intenti in ordine — il secondo **sovrascrive** il primo, slot per slot, in silenzio. Il formato quindi lo TOLLERA, ed e' peggio che vietarlo: si scriverebbe una battuta a due tempi che il runner appiattisce su uno, con lo scenario verde. ∴ Cio' che manca non e' la sintassi ma un modo di OSSERVARE il rifiuto e il ricommit come due eventi distinti. Va deciso prima di essere scritto."
     },
     {
-      "_turno": "T6 — interposizione. Riktor incassa il colpo diretto a Wraith. Interposition e' gia' cablata ed e' automatica: manca la RIVALIDAZIONE della geometria sul bersaglio effettivo (D-017).",
+      "_turno": "T6 - interposizione. Gadget punta Wraith con `ArcPulse`; Riktor, che il Move del T5 ha lasciato su (2,0), arma `Interposition` e DIVENTA il bersaglio del colpo. La geometria si rivalida su di lui - LOS, traiettoria, copertura - senza aprire una reaction annidata (D-017).",
       "requires": [
         "InterceptRevalidation"
       ],
-      "intents": []
+      "intents": [
+        {
+          "unit": "Gadget",
+          "ability": "Hero.Gadget.ArcPulse",
+          "target": "Wraith"
+        },
+        {
+          "_intento": "LA BATTUTA DEL TURNO. `Interposition` non ha effetti propri: cambia CHI subisce un colpo altrui. Le condizioni le pone `FindInterceptableHit` - alleato dello stesso team, attacco `Single`, `HexDistance(Riktor,Wraith) <= 2`, e LOS dall'attaccante a CHI intercetta. Riktor su (2,0) e Wraith su (1,-1) distano 2, e la linea Gadget->Riktor non incontra nulla che la blocchi. Va ARMATA ogni turno: una reazione pianificata vale per il Blast di quel turno.",
+          "unit": "Riktor",
+          "reaction": "Hero.Riktor.Interposition"
+        }
+      ],
+      "_nota_le_due_battute_mancanti": "Il §T6 della spec owner nomina anche `Phase PressureJet su Riktor` e `Wraith attacca Gadget`. Restano fuori, e la ragione e' la MISURA: l'oracolo discriminante di questo turno e' il danno che Riktor incassa - 12 invece di 22, perche' la copertura rivalidata e' la SUA. Un secondo colpo su Riktor nello stesso Blast renderebbe `UnitHpEquals` una somma di due cause, e un rosso non direbbe piu' quale delle due e' cambiata. L'attacco di Wraith su Gadget non tocca Riktor ma non aggiunge niente a cio' che questo turno esiste per dimostrare."
     },
     {
       "_turno": "T7 — combo ambientale, ⛔ **NON ottenibile in un turno solo cosi' com'e' scritta (#1111)**. L'intento e': Phase bagna Wraith sulla fascia `Fire` a (1,-1), l'acqua spegne il fuoco, e `LinearDischarge` legge lo STATO — non l'identita' di chi ha portato l'acqua. **L'ordine di risoluzione lo impedisce**: `Gadget.Sprinkler` = `Action.CreateWater` e' `Environment` → **Cleanup**, `Hero.Gadget.LinearDischarge` e' `Attack` → **Blast**, e Blast precede Cleanup. Nello stesso turno la scarica risolve **prima che l'acqua esista**: legge Wraith non bagnato e la fascia ancora accesa. ⚠️ Lo stesso ordine mette il **Move** fra le due, quindi Wraith lascia (1,-1) prima del Cleanup: dove finisca l'acqua e' un secondo effetto da verificare quando il turno diventera' eseguibile. ✅ **Il modello che funziona esiste** ed e' `showcase-v0.1.md` §T2: il bersaglio entra nell'acqua **nel Dash**, cioe' il problema d'ordine si risolve invece di ignorarlo. Chi riempira' questo turno quando il T6 si sblocca sceglie fra quel modello e due turni distinti; questa nota registra il vincolo, non lo scioglie. Wraith fa un Move normale che TERMINA su `Ice` a (1,2) e scivola in modo deterministico. Riktor dichiara un `Ram` attraverso il `Rough` di (2,0): il planning lo RIFIUTA, perche' `Rough` ha `bBlocksDashCharge`. ⛔ **E dal 2026-08-27 il `Ram` di Riktor parte da un'altra cella**, che va detto perche' cambia cosa dimostrerebbe: dopo aver aperto il gate al T5 Riktor si ferma su **(2,0,0)**, che e' `Rough`. Il piano dichiarato qui — `Ram` verso (1,0,0) — nasceva per essere RIFIUTATO dal planning, perche' la traiettoria attraversava il `Rough`; partendo gia' da una cella `Rough` il rifiuto avrebbe un'altra causa, o nessuna. ✅ I waypoint di Wraith restano invece liberi: (1,0,0), (1,1,0) e (1,2,0) non sono occupati da nessuno. Non riscrivo un turno che nessuno puo' eseguire; chi lo rendera' eseguibile trova qui cosa guardare.",
@@ -341,7 +353,8 @@
   "expect": [
     {
       "type": "TurnsCompleted",
-      "value": 5
+      "value": 7,
+      "_assertion": "Sette, non cinque: sbloccando `InterceptRevalidation` il T6 gioca, e il T7 gioca con lui perche' non dichiara `requires`. Si ferma al **T8**, che chiede `Objective` — owner #75."
     },
     {
       "type": "LogEventCount",
@@ -357,7 +370,8 @@
     {
       "type": "UnitHpEquals",
       "unit": "Phase",
-      "value": 79
+      "value": 60,
+      "_assertion": "95 - (21 + 19 - 5): l'Overwatch di Wraith al T4 (21) piu' `LinearDischarge` al T7 (19), meno lo scudo. ⚠️ Valeva 79 quando la partita si fermava a cinque turni: il T7 non era mai stato giocato."
     },
     {
       "type": "UnitAtCell",
@@ -392,9 +406,10 @@
       "unit": "Wraith",
       "cell": [
         1,
-        -1,
+        3,
         0
-      ]
+      ],
+      "_assertion": "(1,3) e non (1,2), che e' l'ultimo waypoint dichiarato al T7: la cella e' `Ice`, e l'`Ice` fa **scivolare di uno**. Il waypoint dice dove si e' diretti, non dove si finisce."
     },
     {
       "_assertion": "IL DISCRIMINANTE DEL TURNO: il varco si e' aperto, una volta sola. Se l'operazione venisse applicata due volte la revisione della mappa salirebbe di due e il replay divergerebbe.",
@@ -411,11 +426,27 @@
       "value": 1
     },
     {
-      "_assertion": "NESSUNA reazione e' SCATTATA. Senza questa riga il conteggio qui sopra sarebbe soddisfatto anche da una `Deflection` che si attiva per errore su un colpo che non esiste — «armata e muta» e «armata e partita» darebbero lo stesso verde.",
+      "_assertion": "🔴 **Questa riga E' l'interposizione, vista dal TurnLog.** Valeva 0 finche' nessuna reazione scattava; ora Riktor si interpone al T6 e l'evento c'e'. E' l'oracolo strutturale che affianca `OriginalTargetEquals`/`EffectiveTargetEquals`: quelle dicono CHI, questa dice che e' successo davvero.",
       "type": "LogEventCount",
       "category": "Reaction",
       "outcome": "Activated",
-      "value": 0
+      "value": 1
+    },
+    {
+      "type": "OriginalTargetEquals",
+      "unit": "Wraith",
+      "_assertion": "Il colpo era diretto a Wraith: senza questa riga un redirect verso il bersaglio SBAGLIATO passerebbe."
+    },
+    {
+      "type": "EffectiveTargetEquals",
+      "unit": "Riktor",
+      "_assertion": "Ed e' Riktor a incassarlo. Le due insieme sono il vocabolario che #1060 ha portato."
+    },
+    {
+      "type": "UnitHpEquals",
+      "unit": "Riktor",
+      "value": 103,
+      "_assertion": "120 - (22 - 5): `ArcPulse` pieno meno lo scudo. 🔴 **Pieno perche' Riktor NON ha copertura**, ed e' il punto: la copertura sta su Wraith, il bersaglio ORIGINALE. Un resolver che la conservasse invece di rivalutare la geometria su chi incassa davvero darebbe 22-10=12 danni, cioe' **113**. La distanza fra 103 e 113 e' tutto cio' che questo turno esiste per misurare (D-017)."
     }
   ],
   "_nota_cosa_non_e_asserribile": "⏱️ **Aggiornata il 2026-08-16: il T2 ORA asserisce il proprio whiff.** Questa nota diceva che `LogEventCount` non copriva `Predictive` — `OutcomeEnumForCategory` restituiva `nullptr` e un `PredictionWhiffed` faceva fallire il CARICAMENTO dello scenario. Le due righe che mancavano al loader sono state aggiunte (`Predictive` e `ReactionDecision`, entrambi `UENUM` quindi risolvibili), e il T2 ha la sua assertion: se la previsione non fallisse — o se il turno non girasse affatto — il conteggio non sarebbe 1. ⛔ **Resta senza assertion propria il T3**, e la ragione e' diversa: il danno da hazard non ha un esito in `ERTEnvironmentOutcome`, cioe' #625 — `Burning` uccide fuori dal TurnLog canonico. Cio' che prova il T3 indirettamente e' la posizione finale di Wraith a (1,-1): ci si arriva solo salendo sulla cresta al T1 e scendendo per il fuoco al T3."

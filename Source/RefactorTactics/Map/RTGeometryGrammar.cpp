@@ -1,4 +1,5 @@
 #include "Map/RTGeometryGrammar.h"
+#include "Map/RTHexLibrary.h"
 
 int32 URTGeometryGrammarLibrary::AxisBoundaryIndex(ERTTacticalAxis Axis)
 {
@@ -260,4 +261,169 @@ bool URTGeometryGrammarLibrary::SnapToGrammar(const FVector2D& LocalA, const FVe
 	}
 
 	return bFound;
+}
+
+
+// ============================================================================
+//  ANCHOR — palette, posizione locale, chiave canonica  (`#1893`, `D-288`)
+// ============================================================================
+
+FString FRTAnchorRef::ToString() const
+{
+	switch (Kind)
+	{
+	case ERTAnchorKind::Vertex:  return FString::Printf(TEXT("%s/V%d"), *Cell.ToString(), Index);
+	case ERTAnchorKind::EdgeMid: return FString::Printf(TEXT("%s/E%d"), *Cell.ToString(), Index);
+	default:                     return FString::Printf(TEXT("%s/C"), *Cell.ToString());
+	}
+}
+
+namespace
+{
+	/** L'indice ridotto a `0..5`. Regge un dato arrivato da una deserializzazione, come fa la grammatica. */
+	int32 RTWrapAnchorIndex(int32 Index)
+	{
+		return ((Index % 6) + 6) % 6;
+	}
+}
+
+void URTGeometryGrammarLibrary::AnchorsOfCell(const FRTCellId& Cell, TArray<FRTAnchorRef>& OutAnchors)
+{
+	OutAnchors.Reset();
+	OutAnchors.Reserve(RT_AnchorsPerCell);
+
+	// Ordine dichiarato: centro, poi i sei vertici, poi i sei punti medi. Chi itera non deve dipendere
+	// dall'ordine, ma chi lo legge in un log deve trovarlo sempre uguale.
+	OutAnchors.Add(FRTAnchorRef(Cell, ERTAnchorKind::Center));
+	for (int32 K = 0; K < 6; ++K)
+	{
+		OutAnchors.Add(FRTAnchorRef(Cell, ERTAnchorKind::Vertex, K));
+	}
+	for (int32 J = 0; J < 6; ++J)
+	{
+		OutAnchors.Add(FRTAnchorRef(Cell, ERTAnchorKind::EdgeMid, J));
+	}
+}
+
+FVector2D URTGeometryGrammarLibrary::AnchorLocal(const FRTAnchorRef& Ref, float HexSize)
+{
+	if (Ref.Kind == ERTAnchorKind::Center)
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	// ⚠️ I dodici punti hanno UNA definizione, e non e' qui: `SectorBoundaryPoints` li ancora al primo
+	// vertice nello stesso verso in cui `URTHexLibrary` enumera il perimetro. Ricalcolare i coseni sarebbe
+	// la seconda copia della stessa formula — il difetto che `#588` ha gia' pagato.
+	TArray<FVector2D> Boundary;
+	URTHexOccupancyLibrary::SectorBoundaryPoints(HexSize, Boundary);
+	if (Boundary.Num() != RT_OccupancySectorCount)
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	// I confini alternano vertice e punto medio: il vertice `k` e' il confine `2k`, il punto medio del lato
+	// `j` e' il confine `2j + 1`.
+	const int32 Index = RTWrapAnchorIndex(Ref.Index);
+	const int32 BoundaryIndex = Ref.Kind == ERTAnchorKind::Vertex ? 2 * Index : 2 * Index + 1;
+	return Boundary[BoundaryIndex];
+}
+
+FRTAnchorRef URTGeometryGrammarLibrary::CanonicalAnchor(const FRTAnchorRef& Ref)
+{
+	// Il centro appartiene a una cella sola: non ha nessuno con cui accordarsi, ed e' gia' il proprio
+	// rappresentante.
+	if (Ref.Kind == ERTAnchorKind::Center)
+	{
+		return FRTAnchorRef(Ref.Cell, ERTAnchorKind::Center);
+	}
+
+	const int32 Index = RTWrapAnchorIndex(Ref.Index);
+
+	// I modi in cui questo stesso punto puo' essere nominato. Il primo e' sempre il riferimento dato, cosi'
+	// la funzione e' totale anche se la geometria cambiasse.
+	TArray<FRTAnchorRef, TInlineAllocator<3>> Named;
+	Named.Add(FRTAnchorRef(Ref.Cell, Ref.Kind, Index));
+
+	if (Ref.Kind == ERTAnchorKind::EdgeMid)
+	{
+		// Un punto medio appartiene a DUE celle: e' il punto medio del lato opposto, visto dal vicino che
+		// quel lato separa.
+		const ERTHexDirection Dir = URTHexLibrary::DirectionForEdgeIndex(Index);
+		const int32 Mirrored = URTHexLibrary::EdgeIndexForDirection(URTHexLibrary::OppositeDirection(Dir));
+		Named.Add(FRTAnchorRef(URTHexLibrary::Neighbor(Ref.Cell, Dir), ERTAnchorKind::EdgeMid, Mirrored));
+	}
+	else
+	{
+		// Un vertice appartiene a TRE celle: la propria e i due vicini oltre i due lati che lo contengono.
+		// Il vertice `k` sta fra il lato `k - 1` e il lato `k`, e nei due vicini prende gli indici `k + 2`
+		// e `k + 4` — le due rotazioni di un terzo di giro, che e' cio' che tre esagoni attorno a un punto
+		// sono.
+		const int32 Previous = RTWrapAnchorIndex(Index - 1);
+		Named.Add(FRTAnchorRef(
+			URTHexLibrary::Neighbor(Ref.Cell, URTHexLibrary::DirectionForEdgeIndex(Previous)),
+			ERTAnchorKind::Vertex, RTWrapAnchorIndex(Index + 2)));
+		Named.Add(FRTAnchorRef(
+			URTHexLibrary::Neighbor(Ref.Cell, URTHexLibrary::DirectionForEdgeIndex(Index)),
+			ERTAnchorKind::Vertex, RTWrapAnchorIndex(Index + 4)));
+	}
+
+	// Il rappresentante e' la cella che `StableLess` mette per prima — lo stesso ordinamento con cui
+	// `SortCells` e `ComputeHash` rendono deterministico tutto il resto dell'asset. Una seconda convenzione
+	// d'ordine sarebbe un secondo posto da tenere allineato.
+	FRTAnchorRef Best = Named[0];
+	for (const FRTAnchorRef& Candidate : Named)
+	{
+		if (URTHexLibrary::StableLess(Candidate.Cell, Best.Cell))
+		{
+			Best = Candidate;
+		}
+	}
+	return Best;
+}
+
+bool URTGeometryGrammarLibrary::SegmentBetweenAnchors(const FRTAnchorRef& A, const FRTAnchorRef& B,
+	float HexSize, FRTGeometrySegment& OutSegment)
+{
+	// La grammatica e' definita PER CELLA: due anchor di celle diverse non hanno un sistema di coordinate
+	// comune in cui dire un segmento. Un muro lungo e' piu' segmenti, uno per cella, e chi lo vuole passa
+	// da `URTHexLibrary::SplitSegmentAcrossCells`.
+	if (A.Cell != B.Cell)
+	{
+		return false;
+	}
+
+	const FVector2D PA = AnchorLocal(A, HexSize);
+	const FVector2D PB = AnchorLocal(B, HexSize);
+
+	FRTGeometrySegment Snapped;
+	if (!SnapToGrammar(PA, PB, HexSize, Snapped))
+	{
+		return false;
+	}
+	Snapped.Layer = A.Cell.Layer;
+
+	// 🔴 **LA VERIFICA DI FEDELTA', ed e' l'intera ragione per cui questa funzione non e' `SnapToGrammar`.**
+	// Quello *«tiene l'asse che sbaglia meno»* e rifiuta solo un gesto degenere o fuori dai bordi: chiesta
+	// una delle ventiquattro coppie che nessun asse porta, non fallisce — produce un muro **diverso** da
+	// quello chiesto. Qui la domanda e' un'altra: *«la grammatica esprime QUESTA coppia?»*, e la risposta e'
+	// no quando gli estremi prodotti non sono i due anchor chiesti. E' `GEO-8` di `D-288`.
+	const FRTOccupancyPolyline Line = ToPolyline(Snapped, HexSize);
+	if (Line.Points.Num() != 2)
+	{
+		return false;
+	}
+
+	// Tolleranza relativa alla cella: la grammatica e' esatta sui punti notevoli, quindi lo scarto ammesso
+	// e' quello di macchina, non un margine di comodo che farebbe passare un anchor vicino per quello giusto.
+	const double Tolerance = static_cast<double>(HexSize) * 1e-4;
+	const bool bForward = Line.Points[0].Equals(PA, Tolerance) && Line.Points[1].Equals(PB, Tolerance);
+	const bool bBackward = Line.Points[0].Equals(PB, Tolerance) && Line.Points[1].Equals(PA, Tolerance);
+	if (!bForward && !bBackward)
+	{
+		return false;
+	}
+
+	OutSegment = Snapped;
+	return true;
 }

@@ -46,6 +46,16 @@ FString URTTestReportWriter::ToJson(const FRTTestResult& Result, const FString& 
 	Root->SetNumberField(TEXT("seed"), Result.Seed);
 	Root->SetNumberField(TEXT("turnsPlayed"), Result.TurnsPlayed);
 
+	// Le due durate viaggiano SEPARATE e non come somma o rapporto (#1671): il rapporto lo calcola chi legge,
+	// mentre da un numero solo non si torna indietro. Solo `simulationSeconds` e' deterministico — vedi il
+	// commento sui due campi in `RTTestResult.h`, che e' dove vive la ragione.
+	//
+	// ⚠️ `SchemaVersion` NON viene alzata, per la stessa regola che il commento sotto dichiara per le tre
+	// grandezze delle decisioni: sono campi **additivi**, e un lettore vecchio li ignora continuando a leggere
+	// tutto il resto.
+	Root->SetNumberField(TEXT("simulationSeconds"), Result.SimulationSeconds);
+	Root->SetNumberField(TEXT("wallClockSeconds"), Result.WallClockSeconds);
+
 	// Le finestre di reazione (#512): CHI ha risposto, e quante decisioni scriptate sono state applicate o
 	// sono rimaste inutilizzate. La provenienza sta nel referto e non nel TurnLog perche' al replay serve
 	// **quale** decisione, non chi l'ha fornita — un campo nuovo in `FRTTurnLogEntry` muoverebbe i golden

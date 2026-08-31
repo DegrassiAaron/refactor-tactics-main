@@ -138,7 +138,7 @@ struct FRTHexAttackIntent
 	 * non si dichiara non ne produce nessuno, e nessuno dei quattro consumatori lo vede.
 	 *
 	 * ⚠️ **`false` di default, ed e' il verso opposto agli altri flag** (`bAllowsReaction`, `bFriendlyFire`,
-	 * `bCanBeInterrupted` sono `true`). La rottura di simmetria e' deliberata: quelli descrivono PERMESSI,
+	 * `InterruptPolicy` parte dal valore permissivo). La rottura di simmetria e' deliberata: quelli descrivono PERMESSI,
 	 * questo un'IDENTITA'. Un attacco che si dimentica il campo non fa niente e lo prende il primo test; una
 	 * non-aggressione che si dimentica non puo' diventare un attacco -- che e' il modo in cui
 	 * `Action.Interact` e' arrivata a incassare un contrattacco per aver aperto una porta.

@@ -28,16 +28,6 @@ FVector URTPlaybackLibrary::InterpolateAlongPath(const TArray<FVector>& Waypoint
 	return FMath::Lerp(Waypoints[Seg], Waypoints[Seg + 1], Frac);
 }
 
-float URTPlaybackLibrary::EstimatePlaybackSeconds(int32 MaxMoveSegments, int32 NumAttacks, int32 NumActivePhases,
-	float CellsPerSecond, float PhaseBeatSeconds, float AttackShowSeconds)
-{
-	// Movimento in parallelo: domina il percorso piu' lungo. Velocita' non positiva = istantaneo.
-	const float MoveSeconds = (CellsPerSecond > 0.f) ? (MaxMoveSegments / CellsPerSecond) : 0.f;
-	const float AttackSeconds = NumAttacks * AttackShowSeconds;
-	const float BeatSeconds = NumActivePhases * PhaseBeatSeconds;
-	return MoveSeconds + AttackSeconds + BeatSeconds;
-}
-
 int32 URTPlaybackLibrary::AttacksToShow(int32 NumAttacks, float PhaseElapsed, float AttackShowSeconds)
 {
 	if (NumAttacks <= 0)

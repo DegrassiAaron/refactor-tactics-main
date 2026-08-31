@@ -69,3 +69,35 @@ TArray<FRTAttack> URTCombatResolver::ApplyDamageDelta(const TArray<FRTAttack>& A
 
 	return Result;
 }
+
+TArray<FRTAttack> URTCombatResolver::ApplyAbsorptionPool(const TArray<FRTAttack>& Attacks,
+	const TArray<int32>& PoolByTarget, const TArray<bool>& bEligible)
+{
+	TArray<FRTAttack> Result = Attacks;
+
+	// Copia locale del budget: si consuma mentre si scorre, e l'ingresso resta const. Un `TArray` e non una
+	// `TMap`, per la stessa ragione di `ApplyFirstHitDelta`: l'ordine di iterazione non deve decidere nulla.
+	TArray<int32> Remaining = PoolByTarget;
+
+	for (int32 i = 0; i < Result.Num(); ++i)
+	{
+		FRTAttack& Attack = Result[i];
+		if (!Remaining.IsValidIndex(Attack.TargetIndex)) { continue; }
+
+		// Fuori dalla maschera = fuori dall'arco frontale (D-206): il colpo passa intero e NON tocca il pool.
+		// Un `bEligible` piu' corto dell'array vale «non eleggibile», non «eleggibile per default»: un dato
+		// mancante non deve concedere una protezione che nessuno ha dichiarato.
+		if (!bEligible.IsValidIndex(i) || !bEligible[i]) { continue; }
+
+		int32& Budget = Remaining[Attack.TargetIndex];
+		if (Budget <= 0) { continue; }
+
+		// `Min` e non una sottrazione con clamp: cio' che il colpo non consuma resta nel budget per i colpi
+		// successivi. E' l'intera differenza con `ApplyFirstHitDelta`, dove l'avanzo si perdeva.
+		const int32 Absorbed = FMath::Min(Budget, Attack.Power);
+		Attack.Power -= Absorbed;
+		Budget -= Absorbed;
+	}
+
+	return Result;
+}

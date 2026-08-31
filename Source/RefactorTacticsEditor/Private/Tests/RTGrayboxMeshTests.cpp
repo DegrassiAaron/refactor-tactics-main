@@ -57,14 +57,20 @@ namespace
 	/**
 	 * Un decimo di uu: la geometria e' esatta, la tolleranza copre il solo arrotondamento in float.
 	 *
-	 * ⚠️ **Il prefisso non e' stile: senza, il modulo Editor non compila.** Si chiamava `Tolerance`, e in
-	 * unity build questa translation unit ne contiene altri file: quando `f3215da7` ha aggiunto un
-	 * `Rotator().Equals(..., 0.01f)` a `RTScenarioPerspectiveTests.cpp`, l'istanza di
-	 * `TRotator<double>::Equals(const TRotator&, T Tolerance)` ha trovato questo nome globale al blob e ha
-	 * emesso `C4459` — che qui e' un errore, non un avviso.
+	 * 🔴 **Si chiamava `Tolerance`, e in unity build quel nome rompeva la compilazione del modulo.** Questa
+	 * costante vive in un namespace ANONIMO, quindi in compilazione separata non si vede da nessun'altra
+	 * parte; nella unity build finisce nella stessa unita' di traduzione dei test vicini, e li'
+	 * `TRotator<T>::Equals(const TRotator<T>&, T Tolerance)` dell'engine — istanziato da
+	 * `RTScenarioPerspectiveTests.cpp` — ha un PARAMETRO con lo stesso nome. Il parametro nasconde la
+	 * dichiarazione di namespace: `C4459`, che in questo progetto e' un errore.
 	 *
-	 * Un nome generico in un namespace anonimo e' locale al FILE ma non al blob: il conflitto arriva da un
-	 * file che nessuno stava toccando, e il rosso non nomina chi lo ha causato.
+	 * ⚠️ **Il difetto era latente e non e' stato causato da chi lo ha incontrato**: nessuno dei due file
+	 * andava toccato perche' emergesse — bastava che UBT li raggruppasse insieme, cosa che cambia quando si
+	 * aggiungono sorgenti al modulo. E' la stessa forma della `SaveAssetPackage` duplicata fra i due
+	 * commandlet, registrata il 2026-08-30.
+	 *
+	 * ∴ il nome e' specifico del kit invece che generico: un identificatore di namespace anonimo condivide
+	 * lo spazio dei nomi con OGNI parametro dell'engine che finisca nella stessa unita' di traduzione.
 	 */
 	constexpr float KitTolerance = 0.1f;
 

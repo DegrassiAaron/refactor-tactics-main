@@ -95,7 +95,8 @@ namespace
 	URTActionData* MakeHeroAction(const FName& Id, ERTResolutionPhase Phase, int32 Priority, int32 Range,
 		int32 Cooldown, ERTActionFallback Fallback, const TArray<FRTActionEffectSpec>& Effects,
 		ERTAbilityShape Shape = ERTAbilityShape::Single, int32 AreaRadius = 0,
-		ERTActionSlot Slot = ERTActionSlot::Main, bool bInterruptible = true)
+		ERTActionSlot Slot = ERTActionSlot::Main,
+		ERTInterruptPolicy Interrupt = ERTInterruptPolicy::InterruptBeforeEffect)
 	{
 		URTActionData* Action = NewObject<URTActionData>();
 
@@ -107,7 +108,7 @@ namespace
 		Action->Def.Fallback = Fallback;
 		Action->Def.Effects = Effects;
 		Action->Def.Slot = Slot;
-		Action->Def.bCanBeInterrupted = bInterruptible;
+		Action->Def.InterruptPolicy = Interrupt;
 
 		Action->RangeCells = Range;
 		Action->CooldownTurns = Cooldown;
@@ -551,7 +552,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// esito falso nel TurnLog e' peggio di un'abilita' dichiaratamente incompleta.
 	Phase->Actions.Add(MakeHeroAction(TEXT("Hero.Phase.FlowReaction"), ERTResolutionPhase::Preparation, /*Priority*/ 36,
 		/*Range*/ 0, /*Cooldown*/ 3, ERTActionFallback::Cancel, {}, ERTAbilityShape::Single, /*AreaRadius*/ 0,
-		ERTActionSlot::None, /*bInterruptible*/ false));
+		ERTActionSlot::None, ERTInterruptPolicy::None));
 
 	// `Hero.Phase.TideGuard` — lo scudo PROATTIVO, derivato da `Action.Shield`: Preparation, 25 punti di
 	// scudo temporaneo, cooldown 2. E' l'unico scudo del gioco che si sceglie PRIMA di sapere se sarai
@@ -794,7 +795,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	URTActionData* InterceptShot = MakeHeroAction(TEXT("Hero.Wraith.InterceptShot"), ERTResolutionPhase::Preparation,
 		/*Priority*/ 30, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, ERTAbilityShape::Single, /*AreaRadius*/ 0,
-		ERTActionSlot::Main, /*bInterruptible*/ false);
+		ERTActionSlot::Main, ERTInterruptPolicy::None);
 	// I due campi che la rendono predittiva stanno nei DATI e non in un ramo del resolver: `LockCell` dice che
 	// la cella non si rivaluta, `MovementEntry` quando si guarda chi ci e' passato.
 	InterceptShot->Def.PredictiveTargeting = ERTPredictiveTargeting::LockCell;
@@ -929,7 +930,7 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroReactionFromCoreAction(const FName
 	URTActionData* Action = MakeHeroAction(HeroActionId, Core.ResolutionPhase, Core.Priority,
 		RangeCells >= 0 ? RangeCells : Core.RangeCells, CooldownTurns, Core.Fallback,
 		Effects.Num() > 0 ? Effects : Core.Effects, ERTAbilityShape::Single, /*AreaRadius*/ 0,
-		Core.Slot, Core.bCanBeInterrupted);
+		Core.Slot, Core.InterruptPolicy);
 
 	// Il trigger viene dalla semantica core: e' la domanda a cui la reazione risponde («sono stato colpito?»,
 	// «un alleato e' stato colpito?»), non un numero di bilanciamento dell'eroe.

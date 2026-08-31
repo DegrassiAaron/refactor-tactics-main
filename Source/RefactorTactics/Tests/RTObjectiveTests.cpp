@@ -6,6 +6,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexMapCustomVersion.h"
 #include "Turn/RTMatchFormatData.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnLog.h"
@@ -382,7 +383,16 @@ bool FRTObjectiveChangesMapHashTest::RunTest(const FString&)
 	TestNotEqual(TEXT("l'obiettivo cambia l'hash"), WithObjective->ComputeHash(), Bare->ComputeHash());
 
 	// La versione del formato che porta il campo, dichiarata dove i lettori la cercano.
-	TestEqual(TEXT("il formato e' v11"), URTHexMapAsset::CurrentFormatVersion, 11);
+	//
+	// ⚠️ Pinnava `CurrentFormatVersion == 11`, che diceva la cosa giusta solo finche' 11 ERA la corrente:
+	// col bump a v12 (#1864, muro interno) quell'asserzione sarebbe diventata «il formato e' v12» sotto un
+	// commento che parla del campo obiettivo — arrivato in v11 e non in v12. Ora nomina la costante che
+	// porta davvero quel campo, quindi resta vera a ogni bump futuro.
+	//
+	// ⛔ Non indebolisce il gate sui bump: a farlo cadere sono i quattro pin su `CurrentFormatVersion` in
+	// `RTHexArcTests` · `RTHexDoorTests` · `RTHexMapTests` · `RTHexOccupancyTests`, che restano.
+	TestEqual(TEXT("l'obiettivo e' arrivato col formato v11"),
+		static_cast<int32>(FRTHexMapCustomVersion::ObjectiveCell), 11);
 
 	return true;
 }

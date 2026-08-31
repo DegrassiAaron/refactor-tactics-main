@@ -318,11 +318,34 @@ E i byte di `L_DevSandbox.umap` dicono a quale dei tre il livello è legato. La 
 che la convenzione di cartella associa a quel livello è **vuoto**, e l'unica mappa con contenuto vero
 appartiene a un altro livello.
 
-**Nygard**: il §8 elenca `No Map Asset` ma non *«MapAsset presente e vuoto»*, e quella è la condizione reale.
-Il runtime le distingue già — `DemoArenaRadius` è documentato come ripiego *«quando il livello non porta una
-mappa esagonale **con celle** (asset assente **oppure presente ma vuoto**)»*, e il difetto è stato osservato
-in PIE proprio su `L_DevSandbox`. Un failure state che le fonde è un failure state che perde l'unico caso che
-si verifica oggi.
+**Nygard**: il §8 elenca `No Map Asset` ma non *«MapAsset presente e vuoto»*, e quella è la condizione reale —
+il difetto è stato osservato in PIE proprio su `L_DevSandbox`. Un failure state che le fonde perde l'unico caso
+che si verifica oggi.
+
+🔴 **Correzione del 2026-08-31: la prima stesura di questa voce diceva «il runtime le distingue già», ed era
+falso.** Portava a prova la documentazione di `DemoArenaRadius` — ripiego *«quando il livello non porta una
+mappa esagonale **con celle** (asset assente **oppure presente ma vuoto**)»* — che è invece la
+**documentazione della fusione**: è la frase con cui un unico valore dichiara di coprire entrambi i casi.
+Misurato su `origin/main` = `511a1cb4`, il runtime li fonde in tre punti su tre.
+
+```cpp
+// RTMatchBootstrapper.cpp:145 — un solo ramo
+if ((!HexMap->MapAsset || HexMap->MapAsset->NumCells() == 0) && Config.DemoArenaRadius > 0)
+
+// RTStartupReport.h:94 — un solo outcome
+/** La mappa del livello e' assente o **senza celle**: si ripiega sull'arena demo. */
+LevelMapMissing,
+```
+
+Più una sola frase di log: *«Mappa esagonale del livello assente o senza celle»*. Ciò che il runtime distingue
+davvero è `LevelMapMissing` (degradato, ripiega) da `MatchLevelUnset` (fatale, non ripiega); **dentro**
+`LevelMapMissing` i due casi sono indistinguibili per enum, per ramo e per frase.
+
+∴ la distinzione non va **preservata**, va **creata**, e sceglierne il posto ha un costo che va deciso:
+costruirla nel launcher mentre il runtime la fonde produce due tassonomie per la stessa condizione, cioè la
+seconda autorità che i guardrail vietano altrove. [#1683](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1683)
+(`L8`) porta l'acceptance criterion riscritto di conseguenza — `diventano` al posto di `restano` — più
+l'out of scope che tiene il ramo runtime fuori da quella slice.
 
 ✅ Il documento ha però ragione su una cosa che nessuno aveva scritto: il §8 elenca *«Map changed after
 scenario load»*, e con un asset rigenerabile sotto il livello quel caso non è ipotetico.
