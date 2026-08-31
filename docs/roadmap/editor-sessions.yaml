@@ -1662,9 +1662,13 @@ sessions:
     artifacts: []
     unblocked_by: [U21]
     shares_setup_with: [U21, U22, U25]
-    verifies: []
+    verifies: [PIE-HEX-MOVEMENT-PROBE, PIE-HEX-MOVEMENT-PROBE-SURFACE, PIE-HEX-MOVEMENT-PROBE-FLUIDITA]
     issues: [622, 711]
-    done_when: le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale
+    done_when: >-
+      le voci `PIE-*` che `#622` e `#711` creeranno hanno un esito reale. ⚠️ **Il 2026-08-31 ne esiste
+      meta'**: le tre della sonda sono entrate con l'implementazione di `#711`, quelle della griglia di
+      lavoro (`#622`) no. Chi esegue questa seduta oggi puo' chiudere il verdetto sulla sonda e **non** la
+      seduta
     unblocks: []
     notes: >-
       ➕ **Seduta aperta il 2026-08-17 dal consolidamento Tactical Designer** ([D-154], referto

@@ -38,6 +38,10 @@ void FRTHexEditorModeCommands::RegisterCommands()
 		EUserInterfaceActionType::ToggleButton, FInputChord());
 	ToolCommands.Add(LosTool);
 
+	UI_COMMAND(ProbeTool, "Probe", "Sonda di movimento: scegli un eroe, clicca una cella di partenza e passa sopra le celle per leggere dove arriva, per quale percorso e — quando non ci arriva — perche' no. Consuma il reachable set canonico, non ne calcola un secondo.",
+		EUserInterfaceActionType::ToggleButton, FInputChord());
+	ToolCommands.Add(ProbeTool);
+
 	// `#623`: azione, non tool — vedi il commento sul campo. Deliberatamente NON aggiunta a `ToolCommands`:
 	// quella lista e' la palette, e `URTHexEditorMode::Enter` la consuma con `RegisterTool`, che si aspetta
 	// un builder per ogni voce. Il binding vive in `URTHexEditorMode::BindCommands`.
