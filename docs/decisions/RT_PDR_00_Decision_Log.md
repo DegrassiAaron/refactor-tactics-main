@@ -324,6 +324,34 @@ Regola di manutenzione #1: *ogni modifica a un requisito aggiunge o aggiorna una
 
 ## Note
 
+- **E49** (2026-09-01): 🔴 **la prima collisione registrata su un `Enn` invece che su un `D-nnn`, e il
+  meccanismo che l'ha prodotta e' diverso.** `E49` ha avuto **due** significati in produzione, e nessuno dei
+  due sapeva dell'altro: il **Damage Model** lo ha speso il 2026-08-27/28 in un commento di
+  `RTCombatLibrary.h` (*«arriva con E49»*, commit `6a1c0cb6`, [D-224](RT_PDR_00_Decision_Log.md)) **senza
+  aprire nessuna epic**; la **Tactical Camera** lo ha assegnato il 2026-08-30 a
+  [#1769](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1769).
+  🔑 **La misura che ha assegnato il numero era corretta e cieca allo stesso tempo.** Il referto
+  [`../roadmap/plans/tactical-camera-consolidamento-spec-panel-2026-08-30.md`](../roadmap/plans/tactical-camera-consolidamento-spec-panel-2026-08-30.md)
+  dichiarava *«Epic camera esistenti: **0**»* — vero delle **epic**, e cieco a un `Enn` che viveva solo
+  dentro un commento C++. Un contatore condiviso si misura sulle epic; questo era stato speso altrove.
+  ⚠️ **E il puntatore rotto era peggio di un link a vuoto**: chi cercava dove sarebbe nato `DamageType`
+  atterrava su un'epic di camera, e nulla lo avvertiva. Un link a vuoto si nota, un link a un'altra cosa no.
+  ✅ **Risolto correggendo il CODICE, non rinumerando l'epic** — [#1898](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1898).
+  `#1769` e' aperta e citata da nove issue `CAM-*` e da quattro documenti: rinumerarla avrebbe scaricato il
+  costo su lavoro in corso. Il damage model **non ha** un'epic, e
+  [D-238](RT_PDR_00_Decision_Log.md) lo aveva gia' deciso — *«E49 resta una proposta e nessuna issue e' stata
+  creata»*: l'owner e' quella decisione, piu' il PRD di livello 8 che **non e' normativo**.
+  ⛔ **Nessuna epic e' stata creata per «dare un numero» al commento**: sarebbe stata un'epic aperta per
+  risolvere una nota, che e' l'opposto di cio' che `D-238` decide.
+  🔎 **La lezione, e non e' quella delle collisioni di `D-nnn`**: quelle nascono da due sessioni che
+  prendono lo stesso primo-libero nella stessa finestra. Questa nasce da un ID **speso in un commento** anni
+  luce dal registro che lo governerebbe, dove nessun `grep` del contatore lo cerca. ⛔ Nessun gate confronta
+  oggi un `Enn` citato in `Source/` con il **titolo** dell'epic che porta quel numero — misurato, e non
+  colmato qui: `#1898` dichiara di essere un commento, e costruire il validator dentro di lei sarebbe stato
+  allargarne lo scope.
+  ⚠️ **In `Source/` restano due occorrenze di `E49`, ed e' deliberato**: dicono che `E49` **non** e' il
+  damage model, e una e' la citazione testuale di `D-238`. Sono disambiguanti, non puntatori.
+
 - **D-307** (2026-08-31): ✅ **la prima collisione PREVENUTA invece che subita, e il controllo che l'ha vista è quello aggiunto due voci fa.** Alla misura il massimo su `origin/main` era `D-304`, quindi il primo-libero diceva `D-305`. 🔴 **Ma `D-305` era rivendicato da DUE PR aperte contemporaneamente**: [#2001](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2001) (la reticola come enum spedito) e [#2002](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2002) (`MSE-4`, il contatto puntuale). Nessuna delle due era su `main`, e nessuna delle due era visibile a un `grep` del registro. Sono state trovate con `gh pr diff` su ogni PR aperta — il controllo che la nota di `D-302` aveva dichiarato *«il controllo che mancava»* poche ore prima.
   🔑 **Il numero scelto è `D-307`, non `D-306`**: due PR sullo stesso numero collidono fra loro, e prendere il primo libero *dopo* entrambe era l'unica scelta che non richiedesse una terza rinumerazione. 🔴 **E la previsione scritta qui era sbagliata, corretta dopo la code review.** La nota diceva che `D-305` fosse arrivato da *«una terza PR»*: **falso**. `D-305` è di [#2001](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2001) — una delle due misurate —, che l'ha **tenuto** e mergiato (commit `c033b99a`, merge `21372711`, che è la base di questo stesso branch). A rinumerare è stata solo [#2002](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2002), che ha preso `D-306`. ∴ l'esito reale: una ha tenuto, una ha rinumerato, e `D-307` era libero come previsto — ma per un percorso diverso da quello scritto. ⚠️ **Una nota che insegna a misurare conteneva una misura sbagliata**, ed è il motivo per cui questa riga resta invece di essere cancellata.
   🔎 **La lezione, misurata su ventuno collisioni**: il primo-libero non è sbagliato come criterio, è incompleto come **misura**. Il registro dice cosa è già mergiato; le PR aperte dicono cosa sta per esserlo, e sono lì che vive la finestra in cui si collide.

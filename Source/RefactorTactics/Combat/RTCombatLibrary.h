@@ -26,8 +26,16 @@ enum class ERTHexTargetReason : uint8
  * passivo che ogni unita' porta ferma i colpi, non gli hazard. Lo scudo TEMPORANEO assorbe entrambi —
  * quello e' protezione che qualcuno ha speso un'azione per costruire.
  *
- * Non e' `DamageType` (`Kinetic`/`Fire`/...), che risponde a un'altra domanda — quale resistenza leggere —
- * e arriva con E49. Qui la domanda e' una sola e binaria: la base partecipa?
+ * Non e' `DamageType` (`Kinetic`/`Fire`/...), che risponde a un'altra domanda — quale resistenza leggere.
+ * Qui la domanda e' una sola e binaria: la base partecipa?
+ *
+ * ⚠️ **`DamageType` non ha un'epic, e il numero che questo commento citava era di un altro.**
+ * Diceva *«arriva con E49»*, ma `E49` e' l'epic della **Tactical Camera** (`#1769`, 2026-08-30): chi
+ * seguiva il puntatore per capire dove nascera' `DamageType` atterrava sulla camera, e nulla lo
+ * avvertiva. Un link a vuoto si nota, un link a un'altra cosa no. L'owner reale e' **`D-238`**, che
+ * decide di non congelare la formula e dichiara che *«E49 resta una proposta e nessuna issue e' stata
+ * creata»*; il materiale di studio sta in `docs/research/prd/prd-damage-model-armor-shield.md`, che
+ * e' livello 8 e **non e' normativo**. Corretto da `#1898`.
  */
 UENUM(BlueprintType)
 enum class ERTDamageSource : uint8

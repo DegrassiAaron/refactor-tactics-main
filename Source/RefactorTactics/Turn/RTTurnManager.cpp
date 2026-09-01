@@ -4674,12 +4674,46 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 
 			// Attaccante non risolvibile: il colpo NON e' eleggibile. Un dato mancante non deve concedere una
 			// protezione che nessuno ha dichiarato — fail-closed, come il resto del combattimento.
-			const bool bFrontal = HexUnits.IsValidIndex(Hit.AttackerId)
+			//
+			// L'ORIGINE dell'arco non e' sempre chi ha attaccato: per un'AREA e' il CENTRO D'IMPATTO
+			// ([D-302] punto 3, `#2009`). Una granata fatta cadere DAVANTI a chi e' in Guardia da un
+			// lanciatore che gli sta alle SPALLE arriva, per lui, da davanti — e il pool va consumato.
+			// Con la cella del lanciatore usciva un `RearHitBypassedGuard` per un colpo che il difensore
+			// vedeva arrivare, e il simmetrico proteggeva da un ordigno esploso dietro le spalle.
+			//
+			// ⚠️ `Line` e `Cone` NON cambiano, e non per dimenticanza: per entrambe la direzione
+			// d'impatto coincide gia' con `attaccante->bersaglio`, quindi `D-302` e' gia' soddisfatta.
+			//
+			// 🔑 Il centro si legge dal FOOTPRINT e non da `Intents[Hit.IntentIndex].TargetCell`: quel
+			// campo e' *«ignorato»* quando l'area e' centrata su un'unita', mentre `AimCell` porta il centro
+			// gia' risolto — unita' o cella — e **congelato al momento del calcolo del piano**, che e'
+			// l'istante in cui la geometria e' stata decisa.
+			// ⚠️ **La forma si legge dall'INTENTO, il centro dal footprint**, e la divisione non e'
+			// arbitraria: l'intento c'e' sempre — ogni colpo ne discende — mentre il footprint e' una
+			// registrazione. Dedurre anche la forma dal footprint significherebbe che un footprint
+			// mancante fa leggere un'area come se area non fosse, cioe' ricadere in silenzio sul
+			// comportamento vecchio invece di fallire chiuso.
+			const bool bArea = Intents.IsValidIndex(Hit.IntentIndex)
+				&& Intents[Hit.IntentIndex].Shape == ERTAbilityShape::Area;
+			const FRTAttackFootprint* Footprint = Plan.Footprints.FindByPredicate(
+				[&Hit](const FRTAttackFootprint& F) { return F.IntentIndex == Hit.IntentIndex; });
+
+			// Origine non risolvibile: il colpo NON e' eleggibile. Un dato mancante non deve concedere una
+			// protezione che nessuno ha dichiarato — fail-closed, come il resto del combattimento, e vale
+			// per entrambi i rami: un'area senza footprint non e' meno sospetta di un attaccante perduto.
+			const bool bOriginResolved = bArea
+				? (Footprint != nullptr)
+				: HexUnits.IsValidIndex(Hit.AttackerId);
+			const FRTCellId ImpactOrigin = bArea
+				? (Footprint ? Footprint->AimCell : FRTCellId())
+				: (HexUnits.IsValidIndex(Hit.AttackerId) ? HexUnits[Hit.AttackerId].Cell : FRTCellId());
+
+			const bool bFrontal = bOriginResolved
 				&& URTHexCombatLibrary::IsInFrontalArc(
-					HexUnits[i].Cell, HexUnits[i].Facing, HexUnits[Hit.AttackerId].Cell);
+					HexUnits[i].Cell, HexUnits[i].Facing, ImpactOrigin);
 			bFrontalHit[h] = bFrontal;
 
-			if (!bFrontal && HexUnits.IsValidIndex(Hit.AttackerId))
+			if (!bFrontal && bOriginResolved)
 			{
 				FRTTurnLogEntry Bypassed;
 				Bypassed.Phase = ERTMatchPhase::Blast;
@@ -4688,7 +4722,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 				// scavalcata e mette in `Amount` la DIREZIONE del difensore, mentre il ramo della copertura ci
 				// mette i punti di riduzione. Erano lo stesso esito con due payload incompatibili.
 				Bypassed.Outcome = static_cast<uint8>(ERTFacingOutcome::RearHitBypassedGuard);
-				Bypassed.SrcCell = HexUnits[Hit.AttackerId].Cell;
+				// L'origine DICHIARATA, cioe' la stessa che ha deciso l'arco: per un'area il centro
+				// d'impatto, altrimenti la cella del lanciatore. Una traccia che spiegasse un bypass con
+				// una cella diversa da quella su cui il bypass e' stato deciso sarebbe la stessa classe di
+				// difetto di [D-199]/`#1430`: l'esito giusto con il payload di un altro.
+				Bypassed.SrcCell = ImpactOrigin;
 				Bypassed.TgtCell = HexUnits[i].Cell;
 				Bypassed.Amount = static_cast<int32>(HexUnits[i].Facing);
 				// 🔴 `UnitId` porta CHI SUBISCE, non chi ha colpito, e non e' una scelta arbitraria: e' cio'
