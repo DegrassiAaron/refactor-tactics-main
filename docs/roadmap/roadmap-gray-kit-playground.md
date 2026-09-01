@@ -264,6 +264,26 @@ non contendono lo stesso `.uasset`. La mappa (`L_GrayKitPlayground.umap`) e il f
 (`.gitignore:119-122`). #1095 dichiara come dipendenza *«una Binary Asset Lease su `Content/RT/`, che non
 esiste ancora»*, e questa roadmap eredita quel vincolo invece di aggirarlo.
 
+### Stato misurato — 2026-09-01
+
+| Pezzo | Stato |
+|---|---|
+| #1991 — map shell | ✅ **CLOSED**; `L_GrayKitPlayground.umap` è su `main`, Station 01 è `bLive = true` |
+| #1992 — contratto geometrico | ✅ in `URTHexLibrary`: `FacingRotation` e `FacingMarkerOrigin`, `BlueprintPure`, con sei test `RefactorTactics.Hex.Facing*` |
+| #1992 — `BP_Graybox_UnitFacingFixture` | ⏳ **da creare** |
+| #1992 — posa in Station 01 | ⏳ **da fare**, e tocca il `.umap` |
+| Seduta di verdetto | ✅ `U40` in [`editor-sessions.yaml`](editor-sessions.yaml) |
+
+🔑 **Il contratto geometrico è atterrato in `URTHexLibrary` e non nel Blueprint, e la ragione è misurata**:
+`EdgeRotation` — l'unico derivatore della direzione-mondo dei sei lati — è una `static` **nuda**, quindi
+un asset in `Content/` non poteva chiamarla e sarebbe stato costretto a incidersi sei angoli. Le due
+`UFUNCTION(BlueprintPure)` **delegano** a `EdgeRotation` e non aggiungono trigonometria: la convenzione dei
+sei lati resta scritta in un posto solo.
+
+⚠️ **Cio' che i sei test NON provano: che il Blueprint le chiami.** Un fixture che calcolasse l'origine per
+conto proprio li lascerebbe tutti verdi. Quel legame è verifica d'editor, ed è la ragione per cui `U40`
+esiste invece di essere assorbita dalla suite.
+
 ⛔ **Non si anticipano le Station 02–08 prima che il gate `GKP 0.1` sia visibile.** La priorità è
 
 > **prima qualcosa da vedere**, non prima il framework che potrebbe un giorno mostrarlo.

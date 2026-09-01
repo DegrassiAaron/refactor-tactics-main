@@ -156,6 +156,60 @@ public:
 	static ERTHexDirection OppositeDirection(ERTHexDirection Dir);
 
 	/**
+	 * Orientamento-mondo di una delle sei direzioni: l'asse X guarda dove sta il vicino.
+	 *
+	 * E' `EdgeRotation` **senza la cella**, ed esiste per due ragioni misurate (#1992).
+	 *
+	 * 🔑 **La prima: `EdgeRotation` non e' chiamabile da Blueprint** — e' una `static` nuda. Un asset in
+	 * `Content/` che debba orientare qualcosa secondo `ERTHexDirection` non ha altra strada che incidersi
+	 * sei angoli, cioe' aprire una **seconda** convenzione dei sei lati. E' il difetto di `#712`, dove due
+	 * numerazioni divergenti scrivevano la copertura sul lato sbagliato per quattro bordi su sei.
+	 *
+	 * ⚠️ **La seconda: scartare la cella e' lecito, e non e' ovvio.** Lo e' perche' `AxialToWorld` e'
+	 * **affine** in `(q,r)`: lo spostamento fra due centri dipende solo dal delta assiale, mai da dove si
+	 * parte. Se quella funzione smettesse di esserlo — un'origine per layer, una deformazione — questa
+	 * scorciatoia mentirebbe in silenzio. Il guardiano e'
+	 * `RefactorTactics.Hex.FacingRotationIsCellIndependent`, che lo **misura** su celle sparse invece di
+	 * affermarlo.
+	 *
+	 * ⛔ Non e' una seconda risposta: **delega** a `EdgeRotation` e non ricalcola nessuna trigonometria.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static FRotator FacingRotation(ERTHexDirection Facing);
+
+	/**
+	 * Da dove **parte** il marker che mostra il facing di un corpo cilindrico: sulla SUPERFICIE del corpo,
+	 * alla quota della faccia.
+	 *
+	 *     MarkerOrigin = UnitCenter + Forward(Facing) * BodyRadius + Up * FaceHeight
+	 *
+	 * 🔑 **Perche' non dal centro** (#1992). Un marker che parte dal centro attraversa il corpo: da vicino
+	 * lo si vede spuntare da dentro, e a camera tattica la sua lunghezza apparente include il raggio del
+	 * corpo — cioe' due corpi con la stessa lunghezza di marker ma raggio diverso sembrano guardare a
+	 * distanze diverse. Con l'origine sulla superficie la lunghezza del marker torna a essere **una
+	 * misura** invece della somma di due cose.
+	 *
+	 * ⚠️ **La lunghezza del marker NON e' un parametro, ed e' deliberato.** Tenerla fuori dalla firma rende
+	 * vera *per costruzione* la proprieta' che l'authoring pretende — cambiando `BodyRadius` l'origine si
+	 * sposta e la lunghezza non cambia. Passarla qui la degraderebbe a promessa da verificare.
+	 *
+	 * ⚠️ `Up` e' il verso del **mondo**, non del corpo: le sei origini stanno tutte alla stessa quota. Un
+	 * offset ruotato in blocco darebbe lo stesso risultato finche' la rotazione e' solo yaw, e comincerebbe
+	 * a mentire il giorno in cui non lo fosse — `RefactorTactics.Hex.FacingMarkerOriginKeepsWorldUp`.
+	 *
+	 * `BodyRadius = 0` degenera al centro, alla quota `FaceHeight`: e' il caso limite che distingue questa
+	 * formula da una che le somiglia.
+	 *
+	 * ⛔ **Geometria di presentazione, non di gioco**: nessuna cella, nessun costo, nessuna occupancy.
+	 * Vive qui — accanto a `CellVolumeTransform`, che fa lo stesso mestiere per i volumi d'authoring —
+	 * perche' e' il punto in cui la convenzione dei sei lati incontra un corpo da disegnare, e perche' un
+	 * asset in `Content/` deve poterla chiamare.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static FVector FacingMarkerOrigin(ERTHexDirection Facing, const FVector& UnitCenter,
+		float BodyRadius, float FaceHeight);
+
+	/**
 	 * Quale dei sei bordi e' piu' vicino a un punto-mondo, visto DA quella cella (#1864).
 	 *
 	 * Serve a un click: il viewport da' un punto, e la selezione ragiona per `(Cella, Bordo)`.
