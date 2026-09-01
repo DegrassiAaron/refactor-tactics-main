@@ -171,6 +171,30 @@ commit da rettificare; con un `.uasset` sarebbe stato un fix disfatto.
 
 ---
 
+## 8-bis. Il mirror su Drive è stato allineato, e come
+
+⚠️ **Il consolidato Drive si contraddiceva**, ed è il difetto che questo pass ha trovato lì: la sua
+sezione *«DOMANDE DAVVERO APERTE»* elencava quattordici voci — `COV-3`…`COV-8`, il reason code di
+`#1922`, la scelta su `Deflect`, le due domande di `#1879`/`#1880`, il formato scenario — che lo **stesso
+documento** dichiarava risolte poche pagine più in basso. La sua regola 6 lo vieta esplicitamente:
+*«non ricopiare decisioni chiuse nella sezione Domande aperte»*.
+
+Allineato il 2026-09-01. La sezione ora porta le domande che
+[`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) dichiara realmente aperte, e una mappa `DQA-nnn` → `D-nnn`
+che rimanda qui invece di ripetere le regole.
+
+🔑 **Il verso del rimando è la cosa che conta.** Il Drive **non** duplica le decisioni: le nomina e
+punta al Decision Log. È ciò che impedisce a due fonti di divergere — una copia diverge, un rimando no.
+
+⛔ **Il repository non dipende da quel documento.** Se il mirror sparisse, nulla di ciò che serve andrebbe
+perso: questa è la condizione che rende il Drive un mirror e non una seconda autorità.
+
+⚠️ **Una cosa che il mirror dichiara e che qui va riletta**: al momento della scrittura `D-308`…`D-311`
+erano in una **PR aperta**, non in `main`. Un lettore che trovasse quella riga dopo il merge non deve
+dedurne che siano ancora pendenti — si verifica su GitHub, come la regola 3 di quel documento prescrive.
+
+---
+
 ## 9. Cosa dovrebbe far riaprire questo documento
 
 - Una decisione d'autore che arriva ancora numerata `DQA-nnn` **oltre** `DQA-044`: la tavola del §2 va estesa.
