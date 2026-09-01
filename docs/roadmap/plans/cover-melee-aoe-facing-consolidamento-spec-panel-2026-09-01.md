@@ -7,11 +7,17 @@
 > **Mandato**: consumare `RefactorTactics_Cover_Facing_AoE_Consolidation_for_Claudia_v0.1.md` (40 sezioni,
 > 1171 righe), archiviato in [`../../archive/`](../../archive/RefactorTactics_Cover_Facing_AoE_Consolidation_for_Claudia_v0.1.md).
 >
-> **Esito in una riga**: il kit **non è un consolidamento**, e lo stesso difetto si ripete due volte su due.
+> **Esito in una riga**: il kit **non è un consolidamento**, e lo stesso difetto si ripete **tre volte su tre**.
 > Il principio fondativo (§1) è la separazione che [`CP 9.2`](../../gameplay/spec-copertura-alta-cp92.md) ha
 > **esplicitamente scartato** con la ragione scritta; la §19 chiama «legacy da refactor» un ramo che
 > [`CP 9.1`](../../gameplay/spec-copertura-cp91.md) §4 **dichiara come regola**, sempre con l'alternativa
-> scartata per iscritto; e due default (§10/§26) ribaltano canone implementato e testato senza nominarlo.
+> scartata per iscritto; e §2.1/§7 danno per scavalcabile una `Low Cover` che
+> [`D-308`](../../decisions/RT_PDR_00_Decision_Log.md) dichiara scavalcabile **solo per dato autorato**. In
+> più, due default (§10/§26) ribaltano canone implementato e testato senza nominarlo.
+>
+> 🔑 **E la terza volta il kit contraddice se stesso**: il suo `Core Principle` vieta di dedurre un
+> comportamento dal livello di copertura, e §2.1 deduce `Vaultable` da `Low`. `D-308` applica quel principio
+> — *«la scavalcabilità è un dato, non una conseguenza dell'altezza»* — dove il kit smette di applicarlo.
 >
 > 🔁 **Corretto il 2026-09-01, secondo passaggio — la §4 di questo referto era sbagliata.** Diceva che il ramo
 > `Area → cover 0` è un difetto che contraddice [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md). Non lo
@@ -25,13 +31,13 @@ ragione è scritta dal kit stesso:
 
 > §40.3 — *«Se esiste un conflitto, mantenere il conflitto esplicito e creare una decisione da approvare.»*
 
-I conflitti ci sono, sono tre, e due sono contro codice con test verdi. Congelarli qui li deciderebbe per
-inerzia — il difetto che [`D-305`](../../decisions/RT_PDR_00_Decision_Log.md) §5(b) ha appena scartato per
+I conflitti ci sono — **quattro**, dopo che `D-308` è entrata in `main` — e due sono contro codice con test
+verdi. Congelarli qui li deciderebbe per inerzia — il difetto che [`D-305`](../../decisions/RT_PDR_00_Decision_Log.md) §5(b) ha appena scartato per
 nome sullo stesso perimetro.
 
 ⚠️ **Il precedente è di dodici ore fa e va letto**: il mandato d'autore del 2026-08-31 aveva ventuno clausole
-e **undici erano già canone**. Qui il rapporto è peggiore, non migliore: su 40 sezioni, **23 sono già canone**
-e sei di quelle il kit le riscrive come se fossero nuove.
+e **undici erano già canone**. Qui il rapporto è peggiore, non migliore: su 40 sezioni, **24 sono già canone**
+— 23 alla misura, più §8 quando `D-308` è entrata — e sei di quelle il kit le riscrive come se fossero nuove.
 
 ## 2. Misura
 
@@ -83,7 +89,7 @@ separazione, prima ancora che qualcuno la proponesse:
 CP 9.2 ha rifiutato **nominando il modo in cui fallisce**. Il kit non cita CP 9.2 e non risponde a
 quell'argomento; CP 9.2 non contempla i preset del kit.
 
-⛔ **Questo referto non sceglie fra i due.** È una decisione d'autore ed è aperta come `COV-11`.
+⛔ **Questo referto non sceglie fra i due.** È stata aperta come `COV-11` — e ⚠️ **chiusa lo stesso giorno**: cercata nella serie giusta (`GEO-*`, non `COV-*`) la domanda era già decisa per tre quarti da [`D-269`](../../decisions/RT_PDR_00_Decision_Log.md), che sceglie **una sola primitiva** per vista e proiettili con l'argomento *«risposte diverse renderebbero visibile un bersaglio che non si può colpire»*. Vedi §8.
 
 ### 3.1 E i preset sono quattro dove i valori canonici sono due
 
@@ -154,7 +160,7 @@ metodo:
 > escala** all'owner competente. Non si scioglie con una gerarchia globale automatica.»*
 
 ∴ **Registrato e escalato**, non risolto qui: [**#2009**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2009)
-con tre uscite dichiarate, e `COV-12` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md).
+con tre uscite dichiarate, e `COV-12` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md). ⚠️ **Superato lo stesso giorno**: nessuna delle tre uscite era quella giusta — `D-302` punto (3) dichiara di chiudere *«tre quarti di `FAC-13`»*, quindi risponde a *«da dove arriva il colpo per i test direzionali»* e non tocca la mitigazione. `COV-12` è **chiusa**, e il residuo è implementazione sul pool `Guard`. Vedi §8.
 
 ⚠️ **Una precisazione tecnica che vale per l'uscita «l'area diventa mitigabile»**: non basta togliere il ramo.
 `EffectiveCoverReduction` applica `IsInFrontalArc(Target.Cell, Target.Facing, **Attacker.Cell**)` — quindi
@@ -209,7 +215,7 @@ non nomina `ADR-0008`, non nomina `ERTDisplacementCause`. È `FAC-16`.
 
 ⚠️ Il kit dichiara i numeri «placeholder di balance» (§38.1) ed è corretto — ma la **forma** non è un
 placeholder. `75%` e `50%` presuppongono che `High` lasci passare metà del danno, cioè presuppongono §2.2,
-cioè presuppongono §1. I tre stanno o cadono insieme, ed è la ragione per cui `COV-11` è **una** domanda e
+cioè presuppongono §1. I tre stanno o cadono insieme, ed è la ragione per cui `COV-11` era **una** domanda e
 non tre.
 
 ⛔ Le percentuali restano materia `BAL-*` e fuori da qui, come [`D-305`](../../decisions/RT_PDR_00_Decision_Log.md)
@@ -295,35 +301,48 @@ stesso peso di §20 (Facing), che è implementato e ha 13 test.
 
 | Stato | N | Sezioni |
 |---|---|---|
-| ✅ **Già canone** — il kit conferma, non aggiunge | 23 | §9, §12, §13, §17, §18, §20, §21, §22, §23, §24, §25, §27, §28, §29, §30, §31 *(3 valori su 4, `D-302`)*, §32, §34, §35, §37 *(come mappatura)*, §39, §40, §4 *(parziale: `InteriorWalls` esiste)* |
-| 🔴 **Conflitto con canone implementato** | 4 | §1, §2 *(tutti i preset)*, §10/§26, §11 *(la forma, non i numeri)* |
+| ✅ **Già canone** — il kit conferma, non aggiunge | 24 | §8 *(`D-308`: la traversal è dell'abilità)*, §9, §12, §13, §17, §18, §20, §21, §22, §23, §24, §25, §27, §28, §29, §30, §31 *(3 valori su 4, `D-302`)*, §32, §34, §35, §37 *(come mappatura)*, §39, §40, §4 *(parziale: `InteriorWalls` esiste)* |
+| 🔴 **Conflitto con canone deciso** | 5 | §1, §2 *(tutti i preset, §2.1 compresa)*, §7 *(`D-308`)*, §10/§26, §11 *(la forma, non i numeri)* |
 | ⚠️ **Conflitto fra due sedi — registrato, non risolto** | 2 | §14, §19 *(vedi §4: la riga esiste, ma è regola dichiarata da `CP 9.1`)* |
-| 🌱 **Greenfield: nessun codice, nessun owner** | 5 | §3, §5, §6, §7, §33 |
+| 🌱 **Greenfield: nessun codice, nessun owner** | 4 | §3, §5, §6, §33 |
 | 🟡 **Aperto altrove, non deciso qui** | 3 | §15/§16 *(propagazione per-target)*, §31 *(`NonDirectional` = `FAC-13`)*, §38 |
-| 📋 **Backlog, non specifica** | 3 | §8, §36, §2.4 |
+| 📋 **Backlog, non specifica** | 2 | §36, §2.4 |
 
 > ⚠️ **§31 conta due volte** ed è voluto: tre dei suoi quattro valori sono chiusi da `D-302`, il quarto è
 > `FAC-13` e resta aperto. È la stessa riga in due stati.
 
-> 🔁 **Aggiunto il 2026-09-01, secondo passaggio — una terza volta, e la decisione è in volo.** `COV-7` è
-> stata chiusa in giornata da una decisione che rivendica `D-308` in
-> [PR #2016](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2016), **non ancora mergiata**, e che
-> fissa il vault: *«`Low Cover` ⛔ non automaticamente scavalcabile»*, con il vault che esiste **solo dove un
-> autore l'ha disegnato** nel tactical graph. Il kit dice l'opposto in due punti — §2.1 (`Vaultable = true` di
-> default sulla Low Cover) e §7 (*«Se il Dash incontra Low Cover: `CanVault == true`»*).
+> 🔁 **Aggiornato il 2026-09-01, terzo passaggio — `D-308` è entrata in `main`, e la tabella qui sopra la
+> recepisce.** [PR #2016](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2016) è stata mergiata
+> mentre questo referto veniva corretto; la nota precedente diceva *«non si aggiorna qui, finché la PR è
+> aperta»*, e la condizione si è avverata.
 >
-> ∴ Il conteggio *«23 già canone»* di questo referto **resta vero alla sua misura** (`90cdc903`), ma §2.1 e §7
-> si spostano da «backlog» a «conflitto» appena `D-308` entra in `main`. ⚠️ **Non si aggiorna qui**: finché la
-> PR è aperta quell'ID vive solo nel suo diff, e il primo `D-nnn` libero è **`D-312`** — #2016 ne rivendica
-> quattro, da `D-308` a `D-311`.
+> **Che cosa `D-308` decide, chiudendo `COV-7`**: il vault è una transizione **esplicitamente autorata nel
+> tactical graph**, fra celle adiacenti, a `costo d'arco + 1 MP`. E la clausola che tocca il kit:
+>
+> > ⛔ *«`Low Cover` **NON** è automaticamente scavalcabile e `High Cover` normalmente non lo è, salvo regola
+> > o abilità esplicita: **la scavalcabilità è un dato, non una conseguenza dell'altezza**.»*
+>
+> | Sezione del kit | Esito |
+> |---|---|
+> | §2.1 — `Vaultable = true` di **default** sulla Low Cover | 🔴 **conflitto** — è la deduzione che `D-308` vieta |
+> | §7 — *«Se il Dash incontra Low Cover: `CanVault == true`»* | 🔴 **conflitto**, dalla stessa clausola. Esce da «greenfield»: un owner ora c'è |
+> | §8 — *«la traversal speciale appartiene all'abilità»* | ✅ **già canone** — è il *«salvo regola o abilità esplicita»* di `D-308`, parola per parola |
+>
+> 🔑 **E qui il kit contraddice se stesso.** Il suo `Core Principle` (§1) è *«non dedurre `BlocksX` da
+> `CoverLevel`»*; poi §2.1 deduce `Vaultable` da `Low`. `D-308` applica **il principio del kit** — la
+> scavalcabilità è un dato — proprio dove il kit smette di applicarlo.
+>
+> ∴ **Tre volte su tre.** `CP 9.2` per la separazione dei blocker, `CP 9.1` per l'origine della cover d'area,
+> `D-308` per la scavalcabilità della Low Cover: ogni volta il kit propone come nuovo ciò che il repository ha
+> già scartato o deciso, **con la ragione scritta**.
 
 ## 8. Che cosa si è fatto
 
 | Azione | Dove |
 |---|---|
 | Kit archiviato **integralmente** | [`docs/archive/RefactorTactics_Cover_Facing_AoE_Consolidation_for_Claudia_v0.1.md`](../../archive/RefactorTactics_Cover_Facing_AoE_Consolidation_for_Claudia_v0.1.md) — stessa convenzione del precedente `…Replay_System_Claude_Consolidation_2026-08-10.md` |
-| Due domande d'autore aperte | `COV-11` e `FAC-16` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
-| Un conflitto registrato ed escalato | [**#2009**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2009) + `COV-12` — `D-302` dà una direzione d'impatto all'area, `CP 9.1` §4 la esclude dalla mitigazione (§4.3) |
+| Tre voci aperte, **due chiuse in giornata** | `COV-11` ✅ *(già decisa da `D-269`/`CP 9.2`; il quarto blocker, `BlocksMeleeContact`, è greenfield senza consumatore)* · `COV-12` ✅ *(domanda mal posta)* · `FAC-16` 🟡 **aperta e riformulata** — non «quale default», ma *«esiste un caso in cui girarsi verso la sorgente sbaglia?»* |
+| Un difetto di implementazione, isolato | [**#2009**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2009) (`enhancement`/`P2`) — il pool `Guard` di `D-292` passa la cella dell'**attaccante** anche sotto un'area, dove `D-302` chiede il centro d'impatto. ⚠️ Nessun test combina `TAG_Status_Guarded` con `ERTAbilityShape::Area` |
 
 ### Che cosa **non** si è fatto, e perché
 
