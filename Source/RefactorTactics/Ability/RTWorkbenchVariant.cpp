@@ -6,7 +6,26 @@
 
 namespace
 {
-	/** L'azione del kit con quell'`ActionId`, o `nullptr`. Il kit e' piccolo: nessun indice da costruire. */
+	/**
+	 * **TUTTE** le istanze con quell'`ActionId`, non la prima.
+	 *
+	 * 🔴 Restituiva la prima, e con UN kit — l'unico caso che i test di `#1988` esercitavano — era corretto.
+	 * Con piu' unita' non lo e': `ARTUnit::ConfigureFromHeroData` da' a ogni unita' istanze **proprie**,
+	 * quindi due figure che portano la stessa azione hanno due `URTActionData`, e un override che ne
+	 * raggiungesse una sola farebbe leggere al designer una differenza che attribuisce al numero mentre
+	 * viene da QUALE unita' ha agito. Trovato applicando il contratto a una run vera (`#2004`).
+	 */
+	TArray<URTActionData*> RaccogliAzioni(const TArray<URTActionData*>& Abilities, const FName& ActionId)
+	{
+		TArray<URTActionData*> Trovate;
+		for (URTActionData* A : Abilities)
+		{
+			if (A != nullptr && A->Def.ActionId == ActionId) { Trovate.Add(A); }
+		}
+		return Trovate;
+	}
+
+	/** La prima, per le sole domande che non scrivono (validazione, lettura del valore precedente). */
 	URTActionData* TrovaAzione(const TArray<URTActionData*>& Abilities, const FName& ActionId)
 	{
 		for (URTActionData* A : Abilities)
@@ -101,42 +120,48 @@ ERTVariantApplyResult URTWorkbenchVariantLibrary::Apply(const FRTWorkbenchVarian
 
 	for (const FRTAbilityParameterOverride& Ov : Variant.Overrides)
 	{
-		URTActionData* Azione = TrovaAzione(Abilities, Ov.ActionId);
-		// `Validate` ha gia' escluso il nullo; la guardia resta perche' un ritorno anticipato qui sarebbe
+		const TArray<URTActionData*> Istanze = RaccogliAzioni(Abilities, Ov.ActionId);
+		// `Validate` ha gia' escluso il vuoto; la guardia resta perche' un ritorno anticipato qui sarebbe
 		// una scrittura parziale, cioe' proprio cio' che la validazione in due tempi esiste per impedire.
-		if (Azione == nullptr) { continue; }
+		if (Istanze.Num() == 0) { continue; }
 
+		// ⚠️ **Un solo inverso per override, non uno per istanza**, e regge per costruzione: tutte le
+		// istanze nascono dallo stesso catalogo, quindi partono dallo stesso valore — e `Apply` scrive
+		// SEMPRE tutte, quindi non possono divergere. Il valore precedente si legge dalla prima.
 		FRTAbilityParameterOverride Inverso = Ov;
 
-		if (Ov.ParameterKey == RTActionParameterKeys::RangeCells())
+		for (URTActionData* Azione : Istanze)
 		{
-			Inverso.Value = Azione->Def.RangeCells;
-			// ENTRAMBE le case: il `Def` per chi applica il ternario, lo specchio per il bot.
-			Azione->Def.RangeCells = Ov.Value;
-			Azione->RangeCells = Ov.Value;
-		}
-		else if (Ov.ParameterKey == RTActionParameterKeys::CooldownTurns())
-		{
-			Inverso.Value = Azione->Def.CooldownTurns;
-			// Lo specchio qui non e' un di piu': `ARTUnit::ConsumeAbility` legge SOLO quello.
-			Azione->Def.CooldownTurns = Ov.Value;
-			Azione->CooldownTurns = Ov.Value;
-		}
-		else // Damage
-		{
-			const int32 Indice = IndiceDannoRichiesto(Azione->Def, Ov.EffectIndex);
-			if (Indice == INDEX_NONE) { continue; } // gia' escluso da `Validate`
-
-			Inverso.Value = Azione->Def.Effects[Indice].Amount;
-			Inverso.EffectIndex = Indice;
-			Azione->Def.Effects[Indice].Amount = Ov.Value;
-
-			// Lo specchio porta SOLO il primo `Damage`: sovrascrivere il secondo non lo tocca, ed e'
-			// corretto — `Power` non lo rappresenta affatto. Scriverlo comunque farebbe dire allo specchio
-			// un numero che appartiene a un altro colpo.
-			if (Indice == IndicePrimoDanno(Azione->Def))
+			if (Ov.ParameterKey == RTActionParameterKeys::RangeCells())
 			{
-				Azione->Power = Ov.Value;
+				Inverso.Value = Azione->Def.RangeCells;
+				// ENTRAMBE le case: il `Def` per chi applica il ternario, lo specchio per il bot.
+				Azione->Def.RangeCells = Ov.Value;
+				Azione->RangeCells = Ov.Value;
+			}
+			else if (Ov.ParameterKey == RTActionParameterKeys::CooldownTurns())
+			{
+				Inverso.Value = Azione->Def.CooldownTurns;
+				// Lo specchio qui non e' un di piu': `ARTUnit::ConsumeAbility` legge SOLO quello.
+				Azione->Def.CooldownTurns = Ov.Value;
+				Azione->CooldownTurns = Ov.Value;
+			}
+			else // Damage
+			{
+				const int32 Indice = IndiceDannoRichiesto(Azione->Def, Ov.EffectIndex);
+				if (Indice == INDEX_NONE) { continue; } // gia' escluso da `Validate`
+
+				Inverso.Value = Azione->Def.Effects[Indice].Amount;
+				Inverso.EffectIndex = Indice;
+				Azione->Def.Effects[Indice].Amount = Ov.Value;
+
+				// Lo specchio porta SOLO il primo `Damage`: sovrascrivere il secondo non lo tocca, ed e'
+				// corretto — `Power` non lo rappresenta affatto. Scriverlo comunque farebbe dire allo
+				// specchio un numero che appartiene a un altro colpo.
+				if (Indice == IndicePrimoDanno(Azione->Def))
+				{
+					Azione->Power = Ov.Value;
+				}
 			}
 		}
 
