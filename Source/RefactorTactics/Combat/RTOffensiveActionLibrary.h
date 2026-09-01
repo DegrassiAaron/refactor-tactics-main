@@ -7,7 +7,18 @@
 
 class URTHexMapAsset;
 
-/** Perche' un attacco lineare si e' fermato dove si e' fermato. E' il reason code del TurnLog. */
+/**
+ * Perche' un attacco lineare si e' fermato dove si e' fermato.
+ *
+ * ⚠️ **Questa riga diceva «e' il reason code del TurnLog», e il TurnLog non lo riceve** — misurato il
+ * 2026-09-01 (`#2035`): fuori da questa libreria e dai suoi test `ERTLineStop` **non ha consumatori**, e
+ * `spec-turnlog.md` §12 registra che `BlockedByCover` fu *rimosso* dai reason del combat il 2026-08-03. E'
+ * un'aspirazione scritta al presente, non un fatto — la stessa forma del dato dichiarato e mai letto che
+ * `LineCells` documenta per `MaxTargetingRangeThrough`.
+ *
+ * Cio' che resta vero e' la DISCIPLINA: i valori si aggiungono **in coda**, perche' il giorno in cui il log
+ * lo riceva davvero gli ordinali saranno gia' stabili, e il costo di farlo oggi e' zero.
+ */
 UENUM(BlueprintType)
 enum class ERTLineStop : uint8
 {
@@ -19,12 +30,11 @@ enum class ERTLineStop : uint8
 	 * Interrotta da una CELLA che blocca la linea di tiro (`FRTHexCellData::bBlocksLineOfSight`): un ostacolo
 	 * pieno, non una copertura.
 	 *
-	 * ⚠️ **Il nome dice «Cover» e il dato non è una copertura, ed è storia da non riscrivere.** Fino al
+	 * ⚠️ **Il nome dice «Cover» e il dato non e' una copertura, ed e' storia da non riscrivere.** Fino al
 	 * 2026-09-01 questo valore era l'unico che potesse fermare la linea, e la sua riga diceva *«una COPERTURA
-	 * ALTA: una cella che blocca la linea di tiro»* — due cose diverse messe insieme perché il 2026-08-06,
-	 * quando questo enum è nato, `FRTHexCover` non esisteva ancora: nasce il giorno dopo con `CP 9.2`.
-	 * Rinominarlo cambierebbe il significato di ogni log già scritto; il valore nuovo è `BlockedByEdgeCover`,
-	 * in coda.
+	 * ALTA: una cella che blocca la linea di tiro»* — due cose diverse messe insieme perche' il 2026-08-06,
+	 * quando questo enum e' nato, `FRTHexCover` non esisteva ancora: nasce il giorno dopo con `CP 9.2`. Il
+	 * valore nuovo e' `BlockedByEdgeCover`, in coda; questo conserva il significato che ha sempre avuto.
 	 */
 	BlockedByCover,
 	/** Uscita dalla mappa: la linea finisce dove finisce il livello. */
@@ -44,10 +54,10 @@ enum class ERTLineStop : uint8
 	 * girare attorno al muro nel secondo. Confonderli rende il log una bugia, che e' la ragione gia' scritta
 	 * per `NoTarget` / `OffMap` / `BlockedByCover`.
 	 *
-	 * ⚠️ **In CODA, e non e' estetica**: questo enum e' un reason code del TurnLog, e infilare un valore in
-	 * mezzo rinumererebbe `OffMap`, `NotAligned` e `NoMap` per ogni log gia' scritto. E' la disciplina che
-	 * `ERTIntraCellTraversal` dichiara per se stesso — *«va aggiunto in coda insieme al suo produttore»* — e
-	 * il produttore, qui, arriva nello stesso commit.
+	 * ⚠️ **In CODA, e non e' estetica**: infilare un valore in mezzo rinumererebbe `OffMap`, `NotAligned` e
+	 * `NoMap`. E' la disciplina che `ERTIntraCellTraversal` dichiara per se stesso — *«va aggiunto in coda
+	 * insieme al suo produttore»* — e il produttore, qui, arriva nello stesso commit. Vale anche se oggi
+	 * nessun log riceve questo enum: vedi il cappello sopra.
 	 */
 	BlockedByInteriorGeometry,
 
