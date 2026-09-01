@@ -22,16 +22,24 @@ enum class ERTReplayFieldVisibility : uint8
 };
 
 /**
- * Una voce del **Replay Pubblico/Sanitizzato**.
+ * Una voce del **Replay Pubblico/Sanitizzato** di [D-276].
  *
- * 🔴 **E' un tipo proprio, e non un `FRTTurnLogEntry` con meno valori riempiti.** La differenza e'
- * l'intera ragione per cui esiste: un campo di audit non ci finisce «per errore» perche' non c'e' un
- * campo dove finire. Una voce sanitizzata a runtime avrebbe la stessa forma della voce completa, e la
- * separazione sarebbe una convenzione — che e' precisamente cio' che l'AC di `#1805` vieta.
+ * 🔴 **E' un tipo proprio, e non un `FRTTurnLogEntry` con meno valori riempiti.** La differenza e' l'intera
+ * ragione per cui esiste: un campo di audit non ci finisce «per errore» perche' non c'e' un campo dove
+ * finire. Una voce sanitizzata a runtime avrebbe la stessa forma della voce completa, e la separazione
+ * sarebbe una convenzione — che e' precisamente cio' che l'AC di `#1805` vieta.
  *
- * ⚠️ **Non e' lo stesso formato con meno campi.** `ERTTurnLogFormatVersion` e' alla `v7` e la sua
- * disciplina e' *«accodare in coda, mai inserire in mezzo»*: sottrarre un campo da quel formato
- * romperebbe il suo lettore. Questo prodotto avra' la propria versione quando avra' un serializzatore.
+ * ⚠️ **Non e' lo stesso formato con meno campi.** `ERTTurnLogFormatVersion` e' alla `v7` e la sua disciplina
+ * e' *«accodare in coda, mai inserire in mezzo»*: sottrarre un campo da quel formato romperebbe il suo
+ * lettore. Questo prodotto avra' la propria versione quando avra' un serializzatore.
+ *
+ * 🔴 **E chi scrivera' quel serializzatore deve sapere questo: il prodotto pubblico NON ha un ordine
+ * canonico proprio.** `EntryLess` scioglie i pareggi con `OpportunityId`, `ReactionInstanceId` e
+ * `ReactionResponse`, che qui non ci sono: due decisioni di reazione della stessa unita' nello stesso
+ * micro-step arrivano qui **identiche**, e la loro differenza sopravvive solo come posizione nell'array.
+ * ∴ l'ordine di questo prodotto e' **ereditato** da quello della traccia di audit e non si ricalcola. Un
+ * serializzatore che riordinasse con un `TArray::Sort` — che non e' stabile — produrrebbe due byte diversi
+ * per la stessa partita, e l'invariante 3 di `AGENTS.md` §3 non avrebbe piu' risposta.
  */
 USTRUCT(BlueprintType)
 struct FRTPublicReplayEntry
@@ -70,10 +78,25 @@ struct FRTPublicReplayEntry
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
 	int32 GraphRevision = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
+	int32 Priority = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
+	int32 SelectedTargetUnitId = INDEX_NONE;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Replay")
+	int32 OriginalTargetUnitId = INDEX_NONE;
 };
 
 /**
- * Il confine fra i due prodotti di [D-276]: qui, e in nessun altro posto.
+ * Il confine fra i due prodotti di [D-276].
+ *
+ * ⚠️ **Il confine e' qui per i CAMPI, e non esiste ancora per le VOCI.** Non e' una sfumatura: il filtro
+ * per osservatore — *«questa unita' la mia squadra l'aveva vista?»* — richiede la `TeamKnowledge` del
+ * turno, e la traccia archiviata **non la porta** (`FRTTurnLogEntry::Verdict` e' `Transient` per `D-223`).
+ * Finche' quel dato non esiste in forma durevole, chi legge un replay pubblico vede i fatti di **entrambe**
+ * le squadre: e' il difetto che `#1525` osserva sul playback, e questa libreria non lo chiude.
  */
 UCLASS()
 class REFACTORTACTICS_API URTReplayPrivacyLibrary : public UBlueprintFunctionLibrary
@@ -81,9 +104,15 @@ class REFACTORTACTICS_API URTReplayPrivacyLibrary : public UBlueprintFunctionLib
 	GENERATED_BODY()
 
 public:
-	/** La classificazione, campo per campo, di `FRTTurnLogEntry`. */
+	/**
+	 * La classificazione, campo per campo, di `FRTTurnLogEntry`.
+	 *
+	 * E' la **sola** sorgente di verita': `ToPublicTrace` copia leggendo di qui, e
+	 * `RefactorTactics.Replay.Privacy.EveryLoggedFieldIsClassified` rende rosso chi aggiunge un campo senza
+	 * classificarlo.
+	 */
 	static const TMap<FName, ERTReplayFieldVisibility>& FieldVisibility();
 
-	/** Da traccia di audit a traccia pubblica. */
+	/** Da traccia di audit a traccia pubblica: l'unico ponte fra i due prodotti. */
 	static TArray<FRTPublicReplayEntry> ToPublicTrace(const TArray<FRTTurnLogEntry>& AuditTrace);
 };

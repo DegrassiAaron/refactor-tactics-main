@@ -5,6 +5,7 @@
 #include "Replay/RTReplayViewModel.h"
 #include "Replay/RTMatchHistoryLibrary.h"
 #include "Replay/RTReplayManifest.h"
+#include "Replay/RTReplayPrivacyLibrary.h" // FRTPublicReplayEntry: il confine di D-276 sulla superficie spettatore
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnRules.h"
 #include "RTReplayViewerSubsystem.generated.h"
@@ -201,14 +202,28 @@ public:
 	// --- Cosa c'e' da disegnare ---------------------------------------------------------------------
 
 	/**
-	 * Le voci della fase a schermo.
+	 * Le voci della fase a schermo, nella forma **pubblica**.
+	 *
+	 * 🔴 **Il tipo di ritorno e' il confine di [D-276], e non una preferenza di stile.** Questa e' la sola
+	 * superficie del replay che un widget puo' raggiungere — `BlueprintCallable` — ed e' cio' che quella
+	 * decisione chiama *«la riproduzione spettatore»*, uno dei tre posti in cui i campi di audit non devono
+	 * arrivare per errore. Finche' ha consegnato `FRTTurnLogEntry`, ogni widget legato a questo nodo
+	 * leggeva `Verdict`, `OpportunityId`, `ReactionInstanceId` e `ReactionResponse` di **entrambe** le
+	 * squadre. Il view model resta sulla voce completa perche' e' `USTRUCT()` e non `BlueprintType`: da li'
+	 * un widget non passa, e chi fa audit ha bisogno della voce intera.
+	 *
+	 * ⚠️ **Il filtro e' sui CAMPI, non sulle VOCI**: le voci sono ancora quelle di tutte e due le squadre.
+	 * Il filtro per osservatore richiede la `TeamKnowledge` del turno, che la traccia non porta — `#1525`.
 	 *
 	 * ⚠️ `BlueprintCallable` per la stessa ragione di `GetManifest`: ogni chiamata rifa' un seek sulla
 	 * traccia e **alloca** l'array delle voci. Come nodo pure una list view lo rieseguirebbe a ogni tick,
 	 * per ogni punto d'uso. Si chiama **quando la posizione cambia**, non mentre si disegna.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Replay")
-	TArray<FRTTurnLogEntry> GetCurrentPhaseEntries() const { return ViewModel.CurrentPhaseEntries(); }
+	TArray<FRTPublicReplayEntry> GetCurrentPhaseEntries() const
+	{
+		return URTReplayPrivacyLibrary::ToPublicTrace(ViewModel.CurrentPhaseEntries());
+	}
 
 	/** Le fasi che il turno corrente contiene **davvero**: e' la barra dei salti, e non si costruisce dall'enum. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Replay")
