@@ -1,0 +1,130 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "Map/RTCellId.h"
+
+#include "RTGrayboxUnitFacingFixture.generated.h"
+
+/**
+ * Un corpo graybox con il suo **facing visibile da fermo**: l'oggetto della Station 01 (#1992, Epic #1990,
+ * `D-304`).
+ *
+ * 🔑 **Perche' esiste.** `Facing` e' stato logico autorevole dal 2026-08-09 (`E16`) — sta in snapshot,
+ * `TurnLog` e hash del replay — ma non esisteva **nessun oggetto che lo mostrasse fermo**. Per vedere dove
+ * guarda un'unita' bisognava far partire una partita, quindi ogni domanda sulla leggibilita' del facing si
+ * rispondeva muovendo qualcosa in PIE e guardandolo per un istante. Un laboratorio serve a guardare le
+ * cose **ferme**.
+ *
+ * ## 🔴 Perche' C++ e non un Blueprint puro, contro il `D003` che la issue dichiarava
+ *
+ * La spec di #1992 prescriveva un Blueprint puro, sul precedente di `BP_Graybox_CellPlacementVolume`, e
+ * dichiarava un buco noto: *«sei test coprono la formula, non che il Blueprint la chiami; un fixture che
+ * calcolasse l'origine per conto proprio li lascerebbe tutti verdi»*. Quel buco era la parte piu' fragile
+ * dell'intera issue, e con la geometria qui **si chiude**: `MarkerTransform` e' pura e chiamabile headless,
+ * e `RefactorTactics.Graybox.FixtureMarkerComesFromTheLibrary` spawna davvero l'attore e confronta il
+ * componente posato con `URTHexLibrary::FacingMarkerOrigin`. Il legame non e' piu' una promessa d'authoring.
+ *
+ * Il Blueprint resta — `/Game/RT/World/Graybox/Fixtures/BP_Graybox_UnitFacingFixture` — ma e' una
+ * sottoclasse **senza grafo**: serve a posare e a tarare i cinque parametri, non a fare geometria.
+ *
+ * ## Il contratto geometrico
+ *
+ * ```text
+ * MarkerOrigin = UnitCenter + Forward(Facing) * BodyRadius + Up * FaceHeight
+ * ```
+ *
+ * ⚠️ **Il marker NON nasce dal centro.** Un marker che parte dal centro attraversa il corpo: da vicino lo
+ * si vede spuntare da dentro, e a camera tattica la sua lunghezza apparente include il raggio del corpo —
+ * cioe' due corpi con la stessa `MarkerLength` ma raggio diverso sembrano guardare a distanze diverse.
+ *
+ * ⛔ **Nessuna trigonometria qui dentro.** Origine e orientamento vengono da `URTHexLibrary`; se la
+ * convenzione dei sei lati cambiasse, questo la seguirebbe invece di mentire in silenzio.
+ *
+ * ## Confini
+ *
+ * ⛔ Nessuna regola di gioco: non legge `MapState`, non scrive snapshot, non tocca `TurnLog` ne'
+ * `StateHash`. E' un oggetto di scena.
+ * ⛔ Non e' un `ARTUnit` e non ne eredita: un'unita' vera passa da altro.
+ * ⛔ Nessun free-angle: `Facing` e' una delle sei `ERTHexDirection`, e non esiste una rotazione libera che
+ * lo sovrascriva.
+ */
+UCLASS(Blueprintable, meta = (DisplayName = "Graybox Unit Facing Fixture"))
+class REFACTORTACTICS_API ARTGrayboxUnitFacingFixture : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	ARTGrayboxUnitFacingFixture();
+
+	/** La direzione mostrata. Enum, non angolo: e' il vocabolario canonico e resta quello. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Graybox")
+	ERTHexDirection Facing = ERTHexDirection::E;
+
+	/**
+	 * Raggio del corpo. Default `60` — **derivato, non scelto**: il cilindro engine ha raggio `50` a scala
+	 * `1` e `ARTUnit::BaseMeshScale.X` vale `1.2`.
+	 *
+	 * ⛔ Non e' un numero canonico nuovo: `GBX-5` — l'ingombro dell'unita' rispetto alla cella — resta
+	 * aperta e di #1094, e si chiude a `U25`. Questo e' la fotografia del presente.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Graybox")
+	float BodyRadius = 60.f;
+
+	/** Altezza del corpo. Default `180` = `ARTUnit::UnitHalfHeight * 2`, la sommita' del cilindro. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Graybox")
+	float BodyHeight = 180.f;
+
+	/** Quota della faccia da cui parte il marker. Default `24` = `WedgeLocalZ` di `RTScenarioPreviewActor`. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Graybox")
+	float FaceHeight = 24.f;
+
+	/**
+	 * Lunghezza del marker. Default `40` = il cuneo del preview (`WedgeScale.X * 100`).
+	 *
+	 * ⚠️ **Non entra in `MarkerTransform` come origine**: l'origine sta sulla superficie del corpo e non
+	 * dipende da questa. E' cio' che rende la lunghezza una **misura** invece della somma di due cose.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Graybox")
+	float MarkerLength = 40.f;
+
+	/** Mostra il nome della direzione. ⚠️ **Secondo canale, non il primo**: la geometria deve bastare. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Graybox")
+	bool bShowLabel = true;
+
+	/**
+	 * ⛔ **Il root e' neutro e resta neutro.** Una scala non uniforme qui non fallisce: **deforma in
+	 * silenzio** tutto cio' che le sta sotto — e' #593, e il guardiano e' `FixtureRootIsNeutral`.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Graybox")
+	TObjectPtr<USceneComponent> SceneRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Graybox")
+	TObjectPtr<class UStaticMeshComponent> UnitBody;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Graybox")
+	TObjectPtr<class UStaticMeshComponent> FacingMarker;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Graybox")
+	TObjectPtr<class UStaticMeshComponent> GroundAnchor;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Graybox")
+	TObjectPtr<class UTextRenderComponent> OptionalLabel;
+
+	/**
+	 * La posa del marker nello spazio dell'attore: **pura, e chiamabile headless**.
+	 *
+	 * 🔑 E' il punto in cui questa classe smette di essere un asset e diventa qualcosa che un test puo'
+	 * interrogare. `OnConstruction` non fa altro che applicarla.
+	 *
+	 * ⚠️ La **traslazione** e' il centro della mesh, non l'origine del contratto: il cubo engine e'
+	 * centrato, quindi il suo centro sta mezza lunghezza piu' avanti dell'origine. Chi verifica il
+	 * contratto guardi `URTHexLibrary::FacingMarkerOrigin`, che e' cio' che questa funzione consuma.
+	 */
+	static FTransform MarkerTransform(ERTHexDirection Facing, float BodyRadius, float FaceHeight, float MarkerLength);
+
+	/** La posa del corpo: cilindro engine portato a raggio e altezza, appoggiato sul piano del root. */
+	static FTransform BodyTransform(float BodyRadius, float BodyHeight);
+
+	virtual void OnConstruction(const FTransform& Transform) override;
+};
