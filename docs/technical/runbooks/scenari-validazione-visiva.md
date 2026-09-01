@@ -168,10 +168,10 @@ progetto a usare una fixture invece di un'arena generata.
 | ID | Fixture | Allestimento | Cosa guardi | Assertion | Stato |
 |---|---|---|---|---|---|
 | `Movement.LongWalk` *(esiste)* | r5 | due unità attraversano l'arena, 3 celle per turno × 2 | passo, orientamento, velocità, camera che segue | *(già sue)* | già `animation` |
-| `Combat.BasicAttack` *(esiste)* | r4 | Gadget `ArcPulse` su Riktor a distanza 2 | partenza, volo, impatto, numero di danno | `UnitHpEquals B1 98` | già `animation` |
-| `Visual.Environment.FireOnEnter` | RelayLite | Wraith `(0,-3)` → move `(0,-2)` Fire | **due** momenti: 10 danni all'ingresso, 8 nel Cleanup per `Burning` | `UnitHpEquals V1 82` · `UnitAtCell (0,-2,0)` | scritto |
+| `Combat.BasicAttack` *(esiste)* | r4 | Gadget `ArcPulse` su Riktor a distanza 2 | partenza, volo, impatto, numero di danno | `UnitHpEquals B1 103` — 120 − (22 − 5 di `BaseShield`, D-224) | già `animation` |
+| `Visual.Environment.FireOnEnter` | RelayLite | Wraith `(0,-3)` → move `(0,-2)` Fire | **due** momenti: 10 danni all'ingresso, 8 nel Cleanup per `Burning` | `UnitHpEquals V1 72` — 90 − 10 − 8, danno ambientale che il `BaseShield` non ferma (D-224) · `UnitAtCell (0,-2,0)` | scritto |
 | `Visual.Combat.Defeat` | r4 | Gadget `(-1,0)`; Riktor `ImpactShot` + Wraith `PulseShot` per **quattro turni** | l'unità che incassa, poi sparisce: 8+21=29 a turno, KO nel quarto (ADR-0007; con ImpactShot a 24 erano 45 e bastavano due) | `UnitAlive F1 false` · `TurnsCompleted 4` | scritto |
-| `Visual.Movement.Charge` | r4 | Riktor `(3,0)` usa `Ram` su Gadget `(1,0)` (distanza 2, portata 3) | la carica **si legge diversa** dal passo: accelerazione, impatto, arresto addosso | `UnitHpEquals F1 70` (90−20) | scritto |
+| `Visual.Movement.Charge` | r4 | Riktor `(3,0)` usa `Ram` su Gadget `(1,0)` (distanza 2, portata 3) | la carica **si legge diversa** dal passo: accelerazione, impatto, arresto addosso | `UnitHpEquals F1 75` — 90 − (20 − 5 di `BaseShield`, D-224) | scritto |
 | `Visual.Environment.IceSlide` | RelayLite | Gadget `(-2,4)` → move `(-2,3)` `(-2,2)` Ice, restano 3 MP | il passo extra deve leggersi come **scivolata**, non come un passo in più | `UnitAtCell F1 (-2,1,0)` | scritto |
 
 Tre cose emerse verificando i numeri prima di scrivere i file, e nessuna era ovvia:

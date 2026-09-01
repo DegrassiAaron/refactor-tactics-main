@@ -298,6 +298,8 @@ unità porta 5 punti di scudo BASE […] e quello scudo ferma solo il danno DIRE
 `120 − 17 = 103`. Il dato eseguibile si è mosso con la decisione; **quattro righe di prosa in tre documenti
 owner più la nota interna dello scenario stesso** sono rimaste al valore precedente.
 
+✅ **Chiuso il 2026-09-01 da [#1904](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1904)**: le sei righe portano ora `103`, `72` e `75`, ciascuna con la propria derivazione. La tabella qui sopra **non** è stata riscritta — è la misura del difetto, e correggerla ne cancellerebbe la provenienza.
+
 > 🔵 **Eseguito il 2026-08-31, e l'inferenza ha retto — ma il difetto era più grande di così.** Questo blocco
 > diceva `NOT RUN`, e la riserva era giusta: senza run il `103` restava una deduzione da `D-224`.
 > `./scripts/rt-suite.ps1 -Filter RefactorTactics.Scenario.EveryShippedScenarioRuns` → **VALIDA**, `1/1`,
