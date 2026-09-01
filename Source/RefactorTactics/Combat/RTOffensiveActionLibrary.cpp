@@ -1,6 +1,7 @@
 #include "Combat/RTOffensiveActionLibrary.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexCoverLibrary.h"     // il bordo: l'unica sede di «cosa c'e' fra queste due celle» (`CP 9.2`)
 #include "Map/RTHexOcclusionLibrary.h" // la geometria intra-cella, LA STESSA che consuma la LoS (`D-269`)
 #include "Terrain/RTTerrainLibrary.h" // il cap di portata e' un dato del terreno (`#1085`)
 #include "Turn/RTMovementActionLibrary.h"
@@ -63,6 +64,26 @@ TArray<FRTCellId> URTOffensiveActionLibrary::LineCells(const URTHexMapAsset* Map
 		if (URTHexOcclusionLibrary::BlocksSight(Map, EnteredFrom, Current, Next))
 		{
 			break; // un muro interno alto taglia la corda: il colpo si ferma PRIMA di uscire dalla cella
+		}
+
+		// ➕ **IL BORDO ATTRAVERSATO** (`CP 9.2`, `#2035`), e questa riga mancava dal 2026-08-07.
+		//
+		// 🔴 `URTHexCoverLibrary::BlocksTraversal` dichiara su di se' di essere *«l'UNICA funzione che vista,
+		// grafo e combat interrogano»*, e di negare l'attraversamento a *«vista, passo e PROIETTILI»*. Questa
+		// marcia aveva una risposta propria — `bBlocksLineOfSight`, che e' la proprieta' di una CELLA e non
+		// una copertura — quindi una copertura alta di bordo fermava la vista e lasciava passare il colpo.
+		//
+		// Non era una scelta: `LineCells` e' nata il 2026-08-06, `URTHexCoverLibrary` il 2026-08-07, e la
+		// migrazione di `CP 9.2` ha aggiornato vista e grafo lasciando indietro l'attacco lineare. Il
+		// catalogo la regola la diceva gia' — *«una copertura alta interrompe la linea»* (§3) — ed e' la
+		// stessa riga che il commento di `ResolveLineAttack` cita da sempre.
+		//
+		// ⚠️ **L'ordine e' quello di `DescribeLineOfSight`**: prima la corda dentro la cella, poi il bordo
+		// che si attraversa, poi la cella in cui si entra. Le due marce ora rispondono nello stesso ordine
+		// perche' consumano le stesse tre regole, e nessuna delle tre ha una seconda implementazione.
+		if (URTHexCoverLibrary::BlocksTraversal(Map, Current, Next))
+		{
+			break; // copertura alta o porta chiusa sul bordo: il colpo non esce dalla cella
 		}
 
 		const FRTHexCellData* Data = Map->FindCell(Next);
@@ -133,7 +154,9 @@ FRTLineAttackResult URTOffensiveActionLibrary::ResolveLineAttack(const URTHexMap
 		if (Occupant != nullptr && Hostiles.Contains(*Occupant))
 		{
 			// Primo bersaglio VALIDO: il colpo si ferma qui. Un alleato invece non e' un bersaglio e non
-			// interrompe la linea — a interromperla e' solo la copertura alta (catalogo §3).
+			// interrompe la linea — a interromperla e' la GEOMETRIA (catalogo §3: *«una copertura alta
+			// interrompe la linea»*), e da `#2035` la copertura alta e' davvero fra le cose che la fermano:
+			// fino ad allora questa riga descriveva una regola che il ciclo qui sopra non applicava.
 			Result.HitUnitId = *Occupant;
 			Result.Stop = ERTLineStop::Hit;
 			return Result;
@@ -160,6 +183,15 @@ FRTLineAttackResult URTOffensiveActionLibrary::ResolveLineAttack(const URTHexMap
 	if (URTHexOcclusionLibrary::BlocksSight(Map, EnteredFrom, LastTraced, Blocker))
 	{
 		Result.Stop = ERTLineStop::BlockedByInteriorGeometry;
+		return Result;
+	}
+
+	// Poi il BORDO, con lo stesso ordine del ciclo: li' ferma prima che si guardi se la cella successiva
+	// esista, quindi qui viene chiesto prima di `OffMap`. Un bordo murato sul confine della mappa e' un muro,
+	// non un bordo del livello.
+	if (URTHexCoverLibrary::BlocksTraversal(Map, LastTraced, Blocker))
+	{
+		Result.Stop = ERTLineStop::BlockedByEdgeCover;
 		return Result;
 	}
 

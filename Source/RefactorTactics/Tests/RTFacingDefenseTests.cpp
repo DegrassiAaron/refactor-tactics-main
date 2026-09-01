@@ -397,8 +397,6 @@ bool FRTCombatBackAttackIgnoresGuardTest::RunTest(const FString&)
 	return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS
-
 /**
  * [D-312] misurata sulla CATENA REALE, che e' l'unica sede in cui l'ordine dei due pool esiste.
  *
@@ -482,3 +480,5 @@ bool FRTGuardAndDeflectOrderTest::RunTest(const FString&)
 
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS

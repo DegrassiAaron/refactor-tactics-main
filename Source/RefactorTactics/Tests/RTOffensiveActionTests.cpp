@@ -10,6 +10,7 @@
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexVisionLibrary.h" // l'oracolo: la vista e la linea non possono divergere (`D-269`, `#2035`)
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTActionQueue.h"
 #include "Turn/RTTurnRules.h"
@@ -41,11 +42,30 @@ namespace
 		return M;
 	}
 
-	/** Copertura ALTA: blocca la linea di tiro (nel modello dati di oggi e' l'unico dato che la rappresenta). */
-	void MakeHighCover(URTHexMapAsset* Map, const FRTCellId& Id)
+	/**
+	 * Una CELLA che blocca la linea di tiro: un ostacolo pieno.
+	 *
+	 * 🔴 **Si chiamava `MakeHighCover`, e il nome mentiva da 26 giorni.** La sua riga diceva *«Copertura
+	 * ALTA: blocca la linea di tiro (nel modello dati di oggi e' l'unico dato che la rappresenta)»*, ed era
+	 * vera il 2026-08-06, quando questo file e' nato: `FRTHexCover` arriva il giorno dopo con `CP 9.2`. Da
+	 * allora tre test dicevano *«la copertura alta ferma il colpo»* e misuravano `bBlocksLineOfSight` — una
+	 * proprieta' di cella, che copertura non e'. La copertura vera non e' mai stata provata su questo
+	 * percorso, e infatti non funzionava (`#2035`).
+	 */
+	void MakeSightBlockingCell(URTHexMapAsset* Map, const FRTCellId& Id)
 	{
 		FRTHexCellData Data = Map->FindCell(Id) ? *Map->FindCell(Id) : FRTHexCellData(Id);
 		Data.bBlocksLineOfSight = true;
+		Map->AddOrUpdateCell(Data);
+		Map->SortCells();
+	}
+
+	/** Copertura ALTA vera: sta sul BORDO fra due celle, ed e' cio' che il catalogo chiama copertura. */
+	void MakeHighCoverEdge(URTHexMapAsset* Map, const FRTCellId& Id, ERTHexDirection Edge)
+	{
+		FRTHexCellData Data = Map->FindCell(Id) ? *Map->FindCell(Id) : FRTHexCellData(Id);
+		Data.Covers.Add(FRTHexCover(Edge, ERTHexCoverType::High,
+			FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
 		Map->AddOrUpdateCell(Data);
 		Map->SortCells();
 	}
@@ -271,14 +291,14 @@ bool FRTLineAttackFirstTargetTest::RunTest(const FString&)
 		Map, From, FRTCellId(1, 0), 5, Occupancy, Hostiles);
 	TestTrue(TEXT("stessa direzione, stesso bersaglio"), SameDirection.HitUnitId == 5);
 
-	// Una COPERTURA ALTA fra l'attaccante e il bersaglio interrompe la linea.
+	// Una CELLA che oscura fra l'attaccante e il bersaglio interrompe la linea.
 	URTHexMapAsset* Covered = MakeOffensiveMap();
-	MakeHighCover(Covered, FRTCellId(1, 0));
+	MakeSightBlockingCell(Covered, FRTCellId(1, 0));
 	const FRTLineAttackResult Blocked = URTOffensiveActionLibrary::ResolveLineAttack(
 		Covered, From, FRTCellId(5, 0), 5, Occupancy, Hostiles);
-	TestTrue(TEXT("la copertura alta ferma il colpo"), Blocked.Stop == ERTLineStop::BlockedByCover);
+	TestTrue(TEXT("un ostacolo di cella ferma il colpo"), Blocked.Stop == ERTLineStop::BlockedByCover);
 	TestEqual(TEXT("e nessuno viene colpito"), Blocked.HitUnitId, INDEX_NONE);
-	TestEqual(TEXT("la linea non arriva nemmeno alla copertura"), Blocked.Cells.Num(), 0);
+	TestEqual(TEXT("la linea non arriva nemmeno all'ostacolo"), Blocked.Cells.Num(), 0);
 
 	// Un ALLEATO non e' un bersaglio valido e non fa da scudo: il colpo prosegue oltre.
 	TMap<FRTCellId, int32> WithAlly;
@@ -306,6 +326,102 @@ bool FRTLineAttackFirstTargetTest::RunTest(const FString&)
 	const FRTLineAttackResult NoMap = URTOffensiveActionLibrary::ResolveLineAttack(
 		nullptr, From, FRTCellId(5, 0), 5, Occupancy, Hostiles);
 	TestTrue(TEXT("senza mappa non si colpisce"), NoMap.Stop == ERTLineStop::NoMap && NoMap.HitUnitId == INDEX_NONE);
+	return true;
+}
+
+/**
+ * LA COPERTURA ALTA DI BORDO FERMA IL COLPO, e la vista e la linea non possono divergere — `#2035`.
+ *
+ * 🔴 **Il caso non era mai stato provato**, ed e' il motivo per cui non funzionava. Fino al 2026-09-01 la
+ * fixture chiamata `MakeHighCover` scriveva `bBlocksLineOfSight` — una proprieta' di CELLA — e tre test
+ * dicevano *«la copertura alta ferma il colpo»* misurando un'altra cosa. La copertura vera sta sul BORDO
+ * (`FRTHexCover`, `CP 9.2`), e `LineCells` non la consultava: nata il 2026-08-06, un giorno prima di
+ * `URTHexCoverLibrary`, non era mai stata migrata.
+ *
+ * 🔑 **L'oracolo non e' una costante attesa: e' `HasLineOfSight` sugli stessi due punti.** E' la forma che
+ * `D-269` impone — *«le due validazioni consumano UNA SOLA primitiva»* — e la sola che si accorga se un
+ * giorno una delle due marce tornasse ad avere una risposta propria.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLineAttackEdgeCoverTest,
+	"RefactorTactics.Actions.LineAttack.EdgeCoverStopsTheShot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLineAttackEdgeCoverTest::RunTest(const FString&)
+{
+	const FRTCellId From(0, 0);
+	const FRTCellId Target(5, 0);
+
+	TMap<FRTCellId, int32> Occupancy;
+	Occupancy.Add(FRTCellId(3, 0), 6);
+	const TSet<int32> Hostiles = { 6 };
+
+	// Via libera: il colpo arriva e la vista pure. E' il controllo che rende significativo il caso bloccato —
+	// «nessuno colpito» e' anche il risultato di un attacco che non parte mai.
+	{
+		URTHexMapAsset* Open = MakeOffensiveMap();
+		const FRTLineAttackResult Hit = URTOffensiveActionLibrary::ResolveLineAttack(
+			Open, From, Target, 5, Occupancy, Hostiles);
+		TestTrue(TEXT("senza copertura il colpo arriva"), Hit.HitUnitId == 6);
+		TestTrue(TEXT("e la vista passa"), URTHexVisionLibrary::HasLineOfSight(Open, From, FRTCellId(3, 0)));
+	}
+
+	// Copertura ALTA sul bordo `(1,0) -> (2,0)`, cioe' sul lato `E` della cella `(1,0)`.
+	{
+		URTHexMapAsset* Walled = MakeOffensiveMap();
+		MakeHighCoverEdge(Walled, FRTCellId(1, 0), ERTHexDirection::E);
+
+		TestFalse(TEXT("la vista e' bloccata dal bordo"),
+			URTHexVisionLibrary::HasLineOfSight(Walled, From, FRTCellId(3, 0)));
+
+		const FRTLineAttackResult Blocked = URTOffensiveActionLibrary::ResolveLineAttack(
+			Walled, From, Target, 5, Occupancy, Hostiles);
+		TestTrue(TEXT("e il colpo si ferma con la stessa geometria"),
+			Blocked.Stop == ERTLineStop::BlockedByEdgeCover);
+		TestEqual(TEXT("nessuno viene colpito"), Blocked.HitUnitId, INDEX_NONE);
+		TestEqual(TEXT("la linea entra in (1,0) e non oltre"), Blocked.Cells.Num(), 1);
+
+		// ⚠️ La ragione NOMINA il bordo, e non si confonde con l'ostacolo di cella: sono due gesti diversi
+		// per chi gioca — girare attorno al muro, o spostarsi.
+		TestTrue(TEXT("e non e' l'ostacolo di cella"), Blocked.Stop != ERTLineStop::BlockedByCover);
+	}
+
+	// La copertura BASSA non chiude il passaggio: ripara chi ci sta dietro, non ferma il colpo. E' la stessa
+	// asimmetria che `BlocksTraversal` applica alla vista, e questo test impedisce che il fix la allarghi.
+	{
+		URTHexMapAsset* LowWalled = MakeOffensiveMap();
+		FRTHexCellData Data = *LowWalled->FindCell(FRTCellId(1, 0));
+		Data.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low,
+			FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+		LowWalled->AddOrUpdateCell(Data);
+		LowWalled->SortCells();
+
+		const FRTLineAttackResult Through = URTOffensiveActionLibrary::ResolveLineAttack(
+			LowWalled, From, Target, 5, Occupancy, Hostiles);
+		TestTrue(TEXT("una copertura bassa non ferma il colpo"), Through.HitUnitId == 6);
+		TestTrue(TEXT("come non ferma la vista"),
+			URTHexVisionLibrary::HasLineOfSight(LowWalled, From, FRTCellId(3, 0)));
+	}
+
+	// ⚠️ **Nessuna coppia puo' divergere**: su ogni cella della direzione, vista e linea devono dare lo
+	// stesso verdetto. E' il corpus che si accorgerebbe di una regola riscritta in uno solo dei due posti.
+	{
+		URTHexMapAsset* Walled = MakeOffensiveMap();
+		MakeHighCoverEdge(Walled, FRTCellId(2, 0), ERTHexDirection::E);
+
+		for (int32 X = 1; X <= 5; ++X)
+		{
+			const FRTCellId Cell(X, 0);
+			const bool bSight = URTHexVisionLibrary::HasLineOfSight(Walled, From, Cell);
+
+			TMap<FRTCellId, int32> One;
+			One.Add(Cell, 7);
+			const FRTLineAttackResult Shot = URTOffensiveActionLibrary::ResolveLineAttack(
+				Walled, From, FRTCellId(5, 0), 5, One, TSet<int32>{ 7 });
+			const bool bReached = Shot.HitUnitId == 7;
+
+			TestEqual(FString::Printf(TEXT("(%d,0): vista e colpo danno lo stesso verdetto"), X),
+				bReached, bSight);
+		}
+	}
 	return true;
 }
 
@@ -438,7 +554,7 @@ bool FRTSuppressiveLineTest::RunTest(const FString&)
 
 	// Una copertura alta accorcia la linea tanto quanto ferma un attacco lineare: stessa geometria.
 	URTHexMapAsset* Covered = MakeOffensiveMap();
-	MakeHighCover(Covered, FRTCellId(3, 0));
+	MakeSightBlockingCell(Covered, FRTCellId(3, 0));
 	const FRTSuppressiveZone Short = URTOffensiveActionLibrary::MakeSuppressiveZone(
 		Covered, 0, 0, FRTCellId(0, 0), FRTCellId(1, 0), Def.RangeCells, DeclaredDamage(Def));
 	TestEqual(TEXT("la copertura alta accorcia la linea a 2 celle"), Short.Cells.Num(), 2);
@@ -559,7 +675,7 @@ bool FRTOffensiveSmokeCapTest::RunTest(const FString&)
 		TestEqual(TEXT("e concede due celle oltre se stessa"), ConFumo.Num(), 3);
 
 		URTHexMapAsset* MapCover = MakeOffensiveMap();
-		MakeHighCover(MapCover, FRTCellId(1, 0));
+		MakeSightBlockingCell(MapCover, FRTCellId(1, 0));
 		const TArray<FRTCellId> ConCopertura =
 			URTOffensiveActionLibrary::LineCells(MapCover, FRTCellId(0, 0), FRTCellId(1, 0), /*RangeCells*/ 6);
 		TestFalse(TEXT("la copertura alta invece NON e' nella linea"),
