@@ -4,6 +4,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexVisionLibrary.h"
+#include "Map/RTStructureIdentityLibrary.h" // il ponte fra il bordo puntato e il nome che il grafo lega (`#833`)
 #include "Terrain/RTTerrainLibrary.h"
 
 namespace
@@ -377,7 +378,28 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 
 			if (bFoundDoor)
 			{
-				Plan.DoorOps.Add(FRTDoorOp(DoorFrom, DoorTo, Intent.DoorState, Intent.AttackerId));
+				// ➕ **LA STRUTTURA PUNTATA PUO' COMANDARNE ALTRE** (`#833`, `CP 23.4`).
+				//
+				// 🔑 **Il ponte fra i due vocabolari sta qui, ed e' l'unico punto in cui esiste.** Fino a
+				// questa riga il percorso di gioco parla di BORDI — `DeclaredDoorEdge`, `FirstDoorEdge`,
+				// `FRTDoorOp{From,To}` — mentre il grafo di interazione lega NOMI. Chi punta una leva punta
+				// il bordo che vede; se quel bordo porta una struttura che il grafo dichiara sorgente,
+				// l'ordine cambia destinatario e lo risolve l'autorita'.
+				//
+				// ⚠️ **Il client non sceglie i bersagli, e non e' un divieto: e' che non li nomina mai.**
+				// L'intento resta quello di prima — un bordo — e da qui in poi viaggia un `SourceId`. E' la
+				// lettura di `#833` *«il client non sceglie bersagli interni»* applicata alla lettera piu'
+				// stretta delle due possibili: qui il client non conosce nemmeno il nome della sorgente.
+				const FName SourceId = URTStructureIdentityLibrary::FindDoorIdOnEdge(Map, DoorFrom, DoorTo);
+				if (URTStructureIdentityLibrary::IsInteractionSource(Map, SourceId))
+				{
+					Plan.InteractionOps.Add(FRTInteractionOp(SourceId, Intent.DoorState, Intent.AttackerId));
+				}
+				else
+				{
+					// Nessun binding: la porta puntata e' il bersaglio, ed e' il caso di sempre.
+					Plan.DoorOps.Add(FRTDoorOp(DoorFrom, DoorTo, Intent.DoorState, Intent.AttackerId));
+				}
 			}
 			else
 			{
