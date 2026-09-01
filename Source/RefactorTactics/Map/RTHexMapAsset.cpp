@@ -445,6 +445,49 @@ uint32 URTHexMapAsset::ComputeHash() const
 			Hash = HashCombine(Hash, HashStableId(T));
 		}
 	}
+
+	// I MURI INTERNI, da `#1830` — e fino a quel giorno restavano fuori con una motivazione scritta sul tipo
+	// (`RTHexMapAsset.h`) che diceva *«vista e passo oggi non lo consultano […] il giorno in cui un muro
+	// interno dovra' bloccare la linea di vista […] allora, ma solo allora, questo tipo entrera' nell'hash»*.
+	// `D-269` e' quella decisione, e `URTHexOcclusionLibrary` e' il consumatore: il criterio di questo hash —
+	// ci entra cio' che puo' cambiare un ESITO — ora li include.
+	//
+	// 🔴 **Lasciarli fuori sarebbe un FALSO NEGATIVO, non un'omissione estetica**: due mappe che si giocano
+	// diversamente avrebbero lo stesso hash, `IsSnapshotStale` lascerebbe «fresco» uno snapshot dopo che un
+	// muro si e' spostato, e una divergenza di replay diventerebbe non diagnosticabile — l'inverso del KPI
+	// `replay divergence = 0`, e la meta' peggiore.
+	//
+	// ⛔ **`StableId` NON entra**, ed e' il criterio di sempre applicato al caso opposto: `FRTHexDoor::StableId`
+	// ci entra perche' `FindDoorEdges` risolve i bersagli **per nome**, mentre nessuno risolve un muro interno
+	// per nome a runtime — lo fa solo l'editor. Rinominarlo non cambia nessun esito.
+	//
+	// L'ordine dell'array lo decide chi edita l'asset, quindi si ordina prima di mescolare, come per `Covers`
+	// e `Transitions`. Gli estremi entrano come coppia NON ordinata: e' lo stesso segmento anche percorso al
+	// contrario, ed e' gia' la regola del suo `operator==`.
+	TArray<FRTHexInteriorWall> SortedWalls = InteriorWalls;
+	SortedWalls.Sort([](const FRTHexInteriorWall& A, const FRTHexInteriorWall& B)
+	{
+		if (A.Cell != B.Cell) { return URTHexLibrary::StableLess(A.Cell, B.Cell); }
+		if (A.Segment.Axis != B.Segment.Axis) { return static_cast<uint8>(A.Segment.Axis) < static_cast<uint8>(B.Segment.Axis); }
+		if (A.Segment.Offset != B.Segment.Offset) { return A.Segment.Offset < B.Segment.Offset; }
+		if (A.Segment.Layer != B.Segment.Layer) { return A.Segment.Layer < B.Segment.Layer; }
+		const int32 AMin = FMath::Min(A.Segment.AlongStart, A.Segment.AlongEnd);
+		const int32 BMin = FMath::Min(B.Segment.AlongStart, B.Segment.AlongEnd);
+		if (AMin != BMin) { return AMin < BMin; }
+		return FMath::Max(A.Segment.AlongStart, A.Segment.AlongEnd) < FMath::Max(B.Segment.AlongStart, B.Segment.AlongEnd);
+	});
+	for (const FRTHexInteriorWall& Wall : SortedWalls)
+	{
+		Hash = HashCombine(Hash, GetTypeHash(Wall.Cell));
+		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Wall.Segment.Axis)));
+		Hash = HashCombine(Hash, GetTypeHash(Wall.Segment.Offset));
+		Hash = HashCombine(Hash, GetTypeHash(Wall.Segment.Layer));
+		Hash = HashCombine(Hash, GetTypeHash(FMath::Min(Wall.Segment.AlongStart, Wall.Segment.AlongEnd)));
+		Hash = HashCombine(Hash, GetTypeHash(FMath::Max(Wall.Segment.AlongStart, Wall.Segment.AlongEnd)));
+		// Il TIPO decide se il muro occlude (`D-271`: solo `High`), quindi cambia un esito ed entra.
+		Hash = HashCombine(Hash, GetTypeHash(static_cast<uint32>(Wall.Segment.WallType)));
+	}
+
 	return Hash;
 }
 

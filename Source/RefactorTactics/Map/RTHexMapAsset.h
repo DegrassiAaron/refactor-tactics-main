@@ -19,14 +19,17 @@
  * rappresentabile come `FRTHexCover` — e per un terzo una corda che non lo e'. Prima di questo tipo quel
  * terzo veniva calcolato, disegnato come anteprima, e poi **buttato via in silenzio**.
  *
- * 🔑 **NON entra in `ComputeHash`**, ed e' la stessa scelta di `FRTHexCover::bGenerated` per la stessa
- * ragione: il movimento e' **cella-a-cella** e un muro che sta dentro una cella non ne blocca nessuno.
- * Due mappe che si giocano in modo identico non devono avere hash diversi solo perche' una ha una
- * decorazione in piu' — sarebbe un falso positivo contro il KPI `replay divergence = 0`.
+ * 🔑 **ENTRA in `ComputeHash` dal 2026-09-01** (`#1830`), e prima non ci entrava — la riga che lo teneva
+ * fuori diceva: *«il movimento e' cella-a-cella e un muro che sta dentro una cella non ne blocca nessuno […]
+ * il giorno in cui un muro interno dovra' bloccare la linea di vista, quella e' una decisione di gioco e va
+ * scritta come tale — e allora, ma solo allora, questo tipo entrera' nell'hash»*.
  *
- * ⛔ **Non tocca le regole, e non e' una svista**: vista e passo oggi non lo consultano. Il giorno in cui
- * un muro interno dovra' bloccare la linea di vista, quella e' una decisione di gioco e va scritta come
- * tale — e allora, ma solo allora, questo tipo entrera' nell'hash.
+ * Quel giorno e' arrivato: `D-269` e' la decisione, `URTHexOcclusionLibrary` il consumatore, e la vista di
+ * `URTHexVisionLibrary` insieme alla linea di `URTOffensiveActionLibrary` leggono questi segmenti. Il
+ * criterio non e' cambiato — nell'hash entra cio' che puo' cambiare un ESITO — e' cambiato il fatto.
+ *
+ * ⛔ **`StableId` resta fuori**, unico campo: nessuno risolve un muro interno per nome a runtime. Vedi il
+ * commento esteso in `ComputeHash` e quello sul campo qui sotto.
  */
 USTRUCT(BlueprintType)
 struct FRTHexInteriorWall
@@ -48,13 +51,15 @@ struct FRTHexInteriorWall
 	 * deve sopravvivere. La copertura non ha questo problema — la sua chiave e' `(Cell, Edge)`, unica per
 	 * bordo per una regola che `ValidateMap` gia' applica — e infatti non prende un campo.
 	 *
-	 * ⛔ **NON entra in `ComputeHash`, e la ragione e' gia' scritta sopra per l'intera struttura**: vista e
-	 * passo non consultano un muro interno, quindi non c'e' esito che possa cambiare. Un nome ancora meno.
+	 * ⛔ **NON entra in `ComputeHash`, ed e' l'unico campo di questa struttura a restarne fuori dopo `#1830`.**
+	 * Gli altri ci sono entrati perche' decidono se e dove il muro occlude; un nome no.
 	 *
 	 * ⚠️ Qui il criterio DIVERGE da `FRTHexDoor::StableId`, che nell'hash invece ci entra (#986): un nome di
 	 * porta ci entra perche' `FindDoorEdges` risolve **per nome**, e rinominarla cambia quale bordo si apre
-	 * per chiunque la citi. Nessuno risolve un muro interno per nome a runtime — lo fa solo l'editor. Il
-	 * giorno in cui un muro interno toccasse le regole, entrerebbero prima i suoi campi e poi il suo nome.
+	 * per chiunque la citi. Nessuno risolve un muro interno per nome a runtime — lo fa solo l'editor. La riga
+	 * precedente prometteva che *«il giorno in cui un muro interno toccasse le regole, entrerebbero prima i
+	 * suoi campi e poi il suo nome»*: i campi sono entrati, il nome no, perche' quel giorno ha confermato la
+	 * prima meta' della frase e non la seconda — la risoluzione per nome resta cosa dell'editor.
 	 *
 	 * `NAME_None` = muro senza nome, che e' cio' che ogni muro scritto prima di questo campo diventa
 	 * rileggendosi — ed e' esattamente cio' che quei muri gia' erano.

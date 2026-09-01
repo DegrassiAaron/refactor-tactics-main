@@ -22,7 +22,24 @@ enum class ERTLineStop : uint8
 	/** Il punto mirato non sta su una delle sei direzioni esagonali: l'azione non parte. */
 	NotAligned,
 	/** Nessuna mappa autorevole: non si valuta e non si colpisce (fail-closed). */
-	NoMap
+	NoMap,
+
+	/**
+	 * Interrotta dalla GEOMETRIA INTRA-CELLA: un muro alto DENTRO una cella, non un ostacolo di cella
+	 * (`D-269`, `D-270`, `#1830`).
+	 *
+	 * 🔑 **Vale un valore proprio perche' e' un difetto diverso da correggere per chi gioca**, ed e'
+	 * esattamente cio' che il DoD di `#1830` chiede al combat log: *«non c'e' copertura»* e *«la geometria
+	 * interna ha fermato il colpo»* portano a due gesti diversi — spostarsi di una cella nel primo caso,
+	 * girare attorno al muro nel secondo. Confonderli rende il log una bugia, che e' la ragione gia' scritta
+	 * per `NoTarget` / `OffMap` / `BlockedByCover`.
+	 *
+	 * ⚠️ **In CODA, e non e' estetica**: questo enum e' un reason code del TurnLog, e infilare un valore in
+	 * mezzo rinumererebbe `OffMap`, `NotAligned` e `NoMap` per ogni log gia' scritto. E' la disciplina che
+	 * `ERTIntraCellTraversal` dichiara per se stesso — *«va aggiunto in coda insieme al suo produttore»* — e
+	 * il produttore, qui, arriva nello stesso commit.
+	 */
+	BlockedByInteriorGeometry
 };
 
 /** Esito di un attacco lineare: chi colpisce, dove passa e perche' si ferma. */
