@@ -332,9 +332,12 @@ Una issue il cui *oggetto* è la rimozione si esenta dal proprio corpo, **col mo
 <!-- issue-refs: ignora — perché questa issue cita di proposito percorsi rimossi -->
 ```
 
-Il gate stampa le esenzioni a ogni esecuzione. Gira anche in CI —
-[`.github/workflows/issue-refs.yml`](.github/workflows/issue-refs.yml), su schedule giornaliero: il
-difetto che chiude non nasce da un commit, nasce dal tempo che passa.
+Il gate stampa le esenzioni a ogni esecuzione.
+
+⚠️ **Si lancia a mano, come gli altri radar** — vedi §9: *«non introdurre CI senza una decisione
+esplicita»*. Il difetto che chiude però non nasce da un commit, **nasce dal tempo che passa** fra la
+rimozione di un percorso e la issue che nessuno riapre: lanciarlo dopo ogni rimozione di file, e
+periodicamente, è ciò che sostituisce lo schedule che il repository non ha.
 
 Gli output generati dei radar non si editano a mano.
 
