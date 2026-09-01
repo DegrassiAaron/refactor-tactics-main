@@ -908,3 +908,68 @@ confronta un percorso o un comando scritto **in prosa dentro una issue** con l'a
 contenerlo. `D-182` ha portato via `scripts/` il 2026-08-21; un `git ls-tree` in CI avrebbe trovato queste
 sedici lo stesso pomeriggio. Le hanno trovate **due sessioni in parallelo**, dieci giorni dopo, cercando a
 mano — e per poco non hanno scritto la stessa nota due volte sulla stessa issue.
+
+---
+
+## 15. `IN CORPORE` — il §14.3 lasciava una decisione all'autore: è stata presa
+
+> **Aggiunta del 2026-09-01.** Il §14.3 chiude dicendo che portare le correzioni *«al livello di `#14`»* —
+> barrare **nel corpo** invece di annotare in fondo — è una decisione d'autore, non presa lì. È stata
+> presa: **11 epic** corrette nel corpo.
+
+### 15.1 Il difetto era ancora vivo, sulla riga più visibile
+
+`A1` aveva corretto le dodici epic con una nota additiva. La nota però stava **25–120 righe più in
+basso** della riga che correggeva, e quella riga era intatta:
+
+```
+#322  L18  ⚠️ **Vincolo di apertura**: … prima che i 15 gate della v0.1 siano verdi
+#323  L17  ⚠️ Non si apre prima dei 15 gate della v0.1.
+```
+
+∴ Chi apriva l'epic leggeva **prima** l'istruzione sbagliata. È precisamente ciò che il §7.2 aveva già
+giudicato insufficiente per `#14` e che il §14.3 aveva dichiarato come limite delle sedici — riprodotto,
+per la stessa ragione, sull'insieme che `A1` aveva trattato per primo.
+
+⚠️ **E `issue-refs` non lo vede**: il gate confronta **percorsi** con l'albero, e `15 gate` non è un
+percorso — verificato, `scanPaths('i **15** gate')` restituisce vuoto. Il §11 nominava *«un conteggio **o**
+un percorso»*: il gate ne chiude uno dei due, e questa sezione chiude l'altro **a mano**.
+
+### 15.2 La misura
+
+| «15 gate» nelle issue aperte | Prima | Dopo |
+|---|--:|--:|
+| Dentro note, barrati, blockquote | 118 | 118 |
+| **Istruzioni vive** | **13** in 12 issue | **0** |
+
+Le due occorrenze che un filtro automatico segnala ancora sono entrambe in
+[`#324`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/324), e sono **la correzione**:
+*«Questa riga diceva «…15 gate…», ed è falsa dal 2026-08-17»*. Citare la frase per dichiararla falsa è il
+pattern, non il difetto.
+
+### 15.3 `A10` — 11 mutazioni
+
+Forma presa da `#14` riga 229, che è il precedente interno: `~~15~~ → **14** (`G1`–`G14`) gate`.
+**Nessuna nota nuova** — ogni epic ne ha già una in fondo che spiega il perché, e aggiungerne una seconda
+avrebbe ripetuto il difetto invece di chiuderlo.
+
+`#322` `#323` `#325` `#326` `#327` `#328` `#329` `#330` `#331` `#332` `#333` — **11 applicate · 0
+fallite**, verificate una per una a scrittura finita. `#324` era **già** nella forma giusta, corretta da
+un'altra sessione il 2026-08-17: il pattern non è stato inventato qui, è stato riconosciuto.
+
+### 15.4 Il conto della giornata, chiuso
+
+| | Mutazioni |
+|---|--:|
+| §7 — `A1` `A2` `A3` `A4` | 16 |
+| §12 — `A8`, le figlie a valle | 31 |
+| §14 — `A9`, il worklist del §13 | 16 |
+| §15 — `A10`, il conteggio nel corpo | **11** |
+| | **74** |
+
+⛔ Resta scoperto ciò che il §14.3 dichiarava e che questa sezione **non** ha chiuso: le **16** issue di
+`A9` portano ancora la riga nuda col percorso morto, corretta solo dalla nota in fondo. Sono la stessa
+classe di queste undici, ma ognuna richiede un testo diverso — e a differenza di `15 gate`, il sostituto
+di un percorso rimosso **non sempre esiste** (§13.4: *«chiedono di decidere cosa sostituisce il file, e la
+decisione non sta nella issue»*). Per quelle, `issue-refs` continuerà a segnalarle a ogni esecuzione: il
+gate non le dimentica, ed è la ragione per cui esiste.
