@@ -1351,7 +1351,7 @@ sessions:
     unblocked_by: [U21]
     shares_setup_with: [U21, U25, U26]
     verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI, PIE-GEO-ANCHOR,
-               PIE-GEO-INCIDENZA, PIE-GEO-CENTRO]
+               PIE-GEO-INCIDENZA, PIE-GEO-CENTRO, PIE-GEO-CALPESTABILE]
     issues: [712, 1895]
     done_when: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
     unblocks: []

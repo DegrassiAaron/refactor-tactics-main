@@ -2,6 +2,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexOccupancyLibrary.h"
+#include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexLibrary.h" // DirectionForEdgeIndex: le due numerazioni dei bordi non coincidono
 
 // ⚠️ Namespace NOMINATO, non anonimo: `RTHexOccupancyLibrary.cpp` ha helper con gli stessi nomi nel suo
@@ -17,6 +18,70 @@ namespace RTGeometryBakeInternal
 	 * divergere fra loro. Duplicare il corpo per cambiare una riga e' il modo in cui nascono i difetti che
 	 * questa seduta ha passato la giornata a rincorrere.
 	 */
+	// ================================================================================================
+	//  LA CALPESTABILITA' E' L'ESITO DI UNA POSA, NON DI UN CONTEGGIO — `E23.6`, `#1827`, `D-289`
+	// ================================================================================================
+	//
+	// 🔴 **Chiude un anello che era aperto: la primitiva esisteva e nessuno la chiamava.**
+	// `URTHexCoverPlacementLibrary::HasLegalPlacement` e' in `main` con tredici test verdi, ma
+	// `git grep` non le trovava un solo chiamante di produzione — e nemmeno `Classify` ne aveva. La
+	// calpestabilita' rispondeva percio' a due scorciatoie che `D-289` dichiara superate:
+	//
+	// ```text
+	// «>= 6 settori occupati => Blocked»   FRTOccupancyThresholds::BlockedFrom
+	// «centro toccato => Blocked»          FRTOccupancyMask::bCoreBlocked in Classify
+	// ```
+	//
+	// La seconda e' caduta con `D-306` (`#1826`), che ha tolto il contatto puntuale dal produttore della
+	// maschera. Questa riga sostituisce la prima: non si contano i settori, si chiede se un footprint ci sta.
+	//
+	// ⚠️ **Il profilo e' un PARAMETRO e non un campo serializzato, ed e' deliberato.** `COV-1` ha deciso la
+	// FORMA — settori contigui, non un raggio — ma i tre valori di `Small`/`Medium`/`Large` sono taratura di
+	// bilanciamento e restano aperti; il default e' l'identita' (`MinContiguousWedges = 1`). Serializzare
+	// adesso un profilo che non decide niente sarebbe un dato senza consumatore, e il giorno in cui i valori
+	// esistessero andrebbe comunque migrato. Il chiamante lo passa; il default non cambia il comportamento
+	// di nessuna mappa esistente.
+	//
+	// ⛔ **Una taglia non cambia l'occupancy**: `Large` vuol dire «piu' difficile da piazzare», non «occupa
+	// piu' posto». La cella resta uno slot.
+	void DeriveStandability(FRTHexCellData& Cell, const URTHexMapAsset* Map, const FRTCellId& CellId,
+		float HexSize, const FRTFootprintProfile& Footprint)
+	{
+		// La geometria che ostacola la posa sono i MURI INTERNI di questa cella: le coperture stanno sui
+		// bordi e non riducono lo spazio dentro. E' la stessa distinzione che `AddSegmentsToCell` applica
+		// scrivendo gli uni o le altre.
+		TArray<FRTOccupancyPolyline> Geometry;
+		for (const FRTHexInteriorWall& Wall : Map->InteriorWalls)
+		{
+			if (Wall.Cell == CellId)
+			{
+				Geometry.Add(URTGeometryGrammarLibrary::ToPolyline(Wall.Segment, HexSize));
+			}
+		}
+
+		const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask(Geometry, HexSize);
+		const bool bStandable = URTHexCoverPlacementLibrary::HasLegalPlacement(Mask, Footprint);
+
+		if (!bStandable)
+		{
+			// Nessuna posa legale: il blocco e' DERIVATO, e si marca come tale perche' il prossimo rebake
+			// possa toglierlo se la geometria cambia.
+			Cell.bBlocksMovement = true;
+			Cell.bMovementBlockGenerated = true;
+			return;
+		}
+
+		// 🔑 **L'AUTORE VINCE, ed e' la meta' che rende questo campo necessario.** Un `bBlocksMovement`
+		// dipinto a mano — `bMovementBlockGenerated == false` — non si tocca: la cottura non ha
+		// l'autorita' per contraddire una scelta di design. Si rimuove SOLO il blocco che ha prodotto lei,
+		// ed e' cio' che rende il rebake idempotente e reversibile: togliere il muro restituisce la cella.
+		if (Cell.bMovementBlockGenerated)
+		{
+			Cell.bBlocksMovement = false;
+			Cell.bMovementBlockGenerated = false;
+		}
+	}
+
 	int32 Bake(URTHexMapAsset* Map, const FRTCellId& CellId, const TArray<FRTGeometrySegment>& Segments,
 		float HexSize, bool bReplaceGenerated);
 
@@ -196,6 +261,7 @@ int32 URTGeometryBakeLibrary::AddSegmentsToCell(URTHexMapAsset* Map, const FRTCe
 	return RTGeometryBakeInternal::Bake(Map, CellId, Segments, HexSize, /*bReplaceGenerated=*/ false);
 }
 
+	
 int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 	const TArray<FRTGeometrySegment>& Segments, float HexSize, bool bReplaceGenerated)
 {
@@ -346,6 +412,10 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 		Updated.Covers.Add(Cover);
 		++Generated;
 	}
+
+	// La calpestabilita' si deriva DOPO che muri e coperture sono scritti: guarda lo stato finale della
+	// cella, non quello che aveva prima del gesto.
+	DeriveStandability(Updated, Map, CellId, HexSize, FRTFootprintProfile());
 
 	Map->AddOrUpdateCell(Updated);
 	return Generated;

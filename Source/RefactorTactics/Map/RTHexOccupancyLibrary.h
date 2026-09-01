@@ -205,9 +205,20 @@ public:
 	 * Quanto costa IN PIU' attraversare una cella con questa classificazione — la META' COSTO della cottura,
 	 * che appartiene a #619. I BORDI (`FRTHexCover`, `bBlocksMovement`) sono di #621.
 	 *
-	 * `Blocked` non paga un sovrapprezzo perche' non si attraversa affatto: chi la rende impassabile e' il
-	 * bordo, non il costo. Restituire un numero alto qui sarebbe un secondo modo di dire «non si passa», e due
-	 * modi di dire la stessa cosa divergono.
+	 * `Blocked` non paga un sovrapprezzo, e chi rende impassabile una cella non e' il costo. Restituire un
+	 * numero alto qui sarebbe un secondo modo di dire «non si passa», e due modi di dire la stessa cosa
+	 * divergono.
+	 *
+	 * 🔴 **Ma `Blocked` non significa piu' «non si attraversa», ed e' un cambio di senso da `D-289`
+	 * (`E23.6`, `#1827`).** Questa classificazione e' rimasta un giudizio di **STRETTEZZA** — quanto la
+	 * geometria invade la cella — e alimenta il solo sovrapprezzo. La CALPESTABILITA' e' un'altra domanda,
+	 * e ha un'altra risposta: `bBlocksMovement`, che la cottura deriva dall'assenza di una **posa legale**
+	 * per il footprint (`URTHexCoverPlacementLibrary::HasLegalPlacement`).
+	 *
+	 * ⚠️ Le due possono divergere, e devono poterlo: una cella con `Blocked` per strettezza resta
+	 * calpestabile se un footprint ci sta — `RefactorTactics.Standability.OccupiedWedgeCountDoesNotDecide`
+	 * lo misura su otto settori occupati. La vecchia scorciatoia *«>= 6 settori => Blocked => non si
+	 * passa»* e' proprio cio' che `D-289` ha superato.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static int32 Surcharge(ERTCellOccupancy Occupancy, const FRTOccupancyThresholds& Thresholds);
