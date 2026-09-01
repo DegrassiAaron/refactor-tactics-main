@@ -282,7 +282,7 @@ l'hash è un valore derivato, e un avversario che lo riceve non riceve i campi d
   estremi.
 
 ⏳ **Le due voci che seguono sono CONTRATTO, non misura**: `D-302` le impone a chi implementerà, e oggi
-non hanno codice da verificare (§13.6). Le tre sopra sono invece proprietà **misurate** del codice esistente.
+non hanno codice da verificare (§13.8). Le tre sopra sono invece proprietà **misurate** del codice esistente.
 
 - ⏳ **Imposto da [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md), non ancora verificabile**: l'**ordine di generazione non cambia
   l'identità** di un anchor (`COV-2`), e la **precedenza dell'override autorato è deterministica e locale**
@@ -316,11 +316,12 @@ il giorno in cui si chiude — ed è il suo scopo.
 
 ---
 
-## 13. Ciò che `D-302` e `D-303` ratificano
+## 13. Ciò che `D-302`, `D-303` e `D-308` ratificano — tutte e otto le `COV-*`
 
-[`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) consuma le risposte d'autore su `COV-2`…`COV-6`, e [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) chiude `COV-1`.
+[`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) consuma le risposte d'autore su `COV-2`…`COV-6`, [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) chiude `COV-1`,
+e [`D-308`](../../decisions/RT_PDR_00_Decision_Log.md) chiude `COV-7` e `COV-8` il 2026-09-01: **la serie è completa**.
 Le regole qui sotto sono **normative**;
-⚠️ **nessuna di esse è implementata**, ed è misurato — vedi §13.6.
+⚠️ **nessuna di esse è implementata**, ed è misurato — vedi §13.8.
 
 ### 13.0 Il footprint è un conteggio di settori, non un raggio (`COV-1`)
 
@@ -369,7 +370,7 @@ regioni da quattro** su ognuno dei sei assi — la maschera letterale dipende da
 ancora in una cella tagliata a metà: è ciò che `4` fa guadagnare, non ciò che lo determina.
 
 ⛔ **Nessuna unità dichiara ancora un profilo**, quindi oggi userebbero tutte `Medium`: `Small` e `Large`
-sono capacità per contenuto futuro — §13.6.
+sono capacità per contenuto futuro — §13.8.
 
 🔁 **Questo paragrafo diceva il contrario, ed è conservato perché la correzione è istruttiva**:
 *«i tre valori non sono fissati qui … sono taratura, e sceglierli in un documento di contratto sarebbe il
@@ -449,9 +450,74 @@ copertura smetterebbe di essere una scelta.
 
 🔑 **È una voce esplicita di economia dell'azione**, non un costo dedotto dalla geometria: il numero
 vive nel catalogo, non in `ComputeMask`. Il **riposizionamento dentro la cella** non è questo costo ed è
-`COV-7`, aperta.
+`COV-7`, chiusa da [`D-308`](../../decisions/RT_PDR_00_Decision_Log.md) — §13.6 qui sotto.
 
-### 13.6 ⏳ Stato d'implementazione — misurato, non dichiarato
+### 13.6 Riposizionarsi e scavalcare: due regole distinte (`COV-7`)
+
+Chiuse da [`D-308`](../../decisions/RT_PDR_00_Decision_Log.md). La domanda era una, le regole sono **due**, e non condividono nulla se non
+il fatto che entrambe costano.
+
+**Reposition — non è un movimento.**
+
+| Aspetto | Valore |
+|---|---|
+| Cella | **la stessa** `FRTCellId` |
+| Cosa cambia | la `CoverSelection` |
+| Costo | **1 MP** |
+| Occupancy | **invariata** — la cella era sua prima e lo è dopo |
+| Sottocelle | ⛔ **nessuna** |
+
+🔑 **Non introduce spazio nuovo, ed è il punto che lo rende compatibile con** [`D-289`](../../decisions/RT_PDR_00_Decision_Log.md): ciò che cambia
+non è una posizione ma la *faccia scelta*, che [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) ha già reso stato discreto autorevole.
+⚠️ **Non è il `+1 MP` di `COV-6`.** Quello paga l'**ingresso** in copertura raggiungendo una cella; qui non si
+raggiunge niente. Due costi omonimi su due eventi diversi.
+
+**Vault — esiste solo dove un autore l'ha disegnato.**
+
+| Aspetto | Valore |
+|---|---|
+| Che cos'è | una transizione **esplicitamente autorata nel tactical graph** |
+| Celle | **adiacenti** |
+| Costo | `costo d'arco normale del grafo` **+ 1 MP** |
+| `Low Cover` | ⛔ **non** automaticamente scavalcabile |
+| `High Cover` | ⛔ normalmente **no**, salvo regola o abilità esplicita |
+| Destinazione | soggetta alla **normale occupancy** |
+
+⛔ **La scavalcabilità è un dato, non una conseguenza dell'altezza.** È la clausola che impedisce a
+`Low`/`High` — vocabolario di **mitigazione**, [`D-271`](../../decisions/RT_PDR_00_Decision_Log.md) — di diventare per inerzia un vocabolario di
+**traversabilità**.
+
+➕ **I costi si sommano e non si assorbono**: se dopo il vault si entra **anche** in copertura, il `+1 MP` di
+`COV-6` si aggiunge separatamente. Sono due eventi.
+
+🔑 **Questa regola è il produttore che §6 dichiarava mancante.** Quel paragrafo tiene `ERTIntraCellTraversal`
+a **due** valori perché *«un valore d'enum che nessuno può emettere è un campo che nessuno legge»*, e chiede che
+il terzo arrivi *«in coda insieme al suo produttore»*. ⚠️ **Il valore non si aggiunge per effetto di questa
+decisione**: arriva con l'implementazione di `E23.7` ([#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828)), che ora ha finalmente qualcosa da emettere.
+
+### 13.7 Distruggere una sorgente non ne rigenera nessun'altra (`COV-8`)
+
+Chiusa da [`D-308`](../../decisions/RT_PDR_00_Decision_Log.md). La domanda si allargava in due sotto-domande, e hanno due risposte distinte.
+
+All'**Atomic Commit** in cui una `CoverSource` viene distrutta:
+
+1. cadono **solo** le `CoverOption` che dipendevano da **quella** sorgente;
+2. le **altre sorgenti della cella restano valide** — la cella non si azzera;
+3. chi aveva selezionato la sorgente distrutta passa a **`None`**;
+4. ⛔ **nessun auto-switch**: il resolver non sceglie una copertura al posto del giocatore. Una scelta
+   successiva paga il normale `+1 MP` di `COV-6`;
+5. ⛔ **nessuna rigenerazione spontanea**. Una riparazione futura dev'essere un **effetto esplicito**, non un
+   ritorno automatico allo stato precedente.
+
+✅ **Conferma e generalizza `CP 22.3`** ([#1563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1563)), *«una copertura distrutta non si richiude»*: quella
+riga parlava di **una** copertura, questa dice cosa succede quando una cella ne ha **più d'una**.
+
+🔑 **La finestra di lettura non è una regola nuova.** Le contribution dello **stesso layer** leggono
+`State N`; da `State N+1` la copertura aggiornata è visibile. È la stessa forma che [`D-294`](../../decisions/RT_PDR_00_Decision_Log.md) dà
+all'occupancy di un'unità KO, ed è la ragione per cui nessuna delle due regole ha bisogno di un ordinamento
+fra effetti — ritirato da [`D-293`](../../decisions/RT_PDR_00_Decision_Log.md).
+
+### 13.8 ⏳ Stato d'implementazione — misurato, non dichiarato
 
 | Regola | Implementata? | Misura |
 |---|---|---|
@@ -461,6 +527,8 @@ vive nel catalogo, non in `ComputeMask`. Il **riposizionamento dentro la cella**
 | `COV-4` nel digest | ❌ **no** | `FRTUnitStateDigest` ha **sette** campi: `UnitId`, `Cell`, `Health`, `Shield`, `Energy`, `bAlive`, tag. Nessuno è la copertura |
 | `COV-5` doppio test direzionale | ❌ **no** | `EffectiveCoverReduction` legge il `Facing`, non una copertura **scelta** |
 | `COV-6` +1 MP | ❌ **no** | un costo di copertura in `Source/` dà **zero** |
+| `COV-7` reposition e vault | ❌ **no** | `ERTIntraCellTraversal` ha **due** valori (`RTHexCoverPlacementLibrary.h:263`): il terzo, la traversata autorata, ora ha una regola che lo produce e **non ha ancora il valore** |
+| `COV-8` distruzione di una sorgente | ❌ **no** | esistono `Cover.Destruction.*` per **geometria e LOS**; nessuna `CoverSelection` esiste, quindi non c'è nulla che possa passare a `None` |
 
 ⛔ **Una decisione non chiude un'implementazione.** Le sette sub-issue di `E23.6`/`E23.7`
 ([#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826)…[#1832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1832)) **restano aperte**.
@@ -470,9 +538,11 @@ vive nel catalogo, non in `ComputeMask`. Il **riposizionamento dentro la cella**
 ## 14. Decisioni aperte
 
 In [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), con owner
-[#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833). ⚠️ **Le sei barrate non
-sono più nella sezione *Aperte***: vivono in § *✅ Chiuse il 2026-08-31 da `D-302` e `D-303`*, che ne
-conserva l'istruttoria. Ancora aperte lì: `MAP-4`, `COV-7`, `COV-8` (`MSE-4` ha sempre avuto sezione propria).
+[#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833). ⚠️ **Le barrate non
+sono più nella sezione *Aperte***: le sei del 2026-08-31 vivono in § *✅ Chiuse il 2026-08-31 da `D-302` e
+`D-303`*, e `COV-7`/`COV-8` restano barrate nella sezione che le ospitava, ognuna con la propria istruttoria.
+🔁 **Aggiornato il 2026-09-01: delle otto `COV-*` non ne resta aperta nessuna.** L'unica voce ancora aperta
+lì è `MAP-4`, che **nessuna delle otto poneva** — l'ha aperta la chiusura di `COV-1`.
 
 | ID | Domanda |
 |---|---|
@@ -482,10 +552,10 @@ conserva l'istruttoria. Ancora aperte lì: `MAP-4`, `COV-7`, `COV-8` (`MSE-4` ha
 | ~~`COV-4`~~ | ~~la scelta entra nel digest di stato e nell'hash?~~ — ✅ **sì**, §13.3 |
 | ~~`COV-5`~~ | ~~interazione finale fra `Facing` e copertura scelta~~ — ✅ **indipendenti, doppio test**, §13.4 |
 | ~~`COV-6`~~ | ~~costi/bonus del movimento da copertura a copertura~~ — ✅ **+1 MP, nessun bonus**, §13.5 |
-| `MAP-4` | con un footprint discreto, che cosa spazza il **corridoio di transizione**? — §13.0 |
-| `COV-7` | regole finali di vault e reposition |
-| `COV-8` | rigenerazione delle `CoverOption` dopo la distruzione di una sorgente |
-| `MSE-4` | il contatto puntuale è invasione? — **innesco arrivato**, vedi §12 |
+| ~~`COV-7`~~ | ~~regole finali di vault e reposition~~ — ✅ **due regole distinte**, [`D-308`](../../decisions/RT_PDR_00_Decision_Log.md) §13.6 |
+| ~~`COV-8`~~ | ~~rigenerazione delle `CoverOption` dopo la distruzione di una sorgente~~ — ✅ **nessuna rigenerazione, e niente auto-switch**, [`D-308`](../../decisions/RT_PDR_00_Decision_Log.md) §13.7 |
+| ~~`MSE-4`~~ | ~~il contatto puntuale è invasione?~~ — ✅ **no: serve un'intersezione di lunghezza non nulla**, [`D-306`](../../decisions/RT_PDR_00_Decision_Log.md) §12, implementata dalla PR [#2002](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2002) |
+| `MAP-4` | con un footprint discreto, che cosa spazza il **corridoio di transizione**? — §13.0. ⛔ **L'unica ancora aperta**, e non è un rimasuglio di `COV-7`: il vault è una transizione **autorata fra due celle**, `MAP-4` chiede cosa spazzi il corridoio di una transizione **qualsiasi** |
 
 ---
 
