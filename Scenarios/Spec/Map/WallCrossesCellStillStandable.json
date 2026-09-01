@@ -10,39 +10,107 @@
   ],
   "version": 1,
   "seed": 0,
-  "mapRadius": 3,
-
+  "mapRadius": 2,
   "_nota": "SPECIFICA ESEGUIBILE di E23.6 (#1827): un muro che ATTRAVERSA la cella non la chiude. La calpestabilita' e' l'esito di una posa legale per il footprint, non di un conteggio di settori — `D-289` — e questo scenario lo prova in partita invece che in un predicato.",
-
-  "_nota_perche_serviva_lo_scenario": "Fino a #2031 l'harness non sapeva dichiarare un muro interno: `FRTScenarioCell` aveva `blocksMovement` e nessun campo di geometria. La catena segmento -> maschera -> posa -> passo era coperta da automation test e da NESSUNA partita. E' lo stesso argomento gia' scritto sul campo `occupancySurcharge`: senza, l'effetto sarebbe verificabile solo in C++, cioe' mai in una partita vera.",
-
+  "_nota_perche_serviva_lo_scenario": "Fino a #2031 l'harness non sapeva dichiarare un muro interno: `FRTScenarioCell` aveva `blocksMovement` e nessun campo di geometria. La catena segmento -> maschera -> posa -> passo era coperta da automation test e da NESSUNA partita.",
   "_nota_geometria": "Il muro e' un diametro sull'asse Deg90 (indice 3), da -12 a +12 con offset 0: attraversa la cella da un vertice all'altro passando per il centro. Occupa i QUATTRO settori che percorre — non dodici, da `D-306` — e lascia otto settori liberi in due regioni. Con il profilo di footprint identita' una posa esiste, quindi `bBlocksMovement` resta falso.",
-
-  "_nota_perche_questo_percorso": "Da (-2,0,0) a (2,0,0) sulla stessa riga assiale il percorso piu' breve e' UNICO: l'unica mossa che avvicina e' E. Se l'unita' arriva, ha attraversato la cella col muro — non l'ha aggirata.",
-
+  "_nota_perche_il_corridoio": "Un CORRIDOIO FORZATO, e non e' decorazione: la colonna assiale `q=0` e' murata a mano\n    tranne il centro, quindi ogni passo da `q<0` a `q>0` deve atterrare su (0,0,0). Senza, l'unita' AGGIRA:\n    misurato il 2026-09-01 con la mutazione M2 (`HasLegalPlacement` forzata a `false`, cioe' OGNI cella\n    chiusa) questo scenario e' rimasto VERDE — arrivava dal lato. Provava l'esistenza di una strada, non\n    l'attraversamento. Le celle murate usano `blocksMovement` d'autore, che e' il campo che l'harness aveva\n    gia': il blocco DERIVATO resta quello della cottura, e i due non si mescolano.",
   "cells": [
     {
-      "cell": [0, 0, 0],
+      "cell": [
+        0,
+        0,
+        0
+      ],
       "interiorWalls": [
-        { "axis": 3, "offset": 0, "alongStart": -12, "alongEnd": 12 }
+        {
+          "axis": 3,
+          "offset": 0,
+          "alongStart": -12,
+          "alongEnd": 12
+        }
+      ]
+    },
+    {
+      "cell": [
+        0,
+        -2,
+        0
+      ],
+      "blocksMovement": true
+    },
+    {
+      "cell": [
+        0,
+        -1,
+        0
+      ],
+      "blocksMovement": true
+    },
+    {
+      "cell": [
+        0,
+        1,
+        0
+      ],
+      "blocksMovement": true
+    },
+    {
+      "cell": [
+        0,
+        2,
+        0
+      ],
+      "blocksMovement": true
+    }
+  ],
+  "units": [
+    {
+      "id": "A1",
+      "hero": "Hero.Gadget",
+      "team": 0,
+      "cell": [
+        -1,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        2,
+        -2,
+        0
       ]
     }
   ],
-
-  "units": [
-    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, 3, 0] }
-  ],
-
   "turns": [
     {
       "intents": [
-        { "unit": "A1", "move": [[2, 0, 0]] }
+        {
+          "unit": "A1",
+          "move": [
+            [
+              1,
+              0,
+              0
+            ]
+          ]
+        }
       ]
     }
   ],
-
   "expect": [
-    { "type": "UnitAtCell", "unit": "A1", "cell": [2, 0, 0] }
+    {
+      "type": "UnitAtCell",
+      "unit": "A1",
+      "cell": [
+        1,
+        0,
+        0
+      ]
+    }
   ]
 }

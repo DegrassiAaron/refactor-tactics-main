@@ -4,43 +4,119 @@
     "spec",
     "map",
     "movement",
+    "pathfinding",
     "geometry",
     "gadget"
   ],
   "version": 1,
   "seed": 0,
-  "mapRadius": 3,
-
-  "_nota": "SPECIFICA ESEGUIBILE di E23.6 (#1827): due muri che formano un ANGOLO RETTO si cuociono entrambi, e la cella resta calpestabile. Il terzo dei tre scenari che la roadmap dichiara per E23.6.",
-
-  "_nota_geometria": "Due raggi dal centro: uno sull'asse Deg0 (indice 0) da 0 a +12, uno su Deg90 (indice 3) da 0 a +12. I due assi sono a 90 gradi l'uno dall'altro, quindi formano una L. Si incontrano nel CENTRO, che e' il tredicesimo anchor: e' un incontro legale, e `CrossingOnAnchorIsLegal` (#1894) lo pinna. Un incontro fuori-anchor sarebbe invece `CrossingOffAnchor`, e `ValidateMap` lo segnalerebbe.",
-
-  "_nota_cosa_dimostra_davvero": "Che l'angolo non e' un caso speciale. Ogni raggio occupa due settori — giace sul confine fra due, e il contatto lungo un segmento resta conservativo — quindi l'angolo ne occupa quattro e ne lascia otto liberi. La cella si cammina, e i due muri esistono come due segmenti distinti invece di fondersi o annullarsi.",
-
+  "mapRadius": 2,
+  "_nota": "SPECIFICA ESEGUIBILE di E23.6 (#1827): due muri che formano un ANGOLO RETTO si cuociono entrambi, e la cella resta calpestabile.",
+  "_nota_geometria": "Due raggi dal centro: uno sull'asse Deg0 (indice 0) da 0 a +12, uno su Deg90 (indice 3) da 0 a +12. Si incontrano nel CENTRO, che e' il tredicesimo anchor: incontro legale, e `CrossingOnAnchorIsLegal` (#1894) lo pinna. Fuori-anchor sarebbe `CrossingOffAnchor`.",
+  "_nota_cosa_dimostra_davvero": "Che l'angolo non e' un caso speciale. Ogni raggio occupa due settori, quindi l'angolo ne occupa quattro e ne lascia otto: la cella si cammina, e i due muri restano due segmenti distinti invece di fondersi.",
+  "_nota_perche_il_corridoio": "Un CORRIDOIO FORZATO, e non e' decorazione: la colonna assiale `q=0` e' murata a mano\n    tranne il centro, quindi ogni passo da `q<0` a `q>0` deve atterrare su (0,0,0). Senza, l'unita' AGGIRA:\n    misurato il 2026-09-01 con la mutazione M2 (`HasLegalPlacement` forzata a `false`, cioe' OGNI cella\n    chiusa) questo scenario e' rimasto VERDE — arrivava dal lato. Provava l'esistenza di una strada, non\n    l'attraversamento. Le celle murate usano `blocksMovement` d'autore, che e' il campo che l'harness aveva\n    gia': il blocco DERIVATO resta quello della cottura, e i due non si mescolano.",
   "cells": [
     {
-      "cell": [0, 0, 0],
+      "cell": [
+        0,
+        0,
+        0
+      ],
       "interiorWalls": [
-        { "axis": 0, "offset": 0, "alongStart": 0, "alongEnd": 12 },
-        { "axis": 3, "offset": 0, "alongStart": 0, "alongEnd": 12 }
+        {
+          "axis": 0,
+          "offset": 0,
+          "alongStart": 0,
+          "alongEnd": 12
+        },
+        {
+          "axis": 3,
+          "offset": 0,
+          "alongStart": 0,
+          "alongEnd": 12
+        }
+      ]
+    },
+    {
+      "cell": [
+        0,
+        -2,
+        0
+      ],
+      "blocksMovement": true
+    },
+    {
+      "cell": [
+        0,
+        -1,
+        0
+      ],
+      "blocksMovement": true
+    },
+    {
+      "cell": [
+        0,
+        1,
+        0
+      ],
+      "blocksMovement": true
+    },
+    {
+      "cell": [
+        0,
+        2,
+        0
+      ],
+      "blocksMovement": true
+    }
+  ],
+  "units": [
+    {
+      "id": "A1",
+      "hero": "Hero.Gadget",
+      "team": 0,
+      "cell": [
+        -1,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "B1",
+      "hero": "Hero.Riktor",
+      "team": 1,
+      "cell": [
+        2,
+        -2,
+        0
       ]
     }
   ],
-
-  "units": [
-    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
-    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, 3, 0] }
-  ],
-
   "turns": [
     {
       "intents": [
-        { "unit": "A1", "move": [[2, 0, 0]] }
+        {
+          "unit": "A1",
+          "move": [
+            [
+              1,
+              0,
+              0
+            ]
+          ]
+        }
       ]
     }
   ],
-
   "expect": [
-    { "type": "UnitAtCell", "unit": "A1", "cell": [2, 0, 0] }
+    {
+      "type": "UnitAtCell",
+      "unit": "A1",
+      "cell": [
+        1,
+        0,
+        0
+      ]
+    }
   ]
 }
