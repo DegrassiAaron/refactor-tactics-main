@@ -72,27 +72,62 @@ FRTCellLabel URTHexLabelLibrary::BuildCellLabel(const FRTCellId& Cell, const FVe
 	const FString Text = FString::Printf(TEXT("%d,%d,%d"), Cell.X, Cell.Y, Cell.Layer);
 	const int32 LayerDigits = FString::FromInt(Cell.Layer).Len();
 
-	// L'altezza piena e la larghezza di un carattere, tarate sull'APOTEMA e sul caso peggiore. Non sono
-	// numeri scelti a occhio: sono il piu' grande valore per cui `NothingLeavesTheHexagonAtTheTrueWorstCase`
-	// resta verde su `-10,-10,-1` — dieci caratteri lungo una direzione (`Layer` e' un int32 senza limiti
-	// dichiarati, quindi un layer a due cifre negative e' una cella legittima).
+	// L'altezza piena e la larghezza di un carattere, tarate sul caso peggiore: dieci caratteri lungo una
+	// direzione (`Layer` e' un int32 senza limiti dichiarati, quindi un layer a due cifre negative e' una
+	// cella legittima). Chi verifica che la taratura sia vera, e non solo plausibile, e'
+	// `NothingLeavesTheHexagonAtTheTrueWorstCase` su `-10,-10,-1`.
+	//
+	// 🔑 **Il budget e' la CORDA parallela al lato, non l'apotema** — e il denominatore e' cambiato quando
+	// il testo ha smesso di correre in direzione radiale. Per un esagono di circumraggio `R` la corda
+	// parallela a un lato, a distanza `t` da quel lato, misura `R + 2t/sqrt(3)`: vale `R` sul lato stesso
+	// e `2R` passando per il centro. La base del testo sta a `Margin` dal lato, cioe' nel punto piu'
+	// STRETTO della fascia che il testo occupa — salendo verso il centro la corda si allarga soltanto.
+	// E' quella la corda che vincola, e usare l'apotema qui sarebbe un numero orfano: misurerebbe una
+	// direzione lungo la quale non c'e' piu' niente.
 	constexpr int32 WorstCaseChars = 10;
-	const double Apothem   = HexSize * 0.8660254; // cos(30°)
-	const double Margin    = HexSize * 0.06;      // il bordo non si tocca: la cella ha gia' un contorno
-	const double Usable    = Apothem - Margin;
-	const double CharWidth = Usable / WorstCaseChars;
-	const double FullHeight = CharWidth * 1.4;    // rapporto di un display a sette segmenti
+	const double Margin = HexSize * 0.06;   // il bordo non si tocca: la cella ha gia' un contorno
+	const double Chord  = HexSize + 2.0 * Margin / 1.7320508;
+	const double Usable = Chord - 2.0 * Margin;  // un margine anche ai due capi della riga
+	// `* 1.15` perche' la spaziatura fra caratteri va pagata: e' il caso peggiore in cui tutti e dieci
+	// fossero a scala piena, che il layer a meta' scala non raggiunge mai.
+	const double CharWidth  = Usable / (WorstCaseChars * 1.15);
+	const double FullHeight = CharWidth * 1.4;   // rapporto di un display a sette segmenti
 
 	for (int32 Side = 0; Side < 6; Side += 2)
 	{
-		const FVector Mid = (Corners[Side] + Corners[(Side + 1) % 6]) * 0.5;
-
-		// Verso il CENTRO: la prima cifra sta al bordo e l'ultima al centro, come chiesto.
+		const FVector Mid    = (Corners[Side] + Corners[(Side + 1) % 6]) * 0.5;
 		const FVector Inward = (Centre - Mid).GetSafeNormal();
-		const FVector Right  = -Inward;              // il testo si legge venendo dal bordo
-		const FVector Up     = FVector::CrossProduct(FVector::UpVector, Right).GetSafeNormal();
 
-		double Travelled = Margin;
+		// 🔑 **Il testo corre PARALLELO al lato e cresce verso il centro.** Prima correva in direzione
+		// radiale — perpendicolare al lato — e si leggeva male per due ragioni indipendenti:
+		//
+		//  1. **era specchiato.** I glifi avanzavano lungo `Inward` mentre il loro asse `Right` valeva
+		//     `-Inward`: `Right . avanzamento = -1` su tutte e tre le run. Ogni carattere era ben formato,
+		//     ma la stringa era posata all'indietro — `3,-2,0` si leggeva `0,2-,3`;
+		//  2. **era perpendicolare al lato**, cioe' orientato lungo l'unica direzione in cui l'esagono e'
+		//     piu' stretto invece che lungo quella in cui e' piu' largo.
+		//
+		// `Up = Inward` fa crescere il testo verso il centro, che e' cio' che lo tiene dentro l'esagono.
+		// `Right = Inward x Z` e' parallelo al lato **per costruzione** e non per una tabella di angoli:
+		// se `HexCorners` cambiasse convenzione, questo la seguirebbe.
+		//
+		// ⚠️ La terna `(Right, Up, Z)` e' destrorsa — `Right x Up = +Z` — ed e' cio' che rende i glifi
+		// leggibili da una camera dall'alto invece che riflessi.
+		const FVector Up    = Inward;
+		const FVector Right = FVector::CrossProduct(Inward, FVector::UpVector);
+
+		// La larghezza totale serve PRIMA di posare il primo carattere: la riga e' centrata sull'asse
+		// radiale, quindi bisogna sapere di quanto arretrare l'inizio.
+		double TotalWidth = 0.0;
+		for (int32 I = 0; I < Text.Len(); ++I)
+		{
+			const double W = CharWidth * ((I >= Text.Len() - LayerDigits) ? 0.5 : 1.0);
+			TotalWidth += (I == Text.Len() - 1) ? W : W * 1.15; // nessuna spaziatura dopo l'ultimo
+		}
+
+		const FVector RunStart = Mid + Inward * Margin - Right * (TotalWidth * 0.5);
+
+		double Travelled = 0.0;
 		for (int32 I = 0; I < Text.Len(); ++I)
 		{
 			const TCHAR Ch = Text[I];
@@ -106,9 +141,9 @@ FRTCellLabel URTHexLabelLibrary::BuildCellLabel(const FRTCellId& Cell, const FVe
 			const double W = CharWidth * Scale;
 			const double H = FullHeight * Scale;
 
-			// L'angolo in basso a sinistra: si parte dal bordo e si cammina verso il centro, e il
-			// carattere e' centrato sull'asse della run.
-			const FVector Base = Mid + Inward * (Travelled + W) + Up * (-H * 0.5);
+			// L'angolo in basso a sinistra. Tutti i caratteri poggiano sulla STESSA base a `Margin` dal
+			// lato: quelli a meta' scala sono piu' bassi, non centrati verticalmente.
+			const FVector Base = RunStart + Right * Travelled;
 
 			FRTLabelGlyph Glyph;
 			Glyph.Character = Ch;
