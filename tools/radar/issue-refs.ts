@@ -221,15 +221,14 @@ function main(): void {
 
   // 🔴 Il falso verde piu' probabile di questo gate, e non fa rumore: `git log --diff-filter=D`
   // su un clone **shallow** non vede nessuna cancellazione, quindi `wasDeleted` e' sempre falso e il
-  // gate passa qualunque cosa. `actions/checkout` fa depth=1 di default: senza `fetch-depth: 0` il
-  // gate direbbe verde per sempre. Si dichiara NOT RUN invece di mentire.
+  // gate passa qualunque cosa — silenziosamente, per sempre. Si dichiara NOT RUN invece di mentire.
   const shallow = git(['rev-parse', '--is-shallow-repository']).trim() === 'true';
   if (shallow || cancellati.size === 0) {
     console.error(
       'NOT RUN: la storia del repository non e\' completa' +
         (shallow ? ' (clone shallow)' : ' (nessuna cancellazione trovata)') +
         '.\n         Senza di essa nessun percorso risulta rimosso e il gate passerebbe tutto.\n' +
-        '         In CI serve `fetch-depth: 0`; in locale `git fetch --unshallow`.',
+        '         Rimedio: `git fetch --unshallow`.',
     );
     return; // exit 0: NOT RUN non blocca, ma non e' un verde
   }
