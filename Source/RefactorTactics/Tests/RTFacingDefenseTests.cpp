@@ -13,6 +13,7 @@
 #include "Core/RTGameplayTags.h" // TAG_Status_Guarded
 #include "Kismet/GameplayStatics.h"
 #include "Map/RTHexMapActor.h"
+#include "Tests/RTAbilityFixtures.h" // AddCoreAbilityInSlot: montare Action.Deflect sul difensore
 #include "Tests/RTWorldFixtures.h"
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
@@ -397,3 +398,87 @@ bool FRTCombatBackAttackIgnoresGuardTest::RunTest(const FString&)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+/**
+ * [D-312] misurata sulla CATENA REALE, che e' l'unica sede in cui l'ordine dei due pool esiste.
+ *
+ * Perche' serve, benche' `Combat.DeflectPoolAbsorbsBeforeGuardPool` parli gia' dell'ordine: quello chiama
+ * `ApplyAbsorptionPool` DIRETTAMENTE, quindi prova che i due ordini divergono ma resta verde qualunque
+ * ordine usi `RTTurnManager`. Misurato prima di scrivere questo: invertendo le due chiamate reali,
+ * 100 test su 100 restavano verdi. Il buco era esattamente qui.
+ *
+ * La scena: difensore rivolto a OVEST, in Guardia e con `Action.Deflect` armata, preso fra due attaccanti —
+ * uno davanti (`Guard` eleggibile) e uno dietro (`Guard` no, `Deflect` si', perche' non ha clausola d'arco).
+ * E' la sovrapposizione parziale delle maschere, cioe' la condizione in cui l'ordine decide.
+ *
+ * ⚠️ **Il numero atteso e' un'OSSERVAZIONE, non una derivazione, e va trattato come tale.** Fra il pool e
+ * gli HP passano altre riduzioni che questo test non isola: i colpi valgono `21` nel resolver e arrivano
+ * ridotti. Cio' che rende il test valido non e' che `16` sia calcolabile a mano, ma che **discrimini**:
+ * verificato per mutazione il 2026-09-01: invertendo le due chiamate in `RTTurnManager.cpp` il danno passa
+ * da `16` a `2` e questo test diventa rosso — ed e' l'UNICO che cade, gli altri 100 della stessa passata
+ * restano verdi. E' cio' che distingue un test che protegge la decisione da uno che la descrive soltanto.
+ *
+ * ⚠️ **E dipende da QUALE colpo e' primo nell'array.** Con il colpo frontale in prima posizione i due
+ * ordini danno `21` e `7` prima delle riduzioni; con il frontale in seconda danno `7` entrambi, e il test
+ * sarebbe cieco. Se un giorno cambiasse la costruzione di `Plan.Hits`, questo test va **rimisurato** — e
+ * ricontrollato per mutazione — non aggiornato d'ufficio al nuovo numero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardAndDeflectOrderTest,
+	"RefactorTactics.Combat.GuardAndDeflectAbsorbInDeclaredOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGuardAndDeflectOrderTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	if (MapActor) { MapActor->MapAsset = MakeArcMap(6); }
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+
+	// Difensore in (0,0,0) rivolto a OVEST: chi sta a ovest lo colpisce di fronte, chi sta a est alle spalle.
+	// L'ordine di spawn NON e' indifferente: mette il colpo frontale per primo in `Plan.Hits`, ed e' cio' che
+	// rende i due ordini d'assorbimento distinguibili (vedi il commento sopra).
+	ARTUnit* Frontale = ArcSpawnUnit(World, /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
+	ARTUnit* AlleSpalle = ArcSpawnUnit(World, /*TeamId=*/ 0, FRTCellId(1, 0, 0));
+	ARTUnit* Difensore = ArcSpawnUnit(World, /*TeamId=*/ 1, FRTCellId(0, 0, 0));
+
+	if (!TestNotNull(TEXT("mappa"), MapActor) || !TestNotNull(TEXT("turn manager"), TM)
+		|| !TestNotNull(TEXT("attaccante frontale"), Frontale)
+		|| !TestNotNull(TEXT("attaccante alle spalle"), AlleSpalle)
+		|| !TestNotNull(TEXT("difensore"), Difensore))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	Difensore->Facing = ERTHexDirection::W;
+	Difensore->ApplyStatus(TAG_Status_Guarded, 1);
+	Difensore->PlannedReactionAbility =
+		RTAbilityFixtures::AddCoreAbilityInSlot(Difensore, TEXT("Action.Deflect"), 3);
+	Difensore->PlannedAbilityIndex = INDEX_NONE; // incassa e basta
+
+	Frontale->PlannedAbilityIndex = 0;
+	Frontale->PlannedAttackTarget = Difensore;
+	AlleSpalle->PlannedAbilityIndex = 0;
+	AlleSpalle->PlannedAttackTarget = Difensore;
+
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+	{
+		TM->Tick(0.05f);
+	}
+
+	const int32 Taken = Difensore->MaxHealth - Difensore->Health;
+	RTWorldFixtures::DestroyWorld(World);
+
+	// ANTI-VACUITA': lo stesso colpo, senza Guardia e senza reazione, moltiplicato per due. Misurato invece
+	// che scritto come costante, cosi' segue il catalogo. Senza questo confronto l'uguaglianza sotto
+	// passerebbe anche per difese che non tolgono niente.
+	const int32 NominaleSenzaDifese = 2 * ArcGuardDamageTaken(*this, ERTHexDirection::E, /*bGuarded=*/ false);
+	TestTrue(TEXT("le due difese tolgono qualcosa rispetto ai due colpi nudi"),
+		Taken > 0 && Taken < NominaleSenzaDifese);
+
+	TestEqual(TEXT("con Deflect che assorbe prima di Guard (D-312) il difensore incassa 16"), Taken, 16);
+
+	return true;
+}

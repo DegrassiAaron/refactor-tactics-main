@@ -4720,16 +4720,33 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	}
 
 	// Riduzione dichiarata dalle reazioni attivate (`Action.Deflect` e le reazioni d'eroe che ne riusano la
-	// semantica): una reazione si attiva UNA volta, quindi vale sul colpo che l'ha innescata.
+	// semantica): POOL D'ASSORBIMENTO, non piu' un delta di primo colpo ([D-309]).
 	//
-	// ⚠️ RESTA un delta di primo colpo, e quindi porta ancora il difetto che [D-292] ha tolto alla Guardia:
-	// `Deflect` e' -20, e su un colpo piu' piccolo l'avanzo si perde. Non e' stato spostato qui perche' e'
-	// una REAZIONE — si attiva una volta, sul colpo che l'ha innescata — e trasformarla in un pool e' una
-	// decisione sul suo significato, non una correzione. Dichiarato in `#1909`, da scorporare.
+	// Cio' che un colpo non consuma resta per i successivi dello STESSO boundary, quindi il totale assorbito
+	// non dipende da quale colpo arriva per primo — il difetto che [D-292] aveva tolto alla Guardia e che
+	// `Deflect` conservava: con -20 su un colpo da 5, quindici punti di riduzione si perdevano nel clamp.
+	//
+	// Il segno si INVERTE, e non e' una rinomina: `DeflectDelta` e' una riduzione (negativa), un pool e' un
+	// budget (positivo). `Max(0, ...)` perche' un delta positivo qui non significherebbe «pool negativo» ma
+	// «nessuna reazione»: e' la lettura fail-closed, coerente con il resto del combattimento.
+	TArray<int32> DeflectPool;
+	DeflectPool.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		if (Units[i]) { FirstHitDelta[i] += Reactions.DeflectDelta[i]; }
+		if (Units[i]) { DeflectPool[i] = FMath::Max(0, -Reactions.DeflectDelta[i]); }
 	}
+
+	// Nessun filtro direzionale, ed e' una differenza DICHIARATA rispetto alla Guardia: `Action.Deflect`
+	// porta `ReactionTrigger = HitByDirectAttack` senza clausola d'arco, quindi devia anche un colpo che
+	// arriva alle spalle. La maschera esiste comunque perche' `ApplyAbsorptionPool` la richiede, e un array
+	// piu' CORTO varrebbe «non eleggibile» per i colpi mancanti: dimensionarla su `Plan.Hits` e' cio' che la
+	// rende inerte invece che restrittiva.
+	//
+	// Ed e' la ragione per cui l'ordine dei due pool ha dovuto essere deciso ([D-312]): `Guard` e' eleggibile
+	// SOLO sui colpi frontali, `Deflect` su tutti, quindi le due maschere sono parzialmente sovrapposte — la
+	// condizione in cui l'ordine cambia l'esito.
+	TArray<bool> bDeflectEligible;
+	bDeflectEligible.Init(true, Plan.Hits.Num());
 
 	// `Action.Brace` (CP 5.2): -10 su OGNI danno diretto, non solo sul primo. E' un secondo passaggio con una
 	// funzione diversa (`ApplyDamageDelta`, senza il gate "una volta sola"): applicarlo con `ApplyFirstHitDelta`
@@ -4747,10 +4764,22 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// L'assorbimento della Guardia viene per ULTIMO, dopo i modificatori del danno ([D-292]): il pool copre
 	// cio' che resta, non il danno nominale. E' la lettura coerente con «quanto danno la guardia regge»: se
 	// assorbisse per primo, `Status.Exposed` ne mangerebbe una parte prima che il difensore la usi.
+	//
+	// `Deflect` assorbe PRIMA di `Guard`, ed e' una decisione ([D-312]), non l'ordine in cui e' comodo
+	// scrivere le chiamate. Le due maschere sono parzialmente sovrapposte (`Guard` e' un sottoinsieme di
+	// `Deflect`), e su 2940 configurazioni raggiungibili 558 danno un esito diverso a seconda dell'ordine:
+	// nel caso minimo — colpo da 5 frontale, colpo da 20 alle spalle — il bersaglio riceve 5 in quest'ordine
+	// e 0 nell'altro. Invertire queste due righe CAMBIA IL BILANCIAMENTO, e va fatto solo superando [D-312].
+	//
+	// Le tre ragioni, per chi legge qui invece che nel registro: `Deflect` e' una REAZIONE e agisce sul colpo
+	// che l'ha innescata mentre `Guard` e' uno STATO gia' in essere; `Priority 15` contro `40` concorda; e
+	// fra i due ordini questo e' quello che concede meno protezione.
 	TArray<FRTAttack> Attacks = URTCombatResolver::ApplyAbsorptionPool(
-		URTCombatResolver::ApplyDamageDelta(
-			URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
-			EveryHitDelta),
+		URTCombatResolver::ApplyAbsorptionPool(
+			URTCombatResolver::ApplyDamageDelta(
+				URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
+				EveryHitDelta),
+			DeflectPool, bDeflectEligible),
 		GuardPool, bFrontalHit);
 
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
