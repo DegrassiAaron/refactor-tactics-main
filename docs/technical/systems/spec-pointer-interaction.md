@@ -481,19 +481,33 @@ tempo.)*
 `RefactorTactics.PlayerInput.*`:
 
 - `HUDConsumesPointerBeforeWorld`
-- `HoverNeverCommits`
-- `RightClickCancelsPreviewOnly`
 - `HiddenEnemyCannotBecomeHoverTarget`
 - `AllyGhostIsReadOnly`
 - `PlaybackRejectsPlanningInput`
 - `ReactionWindowOwnsInputPriority`
 - `LogicalMapObjectResolvedFromStableId`
 
-⛔ **Nessuno degli otto qui sopra esiste**, ed e' scritto qui perche' il `✅` che segue riguarda **altri**
-test e la vicinanza inganna: misurato il 2026-08-29 su `c2f694dc`,
-`git grep -l 'RefactorTactics.PlayerInput.HoverNeverCommits' -- Source/` non trova niente, e cosi' per gli
-altri sette. Restano il perimetro DA SCRIVERE — lo dice gia' il `⏳` in fondo alla sezione, ma **dopo una
-tabella intera**, e chi legge in diagonale prende il `✅` per una spunta su questi.
+⛔ **Nessuno dei sei qui sopra esiste**, ed e' scritto qui perche' il `✅` che segue riguarda **altri**
+test e la vicinanza inganna. Restano il perimetro DA SCRIVERE — lo dice gia' il `⏳` in fondo alla sezione,
+ma **dopo una tabella intera**, e chi legge in diagonale prende il `✅` per una spunta su questi.
+
+⚠️ **Ognuno dei sei porta chi lo blocca, e non e' mancanza di tempo**: due sono **feature travestite da
+test** — `PlaybackRejectsPlanningInput` (nessuno consuma `ResolutionPlayback` per rifiutare l'input) e
+`HiddenEnemyCannotBecomeHoverTarget` (l'hover non passa da nessun filtro di percezione, ed e' la privacy di
+§6.1) — e quattro attendono un owner: `#613`, CP 11.5/11.6, `E14`, `#74`. ⛔ Scriverne uno adesso darebbe un
+test **verde su un percorso che nessuno esercita**, che e' esattamente la classe di difetto gia' registrata
+qui sopra.
+
+✅ **Due di quegli otto ora esistono** — [#1766](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1766),
+2026-09-01, scritti perche' erano i soli che si posassero su comportamento **gia' esistente**:
+
+- `HoverNeverCommits` — costruisce uno stato deciso (selezione, waypoint, bersaglio, facing dichiarato),
+  muove l'hover su celle che sarebbero candidati plausibili per ciascuno, e pretende che nulla si muova.
+  Verifica di mutazione: `SetHoveredCell` che azzera il bersaglio di ogni unita' lo fa cadere, e **solo lui**;
+- `RightClickCancelsPreviewOnly` — il passo indietro smonta **un livello per volta** e a mani vuote non fa
+  niente. Verifica di mutazione: un `Pathing` che esce dal contesto invece di togliere un waypoint lo fa
+  cadere insieme agli altri due test del tasto destro, perche' quella regola ha **tre** guardiani da
+  angolazioni diverse.
 
 ✅ **I dieci qui sotto sono un elenco DIVERSO, e questi esistono davvero** — scritti il 2026-08-13 sera,
 ognuno per una regola nuova, tutti verdi e tutti passati per la verifica di mutazione:
