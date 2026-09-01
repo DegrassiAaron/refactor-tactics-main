@@ -1368,6 +1368,18 @@ sessions:
       nel livello, ed e' l'unico modo di accorgersene: nessun test headless apre un `.umap`.
       ⚠️ ID assegnato prima del merge: `U22`, con `U21` come ultimo su `main` e su tutti i branch
       remoti. Chi arriva secondo rinumera, non contende.
+      ➕ **Tre voci su otto non si allestiscono piu' a mano, dal 2026-09-01.** `Spec.Map.IncidentWallsStillPlay`
+      è la scena di `PIE-GEO-INCIDENZA` (la coppia fuori-anchor gia' misurata da
+      `Incidence.CrossingOffAnchorIsReported`); `Spec.Map.WallCrossesCellStillStandable` quella di
+      `PIE-GEO-CENTRO`; e con `Spec.Map.FootprintCollisionBlocksCell` copre i due versi di
+      `PIE-GEO-CALPESTABILE`. Si caricano dalla console con `rt.Test.Scenario=<Id>`, come gia' fa `U26` con
+      `Spec.Brace.GuardAndBraceOnMixedHit`. Chi esegue non ricostruisce col mouse una scena che il
+      repository ha gia'.
+      ⛔ **E non si riverifica cio' che e' gia' misurato headless.** Le voci ora nominano i test che
+      coprono la parte simulativa — i tredici anchor, le ventiquattro coppie rifiutate, i quattro settori
+      del diametro, la reversibilita' del blocco derivato — e chiedono all'occhio **solo** cio' che
+      l'occhio puo' dire: se i tre generi si distinguono, se il muro in conflitto si accende, se l'overlay
+      si legge. La seduta resta necessaria; e' il suo costo a scendere.
       ➕ **`PIE-GEO-ANCHOR` aggiunta il 2026-08-31 con #1895**, e non e' una quinta voce a caso:
       l'aggancio del gesto e' passato da `SnapToGrammar` — tollerante, *«tiene l'asse che sbaglia
       meno»* — a `NearestAnchor` + `ExplainPair` + `SegmentBetweenAnchors`, che sulle ventiquattro
