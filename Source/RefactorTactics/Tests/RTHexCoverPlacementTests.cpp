@@ -232,13 +232,21 @@ bool FRTCoverPlacementFootprintTest::RunTest(const FString&)
 	const FRTOccupancyMask Split = MaskOf({ 1, 2, 3, 7, 8, 9 });
 	const FRTOccupancyMask InLine = MaskOf({ 0, 1, 2, 3, 4, 5 });
 
+	// I nomi sono quelli del catalogo (`D-307`): `Small` 2, `Medium` 3, `Large` 4 settori contigui.
+	// ⚠️ Fino al 2026-09-01 il profilo a 3 si chiamava qui `Small`: era scritto prima che le taglie
+	// avessero un nome canonico, e con `D-307` quel valore e' il `Medium`. Le due misure che il test gia'
+	// faceva non cambiano — cambia quale taglia le porta —, e la terza (`Small` a 2) e' nuova.
 	FRTFootprintProfile Small;
-	Small.MinContiguousWedges = 3;
+	Small.MinContiguousWedges = 2;
+	FRTFootprintProfile Medium;
+	Medium.MinContiguousWedges = 3;
 	FRTFootprintProfile Large;
 	Large.MinContiguousWedges = 4;
 
 	TestTrue(TEXT("il piccolo entra nei due gruppi da tre"),
 		URTHexCoverPlacementLibrary::HasLegalPlacement(Split, Small));
+	TestTrue(TEXT("e il medio pure, che ne chiede esattamente tre"),
+		URTHexCoverPlacementLibrary::HasLegalPlacement(Split, Medium));
 	TestFalse(TEXT("il grande no"),
 		URTHexCoverPlacementLibrary::HasLegalPlacement(Split, Large));
 	TestTrue(TEXT("ma entra nei sei in fila, a parita' di conteggio"),
