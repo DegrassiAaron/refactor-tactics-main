@@ -350,6 +350,26 @@ FRotator URTHexLibrary::EdgeRotation(const FRTCellId& Cell, ERTHexDirection Dir)
 	return (There - Here).Rotation();
 }
 
+FRotator URTHexLibrary::FacingRotation(ERTHexDirection Facing)
+{
+	// Delega pura: la convenzione dei sei lati resta scritta in UN posto solo. La cella non entra nella
+	// risposta perche' `AxialToWorld` e' affine in (q,r) — misurato da
+	// `RefactorTactics.Hex.FacingRotationIsCellIndependent`, non assunto qui.
+	return EdgeRotation(FRTCellId(0, 0, 0), Facing);
+}
+
+FVector URTHexLibrary::FacingMarkerOrigin(ERTHexDirection Facing, const FVector& UnitCenter,
+	float BodyRadius, float FaceHeight)
+{
+	// `Vector()` di una rotazione di solo yaw e' unitario e planare: tutta la quota viene da `FaceHeight`,
+	// e le sei origini restano complanari. Sommare `Up` a parte — invece di ruotare un unico offset
+	// (BodyRadius, 0, FaceHeight) — e' cio' che tiene la verticale ancorata al MONDO.
+	const FVector Forward = FacingRotation(Facing).Vector();
+	return UnitCenter
+		+ Forward * static_cast<double>(BodyRadius)
+		+ FVector::UpVector * static_cast<double>(FaceHeight);
+}
+
 ERTHexDirection URTHexLibrary::OppositeDirection(ERTHexDirection Dir)
 {
 	// Le sei direzioni sono in ordine stabile 0..5 e diametralmente opposte a tre di distanza: E(0)<->W(3),

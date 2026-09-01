@@ -2355,3 +2355,62 @@ sessions:
       sottoinsieme del loro allestimento, non un caso a parte: si esegue nella stessa apertura.
       ⚠️ ID assegnato prima del merge: `U39`, con `U38` come massimo misurato su `main` **e su tutti i
       branch remoti** il 2026-08-31. Chi arriva secondo rinumera, non contende.
+
+  - id: U40
+    title: Il facing di una unita' ferma, guardato senza premere Play
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto di leggibilità del marker di facing alle tre distanze di camera, in scala di grigi
+    artifacts: []
+    unblocked_by: [U25]
+    shares_setup_with: []
+    verifies: []
+    issues: [1992]
+    done_when: il verdetto sulla leggibilità del facing è scritto, e l'origine del marker misurata nel
+      viewport coincide con `URTHexLibrary::FacingMarkerOrigin` sugli stessi cinque parametri
+    unblocks: []
+    steps: |
+      **La domanda è una sola, ripetuta a tre distanze.** *Guardando la Station 01 senza HUD, senza
+      selezionare niente e senza premere Play, so dire dove guarda l'unità?*
+
+      Il giro: aprire `L_GrayKitPlayground` → Station 01 → selezionare
+      `BP_Graybox_UnitFacingFixture` → cambiare `Facing` nel Details fra le sei direzioni → guardare il
+      marker seguire **nel viewport**.
+
+      Poi le tre distanze di `U25` — `ArmLength` `100` / `450` / `4000` — e a ciascuna la **rilettura in
+      scala di grigi**.
+
+      🔴 **Se la direzione sparisce in scala di grigi, il marker sta comunicando col solo colore e
+      `D-146` è violata.** Non è un dettaglio di rifinitura: è la stessa regola per cui la traversa di
+      `Locked` è una mesh diversa e non la stessa ricolorata (`D-171`).
+
+      ⚠️ **`OptionalLabel` va guardata SPENTA.** È un secondo canale, non il primo: se la direzione si
+      legge solo con la label accesa, la geometria non sta comunicando e il verdetto è ❌ anche se a
+      schermo si capisce.
+
+      ➕ **Il controllo che questa seduta possiede da sola** (`D008.2` di #1992): l'origine del marker
+      misurata nel viewport coincide con `FacingMarkerOrigin` sugli stessi cinque parametri. È il legame
+      fra il Blueprint e la funzione pura, e **nessun test automatico lo copre** — sei test verificano la
+      formula, e un fixture che la ignorasse li lascerebbe tutti verdi.
+
+      ⛔ **Il rapporto corpo/cella si GUARDA, non si decide.** `GBX-5` resta di #1094 e si chiude a
+      `U25`: qui si raccoglie l'impressione, non il verdetto.
+    notes: >-
+      ➕ **Seduta aperta il 2026-09-01 con #1992** (Epic #1990, `D-304`). Non duplica `U25`, e il confine
+      è netto: quella guarda il **kit graybox** su `L_DevSandbox` e possiede i verdetti di `GBX-1` e
+      `GBX-5`; questa guarda **una unità e il suo facing** su `L_GrayKitPlayground`, che è una scena
+      diversa, e non possiede nessuna decisione aperta.
+      ⚠️ **`shares_setup_with: []` e non `[U25]`**: il criterio del campo è la *stessa apertura*, e le
+      due sedute aprono **mappe diverse**. Un cambio di scena non è un cambio di tool.
+      ⚠️ **`verifies: []` non è una dimenticanza**: nessuna voce `PIE-GKP-*` esiste in
+      `test-manuali-pie.md` — `grep -c "PIE-GKP" docs/technical/test-manuali-pie.md` dà **0** — e
+      scriverle non è nello scope di #1992, il cui DoD chiede una voce di seduta e non voci di registro.
+      Il verdetto vive qui finché qualcuno non le apre. È la stessa lettura dichiarata da `U10`, `U12`,
+      `U17`, `U23`, `U24` e altre tredici.
+      ⚠️ **`unblocked_by: [U25]` è debole di proposito**: non è una dipendenza tecnica — la scena e il
+      fixture esistono indipendentemente — ma di **giudizio**. `U25` fissa la grammatica del kit; leggere
+      il facing prima che quella grammatica abbia un esito significherebbe giudicare un marker contro un
+      fondo che potrebbe ancora cambiare.
+      ⚠️ ID assegnato prima del merge: `U40`, con `U39` come massimo misurato su `main` **e su tutti i
+      branch remoti** il 2026-09-01. Chi arriva secondo rinumera, non contende.
