@@ -221,7 +221,7 @@ E una che il panel toglie dal perimetro:
 
 | | Voce | Dove va |
 |---|---|---|
-| **—** | la divergenza di bordo fra `LineCells` e `DescribeLineOfSight` | follow-up scorporato (R5) |
+| **—** | la divergenza di bordo fra `LineCells` e `DescribeLineOfSight` | scorporata in [#2035](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2035) (R5) |
 
 ---
 
@@ -233,3 +233,21 @@ verificabili. Ciò che le mancava era il ponte fra la decisione e il codice che 
 commento che si autodistrugge il giorno dell'implementazione (R2).
 
 Entrambe sono ora nella definizione `DNNN` della issue.
+
+---
+
+## 11. Com'è finita *(chiuso il 2026-09-01, stesso giorno)*
+
+| | Rilievo | Esito |
+|---|---|---|
+| **R1** | il riuso di `ClassifyIntraCellTraversal` | ✅ evitato, e la precisazione è scritta in `D-270` e nel commento di `URTHexOcclusionLibrary` |
+| **R2** | l'hash | ✅ `InteriorWalls` entra in `ComputeHash` **e** in `URTMatchStateHash` — il secondo non era nel piano, ed è emerso dalla riconciliazione: `#986` aveva già pagato quel difetto su `bConductsElectricity` |
+| **R3** | la corda | ✅ dichiarata in `RTHexOcclusionLibrary.h` e in `h6-4-hex-vision-spec.md` `D8` |
+| **R4** | `Low` occlude? | ✅ no, con `Occlusion.LowWallDoesNotOcclude` a pinnarlo |
+| **R5** | la divergenza di bordo | ✅ scorporata in [#2035](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2035), non silenziata |
+
+**Tre cose che il panel non aveva previsto**, trovate implementando:
+
+1. 🔴 **`URTMatchStateHash` è un secondo hash**, e saltava i muri interni mentre `ComputeHash` li mescola. Il panel aveva guardato solo il primo. L'ordinamento canonico ora vive in un posto solo (`URTHexMapAsset::SortInteriorWallsCanonically`) proprio perché due ordinamenti equivalenti sono il modo in cui i due hash tornerebbero a divergere.
+2. 🔴 **Il readout d'editor cadeva nel `default`** e diceva `unavailable`: la ragione esisteva e il pannello la perdeva — cioè il DoD *«la ragione del blocco è esposta»* sarebbe stato verde nel runtime e falso a schermo.
+3. ⚠️ **Il test `InteriorWallIsWhatStopsTheShot` sarebbe stato tautologico** nella forma del suo gemello: da quando la geometria entra nell'hash di stato, due partite che differiscono per un muro hanno hash diversi *comunque*. La discriminante vera è `High` contro `Low`, non muro contro niente.
