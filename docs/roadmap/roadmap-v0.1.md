@@ -1907,7 +1907,9 @@ dichiarava v0.2, e **cinque owner** si contraddicevano — GitHub, Feature Regis
 > 🔁 **Aggiornato il 2026-08-31**: `COV-2`…`COV-6` sono **chiuse** da [`D-302`](../decisions/RT_PDR_00_Decision_Log.md) — anchor
 > ibridi, `CoverSelection` autorevole nel digest, `Facing` indipendente, **+1 MP** per entrare in copertura —
 > e `COV-1` da [`D-303`](../decisions/RT_PDR_00_Decision_Log.md): il footprint è un **conteggio di settori contigui**, non un raggio, e
-> `Small`/`Medium`/`Large` sono tre valori di `MinContiguousWedges`. I **valori** restano taratura.
+> `Small`/`Medium`/`Large` sono tre valori di `MinContiguousWedges`, fissati a **`2`, `3`, `4`** da
+> [`D-307`](../decisions/RT_PDR_00_Decision_Log.md) — non tarati: sono gli unici tre interi che i vincoli lasciano. Sede:
+> [`RT_FootprintCatalog_v0.1.md`](../balance/RT_FootprintCatalog_v0.1.md).
 > 🔴 **`D-071` perde il punto (1)** — il cerchio inscritto centrato sull'anchor, già caduto quando
 > `D-289` ha rimosso la premessa *«l'unità sta al centro»* — e **conserva il punto (2)**, la *swept
 > clearance* della transizione, mai implementata.
