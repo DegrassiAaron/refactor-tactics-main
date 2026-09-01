@@ -15,7 +15,17 @@ enum class ERTLineStop : uint8
 	Hit,
 	/** Ha percorso tutta la portata senza incontrare nessuno. */
 	NoTarget,
-	/** Interrotta da una COPERTURA ALTA: una cella che blocca la linea di tiro. */
+	/**
+	 * Interrotta da una CELLA che blocca la linea di tiro (`FRTHexCellData::bBlocksLineOfSight`): un ostacolo
+	 * pieno, non una copertura.
+	 *
+	 * ⚠️ **Il nome dice «Cover» e il dato non è una copertura, ed è storia da non riscrivere.** Fino al
+	 * 2026-09-01 questo valore era l'unico che potesse fermare la linea, e la sua riga diceva *«una COPERTURA
+	 * ALTA: una cella che blocca la linea di tiro»* — due cose diverse messe insieme perché il 2026-08-06,
+	 * quando questo enum è nato, `FRTHexCover` non esisteva ancora: nasce il giorno dopo con `CP 9.2`.
+	 * Rinominarlo cambierebbe il significato di ogni log già scritto; il valore nuovo è `BlockedByEdgeCover`,
+	 * in coda.
+	 */
 	BlockedByCover,
 	/** Uscita dalla mappa: la linea finisce dove finisce il livello. */
 	OffMap,
@@ -39,7 +49,23 @@ enum class ERTLineStop : uint8
 	 * `ERTIntraCellTraversal` dichiara per se stesso — *«va aggiunto in coda insieme al suo produttore»* — e
 	 * il produttore, qui, arriva nello stesso commit.
 	 */
-	BlockedByInteriorGeometry
+	BlockedByInteriorGeometry,
+
+	/**
+	 * Interrotta dal BORDO attraversato: `URTHexCoverLibrary::BlocksTraversal` — copertura ALTA o porta
+	 * chiusa/bloccata (`CP 9.2`/`9.3`, `#2035`).
+	 *
+	 * 🔑 **E' il valore che il catalogo descriveva da sempre e che nessun ramo produceva.** `Line Attack`
+	 * dice *«una copertura alta interrompe la linea»*, e la copertura sta sui BORDI: fino al 2026-09-01
+	 * questa marcia leggeva solo `bBlocksLineOfSight`, che copertura non e'. Il gemello sulla vista e'
+	 * `ERTLineOfSightBlock::EdgeBlocker`, e come quello **non distingue** il muro dalla porta: chi vuole il
+	 * dettaglio chiede a `URTHexCoverLibrary`, che ne e' l'autorita'.
+	 *
+	 * ⚠️ **Vale un valore proprio perche' chiede un gesto diverso** da `BlockedByCover`: da un bordo ci si
+	 * gira attorno o lo si apre, da un ostacolo di cella ci si sposta. E' il criterio gia' scritto per
+	 * `BlockedByInteriorGeometry`.
+	 */
+	BlockedByEdgeCover
 };
 
 /** Esito di un attacco lineare: chi colpisce, dove passa e perche' si ferma. */
