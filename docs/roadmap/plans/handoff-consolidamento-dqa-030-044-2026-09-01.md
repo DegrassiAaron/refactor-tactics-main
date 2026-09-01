@@ -132,7 +132,7 @@ Nessuna delle quattro decisioni registrate oggi ha scritto una riga di `Source/`
 | Schema micro-step nella traccia | [#1880](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1880) | l'audit dei campi, che resta obbligatorio |
 | `Pause`/`StepMicroStep` | [#1879](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1879) | niente |
 | Diagnosi del comportamento del bot | [#1902](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1902) | la seduta PIE di [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) per il termine mancante |
-| I due test degli invarianti di micro-step | [#2000](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2000) | ✅ **scritti e verificati per mutazione** sul branch `test/2000-microstep-invarianti` da una sessione parallela — resta la PR, vedi §7 |
+| ~~I due test degli invarianti di micro-step~~ | ~~[#2000](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2000)~~ | ✅ **chiusa**: scritti, verificati per mutazione e mergiati in `main` ([PR #2015](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2015)) mentre questo documento veniva scritto — vedi §7 |
 
 ---
 
@@ -153,6 +153,8 @@ tree condiviso non porta la data del proprio contenuto. Un file non committato p
 compilato, già verificato, o già smontato da qualcun altro — e un referto scritto guardando solo il diff
 dichiara con sicurezza qualcosa che nessuno ha misurato. ⚠️ Qui il danno è stato solo un messaggio di
 commit da rettificare; con un `.uasset` sarebbe stato un fix disfatto.
+
+✅ **Chiusa**: [PR #2015](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2015) ha mergiato i due test in `main`, e `#2000` è `CLOSED`.
 
 ---
 
