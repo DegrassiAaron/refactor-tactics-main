@@ -462,7 +462,8 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				const int32 Nominal = HexCoverDamageReduction(Map, Attacker.Cell, Other.Cell, Intent.Shape);
 				Plan.Hits.Add(FRTHexAttackHit(Intent.AttackerId, u,
 					FMath::Max(0, Intent.Power - Reduction), IntentIdx,
-					/*CoverBypassedByFacing*/ FMath::Max(0, Nominal - Reduction)));
+					/*CoverBypassedByFacing*/ FMath::Max(0, Nominal - Reduction),
+					/*NominalPower*/ Intent.Power, /*CoverReduction*/ Reduction));
 			}
 		}
 	}
@@ -590,7 +591,22 @@ TArray<FRTAttack> URTHexCombatLibrary::ToAttacks(const FRTHexBlastPlan& Plan)
 	{
 		// `AttackerId` non si scarta piu' ([D-212]): senza, una mitigazione direzionale per-colpo non e'
 		// esprimibile dentro il resolver, che vede solo bersaglio e potenza.
-		Attacks.Add(FRTAttack(Hit.TargetId, Hit.Power, Hit.AttackerId));
+		FRTAttack Attack(Hit.TargetId, Hit.Power, Hit.AttackerId);
+
+		// IL BREAKDOWN COMINCIA QUI, dove il colpo entra nella catena — `#1951`.
+		//
+		// 🔑 I due valori li ha calcolati lo stadio 4 e li portava gia' con se': non si ricalcola
+		// niente. `Catalog` registra il valore d'ingresso; `Cover` compare **solo se ha morso**, perche' uno
+		// stadio che non si applica non deve comparire con operando zero.
+		Attack.Breakdown.Emplace(ERTDamageStage::Catalog, FName(TEXT("intent")),
+			ERTDamageOp::Add, Hit.NominalPower, 0, Hit.NominalPower);
+		if (Hit.CoverReduction > 0)
+		{
+			Attack.Breakdown.Emplace(ERTDamageStage::Cover, FName(TEXT("D-206 · copertura")),
+				ERTDamageOp::SubtractClamped, Hit.CoverReduction, Hit.NominalPower, Hit.Power);
+		}
+
+		Attacks.Add(MoveTemp(Attack));
 	}
 	return Attacks;
 }

@@ -203,9 +203,32 @@ struct FRTHexAttackHit
 	FRTHexAttackHit() = default;
 	FRTHexAttackHit(int32 InAttacker, int32 InTarget, int32 InPower, int32 InIntent)
 		: AttackerId(InAttacker), TargetId(InTarget), Power(InPower), IntentIndex(InIntent) {}
+	/**
+	 * QUANTO VALEVA IL COLPO PRIMA DELLA COPERTURA, e quanto la copertura ha tolto — `#1951`.
+	 *
+	 * 🔑 **Sono due valori che lo stadio 4 gia' calcola e scartava.** Il breakdown li LEGGE invece di
+	 * ricalcolarli: ricostruire la riduzione a valle significherebbe una seconda copia di
+	 * `EffectiveCoverReduction`, che diverge il giorno in cui quella cambia.
+	 *
+	 * ⚠️ `NominalPower` e' il potere dell'intent, cioe' il valore **dopo** i bonus di cella e
+	 * condizionali che vivono nel Blast (stadi 2 e 3): non e' il numero di catalogo. Quei due stadi non
+	 * sono registrati da questa slice, ed e' dichiarato invece che dedotto.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 NominalPower = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 CoverReduction = 0;
+
 	FRTHexAttackHit(int32 InAttacker, int32 InTarget, int32 InPower, int32 InIntent, int32 InCoverBypassed)
 		: AttackerId(InAttacker), TargetId(InTarget), Power(InPower), IntentIndex(InIntent)
 		, CoverBypassedByFacing(InCoverBypassed) {}
+
+	FRTHexAttackHit(int32 InAttacker, int32 InTarget, int32 InPower, int32 InIntent, int32 InCoverBypassed,
+		int32 InNominalPower, int32 InCoverReduction)
+		: AttackerId(InAttacker), TargetId(InTarget), Power(InPower), IntentIndex(InIntent)
+		, CoverBypassedByFacing(InCoverBypassed)
+		, NominalPower(InNominalPower), CoverReduction(InCoverReduction) {}
 };
 
 /**
