@@ -7,13 +7,14 @@
 > **Mandato**: consumare `RefactorTactics_Cover_Facing_AoE_Consolidation_for_Claudia_v0.1.md` (40 sezioni,
 > 1171 righe), archiviato in [`../../archive/`](../../archive/RefactorTactics_Cover_Facing_AoE_Consolidation_for_Claudia_v0.1.md).
 >
-> **Esito in una riga**: il kit **non è un consolidamento**, e lo stesso difetto si ripete **tre volte su tre**.
+> **Esito in una riga**: il kit **non è un consolidamento**, e lo stesso difetto si ripete **quattro volte su quattro**.
 > Il principio fondativo (§1) è la separazione che [`CP 9.2`](../../gameplay/spec-copertura-alta-cp92.md) ha
 > **esplicitamente scartato** con la ragione scritta; la §19 chiama «legacy da refactor» un ramo che
 > [`CP 9.1`](../../gameplay/spec-copertura-cp91.md) §4 **dichiara come regola**, sempre con l'alternativa
 > scartata per iscritto; e §2.1/§7 danno per scavalcabile una `Low Cover` che
 > [`D-308`](../../decisions/RT_PDR_00_Decision_Log.md) dichiara scavalcabile **solo per dato autorato**. In
-> più, due default (§10/§26) ribaltano canone implementato e testato senza nominarlo.
+> più, §10/§26 ribaltano un default che [`ADR-0008`](../../decisions/adr-0008-rotazione-e-policy-di-facing.md)
+> §3 aveva già scelto — e che l'autore ha **confermato** il 2026-09-01, chiudendo `FAC-16`.
 >
 > 🔑 **E la terza volta il kit contraddice se stesso**: il suo `Core Principle` vieta di dedurre un
 > comportamento dal livello di copertura, e §2.1 deduce `Vaultable` da `Low`. `D-308` applica quel principio
@@ -203,7 +204,7 @@ ERTHexDirection URTFacingLibrary::FacingAfterDisplacement(const FRTCellId& Lande
 esattamente il ramo `Cause != Forced`. È il **forced movement** che diverge, e solo quello.
 
 ⚠️ Applicare §10 alla lettera invertirebbe un default con test verdi **senza che il kit sappia di farlo**:
-non nomina `ADR-0008`, non nomina `ERTDisplacementCause`. È `FAC-16`.
+non nomina `ADR-0008`, non nomina `ERTDisplacementCause`. Aperta come `FAC-16` e ⚠️ **chiusa il 2026-09-01**: la domanda utile non era «quale default» ma *«esiste un caso in cui girarsi verso la sorgente sbaglia?»*, e la risposta dell'autore è **«al momento no»** — che conferma ciò che `ADR-0008` §3 aveva già registrato. Il default resta, e se un caso emergerà si dichiara `Keep` su quell'effetto senza toccarlo.
 
 ### 5.2 §11 — non propone numeri diversi, propone un **modello** diverso
 
@@ -341,7 +342,7 @@ stesso peso di §20 (Facing), che è implementato e ha 13 test.
 | Azione | Dove |
 |---|---|
 | Kit archiviato **integralmente** | [`docs/archive/RefactorTactics_Cover_Facing_AoE_Consolidation_for_Claudia_v0.1.md`](../../archive/RefactorTactics_Cover_Facing_AoE_Consolidation_for_Claudia_v0.1.md) — stessa convenzione del precedente `…Replay_System_Claude_Consolidation_2026-08-10.md` |
-| Tre voci aperte, **due chiuse in giornata** | `COV-11` ✅ *(già decisa da `D-269`/`CP 9.2`; il quarto blocker, `BlocksMeleeContact`, è greenfield senza consumatore)* · `COV-12` ✅ *(domanda mal posta)* · `FAC-16` 🟡 **aperta e riformulata** — non «quale default», ma *«esiste un caso in cui girarsi verso la sorgente sbaglia?»* |
+| Tre voci aperte, **tutte chiuse in giornata** | `COV-11` ✅ *(già decisa da `D-269`/`CP 9.2`; il quarto blocker, `BlocksMeleeContact`, è greenfield senza consumatore)* · `COV-12` ✅ *(domanda mal posta)* · `FAC-16` ✅ *(riformulata in «esiste un caso in cui girarsi verso la sorgente sbaglia?», e chiusa dalla risposta dell'autore: al momento no)*. 🔑 **Tutte e tre chiuse in giornata, nessuna per decisione nuova**: due erano già decise altrove, la terza confermava uno stato già registrato |
 | Un difetto di implementazione, isolato | [**#2009**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2009) (`enhancement`/`P2`) — il pool `Guard` di `D-292` passa la cella dell'**attaccante** anche sotto un'area, dove `D-302` chiede il centro d'impatto. ⚠️ Nessun test combina `TAG_Status_Guarded` con `ERTAbilityShape::Area` |
 
 ### Che cosa **non** si è fatto, e perché
@@ -354,13 +355,34 @@ stesso peso di §20 (Facing), che è implementato e ha 13 test.
 | Nessuna Epic né issue-ombrello | il perimetro ha owner vivi e distinti: [#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833), [#339](https://github.com/DegrassiAaron/refactor-tactics-main/issues/339), [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828) |
 | Nessun tocco alle percentuali | materia `BAL-*`, e `D-271` tiene chiuso il vocabolario |
 
-## 9. Prossimo passo
+## 9. Esito finale del consolidamento
 
-[**#2009**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2009) — **scegliere fra le tre
-uscite** che la voce dichiara: `D-302` è inerte per l'area, oppure supera `CP 9.1` §4, oppure le due valgono
-su oggetti diversi (area ambientale ≠ area selezionabile) e servono due nomi.
+Delle tre voci che questo referto aveva aperto, **nessuna è sopravvissuta alla giornata, e nessuna si è
+chiusa con una decisione nuova**:
 
-⚠️ **È la sola delle tre domande aperte che non costa nulla se la risposta è (1)**: una nota di
-delimitazione, zero righe di `Source/`. Ma è anche la sola in cui *non rispondere* lascia in piedi una riga
-di decisione **senza consumatori** — e questo repository ha già pagato quattro volte il campo che nessuno
-legge.
+| Voce | Come si è chiusa |
+|---|---|
+| ~~`COV-11`~~ | **già decisa**, e cercata nella serie sbagliata: `D-269`/`GEO-4` sceglie *una sola primitiva* per vista e proiettili, `CP 9.2` ci unisce il passo. Il quarto blocker (`BlocksMeleeContact`) è greenfield **senza consumatore** |
+| ~~`COV-12`~~ | **domanda mal posta**: `D-302` punto (3) risponde a *«da dove arriva il colpo»*, non a *«l'area è mitigata»*. Nessun conflitto da sciogliere |
+| ~~`FAC-16`~~ | **stato confermato**: il default era già scelto da `ADR-0008` §3, e alla domanda *«esiste un caso in cui girarsi verso la sorgente sbaglia?»* l'autore ha risposto **«al momento no»** — che è ciò che l'ADR aveva già registrato |
+
+🔑 **Il consolidamento ha prodotto un solo lavoro**, e non è nessuna delle quattro proposte del kit:
+[**#2009**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2009) (`enhancement`/`P2`) — il
+pool `Guard` di `D-292` passa la cella dell'**attaccante** anche sotto un'area, dove `D-302` chiede il centro
+d'impatto, e **nessun test copre il caso**. È emerso *cercando* il difetto che il kit dichiarava, e non è
+quello che il kit dichiarava.
+
+## 10. Che cosa vale la pena portarsi via
+
+Un kit d'autore di 1171 righe ha prodotto **zero** decisioni nuove e **una** issue di implementazione. Ma il
+modo in cui è arrivato a zero è la parte riusabile:
+
+1. **Quattro proposte su quattro erano già scartate o decise, ogni volta con la ragione scritta** — `CP 9.2`,
+   `CP 9.1`, `D-308`, `ADR-0008` §3. Nessuna delle quattro sedi era citata dal kit.
+2. **Verificare che una riga esista non verifica che sia legacy** (§4.4). Il primo passaggio di questo referto
+   ha creduto alla §19 perché il `grep` confermava la riga, e ha saltato la ricerca dell'owner.
+3. **Cercare nella serie sbagliata nasconde una risposta che esiste** (`COV-11` era `GEO-*`): il confine fra
+   le serie è ora scritto nel [thread di `#1833`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833#issuecomment-5492831350),
+   con un criterio operativo — *la domanda cambia qualcosa se nessuna unità sceglie niente?*
+4. **Una decisione risponde alla domanda che l'ha generata**, non a tutte quelle in cui i suoi termini
+   compaiono: è l'errore del secondo passaggio su `COV-12`, ed è più sottile del primo.
