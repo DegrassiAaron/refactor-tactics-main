@@ -93,8 +93,11 @@ Il documento Drive «RefactorTactics — Tactical Segment & Anchor Reticle v0.1 
 > non **come si nomina** un punto della reticola, ed è la domanda a cui `GEO-5` non risponde.
 > 🔁 **Aggiornato il 2026-09-01**: erano otto e aperte alla scrittura, e **oggi sono chiuse tutte e otto**.
 > `COV-2`…`COV-6` da [`D-302`](decisions/RT_PDR_00_Decision_Log.md) il 2026-08-31, `COV-1` da [`D-303`](decisions/RT_PDR_00_Decision_Log.md)
-> lo stesso giorno, e `COV-7`/`COV-8` da [`D-308`](decisions/RT_PDR_00_Decision_Log.md). Resta aperta la sola `MAP-4`, che **nessuna**
-> delle otto poneva: l'ha aperta la chiusura di `COV-1`.
+> lo stesso giorno, e `COV-7`/`COV-8` da [`D-308`](decisions/RT_PDR_00_Decision_Log.md). Delle otto non resta aperta **nessuna**;
+> l'unica voce che quella serie si lascia dietro è `MAP-4`, che **nessuna delle otto poneva** — l'ha aperta la chiusura di `COV-1`.
+> ⚠️ **`COV-9`…`COV-12` NON sono rimasugli di questa serie e non contraddicono la riga sopra**: `COV-9` e `COV-10`
+> nascono dalla seduta del 2026-08-31, `COV-11` e `COV-12` dal kit *Cover · Melee · AoE · Facing v0.1* del 2026-09-01.
+> La numerazione prosegue la serie, la **provenienza** no.
 
 ---
 
@@ -333,7 +336,7 @@ traversata esplicita — e dichiara esplicitamente ciò che **non** congela. Que
 e `COV-7`/`COV-8` da [`D-308`](decisions/RT_PDR_00_Decision_Log.md) il 2026-09-01: le due righe restano qui **barrate**, con il loro
 perché, per la disciplina che questo file dichiara in testa. ⚠️ **Chiudere `COV-1` ne ha aperta una**, ed è
 dichiarato invece che nascosto: un footprint discreto non si trasla lungo una transizione, quindi `MAP-4`
-prende il posto che il punto (2) di `D-071` non copre più da solo. ⛔ **`MAP-4` non è un rimasuglio di `COV-7`**:
+prende il posto che il punto (2) di `D-071` non copre più da solo. ⚠️ **«Nessuno» vale per le OTTO, non per il prefisso `COV-`**: `COV-9`…`COV-12` sono aperte e vivono nelle sezioni che le hanno prodotte. ⛔ **`MAP-4` non è un rimasuglio di `COV-7`**:
 il vault di `D-308` è una transizione **autorata fra due celle**, mentre `MAP-4` chiede cosa spazzi il corridoio
 di una transizione **qualsiasi** — la prima è un dato, la seconda una regola generale, e chiudere l'una non
 produce l'altra.
