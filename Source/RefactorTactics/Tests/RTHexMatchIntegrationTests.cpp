@@ -686,4 +686,89 @@ bool FRTPlaybackEventCarriesVerdictsTest::RunTest(const FString&)
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+
+/**
+ * IL TURNO 1 NON SI CHIUDE DA SOLO: senza lock-in e senza timer scaduto, resta aperto.
+ *
+ * L'esperimento che discrimina per `#1957`. Il referto di playtest misura un turno 1 chiuso dopo `6,06 s`
+ * — trenta secondi prima del timer — e ne conclude che *«si e' chiuso da solo»*, perche' nella finestra non
+ * compare nessun evento fra `Selezionata`, `Piano:`, `lock-in` e `Timer scaduto`.
+ *
+ * Qui la partita viene lasciata **sola**: nessun input, nessun lock-in, e il tempo scorre. Se esistesse un
+ * secondo chiudi-turno, il turno cadrebbe qui e questo test lo direbbe.
+ *
+ * 🔑 **La sanita' che rende il test non-vacuo.** «Siamo ancora al turno 1» e' vero anche in un mondo dove il
+ * timer non e' mai stato armato — cioe' il modo piu' facile di scrivere un verde che non misura niente.
+ * Perche' l'attesa significhi qualcosa si verifica PRIMA che il timer sia armato, e DOPO che il residuo sia
+ * davvero **sceso**: un cronometro che scorre e non fa scattare nulla e' un'altra cosa da un cronometro fermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFirstTurnDoesNotCloseItselfTest,
+	"RefactorTactics.HexMatch.FirstTurnDoesNotCloseItself",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFirstTurnDoesNotCloseItselfTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMatchMap(World, /*Radius=*/ 5);
+
+	// Team 0 UMANO: e' la configurazione del referto — un giocatore con due unita' proprie contro due bot.
+	// Con tutte e quattro a bot la prova sarebbe di un'altra partita.
+	ARTUnit* A1 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 2));
+	ARTUnit* A2 = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(-4, 3));
+	ARTUnit* B1 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2));
+	ARTUnit* B2 = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeRiktor(), FRTCellId(4, -3));
+	if (!A1 || !A2 || !B1 || !B2) { DestroyHexMatchWorld(World); return false; }
+	A1->bIsBotControlled = false;
+	A2->bIsBotControlled = false;
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
+
+	// E' `BeginPlay` ad aprire il turno 1: chiama `StartPlanningTimer`, che arma il timer e scrive
+	// `Turno 1 - pianificazione`. Senza, non c'e' nessun turno da guardare.
+	TM->DispatchBeginPlay();
+
+	TestEqual(TEXT("la partita normale pianifica per 30 s"), TM->GetPlanningSeconds(), 30.f);
+	TestEqual(TEXT("si parte dal turno 1"), TM->GetTurnNumber(), 1);
+	TestTrue(TEXT("in pianificazione"), TM->GetPhase() == ERTMatchPhase::Planning);
+
+	const float ArmedAt = TM->GetPlanningTimeRemaining();
+	if (!TestTrue(TEXT("il timer e' ARMATO: senza, l'attesa qui sotto non proverebbe niente"), ArmedAt > 0.f))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+
+	// Dieci secondi di partita lasciata sola — quasi il doppio dei 6,06 s del referto, e ancora venti sotto
+	// la scadenza. Nessun input, nessun lock-in: solo il tempo che passa.
+	constexpr float Step = 0.25f;
+	constexpr int32 Steps = 40;
+	for (int32 I = 0; I < Steps; ++I)
+	{
+		// 🔴 **`FTimerManager` ticka UNA VOLTA per frame**, e senza questa riga il tempo non passa affatto:
+		// `Tick()` esce subito su `HasBeenTickedThisFrame()`, quindi trentanove chiamate su quaranta non
+		// fanno niente — e la quarantesima nemmeno, perche' anche la prima trova il contatore gia' fermo su
+		// questo frame. Il timer resta `Pending`, e `GetTimerRemaining` di un timer `Pending` restituisce la
+		// **durata** invece del residuo: `30.000` prima dell'attesa e `30.000` dopo, misurato.
+		//
+		// ⚠️ Senza la riga di sanita' qui sotto la cosa sarebbe passata inosservata: il turno *sarebbe* stato
+		// ancora l'uno, e il test verde — su dieci secondi che non sono mai trascorsi.
+		++GFrameCounter;
+		World->GetTimerManager().Tick(Step);
+	}
+
+	// Il cronometro ha DAVVERO camminato: senza questo, un timer fermo darebbe lo stesso verde.
+	const float RemainingNow = TM->GetPlanningTimeRemaining();
+	TestTrue(TEXT("il tempo e' sceso: il cronometro cammina"), RemainingNow < ArmedAt);
+	TestTrue(TEXT("e non e' ancora scaduto"), RemainingNow > 0.f);
+
+	TestEqual(TEXT("dopo 10 s senza toccare niente: ancora il turno 1"), TM->GetTurnNumber(), 1);
+	TestTrue(TEXT("e ancora in pianificazione, non in risoluzione"),
+		TM->GetPhase() == ERTMatchPhase::Planning);
+	TestFalse(TEXT("nessuna risoluzione e' partita"), TM->IsResolving());
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
