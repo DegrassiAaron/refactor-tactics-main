@@ -204,7 +204,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayVerifierResimulationTest,
 // scambiare la copertura per un rinnovo e' il modo in cui una suite dimagrisce senza che nessuno lo decida.
 bool FRTReplayVerifierResimulationTest::RunTest(const FString&)
 {
-	const TCHAR* Ids[] = { TEXT("Movement.Collision"), TEXT("Spec.Overwatch.HoldThenFire") };
+	// ➕ **Un terzo dal 2026-09-01 (`#1830`)**: `Combat.BlockedByInteriorWall` e' l'unico che esercita la
+	// GEOMETRIA INTRA-CELLA, che da `D-269` decide chi vede chi e quindi entra nell'hash della mappa. Nessuno
+	// dei due sopra ne ha, quindi su di loro il determinismo della nuova primitiva non e' mai verificato. Vale
+	// il criterio gia' scritto per il secondo: si AGGIUNGE, non sostituisce — sono proprieta' diverse.
+	const TCHAR* Ids[] = {
+		TEXT("Movement.Collision"),
+		TEXT("Spec.Overwatch.HoldThenFire"),
+		TEXT("Combat.BlockedByInteriorWall")
+	};
 
 	for (const TCHAR* Id : Ids)
 	{

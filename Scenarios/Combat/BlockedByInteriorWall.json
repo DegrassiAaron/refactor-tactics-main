@@ -1,0 +1,44 @@
+{
+  "scenarioId": "Combat.BlockedByInteriorWall",
+  "tags": ["combat", "los", "geometry", "gadget", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "Stesso attacco di Combat.BlockedByWall, ma il muro NON e' una cella che blocca la vista: e' un segmento DENTRO la cella (0,0), il diametro verticale, che la linea di tiro attraversa. E' il caso che D-269 e D-270 hanno deciso e che #1830 implementa. Serve perche' senza di lui la geometria intra-cella sarebbe verificabile solo da un test C++ — cioe' mai in una partita vera, mai in un replay, mai in un autobattle: e' la stessa ragione, scritta per lo stesso motivo, di OccupancySurcharge.",
+
+  "_geometria": "Il diametro verticale ha giacitura Deg90 (il vertice a 90 gradi) e va da un vertice all'altro passando per il centro: taglia in due la corda EdgeMid(W) -> EdgeMid(E), che e' esattamente il tratto che la linea (-2,0) -> (2,0) percorre dentro la cella (0,0). Le tre celle attraversate restano pavimento libero: se il colpo si ferma, si ferma per la geometria e non per un ostacolo di cella.",
+
+  "cells": [],
+
+  "interiorWalls": [
+    {
+      "cell": [0, 0, 0],
+      "axis": "Deg90",
+      "offset": 0,
+      "alongStart": -12,
+      "alongEnd": 12,
+      "type": "High",
+      "stableId": "Wall_DiametroVerticale"
+    }
+  ],
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals", "unit": "B1", "value": 120 },
+    { "type": "UnitAlive", "unit": "B1", "value": true },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

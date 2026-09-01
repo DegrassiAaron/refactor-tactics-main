@@ -51,6 +51,16 @@ URTHexMapAsset* URTScenarioArenaLibrary::BuildArena(const FRTTestScenario& Scena
 		Cell.OccupancySurcharge = Spec.OccupancySurcharge; // 0 = cella larga, come una non elencata
 		Map->AddOrUpdateCell(Cell);
 	}
+
+	// La geometria INTERNA alle celle (`D-269`, `#1830`): ferma vista e proiettili, quindi entra nell'arena
+	// come dato di gioco e nell'hash della mappa.
+	//
+	// ⚠️ Si AGGIUNGE, non si assegna: un'arena generata non ne ha nessuno — `MakeFlatArena` non ne produce —
+	// ma uno scenario che riparte da un asset esistente ne troverebbe i suoi, e sostituirli in blocco li
+	// cancellerebbe in silenzio. Le celle qui sopra si sovrascrivono invece per id, che una lista di segmenti
+	// non ha.
+	Map->InteriorWalls.Append(Scenario.InteriorWalls);
+
 	Map->SortCells();
 
 	return Map;

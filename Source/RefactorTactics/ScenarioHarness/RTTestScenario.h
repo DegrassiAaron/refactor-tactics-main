@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
+#include "Map/RTHexMapAsset.h" // FRTHexInteriorWall: la geometria intra-cella e' dato di gioco (`D-269`)
 #include "Turn/RTTurnLog.h" // ERTLogCategory: un'assertion sul log parla il vocabolario del log
 #include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: la condizione dichiarata di [D-109] sull'intent
 #include "RTTestScenario.generated.h"
@@ -678,6 +679,20 @@ struct FRTTestScenario
 	/** Celle da modificare nell'arena generata (ostacoli, muri, terreno costoso). Vuoto = arena liscia. */
 	UPROPERTY()
 	TArray<FRTScenarioCell> Cells;
+
+	/**
+	 * MURI DENTRO una cella, non sui suoi bordi (`D-269`/`D-270`, `#1830`). Vuoto = nessuna geometria interna.
+	 *
+	 * 🔑 **Esiste perche' altrimenti la geometria intra-cella sarebbe verificabile solo da un test C++ — cioe'
+	 * mai in una partita vera.** E' la stessa ragione, scritta per lo stesso motivo, di
+	 * `FRTScenarioCell::OccupancySurcharge`.
+	 *
+	 * ⚠️ Riusa `FRTHexInteriorWall`, il tipo dell'asset, invece di una copia da scenario: una seconda
+	 * rappresentazione dello stesso muro sarebbe due verita' da tenere allineate, e la geometria e' proprio
+	 * il posto dove questo repository ha gia' deciso che non se ne fanno due (`D-270`).
+	 */
+	UPROPERTY()
+	TArray<FRTHexInteriorWall> InteriorWalls;
 
 	UPROPERTY()
 	TArray<FRTScenarioUnit> Units;

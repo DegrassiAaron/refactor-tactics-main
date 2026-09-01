@@ -1,6 +1,7 @@
 #include "Combat/RTOffensiveActionLibrary.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexOcclusionLibrary.h" // la geometria intra-cella, LA STESSA che consuma la LoS (`D-269`)
 #include "Terrain/RTTerrainLibrary.h" // il cap di portata e' un dato del terreno (`#1085`)
 #include "Turn/RTMovementActionLibrary.h"
 
@@ -33,6 +34,12 @@ TArray<FRTCellId> URTOffensiveActionLibrary::LineCells(const URTHexMapAsset* Map
 	// (`bBlocksLineOfSight = false` nel catalogo): oscura, e chi spara attraverso non vede lontano.
 	int32 CapResiduo = -1;
 
+	// La cella che si sta LASCIANDO e il vicino da cui vi si e' entrati: servono a chiedere la corda giusta a
+	// `URTHexOcclusionLibrary`. Al primo giro coincidono con `From`, che e' il modo in cui quella funzione
+	// dice «la linea nasce qui» — il capo della corda e' il centro della cella del tiratore.
+	FRTCellId Current = From;
+	FRTCellId EnteredFrom = From;
+
 	for (int32 K = 1; K <= RangeCells; ++K)
 	{
 		if (CapResiduo == 0)
@@ -41,6 +48,22 @@ TArray<FRTCellId> URTOffensiveActionLibrary::LineCells(const URTHexMapAsset* Map
 		}
 
 		const FRTCellId Next(From.X + UnitStep.X * K, From.Y + UnitStep.Y * K, From.Layer);
+
+		// ➕ **LA GEOMETRIA INTRA-CELLA** (`D-269`, `D-270`, `#1830`), e la funzione e' **la stessa** che
+		// consuma `URTHexVisionLibrary::DescribeLineOfSight`.
+		//
+		// 🔑 **Non e' una parita' asserita, e' strutturale**: non esiste una seconda regola d'attraversamento
+		// da tenere allineata a questa, perche' non ce n'e' una seconda. `D-269` lo chiede con la ragione
+		// scritta — risposte diverse renderebbero *«visibile un bersaglio che non si puo' colpire»* — e la
+		// forma con cui questo repository lo ottiene e' sempre questa, non un test di parita' su un corpus.
+		//
+		// ⚠️ **La domanda qui e' l'ATTRAVERSAMENTO** — la corda entra da un lato ed esce dall'altro — mentre
+		// quella del tiro mirato e' `HasLineOfSight` fino al CENTRO del bersaglio. Sono due domande legittime
+		// e diverse sulla stessa geometria; cio' che non si sdoppia e' la regola che le risponde.
+		if (URTHexOcclusionLibrary::BlocksSight(Map, EnteredFrom, Current, Next))
+		{
+			break; // un muro interno alto taglia la corda: il colpo si ferma PRIMA di uscire dalla cella
+		}
 
 		const FRTHexCellData* Data = Map->FindCell(Next);
 		if (Data == nullptr)
@@ -53,6 +76,8 @@ TArray<FRTCellId> URTOffensiveActionLibrary::LineCells(const URTHexMapAsset* Map
 		}
 
 		Cells.Add(Next);
+		EnteredFrom = Current;
+		Current = Next;
 		if (CapResiduo > 0)
 		{
 			--CapResiduo;
@@ -126,6 +151,18 @@ FRTLineAttackResult URTOffensiveActionLibrary::ResolveLineAttack(const URTHexMap
 	const FIntPoint UnitStep((Toward.X - From.X) / Distance, (Toward.Y - From.Y) / Distance);
 	const int32 K = Traced.Num() + 1; // la prima cella NON tracciata: e' quella che ha fermato la linea
 	const FRTCellId Blocker(From.X + UnitStep.X * K, From.Y + UnitStep.Y * K, From.Layer);
+
+	// La geometria intra-cella si chiede PRIMA, con lo stesso ordine con cui `LineCells` interrompe: li' il
+	// muro ferma la linea prima ancora di guardare se la cella successiva esista. Non e' una seconda regola —
+	// e' la stessa chiamata, sulla stessa corda, rifatta per NOMINARE la causa invece di dedurla.
+	const FRTCellId LastTraced = (Traced.Num() > 0) ? Traced.Last() : From;
+	const FRTCellId EnteredFrom = (Traced.Num() > 1) ? Traced[Traced.Num() - 2] : From;
+	if (URTHexOcclusionLibrary::BlocksSight(Map, EnteredFrom, LastTraced, Blocker))
+	{
+		Result.Stop = ERTLineStop::BlockedByInteriorGeometry;
+		return Result;
+	}
+
 	Result.Stop = (Map->FindCell(Blocker) == nullptr) ? ERTLineStop::OffMap : ERTLineStop::BlockedByCover;
 	return Result;
 }

@@ -622,9 +622,14 @@ Actor. Come lo si identifica dipende da cosa può succedergli.
 esattamente durante l'operazione a cui deve sopravvivere: è per questo, e non per simmetria con le porte,
 che `FRTHexInteriorWall` prende un campo e `FRTHexCover` no.
 
-⛔ **`FRTHexInteriorWall::StableId` non entra in `ComputeHash`** — l'intero array ne resta fuori, perché
-vista e passo non consultano un muro interno. Qui il criterio **diverge** da `FRTHexDoor::StableId`, che
-nell'hash ci entra (#986): un nome di porta lo si risolve a runtime, un nome di muro solo nell'editor.
+⛔ **`FRTHexInteriorWall::StableId` non entra in `ComputeHash`** — ma **il resto della struttura sì, dal
+2026-09-01** ([#1830](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1830)). Fino a quel
+giorno ne restava fuori l'intero array, «perché vista e passo non consultano un muro interno»:
+[`D-269`](../../decisions/RT_PDR_00_Decision_Log.md) li ha resi autorevoli per **vista e proiettili**, e
+`URTHexOcclusionLibrary` è il consumatore. Entrano `Cell`, `Segment` (asse, offset, estremi, layer) e
+`WallType`, che decidono *se* e *dove* il muro occlude; il **nome** no. Qui il criterio **diverge** da
+`FRTHexDoor::StableId`, che nell'hash ci entra (#986): un nome di porta lo si risolve a runtime, un nome di
+muro solo nell'editor.
 
 **Il move valida prima di scrivere**, e un rifiuto è un valore di ritorno con la sua ragione
 (`ERTMapEditOutcome`) — mai una correzione silenziosa, mai uno stato scritto e poi segnalato dal validator:
