@@ -10,13 +10,14 @@
 > **Non possiede** la grammatica dei segmenti né la misura dell'occupancy: quelle restano di
 > [`spec-hex-geometry-authoring.md`](spec-hex-geometry-authoring.md), che questo documento **corregge** in
 > due punti (§5, §6) e per il resto consuma.
-> **Non possiede** i numeri: le percentuali di mitigazione sono materia `BAL-*`, e i **valori** delle tre
-> taglie di footprint sono taratura — §13.0. ⛔ Il *raggio* di clearance non è più una decisione aperta:
+> **Non possiede** i numeri: le percentuali di mitigazione sono materia `BAL-*`. ✅ I **valori** delle tre
+> taglie di footprint sono invece **fissati** — `2`, `3`, `4` — da [`D-307`](../../decisions/RT_PDR_00_Decision_Log.md), e la loro sede
+> è [`RT_FootprintCatalog_v0.1.md`](../../balance/RT_FootprintCatalog_v0.1.md); qui vive la **derivazione**, §13.0. ⛔ Il *raggio* di clearance non è più una decisione aperta:
 > è **inesprimibile** nel linguaggio adottato. Le `COV-*` ancora aperte sono in
 > [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md)
 > 🔁 **Aggiornato il 2026-08-31**: [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) ha ratificato `COV-2`…`COV-6` e
 > [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) ha chiuso `COV-1` — §13. Il footprint è un **conteggio di settori**, non un raggio,
-> e i **valori** delle tre taglie restano taratura. Aperte: `MAP-4`, `COV-7`, `COV-8`.
+> e [`D-307`](../../decisions/RT_PDR_00_Decision_Log.md) ne ha fissato i **valori**: `2`, `3`, `4`. Aperte: `MAP-4`, `COV-7`, `COV-8`.
 > ([#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833)).
 
 ---
@@ -345,9 +346,36 @@ nucleo la invalida»* — vale solo se l'unità sta al centro, ed è la premessa
 argomento con cui `D-289` ha superato `D-179` punto (3), applicato a una voce che non aveva nominato:
 [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) lo **registra**, non lo decide.
 
-⚠️ **I tre valori non sono fissati qui**, e non per dimenticanza: sono **taratura**, e sceglierli in un
-documento di contratto sarebbe il *«bilanciamento travestito da costante»* che `D-289` ha rifiutato. Il
-default resta `1`, l'identità.
+✅ **I tre valori sono fissati da [`D-307`](../../decisions/RT_PDR_00_Decision_Log.md).** ⚠️ **L'owner dei numeri è**
+[`RT_FootprintCatalog_v0.1.md`](../../balance/RT_FootprintCatalog_v0.1.md): questa sezione porta la **derivazione**, non una seconda copia
+della tabella — se divergono, vince il catalogo.
+
+`Small` **2** · `Medium` **3** · `Large` **4** settori contigui, con `bRequiresFreeCore = false` per tutti.
+
+🔑 **Due sono determinati, il terzo è una scelta**, e la differenza conta:
+
+- **`Small` e `Medium` sono determinati.** `≥ 2` perché con `1` basta un settore libero e un profilo a `1`
+  non distingue nulla; `≤ 3` perché `D-289` dichiara che nel gruppo da tre del suo esempio l'unità standard
+  *«ci sta benissimo»*. ⚠️ Quel *«ci sta»* è un limite **superiore**, non un'uguaglianza — lo
+  soddisferebbe anche `1` o `2`. Sono i due limiti **insieme all'ordinamento** `Small < Medium` a lasciare
+  un'unica coppia: `(2, 3)`.
+- **`Large = 4` è il minimo disponibile sopra `Medium`**, e nulla nella geometria lo obbliga a fermarsi lì.
+  ⛔ Il minimo è la scelta conservativa perché nessun consumatore può smentirla: senza unità che
+  dichiarino un footprint, un `Large` più esigente sarebbe bilanciamento deciso da nessuno.
+
+🔎 **Il muro diametrale è una verifica, non il vincolo.** Occupa **quattro** settori e lascia **due
+regioni da quattro** su ognuno dei sei assi — la maschera letterale dipende dall'asse e vive in
+`URTGeometryGrammarLibrary::AxisBoundaryIndex`, non nei documenti. Con `Large = 4` un'unità grande sta
+ancora in una cella tagliata a metà: è ciò che `4` fa guadagnare, non ciò che lo determina.
+
+⛔ **Nessuna unità dichiara ancora un profilo**, quindi oggi userebbero tutte `Medium`: `Small` e `Large`
+sono capacità per contenuto futuro — §13.6.
+
+🔁 **Questo paragrafo diceva il contrario, ed è conservato perché la correzione è istruttiva**:
+*«i tre valori non sono fissati qui … sono taratura, e sceglierli in un documento di contratto sarebbe il
+“bilanciamento travestito da costante” che `D-289` ha rifiutato»*. La cautela era giusta come metodo e
+sbagliata come diagnosi: la geometria non lasciava la libertà che il paragrafo presumeva. Il default resta
+`1`, l'identità — il valore di chi non ha dichiarato un profilo, non una quarta taglia.
 
 ⛔ **Una taglia non cambia l'occupancy.** Un'unità `Large` occupa **uno** slot, come tutte: §7 non ha
 eccezioni per grandezza. `Large` significa *«più difficile da piazzare»*, non *«più posto occupato»*.
@@ -427,7 +455,7 @@ vive nel catalogo, non in `ComputeMask`. Il **riposizionamento dentro la cella**
 
 | Regola | Implementata? | Misura |
 |---|---|---|
-| `COV-1` tre taglie di footprint | ❌ **no** | i **campi** ci sono (`MinContiguousWedges`, `bRequiresFreeCore`); mancano i valori e un produttore — **nessuna unità dichiara un footprint** |
+| `COV-1` tre taglie di footprint | ❌ **no** | i **campi** ci sono e i **valori** pure ([`D-307`](../../decisions/RT_PDR_00_Decision_Log.md), catalogo in [`RT_FootprintCatalog_v0.1.md`](../../balance/RT_FootprintCatalog_v0.1.md)); manca il **produttore** — **nessuna unità dichiara un footprint** |
 | `COV-2` provenienza ibrida | ❌ **no** | nessun tipo `CoverAnchor` esiste in `Source/` |
 | `COV-3` `CoverSelection` serializzata | ❌ **no** | nessun tipo `CoverSelection` esiste; `FRTCoverSourceId` è già discreto e stabile, ed è l'unica metà vera |
 | `COV-4` nel digest | ❌ **no** | `FRTUnitStateDigest` ha **sette** campi: `UnitId`, `Cell`, `Health`, `Shield`, `Energy`, `bAlive`, tag. Nessuno è la copertura |

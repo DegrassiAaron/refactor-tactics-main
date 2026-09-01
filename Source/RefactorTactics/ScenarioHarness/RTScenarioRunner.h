@@ -4,6 +4,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "ScenarioHarness/RTTestScenario.h"
 #include "ScenarioHarness/RTTestResult.h"
+#include "Ability/RTWorkbenchVariant.h" // il default della variante e' la baseline
 #include "RTScenarioRunner.generated.h"
 
 class UWorld;
@@ -43,8 +44,14 @@ public:
 	 * @param bTearDownAfter rimuove unita' e turn manager dal mondo alla fine. Vero solo fra due varianti, che
 	 *        condividono il mondo: nel caso normale il mondo lo possiede il chiamante, e ripulirlo qui gli
 	 *        toglierebbe da sotto i piedi gli actor su cui potrebbe voler guardare.
+	 *
+	 * @param Variant variante sperimentale dello Skill Workbench, applicata al kit dopo l'equipaggiamento
+	 *        e prima del primo turno. **Il default e' la baseline**, quindi ogni chiamante esistente
+	 *        continua a eseguire esattamente cio' che eseguiva: la variante e' un ingresso in piu', non un
+	 *        comportamento nuovo di chi non la passa.
 	 */
-	static FRTTestResult RunSingle(UWorld* World, const FRTTestScenario& Scenario, bool bTearDownAfter);
+	static FRTTestResult RunSingle(UWorld* World, const FRTTestScenario& Scenario, bool bTearDownAfter,
+		const FRTWorkbenchVariant& Variant = FRTWorkbenchVariant());
 
 	/**
 	 * Carica lo scenario per ID (`Movement.Basic`), lo esegue e ne **scrive il report**.

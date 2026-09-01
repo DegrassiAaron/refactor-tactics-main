@@ -311,6 +311,7 @@ Owner numerici:
 - `docs/balance/RT_HeroCatalog_v0.1.md`
 - `docs/balance/RT_TerrainCatalog_v0.1.md`
 - `docs/balance/RT_EquipmentCatalog_v0.1.md`
+- `docs/balance/RT_FootprintCatalog_v0.1.md` — ⚠️ **sorgente senza lettore**: nessuna unità dichiara ancora un footprint
 
 Il workbook XLSX è **research**, non owner dei numeri vigenti.
 
