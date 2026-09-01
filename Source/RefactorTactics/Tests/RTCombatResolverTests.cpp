@@ -236,9 +236,13 @@ bool FRTGuardPoolNotConsumedFromBehindTest::RunTest(const FString&)
  *
  * 🔴 **CIO' CHE QUESTO TEST NON PROVA, ed e' stato misurato invece che dedotto.** Chiama
  * `ApplyAbsorptionPool` DIRETTAMENTE, quindi resta verde qualunque ordine usi `RTTurnManager`.
- * Invertendo le due chiamate nella catena reale, **100 test su 100 restano verdi**: nessuno protegge
- * l'ordine nel chiamante. Serve un test d'integrazione che passi da `ARTTurnManager` con Guardia e
- * reazione attive insieme — tentato e non consegnato, ed e' lavoro residuo dichiarato in #1918.
+ * Alla scrittura, invertendo le due chiamate nella catena reale **100 test su 100 restavano verdi**:
+ * nessuno proteggeva l'ordine nel chiamante.
+ *
+ * ✅ Quel buco e' chiuso da `Combat.GuardAndDeflectAbsorbInDeclaredOrder`
+ * (`RTFacingDefenseTests.cpp`), che passa da `ARTTurnManager` con Guardia e reazione attive insieme e
+ * cade se l'ordine viene invertito. Questo test resta perche' dice una cosa che quello non dice: **che i
+ * due ordini divergono affatto**, cioe' la premessa senza la quale [D-312] sarebbe una decisione su niente.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDeflectAbsorbsBeforeGuardTest,
 	"RefactorTactics.Combat.DeflectPoolAbsorbsBeforeGuardPool",
