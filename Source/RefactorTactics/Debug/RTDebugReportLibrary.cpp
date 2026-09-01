@@ -3,6 +3,8 @@
 #include "Core/RTEnumName.h"
 
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverPlacementLibrary.h"
+#include "Map/RTHexOccupancyLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Turn/RTHexSim.h"
@@ -253,5 +255,59 @@ TArray<FString> URTDebugReportLibrary::DescribeTurnLogEntries(const TArray<FRTTu
 	{
 		Lines.Add(FString::Printf(TEXT("[RT]   %s"), *DescribeLogEntry(Entries[i], i)));
 	}
+	return Lines;
+}
+
+TArray<FString> URTDebugReportLibrary::DescribeCellPlacement(const FRTCellId& Cell,
+	const FRTOccupancyMask& Mask, const TArray<FRTPlacementRegion>& Regions)
+{
+	TArray<FString> Lines;
+
+	int32 Occupied = 0;
+	for (int32 Wedge = 0; Wedge < RT_OccupancySectorCount; ++Wedge)
+	{
+		if ((Mask.Sectors & (1 << Wedge)) != 0) { ++Occupied; }
+	}
+
+	Lines.Add(FString::Printf(TEXT("[RT] Posa in %s: %d settori su %d occupati, centro %s"),
+		*Cell.ToString(), Occupied, RT_OccupancySectorCount,
+		Mask.bCoreBlocked ? TEXT("BLOCCATO") : TEXT("libero")));
+
+	// L'anello disegnato: si legge la FORMA, che e' esattamente cio' che il conteggio non dice.
+	// Sei liberi in fila e sei in due gruppi da tre sono lo stesso numero e due spazi diversi — l'errore
+	// che `D-289` ha corretto, e che una riga di soli conteggi lascerebbe invisibile.
+	FString Ring;
+	for (int32 Wedge = 0; Wedge < RT_OccupancySectorCount; ++Wedge)
+	{
+		Ring.AppendChar(((Mask.Sectors & (1 << Wedge)) != 0) ? TEXT('#') : TEXT('.'));
+	}
+	Lines.Add(FString::Printf(TEXT("[RT]   settori 0..%d  %s   (0 = primo vertice, -30 gradi, verso crescente)"),
+		RT_OccupancySectorCount - 1, *Ring));
+
+	if (Regions.Num() == 0)
+	{
+		// Zero regioni non e' «cella vuota»: e' «nessuna posa esiste». La distinzione va detta qui, perche'
+		// e' la stessa che `MSE-4` ha impiegato mesi a rendere visibile.
+		Lines.Add(TEXT("[RT]   nessuna regione libera: in questa cella non esiste una posa."));
+		return Lines;
+	}
+
+	Lines.Add(FString::Printf(TEXT("[RT]   %d regione/i libera/e, in ordine di FirstWedge crescente:"),
+		Regions.Num()));
+	for (const FRTPlacementRegion& Region : Regions)
+	{
+		FString Wedges;
+		for (int32 Wedge = 0; Wedge < RT_OccupancySectorCount; ++Wedge)
+		{
+			if (Region.Contains(Wedge))
+			{
+				if (!Wedges.IsEmpty()) { Wedges.Append(TEXT(",")); }
+				Wedges.Append(FString::FromInt(Wedge));
+			}
+		}
+		Lines.Add(FString::Printf(TEXT("[RT]     FirstWedge=%2d  Size=%2d  settori {%s}"),
+			Region.FirstWedge, Region.Size, *Wedges));
+	}
+
 	return Lines;
 }
