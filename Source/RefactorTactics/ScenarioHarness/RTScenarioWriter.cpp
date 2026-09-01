@@ -112,6 +112,24 @@ namespace
 			if (Cell.bBlocksLineOfSight) { W->WriteValue(TEXT("blocksLineOfSight"), true); }
 			if (Cell.MoveCost != 0) { W->WriteValue(TEXT("moveCost"), Cell.MoveCost); }
 			if (Cell.OccupancySurcharge != 0) { W->WriteValue(TEXT("occupancySurcharge"), Cell.OccupancySurcharge); }
+
+			// ⚠️ Il round-trip deve conservarli, o uno scenario riscritto perderebbe la propria geometria
+			// senza che nulla lo dica — e `RTScenarioWriterTests` esiste per accorgersene.
+			if (Cell.InteriorWalls.Num() > 0)
+			{
+				W->WriteArrayStart(TEXT("interiorWalls"));
+				for (const FRTScenarioInteriorWall& Wall : Cell.InteriorWalls)
+				{
+					W->WriteObjectStart();
+					W->WriteValue(TEXT("axis"), Wall.Axis);
+					if (Wall.Offset != 0) { W->WriteValue(TEXT("offset"), Wall.Offset); }
+					W->WriteValue(TEXT("alongStart"), Wall.AlongStart);
+					W->WriteValue(TEXT("alongEnd"), Wall.AlongEnd);
+					if (!Wall.WallType.IsEmpty()) { W->WriteValue(TEXT("wallType"), Wall.WallType); }
+					W->WriteObjectEnd();
+				}
+				W->WriteArrayEnd();
+			}
 			W->WriteObjectEnd();
 		}
 		W->WriteArrayEnd();

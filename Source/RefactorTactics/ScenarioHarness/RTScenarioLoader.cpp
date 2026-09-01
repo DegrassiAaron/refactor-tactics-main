@@ -8,6 +8,7 @@
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTReactionOpportunityTypes.h" // IsDeclaredConditionAllowed: il validator della condizione sta nel gioco
 #include "Map/RTHexLibrary.h"
+#include "Map/RTGeometryGrammar.h" // i muri interni si validano con la grammatica, non con una sua copia (#2031)
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Dom/JsonObject.h"
@@ -298,6 +299,28 @@ namespace
 				Obj->TryGetBoolField(TEXT("blocksLineOfSight"), Cell.bBlocksLineOfSight);
 				Obj->TryGetNumberField(TEXT("moveCost"), Cell.MoveCost);
 				Obj->TryGetNumberField(TEXT("occupancySurcharge"), Cell.OccupancySurcharge);
+
+				// I MURI INTERNI (`#2031`): geometria, non esito. La calpestabilita' la derivera' la cottura.
+				const TArray<TSharedPtr<FJsonValue>>* WallArr = nullptr;
+				if (Obj->TryGetArrayField(TEXT("interiorWalls"), WallArr) && WallArr != nullptr)
+				{
+					for (const TSharedPtr<FJsonValue>& WallVal : *WallArr)
+					{
+						const TSharedPtr<FJsonObject> WallObj = WallVal.IsValid() ? WallVal->AsObject() : nullptr;
+						if (!WallObj.IsValid())
+						{
+							OutError = TEXT("interiorWalls: voce non valida");
+							return false;
+						}
+						FRTScenarioInteriorWall Wall;
+						WallObj->TryGetNumberField(TEXT("axis"), Wall.Axis);
+						WallObj->TryGetNumberField(TEXT("offset"), Wall.Offset);
+						WallObj->TryGetNumberField(TEXT("alongStart"), Wall.AlongStart);
+						WallObj->TryGetNumberField(TEXT("alongEnd"), Wall.AlongEnd);
+						WallObj->TryGetStringField(TEXT("wallType"), Wall.WallType);
+						Cell.InteriorWalls.Add(Wall);
+					}
+				}
 				OutScenario.Cells.Add(Cell);
 			}
 		}
@@ -1254,6 +1277,55 @@ namespace
 				OutError = FString::Printf(TEXT("cella %s: occupancySurcharge negativo (%d)"),
 					*Cell.Cell.ToString(), Cell.OccupancySurcharge);
 				return false;
+			}
+
+			// I MURI INTERNI si validano con la GRAMMATICA, non con una copia delle sue regole — `#2031`.
+			//
+			// ⛔ Riscrivere qui «l'asse sta fra 0 e 5, gli estremi non coincidono, le coordinate stanno nei
+			// bordi» sarebbe la seconda definizione della grammatica, e divergerebbe il giorno in cui
+			// `ValidateSegment` cambia. Si costruisce il segmento e si chiede a lei.
+			for (int32 W = 0; W < Cell.InteriorWalls.Num(); ++W)
+			{
+				const FRTScenarioInteriorWall& Wall = Cell.InteriorWalls[W];
+
+				// L'asse si controlla PRIMA del cast: un intero fuori intervallo dentro un `enum class`
+				// e' comportamento non definito, e `ValidateSegment` lo riceverebbe gia' corrotto.
+				if (Wall.Axis < 0 || Wall.Axis >= RT_TacticalAxisCount)
+				{
+					OutError = FString::Printf(
+						TEXT("cella %s, muro interno %d: asse %d fuori dai sei assi tattici (0..%d)"),
+						*Cell.Cell.ToString(), W, Wall.Axis, RT_TacticalAxisCount - 1);
+					return false;
+				}
+
+				FRTGeometrySegment Segment;
+				Segment.Axis = static_cast<ERTTacticalAxis>(Wall.Axis);
+				Segment.Offset = Wall.Offset;
+				Segment.AlongStart = Wall.AlongStart;
+				Segment.AlongEnd = Wall.AlongEnd;
+				Segment.Layer = Cell.Cell.Layer;
+
+				const ERTGeometryViolation Violation = URTGeometryGrammarLibrary::ValidateSegment(Segment);
+				if (Violation != ERTGeometryViolation::None)
+				{
+					// Il reason code entra nel messaggio: «fuori grammatica» da solo manderebbe a
+					// controllare la cosa sbagliata.
+					OutError = FString::Printf(
+						TEXT("cella %s, muro interno %d: fuori grammatica (violazione %d — asse %d, offset %d, %d..%d)"),
+						*Cell.Cell.ToString(), W, static_cast<int32>(Violation),
+						Wall.Axis, Wall.Offset, Wall.AlongStart, Wall.AlongEnd);
+					return false;
+				}
+
+				if (!Wall.WallType.IsEmpty()
+					&& !Wall.WallType.Equals(TEXT("High"), ESearchCase::IgnoreCase)
+					&& !Wall.WallType.Equals(TEXT("Low"), ESearchCase::IgnoreCase))
+				{
+					OutError = FString::Printf(
+						TEXT("cella %s, muro interno %d: wallType '%s' sconosciuto (High | Low)"),
+						*Cell.Cell.ToString(), W, *Wall.WallType);
+					return false;
+				}
 			}
 		}
 		return true;

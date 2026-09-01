@@ -154,6 +154,52 @@ enum class ERTAssertionKind : uint8
 };
 
 /**
+ * UN MURO INTERNO dichiarato da uno scenario — `#2031`, sblocca i tre scenari di `E23.6`.
+ *
+ * 🔑 **Perche' il formato scenario ha bisogno della geometria, e l'argomento e' gia' scritto qui accanto.**
+ * Il commento di `FRTScenarioCell::OccupancySurcharge` dice: *«esiste qui perche' altrimenti nessuno
+ * scenario saprebbe esprimere una cella STRETTA, e l'effetto di `Constrained` sarebbe verificabile solo da
+ * un test C++ — cioe' mai in una partita vera»*. Vale identico per i muri interni, con posta piu' alta:
+ * dopo `D-306` e `D-289` la geometria intra-cella decide la **calpestabilita'**, cioe' dove si puo' andare.
+ *
+ * ⛔ **Non e' un secondo modo di dire «bloccata».** Lo scenario dichiara GEOMETRIA; `bBlocksMovement` resta
+ * DERIVATO dalla cottura — `URTGeometryBakeLibrary` lo calcola dall'assenza di posa legale. Chi vuole il
+ * blocco diretto ha gia' `blocksMovement`, ed e' un'altra cosa: quello e' d'autore e vince sul derivato.
+ *
+ * I campi sono gli stessi interi discreti di `FRTGeometrySegment`, e non e' una copia per comodita': il
+ * formato scenario e' JSON e non puo' serializzare un `USTRUCT` di un altro modulo senza legarsi alla sua
+ * evoluzione. Qui si dichiara cio' che l'autore scrive; la conversione avviene in un punto solo.
+ */
+USTRUCT()
+struct FRTScenarioInteriorWall
+{
+	GENERATED_BODY()
+
+	/** Indice dell'asse tattico, `0..5` — l'ordine di `ERTTacticalAxis`: `Deg0`, `Deg30`, … `Deg150`. */
+	UPROPERTY()
+	int32 Axis = 0;
+
+	/** Spostamento perpendicolare all'asse, in quanti. `0` = il muro passa per il centro della cella. */
+	UPROPERTY()
+	int32 Offset = 0;
+
+	/** Primo estremo, in quanti lungo l'asse. */
+	UPROPERTY()
+	int32 AlongStart = 0;
+
+	/** Secondo estremo. Uguale a `AlongStart` e' un muro di lunghezza zero: rifiutato in validazione. */
+	UPROPERTY()
+	int32 AlongEnd = 0;
+
+	/**
+	 * `"High"` il muro pieno, `"Low"` il muretto. Vuoto = `High`, che e' il default di
+	 * `FRTGeometrySegment::WallType`.
+	 */
+	UPROPERTY()
+	FString WallType;
+};
+
+/**
  * Modifica di una cella dell'arena generata: ostacoli, muri, terreno costoso.
  *
  * Serve a scrivere scenari come `Movement.Blocked` senza versionare un `.umap`: l'arena resta generata da
@@ -190,6 +236,17 @@ struct FRTScenarioCell
 	 */
 	UPROPERTY()
 	int32 OccupancySurcharge = 0;
+
+	/**
+	 * I MURI INTERNI da cuocere in questa cella — `#2031`.
+	 *
+	 * ⚠️ **Non dichiarano la calpestabilita': la producono.** L'arena chiama `URTGeometryBakeLibrary::BakeCell`
+	 * con questi segmenti, e `bBlocksMovement` lo deriva la cottura dall'assenza di posa legale (`E23.6`).
+	 * E' l'unico modo perche' uno scenario provi la catena vera — segmento -> maschera -> posa -> passo —
+	 * invece di saltarla dichiarando l'esito.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioInteriorWall> InteriorWalls;
 };
 
 /** Un'unita' schierata dallo scenario. */

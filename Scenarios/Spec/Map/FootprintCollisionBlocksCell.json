@@ -1,0 +1,50 @@
+{
+  "scenarioId": "Spec.Map.FootprintCollisionBlocksCell",
+  "tags": [
+    "spec",
+    "map",
+    "movement",
+    "pathfinding",
+    "geometry",
+    "gadget"
+  ],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 3,
+
+  "_nota": "SPECIFICA ESEGUIBILE di E23.6 (#1827), il verso opposto di `WallCrossesCellStillStandable`: quando la geometria non lascia ALCUNA posa legale, la cella non si attraversa. Il blocco non e' dichiarato dallo scenario — e' DERIVATO dalla cottura.",
+
+  "_nota_geometria": "Tre diametri chiudono la cella, ed e' aritmetica dei quattro settori che ciascuno occupa: Deg30 (axis 1) prende {1,2,7,8}, Deg90 (axis 3) prende {3,4,9,10}, Deg150 (axis 5) prende {0,5,6,11}. L'unione e' l'intera cella: nessuna regione libera, nessuna posa, nemmeno per il footprint identita'.",
+
+  "_nota_cosa_dimostra_davvero": "Che `bBlocksMovement` lo scrive la COTTURA. Lo scenario dichiara solo geometria: se il bake non derivasse la calpestabilita', la cella resterebbe pavimento e l'unita' passerebbe. E' la stessa forma di `ConstrainedCellCostsMore`, dove il sovrapprezzo era il vero soggetto e non l'esito.",
+
+  "_nota_perche_la_destinazione_e_la_cella_chiusa": "A1 chiede di entrare PROPRIO nella cella chiusa, non di attraversarla. E' deliberato, ed e' una correzione: la prima stesura le faceva attraversare (0,0,0) per arrivare oltre, e su un'arena piena il pathfinding l'ha semplicemente AGGIRATA — misurato il 2026-09-01, A1 e' arrivata a destinazione dal lato. Quel test non provava il blocco: provava che esiste una strada intorno. Chiedendo la cella stessa non c'e' aggiramento possibile, e il piano viene rifiutato: A1 resta dov'e'.",
+
+  "cells": [
+    {
+      "cell": [0, 0, 0],
+      "interiorWalls": [
+        { "axis": 1, "offset": 0, "alongStart": -12, "alongEnd": 12 },
+        { "axis": 3, "offset": 0, "alongStart": -12, "alongEnd": 12 },
+        { "axis": 5, "offset": 0, "alongStart": -12, "alongEnd": 12 }
+      ]
+    }
+  ],
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, 3, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "move": [[0, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] }
+  ]
+}

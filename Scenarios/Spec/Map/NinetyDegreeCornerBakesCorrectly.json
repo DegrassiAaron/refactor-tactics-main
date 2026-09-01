@@ -1,0 +1,46 @@
+{
+  "scenarioId": "Spec.Map.NinetyDegreeCornerBakesCorrectly",
+  "tags": [
+    "spec",
+    "map",
+    "movement",
+    "geometry",
+    "gadget"
+  ],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 3,
+
+  "_nota": "SPECIFICA ESEGUIBILE di E23.6 (#1827): due muri che formano un ANGOLO RETTO si cuociono entrambi, e la cella resta calpestabile. Il terzo dei tre scenari che la roadmap dichiara per E23.6.",
+
+  "_nota_geometria": "Due raggi dal centro: uno sull'asse Deg0 (indice 0) da 0 a +12, uno su Deg90 (indice 3) da 0 a +12. I due assi sono a 90 gradi l'uno dall'altro, quindi formano una L. Si incontrano nel CENTRO, che e' il tredicesimo anchor: e' un incontro legale, e `CrossingOnAnchorIsLegal` (#1894) lo pinna. Un incontro fuori-anchor sarebbe invece `CrossingOffAnchor`, e `ValidateMap` lo segnalerebbe.",
+
+  "_nota_cosa_dimostra_davvero": "Che l'angolo non e' un caso speciale. Ogni raggio occupa due settori — giace sul confine fra due, e il contatto lungo un segmento resta conservativo — quindi l'angolo ne occupa quattro e ne lascia otto liberi. La cella si cammina, e i due muri esistono come due segmenti distinti invece di fondersi o annullarsi.",
+
+  "cells": [
+    {
+      "cell": [0, 0, 0],
+      "interiorWalls": [
+        { "axis": 0, "offset": 0, "alongStart": 0, "alongEnd": 12 },
+        { "axis": 3, "offset": 0, "alongStart": 0, "alongEnd": 12 }
+      ]
+    }
+  ],
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, 3, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "move": [[2, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "A1", "cell": [2, 0, 0] }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "scenarioId": "Spec.Map.WallCrossesCellStillStandable",
+  "tags": [
+    "spec",
+    "map",
+    "movement",
+    "pathfinding",
+    "geometry",
+    "gadget"
+  ],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 3,
+
+  "_nota": "SPECIFICA ESEGUIBILE di E23.6 (#1827): un muro che ATTRAVERSA la cella non la chiude. La calpestabilita' e' l'esito di una posa legale per il footprint, non di un conteggio di settori — `D-289` — e questo scenario lo prova in partita invece che in un predicato.",
+
+  "_nota_perche_serviva_lo_scenario": "Fino a #2031 l'harness non sapeva dichiarare un muro interno: `FRTScenarioCell` aveva `blocksMovement` e nessun campo di geometria. La catena segmento -> maschera -> posa -> passo era coperta da automation test e da NESSUNA partita. E' lo stesso argomento gia' scritto sul campo `occupancySurcharge`: senza, l'effetto sarebbe verificabile solo in C++, cioe' mai in una partita vera.",
+
+  "_nota_geometria": "Il muro e' un diametro sull'asse Deg90 (indice 3), da -12 a +12 con offset 0: attraversa la cella da un vertice all'altro passando per il centro. Occupa i QUATTRO settori che percorre — non dodici, da `D-306` — e lascia otto settori liberi in due regioni. Con il profilo di footprint identita' una posa esiste, quindi `bBlocksMovement` resta falso.",
+
+  "_nota_perche_questo_percorso": "Da (-2,0,0) a (2,0,0) sulla stessa riga assiale il percorso piu' breve e' UNICO: l'unica mossa che avvicina e' E. Se l'unita' arriva, ha attraversato la cella col muro — non l'ha aggirata.",
+
+  "cells": [
+    {
+      "cell": [0, 0, 0],
+      "interiorWalls": [
+        { "axis": 3, "offset": 0, "alongStart": -12, "alongEnd": 12 }
+      ]
+    }
+  ],
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [0, 3, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "move": [[2, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "A1", "cell": [2, 0, 0] }
+  ]
+}

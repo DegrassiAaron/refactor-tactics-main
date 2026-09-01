@@ -1396,4 +1396,107 @@ bool FRTScenarioLoaderRejectsLayerOutsideFlatArenaTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * UN MURO INTERNO FUORI GRAMMATICA SI RIFIUTA, E IL MOTIVO DICE QUALE — `#2031`.
+ *
+ * 🔑 **La validazione CHIAMA la grammatica invece di ricopiarla.** Riscrivere nel loader «l'asse sta fra 0
+ * e 5, gli estremi non coincidono, le coordinate stanno nei bordi» sarebbe la seconda definizione della
+ * grammatica, e divergerebbe il giorno in cui `ValidateSegment` cambia. Il loader costruisce il segmento e
+ * chiede a lei; questi test verificano che il rifiuto arrivi **con il motivo**, non con un «non valido».
+ *
+ * ⚠️ L'asse fa eccezione e si controlla PRIMA del cast: un intero fuori intervallo dentro un `enum class`
+ * e' comportamento non definito, e `ValidateSegment` lo riceverebbe gia' corrotto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderRejectsBadInteriorWallTest,
+	"RefactorTactics.Scenario.LoaderRejectsMalformedInteriorWall",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderRejectsBadInteriorWallTest::RunTest(const FString&)
+{
+	auto Rejects = [this](const TCHAR* Json, const TCHAR* MustMention, const TCHAR* What)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), What),
+			URTScenarioLoader::LoadFromString(Json, Scenario, Error));
+		TestTrue(FString::Printf(TEXT("%s: il motivo cita '%s' (era: '%s')"), What, MustMention, *Error),
+			Error.Contains(MustMention));
+	};
+
+	auto Accepts = [this](const TCHAR* Json, const TCHAR* What)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(Json, Scenario, Error);
+		TestTrue(FString::Printf(TEXT("%s: accettato (errore: '%s')"), What, *Error), bOk);
+		return Scenario;
+	};
+
+	// --- 1. ASSE fuori dai sei ---------------------------------------------------------------------
+	Rejects(TEXT(R"JSON({
+	  "scenarioId": "T", "version": 1, "mapRadius": 2,
+	  "cells": [ { "cell": [0,0,0], "interiorWalls": [ { "axis": 9, "alongStart": -12, "alongEnd": 12 } ] } ],
+	  "units": [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
+	             { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] } ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	})JSON"), TEXT("asse"), TEXT("asse fuori dai sei"));
+
+	// --- 2. LUNGHEZZA ZERO: gli estremi coincidono, e nessuna cottura saprebbe orientarlo -----------
+	Rejects(TEXT(R"JSON({
+	  "scenarioId": "T", "version": 1, "mapRadius": 2,
+	  "cells": [ { "cell": [0,0,0], "interiorWalls": [ { "axis": 0, "alongStart": 5, "alongEnd": 5 } ] } ],
+	  "units": [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
+	             { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] } ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	})JSON"), TEXT("fuori grammatica"), TEXT("muro di lunghezza zero"));
+
+	// --- 3. FUORI DAI BORDI EDITABILI --------------------------------------------------------------
+	Rejects(TEXT(R"JSON({
+	  "scenarioId": "T", "version": 1, "mapRadius": 2,
+	  "cells": [ { "cell": [0,0,0], "interiorWalls": [ { "axis": 0, "alongStart": -12, "alongEnd": 9999 } ] } ],
+	  "units": [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
+	             { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] } ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	})JSON"), TEXT("fuori grammatica"), TEXT("coordinate oltre i bordi editabili"));
+
+	// --- 4. `wallType` SCONOSCIUTO ------------------------------------------------------------------
+	Rejects(TEXT(R"JSON({
+	  "scenarioId": "T", "version": 1, "mapRadius": 2,
+	  "cells": [ { "cell": [0,0,0], "interiorWalls": [
+	      { "axis": 0, "alongStart": -12, "alongEnd": 12, "wallType": "Medium" } ] } ],
+	  "units": [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
+	             { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] } ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+	})JSON"), TEXT("wallType"), TEXT("tipo di muro sconosciuto"));
+
+	// --- 5. ⚠️ LA CONTROPROVA: un muro valido si accetta, e arriva intero ---------------------------
+	// Senza, i quattro rifiuti sopra sarebbero compatibili con un loader che rifiuta SEMPRE.
+	{
+		const FRTTestScenario Ok = Accepts(TEXT(R"JSON({
+		  "scenarioId": "T", "version": 1, "mapRadius": 2,
+		  "cells": [ { "cell": [0,0,0], "interiorWalls": [
+		      { "axis": 3, "offset": 0, "alongStart": -12, "alongEnd": 12, "wallType": "Low" } ] } ],
+		  "units": [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
+		             { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [1,0,0] } ],
+		  "turns": [ { "intents": [] } ],
+	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
+		})JSON"), TEXT("muro valido"));
+
+		if (TestEqual(TEXT("la cella e' arrivata"), Ok.Cells.Num(), 1)
+			&& TestEqual(TEXT("con il suo muro"), Ok.Cells[0].InteriorWalls.Num(), 1))
+		{
+			const FRTScenarioInteriorWall& W = Ok.Cells[0].InteriorWalls[0];
+			TestEqual(TEXT("asse"), W.Axis, 3);
+			TestEqual(TEXT("estremo iniziale"), W.AlongStart, -12);
+			TestEqual(TEXT("estremo finale"), W.AlongEnd, 12);
+			TestEqual(TEXT("tipo"), W.WallType, FString(TEXT("Low")));
+		}
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

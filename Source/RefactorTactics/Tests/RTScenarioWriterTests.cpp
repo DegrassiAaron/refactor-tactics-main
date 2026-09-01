@@ -34,7 +34,11 @@ namespace
 	  "mapRadius": 4,
 	  "cells": [
 	    { "cell": [0, 0, 0], "blocksMovement": true, "moveCost": 2 },
-	    { "cell": [1, 0, 0], "blocksLineOfSight": true, "occupancySurcharge": 3 }
+	    { "cell": [1, 0, 0], "blocksLineOfSight": true, "occupancySurcharge": 3 },
+	    { "cell": [-1, 0, 0], "interiorWalls": [
+	        { "axis": 3, "offset": 0, "alongStart": -12, "alongEnd": 12 },
+	        { "axis": 0, "offset": 6, "alongStart": 0, "alongEnd": 12, "wallType": "Low" }
+	    ] }
 	  ],
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0], "facing": "SW", "health": 12 },
@@ -85,6 +89,26 @@ namespace
 			if (A.bBlocksLineOfSight != B.bBlocksLineOfSight) { return Fail(FString::Printf(TEXT("cells[%d].blocksLineOfSight"), I)); }
 			if (A.MoveCost != B.MoveCost) { return Fail(FString::Printf(TEXT("cells[%d].moveCost"), I)); }
 			if (A.OccupancySurcharge != B.OccupancySurcharge) { return Fail(FString::Printf(TEXT("cells[%d].occupancySurcharge"), I)); }
+
+			// I MURI INTERNI (`#2031`). ⚠️ Senza queste righe il round-trip sarebbe CIECO al campo nuovo:
+			// il writer potrebbe non scriverli affatto e il test resterebbe verde, che e' il modo in cui un
+			// gate smette di guardare senza dirlo.
+			if (A.InteriorWalls.Num() != B.InteriorWalls.Num())
+			{
+				return Fail(FString::Printf(TEXT("cells[%d].interiorWalls: %d contro %d"),
+					I, A.InteriorWalls.Num(), B.InteriorWalls.Num()));
+			}
+			for (int32 W = 0; W < A.InteriorWalls.Num(); ++W)
+			{
+				const FRTScenarioInteriorWall& WA = A.InteriorWalls[W];
+				const FRTScenarioInteriorWall& WB = B.InteriorWalls[W];
+				if (WA.Axis != WB.Axis || WA.Offset != WB.Offset
+					|| WA.AlongStart != WB.AlongStart || WA.AlongEnd != WB.AlongEnd
+					|| !WA.WallType.Equals(WB.WallType))
+				{
+					return Fail(FString::Printf(TEXT("cells[%d].interiorWalls[%d]"), I, W));
+				}
+			}
 		}
 
 		if (L.Units.Num() != R.Units.Num()) { return Fail(TEXT("numero di unita'")); }
