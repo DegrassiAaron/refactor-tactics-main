@@ -6128,20 +6128,20 @@ void ARTTurnManager::ResolveMovement()
 	{
 		AppendLogEntry(MoveLog[i], Units.IsValidIndex(i) ? Units[i] : nullptr);
 	}
-	for (int32 i = 0; i < Units.Num(); ++i)
-	{
-		// Il combat log mostra il REASON CODE del TurnLog, con le coordinate assiali: cosi' quel che il
-		// giocatore legge e quel che il replay registra sono la stessa cosa, non due descrizioni parallele.
-		if (MoveLog.IsValidIndex(i)
-			&& (Resolved[i].Outcome == ERTMoveOutcome::BlockedContested || Resolved[i].Outcome == ERTMoveOutcome::BlockedByUnit))
-		{
-			// Il soggetto e' `Units[i]`, lo stesso che `AppendLogEntry` ha appena scritto nella voce: la
-			// riga porta `SrcCell` e `TgtCell` di quella mossa, cioe' esattamente la posizione che una
-			// squadra che non lo vede non deve leggere.
-			AddLogEvent(FString::Printf(TEXT("%s: %s"),
-				*Units[i]->GetName(), *URTTurnLogLibrary::DescribeEntry(MoveLog[i])), FRTLogSubject::Unit(Units[i]));
-		}
-	}
+	// ⛔ **Niente `AddLogEvent` per le mosse bloccate**, e la riga che c'era qui non era di troppo fin
+	// dall'inizio: e' diventata un duplicato con `#1932`.
+	//
+	// L'intento — *«il combat log mostra il REASON CODE del TurnLog, con le coordinate assiali, cosi'
+	// quel che il giocatore legge e quel che il replay registra sono la stessa cosa»* — resta, e ora lo
+	// realizza la derivazione: `ConcludeTurn` rende una riga per voce, e da `#1932` le voci `Move`
+	// portano **anche il soggetto**, perche' `Move` e' l'unica categoria in cui `UnitId` e' pure il
+	// soggetto grammaticale.
+	//
+	// 🔴 **E le due copie non erano nemmeno identiche**: questa nominava l'unita' con
+	// `Units[i]->GetName()` — l'Actor, cioe' `RTUnit_0` — mentre la derivata usa il nome risolto da
+	// `SubjectNamesForLog()`, cioe' `Wraith`. Lo stesso evento arrivava al giocatore due volte,
+	// attribuito a due entita' che sembravano diverse. Misurato da
+	// `RefactorTactics.UI.BlockedMoveLineIsNotRepeated`, che senza questa rimozione conta `2` (`#1412`).
 
 	// Traccia post-lock: rotte effettivamente percorse (viz del percorso risolto). Catturate PRIMA
 	// del placement, cosi' includono la cella di partenza reale.

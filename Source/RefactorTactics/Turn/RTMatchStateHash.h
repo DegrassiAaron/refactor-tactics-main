@@ -60,6 +60,23 @@ struct FRTUnitStateDigest
 	 * Stati attivi (tag). Arrivano da `TMap`/`TSet`, la cui iterazione non è deterministica: `HashMatchState`
 	 * li **ordina** prima di mescolarli, quindi il chiamante può passarli come li trova.
 	 */
+	/**
+	 * L'ORIENTAMENTO, che e' stato LOGICO e non presentazione — `D-261`, `#1800`.
+	 *
+	 * 🔴 **Senza, due stati che differiscono solo per dove guarda un'unita' davano lo stesso digest**,
+	 * pur potendo produrre esiti futuri diversi: `Combat/`, `Perception/` e le reazioni il facing lo
+	 * consumano. E' la stessa classe di difetto che `D-245` ha corretto per `ReactionResponse` — un hash
+	 * che non discrimina cio' che il gioco legge.
+	 *
+	 * ⚠️ **E' il facing REALE, non `PlannedFacing`.** Quello e' un intento, vive nella pianificazione
+	 * ed e' privato della squadra che lo dichiara: metterlo in un checksum di stato lo renderebbe
+	 * confrontabile da chi non deve conoscerlo.
+	 *
+	 * ⛔ Non introduce un secondo sistema di facing: `D-243` resta l'owner delle sei direzioni di gioco, e
+	 * i dodici spicchi restano presentazione e occupazione.
+	 */
+	UPROPERTY() ERTHexDirection Facing = ERTHexDirection::E;
+
 	UPROPERTY() TArray<FName> Statuses;
 };
 

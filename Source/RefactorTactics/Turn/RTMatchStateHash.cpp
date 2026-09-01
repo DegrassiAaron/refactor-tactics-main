@@ -59,6 +59,8 @@ uint32 URTMatchStateHashLibrary::HashMatchState(const URTHexMapAsset* Map,
 		Mix(static_cast<uint32>(U.Shield));
 		Mix(static_cast<uint32>(U.Energy));
 		Mix(U.bAlive ? 1u : 0u);
+		// Il facing entra come intero dell'enum, nella stessa forma degli altri scalari — `D-261`.
+		Mix(static_cast<uint32>(U.Facing));
 
 		// Stati ORDINATI: arrivano da `TMap`/`TSet`, la cui iterazione non è deterministica. Senza l'ordine,
 		// due esecuzioni identiche darebbero hash diversi — il checksum diventerebbe la fonte del falso
@@ -215,6 +217,7 @@ TArray<FRTUnitStateDigest> URTMatchStateHashLibrary::BuildUnitDigests(const TArr
 		// NON si filtra sui vivi: una caduta entra con `bAlive = false`, ed e' il motivo per cui quel campo
 		// esiste. Senza, «tre vivi e un caduto» e «tre vivi e basta» darebbero lo stesso hash.
 		Digest.bAlive = Unit->IsAlive();
+		Digest.Facing = Unit->Facing;
 		Digest.Statuses = Unit->GetActiveStatusNames();
 		Digests.Add(Digest);
 	}

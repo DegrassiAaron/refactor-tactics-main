@@ -843,16 +843,26 @@ bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
 	const FString CellaAttuale = TEXT("(q=5,r=0,L=0)");
 	const FString NomeNemica = Nemica->GetName();
 
-	// ── Premessa 3: la SECONDA porta ha davvero scritto. Nome **e** coordinate sulla stessa riga: la copia
-	// derivata dal TurnLog non porta il nome, quindi solo l'eco puo' produrla.
+	// ── Premessa 3: la riga con la posizione della nemica esiste davvero nel canale completo. Senza,
+	// il cuore verificherebbe l'assenza di qualcosa che nessuno ha scritto.
+	//
+	// ⚠️ **Cercava nome E coordinate, e la ragione scritta qui non regge piu'.** Diceva *«la copia
+	// derivata dal TurnLog non porta il nome, quindi solo l'eco puo' produrla»*: da `#1932` le voci
+	// `Move` portano **anche il soggetto**, e da `#1412` l'eco scritto a mano non c'e' piu' — era un
+	// duplicato che nominava la stessa unita' in un altro modo (`RTUnit_0` contro `Wraith`). La
+	// premessa si regge ora sulla **cella**, che e' anche cio' che il cuore verifica.
+	//
+	// ⛔ Il nome non e' un criterio utilizzabile qui: le tre unita' della fixture escono tutte da
+	// `MakeWraith`, quindi *«Wraith»* compare anche nelle righe della squadra che guarda. Cio' che
+	// identifica la nemica in una riga e' la sua **posizione**, ed e' quella che non deve trapelare.
 	const TArray<FString>& Complete = TM->GetRecentEvents();
 	bool bEcoNelCanaleCompleto = false;
 	for (const FString& L : Complete)
 	{
-		if (L.Contains(NomeNemica) && L.Contains(CellaAttuale)) { bEcoNelCanaleCompleto = true; break; }
+		if (L.Contains(CellaAttuale)) { bEcoNelCanaleCompleto = true; break; }
 	}
 	if (!TestTrue(*FString::Printf(
-		TEXT("premessa: l'eco scritto a mano e' nel log completo, con nome e coordinate (log: %s)"),
+		TEXT("premessa: la riga con la posizione della nemica e' nel log completo (log: %s)"),
 		*FString::Join(Complete, TEXT(" | "))), bEcoNelCanaleCompleto))
 	{
 		RTCombatLogFixture::DestroyWorld(World);
@@ -865,7 +875,11 @@ bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
 	{
 		TestFalse(*FString::Printf(TEXT("nessuna riga porta la cella della nemica: %s"), *L),
 			L.Contains(CellaAttuale));
-		TestFalse(*FString::Printf(TEXT("nessuna riga porta il nome della nemica: %s"), *L),
+		// ⚠️ Questo secondo controllo e' VACUO per costruzione, e resta perche' lo dica: `GetName()`
+		// rende `RTUnit_N`, che da `#1412` nessun produttore scrive piu'. Cade solo se qualcuno
+		// reintroducesse una riga che nomina l'Actor — cioe' il duplicato appena tolto. Il criterio che
+		// MORDE e' quello sopra, sulla posizione.
+		TestFalse(*FString::Printf(TEXT("nessuna riga porta il nome dell'Actor nemico: %s"), *L),
 			L.Contains(NomeNemica));
 	}
 
@@ -1339,6 +1353,107 @@ bool FRTTwoLinesSameUnitSameSubjectTest::RunTest(const FString&)
 
 	if (!TestEqual(TEXT("la terza e' di un'altra"), DiAltri.Num(), 1)) { return false; }
 	TestNotEqual(TEXT("e si distingue dalle prime due"), DiAltri[0], DiWraith[0]);
+
+	return true;
+}
+
+
+/**
+ * NEMMENO UNA MOSSA BLOCCATA SI RIPETE — ed e' l'ottavo duplicato che `LogDoesNotRepeatTheDerivedLines`
+ * dichiara di non coprire.
+ *
+ * 🔴 **Il difetto e' NUOVO, e nessuno lo ha introdotto sbagliando.** `RTTurnManager.cpp` scrive a mano
+ * `«Nome: <predicato>»` per le mosse `BlockedContested` / `BlockedByUnit`, e fino a `#1932` non era un
+ * duplicato: la riga derivata dal TurnLog non portava il soggetto, quindi le due erano *«la stessa
+ * informazione in due formati»* — che e' la ragione per cui `#1412` non le ha tolte tutte.
+ *
+ * Poi `#1932` ha dato il soggetto alle voci `Move` — **l'unica categoria in cui `UnitId` e' anche il
+ * soggetto grammaticale** — e da quel momento la derivazione rende esattamente la stessa stringa. Il
+ * giocatore legge due volte che la sua unita' non e' passata.
+ *
+ * ⚠️ **La fixture di `LogDoesNotRepeatTheDerivedLines` non poteva vederlo**: due unita' che si muovono
+ * senza contendersi una cella non producono nessun esito bloccato, e il suo commento di copertura lo
+ * dichiara. Qui le due mosse puntano alla STESSA cella, che e' la sola configurazione che lo esercita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlockedMoveIsNotRepeatedTest,
+	"RefactorTactics.UI.BlockedMoveLineIsNotRepeated",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlockedMoveIsNotRepeatedTest::RunTest(const FString&)
+{
+	// Due unita' affiancate che puntano alla stessa cella: contesa, quindi almeno una resta dov'e'.
+	RTCombatLogFixture::FTwoUnitTurn Fixture;
+	if (!RTCombatLogFixture::BuildTwoUnitTurn(*this, Fixture, FRTCellId(0, 0, 0), FRTCellId(2, 0, 0)))
+	{
+		RTCombatLogFixture::DestroyWorld(Fixture.World);
+		return false;
+	}
+
+	const FRTCellId Conteso(1, 0, 0);
+	// ⚠️ **I waypoint da soli non muovono nessuno**, e il primo giro di questo test lo ha misurato:
+	// il resolver legge `PlannedPath` e `PlannedCell`, e con i soli waypoint la contesa non avveniva —
+	// il test sarebbe stato verde su un turno in cui nessuno si era mosso. L'ha intercettato la riga
+	// anti-vacuita' qui sotto.
+	Fixture.A->PlannedWaypoints = { Conteso };
+	Fixture.A->PlannedPath = { Fixture.A->Cell, Conteso };
+	Fixture.A->PlannedCell = Conteso;
+	Fixture.A->PlannedAbilityIndex = INDEX_NONE;
+	Fixture.B->PlannedWaypoints = { Conteso };
+	Fixture.B->PlannedPath = { Fixture.B->Cell, Conteso };
+	Fixture.B->PlannedCell = Conteso;
+	Fixture.B->PlannedAbilityIndex = INDEX_NONE;
+
+	RTCombatLogFixture::RunTurn(Fixture.TM);
+
+	// ANTI-VACUITA': senza un esito bloccato il test non esercita il ramo, e il conteggio sotto sarebbe
+	// verde su un turno in cui nessuno si e' fermato — il modo piu' facile di non misurare niente.
+	bool bQualcunoBloccato = false;
+	for (const FRTTurnLogEntry& Entry : Fixture.TM->GetTurnLog())
+	{
+		if (Entry.Category != ERTLogCategory::Move) { continue; }
+		const ERTMoveOutcome Esito = static_cast<ERTMoveOutcome>(Entry.Outcome);
+		if (Esito == ERTMoveOutcome::BlockedContested || Esito == ERTMoveOutcome::BlockedByUnit)
+		{
+			bQualcunoBloccato = true;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("la contesa ha davvero bloccato qualcuno"), bQualcunoBloccato))
+	{
+		RTCombatLogFixture::DestroyWorld(Fixture.World);
+		return false;
+	}
+
+	// Stessa regola di conteggio di `LogDoesNotRepeatTheDerivedLines`: corrispondenza esatta, o esatta
+	// preceduta da `«Nome: »`, contata per riga unica contro le sue occorrenze attese.
+	// Il PREDICATO nudo, non la riga intera: e' la chiave che vede il difetto. Le due copie portano
+	// prefissi DIVERSI — `Units[i]->GetName()` rende `RTUnit_0`, mentre la derivata usa il nome risolto da
+	// `SubjectNamesForLog()` e rende `Wraith` — quindi confrontare la riga intera, come fa
+	// `LogDoesNotRepeatTheDerivedLines`, non le fa combaciare e il duplicato passa.
+	//
+	// 🔴 **E le due righe non sono solo doppie: si contraddicono.** Lo stesso evento arriva al
+	// giocatore attribuito a due entita' che sembrano diverse.
+	TArray<FString> Predicati;
+	for (const FRTTurnLogEntry& Entry : Fixture.TM->GetTurnLog())
+	{
+		if (Entry.Category != ERTLogCategory::Move) { continue; }
+		const ERTMoveOutcome Esito = static_cast<ERTMoveOutcome>(Entry.Outcome);
+		if (Esito == ERTMoveOutcome::BlockedContested || Esito == ERTMoveOutcome::BlockedByUnit)
+		{
+			Predicati.Add(URTTurnLogLibrary::DescribeEntry(Entry));
+		}
+	}
+	const TArray<FString> Emesse = Fixture.TM->GetRecentEvents();
+	RTCombatLogFixture::DestroyWorld(Fixture.World);
+
+	for (const FString& Predicato : Predicati)
+	{
+		int32 Conta = 0;
+		for (const FString& Emessa : Emesse)
+		{
+			if (Emessa.EndsWith(Predicato, ESearchCase::CaseSensitive)) { ++Conta; }
+		}
+		TestEqual(*FString::Printf(TEXT("«%s» arriva al giocatore una volta sola"), *Predicato), Conta, 1);
+	}
 
 	return true;
 }
