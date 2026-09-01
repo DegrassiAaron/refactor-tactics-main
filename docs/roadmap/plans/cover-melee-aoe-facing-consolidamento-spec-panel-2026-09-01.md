@@ -7,12 +7,16 @@
 > **Mandato**: consumare `RefactorTactics_Cover_Facing_AoE_Consolidation_for_Claudia_v0.1.md` (40 sezioni,
 > 1171 righe), archiviato in [`../../archive/`](../../archive/RefactorTactics_Cover_Facing_AoE_Consolidation_for_Claudia_v0.1.md).
 >
-> **Esito in una riga**: il kit **non è un consolidamento**. Il suo principio fondativo (§1) è la separazione
-> che [`CP 9.2`](../../gameplay/spec-copertura-alta-cp92.md) ha **esplicitamente scartato** con la ragione
-> scritta; due dei suoi default **ribaltano** canone implementato e testato; e la sola clausola che il
-> repository conferma parola per parola — §19, il legacy `Area → cover 0` — è anche **l'unico difetto reale
-> che il kit trova**, perché quel codice contraddice [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md)
-> accettata il giorno prima.
+> **Esito in una riga**: il kit **non è un consolidamento**, e lo stesso difetto si ripete due volte su due.
+> Il principio fondativo (§1) è la separazione che [`CP 9.2`](../../gameplay/spec-copertura-alta-cp92.md) ha
+> **esplicitamente scartato** con la ragione scritta; la §19 chiama «legacy da refactor» un ramo che
+> [`CP 9.1`](../../gameplay/spec-copertura-cp91.md) §4 **dichiara come regola**, sempre con l'alternativa
+> scartata per iscritto; e due default (§10/§26) ribaltano canone implementato e testato senza nominarlo.
+>
+> 🔁 **Corretto il 2026-09-01, secondo passaggio — la §4 di questo referto era sbagliata.** Diceva che il ramo
+> `Area → cover 0` è un difetto che contraddice [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md). Non lo
+> è: ha un owner, tre sedi che concordano, un'alternativa scartata e un test guardiano non vacuo. La
+> correzione è in §4, e la ragione per cui l'errore era possibile in §4.4.
 
 ## 1. Perché questo referto non ratifica niente
 
@@ -99,12 +103,12 @@ E `RTGeometryGrammar.h:172` vieta esplicitamente la mossa che i preset richieder
 integrità 50, abbattibile). Il kit e il repository usano la stessa parola per due oggetti diversi, e questo
 è il modo in cui la §2.3 diventa pericolosa: applicata alla lettera **declassa** ogni muro alto esistente.
 
-## 4. Il difetto reale — ed è uno solo, ma è vero
+## 4. La §19 dice «legacy», e non lo è — ma apre una domanda vera
 
 **§19 del kit**: *«Il repository contiene già un comportamento legacy in cui `Area` è accoppiata a una hit
-rule che ignora cover.»*
+rule che ignora cover; questo va trattato come accoppiamento da refactor, non come principio di design.»*
 
-✅ **Vero, misurato, e alla riga esatta**:
+### 4.1 La riga esiste
 
 ```cpp
 // Un'area investe la cella da ogni lato: nessun bordo da attraversare, nessuna copertura che tenga.
@@ -115,25 +119,61 @@ if (Map == nullptr || Shape == ERTAbilityShape::Area)
 ```
 > `URTHexCombatLibrary::HexCoverDamageReduction`, `Source/RefactorTactics/Combat/RTHexCombatLibrary.cpp:179`
 
-🔴 **E contraddice una decisione accettata il giorno prima.** [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md)
-punto (3), chiudendo `COV-5`, ha deciso la direzione d'impatto per categoria:
+### 4.2 Ma è una regola dichiarata, non un accoppiamento residuo
 
-> *«diretto/mischia = **sorgente→bersaglio**; linea/traiettoria = **direzione d'impatto**; area = **centro
-> d'impatto→bersaglio**.»*
+🔴 **E questa è la parte che la prima stesura di questo referto ha sbagliato.** La regola vive in **tre sedi
+che concordano**, e l'alternativa che il kit propone è **scartata con la ragione scritta** — esattamente come
+in §3:
 
-Un'area che azzera la copertura **non ha** una direzione d'impatto: la riga di codice non è una diversa
-implementazione della regola, è la sua assenza. E la firma lo mostra — `HexCoverDamageReduction(Map, From,
-Target, Shape)` riceve la cella dell'**attaccante**, non il centro d'impatto, quindi non potrebbe applicare
-`D-302` nemmeno togliendo il ramo `Area`.
-
-| | |
+| Sede | Cosa dice |
 |---|---|
-| **Chi ha ragione** | `D-302`. Il codice è precedente alla decisione e non è stato allineato |
-| **Perché non si è corretto qui** | è una modifica di `Source/` che cambia **esiti serializzati** (`Power` nel TurnLog di ogni intento `Area`), quindi rigenera il corpus golden. Non è lavoro da referto |
-| **Dove va** | [**#2009**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2009) — issue nuova, unica del pass. `SEARCH → REUSE` fatto: delle dodici issue aperte su copertura/area nessuna la copre, e [#1392](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1392) è la più vicina ma riguarda la **traccia** del colpo di boundary, non la regola |
+| [`spec-copertura-cp91.md`](../../gameplay/spec-copertura-cp91.md) §3 punto (1) | `Shape == Area` → **0**, normativo |
+| [`spec-copertura-cp91.md`](../../gameplay/spec-copertura-cp91.md) §4, **fra le decisioni** | *«Le aree non sono mai ridotte»*; alternativa scartata: *«trattare l'area come un proiettile con un'origine avrebbe aggiunto una geometria in più per non cambiare nessun esito»* |
+| [`RT_ActionCatalog_v0.1.md`](../../balance/RT_ActionCatalog_v0.1.md) | `Circular AoE` — *«la copertura non riduce»* |
 
-🔑 **Il kit ha trovato questo perché guardava il codice e non i documenti.** È il suo contributo netto, e da
-solo giustifica l'archiviazione del pacchetto.
+✅ **Ed è protetta da un guardiano non vacuo.** `Cover.LowCover.AoESameSide` copre il caso ambiguo — centro
+dal lato riparato — e il suo commento registra la misura di [#1529](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1529):
+togliendo il gate `Shape == Area`, *«con il facing di default la suite `Cover` restava 21/21 verde; con il
+bersaglio rivolto verso l'attaccante questo test cade»*. Il mutation test è già nella tabella di `CP 9.1`.
+
+### 4.3 La domanda che resta è di governance, non di codice
+
+[`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) punto (3) elenca la direzione d'impatto per categoria e
+vi include l'area — *«area = centro d'impatto→bersaglio»* — una frase che presuppone che all'area **si
+applichi** una mitigazione direzionale.
+
+⚠️ **`D-302` non nomina mai `CP 9.1`**: zero occorrenze di `CP 9.1`, `9.1` o `cp91` nel corpo della voce. E la
+frase nasce chiudendo `COV-5`, cioè dentro il modello di copertura **selezionabile**, che non è implementato.
+
+Per [`D-282`](../../decisions/RT_PDR_00_Decision_Log.md) la precedenza è **tipizzata**: il Decision Log
+possiede le decisioni esplicite, le **specifiche possiedono la semantica delle regole**. «L'area riceve
+mitigazione?» è semantica → l'owner è `CP 9.1`. E il punto (5) della stessa voce chiude la questione di
+metodo:
+
+> *«quando due autorità realmente applicabili producono esiti incompatibili, il conflitto si **registra e si
+> escala** all'owner competente. Non si scioglie con una gerarchia globale automatica.»*
+
+∴ **Registrato e escalato**, non risolto qui: [**#2009**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2009)
+con tre uscite dichiarate, e `COV-12` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md).
+
+⚠️ **Una precisazione tecnica che vale per l'uscita «l'area diventa mitigabile»**: non basta togliere il ramo.
+`EffectiveCoverReduction` applica `IsInFrontalArc(Target.Cell, Target.Facing, **Attacker.Cell**)` — quindi
+senza il ramo, il test di `CP 16.2` userebbe la cella dell'**attaccante** anche per le aree, cioè proprio ciò
+che `D-302` vorrebbe evitare. Serve un cambio di firma, non la rimozione di una riga.
+
+### 4.4 Perché l'errore era possibile, ed è il punto di questo referto
+
+La prima stesura ha concluso «difetto, e il codice va allineato a `D-302`». Il `grep` aveva confermato la
+riga; il kit diceva «legacy»; le due cose insieme sembravano una misura.
+
+🔑 **Verificare che una riga esista non verifica che sia legacy.** L'owner della regola era a un `grep` di
+distanza — `CP 9.1` §4 — e conteneva anche l'alternativa scartata, cioè la risposta all'obiezione del kit
+scritta prima che l'obiezione arrivasse.
+
+🔴 **Ed è lo stesso pattern di §3, sulla stessa fonte**: il kit propone come nuovo ciò che il repository ha già
+scartato **con la ragione scritta**, due volte su due — `CP 9.2` per la separazione dei blocker, `CP 9.1` per
+l'origine della cover d'area. Un referto che avesse confermato la §19 avrebbe portato dentro, con l'autorità
+di una misura, la stessa proposta che aveva appena respinto in §3.
 
 ## 5. I due default che ribaltano canone implementato
 
@@ -257,7 +297,7 @@ stesso peso di §20 (Facing), che è implementato e ha 13 test.
 |---|---|---|
 | ✅ **Già canone** — il kit conferma, non aggiunge | 23 | §9, §12, §13, §17, §18, §20, §21, §22, §23, §24, §25, §27, §28, §29, §30, §31 *(3 valori su 4, `D-302`)*, §32, §34, §35, §37 *(come mappatura)*, §39, §40, §4 *(parziale: `InteriorWalls` esiste)* |
 | 🔴 **Conflitto con canone implementato** | 4 | §1, §2 *(tutti i preset)*, §10/§26, §11 *(la forma, non i numeri)* |
-| ⚠️ **Vero e non risolto — difetto misurato** | 2 | §14, §19 |
+| ⚠️ **Conflitto fra due sedi — registrato, non risolto** | 2 | §14, §19 *(vedi §4: la riga esiste, ma è regola dichiarata da `CP 9.1`)* |
 | 🌱 **Greenfield: nessun codice, nessun owner** | 5 | §3, §5, §6, §7, §33 |
 | 🟡 **Aperto altrove, non deciso qui** | 3 | §15/§16 *(propagazione per-target)*, §31 *(`NonDirectional` = `FAC-13`)*, §38 |
 | 📋 **Backlog, non specifica** | 3 | §8, §36, §2.4 |
@@ -271,13 +311,13 @@ stesso peso di §20 (Facing), che è implementato e ha 13 test.
 |---|---|
 | Kit archiviato **integralmente** | [`docs/archive/RefactorTactics_Cover_Facing_AoE_Consolidation_for_Claudia_v0.1.md`](../../archive/RefactorTactics_Cover_Facing_AoE_Consolidation_for_Claudia_v0.1.md) — stessa convenzione del precedente `…Replay_System_Claude_Consolidation_2026-08-10.md` |
 | Due domande d'autore aperte | `COV-11` e `FAC-16` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) |
-| Una issue per il difetto misurato | [**#2009**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2009) — l'allineamento di `HexCoverDamageReduction` a `D-302` (§4) |
+| Un conflitto registrato ed escalato | [**#2009**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2009) + `COV-12` — `D-302` dà una direzione d'impatto all'area, `CP 9.1` §4 la esclude dalla mitigazione (§4.3) |
 
 ### Che cosa **non** si è fatto, e perché
 
 | Non fatto | Ragione |
 |---|---|
-| Nessuna riga di `Source/` toccata | il solo difetto trovato cambia esiti serializzati e rigenera il corpus golden |
+| Nessuna riga di `Source/` toccata | non c'era un difetto da correggere: il ramo `Area` è regola dichiarata, e cambiarlo sarebbe un cambio di **regola di gioco** con corpus golden da rigenerare |
 | Nessuna `D-nnn` scritta | il kit propone `FREEZE` su clausole che confliggono con canone testato. Ratificarle in un referto è deciderle per inerzia — `D-305` §5(b) |
 | Nessuno dei 24 scenari §36 aggiunto | cinque non compilano, sette duplicano test verdi, e i restanti non hanno Given/When/Then |
 | Nessuna Epic né issue-ombrello | il perimetro ha owner vivi e distinti: [#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833), [#339](https://github.com/DegrassiAaron/refactor-tactics-main/issues/339), [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828) |
@@ -285,11 +325,11 @@ stesso peso di §20 (Facing), che è implementato e ha 13 test.
 
 ## 9. Prossimo passo
 
-[**#2009**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2009) — **l'allineamento di `HexCoverDamageReduction` a `D-302`** — è l'unica azione di questo pass che non richiede una
-decisione d'autore: la decisione **c'è già** ed è del 2026-08-31. Finché il ramo `Shape == Area` resta,
-ogni granata del gioco ignora la copertura contro una regola accettata.
+[**#2009**](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2009) — **scegliere fra le tre
+uscite** che la voce dichiara: `D-302` è inerte per l'area, oppure supera `CP 9.1` §4, oppure le due valgono
+su oggetti diversi (area ambientale ≠ area selezionabile) e servono due nomi.
 
-⛔ **E non si può fare per intero prima di `COV-11`** se si vuole applicare §14 alla lettera — perché il
-centro d'impatto non è un parametro che la firma riceve. Ma **si può fare subito** nella forma minima:
-togliere il ramo speciale e trattare `Area` come le altre shape, cioè `sorgente→bersaglio`. È meno di
-`D-302`, ma è strettamente più vicino di `return 0`.
+⚠️ **È la sola delle tre domande aperte che non costa nulla se la risposta è (1)**: una nota di
+delimitazione, zero righe di `Source/`. Ma è anche la sola in cui *non rispondere* lascia in piedi una riga
+di decisione **senza consumatori** — e questo repository ha già pagato quattro volte il campo che nessuno
+legge.
