@@ -10,13 +10,14 @@
 > **Non possiede** la grammatica dei segmenti né la misura dell'occupancy: quelle restano di
 > [`spec-hex-geometry-authoring.md`](spec-hex-geometry-authoring.md), che questo documento **corregge** in
 > due punti (§5, §6) e per il resto consuma.
-> **Non possiede** i numeri: le percentuali di mitigazione sono materia `BAL-*`, e i **valori** delle tre
-> taglie di footprint sono taratura — §13.0. ⛔ Il *raggio* di clearance non è più una decisione aperta:
+> **Non possiede** i numeri: le percentuali di mitigazione sono materia `BAL-*`. ✅ I **valori** delle tre
+> taglie di footprint sono invece **fissati** — `2`, `3`, `4` — da [`D-307`](../../decisions/RT_PDR_00_Decision_Log.md), e la loro sede
+> è [`RT_FootprintCatalog_v0.1.md`](../../balance/RT_FootprintCatalog_v0.1.md); qui vive la **derivazione**, §13.0. ⛔ Il *raggio* di clearance non è più una decisione aperta:
 > è **inesprimibile** nel linguaggio adottato. Le `COV-*` ancora aperte sono in
 > [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md)
 > 🔁 **Aggiornato il 2026-08-31**: [`D-302`](../../decisions/RT_PDR_00_Decision_Log.md) ha ratificato `COV-2`…`COV-6` e
 > [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) ha chiuso `COV-1` — §13. Il footprint è un **conteggio di settori**, non un raggio,
-> e i **valori** delle tre taglie restano taratura. Aperte: `MAP-4`, `COV-7`, `COV-8`.
+> e [`D-307`](../../decisions/RT_PDR_00_Decision_Log.md) ne ha fissato i **valori**: `2`, `3`, `4`. Aperte: `MAP-4`, `COV-7`, `COV-8`.
 > ([#1833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833)).
 
 ---
