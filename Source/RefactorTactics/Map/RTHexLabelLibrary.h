@@ -30,27 +30,31 @@ public:
 	/**
 	 * Dove cade ogni carattere della terna `(x, y, layer)` di questa cella.
 	 *
-	 * Tre run **posate** ai punti medi di tre lati alternati — `0/120/240` gradi, **non i vertici**: con
-	 * la convenzione pointy-top di `HexCorners` i vertici stanno a `-30/30/90/150/210/270`, e `0/120/240`
-	 * cade sui punti medi. Il `layer` e' a meta' scala.
+	 * 🔴 **UNA sola run, dritta e centrata sulla cella.** Il `layer` e' a meta' scala.
 	 *
-	 * 🔑 **Ogni run corre PARALLELA al proprio lato**, non dal bordo verso il centro. Il testo e' quindi
-	 * orientato a `90/210/330` gradi — le direzioni dei tre lati — mentre le sue POSIZIONI restano a
-	 * `0/120/240`. Sono due angoli diversi della stessa run, ed e' la distinzione che il difetto di
-	 * partenza confondeva: la riga correva lungo il raggio, cioe' lungo l'unica direzione in cui
-	 * l'esagono e' piu' stretto, e per giunta con i caratteri posati **all'indietro** rispetto al proprio
-	 * asse di lettura.
+	 * Erano **tre**, ai punti medi di tre lati alternati, con la promessa *«girando attorno alla cella,
+	 * almeno una e' leggibile»*. Guardata a schermo quella promessa si legge al rovescio: da una camera
+	 * FERMA — il caso normale — una sola e' dritta e le altre due sono ruotate di `120` gradi, cioe' due
+	 * terzi dell'inchiostro somiglia a una coordinata sbagliata. Chi vuole leggerla da un'altra angolazione
+	 * ruota la camera, non la cella: il testo su un tabellone ha un verso, come su una plancia da tavolo.
 	 *
-	 * 🔴 **L'alto dei caratteri guarda verso il BORDO, non verso il centro**, e il verso non e' una
-	 * preferenza: e' cio' che li rende leggibili da una camera dall'alto. La prima stesura lo aveva al
-	 * contrario e i glifi uscivano **ribaltati sull'orizzontale** — `2` disegnato come `5`, che a sette
-	 * segmenti ne e' esattamente il ribaltamento, e la virgola in alto. L'errore era di convenzione:
-	 * Unreal e' **mancino** e la sua vista dall'alto mette `X` in su e `Y` a destra, quindi la condizione
-	 * di leggibilita' e' l'opposta di quella della base destrorsa della matematica.
+	 * Le tre conseguenze, tutte misurate:
 	 *
-	 * ⚠️ I sei vertici li da' `URTHexLibrary::CellCorners`, e i punti medi e le direzioni dei lati si
-	 * DERIVANO da quelli: una seconda formula per la stessa forma e' il difetto visto in `U22` — celle
-	 * piene tonde e contorno esagonale.
+	 * | | |
+	 * |---|---|
+	 * | dimensione | la riga prende la corda **lunga** (`2R`) invece di una parallela a un lato: `CharWidth` da `12,38` a `22,91` uu con `HexSize = 150`, **+85%** |
+	 * | costo | le linee emesse diventano **un terzo** — `PIE-HEX-COORD-COSTO` ne ha misurate `567 090` sull'arena piena |
+	 * | ⚠️ riserva | il centro non e' piu' libero: la terna compete col **disco della cella** e col glifo di superficie |
+	 *
+	 * ⚠️ **Gli assi vengono dalla convenzione del motore, non da una scelta di stile.** Unreal e'
+	 * **mancino** e la sua vista dall'alto mette `X` in su e `Y` a destra sullo schermo: sono esattamente
+	 * `Up` e `Right` del testo, e la terna risulta `Right x Up = -Z`. E' il segno **opposto** a quello
+	 * della base destrorsa della matematica — l'errore con cui questa funzione ha gia' spedito glifi
+	 * riflessi una volta, `2` disegnato come `5` e la virgola in alto.
+	 *
+	 * ⛔ **Non usa piu' `CellCorners`**: non essendoci lati da seguire, la geometria che serve e' il solo
+	 * centro. Il budget della larghezza pero' e' derivato — non tarato a occhio — dalla forma
+	 * dell'esagono: vedi l'equazione nel `.cpp`.
 	 */
 	static FRTCellLabel BuildCellLabel(const FRTCellId& Cell, const FVector& Origin,
 		float HexSize, float LayerHeight);

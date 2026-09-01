@@ -59,119 +59,98 @@ FRTCellLabel URTHexLabelLibrary::BuildCellLabel(const FRTCellId& Cell, const FVe
 {
 	FRTCellLabel Out;
 
-	const TArray<FVector> Corners = URTHexLibrary::CellCorners(Cell, Origin, HexSize, LayerHeight);
-	if (Corners.Num() != 6)
-	{
-		return Out; // geometria inattesa: meglio nessuna etichetta che una posata su un'ipotesi
-	}
 	const FVector Centre = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerHeight);
 
-	// 🔑 I punti medi si DERIVANO dai vertici (vedi la doc): il lato `k` va da `Corners[k]` a
-	// `Corners[k+1]`, e il suo punto medio cade a `60k` gradi. Prendendo i lati pari si ottengono
-	// esattamente 0, 120 e 240.
 	const FString Text = FString::Printf(TEXT("%d,%d,%d"), Cell.X, Cell.Y, Cell.Layer);
 	const int32 LayerDigits = FString::FromInt(Cell.Layer).Len();
 
-	// L'altezza piena e la larghezza di un carattere, tarate sul caso peggiore: dieci caratteri lungo una
-	// direzione (`Layer` e' un int32 senza limiti dichiarati, quindi un layer a due cifre negative e' una
-	// cella legittima). Chi verifica che la taratura sia vera, e non solo plausibile, e'
-	// `NothingLeavesTheHexagonAtTheTrueWorstCase` su `-10,-10,-1`.
+	// L'altezza piena e la larghezza di un carattere, tarate sul caso peggiore: dieci caratteri, che
+	// `-10,-10,-1` raggiunge (`Layer` e' un `int32` senza limiti dichiarati, quindi un layer negativo a due
+	// cifre e' una cella legittima). Chi verifica che la taratura sia vera, e non solo plausibile, sono
+	// `NothingLeavesTheHexagon` e il suo gemello sul vero caso peggiore.
 	//
-	// 🔑 **Il budget e' la CORDA parallela al lato, non l'apotema** — e il denominatore e' cambiato quando
-	// il testo ha smesso di correre in direzione radiale. Per un esagono di circumraggio `R` la corda
-	// parallela a un lato, a distanza `t` da quel lato, misura `R + 2t/sqrt(3)`: vale `R` sul lato stesso
-	// e `2R` passando per il centro. La base del testo sta a `Margin` dal lato, cioe' nel punto piu'
-	// STRETTO della fascia che il testo occupa — salendo verso il centro la corda si allarga soltanto.
-	// E' quella la corda che vincola, e usare l'apotema qui sarebbe un numero orfano: misurerebbe una
+	// 🔑 **Il budget e' la corda LUNGA dell'esagono, e passa per il centro.** Un pointy-top di circumraggio
+	// `R` e' largo `2R` lungo `Y` — dai due vertici a `90` e `270` gradi — contro `R*sqrt(3)` lungo `X`.
+	// La riga corre lungo `Y` e sta al centro, quindi prende la corda maggiore che l'esagono abbia.
+	//
+	// A quota `x` dal centro la semi-larghezza vale `R - |x|/sqrt(3)`, e la riga occupa `[-H/2, +H/2]`:
+	// il punto piu' stretto della fascia e' quindi a `H/2`, e l'altezza entra nel budget della LARGHEZZA.
+	// E' un'equazione, non due numeri tarati a occhio:
+	//
+	//     N*1.15*W + 1.4*W/sqrt(3) = 2R - 2*Margin        con H = 1.4*W
+	//
+	// ⚠️ **Il denominatore e' cambiato due volte, e ogni volta perche' era cambiata la GEOMETRIA**: era
+	// l'apotema quando il testo correva in direzione radiale, poi la corda parallela al lato, adesso la
+	// corda lunga. Un budget che sopravvive a un cambio di direzione e' un numero orfano: misura una
 	// direzione lungo la quale non c'e' piu' niente.
 	constexpr int32 WorstCaseChars = 10;
-	const double Margin = HexSize * 0.06;   // il bordo non si tocca: la cella ha gia' un contorno
-	const double Chord  = HexSize + 2.0 * Margin / 1.7320508;
-	const double Usable = Chord - 2.0 * Margin;  // un margine anche ai due capi della riga
-	// `* 1.15` perche' la spaziatura fra caratteri va pagata: e' il caso peggiore in cui tutti e dieci
-	// fossero a scala piena, che il layer a meta' scala non raggiunge mai.
-	const double CharWidth  = Usable / (WorstCaseChars * 1.15);
-	const double FullHeight = CharWidth * 1.4;   // rapporto di un display a sette segmenti
+	constexpr double GlyphAspect   = 1.4;        // rapporto di un display a sette segmenti
+	constexpr double Tracking      = 1.15;       // il 15% e' la spaziatura fra caratteri
+	const double Margin = HexSize * 0.06;        // il bordo non si tocca: la cella ha gia' un contorno
+	const double CharWidth  = (2.0 * HexSize - 2.0 * Margin)
+	                        / (WorstCaseChars * Tracking + GlyphAspect / 1.7320508);
+	const double FullHeight = CharWidth * GlyphAspect;
 
-	for (int32 Side = 0; Side < 6; Side += 2)
+	// 🔴 **UNA SOLA run, dritta e centrata** (2026-09-01). Erano tre, ai punti medi di tre lati alternati,
+	// e la ragione dichiarata era: *«girando attorno alla cella, almeno una delle tre e' leggibile»*.
+	// Guardata a schermo, quella promessa si legge al rovescio: da una camera FERMA — che e' il caso
+	// normale, non l'eccezione — una sola e' dritta e **le altre due sono ruotate di 120 gradi**, cioe'
+	// due terzi dell'inchiostro e' rumore che sembra una coordinata sbagliata.
+	//
+	// Tre conseguenze, tutte misurate:
+	//
+	//  - la riga prende la corda LUNGA invece di quella parallela a un lato: `CharWidth` passa da
+	//    `12,38` a `22,91` uu con `HexSize = 150`, **+85%** — ed e' la ragione per cui le coordinate
+	//    «non si vedevano»;
+	//  - le linee emesse diventano **un terzo**. `PIE-HEX-COORD-COSTO` ha misurato `567 090` linee
+	//    sull'arena piena a raggio 50: e' il rischio principale di questa feature, e questa scelta lo
+	//    divide per tre senza toccare nient'altro;
+	//  - il centro della cella non e' piu' libero. ⚠️ La riserva si sposta li': la terna adesso compete
+	//    col **disco della cella** e col glifo di superficie, che occupano lo stesso pavimento.
+	//
+	// ⛔ Chi vuole leggerla da un'altra angolazione ruota la camera, non la cella: il testo su un tabellone
+	// ha un verso, come su una plancia da tavolo.
+	//
+	// ⚠️ **Gli assi vengono dalla convenzione del motore, non da una scelta di stile.** Unreal e' mancino
+	// e la sua vista dall'alto mette `X` in SU e `Y` a DESTRA sullo schermo: sono esattamente `Up` e
+	// `Right` del testo. La terna `(Right, Up, Z)` risulta `Right x Up = -Z`, ed e' la condizione di
+	// leggibilita' — il segno opposto a quello della base destrorsa della matematica, che e' l'errore con
+	// cui questa funzione ha gia' spedito glifi riflessi una volta.
+	const FVector Right = FVector::YAxisVector;
+	const FVector Up    = FVector::XAxisVector;
+
+	// La larghezza totale serve PRIMA di posare il primo carattere: la riga e' centrata sulla cella,
+	// quindi bisogna sapere di quanto arretrare l'inizio.
+	double TotalWidth = 0.0;
+	for (int32 I = 0; I < Text.Len(); ++I)
 	{
-		const FVector Mid    = (Corners[Side] + Corners[(Side + 1) % 6]) * 0.5;
-		const FVector Inward = (Centre - Mid).GetSafeNormal();
+		const double W = CharWidth * ((I >= Text.Len() - LayerDigits) ? 0.5 : 1.0);
+		TotalWidth += (I == Text.Len() - 1) ? W : W * Tracking; // nessuna spaziatura dopo l'ultimo
+	}
 
-		// 🔑 **Il testo corre PARALLELO al proprio lato.** Prima correva in direzione
-		// radiale — perpendicolare al lato — e si leggeva male per due ragioni indipendenti:
-		//
-		//  1. **era specchiato.** I glifi avanzavano lungo `Inward` mentre il loro asse `Right` valeva
-		//     `-Inward`: `Right . avanzamento = -1` su tutte e tre le run. Ogni carattere era ben formato,
-		//     ma la stringa era posata all'indietro — `3,-2,0` si leggeva `0,2-,3`;
-		//  2. **era perpendicolare al lato**, cioe' orientato lungo l'unica direzione in cui l'esagono e'
-		//     piu' stretto invece che lungo quella in cui e' piu' largo.
-		//
-		// 🔴 **`Up` guarda in FUORI, e il segno e' la correzione del 2026-09-01.** La prima stesura usava
-		// `Up = Inward` con la giustificazione «cosi' il testo cresce verso il centro e resta dentro»: la
-		// conclusione era giusta e la premessa no. Il risultato erano glifi **ribaltati sull'orizzontale**,
-		// e lo si vede senza ambiguita' sulla coppia `2`/`5`, che a sette segmenti e' esattamente il
-		// ribaltamento verticale l'una dell'altra — `-1,2` compariva a schermo come `-1,5` — e sulla
-		// virgola, che finiva in ALTO.
-		//
-		// ⚠️ **L'errore era di convenzione, non di algebra.** `Right x Up = +Z` e' la condizione di
-		// leggibilita' in una base destrorsa con `X` a est e `Y` a nord. **Unreal e' mancino** — `X`
-		// avanti, `Y` a destra, `Z` in alto — e la sua vista dall'alto mette `X` in SU e `Y` a DESTRA sullo
-		// schermo. Con quella base la condizione si rovescia: serve `Right x Up = -Z`, che e' cio' che
-		// `Up = Outward` produce. Il guardiano e' `RunsAlongTheSideAndReadsForward`, che adesso ricava il
-		// segno atteso DALLA CONVENZIONE invece di inciderlo — perche' inciso l'avevo gia' inciso storto.
-		//
-		// Il testo resta dentro l'esagono lo stesso: cresce verso il bordo, ma la base parte da
-		// `Margin + FullHeight` invece che da `Margin`, quindi occupa la stessa fascia di prima.
-		//
-		// `Right` NON cambia: `Z x Outward` e `Inward x Z` sono lo stesso vettore. Resta parallelo al lato
-		// **per costruzione** e non per una tabella di angoli — se `HexCorners` cambiasse convenzione,
-		// questo la seguirebbe.
-		const FVector Outward = -Inward;
-		const FVector Up      = Outward;
-		const FVector Right   = FVector::CrossProduct(FVector::UpVector, Outward);
+	// Centrata sui due assi: la base scende di meta' altezza, l'inizio arretra di meta' larghezza.
+	const FVector RunStart = Centre - Up * (FullHeight * 0.5) - Right * (TotalWidth * 0.5);
 
-		// La larghezza totale serve PRIMA di posare il primo carattere: la riga e' centrata sull'asse
-		// radiale, quindi bisogna sapere di quanto arretrare l'inizio.
-		double TotalWidth = 0.0;
-		for (int32 I = 0; I < Text.Len(); ++I)
-		{
-			const double W = CharWidth * ((I >= Text.Len() - LayerDigits) ? 0.5 : 1.0);
-			TotalWidth += (I == Text.Len() - 1) ? W : W * 1.15; // nessuna spaziatura dopo l'ultimo
-		}
+	double Travelled = 0.0;
+	for (int32 I = 0; I < Text.Len(); ++I)
+	{
+		// ⚠️ Il layer a META' scala: sono gli ULTIMI `LayerDigits` caratteri, non «tutto dopo la seconda
+		// virgola» — contare le virgole rompeva su coordinate negative, dove il meno non e' un separatore
+		// ma fa parte del numero.
+		const double Scale = (I >= Text.Len() - LayerDigits) ? 0.5 : 1.0;
+		const double W = CharWidth * Scale;
+		const double H = FullHeight * Scale;
 
-		// La base sta a `Margin + FullHeight` dal lato e il testo cresce verso il bordo, quindi la fascia
-		// occupata resta `[Margin, Margin + FullHeight]`: la stessa di prima, e con lo stesso vincolo di
-		// contenimento — la corda piu' stretta e' quella a `Margin`, non quella della base.
-		const FVector RunStart = Mid + Inward * (Margin + FullHeight) - Right * (TotalWidth * 0.5);
+		// L'angolo in basso a sinistra. Tutti i caratteri poggiano sulla STESSA base: quelli a meta' scala
+		// sono piu' bassi, non centrati verticalmente.
+		FRTLabelGlyph Glyph;
+		Glyph.Character = Text[I];
+		Glyph.Origin    = RunStart + Right * Travelled;
+		Glyph.Right     = Right * W;
+		Glyph.Up        = Up * H;
+		Out.Glyphs.Add(Glyph);
 
-		double Travelled = 0.0;
-		for (int32 I = 0; I < Text.Len(); ++I)
-		{
-			const TCHAR Ch = Text[I];
-
-			// ⚠️ Il layer a META' scala: sono gli ULTIMI `LayerDigits` caratteri, non «tutto dopo la
-			// seconda virgola» — contare le virgole rompeva su coordinate negative, dove il meno non e'
-			// un separatore ma fa parte del numero.
-			const bool bIsLayer = I >= Text.Len() - LayerDigits;
-			const double Scale  = bIsLayer ? 0.5 : 1.0;
-
-			const double W = CharWidth * Scale;
-			const double H = FullHeight * Scale;
-
-			// L'angolo in basso a sinistra. Tutti i caratteri poggiano sulla STESSA base a `Margin` dal
-			// lato: quelli a meta' scala sono piu' bassi, non centrati verticalmente.
-			const FVector Base = RunStart + Right * Travelled;
-
-			FRTLabelGlyph Glyph;
-			Glyph.Character = Ch;
-			Glyph.Origin    = Base;
-			Glyph.Right     = Right * W;
-			Glyph.Up        = Up * H;
-			Out.Glyphs.Add(Glyph);
-
-			Travelled += W * 1.15; // il 15% e' la spaziatura fra caratteri
-		}
+		Travelled += W * Tracking;
 	}
 
 	return Out;

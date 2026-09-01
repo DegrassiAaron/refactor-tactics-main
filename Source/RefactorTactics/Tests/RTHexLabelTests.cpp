@@ -247,153 +247,114 @@ bool FRTHexLabelStaysInsideAtTrueWorstCaseTest::RunTest(const FString&)
 }
 
 /**
- * Tre run a 120 gradi esatti, verificato sulle POSE e non a occhio: e' la differenza fra «sembrano
- * ruotate» e «sono ruotate».
+ * 🔴 **UNA sola run, allineata alla vista dall'alto.** Erano tre a `120` gradi, e questo test le contava.
+ *
+ * ⚠️ La sostituzione non e' una semplificazione: e' un difetto chiuso. Tre run a `120` gradi significano
+ * che, da una camera FERMA, **due su tre sono ruotate** e si leggono al rovescio — due terzi
+ * dell'inchiostro che somiglia a una coordinata sbagliata. Il vecchio test misurava fedelmente proprio
+ * quella proprieta', e non poteva accorgersi che fosse il problema.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexLabelThreeDirectionsTest,
-	"RefactorTactics.HexLabel.ThreeRunsAtOneHundredTwentyDegrees",
+	"RefactorTactics.HexLabel.OneRunAlignedWithTheTopDownCamera",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexLabelThreeDirectionsTest::RunTest(const FString&)
 {
-	const FRTCellId Cell(0, 0, 0);
-	const FRTCellLabel Label = URTHexLabelLibrary::BuildCellLabel(Cell, FVector::ZeroVector, 150.f, 250.f);
+	const FRTCellLabel Label = URTHexLabelLibrary::BuildCellLabel(
+		FRTCellId(0, 0, 0), FVector::ZeroVector, 150.f, 250.f);
+	TestTrue(TEXT("l'etichetta non e' vuota"), Label.Glyphs.Num() > 0);
 
-	// Gli angoli distinti dell'asse `Right`, arrotondati al grado: devono essere tre.
+	// UNA direzione, non tre: gli angoli distinti dell'asse `Right`, arrotondati al grado.
 	//
-	// ⚠️ Si normalizza DOPO l'arrotondamento, non prima: un angolo come -0.0000001 arrotondato PRIMA
-	// della normalizzazione (Deg + 360.0) diventerebbe 359.9999999, poi 360 per arrotondamento — un
-	// grado che il test non cerca mai, perche' non e' ne' 0 ne' un multiplo di 120. Arrotondando prima
-	// e normalizzando dopo, -0.0000001 arrotonda a 0 e il modulo lo lascia 0.
+	// ⚠️ Si normalizza DOPO l'arrotondamento, non prima: `-0.0000001` arrotondato prima della
+	// normalizzazione diventerebbe `360`, un grado che il test non cerca mai.
 	TSet<int32> Angles;
 	for (const FRTLabelGlyph& G : Label.Glyphs)
 	{
-		const double Deg = FMath::RadiansToDegrees(FMath::Atan2(G.Right.Y, G.Right.X));
-		const int32 Round = FMath::RoundToInt(Deg);
+		const int32 Round = FMath::RoundToInt(FMath::RadiansToDegrees(FMath::Atan2(G.Right.Y, G.Right.X)));
 		Angles.Add(((Round % 360) + 360) % 360);
 	}
+	TestEqual(TEXT("una direzione sola, non tre"), Angles.Num(), 1);
 
-	// Ritorno anticipato: senza tre angoli distinti, indicizzare `Sorted[0..2]` sarebbe fuori limite —
-	// idioma gia' in uso in RTHexMapTests.cpp, RTHexDoorTests.cpp, RTObjectiveTests.cpp fra gli altri.
-	if (!TestEqual(TEXT("tre direzioni, non una ne' sei"), Angles.Num(), 3))
+	// E la direzione e' quella della CAMERA, ricavata dai due assi dello schermo invece che incisa:
+	// nella vista dall'alto di Unreal `Y` va a destra e `X` va in su.
+	for (const FRTLabelGlyph& G : Label.Glyphs)
 	{
-		return false;
+		TestTrue(TEXT("l'asse di lettura e' la destra dello schermo"),
+			FVector::DotProduct(G.Right.GetSafeNormal(), FVector::YAxisVector) > 0.999);
+		TestTrue(TEXT("l'alto dei caratteri e' l'alto dello schermo"),
+			FVector::DotProduct(G.Up.GetSafeNormal(), FVector::XAxisVector) > 0.999);
 	}
-
-	TArray<int32> Sorted = Angles.Array();
-	Sorted.Sort();
-
-	// ⚠️ **`90/210/330` e non `0/120/240`, e la differenza non e' una taratura**: sono le direzioni dei
-	// tre LATI, perche' il testo corre parallelo al proprio lato. `0/120/240` sono le direzioni dei tre
-	// punti medi, cioe' dove le run stanno POSATE — un altro angolo della stessa run. Finche' il testo
-	// correva in direzione radiale i due coincidevano, e questo test non poteva distinguerli.
-	TestEqual(TEXT("la prima e' a 90 gradi: la direzione del primo lato"), Sorted[0], 90);
-	TestEqual(TEXT("la seconda a 210"), Sorted[1], 210);
-	TestEqual(TEXT("la terza a 330"),   Sorted[2], 330);
-
-	// Le tre restano a 120 gradi esatti l'una dall'altra: e' l'invariante, e sopravvive a un cambio di
-	// convenzione dei lati che spostasse tutti e tre gli angoli insieme.
-	TestEqual(TEXT("120 gradi fra la prima e la seconda"), Sorted[1] - Sorted[0], 120);
-	TestEqual(TEXT("120 gradi fra la seconda e la terza"), Sorted[2] - Sorted[1], 120);
 	return true;
 }
 
 /**
- * 🔴 **La terna corre PARALLELA al proprio lato e si legge in avanti** — piu' il layer a META' scala.
+ * 🔴 **Si legge in avanti, non riflessa, e il layer e' a META' scala.**
  *
- * Sostituisce `RunsInwardAndLayerIsHalfSize`, che asseriva l'opposto: *«il primo carattere e' piu' vicino
- * al BORDO dell'ultimo»*, cioe' che la riga corresse in direzione radiale. Quel criterio non era sbagliato
- * per distrazione — era la spec di #1920 — ma a schermo produceva un'etichetta che **nessuno riusciva a
- * leggere**, per due difetti indipendenti che quel test non poteva vedere:
+ * Sostituisce `RunsAlongTheSideAndReadsForward`, e prima ancora `RunsInwardAndLayerIsHalfSize`. Le tre
+ * stesure raccontano tre difetti diversi, e vale la pena tenerne memoria perche' **ogni volta la suite
+ * era verde**:
  *
- *  1. **specchiata.** I glifi avanzavano lungo `Inward` mentre il loro asse `Right` valeva `-Inward`:
- *     misurato, `Right . avanzamento = -1` su tutte e tre le run. Ogni carattere era ben formato e
- *     nessuno usciva dall'esagono — la stringa era semplicemente posata all'indietro, e `3,-2,0` si
- *     leggeva `0,2-,3`. ⚠️ **Le due asserzioni vecchie erano entrambe verdi su questo difetto**: la
- *     distanza dal bordo non guarda l'orientamento dei glifi, e l'altezza del layer nemmeno;
- *  2. **perpendicolare al lato**, cioe' orientata lungo l'unica direzione in cui l'esagono e' piu'
- *     stretto.
+ *  1. la riga correva in direzione radiale con i caratteri posati **all'indietro** — `3,-2,0` si leggeva
+ *     `0,2-,3`. Le asserzioni di allora (distanza dal bordo, altezza del layer) non guardavano
+ *     l'orientamento dei glifi;
+ *  2. i glifi erano **ribaltati sull'orizzontale**: `2` disegnato come `5` — a sette segmenti sono l'una
+ *     il ribaltamento verticale dell'altra — e la virgola in alto. L'asserzione di allora incideva
+ *     `(Right x Up).Z > 0`, che e' la condizione giusta in una base **destrorsa** con `X` a est: Unreal
+ *     e' mancino, e il test confermava la mia convenzione invece della leggibilita';
+ *  3. due run su tre erano ruotate di `120` gradi da una camera ferma.
  *
- * Le tre asserzioni qui sotto sono quelle che quei due difetti fanno cadere.
+ * ⚠️ **Nessuno dei tre e' stato trovato da un test.** Tutti e tre da un occhio sul viewport. Cio' che i
+ * test possono fare e' impedire che tornino, ed e' per questo che il segno atteso adesso si RICAVA dai
+ * due assi dello schermo invece di essere inciso.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexLabelOrderAndScaleTest,
-	"RefactorTactics.HexLabel.RunsAlongTheSideAndReadsForward",
+	"RefactorTactics.HexLabel.ReadsForwardAndLayerIsHalfSize",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexLabelOrderAndScaleTest::RunTest(const FString&)
 {
 	const FRTCellId Cell(2, -3, 0);
 	const FVector MapOrigin = FVector::ZeroVector;
 	const FRTCellLabel Label = URTHexLabelLibrary::BuildCellLabel(Cell, MapOrigin, 150.f, 250.f);
-	const TArray<FVector> Corners = URTHexLibrary::CellCorners(Cell, MapOrigin, 150.f, 250.f);
-	if (!TestEqual(TEXT("sei vertici"), Corners.Num(), 6))
+
+	// Ritorno anticipato: senza almeno tre caratteri, `Glyphs[0]`/`Last()` sarebbero fuori limite.
+	if (!TestTrue(TEXT("la terna ha almeno tre caratteri"), Label.Glyphs.Num() >= 3))
 	{
 		return false;
 	}
+	const FRTLabelGlyph& First = Label.Glyphs[0];
+	const FRTLabelGlyph& Last  = Label.Glyphs.Last();
 
-	// Il lato 0 e la sua direzione, DERIVATI dai vertici: il riferimento non e' una tabella di angoli,
-	// quindi se `HexCorners` cambiasse convenzione questo test la seguirebbe invece di mentire.
-	const FVector Side0 = (Corners[1] - Corners[0]).GetSafeNormal();
-
-	// La run posata sul lato 0, nell'ordine in cui e' stata costruita.
-	TArray<FRTLabelGlyph> Run;
+	// 1. Piatta sul pavimento: nessun asse esce dal piano della cella.
 	for (const FRTLabelGlyph& G : Label.Glyphs)
 	{
-		if (FVector::DotProduct(G.Right.GetSafeNormal(), Side0) > 0.99)
-		{
-			Run.Add(G);
-		}
-	}
-	// Ritorno anticipato: senza almeno tre caratteri, `Run[0]`/`Run.Last()` sarebbero fuori limite.
-	if (!TestTrue(TEXT("la run del lato 0 ha almeno tre caratteri"), Run.Num() >= 3))
-	{
-		return false;
-	}
-
-	// 1. PARALLELA al lato. Il predicato di selezione lo ha gia' usato, quindi qui si verifica cio' che
-	//    quel predicato NON puo' garantire: che non esista anche una run non parallela.
-	for (const FRTLabelGlyph& G : Label.Glyphs)
-	{
-		const double Vertical = FMath::Abs(G.Right.Z) + FMath::Abs(G.Up.Z);
-		TestTrue(TEXT("nessun asse del glifo esce dal piano della cella"), Vertical < 0.01);
+		TestTrue(TEXT("nessun asse del glifo esce dal piano della cella"),
+			FMath::Abs(G.Right.Z) + FMath::Abs(G.Up.Z) < 0.01);
 	}
 
 	// 2. 🔑 NON SPECCHIATA: la riga avanza NEL VERSO in cui i caratteri si leggono.
-	//    E' l'asserzione che il difetto segnalato fa cadere, e l'unica che lo fa.
-	const FVector Advance = (Run.Last().Origin - Run[0].Origin).GetSafeNormal();
+	const FVector Advance = (Last.Origin - First.Origin).GetSafeNormal();
 	TestTrue(TEXT("l'avanzamento concorda con l'asse di lettura dei caratteri"),
-		FVector::DotProduct(Advance, Run[0].Right.GetSafeNormal()) > 0.99);
+		FVector::DotProduct(Advance, First.Right.GetSafeNormal()) > 0.99);
 
-	// 3. 🔴 **Leggibile da una camera DALL'ALTO, non riflessa** — e il segno atteso si RICAVA dalla
-	//    convenzione invece di essere inciso.
-	//
-	//    ⚠️ Inciso l'avevo gia' inciso storto: la prima stesura asseriva `(Right x Up).Z > 0`, che e' la
-	//    condizione giusta in una base destrorsa con `X` a est e `Y` a nord — la convenzione della
-	//    matematica, non quella del motore. **Unreal e' mancino** (`X` avanti, `Y` a destra, `Z` in alto) e
-	//    la sua vista dall'alto mette `X` in SU e `Y` a DESTRA sullo schermo, quindi la condizione si
-	//    rovescia. Il test passava, e a schermo i glifi erano ribaltati sull'orizzontale: `2` compariva
-	//    come `5` — a sette segmenti sono l'una il ribaltamento verticale dell'altra — e la virgola
-	//    finiva in alto.
-	//
-	//    Costruendo il riferimento dai due assi dello schermo, il segno non e' piu' una mia opinione:
-	//    se un giorno la convenzione del motore cambiasse, cambierebbe con lei.
-	const FVector ScreenRight = FVector::YAxisVector; // Y a destra nella vista dall'alto
-	const FVector ScreenUp    = FVector::XAxisVector; // X in su
-	const double Reference = FVector::CrossProduct(ScreenRight, ScreenUp).Z;
-	const double Actual    = FVector::CrossProduct(Run[0].Right, Run[0].Up).Z;
+	// 3. 🔴 NON RIFLESSA, e il segno atteso si RICAVA dalla convenzione invece di essere inciso.
+	//    Inciso l'avevo gia' inciso storto: `(Right x Up).Z > 0` e' la condizione di leggibilita' in una
+	//    base DESTRORSA con `X` a est e `Y` a nord — la convenzione della matematica. Unreal e' MANCINO e
+	//    la sua vista dall'alto mette `X` in su e `Y` a destra: li' la condizione si rovescia. Costruendo
+	//    il riferimento dai due assi dello schermo, il segno non e' piu' una mia opinione.
+	const double Reference = FVector::CrossProduct(FVector::YAxisVector, FVector::XAxisVector).Z;
+	const double Actual    = FVector::CrossProduct(First.Right, First.Up).Z;
 	TestTrue(TEXT("i glifi hanno lo stesso verso degli assi dello schermo: non riflessi"),
 		Actual * Reference > 0.0);
 
-	// 4. `Up` guarda in FUORI. E' l'invariante concreta che si era rotta, ed e' indipendente
-	//    dall'asserzione sopra: la fissa in termini della cella invece che della camera.
+	// 4. Centrata sulla cella: il centro della riga cade sul centro della cella. Senza, una riga che
+	//    cominciasse dal centro invece di esservi centrata passerebbe tutte le altre asserzioni.
 	const FVector CellCentre = URTHexLibrary::AxialToWorld(Cell, MapOrigin, 150.f, 250.f);
-	const FVector OutwardRef = (Run[0].Origin - CellCentre).GetSafeNormal2D();
-	TestTrue(TEXT("il testo cresce verso il BORDO, non verso il centro"),
-		FVector::DotProduct(Run[0].Up.GetSafeNormal(), OutwardRef) > 0.5);
+	const FVector RowMid = (First.Origin + Last.Origin + Last.Right + Last.Up) * 0.5;
+	TestTrue(TEXT("la riga e' centrata sulla cella"), FVector::Dist2D(RowMid, CellCentre) < 12.0);
 
 	// L'ultimo carattere della terna e' il layer: alto meta' del primo.
-	const double FirstHeight = Run[0].Up.Size();
-	const double LastHeight  = Run.Last().Up.Size();
 	TestTrue(TEXT("il layer e' alto meta' delle altre componenti"),
-		FMath::IsNearlyEqual(LastHeight, FirstHeight * 0.5, 0.5));
+		FMath::IsNearlyEqual(Last.Up.Size(), First.Up.Size() * 0.5, 0.5));
 	return true;
 }
 
@@ -411,8 +372,21 @@ bool FRTHexLabelNegativeTest::RunTest(const FString&)
 	int32 Minus = 0;
 	for (const FRTLabelGlyph& G : Negative.Glyphs) { if (G.Character == TEXT('-')) { ++Minus; } }
 
-	// Una `x` negativa, tre direzioni: tre segni meno, uno per run.
-	TestEqual(TEXT("un segno meno per ciascuna delle tre run"), Minus, 3);
+	// ⌫ Attendeva **3** — uno per ciascuna delle tre run — e il numero era inciso. Da quando la run e'
+	// una sola quel `3` sarebbe da riscrivere a ogni cambio di layout, quindi adesso l'atteso si DERIVA
+	// dalla stessa stringa che la funzione compone: se un giorno le run tornassero a essere piu' d'una,
+	// questo test lo direbbe invece di limitarsi a fallire su una costante vecchia.
+	FString Expected = FString::Printf(TEXT("%d,%d,%d"), -2, 1, 0);
+	int32 ExpectedMinus = 0;
+	for (const TCHAR C : Expected) { if (C == TEXT('-')) { ++ExpectedMinus; } }
+	TestEqual(TEXT("il segno meno c'e', e ce n'e' uno per ogni componente negativa"), Minus, ExpectedMinus);
+
+	// ⛔ E non compare dove non serve: una terna tutta positiva non ha segni.
+	const FRTCellLabel Positive = URTHexLabelLibrary::BuildCellLabel(
+		FRTCellId(2, 1, 0), FVector::ZeroVector, 150.f, 250.f);
+	int32 SpuriousMinus = 0;
+	for (const FRTLabelGlyph& G : Positive.Glyphs) { if (G.Character == TEXT('-')) { ++SpuriousMinus; } }
+	TestEqual(TEXT("nessun segno meno su una terna positiva"), SpuriousMinus, 0);
 	return true;
 }
 

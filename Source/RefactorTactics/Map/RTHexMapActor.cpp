@@ -1665,12 +1665,14 @@ void ARTHexMapActor::RebuildCoordinateLabels()
 	constexpr float Thickness = 1.0f;
 
 	TArray<FBatchedLine> Lines;
-	// Stima per il reserve, non un limite: tre run, poche cifre ciascuna nel caso comune (non il caso
+	// Stima per il reserve, non un limite: UNA run, poche cifre nel caso comune (non il caso
 	// peggiore da dieci cifre che `NothingLeavesTheHexagonAtTheTrueWorstCase` misura), e ogni carattere del
 	// set chiuso costa da 1 segmento (virgola) a 7 ('8'). Serve solo a risparmiare le prime riallocazioni
 	// quando si trascina il pennello (RebuildInstances gira a ogni cella toccata) — se la stima e' bassa
 	// `TArray` continua comunque a crescere.
-	Lines.Reserve(MapAsset->Cells.Num() * 90);
+	// ⌫ Era `* 90` quando le run erano tre: da una sola, un terzo. La stima resta larga di proposito —
+	// costa memoria una volta, e sbagliarla in difetto costa riallocazioni a ogni cella del pennello.
+	Lines.Reserve(MapAsset->Cells.Num() * 30);
 	for (const FRTHexCellData& Cell : MapAsset->Cells)
 	{
 		// Stesso filtro layer di RebuildInstances: senza, in ActiveOnly/Focus le terne dei piani nascosti
