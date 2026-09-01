@@ -117,37 +117,43 @@ sembrava bloccata: la privacy serve quando esiste **un client a cui tacere**. La
 ∴ Se un leak non è *misurabile* senza rete, allora non è nemmeno *possibile*: l'apertura remota in v0.1
 sarebbe implementabile **senza** decidere la privacy, e la decisione resterebbe a `E27`.
 
-### 🔴 Ma la contraddizione è più grande di così, ed è già registrata: **cinque owner, quattro dicono `v0.2`**
+### 🔴 CORREZIONE (2026-09-01, stesso giorno): la contraddizione è **una sola**, non cinque
 
-Misurato risalendo alla PR che ha spostato la milestone — [#1139](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1139), 2026-08-17, **otto giorni dopo** la riga di `CP101 §11` (2026-08-09, `32960db9`, mai più toccata):
+> ⛔ **Questa sezione affermava «cinque owner, quattro dicono `v0.2`» ed era falsa in tre punti su cinque.**
+> Le righe venivano dalla PR [#1139](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1139) del
+> 2026-08-17 e non erano state rimisurate contro lo stato attuale — l'errore che
+> `checkout-stantio-produce-fatti-falsi` descrive: un'affermazione datata continua a leggersi come una misura.
 
-| Owner | Dice | Aggiornato da #1139? |
+Rimisurato su `ab5b07e0`:
+
+| Owner | Dice davvero | Verdetto |
 |---|---|---|
-| GitHub milestone | **`v0.1 · Mondo giocabile`** | ✅ sì, è l'atto della PR |
-| Feature Registry `RT-FEAT-MAP-INTERACTION-GRAPH` | **`v0.1`** | ✅ sì, `v0.2 → v0.1` |
-| corpo della issue | `Release: v0.2` | ❌ no |
-| `docs/gameplay/spec-interazioni-mappa-cp101.md` §11 | il remoto è **fuori scope**, *«richiede la privacy dei collegamenti e quindi la rete»* | ❌ no |
-| `docs/technical/scenario-map.md` | *«v0.2 · E23 · CP 23.4 (#833)»* | ❌ no — e la PR **lo dichiara**: *«Un quarto owner, non toccato […] correggerlo ora sceglierebbe al posto dell'autore»* |
+| GitHub milestone · epic `#324` | `v0.1 · Mondo giocabile` | ✅ allineato |
+| Feature Registry | `v0.1` | ✅ allineato |
+| `roadmap-v0.1.md` §2.1 e §5 | `E23` in v0.1, *«anticipata dalla v0.2 il 2026-08-17»* | ✅ allineato |
+| `roadmap-post-v0.1.md:277` | *«⛔ **E23 NON È PIÙ DI QUESTA RELEASE**»* | ✅ allineato |
+| `technical/tooling/scenario-map.md:632` | *«`RT-FEAT-MAP-INTERACTION-GRAPH` \| v0.1 · E23 · CP 23.4 (`#833`)»* | ✅ allineato |
+| corpo di questa issue | `Release: v0.2` | ❌ **stantio** |
+| `spec-interazioni-mappa-cp101.md` §11 | il controllo remoto è **fuori scope** | ❌ **l'unico ostacolo vero** |
 
-E `E23` — l'epic che contiene `CP 23.4` — **è un'epic `v0.2`** in `roadmap-post-v0.1.md`. La PR lo ha
-misurato con il gate, che ha risposto: `ERROR [execution-graph issue:833] checkpoint 'E23.4' che nessun
-owner dichiara`.
+**[`D-160`](../../decisions/RT_PDR_00_Decision_Log.md) del 2026-08-17 ha già preso la decisione** che #1139
+aveva dichiarato aperta poche ore prima, e con lo stesso argomento: *«E23 è ANTICIPATA dalla v0.2 alla v0.1,
+e per metà è una presa d'atto»* — elencando gli stessi cinque owner e riallineandoli.
 
-⚠️ **La PR #1139 ha visto tutto questo e ha deciso di non decidere**, scrivendolo:
+∴ Resta **un solo** documento a dire il contrario, ed è `CP101 §11`. La sua motivazione è la privacy, e la
+privacy serve quando c'è un client a cui tacere: la v0.1 è *2v2 offline vs bot*. È lo stesso argomento che
+il corpo della issue porta già nel verso opposto — *«uno scenario `NoHiddenRelationLeak` scritto in v0.2 non
+fallirebbe mai, perché passerebbe per assenza di rete»*.
 
-> **Decisione d'autore aperta**: una issue `v0.1` il cui checkpoint sta in un'epic `v0.2` è un'incoerenza
-> reale. Le tre uscite sono anticipare **E23**, riassegnare **#833** a un checkpoint v0.1, o dichiarare
-> l'eccezione in un owner. **Nessuna è un atto meccanico, e nessuna è stata presa qui.**
+### 🎁 E `scenario-map.md` non è solo allineato: **dichiara già gli scenari attesi, con i nomi**
 
-∴ **Questa issue non è bloccata da codice mancante: è bloccata da una decisione d'autore aperta da quindici
-giorni**, che nessuno ha preso perché nessuna delle uscite è meccanica. Implementare il runtime remoto ora
-significherebbe prenderla **per inerzia** — cioè decidere che il remoto è v0.1 scrivendo codice invece che
-una riga di owner. È esattamente il difetto che `D-269`/`D-270` hanno evitato in `#1830` prendendo la
-decisione **prima**.
+```text
+Spec.Map.Interaction.SwitchOpensDoor · …SwitchControlsMultipleDoors · …OpenFailsDependentMoveBlocks
+        RT-FEAT-MAP-INTERACTION-GRAPH  |  v0.1 · E23 · CP 23.4 (#833)
+```
 
-⛔ Il panel **non la prende**, e mette la issue in `Blocked` con l'istruttoria qui sopra.
-
----
+Sono i tre casi del `DoD` — `1→1`, `1→N`, e il bersaglio che rifiuta — già battezzati da un owner. La
+specifica eseguibile di questa issue esisteva e nessuna delle sette riletture l'aveva citata.
 
 ## 5. R3 — i rifiuti sono stringhe, il TurnLog vuole reason code
 
