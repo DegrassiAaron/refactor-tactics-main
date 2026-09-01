@@ -706,6 +706,8 @@ bool FRTChecksumSeesEveryUnitFieldTest::RunTest(const FString&)
 		{ TEXT("Shield"),     [](FRTUnitStateDigest& U) { U.Shield = 20; } },                   // baseline 10
 		{ TEXT("Energy"),     [](FRTUnitStateDigest& U) { U.Energy = 45; } },                   // baseline 30
 		{ TEXT("bAlive"),     [](FRTUnitStateDigest& U) { U.bAlive = false; } },
+		// `Facing` — `D-261`, `#1800`: e' stato logico, non presentazione, e `Combat/` lo consuma.
+		{ TEXT("Facing"),     [](FRTUnitStateDigest& U) { U.Facing = ERTHexDirection::W; } },
 		{ TEXT("Cell.X"),     [](FRTUnitStateDigest& U) { U.Cell = FRTCellId(-1, -1, 0); } },   // baseline (1,-1,0)
 		{ TEXT("Cell.Y"),     [](FRTUnitStateDigest& U) { U.Cell = FRTCellId(1,  1, 0); } },
 		{ TEXT("Cell.Layer"), [](FRTUnitStateDigest& U) { U.Cell = FRTCellId(1, -1, 1); } },
@@ -783,7 +785,7 @@ bool FRTChecksumUnitFieldListIsCompleteTest::RunTest(const FString&)
 	// stati temporanei, caso 3). Se questo elenco e quello della struct divergono, uno dei due va aggiornato —
 	// e quale non è automatico, per questo il test dice cosa è cambiato invece di adattarsi da solo.
 	TArray<FString> Covered = { TEXT("UnitId"), TEXT("Cell"), TEXT("Health"),
-		TEXT("Shield"), TEXT("Energy"), TEXT("bAlive"), TEXT("Statuses") };
+		TEXT("Shield"), TEXT("Energy"), TEXT("bAlive"), TEXT("Facing"), TEXT("Statuses") };
 	Covered.Sort();
 
 	TestEqual(
@@ -794,5 +796,78 @@ bool FRTChecksumUnitFieldListIsCompleteTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * DUE STATI CHE DIFFERISCONO SOLO PER L'ORIENTAMENTO NON HANNO PIU' LO STESSO CHECKSUM — `D-261`, `#1800`.
+ *
+ * 🔴 **Era un hash che non discriminava ciò che il gioco legge.** `FRTUnitStateDigest` aveva sette campi e
+ * nessuno era il `Facing`, mentre `Combat/`, `Perception/` e le reazioni lo consumano: due stati con esiti
+ * futuri diversi producevano lo stesso digest. E' la stessa classe di difetto che `D-245` ha corretto per
+ * `ReactionResponse`.
+ *
+ * 🔑 **La mutazione è del SOLO facing**, ed è ciò che rende il test una misura invece di una descrizione:
+ * ogni altro campo resta identico, quindi un checksum che non cambiasse direbbe che il campo non è entrato.
+ *
+ * ⚠️ Si verifica anche il verso opposto — stesso facing, stesso hash — perché un hash che cambiasse a ogni
+ * chiamata passerebbe la prima asserzione senza discriminare niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChecksumSeesFacingTest,
+	"RefactorTactics.Simulation.ChecksumDiscriminatesFacing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChecksumSeesFacingTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTUnit* Unit = World->SpawnActor<ARTUnit>();
+	if (!Unit) { World->DestroyWorld(false); return false; }
+
+	Unit->StableUnitId = 11;
+	Unit->Health = 40;
+	Unit->Facing = ERTHexDirection::E;
+
+	const TArray<ARTUnit*> Units = { Unit };
+	const TArray<int32> NoScores;
+
+	const TArray<FRTUnitStateDigest> East = URTMatchStateHashLibrary::BuildUnitDigests(Units);
+	const uint32 HashEast = URTMatchStateHashLibrary::HashMatchState(nullptr, East, NoScores);
+
+	// Stessa chiamata, stesso stato: se l'hash non fosse una funzione, il resto non misurerebbe niente.
+	const uint32 HashEastAgain = URTMatchStateHashLibrary::HashMatchState(
+		nullptr, URTMatchStateHashLibrary::BuildUnitDigests(Units), NoScores);
+	TestEqual(TEXT("lo stesso stato da' lo stesso hash"), HashEastAgain, HashEast);
+
+	// LA MUTAZIONE: cambia SOLO dove guarda.
+	Unit->Facing = ERTHexDirection::W;
+	const TArray<FRTUnitStateDigest> West = URTMatchStateHashLibrary::BuildUnitDigests(Units);
+	const uint32 HashWest = URTMatchStateHashLibrary::HashMatchState(nullptr, West, NoScores);
+
+	TestNotEqual(TEXT("cambiato il solo facing, il checksum cambia"), HashWest, HashEast);
+
+	// E il digest lo porta davvero, invece di far cambiare l'hash per un'altra ragione.
+	if (TestEqual(TEXT("un solo digest"), West.Num(), 1))
+	{
+		TestEqual(TEXT("il digest registra il facing mutato"),
+			static_cast<int32>(West[0].Facing), static_cast<int32>(ERTHexDirection::W));
+		TestEqual(TEXT("e nient'altro e' cambiato: la cella"), West[0].Cell, East[0].Cell);
+		TestEqual(TEXT("nient'altro: gli HP"), West[0].Health, East[0].Health);
+		TestEqual(TEXT("nient'altro: l'identita'"), West[0].UnitId, East[0].UnitId);
+	}
+
+	// ⛔ `PlannedFacing` NON entra: e' un intento, e vive nella pianificazione privata della squadra.
+	// Se entrasse, questo checksum renderebbe confrontabile a chiunque cio' che l'avversario ha dichiarato.
+	Unit->Facing = ERTHexDirection::E;
+	Unit->bDeclaresPlannedFacing = true;
+	Unit->PlannedFacing = ERTHexDirection::NW;
+	const uint32 HashWithPlan = URTMatchStateHashLibrary::HashMatchState(
+		nullptr, URTMatchStateHashLibrary::BuildUnitDigests(Units), NoScores);
+	TestEqual(TEXT("un facing PIANIFICATO non tocca il checksum di stato"), HashWithPlan, HashEast);
+
+	World->DestroyWorld(false);
+	GEngine->DestroyWorldContext(World);
+	return true;
+}
 
 #endif // WITH_DEV_AUTOMATION_TESTS
