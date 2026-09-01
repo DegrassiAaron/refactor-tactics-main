@@ -1590,6 +1590,18 @@ void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
 		}
 		else
 		{
+			// 🔴 **Il lock-in del giocatore era MUTO, e una diagnosi ci si e' rotta sopra** (`#1957`). L'unica
+			// riga che abbia mai parlato di lock-in e' quella di `OnPlanningTimeout`, quindi un turno chiuso da
+			// chi gioca e un turno chiuso **da solo** lasciavano il log identico: nessun evento fra l'apertura
+			// del turno e la risoluzione. Un referto di playtest ne ha concluso che il turno 1 «si chiude da
+			// solo dopo 6 s»; l'esperimento `RefactorTactics.HexMatch.FirstTurnDoesNotCloseItself` mostra che
+			// non si chiude affatto, e quei 6 s erano il tempo che il giocatore ha impiegato a premere.
+			//
+			// ⚠️ **Diagnostica, non combat log**: `AddLogEvent` la mostrerebbe a chi gioca, che questa riga
+			// non riguarda. Serve a chi legge `RefactorTactics.log` dopo una seduta.
+			UE_LOG(LogRT, Log, TEXT("[RT] Lock-in del giocatore -> risoluzione anticipata (turno %d)"),
+				TurnManager->GetTurnNumber());
+
 			// L'anteprima muore col lock-in: da qui in poi mostrerebbe una minaccia gia' risolta, e la traccia
 			// del percorso la sostituisce `LastMoveRoutes` (cio' che e' DAVVERO successo, non cio' che si voleva).
 			RefreshPlanningPreview(GetWorld(), nullptr);
