@@ -175,7 +175,7 @@ Il controgioco consiste nel cambiare rotta, usare coperture e LOS per negare le 
 | Che cosa | Dove |
 | --- | --- |
 | Il payload è nel dato | `RefactorTactics.Heroes.Hero.Wraith.MatchesCatalog` |
-| L'effetto si vede in partita | `Visual.Combat.Defeat` — 21 a turno per quattro turni · `Visual.Map.LowCoverEdge`, dove è **il suo** colpo a passare dal bordo riparato e a scendere da 21 a 11: è la misura della copertura, e regge solo perché il suo danno è più grande della riduzione |
+| L'effetto si vede in partita | `Visual.Combat.Defeat` — 21 a turno per **sei** turni (D-224 lo ha allungato da quattro) · `Visual.Map.LowCoverEdge`, dove è **il suo** colpo a passare dal bordo riparato e a scendere da 21 a 11: è la misura della copertura, e regge solo perché il suo danno è più grande della riduzione |
 
 ## Abilità
 

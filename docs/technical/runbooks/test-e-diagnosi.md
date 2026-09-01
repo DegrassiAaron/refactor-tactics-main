@@ -539,7 +539,7 @@ ostacolo** (una situazione che il gioco non produrrebbe mai) vengono rifiutate c
 | `Movement.Blocked` | un muro rende il percorso impossibile: il piano è rifiutato, l'unità resta ferma, il turno si chiude lo stesso |
 | `Movement.Collision` | due unità verso la stessa cella si fermano **entrambe** |
 | `Movement.LongWalk` | due unità attraversano l'arena, 3 celle per turno per 2 turni — **fatto per essere guardato** in PIE |
-| `Combat.BasicAttack` | Gadget colpisce Riktor: 120 → 98 HP. Il primo scenario che verifica un **danno** |
+| `Combat.BasicAttack` | Gadget colpisce Riktor: 120 → 103 HP — 22 dichiarati, 5 assorbiti dal `BaseShield` (D-224), 17 applicati. Il primo scenario che verifica un **danno** |
 | `Combat.BlockedByWall` | stesso attacco con un muro in mezzo: il colpo **non parte** |
 | `Combat.SplashHitsAlliesNotSelf` | l'area colpisce i vicini **e** l'alleato, ma non chi la lancia |
 | `Combat.LineHitsThrough` | la linea colpisce chi sta in mezzo, non solo il bersaglio |
