@@ -835,4 +835,94 @@ bool FRTAnchorExplainPairAgreesWithProductionTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * Le ventiquattro coppie rifiutate sono **quelle che `D-288` dice**, e non solo ventiquattro.
+ *
+ * 🔴 **Il guardiano che mancava.** `RefactorTactics.Anchor.InexpressiblePairsAreRefused` conta `54/24` e
+ * non guarda **quali**: se sei coppie legittime fossero rifiutate e sei illegittime accettate, i due
+ * numeri tornerebbero identici e quel test resterebbe verde. L'affermazione di `GEO-8` —
+ * *«sono tutte e sole le vertice ↔ punto-medio NON ADIACENTE»* — vive oggi solo nella prosa del Decision
+ * Log e in un commento d'enum.
+ *
+ * ⚠️ **Un vertice e' adiacente a due punti medi**, quelli dei due lati che vi si incontrano. Dei sei
+ * punti medi, quindi, ogni vertice ne ha `2` adiacenti e `4` no: `6 x 4 = 24`. Questo test ricostruisce
+ * l'adiacenza dalla geometria — due punti notevoli sono adiacenti se appartengono allo stesso lato — e
+ * non da una tabella scritta a mano, che ripeterebbe l'affermazione invece di verificarla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnchorRefusedPairsAreTheDeclaredOnesTest,
+	"RefactorTactics.Anchor.RefusedPairsAreTheDeclaredOnes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnchorRefusedPairsAreTheDeclaredOnesTest::RunTest(const FString&)
+{
+	const FRTCellId Cell(0, 0, 0);
+
+	TArray<FRTAnchorRef> Anchors;
+	URTGeometryGrammarLibrary::AnchorsOfCell(Cell, Anchors);
+	if (!TestEqual(TEXT("tredici anchor"), Anchors.Num(), RT_AnchorsPerCell))
+	{
+		return false;
+	}
+
+	// Il lato `i` va dal vertice `i` al vertice `i+1`, e il suo punto medio ha indice `i`. Quindi il
+	// punto medio `i` e' adiacente ai vertici `i` e `i+1`, e a nessun altro.
+	auto IsVertexAdjacentToEdgeMid = [](int32 VertexIndex, int32 EdgeMidIndex)
+	{
+		const int32 Count = 6;
+		return VertexIndex == EdgeMidIndex || VertexIndex == ((EdgeMidIndex + 1) % Count);
+	};
+
+	// La coppia DEVE essere rifiutata solo se e' vertice <-> punto-medio non adiacente.
+	auto ShouldBeRefused = [&IsVertexAdjacentToEdgeMid](const FRTAnchorRef& A, const FRTAnchorRef& B)
+	{
+		const bool bVE = (A.Kind == ERTAnchorKind::Vertex && B.Kind == ERTAnchorKind::EdgeMid);
+		const bool bEV = (A.Kind == ERTAnchorKind::EdgeMid && B.Kind == ERTAnchorKind::Vertex);
+		if (!bVE && !bEV) { return false; }
+
+		const int32 V = bVE ? A.Index : B.Index;
+		const int32 E = bVE ? B.Index : A.Index;
+		return !IsVertexAdjacentToEdgeMid(V, E);
+	};
+
+	auto KindName = [](ERTAnchorKind K)
+	{
+		switch (K)
+		{
+		case ERTAnchorKind::Center:  return TEXT("Center");
+		case ERTAnchorKind::Vertex:  return TEXT("Vertex");
+		default:                     return TEXT("EdgeMid");
+		}
+	};
+
+	int32 Expressible = 0, Refused = 0, Mismatches = 0;
+	for (int32 I = 0; I < Anchors.Num(); ++I)
+	{
+		for (int32 J = I + 1; J < Anchors.Num(); ++J)
+		{
+			FRTGeometrySegment S;
+			const bool bOk = URTGeometryGrammarLibrary::SegmentBetweenAnchors(
+				Anchors[I], Anchors[J], AnchorTestHexSize, S);
+			bOk ? ++Expressible : ++Refused;
+
+			const bool bExpectedRefusal = ShouldBeRefused(Anchors[I], Anchors[J]);
+			if (bOk == bExpectedRefusal)
+			{
+				++Mismatches;
+				AddError(FString::Printf(
+					TEXT("%s%d <-> %s%d: la grammatica dice %s, `GEO-8` dice %s"),
+					KindName(Anchors[I].Kind), Anchors[I].Index,
+					KindName(Anchors[J].Kind), Anchors[J].Index,
+					bOk ? TEXT("ESPRIMIBILE") : TEXT("RIFIUTATA"),
+					bExpectedRefusal ? TEXT("RIFIUTATA") : TEXT("ESPRIMIBILE")));
+			}
+		}
+	}
+
+	TestEqual(TEXT("coppie esprimibili"), Expressible, 54);
+	TestEqual(TEXT("coppie rifiutate"), Refused, 24);
+	TestEqual(TEXT("e ogni rifiuto e' quello che GEO-8 dichiara"), Mismatches, 0);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
