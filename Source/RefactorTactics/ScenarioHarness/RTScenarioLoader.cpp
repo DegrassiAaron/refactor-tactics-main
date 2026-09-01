@@ -301,6 +301,82 @@ namespace
 				OutScenario.Cells.Add(Cell);
 			}
 		}
+
+		// --- muri INTERNI alla cella (opzionale, `#1830`) -----------------------------------------------------
+		//
+		// Sono geometria di gioco autorevole da `D-269`: fermano vista e proiettili. Senza questa sezione un
+		// muro interno sarebbe esprimibile solo in C++, e nessuno scenario — quindi nessun replay, nessun
+		// autobattle — potrebbe esercitarlo.
+		const TArray<TSharedPtr<FJsonValue>>* WallsJson = nullptr;
+		if (Root->TryGetArrayField(TEXT("interiorWalls"), WallsJson))
+		{
+			// I nomi si risolvono per RIFLESSIONE, come `ERTLogCategory` piu' sopra: una tabella scritta a mano
+			// qui mentirebbe in silenzio il giorno in cui l'enum cambia.
+			const UEnum* AxisEnum = StaticEnum<ERTTacticalAxis>();
+			const UEnum* TypeEnum = StaticEnum<ERTHexCoverType>();
+
+			for (const TSharedPtr<FJsonValue>& Value : *WallsJson)
+			{
+				const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+				if (!Obj.IsValid()) { OutError = TEXT("interiorWalls: voce non valida"); return false; }
+
+				FRTHexInteriorWall Wall;
+				const TArray<TSharedPtr<FJsonValue>>* CellArr = nullptr;
+				Obj->TryGetArrayField(TEXT("cell"), CellArr);
+				if (!ParseCell(CellArr, Wall.Cell, OutError, TEXT("interiorWalls")))
+				{
+					return false;
+				}
+
+				FString AxisText;
+				Obj->TryGetStringField(TEXT("axis"), AxisText);
+				const int64 AxisValue = AxisEnum ? AxisEnum->GetValueByNameString(AxisText) : INDEX_NONE;
+				if (AxisValue == INDEX_NONE)
+				{
+					OutError = FString::Printf(TEXT("interiorWalls: asse '%s' sconosciuto"), *AxisText);
+					return false;
+				}
+				Wall.Segment.Axis = static_cast<ERTTacticalAxis>(AxisValue);
+
+				Obj->TryGetNumberField(TEXT("offset"), Wall.Segment.Offset);
+				Obj->TryGetNumberField(TEXT("alongStart"), Wall.Segment.AlongStart);
+				Obj->TryGetNumberField(TEXT("alongEnd"), Wall.Segment.AlongEnd);
+				Wall.Segment.Layer = Wall.Cell.Layer;
+				Obj->TryGetNumberField(TEXT("layer"), Wall.Segment.Layer);
+
+				// `type` e' opzionale e vale `High`: un muro interno che non occlude e' il caso raro, e
+				// scriverlo esplicitamente e' meno grave che dimenticarlo e non capire perche' la vista passa.
+				FString TypeText;
+				if (Obj->TryGetStringField(TEXT("type"), TypeText))
+				{
+					const int64 TypeValue = TypeEnum ? TypeEnum->GetValueByNameString(TypeText) : INDEX_NONE;
+					if (TypeValue == INDEX_NONE)
+					{
+						OutError = FString::Printf(TEXT("interiorWalls: tipo '%s' sconosciuto"), *TypeText);
+						return false;
+					}
+					Wall.Segment.WallType = static_cast<ERTHexCoverType>(TypeValue);
+				}
+
+				FString StableText;
+				if (Obj->TryGetStringField(TEXT("stableId"), StableText))
+				{
+					Wall.StableId = FName(*StableText);
+				}
+
+				// La grammatica decide, il loader la chiama: un segmento fuori grammatica e' un errore di
+				// scrittura dello scenario, e va detto QUI invece di essere ignorato a runtime.
+				const ERTGeometryViolation Violation = URTGeometryGrammarLibrary::ValidateSegment(Wall.Segment);
+				if (Violation != ERTGeometryViolation::None)
+				{
+					OutError = FString::Printf(TEXT("interiorWalls: segmento fuori grammatica su %s (violazione %d)"),
+						*Wall.Cell.ToString(), static_cast<int32>(Violation));
+					return false;
+				}
+
+				OutScenario.InteriorWalls.Add(Wall);
+			}
+		}
 		return true;
 	}
 

@@ -331,6 +331,25 @@ FRTCellId URTHexMapAsset::FirstObjectiveCell() const
 	return Best;
 }
 
+void URTHexMapAsset::SortInteriorWallsCanonically(TArray<FRTHexInteriorWall>& Walls)
+{
+	Walls.Sort([](const FRTHexInteriorWall& A, const FRTHexInteriorWall& B)
+	{
+		if (!(A.Cell == B.Cell)) { return URTHexLibrary::StableLess(A.Cell, B.Cell); }
+		if (A.Segment.Axis != B.Segment.Axis)
+		{
+			return static_cast<uint8>(A.Segment.Axis) < static_cast<uint8>(B.Segment.Axis);
+		}
+		if (A.Segment.Offset != B.Segment.Offset) { return A.Segment.Offset < B.Segment.Offset; }
+		if (A.Segment.Layer != B.Segment.Layer) { return A.Segment.Layer < B.Segment.Layer; }
+		const int32 AMin = FMath::Min(A.Segment.AlongStart, A.Segment.AlongEnd);
+		const int32 BMin = FMath::Min(B.Segment.AlongStart, B.Segment.AlongEnd);
+		if (AMin != BMin) { return AMin < BMin; }
+		return FMath::Max(A.Segment.AlongStart, A.Segment.AlongEnd)
+			< FMath::Max(B.Segment.AlongStart, B.Segment.AlongEnd);
+	});
+}
+
 uint32 URTHexMapAsset::ComputeHash() const
 {
 	// Ordine stabile -> hash indipendente dall'ordine di inserimento (copia locale per non mutare l'asset).
@@ -465,17 +484,7 @@ uint32 URTHexMapAsset::ComputeHash() const
 	// e `Transitions`. Gli estremi entrano come coppia NON ordinata: e' lo stesso segmento anche percorso al
 	// contrario, ed e' gia' la regola del suo `operator==`.
 	TArray<FRTHexInteriorWall> SortedWalls = InteriorWalls;
-	SortedWalls.Sort([](const FRTHexInteriorWall& A, const FRTHexInteriorWall& B)
-	{
-		if (A.Cell != B.Cell) { return URTHexLibrary::StableLess(A.Cell, B.Cell); }
-		if (A.Segment.Axis != B.Segment.Axis) { return static_cast<uint8>(A.Segment.Axis) < static_cast<uint8>(B.Segment.Axis); }
-		if (A.Segment.Offset != B.Segment.Offset) { return A.Segment.Offset < B.Segment.Offset; }
-		if (A.Segment.Layer != B.Segment.Layer) { return A.Segment.Layer < B.Segment.Layer; }
-		const int32 AMin = FMath::Min(A.Segment.AlongStart, A.Segment.AlongEnd);
-		const int32 BMin = FMath::Min(B.Segment.AlongStart, B.Segment.AlongEnd);
-		if (AMin != BMin) { return AMin < BMin; }
-		return FMath::Max(A.Segment.AlongStart, A.Segment.AlongEnd) < FMath::Max(B.Segment.AlongStart, B.Segment.AlongEnd);
-	});
+	SortInteriorWallsCanonically(SortedWalls);
 	for (const FRTHexInteriorWall& Wall : SortedWalls)
 	{
 		Hash = HashCombine(Hash, GetTypeHash(Wall.Cell));

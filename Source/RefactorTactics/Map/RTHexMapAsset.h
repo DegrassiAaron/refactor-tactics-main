@@ -406,6 +406,20 @@ public:
 	uint32 ComputeHash() const;
 
 	/**
+	 * L'ORDINE CANONICO dei muri interni, per chi deve mescolarli in un hash.
+	 *
+	 * 🔑 **Esiste per non averne due.** `ComputeHash` e `URTMatchStateHashLibrary` mescolano entrambi la
+	 * geometria intra-cella da `#1830`, e due ordinamenti scritti separatamente sono la forma esatta del
+	 * difetto che `#986` ha gia' pagato su `bConductsElectricity`: un campo mescolato da uno e saltato
+	 * dall'altro, *«due hash che divergevano senza che nessuno l'avesse deciso»*.
+	 *
+	 * L'ordine dell'array lo decide chi edita l'asset, quindi non e' dato: si ordina per cella e poi per
+	 * giacitura. Gli estremi contano come coppia NON ordinata — e' lo stesso segmento anche percorso al
+	 * contrario, ed e' gia' la regola del suo `operator==`.
+	 */
+	static void SortInteriorWallsCanonically(TArray<FRTHexInteriorWall>& Walls);
+
+	/**
 	 * La mappa dichiara almeno una cella OBIETTIVO (formato v11, CP 10.2)?
 	 *
 	 * ⚠️ Esiste perche' il Cleanup deve poter TACERE: su una mappa senza obiettivi non si scrive nessuna voce
