@@ -282,18 +282,42 @@ consecutivi rendono la cella `Blocked` con quattro lati aperti», ottenuto passa
 `ComputeMask`. Nella pipeline reale quei muri diventano coperture. Il segnale c'era: le quattro fixture
 originali stanno tutte a raggio `0.3`–`0.6`, **dentro** la cella.
 
-### 5.2 Il contatto sul confine conta
+### 5.2 Il contatto sul confine conta, il contatto in un punto no — `MSE-4` chiusa
 
 Un footprint appoggiato esattamente al confine fra due settori **li invade entrambi**. È una scelta
 conservativa e deliberata, protetta da
 `RefactorTactics.HexOccupancy.SegmentOnSectorBoundaryOccupiesBothAdjacentSectors`.
 
-Resta aperto il solo caso **puntuale** — un bordo che passa esattamente per un **vertice**, punto in comune
-fra quattro triangoli di settore: è `MSE-4` in §12.
+🔴 **Il contatto in un SOLO PUNTO invece non occupa più.** `MSE-4` è chiusa: `ComputeMask` conta soltanto
+l'intersezione di **lunghezza non nulla**.
+
+> **Perché non era il caso di bordo che sembrava.** La domanda era nata sul *vertice* dell'esagono — punto in
+> comune fra quattro triangoli, e un footprint tangente costa due settori di troppo. Ma il **centro** della
+> cella è il vertice comune di **tutti e dodici**, e `ToPolyline` calcola `Base = Perp × Offset`: ogni
+> segmento con `Offset == 0` ci passa **per definizione**. Un diametro attraversa quattro settori e ne
+> accendeva dodici, lasciando `ComputeFreeRegions` con zero regioni — cioè una cella **inagibile**.
+>
+> Non era un footprint tangente raro: era **ogni muro centrale** che la grammatica esprime e che il tool
+> Geometry disegna.
+
+∴ la regola *«geometria che tocca il centro ⇒ cella bloccata»*, che il Decision Record dichiara **superata**,
+sopravviveva qui — non più come regola scritta, ma come effetto collaterale del produttore della maschera.
+
+| Contatto | Occupa? | Perché |
+|---|---|---|
+| lungo un **segmento** | **sì** | il footprint sta davvero in tutti e due i settori |
+| in un **punto** | **no** | non c'è area invasa, e negli esagoni non apre varchi |
+
+⚠️ **La soglia è sul parametro, non sulla lunghezza.** Il taglio del segmento contro il triangolo dà un
+tratto in `[0, 1]`, e il confronto è fra due numeri **adimensionali**: non dipende da `HexSize`, quindi la
+stessa geometria dà la stessa maschera a qualunque scala — e la maschera entra in `ComputeHash` per la via
+del costo di cella. La separazione è misurata: gli attraversamenti veri danno `5.0e-01`, i contatti puntuali
+`0.0` con un residuo di `5.6e-17` di rumore, e la soglia `1e-9` sta in mezzo con otto ordini di margine per
+parte.
 
 > Negli esagoni la regola conservativa non deve difendere il *varco diagonale*: le sei direzioni di
 > `ERTHexDirection` condividono ciascuna un **lato intero** (`RTCellId.h:11-19`), e non esiste adiacenza per
-> solo vertice.
+> solo vertice. È l'argomento che rende la scelta sicura, ed era già scritto quando `MSE-4` era aperta.
 
 ---
 
@@ -509,7 +533,7 @@ Nessuna di queste si decide in un commit di implementazione. Vivono in
 | ID | Domanda | Innesco |
 |---|---|---|
 | ~~`MSE-1`~~ | ✅ **Chiusa da `D-131`**: `FRTHexCover` acquista `bGenerated`, il rebake tocca solo le proprie — vedi §8.2 | — |
-| `MSE-4` | Un settore toccato in un **solo punto** va contato come occupato, o serve un'intersezione di lunghezza non nulla? | 🔴 **INNESCATA il 2026-08-30, e non dal footprint** — [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826). L'innesco è arrivato dal primo **consumatore di posa**: il **centro** della cella è il vertice comune di *tutti e dodici* i triangoli, quindi ogni segmento con `Offset == 0` accende dodici bit su dodici e lascia la cella senza alcuna regione di posa. È l'istanza più severa della stessa classe — 12 triangoli invece di 4, 8 settori di sovrastima invece di 2, e la conseguenza è **cella inagibile** invece di «cella più stretta». Misurata da `RefactorTactics.CoverPlacement.CentreContactRuleStillCollapsesTheWholeCell` |
+| ~~`MSE-4`~~ | ~~Un settore toccato in un **solo punto** va contato come occupato, o serve un'intersezione di lunghezza non nulla?~~ | ✅ **USCITA (a) — SERVE UN'INTERSEZIONE DI LUNGHEZZA NON NULLA; IL CONTATTO PUNTUALE NON OCCUPA — chiusa il 2026-08-31 da [`D-306`](../decisions/RT_PDR_00_Decision_Log.md), implementata in [#1826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1826).** *Istruttoria conservata:* la domanda ragionava sul **vertice** dell'esagono — quattro triangoli, due settori di sovrastima — e la nota la dichiarava *«non urgente come sembrava»*. 🔴 **L'innesco è arrivato dal centro, non dal vertice**: il centro è il vertice comune di *tutti e dodici* i triangoli, e `ToPolyline` calcola `Base = Perp × Offset`, quindi **ogni** segmento con `Offset == 0` ci passa per definizione — dodici bit su dodici, zero regioni di posa, **cella inagibile**. Non un footprint tangente che non esiste ancora, ma ogni muro passante che il tool Geometry disegna. ⚠️ **Il contatto lungo un SEGMENTO resta occupato**, ed è ciò che l'uscita (b) difendeva: cade il solo caso puntuale, e `SegmentOnSectorBoundaryOccupiesBothAdjacentSectors` resta verde. **Consumatore**: [#1827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1827) (`E23.6`), che `MSE-4` bloccava end-to-end |
 | ~~`MSE-2`~~ | ✅ **Sciolta da `D-125`**: misurava i **muri**, che non alimentano l'occupancy — vedi §5.1 | — |
 | ~~`MSE-3`~~ | ✅ **Chiusa da `D-125`**: i due modelli misurano la stessa cosa a due granularità | — |
 
