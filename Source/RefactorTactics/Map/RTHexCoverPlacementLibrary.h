@@ -86,10 +86,19 @@ struct FRTPlacementRegion
 /**
  * QUANTO SPAZIO CHIEDE UN'UNITA' PER STARE IN UNA CELLA.
  *
- * ⚠️ **I valori di catalogo NON sono decisi, e questo tipo non li inventa.** Categorie di footprint e
- * raggi di clearance sono decisioni aperte del Decision Record: qui c'e' il PARAMETRO, non il numero. Il
- * default e' l'IDENTITA' — «basta un settore libero» — che e' la scelta piu' debole possibile e quindi
- * l'unica che non decide niente al posto di chi dovra' decidere.
+ * ✅ **I valori di catalogo sono decisi, e questo tipo continua a non inventarli** (`D-307`, 2026-08-31):
+ * `Small` **2** · `Medium` **3** · `Large` **4** settori contigui. Vivono in
+ * `docs/balance/RT_FootprintCatalog_v0.1.md`, che ne e' l'owner; qui c'e' il PARAMETRO, non il numero, ed e'
+ * la ragione per cui il default non e' cambiato.
+ *
+ * 🔑 **Due sono determinati, il terzo e' una scelta.** `Small` e `Medium` sono l'unica coppia che
+ * soddisfa insieme *«>= 2»* (con `1` basta un settore, e un profilo a `1` non distingue nulla), *«<= 3»*
+ * (`D-289`: nel gruppo da tre del suo esempio l'unita' standard *«ci sta benissimo»*) e `Small < Medium`.
+ * `Large = 4` e' il minimo disponibile sopra `Medium`: nulla nella geometria lo obbliga a fermarsi li'.
+ *
+ * ⚠️ **Nessuna unita' dichiara ancora un profilo**, quindi oggi userebbero tutte `Medium`. Il default
+ * resta l'IDENTITA' — «basta un settore libero» —, che non e' una quarta taglia ma il valore di chi non
+ * ha dichiarato niente: la scelta piu' debole possibile, e quindi l'unica che non decide al posto d'altri.
  *
  * Un default piu' alto sarebbe un numero di bilanciamento travestito da costante, ed e' esattamente la
  * classe di difetto che `FRTOccupancyThresholds::BlockedFrom` ha portato dentro questo repository: `6` non
