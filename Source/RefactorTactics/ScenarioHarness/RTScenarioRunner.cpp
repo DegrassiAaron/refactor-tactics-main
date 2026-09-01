@@ -442,12 +442,14 @@ namespace
 }
 
 FRTTestResult URTScenarioRunner::RunSingle(UWorld* World, const FRTTestScenario& Scenario,
-	bool bTearDownAfter)
+	bool bTearDownAfter, const FRTWorkbenchVariant& Variant)
 {
 	// Ciclo stretto sopra la STESSA sessione che il gioco fa avanzare un passo per frame. Non e' una seconda
 	// implementazione: se lo fosse, un test verde non direbbe piu' niente su quel che si vede a schermo.
 	FRTScenarioSession Session;
 	Session.TurnPauseSeconds = 0.f; // headless non c'e' nessuno a guardare: nessuna pausa da rispettare
+	// La variante prima di `Start`, che e' dove la sessione la applica: passarla dopo sarebbe un'ora tardi.
+	Session.WorkbenchVariant = Variant;
 
 	// Il tempo di parete parte da QUI e non dal primo step: `Start` allestisce mondo, unita' e mappa, e su
 	// uno scenario grande e' una fetta reale del costo. Escluderlo darebbe una durata che non corrisponde a

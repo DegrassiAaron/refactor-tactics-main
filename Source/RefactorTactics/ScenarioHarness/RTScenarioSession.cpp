@@ -642,6 +642,43 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 		UnitsById.Add(Spec.Id, Unit);
 	}
 
+	// LA VARIANTE SPERIMENTALE (`#2004`). Qui e non altrove, e le due condizioni contano entrambe:
+	//
+	//   · DOPO il ciclo, perche' un override si valida contro l'unione dei kit — un `ActionId` che
+	//     NESSUNA unita' porta e' un errore di run, e dentro il ciclo non si potrebbe ancora saperlo;
+	//   · DOPO `EquipLoadout`, che e' la configurazione di produzione: l'esperimento sta SOPRA di essa.
+	//     Applicarlo prima lo farebbe sovrascrivere da una variante d'arma, e il designer vedrebbe il
+	//     proprio numero sparire senza un motivo visibile.
+	//
+	// ⚠️ L'override raggiunge OGNI istanza che porta l'azione, non la prima: ogni unita' ha le proprie da
+	// `ConfigureFromHeroData`, e fermarsi alla prima farebbe leggere una differenza che viene da QUALE
+	// unita' ha agito invece che dal numero.
+	if (!WorkbenchVariant.IsBaseline())
+	{
+		TArray<URTActionData*> KitDiTutti;
+		for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Voce : UnitsById)
+		{
+			ARTUnit* U = Voce.Value.Get();
+			if (U == nullptr) { continue; }
+			for (int32 i = 0; i < U->NumAbilities(); ++i)
+			{
+				if (URTActionData* A = U->GetAbility(i)) { KitDiTutti.Add(A); }
+			}
+		}
+
+		FRTWorkbenchVariant Ripristino;
+		const ERTVariantApplyResult Esito =
+			URTWorkbenchVariantLibrary::Apply(WorkbenchVariant, KitDiTutti, Ripristino);
+		if (Esito != ERTVariantApplyResult::Ok)
+		{
+			// Fail-closed PRIMA del primo turno: una variante applicata a meta' darebbe una run che il
+			// designer attribuirebbe all'esperimento che ha configurato, e non lo sarebbe.
+			return Fail(FString::Printf(
+				TEXT("variante '%s': non applicabile al kit di questo scenario (esito %d)"),
+				*WorkbenchVariant.VariantId.ToString(), static_cast<int32>(Esito)));
+		}
+	}
+
 	ARTTurnManager* TM = Cast<ARTTurnManager>(
 		UGameplayStatics::GetActorOfClass(InWorld, ARTTurnManager::StaticClass()));
 	if (!TM)

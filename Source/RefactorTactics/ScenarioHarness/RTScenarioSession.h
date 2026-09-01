@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "ScenarioHarness/RTTestScenario.h"
 #include "ScenarioHarness/RTTestResult.h"
+#include "Ability/RTWorkbenchVariant.h" // per valore: la sessione la possiede, non la osserva
 
 class UWorld;
 class ARTUnit;
@@ -48,6 +49,25 @@ public:
 	 * si muovano. 0 = nessuna pausa (e' il valore delle esecuzioni headless, dove non c'e' nessuno a guardare).
 	 */
 	float TurnPauseSeconds = 0.f;
+
+	/**
+	 * La variante sperimentale dello Skill Workbench, applicata al kit delle unita' **dopo**
+	 * l'equipaggiamento e **prima** del primo turno. Vuota = baseline, ed e' il default.
+	 *
+	 * ⚠️ **Vive qui e non nel formato scenario**, per decisione ([`#1982`], strada C): `FRTScenarioVariant`
+	 * e' un canary di EQUITA' — chiede che le varianti producano lo stesso TurnLog per dimostrare che un
+	 * ingresso *non* ha avuto effetto — e questa serve l'opposto. Non essendo serializzata, non puo'
+	 * raggiungere un dato di produzione nemmeno per errore.
+	 *
+	 * ⚠️ **Dopo il loadout, non prima**: `EquipLoadout` e' la configurazione di PRODUZIONE — la stessa che
+	 * `FRTMatchBootstrapper` monta in partita, varianti d'arma comprese. L'esperimento sta sopra di essa,
+	 * altrimenti il loadout lo sovrascriverebbe e il designer vedrebbe la variante sparire senza un motivo
+	 * visibile.
+	 *
+	 * Campo pubblico come `TurnPauseSeconds`: si imposta prima di `Start`, e chi non lo tocca esegue la
+	 * baseline.
+	 */
+	FRTWorkbenchVariant WorkbenchVariant;
 
 	/**
 	 * Allestisce il mondo: arena, unita' dal catalogo, turn manager.
