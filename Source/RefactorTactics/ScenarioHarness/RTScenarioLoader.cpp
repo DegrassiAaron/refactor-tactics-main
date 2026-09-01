@@ -8,6 +8,7 @@
 #include "Turn/RTTurnRules.h"
 #include "Turn/RTReactionOpportunityTypes.h" // IsDeclaredConditionAllowed: il validator della condizione sta nel gioco
 #include "Map/RTHexLibrary.h"
+#include "Map/RTGeometryGrammar.h" // i muri interni si validano con la grammatica, non con una sua copia (#2031)
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Dom/JsonObject.h"
@@ -1331,6 +1332,7 @@ namespace
 					*Cell.Cell.ToString(), Cell.OccupancySurcharge);
 				return false;
 			}
+
 		}
 		return true;
 	}

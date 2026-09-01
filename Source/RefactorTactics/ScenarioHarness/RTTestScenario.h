@@ -153,7 +153,6 @@ enum class ERTAssertionKind : uint8
 	 */
 	EffectiveTargetEquals
 };
-
 /**
  * Modifica di una cella dell'arena generata: ostacoli, muri, terreno costoso.
  *
@@ -191,6 +190,7 @@ struct FRTScenarioCell
 	 */
 	UPROPERTY()
 	int32 OccupancySurcharge = 0;
+
 };
 
 /** Un'unita' schierata dallo scenario. */
