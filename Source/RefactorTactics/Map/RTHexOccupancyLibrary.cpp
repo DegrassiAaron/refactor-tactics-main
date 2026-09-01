@@ -2,58 +2,6 @@
 
 namespace
 {
-	/** Prodotto vettoriale 2D di `OA` x `OB`: il segno dice da che parte sta `B` rispetto alla retta `OA`. */
-	double Cross2D(const FVector2D& O, const FVector2D& A, const FVector2D& B)
-	{
-		return (A.X - O.X) * (B.Y - O.Y) - (A.Y - O.Y) * (B.X - O.X);
-	}
-
-	int32 SignOf(double Value)
-	{
-		if (Value > UE_KINDA_SMALL_NUMBER) { return 1; }
-		if (Value < -UE_KINDA_SMALL_NUMBER) { return -1; }
-		return 0;
-	}
-
-	/** `P` collineare con `AB`: ci sta dentro? */
-	bool WithinSegmentBounds(const FVector2D& A, const FVector2D& B, const FVector2D& P)
-	{
-		return P.X <= FMath::Max(A.X, B.X) + UE_KINDA_SMALL_NUMBER
-			&& P.X >= FMath::Min(A.X, B.X) - UE_KINDA_SMALL_NUMBER
-			&& P.Y <= FMath::Max(A.Y, B.Y) + UE_KINDA_SMALL_NUMBER
-			&& P.Y >= FMath::Min(A.Y, B.Y) - UE_KINDA_SMALL_NUMBER;
-	}
-
-	bool SegmentsIntersect(const FVector2D& A, const FVector2D& B, const FVector2D& C, const FVector2D& D)
-	{
-		const int32 D1 = SignOf(Cross2D(A, B, C));
-		const int32 D2 = SignOf(Cross2D(A, B, D));
-		const int32 D3 = SignOf(Cross2D(C, D, A));
-		const int32 D4 = SignOf(Cross2D(C, D, B));
-
-		if (D1 != D2 && D3 != D4)
-		{
-			return true;
-		}
-		// Casi collineari: un contatto sul bordo CONTA come occupazione. E' la scelta conservativa, ed e'
-		// quella giusta qui: un muro appoggiato esattamente al confine fra due settori li invade entrambi.
-		if (D1 == 0 && WithinSegmentBounds(A, B, C)) { return true; }
-		if (D2 == 0 && WithinSegmentBounds(A, B, D)) { return true; }
-		if (D3 == 0 && WithinSegmentBounds(C, D, A)) { return true; }
-		if (D4 == 0 && WithinSegmentBounds(C, D, B)) { return true; }
-		return false;
-	}
-
-	bool PointInTriangle(const FVector2D& P, const FVector2D& T0, const FVector2D& T1, const FVector2D& T2)
-	{
-		const int32 S0 = SignOf(Cross2D(T0, T1, P));
-		const int32 S1 = SignOf(Cross2D(T1, T2, P));
-		const int32 S2 = SignOf(Cross2D(T2, T0, P));
-		const bool bAnyNegative = (S0 < 0) || (S1 < 0) || (S2 < 0);
-		const bool bAnyPositive = (S0 > 0) || (S1 > 0) || (S2 > 0);
-		return !(bAnyNegative && bAnyPositive); // uno zero significa «sul bordo», e il bordo conta
-	}
-
 	/**
 	 * IL SEGMENTO ATTRAVERSA IL TRIANGOLO CON LUNGHEZZA NON NULLA? — `MSE-4`, `#1826`.
 	 *
