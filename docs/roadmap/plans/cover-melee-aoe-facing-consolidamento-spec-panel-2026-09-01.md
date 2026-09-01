@@ -305,6 +305,18 @@ stesso peso di §20 (Facing), che è implementato e ha 13 test.
 > ⚠️ **§31 conta due volte** ed è voluto: tre dei suoi quattro valori sono chiusi da `D-302`, il quarto è
 > `FAC-13` e resta aperto. È la stessa riga in due stati.
 
+> 🔁 **Aggiunto il 2026-09-01, secondo passaggio — una terza volta, e la decisione è in volo.** `COV-7` è
+> stata chiusa in giornata da una decisione che rivendica `D-308` in
+> [PR #2016](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2016), **non ancora mergiata**, e che
+> fissa il vault: *«`Low Cover` ⛔ non automaticamente scavalcabile»*, con il vault che esiste **solo dove un
+> autore l'ha disegnato** nel tactical graph. Il kit dice l'opposto in due punti — §2.1 (`Vaultable = true` di
+> default sulla Low Cover) e §7 (*«Se il Dash incontra Low Cover: `CanVault == true`»*).
+>
+> ∴ Il conteggio *«23 già canone»* di questo referto **resta vero alla sua misura** (`90cdc903`), ma §2.1 e §7
+> si spostano da «backlog» a «conflitto» appena `D-308` entra in `main`. ⚠️ **Non si aggiorna qui**: finché la
+> PR è aperta quell'ID vive solo nel suo diff, e il primo `D-nnn` libero è **`D-312`** — #2016 ne rivendica
+> quattro, da `D-308` a `D-311`.
+
 ## 8. Che cosa si è fatto
 
 | Azione | Dove |
