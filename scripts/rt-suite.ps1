@@ -102,6 +102,21 @@
 .PARAMETER PollSeconds
     Ogni quanto ricontrollare durante l'attesa. Default 30.
 
+.PARAMETER NoIssueRefs
+    Salta il promemoria `issue-refs` stampato dopo un verdetto `VALIDA`.
+
+    Quel controllo confronta i percorsi citati dalle issue APERTE con l'albero, e
+    sta qui perche' il difetto che chiude non nasce da un commit: nasce dal tempo
+    che passa fra la rimozione di un file e la issue che nessuno riapre. Il
+    2026-08-31 ne sono state corrette 63, trovate a mano dieci giorni dopo.
+
+    🔴 **Non concorre al verdetto, ed e' una scelta.** Legge GitHub, che cambia
+    mentre la suite gira: in una run da quaranta minuti puo' passare all'avvio e
+    fallire alla fine. Farlo entrare nelle invarianti renderebbe `NON VALIDA` una
+    misura sana per una issue che ha modificato qualcun altro — cioe' il difetto
+    che questo script esiste per impedire. Stampa, e l'exit code resta quello dei
+    test. Serve rete e `gh`: senza, dichiara `NOT RUN` e non blocca niente.
+
 .EXAMPLE
     ./scripts/rt-suite.ps1
     ./scripts/rt-suite.ps1 -Filter RefactorTactics.Scenario
@@ -137,7 +152,14 @@ param(
     # Minimo 1: con `0` il ciclo diventa uno spin che rifa' la query di continuo
     # sulla stessa macchina dove sta girando l'automation di qualcun altro.
     [ValidateRange(1, 3600)]
-    [int] $PollSeconds = 30
+    [int] $PollSeconds = 30,
+
+    # Salta il promemoria `issue-refs` in coda al verdetto.
+    #
+    # Quel controllo legge GitHub, non l'albero: e' l'unica cosa in questo script
+    # che dipende da una fonte che nessuno qui controlla, e per questo NON entra
+    # nelle invarianti e NON cambia l'esito. Vedi §PROMEMORIA in fondo.
+    [switch] $NoIssueRefs
 )
 
 $ErrorActionPreference = 'Stop'
@@ -734,6 +756,64 @@ if ($dangling -gt 0) {
 }
 Say ("  durata    {0:mm\:ss}" -f $sw.Elapsed)
 Say "  log: $LogPath"
+
+# ------------------------------------------------------------- PROMEMORIA
+# `issue-refs` confronta i percorsi citati dalle issue APERTE con l'albero. Sta
+# qui perche' il difetto che chiude non nasce da un commit: nasce dal tempo che
+# passa fra la rimozione di un file e la issue che nessuno riapre. Il 2026-08-31
+# ne sono state corrette 63, trovate a mano dieci giorni dopo la rimozione.
+#
+# 🔴 **Non concorre al verdetto, e non e' una svista.** §9 di AGENTS.md: una
+# misura vale solo se osserva lo STESSO HEAD, albero, binario e motore
+# dall'inizio alla fine. Questo controllo legge GitHub, che cambia mentre la
+# suite gira — in una run da 40 minuti puo' passare all'avvio e fallire alla
+# fine. Farlo entrare in `$problems` renderebbe NON VALIDA una misura sana per
+# una issue che qualcun altro ha modificato nel frattempo, ed e' esattamente il
+# difetto che questo script esiste per impedire. Percio': stampa e basta.
+# L'esito resta quello dei test.
+if (-not $NoIssueRefs) {
+    $gate = Join-Path $RepoRoot 'tools/radar/issue-refs.ts'
+    $haveNode = [bool] (Get-Command node -ErrorAction SilentlyContinue)
+    $haveGh   = [bool] (Get-Command gh   -ErrorAction SilentlyContinue)
+
+    if (-not (Test-Path $gate)) {
+        Say '  issue-refs NOT RUN: tools/radar/issue-refs.ts non presente'
+    } elseif (-not $haveNode -or -not $haveGh) {
+        Say ("  issue-refs NOT RUN: {0} non disponibile" -f $(if (-not $haveNode) { 'node' } else { 'gh' }))
+    } else {
+        # `2>&1` perche' il gate scrive la copertura su stderr, come gli altri
+        # radar. `--check` per avere l'exit code, che qui si LEGGE e non si
+        # propaga.
+        #
+        # ⚠️ Il `try` non e' difensivita' generica, copre un caso preciso: con
+        # `$PSNativeCommandUseErrorActionPreference = $true` — oggi `False` su
+        # questa macchina, ma e' una preferenza che si puo' attivare, e in PS 7.4+
+        # esiste apposta — un comando nativo che esce non-zero diventa un errore
+        # TERMINANTE sotto `ErrorActionPreference = 'Stop'`. Senza `try`, un
+        # promemoria informativo farebbe abortire una suite sana **dopo** che i
+        # test sono passati, e il referto non uscirebbe affatto.
+        $gateExit = 0
+        $out = $null
+        try {
+            $out = & node $gate --check 2>&1
+            $gateExit = $LASTEXITCODE
+        } catch {
+            $gateExit = -1
+        }
+
+        $sintesi = ($out | Where-Object { $_ -match 'riferimenti a percorsi RIMOSSI|nessuna issue cita|NOT RUN' } | Select-Object -First 1)
+        if ($gateExit -eq 0) {
+            Say ("  issue-refs {0}" -f $(if ($sintesi) { $sintesi } else { 'verde' }))
+        } elseif ($gateExit -lt 0) {
+            Say '  issue-refs NOT RUN: il gate non ha potuto girare (nessun effetto su questo verdetto)'
+        } else {
+            Say ("  issue-refs 🔴 {0}" -f $(if ($sintesi) { $sintesi } else { "exit $gateExit" }))
+            Say '             non tocca l''esito di questa suite: misura GitHub, non l''albero.'
+            Say '             per il dettaglio: node tools/radar/issue-refs.ts --check'
+        }
+    }
+}
+
 exit $(if ($failed -gt 0) { 1 } else { 0 })
 
 }

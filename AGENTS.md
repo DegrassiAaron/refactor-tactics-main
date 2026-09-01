@@ -336,8 +336,16 @@ Il gate stampa le esenzioni a ogni esecuzione.
 
 ⚠️ **Si lancia a mano, come gli altri radar** — vedi §9: *«non introdurre CI senza una decisione
 esplicita»*. Il difetto che chiude però non nasce da un commit, **nasce dal tempo che passa** fra la
-rimozione di un percorso e la issue che nessuno riapre: lanciarlo dopo ogni rimozione di file, e
-periodicamente, è ciò che sostituisce lo schedule che il repository non ha.
+rimozione di un percorso e la issue che nessuno riapre.
+
+Per questo `rt-suite.ps1` lo esegue **come promemoria** dopo un verdetto `VALIDA`, e lo si disattiva con
+`-NoIssueRefs`:
+
+🔴 **Non concorre al verdetto della suite, ed è una scelta, non una svista.** Legge GitHub, che cambia
+mentre la suite gira: in una run da quaranta minuti può passare all'avvio e fallire alla fine. Farlo
+entrare nelle invarianti di §9 renderebbe `NON VALIDA` una misura sana per una issue che ha modificato
+qualcun altro — cioè il difetto che `rt-suite.ps1` esiste per impedire. Stampa, e l'esito resta quello
+dei test.
 
 Gli output generati dei radar non si editano a mano.
 
