@@ -41,6 +41,13 @@ public:
 	 * l'esagono e' piu' stretto, e per giunta con i caratteri posati **all'indietro** rispetto al proprio
 	 * asse di lettura.
 	 *
+	 * 🔴 **L'alto dei caratteri guarda verso il BORDO, non verso il centro**, e il verso non e' una
+	 * preferenza: e' cio' che li rende leggibili da una camera dall'alto. La prima stesura lo aveva al
+	 * contrario e i glifi uscivano **ribaltati sull'orizzontale** — `2` disegnato come `5`, che a sette
+	 * segmenti ne e' esattamente il ribaltamento, e la virgola in alto. L'errore era di convenzione:
+	 * Unreal e' **mancino** e la sua vista dall'alto mette `X` in su e `Y` a destra, quindi la condizione
+	 * di leggibilita' e' l'opposta di quella della base destrorsa della matematica.
+	 *
 	 * ⚠️ I sei vertici li da' `URTHexLibrary::CellCorners`, e i punti medi e le direzioni dei lati si
 	 * DERIVANO da quelli: una seconda formula per la stessa forma e' il difetto visto in `U22` — celle
 	 * piene tonde e contorno esagonale.
