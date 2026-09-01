@@ -132,19 +132,27 @@ Nessuna delle quattro decisioni registrate oggi ha scritto una riga di `Source/`
 | Schema micro-step nella traccia | [#1880](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1880) | l'audit dei campi, che resta obbligatorio |
 | `Pause`/`StepMicroStep` | [#1879](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1879) | niente |
 | Diagnosi del comportamento del bot | [#1902](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1902) | la seduta PIE di [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) per il termine mancante |
-| I due test degli invarianti di micro-step | [#2000](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2000) | niente — ⚠️ esiste lavoro **non verificato** sul branch `test/2000-microstep-invarianti`, vedi §7 |
+| I due test degli invarianti di micro-step | [#2000](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2000) | ✅ **scritti e verificati per mutazione** sul branch `test/2000-microstep-invarianti` da una sessione parallela — resta la PR, vedi §7 |
 
 ---
 
-## 7. ⚠️ Lavoro preservato ma non verificato
+## 7. Il lavoro parallelo su `#2000`, e cosa insegna
 
-Il branch `test/2000-microstep-invarianti` porta un commit (`8f8cafe8`) con i due test che
+Quando questo pass è cominciato, i due test che
 [#2000](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2000) chiede —
-`OneTransitionMax_PerMicroStep` e `BlockedPath_DoesNotAutoReroute`. Era **non committato** nel working tree
-quando questo pass è cominciato, ed è stato committato **per non perderlo**, non per consegnarlo.
+`OneTransitionMax_PerMicroStep` e `BlockedPath_DoesNotAutoReroute` — erano **non committati** nel working
+tree condiviso. Sono stati committati per non perderli (`8f8cafe8`), dichiarandoli non verificati.
 
-⛔ **Nessuna build, nessuna suite**: il messaggio del commit lo dichiara. Chi riprende `#2000` parta da lì e
-lo verifichi prima di trattarlo come lavoro fatto.
+🔁 **Quella dichiarazione era sbagliata, ed è stata rettificata da un'altra sessione poche ore dopo**
+(`f942d706`): il codice era già compilato e verde, e ora porta anche la **verifica per mutazione** —
+portando il resolver ad avanzare due nodi per micro-step, i due test nuovi falliscono e
+`StepperMatchesBatchResolver` **resta verde**, che è esattamente la tesi della issue.
+
+🔑 **La lezione vale oltre `#2000`, e va letta prima di committare in questo repository**: un working
+tree condiviso non porta la data del proprio contenuto. Un file non committato può essere già stato
+compilato, già verificato, o già smontato da qualcun altro — e un referto scritto guardando solo il diff
+dichiara con sicurezza qualcosa che nessuno ha misurato. ⚠️ Qui il danno è stato solo un messaggio di
+commit da rettificare; con un `.uasset` sarebbe stato un fix disfatto.
 
 ---
 
