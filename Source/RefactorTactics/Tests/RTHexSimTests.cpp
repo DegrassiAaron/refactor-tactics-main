@@ -1593,4 +1593,156 @@ bool FRTHexSimStepperOwnsInputTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// I due invarianti che il resolver applicava senza che nessun test li nominasse (#2000, D-305)
+//
+// `spec-tassonomia-movimento.md` §2.0 li dichiara dal 2026-08-31. Fino ad allora erano veri per abitudine
+// d'implementazione: `Movement.StepperMatchesBatchResolver` li esercitava senza asserirli, quindi una
+// riscrittura del ciclo che li avesse rotti sarebbe rimasta verde finche' i due percorsi restavano d'accordo
+// FRA LORO.
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * `MaxGraphTransitionsPerUnitPerMicroStep = 1` — un microstep avanza di UN nodo del percorso, mai due.
+ *
+ * 🔑 **Il percorso cambia LAYER a meta'**, e non e' un dettaglio decorativo: `(1,0,0)` e `(1,0,1)` **non sono
+ * adiacenti sull'esagono** — `FRTCellId::operator==` confronta il `Layer`, e celle su layer diversi si
+ * raggiungono solo per arco esplicito. Un ciclo che ragionasse per adiacenza esagonale invece che per nodi
+ * del percorso qui sbaglierebbe; uno che "compattasse" i passi non-adiacenti pure. E' la ragione per cui la
+ * regola si enuncia su una TRANSIZIONE DEL GRAFO e non su un esagono vicino: cosi' vale gia' per rampe,
+ * scale, ponti, tunnel e porte, senza riscritture.
+ *
+ * ⚠️ **L'asserzione forte e' l'uguaglianza, non una disuguaglianza**: `Pos == Paths[k]` dopo `k` microstep
+ * esclude in un colpo solo l'avanzamento doppio e quello nullo. Un `Pos != Paths[k+1]` sarebbe passato anche
+ * per un resolver fermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementOneTransitionPerMicroStepTest,
+	"RefactorTactics.Movement.OneTransitionMax_PerMicroStep",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementOneTransitionPerMicroStepTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	// Cinque nodi, quattro archi, e il terzo arco e' un cambio di layer.
+	Paths.Add({ FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), FRTCellId(1, 0, 1), FRTCellId(2, 0, 1), FRTCellId(3, 0, 1) });
+	// Una seconda unita' lontana e piu' lenta: il tetto e' PER UNITA', non una proprieta' del caso a uno.
+	Paths.Add({ FRTCellId(0, 5, 0), FRTCellId(1, 5, 0), FRTCellId(2, 5, 0) });
+
+	const int32 ArcsA = Paths[0].Num() - 1;
+	const int32 ArcsB = Paths[1].Num() - 1;
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths);
+
+	TestTrue(TEXT("le due unita' partono dai propri nodi zero"),
+		State.Pos.Num() == 2 && State.Pos[0] == Paths[0][0] && State.Pos[1] == Paths[1][0]);
+
+	for (int32 k = 1; k <= ArcsA; ++k)
+	{
+		const bool bMoved = URTHexSimLibrary::ResolveNextHexMicroStep(State);
+		TestTrue(FString::Printf(TEXT("microstep %d: qualcuno si e' mosso"), k), bMoved);
+
+		// Il cuore del test: dopo k microstep si e' esattamente al k-esimo nodo.
+		TestTrue(FString::Printf(TEXT("microstep %d: A e' al nodo %d %s, non oltre"),
+				k, k, *Paths[0][k].ToString()),
+			State.Pos[0] == Paths[0][k]);
+		TestTrue(FString::Printf(TEXT("microstep %d: e il progresso di A vale %d"), k, k),
+			State.Prog[0] == k);
+
+		// B ha un percorso piu' corto: avanza finche' ne ha, poi resta ferma. Mai due archi in un colpo.
+		const int32 ExpectedB = FMath::Min(k, ArcsB);
+		TestTrue(FString::Printf(TEXT("microstep %d: B e' al nodo %d, non oltre"), k, ExpectedB),
+			State.Pos[1] == Paths[1][ExpectedB]);
+	}
+
+	TestTrue(TEXT("A e' arrivata in fondo"), State.Pos[0] == Paths[0][ArcsA]);
+
+	// Il conto totale chiude il cerchio: quattro archi, quattro microstep che muovono. Se uno solo ne avesse
+	// consumati due, saremmo arrivati prima e questo numero sarebbe diverso.
+	const bool bMovedAgain = URTHexSimLibrary::ResolveNextHexMicroStep(State);
+	TestFalse(TEXT("dopo l'ultimo arco nessun microstep muove piu'"), bMovedAgain);
+	TestTrue(TEXT("la risoluzione e' finita"), State.bFinished);
+
+	const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+	TestTrue(TEXT("A ha percorso tutti e quattro gli archi, uno per microstep"),
+		Out.Num() == 2 && Out[0].Entered.Num() == ArcsA);
+	TestTrue(TEXT("e l'ultimo nodo entrato e' quello su layer 1"),
+		Out.Num() == 2 && Out[0].Final == FRTCellId(3, 0, 1));
+
+	return true;
+}
+
+/**
+ * `auto-reroute: mai` — il resolver percorre il PIANO che ha ricevuto; non ne cerca un altro.
+ *
+ * La matrice di `spec-tassonomia-movimento.md` §2 porta questa riga su tutte e quattro le famiglie. Il client
+ * pianifica, l'autorita' valida e risolve **quel** piano: se una transizione diventa invalida durante la
+ * risoluzione, il residuo si interrompe.
+ *
+ * ⚠️ **Il punto (3) e' cio' che rende il test non vacuo, e va letto prima del punto (4).** Senza dimostrare
+ * che una via attorno ESISTE ed e' dentro il budget, «non ha deviato» sarebbe vero anche di una scena in cui
+ * deviare era impossibile — e il test passerebbe per assenza di alternative invece che per assenza di
+ * reroute. E' lo stesso difetto che `Oracoli che non discriminano` descrive: un'asserzione che non puo'
+ * fallire per la ragione che dichiara.
+ *
+ * 🔎 Nota su cosa NON prova: `ResolveHexPaths` non riceve la mappa, quindi non potrebbe deviare nemmeno
+ * volendo — ed e' precisamente la garanzia. Questo test pinna che la separazione resti: il giorno in cui
+ * qualcuno passasse lo snapshot al resolver «per gestire meglio i blocchi», il punto (4) diventerebbe rosso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementBlockedPathNoRerouteTest,
+	"RefactorTactics.Movement.BlockedPath_DoesNotAutoReroute",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementBlockedPathNoRerouteTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeSimMap(3);
+
+	// (1) In pianificazione la via diretta e' libera: A pianifica (0,0) -> (1,0) -> (2,0).
+	TArray<FRTHexSimUnit> AtPlanning;
+	AtPlanning.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 6));
+	const FRTHexSnapshot Before = URTHexSimLibrary::MakeSnapshot(M, AtPlanning);
+
+	const FRTHexPathResult Planned = URTHexSimLibrary::FindPathForUnit(Before, 1, FRTCellId(2, 0));
+	TestTrue(TEXT("(1) il piano esiste"), Planned.Status == ERTHexPathStatus::Success);
+	TestEqual(TEXT("(1) ed e' la via diretta, costo 2"), Planned.TotalCost, 2);
+	TestTrue(TEXT("(1) passando per la cella intermedia"), PathContains(Planned, FRTCellId(1, 0)));
+
+	// (2) Dopo il lock, un'altra unita' occupa la cella intermedia. Il piano di A e' ora invalido a meta'.
+	TArray<FRTHexSimUnit> AtResolution = AtPlanning;
+	AtResolution.Add(FRTHexSimUnit(2, FRTCellId(1, 0), 0));
+	const FRTHexSnapshot After = URTHexSimLibrary::MakeSnapshot(M, AtResolution);
+
+	// (3) LA VIA ATTORNO ESISTE DAVVERO, ed e' dentro il budget di A. Senza questa verifica il punto (4)
+	//     non discriminerebbe fra «non ha deviato» e «non poteva deviare».
+	const FRTHexPathResult Around = URTHexSimLibrary::FindPathForUnit(After, 1, FRTCellId(2, 0));
+	TestTrue(TEXT("(3) una via attorno esiste"), Around.Status == ERTHexPathStatus::Success);
+	TestEqual(TEXT("(3) costa 3 — una deviazione, non la via diretta"), Around.TotalCost, 3);
+	TestFalse(TEXT("(3) e non passa dalla cella occupata"), PathContains(Around, FRTCellId(1, 0)));
+	TestTrue(TEXT("(3) ed e' dentro il budget 6 di A"), Around.TotalCost <= 6);
+
+	// (4) Il resolver esegue il PIANO. A si ferma; non prende la via attorno.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add(Planned.Path);              // A: il piano pianificato al punto (1)
+	Paths.Add({ FRTCellId(1, 0) });       // B: ferma sulla cella intermedia
+	const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::ResolveHexPaths(Paths);
+
+	TestTrue(TEXT("(4) A resta dov'era"), Out.Num() == 2 && Out[0].Final == FRTCellId(0, 0));
+	TestTrue(TEXT("(4) A NON raggiunge la destinazione per un'altra via"),
+		Out.Num() == 2 && Out[0].Final != FRTCellId(2, 0));
+	TestTrue(TEXT("(4) e il motivo e' l'unita' ferma, non la topologia"),
+		Out.Num() == 2 && Out[0].Outcome == ERTMoveOutcome::BlockedByUnit);
+	TestTrue(TEXT("(4) A non e' entrata in nessuna cella"), Out.Num() == 2 && Out[0].Entered.Num() == 0);
+
+	// (5) Nessuna cella della deviazione e' stata percorsa: e' la forma diretta di «non ha ripianificato».
+	for (const FRTCellId& C : Around.Path)
+	{
+		if (C == FRTCellId(0, 0))
+		{
+			continue; // la partenza appartiene a entrambe le vie
+		}
+		TestFalse(FString::Printf(TEXT("(5) A non ha percorso %s della deviazione"), *C.ToString()),
+			Out[0].Entered.Contains(C));
+	}
+
+	return true;
+}
+
+
 #endif // WITH_DEV_AUTOMATION_TESTS
