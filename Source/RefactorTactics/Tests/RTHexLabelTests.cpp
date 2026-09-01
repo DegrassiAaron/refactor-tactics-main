@@ -281,44 +281,91 @@ bool FRTHexLabelThreeDirectionsTest::RunTest(const FString&)
 
 	TArray<int32> Sorted = Angles.Array();
 	Sorted.Sort();
-	TestEqual(TEXT("la prima e' a 0 gradi: il punto medio del primo lato"), Sorted[0], 0);
-	TestEqual(TEXT("la seconda a 120"), Sorted[1], 120);
-	TestEqual(TEXT("la terza a 240"),   Sorted[2], 240);
+
+	// ⚠️ **`90/210/330` e non `0/120/240`, e la differenza non e' una taratura**: sono le direzioni dei
+	// tre LATI, perche' il testo corre parallelo al proprio lato. `0/120/240` sono le direzioni dei tre
+	// punti medi, cioe' dove le run stanno POSATE — un altro angolo della stessa run. Finche' il testo
+	// correva in direzione radiale i due coincidevano, e questo test non poteva distinguerli.
+	TestEqual(TEXT("la prima e' a 90 gradi: la direzione del primo lato"), Sorted[0], 90);
+	TestEqual(TEXT("la seconda a 210"), Sorted[1], 210);
+	TestEqual(TEXT("la terza a 330"),   Sorted[2], 330);
+
+	// Le tre restano a 120 gradi esatti l'una dall'altra: e' l'invariante, e sopravvive a un cambio di
+	// convenzione dei lati che spostasse tutti e tre gli angoli insieme.
+	TestEqual(TEXT("120 gradi fra la prima e la seconda"), Sorted[1] - Sorted[0], 120);
+	TestEqual(TEXT("120 gradi fra la seconda e la terza"), Sorted[2] - Sorted[1], 120);
 	return true;
 }
 
 /**
- * La terna corre DAL BORDO AL CENTRO, e il layer e' a META' scala. Due criteri della spec che, sbagliati,
- * danno un'etichetta plausibile: le cifre ci sono, stanno dentro, e dicono la cosa nell'ordine sbagliato.
+ * 🔴 **La terna corre PARALLELA al proprio lato e si legge in avanti** — piu' il layer a META' scala.
+ *
+ * Sostituisce `RunsInwardAndLayerIsHalfSize`, che asseriva l'opposto: *«il primo carattere e' piu' vicino
+ * al BORDO dell'ultimo»*, cioe' che la riga corresse in direzione radiale. Quel criterio non era sbagliato
+ * per distrazione — era la spec di #1920 — ma a schermo produceva un'etichetta che **nessuno riusciva a
+ * leggere**, per due difetti indipendenti che quel test non poteva vedere:
+ *
+ *  1. **specchiata.** I glifi avanzavano lungo `Inward` mentre il loro asse `Right` valeva `-Inward`:
+ *     misurato, `Right . avanzamento = -1` su tutte e tre le run. Ogni carattere era ben formato e
+ *     nessuno usciva dall'esagono — la stringa era semplicemente posata all'indietro, e `3,-2,0` si
+ *     leggeva `0,2-,3`. ⚠️ **Le due asserzioni vecchie erano entrambe verdi su questo difetto**: la
+ *     distanza dal bordo non guarda l'orientamento dei glifi, e l'altezza del layer nemmeno;
+ *  2. **perpendicolare al lato**, cioe' orientata lungo l'unica direzione in cui l'esagono e' piu'
+ *     stretto.
+ *
+ * Le tre asserzioni qui sotto sono quelle che quei due difetti fanno cadere.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexLabelOrderAndScaleTest,
-	"RefactorTactics.HexLabel.RunsInwardAndLayerIsHalfSize",
+	"RefactorTactics.HexLabel.RunsAlongTheSideAndReadsForward",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexLabelOrderAndScaleTest::RunTest(const FString&)
 {
 	const FRTCellId Cell(2, -3, 0);
 	const FVector MapOrigin = FVector::ZeroVector;
 	const FRTCellLabel Label = URTHexLabelLibrary::BuildCellLabel(Cell, MapOrigin, 150.f, 250.f);
-	const FVector Centre = URTHexLibrary::AxialToWorld(Cell, MapOrigin, 150.f, 250.f);
+	const TArray<FVector> Corners = URTHexLibrary::CellCorners(Cell, MapOrigin, 150.f, 250.f);
+	if (!TestEqual(TEXT("sei vertici"), Corners.Num(), 6))
+	{
+		return false;
+	}
 
-	// La run a 0 gradi, nell'ordine in cui e' stata costruita.
+	// Il lato 0 e la sua direzione, DERIVATI dai vertici: il riferimento non e' una tabella di angoli,
+	// quindi se `HexCorners` cambiasse convenzione questo test la seguirebbe invece di mentire.
+	const FVector Side0 = (Corners[1] - Corners[0]).GetSafeNormal();
+
+	// La run posata sul lato 0, nell'ordine in cui e' stata costruita.
 	TArray<FRTLabelGlyph> Run;
 	for (const FRTLabelGlyph& G : Label.Glyphs)
 	{
-		if (FMath::IsNearlyZero(G.Right.Y, 0.01) && G.Right.X > 0.0)
+		if (FVector::DotProduct(G.Right.GetSafeNormal(), Side0) > 0.99)
 		{
 			Run.Add(G);
 		}
 	}
 	// Ritorno anticipato: senza almeno tre caratteri, `Run[0]`/`Run.Last()` sarebbero fuori limite.
-	if (!TestTrue(TEXT("la run a 0 gradi ha almeno tre caratteri"), Run.Num() >= 3))
+	if (!TestTrue(TEXT("la run del lato 0 ha almeno tre caratteri"), Run.Num() >= 3))
 	{
 		return false;
 	}
 
-	const double FirstDist = FVector::Dist2D(Run[0].Origin, Centre);
-	const double LastDist  = FVector::Dist2D(Run.Last().Origin, Centre);
-	TestTrue(TEXT("il primo carattere e' piu' vicino al BORDO dell'ultimo"), FirstDist > LastDist);
+	// 1. PARALLELA al lato. Il predicato di selezione lo ha gia' usato, quindi qui si verifica cio' che
+	//    quel predicato NON puo' garantire: che non esista anche una run non parallela.
+	for (const FRTLabelGlyph& G : Label.Glyphs)
+	{
+		const double Vertical = FMath::Abs(G.Right.Z) + FMath::Abs(G.Up.Z);
+		TestTrue(TEXT("nessun asse del glifo esce dal piano della cella"), Vertical < 0.01);
+	}
+
+	// 2. 🔑 NON SPECCHIATA: la riga avanza NEL VERSO in cui i caratteri si leggono.
+	//    E' l'asserzione che il difetto segnalato fa cadere, e l'unica che lo fa.
+	const FVector Advance = (Run.Last().Origin - Run[0].Origin).GetSafeNormal();
+	TestTrue(TEXT("l'avanzamento concorda con l'asse di lettura dei caratteri"),
+		FVector::DotProduct(Advance, Run[0].Right.GetSafeNormal()) > 0.99);
+
+	// 3. Leggibile da una camera DALL'ALTO e non riflessa: la terna (Right, Up, Z) e' destrorsa.
+	//    Senza questa, un `Up` invertito darebbe caratteri capovolti che l'asserzione 2 non vede.
+	const FVector Handed = FVector::CrossProduct(Run[0].Right, Run[0].Up);
+	TestTrue(TEXT("Right x Up punta verso l'alto: glifi non riflessi"), Handed.Z > 0.0);
 
 	// L'ultimo carattere della terna e' il layer: alto meta' del primo.
 	const double FirstHeight = Run[0].Up.Size();

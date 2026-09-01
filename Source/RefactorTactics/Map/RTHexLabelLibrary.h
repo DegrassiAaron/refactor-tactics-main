@@ -30,13 +30,20 @@ public:
 	/**
 	 * Dove cade ogni carattere della terna `(x, y, layer)` di questa cella.
 	 *
-	 * Tre run a `0/120/240` gradi — i punti medi di tre lati alternati, **non i vertici**: con la
-	 * convenzione pointy-top di `HexCorners` i vertici stanno a `-30/30/90/150/210/270`, e `0/120/240`
-	 * cade sui punti medi. Ogni run corre **dal bordo verso il centro**, e il `layer` e' a meta' scala.
+	 * Tre run **posate** ai punti medi di tre lati alternati — `0/120/240` gradi, **non i vertici**: con
+	 * la convenzione pointy-top di `HexCorners` i vertici stanno a `-30/30/90/150/210/270`, e `0/120/240`
+	 * cade sui punti medi. Il `layer` e' a meta' scala.
 	 *
-	 * ⚠️ I sei vertici li da' `URTHexLibrary::CellCorners`, e i punti medi si DERIVANO da quelli: una
-	 * seconda formula per la stessa forma e' il difetto visto in `U22` — celle piene tonde e contorno
-	 * esagonale.
+	 * 🔑 **Ogni run corre PARALLELA al proprio lato**, non dal bordo verso il centro. Il testo e' quindi
+	 * orientato a `90/210/330` gradi — le direzioni dei tre lati — mentre le sue POSIZIONI restano a
+	 * `0/120/240`. Sono due angoli diversi della stessa run, ed e' la distinzione che il difetto di
+	 * partenza confondeva: la riga correva lungo il raggio, cioe' lungo l'unica direzione in cui
+	 * l'esagono e' piu' stretto, e per giunta con i caratteri posati **all'indietro** rispetto al proprio
+	 * asse di lettura.
+	 *
+	 * ⚠️ I sei vertici li da' `URTHexLibrary::CellCorners`, e i punti medi e le direzioni dei lati si
+	 * DERIVANO da quelli: una seconda formula per la stessa forma e' il difetto visto in `U22` — celle
+	 * piene tonde e contorno esagonale.
 	 */
 	static FRTCellLabel BuildCellLabel(const FRTCellId& Cell, const FVector& Origin,
 		float HexSize, float LayerHeight);
