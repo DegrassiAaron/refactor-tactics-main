@@ -481,4 +481,154 @@ bool FRTGuardAndDeflectOrderTest::RunTest(const FString&)
 	return true;
 }
 
+
+// ======================================================================================================
+// `D-302` punto (3): per un'AREA la direzione d'impatto e' centro d'impatto -> bersaglio, non lanciatore
+// -> bersaglio. Il pool `Guard` e' l'unico consumatore in cui la differenza si vede (`#2009`).
+// ======================================================================================================
+
+namespace
+{
+	/**
+	 * HP persi dal difensore quando un'AREA gli cade addosso, con il centro e il lanciatore su lati scelti.
+	 *
+	 * Perche' un'area e non un colpo singolo: per `Single`, `Line` e `Cone` la direzione d'impatto coincide
+	 * gia' con `attaccante->bersaglio`, quindi `D-302` e' soddisfatta e non c'e' niente da distinguere. Solo
+	 * l'area puo' avere il centro da una parte e chi la lancia dall'altra.
+	 *
+	 * `-1` = montaggio fallito, gia' segnalato da `Test`.
+	 */
+	int32 ArcAreaDamageTaken(FAutomationTestBase& Test, const FRTCellId& ThrowerCell,
+		const FRTCellId& ImpactCenter, bool bGuarded)
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!Test.TestNotNull(TEXT("mondo di prova"), World)) { return -1; }
+
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		if (MapActor) { MapActor->MapAsset = MakeArcMap(6); }
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+
+		ARTUnit* Lanciatore = ArcSpawnUnit(World, /*TeamId=*/ 0, ThrowerCell);
+		ARTUnit* Difensore  = ArcSpawnUnit(World, /*TeamId=*/ 1, FRTCellId(0, 0, 0));
+
+		if (!Test.TestNotNull(TEXT("mappa"), MapActor) || !Test.TestNotNull(TEXT("turn manager"), TM)
+			|| !Test.TestNotNull(TEXT("lanciatore"), Lanciatore) || !Test.TestNotNull(TEXT("difensore"), Difensore))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return -1;
+		}
+
+		// Rivolto a OVEST: chi sta a ovest lo prende di fronte, chi sta a est alle spalle — la stessa
+		// convenzione degli altri test di questo file.
+		Difensore->Facing = ERTHexDirection::W;
+		if (bGuarded) { Difensore->ApplyStatus(TAG_Status_Guarded, 1); }
+		Difensore->PlannedAbilityIndex = INDEX_NONE; // incassa e basta: nessuna reazione da isolare
+
+		// Un'area montata sull'attacco base invece che pescata dal kit di un eroe: qui contano la FORMA e il
+		// raggio, non i numeri di bilanciamento di `Hero.Gadget.Overload`, e legare il test a quelli lo
+		// farebbe cadere al prossimo ritocco del catalogo.
+		const int32 Slot = RTAbilityFixtures::AddCoreAbilityInSlot(Lanciatore, TEXT("Action.BasicAttack"), 3);
+		if (!Test.TestTrue(TEXT("slot dell'area"), Slot != INDEX_NONE))
+		{
+			RTWorldFixtures::DestroyWorld(World);
+			return -1;
+		}
+		URTActionData* Area = Lanciatore->Abilities[Slot];
+		Area->Shape = ERTAbilityShape::Area;
+		Area->AreaRadius = 1;
+		Area->RangeCells = 4; // basta per entrambe le geometrie provate qui
+		// ⚠️ **Il danno va messo a mano, e senza di esso il test misurava zero.** Il catalogo dichiara di
+		// `Action.BasicAttack` *«identita', fase, priorita' e fallback [...]; DANNO e PORTATA no»*, quindi
+		// `FirstDamage` risponde `0` e il ripiego `Power` resta `0`: l'area partiva, investiva il
+		// difensore e gli toglieva niente. L'ha intercettata la riga anti-vacuita' dei due test.
+		Area->Power = 20;
+
+		Lanciatore->PlannedAbilityIndex = Slot;
+		Lanciatore->PlannedAttackTarget = nullptr;
+		Lanciatore->PlannedAttackCell = ImpactCenter;
+		Lanciatore->bAttackTargetsCell = true;
+
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.05f);
+		}
+
+		const int32 Taken = Difensore->MaxHealth - Difensore->Health;
+		RTWorldFixtures::DestroyWorld(World);
+		return Taken;
+	}
+}
+
+/**
+ * IL CENTRO D'IMPATTO DAVANTI SALVA LA GUARDIA, ANCHE SE CHI LANCIA STA DIETRO.
+ *
+ * [D-302] punto (3): per un'area la direzione d'impatto e' **centro d'impatto -> bersaglio**. Una granata
+ * fatta cadere DAVANTI a un'unita' in Guardia da un lanciatore che le sta alle SPALLE arriva, per quella
+ * unita', da davanti: il pool va consumato.
+ *
+ * 🔴 Il difetto che il test misura (`#2009`): `ResolveCombatPasses` passava a `IsInFrontalArc` la cella di
+ * **chi ha attaccato**, qualunque fosse la forma. Con il lanciatore alle spalle la Guardia veniva
+ * scavalcata e usciva un `RearHitBypassedGuard` — per un colpo che il difensore vedeva arrivare.
+ *
+ * ⚠️ **Il caso non era coperto da niente**: nessun test del repository combinava `TAG_Status_Guarded` con
+ * `ERTAbilityShape::Area`, quindi la suite non proteggeva questo comportamento e non l'ha protetto finora.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAreaGuardUsesImpactCenterTest,
+	"RefactorTactics.Combat.AreaGuardUsesImpactCenter",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAreaGuardUsesImpactCenterTest::RunTest(const FString&)
+{
+	// Lanciatore a EST (dietro), centro dell'area a OVEST (davanti): l'area di raggio 1 attorno a (-1,0,0)
+	// investe (0,0,0), dove sta il difensore.
+	const FRTCellId Lanciatore(2, 0, 0);
+	const FRTCellId Centro(-1, 0, 0);
+
+	const int32 ConGuardia   = ArcAreaDamageTaken(*this, Lanciatore, Centro, /*bGuarded=*/ true);
+	const int32 SenzaGuardia = ArcAreaDamageTaken(*this, Lanciatore, Centro, /*bGuarded=*/ false);
+	if (ConGuardia < 0 || SenzaGuardia < 0) { return false; }
+
+	// ANTI-VACUITA': se l'area non arrivasse affatto, entrambi i numeri sarebbero zero e l'asserzione sotto
+	// passerebbe per il motivo sbagliato — il modo piu' facile di scrivere un verde su una geometria rotta.
+	if (!TestTrue(TEXT("l'area investe davvero il difensore"), SenzaGuardia > 0))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("il centro davanti fa consumare il pool, malgrado il lanciatore alle spalle"),
+		ConGuardia < SenzaGuardia);
+	return true;
+}
+
+/**
+ * E IL SIMMETRICO: IL CENTRO DIETRO SCAVALCA LA GUARDIA, ANCHE SE CHI LANCIA STA DAVANTI.
+ *
+ * L'altra meta' di [D-302] punto (3), e serve entrambe: un test solo sarebbe passato anche con la regola
+ * invertita — *«per le aree il pool si consuma sempre»* — che e' un'implementazione sbagliata e comoda.
+ * Qui l'ordigno esplode ALLE SPALLE del difensore mentre chi l'ha lanciato gli sta di fronte, e il pool
+ * **non** deve proteggerlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAreaGuardBypassedFromBehindTest,
+	"RefactorTactics.Combat.AreaGuardIsBypassedWhenImpactCenterIsBehind",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAreaGuardBypassedFromBehindTest::RunTest(const FString&)
+{
+	// Lanciatore a OVEST (davanti), centro dell'area a EST (dietro).
+	const FRTCellId Lanciatore(-2, 0, 0);
+	const FRTCellId Centro(1, 0, 0);
+
+	const int32 ConGuardia   = ArcAreaDamageTaken(*this, Lanciatore, Centro, /*bGuarded=*/ true);
+	const int32 SenzaGuardia = ArcAreaDamageTaken(*this, Lanciatore, Centro, /*bGuarded=*/ false);
+	if (ConGuardia < 0 || SenzaGuardia < 0) { return false; }
+
+	if (!TestTrue(TEXT("l'area investe davvero il difensore"), SenzaGuardia > 0))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("il centro alle spalle scavalca il pool, malgrado il lanciatore di fronte"),
+		ConGuardia, SenzaGuardia);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
