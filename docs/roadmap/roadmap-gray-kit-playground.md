@@ -172,11 +172,25 @@ UnrealPak.exe <...>/RefactorTactics-Windows.utoc -List | findstr ".umap"
 ⚠️ **E non basta cercare `L_GrayKitPlayground` nel `.utoc`**: quella stringa è presente comunque, perché è
 il path della cartella. *Cercare il nome trova un riferimento; cercare il `.umap` trova la mappa.*
 
-⛔ **Il Playground non possiede la prova di cook exclusion**: la possiedono già
-[#1804](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1804) (che deve *configurare*
-l'esclusione e *validarla*) e [#1872](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1872)
-(accettazione packaged del Map Editor). Le issue del Playground **dipendono** da quel lavoro e ne
-riusano l'oracolo.
+✅ **La prova è stata eseguita il 2026-09-01, su un pacchetto vero.** Il container porta **tre** `.umap`
+— `L_HexArena` (elencata in `MapsToCook`), `Engine/Maps/Entry` e `L_Frontend` (`GameDefaultMap`) — e
+nessuno è il Playground. `L_GrayKitPlayground` non compare nemmeno come stringa.
+
+🔴 **Lo zero è stato validato per mutazione, non letto e basta.** Aggiungendo la mappa a `MapsToCook`
+e ricuocendo, **compare**; togliendola e ricuocendo, **sparisce**. Senza quel giro un conteggio a zero
+poteva significare *«l'oracolo non sa guardare»* invece di *«la mappa non c'è»*. Nella stessa misura il
+container porta **108** asset di `Content/RT/`: il cook ha lavorato su quella cartella, quindi lo zero non
+è il prodotto di un cook mai partito.
+
+⚠️ **Non serviva `DirectoriesToNeverCook`, e non sarebbe bastato il percorso.** Per una **mappa**
+l'esclusione è l'assenza da `MapsToCook` più l'assenza di riferimenti; il presidio è il commento scritto
+accanto a quella lista, perché è lì che il difetto si introdurrebbe e nessun test se ne accorgerebbe.
+
+⛔ **Resta di altri**: la *configurazione* dell'esclusione per gli **asset** di authoring — il pannello di
+[#1993](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1993), che è un `.uasset` sotto
+`/Game/RT/Editor/` e non una mappa — è di
+[#1804](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1804), e l'accettazione packaged del
+Map Editor di [#1872](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1872).
 
 ---
 
@@ -302,7 +316,7 @@ sono confrontabili»*.
 - [ ] il Facing si cambia dal pannello fra le sei `ERTHexDirection` e il marker segue
 - [ ] chiusura e riapertura dell'Editor conservano il setup
 - [ ] nessuna regola di gioco definita in `Source/RefactorTacticsEditor/`
-- [ ] il packaged non contiene `L_GrayKitPlayground.umap` — oracolo `UnrealPak -List`, e si cerca il `.umap`
+- [x] il packaged non contiene `L_GrayKitPlayground.umap` — oracolo `UnrealPak -List`, e si cerca il `.umap` — ✅ **provato il 2026-09-01, e validato per mutazione**
 - [ ] nessuna relazione fra la guida metrica e `FRTCellId` è stata introdotta
 
 ⚠️ **Non si dichiara verde ciò che non è stato eseguito.** Le voci a schermo appartengono a una seduta di

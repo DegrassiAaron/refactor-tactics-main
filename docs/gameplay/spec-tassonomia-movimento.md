@@ -131,15 +131,22 @@ più rapidi è `MOV-3` in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), **aperta*
 in quel modello il tetto di **un arco per unità per micro-step** resterebbe. La precedenza fra due unità
 che contendono la stessa cella è `MOV-4`, e oggi è `FRTActionDef::Priority`.
 
-⛔ **Due test che pinnerebbero questa riga non esistono**, ed è dichiarato invece che sottinteso:
-`OneTransitionMax_PerMicroStep` e `BlockedPath_DoesNotAutoReroute` (la riga *auto-reroute: mai* qui sopra)
-hanno **zero** occorrenze in `Source/`. Oggi la regola è esercitata di fatto da
-`Movement.StepperMatchesBatchResolver`, che non la nomina. Owner:
-[#2000](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2000).
+✅ **Due test la pinnano per nome**, scritti da [#2000](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2000)
+il 2026-09-01. Prima di allora la regola era vera **senza che nulla la asserisse**.
 
-🔑 **Questa tabella dichiara test ATTESI, non presenti** — ed è la distinzione che
-[ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) §Verifica non fa, con undici nomi di cui
-zero esistono, cosa che ha già indotto in errore [D-295](../decisions/RT_PDR_00_Decision_Log.md).
+| Test | Cosa asserisce |
+|---|---|
+| `Movement.OneTransitionMax_PerMicroStep` | dopo `k` micro-step la posizione è **esattamente** `Paths[k]`, su un percorso il cui terzo arco **cambia layer** — due nodi consecutivi che l'adiacenza esagonale non collega |
+| `Movement.BlockedPath_DoesNotAutoReroute` | un piano invalidato a metà **si ferma** e non raggiunge la destinazione per la deviazione — che il test dimostra esistere e stare nel budget, altrimenti asserirebbe il nulla |
+
+🔑 **Perché `Movement.StepperMatchesBatchResolver` non bastava, ed è misurato**: mutando il resolver ad
+avanzare **due** nodi per micro-step, i due test qui sopra diventano rossi e *quello* resta **verde**.
+Confronta i due percorsi di codice fra loro, quindi una regola che cambia in entrambi gli resta invisibile.
+
+⚠️ **Fino al 2026-09-01 questa nota dichiarava i due test come assenti**, ed era vero. Il difetto opposto —
+una tabella che elenca test **attesi** come se esistessero — è quello di
+[ADR-0008](../decisions/adr-0008-rotazione-e-policy-di-facing.md) §Verifica, con undici nomi di cui zero
+esistono, che ha già indotto in errore [D-295](../decisions/RT_PDR_00_Decision_Log.md).
 
 ### 2.1 Il `Transfer` esiste già, e vive dentro il Dash
 
