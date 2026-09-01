@@ -1601,6 +1601,58 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 			Change.Cell.X, Change.Cell.Y, Change.Cell.Layer, Change.Toward.X, Change.Toward.Y,
 			Change.bBlocking ? TEXT("chiusa") : TEXT("aperta")), FRTLogSubject::World());
 	}
+
+	// GRAFO DI INTERAZIONE (`CP 23.4`, `#833`): una sorgente comanda i propri bersagli, che possono stare
+	// ovunque sulla mappa. Stesso istante e stessa disciplina delle porte qui sopra — si applica a colpi
+	// risolti, e la topologia cambia dalla fase successiva.
+	//
+	// ⚠️ **NON e' atomica** ([D-150]): si applicano i bersagli applicabili e si RIPORTANO gli altri. Un
+	// bersaglio `Locked` fra gli N non annulla i suoi fratelli, perche' `SetDoorState` un livello sotto fa
+	// gia' cosi' — e una pre-validazione «tutto o niente» avrebbe richiesto di interrogare `CanTransition` su
+	// tutti prima di applicarne uno.
+	for (const FRTInteractionOp& Op : Plan.InteractionOps)
+	{
+		TArray<FString> Refusals;
+		const TArray<FRTDoorChange> Changes =
+			URTHexDoorLibrary::ApplyInteraction(MutableMap, Op.SourceId, Op.State, Op.ActorId, &Refusals);
+
+		for (const FRTDoorChange& Change : Changes)
+		{
+			FRTTurnLogEntry Entry;
+			Entry.Phase = ERTMatchPhase::Blast;
+			Entry.Category = ERTLogCategory::Environment;
+			Entry.Outcome = static_cast<uint8>(
+				Change.bBlocking ? ERTEnvironmentOutcome::DoorClosed : ERTEnvironmentOutcome::DoorOpened);
+			// Lo stesso vocabolario delle porte adiacenti, e non per pigrizia: per chi legge il replay una
+			// porta che si apre e' lo stesso fatto, che l'abbia aperta un adiacente o una leva lontana. CHI
+			// l'ha comandata sta nel soggetto della voce, che e' dove le altre azioni lo mettono.
+			Entry.SrcCell = Change.Cell;
+			Entry.TgtCell = Change.Toward;
+			Entry.Amount = static_cast<int32>(Change.State);
+			AppendLogEntry(Entry, Units.IsValidIndex(Change.ActorId) ? Units[Change.ActorId] : nullptr);
+		}
+
+		// 🔑 **I rifiuti si dicono, e questo e' il punto in cui il DoD lo chiede**: *«l'esito per-bersaglio va
+		// nel TurnLog o il giocatore preme senza sapere cosa e' successo»*. Un bersaglio `Locked` e un binding
+		// che non risolve nessuna porta sono i due casi che `ApplyInteraction` riporta invece di ingoiare.
+		//
+		// ⚠️ Vanno nel FEED, non in una voce strutturata: `ERTEnvironmentOutcome` nomina cio' che e'
+		// **cambiato**, e qui non e' cambiato niente. Inventare un `DoorRefused` significherebbe aggiungere
+		// un valore d'enum per un non-evento — la disciplina scritta su `ERTLineOfSightBlock` dice il
+		// contrario: un valore si aggiunge quando un ramo lo produce e nomina una causa che prima si
+		// confondeva. Il canale giusto per «ho premuto e non e' successo» e' il testo che il giocatore legge.
+		for (const FString& Refusal : Refusals)
+		{
+			AddLogEvent(FString::Printf(TEXT("Interazione '%s': %s"), *Op.SourceId.ToString(), *Refusal),
+				FRTLogSubject::World());
+		}
+
+		if (Changes.Num() > 0)
+		{
+			AddLogEvent(FString::Printf(TEXT("Interazione '%s': %d bersagli comandati"),
+				*Op.SourceId.ToString(), Changes.Num()), FRTLogSubject::World());
+		}
+	}
 }
 
 void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
