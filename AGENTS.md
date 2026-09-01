@@ -301,6 +301,7 @@ node tools/radar/wiki-alt.ts --wiki-root <clone> --check
 node tools/radar/doc-links.ts --check
 node tools/radar/catalog-code.ts
 node tools/radar/doc-tables.ts --check
+node tools/radar/issue-refs.ts --check
 node tools/asset-refs/check.ts
 
 cd tools/radar
@@ -310,6 +311,30 @@ node --test
 Ogni tool dichiara nel docstring **cosa non copre**.
 
 Un verde dimostra soltanto ciò che quel tool misura.
+
+### `issue-refs.ts` — l'unico che guarda fuori dal repository
+
+Confronta i percorsi e i comandi citati dalle **issue aperte** con l'albero: chiude il difetto che
+`doc-links.ts` dichiara di non coprire, cioè i riferimenti scritti in prosa dove nessun link li rende
+verificabili.
+
+Tre cose da sapere prima di usarlo:
+
+- **Segnala il cancellato, non l'assente.** Un percorso mai esistito è un deliverable e non è un
+  difetto; uno rimosso è un riferimento morto. La distinzione toglie ~114 falsi positivi.
+- **Serve la storia completa.** Su un clone shallow dichiara `NOT RUN` invece di un verde: senza
+  `git log --diff-filter=D` nessun percorso risulta rimosso.
+- **Senza rete dichiara `NOT RUN` ed esce 0.** Non blocca chi lavora offline e non finge un verde.
+
+Una issue il cui *oggetto* è la rimozione si esenta dal proprio corpo, **col motivo obbligatorio**:
+
+```html
+<!-- issue-refs: ignora — perché questa issue cita di proposito percorsi rimossi -->
+```
+
+Il gate stampa le esenzioni a ogni esecuzione. Gira anche in CI —
+[`.github/workflows/issue-refs.yml`](.github/workflows/issue-refs.yml), su schedule giornaliero: il
+difetto che chiude non nasce da un commit, nasce dal tempo che passa.
 
 Gli output generati dei radar non si editano a mano.
 
