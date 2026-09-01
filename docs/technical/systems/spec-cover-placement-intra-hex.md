@@ -346,27 +346,27 @@ nucleo la invalida»* — vale solo se l'unità sta al centro, ed è la premessa
 argomento con cui `D-289` ha superato `D-179` punto (3), applicato a una voce che non aveva nominato:
 [`D-303`](../../decisions/RT_PDR_00_Decision_Log.md) lo **registra**, non lo decide.
 
-✅ **I tre valori sono fissati da [`D-307`](../../decisions/RT_PDR_00_Decision_Log.md)**, e vivono in
-[`RT_FootprintCatalog_v0.1.md`](../../balance/RT_FootprintCatalog_v0.1.md) — la sede in cui questo repository tiene i numeri d'autore.
+✅ **I tre valori sono fissati da [`D-307`](../../decisions/RT_PDR_00_Decision_Log.md).** ⚠️ **L'owner dei numeri è**
+[`RT_FootprintCatalog_v0.1.md`](../../balance/RT_FootprintCatalog_v0.1.md): questa sezione porta la **derivazione**, non una seconda copia
+della tabella — se divergono, vince il catalogo.
 
-| Profilo | `MinContiguousWedges` | Arco | `bRequiresFreeCore` |
-|---|---|---|---|
-| `Small` | **2** | 60° | `false` |
-| `Medium` | **3** | 90° | `false` |
-| `Large` | **4** | 120° | `false` |
+`Small` **2** · `Medium` **3** · `Large` **4** settori contigui, con `bRequiresFreeCore = false` per tutti.
 
-🔑 **Non sono tarati: sono gli unici tre interi che i vincoli lasciano**, e i vincoli erano già tutti
-nel repository.
+🔑 **Due sono determinati, il terzo è una scelta**, e la differenza conta:
 
-| # | Vincolo | Da dove |
-|---|---|---|
-| ① | **≥ 2** | `MinContiguousWedges = 1` è *«l'identità, che non decide niente»* (`D-289`): con `1` basta **un** settore libero |
-| ② | **= 3** per lo standard | letterale in `D-289`: *«due gruppi da tre, e **uno ci sta benissimo**»* |
-| ③ | **≤ 4** | un muro diametrale occupa `0xC3` = `{0,1,6,7}` e lascia **due regioni da 4**: oltre `4` quella cella tornerebbe non calpestabile, cioè la regola che `D-289` ha superato |
+- **`Small` e `Medium` sono determinati.** `≥ 2` perché con `1` basta un settore libero e un profilo a `1`
+  non distingue nulla; `≤ 3` perché `D-289` dichiara che nel gruppo da tre del suo esempio l'unità standard
+  *«ci sta benissimo»*. ⚠️ Quel *«ci sta»* è un limite **superiore**, non un'uguaglianza — lo
+  soddisferebbe anche `1` o `2`. Sono i due limiti **insieme all'ordinamento** `Small < Medium` a lasciare
+  un'unica coppia: `(2, 3)`.
+- **`Large = 4` è il minimo disponibile sopra `Medium`**, e nulla nella geometria lo obbliga a fermarsi lì.
+  ⛔ Il minimo è la scelta conservativa perché nessun consumatore può smentirla: senza unità che
+  dichiarino un footprint, un `Large` più esigente sarebbe bilanciamento deciso da nessuno.
 
-⚠️ **`Large = 4` sta al limite esatto**: in una cella tagliata da un diametro entra **senza margine**, e
-sarebbe il primo profilo a perdere celle se la regola d'intersezione di `ComputeMask` diventasse più
-conservativa. È il motivo per cui `MSE-4` è adiacente a questi numeri, non lontana da essi.
+🔎 **Il muro diametrale è una verifica, non il vincolo.** Occupa **quattro** settori e lascia **due
+regioni da quattro** su ognuno dei sei assi — la maschera letterale dipende dall'asse e vive in
+`URTGeometryGrammarLibrary::AxisBoundaryIndex`, non nei documenti. Con `Large = 4` un'unità grande sta
+ancora in una cella tagliata a metà: è ciò che `4` fa guadagnare, non ciò che lo determina.
 
 ⛔ **Nessuna unità dichiara ancora un profilo**, quindi oggi userebbero tutte `Medium`: `Small` e `Large`
 sono capacità per contenuto futuro — §13.6.
