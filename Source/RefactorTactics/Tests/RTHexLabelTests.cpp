@@ -1,4 +1,8 @@
 #include "Misc/AutomationTest.h"
+#include "Turn/RTMatchSetupLibrary.h"      // MakeDemoArena: l'arena piena di `PIE-HEX-COORD-COSTO`
+#include "Map/RTHexMapAsset.h"
+#include "Components/LineBatchComponent.h"  // sizeof(FBatchedLine): il costo si dice in byte, non in righe
+
 #include "Map/RTHexLabel.h"
 #include "Map/RTHexLabelLibrary.h"
 #include "Map/RTCellId.h"
@@ -389,5 +393,125 @@ bool FRTHexLabelNegativeTest::RunTest(const FString&)
 	TestEqual(TEXT("nessun segno meno su una terna positiva"), SpuriousMinus, 0);
 	return true;
 }
+
+
+namespace
+{
+	/**
+	 * Quante linee costa la terna di questa cella se ogni carattere compare **una volta sola**.
+	 *
+	 * 🔑 E' l'atteso DERIVATO, e derivarlo e' il punto: un test che confrontasse `189 030` con `189 030`
+	 * diventerebbe rosso al primo ritocco legittimo di un glifo — cioe' esattamente quando NON dovrebbe —
+	 * e intanto non direbbe nulla su cio' che il costo lo fa esplodere davvero, che e' il numero di run.
+	 */
+	int32 HexLabelExpectedLines(const FRTCellId& Cell)
+	{
+		const FString Text = FString::Printf(TEXT("%d,%d,%d"), Cell.X, Cell.Y, Cell.Layer);
+		int32 Lines = 0;
+		for (const TCHAR C : Text)
+		{
+			Lines += URTHexLabelLibrary::GlyphStrokes(C).Num();
+		}
+		return Lines;
+	}
+
+	int32 HexLabelActualLines(const FRTCellLabel& Label)
+	{
+		int32 Lines = 0;
+		for (const FRTLabelGlyph& G : Label.Glyphs)
+		{
+			Lines += URTHexLabelLibrary::GlyphStrokes(G.Character).Num();
+		}
+		return Lines;
+	}
+}
+
+/**
+ * 🔴 **Il costo della terna: ogni carattere compare UNA volta sola.**
+ *
+ * ⚠️ **E' la guardia contro il ritorno delle tre run**, e la scrivo perche' il difetto e' gia' successo:
+ * fino al 2026-09-01 la terna era disegnata tre volte per cella — ai punti medi di tre lati alternati — e
+ * **nessun test lo misurava**. Il costo reale sull'arena piena era `567 090` linee; e' `189 030` da quando
+ * la run e' una.
+ *
+ * 🔑 **L'atteso e' derivato, non inciso.** Confrontare con `189 030` renderebbe questo test rosso al primo
+ * ritocco di un glifo — quando non dovrebbe — e cieco a un secondo `for` sui lati, che e' cio' che conta.
+ * Confrontando invece con la somma degli stroke della stringa, un ritorno a `N` run fallisce per un fattore
+ * `N` esatto, e un glifo ridisegnato non tocca niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexLabelOneRunPerCellTest,
+	"RefactorTactics.HexLabel.EachCharacterIsDrawnOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexLabelOneRunPerCellTest::RunTest(const FString&)
+{
+	// Celle sparse: origine, assi, negative, il caso peggiore a dieci caratteri e un layer alto.
+	const TArray<FRTCellId> Sample = {
+		FRTCellId(0, 0, 0), FRTCellId(3, -2, 0), FRTCellId(-2, 1, 0),
+		FRTCellId(-10, -10, -1), FRTCellId(-10, -10, 1), FRTCellId(7, 7, 12)
+	};
+
+	for (const FRTCellId& Cell : Sample)
+	{
+		const FRTCellLabel Label = URTHexLabelLibrary::BuildCellLabel(Cell, FVector::ZeroVector, 150.f, 250.f);
+		const FString Text = FString::Printf(TEXT("%d,%d,%d"), Cell.X, Cell.Y, Cell.Layer);
+
+		TestEqual(*FString::Printf(TEXT("%s: un glifo per carattere, non tre"), *Cell.ToString()),
+			Label.Glyphs.Num(), Text.Len());
+		TestEqual(*FString::Printf(TEXT("%s: le linee sono quelle della stringa, una volta"), *Cell.ToString()),
+			HexLabelActualLines(Label), HexLabelExpectedLines(Cell));
+	}
+	return true;
+}
+
+/**
+ * 🔴 **Il costo sull'arena piena, misurato dalla suite invece che a mano.**
+ *
+ * `PIE-HEX-COORD-COSTO` guarda il regime pieno — raggio `50`, `7 651` celle — e finora quel numero e'
+ * stato prodotto da sonde temporanee, riscritte ogni volta che la geometria cambiava. Qui e' la suite a
+ * produrlo, quindi non puo' piu' invecchiare in silenzio.
+ *
+ * ⚠️ **Cosa asserisce e cosa no.** Asserisce l'IDENTITA' con l'atteso derivato — che e' cio' che coglie un
+ * secondo ciclo sui lati. Il valore assoluto lo **stampa e basta**: inciderlo qui sposterebbe soltanto il
+ * numero fragile da una sonda a un test, e il registro PIE resta l'unico posto dove quel numero e' un dato.
+ *
+ * ⛔ **Non e' un test di prestazione**: conta le linee, non i frame. *«Il viewport non rallenta»* resta un
+ * giudizio a schermo, ed e' la meta' di `PIE-HEX-COORD-COSTO` che nessuna suite headless puo' chiudere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexLabelFullArenaCostTest,
+	"RefactorTactics.HexLabel.FullArenaCostMatchesOneRunPerCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexLabelFullArenaCostTest::RunTest(const FString&)
+{
+	// Il raggio del regime pieno che il repository documenta come caso pieno.
+	constexpr int32 FullArenaRadius = 50;
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeDemoArena(GetTransientPackage(), FullArenaRadius);
+	if (!TestNotNull(TEXT("l'arena piena si costruisce"), Arena))
+	{
+		return false;
+	}
+	// `3r^2 + 3r + 1`: derivato dal raggio, non un `7651` inciso.
+	TestEqual(TEXT("l'arena e' piena"), Arena->Cells.Num(),
+		3 * FullArenaRadius * FullArenaRadius + 3 * FullArenaRadius + 1);
+
+	int64 Actual = 0;
+	int64 Expected = 0;
+	for (const FRTHexCellData& Cell : Arena->Cells)
+	{
+		const FRTCellLabel Label = URTHexLabelLibrary::BuildCellLabel(Cell.Id, FVector::ZeroVector, 150.f, 250.f);
+		Actual   += HexLabelActualLines(Label);
+		Expected += HexLabelExpectedLines(Cell.Id);
+	}
+
+	TestEqual(TEXT("nessun carattere e' disegnato piu' di una volta sull'intera arena"), Actual, Expected);
+
+	// Stampato, non asserito: e' il numero che `PIE-HEX-COORD-COSTO` porta, e da qui si rilegge senza
+	// riscrivere una sonda.
+	AddInfo(FString::Printf(
+		TEXT("arena piena r=%d: %d celle, %lld linee, %.1f MB di FBatchedLine (%d byte l'una)"),
+		FullArenaRadius, Arena->Cells.Num(), Actual,
+		double(Actual * (int64)sizeof(FBatchedLine)) / (1024.0 * 1024.0), (int32)sizeof(FBatchedLine)));
+	return true;
+}
+
 
 #endif // WITH_DEV_AUTOMATION_TESTS
