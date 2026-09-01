@@ -822,6 +822,89 @@ bool FRTScenarioWallActuallyBlocksTest::RunTest(const FString&)
 }
 
 /**
+ * `Combat.BlockedByInteriorWall`: il muro che ferma il colpo sta DENTRO una cella, non su un bordo e non
+ * come proprieta' della cella — `D-269`/`D-270`, `#1830`.
+ *
+ * 🔑 **E' la stessa coppia di test di `BlockedByWall`, e per la stessa ragione.** «Riktor resta a 120 HP» e'
+ * anche il risultato di «non e' successo niente»: il secondo test pretende che lo stato finale DIFFERISCA da
+ * quello di `Combat.BasicAttack`, cosi' che a essere verificato sia il muro e non l'immobilita'.
+ *
+ * ⚠️ Le tre celle attraversate restano **pavimento libero**: nessuna porta `bBlocksLineOfSight`. Se il colpo
+ * si ferma, si ferma per la geometria intra-cella — che e' l'unica cosa che questo scenario aggiunge.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioInteriorWallBlocksTest,
+	"RefactorTactics.Scenario.RunnerCombatBlockedByInteriorWall",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioInteriorWallBlocksTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.BlockedByInteriorWall"), Scenario)) { return false; }
+	TestTrue(TEXT("lo scenario dichiara un muro INTERNO"), Scenario.InteriorWalls.Num() > 0);
+	TestEqual(TEXT("e nessuna cella che blocchi la vista"), Scenario.Cells.Num(), 0);
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS: la geometria interna ferma il colpo"), Result.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+/**
+ * E' il muro INTERNO a fermare il colpo, non un attacco che non parte mai.
+ *
+ * 🔴 **Il confronto di hash che usa il test gemello su `BlockedByWall` qui NON servirebbe**, ed e' bene
+ * scriverlo: da `#1830` la geometria intra-cella entra in `URTMatchStateHash`, quindi due partite che
+ * differiscono per un muro hanno hash diversi **anche se il colpo si comportasse allo stesso modo**. Un
+ * `TestNotEqual` sugli hash sarebbe verde per costruzione: proverebbe che ho aggiunto un muro, non che
+ * qualcuno l'ha sbattuto.
+ *
+ * 🔑 La discriminante e' il **tipo** del muro. Stesso file, stessa abilita', stesse celle, stesso segmento:
+ * si abbassa `High` a `Low`, che per `D-271` e' copertura parziale e **non** occlude, e l'esito deve
+ * ribaltarsi — le `expect` dello scenario pretendono Riktor illeso, e con un muretto il colpo arriva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioInteriorWallIsWhatStopsTest,
+	"RefactorTactics.Scenario.InteriorWallIsWhatStopsTheShot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioInteriorWallIsWhatStopsTest::RunTest(const FString&)
+{
+	FRTTestScenario Walled;
+	if (!LoadShippedScenario(*this, TEXT("Combat.BlockedByInteriorWall"), Walled)) { return false; }
+	if (!TestTrue(TEXT("lo scenario porta un muro"), Walled.InteriorWalls.Num() == 1)) { return false; }
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult HighResult = URTScenarioRunner::Run(W1, Walled);
+	DestroyRunnerWorld(W1);
+	TestEqual(TEXT("col muro ALTO Riktor resta illeso"), HighResult.OutcomeString(), FString(TEXT("PASS")));
+
+	// L'unica differenza: il muro diventa un muretto. Non occlude, quindi il colpo arriva e le assertion
+	// dello scenario — che pretendono 120 HP — devono FALLIRE.
+	FRTTestScenario Lowered = Walled;
+	Lowered.InteriorWalls[0].Segment.WallType = ERTHexCoverType::Low;
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult LowResult = URTScenarioRunner::Run(W2, Lowered);
+	DestroyRunnerWorld(W2);
+
+	if (LowResult.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("la variante col muretto e' andata in ERROR: %s"), *LowResult.ErrorMessage));
+		return false;
+	}
+	TestNotEqual(TEXT("col MURETTO il colpo arriva, e le expect cadono"),
+		LowResult.OutcomeString(), FString(TEXT("PASS")));
+	return true;
+}
+
+/**
  * Esegue uno scenario e riporta OGNI assertion sugli HP con il suo `actual`.
  *
  * Il nome e' prolisso di proposito: la unity build fonde piu' file in una sola unita' di traduzione, e un

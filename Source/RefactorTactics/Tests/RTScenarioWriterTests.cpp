@@ -35,10 +35,12 @@ namespace
 	  "cells": [
 	    { "cell": [0, 0, 0], "blocksMovement": true, "moveCost": 2 },
 	    { "cell": [1, 0, 0], "blocksLineOfSight": true, "occupancySurcharge": 3 },
-	    { "cell": [-1, 0, 0], "interiorWalls": [
-	        { "axis": 3, "offset": 0, "alongStart": -12, "alongEnd": 12 },
-	        { "axis": 0, "offset": 6, "alongStart": 0, "alongEnd": 12, "wallType": "Low" }
-	    ] }
+	    { "cell": [-1, 0, 0], "moveCost": 1 }
+	  ],
+	  "interiorWalls": [
+	    { "cell": [-1, 0, 0], "axis": "Deg90", "alongStart": -12, "alongEnd": 12, "type": "High" },
+	    { "cell": [-1, 0, 0], "axis": "Deg0", "offset": 6, "alongStart": 0, "alongEnd": 12,
+	      "type": "Low", "stableId": "Muretto" }
 	  ],
 	  "units": [
 	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0], "facing": "SW", "health": 12 },
@@ -89,25 +91,32 @@ namespace
 			if (A.bBlocksLineOfSight != B.bBlocksLineOfSight) { return Fail(FString::Printf(TEXT("cells[%d].blocksLineOfSight"), I)); }
 			if (A.MoveCost != B.MoveCost) { return Fail(FString::Printf(TEXT("cells[%d].moveCost"), I)); }
 			if (A.OccupancySurcharge != B.OccupancySurcharge) { return Fail(FString::Printf(TEXT("cells[%d].occupancySurcharge"), I)); }
+		}
 
-			// I MURI INTERNI (`#2031`). ⚠️ Senza queste righe il round-trip sarebbe CIECO al campo nuovo:
-			// il writer potrebbe non scriverli affatto e il test resterebbe verde, che e' il modo in cui un
-			// gate smette di guardare senza dirlo.
-			if (A.InteriorWalls.Num() != B.InteriorWalls.Num())
+		// I MURI INTERNI, che stanno alla RADICE e non nella cella — `#1830` li porta, `#2031` li fa
+		// sopravvivere alla riscrittura.
+		//
+		// ⚠️ Senza queste righe il confronto e' CIECO al campo: misurato su `main` il 2026-09-01, il
+		// writer non li scriveva affatto e questo test era verde lo stesso. Un gate che smette di guardare
+		// non lo dice.
+		if (L.InteriorWalls.Num() != R.InteriorWalls.Num())
+		{
+			return Fail(FString::Printf(TEXT("interiorWalls: %d contro %d"),
+				L.InteriorWalls.Num(), R.InteriorWalls.Num()));
+		}
+		for (int32 W = 0; W < L.InteriorWalls.Num(); ++W)
+		{
+			const FRTHexInteriorWall& WA = L.InteriorWalls[W];
+			const FRTHexInteriorWall& WB = R.InteriorWalls[W];
+			if (!(WA.Cell == WB.Cell) || WA.Segment.Axis != WB.Segment.Axis
+				|| WA.Segment.Offset != WB.Segment.Offset
+				|| WA.Segment.AlongStart != WB.Segment.AlongStart
+				|| WA.Segment.AlongEnd != WB.Segment.AlongEnd
+				|| WA.Segment.Layer != WB.Segment.Layer
+				|| WA.Segment.WallType != WB.Segment.WallType
+				|| WA.StableId != WB.StableId)
 			{
-				return Fail(FString::Printf(TEXT("cells[%d].interiorWalls: %d contro %d"),
-					I, A.InteriorWalls.Num(), B.InteriorWalls.Num()));
-			}
-			for (int32 W = 0; W < A.InteriorWalls.Num(); ++W)
-			{
-				const FRTScenarioInteriorWall& WA = A.InteriorWalls[W];
-				const FRTScenarioInteriorWall& WB = B.InteriorWalls[W];
-				if (WA.Axis != WB.Axis || WA.Offset != WB.Offset
-					|| WA.AlongStart != WB.AlongStart || WA.AlongEnd != WB.AlongEnd
-					|| !WA.WallType.Equals(WB.WallType))
-				{
-					return Fail(FString::Printf(TEXT("cells[%d].interiorWalls[%d]"), I, W));
-				}
+				return Fail(FString::Printf(TEXT("interiorWalls[%d] su %s"), W, *WA.Cell.ToString()));
 			}
 		}
 

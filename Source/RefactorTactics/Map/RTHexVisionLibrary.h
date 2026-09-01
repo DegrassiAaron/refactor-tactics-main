@@ -8,8 +8,8 @@
 class URTHexMapAsset;
 
 /**
- * PERCHE' la linea di tiro e' bloccata. Due valori oltre a `None`, e sono due perche' il corpo di
- * `HasLineOfSight` distingue esattamente due predicati su due domini diversi — non perche' due sembrassero
+ * PERCHE' la linea di tiro e' bloccata. Tre valori oltre a `None`, e sono tre perche' il corpo di
+ * `HasLineOfSight` distingue esattamente tre predicati su tre domini diversi — non perche' tre sembrassero
  * il numero giusto.
  *
  * ⛔ **Non e' una tassonomia estendibile a piacere.** Aggiungere un valore qui significa che
@@ -37,6 +37,21 @@ enum class ERTLineOfSightBlock : uint8
 
 	/** La CELLA attraversata porta `FRTHexCellData::bBlocksLineOfSight`. Gli estremi sono esclusi. */
 	CellBlocker = 2,
+
+	/**
+	 * La GEOMETRIA INTRA-CELLA ha fermato la linea: un `FRTHexInteriorWall` alto, dentro una cella,
+	 * incrociato dalla corda d'attraversamento — `D-269`, `D-270`, `#1830`.
+	 *
+	 * 🔑 **Gli estremi NON sono esclusi**, a differenza di `CellBlocker`, e non e' un'incoerenza: un muro
+	 * dentro la cella del tiratore sta FRA lui e l'uscita, non sopra di lui. E' la stessa ragione per cui
+	 * `EdgeBlocker` conta il primo e l'ultimo passo — cio' che si esclude e' che qualcuno si copra da solo,
+	 * non che una barriera davanti a lui smetta di esistere.
+	 *
+	 * ⚠️ **Non dice quale muro**: la ragione nomina la CELLA (`BlockedAt`), non il segmento. Chi vuole il
+	 * dettaglio lo chiede a `URTHexOcclusionLibrary`, che ne e' l'autorita' — la stessa disciplina con cui
+	 * `EdgeBlocker` non distingue la copertura alta dalla porta chiusa.
+	 */
+	InteriorGeometry = 3,
 };
 
 /**
@@ -62,11 +77,20 @@ struct FRTLineOfSightResult
 	/**
 	 * La cella da cui si entrava. Con `EdgeBlocker` il bordo colpevole e' il lato `BlockedFrom -> BlockedAt`;
 	 * con `CellBlocker` e' solo il passo precedente, e la colpevole e' `BlockedAt`.
+	 *
+	 * Con `InteriorGeometry` e' la cella da cui la corda ENTRA in `BlockedAt` — e vale `BlockedAt` stessa
+	 * quando il muro sta nella cella del tiratore, che e' il caso in cui non si entra da nessuna parte.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
 	FRTCellId BlockedFrom;
 
-	/** Indice del passo lungo `HexLine` (1..N-1). `INDEX_NONE` quando la vista passa. */
+	/**
+	 * Indice lungo `HexLine` della cella in cui il blocco e' scattato, cioe' di `BlockedAt`.
+	 * `INDEX_NONE` quando la vista passa.
+	 *
+	 * ⚠️ Vale `1..N-1` per `EdgeBlocker` e `CellBlocker`, che sono proprieta' di un PASSO; puo' valere anche
+	 * `0` per `InteriorGeometry`, che e' una proprieta' di una CELLA e comprende quella del tiratore.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
 	int32 StepIndex = INDEX_NONE;
 

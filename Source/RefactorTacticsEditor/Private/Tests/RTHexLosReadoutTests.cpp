@@ -76,6 +76,29 @@ bool FRTHexLosReadoutFollowsTheVerdictTest::RunTest(const FString&)
 		TestTrue(TEXT("la ragione nomina la causa"), R.Reason.Contains(TEXT("CellBlocker")));
 		TestTrue(TEXT("e nomina la cella colpevole, non una qualunque"), R.Reason.Contains(TEXT("(2,0,L0)")));
 	}
+
+	// LA GEOMETRIA INTRA-CELLA (`D-269`, `#1830`): senza il suo `case`, lo `switch` cadrebbe nel `default` e
+	// il pannello direbbe `unavailable` — cioe' l'ispettore tacerebbe proprio sulla causa nuova, che e' il
+	// difetto che #1755 vieta al contrario («meglio nessuna ragione che una inventata»): qui la ragione c'e',
+	// e non dirla sarebbe perderla.
+	{
+		URTHexMapAsset* Walled = MakeLosMap(4);
+		FRTGeometrySegment Diameter;
+		Diameter.Axis = ERTTacticalAxis::Deg90;
+		Diameter.Offset = 0;
+		Diameter.AlongStart = -RT_GeometryQuanta;
+		Diameter.AlongEnd = RT_GeometryQuanta;
+		Diameter.WallType = ERTHexCoverType::High;
+		Walled->InteriorWalls.Add(FRTHexInteriorWall(FRTCellId(2, 0), Diameter));
+
+		const FRTLineOfSightResult Los = URTHexVisionLibrary::DescribeLineOfSight(Walled, From, To);
+		const RTHexLos::FReadout R = RTHexLos::Describe(true, From, true, To, Los);
+
+		TestFalse(TEXT("bloccata secondo l'autorita'"), URTHexVisionLibrary::HasLineOfSight(Walled, From, To));
+		TestEqual(TEXT("e il pannello dice BLOCKED"), R.Verdict, FString(TEXT("BLOCKED")));
+		TestTrue(TEXT("la ragione nomina la geometria interna"), R.Reason.Contains(TEXT("InteriorGeometry")));
+		TestTrue(TEXT("e la cella che porta il muro"), R.Reason.Contains(TEXT("(2,0,L0)")));
+	}
 	return true;
 }
 

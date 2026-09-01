@@ -53,6 +53,14 @@ namespace RTHexLos
 			Out.Reason = FString::Printf(TEXT("CellBlocker  %s"), *CellText(Los.BlockedAt));
 			break;
 
+		case ERTLineOfSightBlock::InteriorGeometry:
+			// La geometria intra-cella (`D-269`, `#1830`). Si nomina UNA cella — quella che contiene il muro —
+			// e non due come `EdgeBlocker`: il segmento sta DENTRO, non fra due celle. Non si nomina il muro
+			// perche' neanche la ragione lo porta: chi vuole sapere quale segmento e' stato chiede a
+			// `URTHexOcclusionLibrary`, che ne e' l'autorita'.
+			Out.Reason = FString::Printf(TEXT("InteriorGeometry  %s"), *CellText(Los.BlockedAt));
+			break;
+
 		default:
 			// ⚠️ Un valore che questo `switch` non conosce. Si dichiara `unavailable` invece di ripiegare su
 			// una delle due cause note: una ragione plausibile e sbagliata e' peggio di nessuna ragione, e
