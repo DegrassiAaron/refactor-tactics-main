@@ -177,6 +177,51 @@ $EngineVersion = (Get-Content $UProject -Raw | ConvertFrom-Json).EngineAssociati
 $EngineCmd = "D:/EpicGames/UE_$EngineVersion/Engine/Binaries/Win64/UnrealEditor-Cmd.exe"
 if (-not (Test-Path $EngineCmd)) { throw "motore non trovato: $EngineCmd" }
 
+function Invoke-Git {
+    param([Parameter(Mandatory)] [string[]] $GitArgs)
+
+    # 🔴 **`$ErrorActionPreference = 'Stop'` trasforma ogni riga di stderr di un comando nativo in un
+    # `ErrorRecord` che LANCIA, anche quando il comando riesce** — e `2>$null` non protegge, perche' il
+    # record nasce prima che la redirezione lo scarti. Un solo file tracciato scritto con terminatori LF
+    # basta: `git diff` stampa `warning: LF will be replaced by CRLF`, esce **0**, e lo script muore.
+    #
+    # Misurato il 2026-09-01 su `#1964`: basta aggiungere a un `.cpp` tracciato una riga che finisca
+    # con il solo LF, e la run muore con
+    # `NativeCommandError` a `rt-suite.ps1:247`, **nessun verdetto**, mentre `Saved/Logs/` conserva il log
+    # della run PRECEDENTE — un verdetto vecchio con l'aria di essere quello nuovo. E il blocco che chiama
+    # git si riesegue a ogni giro d'attesa, quindi una run con `-WaitMinutes` ha decine di occasioni di
+    # morire, non una.
+    #
+    # ⚠️ La preferenza si abbassa SOLO attorno all'invocazione e si rialza in `finally`: il resto dello
+    # script continua a fallire chiuso. Lo stderr non viene soppresso, viene **separato** — le righe
+    # d'avviso escono dal valore di ritorno, quindi non entrano nel digest dell'albero.
+    #
+    # ⛔ Non si silenzia il warning lato git (`core.autocrlf`, `core.safecrlf`): sposterebbe una
+    # configurazione di repository per aggirare un difetto di script, e lascerebbe scoperto ogni altro
+    # avviso che git puo' emettere — `detached HEAD`, `index.lock`, refname ambiguo.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $combined = & git @GitArgs 2>&1
+        $exit = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
+
+    # 🔑 `$LASTEXITCODE` si riscrive DOPO il filtro: i cmdlet qui sotto non lo toccano oggi, ma il
+    # `throw` di ogni chiamante lo legge, e un fail-closed che dipende dall'ordine delle righe non e' un
+    # fail-closed. Il codice tornato e' quello di git, non quello della pipeline.
+    $lines = $combined |
+        Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } |
+        ForEach-Object { [string]$_ }
+    $global:LASTEXITCODE = $exit
+
+    # Una riga sola torna come stringa e non come array di uno, che e' cio' che facevano le invocazioni
+    # dirette: i chiamanti la passano a `[string]::IsNullOrWhiteSpace` e a `-join`.
+    return $lines
+}
+
 function Get-ShortHash {
     param([string] $Text)
     if ([string]::IsNullOrEmpty($Text)) { return '(pulito)' }
@@ -224,7 +269,7 @@ function Test-EngineFree {
 function Get-Snapshot {
     Push-Location $RepoRoot
     try {
-        $head = (& git rev-parse HEAD 2>$null)
+        $head = Invoke-Git @('rev-parse', 'HEAD')
         # 🔴 Un `git` che fallisce non deve produrre un `$null` che esplode piu'
         # avanti con «You cannot call a method on a null-valued expression»: il
         # motivo va detto qui, dove si sa qual e'.
@@ -244,7 +289,7 @@ function Get-Snapshot {
         # trenta righe piu' sotto. E la causa non e' teorica — un'altra sessione
         # che tiene `.git/index.lock` a meta' di un `checkout` basta, e questo
         # blocco ora gira anche a ogni giro d'attesa.
-        $tracked = (& git diff HEAD 2>$null) -join "`n"
+        $tracked = (Invoke-Git @('diff', 'HEAD')) -join "`n"
         if ($LASTEXITCODE -ne 0) { throw "git diff HEAD fallito (exit $LASTEXITCODE): albero non leggibile" }
 
         # 🔴 Degli untracked serve il CONTENUTO, non l'elenco dei path, ed e' lo
@@ -254,7 +299,7 @@ function Get-Snapshot {
         # rimasto `b8e81adc` in entrambe — due misure, una verde e una rossa,
         # dichiarate VALIDE con lo stesso identificatore d'albero. L'invariante
         # era cieca proprio sul file che si sta scrivendo in quel momento.
-        $untrackedPaths = @(& git ls-files --others --exclude-standard 2>$null)
+        $untrackedPaths = @(Invoke-Git @('ls-files', '--others', '--exclude-standard'))
         if ($LASTEXITCODE -ne 0) { throw "git ls-files fallito (exit $LASTEXITCODE): untracked non leggibili" }
 
         $untracked = ''
@@ -291,7 +336,7 @@ function Get-Snapshot {
             }
         }
 
-        $paths = (& git status --porcelain 2>$null)
+        $paths = Invoke-Git @('status', '--porcelain')
         if ($LASTEXITCODE -ne 0) { throw "git status fallito (exit $LASTEXITCODE)" }
     }
     finally { Pop-Location }
