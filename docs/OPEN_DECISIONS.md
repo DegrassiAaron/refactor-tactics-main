@@ -111,9 +111,13 @@ Il documento Drive «RefactorTactics — Tactical Segment & Anchor Reticle v0.1 
 > [`#1833`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1833): `COV-2` in particolare —
 > *«i `CoverAnchor` sono autorati, generati o ibridi?»* — chiedeva **chi produce** un'ancora di copertura,
 > non **come si nomina** un punto della reticola, ed è la domanda a cui `GEO-5` non risponde.
-> 🔁 **Aggiornato il 2026-08-31**: erano otto e aperte alla scrittura; `COV-2`…`COV-6` sono state chiuse da
-> [`D-302`](decisions/RT_PDR_00_Decision_Log.md) lo stesso giorno — e `COV-1` da [`D-303`](decisions/RT_PDR_00_Decision_Log.md) —, e restano aperte
-> `COV-7`, `COV-8` e la nuova `MAP-4`.
+> 🔁 **Aggiornato il 2026-09-01**: erano otto e aperte alla scrittura, e **oggi sono chiuse tutte e otto**.
+> `COV-2`…`COV-6` da [`D-302`](decisions/RT_PDR_00_Decision_Log.md) il 2026-08-31, `COV-1` da [`D-303`](decisions/RT_PDR_00_Decision_Log.md)
+> lo stesso giorno, e `COV-7`/`COV-8` da [`D-308`](decisions/RT_PDR_00_Decision_Log.md). Delle otto non resta aperta **nessuna**;
+> l'unica voce che quella serie si lascia dietro è `MAP-4`, che **nessuna delle otto poneva** — l'ha aperta la chiusura di `COV-1`.
+> ⚠️ **`COV-9`…`COV-12` NON sono rimasugli di questa serie e non contraddicono la riga sopra**: `COV-9` e `COV-10`
+> nascono dalla seduta del 2026-08-31, `COV-11` e `COV-12` dal kit *Cover · Melee · AoE · Facing v0.1* del 2026-09-01.
+> La numerazione prosegue la serie, la **provenienza** no.
 
 ---
 
@@ -347,11 +351,15 @@ Origine: il Decision Record d'autore *«RefactorTactics — Cover Placement & In
 `D-289` **congela il modello spaziale** — regioni di posa, sorgenti/opzioni/facce, uno slot di occupancy,
 traversata esplicita — e dichiara esplicitamente ciò che **non** congela. Queste sono quelle voci.
 
-🔁 **Rimasugli di otto: due, più una nuova.** `COV-1`…`COV-6` sono chiuse da
-[`D-302`](decisions/RT_PDR_00_Decision_Log.md) e [`D-303`](decisions/RT_PDR_00_Decision_Log.md) — la sezione qui sopra ne conserva l'istruttoria — e restano
-`COV-7` e `COV-8`. ⚠️ **Chiudere `COV-1` ne ha aperta una**, ed è dichiarato invece che nascosto:
-un footprint discreto non si trasla lungo una transizione, quindi `MAP-4` prende il posto che il punto (2)
-di `D-071` non copre più da solo.
+🔁 **Rimasugli di otto: nessuno. Resta la sola voce che la chiusura ha APERTO.** `COV-1`…`COV-6` sono chiuse da
+[`D-302`](decisions/RT_PDR_00_Decision_Log.md) e [`D-303`](decisions/RT_PDR_00_Decision_Log.md) — la sezione qui sopra ne conserva l'istruttoria —,
+e `COV-7`/`COV-8` da [`D-308`](decisions/RT_PDR_00_Decision_Log.md) il 2026-09-01: le due righe restano qui **barrate**, con il loro
+perché, per la disciplina che questo file dichiara in testa. ⚠️ **Chiudere `COV-1` ne ha aperta una**, ed è
+dichiarato invece che nascosto: un footprint discreto non si trasla lungo una transizione, quindi `MAP-4`
+prende il posto che il punto (2) di `D-071` non copre più da solo. ⚠️ **«Nessuno» vale per le OTTO, non per il prefisso `COV-`**: `COV-9`…`COV-12` sono aperte e vivono nelle sezioni che le hanno prodotte. ⛔ **`MAP-4` non è un rimasuglio di `COV-7`**:
+il vault di `D-308` è una transizione **autorata fra due celle**, mentre `MAP-4` chiede cosa spazzi il corridoio
+di una transizione **qualsiasi** — la prima è un dato, la seconda una regola generale, e chiudere l'una non
+produce l'altra.
 
 ⚠️ **Non riaprono ciò che è già deciso.** Il vocabolario dei livelli di copertura è
 [`D-271`](decisions/RT_PDR_00_Decision_Log.md) (`None`/`Low`/`High`, chiuso); che la geometria interna
@@ -362,8 +370,8 @@ produca copertura e occluda è [`D-269`](decisions/RT_PDR_00_Decision_Log.md) e
 | ID | Domanda | Perché non si deduce | Innesco |
 |---|---|---|---|
 | `MAP-4` | **Con un footprint discreto, che cosa spazza il corridoio di transizione?** | [`D-071`](decisions/RT_PDR_00_Decision_Log.md) punto (2) resta in piedi — *«il corridoio spazzato fra due anchor è il footprint traslato lungo `A→B`»* — ma [`D-303`](decisions/RT_PDR_00_Decision_Log.md) ha reso il footprint un **conteggio di settori**, e un conteggio non si trasla. ⚠️ Non è un dettaglio d'implementazione: la posa è per-cella e la transizione è fra due celle, quindi o il corridoio si esprime in un terzo modo, o la transizione smette di avere una clearance propria e si riduce a *«A valida ∧ B valida ∧ `A→B` non chiusa»*. 🔑 La seconda uscita è già quasi scritta: è la frase di `E23.7` in [`roadmap-v0.1.md`](roadmap/roadmap-v0.1.md), *«esprimibile senza inventare una copertura»*. ⛔ Ma sceglierla qui la deciderebbe per inerzia, ed è la stessa ragione per cui `COV-3` esisteva. ✅ **Zero costo oggi**: la *swept clearance* non è mai stata implementata | `E23.7` ([#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828)), il primo consumatore che debba validare una transizione con un footprint dichiarato |
-| `COV-7` | **Quali sono le regole finali di vault e reposition?** | È la traversata autorata che `E23.7` consuma. Senza, `ERTIntraCellTraversal` resta a **due** valori — ed è corretto che ci resti: un terzo valore senza produttore è un campo che nessuno legge, il difetto che questo repository ha già pagato quattro volte | [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828) |
-| `COV-8` | **Una copertura distrutta rigenera le `CoverOption` della cella, e quando?** | `CP 22.3` ([#1563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1563)) dice già che *«una copertura distrutta non si richiude»*. Con sorgenti multiple per cella la domanda si allarga: distrutta una sorgente, le altre opzioni restano? e chi stava usando quella distrutta dove si trova? | `E22` / [#1563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1563) |
+| ~~`COV-7`~~ | ~~**Quali sono le regole finali di vault e reposition?**~~ | ✅ **Chiusa il 2026-09-01 da [`D-308`](decisions/RT_PDR_00_Decision_Log.md), e sono DUE regole distinte, non una.** Il **riposizionamento** resta nella cella: stesso `FRTCellId`, cambia la `CoverSelection`, costa **1 MP**, non tocca l'occupancy e **non introduce una sottocella**. Il **vault** è una transizione **esplicitamente autorata nel tactical graph** fra celle adiacenti, e costa `costo d'arco normale` **+ 1 MP**; ⛔ `Low Cover` **non** è automaticamente scavalcabile e `High Cover` normalmente non lo è. La destinazione resta soggetta alla normale occupancy, e un ingresso in copertura dopo il vault paga il `+1 MP` di `COV-6` **separatamente**. 🔑 **Il timore di questa riga era fondato e la decisione lo scioglie invece di ignorarlo**: il terzo valore di `ERTIntraCellTraversal` non era rifiutato in sé, gli mancava un **produttore** — ed è esattamente ciò che *«transizione autorata nel grafo»* nomina. ⚠️ Il valore d'enum **non si aggiunge qui**: arriva con il suo produttore, come [`spec-cover-placement-intra-hex.md`](technical/systems/spec-cover-placement-intra-hex.md) §6 prescrive. 🔎 *Istruttoria conservata*: è la traversata autorata che `E23.7` consuma; senza, `ERTIntraCellTraversal` resta a due valori — e un terzo valore senza produttore è un campo che nessuno legge, il difetto che questo repository ha già pagato quattro volte | [#1828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1828) — **implementazione, non più decisione** |
+| ~~`COV-8`~~ | ~~**Una copertura distrutta rigenera le `CoverOption` della cella, e quando?**~~ | ✅ **NO, e la risposta alle due sotto-domande è «le altre restano» e «a `None`» — chiusa il 2026-09-01 da [`D-308`](decisions/RT_PDR_00_Decision_Log.md).** All'Atomic Commit cadono **solo** le `CoverOption` che dipendevano dalla sorgente distrutta; le **altre sorgenti della cella restano valide**. Chi aveva selezionato quella distrutta passa a **`None`**, e ⛔ **non c'è auto-switch**: una scelta successiva paga il normale `+1 MP` di `COV-6`. ⛔ **Nessuna rigenerazione spontanea** — una riparazione futura dev'essere un **effetto esplicito**. 🔑 **La finestra di lettura non è una regola nuova**: le contribution dello stesso layer leggono `State N`, `State N+1` vede la copertura aggiornata — la stessa forma che [`D-294`](decisions/RT_PDR_00_Decision_Log.md) dà all'occupancy di un KO. 🔎 *Istruttoria conservata*: `CP 22.3` diceva già *«una copertura distrutta non si richiude»*, ma con sorgenti multiple per cella la domanda si allargava — e le due sotto-domande che la allargavano sono precisamente quelle a cui la decisione risponde | `E22` / [#1563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1563) — **implementazione** |
 
 > ⛔ **Cosa resta vietato mentre queste sono aperte**, e sono i vincoli che `D-289` recepisce: nessuna
 > sottocella navigabile, nessun mini-navmesh intra-hex, nessun secondo pathfinder, nessuna coordinata float
