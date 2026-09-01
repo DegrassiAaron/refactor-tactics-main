@@ -29,7 +29,7 @@ struct FRTLabelGlyph
 	FVector Up        = FVector::ZeroVector;
 };
 
-/** Le tre run di una cella, tutte insieme: l'ordine e' run per run, carattere per carattere. */
+/** La terna di una cella: una sola run, nell'ordine in cui si legge, carattere per carattere. */
 struct FRTCellLabel
 {
 	TArray<FRTLabelGlyph> Glyphs;
