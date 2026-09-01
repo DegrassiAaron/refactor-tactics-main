@@ -193,6 +193,25 @@ struct FRTScenarioCell
 
 };
 
+/**
+ * Una PORTA dichiarata dallo scenario, con la cella che la contiene.
+ *
+ * ⚠️ Serve un tipo perche' `FRTHexDoor` porta il bordo ma non la cella: nell'asset vive **dentro**
+ * `FRTHexCellData::Doors`, e qui le porte si dichiarano in una sezione propria — piu' leggibile di una
+ * porta annidata in ogni cella, e simmetrica a `interiorWalls`.
+ */
+USTRUCT()
+struct FRTScenarioDoor
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FRTCellId Cell;
+
+	UPROPERTY()
+	FRTHexDoor Door;
+};
+
 /** Un'unita' schierata dallo scenario. */
 USTRUCT()
 struct FRTScenarioUnit
@@ -693,6 +712,24 @@ struct FRTTestScenario
 	 */
 	UPROPERTY()
 	TArray<FRTHexInteriorWall> InteriorWalls;
+
+	/**
+	 * PORTE con la loro identita' stabile, e i BINDING che legano una sorgente ai propri bersagli
+	 * (`CP 23.3`/`23.4`, `#833`). Vuoti = nessuna struttura interattiva.
+	 *
+	 * 🔑 **Esistono per la stessa ragione di `InteriorWalls`**: senza, il grafo di interazione sarebbe
+	 * verificabile solo da un test C++ — cioe' mai in una partita, mai in un replay. E
+	 * [`scenario-map.md`](../../../docs/technical/tooling/scenario-map.md) dichiara **gia'** i tre scenari
+	 * attesi con i loro nomi, che senza questi due campi non erano scrivibili.
+	 *
+	 * ⚠️ Riusano i tipi dell'asset — `FRTHexDoor`, `FRTInteractionBinding` — invece di copie da scenario: una
+	 * seconda rappresentazione della stessa porta sarebbe due verita' da tenere allineate.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioDoor> Doors;
+
+	UPROPERTY()
+	TArray<FRTInteractionBinding> InteractionBindings;
 
 	UPROPERTY()
 	TArray<FRTScenarioUnit> Units;

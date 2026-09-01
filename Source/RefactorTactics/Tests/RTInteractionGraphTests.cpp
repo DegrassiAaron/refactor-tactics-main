@@ -4,6 +4,10 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexDoorLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
+#include "ScenarioHarness/RTScenarioRunner.h"
+#include "RTWorldFixtures.h"
+#include "Misc/Paths.h"
 #include "Combat/RTHexCombatLibrary.h" // il piano: e' li' che l'ordine cambia destinatario (`#833`)
 #include "Map/RTStructureIdentityLibrary.h"
 
@@ -1044,6 +1048,50 @@ bool FRTGraphPlanRoutesToSourceTest::RunTest(const FString&)
 			TestTrue(TEXT("quella lontana, non quella puntata"), Changes[0].Cell == Far);
 		}
 	}
+	return true;
+}
+
+/**
+ * LO SCENARIO: una leva apre una porta a cinque celle di distanza, e al turno dopo ci si passa.
+ *
+ * 🔑 **È la verifica che i test qui sopra non danno.** Quelli provano il piano e l'applicazione come
+ * funzioni; questo li mette in una partita vera — intento, Planning, Blast, e poi un Move che consuma la
+ * topologia nuova. Senza, il grafo resterebbe verificato solo in C++, cioè mai in un replay.
+ *
+ * ⚠️ Il nome non è scelto qui: `docs/technical/tooling/scenario-map.md` lo dichiara atteso da agosto per
+ * `RT-FEAT-MAP-INTERACTION-GRAPH`, insieme agli altri due che restano da scrivere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGraphSwitchOpensDoorScenarioTest,
+	"RefactorTactics.InteractionGraph.SwitchOpensDoorScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGraphSwitchOpensDoorScenarioTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	FString Error;
+	const FString Path = FPaths::Combine(FPaths::ProjectDir(),
+		TEXT("Scenarios/Spec/Map/Interaction/SwitchOpensDoor.json"));
+	if (!TestTrue(FString::Printf(TEXT("lo scenario si carica: %s"), *Error),
+		URTScenarioLoader::LoadFromFile(Path, Scenario, Error)))
+	{
+		return false;
+	}
+
+	// Ciò che il formato non sapeva dire fino a `#833`, e senza cui questo file non era scrivibile.
+	TestEqual(TEXT("dichiara due porte"), Scenario.Doors.Num(), 2);
+	TestEqual(TEXT("e un binding"), Scenario.InteractionBindings.Num(), 1);
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	RTWorldFixtures::DestroyWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("la leva apre la porta lontana, e al turno dopo ci si passa"),
+		Result.OutcomeString(), FString(TEXT("PASS")));
 	return true;
 }
 

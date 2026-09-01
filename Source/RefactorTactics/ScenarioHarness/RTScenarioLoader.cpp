@@ -378,6 +378,100 @@ namespace
 				OutScenario.InteriorWalls.Add(Wall);
 			}
 		}
+
+		// --- porte e grafo di interazione (opzionali, `#833`) --------------------------------------------------
+		//
+		// Senza queste due sezioni il grafo sorgente -> bersaglio sarebbe esercitabile solo da un test C++, e
+		// `scenario-map.md` dichiara gia' i tre scenari attesi che non erano scrivibili.
+		const UEnum* DoorStateEnum = StaticEnum<ERTHexDoorState>();
+		const UEnum* DirEnum = StaticEnum<ERTHexDirection>();
+
+		const TArray<TSharedPtr<FJsonValue>>* DoorsJson = nullptr;
+		if (Root->TryGetArrayField(TEXT("doors"), DoorsJson))
+		{
+			for (const TSharedPtr<FJsonValue>& Value : *DoorsJson)
+			{
+				const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+				if (!Obj.IsValid()) { OutError = TEXT("doors: voce non valida"); return false; }
+
+				FRTScenarioDoor Entry;
+				const TArray<TSharedPtr<FJsonValue>>* CellArr = nullptr;
+				Obj->TryGetArrayField(TEXT("cell"), CellArr);
+				if (!ParseCell(CellArr, Entry.Cell, OutError, TEXT("doors")))
+				{
+					return false;
+				}
+
+				FString EdgeText;
+				Obj->TryGetStringField(TEXT("edge"), EdgeText);
+				const int64 EdgeValue = DirEnum ? DirEnum->GetValueByNameString(EdgeText) : INDEX_NONE;
+				if (EdgeValue == INDEX_NONE)
+				{
+					OutError = FString::Printf(TEXT("doors: bordo '%s' sconosciuto"), *EdgeText);
+					return false;
+				}
+				Entry.Door.Edge = static_cast<ERTHexDirection>(EdgeValue);
+
+				// `Closed` e' il default: una porta che nasce aperta e' il caso raro, e scriverlo esplicitamente
+				// costa meno che dimenticarlo e non capire perche' il varco c'era gia'.
+				FString StateText;
+				if (Obj->TryGetStringField(TEXT("state"), StateText))
+				{
+					const int64 StateValue = DoorStateEnum ? DoorStateEnum->GetValueByNameString(StateText) : INDEX_NONE;
+					if (StateValue == INDEX_NONE)
+					{
+						OutError = FString::Printf(TEXT("doors: stato '%s' sconosciuto"), *StateText);
+						return false;
+					}
+					Entry.Door.State = static_cast<ERTHexDoorState>(StateValue);
+				}
+
+				int32 DoorId = 0;
+				Obj->TryGetNumberField(TEXT("doorId"), DoorId);
+				Entry.Door.DoorId = DoorId;
+
+				FString StableText;
+				if (Obj->TryGetStringField(TEXT("stableId"), StableText))
+				{
+					Entry.Door.StableId = FName(*StableText);
+				}
+				OutScenario.Doors.Add(Entry);
+			}
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* BindingsJson = nullptr;
+		if (Root->TryGetArrayField(TEXT("interactionBindings"), BindingsJson))
+		{
+			for (const TSharedPtr<FJsonValue>& Value : *BindingsJson)
+			{
+				const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+				if (!Obj.IsValid()) { OutError = TEXT("interactionBindings: voce non valida"); return false; }
+
+				FRTInteractionBinding Binding;
+				FString SourceText;
+				Obj->TryGetStringField(TEXT("source"), SourceText);
+				if (SourceText.IsEmpty())
+				{
+					OutError = TEXT("interactionBindings: 'source' mancante");
+					return false;
+				}
+				Binding.SourceId = FName(*SourceText);
+
+				// ⚠️ L'ORDINE dei bersagli e' dato, non dettaglio: `ApplyInteraction` li applica come sono
+				// scritti, ed e' la proprieta' che l'invariante n. 3 difende.
+				const TArray<TSharedPtr<FJsonValue>>* TargetsJson = nullptr;
+				if (!Obj->TryGetArrayField(TEXT("targets"), TargetsJson) || TargetsJson->Num() == 0)
+				{
+					OutError = FString::Printf(TEXT("interactionBindings: '%s' senza bersagli"), *SourceText);
+					return false;
+				}
+				for (const TSharedPtr<FJsonValue>& T : *TargetsJson)
+				{
+					Binding.TargetIds.Add(FName(*T->AsString()));
+				}
+				OutScenario.InteractionBindings.Add(Binding);
+			}
+		}
 		return true;
 	}
 
