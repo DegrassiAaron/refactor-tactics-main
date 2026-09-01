@@ -685,6 +685,25 @@ struct FRTTurnLogEntry
 	 * entrano in nessuna traccia reale, quindi non c'e' nessun `UnitId` a zero da correggere finche' un
 	 * produttore non esiste.
 	 *
+	 * 🔴 **E i due residui NON sono lo stesso residuo** — misurato il 2026-09-01 lavorando `#1933`,
+	 * perche' «manca il chiamante» faceva sembrare i due casi simmetrici e non lo sono:
+	 *
+	 * · `UsedByBlast` ha **oggetto**: il Blast il facing lo legge davvero, in `IsInFrontalArc`, e ne
+	 *   decide l'esito. Manca solo chi registri la lettura. ⚠️ Il costo non e' la riga: `ReadFacingForConsumer`
+	 *   accetta una `FRTHexSimUnit` mentre il Blast maneggia `FRTHexCombatUnit`, e ogni voce in piu' sposta
+	 *   l'hash di ogni traccia archiviata che contenga un colpo direzionale.
+	 *
+	 * · `UsedByOverwatch` **non ha oggetto**, ed e' la differenza che conta: l'Overwatch non legge nessun
+	 *   facing. Le sue quattro condizioni sono `TargetInsideArea`, `TargetDetected`, `HasLineOfSight` e
+	 *   l'appartenenza di squadra (`BuildOverwatchTriggers`), e la zona e' una **linea** `From -> Toward`
+	 *   (`MakeSuppressiveZone` -> `LineCells`), non un settore orientato. Ne' `FRTOverwatchWatcher` ne'
+	 *   `FRTSuppressionMover` portano un `Facing`.
+	 *
+	 * ∴ Il produttore che [D-020] e [ADR-0005] riga 86 presuppongono — *«l'Overwatch usa il **cono
+	 * pianificato**»* — non puo' nascere qui: quel cono nel codice **non esiste**. Chiamare
+	 * `ReadFacingForConsumer` dal trigger scriverebbe una voce che dichiara una lettura mai avvenuta,
+	 * cioe' il dato plausibile e falso che `Unmeasured` esiste altrove per non produrre.
+	 *
 	 * ⚠️ **Cosa si perde, detto invece che taciuto**: con `UnitId` sul difensore, l'attaccante resta nella
 	 * voce solo come `SrcCell` — e questo stesso commento dichiara che la cella non identifica un'unita'.
 	 * Chi volesse aggregare gli scavalcamenti per ATTACCANTE (la sovrastima del bot, `RTHexBotLibrary.h:94`)
