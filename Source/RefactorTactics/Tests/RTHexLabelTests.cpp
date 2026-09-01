@@ -362,10 +362,32 @@ bool FRTHexLabelOrderAndScaleTest::RunTest(const FString&)
 	TestTrue(TEXT("l'avanzamento concorda con l'asse di lettura dei caratteri"),
 		FVector::DotProduct(Advance, Run[0].Right.GetSafeNormal()) > 0.99);
 
-	// 3. Leggibile da una camera DALL'ALTO e non riflessa: la terna (Right, Up, Z) e' destrorsa.
-	//    Senza questa, un `Up` invertito darebbe caratteri capovolti che l'asserzione 2 non vede.
-	const FVector Handed = FVector::CrossProduct(Run[0].Right, Run[0].Up);
-	TestTrue(TEXT("Right x Up punta verso l'alto: glifi non riflessi"), Handed.Z > 0.0);
+	// 3. 🔴 **Leggibile da una camera DALL'ALTO, non riflessa** — e il segno atteso si RICAVA dalla
+	//    convenzione invece di essere inciso.
+	//
+	//    ⚠️ Inciso l'avevo gia' inciso storto: la prima stesura asseriva `(Right x Up).Z > 0`, che e' la
+	//    condizione giusta in una base destrorsa con `X` a est e `Y` a nord — la convenzione della
+	//    matematica, non quella del motore. **Unreal e' mancino** (`X` avanti, `Y` a destra, `Z` in alto) e
+	//    la sua vista dall'alto mette `X` in SU e `Y` a DESTRA sullo schermo, quindi la condizione si
+	//    rovescia. Il test passava, e a schermo i glifi erano ribaltati sull'orizzontale: `2` compariva
+	//    come `5` — a sette segmenti sono l'una il ribaltamento verticale dell'altra — e la virgola
+	//    finiva in alto.
+	//
+	//    Costruendo il riferimento dai due assi dello schermo, il segno non e' piu' una mia opinione:
+	//    se un giorno la convenzione del motore cambiasse, cambierebbe con lei.
+	const FVector ScreenRight = FVector::YAxisVector; // Y a destra nella vista dall'alto
+	const FVector ScreenUp    = FVector::XAxisVector; // X in su
+	const double Reference = FVector::CrossProduct(ScreenRight, ScreenUp).Z;
+	const double Actual    = FVector::CrossProduct(Run[0].Right, Run[0].Up).Z;
+	TestTrue(TEXT("i glifi hanno lo stesso verso degli assi dello schermo: non riflessi"),
+		Actual * Reference > 0.0);
+
+	// 4. `Up` guarda in FUORI. E' l'invariante concreta che si era rotta, ed e' indipendente
+	//    dall'asserzione sopra: la fissa in termini della cella invece che della camera.
+	const FVector CellCentre = URTHexLibrary::AxialToWorld(Cell, MapOrigin, 150.f, 250.f);
+	const FVector OutwardRef = (Run[0].Origin - CellCentre).GetSafeNormal2D();
+	TestTrue(TEXT("il testo cresce verso il BORDO, non verso il centro"),
+		FVector::DotProduct(Run[0].Up.GetSafeNormal(), OutwardRef) > 0.5);
 
 	// L'ultimo carattere della terna e' il layer: alto meta' del primo.
 	const double FirstHeight = Run[0].Up.Size();

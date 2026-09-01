@@ -98,7 +98,7 @@ FRTCellLabel URTHexLabelLibrary::BuildCellLabel(const FRTCellId& Cell, const FVe
 		const FVector Mid    = (Corners[Side] + Corners[(Side + 1) % 6]) * 0.5;
 		const FVector Inward = (Centre - Mid).GetSafeNormal();
 
-		// 🔑 **Il testo corre PARALLELO al lato e cresce verso il centro.** Prima correva in direzione
+		// 🔑 **Il testo corre PARALLELO al proprio lato.** Prima correva in direzione
 		// radiale — perpendicolare al lato — e si leggeva male per due ragioni indipendenti:
 		//
 		//  1. **era specchiato.** I glifi avanzavano lungo `Inward` mentre il loro asse `Right` valeva
@@ -107,14 +107,29 @@ FRTCellLabel URTHexLabelLibrary::BuildCellLabel(const FRTCellId& Cell, const FVe
 		//  2. **era perpendicolare al lato**, cioe' orientato lungo l'unica direzione in cui l'esagono e'
 		//     piu' stretto invece che lungo quella in cui e' piu' largo.
 		//
-		// `Up = Inward` fa crescere il testo verso il centro, che e' cio' che lo tiene dentro l'esagono.
-		// `Right = Inward x Z` e' parallelo al lato **per costruzione** e non per una tabella di angoli:
-		// se `HexCorners` cambiasse convenzione, questo la seguirebbe.
+		// 🔴 **`Up` guarda in FUORI, e il segno e' la correzione del 2026-09-01.** La prima stesura usava
+		// `Up = Inward` con la giustificazione «cosi' il testo cresce verso il centro e resta dentro»: la
+		// conclusione era giusta e la premessa no. Il risultato erano glifi **ribaltati sull'orizzontale**,
+		// e lo si vede senza ambiguita' sulla coppia `2`/`5`, che a sette segmenti e' esattamente il
+		// ribaltamento verticale l'una dell'altra — `-1,2` compariva a schermo come `-1,5` — e sulla
+		// virgola, che finiva in ALTO.
 		//
-		// ⚠️ La terna `(Right, Up, Z)` e' destrorsa — `Right x Up = +Z` — ed e' cio' che rende i glifi
-		// leggibili da una camera dall'alto invece che riflessi.
-		const FVector Up    = Inward;
-		const FVector Right = FVector::CrossProduct(Inward, FVector::UpVector);
+		// ⚠️ **L'errore era di convenzione, non di algebra.** `Right x Up = +Z` e' la condizione di
+		// leggibilita' in una base destrorsa con `X` a est e `Y` a nord. **Unreal e' mancino** — `X`
+		// avanti, `Y` a destra, `Z` in alto — e la sua vista dall'alto mette `X` in SU e `Y` a DESTRA sullo
+		// schermo. Con quella base la condizione si rovescia: serve `Right x Up = -Z`, che e' cio' che
+		// `Up = Outward` produce. Il guardiano e' `RunsAlongTheSideAndReadsForward`, che adesso ricava il
+		// segno atteso DALLA CONVENZIONE invece di inciderlo — perche' inciso l'avevo gia' inciso storto.
+		//
+		// Il testo resta dentro l'esagono lo stesso: cresce verso il bordo, ma la base parte da
+		// `Margin + FullHeight` invece che da `Margin`, quindi occupa la stessa fascia di prima.
+		//
+		// `Right` NON cambia: `Z x Outward` e `Inward x Z` sono lo stesso vettore. Resta parallelo al lato
+		// **per costruzione** e non per una tabella di angoli — se `HexCorners` cambiasse convenzione,
+		// questo la seguirebbe.
+		const FVector Outward = -Inward;
+		const FVector Up      = Outward;
+		const FVector Right   = FVector::CrossProduct(FVector::UpVector, Outward);
 
 		// La larghezza totale serve PRIMA di posare il primo carattere: la riga e' centrata sull'asse
 		// radiale, quindi bisogna sapere di quanto arretrare l'inizio.
@@ -125,7 +140,10 @@ FRTCellLabel URTHexLabelLibrary::BuildCellLabel(const FRTCellId& Cell, const FVe
 			TotalWidth += (I == Text.Len() - 1) ? W : W * 1.15; // nessuna spaziatura dopo l'ultimo
 		}
 
-		const FVector RunStart = Mid + Inward * Margin - Right * (TotalWidth * 0.5);
+		// La base sta a `Margin + FullHeight` dal lato e il testo cresce verso il bordo, quindi la fascia
+		// occupata resta `[Margin, Margin + FullHeight]`: la stessa di prima, e con lo stesso vincolo di
+		// contenimento — la corda piu' stretta e' quella a `Margin`, non quella della base.
+		const FVector RunStart = Mid + Inward * (Margin + FullHeight) - Right * (TotalWidth * 0.5);
 
 		double Travelled = 0.0;
 		for (int32 I = 0; I < Text.Len(); ++I)
