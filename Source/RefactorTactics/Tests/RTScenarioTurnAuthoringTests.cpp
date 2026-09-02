@@ -462,7 +462,7 @@ bool FRTScenarioTurnAuthoringIsExposedTest::RunTest(const FString&)
 	for (const FName& Name : { FName(TEXT("AddTurn")), FName(TEXT("GetTurnCount")), FName(TEXT("SetMoveIntent")),
 		FName(TEXT("SetWaitIntent")), FName(TEXT("RemoveIntent")), FName(TEXT("AddExpectationUnitAtCell")),
 		FName(TEXT("AddExpectationLogEventCount")), FName(TEXT("RemoveExpectation")),
-		FName(TEXT("GetReachableCells")),
+		FName(TEXT("GetReachableCells")), FName(TEXT("DuplicateTurn")),
 		FName(TEXT("SetDashIntent")), FName(TEXT("SetMainAction")), FName(TEXT("SetMainActionOnUnit")),
 		FName(TEXT("SetMainActionOnCell")), FName(TEXT("SetFacingIntent")), FName(TEXT("SetCoverEdgeIntent")),
 		FName(TEXT("SetReactionIntent")) })
@@ -1056,6 +1056,158 @@ bool FRTScenarioRejectedIntentLeavesNoTraceTest::RunTest(const FString&)
 		ERTScenarioAuthoringResult::Success);
 	TestEqual(TEXT("un intent"), Intents(), 1);
 
+	return true;
+}
+
+/**
+ * IL TURNO DUPLICATO È INDIPENDENTE, IN ENTRAMBE LE DIREZIONI — `#1627`.
+ *
+ * ⚠️ **Il criterio della issue è quasi vacuo in C++, e questo test punta altrove.** `TArray<FRTScenarioTurn>`
+ * contiene valori, e `FRTScenarioTurn` è fatto di `TArray` per valore: qualunque copia è già profonda, e un
+ * test che verifica «non condividono» sarebbe verde per costruzione del linguaggio.
+ *
+ * 🔑 Serve comunque, per due ragioni misurate. La prima è che l'implementazione **ovvia** non compila un
+ * comportamento, lo fa crashare: `Turns.Insert(Turns[i], i + 1)` passa a `Insert` un riferimento dentro
+ * l'array che `Insert` sta per riallocare, e `TArray::CheckAddress` è un `checkf` esplicito. La seconda è
+ * che un'implementazione futura che introducesse un indice o un handle condiviso deve cadere **qui**, non in
+ * PIE tre settimane dopo.
+ *
+ * ⛔ Su un turno **non vuoto**: duplicare due strutture vuote e confrontarle non misura niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioDuplicatedTurnIsIndependentTest,
+	"RefactorTactics.Scenario.DuplicatedTurnIsIndependentInBothDirections",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioDuplicatedTurnIsIndependentTest::RunTest(const FString&)
+{
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenTurnDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+	int32 Source = INDEX_NONE;
+	if (!TestEqual(TEXT("turno aggiunto"), Draft.AddTurn(Source, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// Un turno con qualcosa dentro: movimento, azione con bersaglio, e un secondo intent.
+	const TArray<FRTCellId> Route = { FRTCellId(-1, 0, 0) };
+	Draft.SetMoveIntent(Source, TEXT("A1"), Route, Error);
+	Draft.SetMainActionOnUnit(Source, TEXT("A1"), TEXT("Action.BasicAttack"), TEXT("B1"), Error);
+	Draft.SetMainAction(Source, TEXT("B1"), TEXT("Action.Guard"), Error);
+
+	int32 Copy = INDEX_NONE;
+	if (!TestEqual(TEXT("turno duplicato"),
+		Draft.DuplicateTurn(Source, Copy, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	TestEqual(TEXT("la copia sta subito dopo l'originale"), Copy, Source + 1);
+	TestEqual(TEXT("i turni sono due"), Draft.NumTurns(), 2);
+
+	auto IntentsOf = [&Draft](int32 T) { return Draft.GetScenario().Turns[T].Intents.Num(); };
+	TestEqual(TEXT("la copia porta gli stessi intent"), IntentsOf(Copy), IntentsOf(Source));
+	if (!TestEqual(TEXT("due intent per turno"), IntentsOf(Source), 2))
+	{
+		return false;
+	}
+
+	// --- direzione 1: tocco la COPIA, l'originale non cambia.
+	Draft.SetMainAction(Copy, TEXT("A1"), TEXT("Action.Brace"), Error);
+	TestEqual(TEXT("la copia e' cambiata"),
+		Draft.GetScenario().Turns[Copy].Intents[0].Ability, FName(TEXT("Action.Brace")));
+	TestEqual(TEXT("e l'originale no"),
+		Draft.GetScenario().Turns[Source].Intents[0].Ability, FName(TEXT("Action.BasicAttack")));
+	TestEqual(TEXT("nemmeno nel suo movimento"),
+		Draft.GetScenario().Turns[Source].Intents[0].Move.Num(), 1);
+
+	// --- direzione 2: tocco l'ORIGINALE, la copia non cambia. Senza questa meta', una condivisione a senso
+	// unico — la copia che punta all'originale — passerebbe il test.
+	Draft.RemoveIntent(Source, TEXT("B1"), Error);
+	TestEqual(TEXT("l'originale ha perso un intent"), IntentsOf(Source), 1);
+	TestEqual(TEXT("e la copia li ha ancora entrambi"), IntentsOf(Copy), 2);
+
+	return true;
+}
+
+/**
+ * L'ORDINE DEI TURNI SOPRAVVIVE A `save → load` — `#1627`.
+ *
+ * 🔑 **È l'invariante che vale comunque, e la issue non la isolava.** Il criterio scritto dice *«il file
+ * scritto dopo un riordino rilegge nello stesso ordine mostrato dalla UI»* — ma un altro criterio permette
+ * di **non offrire** il riordino, e infatti non lo si offre (la ragione sta su `DuplicateTurn`). Preso alla
+ * lettera, quel criterio resterebbe senza soggetto.
+ *
+ * Ciò che si può misurare, e che serve davvero, è che l'ordine **dichiarato** attraversi il file: tre turni
+ * distinguibili, salvati e riletti da disco, nella stessa sequenza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioTurnOrderSurvivesSaveLoadTest,
+	"RefactorTactics.Scenario.TurnOrderSurvivesSaveAndLoad",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioTurnOrderSurvivesSaveLoadTest::RunTest(const FString&)
+{
+	const FString Dir = TurnAuthoringTempDir();
+	const FString Path = FPaths::Combine(Dir, TEXT("Sequenza.json"));
+	ON_SCOPE_EXIT{ IFileManager::Get().DeleteDirectory(*Dir, false, true); };
+
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenTurnDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// Tre turni resi distinguibili dal loro contenuto: senza, l'ordine non e' osservabile e il test
+	// sarebbe verde su qualunque permutazione.
+	const TCHAR* Abilities[] = { TEXT("Action.Guard"), TEXT("Action.Brace"), TEXT("Action.Overwatch") };
+	for (const TCHAR* Ability : Abilities)
+	{
+		int32 T = INDEX_NONE;
+		if (!TestEqual(TEXT("turno aggiunto"), Draft.AddTurn(T, Error), ERTScenarioAuthoringResult::Success))
+		{
+			AddError(Error);
+			return false;
+		}
+		TestEqual(FString::Printf(TEXT("azione %s scritta"), Ability),
+			Draft.SetMainAction(T, TEXT("A1"), FName(Ability), Error), ERTScenarioAuthoringResult::Success);
+	}
+	TestEqual(TEXT("tre turni"), Draft.NumTurns(), 3);
+
+	if (!TestEqual(TEXT("valido"), Draft.Validate(Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	if (!TestEqual(TEXT("salvato"), Draft.SaveToFile(Path, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	FRTScenarioDraft Reloaded;
+	if (!TestEqual(TEXT("riaperto"), Reloaded.OpenFromFile(Path, Error), ERTScenarioAuthoringResult::Success))
+	{
+		AddError(Error);
+		return false;
+	}
+	if (!TestEqual(TEXT("tre turni riletti"), Reloaded.NumTurns(), 3))
+	{
+		return false;
+	}
+	for (int32 T = 0; T < 3; ++T)
+	{
+		const TArray<FRTScenarioIntent>& Intents = Reloaded.GetScenario().Turns[T].Intents;
+		if (TestEqual(FString::Printf(TEXT("turno %d ha un intent"), T), Intents.Num(), 1))
+		{
+			TestEqual(FString::Printf(TEXT("turno %d e' rimasto il suo"), T),
+				Intents[0].Ability, FName(Abilities[T]));
+		}
+	}
 	return true;
 }
 
