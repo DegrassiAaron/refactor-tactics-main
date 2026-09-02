@@ -37,6 +37,45 @@ struct FRTDoorOp
 		: From(InFrom), To(InTo), State(InState), ActorId(InActorId) {}
 };
 
+/**
+ * UN ORDINE DATO A UNA SORGENTE, non a un bordo — `#833`, `CP 23.4`.
+ *
+ * 🔑 **Esiste perche' un bordo non basta a dire chi comanda.** `FRTDoorOp` nomina la porta con le due celle
+ * che la contengono: e' esatto per la porta che si apre stando adiacenti, e muto per una leva che ne comanda
+ * altre. Il grafo di interazione lega **nomi** (`FRTInteractionBinding::SourceId`), e i bersagli li risolve
+ * `URTHexDoorLibrary::ApplyInteraction` a fase conclusa.
+ *
+ * ⚠️ **Il client non sceglie i bersagli, e questo tipo lo rende impossibile invece di vietarlo**: qui c'e' il
+ * nome della SORGENTE e nient'altro. Chi ha pianificato ha puntato un bordo che vedeva; quale porta si apra
+ * dall'altra parte della mappa lo decide l'autorita', leggendo l'asset.
+ */
+USTRUCT(BlueprintType)
+struct FRTInteractionOp
+{
+	GENERATED_BODY()
+
+	/** Il nome della struttura su cui si agisce, `StableId` di `CP 23.3`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	FName SourceId;
+
+	/**
+	 * Lo stato richiesto ai bersagli.
+	 *
+	 * ⚠️ `Action.Interact` puo' chiedere solo `Open` ([D-151]) e la commutazione e' `INT-7`: il campo esiste
+	 * perche' `ApplyInteraction` lo prende, non perche' qui ci sia una scelta.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	ERTHexDoorState State = ERTHexDoorState::Open;
+
+	/** Chi ha dato l'ordine, come indice (#405). Il TurnLog lo legge. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	int32 ActorId = INDEX_NONE;
+
+	FRTInteractionOp() = default;
+	FRTInteractionOp(FName InSourceId, ERTHexDoorState InState, int32 InActorId = INDEX_NONE)
+		: SourceId(InSourceId), State(InState), ActorId(InActorId) {}
+};
+
 /** Cosa e' cambiato su un bordo dopo un ordine: le voci che il chiamante scrive nel TurnLog. */
 USTRUCT(BlueprintType)
 struct FRTDoorChange

@@ -1,6 +1,8 @@
 #include "Map/RTStructureIdentityLibrary.h"
 
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCoverLibrary.h" // EdgeDirection: la direzione fra due celle adiacenti, in un posto solo
+#include "Map/RTHexLibrary.h"      // OppositeDirection: il bordo visto dall'altro lato
 #include "Map/RTHexMapAsset.h"
 
 TArray<FRTStructureEdgeRef> URTStructureIdentityLibrary::FindDoorEdges(const URTHexMapAsset* Map,
@@ -25,6 +27,64 @@ TArray<FRTStructureEdgeRef> URTStructureIdentityLibrary::FindDoorEdges(const URT
 		}
 	}
 	return Found;
+}
+
+FName URTStructureIdentityLibrary::FindDoorIdOnEdge(const URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& To)
+{
+	if (Map == nullptr)
+	{
+		return NAME_None;
+	}
+
+	// La direzione fra due celle adiacenti la sa `URTHexCoverLibrary`, che ne e' l'unica sede: riscriverla
+	// qui darebbe una seconda regola di adiacenza da tenere allineata alla prima.
+	ERTHexDirection Dir = ERTHexDirection::E;
+	if (!URTHexCoverLibrary::EdgeDirection(From, To, Dir))
+	{
+		return NAME_None; // non adiacenti, o su layer diversi: nessun bordo da guardare
+	}
+
+	// Il bordo si guarda dai DUE lati. Il dato sta su una cella sola — chi disegna ne mette una — e la
+	// struttura e' fisica: la stessa disciplina di `CoverBetween`, decisa sulla issue #70.
+	if (const FRTHexCellData* Here = Map->FindCell(From))
+	{
+		for (const FRTHexDoor& Door : Here->Doors)
+		{
+			if (Door.Edge == Dir && !Door.StableId.IsNone())
+			{
+				return Door.StableId;
+			}
+		}
+	}
+	if (const FRTHexCellData* There = Map->FindCell(To))
+	{
+		const ERTHexDirection Opposite = URTHexLibrary::OppositeDirection(Dir);
+		for (const FRTHexDoor& Door : There->Doors)
+		{
+			if (Door.Edge == Opposite && !Door.StableId.IsNone())
+			{
+				return Door.StableId;
+			}
+		}
+	}
+	return NAME_None;
+}
+
+bool URTStructureIdentityLibrary::IsInteractionSource(const URTHexMapAsset* Map, FName StableId)
+{
+	if (Map == nullptr || StableId.IsNone())
+	{
+		return false;
+	}
+	for (const FRTInteractionBinding& Binding : Map->InteractionBindings)
+	{
+		if (Binding.SourceId == StableId)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 TArray<FRTStructureArcRef> URTStructureIdentityLibrary::FindArcs(const URTHexMapAsset* Map, FName StableId)

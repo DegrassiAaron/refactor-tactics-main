@@ -63,6 +63,18 @@ URTHexMapAsset* URTScenarioArenaLibrary::BuildArena(const FRTTestScenario& Scena
 	// non ha.
 	Map->InteriorWalls.Append(Scenario.InteriorWalls);
 
+	// PORTE e GRAFO DI INTERAZIONE (`#833`). Le porte vivono dentro la cella che le contiene, quindi si
+	// aggiungono per cella; i binding stanno sull'asset e si accodano come i muri interni — un asset di
+	// partenza potrebbe averne di propri, e sostituirli in blocco li cancellerebbe in silenzio.
+	for (const FRTScenarioDoor& Spec : Scenario.Doors)
+	{
+		const FRTHexCellData* Existing = Map->FindCell(Spec.Cell);
+		FRTHexCellData Cell = Existing ? *Existing : FRTHexCellData(Spec.Cell);
+		Cell.Doors.Add(Spec.Door);
+		Map->AddOrUpdateCell(Cell);
+	}
+	Map->InteractionBindings.Append(Scenario.InteractionBindings);
+
 	// LA COTTURA di quei muri, che e' cio' che li rende visibili al MOVIMENTO e non solo alla vista — `#2031`.
 	//
 	// 🔑 `#1830` porta il muro dentro l'arena e gli fa fermare vista e proiettile. `BakeCell` gli fa

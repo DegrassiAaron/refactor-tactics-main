@@ -333,6 +333,20 @@ struct FRTHexBlastPlan
 	TArray<FRTDoorOp> DoorOps;
 
 	/**
+	 * Ordini raccolti verso una SORGENTE del grafo di interazione — `#833`, `CP 23.4`.
+	 *
+	 * 🔑 **Perche' un canale separato e non un `FRTDoorOp` in piu'.** I due si applicano con funzioni diverse
+	 * (`ApplyDoorOps` contro `ApplyInteraction`) e producono un numero diverso di cambi: uno per bordo il
+	 * primo, uno per **bersaglio risolto** il secondo. Fonderli avrebbe richiesto un flag e due rami dentro
+	 * l'applicazione, cioe' la seconda verita' sullo stesso ordine che `D-270` insegna a non costruire.
+	 *
+	 * Stesso criterio d'ordine degli altri canali: si raccolgono per `IntentIndex` e si applicano a fase
+	 * conclusa, cosi' due unita' che azionano la stessa leva danno lo stesso esito in qualunque ordine.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	TArray<FRTInteractionOp> InteractionOps;
+
+	/**
 	 * Un'impronta per intento aggressivo: dove il colpo e' arrivato, indipendentemente da chi ha preso.
 	 *
 	 * 🔴 **Esiste perche' il dato veniva BUTTATO.** `HexHitCells` era gia' calcolato una volta per intento,

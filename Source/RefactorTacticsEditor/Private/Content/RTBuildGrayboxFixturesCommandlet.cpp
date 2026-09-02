@@ -12,6 +12,7 @@
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
 
+#include "Content/RTGrayboxMaterials.h"
 #include "RTPlaygroundLayout.h"
 #include "World/RTGrayboxUnitFacingFixture.h"
 
@@ -42,6 +43,20 @@ int32 URTBuildGrayboxFixturesCommandlet::Main(const FString& Params)
 	ParseCommandLine(*Params, Tokens, Switches);
 	const bool bForce = Switches.Contains(TEXT("Force"));
 	const bool bPlace = Switches.Contains(TEXT("Place"));
+
+	// ---------------------------------------------------------------- i materiali
+
+	// ⚠️ **PRIMA del Blueprint**, e non e' un dettaglio d'ordine: il costruttore dell'attore risolve i tre
+	// materiali per path, quindi devono esistere su disco prima che la classe venga istanziata. Senza, il
+	// fixture nasce col grigio di default — cioe' quello del pavimento, e a schermo sparisce.
+	TMap<FString, UMaterialInterface*> FixtureMats;
+	const int32 MatFailed = RTGraybox::BuildFixtureMaterials(TEXT("/Game/RT/World/Graybox"), /*bDryRun=*/ false, FixtureMats);
+	if (MatFailed > 0)
+	{
+		UE_LOG(LogRTGrayboxFixtures, Error, TEXT("[GrayboxFixtures] %d materiali non salvati."), MatFailed);
+		return 1;
+	}
+	UE_LOG(LogRTGrayboxFixtures, Display, TEXT("[GrayboxFixtures] %d materiali del fixture pronti."), FixtureMats.Num());
 
 	// ---------------------------------------------------------------- il Blueprint
 
@@ -154,7 +169,10 @@ int32 URTBuildGrayboxFixturesCommandlet::Main(const FString& Params)
 
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	SpawnParams.Name = FName(TEXT("GrayboxUnitFacingFixture_Station01"));
+	// 🔴 **Nessun `SpawnParams.Name` fisso.** Con `-Force` l'istanza vecchia viene distrutta qui sopra ma
+	// non e' ancora raccolta, quindi il nome resta occupato e `SpawnActor` **asserisce**
+	// (`LevelActor.cpp:586`) invece di tornare `nullptr`. Misurato alla seconda esecuzione.
+	// Il nome leggibile nell'Outliner lo da' `SetActorLabel`, che e' quello che si vede davvero.
 	AActor* Placed = World->SpawnActor(Blueprint->GeneratedClass, &Location, &FRotator::ZeroRotator, SpawnParams);
 	if (!Placed)
 	{
