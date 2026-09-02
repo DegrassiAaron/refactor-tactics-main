@@ -198,6 +198,23 @@ namespace
 				for (const FName& Piece : Unit.Loadout) { W->WriteValue(Piece.ToString()); }
 				W->WriteArrayEnd();
 			}
+
+			// Gli status si scrivono NELL'ORDINE DICHIARATO e non si riordinano: `ApplyStatus` li applica
+			// uno per uno, e un riordino cambierebbe cio' che il round-trip restituisce — `#1629`.
+			if (Unit.Statuses.Num() > 0)
+			{
+				W->WriteArrayStart(TEXT("statuses"));
+				for (const FRTScenarioStatus& Status : Unit.Statuses)
+				{
+					W->WriteObjectStart();
+					W->WriteValue(TEXT("tag"), Status.Tag.ToString());
+					// `turns` si scrive sempre: e' meta' del dato, e ometterlo al valore di default
+					// costringerebbe chi legge il file a sapere qual e' quel default.
+					W->WriteValue(TEXT("turns"), Status.Turns);
+					W->WriteObjectEnd();
+				}
+				W->WriteArrayEnd();
+			}
 			W->WriteObjectEnd();
 		}
 		W->WriteArrayEnd();

@@ -558,6 +558,57 @@ namespace
 					}
 					Unit.Loadout.Add(FName(*PieceId));
 				}
+
+			// GLI STATUS INIZIALI — `#1629`. Assente = nessuno status, che e' lo stato naturale: qui NON
+			// serve distinguere «non dichiarato» da «dichiarato vuoto» come per il loadout, perche' un'unita'
+			// senza status non ne riceve di default.
+			const TArray<TSharedPtr<FJsonValue>>* StatusArr = nullptr;
+			if (Obj->TryGetArrayField(TEXT("statuses"), StatusArr) && StatusArr != nullptr)
+			{
+				for (const TSharedPtr<FJsonValue>& Entry : *StatusArr)
+				{
+					const TSharedPtr<FJsonObject> StatusObj = Entry->AsObject();
+					if (!StatusObj.IsValid())
+					{
+						OutError = FString::Printf(
+							TEXT("unita' '%s': statuses deve essere una lista di oggetti { tag, turns }"), *Unit.Id);
+						return false;
+					}
+
+					FString TagText;
+					if (!StatusObj->TryGetStringField(TEXT("tag"), TagText) || TagText.IsEmpty())
+					{
+						OutError = FString::Printf(TEXT("unita' '%s': uno status senza 'tag'"), *Unit.Id);
+						return false;
+					}
+
+					// 🔴 **Un tag sconosciuto RIFIUTA lo scenario**, e il nome sbagliato entra nel
+					// messaggio. `RequestGameplayTag` con `ErrorIfNotFound=false` tornerebbe un tag vuoto
+					// senza lamentarsi, e un tag vuoto applicato non fa niente: lo scenario girerebbe verde
+					// verificando l'assenza di un effetto che nessuno ha mai chiesto.
+					const FGameplayTag Resolved =
+						FGameplayTag::RequestGameplayTag(FName(*TagText), /*ErrorIfNotFound=*/ false);
+					if (!Resolved.IsValid())
+					{
+						OutError = FString::Printf(
+							TEXT("unita' '%s': status '%s' sconosciuto — il vocabolario e' quello di ")
+							TEXT("Core/RTGameplayTags.cpp"), *Unit.Id, *TagText);
+						return false;
+					}
+
+					int32 Turns = 1;
+					StatusObj->TryGetNumberField(TEXT("turns"), Turns);
+					if (Turns <= 0)
+					{
+						OutError = FString::Printf(
+							TEXT("unita' '%s': status '%s' con turns %d — uno status che dura zero turni non ")
+							TEXT("e' uno status"), *Unit.Id, *TagText, Turns);
+						return false;
+					}
+
+					Unit.Statuses.Emplace(FName(*TagText), Turns);
+				}
+			}
 			}
 
 			OutScenario.Units.Add(Unit);
