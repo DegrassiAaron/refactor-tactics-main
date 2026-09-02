@@ -6,6 +6,11 @@
 #include "Map/RTHexLibrary.h"
 #include "RTPlaygroundLayout.h"
 #include "RTPlaygroundPanelLibrary.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/ComboBoxString.h"
+#include "EditorUtilityWidgetBlueprint.h"
+#include "EdGraph/EdGraph.h"
+#include "K2Node_CallFunction.h"
 #include "World/RTGrayboxUnitFacingFixture.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -319,6 +324,164 @@ bool FRTPanelMapStateTest::RunTest(const FString&)
 	const FRTPlaygroundMapState Wrong = URTPlaygroundPanelLibrary::EvaluateMapState(TEXT("L_DevSandbox"));
 	TestTrue(TEXT("la ragione nomina la mappa aperta"), Wrong.Reason.Contains(TEXT("L_DevSandbox")));
 	TestTrue(TEXT("la ragione nomina quella attesa"),   Wrong.Reason.Contains(TEXT("L_GrayKitPlayground")));
+	return true;
+}
+
+namespace
+{
+	/**
+	 * Le voci **come sono salvate nel `.uasset`**, lette per riflessione.
+	 *
+	 * 🔑 **Perche' non `GetOptionCount()`/`GetOptionAtIndex()`**: quelle leggono `Options`, un
+	 * `TArray<TSharedPtr<FString>>` **transiente** che `PostLoad` ricostruisce da `DefaultOptions`.
+	 * Interrogare il derivato invece del persistito e' esattamente come il commandlet si era ingannato
+	 * da solo — scriveva `Options`, rileggeva `Options`, e dichiarava «8 voci» su un asset vuoto.
+	 * Qui si guarda il campo che finisce su disco.
+	 */
+	TArray<FString> PersistedComboOptions(const UComboBoxString* Combo)
+	{
+		TArray<FString> Out;
+		static const FName DefaultOptionsName(TEXT("DefaultOptions"));
+		const FArrayProperty* ArrayProp =
+			FindFProperty<FArrayProperty>(UComboBoxString::StaticClass(), DefaultOptionsName);
+		const FStrProperty* InnerProp = ArrayProp ? CastField<FStrProperty>(ArrayProp->Inner) : nullptr;
+		if (!Combo || !ArrayProp || !InnerProp)
+		{
+			return Out;
+		}
+		FScriptArrayHelper_InContainer Helper(ArrayProp, Combo);
+		for (int32 Index = 0; Index < Helper.Num(); ++Index)
+		{
+			Out.Add(InnerProp->GetPropertyValue(Helper.GetElementPtr(Index)));
+		}
+		return Out;
+	}
+}
+
+/**
+ * 🔑 **Il legame ASSET -> MODELLO, che prima non era verificabile da nessun test.**
+ *
+ * L'intestazione di questo file dichiarava: *«cio' che questi test NON provano: che il widget le
+ * chiami»*. Per le due combo **ora lo prova**: le voci non vivono piu' solo nel grafo, vivono in
+ * `DefaultOptions` del `.uasset`, e un `.uasset` si puo' caricare e interrogare.
+ *
+ * ⚠️ Il confronto e' **voce per voce**, non sul conteggio: otto station con i nomi sbagliati sono otto,
+ * e un test sulla cardinalita' le accetterebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelComboOptionsTest,
+	"RefactorTactics.Playground.PanelComboOptionsComeFromTheModel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelComboOptionsTest::RunTest(const FString&)
+{
+	UEditorUtilityWidgetBlueprint* Panel = LoadObject<UEditorUtilityWidgetBlueprint>(
+		nullptr, TEXT("/Game/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground"));
+	if (!TestNotNull(TEXT("il pannello e' caricabile dal suo percorso"), Panel))
+	{
+		return false;
+	}
+	UWidgetTree* Tree = Panel->WidgetTree;
+	if (!TestNotNull(TEXT("il pannello ha un widget tree"), Tree))
+	{
+		return false;
+	}
+
+	UComboBoxString* StationCombo = Cast<UComboBoxString>(Tree->FindWidget(TEXT("Cmb_Station")));
+	UComboBoxString* FacingCombo  = Cast<UComboBoxString>(Tree->FindWidget(TEXT("Cmb_Facing")));
+	if (!TestNotNull(TEXT("Cmb_Station esiste con il suo nome stabile"), StationCombo) ||
+		!TestNotNull(TEXT("Cmb_Facing esiste con il suo nome stabile"), FacingCombo))
+	{
+		return false;
+	}
+
+	const TArray<FString> SavedStations = PersistedComboOptions(StationCombo);
+	const TArray<FRTPlaygroundStationInfo> Stations = URTPlaygroundPanelLibrary::GetStations();
+	if (TestEqual(TEXT("tante voci salvate quante le station del modello"),
+			SavedStations.Num(), Stations.Num()))
+	{
+		for (int32 Index = 0; Index < Stations.Num(); ++Index)
+		{
+			TestEqual(*FString::Printf(TEXT("station %d: la voce salvata e' quella del modello"), Index),
+				SavedStations[Index], Stations[Index].Name);
+		}
+	}
+
+	const TArray<FString> SavedFacings = PersistedComboOptions(FacingCombo);
+	const TArray<FString> Facings = URTPlaygroundPanelLibrary::GetFacingOptions();
+	if (TestEqual(TEXT("tante voci salvate quante le direzioni del modello"),
+			SavedFacings.Num(), Facings.Num()))
+	{
+		for (int32 Index = 0; Index < Facings.Num(); ++Index)
+		{
+			TestEqual(*FString::Printf(TEXT("direzione %d: la voce salvata e' quella del modello"), Index),
+				SavedFacings[Index], Facings[Index]);
+		}
+	}
+
+	// ⛔ Senza questo il grafo non ha maniglia: un widget non-variabile non genera il suo `Get<Nome>`.
+	TestTrue(TEXT("Cmb_Facing e' una variabile, quindi il grafo la raggiunge"), FacingCombo->bIsVariable);
+	const UWidget* MapState = Tree->FindWidget(TEXT("Txt_MapState"));
+	if (TestNotNull(TEXT("Txt_MapState esiste"), MapState))
+	{
+		TestTrue(TEXT("Txt_MapState e' una variabile"), MapState->bIsVariable);
+	}
+	return true;
+}
+
+/**
+ * 🔑 **Il pannello CHIAMA il modello — misurato, non dichiarato.**
+ *
+ * Il grafo vive dentro un `.uasset`, che non si diffa: il commandlet `-RefreshOptions` stampa
+ * *«Grafo NON toccato»*, ma quella e' la sua parola. Questo test e' l'oracolo. Se qualcuno rigenera
+ * il pannello con `-Force`, o riapplica un DSL mutilo, **qui diventa rosso**.
+ *
+ * ⚠️ Il confronto e' sul **nome della funzione** (`UK2Node_CallFunction::FunctionReference`), non sul
+ * titolo del nodo: il titolo e' presentazione, e cambia con la lingua dell'editor.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelGraphCallsTheModelTest,
+	"RefactorTactics.Playground.PanelGraphCallsTheModel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPanelGraphCallsTheModelTest::RunTest(const FString&)
+{
+	UEditorUtilityWidgetBlueprint* Panel = LoadObject<UEditorUtilityWidgetBlueprint>(
+		nullptr, TEXT("/Game/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground"));
+	if (!TestNotNull(TEXT("il pannello e' caricabile dal suo percorso"), Panel))
+	{
+		return false;
+	}
+
+	TSet<FName> Called;
+	for (const TObjectPtr<UEdGraph>& Graph : Panel->UbergraphPages)
+	{
+		if (!Graph)
+		{
+			continue;
+		}
+		for (const UEdGraphNode* Node : Graph->Nodes)
+		{
+			if (const UK2Node_CallFunction* Call = Cast<UK2Node_CallFunction>(Node))
+			{
+				Called.Add(Call->FunctionReference.GetMemberName());
+			}
+		}
+	}
+
+	if (!TestTrue(TEXT("l'EventGraph del pannello non e' vuoto"), Called.Num() > 0))
+	{
+		return false;
+	}
+
+	// Le quattro chiamate che rendono il pannello un pannello invece di una finestra inerte.
+	const FName Expected[] =
+	{
+		TEXT("EvaluateMapState"),   // l'HEADER dice dove sei, e perche' non ci sei
+		TEXT("DiagnosticsLines"),   // le tre righe vengono dal modello, non riscritte nel widget
+		TEXT("ParseFacingOption"),  // la voce della combo diventa una direzione
+		TEXT("ApplyFixtureFacing"), // 🔑 e la direzione MUOVE il marker: senza questa il pannello mente
+	};
+	for (const FName& Function : Expected)
+	{
+		TestTrue(*FString::Printf(TEXT("il grafo chiama %s"), *Function.ToString()), Called.Contains(Function));
+	}
 	return true;
 }
 
