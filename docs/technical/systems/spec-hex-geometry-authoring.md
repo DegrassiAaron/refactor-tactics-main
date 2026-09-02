@@ -54,6 +54,36 @@ In un pointy-top i **vertici** stanno in alto e in basso, quindi non esiste un l
 ragionamento in termini di «via nord / via sud» usa un vocabolario che la griglia non ha — ed è un errore già
 commesso in sede di authoring.
 
+#### 2.1.1 🔑 Dove cade la bussola nel mondo: **`E` è `+X`**, quindi **`N` è `−Y`**
+
+I nomi `E/NE/NW/W/SW/SE` promettono una bussola, ma finché non è ancorata agli assi non dice nulla: è una
+conseguenza di `AxialToWorld`, non una convenzione dichiarata. Lo è da ora.
+
+| direzione | assiale | world | yaw |
+|---|---|---|--:|
+| `E`  | `(+1, 0)` | `(+√3·s, 0)` | **0°** |
+| `SE` | `(0, +1)` | `(+0,87·s, +1,5·s)` | 60° |
+| `SW` | `(−1, +1)` | `(−0,87·s, +1,5·s)` | 120° |
+| `W`  | `(−1, 0)` | `(−√3·s, 0)` | 180° |
+| `NW` | `(0, −1)` | `(−0,87·s, −1,5·s)` | −120° |
+| `NE` | `(+1, −1)` | `(+0,87·s, −1,5·s)` | −60° |
+
+∴ **il nord della bussola è `−Y`**, e nella vista dall'alto dell'editor — dove `+X` è in **su** e `+Y` a
+**destra** — il nord cade a **sinistra dello schermo**. Non è un dettaglio: chi guarda una scena assume che
+lo schermo sia orientato a nord, e con quell'assunzione legge `E` come «nord».
+
+⚠️ **La tabella qui sopra è la convenzione, non una misura**: cambiarla è una decisione, e va cambiata anche
+in `RefactorTactics.Hex.EastIsWorldPlusXAndTheSixYawsAreDeclared`, che la tiene con angoli **letterali**.
+🔴 Il test `FacingRotationMatchesNeighbourDirection` **non** basta a presidiarla: costruisce l'atteso con
+`AxialToWorld`, cioè la stessa origine, e uno scambio di `Wx` con `Wy` lo lascerebbe verde mentre la mappa
+gira di 90°.
+
+➕ **E la scena lo mostra**: `ARTGrayboxUnitFacingFixture` porta un `EastReference` — una freccia a
+rotazione **assoluta** lungo `+X`, con etichetta — perché un facing senza riferimento indipendente non è
+falsificabile: scelto il nord dopo aver guardato, ogni orientamento sembra giusto. È lo stesso rimedio che
+`PIE-FACING` ha adottato sulle unità con `FacingArrow`, per lo stesso motivo: separare *«sbagliato»* da
+*«non so»*. Presidiato da `Graybox.FixtureEastReferenceDoesNotFollowFacing`.
+
 ---
 
 ## 3. La geometria architettonica non è vincolata ai lati dell'esagono

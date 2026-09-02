@@ -1,4 +1,5 @@
 #include "World/RTGrayboxUnitFacingFixture.h"
+#include "Components/ArrowComponent.h"
 
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
@@ -63,6 +64,32 @@ ARTGrayboxUnitFacingFixture::ARTGrayboxUnitFacingFixture()
 	OptionalLabel->SetupAttachment(SceneRoot);
 	OptionalLabel->SetHorizontalAlignment(EHTA_Center);
 	OptionalLabel->SetWorldSize(28.f);
+
+	// ---- il riferimento, che NON segue `Facing` -------------------------------------------------
+	// Rotazione assoluta: identita' in coordinate-mondo, cioe' `+X`, cioe' `ERTHexDirection::E`. Se
+	// ereditasse la rotazione dell'attore girerebbe con lui e non sarebbe piu' un riferimento.
+	EastReference = CreateDefaultSubobject<UArrowComponent>(TEXT("EastReference"));
+	EastReference->SetupAttachment(SceneRoot);
+	EastReference->SetUsingAbsoluteRotation(true);
+	EastReference->SetUsingAbsoluteScale(true);
+	EastReference->SetRelativeRotation(FRotator::ZeroRotator);
+	EastReference->ArrowSize = 1.0f;
+	EastReference->ArrowLength = 260.f;
+	// ⚠️ Colore DIVERSO da quello del marker, e freddo contro il suo caldo: due frecce dello stesso
+	// colore si scambiano, ed e' proprio lo scambio che questo componente esiste per impedire.
+	EastReference->ArrowColor = FColor(60, 170, 255);
+	EastReference->SetHiddenInGame(false); // di default un ArrowComponent si vede solo in editor
+
+	EastReferenceLabel = CreateDefaultSubobject<UTextRenderComponent>(TEXT("EastReferenceLabel"));
+	EastReferenceLabel->SetupAttachment(SceneRoot);
+	EastReferenceLabel->SetUsingAbsoluteRotation(true);
+	EastReferenceLabel->SetHorizontalAlignment(EHTA_Center);
+	EastReferenceLabel->SetWorldSize(22.f);
+	EastReferenceLabel->SetTextRenderColor(FColor(60, 170, 255));
+	// Il testo NOMINA la convenzione, non solo la direzione: «E» da solo lascia aperto dove sia il nord.
+	EastReferenceLabel->SetText(FText::FromString(TEXT("E  (+X)   -   N e' -Y")));
+	EastReferenceLabel->SetRelativeLocation(FVector(280.0, 0.0, 6.0));
+	EastReferenceLabel->SetRelativeRotation(FRotator(90.0, 0.0, 0.0)); // steso a terra, leggibile dall'alto
 
 	// Solo i PATH: nessun caricamento qui, quindi nessuna dipendenza dall'ordine con cui il commandlet
 	// crea gli asset. Si risolvono in `OnConstruction`, quando esistono.
