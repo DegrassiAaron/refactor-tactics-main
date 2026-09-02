@@ -25,13 +25,49 @@ namespace
 	const TCHAR* RTPanelPackage = TEXT("/Game/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground");
 	const TCHAR* RTPanelAsset   = TEXT("WBP_RT_GrayKitPlayground");
 
+	/**
+	 * Le tre misure del pannello.
+	 *
+	 * 🔴 **Il default di `UTextBlock` e' 24**, e a 24 il pannello era illeggibile: quattro righe
+	 * riempivano l'altezza e il titolo non si distingueva dal corpo, perche' erano identici. La
+	 * gerarchia la fa la **differenza** fra le dimensioni, non la dimensione in se'.
+	 */
+	constexpr int32 FontTitle   = 14;
+	constexpr int32 FontHeader  = 11;
+	constexpr int32 FontBody    = 10;
+
 	/** Un testo nel box, con nome STABILE: e' la maniglia con cui il grafo lo raggiungera'. */
-	UTextBlock* AddLine(UWidgetTree* Tree, UVerticalBox* Box, const TCHAR* Name, const FString& Text)
+	UTextBlock* AddLine(UWidgetTree* Tree, UVerticalBox* Box, const TCHAR* Name, const FString& Text,
+		int32 FontSize = FontBody)
 	{
 		UTextBlock* Block = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), FName(Name));
 		Block->SetText(FText::FromString(Text));
+		FSlateFontInfo Font = Block->GetFont();
+		Font.Size = FontSize;
+		Block->SetFont(Font);
 		Box->AddChildToVerticalBox(Block);
 		return Block;
+	}
+
+	/**
+	 * Un pulsante **con l'etichetta dentro**.
+	 *
+	 * 🔴 Senza figlio di testo un `UButton` e' una **barra grigia muta**: il pannello ne mostrava sei, e
+	 * il verdetto di chi lo apriva e' stato *«non c'e' molto selezionabile»*. C'era: non si leggeva.
+	 */
+	UButton* AddButton(UWidgetTree* Tree, UVerticalBox* Box, const TCHAR* Name, const FString& Label)
+	{
+		UButton* Button = Tree->ConstructWidget<UButton>(UButton::StaticClass(), FName(Name));
+		UTextBlock* Text = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),
+			FName(*FString::Printf(TEXT("%s_Label"), Name)));
+		Text->SetText(FText::FromString(Label));
+		FSlateFontInfo Font = Text->GetFont();
+		Font.Size = FontBody;
+		Text->SetFont(Font);
+		Text->SetJustification(ETextJustify::Center);
+		Button->AddChild(Text);
+		Box->AddChildToVerticalBox(Button);
+		return Button;
 	}
 
 	/**
@@ -109,7 +145,8 @@ namespace
 		TArray<FString> StationNames;
 		for (const FRTPlaygroundStationInfo& Station : URTPlaygroundPanelLibrary::GetStations())
 		{
-			StationNames.Add(Station.Name);
+			// Il formato vive nella libreria: qui una seconda copia divergerebbe dal test che la sorveglia.
+			StationNames.Add(URTPlaygroundPanelLibrary::StationOptionLabel(Station));
 		}
 		if (!SetPersistedComboOptions(StationCombo, StationNames) ||
 			!SetPersistedComboOptions(FacingCombo, URTPlaygroundPanelLibrary::GetFacingOptions()))
@@ -120,6 +157,117 @@ namespace
 		OutStations = StationNames.Num();
 		OutFacings  = URTPlaygroundPanelLibrary::GetFacingOptions().Num();
 		return true;
+	}
+
+	/**
+	 * 🔑 **La presentazione, riconciliata su un albero QUALUNQUE.** Idempotente: gira sia su uno appena
+	 * costruito sia su uno gia' salvato, e per questo il refresh non ha bisogno di rigenerare — che
+	 * cancellerebbe il grafo autorato (`RTPlaygroundPanelGraph.dsl`).
+	 *
+	 * ⚠️ Tutto cio' che sta qui e' cio' che la seduta `U41` ha visto e nessun test guardava: le tre righe
+	 * di `DIAGNOSTICS` in doppia copia, sei pulsanti muti, e un font unico per titolo e corpo.
+	 */
+	void ReconcilePresentation(UWidgetBlueprint* Blueprint)
+	{
+		UWidgetTree* Tree = Blueprint ? Blueprint->WidgetTree : nullptr;
+		if (!Tree)
+		{
+			return;
+		}
+
+		// 1. La copia di troppo. `Txt_Declared_*` diceva le stesse tre righe che ora scrive il grafo:
+		//    nessuna delle due sbagliata, ed e' per questo che il difetto si vede solo a occhio.
+		TArray<UWidget*> Doomed;
+		Tree->ForEachWidget([&Doomed](UWidget* Widget)
+		{
+			if (Widget && Widget->GetName().StartsWith(TEXT("Txt_Declared_")))
+			{
+				Doomed.Add(Widget);
+			}
+		});
+		for (UWidget* Widget : Doomed)
+		{
+			// 🔴 **Togliere il widget non basta.** Ogni widget-variabile ha un GUID in
+			// `WidgetVariableNameToGuidMap`, che serve a riparare i riferimenti esterni dopo un rename.
+			// Lasciandolo, `CompileBlueprint` **ASSERISCE**: *«Variable [Txt_Declared_1] was deleted but
+			// still has a GUID referenced by WidgetBlueprint»* — misurato, il commandlet crashava.
+			const FName DeletedName = Widget->GetFName();
+			Tree->RemoveWidget(Widget);
+			Blueprint->WidgetVariableNameToGuidMap.Remove(DeletedName);
+		}
+
+		// 2. Le tre righe, dal modello, in UNA sola serie.
+		const TArray<FString> Declared = URTPlaygroundPanelLibrary::DiagnosticsLines();
+		const TCHAR* DiagNames[3] = { TEXT("Txt_DiagStation"), TEXT("Txt_DiagBounds"), TEXT("Txt_DiagActor") };
+		for (int32 I = 0; I < 3; ++I)
+		{
+			if (UTextBlock* Block = Cast<UTextBlock>(Tree->FindWidget(FName(DiagNames[I]))))
+			{
+				Block->SetText(FText::FromString(Declared.IsValidIndex(I) ? Declared[I] : TEXT("—")));
+			}
+		}
+
+		// 3. La gerarchia dei corpi. Il default e' 24 per tutti, e a quel punto non c'e' gerarchia.
+		auto SetSize = [Tree](const TCHAR* Name, int32 Size)
+		{
+			if (UTextBlock* Block = Cast<UTextBlock>(Tree->FindWidget(FName(Name))))
+			{
+				FSlateFontInfo Font = Block->GetFont();
+				Font.Size = Size;
+				Block->SetFont(Font);
+			}
+		};
+		SetSize(TEXT("Txt_Title"), FontTitle);
+		for (const TCHAR* Header : { TEXT("Txt_MapState"), TEXT("Txt_StationHeader"),
+			TEXT("Txt_FixtureHeader"), TEXT("Txt_ViewHeader"), TEXT("Txt_DiagHeader") })
+		{
+			SetSize(Header, FontHeader);
+		}
+		for (const TCHAR* Body : { TEXT("Txt_FixtureName"), TEXT("Txt_DiagStation"),
+			TEXT("Txt_DiagBounds"), TEXT("Txt_DiagActor") })
+		{
+			SetSize(Body, FontBody);
+		}
+
+		// 4. I pulsanti muti. Un `UButton` senza figlio di testo e' una barra grigia, e sei barre grigie
+		//    si leggono come *«non c'e' molto selezionabile»*.
+		struct FButtonLabel { const TCHAR* Name; const TCHAR* Label; };
+		const FButtonLabel Labels[] = {
+			{ TEXT("Btn_Focus"),         TEXT("Focus  (non cablato)") },
+			{ TEXT("Btn_SelectFixture"), TEXT("Select Fixture") },
+			{ TEXT("Btn_ResetFixture"),  TEXT("Reset Fixture") },
+			{ TEXT("Btn_CamClose"),      TEXT("Close  100  (non cablato)") },
+			{ TEXT("Btn_CamTactical"),   TEXT("Tactical  450  (non cablato)") },
+			{ TEXT("Btn_CamOverview"),   TEXT("Overview  4000  (non cablato)") },
+		};
+		for (const FButtonLabel& Entry : Labels)
+		{
+			UButton* Button = Cast<UButton>(Tree->FindWidget(FName(Entry.Name)));
+			if (!Button)
+			{
+				continue;
+			}
+			UTextBlock* Label = nullptr;
+			for (int32 I = 0; I < Button->GetChildrenCount(); ++I)
+			{
+				if (UTextBlock* Existing = Cast<UTextBlock>(Button->GetChildAt(I)))
+				{
+					Label = Existing;
+					break;
+				}
+			}
+			if (!Label)
+			{
+				Label = Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),
+					FName(*FString::Printf(TEXT("%s_Label"), Entry.Name)));
+				Button->AddChild(Label);
+			}
+			Label->SetText(FText::FromString(Entry.Label));
+			FSlateFontInfo Font = Label->GetFont();
+			Font.Size = FontBody;
+			Label->SetFont(Font);
+			Label->SetJustification(ETextJustify::Center);
+		}
 	}
 
 	/** Il salvataggio, uguale per la generazione e per il refresh. */
@@ -157,6 +305,7 @@ int32 URTBuildPlaygroundPanelCommandlet::Main(const FString& Params)
 				TEXT("[PlaygroundPanel] refresh impossibile: Cmb_Station o Cmb_Facing non trovate in %s."), RTPanelAsset);
 			return 1;
 		}
+		ReconcilePresentation(Existing);
 		MakeEveryWidgetAVariable(ExistingTree);
 
 		FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Existing);
@@ -212,49 +361,45 @@ int32 URTBuildPlaygroundPanelCommandlet::Main(const FString& Params)
 	Tree->RootWidget = Root;
 
 	// ---- HEADER ----------------------------------------------------------------
-	AddLine(Tree, Root, TEXT("Txt_Title"), TEXT("GRAY KIT PLAYGROUND    v0.1"));
-	AddLine(Tree, Root, TEXT("Txt_MapState"), TEXT("<mappa>  —  <Ready/Error>"));
+	AddLine(Tree, Root, TEXT("Txt_Title"), TEXT("GRAY KIT PLAYGROUND    v0.1"), FontTitle);
+	AddLine(Tree, Root, TEXT("Txt_MapState"), TEXT("<mappa>  —  <Ready/Error>"), FontHeader);
 
 	// ---- STATION ---------------------------------------------------------------
-	AddLine(Tree, Root, TEXT("Txt_StationHeader"), TEXT("STATION"));
+	AddLine(Tree, Root, TEXT("Txt_StationHeader"), TEXT("STATION"), FontHeader);
 	UComboBoxString* StationCombo =
 		Tree->ConstructWidget<UComboBoxString>(UComboBoxString::StaticClass(), TEXT("Cmb_Station"));
 	// ⛔ Le otto voci NON sono incise qui: il grafo le prende da `GetStations()`, che delega alla
 	// planimetria. Incidere «01..08» sarebbe la seconda copia che `#1459` ha gia' fatto pagare.
 	Root->AddChildToVerticalBox(StationCombo);
-	Root->AddChildToVerticalBox(
-		Tree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("Btn_Focus")));
+	// ⛔ `Focus` NON e' cablato: l'etichetta lo dice, invece di lasciarlo scoprire cliccando.
+	AddButton(Tree, Root, TEXT("Btn_Focus"), TEXT("Focus  (non cablato)"));
 
 	// ---- FIXTURE ---------------------------------------------------------------
-	AddLine(Tree, Root, TEXT("Txt_FixtureHeader"), TEXT("FIXTURE"));
+	AddLine(Tree, Root, TEXT("Txt_FixtureHeader"), TEXT("FIXTURE"), FontHeader);
 	AddLine(Tree, Root, TEXT("Txt_FixtureName"), TEXT("<nessun fixture selezionato>"));
 	// ⛔ Le sei voci le mette `GetFacingOptions()`, derivate da `StaticEnum<ERTHexDirection>()`.
 	Root->AddChildToVerticalBox(
 		Tree->ConstructWidget<UComboBoxString>(UComboBoxString::StaticClass(), TEXT("Cmb_Facing")));
-	Root->AddChildToVerticalBox(
-		Tree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("Btn_SelectFixture")));
-	Root->AddChildToVerticalBox(
-		Tree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("Btn_ResetFixture")));
+	AddButton(Tree, Root, TEXT("Btn_SelectFixture"), TEXT("Select Fixture"));
+	AddButton(Tree, Root, TEXT("Btn_ResetFixture"),  TEXT("Reset Fixture"));
 
 	// ---- VIEW ------------------------------------------------------------------
-	AddLine(Tree, Root, TEXT("Txt_ViewHeader"), TEXT("VIEW"));
-	Root->AddChildToVerticalBox(Tree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("Btn_CamClose")));
-	Root->AddChildToVerticalBox(Tree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("Btn_CamTactical")));
-	Root->AddChildToVerticalBox(Tree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("Btn_CamOverview")));
+	AddLine(Tree, Root, TEXT("Txt_ViewHeader"), TEXT("VIEW"), FontHeader);
+	AddButton(Tree, Root, TEXT("Btn_CamClose"),    TEXT("Close  100  (non cablato)"));
+	AddButton(Tree, Root, TEXT("Btn_CamTactical"), TEXT("Tactical  450  (non cablato)"));
+	AddButton(Tree, Root, TEXT("Btn_CamOverview"), TEXT("Overview  4000  (non cablato)"));
 
 	// ---- DIAGNOSTICS -----------------------------------------------------------
-	AddLine(Tree, Root, TEXT("Txt_DiagHeader"), TEXT("DIAGNOSTICS"));
-	AddLine(Tree, Root, TEXT("Txt_DiagStation"), TEXT("Station: —"));
-	AddLine(Tree, Root, TEXT("Txt_DiagBounds"),  TEXT("Bounds: —"));
-	AddLine(Tree, Root, TEXT("Txt_DiagActor"),   TEXT("Selected: —"));
-
-	// 🔑 **Le tre righe vengono dal MODELLO, non riscritte qui.** Sono quelle che
-	// `PanelDiagnosticsLinesAreExact` asserisce: una seconda copia nel widget divergerebbe in silenzio, ed
-	// e' esattamente il difetto che quel test esiste per impedire.
+	// 🔑 **Le tre righe vengono dal MODELLO**, sia qui (cosi' il designer mostra il vero) sia a runtime
+	// (`EventConstruct` le rilegge). 🔴 **Erano SEI**: c'era anche un blocco `Txt_Declared_*` con le
+	// stesse tre righe, e da quando il grafo riempie queste il pannello le mostrava **due volte**. Una
+	// sola serie: due copie della stessa verita' divergono, e intanto si leggono come un difetto.
+	AddLine(Tree, Root, TEXT("Txt_DiagHeader"), TEXT("DIAGNOSTICS"), FontHeader);
 	const TArray<FString> Declared = URTPlaygroundPanelLibrary::DiagnosticsLines();
-	for (int32 I = 0; I < Declared.Num(); ++I)
+	const TCHAR* DiagNames[3] = { TEXT("Txt_DiagStation"), TEXT("Txt_DiagBounds"), TEXT("Txt_DiagActor") };
+	for (int32 I = 0; I < 3; ++I)
 	{
-		AddLine(Tree, Root, *FString::Printf(TEXT("Txt_Declared_%d"), I), Declared[I]);
+		AddLine(Tree, Root, DiagNames[I], Declared.IsValidIndex(I) ? Declared[I] : TEXT("—"));
 	}
 
 	// Lo scheletro nasce gia' pronto per il grafo: voci dal modello e ogni widget raggiungibile.
@@ -265,6 +410,7 @@ int32 URTBuildPlaygroundPanelCommandlet::Main(const FString& Params)
 		UE_LOG(LogRTPlaygroundPanel, Error, TEXT("[PlaygroundPanel] combo non trovate subito dopo averle costruite."));
 		return 1;
 	}
+	ReconcilePresentation(PanelBP);
 	MakeEveryWidgetAVariable(Tree);
 
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(PanelBP);
