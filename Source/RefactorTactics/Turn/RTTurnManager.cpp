@@ -1954,6 +1954,11 @@ void ARTTurnManager::LockInAndResolve()
 	// Il playback di QUESTO turno parte da zero anche se non verra' riprodotto: senza, il ramo senza
 	// playback lascerebbe il valore del turno precedente e la misura leggerebbe una durata mai avvenuta.
 	PlaybackElapsedTotal = 0.f;
+	// Stessa ragione, stesso rischio: `PlaybackSlackScale` e' telemetria — `GetPlaybackSlackScale()` dice
+	// «il budget ha morso in questo round». `BeginPlayback` lo scrive DOPO le sue uscite anticipate (niente
+	// da mostrare, playback spento), quindi senza questo azzeramento un round senza playback continuerebbe
+	// a riportare la compressione del round precedente (#1878).
+	PlaybackSlackScale = 1.f;
 
 	// Se c'e' qualcosa da mostrare (movimenti/attacchi) e il playback e' attivo, riproduci la risoluzione
 	// nel tempo; altrimenti concludi subito il turno (comportamento istantaneo: es. headless/senza eventi).
@@ -6528,27 +6533,53 @@ void ARTTurnManager::BeginPlayback()
 		return;
 	}
 
-	// Durata reale = somma delle durate delle fasi effettivamente riprodotte (progress bar coerente).
-	// Poi accelerazione per rientrare nel tetto (SpeedMultiplierForCap, logica pura testata).
-	float RawTotal = 0.f;
+	// I due termini del round, separati: quanto tempo si MOSTRA qualcosa e quanto si aspetta. La
+	// distinzione nasce in `URTPlaybackLibrary::PhaseTime` e serve qui, dove il budget decide cosa
+	// comprimere — il budget puo' togliere attese e non puo' toccare cio' che si vede (#1878).
+	float ShownTotal = 0.f;
+	float SlackTotal = 0.f;
 	for (const ERTMatchPhase Ph : PlaybackPhases)
 	{
-		RawTotal += DurationForPlaybackPhase(Ph);
+		const FRTPhaseTime T = PhaseTimeForPlaybackPhase(Ph);
+		ShownTotal += T.Shown;
+		SlackTotal += T.Slack;
 	}
-	PlaybackSpeed = URTPlaybackLibrary::SpeedMultiplierForCap(RawTotal, MaxPlaybackSeconds);
+	// ⚠️ Da qui in poi `DurationForPlaybackPhase` restituisce la durata GIA' compressa: va calcolato prima
+	// di qualunque lettura, o il primo tick userebbe la scala del round precedente.
+	PlaybackSlackScale = URTPlaybackLibrary::SlackScaleForBudget(ShownTotal, SlackTotal, MaxPlaybackSeconds);
+
+	// Il totale che si mostrera': locomozione intatta piu' le attese sopravvissute al budget. ⚠️ Puo'
+	// SFORARE `MaxPlaybackSeconds`, ed e' voluto: quando non resta comprimibile, la risoluzione dura di
+	// piu' invece di far correre i personaggi.
+	const float BudgetedTotal = ShownTotal + SlackTotal * PlaybackSlackScale;
+
 	// La stima mostrata tiene conto anche della velocita' scelta da chi guarda. ⚠️ E' una stima ALL'AVVIO:
 	// se la velocita' cambia a risoluzione in corso, la barra resta tarata su quella di partenza. La
-	// riproduzione invece segue subito (TickPlayback ricompone a ogni tick) — l'unica cosa che diverge e'
+	// riproduzione invece segue subito (TickPlayback rilegge a ogni tick) — l'unica cosa che diverge e'
 	// il numero mostrato, non il ritmo, e non c'e' nulla di logico che vi dipenda.
-	const float StartSpeed = URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerPlaybackSpeed, PlaybackSpeed);
-	PlaybackTotalSeconds = (StartSpeed > 0.f) ? (RawTotal / StartSpeed) : RawTotal;
+	// 🔴 **Nelle unita' dell'orologio del playback, non in secondi di parete** — corretto il 2026-09-02.
+	// `PlaybackElapsedTotal` accumula `Dt`, che e' gia' moltiplicato per la velocita' scelta; dividere il
+	// totale per la stessa velocita' rendeva `GetPlaybackProgress01()` il rapporto fra una grandezza
+	// scalata e una no, e la barra saturava a `1` dopo `1/ViewerPlaybackSpeed` della risoluzione — a x4,
+	// col 75% ancora da mostrare. Il difetto precede #1878; questa riga era gia' da riscrivere e lasciarlo
+	// dentro sarebbe stato peggio che allargare di poco lo scope.
+	PlaybackTotalSeconds = BudgetedTotal;
 	PlaybackElapsedTotal = 0.f;
 
 	PlaybackPhaseIdx = 0;
 	bIsResolving = true;
 	SetActorTickEnabled(true);
-	AddLogEvent(FString::Printf(TEXT("Risoluzione: %d fasi, ~%.1fs (x%.2f)"),
-		PlaybackPhases.Num(), PlaybackTotalSeconds, StartSpeed), FRTLogSubject::World());
+	// I secondi di parete si compongono qui, dove servono a chi legge, invece di essere conservati in un
+	// campo che ha un'altra unita' di misura.
+	const float StartSpeed = URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerPlaybackSpeed);
+	// ⚠️ **`slack x%.2f` non e' decorazione: e' il segnale che rende il budget osservabile dai log.** La
+	// diagnosi di #1878 e' stata possibile perche' questa riga portava il moltiplicatore del tetto, e su
+	// 125.780 risoluzioni si e' potuto dire che non era mai intervenuto. Quel moltiplicatore non esiste
+	// piu'; senza il suo sostituto, il giorno in cui il budget comincera' a mordere — e comincera', appena
+	// la velocita' base scendera' — nessuno potrebbe accorgersene misurando.
+	AddLogEvent(FString::Printf(TEXT("Risoluzione: %d fasi, ~%.1fs (x%.2f, slack x%.2f)"),
+		PlaybackPhases.Num(), (StartSpeed > 0.f) ? (BudgetedTotal / StartSpeed) : BudgetedTotal,
+		StartSpeed, PlaybackSlackScale), FRTLogSubject::World());
 	EnterPlaybackPhase();
 }
 
@@ -6578,10 +6609,16 @@ void ARTTurnManager::EnterPlaybackPhase()
 
 void ARTTurnManager::TickPlayback(float DeltaSeconds)
 {
-	// Composizione RILETTA a ogni tick, non congelata in BeginPlayback: e' cio' che rende la velocita'
-	// scelta applicabile DURANTE la risoluzione, e non solo dal turno successivo (CP 47.2, #955).
-	// PlaybackSpeed resta il solo termine di cap; ViewerPlaybackSpeed e' la preferenza di chi guarda.
-	const float Dt = DeltaSeconds * URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerPlaybackSpeed, PlaybackSpeed);
+	// RILETTA a ogni tick, non congelata in BeginPlayback: e' cio' che rende la velocita' scelta
+	// applicabile DURANTE la risoluzione, e non solo dal turno successivo (CP 47.2, #955).
+	//
+	// 🔑 **Il budget NON entra qui, e non ci entra piu' dal 2026-09-02** (#1878). Questo e' l'unico
+	// orologio del playback: quello che divide `PlaybackPhaseElapsed` per la durata di fase e produce
+	// l'`Alpha` con cui i cilindri si interpolano. Moltiplicarlo per un fattore derivato dal tetto era
+	// **il** modo in cui la durata target finiva per decidere la velocita' visuale della locomozione. Il
+	// budget agisce ora sulla DURATA della fase (`DurationForPlaybackPhase`, attese comprimibili), non
+	// sulla velocita' con cui la si attraversa.
+	const float Dt = DeltaSeconds * URTPlaybackLibrary::EffectivePlaybackSpeed(ViewerPlaybackSpeed);
 	PlaybackPhaseElapsed += Dt;
 	PlaybackElapsedTotal += Dt;
 
@@ -6756,7 +6793,7 @@ void ARTTurnManager::SkipPlayback()
 	FinishPlayback();
 }
 
-float ARTTurnManager::DurationForPlaybackPhase(ERTMatchPhase InPhase) const
+FRTPhaseTime ARTTurnManager::PhaseTimeForPlaybackPhase(ERTMatchPhase InPhase) const
 {
 	// Le unita' si muovono in parallelo: alla durata serve il percorso PIU' LUNGO fra quelli riprodotti in
 	// questa fase, non la loro somma. E' l'unico dato che il TurnManager possiede e la library no.
@@ -6766,10 +6803,26 @@ float ARTTurnManager::DurationForPlaybackPhase(ERTMatchPhase InPhase) const
 		if (A.Phase == InPhase) { MaxSeg = FMath::Max(MaxSeg, A.World.Num() - 1); }
 	}
 
-	// La formula sta in `URTPlaybackLibrary::PhaseDuration`, dove si esercita senza mondo e senza Actor
+	// La formula sta in `URTPlaybackLibrary::PhaseTime`, dove si esercita senza mondo e senza Actor
 	// (#1817). Qui resta la sola raccolta degli ingressi.
-	return URTPlaybackLibrary::PhaseDuration(InPhase, MaxSeg, PlaybackAttacks.Num(),
+	return URTPlaybackLibrary::PhaseTime(InPhase, MaxSeg, PlaybackAttacks.Num(),
 		PlaybackCellsPerSecond, AttackShowSeconds, PhaseBeatSeconds);
+}
+
+float ARTTurnManager::DurationForPlaybackPhase(ERTMatchPhase InPhase) const
+{
+	const FRTPhaseTime T = PhaseTimeForPlaybackPhase(InPhase);
+
+	// 🔑 **Il budget si applica QUI, e solo allo slack.** E' la differenza fra «la fase dura meno perche'
+	// le attese sono state accorciate» e «i cilindri corrono di piu'»: `T.Shown` passa intatto, quindi il
+	// tempo che il movimento ha per attraversare le sue celle non scende mai sotto
+	// `MaxSeg / PlaybackCellsPerSecond`.
+	//
+	// ⚠️ **Le fasi che mostrano qualcosa hanno `Slack == 0`**, quindi per `Dash`, `Move` e `Blast` questa
+	// riga restituisce la durata piena qualunque cosa faccia il budget. Non e' un caso fortunato: e' la
+	// classificazione di `PhaseTime`, e ci si e' arrivati dopo che la prima stesura — che comprimeva il
+	// tempo dei colpi — faceva uscire tutti i colpi in un frame e accelerava la spinta del knockback.
+	return T.Shown + T.Slack * PlaybackSlackScale;
 }
 
 FString ARTTurnManager::GetPlaybackPhaseName() const
