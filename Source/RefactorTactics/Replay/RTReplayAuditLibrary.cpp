@@ -10,27 +10,32 @@
 
 namespace
 {
+	// ⚠️ **Nomi distinti per file, e non e' pedanteria: e' un rosso gia' preso.** Con la unity build questo
+	// `.cpp` finisce nello stesso blob di `RTReplayRecorderLibrary.cpp`, che ha le proprie `K_VERSION` e
+	// `K_MATCH_ID` in un namespace anonimo: due nomi generici uguali sono una **ridefinizione**, e il build
+	// cade per chi arriva dopo. Il difetto non si vede finche' la build adattiva tiene i due file separati —
+	// qui e' comparso solo dopo un merge, quando il working set e' cambiato.
 	// Le chiavi in un posto solo, come `RTReplayRecorderLibrary`: una stringa ripetuta a mano fra scrittura
 	// e lettura e' il modo piu' silenzioso di rompere un round-trip.
-	const TCHAR* K_VERSION   = TEXT("Version");
-	const TCHAR* K_MATCH_ID  = TEXT("MatchId");
-	const TCHAR* K_TURN      = TEXT("TurnNumber");
-	const TCHAR* K_HASH      = TEXT("OrderedHash");
-	const TCHAR* K_PLANNING  = TEXT("PlanningKnowledge");
-	const TCHAR* K_BLAST     = TEXT("BlastKnowledge");
-	const TCHAR* K_VERDICTS  = TEXT("Verdicts");
+	const TCHAR* KAudit_Version   = TEXT("Version");
+	const TCHAR* KAudit_MatchId  = TEXT("MatchId");
+	const TCHAR* KAudit_Turn      = TEXT("TurnNumber");
+	const TCHAR* KAudit_Hash      = TEXT("OrderedHash");
+	const TCHAR* KAudit_Planning  = TEXT("PlanningKnowledge");
+	const TCHAR* KAudit_Blast     = TEXT("BlastKnowledge");
+	const TCHAR* KAudit_Verdicts  = TEXT("Verdicts");
 
-	const TCHAR* K_TEAM      = TEXT("TeamId");
-	const TCHAR* K_VISIBLE   = TEXT("VisibleCells");
-	const TCHAR* K_EXPLORED  = TEXT("ExploredCells");
-	const TCHAR* K_CONTACTS  = TEXT("Contacts");
-	const TCHAR* K_UNIT      = TEXT("StableUnitId");
-	const TCHAR* K_CELL      = TEXT("Cell");
-	const TCHAR* K_MASK      = TEXT("Mask");
-	const TCHAR* K_PHASE     = TEXT("Phase");
+	const TCHAR* KAudit_Team      = TEXT("TeamId");
+	const TCHAR* KAudit_Visible   = TEXT("VisibleCells");
+	const TCHAR* KAudit_Explored  = TEXT("ExploredCells");
+	const TCHAR* KAudit_Contacts  = TEXT("Contacts");
+	const TCHAR* KAudit_Unit      = TEXT("StableUnitId");
+	const TCHAR* KAudit_Cell      = TEXT("Cell");
+	const TCHAR* KAudit_Mask      = TEXT("Mask");
+	const TCHAR* KAudit_Phase     = TEXT("Phase");
 
 	/** Una cella come tre numeri: `[q, r, layer]`. Compatta, e si legge a occhio. */
-	TSharedPtr<FJsonValue> CellToJson(const FRTCellId& Cell)
+	TSharedPtr<FJsonValue> AuditCellToJson(const FRTCellId& Cell)
 	{
 		TArray<TSharedPtr<FJsonValue>> Triple;
 		Triple.Add(MakeShared<FJsonValueNumber>(Cell.X));
@@ -39,7 +44,7 @@ namespace
 		return MakeShared<FJsonValueArray>(Triple);
 	}
 
-	bool CellFromJson(const TSharedPtr<FJsonValue>& Value, FRTCellId& OutCell)
+	bool AuditCellFromJson(const TSharedPtr<FJsonValue>& Value, FRTCellId& OutCell)
 	{
 		const TArray<TSharedPtr<FJsonValue>>* Triple = nullptr;
 		if (!Value.IsValid() || !Value->TryGetArray(Triple) || Triple->Num() != 3)
@@ -52,15 +57,15 @@ namespace
 		return true;
 	}
 
-	TSharedPtr<FJsonValue> CellsToJson(const TArray<FRTCellId>& Cells)
+	TSharedPtr<FJsonValue> AuditCellsToJson(const TArray<FRTCellId>& Cells)
 	{
 		TArray<TSharedPtr<FJsonValue>> Out;
 		Out.Reserve(Cells.Num());
-		for (const FRTCellId& C : Cells) { Out.Add(CellToJson(C)); }
+		for (const FRTCellId& C : Cells) { Out.Add(AuditCellToJson(C)); }
 		return MakeShared<FJsonValueArray>(Out);
 	}
 
-	bool CellsFromJson(const TSharedPtr<FJsonObject>& Obj, const TCHAR* Key, TArray<FRTCellId>& OutCells)
+	bool AuditCellsFromJson(const TSharedPtr<FJsonObject>& Obj, const TCHAR* Key, TArray<FRTCellId>& OutCells)
 	{
 		const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
 		if (!Obj->TryGetArrayField(Key, Values))
@@ -70,36 +75,36 @@ namespace
 		for (const TSharedPtr<FJsonValue>& V : *Values)
 		{
 			FRTCellId Cell;
-			if (!CellFromJson(V, Cell)) { return false; }
+			if (!AuditCellFromJson(V, Cell)) { return false; }
 			OutCells.Add(Cell);
 		}
 		return true;
 	}
 
-	TSharedPtr<FJsonValue> KnowledgeToJson(const FRTTeamKnowledge& K)
+	TSharedPtr<FJsonValue> AuditKnowledgeToJson(const FRTTeamKnowledge& K)
 	{
 		const TSharedRef<FJsonObject> Obj = MakeShared<FJsonObject>();
-		Obj->SetNumberField(K_VERSION, K.Version);
-		Obj->SetNumberField(K_TEAM, K.TeamId);
-		Obj->SetNumberField(K_TURN, K.TurnNumber);
-		Obj->SetField(K_VISIBLE, CellsToJson(K.VisibleCells));
-		Obj->SetField(K_EXPLORED, CellsToJson(K.ExploredCells));
+		Obj->SetNumberField(KAudit_Version, K.Version);
+		Obj->SetNumberField(KAudit_Team, K.TeamId);
+		Obj->SetNumberField(KAudit_Turn, K.TurnNumber);
+		Obj->SetField(KAudit_Visible, AuditCellsToJson(K.VisibleCells));
+		Obj->SetField(KAudit_Explored, AuditCellsToJson(K.ExploredCells));
 
 		TArray<TSharedPtr<FJsonValue>> Contacts;
 		Contacts.Reserve(K.Contacts.Num());
 		for (const FRTLastKnownContact& C : K.Contacts)
 		{
 			const TSharedRef<FJsonObject> CO = MakeShared<FJsonObject>();
-			CO->SetNumberField(K_UNIT, C.StableUnitId);
-			CO->SetField(K_CELL, CellToJson(C.Cell));
-			CO->SetNumberField(K_TURN, C.TurnNumber);
+			CO->SetNumberField(KAudit_Unit, C.StableUnitId);
+			CO->SetField(KAudit_Cell, AuditCellToJson(C.Cell));
+			CO->SetNumberField(KAudit_Turn, C.TurnNumber);
 			Contacts.Add(MakeShared<FJsonValueObject>(CO));
 		}
-		Obj->SetArrayField(K_CONTACTS, Contacts);
+		Obj->SetArrayField(KAudit_Contacts, Contacts);
 		return MakeShared<FJsonValueObject>(Obj);
 	}
 
-	bool KnowledgeFromJson(const TSharedPtr<FJsonValue>& Value, FRTTeamKnowledge& OutK)
+	bool AuditKnowledgeFromJson(const TSharedPtr<FJsonValue>& Value, FRTTeamKnowledge& OutK)
 	{
 		const TSharedPtr<FJsonObject>* Obj = nullptr;
 		if (!Value.IsValid() || !Value->TryGetObject(Obj)) { return false; }
@@ -107,20 +112,20 @@ namespace
 		// ⚠️ La versione della CONOSCENZA e' un dato registrato, non un controllo: dice con quale modello e'
 		// stata scritta. A rifiutare e' la versione del FORMATO, una sola volta, in testa al file.
 		double Version = 0.0;
-		(*Obj)->TryGetNumberField(K_VERSION, Version);
+		(*Obj)->TryGetNumberField(KAudit_Version, Version);
 		OutK.Version = static_cast<int32>(Version);
 
 		double Team = 0.0, Turn = 0.0;
-		(*Obj)->TryGetNumberField(K_TEAM, Team);
-		(*Obj)->TryGetNumberField(K_TURN, Turn);
+		(*Obj)->TryGetNumberField(KAudit_Team, Team);
+		(*Obj)->TryGetNumberField(KAudit_Turn, Turn);
 		OutK.TeamId = static_cast<int32>(Team);
 		OutK.TurnNumber = static_cast<int32>(Turn);
 
-		if (!CellsFromJson(*Obj, K_VISIBLE, OutK.VisibleCells)) { return false; }
-		if (!CellsFromJson(*Obj, K_EXPLORED, OutK.ExploredCells)) { return false; }
+		if (!AuditCellsFromJson(*Obj, KAudit_Visible, OutK.VisibleCells)) { return false; }
+		if (!AuditCellsFromJson(*Obj, KAudit_Explored, OutK.ExploredCells)) { return false; }
 
 		const TArray<TSharedPtr<FJsonValue>>* Contacts = nullptr;
-		if ((*Obj)->TryGetArrayField(K_CONTACTS, Contacts))
+		if ((*Obj)->TryGetArrayField(KAudit_Contacts, Contacts))
 		{
 			for (const TSharedPtr<FJsonValue>& CV : *Contacts)
 			{
@@ -129,11 +134,11 @@ namespace
 
 				FRTLastKnownContact C;
 				double Unit = 0.0, CTurn = 0.0;
-				(*CO)->TryGetNumberField(K_UNIT, Unit);
-				(*CO)->TryGetNumberField(K_TURN, CTurn);
+				(*CO)->TryGetNumberField(KAudit_Unit, Unit);
+				(*CO)->TryGetNumberField(KAudit_Turn, CTurn);
 				C.StableUnitId = static_cast<int32>(Unit);
 				C.TurnNumber = static_cast<int32>(CTurn);
-				if (!CellFromJson((*CO)->TryGetField(K_CELL), C.Cell)) { return false; }
+				if (!AuditCellFromJson((*CO)->TryGetField(KAudit_Cell), C.Cell)) { return false; }
 				OutK.Contacts.Add(C);
 			}
 		}
@@ -154,35 +159,35 @@ FString URTReplayAuditLibrary::AuditToJson(const FRTTurnAudit& Audit)
 
 	// La versione per PRIMA, come nel manifest: e' l'unico campo che un lettore deve saper trovare sempre,
 	// perche' e' cio' che gli permette di rifiutare il resto senza interpretarlo.
-	Root->SetNumberField(K_VERSION, static_cast<double>(ERTAuditFormatVersion::Current));
-	Root->SetStringField(K_MATCH_ID, Audit.MatchId.ToString(EGuidFormats::Digits));
-	Root->SetNumberField(K_TURN, Audit.TurnNumber);
+	Root->SetNumberField(KAudit_Version, static_cast<double>(ERTAuditFormatVersion::Current));
+	Root->SetStringField(KAudit_MatchId, Audit.MatchId.ToString(EGuidFormats::Digits));
+	Root->SetNumberField(KAudit_Turn, Audit.TurnNumber);
 
 	// L'hash come STRINGA e non come numero: e' a 64 bit, e oltre 2^53 un double perderebbe gli ultimi bit
 	// in silenzio. Il manifest se lo puo' permettere perche' i suoi restano piccoli; un'ancora che mentisse
 	// sugli ultimi bit smetterebbe di essere un'ancora.
-	Root->SetStringField(K_HASH, LexToString(Audit.OrderedHash));
+	Root->SetStringField(KAudit_Hash, LexToString(Audit.OrderedHash));
 
 	TArray<TSharedPtr<FJsonValue>> Planning;
-	for (const FRTTeamKnowledge& K : Audit.PlanningKnowledge) { Planning.Add(KnowledgeToJson(K)); }
-	Root->SetArrayField(K_PLANNING, Planning);
+	for (const FRTTeamKnowledge& K : Audit.PlanningKnowledge) { Planning.Add(AuditKnowledgeToJson(K)); }
+	Root->SetArrayField(KAudit_Planning, Planning);
 
 	TArray<TSharedPtr<FJsonValue>> Blast;
-	for (const FRTTeamKnowledge& K : Audit.BlastKnowledge) { Blast.Add(KnowledgeToJson(K)); }
-	Root->SetArrayField(K_BLAST, Blast);
+	for (const FRTTeamKnowledge& K : Audit.BlastKnowledge) { Blast.Add(AuditKnowledgeToJson(K)); }
+	Root->SetArrayField(KAudit_Blast, Blast);
 
 	TArray<TSharedPtr<FJsonValue>> Verdicts;
 	for (const FRTAuditVerdictRecord& R : Audit.Verdicts)
 	{
 		const TSharedRef<FJsonObject> VO = MakeShared<FJsonObject>();
-		VO->SetNumberField(K_PHASE, static_cast<double>(R.Phase));
-		VO->SetNumberField(K_UNIT, R.SubjectUnitId);
-		VO->SetNumberField(K_TEAM, R.SubjectTeamId);
-		VO->SetField(K_CELL, CellToJson(R.SubjectCell));
-		VO->SetNumberField(K_MASK, static_cast<double>(R.Verdict.Mask));
+		VO->SetNumberField(KAudit_Phase, static_cast<double>(R.Phase));
+		VO->SetNumberField(KAudit_Unit, R.SubjectUnitId);
+		VO->SetNumberField(KAudit_Team, R.SubjectTeamId);
+		VO->SetField(KAudit_Cell, AuditCellToJson(R.SubjectCell));
+		VO->SetNumberField(KAudit_Mask, static_cast<double>(R.Verdict.Mask));
 		Verdicts.Add(MakeShared<FJsonValueObject>(VO));
 	}
-	Root->SetArrayField(K_VERDICTS, Verdicts);
+	Root->SetArrayField(KAudit_Verdicts, Verdicts);
 
 	FString Out;
 	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
@@ -202,7 +207,7 @@ bool URTReplayAuditLibrary::AuditFromJson(const FString& Json, FRTTurnAudit& Out
 	// 🔴 Fail-closed, e prima di ogni altra lettura: una versione che non si conosce si RIFIUTA invece di
 	// interpretarne i campi. E' la convenzione che `DeserializeTurnLog` e `ManifestFromJson` applicano gia'.
 	double Version = 0.0;
-	if (!Root->TryGetNumberField(K_VERSION, Version)
+	if (!Root->TryGetNumberField(KAudit_Version, Version)
 		|| static_cast<uint16>(Version) != static_cast<uint16>(ERTAuditFormatVersion::Current))
 	{
 		return false;
@@ -211,43 +216,43 @@ bool URTReplayAuditLibrary::AuditFromJson(const FString& Json, FRTTurnAudit& Out
 	FRTTurnAudit Read;
 
 	FString IdText;
-	if (!Root->TryGetStringField(K_MATCH_ID, IdText) || !FGuid::Parse(IdText, Read.MatchId))
+	if (!Root->TryGetStringField(KAudit_MatchId, IdText) || !FGuid::Parse(IdText, Read.MatchId))
 	{
 		return false;
 	}
 
 	double Turn = 0.0;
-	if (!Root->TryGetNumberField(K_TURN, Turn)) { return false; }
+	if (!Root->TryGetNumberField(KAudit_Turn, Turn)) { return false; }
 	Read.TurnNumber = static_cast<int32>(Turn);
 
 	FString HashText;
-	if (!Root->TryGetStringField(K_HASH, HashText)) { return false; }
+	if (!Root->TryGetStringField(KAudit_Hash, HashText)) { return false; }
 	LexFromString(Read.OrderedHash, *HashText);
 
 	const TArray<TSharedPtr<FJsonValue>>* Planning = nullptr;
-	if (Root->TryGetArrayField(K_PLANNING, Planning))
+	if (Root->TryGetArrayField(KAudit_Planning, Planning))
 	{
 		for (const TSharedPtr<FJsonValue>& V : *Planning)
 		{
 			FRTTeamKnowledge K;
-			if (!KnowledgeFromJson(V, K)) { return false; }
+			if (!AuditKnowledgeFromJson(V, K)) { return false; }
 			Read.PlanningKnowledge.Add(K);
 		}
 	}
 
 	const TArray<TSharedPtr<FJsonValue>>* Blast = nullptr;
-	if (Root->TryGetArrayField(K_BLAST, Blast))
+	if (Root->TryGetArrayField(KAudit_Blast, Blast))
 	{
 		for (const TSharedPtr<FJsonValue>& V : *Blast)
 		{
 			FRTTeamKnowledge K;
-			if (!KnowledgeFromJson(V, K)) { return false; }
+			if (!AuditKnowledgeFromJson(V, K)) { return false; }
 			Read.BlastKnowledge.Add(K);
 		}
 	}
 
 	const TArray<TSharedPtr<FJsonValue>>* Verdicts = nullptr;
-	if (Root->TryGetArrayField(K_VERDICTS, Verdicts))
+	if (Root->TryGetArrayField(KAudit_Verdicts, Verdicts))
 	{
 		for (const TSharedPtr<FJsonValue>& V : *Verdicts)
 		{
@@ -256,15 +261,15 @@ bool URTReplayAuditLibrary::AuditFromJson(const FString& Json, FRTTurnAudit& Out
 
 			FRTAuditVerdictRecord R;
 			double Unit = 0.0, Team = 0.0, Mask = 0.0, Phase = 0.0;
-			(*VO)->TryGetNumberField(K_UNIT, Unit);
-			(*VO)->TryGetNumberField(K_TEAM, Team);
-			(*VO)->TryGetNumberField(K_MASK, Mask);
-			(*VO)->TryGetNumberField(K_PHASE, Phase);
+			(*VO)->TryGetNumberField(KAudit_Unit, Unit);
+			(*VO)->TryGetNumberField(KAudit_Team, Team);
+			(*VO)->TryGetNumberField(KAudit_Mask, Mask);
+			(*VO)->TryGetNumberField(KAudit_Phase, Phase);
 			R.Phase = static_cast<ERTMatchPhase>(static_cast<uint8>(Phase));
 			R.SubjectUnitId = static_cast<int32>(Unit);
 			R.SubjectTeamId = static_cast<int32>(Team);
 			R.Verdict.Mask = static_cast<uint32>(Mask);
-			if (!CellFromJson((*VO)->TryGetField(K_CELL), R.SubjectCell)) { return false; }
+			if (!AuditCellFromJson((*VO)->TryGetField(KAudit_Cell), R.SubjectCell)) { return false; }
 			Read.Verdicts.Add(R);
 		}
 	}
