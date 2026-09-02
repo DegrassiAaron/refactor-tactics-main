@@ -6,6 +6,42 @@
 #include "RTPlaybackLibrary.generated.h"
 
 /**
+ * Di che cosa e' fatto il tempo di UNA fase del playback: due termini, e la ragione per cui sono due.
+ *
+ * 🔑 **Il budget di presentazione puo' comprimere `Slack` e non puo' toccare `Locomotion`.** E' la
+ * decisione del product owner del 2026-08-30 (`#1878`) resa esprimibile: *«la durata target della
+ * Resolution non deve determinare la velocita' visuale base della locomozione»*. Finche' la fase aveva un
+ * numero solo, «comprimere un'attesa» e «accelerare un cilindro» erano la stessa moltiplicazione, e
+ * l'ordine di recupero del tempo — idle gap, beat non informativi, camera hold, e solo alla fine la
+ * velocita' — non aveva dove esistere.
+ *
+ *  - `Locomotion` — **incomprimibile**: celle da percorrere diviso il rate base. E' il tempo che il
+ *    movimento occupa perche' si vede, e comprimerlo E' accelerare la locomozione.
+ *  - `Slack` — **comprimibile**: beat di fase, e nel `Blast` il tempo di lettura dei colpi che eccede la
+ *    spinta. Sono attese che si accorciano senza che nulla si muova piu' in fretta.
+ *
+ * ⚠️ **`Total()` vale esattamente quanto valeva `PhaseDuration` prima di questa separazione**, fase per
+ * fase: la somma dei due termini non e' una formula nuova, e' la stessa scomposta. Chi cerca il totale
+ * continua a chiamare `PhaseDuration`.
+ */
+USTRUCT(BlueprintType)
+struct FRTPhaseTime
+{
+	GENERATED_BODY()
+
+	/** Tempo che il movimento occupa. Il budget non lo tocca mai. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	float Locomotion = 0.f;
+
+	/** Attese e tempo di lettura. E' su questo, e solo su questo, che il budget agisce. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	float Slack = 0.f;
+
+	/** La durata della fase senza compressione: e' cio' che `PhaseDuration` restituisce. */
+	float Total() const { return Locomotion + Slack; }
+};
+
+/**
  * Matematica pura del playback della risoluzione (posizione-nel-tempo + durata).
  * Non tocca Actor ne' World: e' testabile in automation. L'animazione degli Actor la usa
  * per interpolare i cilindri e stimare/limitare la durata del round (invariante #1: presentazione,
@@ -76,32 +112,69 @@ public:
 	 * questo, perche' qui il `Blast` prende `Max(colpi, spinta)` e non la somma. Era coperta da quattro
 	 * asserzioni e chiamata da nessuno, cioe' una verita' verde e morta accanto a quella viva. Se serve il
 	 * totale, si somma questa.
+	 *
+	 * ✅ **`PhaseTime` non e' una seconda formula**: questa e' `PhaseTime(...).Total()`, una riga sola. La
+	 * scomposizione ha un solo owner, e non esiste modo di farne divergere le due letture.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static float PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
 		float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds);
 
 	/**
-	 * Fattore di accelerazione per rientrare nel tetto di durata: 1 se gia' entro il cap
-	 * (o se il cap non e' positivo), altrimenti EstimatedSeconds/MaxSeconds (>= 1).
+	 * La formula di durata, nei suoi due termini: quanto della fase e' movimento e quanto e' attesa.
+	 * Gli argomenti sono quelli di `PhaseDuration`, e la somma dei termini e' il suo risultato.
+	 *
+	 *  - `Dash` / `Move`  → tutto `Locomotion`. Non c'e' nulla da comprimere: la fase dura quanto il
+	 *                       percorso piu' lungo impiega, e comprimerla sarebbe accelerare i cilindri.
+	 *  - `Blast`          → `Locomotion` = la spinta; `Slack` = quanto il tempo dei colpi ECCEDE la spinta.
+	 *                       ⚠️ `Total()` resta `Max(colpi, spinta)` — i due si sovrappongono, non si
+	 *                       sommano, ed e' la ragione per cui `Slack` e' una differenza e non `AttackTime`.
+	 *  - ogni altra fase  → tutto `Slack`: un beat e' attesa per definizione.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	static float SpeedMultiplierForCap(float EstimatedSeconds, float MaxSeconds);
+	static FRTPhaseTime PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
+		float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds);
 
 	/**
-	 * Velocita' effettiva del playback: compone la velocita' SCELTA da chi guarda (x1/x2/x4) con il
-	 * fattore di accelerazione che il tetto di durata impone da se'.
-	 * = Max(ViewerSpeed, CapSpeed) — «almeno la velocita' che chiedi, almeno quella che serve a stare
-	 * nel tetto». Valori non positivi sono trattati come 1 (nessuna scelta / nessun limite).
+	 * Quanto comprimere lo `Slack` del round per stare nel budget di presentazione: `1` se ci si sta gia'
+	 * (o se il budget non e' positivo), altrimenti la frazione che serve, mai sotto `0`.
 	 *
-	 * Le altre tre composizioni sono state scartate su un caso concreto ciascuna (CP 47.2, #955):
-	 *  - PRODOTTO (Viewer*Cap): un round gia' accelerato 3x dal tetto, visto a x4, va a 12x — illeggibile
-	 *    proprio nei round che piu' avrebbero bisogno di essere letti;
-	 *  - SOSTITUZIONE (solo Viewer): il tetto smette di valere e MaxPlaybackSeconds diventa un campo morto;
-	 *  - TETTO RIDEFINITO (x2 -> Max/2): sotto il tetto il cap non si applica affatto, quindi su un round
-	 *    da 4 s premere x2 non farebbe NULLA. E' il difetto che la uccide, ed e' il caso comune.
-	 * Max e' monotona nei due argomenti e non produce mai il caso 12x.
+	 * = `Clamp((MaxSeconds - LocomotionSeconds) / SlackSeconds, 0, 1)`
+	 *
+	 * 🔑 **E' un budget SOFT, e il clamp a zero e' il punto in cui lo diventa**: quando la sola locomozione
+	 * eccede gia' il budget non resta slack da togliere, e la risposta e' `0` — cioe' *«ho compresso tutto
+	 * il comprimibile, e la durata sfora»*. Non e' un fallimento da correggere accelerando: e' la decisione
+	 * del PO applicata al caso peggiore (`#1878`).
+	 *
+	 * ⚠️ **Sostituisce `SpeedMultiplierForCap`, rimossa il 2026-09-02, e la sostituisce per un difetto
+	 * misurato**: quella restituiva un fattore `>= 1` che `TickPlayback` moltiplicava dentro `Dt`, cioe'
+	 * dentro l'unico orologio che governa anche l'interpolazione del movimento. Il tetto accelerava i
+	 * cilindri, ed era esattamente cio' che il PO ha escluso.
+	 *
+	 * ✅ **Non e' la SOSTITUZIONE scartata da CP 47.2** (`#955`, *«solo Viewer: il tetto smette di valere e
+	 * MaxPlaybackSeconds diventa un campo morto»*). Il tetto continua a valere e ha un consumatore vivo:
+	 * questa funzione. Cambia su COSA agisce — lo slack invece della velocita' — non SE agisce.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	static float EffectivePlaybackSpeed(float ViewerSpeed, float CapSpeed);
+	static float SlackScaleForBudget(float LocomotionSeconds, float SlackSeconds, float MaxSeconds);
+
+	/**
+	 * La velocita' con cui il playback scorre: quella SCELTA da chi guarda (x1/x2/x4), normalizzata.
+	 * Valori non positivi sono trattati come 1 — un campo azzerato (variabile Blueprint, `Memzero`) vale
+	 * «non scelto» e non ferma la riproduzione.
+	 *
+	 * ⚠️ **Aveva un secondo argomento — `CapSpeed` — e non ce l'ha piu' dal 2026-09-02** (`#1878`). Non e'
+	 * la SOSTITUZIONE che CP 47.2 (`#955`) aveva scartato: li' l'alternativa uccideva il tetto, qui il
+	 * tetto e' vivo e agisce su `SlackScaleForBudget`. Cade il secondo argomento perche' **non ha piu' un
+	 * produttore**: nessuno calcola piu' un fattore di velocita' dal tetto.
+	 *
+	 * Le altre due composizioni di `#955` restano scartate e restano registrate, perche' varrebbero di
+	 * nuovo se un secondo fattore di velocita' tornasse:
+	 *  - PRODOTTO (Viewer*Cap): un round gia' accelerato 3x, visto a x4, va a 12x — illeggibile proprio nei
+	 *    round che piu' avrebbero bisogno di essere letti;
+	 *  - TETTO RIDEFINITO (x2 -> Max/2): sotto il tetto non si applicherebbe affatto, quindi su un round da
+	 *    4 s premere x2 non farebbe NULLA — ed e' il caso comune.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float EffectivePlaybackSpeed(float ViewerSpeed);
 };

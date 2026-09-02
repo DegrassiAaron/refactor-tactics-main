@@ -1,15 +1,19 @@
 // Il controllo di velocita' in HUD (CP 47.7, #1015): la scala, l'etichetta e cosa il controllo scrive.
 //
-// #955 ha consegnato la manopola NEL MODELLO — `ARTTurnManager::ViewerPlaybackSpeed`, composta col tetto
-// via `URTPlaybackLibrary::EffectivePlaybackSpeed` — e il suo gate
+// #955 ha consegnato la manopola NEL MODELLO — `ARTTurnManager::ViewerPlaybackSpeed` — e il suo gate
 // (`Match.Autobattle.DeterminismIsIndependentOfPlayback`, sette varianti) prova che girare la manopola non
 // cambia il risultato logico. ⛔ **Quel gate non va duplicato qui**: e' esplicito nel DoD di #1015, e un
 // secondo test di determinismo sposterebbe le varianti future in due posti.
 //
+// ⚠️ **Dal 2026-09-02 la manopola e' l'UNICA cosa che accelera la riproduzione** (#1878): il tetto di
+// durata non produce piu' un fattore di velocita', comprime le attese. La domanda 1 qui sotto era
+// «l'etichetta dice il vero anche quando il tetto vince?» e non ha piu' un soggetto — il tetto non vince
+// piu' su niente che si veda come velocita'.
+//
 // Cio' che manca a quel gate, e che questi test coprono, e' l'altro lato: la manopola era raggiungibile
 // solo da dettagli dell'attore e da Blueprint. Tre domande, una per test:
 //
-//   1. l'etichetta dice il vero anche quando il tetto vince?
+//   1. l'etichetta dice il vero, e senza un secondo numero che non ha piu' causa?
 //   2. la scala resta `x1 · x2 · x4` anche partendo da un valore che non le appartiene?
 //   3. il controllo scrive `ViewerPlaybackSpeed` **e nient'altro**?
 //
@@ -69,50 +73,43 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudPlaybackSpeedLabelTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHudPlaybackSpeedLabelTest::RunTest(const FString&)
 {
-	// --- Il tetto non morde: un numero solo. Due numeri qui sarebbero rumore su ogni round normale.
+	// ⚠️ **Il ramo «due numeri» e' caduto il 2026-09-02** (#1878), e con esso le tre asserzioni che
+	// pinnavano la parola «tetto» nell'etichetta. Non e' un requisito abbandonato: il criterio 2 di #1015
+	// chiedeva che l'etichetta non mentisse quando il tetto accelerava lo schermo, e il tetto non accelera
+	// piu' nulla — comprime le attese (`URTPlaybackLibrary::SlackScaleForBudget`). Un numero solo E' la
+	// verita', e la riga qui sotto lo pinna al negativo: se un secondo fattore rinascesse senza tornare in
+	// etichetta, questo test cade.
 	{
-		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(/*Viewer=*/ 2.f, /*Cap=*/ 1.f);
-		TestTrue(TEXT("x2 senza tetto: l'etichetta porta x2"), Label.Contains(TEXT("x2")));
-		TestFalse(TEXT("x2 senza tetto: nessuna menzione del tetto"), Label.Contains(TEXT("tetto")));
+		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(/*Viewer=*/ 2.f);
+		TestTrue(TEXT("x2: l'etichetta porta x2"), Label.Contains(TEXT("x2")));
+		TestFalse(TEXT("x2: nessun secondo numero da spiegare"), Label.Contains(TEXT("tetto")));
 	}
 	{
-		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(1.f, 1.f);
-		TestTrue(TEXT("x1 senza tetto: l'etichetta porta x1"), Label.Contains(TEXT("x1")));
-		TestFalse(TEXT("x1 senza tetto: nessuna menzione del tetto"), Label.Contains(TEXT("tetto")));
+		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(1.f);
+		TestTrue(TEXT("x1: l'etichetta porta x1"), Label.Contains(TEXT("x1")));
+		TestFalse(TEXT("x1: nessun secondo numero da spiegare"), Label.Contains(TEXT("tetto")));
 	}
 	{
-		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(4.f, 1.f);
-		TestTrue(TEXT("x4 senza tetto: l'etichetta porta x4"), Label.Contains(TEXT("x4")));
-		TestFalse(TEXT("x4 senza tetto: nessuna menzione del tetto"), Label.Contains(TEXT("tetto")));
-	}
-
-	// --- Il tetto vince: DUE numeri, e si distinguono. Una sola cifra qui non dice quale delle due.
-	{
-		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(/*Viewer=*/ 2.f, /*Cap=*/ 3.f);
-		TestTrue(TEXT("scelta x2 sotto un tetto da 3x: resta leggibile la scelta"), Label.Contains(TEXT("x2")));
-		TestTrue(TEXT("scelta x2 sotto un tetto da 3x: compare la velocita' reale"), Label.Contains(TEXT("x3")));
-		TestTrue(TEXT("scelta x2 sotto un tetto da 3x: e' detto che a imporla e' il tetto"),
-			Label.Contains(TEXT("tetto")));
+		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(4.f);
+		TestTrue(TEXT("x4: l'etichetta porta x4"), Label.Contains(TEXT("x4")));
+		TestFalse(TEXT("x4: nessun secondo numero da spiegare"), Label.Contains(TEXT("tetto")));
 	}
 
 	// --- Guardia: un campo azzerato vale x1, come lo tratta `EffectivePlaybackSpeed`. Un'etichetta «x0»
 	// direbbe che la riproduzione e' ferma, che e' un'altra cosa — e non e' vera.
 	{
-		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(/*Viewer=*/ 0.f, /*Cap=*/ 2.f);
+		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(/*Viewer=*/ 0.f);
 		TestFalse(TEXT("velocita' scelta nulla: mai «x0»"), Label.Contains(TEXT("x0")));
 		TestTrue(TEXT("velocita' scelta nulla: letta come x1"), Label.Contains(TEXT("x1")));
-		TestTrue(TEXT("velocita' scelta nulla: il tetto da 2x e' quello che si vede"), Label.Contains(TEXT("x2")));
-		TestTrue(TEXT("velocita' scelta nulla: il tetto e' nominato"), Label.Contains(TEXT("tetto")));
 	}
 
-	// --- L'etichetta non inventa: quello che dichiara come velocita' reale E' cio' che compone la
-	// libreria. Se qualcuno rifacesse il conto qui dentro invece di interrogarla, questa riga cade.
+	// --- L'etichetta non inventa: il numero che dichiara E' quello che la libreria normalizza. Se
+	// qualcuno rifacesse il conto qui dentro invece di interrogarla, questa riga cade.
 	{
 		const float Viewer = 2.f;
-		const float Cap = 3.f;
-		const float Effective = URTPlaybackLibrary::EffectivePlaybackSpeed(Viewer, Cap);
-		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(Viewer, Cap);
-		TestTrue(TEXT("il numero reale dell'etichetta viene da EffectivePlaybackSpeed"),
+		const float Effective = URTPlaybackLibrary::EffectivePlaybackSpeed(Viewer);
+		const FString Label = ARTHUD::ComposePlaybackSpeedLabel(Viewer);
+		TestTrue(TEXT("il numero dell'etichetta viene da EffectivePlaybackSpeed"),
 			Label.Contains(FString::Printf(TEXT("x%d"), FMath::RoundToInt(Effective))));
 	}
 

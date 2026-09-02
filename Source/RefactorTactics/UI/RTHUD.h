@@ -369,21 +369,24 @@ public:
 	static float NextViewerPlaybackSpeed(float Current);
 
 	/**
-	 * L'etichetta del controllo: dice la velocita' SCELTA e, quando il tetto la supera, anche quella reale.
+	 * L'etichetta del controllo: la velocita' con cui la riproduzione scorre.
 	 *
-	 * ⚠️ **Due numeri quando divergono, uno quando coincidono**, e la divergenza non e' un caso limite: e'
-	 * la composizione `Max(Viewer, Cap)` decisa in #955. Mostrare la sola scelta produrrebbe un'etichetta
-	 * che contraddice il ritmo — il difetto che il controllo esiste per togliere, aggravato dal fatto che
-	 * un numero c'e' e mente.
+	 * ⚠️ **Un numero solo, e dal 2026-09-02 e' vero** (`#1878`). Ne mostrava due — `x2 -> x3 (tetto)` —
+	 * perche' il tetto di durata poteva accelerare lo schermo per conto suo, e la sola scelta avrebbe
+	 * contraddetto il ritmo: era il criterio 2 di CP 47.7 (`#1015`). Quel secondo numero non esiste piu'
+	 * perche' non esiste piu' la sua causa: il budget comprime le attese e non tocca la velocita'. Se un
+	 * giorno un secondo fattore tornasse, torna anche il ramo a due numeri — non prima.
 	 *
-	 * ⚠️ **Non ricompone: interroga.** La velocita' reale viene da `URTPlaybackLibrary::EffectivePlaybackSpeed`,
+	 * Quanto il budget stia comprimendo resta osservabile da `ARTTurnManager::GetPlaybackSlackScale()`,
+	 * ma e' telemetria di pacing, non una velocita' da mostrare accanto alla manopola.
+	 *
+	 * ⚠️ **Non ricompone: interroga.** Il numero viene da `URTPlaybackLibrary::EffectivePlaybackSpeed`,
 	 * la stessa funzione che `TickPlayback` usa per scorrere. Rifare il conto qui dentro creerebbe la
 	 * seconda verita' che si scollega al primo cambio di regola.
 	 *
 	 * @param ViewerSpeed la scelta di chi guarda. Non positiva = «non scelta», letta come `x1`.
-	 * @param CapSpeed    il fattore di accelerazione automatica in vigore (`GetPlaybackCapSpeed`).
 	 */
-	static FString ComposePlaybackSpeedLabel(float ViewerSpeed, float CapSpeed);
+	static FString ComposePlaybackSpeedLabel(float ViewerSpeed);
 
 protected:
 	UPROPERTY(EditAnywhere, Category = "RefactorTactics|HUD")

@@ -189,7 +189,7 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 | `PlaybackCellsPerSecond` | `~6.5` (≈0.15 s/cella) | velocità di scorrimento dei cilindri nel Move |
 | `PhaseBeatSeconds` | `~0.30` | pausa tra una fase e la successiva |
 | `AttackShowSeconds` | `~0.50` | durata di visualizzazione di un colpo + numero di danno |
-| `MaxPlaybackSeconds` | `~12` | oltre soglia → **speed-up automatico** (PDF p.4) |
+| `MaxPlaybackSeconds` | `~12` | oltre soglia → **le ATTESE si comprimono**, la locomozione no |
 
 - ~~**Target 2v2 offline**: round tipico **≈ 6–12 s**.~~ **Aggiornato 2026-08-07**
   ([`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) §9): playback tipico
@@ -199,6 +199,35 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
   cambia adesso**: il valore si sposta col dato, non con la spec.
 - **Speed-up automatico**: se la durata stimata supera `MaxPlaybackSeconds`, comprimere beat/animazioni
   minori mantenendo l'ordine eventi.
+
+> ### 📌 Emendamento 2026-09-02 — il budget è soft, e ora il codice lo esegue (`#1878`)
+>
+> ⛔ **La regola qui sopra non cambia: cambia il fatto che sia vera.** *«Comprimere beat/animazioni
+> minori»* è ciò che questa spec ha sempre prescritto, e non è ciò che il codice faceva.
+>
+> **Cosa faceva.** `ARTTurnManager::TickPlayback` derivava dal tetto un moltiplicatore di velocità
+> (`URTPlaybackLibrary::SpeedMultiplierForCap`) e lo applicava a `Dt`, l'unico orologio del playback —
+> lo stesso che produce l'`Alpha` con cui i cilindri si interpolano. Il tetto non comprimeva i beat:
+> **accelerava tutto**, locomozione inclusa.
+>
+> **Perché nessuno se n'era accorto.** Misurato il 2026-09-02 su **125.780 risoluzioni** nei log: il tetto
+> **non era mai intervenuto** — durata raw massima **4,4 s** contro 12, e zero moltiplicatori frazionari.
+> Il ramo esisteva, contraddiceva questa spec, e non si era mai eseguito.
+>
+> **Cosa fa adesso.** `URTPlaybackLibrary::PhaseTime` scompone la fase in due termini — `Locomotion`
+> (incomprimibile) e `Slack` (beat, e nel `Blast` il tempo di lettura che eccede la spinta) — e
+> `URTPlaybackLibrary::SlackScaleForBudget` comprime **solo il secondo**. Quando il comprimibile finisce,
+> la durata **sfora**: è la definizione di *soft*, ed è la decisione del PO del 2026-08-30 applicata al
+> caso peggiore.
+>
+> ⚠️ **La nota di taratura qui sopra va letta al rovescio, adesso.** *«`MaxPlaybackSeconds = 12` è dentro
+> la nuova banda 2v2, quindi lo speed-up scatterebbe sui round più pieni»* era un rischio quando lo
+> speed-up accelerava i personaggi. Ora che comprime le attese, un tetto che morde sui round pieni è il
+> comportamento voluto — e diventa **atteso** appena la velocità base scenderà, perché a rate più bassi la
+> stessa risoluzione dura di più.
+>
+> ⚠️ Il riferimento «(PDF p.4)» nella tabella non è un'autorità: `CLAUDE.md` §1 esclude i PDF. Resta come
+> traccia di provenienza, non come fonte.
 
 ## 7. Batching (DECISO: Move in parallelo)
 
@@ -376,12 +405,17 @@ non riproducibile.
 > idle gap, beat non informativi, hold e transizioni di camera, code di VFX non critiche ed eventi
 > logicamente simultanei mostrati in parallelo — **non** da un moltiplicatore nascosto sulla locomozione.
 >
-> ⚠️ **Quella regola NON è ancora canonica, e questa riga non la anticipa**: misurato il 2026-08-30,
-> nessuna issue aperta la possiede (`gh issue list --state open --search "playback budget locomozione
-> MaxPlaybackSeconds"` → **zero**), e `#955` — che scelse `Max(ViewerSpeed, SpeedMultiplierForCap(...))` —
-> è chiusa e non si riapre. Ciò che questa sezione dichiara è **il presente**: la composizione avviene in
-> un punto solo. Se la policy cambierà, cambierà **dentro quel punto**, e il vincolo del ritmo cinematico
-> resta lo stesso — un beat non guadagna un secondo produttore di velocità.
+> ~~⚠️ **Quella regola NON è ancora canonica, e questa riga non la anticipa**: misurato il 2026-08-30,
+> nessuna issue aperta la possiede~~ — **superata il 2026-09-02**: la issue esiste, è **`#1878`**, ed è
+> stata lavorata. La regola è canonica e vive nell'emendamento di §6.
+>
+> ✅ **`#955` non è stata riaperta e non è stata contraddetta.** Scelse `Max(ViewerSpeed, CapSpeed)`
+> scartando tre alternative, e una di quelle — *«solo Viewer»* — fu scartata perché avrebbe reso
+> `MaxPlaybackSeconds` un campo morto. `#1878` **non è quella alternativa**: il tetto è vivo e ha un
+> consumatore, `URTPlaybackLibrary::SlackScaleForBudget`. Cade il secondo argomento di
+> `EffectivePlaybackSpeed` perché non ha più un produttore, non perché il tetto abbia smesso di valere.
+> Ciò che questa sezione dichiarava resta vero nella forma che conta: **la composizione avviene in un
+> punto solo**, e un beat non ha guadagnato un secondo produttore di velocità — ne ha perso uno.
 >
 > ➕ **Ma per il ritmo cinematico la direzione conta**: due delle sei voci che quel consolidamento vuole
 > comprimere per prime — `camera hold` e `camera transitions` — sono **materia di `CAM-12`**. Chi prende

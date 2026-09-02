@@ -64,62 +64,139 @@ bool FRTPlaybackInterpDegenerateTest::RunTest(const FString&)
 	return true;
 }
 
-// --- SpeedMultiplierForCap ------------------------------------------------------------------
+// --- SlackScaleForBudget --------------------------------------------------------------------
+//
+// ⚠️ Ha sostituito `RefactorTactics.Playback.SpeedMultiplierForCap` il 2026-09-02 (#1878). Quel test
+// pinnava un fattore `>= 1` che `TickPlayback` moltiplicava dentro `Dt`: il tetto accelerava i cilindri,
+// ed era cio' che il product owner ha escluso. Non e' stato aggiunto accanto — sarebbe rimasta una
+// verita' verde che afferma il contrario di quella viva.
+//
+// La riga che porta il peso e' l'ultima: e' quella che distingue un budget SOFT da uno HARD.
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackSpeedCapTest,
-	"RefactorTactics.Playback.SpeedMultiplierForCap",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackSlackScaleTest,
+	"RefactorTactics.Playback.SlackScaleForBudget",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTPlaybackSpeedCapTest::RunTest(const FString&)
+bool FRTPlaybackSlackScaleTest::RunTest(const FString&)
 {
-	TestTrue(TEXT("entro il cap -> 1x"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::SpeedMultiplierForCap(1.0f, 2.0f), 1.0f, RTTol));
-	TestTrue(TEXT("oltre il cap -> proporzionale"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::SpeedMultiplierForCap(4.0f, 2.0f), 2.0f, RTTol));
-	TestTrue(TEXT("cap non positivo -> nessun limite (1x)"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::SpeedMultiplierForCap(3.0f, 0.0f), 1.0f, RTTol));
+	// Locomozione 2 s + attese 1 s = 3 s, budget 5 s: ci si sta, niente da comprimere.
+	TestTrue(TEXT("gia' dentro il budget -> nessuna compressione"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::SlackScaleForBudget(2.0f, 1.0f, 5.0f), 1.0f, RTTol));
+
+	// 2 s + 4 s = 6 s contro 4 s: restano 2 s per 4 s di attese -> ne sopravvive meta'.
+	TestTrue(TEXT("oltre il budget -> lo slack si comprime della frazione che serve"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::SlackScaleForBudget(2.0f, 4.0f, 4.0f), 0.5f, RTTol));
+
+	// Il taglio esatto: 2 s + 2 s = 4 s con budget 4 s e' il confine, e il confine sta DENTRO.
+	TestTrue(TEXT("esattamente sul budget -> nessuna compressione"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::SlackScaleForBudget(2.0f, 2.0f, 4.0f), 1.0f, RTTol));
+
+	TestTrue(TEXT("budget non positivo -> nessun limite"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::SlackScaleForBudget(9.0f, 3.0f, 0.0f), 1.0f, RTTol));
+
+	// Nessuno slack: la risposta e' 1 e non 0. Sul tempo non cambia nulla (zero per qualunque scala e'
+	// zero), ma il valore e' anche telemetria, e uno 0 direbbe che il budget ha agito senza avere su cosa.
+	TestTrue(TEXT("niente da comprimere -> 1, non 0"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::SlackScaleForBudget(9.0f, 0.0f, 4.0f), 1.0f, RTTol));
+
+	// 🔑 **La riga che definisce «soft».** La sola locomozione (10 s) eccede gia' il budget (4 s): si toglie
+	// tutto il comprimibile e non basta. La risposta e' 0 — «ho tolto tutto» — e NON un numero negativo,
+	// che significherebbe togliere tempo al movimento, cioe' accelerarlo. La durata sfora, e sforare e'
+	// la risposta giusta: e' la decisione del PO applicata al caso peggiore.
+	TestTrue(TEXT("la sola locomozione eccede il budget -> slack a 0, e la durata sfora"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::SlackScaleForBudget(10.0f, 2.0f, 4.0f), 0.0f, RTTol));
+
 	return true;
 }
 
 // --- EffectivePlaybackSpeed -----------------------------------------------------------------
 //
-// La tabella E' la decisione di CP 47.2 (#955): ogni riga che segue la prima nomina la composizione
-// alternativa che falsifica. Cambiare Max in un prodotto, o in una sostituzione, deve far cadere una
-// riga precisa e non le altre — e' il modo in cui questo test dice PERCHE' la formula e' quella.
+// ⚠️ **Aveva otto righe e ne ha tre**, dal 2026-09-02 (#1878). Le cinque cadute pinnavano la composizione
+// `Max(Viewer, Cap)` di CP 47.2 (#955) — e sono cadute perche' il secondo argomento non ha piu' un
+// produttore, non perche' quella decisione sia stata rovesciata. Il tetto e' vivo: agisce su
+// `SlackScaleForBudget`. Le alternative che #955 aveva scartato restano registrate nel docstring della
+// funzione, dove tornerebbero utili se un secondo fattore di velocita' rinascesse.
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackEffectiveSpeedTest,
 	"RefactorTactics.Playback.EffectiveSpeed",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackEffectiveSpeedTest::RunTest(const FString&)
 {
-	// Nessuno dei due morde: la presentazione scorre a tempo reale.
-	TestTrue(TEXT("x1 con cap inattivo -> 1x"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(1.0f, 1.0f), 1.0f, RTTol));
-
-	// ⚠️ Falsifica "il tetto ridefinito" (x2 -> Max/2): su un round gia' sotto il tetto quella
-	// composizione non farebbe nulla, e la manopola sarebbe inerte nel caso comune.
-	TestTrue(TEXT("x4 con cap inattivo -> 4x (la manopola morde sui round brevi)"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(4.0f, 1.0f), 4.0f, RTTol));
-
-	// ⚠️ Falsifica "la sostituzione" (solo Viewer): a x1 il tetto continua a valere, altrimenti un round
-	// patologico durerebbe quanto vuole e MaxPlaybackSeconds sarebbe un campo morto.
-	TestTrue(TEXT("x1 con cap che morde -> vince il cap (3x)"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(1.0f, 3.0f), 3.0f, RTTol));
-
-	// ⚠️ Falsifica "il prodotto" (Viewer*Cap): darebbe 12x, illeggibile.
-	TestTrue(TEXT("x4 su un round gia' accelerato 3x -> 4x, NON 12x"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(4.0f, 3.0f), 4.0f, RTTol));
-
-	// Chiedere MENO di quanto il tetto impone non rallenta: il tetto e' un vincolo, non una preferenza.
-	TestTrue(TEXT("x2 sotto un cap da 3x -> vince il cap (3x)"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(2.0f, 3.0f), 3.0f, RTTol));
+	TestTrue(TEXT("la scelta passa cosi' com'e'"),
+		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(4.0f), 4.0f, RTTol));
 
 	// Guardie: un campo azzerato non deve fermare il playback (vale 1, non 0).
 	TestTrue(TEXT("velocita' scelta nulla -> trattata come x1"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(0.0f, 2.0f), 2.0f, RTTol));
+		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(0.0f), 1.0f, RTTol));
 	TestTrue(TEXT("velocita' scelta negativa -> trattata come x1"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(-3.0f, 1.0f), 1.0f, RTTol));
-	TestTrue(TEXT("cap nullo -> trattato come 1x, la scelta passa"),
-		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(2.0f, 0.0f), 2.0f, RTTol));
+		FMath::IsNearlyEqual(URTPlaybackLibrary::EffectivePlaybackSpeed(-3.0f), 1.0f, RTTol));
+
+	return true;
+}
+
+// --- PhaseTime: i due termini ---------------------------------------------------------------
+//
+// 🔑 **L'invariante che questo test protegge non e' un valore, e' un rapporto**: `Total()` deve continuare
+// a valere quanto `PhaseDuration` valeva PRIMA della separazione, fase per fase. Se un giorno lo slack
+// smettesse di essere una differenza nel Blast — se diventasse `AttackTime` — questo test cadrebbe sulla
+// riga del Blast e non altrove, ed e' il modo in cui dice PERCHE' e' una differenza.
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackPhaseTimeSplitTest,
+	"RefactorTactics.Playback.PhaseTimeSplitsLocomotionFromSlack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
+{
+	// Move: 4 celle a 2 celle/s = 2 s, tutto movimento. Non c'e' attesa da togliere, e toglierla sarebbe
+	// accelerare i cilindri — che e' esattamente cio' che #1878 vieta.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Move, /*MaxSeg*/ 4, /*Attacks*/ 0, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("Move: 2 s di locomozione"), FMath::IsNearlyEqual(T.Locomotion, 2.0f, RTTol));
+		TestTrue(TEXT("Move: nessuno slack"), FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
+	}
+
+	// Prep: un beat, ed e' attesa per intero.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Prep, 0, 0, 2.f, 0.5f, /*Beat*/ 0.3f);
+		TestTrue(TEXT("Prep: nessuna locomozione"), FMath::IsNearlyEqual(T.Locomotion, 0.0f, RTTol));
+		TestTrue(TEXT("Prep: il beat e' tutto slack"), FMath::IsNearlyEqual(T.Slack, 0.3f, RTTol));
+	}
+
+	// Blast dominato dai COLPI: 4 colpi x 0,5 s = 2 s contro 0,5 s di spinta. Lo slack e' la DIFFERENZA
+	// (1,5 s), non i 2 s dei colpi: il primo mezzo secondo di lettura e' gia' occupato dallo scivolamento.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 1, /*Attacks*/ 4, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("Blast: la spinta e' locomozione"), FMath::IsNearlyEqual(T.Locomotion, 0.5f, RTTol));
+		TestTrue(TEXT("Blast: lo slack e' l'ECCEDENZA dei colpi sulla spinta"),
+			FMath::IsNearlyEqual(T.Slack, 1.5f, RTTol));
+		TestTrue(TEXT("Blast: il totale resta Max(colpi, spinta)"),
+			FMath::IsNearlyEqual(T.Total(), 2.0f, RTTol));
+	}
+
+	// Blast dominato dalla SPINTA: 6 celle a 2 celle/s = 3 s contro 1 colpo da 0,5 s. Nessuna eccedenza,
+	// quindi nessuno slack: il budget non ha niente da togliere e la spinta non puo' accelerare.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 6, /*Attacks*/ 1, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("Blast: spinta dominante -> 3 s di locomozione"),
+			FMath::IsNearlyEqual(T.Locomotion, 3.0f, RTTol));
+		TestTrue(TEXT("Blast: spinta dominante -> nessuno slack da comprimere"),
+			FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
+	}
+
+	// L'invariante di compatibilita': su ogni fase, la somma dei termini E' il vecchio numero.
+	{
+		const ERTMatchPhase Phases[] = { ERTMatchPhase::Prep, ERTMatchPhase::Dash,
+			ERTMatchPhase::Blast, ERTMatchPhase::Move, ERTMatchPhase::Cleanup };
+		for (const ERTMatchPhase Ph : Phases)
+		{
+			const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(Ph, 3, 2, 2.f, 0.5f, 0.3f);
+			const float Duration = URTPlaybackLibrary::PhaseDuration(Ph, 3, 2, 2.f, 0.5f, 0.3f);
+			TestTrue(TEXT("Total() e PhaseDuration non possono divergere"),
+				FMath::IsNearlyEqual(T.Total(), Duration, RTTol));
+		}
+	}
 
 	return true;
 }
