@@ -196,6 +196,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBudgetDoesNotSpeedUpLocomotionTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackBudgetDoesNotSpeedUpLocomotionTest::RunTest(const FString&)
 {
+	// ⚠️ **Deliberatamente NON `PlaybackCellsPerSecond` di default.** Il test verifica un rapporto fra due
+	// budget, non la taratura: legarlo al default lo farebbe cambiare significato a ogni ritocco del
+	// bilanciamento, e un valore alto e' anche il caso piu' severo perche' lascia meno margine al tick.
 	const float Base = 6.5f;
 
 	// Budget larghissimo: non ha nulla da comprimere. E' la velocita' di riferimento.
@@ -281,7 +284,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBudgetSpeedReportTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackBudgetSpeedReportTest::RunTest(const FString&)
 {
-	// I tre valori che #1878 chiede di provare, piu' il default in vigore come riferimento.
+	// I tre valori che #1878 chiedeva di provare, piu' il vecchio default come riferimento storico.
+	// 📌 Provati a schermo il 2026-09-02: `1.35` e `1.65` lente, **`2.00` scelta** — ed e' il default da
+	// quel giorno. `6.5` resta in tabella perche' e' la velocita' che ha originato la segnalazione, e
+	// vedere i due estremi accanto e' meta' del valore del referto.
 	const float Rates[] = { 6.5f, 2.00f, 1.65f, 1.35f };
 
 	for (const float Rate : Rates)

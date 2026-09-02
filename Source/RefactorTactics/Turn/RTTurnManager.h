@@ -683,9 +683,26 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	bool bEnablePlayback = true;
 
-	/** Velocita' di scorrimento dei cilindri nel Move (celle al secondo). */
+	/**
+	 * Velocita' di scorrimento dei modelli nelle fasi che muovono (celle al secondo).
+	 *
+	 * 🔑 **`2.0` scelto a schermo il 2026-09-02, non per simmetria** (`#1878`). Il product owner ha
+	 * osservato in PIE i tre valori che la issue chiedeva di provare, sulla partita vera: **`1.35` e `1.65`
+	 * sono risultate lente**, `2.00` la migliore. Il valore precedente — `6.5`, cioe' `0,15 s` per cella —
+	 * e' la velocita' che ha originato la segnalazione *«dopo il Planning i personaggi sembrano andare in
+	 * fast-forward»*.
+	 *
+	 * 📐 Cosa costa, misurato da `RefactorTactics.Playback.LocomotionSpeedReportForTuning`: sul percorso di
+	 * prova la risoluzione passa da **0,78 s a 2,52 s**. E' dentro la banda 8-15 s dichiarata per il 2v2 da
+	 * `spec-durata-partita-e-scala-mappe.md` §9.
+	 *
+	 * ⚠️ **Cambiarlo NON accelera piu' nulla di nascosto.** Fino al 2026-09-02 il tetto di durata poteva
+	 * sovrascrivere questa velocita' da se'; ora comprime le attese e lascia intatto cio' che si vede, quindi
+	 * il numero scritto qui e' il numero che si osserva — lo pinna
+	 * `RefactorTactics.Playback.BudgetDoesNotSpeedUpLocomotion`.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
-	float PlaybackCellsPerSecond = 6.5f;
+	float PlaybackCellsPerSecond = 2.0f;
 
 	/** Pausa tra una fase e la successiva (secondi). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")

@@ -186,7 +186,7 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 
 | Parametro | Default (compatto) | Effetto |
 |-----------|--------------------|---------|
-| `PlaybackCellsPerSecond` | `~6.5` (≈0.15 s/cella) | velocità di scorrimento dei cilindri nel Move |
+| `PlaybackCellsPerSecond` | **`2.0`** (0,5 s/cella) — ~~`6.5`~~ fino al 2026-09-02 | velocità di scorrimento dei modelli nelle fasi che muovono |
 | `PhaseBeatSeconds` | `~0.30` | pausa tra una fase e la successiva |
 | `AttackShowSeconds` | `~0.50` | durata di visualizzazione di un colpo + numero di danno |
 | `MaxPlaybackSeconds` | `~12` | oltre soglia → **le ATTESE si comprimono**, la locomozione no |
@@ -228,6 +228,28 @@ Parametri `UPROPERTY(EditAnywhere)` sul TurnManager → tuning **in editor senza
 >
 > ⚠️ Il riferimento «(PDF p.4)» nella tabella non è un'autorità: `CLAUDE.md` §1 esclude i PDF. Resta come
 > traccia di provenienza, non come fonte.
+>
+> ### 📌 Taratura del 2026-09-02 — `PlaybackCellsPerSecond` passa da `6.5` a `2.0`
+>
+> 🔑 **Scelto a schermo, non per simmetria.** Il product owner ha osservato in PIE i tre valori che `#1878`
+> chiedeva di provare, sulla partita vera: **`1.35` e `1.65` sono risultate lente**, `2.00` la migliore.
+> `6.5` — cioè `0,15 s` per cella — è la velocità che aveva originato la segnalazione *«dopo il Planning i
+> personaggi sembrano andare in fast-forward»* del 2026-08-30.
+>
+> **Cosa costa**, dal referto di `RefactorTactics.Playback.LocomotionSpeedReportForTuning`: sul percorso di
+> prova la risoluzione passa da **0,78 s a 2,52 s**, dentro la banda 8-15 s che §9 di
+> [`spec-durata-partita-e-scala-mappe.md`](spec-durata-partita-e-scala-mappe.md) dichiara per il 2v2.
+>
+> ⚠️ **Il numero scritto è il numero che si osserva.** Prima della separazione fra `Shown` e `Slack` il
+> tetto poteva sovrascrivere questa velocità da sé, e a rate bassi lo avrebbe fatto — rendendo questa
+> taratura inefficace. È la ragione per cui le due metà di `#1878` sono state consegnate insieme.
+>
+> 📋 **Osservazione di playtest raccolta nella stessa seduta, e non è un bug**: rallentando il movimento, il
+> **confine fra un turno e il successivo smette di essere leggibile**. Con il movimento quasi istantaneo il
+> ciclo era un lampo e non c'era nulla da confondere; ora il movimento è un evento che dura, e il ritorno
+> immediato al Planning sembra la sua continuazione. Misurato sul log: cinque movimenti letti come «lo
+> stesso turno» erano i turni **2, 3, 4, 5 e 6**, ciascuno con il proprio lock-in. Il `Round %d` a schermo
+> c'è (`RTHUD.cpp`) e non basta.
 
 ## 7. Batching (DECISO: Move in parallelo)
 
