@@ -257,6 +257,29 @@ Può mostrare:
 - countdown;
 - cambio recente.
 
+### Cosa è atterrato — `CP 10.2`, `#75`
+
+⏱️ *Misurato il 2026-09-02.* Il **punteggio** e la **soglia** hanno raggiunto il codice; il resto di questa
+lista resta progetto.
+
+| Voce | Dove | Stato |
+|---|---|---|
+| Punteggio per squadra | `FRTMatchHeaderView::Team0Score` · `Team1Score` | ✅ nel ViewModel, misurato da `HudViewModel.ObjectiveProgressReachesTheHud` |
+| Soglia di vittoria | `FRTMatchHeaderView::ScoreToWin`, dal **formato** | ✅ stessa disciplina di `RoundLimit`: `0` = via per obiettivo **disattivata**, non «si vince a zero» |
+| Riga disegnata | `ARTHUD::DrawHUD`, barra di stato: `Obiettivo 2-1 (a 3)` | ✅ in Canvas, dietro `rt.HUD.CanvasPanels` |
+| Nome · stato · contestato · countdown · cambio recente | — | ⏳ progetto |
+
+⚠️ **La riga si mostra solo se la mappa dichiara un obiettivo.** Su una mappa che non ne ha, `0-0` non
+sarebbe una parità: sarebbe un punteggio inventato per una gara che non si sta correndo. È la stessa
+reticenza del resolver, che non scrive la voce di TurnLog senza `HasObjectiveCell()` — e che
+`Objectives.SilentWithoutObjectiveCell` misura già.
+
+⚠️ **Interi a entrambe le estremità.** Il tipo non è una scelta di presentazione: un `float` renderebbe il
+numero mostrato dipendente dall'ordine delle somme, e la vista smetterebbe di poter dire *la stessa cosa*
+che dice il TurnLog invece di una cosa simile. È la metà della riga di DoD di CP 10.2 che chiedeva il
+progresso «nell'HUD **e** nel TurnLog»: fino a `#75` solo la seconda era vera, e `GetTeamScore` aveva per
+lettori lo Scenario Harness e l'hash di stato, nessun widget.
+
 ## 6.4 Lower left — Selected Unit
 
 Per l'unità selezionata:
